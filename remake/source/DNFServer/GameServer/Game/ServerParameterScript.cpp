@@ -858,6 +858,16 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
     // 共 16（4.4 对局部空析构发射 D1 调用，ORIG 4.1 内联省略；D1 W 符号必须保留
     // ⇒ N91 封顶）②ScanInt +1（1 处多余读取，逐段槽序不可分辨，N82 封顶）。
     // ndiff 主体为 N82（帧/槽复用）与 N89（STL out-of-line 实例）。
+    // [接手复核 TakeSrvParam 2026-09-09，p167_callsite.py 修正版（旧版在 stripped
+    // ORIG 上有假 CLEAR）] 派单假设「我方把若干段合并 ⇒ ORIG-only 游戏 callee 非空」
+    // 经修正版工具证伪：ORIG 558 / OUR 574 calls，差集仅 C2↔C1、D2↔D1 代际命名
+    // （附二 §2 豁免），归一后 = 0。派单点名项逐项实测：ScanFloat 23/23（ORIG
+    // 0x8a8723f…0x8a8c145 与我方 0x2e2a…0x7e61 地址间隔同构，无合并/改形）、
+    // GetEquipmentTypeStringToEnum 1/1、logFormat 2/2、stServerIndex 10/10、
+    // sItemGenRef 6/6。分支标签集：ORIG .rodata 137 项 vs 本源码 137 项全覆盖
+    // （0 缺段）。gap = 4615 − 4742 = −127（我方多）：+16 call 全为局部空析构 D1
+    // （N91），帧 0x54c vs 0x55c（N82）；fstps 23/23。⇒ guide §6.2 判「语义完成、
+    // byte 层 N 封顶」，勿再重复派工本件。
     if (!loadRDARScriptFile("", path))
     {
         return false;

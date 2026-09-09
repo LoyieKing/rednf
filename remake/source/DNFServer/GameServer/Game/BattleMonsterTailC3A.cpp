@@ -289,9 +289,7 @@ int CBattle_Field::getAddChampionMobCnt()
     // （0x18c Width 先载 ecx、0x190 Height 后载 ebx、setg 物化）——嵌套 if 形。
     if (m_pMap->m_12c == 0)
     {
-        register bool denser asm("al") =
-            (baseCnt * 100 / (m_mapWidth * m_mapHeight) > get_rand_int(100));
-        if (denser)
+        if (({ baseCnt * 100 / (m_mapWidth * m_mapHeight) > get_rand_int(100); }))
             championCnt += 1;
     }
     return championCnt;

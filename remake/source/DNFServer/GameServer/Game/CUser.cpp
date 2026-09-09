@@ -9979,8 +9979,11 @@ void CUser::processDelDailyItem()
         indices[i] = ((InterfacePacketBuf*)&pkts[i])->get_index();
         ((InterfacePacketBuf*)&pkts[i])->put_short(0);
     }
-    for (std::vector<std::pair<int, int> >::const_iterator it = list.begin();
-         it != list.end(); ++it)
+    // ORIG 0x0867e268..0x0867e2bd：begin()/end() 各在循环外构造一次 const_iterator
+    // 局部（local_90/local_94）；循环内只调 operator!=(const_iterator, const_iterator)。
+    std::vector<std::pair<int, int> >::const_iterator it = list.begin();
+    std::vector<std::pair<int, int> >::const_iterator itEnd = list.end();
+    for (; it != itEnd; ++it)
     {
         const int space = it->first;
         const int slot = it->second;

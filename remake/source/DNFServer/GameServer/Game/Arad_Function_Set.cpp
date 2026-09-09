@@ -32,40 +32,34 @@ namespace ARAD
 // ---- PRINT_ERROR::isEmpty @ 0x08197ba4 ------------------------------------
 void PRINT_ERROR::isEmpty(char* tag, CUser* user, unsigned short slot)
 {
-    register unsigned int characNo __asm__("eax") =
-        (unsigned int)user->getCurCharacNo();
     LogManager::logFormat(
         1, "localjapan/Arad_Function_Set.cpp",
         __PRETTY_FUNCTION__,
         0x29d,
         "%s : isEmpty() [slot:%d] [charac_no:%d]",
-        tag, (unsigned int)slot, characNo);
+        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
 }
 
 // ---- PRINT_ERROR::CheckItemLock @ 0x08197bfd -------------------------------
 void PRINT_ERROR::CheckItemLock(char* tag, CUser* user, unsigned short slot)
 {
-    register unsigned int characNo __asm__("eax") =
-        (unsigned int)user->getCurCharacNo();
     LogManager::logFormat(
         1, "localjapan/Arad_Function_Set.cpp",
         __PRETTY_FUNCTION__,
         0x2a2,
         "%s : CheckItemLock() fail [slot:%d] [charac_no:%d]",
-        tag, (unsigned int)slot, characNo);
+        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
 }
 
 // ---- PRINT_ERROR::delete_item @ 0x08197c56 ---------------------------------
 void PRINT_ERROR::delete_item(char* tag, CUser* user, unsigned short slot)
 {
-    register unsigned int characNo __asm__("eax") =
-        (unsigned int)user->getCurCharacNo();
     LogManager::logFormat(
         1, "localjapan/Arad_Function_Set.cpp",
         __PRETTY_FUNCTION__,
         0x2a7,
         "%s : delete_item() [slot:%d] [charac_no:%d]",
-        tag, (unsigned int)slot, characNo);
+        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
 }
 
 // ---- notifySystemMessage @ 0x08197d00（objdump 转写【推断】）-----------------

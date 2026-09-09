@@ -260,8 +260,7 @@ bool CDBMsgSender::ChangeOwner(Inven_Item* item, int characNo, int slot,
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    register char* compatEax asm("eax") = (char*)buf;
-    reinterpret_cast<Inven_Item_Compatible*>(compatEax + 4)->setCopy(*item);
+    reinterpret_cast<Inven_Item_Compatible*>((char*)buf + 4)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
     buf->m_reason = (unsigned char)reason;            // +0x51
     buf->m_characNo = characNo;                       // +0x48
@@ -285,8 +284,7 @@ bool CDBMsgSender::ChangeSlotNo(Inven_Item* item, int characNo, int slot,
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    register char* compatEax asm("eax") = (char*)buf;
-    reinterpret_cast<Inven_Item_Compatible*>(compatEax + 4)->setCopy(*item);
+    reinterpret_cast<Inven_Item_Compatible*>((char*)buf + 4)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
     buf->m_reason = (unsigned char)reason;            // +0x51
     buf->m_characNo = characNo;                       // +0x48
@@ -308,8 +306,7 @@ bool CDBMsgSender::AuctionRegist(Inven_Item* item, int characNo, int unused14,
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    register char* compatEax asm("eax") = (char*)buf;
-    reinterpret_cast<Inven_Item_Compatible*>(compatEax + 4)->setCopy(*item);
+    reinterpret_cast<Inven_Item_Compatible*>((char*)buf + 4)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
     buf->m_reason = (unsigned char)reason18;          // +0x51 ← p3(@0x18)
     buf->m_characNo = characNo;                       // +0x48

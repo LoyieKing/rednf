@@ -1348,6 +1348,9 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
     for (it = rewards.begin(); it != rewards.end(); )
     {
         std::pair<Inven_Item, bool> it2 = *it;               // 整体拷贝（pair 视图，62B）
+        // [DualCUOO] ORIG 0x0867645c `movl $0xffffffff,-0x14(%ebp)`：r 在循环体开头
+        // 声明并初始化，两个分支内改为赋值（0x08676652 / 0x0867671f 均 `mov %eax,-0x14`）。
+        int r = -1;
         // [DualCUOO 2026-09-09] ORIG 0x0867646a `mov -0xaa(%ebp),%eax; cmp $0x1,%eax`
         // （对象起始 -0xac ⇒ +0x02 的 dword）⇒ 源码是 m_addInfo == 1；旧「+4 u16 视图」
         // 读的是 m_addInfo 高 16 位，与 ORIG 语义不同，按 ORIG 修正。
@@ -1377,13 +1380,13 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
                 return 0x11;
             if (!user_creature::CCreatureItemConverter::SetEggItem(&it2.first))
                 return 0x11;
-            int r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
+            r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
             if (r == -1) return 4;
             goto INSERT_OK;
         }
         else
         {
-            int r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
+            r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
             if (r == -1)
             {
                 ((CStackableItem*)opener)->get_multibox_default_item(&leftover);
@@ -12876,6 +12879,10 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
     // const CInventory& 传给 setCopy（同一 m_inven 子对象，两种视图同址）。
     inv.setCopy(*(const CInventory*)getCurCharacInvenRefR());
 
+    // [DualCUOO 2026-09-09 双判据 gap] ORIG 0x0868c5f9 `movzbl -0xca7c(%ebp),%eax`
+    // （param2 溢出槽）+ `xor $1; test; je 0868c6b7` ⇒ 源码此处另有 `if (!param2)`
+    // 包住 delete_item 与三个 push_back（param2 到此处恒 0，行为等价）。
+    if (!param2) {
     // +0x14a: inv.delete_item(1 /*INVEN_TYPE_EQUIP*/, mainSlot, count, 8, false)
     // +0x15d: 失败 -> 0x11（eItemDelReason 枚举缺成员 8，按 ORIG 立即数强转）
     if (!inv.delete_item(INVEN_TYPE_EQUIP, mainSlot,
@@ -12886,6 +12893,7 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
     updatedSlots.push_back(0);
     updatedSlots.push_back(mainSlot);
     updatedSlots.push_back((int)(unsigned int)count);
+    }
 
     // +0x1cf..+0x439: 材料循环（materials.size() 次）
     {

@@ -112,8 +112,7 @@ CSchoolMember::CSchoolMember(CUser* user)
 
 bool CSchoolMember::IsRight(CUser* user)
 {
-    register bool right asm("eax") = m_user->GetSchoolNo() == user->GetSchoolNo() && m_user != user;
-    return right;
+    return m_user->GetSchoolNo() == user->GetSchoolNo() && m_user != user;
 }
 
 // ============================================================================

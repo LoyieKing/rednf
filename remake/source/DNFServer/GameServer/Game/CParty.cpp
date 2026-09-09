@@ -5123,19 +5123,18 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS ActiveStaticInfo::getHpMax（1 次）。@0x85b5a4c
     IsCollectDungeonStatistic();
-    // P183 反向（ORIG 0x85b5a54..0x85b5e7c 实证）：ORIG 无 bf 缓存，每次
-    // `mov 0x8(%ebp),%eax; add $0xb24,%eax` 重取；skip/instantCheck 是 bool
-    // 表达式物化（mov $1/%0），不是 if 赋值；user 检查在 addCnt>2 之后。
-    bool skip = reinterpret_cast<CBattle_Field*>(&m_battleField)->IsClearDungeon() ||
-                dieInfo.m_fieldA22 != 0;
-    if (!skip)
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
+    bool skip = false;
+    if (bf.IsClearDungeon() || dieInfo.m_fieldA22 != 0)
+        skip = true;
+    if (!skip && user != 0)
     {
         int addCnt =
             reinterpret_cast<CTraceMobDieHack*>(&m_pad210)
                 ->addMonsterDamage(monsterIdx,
                                    (unsigned short)dieInfo.m_fieldF,
                                    (int)dieInfo.m_killValue2);
-        if (2 < addCnt && user != 0)
+        if (2 < addCnt)
         {
             WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
             hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0xc9, 1, 0, 0);
@@ -5143,8 +5142,7 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
     }
 
     bool doCrossCheck = true;
-    int dungIdx =
-        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
+    int dungIdx = bf.get_dungeon_index();
     if (dungIdx == 0x3e || dungIdx == 0x3f || dungIdx == 0x40)
         doCrossCheck = false;
 
@@ -5207,11 +5205,13 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
         }
     }
 
-    bool instantCheck =
-        dieInfo.m_fieldA22 == 0 && monster.m_roleType < 4 &&
-        reinterpret_cast<CBattle_Field*>(&m_battleField)
-                ->GetCurrentMapInfo()
-                ->m_killChecker1.getUseSkillMaterialTime() == 0;
+    bool instantCheck = false;
+    if (dieInfo.m_fieldA22 == 0 && monster.m_roleType < 4)
+    {
+        MapInfo* mapInfo = bf.GetCurrentMapInfo();
+        if (mapInfo->m_killChecker1.getUseSkillMaterialTime() == 0)
+            instantCheck = true;
+    }
     if (instantCheck)
     {
         int level = 0;                                  // -0x10
@@ -5228,8 +5228,8 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
             hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x86, level, 0, 0);
         }
     }
-    if (reinterpret_cast<CBattle_Field*>(&m_battleField)->check_grid_clear())
-        reinterpret_cast<CBattle_Field*>(&m_battleField)->onClearMap(true);
+    if (bf.check_grid_clear())
+        bf.onClearMap(true);
 }
 
 // ============================================================================

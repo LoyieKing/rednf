@@ -536,11 +536,19 @@ MySQL* DB_Login::_GetDNFAccountDB()
 // 内联（`mov i,%eax; add%eax,%eax; add i,%eax; shl $3; lea(base,i); add $0x3a68; mov`
 // 逐读重算、无 CSE，0x0840f7xx 段实证）vs 4.4 恒 `imul $0x18` 单条 lea 合并 +
 // 三处 je/jne 块序（4.1 fall-through 反向）——表达式不可控（N81/N17 既定不可翻）。
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=438 gap=124（N82 帧 0x40↔0x90 + 上列 N81
-// SSORecord 索引展开；p167 CLEAR 56/56 语义完整，§6.2 三件套口径收）。
+// [DualArith 2026-09-09] verdict=DIFF gap=+5（orig 794 / ours 799；基线 ours 671
+// gap=124）。上列「4.4 恒 imul 单条 lea 合并、表达式不可控」系**误诊**：真因是旧码
+// `const SIG_LOGIN_PUNISH_INFO& e = sig->m_punishInfos[i];` 引用缓存让 4.4 只算一次
+// 基址。删缓存并把 endSec/curSec/punishCount/active/ret 一并内联后，4.4 逐点重算
+// `mov i; mov sig; mov i,%eax; add %eax,%eax; add i,%eax; shl $3; lea (sig,i); add $0x3a54`
+// ——与 ORIG 0840f865 起六条**逐条同形**，gap 124→+5。
+// 残余 +5 = 4.4 对 `return SendResult(...)`（bool 返回）发 `test %eax,%eax; setne %bl`
+// vs ORIG 4.1 直接 `mov %eax,%ebx`（0840f637 起 5 处 ×1 条）⇒ N 封顶（4.4 返回值规范化）。
+// p167 修正版：MISSING 仅 vector C2Ev×1/D2Ev×2、EXTRA 仅 C1Ev×1/D1Ev×2（附二 §2
+// C1↔C2 委托变体豁免，非缺 callee）。
 // ============================================================================
 
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=438 gap=124（N82/N81；p167 CLEAR 56/56）
+// [DualArith] verdict=DIFF gap=+5（orig 794 / ours 799；p167 差集仅 C1/C2 豁免项）
 bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userDbIdx, slot, stream))

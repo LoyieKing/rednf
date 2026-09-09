@@ -149,7 +149,7 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     // ORIG 8338657：xor $0x1 取反形（X1：bool 字段 register 取反，movzbl+test+je
     // 共享 else 块在后）；高 16 位提取走 union 拆半（P197①：整字落槽 -0x10 →
     // movzwl -0xe + cwtl 符号扩展直传 GetExpLevel）。
-    register unsigned char isNotGrow asm("eax") = m_isGrow;
+    unsigned char isNotGrow = m_isGrow;
     isNotGrow ^= 1;
     if (isNotGrow)
     {
@@ -213,7 +213,7 @@ bool CCreature::IsEvolutionCreature(int creatureId)
     // 返 0 块（X 族 bool 物化，register-bool 落 al 不落槽）。
     if (m_script != 0)
     {
-        register bool eq asm("al") = (m_script->GetEvolutionCreatureId() == creatureId);
+        bool eq = (m_script->GetEvolutionCreatureId() == creatureId);
         if (eq)
             return 1;
     }

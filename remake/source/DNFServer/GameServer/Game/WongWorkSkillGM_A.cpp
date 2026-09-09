@@ -47,10 +47,8 @@ bool CSkillChanger::CheckCondition(const CUser* user)
         G_CDataManager()->get_level_exp(user->get_charac_level() + 1));
     // 双物化岛：bVar1 = (c1||c2) 经 mov$1/mov$0，再 `return !bVar1` 二次物化
     // （+0x76 test %al;je / +0x7a mov$0 / +0x81 mov$1）。register bool 强制。
-    register bool b __asm__("al");
-    b = (user->getCurCharacExp() < levelExp)
-        || (nextLevelExp < user->getCurCharacExp());
-    if (b)
+    if (({ (user->getCurCharacExp() < levelExp)
+            || (nextLevelExp < user->getCurCharacExp()); }))
         return false;
     return true;
 }

@@ -449,7 +449,17 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
                     m_party->getManager(),
                     static_cast<BlueMarbleBuffType::T>(2));
                 // ORIG -0x9b/-0x98/-0x94/-0x90（blueActive/job/level/buff2）
-                // 写后无读取：死存储，保留语义注释即可。
+                // 写后无读取，但 ORIG 逐处重调 getManager 并调用
+                // get_charac_job/get_charac_level（p167 ORIG-only callee 实证；
+                // P183 禁缓存 ⇒ 原样内联重取）。
+                const char blueActive = 1;
+                const int blueJob = m_party->getManager()->get_charac_job();
+                const int blueLevel = m_party->getManager()->get_charac_level();
+                const int blueBuff2Stored = blueBuff2;
+                (void)blueActive;
+                (void)blueJob;
+                (void)blueLevel;
+                (void)blueBuff2Stored;
             }
         }
     }
@@ -465,12 +475,11 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
         *reinterpret_cast<signed char*>(&m_pDungeon->m_89e) != 0;
     const bool notBoss = mob.m_isBoss != 1;
 
-    WongWork::CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
-
     // ---- 条件生成 1：普通图随机生成（ORIG +0x2e4..+0x32d，gen0.random） ----
     if (!dimFlag && !ultFlag && notBoss)
     {
-        genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0)
+        G_CDataManager()->getItemGenerator()->getGenerator(
+                WongWork::CItemGeneratorMgr::eGenerateType_0)
             ->generateRandomItem(ref, result);
     }
 
@@ -498,13 +507,15 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
     // ---- 条件生成 2：普通图指定生成（ORIG +0x42b..+0x47c，gen0.specific） --
     if (notBoss || bloodFlag)
     {
-        genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0)
+        G_CDataManager()->getItemGenerator()->getGenerator(
+                WongWork::CItemGeneratorMgr::eGenerateType_0)
             ->generateSpecificItem(ref, result);
     }
 
     // ---- 无条件：getDropItems 槽写入 + gen4.specific（ORIG +0x47e..+0x4cd）-
     *reinterpret_cast<void**>(refBlob + 0x34) = m_pDungeon->getDropItems();
-    genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
+    G_CDataManager()->getItemGenerator()->getGenerator(
+            WongWork::CItemGeneratorMgr::eGenerateType_4)
         ->generateSpecificItem(ref, result);
 
     refBlob[0x35] = mobBlob[0x10];                                   // +0x35 ← level
@@ -521,7 +532,7 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
                 + dieReason - 1);
             for (int i = 0; i < cnt; ++i)
             {
-                genMgr
+                G_CDataManager()->getItemGenerator()
                     ->getGenerator(
                         WongWork::CItemGeneratorMgr::eGenerateType_3)
                     ->generateRandomItem(ref, result);
@@ -529,7 +540,8 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
         }
         else
         {
-            genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_3)
+            G_CDataManager()->getItemGenerator()->getGenerator(
+                    WongWork::CItemGeneratorMgr::eGenerateType_3)
                 ->generateRandomItem(ref, result);
         }
     }
@@ -541,14 +553,16 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
             && bfkcIsEventing(GlobalData::s_event_manager->GetRepeatEvent(0x16))
             && m_party->hasPCRoomPlayer() && notBoss)
         {
-            genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_5)
+            G_CDataManager()->getItemGenerator()->getGenerator(
+                    WongWork::CItemGeneratorMgr::eGenerateType_5)
                 ->generateRandomItem(ref, result);
         }
         if (m_party != 0
             && bfkcIsEventing(GlobalData::s_event_manager->GetRepeatEvent(0x30))
             && m_party->hasPCRoomPlayer() && notBoss)
         {
-            genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_6)
+            G_CDataManager()->getItemGenerator()->getGenerator(
+                    WongWork::CItemGeneratorMgr::eGenerateType_6)
                 ->generateRandomItem(ref, result);
         }
     }
@@ -556,7 +570,8 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
     // ---- 条件生成 6：PC 房玩家追加（ORIG +0x726..+0x76f，gen7.random） -----
     if (m_party != 0 && m_party->hasPCRoomPlayer())
     {
-        genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_7)
+        G_CDataManager()->getItemGenerator()->getGenerator(
+                WongWork::CItemGeneratorMgr::eGenerateType_7)
             ->generateRandomItem(ref, result);
     }
 

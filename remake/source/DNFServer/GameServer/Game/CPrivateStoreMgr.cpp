@@ -1489,17 +1489,20 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
         areaNo = user->get_area(false);
         area = village->getArea(areaNo);
         // [b28d-solo] ORIG 0x85c5251 `cmp -0x18,0; sete al; test; jne 继续`。
-        // [DualStore] ORIG 0x085c5274..0x085c529e 为 `getArea call failed (area no:%d)`
-        // 的 cMyTrace 块（P167 新版 MISSING cMyTrace::operator() ×1）⇒ 按 ORIG
-        // 源码形复现（while 形改 if + trace）。
+        while (area == 0)
+            return false;
+
+        if (area->m_villageIndex == 2 && area->m_areaIndex == 0)
+            return true;
+        // [DualStore] ORIG 0x085c5274..0x085c529e 的 `getArea call failed (area no:%d)`
+        // cMyTrace 块在 ORIG 侧无任何跳转入口（0x85c526e `jmp 0x85c531a` 直接跳过），
+        // 但其 P167 调用点确实存在（新版 p167 MISSING cMyTrace::operator() ×1）。
+        // 按 ORIG 形复现该块：上方 while 已拦 area==0 ⇒ 此条件恒假，运行时行为不变。
         if (area == 0)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x24c, 5)("getArea call failed (area no:%d)", areaNo);
             return false;
         }
-
-        if (area->m_villageIndex == 2 && area->m_areaIndex == 0)
-            return true;
         if (area->m_areaType == 4)
             return false;
         return true;

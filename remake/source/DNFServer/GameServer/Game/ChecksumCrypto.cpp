@@ -110,9 +110,10 @@ int CNChecksumMd5::MakeChecksumFromMemory(unsigned char const* data, int len,
         return CKS_ERR_NOSTATE;
     if (outSize < GetChecksumSize())
         return CKS_ERR_BUFSIZE;
-    ChecksumStart();
-    ChecksumUpdate(data, len);
-    ChecksumFinish(out, outSize);
+    md5_starts(reinterpret_cast<md5_context*>(m_ctx));
+    md5_update(reinterpret_cast<md5_context*>(m_ctx),
+               const_cast<unsigned char*>(data), len);
+    md5_finish(reinterpret_cast<md5_context*>(m_ctx), out);
     return CKS_OK;
 }
 
@@ -139,16 +140,16 @@ int CNChecksumMd5::MakeChecksumFromFile(char const* path, unsigned char* out,
     std::fseek(fp, 0, SEEK_SET);
 
     unsigned char buf[1024];
-    ChecksumStart();
+    md5_starts(reinterpret_cast<md5_context*>(m_ctx));
     for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
         size_t chunk = (unsigned long)fileLen - off;
         if (chunk > sizeof(buf))
             chunk = sizeof(buf);
         std::fread(buf, chunk, 1, fp);
-        ChecksumUpdate(buf, (int)chunk);
+        md5_update(reinterpret_cast<md5_context*>(m_ctx), buf, (int)chunk);
         off += (unsigned long)chunk;
     }
-    ChecksumFinish(out, outSize);
+    md5_finish(reinterpret_cast<md5_context*>(m_ctx), out);
     std::fclose(fp);
     return CKS_OK;
 }

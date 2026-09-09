@@ -100,6 +100,9 @@ bool ARAD::SCRIPT::AvatarFixedHiddenOption::isMaterialItemIndex(int itemIndex)
 // `if (inited) return false` 不触发），再由公共尾 leave + inited=true + goto 循环头
 // 重查，第二次进入 switch 才按 map 查得的 key 执行正常动作；default 同时承担
 // find 未命中（key==-1）的 false 返回。
+// [DualArith 2026-09-09] gap 172→0（orig 977 / ours 977；基线 ours 805）。
+// p167 修正版：MISSING/EXTRA 全为 C2↔C1 委托变体（pair/map/SpinLock/const_iterator/
+// STAvatarHiddenAbilityVariation ctor），附二 §2 豁免，无真缺 callee。
 bool ARAD::SCRIPT::AvatarFixedHiddenOption::parseAbility(
     std::vector<STAvatarHiddenAbilityVariation>& variations, std::string& tag)
 {

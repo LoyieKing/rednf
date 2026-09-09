@@ -71,8 +71,7 @@ TutorialData* GlobalScriptTutorial::getData(int index)
     if (!(index < 11 && index >= 0))
         return 0;
     {
-        register bool isZero asm("al") = m_data[index].getDungeonIndex() == 0;
-        if (isZero)
+        if (({ m_data[index].getDungeonIndex() == 0; }))
             return 0;
         return &m_data[index];
     }

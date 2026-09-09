@@ -26329,13 +26329,15 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return 1;
     }
 
+    // ORIG 0x081e6bbc：经 CItem::GetDyeInfo()（0x0822c86e）取 DyeInfo 指针。
     const UseDyeDyeInfoView& dye =
-        *reinterpret_cast<const UseDyeDyeInfoView*>(&dyeDef->m_dyeInfo9c);
+        *reinterpret_cast<const UseDyeDyeInfoView*>(dyeDef->GetDyeInfo());
     if (dye.m_field0 == 0 || dye.m_vec4.empty())
     {
         return 1;
     }
-    std::map<int, AvatarVariation::colorRGB>::const_iterator colorIt =
+    // ORIG 0x081e6c0a/0x081e6c5c：非 const iterator（_Rb_tree_iterator::operator==）。
+    std::map<int, AvatarVariation::colorRGB>::iterator colorIt =
         G_CDataManager()->m_avatarColor.m_colorMap.find(dye.m_vec4[0].first);
     if (colorIt == G_CDataManager()->m_avatarColor.m_colorMap.end())
     {
@@ -26364,10 +26366,10 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     const short oldColorA = reinterpret_cast<const short*>(expansion)[0];
     const short oldColorB = reinterpret_cast<const short*>(expansion)[1];
 
-    WongWork::CAvatarItemMgr* mgrW = user->getCurCharacInvenW()->GetAvatarItemMgrW();
+    // ORIG 0x081e6d4c/0x081e6e2c：两处各自 getCurCharacInvenW()->GetAvatarItemMgrW()（P183）。
     const bool applied =
-        mgrW->SetAvatarColor(targetItem.m_addInfo,
-                             static_cast<short>(dye.m_vec4[0].first), 0);
+        user->getCurCharacInvenW()->GetAvatarItemMgrW()->SetAvatarColor(
+            targetItem.m_addInfo, static_cast<short>(dye.m_vec4[0].first), 0);
     if (!applied)
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1f3), 1);
@@ -26382,7 +26384,8 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     if (!deleted)
     {
         // 删除失败：回滚头像颜色并报错
-        mgrW->SetAvatarColor(targetItem.m_addInfo, oldColorA, oldColorB);
+        user->getCurCharacInvenW()->GetAvatarItemMgrW()->SetAvatarColor(
+            targetItem.m_addInfo, oldColorA, oldColorB);
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1f3), 0x11);
         return LineFunc(0x629b,
                         __PRETTY_FUNCTION__,
@@ -26402,7 +26405,7 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             static_cast<unsigned char>(dye.m_vec4[0].first & 0xff),
             static_cast<unsigned char>((dye.m_vec4[0].first >> 8) & 0xff),
             0, 0 };
-        packet.put_binary(const_cast<char*>(reinterpret_cast<const char*>(raw)), 4);
+        packet.put_binary(reinterpret_cast<const char*>(raw), 4);
     }
     packet.finalize(true);
     user->Send(packet);

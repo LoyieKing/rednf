@@ -182,8 +182,7 @@ bool CUser::defaultSkillCommand()
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
             const_cast<char*>(getSkillCommand()));
     // R 无槽：register bool 绑 %eax（P194②/P78），4.4 常量岛直落 eax+test %al。
-    register bool emptyOrNone asm("eax") = (cmds == 0) || cmds->empty();
-    if (emptyOrNone)
+    if (({ (cmds == 0) || cmds->empty(); }))
         return false;
     cmds->clear();
     enableSaveSkill();

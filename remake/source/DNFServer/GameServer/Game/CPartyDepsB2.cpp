@@ -119,7 +119,7 @@ void CParty::die_user(CUser* user)
         // test %al,%al; je big` 有 je 消费者）；块布局按 ORIG：live 非零（arr==0）
         // fall 走 0x12 区、je 后跳到 big 区（技巧 17 fall-through 块在前）——
         // `if(!live){big}else{0x12}` 写法 4.4 反产 jne+fall=big 极性镜像。
-        register unsigned char live asm("eax") = m_battleData.m_arr54[slot];
+        unsigned char live = m_battleData.m_arr54[slot];
         live ^= 1;
         if (live)                       // +0x380[slot]==0 → 0x12 回执
         {
@@ -168,7 +168,7 @@ void CParty::finish_loading(CUser* user)
         // ORIG 0x085b15e0 域：`movzbl 0xb10(%edx,%eax,1); xor $0x1,%eax; test; je`
         // 具名 m_arr7e4 消裸偏移后 scale 单段 ✓；裸 `!field` 4.4 产 test;jne 缺
         // xor ⇒ X2 判据③有消费者，register uchar 绑 %eax + `^=1` 形。
-        register unsigned char fv asm("eax") = m_battleData.m_arr7e4[i];
+        unsigned char fv = m_battleData.m_arr7e4[i];
         fv ^= 1;
         // 【三次改写】ORIG 0x85b170a 域为平铺 continue 链：xor;test;je 循环尾 →
         // call;test;je 循环尾 → movb 直落 addl（无 jmp/nop 汇聚中继）。

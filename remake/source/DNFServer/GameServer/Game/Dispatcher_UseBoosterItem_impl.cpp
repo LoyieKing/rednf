@@ -40,6 +40,12 @@
 // SelectGrowthWeapon T 0x080f73be，实现见 GrowthEquipEvent.cpp。
 #include "GrowthEquipEvent.h"
 
+// ORIG 自由函数 LineFunc(int, const char*, int, unsigned int) @0x085908d7 T；
+// 权威声明见 CompoundEmblemDeps.h，定义由 CompoundEmblemDeps.cpp 提供。
+extern int LineFunc(int line, const char* func, int errNo, unsigned int mid);
+
+#include "GameTypes.h"           // cMyTrace（ORIG 0x0854f718 C1 / 0x0854f788 operator()）
+
 // ============================================================================
 // 本类三个辅助方法（Dispatchers.h 已声明；行为忠实 ORIG）。
 // ============================================================================
@@ -113,12 +119,11 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     short slot = -1;
     if (!packet.get_short(slot))
-        return 0;   // LineFunc(0xa436)
+        return LineFunc(0xa436, __PRETTY_FUNCTION__, 0, 0);
 
-    // 交易/私人商店中禁止使用
+    // 交易/私人商店中禁止使用（ORIG 短路或：GetInstancePrivateStoreMgr 只调一次）
     if (user->CheckInTrade() ||
-        (private_store::GetInstancePrivateStoreMgr() != 0 &&
-         private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user)))
+        private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0x13);
         return 0;
@@ -142,7 +147,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
     if (stackable != 0)
         itemType = stackable->GetItemType();
     if (stackable == 0 || (itemType != 0x10 && itemType != 0x22))
-        return 0;   // LineFunc(0xa450)
+        return LineFunc(0xa450, __PRETTY_FUNCTION__, 0, 0);
 
     // 限制条件：罐子类型或 state==3 才允许
     if (itemId != 0x28d3c1 && user->get_state() != 3)
@@ -168,25 +173,31 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         // ---- 选择强化罐：先读两个字节（类别/类型），再在 Booster 表中定位 ----
         if (!packet.get_byte(c1))
-            return 0;   // LineFunc(0xa473)
+            return LineFunc(0xa473, __PRETTY_FUNCTION__, 0, 0);
         if (!packet.get_byte(c2))
-            return 0;   // LineFunc(0xa475)
+            return LineFunc(0xa475, __PRETTY_FUNCTION__, 0, 0);
 
-        // 在 stStackableBooster_t::m_map（+0x24c）里按 (c1,c2) 取值
-        std::map<std::pair<char, char>,
-                 std::vector<stStackableBoosterItemInfo_t> >& bmap =
+        // ORIG 0x08209036：Inven_Item 在 count 读取之前构造一次（循环外复用）。
+        Inven_Item add;
+
+        // 在 stStackableBooster_t::m_map（+0x24c）里按 (c1,c2) 取值。
+        // ORIG 走 const find/end + const_iterator（_ZNKSt3map…findERS8_）。
+        const std::map<std::pair<char, char>,
+                       std::vector<stStackableBoosterItemInfo_t> >& bmap =
             stackable->m_booster.m_map;
 
         int count = stackable->m_boosterSelect.m_field8;   // +0x26c
         if (count == 0)
         {
             std::map<std::pair<char, char>,
-                     std::vector<stStackableBoosterItemInfo_t> >::iterator it =
+                     std::vector<stStackableBoosterItemInfo_t> >::const_iterator it =
                 bmap.find(std::make_pair(c1, c2));
             if (it != bmap.end() && it->second.empty())
             {
-                // cMyTrace(...) "selectionBooster empty : %d, category:%d,%d\n"
-                return 0;   // LineFunc(0xa481)
+                cMyTrace(__PRETTY_FUNCTION__, 0xa480, 5)
+                    ("selectionBooster empty : %d, category:%d,%d\n",
+                     stackable->get_index(), (int)c1, (int)c2);
+                return LineFunc(0xa481, __PRETTY_FUNCTION__, 0, 0);
             }
             if (it != bmap.end())
                 count = (int)it->second.size();
@@ -195,13 +206,11 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
         int i = 0;
         while (i < count && i < 0x14)
         {
-            int itemIdx = 0;
-            if (!packet.get_int(itemIdx))
-                break;      // LineFunc(0xa48c)
-
-            Inven_Item add;
             add.reset();
-            add.m_addInfo  = itemIdx;
+            // ORIG get_int(unsigned long&) 直接写 add.m_addInfo（+0x02）。
+            if (!packet.get_int(reinterpret_cast<unsigned long&>(add.m_addInfo)))
+                return LineFunc(0xa48c, __PRETTY_FUNCTION__, 0, 0);
+
             add.m_addInfo2 = 1;
             resultItems.push_back(add);
             ++i;
@@ -249,7 +258,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
                 // ORIG CInventory::delete_item(inv, 1, slot, 1, eItemDelReason_3, 1)
                 if (!invW->delete_item(INVEN_TYPE_INVEN, (int)slot, 1,
                                        eItemDelReason_3, true))
-                    return 0;   // LineFunc(0xa4d3)
+                    return LineFunc(0xa4d3, __PRETTY_FUNCTION__, 0, 0);
             }
             user->_processContinuousItem((unsigned int)itemId, stackable);
             user->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, (int)slot);
@@ -266,7 +275,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
 
             if (!rt)
             {
-                return 0;   // LineFunc(0xa4f6)
+                return LineFunc(0xa4f6, __PRETTY_FUNCTION__, 0, 0);
             }
             else if (nProcess == 0)
             {
@@ -302,11 +311,15 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
                 pg.put_short((int)slot);
                 pg.put_int(slotItem.m_addInfo);
                 pg.put_short((int)resultItems.size());
-                for (std::vector<Inven_Item>::const_iterator it = resultItems.begin();
-                     it != resultItems.end(); ++it)
+                // ORIG 0x08209850..0x08209892：两个具名 const_iterator（begin/end
+                // 各自独立语句，转换构造 ×2），比较走 const 版 operator!=。
+                std::vector<Inven_Item>::const_iterator it = resultItems.begin();
+                std::vector<Inven_Item>::const_iterator itEnd = resultItems.end();
+                while (it != itEnd)
                 {
                     pg.put_int(it->m_addInfo);
                     pg.put_int(it->m_addInfo2);
+                    ++it;
                 }
                 pg.finalize(true);
                 user->Send(pg);
@@ -314,8 +327,10 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         else
         {
-            // 物品等级校验失败（cMyTrace "stackable item level check charac_no[%d], item_id(%d)"）
-            user->get_charac_no(-1);
+            // 物品等级校验失败（ORIG 0x082092b3：cMyTrace 临时链，实参右→左求值）
+            cMyTrace(__PRETTY_FUNCTION__, 0xa49b, 0)
+                ("stackable item level check charac_no[%d], item_id(%d)",
+                 user->get_charac_no(-1), itemId);
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0x13);
             return 0;
         }
