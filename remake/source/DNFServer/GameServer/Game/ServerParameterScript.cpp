@@ -847,16 +847,17 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
     // ptEv + 两分支 push_back + insert；② [training first give] m_map49c4[a]=1 →
     // insert；③ int,int make_pair → std::pair<int,int>(a,b)（9 点：m_vecMapped/
     // m_vecShareKind/m_vec0/m_vecc/m_vec18(blood)/ontime/vec/escalade×2）；④ [ontime
-    // event reward] break→return 0、去 unsigned short 中转、pair 直构；⑤ [drop upgrade
+    // event reward] pair 直构（该条原写的 break→return 0 系误改，见下方 TakeSrvParam
+    // 复核：ORIG 岛落点证 break，已回改）；⑤ [drop upgrade
     // rarity] rarity int→ENUM_RARITY（含 CItemAmplifier.h include）；⑥ [drop bonus of
     // dungeon level increase] 具名 pair 左值 push_back；⑦ [bring up event] `line !=`
     // → 正向 `line ==`；⑧ m_levels(×2)/m_vec6c push_back 实参内联（push_backEOi）；
     // ⑨ m_pvp49ac make_pair 第一参改匿名右值；⑩ [full level reward] 去 (unsigned) cast。
-    // ⑪ [ontime event reward] `int a=0; short b=0;` 预清两句式 + pair 默认构造
+    // ⑪ [ontime event reward] `int a=0; unsigned short b=0;` 预清两句式 + pair 默认构造
     // + 逐字段写 + 左值 push_back；⑫ [pvp live event reward] 同形。
     // **p167 终态：MISSING=0**（全部语义调用点已还原）；EXTRA 仅 ①空析构 D1 ×2/类型
     // 共 16（4.4 对局部空析构发射 D1 调用，ORIG 4.1 内联省略；D1 W 符号必须保留
-    // ⇒ N91 封顶）②ScanInt +1（1 处多余读取，逐段槽序不可分辨，N82 封顶）。
+    // ⇒ N91 封顶）。
     // ndiff 主体为 N82（帧/槽复用）与 N89（STL out-of-line 实例）。
     // [接手复核 TakeSrvParam 2026-09-09，p167_callsite.py 修正版（旧版在 stripped
     // ORIG 上有假 CLEAR）] 派单假设「我方把若干段合并 ⇒ ORIG-only 游戏 callee 非空」
@@ -870,7 +871,33 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
     // diffkeys 8 全为 D1 ⇒ 派单「ORIG-only callee」清单出自更粗聚合口径，逐项皆假。
     // gap = 4615 − 4742 = −127（我方多）：+16 call 全为局部空析构 D1
     // （N91），帧 0x54c vs 0x55c（N82）；fstps 23/23。⇒ guide §6.2 判「语义完成、
-    // byte 层 N 封顶」，勿再重复派工本件。
+    // byte 层 N 封顶」。
+    // [TakeSrvParam 逐段复核 2026-09-09：call 锚点间隔 + 136 个 [tag] 块段级
+    //  归一化多重集] 上述「N 封顶」经重核后仍有**真语义缺口 1 类**并已修：
+    //  · [ontime event reward] 旧译「break→return 0」系误改：ORIG 两处失败落点
+    //    0x08a89fe5/0x08a8a009 均为 `jne 08a8c1a0/08a8c1a3`（岛 `nop;jmp +0x5117`
+    //    = 外层循环继续）⇒ 原码是 break；同块 b 消费端 0x08a8a026 `movzwl` 零扩展
+    //    ⇒ 真型 unsigned short（旧 short 生 movswl，值 ≥0x8000 时分叉）。已改
+    //    break + unsigned short（该块段级多重集归零）。
+    //  · [protect of upgrade down jpn] / [protect of upgrade down]：旧译用
+    //    `char* pb = (char*)&p` 间接写（P183 禁指针缓存）+ key 无预清；ORIG
+    //    0x08a8b665/0x08a8b7d0 `movl $0,-0x4c4/-0x4cc` 两句式 + 直接写 m_view 字段。
+    //    已改（两块归零）。
+    //  · 另修 16 个 [tag] 块的 P198① 两句式预清 / 声明位置（ORIG 有 `movl $0,-N`
+    //    而我方缺）：server message index onoff/kind、server message event kind、
+    //    price average、admission increase、lotto point、full level reward、
+    //    pvp exp penalty revision、unusable/usable items、training seal give、
+    //    pvp channel grade penalty、drop upgrade rarity（含 ItemFarmingData data
+    //    声明前移至 ScanStr 守卫之前，P334）、escalade tutorial reward、
+    //    luck point deduction gap（含 -0xa4 死写入 P171 + -0xa0 槽复用 P160）、
+    //    assault chaos point weight（0x08a88826 死写入 $1）。
+    //  · 复核后 136 块中仅 26 块仍有差异，全部为 N 类：4.4 DW2 EH landing pad
+    //    （8 类空析构 ×2 = 16 call，N91）、P211 store 装载序（[upgrade with legacy]
+    //    9 处 RHS-first；翻正需改共享头 m_508[20] int→unsigned 并跨 TU 联判
+    //    W8_CU_A.cpp 消费点，本泳道未动）、add-vs-lea 寻址（N4/N102）。
+    //  · p167 归一化后 MISSING=0（复核复跑）；gap = 4534 − 4689 = −155（补 16 块
+    //    预清后我方指令数 +16，属结构对齐代价）；TU 四数
+    //    identical=620/ae=1136/near=4/diff=9 前后不变（未回退）。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -1325,6 +1352,11 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         else if (line == "[assault chaos point weight]")
         {
             script->m_float5a4.clear();
+            // ORIG 0x08a88826 `movl $0x1,-0xc4(%ebp)`：块内无读取点（P171 死写入
+            // 照抄）；两句式使 4.4 保留 store（P198 孪生）。
+            int deadWeightFlag;
+            deadWeightFlag = 1;
+            (void)deadWeightFlag;
             while (true)
             {
                 float v = ScanFloat(&ok);
@@ -1442,11 +1474,16 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         }
         else if (line == "[luck point deduction gap]")
         {
+            // ORIG 0x08a88cf3 `movl $0,-0xa4`（预清后块内无读取点，P171 死写入
+            // 照抄；P232 未使用局部仍占槽）。
+            int deadGap = 0;
+            (void)deadGap;
             script->m_vec6c.reserve(4);
             for (int i = 0; i < 3; ++i)
             {
-                int unused = ScanInt(&ok);
-                (void)unused;
+                // ORIG 0x08a88d22 `movl $0,-0x98` 两句式预清（P198①）。
+                int unused = 0;
+                unused = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -1460,14 +1497,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
                     return 0;
                 }
             }
-            int unused2 = ScanInt(&ok);
-            (void)unused2;
+            // ORIG 0x08a88db1/0x08a88df0 两次 ScanInt 复用同一槽 -0xa0
+            // （P160 复用 ORIG 复用的槽）⇒ 单一具名局部两次赋值。
+            int unused2 = 0;
+            unused2 = ScanInt(&ok);
             if (!ok)
             {
                 return 0;
             }
-            int unused3 = ScanInt(&ok);
-            (void)unused3;
+            unused2 = ScanInt(&ok);
             if (!ok)
             {
                 return 0;
@@ -1575,7 +1613,10 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int key = ScanInt(&ok);
+                // ORIG 0x08a892b0 `movl $0,-0x3f8` 两句式预清（P198①）；a/b
+                // （-0x3fc/-0x400）ORIG 无预清，保持初始化式。
+                int key = 0;
+                key = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -1613,12 +1654,16 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a89547/0x08a89551 `movl $0,-0x414/-0x84` 两句式预清
+                // （P198① + P212 全头部声明）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -1633,12 +1678,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a895f1/0x08a895fb 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -1650,12 +1698,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a896b4/0x08a896be 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -1667,18 +1718,21 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int unused = ScanInt(&ok);
-                (void)unused;
+                // ORIG 0x08a89777/0x08a89781 两句式预清（P198①）；首个 ScanInt
+                // （0x08a89794）返回值无 store ⇒ 原码直接丢弃返回值，无具名 unused。
+                int a = 0;
+                int b = 0;
+                ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int a = ScanInt(&ok);
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -1698,12 +1752,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a898d6/0x08a898e0 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -1715,12 +1772,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a899a1/0x08a899ab 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -1840,12 +1900,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a89ec8/0x08a89ed2 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -1862,19 +1925,22 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
             {
                 // b28d-solo-ServerParameterScript: ORIG 0x08a89f60 段逐条
                 // `movl $0,-0x48` + `movw $0,-0x42`（P198① 声明预清两句式）→
-                // a=ScanInt（int 槽）/b=(short)ScanInt（mov %ax 16 位槽）→
+                // a=ScanInt（int 槽）/b=(unsigned short)ScanInt（mov %ax 16 位槽；
+                // 消费端 ORIG 0x08a8a026 `movzwl` 零扩展 ⇒ T1 直证真型 unsigned short）→
                 // `pair C1Ev` 默认构造 + p.first/p.second 逐字段写 → push_backERKS1_。
+                // 失败落点：ORIG 0x08a89fe5/0x08a8a009 `jne 08a8c1a0/08a8c1a3`（岛
+                // `nop;jmp +0x5117` = 外层循环继续）⇒ 原码是 break，非 return 0。
                 int a = 0;
-                short b = 0;
+                unsigned short b = 0;
                 a = ScanInt(&ok);
                 if (!ok)
                 {
-                    return 0;
+                    break;
                 }
-                b = (short)ScanInt(&ok);
+                b = (unsigned short)ScanInt(&ok);
                 if (!ok)
                 {
-                    return 0;
+                    break;
                 }
                 std::pair<int, int> p;
                 p.first = a;
@@ -1915,12 +1981,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a8a15f/0x08a8a169 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -2008,7 +2077,9 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int v = ScanInt(&ok);
+                // ORIG 0x08a8a551 两句式预清（P198①）。
+                int v = 0;
+                v = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2020,12 +2091,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a8a5d1/0x08a8a5d8 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -2267,12 +2341,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a8af2f/0x08a8af39 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -2284,12 +2361,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // ORIG 0x08a8b022/0x08a8b02c 两句式预清（P198①）。
+                int a = 0;
+                int b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -2412,24 +2492,27 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                unsigned int key = (unsigned int)ScanInt(&ok);
+                // ORIG 0x08a8b665 `movl $0,-0x4c4` + 0x08a8b66f ScanInt ⇒ key 预清
+                // 两句式（P198①）。p 的四个字节 ORIG 直接写槽 -0x4c0..-0x4bd
+                // （P183 禁指针缓存 ⇒ 用具名 m_view 字段，勿 char* pb 间接写）。
+                unsigned int key = 0;
+                key = (unsigned int)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
                 stUpgradeItemTicketParam_t p;
-                char* pb = reinterpret_cast<char*>(&p);
-                pb[0] = (char)ScanInt(&ok);
+                p.m_view.m_minUpgrade = (unsigned char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                pb[1] = (char)ScanInt(&ok);
+                p.m_view.m_maxUpgrade = (unsigned char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                pb[2] = (char)ScanInt(&ok);
+                p.m_view.m_ticketFlag = (unsigned char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2441,7 +2524,7 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
                 }
                 if (0 < f4)
                 {
-                    pb[3] = 1;
+                    p.m_view.m_field3 = 1;
                 }
                 script->m_ticket468.insert(std::make_pair(key, p));
             }
@@ -2450,24 +2533,27 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                unsigned int key = (unsigned int)ScanInt(&ok);
+                // ORIG 0x08a8b7d0 `movl $0,-0x4cc` + 0x08a8b7da ScanInt ⇒ key 预清
+                // 两句式（P198①）；p 的字节 ORIG 直接写槽 -0x4c8..-0x4c6
+                // （P183 禁指针缓存 ⇒ 具名 m_view 字段）。
+                unsigned int key = 0;
+                key = (unsigned int)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
                 stUpgradeItemTicketParam_t p;
-                char* pb = reinterpret_cast<char*>(&p);
-                pb[0] = (char)ScanInt(&ok);
+                p.m_view.m_minUpgrade = (unsigned char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                pb[1] = (char)ScanInt(&ok);
+                p.m_view.m_maxUpgrade = (unsigned char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                pb[2] = (char)ScanInt(&ok);
+                p.m_view.m_ticketFlag = (unsigned char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2509,6 +2595,14 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
             while (true)
             {
                 std::string s;
+                // ORIG 0x08a8ba08 SsC1Ev → 0x08a8ba16 ItemFarmingDataC1Ev →
+                // 0x08a8ba1b/0x08a8ba25 itemId/weight 两句式预清 → 0x08a8ba2f
+                // rarity=6，全部位于 0x08a8ba42 ScanStr 之前（P212 全头部声明 +
+                // P334 守卫前构造：ScanStr 失败 break 路径 ORIG 仍析构 data）。
+                ItemFarmingData data;
+                int itemId = 0;
+                int weight = 0;
+                ENUM_RARITY rarity = (ENUM_RARITY)6;
                 if (!ScanStr(&s))
                 {
                     break;
@@ -2517,7 +2611,6 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
                 // `make_pairIR11ENUM_RARITYR15ItemFarmingData` ⇒ 第一参类型为
                 // ENUM_RARITY 左值（p167 MISSING 该实例 1 + pair C1I11ENUM_RARITYS1_
                 // 1 + pair D1 2 / EXTRA make_pairIRiR15ItemFarmingData 1）。
-                ENUM_RARITY rarity = (ENUM_RARITY)6;
                 if (s == "[common]")
                 {
                     rarity = (ENUM_RARITY)0;
@@ -2542,15 +2635,14 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
                 {
                     rarity = (ENUM_RARITY)5;
                 }
-                ItemFarmingData data;
                 while (true)
                 {
-                    int itemId = ScanInt(&ok);
+                    itemId = ScanInt(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    int weight = ScanInt(&ok);
+                    weight = ScanInt(&ok);
                     if (!ok)
                     {
                         return 0;
