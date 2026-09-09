@@ -387,38 +387,44 @@ int CRandomOptionItemHandle::_get_part_type_by_ItemGroup(
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption。
     std::map<int, PartSelectonValue>::const_iterator it =
         reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_map30.find(limit);
-    if (it == reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_map30.end())
+    // [SweepRandomRental-2] ORIG 0x085f11fb `je 085f1415`（it==end 直跳函数尾
+    // 共享 `mov $0x0,%esi` 出口）⇒ 正向包裹 + 单一尾 return 0（早返形多发
+    // `mov $0x0,%ebx; jmp` 三条）。
+    if (it != reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_map30.end())
     {
-        return 0;
-    }
+        std::vector<int> weights(itemGroups.size(), 0);
+        unsigned int total = 0;
 
-    std::vector<int> weights(itemGroups.size(), 0);
-    unsigned int total = 0;
-
-    const std::vector<PartSelectonField>& vec = it->second.m_vec10;
-    for (std::size_t v = 0; v < vec.size(); ++v)
-    {
-        for (std::size_t i = 0; i < itemGroups.size(); ++i)
+    // [SweepRandomRental-2 P183] ORIG 0x085f126a/0x085f1323 每轮重取
+    // it->second.m_vec10（ptEv + lea 0x14）、迭代器循环（begin/end/ppEv）；
+    // 0x085f12d6 再 ptEv 取 m_weight 写入 weights[i]，0x085f12e6 二次
+    // operator[] 读回 weights[i] 累加（无 vec 引用/索引局部）。
+        for (std::vector<PartSelectonField>::const_iterator v =
+                 it->second.m_vec10.begin();
+             v != it->second.m_vec10.end(); ++v)
         {
-            if (vec[v].m_partType == itemGroups[i])
+            for (std::size_t i = 0; i < itemGroups.size(); ++i)
             {
-                weights[i] = (unsigned int)vec[v].m_weight;
-                total += (unsigned int)vec[v].m_weight;
-                break;
+                if (v->m_partType == itemGroups[i])
+                {
+                    weights[i] = (unsigned int)v->m_weight;
+                    total += (unsigned int)weights[i];
+                    break;
+                }
             }
         }
-    }
 
-    // [b28d-solo-RandomRentalA2 P0] bound 为 randInt 匿名临时（同族范式）。
-    unsigned int r = (unsigned int)m_rand[2].randInt((unsigned long)total);
+        // [b28d-solo-RandomRentalA2 P0] bound 为 randInt 匿名临时（同族范式）。
+        unsigned int r = (unsigned int)m_rand[2].randInt((unsigned long)total);
 
-    unsigned int acc = 0;
-    for (std::size_t i = 0; i < weights.size(); ++i)
-    {
-        acc += weights[i];
-        if (r < acc)
+        unsigned int acc = 0;
+        for (std::size_t i = 0; i < weights.size(); ++i)
         {
-            return itemGroups[i];
+            acc += weights[i];
+            if (r < acc)
+            {
+                return itemGroups[i];
+            }
         }
     }
     return 0;
@@ -480,25 +486,39 @@ int CRandomOptionItemHandle::_get_option_type(unsigned long /*itemIdx*/,
         return 0x23f;
     }
 
-    // ORIG 具名常量局部（movl $0xffffffff,-0x48(%ebp)）。
+    // [SweepRandomRental-2] ORIG 0x085f23f9 `movl $0x0,-0x10(%ebp)`（give 指针
+    // 先置 0）+ 0x085f2400 `movl $0xffffffff,-0x48`（defaultKey）；命中/回退两
+    // 分支各自 `call ptEv; add $0x4; mov %eax,-0x10`（0x085f2472 / 0x085f24eb）
+    // ⇒ 原码是**指针局部**（引用形只在 if 之后单点赋值，块布局不同）。
+    const RandomOptionGive* give = 0;
     int defaultKey = -1;
     std::map<int, RandomOptionGive>::const_iterator g =
         outer->second.find(defaultKey);
-    if (g == outer->second.end())
+    if (g != outer->second.end())
+    {
+        give = &g->second;
+    }
+    else
     {
         g = outer->second.find(group);
-        if (g == outer->second.end())
+        // [SweepRandomRental-2] ORIG 0x085f24d9 `je 085f24f0`（命中直落 give
+        // 赋值、失败落 `mov $0x255` 尾块）⇒ if/else 正极性（早返形把失败块
+        // 提到前面、多 2 条 jmp）。
+        if (g != outer->second.end())
+        {
+            give = &g->second;
+        }
+        else
         {
             return 0x255;
         }
     }
-    const RandomOptionGive& give = g->second;
 
     // [b28d-solo-RandomRentalA2 P0] bound 匿名临时形。
-    int r = m_rand[4].randInt((unsigned long)give.m_c);
+    int r = m_rand[4].randInt((unsigned long)give->m_c);
 
     CRandomList<unsigned int> chooser((unsigned int)r);
-    std::for_each(give.m_vec0.begin(), give.m_vec0.end(), chooser);
+    std::for_each(give->m_vec0.begin(), give->m_vec0.end(), chooser);
 
     outType = (unsigned char)(chooser.get_value() + 1);
     return 0;
@@ -515,27 +535,45 @@ int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int level,
     // 语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 5 处独立调 GetRandomOption
     // （两次 find + 两次 end + 循环内 m_veca8 基址），无具名 script 槽。
-    unsigned char keyBytes[4];
-    keyBytes[0] = (unsigned char)rarity;
-    keyBytes[1] = 0xff;
-    keyBytes[2] = (unsigned char)grade;
-    keyBytes[3] = optType;
+    // [SweepRandomRental-2 P82] ORIG 0x085f25b8..0x085f25cb 为四条 disp 写、
+    // 键地址每次 `lea -0x54(%ebp),%edx` 重取 ⇒ 具名 4 字节 POD 视图
+    // （数组 + `*reinterpret_cast<int*>` 使 4.4 把 &key 缓存进 %ebx）。
+    union OptionQuantityKey
+    {
+        struct
+        {
+            unsigned char m_rarity;    // +0x0
+            unsigned char m_level;     // +0x1（0xff 或 level）
+            unsigned char m_grade;     // +0x2
+            unsigned char m_optType;   // +0x3
+        } m_parts;
+        int m_key;                     // 4 字节键视图（find 直传左值）
+    };
+    OptionQuantityKey key;
+    key.m_parts.m_rarity = (unsigned char)rarity;
+    key.m_parts.m_level = 0xff;
+    key.m_parts.m_grade = (unsigned char)grade;
+    key.m_parts.m_optType = (unsigned char)optType;
 
-    // [b28d-solo-RandomRentalA2 P0/P235] ORIG find 直传 &keyBytes（无 mapKey
-    // 拷贝/无 memcpy 调用）；`*reinterpret_cast<int*>(keyBytes)` 左值直绑 const&。
+    // [b28d-solo-RandomRentalA2 P0/P235] ORIG find 直传 &key（无 mapKey
+    // 拷贝/无 memcpy 调用）；union 视图左值直绑 const&。
     // [b28d-solo-RandomRentalA2 P96/P270 反向] ORIG 走 const 版容器访问
     // （p167 MISSING `_ZNKSt3map...4find`/`_ZNKSt23_Rb_tree_const_iterator...eq`）
     // ⇒ 经 const 指针访问成员 + const_iterator。
     std::map<int, OptionQuantityValue>::const_iterator it =
         reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.find(
-            *reinterpret_cast<int*>(keyBytes));
+            key.m_key);
     if (it == reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
     {
-        keyBytes[1] = (unsigned char)level;
-        // [b28d-solo-RandomRentalA2 P171] ORIG 第二次 find 不回写 it（Ghidra:
-        // find(local_6c) vs end(local_50)，后续 operator-> 仍取 local_5c）⇒ 照抄。
-        if (reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.find(
-                *reinterpret_cast<int*>(keyBytes)) ==
+        key.m_parts.m_level = (unsigned char)level;
+        // [SweepRandomRental-2 P293 反向] ORIG 0x085f262b..0x085f2679 先
+        // GetRandomOption+find（→-0x68）再 GetRandomOption+end（→-0x4c）；
+        // 单表达式 `find()==end()` 令 4.4 反序成 end 先 ⇒ 具名 const_iterator。
+        // [b28d-solo-RandomRentalA2 P171] 第二次 find 不回写 it（后续仍用首次）。
+        std::map<int, OptionQuantityValue>::const_iterator retryIt =
+            reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.find(
+                key.m_key);
+        if (retryIt ==
             reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
         {
             return 0x26c;
@@ -549,13 +587,18 @@ int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int level,
 
     std::vector<unsigned int> weights;
     unsigned int total = 0;
-    for (short i = (short)(it->second.m_minA - 1); i < it->second.m_maxB; ++i)
+    // [SweepRandomRental-2] ORIG 0x085f26db/0x085f271d 为 32 位槽
+    // （`mov %eax,-0xc`/`addl $0x1,-0xc`）⇒ 循环变量 int（short 形产 16 位槽）。
+    // [SweepRandomRental-2] ORIG 0x085f26c1 `movl $0x0,-0x14`（w 在循环外
+    // 声明并初始化 0，循环内仅赋值）⇒ 循环内声明会少一条初始化。
+    unsigned int w = 0;
+    for (int i = it->second.m_minA - 1; i < it->second.m_maxB; ++i)
     {
         // ORIG：每轮一次 operator[]，值存 -0x14 后 push_back / total 各读一次
         // （P0 有槽往返 ⇒ 具名标量局部 w）。
-        unsigned int w = reinterpret_cast<const RandomOptionScript*>(GetRandomOption())
-                             ->m_veca8[i]
-                             .m_weight4;
+        w = reinterpret_cast<const RandomOptionScript*>(GetRandomOption())
+                ->m_veca8[i]
+                .m_weight4;
         // [b28d-solo-RandomRentalA2 P315/P319] ORIG push_back 选右值重载
         // `_ZNSt6vectorIjSaIjEE9push_backEOj` ⇒ 实参写 cast 成 prvalue。
         weights.push_back((unsigned int)w);
@@ -594,12 +637,27 @@ int CRandomOptionItemHandle::_choose_option_group(ENUM_RARITY rarity, int level,
     // [b28d-solo-RandomRentalA2 判词] DIFF 193/172（ORIG 0x085f2882）：P0/P183
     // 4 处 provider 虚调内联已归位；残余槽序/物化次数。旧判词：
     // （P183 族）。语义等价。
-    unsigned char keyBytes[8];
-    keyBytes[0] = (unsigned char)rarity;
-    keyBytes[1] = 0xff;
-    keyBytes[2] = (unsigned char)grade;
-    keyBytes[3] = (unsigned char)optType;
-    *(unsigned int*)(keyBytes + 4) = (unsigned int)group;   // ORIG mov 0x1c(%ebp)→键区+4
+    // [SweepRandomRental-2 P82] ORIG 0x085f28a1 `mov 0x1c(%ebp),%eax;
+    // mov %eax,-0x58(%ebp)` 为单条 disp 写 ⇒ 键是具名 8 字节 POD 视图
+    // （`*(unsigned int*)(keyBytes+4)` 生 lea+lea+mov (%edx) 三条）。
+    union OptionGroupKey
+    {
+        struct
+        {
+            unsigned char m_rarity;    // +0x0
+            unsigned char m_level;     // +0x1（0xff 或 level）
+            unsigned char m_grade;     // +0x2
+            unsigned char m_optType;   // +0x3
+            unsigned int m_group;      // +0x4
+        } m_parts;
+        unsigned long long m_key;      // 8 字节键视图（find 直传左值）
+    };
+    OptionGroupKey key;
+    key.m_parts.m_rarity = (unsigned char)rarity;
+    key.m_parts.m_level = 0xff;
+    key.m_parts.m_grade = (unsigned char)grade;
+    key.m_parts.m_optType = (unsigned char)optType;
+    key.m_parts.m_group = (unsigned int)group;
 
     // [b28d-solo-RandomRentalA2] P0/P183：ORIG 4 处独立重取 m_optionSet 并虚调
     // get_option_group_choice()（find/end ×2），无 provider/choiceMap 具名局部。
@@ -611,41 +669,49 @@ int CRandomOptionItemHandle::_choose_option_group(ENUM_RARITY rarity, int level,
     std::map<unsigned long long, OptionGroupChoiceValue>::const_iterator it =
         static_cast<CRandomOptionGive*>(m_optionSet)
             ->get_option_group_choice()
-            .find(*reinterpret_cast<const unsigned long long*>(keyBytes));
+            .find(key.m_key);
     if (it == static_cast<CRandomOptionGive*>(m_optionSet)
                   ->get_option_group_choice()
                   .end())
     {
-        keyBytes[1] = (unsigned char)level;
-        // [b28d-solo-RandomRentalA2 P171] ORIG 第二次 find 不回写 it（Ghidra:
-        // find(local_4c)→const_iterator(local_68) vs end(local_44/48)，后续仍用
-        // 首次 local_58/64）⇒ 照抄原码遗留行为。
-        if (static_cast<CRandomOptionGive*>(m_optionSet)
-                ->get_option_group_choice()
-                .find(*reinterpret_cast<const unsigned long long*>(keyBytes)) ==
+        key.m_parts.m_level = (unsigned char)level;
+        // [SweepRandomRental-2 P293 反向] ORIG 0x085f2940..0x085f29d2 为
+        // 虚调#3+find（→-0x48，const_iterator ctor →-0x64）**再** 虚调#4+end
+        // （→-0x40，ctor →-0x44），比较 (find,end)；单表达式 `find()==end()`
+        // 令 4.4 反序成 end 先/find 后 ⇒ 具名 const_iterator 形。
+        // [b28d-solo-RandomRentalA2 P171] 第二次 find 不回写外层 it（后续仍用
+        // 首次迭代器）。
+        std::map<unsigned long long, OptionGroupChoiceValue>::const_iterator retryIt =
             static_cast<CRandomOptionGive*>(m_optionSet)
                 ->get_option_group_choice()
-                .end())
+                .find(key.m_key);
+        if (retryIt == static_cast<CRandomOptionGive*>(m_optionSet)
+                           ->get_option_group_choice()
+                           .end())
         {
             return 0x29e;
         }
     }
 
-    const OptionGroupChoiceValue& val = it->second;
-
+    // [SweepRandomRental-2 P183] ORIG 每处重取 it->second（ptEv + 偏移折叠：
+    // m_field18→+0x20、m_vecC→+0x14、m_vec0→+0x8），无 OptionGroupChoiceValue&
+    // 缓存（旧形 add $0x8 落 -0x14 槽并多次回读）。
     // [b28d-solo-RandomRentalA2 P0] bound 匿名临时形。
-    int r = m_rand[6].randInt((unsigned long)(val.m_field18 - 1));
+    int r = m_rand[6].randInt((unsigned long)(it->second.m_field18 - 1));
 
     CRandomList<unsigned int> chooser((unsigned int)r);
-    std::for_each(val.m_vecC.begin(), val.m_vecC.end(), chooser);
+    std::for_each(it->second.m_vecC.begin(), it->second.m_vecC.end(),
+                  chooser);
 
     unsigned int sel = chooser.get_value();
-    if (sel >= val.m_vec0.size())
+    // [SweepRandomRental-2] ORIG 0x085f2ac5 `cmp -0xc(%ebp),%eax; seta %al`
+    // ⇒ 源码正极性 `size() > sel`（`sel >= size()` 早返形产 setbe + 反块序）。
+    if (it->second.m_vec0.size() > sel)
     {
-        return 0x2be;
+        outGroup = it->second.m_vec0.at(sel);
+        return 0;
     }
-    outGroup = val.m_vec0.at(sel);
-    return 0;
+    return 0x2be;
 }
 
 // ---- _get_option_value —— T 0x085f2b02（同名报告全文转写）----------------
@@ -721,19 +787,30 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
     int slotPick = m_rand[11].randInt(boundIdx);
 
     CRandomList<unsigned int> chooser((unsigned int)slotPick);
-    std::for_each(rv->second.m_values.begin(), rv->second.m_values.end(),
-                  chooser);
-
-    unsigned int sel = chooser.get_value();
+    // [SweepRandomRental-2] ORIG 0x085f3b9d `lea -0x44(%ebp),%eax; call
+    // get_value` —— get_value 作用在 for_each 的**返回值临时**（sret -0x44）上，
+    // 不是具名 chooser（-0x34）⇒ 全表达式链（P178/P278）。
+    unsigned int sel = std::for_each(rv->second.m_values.begin(),
+                                     rv->second.m_values.end(), chooser)
+                           .get_value();
     if (sel >= rv->second.m_values.size())
     {
         return 0x13;
     }
 
-    const ResetValue& range = rv->second.m_values[sel];
-    unsigned long valueBound = (unsigned long)(range.m_max - range.m_min - 1);
-    int rolled = m_rand[12].randInt(valueBound);
-    int value = rolled + range.m_min;
+    // [SweepRandomRental-2 P183] ORIG 0x085f3bed/0x085f3c0d 两次 ptEv+operator[]
+    // 重取 m_values[sel]（无 ResetValue& 缓存）；0x085f3c1d→0x085f3c23 为
+    // `mov %eax,-0x10; mov -0x10,%eax; mov %eax,-0x1c` ⇒ 具名 valueBound + 绑定
+    // const& 的匿名临时（实参带 cast）。
+    unsigned long valueBound =
+        (unsigned long)(rv->second.m_values[sel].m_max -
+                        rv->second.m_values[sel].m_min - 1);
+    // [SweepRandomRental-2 P0] ORIG 0x085f3c41 `mov %eax,%ebx` —— randInt 结果
+    // 跨后续 ptEv/operator[] 由 ebx 保活、无栈槽往返 ⇒ 原码无具名 rolled，
+    // 内联为加法左操作数；0x085f3c68 `cmpl $0x64; jbe` ⇒ value 为 unsigned。
+    unsigned int value =
+        (unsigned int)(m_rand[12].randInt((unsigned long)valueBound) +
+                       rv->second.m_values[sel].m_min);
     if (MAX_OPTION_VALUE < value)
     {
         value = MAX_OPTION_VALUE;
@@ -777,36 +854,43 @@ unsigned int CRandomOptionItemHandle::RegenVer_choose_item(
         reinterpret_cast<const RandomOptionScript*>(GetRandomOption())
             ->m_baseItems60.find(*(int*)&key);
 
-    if (outer == reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_baseItems60.end())
+    // [SweepRandomRental-2] ORIG 0x085f18fb 走 `ne` 正极性、0x085f1902
+    // `je 085f1a03` 直落失败块（日志+返回 -1）⇒ 正向包裹 + 单一尾 return
+    // （`==` 早返形令 p167 MISSING ne / EXTRA eq 且块序反）。
+    if (outer != reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_baseItems60.end())
     {
-        LogManager::logFormat(
-            1, "RandomOption.cpp",
-            "itemIndex_t random_option::CRandomOptionItemHandle::"
-            "RegenVer_choose_item(ENUM_RARITY, int, const std::vector<int, "
-            "std::allocator<int> >&)",
-            0x19a, "choose_item (%d,%d,%d,%d)", (int)key.m_rarity,
-            (int)key.m_level, (int)key.m_partType, count);
-        return 0xffffffffu;
+        // [SweepRandomRental-2 P183] ORIG 每处 `call ptEv; add/lea 0x4` 重取
+        // outer->second（0x085f1908/0x085f1933/0x085f1964/0x085f19b2），
+        // 无 `const std::map& inner` 引用缓存。
+        if (outer->second.empty())
+        {
+            return 0xffffffffu;
+        }
+
+        int steps = 0;
+        std::map<int, BaseItemValue>::const_iterator walk = outer->second.begin();
+        // [SweepRandomRental-2] ORIG 0x085f199a `mov steps,%eax; cmp count,%eax;
+        // jge` ⇒ 源码条件为 `steps < count`（`count > steps` 形产 jle 反向）。
+        while (walk != outer->second.end() && steps < count)
+        {
+            ++walk;
+            ++steps;
+        }
+        if (walk == outer->second.end())
+        {
+            --walk;
+        }
+        return (unsigned int)walk->second.m_field0;
     }
 
-    const std::map<int, BaseItemValue>& inner = outer->second;
-    if (inner.empty())
-    {
-        return 0xffffffffu;
-    }
-
-    int steps = 0;
-    std::map<int, BaseItemValue>::const_iterator walk = inner.begin();
-    while (walk != inner.end() && count > steps)
-    {
-        ++walk;
-        ++steps;
-    }
-    if (walk == inner.end())
-    {
-        --walk;
-    }
-    return (unsigned int)walk->second.m_field0;
+    LogManager::logFormat(
+        1, "RandomOption.cpp",
+        "itemIndex_t random_option::CRandomOptionItemHandle::"
+        "RegenVer_choose_item(ENUM_RARITY, int, const std::vector<int, "
+        "std::allocator<int> >&)",
+        0x19a, "choose_item (%d,%d,%d,%d)", (int)key.m_rarity,
+        (int)key.m_level, (int)key.m_partType, count);
+    return 0xffffffffu;
 }
 
 // ---- give_option —— T 0x085f2cc6（ORIG 独立完整实现，逐段转写）----------
@@ -1113,24 +1197,41 @@ int CRandomOptionItemHandle::RegenVer_get_option_quantity(
     // 语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
     // （两次 find + 两次 end），无具名 script 槽。
-    unsigned char keyBytes[4];
-    keyBytes[0] = (unsigned char)rarity;
-    keyBytes[1] = 0xff;
-    keyBytes[2] = (unsigned char)grade;
-    keyBytes[3] = optType;
+    // [SweepRandomRental-2 P82] 同 _get_option_quantity：具名 4 字节 POD 视图
+    // （数组形使 4.4 把 &key 缓存进 %ebx，键地址装载序亦异）。
+    union OptionQuantityKey
+    {
+        struct
+        {
+            unsigned char m_rarity;    // +0x0
+            unsigned char m_level;     // +0x1（0xff 或 level）
+            unsigned char m_grade;     // +0x2
+            unsigned char m_optType;   // +0x3
+        } m_parts;
+        int m_key;                     // 4 字节键视图（find 直传左值）
+    };
+    OptionQuantityKey key;
+    key.m_parts.m_rarity = (unsigned char)rarity;
+    key.m_parts.m_level = 0xff;
+    key.m_parts.m_grade = (unsigned char)grade;
+    key.m_parts.m_optType = (unsigned char)optType;
 
     // [b28d-solo-RandomRentalA2 P0/P235] 同 _get_option_quantity：去 memcpy。
     std::map<int, OptionQuantityValue>::const_iterator it =
         reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.find(
-            *reinterpret_cast<int*>(keyBytes));
+            key.m_key);
     if (it == reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
     {
-        keyBytes[1] = (unsigned char)level;
-        // [b28d-solo-RandomRentalA2 P171] ORIG 第二次 find 的结果只用于与 end
+        key.m_parts.m_level = (unsigned char)level;
+        // [SweepRandomRental-2 P293 反向] ORIG 先 find 再 end（同
+        // _get_option_quantity）⇒ 具名 const_iterator。
+        // [b28d-solo-RandomRentalA2 P171] 第二次 find 的结果只用于与 end
         // 比较、**不回写 it**（Ghidra: find(local_20) vs end(local_10)，后续
         // operator-> 仍取 local_1c=首次迭代器）⇒ 照抄原码遗留行为。
-        if (reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.find(
-                *reinterpret_cast<int*>(keyBytes)) ==
+        std::map<int, OptionQuantityValue>::const_iterator retryIt =
+            reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.find(
+                key.m_key);
+        if (retryIt ==
             reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
         {
             return 0x1ad;
