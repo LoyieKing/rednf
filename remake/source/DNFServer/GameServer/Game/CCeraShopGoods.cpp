@@ -324,16 +324,34 @@ static_assert(sizeof(BonusItemView) == sizeof(stCeraShopBonusItemInfo_t),
 //     threading + N82 帧槽；② `je/jne` 反转与 `xor $0x1,%eax; test` 对
 //     `test; je` 的系统差（4.1 的 `!bool` 恒经 xor）= N18b/N209；③ 主链
 //     `nop; jmp` 岛、section 比较链叶块排列 = N82/N89。**未发现可观察行为
-//     差异**（无 REAL-BUG）：三处改写均为无依赖等价重排，(1) 的镜像视图
+//     差异（无 REAL-BUG）：三处改写均为无依赖等价重排，(1) 的镜像视图
 //     与原类型同字段序同尺寸（static_assert 锁死）。
+// [SweepSpecialItem 本波] dual_rank 候选 2 件复核：
+//  ① 本函数：probe 声明位置修正 —— ORIG 0x088fed48 C1Ev 在循环**外**
+//     （回边 0x088fee67 `jmp 0x088fed56`=ScanInt 不重经 ctor；break 出口
+//     0x088fee6c 之后 0x088fee6d 才 D1Ev；Ghidra C 亦为 ctor 在 while 前、
+//     dtor 在 while 后）。改后三段 [cart]/[gift]/[cerapoint disallowance] 的
+//     call 序列与段指令数**完全对齐**（段差 -7/+5/-1/+2 四组×3 全归零；
+//     CALLMISM 9→3，余 3 = printf@plt 归一 + const_iterator C1/C2 同址别名）。
+//     读数：clean 1733→**1730** vs ORIG 1739、raw 1760→**1757** vs 1768；
+//     差值全部落在 probe 段之外（改前其它段净差即 9，probe 段净多 3 属假抵消）
+//     ⇒ 本改正是结构归位，余 9 为 N82/N121/N89 形态族。
+//     p167：274/274；TU 四数 140/279/near3/diff4/missing95 **逐位不变**
+//     （check_tu_routed COMPILE OK）。
+//  ② new_allocator<stCeraShopBonusItemInfo_t>::construct<T>(T*, T&&)（右值版
+//     0x089361e6 size 0x4e）：ORIG 27 vs 我方 25。ORIG 用 3 个栈槽保存
+//     forward 结果（-0x14/-0x10/-0xc）再拷进 placement-new 目标，4.4 用
+//     callee-saved %ebx 直存（push ebx/sub $0x14 vs sub $0x28）。模板体在
+//     <memory>（libstdc++ 头，禁改），且 ORIG 该右值重载真实存在（改传左值
+//     会丢符号）⇒ 跨版本 codegen，N89/N2 封顶，无语义差。
 bool importCashShopItemList(
     char* path, std::vector<STCeraShopItem>* itemList,
     std::vector<stCeraShopBonusInfo_t>& bonusList, void* param4, int* param5,
     std::map<int, std::vector<std::vector<int> > >* limitMap,
     std::vector<int>* param7)
 {
-    // [b28d-solo-CCeraShopGoods] 判词见函数头：calls 差集仅 +2（共享头
-    // 析构声明 vs ORIG trivial 视图），gap -10，帧/槽 N82 族。
+    // [SweepSpecialItem] 判词见函数头：p167 274/274（镜像视图已消伪 dtor），
+    // clean 1730 vs 1739，余差为 N82/N121/N89 形态族。
     if (!loadRDARScriptFile("", path))
         return 0;
 
@@ -656,18 +674,18 @@ bool importCashShopItemList(
             // [b28d-solo-CCeraShopGoods] ORIG 0x088fed3b..0x088feea0：三个分区各为
             // 独立分支（各自 probe C1/D1 + find + ScanInt），循环条件用
             // `it == end()`（__gnu_cxx::eq）而非 !=（0x088fee36 实证）。
+            // [SweepSpecialItem] probe 声明置于 **while 之外**：ORIG 0x088fed48
+            // `call STCeraShopItemC1Ev` 在循环头（0x088fed56=ScanInt）之前，
+            // 0x088fee67 回边直跳 ScanInt（不重经 ctor），break 出口 0x088fee6c
+            // 之后 0x088fee6d 才 D1Ev；Ghidra C 同形（ctor 在 while 前、dtor 在
+            // while 后）。旧「上提到循环内 ScanInt 之前」形读数更差（clean
+            // 1748），且与 ORIG 的真实结构（循环外）不同。
+            STCeraShopItem probe;
             while (true)
             {
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
-                // [BigRndOpt·双判据 A/B] 曾把本声明上提至 ScanInt 之前（ORIG 的
-                // ctor 物理位确在前：0x088fed48 `lea -0x180` / 0x088fed51 `call
-                // _ZN14STCeraShopItemC1Ev` → 0x088fed5c `call _Z7ScanIntPb`），
-                // 实测劣于现状 ⇒ 撤回：上提后 clean 1748（gap +9）、ndiff 1644、
-                // 且 break 出口改为 4.4 的 `mov $state,%ebx; jmp 共享清理块` 跳板
-                // （3×5 条），call 多重集两种写法都是 274/274 ⇒ ①变差 ②无改善。
-                STCeraShopItem probe;
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {
@@ -681,12 +699,12 @@ bool importCashShopItemList(
         }
         else if (section == "[gift disallowance]")
         {
+            STCeraShopItem probe;   // 循环外，见 [cart disallowance] 判词
             while (true)
             {
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
-                STCeraShopItem probe;   // [BigRndOpt] 上提已按双判据撤回，见 [cart disallowance]
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {
@@ -700,12 +718,12 @@ bool importCashShopItemList(
         }
         else if (section == "[cerapoint disallowance]")
         {
+            STCeraShopItem probe;   // 循环外，见 [cart disallowance] 判词
             while (true)
             {
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
-                STCeraShopItem probe;   // [BigRndOpt] 上提已按双判据撤回，见 [cart disallowance]
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {
