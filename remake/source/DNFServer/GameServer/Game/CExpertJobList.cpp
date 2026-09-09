@@ -678,7 +678,12 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     res.m_field0 = ScanInt(&ok);
                     if (!ok) break;
                     std::string type;
-                    if (!ScanStr(&type))
+                    // b290-BigExpert [P198②：ORIG 0x0896d048 call ScanStr 之后
+                    // `mov %al,-0x22d(%ebp)`（0x0896d04c）+ `movzbl; xor $1; test; je`
+                    // 三句形 ⇒ 原码是「先存具名 ok 再判」，非 `if (!ScanStr(..))`；
+                    // ok 此后必被下一轮 ScanInt 覆写 ⇒ 无行为差]。
+                    ok = ScanStr(&type);
+                    if (!ok)
                         return false;
                     res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;

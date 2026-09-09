@@ -1783,6 +1783,15 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
     // game_func_report gap（8490-8452=38）+ 调用点差集 + 逐块比对为验收口径
     // （ndiff 对超大件失真，N82）。18 处 static map 惰性注册链、token 分派树与
     // ORIG 逐段对齐；残余为 4.1/4.4 帧槽复用策略差（N82 族）。
+    // [BigGM2-wave9 双判据复核（Main 2026-09-09 口径：gap+call 多重集为主，①不作派工
+    // 序）] triage ①「26 段/1537 行」经逐项取证判为**布局假性缺口**，无未翻译语义：
+    //   ① 指令缺口 38/8490 = 0.45%（形族：false 岛 `mov $0x0,%eax` 我方 37 vs ORIG 1
+    //     + lea+add 拆分寻址）；② call 多重集 **995/995 逐名全等**（含 pair ctor 模板
+    //     实参按 key 长度分桶 IRA{5:1,7:8,…,16:13,…,42:1} **129 键直方图逐一相等**，
+    //     ScanInt 72/72、ScanStr 25/25、ScanTypeOrStr 9/9、insert 129/129、
+    //     guard 三件套 36/36、$0xffffffff(v=-1) 22/22）⇒ 18 张 static map 注册内容与
+    //     全部分派/失败动作 1:1 在场。①段实体 = ORIG 建表体连续段 + 异常 dtor island
+    //     与我方分散 case 落码的排布差（N82/N126 族）。判 N 封顶，不再照 ① 行数硬补。
     // 【验收标注 §6.2】超大函数（ORIG 8490 insn 切片）。调用点差集归零
     // （995=995，ORIG 侧 libstdc++/PLT 无符号地址已聚类反查对位）；
     // leaf id 125/125（五子表 case-0 修复后跳表 2→0，注册轮 id=0 由
