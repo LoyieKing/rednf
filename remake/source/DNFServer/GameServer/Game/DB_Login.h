@@ -111,7 +111,9 @@ public:
     int GetGameDBInfo(SIG_LOGIN_DATA* sig);                 // T 0x08414772
     void SaveLoginTime(unsigned int mid, int loginTime, char* ip); // T 0x084148a6
     int _getGameDBCharacView(SIG_LOGIN_DATA* sig);          // T 0x084149ce
-    int SendResult(int userDbIdx, int code, SIG_LOGIN_DATA* sig);   // T 0x08414c6e
+    // [SweepDBLogin-2] P292/T3：ORIG 全部 9 个调用点 `call SendResult; mov %eax,%ebx`
+    // （无 test/setne）⇒ 返回类型 bool（mangled 不含返回类型，ABI 零变化）。
+    bool SendResult(int userDbIdx, int code, SIG_LOGIN_DATA* sig);  // T 0x08414c6e
     int UpdateLoginStat(int userDbIdx, SIG_LOGIN_DATA* sig);        // T 0x08414d50
     int GetCheckPickUpRandomOptionItem(SIG_LOGIN_DATA* sig);        // T 0x08414e7a
     int GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig);          // T 0x08414f5c

@@ -273,6 +273,44 @@
 // 结论：本 TU 剩余真缺口 = 0（仅 N 族形差）。
 // 无子子代理（R4 合规）；无 .h 改动（R2 无申报项）。
 // ----------------------------------------------------------------------------
+// [SweepDBLogin-2 单文件泳道·本轮] 12 件 NEAR/DIFF 按 gap' 降序逐件复核
+// （dual_rank --tu DB_Login.cpp 候选=0：全件 gap≤0 且无 ORIG-only 游戏域 callee）。
+// TU 四数 基线 identical=47 ae=136 near=2 diff=10 → 现在 **不变（零回退）**；
+// COMPILE OK 0 错误；52 个 DB_Login 符号 + 10 个非 DB_Login 符号（DBDispatcher::
+// dispatch / get_compressed_blob_data / comp_by_time / C1D1 等）逐 `call *` 虚槽 +
+// jcc 目标相对下标逐位交叉验证：虚槽 5/5 站点两侧一致（0x34×4 + 0x20×1，仅
+// GetUserFatigueCount 目标寄存器 %edx↔%eax = N7）；jcc mismatch 全为位移/镜像等价
+// （setcc 折痕、setl↔setle 极性镜像、add-vs-lea），无真极性反写。
+// 本轮真 bug 修复（2 处，同一实参链）：
+//  ① dispatch → GetPremiumInfo 第 1 实参：旧 `GetPremiumInfo(0,...)` 应传 slot。
+//     ORIG 0x0841259c `mov 0x10(%ebp),%eax; mov %eax,0x4(%esp); call GetPremiumInfo`
+//     （dispatch 形参槽：this 0x8 / userDbIdx 0xc / **slot 0x10** / stream 0x14）。
+//  ② GetPremiumInfo → addUserDBInfo 第 1 实参：旧 `(int)sig` 应为 param。
+//     ORIG 0x08412f36 `mov 0xc(%ebp),%edx; mov %edx,0x4(%esp)`；0xc(%ebp) 是
+//     GetPremiumInfo 第 1 形参 param（sig 实为 0x10(%ebp)），旧注释误认 0xc=sig。
+//     两处修后 ORIG/我方该二调用点逐条同形（dispatch O[562]↔N[561]、
+//     GetPremiumInfo O[225]↔N[231]）。运行时语义：addUserDBInfo(userDbIdx=slot)。
+// 本轮类型判据修复（1 处）：DB_Login::SendResult int→bool（P292/T3：ORIG 9 个调用点
+//   `call; mov %eax,%ebx` 无 setne；旧判词「4.4 返回值规范化 N」作废）⇒ dispatch
+//   799→791 insn，gap −5→−3；mangled 不含返回类型，ABI 零变化（Main 已批准广播）。
+// 本轮符号判据修复（1 处）：判据㉖ 匿名 ns 16 个 `const unsigned int OFF_*` → 匿名
+//   enum ⇒ 消 16 个 NEW-only `r _ZN12_GLOBAL__N_1L..OFF_..E` 数据符号（ORIG 全无）。
+// 逐件读数（gap=orig−ours，.o 口径；改前→改后）：
+//   dispatch DIFF −5→−3（calls 56/56；SEG 差全为帧/槽 + ORIG 寄存器 clamp vs 我方槽
+//     clamp）；GetPremiumInfo DIFF −11（calls 84/84；end() 未缓存 P13 + bool 物化）；
+//   GetAccountInfo DIFF −15（calls 90/90；N80 sig→%ebx 跨 trace + 帧）；getBreakAway
+//     MemberData DIFF −2（calls 44/44；setcc-fold 岛等价 + N78 对齐 memset）；
+//   GetMercenarySystemInfo DIFF −13（calls 27/27；setl/setle 极性镜像 + 槽）；
+//   GetBingoEvent DIFF −1（N107 lea-vs-add）；_DecryptUserInfo DIFF 0（N7/P75）；
+//   GetGrowthCreatureEvent / GetAccountCharacterLevelUpOnceGift DIFF 0（N1 常量折叠）；
+//   getCharacLinkSystemData DIFF 0（sete/je ↔ setne/jne 双重取反等价）；
+//   CreateAccount NEAR 0（N18a）、GetUserFatigueCount NEAR 0（N7 间接 call 目标寄存器）。
+// 结论：本 TU 剩余真缺口 = 0（余下全部为已登记 N 族形差 / 帧槽差）。
+// 跨 TU 上报（非本泳道）：WindowsPackFiles.cpp 的 CCompressedBlob::{compress,
+//   uncompress,reset,resize} 我方为 T、ORIG 全 W（判据㉓ 绑定差，属该 TU 泳道）。
+// 无子子代理（R4 合规）；.h 改动 1 处（DB_Login.h:116 SendResult→bool，已 R2 广播
+// + Main 批准；消费 TU 仅本 .cpp，全仓 grep 无其它调用点）。
+// ----------------------------------------------------------------------------
 // df_game_r 还原 —— DB_Login（DBThread 登录分发器，Wave5 仅ORIG清零批）
 // 权威报告：docs/class_func_reports/DB_Login/*.md（汇编 + Ghidra 反编译 C），
 // 全部 52 个 ORIG 符号逐符号转写；SQL 字符串原样保留（大小写亦原样）。
@@ -479,22 +517,28 @@ namespace   // 残留裸偏移速查（已字段化区域不再需要；均出�
 {
 // 共享头 SigTypes_D.h 已具名覆盖的访问一律用具名字段；仅下列 SigTypes_D 为
 // pad/隐式区或命名错位的区域保留常量访问（每处带语义注释）。
-const unsigned int OFF_CLIENT_IP      = 0x0018;   // checkValidPassword clientHash 输入缓冲
-const unsigned int OFF_LOGIN_IP       = 0x00a1;   // 登录 ip 字符串（SigTypes_D 名 m_blackIpCheckBuf）
-const unsigned int OFF_BIRTH_DATE     = 0x00d0;   // reg_date DATE_FORMAT uint（SigTypes_D pad）
-const unsigned int OFF_CHARAC_VIEW    = 0x00e0;   // 0x24×0x94 角色视图数组首（m_characData）
-const unsigned int OFF_SECURITY_VALID = 0x39dc;   // security card 有效标志（SigTypes_D pad）
-const unsigned int OFF_SSO_LOGINIP    = 0x3a3a;   // login_ip[0x10]（共享头名 m_webAddress）
-const unsigned int OFF_SEC_FAILCNT    = 0x39e4;   // 安全卡 fail_cnt（共享头名 m_secCardCertCnt）
-const unsigned int OFF_SEC_CERTFLAG   = 0x39e8;   // cert_flag uint（SigTypes_D pad）
-const unsigned int OFF_SEC_CERTCNT    = 0x39ec;   // cert_cnt byte（共享头名 m_secCardCertFlag）
-const unsigned int OFF_SEC_QPOS       = 0x3a14;   // q_pos int（共享头名 m_secCardCancelCnt）
-const unsigned int OFF_SEC_QPOS_STR   = 0x3a18;   // q_pos 串槽 char[5]（共享头名 m_secCardAnswers）
-const unsigned int OFF_HISTORY_TBL    = 0x3fac;   // 0x168 = 30×{int type,h1,h2}（m_ingameEventHistory）
-const unsigned int OFF_GROWTH_WEAPON  = 0x4140;   // 事件块 A（0x14，共享头 raw）
-const unsigned int OFF_GROWTH_CREATURE= 0x4154;   // 0x2c×11（m_growthCreatureEvent 具名条目可用）
-const unsigned int OFF_ONCE_GIFT      = 0x4338;   // 0x20（共享头 raw）
-const unsigned int OFF_BINGO_EVT      = 0x4138;   // SIG_BINGO_EVENT 起点
+// [SweepDBLogin-2] 判据㉖：匿名 ns 的 `const unsigned int` 在 4.4 -O0 恒发射
+// `r _ZN12_GLOBAL__N_1L...OFF_...E` 数据符号（ORIG 18 个同名符号全无，原码为
+// 编译期常量）⇒ 改匿名 enum（零数据符号、使用点仍折立即数）。
+enum
+{
+    OFF_CLIENT_IP       = 0x0018,   // checkValidPassword clientHash 输入缓冲
+    OFF_LOGIN_IP        = 0x00a1,   // 登录 ip 字符串（SigTypes_D 名 m_blackIpCheckBuf）
+    OFF_BIRTH_DATE      = 0x00d0,   // reg_date DATE_FORMAT uint（SigTypes_D pad）
+    OFF_CHARAC_VIEW     = 0x00e0,   // 0x24×0x94 角色视图数组首（m_characData）
+    OFF_SECURITY_VALID  = 0x39dc,   // security card 有效标志（SigTypes_D pad）
+    OFF_SSO_LOGINIP     = 0x3a3a,   // login_ip[0x10]（共享头名 m_webAddress）
+    OFF_SEC_FAILCNT     = 0x39e4,   // 安全卡 fail_cnt（共享头名 m_secCardCertCnt）
+    OFF_SEC_CERTFLAG    = 0x39e8,   // cert_flag uint（SigTypes_D pad）
+    OFF_SEC_CERTCNT     = 0x39ec,   // cert_cnt byte（共享头名 m_secCardCertFlag）
+    OFF_SEC_QPOS        = 0x3a14,   // q_pos int（共享头名 m_secCardCancelCnt）
+    OFF_SEC_QPOS_STR    = 0x3a18,   // q_pos 串槽 char[5]（共享头名 m_secCardAnswers）
+    OFF_HISTORY_TBL     = 0x3fac,   // 0x168 = 30×{int type,h1,h2}（m_ingameEventHistory）
+    OFF_GROWTH_WEAPON   = 0x4140,   // 事件块 A（0x14，共享头 raw）
+    OFF_GROWTH_CREATURE = 0x4154,   // 0x2c×11（m_growthCreatureEvent 具名条目可用）
+    OFF_ONCE_GIFT       = 0x4338,   // 0x20（共享头 raw）
+    OFF_BINGO_EVT       = 0x4138,   // SIG_BINGO_EVENT 起点
+};
 // [b28d-solo-DB_Login] P311 角色槽视图：0x24×0x94 步长数组（+0xe0 起）。具名
 // 完整类型成员直访问复现 ORIG `imul $0x94; lea (%edx,%eax,1); add $0xe0` 三步
 // （探针 probe_arr f4 逐条全等）；char 数组 + 指针算术恒把 add $0xe0 提前（f1）。
@@ -737,7 +781,11 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 
     vecDNFEventEntry_t entries;
     _LoadDNFEventEntry(sig->m_accId, entries);
-    GetPremiumInfo(0 /*int 占位形参，ORIG 未使用*/, sig, entries);
+    // [SweepDBLogin-2] 真语义修复（实参来源判据）：ORIG 0x0841259c 段
+    // `mov 0x10(%ebp),%eax; mov %eax,0x4(%esp); call GetPremiumInfo` ⇒ 第 1 实参
+    // = slot（dispatch 第 2 形参），非常量 0。该值经 GetPremiumInfo 透传给
+    // addUserDBInfo 的 userDbIdx（见该函数 0xc(%ebp) 证据）。
+    GetPremiumInfo(slot, sig, entries);
 
     // ---- 通道 7（公会战）：检查 BreakAway 数据完整 ----
     // b28d-68：ORIG 0x0840fcad 独立 G_GameWorld() 调用（无缓存）
@@ -1552,7 +1600,7 @@ void DB_Login::_LoadEventItem(SIG_LOGIN_DATA* sig, int serverId,
 
 // [b28d-solo-DB_Login] verdict=DIFF ndiff=388 gap=-11（N82 槽/帧；P157 去 eventId
 // 缓存后 p167 CLEAR 84/84 语义完整）。
-void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
+void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
                               vecDNFEventEntry_t& entries)
 {
     MySQL* dbPremium = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
@@ -1627,12 +1675,11 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
             {
                 if (G_GameWorld()->GetChannelType() == 7 || G_GameWorld()->GetChannelType() == 0xe)
                 {
-                    // ORIG 汇编 0x8412236-0x841224c：addUserDBInfo 第 1 参 =
-                    // 本函数第 2 参（SIG_LOGIN_DATA* sig）指针值（0xc(%ebp)→0x4(%esp)），
-                    // 非 m_accId；32 位指针→int 原样直传。
-                    GlobalData::s_db_mgr->addUserDBInfo(
-                        reinterpret_cast<int>(sig),
-                        info);
+                    // [SweepDBLogin-2] 真语义修复（实参来源判据）：ORIG 0x08412f36 段
+                    // `mov 0xc(%ebp),%edx; mov %edx,0x4(%esp)` ⇒ addUserDBInfo 第 1 参
+                    // = 本函数第 1 形参 param（int，0xc(%ebp)），非 sig 指针值。
+                    // 旧注释把 0xc(%ebp) 误认成 sig（sig 实为 0x10(%ebp)）。
+                    GlobalData::s_db_mgr->addUserDBInfo(param, info);
                 }
                 if (it->m_eventId == 0xa02a)
                 {
@@ -2487,7 +2534,10 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
 // SendResult（ORIG T 0x08414c6e）/ UpdateLoginStat（ORIG T 0x08414d50）
 // ============================================================================
 
-int DB_Login::SendResult(int userDbIdx, int code, SIG_LOGIN_DATA* sig)
+// [SweepDBLogin-2] P292/T3：ORIG 9 个调用点均 `call; mov %eax,%ebx`（无 setne）
+// ⇒ 返回类型 bool（mangled 不含返回类型，ABI 零变化；旧判词「4.4 返回值规范化 N」
+// 已按 P248 档① 翻案）。
+bool DB_Login::SendResult(int userDbIdx, int code, SIG_LOGIN_DATA* sig)
 {
     CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x3c49), true);
     guard.operator*()->operator<<(userDbIdx);
