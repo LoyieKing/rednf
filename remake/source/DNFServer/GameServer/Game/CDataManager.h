@@ -3350,6 +3350,8 @@ struct ItemShopScript
     // [b28d-38b] P292 消费端判据：ORIG updateOneADayItemList 0x08512ee7 /
     // IsOneADayShop 0x085130da 读该字段均 `movzbl; test %al,%al; je`（无 setcc）
     // ⇒ bool（原 char 使 IsOneADayShop 多 test+setne 两条）。1 字节，偏移不变。
+    // 值域论证（全仓 grep 仅两处写入）：clear() 的 `= 0` 与 importItemShopScript
+    // 0x089dcaaf 的 `movb $0x1,0x44(%eax)`（= 1）⇒ 恒 ∈ {0,1}，bool 安全。
     bool m_isOneADay;                               // +0x44
     // Compiler padding from +0x45 to the aligned time field at +0x48.
     int m_lastUpdateTime;                           // +0x48
