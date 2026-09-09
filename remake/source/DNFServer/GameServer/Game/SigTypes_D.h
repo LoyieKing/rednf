@@ -368,7 +368,20 @@ struct SIG_MAILBOX_POSTAL_TAIL
     char m_sealFlag;             // +0x29
     int m_occTime;               // +0x2a
     unsigned int m_addInfo;      // +0x2e
-    unsigned char m_rest[0x61 - 0x20 - 0x12];
+    unsigned char m_pad2[0x50 - 0x32];   // +0x32..0x4f
+    // +0x50 具名子结构（§8.3 字段化，MailHelper 族 ORIG 实证）：
+    //   0x0841cc8f `add $0x50; mov 0xc(%eax)`（letter_id 统计，GetOnlyMailCount）
+    //   0x0841cf7f/0x0841cfdd `add $0x50; mov 0x5(%eax)`（FindLastOccTimeMail）
+    //   0x0841d3a0 同形（ArrangeMailAndLetter）；m_field55 = charac_no + 0x13c680。
+    // 4.4 探针 /tmp/p235probe.cpp getf/getl 与 ORIG 逐条同形（cast 视图形恒折单 disp）。
+    struct OccSub
+    {
+        unsigned char m_pad[5];      // +0x50..0x54
+        int m_field55;               // +0x55
+        unsigned char m_pad2[3];     // +0x59..0x5b
+        unsigned int m_letterId;     // +0x5c
+        unsigned char m_rest[1];     // +0x60
+    } m_occ;                         // +0x50
 };
 struct SIG_MAILBOX_POSTAL
 {
