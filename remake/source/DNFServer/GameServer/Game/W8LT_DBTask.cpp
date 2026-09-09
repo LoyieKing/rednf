@@ -7035,7 +7035,11 @@ bool DB_AvatarItemInsert::dispatch(int userIdx, int slot, Stream* stream)
 // 普通 expire_date 与 from_unixtime 版，m_period 为 0 用普通版）。
 // m_period ∈ (6,0x1e] 时 expire_date = getCurSec() + period*86400，否则直接 period。
 // set_query 变参 13 个（SQL 模板仅 11 个占位，末两参为 ORIG 遗留多余实参）。
-// [b28d-4] DIFF：N78：ORIG 内联 rep stos/movs vs 4.4 call（兼 N82 槽序）；ORIG 083ffe0e
+// [SweepW8LT b28d] DIFF：gap 14（our 220 / ORIG 234）封顶。p167 17/19：
+// EXTRA memcpy×2 —— ORIG 4.1 对 `memcpy(sql,"...",0xce/0xdd)` 内联为
+// `mov $imm,%esi; mov $0x33/%0x37,%ecx; rep movsl` + 尾 word/byte（各 13 条），
+// 4.4 -O0 恒 call memcpy（各 5 条）；memset 实参装载 ORIG 多 1 条/处。
+// 结构体整体赋值已试劣化（N84③），长度/语义逐处核对一致。ORIG 083ffe0e
 bool DB_AvatarItemInsert::InsertAvatarItem(SIG_AVATAR_INSERT* sig)
 {
     static const int handleIdx = 3;
@@ -7619,10 +7623,14 @@ bool DB_LoadKillMonsterInfo::dispatch(int userIdx, int slot, Stream* stream)
 // 常量：school_match_* 三成员 ORIG D 0x093abb60/64/68（.data 初值 1/2/5，
 // 定义归 OnlinePreliminaryMatch.cpp）；时段 0x48f26550<curSec<=0x48f8fccf
 // 为 ORIG 字面（周末加成历史区间）。
-// §6.2 巨件核销：P167 29/29 [0缺0多]；gap 104→104；残差归因 N82/N86/P183
-// 组（badge 循环 slotv 缓存形 928 vs 全表达式形 1046 vs ORIG 1033 不可命中；
-// fetch 条件合并形 928 vs break 形 942 同不可命中；帧 0x16c vs 0x17c；
-// 语义逐块对照完整，详见 docs/asm_translation_patterns.md 负例表）
+// [SweepW8LT b28d] gap 105→-21（our 1054 / ORIG 1033）；两处真缺口已修：
+// ① P227 两处 cMyTrace 改全表达式临时链——ORIG op() 实参装载 69/181 条位于
+//    ctor 之前（临时链形），具名对象时 4.4 改到 ctor 之后 ⇒ -59/-54；
+// ② P183 badge 循环去具名 slotv 指针缓存、全表达式重物化——ORIG 每处字段
+//    访问从 buf+两下标重算 11 条地址链，缓存形每处省 5 条 ⇒ -54。
+// 余 -21 属 N82（r 槽 -0x2c vs ORIG -0x20；帧 0x18c vs 0x17c）+ N7/N18a
+// 寄存器分配（4.4 产 -0x15c 临时槽往返）；p167 29/29 [0缺0多]（C1/C2 同址
+// 别名）；语义逐块对照完整（set_query 实参序与 +0x10/+0x1c/+0x28/+0x38 偏移全等）。
 // ============================================================================
 #pragma pack(push, 1)
 struct DB_UpdatePvPResultHeadView      // 载荷 +0x00 起
@@ -7651,7 +7659,7 @@ struct DB_UpdatePvPResultSlotView      // 每队槽（stride 0x38）
 };
 #pragma pack(pop)
 
-// [b28d-4] DIFF：S 档 gap=104（缺失转写/调用）+ N82 槽序；ORIG 0843097e
+// [SweepW8LT b28d] DIFF：gap=-21（N82 槽差 + N7/N18a 寄存器分配）；ORIG 0843097e
 bool DB_UpdatePvPResult::dispatch(int userIdx, int slot, Stream* stream)
 {
     // 局部类 school_info（ORIG W C1 0x0843091e；9 字段全清零）
@@ -7711,8 +7719,12 @@ bool DB_UpdatePvPResult::dispatch(int userIdx, int slot, Stream* stream)
         if (needRows != 2)
             return 0;
         int nRow = 0;
-        while (nRow < needRows && db->fetch())
+        while (nRow < needRows)
         {
+            // 4.1 循环布局：fetch 在循环体顶部（`call; xor$1; test; jne 出口`），
+            // 条件 nRow<needRows 在底部；`A && B()` 合写在 4.4 会改为底部 fetch。
+            if (!db->fetch())
+                break;
             if (!db->get_int(0, row.m_schoolId))
                 return 0;
             if (!db->get_float(1, row.m_rating))
@@ -7787,17 +7799,17 @@ bool DB_UpdatePvPResult::dispatch(int userIdx, int slot, Stream* stream)
                 ((DB_UpdatePvPResultSlotView*)(buf + i * 0x38))->m_schoolIds[outer]);
             if (!db->exec(true))
                 return 0;
-            {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x7867, 5);
-                trace("fight_cnt=%d,school_point=%d, fight_cnt_prev=%d, school_point_prev=%d, rating=%f, last_update_time=%d, school_id=%d",
-                      rows[i].m_fightCntCur,
-                      rows[i].m_schoolPoint,
-                      rows[i].m_fightCntPrev,
-                      rows[i].m_schoolPointPrev,
-                      (double)rows[i].m_rating,
-                      curSec,
-                      ((DB_UpdatePvPResultSlotView*)(buf + i * 0x38))->m_schoolIds[outer]);
-            }
+            // P227：全表达式临时链 ⇒ 4.4 在 ctor 前装载 op() 实参（ORIG 69 条
+            // 装载块位于 ctor 之前；具名对象时 4.4 改到 ctor 之后，缺口 -59）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x7867, 5)(
+                "fight_cnt=%d,school_point=%d, fight_cnt_prev=%d, school_point_prev=%d, rating=%f, last_update_time=%d, school_id=%d",
+                rows[i].m_fightCntCur,
+                rows[i].m_schoolPoint,
+                rows[i].m_fightCntPrev,
+                rows[i].m_schoolPointPrev,
+                (double)rows[i].m_rating,
+                curSec,
+                ((DB_UpdatePvPResultSlotView*)(buf + i * 0x38))->m_schoolIds[outer]);
         }
         ++outer;
     }
@@ -7807,32 +7819,33 @@ bool DB_UpdatePvPResult::dispatch(int userIdx, int slot, Stream* stream)
         int p;
         for (p = 0; p <= 1; ++p)
         {
-            DB_UpdatePvPResultSlotView* slotv =
-                (DB_UpdatePvPResultSlotView*)(buf + p * 0x38);
-            if (slotv->m_badges[r].m_red != 0 || slotv->m_badges[r].m_blue != 0)
-                ++slotv->m_badges[r].m_green;
-            {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x7881, 0);
-                trace("BADGE_COUNT m_id(%s) badge green(%d), red(%d), blue(%d), daily badge green(%d), red(%d), blue(%d)",
-                      NumberToString(slotv->m_ids[r], 0),
-                      slotv->m_badges[r].m_green,
-                      slotv->m_badges[r].m_red,
-                      slotv->m_badges[r].m_blue,
-                      slotv->m_dailyBadges[r].m_green,
-                      slotv->m_dailyBadges[r].m_red,
-                      slotv->m_dailyBadges[r].m_blue);
-            }
+            // P183 地址重物化铁律：ORIG 每处 badge/dailyBadge 字段访问都从
+            // buf + 两下标（r×3 / p×0x38）重算完整地址链（11 条/处）；缓存
+            // 具名 slotv 指针每处省 5 条 ⇒ 缺口 -54。全表达式展开。
+            if (((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_red != 0 ||
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_blue != 0)
+                ++((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_green;
+            // P227：同上（ORIG NumberToString 在 ctor 之前 ⇒ 临时链形）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x7881, 0)(
+                "BADGE_COUNT m_id(%s) badge green(%d), red(%d), blue(%d), daily badge green(%d), red(%d), blue(%d)",
+                NumberToString(((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_ids[r], 0),
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_blue,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_blue);
             db->set_query(
                 "upDate school_member set contribute=contribute+%d, last_play_time=NOW(), green_badge=green_badge+%d, red_badge=red_badge+%d, blue_badge=blue_badge+%d, daily_green_badge=%d, daily_red_badge=%d, daily_blue_badge=%d  where m_id=%s and school_id=%d",
                 rows[p].m_fightCntCur,
-                slotv->m_badges[r].m_green,
-                slotv->m_badges[r].m_red,
-                slotv->m_badges[r].m_blue,
-                slotv->m_dailyBadges[r].m_green,
-                slotv->m_dailyBadges[r].m_red,
-                slotv->m_dailyBadges[r].m_blue,
-                NumberToString(slotv->m_ids[r], 0),
-                slotv->m_schoolIds[r]);
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_blue,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_blue,
+                NumberToString(((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_ids[r], 0),
+                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_schoolIds[r]);
             if (!db->exec(true))
                 return 0;
         }
@@ -9166,7 +9179,11 @@ struct DB_GameOptionSigView
 static_assert(sizeof(DB_GameOptionSigView) == 0x4b0,
               "DB_GameOptionSigView ABI drift");
 
-// [b28d-4] DIFF：N78：ORIG 内联 rep stos/movs vs 4.4 call（兼 N82 槽序）；ORIG 0842f7f4
+// [SweepW8LT b28d] DIFF：gap 14（our 320 / ORIG 334）封顶。p167 55/57：
+// EXTRA memset×2 —— ORIG 4.1 对 `memset(buf,0,0x62)` 内联为 `mov $0x18,%ecx;
+// rep stos; mov %ax,(%edx); add $0x2`（8 条）、对 0x2dc 内联 `mov $0xb7,%ecx;
+// rep stos`（6 条）；4.4 -O0 恒 call memset（各 5 条）。长度语义已逐处核对
+// （0x62 / 0x2dc 与 ORIG rep stos 计数一致），余为 N82 槽差。ORIG 0842f7f4
 bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
@@ -9902,7 +9919,13 @@ void DB_UpdateCreatureItem::GetField(MySQL* db, char* out, SIG_CREATURE_ITEM* si
 // unix_timestamp(expire_date)）逐列读入回包体；任一失败
 // cMyTrace(0x5729..0x5794,5) + Free(guard) 返 0；全成 put(DISPATCH_Q,guard)
 // 返 1。其余分支返回 1。
-// [b28d-4] DIFF：N78：ORIG 内联 rep stos/movs vs 4.4 call（兼 N82 槽序）；ORIG 084203e8
+// [SweepW8LT b28d] DIFF：gap 14（our 594 / ORIG 608）封顶。p167 72/72 [0缺0多]
+// （cMyTrace C1/C2、CStreamGuard C1/C2/D1/D2 同址别名）。残差：① P0 具名 bool——
+// ORIG 前 6 处检查（exec/fetch/get_int0/get_ulong1/get_int3/get_int4）产
+// `movzbl %al,%eax; mov %eax,-0x1c; cmpl $0,-0x1c; jne`（共用 -0x1c 槽），后 5 处
+// 与 4.4 全部为 `xor $1; test %al,%al; je`（各 -1）；② P231 ORIG 错误路径用 %ebx
+// 跨 ctor 保活 sig->m_characNo（`mov 0x48(%eax),%ebx`），4.4 每处重载；③ N78
+// rep movsl 段 %esi 多一条中转。ORIG 084203e8
 bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
 {
     static const int handleIdx = 3;
@@ -11328,7 +11351,12 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
 // GetInBuffer<SIG_CHECK_ADD_FRIEND>：+0=结果、strncpy(+0x05,名字,0x1e)
 // → put(DISPATCH_Q) 返 1；GetInBuffer 空返 0。
 // ============================================================================
-// [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0844c6e0
+// [SweepW8LT b28d] DIFF：gap 18（our 200 / ORIG 218）封顶。p167 22/22 [0缺0多]
+// （CStreamGuard C1/C2、D1/D2 同址别名）。残差：① P292 int→bool 归一化——ORIG
+// escape_string 后 `test %eax,%eax; sete %al; test %al,%al; jne`，set_query/
+// exec/fetch/get_int 后各多一条 `xor $1`（4.4 直接 test %al; je）；② P223 五个
+// 失败出口各带 `nop; jmp` 中继岛（4.4 jump-thread 消岛，-10）；③ 两处
+// `outCode = 0` 4.1 tail-merge 共享（844c8a9），4.4 保留两份（+1）。ORIG 0844c6e0
 bool DB_CheckAddFriend::dispatch(int userIdx, int slot, Stream* stream)
 {
     int result = 0;              // -0x2c 查询 m_id
@@ -14321,7 +14349,10 @@ bool DB_UpdateRevengeData::dispatch(int /*userIdx*/, int /*slot*/,
 // 写 m_abilities[10]；creature_items(slot=238) 读 it_id/name 写
 // m_creatureId/m_creatureName（exec 失败 cMyTrace 0x9fbf）。成功返 1。
 // ============================================================================
-// [b28d-4] DIFF：N1/N107：ORIG lea+add 两步寻址 vs 4.4 折单条；ORIG 08440548
+// [SweepW8LT b28d] DIFF：gap 14→3（our 644 / ORIG 647）。本波修 P0 具名列索引：
+// ORIG 0x0844062x 用 `int col=0` 逐列 `col++`（`mov -0x38,%eax; addl $1,-0x38`），
+// 原码直传立即数 0..4 ⇒ 5 处各少 2 条。p167 61/61 [0缺0多]（cMyTrace C1/C2、
+// Inven_Item C1/C2 同址别名）。余 -3 归 N82 帧-槽差。ORIG 08440548
 bool DB_TOD_Reset_UserAPC::GetAPCUserInfo(_APCInfo& info)
 {
     static const int handleIdx = 3;
@@ -14339,16 +14370,19 @@ bool DB_TOD_Reset_UserAPC::GetAPCUserInfo(_APCInfo& info)
         return 0;
     if (db2->get_n_rows() != 1)
         return 0;
-    if (!db2->get_str(0, info.m_userCharacName, 0x1e))
+    // ORIG 0x0844062x 用具名列索引：`movl $0x0,-0x38; mov -0x38,%eax;
+    // addl $0x1,-0x38; mov %eax,0x4(%esp)`（每处 2 条，共 5 处）。
+    int col = 0;
+    if (!db2->get_str(col++, info.m_userCharacName, 0x1e))
         return 0;
-    if (!db2->get_byte(1, info.m_lv))
+    if (!db2->get_byte(col++, info.m_lv))
         return 0;
-    if (!db2->get_byte(2, info.m_job))
+    if (!db2->get_byte(col++, info.m_job))
         return 0;
-    if (!db2->get_byte(3, info.m_growType))
+    if (!db2->get_byte(col++, info.m_growType))
         return 0;
     unsigned int& guildId = info.m_guildId;
-    if (!db2->get_uint(4, guildId))
+    if (!db2->get_uint(col++, guildId))
         return 0;
     if (guildId != 0)
     {
@@ -15195,7 +15229,12 @@ bool DB_UpdateCompoundEmblemStatics::dispatch(int userIdx, int slot,
 // exec 失败或 n_rows==0 返 0；trace(0x7ac4,0)；逐行读入 0x20 行缓存（0xc80），
 // 满 100 行或末行 → Acquire(0x7ae9) → <<0x156 → <<-1 → GetInBuffer<SIG_IP_
 // MONITOR_PUNISH> → +0=rowCount+1 → memcpy +4..0xc83 → +0xc84=0 → put(1)；返 1。
-// [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 084330d4
+// [SweepW8LT b28d] DIFF：gap 10→6（our 271 / ORIG 277）。本波修两处：
+// ① P227 trace 改全表达式临时链（ORIG ctor 前 `call get_n_rows; mov %eax,%ebx`
+//    跨 ctor 保活；具名对象使 4.4 在 ctor 后重调 get_n_rows，多一次 DB 调用）；
+// ② P183 删 items 指针缓存，全表达式 `((DB_IpMonitorPunishItem*)buf)[rowCount]`
+//    重算（ORIG 每处 `lea buf; shl $5; add`）。p167 31/31 [0缺0多]（C1/C2 别名）。
+// 余 -6：localtime 地址装载 +1、timeBuf 清零 5 vs 6 条、N82 槽差。ORIG 084330d4
 bool DB_BlackIPMonitorPartLoad::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
@@ -15208,28 +15247,30 @@ bool DB_BlackIPMonitorPartLoad::dispatch(int userIdx, int slot, Stream* stream)
         timeBuf);
     if (!db->exec(true) || db->get_n_rows() == 0)
         return 0;
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x7ac4, 0);
-    trace("BLACKIP GET DB ROWS COUNT : %d", db->get_n_rows());
+    // P227 全表达式临时链：ORIG 0x084331xx 在 ctor 前 `call get_n_rows;
+    // mov %eax,%ebx` 并把 %ebx 跨 ctor 保活到 op() 实参（具名对象时 4.4 在
+    // ctor 之后重调 get_n_rows，多一次 DB 调用）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x7ac4, 0)(
+        "BLACKIP GET DB ROWS COUNT : %d", db->get_n_rows());
     char buf[0xc80];
     int rowCount = 0;
     for (int i = 0; i < db->get_n_rows(); ++i)
     {
         if (!db->fetch())
             return 0;
-        DB_IpMonitorPunishItem* items = (DB_IpMonitorPunishItem*)buf;
         if (rowCount == 0)
             memset(buf, 0, 0xc80);
-        if (!db->get_str(0, items[rowCount].m_ip, 0x10))
+        // P183：ORIG 每处 `lea -0xcdc(%ebp),%eax; shl $0x5,%edx; add %edx,%eax`
+        // 重算 buf+rowCount*0x20；具名 items 指针缓存会省掉该链。
+        if (!db->get_str(0, ((DB_IpMonitorPunishItem*)buf)[rowCount].m_ip, 0x10))
             return 0;
-        if (!db->get_int(1, items[rowCount].m_type))
+        if (!db->get_int(1, ((DB_IpMonitorPunishItem*)buf)[rowCount].m_type))
             return 0;
-        if (!db->get_uint(2, items[rowCount].m_idCnt))
+        if (!db->get_uint(2, ((DB_IpMonitorPunishItem*)buf)[rowCount].m_idCnt))
             return 0;
-        if (!db->get_uint(3, items[rowCount].m_startTime))
+        if (!db->get_uint(3, ((DB_IpMonitorPunishItem*)buf)[rowCount].m_startTime))
             return 0;
-        if (!db->get_uint(4, items[rowCount].m_endTime))
+        if (!db->get_uint(4, ((DB_IpMonitorPunishItem*)buf)[rowCount].m_endTime))
             return 0;
         if (rowCount < 99 && i < db->get_n_rows() - 1)
         {
@@ -16537,17 +16578,24 @@ static_assert(sizeof(DB_InsertAutoPunishSecondUserView) == 0x14,
 // upDate（hack_m_id 键）同法 inSert。punish_flag 置位 → DB_HANDLE_1
 // member_punish_info upDate/inSert（type=4）+ sprintf 邮件原因 →
 // member_punish_info_history inSert（admin 'ARS'，apply_flag=2）失败返 0。
-// [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0842deb4
+// [SweepW8LT b28d] DIFF：gap 19→22（our 293 / ORIG 315）。本波修两处：
+// ① P0 去 needInsert1/2/3 具名 bool（ORIG `xor$1; test%al,%al; jne` 直判；
+//    具名局部致 4.4 产 `mov %al,-0x1b; cmpb $0x0,-0x1b` 槽往返）；
+// ② 真语义修正：db1=GetDBHandle(DB_HANDLE_1) 移入 `if (sig->m_punishFlag)`
+//    分支（ORIG 0x0842e155 在分支内获取；原码函数头无条件获取多一次调用）
+//    + 声明序改 db6→sig（ORIG db6=-0x24 / sig=-0x20）。
+// 余 -22 归 N78b：`char reason[0x100]={'\0'}` 4.1 产 27 条对齐+rep stos 展开，
+// 4.4 恒 6 条 `mov $0x40,%edx; rep stos`（三形互斥不可翻）；ORIG 0842deb4
 bool DB_InsertAutoPunishSecondUser::dispatch(int /*userIdx*/, int /*slot*/,
                                              Stream* stream)
 {
+    MySQL* db6 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
+                                                   E_SERVER_GROUP_NONE);
+    // 声明序 db6→sig 与 ORIG 一致（ORIG 先 GetDBHandle(6) 后 GetOutBuffer，
+    // db6=-0x24/sig=-0x20）；db1 只在 punish_flag 分支内获取（ORIG 0x0842e155）。
     DB_InsertAutoPunishSecondUserView* sig =
         reinterpret_cast<DB_InsertAutoPunishSecondUserView*>(
             stream->GetOutBuffer<SIG_INSERT_AUTO_PUNISH_SECOND_USER>());
-    MySQL* db6 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
-                                                   E_SERVER_GROUP_NONE);
-    MySQL* db1 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
-                                                   E_SERVER_GROUP_NONE);
     // ORIG 实参序（汇编 0x8..0x1c）：sig+8, sig+0xc, sig+8, sig+0xc,
     // punish_flag, m_id —— 重复传递是 ORIG 原样（多余 vararg 被忽略）。
     db6->set_query(
@@ -16555,9 +16603,9 @@ bool DB_InsertAutoPunishSecondUser::dispatch(int /*userIdx*/, int /*slot*/,
         sig->m_totalTradeGold, sig->m_tradeGold, sig->m_totalTradeGold,
         sig->m_tradeGold, sig->m_punishFlag ? 1 : 0,
         NumberToString(sig->m_memberId, 0));
-    bool needInsert1 =
-        !(db6->exec(true) == 1 && db6->getAffectedRowCount() != 0);
-    if (needInsert1)
+    // P0：ORIG 无 needInsert 槽（`xor $1; test %al,%al; jne` 直判），具名
+    // bool 局部使 4.4 产 `mov %al,-0x1b; cmpb $0x0,-0x1b` 槽往返。
+    if (!(db6->exec(true) == 1 && db6->getAffectedRowCount() != 0))
     {
         db6->set_query(
             "inSert into auto_punish_second_user(m_id,occ_time,total_trade_cnt,trade_cnt,total_trade_gold,trade_gold,punish_flag) values(%s,now(),1,1,%d,%d,%d)",
@@ -16571,9 +16619,7 @@ bool DB_InsertAutoPunishSecondUser::dispatch(int /*userIdx*/, int /*slot*/,
         sig->m_totalTradeGold, sig->m_tradeGold,
         NumberToString(sig->m_memberId, 0),
         NumberToString(sig->m_hackMemberId, 1));
-    bool needInsert2 =
-        !(db6->exec(true) == 1 && db6->getAffectedRowCount() != 0);
-    if (needInsert2)
+    if (!(db6->exec(true) == 1 && db6->getAffectedRowCount() != 0))
     {
         db6->set_query(
             "inSert into auto_punish_second_log(m_id,hack_m_id,occ_time,trade_cnt,trade_gold) values(%s,%s,now(),1,%d)",
@@ -16584,12 +16630,12 @@ bool DB_InsertAutoPunishSecondUser::dispatch(int /*userIdx*/, int /*slot*/,
     }
     if (sig->m_punishFlag)
     {
+        MySQL* db1 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
+                                                       E_SERVER_GROUP_NONE);
         db1->set_query(
             "upDate member_punish_info set occ_time=now(), start_time=now(), end_time='9999-12-31 23:59:59', apply_flag=%d where m_id=%d and punish_type=%d",
             sig->m_punishFlag ? 2 : 0, sig->m_memberId, 4);
-        bool needInsert3 =
-            !(db1->exec(true) == 1 && db1->getAffectedRowCount() != 0);
-        if (needInsert3)
+        if (!(db1->exec(true) == 1 && db1->getAffectedRowCount() != 0))
         {
             db1->set_query(
                 "inSert into member_punish_info(m_id, punish_type, occ_time, start_time, end_time, punish_value, apply_flag) values(%s, %d, now(), now(), '9999-12-31 23:59:59', 0, %d)",
@@ -18299,7 +18345,8 @@ bool DB_UpdateExpertJobStatistic::dispatch(int userIdx, int slot,
 // （26 个 %d 直传）→ 返 exec(true) 结果（ORIG 无失败分支）。
 // ============================================================================
 
-// [b28d-4] DIFF：S 档 gap=20（缺失转写/调用）+ N82 槽序；ORIG 084285ae
+// [SweepW8LT b28d] AE：P214③ 四数组 `{0,0,0,0,0,0}`→`{0}` 复现 4.1/4.4
+// 循环清零展开（11 条/数组），gap 20→0（234/234）；ORIG 084285ae
 bool DB_UpdateItemDropStatistics::dispatch(int userIdx, int slot,
                                            Stream* stream)
 {
@@ -18307,10 +18354,12 @@ bool DB_UpdateItemDropStatistics::dispatch(int userIdx, int slot,
                                                   E_SERVER_GROUP_NONE);
     int channelNo = 0;
     int dropType = 0;
-    unsigned int stackable[6] = { 0, 0, 0, 0, 0, 0 };
-    unsigned int equip[6] = { 0, 0, 0, 0, 0, 0 };
-    unsigned int recipe[6] = { 0, 0, 0, 0, 0, 0 };
-    unsigned int artifact[6] = { 0, 0, 0, 0, 0, 0 };
+    // P214③：单元素 `{0}` 触发 4.1/4.4 循环清零展开（11 条/数组：and $0xfffffffc
+    // + 4 字节步进回跳）；写满 6 个 0 则退化为 6 条 movl（gap 20 的根因）。
+    unsigned int stackable[6] = { 0 };
+    unsigned int equip[6] = { 0 };
+    unsigned int recipe[6] = { 0 };
+    unsigned int artifact[6] = { 0 };
 
     *stream >> channelNo;
     *stream >> dropType;
@@ -18762,7 +18811,11 @@ bool CLocalGlobal_DB_STATICS_BOSSTOWER::dispatch(int userIdx, int slot,
 // (+0xfa0+..+0x10,0x17)、stage/play_time(+0x1000+..+0xc/+0x10)、
 // type=rank(+0xfa0+..+0xe)。任一步失败返 0（不发包）；成功 put(DISPATCH_Q)。
 // ============================================================================
-// [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0842a484
+// [SweepW8LT b28d] DIFF：gap 11→7（our 301 / ORIG 308）。**真 bug 修复**：ORIG
+// 842a702 先存旧 m_count（-0x14）再 `m_count += get_n_rows()`，k 从旧值起（只遍历
+// 本次新增行）；原码 k=0 起会重复覆盖历史行。另 interval 声明序前移（ORIG
+// `movl $0x1,-0x10` 在 total=0 之前）。p167 29/29 [0缺0多]（C1/C2 别名）。余 -7
+// 归 N82 帧（0x80 vs 0x70）+ 槽号差（interval -0x40 vs -0x10）。ORIG 0842a484
 bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
 {
     unsigned char reload = 1;
@@ -18783,6 +18836,9 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
         {
             if (reload == 0)
             {
+                // ORIG 842a702 先存旧 m_count（-0x14），再 `m_count += get_n_rows()`，
+                // k 从**旧值**起（只遍历本次新增行）；原码 k=0 起会重复覆盖历史行。
+                unsigned int interval = 1;
                 unsigned int total = 0;
                 db->set_query(
                     "seLect count(*) from charac_tower_rank where tower_index=%d and part_type=%d",
@@ -18793,7 +18849,6 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
                     return 0;
                 if (!db->get_uint(0, total))
                     return 0;
-                unsigned int interval = 1;
                 if (total > 5)
                 {
                     interval = total / 100;
@@ -18811,8 +18866,9 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
             }
             if (!db->exec(true))
                 return 0;
+            unsigned int oldCount = out->m_count;
             out->m_count += db->get_n_rows();
-            for (unsigned int k = 0; k < out->m_count; ++k)
+            for (unsigned int k = oldCount; k < out->m_count; ++k)
             {
                 if (!db->fetch())
                     return 0;
