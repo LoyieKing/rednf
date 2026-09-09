@@ -15,6 +15,34 @@
 //   TU 级：identical=123 ae=251 near=1 diff=6（基线 123/250/1/7，diff −1、ae +1）；
 //   无 .h 改动；无子子代理。
 //
+// b28d-solo-GmCmds_E-2（2026-09-09 第二轮：dual_rank 3 件 + 全 TU jcc 交叉验证）
+//   ①processKillMonster gap 2→0（280→282=ORIG 282）：
+//     - 删 `float baseF` 具名局部（P0：ORIG getDropRate 返回值直接 fnstcw/
+//       fistpll 转 int64，无 fstps 槽往返）⇒ 消 2 条 fstps/flds；
+//     - 两处 `if(checkValidUser(i)){body}` → `if(!checkValidUser(i)) continue;`
+//       （P168a：ORIG 0x084adf66 `xor $1;test;jne <循环尾>`）⇒ 全函数 jcc
+//       助记符序列与 ORIG 逐位一致（MNE-DIFF 1→0）。余 N85 x87 比较 lowering
+//       （ORIG fucompp/fnstsw/test$0x45/sete vs 4.4 fucomip/fstp/seta，4 条）
+//       + N82/N115 帧（ORIG push edi/esi/ebx+sub 0x9c vs sub 0x98）。
+//   ②makeGeneralItemDropList NEAR→**AE**（ae 252→253、near 1→0）：
+//     删具名 `int key`，改 `out.find(it->m_item.m_addInfo)` 内联实参
+//     （P236：ORIG find 实参临时槽 -0x50 比 it(-0x58) 浅；具名 key 被 4.4
+//     排到 -0x54 且 end 临时 -0x50，与 ORIG 互换）。
+//   ③makeUpgradeDropList ndiff 555→427（grade/up/k2 内联进 find 实参，P236
+//     同族）：仍 DIFF，余 N86（ORIG find 返回经 sret 临时再拷贝 -2 mov，
+//     4.4 copy-elision 无源码解）+ N98 槽序 + EH 析构路径（p167 EXTRA）。
+//   ④全 TU jcc 逐位交叉验证：MNE-DIFF=0（条件码序列全对齐）；TGT-DIFF 7 件
+//     均为指令数/编码差导致的相对偏移差（5 件游戏域 + N123 static_init +
+//     N97 _M_incr）。逐 call * 虚槽核对：本 TU 两侧虚调用站点 = 0（无 call *）。
+//   ⑤CRandomObjectTest::execute / passedMapMonsterKill / _M_incr 复验：
+//     - CRandomObjectTest::execute gap 2 = ORIG 中部对齐 nop(§6.1) + memset
+//       首参 lea 先行/size 经 edx 中转（P75 跨版本，手册「待解」项，三形复测）；
+//     - passedMapMonsterKill gap -3 = N7 寄存器角色（ORIG sret=%edx/实参=%eax
+//       vs 4.4 先 `mov %eax,%edx`），路由已 4.4.6 仍不翻，禁改路由 ⇒ 封顶；
+//     - _M_incr = N97（4.1 mov/sar/shr/lea vs 4.4 lea/test/cmovs）。
+//   TU 级（fresh check_tu_routed）：identical=126 ae=253 near=0 diff=6
+//   （本轮起点 126/252/1/6 ⇒ ae +1、near −1、零回退）；无 .h 改动；无子子代理。
+//
 // 头文件 GameMasterCmd.h 本批禁止编辑：+0x08 通用槽在头里为占位
 // std::string（gcc4.4 旧 ABI sizeof=4）。本批多数类的 ORIG 真实语义是
 // int（atoi/sscanf 解析结果），经 str_as_int / str_as_int2 别名访问；
@@ -271,7 +299,12 @@ void CMonsterDropTest::processDungeonDrop(CParty* party, DropStat& drop,
 // 0.50 段）。已修：base 类型按 T1/T2 直证改 `unsigned int`（ORIG 0x084add59
 // 段 `fistp QWORD [ebp-0x68]` + `mov %eax,-0x2c; mov $0,%edx` 零扩展 +
 // `fild QWORD` ⇒ unsigned 语义），加成截断按 T1 写 `(int)(long long)expr`
-// （ORIG 第二次 `fistp QWORD` 后取低 32 位）。残差为 x87 比较 lowering
+// （ORIG 第二次 `fistp QWORD` 后取低 32 位）。
+// b28d-solo-GmCmds_E-2：282=282（gap 0）——删 `float baseF` 具名局部
+// （P0：ORIG getDropRate 返回值直接 fnstcw/fistpll，无 fstps 槽往返）+
+// 两处 `if(checkValidUser(i)){body}` 改 `if(!checkValidUser(i)) continue;`
+// （P168a：ORIG 0x084adf66 `xor $1;test;jne <循环尾>`）⇒ 全函数 jcc 助记符
+// 序列与 ORIG 逐位一致（MNE-DIFF 1→0）。残差为 x87 比较 lowering
 // （ORIG `fucompp/fnstsw/test $0x45/sete` vs 4.4 `fucomip/fstp/seta`，N85；
 // 需 -march=i486 的 TU 级旗标，路由表禁改）与帧/槽差（N82/N115，ORIG
 // push edi/esi/ebx + sub 0x9c vs 0x98；P190 double framePad 实测 0x98→0xa8
@@ -284,13 +317,15 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
     if (GlobalData::s_globalEffectManager_->isAffectedEffect(1))
     {
         float effVal = GlobalData::s_globalEffectManager_->getEffectValue(1);
-        float baseF = G_CDataManager()->getDropRate();
         // ORIG 0x84add20：条件 effVal > (int)baseF（fildll 载入截断整数 base 与
         // effVal 浮点比较）；加成 (base - effVal) * killCnt（符号与 baseF 相反）。
         // T1/T2 直证：ORIG `fistp QWORD [ebp-0x68]` + 回读 `mov %eax,-0x2c;
         // mov %eax,%edx?`→`mov $0,%edx` 零扩展后 `fild QWORD` ⇒ base 为
         // unsigned int（非 int）。
-        unsigned int base = static_cast<unsigned int>(baseF);
+        // P0 直证：ORIG getDropRate 返回值直接 fnstcw/fistpll 转 int64（无
+        // fstps 槽往返）⇒ 原码无 baseF 具名 float 局部，须内联。
+        unsigned int base =
+            static_cast<unsigned int>(G_CDataManager()->getDropRate());
         if (static_cast<float>(base) < effVal)
         {
             // T1 直证：ORIG `fistp QWORD [ebp-0x68]` 后取低 32 位 ⇒ 源码为
@@ -305,8 +340,8 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
     if (GlobalData::s_globalEffectManager_->isAffectedEffect(4))
     {
         float effVal = GlobalData::s_globalEffectManager_->getEffectValue(4);
-        float baseF = G_CDataManager()->getDropRate();
-        unsigned int base = static_cast<unsigned int>(baseF);
+        unsigned int base =
+            static_cast<unsigned int>(G_CDataManager()->getDropRate());
         if (static_cast<float>(base) < effVal)
         {
             killCnt += static_cast<int>(static_cast<long long>(
@@ -322,27 +357,31 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
     int premRate = 0;
     for (int i = 0; i < 4; i++)
     {
-        if (party->checkValidUser(i))
+        // ORIG 0x084adf66 `xor $1;test;jne <循环尾>` ⇒ 原码是
+        // `if (!checkValidUser(i)) continue;`（P168a：bool callee 裸取反形）。
+        if (!party->checkValidUser(i))
         {
-            CUser* member = party->GetMember()[i].m_pUser;
-            if (member->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0x4f)))
-            {
-                premCnt = premCnt + 1;
-            }
+            continue;
+        }
+        CUser* member = party->GetMember()[i].m_pUser;
+        if (member->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0x4f)))
+        {
+            premCnt = premCnt + 1;
         }
     }
     if (premCnt != 0 && premCnt < 5)
     {
         for (int i = 0; i < 4; i++)
         {
-            if (party->checkValidUser(i))
+            if (!party->checkValidUser(i))
             {
-                CUser* member = party->GetMember()[i].m_pUser;
-                premRate = static_cast<int>(
-                    member->getAddIndependentDropRateFromPremium(
-                        static_cast<ENUM_PREMIUM_TYPE>(0x4f), premCnt));
-                break;
+                continue;
             }
+            CUser* member = party->GetMember()[i].m_pUser;
+            premRate = static_cast<int>(
+                member->getAddIndependentDropRateFromPremium(
+                    static_cast<ENUM_PREMIUM_TYPE>(0x4f), premCnt));
+            break;
         }
     }
 
@@ -453,23 +492,21 @@ void CMonsterDropTest::getDungeonDropResult(std::list<map_item>& items, DropStat
 
 // ORIG makeGeneralItemDropList 0x084ae734：普通物品按 itemId 计数；
 // itemId==0（金币类）把 Inven_Item.m_addInfo2 累计到键 0。
-// b28d-solo-GmCmds_E：P0/P48 条件与 insert 处重新读成员 + P222 正向包裹 +
-// `int key;` 提函数头（循环内赋值）后 157=157，ratio 0.9682；残差 3 类：
-// ① key 槽 -0x54(我)/-0x50(ORIG) 与 end() 临时槽 -0x50/-0x54 互换
-//   （P309 头部声明后 4.4 仍按首次使用序；实测块内声明/全头部/`end()!=mit`
-//   三形均更劣 ⇒ N98 封顶）；
-// ② make_pair 值类别：ORIG `make_pair<int,int>(int&&,int&&)`（4.1 对 xvalue
-//   直接传成员地址 `lea ebx,[eax+0x17]`），4.4 对 static_cast<int&&>/std::move/
-//   static_cast<int> 三形恒物化临时（+2 条且槽整体平移）⇒ 保留左值形
-//   （指令序列 identical，仅调用符号 `IiRi` vs `Iii` 差，p167 1 MISSING/1 EXTRA）。
+// b28d-solo-GmCmds_E-2：157=157 **AE**（本轮 near 1→0、ae +1）——P0/P48 条件与
+// insert 处重新读成员 + P222 正向包裹 + **find 实参内联**
+// （`out.find(it->m_item.m_addInfo)`，P236：ORIG find 实参临时槽 -0x50 比
+//  it(-0x58) 浅；具名 `int key` 被 4.4 排到 -0x54 且 end 临时 -0x50 与 ORIG
+//  互换）。make_pair 值类别仍保留左值形（ORIG `IiRi` vs 4.4 `Iii`，指令序列
+//  identical）。
 void CMonsterDropTest::makeGeneralItemDropList(std::list<map_item>& items,
                                                DropStat& out)
 {
-    int key;
     for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
     {
-        key = it->m_item.m_addInfo;
-        std::map<int, int>::iterator mit = out.find(key);
+        // P236：ORIG 无 key 具名局部槽（find 实参为内联成员表达式临时
+        // `mov 0x12(%eax),%eax; mov %eax,-0x50` ⇒ 临时槽比 it 浅）；
+        // 具名 key 会使 4.4 把 key 排到 it 之上（-0x54），ORIG 为 -0x50。
+        std::map<int, int>::iterator mit = out.find(it->m_item.m_addInfo);
         // P0/P48：ORIG 条件与 insert 处均重新读成员（`call ptEv; mov 0x12(%eax)`），
         // 不用 key 槽；P222 正向包裹（mit!=end 直落、insert 走尾岛）。
         if (it->m_item.m_addInfo == 0)
@@ -527,9 +564,14 @@ void CMonsterDropTest::makeGoldItemDropList(std::list<map_item>& items, DropStat
 // m_addInfo2 映射：0x5aa7→1 / 0xfa6→2 / 0x6a23→3 / 0x5df0→4 / 0x7270→5）。
 // b28d-solo-GmCmds_E：P167 CLEAR（58/58）——make_pair 实例修正
 // （make_pair<uchar,int>、make_pair<int,map&>）+ get_grade 二次调用复现；
-// switch(v) case 升序复现决策树。376=375，ratio 0.8682；残差为槽分配方向差
-// （ORIG it@-0xf8/up@-0xe8 vs 4.4 it@-0xec/up@-0xf8，非整体平移而是槽序反向
-// ——N98「4.4 按首次使用序」+N82；帧同为 0x130），语义完成、byte 层封顶。
+// switch(v) case 升序复现决策树。
+// b28d-solo-GmCmds_E-2：376=375；grade/up/k2 改内联进 find 实参
+// （P236 同族：ORIG 的 find 实参临时槽 -0xf0/-0xe8 比 git(-0xfc)/it(-0xf8) 浅）
+// ⇒ ndiff 555→427、it 槽 -0xec→-0xf0（ORIG -0xf8）。仍 DIFF，残差：
+// ① N86——ORIG find 返回经 sret 临时再拷贝到具名迭代器（-2 mov），4.4
+//    copy-elision 直构，无源码解；② N98 槽序（4.4 按首次使用序）+ N82；
+// ③ EH 析构路径差（p167 EXTRA pair/map D1；正常路径构造/析构次数一致）。
+// 语义完成、byte 层封顶。
 void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat& out)
 {
     for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
@@ -567,14 +609,17 @@ void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat
             break;
         }
 
-        int grade = ci->get_grade();
-        std::map<int, std::map<int, int> >::iterator git = out.find(grade);
+        // P236：ORIG 的 find 实参临时槽 -0xf0 比 git(-0xfc) 浅 ⇒ 内联实参形
+        // （具名 grade 使 4.4 排到 -0xf8，git 到 -0xf4，与 ORIG 相反）。
+        std::map<int, std::map<int, int> >::iterator git =
+            out.find(ci->get_grade());
         // P222 正向包裹：ORIG `test;je <inner 块>` 即 git!=end 直落（up/k2 段）、
         // inner 构造走尾岛；且 insert 处重新调用 GetUpgrade（不用 up 槽）。
         if (git != out.end())
         {
-            int up = static_cast<int>(it->m_item.GetUpgrade());
-            std::map<int, int>::iterator f = git->second.find(up);
+            // P236 同族：ORIG 的 up 临时槽 -0xe8 比 it(-0xf8) 浅 ⇒ 内联实参。
+            std::map<int, int>::iterator f =
+                git->second.find(it->m_item.GetUpgrade());
             if (f != git->second.end())
             {
                 f->second++;
@@ -583,8 +628,8 @@ void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat
             {
                 git->second.insert(std::make_pair(it->m_item.GetUpgrade(), 1));
             }
-            int k2 = special + 1000;
-            std::map<int, int>::iterator g = git->second.find(k2);
+            std::map<int, int>::iterator g =
+                git->second.find(special + 1000);
             if (g != git->second.end())
             {
                 g->second++;
