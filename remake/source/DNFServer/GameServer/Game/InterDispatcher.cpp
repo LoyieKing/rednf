@@ -7225,9 +7225,9 @@ struct Inter_SaveClientHackLogPktView
 int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SaveClientHackLogPktView* pPkt = reinterpret_cast<Inter_SaveClientHackLogPktView*>(data);
-    const unsigned int accId = pPkt->m_0;
+    // §P0/P52：ORIG 084d1ac6 把 m_0 读入 %ebx 跨 G_GameWorld call（无槽）⇒ 不设具名 accId。
     CUser* target = G_CGameManager()->getUser(
-        static_cast<int>(G_GameWorld()->find_session(accId)), 0x30cd);
+        static_cast<int>(G_GameWorld()->find_session(pPkt->m_0)), 0x30cd);
     if (target == 0)
         return 0;
 
@@ -7236,28 +7236,26 @@ int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len
         return 0;                                    // asm xor $0x1,test 取反提前返回
 
     int penalty = 0;                                 // local_20[0]/asm -0x1c(%ebp)
-    const unsigned short type =                      // msg+0x08 日志类型
-        pPkt->m_8;
-    const int value = pPkt->m_e;
-    if (type == 0x1f7)
+    // ORIG 084d1b46..084d1b69：二分决策树（cmp $0x1f7 / jg / cmp $0x193 / cmp $0x326 /
+    //   cmp $0x3ba）⇒ 原码是 switch（§P17/P46，case 按数值升序书写）；m_8/m_e 均无槽往返。
+    switch (pPkt->m_8)
     {
-        if (value > 0x32)
+    case 0x193:
+        if (pPkt->m_e > 0xfa)
+            penalty += 0x14;
+        break;
+    case 0x1f7:
+        if (pPkt->m_e > 0x32)
             penalty += 0x28;
-    }
-    else if (type == 0x193)
-    {
-        if (value > 0xfa)
-            penalty += 0x14;
-    }
-    else if (type == 0x326)
-    {
-        if (value > 0x19)
+        break;
+    case 0x326:
+        if (pPkt->m_e > 0x19)
             penalty += 0x1e;
-    }
-    else if (type == 0x3ba)
-    {
-        if (value > 0x4b0)
+        break;
+    case 0x3ba:
+        if (pPkt->m_e > 0x4b0)
             penalty += 0x14;
+        break;
     }
 
     // [b23S3C] P48：ORIG 两次 getStdDropRate（local_20[2] 落槽供 min 取址；
@@ -7300,18 +7298,18 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
     if (user->get_state() <= 1)
         return 0;
 
-    const int characNo = pPkt->m_0;
+    // §P0：ORIG 每处使用都重读 msg+0x0（084d1ce8/1d21/1de2/1e68 等，无槽往返）⇒ 不设具名 characNo。
     if (pPkt->m_24 != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x8a,
                                  static_cast<unsigned char>(
                                      pPkt->m_24 & 0xff));
-        user->SetCharacViewStateByCharacNo(characNo, 0xff);
+        user->SetCharacViewStateByCharacNo(pPkt->m_0, 0xff);
         user->UpdateCharacView();
         return 0;
     }
 
-    if (!user->setCharacName(characNo, data + 4))
+    if (!user->setCharacName(pPkt->m_0, data + 4))
         return 0x31ae;
 
     {   // 成功应答包
@@ -7321,11 +7319,11 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         packet.finalize(true);
         user->Send(packet);
     }
-    user->SetCharacViewStateByCharacNo(characNo, 1);
+    user->SetCharacViewStateByCharacNo(pPkt->m_0, 1);
     {   // 雇佣兵名同步（ORIG std::string(data+4) 局部 + UpdateCharacNameInMercenary）
         std::string name(data + 4);
         user->UpdateCharacNameInMercenary(
-            static_cast<unsigned int>(characNo), name);
+            static_cast<unsigned int>(pPkt->m_0), name);
     }
     user->UpdateCharacView();
 
@@ -7337,7 +7335,7 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         CGuildServerProxy* proxy =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxy->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
-                                  static_cast<unsigned int>(characNo),
+                                  static_cast<unsigned int>(pPkt->m_0),
                                   static_cast<unsigned int>(pPkt->m_2c),
                                   data + 4);
     }
@@ -7346,7 +7344,7 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         CMonitorServerProxy* monitor =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         monitor->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
-                                    static_cast<unsigned int>(characNo),
+                                    static_cast<unsigned int>(pPkt->m_0),
                                     static_cast<unsigned int>(pPkt->m_2c),
                                     data + 4);
     }
@@ -7355,13 +7353,13 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         CGuildServerProxy* proxyG =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxyG->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
-                                   static_cast<unsigned int>(characNo),
+                                   static_cast<unsigned int>(pPkt->m_0),
                                    static_cast<unsigned int>(pPkt->m_2c),
                                    data + 4);
         CMonitorServerProxy* monitorM =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         monitorM->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
-                                     static_cast<unsigned int>(characNo),
+                                     static_cast<unsigned int>(pPkt->m_0),
                                      static_cast<unsigned int>(pPkt->m_2c),
                                      data + 4);
     }
@@ -7372,7 +7370,7 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         if (curSec > 0x464a1f50)
             return 0;
         const short level =
-            (short)user->getCharacLevelByCharacNo(characNo);
+            (short)user->getCharacLevelByCharacNo(pPkt->m_0);
         if (level <= 0)
             return 0x31b7;
 
@@ -7389,7 +7387,7 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
                 g_scriptStringManager_.findString(
                     4, "game_server_msg_01", reinterpret_cast<bool*>(0)),
                 item, 0u,
-                static_cast<unsigned int>(characNo),
+                static_cast<unsigned int>(pPkt->m_0),
                 reinterpret_cast<const char*>(0), 0, 0u,
                 user->GetServerGroup(), false, false);
         }
@@ -7405,7 +7403,7 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
                 g_scriptStringManager_.findString(
                     4, "game_server_msg_01", reinterpret_cast<bool*>(0)),
                 item, 0u,
-                static_cast<unsigned int>(characNo),
+                static_cast<unsigned int>(pPkt->m_0),
                 reinterpret_cast<const char*>(0), 0, 0u,
                 user->GetServerGroup(), false, false);
         }
@@ -7420,14 +7418,14 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
                 g_scriptStringManager_.findString(
                     4, "game_server_msg_01", reinterpret_cast<bool*>(0)),
                 item, 0u,
-                static_cast<unsigned int>(characNo),
+                static_cast<unsigned int>(pPkt->m_0),
                 reinterpret_cast<const char*>(0), 0, 0u,
                 user->GetServerGroup(), false, false);
         }
     }
 
     GlobalData::s_event_manager->changeCharacName(
-        user, characNo, data + 4,
+        user, pPkt->m_0, data + 4,
         pPkt->m_28);
     return 0;
 }
@@ -8092,18 +8090,22 @@ Inter_MonitorDeathTowerRanking::~Inter_MonitorDeathTowerRanking() {}
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=78（ORIG 0x84d3290）：N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_MonitorDeathTowerRanking::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    for (int i = 0; i < 5; ++i)
+    // ORIG 084d3331/084d3320：循环界 `cmp $0x4/%eax; setbe` ⇒ 原码 unsigned `<=` 形。
+    // ORIG 084d32c6/084d32e0：条件与 registRanking 第 3 实参各自重物化取值（value 无槽，
+    //   留 %edi 跨 getCurCharacNo call）⇒ §P0 内联，不设具名 value。
+    for (unsigned int i = 0; i <= 4; ++i)
     {
-        for (int j = 0; j < 4; ++j)
+        for (unsigned int j = 0; j <= 3; ++j)
         {
-            const unsigned int value = *reinterpret_cast<unsigned int*>(
-                data + 2 + (i * 4 + j + 4) * 4);
-            if (value != 0)
+            if (*reinterpret_cast<unsigned int*>(
+                    data + 2 + (i * 4 + j + 4) * 4) != 0)
             {
-                WongWork::CDeathTowerRanking* table =
-                    static_cast<WongWork::CDeathTowerRanking*>(
-                        WongWork::CDeathTowerRanking::getRankTable(j + 1));
-                table->registRanking(i, user->getCurCharacNo(), value);
+                static_cast<WongWork::CDeathTowerRanking*>(
+                    WongWork::CDeathTowerRanking::getRankTable(j + 1))
+                    ->registRanking(
+                        i, user->getCurCharacNo(),
+                        *reinterpret_cast<unsigned int*>(
+                            data + 2 + (i * 4 + j + 4) * 4));
             }
         }
     }
@@ -10718,44 +10720,46 @@ int Inter_LoadDimensionInout::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadDimensionInoutPktView* pPkt = reinterpret_cast<Inter_LoadDimensionInoutPktView*>(data);
     bool changed = false;
+    bool ultimateChanged = false;                      // ORIG -0x15 具名 bool（movb $0 初值 + 条件置 1 + 末尾 movzbl）
 
     if (user->get_state() == 0)                        // test eax; sete
         return 0x3ef3;
 
-    const unsigned int characNo =
-        pPkt->m_0;        // msg+0x0
-    const int idx = user->get_charac_idx(characNo);
+    // §P0：ORIG 对 pPkt->m_0 全程寄存器直传（无槽往返）⇒ 原码无 characNo 具名局部，三处内联。
+    const int idx = user->get_charac_idx(pPkt->m_0);
     if (idx < 0)                                       // jns
         return 0x3ef9;
 
-    if (user->m_characList[idx].m_characNo != characNo)
+    if (user->m_characList[idx].m_characNo != pPkt->m_0)
         return 0x3efb;
 
-    char* recBase = reinterpret_cast<char*>(&user->m_characList[idx]);
-    *(unsigned int*)(recBase + 0x00) = characNo;
+    // §P183：ORIG 每处字段访问重发 vector<_Charac_info>::operator[]（8 处 out-of-line call，
+    //   我方 recBase 缓存只发 2 处）⇒ 逐点重物化 `&user->m_characList[idx]`，不缓存基址。
+    user->m_characList[idx].m_characNo = pPkt->m_0;
+#define REC_BYTE(off) \
+    (*(reinterpret_cast<unsigned char*>(&user->m_characList[idx]) + (off)))
     for (int i = 0; i <= 5; ++i)                       // cmpl $5; setle
     {
-        *(unsigned char*)(recBase + 0xeb9 + i) =          // +0xeb9 m_demensionInout[i]
+        REC_BYTE(0xeb9 + i) =                          // +0xeb9 m_demensionInout[i]
             *reinterpret_cast<unsigned char*>(data + 4 + i);
-        const char got = (char)*(unsigned char*)(recBase + 0xeb9 + i);
-        const char want =
-            (char)G_CDataManager()->get_dimensionInout(i);
-        if (got != want)
+        // §P0：ORIG got 值留 %ebx 跨 G_CDataManager call 保活（无槽）⇒ 内联比较表达式。
+        if (REC_BYTE(0xeb9 + i) !=
+            (char)G_CDataManager()->get_dimensionInout(i))
             changed = true;
     }
 
-    *(unsigned char*)(recBase + 0xec2) =                  // +0xec2 m_ultimateInout[2]
-        pPkt->m_c;
-    const char ultimate = (char)*(unsigned char*)(recBase + 0xec2);
-    const char limit =
-        (char)G_CDataManager()->get_limit_inout_count(ENUM_BLOOD_TYPE_2);
-    *(unsigned char*)(recBase + 0xeb8) = 0;               // +0xeb8 m_saveDemensionInout
-    *(unsigned char*)(recBase + 0xebf) = 0;               // +0xebf m_saveBloodInout
+    REC_BYTE(0xec2) = pPkt->m_c;                       // +0xec2 m_ultimateInout[2]
+    if (REC_BYTE(0xec2) !=
+        (char)G_CDataManager()->get_limit_inout_count(ENUM_BLOOD_TYPE_2))
+        ultimateChanged = true;
+    REC_BYTE(0xeb8) = 0;                               // +0xeb8 m_saveDemensionInout
+    REC_BYTE(0xebf) = 0;                               // +0xebf m_saveBloodInout
+#undef REC_BYTE
 
     if (user->getCurCharacR() != 0 && user->IsFirstTimeLogin() &&
         user->get_charac_level() > 0x3b)
     {
-        user->DimensionInoutUpdate(changed, ultimate != limit);
+        user->DimensionInoutUpdate(changed, ultimateChanged);
     }
     return 0;
 }
@@ -11795,31 +11799,32 @@ int Inter_MonitorPunishUserReq::dispatch_sig(CUser* /*user*/, char* data, int /*
 {
     Inter_MonitorPunishUserReqPktView* pPkt = reinterpret_cast<Inter_MonitorPunishUserReqPktView*>(data);
     char* recv = data;                                 // -0x14(%ebp) 缓存消息指针
-    const int userCount =
-        (int)pPkt->m_b;
-    const int flag = (int)pPkt->m_a;
 
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x43bc, 0);
-    trace("Monitor Punish User / m_flag = %d / user_count", flag,
-          (unsigned int)userCount);
+    // §P0：ORIG 084db2a5/084db3ea 两次独立重读 m_b、084db2af/084db2f7 两次独立重读 m_a
+    //   （值留 %esi/%ebx 无槽）⇒ 不设具名 userCount/flag 缓存。
+    trace("Monitor Punish User / m_flag = %d / user_count", (int)pPkt->m_a,
+          (unsigned int)pPkt->m_b);
 
-    if (flag == 0)
+    if (pPkt->m_a == 0)
     {
         int i = 0;
-        while (i < userCount)                          // cmp/setg 带符号
+        while (i < (int)pPkt->m_b)                     // cmp/setg 带符号
         {
-            const unsigned int accId =
-                *reinterpret_cast<unsigned int*>(recv + 0xd + i * 4);
-            if (accId > 0x63)
+            // §P0：ORIG 084db31c/084db32f/084db352/084db393 四处各自重读 accId（无槽）。
+            if (*reinterpret_cast<unsigned int*>(recv + 0xd + i * 4) > 0x63)
             {
-                if (G_CGameManager()->isConnectUserByAccId(accId) != '\0')
+                if (G_CGameManager()->isConnectUserByAccId(
+                        *reinterpret_cast<unsigned int*>(recv + 0xd + i * 4)) != '\0')
                 {
-                    CUser* target = G_CGameManager()->GetUserByAccId(accId);
+                    CUser* target = G_CGameManager()->GetUserByAccId(
+                        *reinterpret_cast<unsigned int*>(recv + 0xd + i * 4));
                     target->DisConnSig((DISCONN_SIG)0x2c, true, 0);
                     // ORIG：NumberToString 先求值再构造 cMyTrace
-                    char* str = NumberToString(accId, 0);
+                    char* str = NumberToString(
+                        *reinterpret_cast<unsigned int*>(recv + 0xd + i * 4), 0);
                     cMyTrace kick(
                         __PRETTY_FUNCTION__,
                         0x43d4, 0);
@@ -11886,21 +11891,21 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     bool forbidden = false;                            // -0x2a
     bool showMsg = true;                               // -0x29
-    const unsigned int kind =                          // msg+0x1a
-        pPkt->m_1a;
-    if (kind != 1)
+    // ORIG 084db578..084db592 二分决策树（cmp $1 / jg / cmp $2 / cmp $3）⇒ 原码是 switch（P17/P46）。
+    // ★真语义修正：case 3 无条件 forbidden=true（084db5a5 movb $1,-0x2a），
+    //   仅 showMsg=false 受 m_1b==1 约束（084db5b3..084db5b8）；
+    //   旧写法把 forbidden 也绑在 m_1b==1 上 ⇒ kind==3 且 m_1b!=1 时漏封禁。
+    switch ((unsigned char)pPkt->m_1a)
     {
-        if (kind < 2)
-        {
-            if (kind == 0 && pPkt->m_1b == 2)
-                forbidden = true;
-        }
-        else if (kind != 2 && kind == 3 &&
-                 pPkt->m_1b == 1)
-        {
+    case 0:
+        if (pPkt->m_1b == 2)
             forbidden = true;
+        break;
+    case 3:
+        forbidden = true;
+        if (pPkt->m_1b == 1)
             showMsg = false;
-        }
+        break;
     }
 
     if (forbidden)
@@ -13513,11 +13518,10 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;                                // -0x44
 
-    const unsigned short code =                        // msg+0xc
-        (unsigned short)pPkt->m_c;
-    if (code == 0x232a)
+    // §P0/P251：ORIG 对 msg+0xc 无槽往返（比较与 cMyTrace 实参各自重读 movzwl 双段）⇒ 不缓存 code。
+    if (pPkt->m_c == 0x232a)
         packet.put_header(1, 0x155);
-    else if (code == 0x232e)
+    else if (pPkt->m_c == 0x232e)
         packet.put_header(1, 0x156);
 
     if (pPkt->m_a == 0)
@@ -13560,7 +13564,7 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
             __PRETTY_FUNCTION__,
             0x4b51, 0);
         trace("GUILD_BOARD : CHARAC NO : %u, CODE : %u, TOTAL CNT : %u, CNT : %u : BOARD DATA SEND!!",
-              user->get_charac_no(-1), (unsigned int)code,
+              user->get_charac_no(-1), (unsigned int)pPkt->m_c,
               (unsigned int)pPkt->m_e,
               (int)pPkt->m_17);
     }
@@ -14834,23 +14838,23 @@ struct Inter_Antibot_PunishClientPktView
 int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_Antibot_PunishClientPktView* pPkt = reinterpret_cast<Inter_Antibot_PunishClientPktView*>(data);
-    const unsigned int uid = pPkt->m_0;
-    const unsigned char punishMode = pPkt->m_4;
-    CUser* target = getUser(uid);
+    // §P0：ORIG 084e4782/084e479c 两次独立重读 msg+0x0（uid 无槽），
+    //   084e4792/084e47f8 两次独立重读 msg+0x4（punishMode 留 %esi / 重载）⇒ 不设具名缓存。
+    CUser* target = getUser(pPkt->m_0);
 
     // ORIG：NumberToString 先求值（存寄存器）再构造 cMyTrace
-    char* uidStr = NumberToString(uid, 0);
+    char* uidStr = NumberToString(pPkt->m_0, 0);
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x5eb3, 0);
     trace("requested uid(%s), punish_mode(%d), user(%x)", uidStr,
-          (int)punishMode, target);
+          (int)pPkt->m_4, target);
 
-    if (punishMode == 2)
+    if (pPkt->m_4 == 2)
     {
         if (target != 0 && target->get_state() != 0)
             target->DisConnSig((DISCONN_SIG)0x23, true, 0);
     }
-    else if (punishMode == 3)
+    else if (pPkt->m_4 == 3)
     {
         if (target != 0 && target->get_state() != 0 &&
             0 < pPkt->m_c)
@@ -15344,58 +15348,54 @@ int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len
     if (G_GameWorld()->GetChannelType() == 7)
         return 0;
 
-    const char reqType = pPkt->m_a;
-    const unsigned char groupSel =
-        pPkt->m_b;
-
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
+    // §P0：ORIG 对 m_a/m_b 全程重读（084e2bd6/084e2ce9 两次 m_a；084e2c32 内联 m_b），无槽往返；
+    //   proxy 亦无具名局部（GetServerProxy 结果直接在 %eax 作 this）⇒ 链式调用。
+    // ORIG 084e2bcb/084e2bcd 为正向 `if (IsIntegratedPvPBaseChannel())` 双分支（真分支在前）。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        if (reqType == '\0')
+        if (pPkt->m_a == '\0')
         {
-            CMonitorServerProxy* proxy =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                    (ENUM_SERVER_GROUP)0);
-            proxy->SendGameServerInfo(
-                G_CEnvironment()->get_server_ip(),
-                (unsigned short)G_CEnvironment()->get_udp_port(),
-                (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
-                (unsigned char)G_CEnvironment()->get_channel_no());
+            GlobalData::s_monitor_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_b)
+                ->SendGameServerInfo(
+                    G_CEnvironment()->get_server_ip(),
+                    (unsigned short)G_CEnvironment()->get_udp_port(),
+                    (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+                    (unsigned char)G_CEnvironment()->get_channel_no());
         }
-        else if (reqType == '\x01')
+        else if (pPkt->m_a == '\x01')
         {
-            CGuildServerProxy* proxy =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                    (ENUM_SERVER_GROUP)0);
-            proxy->SendGameServerInfo(
-                G_CEnvironment()->get_server_ip(),
-                (unsigned short)G_CEnvironment()->get_udp_port(),
-                (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
-                (unsigned char)G_CEnvironment()->get_channel_no());
+            GlobalData::s_guild_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_b)
+                ->SendGameServerInfo(
+                    G_CEnvironment()->get_server_ip(),
+                    (unsigned short)G_CEnvironment()->get_udp_port(),
+                    (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+                    (unsigned char)G_CEnvironment()->get_channel_no());
         }
-        return 0;
     }
-
-    if (reqType == '\0')
+    else
     {
-        CMonitorServerProxy* proxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                (ENUM_SERVER_GROUP)groupSel);
-        proxy->SendGameServerInfo(
-            G_CEnvironment()->get_server_ip(),
-            (unsigned short)G_CEnvironment()->get_udp_port(),
-            (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
-            (unsigned char)G_CEnvironment()->get_channel_no());
-    }
-    else if (reqType == '\x01')
-    {
-        CGuildServerProxy* proxy =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                (ENUM_SERVER_GROUP)groupSel);
-        proxy->SendGameServerInfo(
-            G_CEnvironment()->get_server_ip(),
-            (unsigned short)G_CEnvironment()->get_udp_port(),
-            (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
-            (unsigned char)G_CEnvironment()->get_channel_no());
+        if (pPkt->m_a == '\0')
+        {
+            GlobalData::s_monitor_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)0)
+                ->SendGameServerInfo(
+                    G_CEnvironment()->get_server_ip(),
+                    (unsigned short)G_CEnvironment()->get_udp_port(),
+                    (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+                    (unsigned char)G_CEnvironment()->get_channel_no());
+        }
+        else if (pPkt->m_a == '\x01')
+        {
+            GlobalData::s_guild_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)0)
+                ->SendGameServerInfo(
+                    G_CEnvironment()->get_server_ip(),
+                    (unsigned short)G_CEnvironment()->get_udp_port(),
+                    (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+                    (unsigned char)G_CEnvironment()->get_channel_no());
+        }
     }
     return 0;
 }
@@ -16494,16 +16494,16 @@ int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* da
         return 0;
 
     Inter_MonitorNoticeGuildChatMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgHyperLinkPktView*>(data);
-    register int characNo =                            // msg+0xe（P231：ORIG 落 %ebx 无槽）
-        pPkt->m_e;
-    if (user->get_charac_no(-1) != characNo)
+    // §P0：ORIG 084e5080/084e508f 两次独立重读 msg+0xe（比较用 eax、logFormat 用 ebx 跨 call 保活，
+    //   均无槽往返）⇒ 不设具名 characNo。
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x63e4,
             "Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), characNo);
+            user->get_charac_no(-1), pPkt->m_e);
         return 0;
     }
 
@@ -16515,10 +16515,9 @@ int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* da
     packet.put_int(msgLen);
     packet.put_str(pPkt->m_12, msgLen);
     packet.put_byte(0);
-    const unsigned int linkLen =
-        (unsigned int)pPkt->m_169;
-    packet.put_int((int)linkLen);
-    packet.put_str(pPkt->m_16a, (int)linkLen);
+    // §P0：ORIG 084e5184/084e51a0 两次独立重读 msg+0x169（put_int 与 put_str 各自 movzbl 双段，无槽）。
+    packet.put_int((int)(unsigned int)pPkt->m_169);
+    packet.put_str(pPkt->m_16a, (int)(unsigned int)pPkt->m_169);
     packet.put_byte(
         (int)pPkt->m_30);
     for (int i = 0;
@@ -16643,10 +16642,8 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     if (user->get_state() == 0)
         return 0;
 
-    const unsigned char linkType = pPkt->m_35;
-    const unsigned char itemCount = pPkt->m_36;
-    const int count = (int)itemCount;
-    if (linkType == 1)
+    // §P0：ORIG 对 m_35/m_36 全程重读（无具名局部槽往返）⇒ 不缓存 linkType/itemCount/count。
+    if (pPkt->m_35 == 1)
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
@@ -16659,13 +16656,13 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
-        packet.put_byte(itemCount);
-        for (int i = 0; i < count; ++i)
+        packet.put_byte(pPkt->m_36);
+        for (int i = 0; i < (int)pPkt->m_36; ++i)
             packet.put_binary(data + i * 0x68 + 0x37, 0x68);
         packet.finalize(true);
         user->Send(packet);
     }
-    else if (linkType == 2)
+    else if (pPkt->m_35 == 2)
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
@@ -16677,13 +16674,13 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
-        packet.put_byte(itemCount);
-        for (int i = 0; i < count; ++i)
+        packet.put_byte(pPkt->m_36);
+        for (int i = 0; i < (int)pPkt->m_36; ++i)
             packet.put_binary(data + i * 0x68 + 0x37, 0x68);
         packet.finalize(true);
         user->Send(packet);
     }
-    else if (linkType == 3)
+    else if (pPkt->m_35 == 3)
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
@@ -16695,8 +16692,8 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
-        packet.put_byte(itemCount);
-        for (int i = 0; i < count; ++i)
+        packet.put_byte(pPkt->m_36);
+        for (int i = 0; i < (int)pPkt->m_36; ++i)
             packet.put_binary(data + i * 0x68 + 0x37, 0x68);
         packet.finalize(true);
         user->Send(packet);
@@ -16728,8 +16725,8 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_int(pPkt->m_16f);
         packet.put_str(pPkt->m_170,
                        pPkt->m_16f);
-        packet.put_byte(itemCount);
-        for (int i = 0; i < count; ++i)
+        packet.put_byte(pPkt->m_36);
+        for (int i = 0; i < (int)pPkt->m_36; ++i)
             packet.put_binary(data + i * 0x68 + 0x37, 0x68);
         packet.finalize(true);
         user->Send(packet);
