@@ -974,14 +974,23 @@ slang_done:
 }
 
 // ORIG T 0x08917848 _Z23importHiddenNpcListInfoPKcRSt6vectorIiSaIiEE。
-// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P283 岛 + N98 槽序 + N89）]
-// 本波修：①done 改 unsigned char + `for(;;){ if(done) break; … }` ⇒ 条件块
+// [b28d-solo-OnlyOrigBatch14；gap 3→0 / DIFF→NEAR 本波收敛]
+// 已修：①done 改 unsigned char + `for(;;){ if(done) break; … }` ⇒ 条件块
 // 复现 ORIG 0x08917900 `cmpb $0,-0x9(%ebp); jne`（消 sete/xor 取反物化，
 // N122）；②补 dead bool 预清（ORIG 0x089178f8 `movb $0,-0xa`，P171）使帧
-// 0x30 对齐。loadRDARScriptFile 参数序已修为 ("", path)（真语义 bug，ORIG
-// 0x089178de 压参序实证）。残差：①ORIG 入口 `jmp <cond>` 岛（P283 底部条件，
-// 4.4 while/for 恒条件置顶）；②循环内 s/v 槽 -0x1c/-0x14 vs 4.4 相反（N98）；
-// ③p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`（string==const char*
+// 0x30 对齐；③loadRDARScriptFile 参数序修为 ("", path)（真语义 bug）。
+// 本波 gap-3 修复（三条真缺口，实测 123=123 助记符序列全等）：
+//   (a) `s == "[/hidden npc]"` 路径 ORIG 0891794b/4f 为 `movb $1,done;
+//       mov $1,%esi; jmp 08917990`（统一 dtor 点后 `cmp $1,%esi; je 外层头`）
+//       ⇒ 原码是 **break 内层循环**（回外层由 done 检查退出），不是 return true；
+//   (b) `token != "[hidden npc]"` 的 fail 块 ORIG 物理在函数尾（089179ad）⇒
+//       正向 `if(token=="[hidden npc]"){…}else{return false;}` 复现块序
+//       （guard 形 `if(!=)return` 被 4.4 内联在跳转点后，实测 DIFF）；
+//   (c) 同上 (b) 同时补回 ORIG 089178d8 `je 089179ad` 的尾部落点布局。
+// 残余 NEAR（N98 槽序）：ORIG v@-0x14 / isType@-0x15 / isInt@-0x16 / s@-0x1c
+// vs 4.4 v@-0x1c / isType@-0x11 / isInt@-0x12 / s@-0x18（4.4 按首次使用序分配、
+// 4.1 按声明序；P212 全头部声明不适用于每轮构造/析构的 string s）。
+// p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`（string==const char*
 // 外链实例，4.4 libstdc++ 全内联，N89）。
 bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 {
@@ -1007,8 +1016,12 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
             break;
         if (!ScanType(token, true))
             return false;
-        if (token != "[hidden npc]")
-            return false;
+        // [DIFF→AE] ORIG 089178d8 `je 089179ad`：fail 块（mov $0,%ebx;jmp exit）
+        // 物理位于函数尾部（089179ad，紧邻成功返回块 089179b4）⇒ 4.4 对 guard 形
+        // `if(!=) return false;` 把 fail 块内联在跳转点之后（前部，实测 DIFF）；
+        // 改正向 `if(==){…} else {return false;}` 使 4.4 后置 else 块，复现块序。
+        if (token == "[hidden npc]")
+        {
         for (;;)
         {
             // ORIG 0x089179ad：isType/isInt 为**循环内每轮**置零
@@ -1027,24 +1040,44 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
             {
                 if (s == "[/hidden npc]")
                 {
+                    // [gap-3 修复] ORIG 0891794b/4f/54：`movb $0x1,-0x9(done);
+                    // mov $0x1,%esi; jmp 08917990`（统一 dtor 点后
+                    // `cmp $0x1,%esi; je 外层循环头`）⇒ 原码是 **break 内层
+                    // 循环**（done=1 后回外层，由外层 done 检查退出），不是
+                    // 直接 return true（后者只产 `mov $1,%ebx; mov $0,%esi`，
+                    // 缺 cmp/je 两条 + 外层 nop 岛）。
                     done = 1;
-                    return true;
+                    break;
                 }
                 return false;
             }
             out.push_back(v);
+        }
+        }
+        else
+        {
+            return false;
         }
     }
     return true;
 }
 
 // ORIG T 0x088ffe75 _Z29importUniqueRewardForAllUsersPcPSt3mapIiSt6vectorIS1_I22STStackablePackageDataSaIS2_EESaIS4_EESt4lessIiESaISt4pairIKiS6_EEE。
-// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P59 块布局 + N82 槽序 + N89）]：
+// [b28d-solo-OnlyOrigBatch14；gap 2→1 本波收敛]
 // loadRDARScriptFile 参数序已修为 ("", path)（真语义 bug，ORIG 0x088ffe8d
-// 压参序实证）；残余 = ScanType 失败块落点（ORIG 尾部 jne 岛 vs 4.4 直落 je）
-// + 局部槽整体浅移 0x10（帧策略差）+ p167 MISSING
-// `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`（string==const char* 外链实例，
-// 4.4 libstdc++ 全内联，N89）。控制流/全部插入点与 ORIG 逐段核对，语义等价。
+// 压参序实证）。本波两条真缺口：
+//   (a) `[package selection]` 内层循环 ORIG 088fff63-69 为负极性
+//       `int itemIdx; for(;;){ if(!ScanInt(&itemIdx)) break; … }`（有 xor、
+//       无 for-init `movl $0`），原 `for(int itemIdx=0; ScanInt(&itemIdx); )`
+//       产 for-init+尾条件正极性 jne（多 movl、少 xor）；
+//   (b) group 块尾 ORIG 0890002d `jmp 08900044` → jobs dtor → 0890004f
+//       `jmp 088ffeca`（循环头）= 原码 **continue**（语义等价：token=="[group]"
+//       时 "[/package]" 恒 false）。
+// 残余 gap 1 = ORIG 的正常路径 jobs dtor 块（08900044-4f）物理位于 EH 段之后
+// 并由 `jmp 08900044` 进入，4.4 把该 dtor 内联在 continue 点（N104 EH 尾块
+// 相对序）。p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`
+// （string==const char* 外链实例，4.4 libstdc++ 全内联，N89）。
+// 控制流/全部插入点与 ORIG 逐段核对，语义等价。
 bool importUniqueRewardForAllUsers(
     char* path,
     std::map<int, std::vector<std::vector<STStackablePackageData> > >* out)
@@ -1076,8 +1109,18 @@ bool importUniqueRewardForAllUsers(
             while (token == "[package selection]")
             {
                 std::vector<STStackablePackageData> items;
-                for (int itemIdx = 0; ScanInt(&itemIdx); )
+                // [gap-2 修复] ORIG 088fff63-69：`lea -0x24; call ScanInt;
+                // xor $1,%eax; test %al,%al; jne <跳出>`（负极性、无 for-init
+                // `movl $0`）⇒ 原码是 `int itemIdx; for(;;){ if(!ScanInt(&itemIdx))
+                // break; … }`，不是 `for(int itemIdx=0; ScanInt(&itemIdx); )`
+                // （后者 4.4 产 for-init + 尾条件正极性 jne，少 xor、多 movl）。
+                int itemIdx;
+                for (;;)
                 {
+                    if (!ScanInt(&itemIdx))
+                    {
+                        break;
+                    }
                     STStackablePackageData p;
                     p.m_field0 = itemIdx;
                     p.m_field4 = ScanInt((bool*)0);
@@ -1087,6 +1130,12 @@ bool importUniqueRewardForAllUsers(
                 ScanType(token, true);
             }
             (*out)[job] = jobs;
+            // [gap-1 修复] ORIG 0890002d `jmp 08900044` → jobs dtor →
+            // 0890004f `jmp 088ffeca`（循环头）⇒ 原码 group 块尾是 **continue**
+            // （跳过 "[/package]" 检查直接回循环头；语义等价：token=="[group]"
+            // 时 "[/package]" 恒 false）。4.4 对无 continue 的形让 dtor 块
+            // 直落 "[/package]" 比较块，少这条 jmp。
+            continue;
         }
         if (token == "[/package]")
             break;
@@ -1260,12 +1309,21 @@ int importUltimateSkillCutScene(const char*,
 // **逆序声明** 对齐 ORIG 深度。
 void importActiveStatus(STActiveStatus& st, bool flag)
 {
-    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N82/N93 槽序）] 本波修：16 处
-    // push_back 改 `static_cast<int&&>(tX)` ⇒ 选中 ORIG 的
-    // `_ZNSt6vectorIiSaIiEE9push_backEOi`（右值重载，P315），p167 CLEAR
-    // 42=42。残差 = 帧/槽深序：ORIG f(-0x6c)/s(-0x5c)/t5A..t4(-0x58..-0x1c)/
-    // type(-0x18)/i9(-0x14)/iD(-0x10)/i4(-0xc)，4.4 兄弟块内同类临时槽方向
-    // 相反（b28c C28L8 判定不可翻）且帧 sub 0xc0 vs ORIG `add 负立即数`。
+    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N82/N93 槽序）；gap 34→32 本波]
+    // 16 处 push_back 用 `static_cast<int&&>(tX)` ⇒ 选中 ORIG 的
+    // `_ZNSt6vectorIiSaIiEE9push_backEOi`（右值重载，P315），p167 CLEAR 42=42。
+    // 本波修：删 `bool f = flag;`（ORIG 0x088c1e96 的 `mov %al,-0x6c` 是 4.1
+    // 对 bool 形参的一次性截断 spill，P244 配套；写 f 令 4.4 多发
+    // `movzbl -0xac; mov %al,-0x9` 两条并推深帧），ours 295→293。
+    // 残差（N 封顶）：
+    //  ①32 条 mov = 16 个 push_back × 2：ORIG `call ScanInt; mov %eax,-0xNN(tX);
+    //    lea -0xNN; call push_backEOi`（ScanInt 结果直落 tX 槽、实参取 tX 址）；
+    //    4.4 对 `static_cast<int&&>(具名 int)` 额外 materialize 临时
+    //    （`mov %eax,-0xNN2; mov -0xNN2,%eax; mov %eax,-0xNN` + `lea 临时`），
+    //    每处 +2 条；探针：改块内声明/去 cast 均改符号或槽序，不闭合；
+    //  ②槽深序：ORIG s(-0x5c)/t5A..t4(-0x58..-0x1c)/type(-0x18)/i9(-0x14)/
+    //    iD(-0x10)/i4(-0xc)，4.4 兄弟块内同类临时槽方向相反（b28c C28L8）
+    //    且帧 sub 0xc0 vs ORIG `add 负立即数`(0x80)。
     // 控制流/全部 ScanInt 落点与 ORIG 逐段一致。
     int i4;
     int iD;
@@ -1273,14 +1331,17 @@ void importActiveStatus(STActiveStatus& st, bool flag)
     int t4, tD, t9, tB, t6, t2, tA, t11, tF, t7, tCB, tCA, t0B, t0A, t5B, t5A;
     int type;
     std::string s;
-    bool f = flag;  // ORIG 0x088c1e96 entry spill
+    // [gap 复核] 删除原 `bool f = flag;`：ORIG 0x088c1e96 `mov 0xc(%ebp),%eax;
+    // mov %al,-0x6c(%ebp)` 是 4.1 对 **bool 形参**的一次性截断 spill（P244
+    // 配套），不是第二个具名局部；写 f 会让 4.4 多发 `movzbl -0xac; mov %al,-0x9`
+    // 两条（形参 spill + f 初始化）并把帧推大 0x40。
 
     ScanStr(&s);
     type = getActiveStatusType(s);
     st.m_type = type;
     st.m_value4 = ScanFloat((bool*)0);
     st.m_value8 = ScanInt((bool*)0);
-    if (f)
+    if (flag)
     {
         st.m_flagC = ScanInt((bool*)0) != 0;
     }
@@ -1680,12 +1741,19 @@ int ImportDifficultPenaltyInfoScript(const char* path, DifficultPenaltyInfo& out
 // 返回 1。
 int ImportTileScript(STTileScript* script, const char* path)
 {
-    // [b28d-solo-OnlyOrigBatch14] N 封顶（P232 帧差 + P292 bool 形 + N98 槽序）：
-    // ORIG 帧含 dead 槽且局部槽深序与 4.4 相反（[pass type] 内层 ScanInt(&ok)
-    // 循环的 bool 物化 je/jne 极性随之错位）。loadRDARScriptFile("TILE", path)
-    // 参数序、token 分派与全部 push_back 调用点与 ORIG 逐段核对一致。
-    //   ↑ 旧判词里的 loadRDARScriptFile 首参有误：ORIG 0x089dcbc5 实证为空串，
-    //   本波已按串 key 配平改回 `loadRDARScriptFile("", path)`。
+    // [b28d-solo-OnlyOrigBatch14；gap 5→0 / DIFF→AE 本波收敛（208=208）]
+    // 旧判词 loadRDARScriptFile 首参有误：ORIG 0x089dcbc5 实证为空串，已改
+    // `loadRDARScriptFile("", path)`。本波三条真缺口（直方图 jmp-1/nop-3/xor-1）：
+    //   (a) 主 token 循环 ORIG 089dcc3a-3f `xor $1,%eax; test %al,%al;
+    //       jne <退出>` = 负极性 `for(;;){ if(!ScanType(token,true)) break; }`
+    //       （4.4 对 while(ScanType) 恒发 test+jne 正极性，少 xor）；
+    //   (b) ORIG 089dcc21-26 两个空 else 占位岛（`jmp 循环头; nop; jmp 循环头;
+    //       nop`，4.1 if-join 岛）随 (a) 的 break 落点与 if/else 结构自然复现；
+    //   (c) ORIG 089dce41 的 break 出口 nop 随 (a) 复现。
+    // 另修 P0 槽合并：ORIG 089dcd80 `movl $0,-0xc` 与 089dcdcf `movl $1,-0xc`
+    // 复用同一槽 ⇒ 原码是**同一个** `int i`（死初始化 + for(i=1;…)），
+    // 拆成 rowIdx+i 两个局部会多占 4B 使全帧槽深移（旧判词 N98 槽序残差即此）。
+    // 收敛后 208=208 助记符序列全等、槽号逐条对齐（AE）。
     if (!loadRDARScriptFile("", path))
     {
         printf("TILE LOAD FAIL! [%s]\n", path);
@@ -1699,8 +1767,15 @@ int ImportTileScript(STTileScript* script, const char* path)
     int n = 0;
     std::string token;
     std::string str;
-    while (ScanType(token, true))
+    // [gap-5 修复] ORIG 089dcc35-cc3f：`call ScanType; xor $1,%eax; test %al,%al;
+    // jne <退出>` = 负极性 `if(!ScanType) break`（4.4 对 while(ScanType) 恒发
+    // test+jne 正极性，少 xor 一条）；退出点 089dce41 的 nop 为 4.1 break 出口占位。
+    for (;;)
     {
+        if (!ScanType(token, true))
+        {
+            break;
+        }
         if (token == "[IMAGE]")
         {
             std::pair<std::string, int> entry;
@@ -1727,10 +1802,11 @@ int ImportTileScript(STTileScript* script, const char* path)
         else if (token == "[pass type]")
         {
             script->m_collisions.clear();
-            // ORIG 089dcd87：clear 后即 `movl $0x0,-0xc(%ebp)` ——块级 int
-            // dead-init（后续无读；P31 帧对齐 dummy，非发明符号）。
-            int rowIdx = 0;
-            (void)rowIdx;
+            // ORIG 089dcd80：clear 后即 `movl $0x0,-0xc(%ebp)`，且 089dcdcf
+            // `movl $0x1,-0xc(%ebp)`（for 初值）**复用同一槽** ⇒ 原码是同一个
+            // 具名 int i（死初始化 + for(i=1;…) 复用），不是两个局部（P0）。
+            int i = 0;
+            (void)i;
             // ORIG 089dcd8d：row vector<int> 在循环**外**构造一次（跨轮
             // 复用，loop top 089dcd92 直落 ScanInt）；行内 089dcdfb 显式
             // row.clear()；首个 ok 检查 fail → je 089dce1b 跳统一 dtor 岛
@@ -1745,7 +1821,7 @@ int ImportTileScript(STTileScript* script, const char* path)
                 }
                 row.clear();
                 row.push_back(n);
-                for (int i = 1; i <= 0xd; ++i)
+                for (i = 1; i <= 0xd; ++i)
                 {
                     row.push_back(ScanInt((bool*)0));
                 }
@@ -5298,22 +5374,30 @@ bool DecreaseTradeLimitCountByUser(CUser& user, int space, int slot)
 //                        serverGroup, false, false)。
 void GiveItemReturnUser(CUser* user)
 {
-    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P78 + N82/N115）] 本波修：
+    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P78 + N82/N115）；gap-1 复核本波]
     // ①P244/P0：ORIG 0x084bfd31 `movl $0x1f15,-0x2c(%ebp); movl $0x1,
     // -0x28(%ebp)` 两具名常量局部入槽（声明序在 item 之前）+ 0x084bfd4d
     // `mov -0x28(%ebp),%eax; mov %eax,0x4(%esp)`（set_add_info 实参从槽读）
     // ⇒ 补具名 itemIdx/nAddInfo；P198 孪生「声明与赋值分离」阻止 4.4 常量
-    // 传播成立即数直传；②P232：前置 dead `char pad[8]; pad[0]=0;` 顶槽使
-    // item 落 -0x69 与 ORIG 一致。p167 CLEAR 22=22。残差 = ORIG `push %edi`
-    // （我方 esi/ebx 双 callee-saved，P78 寄存器分配差）+ 槽基仍浅 8（4.4
-    // 先声明浅 vs ORIG 先声明深，N82）+ 帧 0x1a0 vs 0x19c（N115 outgoing 量化）。
-    // 发放调用点/循环与 ORIG 逐条一致。
-    char pad[8];
-    pad[0] = 0;
+    // 传播成立即数直传；②P232：dead `char pad[8]` 顶槽使 item 落 -0x69 与
+    // ORIG 一致。p167 CLEAR 22=22。发放调用点/循环与 ORIG 逐条一致。
+    // 本波 gap-1 探针（三次 fresh 编译实测）：
+    //   · 删 pad 全部 → item 浅 8（-0x61）、帧 0x190、gap 2（劣化）⇒ pad 必需；
+    //   · pad 占槽但不写 `(void)pad` → 4.4 不给槽、item 浅 8、gap 2 ⇒ 需真实 store；
+    //   · pad 移到标量之后 → 同 gap 1（当前采用，前两条 movl 序与 ORIG 一致）。
+    // 残差（N 封顶）：ORIG `push %edi`（3 callee-saved）vs 我方 esi/ebx（P78
+    // 寄存器分配差，连带 push/pop 各 -1）；ORIG 标量槽 -0x2c/-0x28/-0x24 vs
+    // 我方 -0x24/-0x20/-0x1c（4.4 聚合优先占低槽 + 标量分区，N82）；帧
+    // 0x1a0 vs 0x19c（N115 outgoing 16B 量化）；ORIG 多 jmp+nop 岛 1 对
+    // （P223 空 then 占位，与 push edi 帧差耦合）。语义全等。
     int itemIdx;
     itemIdx = 0x1f15;
     int nAddInfo;
     nAddInfo = 1;
+    // [gap-1 探针] pad 移到标量之后：4.4 按首次使用序分配，试把 pad 槽
+    // 推离标量区（ORIG itemIdx/nAddInfo/def = -0x2c/-0x28/-0x24）。
+    char pad[8];
+    pad[0] = 0;
     Inven_Item item;
     CItem* def = G_CDataManager()->find_item(itemIdx);
     if (def == 0)
