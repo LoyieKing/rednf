@@ -51,7 +51,10 @@ public:
 
     // ---- 新增虚函数（虚表槽，紧随 CBossPlay 的 6 个虚函数之后）----
     virtual bool handleMoveMap(unsigned short* mapIndex);  // 0x0814f66a
-    virtual int handlePickupItem(CUser* user, int a, bool b, char& c);  // 0x0814fa76（bool 化实测致 CBossTower::handlePickupItem AE→NEAR 回归，维持 int）
+    // 0x0814fa76。P248 档①：ORIG 调用点 0x08143dbb `call; mov %al,-0x9`（无
+    // test/setne ⇒ 单字节返回）+ 尾 `mov %ebx,%eax`（与 handleDropItem bool 同形）
+    // ⇒ bool。mangled 不含返回类型，vtable 槽序/sizeof 零影响。
+    virtual bool handlePickupItem(CUser* user, int a, bool b, char& c);
     virtual bool handleDropItem(CUser* user, int a, int b, char c, int d, int e);  // 0x0814ff4a（ORIG 调用点 mov %al 直存槽=返回值在 al；尾 mov$1,%ebx bool epilogue 形，P9/P27）
     virtual bool handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d);  // 0x08150388

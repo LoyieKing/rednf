@@ -176,8 +176,13 @@ bool CBossStage::handleMoveMap(unsigned short* mapIndex)
 // [b28d-solo-CBossStage] N82：去 MapInfo& stage 引用（直读 m_stageData）、
 //   map_item item 默认构造 + item=it->second 结构赋值、迭代器 const_iterator
 //   （ORIG 有转换构造）。残差=帧/槽分区（ORIG 迭代器槽 -0x64..-0x70）。
-int CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
-                                 char& outRarity)
+// [b28f-SweepCBossTower P248 档①] 返回类型 int→bool（CBossStage.h:54 同步）：
+//   ORIG 调用点 0x08143dbb `call; mov %al,-0x9(%ebp)`（无 test/setne ⇒ 单字节
+//   返回）；返回类型不入 mangled（_ZN8WongWork10CBossStage16handlePickupItemEP5CUseribRc
+//   不变），vtable 槽序/sizeof 零影响；本 TU 四数改前/改后 identical=228
+//   ae=368(596) near=2 diff=7 全等（零回归）。
+bool CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
+                                  char& outRarity)
 {
     (void)flag;   // ORIG 未读取第 3 参（仅按值传递占位）
     static const char kPretty[] =
