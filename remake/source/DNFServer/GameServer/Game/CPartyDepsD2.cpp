@@ -602,12 +602,14 @@ void CParty::changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool firstVisit)
 //   （IsVisitedCurrentMap xor$1 vs setne）、P196 折向（info.m_39 movsbl vs
 //   movzbl：槽位值域 0..3 无 ≥0x80 分叉，非真反）——语义与调用序列零缺口。
 // ---------------------------------------------------------------------------
-// [b28d-solo-CPartyDepsD2] 判词 N82（645 vs 632）：已修 ①+0x378 死读照抄（P171，
-// ORIG 0x085a83ab 读入 -0x38 后被 m_field1ab8 覆盖）②playTime 由函数头缓存改
-// 循环内重读 +0x334（P183，ORIG 0x085a8597 `mov %eax,-0x4c`）。残余：帧 0x6c vs
-// 0x8c（N82 槽复用差）、IsVisitedCurrentMap 负极性 `xor$1;je` 布局（正向包裹需
-// 重排全主体，P222 边界）、m_mapHitCount 重读 vs -0x50 缓存、kill -0x46 槽缓存。
-// P167 33/33 CLEAR，语义/调用集齐，byte 层封顶。
+// [b28d-solo-CPartyDepsD2] gap 13→0（645=645），p167 33/33 CLEAR。本轮真修：
+// ①[真 bug] 技能节奏阈值 q/rem 的基准错 1000 倍——旧码用原始 tick（playTime/5），
+//   ORIG 0x085a88e0 读 -0x20 = m_playedTime/1000（0x085a8897 段写入）⇒ 改
+//   `secQ = bd(this).m_field8/1000; q = secQ/5; rem = secQ - q*5`；边界比较
+//   （rem==0 → c>q 记疑 / rem!=0 → c>=q）经汇编复核与原码一致，保留。
+// ②P0/P329 去 lastMap/playTime 具名局部（MapClear 实参内联，ORIG 0x085a8591
+//   `mov 0x4(%eax),%esi` 直解引用 + 每次重算 /1000）。残余：帧 0x6c vs 0x8c
+//   （N82 槽复用差）+ 4.4 continue 中继岛（N-P223）。语义/调用集齐，byte 层封顶。
 bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 {
     // [b28d-solo-CPartyDepsD2] P171 死读照抄：ORIG 0x085a83ab 先 `mov 0x378` 到
@@ -649,13 +651,14 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         if (m_battleField.m_pDungeon->IsEnterEachMap() && (int)info.m_39 != i)
             continue;
 
-        MapInfo* lastMap = bf(this).GetLastMapInfo();    // T 0x0830eac8
-        // [b28d-solo-CPartyDepsD2] P183：ORIG 0x085a8597 在循环内重读
-        // +0x334（mov %eax,-0x4c），非函数头缓存。
-        const unsigned int playTime = bd(this).m_field8;
         // cUserHistoryLog::MapClear(ushort,int,int) T 0x08684b22
         // 首参 = user+0x79700 日志门面；第 3 参 = *(int*)(lastMap+4)=m_mapIndex
-        memberUser(this, i)->m_historyLog.MapClear(kill, (int)(playTime / 1000), lastMap->m_mapIndex);
+        // [P0/P329] 无 lastMap/playTime 具名局部：ORIG 0x085a8591 直接
+        // `mov 0x4(%eax),%esi`（GetLastMapInfo 返回值直解引用），0x085a8597
+        // 每次重算 +0x334/1000（-0x4c 除法临时），均无槽往返。
+        memberUser(this, i)->m_historyLog.MapClear(
+            kill, (int)(bd(this).m_field8 / 1000),
+            bf(this).GetLastMapInfo()->m_mapIndex);
 
         if (kill == 0)
         {   // 击杀数为 0 却换图 → 0x19b
@@ -664,7 +667,7 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         }
 
         // 时长/击杀比异常：quotient=kill/sec，>4 时上报 min(q-4,100) → 0x340
-        const unsigned int sec = playTime / 1000;
+        const unsigned int sec = bd(this).m_field8 / 1000;
         if (sec != 0)
         {
             const unsigned int quotient = (unsigned int)kill / sec;
@@ -710,8 +713,11 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
             const int c = m_field1aa4[i];
             if (level >= 0x14 && m_battleData.m_arr54[i] != 0 && c != 0)
             {
-                const unsigned int q = playTime / 5;     // mul 0xcccccccd shr 2
-                const unsigned int rem = playTime - q * 5;   // sec%5
+                // [真 bug 修正] 基准是 m_playedTime/1000（ORIG 0x085a88e0 读 -0x20，
+                // 由 0x085a8897 段 /1000 写入），不是原始 tick（旧码差 1000 倍）。
+                const unsigned int secQ = bd(this).m_field8 / 1000;
+                const unsigned int q = secQ / 5;         // mul 0xcccccccd shr 2
+                const unsigned int rem = secQ - q * 5;   // sec%5
                 if (rem == 0)
                     suspectBoundary = ((unsigned int)c > q);
                 else
@@ -771,18 +777,27 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 // check_allmember_loading —— ORIG T 0x085b17a4
 // 报告：docs/class_func_reports/CParty/check_allmember_loading.md
 // ---------------------------------------------------------------------------
-// [b28d-solo-CPartyDepsD2] 判词 N82（454 vs 438）：已修 ①时间累计改 ORIG 64 位
-// sub/sbb+add/adc 链（BattleData +0x2c 新增 u64 别名 m_accTick，消 4 个 32 位
-// 局部）②base tick 改无局部直算式。残余：PacketGuard 块作用域致 4.4 立即 D1 +
-// EH landing 段（ORIG 无）、帧 0x9c vs 0xdc、PCRoom/trace 段槽方向差。
-// 语义/调用集齐，byte 层封顶。
+// [b28d-solo-CPartyDepsD2] gap 16→-7（454 vs 461），p167 真缺口归零（仅余
+// C1/C2、D1/D2 同址别名 + 1 处 _Unwind_Resume，P93/N104）。本轮真修：
+// ①[真缺口] trace 第 2 参由 `m_partyIndex` 直读改 out-of-line `GetPartyIndex()`
+//   （ORIG 0x085b17d4 call，非 mov 0x64）；②[真缺口] GetDungeon 单次调用（旧码
+//   `if(bf(this).GetDungeon()!=0){CDungeon* d=bf(this).GetDungeon();}` 调两次，
+//   ORIG 0x085b1d04 单次存 -0x24）。形态（P0/P24/P227/P292）：首/次循环改
+//   `if(!_checkValidUser) continue;` 否定早退、pcRoomTrace/user 具名局部删除、
+//   两处 trace 改全表达式临时链（ORIG ctor 前求 varargs）、三处 key 内联实参、
+//   acc-tick 表达式内联（LHS-first）、GetPCRoomNo 改空 if 体复现 `test;jmp`。
+// 残余：帧 0x9c vs 0xac、flag 形参 4.1 cmpb 直比 vs 4.4 movzbl+xor（P209/N）、
+// EH 尾块相对序（N104）、PCRoom trace 两 vararg 寄存器 esi↔ebx 互换（N7）。
 void CParty::check_allmember_loading(bool flag)
 {
     const int memberCount = get_member_count();
     if (memberCount == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x30e0, 0);
-        trace("<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)", m_partyIndex);
+        // ORIG 0x085b17d4 为 out-of-line `call CParty::GetPartyIndex()`（非 m_partyIndex 直读）。
+        // P227 全表达式临时链：0x085b17d9 先 call GetPartyIndex 存 %ebx，再 ctor
+        // （0x085b17f9），最后压参。
+        cMyTrace(__PRETTY_FUNCTION__, 0x30e0, 0)(
+            "<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)", GetPartyIndex());
         destroy();                                       // T 0x0859ad4c
         LogManager::logFormat(
             1, "party.cpp", __PRETTY_FUNCTION__, 0x30e3,
@@ -794,11 +809,17 @@ void CParty::check_allmember_loading(bool flag)
     int loadedCount = 0;                                 // -0x2c
     for (int i = 0; i < 4; ++i)
     {
-        if (_checkValidUser(i) && m_battleData.m_arr50[i])   // +0x37c+i byte
+        // P292/P133：ORIG 0x085b1881 `xor $1; test; jne`（bool callee 否定早退）；
+        // 合并 `&&` 会多 setcc 物化。
+        if (!_checkValidUser(i))
+            continue;
+        if (m_battleData.m_arr50[i])                     // +0x37c+i byte
             ++loadedCount;
     }
     if (loadedCount != memberCount)
     {
+        // ORIG 0x085b18b8 `cmpb $0x0,-0x6c(%ebp); je`（4.1 形参 spill 后内存直比）；
+        // 4.4 对 bool 形参恒 movzbl+xor 物化（P209/N，`==0` 写法实测同形）。
         if (!flag)
             return;
         if (loadedCount < 1)
@@ -818,41 +839,49 @@ void CParty::check_allmember_loading(bool flag)
     // 副本游玩时间累计：acc(+0x358/0x35c) += now - moveTick(+0x360/0x364)。
     // [b28d-solo-CPartyDepsD2] ORIG 0x085b195a..0x085b1ee 为 64 位
     // sub/sbb + add/adc 链（now 零扩展 64 位，具名 now/moveTick 槽 -0x80/-0x78）。
-    {
-        const unsigned long long now = GlobalData::s_systemTime_.getCurTickCount();
-        const unsigned long long moveTick = bd(this).m_moveTick;   // +0x360/0x364
-        bd(this).m_accTick += now - moveTick;
-    }
+    // P0/P211：ORIG 0x085b1942 先读 acc(+0x358/0x35c) 再 call getCurTickCount
+    // （LHS-first）⇒ 表达式内联，不设 now/moveTick 具名局部。
+    bd(this).m_accTick += GlobalData::s_systemTime_.getCurTickCount()
+                          - bd(this).m_moveTick;                 // +0x360/0x364
     // 地图基准 tick：base(+0x33c/0x340) = now - enterTick(+0x344/0x348)（无局部槽）。
     bd(this).m_baseTick = GlobalData::s_systemTime_.getCurTickCount()
                           - bd(this).m_enterTick;
 
     // PCRoom 统计上下文：非自动建队且人数>1 时开启追踪
-    const bool pcRoomTrace = !(IsAutoCreated() || get_member_count() == 1);
-    traceHack(this).traceBegin(GlobalData::s_systemTime_.getCurSec(), pcRoomTrace);
+    // P0：ORIG 0x085b19f9 直接 `movzbl %al,%ebx`（无 bool 槽）⇒ 内联实参。
+    traceHack(this).traceBegin(GlobalData::s_systemTime_.getCurSec(),
+                               !(IsAutoCreated() || get_member_count() == 1));
 
     for (int i = 0; i < 4; ++i)
     {
         if (!_checkValidUser(i))
             continue;
-        CUser* user = m_member[i].m_pUser;
-        if (user->get_state() < 3 || user->getCurCharacR() == 0)   // thunk 0x080da38c
+        // P0：ORIG 每点重算 m_member[i].m_pUser（无指针槽往返）。
+        if (m_member[i].m_pUser->get_state() < 3 ||
+            m_member[i].m_pUser->getCurCharacR() == 0)   // thunk 0x080da38c
         {
-            char* idStr = NumberToString(user->get_acc_id(), 0);   // T 0x0810904b
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x3123, 5);
-            trace("PCROOM : Dispatcher_RequestPCRoomPlayerCount => User State : %d, "
-                  "m_id : %s",
-                  user->get_state(), idStr);
+            // P227：ORIG 0x085b1ad4 NumberToString→%ebx、0x085b1af5 get_state→%esi
+            // 均在 ctor（0x085b1b15）之前求值并跨 ctor 保活。
+            cMyTrace(__PRETTY_FUNCTION__, 0x3123, 5)(
+                "PCROOM : Dispatcher_RequestPCRoomPlayerCount => User State : %d, "
+                "m_id : %s",
+                m_member[i].m_pUser->get_state(),
+                NumberToString(m_member[i].m_pUser->get_acc_id(), 0));  // T 0x0810904b
         }
-        user->GetPCRoomNo();                             // 结果未消费（ORIG 形态）
+        // ORIG 0x085b1b54 `call; test %eax,%eax; jmp`（4.1 空 if 体占位）。
+        if (m_member[i].m_pUser->GetPCRoomNo())
+        {
+        }
     }
 
     // 开启反作弊采样
     for (int i = 0; i < 4; ++i)
     {
-        if (_checkValidUser(i))
-            memberUser(this, i)->getHackAnalyzer()->beginCollectHackInfo(
-                m_member[i].m_pUser);
+        // P292：ORIG 0x085b1b87 `xor $1; test; jne`（bool callee 否定早退）。
+        if (!_checkValidUser(i))
+            continue;
+        memberUser(this, i)->getHackAnalyzer()->beginCollectHackInfo(
+            m_member[i].m_pUser);
     }
 
     m_pad119 = 1;                                        // +0x119 装载检查标志
@@ -865,31 +894,35 @@ void CParty::check_allmember_loading(bool flag)
         bf(this).m_elevatorTimer = 0;                    // +0x139
         bf(this).m_elevatorState = 2;                    // +0x138
         bf(this).m_elevatorFlag = 0;                     // +0x13a
-        const int key = gen_timer_key((TIMER_MESSAGE)0x28);
+        // P24：ORIG 0x085b1c49/0x085b1c4e 把 gen_timer_key 结果留 %ebx、
+        // m_partyIndex 留 %esi 跨 G_TimerQueue() call ⇒ 内联实参。
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
-                                    (TIMER_MESSAGE)0x28, 0xf, key, 0);
+                                    (TIMER_MESSAGE)0x28, 0xf,
+                                    gen_timer_key((TIMER_MESSAGE)0x28), 0);
     }
 
     // 血票剩余时间提醒（BF+0x128=m_villageMonsterId 槽按 short 判非 0）
     if (bf(this).m_villageMonsterId != 0)
     {
-        const int key = gen_timer_key((TIMER_MESSAGE)0x27);
+        // P24：ORIG 0x085b1cb8/0x085b1cbd/0x085b1cc6 三值均跨 G_TimerQueue() 保活。
         G_TimerQueue()->InsertTimer(
             (TimerEntry::OBJ_TYPE)1, m_partyIndex, (TIMER_MESSAGE)0x27,
-            bf(this).m_field134, key,
+            bf(this).m_field134, gen_timer_key((TIMER_MESSAGE)0x27),
             (unsigned long long)(unsigned short)bf(this).m_villageMonsterId);
     }
 
     // 任务 NPC 副本且有 boss 房：EPLP 状态机切换 + 0xfe 包
-    if (bf(this).GetDungeon() != 0)
+    CDungeon* dungeon = bf(this).GetDungeon();           // ORIG 单次 call 存 -0x24
+    if (dungeon != 0)
     {
-        CDungeon* dungeon = bf(this).GetDungeon();
         if (dungeon->getQuestNpcDungeon() && checkBossRoom())
         {
             SetEPLPState(2);
-            const int key = gen_timer_key((TIMER_MESSAGE)0x15);
+            // P24：ORIG 0x085b1d6e（key→%esi）/0x085b1d7b（index→%ebx）先于
+            // G_TimerQueue() 求值。
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
-                                        (TIMER_MESSAGE)0x15, 600, key, 0);
+                                        (TIMER_MESSAGE)0x15, 600,
+                                        gen_timer_key((TIMER_MESSAGE)0x15), 0);
             set_state(1);
             PacketGuard packet;
             packet.put_header(0, 0xfe);
@@ -1363,7 +1396,9 @@ bool CParty::SetPlayResult(CUser* user)
         m_resultView.m_resultField10 = (unsigned char)bonus;
         if (!bf(this).isQuestMaze())
             setBestClearTime(dungeonIndex, dungeonDiff, clearTime);
-        int sendOk = DisPatcher_SetPlayResult::SendResult(
+        // ORIG 0x085b2595 `movzbl %al,%eax; mov %eax,-0x1c`（SendResult 单字节
+        // 返回、int 接收）⇒ 调用点显式收窄（P3/探针 /tmp/p_movzbl.cpp 形 a）。
+        int sendOk = (unsigned char)DisPatcher_SetPlayResult::SendResult(
             (CParty*)this, *reinterpret_cast<GameResultSet*>(&m_padResult), step);
         if (sendOk == 0)
             return 0;
@@ -1389,10 +1424,14 @@ bool CParty::SetPlayResult(CUser* user)
 // CParty::MakeQuestRewardPacket —— ORIG T 0x085bd7ae（报告
 //   MakeQuestRewardPacket.md）：任务清图奖励物品包（20 任务槽 × 清图物品表）。
 // ---------------------------------------------------------------------------
-// [b28d-solo-CPartyDepsD2] 判词 N95（N82/N86 族，295=295 逐条同形）：已修
-// ①循环内 getCurCharacQuestR 重调（P183）②needCount 头部预清 ③itemList/
-// pairValue 分步声明+拷贝赋值（N86 反向，ORIG -0x44/-0x4c 循环外默认构造）
-// ④quest==0 死块照抄（P184）⑤m_itemList 成员直访（消 getItemList call）。
+// [b28d-solo-CPartyDepsD2] gap 0→-1（295 vs 296），p167 40/40 CLEAR。本轮真修
+// （三处 p167 真缺口）：①循环内取任务由 `getCurCharacQuestR`（18 字）改
+//   `getCurCharacQuestRefR`（21 字，ORIG `_ZNK5CUser21getCurCharacQuestRefREv`）；
+// ②去 dungeonIdx 缓存：ORIG 0x085bd878/0x085bd8e3 两次独立 call
+//   get_dungeon_index（P183）；③`itemList[i]`→`itemList.at(i)`（ORIG 调
+//   `_ZNSt6vectorISt4pairIiiESaIS1_EE2atEj`，P175；补发 at 实例，AE +2）。
+// 既有修复保留：needCount 头部预清、itemList/pairValue 分步声明+拷贝赋值
+// （N86 反向）、quest==0 死块照抄（P184）、m_itemList 成员直访。
 // 残余：4.4 槽基恒 ebp-8 起 vs ORIG 大局部顶到 ebp ⇒ 全帧槽号 +8 平移
 // （ORIG -0x89/-0x44/-0x4c vs 我方 -0x91/-0x4c/-0x54）；N95 定论（double
 // framePad 反致下移、int pad/声明序不可上移）。语义/调用集齐，byte 层封顶。
@@ -1406,7 +1445,9 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
     {
         // [b28d-solo-CPartyDepsD2] P183：ORIG 0x085bd7f4 每轮重调
         // user->getCurCharacQuestR()（-0x1c 槽），无循环外缓存。
-        UserQuest* questRef = user->getCurCharacQuestR();
+        // ORIG 0x085bd8xx 用 getCurCharacQuestRefR（21 字 mangled，与
+        // checkMoveMapHackCnt 的 18 字 getCurCharacQuestR 不同重载）。
+        UserQuest* questRef = user->getCurCharacQuestRefR();
         if (questRef->m_quest[q] == 0 || questRef->m_trigger[q] == 0)
             continue;
         Quest* quest = G_CDataManager()->find_quest(questRef->m_quest[q]);
@@ -1414,8 +1455,10 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
             continue;
         // +0x75da = UserQuest.m_authenData(+0x75d8) + 2 = m_characClass（CUser.h:1220）
         short dungeonItemIdx = questRef->m_authenData.m_characClass;
-        int dungeonIdx = bf(this).get_dungeon_index();
-        if (!quest->check_clear_item(dungeonIdx, (int)dungeonItemIdx))
+        // P183：ORIG 0x085bd878/0x085bd8e3 两次独立 call get_dungeon_index
+        //（无缓存槽，各自直传实参）。
+        if (!quest->check_clear_item(bf(this).get_dungeon_index(),
+                                     (int)dungeonItemIdx))
             continue;
         needCount = questRef->m_quest[q];
         if (needCount <= 0)
@@ -1426,13 +1469,14 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
         std::pair<int, int> pairValue;
         if (quest == 0)
             continue;
-        itemList = quest->get_clear_itemlist(dungeonIdx);
+        itemList = quest->get_clear_itemlist(bf(this).get_dungeon_index());
         for (size_t i = 0; i < itemList.size(); ++i)
         {
             Inven_Item item;
             item.reset();
-            // ORIG 0x085bd972 单次 operator[] 后 pair 拷贝到 -0x4c/-0x48
-            pairValue = itemList[i];
+            // ORIG 0x085bd972 单次 vector::at（P175：ORIG 走 at 非 operator[]）
+            // 后 pair 拷贝到 -0x4c/-0x48。
+            pairValue = itemList.at(i);
             item.m_addInfo = pairValue.first;
             // ORIG 0x085bd98e `mov 0xc(%eax),%eax` 直接成员访问（无 getItemList call）
             G_CDataManager()->m_itemList->create_item(
@@ -1465,13 +1509,14 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
 // ---------------------------------------------------------------------------
 // CParty::OnTimeoutBossDie —— ORIG T 0x085aa5d4（报告 OnTimeoutBossDie.md）：
 //   超时击杀当前 Boss（BF.m_apcAllKilledSec）：遍历怪物→击杀→失败按队伍类型收尾。
-// [b28d-solo-CPartyDepsD2] 判词 N82/N86（370 vs 369）：已按 Ghidra C 还原真语义
-// （旧实现缺 ①第一循环 map_monster 临时 + m_dropCnt(+0x2c) 过滤 + m_instId
-// (+0x04) push ②第二循环迭代器遍历 ③循环内 memset(dieBuf,0,0xa3f) ④空体 if
-// 真语义 = mit->second.m_active.getHpMax() 死写 -0x8e ⑤dieFlag(-0x9) 预清）。
-// 残余：map 迭代器三槽阶梯（begin -0x48/end -0x38/ppEi -0x34）与 map_monster
-// 0x34c 临时 vs dieBuf 0xa3f 的槽复用方向差（ORIG 复用 ⇒ 帧 0xac0；4.4 不复用
-// ⇒ 0xe10）。语义/调用集齐，byte 层封顶。
+// [b28d-solo-CPartyDepsD2] gap -1→0（369=369），p167 真缺口归零（仅余 C1/C2、
+// D1/D2 同址别名，P93）。本轮真修：①[真缺口] 两处 InsertTimer 的 index 实参由
+// `m_partyIndex` 直读改 out-of-line `GetPartyIndex()`（ORIG 0x085aa90d/0x085aaa49
+// call）；②[真缺口] 两循环增量 `++it`→`it++` 复现 ORIG ppEi（P28）。
+// 形态（P24/P171/P227）：两处 key 内联实参、trace 改全表达式临时链、
+// 删两处 `m_pDungeon != 0` 过度防御（ORIG 0x085aa9d7/0x085aaa9b 直接解引用
+// 0xcac，无判空）。残余：map_monster 0x34c 临时 vs dieBuf 0xa3f 槽复用方向差
+// （ORIG 帧 0xac0；4.4 不复用 ⇒ 0xe10，N82/N86）。语义/调用集齐，byte 层封顶。
 // ---------------------------------------------------------------------------
 int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
 {
@@ -1490,7 +1535,7 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
     // ③dieFlag(-0x9) 头部预清、成功后置 1（死变量照抄）。
     std::vector<int> mobIds;
     for (std::map<int, map_monster>::iterator it = bf(this).GetMonsterMap()->begin();
-         it != bf(this).GetMonsterMap()->end(); ++it)
+         it != bf(this).GetMonsterMap()->end(); it++)   // ORIG ppEi（P28 后置增量）
     {
         map_monster mob;
         mob = it->second;
@@ -1499,7 +1544,7 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
     }
     char dieBuf[0xa3f];
     char dieFlag = 0;
-    for (std::vector<int>::iterator it = mobIds.begin(); it != mobIds.end(); ++it)
+    for (std::vector<int>::iterator it = mobIds.begin(); it != mobIds.end(); it++)
     {
         memset(dieBuf, 0, sizeof(dieBuf));
         std::map<int, map_monster>::iterator mit = bf(this).GetMonsterMap()->find(*it);
@@ -1511,36 +1556,37 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
         if (kill_monster(user, *it, 0xffff,
                          *reinterpret_cast<const MSG_MONSTER_DIE*>(dieBuf), 0) != 1)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x22ce, 0);
-            trace("KILLBOSS2 server - monster id(%d) failed", *it);
+            // P227：ORIG 0x085aa886 先算 *it 存 %ebx，再 ctor（0x085aa8b1）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x22ce, 0)(
+                "KILLBOSS2 server - monster id(%d) failed", *it);
             if (m_battleField.m_bloodState == 1)
             {
                 SetEPLPState(2);
-                unsigned int key = (unsigned int)gen_timer_key((TIMER_MESSAGE)0x15);
-                G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
-                                            (TIMER_MESSAGE)0x15, 0x3c, (int)key, 0);
+                // P24：ORIG 0x085aa905 key→%esi、0x085aa912 index→%ebx 跨 G_TimerQueue()。
+                G_TimerQueue()->InsertTimer(
+                    (TimerEntry::OBJ_TYPE)1, GetPartyIndex(), (TIMER_MESSAGE)0x15,
+                    0x3c, (int)(unsigned int)gen_timer_key((TIMER_MESSAGE)0x15), 0);
                 set_state(1);
                 PacketGuard packet;
                 packet.put_header(0, 0xfe);
                 packet.finalize(true);
                 send_to_party(packet);
             }
-            else if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_bloodDungeonType < 1)
+            else if (m_battleField.m_pDungeon->m_bloodDungeonType < 1)
             {
                 PacketGuard packet;
                 packet.put_header(0, 0x1f);
                 packet.finalize(true);
                 send_to_party(packet);
             }
-            else if (m_battleField.m_pDungeon != 0)
+            else
             {
                 bf(this).m_bloodReward.onFinishBloodRound(
                     true, (short)bf(this).m_bloodRound.getBloodRoundOrder(),
                     this, m_battleField.m_pDungeon);
-                unsigned int key = (unsigned int)gen_timer_key((TIMER_MESSAGE)0x22);
-                G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
-                                            (TIMER_MESSAGE)0x22, 5, (int)key, 0x22);
+                G_TimerQueue()->InsertTimer(
+                    (TimerEntry::OBJ_TYPE)1, GetPartyIndex(), (TIMER_MESSAGE)0x22,
+                    5, (int)(unsigned int)gen_timer_key((TIMER_MESSAGE)0x22), 0x22);
             }
             break;
         }
@@ -1613,12 +1659,15 @@ void CParty::historyBloodRoundClear(int round, unsigned int clearTime,
 //   地狱值累计（上限钳制 + send_hellParty_value）。
 //   +0xd0c..+0xd5b（m_padcee 未建模 hell 值表区）按报告偏移访问。
 // ---------------------------------------------------------------------------
-// [b28d-solo-CPartyDepsD2] 判词 N（82 vs 83）：已修 P183 去 bf 引用缓存、P252
-// 三数组具名 float 局部（-0x1c/-0x18/-0x14）、P243 乘序、成员直存（fstps 0xb0c
-// 无 value 槽）、比较反向。残差：三处数组寻址拆分（ORIG `add $0x348; mov
-// 0x14(%eax,%edx,4)` vs 4.4 `add $0x34c; mov 0x4(...)`，N94/N4 族）+ m_89c!=1
-// 的 `xor$1;test;je`（ORIG 侧疑 bool 字段；本仓 m_89c 为组合位 uchar、10+ 消费点
-// 用 !=0，不可 bool 化）⇒ 1 条封顶。
+// [b28d-solo-CPartyDepsD2] 判词 N（83 vs 82，gap 1；p167 26/26 CLEAR）：已修
+// P183 去 bf 引用缓存、P252 三数组具名 float 局部（-0x1c/-0x18/-0x14）、P243
+// 乘序、成员直存（fstps 0xb0c 无 value 槽）、比较反向。gap 1 唯一来源 =
+// m_89c!=1 的 4.1 `movzbl; xor$1; test%al; je`（4 条）vs 4.4 `movzbl;
+// cmp$1,%al; je`（3 条）——探针 /tmp/p_xor1.cpp 四形（!=1 / (x^1)!=0 / !(x==1)
+// / 具名 uchar）实测 4.4 恒出 cmp[+setne]，xor 形不可造（N/P209）；本仓 m_89c 为
+// 组合位 uchar（10+ 消费点用 !=0），不可 bool 化（否则 x>=2 语义反转）。
+// 另三处数组寻址常量拆分（ORIG `add $0x348; mov 0x14(%eax,%edx,4)` vs 4.4
+// `add $0x34c; mov 0x4(...)`）指令数相同，仅常量折叠形差（N94/N4）。
 void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberCount)
 {
     if (rateLevelDiff == 0 || memberCount < 0 || dungeonDiff >= 5)
