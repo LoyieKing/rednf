@@ -92,14 +92,12 @@ bool CObjectBringUp::verifyGiveBringUpReward(
 // size()/getCurUseBringUpMaterialTotal 各调用两次（P48 无 CSE），条件先 size
 // 后 total（setbe 方向）。
 // [b28d-L14 N82附] ORIG 0x0810e7c4；p167 CLEAR（10/10）；残差=bool 汇聚物化+槽深。
-// [b28d-solo-W8_EventClassifyB 判词·N 封顶] 块序已翻正（`je L_loop` 循环后置）
-// + idx 预清后残差 11 条，全为跨版本块/寻址产物：
-// ①else 段末 ORIG `nop` 中继 + this 链 `lea 0x10(%eax),%edx` vs 4.4
-//   `add $0x10,%edx`（N107：成员常量偏移取址 6 形探针全产 add）+ 该段装载序
-//   （ORIG this-first）；
-// ②`return true` 常量块落点：ORIG 4.1 把 else 段 `mov $1,%eax` 后置到函数尾
-//   fall-through（+0x125），4.4 恒就地 `mov $1; jmp`（P191 边界）；
-// ③ORIG 循环段尾 `mov $0,%eax; jmp` 与末尾 `mov $1` 的相对序同因。
+// [b28d-W8EventB 本波归零 AE 94/94] 两处旋钮（旧判词「N 封顶 11 条」作废）：
+// ①结构：flag!=0 分支只做 `if (idx!=item) return false;`，命中路径落出
+//   if/else 到函数尾 `return true;` ⇒ 复现 ORIG 0x810fe0f 尾部 `mov $1,%eax`
+//   fall-through 到 epilogue（P191；旧「就地 mov $1;jmp」差异消除）；
+// ②idx 类型 int→unsigned int：ORIG 0x810fd65 `lea 0x10(%eax),%edx` 先物化
+//   容器基址再载 idx（this-first），int 下标 4.4 恒 idx-first（P218 探针）。
 // 语义/调用点全等（p167 CLEAR 10/10）。
 bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
                                               unsigned int itemIdx)
@@ -109,31 +107,37 @@ bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
     // idx 预清 `movl $0x0,-0xc(%ebp)` 在 size() 调用前（P198①两句式）。
     if (static_cast<ObjectBringUpScript*>(m_script1c)->m_exchangeRuleFlag != 0)
     {
-        int idx = 0;
+        // [b28d-W8EventB 实测] idx 用 unsigned int：ORIG 0x810fd65 `lea 0x10(%eax),%edx`
+        // 先物化容器基址再载 idx（this-first）；idx 为 int 时 4.4 恒 idx-first（P218）。
+        unsigned int idx = 0;
         if (static_cast<ObjectBringUpScript*>(m_script1c)
                 ->m_materialItemIdxs.size() <=
             (unsigned int)user->getCurUseBringUpMaterialTotal())
-            idx = (int)static_cast<ObjectBringUpScript*>(m_script1c)
+            idx = (unsigned int)static_cast<ObjectBringUpScript*>(m_script1c)
                       ->m_materialItemIdxs.size() - 1;
         else
-            idx = (int)user->getCurUseBringUpMaterialTotal();
+            idx = (unsigned int)user->getCurUseBringUpMaterialTotal();
         if ((unsigned int)static_cast<ObjectBringUpScript*>(m_script1c)
                 ->m_materialItemIdxs[idx] != itemIdx)
             return false;
-        return true;
     }
-
-    for (std::vector<int>::iterator it =
-             static_cast<ObjectBringUpScript*>(m_script1c)
-                 ->m_materialItemIdxs.begin();
-         it != static_cast<ObjectBringUpScript*>(m_script1c)
-                   ->m_materialItemIdxs.end();
-         ++it)
+    else
     {
-        if ((unsigned int)*it == itemIdx)
-            return true;
+        for (std::vector<int>::iterator it =
+                 static_cast<ObjectBringUpScript*>(m_script1c)
+                     ->m_materialItemIdxs.begin();
+             it != static_cast<ObjectBringUpScript*>(m_script1c)
+                       ->m_materialItemIdxs.end();
+             ++it)
+        {
+            if ((unsigned int)*it == itemIdx)
+                return true;
+        }
+        return false;
     }
-    return false;
+    // ORIG 0x810fe0f `mov $0x1,%eax` 位于函数尾并 fall-through 到 epilogue
+    // （P191：让目标常量走 fall-through）⇒ flag!=0 命中路径落出 if/else。
+    return true;
 }
 
 // sendBringUpReward（ORIG 0x0810fe90）
@@ -142,18 +146,23 @@ bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
 // operator->(当前元素)。getBringUpRewardFlag() 用 if(flag) continue 布局
 // （P59：call;test;jne 循环尾）。日志参数与 __PRETTY_FUNCTION__ 照 ORIG。
 // [b28d-L14 N82附] ORIG 0x0810e2b0；p167 CLEAR（58/58）；残差=槽深/常量装载。
-// [b28d-solo-W8_EventClassifyB 判词·N 封顶，残差 50] 三因叠加：
-// ①槽位 N82/N98：4.4 栈槽按首次使用序（it -0x3c vs ORIG -0x40、actionMng
-//   -0x3d vs -0x39、sig -0x10 vs -0xc、ORIG 另有死值槽 -0x10=1）；实测把
-//   result 提到循环前预清（P198①）只使槽整体平移（-0x3c→-0x38）未翻正；
-// ②varargs 求值序：ORIG 左起（m_itemIdx→getCurCharacNo→get_acc_id），
-//   4.4 恒右起（已登记负例「varargs 求值序 4.1 左起 vs 4.4 右起」）；
-// ③头依赖（已上报 Main）：CUserCharacInfo::getBringUpRewardFlag 返回 uchar
+// [b28d-W8EventB 本波] 已修三处（DIFF 残差 329/333，语义/调用点全等）：
+// ①result 提到循环外 + `int deadSlot = 1; (void)deadSlot;`：ORIG 0x810fed4
+//   `movl $0x0,-0x14`（result 预清 P198①，两分支共用同槽）+ 0x810fedb
+//   `movl $0x1,-0x10`（死局部，全函数无读取点 ⇒ P171 死写入照抄）⇒ 头部两条
+//   store 与 result/sig 槽（-0x14/-0x10/-0xc）逐槽对齐；
+// ②SIG_OBJECT_BRING_UP::m_serverGroup 1B→4B（SigTypes_D.h，Main 已批）：
+//   ORIG 0x0810ffb8 `movzbl %al,%edx; mov %edx,0x8(%eax)` 与 CUser::UpdateData
+//   0x08654089 同形，4B 写；sizeof 0x10 与 +0x0c/+0x0d 偏移不变；
+// ③残余仅三类跨版本产物，已逐条核对语义等价（jcc 目标序列、p167 58/58 CLEAR）：
+//   a) 帧 0x70 vs 0x60 与 it/actionMng 槽整体浅 4（N82/N115/N126 版本常数）；
+//   b) varargs 求值序：ORIG 左起（m_itemIdx→getCurCharacNo→get_acc_id），4.4 恒
+//      右起；P226 语句表达式 `({ it->second.m_itemIdx; })` 实测无效（保持原形）；
+//   c) std::copy/back_inserter 内联块序（ORIG 把 `lea -0x48;call` 前置，4.4 后置，
+//      多 1 条 jmp 到相同目标）。
+// 未修（头依赖，已上报 Main）：CUserCharacInfo::getBringUpRewardFlag 返回 uchar
 //   ⇒ 调用点多 `setne; test` 2 条（ORIG 0x08110d76 体无 setne、调用点
-//   `call; test %al,%al; jne` ⇒ P292 判 bool）；SIG_OBJECT_BRING_UP::
-//   m_serverGroup 声明 1B，ORIG +0x2e0 `movzbl %al,%edx; mov %edx,0x8(%eax)`
-//   为 4B 写（字段宽应为 4B，改后 +0xc/+0xd 偏移与 sizeof 0x10 不变）。
-// 已修：result 落分支内、日志实参与 m_vec38 调用点逐条对齐；语义等价。
+//   `call; test %al,%al; jne` ⇒ P292 判 bool）。
 bool CObjectBringUp::sendBringUpReward(CUser* user,
                                        std::vector<int>& rewardVec,
                                        unsigned char& flag)
@@ -165,6 +174,13 @@ bool CObjectBringUp::sendBringUpReward(CUser* user,
             "CObjectBringUp::sendBringUpReward(pUser(NULL))");
         return false;
     }
+
+    // [b28d-W8EventB 实测] ORIG 0x810fed4/0x810fedb 函数头两条 store：
+    // `movl $0x0,-0x14(%ebp)`（result 预清，P198①）+ `movl $0x1,-0x10(%ebp)`
+    // （死局部，全函数无读取点 ⇒ P171 死写入照抄）。两分支共用同一 result 槽。
+    int result = 0;
+    int deadSlot = 1;
+    (void)deadSlot;
 
     for (::std::vector< ::std::pair<ObjectBringUpScript::ObjectBringUpRule,
                                   ::Action_SendMail> >::iterator it =
@@ -185,7 +201,7 @@ bool CObjectBringUp::sendBringUpReward(CUser* user,
                 continue;
 
             CEventActionMng actionMng;
-            int result = actionMng.process_action_send_mail(
+            result = actionMng.process_action_send_mail(
                 user, it->second, false);
             if (result != 0)
             {
@@ -214,6 +230,8 @@ bool CObjectBringUp::sendBringUpReward(CUser* user,
                 guard.operator->()->GetInBuffer<SIG_OBJECT_BRING_UP>();
             sig->m_accId = user->get_acc_id();
             sig->m_characNo = user->getCurCharacNo();
+            // m_serverGroup 为 4B 字段（SigTypes_D.h，ORIG 0x0810ffb8 4B 写）；
+            // (unsigned char) cast 保留 ORIG `movzbl` 取值宽度。
             sig->m_serverGroup =
                 (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
             sig->m_usedMaterialCnt =
@@ -225,7 +243,7 @@ bool CObjectBringUp::sendBringUpReward(CUser* user,
         else
         {
             CEventActionMng actionMng;
-            int result = actionMng.process_action_send_mail(
+            result = actionMng.process_action_send_mail(
                 user, it->second, false);
             if (result != 0)
             {
@@ -358,6 +376,8 @@ void CEventScriptMng::send_event_init_record_data(CUser* user)
 // —— 4.4 的 lea 目标恒 %eax（call 结果须先中转 %edx），4.1 恒 %edx；属 N7
 // 寄存器角色族（P230 补分诊：N7 判词限定 4.4.7 后端）。「先声明后赋值」
 // 形实测反劣（17→21，且引入默认 ctor 风险）。语义/调用点全等。
+// [b28d-W8EventB 复核] jcc 归一化交叉验证：6 条 jcc 助记符与目标偏移序列
+// 逐位一致（仅整体 +8 常数位移，源于 4.4 sret 装载多 4 条）；p167 18/18 CLEAR。
 void CEventScriptMng::process_update_ingame_history(CUser* user)
 {
     if (user == 0)
@@ -731,6 +751,8 @@ int CAvatarDisjointRandomReward::getRewardItem(
 // —— 4.4 对成员数组偏移 0x18 恒拆 disp=偏移&0xf=8 / lea=4，ORIG 4.1 拆 disp=2/lea=8；
 // 地址与语义完全等价（均 = packet+0x22+4n），助记符序列全等（NEAR）。
 // 合法 C++ 无法把 union 基址移到 +0x2（PacketHeader 非平凡 ctor 不可作 union 成员）⇒ N94。
+// [b28d-W8EventB 复核] jcc 归一化 11/11 逐位一致；`call *` 虚槽 vptr+0xc
+// （`mov (%eax),%eax; add $0xc,%eax; mov (%eax),%edx`）两侧逐条全等。
 void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
     std::vector<std::pair<int, int> >& rewards)
 {

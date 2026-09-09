@@ -510,8 +510,11 @@ struct SIG_OBJECT_BRING_UP
 {
     unsigned int   m_accId;        // +0x00 sendBringUpReward←CUser::get_acc_id
     unsigned int   m_characNo;     // +0x04 ←CUserCharacInfo::getCurCharacNo
-    unsigned char  m_serverGroup;  // +0x08 ←*(G_CEnvironment()+0x378)
-    unsigned char  m_pad09[3];     // +0x09..+0x0b（无访问证据）
+    // [b28d-W8EventB 实测] 4B 字段：ORIG 0x0810ffb8（sendBringUpReward）
+    // `movzbl %al,%edx; mov %edx,0x8(%eax)` 与 CUser::UpdateData 0x08654089 同形
+    // ⇒ 原码按 4 字节存（旧 1B+pad09 只覆盖写宽度）。sizeof 0x10 与 +0x0c/+0x0d
+    // 偏移不变。
+    unsigned int   m_serverGroup;  // +0x08 ←*(G_CEnvironment()+0x378)
     unsigned char  m_usedMaterialCnt; // +0x0c ←getCurUseBringUpMaterialCount
     unsigned char  m_rewardFlag;      // +0x0d ←getBringUpRewardFlag
     unsigned char  m_pad0e[2];        // +0x0e..+0x0f
