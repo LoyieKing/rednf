@@ -354,26 +354,33 @@ bool ImportSkillScript(STSkillScript* script, const char* path,
     // -0x44..-0x68 各 case 循环 i/j / -0x6c tagId / -0x70.. guard 临时区 /
     // -0x5b0.. -0x5c0 段（guard 尾部+find 临时）/ -0x5d4 token ... -0x5ec pool。
     // 4.4 按“先声明→浅”分配、块作用域临时会共享槽，故 C89 风格集中声明防共享。
-    int finIdx;                                     // finalize 夹紧循环 i（-0x1c）
-    bool moduleRet;                                 // default 死存返回值（-0x1d，8a9abd9）
-    int enVal;                                      // special level up enableVal（-0x24）
-    int srcIdx;                                     // level info 源下标（-0x28）
-    int kIdx;                                       // level info 内层 k（-0x2c）
-    int chunk;                                      // level info 列块（-0x30）
-    int jIdx;                                       // level info 外层 j（-0x38）
-    int poolSize;                                   // level info pool.size()（-0x3c）
-    int rowCnt;                                     // level info 行数（-0x40）
-    int coolIdx;                                    // cool time i（-0x44）
-    int maintainIdx;                                // maintain MP i（-0x48）
-    int mpIdx;                                      // consume MP i（-0x4c）
-    int castIdx;                                    // casting time i（-0x50）
-    int sMaxJ;                                      // second growtype maximum j（-0x54）
-    int sMaxI;                                      // second growtype maximum i（-0x58）
-    int maxIdx;                                     // growtype maximum i（-0x5c）
-    int sFitJ;                                      // second growtype fitness j（-0x60）
-    int sFitI;                                      // second growtype fitness i（-0x64）
-    int fitIdx;                                     // growtype fitness i（-0x68）
+    // 声明序 = ORIG 槽位**逆序**（4.4 “先声明→更深”，实测 finIdx→-0x6c 与 ORIG
+    // finIdx@-0x1c 相反）：从 tagId 起声明使浅层标量区槽号逐一对齐 ORIG。
     int tagId;                                      // 标签 id（-0x6c）
+    int fitIdx;                                     // growtype fitness i（-0x68）
+    int sFitI;                                      // second growtype fitness i（-0x64）
+    int sFitJ;                                      // second growtype fitness j（-0x60）
+    int maxIdx;                                     // growtype maximum i（-0x5c）
+    int sMaxI;                                      // second growtype maximum i（-0x58）
+    int sMaxJ;                                      // second growtype maximum j（-0x54）
+    int castIdx;                                    // casting time i（-0x50）
+    int mpIdx;                                      // consume MP i（-0x4c）
+    int maintainIdx;                                // maintain MP i（-0x48）
+    int coolIdx;                                    // cool time i（-0x44）
+    int rowCnt;                                     // level info 行数（-0x40）
+    int poolSize;                                   // level info pool.size()（-0x3c）
+    int jIdx;                                       // level info 外层 j（-0x38）
+    // ORIG row 引用为函数级 int 宽槽（8a99a.. `mov %eax,-0x34(%ebp)` 三处：
+    // operator[] 返回的 vector<float>& 地址存 -0x34，非块内临时）。声明位置
+    // 必须在 jIdx 与 chunk 之间，否则 4.4 把块内引用共享到 finIdx 死槽 -0x1c，
+    // 并使 chunk..srcIdx 整体平移 4 字节。
+    std::vector<float>* row;                        // level info 行引用（-0x34）
+    int chunk;                                      // level info 列块（-0x30）
+    int kIdx;                                       // level info 内层 k（-0x2c）
+    int srcIdx;                                     // level info 源下标（-0x28）
+    int enVal;                                      // special level up enableVal（-0x24）
+    bool moduleRet;                                 // default 死存返回值（-0x1d，8a9abd9）
+    int finIdx;                                     // finalize 夹紧循环 i（-0x1c）
 
     std::string token;                              // -0x5d4
     std::string scanStrBuf;                         // -0x5d8
@@ -1030,13 +1037,13 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             poolSize = static_cast<int>(valuePool.size());  // -0x3c
             for (jIdx = 0; jIdx < rowCnt; ++jIdx)    // 列优先填充：v[j + k*n]
             {
-                std::vector<float>& row = script->m_vec1a8[jIdx];
+                row = &script->m_vec1a8[jIdx];
                 chunk = poolSize / rowCnt;           // 有符号除法（sar/idivl 形态）
-                row.resize(chunk, 0.0f);
+                row->resize(chunk, 0.0f);
                 srcIdx = jIdx;
                 for (kIdx = 0; kIdx < chunk; ++kIdx)
                 {
-                    row[kIdx] = valuePool[srcIdx];
+                    (*row)[kIdx] = valuePool[srcIdx];
                     srcIdx += rowCnt;
                 }
             }

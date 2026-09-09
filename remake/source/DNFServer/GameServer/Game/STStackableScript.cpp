@@ -2680,7 +2680,15 @@ break;
             getExcepttionStatusToEnumValue(val);    // +0x2d8
         script->m_statusRecovery2d8.m_field8 = ScanInt(&ok);         // +0x2e0
         ScanStr(&token);
-        script->m_statusRecovery2d8.m_fieldC = (token == "myself") ? 0 : 1;  // +0x2e4
+        // ORIG 0x089b5219..0x089b5232：movl $0/$1,+0x2e4
+        if (token == "myself")
+        {
+            script->m_statusRecovery2d8.m_fieldC = 0;
+        }
+        else
+        {
+            script->m_statusRecovery2d8.m_fieldC = 1;
+        }
         script->m_statusRecovery2d8.m_field10 = 1;                           // +0x2e8
     }
     break;
@@ -2921,7 +2929,15 @@ break;
             getBuffToEnumValue(val);    // +0x304
         script->m_buff304.m_field4 = ScanInt(&ok);
         ScanStr(&val);
-        script->m_buff304.m_field8 = (val == "myself") ? 0 : 1;
+        // ORIG 0x089b60aa..0x089b60c3：movl $0/$1,+0x30c
+        if (val == "myself")
+        {
+            script->m_buff304.m_field8 = 0;
+        }
+        else
+        {
+            script->m_buff304.m_field8 = 1;
+        }
         script->m_buff304.m_fieldC = 1;
     }
     break;
@@ -2968,7 +2984,15 @@ break;
     script->m_statChange34c.m_fieldC = ScanInt(&ok);
     std::string val;   // ORIG 局部串槽 -0x15a8
     ScanStr(&val);
-    script->m_statChange34c.m_field10 = (val == "myself") ? 0 : 1;
+    // ORIG 0x089b6319..0x089b6332：movl $0/$1,+0x35c
+    if (val == "myself")
+    {
+        script->m_statChange34c.m_field10 = 0;
+    }
+    else
+    {
+        script->m_statChange34c.m_field10 = 1;
+    }
     script->m_statChange34c.m_field14 = 1;
     }
     break;
@@ -3863,6 +3887,7 @@ break;
     static SpinLock __init_lock_4;
     static bool __inited_4 = false;
     int sub;
+    int pos;   // ORIG -0x34(%ebp)：case 命中的装备位暂存，循环出口统一写 +0x444
     for (;;)
     {
         if (__inited_4)
@@ -3890,7 +3915,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 0; break;      // "weapon"
+    pos = 0; break;                // "weapon"
                 }
             case 0x28b9:  // "cloth"
                 if (!__inited_4)
@@ -3899,7 +3924,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 1; break;      // "cloth"
+    pos = 1; break;                // "cloth"
                 }
             case 0x28bc:  // "leather"
                 if (!__inited_4)
@@ -3908,7 +3933,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 2; break;      // "leather"
+    pos = 2; break;                // "leather"
                 }
             case 0x28bf:  // "larmor"
                 if (!__inited_4)
@@ -3917,7 +3942,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 3; break;      // "larmor"
+    pos = 3; break;                // "larmor"
                 }
             case 0x28c2:  // "harmor"
                 if (!__inited_4)
@@ -3926,7 +3951,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 4; break;      // "harmor"
+    pos = 4; break;                // "harmor"
                 }
             case 0x28c5:  // "plate"
                 if (!__inited_4)
@@ -3935,7 +3960,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 5; break;      // "plate"
+    pos = 5; break;                // "plate"
                 }
             case 0x28c8:  // "amulet"
                 if (!__inited_4)
@@ -3944,7 +3969,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 6; break;      // "amulet"
+    pos = 6; break;                // "amulet"
                 }
             case 0x28cb:  // "wrist"
                 if (!__inited_4)
@@ -3953,7 +3978,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 7; break;      // "wrist"
+    pos = 7; break;                // "wrist"
                 }
             case 0x28ce:  // "ring"
                 if (!__inited_4)
@@ -3962,7 +3987,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 8; break;      // "ring"
+    pos = 8; break;                // "ring"
                 }
             case 0x28d1:  // "support"
                 if (!__inited_4)
@@ -3971,7 +3996,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 9; break;      // "support"
+    pos = 9; break;                // "support"
                 }
             case 0x28d4:  // "magic stone"
                 if (!__inited_4)
@@ -3980,7 +4005,7 @@ break;
                 }
                 else
                 {
-    script->m_444 = 0xa; break;    // "magic stone"
+    pos = 0xa; break;              // "magic stone"
                 }
             default:
     return false;   // ORIG default(089b9284) → return false
@@ -3992,6 +4017,7 @@ break;
         __init_lock_4.leave();
         __inited_4 = true;
     }
+    script->m_444 = pos;   // ORIG 0x089b92c2..0x089b92c8：循环出口单点写
         if (!ScanInt(&script->m_448))
         {
             return false;   // 089b92d9..92ef
@@ -4348,8 +4374,8 @@ break;
                 int m_field0;
                 std::vector<std::pair<int, int> > m_vec4;
             };
-            DyeInfoView* dye = reinterpret_cast<DyeInfoView*>(&script->m_dyeInfo);
-            dye->m_field0 = v;
+            // ORIG 0x089ba0fd：mov %edx,0x164(%eax) 单指令直写（不物化指针）。
+            *reinterpret_cast<int*>(&script->m_dyeInfo) = v;
         }
     }
     break;

@@ -3177,10 +3177,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                int v = ScanInt(&okFlag);
-                script->m_7bc = (char)(v == 1);
-                if (!okFlag)
+                script->m_7bc = (ScanInt(&boolScratch) == 1);
+                if (!boolScratch)
                 {
                     return false;
                 }

@@ -1147,17 +1147,17 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                p.m_field0c = ScanInt(&ok);
-                if (!ok)
-                {
-                    return 0;
-                }
                 p.m_field10 = ScanFloat(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
                 p.m_field14 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field0c = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -1238,7 +1238,8 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                if (!ScanStr(&n.m_message))
+                ok = ScanStr(&n.m_message);
+                if (!ok)
                 {
                     return 0;
                 }
@@ -1280,7 +1281,8 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[assault user runaway notice]")
         {
-            if (!ScanStr(&script->m_str594))
+            ok = ScanStr(&script->m_str594);
+            if (!ok)
             {
                 return 0;
             }
@@ -1905,7 +1907,8 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 std::string s;
-                if (!ScanStr(&s))
+                ok = ScanStr(&s);
+                if (!ok)
                 {
                     break;
                 }
@@ -2387,7 +2390,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 }
                 stUpgradeItemTicketParam_t p;
                 char* pb = reinterpret_cast<char*>(&p);
-                p.m_field0 = ScanInt(&ok);
+                pb[0] = (char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2425,7 +2428,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 }
                 stUpgradeItemTicketParam_t p;
                 char* pb = reinterpret_cast<char*>(&p);
-                p.m_field0 = ScanInt(&ok);
+                pb[0] = (char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2439,15 +2442,6 @@ bool importServerParameterScript(ServerParameterScript* script,
                 if (!ok)
                 {
                     break;
-                }
-                int f4 = ScanInt(&ok);
-                if (!ok)
-                {
-                    break;
-                }
-                if (0 < f4)
-                {
-                    pb[3] = 1;
                 }
                 script->m_ticket468.insert(std::make_pair(key, p));
             }

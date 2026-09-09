@@ -166,6 +166,43 @@
 //   两处 sizeof 0x4358 / 全部偏移 / mangled 零变化；消费 TU = DB_Login.cpp + InterDispatcher.cpp。
 // 无子子代理（R4 合规）。
 // ----------------------------------------------------------------------------
+// [b28d-PoolDBLogin 池批·本轮] ≤30 小件 6 件复核（check_tu_routed.sh 现编现测）。
+// TU 三数 基线 identical=47 ae=133 near=2 diff=12 → 现在 identical=47 ae=134
+// near=2 diff=12（+1 ae = 新增库包装 `_ZSt7strrchrPci` 自身 10/10 AE）。
+//  修成（1）：CheckLoginIP ndiff 2→0（P306 族：extern "C" + `__asm__("_ZSt7strrchrPci")`
+//      + `weak` 的同体转发包装，体逐条 = ORIG 0x08265244）。直写 `namespace std
+//      { inline char* strrchr(char*, int) }`（先例 TU 形）在本 TU **编译失败**：
+//      DB_Login.h/GlobalData.h 链必然引 <cstring> ⇒ `using ::strrchr;` 已注入 std
+//      （`char* strrchr(char*, int)`）与同签名定义冲突；删本 TU 的 <cstring> 亦不解决
+//      （链上来）。两条失败形均已回退。
+//  维持封 N（5，逐件按 P321 T1–T5/S1 复核，残差均落已登记 N 族，无一新形）：
+//   CreateAccount NEAR(4)：N18a/P75 —— `movzbl 0xa0(%eax)` 后 ORIG 值留 %edx
+//     （`movzbl %al,%edx` + 延后 store），4.4 恒 %eax 中转即存；T1 直证字段 uchar，
+//     残差纯寄存器角色 ⇒ T5 禁改类型。S1 旋钮（P267 双 cast / P268 mask / P226
+//     语句表达式 / 字段 uchar 三档）前轮已试尽。
+//   GetUserFatigueCount NEAR(8)：N7 —— 间接 call 目标 ORIG 落 %edx、4.4.7 恒 %eax
+//     （`mov (%eax),%eax; call *%eax`），属后端版本族；本 TU 不在 446 路由表 ⇒
+//     维持「待 Main 路由裁决」，泳道不改路由。
+//   GetGrowthCreatureEvent DIFF(10)：N1 —— ORIG `mov i; imul $0x2c; add $0x4150;
+//     add 0xc(%ebp); add $0x4`（6 条）vs 4.4 `mov sig; mov i; imul; add $0x4154;
+//     add`；本轮逐条复核**语义等价**（0x4150+0x4 = OFF_GROWTH_CREATURE 0x4154，
+//     四 getter 目标 sig+0x4154/0x4158/0x415c/0x4160 与 ORIG 0x08448251..0x084482db
+//     完全一致）⇒ 非真语义 bug，仅常量拆分/装载序；P311 数组视图前轮实测 7>6 劣化
+//     回退 ⇒ S1 已耗尽。
+//   GetAccountCharacterLevelUpOnceGift DIFF(10)：N1 —— 同上（`add $0x866; shl $3;
+//     add sig; add $0x8` = (i+0x867)*8，与 OFF_ONCE_GIFT 0x4338 等价）；P205 显式
+//     拆形前轮实测仍折 ⇒ 封顶。
+//   getCharacLinkSystemData DIFF(1/gap1)：N121 —— 唯一残差 = ORIG 尾 `test %al,%al;
+//     jmp exit` + 0x084101a7 nop 岛（4.1 为空 else 发射的中继），4.4 恒 DCE；
+//     probe2/probe3 十四形 + P285 两形试尽 ⇒ 封顶。**旧判词 N93 已失效**（本件无
+//     任何迭代器，与 Main P326 无关）。
+//  Main P326（N93 翻案）在本文件的适用性：0 件。全文件仅 `_LoadEventItem` /
+//  `RemovePreminuInfo` 用双具名迭代器，两件现状均 AE（p167 CLEAR，无槽互换残差）；
+//  `GetPremiumInfo` 的 for(begin/end) 件 ndiff 639 > 30，不属本批范围。
+//  P0：本轮新增 0 处 `register ... asm("reg")` 绑定；无 .h 改动（R2 无申报项）。
+// 探针/证据：/tmp/p_bridge.o（asm 标签 weak 形实测 W + 8 条体 = ORIG）；
+//  nm /tmp/tu_DB_Login.o | grep strrchr ⇒ `W _ZSt7strrchrPci`。
+// ----------------------------------------------------------------------------
 // [S414_DB_Login 单文件泳道收口] 16 件清单（/tmp/b28d_tu/DB_Login.tsv）最终状态
 // （check_tu_routed.sh .o 口径 + /tmp/solo_diff.py ndiff + p167 差集）：
 // TU 计数 identical=48 ae=134 near=2 diff=13（基线 ae=133/diff=14，+1 AE）。
@@ -2628,8 +2665,27 @@ int DB_Login::GetUserInGameEventHistory(SIG_LOGIN_DATA* sig)
 // CheckLoginIP（ORIG T 0x08415472）
 // ============================================================================
 
-// [b28d-solo-DB_Login] verdict=AE（SGBC 宏形 off 字面量折叠 + std::strrchr；p167
-// 唯一差 `_ZSt7strrchrPci` vs `strrchr` = 头版本 N，语义等价）。
+// [b28d-PoolDBLogin] P306 族（工具链头版本差；先例 = Divide_C_ClassIP_EndIP.cpp 的
+// `namespace std { inline char* strrchr(char*, int) }` wrapper）。ORIG 的 libstdc++(4.1)
+// 以 inline 发射 std::strrchr(char*, int)（nm: `W 0x08265244`，体 = 8 条转发
+// strrchr@plt），本件两处调点即 `call _ZSt7strrchrPci`。本 TU 的 <cstring>（经
+// DB_Login.h/GlobalData.h 链亦不可避）已由 glibc `__CORRECT_ISO_CPP_STRING_H_PROTO`
+// 把 `using ::strrchr;` 注入 std ⇒ 同签名定义**冲突**（先例 TU 能直写只因它不引
+// <cstring>）。故按同一 inline 体 + 同一 ELF 符号名落地：`weak` 保绑定（ORIG = W，与
+// 先例 TU 的 W 合并），体逐条 = ORIG 0x08265244。非 §4.5 所禁的游戏代码 mangled 桥
+// （被桥接对象是 libstdc++ 库包装，其定义在 ORIG 二进制里就在 .text）。
+extern "C" char* dbLoginStrrchrLibcpp(char* s, int c)
+    __asm__("_ZSt7strrchrPci") __attribute__((weak));
+inline char* dbLoginStrrchrLibcpp(char* s, int c)
+{
+    return __builtin_strrchr(s, c);
+}
+
+// [b28d-solo-DB_Login] verdict=AE（SGBC 宏形 off 字面量折叠 + std::strrchr）。
+// [b28d-PoolDBLogin] 旧登记的头版本残差**已消**：经上方同体 weak 包装发射
+// `_ZSt7strrchrPci` ⇒ fresh 口径 ndiff 2→0、p167 调用点差集归零（原
+// MISSING/EXTRA 各 2 双向消失），本 TU 同时补上 ORIG `nm` 有而我方缺的该弱符号
+// （ORIG `W 0x08265244`，包装体 10/10 AE-EQUAL；非发明符号）。
 bool DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
 {
     if (sig == 0)
@@ -2651,12 +2707,13 @@ bool DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
 
     // 单 dot 变量两次复用（ORIG 两 strrchr 结果同写 -0x10 槽）。
     // [b28d-38] P167：ORIG 调 `_ZSt7strrchrPci`（std::strrchr）非 C 库 strrchr。
-    dot = std::strrchr(curIp, '.');              // 截掉最后一段（去端口化前缀）
+    // [b28d-PoolDBLogin] 经上方同体 weak 包装发射该 mangled 调点。
+    dot = dbLoginStrrchrLibcpp(curIp, '.');       // 截掉最后一段（去端口化前缀）
     if (dot != 0)
     {
         *dot = '\0';
     }
-    dot = std::strrchr(oldIp, '.');
+    dot = dbLoginStrrchrLibcpp(oldIp, '.');
     if (dot != 0)
     {
         *dot = '\0';

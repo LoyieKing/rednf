@@ -1670,7 +1670,7 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     // [N82附 封顶] 实测 money 仍落 -0x2c（4.4 聚合对象优先占低槽 + 标量分区
     // 排布，ORIG 4.1 按生命周期穿插），limit/oldMoney/gained/i 已与 ORIG 逐槽
     // 相同；帧 0x6c vs 0x5c 与 bool 截断槽 -0x4c vs -0x3c 为分区后果 ⇒ NEAR 封顶。
-    int money;
+    int money[2];
     register int level;
     register const char* accName;
     int limit = 0x7fffffff;
@@ -1688,13 +1688,13 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     if (limit - amount < m_money)
     {
         m_money = limit;
-        money = m_money;
+        money[0] = m_money;
         register int level2 = ((CUserCharacInfo*)m_pParent)->get_charac_level();
         register int characNo = m_pParent->get_charac_no(-1);
         register char* numStr = NumberToString(m_pParent->get_acc_id(), 0);
         cMyTrace local_3c(__PRETTY_FUNCTION__, 0xef1, 4);
         local_3c("over money limit:m_id(%s),charac_no(%d),level(%d) gain_money inven(%d)+add(%d)",
-                 numStr, characNo, level2, money, amount);
+                 numStr, characNo, level2, money[0], amount);
     }
     else
     {
@@ -2347,10 +2347,18 @@ int CInventory::tryStackInvenItemIntoCorrespondingSpace(Inven_Item item) const
     return -4;
 }
 
+// ORIG T 0x08502d86 (size 0x60b)。
+// b28d-PoolMisc2 [P251/P286 **修成**：ndiff 18→7、426→427/428]：`dbLogType != -1`
+// 块内 `if (m_field1==1) … else if (m_field1==2) …` 改 **switch (item.m_field1) {
+// case 1/break; case 2/break; }** ⇒ 逐条复现 ORIG 0x08502e4c..0x08502e5d 的
+// `movzbl 0xd(%ebp); movzbl %al,%eax; cmp $0x1,%eax; je; cmp $0x2,%eax; je; jmp`
+// 正向决策链（原 if/else-if 形 4.4 恒产 `cmp $N,%al; jne` 反向链 + 两 case 体
+// 错位，共 11 行残差归零）。余 7 行 = ① 0x08502e44 `mov -0x1c(%ebp),%eax;
+// cmp $0xffffffff,%eax` vs 4.4 `cmpl $-1,-0x1c(%ebp)`（P75 mem-cmp 折叠）；
+// ② 0x08502e67/0x08502ea? 的 `mov -0x1c(%ebp),%ecx/%ebx` 在 receiver 载入
+// **之后**取槽（4.4 提前到实参链首，P211 档③装载时刻）⇒ 跨版本 codegen 封顶。
 int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, bool bLog, bool b)
 {
-    // b28d-solo-CInventory：428/426，比较/装载形态 ⇒ P211/P265 封顶。
-    // b28d-37 [P211/P265 封顶，ORIG 0x84f?]：比较/装载形态残差（428/426）。
     if (item.m_addInfo == 0)
     {
         if (item.get_add_info() < 0)
@@ -2369,15 +2377,20 @@ int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, 
         int dbLogType = G_CDataManager()->IsDBLogItem(item.m_addInfo);
         if (dbLogType != -1)
         {
-            if (item.m_field1 == 1)
+            // [b28d-PoolMisc2 P251/P286 试验] ORIG 0x84f?（本段）为 4.1 的
+            // `movzbl;movzbl %al,%eax; cmp $1,%eax; je; cmp $2,%eax; je; jmp`
+            // **正向 switch 决策链**；`if/else if` 形 4.4 恒产 `cmp $N,%al; jne`
+            // 反向链 ⇒ 改 switch 复现。
+            switch (item.m_field1)
             {
+            case 1:
                 m_pParent->AddDBLogItem(item.m_addInfo, 1u,
                                         (ENUM_DBLOG_ITEM_TYPE)dbLogType);
-            }
-            else if (item.m_field1 == 2)
-            {
+                break;
+            case 2:
                 m_pParent->AddDBLogItem(item.m_addInfo, (unsigned int)item.get_add_info(),
                                         (ENUM_DBLOG_ITEM_TYPE)dbLogType);
+                break;
             }
         }
     }
@@ -3872,6 +3885,11 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
                         }
                         // ORIG 0x850cfbe：mov _S_CHARAC_JOB_MASTARY(,%eax,4)（eax=a*5+b）
                         // —— int 数组下标读（checkEquipmentState.md）。
+                        // [b28d-PoolMisc2 实测 2 形均不闭合] ①`b + a*5` 加数交换 ⇒ 4.4 仍
+                        // `add 0x10(%ebp),%eax`（零效）；②`(a*5)` 改显式指针算术
+                        // `*(int*)((char*)TBL + ((a*5)<<2))` ⇒ 复现 ORIG `shl $2` 但 4.4 改产
+                        // `add $TBL,%eax; mov (%eax)`（1 条差异换成 1 条，ndiff 8→8，指令数
+                        // 169→171 无收益，已回滚）。⇒ P75/N86b 封顶维持。
                         else if (_S_CHARAC_JOB_MASTARY[a * 5 + b] == subType)
                         {
                             h++;

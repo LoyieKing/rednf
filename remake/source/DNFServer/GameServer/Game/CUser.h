@@ -1,6 +1,9 @@
 struct CONTINUOUS_ITEM_INFO;
 struct SIG_LIMIT_ITEM_INFO;
 class WarRoom;               // 仅指针引用（GetWarRoom 返回，与 GetParty 的 CParty 同法）
+// [Main·检查点22] PvP_Room 前置声明（同 WarRoom 先例，仅指针返回）。
+//   用于把 GetPVPRoom() 从 `void*` 改回真实返回类型，见下方成员声明处证据。
+class PvP_Room;
 struct MSG_REQ_TO_PEER;
 struct stEquipCondition;
 struct competition_reward_result;
@@ -2605,7 +2608,13 @@ public:
     void set_guildwar_point_per_pvpplay(int point);
     int get_guildwar_point_per_pvpplay();
     XNuclear::CHades* getHades();   // ORIG 0x08230800：返回 this+0x8e954（内嵌 CHades 成员，CHades 在 namespace XNuclear）
-    void* GetPVPRoom();
+    // [Main·检查点22 P211/T1] 返回 void*→**PvP_Room\***。直证：ORIG 消费点
+    //   `*out = GetPVPRoom()`（CFairMatchRooms::_CheckMovableRoom）是 **LHS-first
+    //   直存** `mov 0x14(%ebp),%edx; mov %eax,(%edx)`；4.4 只在两侧**同型**时出该形，
+    //   返回 void* 而目标字段是 PvP_Room* ⇒ 异型 ⇒ 恒退化成 RHS-first 多 2 条
+    //   （P211 档①）。mangled 不含返回类型 ⇒ 符号账不变。
+    //   定义体本即 `return G_CGameManager()->GetPvp(...)`（其返回类型就是 PvP_Room*）。
+    PvP_Room* GetPVPRoom();
     void UpdateRating(float rating);   // ORIG W 0x08568e9c _ZN5CUser12UpdateRatingEf（Elo 个人分回写；定义归 CUser 域）
     void* GetSecretShopData();
     void* GetPICSMap();

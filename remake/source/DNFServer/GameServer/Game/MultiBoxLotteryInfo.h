@@ -26,7 +26,12 @@ public:
     {
     public:
         stDefaultItem();       // ORIG W 0x89c35d4：清零 4 字段
-        ~stDefaultItem();      // ORIG W 0x89d48b2（用户空析构，size 5）
+        // ~stDefaultItem() 不声明：ORIG 0x085219d1 实例化 _Destroy_aux<true>
+        // （has_trivial_destructor=true）⇒ ORIG 析构平凡（其 W D1 0x089d48b2 size=5
+        // 为使用点隐式发射，邻域 = vector<stDefaultItem> _M_insert_aux/
+        // __uninitialized_move_a 模板簇；同 LotteryDefaultArad 先例 P12/P71）。
+        // 我方 user-provided 空析构曾致 CStackableItem.cpp p167 EXTRA
+        // stDefaultItemD1×2 + _Unwind_Resume×1（PoolCera b28d，Main 批准）。
 
         int m_itemIdx;   // +0x00
         int m_count;     // +0x04

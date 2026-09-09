@@ -321,8 +321,24 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
                                        unsigned int stage,
                                        unsigned int playTime)
 {
-    // [b28d-solo-CDeathTower] verdict=DIFF（orig 610 / our 580，NDIFF=598）：P167 CLEAR（54/54）；残差 = 全帧
-    // 槽号平移（-0x120 vs -0x154 起）+ push %esi（N82/P112）。插值/跨层扫描语义全等。
+    // [b28d-solo-CDeathTower] 旧判「全帧槽平移 N82/P112 封顶」部分作废——
+    // [b28d-PoolTower 按 Main P326/P50 复判指令] 三旋钮归正：
+    //   ①迭代器组：原码为函数头两具名 const_iterator（ORIG 0x08468eab/eb9 两次
+    //     `const_iterator::C1Ev` 默认构造）+ 全程 **nxt/ref 复用赋值**（begin/end/
+    //     lower_bound 结果各经匿名转换临时两段 copy；0x08468f3d 区 `mov -0x7c,%eax;
+    //     mov %eax,-0x84`）——旧源 first/last/lowerFirst 三个**发明局部**已删。
+    //     p167 C1Ev MISSING×2→0（54=54 CLEAR）。
+    //   ②哨兵：ORIG 无 bool inMap——`cmpl $0,-0x24(%ebp); jne 尾`（0x08469274）
+    //     即 keySpan(-0x24，函数头具名，prologue movl $0) 兼「已插值」标志；
+    //     bool inMap 局部（movb/movzbl/xor 三段）删除。
+    //   ③位宽：valDiff/abs 是 **32 位** branchless abs（0x084691b0/0x08469203
+    //     `mov,sar,xor,sub` + `mov %eax,-0x20`），非 64 位 sbb 展开；-0x20=absDiff、
+    //     -0x28=stageSpan、-0x1c=result 均函数头具名标量。另 P183 去 RankMap&
+    //     地址引用缓存（ORIG 每使用点重发 imul 链）。
+    // 读数（fresh .o）：orig 610 / our 580→**614**；剩余残差 = 2×3 条 abs 输入侧
+    // valDiff 槽往返（ORIG 寄存器直传，4.4 恒 spill = N18a 形，P248 三档旋钮
+    // 不适用——非类型可翻）+ 全帧槽号平移（帧 0x164+1 push vs ORIG 0x144+3 push，
+    // 4.4 outgoing 16B 对齐预留 N115 族）⇒ 平移部分维持 N95/N115/N82 封顶。
     // 候选新纪录（stage, playTime）。ORIG 0x08468de0：本类无 towerIdx 越界检查。
     // 调用方（rankTable 槽位）保证 towerIdx 在 [0,4]，与 ORIG 保持一致不加防御。
 
@@ -341,27 +357,39 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
         return 1;
 
     // ---- 层内 rank map（键=通关时间，值=名次）插值 ----
-    RankMap& m = m_rankMap[towerIdx][stage];
+    // [b28d-PoolTower P183] ORIG 每使用点重发完整 imul 地址链（0x08468ec5/
+    // 08468fdd/084692a3…），无 map 地址缓存槽 ⇒ 去 RankMap& 具名引用。
 
-    unsigned int result = 0xffffffff;  // ORIG local_20（初值 -1）
-    RankMap::const_iterator ref;       // ORIG local_88（末次返回的基准迭代器）
+    // [b28d-PoolTower P326/P50 复判] ORIG prologue 0x08468e90..0x8ebe 标量组：
+    // -0x28/-0x24/-0x20 三条 movl $0 + -0x1c=0xffffffff(result) ⇒ 函数头四
+    // 具名标量；**无独立 bool inMap**——「是否已层内插值」的哨兵是 keySpan
+    // （-0x24）本身：插值段 `max(...)` 写 -0x24（0x0846917f），0x08469274
+    // `cmpl $0x0,-0x24; jne 尾`；valDiff/abs 为 **32 位** branchless abs
+    // （0x08469203 区 `mov,sar,xor,sub`）后 `mov %eax,-0x20` 存 absDiff。
+    unsigned int stageSpan = 0;        // ORIG -0x28（跨层段 max 结果落此）
+    unsigned int keySpan = 0;          // ORIG -0x24（兼「已插值」哨兵）
+    int absDiff = 0;                   // ORIG -0x20（32 位 abs 结果）
+    unsigned int result = 0xffffffff;  // ORIG -0x1c
+    RankMap::const_iterator nxt;       // ORIG -0x80（prologue 首个 C1Ev）
+    RankMap::const_iterator ref;       // ORIG -0x84（末次返回的基准迭代器）
     // [b28d-D13] ORIG 0x08468eab/0x08468eb9 两次 C1Ev（默认构造）⇒ nxt 先声明
     // 后赋值（P50 反例复活），禁初始化式（会折成拷贝构造，丢 C1Ev）。
-    RankMap::const_iterator nxt;
-    bool inMap = false;                // ORIG local_28 != 0
 
-    if (m.size() >= 2)
+    if (m_rankMap[towerIdx][stage].size() >= 2)
     {
         // playTime 须落在 [首键, 末键] 内；否则跳至“层邻插值”分支。
-        RankMap::const_iterator first = m.begin();
-        RankMap::const_iterator last = m.end();
-        --last;
-        if (playTime >= first->first && last->first >= playTime)
+        // [b28d-PoolTower P326/P50 复判] ORIG 0x08468f1f..0x08468f4b 无 first/last
+        // 独立槽：begin/end 结果经匿名转换临时**赋值**入函数头 nxt/ref 两槽
+        // （`mov -0x7c,%eax; mov %eax,-0x84` 两段形）⇒ 原码即两具名迭代器复用。
+        ref = m_rankMap[towerIdx][stage].begin();
+        nxt = m_rankMap[towerIdx][stage].end();
+        --nxt;
+        if (playTime >= ref->first && nxt->first >= playTime)
         {
             // lower_bound(playTime)；若命中键 > playTime 且非 begin，退一位使
             // ref 恒为键 < playTime 的最近元素（= 插值下界）。
-            ref = m.lower_bound(playTime);
-            if (playTime < ref->first && ref != m.begin())
+            ref = m_rankMap[towerIdx][stage].lower_bound(playTime);
+            if (playTime < ref->first && ref != m_rankMap[towerIdx][stage].begin())
                 --ref;
             nxt = ref;
             ++nxt;
@@ -375,11 +403,11 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
             //   keySpan = nxt.key - ref.key（≥1）
             //   slope = |nxt.value - ref.value| / keySpan
             //   result = max(1, round((playTime - ref.key) * slope))
-            unsigned int keySpan = nxt->first - ref->first;
+            keySpan = nxt->first - ref->first;
             // [b28d-D13] p167 差集：ORIG 调 std::max<unsigned>×4 ⇒ 4 处 max 源形。
             keySpan = std::max(keySpan, 1u);
-            long long valDiff = (long long)nxt->second - (long long)ref->second;
-            long long absDiff = valDiff < 0 ? -valDiff : valDiff;
+            int valDiff = (int)nxt->second - (int)ref->second;
+            absDiff = valDiff < 0 ? -valDiff : valDiff;
             float slope = (float)((long double)absDiff / (long double)keySpan);
             // [b28d-D13] 删发明 helper roundHalfEven（p167 EXTRA×2）；ORIG
             // 0x0846921c 形 = fildll+fmuls+fistpll（P176）⇒ 直接 (long long) 转换。
@@ -387,19 +415,18 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
                 (long long)((long double)(playTime - ref->first) * slope);
             unsigned int r = (unsigned int)scaled;
             result = std::max(r, 1u);
-            inMap = true;
         }
     }
 
-    if (!inMap)   // ORIG if (local_28 == 0)：map 元素 <2 或 playTime 超出键范围
+    if (keySpan == 0)   // ORIG 0x08469274 `cmpl $0,-0x24; jne 尾`：哨兵 = keySpan
     {
-        unsigned int lowerStage = 0;   // ORIG local_18
-        unsigned int upperStage = 0;   // ORIG local_14
+        unsigned int lowerStage = 0;   // ORIG -0x14
+        unsigned int upperStage = 0;   // ORIG -0x10
 
         // 当前层 map 仅 1 元素时先判其末元素。
-        if (!m.empty())
+        if (!m_rankMap[towerIdx][stage].empty())
         {
-            RankMap::const_iterator last = m.end();
+            RankMap::const_iterator last = m_rankMap[towerIdx][stage].end();
             --last;
             if (last->first == playTime)
                 return (int)last->second;
@@ -445,16 +472,17 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
         //   stageSpan = upperStage - lowerStage（≥1）
         //   slope = |lower.first.value - upper.last.value| / stageSpan
         //   result = max(1, round((upperStage - stage) * slope))
-        RankMap::const_iterator lowerFirst =
-            m_rankMap[towerIdx][lowerStage].begin();
+        // [b28d-PoolTower P326/P50 复判] ORIG 0x084693d6..0x0846942f：begin 结果
+        // 两段赋入 -0x80（nxt 复用槽），end 结果赋 -0x84（ref）后 -- ⇒ 无独立
+        // lowerFirst 变量。
+        nxt = m_rankMap[towerIdx][lowerStage].begin();
         ref = m_rankMap[towerIdx][upperStage].end();
         --ref;
 
-        unsigned int stageSpan = upperStage - lowerStage;
+        stageSpan = upperStage - lowerStage;
         stageSpan = std::max(stageSpan, 1u);
-        long long valDiff = (long long)lowerFirst->second -
-                            (long long)ref->second;
-        long long absDiff = valDiff < 0 ? -valDiff : valDiff;
+        int valDiff = (int)nxt->second - (int)ref->second;
+        absDiff = valDiff < 0 ? -valDiff : valDiff;
         float slope = (float)((long double)absDiff / (long double)stageSpan);
         long long scaled =
             (long long)((long double)(upperStage - stage) * slope);
@@ -2160,8 +2188,10 @@ int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, in
 
 int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
 {
-    // [b28d-solo-CDeathTower] verdict=NEAR（62/62，P167 CLEAR 9/9）：const_iterator
-    // 双槽方向 N93 封顶（同 pickupItem/peekItem；roleType 槽 -0xc 已对齐）。
+    // [b28d-solo-CDeathTower] 旧判「N93 封顶」作废——[b28d-PoolTower] 翻正 AE：
+    // 第二具名 const_iterator 改**显式转换临时内联** `it == const_iterator(map.end())`
+    // 后 4.4 复现 ORIG 槽阶梯（it=-0x1c / find 转换源 -0x18 / itEnd+end 临时 -0x14），
+    // 62=62 逐条全等；C1 转换/eq/pt 符号集不变（P167 CLEAR 9/9 维持）。
     // ORIG 0x8461708：find(idx)；命中则 monster = it->second、取
     // m_level(+0x10) 作返回值并 erase；未命中返回 0。
     // 注：ORIG movzbl 0x14(%pair) = pair+0x14 = map_monster+0x10 = m_level
@@ -2171,8 +2201,7 @@ int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
     // ORIG 0x846170e：roleType 槽 -0xc 于函数头 `movl $0` ⇒ 声明先于迭代器（P0 时机）。
     int roleType = 0;
     std::map<int, map_monster>::const_iterator it = m_mapInfo.m_monsterMap.find(idx);
-    std::map<int, map_monster>::const_iterator itEnd = m_mapInfo.m_monsterMap.end();
-    if (it == itEnd)
+    if (it == std::map<int, map_monster>::const_iterator(m_mapInfo.m_monsterMap.end()))
     {
         return 0;
     }
@@ -2184,14 +2213,14 @@ int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
 
 bool CDeathTower::CStage::peekItem(int idx, map_item& item)
 {
-    // [b28d-solo-CDeathTower] verdict=NEAR（59/59，P167 CLEAR 6/6）：同 pickupItem，
-    // const_iterator 双槽方向 N93 封顶（构造序 find 先，交换声明即翻 call 序）。
+    // [b28d-solo-CDeathTower] 旧判「N93 封顶」作废——[b28d-PoolTower] 翻正 AE：
+    // itEnd 具名槽改显式转换临时 `const_iterator(map.end())`（原码即右值比较形，
+    // ORIG itEnd=-0x20/endtmp=-0x1c 与匿名临时槽位同构），59=59 逐条全等。
     // ORIG 0x8461534：m_mapInfo.m_itemMap.find(idx)；命中拷贝 0x54 字节返回 true。
     // ORIG 0x8461569/0x8461593：find/end 结果各经 _Rb_tree_const_iterator C1(iter&)
     // 转换（0x8152fa2 两次 call）⇒ 源以 const_iterator 具名持有。
     std::map<int, map_item>::const_iterator it = m_mapInfo.m_itemMap.find(idx);
-    std::map<int, map_item>::const_iterator itEnd = m_mapInfo.m_itemMap.end();
-    if (it == itEnd)
+    if (it == std::map<int, map_item>::const_iterator(m_mapInfo.m_itemMap.end()))
     {
         return false;
     }
@@ -2551,16 +2580,14 @@ bool CDeathTower::CStage::moveNextStage(unsigned int endStage)
 
 bool CDeathTower::CStage::pickupItem(int idx, map_item& item)
 {
-    // [b28d-solo-CDeathTower] verdict=NEAR（65/65，P167 CLEAR 7/7）：残差 = 两个
-    // const_iterator 具名槽方向（ORIG it=-0x28/itEnd=-0x20 vs 4.4 it=-0x24/itEnd=-0x28）
-    // ——N93：块级直接初始化局部双对象槽分配方向跨版本相反，且构造序（find 先）绑死
-    // 声明序，交换声明会翻转 call 序 ⇒ 无源码解，封顶。
+    // [b28d-solo-CDeathTower] 旧判「N93 无源码解」作废——[b28d-PoolTower] 翻正 AE：
+    // 同 peekItem/killMonster 显式转换临时内联形（it=-0x28/findtmp=-0x24/
+    // itEnd=-0x20/endtmp=-0x1c 槽阶梯复现），65=65 逐条全等，P167 CLEAR 7/7 维持。
     // ORIG 0x84615e4：peek 语义 + erase。
     // ORIG 0x8461619/0x8461643：find/end 各经 _Rb_tree_const_iterator C1(0x8152fa2)
     // 转换 ⇒ const_iterator 具名；erase@0x8152c18 arg=&idx（key 版）。
     std::map<int, map_item>::const_iterator it = m_mapInfo.m_itemMap.find(idx);
-    std::map<int, map_item>::const_iterator itEnd = m_mapInfo.m_itemMap.end();
-    if (it == itEnd)
+    if (it == std::map<int, map_item>::const_iterator(m_mapInfo.m_itemMap.end()))
     {
         return false;
     }

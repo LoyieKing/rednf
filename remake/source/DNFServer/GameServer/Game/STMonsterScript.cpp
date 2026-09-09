@@ -3079,13 +3079,15 @@ case 0xe43:  // "[hold attack]"（收集父 case；ORIG asm 08a1b1af：STHold C1
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         break;
                         sub7_3669:
-                        case 3669:  // [offset] → +0x10
+                        case 3669:  // [offset] → +0x10 与 +0x14
                             if (!__inited)
                             {
                                 __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[offset]", 3669));
                                 goto sub7_3673;
                             }
+                        // ORIG 0x8a1b5e9 body：ScanInt→-0x1d10、ScanInt→-0x1d0c（STHold C1 基座 -0x1d20）
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
+                        elem.m_field14 = ScanInt(static_cast<bool*>(0));
                         break;
                         sub7_3673:
                         case 3673:  // [animation index] → +0x18

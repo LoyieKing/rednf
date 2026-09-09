@@ -24,20 +24,25 @@ class CPrivateStore;      // CPrivateStorePos 带参构造参数（ORIG W 0x85cb
 class CPrivateStoreMgr;   // CPrivateStore::m_pParent / SetParent
 
 // ---- 接口基类（ORIG ISeller@+0x00 / IBuyer@+0x04 各占一个 vptr）----
-// 【虚表核对（FixPrivateStoreLoadDeps/PrivateStorePos_full.md §7，nm+vtable 实证）】
-//   vtable for ISeller @0x8cbebe0（10 槽纯虚）、vtable for IBuyer @0x8cbebb8
-//   （4 槽纯虚）；ISellerC1 0x85ccac0 写 0x8cbebe8、IBuyerC1 0x85ccace 写 0x8cbebc0。
-//   CPrivateStore 主基类(ISeller) 10 槽（vtable @0x8cbeb60，entries 0x8cbeb68..）：
+// 【虚表核对（b28d-CMisVtable 重做 nm+vtable 逐槽实证，旧 §7 记录有误已更正）】
+//   vtable for ISeller @0x8cbebe0 **sz 0x20 = 6 槽纯虚**（非旧记 10 槽）、
+//   vtable for IBuyer @0x8cbebb8（4 槽纯虚）；ISellerC1 0x85ccac0 写 0x8cbebe8、
+//   IBuyerC1 0x85ccace 写 0x8cbebc0。
+//   CPrivateStore 主 vtable @0x8cbeb60 sz 0x48 = 主 10 槽 + 次级(IBuyer,+4)头
+//   2 dword + 次级 4 thunk 槽：
+//     主 [0..5] = ISeller 六纯虚的实现：
 //     +0x00 CreatePrivateStore(uchar,uchar,short,short,ushort) 0x85c53ea
 //     +0x04 RemovePrivateStore(bool)                            0x85c5fd0
 //     +0x08 CompleteDisplay(char const*,ushort)                 0x85c7800
 //     +0x0c MoveToGate()                                        0x85c751a
 //     +0x10 AddItem(PrivateStoreItem&,int)                      0x85c6d48
 //     +0x14 RecreatePrivateStore(SIG_PRIVATE_STORE*)            0x85c5b60
-//     +0x18 BuyPrivateStoreItem(int,int)                        0x85c7e74
-//     +0x1c VerifyPrivateStoreItem(int,int)                     0x85c874c
-//     +0x20 EnterPrivateStore()                                 0x85c8dd6
-//     +0x24 ExitPrivateStore()                                  0x85c8fd4
+//     主 [6..9] = **CPrivateStore 自新虚槽**（ISeller 接口不含这四个；因与
+//     IBuyer 同签名纯虚构成 override，GCC 同时挂次级槽 ⇒ 主槽为直接实现体）：
+//     +0x18 BuyPrivateStoreItem(int,int)   0x85c7e74   （亦 override IBuyer 槽0）
+//     +0x1c VerifyPrivateStoreItem(int,int) 0x85c874c  （IBuyer 槽1）
+//     +0x20 EnterPrivateStore()            0x85c8dd6   （IBuyer 槽2）
+//     +0x24 ExitPrivateStore()             0x85c8fd4   （IBuyer 槽3）
 //   次级基类(IBuyer,+4) 4 槽为 non-virtual thunk（vtable 0x8cbeb98..0x8ebeba4）：
 //     BuyPrivateStoreItem/VerifyPrivateStoreItem/EnterPrivateStore/ExitPrivateStore。
 struct PrivateStoreItem;
@@ -56,10 +61,8 @@ public:
     virtual bool MoveToGate() = 0;                                       // ORIG T 0x85c751a（槽+0x0c）
     virtual bool AddItem(PrivateStoreItem& item, int prevCountSlot) = 0; // ORIG T 0x85c6d48（槽+0x10）
     virtual int RecreatePrivateStore(SIG_PRIVATE_STORE* sig) = 0;        // ORIG T 0x85c5b60（槽+0x14）
-    virtual bool BuyPrivateStoreItem(int slot, int count) = 0;           // ORIG T 0x85c7e74（槽+0x18）
-    virtual bool VerifyPrivateStoreItem(int slot, int count) = 0;        // ORIG T 0x85c874c（槽+0x1c）
-    virtual bool EnterPrivateStore() = 0;                                // ORIG T 0x85c8dd6（槽+0x20）
-    virtual bool ExitPrivateStore() = 0;                                 // ORIG T 0x85c8fd4（槽+0x24）
+    // ORIG _ZTV ISeller sz 0x20 = 6 槽：Buy/Verify/Enter/Exit **不属于 ISeller
+    // 接口**（它们经 IBuyer 纯虚 + CPrivateStore 自新虚槽暴露，见上表）。
 };
 
 class IBuyer
@@ -125,9 +128,11 @@ protected:
     IUserPos() {}
 
 public:
-    virtual int Enter(CUser* user) = 0;                          // 槽+0
-    virtual int HandleError(CUser* user, int code1, int code2,   // 槽+4
-                            int code3) = 0;
+    // ORIG _ZTV CPrivateStoreMgr @0x8cbeb38 sz=0x10 两槽 = [0]Exit(0x85ca994)
+    // [1]Enter(0x85caa8a) ⇒ 接口两纯虚为 {Exit, Enter}（HandleError 不在任何
+    // vtable 中，ORIG 为其非虚成员，旧注释"槽1=HandleError"系误读相邻地址）。
+    virtual int Exit(CUser* user) = 0;                           // 槽+0
+    virtual int Enter(CUser* user) = 0;                          // 槽+1
 };
 // ---- COperator<T>（溢出检测运算助手；ORIG 仅存在 int 特化 W _ZN13private_store9COperatorIiE7ProductEiiRi @0x85cd22a）----
 template <typename T>
@@ -220,13 +225,16 @@ class CPrivateStore : public ISeller, public IBuyer
 public:
     CPrivateStore();
     ~CPrivateStore();
-    // ---- ISeller 十槽 / IBuyer 四槽实现（唯一权威定义于 CPrivateStoreMgr.cpp）----
+    // ---- ISeller 六槽实现（唯一权威定义于 CPrivateStoreMgr.cpp）----
     bool CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
                             short posX, short posY, unsigned short dollSlot);   // ORIG T 0x85c53ea
     bool RemovePrivateStore(bool sendFail);                                     // ORIG T 0x85c5fd0
     bool CompleteDisplay(char const* subject, unsigned short dollSlot);         // ORIG T 0x85c7800
     bool MoveToGate();                                                          // ORIG T 0x85c751a
     bool AddItem(PrivateStoreItem& item, int prevCountSlot);                    // ORIG T 0x85c6d48
+    // ---- 以下 4 个为 **CPrivateStore 自新虚槽**（主 [6..9]，ORIG 0x85c7e74/
+    // 0x85c874c/0x85c8dd6/0x85c8fd4），同时 override IBuyer 四个同签名纯虚 ⇒
+    // 次级槽挂 thunk。声明顺序 = 槽序（Buy,Verify,Enter,Exit），不得挪动。----
     bool BuyPrivateStoreItem(int slot, int count);                              // ORIG T 0x85c7e74
     bool VerifyPrivateStoreItem(int slot, int count);                           // ORIG T 0x85c874c
     bool EnterPrivateStore();                                                   // ORIG T 0x85c8dd6
@@ -343,10 +351,11 @@ public:
     CPrivateStoreMgr();
     ~CPrivateStoreMgr();
 
-    int Enter(CUser* user);                          // IUserPos 槽+0（ORIG T 0x85caa8a）
-    int HandleError(CUser* user, int code1,          // IUserPos 槽+4（ORIG T 0x85caaaa）
-                    int code2, int code3);
-    int Exit(CUser* user);                           // 非虚（ORIG T 0x85ca994）
+    // 声明顺序 = vtable 槽序：ORIG [0]=Exit、[1]=Enter。
+    int Exit(CUser* user);                           // IUserPos 槽+0（ORIG T 0x85ca994）
+    int Enter(CUser* user);                          // IUserPos 槽+1（ORIG T 0x85caa8a）
+    int HandleError(CUser* user, int code1,          // 非虚（ORIG T 0x85caaaa，
+                    int code2, int code3);           // 不在任何 vtable 槽）
 
     CPrivateStore* FindStoreBuyer(CUser* user);      // ORIG T 0x85ca2da
     CPrivateStore* FindStoreSeller(CUser* user);     // ORIG T 0x85ca358

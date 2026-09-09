@@ -31,9 +31,15 @@ public:
     // void 版会被 gcc4.4 折成共享清理块（jmp），形态不符。mangled 不含返回类型。
     virtual int SendBuffertoClient(int a, int b, int c, unsigned int d,  // 槽0
                                     unsigned char* data, short len) = 0;
-    virtual void PunishClient(int a, int b, unsigned int c,               // 槽1
-                              EPUNISHMODE mode, tagAntibotPunishInfo* info,
-                              char* reason) = 0;
+    // 返回类型 int：ORIG 0x080de3ee 单出口 0x080de4b8 `mov $0x0,%ebx` →
+    // 0x080de4c8 `mov %ebx,%eax` → 0x080de4d0 `ret`（返回值跨 ~CStreamGuard
+    // 保活，与槽0 0x080de3b9 同族；objdump 实证所有路径均返 0）。
+    // 曾判 void 的原因：本仓 IBusiness 由 Ghidra 原型 `undefined` 反推 +
+    // 全仓无调用方消费返回值，void 形仅尾部差 2 条被当作 N 残差（b28d-solo
+    // 判词），后经同族先例证伪 ⇒ R2 转 int（b28d-PoolGlobalData）。
+    virtual int PunishClient(int a, int b, unsigned int c,                // 槽1
+                             EPUNISHMODE mode, tagAntibotPunishInfo* info,
+                             char* reason) = 0;
     // ORIG 0x080de4ec 尾部 mov $0,%ebx/mov %ebx,%eax = int 返回 0（vtable 槽2）。
     virtual int ProcessProtectMsg(tagTSafeModePkg* pkg) = 0;             // 槽2
 };
@@ -45,8 +51,8 @@ public:
     ~CBusinessImpl();                                                     // D1 0x082a7c4e（非虚）
     int SendBuffertoClient(int a, int b, int c, unsigned int d,
                             unsigned char* data, short len);              // 0x080de240
-    void PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
-                      tagAntibotPunishInfo* info, char* reason);          // 0x080de3ee
+    int PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
+                     tagAntibotPunishInfo* info, char* reason);           // 0x080de3ee
     int ProcessProtectMsg(tagTSafeModePkg* pkg);                          // 0x080de4ec
 };
 

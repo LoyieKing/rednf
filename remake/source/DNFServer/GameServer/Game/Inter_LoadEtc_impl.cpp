@@ -1239,15 +1239,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
 
     // ---- 失败链前置处理（ORIG 各 err 分支统一收口于 LAB_084c2653）----
-    int result;
-    bool pvpTreeSkip0 = false;
-    bool bccBranch = false;
-    bool c14Branch = false;
+    // [BigUserLogic] 原 do-while+bccBranch/c14Branch 标志形是我方重写产物：ORIG
+    // 各失败点为 `mov $code,%ebx; jmp <统一尾>` = 源码直接 return（编译器自动落
+    // 析构尾）。改回 return 形，消除 4 个物化 bool 及其清零/读回指令。
     bool pvpTreeSkip = false;
-    do
     {
-        if (!SetPvpRecord(user, sig)) { result = 0xaa2; break; }
-        if (!SetRankRecord(user, sig)) { result = 0xaa5; break; }
+        if (!SetPvpRecord(user, sig)) return 0xaa2;
+        if (!SetRankRecord(user, sig)) return 0xaa5;
 
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xac5, 0);
@@ -1257,12 +1255,12 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         user->ProcPremiumFatigue();
         WongWork::CUserPremium* premium = user->GetPremiumInfo();
-        if (premium != 0)
-            premium->RecalcAdditionalInfo(user);
+        // [BigUserLogic] ORIG 0x084c040e 无判空直调。
+        premium->RecalcAdditionalInfo(user);
 
-        if (!SetFatigue(user)) { result = 0xacf; break; }
+        if (!SetFatigue(user)) return 0xacf;
         verifyCharacVillage(user);
-        if (!SendResult(user)) { result = 0xae6; break; }
+        if (!SendResult(user)) return 0xae6;
 
         user->SendRestrictedGoods(false, 0);
         // §4.3 具名化：+0x2308 区在 SigTypes_C.h:464 已有 union 具名叠加
@@ -1275,7 +1273,6 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             reinterpret_cast<CONTINUOUS_ITEM_INFO*>(sig->m_effectItem));
 
         typedef charac_expand::CData CDataAlias;
-        for (;;)
         {
             CDataAlias* exp6 = static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(6)));
@@ -1290,18 +1287,19 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 ENUM_CHARAC_EXPAND_TYPE(0xd)));
             // [hc 收] +0xd58 同承载体 0xd 型 expand-data 布局偏移（§5.3 豁免）。
             expD->loadData(user, sig->m_mixedRegion + 0xd58);
-            break;
         }
 
         int tagIdx = user->get_charac_idx(sig->m_fieldC);
         if (sig->m_fieldC != 0 && tagIdx != -1 &&
             user->getTagCharacR() != 0)
         {
-            char* tagSkillBuf = user->getTagCharacSkillW();
-            SkillSlot* skillW = reinterpret_cast<SkillSlot*>(tagSkillBuf);
-            (void)skillW;
-            			skillW->set_skill_slot((char*)&sig->m_tagEtc.m_skillSlot,
-			                       (char*)&sig->m_tagEtc.m_skillCombo, 0x198);
+            // [BigUserLogic] ORIG 0x084c09??：先物化 sig+0x1a8/sig+0x10 两实参，
+            // 再调 getTagCharacSkillW，最后一并传 set_skill_slot。原写法在 call 后
+            // 又经 tagSkillBuf/skillW 两跳槽写入（多 2 条 store + 求值序颠倒）。
+            char* argCombo = (char*)&sig->m_tagEtc.m_skillCombo;  // sig+0x1a8
+            char* argSlot = (char*)&sig->m_tagEtc.m_skillSlot;    // sig+0x10
+            SkillSlot* skillW = reinterpret_cast<SkillSlot*>(user->getTagCharacSkillW());
+            skillW->set_skill_slot(argSlot, argCombo, 0x198);
         }
         if (tagIdx == -1)
             sig->m_mixedRegion[0xd3b] = 0;
@@ -1386,12 +1384,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         CSkillTreeParam skillTreeParam(user, sig, packet);
 
         // ======== 主链（对应 ORIG try/状态码分支）========
-        do
         {
 
             if (G_GameWorld()->IsPvPSkilTreeChannel())
             {
-                unsigned char flagByte = (unsigned char)sig->m_mixedRegion[0x11];
+                // [BigUserLogic 修复] 原写 m_mixedRegion[0x11](+0xc9d1)；ORIG
+                // 0x084c09b1 为 movzbl 0xcdd1(%eax) = m_scriptVersion。
+                unsigned char flagByte = sig->m_scriptVersion;
                 unsigned char refByte = (unsigned char)
                     G_CDataManager()->m_pvpSkillTree.m_field50;  // +0xa850 基线标志
                 if (flagByte != refByte)
@@ -1414,27 +1413,15 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                                 reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)))
             {
                 user->disableSaveSkill();
-                result = 0xb91;
-                break;   // 跳出主链 → 析构 skillTreeParam / packet
+                return 0xb91;   // ORIG 0x08661e?? else 尾：dtor 后返回
             }
             user->disableSaveSkill();
 
             if (G_GameWorld()->IsPvPSkilTreeChannel())
             {
-                bool grantFlagged = (sig->m_mixedRegion[0x14] == 0 &&
-                    *reinterpret_cast<int*>(sig->m_mixedRegion + 0x1df) != 0);
-                if (grantFlagged)
-                {
-                    SetPvPSkillTree(user,
-                        reinterpret_cast<const _Mastered_skill*>(
-                            sig->m_mixedRegion + 0xc),
-                        ENUM_SKILL_TREE_KIND(0));
-                    SetPvPSkillTree(user,
-                        reinterpret_cast<const _Mastered_skill*>(
-                            sig->m_mixedRegion + 0x1a8),
-                        ENUM_SKILL_TREE_KIND(1));
-                }
-                else
+                // [BigUserLogic 修复] ORIG 0x084c0a8f/0x084c0a9d 布局：give 体为
+                // fall-through、Set 体由 jne 跳出 ⇒ 源码是 OR 形判 give。
+                if (sig->m_pvpSkillInsertFlag != 0 || sig->m_fairPvpLastPlaySec == 0)
                 {
                     user->givePvPSkillTree(0, false, 3);
                     user->givePvPSkillTree(0, true, 3);
@@ -1452,12 +1439,22 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     skillW->set_remain_sp_at_index(spPoint,
                                                    ENUM_SKILL_TREE_KIND(1));
                 }
+                else
+                {
+                    SetPvPSkillTree(user,
+                        reinterpret_cast<const _Mastered_skill*>(
+                            sig->m_mixedRegion + 0xc),
+                        ENUM_SKILL_TREE_KIND(0));
+                    SetPvPSkillTree(user,
+                        reinterpret_cast<const _Mastered_skill*>(
+                            sig->m_mixedRegion + 0x1a8),
+                        ENUM_SKILL_TREE_KIND(1));
+                }
             }
 
             if (skillTreeParam.SetSkillTree(this))
             {
-                bccBranch = true;
-                break;
+                return 0xbcc;
             }
 
             {
@@ -1474,8 +1471,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
             if (G_CGameManager()->insert_game_world(user) != 1)
             {
-                c14Branch = true;
-                break;
+                return 0xc14;
             }
 
             user->sendCharacQp();
@@ -1488,8 +1484,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             user->SendItemMakingSkillInfo();
 
             if (G_GameWorld()->IsPvPSkilTreeChannel() &&
-                ((sig->m_mixedRegion[0x14] != 0 ||
-                  *reinterpret_cast<int*>(sig->m_mixedRegion + 0x1df) == 0 ||
+                // [BigUserLogic 修复] 同上：ORIG 0x084c0cf5/0x084c0d03。
+                ((sig->m_pvpSkillInsertFlag != 0 ||
+                  sig->m_fairPvpLastPlaySec == 0 ||
                   pvpTreeSkip)))
             {
                 packet.clear();
@@ -1516,7 +1513,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 int fatigueBase = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
                 CCoinRefillEvent* coinEvent = static_cast<CCoinRefillEvent*>(
                     GlobalData::s_event_manager->GetRepeatEvent(0xd));
-                if (coinEvent != 0 && coinEvent->IsEventing(0))
+                // [BigUserLogic] ORIG 无判空：直接 vtable+0x34 调 IsEventing。
+                if (coinEvent->IsEventing(0))
                     fatigueBase = coinEvent->getLastEventTime();
                 user->setBlueMarbleEnterCount(sig->m_blueMarbleEnterCount);
 
@@ -1537,9 +1535,10 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                         user->getCurCharacGrowType() == 0;
                     if (newUserLevelGate)
                     {
-                        WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
-                        if (hack != 0)
-                            hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x1a1, 1u, 0, 0);
+                        // [BigUserLogic] ORIG 0x084c12??：getHackAnalyzer 结果留
+                        // %eax 直传（无槽 spill），单行嵌套形复现。
+                        user->getHackAnalyzer()->addServerHackCnt(
+                            user, (WongWork::ENUM_HACKTYPE)0x1a1, 1u, 0, 0);
                     }
                     user->ResetCurCharacUsedGiftFatigueQuantity();
 
@@ -1549,16 +1548,16 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                         user->getCurCharSecondGrowType() == 0;
                     if (secondGrowNew)
                     {
-                        int loops = 0;
-                        int subCode = 0;
-                        if (level < 0x3d) { if (level > 0x32) { loops = 1; subCode = 0xb; } }
-                        else { loops = 3; subCode = 0xc; }
-                        for (int i = 0; i < loops; ++i)
+                        // [BigUserLogic] ORIG 0x084c13??(secondGrow) 为降序 jle 链 +
+                        // unsigned 比较(setb)：>0x3c→(3,0xc)；>0x32→(1,0xb)。
+                        unsigned int loops = 0;
+                        unsigned int subCode = 0;
+                        if (level > 0x3c) { loops = 3; subCode = 0xc; }
+                        else if (level > 0x32) { loops = 1; subCode = 0xb; }
+                        for (unsigned int i = 0; i < loops; ++i)
                         {
-                            WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
-                            if (hack != 0)
-                                hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x1a3, 1u,
-                                                        subCode, 0);
+                            user->getHackAnalyzer()->addServerHackCnt(
+                                user, (WongWork::ENUM_HACKTYPE)0x1a3, 1u, subCode, 0);
                         }
                     }
                     bool firstGrowNew =
@@ -1566,24 +1565,18 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                         user->getCurCharFirstGrowType() == 0;
                     if (firstGrowNew)
                     {
-                        int loops = 0;
-                        int subCode = 0;
-                        if (level < 0x33)
+                        // [BigUserLogic] ORIG 降序 jle 链：>0x32→(5,4)；>0x28→(3,3)；
+                        // >0x1e→(2,2)；>0x14→(1,1)（与旧嵌套形逐区间等价）。
+                        unsigned int loops = 0;
+                        unsigned int subCode = 0;
+                        if (level > 0x32) { loops = 5; subCode = 4; }
+                        else if (level > 0x28) { loops = 3; subCode = 3; }
+                        else if (level > 0x1e) { loops = 2; subCode = 2; }
+                        else if (level > 0x14) { loops = 1; subCode = 1; }
+                        for (unsigned int i = 0; i < loops; ++i)
                         {
-                            if (level < 0x29)
-                            {
-                                if (level < 0x1f) { if (level > 0x14) { loops = 1; subCode = 1; } }
-                                else { loops = 2; subCode = 2; }
-                            }
-                            else { loops = 3; subCode = 3; }
-                        }
-                        else { loops = 5; subCode = 4; }
-                        for (int i = 0; i < loops; ++i)
-                        {
-                            WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
-                            if (hack != 0)
-                                hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x1a3, 1u,
-                                                        subCode, 0);
+                            user->getHackAnalyzer()->addServerHackCnt(
+                                user, (WongWork::ENUM_HACKTYPE)0x1a3, 1u, subCode, 0);
                         }
                     }
                     user->resetBlueMarbleEnterCount();
@@ -1625,11 +1618,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     packet.put_byte((int)winnerSide);
                 packet.finalize(true);
                 user->Send(packet);
-                if (GlobalData::s_power_manager != 0)
-                {
-                    if (GlobalData::s_power_manager->CheckCompleteDBLoadStatueInfo())
-                        GlobalData::s_power_manager->SendPowerWarUserStatueInfo(user);
-                }
+                // [BigUserLogic] ORIG 无判空。
+                if (GlobalData::s_power_manager->CheckCompleteDBLoadStatueInfo())
+                    GlobalData::s_power_manager->SendPowerWarUserStatueInfo(user);
             }
             {
                 packet.clear();
@@ -1716,12 +1707,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             {
                 CAutoMarketConditionsControl* autoMarket =
                     G_CDataManager()->GetAutoMarketContitionsControl();
-                if (autoMarket != 0)
-                    autoMarket->SendNotiSetDurability(user);
+                // [BigUserLogic] ORIG 无判空。
+                autoMarket->SendNotiSetDurability(user);
             }
 
+            // [BigUserLogic] ORIG 无判空：getEffectNum 直调。
             CGlobalEffectManager* fx = GlobalData::s_globalEffectManager_;
-            if (fx != 0 && fx->getEffectNum() != 0)
+            if (fx->getEffectNum() != 0)
             {
                 packet.clear();
                 fx->makeGlobalEffectInfo(packet);
@@ -1761,11 +1753,12 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                                 dstMsg->m_msg[idx].m_lenMsg = (*smi).m_lenMsg;
                                 dstMsg->m_msg[idx].m_kind = (*smi).m_kind;
                                 dstMsg->m_msg[idx].m_endTime = (*smi).m_endTime;
-                                strncpy(dstMsg->m_msg[idx].m_msg2, (*smi).m_msg2,
-                                        sizeof((*smi).m_msg2));   // ORIG 0x84c18e0 len 0x13
+                                // [BigUserLogic 修复] 原用 sizeof(=0x14) 多拷 1 字节；
+                                // ORIG 0x084c18e0 push 立即数 0x13。
+                                strncpy(dstMsg->m_msg[idx].m_msg2, (*smi).m_msg2, 0x13);
                                 dstMsg->m_msg[idx].m_index = (*smi).m_index;
-                                strncpy(dstMsg->m_msg[idx].m_msg, (*smi).m_msg,
-                                        sizeof((*smi).m_msg));   // ORIG 0x84c193d len 0x31
+                                // [BigUserLogic 修复] 同上：ORIG 0x084c193d 为 0x31。
+                                strncpy(dstMsg->m_msg[idx].m_msg, (*smi).m_msg, 0x31);
                                 dstMsg->m_msg[idx].m_lenMsg2 = (*smi).m_lenMsg2;
                                 idx = idx + 1;
                                 smi++;
@@ -1883,7 +1876,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
 
             user->send_RedeemInfo();
-            if (GlobalData::s_DailyScheduleManager != 0)
+            // [BigUserLogic 修复] ORIG 0x084c222f 判的是 user(param_2)!=0，
+            // 不是 manager；原写法把判空对象改错 ⇒ 语义差。
+            if (user != 0)
                 GlobalData::s_DailyScheduleManager->CheckAndSendToOneUserSchedule(*user);
             user->send_MissionList();
             user->processReturnUser();
@@ -1922,8 +1917,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
             {
                 CItemShop* shop = G_CDataManager()->m_itemShop;
-                if (shop != 0)
-                    user->SendOneADayItemShopIndex(shop->GetOneADayItemList());
+                // [BigUserLogic] ORIG 无判空。
+                user->SendOneADayItemShopIndex(shop->GetOneADayItemList());
             }
             user->reset_is_end_lethe_at_login();
 
@@ -1947,8 +1942,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             user->set_aura_avatar_option(*reinterpret_cast<stAuraAvatarOption*>(
                 sig->m_mixedRegion + 0xd70));
             user->send_aura_avatar_option();
-            if (GlobalData::s_serverStateManager_ != 0)
-                GlobalData::s_serverStateManager_->sendState(user);
+            // [BigUserLogic] ORIG 无判空。
+            GlobalData::s_serverStateManager_->sendState(user);
             user->setCharacOption(*reinterpret_cast<CharacterOption*>(
                 sig->m_mixedRegion + 0x2108));
             user->sendCharacOption();
@@ -1959,8 +1954,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
             {
                 CraneMinigameManager* crane = G_CGameManager()->GetCraneMinigameManager();
-                if (crane != 0)
-                    crane->SendCraneItemNeedMaterial(user);
+                // [BigUserLogic] ORIG 无判空。
+                crane->SendCraneItemNeedMaterial(user);
             }
             processAttendAnceEvent(&sig->m_attendanceEvent, *user);
             user->SendMaxEquipLevel();
@@ -1972,14 +1967,15 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
             {
                 CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x9e);
-                if (ev != 0 && ev->IsEventing(0))
+                // [BigUserLogic] ORIG 无判空。
+                if (ev->IsEventing(0))
                     DB_LoadEventLevelupSupport::makeRequest((int)user->GetUID(),
                                                             user->getCurCharacNo());
             }
             {
                 HeroMissionEvent* hero = ARAD::Singleton<HeroMissionEvent>::Get();
-                if (hero != 0)
-                    hero->loadEventData(user);
+                // [BigUserLogic] ORIG 无判空。
+                hero->loadEventData(user);
             }
 
             // ORIG:Garena 段(双 getGarenaAuthData + Taiwan::GarenaAuthData 访问器)。
@@ -1998,14 +1994,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 DBSelectMobileAuthRewardTw::makeRequest(user);
             }
 
-            result = user->unlock4DataLoad() ? 0 : 0x1139;
-        } while (false);
-
-        if (bccBranch) { result = 0xbcc; break; }
-        if (c14Branch) { result = 0xc14; break; }
-    } while (false);
-
-    return result;
+            return user->unlock4DataLoad() ? 0 : 0x1139;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

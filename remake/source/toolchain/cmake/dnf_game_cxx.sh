@@ -366,6 +366,26 @@ case "$(basename "$src" .cpp)" in
             *Game/CUser.cpp)
                 # CUser：ORIG 为 4.4.6（构造/EH 着陆垫链、子对象寄存器形态；
                 # CUser agent 验证 c6446r 更接近，建议与 CItemList 同路由）
+                # [Main·检查点23 PoolCUser 三组实测] 再叠 `-march=i486 -mtune=generic`
+                #   （N85 x87 lowering 族解药，同 437 行 WStringInst/56 行先例）：
+                #   (a) 现路由 c6446r            = 703/1508/near4/diff115（合计 2211）
+                #   (b) c6446r + i486+mtune=gen  = 703/1509/near4/diff114（合计 **2212**）
+                #       · _processSpeicalContinuousTimeItem ndiff 5 → **AE 归零**
+                #       · reqHumanCertify4ClearMap 97 → 92（残差主体转 N82 槽阶梯）
+                #   (c) c6446r + 仅 -march=i486（无 -mtune=generic）= 674/142/2/1512 **崩**
+                #       ⇒ **-mtune=generic 必须同带**（默认 tune 改调度，整 TU 劣化）。
+                #   符号集两态逐名一致（PoolCUser `nm --defined-only` 复核），不触铁律1。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
+            *Game/CreatureOnlyMgrRest.cpp)
+                # [Main·检查点23 PoolMisc2 实测] 切 4.4.6 后端（头集保持 4.4.7）：
+                #   基线(c6/4.4.7) 40/75/near5/diff3 → **40/77/near3/diff3**（ae+2、near−2）
+                #   · user_creature::CCreatureMgr::IsSaveCreatureItem(ORIG 0x0833ba30) NEAR 4→AE
+                #   · user_creature::CCreatureMgr::LoadCreatureItem(ORIG 0x0833b68c)  NEAR 13→AE
+                #   · SaveCreatureItem ndiff 131→107；ChangeOwner/ChangeSlotNo/
+                #     InsertCreatureItemResult/SetOverSkillTime 逐件读数不变（零回退）
+                #   · 两态 `nm --defined-only` 符号集**逐名一致** ⇒ 不触铁律1
+                #   同族先例：W6_AssaultPlaceDepsB / MatchRoomList / CExpandEquipslot；
+                #   本 TU 原判词自陈「P230 换 4.4.6 可治、未路由」，本次兑现。
                 exec "$C6446R" "$@" ;;
             *Game/CItemAmplifier.cpp)
                 # b28d-S106：N7 间接 call 目标 4.4.7 恒 %eax / 4.4.6 与 ORIG 同用 %edx

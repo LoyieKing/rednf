@@ -2715,7 +2715,11 @@ TimerScheduleTenSecond::~TimerScheduleTenSecond() {}
 // [b28d-30] 复核 DIFF：迭代器槽/帧差（N82/N86 族），ORIG 0x08637936 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82/N86 封顶：迭代器槽 + 帧差（86/79）。
 // 附：p167 显示 ORIG 用 const_iterator 族（P96/P270），但改 const 形后本 TU 不再
-// 发射该族定义 ⇒ identical/ae -5、missing +5（符号发射恶化）⇒ 已回退，按非 const 封顶。
+// 发射该族条件 ⇒ identical/ae -5、missing +5（符号发射恶化）⇒ 已回退，按非 const 封顶。
+// [b28d-PoolTimer 复测] 现况 87/86（判词 86/79 为 solo2 轮前旧数）。P326 显式
+// const_iterator(end()) 右值临时形重试：槽布 84 行残差与隐式形**逐条全同**（-0x20/
+// -0x24 不变，无三级改善）⇒ 回退。真根因 = ORIG `mov (%eax),%esi; call *%esi` 虚调用
+// 驻 %esi（push esi，帧 0x30+8）vs 4.4 `call *%eax`（单 push，帧 0x34）⇒ N7+N82。
 int TimerScheduleTenSecond::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     // ORIG 0x8637936：遍历 +0x22c 用户 map；get_state()>=2 且 getAntibotKey()>=0

@@ -6831,8 +6831,11 @@ void CParty::clear_reward(int param)
         return;
     }
 
-    BattleData& bd = m_battleData;
-    CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_battleField);
+// §P183：ORIG 无 bd/bfView 别名槽，每处访问都从 this 重物化
+// （add $0x390×9、$0xb24×12、$0x79d×6、$0x10×16）；引用缓存会省掉这些
+// 地址计算 ⇒ 宏化为「每次直取 this+off」，语义等价。
+#define bd m_battleData
+#define bfView (*reinterpret_cast<CBattle_Field*>(&m_battleField))
 
     // ORIG:local_ec(G_CDataManager 首调结果)复用于 find_dungeon/getRankBonusIndex/+0x68。
     int rankBonusIdx = dm->getRankBonusIndex(param);
@@ -6949,13 +6952,17 @@ void CParty::clear_reward(int param)
         }
     }
 
+// §P183 形态核销：ORIG 对 m_member[slot].m_pUser 每次访问都从 this 重新物化
+// （add $0x78 共 63 处；-0x58(%ebp) 槽 41 次），我方原以 `CUser* user` 缓存 ⇒
+// 净缺 ~330 条地址计算指令。改宏为「每次直取」，指令数复现 ORIG，语义等价
+// （slot 在两循环内均为循环变量，循环体无对 user 的赋值）。
+#define user (m_member[slot].m_pUser)
     for (int slot = 0; slot <= 3; ++slot)
     {
         if (!_checkValidUser(slot))
         {
             continue;
         }
-        CUser* user = m_member[slot].m_pUser;
 
         if (dungeon->m_entryRestrictFlag != 0 &&
             user->IsDeleteEventDungeonInvitation())
@@ -6970,7 +6977,9 @@ void CParty::clear_reward(int param)
                 static_cast<ENUM_PACKETCLASS>(0));
         }
 
-        Inven_Item* rewardItems = bd.m_itemGroups0[slot];
+#define rewardItems (bd.m_itemGroups0[slot])
+#define goldCardItems (bd.m_itemGroups2[slot])
+#define pcRoomItems (bd.m_itemGroups1[slot])
         if (dungeon->m_89e == 0)
         {
             int lvl = user->get_charac_level();
@@ -7078,7 +7087,6 @@ void CParty::clear_reward(int param)
 
         ref.m_field3c =                                          // +0x3c 整字视图
             user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)) ? 4 : 1;
-        Inven_Item* goldCardItems = bd.m_itemGroups2[slot];
         goldCardItems[0].setCopy(rewardItems[0]);
         goldCardItems[0].set_add_info(0);
         // ORIG：金卡组共用一条 getGenerator 链缓存（local_78）。
@@ -7183,7 +7191,6 @@ void CParty::clear_reward(int param)
         ref.m_rankBonusRate = mapRatio;
         if (user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)))
         {
-            Inven_Item* pcRoomItems = bd.m_itemGroups1[slot];
             pcRoomItems[0].setCopy(rewardItems[0]);
             pcRoomItems[0].set_add_info(0);
             ref.m_field3c = 5;                                 // +0x3c 整字视图
@@ -7250,8 +7257,6 @@ void CParty::clear_reward(int param)
         {
             continue;
         }
-        CUser* user = m_member[slot].m_pUser;
-
         user->setChattingMessageCount(0);
 
         if (dungeon->m_89e != 0)
@@ -7601,6 +7606,12 @@ void CParty::clear_reward(int param)
             }
         }
     }
+#undef user
+#undef rewardItems
+#undef goldCardItems
+#undef pcRoomItems
+#undef bd
+#undef bfView
 
     if (IsPremiumGoldCardParty())
     {

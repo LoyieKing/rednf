@@ -18,13 +18,19 @@ class CUser;   // Rent/CheckRentableItem 形参（前置即可）
 class InstanceRentalSystem
 {
 public:
+    // [b28d-PoolGlobalData] **不得给本类加用户析构**：ORIG
+    // `_Destroy_aux<ILb1E>::__destroy<RentalInfo*>` W size 5 @0823e5c7 实证
+    // has_trivial_destructor=true；D1/D2 @08272e8a 全二进制零 call 点，仅作
+    // new_allocator::destroy 死实例发射（我方删声明后同链自然发射，符号账不丢）。
+    // 加回 `~RentalInfo(){}` 会使类变非平凡 ⇒ ProcessInsertItem/ProcessEquipItem
+    // (0x08271666/0x082714c5) 复活 EXTRA D1Ev×2+_Unwind_Resume×1（旧 P71 判词
+    // 「4.1 判 trivial 不调用」倒果为因，作废）。
     struct RentalInfo
     {
         // ORIG C1 0x082719f6（报告缺失，objdump 直转）：清 +0 字节/+2 半字/+4 int/
         //   +8..+0b 四字节，+0xc=-1。removeRentalItemInfoFromInvenBuf 0x8677584
         //   实证 +0x04=物品索引、+0x0a=是否已装备。
         RentalInfo();
-        ~RentalInfo() {}
         unsigned char m_flag0;      // +0x00（ProcessEquip 写 3 / ProcessInsert 写 0）
         unsigned char m_pad1;       // +0x01
         unsigned short m_slot;      // +0x02（插入/装备槽位）

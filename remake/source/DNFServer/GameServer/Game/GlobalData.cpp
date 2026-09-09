@@ -14,10 +14,10 @@
 //   ② ItemVendingMachine::_CheckEnableAvatarCondition 0x08176794 —— 首调
 //      GetRelatedItem 无槽往返（P0 内联）、去 vec 具名指针（P183）、
 //      `cmp -0x1c(%ebp),%al; jg` 8 位有符号比较（T1 直证 char）后 87=87 AE。
-// 改善未闭合两件：
-//   PunishClient 0x080de3ee 74→68（P259 Acquire 内联 + info 前 8 字节结构整体
-//     赋值 + field04 `mov %al` 1 字节；残差=ORIG 尾部 `mov $0,%ebx; mov %ebx,%eax`
-//     返回 int，本 TU 头声明 void ⇒ 需 R2 改 CBusinessImpl.h 返回类型，已报 Main）。
+// 改善未闭合一件：
+//   （原 PunishClient 残差已闭：[b28d-PoolGlobalData] R2 落地 CBusinessImpl.h
+//     PunishClient 返回类型 void→int + `return 0`，0x080de3ee ndiff 19→0 AE，
+//     TU diff 53→52。）
 //   CheckInventoryEmptyCount 0x0827108c 103→96（P63 共享出口改嵌套正向 if；
 //     残差=ORIG `xor $1;test;jne RET1` vs 4.4 恒 `je NEXT`，极性恒折 ⇒ N）。
 // 其余件按 N 类封顶（逐函数头有证据判词）：N18b 比较方向（CServerProxyMgr D1 ×3，
@@ -5351,10 +5351,11 @@ int CBusinessImpl::SendBuffertoClient(int a, int b, int c, unsigned int d,
 // 局部（ORIG 0x080de3f6 `call Acquire; movl $1,0x8(%esp); mov %eax,0x4(%esp)`）+
 // info 前 8 字节结构整体赋值（ORIG 0x080de46c `mov 0x4(%eax),%edx; mov (%eax),%eax`
 // 先高字后低字）+ body.field04 1 字节（ORIG 0x080de469 `mov %al,-0x1c`，T1 直证）。
-// 残差：ORIG 尾部 `mov $0x0,%ebx … mov %ebx,%eax` ⇒ 原函数返回 int 0，本 TU 头
-// 声明 void（CBusinessImpl.h:34/48）⇒ 需 R2 改头，已报 Main。
-void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
-                                 tagAntibotPunishInfo* info, char* reason)
+// 残差（已闭）：ORIG 尾部 `mov $0x0,%ebx … mov %ebx,%eax` ⇒ 原函数返回 int 0。
+// [b28d-PoolGlobalData] R2 落地：CBusinessImpl.h:34/48 void→int + `return 0`
+// ⇒ 0x080de3ee ndiff 19→0（AE）。
+int CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
+                                tagAntibotPunishInfo* info, char* reason)
 {
     (void)a;
     (void)b;
@@ -5391,6 +5392,9 @@ void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
     body.tail = *reinterpret_cast<const PunishTail*>(info);
     guard->put_binary(&body, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    // [b28d-PoolGlobalData R2] ORIG 0x080de3ee 尾 `mov $0,%ebx … ~CStreamGuard …
+    // mov %ebx,%eax` ⇒ 返回 int 0 跨 guard 析构保活（头 void→int 已报 Main）。
+    return 0;
 }
 
 int CBusinessImpl::ProcessProtectMsg(tagTSafeModePkg* pkg)
@@ -5516,7 +5520,8 @@ int StackableAction::Action::proc_addFatigue(input_param& p)
     // `lea -0x14(lower),%eax; mov %eax,(%esp)`（第一实参 lower）⇒
     // `std::max(lower, after)`。余 1 处槽互换（ORIG lower -0x14 / max 常量临时
     // -0x1c；4.4 按首次使用分配恒相反，P212 头部声明/前置声明三形实测均反劣）
-    // ⇒ N98/N93 封顶。
+    // ⇒ N98/N93 封顶。[b28d-PoolGlobalData P326 重试] 匿名 0 临时形实测：块1
+    // 临时顶到 -0x18、块2 after 滑 -0x1c（4 条→8 条差）⇒ 反劣回退，N93 判不变。
     int after = (int)(user->getCurCharacFatigue() & 0xffff) - need;
     int lower = 0;
     user->setCurCharacFatigue(std::max(lower, after));
@@ -7522,6 +7527,12 @@ void DeleteAllRentalItemInSameSectionForNewRent(
 // 与 ProcessInsertItem 仅差 SetUpgrade/rentId 写入顺序、装备位插入与标记字节。
 // [b28d-18 N71] 同 ProcessInsertItem：空析构 trivial 判定差异（P71） | ORIG 0x082714c5
 // [b28d-solo-GlobalData] DIFF 封顶：p167 逐调用同形；残差=N82 槽位/寄存器分配。
+// [b28d-PoolGlobalData 二压] P71 作废（同 RentalInfo 伪析构翻案）；0x082714c5 全切片
+// 重对齐：①删 savedRentId/slot 具名（ORIG 无 -0x10 槽、`mov %ax,-0x1a` 直存）；
+// ②ri 写序按 ORIG = slot→itemIndex→flag0→inEquip→f8→f9→fB→rentId；
+// ③**语义修正**：m_field8/9/B 逐字节取自 **inElem**[0]/[1]/[3]
+//   （0x08271610/619/623 `mov 0xc(%ebp); movzbl (1,%eax)` 直证，旧 `reward>>8/>>24`
+//   为误推断）；④rentId 两处 if/else 直存形（ORIG cmp/je+jmp，无 setcc 物化）。
 int ProcessEquipItem(CUser& user,
                      const InstanceRentalSystem::RentInElem& inElem,
                      const EventRewardItemInfo& reward,
@@ -7537,28 +7548,32 @@ int ProcessEquipItem(CUser& user,
     item.m_addInfo = reward.m_field0;                 // +0x02
     script->make_item(item);                          // ORIG 虚表槽 +0x08
 
-    const int savedRentId = inElem.m_rentItemId;
+    // ORIG 0x08271526：装备路径先写 rentId（-0x52=item+7），后 SetUpgrade。
+    if (inElem.m_rentItemId != -1)
+    {
+        item.m_addInfo2 = inElem.m_rentItemId;        // +0x07
+    }
+    item.SetUpgrade((unsigned char)reward.m_short8);
 
     InstanceRentalSystem::RentalInfo ri;
-    item.SetUpgrade((unsigned char)reward.m_short8);  // 装备路径：先 rentId 后升级
-    if (savedRentId != -1)
-    {
-        item.m_addInfo2 = savedRentId;                // +0x07
-    }
 
-    const short slot = (short)user.getCurCharacInvenW()->insertItemIntoEquipment(
-        item, (eItemAddReason)reason, true, false);
-
+    ri.m_slot = (short)user.getCurCharacInvenW()->insertItemIntoEquipment(
+        item, (eItemAddReason)reason, true, false);    // ORIG `mov %ax,-0x1a` 直存
+    ri.m_itemIndex = reward.m_field0;
     ri.m_flag0 = 3;                                   // 装备租借标记
     ri.m_inEquip = 1;
-    ri.m_slot = (unsigned short)slot;
-    ri.m_itemIndex = reward.m_field0;
-    ri.m_field8 = (unsigned char)reward.m_field0;
-    ri.m_field9 = (unsigned char)(reward.m_field0 >> 8);
-    ri.m_fieldB = (unsigned char)(reward.m_field0 >> 24);
-    // ORIG：ri.m_rentItemId = savedRentId != -1 ? savedRentId : item.m_addInfo2
-    //（savedRentId==-1 时取 item.m_addInfo2，构造清零后为 0）
-    ri.m_rentItemId = savedRentId != -1 ? savedRentId : item.m_addInfo2;
+    ri.m_field8 = inElem.m_sectionIdx;                // ORIG 0xc[eax+0]
+    ri.m_field9 = inElem.m_itemIdx;                   // ORIG 0xc[eax+1]
+    ri.m_fieldB = inElem.m_type;                      // ORIG 0xc[eax+3]
+    // ORIG 0x0827162a：重读 inElem+4 判 -1；真支重读存，假支回读 item+7。
+    if (inElem.m_rentItemId != -1)
+    {
+        ri.m_rentItemId = inElem.m_rentItemId;
+    }
+    else
+    {
+        ri.m_rentItemId = item.m_addInfo2;
+    }
 
     out.m_infos.push_back(ri);
     return 0;
@@ -7566,8 +7581,11 @@ int ProcessEquipItem(CUser& user,
 
 // ---- ProcessInsertItem —— T 0x08271666（同名报告全文转写）------------------
 // [b28d-18 N71] EXTRA RentalInfo::D1Ev×2 + _Unwind_Resume×1：ORIG 空析构被 4.1 判 trivial 不调用（P71；throw() 实测无效） | ORIG 0x08271666
-// [b28d-solo-GlobalData] DIFF 封顶：p167 EXTRA RentalInfo D1×2+_Unwind_Resume = N71（ORIG 空析构
-// 被 4.1 判 trivial 不调用；throw() 实测无效）。
+// [b28d-solo-GlobalData] DIFF 封顶（已被二压推翻）：N71 判词倒果为因。
+// [b28d-PoolGlobalData 二压] ①删 `~RentalInfo(){}` 伪建模（ORIG `_Destroy_aux<ILb1E>`
+// 实证平凡）⇒ EXTRA D1Ev×2+_Unwind_Resume×1 归零；②同 0x082714c5 全切片重对齐：
+// 删 savedRentId/slot 具名、ri 写序 slot→itemIndex→flag0→inEquip→f8→f9→fB→rentId、
+// **语义修正** m_field8/9/B=inElem[0]/[1]/[3]（0x082717b1/7ba/7c4 `movzbl` 直证）。
 int ProcessInsertItem(CUser& user,
                       const InstanceRentalSystem::RentInElem& inElem,
                       const EventRewardItemInfo& reward,
@@ -7584,24 +7602,30 @@ int ProcessInsertItem(CUser& user,
     script->make_item(item);                          // ORIG 虚表槽 +0x08
 
     item.SetUpgrade((unsigned char)reward.m_short8);  // 插入路径：先升级后 rentId
-    const int savedRentId = inElem.m_rentItemId;
-    if (savedRentId != -1)
+    if (inElem.m_rentItemId != -1)
     {
-        item.m_addInfo2 = savedRentId;                // +0x07
+        item.m_addInfo2 = inElem.m_rentItemId;        // +0x07
     }
 
     InstanceRentalSystem::RentalInfo ri;
-    const short slot = (short)user.getCurCharacInvenW()->insertItemIntoInventory(
-        item, (eItemAddReason)reason, true, false);
 
+    ri.m_slot = (short)user.getCurCharacInvenW()->insertItemIntoInventory(
+        item, (eItemAddReason)reason, true, false);    // ORIG `mov %ax,-0x1a` 直存
+    ri.m_itemIndex = reward.m_field0;
     ri.m_flag0 = 0;                                   // 背包租借标记
     ri.m_inEquip = 0;
-    ri.m_slot = (unsigned short)slot;
-    ri.m_itemIndex = reward.m_field0;
-    ri.m_field8 = (unsigned char)reward.m_field0;
-    ri.m_field9 = (unsigned char)(reward.m_field0 >> 8);
-    ri.m_fieldB = (unsigned char)(reward.m_field0 >> 24);
-    ri.m_rentItemId = savedRentId != -1 ? savedRentId : item.m_addInfo2;
+    ri.m_field8 = inElem.m_sectionIdx;                // ORIG 0xc[eax+0]
+    ri.m_field9 = inElem.m_itemIdx;                   // ORIG 0xc[eax+1]
+    ri.m_fieldB = inElem.m_type;                      // ORIG 0xc[eax+3]
+    // ORIG 0x082717cb：重读 inElem+4 判 -1；真支重读存，假支回读 item+7。
+    if (inElem.m_rentItemId != -1)
+    {
+        ri.m_rentItemId = inElem.m_rentItemId;
+    }
+    else
+    {
+        ri.m_rentItemId = item.m_addInfo2;
+    }
 
     out.m_infos.push_back(ri);
     return 0;

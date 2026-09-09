@@ -196,6 +196,8 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
     if (!CheckUnusableEquipmentInUser(user))
         return 1;
     // ORIG +0x2e：pc 直落 callee-saved %ebx 跨 GetPlayCountPerOneTeam 调用。
+    // [b28d-PoolMisc2 P231 反例复验] 删 register ⇒ 值落栈槽 -0x10/-0xc、帧
+    // 0x14→0x24、ndiff 4→9（更差）⇒ 本件 register 是**正例**，维持 register。
     register const int pc = room->get_player_count();
     // b28d-196/211：ORIG `cmp %eax,%ebx; setge %al; test %al,%al; je`（ebx=pc
     // 为左操作数）⇒ 试 P225 X3 形（while+单 return 复现 4.1 的 setcc 四段物化）。
@@ -578,11 +580,17 @@ int CFairMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 // ===================================================================== //
 
 // _CheckMovableRoom ORIG T 0x85663ed8?（README 0x08563ed8）报告同名 md
-// b28d-solo-CFairMatchRooms 判词：N18a——唯一残差 `*out = (PvP_Room*)GetPVPRoom()`
-// 的 store 装载序：ORIG LHS-first（`mov 0x14(%ebp),%edx; mov %eax,(%edx)`）vs
-// 4.4 RHS-first+edx 中转（3 行）。void** 同型视图可翻 LHS-first 但引 push %ebx
-// 缓存 out（+5 行，净负）；callee 侧旋钮（CUser::GetPVPRoom 返回 void*→
-// PvP_Room*）受 CUser.h 冻结头阻断（已报 Main）⇒ 封顶。fresh ndiff=3（72/73）。
+// [b28d-PoolSmall·检查点22 收尾] 唯一残差 `*out = GetPVPRoom()` 的 store 装载序
+// （ORIG LHS-first `mov 0x14(%ebp),%edx; mov %eax,(%edx)` vs 4.4 RHS-first+edx
+// 中转）由 **P211 档① callee 侧同型旋钮**解决：CUser.h `GetPVPRoom()` 返回
+// void*→PvP_Room*（Main 检查点22 落地，mangled 不含返回类型、CUser.cpp:1128
+// 本体同步）⇒ 目标与 RHS 同型，4.4 直出 LHS-first 直存。
+// 【负例记录】绕冻结头曾用两种临时形，现均**不必要且更差**，勿再引入：
+//  ①`*(void**)out = member->GetPVPRoom()` 同型视图——可翻 LHS-first 但引
+//    `push %ebx` 缓存 out（+5 行，净负）；
+//  ②`*out = static_cast<PvP_Room*>(...)` 冗余 cast——callee 同型后该 cast 不再
+//    产生异型中转，实测与本形 TU 三数完全相同（36/88/3/7），即零收益且与 ORIG
+//    源码形不符 ⇒ 已删（§4 真形优先）。
 // call 差集 5=5 CLEAR。
 int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
                                   PvP_Room** out)
@@ -604,11 +612,10 @@ int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0xc5d);
         return 0;
     }
-    // b28d-solo-CFairMatchRooms：ORIG `mov 0x14(%ebp),%edx; mov %eax,(%edx);
-    // mov 0x14(%ebp),%eax; mov (%eax),%eax; jne` ⇒ 两句式（store 后重读）。
-    // 目标经 void** 视图与 GetPVPRoom() 返回 void* 同型 ⇒ P211 档③
-    // LHS-first 直存（异型 PvP_Room* 目标恒 RHS-first+edx 中转）。
-    *out = static_cast<PvP_Room*>(member->GetPVPRoom());
+    // ORIG `mov 0x14(%ebp),%edx; mov %eax,(%edx); mov 0x14(%ebp),%eax;
+    // mov (%eax),%eax; jne` ⇒ 两句式（store 后重读）；目标与 RHS 同型 ⇒
+    // P211 档① LHS-first 直存。
+    *out = member->GetPVPRoom();
     // ORIG `test %eax,%eax; jne <mov $1 尾块>` ⇒ 失败块直落、return 1 在尾
     // （P191/P222 正极性尾块）。
     if (*out == 0) {
@@ -979,6 +986,12 @@ PvP_Room* CFairMatch::_ReturnTeam(PvP_Room* room, int teamNo, CUser* excluded)
 // `cmp $2; sete; test; je`）后仅缺 ORIG body 尾 `jmp <紧邻下一指令>`（1 行）：
 // 4.4 恒 jump-thread 掉该空岛（N121 epilogue-threading 尾岛不可消）⇒ 封顶。
 // fresh ndiff=1（157/156）。call 差集 10=10 CLEAR。
+// [b28d-PoolSmall 复验] 再补两形实测均不闭合：①`break`→`goto <体尾空标签>`
+// （标签置于 while 之后）⇒ 4.4 仍把 goto 融为 fall-through，`jmp` 不发射
+// （l8_cmp 严格口径 ndiff 2，其中 1 行为 rodata 标签伪差）；②UpdateScore 侧
+// P212「全头部声明 + 块内仅赋值」把 killCnt 提出块外 ⇒ 深槽号零改善、
+// 本函数 ndiff 6→8 反劣（已回滚）。⇒ P223 定案③「4.4 岛数 = 条件数或 0」
+// 成立，N121 封顶维持。
 int CFairMatch::_PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM teamIdx)
 {
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链（_PullOutRoom 实证同族）。
@@ -1324,6 +1337,11 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
         true, "game_server_msg_171", "game_server_msg_172");
     // ORIG 0x0856564e..0x08565675：`jle`/`jbe` 双短路 + `mov $1/mov $0` 汇聚
     // （无 bool 具名局部物化）⇒ 直接短路 if。
+    // [b28d-PoolMisc2 复验（属主 PoolSmall，读数以交接）] 本件尾岛两形实测均劣：
+    // ①尾部加显式 `return;` ⇒ ndiff 1→1 零效（2d3d/2d40 双 jmp 到同目标不变）；
+    // ②`A && B` 拆嵌套正向 `if(A){if(B){}}` ⇒ ndiff 1→**6**（0x08565667..0x0856566e
+    // 的 `jbe/mov $1/jmp/mov $0` 汇聚岛被折成单条 `seta %al`，反坏前轮短路形）。
+    // ⇒ 维持短路 `&&` 原形；残 1 条 epilogue 双岛 jmp 按 P223 定案③ + N121 封顶。
     if (insertResult >= 1 && updatedSlots.size() >= 3u) {
         user->SendUpdateItem(CUser::eSendTarget_1,
                              static_cast<ENUM_ITEMSPACE>(0),

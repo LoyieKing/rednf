@@ -670,11 +670,20 @@ int importQuestScript(QuestScript* script, const char* path)
             // 首字段 ScanInt 失败=哨兵（schedule 数据读完→继续主循环）；
             // 其余解析失败→return 0。m_type(+0x04)=1、m_idx(+0x08)=
             // FindIndexByFullScan(path) 在循环外固定。
+            // ORIG 0x8a61e4c..0x8a61e8d：5 个时间串在循环**外**构造一次
+            // （-0x330..-0x340），循环内复用（ScanStr 覆盖）⇒ 声明顺序在
+            // idx/entry 之前。
+            std::string strStart;      // ORIG -0x330
+            std::string strEnd;        // ORIG -0x334
+            std::string strWeekday;    // ORIG -0x338
+            std::string strStartTime;  // ORIG -0x33c
+            std::string strEndTime;    // ORIG -0x340
+            int idx = reinterpret_cast<STScriptFileList*>(
+                          &g_questScriptFileList)->FindIndexByFullScan(path);
             _DailySchedule entry;
             memset(&entry, 0, sizeof(entry));
             entry.m_type = 1;
-            entry.m_idx = reinterpret_cast<STScriptFileList*>(
-                              &g_questScriptFileList)->FindIndexByFullScan(path);
+            entry.m_idx = idx;
             for (;;)
             {
                 entry.m_eventId = ScanInt(&ok);      // +0x00
@@ -682,27 +691,22 @@ int importQuestScript(QuestScript* script, const char* path)
                 {
                     break;                           // 哨兵 → continue 主循环
                 }
-                std::string strStart;
                 if (!ScanStr(&strStart))
                 {
                     break;                          // ORIG 首个时间串失败=本段结束，回主循环
                 }
-                std::string strEnd;
                 if (!ScanStr(&strEnd))
                 {
                     return 0;
                 }
-                std::string strWeekday;
                 if (!ScanStr(&strWeekday))
                 {
                     return 0;
                 }
-                std::string strStartTime;
                 if (!ScanStr(&strStartTime))
                 {
                     return 0;
                 }
-                std::string strEndTime;
                 if (!ScanStr(&strEndTime))
                 {
                     return 0;

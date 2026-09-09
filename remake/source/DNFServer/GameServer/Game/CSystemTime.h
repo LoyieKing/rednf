@@ -26,7 +26,11 @@ public:
     // buf 落 .tbss 局部符号致仅ORIG 缺失（Main 按 nm 实证内联化）。
     char* getCurDate()
     {
-        static __thread char buf[0x100];
+        // ORIG nm -S 实证：_ZZN11CSystemTime10getCurDateEvE3buf = `00000200 000000ff W`
+        // （TLS 基址 0x200、尺寸 0xff，非 0x100）。函数体走 sprintf（ORIG 0x082344a0
+        // 同为无界写 sprintf），格式 "%04d-%02d-%02d" 写入固定 10 字符 + '\0' = 11 字节
+        // ≪ 0xff ⇒ 收缩尺寸不引入新风险。
+        static __thread char buf[0xff];
         struct tm t;
         struct tm* p = localtime_r((const time_t*)&m_sec, &t);
         sprintf(buf, "%04d-%02d-%02d", p->tm_year + 1900, p->tm_mon + 1, p->tm_mday);

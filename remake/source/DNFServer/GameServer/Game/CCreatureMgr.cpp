@@ -23,7 +23,8 @@
 //     4.4 对齐 nop，compare_tu 口径已 AE）。
 //   NEAR：SwapCreature（189=189，4 处实参/this 装载序 = P75/N-G；P277 试形零效）。
 //   N：SetKeepRightItem（156=156，P75/N-G；P277 试形 156→158 劣化已回滚）、
-//     AcquireCreatureItem（N7 间接 call %eax vs ORIG %edx）、SetEggItem（N111 死 test）、
+//     AcquireCreatureItem（N7 间接 call %eax vs ORIG %edx；**4.4.6 路由两组合实测
+//     净负且本件不归零 ⇒ 已记负例，勿再靠换后端翻**）、SetEggItem（N111 死 test）、
 //     SetState（N18b/P209 形参 mem 直比 + N7；S1 交换操作数已试）、Hatch（§6.2：
 //     p167 CLEAR 60=60 + gap 1）、GetCreatureItem（§6.2：p167 CLEAR 15=15，
 //     154 vs 147，残余槽布局 N82/N93 + 尾部 epilogue）。
@@ -2379,8 +2380,17 @@ user_creature::CCreatureItemFactory::~CCreatureItemFactory()
 
 // [b28d-23 N·N7] 虚调用目标寄存器 %eax/%edx 互换 + 立即数重定位（.o 显示差）⇒ N。ORIG 0x0833f57c
 // [b28d-solo-CCreatureMgr N] N7：间接 call 目标 4.4.7 恒 %eax vs ORIG %edx（P230 补称 4.4.6 后端可修）；ORIG 0x833f57c
-// [b28d-solo-CCreatureMgr notes] 本 TU 路由 = C6(4.4.7) + -march=i486（x87 族所需）；
-//   若 Main 评估 4.4.6+i486 组合可翻本件 N7，需整 TU 复测（x87 族回归风险）。
+// [b28d-PoolSmall·Main 批准的 4.4.6 路由实验 → **负例，勿再试**] 本 TU 现路由
+//   C6(4.4.7)+-march=i486（x87 族所需）。两种 4.4.6 组合均整 TU 实测（未动路由表）：
+//     · **c6446r**（4.4.7 驱动 + `-B cc1plus446bin/`，头集仍 4.4.7）
+//         ⇒ identical 180 / ae **410** / near 1 / diff **13**
+//     · 4.4.6 后端 **+ 4.4.6 头集**（-isystem 三项原位替换）
+//         ⇒ identical 180 / ae **410** / near 1 / diff **13**
+//   基线 4.4.7 = 180 / 414 / 1 / 9 ⇒ 两种组合均 **ae −4、diff +4 净负**，且
+//   AcquireCreatureItem 在两组合下**仍 DIFF（未归零）**；新劣化件 =
+//   COverSkillTime::checkTime、CStomach::IncrementValue、CStomach::GetStomachValue、
+//   CCreature::IsDieCreature（原均 AE）。⇒ 本 TU 对 P230 补的「N7 后端敏感」**不成立**
+//   （本件 N7 实为虚调用 receiver/目标双寄存器对调，非仅目标），路由表维持 C6 不变。
 user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatureItem(
     user_creature::CREATURE_ITME_TYPE type)
 {

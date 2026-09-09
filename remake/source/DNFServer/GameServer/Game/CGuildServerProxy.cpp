@@ -12,6 +12,29 @@
 //   TU 计数 identical+ae=169 / near=1 / diff=5（与基线同值，零劣化）；
 //   p167 五符号全 CLEAR（0 MISSING / 0 EXTRA，语义调用点完整）。
 //   本轮新范式复验（P309/P311/P316/P226/P227/P211 族）均为负结果，逐件记于函数头。
+//
+// [b28d-PoolDBLogin 池批·本轮] ≤30 小件 4 件复核（check_tu_routed.sh 现编现测）。
+//   TU 三数 基线 identical=30 ae=139 near=1 diff=5 → 现在 identical=30 ae=139
+//   near=1 diff=5（**零变差**；两轮 Main-P326 试验各造成 near 1→0 / diff 5→6，
+//   均已回滚并 fresh 复测回基线）。修成 0 件，4 件维持封 N（solo_diff 行级读数）：
+//    ChangeGuildNameInProxy NEAR ndiff=10（gap=0）：N98 纯槽号互换——end() sret 我方
+//      -0xc / ORIG -0x10，pGuild 我方 -0x10 / ORIG -0xc，53=53 逐条同；P326 形实测
+//      10→19、ours 53→58（ORIG 比较调点 = 非 const iterator::eq @0x0846ea88，无
+//      转换临时槽）⇒ 不适用，读数并列于函数头。
+//    SendGameServerInfo DIFF ndiff=6：N75/N107/N18a——ORIG 压栈前 `lea -0x27(%ebp);
+//      lea 0xd(%eax),%edx` 两步保活 dst，4.4 恒右起求值且折 `lea+add`；前轮 13 形
+//      + P311 元素取址形均不闭合 ⇒ S1 耗尽。
+//    ModifyGuildInfoProxy DIFF ndiff=31：N107/N76——逐字段拷贝段 ORIG `lea 0x4(%eax),%edx`
+//      物化 dst、src 装 %eax；4.4 恒 dst 留 %eax（+4 折进各 disp，故 62 vs 63 少 1 条）；
+//      P326 形实测 31→42（+5 条）已回滚，ORIG 同为非 const eq @0x0846e9a8。
+//    SendGuildExpLimit DIFF ndiff=3（gap=-1）：N94——ORIG `add $0x14aa,%edx;
+//      mov 0x1c(%eax,%edx,8)` vs 4.4 `mov 0xa56c(%eax,%edx,8)`；0xa56c 非 8 倍数
+//      ⇒ 拆常量的数组视角不可构造。
+//   本文件 p167 四件全 CLEAR；无 `register ... asm("reg")`；无 .h 改动（R2 无申报项）。
+//   超范围发现（交 Main，非本批 ndiff≤30 件）：本 TU 静态初始化器符号名
+//   `_GLOBAL__I__ZN12STGuildProxyC2Ev`，ORIG 对应 TU 为
+//   `_GLOBAL__I__ZN17CGuildServerProxyC2ESsii`（均 `t` 局部符号，非导出）——
+//   4.1/4.4 按「首个动态初始化对象」命名，属跨版本 init-func 命名族。
 
 #include "CGuildServerProxy.h"
 
@@ -641,6 +664,12 @@ bool CGuildServerProxy::LoadGuildInfoProxyFromDB(ENUM_SERVER_GROUP group)
 //   （63→65 劣化）均不可用 | ORIG 0x0846e95e
 //   b28d-solo2 复验追加：`it->second.operator=(info);` 显式限定调用实测与 `=` 逐条
 //   同形（4.4 仍 dst=eax+disp / src=edx），N107/N76 族封顶不变 | ORIG 0x0846e95e
+//   b28d-PoolDBLogin 复验（Main P326｜N93 翻案形，一次性）：
+//   `it == std::map<unsigned int, STGuildProxy>::const_iterator(m_guildInfoMap.end())`
+//   实测 ndiff 31→42、ours 62→67（+5 条 = const_iterator 转换 ctor + 转换后比较调点）
+//   ⇒ 本件 ORIG 比较调点是**非 const** `_ZNKSt17_Rb_tree_iteratorISt4pairIKj12STGuildProxyEEeqERKS4_`
+//   @0x0846e9a8，仅两槽 -0x14(it)/-0x10(end)，无第三级转换临时 ⇒ P326 形结构性不适用，
+//   已回滚（回滚后 fresh 复测 = 基线 63/62 ndiff 31）。
 bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy& info)
 {
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
@@ -676,6 +705,11 @@ bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy&
 //   ⑤`*&m_guildInfoMap.end()`（P316 sret 折叠抑制）；⑥pGuild 声明移到 it 之后——
 //   三形 end() sret 仍恒 -0xc（it -0x14 / pGuild -0x10 或反向），槽号互换不变 ⇒ 定案。
 //   ⑦pGuild 移入 else 块内声明（P314 块级旋钮）⇒ pGuild -0x14 / it -0x10 更劣，已回滚。
+//   b28d-PoolDBLogin 复验（Main P326｜N93 翻案形，一次性）：同形实测 ndiff 10→19、
+//   ours 53→58、NEAR→DIFF（TU 三数 near 1→0 / diff 5→6 **变差**）⇒ 本件 ORIG 比较
+//   调点同为**非 const** iterator::eq @0x0846ea88，三级槽 = -0x14(it) / -0x10(end) /
+//   -0xc(pGuild 指针，非迭代器临时)，无转换临时可落 ⇒ P326 形不适用，已回滚；
+//   N98 槽号互换维持封顶。
 void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
 {
     STGuildProxy* volatile pGuild;

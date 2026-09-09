@@ -8,6 +8,10 @@
 //   autoUnsealItem N7、inventory_upgrade N7、cargo_abs N4、_onBuySpecialItem N6、
 //   ProcessSpecialItem N93、_CheckValidCount / package / _processAdditionalItem /
 //   _CheckBuyingCondition / premium N82/N89（§6.2 三件套：p167 全 CLEAR）。
+// [b28d-poolcera P326 翻案] ProcessSpecialItem N93 **作废并归零**：end 具名迭代器
+// 改右起内联临时形 ⇒ 125/125 ndiff=0（实证并列见函数头判词）。其余 N 件无
+// 「双迭代器槽深浅互换」残差形（N82 为帧组成平移、N7 为纯寄存器角色、N4/N6 为
+// lea/xor 折叠），复查维持。TU 三数 494/near4/diff11 → 495/near3/diff11。
 //   新范式上报 Main：P323（`static_cast<const M&>` 视图 cast 才出 `_ZNK` 重载，
 //   内联 `static_cast<const C*>(p)->m.method()` 在 4.4 仍选非 const，探针
 //   /tmp/b28d_probe/p2.cpp i vs j）、P324（case 叶块序=书写序，按 ORIG 块地址序重写）、
@@ -1516,6 +1520,9 @@ L_true:
 // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0832587e orig/ours=125/108 ndiff=108。
 // 帧/槽号平移 + STL 内联差；语义按报告逐条对齐。
 // b28d-solo-CCeraShop_Special verdict=NEAR [N93] 125/125 等长，map end/find 迭代器槽方向相反（end -0x18 vs -0x24）
+// [b28d-poolcera P326 翻案命中] end 迭代器不具名、右起内联 `== m.end()` ⇒ 临时槽
+// 阶梯 end -0x18 / find -0x14 与 ORIG 逐槽一致 ⇒ **IDENTICAL 125/125 ndiff=0**。
+// 旧 N93「槽方向无源码解」作废（P326 三级阶梯形，本件实证并列）。
 bool CCeraShop::ProcessSpecialItem(CUser* user, int itemIdx, int count,
                                    int& restrictCode, long curSec, bool flag,
                                    std::vector<Inven_Item>& items,
@@ -1531,9 +1538,10 @@ bool CCeraShop::ProcessSpecialItem(CUser* user, int itemIdx, int count,
 
     // ORIG 0x0832587e：先 end() 后 find(itemIdx) 再 operator==（P293 求值序），
     // 命中（迭代器不相等）时 type=2 直落 else 块，未命中才走 IsSpecialItem。
-    std::map<unsigned long, STPremiumItemData>::iterator premiumEnd =
-        g_map_premium_item_data.end();
-    if (g_map_premium_item_data.find((unsigned long)itemIdx) == premiumEnd)
+    // [b28d-poolcera P326 重试] end 不具名（具名槽落 -0x24 深），右操作数右起
+    // 先求值 ⇒ end 临时 -0x18 / find 临时 -0x14，与 ORIG 逐槽一致。
+    if (g_map_premium_item_data.find((unsigned long)itemIdx) ==
+        g_map_premium_item_data.end())
     {
         if (!IsSpecialItem(itemIdx, type, value, f))
             return false;

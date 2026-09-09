@@ -923,10 +923,10 @@ dnf_service(game
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/zlib32/lib/libz.a
-        # [b28d-Main·检查点22] 动态库改在 LINK_FLAGS 里按 ORIG 的 NEEDED 次序给（见下），
-        #   此处只留静态库。原「全路径直给 libGeoIP.so.1」形会让 ld 追加 DT_RUNPATH
-        #   （ORIG 无 RUNPATH），且 NEEDED 次序不受控 ⇒ 改 `-L<dir> -l:<file>` 形：
-        #   桩自身 SONAME=libGeoIP.so.1 ⇒ NEEDED 记名不变、RUNPATH 不再产生。
+        # [b28d-Main·检查点22] libGeoIP 链接桩：原先「全路径直给 libGeoIP.so.1」会让 ld
+        #   追加 DT_RUNPATH（ORIG 无 RUNPATH）且 NEEDED 次序不受控 ⇒ 已移到下方 LINK_FLAGS，
+        #   改 `-L<dir> -l:libGeoIP.so.1` 形（桩自身 SONAME=libGeoIP.so.1 ⇒ 记名不变、
+        #   不再产生 RUNPATH）。此处只留静态库。
         # [b28d-Main·检查点22] libnxencryption：**厂商真实 .so**（自
         #   dnf_installer/.../neople/game/libnxencryption.so 复制入仓）参与链接。
         #   ORIG 对 Encryption::Adler32 / EncodeDressStringWide 只有 U 引用（运行时由

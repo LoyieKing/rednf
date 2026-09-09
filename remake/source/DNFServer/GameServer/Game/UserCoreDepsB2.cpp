@@ -87,6 +87,17 @@
 //   then=premium）；⑦循环体 `base[i*2]` 下标形。
 // 残差（byte 层封顶）：N78（ORIG memcpy 内联对齐+rep movsl 40 条 vs 4.4 结构赋值逐字段
 // 展开）、N82/N89（帧 0xec/0xec±、槽号与 STL/日志内联布局）、N4/P30（`i*2+base` add 链
+// ---------------------------------------------------------------------------
+// Secu_HackLogCheck::Init —— ORIG T 0x0827a7d0：写基类 +0x34 = user，
+// 再调基类 SetUserPtr(user)。Secu_MonsterCheck::SetUserPtr —— ORIG T
+// 0x0827abec：m_user = user。
+// ---------------------------------------------------------------------------
+void Secu_HackLogCheck::Init(CUser* user)
+{
+    m_user34 = user;
+    SetUserPtr(user);
+}
+
 // vs lea 折叠）。ORIG 0x08690776，语义等价。
 bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 {
@@ -575,17 +586,6 @@ int WongWork::CHackAnalyzer::getServerHackAccumulatedCnt(
     WongWork::ENUM_HACKTYPE type) const
 {
     return m_serverHackCntB[(int)type - 0x65];
-}
-
-// ---------------------------------------------------------------------------
-// Secu_HackLogCheck::Init —— ORIG T 0x0827a7d0：写基类 +0x34 = user，
-// 再调基类 SetUserPtr(user)。Secu_MonsterCheck::SetUserPtr —— ORIG T
-// 0x0827abec：m_user = user。
-// ---------------------------------------------------------------------------
-void Secu_HackLogCheck::Init(CUser* user)
-{
-    m_user34 = user;
-    SetUserPtr(user);
 }
 
 void Secu_MonsterCheck::SetUserPtr(CUser* user)

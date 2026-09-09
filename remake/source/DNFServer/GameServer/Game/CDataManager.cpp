@@ -2249,6 +2249,11 @@ bool CDataManager::init()
     // -0xf0c，紧邻临时 arena 基址 -0xf08）；标量局部在本 GCC 下会进顶部
     // 表达式临时槽（实测 -0x5c..-0x6c），只有聚合体（数组）才拿到具名帧槽
     // ⇒ 原函数以 int[5] 形式声明，常数下标折叠后访存形态与标量完全一致。
+    // [frame-align] ORIG 在 -0xf28 站点对象与版本 5 元组之间存在 8 字节未引用
+    // 空洞（ORIG ver@-0xf1c..-0xf0c，本侧 ver@-0xf14..-0xf00），致本侧 ver 及其
+    // 后全部具名标量槽整体错位 8 字节（全函数 566 个纯槽号 diff 块之源）。以
+    // 先行声明的 int[2] 哑元占住空洞，恢复 ORIG 槽布局。
+    int _fa[2];
     int ver[5];
     // ORIG 的 5 个函数体作用域 int（按声明序取深→浅槽 -0x3c/-0x38/-0x34/-0x30/
     // -0x2c；两个循环计数器在子块里，故槽号更浅 -0x28/-0x24）。err 为多站点复用
@@ -2510,7 +2515,7 @@ bool CDataManager::init()
     if ((err = importBloodDungeonScript("Etc/BloodClearReward.etc", m_bloodDungeon)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ae1, 9, true, true)(
-            "\t- importBloodDungeonScript Fail(%d)");
+            "\t- importBloodDungeonScript Fail(%d)", err);
         return 0;
     }
 
@@ -2519,7 +2524,7 @@ bool CDataManager::init()
     if ((err = importHellPartyScript( "Etc/HellParty.etc", *reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t()))) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ae8, 9, true, true)(
-            "\t- importHellPartyScript Fail(%d)");
+            "\t- importHellPartyScript Fail(%d)", err);
         return 0;
     }
 
@@ -2528,7 +2533,7 @@ bool CDataManager::init()
     if ((err = importCharacLinkSystemScript("Etc/LinkSystem/CharacLinkSystem.etc", m_characLink)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1af3, 9, true, true)(
-            "\t- importCharacLinkSystemScript Fail(%d)");
+            "\t- importCharacLinkSystemScript Fail(%d)", err);
         return 0;
     }
 
@@ -2603,7 +2608,7 @@ bool CDataManager::init()
     if ((err = m_independentDrop.ImportIndependentDrop("Etc/Independent_Drop.etc")) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1b63, 9, true, true)(
-            "\t- importIndependent_DropScript Fail(%d)");
+            "\t- importIndependent_DropScript Fail(%d)", err);
         return 0;
     }
 
@@ -2613,14 +2618,14 @@ bool CDataManager::init()
     if ((err = ImportSeriaBlessingScript("Event/SeriaBlessing.evt", m_seriaBlessing)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1b83, 9, true, true)(
-            "\t- ImportSeriaBlessingScript Fail(%d)");
+            "\t- ImportSeriaBlessingScript Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportLevelUpRewardItemScript("Event/LevelUpRewardItem.evt", m_levelUpReward)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1b8a, 9, true, true)(
-            "\t- ImportLevelUpRewardItemScript Fail(%d)");
+            "\t- ImportLevelUpRewardItemScript Fail(%d)", err);
         return 0;
     }
     // ORIG +0x13c0..+0x1405：int err = 0；err 由条件内赋值（+0x13df `mov
@@ -2636,28 +2641,28 @@ bool CDataManager::init()
     if ((err = ImportNewAccountLeventUpToJobScript("Event/NewAccountLevelUpToJob.evt", m_newAccountLevelUp)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ba7, 9, true, true)(
-            "\t- NewAccountLevelUpToJob StackableReward Fail(%d)");
+            "\t- NewAccountLevelUpToJob StackableReward Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportReturnUserRewardScript("Event/ReturnUserReward.evt", m_returnUserReward)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1bb0, 9, true, true)(
-            "\t- ReturnUserReward Fail(%d)");
+            "\t- ReturnUserReward Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportBingoScript("Event/BingoEvent.evt", m_bingo)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1bbb, 9, true, true)(
-            "\t- ImportBingoScript Fail(%d)");
+            "\t- ImportBingoScript Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportBroadCastItemScript("Etc/BroadCastItem.etc", m_broadCastItem)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1bcf, 9, true, true)(
-            "\t- ImportBroadCastItemScript Fail(%d)");
+            "\t- ImportBroadCastItemScript Fail(%d)", err);
         return 0;
     }
 
@@ -2674,7 +2679,7 @@ bool CDataManager::init()
     if ((err = ImportItemMakingSkill("Etc/ItemMakingSkill.etc", m_itemMakingSkill)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1be0, 9, true, true)(
-            "\t- importItemMakingSkillScript Fail(%d)");
+            "\t- importItemMakingSkillScript Fail(%d)", err);
         return 0;
     }
 
@@ -2683,7 +2688,7 @@ bool CDataManager::init()
                                    m_ultimateDungeonList))
     {
         cMyTrace("bool CDataManager::init()", 0x1be8, 9, true, true)(
-            "\t- import UltimateDungeonList Script Fail(%d)");
+            "\t- import UltimateDungeonList Script Fail(%d)", err);
         return 0;
     }
 
@@ -2725,7 +2730,7 @@ bool CDataManager::init()
     if ((err = importVillageAttackedScript("Etc/VillageAttacked.etc", m_villageAttacked)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1c20, 9, true, true)(
-            "\t- importVillageAttackedScript Fail(%d)");
+            "\t- importVillageAttackedScript Fail(%d)", err);
         return 0;
     }
 

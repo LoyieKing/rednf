@@ -109,6 +109,47 @@
 //     Minus 的 += 段 RHS-first，P235/P274）。
 //   仍 NEAR/DIFF 124 件：沿用上表 N 族归因（N82/P112 槽号、N7/N18a 寄存器/折叠、
 //     N85 x87、N97 cmov、P168a/P248 setcc、N18a/P200 拓宽、N104 EH 块序等）。
+// ---------------------------------------------------------------------------
+// b28d-PoolCUser 第三轮（2026-09-09，池 /tmp/b28d_tu/CUser.tsv 123 件、ndiff≤30 优先）：
+//   TU 三数 基线 703/4/119（ae1504/合计2207）→ 现在 703/4/115（ae1508/合计2211）。
+//   池前 16 件现状：getBlueMarble/get_area/gainGuildSkillExp/SendCmdPacket/
+//     recover_stamina 五件**已 AE**（池快照过期）；GetUID 封 N（cwtl fold，6 形探针
+//     既有）；ResetItemByScript/NextCharacMoneyLog/SetGameMasterMode/
+//     gainExpAsUpperMember 封 N（N82附 槽分区/N115 outgoing/P75 装载序；本轮复测
+//     gEUM double framePad 反劣 ndiff 14→16 已回退；SGMM 帧差 = 4.4 聚合/标量分区）。
+//   翻 AE 4 件：① _ZN5CUser18DoGetCeraPointItemEjbR10ENUM_ERRORm——P171 删 s_pIPGHelper
+//     判空 + P17 双 call 物理展开 + **P282 槽序纠错**（尾 call vptr+0x2c = _ZTV word13
+//     = slot11 IPGQuery(CUser*)，旧实现误绑 IPGOutputConfirm 重载，指令数 43≠52 真缺口）；
+//   ② _ZN5CUser12GetUserStateEv——P157/P48 删 state 具名缓存逐使用点重读 + P222 否定
+//     早返 assault 岛前置（58=58）；③ _ZN5CUser18SendUpdateItemListE…——P45 switch 改
+//     if-else-if 线性链（ORIG `cmpl $K,0x10(%ebp)` 槽直比序 1/7/3）+ ORIG `call SendPacket;
+//     mov $1,%ebx` = 返回值丢弃形（改语句调用 + return true）；④ _ZN5CUser11SetPvpIndexEs
+//     ——P227 全表达式临时链 CSwitchLog(...)(fmt, get_acc_name(), getCurCharacName(),
+//     (int)idx)（ORIG varargs 先于 ctor 求值 + edi/esi/ebx 跨 ctor 保活）。
+//   ndiff 改善（计数未翻正）：delete_ontime_reward_list 16→6（P223 尾标签把 DEL 块物理
+//     后置复现 ORIG 块序；残 6 = 两处 outgoing spill 装载序 P75）；_checkTimeoutItem
+//     镜像声明 int→bool 跨 TU 同步（定义端 Main 已 P292 bool 化，ORIG 调用点 test%al
+//     直判）：deleteSpecificItem 308→192、_deleteSpecificItemCargo 47→34、
+//     _deleteSpecificItemInven 44→26。
+//   P326（N93 翻案）按 Main 指令复测：GetSpecialLevelCharacCnt 三形并列 ①const& 15/
+//     ②裸容器隐式 23/③P326 右值临时 51 ⇒ 该件非双迭代器槽互换形，P326 不适用（函数头
+//     已记录）；SendPacket switch 形 4.4 产跳表合并体（68→22 指令）反劣 54→58，维持
+//     if 链 + 跨版本 switch lowering 封顶。
+//   待 Main：① CDungeon::m_89e（CDungeon.h:826）uchar→bool——exceptedStateMoneyLog
+//     消费点 ORIG `movzbl F; test %al; je`（P292 bool），但 producer CDungeon.cpp:459
+//     `m_89e = script.m_28d` 多值赋值有截断风险 + 他 TU（CBattle_Field_KillChain
+//     signed char 读）消费，跨 TU 类型旋钮按 S2 归 Main；② CUser.cpp 加 -march=i486
+//     路由复测（N85 x87 族：_processSpeicalContinuousTimeItem ndiff5 fucompp/fnstsw
+//     /sahf 段、reqHumanCertify4ClearMap 同族），沿用上轮申报。
+//   收口补记（Main 双指示已落地）：① m_89e **驳回**——producer 0x0834b39b movzx
+//     裸字节搬运 + 全二进制 15 处消费零 `test BYTE PTR`，字段保 uchar；本件残差
+//     重分类为跨版本 uchar 测试物化 lowering（4.1 三段直分支 vs 4.4 恒插 setne），
+//     判词与地址已写入函数头（N7/N18b 族封顶）；② -march=i486 手工三组复测：
+//     (a) 现路由 703/1508/4/115；(b) +i486+mtune=generic → 703/1509/**4/114**
+//     （合计 2212 净 +1，_processSpeicalContinuousTimeItem 归零 AE，reqHuman
+//     97→92 未归零，零回退）；(c) 仅 i486 → 674/142/2/1512 崩，-mtune=generic
+//     必须同带。b 组达「净升+无回退+一件归零」但未满足双归零判据，读数已并列
+//     两处函数头，落表与否待 Main。
 // ============================================================================
 
 #include <string.h>
@@ -1125,7 +1166,7 @@ XNuclear::CHades* CUser::getHades()
     return &m_hades;
 }
 
-void* CUser::GetPVPRoom()
+PvP_Room* CUser::GetPVPRoom()   // [Main·检查点22] 返回类型 void*→PvP_Room*（证据见 CUser.h:2611）
 {
     // ORIG 0x86551a2 js 尾岛 + 0x86551d1 jmp merge：正向 return（probe12 B 实证复现 js;body;jmp;mov$0;merge）
     if (m_pvpRoomIdx >= 0)
@@ -2067,27 +2108,34 @@ bool CUser::SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slo
     // ORIG 0x0867c65a：空间→INVEN_TYPE 映射（1→2、7→3、3→0、其余→1）；
     // 每分支独立重调 getCurCharacInvenR（访问器结果禁缓存，战术 P183/P48）；
     // MakeItemPacket != 1 → 返回 0（不发包），否则 finalize + SendPacket 返回 1。
-    switch (space)
+    // b28d-PoolCUser 重写（2026-09-09，P17/P45）：ORIG 判定为 `cmpl $K,0x10(%ebp)`
+    //   形参槽直比 + jne 下一检查的**线性比较链**（1→7→3→else），非 switch 决策树
+    //   （4.4 switch 恒产值载入+二分序 3/7/1）⇒ 改 if-else-if 链、书写序按 ORIG。
+    //   尾段 ORIG `call SendPacket; mov $0x1,%ebx` —— SendPacket 返回值**被丢弃**
+    //   （非 mov %eax,%ebx）⇒ 调用作语句 + `return true`。
+    if (space == 1)
     {
-    case 1:
         if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)2, slot, packet) != 1)
             return 0;
-        break;
-    case 7:
+    }
+    else if (space == 7)
+    {
         if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)3, slot, packet) != 1)
             return 0;
-        break;
-    case 3:
+    }
+    else if (space == 3)
+    {
         if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)0, slot, packet) != 1)
             return 0;
-        break;
-    default:
+    }
+    else
+    {
         if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet) != 1)
             return 0;
-        break;
     }
     ((InterfacePacketBuf*)&packet)->finalize(true);
-    return SendPacket(target, packet);
+    SendPacket(target, packet);
+    return true;
 }
 
 // 0x0868bc7c
@@ -3355,6 +3403,10 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
 // b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0867b8fe | _ZN5CUser10SendPacketENS_11eSendTargetER11PacketGuard
 bool CUser::SendPacket(eSendTarget target, PacketGuard& packet)  // b28d-lane5：CUser.h 已落 bool（Main），定义同步
 {
+    // b28d-PoolCUser 复测（2026-09-09，P251 尝试）：ORIG 0x0867b8fe 为 4.1 决策树
+    //   「mov 0xc,%eax 单装载 + 寄存器复用 cmp$1 je / cmp$1 jg / test je / cmp$2 /
+    //   cmp$3」；4.4 写 switch 恒产跳表/合并体（our 68→22 指令，ndiff 54→58 反劣）
+    //   ⇒ 回退 if 链形，维持跨版本 switch lowering 封顶（P45/P46 族）。
     if (target == (eSendTarget)1)
         Send(packet);
     else if (target < (eSendTarget)2)
@@ -5518,12 +5570,18 @@ bool CUser::exceptedStateMoneyLog()
             return true;
         if (((CParty*)GetParty())->m_battleField.m_pDungeon != 0)
         {
-            // b28d-solo-CUser N封顶: 唯一残差 = 本行 uchar 直接测试。ORIG 0x868f3ba
-            //   `movzbl 0x89e; test %al,%al; je`（无 setne），4.4 在本 CFG（多出口+
-            //   共享尾）恒插 `setne %al; test %al,%al`（探针 probe_uc2/uc3/uc4：
-            //   f2/f3 与 f1/f14/f18 同上下文均复现；return 1/!=0/扁平 goto 三形无效）。
-            //   字段 m_89e 为 CDungeon.h:793 unsigned char，bool 化会截断脚本赋值
-            //   CDungeon.cpp:421（script.m_28d 可 >1）且跨 TU 消费（CParty.cpp 等）⇒ 不改。
+            // b28d-PoolCUser 定性（2026-09-09，Main 裁决：字段**保持 uchar**，驳回
+            //   bool 化提案）。决定性 producer 直证：ORIG
+            //   _ZN8CDungeon11set_dungeonER15STDungeonScript @0x0834b39b..0x0834b3a5
+            //   = `movzx edx,BYTE [eax+0x28d]` → `mov BYTE [eax+0x89e],dl` 裸逐字节
+            //   搬运（若 bool，4.1 必产 test+setne 再存）；全二进制 +0x89e 消费普查
+            //   15 处 = 14× `movzx BYTE[..+0x89e]` + 1× 上述 store，零处 `test BYTE
+            //   PTR` ⇒ ORIG 本调用点 `test %al,%al; je`（0x0868f429 后）只是 movzx
+            //   装载后的寄存器直测（uchar 同形），**不构成 bool 证据**（P321 T3 修正）。
+            //   残差真实成因 = **跨版本 uchar 测试物化 lowering 差**：4.1 直分支
+            //   `movzbl;test;je` 三段，4.4 恒插 `setne %al` 四段（探针 probe_uc2/
+            //   uc3/uc4 三形实测不可复现；return 1/!=0/扁平 goto 均无效）——按
+            //   N7/N18b 装载-物化族封顶。
             // b28d-solo-CUser 试形：uchar 字段显式 `!= 0`（P292 反向探测；ORIG
             //   `movzbl 0x89e; test %al,%al; je` 无 setne，字段不可 bool 化——
             //   CParty.cpp 多处 `!= 1` 消费依赖 >1 值域）。
@@ -6235,8 +6293,11 @@ void CUser::SetPvpIndex(short idx)
 {
     // ORIG 0x08669ee8：CSwitchLog("SetPvpIndex",0x2339,0,0) 记
     // "pvp@log %s,%s,room(%d)"（acc_name/charac_name/idx）后加锁写 m_pvpRoomIdx。
-    CSwitchLog log("SetPvpIndex", 0x2339, 0, 0);
-    log("pvp@log %s,%s,room(%d)", get_acc_name(), getCurCharacName(), (int)idx);
+    // b28d-PoolCUser 重写（2026-09-09，P227/N80）：ORIG 0x085df9b2 段内 varargs
+    //   （get_acc_name→esi / getCurCharacName→ebx / idx movswl→edi）**先于 ctor**
+    //   求值且跨 ctor callee-saved 保活 ⇒ 原码是全表达式临时链形（非两句具名）。
+    CSwitchLog("SetPvpIndex", 0x2339, 0, 0)(
+        "pvp@log %s,%s,room(%d)", get_acc_name(), getCurCharacName(), (int)idx);
     lock();
     m_pvpRoomIdx = idx;
     unlock();
@@ -7527,7 +7588,10 @@ void CUser::deleteDailyStackableItem(std::vector<std::pair<int, int> >& list,
 // 邮箱超时/匹配/无效物品移除（header 0x62 包）→ 无效物品邮件补偿 → redeem 清理。
 // b28d-lane5 N封顶: P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0867dba0 | _ZN5CUser18deleteSpecificItemERKSt6vectorISt4pairIiiESaIS2_EERS4_
 // 定义于 CDataManagerScripts.cpp（ORIG 0x867cf8d T）；deleteSpecificItem 邮箱段先用。
-int _checkTimeoutItem(const Inven_Item& item);
+// b28d-PoolCUser 档①跨 TU 同步（2026-09-09）：定义端已 bool（CDataManagerScripts.cpp:869，
+//   Main P292）；ORIG 本 TU 调用点 `call; test %al,%al; je`（0x0867d472 族）无 setne
+//   ⇒ 本镜像声明同步 bool，否则 5 调用点卡 setne 归一段。
+bool _checkTimeoutItem(const Inven_Item& item);
 
 void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
                                std::vector<std::pair<int, int> >& out)
@@ -9972,6 +10036,9 @@ void CUser::processDelDailyItem()
 // 并 DB_SaveUserHandicap 上报（DB 域待接线，暂略）；随后 reqHumanCertify()
 // 通过则取消人证并 InsertTimer(0,uid,9,0x3c,key++,−1)。
 // b28d-lane5 N封顶: N85 x87比较lowering; N82/P112 槽号分配 | ORIG 0x086802b8 | _ZN5CUser24reqHumanCertify4ClearMapEb
+// b28d-PoolCUser P230③ -march=i486 实验读数（2026-09-09，同 _processSpeical… 条）：
+//   (a) 现路由 ndiff **97**（140/149）；(b) +i486+mtune=generic ndiff **92**（140/150
+//   x87 段改善但未归零，残差主体在 N82 槽阶梯）；(c) 仅 i486 整 TU 崩不可用。
 void CUser::reqHumanCertify4ClearMap(bool flag)
 {
     bool forceCertify;
@@ -11557,8 +11624,13 @@ int CUser::GetSpecialLevelCharacCnt(int type)
 {
     // ORIG 0x8656636：const_iterator 循环（prologue begin + 每轮 end 临时重构，
     // 帧 0x38 容纳三 8B 迭代器临时）；index 形（size/operator[]）与 ORIG 块序不合。
-    // b28d-solo-CUser p167：ORIG 0x08656636 的 begin()/end() 直接返回 const_iterator
-    //   （我方非 const 容器致混合 operator!=<const*,*>）⇒ const 引用访问。
+    // b28d-PoolCUser 三形实测并列（2026-09-09，响应 P326 N93 翻案要求）：
+    //   ① const& lst + `it != lst.end()`：**ndiff 15（现存最优）**；
+    //   ② 裸 m_characList 隐式转换：ndiff 23（for 条件 end 重构块合并、帧阶梯散）；
+    //   ③ P326 右值临时 `it != vector<...>::const_iterator(m_characList.end())`：
+    //      ndiff 51（4.4 把 begin 迭代器槽化 + 每轮转换 ctor 物化为 do-while 形，
+    //      ORIG 此件为 4.1 prologue begin + 循环尾 end 重构的三段阶梯，非双迭代器
+    //      比较槽互换形）⇒ P326 不适用于本件，维持 N82/P112 封顶。
     const std::vector<_Charac_info>& lst = m_characList;
     int cnt = 0;
     for (std::vector<_Charac_info>::const_iterator it = lst.begin();
@@ -12418,6 +12490,14 @@ void CUser::_processContinuousItem(unsigned int itemIdx, CStackableItem* item)
 // 特殊连续时间道具：查 item→is_stackable→IsExpAffect→GetExpAffectRatio>0
 // 时 SetExpAffectItemEffect(true, ratio)。
 // b28d-lane5 N封顶: N85 x87比较lowering | ORIG 0x08659b60 | _ZN5CUser33_processSpeicalContinuousTimeItemEj
+// b28d-PoolCUser P230③ -march=i486 手工路由实验（2026-09-09，Main 批准，读数并列）：
+//   (a) 现路由（4.4.6 后端，无 march）：本件 ndiff **5**（fucompp/fnstsw/sahf vs
+//       fucomip/fstp 段）；整 TU identical=703/ae=1508/near=4/diff=115（合计 2211）。
+//   (b) +`-march=i486 -mtune=generic`：本件 **AE 归零**；整 TU 703/1509/4/114
+//       （合计 2212，净 +1，near/diff 零回退）。
+//   (c) 仅 `-march=i486`（不带 -mtune）：整 TU **崩** 674/142/2/1512——默认 tune 改
+//       调度，**不可单加**；b 形（带 -mtune=generic）为唯一可用组合（同 CCreatureMgr
+//       先例 416/422/437 行记法）。⇒ 待 Main 落路由表。
 void CUser::_processSpeicalContinuousTimeItem(unsigned int itemIdx)
 {
     CItem* pItem = G_CDataManager()->find_item((int)itemIdx);

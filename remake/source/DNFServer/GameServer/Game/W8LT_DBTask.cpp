@@ -12074,6 +12074,9 @@ bool DB_AvatarChangeStat::dispatch(int userIdx, int slot, Stream* stream)
                 // ORIG 0x08400bd6(+0x578)（report dispatch.md）：emblem(stAvatarEmblemInfo_t
                 // 0x1e) → m_jewelSocket(+0x2f) 为 8 条直拷（7 dword + 1 word），
                 // 非 memcpy（同 SIG_AVATAR_INSERT::setJewelSocket 镜像法）。
+                // [b28d-lane] 逐字面数组写形实测反劣（4.4 每 store 重算 base：
+                // ndiff 40→92，多 15 add+15 lea）⇒ 维持结构赋值形，余 1 条
+                // `add $0x2f` 基址推进为 N4/N18a 封顶。
                 *reinterpret_cast<stAvatarEmblemInfo_t*>(out->m_jewelSocket) =
                     emblem;
                 out->m_hiddenOption = (short)hiddenV;
@@ -14435,15 +14438,12 @@ bool DB_TOD_Reset_UserAPC::dispatch(int userIdx, int slot, Stream* stream)
                                                      i);
             return 0;
         }
-        // [b28d-lane] 下标交换形 i[sig]：ORIG 站点为 `mov i,%eax; imul
-        // $0xbc; add sig槽,%eax`（idx 先、base 内存操作数后）；4.4 对
-        // sig[i] 恒 base 先载入 + lea 融合。C 语义逐字相同。
-        db->get_int(0, i[reinterpret_cast<_APCInfo*>(sig)].m_userCharacNo);
+        db->get_int(0, reinterpret_cast<_APCInfo*>(sig)[i].m_userCharacNo);
     }
     for (int i = 0; i < nRows && i < 10; ++i)
     {
-        if (i[reinterpret_cast<_APCInfo*>(sig)].m_userCharacNo != 0)
-            GetAPCUserInfo(i[reinterpret_cast<_APCInfo*>(sig)]);
+        if (reinterpret_cast<_APCInfo*>(sig)[i].m_userCharacNo != 0)
+            GetAPCUserInfo(reinterpret_cast<_APCInfo*>(sig)[i]);
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;

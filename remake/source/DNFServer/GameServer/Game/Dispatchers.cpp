@@ -2141,15 +2141,17 @@ void Dispatcher_SkillInit::process_skill_init(CUser* user, ParamBase& param)
         return;
     }
     stSkillInit& p = static_cast<stSkillInit&>(param);
-    int kind = (int)(char)p.m_8;
-    SkillSlot* slot = (SkillSlot*)user->getCurCharacSkillW();
-    slot->clear_all_skills((ENUM_SKILL_TREE_KIND)kind);
-    slot = (SkillSlot*)user->getCurCharacSkillW();
-    slot->set_parent(user);
-    slot = (SkillSlot*)user->getCurCharacSkillW();
-    slot->InitSkill(false, (ENUM_SKILL_TREE_KIND)kind);
-    slot = (SkillSlot*)user->getCurCharacSkillW();
-    slot->resetComboSkill((ENUM_SKILL_TREE_KIND)kind);
+    int kind = (int)(char)p.m_8;                    // ORIG -0xc（有槽往返）
+    // ORIG 0x081e5bdc：四次 `call getCurCharacSkillW` 的结果**从不落槽**——
+    // `mov %eax,(%esp)` 直传 receiver（P0：原码无 slot 局部，每步现取现用）
+    // ⇒ 删 slot 变量，调用点写成 receiver 内联表达式。
+    ((SkillSlot*)user->getCurCharacSkillW())
+        ->clear_all_skills((ENUM_SKILL_TREE_KIND)kind);
+    ((SkillSlot*)user->getCurCharacSkillW())->set_parent(user);
+    ((SkillSlot*)user->getCurCharacSkillW())
+        ->InitSkill(false, (ENUM_SKILL_TREE_KIND)kind);
+    ((SkillSlot*)user->getCurCharacSkillW())
+        ->resetComboSkill((ENUM_SKILL_TREE_KIND)kind);
     user->setComboSkillSet(true);
 }
 
@@ -4431,26 +4433,31 @@ int Dispatcher_CodeCheckSum::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 //   mangled 不变），使 process 调用点 store 翻为 ORIG 的 RHS-first+edx 中转。
 unsigned int Dispatcher_CollectItems::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_COLLECT_ITEMS& req = reinterpret_cast<MSG_COLLECT_ITEMS&>(msg);
-    short& slot = req.m_itemIdx;              // +0xe word
-    unsigned short& count = req.m_count;      // +0x10
-
+    // ORIG 0x081e329e：msg 槽只有一个（-0x10），每个字段用点都是
+    // `mov -0x10(%ebp),%eax; movzwl 0xe|0x10(%eax),%eax`（**带 disp 的现址读**）。
+    // 具名引用别名会让 4.4 在函数头为 `&req.m_itemIdx`/`&req.m_count` 各占一个
+    // 指针槽（-0x14/-0x10）并退化成 `movzwl (%eax)`（帧 +8、全槽平移）⇒ 删别名。
+    // 字段名保留注释：m_itemIdx=+0xe word / m_count=+0x10 word。
+    //
+    // ORIG 序言先 `call get_state` 再 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`
+    // ⇒ msg 引用声明必须落在 get_state 判定**之后**（技巧13：声明位=落栈时机）。
     if (user->get_state() != 3)
     {
         return 7;
     }
-    if ((unsigned short)count != 1)
+    MSG_COLLECT_ITEMS& req = reinterpret_cast<MSG_COLLECT_ITEMS&>(msg);
+    if ((unsigned short)req.m_count != 1)
     {
         return 0x16;
     }
     Inven_Item slotItem =
-        user->getCurCharacInvenR()->GetInvenSlot(1, (int)slot);
+        user->getCurCharacInvenR()->GetInvenSlot(1, (int)req.m_itemIdx);
     CItem* item = G_CDataManager()->find_item(slotItem.m_addInfo);
     if (item == 0)
     {
         return 0x11;
     }
-    if (slotItem.m_addInfo2 < (int)(unsigned int)count)
+    if (slotItem.m_addInfo2 < (int)(unsigned int)req.m_count)
     {
         return 0x16;
     }
@@ -5870,10 +5877,12 @@ int Dispatcher_ConnectP2PPvP::dispatch_sig(CUser* user, PacketBuf& packet)
 		return LineFunc(0xe01a, __PRETTY_FUNCTION__, 0, 0);
 	if (count > 8 || count < 0)
 		return LineFunc(0xe01e, __PRETTY_FUNCTION__, 0, 0);
-	char conn[9];                                    // -0x19（conn[0..7] 清零，conn[8]=count）
-	conn[0] = 0; conn[1] = 0; conn[2] = 0; conn[3] = 0;
-	conn[4] = 0; conn[5] = 0; conn[6] = 0; conn[7] = 0;
-	conn[8] = count;
+	// ORIG 0x08205xxx：`movl $0x0,-0x19(%ebp); movl $0x0,-0x15(%ebp)` ⇒ conn 只有
+	// **8 字节**（-0x19..-0x12），两条 dword 清零；**没有** `conn[8]=count` 那次
+	// 存储（旧重建多写一字节并把数组撑到 9B，导致基址/槽号整体错位 1）。
+	// count 只经第 5 实参传出去。清零形取 memset（4.4 对 8B 走 movl 连发）。
+	char conn[8];                                    // -0x19..-0x12
+	memset(conn, 0, sizeof(conn));
 	char seat = -1;                                  // -0x1a（ORIG 0xff 初始化，循环外一次）
 	for (int i = 0; i < count; ++i)                  // -0xc
 	{
@@ -6268,11 +6277,15 @@ bool Dispatcher_MouseRegister::checkValiedPassword(char const* pwd)
     {
         // ORIG 0x082632ca：三个判定各自完整重取 `mov -0xc,%eax; add 0x8(%ebp),%eax;
         // movzbl (%eax),%eax`（P0/P48：字符值**无槽往返** ⇒ 原码无 `char c` 局部）。
+        // 放行条件为空 then、拒绝走 else{return;}（P285：4.4 对纯正向 if 恒
+        // jump-thread 掉体尾 jmp 岛；ORIG 第三条件为 `jle <i++>` + 拒绝块直落）。
         if (pwd[i] == 'a' || (pwd[i] > '/' && pwd[i] <= '9'))
         {
-            continue;
         }
-        return 0;
+        else
+        {
+            return 0;
+        }
     }
     return 1;
 }
@@ -9362,9 +9375,15 @@ int Dispatcher_SaveQuestNotify::process(CUser* user, MSG_BASE& msg, ParamBase& p
     // -0xc(%ebp)` → `mov -0xc(%ebp),%edx; mov %edx,0x8(%esp)`，P0 槽往返）⇒ 具名 len。
     const MSG_SAVE_QUEST_NOTIFY& req =
         reinterpret_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
+    // ORIG 0x0825ee2x：`movl $0x28,-0xc(%ebp)` 之后 dst call，len 才在压参处
+    // `mov -0xc(%ebp),%edx; mov %edx,0x8(%esp)` 从槽重读（不升格 callee-saved），
+    // src 则在 call 前 `lea 0xd(%eax),%ebx` 跨 call 保活。
+    // [实测两形] ① 普通 `int len`：55/57（len 升格 %ebx、src 被挤 %esi、帧 0x30+push esi）；
+    // ② `volatile int len`：55/58（volatile 读仍升格 %ebx，反多 1 条装载）⇒ 两形均不闭合，
+    // 残余为 4.1/4.4 outgoing 实参装载时刻差（P75/N-G），按 N 封顶，取较短的 ① 形。
     int len = 0x28;
     memcpy(user->getCurCharacQuestW()->m_authenData.m_authen,
-           req.m_0d, len);
+           const_cast<char*>(req.m_0d), len);
     return 0;
 }
 
@@ -12808,10 +12827,10 @@ int Dispatcher_ChangeTutorialFlag::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    // ORIG 0x8206a8b：test;setne %al;test %al,%al;je 尾岛（!=0 物化真值，false→return 0）。
-    bool hasCharac;
-    hasCharac = (user->getCurCharacR() != 0);
-    if (hasCharac)
+    // ORIG 0x8206a8b：`test %eax,%eax; setne %al; test %al,%al; je <尾岛>`（!=0 物化
+    // 真值，false→return 0）—— 物化值**无栈槽**（P0）。具名 bool 会多占 -0x11 并把
+    // 帧从 0x38 顶到 0x48（4.4 带 call 帧恒 16k+4 量化）⇒ 改内联条件形。
+    if (user->getCurCharacR() != 0)
     {
         if (flag == 0x4d)
         {
@@ -15135,42 +15154,38 @@ int Dispatcher_SecurityCardAuthReq::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // card.isActivate() || pad.isActivate()
-    bool authing;
-    if (user->getSecurityCard()->isActivate() || user->getPad()->isActivate())
+    // ORIG 0x0820a316..0x0820a344：短路 `||` 物化为 `jne L_true / je L_false /
+    // mov $1 / jmp / mov $0 / test %al,%al; je <尾部失败块>`，且汇聚值**无栈槽往返**
+    // （P0）⇒ 具名 bool 必顶槽（帧 0x18→0x28）。改 P226 扩展：语句表达式包住整个条件
+    // （内无具名变量）+ 正极性包裹，失败块归函数尾（P214① 负极性恒 je/jne 反演）。
+    if (({ user->getSecurityCard()->isActivate() ||
+           user->getPad()->isActivate(); }))
     {
-        authing = true;
-    }
-    else
-    {
-        authing = false;
-    }
-    if (!authing)
-    {
-        return LineFunc(0xa625,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
-    }
-
-    if (user->getSecurityCard()->isActivate())
-    {
-        if (user->getSecurityCard()->getFailCnt() > 2)   // ORIG cmp $0x2; seta
+        if (user->getSecurityCard()->isActivate())
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa6, 0x7a);
-            return 0;
+            // T1/T2 直证：ORIG 0x0820a36c `cmp $0x2,%eax; seta` ⇒ 无符号比较。
+            if ((unsigned int)user->getSecurityCard()->getFailCnt() > 2)
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa6, 0x7a);
+                return 0;
+            }
         }
-    }
-    else
-    {
-        if (user->getPad()->getFailCnt() > 2)            // ORIG cmp $0x2; setg
+        else
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa6, 0x88);
-            return 0;
+            if (user->getPad()->getFailCnt() > 2)        // ORIG cmp $0x2; setg
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa6, 0x88);
+                return 0;
+            }
         }
-    }
 
-    // ORIG：Check 返回值丢弃，恒 return 0
-    GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0);
-    return 0;
+        // ORIG：Check 返回值丢弃，恒 return 0
+        GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0);
+        return 0;
+    }
+    return LineFunc(0xa625,
+                    __PRETTY_FUNCTION__,
+                    0, 0);
 }
 int Dispatcher_SecurityCardAuthReq::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SecurityCardAuthReq::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -16466,12 +16481,12 @@ int Dispatcher_ItemHyperLinkMessage::read(PacketBuf& packet, MSG_BASE& msg)
             return LineFunc(0x4788,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        char field13a = m.m_field13a;
-        if (!packet.get_byte(field13a))
+        // ORIG 0x081d98c4：`mov -0x10(%ebp),%eax; add $0x13a,%eax; mov %eax,0x4(%esp)`
+        // —— 字段地址直传（无 field13a 临时槽、取完无回写 store，P0）⇒ 删中转。
+        if (!packet.get_byte(m.m_field13a))
             return LineFunc(0x478c,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        m.m_field13a = field13a;
     }
 
     if (!packet.get_byte(m.m_linkCount13b))
@@ -16482,7 +16497,10 @@ int Dispatcher_ItemHyperLinkMessage::read(PacketBuf& packet, MSG_BASE& msg)
         return LineFunc(0x4795,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    for (unsigned char i = 0; i < m.m_linkCount13b; ++i)
+    // ORIG 0x081d98c4 循环体：`movl $0x0,-0xc(%ebp)`（**int** 槽）+ 尾测
+    // `movzbl 0x13b(%eax),%eax; movzbl %al,%eax; cmp -0xc(%ebp),%eax; setg`
+    // ⇒ 索引是 int（T1：32 位 cmp/setg 有符号），uchar 会退化成 addb/cmpb。
+    for (int i = 0; i < m.m_linkCount13b; ++i)
     {
         if (!packet.get_binary((char*)m.m_links13c[i], 0x68))
             return LineFunc(0x479a,
@@ -18950,6 +18968,9 @@ int Dispatcher_SecurityCardAuthCancel::dispatch_sig(CUser* user, PacketBuf& pack
 
     if (user->getSecurityCard()->isActivate())
     {
+        // [实测] P225 `while (getRequestState() != 1) { goto LOUT; }` 形不产 ORIG 的
+        // `setne;test;je <正常路径>`（4.4 仍 jne 直跳）且令 LOUT 前多出 3 条 jmp
+        // （ndiff 4→9）⇒ 回退裸 if；该 setne 落点方向按 N（setcc-fold 跨版本）封顶。
         if (user->getSecurityCard()->getRequestState() != 1)
         {
             goto LOUT;
@@ -24999,11 +25020,23 @@ int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& pa
     InstanceRentalSystem::RentInput input;               // ctor 清 vector/machineKey
     input.m_logFlag = 1;                                 // +0x10 log 开关（PcRoom 报告实证）
     input.m_machineKey = static_cast<int>(static_cast<char>(req.m_0e));
+    // ORIG 0x081e52c0：两读取为 `movzbl 0xf(%eax,%edx,2)` / `movzbl 0x10(%eax,%edx,2)`
+    // —— 基址=msg(-0x10)、**缩放因子 2**、disp 0xf 与 0x10 ⇒ 原码是 msg+0xf 起的
+    // 2 字节元素结构数组（uchar 对），非 `char[]` 的 `i*2`/`i*2+1` 下标形
+    // （后者 4.4 恒产 lea+×1，P311 成员数组视图判据）。MSG 头冻结 ⇒ 本 TU 视图承接。
+    struct __attribute__((packed)) RentPairView
+    {
+        char m_head[0xf];
+        struct Pair { unsigned char m_sectionIdx, m_itemIdx; } m_pairs[1];  // +0xf 起
+    };
+    // 视图指针**不落槽**（ORIG 无该槽，P0）⇒ 每使用点内联 cast 表达式。
     for (int i = 0; i < static_cast<int>(static_cast<char>(req.m_0d)); ++i)
     {
         InstanceRentalSystem::RentInElem elem;
-        elem.m_sectionIdx = static_cast<unsigned char>(req.m_0f[i * 2]);      // +0xf+2i
-        elem.m_itemIdx = static_cast<unsigned char>(req.m_0f[i * 2 + 1]);     // +0x10+2i
+        elem.m_sectionIdx =
+            reinterpret_cast<RentPairView*>(&msg)->m_pairs[i].m_sectionIdx;
+        elem.m_itemIdx =
+            reinterpret_cast<RentPairView*>(&msg)->m_pairs[i].m_itemIdx;
         input.m_elems.push_back(elem);
     }
 
@@ -25166,45 +25199,18 @@ Dispatcher_PurifyItem::~Dispatcher_PurifyItem()
 int Dispatcher_PurifyItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_PURIFY_ITEM& m = reinterpret_cast<MSG_PURIFY_ITEM&>(msg);
-
-    unsigned short word = 0;
-    unsigned long itemIdx = 0;
-
-    if (!packet.get_short(word))
-    {
-        return LineFunc(
-            0xcbbf,
-            __PRETTY_FUNCTION__,
-            0, 0);
-    }
-    m.m_0d = word;
-
-    if (!packet.get_item_idx(itemIdx))  // PacketBuf::get_item_idx W 0x0822b6e8
-    {
-        return LineFunc(
-            0xcbc1,
-            __PRETTY_FUNCTION__,
-            0, 0);
-    }
-    m.m_0f = (int)itemIdx;
-
-    if (!packet.get_short(word))
-    {
-        return LineFunc(
-            0xcbc3,
-            __PRETTY_FUNCTION__,
-            0, 0);
-    }
-    m.m_13 = word;
-
-    if (!packet.get_item_idx(itemIdx))
-    {
-        return LineFunc(
-            0xcbc5,
-            __PRETTY_FUNCTION__,
-            0, 0);
-    }
-    m.m_15 = (int)itemIdx;
+    // ORIG 0x08218b94：四段都是 `mov -0xc(%ebp),%eax; add $K,%eax; mov %eax,0x4(%esp)`
+    // —— 目标地址**直接**传给取包函数（word/itemIdx 两个临时槽与「取完再回写」的
+    // store 全不存在，P0）⇒ 删临时，按字段地址入参。m_0f/m_15 在权威头是 int，
+    // get_item_idx 取 unsigned long& ⇒ 具名字段上的引用 cast（不新增偏移、不改头）。
+    if (!packet.get_short(m.m_0d))
+        return LineFunc(0xcbbf, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_item_idx(reinterpret_cast<unsigned long&>(m.m_0f)))
+        return LineFunc(0xcbc1, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_short(m.m_13))
+        return LineFunc(0xcbc3, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_item_idx(reinterpret_cast<unsigned long&>(m.m_15)))
+        return LineFunc(0xcbc5, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
 

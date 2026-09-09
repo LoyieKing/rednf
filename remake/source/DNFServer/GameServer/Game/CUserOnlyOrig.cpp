@@ -1320,8 +1320,14 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
     for (std::vector<std::pair<Inven_Item, bool> >::iterator it = rewards.begin();
          it != rewards.end(); it++)
     {
-        // [b28d-solo-CUserOnlyOrig P167 新判据] ORIG 命中 `operator*`(deEv) 而非
+        // [b28d-solo-CUserOnlyOrig P167 新判据] 旧判：ORIG 命中 `operator*`(deEv) 而非
         // `operator->`(ptEv)（p167 EXTRA ptEv ×2）⇒ 用 `(*it).first` 形。
+        // [b28d-PoolCUOO2 复测 2026-09-09] 并列试 `it->first` 形：p167 变为
+        // MISSING ppEi×2 + EXTRA ptEv×2、ndiff 336→293——但
+        // `normal_iterator<PSt4pairI10Inven_ItembE...>::ptEv` 在 ORIG nm=0（deEv/ppEi=1），
+        // 发射即发明符号（missing_in_game 265→266）⇒ 违反硬口径1，回退 deEv 形。
+        // 旧判词方向无误：本 TU 只允许对 ORIG 已有符号多发调用。MISSING ppEi×2 系
+        // N113（4.4 对结果未用后置 ++ 恒折 ppEv，ppEi 不可复现）维持封顶。
         unsigned char t = ((const unsigned char*)&(*it).first)[1];
         if (getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)t, 1) != 1)
             return 4;
@@ -7389,16 +7395,33 @@ void CUser::update_ingame_event_history(int eventKey)
 // 右值版，EXTRA make_pair/`pair::D1`×2（4.1 临时槽+拷贝 vs 4.4 直构）。
 int CUser::update_record(GameResultType& result)
 {
-    std::map<int, GameResultType>* records = getBattleRecordRefW();
-
-    int key = result.GetUniqueKey();                     // -0x78 先物化(P28 声明序近似)
-    std::map<int, GameResultType>::iterator it = records->find(key);
-    if (it != records->end())
-        return it->second.UpdateHighScore(result);       // 高分解就地更新
-
-    int newKey = result.GetUniqueKey();
-    records->insert(std::make_pair(newKey, result));     // pair<int,GRT&> converting ctor
-    return 0xf;
+    // [b28d-PoolCUOO2 修法 2026-09-09] ORIG 0x08676876 序列（objdump 逐条）：
+    // ①`movl $0x0,-0x10` 返回槽单出口；②iterator 默认构造(-0x7c C1Ev)后 find 结果
+    // sret(-0x8c)拷贝赋值（P50 先声明后赋值）；③find/end/insert 三处各自
+    // `getBattleRecordRefW()->` 重调（RefW×3，无缓存，技巧37）；④key(-0x78)/
+    // newKey(-0x14) 两具名槽；⑤else 支具名 value_type(-0x68) 转发 ctor
+    // `pair<Ki,GRT>::C1IiRS1_EEOT_OT0_` + insert(const value_type&)，块尾作用域
+    // 自动 D1（+EH cleanup D1 共 ×2）⇒ 删 make_pair/records 缓存形。
+    int ret = 0;
+    std::map<int, GameResultType>::iterator it;          // 默认构造（C1Ev）
+    int key = result.GetUniqueKey();
+    it = getBattleRecordRefW()->find(key);
+    if (it != getBattleRecordRefW()->end())
+    {
+        // ORIG 0x0867690a-0x0867691f：ptEv→`add $0x4`→**落具名槽 -0xc**→回读作 this，
+        // ⇒ 具名引用局部（P0：有槽即有名字；4.4 直调形折 lea 少两拍）。
+        GameResultType& high = it->second;
+        ret = high.UpdateHighScore(result);
+    }
+    else
+    {
+        // [b28d-PoolCUOO2] 第一实参传**右值**（ORIG `pair<C1 IiRS1_>` A1=int；具名
+        // newKey lvalue 推 A1=int& 反成 `C1 IRiRS0_`）。-0x14 槽是右值临时物化，非具名。
+        std::map<int, GameResultType>::value_type record(result.GetUniqueKey(), result);
+        getBattleRecordRefW()->insert(record);
+        ret = 0xf;
+    }
+    return ret;
 }
 
 // >>> W7-BLOCKED CUser::updateBingoData —— DB_UpdateBingoEvent 实参形态(int,uint,int&,bool& vs T 表)待核
@@ -7599,29 +7622,38 @@ struct FindRentalInfoByItemIndex
 void CUser::UpdateCurrentCharacRentalInfo(
     const InstanceRentalSystem::RentOutput& output, int machineKey, bool clearFirst)
 {
-    unsigned int characNo = getCurCharacNo();
-
-    std::vector<InstanceRentalSystem::RentalInfo>& list =
-        m_rentalInfo[static_cast<unsigned int>(machineKey)][characNo];
-
-    if (clearFirst)
-        list.clear();
-
-    for (std::vector<InstanceRentalSystem::DeletedRentItem>::const_iterator del =
-             output.m_deleted.begin();
-         del != output.m_deleted.end(); ++del)
+    // [b28d-PoolCUOO2 修法 2026-09-09] ORIG 0x08676e4e 首 call getCurCharacR（非
+    // getCurCharacNo！），返回 _Charac_info* 后 `mov (%eax),%edx` 直读 +0x00 m_characNo
+    // 落具名槽（Ghidra local_38），`if (characNo == 0)` 跳过全流程（Ghidra 08676e60 判）
+    // ——旧重建误用 getCurCharacNo() 且缺 0 守卫（characNo=0 时错误建空 map 项）。
+    const unsigned int characNo =
+        static_cast<unsigned int>(getCurCharacR()->m_characNo);
+    if (characNo != 0)
     {
-        std::vector<InstanceRentalSystem::RentalInfo>::iterator found =
-            std::find_if(list.begin(), list.end(),
-                         FindRentalInfoByItemIndex(del->m_itemId));
-        if (found != list.end())
-            list.erase(found);
-    }
+        std::vector<InstanceRentalSystem::RentalInfo>& list =
+            m_rentalInfo[static_cast<unsigned int>(machineKey)][characNo];
 
-    for (std::vector<InstanceRentalSystem::RentalInfo>::const_iterator ri =
-             output.m_infos.begin();
-         ri != output.m_infos.end(); ++ri)
-        list.push_back(*ri);
+        if (clearFirst)
+            list.clear();
+
+        for (std::vector<InstanceRentalSystem::DeletedRentItem>::const_iterator del =
+                 output.m_deleted.begin();
+             del != output.m_deleted.end(); ++del)
+        {
+            // [b28d-PoolCUOO2 修法] ORIG 命中 DeletedRentItem const deEv（operator*），
+            // 非 ptEv ⇒ `(*del).` 形（p167 EXTRA ptEv 清零）。
+            std::vector<InstanceRentalSystem::RentalInfo>::iterator found =
+                std::find_if(list.begin(), list.end(),
+                             FindRentalInfoByItemIndex((*del).m_itemId));
+            if (found != list.end())
+                list.erase(found);
+        }
+
+        for (std::vector<InstanceRentalSystem::RentalInfo>::const_iterator ri =
+                 output.m_infos.begin();
+             ri != output.m_infos.end(); ++ri)
+            list.push_back(*ri);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -8691,6 +8723,12 @@ int CUser::InitOnAccept(int socketFd)
 // ----------------------------------------------------------------------------
 // [b28d-22 N82] ORIG 0x086657fc：p167=M0/E5:_ZN15CUserCharacInfo23getCurCharacAddInfoRefWEv，gap=69；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x086657fc：N82 封顶——帧/槽差（p167 M0/E5，gap 69）。
+// [b28d-PoolCUOO2 复测 2026-09-09] 旧判词数字已过时，现况并列：p167 **CLEAR**（418/418
+// calls 多重集全等，E5 族已由后续修法消除）；2703 vs 2757，gap=-54。残差全为比较树
+// lowering 跨版本族：ORIG 4.1 itemIdx 无槽（P0 右值）单 load `mov -0x14b,%eax` 后 %eax
+// 跨数十 BB 驻留 `cmp $K,%eax`+`je` 正极性前跳；4.4 具名槽 `cmpl $K,mem`+`jne` 负极性
+// 内联体（直方图 cmp76/je40 ↔ cmpl71/jne33 为同边成对互换）+帧 0x20c vs 0x39c。
+// §6.2 三件套②命中、①③=N82 族 ⇒ P321 T5 铁律维持 N 封顶（P326 不适用：非迭代器槽形）。
 void CUser::increase_status(short slotNo)
 {
     PacketGuard packet;
@@ -13016,6 +13054,11 @@ extern Inven_Item g_emptySlot;   // ORIG 全局 @0x943ddc0（CAccountCargo.cpp �
 
 // [b28d-22 N82] ORIG 0x086cbc85：p167=M0/E1:_ZN9__gnu_cxxneIPKSt4pairIiiEPS2_St6vectorIS2_SaIS2_EEEEbRKNS_17__normal_iteratorIT_T1_EERKNS9_IT0_SB_EE，gap=-21；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x086cbc85：N82 封顶——帧/槽差 + 迭代器族（p167 M0/E1，gap -21）。
+// [b28d-PoolCUOO2 P326 重试 2026-09-09] 旧形（`it != delList.end()`）：453 条，p167
+// M0(转换ctor,同型ne)/E1(混型ne)，ndiff=452。新形（end 侧显式
+// `const_iterator(delList.end())` 右值临时）：**p167 CLEAR**（45/45 calls 全等），
+// 458 条（gap 21→16，逐轮与 ORIG 相同的转换 ctor+同型 ne 结构）；ndiff 读数 594 系
+// difflib 错位窗口失真（§6.2：本函数级差集 ORIG-only 已无 call 族）。采新形。
 int deleteSpecificItems(CUser* user,
                         const std::vector<std::pair<int, int> >* list)
 {
@@ -13037,8 +13080,12 @@ int deleteSpecificItems(CUser* user,
         guards[i].put_short(0);
     }
 
+    // [b28d P326 重试] end 侧不缓存、比较点显式 const_iterator 转换临时
+    // （ORIG 0x086cbc85 p167：转换 ctor MISSING×1 + 同型 ne MISSING×1 + 混型 ne EXTRA×1）。
     for (std::vector<std::pair<int, int> >::const_iterator it =
-             delList.begin(); it != delList.end(); ++it)
+             delList.begin();
+         it != std::vector<std::pair<int, int> >::const_iterator(delList.end());
+         ++it)
     {
         int space = it->first;
         int slot  = it->second;

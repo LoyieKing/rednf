@@ -1668,8 +1668,6 @@ public:
     // 2 个实参（(%esp)=path、0x4(%esp)=ref），无 this ⇒ 非虚静态成员函数。
     static bool importActionPointSystemEtcScript(const char* path,
                                                  CActionPointEtcParameter& param);
-    // 重建辅助访问器（ORIG 调用方内联直读 +0x18；实现见 SyncScriptDeps.cpp）。
-    const std::map<unsigned short, const CActionPointEx*>& getActionPointRefs() const;
 private:
     // ORIG ClearData 0x088948fc 布局（32 位：4×map(0x18) + 2×vector(0xc) = 0x78）。
     // 声明顺序即布局顺序：ORIG C1 0x0889484a 先构造 4 个 map（+0x0/+0x18/+0x30/+0x48）

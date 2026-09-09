@@ -8,14 +8,23 @@
 // [b28d-solo S422_CStackableItem 收口判词 2026-09-09] 本 TU 9 件终态：
 //  · identical/AE：get_multibox_default_item（stDefaultItem::m_prob unsigned 化，
 //    AE 153=153，P321-S1 一次旋钮；原 N18b 判词作废）。
+// [b28d-poolcera-PoolCera 2026-09-09 追加修复] createStackableMultiBoxLotteryInfo
+//   p167 EXTRA（D1×2+_Unwind_Resume×1）根因翻案 ⇒ 真修复非 N91：ORIG 0x085219d1
+//   实例化 `_Destroy_aux<true>::__destroy<stDefaultItem*>`（trivial 析构实证）而
+//   LotteryUnit 为 aux<false> ⇒ ORIG stDefaultItem **无用户声明析构**；我方
+//   MultiBoxLotteryInfo.h `~stDefaultItem(){}` 为 user-provided 非平凡形 ⇒ 循环体
+//   局部 item 发射 D1 岛 + push_back landing pad。删声明+定义（Main 批准，
+//   同 LotteryDefaultArad 先例 P12/P71）后 p167 106/106 全 CLEAR、668→649 行
+//   （ORIG 652，gap 3）、W D1 仍以 size=5 平凡形自然发射（ORIG 0x089d48b2 同寸）。
+//   剩余 = N95/N115 族槽号整体平移 + mn 差 {mov×3, je×1}vs{jne×1}，判 DIFF(N)。
 //  · N 封顶（p167 CLEAR 或结构性跨版本 codegen）：
-//    - createStackableMultiBoxLotteryInfo：p167 MISSING=0（余 EXTRA=D1×2+_Unwind_Resume×1
-//      = N91 EH 族）；c 部分裸早退 + a/c 底部旋转 do-while + push_back 后边界检查
-//      （真语义 bug 修正）。
-//    - set_item：p167 CLEAR；N115 帧 0x26c vs 0x27c、槽深 4、ORIG `lea -0x64,%esi`
+//    - set_item：p167 CLEAR 84/84；N115 帧 0x26c vs 0x27c、槽深 4、ORIG `lea -0x64,%esi`
 //      地址缓存 vs 我们直用 %edx（P183/P226 族）。
-//    - createRecipeInfo：N95；唯一残差 = it/end 槽方向（4.1 先声明深 / 4.4 先声明浅），
-//      P309 函数头声明翻向形零效。本波 n1/n2/n3 独立化 + 删 framePad 使 360→218 行。
+//    - createRecipeInfo：[b28d-PoolSmall **P326 命中归零**] 旧「N93/N95 it-end 槽方向
+//      无源码解」判词作废：第二个迭代器**不具名**、把右值临时内联进比较
+//      （`if (it == source->end())`）⇒ it 落深槽 -0x48、begin 返回值临时落 -0x44，
+//      与 ORIG 4.1 逐槽全等 ⇒ 227=227 **NDIFF 0**、p167 33=33 CLEAR，
+//      TU near 4→3 / diff 7→6。
 //    - get_limit_cube_item：N95；range 槽 ORIG -0x38 vs 我们 -0x44（取地址具名标量
 //      在 4.4 恒落临时区之后）。
 //    - check_change_job_type：N115 帧 0x10 vs 0x28 + 2 char 参数槽平移。
@@ -23,6 +32,9 @@
 //      %edx=this 供第二读，4.4 覆盖 %edx 后重载 0xc(%ebp)）；P230 记载 4.4.6 后端可修。
 //    - C1Ev：布局建模（AradItemInfo 须为次基类），Main 裁决本轮不做，spec 存档。
 //  TU 三数（fresh）：identical+ae 1327 / near 4 / diff 7（起点 1326 / 4 / 8）。
+//  [b28d-poolcera] stDefaultItem 平凡化 + framePad 删 + 形B 后（fresh）：
+//  identical+ae 1331 / near 3 / diff 6（_M_insert_aux DIFF→identical、
+//  new_allocator destroy NEAR→AE、MultiBox ndiff 359→15 仍 DIFF）。
 
 #include "CStackableItem.h"
 
@@ -434,21 +446,22 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 // 第三段 -0xc）⇒ 源码 n1/n2/n3 三个具名局部（复用同一 n 时两侧都只给 1 槽）；
 // ②n 独立化后帧自然 +0x10，原 P190「2 个取址 double framePad」必须删（留则帧 0x88
 // 超 ORIG 0x78）⇒ 删后 n1=-0x18/i=-0x14 与 ORIG 逐槽一致、pair 临时 -0x50 亦对齐。
-// 残余判 N（T5）：唯一差异 = it/end 两槽方向相反（ORIG it=-0x48(深)/end=-0x44(浅)
-// = 4.1「先声明深」；4.4 中部声明恒「先声明浅」it=-0x44/end=-0x48）。P309 的
-// 「函数头声明翻向」形（逗号表达式保 clear→begin 调用序）实测零效；交换声明序会改
-// begin/end 调用序。其余 pair 临时/pp 临时/尾段随该方向差整体位移，无独立可翻项。
+// [b28d-PoolSmall·P326 翻案] 旧残余判 N（it/end 两槽方向相反：ORIG it=-0x48(深)/
+// end=-0x44(浅) = 4.1「先声明深」；4.4 恒「先声明浅」）已**归零**。三形并列读数：
+//  ① 双具名（旧形）：it=-0x44 / end=-0x48 ⇒ 方向反，l8_cmp NDIFF 37；
+//  ② P309「函数头声明翻向 + 逗号表达式保 clear→begin 序」：零效（仍 ①）；
+//  ③ **P326 胜出形**：`end` 不具名、右值临时内联进比较 ⇒ begin 返回值直构到
+//     具名 it=-0x48（深），end 的返回临时=-0x44（浅），逐槽与 ORIG 全等 ⇒ **NDIFF 0**
+//     （227=227 逐条，p167 33=33 CLEAR）。end() 调用次数不变（临时构造仍 1 call），
+//     故不破坏调用点差集；source 在本函数内无增删，迭代器不失效，语义等价。
+//  ⇒ 与 P219 补①（翻求值序）/P236（find 内联实参）互斥，本件按 ORIG 槽深取 P326。
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
                       std::vector<std::pair<int, int> >* extra)
 {
     info->clear();
-    // [b28d-solo-CStackableItem] it/end 槽方向：ORIG it=-0x48(深)/end=-0x44(浅)
-    // = 4.1「先声明深」；4.4 中部声明恒「先声明浅」(it=-0x44/end=-0x48)。P309
-    // 的「函数头声明翻向」形（逗号表达式保 clear→begin 序）实测零效 ⇒ 封 N（T5：
-    // 残差仅槽号）。n1/n2/n3 独立化 + 删 framePad 已消 360→218 行残差。
+    // it/end 槽方向：本波 **P326** 归零（三形读数并列见本函数头判词）。
     std::vector<int>::iterator it = source->begin();
-    std::vector<int>::iterator end = source->end();
-    if (it == end)
+    if (it == source->end())
     {
         return;
     }
@@ -562,17 +575,22 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 // ③真语义 bug 修正：a 内层第 4 个边界检查在 **push_back 之后**（ORIG 0x089bb45a 的
 //   `eq; jne 0x4ab` 落在 m_units.push_back 之前）——原写法在 push 前 break 会丢弃
 //   「恰好用完最后一个元素」的那一组；c 循环体内同样只有 3 个中间检查（m_flag 后无检查）。
-// ④p167 终态：MISSING=0（剩余 EXTRA = stDefaultItem D1×2 + _Unwind_Resume×1 = N91
-//   非平凡元素数组 EH cleanup 族）。gap = 652(ORIG) vs 668(我们) = +16（4.4 对
-//   do-while/break 岛的多余中继 + 槽号整体深 4，N95/N82 族）。判「语义完成、byte 层 N」。
+// ④p167 终态（b28d-poolcera 更新）：**106/106 全 CLEAR**。原 EXTRA（D1×2 +
+//   _Unwind_Resume×1）根因 = 我方 MultiBoxLotteryInfo.h 给用户空析构（非平凡）；
+//   ORIG `_Destroy_aux<true>` 实证 stDefaultItem 析构平凡 ⇒ 删声明+定义后 D1 岛与
+//   landing pad 自然消失（非 N91 codegen 差，判词翻案）。行数 668→649（ORIG 652，
+//   gap 3）；⑤framePad 删除（P232 回推形随 D1 岛消失而反向，保留=整体深 4；删后
+//   ndiff 1187→15）+ 第5检查翻形 B `if (!(it == c->end())) { do-while }`（je 极性
+//   归位，探针 F/G/cmp 形不可再翻）。终残差 = 3 段 `mov (%eax),%eax; mov %eax,%edx`
+//   两段装载被 4.4 折单段（N18a，P248 三档类型旋钮已封）+ `!eq` 的 xor $1 物化
+//   vs ORIG je+jmp 双跳（N18a 折叠族，cargo_abs 先例）。ndiff 359→15。
 void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
     std::vector<int>* c)
 {
-    // b28d-solo 修法（P232）：前置死局部回推槽基 4（见函数头判词）。
-    int framePad;
-    (void)framePad;
+    // b28d-poolcera：stDefaultItem 平凡化后删 P232 framePad（原判词回推的槽基
+    // 已随 D1 岛/EH 帧变化，保留反而整体深 4；实测删除后槽与 ORIG 逐一对齐）。
     if (info == 0 || a == 0 || b == 0)
     {
         return;
@@ -678,10 +696,8 @@ void createStackableMultiBoxLotteryInfo(
     }
     info->m_default.m_defaultFlag = (char)*it;
     it++;
-    if (it == c->end())
+    if (!(it == c->end()))
     {
-        return;
-    }
     // [b28d-solo-CStackableItem] ORIG c 循环为底部旋转（body 0x089bb87d、条件
     // 0x089bb9e2 的 end+ne）⇒ do-while（首轮由上一早退检查保证）。
     do
@@ -700,6 +716,7 @@ void createStackableMultiBoxLotteryInfo(
         it++;
         info->m_default.m_items.push_back(item);
     } while (it != c->end());
+    }
 }
 
 class CChattingEmoticonList

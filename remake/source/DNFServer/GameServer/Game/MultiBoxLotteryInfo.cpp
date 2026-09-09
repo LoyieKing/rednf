@@ -27,7 +27,7 @@ MultiBoxLotteryInfo::stDefaultItem::stDefaultItem()
     m_flag = 0;
 }
 
-MultiBoxLotteryInfo::stDefaultItem::~stDefaultItem() {}
+// stDefaultItem 隐式平凡析构（ORIG _Destroy_aux<true> 实证，见头文件判词）。
 
 // ---- stDefaultItemInfo ----
 MultiBoxLotteryInfo::stDefaultItemInfo::stDefaultItemInfo()

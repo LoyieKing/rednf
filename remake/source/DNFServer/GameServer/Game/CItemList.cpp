@@ -1076,10 +1076,13 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    // [b28d-solo] P171 照抄：ORIG 0x086209ab-0x086209c2 无 out1/out2 清零
-    //   （GetType 以引用出参写入）⇒ 源码不得初始化（我方两条 `movl $0` 系伪造）。
-    int out1;
+    // [b28d-tu-CItemList] 槽对齐（P326 时代重排）：ORIG 浅槽序 ep@-0x20、
+    //   db@-0x24、moduleKey@-0x08620?? 的 -0x38、GetType 值形参串@-0x5c、
+    //   out2@-0x60、out1@-0x64（`lea -0x64→0x10(%esp)`=out1、`-0x60→0x14`=out2）
+    //   ⇒ moduleKey 声明紧随 db、出参声明序 out2 先于 out1；初始化仍在原位。
+    ENUM_MODULE_TYPE moduleKey;
     int out2;
+    int out1;
     // [b28d-solo-CItemList] P167/P183：ORIG 0x86209b7 的 `C1ERKSs` 是 GetType
     //   **按值形参**（mangled `7GetTypeESs17ENUM_CHARACTERJOBiRiS2_b`）的实参
     //   拷贝（参数槽 -0x5c，调用后 0x8620a05 D1Ev + landing 0x8620a1a D1Ev +
@@ -1090,13 +1093,16 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         return false;
     }
     CStreamBuffer buf;
-    char local_1874[1024] = {0};
-    char local_1474[1024];
-    char acStack_1074[1024];
-    char local_c74[1024];
-    char local_874[1024] = {0};
-    char local_474[1024] = {0};
-    if (!CodePage::script2Database((char*)script->m_strac.c_str(), local_474))
+    // [b28d-tu-CItemList] 真结构修正：ORIG 0x08620a43 单次 rep stos 0x400
+    //   dwords ⇒ 一块 4KB escape 大缓冲（槽基 -0x1870），三处
+    //   GetEscapeString 的 dst 依次取其 +0/+0x400/+0x800 段
+    //   （ORIG 0x08620be6/0x08620c3f/0x08620c9c）；两个 script2Database
+    //   出参缓冲各 1KB（-0x470 memset@0x08620a59 顶部、-0x870
+    //   memset@0x08620b14 在 ac 转换成功之后 ⇒ b4 缓冲声明位于两 if 之间）。
+    //   原六块独立 1KB 数组（3 具名 dst + 3 未初始化）系误转写。
+    char local_1870[0x1000] = {0};
+    char local_470[0x400] = {0};
+    if (!CodePage::script2Database((char*)script->m_strac.c_str(), local_470))
     {
         cMyTrace(
             __PRETTY_FUNCTION__,
@@ -1106,7 +1112,8 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
                       0x523);
         return false;
     }
-    if (!CodePage::script2Database((char*)script->m_strb4.c_str(), local_874))
+    char local_870[0x400] = {0};
+    if (!CodePage::script2Database((char*)script->m_strb4.c_str(), local_870))
     {
         cMyTrace(
             __PRETTY_FUNCTION__,
@@ -1117,11 +1124,11 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         return false;
     }
     buf << script->m_field0;
-    buf << ", '" << GetEscapeString(db, local_474, local_1874) << "'";
+    buf << ", '" << GetEscapeString(db, local_470, local_1870) << "'";
     buf << ", '"
-        << GetEscapeString(db, (char*)script->m_strb0.c_str(), local_1474)
+        << GetEscapeString(db, (char*)script->m_strb0.c_str(), local_1870 + 0x400)
         << "'";
-    buf << ", '" << GetEscapeString(db, local_874, acStack_1074) << "'";
+    buf << ", '" << GetEscapeString(db, local_870, local_1870 + 0x800) << "'";
     buf << ", " << out1;
     buf << ", " << out2;
     buf << ", '" << this->GetUsableCharacter(script) << "'";
@@ -1138,84 +1145,15 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     buf << ", " << 0;
     buf << ", " << script->m_field68;
     // ORIG（+0x61b）：局部 ENUM_MODULE_TYPE = 0x13 取引用查 m_module4bc。
-    ENUM_MODULE_TYPE moduleKey = (ENUM_MODULE_TYPE)0x13;
+    //   [b28d-tu] 声明已提前（槽对齐），赋值原位。
+    moduleKey = (ENUM_MODULE_TYPE)0x13;
     EquipParamInfo* ep = (EquipParamInfo*)script->m_module4bc[moduleKey];
-    if (ep == 0)
-    {
-        // ORIG 字面量序列（Ghidra ep==0 分支逐条）：40×", 0"、", ''"
-        // （att_element）、10×", 0"、3×", 0.0"、14×", 0"、", ''"
-        // （skill_levelup）。
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-        buf << ", ''";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-        buf << ", 0.0";
-        buf << ", 0.0";
-        buf << ", 0.0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-    buf << ", 0";
-        buf << ", ''";
-    }
-    else
+    // [b28d-tu-CItemList] P222 正极性翻转（整块换位）：ORIG 0x08620cc7
+    //   `cmpl $0x0,-0x20(%ebp); je <ep==0 远块>` ⇒ ep!=0 落体在前。
+    //   原 `if (ep == 0){A}else{B}` 在 4.4 生 `jne <B>` + A 落体，
+    //   与 ORIG 物理块序整体倒置（difflib 计 ~600 行位移残差）。
+    //   改 `if (ep != 0){B}else{A}` 后 4.4 生 `je <A>`，块序与 ORIG 一致。
+    if (ep != 0)
     {
         EquipParamInfo* e2 = ep;
         buf << ", " << e2->m_hpMax;
@@ -1294,6 +1232,81 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
                              CStringMaker()).c_str()
             << "'";
     }
+    else
+    {
+        // ORIG 字面量序列（Ghidra ep==0 分支逐条）：40×", 0"、", ''"
+        // （att_element）、10×", 0"、3×", 0.0"、14×", 0"、", ''"
+        // （skill_levelup）。
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+        buf << ", ''";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+        buf << ", 0.0";
+        buf << ", 0.0";
+        buf << ", 0.0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+        buf << ", ''";
+    }
     // ORIG（+0x18ad）：两分支汇合后固定输出 set_type 空串（DAT_08ce36e4）。
     buf << ", ''";
     buf << ", '"
@@ -1301,7 +1314,10 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
                db,
                this->GetURL((char*)script->m_str6c.c_str(),
                             (int)script->m_str6c.length(), script->m_field70),
-               local_c74)
+               // [b28d-tu-CItemList] 真结构修正：ORIG 0x08622215 第 4 处
+               // GetEscapeString 的 dst = 大缓冲 +0xc00 段（lea -0x1870;
+               // lea 0xc00(%eax),%edi），非独立 1KB 数组。
+               local_1870 + 0xc00)
         << "'";
     buf << ", " << script->m_fieldc4;
     CFieldLengthChecker fc;
@@ -1328,7 +1344,10 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         "set_type, url, icon_mark_number) values(%s)",
         buf.c_str());
     fc.AddField(db->GetQueryString());
-    return db->exec(true);
+    // [b28d-tu-CItemList] P59：ORIG 0x0862232b-0x0862233e `xor $0x1,%eax;
+    //   test %al,%al; je <mov $1>` 物化岛 ⇒ 原码 `== true` 比较形（仅看 al
+    //   LSB，与 4.1 char-bool 语义一致），非裸 return。
+    return db->exec(true) == true;
 }
 
 bool CSyncScript::insertCeraShopItemIntoDB(unsigned int itemIdx,
@@ -1441,7 +1460,6 @@ CCeraShopGoods* CItemList::FindGoods(int goodsIdx)
     // [b28c-21] N93 封顶：ORIG it(默认构造,-0x18)/e(-0x10)/find 临时(-0x20)；
     // 4.4 槽序与求值序绑定（交换声明/操作数均致槽或比较参反向），DIFF→NEAR。
     __gnu_cxx::hash_map<int, CCeraShopGoods*>::iterator it;
-    __gnu_cxx::hash_map<int, CCeraShopGoods*>::iterator e = m_goodsMap.end();
     // [b26N7b] it/e 槽分配方向 4.1(深→浅) vs 4.4(浅→深) 相反；换声明序虽对齐
     // 槽号但使 C1Ev/end call 序倒转 AE 判 DIFF 倒退，故保持 ORIG 声明序封 NEAR。
     // [b28d-20] fresh 双形实测（ORIG 0x8512358，it=-0x18/e=-0x10）：
@@ -1449,6 +1467,12 @@ CCeraShopGoods* CItemList::FindGoods(int goodsIdx)
     //   交换形 e 先声明 ⇒ 槽全对齐但 `call C1Ev(it)` 与 `call end()` 顺序倒转
     //   （nd=6，verdict 退为 DIFF）。4.4 槽序=声明序且构造序=声明序，ORIG
     //   「it 深槽 + C1Ev 先执行」在 4.4 下不可兼得 ⇒ N93 封顶，保留 NEAR 形。
+    // [b28d-tu-CItemList] P326 翻案实测（本件不适用 ⇒ 回滚，nd 仍 14 但
+    //   NEAR→DIFF 倒退）：ORIG 0x08512358 入口序 C1Ev(it)→end→find→cmp，
+    //   end() 构造在 find **之前**；P326 内联形把 end 挪到比较点 ⇒ 调用序
+    //   倒转 2 处（end/find 交换 + 比较参槽 -0x14 临时介入），三数 near 5→3
+    //   /diff 16→18。具名 e 形保持最优（NEAR/nd14，纯槽向漂移）。
+    __gnu_cxx::hash_map<int, CCeraShopGoods*>::iterator e = m_goodsMap.end();
     it = m_goodsMap.find(goodsIdx);
     if (it == e)
     {
@@ -1630,13 +1654,13 @@ bool CItemList::insert_item(int group, int idx, CItem* item)
     // [b28d-20] P167：ORIG 调用 operator==（无 ne）；[b28d-solo] 改正向早返守卫：
     //   ORIG 0x081fxxxx `test %al,%al; je <fail 块 +0x154>`（无 xor$1 物化）⇒
     //   源码为 `if (it == end()) { fail; return false; }` 正极性形（P59/P222）。
-    if (it == m_gradeItemList[group].end())
-    {
-        LogManager::logFormat(1, "item.cpp",
-            __PRETTY_FUNCTION__, 0x81f,
-            "Insert Fail Item Group[%d] Index: %d", group, idx);
-        return false;
-    }
+    // [b28d-tu-CItemList] 块序翻案（P222 直证）：ORIG 0x08511341-0x08511343
+    //   `test %al,%al; je 0x085113f2`，目标块 = logFormat("Insert Fail")+
+    //   mov $0 返回 ⇒ 相等时跳 fail、主路径为 fall-through，且**无 xor$1**
+    //   （4.4 对 `!(call==0)` 恒折跳转极性，实测无异或物化）。原 `if (it ==
+    //   end()){fail}` 形让 4.4 把 fail 块内联在前 ⇒ 42 行块位移；`it !=
+    //   end()` 形会改调 ne（ORIG 无 _Ne 符号，触铁律）⇒ 取 `!( == )` 形。
+    if (!(it == m_gradeItemList[group].end()))
     {
         m_gradeItemList[group].insert(std::pair<const int, CItem*>(idx, item));
         m_itemMap.insert(std::pair<const int, CItem*>(idx, item));
@@ -1673,8 +1697,12 @@ bool CItemList::insert_item(int group, int idx, CItem* item)
                             *(int*)&key, inner));
             }
         }
+        return true;
     }
-    return true;
+    LogManager::logFormat(1, "item.cpp",
+        __PRETTY_FUNCTION__, 0x81f,
+        "Insert Fail Item Group[%d] Index: %d", group, idx);
+    return false;
 }
 
 bool CItemList::init()
@@ -1898,7 +1926,9 @@ bool CItemList::Load_Goods_File(const char* path)
             CCeraShopGoods* goods = new CCeraShopGoods(shopList[i][j]);
             m_goodsMap[shopList[i][j].m_field8] = goods;
             STCeraShopItem& item = shopList[i][j];
-            int value;
+            // [b28d-tu-CItemList] 真语义修正：ORIG 0x085125d6 `movl $0x0,-0x28(%ebp)`
+            //   在 item 槽写入后、分支前 ⇒ 原码 `int value = 0;`。
+            int value = 0;
             if (item.m_field14 == 1)
             {
                 value = item.m_field38;
@@ -1944,9 +1974,14 @@ bool CItemList::Load_Goods_File(const char* path)
             }
             if (shopList[i][j].m_field10 != 0)
             {
+                // [b28d-tu-CItemList] 真语义修正（参数颠倒）：ORIG 0x08512865
+                // `make_pair<unsigned long&,int&>(unsigned long&,int&)` 实参槽
+                // 0x4(%esp)=&+0x14（itemIdx）、0x8(%esp)=&+0x10（subGroupIdx）
+                // ⇒ 原码 key 取 m_field14 的 unsigned long 别名、value 取
+                // m_field10，原重构写反（key/value 对调是真行为差）。
                 m_lottoMap.insert(std::make_pair<unsigned long&, int&>(
-                    (unsigned long&)shopList[i][j].m_field10,
-                    (int&)shopList[i][j].m_field14));
+                    (unsigned long&)shopList[i][j].m_field14,
+                    (int&)shopList[i][j].m_field10));
             }
         }
     }
@@ -2278,6 +2313,12 @@ bool CCompound_ExtreamDun_Item::_isPossibleResultItem(              // ORIG 0x83
     // 强制规则命中即一票裁决：flag==0（强制允许）→ true，非零 → false。
     // [b28d-20] P50 复活：ORIG 0x832db8d 有独立 `iterator::C1Ev`（lea -0x14;
     //   call C1Ev）先于 end()，⇒ 原码 it 先声明后赋值；it@-0x14/endIt@-0x1c。
+    // [b28d-tu-CItemList] P326 翻案实测（本件不适用 ⇒ 回滚具名形）：
+    //   P326 形 `it != const_iterator(m.end())` 把 end() 挪到比较点，但
+    //   ORIG 0x0832db8d 起入口序为 C1Ev(it)→end→find→cmp（end 构造在
+    //   find **之前**）⇒ 内联形多 2 处调用序倒转，ndiff 14→20、NEAR→DIFF
+    //   倒退。具名 endIt 形（4.4 先声明占浅槽 -0x10? 实测 it=-0x10/
+    //   endIt=-0x14 反槽）保留为最优 NEAR/nd14 形。N93 判词对本件仍有效。
     std::map<int, forceRule_ResultItem>::const_iterator it;
     std::map<int, forceRule_ResultItem>::const_iterator endIt =
         m_data.m_forceRules.end();
@@ -2550,16 +2591,24 @@ bool CCompound_ExtreamDun_Item::makeCompoundItem(                   // ORIG T 0x
         {
             found = _FindItemAll_BindSphere(refs, select,
                 (ENUM_OUTPUTITEMS_RARITY)outputRarity,
+                // [b28d-tu-CItemList] 真语义修正（range 颠倒）：ORIG
+                // 0x0832cea2-0x0832ceb7 段 ctor 实参槽 0x4(%esp)=-0x3c
+                // （baseLevel+1）、0x8(%esp)=-0x40（baseLevel+5）⇒
+                // pair = (first=+1, second=+5)；原写 (+5,+1) 使
+                // range.first/second 颠倒（同 _exception_Rare 前轮修正形）。
                 std::pair<unsigned int, unsigned int>(
-                    (unsigned int)(baseLevel + 5),
-                    (unsigned int)(baseLevel + 1)));
+                    (unsigned int)(baseLevel + 1),
+                    (unsigned int)(baseLevel + 5)));
             if (found == 0)
             {
                 found = _FindItemAll_BindSphere(refs, select,
                     (ENUM_OUTPUTITEMS_RARITY)outputRarity,
+                    // [b28d-tu-CItemList] 真语义修正（同上）：ORIG
+                    // 0x0832cf09-0x0832cf1e `+0xa → -0x30 → 0x8(%esp)`、
+                    // `+6 → -0x2c → 0x4(%esp)` ⇒ pair = (+6, +10)。
                     std::pair<unsigned int, unsigned int>(
-                        (unsigned int)(baseLevel + 0xa),
-                        (unsigned int)(baseLevel + 6)));
+                        (unsigned int)(baseLevel + 6),
+                        (unsigned int)(baseLevel + 0xa)));
             }
         }
         else if (inRarity == 0)
