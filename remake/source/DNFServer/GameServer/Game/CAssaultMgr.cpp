@@ -686,11 +686,16 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
                 _MakeUserState(&packet, user);
                 G_GameWorld()->send_all(packet);   // ORIG 82eaee3：%eax 直通实参
             }
+            // [SweepCAssaultMgr 真语义修正] ORIG 082eadc5 `je 082eaeb8`（目标 =
+            // PacketGuard::C1 @+0x14e，**非** _IsBroadcastRunaway 段 +0x11f）
+            // 与 Ghidra C（LeaveAssaultPlace.md:523）同证：_IsBroadcastRunaway
+            // 在 `if (_IsGiveupPanalty(penaltyFlag))` **块内**（GiveupPanalty →
+            // 状态分支 → 逃跑判定）。旧形置于块外 ⇒ _IsGiveupPanalty 为 false 时
+            // 仍执行逃跑广播（真语义反向；AE 口径把分支目标归一为 <T> 故不显形）。
+            // ---- _IsBroadcastRunaway（82eae89）----
+            if (_IsBroadcastRunaway(user))
+                _BroadcastRunaway(user, index);
         }
-
-        // ---- _IsBroadcastRunaway（82eae89）----
-        if (_IsBroadcastRunaway(user))
-            _BroadcastRunaway(user, index);
 
         // ---- 82eaeb8：leave 包 + PowerWar 计数 ----
         // b28d-solo-CAssaultMgr: ORIG -0x24 的 D1 在 082eb06f（收尾链 +0x310
@@ -830,12 +835,18 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 // 6 参 IsIncludeVirtualMoveAreas——唯一 owner 归 CVillageMonsterMgr.cpp）
 // ============================================================
 
-static const Point2d ASSAULT_RECT_PLAYER_POINT[8] = {
-    Point2d(0x000, 0x0f), Point2d(0x038, 0x05), Point2d(0x054, 0x00),
-    Point2d(0x01c, 0x0a), Point2d(0x104, 0x0f), Point2d(0x0cc, 0x05),
-    Point2d(0x0b0, 0x00), Point2d(0x0e8, 0x0a)
+// [SweepCAssaultMgr 真型修正] ORIG 本 TU 的 `_Z41__static_initialization_and_
+// destruction_0ii`（GI 0x82f027c 调 0x82f023c）**只**含 ios_base::Init +
+// __cxa_atexit，**无任何 Point2d::C1Eii 调用** ⇒ ORIG 的这张表是 POD 静态初始化
+//（.rodata 0x8c1cce0，无动态 ctor）。旧形 `Point2d[8]`（用户 ctor）使 4.4 发 9
+// 次 Point2d::C1Eii 动态初始化（我方 static_init 65 insn vs ORIG 41）。ORIG 的
+// 访问形 `mov TABLE(,%eax,8)`（第一处，idx*2 折 scale 8）与 `add %eax,%eax;
+// add $0x1,%eax; mov TABLE(,%eax,4)`（第二处，显式 idx*2+1）同为 int 数组证据。
+static const int ASSAULT_RECT_PLAYER_POINT[16] = {
+    0x000, 0x0f, 0x038, 0x05, 0x054, 0x00, 0x01c, 0x0a,
+    0x104, 0x0f, 0x0cc, 0x05, 0x0b0, 0x00, 0x0e8, 0x0a
 };                                   // .rodata 0x8c1cce0 实测内容
-static const Point2d ASSAULT_RECT_ICON_POINT = { 0x82, 5 };   // .rodata 0x8c1cd20
+static const int ASSAULT_RECT_ICON_POINT[2] = { 0x82, 5 };   // .rodata 0x8c1cd20
 
 int Point2d::operator-(const Point2d& o) const
 {
@@ -1196,8 +1207,8 @@ CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e
     // （our 157→159 更差）；③独立 int[16] 表（可消基址载入但 .rodata 重复
     // 0x40B 且两处符号地址不同，AE 归一化仍不等，回退）。
     // 语义等价（int[16] 视图与 Point2d[8] 同布局；idx*2+1 即 .m_y）。
-    m_iconPos.m_x = ASSAULT_RECT_ICON_POINT.m_x;
-    m_iconPos.m_y = ASSAULT_RECT_ICON_POINT.m_y;
+    m_iconPos.m_x = ASSAULT_RECT_ICON_POINT[0];
+    m_iconPos.m_y = ASSAULT_RECT_ICON_POINT[1];
     for (int j = 0; j <= 1; ++j)
     {
         // [b23S3C] counts[j]（非 j*4；int* 天然乘 4 字节）；P48 每循环迭代重读
@@ -1205,9 +1216,14 @@ CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e
         // p 在 -0x30，独立于末端 origin(-0x28)，故两处各自命名。
         for (int k = 0; counts[j] > k && k <= 3; ++k)
         {
-            Point2d p(ASSAULT_RECT_PLAYER_POINT[k + j * 4].m_x,
-                      reinterpret_cast<const int (&)[16]>(
-                          ASSAULT_RECT_PLAYER_POINT)[(k + j * 4) * 2 + 1]);
+            // [SweepCAssaultMgr 复验] 索引加法序旋钮实测无效（`j*4+k` 与
+            // `k+j*4` 同折 `shl; add k_mem`，ndiff 不变）⇒ 残差维持判词：
+            // ORIG 082e6386 `mov j,%edx; shl $0x2,%edx; mov k,%eax;
+            // lea (%edx,%eax,1),%eax`（两步 lea）+ `mov TABLE(,%eax,4),%edx`
+            // 绝对寻址 vs 4.4 `shl; add k_mem` + 引用 cast 基址载入 —— P30/
+            // N4/N102 族，八形探针（/tmp/probe_arr.cpp）无更优，封 N。
+            Point2d p(ASSAULT_RECT_PLAYER_POINT[(k + j * 4) * 2],
+                      ASSAULT_RECT_PLAYER_POINT[(k + j * 4) * 2 + 1]);
             m_mats[j].AddPoint(p);
         }
     }
@@ -1354,12 +1370,17 @@ void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192
                                    (WongWork::ENUM_HACKTYPE)0x32e, 1, 0, 0);
         }
         m_state = 6;
+        // [SweepCAssaultMgr 真语义修正] ORIG 082eb672 `cmp $0x4; jne 082eb76d`
+        // （目标 = epilogue）与 Ghidra C（AbuseUser.md:154-171）同证：party
+        // SetAssaultState(6)×2 与 TimeoutCloseAssault **在 `if (m_state == 4)`
+        // 块内**。旧形置于块外 ⇒ m_state != 4 时仍改 party 状态并强制关场
+        // （真语义反向；AE 口径把分支目标归一为 <T> 故不显形）。
+        if (m_parties[0].m_field00 != 0)
+            ((CParty*)m_parties[0].m_field00)->SetAssaultState(6);
+        if (m_parties[1].m_field00 != 0)
+            ((CParty*)m_parties[1].m_field00)->SetAssaultState(6);
+        TimeoutCloseAssault();
     }
-    if (m_parties[0].m_field00 != 0)
-        ((CParty*)m_parties[0].m_field00)->SetAssaultState(6);
-    if (m_parties[1].m_field00 != 0)
-        ((CParty*)m_parties[1].m_field00)->SetAssaultState(6);
-    TimeoutCloseAssault();
 }
 
 // ============================================================================
@@ -1367,10 +1388,14 @@ void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192
 // size 0x31）。ORIG ctor：CAssaulter[8] 循环默认构造 → Point2d::C1 于 this+0x110
 // （m_posBase）→ PartyInfo[2] 循环构造；其余字段留待 Reset()/Acquire 初始化。
 // ORIG dtor：仅反向析构 assaulters[8]（Point2d/PartyInfo 析构平凡）。
+// [SweepCAssaultMgr 迁移] C1 定义已迁至 W6_AssaultPlaceDepsA.cpp（Main 批准）。
+//   依据（探针 /tmp/p_sp1..p_sp8，4.4.7 与 4.1.2 双编译器）：T 的默认 ctor 体在
+//   StaticPool 实例化 TU 内**可见** ⇒ 编译器判 CNode ctor nothrow ⇒ 省掉
+//   `new CNode[N]` 的异常回滚段；仅**声明**（定义在他 TU）⇒ 保守布 cleanup。
+//   ORIG StaticPool<pvp_assault::CAssaultPlace,128>::C1 @0x82f1462（128 insn）
+//   含完整 cleanup（0x82f14f9..0x82f153d：CNodeD1 循环 + _ZdaPv + _Unwind_Resume）；
+//   本 ctor 定义在场时我方仅 103 insn（gap 25）。迁移后逐条对齐（P284）。
 // ============================================================================
-CAssaultPlace::CAssaultPlace()
-{
-}
 
 CAssaultPlace::~CAssaultPlace()
 {
@@ -1629,17 +1654,27 @@ void CAssaultPlace::CloseAssault()
     // i 在函数头声明并初始化，两处 for 复用（`for (i=0;…)`）。
     int i = 0;
     int lastVill = 0;
-    if (m_field100 <= 0)
-        return;
-
+    // [SweepCAssaultMgr 真语义修正] ORIG 082e9af7 `test %eax,%eax; jle +0x396`
+    // 的落点 = 082e9e6c（PacketGuard::C1）⇒ m_field100<=0 只跳过「for 循环 +
+    // _SendUserState」，**仍执行** 图标广播块 / party 定时器块 / _DelUser 循环 /
+    // FreeAssaultPlace。旧形 `if (m_field100 <= 0) return;` 会连归还池一起跳过
+    // （漏 FreeAssaultPlace ⇒ 泄漏）。Ghidra C 同证 `if (0 < *(int*)(this+0x100)){…}`。
+    if (0 < m_field100)
+    {
     for (i = 0; i < 8; ++i)
     {
         if (m_assaulters[i].Empty())
             continue;
         CUser* slotUser = m_assaulters[i].GetUser();
-        if (slotUser == 0)
-            continue;
-
+        // [SweepCAssaultMgr 真语义修正] ORIG 082e9b36 `cmpl $0,-0x20(%ebp);
+        // je 082e9c57`（目标 = SetAssaultPlace 段 0x82e9c57，**非**循环增量）
+        // ⇒ slotUser==0 只跳过本处理块，仍执行 SetAssaultPlace/IsPowerWarWinner/
+        // GetTeam 比较/ghostTime/_DelUser（Ghidra C 同证 `if (local_24 != 0) {…}`
+        // 后继续）。旧形 `if (slotUser == 0) continue;` 的 je 落循环增量
+        //（我方 0x3602 nop）——clean 口径把分支目标归一为 <T> 故不显形，属
+        // jcc 落点差异（真语义反向）。
+        if (slotUser != 0)
+        {
         if (GlobalData::s_power_manager->IsPowerWarEventOn()
             && slotUser->getCurCharacVill() == 7)
         {
@@ -1670,6 +1705,7 @@ void CAssaultPlace::CloseAssault()
             }
         }
         lastVill = (int)slotUser->getCurCharacVill();
+        }
 
         // b28d-solo-CAssaultMgr: ORIG 0x082e9c63 在 SetAssaultPlace 前**重取**
         // `m_assaulters[i].GetUser()`（P167 MISSING ×1；ORIG 调用点直读展开，
@@ -1681,6 +1717,12 @@ void CAssaultPlace::CloseAssault()
                 slotUser->setPowerWarHP(0x1e);
         }
 
+        // [SweepCAssaultMgr] 本比较段残差 = N7/N18a 寄存器角色互换：ORIG
+        // 082e9cc2 `call GetTeam; mov 0x8(%ebp),%edx; mov 0x124(%edx),%edx;
+        // cmp %edx,%eax` vs 4.4 `mov %eax,%edx; mov 0x8(%ebp),%eax;
+        // mov 0x124(%eax),%eax; cmp %eax,%edx`。P226 语句表达式形实测反劣
+        // （372→376：多 sete/test/je 物化）已回滚；W6 EvadeAssaultPlace 同残差
+        // 亦封 N7（P321-T5）。
         if (m_assaulters[i].GetTeam() == m_winTeam
             && !GlobalData::s_power_manager->IsPowerWarEventOn()
             && slotUser->getCurCharacVill() != 7)
@@ -1722,6 +1764,7 @@ void CAssaultPlace::CloseAssault()
         }
     }
     _SendUserState();
+    }
 
     // b28d-solo-CAssaultMgr: ORIG 082e9ec0 在 _SendPacketToArea 后**立即**析构
     // -0x34（jmp 跳过 landing pad 直落 D1）⇒ 原码是独立块，非函数级作用域

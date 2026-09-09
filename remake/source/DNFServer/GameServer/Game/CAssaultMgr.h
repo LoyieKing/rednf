@@ -86,9 +86,14 @@ public:
 };
 
 // ORIG 只读数据表：
-//   ASSAULT_RECT_PLAYER_POINT @0x8c1cce0（Point2d[8]：
+//   ASSAULT_RECT_PLAYER_POINT @0x8c1cce0（POD int[16]；8 组 (x,y)：
 //     (0,15) (56,5) (84,0) (28,10) (260,15) (204,5) (176,0) (232,10)）
-//   ASSAULT_RECT_ICON_POINT   @0x8c1cd20 = {130, 5}
+//   ASSAULT_RECT_ICON_POINT   @0x8c1cd20 = int[2]{130, 5}
+//   [SweepCAssaultMgr 真型修正] 两表均为 POD 静态初始化：ORIG 本 TU 的
+//   `_Z41__static_initialization_and_destruction_0ii` @0x82f023c（16 insn）
+//   只含 ios_base::Init + __cxa_atexit，**无** Point2d::C1Eii 调用 ⇒ 原码不是
+//   `Point2d[8]`（用户 ctor 会强制动态初始化，我方旧形 65 insn）。
+//   定义见 CAssaultMgr.cpp（file-scope static）。
 
 // =====================================================================
 // PartyInfo —— ORIG PartyInfo::C1 0x82f05ee：清零单个 int；
