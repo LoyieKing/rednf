@@ -230,6 +230,11 @@ int BingoEvent::reqBingoMark(StackableAction::input_param& param)
             // `cmpl $0x3,-0x10(%ebp); jle` + `movl $0x3,-0x10(%ebp)`。
             // 探针 /tmp/l10_probe10/11/12.cpp 十二形全败：仅「unsigned 变量 +
             // (int) cast」可载寄存器，但外层条件码变 je/jbe（ORIG 为 jle）。
+            // [SweepBingoEventLink4] 追加探针 /tmp/probe_clamp{,2,3}.cpp 三十余形复核：
+            // 指针形 `int* p=&diff; if(*p>3)`（fI）可出载寄存器比较，但 store 恒折
+            // `movl $0x3,(%eax)`；三目 `diff = diff>3?3:diff;` 产 `cmovle`（本 TU
+            // 未路由 -march=i486）；ORIG 的 `mov $0x3,%eax; mov %eax,-0x10(%ebp)`
+            // 共享 store 属 N76/N97 跨版本形 ⇒ N 成立。
             // 语义等价（diff>0 已保证非负）。
             if (diff > 3)
             {
@@ -257,7 +262,10 @@ int BingoEvent::reqBingoMark(StackableAction::input_param& param)
 // sendOneMatchLineReward @ 0x080ca3d4：读 m_bingo.m_map30[CDataManager+0xb568+0x30
 // =+0xb598] 的 key=1（单线奖励配置 <type, value>），按 type 构造 Inven_Item 后
 // 以系统邮件发放。
-// [b28d-D9] 槽差/帧差：帧/槽序差（143 vs 144）（ORIG 0x080ca3d4 sz 0x0000024d）
+// [SweepBingoEventLink4] 已闭合（AE 143/143，原 DIFF 144/145）：count 由
+// unsigned int 改 int ⇒ 复现 ORIG 0x080ca5cd `mov -0x10(%ebp),%edx`（压栈前
+// 提前装载 count，与形参 unsigned int 异型触发 4.4 同形）；unsigned 版 4.4
+// 恒延迟到 `mov %eax,0x8(%esp)` 前装载（P211 档③/P75 反例，探针实测）。
 void BingoEvent::sendOneMatchLineReward(CUser& user)
 {
     // [b28d-D9] P167 差集（缺 G_CDataManager ×1）：ORIG 0x080ca3d4 无 rewardMap
@@ -277,10 +285,11 @@ void BingoEvent::sendOneMatchLineReward(CUser& user)
     const int value = it->second.second;
 
     Inven_Item item;
-    unsigned int count = 0;
+    // int（非 unsigned）：与形参 unsigned int 异型 ⇒ 4.4 提前装载（见函数头）。
+    int count = 0;
     if (type == 0)
     {
-        count = static_cast<unsigned int>(value);
+        count = value;
     }
     else if (type == 1)
     {
