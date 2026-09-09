@@ -107,9 +107,10 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
 }
 
 // ---------------------------------------------------------------------------
-// 2. int CUser::findSkillCommandData(int skillId, STSkillCommandData& out, bool flag)
+// 2. bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out, bool flag)
 //    @0x08654e6a（仅查玩家命令表重载；flag 参与 Ghidra 尾参杂散，逻辑不依赖）
-int CUser::findSkillCommandData(int skillId, STSkillCommandData& out, bool flag)
+//    [b28d] 返回类型 int→bool（ORIG 调用点 0x081bf7d1 test %al 直判，P292；mangled 不变）。
+bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out, bool flag)
 {
     // b28d-35: DIFF→N82（帧 0x34 vs 0x48、槽平移；bool 形参截断槽）。ORIG @0x08654e6a。
     std::map<int, STSkillCommandData>* cmds =

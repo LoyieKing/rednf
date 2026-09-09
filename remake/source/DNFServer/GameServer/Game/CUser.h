@@ -3583,7 +3583,9 @@ public:
         int customizingSkillCommand(STSkillCommandData& data);      // 0x08654f74 T
         bool defaultSkillCommand();                                 // 0x086550ee T
 
-        int findSkillCommandData(int skillId, STSkillCommandData& out, bool flag);  // 0x08654e6a T 重载！
+        // [b28d] 返回 int→bool：ORIG 调用点 0x081bf7d1 `call; test %al,%al; je`
+        // （无 setne 归一化，P292/P248 档① ⇒ callee bool；mangled 不含返回类型）。
+        bool findSkillCommandData(int skillId, STSkillCommandData& out, bool flag);  // 0x08654e6a T 重载！
         // ---- EXP / SP ----
 
         // ---- Hack money ----
