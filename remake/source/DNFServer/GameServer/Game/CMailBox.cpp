@@ -76,8 +76,9 @@ long CMailBox::CMail::GetPeriod() const { return m_period; }
 // ORIG 0x085574e0 (W)：m_period <= nowSec
 bool CMailBox::CMail::IsTimeOver(long nowSec) const { return m_period <= nowSec; }
 
-// ORIG 0x08557590 (W)
-unsigned char CMailBox::CMail::isUnlimit() const { return m_unlimit; }
+// ORIG 0x08557590 (W)：movzbl 直返（bool 字段直返无归一化，P9 勘误）+
+// 消费端 0x08552486 `call; xor $0x1,%eax; test %al,%al; je`（P292 bool 形）。
+bool CMailBox::CMail::isUnlimit() const { return m_unlimit; }
 
 // ORIG 0x085574fe (W)
 const char* CMailBox::CMail::GetSenderName() const { return m_senderName; }
@@ -354,7 +355,9 @@ CMailBox::CMail* CMailBox::AddNewMail(const stAddNewMailInput& inputRaw)
     std::strncpy(mail->m_senderName, SIG_OFF(const char*, &inputRaw, 0x20), 0x1d);
 
     mail->m_packageType = SIG_OFF(int, &inputRaw, 0x14);
-    mail->m_unlimit     = SIG_OFF(unsigned char, &inputRaw, 0x1c);
+    // P292 全链 bool：ORIG 0x085520c4 `movzbl 0x1c(%edx),%edx; mov %dl,0x74(%eax)`
+    // 单条直存（无 uchar→bool 归一化）⇒ 源类型同为 bool。
+    mail->m_unlimit     = SIG_OFF(bool, &inputRaw, 0x1c);
     mail->m_letterId    = SIG_OFF(unsigned int, &inputRaw, 0x0c);
 
     m_mailMap.insert(std::make_pair(mail->m_mailIndex, mail));

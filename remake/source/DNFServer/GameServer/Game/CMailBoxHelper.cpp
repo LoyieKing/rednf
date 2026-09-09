@@ -6,6 +6,17 @@
 // 删 m 局部+补 fee+if 链改 switch+P190 int dead 撑帧），其余 13 件残差经
 // 实测归入 N 族（N7/N18a/N76/N82/N98/N102/N197④/跨版本 bool 物化），
 // 每件函数头已记证据地址与试形记录；p167 全符号 CLEAR。
+// [2026-09-09 复扫波，dual_rank gap' 降序 6 候选全部复验]
+//  ①GetPackege gap 4→0（DIFF→AE）：删 money/senderName 具名局部（P0/P183）+
+//    removeList[2]={0,0}（P253）；
+//  ②SIG_AVATAR_INSERT::set 真 bug 修复：+0x28←a8 / +0x2c←a7 原写反（ORIG
+//    0x850d436 + CInventory 调用点 0x08509f69 交叉验证），p167 CLEAR；
+//  ③CheckMailTimeout gap 1→0 + SetPeriodCheckTimer DIFF→NEAR：isUnlimit 全链
+//    bool 化（P292，跨 CMailBoxHelper.h/CMailBox.cpp 三处同步）+ kc 段删裸
+//    register（P248 第四条件）；
+//  ④isUnlimitMail / _DoGetPackageAvatar / _DoGetPackageCreature 维持 N
+//    （新试形与 ORIG 地址见各自函数头）。
+//  四数 141/299/1/16 → 141/300/2/14（CMailBox.cpp 98/149/0/4 不回退）。
 
 #include "CMailBoxHelper.h"   // 本类权威叶子头（不再经 CGameManager.h）
 #include "SigTypes.h"
@@ -97,7 +108,7 @@ struct MailBoxListV
         unsigned int m_money;        // +0x55（input+0x18）
         unsigned char m_moneyFlag;   // +0x59
         unsigned char m_coinFlag;    // +0x5a
-        unsigned char m_unlimit;     // +0x5b（input+0x1c）
+        bool m_unlimit;              // +0x5b（input+0x1c；P292 全链 bool）
         unsigned int m_letterId;     // +0x5c（input+0x0c）
         unsigned char m_attachType;  // +0x60（input+0x10）
     };                               // sizeof 0x61
@@ -441,13 +452,18 @@ bool IsTradeLimitAttachTypeItemByUser(CUser& user, int space, int slot)
 //   （成员访问/取子对象地址/指针算术三形实测，N102/N4）；
 // ③ORIG 比较两段 `mov mem,%edx; mov arg,%eax; cmp %eax,%edx` 被 4.4 折
 //   `cmp mem,%eax` 单段（N18b，交换操作数无效）。31→28 insn。
-unsigned char isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
+// [本波 2026-09-09 复验] 两个新试形仍不可翻（维持 N）：①P30 数组成员视图
+//   （`PostalSub m_sub[1]` + `m_sub[0].m_letterId`）⇒ 4.4 仍折 `mov 0x5c(%eax)`；
+//   ②比较/基址操作数交换（`field == letterId`、`info + 0x61*i`）⇒ 装载序与 cmp
+//   形态逐条不变（28 insn）。另：P292 全链 bool 化后本件返回类型为 bool
+//   （ORIG 返回段 `movzbl (%eax),%eax` 与 bool 直返同形）。
+bool isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
 {
     #pragma pack(push, 1)
     struct PostalSub
     {
         unsigned char m_pad[0xb];
-        unsigned char m_unlimit;               // 子对象 +0x0b（全局 +0x5b）
+        bool m_unlimit;                        // 子对象 +0x0b（全局 +0x5b；bool）
         int m_letterId;                        // 子对象 +0x0c（全局 +0x5c）
     };
     struct PostalEntry
@@ -557,10 +573,17 @@ bool CMailBoxHelper::IsCeraPointItem(unsigned long itemIdx)
 }
 
 // ---- 用户侧取件 ----
-// [b28d-L8] N82 | 帧差 + 槽平移（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] N 封顶（N82/P112，p167 CLEAR 56/56，324 vs 320）：
-// end 缓存 + const_iterator 转换 + makeRequest 重取已修；残余 = 帧 0x8c vs 0x9c
-// 与全帧槽平移 8（box -0x20→-0x28、items -0x34→-0x3c、err -0x38→-0x40 等）。
+// [本波 2026-09-09 修，DIFF→AE] 旧判词「N82/P112 帧差 0x8c vs 0x9c + 全帧槽
+// 平移 8」的真因是两枚多余具名局部，非版本常数：
+//  ①P0/P183：money 具名局部（ORIG 0x08554ca7 值全程 %ecx，无栈槽往返）⇒ 删，
+//    改内联 `mail->GetPackageMoney() % 100000 != 0`（调用次数 2=2 不变）；
+//  ②P0：senderName 具名局部（ORIG 0x08554ce0/0x08554cf6 GetSenderName 两次
+//    独立调用，strlen 结果 spill -0x5c）⇒ 删，改内联实参。
+//  效果：帧 0x9c→0x8c、槽全部归位（box -0x20/mail -0x1c/items -0x34/err -0x38/
+//  packet -0x44/it -0x48,-0x4c/removeList -0x50,-0x54 与 ORIG 逐一对齐）。
+//  ③P253：`removeList[2] = {0, 0}` 补回 ORIG 0x08554df3/0x08554dfa 两条预清零
+//    （无初始化列表时缺 2 条 store）⇒ gap 4→0。
+//  复验 check_tu_routed：141/299/1/16 → 141/300/1/15；本件 verdict=AE。
 void CMailBoxHelper::GetPackege(CUser* user, unsigned int mailIndex)
 {
     // ORIG 0x085549de
@@ -606,16 +629,17 @@ void CMailBoxHelper::GetPackege(CUser* user, unsigned int mailIndex)
         user->Send(packet);
     }
 
-    unsigned int money = mail->GetPackageMoney();
-    if (money != (money / 100000) * 100000)
+    // [P0/P183] ORIG 0x08554ca7：money 无栈槽（值全程 %ecx 承载除法链
+    // `mov %eax,%ecx; mov %ecx,%eax; shr $0x5; …; mov %ecx,%edx; sub`）⇒
+    // 原码是内联表达式而非具名局部（具名版多 -0x20 槽 + 全帧槽平移 8）。
+    // ORIG 0x08554ce0/0x08554cf6 GetSenderName 两次独立调用（strlen 一次、
+    // makeRequest 第 5 参一次），strlen 结果 spill -0x5c ⇒ 同样内联。
+    if (mail->GetPackageMoney() % 100000 != 0)
     {
-        char* senderName = const_cast<char*>(mail->GetSenderName());
-        // ORIG 0x085549de：makeRequest 第 4 参重调 GetPackageMoney、第 5 参
-        // 重调 GetSenderName（strlen 用第一次结果）。
         DB_AccountHack_CheckMyAccount::makeRequest(
             user->GetUID(), user->get_acc_id(), 0, mail->GetPackageMoney(),
             const_cast<char*>(mail->GetSenderName()),
-            (int)std::strlen(senderName));
+            (int)std::strlen(mail->GetSenderName()));
     }
 
     user->m_historyLog.RecvMail(mailIndex, mail->GetSenderName(), user->get_acc_name());
@@ -627,7 +651,9 @@ void CMailBoxHelper::GetPackege(CUser* user, unsigned int mailIndex)
     packet.finalize(true);
     user->Send(packet);
 
-    unsigned int removeList[2];
+    // ORIG 0x08554df3/0x08554dfa：两元素各自 `movl $0x0` 预清零后才赋
+    // 1/mailIndex ⇒ 原码数组带 `{0, 0}` 初始化列表（无初始化则缺 2 条 store）。
+    unsigned int removeList[2] = { 0, 0 };
     removeList[0] = 1;
     removeList[1] = mailIndex;
     ReqDBRemoveMail(user, removeList, false);
@@ -693,14 +719,11 @@ void CMailBoxHelper::ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, b
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// [b28d-L8] N82/P1974 | 槽平移 4 + sete 物化不可复现（P197④ 槽比零产物，ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] N 封顶（P292 跨版本 bool 物化 + N82 槽平移，
-// ORIG 0x085523e2）：①isUnlimit 返回 uchar（P9 直返），ORIG 条件仅
-// `test %al,%al; jne <skip>` 两条；4.4 恒物化——`if(!f())` 产
-// `test; sete; test; je`、`if(f()) continue` 形 110 vs 108 反劣，两形均不可
-// 复现。②深区槽 ORIG 多一枚 -0x3c（比较 this）⇒ it/-0x38、minPeriod/-0x34、
-// endIt/-0x30、period/-0x2c；我方整体浅 4（it/-0x34、minPeriod/-0x30、
-// endIt/-0x2c、period/-0x3c），属 N82/P112 槽分配族。
+// [本波 2026-09-09 修，DIFF→NEAR] ①isUnlimit 全链 bool 化（P292）后
+// `if (f()) continue;` 正极形与 ORIG 0x08552486 `call; test %al,%al; jne
+// <循环增量>` 全等（旧 uchar 时代 `if(!f())`/continue 两形均不可复现）；
+// ②本件 106=106（raw 108=108），残余仅深区槽整体 -4 平移（ORIG it/-0x38、
+// minPeriod/-0x34、endIt/-0x30、period/-0x2c；我方浅 4），N82/P112 封顶。
 // ③InsertTimer 段 ORIG 用 %edi/%esi/%ebx 三 callee-saved 装载
 // （GetLoginTick/GetUID/GetCurCharacNo），4.4 角色互换（N7 族，本 TU 路由
 // 4.4.6 仍不翻）。
@@ -720,18 +743,13 @@ void CMailBoxHelper::SetPeriodCheckTimer(CUser* user)
     MailMap::const_iterator endIt = mail_map(box).end();
     for (; it != endIt; ++it)
     {
-        // [b28d-solo-CMailBoxHelper] N：ORIG `call isUnlimit; test %al; jne`
-        // 直判跳走（3 条）；4.4 两形实测——`if(!f())` 产 sete+test+je（+1）、
-        // continue 形产 test+setne+test+jne（+2），取原形。
-        // [b28d-solo-CMailBoxHelper] N 封顶（P292 跨版本 bool 物化，ORIG 0x08552486）：
-        // isUnlimit 返回 uchar（P9 直返），ORIG 条件仅 `test %al,%al; jne <skip>`
-        // 两条；4.4 恒物化——`if(!f())` 产 `test; sete; test; je`、
-        // `if(f()) continue` 形产 +2 条（实测 110 vs 108），两形均不可复现。
-        if (!it->second->isUnlimit())
-        {
-            long period = it->second->GetPeriod();
-            minPeriod = std::min(minPeriod, period);
-        }
+        // [本波 2026-09-09，isUnlimit 全链 bool 化后翻正] ORIG 0x08552486 条件为
+        // `call; test %al,%al; jne <循环增量>`（2 条）= 正极 `if (f()) continue;`
+        // （bool callee；旧 uchar 时代 continue 形曾 +2 条，bool 化后与 ORIG 同形）。
+        if (it->second->isUnlimit())
+            continue;
+        long period = it->second->GetPeriod();
+        minPeriod = std::min(minPeriod, period);
     }
     if (minPeriod != deadline)
     {
@@ -741,11 +759,13 @@ void CMailBoxHelper::SetPeriodCheckTimer(CUser* user)
     }
 }
 
-// [b28d-L8] N82 | 块序（jmp 岛）+ xor 物化差（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] N 封顶（p167 CLEAR 26/26，189 vs 188）：
-// ①isUnlimit 条件 ORIG `xor $1; je`（bool 物化）vs 4.4 `test; jne` 直判；
-// ②kc 段 ORIG `mov 0x80(%eax),%eax; lea 0x1(%eax),%edx` vs 4.4 用 %ebx（N7）；
-// ③removed[21] 数组槽 + 迭代器槽序 + 帧平移（N82/P112）。
+// [本波 2026-09-09 修] ①isUnlimit 全链 bool 化（P292：生产端 ORIG 0x08557590
+// movzbl 直返 + 消费端 0x08552486 `xor $0x1; test %al; je`）⇒ 条件形态翻正、
+// gap 1→0（189=189）；②kc 段删裸 register 改内联表达式（P248 第四条件「跨
+// call 保活」不满足）⇒ 4.4 `mov -0x18,%edx; mov 0x80(%edx),%edx; add $1,%edx`
+// vs ORIG `mov -0x18,%eax; mov 0x80(%eax),%eax; lea 0x1(%eax),%edx`（寄存器
+// 角色 eax↔edx + lea↔add，N7/N18a 封顶）；③removed[21] 数组槽 + 迭代器槽序
+// + 帧平移（N82/P112）。p167 CLEAR 26/26。
 unsigned int CMailBoxHelper::CheckMailTimeout(CUser* user, PacketGuard* packet)
 {
     // ORIG 0x08554e90
@@ -774,10 +794,10 @@ unsigned int CMailBoxHelper::CheckMailTimeout(CUser* user, PacketGuard* packet)
                         found = true;
                 if (!found)
                 {
-                    register int kc =
-                        reinterpret_cast<CMailBoxView*>(box)->m_letterKeepCount;
+                    // P248 裸 register 第四条件不满足（无跨 call 保活）⇒ 删；
+                    // P0：ORIG 0x08555098 值无槽往返（eax 直承）⇒ 内联表达式。
                     reinterpret_cast<CMailBoxView*>(box)->m_letterKeepCount =
-                        kc + 1;
+                        reinterpret_cast<CMailBoxView*>(box)->m_letterKeepCount + 1;
                 }
             }
             mail->ResetPackage();
@@ -872,6 +892,9 @@ void CMailBoxHelper::MakeMailBoxListPacket(CUser* user, PacketGuard* packet)
 //    `imul $0x61` 我方 35 vs ORIG 29（+6，MB_ENTRY 重复物化，定位需逐段比 ORIG
 //    缓存点，收益 ≈25 行，本波未做）；
 //  · strlen@plt（链接形式，ORIG 已链接 vs 我方 .o 重定位）。
+// [本波 2026-09-09] P292 全链 bool 化：isUnlimitMail 返回 bool + 两处条件改
+// `== 0` 极性（ORIG 0x085530xx/0x085535xx 均 `xor $0x1; test %al; je`）⇒
+// 归一化 ours 1101→1099（orig 1083 不变）。其余残差仍为上述 N82/N107/P183 族。
 int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 {
     // ORIG 0x085525a6：DB 邮箱列表落地 → 增量/全量 0x61 列表包 + 信件明细。
@@ -1069,10 +1092,12 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
             packet.put_int((int)std::strlen(mit->second.m_message));
             packet.put_str(mit->second.m_message,
                            (int)std::strlen(mit->second.m_message));
-            if ((unsigned char)isUnlimitMail(info, mit->second.m_letterId))
-                packet.put_int(0);
-            else
+            // P292 全链 bool：ORIG 0x085530xx 条件 `xor $0x1; test %al; je`
+            // ⇒ 源码为 `== 0` 极性（真=无限 → put_int(0)）。
+            if (isUnlimitMail(info, mit->second.m_letterId) == 0)
                 packet.put_int(mit->second.m_period);
+            else
+                packet.put_int(0);
             packet.put_short((int)mit->second.m_flag);
             count = count + 1;
             box->m_letterInfo.erase(mit);
@@ -1097,7 +1122,7 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
             packet.put_int(len);
             packet.put_str(MB_DETAIL(i)->m_message, len);
             // ORIG 0x085535xx：isUnlimitMail == 0 → put_int(+0x1141)，否则 put_int(0)。
-            if ((unsigned char)isUnlimitMail(info, MB_DETAIL(i)->m_letterId) == 0)
+            if (isUnlimitMail(info, MB_DETAIL(i)->m_letterId) == 0)
                 packet.put_int(MB_DETAIL(i)->m_period);
             else
                 packet.put_int(0);
@@ -2215,6 +2240,12 @@ void SIG_AVATAR_INSERT::set(int a1, unsigned int a2, int a3, int expire, bool bS
     //   `mov 0x14(%ebp),%eax; mov %eax,%edx; mov %dl,...`，4.4 恒折
     //   `mov 0x14(%ebp),%edx; mov %dl,...`（显式 (unsigned char) cast 实测无效）。
     // 其余 40 条全等（含 bSet/c 的截断 spill 槽 -0xc/-0x10）。44→42 insn。
+    // [本波 2026-09-09 真 bug 修复] 原实现把第 8/9 参写反（+0x28←a7、+0x2c←a8）。
+    // ORIG 0x850d436 直证 +0x28←0x2c(%ebp)=a8、+0x2c←0x28(%ebp)=a7（窄化中转
+    // `mov %eax,%edx`）；调用点 CInventory::_SaveAvatarItem 0x08509f69/0x08509f6d
+    // 压 a8=hidden、a7=0 交叉验证（原实现 hidden 落 +0x2c、0 落 +0x28，DB 侧
+    // 0x83ffe0e 读 +0x28/+0x2a 得错值）。修后语义正确；残余仅装载序 + 窄化中转
+    // 缺失（N76/N18a，44 vs 42 insn 不变）。
     reinterpret_cast<AvatarInsertV*>(this)->m_field0 = a1;
     reinterpret_cast<AvatarInsertV*>(this)->m_field4 = a2;
     reinterpret_cast<AvatarInsertV*>(this)->m_field8 = (unsigned char)a3;
@@ -2223,6 +2254,12 @@ void SIG_AVATAR_INSERT::set(int a1, unsigned int a2, int a3, int expire, bool bS
     reinterpret_cast<AvatarInsertV*>(this)->m_field9 = c;   // +0x09 = c
     if (agency != 0)
         std::strncpy(reinterpret_cast<AvatarInsertV*>(this)->m_agency, agency, 0x18);
-    reinterpret_cast<AvatarInsertV*>(this)->m_field28 = a7;
-    reinterpret_cast<AvatarInsertV*>(this)->m_field2c = (unsigned char)a8;
+    // [真 bug 修复 2026-09-09] ORIG 0x850d436：`mov 0x2c(%ebp),%edx; mov %edx,
+    // 0x28(%eax)` ⇒ +0x28 ← 第 9 参 a8（ulong，32 位截断无指令）；
+    // `mov 0x28(%ebp),%eax; mov %eax,%edx; mov %dl,0x2c(%eax)` ⇒ +0x2c ← 第 8 参
+    // a7（int→uchar 窄化中转）。原实现把两参写反（CInventory::_SaveAvatarItem
+    // 调用点 0x08509f69/0x08509f6d 实证 a8=hidden、a7=0 ⇒ 原实现 hidden 落
+    // +0x2c、0 落 +0x28，DB 侧 0x83ffe0e 读 +0x28/+0x2a 得错值）。
+    reinterpret_cast<AvatarInsertV*>(this)->m_field28 = (int)a8;
+    reinterpret_cast<AvatarInsertV*>(this)->m_field2c = (unsigned char)a7;
 }

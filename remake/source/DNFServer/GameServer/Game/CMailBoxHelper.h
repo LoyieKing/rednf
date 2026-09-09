@@ -99,7 +99,7 @@ public:
                 unsigned int m_remainSec;        // +0x10
                 int m_packageType;               // +0x14
                 long m_period;                   // +0x18
-                unsigned char m_unlimit;         // +0x1c
+                bool m_unlimit;                  // +0x1c（P292：ORIG 0x08557590/0x08552486 全链 bool）
                 const char* m_senderName;        // +0x20
                 Inven_Item* m_packageItem;       // +0x24
             };
@@ -118,7 +118,8 @@ public:
         unsigned int GetLetterId();                       // 0x085574d4 (W)
         long GetPeriod() const;                           // 0x085574f2 (W)
         bool IsTimeOver(long nowSec) const;               // 0x085574e0 (W)
-        unsigned char isUnlimit() const;                 // 0x08557590 (W)：ORIG movzbl 直返
+        bool isUnlimit() const;   // 0x08557590 (W)：ORIG movzbl 直返 + 消费端
+                                  // 0x08552486 `xor $1; test %al; je` ⇒ bool（P292）
         const char* GetSenderName() const;                // 0x085574fe (W)
         unsigned int GetPackageMoney() const;             // 0x08557516 (W)
         Inven_Item GetPackageItem() const;                // 0x08557522 (W, sret 按值拷贝 0x3d 字节)
@@ -152,7 +153,7 @@ public:
         } m_package;                      // +0x28（._398 子对象；sizeof 0x44 = 4+0x40 Inven_Item）
         long m_period;                  // +0x6c（到期秒；GetPeriod/IsTimeOver）
         int m_packageType;              // +0x70（1=avatar / 2=creature / 0=无）
-        unsigned char m_unlimit;        // +0x74（isUnlimit）
+        bool m_unlimit;                 // +0x74（isUnlimit；P292 全链 bool，1 字节不变）
         unsigned int m_letterId;        // +0x78（GetLetterId；AddNewMail ← input+0x0c）
         unsigned int m_remainSec;       // +0x7c（AddNewMail ← input+0x10）
     };                                  // sizeof 0x80
