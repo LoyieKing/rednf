@@ -4238,10 +4238,6 @@ void CUser::setWebAddress(char* addr)
     strncpy(m_gameOption.m_webAddress, addr, 0x10);
 }
 
-int CUser::GetCera()
-{
-    return (int)m_cera;
-}
 
 void CUser::SetCera(unsigned int cera)
 {

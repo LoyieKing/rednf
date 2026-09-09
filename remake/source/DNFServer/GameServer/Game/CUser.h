@@ -3314,7 +3314,11 @@ public:
     unsigned char isBreakAwayRewardData();
     void setGmQuestFlag(bool flag);
     void setWebAddress(char* addr);
-    int GetCera();
+    // [b28d-CPrivateStoreMgr] 返回类型判据（ORIG 0x085cbd38 + 探针 f15/f16）：unsigned int。
+    // [SweepCGuild2 判据㉓ 符号绑定] ORIG `_ZN5CUser8GetCeraEv` = **W** 0x080fdf7a
+    //   size 0xe（头内 inline 定义；对照同族 GetCeraPoint 为 T 0x08692af6 外联）
+    //   ⇒ 改类内定义复现绑定。CUser.cpp:5716 有调用 ⇒ 本 TU 仍发射 W 副本，四数不变。
+    unsigned int GetCera() { return m_cera; }
     void SetCera(unsigned int cera);
     unsigned int UseCera(unsigned int cera);
     void setRegDate(unsigned int date);
