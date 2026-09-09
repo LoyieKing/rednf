@@ -56,18 +56,23 @@
 //     ORIG 0x89ae343..0x89ae368）②判空改 `m_avatar264.size() != 0` 正极性
 //     （then=avatar / else=roomList，ORIG 0x89ae286 `call size; test eax; setne`）⇒
 //     gap 61→40；残余 = x87 fabs/fucompp 段（N85）+ 帧 0x180/0x170（N115/N95）。
-//   readCondtion 0x0899ce3b               DIFF P167 仅 EXTRA _Unwind_Resume ×2（N104 EH 布局）
+//   readCondtion 0x0899ce3b               DIFF P167 **CLEAR**（calls 511=511，仅 C1/C2、
+//     D1/D2 镜像）：本波未改动；gap 3653/3673（-20）= P63 内联失败块（我方 `je` 跳本地
+//     块 vs ORIG `jne` 共享出口，每检查点 +2 条）+ switch 叶块物理序（N 族形态）。
 //   importEquipmentParameterInfo 0x089a75ea DIFF：本波**p167 MISSING 清零**（补
 //     LevelUpSkill lu 循环外构造+循环内 clear、push_backEOi 右值直传、0x19d6/0x19f4
 //     拆成两个独立分支各一次 getActiveStatusToEnumValue）；残余 EXTRA string D1×6/
 //     ScanInt×6/operator==×5 等 = switch 后死 if 链等历史结构差 ⇒ N（P165 结构还原未做）
-//   readAction 0x089a13e5                 DIFF：本波 p167 真缺口 5 项 → 1 项（仅 EXTRA
-//     ScanTypeOrInt×1）—— ①[active status] cnt 变量循环物理展开三分支（补 ScanFloat×2，
-//     ORIG 0x89a2eb9 cnt=2 / 0x89a3330 cnt=4 / 0x89a31e4 单发）②[perform skill] 4 个
-//     具名 float 先物化 + 4×push_backERKf、删多余 ScanInt（ORIG 0x89a5090..0x89a51a9）
-//     ③[add absolute defense percent] `push_back((float)fv)` 右值（ORIG 0x89a3b0f..b2b）
-//     ④[passive object] 删发明守卫 `if (values.size()>1)`（ORIG 0x89a484d 直 at(1)）⇒
-//     gap 32→24；残余 = [active status] 子键展开链（P165）+ N82 帧槽。
+//   readAction 0x089a13e5                 DIFF：本波 p167 **CLEAR**（calls 634=634，仅
+//     C1/C2、D1/D2 镜像豁免）；本波修 3 处真语义缺口 —— ①[active status] 子表（ORIG
+//     0x89a2af7）用**已读状态名 token** 查 __lookup_0 一次 + switch(sid) 分派；旧实现
+//     `for(;;)+ScanTypeOrInt` 多读一个 token、且首建表回跳前误执行 body（多扫参数）⇒ 改
+//     P165/P333 状态机（贯穿 insert 链 + case 0 哨兵 + 3 处 goto 跳过 body + 链尾回跳 +
+//     float 0.0f 槽）②[skill]/[perform skill]/[end skill]/[skill super armor]/
+//     [skill unbreakable] 具名 float 先物化、末尾连续 push_backERKf（ORIG 槽 -0x9dc../
+//     -0xa40/-0xa44）③[swap stat] 删 body 局部串 s、改 ScanStr(&token)（ORIG 0x89a6b07）、
+//     lhs/rhs 子表改状态机（ORIG 0x89a6d4e/0x89a6f20）。gap 5339/5320（+19）；残余 =
+//     P63 内联失败块 vs ORIG 共享出口 + P232 float 初始化槽（N 族形态）。
 //   共同归因：4.1/4.4 寄存器分配·栈槽复用·EH 布局差（N7/N18a/N76/N82/N90/N104 族）。
 //   P167 CLEAR 件按 §6.2 判「语义完成、byte 层 N 封顶」。
 //   P0/N96：本文件全域无 `register asm` 绑定（grep 零命中）；`asm(".set …")` 仅用于
@@ -1045,93 +1050,112 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         if (!ScanInt(&iv)) return false;
         fv = (float)iv;
         values.push_back(fv);
-        // 嵌套子键循环：ScanTypeOrInt 得 token，查表分派附加状态参数
-        bool isType = false;
-        bool isInt = false;
-        for (;;)
+        // 附加状态子表：ORIG 0x89a2af7 起是「首建表后查表」状态机（P165/P333）——
+        // 用状态名 token 查 __lookup_0 得 sid，switch 贯穿 insert 链（各 case 头
+        // `if(!__inited_0) insert` 后直落下一 case，case 0 为建表哨兵与 0x1344 共享），
+        // 各链尾是共享 body；链尾 0x89a337c `if(!__inited_0){leave;__inited_0=true;
+        // goto retry}` 回跳重查；default 直落链尾、不扫描参数。
+ sid_retry:
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+        float f = 0.0f;
+        int sid;
+        if (__inited)
         {
-            if (ScanTypeOrInt(isType, token, isInt, true) == 0 && !isType && !isInt)
-                return false;
-            if (!isType) break;
-            // ORIG 0x89a13e5 __lookup_0：附加状态名子表（14 项，less_TCHAR 查表）。
-            int sid;
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(token.c_str());
+            sid = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();
+            if (__inited)
             {
-                static std::map<const char*, int, less_TCHAR> __lookup;
-                static SpinLock __init_lock;
-                static bool __inited = false;
-                if (!__inited)
-                {
-                    __init_lock.enter();
-                    if (__inited)
-                    {
-                        __init_lock.leave();
-                    }
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("blind", 0x1344));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("slow", 0x1345));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("haste", 0x1346));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("stone", 0x134f));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("confuse", 0x1350));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("weakness", 0x1351));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("armor break", 0x1352));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("weapon break", 0x1353));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("poison", 0x1354));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("lightning", 0x1355));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("bleeding", 0x1356));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("burn", 0x135c));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("bless", 0x135d));
-                        if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("curse", 0x135e));
-                    if (!__inited)
-                    {
-                        __init_lock.leave();
-                        __inited = true;
-                    }
-                }
-                std::map<const char*, int, less_TCHAR>::const_iterator it =
-                    __lookup.find(token.c_str());
-                sid = (it != __lookup.end()) ? it->second : -1;
+                __init_lock.leave();
+                goto sid_retry;
             }
-            if (sid == -1) break;
+            sid = 0;
+        }
+        switch (sid)
+        {
+        case 0:
+        case 0x1344:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("blind", 0x1344));
+        case 0x1345:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("slow", 0x1345));
+        case 0x1346:
+            if (!__inited)
             {
-                // 附加状态浮点参数（ORIG 物理展开三份，P165 we-smaller）：
-                // 0x89a2eb9 cnt=2 循环（槽 -0x44、`k<=1`）/ 0x89a3330 cnt=4 循环
-                // （槽 -0x40、`k<=3`）/ 0x89a31e4 单发。共用 cnt 变量循环会少 2 个
-                // ScanFloat 站点（p167 MISSING ScanFloat×2）。
-                if (sid == 0x1344 || sid == 0x1345 || sid == 0x1346)
-                {
-                    for (int k = 0; k <= 1; ++k)
-                    {
-                        if (!ScanFloat(&fv)) return false;
-                        values.push_back(fv);
-                    }
-                }
-                else if (sid == 0x135c || sid == 0x135d || sid == 0x135e)
-                {
-                    for (int k = 0; k <= 3; ++k)
-                    {
-                        if (!ScanFloat(&fv)) return false;
-                        values.push_back(fv);
-                    }
-                }
-                else
-                {
-                    if (!ScanFloat(&fv)) return false;
-                    values.push_back(fv);
-                }
+                __lookup.insert(std::pair<const char* const, int>("haste", 0x1346));
+                goto L_134f;
             }
+            for (int k = 0; k <= 1; ++k)
+            {
+                if (!ScanFloat(&f)) return false;
+                values.push_back(f);
+            }
+            break;
+ L_134f:
+        case 0x134f:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("stone", 0x134f));
+        case 0x1350:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("confuse", 0x1350));
+        case 0x1351:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("weakness", 0x1351));
+        case 0x1352:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("armor break", 0x1352));
+        case 0x1353:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("weapon break", 0x1353));
+        case 0x1354:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("poison", 0x1354));
+        case 0x1355:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("lightning", 0x1355));
+        case 0x1356:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("bleeding", 0x1356));
+                goto L_135c;
+            }
+            if (!ScanFloat(&f)) return false;
+            values.push_back(f);
+            break;
+ L_135c:
+        case 0x135c:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("burn", 0x135c));
+        case 0x135d:
+            if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("bless", 0x135d));
+        case 0x135e:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("curse", 0x135e));
+                break;
+            }
+            for (int k = 0; k <= 3; ++k)
+            {
+                if (!ScanFloat(&f)) return false;
+                values.push_back(f);
+            }
+            break;
+        default:
+            break;
+        }
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto sid_retry;
         }
         goto L_chain_end;
     }
@@ -1583,15 +1607,16 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         }
     {
         values.push_back(19.0f);
+        // 3 个具名 float（ORIG -0x9dc/-0x9e0/-0x9e4）先物化，末尾连续 3 次 push_backERKf。
         if (!ScanStr(&token)) return false;
-        fv = (float)getCharacterJobToEnumValue(token);
-        values.push_back(fv);
+        float f1 = (float)getCharacterJobToEnumValue(token);
         if (!ScanInt(&iv)) return false;
-        fv = (float)iv;
-        values.push_back(fv);
+        float f2 = (float)iv;
         if (!ScanInt(&iv)) return false;
-        fv = (float)iv;
-        values.push_back(fv);
+        float f3 = (float)iv;
+        values.push_back(f1);
+        values.push_back(f2);
+        values.push_back(f3);
         goto L_chain_end;
     }
     // 0x1553 [perform skill]
@@ -1630,12 +1655,13 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         }
     {
         values.push_back(21.0f);
+        // 2 个具名 float（ORIG -0x9f8/-0x9fc）先物化，末尾连续 2 次 push_backERKf。
         if (!ScanStr(&token)) return false;
-        fv = (float)getCharacterJobToEnumValue(token);
-        values.push_back(fv);
+        float f1 = (float)getCharacterJobToEnumValue(token);
         if (!ScanInt(&iv)) return false;
-        fv = (float)iv;
-        values.push_back(fv);
+        float f2 = (float)iv;
+        values.push_back(f1);
+        values.push_back(f2);
         goto L_chain_end;
     }
     // 0x157a [thorn]
@@ -1866,8 +1892,10 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(46.0f);
         if (!ScanStr(&token)) return false;
         values.push_back((float)getCharacterJobToEnumValue(token));
-        if (!ScanFloat(&fv)) return false;
-        values.push_back(fv);
+        // ORIG 0x89a5fe5..0x89a6078：具名 float 槽 -0xa40（0.0f 初始化）承 ScanFloat。
+        float f = 0.0f;
+        if (!ScanFloat(&f)) return false;
+        values.push_back(f);
         goto L_chain_end;
     }
     // 0x1642 [skill unbreakable]
@@ -1882,8 +1910,10 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(47.0f);
         if (!ScanStr(&token)) return false;
         values.push_back((float)getCharacterJobToEnumValue(token));
-        if (!ScanFloat(&fv)) return false;
-        values.push_back(fv);
+        // ORIG 0x89a6140..0x89a617a：具名 float 槽 -0xa44（0.0f 初始化）承 ScanFloat。
+        float f = 0.0f;
+        if (!ScanFloat(&f)) return false;
+        values.push_back(f);
         goto L_chain_end;
     }
     // 0x164e [skill cooltime reset]
@@ -1994,77 +2024,132 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             goto L_chain_end;
         }
     {
-        std::string s;     // ORIG 0x89a690e：body 局部串槽 -0xa90
-        if (!ScanStr(&s)) return false;
-        // ORIG 0x89a13e5 __lookup_1：lhs 侧 hp/mp/vp 子表（未命中默认 3）。
+        // ORIG 0x89a6b07：body 直接 ScanStr(&token)（无 body 局部串槽 -0xa90）；
+        // lhs=3 初值在 ScanStr 之后、查表之前（ORIG 0x89a6b26）。
+        if (!ScanStr(&token)) return false;
+        int lhs = 3;
+        // ORIG 0x89a6d4e 起 __lookup_1：lhs 侧 hp/mp/vp 子表 —— 「首建表后查表」状态机
+        // （P165/P333）：switch 贯穿 insert 链，inited 时各 case 写 lhs=0/1/2 后跳出；
+        // 链尾 0x89a6e81 `if(!__inited){leave;__inited=true;goto retry}` 回跳重查。
         int lid;
+ L_lid_retry:
         {
             static std::map<const char*, int, less_TCHAR> __lookup;
             static SpinLock __init_lock;
             static bool __inited = false;
-            if (!__inited)
+            if (__inited)
+            {
+                std::map<const char*, int, less_TCHAR>::const_iterator it =
+                    __lookup.find(token.c_str());
+                lid = (it != __lookup.end()) ? it->second : -1;
+            }
+            else
             {
                 __init_lock.enter();
                 if (__inited)
                 {
                     __init_lock.leave();
+                    goto L_lid_retry;
                 }
-                    if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("hp", 0x16da));
-                    if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("mp", 0x16df));
-                    if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("vp", 0x16e4));
-                if (!__inited)
-                {
-                    __init_lock.leave();
-                    __inited = true;
-                }
+                lid = 0;
             }
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(token.c_str());
-            lid = (it != __lookup.end()) ? it->second : -1;
+            switch (lid)
+            {
+            case 0:
+            case 0x16da:
+                if (__inited)
+                {
+                    lhs = 0;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>("hp", 0x16da));
+            case 0x16df:
+                if (__inited)
+                {
+                    lhs = 1;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>("mp", 0x16df));
+            case 0x16e4:
+                if (__inited)
+                {
+                    lhs = 2;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>("vp", 0x16e4));
+                break;
+            default:
+                break;
+            }
+            if (!__inited)
+            {
+                __init_lock.leave();
+                __inited = true;
+                goto L_lid_retry;
+            }
         }
-        int lhs = 3;
-        if (lid == 0x16da) lhs = 0;
-        else if (lid == 0x16df) lhs = 1;
-        else if (lid == 0x16e4) lhs = 2;
         int sg1 = 0; if (!getSign(&sg1)) return false;
         int v1 = 0; if (!ScanInt(&v1)) return false;
         if (!ScanStr(&token)) return false;
-        // ORIG 0x89a13e5 __lookup_2：rhs 侧 hp/mp/vp 子表（未命中默认 3）。
+        int rhs = 3;
+        // ORIG 0x89a6f20 起 __lookup_2：rhs 侧 hp/mp/vp 子表（同形状态机）。
         int rid;
+ L_rid_retry:
         {
             static std::map<const char*, int, less_TCHAR> __lookup;
             static SpinLock __init_lock;
             static bool __inited = false;
-            if (!__inited)
+            if (__inited)
+            {
+                std::map<const char*, int, less_TCHAR>::const_iterator it =
+                    __lookup.find(token.c_str());
+                rid = (it != __lookup.end()) ? it->second : -1;
+            }
+            else
             {
                 __init_lock.enter();
                 if (__inited)
                 {
                     __init_lock.leave();
+                    goto L_rid_retry;
                 }
-                    if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("hp", 0x16fa));
-                    if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("mp", 0x16ff));
-                    if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("vp", 0x1704));
-                if (!__inited)
-                {
-                    __init_lock.leave();
-                    __inited = true;
-                }
+                rid = 0;
             }
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(token.c_str());
-            rid = (it != __lookup.end()) ? it->second : -1;
+            switch (rid)
+            {
+            case 0:
+            case 0x16fa:
+                if (__inited)
+                {
+                    rhs = 0;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>("hp", 0x16fa));
+            case 0x16ff:
+                if (__inited)
+                {
+                    rhs = 1;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>("mp", 0x16ff));
+            case 0x1704:
+                if (__inited)
+                {
+                    rhs = 2;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>("vp", 0x1704));
+                break;
+            default:
+                break;
+            }
+            if (!__inited)
+            {
+                __init_lock.leave();
+                __inited = true;
+                goto L_rid_retry;
+            }
         }
-        int rhs = 3;
-        if (rid == 0x16fa) rhs = 0;
-        else if (rid == 0x16ff) rhs = 1;
-        else if (rid == 0x1704) rhs = 2;
         if (!ScanFloat(&fv)) return false;
         values.push_back(54.0f);
         values.push_back((float)lhs);
@@ -3825,7 +3910,8 @@ static bool GetSkillPhase(EquipmentParameterInfo::SASPROPERTY* sp)
 // GetSkillLevelUp 返回 int→bool，调用点 `call; xor $1; test; je` 逐条同形）⇒
 // ndiff 318→2。残差 = 4.4 把外层 `return 0` 中继块落在成功块之后（ORIG 落函数末尾
 // 与 && 短路失败共享）——块物理位置差（N121/P63 族），语义等价。
-static int importAllSkillItem(EquipmentParameterInfo* info)
+// 调用点 ORIG 0x89ac54e `call; xor $1,%eax; test %al,%al; je` ⇒ 返回 bool（P168a）。
+static bool importAllSkillItem(EquipmentParameterInfo* info)
 {
     EquipmentParameterInfo::SASPROPERTY sp;
     sp.m_head0 = 0xb; sp.m_head1 = 0; sp.m_head2 = 0xffffffff;
@@ -3956,7 +4042,8 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
 // [b28d-solo-EquipmentParameterInfo] importItemOverpowerDesc：✅ **IDENTICAL**
 // （0x089bf290，266=266，P167 CLEAR 35/35）。本波 P165/P177 结构还原（贯穿建表链
 // + 双检 goto 重试 + case 0/0x3001 共享 [stat] insert 调用点）+ 真语义修正（见尾部）。
-static int importItemOverpowerDesc(EquipmentParameterInfo* info)
+// 调用点 ORIG 0x89ac5cb 同形 `xor $1` ⇒ 返回 bool（P168a）。
+static bool importItemOverpowerDesc(EquipmentParameterInfo* info)
 {
     std::string token;
     bool terminated = false;
@@ -4062,6 +4149,46 @@ static int importItemOverpowerDesc(EquipmentParameterInfo* info)
 // （LevelUpSkill lu 循环外构造+循环内 clear、push_backEOi 右值直传、0x19d6/0x19f4 拆成
 // 两个独立分支各一次 getActiveStatusToEnumValue）；残余 EXTRA string D1×6/ScanInt×6/
 // operator==×5 等 = switch 后死 if 链等历史结构差（P165 结构还原未做）。5088 vs 4801。
+// ============================================================================
+// [BigEqParamTail 2026-09-09] 大件专项（4801 指令）逐段收敛：改前 4800/ORIG 4801
+// （gap +1，slot 归一后结构差 **90 块**）→ 改后 4837/4801（gap −36，结构差 **43 块**）。
+// 已修段（每段 ORIG 地址 → 类型 → 修法）：
+//  ① 0x89a7842 switch 决策树含未列 case 0 → 补 `case 0:`（P163）⇒ 二分树/范围逐点对齐。
+//  ② 0x89a8249 [if]：i 无槽（edx 直传）→ `scanIf(info, a++)` 实参内联（P0）。
+//  ③ 0x89a82d8/0x89a8303/0x89a83b1 [then]：ORIG `jg <then>`+else 直落 → 正向包裹
+//     `if (a<=b){a=-a;b=-b;return false;}`（P222）+ `b++` 实参内联（P0）+
+//     `if (!scanThen(...)) return false;` 负极性（P168a X 族）⇒ 逐条同形。
+//  ④ 0x89abdeb..0x89abf7a [active status control info]：10 分支恢复具名 int
+//     v0..v13（P0 槽往返，ORIG -0xa4..-0x70 逐槽；含未使用值仍落槽）。
+//  ⑤ 0x89a89da [recovery status]：`for(;;){v2=ScanFloat(&ok); if(!ok) break; …}` +
+//     ok 声明先于 i（P164/P283 循环旋转、P212 声明序）。
+//  ⑥ 0x89ab366/0x89aaacd/0x89aabba：三处三目改 if/else 两段直写成员（P47）。
+//  ⑦ 0x89ac54e/0x89ac5cb：importAllSkillItem/importItemOverpowerDesc int→bool
+//     （P168a 档①；调用点 `call; xor $1; test; je` 直证）。
+//  ⑧ 0x89abaa3/0x89abbd9 [active status probability/level]：`for(j=0;j<=0x11;++j)
+//     if(st==j) arr[j]=val;` 循环查找形 + 删冗余 st 范围守卫（P51/P175）。
+//  ⑨ 真语义修复（0x89ace7e 共享块）：default 与 [variable stat] insert 后统一
+//     `goto L_unknown` ⇒ `if (__inited) return false;`——原实现 break 直达
+//     chain_end，已初始化 + 未知 token 会错误返回 true。
+// 剩余 43 块判词（ORIG 地址区间 → 类型 → 封 N 依据）：
+//  · 帧 0xadc vs 0xa9c（+0x40）+ 槽号整体平移 + 缺 `movl $0,-0xa10`：ORIG 多一个
+//    跨 case 复用的 int 临时（[active status] 循环），补它需重构跨 case 共享临时 ⇒
+//    N82/N126 版本帧基址族封顶（帧数达标≠槽号归位，P332）。
+//  · 0x89a842a..0x89a866（[multiple then]）：ORIG 两个 string 局部（-0xa18/-0xa1c）+
+//    完整 EH landing/回滚段，我方 4.4 单 string + 不同 EH 布局 ⇒ N91/N104 封顶。
+//  · 0x89abfe7..0x89ac04a 注册链插入段与下个 case 标签的相对位置：指令集合一致，
+//    仅 EH 段长度造成位置错位（difflib 伪差）⇒ N104。
+//  · 0x89ac11c/0x89ac16b/0x89ac25d/0x89ac2af：两循环写 +0x10/+0xc 的语句顺序相反
+//    （ORIG 先 +0x10）⇒ P324 叶块序族，改动连锁槽位，封 N。
+//  · 0x89ac33e..0x89ac456：ORIG 用 for 循环写数组（回边 + setle 尾测），我方 4.4
+//    展开为直写 ⇒ P165「循环抽象 vs 物理展开」封 N。
+//  · 0x89ac9e8..0x89aca18：x87 比较 `fucompp/fnstsw/sahf` vs 4.4 `fucomip/fstp`
+//    ⇒ N85 封顶。
+//  · 0x89acab6/0x89acbca/0x89acbde：float 比较物化 + EH 段布局 ⇒ N85/N104。
+//  · 0x89ace9c：L_chain_end 的 jmp 中继条数（我方多 2 条）⇒ N112 对齐填充。
+// 验收（check_tu_routed fresh）：identical=446 / ae=1011 / near=3 / diff=14 /
+//   missing_in_game=313——与本轮前完全一致（零回退）；p167 调用点差集保持 CLEAR。
+// ============================================================================
 bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
                                   std::string& path, const char* dir,
                                   int& a, int& b)
@@ -4095,6 +4222,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     }
     switch (id)
     {
+    case 0:                     // P163：ORIG 0x89a7842 树含未列 case 0
     case 0x176d:
         if (!__inited)
         {
@@ -4182,7 +4310,8 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_1788;
         }
     {
-        int i = a; a = a + 1; scanIf(info, i); goto L_chain_end;
+        // ORIG 0x89a8249：i 无栈槽（eax→edx 直传）⇒ 原码是实参内联 `a++`（P0）。
+        scanIf(info, a++); goto L_chain_end;
     }
     case 0x1788:
     L_1788:
@@ -4192,18 +4321,17 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_1795;
         }
     {
-        if (b < a)
-        {
-        int i = b;
-        b = b + 1;
-        if (scanThen(dir, info, i)) goto L_chain_end;
-        }
-        else
+        // ORIG 0x89a82d8 `jg <then>`：else 直落、then 为跳转目标 ⇒ 正向包裹（P222/P59）。
+        if (a <= b)
         {
         a = -a;
         b = -b;
-        }
         return false;
+        }
+        // ORIG 0x89a8303：i 无栈槽（%esi 跨 string 构造保活）⇒ 实参内联 `b++`（P0）；
+        // 0x89a83b1 `test %al,%al; je <成功尾>`（esi=!ret，X 族负极性）。
+        if (!scanThen(dir, info, b++)) return false;
+        goto L_chain_end;
     }
     case 0x1795:
     L_1795:
@@ -4305,14 +4433,18 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_vec240.clear();
         int n = ScanInt((bool*)0);
         info->m_vec240.resize(n);
-        int i = 0;
+        // ORIG 0x89a89da：ok(-0xa1d) 声明先于 i(-0xf8)；0x89a89fc 头部
+        // `movzbl ok; xor $1; test; je <exit>` + 0x89a8a49 回跳头部 ⇒ for(;;)+break
+        // 复现 4.1 循环旋转（P164/P283）。
         bool ok = false;
-        float v2 = ScanFloat(&ok);
-        while (ok)
+        int i = 0;
+        float v2;
+        for (;;)
         {
+        v2 = ScanFloat(&ok);
+        if (!ok) break;
         info->m_vec240[i % n].push_back(v2);
         ++i;
-        v2 = ScanFloat(&ok);
         }
         goto L_chain_end;
     }
@@ -4853,7 +4985,12 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_18e0;
         }
     {
-        if (ScanStr(&s)) info->m_addAbsoluteDamageType = (s == "[magical]") ? 1 : 0;
+        // ORIG 0x89aaacd/0x89aaae5：两段独立比较+直写成员（P47）。
+        if (ScanStr(&s))
+        {
+        if (s == "[physical]") info->m_addAbsoluteDamageType = 0;
+        else if (s == "[magical]") info->m_addAbsoluteDamageType = 1;
+        }
         info->m_addAbsoluteDamageValue= ScanFloat((bool*)0);
         info->m_addAbsoluteDamageExtra= ScanInt((bool*)0);
         goto L_chain_end;
@@ -4866,7 +5003,11 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_18e9;
         }
     {
-        if (ScanStr(&s)) info->m_addAbsoluteDefenseType = (s == "[magical]") ? 3 : 2;
+        if (ScanStr(&s))
+        {
+        if (s == "[physical]") info->m_addAbsoluteDefenseType = 2;
+        else if (s == "[magical]") info->m_addAbsoluteDefenseType = 3;
+        }
         info->m_addAbsoluteDefenseValue= ScanFloat((bool*)0);
         info->m_addAbsoluteDefenseExtra= ScanInt((bool*)0);
         goto L_chain_end;
@@ -5028,7 +5169,10 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         while (ScanStr(&s))
         {
         lu.clear();
-        lu.m_job = (s == "[common]") ? 0xb : getCharacterJob(s.c_str());
+        // ORIG 0x89ab366：true 臂直写 `movl $0xb,-0xa40`、else 臂 call 后写槽
+        // ⇒ 原码是 if/else 两段赋值，非三目（P47）。
+        if (s == "[common]") { lu.m_job = 0xb; }
+        else { lu.m_job = getCharacterJob(s.c_str()); }
         lu.m_field4 = ScanInt((bool*)0);
         lu.m_field8 = ScanInt((bool*)0);
         info->m_levelUpSkills[0].push_back(lu);
@@ -5079,7 +5223,9 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         if (s == kAvatarAbilityNames[i])
         {
         var.m_field0 = i;
-        if (i == 0x2b)
+        // ORIG 0x89ab4a4 `mov -0xa58,%eax; cmp $0x2b,%eax`：比较对象是
+        // var.m_field0（成员槽往返），非循环变量 i。
+        if (var.m_field0 == 0x2b)
         {
         var.m_field4 = 0;
         ScanStr(&s);
@@ -5222,9 +5368,13 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_activeStatusProbability[i] = val;
         }
         }
-        else if (st >= 0 && st < 0x12)
+        else
         {
-        info->m_activeStatusProbability[st] = val;
+        // ORIG 0x89abaa3：`for(j=0;j<=0x11;++j) if(st==j) arr[j]=val` 循环查找形。
+        for (int j = 0; j <= 0x11; ++j)
+        {
+        if (st == j) info->m_activeStatusProbability[j] = val;
+        }
         }
         }
         }
@@ -5252,9 +5402,13 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_activeStatusLevelTable[i] = val;
         }
         }
-        else if (st >= 0 && st < 0x12)
+        else
         {
-        info->m_activeStatusLevelTable[st] = val;
+        // ORIG 0x89abbd9 同形循环。
+        for (int j = 0; j <= 0x11; ++j)
+        {
+        if (st == j) info->m_activeStatusLevelTable[j] = val;
+        }
         }
         }
         }
@@ -5295,48 +5449,56 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_activeStatusCtrl[st] = c;
         if (st == 0)
         {
-        ScanInt((bool*)0);
-        ScanInt((bool*)0);
+        // ORIG 0x89abdeb/0x89abdfd：结果落具名槽 -0xa4/-0xa0（P0 槽往返）。
+        int v0 = ScanInt((bool*)0);
+        int v1 = ScanInt((bool*)0);
+        (void)v0; (void)v1;
         }
         else if (st == 2)
         {
-        info->m_activeStatusControlInfo[0] = ScanInt((bool*)0);
+        int v2 = ScanInt((bool*)0);
+        info->m_activeStatusControlInfo[0] = v2;
         }
         else if (st == 4)
         {
-        ScanInt((bool*)0);
+        int v3 = ScanInt((bool*)0); (void)v3;
         }
         else if (st == 5)
         {
-        ScanInt((bool*)0);
-        ScanInt((bool*)0);
+        int v4 = ScanInt((bool*)0);
+        int v5 = ScanInt((bool*)0);
+        (void)v4; (void)v5;
         }
         else if (st == 6)
         {
-        info->m_activeStatusControlInfo[1] = ScanInt((bool*)0);
+        int v6 = ScanInt((bool*)0);
+        info->m_activeStatusControlInfo[1] = v6;
         }
         else if (st == 7)
         {
-        info->m_activeStatusControlInfo[2] = ScanInt((bool*)0);
+        int v7 = ScanInt((bool*)0);
+        info->m_activeStatusControlInfo[2] = v7;
         }
         else if (st == 9)
         {
-        int v = ScanInt((bool*)0);
-        ScanInt((bool*)0);
-        ScanInt((bool*)0);
-        info->m_activeStatusControlInfo[3] = v;
+        int v8 = ScanInt((bool*)0);
+        int v9 = ScanInt((bool*)0);
+        int v10 = ScanInt((bool*)0);
+        (void)v9; (void)v10;
+        info->m_activeStatusControlInfo[3] = v8;
         }
         else if (st == 0xa)
         {
-        ScanInt((bool*)0);
+        int v11 = ScanInt((bool*)0); (void)v11;
         }
         else if (st == 0xb)
         {
-        info->m_activeStatusControlInfo[4] = ScanInt((bool*)0);
+        int v12 = ScanInt((bool*)0);
+        info->m_activeStatusControlInfo[4] = v12;
         }
         else if (st == 0x11)
         {
-        ScanInt((bool*)0);
+        int v13 = ScanInt((bool*)0); (void)v13;
         }
         }
         }
@@ -5440,7 +5602,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_1b3d;
         }
     {
-        if (importAllSkillItem(info) != 1) return false; goto L_chain_end;
+        if (!importAllSkillItem(info)) return false; goto L_chain_end;
     }
     case 0x1b3d:
     L_1b3d:
@@ -5450,7 +5612,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_1b41;
         }
     {
-        if (importItemOverpowerDesc(info) != 1) return false; goto L_chain_end;
+        if (!importItemOverpowerDesc(info)) return false; goto L_chain_end;
     }
     case 0x1b41:
     L_1b41:
@@ -5637,7 +5799,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         if (!__inited)
         {
             __lookup.insert(std::pair<const char* const, int>("[variable stat]", 0x1bc1));
-            goto L_chain_end;
+            goto L_unknown;         // ORIG 0x89ace5a `jmp 0x89ace7e`（共享未知块）
         }
     {
         // ORIG 0x89ace3f：VariableStat 局部 ctor（0x89c2dfc）后
@@ -5648,8 +5810,13 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         goto L_chain_end;
     }
     default:
-        break;
+        // ORIG 0x89ace7e（共享块）：未知 token 在**已初始化**时返回 false；
+        // 建表首轮（__inited==0）则落 chain_end 继续重查。原实现 break 直达
+        // chain_end ⇒ 已初始化 + 未知 token 会错误返回 true（真语义缺口）。
+        goto L_unknown;
     }
+ L_unknown:                          // ORIG 0x89ace7e（default 与 [variable stat] 共享）
+    if (__inited) return false;
  L_chain_end: ;
     if (!__inited)
     {
