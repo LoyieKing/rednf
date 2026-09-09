@@ -25,6 +25,7 @@
 #include "RDARScriptStringManager.h"   // ErrorLog（InitRDARScriptStringManager 形参）
 #include "CDailyScheduleManager.h"     // _DailySchedule / CDailyScheduleManager
 #include "CCompoundAvatar.h"          // ENUM_CHARACTERJOB（guard 枚举）+ tagCompoundAvatar 族声明
+#include "NeedMaterialDataManager.h"  // NeedMaterialDataManager（唯一声明点；替代原最小声明）
 
 
 class InGameEventInfoList;             // CEventScriptMng.h（全局作用域基类 1）
@@ -243,14 +244,11 @@ int  makeFairPVPEquipmentPackageKey(int job, int idx);                          
 
 // ---- 最小类声明（ORIG 有真实符号；布局与专属批次落地前仅以 new/指针使用）----
 
-// ORIG NeedMaterialDataManager::getInstance T 0x081b5ab2（单例；定义 CItem.cpp 域）
-class CItem;
-class NeedMaterialDataManager
-{
-public:
-    static NeedMaterialDataManager* getInstance();
-    CItem* getNeedMaterial(const CItem* item) const;   // ORIG T 0x081b5b70（NeedMaterialDataManager.cpp 定义）
-};
+// [b28d-SweepDataMgrInit] NeedMaterialDataManager 已统一到权威头 NeedMaterialDataManager.h
+// （§4.4 单一声明点；原此处最小类声明与权威头不一致 —— 缺 getNeedMaterial(int)/
+//  setNeedMaterialInfo 且私有 ctor/dtor 缺失，构成 ODR 违规）。ORIG 符号：
+//   getInstance T 0x081b5ab2、getNeedMaterial(const CItem*) T 0x081b5b70
+//   （同族 CItem.cpp 修复已实证可翻正 N7 间接 call 目标寄存器）。
 struct SecurityReward;  // CDataManager.h 定义；独立包含本头时仅需指针声明
 
 // ORIG CmmChannelProxy（GlobalData.h 前向；完整布局在 GlobalData.cpp/GameMain.cpp

@@ -2143,13 +2143,22 @@ pvp_cond:
         {
             table.m_recordOrder.clear();
             std::string job;
-            while (ScanStr(&job))
-            {
-                // [b28d-solo-CDataManager] ORIG 0x08908961 选
-                // `push_backEOi`（右值）⇒ 直接传函数返回值，无具名 idx
-                // （具名左值会选 ERKi，p167 MISSING EOi/EXTRA ERKi）。
-                table.m_recordOrder.push_back(getCharacterJobToEnumValue(job));
-            }
+            // [b28d-SweepDataMgrInit] ORIG 0x08908931..0x08908974 实测：
+            //   call ScanStr; xor $1,%eax; test %al,%al; jne 退出; body;
+            //   jmp 回 ScanStr —— 循环头即 ScanStr 调用、失败取反物化退出。
+            // 4.4 对 `while(ScanStr(&job))` 恒旋转成入口 jmp + 尾 test/jne
+            // （缺 xor $1，入口多 jmp），与 ORIG 逐条不符；改 goto 头条件形
+            // 复现（P164/P223；本函数外层与两个内层逗号 while 已同法）。
+        pvp_record_scan:
+            if (!ScanStr(&job))
+                goto pvp_record_done;
+            // [b28d-solo-CDataManager] ORIG 0x08908961 选
+            // `push_backEOi`（右值）⇒ 直接传函数返回值，无具名 idx
+            // （具名左值会选 ERKi，p167 MISSING EOi/EXTRA ERKi）。
+            table.m_recordOrder.push_back(getCharacterJobToEnumValue(job));
+            goto pvp_record_scan;
+        pvp_record_done:
+            ;
         }
         else if (line == "[pvp team hp correction]")
         {
