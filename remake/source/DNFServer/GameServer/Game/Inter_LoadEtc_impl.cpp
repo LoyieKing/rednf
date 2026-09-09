@@ -840,29 +840,44 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
         CItem* found = G_CDataManager()->find_item(itemId);
         if (found == 0)
             return;
-        // [b28d-63] P282 vtable 还原：ORIG 0x84d9135 `add $0xc` ⇒ word[5]，
-        // CItem 虚序 f3 = GetItemType()（f2=make_item 即下方 +0x8）；返回值弃用。
-        (void)found->GetItemType();
+        // [SweepInterLoadEtcImpl] ORIG 0x084d912d `mov %eax,-0x80(%ebp)` 与
+        // 0x084d9142 `mov %al,-0x81(%ebp)` 的槽址 = mailItem(-0x82) + 2 / +1
+        // ⇒ mailItem.m_addInfo = itemId、mailItem.m_field1 = GetItemType()
+        // （旧译文 `(void)found->GetItemType();` 丢两次字段写入 = 真语义 bug）。
+        // P282：ORIG 0x84d9135 `add $0xc` ⇒ 虚槽 word[5] = GetItemType()。
+        mailItem.m_addInfo = itemId;
+        mailItem.m_field1 = (unsigned char)found->GetItemType();
         found->make_item(mailItem);                  // ORIG 虚槽 +0x8
         mailItem.set_add_info(itemCnt);
     }
 
     unsigned int accId = user->get_acc_id();
-    int serverGroup = (int)user->GetServerGroup();
-    int sent = WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+    // [SweepInterLoadEtcImpl] ORIG 0x084d9187 `movl $0x0,-0x20(%ebp)`：sent 预清
+    // 在 accId 赋值之后、GetServerGroup 之前（P198① 两句式，合写会丢预清行）。
+    // GetServerGroup 无栈槽（ORIG 0x084d9199 `mov %eax,%ebx` 直落 callee-saved，
+    // P0/P183）⇒ 内联第 8 实参；右→左求值序使它在 strlen 之前，与 ORIG 一致。
+    int sent = 0;
+    sent = WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         title, mailItem, coinCount, user->getCurCharacNo(), body, (int)strlen(body),
-        7u, (ENUM_SERVER_GROUP)serverGroup, false, false);
+        7u, (ENUM_SERVER_GROUP)(int)user->GetServerGroup(), false, false);
 
-    if (sent == 0)
+    // [SweepInterLoadEtcImpl] ORIG 0x084d9207 `jne 084d9280`(nop 岛) 直落 epilogue：
+    // 4.4 对 `if (sent==0){...}` 恒把该出口线程化到 add 指令（少 1 岛）⇒ P223 尾空标签形。
+    if (sent != 0)
+        goto give_break_away_reward_end;
     {
-        STBreakAwayRewards* rewards = user->getBreakAwayRewards();
-        // [b28d-63] ORIG 0x84d921c/0x84d9229：失败分支重调 getCurCharacNo/get_acc_id。
+        // [SweepInterLoadEtcImpl] ORIG 0x084d920f 结果直落 %edi 跨后续 3 个 getter
+        // 保活（无栈槽往返，P0/P183）⇒ 内联第 4 实参；右→左求值序 = ORIG 的
+        // getBreakAwayRewards 先于 GetUID/get_acc_id/getCurCharacNo。
+        // ORIG 0x84d921c/0x84d9229：失败分支重调 getCurCharacNo/get_acc_id。
         DB_LoadBreakAwayRewardData::makeRequest((int)user->GetUID(),
                                                 user->get_acc_id(),
-                                                user->getCurCharacNo(), *rewards);
+                                                user->getCurCharacNo(),
+                                                *user->getBreakAwayRewards());
         user->setBreakAwayRewardItemId(0);
         user->setBreakAwayRewardAItemCnt(0);
     }
+give_break_away_reward_end:;
 }
 
 void Inter_LoadEtc::processGrowthWeaponEvent(CUser& user)
@@ -1185,9 +1200,16 @@ void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& use
     // ORIG 0x084e8102 直接 call _ZN15AttendanceEvent13getRewordItemEv（2026-08-28
     // OrigEventLeaf8f 实证），返回 (short)m_addInfo.m_info0。
     int rewardIdx = attendance->getRewordItem();
+    // [SweepInterLoadEtcImpl] ORIG 0x084e810a `movl $0x1,-0x20(%ebp)`：写后从不读的
+    // 死局部（P171 照抄；(void) 消警告）。缺它会使后续 item/mailItem 槽整体上移 4。
+    int deadFlag = 1;
+    (void)deadFlag;
     CItem* item = G_CDataManager()->find_item(rewardIdx);
     if (item == 0)
         return;
+    // [SweepInterLoadEtcImpl] ORIG 0x084e8132 `mov -0x24(%ebp),%eax; mov %eax,-0x78(%ebp)`
+    // = mailItem.m_addInfo（-0x7a+2）= rewardIdx，在 make_item 之前（旧译文缺此写入）。
+    mailItem.m_addInfo = (unsigned int)rewardIdx;
     item->make_item(mailItem);                       // ORIG 虚槽 +0x8
     mailItem.set_add_info(1);
 
@@ -1202,10 +1224,11 @@ void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& use
             0x14);
 
     // [b28d-63] ORIG 0x84e82ab/0x84e82fe：getCurCharacNo 两处内联调用（无缓存局部）。
-    int serverGroup = (int)user.GetServerGroup();
+    // [SweepInterLoadEtcImpl] ORIG 0x084e8293 `mov %eax,%ebx`：GetServerGroup 直落
+    // callee-saved（无栈槽，P0/P183）⇒ 内联第 8 实参（右→左求值序 = 先于 strlen）。
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         title, mailItem, 0u, user.getCurCharacNo(), sender, (int)strlen(sender), 0u,
-        (ENUM_SERVER_GROUP)serverGroup, false, false);
+        (ENUM_SERVER_GROUP)(int)user.GetServerGroup(), false, false);
 
     DB_InsertAttendanceEvent::makeRequest((int)user.GetUID(),
                                           user.get_acc_id(), user.getCurCharacNo());
