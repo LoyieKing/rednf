@@ -21,7 +21,11 @@ class Party : public IData, public PlayInfo
 {
 public:
     Party();     // W 0x084869f4（C1/C2 同址）
-    ~Party();    // W 0x08486a1e（空体，ORIG 5 字节 trivial 形态）
+    // b28d-Main：必须**头内 inline 定义**。ORIG W 0x08486a1e（5 字节空体）在头内可见 ⇒
+    // `map<int,Party>` 的 new_allocator::construct（ORIG 0x0848c92e，22 条）无 EH landing pad；
+    // 仅声明不定义会让 4.4 -O0 为该 construct 多发 16 条 `_ZdlPvS_`/`_Unwind_Resume`（38 条）。
+    // 探针 /tmp/exp4/pv/pv2..pv4.cpp（声明形有 pad）vs pv10/pv11.cpp（inline 定义无 pad）实证。
+    ~Party() {}   // W 0x08486a1e（空体，ORIG 5 字节 trivial 形态）
     void Reset();  // W 0x084869d6（PlayInfo::Reset + 清 +0x3c）
 };
 

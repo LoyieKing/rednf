@@ -7800,12 +7800,8 @@ Party::Party()
     Reset();
 }
 
-// b28d-Main 恢复：D49 曾误删本定义（与 CParty::~CParty 不同类），导致全域
-// `undefined reference to Party::~Party()`。ORIG W 0x08486a1e 为空体。
-Party::~Party()
-{
-}
-
+// b28d-Main：`Party::~Party()` 已改为 Party.h 内 inline 定义（ORIG 该符号在头内可见，
+// 否则 map<int,Party>::construct 会多发 16 条 EH landing pad）；此处不得再定义（重定义）。
 void Party::Reset()
 {
     PlayInfo::Reset();

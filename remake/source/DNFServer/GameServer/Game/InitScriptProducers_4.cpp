@@ -486,9 +486,7 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
 //   逐行 MonsterBaseParameter 回填 → MonsterApcDifficultyBonus.tbl 三张
 //   13 行浮点加成表 → 标签化难度/平衡/减速/血量调整段。
 // [b28d-solo-InitScriptProducers_4 语义完成] 三件套：①p167 调用点差集 168/168 CLEAR；
-// ②gap 2（1220 vs 1218 归一化；raw 1239 vs 1231）；帧 0x2ec 与 ORIG 全等，残余为
-//    N82 槽号 + !bool 早退检查的 xor/test/jne 共享尾块 vs 内联形态（P63/N121 族）；
-// ③本 TU 剩余真缺口 = 0。本轮修的真缺口：
+// ②帧 0x2ec 与 ORIG 全等；③本 TU 剩余真缺口 = 0。上轮修的真缺口：
 //  ①[limit slowdown] 段 P333 状态机还原（ORIG 0x8a120e6..0x8a12678：switch fallthrough
 //    逐条 insert + 尾部 leave/置位/goto retry 回跳，原直线 if 链漏 4 处 __inited 检查与回跳）；
 //  ②[/limit slowdown] 终止标记应 break（原 continue 会吞掉后续主标签，真语义 bug）；
@@ -498,6 +496,14 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
 //    float v=1.0f（ORIG -0x1c，三支复用）补回。
 // 其余：P303、临时空向量 resize(5,临时)、ORIG 列序 ScanInt(0,3,4,5,6,1,2,7..12,两循环,21..23)、
 // 5 连短路难度链、段首单次构造 DungeonHoldBalance/stLimitSlowDown、P177 static 入循环体。
+// [本轮 2026-09-09] gap 8→0（raw 1239 vs 1231 → 1239 vs 1239；p167 168/168 CLEAR；
+//   帧 0x2ec 全等）：①[limit slowdown] 4 处 `if (inited)` 改负极性
+//   `if (!inited) {insert} else {...break}`（P22/P133；ORIG 0x8a12312/0x8a12378/
+//   0x8a1245c/0x8a12540 均为 movzbl __inited; xor $1; test; je <else>）；
+//   ②MonsterBaseParameter 循环 first(-0x78) 预清零且声明序在 param 之前（P198①/P0；
+//   ORIG 0x8a117a6 movl $0,-0x78 在 0x8a117b0 param C1 之前）。
+// 残余为 N82 槽号/寄存器分配与循环尾 r++ 位置（ORIG `while` 形）等结构性产物，
+// 非语义缺口（nop 剥离后 1220 vs 1226；ORIG 侧多 6 条对齐 nop，§6.1 豁免）。
 bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 {
     if (list != 0)                          // ORIG cmpl $0x0,0xc(%ebp)
@@ -530,9 +536,12 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
             bool ok = false;
             for (int row = 0;; ++row)       // ORIG -0x74(%ebp)
             {
+                // ORIG 0x8a1146a..0x8a11481：first(-0x78) 预清零在 param C1 之前
+                // （P198① 预清必写）⇒ 声明序 first 在前、ScanInt 结果再回写。
+                int first = 0;                          // ORIG -0x78 具名中转
                 MonsterBaseParameter param;             // ORIG -0x26c(%ebp)
-                int first = ScanInt(&ok);               // ORIG -0x78 具名中转
-                if (!ok)                                // ORIG 0x8a114a8 jne
+                first = ScanInt(&ok);
+                if (!ok)                                // ORIG 0x8a114aa jne
                     break;
                 param.m_value[0] = first;
                 // ORIG 列序（0x8a114b5..0x8a116a0）：3,4,5,6,1,2,7..12 + 两循环 + 21..23
@@ -817,15 +826,26 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 {
                 case 0:
                 case 0x932:                             // [/limit slowdown] 终止标记
-                    if (inited)
+                    // P22/P133：ORIG 0x8a12312 movzbl __inited; xor $1; test; je <else>
+                    // ⇒ 原码为 `if (!inited) {insert} else {bStop; break}` 负极性形。
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
+                        // fall through
+                    }
+                    else
                     {
                         bStop = true;                   // ORIG 0x8a1236f
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
-                    // fall through
                 case 0x935:                             // [normal]
-                    if (inited)
+                    // ORIG 0x8a12378 movzbl __inited; xor $1; test; je <parse>
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
+                        // fall through
+                    }
+                    else
                     {
                         NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.clear();   // 0x9494f8c
                         for (int i = 0; i <= 199; ++i)
@@ -839,10 +859,14 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                         }
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
-                    // fall through
                 case 0x949:                             // [boss]
-                    if (inited)
+                    // ORIG 0x8a1245c movzbl __inited; xor $1; test; je <parse>
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
+                        // fall through
+                    }
+                    else
                     {
                         BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.clear();     // 0x9494fa4
                         for (int i = 0; i <= 199; ++i)
@@ -856,10 +880,15 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                         }
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
-                    // fall through
                 case 0x95d:                             // [named]
-                    if (inited)
+                    // ORIG 0x8a12540 movzbl __inited; xor $1; test; je <parse>；
+                    // 0x8a1259b jmp <switch 尾>（插入分支 break，不 fallthrough）。
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
+                        break;
+                    }
+                    else
                     {
                         NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.clear();    // 0x9494f98
                         for (int i = 0; i <= 199; ++i)
@@ -873,8 +902,6 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                         }
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
-                    break;
                 default:                                // id==-1（未知子标签）
                     break;
                 }
@@ -929,13 +956,19 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 }
 // ORIG 0x08a3b0ad（0x1515 字节）：带 map 形参重载
 // _Z17InitMonsterScriptPKcS0_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEES0_。
-// 与 3 参数版（0x08a11311）归一化 diff 仅一处逻辑差异：loadRDARScriptListFile
-// 第 4 参装载 0x10(%ebp)（map）而非 movl $0；其余指令序列、跳转结构、
-// 全局地址逐条相同（两版函数级 static __lookup/__init_lock/__inited 各自独立：
+// 与 3 参数版（0x08a11311）逐条 objdump 比对（本轮）：差异仅
+//  ①loadRDARScriptListFile 第 4 参装载 0x10(%ebp)（map）而非 movl $0；
+//  ②logFormat 行号本版 0x2b22/0x2b38/0x2b54/0x2b6f（3 参版 0x7e6/0x7fc/0x818/0x833）；
+//  ③limit slowdown 段 map value 本版 0x2c6e/0x2c71/0x2c85/0x2c99
+//    （3 参版 0x932/0x935/0x949/0x95d）；④__FUNCTION__/static 变量/字符串地址不同；
+// 其余指令序列、跳转结构逐条相同（两版函数级 static __lookup/__init_lock/__inited 各自独立：
 // ORIG 0x94fff80/0x94fff98/0x94fff9c vs 0x94ff8a8/0x94ff8b8/0x94ff8d4）。
-// [b28d-solo-InitScriptProducers_4 语义完成] 同 3 参版（第 4 参 map 透传）；
-// p167 168/168 CLEAR（余 C1/C2、D1/D2 同址别名，P93 豁免）；
-// gap 2（1221 vs 1219 归一化；raw 1240 vs 1232）；剩余真缺口 = 0。
+// [本轮 2026-09-09] gap 8→0（raw 1240 vs 1232 → 1240 vs 1240；p167 168/168 CLEAR，
+//   余 C1/C2、D1/D2 同址别名 P93 豁免）：真缺口 = 错常量实参——原源码 4 处 map value
+//   与 4 处 logFormat 行号误抄 3 参版常量，已按本版 ORIG 修正；另同 3 参版
+//   P22/P133 负极性改写（if (!inited)…else…）与 first(-0x78) 预清零（P198①/P0）。
+// 注：本函数体内行内注释的 0x8a11xxxx/0x8a12xxxx 地址系上轮自 3 参版复制的同构位置
+// 注释；本版真实地址以 objdump 0x08a3b0ad 起为准（仅注释，机器码不受影响）。
 bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* map,
                        const char* apcBonus)
 {
@@ -969,9 +1002,12 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
             bool ok = false;
             for (int row = 0;; ++row)       // ORIG -0x74(%ebp)
             {
+                // ORIG 0x8a3b205..0x8a3b21c：first(-0x78) 预清零在 param C1 之前
+                // （P198① 预清必写）⇒ 声明序 first 在前、ScanInt 结果再回写。
+                int first = 0;                          // ORIG -0x78 具名中转
                 MonsterBaseParameter param;             // ORIG -0x26c(%ebp)
-                int first = ScanInt(&ok);               // ORIG -0x78 具名中转
-                if (!ok)                                // ORIG 0x8a114a8 jne
+                first = ScanInt(&ok);
+                if (!ok)                                // ORIG 0x8a3b245 jne
                     break;
                 param.m_value[0] = first;
                 // ORIG 列序（0x8a114b5..0x8a116a0）：3,4,5,6,1,2,7..12 + 两循环 + 21..23
@@ -1016,7 +1052,7 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
     if (!loadRDARScriptFile(dir, apcBonus))
     {
         LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
-                              0x7e6, "error : MonsterApcDifficultyBonus.tbl is missing!!");
+                              0x2b22, "error : MonsterApcDifficultyBonus.tbl is missing!!");
         return false;
     }
 
@@ -1030,7 +1066,7 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
             if (!ok && c != 4 && r != 12)
             {
                 LogManager::logFormat(
-                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x7fc,
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x2b38,
                     "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
                     r, c);
                 break;
@@ -1048,7 +1084,7 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
             if (!ok && c != 3 && r != 12)
             {
                 LogManager::logFormat(
-                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x818,
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x2b54,
                     "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
                     r, c);
                 break;
@@ -1066,7 +1102,7 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
             if (!ok && c != 3 && r != 12)
             {
                 LogManager::logFormat(
-                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x833,
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x2b6f,
                     "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
                     r, c);
                 break;
@@ -1255,16 +1291,26 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 switch (id)
                 {
                 case 0:
-                case 0x932:                             // [/limit slowdown] 终止标记
-                    if (inited)
+                case 0x2c6e:                            // [/limit slowdown] 终止标记
+                    // P22/P133：ORIG 0x8a3c0ad movzbl __inited; xor $1; test; je 8a3c10a
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x2c6e));
+                        // fall through
+                    }
+                    else
                     {
                         bStop = true;
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
-                    // fall through
-                case 0x935:                             // [normal]
-                    if (inited)
+                case 0x2c71:                            // [normal]
+                    // ORIG 0x8a3c113 movzbl __inited; xor $1; test; je 8a3c173
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x2c71));
+                        // fall through
+                    }
+                    else
                     {
                         NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.clear();
                         for (int i = 0; i <= 199; ++i)
@@ -1278,10 +1324,14 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                         }
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
-                    // fall through
-                case 0x949:                             // [boss]
-                    if (inited)
+                case 0x2c85:                            // [boss]
+                    // ORIG 0x8a3c1f7 movzbl __inited; xor $1; test; je 8a3c257
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x2c85));
+                        // fall through
+                    }
+                    else
                     {
                         BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.clear();
                         for (int i = 0; i <= 199; ++i)
@@ -1295,10 +1345,14 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                         }
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
-                    // fall through
-                case 0x95d:                             // [named]
-                    if (inited)
+                case 0x2c99:                            // [named]
+                    // ORIG 0x8a3c2db movzbl __inited; xor $1; test; je 8a3c338
+                    if (!inited)
+                    {
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x2c99));
+                        break;
+                    }
+                    else
                     {
                         NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.clear();
                         for (int i = 0; i <= 199; ++i)
@@ -1312,8 +1366,6 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                         }
                         break;
                     }
-                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
-                    break;
                 default:                                // id==-1（未知子标签）
                     break;
                 }

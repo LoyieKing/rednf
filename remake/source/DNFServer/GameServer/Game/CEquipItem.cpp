@@ -45,8 +45,8 @@ int getLevelLinearAbility(int a, int b, int c, int d, int level)
     int vDiff = d - c;                              // ORIG：-0x24（在 x87 段之前）
     double ratio = (double)vLevel / (double)vSpan;
     // ORIG `fucompp;fnstsw;test $0x45,%ah;sete;test;je` = !(x>0) 钳回 0；
-    // 4.4-i486 对 `x <= 0` 产 `test $0x5,%ah;sete`（仅掩码少 C3 位，助记符序列同 ⇒ NEAR）。
-    if (ratio <= 0.0)
+    // 掩码 0x45（C0|C2|C3 全 0 = 严格大于）对应源码 `x < 0.0`；`x <= 0` 产 `test $0x5`。
+    if (ratio < 0.0)
         ratio = 0.0;
     if (ratio > 1.0)
         ratio = 1.0;
