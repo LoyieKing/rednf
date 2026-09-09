@@ -461,10 +461,11 @@ int CREATE_QUERY::arad_sp_create_npc_relationship(MySQL* db, SIG_CREATE_CHARAC* 
 // ORIG 0x0818b706：member_info 主账号信息。逐列解析失败仅 trace 并返 0（ORIG 如此）；
 //   成功时写 passwd 数值(+0xc0)、regdate(+0xcc)、hangame 标志(+0x38dd)、
    // ssn 拼接(+0x2284)与出生年(+0xc8)。【ABI 镜像】字段见 login_field 标注偏移。
-// b28d-solo-ARAD_Database verdict=DIFF(353/352) N 封顶：P167 调用点集 34/34 CLEAR；
-//   残余=cMyTrace 具名对象槽号组（ORIG -0xb0/-0xa0/…/-0x40 递减 vs 4.4 -0x34/… 递增，
-//   P221 临时链两形互试后反劣 355 ⇒ 保持具名）+ 槽号/寄存器分配（N82）。col 已按 ORIG
-//   0x818b7f0 段 `addl $1,槽; mov 槽` 统一为 `++col`。语义闭合。
+// verdict=DIFF 353/353（gap 1→0）：P167 调用点集 34/34 CLEAR；已删 `unsigned int year`
+//   具名槽（ORIG 两臂各自直写 data->m_birthYear，P0）⇒ 消 1 对 store-reload 且补回
+//   gap。残余 N：cMyTrace 具名对象槽号组（ORIG -0xb0…-0x40 递减 vs 4.4 -0x34… 递增，
+//   b28d 实测 P221 临时链反劣 355 ⇒ 保持具名）+ `fssn+2000` 的 lea-vs-add（N107）+ 帧
+//   （ORIG push %ebx 保活 m_accId 跨 trace ctor vs 4.4 无）。语义闭合。
 int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
@@ -564,16 +565,14 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
     // 再 sssn > 2 → year=fssn+2000(0x7d0)，否则 year=fssn+1900(0x76c)。
     fssn = fssn / 10000;
     sssn = sssn / 1000000;
-    unsigned int year;
     if (sssn > 2)
     {
-        year = fssn + 2000;
+        data->m_birthYear = fssn + 2000;
     }
     else
     {
-        year = fssn + 1900;
+        data->m_birthYear = fssn + 1900;
     }
-    data->m_birthYear = year;
     return 0;
 }
 
@@ -934,7 +933,10 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
 
     // P0：Ghidra C 直接读 env+0x378（=m_serverEnvir.m_serverGroup）内联为实参，
     //   ORIG 无 serverGroup 局部槽（值在 %edx 直传）。
-    if (!db->set_query(
+    // P171 照抄原码：ORIG 0x0818c951 为 `test %al,%al; je 主流程`（无 xor）⇒ 原码把
+    //   set_query 返回 true 判为失败（与同 TU arad_sp_convert_pass_pad_info
+    //   0x0818c16a 的 `xor $1; test; je` 相反）。可观察行为必须与 ORIG 一致 ⇒ 照抄。
+    if (db->set_query(
             "seLect event_id,unix_timestamp(occ_date),server_id,charac_no,"
             "unix_timestamp(obtain_date) from dnf_event_entry where m_id=%d "
             "and server_id in(0,%d)",
@@ -947,11 +949,8 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
     // b28d-solo-ARAD_Database：ORIG 0x818c96b 起五守卫各带独立 nop 中继岛（P223
     //   多岛形：`if(!c) goto Lk` 标签序=守卫序 + 各岛尾 goto 循环尾），且每守卫为
     //   `call; xor $1,%eax; test %al,%al; jne <岛>`（get_int 返回 bool 裸形，P292）。
-    // b28d-solo-ARAD_Database verdict=DIFF(111/112)：P167 11/11 CLEAR；残余=set_query
-    //   判定 1 条 xor——ORIG 0x818c951 为 `test %al,%al; je 主流程`（无 xor，即原码把
-    //   set_query 成功判为失败，与同 TU arad_sp_convert_pass_pad_info 0x818c16a 的
-    //   `xor $1; test; je` 相反）⇒ ORIG 原码疑似判定反向 bug，照抄会跳过事件装载，
-    //   保持语义正确记 N（N 封顶）。
+    // verdict=AE 目标：P167 11/11 CLEAR；set_query 判定按 ORIG 反向形照抄后
+    //   111/111（消 xor 1 条）。
     DB_Login::tagDNFEventEntry entry;
     for (unsigned int row = 0; row < static_cast<unsigned int>(db->get_n_rows());
          ++row)
@@ -1004,10 +1003,14 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
     //   `call; xor $1,%eax; test %al,%al; je <成功继续>`，P168a bool callee 裸形）；
     //   仅 startTime 有零初始化槽（-0x1c）。ORIG 把 col0/1/2 直接写 userInfo 三个
     //   连续成员（-0x18/-0x14/-0x10），无独立 characNo/serverId 槽。
-    // b28d-solo-ARAD_Database verdict=DIFF(132/130)：P167 12/12 CLEAR；残余=
-    //   startTime/userInfo 槽组平移 4（4.4 聚合优先深槽 vs 4.1 标量先深，N82附）+
-    //   比较方向（ORIG `cmp %eax,%ebx; setg` vs 我们 `cmp %edx,%eax; setl`，折痕
-    //   等价，P196）+ flag 直存 1 条 eax→edx 中转。语义闭合。
+    // verdict=NEAR 132/132（gap 2→0）：P167 12/12 CLEAR。已修两处：①DBMgr.h
+    //   stUserDBInfo_t 三成员 int→unsigned int（同宽/偏移/mangled 不变；ORIG
+    //   0x0818cc51/0x0818cc5d 两处 store 无 eax→edx 中转 ⇒ P211 档③同型直存；
+    //   探针实证 unsigned→unsigned 单段）消 2 条中转；②比较改
+    //   `(int)startTime > getCurSec()`（P243/P23 书写序=求值序）⇒ 复现 ORIG
+    //   `mov -N,%eax; mov %eax,%ebx; …call…; cmp %eax,%ebx; setg` 的 %ebx 保活。
+    //   残余仅槽号（ORIG startTime -0x1c/userInfo -0x18 vs 4.4 -0x10/-0x1c，
+    //   4.4 按首次使用序，声明序调整无效）与数据地址。语义闭合。
     unsigned int startTime = 0;                 // ORIG -0x1c
     DBMgr::stUserDBInfo_t userInfo;             // ORIG -0x18：col0/1/2 复用 +0/+4/+8
     if (!db->get_uint(0, reinterpret_cast<unsigned int&>(userInfo.m_userDBIdx)))
@@ -1031,7 +1034,10 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
         return -1;
     }
 
-    if (GlobalData::s_systemTime_.getCurSec() < static_cast<int>(startTime))
+    // P243/P23：ORIG 0x0818cbfe 先把 startTime 载入 %ebx 跨 getCurSec call 保活
+    //   （`mov -0x1c(%ebp),%eax; mov %eax,%ebx; …call…; cmp %eax,%ebx; setg`）
+    //   ⇒ 左操作数写 startTime、右操作数写 call 表达式（求值序=书写序）。
+    if (static_cast<int>(startTime) > GlobalData::s_systemTime_.getCurSec())
     {
         return -1;                                           // 广播尚未生效
     }
@@ -1040,19 +1046,25 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
         GlobalData::s_db_mgr->addUserDBInfo(userIdx, userInfo);
     }
     // P0：Ghidra C 直接偏移写 —— 0x39ac/0x39a8 对应具名字段（login_field 外联 call 需免）
-    data->m_tournamentAccountFlag = userInfo.m_userDBType;
-    data->m_tournamentServerGroup = userInfo.m_serverGroup;
+    // P211 档③：ORIG 两处 store 无 eax→edx 中转 ⇒ 两侧同型；stUserDBInfo_t 成员是 int，
+    //   显式 static_cast<unsigned int> 使 RHS 与字段同型（同宽零指令），消 2 条中转。
+    data->m_tournamentAccountFlag =
+        static_cast<unsigned int>(userInfo.m_userDBType);
+    data->m_tournamentServerGroup =
+        static_cast<unsigned int>(userInfo.m_serverGroup);
     return 0;
 }
 
 // ORIG 0x0818cc74：member_premium 首条生效记录 → SIG premium 表格区。
-// b28d-solo-ARAD_Database verdict=DIFF（N 残余）：202/190。P167 调用点集 16/16 CLEAR
-//   （GetDBHandle/select/get_n_rows×n/fetch/
-//   get_int×3/cMyTraceC1+cMyTracecl×3/vector::push_back/LogManager::logFormat）。
-//   premium 写位与 restrictedGoods/Count 偏移已逐位核（m_premiums@+0x2298 使字段落
-//   +0x2298/+0x229c/+0x22a0/+0x22a4=ORIG +0x2290+{8,c,10,14}）；cMyTrace trace 引用局部
-//   占槽 → N82 槽号错位；残余仅帧差(0x78 vs push%ebx+0x74)、槽号、循环退出块
-//   (jmp;nop;jmp vs 单 exit)、寄存器分配。语义完成，byte 层 N 封顶。
+// verdict=DIFF 202/197（gap 12→5）。P167 调用点集 16/16 CLEAR。已修三处：
+//   ①`prem` 引用缓存去 P183 ⇒ 四字段各自全表达式地址链（ORIG 9/8 条/处）；
+//   ②cnt 具名槽去 P0 ⇒ `m_restrictedGoods[m_restrictedGoodsCount++]`（ORIG 读一次复用）；
+//   ③三处 cMyTrace 具名对象改全表达式临时链 P221/P227 ⇒ 槽落 ORIG 的
+//     -0x44/-0x34/-0x24 且 `data->m_accId` 在 ctor 前物化 %ebx 保活。
+// 残余 N（5 条）：4 处 ORIG `add %ecx,%edx; add $K,%edx; mov %eax,(%edx)` vs 4.4
+//   `mov %edx,K(%ecx,%eax,1)`（N4/N107 寻址折叠 + 值/基址寄存器互换）+ 循环条件
+//   `&&` 短路物化侧（ORIG 物化第一条件 seta vs 4.4 物化第二条件，P197④/N 族；
+//   德摩根形实测不变）。语义等价。
 int LOGIN_QUERY::arad_sp_select_member_premium(
     SIG_LOGIN_DATA* data, DB_Login::tagDNFEventEntry& entry,
     std::vector<int>& removeList, std::vector<int> removeScratch)
@@ -1096,29 +1108,28 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
         int endSec = 0;
         if (!db->get_int(0, preType))
         {
-            cMyTrace trace(
+            // P221/P227：ORIG 槽序 -0x44/-0x34/-0x24 与 4.4 具名序反向，且
+            //   `data->m_accId` 在 ctor 前物化 %ebx 跨调用保活 ⇒ 全表达式临时链。
+            cMyTrace(
                 __PRETTY_FUNCTION__,
-                0x432, 5);
-            trace("DB_Login::GetPremiumInfo, get(1) ERROR m_id=%u",
-                  data->m_accId);
+                0x432, 5)("DB_Login::GetPremiumInfo, get(1) ERROR m_id=%u",
+                          data->m_accId);
             return -1;
         }
         if (!db->get_int(1, startSec))
         {
-            cMyTrace trace(
+            cMyTrace(
                 __PRETTY_FUNCTION__,
-                0x438, 5);
-            trace("DB_Login::GetPremiumInfo, get(2) ERROR m_id=%u",
-                  data->m_accId);
+                0x438, 5)("DB_Login::GetPremiumInfo, get(2) ERROR m_id=%u",
+                          data->m_accId);
             return -1;
         }
         if (!db->get_int(2, endSec))
         {
-            cMyTrace trace(
+            cMyTrace(
                 __PRETTY_FUNCTION__,
-                0x43e, 5);
-            trace("DB_Login::GetPremiumInfo, get(3) ERROR m_id=%u",
-                  data->m_accId);
+                0x43e, 5)("DB_Login::GetPremiumInfo, get(3) ERROR m_id=%u",
+                          data->m_accId);
             return -1;
         }
         if (slot > 0x69)
@@ -1128,18 +1139,18 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
 
         // premium 元素基址 = sig + (slot+0x229)*0x10；字段位 [+8 pre_type]
         // [+0xc start][+0x10 end][+0x14 event id]【ABI 镜像】
-        // premium 元素（+0x2290 起 stride 0x10 的窗口，字段对应 m_premiums[slot]）
-        SIG_LOGIN_PREMIUM_ENTRY& prem = data->m_premiums[slot];
-        prem.m_type = static_cast<unsigned int>(preType);
-        prem.m_startTime = static_cast<unsigned int>(startSec);
-        prem.m_endTime = static_cast<unsigned int>(endSec);
-        prem.m_flag = entry.m_eventId;
-
-        // 计数 ushort@0x293a（m_restrictedGoodsCount）与 m_id 数组（+0x293c 起 int 表）
-        unsigned short cnt = data->m_restrictedGoodsCount;
-        data->m_restrictedGoods[cnt] = entry.m_eventId;
-        data->m_restrictedGoodsCount = static_cast<unsigned short>(cnt + 1);
+        // P183：ORIG 每个字段写都重发完整 (slot+0x229)*0x10 地址链（9/8 条/处），
+        //   缓存 `prem` 引用会塌成 4 条/处（gap 12 根因）⇒ 逐字段全表达式展开；
+        //   写入顺序照 ORIG：m_flag(+0x14) → m_type(+8) → start(+0xc) → end(+0x10)。
+        (&data->m_premiums[slot])->m_flag = entry.m_eventId;
+        (&data->m_premiums[slot])->m_type = static_cast<unsigned int>(preType);
+        (&data->m_premiums[slot])->m_startTime = static_cast<unsigned int>(startSec);
+        (&data->m_premiums[slot])->m_endTime = static_cast<unsigned int>(endSec);
         ++slot;
+
+        // 计数 ushort@0x293a（m_restrictedGoodsCount）与 m_id 数组（+0x293c 起 int 表）：
+        // ORIG 读 count 一次（%eax）复用索引与 +1 写回（P0 无具名槽）⇒ 后置 ++。
+        data->m_restrictedGoods[data->m_restrictedGoodsCount++] = entry.m_eventId;
     }
     return 0;
 }

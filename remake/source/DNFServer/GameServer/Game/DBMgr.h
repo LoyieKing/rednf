@@ -29,9 +29,9 @@ class DBMgr
 public:
     struct stUserDBInfo_t
     {
-        int m_userDBIdx;      // +0
-        int m_userDBType;     // +4
-        int m_serverGroup;    // +8
+        unsigned int m_userDBIdx;    // +0（ORIG get_uint 直传首址：MySQL::get_uint(int,unsigned int&)）
+        unsigned int m_userDBType;   // +4（brodcast ORIG 无 eax→edx 中转 ⇒ 与 SIG 字段同型）
+        unsigned int m_serverGroup;  // +8
     };
 
     DBMgr();                          // 0x083f48de
