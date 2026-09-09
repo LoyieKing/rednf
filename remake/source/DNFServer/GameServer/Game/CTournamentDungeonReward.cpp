@@ -71,11 +71,18 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
     // 多 4 条，回退为合并守卫形。
     // [b28d-solo-CTournamentDungeonReward] DIFF 168/170：残 = N18a×5 + 三失败块尾部
     // 合并（N-JMP，ORIG 就地 `mov $0,%eax; jmp` ×3）；p167 9=9 CLEAR ⇒ N 封顶。
+    // [SweepTournament 2026-09-09] 真语义 bug 修复：原 `(char)m_flag08 == (char)cardNo`
+    // 被编译成字节比较（movzbl+mov+cmp %al,%dl）；ORIG 0x8285092 为 movzbl+movsbl+cmp
+    // mem（32 位有符号，char 提升 int）⇒ cardNo ∉ [-128,127] 时结果相反。改
+    // `m_flag08 == cardNo` 后我方比较段逐条复现 ORIG；168/170 与 p167 9=9 CLEAR 不变。
     if (maxItems < 3 && (int)type >= 0 && (int)type < 2)
     {
         for (int i = 0; i < 2; ++i)
         {
-            if ((char)m_rewards[(int)type][i].m_flag08 == (char)cardNo)
+            // ORIG 0x8285092：movzbl 读 + movsbl 符号扩展后 `cmp 0x10(%ebp),%eax`
+            // —— 32 位有符号比较（char 提升 int）。旧写法 `(char)cardNo` 强制字节比较，
+            // cardNo ∉ [-128,127] 时行为与 ORIG 相反（真语义 bug）。
+            if (m_rewards[(int)type][i].m_flag08 == cardNo)
             {
                 if (m_rewards[(int)type][i].m_id == 0)
                 {
