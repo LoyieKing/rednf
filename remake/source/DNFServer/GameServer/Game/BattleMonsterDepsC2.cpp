@@ -149,10 +149,9 @@ void CBattle_Field::setDungeonClearTrace(int mapId, int maxBoss, int killedBoss,
     m_dungeonClearTracer.SetMaxBossCount(maxBoss);
     m_dungeonClearTracer.SetKilledBossCount(killedBoss);
     m_dungeonClearTracer.SetKilledMonsterCount(killedMonster);
-    // ORIG 0x083010e4 尾部 `movl $0x0,-0x4(%ebp)`（4.1 dead 局部顶到 ebp-4）：
-    // b28 复核（probe /tmp/l0p5.cpp set4/set5 两段式均产 sub $0x28 + -0xc）——
-    // 4.4 局部槽基恒 ≤ebp-8（N95），写出该 store 即帧 +0x10 且槽号差 8，
-    // 保持无 store 形，残差 1 条封顶 N95。
+    // ORIG 0x083010e4 尾部 `movl $0x0,-0x4(%ebp)`（4.1 dead 局部顶到 ebp-4）。
+    int dummy = 0;
+    (void)dummy;
 }
 
 // ORIG 0x0830dc74：当前图 m_playInfo.m_startTick(+0x7c) ← 系统 tick。
@@ -190,7 +189,8 @@ bool CBattle_Field::get_monster_list(std::list<_mapMonster>& mobList)
 // 具名 bool/无 break——匹配即执行内层 list 拷贝+push_back 后继续遍历（`mov $1/$0` 短路物化）；
 // 外层 const_iterator 转换构造 + begin/end 各一次（4 槽），内层 const_iterator 缓存 end；
 // conditions 为 const 引用绑定临时（ORIG local_10 指针槽，无 4.4 值拷贝）。
-// 残差 N121：尾部 4.4 为三独立早返各发 nop+jmp 岛（ORIG 2 岛，第 3 跳直落 lea esp）⇒ +2 条。
+// [SweepBattleMonster 2026-09-09] 残差 N121：尾部 4.4 三层循环出口各发 nop+jmp 岛（ORIG 2 岛，
+// 第三层直落 lea esp）⇒ clean 171 vs 172（+1 条）。
 void CBattle_Field::add_monster_list_bossroom_condition(std::list<_mapMonster>& mobList,
                                                         int x, int y)
 {
@@ -230,7 +230,13 @@ void CBattle_Field::add_monster_list_bossroom_condition(std::list<_mapMonster>& 
 
 // ORIG 0x0830162e：把 mobList 按 spawnType 展开生成到当前图。
 // 命名怪条件：m_pDungeon->m_vec8f0 非空且 _mapMonster.m_champion 时查已清场表跳过。
-// [b28d-D9] N82/N86：帧 0x3b0 vs 0x3a0 + 槽序/迭代器临时差（ORIG 0x0830162e sz 0x0000055d）
+// [SweepBattleMonster 2026-09-09] 已修（399 vs 398，clean 397=397，DIFF→near）：①P167 end()
+// 每轮回边重求值（不缓存 itEnd）；②P214① 正极性 `m_villageMonsterId!=0 && m_party!=NULL`
+// 包裹队伍分支、普通分支内 `ref.m_flag04!=0` 在前；③真 bug：flag==0 分支等级来源应为
+// ref+0x8（m_field08，ORIG 0x08301893 `mov 0x8(%eax),%eax`），旧写 m_levelAdd(+0x10)；
+// ④P226 语句表达式复现 `!empty() && champion` 物化岛；⑤P324 case 升序(0,1,2)；⑥P225
+// `(signed char)dim>0`+if/else 复现 setg；⑦__PRETTY_FUNCTION__；⑧P231 register 复用 uid。
+// 残差仅 uid 值落 %ebx vs ORIG %eax（N7 寄存器角色，指令数/序列全等）。
 void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
                                              std::vector<int>& championList,
                                              map_monster& mob, int& count, int& uid,
@@ -242,31 +248,37 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
     // ORIG local_18(-0x14) = GetCurrentMapInfo() 一次缓存（Ghidra `local_18 = (MapInfo *)GetCurrentMapInfo(this)`），
     // 其后 m_layeredMap/m_mapIndex/Add_Mob/m_dummyBossMap 全走该指针（p167 EXTRA GetCurrentMapInfo×3）。
     MapInfo* mapInfo = GetCurrentMapInfo();
-    // [b28d-solo-BattleMonsterDepsC2] P167：ORIG 用 `_List_const_iterator`（begin/end 各一次
-    // 转换构造并缓存 end）+ 后置 `operator++(int)`（p167 MISSING 各 2）；非 const 版是 EXTRA。
-    std::list<_mapMonster>::const_iterator it = mobList.begin();
-    std::list<_mapMonster>::const_iterator itEnd = mobList.end();
-    for (; it != itEnd;)
+    // [b28d-D9] P167：ORIG 用 `_List_const_iterator` + 后置 `operator++(int)`；end() 在
+    // 循环尾每轮重新求值（`lea -0x370; call end; C1ERK` 位于 +0x500 回边处）⇒ 不缓存 itEnd。
+    for (std::list<_mapMonster>::const_iterator it = mobList.begin();
+         it != mobList.end();)
     {
         const _mapMonster& ref = *it;
-        if (!m_pDungeon->m_vec8f0.empty() && ref.m_champion &&
-            checkClearedNamedMonsterMap(static_cast<unsigned char>(ref.m_posX),
-                                        ref.m_mobId))
+        // P226 条件向：ORIG 前两条件先物化 `mov $1/$0; test %al,%al; je`（无槽）⇒
+        // 语句表达式包住 `!empty() && champion`，checkCleared 作为嵌套内层条件。
+        if (({ !m_pDungeon->m_vec8f0.empty() && ref.m_champion; }))
         {
-            it++;                    // 已清场命名怪：不生成不计数（仅推进迭代器）
-            continue;
+            if (checkClearedNamedMonsterMap(static_cast<unsigned char>(ref.m_posX),
+                                            ref.m_mobId))
+            {
+                it++;                // 已清场命名怪：不生成不计数（仅推进迭代器）
+                continue;
+            }
         }
 
         switch (ref.m_spawnType)
         {
-        case 1:
-            spawnCnt = (m_field198 <= 2) ? 1 : 2;                      // +0x198
-            break;
-        case 2:
-            spawnCnt = m_field198;
-            break;
         case 0:
             spawnCnt = 1;
+            break;
+        case 1:
+            if (m_field198 > 2)
+                spawnCnt = 2;
+            else
+                spawnCnt = 1;
+            break;                                                     // +0x198
+        case 2:
+            spawnCnt = m_field198;
             break;
         default:                   // 其余类型沿用上一条目数量（ORIG 不落任何赋值）
             break;
@@ -275,29 +287,10 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
         for (int s = 0; s < spawnCnt; ++s)
         {
             mob.m_mobId = ref.m_orderIdx;                              // ref+0x2c → mob+0x00
-            if (m_villageMonsterId == 0 || m_party == NULL)            // +0x128
-            {
-                if (ref.m_flag04 == 0)
-                {
-                    mob.m_level =
-                        (m_pDungeon->get_dimension_possible() < 1)
-                            ? static_cast<char>(ref.m_levelAdd)
-                            : static_cast<char>(m_standardDimensionLevel);     // +0x238 低字节
-                }
-                else
-                {
-                    mob.m_level =
-                        (m_pDungeon->get_dimension_possible() < 1)
-                            ? static_cast<char>(m_pDungeon->get_standard_level() +
-                                                static_cast<char>(ref.m_field08))
-                            : static_cast<char>(m_standardDimensionLevel);
-                    if (mob.m_level == 0)
-                        mob.m_level = 1;
-                    if (static_cast<unsigned char>(mob.m_level) > 200)
-                        mob.m_level = 200;
-                }
-            }
-            else
+            // P214①/P133：ORIG 两条 je 同落普通分支（+0x1b6）⇒ 正极性 `!=0 && !=NULL`
+            // 包裹队伍分支；普通分支内 flag!=0 代码在前（ORIG +0x1c1），flag==0 在后
+            // （+0x235），且 flag==0 分支等级来源 = ref+0x8（Ghidra local_14[2]）。
+            if (m_villageMonsterId != 0 && m_party != NULL)            // +0x128
             {
                 mob.m_level = static_cast<char>(m_party->getMemberMaxLevel());
                 if (mob.m_level == 0)
@@ -305,26 +298,50 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
                 if (static_cast<unsigned char>(mob.m_level) > 200)
                     mob.m_level = 200;
             }
+            else
+            {
+                if (ref.m_flag04 != 0)
+                {
+                    // P225：ORIG `test %al,%al; setg %al; test %al,%al; je`（有符号
+                    // `>0` 物化）⇒ 显式 (signed char) 比较 + if/else（三目被折成统一写）。
+                    if (static_cast<signed char>(
+                            m_pDungeon->get_dimension_possible()) > 0)
+                        mob.m_level = static_cast<char>(m_standardDimensionLevel);
+                    else
+                        mob.m_level = static_cast<char>(
+                            m_pDungeon->get_standard_level() +
+                            static_cast<char>(ref.m_field08));
+                    if (mob.m_level == 0)
+                        mob.m_level = 1;
+                    if (static_cast<unsigned char>(mob.m_level) > 200)
+                        mob.m_level = 200;
+                }
+                else
+                {
+                    if (static_cast<signed char>(
+                            m_pDungeon->get_dimension_possible()) > 0)
+                        mob.m_level = static_cast<char>(m_standardDimensionLevel);
+                    else
+                        mob.m_level = static_cast<char>(ref.m_field08); // +0x238 低字节
+                }
+            }
 
             if (ref.m_mobId == -1)
             {
                 mob.m_mobIndex =
                     G_CDataManager()->m_monsterManager->get_levelrandom_mob(
                         static_cast<int>(static_cast<unsigned char>(mob.m_level)));
-                const char* kind =
-                    mapInfo->m_layeredMap ? "layeredMap" : "generalMap";
                 LogManager::logFormat(
                     1, "battle_field.cpp",
-                    "void CBattle_Field::add_monsters_current_map(MOB_REF_LIST&, "
-                    "std::vector<int, std::allocator<int> >&, map_monster&, int&, "
-                    "int&, int&)",
+                    __PRETTY_FUNCTION__,
                     0x5c0,
                     "HEROES_LOG : RANDOM MONSTER INDEX (%d) MONSTER LEVEL (%d) MAP "
                     "INDEX (%d) [Map Kind : %s]\n",
                     mob.m_mobIndex,
                     static_cast<unsigned int>(
                         static_cast<unsigned char>(mob.m_level)),
-                    mapInfo->m_mapIndex, kind);
+                    mapInfo->m_mapIndex,
+                    mapInfo->m_layeredMap ? "layeredMap" : "generalMap");
             }
             else
             {
@@ -332,12 +349,14 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
             }
 
             // mob+0x11(低字节)←ref.m_levelAdd、+0x12(高字节)←ref.m_field14（ORIG 逐字节写）
-            mob.m_field11 = static_cast<short>(
-                static_cast<unsigned char>(ref.m_levelAdd)
-                | (static_cast<unsigned char>(ref.m_field14) << 8));
+            mob.m_field11b.m_field11b0 = static_cast<unsigned char>(ref.m_levelAdd);
+            mob.m_field11b.m_field11b1 = static_cast<unsigned char>(ref.m_field14);
             mob.m_roleType = static_cast<char>(ref.m_roleType);        // mob+0x08 ← ref+0x18
-            mob.m_instId = uid;
-            uid = mob.m_instId + 1;
+            // P231：ORIG 读 uid 入 %eax 后跨 store 复用（`lea 0x1(%eax),%edx`）；裸
+            // register 提示让 4.4 免槽保活（非 asm 绑定，P0 合规）。
+            register int curUid = uid;
+            mob.m_instId = curUid;
+            uid = curUid + 1;
             mob.m_field20 = 0;
             mob.m_field24 = 0;
 
@@ -356,7 +375,7 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
             mapInfo->Add_Mob(mob);
             if (mob.m_field13 == 0)
                 ++count;
-            if (mob.m_roleType == 3 && mapInfo->m_dummyBossMap != 1)
+            if (mob.m_roleType == 3 && !mapInfo->m_dummyBossMap)
             {
                 m_apcList.push_back(mob.m_instId);                     // +0x118
             }
@@ -410,9 +429,10 @@ bool CBattle_Field::add_monster_blood(map_monster& mob, int& uid, int& seq)
 // ORIG 0x08301d76：按地图 AI 编排表逐条生成 APC 怪物。
 // [b28d-solo-BattleMonsterDepsC2] 已修：`mob.m_instId = seq++`（ORIG 单次读 seq + lea 0x1）；
 // m_level 三目改 (signed char)dim > 0 形（ORIG `test %al; setg %al; test; je`）。
-// 残差判 N82/P225/P67：ORIG 帧 0x6e0、Add_Mob 单次 C1ERKS；4.4 帧 0xa30 且 by-value 参数再拷
-// 一次。`mob.m_roleType==8 && dummyBossMap!=1` 的 4.1 `mov $1/$0` 物化 4.4 恒折直跳；m_field11
-// short 拼装 vs ORIG +0x11/+0x12 双 movb（字段拆分跨泳道）。
+// [SweepBattleMonster 2026-09-09] 已修（213 vs 212，clean 211 vs 209）：①删 `map_monster tmp`
+// 直接 `Add_Mob(mob)`（省一个 0x350 临时，帧 0xa30→0x6f0，ORIG 0x6e0）；②m_field11 字节视图
+// 复现 +0x11/+0x12 双 movb（WarField.h 匿名 union）；③`!m_dummyBossMap`（字段 bool 化）。
+// 残差 N82：帧 +0x10 + 段序差。
 void CBattle_Field::add_monster_APC_AI(int& seq)
 {
     if (m_pMap == NULL || m_pDungeon == NULL)
@@ -449,7 +469,7 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
         mob.m_mobIndex = arrange.m_type;
         mob.m_instId = seq++;
         mob.m_roleType = static_cast<char>(arrange.m_roleType);            // arrange+0x14
-        if (mob.m_roleType == 8 && GetCurrentMapInfo()->m_dummyBossMap != 1)
+        if (mob.m_roleType == 8 && !GetCurrentMapInfo()->m_dummyBossMap)
         {
             m_apcList.push_back(mob.m_instId);
         }
@@ -459,12 +479,10 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
                 : static_cast<char>(ai->getLevel());
         mob.m_dropCnt = arrange.m_camp;                                    // arrange+0x10 → +0x2c
         // mob+0x11(低)←posY、+0x12(高)←posX（ORIG 逐字节写）
-        mob.m_field11 = static_cast<short>(
-            static_cast<unsigned char>(arrange.m_posY)
-            | (static_cast<unsigned char>(arrange.m_posX) << 8));
+        mob.m_field11b.m_field11b0 = static_cast<unsigned char>(arrange.m_posY);
+        mob.m_field11b.m_field11b1 = static_cast<unsigned char>(arrange.m_posX);
 
-        map_monster tmp(mob);
-        GetCurrentMapInfo()->Add_Mob(tmp);
+        GetCurrentMapInfo()->Add_Mob(mob);
         ++apcIdx;
     }
 }
@@ -472,15 +490,17 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
 // ORIG 0x083020b6：概率生成单只 APC（mobId 固定 0x40，roleType 5）。
 // [b28d-solo-BattleMonsterDepsC2] 已修：uid 递增改 `uid = uid + 1`（ORIG `lea 0x1(%eax)` 复用
 // 寄存器；`mob.m_instId + 1` 会重读 mob+0x4）；m_level 条件加 (signed char)。
-// 残差判 N（P67/N82/setcc 物化）：ORIG 帧 0x370 且 Add_Mob 直传 C1 临时；4.4 对 Add_Mob
-// by-value 多一次 map_monster C1ERKS 拷贝（帧 0x6b0）。三处 ORIG setne/setg 物化
-// （rate()!=0、rate()>rand(100)、dim>0）4.4 恒直跳 je/jle，P225 while+break 形在嵌套带
-// return 体处不可用；m_field11 short 清零 ORIG 为 +0x11/+0x12 双 movb（字段拆分属 Monster
-// 域，跨泳道 .h）。
+// [SweepBattleMonster 2026-09-09] 已修（140 vs 146）：①`int mobId=0x40` 具名局部 + `mobId++`
+// 后置（ORIG 0x083020d2 store / 0x08302296 `addl $0x1,-0x10`）；②P0 删 `map_monster tmp` 直接
+// `Add_Mob(mob)`（帧 0x6b0→0x370=ORIG）；③m_field11 字节视图双 movb；④P231 register 复用 uid。
+// 残差 N：rate()!=0 的 `setne` 与 rate()>rand 的 `setg` 物化（P226 语句表达式实测 +5 条反劣）、
+// dim>0 的 if/else 尾部三 jmp 岛、uid 落 %ebx（N7）。
 void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x, int y)
 {
     if (m_pDungeon == NULL)
         return;
+    // P0：ORIG 0x083020e5 `movl $0x40,-0x10(%ebp)`（具名局部，非直填立即数）
+    int mobId = 0x40;
     if ((m_endX == x && m_endY == y) ||
         (m_startX == x && m_startY == y))                                  // +0xc/+0x10、+0x4/+0x8
     {
@@ -490,6 +510,9 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
     // （非空检查 1 次、rand 比较 1 次存 %ebx 跨 get_rand_int call）；
     // EXTRA map_monster C1ERKS/D1 = 4.4 Add_Mob 大对象 by-value caller
     // 复制（P67 跨版本 ABI 豁免）。
+    // ORIG 首条件 `test; setne %al; test %al,%al; je`、次条件 `cmp %eax,%ebx; setg %al;
+    // test; je`。P225 while+break 形可复现 setne/setg 但尾部多 4 个 jmp 岛（148 vs 146）；
+    // P226 语句表达式亦反劣（+5）⇒ 保持裸短路链，setcc 物化按 N 记。
     if (m_pDungeon->getAICharacterAppearRate() != 0
         && m_pDungeon->getAICharacterAppearRate() > get_rand_int(100))
     {
@@ -500,24 +523,26 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
             return;
 
         std::memset(&mob, 0, sizeof(map_monster));  // ORIG 显式 memset 0x34c
-        mob.m_mobId = 0x40;
+        mob.m_mobId = mobId++;                      // ORIG 尾部 `addl $0x1,-0x10(%ebp)`
         mob.m_mobIndex = ai->getIdx();
-        mob.m_instId = uid;
-        uid = uid + 1;                          // ORIG `lea 0x1(%eax)` 复用刚读的 uid
-                                                //   （写 mob.m_instId+1 会重读 mob+0x4）
+        // P231：ORIG 读 uid 入 %eax 后跨 store 复用（`lea 0x1(%eax),%edx`）⇒ 裸 register
+        // 提示（非 asm 绑定，P0 合规）。
+        register int curUid = uid;
+        mob.m_instId = curUid;
+        uid = curUid + 1;
         mob.m_roleType = 5;
         // [b23S3C] P47：ORIG 真臂 fall-through（dim>0 读 +0x238），getLevel
         // 在 je 臂；m_field11 short=0 产单 movw（ORIG 0x11/0x12 双 movb，
         // 字段拆分属 Monster 域批次）。
-        mob.m_level =
-            (static_cast<signed char>(m_pDungeon->get_dimension_possible()) > 0)
-                ? static_cast<char>(m_standardDimensionLevel)
-                : static_cast<char>(ai->getLevel());
+        if (static_cast<signed char>(m_pDungeon->get_dimension_possible()) > 0)
+            mob.m_level = static_cast<char>(m_standardDimensionLevel);
+        else
+            mob.m_level = static_cast<char>(ai->getLevel());
         mob.m_dropCnt = 100;
-        mob.m_field11 = 0;
+        mob.m_field11b.m_field11b0 = 0;
+        mob.m_field11b.m_field11b1 = 0;
 
-        map_monster tmp(mob);
-        GetCurrentMapInfo()->Add_Mob(tmp);
+        GetCurrentMapInfo()->Add_Mob(mob);
     }
 }
 
@@ -557,9 +582,10 @@ void CBattle_Field::add_monster_additional_champion(std::vector<int>& championLi
 // [b28d-solo-BattleMonsterDepsC2] P167/P13（已修 215→213）：ORIG 调 operator*（deEv）并把结果
 // 存具名 -0x10（`(*ev)` 形，非 it->）；begin/end 各一次并缓存；`mob.m_instId = seq++` 复现
 // 单次读 seq + `lea 0x1`（写成 seq+1 / mob.m_instId+1 均重读）。
-// 残差判 N（P67/N84/N82）：ORIG Add_Mob 直传 C1 临时（单次拷贝）；4.4 对 by-value 参数再拷一次
-// ⇒ 两个 0x350 临时（帧 0xa20 vs 0x6d0）。m_field11 short 拼装 vs ORIG +0x11/+0x12 双 movb
-// 需拆字段（map_monster 属 Monster 域跨泳道 .h）。
+// [SweepBattleMonster 2026-09-09] 已修（188 vs 193，clean 185 vs 187）：①P0 删 `map_monster
+// tmp` 直接 `Add_Mob(mob)`（省 0x350 临时，帧 0xa20→0x6d0=ORIG）；②m_field11 字节视图双 movb。
+// 残差：`if (m_eventMonsterStatus.empty()) return;` ORIG 为 `!empty()` 正向包裹形
+// （`call; xor $1; test; je`，P214①），改包裹需重排整个主流程 ⇒ 记 N + 尾部 2 条。
 void CBattle_Field::add_monster_event(int& seq, int x, int y)
 {
     if (m_pDungeon == NULL || m_pMap == NULL)
@@ -592,9 +618,8 @@ void CBattle_Field::add_monster_event(int& seq, int x, int y)
             mob.m_level = static_cast<char>(m_pDungeon->get_standard_level());
             mob.m_mobId = static_cast<int>(instBase);
             // mob+0x11(低)←ev.m_field14、+0x12(高)←ev.m_field10（ORIG 逐字节写）
-            mob.m_field11 = static_cast<short>(
-                static_cast<unsigned char>(evs.m_field14)
-                | (static_cast<unsigned char>(evs.m_field10) << 8));
+            mob.m_field11b.m_field11b0 = static_cast<unsigned char>(evs.m_field14);
+            mob.m_field11b.m_field11b1 = static_cast<unsigned char>(evs.m_field10);
             mob.m_roleType = 0;
             mob.m_field13 = 0;
             mob.m_field14 = 0;
@@ -605,8 +630,7 @@ void CBattle_Field::add_monster_event(int& seq, int x, int y)
             if (spawned < monsterCnt)
             {
                 mob.m_instId = seq++;              // ORIG 单次读 seq + lea 0x1
-                map_monster tmp(mob);
-                GetCurrentMapInfo()->Add_Mob(tmp);
+                GetCurrentMapInfo()->Add_Mob(mob);
                 ++instBase;
                 if (static_cast<unsigned int>(m_pMap->m_rivalData2.size()) +
                         10000u <=
@@ -625,8 +649,9 @@ void CBattle_Field::add_monster_event(int& seq, int x, int y)
 // [b28d-solo-BattleMonsterDepsC2] P13/P196（已修 206→209）：ORIG begin/end 各调一次并缓存
 // （-0x2c/-0x30）；条件 `movzbl 0x8; cmp $0x4,%al; jg` 为**有符号**比较 ⇒
 // (signed char)mm.m_roleType > 4（unsigned 版产 ja 反极性）。
-// 残差 N82/N82附（213 vs 209）：ORIG 帧 0x6c、active 指针落深槽 -0x4c、features vector -0x3c
-// （4.1 聚合优先低槽+标量分区）；4.4 帧 0x5c 且 active -0x20（浅），全帧槽号深/浅 4 错位。
+// [SweepBattleMonster 2026-09-09] 已修（213=213，clean 210=210，DIFF→near）：P0 删具名
+// `ActiveStaticInfo* active`（ORIG 每处 `lea 0x38(%eax)` 重算，无具名槽）⇒ 槽图整体回正。
+// 残差仅 `movsbl` 落 %eax vs ORIG %edx（N7 寄存器角色）。
 void CBattle_Field::set_monster_ability()
 {
     if (m_pDungeon == NULL)
@@ -648,12 +673,14 @@ void CBattle_Field::set_monster_ability()
             static_cast<CMonster*>(G_CDataManager()->find_monster(mm.m_mobIndex));
         if (monster == NULL)
             continue;
-        ActiveStaticInfo* active = &mm.m_active;
 
         // [b28d-D9] P167 差集：ORIG 0x083026da 段 getMonsterScript 调用 3 次
         // （@+0x49/@+0x5c/@+0x89，无具名 script 局部）⇒ 各使用点内联重取（P0/P183）。
+        // P0：ORIG 无 active 具名槽（每处 `lea 0x38(%eax)` 重算，仅首调用存 -0x4c 实参临时）
+        // ⇒ 全部使用点写 `&mm.m_active`。
         setBasicAbilityByLevel(
-            static_cast<STMonsterScript*>(monster->getMonsterScript()), active,
+            static_cast<STMonsterScript*>(monster->getMonsterScript()),
+                               &mm.m_active,
                                static_cast<int>(static_cast<unsigned char>(mm.m_level)),
                                m_dungeonIndex,
                                static_cast<int>(static_cast<signed char>(mm.m_roleType)),
@@ -661,14 +688,14 @@ void CBattle_Field::set_monster_ability()
         upgradeAbilityByMonsterParameterCategory(
             &static_cast<STMonsterScript*>(monster->getMonsterScript())
                  ->m_parameterCategories,
-            active, mm.m_roleType == 3);
-        upgradeAbilityByDifficultyOfDungeon(get_dungeon_diff(), active,
+            &mm.m_active, mm.m_roleType == 3);
+        upgradeAbilityByDifficultyOfDungeon(get_dungeon_diff(), &mm.m_active,
                                             static_cast<int>(
                                                 static_cast<unsigned char>(mm.m_level)),
                                             m_pDungeon->m_vec900);
         if (mm.m_roleType == 3)
         {
-            upgradeAbilityByBossFeature(active);
+            upgradeAbilityByBossFeature(&mm.m_active);
         }
         else if (mm.m_roleType == 1 || mm.m_roleType == 2)
         {
@@ -682,7 +709,7 @@ void CBattle_Field::set_monster_ability()
                                     features, get_dungeon_diff());
             upgradeAbilityByChampionFeature(elem,
                                             static_cast<signed char>(mm.m_roleType),
-                                            &features, active);
+                                            &features, &mm.m_active);
         }
     }
 }

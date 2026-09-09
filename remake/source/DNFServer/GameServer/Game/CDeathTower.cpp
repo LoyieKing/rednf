@@ -864,8 +864,13 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
                 m_dungeonMgr.getDungeon()->get_index()),
             curStage, playTime);
 
-        // ORIG 0x0846760e：notTower = (get_index() != 11000)；随后统计/记录上报
-        char notTower = (char)(m_dungeonMgr.getDungeon()->get_index() != 0x2af8);
+        // ORIG 0x0846760e..0x08467629：`cmp $0x2af8; sete; test; je` + 两臂 movb
+        // ⇒ if/else 赋值形（非布尔表达式直存）。
+        char notTower;
+        if (m_dungeonMgr.getDungeon()->get_index() == 11000)
+            notTower = 0;
+        else
+            notTower = 1;
         GetInstanceDeathTowerPlaydataStatistic()->SendDeathTowerPlayInfo(
             i, notTower,
             (const stDeathTowerRecordMemberInfo_t*)m_playData.getStartMemberInfo(),
@@ -963,27 +968,18 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
 {
     if (m_stage.getState() != 1)
     {
-        if (user)
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2a, 0x13);
-        }
+        // ORIG 0x08464876..0x0846488c：无 user 判空，直接调用（P140/P171 照抄原码）
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2a, 0x13);
         return 0;
     }
 
     // Monster kill checker (skill material time)
-    stMapMonsterKillChecker_t* checker = (stMapMonsterKillChecker_t*)&m_timerKeys[7];
-    bool bSkillMaterial = false;
-    if (checker->getUseSkillMaterialTime() == 0)
-    {
-        unsigned int curTick = GlobalData::s_systemTime_.getCurTickCount();
-        int result = checker->dieMonster(curTick, 1000);
-        if (result > 2)
-        {
-            bSkillMaterial = true;
-        }
-    }
-
-    if (bSkillMaterial)
+    // ORIG 0x0846489b..0x084648eb：this+0xb58 每使用点重算（无 checker 具名槽，P183）；
+    // 两条件经 && 物化于 %eax（无 bSkillMaterial 槽，P0）；tick 内联实参、
+    // dieMonster 返回值直接无符号比较（jbe）。
+    if (((stMapMonsterKillChecker_t*)&m_timerKeys[7])->getUseSkillMaterialTime() == 0 &&
+        ((stMapMonsterKillChecker_t*)&m_timerKeys[7])->dieMonster(
+            GlobalData::s_systemTime_.getCurTickCount(), 1000) > 2)
     {
         bool isPremium = false;
         if (user && user->get_charac_level() >= 0x1e)
@@ -999,7 +995,8 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
                 // _ZNK8WongWork12CUserPremium18GetPremiumInfoListEi（sret -0xdc，type=0x270f）。
                 std::vector<SUserPremiumInfo> premiumList =
                     premium->GetPremiumInfoList(0x270f);
-                for (int i = 0; i < (int)premiumList.size(); i++)
+                // ORIG 0x084649xx：`cmp i,size; seta`（无符号）⇒ 索引 unsigned（P196/P175）
+                for (unsigned int i = 0; i < premiumList.size(); i++)
                 {
                     // [b28d-solo-CDeathTower] P157/P183：ORIG 0x0846498f/ab/c7 三次
                     // 独立 operator[]（每字段重读，无 type 缓存）。
@@ -1016,7 +1013,7 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
 
         if (isPremium)
         {
-            checker->initMonsterInfo();
+            ((stMapMonsterKillChecker_t*)&m_timerKeys[7])->initMonsterInfo();
             CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
             if (hackAnalyzer)
             {
@@ -1566,7 +1563,7 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
             for (int i = 0; i < 4; ++i)
             {
                 CUser* member = m_party->get_user(i);
-                if (!member || !m_party->checkValidUser(i))
+                if (!(member != 0 && m_party->checkValidUser(i)))
                     continue;
                 if (!m_playData.isMemberAlive(i))
                     continue;
@@ -1598,7 +1595,7 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
             for (int i = 0; i < 4; ++i)
             {
                 CUser* member = m_party->get_user(i);
-                if (!member || !m_party->checkValidUser(i))
+                if (!(member != 0 && m_party->checkValidUser(i)))
                     continue;
                 if (!m_playData.isMemberAlive(i))
                     continue;
@@ -2304,8 +2301,8 @@ int CDeathTower::handleMoveMap()
             return 0;
         }
 
-        unsigned int endStage = m_dungeonMgr.getEndStage();
-        if (!m_stage.moveNextStage(endStage))
+        // ORIG 0x08465d97..0x08465db2：getEndStage 结果直接作实参（无槽，P0）
+        if (!m_stage.moveNextStage(m_dungeonMgr.getEndStage()))
         {
             CPacketHandler packet;
             packet.makeCommonError((ENUM_CMDPACKET)0x30, (ENUM_ERROR)0x16);
@@ -2417,7 +2414,9 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
             }
         }
 
-        char ipgNo[0x18] = {0};
+        // ORIG 0x0846425e 仅清零 -0x4c（nameBuf 4B）；ipgNo（-0x64 起 0x18B）
+        // 在 genIPGNo 前无任何清零（P171 照抄原码，勿加 ={0}）。
+        char ipgNo[0x18];
         int nameBuf = 0;              // ORIG -0x4c：_pickupItem/appendPickupItem 的 char*
         CUser* targetUser = _pickupItem(
             user, (char*)&nameBuf, memberCnt, item, a3, a4, citem);
@@ -2429,8 +2428,8 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
         }
 
         int slot = -1;
-        Inven_Item* invenItem = &item.m_item;
-        if (invenItem->isAvatarItemType())
+        // ORIG 0x08464396..0x084643a7：&item.m_item 每使用点重发 lea+add（无具名局部，P0）。
+        if (item.m_item.isAvatarItemType())
         {
             int characNo = targetUser->getCurCharacNo();
             WongWork::CGenUniqueNo::genIPGNo(
@@ -2442,7 +2441,7 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
         else
         {
             CInventory* inven = (CInventory*)targetUser->getCurCharacInvenW();
-            slot = inven->insertItemIntoInventory(*invenItem, (eItemAddReason)4, true, true);
+            slot = inven->insertItemIntoInventory(item.m_item, (eItemAddReason)4, true, true);
         }
 
         if (slot == -1)
@@ -2924,21 +2923,21 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
             return 1;
         }
 
-        bool someoneLeft = false;
+        unsigned char someoneLeft = 0;
         for (int i = 0; i < 4; ++i)
         {
-            if (m_party->checkValidUser(i))
+            CUser* user = 0;
+            user = m_party->get_user(i);
+            if (!(user != 0 && m_party->checkValidUser(i)))
+                continue;
+            if (!m_playData.isMemberReady(i))
             {
-                CUser* user = m_party->get_user(i);
-                if (!m_playData.isMemberReady(i))
-                {
-                    // ORIG 0x08462bca：makeFinishLoading 包后单发该用户再请离
-                    CPacketHandler packet;
-                    packet.makeFinishLoading();
-                    user->Send(packet);
-                    handleLeaveUser(user);
-                    someoneLeft = true;
-                }
+                // ORIG 0x08462bca：makeFinishLoading 包后单发该用户再请离
+                CPacketHandler packet;
+                packet.makeFinishLoading();
+                user->Send(packet);
+                handleLeaveUser(user);
+                someoneLeft = 1;
             }
         }
 
@@ -2970,27 +2969,22 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
         }
         for (int i = 0; i < 4; ++i)
         {
-            if (m_party->checkValidUser(i))
-            {
-                CUser* user = m_party->get_user(i);
-                CPacketHandler packet;
-                Inven_Item* item3 = m_playData.getRewardItem(3);
-                int cnt3 = m_playData.getRewardItemCount(3);
-                Inven_Item* item2 = m_playData.getRewardItem(2);
-                int cnt2 = m_playData.getRewardItemCount(2);
-                Inven_Item* item1 = m_playData.getRewardItem(1);
-                int cnt1 = m_playData.getRewardItemCount(1);
-                Inven_Item* item0 = m_playData.getRewardItem(0);
-                int cnt0 = m_playData.getRewardItemCount(0);
-                int exp = m_playData.getRewardExp(i);
-                // ORIG 0x08462ede：makeDisplayReward(exp, 槽0..3 的 cnt/items)
-                packet.makeDisplayReward(exp, cnt0, item0, cnt1, item1, cnt2,
-                                         item2, cnt3, item3);
-                Inven_Item* myItem = m_playData.getRewardItem(i);
-                int myCnt = m_playData.getRewardItemCount(i);
-                deathTowerCardStatistic(myCnt, user, myItem);
-                user->Send(packet);
-            }
+            CUser* user = 0;
+            user = m_party->get_user(i);
+            if (!(user != 0 && m_party->checkValidUser(i)))
+                continue;
+            CPacketHandler packet;
+            // ORIG 0x08462d97..0x08462f2a：实参内联求值（R→L：item3..item0, exp），
+            // 值经 callee-saved/实参槽直传，无具名局部（P0/P52）。
+            packet.makeDisplayReward(
+                m_playData.getRewardExp(i),
+                m_playData.getRewardItemCount(0), m_playData.getRewardItem(0),
+                m_playData.getRewardItemCount(1), m_playData.getRewardItem(1),
+                m_playData.getRewardItemCount(2), m_playData.getRewardItem(2),
+                m_playData.getRewardItemCount(3), m_playData.getRewardItem(3));
+            deathTowerCardStatistic(m_playData.getRewardItemCount(i), user,
+                                    m_playData.getRewardItem(i));
+            user->Send(packet);
         }
         setTowerState((ENUM_TOWER_STATE)4);
         int tkey = _genTimerKey((TIMER_MESSAGE)0x4c);
@@ -3006,16 +3000,17 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
         bool allHaveItem = true;
         for (int i = 0; i < 4; ++i)
         {
-            if (m_party->checkValidUser(i))
+            CUser* user = 0;
+            user = m_party->get_user(i);
+            if (!(user != 0 && m_party->checkValidUser(i)))
+                continue;
+            Inven_Item item;
+            const CInventory* inven = (const CInventory*)user->getCurCharacInvenR();
+            int invenResult = inven->GetInvenData(0x1057, item);
+            if (invenResult < 0)
             {
-                CUser* user = m_party->get_user(i);
-                Inven_Item item;
-                const CInventory* inven = (const CInventory*)user->getCurCharacInvenR();
-                if (inven->GetInvenData(0x1057, item) < 0)
-                {
-                    allHaveItem = false;
-                    break;
-                }
+                allHaveItem = false;
+                break;
             }
         }
 
@@ -3026,13 +3021,13 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
 
         for (int i = 0; i < 4; ++i)
         {
-            if (m_party->checkValidUser(i))
+            CUser* user = 0;
+            user = m_party->get_user(i);
+            if (!(user != 0 && m_party->checkValidUser(i)))
+                continue;
+            for (int j = 0; j < m_playData.getRewardItemCount(i); ++j)
             {
-                CUser* user = m_party->get_user(i);
-                int rewardCnt = m_playData.getRewardItemCount(i);
                 Inven_Item* rewardBase = m_playData.getRewardItem(i);
-                for (int j = 0; j < rewardCnt; ++j)
-                {
                     // ORIG：rewardBase 为成员奖励数组，逐 j 项发放（m_addInfo +0x02）
                     if (rewardBase[j].m_addInfo == -1)
                     {
@@ -3087,7 +3082,6 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                 {
                     user->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
                 }
-            }
         }
 
         setTowerState((ENUM_TOWER_STATE)5);

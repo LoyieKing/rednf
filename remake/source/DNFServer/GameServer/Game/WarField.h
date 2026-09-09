@@ -78,7 +78,19 @@ struct map_monster
     char m_pad9[3];           // +0x09
     int m_mobIndex;           // +0x0c（击杀逻辑的怪物索引）
     unsigned char m_level;    // +0x10（byte；ORIG 读取全 movzbl → unsigned）
-    short m_field11 __attribute__((packed));  // +0x11（非 2 对齐，ORIG 实证）
+    // [SweepBattleMonster 2026-09-09] ORIG 对 +0x11/+0x12 恒发两条独立 movb（逐字节写，
+    // 见 CBattle_Field::add_monsters_current_map 0x0830194e/0x0830195c）⇒ 匿名 union
+    // 双视角：short 视图保留既有消费点，字节视图供逐字节复现。packed 保持对齐 1、
+    // size 2 ⇒ sizeof(map_monster) 与全部成员偏移不变。
+    union __attribute__((packed))
+    {
+        short m_field11;                      // +0x11（非 2 对齐，ORIG 实证）
+        struct
+        {
+            unsigned char m_field11b0;        // +0x11
+            unsigned char m_field11b1;        // +0x12
+        } m_field11b;
+    };
     unsigned char m_field13;  // +0x13（ORIG 读取 movzbl）
     unsigned char m_field14;  // +0x14（ORIG 读取 movzbl）
     char m_field15;           // +0x15
@@ -171,7 +183,10 @@ struct MapInfo
     int m_assignItemIdx;              // +0x3c
     int m_dropItemCnt;                // +0x40
     char m_mapType;                   // +0x44
-    char m_dummyBossMap;              // +0x45
+    // [SweepBattleMonster 2026-09-09] P248 档②：ORIG add_monsters_current_map 0x08301a33
+    // `movzbl 0x45(%eax),%eax; xor $0x1,%eax; test %al,%al; je` ⇒ bool 字段 + 裸 `!field`。
+    // 宽度 1B / 偏移 +0x45 / sizeof 0xec 不变。
+    bool m_dummyBossMap;              // +0x45
     char m_pad46[2];                  // +0x46
     int m_mapBasisLevel;              // +0x48
     stMapMonsterKillChecker_t m_killChecker1;  // +0x4c（0x18）
