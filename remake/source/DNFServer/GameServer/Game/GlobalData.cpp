@@ -2066,8 +2066,9 @@ void DispatchThread::dispatch(void* arg)
     PacketDispatcher::pUserPacketCounter_ = &userCounter;
     message_counter::CTimeInterval* interval =
         message_counter::CTimeInterval::Create();
-    int code = 0;   // 流头读出的分发码
-    int idx = 0;    // 流头读出的用户 id
+    // ORIG 0x0847e2d2 函数头无 `movl $0x0,-0x2?` 预清 ⇒ 原码裸声明（P0）。
+    int code;   // 流头读出的分发码
+    int idx;    // 流头读出的用户 id
 
     while (!GlobalData::s_server_stop)
     {
@@ -2120,36 +2121,42 @@ void DispatchThread::dispatch(void* arg)
             curSec = lastWriteSec;
             msgCounter.WriteLog();
             userCounter.WriteLog();
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x8f, 5);
-            trace("timer_queue_count(%u)", G_TimerQueue()->GetQueueSize());
+            // ORIG 0x0847e???：varargs 在 cMyTrace ctor 前求值并落 callee-saved
+            // （N80/P328⑩）⇒ 单语句全表达式临时链。
+            cMyTrace(__PRETTY_FUNCTION__, 0x8f, 5)(
+                "timer_queue_count(%u)", G_TimerQueue()->GetQueueSize());
             G_TimerQueue()->write_timer_queue_log();
         }
         switch (streamType)
         {
+        // ORIG 0x0847e??? 决策树为 `cmp $2; je L2; test %eax,%eax; je L1;
+        // jmp Ldef`（4.1 未列 case 0 与首键共 leaf）⇒ 按 P163 补 case 0
+        // fallthrough 到 case 1，使 4.4 放弃跳表并复现同序二分树。
+        case 0:
         case 1:
             if (0xfff < length)
             {
-                cMyTrace t(__PRETTY_FUNCTION__, 0x9e, 5);
-                t("Small Stream Size over code(%d), idx(%d), size(%u)",
-                  code, idx, length);
+                cMyTrace(__PRETTY_FUNCTION__, 0x9e, 5)(
+                    "Small Stream Size over code(%d), idx(%d), size(%u)",
+                    code, idx, length);
             }
             GlobalData::s_small_stream_pool->Free(stream);
             break;
         case 2:
             if (0x3ffff < length)
             {
-                cMyTrace t(__PRETTY_FUNCTION__, 0xb2, 5);
-                t("Big Stream Size over code(%d), idx(%d), size(%u)",
-                  code, idx, length);
+                cMyTrace(__PRETTY_FUNCTION__, 0xb2, 5)(
+                    "Big Stream Size over code(%d), idx(%d), size(%u)",
+                    code, idx, length);
             }
             GlobalData::s_big_stream_pool->Free(stream);
             break;
         default:
             if (0x3fff < length)
             {
-                cMyTrace t(__PRETTY_FUNCTION__, 0xa8, 5);
-                t("Default Stream Size over code(%d), idx(%d), size(%u)",
-                  code, idx, length);
+                cMyTrace(__PRETTY_FUNCTION__, 0xa8, 5)(
+                    "Default Stream Size over code(%d), idx(%d), size(%u)",
+                    code, idx, length);
             }
             GlobalData::s_stream_pool->Free(stream);
             break;
@@ -2957,12 +2964,13 @@ void AcceptThread::dispatch(void* arg)
                         }
                         else
                         {
-                            char* peerIp = inet_ntoa(peerAddr.sin_addr);
+                            // ORIG +0x3??：inet_ntoa 结果留在 %ebx 跨 G_CEnvironment
+                            // 调用保活（无栈槽往返）⇒ 内联回 strcmp 实参位（P0/P52）。
                             // ORIG +0x38b：sete 物化 + 相等路径 fall-through
                             // close+循环尾（P59 fail 前置），故条件极性 ==0。
                             if (strcmp(
                                     G_CEnvironment()->get_system_monitoring_ip(),
-                                    peerIp) == 0)
+                                    inet_ntoa(peerAddr.sin_addr)) == 0)
                             {
                                 close(conn);
                                 continue;
@@ -2992,10 +3000,15 @@ void AcceptThread::dispatch(void* arg)
                                 if (m_acceptFlag || used >=
                                     G_CEnvironment()->m_serverEnvir.m_maxUserNum)
                                 {
-                                    char* lockIp = inet_ntoa(peerAddr.sin_addr);
-                                    if (strcmp("192.168.30.146", lockIp) != 0 &&
-                                        G_CEnvironment()->m_serverEnvir.m_maxUserNum + 5 <= used)
+                                    // ORIG +0x4??：strcmp 结果 setne 物化 + 第二条件
+                                    // setle 物化（每条件各 test/setcc/je）⇒ 源形为
+                                    // 嵌套 if（P225 推广：`&&` 合并被 4.4 折成直跳），
+                                    // inet_ntoa 同样内联无具名局部。
+                                    if (strcmp("192.168.30.146",
+                                               inet_ntoa(peerAddr.sin_addr)) != 0)
                                     {
+                                        if (G_CEnvironment()->m_serverEnvir.m_maxUserNum + 5 <= used)
+                                        {
                                         PacketGuard guard;
                                         guard.put_header(1, 1);
                                         guard.put_byte(0);
@@ -3008,6 +3021,7 @@ void AcceptThread::dispatch(void* arg)
                                         trace("[ACCEPT] LOCK STATE(Curr Session : %d)",
                                               used);
                                         continue;
+                                        }
                                     }
                                     if (GameserverDemonManagerInstance()
                                             ->IsProhibitConnectState())
@@ -3789,17 +3803,19 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
 
     for (int i = 0; i < (int)(unsigned int)(unsigned char)req->m_subCount; ++i)
     {
-        int first;
-        unsigned char second;
-        memcpy(&first, &req->m_subEntries[i][0], 4);      // ORIG make_pair(buf+0x48+8i, ...)
-        memcpy(&second, &req->m_subEntries[i][4], 1);
-        param.m_pairs.push_back(std::make_pair(first, (int)second));
+        // ORIG 0x08178823..0x08178861：直接 `lea` 两个缓冲地址作 make_pair 实参
+        // （实例 `make_pair<unsigned long&, unsigned char&>`，随后
+        // `pair<int,int>::C1<unsigned long,unsigned char>` 转换构造）——无局部
+        // 拷贝、无 memcpy（旧写 memcpy×2 + make_pair<int&,int&> 是 p167 EXTRA）。
+        param.m_pairs.push_back(std::make_pair(
+            *(unsigned long*)&req->m_subEntries[i][0],
+            *(unsigned char*)&req->m_subEntries[i][4]));
     }
     for (int i = 0; i < (int)(unsigned int)(unsigned char)req->m_optCount; ++i)
     {
-        tagPackageItemSelection sel;
-        memcpy(&sel, &req->m_optEntries[i][0], 8);        // ORIG push_back(buf+0x164+8i)
-        param.m_sel.push_back(sel);
+        // ORIG 直接 push_back(buf+0x164+8i)（引用实参，无 memcpy/无局部 sel）。
+        param.m_sel.push_back(
+            *(tagPackageItemSelection*)&req->m_optEntries[i][0]);
     }
 
     int extraInt = 0;   // local_dc：stream >> int（购买附加参数）
@@ -3918,10 +3934,12 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
             user, (HeroMissionCondition::MissionNo::T)1, 7);
     }
 
-    CInventory* invenW = user->getCurCharacInvenW();
+    // ORIG 0x08178fd2 / 0x0817907c：两分支各自独立调用 getCurCharacInvenW
+    // （P48 无 CSE + P157 禁 receiver 缓存；旧具名 invenW 使 p167 MISSING
+    // getCurCharacInvenW×1 且多一条 -0x?? 槽往返）。
     if (buytype == 1)
     {
-        invenW->use_money((int)goldPrice, (eMoneySubReason)0, true);
+        user->getCurCharacInvenW()->use_money((int)goldPrice, (eMoneySubReason)0, true);
         user->UseWinPoint((int)winPoint, (eWPSubReason)2);
         user->UseCeraPoint(ceraPrice);
         user->m_historyLog.CeraPoint((ENUM_CERAPOINT_LOG_TYPE)3,
@@ -3930,7 +3948,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     else if (buytype == 0)
     {
         GlobalData::s_pIPGHelper->IPGOutputConfirm(reqData, resData);   // ORIG vptr+0x28 slot10
-        invenW->use_money((int)goldPrice, (eMoneySubReason)0, true);
+        user->getCurCharacInvenW()->use_money((int)goldPrice, (eMoneySubReason)0, true);
         user->UseWinPoint((int)winPoint, (eWPSubReason)2);
         user->UseCera(ceraPrice);
         user->addUsedCera(ceraPrice);
@@ -4053,9 +4071,13 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
                                        int priceLabel, unsigned long long uid,
                                        char payFlag)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("localjapan/AppendVendingMachine.cpp",
-                                                        0x730);
-    CStreamGuard guard(stream, true);
+    // ORIG 0x08179944..0x08179973：Acquire 结果直接作 CStreamGuard ctor 实参
+    // （`call Acquire; movl $0x1,0x8(%esp); mov %eax,0x4(%esp); lea -0x14; ...`），
+    // 无 stream 具名局部（P259：缓存局部 +1 store/+1 load 且槽整体平移）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("localjapan/AppendVendingMachine.cpp",
+                                           0x730),
+        true);
     // ORIG BillingRecord.md：operator*() 各 << 前重取 + operator<<(int)（P48/CStreamGuard 形态）
     (*guard.operator*()) << (int)0xb0;           // SIG opcode（operator*() 取 this）
     (*guard.operator*()) << (int)user->GetUID();
@@ -4760,45 +4782,49 @@ void Secu_DataControl::UpdateSecurityServiceState(CUser* user, unsigned char ser
         return;
     }
     bool done = false;
-    if (service == 0)
+    // ORIG 0x08286e6c..0x08286e7c：`movzbl service; test %eax,%eax; je L0;
+    // cmp $0x1,%eax; je L1; jmp end`（形参载入 + 寄存器比较链）⇒ 源形是
+    // `switch (service)`（P251/P286；if/else-if 在 4.4 恒折 cmpb 内存直比）。
+    switch (service)
     {
-        WongWork::CSecurityCard* card = user->getSecurityCard();
-        if (card->isActivate())
+    case 0:
+        // ORIG 0x08286e81..0x08286eaf：getSecurityCard() 结果直作 receiver，
+        // 全程无栈槽往返（P0/§4.0 槽-局部双向对应律）⇒ 禁具名指针局部。
+        if (user->getSecurityCard()->isActivate())
         {
-            card = user->getSecurityCard();
-            card->init();
+            user->getSecurityCard()->init();
             done = true;
         }
-    }
-    else if (service == 1)
-    {
-        Sanicova::CPad* pad = user->getPad();
-        if (pad->isActivate())
+        break;
+    case 1:
+        if (user->getPad()->isActivate())
         {
-            pad = user->getPad();
-            if (pad->isCertified())
+            // ORIG 0x08286ee6..0x08286fcb：`call isCertified; xor $1; test %al,%al;
+            // je <flag=1 块>` ⇒ 源形是否定式 `if (!isCertified())` 且 flag=1 走
+            // else 块置于函数尾（P168a②/P292 判据）。
+            if (!user->getPad()->isCertified())
             {
-                flag = 1;
-            }
-            else
-            {
-                char plain[36];
-                char enc[36];
-                memset(plain, 0, sizeof(plain));
-                memset(enc, 0, sizeof(enc));
+                // ORIG 0x08286ef1..0x08286f15：两段常量内联 rep stos（9 dword
+                // = 36B）⇒ 源形 `char buf[36] = {0}`（P214③/P312/P328⑨），
+                // 写 memset 在 4.4 退化成 call（N78 可翻形）。
+                char plain[36] = {0};
+                char enc[36] = {0};
                 strncpy(plain, msg, 8);
                 cMyTrace trace(
                     __PRETTY_FUNCTION__,
                     0xa0, 0);
                 trace("[Secu_Web_Conn] (%s)  ", msg);
                 encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_, plain, enc);
-                pad = user->getPad();
-                pad->setFailCnt(0);
-                pad = user->getPad();
-                pad->setPassword(enc);
+                user->getPad()->setFailCnt(0);
+                user->getPad()->setPassword(enc);
                 done = true;
             }
+            else
+            {
+                flag = 1;
+            }
         }
+        break;
     }
     if (done)
     {
@@ -4960,9 +4986,13 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
                                                   (ENUM_SERVER_GROUP)0);
     if (!db->set_query("seLect db_name,db_ip,db_port,db_userid,db_passwd from "
                        "db_connect where db_server_group = %d and db_type = %d",
-                       (int)group, (int)idx))
+                       group, idx))
         return false;
-    if (!db->exec(true) || !db->fetch())
+    // ORIG 0x080ecb9d/0x080ecbd1：两条件各自 `xor $1; test; je <继续>; mov $0;
+    // jmp <end>` 独立早退（P133 独立守卫，禁合并短路 `||`）。
+    if (!db->exec(true))
+        return false;
+    if (!db->fetch())
         return false;
     if (db->get_n_rows() != 1)
         return false;
@@ -4971,8 +5001,6 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
     // ×5，i 声明在 info 之前），非字面常量 ⇒ 改 i++。
     int i = 0;
     STDBConnInfo info;
-    char passCipher[0x3c];
-    char passPlain[0x15];
     if (!db->get_str(i++, info.m_db, 0x1f))
         return false;
     if (!db->get_str(i++, info.m_host, 0x11))
@@ -4981,13 +5009,24 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
         return false;
     if (!db->get_str(i++, info.m_user, 0x15))
         return false;
-    std::memset(info.m_pass, 0, 60);
+    // ORIG 0x080ecc23..0x080ecc34：此处对 passCipher 做常量内联 rep stos
+    // （0xf dword = 0x3c 字节）⇒ 源形是**在此处**声明 `char passCipher[0x3c] = {0};`
+    // （P214③/P328⑨）；旧写 `memset(info.m_pass,0,60)` 既错目标（ORIG 清的是
+    // 密文缓冲）又退化成 call（N78）。
+    char passCipher[0x3c] = {0};
     if (!db->get_str(i++, passCipher, 0x3c))
         return false;
-    if (!G_CEnvironment()->DecryptValue(passCipher, passPlain))
+    // ORIG 0x080ecc6e..0x080ecc85：第二实参 = `lea -0x1c8(%ebp); add $0x2d`
+    // = &info.m_pass（解密结果**回写结构**），非独立栈缓冲（旧写 passPlain[0x15]
+    // 是实参来源错 + 多一个 0x15 数组致槽漂）。
+    if (!G_CEnvironment()->DecryptValue(passCipher, info.m_pass))
         return false;
     // ORIG 0x80eccb8：rep movsd 0x5a dword（0x168 字节）拷入 outMap[idx]。
-    outMap[idx] = info;
+    // ORIG 0x080ecc98..0x080ecca4：键取形参值的具名副本（-0x24）后再取址，
+    // 另有 group 的副本（-0x64，写后未读 ⇒ P171 照抄）。
+    ENUM_SERVER_GROUP groupCopy = group;
+    ENUM_DB_HANDLE_IDX idxCopy = idx;
+    outMap[idxCopy] = info;
     return true;
 }
 // sync_script::CSyncScript 权威定义见 sync_script.h（SetEnable/IsEnable 内联 +
@@ -6216,23 +6255,34 @@ bool CDBEnviroment::parse(char* buf)
             m_dbType = (ENUM_SERVER_GROUP)0x11;
         else
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x2032, 5);
-            t("Unknown value (%s)", p2);
+            // ORIG 0x0829dbdd：p2 在 cMyTrace ctor 之前读入 %ebx 并跨 ctor 保活
+            // ⇒ 源形为单语句全表达式临时链（P37/P227/P328⑩）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x2032, 5)("Unknown value (%s)", p2);
             return 0;
         }
         std::map<std::string, std::string> tmp;
-        ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map[m_dbType] = tmp;
+        // ORIG 0x0829dc2f..0x0829dc4a：m_dbType 先值拷贝到具名局部（-0x34）再取址
+        // 传 operator[](const ENUM_SERVER_GROUP&)（P0 槽往返 + ㉕实参来源判据）。
+        ENUM_SERVER_GROUP dbType = m_dbType;
+        ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map[dbType] = tmp;
     }
     else
     {
         // ORIG 0x0829dc9a/0x0829dcbb：find 的 receiver 与 end 的 receiver 各自
         // 独立调用 G_CEnvironment()（P48 无 CSE + P157 逐字段重读，禁 env 缓存；
         // p167 实证旧写缺 G_CEnvironment×1）。
+        // ORIG 0x0829dc8e..0x0829dca5：m_dbType 同样先值拷贝到具名局部（-0x30）。
+        ENUM_SERVER_GROUP dbType = m_dbType;
         std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> >::iterator it =
-            ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.find(m_dbType);
+            ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.find(dbType);
         if (it != ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.end())
         {
-            it->second.insert(std::make_pair(p1, p2));
+            // ORIG 0x0829dcf5..0x0829dcfd：先 `it.operator->()` + `add $0x4,%eax`
+            // 把 &it->second 缓存进具名局部（-0xc），之后才求 make_pair 实参并
+            // insert（P183 反向警告：二次访问处 ORIG 保留具名缓存；单表达式
+            // `it->second.insert(...)` 4.4 会先算实参后算 receiver ⇒ 顺序反）。
+            std::map<std::string, std::string>& second = it->second;
+            second.insert(std::make_pair(p1, p2));
         }
     }
     return 1;
