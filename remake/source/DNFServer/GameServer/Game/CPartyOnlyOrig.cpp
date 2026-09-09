@@ -1210,17 +1210,21 @@ void CParty::kill_blood_monster(CUser* user, int monsterIdx,
 
 // ORIG T 0x085b6540（DestroyPassiveObject.md）：摧毁被动物件并在触发清除条件
 // 时结算整场。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF（N 封顶）@0x085a3b6a。N 封顶 —— 4.4 对
-// 局部条件恒折 `cmpb $0,-0x9(%ebp); je`，4.1 为 `movzbl -0x9; test %al,%al; je`
-//（探针 d1..d5 + 本轮 p23 f1..f5：uchar/bool/int 局部 × `if(d)`/`while(d)`/
-// `for(;d;)`/`!=0`/`(int)d` 全产 cmpb，bool 局部另多 setne）。语义等价。
+// b28d-solo-CPartyOnlyOrig 判词：DIFF→修复 @0x085b6540（gap 1→0）。4.4 对普通
+// bool 局部条件恒折 `cmpb $0,-0x9(%ebp); je`，ORIG 4.1 为 `movzbl -0x9(%ebp),%eax;
+// test %al,%al; je`（P322② volatile 强占形）。探针 /tmp/probe_hnq/dp3.cpp v9
+// （`volatile bool destroyed` + `if (destroyed)` + `return (unsigned char)destroyed`）
+// 逐条复现 ORIG 29 条（含尾部 movzbl 返回）；普通 bool（v11）仍产 cmpb。
+// 旧判词「uchar/bool/int 局部 × 五种条件形全产 cmpb」（探针 d1..d5/p23 f1..f5）
+// 对 volatile 形不成立，已作废。
 unsigned char CParty::DestroyPassiveObject(int param)
 {
     // [ORIG 0x085a3b6a 物化形] 声明初始化 0 + call 后赋值两段（movb$0 再
     // movzbl reload）+拆&&嵌套。b28d-solo-CPartyOnlyOrig：ORIG O@0x25 为
     // `movzbl -0x9,%eax; test %al,%al; je`（零扩展回读 + 直测，P292 字段/局部
-    // bool 形）⇒ 局部改 bool（uchar 局部 4.4 恒折 `cmpb $0` 直比）。
-    bool destroyed = false;
+    // bool 形）⇒ 局部 bool + volatile（volatile 令 4.4 每个使用点重载并保留
+    // movzbl/test 直测形，探针 dp3 v9）。
+    volatile bool destroyed = false;
     destroyed = static_cast<bool>(
         reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));
@@ -1308,6 +1312,13 @@ int CParty::_Send_TOD_ClearReward()
     packet.put_short(static_cast<unsigned short>(
         userState->getLastEnterLayer().GetLayer()));
     packet.put_byte(10);   // ORIG +0x09c 固定 byte 10
+    // [P171/P184 死块照抄] ORIG +0x0af..+0x0bf：一次 size() 调用 + `cmp $0x9,%eax`
+    // （无分支消费者）。探针 /tmp/probe_hnq/t.cpp h8 实证：空 if 体被 4.4 前端删除
+    // 但比较与调用保留，逐条同形（`> 9` 无符号比较）。
+    if (reinterpret_cast<CBattle_Field*>(&m_battleData)
+            ->m_todReward.m_todMap.size() > 9)
+    {
+    }
     // P48/P157：size()/operator[] 每使用点独立求值（ORIG 循环条件每轮
     // reload this + call size，无缓存）。
     for (unsigned int i = 0;
