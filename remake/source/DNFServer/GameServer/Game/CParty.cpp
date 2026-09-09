@@ -6403,6 +6403,11 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
         WongWork::stGenerateRefData_t ref;              // -0x198
         WongWork::stGenerateResult_t result;            // -0xa4
         CLuckPoint luckPoint;                           // -0x98
+        // [SweepCSecurityCard 2026-09-10] 已试形（回滚）：ORIG 0x085b8472
+        // `lea -0xa0(%ebp),%eax; add $0xc,%eax` 指向 result.m_luckPoint
+        //（stGenerateResult_t 内嵌 ::CLuckPoint@+0x0c）；改 `GetLuckPoint(&result.m_luckPoint,…)`
+        // 删独立局部后 p167 EXTRA 消失，但本 TU 少发射 12 个 ORIG 同名 W 副本
+        // ⇒ compare 四数 147/323→144/314 账面回退，按验收「不回退」回滚，判 N/P204。
         GetLuckPoint(&luckPoint, false);
         unsigned int roll = (unsigned int)get_rand_int(1000);   // -0x38
         // ORIG generateBloodRewardItem.md 085b849e `mov 0x6154(%eax)` /
@@ -6441,7 +6446,10 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
             QuickParty::RewardData_Param rp(this);
             rp.m_param4 = dungIdx;
             QuickParty::RewardData_Result rr;
-            rr.m_value00 = item.get_add_info();
+            // [SweepCSecurityCard 2026-09-10] ORIG 0x085b8679 `mov 0x7(%eax),%eax`
+            // 直读 +0x07（Inven_Item::m_addInfo2），无 get_add_info out-of-line
+            // call（p167 EXTRA get_add_info ×1）。
+            rr.m_value00 = item.m_addInfo2;
             set_basic_reward((QuickParty::BasicRewardType)0xb, rp, rr);
             Inven_Item& mutable_item =
                 const_cast<Inven_Item&>(*specific.m_dropItems.begin());
