@@ -30,20 +30,11 @@
 #include "CDungeon.h"  // CheckLottery 遍历 m_dungeonMap
 #include "PvPTypes.h"  // 权威全局 CMTRand（0x9c8，MT19937；实现见 CMTRand.cpp）
 #include "Packet_Secret_Shop_Statistic.h"  // 权威包头（shared/packet/include）
+#include "CGuildServerProxy.h"  // CEventBase/CEventManager 权威定义（LotteryItems 虚调 IsEventing）
 
 #include <cstring>
 // eBuyRule / CSecretShopStatistic / IBuyRule / CSecretShop 类声明已提取至
 // CSecretShop.h（跨 TU 唯一声明点，供 CParty::dungeon_start 等调用方）。
-// CEventManager 完整定义在 CGuildServerProxy.h（与 GMAccounts.h 重定义冲突，
-// 本 TU 不可同时包含）。按 DB_Login.cpp 先例：仅声明 GetRepeatEvent 非虚
-// 成员（ORIG T 0x08115998），IsEventing 经 vtable+0x34 槽直调。
-class CEventBase;
-class CEventManager
-{
-public:
-    CEventBase* GetRepeatEvent(int type);
-};
-
 // ---- CSecretShop::CSecretShop（GI 键名对齐：ORIG 该 ctor 所在 TU（SecretShop.cpp）
 //      的首个强外部实体即本 ctor（_ZN10secretshop11CSecretShopC2Ev），故将定义
 //      前置于本 TU 首位；定义体逐字未改，仅移动。）----
@@ -81,19 +72,32 @@ secretshop::CSecretShop::CSecretShop()
 //     辅助构造函数写入，未逐指令核对）。
 int importSecretShopScript(SecretShopScript* script, const char* path)
 {
-    // [b28d-solo-CSecretShop 判词·N] 超大件（orig 630）按 §6.2 三件套闭合：
-    // ① p167 调用点差集 **CLEAR**（ORIG 106 = 我们 106，0 missing / 0 extra——
-    //    修复前 87，缺 ScanInt×12/pair 直构×6/verifyNpc/multimap insert/stDungeonSales
-    //    ctor+dtor）；② gap = -5（ORIG 630 vs 我们 635）；③ 残差仅 N82（4.1 不做
-    //    lifetime 槽复用 ⇒ 全帧槽号错位，ndiff 1037 失真）+ N89（ORIG 的
-    //    stDungeonSales/stNpcSales C1/D1 与 map 节点模板为 out-of-line 调用，
-    //    4.4 全内联）+ 6 条 movb/movzbl/xor 物化位差。语义完成。
+    // [b28d-solo-CSecretShop 判词·N + 真 bug 修复] 超大件按 §6.2 三件套：
+    // ① p167 调用点差集 CLEAR（106=106，仅 C1/C2、D1/D2 同址别名伪差，P93）；
+    // ② gap = -2（ORIG 644 vs 我们 646）；③ 残差为控制流岛布局（4.1 循环头
+    //    `jmp/nop/jmp/nop` 双岛 + continue 岛 vs 4.4 单 jmp）与 N82 槽号差。
+    // 本轮修复（ORIG 证据）：① 分支物理序改 ORIG 序 [dungeon npc]→[level
+    //    section]→[level npc]（P324，ndiff 113→45 行）；② [dungeon npc]/[level
+    //    npc] 的 ScanInt 结果直接写 stDungeonNpc 字段（ORIG -0x260 对象槽、pair
+    //    两实参同址），删 3 条拷贝；③ 补 pScript 具名局部（ORIG -0x18，P0）；
+    //    ④ 补死局部 unusedSlot（ORIG -0x14 死初始化，P232）；⑤ **[真 bug]**
+    //    [secret shop end] 置 flag=true 且函数返回该 flag（ORIG 0x08a827b8
+    //    movb $1 + 尾 0x08a827c2 movzbl 返回；旧实现恒 return 1）；⑥ [add slot
+    //    cash user stackable count] 补 continue（ORIG 0x08a82794 jne 岛，P223）。
     if (!loadRDARScriptFile("", path))
     {
         return 0;
     }
-    script->clear();
+    // [b28d-solo-CSecretShop] ORIG 0x08a81d2b `mov 0x8(%ebp),%eax; mov
+    // %eax,-0x18(%ebp)`，其后全程经 -0x18 读 script（14 处）⇒ 原码有具名
+    // 指针局部（P0 槽往返律），补之；旧实现直读形参少 2 条 store/reload。
+    SecretShopScript* pScript = script;
+    pScript->clear();
     std::string token;
+    // [b28d-solo-CSecretShop] ORIG 0x08a81d3e `movl $0x0,-0x14(%ebp)`：全函数
+    // 无读的死初始化槽（P232：未使用局部照样占帧/发射初始化），补之以对齐槽图。
+    int unusedSlot = 0;
+    (void)unusedSlot;
     // [b28d-solo-CSecretShop] p167：ORIG 的 [dungeon npc]/[level npc] 是两段
     // 独立代码（[level npc] 为 1 带 flag + 2 无 flag + 4 占位），旧实现合并导致
     // ScanInt 调用点少 12；flag 为函数级单 bool（ORIG local_255）。
@@ -104,24 +108,42 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
         {
             for (;;)
             {
-                int key = ScanInt(&flag);
+                // [b28d-solo-CSecretShop] ORIG 0x08a81e0x：ScanInt 结果**直接**写
+                // stDungeonNpc 字段（对象槽 -0x260，pair 两实参同址 &npc）——旧
+                // 实现用独立 key/npcIdx/rate 再拷贝，多 3 条 mov 且帧 0x330 vs
+                // ORIG 0x320。
+                stDungeonNpc npc;
+                npc.m_field0 = ScanInt(&flag);   // [推断]
                 if (!flag)
                     break;
-                int npcIdx = ScanInt(&flag);
+                npc.m_npcIdx = ScanInt(&flag);
                 if (!flag)
                     break;
-                int rate = ScanInt(&flag);
+                npc.m_rate = ScanInt(&flag);
                 if (!flag)
                     break;
                 for (int i = 0; i < 4; ++i)
                     ScanInt((bool*)0);   // 4 个占位扫描（ORIG +0x11c）
-                stDungeonNpc npc;
-                npc.m_field0 = key;      // [推断]
-                npc.m_npcIdx = npcIdx;
-                npc.m_rate = rate;
-                script->m_npcMap.insert(std::pair<int, stDungeonNpc>(key, npc));
+                pScript->m_npcMap.insert(
+                    std::pair<int, stDungeonNpc>(npc.m_field0, npc));
             }
-            script->verifyNpc(script->m_npcMap);
+            pScript->verifyNpc(pScript->m_npcMap);
+        }
+        // [b28d-solo-CSecretShop] ORIG 分支物理序（按串地址）：[dungeon npc]
+        // 0x08a81d73 → [level section] 0x08a81ea6 → [level npc] 0x08a81f5e
+        // ⇒ if-else 链必须同序（P324 叶块序=书写序）。
+        else if (token == "[level section]")
+        {
+            for (;;)
+            {
+                stLevelSection section;
+                section.m_levelIdx = ScanInt(&flag);
+                if (!flag)
+                    break;
+                section.m_minLev = ScanInt((bool*)0);
+                section.m_maxLev = ScanInt((bool*)0);
+                pScript->m_levelSections.insert(section);
+            }
         }
         else if (token == "[level npc]")
         {
@@ -138,23 +160,10 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
                 npc.m_field0 = key;
                 npc.m_npcIdx = npcIdx;
                 npc.m_rate = rate;
-                script->m_levelNpcMap.insert(
+                pScript->m_levelNpcMap.insert(
                     std::pair<int, stDungeonNpc>(key, npc));
             }
-            script->verifyNpc(script->m_levelNpcMap);
-        }
-        else if (token == "[level section]")
-        {
-            for (;;)
-            {
-                stLevelSection section;
-                section.m_levelIdx = ScanInt(&flag);
-                if (!flag)
-                    break;
-                section.m_minLev = ScanInt((bool*)0);
-                section.m_maxLev = ScanInt((bool*)0);
-                script->m_levelSections.insert(section);
-            }
+            pScript->verifyNpc(pScript->m_levelNpcMap);
         }
         else if (token == "[npc]")
         {
@@ -214,7 +223,7 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
                 }
                 else if (token == "[/npc]")
                 {
-                    script->m_dungeonNpcMap.insert(
+                    pScript->m_dungeonNpcMap.insert(
                         std::pair<int, stNpcSales>(sales.m_field0, sales));
                     break;
                 }
@@ -222,7 +231,7 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
         }
         else if (token == "[event item]")
         {
-            script->m_eventDungeonSales.m_maxCount = ScanInt((bool*)0);  // +0x64
+            pScript->m_eventDungeonSales.m_maxCount = ScanInt((bool*)0);  // +0x64
             for (;;)
             {
                 int itemIdx = ScanInt(&flag);
@@ -235,27 +244,34 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
                 sale.m_materialCount = ScanInt((bool*)0);
                 sale.m_limit = ScanInt((bool*)0);
                 sale.m_rate = ScanInt((bool*)0);
-                script->m_eventDungeonSales.m_sales.insert(
+                pScript->m_eventDungeonSales.m_sales.insert(
                     std::pair<int, stSaleInfo>(itemIdx, sale));
             }
         }
         else if (token == "[price random]")
         {
-            script->m_priceVarPercent = ScanInt((bool*)0);   // +0x80
+            pScript->m_priceVarPercent = ScanInt((bool*)0);   // +0x80
         }
         else if (token == "[eplp wait time]")
         {
-            script->m_int84 = ScanInt((bool*)0);             // +0x84
+            pScript->m_int84 = ScanInt((bool*)0);             // +0x84
         }
         else if (token == "[add slot cash user stackable count]")
         {
+            // ORIG 0x08a82794 `jne 08a81d4e`（nop 岛 → jmp cond）⇒ 原码是
+            // 空处理 + continue（P223 continue 岛）。
+            continue;
         }
         else if (token == "[secret shop end]")
         {
+            // ORIG 0x08a827b8 `movb $0x1,-0x251(%ebp)` ⇒ 置 flag 后 break；
+            // 函数返回值即该 flag（ORIG 尾 0x08a827c2 `movzbl -0x251,%ebx` +
+            // `mov %ebx,%eax`），旧实现恒 return 1 属真 bug。
+            flag = true;
             break;
         }
     }
-    return 1;
+    return flag;
 }
 
 namespace secretshop
@@ -398,8 +414,9 @@ int CSecretShopStatistic::GetDungeonData(int npcIdx, int dungeonIdx)
     // **再次 find** 取迭代器（ORIG 0x085fd1f7 后 0x085fd230 第二次 call find，
     // 旧实现用 insert().first 少 1 次 find/1 组地址重算）；SECRET_SHOP_STATISTIC_DATA
     // ctor（0x085fd45a）已清 5 个 int ⇒ 只写 m_data[0]（旧实现多写 4 条 movl）。
-    // 判词·N：残余 ndiff 9 = sret pair ctor 后 `sub $0x4,%esp`（N115）+
-    // lea 目标 %eax↔%edx（N7）；调用点/槽位集一致，语义完成。
+    // 判词·AE（本轮修复）：`std::make_pair` 改显式 `std::pair<int,T>(dungeonIdx,
+    // data)`（ORIG 0x085fd1f7 直接调 pair 模板 ctor，无 make_pair sret）⇒ 消除
+    // 调用后 `sub $0x4,%esp`，101→100，gap 0。
     int pos = GetNpcPos(npcIdx);
     std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it =
         m_pos[pos].find(dungeonIdx);
@@ -407,7 +424,7 @@ int CSecretShopStatistic::GetDungeonData(int npcIdx, int dungeonIdx)
         return (int)&it->second;
     SECRET_SHOP_STATISTIC_DATA data;
     data.m_data[0] = dungeonIdx;
-    m_pos[pos].insert(std::make_pair(dungeonIdx, data));
+    m_pos[pos].insert(std::pair<int, SECRET_SHOP_STATISTIC_DATA>(dungeonIdx, data));
     it = m_pos[pos].find(dungeonIdx);
     return (int)&it->second;
 }
@@ -715,31 +732,19 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
 void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
                                int level, int price)
 {
-    // [b28d-56 判词·N] N82/P183：ORIG 55 条 vs 我们 56 条（我们多 `mov %eax,-0x10`
-    // 缓存 G_CDataManager 结果；ORIG 每处 use 各自 fresh call，P48）；语义完成。
+    // 判词·AE（本轮修复）：ORIG 56 = 我们 56，gap 0。
     // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（GetItemByDungeonIdx /
     // GetItemByDungeonLev 各一处，共 2 次）。
-    // m_pRand 即 PvPTypes.h 权威全局 CMTRand；GetItemByDungeonIdx/Lev 形参
-    // ORIG 0x085faca2：event = s_event_manager->GetRepeatEvent(0x3a)
-    // ->IsEventing((CUser*)0)（vtable slot 13），作 GetItemByDungeonIdx/Lev
-    // 第 5 参（命中时额外 GetItemByEvent 追加事件商品）。CEventManager 完整
-    // 定义在 CGuildServerProxy.h（与 GMAccounts.h 重定义冲突不可同时包含），
-    // 按 DB_Login.cpp 先例：GetRepeatEvent 用前置 CEventManager 的成员声明，
-    // IsEventing 经 vtable+0x34 槽直调（ORIG 指令形态）。
-    typedef bool (*IsEventingFn)(CEventBase*, int);
-    // [b28-L14] P0 清绑（原 `register CEventBase* ev asm("eax")`，全域禁用）。
-    // 残差封顶 N 类：ORIG 0x085facxx 为 `call GetRepeatEvent; mov (%eax),%edx;
-    // add $0x34,%edx; mov (%edx),%edx; movl $0,0x4(%esp); mov %eax,(%esp);
-    // call *%edx`——ev 留 %eax 直传 this、vtable 走 %edx。4.4 对间接 call 目标
-    // 恒用 %eax（N7，探针 /tmp/l14p/virt2.cpp 四形实测），ev 必被挤落栈槽
-    // （+3 条）；P226 裸语句表达式形实测同样槽化（含具名中间变量，P197② 边界）。
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x3a);
-    bool event = (*reinterpret_cast<IsEventingFn*>(
-                      *reinterpret_cast<void**>(ev) + 0x34))(ev, 0);
+    // m_pRand 即 PvPTypes.h 权威全局 CMTRand；ORIG 0x085fac85 event =
+    // s_event_manager->GetRepeatEvent(0x3a)->IsEventing(0)（vtable slot 13，
+    // CEventBase 权威定义经 CGuildServerProxy.h；ev 无槽往返 ⇒ P0 无具名局部，
+    // 匿名链式虚调用复现 ORIG `mov (%eax),%edx; add $0x34,%edx; mov (%edx),%edx;
+    // mov %eax,(%esp); call *%edx`）。
+    bool event = GlobalData::s_event_manager->GetRepeatEvent(0x3a)->IsEventing(0);
     // [b28d-solo-CSecretShop] 尾块：ORIG 0x085facd6 `test %al,%al; jne <nop 岛>` +
     // 0x085fad14 `test %al,%al; jmp <epilogue>; nop` ⇒ 平铺双早返
     // `if (f() != 0) return;`（P63：散布 return 产 jmp/nop 中继岛；4.1 把第二处
-    // 等价 jne 折成 jmp）。残余 ev 槽化记 N7（4.4 间接 call 目标恒 %eax）。
+    // 等价 jne 折成 jmp）。
     if (G_CDataManager()->m_secretShop.GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, event) != 0)
         return;
     if (G_CDataManager()->m_secretShop.GetItemByDungeonLev(m_pRand, out, dungeonIdx, price, event) != 0)
@@ -755,9 +760,12 @@ void CSecretShop::CheckLottery()
     //    形（`(*lt).m_itemIdx`，P167 星点判据）；③ EXTRA `_Rb_tree_iterator::eq` ⇒
     //    正极性 `c != counts.end()`（P220）；④ ORIG make_pair 实例 `_ZSt9make_pairIiiE`
     //    （右值版）⇒ 实参右值化。
-    // 判词·N：修复后 p167 **CLEAR**（56=56），gap -2（304 vs 306），ndiff 252 属
-    // N82（4.1 不复用迭代器/临时槽）+ N89（hash_map/map 迭代器与 string 模板
-    // out-of-line 调用被 4.4 全内联）失真；语义完成。
+    // 判词·N（本轮复核）：p167 CLEAR（56=56，仅 C1/C2、D1/D2 别名伪差）；
+    // gap -2（304 vs 306）= 4.4 对 make_pair<int,int>(int&&,int&&) 的 xvalue
+    // 实参 materialize 读值临时（ORIG 0x08a81e8b 直传 &(*lt).m_itemIdx）；已把
+    // `(int)` cast 改 P234 形 `static_cast<int&&>`（符号与 ORIG 一致，仍 +2 条
+    // ⇒ 跨版本 codegen 封顶）。尾部 setcc-fold（ORIG `setb;test;jne` vs 4.4
+    // 直跳+常量岛，P197④ 镜像负例）与 N82/N89 失真并存；语义完成。
     // ORIG 0x85fad20：统计工具 —— 对 CDataManager 地下城表中每个地下城，
     // 以 dungeonIdx=0x3ea(1002)、level=get_index()、price=get_standard_level()
     // 抽取 10000 次 LotteryItems，统计各商品出现次数，并把百分比写入
@@ -791,7 +799,13 @@ void CSecretShop::CheckLottery()
                 }
                 else
                 {
-                    counts.insert(std::make_pair((int)(*lt).m_itemIdx, 1));
+                    // [b28d-solo-CSecretShop] ORIG 0x085fae8b `call deEv; mov
+                    // %eax,%edx; …; mov %edx,0x4(%esp); call make_pair<int,int>
+                    // (int&&,int&&)`——实参即 `&(*lt).m_itemIdx`（+0 字段，无读值
+                    // 临时）。`(int)` cast 会先读值落临时（+2 条）；P234 形
+                    // `static_cast<int&&>` 直接绑定右值引用，符号与 ORIG 一致。
+                    counts.insert(std::make_pair(
+                        static_cast<int&&>((*lt).m_itemIdx), 1));
                 }
             }
             list.clear();
@@ -951,8 +965,10 @@ bool SecretShopScript::GetItems(CMTRand* rand,
     // 第二分支为 `for(; guard<=0x2710 && size<max; ++guard)` 尾条件形（ORIG
     // 0x08a82f35 `addl $1,-0xc` → 0x08a82f39 `cmpl $0x2710; jg` → 0x08a82f42 size
     // 检查），变量槽 seed(-0x1c ulong)/randVal(-0x14 uint)/acc(-0x10 uint)/guard(-0xc)。
-    // 判词·N：残余 ndiff 54 = N82（4.1 不复用迭代器槽，两分支 it/end 各占独立槽
-    // ⇒ 全帧槽号浅移 0x20）+ setcc-fold（ORIG `setb;test;jne`/`jbe` vs 4.4 直跳）。
+    // 判词·N（本轮复核）：IsExistItem 判定改正向 goto 形消 4.4 的 `xor $1`
+    // （ORIG 0x08a82eb4 `test %al,%al; jne <break 岛>`）⇒ 159→158，gap 0。
+    // 残余 = N82（两分支 it/end 独立槽，全帧槽号浅移 0x20）+ setcc-fold
+    // （ORIG 尾 `setb;test;jne` vs 4.4 `jae`+常量岛，P197④ 镜像负例）。
     if (sales.m_sales.size() < (unsigned int)sales.m_maxCount) {
         // 商品数少于上限：直接全部列出
         secretshop::SALE_INFO sale;
@@ -977,10 +993,15 @@ bool SecretShopScript::GetItems(CMTRand* rand,
                  it != sales.m_sales.end(); ++it) {
                 acc += (unsigned int)it->second.m_rate;
                 if (randVal < acc) {
-                    if (!IsExistItem(out, it->second.m_itemIdx)) {
-                        CopyItem(sale, it->second);
-                        out.push_back(sale);
-                    }
+                    // [b28d-solo-CSecretShop] ORIG 0x08a82eb4 `call IsExistItem;
+                    // test %al,%al; jne <break 落点>`（bool callee 直判、无 xor）。
+                    // 4.4 对 `!f()`/`f()==0` 恒插 `xor $1`（P168a②/N122 实测）⇒
+                    // 用正向条件 goto 复现 ORIG 的 `test;jne` 直分支形。
+                    if (IsExistItem(out, it->second.m_itemIdx) != 0)
+                        goto skip_copy;
+                    CopyItem(sale, it->second);
+                    out.push_back(sale);
+skip_copy:
                     break;
                 }
             }

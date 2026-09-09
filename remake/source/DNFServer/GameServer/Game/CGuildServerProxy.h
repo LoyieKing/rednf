@@ -177,43 +177,11 @@ public:
 static_assert(sizeof(CEventManager) == 0x29c,
               "CEventManager ABI drift");
 
-namespace WongWork
-{
-class CGMAccounts
-{
-public:
-    // GM 账号条目（8 字节）：账号 id + GM 类型（ORIG 嵌套类型，mangled
-    // _ZNK8WongWork11CGMAccounts10stGMInfo_teqERKS1_）。
-    struct stGMInfo_t
-    {
-        unsigned int mid;    // +0x00
-        unsigned int type;   // +0x04
-
-        // ORIG W 0x08109610：仅比较 mid（+0x00），不比较 type。
-        bool operator==(const stGMInfo_t& o) const
-        {
-            return mid == o.mid;
-        }
-    };
-
-    CGMAccounts();                         // 0x082a73a4 W（独立 TU）
-    ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
-    bool isGM(unsigned int mid);           // 0x08109346
-    int removeGM(unsigned int mid, unsigned int param);   // 0x081093fc（mov $0,%eax 返 0）
-    // ORIG 0x082a7388 W：mov this→eax 直返 ⇒ 返回 m_gmList（+0x00）引用，非拷贝
-    const std::list<stGMInfo_t>& GetGMList() const { return m_gmList; }
-    void LoadGmList(unsigned int mid, int level);   // ORIG 0x081094ea T（Gm_List.cpp）
-    void clearGmList();                             // ORIG 0x08109510 T（Gm_List.cpp）
-    int loadGMAccounts(char const* path);                // ORIG T 0x0810933c _ZN8WongWork11CGMAccounts14loadGMAccountsEPKc
-    int appendGM(unsigned int mid, unsigned int type);   // ORIG T 0x081093ee _ZN8WongWork11CGMAccounts8appendGMEjj
-    void AppendGM_Sys(unsigned int mid, char type);      // ORIG T 0x08109524 _ZN8WongWork11CGMAccounts12AppendGM_SysEjc
-    // ORIG 0x0810940a _ZNK8WongWork11CGMAccounts9getGMInfoEj：sret；{mid,type=3}
-    // std::find 命中返回该元素，否则返回 {mid,3}（定义 W6_SecMiscDeps.cpp）。
-    stGMInfo_t getGMInfo(unsigned int mid) const;
-private:
-    std::list<stGMInfo_t> m_gmList;        // +0x00（sizeof 8，与 ORIG 一致）
-};
-}
+// WongWork::CGMAccounts：§4.4 合并——本头原重复定义已删除（与
+// Statics/GMAccounts.h:707 冲突，阻塞同时包含两头的 TU，如 CSecretShop.cpp）。
+// 唯一声明点改为 Statics/GMAccounts.h（接口/字段/mangled 均不变：
+// sizeof=8、m_gmList@+0x00）。
+#include "../Statics/GMAccounts.h"
 
 class Gm_List
 {

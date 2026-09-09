@@ -373,15 +373,10 @@ struct SECRET_SHOP_STATISTIC_DATA
 } __attribute__((packed));
 
 // ---- GoldCardEventStatistic：0x9 ----
-#pragma pack(push, 1)
-struct GoldCardEventStatistic
-{
-    GoldCardEventStatistic();
-    char m_level;   // +0（log_goldcard_event.level）
-    unsigned int m_createCnt;  // +1（log_goldcard_event.create_cnt）
-    unsigned int m_openCnt;  // +5（log_goldcard_event.open_cnt）
-};
-#pragma pack(pop)
+// §4.4 合并：唯一声明点 = Game/GoldCardEventStatistic.h（本头原副本删除，
+// 与同时包含两头的 TU（CPartyDepsD2.cpp 等）冲突）。布局一致：packed、
+// sizeof 0x9、字段 +0x00/+0x01/+0x05；C1 为头内 inline（ORIG W 0x85bee76）。
+#include "../Game/GoldCardEventStatistic.h"
 
 // ---- TowerOfDespairStatistic_Value：0x8 ----
 struct TowerOfDespairStatistic_Value
@@ -702,6 +697,11 @@ public:
 #pragma pack(pop)
 
 // ---- WongWork::CGMAccounts ----
+// §4.4 合并：本头为跨域唯一声明点（CGuildServerProxy.h 内重复定义已删除，
+// 改为 include 本头）。接口/字段名以 Game 域实际消费方
+// （Gm_List.cpp/GlobalData.cpp/W6_SecMiscDeps.cpp/WongWorkSkillGM_A.cpp +
+// CUser.cpp/DisPatcherCore.cpp 等 isGM 调用点）为准；sizeof=8、
+// m_gmList@+0x00、全部 mangled 不变。
 namespace WongWork
 {
 class CGMAccounts
@@ -709,19 +709,31 @@ class CGMAccounts
 public:
     struct stGMInfo_t
     {
-        bool operator==(const stGMInfo_t& other) const;
-        unsigned int m_id;    // GM 账号 id（isGM/AppendGM_Sys）
-        int m_flag;           // GM flag/index（isGM 用 3）
+        unsigned int mid;    // +0x00（GM 账号 id）
+        unsigned int type;   // +0x04（GM flag/index，isGM 用 3）
+
+        // ORIG W 0x08109610：仅比较 mid（+0x00），不比较 type。
+        bool operator==(const stGMInfo_t& o) const
+        {
+            return mid == o.mid;
+        }
     };
-    void LoadGmList(unsigned int group, int index);
-    void clearGmList();
-    void AppendGM_Sys(unsigned int id, char flag);
-    bool loadGMAccounts(const char* path);
-    int isGM(unsigned int id);
-    int appendGM(unsigned int id, unsigned int value);
-    int removeGM(unsigned int id, unsigned int value);
-    stGMInfo_t getGMInfo(unsigned int id) const;
-    std::list<stGMInfo_t> m_list;
+
+    CGMAccounts();                         // 0x082a73a4 W（独立 TU）
+    ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
+    bool isGM(unsigned int mid);           // 0x08109346
+    int removeGM(unsigned int mid, unsigned int param);   // 0x081093fc（mov $0,%eax 返 0）
+    // ORIG 0x082a7388 W：mov this→eax 直返 ⇒ 返回 m_gmList（+0x00）引用，非拷贝
+    const std::list<stGMInfo_t>& GetGMList() const { return m_gmList; }
+    void LoadGmList(unsigned int mid, int level);   // 0x081094ea T
+    void clearGmList();                             // 0x08109510 T
+    int loadGMAccounts(char const* path);           // 0x0810933c T（恒返 1）
+    int appendGM(unsigned int mid, unsigned int type);   // 0x081093ee T
+    void AppendGM_Sys(unsigned int mid, char type);      // 0x08109524 T
+    // ORIG 0x0810940a _ZNK8WongWork11CGMAccounts9getGMInfoEj：sret；{mid,type=3}
+    stGMInfo_t getGMInfo(unsigned int mid) const;
+private:
+    std::list<stGMInfo_t> m_gmList;        // +0x00（sizeof 8，与 ORIG 一致）
 };
 }
 

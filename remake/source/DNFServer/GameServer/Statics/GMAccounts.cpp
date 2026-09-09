@@ -152,12 +152,6 @@ SECRET_SHOP_STATISTIC_DATA::SECRET_SHOP_STATISTIC_DATA()
     m_data[3] = 0;
     m_data[4] = 0;
 }
-GoldCardEventStatistic::GoldCardEventStatistic()
-{
-    m_level = 0;
-    m_createCnt = 0;
-    m_openCnt = 0;
-}
 Packet_Goldcard_Event_Statistic_STD::Packet_Goldcard_Event_Statistic_STD()
     : PacketHeader(0x1f47, 0x385)
 {
@@ -521,48 +515,40 @@ void stP2PStatistics::Init()
 }
 namespace WongWork
 {
-bool CGMAccounts::stGMInfo_t::operator==(const stGMInfo_t& other) const
-{
-    return m_id == other.m_id;
-}
-
 void CGMAccounts::LoadGmList(unsigned int group, int index)
 {
     stGMInfo_t info;
-    info.m_id = group;
-    info.m_flag = index;
-    m_list.push_back(info);
+    info.mid = group;
+    info.type = index;
+    m_gmList.push_back(info);
 }
 
 void CGMAccounts::clearGmList()
 {
-    m_list.clear();
+    m_gmList.clear();
 }
 
 void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
 {
     stGMInfo_t info = {};
-    info.m_id = id;
-    info.m_flag = flag;
-    m_list.push_back(info);
+    info.mid = id;
+    info.type = flag;
+    m_gmList.push_back(info);
     register char* mid = NumberToString(id, 0);
     DNF_LOG_SCOPE_LINE(0xcd, "./log/Init", "GM List Add mid:%s", mid);
 }
 
-bool CGMAccounts::loadGMAccounts(const char* path)
+int CGMAccounts::loadGMAccounts(const char* path)
 {
-    return true;
+    return 1;
 }
 
-int CGMAccounts::isGM(unsigned int id)
+bool CGMAccounts::isGM(unsigned int id)
 {
     stGMInfo_t key = {};
-    key.m_flag = 3;
-    key.m_id = id;
-    if (std::find(m_list.begin(), m_list.end(), key) != m_list.end())
-        return 1;
-    else
-        return 0;
+    key.type = 3;
+    key.mid = id;
+    return std::find(m_gmList.begin(), m_gmList.end(), key) != m_gmList.end();
 }
 
 int CGMAccounts::appendGM(unsigned int id, unsigned int value)
@@ -587,14 +573,14 @@ int CGMAccounts::removeGM(unsigned int id, unsigned int value)
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
 {
     stGMInfo_t out;
-    out.m_id = 0;
-    out.m_flag = 3;
+    out.mid = 0;
+    out.type = 3;
     stGMInfo_t key = {};
-    key.m_flag = 3;
-    key.m_id = id;
+    key.type = 3;
+    key.mid = id;
     std::list<stGMInfo_t>::const_iterator it =
-        std::find(m_list.begin(), m_list.end(), key);
-    if (it != m_list.end())
+        std::find(m_gmList.begin(), m_gmList.end(), key);
+    if (it != m_gmList.end())
         return *it;
     else
         return out;
