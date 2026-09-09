@@ -26,6 +26,14 @@ std::string getObjectCategoryString(ENUM_CATEGORY cat);   // T 0x08a3ca81（Scri
 #include "SyncScriptDeps.h"           // toTString
 #include <stdio.h>
 
+// ---- TU-local 视图：ORIG export 0x08a2b44b 以「对象首地址 + int 索引 (k+4)」
+//      访问 +0x10..+0x18 三 int（P30 两步寻址实证：`add $0x4,%edx;
+//      mov (%eax,%edx,4),%eax`）。仅复现该寻址形，不改变布局/不读写前四项。
+struct STPassiveObjectAdditionalParticleInfoIntView
+{
+    int m_ints[7];   // +0x00..+0x18（[4]/[5]/[6] 即 m_i10/m_i14/m_i18）
+};
+
 // ---- 跨 TU 依赖声明 ----
 extern char g_szPassiveObjectScriptBaseDirectory[0x100];   // InitScriptProducers_4.cpp（B 0x094f6ac0）
 void getScriptFileFullPath(char* out, unsigned int size,
@@ -270,11 +278,48 @@ void STPassiveObjectScript::clear()
 // 导出 STPassiveObjectScript 为中间文本（fopen "wb" + fprintf/fwrite），
 // 收尾 convertBinaryToText 转最终脚本；fopen 失败返 0，成功返 1。
 // ===========================================================================
-// [b28d-51] 判词 N（ORIG 0x08a29f69，N82 巨件族）：import 链多分支槽复用 +
-// 模板/迭代器实例跨版本差（§6.2：调用集/指令集齐）；byte 层封顶。
+// [b28d-51 判词；SweepW8LTDBTask2 2026-09-10 复核] ORIG 0x08a29f69（2254 条）
+// vs 我方 2256 条。§6.2 三件套：p167 调用点差集 CLEAR（310=310，仅 C1/C2、
+// D1/D2 同址别名）；jcc 序列全 TU 260 函数逐位核对仅本件与
+// _Vector_base<uchar>::D1 不同；立即数多重集仅后者差帧 0x10/0x18。
+// 本轮修复（真 bug + P0 真缺口，均已 fresh 复编验证）：
+//  ① (int)(short)m_us150 —— ORIG 0x08a2b9b9 `movzwl + cwtl` 符号扩展；原写
+//     (int) 零扩展，值 ≥0x8000 时输出不同（P321-T1/T2）。
+//  ② follow 循环删指针缓存 —— ORIG 0x08a2b446 每轮重取 operator[]，并以对象
+//     首地址 + int 索引 (k+4) 访问 +0x10..+0x18（P30 两步寻址/P183）；k 为
+//     unsigned（ORIG 0x08a2b471 setbe）。
+//  ③ category 循环补具名局部 int cat —— ORIG 0x08a2a2be 有槽往返（P0）。
+//  ④ [name] 的 m_name.c_str() 内联实参 —— ORIG 0x08a2a02c 无槽（P0）。
+//  ⑤ passName/followName 合并为函数级 nameString=0 —— ORIG 0x08a29f74 开头
+//     清零、0x08a2a1df/0x08a2bbaf 复用同一槽 -0x54（P0）。
+//  ⑥ soundVol/effectCnt 删具名局部 —— ORIG 0x08a2b0e5/0x08a2b1c9 用 %ebx 跨
+//     调用保活（P0/P329）。
+//  ⑦ m_b1c 字段 bool 化 —— ORIG 0x08a2b4a9 直测无 setne（P73/P321-T3；
+//     STPassiveObjectAdditionalParticleInfo.h §8.3，宽度 1B/sizeof 不变）。
+//  ⑧ speedName 分支极性 —— ORIG 0x08a2bcbd `test;je <[down]>`，[up] then 直落
+//     （P222）。
+//  ⑨ [string data] 照抄 *it->c_str() —— ORIG 0x08a2a9e8 movzbl+movsbl 取首字符
+//     当 %s（P171 原码遗留行为照抄）。
+//  ⑩ needDestroy 删具名 bool —— ORIG 0x08a2abd9 仅 %al 物化后直测（P0）。
+//  ⑪ m_ib0 改浮点比较 —— ORIG 0x08a2b696 fildl（P171 照抄显式转换）。
+//  ⑫ m_b60 三目 (int)(b60?1:0) —— ORIG 0x08a2a65f je/mov$1/jmp/mov$0（P47）。
+//  ⑬ [sound category] 合并短路语句表达式 —— ORIG 0x08a2afea 物化 mov$1/mov$0 后
+//     test（P214①/P316）。
+// 剩余 N 族（逐块比对，语义等价，无源码解）：
+//  a. quest type if 链块发射序（0x8a2aa8c/0x8a2aa97/0x8a2aae1/0x8a2aaf0，N93附/P46）；
+//  b. m_i40 0/1 链块序（0x8a2ad12/0x8a2ad40，同族）；
+//  c. homing follow 2/3/1/else 链块序（0x8a2b59d/0x8a2b618/0x8a2b633，同族）；
+//  d. x87 比较 fucompp/fnstsw/sahf vs fucomip/fstp ×7（0x8a2b643/0x8a2b659/
+//     0x8a2b6aa/0x8a2b711/0x8a2b747/0x8a2b77d/0x8a2bb43，N85）；
+//  e. category 读槽与 lea 的求值序（0x8a2a2c1/0x8a2a2c7，P75/N-G）。
+// 同 TU 另件 _ZNSt12_Vector_baseIhSaIhEED1Ev（ORIG 39 条 vs 我方 24 条）：ORIG
+// libstdc++ 版含 _M_deallocate 的 EH landing + push esi/ebx，4.4 头无 ⇒ N89。
 int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
 {
     static char saveFileName[0x100];
+    // ORIG 0x08a29f74：函数级局部先清零，[pass type] 与 [follow parent] 复用同一
+    // 槽 -0x54(%ebp)（P0：ORIG 有槽往返 ⇒ 原码有具名局部）。
+    const char* nameString = 0;
     getScriptFileFullPath(saveFileName, 0x100,
                           g_szPassiveObjectScriptBaseDirectory, path);
     FILE* file = fopen(saveFileName, "wb");
@@ -292,10 +337,11 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         const wchar_t* layer = 0;
         if (!script->m_layer.empty())
             layer = reinterpret_cast<const wchar_t*>(script->m_layer.c_str());
-        const wchar_t* name = reinterpret_cast<const wchar_t*>(script->m_name.c_str());
+        // ORIG 0x08a2a02c：m_name.c_str() 结果不经栈槽直传 getTagByName（P0）。
         fprintf(file, "[name] %s\n",
                 toTString(g_scriptStringManager_.getTagByName(
-                    0x9, name, layer, false)));
+                    0x9, reinterpret_cast<const wchar_t*>(script->m_name.c_str()),
+                    layer, false)));
     }
     if (script->m_width != 0 || script->m_height != 0)
         fprintf(file, "[width] %d %d\n", script->m_width, script->m_height);
@@ -312,9 +358,9 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (script->m_b159 != 0)
         fwrite("[hp gage] 1\n", 1, 0xc, file);
     // ORIG：getPassageTypeName 单次调用，结果存 -0x54(%ebp) 后复用（08a2a1df）。
-    const char* passName = getPassageTypeName((ENUM_PASSAGETYPE)script->m_i1c);
-    if (passName != 0 && script->m_i1c != 0)
-        fprintf(file, "[pass type] `%s`\n", passName);
+    nameString = getPassageTypeName((ENUM_PASSAGETYPE)script->m_i1c);
+    if (nameString != 0 && script->m_i1c != 0)
+        fprintf(file, "[pass type] `%s`\n", nameString);
     if (script->m_i20 != 0)
         fprintf(file, "[piercing power] %d\n", script->m_i20);
     if (script->m_i24 != 0)
@@ -323,7 +369,11 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     {
         fwrite("[category]\n", 1, 0xb, file);
         for (std::vector<int>::size_type i = 0; i < script->m_category.size(); ++i)
-            fprintf(file, "`%s`\n", getObjectCategoryString((ENUM_CATEGORY)script->m_category[i]).c_str());
+        {
+            // ORIG 0x08a2a2be：元素值先落具名槽 -0x40（P0：有槽往返 ⇒ 原码有局部）。
+            int cat = script->m_category[i];
+            fprintf(file, "`%s`\n", getObjectCategoryString((ENUM_CATEGORY)cat).c_str());
+        }
         fwrite("[/category]\n\n", 1, 0xd, file);
     }
     if (script->m_s34 != "")
@@ -351,8 +401,9 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (script->m_b58 != 0)
         fwrite("[under gravity] 1\n", 1, 0x12, file);
     if (script->m_b61 != 0)
+        // ORIG 0x08a2a65f：je/mov$1/jmp/mov$0 分支物化 ⇒ 三目形（P47）。
         fprintf(file, "[vanish on move collision] %d\n",
-                (int)(script->m_b60 != 0));
+                (int)(script->m_b60 ? 1 : 0));
     if (script->m_b5a != 0)
         fwrite("[trap] 1\n", 1, 9, file);
     if (script->m_b62 != 0)
@@ -387,7 +438,9 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         // 不受影响，此处保留正确指针传参并标注差异）。
         for (std::vector<std::string>::iterator it = script->m_stringData.begin();
              it != script->m_stringData.end(); it++)
-            fprintf(file, "`%s`\n", it->c_str());
+            // P171 照抄：ORIG 0x08a2a9e8 把 c_str() 首字符 movzbl+movsbl 后当 %s
+            // 实参传入（原码 `*it->c_str()`），保持与 ORIG 可观察行为一致。
+            fprintf(file, "`%s`\n", *it->c_str());
         fwrite("[/string data]\n", 1, 0xf, file);
     }
     if (script->m_i94 == 1)
@@ -402,13 +455,12 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         fwrite("[hp destroy] 1\n", 1, 0xf, file);
 
     {
-        bool needDestroy =
-            (script->m_destroy.m_type != -1 || script->m_destroy.m_flag04 >= 1 ||
-             script->m_destroy.m_i40 != -1 ||
-             !script->m_destroy.m_ints08.empty() ||
-             !script->m_destroy.m_strs14.empty() ||
-             !script->m_destroy.m_ints44.empty());
-        if (needDestroy)
+        // ORIG 0x08a2abd9：判定结果只经 %al 物化后直测（无栈槽往返，P0）⇒ 不设具名局部。
+        if (script->m_destroy.m_type != -1 || script->m_destroy.m_flag04 >= 1 ||
+            script->m_destroy.m_i40 != -1 ||
+            !script->m_destroy.m_ints08.empty() ||
+            !script->m_destroy.m_strs14.empty() ||
+            !script->m_destroy.m_ints44.empty())
         {
             fwrite("[object destroy condition]\n", 1, 0x1b, file);
             switch (script->m_destroy.m_type)
@@ -473,12 +525,11 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
              i < script->m_destroy.m_strs20.size(); ++i)
         {
             // ORIG 08a2afaf-08a2afe8：empty() 先行短路，再逐访问重索引比较 ""。
-            if (script->m_destroy.m_strs20[i].empty())
+            // ORIG 0x08a2afea：empty 与 == 合并短路后物化 mov$1/mov$0 再 test
+            // （P214①/P316：语句表达式保短路物化且不占槽）。
+            if (({ script->m_destroy.m_strs20[i].empty() ||
+                   script->m_destroy.m_strs20[i] == ""; }))
                 continue;
-            if (script->m_destroy.m_strs20[i] == "")
-                continue;
-            // ORIG 08a2b0e5：先取音量入 ebx，后取名字 c_str。
-            int soundVol = script->m_destroy.m_ints2c[i];
             switch (i)
             {
             case 0:
@@ -497,8 +548,10 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
                 fwrite("`[on destroyobject]`", 1, 0x14, file);
                 break;
             }
+            // ORIG 08a2b0e5：先取音量入 ebx（无槽往返，P0），后取名字 c_str。
             fprintf(file, " `%s` %d\n",
-                    script->m_destroy.m_strs20[i].c_str(), soundVol);
+                    script->m_destroy.m_strs20[i].c_str(),
+                    script->m_destroy.m_ints2c[i]);
         }
         fwrite("[/sound category]\n", 1, 0x12, file);
     }
@@ -508,10 +561,10 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         for (std::vector<std::string>::size_type i = 0;
              i < script->m_addEffect.m_strs00.size(); ++i)
         {
-            // ORIG 08a2b1c9：先取 int 入 ebx，再取 string c_str。
-            int effectCnt = script->m_addEffect.m_ints0c[i];
+            // ORIG 08a2b1c9：先取 int 入 ebx（无槽往返，P0），再取 string c_str。
             fprintf(file, "%s %d\n",
-                    script->m_addEffect.m_strs00[i].c_str(), effectCnt);
+                    script->m_addEffect.m_strs00[i].c_str(),
+                    script->m_addEffect.m_ints0c[i]);
         }
         fwrite("[/add object effect]\n", 1, 0x15, file);
     }
@@ -535,14 +588,18 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
                         script->m_particles[i]->m_s04.c_str());
             if (script->m_particles[i]->m_i10 != 0)
             {
-                const int* follow = &script->m_particles[i]->m_i10;
                 fwrite("\t\t[follow parent]", 1, 0x11, file);
-                // ORIG 08a2b446-08a2b48a：k=0..2 逐个 "%d " 后 fputc('\n')。
-                for (int k = 0; k <= 2; ++k)
-                    fprintf(file, "%d ", follow[k]);
+                // ORIG 08a2b446-08a2b48a：每轮重新 operator[]（P183 禁指针缓存），
+                // 再以对象首地址 + int 索引 (k+4) 访问 +0x10..+0x18；k 为 unsigned
+                // （尾测 setbe，P321-T2）。
+                for (unsigned int k = 0; k <= 2; ++k)
+                    fprintf(file, "%d ",
+                            ((const STPassiveObjectAdditionalParticleInfoIntView*)
+                             script->m_particles[i])->m_ints[k + 4]);
                 fputc(10, file);
             }
-            if (script->m_particles[i]->m_b1c != 0)
+            // ORIG 0x08a2b4a9：直测单字节（无 setne 物化）⇒ 隐式转 bool。
+            if (script->m_particles[i]->m_b1c)
                 fwrite("\t\t[loop] 1\n", 1, 0xb, file);
             fwrite("\t[/particle]\n", 1, 0xd, file);
         }
@@ -562,7 +619,8 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
             fwrite("\t[homing follow] `[ME]`\n", 1, 0x18, file);
         if (script->m_fa8 != 0.0f || script->m_fac != 0.0f)
             fprintf(file, "\t[homing velocity] %f %f\n", script->m_fa8, script->m_fac);
-        if (script->m_ib0 != 0)
+        // ORIG 0x08a2b696：int 字段经 fildl 浮点比较（原码显式转浮点）⇒ 照抄。
+        if ((double)script->m_ib0 != 0.0)
             fprintf(file, "\t[homing check gap] %d\n", script->m_ib0);
         if (script->m_bb4 != 0)
             fwrite("\t[sync animation rotation] 1\n", 1, 0x1d, file);
@@ -595,8 +653,9 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (script->m_ub14f != 0xff)
         fwrite("[transparent on meet player] 1\n", 1, 0x1f, file);
     if (script->m_us150 != 0xffff)
+        // ORIG 0x08a2b9b9：movzwl + cwtl（符号扩展）⇒ 原码为 (int)(short)。
         fprintf(file, "[pvp room transparent value for observer] %d\n",
-                (int)script->m_us150);
+                (int)(short)script->m_us150);
     if (script->m_s154 != "")
         fprintf(file, "[create sound] `%s`\n", script->m_s154.c_str());
     if (!script->m_onAttackData.empty())
@@ -615,9 +674,9 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (script->m_i174 != 0)
         fwrite("[following immortal] 1\n", 1, 0x17, file);
     // ORIG：getFollowTypeName 单次调用存 -0x54(%ebp) 复用（08a2bbaf）。
-    const char* followName = getFollowTypeName((ENUM_MAP_FOLLOW_TYPE)script->m_i178);
-    if (followName != 0)
-        fprintf(file, "[follow parent] `%s`\n", followName);
+    nameString = getFollowTypeName((ENUM_MAP_FOLLOW_TYPE)script->m_i178);
+    if (nameString != 0)
+        fprintf(file, "[follow parent] `%s`\n", nameString);
     // ORIG 08a2bbdd：size 缓存 -0x4c(%ebp)，仅测一次 >0；循环用缓存值。
     int speedCount = (int)script->m_speedCtrls.size();
     if (speedCount > 0)
@@ -633,10 +692,12 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
             info = script->m_speedCtrls[i];
             fwrite("[passive object]\n", 1, 0x11, file);
             fprintf(file, "\t[index] %d\n", info.m_field0);
-            if (info.m_b4 == 0)
-                speedName = "[down]";
-            else
+            // ORIG 0x08a2bcbd：test %al; je <[down] 块>，[up] 为 then 直落
+            // （P222 正极性包裹）⇒ 正写 if (m_b4) 才复现该布局。
+            if (info.m_b4)
                 speedName = "[up]";
+            else
+                speedName = "[down]";
             fprintf(file, "\t[speed] `%s`\n", speedName.c_str());
             fwrite("[/passive object]\n", 1, 0x12, file);
         }

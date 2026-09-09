@@ -30,7 +30,10 @@ public:
     int m_i10;           // +0x10（clear=0）
     int m_i14;           // +0x14（clear=0）
     int m_i18;           // +0x18（clear=0）
-    unsigned char m_b1c; // +0x1c（clear=0）
+    // [b28d SweepW8LTDBTask2 §8.3] +0x1c 为 bool：ORIG export 0x08a2b4a9
+    // `movzbl 0x1c(%eax),%eax; test %al,%al; je`（无 setne 归一化，P73/P321-T3）；
+    // uchar 时 4.4 多发 `setne; test` 一对。宽度 1 字节，sizeof/偏移不变。
+    bool m_b1c;          // +0x1c（clear=0）
 };  // sizeof == 0x20（new 分配 0x20 实证）
 
 static_assert(sizeof(STPassiveObjectAdditionalParticleInfo) == 0x20,
