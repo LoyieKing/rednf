@@ -1429,7 +1429,9 @@ public:
     void _Select_Part(int partIdx, std::vector<int>& out);            // T 0x085f8ec2
     void _RandomLevel(int lv0, int lv1, struct select_base_item& sb,
                       std::stringstream& ss);                         // T 0x085f93cc
-    int RegenVer_get_option_quantity(int lo, int hi);                 // T 0x085f8cb4
+    // [Lane13] 返回类型 int→unsigned int：ORIG 调用点 0x085f8cbd 为 RHS-first+edx
+    // 中转（P211 符号性异型判据），callee 尾部无扩展 ⇒ 原码返回 unsigned。
+    unsigned int RegenVer_get_option_quantity(int lo, int hi);        // T 0x085f8cb4
     int _Calculate_RegenCost(int partIdx, int optType, int lv0, int lv1);   // T 0x085f9094
     int RegenVer_get_option_value(int minV, int maxV);                // T 0x085f8da6
 

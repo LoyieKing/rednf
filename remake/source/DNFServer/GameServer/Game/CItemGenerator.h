@@ -441,7 +441,8 @@ private:
     int _get_part_type_by_ItemGroup(int limit,
                                     const std::vector<int>& groups) const; // T 0x085f11a4
     int _get_base_item(ENUM_RARITY rarity, int limit);                   // T 0x085f1426
-    int _random_application(ENUM_RARITY rarity, int level);              // T 0x085f0ec2
+    // [Lane13] 返回类型 int→bool（ORIG choose_item 0x085f163d 调用点 xor $1 直测，P292）。
+    bool _random_application(ENUM_RARITY rarity, int level);             // T 0x085f0ec2
     int _get_option_type(unsigned long itemIdx, ENUM_RARITY rarity,
                          int level, int group, unsigned char& outType);  // T 0x085f2338
     int RegenVer_get_option_quantity(ENUM_RARITY rarity, int level,
