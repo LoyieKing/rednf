@@ -8631,6 +8631,10 @@ bool CUser::verifyStackableItemActionPlace(StackableAction::Type type, const CIt
 // ----------------------------------------------------------------------------
 // [b28d-22 N82] ORIG 0x0866bce8：p167=CLEAR，gap=6；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x0866bce8：N82 封顶——帧/槽差（p167 CLEAR，gap 6）。
+// [A06 2026-09-10 必配对律消费侧获益] 3 处 `get_give_skill` 消费点之一（8665）在本件：
+// D06 将 `CCharacter::get_give_skill` char→bool 落地后，我方 `bool got = …; if(!got)`
+// 与该 bool callee **成对** ⇒ 复现 ORIG `call; mov %al,槽; movzbl; xor $1; test; je`
+// （无 setne）⇒ 本件 247→**245** 条（gap −6→**−4**），源码零改动。
 void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
 {
     if (getCurCharacR() == 0)
@@ -8894,6 +8898,11 @@ int CUser::InitOnAccept(int socketFd)
 // ndiff 2388→2287；TU 四数 427/862/0/59 不变；p167 CLEAR（418/418，C1↔C2/D1↔D2 镜像豁免）。
 // 残余：mov +46 / jmp +15（尾部 switch(type) 段具名局部与跳转岛）、帧 0x20c vs 0x39c
 // （N82/N126 族，P321 T5 不再动类型）。
+// [A06 2026-09-10 必配对律消费侧获益 + 归因1分诊] 本件内 2 处 `get_give_skill` 消费点
+// （9380/9462）在 D06 的 `CCharacter::get_give_skill` char→bool 落地并与我方 `bool got`
+// 成对后：2757→**2753** 条（gap −54→**−50**），源码零改动、identical 净账 0。
+// 另：本件 9 处 ORIG `setne` 经分诊（Main C05④ 四步）全为「call 结果 → 比较 → setne」
+// = **归因 1（callee 返回类型差）**，非前端折叠；相关 callee 非本 TU，未单侧动（spec 已报 Main）。
 void CUser::increase_status(short slotNo)
 {
     PacketGuard packet;

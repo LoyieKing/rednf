@@ -2159,8 +2159,11 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                             while (rowOk)
                             {
                                 rowMap.clear();
-                                for (size_t fi = 0;
-                                     fi < item.m_fieldTypes.size(); ++fi)
+                                // [A16 round5 · P196/setcc 符号性] 同首处：ORIG
+                                // `cmp -0x18(%ebp),%eax; setg`（有符号）⇒ int 下标
+                                // + (int) 界，复现 3 处 setg。
+                                for (int fi = 0;
+                                     fi < (int)item.m_fieldTypes.size(); ++fi)
                                 {
                                     FieldType::T ft = item.m_fieldTypes[fi];
                                     fd.m_field0 = ft;
@@ -2258,8 +2261,10 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                             while (rowOk)
                             {
                                 rowMap.clear();
-                                for (size_t fi = 0;
-                                     fi < item.m_fieldTypes.size(); ++fi)
+                                // [A16 round5 · P196/setcc 符号性] 同前两处：ORIG
+                                // `cmp -0xc(%ebp),%eax; setg`（有符号）。
+                                for (int fi = 0;
+                                     fi < (int)item.m_fieldTypes.size(); ++fi)
                                 {
                                     FieldType::T ft = item.m_fieldTypes[fi];
                                     fd.m_field0 = ft;

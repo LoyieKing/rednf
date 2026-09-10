@@ -10353,7 +10353,9 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
         // ORIG 0x0866b53e：giveVec 后构造独立 pair 局部（C1），循环内逐字段拷入
         std::pair<int, int> pr;
         CCharacList* chars = G_CDataManager()->m_characList;
-        char got = chars->m_characs[get_charac_job()].get_give_skill(
+        // 配对（D06 定义侧已 bool 化）：ORIG 消费形 `call; mov %al,-N` 1 字节直存 ⇒
+        //   消费端局部同 bool（净账必配对律）。
+        bool got = chars->m_characs[get_charac_job()].get_give_skill(
             getCurCharFirstGrowType(), getCurCharSecondGrowType(), giveVec, 0);
         if (got == 0)
             return false;
@@ -10391,7 +10393,7 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
         // ORIG 0x0866b53e：同第二块，giveVec 后 pair 局部（C1）+ 循环内拷入
         std::pair<int, int> pr;
         CCharacList* chars = G_CDataManager()->m_characList;
-        char got = chars->m_characs[get_charac_job()].get_give_skill(
+        bool got = chars->m_characs[get_charac_job()].get_give_skill(
             getCurCharFirstGrowType(), getCurCharSecondGrowType(), giveVec, 1);
         if (got == 0)
             return false;
