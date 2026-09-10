@@ -45,6 +45,31 @@
 //     局部副本**（0x085138ee 与 0x089aee9c 两处同名 t），即原码头内/ .cpp 内部
 //     定义；本重建因 `stStackableBooster_t m_booster280` 是共享头成员、类型必须
 //     可见 ⇒ 定义位置不可迁移 ⇒ N（符号可见性差异，P154 结构性噪音）。
+//   [Lane35 判据① 2026-09-10] jcc/jmp 目标下标逐位回扫（jcc_map 2492 函数）：
+//     修复 GetItemCategory 0x089bfdc5 / GetExpertJobTypeList 0x089bf6ca 的
+//     `retry:` 标签位置——ORIG 回跳目标 0x89bfde8 / 0x89bf72d 是三件套 static
+//     guard 检查段首条，故标签须在 static 声明**之前**；置于声明之后时 4.4 的
+//     回跳落到 __inited 检查处（我方 0x2e35），jcc 目标逐位偏离（判据①命中）。
+//     修后全 TU 仅 ImportStackableScript 仍报 10 处，逐条核对为「4.1 头测
+//     cond@+0x80 vs 4.4 尾测 cond@0xf055」的**块序映射伪差**（我方目标=我方
+//     cond、ORIG 目标=ORIG cond，语义一致；第 7 条 je↔jne 为同块镜像极性）。
+//     P164 `for(;;)+break` 头测改写实测**反劣**（insn 10239→10255、mismatch
+//     6→10）⇒ 已回滚，记 N（4.4 循环旋转不可翻）。
+//   [Lane35 视图 cast] DyeInfoView ×2 删除（DyeInfo 成员 private→public 由
+//     Lane41 落于 STItemScript.h，零布局）：ORIG 0x089b9601
+//     `mov %edx,0x164(%eax)` / 0x089b9629 `lea 0x168(%eax),%ecx` 为单条直访；
+//     我方原为 `add $0x164,%eax` + 视图指针槽往返（每处 3 条）⇒ 改为
+//     `script->m_dyeInfo.m_field0/.m_vec4` 直访后 ImportStackableScript
+//     10239→10233（gap −42→−36），四数不回退。
+//   [Lane35 判 N 清单] ImportStackableScript（N89 libstdc++ 全内联 + N82 槽复用；
+//     p167 1174=1174 CLEAR）；STStackableScript::operator=（N-ptrfold：6 处
+//     self 守卫被 4.4 折成 `this != &other` + memcpy 实参重算地址，621 vs 627）；
+//     _Vector_base<stStackableBoosterElement_t>::~D1（N89：4.1 头实现含 EH
+//     landing + 双 _Vector_implD1 调用 41 行 vs 4.4 26 行）；
+//     __uninitialized_copy<false> ×4（N89：4.1 无 landing/caller-saved 少，
+//     4.4 布 landing + push edi/esi/ebx）；GetExpertJobValueMaterialVariation
+//     （N85 x87：ORIG fucompp/fnstsw/sete vs 4.4 fucomip/setae，需 TU 级
+//     -march=i486 才翻，路由属 Main）。
 
 #include "STStackableScript.h"
 #include "CStackableItem.h"  // RecipeInfo 权威布局（0x4c，ORIG 0x8513c6a 族）
@@ -615,10 +640,11 @@ static bool GetExpertJobValueCompoundRate(STItemScript* item);
 
 static bool GetItemCategory(STItemScript* item)
 {
-    // [Lane41] P212：块内局部提至函数头、块内仅赋值；声明序按 ORIG 槽深序
-    // （state -0x78 深于 token -0x74）⇒ state 先声明。
-    STItemScript::ENUM_ITEM_CATEGORY state;
+    // [Lane41] P212：块内局部提至函数头、块内仅赋值。state 用枚举型
+    // （4.4 对 int 标量分浅区、枚举走对象区）⇒ 槽与 ORIG 同区；声明序按
+    // ORIG 槽深序（token -0x74 浅于 state -0x78）⇒ token 先声明。
     std::string token;
+    STItemScript::ENUM_ITEM_CATEGORY state;
     while (ScanStr(&token))
     {
         state = STItemScript::ITEM_CATEGORY_0;
@@ -4451,15 +4477,10 @@ break;
         int v = ScanInt(&ok);
         if (ok)
         {
-            // DyeInfo 的数据成员为 private；此 view 只复现已验证的
-            // {int, vector<pair<int,int>>} 布局，不改变 ABI。
-            struct DyeInfoView
-            {
-                int m_field0;
-                std::vector<std::pair<int, int> > m_vec4;
-            };
-            DyeInfoView* dye = reinterpret_cast<DyeInfoView*>(&script->m_dyeInfo);
-            dye->m_field0 = v;
+            // [Lane41/Main] DyeInfo 成员已 public（STItemScript.h）⇒ 删 TU 局部
+            // DyeInfoView + reinterpret_cast 视图 cast，改权威型直访（ORIG
+            // 0x089b9601 `mov %edx,0x164(%eax)` 单条直存）。
+            script->m_dyeInfo.m_field0 = v;
         }
     }
     break;
@@ -4472,12 +4493,7 @@ break;
                 else
                 {
     {
-        struct DyeInfoView
-        {
-            int m_field0;
-            std::vector<std::pair<int, int> > m_vec4;
-        };
-        DyeInfoView* dye = reinterpret_cast<DyeInfoView*>(&script->m_dyeInfo);
+        // [Lane41/Main] 同上：DyeInfo 成员已 public ⇒ 删视图 cast，改权威型直访。
         int first = 0;
         int second = 0;
         while (true)
@@ -4492,7 +4508,7 @@ break;
             {
                 break;
             }
-            dye->m_vec4.push_back(std::make_pair(first, second));
+            script->m_dyeInfo.m_vec4.push_back(std::make_pair(first, second));
         }
     }
     break;
