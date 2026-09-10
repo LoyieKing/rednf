@@ -431,11 +431,10 @@ bool CParty::move_map(MSG_MOVE_MAP& info)
                    ->get_map_index((int)info.m_x, (int)info.m_y);
     (void)toMapIdx;
 
-    // 反作弊路径校验（隐式 this=&m_padSecu 即 Secu 子对象 +0x1abc；N107：
-    // 取址 4.4 恒 add，ORIG lea 不可翻）
-    reinterpret_cast<Secu_HackLogCheckByParty*>(m_padSecu)
-        ->CheckMoveMapFitInPathHackCnt(m_host, this, info.m_fieldF,
-                                       info.m_field13, fromMapIdx);
+    // 反作弊路径校验（[b28d-solo-CParty2] +0x1abc 已字段化为 m_secu；
+    // 取址 4.4 恒 add vs ORIG lea 属 N107 封顶）
+    m_secu.CheckMoveMapFitInPathHackCnt(m_host, this, info.m_fieldF,
+                                        info.m_field13, fromMapIdx);
 
     firstVisit = false;
     ret = reinterpret_cast<CBattle_Field*>(&m_battleField)
@@ -481,9 +480,9 @@ bool CParty::move_map(MSG_MOVE_MAP& info)
     {
         if (!firstVisit)
         {
-            reinterpret_cast<std::vector<MapInfo>*>(&m_padPassedMap)
-                ->push_back(*reinterpret_cast<CBattle_Field*>(&m_battleField)
-                                 ->GetCurrentMapInfo());  // W 0x0822cbcc
+            // [b28d-solo-CParty2] +0x1af4 已字段化为 m_passedMap（vector<MapInfo>）
+            m_passedMap.push_back(*reinterpret_cast<CBattle_Field*>(&m_battleField)
+                                      ->GetCurrentMapInfo());  // W 0x0822cbcc
         }
     }
     return true;

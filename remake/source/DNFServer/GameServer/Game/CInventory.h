@@ -38,7 +38,15 @@ struct SIG_POSTAL_CREATURE_TEMP_PERIOD;    // ORIG 全局域；仅证 +0 uid/+4 
 #include "CExpandEquipslot.h" // 权威 CExpandEquipslot（charac_expand::CData 派生，布局 0x899；
                               // 唯一声明点，删除本头原局部最小镜像避免 ODR）
 #include "InterfacePacketBuf.h"
-#include "CUser.h"          // 权威 CUser/cUserHistoryLog/共享枚举（G1-3 统一）
+// [Lane37CUser 2026-09-10 解环] 原 `#include "CUser.h"`：本头对 CUser 的 42 处引用
+// 全为 `CUser*` 指针/形参（零 inline 解引用）⇒ 前向声明足够，断开
+// CUser.h ⇄ CInventory.h 环（供 CUser.h 反向 include 本头以建 CInventory 成员）。
+class CUser;
+// [Lane37CUser 2026-09-10 解环] 原经 `#include "CUser.h"` 传递获得的类型须自行直补
+//   （Main 处置令）：SIG_LOAD_INVENTORY/SIG_CREATURE_ITEM 等来自 SigTypes.h 分片；
+//   InventoryMemory 仅以 `InventoryMemory*` 形参出现（本头 602 行）⇒ 前向声明足够。
+#include "SigTypes.h"
+class InventoryMemory;
 #include "AvatarCoin.h"     // 权威 AvatarCoin（m_avatarCoin +0x658；替代原内嵌空桩占位）
 
 // ---- 枚举（值以 CInventory 反汇编中立即数为准） ----

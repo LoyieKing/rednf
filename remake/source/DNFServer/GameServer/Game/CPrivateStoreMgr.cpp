@@ -1157,6 +1157,8 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     int price;
     unsigned int dealGoldA;
     unsigned int dealGoldB;
+    // [b28d-solo-L43] 声明序反转实测无效（4.4 按首次使用序分配：0x18=dealGoldB
+    // 恒最深 -0x28；ORIG 0x18=-0x24/0x10=-0x28 的置换不可由声明序翻动）⇒ 保持原序。
     if (!GetItemPrice(itemInfo, storeItem, count, price, dealGoldA, dealGoldB))
         return false;
     if (!IsPossibleDeal(price, dealGoldA, dealGoldB))
@@ -1434,15 +1436,18 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
             m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()->GetExpansionInfo(
                 (int)storeItem.m_item.m_addInfo2);
         packet.put_int(4);
-        if (expansion == 0)
+        // [b28d-solo-L43] ORIG 0x085cae0x 段布局：`cmpl $0,-0xc; je L` 后 then 为
+        // put_binary(expansion)（直落）、else 为 defaultExpansion 块（je 目标在后）
+        // ⇒ 条件取反正向 + 两臂对调（P59/P222），4.4 才产 ORIG 的 je→后块布局。
+        if (expansion != 0)
+        {
+            packet.put_binary((char const*)expansion, 4);
+        }
+        else
         {
             stAvatarExpansionInfo_t defaultExpansion;
             defaultExpansion.init();
             packet.put_binary((char const*)&defaultExpansion, 4);
-        }
-        else
-        {
-            packet.put_binary((char const*)expansion, 4);
         }
     }
     packet.put_packet(storeItem.m_item);
@@ -1859,37 +1864,36 @@ bool CPrivateStore::GetItemInfo(CUser* user, PrivateStoreItem& item)
     {
     case 0:
     {
-        Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (short)item.m_field48);
-        item.m_item.setCopy(slotData);
+        // [b28d-solo-L43] P0 限定①：ORIG 4.1 对互斥 case 块临时对象按「先书写占更深
+        // 槽」分配（-0x13d/-0x100/-0xc3/-0x86/-0x49 逐块 0x3d 递减），具名局部在
+        // 4.4 下反向（先书写占更浅）⇒ 去掉具名 slotData、临时对象内联进实参，
+        // 4.4 复现 ORIG 深→浅方向（探针 /tmp/l43_p3.cpp g_inline vs g_named）。
+        item.m_item.setCopy(
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (short)item.m_field48));
         break;
     }
     case 2:
     {
-        Inven_Item slotData =
-            user->getCurCharacCargoR()->get_cargo_slot((short)item.m_field48);
-        item.m_item.setCopy(slotData);
+        item.m_item.setCopy(
+            user->getCurCharacCargoR()->get_cargo_slot((short)item.m_field48));
         break;
     }
     case 3:
     {
-        Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)0, (short)item.m_field48);
-        item.m_item.setCopy(slotData);
+        item.m_item.setCopy(
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)0, (short)item.m_field48));
         break;
     }
     case 1:
     {
-        Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)2, (short)item.m_field48);
-        item.m_item.setCopy(slotData);
+        item.m_item.setCopy(
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)2, (short)item.m_field48));
         break;
     }
     case 7:
     {
-        Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, (short)item.m_field48);
-        item.m_item.setCopy(slotData);
+        item.m_item.setCopy(
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, (short)item.m_field48));
         break;
     }
     default:
@@ -2253,6 +2257,8 @@ int CPrivateStore::GetCommissionPercent()
 int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
                            int /*commissionBase*/, int /*flag*/, int& outSlot)
 {
+    // [b28d-solo-L43] 类型统一 int 实测无效（三值仍 -0x34/-0x30/-0xac，ORIG 为
+    // -0xa4/-0xa0/-0x9c 同区）⇒ 回退原型；属 N82 分区差异。
     unsigned int resealCount = (unsigned int)item.GetReSealCount();
     unsigned int upgrade = (unsigned int)item.GetUpgrade();
     // P227/P0：ORIG 在 ctor 前把两次 getCurCharacName 读入 %esi/%ebx 跨 ctor

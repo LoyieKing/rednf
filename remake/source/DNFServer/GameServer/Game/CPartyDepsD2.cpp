@@ -97,7 +97,8 @@ namespace
 // 宏文本替换为 &p->m_memberOffset，直接产生 ORIG 的偏移寻址（check_allmember_loading 报告）。
 #define bd(p)         ((p)->m_battleData)   // ORIG DWARF CParty+0x32c 具名化
 #define bf(p)         (*reinterpret_cast<CBattle_Field*>(&(p)->m_battleField))
-#define traceHack(p)  (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
+// [b28d-solo-CParty2] CParty.h 字段化：pad 视图 cast → 具名成员。
+#define traceHack(p)  ((p)->m_traceMobDieHack)
 #define memberUser(p,i) ((p)->m_member[(i)].m_pUser)
 
 // FISTP 取整惯例：ORIG 汇编为 fldcw 0xC（RC=11，truncate 向零截断）后 fistpl，
@@ -1390,15 +1391,14 @@ bool CParty::SetPlayResult(CUser* user)
     // 无具名指针槽（P183：全点内联 this+0x17f4）；槽 -0x3c..-0x20 照抄。
     if (get_dungeon_clear_state() == 1)
     {
-        int step = (int)set_play_result(
-            user, *reinterpret_cast<GameResultSet*>(&m_padResult));   // -0x3c
+        int step = (int)set_play_result(user, m_gameResultSet);       // -0x3c
         const int clearTime = (int)bd(this).m_field0;                 // -0x38
         const int dungeonIndex = (int)bf(this).get_dungeon_index();   // -0x34
         const int dungeonDiff = (int)bf(this).get_dungeon_diff();     // -0x30
         int avgTime = (int)G_CDataManager()->getDungeonClearAverageTime(
             dungeonIndex, getStartGamePartyCount(),
             (ENUM_DUNGEON_DIFFICULTY)dungeonDiff);                    // -0x2c
-        const int prevField9 = (int)(signed char)m_resultView.m_resultField9; // -0x28
+        const int prevField9 = (int)(signed char)m_gameResultSet.m_field9; // -0x28
         const int bonus = (int)G_CDataManager()->getClearTimeBonusPoint(
             avgTime, clearTime);                                      // -0x24
         const int rankPoint = G_CDataManager()->calRankPoint(
@@ -1406,19 +1406,19 @@ bool CParty::SetPlayResult(CUser* user)
         // [b28d-solo-CPartyDepsD2] 真 bug 修正：ORIG 0x085b251b 写 0x183c =
         // GameResultSet+0x48 = GameResultType::m_field48（旧 m_field42 落在
         // +0x42=0x1836，字段错位；clear_reward 读同一 +0x48）。P235 具名视角。
-        m_resultView.m_resultField48 =
+        m_gameResultSet.m_field48 =
             (unsigned short)G_CDataManager()->getRankIndex(rankPoint);
-        m_resultView.m_resultFieldC = (int)clearTime;
-        m_resultView.m_resultField10 = (unsigned char)bonus;
+        m_gameResultSet.m_fieldc = (int)clearTime;
+        m_gameResultSet.m_field10 = (unsigned char)bonus;
         if (!bf(this).isQuestMaze())
             setBestClearTime(dungeonIndex, dungeonDiff, clearTime);
         // ORIG 0x085b2595 `movzbl %al,%eax; mov %eax,-0x1c`（SendResult 单字节
         // 返回、int 接收）⇒ 调用点显式收窄（P3/探针 /tmp/p_movzbl.cpp 形 a）。
         int sendOk = (unsigned char)DisPatcher_SetPlayResult::SendResult(
-            (CParty*)this, *reinterpret_cast<GameResultSet*>(&m_padResult), step);
+            (CParty*)this, m_gameResultSet, step);
         if (sendOk == 0)
             return 0;
-        clear_reward((int)m_resultView.m_resultField48);
+        clear_reward((int)m_gameResultSet.m_field48);
         set_dungeon_clear_state(2);
         insert_time_clear_dungeon_reward_msg(0x1e);
         if (get_member_count() != GetSetPlayResultCount())
@@ -2065,8 +2065,7 @@ void CParty::ClearDungeon()
                 !m_battleField.m_pDungeon->isTowerOfDespairDungeon() &&
                 !m_battleField.m_pDungeon->isTournamentDungeon())
                 user->Send(packet);
-            secretshop::SECRET_SHOP_DATA* shopData =
-                reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop);
+            secretshop::SECRET_SHOP_DATA* shopData = &m_secretShop;
             if (shopData->IsOpen() != 0)
             {
                 int level = m_battleField.m_pDungeon->get_standard_level();

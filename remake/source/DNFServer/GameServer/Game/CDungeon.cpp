@@ -23,6 +23,9 @@
 #include "LogManager.h"
 #include "DNFFunctionLib.h"
 #include "CInventory.h"             // check_item_exist/GetInvenSlot/delete_item
+// [Lane37CUser 2026-09-10 解环] CInventory.h 的 `#include "CUser.h"` 已改前向声明
+//   （解 CUser.h ⇄ CInventory.h 环）⇒ 依赖传递获得 CUser 完整定义的 TU 需自行直补。
+#include "CUser.h"
 #include "PacketGuard.h"            // 门票回执包
 #include "GlobalData.h"             // GlobalData::s_systemTime_/s_statistic_proxy_mgr
 #include "CServerProxyMgr.h"        // GetServerProxy 完整模板

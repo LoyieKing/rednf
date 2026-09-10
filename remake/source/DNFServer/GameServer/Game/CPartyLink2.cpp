@@ -62,7 +62,8 @@ namespace
 // ⇒ 改宏：零符号、逐点展开，语义不变。
 #define LINK2_BF(p)        ((p)->m_battleField)
 #define LINK2_BD(p)        ((p)->m_battleData)
-#define LINK2_TRACEHACK(p) (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
+// [b28d-solo-CParty2] CParty.h 字段化：+0x210 区为具名成员 m_traceMobDieHack。
+#define LINK2_TRACEHACK(p) ((p)->m_traceMobDieHack)
 
 }  // namespace
 
@@ -118,7 +119,7 @@ void CParty::SendSecretShopItemList(CUser* user)
     {
         GlobalData::s_secret_shop->SendSecretShopItemList(
             user, *reinterpret_cast<std::vector<secretshop::SALE_INFO>*>(
-                      this->m_secretShopInfo[pos]));
+                      &this->m_secretShop.m_info[pos]));
     }
 }
 
@@ -486,9 +487,8 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         m_field1aa0 = 1;
 
     // ---- 安全检测上报 + 广播 ----
-    // +0x1abc = m_padSecu 即 Secu_HackLogCheckByParty 子对象（CParty.h:790）
-    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)
-        ->DieMob(&dieInfo, &mob);
+    // +0x1abc = m_secu（Secu_HackLogCheckByParty 具名成员，CParty.h 字段化后）
+    m_secu.DieMob(&dieInfo, &mob);
 
     send_to_party(packet);
 

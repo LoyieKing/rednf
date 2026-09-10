@@ -543,8 +543,8 @@ DONE:
 void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
 {
     CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
-    Secu_HackLogCheckByParty& secu =
-        *reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu);
+    // [b28d-solo-CParty2] CParty.h 字段化：+0x1abc 区为具名成员 m_secu。
+    Secu_HackLogCheckByParty& secu = m_secu;
 
     bool specialDungeon = false;                        // -0x3d local_41
     CDungeon* dungeon = m_battleField.m_pDungeon;                      // -0x3c (+0xcac)

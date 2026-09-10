@@ -61,7 +61,10 @@ public:
 
     CParty* m_party;
     stPartyTelePort m_tp;
-    char m_pad[0x14];
+    // [b28d-solo-CParty2] 尾部 `char m_pad[0x14]` 是错误建模，已删：
+    // ORIG C1 0x085bb832 只 `stPartyTelePort::reset(this+4)`，且
+    // CParty::init_quick_party_data 0x0859b3e4 直接写 this+0x1ae0/0x1ae8
+    // ⇒ 该区属 CParty 直属字段，本类 **sizeof==0x10**（m_party@+0 + m_tp@+0x4,0xa 对齐）。
 };
 
 #endif

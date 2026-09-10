@@ -16,7 +16,10 @@ public:
 
 private:
     char m_flag[4];
-    char m_pad[0x30];
+    // [b28d-solo-CParty2] 尾部 `char m_pad[0x30]` 是错误建模，已删：
+    // ORIG Clear 0x082a4cc6 = `movl $0x4,0x8(%esp); movl $0,0x4(%esp); call memset`
+    // ⇒ **sizeof(CPartyResultRecvFlag)==4**（CParty 内只占 +0x1dc..+0x1df，
+    // 其后 +0x1e0 起为 CParty 直属字段）。
 };
 
 #endif

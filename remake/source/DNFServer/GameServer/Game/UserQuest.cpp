@@ -46,21 +46,12 @@ static const int kStartLvl = 27;   // 0x08ae5d64 (0x1b)
 static const int kEndLvl = 70;     // 0x08ae5d68 (0x46)
 }
 
-// ---- CUser 本地视图（继承 CUserCharacInfo.h 权威基类）----
-class CInventory
-{
-public:
-    int erase_repeated_item(const std::vector<std::pair<int, int> >& items,
-                            std::vector<std::pair<int, int> >& out);  // 返回 out.size()（ORIG %eax）
-    void CalNeedSlot(int* out,
-                     const std::vector<std::pair<int, int> >& items) const;
-    int QuickEmptyCount() const;
-    int InvenEmptycount(Inven_Item::ITEM_TYPE type) const;
-    int insert_event_items(const std::vector<std::pair<int, int> >& items,
-                           std::vector<int>& outSlots, eMoneyAddReason moneyReason,
-                           eItemAddReason itemReason, bool bLog, const char* a,
-                           const char* b);
-};
+// [Lane37CUser 2026-09-10 解环连带] 原 TU 局部 `class CInventory` 镜像已删：解环后
+//   CUser.h 反向 include CInventory.h ⇒ 同 TU 内镜像与权威定义冲突
+//   （UserQuest.cpp:50 redefinition vs CInventory.h）。改 include 权威头（方法签名
+//   齐备：erase_repeated_item/CalNeedSlot/QuickEmptyCount/InvenEmptycount/
+//   insert_event_items）。
+#include "CInventory.h"
 class CBattle_Field
 {
 public:

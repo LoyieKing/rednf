@@ -10305,14 +10305,14 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
 
-    // ---- 结果区：party+0x17f4 为 GameResultType（CParty.h:778 m_padResult[0x50]
-    //      未建模该区，故经具名成员取址后按 GameResultType.h 权威字段逐字段访问；
+    // ---- 结果区：party+0x17f4 为 GameResultType（CParty.h 现为权威成员
+    //      GameResultSet m_gameResultSet @+0x17f4，GameResultSet : GameResultType
+    //      且零增成员 ⇒ 布局/偏移不变，直接取其址，无视图 cast）；
     //      字段偏移/宽度证据 docs/class_func_reports/DisPatcher_SetPlayResult/
     //      dispatch_sig.md：0x17fd→m_field9 / 0x17fe→m_fielda / 0x183e→m_field4a /
     //      0x1808+8i→m_shot[i].m_count / 0x180c+8i→m_shot[i].m_field4 /
     //      0x1840→m_field4c / 0x17f8→m_field4 / 0x17fc→m_field8）----
-    GameResultType* gameResult =
-        reinterpret_cast<GameResultType*>(&party->m_padResult);   // +0x17f4
+    GameResultType* gameResult = &party->m_gameResultSet;   // +0x17f4
     gameResult->Clear();
 
     if (!packet.get_byte(*reinterpret_cast<char*>(&gameResult->m_field9)))  // +0x17fd

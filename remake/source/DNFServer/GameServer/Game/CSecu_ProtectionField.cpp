@@ -1,5 +1,8 @@
 // df_game_r Game/ CSecu_ProtectionField 实现（独立 TU，从 GameStubs.cpp 拆出）。
 #include "CInventory.h"
+// [Lane37CUser 2026-09-10 解环] CInventory.h 的 `#include "CUser.h"` 已改前向声明
+//   （解环）⇒ 本 TU 解引用 CUser 成员，需自行直补完整定义。
+#include "CUser.h"
 
 // ORIG T 0x08288074：枚举名 SECURITY_PROTCTION_TYPE（23 字符，c++filt 实测），
 // ORIG mangled _Z23ExceptionProtectionTypei23SECURITY_PROTCTION_TYPE_S_S_S_S_S_S_S_。

@@ -126,28 +126,20 @@ CParty::CParty()
     // EXTRA _ZnwjPv/_ZdlPvS_ = N83（4.1 placement-new 前端内联、4.4 恒 extern call）。
     // pad 区真实成员化需改 CParty.h 成员并同步 CPartyDeps*/OnlyOrig/Link2/DisPatcherCore 等
     // 消费 TU 的字段名 ⇒ 超本泳道写权，按 N83 封顶。@0x82a5516
-    new (&m_pad1dc) CPartyResultRecvFlag;
-    new (&m_pad210) CTraceMobDieHack;
-    new (&m_padShop) secretshop::SECRET_SHOP_DATA();
-    // [SweepCParty2] 真 bug 修复：m_battleField 是真实成员（CParty.h:792），
-    // 编译器已在成员构造阶段调用 CBattle_Field::C1Ev；此处的 placement-new 是
-    // 二次构造（我方 .o 0xe9/0x1fc 两次 C1Ev 调用实证）。删除后 ORIG 的
-    // 单次构造形（+0xb24 一次）恢复，指令数 -26。
-    new (&m_padResult) GameResultSet();
-    new (&m_padSecu) Secu_HackLogCheckByParty();
-    new (&m_pad1ad0) CPartyTelePort();
-    new (&m_padPassedMap) std::vector<MapInfo>();
+    // [b28d-solo-CParty2] 7 个 pad 区已字段化为真实成员（CParty.h），
+    // placement-new 手写构造全部删除：编译器在成员构造阶段按声明序自动
+    // 调用各子对象 C1（与 ORIG C1 的 C2Ev 同址别名，P93）。
     for (int i = 0xb; i <= 0x2f; ++i)
         m_field148[i - 0xb] = 0;
     m_usedCoinCount = 0;
     reinterpret_cast<CBattle_Field*>(&m_battleField)->SetParty(this);
     SetAssaultState(0);
     m_routingData.Reset();
-    reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->init(this);
+    m_teleport.init(this);
     m_randomBuffType = (QuickParty::RandomBuffType)0xb;
     m_isQuickParty = 0;
     init_quick_party_data();
-    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->Init(this);
+    m_secu.Init(this);
     m_partyMemberCoinLimit = 0;
 }
 
@@ -155,15 +147,9 @@ CParty::CParty()
 // 双重析构）。105→101。残余 = N104（ORIG 每个析构带异常中继块，4.1/4.4 EH 布局差）。
 CParty::~CParty()
 {
-    // b28d-49 判词：N 封顶 + 缺口（同 C1Ev：5 个成员析构 MISS）。@0x82a57fe
-    reinterpret_cast<MapInfoVec*>(&m_padPassedMap)->~MapInfoVec();
-    reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->~CPartyTelePort();
-    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->~Secu_HackLogCheckByParty();
-    reinterpret_cast<GameResultSet*>(&m_padResult)->~GameResultSet();
-    // m_battleField 是真实成员（CParty.h:792）⇒ 编译器在用户体后自动析构
-    //（我方 .o 0x55b 已有 call ~CBattle_Field）；此处显式调用会双重析构（真 bug，已删）。
-    reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->~SECRET_SHOP_DATA();
-    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->~CTraceMobDieHack();
+    // [b28d-solo-CParty2] 7 个 pad 区已字段化 ⇒ 手写析构 cast 全删（重复析构 = 真 bug）；
+    // 各子对象由编译器在成员析构阶段按声明逆序自动调用 D1（与 ORIG D2Ev 同址别名）。
+    // 残余 = N104（ORIG 每个析构带异常中继块，4.1/4.4 EH 布局差）。@0x082a57fe
 }
 
 void CParty::send_to_party(PacketGuard& packet)
@@ -309,7 +295,7 @@ void CParty::set_dungeon_clear_state(char state)
 
 void CParty::reset_recv_flag()
 {
-    reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();
+    m_recvFlag.Clear();
 }
 
 void CParty::SetRecvResultFlag(bool flag)
@@ -389,7 +375,7 @@ void CParty::ResetPremiumGoldCardDefaultItem()
 
 void* CParty::GetSecretShopData()
 {
-    return &m_padShop;
+    return &m_secretShop;
 }
 
 bool CParty::checkBossRoom()
@@ -505,12 +491,12 @@ bool CParty::checkFreeRevivalCondition(CDungeon const* dungeon)
 
 void* CParty::GetPartyTelePort()
 {
-    return &m_pad1ad0;
+    return &m_teleport;
 }
 
 void* CParty::getPassedMapInfoList()
 {
-    return &m_padPassedMap;
+    return &m_passedMap;
 }
 
 
@@ -697,9 +683,9 @@ CUser* CParty::getManager()
 // b28d-solo-CParty: DIFF 残 1 处 —— N1：ORIG lea 0x1(%eax),%edx vs 4.4 add+mov（已试 (char) 截断形无效）；202 vs 201
 void CParty::init()
 {
-    // b28d-49 判词：N 封顶（N82 帧/槽 + pad 成员未类型化）。P167 CLEAR。@0x859a974
-    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->reportHackInfo();
-    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->reset();
+    // b28d-solo-CParty2：pad 区已字段化（m_traceMobDieHack），余差 N82 帧/槽。@0x859a974
+    m_traceMobDieHack.reportHackInfo();
+    m_traceMobDieHack.reset();
     for (int i = 0; i <= 3; ++i)
     {
         if (_checkValidUser(i) != 1)
@@ -742,11 +728,11 @@ void CParty::init()
     reinterpret_cast<CBattle_Field*>(&m_battleField)->reset_hell_party_value();
     m_battleData.Reset();
     reinterpret_cast<CBattle_Field*>(&m_battleField)->reset_field();
-    reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();
+    m_recvFlag.Clear();
     m_usedCoinCount = 0;
     m_hellWorldMap = 0;
     m_straightVictories = 0;
-    reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->clear();
+    m_secretShop.clear();
     ResetPremiumGoldCardParty();
     ResetPremiumGoldCardDefaultItem();
     m_weekendEvent = 0;
@@ -1102,8 +1088,8 @@ bool CParty::IsExistInvisible()
 // CParty::battle_data_reset @ 0x859aec2 —— 副本战斗数据与快捷队伍状态复位。
 void CParty::battle_data_reset()
 {
-    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->reportHackInfo();
-    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->reset();
+    m_traceMobDieHack.reportHackInfo();
+    m_traceMobDieHack.reset();
     for (int i = 0; i <= 3; ++i)
     {
         if (_checkValidUser(i) != 1)
@@ -1129,14 +1115,14 @@ void CParty::battle_data_reset()
     m_dungeonClearState = 0;
     m_memberLevelGap = -1;
     m_killMobCounter.clear();
-    reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->clear();
+    m_secretShop.clear();
     SetEndRouting();
     ResetPremiumGoldCardParty();
     ResetPremiumGoldCardDefaultItem();
     m_tournamentDungeonClearState = 0;
     init_quick_party_data();
     m_dungeonMapSaving = 0;
-    reinterpret_cast<MapInfoVec*>(&m_padPassedMap)->clear();
+    m_passedMap.clear();
 }
 
 // CParty::isHelpAbuseParty 依赖的 send_host_info @ 0x859cdd2。
@@ -1651,6 +1637,9 @@ bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Ma
     // haveCount(-0x18)、slot(-0x14) ⇒ 声明序照抄（同尺寸标量区先声明更深）。
     int passCount = 0;       // local_24
     int validCount = 0;      // local_20
+    // b28d-solo-CParty2 试形记录：ORIG 0x85b7fxx `mov -0x18(%ebp),%ebx` 为 callee 前
+    // 寄存器装载形；haveCount 改 unsigned + `(unsigned int)list2.size()` 比较实测仍折
+    // `cmp -0x18(%ebp),%eax` 内存直比（S1 一次旋钮已用）⇒ 恢复 int 直证形态，判 N18b。
     int haveCount = 0;       // local_1c
     int slot = 0;            // local_18
     Inven_Item item;         // local_6d
@@ -2283,10 +2272,10 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
     ((CPartyTelePort*)GetPartyTelePort())->process_leave_user_at_teleport(user);
     // ORIG 0859c14x `mov 0x8(%ebp),%eax; add $0x2a4,%eax` ⇒ 直接取 &m_padShop
     //（P167 EXTRA GetSecretShopData 已消：原 `GetSecretShopData()` 形多发一次 call）。
-    if (reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->IsOpen())
+    if (m_secretShop.IsOpen())
     {
         int pos = user->GetUserPosInParty();
-        reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->SetBuying(pos, false);
+        m_secretShop.SetBuying(pos, false);
     }
     if (m_battleField.m_pDungeon != 0)
     {
@@ -3236,7 +3225,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
     resetMemberUseCoin();
     m_firstMapClear = 0;                                   // +0x324
     ClearMapHitCount();
-    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->startDungeon();
+    m_secu.startDungeon();
 
     int todApcIdx = -1;                                    // -0x78
     int err = GetDungeonIndex_isTOD(dungeonIdx, todApcIdx);  // -0x74
@@ -3251,7 +3240,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
     int partyType = m_battleField.m_bloodState;                           // -0x6c ← +0xcd8
     SetPartyMemberCoinLimit(get_member_count() *
                             dungeon->GetPartyMemberCoinLimit());
-    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->setDungeonDiff(type);
+    m_traceMobDieHack.setDungeonDiff(type);
 
     if (GetEPLPState() != 0)
     {
@@ -3480,8 +3469,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
     int startCount = get_member_count();                   // -0x5c
     setStartGamePartyCount(startCount);
 
-    secretshop::SECRET_SHOP_DATA& shop =
-        *reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop);
+    secretshop::SECRET_SHOP_DATA& shop = m_secretShop;
     if (((char)dungeon->m_bloodDungeonType < 1) && m_manager->get_state() != 10 &&
         dungeon->isTowerOfDespairDungeon() == 0 &&
         dungeon->isTournamentDungeon() == 0)
@@ -3509,7 +3497,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         }
     }
 
-    reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();   // +0x1dc
+    m_recvFlag.Clear();   // +0x1dc
 
     for (int i = 0; i <= 3; ++i)
     {
@@ -4831,8 +4819,8 @@ void CParty::SendEachCardInfo()
 // if-return 物化 mov $0/jmp）+ N82 帧。
 bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
 {
-    // b28d-49 判词：N 封顶 + 缺口。P167 MISS getCurCharacInvenR / EXTRA getCurCharacInvenW
-    //（ORIG 走 R 版；W 版为历史误用，属主待裁决）；余差 N82。@0x85b415a
+    // b28d-49 判词：N 封顶。P167 已 CLEAR（b28d-solo-CParty2：check_empty_count 处
+    // 由 R 版改回 W 版，ORIG 0x085b43aa 实证）；余差为条件物化/装载序 N82 族。@0x85b415a
     int slot = GetMemberSlotNo(user);                   // -0x18
     // ORIG 085b4180 `je 44cb` + 085b418a `jg 44cb`：前 3 条守卫跳共享 false 尾块（44cb）；
     // HaveAlreadySelectedCard/_checkGoldCardSelectable 用就地 `mov $0;jmp 44d0`。
@@ -5047,7 +5035,7 @@ void CParty::TournamentDungeonClear(bool flag)
 
     SetEPLPState(2);
     int sec = 0x3c;                                     // -0x1c
-    if (reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->IsOpen())
+    if (m_secretShop.IsOpen())
         // ORIG TournamentDungeonClear.md 085bd5b9 `mov 0xa784(%eax)` =
         // CDataManager::m_secretShop(+0xa700)+0x84 → SecretShopScript::m_int84
         //（CDataManager.h 布局注释：clear 0x8372020 写 +0x80/+0x84 两 int）
@@ -5059,7 +5047,7 @@ void CParty::TournamentDungeonClear(bool flag)
     sendInoutConditionDungeon((RetryFailReason::T)checkInoutConditionDungeon());
     CheckHackAverageHitCount();
     ClearMapHitCount();
-    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->dungeonClear();
+    m_secu.dungeonClear();
 }
 
 // ============================================================================
@@ -5217,8 +5205,8 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
         // 旧码把两实参互换（按 killer uid 键控）为转写错误，已正。
         // ORIG 085b5aa7 段 `call addMonsterDamage; cmp $0x2,%eax; setg %al`（无结果槽）
         // ⇒ 结果直比，勿设具名 addCnt 局部（P0）。
-        if (2 < reinterpret_cast<CTraceMobDieHack*>(&m_pad210)
-                    ->addMonsterDamage((unsigned short)dieInfo.m_fieldF,
+        if (2 < m_traceMobDieHack
+                    .addMonsterDamage((unsigned short)dieInfo.m_fieldF,
                                        (unsigned short)monsterIdx,
                                        (int)dieInfo.m_killValue2))
         {
@@ -5524,20 +5512,27 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
 void CParty::prepare_dungeon_clear()
 {
     // b28d-49 判词：N 封顶（N82 帧/槽）。P167 CLEAR。@0x85aa39a
+    // b28d-solo-CParty2：ndiff 9→1 —— ①grid_clear 守卫改正向包裹（消 xor 段）；
+    // ②循环内 `_checkValidUser` 改正负极性早退 goto L_next（P168a 裸形）复现 ORIG
+    // `xor $1;test;jne`。余 1 行 = ORIG 体尾第二个 `jmp+nop` 岛（4.4 epilogue-threading
+    // 恒合并，N121 封顶；多源 goto 尾标签串实测仍合并）。
     m_battleField.m_dungeonClearTracer.SetClearedDungeon(m_tournamentVictory != 0);
     // ORIG 0x85aa39a：bf 地址每次现取（mov 0x8 + add $0xb24），不建局部缓存槽。
     m_battleField.m_dungeonClearTracer.SetEndPoint(
         reinterpret_cast<CBattle_Field*>(&m_battleField)->check_end_point());
-    if (!reinterpret_cast<CBattle_Field*>(&m_battleField)->check_grid_clear())
-        return;
-
+    // b28d-solo-CParty2：ORIG 0x85aa3xx `call check_grid_clear; test %al,%al; je <跳过主流程>`
+    // （2 条、无 xor ⇒ 正极性 if 包裹，P214①/P59）。早返形 `if(!f()) return;` 实测产
+    // `xor $1;test;jne`（+1 条且分支反）⇒ 改正向包裹，语义等价（void 函数）。
+    if (reinterpret_cast<CBattle_Field*>(&m_battleField)->check_grid_clear())
+    {
     for (int i = 0; i < 4; ++i)
     {
-        // b28d-solo-CParty：ORIG 0x85aa3f6/0x85aa40a 两条件各自 `test %al,%al; je`
-        // 直跳（P133/P225 推广：`&&` 合并形被 4.4 折成 xor/test/jne 短路；
-        // 且 ORIG 无 xor ⇒ 正条件嵌套，勿写 `!valid continue`）。
-        if (_checkValidUser(i))
-        {
+        // b28d-solo-CParty2：ORIG 0x85aa3f6 `call; xor $0x1,%eax; test %al,%al; jne <尾>`
+        // = 负极性早退（bool callee 取反物化）。正向嵌套 `if (f()) { … }` 实测产
+        // `test %al,%al; je`（缺 xor 段）⇒ 改写为 `if (!f()) goto L_next;` 复现。
+        // 第二条件 ORIG 为直落型，保持正向 if。
+        if (!_checkValidUser(i))
+            goto L_next;
         if (m_battleField.m_bloodState != 1)     // +0xcd8
         {
             // P183 反向（ORIG 0x85aa42e/457/46b/49a/4c8/4f6/524 实证）：ORIG 无
@@ -5561,7 +5556,7 @@ void CParty::prepare_dungeon_clear()
             }
             m_member[i].m_pUser->m_fatigueGain = 0;
         }
-        }
+    L_next:;
     }
 
     if (reinterpret_cast<CBattle_Field*>(&m_battleField)
@@ -5572,6 +5567,7 @@ void CParty::prepare_dungeon_clear()
         ClearDungeon();
     else if (reinterpret_cast<CBattle_Field*>(&m_battleField)->check_end_point())
         ClearDungeon();
+    }
 }
 
 // ============================================================================
@@ -5625,7 +5621,7 @@ void CParty::party_dungeon_fail()
               - (unsigned int)(elapsedLow < (unsigned int)bd.m_field2c));
     SaveCoin((eCoinSubReason)2);
     CheckHackAverageHitCount();
-    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->dungeonFail();
+    m_secu.dungeonFail();
 
     PacketGuard packet;
     for (int slot = 0; slot < 4; ++slot)                // -0x2c
@@ -5730,8 +5726,7 @@ void CParty::dungeon_clear()
         {
             SetEPLPState(2);
             int sec = 0x3c;                             // -0x1c
-            if (reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)
-                    ->IsOpen())
+            if (m_secretShop.IsOpen())
                 // ORIG dungeon_clear.md 085abb54 `mov 0xa784(%eax)` =
                 // SecretShopScript::m_int84（同 TournamentDungeonClear 站点）
                 sec = G_CDataManager()->m_secretShop.m_int84 * 12;
@@ -5747,7 +5742,7 @@ void CParty::dungeon_clear()
                                              memberCount, goldCardCount);
             CheckHackAverageHitCount();
             ClearMapHitCount();
-            reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->dungeonClear();
+            m_secu.dungeonClear();
             return;
         }
         if (_checkValidUser(slot))
@@ -6045,15 +6040,20 @@ void CParty::onBloodClear(bool flag, int param)
     // 类型化 m_padResult 影响 C1Ev/D1Ev，留 Main 统一裁决）。P167 CLEAR。@0x85b7c9e
     if (flag)
     {
-        // b28d-solo-CParty：ORIG 0x085b7cc9 `mov -0x1c(%ebp),%eax; mul %edx`
-        // 无被除数副本槽（我们 unsigned 局部多 -0x2c 中转）⇒ int 局部 +
-        // 使用点 (unsigned) 转换（P66 型：int 中转对齐除法求值形）。
+        // b28d-solo-CParty2 试形记录（S1 一次旋钮已用尽，判 N92）：
+        // ORIG 0x085b7cc9 `mov -0x1c(%ebp),%eax; mov $<A>,%edx; mul %edx` —— 被除数
+        // 直取槽值、无副本。三形实测同果（均产 `mov %eax,-0xc; mov -0xc,%eax;
+        // mov %eax,-0x2c; …mul` 双槽 + 帧 0x40）：
+        //  ① `unsigned int playTime; playTime / 1000`
+        //  ② `int playTime; (unsigned int)playTime / 1000`（P66）
+        //  ③ `unsigned int playTime; playTime / 1000U`
+        // ⇒ 属无符号除法求值固有差（N92 族），保持真型/直证形。
         unsigned int playTime = GetMapPlayingTime();
         m_member[param].m_pUser->m_historyLog.MapClear(
             // b28d-solo-CParty：ORIG 085b7cd8 `movzwl 0x183e(%eax)` 单条 disp ⇒
             // 走 CParty.h 的 m_resultView 具名视角（P235），不再对 pad 取址 cast。
-            m_resultView.m_resultField4a,
-            playTime / 1000, 0);
+            m_gameResultSet.m_field4a,
+            playTime / 1000U, 0);
         // ORIG 085b7d1f `movzbl 0x89f(%eax)` = CDungeon::m_bloodDungeonType
         //（unsigned char 宽度修正：原 *(char*) 为 movsbl 异形）
         if (m_battleField.m_pDungeon->m_bloodDungeonType == 1)   // 血图进度
@@ -6394,8 +6394,11 @@ void CParty::beginBloodClearProcess(bool flag)
 // ============================================================================
 // [SweepCParty] 真 bug/缺口：find_item 目标由 CDataManager 改 CItemList（ORIG
 // `CItemList::find_item(G_CDataManager()+0xc)`）；ref 初始化 memcpy→逐字段赋值；
-// 去 dm 缓存（ORIG 两次独立 call G_CDataManager）。p167 59 vs 58（余 C1/C2、D1/D2 别名
-// + N89 out-of-line 迭代器 + CLuckPoint 差）。
+// 去 dm 缓存（ORIG 两次独立 call G_CDataManager）。
+// b28d-solo-CParty2：迭代器 begin/de 按 ORIG 6/6 对账修正（rare 段首处内联 begin
+// 表达式 + 非 const `it` 复用两次 de；normal 段恢复第二对 begin/de）⇒ p167 只剩
+// C1/C2、D1/D2 名族与 CLuckPoint EXTRA（判 N/P204：删独立局部会少发射 12 个 ORIG
+// 同名 W 副本，账面回退）。ndiff 360→328。
 void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
                                      unsigned int param2, bool flag)
 {
@@ -6444,21 +6447,25 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
                 G_CDataManager()->getItemGenerator();
             genMgr->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2)
                 ->generateSpecificItem(ref, specific);
-            const Inven_Item& item = *specific.m_dropItems.begin();
-            bf.m_bloodReward.setRewarItemCopy(item, slot, i);
+            // b28d-solo-CParty2（p167 对账）：ORIG rare 段 begin/de = (0x85b8569,8577)
+            // + (0x85b8643,8674) + 0x85b86ad ⇒ 首处内联 begin 表达式（无 item 引用槽），
+            // 后续用**非 const 迭代器** `it`（ORIG 的 operator* 为
+            // `_ZNK...IP10Inven_Item...deEv` 非 const 版，两次 de 复用同一迭代器）。
+            bf.m_bloodReward.setRewarItemCopy(
+                *specific.m_dropItems.begin(), slot, i);
 
             int dungIdx =
                 m_battleField.m_pDungeon != 0 ? m_battleField.m_pDungeon->get_index() : 0;   // -0x2c
+            std::vector<Inven_Item>::iterator it = specific.m_dropItems.begin();
             QuickParty::RewardData_Param rp(this);
             rp.m_param4 = dungIdx;
             QuickParty::RewardData_Result rr;
             // [SweepCSecurityCard 2026-09-10] ORIG 0x085b8679 `mov 0x7(%eax),%eax`
             // 直读 +0x07（Inven_Item::m_addInfo2），无 get_add_info out-of-line
             // call（p167 EXTRA get_add_info ×1）。
-            rr.m_value00 = item.m_addInfo2;
+            rr.m_value00 = (*it).m_addInfo2;
             set_basic_reward((QuickParty::BasicRewardType)0xb, rp, rr);
-            Inven_Item& mutable_item =
-                const_cast<Inven_Item&>(*specific.m_dropItems.begin());
+            Inven_Item& mutable_item = const_cast<Inven_Item&>(*it);
             mutable_item.m_addInfo2 = rr.m_value00;
             // ORIG 085b86bd `mov 0x6160(%eax)`：m_bloodDungeon+0x330 →
             // stBloodDungeon_t::m_field330（float，flds 消费同宽）
@@ -6482,7 +6489,11 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
             if (!result.m_dropItems.empty())
             {
                 const Inven_Item& item = *result.m_dropItems.begin();
-                bf.m_bloodReward.setRewarItemCopy(item, slot, i);
+                // b28d-solo-CParty2（p167 对账）：ORIG normal 段 begin/de =
+                // (0x85b87ba,87c8) + (0x85b886c,887a) 两对 ⇒ setRewarItemCopy 实参
+                // 写内联 begin 表达式（勿复用 item 引用；O0 无 CSE）。
+                bf.m_bloodReward.setRewarItemCopy(
+                    *result.m_dropItems.begin(), slot, i);
                 // ORIG 0x085b8926 `CItemList::find_item(G_CDataManager()+0xc)`。
                 CItem* card =
                     G_CDataManager()->m_itemList->find_item(item.m_addInfo);

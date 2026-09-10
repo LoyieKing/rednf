@@ -653,14 +653,17 @@ void exportCharacterGiveSkillScript(FILE* fp, std::vector<std::pair<int, int> >*
 }
 
 // ORIG T 0x08a100f3 _Z29exportCharacterEtcStatsScriptP8_IO_FILEP17CharacterEtcStats。
-// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N82 槽复用 + N85 x87）] 本波修：
-// ①第一循环加具名 ENUM_CATEGORY cat 局部（P0：ORIG 0x08a10151
-// `mov %eax,-0x10(%ebp)` 槽往返 + 回读压参）；②j 提函数头 + for-init 单点
-// 赋值，消 4.4 对块内 `for(int j=0;…)` 多发的一条 `movl $0,-0x18`
-// （P191/P309）。p167 CLEAR（14=14）。残差：ORIG 三循环变量分占
-// -0x14/-0x18/-0xc 而 4.4 复用同槽（N82：4.1 不按 lifetime 复用栈槽）+ x87
-// 比较 `fucompp/fnstsw/sahf` vs 4.4 `fucomip/fstp`（N85；P230 注：-march=i486
-// TU 旗标可消，属路由变更需 Main 统一处理）。
+// [b28d 判词·N 封顶（N82 槽复用 + N85 x87）] 本波修：①第一循环加具名
+// ENUM_CATEGORY cat 局部（P0：ORIG 0x08a10151 槽往返 + 回读压参）；②j 提函数头
+// + for-init 单点赋值，消 4.4 对块内 `for(int j=0;…)` 多发的一条
+// `movl $0,-0x18`（P191/P309）。p167 CLEAR（14=14）。
+// [b14 A/B 实测·路由不提] N85 x87 lowering：默认 mne_delta =
+// {sahf:-1,fucompp:-1,fnstsw:-1,fucomip:+1,fstp:+1,movl:+1}（ndiff 55 / gap 0）；
+// 追加 `-march=i486 -mtune=generic`（Main 判据，须同带 mtune）后 x87 差异全消，
+// 但**新引入 1 条 movl**（gap 0→-1、ndiff 52），本件仍 DIFF，且整 TU 四数逐项
+// 不变（396+800=1196 / near 0 / diff 13 / missing 197；30 个函数指令形变化、
+// 0 件翻转）⇒ 依 Main 口径（仅整 TU 净收益才提路由）不提。残余主项 =
+// 4.1 不复用三循环变量槽（-0x14/-0x18/-0xc）vs 4.4 复用（N82）。
 void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
 {
     if (!stats->m_category.empty())

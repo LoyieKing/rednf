@@ -31,6 +31,11 @@
 #include "CPartyResultRecvFlag.h"
 #include "CTraceMobDieHack.h"
 #include "CDungeonClearTracer.h"   // +0xc7c 内嵌追踪器（ORIG giveup_game 0x85b2baa 实证）
+// [b28d-solo-CParty2] 7 个 pad 区字段化所需完整类型（原 reinterpret_cast 视图 cast）：
+#include "SECRET_SHOP_DATA.h"           // +0x2a4 m_secretShop
+#include "Secu_HackLogCheckByParty.h"   // +0x1abc m_secu
+#include "CPartyTelePort.h"             // +0x1ad0 m_teleport
+#include "GameResultSet.h"              // +0x17f4 m_gameResultSet
 
 // ---- 本批次临时类型（主 agent 集成后迁移到权威头） ----
 #ifndef DNF_ENUM_PARTY_INFO_TYPE_DEFINED
@@ -746,14 +751,18 @@ public:
     // b28d-solo-CPartyOnlyOrig 备注：曾试「匿名 union + 具名 m_recvFlag」以复现
     // ORIG receiver `lea 0x1dc(%eax),%edx`，但 GCC 4.4 拒绝 union 含带构造函数
     // 成员（CPartyResultRecvFlag 有用户 C1）⇒ 回退；残余 lea/add 归 N107。
-    unsigned char m_pad1dc[0x4];     // +0x1dc
+    // [b28d-solo-CParty2] 视图 cast → 真实成员：ORIG Clear 0x082a4cc6
+    // `memset(this,0,4)` ⇒ sizeof(CPartyResultRecvFlag)==4，恰占 +0x1dc..+0x1df。
+    CPartyResultRecvFlag m_recvFlag;   // +0x1dc
     char m_dungeonClearState;        // +0x1e0
     int m_field1e4[2][4];            // +0x1e4 (compiler aligns to 4)
     char m_field204[2][4];           // +0x204
     char m_tournamentDungeonClearState;  // +0x20c
     unsigned char m_pad20d[0x3];     // +0x20d
     // ---- CTraceMobDieHack 区（+0x210，0x94 字节） ----
-    unsigned char m_pad210[0x88];    // +0x210
+    // [b28d-solo-CParty2] 视图 cast → 真实成员：ORIG setDungeonDiff 0x085bf646
+    // `mov %edx,0x84(%eax)` ⇒ sizeof==0x88（+0x210..+0x297，其后为 CParty 直系字段）。
+    CTraceMobDieHack m_traceMobDieHack;   // +0x210
     int m_memberLevelGap;            // +0x298
     unsigned short m_straightVictories;  // +0x29c
     unsigned char m_pad29e[2];       // +0x29e
@@ -765,9 +774,10 @@ public:
     // （SECRET_SHOP_INFO 0x1c×4 = 0x70）⇒ 数组落 +0x2a8..+0x317。
     // sizeof/全部偏移/mangled 不变；`&m_padShop` 仍 = this+0x2a4（CParty.cpp
     // placement-new/cast 消费点语义不变）。
-    unsigned char m_padShop[0x4];    // +0x2a4（SECRET_SHOP_DATA 头 m_openCode）
-    char m_secretShopInfo[4][0x1c];  // +0x2a8（SECRET_SHOP_INFO POD 镜像）
-    unsigned char m_padShopTail[0x4];// +0x318
+    // [b28d-solo-CParty2] 视图/POD 镜像 → 真实成员：ORIG D1 0x082a549e 只析构
+    // this+4..+0x74（4×SECRET_SHOP_INFO）⇒ sizeof(SECRET_SHOP_DATA)==0x78
+    //（+0x2a4..+0x31b；其后 m_premiumGoldCardParty@+0x31c 起为 CParty 直系字段）。
+    secretshop::SECRET_SHOP_DATA m_secretShop;   // +0x2a4
     bool m_premiumGoldCardParty;     // +0x31c
     unsigned char m_pad31d[3];       // +0x31d
     unsigned int m_premiumGoldCardDefaultItem;  // +0x320
@@ -790,27 +800,13 @@ public:
     //   m_sealDoorItemsOk→+0x1c9 同名落 BF.h；tracer/padc94/padcb0/padcc5/padcdc/
     //   padcee/padCBattleField2 由 BF.h 既有/占位成员接管。
     CBattle_Field m_battleField;             // +0xb24..0x17f3
-    // [b28d-solo-CParty] P235 匿名 union 双视角：ORIG onBloodClear 0x085b7cd8
-    // `movzwl 0x183e(%eax),%eax` 为单条 disp（=GameResultSet+0x4a）⇒ 需要
-    // +0x183e 处的具名 unsigned short 视角。m_padResult 原样保留（C1/D1 零影响），
-    // 仅增别名视角；sizeof/偏移/mangled 不变。
-    union {
-        unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
-        struct {
-            // [b28d-solo-CPartyDepsD2] P235/P311 具名标量视角（ORIG SetPlayResult
-            // 0x085b24be 单条 movzbl 0x17fd / 0x085b251b mov %ax,0x183c /
-            // 0x085b2525 mov %edx,0x1800 / 0x085b2539 mov %dl,0x1804 实证）。
-            unsigned char m_resultPad[9];           // +0x17f4..+0x17fc
-            unsigned char m_resultField9;           // +0x17fd GameResultType+0x09
-            unsigned char m_resultPadA[2];          // +0x17fe..+0x17ff
-            int m_resultFieldC;                     // +0x1800 GameResultType+0x0c
-            unsigned char m_resultField10;          // +0x1804 GameResultType+0x10
-            unsigned char m_resultPad11[0x37];      // +0x1805..+0x183b
-            unsigned short m_resultField48;         // +0x183c GameResultType+0x48
-            unsigned short m_resultField4a;         // +0x183e GameResultType 尾字段
-            unsigned char m_resultPad4c[4];         // +0x1840..+0x1843
-        } m_resultView;
-    };
+    // [b28d-solo-CParty2] union 视图 cast → 真实成员（sizeof(GameResultSet)==0x50，
+    // ORIG C1 调 GameResultSetC2Ev/D2Ev 实证）。原 m_resultView 视角改用
+    // GameResultType 权威成员（偏移一致）：+0x09 m_field9 / +0x0c m_fieldc /
+    // +0x10 m_field10 / +0x48 m_field48 / +0x4a m_field4a
+    //（ORIG SetPlayResult 0x085b24be/0x085b251b/0x085b2525/0x085b2539 与
+    //  onBloodClear 0x085b7cd8 的 disp 实证）。
+    GameResultSet m_gameResultSet;   // +0x17f4
     std::map<int, int> m_killMobCounter;   // +0x1844（ORIG DieMob dispatch_sig
                                            //   击杀计数 map，size 0x18 同位）
 
@@ -841,9 +837,12 @@ public:
     int m_field1ab4;        // +0x1ab4
     int m_field1ab8;        // +0x1ab8
 
-    unsigned char m_padSecu[0x14];     // +0x1abc Secu_HackLogCheckByParty
+    // [b28d-solo-CParty2] 视图 cast → 真实成员（sizeof 0x14 = 基类 0x10 + m_party2@+0x10）
+    Secu_HackLogCheckByParty m_secu;   // +0x1abc
     // ---- CPartyTelePort 区（+0x1ad0，0x24 字节） ----
-    unsigned char m_pad1ad0[0x10];   // +0x1ad0
+    // [b28d-solo-CParty2] 视图 cast → 真实成员：ORIG C1 0x085bb832 仅
+    // `stPartyTelePort::reset(this+4)` ⇒ sizeof==0x10（m_party@+0 + m_tp@+0x4）。
+    CPartyTelePort m_teleport;       // +0x1ad0
     int m_quickPartyIndex;           // +0x1ae0
     bool m_isQuickParty;             // +0x1ae4
     unsigned char m_pad1ae5[3];      // +0x1ae5
@@ -858,6 +857,18 @@ public:
     bool m_weekendEvent;             // +0x1af0
     bool m_dungeonMapSaving;         // +0x1af1
     unsigned char m_pad1af2[0x2];    // +0x1af2
-    unsigned char m_padPassedMap[0xc]; // +0x1af4 std::vector<MapInfo>
+    // [b28d-solo-CParty2] 视图 cast → 真实成员（std::vector<MapInfo> 0xc 字节）
+    std::vector<MapInfo> m_passedMap;  // +0x1af4
 };
+
+// [b28d-solo-CParty2] 布局断言（基线实测：sizeof(CParty)=6912=0x1b00；
+// 7 个字段化区偏移见下）。字段化前后必须逐值相等，否则立即编译失败。
+static_assert(sizeof(CParty) == 0x1b00, "CParty sizeof changed");
+static_assert(__builtin_offsetof(CParty, m_recvFlag) == 0x1dc, "m_recvFlag off");
+static_assert(__builtin_offsetof(CParty, m_traceMobDieHack) == 0x210, "m_traceMobDieHack off");
+static_assert(__builtin_offsetof(CParty, m_secretShop) == 0x2a4, "m_secretShop off");
+static_assert(__builtin_offsetof(CParty, m_gameResultSet) == 0x17f4, "m_gameResultSet off");
+static_assert(__builtin_offsetof(CParty, m_secu) == 0x1abc, "m_secu off");
+static_assert(__builtin_offsetof(CParty, m_teleport) == 0x1ad0, "m_teleport off");
+static_assert(__builtin_offsetof(CParty, m_passedMap) == 0x1af4, "m_passedMap off");
 #endif  // GAME_CPARTY_H_

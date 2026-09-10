@@ -1141,6 +1141,7 @@ int CInventory::GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE ty
         case 1:
         case 3:
         case 4:
+        case 10:
             break;
         case 2:
             for (int i = start; i <= end; i++)
@@ -1156,8 +1157,6 @@ int CInventory::GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE ty
                 1, "inventory.cpp",
                 __PRETTY_FUNCTION__,
                 0x493, "Invalid Item Type");
-            break;
-        case 10:
             break;
         }
         break;
@@ -1536,6 +1535,8 @@ int CInventory::makeCheckSum(int a, int b) const
         {
             register unsigned short v = (unsigned short)m_invenItem[i].m_fieldb;
             register unsigned char upgrade = m_invenItem[i].GetUpgrade();
+            // [b28d-36 复测] P200「短整实参直传」形实测 nd 144→148 反劣 ⇒ 回滚，保留 register v 形
+            // （ORIG 双段 movzwl %ax,%ebx 跨 GetUpgrade 保活在此不可造，判 N18a/P200 边界）。
             sum += getItemChecksum(i, m_invenItem[i].m_addInfo, 1, upgrade, v);
         }
     }
@@ -4526,6 +4527,8 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
     {
         // ORIG -0x1c 槽即函数级索引 i：b 分支以 b 直读（余 1 行为 b(0x50)↔i(-0x1c)
         // 的装载选择，4.4 读形参 / 4.1 读具名槽；加 i=b 承接会 +2 条，反劣 ⇒ 保留 b 形）。
+        // [b28d-36 复测] 全 b→i 替换（i=b; m_pEquipSlot[i]…return i）实测 nd 1→391 大幅反劣，
+        // 已回滚 ⇒ 确认保留 b 直读形，残余 1 条记 4.4 形参直读 vs 4.1 具名槽（N 类微差）。
         if (m_pEquipSlot[b].m_addInfo == 0)
         {
             m_pEquipSlot[b] = item;
@@ -4840,33 +4843,51 @@ void CInventory::CalBlankSlot(int* out,
     {
         goto CBLANKSLOT_END;
     }
-    // [实测回滚] ORIG 0x8508536 为 entry=std::pair(*it)（deEv+aSEOS0_）+ 三处 ppEi，
-    // 但 4.4 复现形 349 insns（原 326，ORIG 312）且 TU ae -1 ⇒ 维持原形（记 N）。
-    for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
-         ++it)
+    // [P28/P223] ORIG 0x08508536 布局 = begin 一次 + `jmp COND` + BODY→COND（while 形，非 for）；
+    // 增量段调 ppEi（后置）⇒ 源写 it++；循环头 cur=std::pair(*it) + first/second 缓存（同 CalNeedSlot）。
+    // [P223/BM8] 同 CalNeedSlot：goto 跨非平凡初始化非法 ⇒ 主体包入内层复合块、标签置块外。
     {
-        int itemIdx = it->first;
-        int count = it->second;
+    // [P212] ORIG 0x08508536：itemIdx/count/type/start/end 在循环外声明（Ghidra local_1c/
+    // local_14/local_10/local_48/local_4c 均为函数级），循环内仅赋值 ⇒ 提升后槽集对齐。
+    int itemIdx;
+    unsigned int count;
+    int type;
+    int start;
+    int end;
+    typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
+    Iterator it = items.begin();
+    std::pair<int, int> cur;
+    while (it != items.end())
+    {
+        cur = std::pair<int, int>(*it);
+        itemIdx = cur.first;
+        // [P196/P218] ORIG 0x085086a7 比较 `mov -0xc; cmp -0x10; jae`（无符号）⇒ count/found
+        // 为无符号（Ghidra：uint local_10/local_14）；写 int 会产 jge（我们实测）。
+        count = cur.second;
         if (itemIdx == 0 || itemIdx == 2)
         {
+            it++;
             continue;
         }
-        int type = GetItemType(itemIdx);
+        type = GetItemType(itemIdx);
         if (type == 0)
         {
+            it++;
             continue;
         }
-        int start = 0;
-        int end = 0;
+        start = 0;
+        end = 0;
         StartEndPos((Inven_Item::ITEM_TYPE)type, start, end);
         if (type == 1)
         {
-            int found = 0;
+            unsigned int found = 0;
             for (int i = start; i <= end; i++)
             {
                 if (m_pEquipSlot[i].m_addInfo == itemIdx)
                 {
                     found++;
+                    // [b28d-36 复测] 改 `out[type]++`（变量索引）实测 nd 256→325 反劣 ⇒ 回滚；
+                    // 本处保留 out[1]（ORIG 0x08508671 段的索引形与实测最优形一致）。
                     out[1]++;
                     if (found == count)
                     {
@@ -4896,7 +4917,7 @@ void CInventory::CalBlankSlot(int* out,
             {
                 if (isEquipableItemType(type))
                 {
-                    int found = 0;
+                    unsigned int found = 0;   // [P196] 同 type==1 分支：ORIG 无符号比较
                     for (int i = start; i <= end; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx)
@@ -4930,6 +4951,8 @@ void CInventory::CalBlankSlot(int* out,
                             if (m_pEquipSlot[i].m_addInfo == itemIdx &&
                                 (unsigned int)m_pEquipSlot[i].m_addInfo2 == (unsigned int)count)
                             {
+                                // [b28d-36 复测] 改 out[type] 实测 nd 256→326 反劣（本处确为
+                                // ORIG 0x085088a3 base 直取形 out[0]）⇒ 回滚保留。
                                 out[0]++;
                                 break;
                             }
@@ -4964,6 +4987,8 @@ void CInventory::CalBlankSlot(int* out,
                 }
             }
         }
+        it++;
+    }
     }
     // [P223] ORIG TAIL：body 尾 jmp 跳过 nop 到 leave;ret（ORIG 0x08508914 → 0x08508917）。
 CBLANKSLOT_END:;

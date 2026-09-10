@@ -18,6 +18,9 @@
 #include <string.h>
 
 #include "SkillSlot.h"          // CSkillChanger 类定义 / CUser / NumberToString / G_CDataManager
+// [Lane37CUser 2026-09-10 解环] SkillSlot.h 已把 `#include "CUser.h"` 改为前向声明
+//   （解 CUser.h ⇄ SkillSlot.h 环）⇒ 依赖传递获得 CUser 完整定义的 TU 需自行直补。
+#include "CUser.h"              // CUser 完整定义（本 TU 解引用 CUser 成员）
 #include "Quest.h"              // Quest（+0xb8 字段）/ RewardItemInfo 完整型
 #include "QuestClear.h"         // WongWork::CQuestClear::enumQuestClear 回调链
 #include "CDataManager.h"       // find_quest / get_level_exp

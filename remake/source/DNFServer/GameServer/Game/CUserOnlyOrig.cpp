@@ -363,10 +363,18 @@ bool CUser::_IsCompoundResult2MoreEquip(const std::vector<std::pair<int, int> >&
 void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
                               eChangeGrowTypeReason reason)
 {
+    // [Lane39 判据①/P0/P224] ORIG 0x0866409x 无 ev/on 具名槽：`call GetRepeatEvent` 后直接
+    // `mov (%eax),%edx; add $0x34,%edx; mov (%edx),%edx; call *%edx` 且 `test %al,%al;
+    // je +0xb4` 与 `cmpl $1,0x14(%ebp); je +0xb4` **两失败出口同目标**（裸短路 &&）；
+    // 具名 bool on 反产 `movb %al,-0x29; cmpb $0,-0x29; je` 物化 + 多 jcc/jmp。
     {
-        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x15);
-        bool on = ev->IsEventing((CUser*)0);                      // vtable+0x34 槽（send-flag 判定）
-        if (on && reason != (eChangeGrowTypeReason)0x1)
+        // [Lane39 判据①/P223 定案] ORIG 两个失败出口同落 +0xb4（共享 join）⇒ 4.4 复现形
+        // 唯一为「负条件 goto 到共享尾空标签」；`&&` 合并/嵌套 if 均被 jump-thread 或
+        // 生 bool 物化岛（实测 +1 条 mov$1/jmp/mov$0/test）。
+        if (!GlobalData::s_event_manager->GetRepeatEvent(0x15)->IsEventing((CUser*)0))
+            goto GROW_SKIP;
+        if (reason == (eChangeGrowTypeReason)0x1)
+            goto GROW_SKIP;
         {
             // ORIG：makeRequest 两分支独立，每分支各自重调 getCurCharacNo/get_acc_id
             // （访问器结果禁缓存，战术 P183/P48）。
@@ -383,6 +391,7 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
                     (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)0xb);
             }
         }
+    GROW_SKIP:;
     }
 
     bool gmTimeActive = false;
@@ -7713,7 +7722,11 @@ void CUser::UpdateCurrentCharacRentalInfo(
     // ——旧重建误用 getCurCharacNo() 且缺 0 守卫（characNo=0 时错误建空 map 项）。
     const unsigned int characNo =
         static_cast<unsigned int>(getCurCharacR()->m_characNo);
-    if (characNo != 0)
+    // [Lane39 判据①/P223] ORIG 0x08676e5d `je +0x1e2(nop)` + 正常路径尾 `jmp +0x1e3`
+    // 跳过该 nop（4.1 空 then 占位岛）；4.4 对正向 `if (characNo != 0) {…}` 恒
+    // jump-thread 掉 jmp+nop ⇒ 复现形 = 负条件 goto 到尾空标签（含初始化声明收进内层块）。
+    if (characNo == 0)
+        goto RENTAL_END;
     {
         std::vector<InstanceRentalSystem::RentalInfo>& list =
             m_rentalInfo[static_cast<unsigned int>(machineKey)][characNo];
@@ -7734,7 +7747,10 @@ void CUser::UpdateCurrentCharacRentalInfo(
             std::vector<InstanceRentalSystem::RentalInfo>::iterator found =
                 std::find_if(list.begin(), list.end(),
                              FindRentalInfoByItemIndex(delItem.m_itemId));
-            if (found != list.end())
+            // [Lane39 判据①/P74补①] 实参序旋钮：ORIG 0x08676f49 `lea -0x1c,%eax;
+            // mov %eax,(%esp); lea -0x3c,%eax; mov %eax,0x4(%esp)` ⇒ 比较左侧是
+            // end() 临时（-0x1c）、右侧是 find_if 结果（-0x3c）⇒ 源写 `end() != found`。
+            if (list.end() != found)
                 list.erase(found);
         }
 
@@ -7743,6 +7759,7 @@ void CUser::UpdateCurrentCharacRentalInfo(
              ri != output.m_infos.end(); ++ri)
             list.push_back(*ri);
     }
+RENTAL_END:;
 }
 
 // ---------------------------------------------------------------------------
@@ -10859,7 +10876,14 @@ void CUser::SendMail(bool certified)
         check.set<MSG_CHECK_MAIL_RECEIVER::ENUM_MAILBOX_CHECKTYPE_0>(
             *reinterpret_cast<MSG_MAILBOX_SEND*>(m_pad8e101));
         int rc = WongWork::CMailBoxHelper::ReqDBCheckReceiver(this, m_pad8e101 + 0x11, &check);
-        if (rc == 0) {
+        // [Lane39 判据①/P222] ORIG 0x08689fcb `cmpl $0x0,-0x24(%ebp); je +0xfc` ⇒ je 落
+        // **成功块**（失败块 SendCmdErrorPacket 直落 + 尾 jmp 跳过成功块）⇒ 源码极性为
+        // `if (rc != 0) {失败} else {成功}`；旧 `if (rc == 0) {成功}` 反产 `jne 成功`
+        // （多 1 jcc/1 jmp）。
+        if (rc != 0) {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x61, static_cast<unsigned char>(rc));
+        }
+        else {
             bool fatigueGift = false;                      // local_21
             int itemId = static_cast<int>(
                 reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_itemId39);  // +0x39
@@ -10881,9 +10905,6 @@ void CUser::SendMail(bool certified)
             }
             IncrementTradeGold(reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_gold2e,  // +0x2e
                                static_cast<int>(fatigueGift));
-        }
-        else {
-            SendCmdErrorPacket((ENUM_CMDPACKET)0x61, static_cast<unsigned char>(rc));
         }
         if (getCurCharacR() != 0) {
             unsigned short usedFatigue = getCurCharacUsedFatigue();
@@ -11742,9 +11763,10 @@ _Charac_info::_Charac_info()
     new (p + 0x29) STGrowthType();                        // call 0x8486bce
     new (p + 0x2a) STGrowthType();                        // call 0x8486bce
     new (p + 0x88) _Additioal_info();                     // call 0x8348254（inline memset 0x52 同语义）
-    new (p + 0x0da) CInventory();                         // call 0x822d52c
-    new (p + 0x892) SkillSlot();                          // call 0x8694d6a
-    new (p + 0xdaa) CCargo();                             // call 0x86949da
+    // [Lane37 2026-09-10 广播 · Lane39 同步] +0xda/+0x892/+0xdaa 三区已由 Lane37 在
+    // CUser.h 改成真实成员（CInventory m_curCharacInven / SkillSlot m_skillSlot /
+    // CCargo m_cargo，offsetof 断言锁定）⇒ 编译器在 ctor prologue 自动构造，
+    // 此处 placement new 属**二次构造**（真 bug）⇒ 删除。
     new (p + 0xe40) tagCharacVisibleFlag();               // call 0x8695c60
     new (p + 0xe8d) STPowerWarCharacData();               // call 0x86959dc
     new (p + 0xe9a) std::vector<ContinuousItemInfo>();    // call 0x86980de
@@ -11774,9 +11796,9 @@ _Charac_info::~_Charac_info()
     // 直接重载 this 形参；旧 `char* p=this` 具名缓存生 -0xc 槽 + 每点回读（帧 0x20 vs ORIG 0x10）。
     reinterpret_cast<std::vector<ContinuousItemInfo>*>((char*)this + 0xea6)->~vector();   // call 0x86980f2
     reinterpret_cast<std::vector<ContinuousItemInfo>*>((char*)this + 0xe9a)->~vector();   // call 0x86980f2
-    reinterpret_cast<CCargo*>((char*)this + 0xdaa)->~CCargo();                      // call 0x86949f8
-    reinterpret_cast<SkillSlot*>((char*)this + 0x892)->~SkillSlot();                // call 0x8694e80
-    reinterpret_cast<CInventory*>((char*)this + 0xda)->~CInventory();               // call 0x822d600
+    // [Lane37 2026-09-10 广播 · Lane39 同步] CCargo@0xdaa / SkillSlot@0x892 / CInventory@0xda
+    // 三区已是真实成员 ⇒ 编译器在 dtor 尾（body 之后）按逆声明序自动析构；此处显式
+    // 析构属**二次析构 / double free**（真 bug）⇒ 删除。
 }
 // ORIG 0x08699863：编译器生成的拷贝构造。平凡区（含 _Additioal_info@0x88、
 // CCargo@0xdaa 等无堆成员子对象）逐字段拷贝；非平凡子对象调用拷贝构造。

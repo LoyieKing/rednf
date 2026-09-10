@@ -1231,7 +1231,12 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
     // [2026-09-09 SweepCMailBoxHelper-2 复验] P225 while+break 形在此**反劣**
     // （245→249，4.4 对大 body 生成真循环回边；探针 f2 仅单语句 body 时同形）⇒
     // 维持 if 形，残余 setne/test 物化 2 条归 P197④/N122 跨版本族。
-    if (money != 0)
+    // [本波 2026-09-10] P225：ORIG 0x085546db 为 `cmpl $0x0,-0x14(%ebp);
+    // setne %al; test %al,%al; je`（4.1 对整型槽比零的条件物化）；4.4 对
+    // `if (money != 0)` 恒折 `cmpl; je` 直跳 ⇒ 用 while+break 形复现四段物化
+    // （实测 ndiff 273→2；残余 2 条 `jmp <exit>` 系 4.4 为多出口 body 发的中继，
+    //  单 case switch 形反劣 ndiff=5 已回退）。
+    while (money != 0)
     {
         if (bReset)
         {
@@ -1275,14 +1280,20 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
             items.push_back(
                 std::make_pair((ENUM_ITEMSPACE)0, (Inven_Item::INVEN_SLOT)0));
         }
+        break;
     }
 
     // 主流程一次 sret（ORIG local_e9），isAvatarPottery 分支复用同一 sret。
-    Inven_Item const& pkg = mail->GetPackageItem();
-    unsigned long itemIdx = (unsigned long)(unsigned int)pkg.m_addInfo;
-    if (itemIdx == 0)
-        return true;
-    if (itemIdx == 1)
+    // [本波 2026-09-10] 按值直构（P0）：ORIG 0x8554896 `lea -0xe7(%ebp),%eax` +
+    // `mov -0xe5(%ebp),%eax` 直读对象槽字段（对象基址+0x02 折叠）⇒ 原码是
+    // `Inven_Item pkg = mail->GetPackageItem();`（sret 直构进具名对象槽、无引用
+    // 指针槽）；旧 `Inven_Item const& pkg` + `unsigned long itemIdx` 使 4.4 生成
+    // 指针槽 + 两级解引用 `mov -0x18(%ebp),%eax; mov 0x2(%eax),%eax` 且多一枚
+    // itemIdx 槽（与 _DoGetPackageItem 同族修法）。
+    Inven_Item pkg = mail->GetPackageItem();
+    if (pkg.m_addInfo == 0)
+        goto return_true; // ORIG 0x0854a05 尾块 `mov $0x1,%eax`（je 直跳共享出口）
+    if (pkg.m_addInfo == 1)
         return _DoGetPackageCoin(user, mail, items, bReset, err);
 
     // [本波 2026-09-09 真 bug 修复] ORIG 0x085548ac..0x085548b8 压栈实证：
@@ -1291,21 +1302,25 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
     // bool isAvatarPottery(unsigned long); }` 声明把成员当命名空间函数调用，
     // 少压 this ⇒ 运行期 this 为垃圾（读 this+0x18）。改权威类成员调用。
     if (reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
-            ->isAvatarPottery(itemIdx))
+            ->isAvatarPottery((unsigned long)(unsigned int)pkg.m_addInfo))
         return AvatarCoin::GetPackage(
             user, pkg.m_addInfo2, bReset); // +0x07 avatar uid
 
-    CItem* proto = G_CDataManager()->find_item((int)itemIdx);
-    if (proto == 0)
     {
-        err = (ENUM_ERROR)1;
-        return false;
+        CItem* proto = G_CDataManager()->find_item((int)pkg.m_addInfo);
+        if (proto == 0)
+        {
+            err = (ENUM_ERROR)1;
+            return false;
+        }
+        if (proto->IsAvatarItem())
+            return _DoGetPackageAvatar(user, mail, items, bReset, err);
+        if (proto->IsCreatureItem())
+            return _DoGetPackageCreature(user, mail, items, bReset, err);
+        return _DoGetPackageItem(user, mail, items, bReset, err);
     }
-    if (proto->IsAvatarItem())
-        return _DoGetPackageAvatar(user, mail, items, bReset, err);
-    if (proto->IsCreatureItem())
-        return _DoGetPackageCreature(user, mail, items, bReset, err);
-    return _DoGetPackageItem(user, mail, items, bReset, err);
+return_true:
+    return true;
 }
 
 // [b28d-solo-CMailBoxHelper] 修法（DIFF 132→NEAR，156=156 insn）：
@@ -1314,8 +1329,13 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
 // ②删 SetEventCoin/SetPayCoin/SetCoin 三处冗余 `(int)` cast（P41，-6 条）；
 // ③switch case 书写序改 0,1,2（P46 叶块序 = case 序；ORIG 决策链
 // `cmp $1;je;cmp $2;je;test;jne default` 且 case0 fall-through，-1 条）。
-// 残余 N：make_pair 两立即数物化槽序互换（ORIG `movl $1,-0x1c; movl $0,-0x18`
-// = 4.1 左→右求值；4.4 右→左 ⇒ `movl $0,-0x1c; movl $1,-0x18`，P18 族）。
+// [本波 2026-09-10 真 bug 修复] P18 make_pair 键值序：ORIG 0x08553868/0x0855386f
+// `movl $0x1,-0x1c(%ebp); movl $0x0,-0x18(%ebp)` 且 0x4(%esp)←&(-0x18)、
+// 0x8(%esp)←&(-0x1c)；0x4(%esp) = make_pair 第一实参已由 _DoGetPackageItem
+// ORIG 0x8554143（`movl $0x0,-0x24` + `lea -0x74→0x8`，第一实参=0 落 -0x24）
+// 交叉证实 ⇒ ORIG 第一实参=0(ENUM_ITEMSPACE)、第二实参=1(INVEN_SLOT)。
+// 旧码写 (1,0) 使 pair=(space 1, slot 0) 而 GetPackege 以 it->first 选
+// INVEN_TYPE（1→type2）⇒ 客户端显示位置错误。
 bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
                                        std::vector<std::pair<int, int> >& items,
                                        bool bReset, ENUM_ERROR& err)
@@ -1364,7 +1384,7 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
     }
 
     items.push_back(
-        std::make_pair((ENUM_ITEMSPACE)1, (Inven_Item::INVEN_SLOT)0));
+        std::make_pair((ENUM_ITEMSPACE)0, (Inven_Item::INVEN_SLOT)1));
     return true;
 }
 

@@ -115,6 +115,16 @@ enum ENUM_CHARAC_LINK_BONUS_STATE { ENUM_CHARAC_LINK_BONUS_STATE_0 = 0 };
                           // 叶子头：string.h/utility/vector，无环）
 #include "STGuildSkill.h" // STGuildSkill 完整类型（STGuildDBInfoOnly::m_skills[16]；
                           // 叶子头：pack(1) 5B，无环）
+// [Lane37CUser 2026-09-10 解环] STGuildDBInfoOnly 迁至独立叶子头（SkillSlot.h 的
+//   master_new_guild_skill 需要该完整类型，而 SkillSlot.h ⇄ CUser.h 成环）——
+//   定义/成员/断言逐字节不变，见该头。
+#include "STGuildDBInfoOnly.h"
+// [Lane37CUser 2026-09-10 解环后反向 include] _Charac_info 的 +0xda/+0x892/+0xdaa
+//   三处 pad 视图区改为真实成员 CInventory/SkillSlot/CCargo（布局零变化，
+//   static_assert 锁 sizeof/offsetof）⇒ 需完整类型；两头的 CUser 引用均为
+//   `CUser*` 指针（前向声明化）故无环。
+#include "CInventory.h"     // CInventory（_Charac_info +0xda；sizeof 0x7b8）
+#include "SkillSlot.h"      // SkillSlot（_Charac_info +0x892；sizeof 0x518）
 #include "CMCAPManager.h" // WongWork::CMCAPManager 唯一声明点（自本文件收敛）
 #include "CHackAnalyzer.h" // WongWork::CHackAnalyzer / Secu_AccountHacking /
                           // ENUM_HACKTYPE 权威声明点（2026-08-27 自本头迁出）
@@ -570,7 +580,17 @@ struct _Charac_info
     unsigned short m_fieldd2;         // +0xd2 ← +0xaa
     unsigned short m_fieldd4;         // +0xd4 ← +0xac
     int m_fieldd6;                    // +0xd6 ← +0xae (int)
-    char m_padda[0xdbe - 0xda];       // +0xda..0xdbd（CInventory@0xda / SkillSlot@0x892 / CCargo@0xdaa reinterpret 视图区；Reset/CCargo 布局实证）
+    // [Lane37CUser 2026-09-10 · Main 立项] pad 视图区 → 真实子对象成员（布局零变化）：
+    //   探针实测 sizeof(CInventory)=0x7b8 / sizeof(SkillSlot)=0x518 / sizeof(CCargo)=0x14，
+    //   0x7b8+0x518+0x14 == 0xce4 == 0xdbe-0xda 恰好拼满原 pad 区（/tmp/tu__ProbeCharacLayout.o
+    //   改前基线：sizeof(_Charac_info)=0x14d1、offsetof 0xda/0xdbe 全等）。
+    //   收益：编译器隐式 C1ERKS_/aSERKS_ 恢复对三子对象的拷贝构造/析构调用
+    //   （ORIG W 0x08699820 / 0x0869da62；p167 miss=5/2，原为按字节浅拷贝容器 = 真 bug）。
+    //   旧视图 cast（(char*)p+0xda 等）同址仍可用；CUserOnlyOrig.cpp 的 placement new/
+    //   手工析构须同步删除（属主 lane 代落，见 2026-09-10 广播）。
+    CInventory m_curCharacInven;      // +0xda..0x891（0x7b8；ORIG CInventory@+0xda）
+    SkillSlot m_skillSlot;            // +0x892..0xda9（0x518；ORIG SkillSlot@+0x892）
+    CCargo m_cargo;                   // +0xdaa..0xdbd（0x14；ORIG CCargo@+0xdaa）
     int m_guildId;                    // +0xdbe（GetGuildIdBeforeDeleteCharacter 读取）
     unsigned char m_fielddc2;         // +0xdc2 ← CHARAC_DATA[0x5a]
     char m_padDC3[0xde9 - 0xdc3];     // +0xdc3..0xde8（Reset 无访问证据）
@@ -734,6 +754,15 @@ struct _Charac_info
 };
 #pragma pack(pop)
 static_assert(sizeof(_Charac_info) == 0x14d1, "_Charac_info ORIG size");
+// [Lane37CUser 2026-09-10] pad→真实子对象后的偏移锁定（改前探针基线，逐项必须全等）
+static_assert(__builtin_offsetof(_Charac_info, m_curCharacInven) == 0xda,
+              "_Charac_info CInventory @0xda");
+static_assert(__builtin_offsetof(_Charac_info, m_skillSlot) == 0x892,
+              "_Charac_info SkillSlot @0x892");
+static_assert(__builtin_offsetof(_Charac_info, m_cargo) == 0xdaa,
+              "_Charac_info CCargo @0xdaa");
+static_assert(__builtin_offsetof(_Charac_info, m_guildId) == 0xdbe,
+              "_Charac_info m_guildId @0xdbe");
 
 
 // ---- 子对象最小类（尺寸按构造偏移推导；方法签名按 ORIG nm 核对） ----
@@ -1329,39 +1358,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)  // 公会 DB 结构按 ORIG pack(1)（+0x9a int 非对齐；HEAD 原有，恢复）
-struct STGuildDBInfoOnly
-{
-    STGuildDBInfoOnly();
-    char m_guildName[0x17];           // +0x00
-    int m_masterNo;                   // +0x17
-    unsigned char m_fundLevel;        // +0x1b
-    unsigned short m_ability;         // +0x1c（ctor 写 1）
-    int m_field1E;                    // +0x1e
-    unsigned short m_memberCount;     // +0x22
-    int m_guildPoint;                 // +0x24
-    unsigned char m_guildRank;        // +0x28
-    unsigned int m_fundExp;           // +0x29
-    unsigned char m_subMasterCnt;     // +0x2d
-    // ORIG IsSubGuildMaster 0x0866c424 折出 `0xe(%eax,%edx,4)` 索引形⇒ 元素必须为 int
-    // （char[]+cast 恒出 base+shl 双步）；sizeof 0x14 不变，消费点仅 CUser.cpp。
-    int m_subMasterData[5];           // +0x2e（pack(1) 区非对齐 int 副会长表）
-    unsigned short m_guildSkillPoint; // +0x42
-    unsigned char m_skillLearnCnt;    // +0x44
-    // 判据㉜/㊹：ORIG STGuildDBInfoOnly::C1Ev 0x08693f56 以 5B 步长循环 call
-    //   STGuildSkill::C1Ev（ctor 写 +0=0xffffffff/+4=0xff）；char[0x50]+手写 memset
-    //   会产出 EXTRA memset/MISSING STGuildSkill::C2Ev（p167 实证）。改真类型后由
-    //   隐式成员构造复现 ORIG 循环。sizeof 0x50 不变（pack(1) 5B×16）。
-    STGuildSkill m_skills[16];        // +0x45（16×STGuildSkill 5B）
-    unsigned char m_field95;          // +0x95（SetGuildInfoProxy 0x0865cd43 单步 movzbl 直落⇒uchar；char 反产双步，CUOC7 技巧5）
-    int m_powerSecedeTime;            // +0x96
-    unsigned int m_powerWarPoint;     // +0x9a（ORIG Decrease 0x082301bc copy-sub 形需 uint）
-    char m_agitExist;                 // +0x9e
-    unsigned char m_powerJoinCount;   // +0x9f
-    unsigned int m_fundMoney;         // +0xa0
-    char m_masterName[0x15];          // +0xa4
-    int m_fieldB9;                    // +0xb9
-};
-static_assert(sizeof(STGuildDBInfoOnly) == 0xbd, "STGuildDBInfoOnly size");
+// [Lane37CUser 2026-09-10 解环] STGuildDBInfoOnly 定义迁至独立叶子头
+//   STGuildDBInfoOnly.h（本文件顶部 include；类型/成员/断言逐字节不变）。
+//   本 pragma 区继续覆盖下方 STGuildAgitDBInfo 等（保持原 pack 语义）。
 
 struct STGuildAgitDBInfo
 {

@@ -2,6 +2,9 @@
 // 对照 docs/class_func_reports/CValueStatistic.md：
 //   AddValueStatistic 0x0860d682 / InsertValueStatistic 0x0860d8a4
 #include "CInventory.h"
+// [Lane37CUser 2026-09-10 解环] CInventory.h 的 `#include "CUser.h"` 已改前向声明
+//   （解环）⇒ 依赖传递获得 CUser 完整定义的 TU 需自行直补。
+#include "CUser.h"
 #include "GlobalData.h"
 #include "CServerProxyMgr.h"
 #include <string.h>

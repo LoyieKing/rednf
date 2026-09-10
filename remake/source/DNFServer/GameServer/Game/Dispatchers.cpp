@@ -26563,17 +26563,6 @@ void Dispatcher_UseDye::notifyUpdatedInventoryItemInfo(CUser& user, short slot) 
 }
 
 // ==== Dispatcher_UseDye::process (ORIG 0x081e69ea) ====
-namespace
-{
-// DyeInfo（STItemScript.h）字段私有，按 ORIG 布局组件视图访问（P1）：
-// +0x00 int 计数/标志、+0x04 vector<pair<int,int>>。
-struct UseDyeDyeInfoView
-{
-    int m_field0;                                 // +0x00
-    std::vector<std::pair<int, int> > m_vec4;     // +0x04
-};
-} // anonymous namespace
-
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081e69ea orig/ours=462/475 ndiff-blocks=78
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 8 个，4.4 libstdc++ 全内联不可复现
 //   首差: push   %edi | sub    $0xfc,%esp | mov    %eax,-0x48(%ebp)
@@ -26622,8 +26611,10 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
 
     // ORIG 0x081e6bbc：经 CItem::GetDyeInfo()（0x0822c86e）取 DyeInfo 指针。
-    const UseDyeDyeInfoView& dye =
-        *reinterpret_cast<const UseDyeDyeInfoView*>(dyeDef->GetDyeInfo());
+    // [Lane1Dispatchers 2026-09-10 · Main「视图 cast 反模式」修法] Lane41 已把
+    //   DyeInfo::m_field0/m_vec4 private→public（含 sizeof==16 / offsetof(m_vec4)==4
+    //   static_assert）⇒ 删除 TU 局部 UseDyeDyeInfoView + reinterpret_cast，改直访。
+    const DyeInfo& dye = *dyeDef->GetDyeInfo();
     if (dye.m_field0 == 0 || dye.m_vec4.empty())
     {
         return 1;

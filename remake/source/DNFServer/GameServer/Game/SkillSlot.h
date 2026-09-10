@@ -15,7 +15,12 @@
 #include <utility>
 #include <vector>
 
-#include "CUser.h"          // 权威 CUser/CUserCharacInfo/cUserHistoryLog（G1-3 统一）
+// [Lane37CUser 2026-09-10 解环] 原 `#include "CUser.h"`：本头仅以 `CUser*` 指针出现
+//（m_parent / set_parent / CSkillChanger 各方法形参，全头零解引用）⇒ 前向声明足够，
+// 断开 CUser.h ⇄ SkillSlot.h 环（供 CUser.h 反向 include 本头以建 SkillSlot 成员）。
+class CUser;
+#include "STGuildDBInfoOnly.h"  // master_new_guild_skill(..., const STGuildDBInfoOnly&, ...)
+                                // 完整类型（自 CUser.h 迁出的叶子头，解环）
 #include "SigTypes.h"       // SIG_COMBO_SKILL/comoboSkillData 权威定义（FixMissingSigTypes 迁移）
 #include "MasteredSkill.h"  // _Mastered_skill（原本头定义，抽出供 SigTypes_C.h 共用）
 #include "STGuildSkill.h"   // STGuildSkill 5 字节技能条目

@@ -474,8 +474,11 @@ void* CParty::GetUserSecretShop(CUser* user)
     {
         // ORIG 地址 this+0x2a8+slot*0x1c = SECRET_SHOP_DATA(+0x2a4).m_info
         // （+0x04，SECRET_SHOP_INFO 0x1c）。
+        // [b28d-solo-CParty2] CParty.h 字段化：+0x2a4 区为真实成员
+        // m_secretShop（SECRET_SHOP_DATA），m_info 数组 @+0x04 ⇒ 本式偏移
+        // 仍 = this+0x2a8+slot*0x1c（与原 m_secretShopInfo 同址）。
         return reinterpret_cast<secretshop::SECRET_SHOP_INFO*>(
-            &m_secretShopInfo[slot]);
+            &m_secretShop.m_info[slot]);
     }
     return 0;
 }

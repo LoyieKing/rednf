@@ -57,7 +57,9 @@ public:
     bool m_bInspectUser;
     char m_pad81[3];
     int m_dungeonDiff;
-    char m_pad88[0x0c];
+    // [b28d-solo-CParty2] 尾部 `char m_pad88[0x0c]` 是错误建模，已删：
+    // ORIG setDungeonDiff 0x085bf646 `mov %edx,0x84(%eax)` ⇒ m_dungeonDiff@+0x84、
+    // **sizeof==0x88**；其后 +0x298 起为 CParty 直属字段（m_memberLevelGap 等）。
 };
 
 #endif

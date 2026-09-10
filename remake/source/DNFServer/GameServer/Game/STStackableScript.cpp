@@ -64,12 +64,22 @@
 //   [Lane35 判 N 清单] ImportStackableScript（N89 libstdc++ 全内联 + N82 槽复用；
 //     p167 1174=1174 CLEAR）；STStackableScript::operator=（N-ptrfold：6 处
 //     self 守卫被 4.4 折成 `this != &other` + memcpy 实参重算地址，621 vs 627）；
-//     _Vector_base<stStackableBoosterElement_t>::~D1（N89：4.1 头实现含 EH
-//     landing + 双 _Vector_implD1 调用 41 行 vs 4.4 26 行）；
-//     __uninitialized_copy<false> ×4（N89：4.1 无 landing/caller-saved 少，
-//     4.4 布 landing + push edi/esi/ebx）；GetExpertJobValueMaterialVariation
-//     （N85 x87：ORIG fucompp/fnstsw/sete vs 4.4 fucomip/setae，需 TU 级
-//     -march=i486 才翻，路由属 Main）。
+//     _Vector_base<stStackableBoosterElement_t>::~D1（N89，Lane41 根因 + 本 lane
+//     复核 nm -S：ORIG 0x6d / 本 TU .o 0x49 / **链接产物 df_game_r 0x6d**
+//     （由 CStackableItem.cpp.o 提供，同为 0x6d）⇒ 本 TU 版本非链接保留者，
+//     比对噪声，无运行时影响）；__uninitialized_copy<false> ×4 =
+//     **N89 跨版本 libstdc++ 模板实例（ORIG 0x50 无 EH landing vs 4.4.7 0xa9
+//     含 landing）；探针实证 -fno-exceptions 可复现但整 TU 崩盘（784/1518/2/164）
+//     ⇒ 判 N，三方域豁免**（Main 2026-09-10 裁决；附本 lane nm -S 复核：ORIG
+//     0x50 / 全部 7 个发射 TU 与链接产物均 0xa9）；同族 _ZSt13__copy_move_a ×2
+//     （NEAR）一并按此口径；GetExpertJobValueMaterialVariation
+//     = **路由缺项（已补）**：Main 检查点 302 已把本 TU 从 446 共享分支拆出，
+//     独走 `-march=i486 -mtune=generic`（dnf_game_cxx.sh:507）⇒ 该件 DIFF→AE、
+//     TU 四数 **797/1683/4/8 → 797/1684/4/7**（orig 0x089bfc69 逐条命中
+//     `fucompp;fnstsw %ax;test $0x5,%ah;sete;test;je`），其余件读数逐项不变；
+//     `nm --defined-only` 名目 3475=3475、双向差集空（铁律 1）；风险面 = 仅 x87
+//     比较 lowering（4.4 默认 `fucomip/fstp` → ORIG `fucompp/fnstsw/sahf`）；
+//     仅带 `-march=i486`（缺 mtune）反崩 771/11/0/1710 ⇒ 两旗标必须同带。
 
 #include "STStackableScript.h"
 #include "CStackableItem.h"  // RecipeInfo 权威布局（0x4c，ORIG 0x8513c6a 族）

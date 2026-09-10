@@ -424,10 +424,12 @@ bool CTradeSpace::checkTrade()
     copy[0].SetInventoryMemory(&mem0);
     InventoryMemory mem1;
     copy[1].SetInventoryMemory(&mem1);
-    // CUser.h _Charac_info+0xda 内嵌 CInventory（m_padda 声明域，CUserCharacInfo
-    // 头同区 m_inven 视图）；ORIG 0x85302f9 直取 characR()+0xda 传 setCopy
-    copy[0].setCopy(*(const CInventory*)m_pTraders[0]->getCurCharacR()->m_padda);
-    copy[1].setCopy(*(const CInventory*)m_pTraders[1]->getCurCharacR()->m_padda);
+    // CUser.h _Charac_info+0xda 内嵌 CInventory（CUserCharacInfo 头同区 m_inven 视图）；
+    // ORIG 0x85302f9 直取 characR()+0xda 传 setCopy。
+    // [Lane37CUser 2026-09-10] pad `m_padda` 已成员化为 `m_curCharacInven`（同址 +0xda，
+    //   static_assert 锁定）⇒ 直传具名成员，免 cast。
+    copy[0].setCopy(m_pTraders[0]->getCurCharacR()->m_curCharacInven);
+    copy[1].setCopy(m_pTraders[1]->getCurCharacR()->m_curCharacInven);
     // b28d-solo-CTradeSpace：局部集合照 ORIG 槽序（P212 全头部声明）：
     //   count(-0x30) ret(-0x2c) trader(-0x28) s1(-0x24) got(-0x20) s2(-0x1c)，
     //   两循环变量物理独立（4.4 复用槽会少一槽，ORIG 4.1 不复用）。

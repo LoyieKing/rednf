@@ -100,7 +100,9 @@ public:
     int m_openCode;              // +0x00
     SECRET_SHOP_INFO m_info[4];  // +0x04
     bool m_buying[4];            // +0x74（ORIG SetBuying 0x08ab1532 store 序=bool 数组成员形：idx→this→movzbl→store，P33 族探针 p27g 实证）
-    char m_pad[0x10];            // +0x78..+0x87（保留区）
+    // [b28d-solo-CParty2] 尾部 `char m_pad[0x10]`（+0x78..+0x87）是错误建模，已删：
+    // ORIG D1 0x082a549e 只析构 this+4..+0x74（4×SECRET_SHOP_INFO）后即 ret
+    // ⇒ **sizeof(SECRET_SHOP_DATA)==0x78**；CParty 侧 +0x31c 起为直属字段。
 };
 
 }  // namespace secretshop

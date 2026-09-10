@@ -1063,16 +1063,24 @@ bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* o
 // 主区 = SIG_LOAD_ETC+0xd5a7，tag 区 = +0xd651（tag_charac_no=+0xc 非零时装载），
 // 双区齐备后 +0xd6fb 置 1。错误走 cMyTrace 0x16c4/0x16d5。
 // ============================================================================
-// [b28d-solo-DB_LoadEtc] N封顶（N107 成员常量偏移取址）：ORIG 0x08404a68。
-// 残差（唯一两处，余者全等 + nop 豁免）：ORIG `lea 0xd5a7(%eax),%edx` / `lea 0xd651(%eax),%edx`
-//   vs 4.4 恒 `add $0xd5a7,%eax; mov %eax,%edx`（同 0xd651）。本波补测成员数组退化取址形
-//   （`struct{char pad[0xd5a7]; char m[0xaa];}` + `->m`）仍产 add+mov ⇒ 与 N107 六形探针一致，封顶。
+// [b28d-solo-DB_LoadEtc] 旧判「N封顶（N107 成员常量偏移取址）」已作废（b29-Lane44 推翻）：
+//   ORIG 两处 `lea 0xd5a7/0xd651(%eax),%edx` 对应**视图成员取址**形；旧探针用「pad+char 数组
+//   退化」形（char→CHARAC_QUEST_SHOP_DATA* 仍需 cast）故见 add+mov。改用局部 trivial 镜像
+//   视图 `QuestShopView` 的具名对象成员取址（类型匹配、无 cast）后 4.4 产单条 lea ⇒ 69/69 全等。
 // 已修（前波）：exec 具名 ok + trace 临时链（P227）。
 bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
 {
+    // [Lane44-新判据①] ORIG 两处均为单条 `lea 0xd5a7/0xd651(%eax),%edx`（视图成员取址）；
+    // 4.4 对 `reinterpret_cast<T*>(数组名)` 恒产 `add $K,%eax; mov %eax,%edx` ⇒ 用局部
+    // trivial 镜像视图成员取址复现（探针实测 4.4 产单条 lea）。
+    struct QuestShopView
+    {
+        char                   m_pad[0xd5a7];
+        CHARAC_QUEST_SHOP_DATA m_main;      // +0xd5a7
+        CHARAC_QUEST_SHOP_DATA m_tag;       // +0xd651（0xd5a7+0xaa）
+    };
     bool ok = _LoadQuestShop(sig->m_characNo,
-                             reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(
-                                 sig->m_questShopMain));
+                             &((QuestShopView*)sig)->m_main);
     if (!ok)
     {
         // ORIG 0x08404a90：ctor 前 m_characNo 装 %ebx 跨 ctor 保活（P227 临时链）。
@@ -1085,8 +1093,7 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
     if (sig->m_fieldC != 0)
     {
         ok = _LoadQuestShop(sig->m_fieldC,
-                            reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(
-                                sig->m_questShopTag));
+                            &((QuestShopView*)sig)->m_tag);
         if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x16d5, 5)(
@@ -1435,6 +1442,16 @@ bool DB_LoadEtc::getComboSkill(MySQL* db, unsigned int accId, int count,
 // P227 全表达式临时链；⑥exec/fetch/get_uint 共 9 处改具名 ok 槽（ORIG -0x15）。
 // 读数：gap +10（478/468）→ +1（478/477）；p167 46=46（仅 cMyTrace C1/C2 别名）；
 // 残差=add+mov↔lea 跨版本（N107/P30）。
+// [b29-Lane44 判据①复扫·已归零] 上记 9 处 add+mov↔lea 实为**可翻**（旧判 N107 系探针形不全）：
+//   4.4 对「cast 取址 `(T*)&arr[i]`」恒产 `add $K,%eax; mov %eax,%edx`，对「视图成员/
+//   指针算术/数组名退化」恒产单条 `lea K(%eax),%edx`；4.1 恰好相反 ⇒ 两侧互补，改我方表达式
+//   形即可逐点对齐（探针 /tmp/bl_probe.cpp~bl_probe5.cpp，447/446 后端同形）：
+//   ①ORIG lea 的 4 点（+0xc9c8/+0xcb64/+0xcd00/+0xcd04）→ 局部 trivial 镜像视图
+//     `SkillMixedView` 具名成员取址（类型匹配、无 cast）；
+//   ②ORIG `add K; mov %eax,%edx` 的 5 点（+0xc9cc/+0xcb68/+0xcd08/+0x29fd/+0x2b97，均为
+//     数组名退化/指针算术）→ 整型加法形 `(char*)((unsigned int)sig + K)`（P319 同族，
+//     32 位指针≡int，语义等价）。
+//   读数：478/477（ndiff 18，9 hunk）→ **478/478 全等**（verdict AE 54，TU diff 12→11）。
 bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc12GetUserSkill…E9handleIdx
@@ -1489,9 +1506,21 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     // 缓存、禁 (SIG_LOAD_SKILL*)sig->m_mixedRegion->field（4.4 拆 add $0xc9c0;add $disp）。
     // 常量索引与 SIG_LOAD_SKILL 视图字段一一对应（+0x8/+0xc/+0x1a4/+0x1a8/+0x340/
     // +0x344/+0x348）。
+    // [Lane44-新判据①] ORIG 0xc9c8/0xcb64/0xcd00/0xcd04 为单条 `lea K(%eax),%edx`
+    //   （视图成员取址形），4.4 对 `(unsigned int*)&arr[i]` 恒产 `add $K,%eax; mov`⇒ 改用
+    //   局部 trivial 镜像视图成员取址（探针实测 4.4 产单条 lea），四字段偏移见下。
+    struct SkillMixedView
+    {
+        char           m_pad[0xc9c8];
+        unsigned int   m_remainSp;         // +0xc9c8（ORIG lea 形）
+        char           m_pad2[0x198];      // +0xc9cc..0xcb64
+        unsigned int   m_remainSp2nd;      // +0xcb64（ORIG lea 形）
+        char           m_pad3[0x198];      // +0xcb68..0xcd00
+        unsigned int   m_field340;         // +0xcd00（ORIG lea 形）
+        unsigned int   m_field344;         // +0xcd04（ORIG lea 形）
+    };
     ok = db->get_uint(col++,
-                      *reinterpret_cast<unsigned int*>(
-                          &sig->m_mixedRegion[0x8]));
+                      ((SkillMixedView*)sig)->m_remainSp);
     if (!ok)
     {                                                        // col0 remain_sp
         cMyTrace(__PRETTY_FUNCTION__, 0x1d71, 5)(
@@ -1500,14 +1529,13 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  sig->m_mixedRegion + 0xc,
+                                  (char*)((unsigned int)sig + 0xc9cc),
                                   0x198, 2))
     {                                                        // skill_slot
         return false;
     }
     ok = db->get_uint(col++,
-                      *reinterpret_cast<unsigned int*>(
-                          &sig->m_mixedRegion[0x1a4]));
+                      ((SkillMixedView*)sig)->m_remainSp2nd);
     if (!ok)
     {                                                        // remain_sp_2nd→0xcb64
         cMyTrace(__PRETTY_FUNCTION__, 0x1d98, 5)(
@@ -1516,14 +1544,13 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  sig->m_mixedRegion + 0x1a8,
+                                  (char*)((unsigned int)sig + 0xcb68),
                                   0x198, 2))
     {                                                        // skill_slot_2nd
         return false;
     }
     ok = db->get_uint(col++,
-                      *reinterpret_cast<unsigned int*>(
-                          &sig->m_mixedRegion[0x340]));
+                      ((SkillMixedView*)sig)->m_field340);
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x1dac, 5)(
@@ -1532,8 +1559,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     ok = db->get_uint(col++,
-                      *reinterpret_cast<unsigned int*>(
-                          &sig->m_mixedRegion[0x344]));
+                      ((SkillMixedView*)sig)->m_field344);
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x1db2, 5)(
@@ -1542,12 +1568,13 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  sig->m_mixedRegion + 0x348,
+                                  (char*)((unsigned int)sig + 0xcd08),
                                   200, 4))
     {                                                        // skill_command
         return false;
     }
-    if (!get_compressed_blob_data(db, col++, sig->m_backupSkill, 0x198, 2))
+    if (!get_compressed_blob_data(db, col++,
+                                  (char*)((unsigned int)sig + 0x29fd), 0x198, 2))
     {                                                        // skill_slot_lethe
         return false;
     }
@@ -1556,7 +1583,8 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    if (!get_compressed_blob_data(db, col++, sig->m_backupSkill2ND, 0x198, 2))
+    if (!get_compressed_blob_data(db, col++,
+                                  (char*)((unsigned int)sig + 0x2b97), 0x198, 2))
     {                                                        // skill_slot_lethe_2nd
         return false;
     }

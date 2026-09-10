@@ -603,7 +603,7 @@ bool CParty::SendDungeonStatisticPartyJob(bool flag, CUser* user)
     pkt.m_growType = (unsigned char)user->getCurCharacGrowType();
     pkt.m_collect = (unsigned char)user->m_character.m_f20;
     if (flag)                                                   // party+0x183c
-        pkt.m_memberCount = (unsigned int)m_resultView.m_resultField48;
+        pkt.m_memberCount = (unsigned int)m_gameResultSet.m_field48;
     else
         pkt.m_memberCount = 0;
 
@@ -641,7 +641,7 @@ bool CParty::SendDungeonStatisticPartyCharac(bool flag, CUser* user)
     pkt.m_f30 = user->m_character.m_f30;
     pkt.m_level_f24 = (unsigned short)user->m_character.m_f24;
     if (flag)
-        pkt.m_memberCount = (unsigned int)m_resultView.m_resultField48;
+        pkt.m_memberCount = (unsigned int)m_gameResultSet.m_field48;
     else
         pkt.m_memberCount = 0;
 
