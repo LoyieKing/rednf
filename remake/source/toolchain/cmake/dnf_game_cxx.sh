@@ -498,7 +498,21 @@ case "$(basename "$src" .cpp)" in
                 # identical=222/ae=455/near=1/diff=6 → i486 identical=223/ae=455/
                 # near=1/diff=5 ⇒ 零回归。
                 exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
-            *Game/STMonsterScript.cpp | *Game/STEquipmentScript.cpp | *Game/STStackableScript.cpp | \
+            *Game/STMonsterScript.cpp | *Game/STEquipmentScript.cpp | \
+            *Game/STMapScript.cpp | *Game/OnlyOrigBatch14.cpp | \
+            *Game/NPCScript.cpp | *Game/GameScriptEnumHelpers.cpp | *Game/EventScriptsCompleteB2.cpp | \
+            *Game/W8LT_PassiveObjectScript.cpp | *Game/InitScriptProducers_6.cpp | *Game/sync_script.cpp | \
+            *Game/EquipmentParameterInfo.cpp | *Game/DispLinkA2.cpp | *Game/CAuction.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/STStackableScript.cpp)
+                # [Main·检查点302] 从上面共享 446 分支拆出，叠 `-march=i486 -mtune=generic`
+                #   （N85 x87 lowering 族解药；同 CUser.cpp 第 384 行 / WStringInst 先例）。
+                #   Lane41 三组 A/B 实测：默认 797/1683/4/8 → 同带 797/1684/4/7
+                #   （`GetExpertJobValueMaterialVariation` DIFF→AE，逐条命中 ORIG
+                #   0x089bfc69 的 `fucompp;fnstsw %ax;test $0x5,%ah;sete;test;je`）；
+                #   仅 `-march=i486`（不带 mtune）= 771/11/0/1710 **崩** ⇒ mtune 必须同带。
+                #   其余 2480 件读数逐项不变；符号集待 relink 用 nm 逐名复核（铁律1）。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/STMapScript.cpp | *Game/OnlyOrigBatch14.cpp | \
             *Game/NPCScript.cpp | *Game/GameScriptEnumHelpers.cpp | *Game/EventScriptsCompleteB2.cpp | \
             *Game/W8LT_PassiveObjectScript.cpp | *Game/InitScriptProducers_6.cpp | *Game/sync_script.cpp | \
