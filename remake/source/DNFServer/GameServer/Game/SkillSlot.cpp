@@ -1434,7 +1434,13 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
                      ->get_give_skill((int)firstGrow, (int)secondGrow,
                                       learnList, 0);
     }
-    if (result)
+    // 2026-09-10（A17 极性直证）：ORIG 0x0860575d 为 `movzbl -0x35; xor $1;
+    //   test %al,%al; je <主体>`（早退形，主体跳入）⇒ 改写为 `if (!result)
+    //   return;` + 主体（裸块，缩进/析构点不变）。
+    if (!result)
+    {
+        return;
+    }
     {
         std::vector<std::pair<int, int> >::const_iterator git =
             learnList.begin();

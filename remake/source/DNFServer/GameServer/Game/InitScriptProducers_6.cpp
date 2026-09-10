@@ -2192,8 +2192,11 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
             out->m_tags.push_back(tag);
             data.m_0 = tag;
 
-            data.m_4 = ScanInt(&ok);
+            // ORIG 0x0eb `mov %eax,-0xc(%ebp)` + 0x103 `mov -0xc(%ebp),%eax; mov %eax,-0x40`
+            // ⇒ 具名局部中转后再存字段（P0：有槽往返 ⇒ 有具名局部）。
+            int v4 = ScanInt(&ok);
             if (!ok) { return false; }
+            data.m_4 = v4;
             if (!ScanStr(&data.m_8))
             {
                 return false;
@@ -2202,13 +2205,15 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
             {
                 return false;
             }
-            unsigned int v = static_cast<unsigned int>(ScanInt(&ok));   // P209：unsigned 局部 ⇒ 4.4 载寄存器比较
+            int v = ScanInt(&ok);
             if (!ok) { return false; }
-            data.m_10 = (v == 1);                   // ORIG `cmp $1; sete %al; mov %al,-0x34(=data.m_10)`
-            v = static_cast<unsigned int>(ScanInt(&ok));
+            // ORIG `mov -0x20(%ebp),%eax; cmp $0x1,%eax; sete %al; mov %al,-0x34(=data.m_10)`
+            // ⇒ 直接 bool→字节字段赋值即复现 sete 形（勿写 `(v==1)?1:0`：那会产分支形）。
+            data.m_10 = (v == 1);
+            v = ScanInt(&ok);
             if (!ok) { return false; }
             data.m_11 = (v == 1);
-            v = static_cast<unsigned int>(ScanInt(&ok));
+            v = ScanInt(&ok);
             if (!ok) { return false; }
             data.m_12 = (v == 1);
 
