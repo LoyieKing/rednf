@@ -27,23 +27,32 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
 
     float pcRoomBurningRate = 0.0f;                         // -0x28 local_2c
     {
-        CEventBase* ev8 = GlobalData::s_event_manager->GetRepeatEvent(8);
-        if (ev8->IsEventing(user))
+        // [G7-sub] P0 槽律：ORIG 0x085adbbe `call GetRepeatEvent(8)` 结果**无栈槽**
+        // （直进 %eax → `mov (%eax),%edx; add $0x34,%edx; mov (%edx),%ecx; call *%ecx`）
+        // ⇒ 原码无 ev8/burning 具名指针；我方原 -0x1c/-0x18 两槽已删（内联链）。
+        if (static_cast<CPCRoomBurningEvent*>(
+                GlobalData::s_event_manager->GetRepeatEvent(8))->IsEventing(user))
         {
-            CPCRoomBurningEvent* burning = static_cast<CPCRoomBurningEvent*>(
-                GlobalData::s_event_manager->GetRepeatEvent(8));
-            pcRoomBurningRate = static_cast<float>(burning->GetExpFactor() / 100);
+            // ORIG 0x085adbea 第二次调用结果亦无槽（直进 (%esp) 调 GetExpFactor）。
+            pcRoomBurningRate = static_cast<float>(
+                static_cast<CPCRoomBurningEvent*>(
+                    GlobalData::s_event_manager->GetRepeatEvent(8))
+                    ->GetExpFactor() / 100);
         }
     }
 
     float expDoubleRate = 0.0f;                             // -0x24 local_28
     {
-        CEventBase* ev3 = GlobalData::s_event_manager->GetRepeatEvent(3);
-        if (ev3->IsEventing(static_cast<CUser*>(0)))
+        // [G7-sub] P0 槽律：ORIG 0x085adc31 GetRepeatEvent(3) 无槽（同形虚调用）；
+        // 0x085adc5e 第二次调用结果亦无槽 ⇒ 删 ev3/doubleEv 具名（我方 -0x10 等槽）。
+        if (static_cast<CExpDoubleEvent*>(
+                GlobalData::s_event_manager->GetRepeatEvent(3))
+                ->IsEventing(static_cast<CUser*>(0)))
         {
-            CExpDoubleEvent* doubleEv = static_cast<CExpDoubleEvent*>(
-                GlobalData::s_event_manager->GetRepeatEvent(3));
-            expDoubleRate = static_cast<float>(doubleEv->GetExpFactor()) / 100.0f;
+            expDoubleRate = static_cast<float>(
+                static_cast<CExpDoubleEvent*>(
+                    GlobalData::s_event_manager->GetRepeatEvent(3))
+                    ->GetExpFactor()) / 100.0f;
         }
     }
 

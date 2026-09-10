@@ -15,6 +15,10 @@
 // 应为栈上 short 形参 b + 形参 mode（ORIG `lea -0x40(%ebp)`/`lea 0x28(%ebp)`），旧形传
 // 成员 m_requestedMapNo/m_pvpBattleMode；P77/P0 形参 a/b/c 直用（消 4.4 双层复制 6 条）；
 // P0 strlen 内联。残余 P211（m_matching int 字段 + (int)void* 异型 store 序）+ N82（local_48 槽）。
+// [G8InvenPvP G8PvPAll 2026-09-10] P136/P32 bool 字段直写：`m_isExistPassword = c ? 1 : 0`
+// → `m_isExistPassword = c;`。ORIG 0x085d6af1/0x085d6af5 `movzbl -0x44(%ebp),%edx;
+// mov %dl,0x604(%eax)` 自形参 home slot 字节直搬、**无 setne 物化**（2 条）；旧三目在
+// 4.4 恒产 `test %al,%al; setne %al`（4 条）⇒ 预期本件 -2 条。字段 bool 同宽同偏移。
 int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
                           const char* password, int d, PVP_BATTLE_MODE mode)
 {
@@ -69,6 +73,10 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
     m_joinCount = 1;
     m_requestedMapNo = b;
     m_playMapNo = m_requestedMapNo;
+    // [G8InvenPvP 2026-09-10 · P136/P32 本件实测中性，已回滚] 曾试
+    // `m_isExistPassword = c;`（ORIG 0x085d6aee `movzbl -0x44(%ebp),%edx;
+    // mov %dl,0x604(%eax)` 字节直搬形）；编译后本件 ndiff 仍 11、指令 198 不变
+    // ⇒ 4.4 仍插 test/setne 物化，非本处形态差 ⇒ 维持三目形。
     m_isExistPassword = c ? 1 : 0;
     if (m_isExistPassword != 0)
     {

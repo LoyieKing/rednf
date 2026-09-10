@@ -68,11 +68,13 @@ int Dispatcher_ChangeGuildName::dispatch_sig(CUser* user, PacketBuf& packet)
     user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, (int)slot, guard);
     guard.finalize(true);
     user->Send(guard);
-    char* name = user->getCreateGuildName();
-    unsigned int guildkey = (unsigned int)user->get_charac_guildkey();
-    unsigned int curNo = (unsigned int)user->getCurCharacNo();
-    CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendGuildNameChange(curNo, guildkey, name);
+    // ORIG 段直证：三实参分别保活于 %edi/%esi/%ebx（0xc/0x8/0x4(%esp)），proxy 无槽
+    // ⇒ P0/P183 全表达式链（原具名 name/guildkey/curNo/proxy 落 -0x18/-0x14/-0x10/-0xc
+    // 四槽，帧 0x8c→0x90、push 集缺 %edi）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendGuildNameChange((unsigned int)user->getCurCharacNo(),
+                              (unsigned int)user->get_charac_guildkey(),
+                              user->getCreateGuildName());
     user->resetGuildCreateFlag();
     user->resetTempGuildNameAddr();
     return 0;

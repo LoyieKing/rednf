@@ -1,10 +1,24 @@
+#pragma pack(push, 1)
+// P248 同型化：ORIG 084ca04b~084ca053 比较处发 4 行
+//   `mov %eax,%edx; mov -0xc(%ebp),%eax; mov 0xe(%eax),%eax; cmp %eax,%edx`
+//   ⇒ 字段与 int 返回值失配 = unsigned int（c6root 4.4.7 实测：int 字段给 3 行形
+//   `mov <slot>,%edx; mov 0xe(%edx),%edx; cmp %edx,%eax`，unsigned int 才给 ORIG 的 4 行形）。
+//   聚合器 Inter_MonitorNoticeGuildDismissPktView.m_e 声明为 int（R1 禁改聚合器，
+//   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
+struct Inter_MonitorNoticeGuildDismissPktViewI
+{
+    char m_pad0[0xe];               // +0x00..未消费
+    unsigned int m_e;               // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
     // ORIG 0x084ca02f：包基址在 get_state 检查之后物化入 -0xc(%ebp)
-    Inter_MonitorNoticeGuildDismissPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildDismissPktView*>(data);
+    Inter_MonitorNoticeGuildDismissPktViewI* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildDismissPktViewI*>(data);
     if (user->get_charac_no(-1) !=
         pPkt->m_e)         // msg+0x0e 角色号校验
     {

@@ -30,10 +30,13 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
                     ->getCurCharacInvenR()
                     ->get_money());
         }
-        CInventory* inven =
-            reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW();
-        int gained = inven->gain_money(items[0].get_add_info(),
-                                       (eMoneyAddReason)5, true, false);
+        // [G7-sub] ORIG 0x085aad4c..0x085aadc9：`call getCurCharacInvenW; mov %eax,%ebx`
+        // + `call get_add_info`（内联实参）+ `mov %ebx,0x4(%esp)` ⇒ receiver 结果全
+        // 程在 %ebx、**无 inven 槽**（P52 链式 receiver callee-saved 独占 / P0）。
+        // 旧码 `CInventory* inven = …` 落槽 -0x3c（+1 store、每次 +1 load）。
+        int gained = reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()
+                         ->gain_money(items[0].get_add_info(),
+                                      (eMoneyAddReason)5, true, false);
         if (gained < items[0].get_add_info())
             user->SendMoneyFullReason((ENUM_MONEY_FULL_REASON)0,
                                       (unsigned long)items[0].get_add_info(),

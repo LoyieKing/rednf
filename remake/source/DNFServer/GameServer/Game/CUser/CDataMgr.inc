@@ -1,17 +1,14 @@
 charac_expand::CDataMgr::CDataMgr()
 {
-    // slot0 +0x00：ORIG operator new(0x30) → memset 全块 → CCharacExpertJob::CCharacExpertJob()
-    void* mem0 = ::operator new(0x30);
-    memset(mem0, 0, 0x30);
-    expert_job::CCharacExpertJob* expert =
-        new (mem0) expert_job::CCharacExpertJob();   // placement ctor（ORIG memset 后 ctor）
-    m_pad[0] = expert;
+    // slot0 +0x00：ORIG 0x0832a781..0x0832a7b8 `movl $0x30,(%esp); call operator new;
+    //   mov %eax,%esi`（**无具名指针槽**，mem 保活 %esi）→ `rep stos`（0xb dword +
+    //   尾 word，4.1 对常量 memset 的内联形，N78b 不可翻案）→ `mov %ebx,(%esp);
+    //   call CCharacExpertJob::CCharacExpertJob()` ⇒ 指针不再落具名槽：以
+    //   `new (memset(::operator new(N), 0, N)) T()` 单表达式表达（P0/P183）。
+    m_pad[0] = new (memset(::operator new(0x30), 0, 0x30)) expert_job::CCharacExpertJob();
 
-    // slot1 +0x04：operator new(0x2c) → memset → CCharacBloodDungeon
-    void* mem1 = ::operator new(0x2c);
-    memset(mem1, 0, 0x2c);
-    CCharacBloodDungeon* blood = new (mem1) CCharacBloodDungeon();
-    m_pad[1] = blood;
+    // slot1 +0x04：ORIG 0x0832a7c6 `mov %eax,-0x20(%ebp)`（此件 ORIG 有槽）→ 同上
+    m_pad[1] = new (memset(::operator new(0x2c), 0, 0x2c)) CCharacBloodDungeon();
 
     // slot2..slot19：ORIG 纯 new + 默认 ctor（无 memset）
     m_pad[2] = new item_lock::CItemLock();            // new(0x58)
@@ -24,10 +21,7 @@ charac_expand::CDataMgr::CDataMgr()
     m_pad[7] = new fair_pvp::CFairPvPScore();      // new(0x5c)
 
     // slot8 +0x20：operator new(0x158) → memset 全块 → CMissionList_Charac
-    void* mem8 = ::operator new(0x158);
-    memset(mem8, 0, 0x158);
-    CMissionList_Charac* mission = new (mem8) CMissionList_Charac();
-    m_pad[8] = mission;
+    m_pad[8] = new (memset(::operator new(0x158), 0, 0x158)) CMissionList_Charac();
 
     m_pad[9] = new CExpandEquipslot();                    // new(0x89c)
     m_pad[10] = new CItemMakingSkill();                    // new(0x20)

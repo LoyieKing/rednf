@@ -1,5 +1,12 @@
 int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=146] 残留为混合残差，无单点可判定项：
+    //   (a) ORIG 多条 `mov 0xNN(%eax),%eax; mov %eax,%ebx` / `mov %eax,%esi`（ORIG 反而
+    //       比本方多一条 regmove）vs 本方单条 `mov 0xNN(%eax),%ebx` —— gcc 伪寄存器分派差；
+    //   (b) 本方结构体整体赋值（`mov %edx,0x4(%eax)`、逐字段 `mov %ecx,0x1c(%eax)`）与
+    //       ORIG 逐字段槽往返形互异；
+    //   (c) `comisd` 类比较的 `jg` vs `setge/test/je`（bool 物化）两侧相反。
+    //   以上均需逐字段直证才能动，留 N。
     Inter_GuildCargoCheckPushItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoCheckPushItemPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $0x2,setle → state>2 才放行
         return 0;

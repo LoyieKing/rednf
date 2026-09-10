@@ -14,11 +14,11 @@ void CUser::SetBirth(const char* birth)
     // [b28d-solo-CUserOnlyOrig P167 重载选错真 bug] ORIG 0x0867ed18 / 0x0867ed4b
     // 均 call strncpy@plt（0807d8d0），非 memcpy（我方旧写法 EXTRA memcpy ×2、
     // MISSING strncpy ×2）。n=2 且源非零时两者等价，按 ORIG 照抄。
-    // [b28d-solo-CUserOnlyOrig P319] ORIG 0x0867ed0a `mov 0xc(%ebp),%eax; add $0x2,%eax`
-    // 两段（4.1 指针算术）vs 4.4 `lea 0x2(%eax),%edx` 单段；整型加法+回 cast 复现两段。
-    strncpy(reinterpret_cast<char*>(&digits),
-            reinterpret_cast<const char*>(reinterpret_cast<unsigned int>(birth) + 2), 2);
+    // [A06 2026-09-10] 此处改用**裸指针算术** `birth + 2`：4.1 生两段 `add $0x2,%eax`、
+    // 4.4 折叠为 `lea 0x2(%eax),%edx`（P319 反向），两者条数相等（各 2）；旧
+    // `(unsigned int)birth + 2` 整型形虽复现 add，却令 4.4 多一条 `mov %eax,%edx`
+    // 中转（35 vs ORIG 33）。取条数口径 ⇒ 裸指针算术（33=33）。
+    strncpy(reinterpret_cast<char*>(&digits), birth + 2, 2);
     m_birthMonth = static_cast<char>(atoi(reinterpret_cast<char*>(&digits)));
-    strncpy(reinterpret_cast<char*>(&digits),
-            reinterpret_cast<const char*>(reinterpret_cast<unsigned int>(birth) + 4), 2);
+    strncpy(reinterpret_cast<char*>(&digits), birth + 4, 2);
     m_birthDay = static_cast<char>(atoi(reinterpret_cast<char*>(&digits)));

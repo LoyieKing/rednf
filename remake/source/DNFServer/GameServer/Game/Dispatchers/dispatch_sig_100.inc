@@ -1,11 +1,8 @@
 int Dispatcher_CreatePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    // ORIG 0x0820271c: state==3 且 getCurCharacR()!=0 才放行
-    if (user->get_state() == 3 && user->getCurCharacR() != 0)
-    {
-        // 通过
-    }
-    else
+    // ORIG 0x0820271c: state==3 且 getCurCharacR()!=0 才放行。
+    //   直证：[15] `jne` / [20] `je` ⇒ 取反早退形（旧形 if/else 使 4.4 分支方向相反）。
+    if (!(user->get_state() == 3 && user->getCurCharacR() != 0))
     {
         return LineFunc(0x98f1, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -49,12 +46,14 @@ int Dispatcher_CreatePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // +0x1ed: 读包五参
+    // ORIG [117] 段：`lea -0x21/-0x22/-0x24/-0x26/-0x2e(%ebp)` 直取址、无 `movb/movw $0x0`
+    //   预清 ⇒ 五个读包局部均为裸局部（P328⑤）。
     private_store::ISeller* seller = 0;
-    unsigned char villageNo = 0;
-    unsigned char areaNo = 0;
-    short posX = 0;
-    short posY = 0;
-    unsigned short dollSlot = 0;
+    unsigned char villageNo;
+    unsigned char areaNo;
+    short posX;
+    short posY;
+    unsigned short dollSlot;
     if (!packet.get_byte(villageNo))
     {
         return LineFunc(0x9944, __PRETTY_FUNCTION__, 0, 0);
@@ -89,15 +88,16 @@ int Dispatcher_CreatePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // +0x3a3: GetStoreSeller → 虚 CreatePrivateStore(villageNo,areaNo,posX,posY,dollSlot)
-    private_store::CPrivateStoreMgr* storeMgr = private_store::GetInstancePrivateStoreMgr();
-    storeMgr->GetStoreSeller(&seller, user);
+    // ORIG：GetInstancePrivateStoreMgr 结果经 %eax 直传（无 storeMgr 具名指针槽）。
+    private_store::GetInstancePrivateStoreMgr()->GetStoreSeller(&seller, user);
     if (!seller->CreatePrivateStore(villageNo, areaNo, posX, posY, dollSlot))
     {
         // +0x41a: CreatePrivateStore 失败但状态已建立 → hack 计数
         if (reinterpret_cast<private_store::CPrivateStore*>(seller)->GetState() != 0)
         {
-            WongWork::CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
-            hackAnalyzer->addServerHackCnt(user, static_cast<WongWork::ENUM_HACKTYPE>(0x32d), 1, 0, 0);
+            // ORIG：getHackAnalyzer() 结果经 %eax 直传（无 hackAnalyzer 具名指针槽）。
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, static_cast<WongWork::ENUM_HACKTYPE>(0x32d), 1, 0, 0);
         }
         // +0x45d: 状态已建立 → 返回；否则释放 seller
         if (reinterpret_cast<private_store::CPrivateStore*>(seller)->GetState() != 0)

@@ -111,9 +111,13 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         {
             // ORIG 6 次 `_ZNK getCurCharacVill` 内联（无缓存局部）；语义等价于
             // （双 7 且 power 侧异）∨（恰一 7）→ 拒 0x13。逐调用点展开匹配计数。
-            signed char selfVill = user->getCurCharacVill();
-            bool bothSeven = selfVill == 7 && target->getCurCharacVill() == 7;
-            if (bothSeven)
+            // [G5-SigA] P0/P328：ORIG 0x081ef0xx 为 `call getCurCharacVill;
+            // cmp $0x7,%al; jne`（直接 8 位比较、**无具名槽**）。原
+            // `signed char selfVill` + `bool bothSeven` 两个具名量多出
+            // `mov %al,-0x2e(%ebp); cmpb $0x7,-0x2e(%ebp)` 与
+            // `mov %al,-0x2d(%ebp); cmpb $0x0,-0x2d(%ebp)` 共 4 条（fn_diff_tu 实测）。
+            if (user->getCurCharacVill() == 7 &&
+                target->getCurCharacVill() == 7)
             {
                 if (user->getPowerSide() != target->getPowerSide())
                     return PEER_ERR3(user,requestType,0x13), 0;

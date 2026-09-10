@@ -27,10 +27,16 @@ unsigned char CUser::UseLimitItem(int itemIdx, bool sendNoti)
                                        it->m_field19);
         if (it->useIt())
         {
-            long long t = *reinterpret_cast<long long*>(&it->m_fieldc);
+            // [G6Sub1 P0/P162 单旋钮] ORIG 0x08688bcc..0x08688c02 为
+            // `call ptEv; mov 0xc(%eax),%edi`（单条 4B 装载，无 `add $0xc`、
+            // 无栈槽往返）⇒ 原码把 int 字段直接写在实参位，既非 8 字节视图形也
+            // 无具名 long long 局部。旧形 `long long t = *reinterpret_cast<long
+            // long*>(&it->m_fieldc);` 多出 add+双载+双存+回读共 5 条、帧 +8，
+            // 恰为本件 gap（120−115=5）的全部来源。makeRequest 第 5 形参为
+            // i386 `long`（4B），读 4B 与截断后语义等价。
             DB_UpdateLimitItemUsage::makeRequest(get_charac_no(-1),
                 (signed char)it->m_field10,
-                itemIdx, it->m_field19, t);
+                itemIdx, it->m_field19, it->m_fieldc);
             return 1;
         }
         return 0;

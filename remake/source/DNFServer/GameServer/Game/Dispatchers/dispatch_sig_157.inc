@@ -33,7 +33,10 @@ int Dispatcher_LevelupSupportReqestItem::dispatch_sig(CUser* user, PacketBuf& pa
     err = (ENUM_ERROR)0;
     {
         LevelupSupportEventManger* mgr = ARAD::Singleton<LevelupSupportEventManger>::Get();
-        stepIdx = ARAD::Singleton<LevelupSupportEventManger>::Get()->GetStepIndex(requestLevel);  // 0x08147362
+        // [G1Csig] g1_calls 实证：ORIG 调用序为 Singleton::Get ×1 → GetStepIndex → InsertItem
+        // （我方原写两次 Get ⇒ p167 EXTRA `_ZN4ARAD9SingletonI25LevelupSupportEventMangerE3GetEv` ×1）
+        // ⇒ 复用已缓存的 mgr（ORIG 确为具名 mgr：Get 只 1 次）。
+        stepIdx = mgr->GetStepIndex(requestLevel);  // 0x08147362
         if (stepIdx == -1)
             err = (ENUM_ERROR)1;
         // +0x124：user->m_levelupEvents[stepIdx].m_state（+0x02）

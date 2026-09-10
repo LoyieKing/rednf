@@ -1,8 +1,5 @@
 int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    BuyItemParam& data = static_cast<BuyItemParam&>(param);
-    MSG_BUY_ITEM& req = *reinterpret_cast<MSG_BUY_ITEM*>(&msg);
-
     int errNo = check_error(user, msg);
     if (errNo > 0)
     {
@@ -16,6 +13,13 @@ int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         __PRETTY_FUNCTION__,
                         0, user->get_acc_id());
     }
+    // [G5-ProcB] ORIG 0x081bdd27 `mov 0x14(%ebp),%eax; mov %eax,-0x2c(%ebp)` /
+    // 0x081bdd2d `mov 0x10(%ebp),%eax; mov %eax,-0x28(%ebp)`：param/msg 两个视图
+    // 具名局部都在两级 errNo 检查之后才初始化（函数头声明会多 2 条 store 并把
+    // 槽基整体下移、丢 ORIG 的 push %edi）。
+    BuyItemParam& data = static_cast<BuyItemParam&>(param);
+    MSG_BUY_ITEM& req = *reinterpret_cast<MSG_BUY_ITEM*>(&msg);
+
     errNo = get_data(user, req, data);
     if (errNo != 0)
     {

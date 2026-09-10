@@ -1,5 +1,7 @@
 int Inter_ReportMannerless::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2D] verdict=N：残余为 ORIG 用 %esi 承载跨分支标志/返回（ORIG[141] mov $0x1,%esi 等）
+    //   与我方 %eax + 具名 local_10 的寄存器分配差；未定位到对应具名局部，未改。
     Inter_ReportMannerlessPktView* pPkt = reinterpret_cast<Inter_ReportMannerlessPktView*>(data);
     if (pPkt == 0)
         return 0;

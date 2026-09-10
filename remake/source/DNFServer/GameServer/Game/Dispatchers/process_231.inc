@@ -17,13 +17,13 @@ int Dispatcher_RepairDisjointMachine::process(CUser* user, MSG_BASE& msg, ParamB
     }
     int result = 0;                                    // ORIG：调用前 -0xc 预清零
     result = expert_job::CDisjointer::OnRepairDisjointMachine(user);
-    bool nz;                        // 技巧22：cmpl;setne;test;je
-    nz = (result != 0);
-    if (nz)
+    // ORIG 0x081cfecf: cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je
+    //   —— 源码就是 `if (result != 0)`，ORIG 无 bool 具名槽；
+    //   我方曾用 bool nz / unsigned rv / dst2 三个具名量，多占 3 槽（帧 0x38 vs 0x28）+10 条指令。
+    if (result != 0)
     {
-        unsigned int rv = result;           // ORIG 0x081cfeda：value 从 -0xc 槽装 %edx
-        stRepairDisjointMachineParam* dst2 = out;  // ORIG 0x081cfedd：地址后装 %eax
-        dst2->m_4 = rv;                                // ORIG 0x081cfee0：mov %edx,0x4(%eax)
+        // ORIG 0x081cfeda: mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax; mov %edx,0x4(%eax)
+        out->m_4 = result;
         return 0;                                      // ORIG 双 return 0 岛（技巧7）
     }
     return 0;

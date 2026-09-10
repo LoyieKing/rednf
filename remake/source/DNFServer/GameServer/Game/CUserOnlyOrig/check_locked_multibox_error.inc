@@ -16,11 +16,12 @@ int CUser::check_locked_multibox_error(const CItem* opener, int openedCnt, bool 
 
     // ORIG 读 CItem+0x1ec/+0x1f0（运行时 opener 为 CStackableItem；
     // 偏移 = m_multiBox(+0x1e4).m_field8 / m_fieldc）
-    const CStackableItem* stackOpener = static_cast<const CStackableItem*>(opener);
-    int wantSlot = stackOpener->m_multiBox.m_field8;
-    int needAddInfo = stackOpener->m_multiBox.m_fieldc;
-    int itemIdx = locked->get_index();
-    if (!(itemIdx == wantSlot &&
+    // [P0/P183 去缓存] ORIG 08676142/0867614e 每次重读 0xc(%ebp) 直取 +0x1ec/+0x1f0，
+    // 0867615a get_index 结果直接在 %eax 比较（无 itemIdx 槽）⇒ 旧稿 stackOpener(-0x20)
+    // 与 itemIdx(-0x14) 两个具名局部共多占 8B，致 Inven_Item 槽 -0x61 vs ORIG -0x59 全帧错位。
+    int wantSlot = static_cast<const CStackableItem*>(opener)->m_multiBox.m_field8;
+    int needAddInfo = static_cast<const CStackableItem*>(opener)->m_multiBox.m_fieldc;
+    if (!(locked->get_index() == wantSlot &&
           needAddInfo <= lockHost.get_add_info()))
         return 0x11;
 

@@ -10,7 +10,12 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     short cmd = 0;
-    if (packet.get_short(cmd) == false || (packet.at(1) & 0xff) == static_cast<unsigned short>(cmd))
+    // [G5-DisPatcherCore] P196/T1：ORIG 0x081ee0xx `movzbl %al,%edx; movzwl -0x22(%ebp),%eax;
+    // cwtl; cmp %eax,%edx` = **int 32 位比较**（at(1) 零扩展、cmd 符号扩展）；我方原写
+    // `static_cast<unsigned short>(cmd)` 使其折成 `cmp %ax,%dx` 16 位比较（宽度/符号性错位，
+    // 语义对 at1∈[0,255] 等价但机器形错）。去掉 cast 即恢复整型提升形。
+    // 否定形 `== false` 产 `xor $1;test`（4 条），ORIG 为裸 `test %al;je`（P292 正形）⇒ 改 `!`。
+    if (!packet.get_short(cmd) || (packet.at(1) & 0xff) == cmd)
     {
         unsigned char bVar3 = packet.at(1);
         if (bVar3 > 0x20)
@@ -30,8 +35,10 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                 {
                     return 0;
                 }
-                char cVar1 = static_cast<char>(packet.at(1));
-                if (cVar1 == '!' &&
+                // [G5-DisPatcherCore] P0/P329：ORIG 0x081ee2xx `call at; movzbl %al,%eax;
+                // cmp $0x21,%eax; jne` —— 判定值直用 %eax（无 char 具名槽），我方原写
+                // `char cVar1 = static_cast<char>(packet.at(1));` 多一个 1 字节槽与往返。
+                if (static_cast<char>(packet.at(1)) == '!' &&
                     GlobalData::s_timeGate_->setBlindTimeGateStateQuest(static_cast<int>(local_28)) != false)
                 {
                     user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x21), 8);

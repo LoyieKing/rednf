@@ -1,3 +1,14 @@
+// [G7-sub 2026-09-11 判词] AcceptThread::dispatch（ORIG T 0x0857cc5a）：本轮**已改**。
+// 修 ①（0x0857d526..0x0857d538，ORIG 直证）：原码是**循环条件形**
+// `while (!G_CEnvironment()->get_suspend_state())`（cond 真时直落 0x0857d53e 退出段），
+// 旧写 `while(true){ if(get_suspend_state()) continue; }`（P222 反形）多 3 尾 + 两处
+// `jmp+nop` 中继岛。实测 522→515 条（ORIG 519，gap −3→+4）。
+// 残留（2 处，均为分支方向/布局，语义等价，N 类）：
+//   · 0x0857d533 段 ORIG 第二条件为 `and $1; xor $1; jne <loop top>`（否定包裹），
+//     我方 `and $1; test; je`（probe：4.4 对 `&&` 末操作数恒发 je，非 xor 形）。
+//   · 0x0857d4xx 块序（我方 jmp/mov 前置）⇒ 布局差。
+// p167 调用点差集仅 PacketGuard D1↔D2 同址别名（ORIG nm 实测 0x0858de80）。
+// 结论：语义完成；byte 层余 4 条 N 封顶。
 void AcceptThread::dispatch(void* arg)
 {
     (void)arg;
@@ -51,12 +62,15 @@ void AcceptThread::dispatch(void* arg)
             else
             {
                 // ---- select/accept 循环 ----
-                while (true)
+                // [G7-sub] ORIG 0x0857d526..0x0857d538 是**循环条件形**：`call
+                // G_CEnvironment; call get_suspend_state; xor $0x1,%eax; test %al,%al;
+                // jne 0857ce75 <body>`（体尾 0x0857d520/0x0857d523 `jmp 0857d526`
+                // 回边；cond 为真时直落 0x0857d53e 退出段）⇒ 原码
+                // `while (!G_CEnvironment()->get_suspend_state())`。
+                // 旧写 `while (true) { if (get_suspend_state()) continue; … }`（P222 反形）
+                // 多 `test/je/jmp` 三尾 + 两处 `jmp+nop` 中继岛（我方 +11 条）。
+                while (!G_CEnvironment()->get_suspend_state())
                 {
-                    if (G_CEnvironment()->get_suspend_state())
-                    {
-                        continue;
-                    }
                     socklen_t addrLen = 0x10;
                     fd_set readfds;
                     // ORIG 0857ce75..+0x283：FD_ZERO 展开=旧 glibc 宏循环

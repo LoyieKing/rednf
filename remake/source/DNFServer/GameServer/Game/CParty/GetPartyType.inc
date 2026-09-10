@@ -1,3 +1,9 @@
+    // [G7-sub 2026-09-10 复核] ORIG 0x085b62c0：① `get_charac_guildkey` 三处独立
+    // 调用（0x085b6322/0x085b6350/0x085b63a0）✓ 无缓存；② `IsExistCharacter` 结果
+    // 直传实参（无 connectId 槽）✓；③ 尾部分支正条件包裹（0x085b63ea `jle <mov $2>`）✓。
+    // 余差 1 条 = 0x085b637d `mov -0x1c(%ebp),%edx; cmp %edx,%eax` 两段（局部与 callee
+    // 返回异型中转）vs 4.4 恒折 `cmp mem,%eax`；int 化 / 交换操作数两形前轮已试
+    // （S1 一次旋钮用尽）⇒ 判 N18b 封顶。p167 CLEAR。
 int CParty::GetPartyType()
 {
     // [SweepCParty] p167 CLEAR；gap 1（106 vs 107）= N18b（`mov -0x1c,%edx; cmp %edx,%eax`

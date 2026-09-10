@@ -21,7 +21,7 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "upDate client_down set occ_count = occ_count+%d where occ_date = cast(now() as date)",
         count);
-    char r = db->exec(true);
+    bool r = db->exec(true);
     if (!r)
     {
         // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
@@ -32,8 +32,9 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
     G_GameWorld()->getStatisticsToObserveCrash()->lock();
     MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                    E_SERVER_GROUP_NONE);
-    int dungeon = 0;
-    int down = 0;
+    // P171/P328⑤：ORIG 无 `movl $0,槽` 预清（裸声明只占槽不占指令）⇒ 不写初始化。
+    int dungeon;
+    int down;
     it = G_GameWorld()->getStatisticsToObserveCrash()
              ->m_userLastCrashDungeonId.begin();
     end = G_GameWorld()->getStatisticsToObserveCrash()
@@ -46,13 +47,13 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
         db2->set_query(
             "inSert into crash_down_by_dungeon(occ_time,dungeon_index,down_count) values(from_unixtime(%d),%d,%d)",
             (int)dayStart, dungeon, down);
-        char c1 = db2->exec(true);
+        bool c1 = db2->exec(true);
         if (!c1)
         {
             db2->set_query(
                 "upDate crash_down_by_dungeon set down_count = down_count + %d where occ_time = from_unixtime(%d) and dungeon_index = %d",
                 (int)dayStart, down, dungeon);
-            char c2 = db2->exec(true);
+            bool c2 = db2->exec(true);
             if (!c2)
                 goto skip_log_dungeon;
         }
@@ -70,8 +71,8 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
 
     MySQL* db3 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                    E_SERVER_GROUP_NONE);
-    int packet = 0;
-    int down2 = 0;
+    int packet;
+    int down2;
     it2 = G_GameWorld()->getStatisticsToObserveCrash()
               ->m_userLastCrashPacketId.begin();
     end2 = G_GameWorld()->getStatisticsToObserveCrash()
@@ -83,13 +84,13 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
         db3->set_query(
             "inSert into crash_down_by_packet(occ_date,packet_index,down_count) values(cast(now() as date),%d,%d)",
             packet, down2);
-        char c3 = db3->exec(true);
+        bool c3 = db3->exec(true);
         if (!c3)
         {
             db3->set_query(
                 "upDate crash_down_by_packet set down_count = down_count + %d where occ_date = cast(now() as date) and packet_index = %d",
                 packet, down2);
-            char c4 = db3->exec(true);
+            bool c4 = db3->exec(true);
             if (!c4)
                 goto skip_log_packet;
         }
@@ -104,8 +105,8 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
 
     MySQL* db4 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                    E_SERVER_GROUP_NONE);
-    int play = 0;
-    int down3 = 0;
+    int play;
+    int down3;
     it3 = G_GameWorld()->getStatisticsToObserveCrash()
               ->m_userLastCrashPlayStatus.begin();
     end3 = G_GameWorld()->getStatisticsToObserveCrash()
@@ -119,13 +120,13 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
         db4->set_query(
             "inSert into crash_down_by_playstatus(occ_date,play_status,down_count) values(cast(now() as date),%d,%d)",
             play, down3);
-        char c5 = db4->exec(true);
+        bool c5 = db4->exec(true);
         if (!c5)
         {
             db4->set_query(
                 "upDate crash_down_by_playstatus set down_count = down_count + %d where occ_date = cast(now() as date) and play_status = %d",
                 play, down3);
-            char c6 = db4->exec(true);
+            bool c6 = db4->exec(true);
             if (!c6)
                 goto skip_log_play;
         }

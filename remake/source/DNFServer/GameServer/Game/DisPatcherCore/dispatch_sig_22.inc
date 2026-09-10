@@ -22,8 +22,13 @@ int DisPatcher_SetPVPTeam::dispatch_sig(CUser* user, PacketBuf& packet)
     if (team == 4)
     {
         PvPMapInfo info;
-        int mapIdx = room->GetRequestedMapNo();
-        CMapList::GetPvpMapInfo(mapIdx, info);
+        // [G5-SigA] P0/P329：ORIG 0x081f60eb `mov -0x10(%ebp),%eax; mov %eax,(%esp);
+        // call GetRequestedMapNo` 之后结果**不经槽**，0x081f60f6 直接
+        // `lea -0x34(%ebp),%edx; mov %edx,0x4(%esp); mov %eax,(%esp);
+        // call GetPvpMapInfo`（两次 call 之间 eax 保活）⇒ 原码是单语句
+        // GetPvpMapInfo(room->GetRequestedMapNo(), info)，无 mapIdx 具名局部。
+        // 原具名 int mapIdx 多出「store eax→槽 + load 槽→实参」2 条。
+        CMapList::GetPvpMapInfo(room->GetRequestedMapNo(), info);
         if (!info.m_playable)
         {
             return LineFunc(0x82ca,

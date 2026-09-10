@@ -1,6 +1,5 @@
 int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    const MSG_SELECT_DUNGEON& req = *reinterpret_cast<const MSG_SELECT_DUNGEON*>(&msg);
     stSelectDungeonParam& out = static_cast<stSelectDungeonParam&>(param);
 
     out.m_4 = check_error(user, msg, param);
@@ -14,6 +13,11 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
     }
 
     IsLightServer();   // ORIG 调用后丢弃结果
+
+    // [G5-ProcB] ORIG 0x081c8110 param 槽 -0x90（函数头）→ 0x081c81a4
+    // `mov 0x10(%ebp),%eax; mov %eax,-0x8c(%ebp)` msg 视图槽在 IsLightServer()
+    // 之后才初始化。函数头先声明 req 会把槽基整体下移（我方 -0x9c/-0x98）。
+    const MSG_SELECT_DUNGEON& req = *reinterpret_cast<const MSG_SELECT_DUNGEON*>(&msg);
 
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0 && party->getManager() != user)

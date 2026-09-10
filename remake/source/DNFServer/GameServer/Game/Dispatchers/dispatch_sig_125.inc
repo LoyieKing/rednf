@@ -34,16 +34,11 @@ int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser* user, PacketBuf& packet
         return 0;
     }
 
-    bool badName = false;
-    if (CSyncSlangFilter::GetInstance()->HasSlang(guildName))
-    {
-        badName = true;
-    }
-    else if (G_CDataManager()->hasSpecialCharacter(user->getCreateGuildName()))
-    {
-        badName = true;
-    }
-    if (badName)
+    // [G1Csig] 实测复核（父泳道 23:51 重编 .o）：我方多 `movb $0x0,-0x21(%ebp)` 与
+    // `movb $0x1,-0x21/%al` 物化（diff our[116]/our[123:126]）⇒ 具名 bool badName 占 1 槽、
+    // 余下槽整体下移 4（帧 0x3c→0x40）；ORIG 为 `jne` 直短路 + %al 常量岛（无槽）⇒ 去具名。
+    if (CSyncSlangFilter::GetInstance()->HasSlang(guildName) ||
+        G_CDataManager()->hasSpecialCharacter(user->getCreateGuildName()))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x47, 0x9f);
         return 0;
@@ -79,13 +74,14 @@ int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser* user, PacketBuf& packet
     user->set_guild_create_right(1);
     user->UpdateData();
 
-    const char* guildAddr = user->getCreateGuildAddr();
-    const char* name = user->getCreateGuildName();
-    const unsigned int characNo = (unsigned int)user->getCurCharacNo();
-    const ENUM_SERVER_GROUP group = user->GetServerGroup();
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(group);
-    proxy->SendGuildCreate(characNo, const_cast<char*>(name), const_cast<char*>(guildAddr));
+    // [G1Csig · P0 槽律] ORIG 0x081ffcc2 段直证：`mov %eax,%edi/%esi/%ebx` —— 三个实参
+    // 全程寄存器保存（guildAddr/name/characNo 各有 4B 栈槽往返是我方增帧主因，
+    // 帧 0x3c→0x40、丢 `push %edi`）；group/proxy 亦无槽（`mov <A>,%edx; mov %edx,(%esp);
+    // call GetServerProxy` 直传）⇒ 全部去具名改链式内联（同 dispatch_sig_146 手法）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendGuildCreate((unsigned int)user->getCurCharacNo(),
+                          const_cast<char*>(user->getCreateGuildName()),
+                          const_cast<char*>(user->getCreateGuildAddr()));
 
     user->resetGuildCreateFlag();
     user->resetTempGuildNameAddr();

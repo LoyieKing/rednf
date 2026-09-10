@@ -17,8 +17,9 @@ bool DB_SecurityCardRetransfer::dispatch(int userIdx, int slot,
             throw 1;
         if (!db->fetch())
             throw 1;
-        unsigned int reIssueCnt = 0;
-        unsigned int lastIssueTime = 0;
+        // P171/P328⑤：ORIG 无预清（两值随后由 get_uint 写入）。
+        unsigned int reIssueCnt;
+        unsigned int lastIssueTime;
         db->get_uint(0, reIssueCnt);
         db->get_uint(1, lastIssueTime);
         char phone[0x29];

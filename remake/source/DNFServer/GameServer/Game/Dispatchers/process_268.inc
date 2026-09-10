@@ -21,9 +21,11 @@ int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, Par
     int key = makeFairPVPEquipmentPackageKey(
         user->get_charac_job(),
         static_cast<int>(static_cast<unsigned char>(section.m_field0)));
-    // [b28d-solo-Dispatchers] P96/P270：ORIG 用 const_iterator（p167 MISSING
-    //   `_ZNKSt23_Rb_tree_const_iterator…ptEv`×2 + `C2ERKSt17_Rb_tree_iterator`×2 +
-    //   `_ZNKSt6vector…5beginEv/3endEv`，我方旧 iterator 全走非 const 版）。
+    // [G1-Dispatchers 回滚判词] 曾试 `const_iterator`（p167 MISS const 版 ptEv 似为直证）：
+    //   实测 TU identical **1009→1007**（丢 `__normal_iterator<PSt6vector<STStackablePackageData>*>
+    //   ::C1ERKS5_` 与 `::base()` 两个 identical 实例 —— 它们由本使用点发射），
+    //   而本件 verdict 未升级（仍 DIFF）⇒ 净负，回滚为非 const `iterator`（P96 原形）。
+    //   ORIG 那两个实例由 STL 方法链（push_back/_M_insert_aux/aSERKS_ → begin/end）ODR-use。
     std::map<int, std::vector<std::vector<STStackablePackageData> > >::iterator it =
         G_CDataManager()->m_growthPower.m_map18.find(key);
     if (it == G_CDataManager()->m_growthPower.m_map18.end())

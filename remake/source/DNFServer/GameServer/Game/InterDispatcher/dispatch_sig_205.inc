@@ -1,5 +1,12 @@
 int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮核销 + 负结论 N，ndiff=8]
+    //   · 线索核销：ORIG 该函数内 put_binary 调用点为 0x0816f45e（nm 反查
+    //     `_ZN18InterfacePacketBuf10put_binaryEPKci`）⇒ ORIG 用的是 **char const\*** 重载，
+    //     与本方 `reinterpret_cast<const …>(pPkt)` 实参一致；任务书「重载选错」线索不成立，
+    //     无需把指针改成非 const（改为 char\* 反而会错选 _ZN…put_binaryEPci）。
+    //   · 残留：`mov <S>,%edx` 块序 ±1；ORIG 三段式 `add $0x10; add <S>; add $0x2`
+    //     vs 本方 `lea (%edx,%eax,1); add $0x12`（同 204 的指令选择差）⇒ 留 N。
     Inter_NoticeGuildCargoPktView* pPkt = reinterpret_cast<Inter_NoticeGuildCargoPktView*>(data);
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle; je 返回
         return 0;

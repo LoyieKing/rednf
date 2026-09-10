@@ -2,7 +2,12 @@ int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/
 {
     Inter_UpdateServerMessagePktView* pPkt = reinterpret_cast<Inter_UpdateServerMessagePktView*>(data);
     PacketGuard packet;
-    if (pPkt->m_8 == 0)
+    // P17/P46：ORIG 084da40a `movzbl %al,%eax`、084da40d `test %eax,%eax`、084da40f `je`、
+    //   084da411 `cmp $0x1,%eax`、084da414 `je`、084da41a `jmp` ⇒ 原码是 switch
+    //   （不是我方旧稿的 if/else 链）。
+    switch (pPkt->m_8)
+    {
+    case 0:
     {   // 本服广播：0xc0 包
         packet.put_header(0, 0xc0);
         packet.put_byte(1);
@@ -14,8 +19,9 @@ int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/
         packet.put_str(pPkt->m_48, pPkt->m_nameLen);
         packet.finalize(true);
         G_GameWorld()->send_all_with_state(packet, 3);
+        break;
     }
-    else if (pPkt->m_8 == 1)
+    case 1:
     {   // 跨服转发：组 monitor 包
         Packet_Monitor_Server_Message_Info info;
         info.m_channel = (char)G_CEnvironment()->get_channel_no();
@@ -42,10 +48,11 @@ int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/
             pPkt->m_msgLen, data + 0x10,
             pPkt->m_nameLen, data + 0x48,
             pPkt->m_time);
+        break;
     }
-    else
-    {
+    default:
         cMyTrace(__PRETTY_FUNCTION__,
             0x42a6, 0)("SERVER_MESSAGE : NOT EXIST SHARE TYPE");
+        break;
     }
     return 0;

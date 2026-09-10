@@ -72,7 +72,10 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
         *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
         memcpy(body + 0x16, auctionId, 8);
         *reinterpret_cast<int*>(body + 0x1e) = user->getCurCharacNo();
-        strncpy(body + 0x22, user->getCurCharacName(), 0xd);
+        // [G1-Dispatchers] ORIG 该处为 `call getCurCharacR; strncpy(dst,(char*)(%eax+4),0xd)`
+        // ⇒ 原码直取 `_Charac_info::m_name`（+0x04），不经 getCurCharacName 的
+        //   `m_selected ? … : ""` 防御（p167 EXTRA getCurCharacName x2 之一）。
+        strncpy(body + 0x22, user->getCurCharacR()->m_name, 0xd);
         *reinterpret_cast<unsigned int*>(body + 0x2f) = price;
         *reinterpret_cast<int*>(body + 0x33) = extra;
         GlobalData::s_cera_auction_proxy->SendPacket(
@@ -90,7 +93,7 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
     char* const body = reinterpret_cast<char*>(&pck);
     *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
     *reinterpret_cast<int*>(body + 0x16) = user->getCurCharacNo();
-    strncpy(body + 0x1a, user->getCurCharacName(), 0xd);
+    strncpy(body + 0x1a, user->getCurCharacR()->m_name, 0xd);   // 同上（ORIG getCurCharacR+0x04）
 
     int price = 0;   // 读入包 +0x27
     if (packet.get_int(price) != 1)
@@ -101,8 +104,9 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
     if (packet.get_binary(body + 0x2b, 8) != 1)
         return LineFunc(0xc643, __PRETTY_FUNCTION__, 0, 0);
 
-    char buyerName[14];   // -0x42，13B 有效 + pad，读取前清零
-    memset(buyerName, 0, sizeof(buyerName));
+    // [G1-Dispatchers] P214③：ORIG 无 `call memset`（p167 我方 EXTRA memset ×1）⇒
+    // 改零初始化形，4.4 对 `char[N] = {0}` 内联 rep stos。
+    char buyerName[14] = {0};   // -0x42，13B 有效 + pad，读取前清零
     if (packet.get_binary(buyerName, 0xd) != 1)
         return LineFunc(0xc648, __PRETTY_FUNCTION__, 0, 0);
 

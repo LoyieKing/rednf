@@ -1,22 +1,34 @@
 int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& param)
 {
-    CDataManager* dataMgr = G_CDataManager();
-    param.m_a8 = dataMgr->find_item(msg.m_itemIdx);
+    // [G5-MiscC] P0/P52：ORIG 0x081be660 `mov 0x10(%ebp),%eax; mov 0xd(%eax),%eax;
+    // mov %eax,%ebx` 先把 msg.m_itemIdx 存入 callee-saved %ebx，再
+    // 0x081be668 `call G_CDataManager; mov %ebx,0x4(%esp); mov %eax,(%esp);
+    // call find_item`（无 dataMgr 具名槽；我方 fresh 多 -0x1c 槽）⇒ 单语句链式。
+    param.m_a8 = G_CDataManager()->find_item(msg.m_itemIdx);
     if (param.m_a8 == 0)
     {
         return 0x11;
     }
     // GetNeedMaterial() 返回 +0x24 处 pair<int,int>*（item idx, 数量），ORIG 读两 int
-    const int* needMaterial =
-        reinterpret_cast<const int*>(param.m_a8->GetNeedMaterial());
-    param.m_pair.first = needMaterial[0];
-    param.m_pair.second = needMaterial[1];
+    // [G5-MiscC] ORIG 0x081be6a5 只调用一次、结果直接在 %eax 上被取走两 int：
+    // `mov 0x4(%eax),%edx; mov (%eax),%eax`（单一 disp，无 add）⇒ 指针视图按
+    // pair 访问（原 `const int*` + `[1]` 在 4.4 生成 `add $0x4,%eax` 两步寻址）。
+    std::pair<int, int>* needMaterial =
+        reinterpret_cast<std::pair<int, int>*>(param.m_a8->GetNeedMaterial());
+    param.m_pair.first = needMaterial->first;
+    param.m_pair.second = needMaterial->second;
     if (param.m_pair.first != -1)
     {
-        const CInventory* invenR = user->getCurCharacInvenR();
-        param.m_a4 = invenR->GetInvenData(param.m_pair.first, param.m_resultItem);
-        CDataManager* dataMgr2 = G_CDataManager();
-        param.m_ac = dataMgr2->find_item(param.m_pair.first);
+        // [G5-MiscC] P0/P183：ORIG 0x081be6d3 `lea 0x41(%eax),%esi`（&m_resultItem）/
+        // 0x081be6d9 `mov 0x98(%eax),%ebx`（pair.first）/ 0x081be6e5
+        // `mov 0xc(%ebp),%eax; mov %eax,(%esp); call getCurCharacInvenR`（对象最后求值）
+        // —— 无 invenR 具名槽（我方 fresh 多 -0x10）⇒ 内联链式。
+        param.m_a4 = user->getCurCharacInvenR()->GetInvenData(
+            param.m_pair.first, param.m_resultItem);
+        // [G5-MiscC] P0：ORIG 0x081be706 `mov 0x98(%eax),%ebx; call G_CDataManager;
+        // mov %ebx,0x4(%esp); ... call find_item`（无 dataMgr2 具名槽，我方 fresh 多 -0xc）
+        // ⇒ 内联链式（itemIdx 亦在 %ebx 保活）。
+        param.m_ac = G_CDataManager()->find_item(param.m_pair.first);
         if (param.m_ac == 0 || param.m_ac->is_stackable() != true)
         {
             return 1;
@@ -43,7 +55,12 @@ int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& p
         }
         if ((unsigned int)msg.m_buyCount > 1)
         {
-            if (get_nMaxBuyableCount(user, param) < (unsigned int)msg.m_buyCount)
+            // [G5-MiscC] P0 反向：ORIG 0x081be87c `mov %eax,-0xc(%ebp)` 有槽往返
+            // （0x081be87f `mov -0xc(%ebp),%edx; mov 0x10(%ebp),%eax;
+            // mov 0x11(%eax),%eax; cmp %eax,%edx; jae`）⇒ 原码确有具名 unsigned int
+            // 局部（我方原内联调用无槽）。
+            unsigned int maxBuyableCount = get_nMaxBuyableCount(user, param);
+            if (maxBuyableCount < (unsigned int)msg.m_buyCount)
             {
                 return 10;
             }

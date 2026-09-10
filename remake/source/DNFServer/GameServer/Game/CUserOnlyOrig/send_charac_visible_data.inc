@@ -22,8 +22,13 @@ void CUser::send_charac_visible_data()
     // party 块排在 ja 的 fall-through，块序与 ORIG 相反。
     switch (get_state()) {                                     // ORIG 决策树：3/5/8..10/default
     case 3: {
-        int area = get_area(false);
-        G_GameWorld()->send_to_area((int)getCurCharacVill(), area, packet);
+        // [G6Sub1 单旋钮·P0/P183/P226] ORIG 0x0868c0c4..0x0868c0fe：
+        // `call get_area; mov %eax,%ebx`（**无栈槽往返**，值升格 callee-saved）+
+        // `call getCurCharacVill; movsbl %al,%esi` + `call G_GameWorld` 后才压参
+        // ⇒ 两个 getter 均在实参位内联、右→左求值（area 先求值占 %ebx、vill 次之占 %esi）。
+        // 旧形 `int area = get_area(false);` 是具名局部（我方独有槽 -0x10）⇒ 多
+        // store/reload 一对、且把 PacketGuard 槽从 ORIG 的 -0x1c 顶到 -0x20（本件 diff 主项）。
+        G_GameWorld()->send_to_area((int)getCurCharacVill(), get_area(false), packet);
     } break;
     case 5:
     case 8:

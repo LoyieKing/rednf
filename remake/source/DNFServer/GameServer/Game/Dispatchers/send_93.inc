@@ -1,5 +1,7 @@
 void Dispatcher_ObjectBringUp::send(CUser* user, ParamBase& param)
 {
+    // [G1-Dispatchers 负结论] 试删具名 `out` 引用改内联 cast 表达式：our 164→162（gap −11→−9）
+    // 但 ndiff 69→113（劣化 44）⇒ 已回滚，保留具名引用形（ORIG 该引用槽位置与 P0 一致）。
     const stObjectBringUp& out = static_cast<const stObjectBringUp&>(param);
 
     PacketGuard pg;                                         // ORIG 无 clear（同汇编）
@@ -15,10 +17,12 @@ void Dispatcher_ObjectBringUp::send(CUser* user, ParamBase& param)
         if (out.m_b != 0)
         {
             // +0x0c 处 vector<int>：每轮消费 4 个 int（short,int,int,short）
-            const std::vector<int>& rewards =
-                *reinterpret_cast<const std::vector<int>*>(
-                    reinterpret_cast<const char*>(&out) + 0xc);
-            std::vector<int>::const_iterator it = rewards.begin();
+            // P96：ORIG 侧为非 const `vector<int>::begin/end` + `__normal_iterator<int*>`（p167：我方
+            // const 版 begin/end/ppEv/de 共 10 项 EXTRA），故此处必须取非 const 引用。
+            std::vector<int>& rewards =
+                *reinterpret_cast<std::vector<int>*>(
+                    const_cast<char*>(reinterpret_cast<const char*>(&out)) + 0xc);
+            std::vector<int>::iterator it = rewards.begin();
             while (it != rewards.end())
             {
                 const short v0 = static_cast<short>(*it); ++it;

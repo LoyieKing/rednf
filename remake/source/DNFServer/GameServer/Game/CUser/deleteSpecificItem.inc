@@ -88,12 +88,16 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
         {
             WongWork::CMailBoxHelper::ReqDBRemoveMail(this, rmList, false);
             PacketGuard packet;
-            InterfacePacketBuf* pkt = (InterfacePacketBuf*)&packet;
-            pkt->put_header(0, 0x62);
-            pkt->put_int((int)rmList[0]);
+            // b28d-G3C 2026-09-10（P183 去具名指针）：ORIG 0x0867df?? 四处
+            //   `lea -0x198(%ebp),%eax; mov %eax,(%esp)` **每处重算** PacketGuard
+            //   地址（`mov -0x1ec(%ebp),...` 之后直接调用），无 `InterfacePacketBuf*`
+            //   具名槽；我方原 `pkt` 独占 -0x20 槽（多 store+3×load，并把 PacketGuard
+            //   从 -0x198 顶到 -0x160、rmList 从 -0x1ec 顶到 -0x1f4）。
+            ((InterfacePacketBuf*)&packet)->put_header(0, 0x62);
+            ((InterfacePacketBuf*)&packet)->put_int((int)rmList[0]);
             for (int i = 1; i <= rmList[0]; ++i)
-                pkt->put_int((int)rmList[i]);
-            pkt->finalize(true);
+                ((InterfacePacketBuf*)&packet)->put_int((int)rmList[i]);
+            ((InterfacePacketBuf*)&packet)->finalize(true);
             Send(packet);
         }
         RewardItem2DeleteInvalidItem("Mail", mailDel);

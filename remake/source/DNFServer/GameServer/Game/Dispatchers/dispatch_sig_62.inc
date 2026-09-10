@@ -25,9 +25,9 @@ int Dispatcher_DieBloodMonster::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     if (user->get_state() == 5)
     {
-        short partyIdx = user->GetPartyIndex();
-        CGameManager* gameMgr = G_CGameManager();
-        CParty* party = gameMgr->GetParty((int)partyIdx);
+        // ORIG 段直证 `call GetPartyIndex; movswl %ax,%ebx`（无栈槽）⇒ P200：
+        // 删 partyIdx/gameMgr 具名局部，内联实参直传（原具名形使帧 0x220→0x230）。
+        CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party == 0)
         {
             return LineFunc(0xda5a, __PRETTY_FUNCTION__, 0, 0);

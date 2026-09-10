@@ -1,5 +1,13 @@
 void CUser::UpdateCurCharacVisibleToCharacViewMemory()
 {
+    // 2026-09-10（G3CUser-B 负结论）：ORIG 0x08651628 vs ours（88→92 insn，帧
+    //   0x34→0x38）差异的根在 **CInventory 头内布局**，非本 .inc 可修：
+    //   ORIG 0x0865170f `mov -0x18(%ebp),%eax; imul $0x3d,%eax,%eax; add $0x10,%eax;
+    //   add -0x1c(%ebp),%eax; add $0xc,%eax`（vis = inven + i*0x3d + 0x1c）与
+    //   `add $0xd0,%eax; shl $0x3,%eax; add -0x1c(%ebp),%eax; add $0x4`（m_invenItem
+    //   步长 8、基址 +0x680）两侧采用**不同元素步长/基址**；我方 `m_avatarVisible[i]`
+    //   走 8 字节步长视图 ⇒ 结构步长与 ORIG 不符。属 .h（CInventory.h）类型轴，
+    //   按约束只报告不落，已报 Main。
     CInventory* inven = getCurCharacInvenW();
     if (inven == 0)
         return;

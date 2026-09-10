@@ -1,5 +1,13 @@
 int CUser::getCompoundUpgrade(const CStackableItem* item, stEquipCondition cond) const
 {
+    // [A06 2026-09-10 负结论·已回滚] ORIG 四分支的地址算术均为**两段常量**
+    // （`shl $0x7,%edx; add $0x28c0,%edx; add %edx,%eax; add $0x10,%eax`，0x38c0/0x8c0/
+    // 0x18c0 同形）：即「this + (idx*0x80 + 表基) + 表内 +0x10」。试形
+    // `tableAddr = (unsigned)(reinterpret_cast<const int*>((unsigned)G_CDataManager() +
+    // (idx<<7) + 0x28c0) + 4);` 实测被 4.4 前端折回单条 `add $0x28d0,%eax`
+    // （137 条不变，N1 定性）⇒ 回滚。正解=按 ORIG 形把该表建成 **CDataManager 的具名
+    // 成员数组**（0x80 字节元素、rates 数组在元素 +0x10），使 4.4 走
+    // `idx*stride + 成员偏移` 的折叠路径；属**头改动**，按 R2 只报告不动。
     int upgrade = 0;                                              // -0x1c 默认0
     unsigned int tableAddr = 0;                                   // -0x18
     if (item->IsUse2ndUpgradeTableRecipe()) {

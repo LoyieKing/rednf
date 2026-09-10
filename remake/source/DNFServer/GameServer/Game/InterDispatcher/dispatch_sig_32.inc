@@ -25,3 +25,9 @@ int Inter_MonitorEventItemUpdate::dispatch_sig(CUser* /*user*/, char* data, int 
         pPkt->m_12,
         pPkt->m_1e);
     return 0;
+
+// [G2B-Monitor] 残余留 N：本件 diff 仅 2 项（`sub $0x6c` vs `sub $0x5c` / 对应 epilogue），
+//   ndiff=4、ratio 0.971，指令序列其余逐条相同 ⇒ 是 ORIG 多 0x10 字节帧空间。
+//   方向与我方「多具名局部」相反（本例我方**少** 16B），本件亦无我方独有槽
+//   （v1a/v16 正是 ORIG 的 -0x40/-0x3c），16B 归属未定（疑 cMyTrace 临时对象/局部
+//   register 物化档），无源码旋钮可判 ⇒ 留 N，不改（避免无据试错）。

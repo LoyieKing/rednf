@@ -24,7 +24,9 @@ int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
     // +0x66：ORIG 0x08202d?? 对 subject（-0x6b）0x29 字节为 4.1 内联对齐剥离慢路；
     // 旧码 memset call。slotIdx/itemCount/seller 的初始化在 ORIG 中位于清零之后。
     char subject[0x29] = {0};                 // -0x6b：开店名称（get_str 缓冲）
-    item.Reset();   // ORIG ctor 0x0823457c 内联体（Reset 0x0823459a 清零位域）
+    // [G1-Dispatchers] 删显式 `item.Reset()`：本仓 PrivateStoreItem ctor 体即 `Reset()`
+    // （CPrivateStoreMgr/PrivateStoreItem_ctor.inc）⇒ 该调用冗余；ORIG 该点只有 ctor 内联体
+    // （0x0823457c/0x0823459a），无独立 Reset call（p167 EXTRA PrivateStoreItem::Reset ×1）。
 
     // +0xe5：读名称长度
     if (!packet.get_int((int&)slotIdx))

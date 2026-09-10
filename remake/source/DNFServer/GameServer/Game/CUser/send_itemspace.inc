@@ -1,51 +1,44 @@
 bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（P22 调用点直测形）
 {
-    // P168a/X2 五段化（2026-09-05 CUserC8，Main 派单）：ORIG 0x86?? 每 MakeItemList
-    // case `call; xor $0x1,%eax; test %al,%al; je` **带分支消费者**（判据③通过），
-    // char 暂存槽 -0x9 与 `cmp $1/setne` 岛形均为我方旧形失分点（判据②岛→直分支）。
-    // 裸 `!fn()` 对本批 MakeItemList(bool 返回) 实测产 xor 直落（判据①），case7 用
-    // !=1 系 char 域实测等价保留。
-    // X1 精确形（Main 广播定字 2026-09-05，int callee 调用点自救——MakeItemList/
-    // SendCreatureItemList 均 int 返回，裸 `!fn()` 实测产 test eax;sete 三段，
-    // uchar 绑 %eax + `^= 1` 后 `if (v)` 得 `xor $0x1,%eax; test %al,%al; je`
-    // 与 ORIG 0x8675 段系同形；赋值零成本（call 结果已在 %eax），块作用域隔离）。
+    // b28d-G3C 2026-09-10（P183 去具名槽）：ORIG 每个 case 的形态是
+    //   `call MakeItemList; xor $0x1,%eax; test %al,%al; je <继续>`
+    //   （0x0865dbb9/+0x4d、0x0865dbf0/+0x84、0x0865dc1f/+0xb3、0x0865dc4f/+0xe3、
+    //    0x0865dc82/+0x116）——**无任何暂存槽**。我方原形用 5 个具名
+    //   `unsigned char vN` 各占 1 字节槽（-0xd/-0xc/-0xb/-0xa/-0x9），每处多
+    //   `mov %al,-0xN; xorb $1,-0xN; cmpb $0,-0xN` 三条，并把 PacketGuard 从
+    //   -0x14 顶到 -0x1c（帧 0x20→0x30）。改为内联表达式：内层 `^1` 保 int 域
+    //   32 位 xor，外层 (unsigned char) 截断保 `test %al,%al` 八位判零。
     PacketGuard packet;
     switch (space)
     {
     case 0:
     {
-        unsigned char v0 =
-            (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)1, &packet);
-        v0 ^= 1;
-        if (v0) return 0;
+        if ((unsigned char)(getCurCharacInvenR()->MakeItemList((INVEN_TYPE)1,
+                                                              &packet) ^ 1))
+            return 0;
         break;
     }
     case 1:
     {
-        unsigned char v1 =
-            (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)2, &packet);
-        v1 ^= 1;
-        if (v1) return 0;
+        if ((unsigned char)(getCurCharacInvenR()->MakeItemList((INVEN_TYPE)2,
+                                                              &packet) ^ 1))
+            return 0;
         break;
     }
     case 2:
     {
-        unsigned char v2 =
-            (unsigned char)getCurCharacCargoR()->MakeItemList(&packet);
-        v2 ^= 1;
-        if (v2) return 0;
+        if ((unsigned char)(getCurCharacCargoR()->MakeItemList(&packet) ^ 1))
+            return 0;
         break;
     }
     case 7:
     {
-        unsigned char v3 = (unsigned char)
-            getCurCharacInvenR()->GetCreatureMgrR()->SendCreatureItemList();
-        v3 ^= 1;
-        if (v3) return 0;
-        unsigned char v4 =
-            (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)3, &packet);
-        v4 ^= 1;
-        if (v4) return 0;
+        if ((unsigned char)(getCurCharacInvenR()->GetCreatureMgrR()
+                                ->SendCreatureItemList() ^ 1))
+            return 0;
+        if ((unsigned char)(getCurCharacInvenR()->MakeItemList((INVEN_TYPE)3,
+                                                              &packet) ^ 1))
+            return 0;
         break;
     }
     case 0xc:

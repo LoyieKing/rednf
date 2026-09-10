@@ -1,5 +1,10 @@
 bool CUser::update_pvp_point(int v)   // b28c-L5 SIGFIX（P174）
 {
+    // 2026-09-10 gA（A 组）负结论 N（ORIG 641 vs 我方 651）：ORIG 0x0865cfd8 逐块比对
+    //   无字段/调用缺口；差集特征为 (a) cMyTrace 临时槽 -0x74(ORIG) vs -0x7c(我方)
+    //   ——同帧 0xbc 下的槽分配策略差（N82）；(b) 我方函数体 +0x44 字节（跳转目标
+    //   0x17421 vs 0x865d97b，全为等长块平移）；字符串/浮点常量差异系重定位伪差
+    //   （`flds 0x8cf396c` vs `flds 0x165c`）⇒ 维持 P167/P183 已收敛源形，判 N。
     if (v == 0)
         return 1;
     if (v < 0)

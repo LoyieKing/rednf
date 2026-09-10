@@ -1,3 +1,10 @@
+// [b28d-GrpD 判词·结构化 N] ORIG 0x0864809c：残差为 ① checker/全局访问的
+//   `mov 0x0,%R; mov (%R),%R`（未解析重定位 + 指针解引用形）② VLA 段槽号整体位移
+//   （-0x30.. vs -0x34..）③ 未解析 call 标注。语义关键点逐条对齐：VLA 步进
+//   `-(len+0x212)&~0xf`、虚槽 +0x34(verify)/+0x28(encrypt) 直调、encReq 单次短路物化、
+//   encrypt 非 0=失败→trace(0x807)、`(!encReq&&isEncryptRequired())||encFailed` 链、
+//   send_packet<0 → trace(0x834)+packetId!=199 DisConnSig ⇒ 无语义缺口（第三方 checker
+//   槽建模已在下 §4.5 例外块终判）。
 bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
                                               // "bool CUser::AntibotSend(PacketBuf&)"（P174）
 {

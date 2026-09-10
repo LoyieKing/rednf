@@ -1,16 +1,18 @@
 int Dispatcher_Antibot::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    unsigned int local_54 = 0;           // -0x50：包内 4 字节序列号（网络序）
-    char cVar3;
-    unsigned int local_58 = 0;           // -0x54：宿主序原值
+    // ORIG 段直证：`sub $0x6c,%esp; lea -0x50(%ebp),%eax` —— 入口**无** 清零 store
+    // （原 local_54/local_58 `= 0` 令我方入口多 2 条 movl 且帧 0x6c→0x98）。
+    unsigned int local_54;               // -0x50：包内 4 字节序列号（网络序）
+    unsigned int local_58;               // -0x54：宿主序原值
     char* local_30;                      // -0x2c：get_buf_ptr 结果（ORIG char* 视图）
     void* local_28;                      // -0x24：+2 指针
     unsigned int local_24;               // -0x20：ntohl 结果
     int local_20;                        // -0x1c：getCharacAntibotSerialNum
     int local_2c;                        // -0x28：antibotChecker 虚调用结果
 
-    cVar3 = packet.get_int(local_54);
-    if ((char)(cVar3 ^ 1) == 0)          // xor $0x1: 只有 cVar3==1 才继续
+    // ORIG 段直证：`call <T>; xor $0x1,%eax; test %al,%al; je`（无 `mov %al,-0x41` 槽
+    // 往返）⇒ 删 cVar3 具名 char，表达式内联。
+    if ((char)(packet.get_int(local_54) ^ 1) == 0)   // xor $0x1: 只有返回值==1 才继续
     {
         local_30 = packet.get_buf_ptr(packet.get_index());
         if (user->m_field8cf00 == 0)

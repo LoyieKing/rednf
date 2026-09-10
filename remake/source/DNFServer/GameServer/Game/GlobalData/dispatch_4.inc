@@ -1,3 +1,21 @@
+// [G7-sub 2026-09-11 判词] MonitorTcpThread::dispatch（ORIG 0x0857d95a，1575 条巨件，
+// §6.2 三件套）：本轮**已改 2 类共 6 处**（1592→1577，gap +17→+2）：
+//   ① 0x0857e089..0x0857e254 第二循环 4 处条件由 `&&` 改**嵌套 if**：ORIG 外条件发
+//      `cmp $0xffffffff,%eax; setne %al; test %al,%al; je`、内层 FD_ISSET 直测
+//      （探针 /tmp/g7c/probe4.cpp c1≡ORIG；`&&` 形 c2 恒折 `cmp; je` 且末操作数再发
+//      `mov $1/jmp/mov $0/test` 四尾布尔物化岛）。
+//   ② 0x0857da91..0x0857daa2 / 0x0857dd5e / 0x0857e7d3：原码为**函数级单变量 i**
+//      （先独立 `i = 0;` 再 `for (i = 0; …)` ⇒ 连续两条 `movl $0,-0x58`），且两循环
+//      条件内**逐次重调** `CServerProxyMgr<CMonitorServerProxy>::GetServerProxyArraySize()`
+//      （该 getter 全函数仅 2 处调用，都在条件里）⇒ 删 `proxyCount` 具名缓存
+//      （旧形多 1 前置 call + -0x50 槽，并把两循环索引拆成 -0x3c/-0x38 两槽）。
+// 残留 2 条（均为 4.4 固有，探针实证不可翻）：
+//   · 0x0857e3xx `while (ret < 0)`：4.4 发 `mov; shr $0x1f; test %al; jne` vs ORIG
+//     `mov; test %eax,%eax; js`（probe5.cpp p1）。
+//   · 0x0857e2xx `getsockopt(...,&soLen[3])`：4.4 发 `lea; add $0xc` vs ORIG 折单条
+//     `lea`（probe5.cpp p2/p3）。
+// p167：CALLSITE CLEAR（仅 C1/C2·D1/D2 同址别名，ORIG nm 实测如 0x0861c8d2）。
+// 结论：语义完成，byte 层余 2 条 4.4 固有差 ⇒ 封顶。
 void MonitorTcpThread::dispatch(void* arg)
 {
     (void)arg;
@@ -19,7 +37,10 @@ void MonitorTcpThread::dispatch(void* arg)
     int auctionSocket;
     int ceraSocket;
     int hadesSocket;
-    int proxyCount;
+    // [G7-sub] 原 `int proxyCount;` 已删：ORIG 循环条件内逐次重调
+    // GetServerProxyArraySize（见下），无缓存局部。索引 `i` 为**函数级单变量**
+    // （两循环同用 -0x58 槽：第一循环 12 次 + 第二循环 16 次引用）。
+    int i;
 
     // [SweepGD] ORIG +0x1a32 尾条件块 `movzbl s_server_stop; xor $0x1; test %al;
     // jne <body>`（函数头 `jmp +0x1a32`）⇒ 原码是 `while (!s_server_stop)` 布尔字段
@@ -61,9 +82,16 @@ void MonitorTcpThread::dispatch(void* arg)
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
             int maxfd = 0;
-            proxyCount =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize();
-            for (int i = 0; i < proxyCount; ++i)
+            // [G7-sub] ORIG 0x0857da91..0x0857daa2 是**连续两条** `movl $0,-0x58(%ebp)`
+            // 后才 `jmp` 条件 ⇒ 原码一个具名 `int i`（先独立 `int i = 0;`、再
+            // `for (i = 0; …)`）；且循环条件内**逐次重调**
+            // `call 0857f8c2 <CServerProxyMgr<CMonitorServerProxy>::GetServerProxyArraySize()>`
+            // （0x0857dd66 / 第二循环 0x0857e7d3 —— 该 getter 全函数仅此 2 处，
+            // 都在条件里）⇒ 禁 `proxyCount` 具名缓存（旧形多 1 次前置 call + 1 个
+            // -0x50 槽，且把两循环索引拆成 -0x3c/-0x38 两槽 ⇒ 与 ORIG -0x58 单槽不符）。
+            i = 0;
+            for (i = 0;
+                 i < GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize(); ++i)
             {
                 // ORIG 0x0857daae..0x0857dc04（p167 实证：每 mgr 6 次三元链）：
                 // FD_SET/FD_ISSET 的 fd 实参逐处重调
@@ -146,127 +174,145 @@ void MonitorTcpThread::dispatch(void* arg)
             ret = select(maxfd, &readfds, &writefds, 0, &timeout);
         } while (ret < 0);
 
-        proxyCount =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize();
-        for (int i = 0; i < proxyCount; ++i)
+        // [G7-sub] 与第一循环同一个具名 `i`（ORIG 全函数 -0x58 单槽 28 次引用），
+        // 条件内重调 size（ORIG 0x0857e7d3 = 第二处也是唯一另一处调用）。
+        for (i = 0;
+             i < GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize(); ++i)
         {
             // ORIG 0x0857e089..0x0857e254：select 后同样逐处重调三元链
             // （if 1 次 + FD_ISSET 双求值 2 次；OnTcpRecv 前仅 1 次
             // GetServerProxyArrayAt，无 GetTcpHandler）。
+            // [G7-sub] ORIG 0x0857e089 段是**嵌套 if**（非 `&&`）：外条件发
+            // `cmp $0xffffffff,%eax; setne %al; test %al,%al; je`（probe
+            // /tmp/g7c/probe4.cpp c1 与 ORIG 逐条同形；`&&` 形 c2 恒折成
+            // `cmp; je`）⇒ 内层 FD_ISSET 直接 `and $1; test %al,%al; je`；
+            // 旧 `&&` 写法另发 `mov $1/jmp/mov $0/test` 四尾布尔物化岛。
             if (GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
-                        ->get_socket() != -1 &&
-                FD_ISSET((unsigned)GlobalData::s_monitor_proxy_mgr
-                             ->GetServerProxyArrayAt(i)
-                             ->GetTcpHandler()
-                             ->get_socket(),
-                         &readfds))
+                        ->get_socket() != -1)
             {
-                // b28c-l23 SIGFIX 消费点：OnTcpRecv 已 bool 化（lane28/lane12），
-                // [SweepGD] 实参 (unsigned) cast：ORIG `shr $0x5`/`and $0x1f` 无符号形。
-                // bool callee ⇒ 裸形（P168a①：ORIG `call; xor$1; testb; je`）。
-                if (!GlobalData::s_monitor_proxy_mgr
-                         ->GetServerProxyArrayAt(i)
-                         ->OnTcpRecv())
+                if (FD_ISSET((unsigned)GlobalData::s_monitor_proxy_mgr
+                                 ->GetServerProxyArrayAt(i)
+                                 ->GetTcpHandler()
+                                 ->get_socket(),
+                             &readfds))
                 {
-                    LogManager::logFormat(
-                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x449,
-                        "Monitor::OnTcpRecv == false!!!");
-                    CStreamGuard guard(
-                        GlobalData::s_stream_pool->Acquire(
-                            "NetworkThread.cpp", 0x44c),
-                        true);
-                    **guard << 0x15f;
-                    **guard << -1;
-                    **guard << 0xc9;
-                    GlobalData::s_msgq_mgr->put(
-                        MsgQueueMgr::DISPATCH_Q, guard);
+                    // b28c-l23 SIGFIX 消费点：OnTcpRecv 已 bool 化（lane28/lane12），
+                    // [SweepGD] 实参 (unsigned) cast：ORIG `shr $0x5`/`and $0x1f` 无符号形。
+                    // bool callee ⇒ 裸形（P168a①：ORIG `call; xor$1; testb; je`）。
+                    if (!GlobalData::s_monitor_proxy_mgr
+                             ->GetServerProxyArrayAt(i)
+                             ->OnTcpRecv())
+                    {
+                        LogManager::logFormat(
+                            1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x449,
+                            "Monitor::OnTcpRecv == false!!!");
+                        CStreamGuard guard(
+                            GlobalData::s_stream_pool->Acquire(
+                                "NetworkThread.cpp", 0x44c),
+                            true);
+                        **guard << 0x15f;
+                        **guard << -1;
+                        **guard << 0xc9;
+                        GlobalData::s_msgq_mgr->put(
+                            MsgQueueMgr::DISPATCH_Q, guard);
+                    }
                 }
             }
             if (GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
-                        ->get_socket() != -1 &&
-                FD_ISSET((unsigned)GlobalData::s_monitor_proxy_mgr
-                             ->GetServerProxyArrayAt(i)
-                             ->GetTcpHandler()
-                             ->get_socket(),
-                         &writefds))
+                        ->get_socket() != -1)
             {
-                int sendRet = GlobalData::s_monitor_proxy_mgr
-                                  ->GetServerProxyArrayAt(i)
-                                  ->OnTcpSend();
-                if (sendRet < 0)
+                // [G7-sub] 同 readfds 段：ORIG 0x0857e1a2 嵌套 if（外条件
+                // `setne;test;je`），内层 FD_ISSET 直测。
+                if (FD_ISSET((unsigned)GlobalData::s_monitor_proxy_mgr
+                                 ->GetServerProxyArrayAt(i)
+                                 ->GetTcpHandler()
+                                 ->get_socket(),
+                             &writefds))
                 {
-                    LogManager::logFormat(
-                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x45e,
-                        "Monitor::OnTcpSend == false!!!remain_size(%d)",
-                        sendRet);
-                    CStreamGuard guard(
-                        GlobalData::s_stream_pool->Acquire(
-                            "NetworkThread.cpp", 0x460),
-                        true);
-                    **guard << 0x15f;
-                    **guard << -1;
-                    **guard << 0xc9;
-                    GlobalData::s_msgq_mgr->put(
-                        MsgQueueMgr::DISPATCH_Q, guard);
+                    int sendRet = GlobalData::s_monitor_proxy_mgr
+                                      ->GetServerProxyArrayAt(i)
+                                      ->OnTcpSend();
+                    if (sendRet < 0)
+                    {
+                        LogManager::logFormat(
+                            1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x45e,
+                            "Monitor::OnTcpSend == false!!!remain_size(%d)",
+                            sendRet);
+                        CStreamGuard guard(
+                            GlobalData::s_stream_pool->Acquire(
+                                "NetworkThread.cpp", 0x460),
+                            true);
+                        **guard << 0x15f;
+                        **guard << -1;
+                        **guard << 0xc9;
+                        GlobalData::s_msgq_mgr->put(
+                            MsgQueueMgr::DISPATCH_Q, guard);
+                    }
                 }
             }
             if (GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
-                        ->get_socket() != -1 &&
-                FD_ISSET((unsigned)GlobalData::s_guild_proxy_mgr
-                             ->GetServerProxyArrayAt(i)
-                             ->GetTcpHandler()
-                             ->get_socket(),
-                         &readfds))
+                        ->get_socket() != -1)
             {
-                // b28c-l23 SIGFIX 消费点：bool callee ⇒ 裸形（P168a①）
-                if (!GlobalData::s_guild_proxy_mgr
-                         ->GetServerProxyArrayAt(i)
-                         ->OnTcpRecv())
+                // [G7-sub] 同 monitor 段：ORIG 嵌套 if（外条件 setne;test;je）。
+                if (FD_ISSET((unsigned)GlobalData::s_guild_proxy_mgr
+                                 ->GetServerProxyArrayAt(i)
+                                 ->GetTcpHandler()
+                                 ->get_socket(),
+                             &readfds))
                 {
-                    LogManager::logFormat(
-                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x46f,
-                        "Guild::OnTcpRecv == false!!!");
-                    CStreamGuard guard(
-                        GlobalData::s_stream_pool->Acquire(
-                            "NetworkThread.cpp", 0x471),
-                        true);
-                    **guard << 0x15f;
-                    **guard << -1;
-                    **guard << 0xcb;
-                    GlobalData::s_msgq_mgr->put(
-                        MsgQueueMgr::DISPATCH_Q, guard);
+                    // b28c-l23 SIGFIX 消费点：bool callee ⇒ 裸形（P168a①）
+                    if (!GlobalData::s_guild_proxy_mgr
+                             ->GetServerProxyArrayAt(i)
+                             ->OnTcpRecv())
+                    {
+                        LogManager::logFormat(
+                            1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x46f,
+                            "Guild::OnTcpRecv == false!!!");
+                        CStreamGuard guard(
+                            GlobalData::s_stream_pool->Acquire(
+                                "NetworkThread.cpp", 0x471),
+                            true);
+                        **guard << 0x15f;
+                        **guard << -1;
+                        **guard << 0xcb;
+                        GlobalData::s_msgq_mgr->put(
+                            MsgQueueMgr::DISPATCH_Q, guard);
+                    }
                 }
             }
             if (GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
-                        ->get_socket() != -1 &&
-                FD_ISSET((unsigned)GlobalData::s_guild_proxy_mgr
-                             ->GetServerProxyArrayAt(i)
-                             ->GetTcpHandler()
-                             ->get_socket(),
-                         &writefds))
+                        ->get_socket() != -1)
             {
-                int sendRet = GlobalData::s_guild_proxy_mgr
-                                  ->GetServerProxyArrayAt(i)
-                                  ->OnTcpSend();
-                if (sendRet < 0)
+                // [G7-sub] 同 monitor 段：ORIG 嵌套 if（外条件 setne;test;je）。
+                if (FD_ISSET((unsigned)GlobalData::s_guild_proxy_mgr
+                                 ->GetServerProxyArrayAt(i)
+                                 ->GetTcpHandler()
+                                 ->get_socket(),
+                             &writefds))
                 {
-                    LogManager::logFormat(
-                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x480,
-                        "Guild::OnTcpSend == false!!!remain_size(%d)",
-                        sendRet);
-                    CStreamGuard guard(
-                        GlobalData::s_stream_pool->Acquire(
-                            "NetworkThread.cpp", 0x481),
-                        true);
-                    **guard << 0x15f;
-                    **guard << -1;
-                    **guard << 0xcb;
-                    GlobalData::s_msgq_mgr->put(
-                        MsgQueueMgr::DISPATCH_Q, guard);
+                    int sendRet = GlobalData::s_guild_proxy_mgr
+                                      ->GetServerProxyArrayAt(i)
+                                      ->OnTcpSend();
+                    if (sendRet < 0)
+                    {
+                        LogManager::logFormat(
+                            1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x480,
+                            "Guild::OnTcpSend == false!!!remain_size(%d)",
+                            sendRet);
+                        CStreamGuard guard(
+                            GlobalData::s_stream_pool->Acquire(
+                                "NetworkThread.cpp", 0x481),
+                            true);
+                        **guard << 0x15f;
+                        **guard << -1;
+                        **guard << 0xcb;
+                        GlobalData::s_msgq_mgr->put(
+                            MsgQueueMgr::DISPATCH_Q, guard);
+                    }
                 }
             }
         }

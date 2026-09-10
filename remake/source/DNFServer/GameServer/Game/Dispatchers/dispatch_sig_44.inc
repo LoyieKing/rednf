@@ -9,7 +9,9 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     }
 
-    unsigned char pkgType = 0;
+    // ORIG 段直证：读包前无 `movb $0x0,-0x89(%ebp)`（直接 `lea -0x89(%ebp),%eax`）⇒
+    // P0/P328⑤ 删预清零（原初始化令帧 0x20bc→0x20cc 并整体槽位下移 0xc）。
+    unsigned char pkgType;
     if (!packet.get_byte(pkgType))
     {
         return LineFunc(0x282,

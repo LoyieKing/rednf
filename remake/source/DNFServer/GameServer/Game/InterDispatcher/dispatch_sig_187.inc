@@ -1,5 +1,8 @@
 int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2D] verdict=N：残余 24 行分三类——帧差 +0x10（父泳道统一裁决的共享机制）、
+    //   `mov %eax,<S>; mov <S>,%eax` 单点往返、以及 G_TimerQueue 段块序互换；
+    //   均无单件可判定依据，未改。
     Inter_PcroomResponsePktView* pPkt = reinterpret_cast<Inter_PcroomResponsePktView*>(data);
     if (user->get_state() == 0)
         return 0x4404;

@@ -22,24 +22,29 @@ int Dispatcher_RequestConditionEventReward::dispatch_sig(CUser* user, PacketBuf&
 
     PacketGuard guard;
     guard.put_header(1, 0x107);
-    if (result == 0)
+    // [G1-Dispatchers] 块物理序按 ORIG：`je`（result==0）跳过失败块 ⇒ 源码为
+    // `if (result != 0) {失败} else {成功}`（ORIG 直落块含 put_byte(0)/put_byte(result)/
+    // finalize/Send 四 call；我方旧形反序，diff 首差即 `je` vs `jne`）。
+    if (result != 0)
     {
-        guard.put_byte(1);
-        guard.put_byte((int)(char)step);
-        guard.put_byte((int)useQuickPartyAdd);
-        guard.put_byte((int)rewardMap.size());
-        for (std::map<int, int>::const_iterator it = rewardMap.begin(); it != rewardMap.end(); ++it)
-        {
-            guard.put_int(it->first);
-            guard.put_int(it->second);
-        }
+        guard.put_byte(0);
+        guard.put_byte(result);
         guard.finalize(true);
         user->Send(guard);
     }
     else
     {
-        guard.put_byte(0);
-        guard.put_byte(result);
+        guard.put_byte(1);
+        guard.put_byte((int)(char)step);
+        guard.put_byte((int)useQuickPartyAdd);
+        guard.put_byte((int)rewardMap.size());
+        // P96：ORIG 侧为非 const `_Rb_tree_iterator`（0x082225.. 段 `_ZNKSt17_Rb_tree_iterator…ptEv/ne/ppEv`），
+        // 我方 const_iterator 会额外生成转换构造 call 与 const 版 ptEv/ne（p167 EXTRA 5 项）。
+        for (std::map<int, int>::iterator it = rewardMap.begin(); it != rewardMap.end(); ++it)
+        {
+            guard.put_int(it->first);
+            guard.put_int(it->second);
+        }
         guard.finalize(true);
         user->Send(guard);
     }

@@ -7,8 +7,9 @@ int Dispatcher_HumanCertify::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // +0x04c: M-CAP 点数过高时概率踢线
-    unsigned int capPoint = user->m_mcap.getPoint();
-    if (capPoint > 0x251b)
+    // ORIG 段直证：`cmp $0x251b,%eax; seta %al; test %al,%al; je`（值不落槽、4.1 物化）
+    // ⇒ 删 capPoint 具名量并改 (bool) 强制物化形（技巧9）。
+    if ((bool)(user->m_mcap.getPoint() > 0x251b))
     {
         int randVal = get_rand_int(100);
         if (randVal <= 10)
@@ -22,8 +23,9 @@ int Dispatcher_HumanCertify::dispatch_sig(CUser* user, PacketBuf& packet)
     // +0x0c5: 读认证号（1..10）
     int certifyNo = 0;
     int certStep = 10;
-    unsigned short answer[5];
-    answer[0] = 0; answer[1] = 0; answer[2] = 0; answer[3] = 0; answer[4] = 0;
+    // ORIG 段直证：`movl $0x0,-0x22; movl $0x0,-0x1e; movw $0x0,-0x1a`（10B 聚合零
+    // 初始化内联；原逐元素 5 条 movw 形令清零序列形态不符）。
+    unsigned short answer[5] = { 0 };
     if (!(packet.get_int(certifyNo)) || certifyNo > 10)
     {
         return LineFunc(0xa023, __PRETTY_FUNCTION__, 0, 0);

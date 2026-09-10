@@ -1,3 +1,7 @@
+// [G7-sub 2026-09-11 判词] NetworkThread::dispatch（ORIG T 0x0857d5be）：私有 .o 实测
+// ORIG 208 / 我方 208（gap 0）。助记符差 2 处，均为 `nop`：我方函数中段 1 条对齐 nop、
+// ORIG 尾 1 条（§6.1 纯对齐填充豁免）；无缺失/多余指令、无调用点差
+// （p167 仅 cMyTrace C1↔C2 同址别名 0x0854f746）。结论：**封顶，无改动**。
 void NetworkThread::dispatch(void* arg)
 {
     (void)arg;

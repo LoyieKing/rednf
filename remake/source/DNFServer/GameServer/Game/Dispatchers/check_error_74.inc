@@ -8,9 +8,12 @@ int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& 
     {
         return 0x13;
     }
-    const int slotIdx =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&msg) + 0x11);
-    const Inven_Item* item = user->getCurCharacInvenR()->GetInvenRef(1, slotIdx);
+    // [G1Frest 2026-09-10] ORIG 0x081e83xx `mov %eax,-0x14(%ebp)` + 使用点
+    //   `mov -0x14(%ebp),%eax; mov 0x11(%eax),%ebx` ⇒ msg 具名指针局部 -0x14，
+    //   msg+0x11 在使用点直读（无 slotIdx 具名局部，P0/P183）。
+    const char* mbase = reinterpret_cast<const char*>(&msg);
+    const Inven_Item* item = user->getCurCharacInvenR()->GetInvenRef(
+        1, *reinterpret_cast<const int*>(mbase + 0x11));
     if (item->m_addInfo == 0)
     {
         return 0x15;
@@ -25,7 +28,8 @@ int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& 
     {
         return 3;
     }
-    int serverGroup;
+    // ORIG `movl $0x0,-0xc(%ebp)` ⇒ 原码带 `= 0` 初始化
+    int serverGroup = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() == 0)
     {
         serverGroup =
@@ -47,8 +51,9 @@ int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& 
     {
         return 0x11;
     }
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x64);
-    if (!event->IsEventing(0))
+    // ORIG 0x081e8469 区：`mov (%eax),%edx; add $0x34,%edx; mov (%edx),%edx; call *%edx;
+    //   xor $1; test; je` ⇒ 链式虚调（无 event 具名局部）+ `if (!IsEventing(0)) return 1;`
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x64)->IsEventing(0))
     {
         return 1;
     }

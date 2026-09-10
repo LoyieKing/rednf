@@ -17,6 +17,9 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         int ipBuf[5] = {0};
         // [b28d-solo-TimerDispatcher2] ORIG `mov %eax,%ebx`（结果驻 %ebx 跨 cMyTrace
         // ctor，无栈槽）⇒ P231/P307 纯 register 存储类提示（非 asm 绑定，P0 合规）。
+        // [G9WorldTimerLeague 2026-09-10 复核] N107 封顶确认：ORIG 0x08636a11
+        // `lea 0xe0(%eax),%edx` 取 m_network 成员地址；我方 4.4 恒 `add $0xe0,%edx`
+        // （成员常量偏移取址 add-vs-lea，N107 六形探针全产 add）⇒ 语义等价，勿再试。
         register const char* ipStr =
             user->m_network.GetPeerIP2((char*)ipBuf, 0x14);  // +0xe0
         cMyTrace(__PRETTY_FUNCTION__,

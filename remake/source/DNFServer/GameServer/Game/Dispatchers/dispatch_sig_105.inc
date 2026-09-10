@@ -5,9 +5,9 @@ int Dispatcher_Score_Scroll_State::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    int partyIdx = (int)user->GetPartyIndex();
-    CGameManager* gameMgr = G_CGameManager();
-    CParty* party = gameMgr->GetParty(partyIdx);
+    // ORIG 0x0822..：`call G_CGameManager; call GetPartyIndex; movswl %ax,%ebx;
+    //   mov %ebx,0x4(%esp)` —— partyIdx/gameMgr 均无栈槽（我方具名使帧 0x30→0x40）。
+    CParty* party = G_CGameManager()->GetParty((int)user->GetPartyIndex());
     if (party == 0)
     {
         return LineFunc(0x92fa,
@@ -20,8 +20,9 @@ int Dispatcher_Score_Scroll_State::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     if ((int)party->get_dungeon_clear_state() > 2)
     {
-        WongWork::CHackAnalyzer* analyzer = user->getHackAnalyzer();
-        analyzer->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x197, 1, 0, 0);
+        // ORIG：getHackAnalyzer() 结果经 %eax 直传（无 analyzer 具名指针槽）。
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, (WongWork::ENUM_HACKTYPE)0x197, 1, 0, 0);
         return 0;
     }
     PacketGuard response;

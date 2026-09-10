@@ -1,5 +1,11 @@
 int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=7] 全部差异集中在本函数首个字段校验一处：
+    //   ORIG `mov %eax,%edx; mov <S>,%eax; mov 0xa(%eax),%eax; cmp %eax,%edx`
+    //   （先 call get_charac_no → %edx，再读 pPkt+0xa → %eax，cmp %eax,%edx）
+    //   vs 本方 `mov <S>,%edx; mov 0xa(%edx),%edx; cmp %edx,%eax`
+    //   （charac_no 留在 %eax，pPkt 走 %edx）。两侧求值次序一致（charac_no 在前），
+    //   仅 gcc 伪寄存器分派不同（%eax↔%edx）⇒ 无源码级单点直证，不可修，留 N。
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 

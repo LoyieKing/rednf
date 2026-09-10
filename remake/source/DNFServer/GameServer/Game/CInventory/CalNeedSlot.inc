@@ -15,6 +15,21 @@ void CInventory::CalNeedSlot(int* out,
     // [P212] ORIG 0x0850891a：start/end/i 在循环外声明（start -0x44 / end -0x48 / i -0x14
     // 各仅一份，两处 StartEndPos 与两处 for 复用）⇒ 提升为块级声明、循环内仅赋值
     // （消除两对 start/end 的重复槽：帧 0x68→0x58 对齐 ORIG）。
+    // [G8InvenPvP 子代理 G8CInvSmall · 探针实证 /tmp/g8c_probeB.o] 迭代器/当前对先声明：
+    // ORIG 0x08508938 `lea -0x38(%ebp),%eax`（begin 输出槽 = it）、0x0850894d
+    // `lea -0x40(%ebp),%eax`（cur 的 pair::operator= this）、StartEndPos 实参
+    // `lea -0x48→0xc(%esp)`(end) / `lea -0x44→0x8(%esp)`(start)、0x08508a7e
+    // `mov -0x44(%ebp),%eax; mov %eax,-0x14`(i=start)。把 it/cur 声明提到 start/end
+    // 之前后，4.4 逐槽复现 ORIG 的 it(-0x38)/cur(-0x40)/start(-0x44)/end(-0x48)；
+    // 浅区(found -0x19 / itemIdx -0x18 / i -0x14 / count -0x10 / type -0xc)与帧
+    // 0x58 均不变（探针 A=现形 复现我方旧槽组，B=本形 匹配 ORIG）。
+    // [G8InvenPvP 子代理 G8CInvSmall · 实测归零] 改后串行编译产物 /tmp/tu_CInventory.o
+    // （2026-09-10 23:49）对 ORIG 报告规范化逐条比对：239/239 指令，
+    // raw ndiff = 0 / STRUCT ndiff = 0 ⇒ 本件 identical；改前 4 槽错位
+    // （it -0x40/cur -0x48/start -0x38/end -0x3c）全消。勿再动本件声明序。
+    typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
+    Iterator it = items.begin();
+    std::pair<int, int> cur;
     int start;
     int end;
     // [判据⑩ 实测序] ORIG 槽深→浅 = found(-0x19) / i(-0x18) / count(-0x14) /
@@ -23,9 +38,6 @@ void CInventory::CalNeedSlot(int* out,
     int itemIdx;
     int i;
     unsigned int count;
-    typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
-    Iterator it = items.begin();
-    std::pair<int, int> cur;
     while (it != items.end())
     {
         found = false;

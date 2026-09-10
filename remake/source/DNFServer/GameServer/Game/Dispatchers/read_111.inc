@@ -22,7 +22,9 @@ int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
         //   shl $0x2,%eax; add -0x10(%ebp),%eax; add $0xd,%eax`（指针算术直传
         //   get_int 目标地址，无 value 局部槽、无独立写回）⇒ 删局部改直接取址；
         //   基址经 req 槽（-0x10）而非形参。
-        if (!packet.get_int(*reinterpret_cast<int*>(
+        // [G1-Dispatchers] ORIG 0x0825efxx 段重定位目标为 `_ZN9PacketBuf7get_intERj`
+        // （unsigned int&），我方传 int& 选到 `…7get_intERi`（p167 MISS/EXTRA 各 1）。
+        if (!packet.get_int(*reinterpret_cast<unsigned int*>(
                 reinterpret_cast<char*>(&req) + i * 4 + 0xd)))
         {
             return LineFunc(0x2bb,

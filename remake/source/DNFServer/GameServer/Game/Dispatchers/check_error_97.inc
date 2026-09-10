@@ -1,43 +1,38 @@
 unsigned int Dispatcher_GuildCargoPopItem::check_error(CUser* user, MSG_BASE& msg,
                                                ParamBase& param)
 {
-    if (user->get_state() == 3 && user->getCurCharacR() != 0)
-    {
-        int guildkey = user->get_charac_guildkey();     // ORIG 0x080da38c 后链
-        if (guildkey != 0)
-        {
-            // X1 位 A：ORIG 0x082301d8 此处是 `test;sete %al;test %al,%al;je` 物化岛
-            // （台账 ours_only 缺 sete/test），bool callee 用 (x == 0) 才出 sete；
-            // 裸 !boolcall() 反而出 xor 单段（技巧9/19 与技巧1 的分界）。
-            if ((bool)(user->IsExistGuildAgit() == 0))
-            {
-                return 0xb5;
-            }
-            {
-                int secu = GlobalData::s_pSecuProtectionField->Check(
-                    user, (SECURITY_PROTCTION)9);       // ORIG 0x08288a02
-                if (secu != 0)
-                    return secu;
-                // 位 C：ORIG 0x081d16ex 是 `mov 0x10(%ebp),%eax; mov 0xf(%eax),%ebx`
-                // —— packed 具名视图给单级 disp（技巧14/F），register 绑 %ebx 同时把
-                // 值钉进 callee-saved（消掉我方裸偏移写法的 add+mov 三步，并让
-                // prologue 回到 ORIG 的 `push %ebx; sub $0x24,%esp`）。
-                struct __attribute__((packed)) CargoPopParamView {
-                    char m_head[0xf];
-                    int m_itemIdx;                   // +0x0f
-                };
-                int itemIdx =
-                    reinterpret_cast<CargoPopParamView*>(&param)->m_itemIdx;
-                const CInventory* inven = user->getCurCharacInvenR();
-                // X1 位 B：ORIG 0x0850562a 之后是 `test %eax,%eax; jne` 直分支
-                // （int callee 免物化），我方 `!intcall()` 恒被折成 sete 岛 ⇒ 写 == 0。
-                if (inven->possible_to_insert(itemIdx) == 0)
-                    return 0xcb;
-                if (G_CDataManager()->find_item(itemIdx) == 0)   // ORIG 0x0835fa32
-                    return 0xc5;
-                return 0;
-            }
-        }
+    // [G1Frest 2026-09-10] ORIG 0x081d14aa 全形重写（逐条对照 0x081d14aa..0x081d15b1）：
+    //   ① 提前返回结构 + 各条件按 ORIG 极性/bool 物化（diamond `mov $1/%mov $0`、
+    //      `sete`、`xor $1`），旧码为嵌套 if + guildkey 具名局部（多 -0x18 槽、帧
+    //      0x28 vs ORIG `push %ebx; sub $0x24`）；
+    //   ② 0x081d154e `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)` —— itemIdx 视图
+    //      取自 **msg**（第 2 参；0xc=user/0x10=msg/0x14=param），旧码误用 param
+    //      ⇒ **参数错位真 bug**。
+    (void)param;
+
+    if ((bool)(user->get_state() != 3 || user->getCurCharacR() == 0))   // 0x081d14b7 起 diamond
+        return -1;
+    if ((bool)(user->get_charac_guildkey() == 0))                       // 0x081d14f0 `sete` 岛
         return 100;
-    }
-    return -1;
+    if (!user->IsExistGuildAgit())                                      // 0x081d150e `xor $1`
+        return 0xb5;
+
+    int secu = GlobalData::s_pSecuProtectionField->Check(               // ORIG -0x14 具名
+        user, (SECURITY_PROTCTION)9);                                   // 0x08288a02
+    if (secu != 0)
+        return secu;
+
+    // msg +0x0f（packed 具名视图，ORIG 单级 disp `mov 0xf(%eax),%ebx`）
+    struct __attribute__((packed)) CargoPopParamView {
+        char m_head[0xf];
+        int m_itemIdx;                   // +0x0f
+    };
+    CargoPopParamView* pv = reinterpret_cast<CargoPopParamView*>(&msg);  // ORIG -0x10
+    const CInventory* inven = user->getCurCharacInvenR();
+    // ORIG 0x0850562a 之后 `test %eax,%eax; jne` 直分支（int callee 免物化）⇒ 写 == 0。
+    if (inven->possible_to_insert(pv->m_itemIdx) == 0)
+        return 0xcb;
+    // ORIG 0x081d1584 区：`mov -0x10(%ebp),%eax; mov 0xf(%eax),%ebx` 二次重读（无缓存）
+    if (G_CDataManager()->find_item(pv->m_itemIdx) == 0)                 // ORIG 0x0835fa32
+        return 0xc5;
+    return 0;

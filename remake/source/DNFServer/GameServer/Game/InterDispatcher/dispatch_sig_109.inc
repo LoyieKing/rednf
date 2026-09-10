@@ -19,11 +19,12 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     if (user->alonePlay_Mode())
     {
-        // b28c-l23 P0 清绑：ORIG 0x084d2c4c 把 mode 常量直落 %esi、characNo 直落
-        // %ebx（跨链式 call 保活）；绑定违反 P0 已删，改普通具名局部（4.4 落槽
-        // ⇒ N96/N18a，P168a④ 判词），语义不变。[b28c-l23 修正] 仅删 asm("esi"/"ebx")
-        // 绑定，裸 register 保留（免槽直落形）。
-        register unsigned char modeE = 2;
+        // [G2A-PC P0 反向] ORIG 0x084d2c4c 段为 `movb $0x2,-0x9(%ebp)` +
+        //   `movzbl -0x9(%ebp),%esi`：mode 值**经栈槽**取出 ⇒ 原码是普通具名局部。
+        //   本 diff N 侧 `mov $0x2,%esi` + `and $0xff,%esi` 正是 `register` 免槽
+        //   直落形（反了）⇒ 去掉 register 恢复落槽。characNo 侧 ORIG 直落 %ebx
+        //   （跨链式 call 保活、无槽），故其 register 保留。
+        unsigned char modeE = 2;
         register unsigned int characNo = user->getCurCharacNo();
         GlobalData::s_guild_proxy_mgr->GetServerProxy(
             user->GetServerGroup())->SendReplyGuildInvite(characNo, modeE);
@@ -32,8 +33,8 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     if (user->GetGameOptionRef()->get_etc_option((ENUM_OPTION_ETC)0x1e) != 0)
     {
-        // b28c-l23 P0 清绑：同族第二份（ORIG 0x084d2cbd，slot -0x9）。
-        register unsigned char modeD = 3;
+        // 同族第二份（ORIG 0x084d2cbd `movb $0x3,-0x9(%ebp)` + `movzbl -0x9(%ebp),%esi`）。
+        unsigned char modeD = 3;
         register unsigned int characNo = user->getCurCharacNo();
         GlobalData::s_guild_proxy_mgr->GetServerProxy(
             user->GetServerGroup())->SendReplyGuildInvite(characNo, modeD);

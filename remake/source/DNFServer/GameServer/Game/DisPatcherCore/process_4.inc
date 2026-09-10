@@ -1,7 +1,6 @@
 int DisPatcher_SelectCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stSelectCharac& out = static_cast<stSelectCharac&>(param);
-    MSG_CHARAC_SELECT& req = *reinterpret_cast<MSG_CHARAC_SELECT*>(&msg);
 
     out.m_errNo = check_error(user, msg);
     if (out.m_errNo > 0)
@@ -14,6 +13,11 @@ int DisPatcher_SelectCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
                         __PRETTY_FUNCTION__,
                         out.m_errNo, user->get_acc_id());
     }
+
+    // [G5-ProcB] ORIG 0x081c638e param 槽 -0x10（函数头）→ 0x081c6405
+    // `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)`：msg 视图具名局部在两级 errNo
+    // 检查之后、resetSaveFlags() 之前初始化（函数头声明会多一条 store 且槽基下移）。
+    MSG_CHARAC_SELECT& req = *reinterpret_cast<MSG_CHARAC_SELECT*>(&msg);
 
     user->resetSaveFlags();
     if (user->GetCharacViewState(static_cast<char>(req.m_slot)) == 1)

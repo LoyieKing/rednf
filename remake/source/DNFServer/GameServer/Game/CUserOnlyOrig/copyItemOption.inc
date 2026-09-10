@@ -22,6 +22,8 @@ void CUser::copyItemOption(Inven_Item& dst, Inven_Item& src)
                // [b28d-solo-CUserOnlyOrig N7 封顶] 变参右起求值：ORIG m_fieldd→槽 -0x1c /
                // 位域→%edi；4.4 二者互换（m_fieldd→%edi、位域→槽）且位域多一条 movzbl
                // （uchar cast 形同产）。寄存器分配族，语义等价。
+               // [A06 2026-09-10 A/B 实测] `(unsigned char)(m_field & 0x1f)` 形（G6Sub3 试旋钮）
+               // 读数完全中性（96/95 条、ndiff 35=35）⇒ 按「codegen 轴不成即回滚」回退 N7 封顶。
                (unsigned)(dst.m_upgradeSep.m_field & 0x1f),
                dst.m_fieldd,
                (unsigned)dst.m_amp.getAbilityType() & 0xff,

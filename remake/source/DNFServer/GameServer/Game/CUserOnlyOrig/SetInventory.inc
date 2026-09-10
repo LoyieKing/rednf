@@ -28,34 +28,25 @@ bool CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
             break;
         }
     }
-    CInventory* inven = getCurCharacInvenW();
-    inven->m_avatarCoin.Set(sig->m_avatarCoin);  // +0x658 = m_avatarCoin
-    inven = getCurCharacInvenW();
-    inven->set_money(money);
-    inven = getCurCharacInvenW();
-    inven->SetCoin(coin);
-    inven = getCurCharacInvenW();
-    inven->SetPayCoin(payCoin);
-    inven = getCurCharacInvenW();
-    inven->SetEventCoin(eventCoin);
-    inven = getCurCharacInvenW();
-    inven->SetInvenData(1, inven1, 0x4a58);
-    inven = getCurCharacInvenW();
-    inven->SetInvenData(2, inven2, 0x1905);
-    inven = getCurCharacInvenW();
-    memcpy(reinterpret_cast<char*>(inven) + 0x1c, equipMirror, 0x53e);
-    inven = getCurCharacInvenW();
-    memcpy(reinterpret_cast<char*>(inven) + 0x55a, inven3 + 0x38b6, 0xf4);
+    // [P183/P52 去缓存] ORIG 全程无 inven 具名局部：每处 `call getCurCharacInvenW`
+    // 结果直接 `mov %eax,(%esp)` 作 this（如 0x0864d2b1/0x0864d398），旧稿 -0x20 槽
+    // 每处多 store+load 一对（10 处 ⇒ +20 条，且掩盖 ORIG 的 push %ebx 实参物化形）。
+    getCurCharacInvenW()->m_avatarCoin.Set(sig->m_avatarCoin);  // +0x658 = m_avatarCoin
+    getCurCharacInvenW()->set_money(money);
+    getCurCharacInvenW()->SetCoin(coin);
+    getCurCharacInvenW()->SetPayCoin(payCoin);
+    getCurCharacInvenW()->SetEventCoin(eventCoin);
+    getCurCharacInvenW()->SetInvenData(1, inven1, 0x4a58);
+    getCurCharacInvenW()->SetInvenData(2, inven2, 0x1905);
+    memcpy(reinterpret_cast<char*>(getCurCharacInvenW()) + 0x1c, equipMirror, 0x53e);
+    memcpy(reinterpret_cast<char*>(getCurCharacInvenW()) + 0x55a, inven3 + 0x38b6, 0xf4);
     for (int i = 0x17; i < 0x1a; ++i) {
-        // ORIG：循环内对 getCurCharacInvenW 重调两次（一次算目的地指针，一次取
-        // GetCreatureMgrW 的 this）——访问器结果禁缓存（战术 P183/P48）。
-        CInventory* invenW = getCurCharacInvenW();
-        user_creature::CCreatureMgr* mgr = getCurCharacInvenW()->GetCreatureMgrW();
-        mgr->LoadArtifact(i,
-            reinterpret_cast<Inven_Item*>(reinterpret_cast<char*>(invenW) + i * 0x3d + 0x1c));
+        // ORIG 0x0864d3f7 `lea 0xc(%eax),%ebx`：LoadArtifact 第三实参（元素指针）先物化
+        // %ebx 并跨两次 receiver 调用保活 ⇒ 单表达式链式（P52），禁具名 invenW/mgr（旧稿两槽）。
+        getCurCharacInvenW()->GetCreatureMgrW()->LoadArtifact(i,
+            reinterpret_cast<Inven_Item*>(reinterpret_cast<char*>(getCurCharacInvenW()) + i * 0x3d + 0x1c));
     }
-    inven = getCurCharacInvenW();
-    inven->SetInvenData(3, inven3, 0x39aa);
+    getCurCharacInvenW()->SetInvenData(3, inven3, 0x39aa);
     if (cargoCapacity == 0) {
         getCurCharacCargoW()->SetCapacity(8);
     }

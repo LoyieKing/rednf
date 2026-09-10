@@ -23,17 +23,29 @@ int Dispatcher_CreatureScriptMessage::dispatch_sig(CUser* user, PacketBuf& packe
     if (!user->getCurCharacInvenR()->GetCreatureMgrR()->IsEquippedCreature())
         return 0;
 
-    // +0x93：5 段读取（每段失败 → LineFunc 对应行号后 jmp 尾部）
+    // +0x93：5 段读取。[G1Csig] ORIG 直证：5 处 LineFunc 块**与判断同段就地**
+    // （orig[53:62]…orig[116:124]），失败即 `call LineFunc; jmp 共享出口`；我方原用
+    // goto 把 5 块搬到函数尾部（diff `insert orig[240] our[199:229]`）⇒ 改就地 return。
     if (!packet.get_byte((char&)chatType))
-        goto L_9cf3;
+        return LineFunc(0x9cf3,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     if (!packet.get_short(target))
-        goto L_9cf4;
+        return LineFunc(0x9cf4,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     if (!packet.get_int((unsigned int&)fromId))
-        goto L_9cf5;
+        return LineFunc(0x9cf5,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     if (!packet.get_int(msgLen))
-        goto L_9cf6;
+        return LineFunc(0x9cf6,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     if (!packet.get_str(msg, 0x100, msgLen))
-        goto L_9cf7;
+        return LineFunc(0x9cf7,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
 
     // +0x20d：chatType==7 或 ==1 → 继续读接收方信息
     if (chatType == 7 || chatType == 1)
@@ -68,24 +80,3 @@ int Dispatcher_CreatureScriptMessage::dispatch_sig(CUser* user, PacketBuf& packe
     G_GameWorld()->send_chat_msg(user, (char)chatType, target, fromId,
                                  msg, msgLen, 0, 0, (ENUM_NOTIPACKET)0x77);
     return 0;
-
-L_9cf3:
-    return LineFunc(0x9cf3,
-                    __PRETTY_FUNCTION__,
-                    0, 0);
-L_9cf4:
-    return LineFunc(0x9cf4,
-                    __PRETTY_FUNCTION__,
-                    0, 0);
-L_9cf5:
-    return LineFunc(0x9cf5,
-                    __PRETTY_FUNCTION__,
-                    0, 0);
-L_9cf6:
-    return LineFunc(0x9cf6,
-                    __PRETTY_FUNCTION__,
-                    0, 0);
-L_9cf7:
-    return LineFunc(0x9cf7,
-                    __PRETTY_FUNCTION__,
-                    0, 0);

@@ -6,14 +6,13 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
         G_CGameManager()->GetSharedServerMessageManager();
     if (local_20 != 0)
     {
-        const unsigned char sourceChannel =
-            pPkt->m_a;
-        if (sourceChannel != G_CEnvironment()->get_channel_no())
+        // P183：ORIG 无 sourceChannel 具名 byte 槽（`movzbl %al,%ebx` 直取）⇒ 内联表达式。
+        if (pPkt->m_a != G_CEnvironment()->get_channel_no())
         {
             local_20->UpdateServerMessageByBroadcast(
                 (int)pPkt->m_c,
-                const_cast<char*>(data + 0x11),
-                const_cast<char*>(data + 0x47),
+                const_cast<char*>(local_24 + 0x11),
+                const_cast<char*>(local_24 + 0x47),
                 pPkt->m_5b);
         }
         cMyTrace(__PRETTY_FUNCTION__,
@@ -22,9 +21,9 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
               (unsigned int)pPkt->m_b,
               (unsigned int)pPkt->m_c,
               pPkt->m_d,
-              data + 0x11,
+              local_24 + 0x11,
               pPkt->m_43,
-              data + 0x47,
+              local_24 + 0x47,
               pPkt->m_5b);
     }
 

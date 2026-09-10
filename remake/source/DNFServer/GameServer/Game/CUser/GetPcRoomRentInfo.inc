@@ -23,8 +23,13 @@ int CUser::GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig)
         const InstanceRentalSystem::RentalInfo& rental = *it;
         bool bInEquip = false;
         int slot = 0;
-        const CInventory* inven = getCurCharacInvenR();
-        if (inven->CheckExistItemInInventoryOrEquipment(rental.m_itemIndex, slot, bInEquip) == 1)
+        // 2026-09-10 gA（A 组）：ORIG 0x08676ab2..0x08676ad2 无 inven 指针槽
+        //   （`call getCurCharacInvenR` 返回值直接 `mov %eax,(%esp)` 作 this；实参先
+        //   物化：`lea -0x29(%ebp),%edx; mov %edx,0xc(%esp)`（&bInEquip）、
+        //   `lea -0x30(%ebp)`（&slot）、`mov 0x4(%eax),%ebx`（rental.m_itemIndex））
+        //   ⇒ 删具名 inven，改链式内联（P183 地址重物化铁律）。
+        if (getCurCharacInvenR()->CheckExistItemInInventoryOrEquipment(
+                rental.m_itemIndex, slot, bInEquip) == 1)
         {
             sig->m_entry[index].m_itemIndex = rental.m_itemIndex;
             sig->m_entry[index].m_field4 = rental.m_field8;

@@ -17,3 +17,6 @@ int Dispatcher_QueryCharacInfoMailbox::dispatch_sig(CUser* user, PacketBuf& pack
         return 0;
     }
     DB_ReqQueryCharacInfoMailbox::makeRequest((int)user->GetUID(), name);
+    // [G1-Dispatchers] ORIG 尾部 0x08226d5x 为 `mov $0x0,%eax`（return 0）；
+    // 原部件缺该 return（函数体由聚合器 } 闭合）⇒ 补齐，兼修未定义返回值。
+    return 0;

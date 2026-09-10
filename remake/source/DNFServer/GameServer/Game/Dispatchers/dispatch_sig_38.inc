@@ -44,8 +44,12 @@ int Dispatcher_UpgradeCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 
     // P48 去缓存每用点重取：ORIG 0x82a2a（isUpgradable 的 receiver 与
     // GetCapacity 源各独立重调 getCurCharacCargoR，共 4 次；不缓存进具名局部）。
+    // ORIG 段直证：扩容步长是**具名量**（`movl $0x10,-0xc(%ebp)` + 后续
+    // `add -0xc(%ebp),%ebx`），非内联立即数 ⇒ 补回具名常量（原字面形帧少 4 字节、
+    // slot/secu 槽整体上移 4）。
+    const unsigned int kAddCapacity = 0x10;
     if (!user->getCurCharacCargoR()->isUpgradable(
-            user->getCurCharacCargoR()->GetCapacity() + 0x10))
+            user->getCurCharacCargoR()->GetCapacity() + kAddCapacity))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x198, 0x13);
         return 0;
@@ -69,7 +73,7 @@ int Dispatcher_UpgradeCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 
     // 升级仓库容量（+0x10），失败回错误码 0x13
     if (!user->getCurCharacCargoW()->UpgradeCargo(
-            user->getCurCharacCargoR()->GetCapacity() + 0x10))
+            user->getCurCharacCargoR()->GetCapacity() + kAddCapacity))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x198, 0x13);
         return 0;

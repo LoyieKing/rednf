@@ -1,14 +1,17 @@
 int Dispatcher_UseRenameCard::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    stUseRenameCard& st = *reinterpret_cast<stUseRenameCard*>(&param);
+    // [G1Dproc 2026-09-11] ORIG 0x081e731a 起 槽序直证：msg(-0x1c) 先、st(-0x18) 后；
+    //   check_error 结果**直写 st+0x04**（call 后紧邻 `mov %eax,%edx; mov -0x18(%ebp),%eax;
+    //   mov %edx,0x4(%eax)` 三条，值先入 %edx = P211 档③）
+    //   ⇒ P0：无 `int err` 具名槽；两处使用均从 st.m_4 重读。
     char* pMsg = (char*)&msg;
+    stUseRenameCard& st = *reinterpret_cast<stUseRenameCard*>(&param);
 
-    int err = check_error(user, msg);
-    st.m_4 = err;
+    st.m_4 = check_error(user, msg);
 
-    if (err != 0)
+    if (st.m_4 != 0)
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1fe, (unsigned char)err);
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1fe, (unsigned char)st.m_4);
         return 0;
     }
 

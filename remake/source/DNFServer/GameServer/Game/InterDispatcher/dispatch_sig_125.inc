@@ -1,8 +1,12 @@
 int Inter_SecurityCardActivate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_SecurityCardActivatePktView* pPkt = reinterpret_cast<Inter_SecurityCardActivatePktView*>(data);
     if (user->get_state() <= 2)
         return 0;
+
+    // P324：ORIG `mov 0x10(%ebp),%eax; mov %eax,<S>` 落在 get_state 检查的 return 之后
+    //   （我方原把该赋值提到检查之前，多出一次栈槽往返）。
+    Inter_SecurityCardActivatePktView* pPkt =
+        reinterpret_cast<Inter_SecurityCardActivatePktView*>(data);
 
     if (pPkt->m_a == '\0')
     {

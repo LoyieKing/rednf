@@ -36,7 +36,10 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
     // 即持有**第 3 形参 itemIdx（ulong）**，旧码误用第 4 形参 b（uint）。
     if (itemIdx != 1)
     {
-        CItem* citem = G_CDataManager()->find_item((int)itemIdx);
+        // [G10 实验·P231/P52] ORIG 0x0832400x 无 citem 栈槽（浅区 store 集
+        // ORIG-only 0x14/0x57；我方 0x20/0x24/0x28 三槽）⇒ 值以 callee-saved
+        // 跨 IsAvatarItem 虚调保活。纯 register（非 asm 绑定，P0 合规）试形。
+        register CItem* citem = G_CDataManager()->find_item((int)itemIdx);
         if (citem == 0)
             return 0;
         if (citem->IsAvatarItem())  // vtable +0x10（IsAvatarItem）
@@ -50,12 +53,14 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
                 return 0;
             if (e != c)
                 return 0;
-            const std::vector<stAvatarTypeSelect_t>* sel =
-                (const std::vector<stAvatarTypeSelect_t>*)(
-                    ((CEquipItem*)citem)->getAvatarTypeSelect());
-            const stAvatarTypeSelect_t& selItem = sel->at(e);  // at(e)（const 重载）
-            int slotCount = selItem.m_field10;
-            if (c != 4 && slotCount != 0)
+            // 实测：帧 0xd4→0xc4（register citem）→0xc0；OURS-only 槽由 5 个降为 0；
+            // 报告 diff 481/472→439/430；TU 四数 176/319/3/11/104 不变 ⇒ 保留。
+            // [G10 实验·P0/P183/P157] ORIG 浅区 store 集只多 1 槽（0x14），我方多
+            // 3 槽（0x20/0x24/0x28 = sel 指针 / selItem 引用 / slotCount）⇒ 三点全
+            // 内联为单表达式（ORIG 每点重算 getAvatarTypeSelect()/at()，无 CSE）。
+            if (c != 4 &&
+                ((const std::vector<stAvatarTypeSelect_t>*)
+                     (((CEquipItem*)citem)->getAvatarTypeSelect()))->at(e).m_field10 != 0)
                 return 0;
         }
     }

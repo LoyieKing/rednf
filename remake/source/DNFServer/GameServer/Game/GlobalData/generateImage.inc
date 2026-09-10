@@ -1,3 +1,11 @@
+// [G7-sub 2026-09-11 判词] CaptchaGen::generateImage（ORIG T 0x080deade）：私有 .o 实测
+// ORIG 685 / 我方 682（gap 3，我方短）。slug 级差 10 处，逐条归因：
+//   · x87 控制字改舍入序列（`fldcw -0xec; fistpl -0xf0; fldcw -0xea; movzwl …;
+//     mov %ax,-0xec` ×7 处）两侧同构**仅槽号平移**（我方同序列在 -0xdc 等）⇒ N82/N85。
+//   · `flds/fmuls/fnstcw` 浮点链同构、槽基 -0x98/-0x94 vs 我方对应槽 ⇒ N82。
+//   · 其余为 `.rodata` 符号文本（我方 .o 无解析名）与对齐。
+// p167 调用点差集仅 `vector<int>::D2` 同址别名（ORIG nm 实测 D1=D2=0x08083dda）。
+// 结论：**封顶，无改动**（语义完成；残差 N82/N85 + 数据符号）。
 void CaptchaGen::generateImage(int width, int height, const unsigned short* text, int len,
                                const ImageOption& opt, GreyImage* image)
 {

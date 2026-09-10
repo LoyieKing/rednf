@@ -8,9 +8,13 @@ int Dispatcher_GoldTakeIncreasingAmount::process(CUser* user, MSG_BASE& msg, Par
         {
             return -1;
         }
-        stGoldTakeIncreasingAmount& p = static_cast<stGoldTakeIncreasingAmount&>(param);
+        // ORIG 槽序：msg 引用(-0x14) 先、param 引用(-0x10) 后；
+        //   0x081d?: `mov -0x14(%ebp),%eax; mov 0xd(%eax),%edx` 常量偏移读 +
+        //   `mov -0x10(%ebp),%eax; lea 0x4(%eax),%ebx`。原序相反且用
+        //   `*(int*)((char*)&req+0xd)`（产 `add $0xd,%eax` 形）。
         MSG_GOLD_TAKE_INCREASING_AMOUNT& req = reinterpret_cast<MSG_GOLD_TAKE_INCREASING_AMOUNT&>(msg);
-        p.m_4 = *(int*)((char*)&req + 0xd);
+        stGoldTakeIncreasingAmount& p = static_cast<stGoldTakeIncreasingAmount&>(param);
+        p.m_4 = req.m_overSkillTime;
         if (p.m_4 == 0xf68a)
         {
             CInventory* inven = (CInventory*)user->getCurCharacInvenW();

@@ -3,10 +3,18 @@ bool CUser::_CheckCompoundSkill(const CStackableItem* item, bool checkRecipe)
     static const char* PRETTY =
         "bool CUser::_CheckCompoundSkill(const CStackableItem*, bool)";
 
-    if (item->m_recipe174.m_field24 != 0 &&
-        isAffectedPremium((ENUM_PREMIUM_TYPE)7) == false)
+    // [G6Sub1 单旋钮·P225 推广/P133] ORIG 0x08670f2c..0x08670f59 为**两跳同落**形：
+    // `test %al,%al; je <主体>` + `call isAffectedPremium; xor $0x1,%eax; test %al,%al;
+    // je <主体>` + fall-through `mov $0x0,%eax; jmp 尾`（值无栈槽往返，P0）。
+    // 旧 `if (A && B)` 合并短路被 4.4 物化成 bool 岛：多出 `mov $1,%eax; jmp;
+    // mov $0,%eax; test %al,%al; je; mov $0,%eax; jmp`（4 条，即本件 gap 主项）。
+    // 拆成嵌套 if（各条件独立早退、共享同一失败出口）即逐条复现 ORIG 双跳。
+    if (item->m_recipe174.m_field24 != 0)
     {
-        return false;
+        if (isAffectedPremium((ENUM_PREMIUM_TYPE)7) == false)
+        {
+            return false;
+        }
     }
 
     if (item->m_recipe174.m_field25 != 0)

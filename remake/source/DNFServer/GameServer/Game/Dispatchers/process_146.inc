@@ -26,9 +26,11 @@ int Dispatcher_GuildCargoPopItem::process(CUser* user, MSG_BASE& msg, ParamBase&
     pkt.m_itemType = item->is_stackable() ? 1 : 0;              // CItem::is_stackable → +0x1e
     pkt.m_uit = req.m_field17;                                  // msg+0x17 → +0x1f
 
-    CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(
-        user->GetServerGroup());
-    proxy->SendTcpPacket((char*)&pkt, (int)pkt.packetSize);     // 长度=*(ushort*)(pkt+2)=0x23
+    // [G1Dproc 2026-09-10] ORIG 0x081d16b8（`movzwl -0x45(%ebp),%eax` = pkt+0x02 长度 →
+    //   %esi；`lea -0x47(%ebp),%ebx` = &pkt；this 链最后求值）⇒ 无 `proxy` 具名槽（P0）。
+    //   长度 = *(ushort*)(pkt+2) = 0x23
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendTcpPacket((char*)&pkt, (int)pkt.packetSize);
 
     user->m_historyLog.GuildCargoPopItem(
         (ENUM_GUILD_CARGO_HISTORY_REASON)0xa,

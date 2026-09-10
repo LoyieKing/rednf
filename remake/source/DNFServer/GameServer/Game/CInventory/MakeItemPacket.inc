@@ -93,6 +93,10 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         // 静态不可达但 ORIG -O0 实际发射，保留以对齐逐块结构。
         if (m_pEquipSlot[slot].m_addInfo != 0)
         {
+            // [G8InvenPvP 2026-09-10 · P227 实测无效（已回滚）] 本 4 处改
+            // `cMyTrace(...)(...)` 全表达式临时链后 ndiff 仍 184、指令 1081 不变
+            // ⇒ 本件残差属 P183 已收敛后的 N82 帧/槽族，非 trace 具名式所致，
+            // 维持原具名形。
             cMyTrace trace(__PRETTY_FUNCTION__, 0x758, 5);
             trace("[%s][%d]", __PRETTY_FUNCTION__, 0x758);
             return false;

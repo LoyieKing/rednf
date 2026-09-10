@@ -18,20 +18,25 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
         if (_checkValidUser(i) != 1)
             continue;
         char local_d = 1;
-        int* pi = &param[i];
-        *pi = m_member[i].m_pUser->getCurCharacInvenR()
+        // [G7-sub] ORIG 0x0859ef10..0x0859ef51：`shl $2,%eax; mov %eax,%ebx;
+        // add 0x18(%ebp),%ebx` + `mov %eax,(%ebx)` + `mov (%ebx),%eax` —— &param[i]
+        // 全程在 %ebx（callee-saved），**无指针槽** ⇒ 原码无具名指针（P183/P0）。
+        // 旧码 `int* pi = &param[i]` 落槽 -0x14（+1 store，每次解引用 +1 load，帧 +4）。
+        param[i] = m_member[i].m_pUser->getCurCharacInvenR()
                   ->check_item_exist(dungeon->m_entryRequiredItem2.m_itemIdx);
-        if (*pi == -1)
+        if (param[i] == -1)
         {
             flag = (unsigned char)i;
             local_d = 0;
         }
         else
         {
-            Inven_Item* piv = &items[i];
-            *piv = m_member[i].m_pUser->getCurCharacInvenR()
-                       ->GetInvenSlot(1, *pi);
-            if (piv->m_addInfo2 < dungeon->m_entryRequiredItem2.m_itemCount)
+            // ORIG 0x0859ef61..0x0859f011：&items[i] 亦全程在 %ebx
+            //（`imul $0x3d; mov %eax,%ebx; add 0x14(%ebp),%ebx`），逐字段拷贝 16 条
+            // 直写 `mov %eax,N(%ebx)` ⇒ 无具名指针（P0）。
+            items[i] = m_member[i].m_pUser->getCurCharacInvenR()
+                       ->GetInvenSlot(1, param[i]);
+            if (items[i].m_addInfo2 < dungeon->m_entryRequiredItem2.m_itemCount)
             {
                 flag = (unsigned char)i;
                 local_d = 0;
@@ -40,20 +45,18 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
         if (!local_d)
         {
             local_d = 1;
-            pi = &param[i];
-            *pi = m_member[i].m_pUser->getCurCharacInvenR()
+            param[i] = m_member[i].m_pUser->getCurCharacInvenR()
                       ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
-            if (*pi == -1)
+            if (param[i] == -1)
             {
                 flag = (unsigned char)i;
                 local_d = 0;
             }
             else
             {
-                Inven_Item* piv = &items[i];
-                *piv = m_member[i].m_pUser->getCurCharacInvenR()
-                           ->GetInvenSlot(1, *pi);
-                if (piv->m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
+                items[i] = m_member[i].m_pUser->getCurCharacInvenR()
+                           ->GetInvenSlot(1, param[i]);
+                if (items[i].m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
                 {
                     flag = (unsigned char)i;
                     local_d = 0;

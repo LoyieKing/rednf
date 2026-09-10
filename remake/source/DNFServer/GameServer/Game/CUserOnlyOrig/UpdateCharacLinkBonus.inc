@@ -21,3 +21,10 @@ void CUser::UpdateCharacLinkBonus(unsigned int exp, unsigned int gold,
 
     setCharacLinkBonusExp(0);
     setCharacLinkBonusGold(0);
+    // [G6Sub3 2026-09-10 复核判 N104+N132 封顶] 92/93、帧 0x20、槽位集(-0x14/-0xc)全等；
+    // 残差两项：①ORIG 0x086524f5 正常路径尾（CStreamGuard::D1 @0x0865253d + epilogue）
+    // **居函数最末**、unwind 块（0x08652549 `mov %edx,%ebx; mov %eax,%esi; … _Unwind_Resume`）
+    // 居中；4.4 把 unwind 压中段、正常尾块后移并多发一条 `jmp`（+1 = 全部 gap）⇒ N104
+    // 「EH 尾块相对序」。②数据地址差：`_ZN10GlobalData13s_stream_poolE`(0x940bd6c) /
+    // `_ZN10GlobalData10s_msgq_mgrE`(0x940bd68) / "user.cpp" 字符串在 .o 显示为
+    // `mov 0x0,%eax` / `$0x253`，属链接期段布局 ⇒ N132。语义零差。

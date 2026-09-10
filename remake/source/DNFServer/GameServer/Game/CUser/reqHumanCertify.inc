@@ -1,3 +1,8 @@
+// [b28d-GrpD 判词·等价 N] ORIG 0x0867f26e：唯一实差异是 put_binary 实参照搬对中
+//   的寄存器选择（ORIG `mov 0xa(%eax),%eax; mov -0xc(%ebp),%edx; add $0xe,%edx` vs
+//   我方 `mov 0xa(%eax),%edx; mov -0xc(%ebp),%eax; add $0xe,%eax`）—— 同址同值等价；
+//   其余为未解析重定位。字段偏移（msg+0x2/+0xa、m_capchaCertify 0xa 字节）与
+//   GenerateCleanPadVeriData 三出参序全一致 ⇒ 无语义缺口。
 bool CUser::reqHumanCertify()
 {
     if (!isHumanCertified())

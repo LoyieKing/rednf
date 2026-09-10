@@ -8,8 +8,9 @@ int Dispatcher_GuildMasterDelegate::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return LineFunc(0xa337, __PRETTY_FUNCTION__, 0, 0);
     }
-    unsigned int guildKey = (unsigned int)user->get_charac_guildkey();
-    if (guildKey == 0)
+    // ORIG 0x0820..：guildKey/characNo/group/proxy 全程寄存器（ebx/esi/edx）跨调用，
+    //   无具名栈槽（我方具名使帧 0x50→0x68、多 6 槽）；条件与取值各自重新调用 getter。
+    if (user->get_charac_guildkey() == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x9e, 0x22);
         return 0;
@@ -43,10 +44,8 @@ int Dispatcher_GuildMasterDelegate::dispatch_sig(CUser* user, PacketBuf& packet)
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    unsigned int characNo = (unsigned int)user->get_charac_no(-1);
-    ENUM_SERVER_GROUP group = user->GetServerGroup();
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(group);
-    proxy->SendGuildMasterDelegate(guildKey, characNo, masterNameLen,
-                                   masterName);
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendGuildMasterDelegate((unsigned int)user->get_charac_guildkey(),
+                                  (unsigned int)user->get_charac_no(-1),
+                                  masterNameLen, masterName);
     return 0;

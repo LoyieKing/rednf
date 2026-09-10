@@ -1,3 +1,11 @@
+    // [G7-sub 2026-09-10 复核] 逐段核对 ORIG 0x085bcb40..0x085bd1e7：
+    // ① ref/result 两局部 + 字段写序（+0x35 先于 +0x34）✓；② GetTournamentCurRound
+    // 两次调用（MakeReward 实参 / expRound，无缓存）✓；③ `goldRate<0→1.0f` 夹取、
+    // expRound-1 后 <0 夹取 ✓；④ map find/end const 形（0x085bcdd7/df2 两处 `_ZNKSt3map`）✓；
+    // ⑤ 循环内 PacketGuard 每轮构造（0x085bce4e `lea -0x4c`）+ `float deadInit=0.0f`
+    //    死槽（0x085bce5e）✓（P232 扩展：float 才发二段 mov）。
+    // 余差 2 条全为调用/字符串地址假差（.o 重定位未解析）⇒ 无可改项；p167 仅
+    // C1/C2、D1/D2 别名（P93）。
 void CParty::MakeTournamentReward(CTournamentDungeonReward& reward)
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS get_dungeon_index + 非 const map find/end 3 项 /

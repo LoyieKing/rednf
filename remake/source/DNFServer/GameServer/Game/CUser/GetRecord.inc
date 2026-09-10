@@ -1,5 +1,7 @@
 void CUser::GetRecord(SIG_LOAD_ETC* sig) const
 {
+    // 2026-09-10（G3CUser-B 复验）：槽集 ORIG/我方 各 4 槽、零平移零多余
+    //   （110:110 insn）⇒ 残余纯属跨版本 codegen（含 rep movsl vs memcpy lowering），判 N。
     // b28d-solo-CUser p167：ORIG 0x08677dd8 调 getBattleRecordRefR 3 次
     //   （begin/end/size，无 rec 缓存；我方缓存仅 1 次 ⇒ MISSING ×2），且序列化用
     //   结构整体赋值（rep movsl，报告实证）而非 memcpy call（我方 EXTRA memcpy ×1）

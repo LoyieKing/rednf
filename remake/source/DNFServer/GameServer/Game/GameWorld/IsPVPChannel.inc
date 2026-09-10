@@ -17,6 +17,13 @@ bool GameWorld::IsPVPChannel() const
         // `mov %ebx,%eax`（shl 前）两条中转——4.4 把 register ct 落 %ebx，
         // ORIG ct 留 %eax 不可造；试形单 if 短路（合并两条件）触发 N6 折叠
         // 反而劣化 ndiff 4→12（shr/and $1），故维持嵌套 if + register one。
+        // [G9WorldTimerLeague 2026-09-10 复核封顶] 12 形探针（/tmp/g9w_pred.cpp
+        // fA..fQ，P226 语句表达式/N6 抑制形在内）× 双后端（c6root 4.4.7 与
+        // cc1plus446bin 4.4.6 cc1plus，-march=i486 -mtune=generic）实测：
+        // 最优仍为现形 22 条 vs ORIG 21 条；fB/fO 落槽（27）、fC/fD/fG 触发 N6
+        // 位折叠（shr/and $1，23-25）、fE/fJ/fM/fP 24-25、fQ 23。ORIG 0x081424f2
+        // `cmp $0x10,%eax` 与 0x081424fe `mov %eax,%ecx` 复用同一 %eax（ct 全程
+        // 不落 callee-saved），4.4 恒落 %ebx ⇒ N96/N7+后端选择差，非源形可控。
         register unsigned int one = 1u << ct;
         if (one & 0x1e7f0)
             return true;

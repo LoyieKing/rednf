@@ -1,3 +1,9 @@
+// [G7-sub 2026-09-11 判词] RentalMachineDimension::checkAllRentalItemScript
+// （ORIG T 0x0826f022）：私有 .o 实测 ORIG **86 / 我方 86（gap 0）**，逐条规范化后
+// **零形差**（仅 call 目标文本：报告侧 Ghidra 标签 vs 我方真实重定位名）。
+// 注：本报告早前登记的 282/286 属**同名 PcRoom 版**（0x082708cc，在
+// checkAllRentalItemScript.inc，非本件）；本件（Dimension 版）实测全等。
+// 结论：**封顶，无改动**。
 bool RentalMachineDimension::checkAllRentalItemScript()
 {
     // ORIG 0x0826f028/0x0826f086/0x0826f0b9/0x0826f114：两循环的 begin()/end()

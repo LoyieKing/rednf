@@ -35,8 +35,10 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
         return 0;
     }
     db->fetch();
-    unsigned int tradeCnt = 0;
-    unsigned long long tradeGold = 0;
+    // P171/P328⑤：ORIG 此处（Acquire 之后）无 `movl $0x0,-0x1c/-0x24/-0x28`
+    // 预清（裸声明只占槽、不发指令；两值随后由 get_uint/get_ulonglong 写入）。
+    unsigned int tradeCnt;
+    unsigned long long tradeGold;
     db->get_uint(0, tradeCnt);
     db->get_ulonglong(1, tradeGold);
     CStreamGuard guard(

@@ -10,7 +10,13 @@ void CUser::set_server_fatigue_count(const short v)
     std::map<unsigned char, short>::iterator it = m_map8eb50.find(todayDay);
     if (it != m_map8eb50.end())
     {
-        it->second = static_cast<short>(it->second + v);
+        // b28d-G3C 2026-09-10（P167 调用点差集）：ORIG 0x0868d3a? 段只调
+        //   `_Rb_tree_iterator::ptEv` **一次**（`call ptEv; movzwl 0x2(%eax),%edx;
+        //   mov %edx,%ecx; movzwl -0x2c(%ebp),%edx; lea (%ecx,%edx,1),%edx;
+        //   mov %dx,0x2(%eax)` → 同一 %eax 读改写）。我方原 `it->second =
+        //   static_cast<short>(it->second + v);` 两次写 `it->second` ⇒ 两次 ptEv
+        //   调用（EXTRA ×1）。改复合赋值（单次 ->）。
+        it->second += v;
     }
     else
     {

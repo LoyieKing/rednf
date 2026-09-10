@@ -64,29 +64,25 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // key 打包：rarity@b0 | optionGrade@b1 | usableLevel@b2..3（ORIG 帧连续视图）。
-    const int rarity = proto->get_rarity();
-    const unsigned short usableLevel = (unsigned short)proto->getUsableLevel();
+    // [G1-Dispatchers] P0/P48：ORIG 调用序列（本项目逐 call 对齐）为
+    //   get_rarity → getUsableLevel → G_CDataManager → map::find → G_CDataManager → map::end
+    // ⇒ key 处不设 rarity/usableLevel 具名局部，且 G_CDataManager() 在 find/end 各取一次
+    //   （不得用 `priceTable` 引用缓存；p167 ORIG-only G_CDataManager x1、我方 EXTRA 引用槽）。
     const unsigned char optionGrade =
         (unsigned char)proto->GetRandomOptionGrade();
-    const int key = rarity | (optionGrade << 8) | ((int)usableLevel << 16);
-    std::map<int, int>& priceTable = G_CDataManager()->m_randomOption.m_map178;
-    std::map<int, int>::const_iterator found = priceTable.find(key);
-    if (found == priceTable.end())
+    const int key = proto->get_rarity() | (optionGrade << 8) | ((int)proto->getUsableLevel() << 16);
+    std::map<int, int>::const_iterator found =
+        G_CDataManager()->m_randomOption.m_map178.find(key);
+    if (found == G_CDataManager()->m_randomOption.m_map178.end())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 0x11);
         return 0;
     }
 
-    if (paySlot == 0xffff)
-    {
-        const int goldCost = found->second;
-        if (user->getCurCharacInvenR()->get_money() < goldCost)
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 10);
-            return 0;
-        }
-    }
-    else
+    // [G1-Dispatchers] 分支物理序按 ORIG 调用序列定：`getCurCharacInvenR → GetInvenSlot`
+    // （scroll 段）出现在 `getCurCharacInvenR → get_money`（gold 段）之前 ⇒ 源码把
+    // 「非 0xffff（卷轴）」写在 if 直落侧（P47/P194 块序）。
+    if (paySlot != 0xffff)
     {
         Inven_Item scroll = user->getCurCharacInvenR()->GetInvenSlot(1, paySlot);
         if (scroll.m_addInfo < 1)
@@ -95,11 +91,22 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
             return 0;
         }
     }
+    else
+    {
+        const int goldCost = found->second;
+        if (user->getCurCharacInvenR()->get_money() < goldCost)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 10);
+            return 0;
+        }
+    }
 
     RandomOption* opts = &item->m_random.m_random;
+    // ORIG 40..42：give_option 实参位重取 getItemGroupName/getUsableLevel/get_rarity
+    // （不缓存首值）⇒ 实参内联，禁止复用 key 段的值。
     const bool gave = GlobalData::g_randomOptionHandle->give_option(
-        (unsigned long)item->m_addInfo, (ENUM_RARITY)rarity,
-        (int)usableLevel, proto->getItemGroupName(),
+        (unsigned long)item->m_addInfo, (ENUM_RARITY)proto->get_rarity(),
+        (int)proto->getUsableLevel(), proto->getItemGroupName(),
         (int)proto->GetRandomOptionGrade(), opts);
     if (!gave)
     {

@@ -28,11 +28,14 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     }
 
-    unsigned char recvType = user->GetReceivedRequestType();
     // [b28d] P17/P261：ORIG 0x081f09b3 起为 switch 二分决策树
     // （cmp $6/je → 09f0、cmp $6/jg → 09c4、cmp $5/je → 09d0、cmp $7/je → 09d0、
     // cmp $8/je → 09f0、jmp default 0a10），非 if-else 链。
-    switch (recvType)
+    // [G5-SigA] P0：ORIG 0x081f09xx 为 `call GetReceivedRequestType; movsbl %al,%eax;
+    // cmp $0x6,%eax`（**无具名槽**，直接 32 位提升后比较）。原具名
+    // `unsigned char recvType` 多出 `mov %al,-0x99(%ebp); movzbl -0x99(%ebp),%eax`
+    // 2 条，且该 1B 槽使帧 0xec→0xf0（fn_diff_tu 实测 sub $0xf0 vs ORIG $0xec）。
+    switch ((char)user->GetReceivedRequestType())
     {
     case 5:
     case 7:

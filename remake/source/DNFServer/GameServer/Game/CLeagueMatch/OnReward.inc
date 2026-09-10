@@ -1,5 +1,11 @@
 void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
 {
+    // [G9WorldTimerLeague 2026-09-10 复核] 成员 disp / 立即数多重集扫描
+    // （ORIG 切片 vs fresh .o）：唯一 OURS-only {0x10:3, 0x80:3, 0x1c:3}
+    // 与 ORIG-only {0xffffff80:3} 全部落在 `add $0x10` / `sub $0xffffff80`
+    // （= add 0x80，ORIG 0x0855ed34 / 0x0855ee4e / 0x0855ef48 三处）与
+    // stride-0x1c 强度归约链上 ⇒ N125/N4（4.1 lea+立即数拆分 vs 4.4 shl/add）
+    // + N107 族，无语义缺口；p167 CLEAR（仅 C1/C2·D1/D2 同址别名对）。
     // ---- 结果包（ORIG 0x0855eb37 call W Packet_PvPResult::C1Ev 0x08568dc6，
     //       重建侧已有该 W 符号（PacketHeader(0xfa5,0x80)），改栈对象真 ctor；
     //       原手写字段展开含 reversed1/m_connNo 额外清零，属发明语义已删——

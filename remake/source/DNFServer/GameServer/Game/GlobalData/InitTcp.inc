@@ -1,3 +1,11 @@
+// [G7-sub 2026-09-11 判词] CPCRoomServerProxy::InitTcp（ORIG T 0x084718e2）：私有 .o
+// 实测 ORIG 73 / 我方 71（gap 2，我方短）。逐条对照（/tmp/g7c/fdiff.py --side）：
+//   · 0x0847196d..0x084719c5 ORIG 在 `call cMyTrace::C1` **之前**右起求 varargs 并
+//     跨 call 保活（0x0847197c strerror→%ebx、0x08471983 errno→%edi、
+//     0x08471985 `mov -0x1c(%ebp),%esi`），我方 4.4 恒 ctor 后求且 errno 落 %esi、
+//     ret 从槽重读 ⇒ 缺 `push %edi/pop %edi`（N80，已由 /tmp/l7 probe 否定三形）。
+//   · 帧 0x4c vs 0x40：cMyTrace 局部槽 -0x2c vs -0x1c（N82 槽基）。
+// p167 调用点差集 CLEAR（8/8，仅别名）。结论：**封顶，无改动**（语义无缺口）。
 bool CPCRoomServerProxy::InitTcp()
 {
     if (m_ip.length() == 0 || m_tcpPort == 0)

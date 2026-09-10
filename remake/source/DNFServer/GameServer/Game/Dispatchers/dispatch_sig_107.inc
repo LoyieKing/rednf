@@ -5,7 +5,8 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
     //   uid@0x12, characNo@0x16, auctionId[8]@0x1a。
     static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
 
-    unsigned char payType = 0;
+    // ORIG 0x08214b96：[4] `lea -0x29(%ebp),%eax` 直取址、无 `movb $0x0` 预清（P328⑤）。
+    unsigned char payType;
     if (packet.get_byte(payType) != 1)
         return LineFunc(0xc47f, __PRETTY_FUNCTION__, 0, 0);
     if (payType > 1)
@@ -28,8 +29,12 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         PCK_AUCTION_REGIST_CANCEL_GP pck;
         char* const body = reinterpret_cast<char*>(&pck);
-        *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
-        *reinterpret_cast<int*>(body + 0x16) = user->getCurCharacNo();
+        // ORIG [64]/[67]：`mov %eax,-0x39(%ebp)` / `mov %eax,-0x35(%ebp)`
+        //   —— uid/characNo 具名 int 槽（我方可变体：直接 lea 链 ⇒ 帧 +0x10）。
+        unsigned int uid = user->GetUID();
+        int characNo = user->getCurCharacNo();
+        *reinterpret_cast<unsigned int*>(body + 0x12) = uid;
+        *reinterpret_cast<int*>(body + 0x16) = characNo;
         if (packet.get_binary(body + 0x1a, 8) != 1)
             return LineFunc(0xc4b1, __PRETTY_FUNCTION__, 0, 0);
         GlobalData::s_cera_auction_proxy->SendPacket(
@@ -39,8 +44,11 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         PCK_AUCTION_REGIST_CANCEL_GA pck;
         char* const body = reinterpret_cast<char*>(&pck);
-        *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
-        *reinterpret_cast<int*>(body + 0x16) = user->getCurCharacNo();
+        // ORIG [97]/[100]：同上（GA 支复用 -0x39/-0x35 槽）。
+        unsigned int uid = user->GetUID();
+        int characNo = user->getCurCharacNo();
+        *reinterpret_cast<unsigned int*>(body + 0x12) = uid;
+        *reinterpret_cast<int*>(body + 0x16) = characNo;
         if (packet.get_binary(body + 0x1a, 8) != 1)
             return LineFunc(0xc4c4, __PRETTY_FUNCTION__, 0, 0);
         GlobalData::s_auction_proxy->SendPacket(

@@ -19,8 +19,9 @@ int Dispatcher_ConnectP2PAfterAssault::dispatch_sig(CUser* user, PacketBuf& pack
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    char slots[4];                                         // -0x11..-0xe（base -0x11）
-    slots[0] = 0; slots[1] = 0; slots[2] = 0; slots[3] = 0;
+    // [G1Csig] ORIG 0x08206cfa（size 0x216）为**单条** `movl $0x0,-0x11(%ebp)`（4 字节一次清）；
+    // 我方 4 句独立赋值产 4 条 `movb $0x0,-0x19/-0x18/-0x17/-0x16` ⇒ 改聚合初始化。
+    char slots[4] = {0, 0, 0, 0};                          // -0x11..-0xe（base -0x11）
     char team = -1;                                        // -0x12（local_16）
     for (int i = 0; i < (int)count; i++)
     {
@@ -43,13 +44,12 @@ int Dispatcher_ConnectP2PAfterAssault::dispatch_sig(CUser* user, PacketBuf& pack
                             0, 0);
         }
     }
-    pvp_assault::CAssaultMgr* mgr = pvp_assault::GetInstanceAssaultMgr();   // 0x082350a0
-    // X2 形（同 Dispatcher_ConnectP2PAssault::dispatch_sig，Main 批准铺池）：
-    // 绑 %eax 具名 unsigned char + ^= 1 ⇒ ORIG 单段 `xor $1,%eax; testb %al,%al`。
-    unsigned char p2pBad =
-        (unsigned char)mgr->OnConnectP2PAfterAssault(user, slots, (int)count);
-    p2pBad ^= 1;
-    if (p2pBad)
+    // [G1Csig 实测] 具名 mgr 与具名 unsigned char p2pBad 各占 1 槽（我方 -0xd 为本函数
+    // 独有槽、count/team/slots 全体下移 1~2 字节，diff our[111:114] `mov %al,-0xd;
+    // xorb $1,-0xd; cmpb $0,-0xd`）；ORIG 为 `call; xor $1,%eax; test %al,%al` 纯寄存器
+    // ⇒ 去两个具名：GetInstanceAssaultMgr() 链式直调 + `!call` 内联取反（P0/P226）。
+    if (!pvp_assault::GetInstanceAssaultMgr()   // 0x082350a0
+             ->OnConnectP2PAfterAssault(user, slots, (int)count))
     {
         return LineFunc(0xa18f,
                         __PRETTY_FUNCTION__,

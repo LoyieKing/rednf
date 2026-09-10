@@ -1,4 +1,7 @@
 bool CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* out) const
+    // 2026-09-10（G3CUser-B 复验）：栈槽集 ORIG/我方 **均为 0**（本函数无任何标量局部槽，
+    //   682:686 insn）；残余 4 条来自 4.4 对 `m_characList[i]` 链式 operator[] 的
+    //   调用序列/寄存器形（每字段重调 ~64 次已按 ORIG 逐点展开）⇒ N 族封顶，不动。
     // b28c-L5 SIGFIX（Main 已代落 CUser.h:3121）：ORIG @0x0864bdba 全部出口只写
     //   `mov $0x1/$0x0,%eax`（P159 尾形）+ 唯一外部消费点 GetCharacInfo @0x0864bdf2
     //   `call; xor $0x1,%eax; test %al,%al; je`（P22/P168a① bool callee 直判形）。

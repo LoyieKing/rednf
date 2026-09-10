@@ -1,10 +1,13 @@
 int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_AuctionResultBuyItemApiecePktView* pPkt = reinterpret_cast<Inter_AuctionResultBuyItemApiecePktView*>(data);
-    if (user == 0)
+    if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
 
-    if (pPkt->m_0 !=               // msg+0x0 characNo
+    // P324：ORIG 084d7ca6 +0x018 `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)` 落在 user==0 检查之后。
+    Inter_AuctionResultBuyItemApiecePktView* pPkt =
+        reinterpret_cast<Inter_AuctionResultBuyItemApiecePktView*>(data);
+
+    if (pPkt->m_0 !=                                  // ORIG 084d7caf +0x021 `mov (%eax),%eax`
         user->getCurCharacNo())
         return 0;
 
@@ -24,18 +27,19 @@ int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int 
     packet.put_header(1, 0x14f);
     packet.put_byte(
         (int)pPkt->m_8);
-    if (pPkt->m_8 == 0)
+    if (pPkt->m_8 == 0)                               // ORIG 084d7d9c +0x10e `movzbl 0x8(%eax),%eax`
     {
-        const int money = pPkt->m_4;  // msg+0x4
-        CInventory* inven =
-            static_cast<CInventory*>(user->getCurCharacInvenW());
+        // P0：ORIG 084d7dab +0x11d `mov 0x4(%eax),%ebx`（跨 getCurCharacInvenW 调用保存在寄存器，
+        //   无具名 money/inven 栈槽）⇒ 原码为链式单表达式，实参先算、receiver 后算。
         const int gained =
-            inven->gain_money(money, (eMoneyAddReason)0x14, true, 0);
-        if (gained < money)
+            static_cast<CInventory*>(user->getCurCharacInvenW())
+                ->gain_money(pPkt->m_4, (eMoneyAddReason)0x14, true, 0);
+        // ORIG 084d7de3 +0x155 `mov 0x4(%eax),%eax; cmp -0xc(%ebp),%eax; jle` ⇒ 原码 `pPkt->m_4 > gained`
+        if (pPkt->m_4 > gained)
         {
             user->SendMoneyFullReason(
                 (ENUM_MONEY_FULL_REASON)0,
-                (unsigned long)money, (unsigned long)gained);
+                (unsigned long)pPkt->m_4, (unsigned long)gained);
         }
         packet.put_byte(
             (int)pPkt->m_9);

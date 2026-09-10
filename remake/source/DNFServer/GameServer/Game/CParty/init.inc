@@ -1,6 +1,10 @@
 void CParty::init()
 {
     // b28d-solo-CParty2：pad 区已字段化（m_traceMobDieHack），余差 N82 帧/槽。@0x859a974
+    // [G7-sub 复核] 全函数仅 1 处实质差：ORIG 0859aa5f `lea 0x1(%eax),%edx` vs
+    // 我方 `add $0x1,%eax; mov %eax,%edx`（m_titleIndex = get_rand_int(0xff)+1）——
+    // 4.1 的 lea-fold 对 4.4 不成立；前轮已试 (unsigned char) 窄化/(char) 截断/直赋
+    // 三形（均产 add+mov，203→203 不降）⇒ 判 N1 封顶，本轮不重复试形。
     m_traceMobDieHack.reportHackInfo();
     m_traceMobDieHack.reset();
     for (int i = 0; i <= 3; ++i)

@@ -52,12 +52,17 @@ bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     }
 
     std::vector<std::pair<int, int> > giveVec;
-    char secondGrow = m_parent->getCurCharSecondGrowType();
-    char firstGrow = m_parent->getCurCharFirstGrowType();
-    CCharacter* chars = (CCharacter*)G_CDataManager()->m_characList;
-    // 同上（D06 配对 bool 化）：ORIG 0x08608xxx 段为 1 字节 bool 槽。
-    bool got = chars[m_parent->get_charac_job()].get_give_skill(
-        firstGrow, secondGrow, giveVec, 0);
+    // [g11-slot 2026-09-10] P0/P183 去具名局部（直证）：ORIG 0x0860832f
+    // `movsbl %al,%esi`（secondGrow 直进 %esi）、0x0860833f `movsbl %al,%ebx`
+    // （firstGrow 直进 %ebx）、0x08608347 `mov 0x14(%eax),%edi`（chars 直进
+    // %edi，随后 `imul $0x7dc` + `lea (%edi,%eax,1),%edx`）——全部无栈槽。
+    // 我方旧形三个具名局部各占一槽（-0x42/-0x41/-0x40 的 store+load 往返）。
+    // 同上（D06 配对 bool 化）：ORIG 0x0860837f 为 1 字节 bool 槽。
+    bool got = ((CCharacter*)((char*)G_CDataManager()->m_characList +
+                              m_parent->get_charac_job() * 0x7dc))
+                   ->get_give_skill(
+                       m_parent->getCurCharFirstGrowType(),
+                       m_parent->getCurCharSecondGrowType(), giveVec, 0);
     if (!got)
     {
         return false;

@@ -7,15 +7,31 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
 
     out.m_errNo = 0;
     Inven_Item items[2];
-    CItem* baseItems[2] = { 0, 0 };
-    const unsigned short slotPos[2] = { req.m_equipSlot0, req.m_equipSlot1 };
+    // [G5-ProcB] ORIG 0x081d6cec `mov %eax,-0x44(%ebp,%ebx,4)` 直接落数组槽，
+    // 其前无 `movl $0x0` 清零 ⇒ 原码 `CItem* baseItems[2];` 无 `= {0,0}`
+    // （旧文多 2 条 movl）。
+    CItem* baseItems[2];
+    // [G5-ProcB] ORIG 0x081d6b57 `mov -0x3c(%ebp),%eax; movzwl 0xd(%eax,%edx,2),%eax;
+    // movswl %ax,%esi` ⇒ 两槽位不拷入本地数组，直接以 msg 为基址索引读
+    // （0x0d + i*2）。旧文 `const unsigned short slotPos[2] = {...}` 多 1 条
+    // movl 清零 + 2 条读存（数组落在 -0x48，索引变 `movzwl -0x48(%ebp,%eax,2)`）。
+    #pragma pack(push, 1)
+    struct RegenROView {
+        char m_head[0xd];
+        unsigned short m_slots[2];   // +0x0d/+0x0f
+    };
+    #pragma pack(pop)
     bool allSealable = true;          // ORIG local_36（任一槽 m_field0!=1 即 false）
     unsigned char reSealCount = 0;
 
     for (int i = 0; i < 2; ++i)
     {
-        const CInventory* invenR = user->getCurCharacInvenR();
-        items[i] = invenR->GetInvenSlot((INVEN_TYPE)1, (int)slotPos[i]);
+        // [G5-ProcB] ORIG 0x081d6b62 `call getCurCharacInvenR` → 结果留在 %eax 跨
+        // imul/lea 直作 0x081d6b8e `mov %eax,0x4(%esp)`（GetInvenSlot this 实参），
+        // 无 invenR 具名槽。
+        items[i] = user->getCurCharacInvenR()->GetInvenSlot(
+            (INVEN_TYPE)1,
+            (int)(short)reinterpret_cast<const RegenROView*>(&req)->m_slots[i]);
         if (items[i].isEmpty() || !items[i].isEquipableItemType() ||
             items[i].m_random.m_random.empty())
         {
@@ -41,7 +57,9 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
             out.m_errNo = secuErr;
             return 0;
         }
-        if (user->CheckItemLock(1, (int)(short)slotPos[i]))
+        if (user->CheckItemLock(
+                1,
+                (int)(short)reinterpret_cast<const RegenROView*>(&req)->m_slots[i]))
         {
             out.m_errNo = 0xd5;
             return 0;
@@ -53,8 +71,12 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
     }
     // ORIG：reSealCount=(uchar)(short)fistp(0.5f+(r0+r1)/2.0f)（浮点常量 0x3f000000/0x40000000）
     reSealCount = (unsigned char)(short)(
-        0.5f + (float)((unsigned int)items[0].GetReSealCount() +
-                       (unsigned int)items[1].GetReSealCount()) / 2.0f);
+        // [G5-ProcB] ORIG 0x081d6e49 `mov %eax,-0x14c(%ebp)` / 0x081d6e4f
+        // `fildl -0x14c(%ebp)`：ORIG 是 **signed int**→float（fildl）；旧文
+        // `(unsigned int)` 使 4.4 走无符号修正路径（零扩展 64 位 + `fildll`，多
+        // `mov $0x0,%edx; mov %edx,SLOT` 两条）。
+        0.5f + (float)((int)items[0].GetReSealCount() +
+                       (int)items[1].GetReSealCount()) / 2.0f);
 
     // [BigDispatchCore] **语义完整优先，+41 行形态代价，Main 2026-09-09 裁定** ——
     // 本件 ndiff 216 → 257 是**已裁定的正确结果**，后来泳道请勿以“数字变差”为由回滚。
@@ -94,7 +116,9 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
     for (int i = 0; i < 2; ++i)
     {
         if (user->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)1, (int)slotPos[i], 1, (eItemDelReason)0x2e, true) != 1)
+                (INVEN_TYPE)1,
+                (int)(short)reinterpret_cast<const RegenROView*>(&req)->m_slots[i], 1,
+                (eItemDelReason)0x2e, true) != 1)
         {
             out.m_errNo = 0x13;
             return 0;

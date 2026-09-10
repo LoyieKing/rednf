@@ -35,31 +35,36 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
     // [A06 2026-09-10 P226 扩展 试行记录·已回退] ORIG 0x086640c5 段 env/now 无槽 + 短路岛
     // `mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je` ⇒ 试语句表达式形实测**反劣**
     // （205→210 条：4.4 对语句表达式岛在多条件链上产两处岛/多 5 条）⇒ 回退。
-    bool gmTimeActive = false;
+    // [A06 2026-09-10 结果] 去 bool 槽 + 短路合写后 200→197 条、行级 diff 325→132；
+    // 残余 6 条 = ORIG 尾部 4 个 `jmp+nop` 中继岛（+0x37d/+0x380/+0x383/+0x386，均跳
+    // +0x387），4.4 对同目标多源恒 jump-thread（P223 负例族，待独立复查）。
+    // [A06 2026-09-10 P0/P198②] ORIG 本段 **env/now 皆无栈槽**（0x086640c5 `call
+    // G_CEnvironment` 后直接 `mov 0x378(%eax),%eax`；`call getCurSec` 后直接
+    // `cmp $0x478e7050,%eax; ja`），且无具名 bool 槽（`mov $1/%eax; …; mov $0/%eax;
+    // test %al,%al; je`=4.1 对整体 && 的寄存器物化）⇒ 具名 `bool gmTimeActive` 与
+    // env/now 局部各多一对 store/load。改为**单一短路 if**（P133 合并短路），
+    // 内层守卫嵌套（两失败出口同目标）。
+    if (G_CEnvironment()->m_serverEnvir.m_serverGroup == 10 &&
+        GlobalData::s_systemTime_.getCurSec() < 0x478e7051u)
     {
-        CEnvironment* env = G_CEnvironment();
-        // CEnvironment+0x378 = m_serverEnvir.m_serverGroup 整数==10 → gm server
-        unsigned int now = GlobalData::s_systemTime_.getCurSec();
-        if (env->m_serverEnvir.m_serverGroup == 10 && now < 0x478e7051u)
-            gmTimeActive = true;
-    }
-    if (gmTimeActive && reason != (eChangeGrowTypeReason)0x1 && secondGrew == 0)
-    {
+      if (reason != (eChangeGrowTypeReason)0x1 && secondGrew == 0)
+      {
         char msg[256];
         strncpy(msg, g_scriptStringManager_.findString(4, "game_server_msg_13", 0), 0xff);
         Inven_Item gift;
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             g_scriptStringManager_.findString(4, "game_server_msg_09", 0),
             gift, 150000, getCurCharacNo(), msg, strlen(msg), 0, GetServerGroup(), 0, 0);
+      }
     }
 
     // [A06 2026-09-10 P226 扩展 试行记录·已回退] ORIG 0x0866414d 段同形（无槽短路岛）；
     // 两条语句表达式同批实测净 +5 条（含本段）⇒ 一起回退。
-    bool premiumOn =
-        (isAffectedPremium((ENUM_PREMIUM_TYPE)0x10) == true) &&
-        (GlobalData::s_systemTime_.getCurSec() <= 0x46e1bbd0u);
-    if (premiumOn && reason != (eChangeGrowTypeReason)0x1 && secondGrew == 0)
+    if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x10) == true &&
+        GlobalData::s_systemTime_.getCurSec() <= 0x46e1bbd0u)
     {
+      if (reason != (eChangeGrowTypeReason)0x1 && secondGrew == 0)
+      {
         // ORIG 0x08664185：`call getCurCharacInvenR; … call GetInvenRef(0,0xb);
         // mov 0x2(%eax),%eax; sub $0x65d6,%eax; cmp $0x4,%eax` —— 两 accessor 结果
         // **均无具名槽**（inven/ref 旧形各多一对 store/load，P0 判据⑦）⇒ 内联链式。
@@ -78,4 +83,5 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
                 g_scriptStringManager_.findString(4, "game_server_msg_08", 0),
                 gift, 0, getCurCharacNo(), msg, strlen(msg), 0, GetServerGroup(), 0, 0);
         }
+      }
     }

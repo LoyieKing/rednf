@@ -11,8 +11,10 @@ int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
     if (secuErr != 0)
         return secuErr;
 
-    const CInventory* invR = user->getCurCharacInvenR();
-    Inven_Item consumeSlot = invR->GetInvenSlot(INVEN_TYPE_EQUIP, m.m_consumeSlot);
+    // [G1-Dispatchers] P48：ORIG 两处 GetInvenSlot 各自重取 `getCurCharacInvenR()`
+    // （p167 ORIG-only ×1；我方原用 invR 缓存 ⇒ 少一次调用）。故不设具名 invR。
+    Inven_Item consumeSlot =
+        user->getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_EQUIP, m.m_consumeSlot);
     if (consumeSlot.m_addInfo != m.m_consumeItemIdx)
         return 0x11;
     if (consumeSlot.m_addInfo2 <= 0)
@@ -27,7 +29,8 @@ int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
     if (!consume->IsAvatarOptionChangeItem())
         return 0x11;
 
-    Inven_Item avatarSlot = invR->GetInvenSlot(INVEN_TYPE_AVATAR, m.m_avatarSlot);
+    Inven_Item avatarSlot =
+        user->getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, m.m_avatarSlot);
     if (avatarSlot.m_addInfo != m.m_equipItemIdx)
         return 0x11;
 

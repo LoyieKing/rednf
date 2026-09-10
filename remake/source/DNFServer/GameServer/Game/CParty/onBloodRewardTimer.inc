@@ -30,9 +30,12 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
             }
         }
         m_battleField.setBloodState((ENUM_BLOOD_STATE)4);
-        int key = gen_timer_key((TIMER_MESSAGE)0x24);
+        // [G7-sub] P0 槽律：ORIG 0x085b6c9d `call gen_timer_key` 后 `mov %eax,%esi`
+        // （0x085b6cca `mov %esi,0x14(%esp)`）—— 结果**无栈槽** ⇒ 原码为实参表达式，
+        // 无 `int key` 具名量；我方原 -0x4c 槽（帧 +0x10 之一）已删。
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
-                                    (TIMER_MESSAGE)0x24, 8, key, 0x24);
+                                    (TIMER_MESSAGE)0x24, 8,
+                                    gen_timer_key((TIMER_MESSAGE)0x24), 0x24);
     }
     else if ((int)msg == 0x24)
     {

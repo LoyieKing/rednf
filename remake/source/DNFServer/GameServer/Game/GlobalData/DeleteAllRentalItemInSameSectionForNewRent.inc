@@ -18,11 +18,16 @@ void DeleteAllRentalItemInSameSectionForNewRent(
         // `getCurCharacInvenR` 结果**直传** CheckExist（**无 invR 槽**）⇒ 删
         // `const int itemId` 与 `CInventory* invR` 两具名局部（我方旧形多 4 条往返：
         // itemId -0x10 / invR -0xc 各一条 store + 一条 load），使用点内联重读。
+        // [G7 恢复具名迭代器引用·P0 直证] ORIG 0x08271869 `call deEv; mov %eax,-0xc(%rbp)`
+        // ⇒ 原码有具名引用 `RentalInfo& info = *it;`（槽往返），0x08271910 复读该槽
+        // （`mov -0xc(%ebp),%eax; mov 0x4(%eax),%eax`）；旧码逐点写 `(*it).m_itemIndex`
+        // ⇒ p167 我方 +1 `deEv`（多一次迭代器解引用）。P0：ORIG 有槽往返必须有具名局部。
+        InstanceRentalSystem::RentalInfo& info = *it;
         int slot = 0;
         bool isEquip = false;
         if (!const_cast<CInventory*>(user.getCurCharacInvenR())
                  ->CheckExistItemInInventoryOrEquipment(
-                     (*it).m_itemIndex, slot, isEquip))
+                     info.m_itemIndex, slot, isEquip))
         {
             continue;
         }
@@ -45,6 +50,6 @@ void DeleteAllRentalItemInSameSectionForNewRent(
         InstanceRentalSystem::DeletedRentItem entry;
         entry.m_slot = (unsigned short)slot;
         entry.m_bEquip = isEquip;
-        entry.m_itemId = (*it).m_itemIndex;
+        entry.m_itemId = info.m_itemIndex;   // ORIG 0x08271910 复读 -0xc 槽（非再次 deEv）
         deleted.push_back(entry);
     }

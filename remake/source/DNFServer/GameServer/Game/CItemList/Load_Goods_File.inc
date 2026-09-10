@@ -17,8 +17,9 @@ bool CItemList::Load_Goods_File(const char* path)
         const int count = (int)shopList[i].size();
         for (int j = 0; j < count; ++j)
         {
-            CCeraShopGoods* goods = new CCeraShopGoods(shopList[i][j]);
-            m_goodsMap[shopList[i][j].m_field8] = goods;
+            // [G10 实验·P0/P183] 去 goods 具名（ORIG 无该槽：浅区 store 集
+            // ORIG 0x1c..0x38 / 我方多 0x3c/0x40/0x44 三槽）。
+            m_goodsMap[shopList[i][j].m_field8] = new CCeraShopGoods(shopList[i][j]);
             STCeraShopItem& item = shopList[i][j];
             // [b28d-tu-CItemList] 真语义修正：ORIG 0x085125d6 `movl $0x0,-0x28(%ebp)`
             //   在 item 槽写入后、分支前 ⇒ 原码 `int value = 0;`。
@@ -50,12 +51,15 @@ bool CItemList::Load_Goods_File(const char* path)
                 CItem* pItem = G_CDataManager()->find_item(item.m_field14);
                 if (pItem != 0 && item.m_field8 != -1)
                 {
-                    const char* iconName = pItem->GetItemIconName();
-                    const char* name = pItem->GetItemName();
+                    // 实测：帧 0x14c→0x13c（=ORIG）、我方 store 槽集合与 ORIG 完全一致；
+                    // 报告 diff 222→120 行、our 386→387（ORIG 386）；TU 四数不变 ⇒ 保留。
+                    // [G10 实验·P0/P183] 去 iconName/name 具名（ORIG 浅区槽止于
+                    // 0x38，我方多 0x3c/0x40）⇒ 内联回实参位（R2L 求值）。
                     if (!sync_script::GetInstanceSyncScript()
                              ->insertCeraShopItemIntoDB(
                                  item.m_field8, item.m_field14, item.m_field1c,
-                                 value, (short)item.m_field22, name, iconName))
+                                 value, (short)item.m_field22,
+                                 pItem->GetItemName(), pItem->GetItemIconName()))
                     {
                         LogManager::logFormat(
                             1, "item.cpp",

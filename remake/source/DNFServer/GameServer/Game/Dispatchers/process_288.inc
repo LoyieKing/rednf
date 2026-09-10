@@ -2,7 +2,6 @@ int Dispatcher_Avatar_Disjoint_Random_Reward::process(CUser* user, MSG_BASE& msg
 {
     stAvatarDisjointRandomReward* local_18 = (stAvatarDisjointRandomReward*)&param;
     MSG_AVATAR_DISJOINT_RANDOM_REWARD* local_1c = (MSG_AVATAR_DISJOINT_RANDOM_REWARD*)&msg;
-    Inven_Item local_59;                 // -0x55：GetInvenSlot 输出
     char cVar1;
 
     if (user->get_state() != 3)
@@ -26,7 +25,10 @@ int Dispatcher_Avatar_Disjoint_Random_Reward::process(CUser* user, MSG_BASE& msg
         return 0;
     }
     CInventory* pCVar7 = (CInventory*)user->getCurCharacInvenR();
-    local_59 = pCVar7->GetInvenSlot(2, (unsigned int)local_1c->m_slotE);
+    // [G1-Dispatchers] 拷贝初始化（非"先默认构造再 op="）：ORIG 侧 GetInvenSlot 直接以 sret 写目标槽，
+    // 全函数无 `Inven_Item::C1Ev` / 赋值调用（p167 我方 EXTRA：C1Ev x1 + EXT x1）；
+    // 且 GetInvenSlot 用 pCVar7（非形参）⇒ 具名 pCVar7 保留。
+    Inven_Item local_59 = pCVar7->GetInvenSlot(2, (unsigned int)local_1c->m_slotE);
     if (local_59.m_addInfo != local_1c->m_itemIdx10)
     {
         local_18->m_4 = 0x11;
@@ -42,7 +44,9 @@ int Dispatcher_Avatar_Disjoint_Random_Reward::process(CUser* user, MSG_BASE& msg
     unsigned int uVar4 =
         (unsigned int)local_14->checkAvatarDisjointError(user, (unsigned short)local_1c->m_slotE,
                                                          local_59, local_c);
-    CInventory* inven = (CInventory*)user->getCurCharacInvenR();
+    // [G1-Dispatchers] 删此处 `user->getCurCharacInvenR()`：ORIG 区间内
+    // `_ZNK15CUserCharacInfo18getCurCharacInvenREv` 仅 1 次（函数头 GetInvenSlot 处），
+    // 结果未被使用（p167 EXTRA x1）。
     local_18->m_4 = (int)uVar4;
     if (local_18->m_4 != 0)
     {

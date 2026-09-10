@@ -21,3 +21,9 @@ int Inter_MonitorDeathTowerRanking::dispatch_sig(CUser* user, char* data, int /*
         }
     }
     return 0;
+
+// [G2B-Monitor] 残余留 N：ORIG 用 %ecx(i)/%edx(基址) 双槽寄存、我方用 %eax 系（`shl $0x2,%eax;
+//   add <S>,%eax; lea 0x4(%eax),%edx` vs ORIG `mov <S>,%ecx; mov <S>,%edx; shl $0x2,%ecx;
+//   lea (%ecx,%edx,1),%edx; add $0x4,%edx`），跨 getCurCharacNo 的中转寄存器 ORIG=%edi/我方=%esi，
+//   且 ORIG 帧 0x2c+push%edi(=0x30) 对我方 0x20 —— 全属 LRA/N18a 寄存器分配族；
+//   循环界已是 unsigned `<=`（ORIG `cmp $0x4; setbe`），无可判的源码差异 ⇒ 留 N。

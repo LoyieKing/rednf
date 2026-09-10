@@ -665,6 +665,16 @@ case "$(basename "$src" .cpp)" in
             #   ⇒ TU 路径不变，此处即自动继承给全部部件。
             *Game/CTournamentDungeonReward.cpp)
                 exec "$C6444R" "$@" ;;
+            # [Main·2026-09-10 round5] 非 Game 库域的 446 后端杠杆（G12 上报 + Main 复核）：
+            #   全库 38 个非 Game TU 做过 447↔446 双编对照，**仅本件受益**。
+            #   实测 .o 口径 identical 69 / ae 88 / near 4 / diff 1 →
+            #                identical 69 / ae 92 / near **0** / diff 1
+            #   （4 件 NEAR→AE：CharsetInit 100/100、EventLoad 110/110、RGBALoad 93/93、
+            #     ProcessLoad 83/83；差异全部是 N7 —— 间接 call 目标
+            #     %eax(4.4.7) vs %edx(ORIG 4.1 / 4.4.6)，源码无解）。
+            #   ⚠ 与其它旗标臂同规矩：**全局核账定稿**。
+            *ServerCommon/ServerXml.cpp)
+                exec "$C6446R" "$@" ;;
 
             *)
                 exec "$C6" "$@" ;;

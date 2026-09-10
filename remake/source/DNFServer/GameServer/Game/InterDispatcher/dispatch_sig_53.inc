@@ -20,19 +20,20 @@ int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, i
         packet.put_byte(
             (int)pPkt->m_16);
 
-        const unsigned char newGrade =                 // msg+0x16
-            pPkt->m_16;
-        const unsigned char oldGrade =                 // msg+0x35
-            pPkt->m_35;
-        const unsigned int grade =                     // msg+0x36
-            pPkt->m_36;
-        const unsigned int characNo =                  // msg+0x12
-            pPkt->m_12;
-        cUserHistoryLog* hist = &user->m_historyLog;
-        hist->GuildChangeGrade(
+        // ORIG 084cc473/084cc480：newGrade/oldGrade 落 **4 字节**槽（`mov %eax,-0x40`、
+        //   `mov %eax,-0x3c`）⇒ 原码局部类型是 unsigned int（旧形 unsigned char 只发
+        //   `mov %al,<槽>`，且多出槽往返）；初值带 `(unsigned char)` cast
+        //   （ORIG 084cc470/084cc47d `movzbl %al,%eax` 二次截断）。
+        unsigned int newGrade = (unsigned char)pPkt->m_16;   // msg+0x16
+        unsigned int oldGrade = (unsigned char)pPkt->m_35;   // msg+0x35
+        // ORIG 084cc486/084cc48c：grade→%edi、characNo→%esi 均在寄存器（无槽）⇒ 原码内联实参；
+        //   ORIG 084cc4a9 receiver `mov 0xc(%ebp),%eax; add $0x79700,%eax` 直算亦无槽 ⇒ hist 无具名（P0）。
+        user->m_historyLog.GuildChangeGrade(
             (unsigned int)user->get_charac_guildkey(),
             static_cast<const char*>(user->GetGuildDBInfo()),
-            characNo, grade, oldGrade, newGrade);
+            (unsigned int)pPkt->m_12,
+            pPkt->m_36,
+            oldGrade, newGrade);
     }
     else
     {

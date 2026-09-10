@@ -16,17 +16,13 @@ int Dispatcher_UpgradeDisjointMachine::process(CUser* user, MSG_BASE& msg, Param
     }
     int result = 0;                        // ORIG 0x081d0012：调用前 -0xc 预清零
     result = expert_job::CDisjointer::OnUpgradeDisjointMachine(user);
-    // ORIG 0x081d0012：result 槽 -0xc 调用前预清零；!=0 走 bool 物化
-    // `cmpl;setne%al;test;je` 尾岛（技巧22）；store `mov -0xc,%edx;
-    // mov -0x10,%eax; mov %edx,0x4(%eax)`（value→%edx、地址→%eax，
-    // register asm 钉双寄存器，同 RepairDisjointMachine 形）。
-    bool nz;
-    nz = (result != 0);
-    if (nz)
+    // ORIG 0x081cffd5 区：`cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`
+    //   —— 源码为 `if (result != 0)`，ORIG 无 bool/rv/dst2 具名槽
+    //   （我方三个具名量使帧 0x38 vs ORIG 0x28，多 10 条指令）。
+    if (result != 0)
     {
-        unsigned int rv = result;
-        stUpgradeDisjointMachineParam* dst2 = &out;
-        dst2->m_4 = rv;
+        // ORIG: mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax; mov %edx,0x4(%eax)
+        out.m_4 = result;
         return 0;                          // ORIG 双 return 0 岛（技巧7）
     }
     return 0;

@@ -32,17 +32,23 @@ void CUser::set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
     // ORIG:if/else 两分支各自调用 getCurCharacGrowType/getCurCharacVill/get_charac_job。
     if (secondGrow == 0)
     {
-        char oldGrow = getCurCharacGrowType();
+        // 2026-09-10（G3CUser-B，P0 槽-局部律）：ORIG 0x086788fc 段
+        //   `call getCurCharacGrowType; movsbl %al,%edi`（oldGrow **无槽**、%edi 保活），
+        //   紧随 `movzbl -0x10c(%ebp),%esi`（firstGrow 参数槽）与 getCurCharacVill
+        //   的 `movsbl %al,%ebx` ⇒ 原码把 getCurCharacGrowType() 直接写在实参位，
+        //   我方 `char oldGrow` 具名量 ORIG 无（且其 1 字节槽另占帧）。
         m_historyLog.ChangeGrowType(
             get_charac_job(), (int)(signed char)getCurCharacVill(),
-            (int)firstGrow, (int)(signed char)oldGrow, 1, reason);
+            (int)firstGrow, (int)(signed char)getCurCharacGrowType(), 1, reason);
     }
     else
     {
-        char oldGrow = getCurCharacGrowType();
+        // 2026-09-10（G3CUser-B，P0）：同上一分支 —— ORIG 0x0867897e
+        //   `call getCurCharacGrowType; movsbl %al,%edi`（无槽），0x08678998
+        //   `movsbl %al,%ebx`（vill 无槽）⇒ 内联。
         m_historyLog.ChangeGrowType(
             get_charac_job(), (int)(signed char)getCurCharacVill(),
-            (int)secondGrow, (int)(signed char)oldGrow, 2, reason);
+            (int)secondGrow, (int)(signed char)getCurCharacGrowType(), 2, reason);
     }
     InterfacePacketBuf* buf = (InterfacePacketBuf*)name;
     setCurCharGrowthType((char)firstGrow, (char)secondGrow);
@@ -184,26 +190,29 @@ void CUser::set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
             }
         }
         _UpdateUserInfo4Guild();
-        // ORIG:guild/monitor 两段各自重调 getCurCharacGrowType/get_charac_level/
-        // get_charac_no/get_acc_id/GetServerGroup(无共享局部)。
-        char guildGrow = getCurCharacGrowType();
-        short guildLevel = (short)get_charac_level();
-        unsigned int guildCharacNo = (unsigned int)get_charac_no(-1);
-        unsigned int guildAccId = get_acc_id();
-        CGuildServerProxy* guild =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-        if (guild != 0)
-            guild->SendCharLevelGrowType(guildAccId, guildCharacNo,
-                                         guildLevel, (short)guildGrow);
-        char monGrow = getCurCharacGrowType();
-        short monLevel = (short)get_charac_level();
-        unsigned int monCharacNo = (unsigned int)get_charac_no(-1);
-        unsigned int monAccId = get_acc_id();
-        CMonitorServerProxy* monitor =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup());
-        if (monitor != 0)
-            monitor->SendCharLevelGrowType(monAccId, monCharacNo,
-                                           monLevel, (short)monGrow);
+        // 2026-09-10（G3CUser-B）：ORIG 0x086790f4..0x0867917b（guild 段）——
+        //   guildGrow 是唯一具名槽：0x0867910f `mov %eax,-0x118(%ebp)`（movsbl 后
+        //   **4 字节** int 存 ⇒ 原码 `int guildGrow = getCurCharacGrowType();`）；
+        //   level/characNo/accId **全无槽**（0x08679120 `movswl %ax,%edi`、
+        //   0x08679136 `mov %eax,%esi`、0x08679143 `mov %eax,%ebx`，跨调用 callee-saved
+        //   保活）；0x0867915d `call GetServerProxy` 结果**直接**作 this
+        //   （0x08679178 `mov %eax,(%esp)`）——**无** `test %eax,%eax; je` 判空。
+        //   ⇒ 删 guildLevel/guildCharacNo/guildAccId/guild 四具名量与 `if (guild != 0)`
+        //   发明防御，实参内联，receiver 链式（ORIG 求值序：实参 → GetServerGroup →
+        //   GetServerProxy → call）。
+        int guildGrow = getCurCharacGrowType();
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup())
+            ->SendCharLevelGrowType(get_acc_id(), get_charac_no(-1),
+                                    (short)get_charac_level(), (short)guildGrow);
+        // 2026-09-10（G3CUser-B）：monitor 段同构 —— monGrow 具名
+        //   0x0867918e `movsbl %al,%eax; mov %eax,-0x114(%ebp)`（4 字节 int 槽）；
+        //   0x0867919f `movswl %ax,%edi` / 0x086791b5 `mov %eax,%esi` /
+        //   0x086791c2 `mov %eax,%ebx` 无槽；0x086791dc `call GetServerProxy` 结果
+        //   0x086791f7 直传，无判空。
+        int monGrow = getCurCharacGrowType();
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup())
+            ->SendCharLevelGrowType(get_acc_id(), get_charac_no(-1),
+                                    (short)get_charac_level(), (short)monGrow);
         processGrowTypeEvent(firstGrow, secondGrow, reason);
     }
     else

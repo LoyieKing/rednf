@@ -63,7 +63,13 @@ const unsigned int STREAM_NODE_ELEMS = 0x1f4 / sizeof(CompiledDNFLex::stream_t);
 // ORIG `_ZZ17readIntFromBufferRPcE9intBuffer` / `_ZZ18readCharFromBufferRPcE10charBuffer`
 // / `_ZZ19readFloatFromBufferRPcE11floatBuffer`：外部链接、函数内 static，-O2 内联进
 // getInt/getStr/getToken/getFloat。
-static int readIntFromBuffer(char*& offset)
+// [b28d-G11 链接性修正] ORIG nm 直证三个变量均为 **V**（unique/外部链接），
+// 且符号名**不含 `L`**（`_ZZ17readIntFromBufferRPcE9intBuffer`）⇒ 原码 helper 是
+// 外部链接的 `inline` 函数（非 static）；写成 static 会得到 `_ZZL17…`（b, local）
+// 且 -O2 把函数级 static 折成栈临时（getStr ORIG `mov %eax,0x9501a10` vs 我方
+// `mov %eax,0xc`）。helper 全内联 ⇒ 不发射 `_Z17readIntFromBufferRPc` weak 定义
+// （ORIG 符号表亦无该函数符号）。C++98 合法、mangled 不变。
+inline int readIntFromBuffer(char*& offset)
 {
     static int intBuffer;
     intBuffer = *reinterpret_cast<int*>(offset);
@@ -71,10 +77,9 @@ static int readIntFromBuffer(char*& offset)
     return intBuffer;
 }
 
-// [b28d-Main·检查点18] static 化：ORIG 符号表无 `_Z18readCharFromBufferRPc`
-// （仅函数内 static `_ZZ18readCharFromBufferRPcE10charBuffer`）⇒ ORIG 为文件内静态
-// 且被 -O2 内联；本 TU 与 readIntFromBuffer 同款。
-static int readCharFromBuffer(char*& offset)
+// [b28d-G11] 同 readIntFromBuffer：ORIG 变量符号 `_ZZ18readCharFromBufferRPcE10charBuffer`
+// 为 **V**（无 L）⇒ 原码 helper 是 extern-inline；改回 inline（旧 static 判断作废）。
+inline int readCharFromBuffer(char*& offset)
 {
     static char charBuffer;
     signed char c = *reinterpret_cast<signed char*>(offset);
@@ -83,8 +88,8 @@ static int readCharFromBuffer(char*& offset)
     return c;
 }
 
-// [b28d-Main·检查点18] static 化：同上（ORIG 仅 `_ZZ19readFloatFromBufferRPcE11floatBuffer`）。
-static float readFloatFromBuffer(char*& offset)
+// [b28d-G11] 同上：ORIG `_ZZ19readFloatFromBufferRPcE11floatBuffer` 为 **V**（无 L）。
+inline float readFloatFromBuffer(char*& offset)
 {
     static float floatBuffer;
     floatBuffer = *reinterpret_cast<float*>(offset);

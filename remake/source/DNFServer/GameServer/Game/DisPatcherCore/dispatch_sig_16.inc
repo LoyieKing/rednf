@@ -1,99 +1,85 @@
 int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     MSG_MONSTER_DIE die;
-    memset(&die, 0, sizeof(die));
 
     unsigned char passiveFlag = 0;               // ORIG -0x75（独立局部）
     unsigned char moveCheckFlag = 0;             // ORIG -0x76
     int monsterIdxOut = 0;                       // ORIG -0x74（kill_monster 出参）
 
-    // packed 字段不可绑定非 const 引用，按 ORIG get_* 重载逐一读入临时量回填。
-    unsigned short tmpU16 = 0;
-    short tmpS16 = 0;
-    int tmpS32 = 0;
-    unsigned int tmpU32 = 0;
-    unsigned char tmpU8 = 0;
+    // [G5-SigA] P0/P183：ORIG 每个字段都是「具名基址 + add $0xNN」两步把 packed
+    // 成员地址直接交给 get_*（0x081eb0d6 `lea -0xadb(%ebp),%eax; add $0xd,%eax`
+    // = &die.m_mobSeq；0x081eb0e9 call get_short(unsigned short&)），全程无 tmp 槽
+    // 往返。原实现的 5 个 tmp 中转每点多出「写 tmp + 读 tmp 回填字段」≈3 条，
+    // 28 个调用点累计即 1644 vs 1564 的主要来源。此处以 cast 解除 packed 成员
+    // 不可绑非 const 引用的限制后直传。
+    // 原 memset(&die,...) 亦属发明代码：ORIG 全函数（0x081eb0c4..0x081ecce5）
+    // 无 memset 符号调用、无 rep stos，die 仅按包逐个字段写入。
 
-    if (!packet.get_short(tmpU16))
+    if (!packet.get_short(*(unsigned short*)&die.m_mobSeq))
         return LineFunc(0x6d09,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_mobSeq = tmpU16;
     // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调用序列 t×8 后 s×7 ⇒
     // 0x6d0a/0x6d25/0x6d26 三处绑 `get_short(unsigned short&)`（ERt），原写法为 short&。
-    if (!packet.get_short(tmpU16))
+    if (!packet.get_short(*(unsigned short*)&die.m_fieldF))
         return LineFunc(0x6d0a,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldF = tmpU16;
-    if (!packet.get_int(tmpS32))
+    if (!packet.get_int(*(int*)&die.m_field11))
         return LineFunc(0x6d0c,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_field11 = tmpS32;
-    if (!packet.get_int(tmpS32))
+    if (!packet.get_int(*(int*)&die.m_field15))
         return LineFunc(0x6d0d,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_field15 = tmpS32;
-    if (!packet.get_int(tmpU32))
+    if (!packet.get_int(*(unsigned int*)&die.m_killValue2))
         return LineFunc(0x6d0e,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_killValue2 = tmpU32;
-    if (!packet.get_int(tmpU32))
+    if (!packet.get_int(*(unsigned int*)&die.m_killValue1))
         return LineFunc(0x6d0f,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_killValue1 = tmpU32;
-    if (!packet.get_byte(tmpU8))
+    if (!packet.get_byte(*(unsigned char*)&die.m_mobCount))
         return LineFunc(0x6d11,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_mobCount = tmpU8;
     for (int i = 0; i < (int)(unsigned char)die.m_mobCount; ++i)
     {
-        if (!packet.get_short(tmpU16))
+        if (!packet.get_short(*(unsigned short*)&die.m_skillList[i]))
             return LineFunc(0x6d16,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        die.m_skillList[i] = tmpU16;
-        if (!packet.get_short(tmpU16))
+        if (!packet.get_short(*(unsigned short*)&die.m_attackerList[i]))
             return LineFunc(0x6d17,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        die.m_attackerList[i] = tmpU16;
-        if (!packet.get_int(tmpU32))
+        if (!packet.get_int(*(unsigned int*)&die.m_damageList[i]))
             return LineFunc(0x6d18,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        die.m_damageList[i] = tmpU32;
-        if (!packet.get_short(tmpU16))
+        if (!packet.get_short(*(unsigned short*)&die.m_hitCountList[i]))
             return LineFunc(0x6d19,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        die.m_hitCountList[i] = tmpU16;
     }
-    if (!packet.get_short(tmpU16))
+    if (!packet.get_short(*(unsigned short*)&die.m_killPairA24))
         return LineFunc(0x6d25,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_killPairA24 = tmpU16;
-    if (!packet.get_short(tmpU16))
+    if (!packet.get_short(*(unsigned short*)&die.m_killPairA26))
         return LineFunc(0x6d26,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_killPairA26 = tmpU16;
-    if (!packet.get_byte(tmpU8))
+    if (!packet.get_byte(*(unsigned char*)&die.m_fieldA22))
         return LineFunc(0x6d28,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA22 = tmpU8;
-    if (!packet.get_byte(tmpU8))
+    if (!packet.get_byte(*(unsigned char*)&die.m_fieldA23))
         return LineFunc(0x6d2b,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA23 = tmpU8;
     if (!packet.get_byte(passiveFlag))
         return LineFunc(0x6d2f,
                         __PRETTY_FUNCTION__,
@@ -112,60 +98,53 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                             0, 0);
         party->setMonsterMoveHack();
     }
-    unsigned short unusedShort = 0;              // ORIG local_7c（读而未用）
+    // [G5-SigA] ORIG 槽 -0x78（0x081eb68b `lea -0x78(%ebp),%eax`），无预清写
+    // （全函数无 `movw $0x0,-0x78(%ebp)`）⇒ 去掉 `= 0`（P328⑤）。
+    unsigned short unusedShort;                  // ORIG -0x78（读而未用）
     if (!packet.get_short(unusedShort))
         return LineFunc(0x6d3e,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (!packet.get_byte(die.m_fieldA28))
+    if (!packet.get_byte(*(char*)&die.m_fieldA28))
         return LineFunc(0x6d41,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (!packet.get_int(tmpS32))
+    if (!packet.get_int(*(int*)&die.m_fieldA2d))
         return LineFunc(0x6d42,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA2d = tmpS32;
-    if (!packet.get_int(tmpS32))
+    if (!packet.get_int(*(int*)&die.m_fieldA31))
         return LineFunc(0x6d43,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA31 = tmpS32;
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(*(short*)&die.m_fieldA29))
         return LineFunc(0x6d44,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA29 = tmpS16;
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(*(short*)&die.m_fieldA2b))
         return LineFunc(0x6d45,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA2b = tmpS16;
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(*(short*)&die.m_fieldA35))
         return LineFunc(0x6d46,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA35 = tmpS16;
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(*(short*)&die.m_fieldA37))
         return LineFunc(0x6d47,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA37 = tmpS16;
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(*(short*)&die.m_fieldA39))
         return LineFunc(0x6d48,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA39 = tmpS16;
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(*(short*)&die.m_fieldA3b))
         return LineFunc(0x6d49,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA3b = tmpS16;
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(*(short*)&die.m_fieldA3d))
         return LineFunc(0x6d4a,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldA3d = tmpS16;
 
     // ORIG 不是 switch：0x081eb9b7(==5) / 0x081ec396(==0xa) / 0x081ec7a2(==0xc) /
     // 0x081ecac5(==0xd) / 0x081ecb10(==8) 是逐层重新 call get_state() 的 if-else 链

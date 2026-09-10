@@ -1,3 +1,12 @@
+    // [G7-sub 2026-09-10 复核·PacketGuard/EH] ORIG 0x085b99ac 的 PacketGuard 站点：
+    // C1 ×2（ack -0x5c @0x085b9b21；packet -0x74 @0x085b9c39），两者生命周期重叠
+    // （外 try 085b9b2c..085b9c3d / 内 try 085b9c54..085b9d47）⇒ **不是复用同一对象**。
+    // 我方 C1 也是 2 个（数量一致，未发明对象）。我方 p167 +1 `_Unwind_Resume` 的真因：
+    // ORIG 内层 catch 0x085b9dbf 清 -0x74 后 `jmp` 外层 catch 入口 0x085b9df9，
+    // 共享唯一 _Unwind_Resume（0x085b9e0f）；4.4 给内层单独发一条 ⇒ 属 N104
+    // （EH 尾块相对序）族，非源码可解。本 .inc 段（members[4] 清零 + 两循环）
+    // 与 ORIG 0x085b99bd..0x085b9a76 逐点一致（clear 分支 `je <body>` 阳性 then
+    // +0x085b9a9e 已对齐）。⇒ 封顶，不动。
 int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS G_CDataManager + vector operator[]/size +

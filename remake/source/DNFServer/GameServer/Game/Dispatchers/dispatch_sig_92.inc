@@ -3,37 +3,30 @@ int Dispatcher_SetSubGuildMaster::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->get_state() < 3 || user->getCurCharacR() == 0) {
         return LineFunc(0x9d97, __PRETTY_FUNCTION__, 0, 0);
     }
-    // ORIG 0x082053e6：0x31 连续缓冲（Packet_Monitor_Set_Sub_Guild_Master 头 + 负载数据区）。
-    char buffer[0x31];
-    Packet_Monitor_Set_Sub_Guild_Master* header = new (buffer) Packet_Monitor_Set_Sub_Guild_Master();
-    (void)header;
-    // +0x2c 标志字节（ORIG 负载裸偏移，header 仅 PacketHeader 未建字段）。
-    // char 对齐 1，packed 视图绑 char& 合规。
-    struct __attribute__((packed)) SubGMView
-    {
-        char m_head[0x2c];
-        char m_flag;             // +0x2c
-    };
-    int& characNo = *reinterpret_cast<int*>(buffer + 0x6);
-    int& guildKey = *reinterpret_cast<int*>(buffer + 0xa);
-    char* name = buffer + 0xe;
-    char& flag = reinterpret_cast<SubGMView*>(buffer)->m_flag;
-    characNo = user->get_charac_no(-1);
-    guildKey = user->get_charac_guildkey();
-    int nameLen = 0;
+    // ORIG 0x08205445：`lea -0x3d(%ebp),%eax; mov %eax,(%esp); call ctor`
+    //   ⇒ 栈对象直构（无 placement new/operator new/EH）。
+    //   偏移直证：get_charac_no 写 -0x33(%ebp)=base+0xa、guildkey 写 -0x2f(%ebp)=base+0xe、
+    //   get_str 目标 base+0x12、get_byte 目标 base+0x30（= -0xd(%ebp)），
+    //   与 Packet_Monitor_Set_Sub_Guild_Master 具名字段一致（旧形裸偏移整体差 4）。
+    //   get_int 目标 -0xc(%ebp) 无预清 ⇒ nameLen 是裸局部（P328⑤）。
+    Packet_Monitor_Set_Sub_Guild_Master message;
+    message.m_charNo = user->get_charac_no(-1);
+    message.m_guildKey = user->get_charac_guildkey();
+    int nameLen;
     if (!packet.get_int(nameLen)) {
         return LineFunc(0x9da1, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_str(name, 0x1e, nameLen)) {
+    if (!packet.get_str(message.m_name, 0x1e, nameLen)) {
         return LineFunc(0x9da4, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_byte(flag)) {
+    if (!packet.get_byte(message.m_grade)) {
         return LineFunc(0x9da7, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (flag == (char)0x01) {
+    if (message.m_grade == 0x01) {
         return 0;
     }
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendPacket(buffer, 0x31);
+    // ORIG 0x08205564：GetServerGroup/GetServerProxy 结果全程寄存器直传，
+    //   无 proxy 具名局部（P0/P48）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(&message), 0x31);
     return 0;

@@ -40,6 +40,12 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
         // [DualCUOO] ORIG 0x0867645c `movl $0xffffffff,-0x14(%ebp)`：r 在循环体开头
         // 声明并初始化，两个分支内改为赋值（0x08676652 / 0x0867671f 均 `mov %eax,-0x14`）。
         int r = -1;
+        // [P328⑤/P171 死局部照抄] ORIG 0x0867646a `movl $0x0,-0x10(%ebp)`（Ghidra 侧
+        // local_14 全函数无读取点）—— 补该具名死局部以对齐 r=-0x14 / script=-0xc 及其后
+        // it/it2 全部槽位（旧稿缺此槽：it=-0x2c vs ORIG -0x30、it2=-0xa8 vs ORIG -0xac）。
+        // [A06 2026-09-10 A/B 实测] +1 条（348→349）换 ndiff 407→136 **严格改善** ⇒ 保留。
+        int unusedZero = 0;
+        (void)unusedZero;
         // [DualCUOO 2026-09-09] ORIG 0x0867646a `mov -0xaa(%ebp),%eax; cmp $0x1,%eax`
         // （对象起始 -0xac ⇒ +0x02 的 dword）⇒ 源码是 m_addInfo == 1；旧「+4 u16 视图」
         // 读的是 m_addInfo 高 16 位，与 ORIG 语义不同，按 ORIG 修正。

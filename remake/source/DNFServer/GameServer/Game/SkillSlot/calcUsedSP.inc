@@ -23,13 +23,15 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
             ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobExp();
         expertJobLevel = m_parent->GetCurExpertJobLevel(exp);
     }
-    CDataManager* dm = G_CDataManager();
+    // [g11-slot 2026-09-10] P0/P183 去具名缓存（直证）：ORIG 4 处使用点均为
+    // `call G_CDataManager; mov 0x14(%eax),%ebx/%edi`（0x08605644/0x08605649、
+    // 0x086056bb/0x086056c0、0x0860571d/0x08605722）与
+    // `call; lea 0xa800(%eax),%edx`（0x08605962/0x08605967）——每次重发地址链、
+    // 无栈槽；旧形 `dm` 具名占槽（我方 -0x50 的 store+load 往返）。
     std::vector<std::pair<int, int> > giveList(
-        *(std::vector<std::pair<int, int> >*)((char*)dm->m_characList +
-                                              ((CUserCharacInfo*)m_parent)
-                                                      ->get_charac_job() *
-                                                  0x7dc +
-                                              0x240));
+        *(std::vector<std::pair<int, int> >*)(
+            (char*)G_CDataManager()->m_characList +
+            ((CUserCharacInfo*)m_parent)->get_charac_job() * 0x7dc + 0x240));
     std::vector<std::pair<int, int> > learnList;
     // 2026-09-10（D06 消费侧配对 bool 化，A17 spec）：CCharacter::get_give_skill
     //   定义侧已 char→bool ⇒ 本处 result 同步 bool（ORIG 0x086056xx 为
@@ -41,8 +43,7 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
     {
         secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
         firstGrow = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
-        dm = G_CDataManager();
-        result = ((CCharacter*)((char*)dm->m_characList +
+        result = ((CCharacter*)((char*)G_CDataManager()->m_characList +
                                 ((CUserCharacInfo*)m_parent)
                                     ->get_charac_job() *
                                     0x7dc))
@@ -53,8 +54,7 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
     {
         secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
         firstGrow = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
-        dm = G_CDataManager();
-        result = ((CCharacter*)((char*)dm->m_characList +
+        result = ((CCharacter*)((char*)G_CDataManager()->m_characList +
                                 ((CUserCharacInfo*)m_parent)
                                     ->get_charac_job() *
                                     0x7dc))
@@ -101,8 +101,7 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
             char firstGrow =
                 ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
             int job = ((CUserCharacInfo*)m_parent)->get_charac_job();
-            dm = G_CDataManager();
-            (&dm->m_pvpSkillTree)
+            (&G_CDataManager()->m_pvpSkillTree)
                 ->getGiveSkill(job, (int)firstGrow, (int)secondGrow,
                                giveList);
         }

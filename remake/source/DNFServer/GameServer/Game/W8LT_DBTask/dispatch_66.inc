@@ -5,9 +5,11 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
     // blackPoint(-0x68) trace 三实例(-0x64/-0x54/-0x44) sig(-0x34) db(-0x30)
     // result(-0x2c) nRows(-0x28) passCntLimit(-0x24) passCnt(-0x20)
     // computed(-0x1c)。guard 于组包处构造。
-    unsigned int problemChildTime = 0;
-    int offsetPoint = 0;
-    int blackPoint = 0;
+    // P171/P328⑤：ORIG 0x084... 头部无 `movl $0x0,-0x70/-0x6c/-0x68` 预清
+    // （裸声明只占槽、不发指令）⇒ 不写初始化。
+    unsigned int problemChildTime;
+    int offsetPoint;
+    int blackPoint;
     SIG_REQ_BLACK_COUNT* sig;
     MySQL* db;
     int result;

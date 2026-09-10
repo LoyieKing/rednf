@@ -1,5 +1,7 @@
 int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2D] verdict=N：ORIG 各 return 用 %eax（`mov $0x0,%eax`），我方多个 return 0 归并到
+    //   %ebx 公共出口（+2 条）；由 gcc 返回常量公共化决定，源码层面无非等价改写，未改。
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
 

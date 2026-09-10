@@ -1,5 +1,10 @@
 int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮残留 N（已修 2 处）] 已修：logPath 255B 清零改 `= {0}`（ORIG rep stos 形）、
+    //   4 个跨 CMyFileLog 调用量加 register（characNo/serverGroup/hangame/accStr）。
+    //   残留：ORIG 序言 `push %edi`（多一个 callee-saved）与帧 0x2ec vs 本方 0x300；后者属
+    //   父泳道统一裁决的「我方多 4B 槽」共享机制，不 hack。其余为 `mov %eax,%edi/%esi`
+    //   免槽 vs `mov %eax,<S>` 型位点，尚未逐个定位，留 N。
     // ORIG 0x084bee06 报告 docs/class_func_reports/Inter_CreateCharac/dispatch_sig.md
     // 两段全读。SIG_CREATE_CHARAC 布局见 SigTypes.h（m_slot/m_field23/m_eventCharacFlag/
     // m_resultCode/m_characNo 全具名）。
@@ -44,16 +49,24 @@ int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         in_addr addr;
         addr.s_addr = static_cast<unsigned int>(user->get_public_ip_address());
         strcpy(ipStr, inet_ntoa(addr));
-        char logPath[255];
-        for (int i = 0; i < 255; ++i)
-            logPath[i] = '\0';
+        // [G2A-PC] ORIG 段 `lea <S>,%edx; mov $0x0,%eax; mov $0x3f,%ecx; mov %edx,%edi;
+        //   rep stos %eax,%es:(%edi); mov %ax,(%edx); add $0x2,%edx; mov %al,(%edx)` = gcc 对
+        //   `char logPath[255] = {0};` 的定型展开（63 dword + 2B + 1B = 255B 全零）。
+        //   手写 for 清零会产 `movl $0x0,<S>; jmp; movb $0x0,-0x1d0(%ebp,%eax,1); addl;
+        //   cmpl $0xfe; setle; test; jne` 循环形（本 diff N 侧 9 条）⇒ 原码是初始化式。
+        char logPath[255] = {0};
         sprintf(logPath, "./log/%s/JumpingCharacter",
                 G_CEnvironment()->get_file_name());
 
-        const unsigned int characNo = sig->m_characNo;
-        const int serverGroup = G_CEnvironment()->get_server_group();
-        const bool hangame = user->isHangameUser() ? true : false;
-        char* accStr =
+        // [G2A-PC P231/P52 callee-saved 免槽] ORIG 段把这四个跨 CMyFileLog 构造/调用的
+        //   临时量直落 callee-saved：084d…[157] `mov %eax,%edi`（characNo）、[161-166]
+        //   `test %al,%al; je; mov $0x1,%ebx; jmp; mov $0x0,%ebx`（hangame→%ebx）、
+        //   [172] `mov %eax,%esi`（accStr）；本方同位置为 `mov %eax,<S>` 落槽形
+        //   （本 diff N 侧）⇒ 加 register 存储类（纯源级，ORIG 亦同形）。
+        register const unsigned int characNo = sig->m_characNo;
+        register const int serverGroup = G_CEnvironment()->get_server_group();
+        register const bool hangame = user->isHangameUser() ? true : false;
+        register char* accStr =
             NumberToString(static_cast<unsigned int>(user->get_acc_id()), 0);
         CMyFileLog log(
             "virtual int Inter_CreateCharac::dispatch_sig(CUser*, char*, int)",

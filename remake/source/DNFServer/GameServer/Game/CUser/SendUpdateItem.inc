@@ -1,3 +1,6 @@
+// [b28d-GrpD 判词·N] ORIG 0x0867c2d8：残差为 item 指针具名槽化（我方 -0xS 槽 vs
+//   ORIG `GetInvenRef` 的 %eax 直传 `je`）+ 未解析重定位 call 标注；控制流、
+//   put_* 序列、字段偏移（+2/+7/+b/+d/+11/0x1e/4/0x5）全一致 ⇒ 无语义缺口。
 int CUser::SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot)
 {
     int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);

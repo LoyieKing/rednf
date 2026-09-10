@@ -3,6 +3,12 @@ unsigned int CParty::getClearRewardBonusExp(CUser* user, unsigned int& exp,
                                             stClearRewardBonusExp_t& bonus)
 {
     // b28d-49 判词：N 封顶（N85 x87 + N82 帧/槽）。P167 CLEAR。@0x85ad278
+    // [G7-sub 新证据] 本轮复核 diff：唯一系统性差为 6 处浮点比较 lowering——
+    // ORIG 085ad29b/085ad35e/085ad3d0/085ad4dc/085ad54c/085ad57c 用
+    // `fucompp; fnstsw %ax; sahf; jp; je`（5 条），4.4 产 `fucomip %st(1),%st;
+    // fstp %st(0); jp; je`（4 条）⇒ 每次 −1 条、共 −6，恰为我方 610 vs 615 的来源
+    // （另 +1 于累加序）。属两代 x87 比较 lowering 固有差（N85），无 P 范式可改，
+    // 亦非语义差（jp/je 判定等价）⇒ 保持封顶，不再试形。
     unsigned int expPerUser = exp;   // 扣减前备份（日志 ExpPerUser）
     unsigned int effectExp = 0;      // globalEffect 择优值（日志第 8 参数）
 

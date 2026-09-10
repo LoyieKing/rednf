@@ -1,3 +1,8 @@
+// [b28d-GrpD 判词·结构化 N] ORIG 0x0866afa2：残差为 `skillIdx`/`isGuildSkill` 等具名量
+//   槽化（ORIG 多次 `movzbl 0x1(%eax),%eax; cmp $0xc7/$0xd0,%al` 重读字段，我方
+//   `cmpb $0xc7,-0xS`）+ 帧 0xac vs 0x8c；跳表常量岛（0x5c/0x5b/0x1/0x12/0x16）、
+//   get_remain_sfp kind2/kind3 站点、全局 `mov 0x700(,%eax,4)` 索引全部同址
+//   ⇒ 无语义缺口；可按 P183 逐点删具名收敛。
 void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
 {
     (void)flag;

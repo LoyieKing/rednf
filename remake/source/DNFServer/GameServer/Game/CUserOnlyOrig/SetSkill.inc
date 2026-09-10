@@ -35,7 +35,12 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
     // 若读数反劣（旧批测得 gap 6→10）则回退为具名形。
     ((SkillSlot*)getCurCharacSkillW())->set_remain_sp(sp1, sp2, tail1, tail2);
 
-    ((SkillSlot*)getCurCharacSkillW())->set_skill_slot(bufA, bufB, 0x198);
+    // [A06 2026-09-10 轴A] ORIG 0x0864dcd8 `mov -0x2c(%ebp),%edx; mov %edx,0xc(%esp)`
+    // ⇒ 第 3 实参传**具名局部 size**（4.1 不折立即数）；写死 0x198 少 1 条。
+    // [A06 2026-09-10 负结论] `register char* bufA/bufB`（P231 提示形）实测反劣
+    // （122→124 条、diff 62→92）⇒ 保持普通局部。残余 = ORIG 把 -0x24/-0x30 升格
+    // %esi/%ebx 跨 receiver call（P290/P52 族），4.4 恒逐实参重读，封 N7。
+    ((SkillSlot*)getCurCharacSkillW())->set_skill_slot(bufA, bufB, size);
 
     setSkillCommandData(reinterpret_cast<char*>(&skill->m_commands[0]));  // +0x348
 

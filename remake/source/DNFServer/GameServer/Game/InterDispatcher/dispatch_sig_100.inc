@@ -1,5 +1,8 @@
 int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2D] verdict=N（本轮未改）：213 行残差以「ORIG 用 data 的栈副本 <S>
+    //   （`mov <S>,%eax; add $0x4,%eax`）vs 我方 `mov 0x10(%ebp),%eax; lea 0x4(%eax),%edx`」
+    //   的表达式形态、以及 `xor/mov $0x31ae,%eax` 返回常量路径为主；无单点可判定依据，留 N。
     Inter_ReqChangeCharacNamePktView* pPkt = reinterpret_cast<Inter_ReqChangeCharacNamePktView*>(data);
     // ORIG 0x084d1c8a 报告 docs/class_func_reports/Inter_ReqChangeCharacName/dispatch_sig.md
     // 两段全读。msg：+0 characNo / +4 newName / +0x24 errFlag / +0x28 rewardFlag /

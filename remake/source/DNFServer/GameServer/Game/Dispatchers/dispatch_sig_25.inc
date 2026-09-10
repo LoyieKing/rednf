@@ -1,11 +1,6 @@
 int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x0821d508（docs/class_func_reports/Dispatcher_CranePickUp/dispatch_sig.md）
-    short slot = -1;                          // local_2a -0x26
-    int pickIdx = -1;                         // local_28 -0x24
-    unsigned int errCode = 0;                 // local_14 -0x10
-    bool sendResultFail = false;              // local_d -0x9
-
     // +0x00：state != 3 → 错误 0x13
     if (user->get_state() != 3)
     {
@@ -20,6 +15,14 @@ int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     // +0x79：复位抓娃娃启动标志
     user->setUseCraneStart(false);
+
+    // ORIG 段直证：四槽初始化在**此处**（`movw $0xffff,-0x26; movl $<A>,-0x24;
+    // movl $0x0,-0x10; movb $0x0,-0x9`，位于 state/isUseCraneStart 两门之后），
+    // 非函数入口 ⇒ 声明随使用点下移（原入口处初始化使槽整体上移 0x10）。
+    short slot = -1;                          // local_2a -0x26
+    int pickIdx = -1;                         // local_28 -0x24
+    unsigned int errCode = 0;                 // local_14 -0x10
+    bool sendResultFail = false;              // local_d -0x9
 
     // +0x9a：读槽位/抽取序号
     if (!packet.get_short(slot))

@@ -4,6 +4,12 @@ int DisPatcher_EnterPVP::dispatch_sig(CUser* user, PacketBuf& packet)
     // get_short(pvpIdx) → 清 flag/seat/buf[9] → get_byte(flag)，flag==1 时
     // get_int(seat)（>0xa→LineFunc）+ get_binary(buf,seat)；
     // GetPvp(idx,user,0)==0 → 错误包(1,0x36)+0+0x16；否则 EnterPVPRoom(user,pvp,0x36,buf)。
+    // [G5-DisPatcherCore] 负结论（已回滚）：ORIG 0x081ed6d0 对 pvpIdx 取址为两步
+    // `lea -0x1b(%ebp),%eax; add $0xd,%eax`（基址 -0x1b + 0xd ⇒ 地址 -0xe），独立 `short`
+    // 局部只产单条 `lea -0xe(%ebp)`。试形 `struct { char m_hdr[0xd]; short m_idx; }
+    // __attribute__((packed));` ⇒ 4.4 报 `不能将紧实的字段 m_idx 绑定到 short&`
+    // （packed 非对齐成员不可作 get_short(short&) 实参；4.1 同样非法）⇒ 原码不是 packed
+    // 成员引用，`-0x1b` 基址的构造形未解出。本件残差仅此 1 条（ours=151 / ORIG=152）。
     short pvpIdx;
     if (!packet.get_short(pvpIdx))
     {

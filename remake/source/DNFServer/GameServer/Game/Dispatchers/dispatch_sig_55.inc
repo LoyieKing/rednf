@@ -1,7 +1,11 @@
 int Dispatcher_PvPChannelInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    if (user == 0 || user->get_state() < 3) return 0;
-    if (user->getCurCharacR() != 0 && user->isDisguiseCharac()) {
+    // ORIG 段直证：入口**无** `cmpl $0x0,0xc(%ebp)` user 判空；`cmp $0x2,%eax; setle %al;
+    // test %al,%al; je`（4.1 bool 物化，技巧9）⇒ 删 user==0 并改 (bool) 强制物化形。
+    if ((bool)(user->get_state() <= 2)) return 0;
+    // ORIG 段直证：`call getCurCharacR; test %eax,%eax; setne %al; test %al,%al; je`
+    // （4.1 物化；4.4 裸 `!= 0` 折 jne）。
+    if ((bool)(user->getCurCharacR() != 0) && user->isDisguiseCharac()) {
         user->setDisguiseCharac(false, '\0', 0);
     }
     if (user->isCompetitionMercenary()) {

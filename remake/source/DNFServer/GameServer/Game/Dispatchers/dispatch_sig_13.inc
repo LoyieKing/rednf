@@ -13,7 +13,10 @@ int Dispatcher_Antibot_DP::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return LineFunc(0xa7a3, __PRETTY_FUNCTION__, 0, 0);
     }
-    unsigned char outBuf[4];          // +0x00 class / +0x01..+0x03 short
+    // ORIG 段直证：`sub $0xb5c,%esp` + `lea -0xb2e(%ebp)`（outBuf 基址）⇒ 解密输出缓冲
+    // 容量 = 0xaf0（与 outLen 初值一致），非 4 字节视图（原 4B 声明令帧 0xb5c→0x64，
+    // 且 Decrypt 出参写 0xaf0 上限即越界）。消费侧仍按 +0x00 class / +0x01 short 视图。
+    unsigned char outBuf[0xaf0];
     unsigned short outLen = 0xaf0;
     typedef int (*DecryptFn)(void*, int, void*, unsigned short, unsigned char*, unsigned short*);
     void* checker = GlobalData::s_antibotChecker_;

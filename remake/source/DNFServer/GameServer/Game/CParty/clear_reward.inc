@@ -6,9 +6,11 @@ void CParty::clear_reward(int param)
     //   cmp …,%eax; setg`（setg×3）⇒ **两侧同为有符号**，表内序号错配假阳性，
     //   未改源码（另 ORIG `cmp $0x2; ja` 与我方 `setbe` 仅极性差异，符号性同为无符号）。
     CDataManager* dm = G_CDataManager();
-    int dungIdx =
-        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
-    CDungeon* dungeon = dm->find_dungeon(dungIdx);
+    // [G7-sub] P0 槽律：ORIG 085ae0e1 `call get_dungeon_index` 结果**无槽**、直进
+    // `0x4(%esp)` 作 find_dungeon 实参（085ae0e6）；我方原 `int dungIdx` 落
+    // -0x1a4 槽（多 1 槽 + 2 条往返）⇒ 内联回实参位。
+    CDungeon* dungeon = dm->find_dungeon(
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());
     int memberCount = get_member_count();
 
     if (dungeon == 0)

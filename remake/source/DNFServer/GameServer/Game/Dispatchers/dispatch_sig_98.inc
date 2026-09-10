@@ -9,20 +9,22 @@ int Dispatcher_CharacterStatistic::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    int v0, v1, v2, v3, v4, v5;
-    if (packet.get_int(v0) != 1) return LineFunc(0x9d1f, __PRETTY_FUNCTION__, 0, 0);
-    if (packet.get_int(v1) != 1) return LineFunc(0x9d20, __PRETTY_FUNCTION__, 0, 0);
-    if (packet.get_int(v2) != 1) return LineFunc(0x9d21, __PRETTY_FUNCTION__, 0, 0);
-    if (packet.get_int(v3) != 1) return LineFunc(0x9d22, __PRETTY_FUNCTION__, 0, 0);
-    if (packet.get_int(v4) != 1) return LineFunc(0x9d23, __PRETTY_FUNCTION__, 0, 0);
-    if (packet.get_int(v5) != 1) return LineFunc(0x9d24, __PRETTY_FUNCTION__, 0, 0);
+    // ORIG 0x082051d0：6 个槽连续（-0x20..-0xc）且读取点用 `lea -0x20(%ebp)[+k*4]`
+    //   ⇒ 原码是数组 `int values[6]`；写回用 `mov %edx,0x8e03c(%eax)` 直 disp store
+    //   ⇒ 无 base 具名指针（我方旧形 6 独立变量 + base 视图多 4 槽且产 lea 链）。
+    int values[6];
+    if (packet.get_int(values[0]) != 1) return LineFunc(0x9d1f, __PRETTY_FUNCTION__, 0, 0);
+    if (packet.get_int(values[1]) != 1) return LineFunc(0x9d20, __PRETTY_FUNCTION__, 0, 0);
+    if (packet.get_int(values[2]) != 1) return LineFunc(0x9d21, __PRETTY_FUNCTION__, 0, 0);
+    if (packet.get_int(values[3]) != 1) return LineFunc(0x9d22, __PRETTY_FUNCTION__, 0, 0);
+    if (packet.get_int(values[4]) != 1) return LineFunc(0x9d23, __PRETTY_FUNCTION__, 0, 0);
+    if (packet.get_int(values[5]) != 1) return LineFunc(0x9d24, __PRETTY_FUNCTION__, 0, 0);
 
-    char* base = reinterpret_cast<char*>(user);
-    *(int*)(base + 0x8e03c) = v0;  // ORIG *(int*)(param_1+0x8e03c) = local_24
-    *(int*)(base + 0x8e044) = v1;  // local_1c
-    *(int*)(base + 0x8e048) = v2;  // local_18
-    *(int*)(base + 0x8e040) = v3;  // local_20
-    *(int*)(base + 0x8e04c) = v4;  // local_14
-    *(int*)(base + 0x8e050) = v5;  // local_10[0]
-    *(base + 0x8e074) = 1;
+    *(int*)((char*)user + 0x8e03c) = values[0];
+    *(int*)((char*)user + 0x8e044) = values[2];
+    *(int*)((char*)user + 0x8e048) = values[3];
+    *(int*)((char*)user + 0x8e040) = values[1];
+    *(int*)((char*)user + 0x8e04c) = values[4];
+    *(int*)((char*)user + 0x8e050) = values[5];
+    *(char*)((char*)user + 0x8e074) = 1;
     return 0;

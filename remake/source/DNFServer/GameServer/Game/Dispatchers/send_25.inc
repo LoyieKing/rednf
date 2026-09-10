@@ -11,12 +11,15 @@ void Dispatcher_Mercenary_Return::send(CUser* user, ParamBase& param)     // ORI
         int m_8;                // +0x08
     };
     SendMercenaryReturnResult& result = static_cast<SendMercenaryReturnResult&>(param);
-    MercRetMapView* mv = reinterpret_cast<MercRetMapView*>(&result);
+    // [G1Frest 2026-09-10] ORIG 0x081dda53 区：各字段经 `mov -0xc(%ebp),%eax`（result
+    //   引用槽）单级 disp 直取（`movzbl 0x4(%eax)`/`mov 0x8(%eax)`）——**无** mv 指针
+    //   具名局部（旧码 -0x10 槽 + 帧 0x30）。
     PacketGuard guard;
     guard.put_header(1, 0x1b9);
-    guard.put_byte(mv->m_4 ? 1 : 0);                       // +0x04 bool（ORIG mov$1/jmp/mov$0 岛）
-    guard.put_byte(static_cast<unsigned int>(mv->m_5));    // +0x05 char 回显
-    guard.put_int(mv->m_8);                                // +0x08 int
+    guard.put_byte(reinterpret_cast<MercRetMapView*>(&result)->m_4 ? 1 : 0);   // +0x04 bool（ORIG mov$1/jmp/mov$0 岛）
+    guard.put_byte(static_cast<unsigned int>(
+        reinterpret_cast<MercRetMapView*>(&result)->m_5));                     // +0x05 char 回显
+    guard.put_int(reinterpret_cast<MercRetMapView*>(&result)->m_8);            // +0x08 int
     guard.put_int(result.m_result.m_0);                                     // +0x0c
     guard.put_int(result.m_result.m_4);                                     // +0x10
     guard.put_byte(static_cast<unsigned int>(

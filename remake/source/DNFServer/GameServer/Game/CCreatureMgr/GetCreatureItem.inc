@@ -42,20 +42,25 @@ bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
     }
     sig->m_creatureCount = count;
 
-    int eggCount = 0;
+    // [P160 槽复用] ORIG 0x833b950 `movl $0x0,-0x10(%ebp)` 复用的是第一循环
+    // count 的槽 -0x10（该槽贯穿 0x833b971 索引 / 0x833b9c9 增量 / 0x833ba18
+    // 回填 m_creatureCount2）⇒ 第二循环必须复用同一具名局部 count，勿另声明
+    // eggCount：4.4 不做 lifetime 槽复用，另声明即多 1 个 4B 槽（我方帧 0x7c
+    // vs ORIG 0x70，且 eggCount 额外占 -0x20）。
+    count = 0;
     std::map<int, int>::const_iterator it2 = m_field30.begin();
     // [P13 反例] ORIG 0x833b9f6/0x833ba08 第二个 map 的 end() 在**循环内每轮**
     //   求值（`lea 0x30(%eax); call end(); sub $4` 位于条件块），非循环外缓存
     //   （与第一循环相反）；it2End 具名局部使静态少 5 条 ⇒ 改每轮调用。
-    while (it2 != m_field30.end() && eggCount <= 0x13)
+    while (it2 != m_field30.end() && count <= 0x13)
     {
         // ORIG：mov %edx,0x4(%eax,%ecx,8) / mov %edx,0x8(%eax,%ecx,8)，
-        // %ecx = eggCount+0x2a68 → SIG_POSTAL_CREATURE_TEMP_PERIOD[eggCount]
+        // %ecx = count+0x2a68 → SIG_POSTAL_CREATURE_TEMP_PERIOD[count]
         // （m_uid @+0x15344 / m_tempPeriod @+0x15348，均 int）。
-        sig->m_tempPeriods[eggCount].m_uid = it2->first;
-        sig->m_tempPeriods[eggCount].m_tempPeriod = it2->second;
+        sig->m_tempPeriods[count].m_uid = it2->first;
+        sig->m_tempPeriods[count].m_tempPeriod = it2->second;
         it2++;
-        eggCount++;
+        count++;
     }
-    sig->m_creatureCount2 = eggCount;
+    sig->m_creatureCount2 = count;
     return 1;

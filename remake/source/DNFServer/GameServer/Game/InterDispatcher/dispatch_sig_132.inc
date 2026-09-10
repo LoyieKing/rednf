@@ -1,3 +1,15 @@
+#pragma pack(push, 1)
+// [G2A-PC 手法1/P248] ORIG 084d4b3a 对 guildDbInfo+0x1b 发单段 `movzbl 0x1b(%eax),%eax`
+//   （结构体成员 = base+disp 形）；我方旧写 `*(reinterpret_cast<const unsigned char*>
+//   (guildDbInfo) + 0x1b)` 会多发 `add $0x1b,%eax` 一条 ⇒ 原码是视图成员访问。
+//   pack(1) 布局与聚合器无关（本件自带，只覆盖 +0x1b 一字节）。
+struct Inter_SecedePowerGuildDbByteViewI
+{
+    char m_pad0[0x1b];
+    unsigned char m_c;                              // +0x1b (P248: ORIG 084d4b3a movzbl 单段 = unsigned char)
+};
+#pragma pack(pop)
+
 int Inter_SecedePower::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_SecedePowerPktView* pPkt = reinterpret_cast<Inter_SecedePowerPktView*>(data);
@@ -38,11 +50,15 @@ int Inter_SecedePower::dispatch_sig(CUser* user, char* data, int /*len*/)
         const char* guildDbInfo = static_cast<const char*>(user->GetGuildDBInfo());
         STGuildProxy proxy(
             guildDbInfo,
-            *(reinterpret_cast<const unsigned char*>(guildDbInfo) + 0x1b),
+            // P248 同型化：ORIG 084d4b3a `movzbl 0x1b(%eax),%eax` 单段 disp 读。
+            ((const Inter_SecedePowerGuildDbByteViewI*)guildDbInfo)->m_c,
             (unsigned char)0);
-        CGuildServerProxy* proxySrv =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-        proxySrv->ModifyGuildInfoProxy(
-            (unsigned int)user->get_charac_guildkey(), proxy);
+        // [G2A-PC 手法2/P324] ORIG 084d4b65 `call get_charac_guildkey` → 084d4b6a
+        //   `mov %eax,%ebx`（跨两调用保活，无栈槽）→ 084d4b6c/084d4b72 `call GetServerGroup`
+        //   → 084d4b84 `call GetServerProxy`：即先算实参、后算 receiver 链。
+        //   具名 proxySrv 局部会多发 `mov %eax,-0xNN(%ebp)` + `mov -0xNN(%ebp),%eax`
+        //   往返（本 diff 的 N 侧尾部即此形）⇒ 原码 receiver 为链式单表达式。
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->ModifyGuildInfoProxy((unsigned int)user->get_charac_guildkey(), proxy);
     }
     return 0;

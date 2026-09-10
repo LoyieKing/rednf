@@ -22,36 +22,45 @@ void CParty::Reset_party_overlapped_drop_ratio()
             m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x12);
         Inven_Item item3 =
             m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x11);
-        if (item1.m_addInfo > 0x5e7f && item1.m_addInfo <= 0x5e87)
+        // [G7-sub] ORIG 0x085b923c / 0x085b9289 / 0x085b92d3：
+        //   `mov -0xe1(%ebp),%eax; mov %eax,-0x14(%ebp)`（sret 缓冲 +2 字段 → 具名
+        //   int -0x14），-0x10（item2）、-0xc（item3）同形 ⇒ 原码有 3 个具名 int
+        //   （P0：有槽往返即有局部）。此后 9 处比较 ORIG 全是 `cmpl $imm,-0x14(%ebp)`
+        //   内存直比；旧码直读 sret 缓冲字段 ⇒ 每处多 1 条 load（我方 217 vs 210），
+        //   且帧小 0xc（0xe8 vs ORIG 0xf8）。
+        int add1 = item1.m_addInfo;
+        int add2 = item2.m_addInfo;
+        int add3 = item3.m_addInfo;
+        if (add1 > 0x5e7f && add1 <= 0x5e87)
         {
             cntB++;
             cntE++;
         }
-        else if (item1.m_addInfo == 0x5e7f)
+        else if (add1 == 0x5e7f)
         {
             cntA++;
         }
-        else if (item1.m_addInfo == 0x5ed9)
+        else if (add1 == 0x5ed9)
         {
             cntB++;
             cntE++;
         }
-        if (item2.m_addInfo > 0x5692 && item2.m_addInfo <= 0x569a)
+        if (add2 > 0x5692 && add2 <= 0x569a)
         {
             cntC++;
             cntE++;
         }
-        else if (item1.m_addInfo == 0x5ed9)
+        else if (add1 == 0x5ed9)
         {
             cntC++;
             cntE++;
         }
-        if (item3.m_addInfo > 0x4eca && item3.m_addInfo <= 0x4ed2)
+        if (add3 > 0x4eca && add3 <= 0x4ed2)
         {
             cntD++;
             cntE++;
         }
-        else if (item1.m_addInfo == 0x5ed9)
+        else if (add1 == 0x5ed9)
         {
             cntD++;
             cntE++;

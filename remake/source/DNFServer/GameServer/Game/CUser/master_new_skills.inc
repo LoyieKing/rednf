@@ -1,5 +1,10 @@
 bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind)
 {
+    // 2026-09-10 gA（A 组）负结论 N（ORIG 506 vs 我方 491）：ORIG 0x0866b53e 与我方
+    //   的差**全部**来自跨版本寄存器/槽分配（ORIG `push %edi` + 帧 0xac + 差值临时经
+    //   %esi；我方无 %edi + 帧 0x90 + 差值临时经 %ebx），逐块比对无字段/调用缺口
+    //   （calcUsedSPE/get_remain_sp_at_index/set_remain_sp_at_index 调用序一致）
+    //   ⇒ N78/N82 封顶，不为单条 mov 破坏表达式。
     int usedSp = 0;
     int usedSfp = 0;
     ((SkillSlot*)getCurCharacSkillR())->calcUsedSP(skills, usedSp, usedSfp);

@@ -21,7 +21,16 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         G_CGameManager()->GetPremiumLetheManager();
 
     CUser* user = static_cast<CUser*>(param.m_user);
-    int itemIdx = param.m_itemIdx;
+    // [G10 实验] ORIG 0x0827d3f7..0x0827d405：`mov 0x4(%eax),%eax; mov %eax,-0x9c(%ebp)`
+    // 单条 4B store 后 **直接** `lea -0x9c(%ebp),%edx` 作 map::find 的 key 地址
+    // （0x0827d43c）⇒ 该局部与 map key 同型（32 位下 unsigned long=4B），
+    // 无 int→ulong 转换临时槽。旧 `int itemIdx` + 显式 cast 使 4.4 多出
+    // 转换临时（我方 -0x48→-0xa8 两次 store）。
+    // 实测（fresh .o，同一 ORIG 基线）：diff 段 +538/-519（3 hunks）→
+    // +524/-501（3 hunks）；TU 四数 176/319(合计 495)/3/11/104 逐值不变 ⇒ 不劣
+    // ⇒ 保留（帧 0xd0 未变，槽号由 -0x50/-0x4c... 上移到 -0x4c/-0x48...，
+    // 与 ORIG -0x44/-0x40... 之差收敛到 8 = P332 版本首槽常数）。
+    unsigned long itemIdx = param.m_itemIdx;
     int count = param.m_count;
     // ORIG 0x0827d414：`movzbl 0x1c(%eax),%eax; mov %al,-0x35` —— flag 是**字节槽**
     // （后续 9 处 `movb $0x1,-0x35`、1 处 `movzbl -0x35,%eax`）⇒ 原码为 unsigned char。
@@ -33,7 +42,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     long start = timeA;                         // -0xa0
 
     std::map<unsigned long, STPremiumItemData>::iterator it =
-        g_map_premium_item_data.find((unsigned long)itemIdx);
+        g_map_premium_item_data.find(itemIdx);
     if (it == g_map_premium_item_data.end())
     {
         LogManager::logFormat(

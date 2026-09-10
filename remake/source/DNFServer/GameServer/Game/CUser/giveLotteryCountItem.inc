@@ -1,5 +1,10 @@
 void CUser::giveLotteryCountItem(int itemNo, bool match)
 {
+    // 2026-09-10（G3CUser-B 复验）：ORIG 0x086915fa `cmpl $0x0,-0x38(%ebp); je`
+    //   （item==0 返回）与 0x08691623 `xor $1; test %al,%al; jne`（!verifyStackable…
+    //   返回）为**两条独立守卫且各有 ORIG 直证** ⇒ 我方同形，不可删；
+    //   本 .inc 具名量（item/src/i/it/slot/msg/str/rewards/packet）均有 ORIG 槽对应，
+    //   残余属跨版本 codegen（N 族），判 N。
     if (getCurCharacR() == 0)
     {
         LogManager::logFormat(

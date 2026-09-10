@@ -1,5 +1,12 @@
 int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+// [G2A-PC 本轮负结论 N，ndiff=106] 残留与 208 同族：
+//   (a) ORIG `mov 0x17(%eax),%eax; mov %eax,%ebx` / `mov 0x22(%eax),%eax; mov %eax,%esi`
+//       （两条）vs 本方单条 `…,%ebx` / `…,%esi` —— gcc 伪寄存器分派差；
+//   (b) `get_charac_no` 结果与 pPkt->m_e 的取用次序两侧一致，仅 %ebx/%esi/%edx 分派不同；
+//   (c) 局部结构体 3 字段的赋值：ORIG 逐字段槽往返 `mov 0x33(%eax),%edx; mov %edx,<S>`，
+//       本方为 `lea <S>,%eax; lea 0x25(%eax),%edx; mov (%eax),%eax; mov %eax,(%edx)` 直写。
+//   均无源码级单点直证，留 N。
 Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemPktView*>(data);
     // ORIG 0x084de330 报告 docs/class_func_reports/Inter_GuildCargoPopItem/dispatch_sig.md
     // 两段全读。msg 布局：+0x0e characNo / +0x12 resultByte / +0x17 itemIdx /

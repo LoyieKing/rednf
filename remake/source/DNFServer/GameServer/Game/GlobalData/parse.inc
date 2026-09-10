@@ -63,8 +63,15 @@ bool CDBEnviroment::parse(char* buf)
     {
         // ORIG 0x0829dc9a/0x0829dcbb：find 的 receiver 与 end 的 receiver 各自
         // 独立调用 G_CEnvironment()（P48 无 CSE + P157 逐字段重读，禁 env 缓存；
-        // p167 实证旧写缺 G_CEnvironment×1）。
+        // 实证旧写缺 G_CEnvironment×1）。
         // ORIG 0x0829dc8e..0x0829dca5：m_dbType 同样先值拷贝到具名局部（-0x30）。
+        // [G7-sub] 本轮复核：ORIG 289 / 我方 289、帧 0x70==0x70（0x0829d8ed
+        //   `sub $0x70,%esp`）；p167 仅 map/pair/cMyTrace 的 C1↔C2 / D1↔D2 别名。
+        //   残差 = **同一帧内局部槽基差 8**：sep ORIG -0x10==我方 -0x10，但
+        //   p1/p2 ORIG -0x48/-0x4c vs 我方 -0x40/-0x44、dbType 副本 ORIG
+        //   -0x34/-0x30 vs 我方 -0x60/-0x64、tmp map ORIG -0x64 vs 我方 -0x5c
+        //   ⇒ N126（4.1 首槽 -0x4 / 4.4 -0xc 版本常数）封顶；声明序对调已实测
+        //   回滚（见上条判词）。
         ENUM_SERVER_GROUP dbType = m_dbType;
         std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> >::iterator it =
             ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.find(dbType);

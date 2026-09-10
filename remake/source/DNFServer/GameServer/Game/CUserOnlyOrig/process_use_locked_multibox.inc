@@ -9,8 +9,11 @@ int CUser::process_use_locked_multibox(int boxSlot, int keySlot,
     // ORIG 0x08675b8a-0x08675b9b 仅一次 G_CDataManager 调用（旧版多一条独立调用）。
     CItem* boxDef = G_CDataManager()->find_item(key.m_addInfo);   // -0x18
 
-    CBoosterGage* gage = (CBoosterGage*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)(0x11));
-    bool overGage = gage->check_max_booster_gage(key.m_addInfo);  // -0x11
+    // [P0 去缓存] ORIG 08675bb4 的 GetCharacExpandData 结果直接在 %eax 压栈给
+    // check_max_booster_gage（08675bb9 `mov %ebx,0x4(%esp); mov %eax,(%esp)`），
+    // 无 gage 具名指针槽 ⇒ 旧稿 -0x18 槽使 Inven_Item 落 -0x65 而 ORIG -0x61（全帧错 4B）。
+    bool overGage = ((CBoosterGage*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)(0x11)))
+                        ->check_max_booster_gage(key.m_addInfo);  // -0x11
 
     int err = check_locked_multibox_error(boxDef, keySlot, overGage);
     if (err != 0) return err;

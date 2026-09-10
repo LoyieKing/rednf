@@ -54,8 +54,14 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
                             msg.m_natPort, digestHex);
 
     char peerIp[0x14] = {0};             // ORIG 0x081f4a94..0x081f4ab0 5×movl $0 清零
-    char* ip2 = user->m_network.GetPeerIP2(peerIp, 0x14);
-    if (!(bool)(unsigned char)checkDenyIP(user->m_network.get_str_ip(), ip2))
+    // [G5-SigA] P52/P183：ORIG 0x081f4ae4 `call GetPeerIP2` 后返回值**不经槽**，
+    // 由 callee-saved %ebx 跨 0x081f4ae4..0x081f4af0 的 get_str_ip 调用保活
+    // （0x081f4ae9 `mov %ebx,0x4(%esp)`），即原码是单语句
+    // `checkDenyIP(get_str_ip(), GetPeerIP2(peerIp, 0x14))`（实参右→左求值）。
+    // 原具名 char* ip2 多出槽写入 + 该 4B 槽使帧 0x12c→0x13c（fn_diff_tu 实测）。
+    if (!(bool)(unsigned char)checkDenyIP(
+            user->m_network.get_str_ip(),
+            user->m_network.GetPeerIP2(peerIp, 0x14)))
     {
         PacketGuard packetGuard;
         packetGuard.put_header(1, 2);

@@ -12,6 +12,10 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
     //   补 case 0/4 实测 505 更劣）⇒ 4.1↔4.4 switch lowering 代际差（P320 族）；
     //   另 m_amp 结构赋值写序（ORIG +0x15/+0x19/+0x1d 后写 +0x11）+ isEquipableItemType
     //   调用点 ORIG `xor $1`（负极性 if，P222）均为形态残差。
+    // [B24D-CDeathTower 语句序还原] 字段填充段按 ORIG 0x084667d8..0x0846688a 重排：
+    //   m_fieldb(+0x1d) 提到 m_amp 之前；m_amp 拆为 guid 视图(+0x25/+0x29/+0x2d，
+    //   单条结构赋值) 后接 4B 头视图(+0x21，独立重载)；m_fieldd(+0x1b)/m_field0(+0x10)
+    //   移到 SetItemAttr 之后（ORIG 0x08466878/0x08466883）。见该段行内注释。
     // P167：41/41 CLEAR（Inven_Item C1/C2 同址别名 P93 伪差）。
     // ORIG T 0x0846638c（Ghidra 反编译语义逐条转写；参数槽：0x8=this,0xc=user,
     // 0x10=type,0x14=slot,0x18=count,0x1c=item&）
@@ -106,10 +110,19 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         item.m_count = false;
         item.m_item.m_field1 = invenItem.m_field1;
         item.m_item.m_addInfo = invenItem.m_addInfo;
-        item.m_item.m_fieldd = invenItem.m_fieldd;
-        item.m_item.m_amp = invenItem.m_amp;
         item.m_item.m_fieldb = invenItem.m_fieldb;
-        item.m_item.m_field0 = invenItem.m_field0;
+        // [B24D-CDeathTower 语句序还原] ORIG 0x084667d8..0x0846688a 实测写序：
+        //   +0x00(m_count) → +0x11(m_field1) → +0x12(m_addInfo) → +0x1d(m_fieldb)
+        //   → guid 组 +0x25/+0x29/+0x2d（单条结构赋值，共享一次基址装载）
+        //   → +0x21(m_amp0Head，独立重载，0x08466811 `mov 0x1c(%ebp),%eax;
+        //     mov -0x44(%ebp),%edx; mov %edx,0x21(%eax)`）
+        //   → isEquipable 检查/set_add_info/SetItemAttr
+        //   → +0x1b(m_fieldd, 0x08466878) → +0x10(m_field0, 0x08466883)。
+        // 原实现把 m_amp 当整体 14B 复制（4 写共享一次基址装载 ⇒ 少一次 0x1c
+        // 重载）、并把 fieldd/field0 提前到 SetItemAttr 之前 ⇒ 两个 hunk 错位。
+        // 按 P247 拆 guid 视图 + 4B 头部视图（与 ORIG 逐条对齐）。
+        item.m_item.m_amp.m_guid = invenItem.m_amp.m_guid;
+        item.m_item.m_amp.m_amp0Head = invenItem.m_amp.m_amp0Head;
         if (invenItem.isEquipableItemType())
         {
             item.m_item.set_add_info(count);
@@ -119,6 +132,8 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
             item.m_item.set_add_info(invenItem.m_addInfo2);
         }
         item.m_item.SetItemAttr(invenItem.GetItemAttr());
+        item.m_item.m_fieldd = invenItem.m_fieldd;
+        item.m_item.m_field0 = invenItem.m_field0;
         G_Store()->GetSellItemPrice(invenItem, citem, (short)count, false, sellPrice);
     }
 

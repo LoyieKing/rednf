@@ -20,9 +20,9 @@ int Dispatcher_RequestItemUnlock::dispatch_sig(CUser* user, PacketBuf& packet)
     int able = 0;                                    // -0xc
     int err = 0;                                     // -0x18（IsAbleItemUnlock 出参）
     able = user->IsAbleItemUnlock(slot, itemIdx, err);
-    bool anz;                     // 同上技巧22 布尔物化
-    anz = (able != 0);
-    if (anz)
+    // ORIG 0x0822...：`mov %eax,-0xc(%ebp); cmpl $0x0,-0xc(%ebp); ...; test %al,%al`
+    //   —— 无 `mov %al,-0x9(%ebp)` bool 具名量（我方 anz 多占 1 槽 ⇒ 全槽下移 4）。
+    if (able != 0)
     {
         PacketGuard packet_;                         // -0x24
         packet_.put_header(1, 0x110);

@@ -1,5 +1,11 @@
 bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串 bool）
 {
+    // 2026-09-10（G3CUser-B 负结论·余量登记）：栈槽集对照（报告 ORIG 汇编 vs 我方
+    //   重建汇编）：ORIG 50 槽 / 我方 59 槽、整体平移 +0x28，平移后**仍多余 9 个
+    //   具名槽**（-0x13c/-0x12c/-0x120/-0x11c/-0xb1/-0x65/-0x49/-0x3c/-0x31 等）。
+    //   即本件确有可削的具名局部，但函数 2149 insn、字段写入 500+ 站点，定位需
+    //   逐块比对；本轮未落（避免无直证改动）。建议后续单件专批：按上述槽地址回查
+    //   我方汇编 store 点 → 对应源码具名量，按 P0/P183 内联。
     // b28d-solo-CUser p167 复核（ORIG 407 / OUR 404，本轮 10→3 缺口）：
     //   已修 —— creatureName/guild->m_guildName/GetGuildName 长度具名复用（消 strlen×3）、
     //   teamName getter 三次独立调用（P183）、blood->GetEnterCount 具名复用（消 EXTRA×1）、

@@ -19,8 +19,9 @@ int Dispatcher_CompleteLoadAssault::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         else
         {
-            pvp_assault::CAssaultMgr* mgr = pvp_assault::GetInstanceAssaultMgr();
-            if (!mgr->OnCompleteLoad(user))
+            // ORIG 0x0820..：[40] 段直接 `mov 0xc(%ebp),%edx; mov %edx,0x4(%esp)`
+            //   （无 mgr 具名指针槽；我方具名使 room 槽从 -0xc 下移到 -0x10）。
+            if (!pvp_assault::GetInstanceAssaultMgr()->OnCompleteLoad(user))
             {
                 LineFunc(0xa1a8,
                          __PRETTY_FUNCTION__,

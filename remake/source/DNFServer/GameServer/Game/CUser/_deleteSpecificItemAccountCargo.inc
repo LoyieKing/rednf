@@ -1,3 +1,8 @@
+// [b28d-GrpD 判词·等价 N] ORIG 0x0867d8a4：实差异仅 ① ORIG `cmp $-1,matched; setne;
+//   test; je`（bool 物化）vs 我方裸 `je`（判据⑦等价）；② GetCapacity 比较的寄存器
+//   中转（`cmp %edx,%eax` vs `cmp %eax,%edx`，同减式）；③ 未解析重定位地址。
+//   字段偏移（item+0x2/+0x7、slot -0x50、matched -0x14）与 make_pair<unsigned long&,int&>
+//   /make_pair<ENUM_ITEMSPACE,unsigned&> 两处实例化全一致 ⇒ 无语义缺口。
 void CUser::_deleteSpecificItemAccountCargo(
     const std::vector<std::pair<int, int> >& list,
     std::vector<std::pair<int, int> >& out)

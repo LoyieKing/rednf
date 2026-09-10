@@ -3,7 +3,6 @@ int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet
     // ORIG 0x08216b9a
     // ORIG _ZL6gmList：TU 内 static int[5]（0x093701d8，0x14 字节 .data，初值忠实转写）
     static int s_gmList[5] = {0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae};
-    int result;
 
     // call CAuctionServerProxy::IsRunning(s_auction_proxy); xor $1 → !IsRunning
     if (!GlobalData::s_auction_proxy->IsRunning())
@@ -21,10 +20,14 @@ int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet
     }
 
     // PCK_AUCTION_MY_BIDDING_INFO_GA local_3a（ORIG 栈对象，字段 +0x0e/+0x12 为裸偏移）
+    // ORIG 0x08216b9a 段 [41]/[48]：`mov %eax,-0x24(%ebp)` / `mov %eax,-0x20(%ebp)`
+    //   —— 两个具名 int 暂存槽（原码先落槽再写包体）；直接用 lea 链写会令 4.4
+    //   产 `lea 0xe(%eax),%ebx; mov %eax,(%ebx)` 且帧多 8 字节。
+    unsigned int uid = user->GetUID();                                   // local_28
+    unsigned int characNo = (unsigned int)user->getCurCharacNo();         // local_24
     PCK_AUCTION_MY_BIDDING_INFO_GA req;
-    *(unsigned int*)((char*)&req + 0x0e) = user->GetUID();               // local_28
-    *(unsigned int*)((char*)&req + 0x12) =
-        (unsigned int)user->getCurCharacNo();                            // local_24
+    *(unsigned int*)((char*)&req + 0x0e) = uid;
+    *(unsigned int*)((char*)&req + 0x12) = characNo;
     GlobalData::s_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&req);
 
     // ORIG cmpl $0x4,-0xc; setle → i <= 4（含 4，共 5 轮）
@@ -32,13 +35,13 @@ int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet
     {
         if (s_gmList[i] == (int)user->getCurCharacNo())
         {
-            int characNo = (int)user->getCurCharacNo();
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
                 0xc84e, 0);
-            trace("Trace Auction Delay, %s(%d)", "REQ AuctionMyBiddingInfo", characNo);
+            // ORIG [69]：characNo 经 %ebx 直传（无栈槽）。
+            trace("Trace Auction Delay, %s(%d)", "REQ AuctionMyBiddingInfo",
+                  (int)user->getCurCharacNo());
             break;
         }
     }
-    result = 0;
-    return result;
+    return 0;

@@ -8,7 +8,7 @@ float CompiledDNFLex::getFloat(bool* result)
     }
     if (result != 0)
         *result = true;
-    static float floatBuffer;
-    floatBuffer = *reinterpret_cast<float*>(offset_);
-    offset_ += 4;
-    return floatBuffer;
+    // [b28d-G11 直证] 同 getInt：ORIG 符号表只有 helper 的
+    // `_ZZ19readFloatFromBufferRPcE11floatBuffer`（V），无 getFloat()::floatBuffer
+    // ⇒ 原码为 `return readFloatFromBuffer(offset_);`。
+    return readFloatFromBuffer(offset_);

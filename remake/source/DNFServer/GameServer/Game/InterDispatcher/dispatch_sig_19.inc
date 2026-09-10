@@ -25,19 +25,25 @@ int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (({ pPkt->m_33 == '\x01' &&
           user->getCurCharacR() != 0; }))
     {
+        // ORIG 0x084c8ff2..0x084c900f：中间量**全部无槽**（`mov <pPkt 槽>,%eax;
+        //   lea 0x15(%eax),%esi`、值直落 %ebx/%edi/%esi 跨调用；`mov %esi,0x1c(%esp)` 等）
+        //   ⇒ 原码是内联实参（P0/P183），旧具名形每量多一次 `mov %eax,<槽>; mov <槽>,%eax`
+        //   往返（我方 OURS[110:150] 段），且基址走 pPkt 槽（非重读 data 形参）。
         Inven_Item item;
-        char* iVar2 = data + 0x15;
-        const char* characName = user->getCurCharacName();
-        const char* pcVar4 =
-            g_scriptStringManager_.findString(4, "return_user_msg_3", 0);
         char local_16d[256];
-        OS_API::snprintf(local_16d, 0xff, pcVar4, characName, iVar2);
-        const ENUM_SERVER_GROUP uVar3 = user->GetServerGroup();
-        const size_t sVar5 = strlen(local_16d);
-        const unsigned int uVar6 = user->getCurCharacNo();
-        const char* uVar7 =
-            g_scriptStringManager_.findString(4, "return_user_msg_title", 0);
+        OS_API::snprintf(local_16d, 0xff,
+                         g_scriptStringManager_.findString(4, "return_user_msg_3", 0),
+                         user->getCurCharacName(),
+                         reinterpret_cast<char*>(pPkt) + 0x15);
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            uVar7, item, 0, uVar6, local_16d, sVar5, 0, uVar3, 0, 0);
+            g_scriptStringManager_.findString(4, "return_user_msg_title", 0),
+            item, 0, user->getCurCharacNo(), local_16d, strlen(local_16d), 0,
+            user->GetServerGroup(), 0, 0);
     }
     return 0;
+
+// [G2B-Monitor] 本件已做：删 5 个具名中间量（iVar2/characName/pcVar4/uVar3/sVar5/uVar6/uVar7）
+//   全内联，基址改走 pPkt 槽（ORIG `mov <S>,%eax; lea 0x15(%eax),%esi`；我方旧形
+//   `mov 0x10(%ebp),%eax; add $0x15,%eax; mov %eax,<S>`）。ORIG `push %edi`+帧 0x19c
+//   与我方旧 `sub $0x1a0`（无 push）总量相同 ⇒ 旧具名槽顶替了 callee-saved 寄存器。
+//   残余留 N：跨调用中转寄存器 ORIG=%esi/%edi/%ebx 的选择，属 LRA 分配族，无源码旋钮。

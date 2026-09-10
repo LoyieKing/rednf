@@ -8,15 +8,20 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     // ("Arad_EventPeriodDataManager") 取周期事件管理并 delUserRewardData(this)，
     // 不受后文 socket/state 短路影响（无条件先执行）。
     {
-        ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
         // 2026-09-10（FL2CUser 类型轴）：ORIG 0x08648a45 段 p167 无具名 string 局部
         //   （差集只有「我们多 1×`SsC2ERKSs` 拷贝构造 + 2×`SsD2Ev`」）；形参
         //   `_ZN4ARAD16Arad_DataManager14findGameScriptESs` 为**按值 std::string**
         //   ⇒ 原码直传字面量（临时经 elide 直达形参），无 name 局部。
-        ARAD::Arad_EventPeriodDataManager* epdm =
-            (ARAD::Arad_EventPeriodDataManager*)adm->findGameScript(
-                "Arad_EventPeriodDataManager");
-        epdm->delUserRewardData(this);
+        // 2026-09-10 gA（A 组）P183：ORIG 0x08648a45..0x08648a63 全链式 ——
+        //   `call ARAD::Singleton<Arad_DataManager>::Get(); lea -0x6c(%ebp),%edx;
+        //   mov %edx,0x4(%esp); mov %eax,(%esp); call findGameScript`，返回值再直接
+        //   `mov 0x8(%ebp),%edx; mov %edx,0x4(%esp); mov %eax,(%esp); call
+        //   delUserRewardData` —— **无 adm/epdm 具名指针槽**（我方旧形多 -0x48/-0x44
+        //   两槽 + 帧 0xd4c vs ORIG 0xd1c）⇒ 删两具名量、改单条链式表达式。
+        ((ARAD::Arad_EventPeriodDataManager*)
+             ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
+                 "Arad_EventPeriodDataManager"))
+            ->delUserRewardData(this);
     }
 
     int sock = m_network.m_sock;   // ORIG this+0xe0

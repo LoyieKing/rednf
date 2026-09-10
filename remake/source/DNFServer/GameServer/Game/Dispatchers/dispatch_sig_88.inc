@@ -25,6 +25,8 @@ int Dispatcher_PeerConnectResult::dispatch_sig(CUser* user, PacketBuf& packet)
     // asm：movsbl nat 值 → int（有符号字节扩展）
     int localNat = static_cast<int>(static_cast<signed char>(user->m_network.get_nat_type()));
     int peerNat = static_cast<int>(static_cast<signed char>(peer->m_network.get_nat_type()));
-    StatisticsNatType* stats = G_GameWorld()->GetStatisticsNatType();
-    stats->IncreaseNatType(localNat, peerNat, (unsigned char)result);
+    // ORIG 0x0820346a：GetStatisticsNatType() 结果经 %eax 直传 IncreaseNatType，
+    //   无 stats 具名指针槽（我方具名使帧 0x24→0x34、槽整体下移 4）。
+    G_GameWorld()->GetStatisticsNatType()->IncreaseNatType(
+        localNat, peerNat, (unsigned char)result);
     return 0;

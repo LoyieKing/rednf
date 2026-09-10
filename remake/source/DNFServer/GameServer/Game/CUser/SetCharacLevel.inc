@@ -1,5 +1,9 @@
 bool CUser::SetCharacLevel(int level)
 {
+    // 2026-09-10 gA（A 组）负结论 N（458 vs 461）：ORIG 0x0867a9cc..0x0867a9d6 条件为
+    //   `cmp; setl %al; test %al,%al; je <else>`（4.1 布尔物化），4.4 对同一比较恒产
+    //   `cmp; jge <else>` 直跳（P197④ 镜像族，setcc/直跳不可互换）；另我方帧 0x90 vs
+    //   ORIG 0x9c 属槽分配差 ⇒ 判 N，保留现三目源形。
     // 0x0867a95c 主分支（SetCharacLevel.md）：等级钳制[1,200]；按方向取
     // GetSpAtLevelUp 计算 SP 增量加到树 0/1 并 clamp；exp=get_level_exp；
     // SFP：<50 清 idx2/3，旧级<0x33 则=level-0x31 否则各+差值；逐级加/减

@@ -1,8 +1,15 @@
 int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
 {
+    // [G2A-PC 本轮残留 N（已删 unused local_10）] 残留为 setg/setle 反转结构：
+    //   ORIG [28:29] `setg %al` 且 `mov $0x26d4,%eax` 落在函数尾 [182:185]；
+    //   本方为 `setle %al` 且 0x26d4 提前在 [34:36] ⇒ 原码是「主体在 `if (state > 2)` 内、
+    //   0x26d4 作尾部 fall-through 返回」。改写需整体重排函数体（约 60 行），
+    //   风险高于本件 ndiff=10 的收益，留 N。
     Inter_MonitorSetGuildKeyPktView* pPkt = reinterpret_cast<Inter_MonitorSetGuildKeyPktView*>(data);
-    const int local_10 = len;
-
+    // [G2A-PC P0/P183 去具名局部] ORIG 无该槽往返：`const int local_10 = len;`（未使用）
+    //   会多发 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)` 两条（即本 diff N 侧
+    //   `insert ORIG[6] OURS[6:8]`）⇒ 原码无此局部，且形参 len 自始未被引用。
+    (void)len;
     if (user->get_state() == 2)                        // test eax,eax; sete
     {
         user->set_charac_guildkey_in_login(            // msg+0x12, msg+0xe

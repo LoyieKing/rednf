@@ -1,11 +1,23 @@
 void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
     SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data)
 {
+    // [G7-gd] 语义修正（ORIG 0x0831c4a6 `movl $0x0,-0x10(%ebp)`）：count 是
+    //   **去重后的插入计数**，声明在 memcpy 之前并预清 0；仅在新键插入路径
+    //   （else 分支）写 m_keys[count] 三字节并 `++count`
+    //   （ORIG 0x0831c6f2..0831c743：`mov -0x10,%edx … add $0x2f0,%eax;
+    //   mov %cl,0xe/0xc/0xd(%eax); addl $0x1,-0x10`）。旧写把 m_keys[i] 三行放在
+    //   if/else **之外**且下标用 i ⇒ 重复键时写入位置与 ORIG 不同（真 bug）。
+    int count = 0;
     memcpy(this, data, 0x2e4);   // 基类子对象区（原 m_base）
     m_rewardMap.clear();
 
-    int count = data->m_field2e0;
-    for (int i = 0; i < count; ++i)
+    // [G7-gd] ORIG 0x0831c773 循环条件每次都从 **this** 重读计数
+    //   （`mov 0x8(%ebp),%eax; mov 0x2e0(%eax),%eax; cmp -0xc(%ebp),%eax; setg`），
+    //   无 `count = data->m_field2e0` 的具名副本；memcpy 已把 data 拷入 this，
+    //   语义等价（基址 this 与 ORIG 一致）。
+    for (int i = 0;
+         i < ((const SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER*)this)->m_field2e0;
+         ++i)
     {
         // 保留裸形式说明（本函数当前 identical）：ORIG 0831c50b..0831c5c9 就是
         // `add %i*0x18 基址; add $0x10; movzbl 0x1(%eax)/0x2(%eax)/(%eax)` 与
@@ -27,15 +39,27 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
         //   10 行/字段，0831c4e3/50b/549/563/57d/597/5b1 七段 missing），我方
         //   原 `entry` 缓存 ⇒ 每字段只 4 行 ⇒ 少 40 条。删缓存、逐字段重算
         //   （P48 无引用缓存族），0x11/0x12/0x10 序 = ORIG 字节装载序。
-        key.m_data[0] = *((const char*)data + i * 0x18 + 0x11);
-        key.m_data[1] = *((const char*)data + i * 0x18 + 0x12);
-        key.m_data[2] = *((const char*)data + i * 0x18 + 0x10);
+        // [G7-gd] 基址改 this（ORIG 0x0831c4fc/518/534/…/5b7 全部
+        //   `mov 0x8(%ebp),%ecx`）：memcpy(this,data,0x2e4) 之后两级源
+        //   （this+… 与 data+…）内容相同，但 ORIG 用 this ⇒ 与 ORIG 同形。
+        // [G7-gd] 三字节读改「元素指针 + 具名成员」形（P30 两步寻址）：ORIG
+        //   0x0831c508..0x0831c54b 为 `lea (%ecx,%eax,1); add $0x10; movzbl
+        //   0x1/0x2/0x0(%eax)`——0x10 属**指针算术**、字段偏移走 disp；
+        //   `*((char*)this + i*0x18 + 0x11)` 会被 4.4 折成单 `add $0x11`
+        //   （探针 fA 实证）⇒ 改视图形后 4.4 与 ORIG 同出 add $0x10 + disp。
+        //   （int 字段保持裸形：ORIG 是 `add $0x14`+`mov (%eax)`，裸形已同。）
+        key.m_data[0] = ((const SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER*)
+                         ((const char*)this + i * 0x18 + 0x10))->m_field1;
+        key.m_data[1] = ((const SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER*)
+                         ((const char*)this + i * 0x18 + 0x10))->m_field2;
+        key.m_data[2] = ((const SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER*)
+                         ((const char*)this + i * 0x18 + 0x10))->m_field0;
 
-        reward.m_field0  = *(int*)((const char*)data + i * 0x18 + 0x14);
-        reward.m_field4  = *(int*)((const char*)data + i * 0x18 + 0x18);
-        reward.m_field8  = *(int*)((const char*)data + i * 0x18 + 0x1c);
-        reward.m_fieldc  = *(int*)((const char*)data + i * 0x18 + 0x20);
-        reward.m_field10 = *(int*)((const char*)data + i * 0x18 + 0x24);
+        reward.m_field0  = *(int*)((const char*)this + i * 0x18 + 0x14);
+        reward.m_field4  = *(int*)((const char*)this + i * 0x18 + 0x18);
+        reward.m_field8  = *(int*)((const char*)this + i * 0x18 + 0x1c);
+        reward.m_fieldc  = *(int*)((const char*)this + i * 0x18 + 0x20);
+        reward.m_field10 = *(int*)((const char*)this + i * 0x18 + 0x24);
 
         std::map<STRewardDataKey, STRewardDataList>::iterator it =
             m_rewardMap.find(key);
@@ -48,9 +72,19 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
             STRewardDataList list;
             list.m_list.push_back(reward);
             m_rewardMap.insert(std::make_pair(key, list));
+            // [G7-gd] ORIG 0x0831c6f2..0831c743：写序 [2]→[0]→[1]，
+            //   下标 = count（本分支专用计数），写完 `++count`。
+            m_keys[count].m_data[2] = key.m_data[2];
+            m_keys[count].m_data[0] = key.m_data[0];
+            m_keys[count].m_data[1] = key.m_data[1];
+            ++count;
         }
-
-        m_keys[i].m_data[0] = key.m_data[0];
-        m_keys[i].m_data[1] = key.m_data[1];
-        m_keys[i].m_data[2] = key.m_data[2];
     }
+    // [G7-sub] 收口（本件唯一真语义缺口已修，余为常量拆分伪影）：
+    //   改后 ORIG 243 / 我方 243、p167 仅 STRewardDataKey/STRewardData/
+    //   STRewardDataList/pair 的 C1↔C2 / D1↔D2 别名（0 真缺口）。
+    //   三字节读已回 ORIG 形（0x0831c508 `lea (%ecx,%eax,1); add $0x10;
+    //   movzbl 0x1(%eax)`）；m_keys 写 ORIG 0x0831c705
+    //   `add $0x2f0,%eax; mov %cl,0xe(%eax)` 与我方 `add $0x2f2,%eax;
+    //   mov %cl,0xc(%eax)` 同址 0x2fe、仅大常量拆分不同（P30/N94 后端选择）；
+    //   memcpy 实参装载序属 P23/N76 族 ⇒ 封顶。

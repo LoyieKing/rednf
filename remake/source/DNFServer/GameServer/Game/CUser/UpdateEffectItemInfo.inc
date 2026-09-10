@@ -1,3 +1,8 @@
+// [b28d-GrpD 判词·等价 N] ORIG 0x08658d90：唯一实差异是 size 门槛的方向码
+//   —— ORIG `cmp $0x32,%eax; seta %al; test; je <循环>` vs 我方 `setbe; je <退出>`
+//   （判据⑦：cmp 同、落点体互换 = 等价）；其余为未解析重定位（"user.cpp"/memcpy@plt）
+//   与槽号。字段偏移（-0x1b8/-0x1b4 = entries[i].item/expire）、begin 先于 size、
+//   erase/end() 重调序全一致 ⇒ 无语义缺口。
 void CUser::UpdateEffectItemInfo(unsigned int expireTime)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x2ceb), true);

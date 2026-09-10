@@ -18,8 +18,10 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
         return 0;
     }
 
+    // ORIG 084cb8xx：这里的包基址是从 **pPkt 槽**读（`mov -0x1c(%ebp),%eax`），
+    //   不是重读 data 形参（我方旧形 `mov 0x10(%ebp),%eax`）
     user->SetGuildDBInfo(                              // ORIG E 引用（头为 const&）
-        *reinterpret_cast<STGuildDBInfoOnly*>(data + 0x16));
+        *reinterpret_cast<STGuildDBInfoOnly*>(reinterpret_cast<char*>(pPkt) + 0x16));
 
     PacketGuard packet;                                // -0x28
     packet.put_header(0, 0x46);
@@ -47,3 +49,10 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
     int memberCount = 0;                               // -0x14
     packet.put_byte(0);
     // ORIG 循环体 `mov -0xSLOT(%ebp),%ecx; lea (%ecx,%eax,1),%eax`：基址走 pPkt 具名槽。
+
+// [G2B-Monitor] 本件已做：`SetGuildDBInfo` 实参基址改走 pPkt 槽（ORIG `mov -0x1c(%ebp),%eax`；
+//   我方旧形 `mov 0x10(%ebp),%eax` 重读 data 形参）。
+//   残余留 N：① `(m_32>>1)&1` 的位折叠（ORIG `shr %al` vs 4.4 `movzbl %al,%eax; sar %eax`，
+//   前轮已记 N6）；② 槽基平移 4（pPkt -0x20 vs -0x1c，N95/N126）；
+//   ③ 循环体与尾段（成员环、put_byte 回填、公告/说明段）由聚合器 InterDispatcher.cpp 在
+//   `#include` 之后续写 ⇒ 其中差异不在本任务写域 ⇒ 留 N。

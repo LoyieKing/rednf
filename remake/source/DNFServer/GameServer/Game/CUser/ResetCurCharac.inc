@@ -34,11 +34,13 @@ void CUser::ResetCurCharac()
     resetCurCharacSchoolPoint();
     if (getCurCharacR() != 0)
     {
-        GameWorld* pWorld = G_GameWorld();
-        int job = get_charac_job();
-        // +4+(job+0x58)*4 = +0x164+job*4 = GameWorld::m_channelUserCount[job]
-        int* pCnt = &pWorld->m_channelUserCount[job];
-        *pCnt = *pCnt - 1;
+        // b28d-GrpD P183/P329（ORIG 0x0865851c 直证）：ORIG 该段为
+        //   `call G_GameWorld`（%eax 保活）→ `call get_charac_job`（%eax）→
+        //   `lea 0x58(%R),%R; mov 0x4(%R,%R,4),%R; sub $0x1,%R; mov %R,0x4(%R,%R,4)`
+        //   —— **无 pWorld / job / pCnt 具名槽**；我方旧形 3 个具名量（+ 指针缓存）
+        //   多占 -0xc/-0x10/-0x14 并产 shl/add 链（帧 0x38 vs ORIG 0x24）。
+        //   +4+(job+0x58)*4 = +0x164+job*4 = GameWorld::m_channelUserCount[job]。
+        G_GameWorld()->m_channelUserCount[get_charac_job()]--;
     }
     setCurCharac(0);
     setTagCharac(0);

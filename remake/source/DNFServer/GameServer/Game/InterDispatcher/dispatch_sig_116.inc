@@ -40,7 +40,10 @@ int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
         user->Send(packet);
         user->m_historyLog.GuildOut(
             pPkt->m_a,
-            data + 0x3b,
+            // [G2A-PC 手法1] ORIG 084c997e `mov -0x24(%ebp),%eax` → 084c9981
+            //   `lea 0x3b(%eax),%edi`：-0x24 即 pPkt 槽 ⇒ 原码基址用 pPkt 具名指针，
+            //   非形参 data（形参直读会发 `mov 0x10(%ebp),%eax`）。
+            reinterpret_cast<char*>(pPkt) + 0x3b,
             pPkt->m_10,
             pPkt->m_1c,
             static_cast<unsigned short>(

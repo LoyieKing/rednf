@@ -13,7 +13,11 @@ void CUser::NextCharacMoneyLog(int now)
         // ⇒ 常量分解差维持 N30/N4 封顶。
         localtime_r(
             (const time_t*)&m_moneyLogs[m_moneyLogIdx].m_money[2], &oldTm);
-        if (currentTm.tm_yday != oldTm.tm_yday)
+        // ORIG 0x0868f227/-0x28 与 0x0868f22a/-0x54：currentTm@-0x34/oldTm@-0x60 加 0xc
+        // ⇒ 读的是 **tm_mday**（月内日），非 tm_yday（+0x1c 会落 -0x18/-0x44）。
+        // 原 tm_yday 属真语义 bug：跨月同日（如 1/5 对 2/5）yday 不同而 mday 相同，
+        // 会导致本不该轮换的每日金钱日志被轮换。
+        if (currentTm.tm_mday != oldTm.tm_mday)
         {
             m_moneyLogIdx = m_moneyLogIdx + 1;
             if (m_moneyLogIdx > 6)

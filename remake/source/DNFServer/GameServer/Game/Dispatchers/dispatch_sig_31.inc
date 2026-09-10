@@ -26,8 +26,11 @@ int Dispatcher_CodeCheckSum::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x0820459a：checkCodeChecksum(checksum, path)；失败（返回 0）时
     // failKind = strstr(path,".exe.bak")?2:3 且 state>1 记 hack(0x3c8)。
     // [b28c-31] P0/N96 清绑：原 `register char* pp asm("eax")` 全域禁用 ⇒ 实参直写。
+    // ORIG 0x0820459a 段实参序直证：先 `lea -0x138(%ebp),%eax; mov %eax,0x8(%esp)`（path，
+    // 第二实参）后 `lea -0x34(%ebp),%eax; mov %eax,0x4(%esp)`（checksum）⇒ 4.1 从右往左；
+    // 我方裸 `checksum` 形被 4.4 判为简单实参而先算，取 `&path[0]` 形复现右先。
     const bool checksumOk = user->checkCodeChecksum(
-        *reinterpret_cast<CodeHackChecksum*>(checksum), path);
+        *reinterpret_cast<CodeHackChecksum*>(checksum), &path[0]);
     user->IncChecksumAnswerCount();
     if (!checksumOk)
     {

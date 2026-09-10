@@ -13,13 +13,15 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     if (idxOut == 0 ||
         idxOut >= m_lvBonus[(int)bind].m_levels.size())
     {
-        // [b28d-solo-CItemList] ORIG 清零序 = 深槽 -0x14(hi) 先、浅槽 -0x10(lo) 后；
-        //   4.4 槽按声明序（lo 浅/hi 深）⇒ 声明不带初始化、赋值语句按 hi→lo 序。
-        int lo;
-        int hi;
-        hi = 0;
-        lo = 0;
-        return std::pair<unsigned int, unsigned int>(lo, hi);  // pair<int,int> 形
+        // [G10 实验·P61/P178] ORIG 0x0832ca3b..0x0832ca5a 直证：两临时 int 槽
+        // （-0x14 先 / -0x10 后）各清零后**取地址**传参，call 目标实例为
+        // `pair<unsigned int,unsigned int>::pair<int,int>(int&&,int&&)`（`IiiE`）
+        // ⇒ 原码是「字面量 0,0」形（prvalue int ⇒ 转发 ctor 推 _U1=int），
+        // 非具名 lo/hi 左值（左值推 _U1=int& ⇒ 实例 `IRiS2_E`，p167 EXTRA 直证）。
+        // 实测（fresh .o，check_tu_routed）：改后本件维持 AE；CItemList 四数
+        // 694/1357/6/14/470 → 694/1358/6/14/469（missing 减 1 = 不再发射
+        // ORIG 无的 `IRiS2_E` 家族；p167 该件差集仅剩 C1/C2、D1/D2 别名对）。
+        return std::pair<unsigned int, unsigned int>(0, 0);
     }
     return std::pair<unsigned int, unsigned int>(
         m_lvBonus[(int)bind].m_levels[idxOut - 1] + 1,

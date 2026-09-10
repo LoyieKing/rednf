@@ -1,3 +1,17 @@
+// [G7-sub 2026-09-11 判词] GlobalData::Init（ORIG 0x08299fa0，3139 条巨件）。**巨件按
+// guide §6.2 三件套验收，勿以 ndiff 论成败**；结论：**封顶，无改动**。证据：
+//   ① gap = 0：私有 .o（同旗标/同路由 dnf_game_cxx.sh）实测 **ORIG 3139 / 我方 3139**；
+//      两侧帧完全一致 `sub $0x79c,%esp`（0x08299fa6 vs 我方对应 prologue）。
+//   ② p167 调用点差集：ORIG/我方各 565 call，差异**仅** C1↔C2 / D1↔D2 **同址别名**
+//      （P93；ORIG `nm` 实测 `cMyTrace::C1==C2==0x0854f746`、`PacketGuard::D1==D2==0x0858de80`、
+//      `CStreamGuard::D1==D2==0x0861c8d2`）：最大项 `-39 cMyTrace::C2` 全部为此类，
+//      无真缺口（0 missing / 0 extra 语义项）。
+//   ③ 逐块：助记符序列仅 **1 处**差异 —— 0x0829cd78 段 ORIG 为
+//      `call *%ebx; test %eax,%eax; setne %al; test %al,%al; jmp 0829cdc0`
+//      （其后的 "AntiBot init fail" cMyTrace 块 0x0829cd7a..0x0829cdbe **无任何入边**
+//      = ORIG 侧不可达死块；P337 家族，可用恒 0 `volatile bool` 守卫强制发射复现，本轮未做）；
+//      我方同行发 `je`（该块可达）。其余为 N82/N126 槽平移（-0x35c vs -0x2bc 等）+
+//      N89（4.1 对本 TU 用到的 vector/map operator[]/size 发 out-of-line 静态实例）。
 bool GlobalData::Init()
 {
     s_server_stop = false;

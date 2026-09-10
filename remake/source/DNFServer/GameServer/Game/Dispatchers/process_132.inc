@@ -1,8 +1,11 @@
 int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    // ORIG 0x081d4e28 (0x14c)：state==3 且 get_charac_guildkey(user)==0 才填
-    // SIG_REQUEST_JOIN_GUILD 并 DB_RequestJoinGuild::makeRequest(GetUID,&sig)；
-    // guildkey!=0 → SendCmdErrorPacket(0x15d, 0x12)；恒返 0。
+    (void)param;
+    MSG_BASE& m = msg;                       // ORIG -0xc 槽（0x081d4e2e，函数第一句）
+    // [G1Dproc 2026-09-10] ORIG 0x081d4e28（0x14c）直证：
+    //   0x081d4e2e `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)` ⇒ 第一句是具名 msg 引用槽（-0xc），
+    //   其后所有 msg 访问经该槽重载（0x081d4ea7 `mov -0xc(%ebp),%eax; add $0x11,%eax`）。
+    //   0x081d4e67/0x081d4e82：guildkey!=0 → SendCmdErrorPacket(0x15d, 0x12); return 0。
     if (user->get_state() != 3)
     {
         return 0;
@@ -13,28 +16,46 @@ int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& 
         return 0;
     }
 
-    SIG_REQUEST_JOIN_GUILD sig;                 // 栈 0x44（SigTypes_D.h m_pad[0x44]）
-    memset(&sig, 0, 0x44);
-    // +0x00 char name[0x16] ← msg+0x11
-    strncpy((char*)&sig.m_pad[0x00], (char*)&((char*)&msg)[0x11], 0x16);
-    // +0x24 characNo = getCurCharacNo(user)
-    *reinterpret_cast<int*>(&sig.m_pad[0x24]) = user->getCurCharacNo();
-    // +0x28 accId = get_acc_id(user)
-    *reinterpret_cast<int*>(&sig.m_pad[0x28]) = user->get_acc_id();
-    // +0x2c serverGroup
+    // [G1Dproc 2026-09-10] 载荷偏移 ORIG 直证（= W8LT_DBTask.cpp 的 DB_RequestJoinGuildInView
+    //   权威视图）：+0x00 guild_name[0x16] ← msg+0x11、+0x18 charac_no、+0x1c m_id、
+    //   +0x20 server_group、+0x24 born_year[2]、+0x27 memo[0x19] ← msg+0x2c。
+    //   原 +0x24/+0x28/+0x2c/+0x30/+0x32 全部错 0xc。
+    //   形态：三处 int 写入为 `mov %eax,-0x38/-0x34/-0x30(%ebp)`（0x081d4ecf/…edd/…efc/…f0c）
+    //   ⇒ P0/P82：必须经栈对象具名成员访问（char* 取址生 lea+%ebx 缓存、跨 call 保活）。
+    struct JoinGuildSigView
+    {
+        char m_guildName[0x16];       // +0x00 ← msg+0x11（0x16 字节）
+        char m_pad16[2];              // +0x16..+0x17
+        unsigned int m_characNo;      // +0x18
+        unsigned int m_id;            // +0x1c
+        unsigned int m_serverGroup;   // +0x20
+        char m_bornYear[2];           // +0x24（memcpy 2 字节）
+        char m_pad26;                 // +0x26
+        char m_memo[0x19];            // +0x27 ← msg+0x2c（0x19 字节）
+        char m_pad40[4];              // +0x40..+0x43（保持 sizeof 0x44）
+    };
+    union JoinGuildSigBuf
+    {
+        SIG_REQUEST_JOIN_GUILD sig;   // 栈 0x44（SigTypes_D.h m_pad[0x44]）
+        JoinGuildSigView       view;
+    };
+    JoinGuildSigBuf sigBuf;
+    memset(&sigBuf.sig, 0, 0x44);                                 // 0x081d4e8c
+    strncpy(sigBuf.view.m_guildName, (char*)&((char*)&m)[0x11], 0x16);   // 0x081d4ea7
+    sigBuf.view.m_characNo = (unsigned int)user->getCurCharacNo();        // 0x081d4ecf
+    sigBuf.view.m_id = (unsigned int)user->get_acc_id();                  // 0x081d4edd
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        *reinterpret_cast<int*>(&sig.m_pad[0x2c]) = user->GetServerGroup();
+        sigBuf.view.m_serverGroup = (unsigned int)user->GetServerGroup();  // 0x081d4efc
     }
     else
     {
-        *reinterpret_cast<int*>(&sig.m_pad[0x2c]) =
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x378);  // m_serverEnvir.m_serverGroup
+        // 0x081d4f01 `call G_CEnvironment; mov 0x378(%eax),%eax`（m_serverEnvir.m_serverGroup）
+        sigBuf.view.m_serverGroup =
+            *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x378);
     }
-    // +0x30 ssn[2] ← GetSsnString(user)
-    memcpy(&sig.m_pad[0x30], user->GetSsnString(), 2);
-    // +0x32 char name[0x19] ← msg+0x2c
-    strncpy((char*)&sig.m_pad[0x32], (char*)&((char*)&msg)[0x2c], 0x19);
+    memcpy(sigBuf.view.m_bornYear, user->GetSsnString(), 2);             // 0x081d4f26
+    strncpy(sigBuf.view.m_memo, (char*)&((char*)&m)[0x2c], 0x19);        // 0x081d4f46
 
-    DB_RequestJoinGuild::makeRequest(user->GetUID(), &sig);
+    DB_RequestJoinGuild::makeRequest(user->GetUID(), &sigBuf.sig);      // 0x081d4f5f
     return 0;

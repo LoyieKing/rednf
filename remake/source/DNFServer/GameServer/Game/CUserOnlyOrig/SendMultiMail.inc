@@ -1,5 +1,10 @@
 void CUser::SendMultiMail(bool certified)
 {
+    // [A06 2026-09-10 负结论·已回滚] ORIG 0x0868a2xx 每处各自重算
+    // `mov 0x8(%ebp),%eax; add $0x8e246,%eax`（无 block 指针槽），但 4.4 对
+    // `m_pad8e101 + 0x145` 内联形发**两条** add（0x8e101 + 0x145 不折）⇒ 129→138 反劣；
+    // 4.4 保持具名 `char* block` 缓存形最优（P183 的 4.4 反例）。正解需 `this+0x8e246`
+    // 折成单 add 的具名成员，属头改动 ⇒ 只报告。
     char* block = m_pad8e101 + 0x145;                        // +0x8e246
     // [DualCUOO 2026-09-09 双判据 gap] ORIG 0x0868a2e6 先 `mov 0xc(%ebp),%eax;
     // mov %al,-0x3fac(%ebp)`（bool 规范化溢出槽）再 `movzbl -0x3fac; xor $1; test;

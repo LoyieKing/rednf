@@ -23,3 +23,9 @@ int Inter_MonitorCallGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*
     packet.put_byte(
         (int)pPkt->m_12);
     // ORIG 0x84cc10e/0x84cc12f 等 `lea (%edx,%eax,1)` 的 edx = -0x14 具名槽（pPkt）。
+
+// [G2B-Monitor] 残余留 N（写域外）：本 .inc 到上行止，成员环等其余部分由聚合器
+//   InterDispatcher.cpp 在 `#include` 之后续写；/tmp/g2_norm 的差异
+//   （`imul $0x1d,%eax,%eax; lea (%edx,%eax,1),%eax; add $0x10,%eax; mov 0x3(%eax),%eax`
+//   vs 我方 `imul $0x1d,%edx,%edx; add $0x13,%edx; add %edx,%eax; mov (%eax),%eax`，
+//   P30/N4 add-vs-lea + 基址折叠族）全部落在续写段 ⇒ 不在本任务写域 ⇒ 留 N。

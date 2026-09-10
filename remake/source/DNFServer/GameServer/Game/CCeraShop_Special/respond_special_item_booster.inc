@@ -41,7 +41,11 @@ void SpecialItemHandler::respond_special_item_booster(int,
              itEnd = boosterList.end();
          it != itEnd; ++it)
     {
-        CItem* subItem = G_CDataManager()->find_item((int)it->m_itemIdx);
+        // 实测：帧仍 0x8c（未跨档）、报告 diff 124/124→117/119、our 205→203 ⇒
+        // 保留（不劣化且收敛）；余 1 槽待后续定位。
+        // [G10 实验·P231/P52] ORIG 浅区槽比本形少 1（我方多 0x40）⇒ subItem 跨
+        // set_parent_booster_item_id 虚调保活，试纯 register（P0 合规、非 asm 绑定）。
+        register CItem* subItem = G_CDataManager()->find_item((int)it->m_itemIdx);
         // ORIG vtable+0x60 = CStackableItem::set_parent_booster_item_id(unsigned long)
         if (subItem != 0)
             subItem->set_parent_booster_item_id((unsigned long)itemIdx);

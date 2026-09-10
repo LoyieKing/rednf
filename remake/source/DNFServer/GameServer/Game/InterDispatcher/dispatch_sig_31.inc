@@ -12,18 +12,12 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     for (int i = 0;
          i < pPkt->m_8; ++i)  // msg+0x8 条数
     {
-        bool skip = false;
-        if (*reinterpret_cast<int*>(data + i * 0x10 + 0x10) == 999)
-        {
-            skip = false;
-        }
-        else if (target->get_state() <= 2 ||
-                 target->getCurCharacNo() !=
-                     pPkt->m_4)
-        {
-            skip = true;
-        }
-        if (!skip)
+        // P183：ORIG 无 skip 具名槽（084cf12f `cmp $0x3e7,%eax` 后 `je 主体`、
+        //   次条件不满足时 `jne 循环尾`）⇒ 原码是单个短路条件，不设 bool skip；
+        //   等价化简 (m10==999) || (state>2 && curCharacNo==m_4)。
+        if (*reinterpret_cast<int*>(data + i * 0x10 + 0x10) == 999
+            || (target->get_state() > 2 &&
+                target->getCurCharacNo() == pPkt->m_4))
         {
             if ((unsigned char)WongWork::CWebEvent::RecvInfoFromDB(
                     target,

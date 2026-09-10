@@ -1,6 +1,5 @@
 int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    const MSG_DELETE_ITEM& req = *reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);
     stDeleteItemParam& out = static_cast<stDeleteItemParam&>(param);
     out.m_4 = check_error(user, msg);
     if (out.m_4 > 0)
@@ -16,6 +15,11 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     {
         return 0;
     }
+
+    // [G5-ProcB] ORIG 0x081c1e94 `mov 0x10(%ebp),%eax; mov %eax,-0x34(%ebp)`：
+    // msg 视图具名局部在 exercise_mode 之后才初始化（非函数头）。函数头声明会多
+    // 一条 store 并把 -0x3c 槽基整体下移 4（我方帧 0x110 vs ORIG 0x100）。
+    const MSG_DELETE_ITEM& req = *reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);
 
     INVEN_TYPE invenKind = (INVEN_TYPE)6;
     if ((signed char)req.m_itemSpace == 1)

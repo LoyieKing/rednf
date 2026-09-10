@@ -1,5 +1,9 @@
 int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2D] verdict=N（本轮未改）：151 行残差为 (a) 常量拆合差（ORIG `add $0x10,%eax;
+    //   add <S>,%eax; add $0x7,%eax` vs 我方 `add $0x17,%eax; lea (%ecx,%eax,1),%eax`；
+    //   前者暗示两级成员偏移，但无视图/头依据不宜臆造）；(b) 步长展开重排
+    //   （ORIG `shl $0x3; add %edx,%eax; shl $0x2; ...`）；(c) `mov <S>,%ecx` 中转。留 N。
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 

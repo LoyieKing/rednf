@@ -9,6 +9,15 @@ void CUser::setSkillCommandData(char* data)
 
     for (int i = 0; i < 50; ++i)
     {
+        // [A06 2026-09-10 负结论·已回滚] ORIG 每次访问重算完整地址
+        // （`mov -0x10(%ebp),%edx; mov 0x8(%ebp),%eax; add $0x1c0f4,%edx;
+        //   movzbl 0xb(%eax,%edx,4),%ecx`，无 e 指针槽），但 4.4 对**同义表达式**
+        // 两形实测均反劣：① `reinterpret_cast<const unsigned char*>(&m_skillCommands[i])[k]`
+        // 逐处内联 = 200→230 条；② `((const unsigned char*)m_skillCommands)[i*4+k]` = 230→239 条
+        // （4.4 恒发 add 链，不复现 4.1 的 `disp(%base,%idx,4)` 折叠）。
+        // ⇒ 正解需 STCommand 内建**字节数组视角**（`union { 七个 packed 位域; unsigned char
+        // m_bytes[4]; }`，sizeof 4/align 1 不变）才能出 ORIG 的单条 scaled 访存；属**头改动**，
+        // 按 R2 只报告不动（见交付清单）。此前保留指针缓存形（4.4 最优，200 条）。
         const unsigned char* e =
             reinterpret_cast<const unsigned char*>(&m_skillCommands[i]);  // 步长 4
         unsigned short cmd = static_cast<unsigned short>(

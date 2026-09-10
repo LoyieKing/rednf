@@ -6,8 +6,13 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
         trace("CUser::setTagCharacInven m_tag_selected is null");
         return 0;
     }
-    Inven_Item* invenRaw = getTagCharacInvenW();
-    memcpy(reinterpret_cast<char*>(invenRaw) + 0x1c, data, 0x53e);
+    // [G6Sub1 单旋钮·P0/P183/P52] ORIG 0x08690281..0x086902a1 为
+    // `mov 0xc(%ebp),%ebx`（data 先入 callee-saved）+ `call getTagCharacInvenW`
+    // + `add $0x1c,%eax` ⇒ 结果**无栈槽往返**（P0：原码无该具名局部），
+    // 且 data 值跨接收者调用保活（P52 R2L 形）。旧形 `Inven_Item* invenRaw =
+    // getTagCharacInvenW();` 多出 `mov %eax,-0x1c` + 回读 + `lea 0x1c(%eax)` 三处
+    // 槽往返（我方独有槽写入，父泳道帧差根因），改内联接收者表达式消除。
+    memcpy(reinterpret_cast<char*>(getTagCharacInvenW()) + 0x1c, data, 0x53e);
     // ORIG：getTagCharacInvenW 在 memcpy/SetClearAvatar(ulong*)/循环内
     // SetClearAvatar(i,idaf) 三处各自重调——访问器结果禁缓存（战术 P183/P48）。
     reinterpret_cast<CInventory*>(getTagCharacInvenW())

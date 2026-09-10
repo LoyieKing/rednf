@@ -28,6 +28,8 @@ bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
         return 1;
     }
 
+    // [G4W8LTDBTask 2026-09-10 负结论] 试删 7 处零初始化（P328⑤ 形）：
+    // our 258→251（gap |+4|→|−3|）但 ndiff 47→53 劣化 ⇒ 已回滚。
     int deleteFlag = 0;
     if (!db->fetch() || !db->get_int(0, deleteFlag))
     {

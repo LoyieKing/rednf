@@ -9,6 +9,17 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
     info.m_field24 = 0;
     info.m_field25 = 0;
     info.m_field26 = static_cast<char>(sig->m_slot);           // job
+    // [b28d-solo-CUserOnlyOrig P0] ORIG 无 job 槽（`movzbl 0x22(%eax),%eax; movsbl %al,%edx`
+    // 每使用点重读 sig）⇒ 内联表达式，旧具名 job 生 -0x9 槽。
+    // [ORIG 0864a209..0864a294] recipe 表整体拷贝：dest = &info + 0x88，长 0x52
+    // （0x88+0x52 = 0xda = CInventory 起始；旧稿写 +0x84 ⇒ 覆盖 m_field84 且
+    //  末尾 4 字节 +0xd6..+0xd9 未初始化 = 语义 bug）；
+    // [b28d-solo-CUserOnlyOrig P83/N78] ORIG 内联 rep movsl，结构整体赋值触发同形
+    // （显式 memcpy 恒 call）。ORIG 位置在 level/stamina 段之前。
+    struct RecipeTable52 { char m_data[0x52]; };
+    *(RecipeTable52*)(reinterpret_cast<char*>(&info) + 0x88) =
+        *(RecipeTable52*)(*reinterpret_cast<char**>(reinterpret_cast<char*>(G_CDataManager()) + 0x14)
+            + static_cast<char>(sig->m_slot) * 0x7dc);
     info.m_level = 1;
     info.m_field2b = 0;
     info.m_field29.m_growthType = 0;
@@ -19,15 +30,7 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
     info.m_field37 = 0;
     info.m_field4f = 0;
     info.m_pad83 = 0;                                       // +0x83
-    info.m_field84 = 0;             // +0x84（随后被 0x52 覆盖）
-    // [b28d-solo-CUserOnlyOrig P0] ORIG 无 job 槽（`movzbl 0x22(%eax),%eax; movsbl %al,%edx`
-    // 每使用点重读 sig）⇒ 内联表达式，旧具名 job 生 -0x9 槽。
-    // [b28d-solo-CUserOnlyOrig P83/N78 试形] ORIG 内联 rep movsl（0x52 字节），
-    // 结构整体赋值触发同形（显式 memcpy 恒 call）。
-    struct RecipeTable52 { char m_data[0x52]; };
-    *(RecipeTable52*)(reinterpret_cast<char*>(&info) + 0x84) =
-        *(RecipeTable52*)(*reinterpret_cast<char**>(reinterpret_cast<char*>(G_CDataManager()) + 0x14)
-            + static_cast<char>(sig->m_slot) * 0x7dc);
+    info.m_field84 = 0;             // +0x84（recipe 区自 +0x88 起，不覆盖本字段）
     info.m_resetDwordDf4 = 0;
     info.m_resetDwordDf8 = 0;
     info.m_powerWarData.m_data2 = 0;                          // +0xe8f（具名 STPowerWarCharacData）

@@ -1,3 +1,21 @@
+// [G7-sub 2026-09-11 判词] ItemVendingMachine::ProcessIPG_ResultOutput（ORIG 0x08178676，
+// 1158 条巨件）：本轮**已改 3 处**，全部有 ORIG 直证 + 私有 .o 实测：
+//   ① 0x08178eaf..0x08178ee7：case 10 体尾**直落** default 的日志块（该段 `call
+//      08ad3c0a <LogManager::logFormat>` 全域仅此一处）⇒ 删除 case 10 内重复日志，
+//      令 case 10 无 break 贯穿到 `default:`（单调用点）。p167 原 EXTRA logFormat×1 归零。
+//   ② 0x08179437 / 0x08179464：两次独立 `CUserCharacInfo::getCurCharacInvenR()` 调用
+//      （各自紧跟 MakeItemPacket(1,0)/(1,2)）⇒ 删具名 `invenR` 指针缓存（P0/P183）。
+//      p167 原 MISSING getCurCharacInvenR×1 归零。
+//   ③ 0x08179297..0x081792ec：begin()/end() **各自**经转换构造物化为两个
+//      const_iterator（-0x104/-0x108），循环条件为
+//      `operator!=(const_iterator,const_iterator)`；旧写 `it != items.end()` 每轮重取
+//      end() 且 p167 得 `ne<PK10Inven_Item, PS1_, vector>`（异型重载）⇒ 改为
+//      `for (const_iterator it = begin(), endIt = end(); it != endIt; ++it)`。
+//      p167 该 ne 异型项归零（改用 ≥ 迭代器双缓存口径）。
+// 实测：1177→1174（ORIG 1158，gap −19→−16，本件为超大函数，§6.2 以 p167/块对齐验收）。
+// 余量：静态局部 guard 的 EH（我方 `__cxa_guard_abort`×2 + `_Unwind_Resume`×2）属
+// N91（4.1 对函数内 static 的 guard 分支不发 EH landing），无源码解 ⇒ 封顶。
+// p167 现状：仅上述 2+2 EH 项 + C1/C2·D1/D2 同址别名（P93）⇒ CALLSITE CLEAR。
 void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
                                                  WongWork::IPG::SIPGData* reqData,
                                                  WongWork::IPG::SIPGData* resData,
@@ -128,12 +146,16 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
             m_ceraShop.SaveFeaturedIdx(user, limit->getFeaturedIdx(),
                                        GlobalData::s_systemTime_.getCurSec(), 0);
         }
-        // ORIG case 10 尾直接落入 default 的 Invalid Group Index 日志（0x8178f97 jmp
-        // 链与跳转表目标核对为 fall-through 前置 0x8179xxx 段）【按 Ghidra case 排列】。
+        // [G7-sub] ORIG 0x08178eaf..0x08178ee7：case 10 体尾**直落** default 的日志块
+        // （Ghidra C 把 `default:` 标签紧排在 case 10 体之后；该地址段内
+        // `call 08ad3c0a <LogManager::logFormat>` 全域**仅此一处**，我方旧写
+        // case10 与 default 各发一条 ⇒ p167 EXTRA logFormat×1 + 约 7 条实参装填）。
+        // 故 source 侧必须让 case 10 无 break 地贯穿到 default（无跳转、单调用点）。
+    }
+    default:
         LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyResultOutput,
                               0x653, "Invalid Group Index [%d]", groupFinal);
         break;
-    }
     case 0xb:
     {
         int failCode = mMileageProcess.BuyMileageItem(
@@ -144,10 +166,6 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
             mMileageProcess.BuyFail(user, (short)failCode, productNo, seq, itemCount);
         return;   // ORIG LAB_081798d7 清理后 ret
     }
-    default:
-        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyResultOutput,
-                              0x653, "Invalid Group Index [%d]", groupFinal);
-        break;
     }
 
     if (retCode != 0)
@@ -213,7 +231,16 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     response.put_int(itemCount);
     response.put_int(creatureResult);
     response.put_short((int)items.size());
-    for (std::vector<Inven_Item>::const_iterator it = items.begin(); it != items.end(); ++it)
+    // [G7-sub] ORIG 0x08179297..0x081792ec：**先**取 begin() 并经转换构造
+    // `__normal_iterator<const Inven_Item*>::__normal_iterator<Inven_Item*>` 落 -0x104，
+    // **再**取 end() 同法落 -0x108，二者都在循环外一次性物化（0x08179347 的
+    // `operator!=(const_iterator,const_iterator)` 两实参同型）；我方旧写
+    // `it != items.end()` 使 end 每次迭代重取（0x81… 每轮 `call end()`）且
+    // p167 得 `ne<PK10Inven_Item, PS1_, vector>`（ORIG 为 `ne<PK10Inven_Item, vector>`
+    // 同型重载）⇒ 按 ORIG 物化后置迭代器（迭代器双缓存）。
+    for (std::vector<Inven_Item>::const_iterator it = items.begin(),
+                                                endIt = items.end();
+         it != endIt; ++it)
     {
         response.put_int(it->m_addInfo);    // ORIG put_int(it+2)
         response.put_int(it->m_addInfo2);   // ORIG put_int(it+7)
@@ -233,9 +260,14 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
         itemPacket.put_header(0, 0xe);
         itemPacket.put_byte(0);
         itemPacket.put_short(2);
-        const CInventory* invenR = user->getCurCharacInvenR();
-        invenR->MakeItemPacket((INVEN_TYPE)1, 0, itemPacket);
-        invenR->MakeItemPacket((INVEN_TYPE)1, 2, itemPacket);
+        // [G7-sub] ORIG 0x08179437 与 0x08179464 是**两次独立**的
+        // `mov 0xc(%ebp),%eax; mov %eax,(%esp); call 080da27e
+        // <CUserCharacInfo::getCurCharacInvenR() const>`（每次紧跟同名
+        // MakeItemPacket(1,0)/(-1,2)）；旧写具名 `invenR` 只发 1 次调用并落
+        // 槽往返 ⇒ p167 MISSING getCurCharacInvenR×1（P0/P183 去缓存，与本文件
+        // getCurCharacInvenW 两分支同法）。
+        user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, 0, itemPacket);
+        user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, 2, itemPacket);
         itemPacket.finalize(true);
         user->Send(itemPacket);
 

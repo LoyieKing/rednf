@@ -10,8 +10,10 @@ int Dispatcher_SDC_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     int capA = 500;                                     // -0x24（ORIG 赋 500，后未再读）
     int capB = 500;                                     // -0x20（同上）
-    unsigned long destLen = 500;                        // -0x34
     int srcLen = 500;                                   // -0x1c（循环内被长度覆盖）
+    // ORIG [21:26]：`movl $0x1f4,-0x24/-0x20/-0x1c` 三条**连续**槽 ⇒ capA/capB/srcLen 相邻
+    //   （destLen 不得插在中间，否则三槽被拉开、帧 0x440→0x450）。
+    unsigned long destLen = 500;                        // -0x34
     // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG 0x081e9e84 段对两缓冲各发**内联**
     //   rep stos（我方 `memset` 在 4.4 -O0 恒退化为 call，rep-stos 计 0/2）⇒ 改聚合
     //   初始化 `= {0}`（4.4 对常量零初始化内联 rep stos，P214③ 实证）。
@@ -59,13 +61,14 @@ int Dispatcher_SDC_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
             user->getHackAnalyzer()->addServerHackCnt(
                 user, (WongWork::ENUM_HACKTYPE)0x25d, 1, 0, 0);
         }
-        short partyIdx = user->GetPartyIndex();         // movswl
-        CParty* party2 = G_CGameManager()->GetParty((int)partyIdx);   // -0xc
+        // ORIG [133]：`movswl %ax,%ebx` 直传（无 partyIdx 槽）。
+        CParty* party2 =
+            G_CGameManager()->GetParty((int)user->GetPartyIndex());   // -0xc
         if (party2 != 0)
         {
-            CBattle_Field* field = &party2->m_battleField;
-            field->SetDamagedPacketCnt(var->m_uid);           // +0x1ca
-            field->SetDamageValue(var->m_uid, hackGate);
+            // ORIG [150]：`lea 0xb24(%edx),%ecx` 寄存器直用（无 field 具名指针槽）。
+            party2->m_battleField.SetDamagedPacketCnt(var->m_uid);   // +0x1ca
+            party2->m_battleField.SetDamageValue(var->m_uid, hackGate);
         }
     }
     return 0;

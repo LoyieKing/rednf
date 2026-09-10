@@ -1,5 +1,9 @@
 int Inter_DBCheckDoubleGuildName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=6] 差异为同一单参调用块
+    //   `lea <S>,%eax; mov %eax,(%esp); call <T>`（PacketGuard 构造/析构类）在两侧的
+    //   整体位移：ORIG 在 [55:58]、本方在 [65:68]，两条块净指令数相同 ⇒ 块序/布局抖动。
+    //   源码语句序与报告 084d34e8（ctor 紧跟 setGuildCreateFlag(2)）一致，无直证可改，留 N。
     if (user->get_state() <= 2)
         return 0;
     // ORIG：包基址槽在守卫之后物化。

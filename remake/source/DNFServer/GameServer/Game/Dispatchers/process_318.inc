@@ -55,42 +55,32 @@ int Dispatcher_PurifyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
         materialItem =
             user->getCurCharacInvenR()->GetInvenSlot(1, m.m_13);
-        const int needCount =
-            GlobalData::s_itemAmplifier_->getPurifyMaterialItemCount(
-                purifyType);
+        // [G1-Dispatchers] ORIG 两处独立调用 getPurifyMaterialItemCount：
+        //   0x08219082（数量校验）与 0x082190d6（delete_item 实参位，结果入 %esi）
+        // ⇒ 不设 needCount 具名局部（P48/P0；p167 ORIG-only ×1）。
         if (materialItem.m_addInfo != (int)m.m_15 ||
-            materialItem.m_addInfo2 < needCount)
+            materialItem.m_addInfo2 <
+                GlobalData::s_itemAmplifier_->getPurifyMaterialItemCount(purifyType))
         {
             throw static_cast<ENUM_ERROR>(0x11);
         }
 
-        CInventory* invenW = user->getCurCharacInvenW();
-        if (!invenW->delete_item((INVEN_TYPE)1, m.m_13, needCount,
-                                 (eItemDelReason)3, true))
+        // [G1-Dispatchers] P48：ORIG delete_item 与 update_item 各自重取
+        // `getCurCharacInvenW()`（p167 ORIG-only ×1，我方原用 invenW 缓存）⇒ 不设具名 invenW。
+        if (!user->getCurCharacInvenW()->delete_item(
+                (INVEN_TYPE)1, m.m_13,
+                GlobalData::s_itemAmplifier_->getPurifyMaterialItemCount(purifyType),
+                (eItemDelReason)3, true))
         {
             throw static_cast<ENUM_ERROR>(0x16);
         }
 
-        // ---- 内联：processPurifyType @0x082194b6 T ----
-        // type 0：鉴定强化选项（stAmplifyOption_t::identify W 0x0822b3d8，
-        //         未鉴定→清 bit7 返真；头内 void 声明，按指令语义展开）。
-        // type 1：重置强化选项（stAmplifyOption_t::reset W 0x080cb75c）后返真。
-        bool purified = false;
-        if (purifyType == 0)
-        {
-            purified = !targetItem.m_amp.isIdentified();
-            if (purified)
-            {
-                targetItem.m_amp.m_abilityType = (unsigned char)(
-                    targetItem.m_amp.m_abilityType & 0x7f);
-            }
-        }
-        else if (purifyType == 1)
-        {
-            targetItem.m_amp.reset();
-            purified = true;
-        }
-        if (!purified)
+        // [G1-Dispatchers] 还原 ORIG 0x082194b6 的**独立成员调用**
+        // `_ZN21Dispatcher_PurifyItem17processPurifyTypeEiR10Inven_Item`（T）：
+        // Dispatchers.h:388 已声明该成员、Game/Dispatchers/processPurifyType.inc 已有真实体
+        // ⇒ 此处不得再内联展开（p167：ORIG-only processPurifyType x1，我方 EXTRA
+        //   stAmplifyOption_t::isIdentified/reset 各 x1 即内联残留）。
+        if (!processPurifyType(purifyType, targetItem))
         {
             throw static_cast<ENUM_ERROR>(0x16);
         }
@@ -99,7 +89,7 @@ int Dispatcher_PurifyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                                       targetItem.m_addInfo,
                                       (eApplyItemReason)2);
 
-        invenW->update_item((INVEN_TYPE)1, m.m_0d, targetItem);
+        user->getCurCharacInvenW()->update_item((INVEN_TYPE)1, m.m_0d, targetItem);
 
         // 刷新材料槽（删除后剩余数量入包）
         materialItem =

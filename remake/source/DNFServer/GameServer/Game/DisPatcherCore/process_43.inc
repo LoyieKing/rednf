@@ -1,7 +1,6 @@
 int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stGetItemParam& out = static_cast<stGetItemParam&>(param);
-    MSG_GET_ITEM& req = *reinterpret_cast<MSG_GET_ITEM*>(&msg);
     out.m_errNo = check_error(user, msg);
     if (out.m_errNo >= 1)
     {
@@ -13,6 +12,10 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         __PRETTY_FUNCTION__,
                         out.m_errNo, user->get_acc_id());
     }
+    // [G5-ProcB] ORIG 0x081c3642 `mov 0x10(%ebp),%eax; mov %eax,-0x20(%ebp)`：
+    // msg 视图具名局部在两级 errNo 检查之后初始化（ORIG 参数槽 -0x24 先、msg 槽
+    // -0x20 后）。函数头声明多 1 条 store 且槽基下移（我方帧 0x60 vs ORIG 0x50）。
+    MSG_GET_ITEM& req = *reinterpret_cast<MSG_GET_ITEM*>(&msg);
     if (req.m_17 != 1)
     {
         user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x3bb, 1, 0, 0);

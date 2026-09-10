@@ -1,5 +1,9 @@
 void CUser::makeGuildLevelUpMessage(int level)
 {
+    // 2026-09-10 gA（A 组）负结论 N（218 vs 219）：ORIG 0x08679754 全段逐条同形
+    //   （含 -0x19f numBuf 的 4.1 慢路清零、string 链、SendGuildBoardWrite 实参序），
+    //   唯一残差为我方多一条尾部布局 nop（ORIG 0x08679a2b `lea -0xc(%ebp),%esp`
+    //   前无 nop）⇒ 对齐产物，源码不可控。
     if (level % 10 != 0)
         return;
 

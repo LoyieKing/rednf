@@ -20,21 +20,27 @@ void CUser::set_ingame_event_history(SIG_INGAME_EVENT_HISTORY* sig)
     // = 有符号 `i <= 0x1d`（P2/P51）；`i < 0x1e` 在 4.4 生 jcc 直跳无 setle。
     for (int i = 0; i <= 0x1d; ++i)
     {
-        if (reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key == 0)
-            continue;
-        // ORIG 0x0868d6a5 `mov (%eax),%ebx` 跨 G_CDataManager/get_event_script_mng
-        // 保活 ⇒ 链式内联实参（P52），勿用具名 scriptMng 槽。
-        // [L6 判据①/P222 极性重核] ORIG 0x0868d6xx `call is_current_ingame_event_record_type;
-        // test %al,%al; je <T>` = **正极性**守卫（体在 je 之后直落）；旧 `if (!…) continue;`
-        // 使 4.4 反产 `xor $1,%eax; test %al,%al; jne`。
-        if (static_cast<EventClassify::CEventScriptMng*>(
-                G_CDataManager()->get_event_script_mng())->
-                is_current_ingame_event_record_type(
-                    reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key))
+        // [G6Sub3 2026-09-10 P296 新旋钮·待父泳道测] ORIG 0x0868d681/868d694/868d6c2 三处失败
+        // 出口**同落** 868d710(=i++)、体尾**无**中继岛；旧 `continue` 形令 4.4 在体尾多发
+        // `jmp +2; nop` 岛（OUR 79 vs ORIG 70 中的 2 条）。按 P296 改嵌套正向 if 包裹 ⇒ 期望
+        // 消 jmp+nop；若四数不改善即回退。
+        // ORIG 0x0868d690 `test %eax,%eax; je 868d710`（key==0 → i++）= 正极性 `!= 0` 守卫。
+        if (reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key != 0)
         {
-            set_ingame_event_history(
-                reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key,
-                reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v1,
-                reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v2);
+            // ORIG 0x0868d6a5 `mov (%eax),%ebx` 跨 G_CDataManager/get_event_script_mng
+            // 保活 ⇒ 链式内联实参（P52），勿用具名 scriptMng 槽。
+            // [L6 判据①/P222 极性重核] ORIG 0x0868d6c0 `call is_current_ingame_event_record_type;
+            // test %al,%al; je 868d710` = **正极性**守卫（体在 je 之后直落）；旧 `if (!…) continue;`
+            // 使 4.4 反产 `xor $1,%eax; test %al,%al; jne`。
+            if (static_cast<EventClassify::CEventScriptMng*>(
+                    G_CDataManager()->get_event_script_mng())->
+                    is_current_ingame_event_record_type(
+                        reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key))
+            {
+                set_ingame_event_history(
+                    reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key,
+                    reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v1,
+                    reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v2);
+            }
         }
     }

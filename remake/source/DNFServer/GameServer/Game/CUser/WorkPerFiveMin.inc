@@ -1,5 +1,8 @@
 void CUser::WorkPerFiveMin()
 {
+    // 2026-09-10（G3CUser-B 复验）：槽集对照 ORIG 13 槽 / 我方 13 槽、**零平移零多余**
+    //   （insn 176:176）⇒ 具名局部已与 ORIG 一一对应，残余 ndiff 纯属跨版本寄存器/
+    //   指令选择形（P227 链式 trace 已落地），判 N 封顶，不动。
     if (m_chState <= 2)
     {
         return;

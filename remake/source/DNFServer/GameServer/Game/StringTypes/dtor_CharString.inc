@@ -1,3 +1,1 @@
 CharString::~CharString()
-{
-    getData()->decRef();

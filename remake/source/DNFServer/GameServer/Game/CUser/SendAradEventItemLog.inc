@@ -3,8 +3,12 @@ void CUser::SendAradEventItemLog(unsigned long itemIndex, int count)
     ARAD::Arad_DataManager* mgr = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
     ARAD::Arad_InterfaceGameScript* script =
         mgr->findGameScript("Arad_StatisticsEventItemList");
-    if (script == 0 ||
-        !static_cast<ARAD::Arad_StatisticsEventItemList*>(script)->needStatistics(itemIndex))
+    // 2026-09-10（G3CUser-B，P171 删发明防御）：ORIG 0x08692bc5 `mov 0xc(%ebp),%edx;
+    //   mov %edx,0x4(%esp); mov %eax,(%esp); call needStatistics` —— %eax（findGameScript
+    //   结果）**直接**当 this，无 `test %eax,%eax / je` 判空；随后 0x08692bd6
+    //   `mov %eax,%ebx; xor $0x1,%ebx`（!needStatistics 物化）+ 0x08692c21
+    //   `test %bl,%bl; jne 0x08692d22`（跳尾声返回）⇒ 删我方 `script == 0` 防御。
+    if (!static_cast<ARAD::Arad_StatisticsEventItemList*>(script)->needStatistics(itemIndex))
     {
         return;
     }

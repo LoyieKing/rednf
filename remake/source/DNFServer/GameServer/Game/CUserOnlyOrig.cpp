@@ -5818,7 +5818,12 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     // [Lane6 2026-09-10 P0] 删 `char* dp = (char*)&data;` 具名指针局部：ORIG 0x08656ba1
     // 无 -0xc 槽（`lea -0x22(%ebp),%eax; movl $0xa,0x8(%esp); mov %eax,0x4(%esp)` 直落
     // 实参）⇒ 原码是内联实参；具名缓存多 store+load 各 1 并把槽基顶深 4。
-    packet.put_binary(reinterpret_cast<char*>(&data), 10);   // ORIG E15InterfacePacketBuf10put_binaryEPci
+    // [A06 2026-09-10 实参求值序] ORIG 0x08656b9x：`lea -0x22(%ebp),%eax`（先算 &=data）
+    // → `movl $0xa,0x8(%esp)` → `mov %eax,0x4(%esp)`；写 `(char*)&data` 时 4.4 反为
+    // 「先压常量后 lea」。改 `&data.m_type`（char*，元素首址同值）令 4.4 先物化基址。
+    // 注：本函数因切分工具把函数体内**列 0 的 `#pragma pack`/`struct`** 误判为 TU 级
+    // 边界，函数体尾部留在**聚合器**而 .inc 只有函数头 ⇒ 改动跨 .inc 与 .cpp 两处。
+    packet.put_binary(reinterpret_cast<char*>(&data), sizeof(data));   // ORIG E15InterfacePacketBuf10put_binaryEPci
     packet.finalize(true);
     Send(packet);
 }

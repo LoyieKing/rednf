@@ -97,3 +97,11 @@ int DispatcherResetRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& 
     user->SendUpdateItem(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, (int)req.m_scrollSlot);
     user->SendCmdOkPacket((ENUM_CMDPACKET)0x1c8);
     return 0;
+// [G5-ProcB] 负结论（本件残留 4 条：ORIG 323 vs 我方 319，即 ORIG 多 4 条）：
+// ①② ORIG 0x081dd398 `cmpl $0x0,-0x2c(%ebp)` 后 0x081dd39c `sete %al; test %al,%al; je`，
+//    及 0x081dd5de / 0x081dd67e / 0x081dd74b 的 `test %eax,%eax; setne %al; test %al,%al; je`
+//    ⇒ ORIG 把 `x==0`/`x!=0` 结果物化为**无槽临时 bool**（setcc+test 两连）。
+//    4.4 对 `if (x==0)`/`if (!x)`/`if (x!=0)` 均直接出 cmp+jcc（不产 setcc 物化），
+//    本轮无 4.4 可复现形，**回滚不动**（属 4.4/ORIG 编译器 codegen 族，勿再试）。
+// ③ ORIG 0x081dd5bd `movl $0x0,-0x1c(%ebp)`：static-guard 段（`_ZGVZ...6handle`
+//    0x081dd5c4 读）之前的一个 int=0 具名槽，我方无对应 C++ 变量证据 ⇒ 保留现状。

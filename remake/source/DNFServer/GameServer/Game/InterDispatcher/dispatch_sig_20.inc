@@ -1,5 +1,13 @@
 int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=235（ratio 0.835）] 已核项：
+    //   · [334:335] ORIG `movsbl %al,%eax` vs 本方 `and $0xff,%eax`（有符号 char 读 vs
+    //     无符号截断）；[264:265]/[287:288]/[390:391]/[398:399]/[549:550] ORIG 单条
+    //     `movzbl %al,%eax` vs 本方 6 条 `test %al,%al; je; mov $0x1,%eax; jmp; mov $0x0,%eax`
+    //     （bool 物化）——两侧方向相反，是本件最大残块。
+    //   · 另有栈帧 0x12c vs 0x15c（属父泳道统一裁决的共享机制，不 hack）。
+    //   本件 ORIG 726 条指令（.inc 187 行、函数完整在本件），上述位点需逐段回读报告
+    //   才能定位对应源码行；本轮未取得单点直证，留 N。
     Inter_MonitorLoginOKPktView* pPkt = reinterpret_cast<Inter_MonitorLoginOKPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0x206a;

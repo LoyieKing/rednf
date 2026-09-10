@@ -315,10 +315,13 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         }
 
         packet.put_short(item.m_item.m_fieldb);
-        unsigned char amplifyType = item.m_item.m_amp.getAbilityType();
-        packet.put_byte(amplifyType);
-        unsigned short amplifyValue = item.m_item.m_amp.getAbilityValue();
-        packet.put_short(amplifyValue);
+        // [B24D-CDeathTower P0/P183] ORIG 0x08465685 `call getAbilityType(0x8150732);
+        // movzbl %al,%eax; mov %eax,0x4(%esp); lea -0xa4(%ebp); call put_byte
+        // (0x0846569a)`、0x084656a8 `call getAbilityValue(0x8150772); movzwl %ax,%eax;
+        // call put_short(0x084656bd)` —— 返回值寄存器直传，无栈槽往返。
+        // 旧具名 amplifyType/amplifyValue 令 4.4 物化 -0x1f 槽并多一次 movzbl 读回。
+        packet.put_byte(item.m_item.m_amp.getAbilityType());
+        packet.put_short(item.m_item.m_amp.getAbilityValue());
         packet.put_packet(item.m_item);
 
         // [b28d-SCT] P59：ORIG 0x084658XX `isAvatarItemType; je L_else; put_byte(1);

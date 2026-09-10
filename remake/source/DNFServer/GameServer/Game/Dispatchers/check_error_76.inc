@@ -1,5 +1,8 @@
 int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BASE& msg)
 {
+    // [G1Frest 2026-09-10] ORIG 0x081e7f35 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`
+    //   出现在 user==0 检查**之前**（P28 声明序即槽序）⇒ msg 引用绑定在最前。
+    MSG_GROWTH_EQUIPMENT& req = reinterpret_cast<MSG_GROWTH_EQUIPMENT&>(msg);
     if (user == 0)
     {
         return -1;
@@ -8,7 +11,6 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     {
         return 0x13;
     }
-    MSG_GROWTH_EQUIPMENT& req = reinterpret_cast<MSG_GROWTH_EQUIPMENT&>(msg);
     if (user->CheckItemLock(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)req.m_0d), req.m_11))
     {
         return 0xd5;
@@ -24,7 +26,8 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     {
         return 3;
     }
-    int serverGroup;
+    // ORIG 0x081e7ff4 `movl $0x0,-0xc(%ebp)` ⇒ 原码带 `= 0` 初始化
+    int serverGroup = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
         serverGroup = (int)user->GetServerGroup();
@@ -45,10 +48,11 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     {
         return 0x11;
     }
-    CEventBase* repeatEvent = GlobalData::s_event_manager->GetRepeatEvent(0x64);
-    // ORIG 无判空直接虚调 vtable+0x34（slot IsEventing）传 0。
-    if (repeatEvent->IsEventing(0))
+    // ORIG 0x081e8091 区：`mov (%eax),%edx; add $0x34,%edx; mov (%edx),%edx; call *%edx`
+    //   —— GetRepeatEvent 结果**无具名局部**（链式直调虚槽 +0x34）；尾极性为
+    //   `xor $1; test; je` ⇒ `if (!IsEventing(0)) return 1; return 0;`
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x64)->IsEventing(0))
     {
-        return 0;
+        return 1;
     }
-    return 1;
+    return 0;

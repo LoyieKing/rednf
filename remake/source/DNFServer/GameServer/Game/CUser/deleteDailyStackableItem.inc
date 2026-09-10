@@ -1,6 +1,10 @@
 void CUser::deleteDailyStackableItem(std::vector<std::pair<int, int> >& list,
                                      int a, int b)
 {
+    // 2026-09-10（G3CUser-B 复验）：槽集 ORIG/我方 各 10 槽、零平移零多余
+    //   （100:105 insn）；ORIG 0x0867e7bb `je`（ci==0 跳过）与 0x0867e7d1
+    //   `xor $1; jne`（!is_stackable 跳过）确认我方 `ci == 0 || !ci->is_stackable()`
+    //   两条独立守卫**有 ORIG 直证**，不可删 ⇒ 残余属跨版本 codegen，判 N。
     if (getCurCharacR() == 0)
         return;
     CInventory* inven = (CInventory*)getCurCharacInvenR();

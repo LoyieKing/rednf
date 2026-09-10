@@ -1,5 +1,7 @@
 int Inter_LoadBreakAwayPreventMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2D] verdict=N：两侧指令多集合相同，仅基本块布局互换（ORIG 084c4f38 段
+    //   `lea/call + jmp` 在我方位于 Next-B 块之后）⇒ 纯 CFG 块序，无源码语句序依据，未改。
     if (user == 0)
         return 0;
 

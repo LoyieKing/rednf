@@ -4,21 +4,22 @@ bool CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)
     char logDir[256] = {0};
     sprintf(logDir, "./log/%s/OnTimeEvent", G_CEnvironment()->get_file_name());
 
-    unsigned int characNo = get_charac_no(-1);
-    char* accStr = NumberToString(get_acc_id(), 0);
+    // 2026-09-10（G3CUser-B，P0 槽-局部律）：ORIG 0x08681cbb `call get_charac_no;
+    //   mov %eax,%esi`（characNo **无槽**、%esi 保活）与 0x08681ccd..0x08681cdd
+    //   `call get_acc_id; call NumberToString; mov %eax,%ebx`（accStr **无槽**、%ebx
+    //   保活）——O0 下具名标量必占栈槽，ORIG 无槽 ⇒ 原码把两调用直接写在实参位
+    //   （cdecl 右→左：`%u` 的 get_charac_no 先算、`%s` 的 NumberToString 后算，
+    //   与 ORIG 0x08681cbb→0x08681cdd 次序一致）。删我方 characNo/accStr 两具名量
+    //   （其 store/load 另致帧 0x2dc→0x2ec、+0x10）。
     {
         CMyFileLog log(
             "bool CUser::InsertOnTimeEventReward(unsigned int, unsigned int)",
             0x869f);
         log(logDir, "On Time Event:InsertOnTimeEventReward(%s, %u)",
-            accStr, characNo);
+            NumberToString(get_acc_id(), 0), get_charac_no(-1));
     }
 
     if (itemNo == 0)
-        return 0;
-
-    // ORIG 0x8681d98：物品索引无效（find_item 空）→ 直接返回 0（不发包）
-    if (G_CDataManager()->find_item((int)itemNo) == 0)
         return 0;
 
     PacketGuard packet;
@@ -27,6 +28,14 @@ bool CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)
     int pktIndex = packet.get_index();   // ORIG 记录后未再使用
     (void)pktIndex;
     packet.put_byte(1);
+
+    // 2026-09-10（G3CUser-B，语句位置轴）：ORIG 0x08681d98 的 find_item 检查位于
+    //   `put_byte(1)`（0x08681d76）与 Inven_Item 默认构造（0x08681daa）**之间**，
+    //   而 put_header/put_byte/get_index/put_byte 四步在 0x08681d3a..0x08681d76 先行；
+    //   我方原先把本检查放在 PacketGuard 构造之前 ⇒ 整段顺序与 ORIG 逆置。位置照抄。
+    //   ORIG 0x08681da0 `cmpl $0x0,-0x20(%ebp); je 0x0868201c`（返回 0，不发包）。
+    if (G_CDataManager()->find_item((int)itemNo) == 0)
+        return 0;
 
     {
         Inven_Item item;                 // 默认构造（ORIG ctor 0x080cb854）

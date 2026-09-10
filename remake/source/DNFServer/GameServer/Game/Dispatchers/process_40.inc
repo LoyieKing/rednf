@@ -42,11 +42,14 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
     if ((int)party->m_battleField.m_apcList.size() == 0)   // party+0xc48 = BF+0x124
     {
         party->m_battleField.m_apcAllKilledSec = GlobalData::s_systemTime_.getCurSec();
-        int characNo = user->get_charac_no(-1);
+        // [G1Dproc 2026-09-10] ORIG 0x081cd9a4 起：characNo 直接入 %edi（`call get_charac_no;
+        //   mov %eax,%edi`）、apcAllKilledSec 重读入 %esi、GetPartyIndex 入 %ebx —— 三者**无具名槽**
+        //   （P0/P183）；实参右→左求值序 = characNo → apcAllKilledSec → … → GetPartyIndex ✓ 同 ORIG。
         G_TimerQueue()->InsertTimerInMilisecond(
             (TimerEntry::OBJ_TYPE)1, party->GetPartyIndex(),
             (TIMER_MESSAGE)0x64, (long long)1000,
-            party->m_battleField.m_apcAllKilledSec, (unsigned int)characNo);
+            party->m_battleField.m_apcAllKilledSec,
+            (unsigned int)user->get_charac_no(-1));
         out.m_8 = 1;
     }
 

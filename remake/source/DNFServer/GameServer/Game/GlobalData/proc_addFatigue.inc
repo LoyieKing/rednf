@@ -37,6 +37,9 @@ int StackableAction::Action::proc_addFatigue(input_param& p)
     // -0x1c；4.4 按首次使用分配恒相反，P212 头部声明/前置声明三形实测均反劣）
     // ⇒ N98/N93 封顶。[b28d-PoolGlobalData P326 重试] 匿名 0 临时形实测：块1
     // 临时顶到 -0x18、块2 after 滑 -0x1c（4 条→8 条差）⇒ 反劣回退，N93 判不变。
+    // [G7-sub] 本轮复核：ORIG 73 / 我方 73；p167 CALLSITE CLEAR（8 call 全中）。
+    //   残差仅两处 std::max 临时槽互换：ORIG 0x0827fc6a 段常量临时 -0x1c 与我方
+    //   -0x14 互置（0x0827fc97 段反之）⇒ 维持 N98/N93 封顶。
     int after = (int)(user->getCurCharacFatigue() & 0xffff) - need;
     int lower = 0;
     user->setCurCharacFatigue(std::max(lower, after));

@@ -26,9 +26,11 @@ int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
         this->send_packet_guild_invite(user, (unsigned char)0x24);
         return 0;
     }
-    unsigned int inviteGuildKey = (unsigned int)user->get_charac_guildkey();
-    unsigned int characNo = user->getCurCharacNo();
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendCallGuildInvite(characNo, inviteGuildKey, guildName);
+    // ORIG 段直证：两个 int 实参在 %esi/%ebx 保活（0x8/0x4(%esp)），无具名栈槽
+    // （原具名形在 -0x14/-0x10 各落一槽，帧 0x40→0x58）。P0/P183 内联实参。
+    proxy->SendCallGuildInvite((unsigned int)user->getCurCharacNo(),
+                               (unsigned int)user->get_charac_guildkey(),
+                               guildName);
     return 0;

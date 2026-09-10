@@ -1,5 +1,10 @@
 int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2D] verdict=N（本轮未改）：199 行残差三类——(a) 帧 0x40→0x84 的具名局部累积（本件
+    //   132 行内我方独有槽往返 20+ 处，逐处改写风险>>收益，帧机制由父泳道统一裁决）；
+    //   (b) 地址表达式形态：ORIG 索引式 `sub/lea`（如 084c4fxx `lea 0x12880(%edx),%eax`）
+    //   vs 我方 `add $0x12880,%eax; add 0x10(%ebp),%eax`；(c) `mov <S>,%ecx` 类中转。
+    //   无可直证的语义/结构单点，留 N。
     Inter_LoadInvenPktView* pPkt = reinterpret_cast<Inter_LoadInvenPktView*>(data);
     if (user->get_state() == 0)
         return 0x1835;

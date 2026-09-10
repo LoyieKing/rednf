@@ -15,13 +15,19 @@ int Dispatcher_RequestMemberEnter::process(CUser* user, MSG_BASE& msg, ParamBase
                         __PRETTY_FUNCTION__,
                         out.m_4, user->get_acc_id());
     }
+    // ORIG 0x081cb8f2: `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)` —— msg 具名引用槽；
+    //   0x081cb91f 起长度读 `mov 0x10(%eax),%eax` 常量偏移。
+    MSG_BASE& m = msg;
     Packet_Monitor_Request_Member_Enter pkt;   // ORIG W ctor 0x0822b9ce（局部帧 -0x40 起）
-    // 帧偏移：-0x3a=pkt+0x6(UID)、-0x36=pkt+0xa(characNo)、-0x32=pkt+0xe(30 字节名区)
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&pkt) + 6) = user->GetUID();
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&pkt) + 0xa) = user->getCurCharacNo();
-    std::strncpy(reinterpret_cast<char*>(&pkt) + 0xe,
-                 reinterpret_cast<const char*>(&msg) + 0x14,
-                 *reinterpret_cast<const size_t*>(reinterpret_cast<const char*>(&msg) + 0x10));
+    // ORIG 实测帧内偏移（pkt 基 -0x40）：0x081cb90e `mov %eax,-0x36(%ebp)` = pkt+0xa ← GetUID；
+    //   0x081cb91c `mov %eax,-0x32(%ebp)` = pkt+0xe ← getCurCharacNo；
+    //   0x081cb933 `lea -0x40(%ebp),%eax; add $0x12,%eax` = memcpy/strncpy 目标 pkt+0x12。
+    //   （原 +6/+0xa/+0xe 偏移系早期推断，与 ORIG 差 4。）
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(&pkt) + 0xa) = user->GetUID();
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(&pkt) + 0xe) = user->getCurCharacNo();
+    std::strncpy(reinterpret_cast<char*>(&pkt) + 0x12,
+                 reinterpret_cast<const char*>(&m) + 0x14,
+                 *reinterpret_cast<const size_t*>(reinterpret_cast<const char*>(&m) + 0x10));
     CMonitorServerProxy* proxy =
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
     proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x30);

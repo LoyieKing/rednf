@@ -1,3 +1,7 @@
+// [G7-sub 2026-09-11 判词] DispatchThread::dispatch（ORIG T 0x0847e2d2）：私有 .o 实测
+// ORIG 325 / 我方 325（gap 0），**助记符序列全等**（fdiff --mnemonic hunks=0），
+// 残差仅寄存器/栈槽分配（N82 族）。p167 调用点差集仅 cMyTrace C1↔C2 同址别名
+// （ORIG nm 实测 C1=C2=0x0854f746）。结论：**封顶，无改动**（本批最干净件）。
 void DispatchThread::dispatch(void* arg)
 {
     (void)arg;

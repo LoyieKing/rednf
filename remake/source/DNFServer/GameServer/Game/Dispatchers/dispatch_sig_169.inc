@@ -20,27 +20,31 @@ int Dispatcher_HeroMissionEventState_Reward::dispatch_sig(CUser* user, PacketBuf
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
+    // [G1Csig · P0 槽律] ORIG 直证：两分支的 Singleton::Get 结果都只经 `mov %eax,%ebx`
+    // 寄存器直传（无 event 具名槽）；我方原写具名 HeroMissionEvent* 使 missionState/
+    // missionNo 槽整体下移 8（-0x10/-0x14 → -0x18/-0x1c）⇒ 去具名改链式（同 146 手法）。
     if (missionState == 0)
     {
-        HeroMissionEvent* event = ARAD::Singleton<HeroMissionEvent>::Get();
-        event->sendMissionData(user);
+        ARAD::Singleton<HeroMissionEvent>::Get()->sendMissionData(user);
     }
     else
     {
-        HeroMissionEvent* event = ARAD::Singleton<HeroMissionEvent>::Get();
-        char rewarded = (char)event->rewardMission(
+        char rewarded = (char)ARAD::Singleton<HeroMissionEvent>::Get()->rewardMission(
             user, (HeroMissionCondition::MissionNo::T)missionNo);
         PacketGuard response;
         response.put_header(1, 0x25a);
-        if (rewarded == 0)
+        // [G1Csig] ORIG 直证：`je <T>` 后 fall-through 为 `movl $0x1,0x4(%esp)`（put_byte(1) 块）
+        // —— ORIG 把「rewarded != 0」块排前、`je` 跳「== 0」块；我方原写 `== 0` 正向使两块
+        // 顺序相反（6 条差异）⇒ 改用 `!= 0` 正向（同一语义，布局对齐）。
+        if (rewarded != 0)
         {
-            response.put_byte(0);
-            response.put_byte(0);
+            response.put_byte(1);
             response.put_short(missionState);
         }
         else
         {
-            response.put_byte(1);
+            response.put_byte(0);
+            response.put_byte(0);
             response.put_short(missionState);
         }
         response.finalize(true);

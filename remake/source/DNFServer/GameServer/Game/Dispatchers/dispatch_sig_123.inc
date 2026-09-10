@@ -8,9 +8,13 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
 
     // +0x03a: PCK_AUCTION_BUY_ITEM_APIECE_GA 请求包
     PCK_AUCTION_BUY_ITEM_APIECE_GA pck;
-    // +0x045: pck+0x12 = GetUID；pck+0x16 = getCurCharacNo
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x12) = user->GetUID();
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&pck) + 0x16) = user->getCurCharacNo();
+    // +0x045: ORIG [21]/[25] `mov %eax,-0x44(%ebp)` / `mov %eax,-0x40(%ebp)`
+    //   —— 两个具名 int 暂存槽；直接用 lea 链写包体令 4.4 产 `lea 0x12(%eax),%ebx`
+    //   三重 lea 且帧 0x60→0x70。
+    unsigned int uid = user->GetUID();
+    int characNo = user->getCurCharacNo();
+    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x12) = uid;
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(&pck) + 0x16) = characNo;
 
     int price = 0;
     if (!packet.get_int(price))
@@ -28,11 +32,12 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
         return LineFunc(0xc503, __PRETTY_FUNCTION__, 0, 0);
     }
 
-    // +0x139: char itemKey[13] 清零后读 0xd 字节
+    // +0x139: ORIG [72:76] `movl $0x0,-0x21/-0x1d/-0x19` + `movb $0x0,-0x15`
+    //   —— 3×4B + 1×1B 立即数覆盖 13 字节；逐字节赋值被 4.4 折成 13 条 movb。
     char itemKey[13];
-    itemKey[0] = 0;  itemKey[1] = 0;  itemKey[2] = 0;  itemKey[3] = 0;
-    itemKey[4] = 0;  itemKey[5] = 0;  itemKey[6] = 0;  itemKey[7] = 0;
-    itemKey[8] = 0;  itemKey[9] = 0;  itemKey[10] = 0; itemKey[11] = 0;
+    *(unsigned int*)(itemKey + 0) = 0;
+    *(unsigned int*)(itemKey + 4) = 0;
+    *(unsigned int*)(itemKey + 8) = 0;
     itemKey[12] = 0;
     if (!packet.get_binary(itemKey, 13))
     {

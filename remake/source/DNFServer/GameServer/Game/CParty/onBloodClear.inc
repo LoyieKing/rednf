@@ -2,6 +2,11 @@ void CParty::onBloodClear(bool flag, int param)
 {
     // b28d-49 判词：N 封顶（N82 帧 0x30/0x40 + m_padResult 为 char 数组致 &m_padResult 基址 add；
     // 类型化 m_padResult 影响 C1Ev/D1Ev，留 Main 统一裁决）。P167 CLEAR。@0x85b7c9e
+    // [G7-sub 复核] 本轮 diff 逐条核对：唯一差异 = ORIG 085b7cc1 `mov %eax,-0x1c(%ebp)` +
+    // 085b7cc9 `mov -0x1c(%ebp),%eax`（GetMapPlayingTime 结果**占槽**）vs 我方
+    // `mov %eax,%ebx`（寄存器保活）；帧 0x20(OURS) vs 0x30(ORIG)。前轮已试 3 形
+    // （具名 unsigned / (unsigned) 强转 / 1000U）均被 4.4 无符号除法 lowering 折出
+    // scratch 副本（帧 0x40 反劣）⇒ 维持 N92 封顶，本轮不重复试形。
     if (flag)
     {
         // b28d-solo-CParty2 试形记录（S1 一次旋钮已用尽，判 N92）：

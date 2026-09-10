@@ -1,3 +1,12 @@
+    // [G7-sub 2026-09-10 复核·写域边界] 本 .inc 仅含函数前段（slot 取得 + 4 条守卫 +
+    // m_field204 写入；函数余部 0x.cpp:1403..1468）。逐点核对 ORIG 0x085b415a：
+    //   ① `GetMemberSlotNo` 落槽 -0x18 ✓；② `slot==-1 || 3<a` 两条守卫跳共享 false 尾块
+    //      （085b4180 `je 44cb` / 085b418a `jg 44cb`）✓ goto fail 形已对齐；
+    //   ③ HaveAlreadySelectedCard/_checkGoldCardSelectable 的就地 `mov $0;jmp 44d0` ✓。
+    // 余差 5 条（我方 250 vs 245）**全部落在 .cpp 段**：三处 bool callee（GetRepeatEvent /
+    // IsReturnUserParty / IsEventCharacParty）我方写 `!callee()` 产 `xor $1; je`，
+    // ORIG 为无 xor 的 `test; jne`（P168a②/P292 极性）⇒ 需 .cpp 属主改条件极性。
+    // 本 .inc 无可改项；p167 CALLSITE CLEAR。
 bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
 {
     // b28d-49 判词：N 封顶。P167 已 CLEAR（b28d-solo-CParty2：check_empty_count 处

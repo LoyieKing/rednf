@@ -1,5 +1,7 @@
 int Inter_SetFullIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    // [G2D] verdict=N：与 SetIPCount 同族、同形（ORIG base 走 %ecx + lea vs 我方 add）。
+    //   属 O0 寄存器选择差异，无可判定改写，未改。
     Inter_SetFullIPCountPktView* pPkt = reinterpret_cast<Inter_SetFullIPCountPktView*>(data);
     if (pPkt->m_a == 0)
         GlobalData::g_autoPunishRuleHackTypeMgr->ResetFullIpCounterData();

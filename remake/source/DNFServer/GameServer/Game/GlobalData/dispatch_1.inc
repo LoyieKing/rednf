@@ -1,3 +1,13 @@
+// [G7-sub 2026-09-11 判词] UdpThread::dispatch（ORIG T 0x0857c9de）：私有 .o 实测
+// ORIG 138 / 我方 136（gap 2，我方短）。逐条对照残差 = 三类：
+//   ① ORIG 0x0857c9ea `movl $0x1,-0x38(%ebp)` 与 0x0857ca1a `movl $0x0,-0x30(%ebp)`
+//      是两处**只写不读**的具名 dead 标量（全函数无第二处引用）；是否补 dead 局部
+//      由父代理裁决 ⇒ 本泳道**不改**（补则帧内 tv_sec/tv_usec/maxfd 槽由
+//      -0x3c/-0x38/-0x34 下移到 ORIG 的 -0x44/-0x40/-0x48）。
+//   ② FD_ZERO 内层 ORIG `movl $0,(%eax,%edx,4)` scaled 直存 vs 我方 `shl $2; add` ⇒
+//      已知 N125/N81（4.4 下标缩放恒折 shl）。
+//   ③ 尾 `nop`（§6.1 对齐豁免）。
+// p167 调用点差集 CLEAR（8/8）。结论：**封顶，无改动**（语义完成）。
 void UdpThread::dispatch(void* arg)
 {
     (void)arg;

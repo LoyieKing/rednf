@@ -4,7 +4,8 @@ int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
 
-    int* msg =&pPkt->m_0;   // ORIG 写回 msg+(i+1)*0x10+0x10，须非 const
+    // P0/P183：ORIG 无 msg 具名槽（各用点重新 `mov 0x10(%ebp),%eax`），且地址按
+    //   char* 基址 + (i+1)*0x10 + off 计算（形如 `mov 0x8(%edx,%eax,1)`），不是 int* 指针算术。
     if (user->getCurCharacR() == 0 ||                // asm 双失败归并 true
         user->getCurCharacNo() !=
             pPkt->m_a)     // msg+0x0a 角色号
@@ -19,11 +20,11 @@ int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_byte(static_cast<int>(channelCnt));
     for (int i = 0; i < static_cast<int>(channelCnt); ++i)
     {
-        packet.put_int(*(msg + (i + 1) * 4 + 2));    // msg+(i+1)*0x10+0x08
-        packet.put_int(*(msg + (i + 1) * 4 + 3));    // msg+(i+1)*0x10+0x0c
-        if (msg[(i + 1) * 4 + 5] == 2)               // msg+(i+1)*0x10+0x14
-            msg[(i + 1) * 4 + 4] = 4;                // msg+(i+1)*0x10+0x10 写回 4
-        packet.put_int(msg[(i + 1) * 4 + 4]);
+        packet.put_int(*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x8));
+        packet.put_int(*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0xc));
+        if (*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x14) == 2)
+            *reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x10) = 4;  // 写回 4
+        packet.put_int(*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x10));
     }
     packet.finalize(true);
     user->Send(packet);

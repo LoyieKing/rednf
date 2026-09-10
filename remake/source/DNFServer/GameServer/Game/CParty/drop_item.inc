@@ -17,34 +17,37 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     map_item mi;                                   // -0x12c
     Inven_Item src;                                // -0xd5
 
-    char t = (char)type;
-    if (t == 2)
+    // [G7-sub] P0 槽律：ORIG 085a64a8 起 `movsbl -0x13c(%ebp),%eax` 直接用**参数槽**
+    // 比较（0x20(%ebp) 另作 count），无 `char t` 具名槽（我方原 -0x31，帧抬升源之一）
+    // ⇒ 删具名、全部回实参 `type`；ORIG 为有符号 movsbl 比较（参数即 char）。
+    if (type == 2)
     {
         src = user->getCurCharacCargoR()->get_cargo_slot(slot);
     }
-    else if (t == 0)
+    else if (type == 0)
     {
         if (slot == 0)
         {
             // 直接构造"金币掉落"项：m_count=0、ITEM_TYPE=2、addInfo=0
             mi.m_count = 0;
-            Inven_Item& dst = mi.m_item;
-            dst.m_field1 = 2;
-            dst.m_addInfo = 0;
-            dst.set_add_info(count);
-            dst.m_fieldb = 0;
-            dst.ResetItemAttr();
+            // [G7-sub] P183/P0：ORIG 085a64e3/085a651d/085a6530 每处 `lea -0x12c(%ebp); add $0x10`
+            // 重取址，无 `Inven_Item& dst` 引用槽（我方原 -0x2c）⇒ 直用 mi.m_item。
+            mi.m_item.m_field1 = 2;
+            mi.m_item.m_addInfo = 0;
+            mi.m_item.set_add_info(count);
+            mi.m_item.m_fieldb = 0;
+            mi.m_item.ResetItemAttr();
         }
         else
         {
             src = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
         }
     }
-    else if (t == 3)
+    else if (type == 3)
     {
         src = user->getCurCharacInvenR()->GetInvenSlot(0, slot);
     }
-    else if (t == 7)
+    else if (type == 7)
     {
         src = user->getCurCharacInvenR()->GetInvenSlot(3, slot);
         if (src.m_field1 == 5)
@@ -92,26 +95,29 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
              static_cast<const CEquipItem*>(item)->m_itemType < 10))
             return 0x17;
 
-        Inven_Item& dst = mi.m_item;
         mi.m_count = 0;
-        dst.m_field1 = src.m_field1;
-        dst.m_addInfo = src.m_addInfo;
+        // [G7-sub] P183/P0：ORIG 085a6a5e 起每个字段访问都 `lea -0x12c(%ebp); add $0x10`
+        // 重取址（085a6a7c/085a6a9a/085a6ab5/085a6ad0…），无 dst 引用槽（我方原 -0x20）
+        // ⇒ 直用 mi.m_item。
+        mi.m_item.m_field1 = src.m_field1;
+        mi.m_item.m_addInfo = src.m_addInfo;
         if (src.isEquipableItemType())
-            dst.set_add_info(src.m_addInfo2);
+            mi.m_item.set_add_info(src.m_addInfo2);
         else
-            dst.set_add_info(count);
-        dst.SetItemAttr(src.GetItemAttr());
-        dst.m_fieldb = src.m_fieldb;
-        dst.m_field0 = src.m_field0;
-        dst.m_addInfo2 = src.m_addInfo2;
-        dst.m_amp = src.m_amp;                       // +0x11..0x1e 整段
-        dst.m_random = src.m_random;                 // +0x1f..0x32 整段
-        dst.m_upgradeSep.SetUpgradeSeparate(src.m_upgradeSep.GetUpgradeSeparate());
+            mi.m_item.set_add_info(count);
+        mi.m_item.SetItemAttr(src.GetItemAttr());
+        mi.m_item.m_fieldb = src.m_fieldb;
+        mi.m_item.m_field0 = src.m_field0;
+        mi.m_item.m_addInfo2 = src.m_addInfo2;
+        mi.m_item.m_amp = src.m_amp;                 // +0x11..0x1e 整段
+        mi.m_item.m_random = src.m_random;           // +0x1f..0x32 整段
+        mi.m_item.m_upgradeSep.SetUpgradeSeparate(
+            src.m_upgradeSep.GetUpgradeSeparate());
 
         G_Store()->GetSellItemPrice(src, item, (short)count, false, sellPrice);
     }
 
-    if (t == 2)
+    if (type == 2)
     {
         if (!user->getCurCharacCargoW()->delete_item(slot, count, (eItemDelReason)6))
         {
@@ -124,13 +130,17 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
                                                        user, (unsigned int)count);
     }
-    else if (t == 0)
+    else if (type == 0)
     {
         if (slot == 0)
         {
-            ServiceRestrictManager* srm =
-                ARAD::Singleton<ServiceRestrictManager>::Get();
-            if (srm->isRestricted(user, (RestrictCategory::Enum)2, 1))
+            // [G7-sub] P0 槽律 + 语义修正（ORIG 直证）：ORIG 085a6ce8 `call Singleton::Get`
+            // 结果**无栈槽**（直进 (%esp)），我方原具名 srm 落 -0x1c；且实参装载序
+            // 085a6cf0 `movl $0x2,0xc(%esp)` / 085a6cf7 `movl $0x1,0x8(%esp)`
+            // ⇒ 第3参=1、第4参=2（**`isRestricted(user, (RestrictCategory::Enum)1, 2)`**），
+            // 我方原写 (Enum)2, 1 为**实参颠倒**（值语义不同）⇒ 一并修正。
+            if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+                    user, (RestrictCategory::Enum)1, 2))
                 return 0xd1;
             if (!user->getCurCharacInvenW()->use_money(count,
                                                        (eMoneySubReason)6, true))
@@ -159,7 +169,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
                 (VALUE_STATISTIC_FIELD)0x16, user, (unsigned int)count);
         }
     }
-    else if (t == 3)
+    else if (type == 3)
     {
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)0, slot, count, (eItemDelReason)6, true))
@@ -173,7 +183,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
                                                        user, (unsigned int)count);
     }
-    else if (t == 7)
+    else if (type == 7)
     {
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)3, slot, count, (eItemDelReason)6, true))
@@ -223,7 +233,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     packet.clear();
     packet.put_header(1, 0x32);
     packet.put_byte(1);
-    packet.put_byte((int)t);
+    packet.put_byte((int)type);
     packet.put_short(slot);
     packet.put_int(count);
     packet.finalize(true);

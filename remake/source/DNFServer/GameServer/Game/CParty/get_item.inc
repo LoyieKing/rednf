@@ -22,11 +22,15 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     int slotNo = (int)GetMemberSlotNo(user);        // -0xe0
     if (slotNo != -1 && m_battleData.m_arr54[slotNo] != 1)
     {
-        const user_creature::CCreatureMgr* cm = user->getCurCharacInvenR()->GetCreatureMgrR();
-        if (cm->GetCreatureItemId() != (int)0xf631)
+        // [G7-sub] P0 槽律：ORIG 085a3c71 `call GetCreatureMgrR` 结果**无槽**
+        // （直进 (%esp) → GetCreatureItemId），085a3c9c `call getHackAnalyzer`
+        // 结果亦无槽（直进 (%esp) → addServerHackCnt）⇒ 原码为表达式链，
+        // 无 cm/hack 具名指针；我方原 -0x100/-0xfc 两槽已删。
+        if (user->getCurCharacInvenR()->GetCreatureMgrR()->GetCreatureItemId() !=
+            (int)0xf631)
         {
-            WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
-            hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x132, 1, 0, 0);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (WongWork::ENUM_HACKTYPE)0x132, 1, 0, 0);
         }
     }
 
@@ -53,8 +57,10 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 (!m_battleField.check_start_point()) || m_battleField.IsVisitedCurrentMap();   // -0xc9
             if (!visited || !m_battleField.is_last_field_item(itemIdx))
             {
-                WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
-                hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x12d, 1, 0, 0);
+                // [G7-sub] P0 槽律：ORIG 085a40xx 同形（getHackAnalyzer 结果无槽，
+                // 直进 (%esp) → addServerHackCnt）⇒ 删第二处 hack 具名。
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, (WongWork::ENUM_HACKTYPE)0x12d, 1, 0, 0);
             }
         }
         return 0;

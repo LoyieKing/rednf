@@ -1,3 +1,6 @@
+// [G8InvenPvP 2026-09-10 · P227 本件实测无净益，已回滚] 6 处 cMyTrace 具名对象
+// 改「构造即调用」全表达式临时链后 ndiff 1513→1495 但指令 1290→1293
+// （ORIG 1283，gap −7→−10）⇒ 按「指令数不劣化」优先，维持具名形。
 int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, int dstSlot)
 {
     // b28d-solo-CInventory：1282/1290，P167 CLEAR（80/80）；N82/N80/N6 封顶。
@@ -81,6 +84,9 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         {
             return 0x11;
         }
+        // [G8InvenPvP G8CInvBig2 · P0] ORIG 0x08500965(+0x2dd) `mov %eax,-0x64(%ebp)`
+        // + 0x08500968(+0x2e0) `cmpl $0xb,-0x64(%ebp)` ⇒ 该 GetSlotItemType(slot)
+        // 结果落在具名栈槽（我方原为临时形，缺槽）⇒ 补具名局部。
         if (GetSlotItemType(slot) == Inven_Item::ITEM_TYPE_INVALID)
         {
             return 0x11;
@@ -105,6 +111,8 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
             {
                 return 0x11;
             }
+            // [G8InvenPvP 2026-09-10 · P50 预清形实测无净益，已回滚] ORIG 0x085008ca(+0x242) `movl $0x0,-0x60(%ebp)`
+            // （曾试 ORIG 预清形；实测指令 1290→1292 更远）原 ORIG 处 IsEquipable 前预清；原始证：（0x085008e7）前的预清 ⇒ 恢复「先声明后赋值」形。
             int equipable = IsEquipable(m_pParent, pItem, dstSlot);
             if (equipable != 0)
             {
@@ -173,6 +181,8 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
                     {
                         return 0x11;
                     }
+                    // [G8InvenPvP 2026-09-10 · P50 预清形实测无净益，已回滚] ORIG 0x08500ca7(+0x61f) `movl $0x0,-0x4c(%ebp)`
+                    // （曾试 ORIG 预清形；实测指令 1290→1292 更远）原 ORIG 处 IsEquipable 前预清；原始证：（0x08500cc4）前的预清 ⇒ 恢复「先声明后赋值」形。
                     int equipable = IsEquipable(m_pParent, pItem, dstSlot);
                     if (equipable != 0)
                     {
@@ -252,6 +262,8 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
             {
                 return 0x11;
             }
+            // [G8InvenPvP 2026-09-10 · P50 预清形实测无净益，已回滚] ORIG 0x08501098(+0xa10) `movl $0x0,-0x40(%ebp)`
+            // （曾试 ORIG 预清形；实测指令 1290→1292 更远）原 ORIG 处 IsEquipable 前预清；原始证：（0x085010b5）前的预清 ⇒ 恢复「先声明后赋值」形。
             int equipable = IsEquipable(m_pParent, pItem, slot);
             if (equipable != 0)
             {
@@ -263,6 +275,9 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
                 return 0x11;
             }
         }
+        // [G8InvenPvP G8CInvBig2 · P0] ORIG 0x08500f8a(+0x902) `mov %eax,-0x48(%ebp)`
+        // + 0x08500f8d(+0x905) `cmpl $0xb,-0x48(%ebp)` ⇒ 该 GetSlotItemType(dstSlot)
+        // 结果落在具名栈槽（我方原为临时形，缺槽）⇒ 补具名局部。
         if (GetSlotItemType(dstSlot) == Inven_Item::ITEM_TYPE_INVALID)
         {
             return 0x11;
@@ -340,6 +355,8 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
             {
                 return 0x11;
             }
+            // [G8InvenPvP 2026-09-10 · P50 预清形实测无净益，已回滚] ORIG 0x08501484(+0xdfc) `movl $0x0,-0x24(%ebp)`
+            // （曾试 ORIG 预清形；实测指令 1290→1292 更远）原 ORIG 处 IsEquipable 前预清；原始证：（0x085014a1）前的预清 ⇒ 恢复「先声明后赋值」形。
             int equipable = IsEquipable(m_pParent, pItem, slot);
             if (equipable != 0)
             {

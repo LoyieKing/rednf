@@ -487,8 +487,10 @@ class MSG_ENTER_DISJOINT_STORE : public MSG_BASE
 {
 public:
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
-    short m_field0e;          // +0x0e 进入目标标识 slot/idx【推断】
-                              //（Dispatcher_EnterDisjointStore/read.md get_short@msg+0xe）
+    unsigned short m_field0e; // +0x0e 进入目标标识 slot/idx【推断】
+                              //（Dispatcher_EnterDisjointStore/read.md get_short@msg+0xe；
+                              //  process ORIG 0x081d0239 `movzwl 0xe(%eax)` 为无符号读，
+                              //  D08 直证：改 unsigned 消除 movswl 形态差，宽度/偏移不变）
 };
 static_assert(sizeof(MSG_ENTER_DISJOINT_STORE) == 0x10, "MSG_ENTER_DISJOINT_STORE size");
 #pragma pack(pop)
@@ -1207,7 +1209,8 @@ class MSG_REQUEST_DISJOINT_ITEM : public MSG_BASE
 {
 public:
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
-    short m_field0e;          // +0x0e slot【推断】（Dispatcher_RequestDisjointItem/read.md get_short@msg+0xe）
+    unsigned short m_field0e; // +0x0e slot【推断】（Dispatcher_RequestDisjointItem/read.md get_short@msg+0xe；
+                              //  process ORIG 0x081cfd37 `movzwl 0xe(%eax)` 无符号读，D08 直证改 unsigned）
     short m_field10;          // +0x10 第二 slot/idx【推断】（get_short@msg+0x10）
     signed char m_field12;    // +0x12 byte flag【推断】（get_byte@msg+0x12）
     // b28d-solo-S161：ORIG 0x82547d4 域 msg 槽 -0x20 ⇒ 帧距 0x14，原 0x13 差 1。
@@ -3000,8 +3003,10 @@ class stTournamentRewardSelectState : public ParamBase
 {
 public:
     stTournamentRewardSelectState();
-    char m_pad[0x7];   // b28d-solo-S153：ORIG 0x824c162 帧距 param sizeof=0xb [m=-0x19/p=-0x24]；
-                       // 若 check_tu 不 AE 则回退为 0x3
+    int m_4;           // +0x04（Dispatcher_TournamentRewardSelectState/process.md 0x081dfcc8
+                       //  `mov 0x4(%eax),%eax` 常量偏移读；D08 具名化，原 `*(int*)((char*)&p+4)`
+                       //  产 lea 形）
+    char m_pad[0x3];   // b28d-solo-S153：ORIG 0x824c162 帧距 param sizeof=0xb [m=-0x19/p=-0x24]
 };
 
 class stUpdateContractOfCubeInfo : public ParamBase

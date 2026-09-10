@@ -8,7 +8,6 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
     int unusedGuard;                    // -0x38（ORIG 死存储 movl $0x6）
     int sellResult;                     // -0x34
     int sellTimeRet;                    // -0x30
-    unsigned int nowTick;               // GetCurTickCount 返回（局部）
     void* party;                        // -0x2c
     CMap* map;                          // -0x24
     Village* village;                   // -0x20
@@ -104,12 +103,17 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
         party = static_cast<CParty*>(user->GetParty());
         if (party != 0)
         {
+            // [G5-SigA] P183：ORIG 0x081f31fd/0x081f323c 每次都重发完整寻址链
+            // `mov -0x2c(%ebp),%eax; add $0xb24,%eax`（无 battleField 指针缓存槽）。
+            // 原具名 CBattle_Field* battleField 多出槽写入（我方 -0x20）+ 后续沿用
+            // 单条 load，改回逐次重算表达式。
             // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）
-            CBattle_Field* battleField =
-                &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;
-            map = (CMap*)G_CDataManager()->find_map(battleField->get_cur_map());
+            map = (CMap*)G_CDataManager()->find_map(
+                reinterpret_cast<CPartyBattleFieldView*>(party)
+                    ->m_battleField.get_cur_map());
             if (map != 0 && map->getAssignedNPCCount() == 0 &&
-                !battleField->IsAssignNPCByPotion())
+                !reinterpret_cast<CPartyBattleFieldView*>(party)
+                     ->m_battleField.IsAssignNPCByPotion())
             {
                 WongWork::CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
                 hackAnalyzer->addServerHackCnt(user,
@@ -150,8 +154,11 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     sellTimeRet = 0;
-    nowTick = GlobalData::s_systemTime_.getCurTickCount();
-    sellTimeRet = user->SellItemTimeChecker(nowTick, 1000);
+    // [G5-SigA] P52/P183：ORIG 0x081f345a `movl $0x0,-0x30(%ebp)` 之后
+    // 直接把 getCurTickCount 的返回值放进实参位（无 -0x40 具名槽往返；
+    // fn_diff_tu 实测我方多 `mov %eax,-0x40(%ebp)` + `mov -0x40(%ebp),%eax` 2 条）。
+    sellTimeRet = user->SellItemTimeChecker(
+        GlobalData::s_systemTime_.getCurTickCount(), 1000);
     if (sellTimeRet == 2)
     {
         user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x138,

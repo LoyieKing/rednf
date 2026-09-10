@@ -34,10 +34,11 @@ int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int 
     packet.put_int(msgLen);
     packet.put_str(pPkt->m_12, msgLen);
     packet.put_byte(0);
-    const unsigned int nameLen =
-        (unsigned int)pPkt->m_30;
-    packet.put_int((int)nameLen);
-    packet.put_str(pPkt->m_31, (int)nameLen);
+    // ORIG 084cd1xx：无 nameLen 槽（我方旧形多发 `mov %eax,<槽>; mov <槽>,%eax` 往返），
+    //   且读形为 `movzbl 0x30(%eax),%eax; movzbl %al,%eax`（二次零扩展）= (unsigned char) 包裹
+    //   ⇒ 原码内联实参。
+    packet.put_int((int)(unsigned char)pPkt->m_30);
+    packet.put_str(pPkt->m_31, (int)(unsigned char)pPkt->m_30);
     packet.finalize(true);
     user->Send(packet);
     return 0;

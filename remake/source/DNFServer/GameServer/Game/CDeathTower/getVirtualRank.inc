@@ -148,10 +148,11 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
         }
 
         // 下界层无纪录（或已下探至 <2 仍空）或上界层无纪录（或已上探至 200 仍空）→ -1。
-        // （ORIG 对上界 local_14==200 会无条件读 map[200] 越界；此处用
-        //   upperStage>=kRankStageCount 短路护栏避免真实数组越界，语义同“无邻层”。）
+        // [b28d-G11 语义轴/P171] 删除发明护栏 `upperStage>=kRankStageCount`：
+        // Ghidra C 0x0846948a 段与 ORIG 反汇编均只有两次 `empty()` 检查
+        // （`call empty; test %al; je -1` ×2，无第三条 cmp/jae 链）⇒ ORIG
+        // 对上界==200 会无条件读 map[200]（越界照抄），不得加防御。
         if (m_rankMap[towerIdx][lowerStage].empty() ||
-            upperStage >= kRankStageCount ||
             m_rankMap[towerIdx][upperStage].empty())
             return -1;
 

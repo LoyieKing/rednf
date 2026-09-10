@@ -5,7 +5,9 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
     //   全函数无 memset/rep stos 清零 ⇒ 原码无整体清零，删除我方多余 memset
     //   （p167 EXTRA `memset` +1 即此项；我方帧 0x4170 vs ORIG 0x4160）。
 
-    if (user == 0 || user->get_state() != 3 || user->getCurCharacR() == 0)
+    // ORIG 0x082262a2：[5] 段**无** `cmpl $0x0,0xc(%ebp); je` ⇒ 原码无 user==0 判空
+    //   （发明防御，我方多 2 条）。
+    if (user->get_state() != 3 || user->getCurCharacR() == 0)
         return 0;
 
     int secuErr = GlobalData::s_pSecuProtectionField->Check(

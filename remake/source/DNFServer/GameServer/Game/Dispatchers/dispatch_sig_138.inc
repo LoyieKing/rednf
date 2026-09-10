@@ -5,7 +5,6 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
     // 符号违 §4.1）；roi keys 经 m_search.m_roi.m_keys（ORIG get_short(Rt&)×2 形）。
     unsigned char channel;               // local_2d -0x29
     int channelIdx;                      // local_1c -0x18
-    bool fail;                           // bVar1
 
     // +0x0a：读拍卖频道
     if (!packet.get_byte(channel))
@@ -24,12 +23,10 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xbd, 0x8c, (PAY_TYPE)channelIdx);
         return 0;
     }
-    // +0xc5：state 门禁
+    // +0xc5：state 门禁。[G1Csig] OUR-only store 实证：我方 `movb $0x1,-0x15(%ebp)` +
+    // `movb $0x0,-0x15` + `cmpb $0x0,-0x15` 三条（diff our[60:65]）⇒ 具名 bool fail 占 1 槽、
+    // 其后槽全体下移 4；ORIG 侧无该槽（直短路门禁）⇒ 去具名 bool。
     if (user->get_state() < 3 || user->getCurCharacR() == 0)
-        fail = true;
-    else
-        fail = false;
-    if (fail)
         return LineFunc(0xc6b7,
                         __PRETTY_FUNCTION__,
                         0, 0);

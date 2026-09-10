@@ -1,3 +1,7 @@
+// [b28d-GrpD 判词·结构化 N] ORIG 0x08655c60：残差为具名临时槽化（帧 0x64 vs ORIG
+//   0x54）引起的整段 mov 重排；setcc（setne/sete）与 je/jne 落点体互换均为等价
+//   （判据⑦）；字段偏移（+0x8e064/+0x8e08c/0x9c/0x32/0x64）与事件脚本 id（0x19b 等）
+//   逐条对齐 ⇒ 无语义缺口。
 void CUser::FatigueUp(int v)
 {
     // Hades+GoldControl 双扣减；state==5 时混沌点扣减与累计(+0x8e064)；

@@ -1,3 +1,12 @@
+    // [G7-sub 2026-09-10 复核] 逐点核对 ORIG 0x085a7d86..0x085a8037：
+    // ① `xor $1; test; jne <nop 岛>` = `if(!_checkValidUser(i)) continue;` ✓ 已同形；
+    // ② dungeon->get_min_level() 调用 2 次（0x085a7e2a/0x085a7e49，无缓存）✓；
+    // ③ needCount 具名落槽（0x085a7e5c `mov %eax,-0xc(%ebp)`）✓ 保留；
+    // ④ haveCount/validCount/passCount/slot 四 int + result(bool) 槽位序照抄 ✓；
+    // ⑤ 余差 1 条 = ORIG 0x085a7eb4 `cmpl $-1,-0x14; setne %al; test %al,%al; je`
+    //    三段物化（4.1 槽比 setne），4.4 恒直折 `je`；while+break（P225）与语句
+    //    表达式（P226）两形前轮已试并回滚（187→193 / 无 setne）⇒ 判 N-88 封顶。
+    // p167：仅 Inven_Item C1/C2 别名（P93）⇒ 调用集合 CLEAR。
 bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Main：与 CParty.h:509 同步（P292 bool）
                                           std::vector<int>& list1,
                                           std::vector<int>& list2)

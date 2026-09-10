@@ -1,7 +1,15 @@
 int Dispatcher_ReplyGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     unsigned char reply = 0;
-    if (user != 0 && user->get_state() > 2 && user->getCurCharacR() == 0)
+    // ORIG 0x0821..：[20] 段 LineFunc(0xa278) 就地早退（`call; mov %eax,%ebx; jmp 尾`），
+    //   我方旧形 `if (gate) {...} return LineFunc(...)` 把 LineFunc 沉到函数尾 ⇒ 指令序错位。
+    if (!(user != 0 && user->get_state() > 2 && user->getCurCharacR() == 0))
+    {
+        return LineFunc(
+            0xa278,
+            __PRETTY_FUNCTION__,
+            0, 0);
+    }
     {
         if (!packet.get_byte(reply))
         {
@@ -28,12 +36,9 @@ int Dispatcher_ReplyGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
                 GlobalData::s_pSecuProtectionField->GetOppositeErr(secuRet));
         }
         const unsigned int characNo = user->getCurCharacNo();
-        CGuildServerProxy* proxy =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-        proxy->SendReplyGuildInvite(characNo, reply);
+        // ORIG [114]：GetServerProxy 结果经 %eax 直传 SendReplyGuildInvite
+        //   （无 proxy 具名指针槽）。
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->SendReplyGuildInvite(characNo, reply);
         return 0;
     }
-    return LineFunc(
-        0xa278,
-        __PRETTY_FUNCTION__,
-        0, 0);

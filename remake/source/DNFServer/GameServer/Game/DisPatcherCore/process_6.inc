@@ -21,9 +21,12 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     user->RemoveCharacMercenaryInfo(
         static_cast<unsigned int>(user->get_charac_no(static_cast<char>(req.m_slot))));
 
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0xa4d);
-    CStreamGuard guard(stream, true);
+    // [G5-ProcB] ORIG 0x081c124a Acquire → 0x081c124f `movl $0x1,0x8(%esp)` /
+    // 0x081c1257 `mov %eax,0x4(%esp)` / 0x081c125b `lea -0x3c(%ebp),%eax;(%esp)`：
+    // Acquire 返回值经 %eax 直传 CStreamGuard 构造实参，ORIG 无 `stream` 具名槽
+    // （旧文 `Stream* stream = ...` 多 store/load 两条且槽基下移 4）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0xa4d), true);
     // ORIG（Ghidra 0x81c13xx 序列 de→op<<→de→op<<→pt→GetInBuffer）：operator* 显式链形。
     guard.operator*()->operator<<(5);                  // SIG 类型 5
     guard.operator*()->operator<<(static_cast<int>(user->GetUID()));

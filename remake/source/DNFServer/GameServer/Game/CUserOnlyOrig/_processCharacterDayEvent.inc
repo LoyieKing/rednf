@@ -48,8 +48,10 @@ void CUser::_processCharacterDayEvent(unsigned int oldFatigue, unsigned int addF
     char title[21];
     strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_70", 0), 0x14);
     Inven_Item gift;
-    CDataManager* dm = G_CDataManager();
-    CItem* proto = dm->find_item(itemId);
+    // [P0 去缓存] ORIG 086597de `mov -0x24(%ebp),%ebx; call G_CDataManager;
+    // mov %ebx,0x4(%esp); mov %eax,(%esp); call find_item` —— 无 dm 具名指针槽
+    // ⇒ 旧稿 -0x18 槽使 body/gift/title 各深 4B（-0x17e/-0x7e/-0x41 vs ORIG -0x17a/-0x7a/-0x3d）。
+    CItem* proto = G_CDataManager()->find_item(itemId);
     if (proto == 0) return;
     gift.m_addInfo = itemId;
     proto->make_item(gift);                 // virtual vtable+0x08 槽

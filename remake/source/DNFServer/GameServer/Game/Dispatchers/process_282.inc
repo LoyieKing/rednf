@@ -2,19 +2,23 @@ int Dispatcher_TournamentRewardSelectState::process(CUser* user, MSG_BASE& msg, 
 {
     // ORIG 0x081dfca2
     stTournamentRewardSelectState& p = static_cast<stTournamentRewardSelectState&>(param);
-    *(int*)((char*)&p + 4) = check_error(user, msg);
-    if (*(int*)((char*)&p + 4) >= 1)
+    // ORIG 0x081dfcc8: `mov -0x10(%ebp),%edx; mov %eax,0x4(%edx)` / 0x081dfcce
+    //   `mov -0x10(%ebp),%eax; mov 0x4(%eax),%eax` —— 走具名成员 p.m_4 常量偏移；
+    //   `*(int*)((char*)&p+4)` 会产 `lea 0x4(%eax),%ebx` 形（我方原为 3 处 lea）。
+    p.m_4 = check_error(user, msg);
+    if (p.m_4 >= 1)
     {
         return 0;
     }
-    if (*(int*)((char*)&p + 4) < 0)
+    if (p.m_4 < 0)
     {
         return LineFunc(0x52af,
                         __PRETTY_FUNCTION__,
-                        *(int*)((char*)&p + 4), 0);
+                        p.m_4, 0);
     }
-    int partyIndex = user->GetPartyIndex();
-    CParty* party = G_CGameManager()->GetParty(partyIndex);
+    // ORIG 0x081dfd14: `call GetPartyIndex; movswl %ax,%ebx` 后直接 `call G_CGameManager`，
+    //   无 partyIndex 具名槽（我方原 `int partyIndex` 占 -0x10 槽，多 2 条指令）。
+    CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
     if (party == 0)
     {
         return LineFunc(0x52b4,

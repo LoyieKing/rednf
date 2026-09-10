@@ -1,5 +1,11 @@
 int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=11] 残留两类：
+    //   (a) `mov <S>,%edx` 较 ORIG 早/晚 1 条（块序抖动）；
+    //   (b) ORIG 三段式 `add $0x10,%eax; mov 0x3(%eax),%eax`、`add $0x10; add <S>; add $0x2`
+    //       vs 本方折叠形 `mov 0x13(%eax),%eax`、`lea (%edx,%eax,1); add $0x12`
+    //       —— 同一表达式的 gcc 指令选择差（本件基址已是 pPkt 具名指针）。
+    //   两者皆无源码级单点直证，留 N。
     Inter_GuildCargoPktView* pPkt = reinterpret_cast<Inter_GuildCargoPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;

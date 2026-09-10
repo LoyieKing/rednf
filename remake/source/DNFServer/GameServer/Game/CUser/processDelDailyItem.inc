@@ -1,3 +1,7 @@
+// [b28d-GrpD 判词·结构化 N] ORIG 0x0867e092：残差为**局部对象整体下移 8B**
+//   （我方 -0x2cc/-0xfc/-0x170 vs ORIG -0x2d4/-0x104/-0x178，同差值）+
+//   26 元素循环的 `cmpl $0x1c` 边界一致；switch(sete) vs test/jne 为等价物化
+//   ⇒ 无语义缺口（N82 槽基差族）。
 void CUser::processDelDailyItem()
 {
     extern Inven_Item g_emptySlot;   // ORIG 全局（0x943ddc0）

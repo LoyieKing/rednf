@@ -1,5 +1,8 @@
 int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    // [G2D] verdict=N：与 ORIG 仅差 3 行（ORIG 084dcb58 段 base 走 %ecx 后
+    //   `lea (%ecx,%eax,1),%eax`，我方为 `add -0x20(%ebp),%eax`）；同一表达式在 O0 下的
+    //   寄存器选择差异，无源码可判定的等价改写，未改（不留 hack）。
     Inter_SetIPCountPktView* pPkt = reinterpret_cast<Inter_SetIPCountPktView*>(data);
     if (pPkt->m_a == 0)
         GlobalData::g_autoPunishRuleHackTypeMgr->ResetIpCounterData();

@@ -3,12 +3,13 @@ int Dispatcher_CheckEnableServerMessage::dispatch_sig(CUser* user, PacketBuf& pa
     // ORIG 0x0821df6a（PacketDispatcher_Impl_1.cpp 0xd236 区）
     if (user->get_state() != 3)
     {
-        char* idStr = NumberToString(user->get_acc_id(), 0);
-        int state = user->get_state();
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xd236, 0);
+        // [G1Csig · P0 槽律] ORIG 直证：`mov %eax,%ebx`（NumberToString 结果）、
+        // `mov %eax,%esi`（get_state 结果）—— 两者均**寄存器保活、无栈槽**；我方原写
+        // idStr/state 具名占 2 槽（帧 0x40→0x50，余槽整体下移）⇒ 去具名改内联实参。
         trace("ServerMessage : Dispatcher_CheckEnableServerMessage => User State : %d, m_id : %s",
-              state, idStr);
+              user->get_state(), NumberToString(user->get_acc_id(), 0));
         return LineFunc(0xd237,
                         __PRETTY_FUNCTION__,
                         0, 0);

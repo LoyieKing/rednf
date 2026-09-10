@@ -1,5 +1,7 @@
 void CUser::add_inventory_item(unsigned int itemId)
 {
+    // 2026-09-10（G3CUser-B 复验）：槽集对照 ORIG/我方 各 21 槽、零平移零多余
+    //   （134:135 insn）⇒ 具名局部与 ORIG 一一对应，残余属跨版本 codegen（N 族），判 N。
     	CItem* pItem = G_CDataManager()->find_item(itemId);
 	if (!pItem)
 		return;

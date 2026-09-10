@@ -30,6 +30,10 @@ bool CParty::CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool del)
         {
             // ORIG 0x085bc99b `xor $1; test %al; je <成功>`：delete_item 返回 bool，
             // 失败打 trace、成功才 SendUpdateItem（旧码丢弃返回值、trace 无条件前置 —— 真 bug）。
+            // [G7 语义修正·ORIG 直证 0x085bc9a1/0x085bca25] 失败支 `jmp 85bca27` = ++it
+            // （continue 继续遍历）；成功支 SendUpdateItem 后 `jmp 85bca6d` = 循环收尾
+            // ⇒ 原码删除成功后 **break 退出循环**（旧码成功支落回 ++it 继续遍历，
+            //   slotResult 被后续项覆盖 ⇒ 返回值与后续删除行为均不同，真语义 bug）。
             if (!user->getCurCharacInvenW()->delete_item(
                     static_cast<INVEN_TYPE>(1), slotResult, it->second,
                     static_cast<eItemDelReason>(0x17), true))
@@ -39,11 +43,10 @@ bool CParty::CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool del)
                 cMyTrace(__PRETTY_FUNCTION__, 0x44fb, 5)(
                     "CParty::UseSealDoorItems, freepass delete_item failed , User ch=%d , %d %d",
                     user->getCurCharacNo(), slotResult, it->first);
+                continue;
             }
-            else
-            {
-                user->SendUpdateItem(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slotResult);
-            }
+            user->SendUpdateItem(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slotResult);
+            break;
         }
         else
             break;   // 仅检查存在性

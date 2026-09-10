@@ -75,11 +75,11 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     else
     {
-        // ORIG +0x242：value 从槽先载 %edx、地址槽后载 %eax（双钉 reload 形，
-        // 同 DisPatcherCore:16647 RepairDisjoint 先例）。
-        int rv = ret;
-        stMoveItemParam* dst2 = &out;
-        dst2->m_4 = rv;
+        // [G5-ProcB] ORIG 0x081c5b46 `mov -0x1c(%ebp),%edx; mov -0x20(%ebp),%eax;
+        // mov %edx,0x4(%eax)` —— 单条 `out.m_4 = ret;` 即得「value 先载 edx、
+        // 地址槽后载 eax」形。旧文用 `int rv = ret; stMoveItemParam* dst2 = &out;`
+        // 造出 2 个具名槽（我方多 5 条 store/load、帧 0x7c vs ORIG 0x6c）。
+        out.m_4 = ret;
         out.m_8 = req->m_fromSpace;
         out.m_10 = req->m_toSpace;
     }

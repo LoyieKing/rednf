@@ -50,9 +50,10 @@ int Dispatcher_AradJumpingCharacter::dispatch_sig(CUser* user, PacketBuf& packet
     }
     *(unsigned int*)&sig.m_head[1] = (unsigned int)user->get_acc_id();      // +0x01
     *(unsigned int*)&sig.m_head[5] = (unsigned int)user->get_charac_no(-1); // +0x05
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_PacketDispatcher.cpp", 0x5c8);
-    CStreamGuard guard(stream, true);
+    // [G1Csig · P0 槽律] 同 149/146 判据：ORIG 0x0819f1e0 段无 Stream* 具名槽
+    // （我方原 -0xNN 往返 + sig 基址下移 5 字节）⇒ Acquire 结果直传 CStreamGuard。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localjapan/Arad_PacketDispatcher.cpp", 0x5c8), true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2d, (int)user->GetUID());
     guard.operator->()->put_binary((void*)&sig, 0x11);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);

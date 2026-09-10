@@ -1,5 +1,10 @@
 int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=374（ratio 0.401，diff 对齐失真）] 逐段核对后，本件差异
+    //   集中在同一族指令选择：ORIG `mov 0x18(%eax),%eax; mov %eax,%ebx`（两条）vs 本方
+    //   `mov 0x18(%eax),%ebx`（一条）、`mov 0x17(%eax),%eax; mov %eax,%edx` vs `…,%edx`，
+    //   即 ORIG 多处反而多一条 regmove —— gcc 伪寄存器分派差，非源码形态差；
+    //   两侧 call 序列与实参布局一致。无可单点判定项，留 N。
     Inter_GuildCargoPushItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPushItemPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $0x2,setle
         return 0;

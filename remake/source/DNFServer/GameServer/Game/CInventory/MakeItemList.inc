@@ -15,6 +15,9 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
     //   N95）+ `lea 0x3(%eax)` N1 形 + jmp 中继岛 ⇒ 维持封顶。
     if (m_pParent == 0)
     {
+        // [G8InvenPvP 2026-09-10 · P227 本件实测无效，已回滚] 改临时链后
+        // ndiff 592、指令 726 均不变（本件残差 = ORIG buf 槽 store/load 4 行 +
+        // push edi/帧 0x6c vs 0x60 的 N82/N95 族）⇒ 维持具名形。
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0xa6b, 5);
         trace("inventory::MakeItemList m_pParent is NULL.");
@@ -105,6 +108,10 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
                 ++count;
             }
             buf->put_short(countIdx, count);
+            // [G8InvenPvP 子代理 G8CInvBig1 · 语义轴] ORIG 0x084fdd72 (+0x5bc)
+            // `jmp 084fe2c3 <+0xb0d>`（finalize）结束 case EQUIP；原无 break 的
+            // fall-through 会让 EQUIP 请求连发 AVATAR+CREATURE 包（真 bug）。
+            break;
         }
     case INVEN_TYPE_AVATAR:
     {
@@ -148,6 +155,9 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
                 buf->put_packet(m_pAvatarSlot[slot]);
             }
             buf->put_short(countIdx, count);
+            // [G8InvenPvP 子代理 G8CInvBig1 · 语义轴] ORIG 0x084fe061 (+0x8ab)
+            // `jmp 084fe2c3 <+0xb0d>`（finalize）结束 case AVATAR；同上补 break。
+            break;
         }
     case INVEN_TYPE_CREATURE:
     {

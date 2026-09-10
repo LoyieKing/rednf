@@ -15,6 +15,10 @@ void WongWork::CSimpleSSO::init(MySQL* mysql)
             // [b28d-solo-GlobalData] 索引加法序两形（row*24+col / col+row*24）实测 4.4
             // 恒折 `add -0xc(%ebp),%eax` 内存版，ORIG 4.1 先 `mov col,%ecx` 寄存器版
             // ⇒ P30/N4 add-vs-mem 封顶（余 1 条 + 槽深差 4）。
+            // [G7-sub] 本轮复核：ORIG 0x08602823..0x08602834 `mov -0xc(%ebp),%ecx; …
+            //   shl $0x3,%eax; add %ecx,%eax`（下标先入 ecx 的寄存器版）；我方同段为
+            //   `add -0xc(%ebp),%eax`（内存版）。ORIG 45 / 我方 44（gap=1），
+            //   p167 CALLSITE CLEAR（唯一 call 两侧各 1）⇒ 判 P30/N4 封顶，不再试形。
             m_keys[row][col].Initialize(strKeyTable_[row * 24 + col], 0x20,
                                         CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
         }

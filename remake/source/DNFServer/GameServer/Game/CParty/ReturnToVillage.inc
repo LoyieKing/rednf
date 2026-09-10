@@ -5,7 +5,68 @@ void CParty::ReturnToVillage()
     reinterpret_cast<CBattle_Field*>(&m_battleField)->setBloodState((ENUM_BLOOD_STATE)0);
     PacketGuard packet;
     packet.put_header(0, 2);
-    if (m_autoCreated == 0)
+    // [G7 块序修正·ORIG 0x085acab4 直证] ORIG `test %al,%al; je 85acd53` ⇒ fall-through 为
+    // `m_autoCreated != 0`（cMyTrace 路径），`== 0`（循环路径）落 je 目标；旧码臂序相反
+    // ⇒ 4.4 多发 `xor $1` 且 A 块前移。按 ORIG 臂序交换两臂（语义不变）。
+    if (m_autoCreated)
+    {
+        if (m_battleField.m_pDungeon != 0)
+        {
+            char names2[0x100] = {0};   // ORIG rep stos 0x40 dword = 0x100 字节（+0x32b）
+            // 同首分支：cdecl 右→左求值 + 寄存器保活（P329/P52 单语句形）。
+            m_manager->m_historyLog.LeaveDungeon(
+                m_battleField.m_pDungeon->GetDungeonName(),
+                reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
+                _getMemberNames(names2),
+                m_battleField.m_bloodState);
+            bool b;
+            if (!IsSinglePlay() || !m_manager->isDungeonClearHackCheck())
+            {
+                b = false;
+            }
+            else
+            {
+                b = true;
+            }
+            if (b)
+            {
+                CUser* mgr = m_manager;
+                m_manager->getHackAnalyzer()->addServerHackCnt(
+                    mgr, (WongWork::ENUM_HACKTYPE)0x19c, 1, 0, 0);
+            }
+        }
+        CUser* mgr2 = m_manager;
+        G_GameWorld()->out_from_dungeon(mgr2);
+        packet.put_byte(0);
+        packet.put_short(1);
+        short partyIdx = m_manager->GetPartyIndex();
+        int userState = m_manager->get_state();
+        unsigned int accId = m_manager->get_acc_id();
+        char* accIdStr = NumberToString(accId, 0);
+        // ORIG 0x085acc59 具名 cMyTrace（C1，无 placement new/delete/EH landing）。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x2714, 0);
+        trace(
+            "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
+            accIdStr, userState, (int)partyIdx);
+        m_manager->SetPartyIndex(-1);
+        if (m_manager->getMoveSpace() != (UserSpace::T)1)
+        {
+            m_manager->set_state(ch_state3);
+        }
+        m_manager->make_basic_info((char*)&packet, 0);
+        destroy();
+        packet.finalize(true);
+        CUser* gm = getManager();
+        if (gm->getMoveSpace() == (UserSpace::T)1)
+        {
+            send_to_party(packet);
+        }
+        else
+        {
+            G_GameWorld()->send_all(packet);
+        }
+    }
+    else
     {
         // ORIG 0x085acaad/0x085acac2：put_byte(0) + put_short(get_member_count())
         // （旧码漏此两句 —— 真缺口）。
@@ -69,64 +130,6 @@ void CParty::ReturnToVillage()
         {
             // ORIG 0x085acf93 二参版 send_all(PacketGuard&, CUser*)（p167 MISS）。
             G_GameWorld()->send_all(packet, m_manager);
-        }
-    }
-    else
-    {
-        if (m_battleField.m_pDungeon != 0)
-        {
-            char names2[0x100] = {0};   // ORIG rep stos 0x40 dword = 0x100 字节（+0x32b）
-            // 同首分支：cdecl 右→左求值 + 寄存器保活（P329/P52 单语句形）。
-            m_manager->m_historyLog.LeaveDungeon(
-                m_battleField.m_pDungeon->GetDungeonName(),
-                reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
-                _getMemberNames(names2),
-                m_battleField.m_bloodState);
-            bool b;
-            if (!IsSinglePlay() || !m_manager->isDungeonClearHackCheck())
-            {
-                b = false;
-            }
-            else
-            {
-                b = true;
-            }
-            if (b)
-            {
-                CUser* mgr = m_manager;
-                m_manager->getHackAnalyzer()->addServerHackCnt(
-                    mgr, (WongWork::ENUM_HACKTYPE)0x19c, 1, 0, 0);
-            }
-        }
-        CUser* mgr2 = m_manager;
-        G_GameWorld()->out_from_dungeon(mgr2);
-        packet.put_byte(0);
-        packet.put_short(1);
-        short partyIdx = m_manager->GetPartyIndex();
-        int userState = m_manager->get_state();
-        unsigned int accId = m_manager->get_acc_id();
-        char* accIdStr = NumberToString(accId, 0);
-        // ORIG 0x085acc59 具名 cMyTrace（C1，无 placement new/delete/EH landing）。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x2714, 0);
-        trace(
-            "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
-            accIdStr, userState, (int)partyIdx);
-        m_manager->SetPartyIndex(-1);
-        if (m_manager->getMoveSpace() != (UserSpace::T)1)
-        {
-            m_manager->set_state(ch_state3);
-        }
-        m_manager->make_basic_info((char*)&packet, 0);
-        destroy();
-        packet.finalize(true);
-        CUser* gm = getManager();
-        if (gm->getMoveSpace() == (UserSpace::T)1)
-        {
-            send_to_party(packet);
-        }
-        else
-        {
-            G_GameWorld()->send_all(packet);
         }
     }
     SetEPLPState(0);

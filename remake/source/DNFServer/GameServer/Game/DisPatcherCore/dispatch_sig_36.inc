@@ -25,21 +25,25 @@ int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
     case 0:
     {
         Packet_Party_Result_Statistic local_1d;
-        unsigned short tmp_succTry; unsigned short tmp_totalTry;   // packed 字段不可绑引用，经临时读取
-        if (packet.get_short(tmp_succTry) != true)
+        // [G5-SigA] ORIG 0x0821aca1 `lea -0x19(%ebp),%eax; add $0xa,%eax` + 0x0821ace6
+        // `...; add $0xc,%eax`：两个 get_short 直接写结构成员本身（+0xa/+0xc），
+        // 随后 0x0821ad2b `movzwl -0xd(%ebp),%edx; movzwl -0xf(%ebp),%eax;
+        // lea (%edx,%eax,1),%eax; mov %ax,-0xd(%ebp)` 才做 total += success。
+        // 原写法用两个具名 2B 临时量中转（P0：ORIG 无该槽），改为直传成员地址。
+        if (packet.get_short(*(unsigned short*)&local_1d.m_successPartyTry) != true)
         {
             return LineFunc(0xce1d,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (packet.get_short(tmp_totalTry) != true)
+        if (packet.get_short(*(unsigned short*)&local_1d.m_totalPartyTry) != true)
         {
             return LineFunc(0xce1e,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        local_1d.m_successPartyTry = tmp_succTry;
-        local_1d.m_totalPartyTry = static_cast<unsigned short>(tmp_totalTry + tmp_succTry);
+        local_1d.m_totalPartyTry = static_cast<unsigned short>(
+            local_1d.m_totalPartyTry + local_1d.m_successPartyTry);
         ENUM_SERVER_GROUP uVar2 = user->GetServerGroup();
         CStatisticServerProxy* pCVar3 = GlobalData::s_statistic_proxy_mgr->GetServerProxy(uVar2);
         pCVar3->SendPacket(reinterpret_cast<char*>(&local_1d), 0xe);
@@ -84,21 +88,22 @@ int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
     case 2:
     {
         Packet_Abnormal_Exit_Statistic local_30;
-        unsigned short tmp_succClear; unsigned short tmp_totalClear;   // packed 字段不可绑引用，经临时读取
-        if (packet.get_short(tmp_succClear) != true)
+        // [G5-SigA] 同 case0：ORIG 0x0821aebe `lea -0x2c(%ebp),%eax; add $0xa,%eax`
+        // 与 0x0821af03 `...; add $0xc,%eax` 直写成员，加法在 0x0821af48 后进行。
+        if (packet.get_short(*(unsigned short*)&local_30.m_successDungeonClear) != true)
         {
             return LineFunc(0xce68,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (packet.get_short(tmp_totalClear) != true)
+        if (packet.get_short(*(unsigned short*)&local_30.m_totalDungeonClear) != true)
         {
             return LineFunc(0xce69,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        local_30.m_successDungeonClear = tmp_succClear;
-        local_30.m_totalDungeonClear = static_cast<unsigned short>(tmp_totalClear + tmp_succClear);
+        local_30.m_totalDungeonClear = static_cast<unsigned short>(
+            local_30.m_totalDungeonClear + local_30.m_successDungeonClear);
         ENUM_SERVER_GROUP uVar2 = user->GetServerGroup();
         CStatisticServerProxy* pCVar3 = GlobalData::s_statistic_proxy_mgr->GetServerProxy(uVar2);
         pCVar3->SendPacket(reinterpret_cast<char*>(&local_30), 0xe);

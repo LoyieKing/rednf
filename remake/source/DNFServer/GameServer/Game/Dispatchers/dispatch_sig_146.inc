@@ -38,7 +38,8 @@ int Dispatcher_VerifyPrivateStoreItem::dispatch_sig(CUser* user, PacketBuf& pack
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    private_store::CPrivateStoreMgr* mgr = private_store::GetInstancePrivateStoreMgr();
-    mgr->GetStoreBuyer(&buyer, user, (CUser*)0);
+    // [P0] ORIG 0x08229768（size 0x212）：`call GetInstancePrivateStoreMgr; mov %eax,(%esp)` 直传第 1 参数
+    // （无 mgr 具名槽；我方原写具名指针使帧 0x24→0x34、secuErr 槽 -0xc→-0x10）⇒ 链式内联。
+    private_store::GetInstancePrivateStoreMgr()->GetStoreBuyer(&buyer, user, (CUser*)0);
     buyer->VerifyPrivateStoreItem((int)slot, itemIdx);
     return 0;

@@ -1,3 +1,9 @@
+// [G7-sub 2026-09-11 判词] UdpThread::_processUDPData（ORIG T 0x0857c5a4）：私有 .o 实测
+// ORIG 267 / 我方 262（gap 5，我方短）。逐条对照（fdiff --counter --shape）后
+// ORIG-only 项**全部**为：`nop`×3（对齐填充，§6.1 豁免）+ 符号/字符串重定位文本
+// （我方 .o 侧无解析名）；无缺失语义指令。p167 调用点差集 CLEAR（51/51，且我方
+// 3 处 CStreamGuard 序列与 ORIG 逐条同形：Acquire 直作 ctor 实参，无具名 stream 局部）。
+// 结论：**封顶，无改动**（残差=对齐 nop + N82/N78 族）。
 void UdpThread::_processUDPData(char* data, int len)
 {
     // 跨服 UDP 包 = 10 字节 PacketHeader 线格式（shared/packet/include/PacketHeader.h）；

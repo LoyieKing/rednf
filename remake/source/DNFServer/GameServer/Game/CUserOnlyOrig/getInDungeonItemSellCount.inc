@@ -40,4 +40,11 @@ int CUser::getInDungeonItemSellCount(int space, int idx)
         ((SellCountView*)this)->m_counts[m_itemSellCount + 0x23ac8] = it->m_addInfo;
         m_itemSellCount = m_itemSellCount + 1;
     }
+    // [G6Sub3 2026-09-10 复核判 N 封顶] 76/76、帧 0x28 全等；残差仅 3 处装载序/寻址形：
+    // ①读点 ORIG `mov -0xc(%ebp),%edx; mov 0x8(%ebp),%eax; add $0x23ac8,%edx;
+    //   mov 0x8(%eax,%edx,4),%edx`（**index 先、base 后**）vs 4.4 base/index 互换 ⇒
+    //   视图 cast 恒 base 先（P235）；正解需权威头给匿名 union 数组视角，本泳道禁改 .h；
+    // ②写点 ORIG `add $0x23ac8,%ecx` vs 4.4 `lea 0x23ac8(%edx),%ecx`（N107 反向族）；
+    // ③写点 4.4 多一条 `mov 0x8(%ebp),%edx`（eax 保活 base、edx 中转读 m_itemSellCount）⇒ N7。
+    // 另：P211 档③ 视图元素 int 化已实测反劣（见上方注释）⇒ 不再试。
     return m_itemSellCount;

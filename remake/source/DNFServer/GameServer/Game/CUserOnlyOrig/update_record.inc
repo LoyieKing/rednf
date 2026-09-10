@@ -29,4 +29,14 @@ int CUser::update_record(GameResultType& result)
         getBattleRecordRefW()->insert(record);
         ret = 0xf;
     }
+    // [G6Sub3 2026-09-10 复核判 N82附/N93/N98 封顶] 94/94、帧 0xa0 全等；残差=**槽图分区差**
+    // （语义等价、无源码解）：ORIG it(-0x7c)/key(-0x78)/end(-0x74)/insert-sret(-0x70) 集中在
+    // **深区**，value_type pair record(-0x68..-0x18) 与 newKey(-0x14) 在**浅区**；4.4 恰相反——
+    // 大聚合 record 优先占最低槽(-0x7c..-0x2c)，it/key/end 退到浅区(-0x28/-0x24/-0x20)、
+    // insert-sret(-0x18)、newKey(-0x1c)。**组内相对序两侧一致**（it 深于 key 深于 end），
+    // 只有「it 组 ↔ record 组」的相对位置互换 ⇒ N82附「4.4 聚合优先占低槽 vs 4.1 按生命周期
+    // 穿插」。P326 的「显式转换临时」三级槽阶梯不适用（本件 ORIG 比的是**非 const**
+    // `_ZNKSt17_Rb_tree_iterator…neERKS4_`，无 const 转换临时）。A06 已试 key 拆「裸声明+赋值」
+    // 翻声明序 = 无效（4.4 按首次使用序分配，N98）；record 是 non-POD（pair）⇒ 提前声明会
+    // 提前发射 ctor call（P331 负例）⇒ 封顶。
     return ret;

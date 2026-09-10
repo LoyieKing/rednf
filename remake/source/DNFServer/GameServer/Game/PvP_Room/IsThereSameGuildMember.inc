@@ -14,6 +14,12 @@
 // local_54[8] 数组的 `[i+4]`/`[i]` disp 折叠（Ghidra 同证单数组）；4.4 用
 // `lea 0x4(%eax),%ebx` 再 scaled ⇒ N4/P30 伪影。另 ORIG 首初始化 `movl $0x4,-0x2c`
 // 为死局部（Ghidra local_30=4，后续未读，P171/P232 族）⇒ 无源码解，封顶。
+// [G8InvenPvP G8PvPAll 2026-09-10] P311 成员数组视图（旧 N4/P30「无源码解」判词待本轮实测）：
+// `int local_54[8]` + 下标 `[i+4]` 改 `PvPGuildKeyView{m_team2[4] @低址, m_team1[4] @高址}`
+// 具名成员数组访问。ORIG 直证单条 scaled disp 且索引不含 +4：写 0x085da69f
+// `mov %eax,-0x40(%ebp,%ebx,4)`、读 0x085da723/0x085da72a `-0x40/-0x50(%ebp,%eax,4)`。
+// 预期消 2 处 `lea 0x4(%eax),%ebx`+scaled 两段（-2 条；若 4.4 对偏移 0x10 成员数组仍拆
+// 两段则中性，同 time_out 先例）。同址同 sizeof，清零序 [4..7]→[0..3] 不动。
 bool PvP_Room::IsThereSameGuildMember()
 {
     if ((m_pvpBattleMode == 2) || (m_pvpBattleMode == 3))
@@ -21,6 +27,11 @@ bool PvP_Room::IsThereSameGuildMember()
         int local_dead;
         local_dead = 4;
         (void)local_dead;
+        // [G8InvenPvP 2026-09-10 · P311 本件实测中性，已回滚] 曾试把
+        // `int local_54[8]` + `[i+4]` 改成两个 4-int 具名成员数组视图
+        // （ORIG 0x085da69f/0x085da723 单条 scaled disp）；编译后 ndiff 仍 58、
+        // 指令 136=136 逐条不变 ⇒ 4.4 对偏移 0x10 的成员数组同样拆两段，
+        // 维持 `int[8]` + 常量下标形（N4/P30 封顶）。
         int local_54[8];
         local_54[4] = 0;
         local_54[5] = 0;

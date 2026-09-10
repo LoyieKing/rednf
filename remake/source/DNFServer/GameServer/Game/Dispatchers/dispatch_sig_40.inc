@@ -3,17 +3,13 @@ int Dispatcher_CallGuildInfo::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x08200448（docs/class_func_reports/Dispatcher_CallGuildInfo/dispatch_sig.md）
     // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG +0xdd 段为内联 rep stos
     //   （rep-stos 计 0/1，`memset` 在 4.4 退化为 call）⇒ 聚合初始化。
-    unsigned int charIds[0x5f] = {0};         // local_1ac
     unsigned char count = 0;                  // local_21
     int i;                                    // local_20
-    bool fail;                                // bVar1
 
-    // +0x00：state<3 或 charac 空 → fail
+    // +0x00：state<3 或 charac 空 → 早退
+    // ORIG 段直证：无 bool 物化槽（无 `movb $1/$0,-0x25` 序列）⇒ 删 fail 具名量；
+    // 原具名 bool 令我方帧 0x1bc→0x1cc（+0x10）并整段槽位下移。
     if (user->get_state() < 3 || user->getCurCharacR() == 0)
-        fail = true;
-    else
-        fail = false;
-    if (fail)
         return LineFunc(0x94e7,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -28,6 +24,10 @@ int Dispatcher_CallGuildInfo::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0x94f0,
                         __PRETTY_FUNCTION__,
                         0, 0);
+
+    // ORIG 段直证：`lea -0x1a8(%ebp),%ebx; rep stos $0x5f` 位于读 count/上限校验**之后**
+    // （函数入口无清零）⇒ 声明随使用点下移。
+    unsigned int charIds[0x5f] = {0};         // local_1a8
 
     // +0xfa：逐个读取；遇到 0 → 发送 0x4d 错误包
     for (i = 0; i < (int)(unsigned int)count; i = i + 1)

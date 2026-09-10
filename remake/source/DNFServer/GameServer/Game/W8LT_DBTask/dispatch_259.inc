@@ -28,6 +28,15 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
     // `jmp 0x08429fdc`（先跳尾测）→ 循环体 0x08429c44，尾部
     // `addl $1,-0xc; call get_n_rows; cmp -0xc,%eax; seta; test; jne 0x08429c44`
     // = 底测 do-while 形（前置 for 头测多一次 get_n_rows 且整块错位）。
+    // [G4W8LTDBTask 2026-09-10 负结论·指针加法求值序]
+    // ORIG 0x08429c60 段每站点为 `imul $0x1b0,%eax,%eax; add $0x60,%eax;
+    // add -0x10(%ebp),%eax; add $0xc,%eax`（base 作第二操作数、内存直加，
+    // 零额外装载）；我方 4.4 恒 base-first `mov -0x10(%ebp),%eax;
+    // mov -0xc(%ebp),%edx; imul; add $0x60,%edx; add %edx,%eax` ⇒ 每站点
+    // 多 1 条 base 装载（全函数净 +13，orig 356 / our 370）。
+    // 两种分组（`i*0x1b0+0x60+(char*)out` 与 `(char*)out+i*0x1b0+0x60`）
+    // 实测编译产物逐条相同（net_load 均 13、ours 均 370）⇒ 4.4 对 ptr+int
+    // 固定 base-first，P269 分组旋钮不适用，判 N（跨版本求值序）。
     unsigned int i = 0;
     do
     {

@@ -1,3 +1,22 @@
+#pragma pack(push, 1)
+// [G2A-PC 手法1/P248] 本件两处取址，ORIG 皆发结构体成员 disp 形：
+//   · 084c34b9 / 084c3563 `lea 0xc(%eax),%edx`（第三实参）
+//   · 报告 +0x1cb `lea 0x68b(%eax),%edx`
+//   我方旧写 `data + 0xc` / `data + 0x68b`（指针算术）会发 `mov 0x10(%ebp),%eax;
+//   add $0xNN,%eax` 两段（本 diff N 侧 insert）。聚合器 Inter_LoadCharacPktView
+//   只覆盖 +0x0c（无 +0x68b），故本件自带同布局局部视图补齐。
+struct Inter_LoadCharacAt0cViewI
+{
+    char m_pad0[0xc];
+    unsigned int m_c;                               // +0x0c
+};
+struct Inter_LoadCharacAt68bViewI
+{
+    char m_pad0[0x68b];
+    unsigned char m_68b;                            // +0x68b
+};
+#pragma pack(pop)
+
 int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadCharacPktView* pPkt = reinterpret_cast<Inter_LoadCharacPktView*>(data);
@@ -34,7 +53,9 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     const int slotIdx = user->get_charac_idx(reqCharacNo);
     if (slotIdx < 0 ||
         !user->setCharacInfoDetail(slotIdx, reqCharacNo,
-                                   reinterpret_cast<CHARAC_DATA*>(data + 0xc)))
+                                   // P248：ORIG 084c34b9 `lea 0xc(%eax),%edx`（disp 形）。
+                                   reinterpret_cast<CHARAC_DATA*>(
+                                       &((Inter_LoadCharacAt0cViewI*)data)->m_c)))
         return 0x1415;
 
     unsigned int tagCharacNo =                         // msg+0x686
@@ -44,7 +65,9 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         if (tagIdx < 0 ||
             !user->setTagCharacInfo(tagIdx, tagCharacNo,
-                                    reinterpret_cast<TAG_CHARAC_DATA*>(data + 0x68b)))
+                                    // P248：ORIG 报告 +0x1cb `lea 0x68b(%eax),%edx`。
+                                    reinterpret_cast<TAG_CHARAC_DATA*>(
+                                        &((Inter_LoadCharacAt68bViewI*)data)->m_68b)))
             return 0x141f;
         // +0x14b7 strikerSkillIndex（_Charac_info::m_field14b7，CUser.h:719 权威成员；
         //   ORIG 084c364e `mov %dl,0x14b7(%eax)` 单条 disp 直证）。

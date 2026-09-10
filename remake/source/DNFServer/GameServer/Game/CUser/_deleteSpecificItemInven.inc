@@ -3,6 +3,8 @@ void CUser::_deleteSpecificItemInven(INVEN_TYPE type,
                                      std::vector<std::pair<int, int> >& out,
                                      int begin, int end)
 {
+    // 2026-09-10（G3CUser-B 复验）：槽集对照 ORIG/我方 各 19 槽、零平移零多余
+    //   （228:226 insn）⇒ 具名局部一一对应，残余属跨版本 codegen（N 族），判 N。
     // b28d-solo-CUser p167：ORIG 0x0867d0be 调用 `getCurCharacInvenR() const`
     //   （MISSING ×1；我方 getCurCharacInvenW EXTRA ×1）⇒ 改 R 版 + 去 const cast。
     CInventory* inven = (CInventory*)getCurCharacInvenR();

@@ -1,3 +1,7 @@
+// [b28d-GrpD 判词·结构化 N] ORIG 0x08651740：残差为槽化引起的地址计算式差异 ——
+//   ORIG 每次 `imul $0x94; lea (%R,%R,1); add $0x10/$0x4` 逐步折基址，我方用
+//   `imul $0x94; add -0xS` + 折叠副偏移（0x1c=0x10+0xc、0x22=0x10+0x12、0x98=0x94+4）；
+//   两式同址、位掩码（$BIG 的 and/or 位域改写）与字段偏移一致 ⇒ 无语义缺口。
 void CUser::UpdateCharacView()
 {
     if (G_GameWorld()->GetChannelType() == 7)

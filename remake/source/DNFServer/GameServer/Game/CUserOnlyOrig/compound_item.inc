@@ -17,12 +17,17 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
     if (!_CheckCompoundSkill(recipe, useRecipe2ndCheck))           // xor1/test → !result
         return 0x16;
 
-    int blankSlots[11];                                            // local_124
-    memset(blankSlots, 0, sizeof(blankSlots));
-    int needSlots[11];                                             // local_150
-    memset(needSlots, 0, sizeof(needSlots));
-    int keepSlots[11];                                             // local_17c
-    memset(keepSlots, 0, sizeof(keepSlots));
+    // [A06 2026-09-10 P312/P90/P116] p167 实证：ORIG 本段是 **3× `rep stos`**
+    // （0 次 memset call；`mov $0xb,%edx` dword 计数 = 11×4=0x2c 字节），我方旧写法
+    // `int a[11]; memset(a,0,0x2c);` 在 4.4 恒发 `call memset`（p167 EXTRA memset ×3）。
+    // 改全零聚合初始化让 4.4 走内联 `rep stos`。
+    // [A06 2026-09-10 结果] p167 由 EXTRA `memset`×3 → **CLEAR**（OUR calls 131→128，
+    // ORIG 127 的 1 项为 C1/C2 同址别名）；ndiff 1738→1577 严格改善。
+    // 代价：our_insns 951→956（gap -2→-7）、帧 sub 0xcb4c→0xcb5c（P312 内联展开比 call
+    // 长）——按「gap 或 ndiff 严格改善」判据以 ndiff 取胜（N78 族面），保留。
+    int blankSlots[11] = {0};                                      // local_124
+    int needSlots[11] = {0};                                       // local_150
+    int keepSlots[11] = {0};                                       // local_17c
 
     int freeQuick = getCurCharacInvenR()->QuickEmptyCount();       // local_58
 

@@ -47,12 +47,16 @@ int SkillSlot::try_master_new_skills(int skillIdx, int level, int job,
         }
         isSteal = 1;
         level = level - skill->GetStealLevelPenalty();
+        // [g11-slot 2026-09-10] P0/P183 真形（直证）：ORIG 0x086075d5
+        // `movzwl %ax,%eax` + 0x086075d8 `add %eax,0x10(%ebp)` 位于 isSteal
+        // 分支内、无具名槽；后续 can_learn 直读形参（0x08607663
+        // `mov 0x10(%ebp),%eax`）。原具名 `unsigned short overLevel` 是
+        // 我方多出的槽（我方 -0x1a store/load 往返，ORIG 全无）。
+        level = level + m_parent->GetPremiumInfo()->getOverSkillLevel();
     }
-    unsigned short overLevel =
-        m_parent->GetPremiumInfo()->getOverSkillLevel();
     if (G_GameWorld()->IsPvPSkilTreeChannel() == 0)
     {
-        if (skill->can_learn(level + overLevel, firstGrow, secondGrow,
+        if (skill->can_learn(level, firstGrow, secondGrow,
                              targetLevel) != 1)
         {
             return -3;

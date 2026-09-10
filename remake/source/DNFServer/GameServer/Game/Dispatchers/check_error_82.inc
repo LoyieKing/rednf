@@ -13,7 +13,10 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
 
     // 卡 1（msg+0x0d）：须为非堆叠怪物卡且绑定数据索引有效
     // ORIG：每次 GetInvenSlot 前重新 getCurCharacInvenR()（不缓存指针）
-    Inven_Item slotA = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0d);
+    // [G1Frest 2026-09-10] ORIG 0x081d8e24 `movzwl 0xd(%eax),%eax; movswl %ax,%ebx`
+    //   ⇒ 字段为 unsigned short（PacketTypes.h:877）而使用点按 **(short) 收窄**（P11）；
+    //   旧码传裸 unsigned short 生 movzwl 零扩展（同族 0x081d8ec5/0x081d8fxx 三处）。
+    Inven_Item slotA = user->getCurCharacInvenR()->GetInvenSlot(1, (int)(short)m.m_0d);
     CItem* cardA = G_CDataManager()->find_item(slotA.m_addInfo);
     if (cardA == 0)
     {
@@ -38,7 +41,7 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
     }
 
     // 卡 2（msg+0x0f）：非堆叠 + 数量校验（无绑定索引检查，与 ORIG 一致）
-    Inven_Item slotB = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0f);
+    Inven_Item slotB = user->getCurCharacInvenR()->GetInvenSlot(1, (int)(short)m.m_0f);
     CItem* cardB = G_CDataManager()->find_item(slotB.m_addInfo);
     if (cardB == 0)
     {
@@ -54,7 +57,7 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
     }
 
     // 卡 3（msg+0x11）：同卡 2 口径
-    Inven_Item slotC = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_11);
+    Inven_Item slotC = user->getCurCharacInvenR()->GetInvenSlot(1, (int)(short)m.m_11);
     CItem* cardC = G_CDataManager()->find_item(slotC.m_addInfo);
     if (cardC == 0)
     {

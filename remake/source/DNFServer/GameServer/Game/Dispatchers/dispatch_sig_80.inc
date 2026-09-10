@@ -9,7 +9,22 @@ int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     cMyTraceNoop log;
     log(" %s Lack votes slot %d as Lack.", user->getCurCharacName(), (int)seat);
-    if (!user->CheckInPvp())
+    // ORIG 0x0820..：[46] 段先用 `$0x8de8`（_!pPVPRoom）⇒ CheckInPvp() 为**真**/PVPRoom
+    //   分支在前；我方旧形 `if (!CheckInPvp())` 令两支序列整体互换（ndiff 38）。
+    if (user->CheckInPvp())
+    {
+        PvP_Room* room = (PvP_Room*)user->GetPVPRoom();
+        if (room == 0)
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x8de8, 0x5);
+            trace("[%s][%d]_!pPVPRoom", __PRETTY_FUNCTION__, 0x8de8);
+        }
+        else
+        {
+            room->VoteLackUser(user, (int)seat);
+        }
+    }
+    else
     {
         if (user->IsState((ch_state)5))
         {
@@ -23,19 +38,6 @@ int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
             {
                 party->VoteLackUser(user, (int)seat);
             }
-        }
-    }
-    else
-    {
-        PvP_Room* room = (PvP_Room*)user->GetPVPRoom();
-        if (room == 0)
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x8de8, 0x5);
-            trace("[%s][%d]_!pPVPRoom", __PRETTY_FUNCTION__, 0x8de8);
-        }
-        else
-        {
-            room->VoteLackUser(user, (int)seat);
         }
     }
     return 0;

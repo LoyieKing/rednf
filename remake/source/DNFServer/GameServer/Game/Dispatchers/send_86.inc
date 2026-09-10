@@ -1,6 +1,11 @@
 void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
 {
     stRentItemParam& out = static_cast<stRentItemParam&>(param);
+    // [G1Frest 2026-09-10] ORIG 0x081e5436/0x081e543c：`mov 0x10(%ebp),%eax;
+    //   mov %eax,-0x1c(%ebp)`（out 引用）+ `mov -0x1c(%ebp),%eax; add $0x8,%eax;
+    //   mov %eax,-0x18(%ebp)` ⇒ out.m_output 另占具名引用槽 -0x18，后续各点
+    //   `mov -0x18(%ebp),%eax` 重读（旧码每次重算 out+8）。
+    InstanceRentalSystem::RentOutput& output = out.m_output;
     bool sendEquipSlot10 = false;
 
     PacketGuard packet;
@@ -8,10 +13,11 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
     if (out.m_4 == 0)
     {
         packet.put_byte(1);
-        packet.put_byte(static_cast<int>(out.m_output.m_deleted.size()));
+        // ORIG 0x081e549e `movsbl %al,%eax` ⇒ size() 经 (char) 收窄
+        packet.put_byte(static_cast<int>(static_cast<char>(output.m_deleted.size())));
         for (std::vector<InstanceRentalSystem::DeletedRentItem>::iterator it =
-                 out.m_output.m_deleted.begin();
-             it != out.m_output.m_deleted.end(); ++it)
+                 output.m_deleted.begin();
+             it != output.m_deleted.end(); ++it)
         {
             // [b28d-solo-Dispatchers] P167/P183：ORIG 0x081e54d3 只调 1 次
             //   `normal_iterator<DeletedRentItem>::deEv`（operator*），结果落 -0x10
@@ -26,12 +32,14 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
             else
             {
                 packet.put_byte(3);
-                if (r.m_slot > 9 && r.m_slot < 0x16)
+                // ORIG 0x081e55xx `jle/jg`（有符号）：m_slot 为 unsigned short 字段，
+                // 使用点须 (short) 收窄（P11）。
+                if ((int)(short)r.m_slot > 9 && (int)(short)r.m_slot < 0x16)
                 {
                     sendEquipSlot10 = true;                           // 装备位 9..0x15 变动
                 }
             }
-            packet.put_short(static_cast<int>(r.m_slot));
+            packet.put_short(static_cast<int>(static_cast<short>(r.m_slot)));
         }
     }
     else
@@ -47,13 +55,14 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
         PacketGuard infoPacket;
         infoPacket.put_header(0, 0xe);                   // class=0 cmd=0xe 租借列表刷新
         infoPacket.put_byte(0);
-        infoPacket.put_short(static_cast<int>(out.m_output.m_infos.size()));
+        // ORIG `call size(); cwtl` ⇒ (short) 收窄
+        infoPacket.put_short(static_cast<int>(static_cast<short>(output.m_infos.size())));
         // [b28d-solo-Dispatchers] P167：ORIG 0x081e5662 调 const_iterator 的 deEv
         //   （`IPKN…`）+ 0x081e56c7 混合 ne + 0x081e563x 转换构造 ⇒ 原码是
         //   const_iterator + `(*it).m_slot`（旧码 iterator + `it->` 调 ptEv）。
         for (std::vector<InstanceRentalSystem::RentalInfo>::const_iterator it =
-                 out.m_output.m_infos.begin();
-             it != out.m_output.m_infos.end(); ++it)
+                 output.m_infos.begin();
+             it != output.m_infos.end(); ++it)
         {
             const CInventory* inven = const_cast<CInventory*>(user->getCurCharacInvenR());
             inven->MakeItemPacket(INVEN_TYPE_EQUIP,

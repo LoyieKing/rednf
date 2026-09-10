@@ -1,3 +1,6 @@
+// [b28d-GrpD 判词·无实差异] ORIG 0x0867794c：norm 后残差仅 `lea 0xN(%R),%R` vs
+//   `add $BIG,%R`（数据地址未解析重定位）与寄存器选择差异；字段偏移、PvpResultType::Get
+//   成员直调序全一致 ⇒ 非可改项。
 int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
 {
     sig->m_field8 = 0;

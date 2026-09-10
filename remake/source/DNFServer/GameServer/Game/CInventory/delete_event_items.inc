@@ -7,10 +7,24 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
     // 真结构差四处：①need 副本应为 amount 直接递减（ORIG +0x336 mov/sub/mov 三段）；
     // ②entry 声明在循环外（ORIG pair::C1Ev@+0x058）；③found 初始化在循环体首（ORIG +0x08e movb）；
     // ④start/end 无 =0 初始化（ORIG 直接传引用）。残余 1 = 局部与常量比较 4.4 恒折 mem 直比（N18b）。
+    // [G8InvenPvP 2026-09-10 本轮 · ndiff 447→114，gap 归零 675=675，帧 0xc0→0xb0 对齐]
+    // ① P227/P221：`cMyTrace trace(...); trace(...)` → 全表达式临时链
+    //   `cMyTrace(...)(...)`（ORIG 0x0850? 该 trace 为构造即调用）⇒ 互斥块对象槽翻正。
+    // ② P160/P162③ 槽复用：ORIG **全函数只有一个循环下标槽 -0x68**（5 个 for 与
+    //   两处 `movl $0x3,-0x68(%ebp)` 重置共用），旧源码每处 `for (int i = ...)`
+    //   各占独立槽（-0x80/-0x84/-0x8c/-0x90）⇒ 帧 0xc0 vs ORIG 0xb0、我方槽 34 vs 31。
+    //   改块级单变量 `int i;` + 循环内赋值式后：帧 0xb0、槽 30、指令 675=675。
+    // 残余 = 具名标量槽号分区（ORIG deleteCount@-0xc/itemIdx@-0x14/found@-0x15
+    // vs 我方 -0x18/-0x10/-0x11）⇒ 4.4 按首次使用分配（N98/N82附）封顶。
     if (m_pParent->getGmQuestFlag())
     {
         return 1;
     }
+    // [G8InvenPvP 2026-09-10 · 槽序封顶] 残余槽号差（ORIG deleteCount@-0xc/
+    // itemIdx@-0x14/found@-0x15 vs 我方 -0x18/-0x10/-0x11）属 4.4「按首次使用
+    // 顺序分配 + 聚合对象优先占低槽」的分区策略（N98/N82附）；ORIG 的
+    // `movl $0x0,-0xc(%ebp)` 位置与我方逐条相同（指令序已对齐），移声明只会
+    // 改指令序 ⇒ 维持，判 N。
     int deleteCount = 0;
     if (items.size() == 0)
     {
@@ -67,10 +81,16 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
             }
             int start;
             int end;
+            // [G8InvenPvP 2026-09-10 · P160/P162③ 复用 ORIG 复用的槽] ORIG 全函数
+            // 只用**一个**循环下标槽 -0x68（5 个 for 与两处 `i=3` 重置共用，
+            // 0x0850?..直证 `movl $0x3,-0x68(%ebp)`/`add $0x1,-0x68`），我方
+            // 每个 `for (int i = ...)` 各占独立槽（-0x80/-0x84/-0x8c/-0x90）⇒
+            // 帧 0xc0 vs ORIG 0xb0。按 P0/P160③ 提为块级单变量，循环内改用赋值式。
+            int i;
             StartEndPos((Inven_Item::ITEM_TYPE)type, start, end);
             if (type == 1)
             {
-                for (int i = start; i <= end; i++)
+                for (i = start; i <= end; i++)
                 {
                     if (m_pEquipSlot[i].m_addInfo == itemIdx)
                     {
@@ -88,7 +108,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                 }
                 if (amount > 0)
                 {
-                    for (int i = 3; i < 9; i++)
+                    for (i = 3; i < 9; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx)
                         {
@@ -107,7 +127,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                 }
                 if (amount > 0)
                 {
-                    for (int i = 0; i < 0x1a; i++)
+                    for (i = 0; i < 0x1a; i++)
                     {
                         if (m_invenItem[i].m_addInfo == itemIdx)
                         {
@@ -135,7 +155,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
             }
             else
             {
-                for (int i = 3; i < 9; i++)
+                for (i = 3; i < 9; i++)
                 {
                     if (m_pEquipSlot[i].m_addInfo == itemIdx &&
                         amount <= m_pEquipSlot[i].m_addInfo2)
@@ -169,7 +189,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                 }
                 if (!found)
                 {
-                    for (int i = start; i <= end; i++)
+                    for (i = start; i <= end; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx &&
                             amount <= m_pEquipSlot[i].m_addInfo2)
@@ -205,8 +225,10 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
             }
             if (!found)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x1d3a, 5);
-                trace("NOT CRITICAL BUT FOR OBSERVING, No Event Item %d FOUND!", itemIdx);
+                // [G8InvenPvP 2026-09-10 · P227/P221] 试「构造即调用」全表达式
+                // 临时链（SendAvatarEvent 实证可翻互斥块对象槽方向）。
+                cMyTrace(__PRETTY_FUNCTION__, 0x1d3a, 5)(
+                    "NOT CRITICAL BUT FOR OBSERVING, No Event Item %d FOUND!", itemIdx);
                 return 0;
             }
         }

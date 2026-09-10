@@ -1,5 +1,10 @@
 void CUser::UpdateLogout(bool param)
 {
+    // 2026-09-10 gA（A 组）负结论 N（ORIG 492 vs 我方 513）：ORIG 0x086554aa 与 p167
+    //   已对齐的调用序一致（CStreamGuard::operator*/-＞、sig 具名槽、DB 段、两处
+    //   cMyTrace），差集为**全帧槽号整体平移**（param -0xac→-0xbc、guard -0x50→-0x44、
+    //   sig -0x28→-0x3c；帧 0xcc→0xdc）——属 N82/P112 槽分配族（4.1 与 4.4 局部
+    //   分配方向/复用不同），逐块无字段或调用缺口可下刀 ⇒ N 封顶。
     UpdateCharacView();
 
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x2260), true);

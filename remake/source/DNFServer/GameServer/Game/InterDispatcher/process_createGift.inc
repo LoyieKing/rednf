@@ -1,5 +1,13 @@
 void Inter_CreateCharac::process_createGift(CUser* user, SIG_CREATE_CHARAC* sig)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=47] 差异集中在 bool 物化与跨调用保活位点：
+    //   · [124:129] ORIG `movzbl %al,%eax; mov %eax,<S>; cmpl $0x0,<S>; sete %al;
+    //     movzbl %al,%edi`（ORIG 自身亦落槽再读）vs 本方 [121:124] `sete %al; mov %al,<S>;
+    //     cmpl $0x0,<S>`；
+    //   · [132:135] ORIG `mov %eax,%esi`（免槽）vs 本方 `mov %eax,<S>`（落槽）；
+    //   · [144] 本方多 4 条槽往返 `movzbl <S>,%esi; movzbl <S>,%ebx; mov <S>,%ecx`。
+    //   expire/hasExpire/noExpire 的具名与否两侧交错，register 化需先锁定变量集合，
+    //   误改会引入新槽序平移，故留 N。
     if (user == 0)
         return;
 

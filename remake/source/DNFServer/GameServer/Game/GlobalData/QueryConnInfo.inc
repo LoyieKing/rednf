@@ -45,5 +45,13 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
     // 另有 group 的副本（-0x64，写后未读 ⇒ P171 照抄）。
     ENUM_SERVER_GROUP groupCopy = group;
     ENUM_DB_HANDLE_IDX idxCopy = idx;
+    // [G7-sub] 结论（N82/N126 封顶）：ORIG 169 / 我方 169；p167 仅 STDBConnInfo
+    //   C1↔C2 别名。ORIG 帧 0x1cc / 我方 0x1dc(+0x10)，标量槽逐项同构但位置差：
+    //   ORIG i(-0x1c)/db(-0x20)/键副本(-0x24)/passCipher(-0x60)/group 副本(-0x64)
+    //   vs 我方 i(-0x20)/db(-0x24)/键(-0x28)/passCipher(-0x64)/group 副本(-0x1c)。
+    //   ORIG 把「写后未读」的 group 副本放紧邻 passCipher 的深处
+    //   （0x080ecc9b `mov %eax,-0x64(%ebp)`），4.4 恒放最浅槽；键副本取址在
+    //   0x080ecca4 `lea -0x24(%ebp),%eax`。块级标量槽向跨版本不可控（N93），
+    //   且该未读副本属 P171 必须照抄 ⇒ 封顶（不删具名、不试声明序）。
     outMap[idxCopy] = info;
     return true;

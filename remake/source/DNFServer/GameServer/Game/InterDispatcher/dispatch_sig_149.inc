@@ -5,7 +5,8 @@ int Inter_AuctionResultMyRegistedItems::dispatch_sig(CUser* user, char* data, in
     if (static_cast<unsigned int>(len) <= 3)         // asm cmp $0x3; jbe
         return 0;
 
-    int characNoMsg = 0;
+    // P183：ORIG 084d777c +0x024 起直接 memcpy，无 `movl $0x0,-0x20(%ebp)` 预清零 ⇒ 原码无 `= 0` 初值。
+    int characNoMsg;
     memcpy(&characNoMsg, data, 4);                   // msg+0x00（本地 4 字节拷贝）
     if (characNoMsg != user->getCurCharacNo())
         return 0;

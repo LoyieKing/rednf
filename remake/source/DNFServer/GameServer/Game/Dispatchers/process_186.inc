@@ -26,21 +26,28 @@ int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBas
     expert_job::CExpertJob* job = GlobalData::s_ExpertJobMgr->AcquireExpertJob((ENUM_EXPERT_JOB_TYPE)3);
     if (job == 0)
     {
-        *(int*)((char*)&param + 4) = 0x15;
+        // ORIG 0x081cfa29: `mov -0x18(%ebp),%eax; movl $0x15,0x4(%eax)` —— 写回 out 引用
+        //（原 `*(int*)((char*)&param+4)=…` 会产 `mov 0x14(%ebp),%eax; add $0x4,%eax` 形）。
+        out.m_4 = 0x15;
         return 0;
     }
+    // ORIG 0x081cfa3d: `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)` —— 具名 msg 视图指针占槽
+    //（原内联 `reinterpret_cast<...>(&msg)->…` 无槽，ORIG 每次经 -0x10 重载）。
+    const DisjointStoreMsgView* view = reinterpret_cast<const DisjointStoreMsgView*>(&msg);
     user->SetCurCharacExpertJob(job);
-    int result = reinterpret_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
+    // ORIG 0x081cfa55: `movl $0x0,-0xc(%ebp)` —— result 具名量调用前 0 预清。
+    int result = 0;
+    result = reinterpret_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
         user,
-        // 内联视图（ORIG 本函数无 msg 指针槽，禁新增局部保帧零扰动）
-        reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_storeName,
-        reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_field114,
-        (int)reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_field118,
-        (int)reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_field11a);
+        view->m_storeName,
+        view->m_field114,
+        (int)view->m_field118,
+        (int)view->m_field11a);
     if (result != 0)
     {
         user->SetCurCharacExpertJob(0);
         GlobalData::s_ExpertJobMgr->FreeExpertJob(job);
-        *(int*)((char*)&param + 4) = result;
+        // ORIG 0x081cfadc: `mov -0xc(%ebp),%edx; mov -0x18(%ebp),%eax; mov %edx,0x4(%eax)`
+        out.m_4 = result;
     }
     return 0;

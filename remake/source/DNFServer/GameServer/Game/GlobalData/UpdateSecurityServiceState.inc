@@ -1,3 +1,10 @@
+// [G7-sub 2026-09-11 判词] Secu_DataControl::UpdateSecurityServiceState（ORIG T 0x08286e40）：
+// 私有 .o 实测 ORIG 151 / 我方 153（gap 2，我方多）。逐条对照残差**仅两处**：
+//   · 我方 145 位多 `jmp <epilogue>; nop` 尾岛（ORIG 0x08270777 自 PacketGuard D1 call
+//     直落 epilogue）⇒ 已知 N121（4.4 epilogue-threading），否定早返/共享尾标签/
+//     显式 return 三形（P285 反向）。
+//   · 数据符/字符串归一后其余全等。p167 调用点差集 CLEAR（25/25，仅别名）。
+// 结论：**封顶，无改动**（语义完成，byte 层 N）。
 void Secu_DataControl::UpdateSecurityServiceState(CUser* user, unsigned char service,
                                                   unsigned char flag, char* msg)
 {

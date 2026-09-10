@@ -20,6 +20,13 @@ void RentalMachineDimension::log(CUser& user, int itemId)
     register char* const pData = m_impl->m_data;
 
     CMyFileLog flog("void RentalMachineDimension::log(CUser&, int)", 0x71);
+    // [G7-sub] 结论（N115/N126/N82 封顶）：ORIG 58 / 我方 58。ORIG 0x0826ef1c
+    //   `sub $0x4c,%esp` + 槽 serverInfo(-0x19)/CMyFileLog(-0x24)/serverEnv(-0x2c)
+    //   （另有空槽 -0x28）；我方 `sub $0x3c,%esp` + -0x1d/-0x28/-0x1c。
+    //   ORIG 0x0826ef52 `movsbl -0x19(%ebp),%eax; mov %eax,-0x2c(%ebp)` 把
+    //   serverEnv 放 CMyFileLog **之下**，4.4 恒放其上方 ⇒ 4 槽向 + 帧 16B 属
+    //   N126（版本首槽基址常数）+ N115（outgoing 预留）族。三值 register 保活
+    //   (esi/ebx/edi) 已命中 P231，仅余寄存器名轮换（P230/N7）。
     flog(pData,
          "[RENT] Dimension m_id(%d) char_no(%d) server_info(%d) item_id(%d)",
          accId, charNo, serverEnv, itemId);

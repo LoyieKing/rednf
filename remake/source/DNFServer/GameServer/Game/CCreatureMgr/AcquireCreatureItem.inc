@@ -15,11 +15,17 @@ user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatu
         // ORIG 0x833f5bc：fnptr 双级解引用（call *%edx）+ arg 经 %eax 装
         // (%esp)。4.4 恒 fnptr→%eax/arg→%edx，角色互换属 N7（虚调用 callee
         // 寄存器互换）；register 绑 %edx 反产 spill 对拷，维持最简内联形。
+        // [路由核查 2026-09-10] 本 TU 在 dnf_game_cxx.sh:441 臂 = `C6`(4.4.7)
+        // + -march=i486 -mtune=generic，**未路由 c6446r** ⇒ 4.4.6 的
+        // `call *%edx` 形不可得，N7 在此封顶（P230：N7 判词限定 4.4.7）。
         (reinterpret_cast<CtorCall>(*reinterpret_cast<CtorCall**>(item)))(item);
         return item;
     }
     // ORIG 0x833f5cd：ctor cMyTrace(__PRETTY_FUNCTION__@0x8c2eda0, 0x68, 5)；
     // 0x833f5f0：operator()("%d]"@0x8c2d761, PF, 0x68)。
+    // [b28d-G11 回滚记录] 试过 P63/P214②「if/else 两分支 + 单一共享 return」
+    // （ORIG 0x833f5cb `jmp 833f613` 直证）⇒ fresh 读数 ours 42→41、行级残差
+    // 6→7 双双劣化 ⇒ 按 codegen 轴纪律回滚（gap 0→+1），维持早返形。
     cMyTrace trace(__PRETTY_FUNCTION__, 0x68, 5);
     trace("%d]", __PRETTY_FUNCTION__, 0x68);
     return item;

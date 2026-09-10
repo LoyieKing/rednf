@@ -1,5 +1,13 @@
 int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [G2A-PC 本轮负结论 N，ndiff=424（ratio 0.914）] 已核项：
+    //   · 符号性轴（轴 B）信号：[437:438] ORIG `movswl %ax,%edi` vs 本方 `movzwl %ax,%edi`。
+    //     该形态来自包内 short 字段读入后作 int 实参；本 .inc 全文 grep 无
+    //     `short`/`unsigned short`/`(short)`（唯一 short 源是聚合器视图字段类型，禁改写域）。
+    //   · 其余为 `mov (%eax),%ecx` vs `mov (%eax),%eax; mov %eax,%ecx` 型 regmove 抖动、
+    //     `add $0x34,%edx; mov (%edx),%edx` vs `mov (%eax),%eax; add $0x34,%eax` 型
+    //     取址序平移、以及 switch 分派岛的布局差（jne/je 反转、`mov <A>` 常量槽）。
+    //   本件 2450 条指令、桩体跨 .inc 与聚合器（部分拆分），未定位到单一可判定源码点，留 N。
     SIG_LOGIN_DATA* pInfo = static_cast<SIG_LOGIN_DATA*>(
         static_cast<void*>(data));
 

@@ -1,10 +1,24 @@
+#pragma pack(push, 1)
+// P248 同型化：ORIG 084d0fxx 比较处发 4 行
+//   `mov %eax,%edx; mov -0x20(%ebp),%eax; mov 0xe(%eax),%eax; cmp %eax,%edx`
+//   ⇒ +0x0e 字段与 get_charac_no(int) 返回值失配 = unsigned int（探针 t3 实证）。
+//   聚合器 Inter_MonitorCallMemberListPktView.m_charID 为 int（R1 禁改聚合器，
+//   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
+struct Inter_MonitorCallMemberListPktViewI
+{
+    char m_pad0[0xe];               // +0x0..未消费
+    unsigned int m_charID;          // +0x0e
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
     // ORIG 0x084e****：state 岛后 pPkt 才物化 -0x20（技巧13）。
-    Inter_MonitorCallMemberListPktView* pPkt = reinterpret_cast<Inter_MonitorCallMemberListPktView*>(data);
+    Inter_MonitorCallMemberListPktViewI* pPkt = reinterpret_cast<Inter_MonitorCallMemberListPktViewI*>(data);
     if (user->get_charac_memberkey() == 0)
     {
         LogManager::logFormat(
@@ -27,8 +41,10 @@ int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len
         return 0;
     }
 
-    unsigned char* entry = &pPkt->m_12;   // §4.3 字段化：视图 m_12(uchar) 取址，ORIG lea 0x12(%eax)
-    Inter_MonitorCallMemberListEntryWinView* pWin_entry = reinterpret_cast<Inter_MonitorCallMemberListEntryWinView*>(entry);
+    // ORIG 084d0fxx：`mov <pPkt 槽>,%eax; add $0x12,%eax; mov %eax,<槽>`（单槽一次 store）
+    //   ⇒ 原码只有一个具名指针（P0：无 `entry` 中间量）。
+    Inter_MonitorCallMemberListEntryWinView* pWin_entry =
+        reinterpret_cast<Inter_MonitorCallMemberListEntryWinView*>(&pPkt->m_12);
     PacketGuard packet;
     packet.put_header(1, 0x52);
     packet.put_byte(1);

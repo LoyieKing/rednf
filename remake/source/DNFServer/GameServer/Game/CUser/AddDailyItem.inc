@@ -1,5 +1,12 @@
 void CUser::AddDailyItem()
 {
+    // 2026-09-10（G3CUser-B 负结论）：槽集对照 ORIG 48 槽 / 我方 48 槽，但整体平移
+    //   +3 字节（ORIG tmp=-0x19a ↔ 我方 -0x19d；ORIG m_addInfo2 槽 -0x193 ↔
+    //   我方 -0x196）⇒ 我方在 Inven_Item tmp 之前多出 3 字节对象（1~3 个 char/bool
+    //   具名量）。本轮已核 def/tmp/slot/sender/body/packet 六个具名量均与 ORIG 一一
+    //   对应（ORIG 各有槽），未定位到第 7 个多余量；30 余条 diff 亦全为跨版本
+    //   寄存器/槽号形（含 ORIG 0x08656e34 段 `cmp $0x2; jg` 与 0x08656f60 尾部
+    //   `lea -0x8(%ebp),%esp` 序）。判 N 封顶，不再动。
     // b28d-solo-CUser 试形（P0 槽往返）：ORIG 0x08656caa 无 level 槽——call 结果直比
     //   `cmp $0x13,%eax; setg %al; test; je`；我方具名 level 落 -0x20 并被 mem 直比。
     if (get_charac_level() > 0x13)

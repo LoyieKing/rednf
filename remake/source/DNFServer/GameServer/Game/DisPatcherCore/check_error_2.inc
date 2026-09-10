@@ -1,7 +1,5 @@
 unsigned int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
 {
-    MSG_DELETE_CHARACTER& req = *reinterpret_cast<MSG_DELETE_CHARACTER*>(&msg);
-
     if (user->get_state() != 2)
     {
         return -1;
@@ -10,6 +8,11 @@ unsigned int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0x13;
     }
+    // [G5-MiscC] P28/声明序：ORIG 0x081c14f8/0x081c1517 两次 state 检查（`call get_state`
+    // 与 `call isLockedCreateCharac`）**之后**才在 0x081c1530 落 msg 视图具名槽
+    // （`mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)`）⇒ msg 视图声明必须后置于前两条检查
+    // （我方原把 req 声明放函数首，槽写出现在 0x081c150x 之前的 -0x18）。
+    MSG_DELETE_CHARACTER& req = *reinterpret_cast<MSG_DELETE_CHARACTER*>(&msg);
     if (!((signed char)req.m_slot < user->get_charac_count() && req.m_slot >= 0))
     {
         return -2;

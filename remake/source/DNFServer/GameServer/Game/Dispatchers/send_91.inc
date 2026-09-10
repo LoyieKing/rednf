@@ -20,12 +20,17 @@ void Dispatcher_ExpertExtraction::send(CUser* user, ParamBase& param)
     //   （P196 前置已过）⇒ i 必须 `int` + `(int)count`；索引走独立累加器（ORIG 每元素 post-inc）。
     const unsigned int count = (unsigned int)(p.m_list.size() / 3);
     guard.put_byte((int)count);
+    // [G1Frest 2026-09-10] ORIG 0x081d97ab `mov -0x1c(%ebp),%eax; add $0xc,%eax;
+    //   mov %eax,-0x14(%ebp)` ⇒ p.m_list 的**具名引用/指针局部** -0x14（P0 槽往返）；
+    //   后续每元素 `mov -0x14(%ebp),%eax; mov %eax,(%esp)` 直接传该槽，
+    //   我方旧码每次重算 `p+0xc`（帧少 4B、槽号整体上移）。绑定点在 put_byte(count) 之后。
+    std::vector<int>& list = p.m_list;
     unsigned int idx = 0;                       // -0x10
     for (int i = 0; i < (int)count; ++i)        // -0xc（setl 有符号序）
     {
-        guard.put_short(p.m_list[idx++]);
-        guard.put_int(p.m_list[idx++]);
-        guard.put_int(p.m_list[idx++]);
+        guard.put_short(list[idx++]);
+        guard.put_int(list[idx++]);
+        guard.put_int(list[idx++]);
     }
     guard.finalize(true);
     user->Send(guard);

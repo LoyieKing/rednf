@@ -27,13 +27,19 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     (void)deathTower;
 
+    // [G5-ProcB] ORIG 0x081ca3d4 `movl $0x0,-0x10(%ebp)`（hasDeathTower 之后、
+    // CheckInParty 之前）＋ 两个分支各 `mov %eax,-0x10(%ebp)`：原码是函数级
+    // `CParty* party = 0;` 两个分支共用同一槽（旧文在两块内各声明一次 ⇒ 缺这条
+    // 0 初始化且槽序/指令数偏移）。
+    CParty* party = 0;
+
     // ORIG +0xe8 `test %al,%al; je +0x134`：inParty 体是 fall-through 块（技17/19），
     // `get_state()==3` 为 cmp+sete+test 物化（技9 直写 ==3 已实证产 sete）。
     if (user->CheckInParty())
     {
         if (user->get_state() == 3)
         {
-            CParty* party = static_cast<CParty*>(user->GetParty());
+            party = static_cast<CParty*>(user->GetParty());
             if (party != 0)
             {
                 party->game_start(user);
@@ -42,7 +48,7 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return 0;
     }
     {
-        CParty* party = G_CGameManager()->GetParty();
+        party = G_CGameManager()->GetParty();
         if (party == 0)
         {
             LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0x1e99,

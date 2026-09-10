@@ -61,3 +61,10 @@ int CDeathTower::handleMoveMap()
         m_party->send_to_party(packet);
         return 0;
     }
+
+    // [b28d-G11 试形·已回滚] 曾按「ORIG 槽分配序 die@-0x1c → state@-0x28 →
+    // 成功尾段@-0x34 → catch@-0x40 → 失败块@-0x4c + 失败块物理位于 landing pad
+    // 0x08465e8c..0x08465f13 与成功尾段 0x08465f18 之后」把 makeCommonError(0x16)
+    // 失败块移出 try/catch（B24D-CDeathTower 块位置还原）⇒ fresh 读数
+    // ours 246→248、行级残差 250→**276 劣化** ⇒ 回滚到 try 内 then 之后原位置。
+    // 维持既有判词：残差 = N104（EH 尾块相对序）+ N82（帧/槽），语义 CLEAR（p167）。

@@ -32,6 +32,8 @@ int Dispatcher_NotifyMessageToGuild::dispatch_sig(CUser* user, PacketBuf& packet
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
+    // [G1Csig 负结论] 曾试「去具名 bool invalid + 两判就地报错」：实测 ndiff 42→48（倒退）
+    // ⇒ 回滚原形（if/else-if + 具名 bool；ORIG 侧确有该物化形）。
     bool invalid = false;
     if (G_CDataManager()->hasPreventString(message))
     {

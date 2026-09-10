@@ -11,9 +11,9 @@ int Dispatcher_RemovePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
         user->Send(response);
         return 0;
     }
-    private_store::CPrivateStoreMgr* manager =
-        private_store::GetInstancePrivateStoreMgr();
     private_store::ISeller* seller = 0;
-    manager->GetStoreSeller(&seller, user);
+    // ORIG 0x08202bb0 段：`movl $0x0,-0xc(%ebp)`（seller 预清）后 `lea -0xc(%ebp),%edx`
+    //   —— 无 manager 具名指针槽（我方具名使帧 0x20→0x30）。
+    private_store::GetInstancePrivateStoreMgr()->GetStoreSeller(&seller, user);
     seller->RemovePrivateStore(false);
     return 0;

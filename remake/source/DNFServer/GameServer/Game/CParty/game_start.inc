@@ -31,8 +31,11 @@ void CParty::game_start(CUser* user)
             continue;
         char vill = m_member[i].m_pUser->getCurCharacVill();   // -0x1d
         int area = m_member[i].m_pUser->get_area(false);       // -0x1c
-        bool mismatch = ((hostVill != vill) || (hostArea != area));
-        if (mismatch && !is_quick_party() &&
+        // [G7-sub] P0 槽律：ORIG 0859d8b2..0859d8e8 把 `(hostVill!=vill)||(hostArea!=area)`
+        // 的结果只留在 %al（`movzbl -0x39; cmp -0x1d; jne →mov $1/jmp; ...; test %al,%al;
+        // je`），**无 bool mismatch 具名槽**；我方原具名落 -0x21 并多出
+        // `mov %al,-0x21; cmpb $0x0,-0x21`（2 条 + 4B 帧）⇒ 内联进 if 条件（短路序不变）。
+        if (((hostVill != vill) || (hostArea != area)) && !is_quick_party() &&
             reinterpret_cast<CBattle_Field*>(&m_battleField)
                     ->m_villageMonsterId == 0)                  // ORIG this+0xc4c
         {

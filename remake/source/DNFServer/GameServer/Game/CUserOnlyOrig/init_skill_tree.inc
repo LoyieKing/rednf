@@ -23,8 +23,13 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
     // ORIG 0x0866bce8：giveVec 后立即构造独立 pair 局部（C1 符号），
     // 循环内 giveVec[i] 逐字段拷入（mov/mov），非引用。
     std::pair<int,int> pr;
-    char secondGrow = getCurCharSecondGrowType();
-    char firstGrow = getCurCharFirstGrowType();
+    // [G6Sub1 单旋钮·P200] ORIG 0x0866bda7..0x0866bdd3 为
+    // `call getCurCharSecondGrowType; movsbl %al,%esi` +
+    // `call getCurCharFirstGrowType; movsbl %al,%ebx` —— 拓宽即目标寄存器（2 操作数
+    // movsbl 直入 callee-saved），说明原码把短整表达式**作普通实参直传**。
+    // 旧形 `char secondGrow = ...; char firstGrow = ...;`（具名局部）退化为
+    // `mov %al,-0x32/-0x31` + `movsbl -0x32,-0x31,%esi/%ebx`（4 条，本件 gap 主项）。
+    // 下面实参位内联后 4.4 右→左求值：second（arg2）先入 %esi、first（arg1）后入 %ebx。
     // [FL5 2026-09-10 负结论·已回滚] 本处 ORIG 0x0866bce8 段看似无 job 具名槽
     // （`call get_charac_job; mov 0x14(%eax),%edi; call G_CDM; imul $0x7dc; lea (%edi,%eax,1)`），
     // 但把 `int job` 内联为 `m_characs[get_charac_job()]`（P0 方向）实测 **ndiff 146→241 反劣**
@@ -33,7 +38,9 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
     int job = get_charac_job();
     // ORIG：*(int*)(mgr+0x14)+job*0x7dc —— mgr->m_characList（CCharacList*）->m_characs[job]
     bool got = G_CDataManager()->m_characList->m_characs[job].
-                   get_give_skill((int)firstGrow, (int)secondGrow, giveVec, 0);
+                   get_give_skill((int)(signed char)getCurCharFirstGrowType(),
+                                  (int)(signed char)getCurCharSecondGrowType(),
+                                  giveVec, 0);
     if (!got)
     {
         LogManager::logFormat(1, "user.cpp",

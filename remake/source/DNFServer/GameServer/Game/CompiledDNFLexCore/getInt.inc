@@ -10,7 +10,8 @@ int CompiledDNFLex::getInt(bool* result)
     }
     if (result != 0)
         *result = true;
-    static int intBuffer;
-    intBuffer = *reinterpret_cast<int*>(offset_);
-    offset_ += 4;
-    return intBuffer;
+    // [b28d-G11 直证] ORIG 08acffac 尾段 `mov %eax,&_ZZ17readIntFromBufferRPcE9intBuffer`
+    // = helper 内联尾调用 ⇒ 原码就是 `return readIntFromBuffer(offset_);`
+    // （旧自写 static intBuffer 既造出发明符号 getInt()::intBuffer, ORIG 无，
+    //  又把 buffer 折成栈临时 `mov %eax,0x8` 而非 ORIG 的全局 unique 槽）。
+    return readIntFromBuffer(offset_);

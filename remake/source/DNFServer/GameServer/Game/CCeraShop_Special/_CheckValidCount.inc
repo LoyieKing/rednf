@@ -39,7 +39,11 @@ bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
                 {
                 case 3:
                 {
-                    CItem* item = G_CDataManager()->find_item(goodsList[n]->GetItemIdx());
+                    // 实测：帧 0xcc→0xbc（=ORIG）；报告 diff 207/205→200/199；
+                    // our 326→325（ORIG 324）；TU 四数不变 ⇒ 保留。
+                    // [G10 实验·P231/P52] ORIG 浅区槽比我方少 4（我方多 0x38/0x5c/
+                    // 0x60/0x64）；item 跨 is_stackable 虚调保活 ⇒ 试纯 register（P0 合规）。
+                    register CItem* item = G_CDataManager()->find_item(goodsList[n]->GetItemIdx());
                     // ORIG 0x08323be9 无判空（P140/P171：不补边界防御）。
                     if (!item->is_stackable())
                         return false;

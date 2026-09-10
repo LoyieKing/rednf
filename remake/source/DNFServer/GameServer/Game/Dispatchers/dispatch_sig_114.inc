@@ -29,6 +29,10 @@ int Dispatcher_New_Gmdebug_Command::dispatch_sig(CUser* user, PacketBuf& packet)
     local_18 = *(int*)(local_1c + 0xd);
     *(unsigned char*)(local_1c + local_18 + 0x11) = 0;
     user->getSeparatedTextUnits(local_40, local_1c + 0xd, " ", 0);
+    // [G1-Dispatchers] ORIG 调用序列为 size()(填充前记录) → push_back 体 → size()(循环尾条件)
+    // 共 2 个 size 调用点（p167 ORIG-only `_ZNKSt6vectorISsSaISsEE4sizeEv` ×1）；
+    // 4.1 的 while 条件落在体之后 ⇒ 前一次即此处的具名记录（local_14 原本只声明未用）。
+    local_14 = (int)local_40.size();
     while (local_40.size() < 10)
     {
         local_40.push_back("");

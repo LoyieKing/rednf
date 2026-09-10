@@ -8,6 +8,11 @@
 
 // [b28d-7 P75] ORIG 0x085dbcce：常量/形参实参点先载 receiver(-0xc→%eax) 再 store 常量槽，4.4 恒反序；指令集合/语义全等（P75 跨版本调度），P167 CLEAR。
 // [b28d-solo-PvP_Room] P75: ORIG 0x085dbcce 实参装载时刻 %edx vs %eax 跨版本调度
+// [G8InvenPvP 2026-09-10 · P256 实测无效] 「引用 + 首成员访问」形
+// （`InterfacePacketBuf& f = *(InterfacePacketBuf*)buf; f.put_header(0,0x2c);`）
+// 产物与具名指针形**逐条相同**（30/30，ndiff 11 不变）：ORIG 的
+// `mov -0xc(%ebp),%eax` 先于常量槽 store 属 P75 跨版本装载时刻差，
+// 非 receiver 具名性可翻 ⇒ 维持原形、判 P75/N7 封顶。
 int PvP_Room::make_ready_info(char* buf, int seat)
 {
     // P75/N7 封顶（ORIG 0x085dbcd4）：ORIG(4.1) 对常量/形参实参点先载 receiver
