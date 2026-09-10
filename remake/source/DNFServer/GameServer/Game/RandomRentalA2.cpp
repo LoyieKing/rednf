@@ -734,6 +734,10 @@ static const int MAX_OPTION_VALUE = 100;
     int base = (int)((float)minV * sel.m_scaleBase4);            // fistpl 截断
     // [b28f-RR 实测回退] base 改 unsigned（P274 档③）无效：4.4 仍折 `add mem,%eax`
     // 一条（ORIG 085f2c3d 为两段）⇒ 该段维持 N86b 封顶。
+    // [K2ERandomBoss 2026-09-11 探针复核] /tmp/rr_probe_add.cpp 12 形（base+g()、
+    // g()+base、(int)ug()、unsigned base、具名 r=g() 中转、(unsigned)+(unsigned)、
+    // 三目/加 0 等）在 446 后端下**全部**产 `add 0x8(%ebp),%eax` 单条 ⇒ ORIG
+    // 085f2c3d `mov -0xc(%ebp),%edx; add %edx,%eax` 两段为 4.1 独有装载形，N 封顶。
 
     // [Lane17 L1] ORIG 085f2c40 把最终结果写回 **-0x14 = 首段 r1 槽**
     // （085f2b34/085f2c42 两处同址）⇒ 原码用同一变量承载两段结果，
@@ -915,7 +919,11 @@ static const int MAX_OPTION_VALUE = 100;
     unsigned char outGrade = 0;
     int err = 0;
     err = _get_option_type(itemIdx, rarity, level, grade, outGrade);
-    if (err != 0)
+    // [K2ERandomBoss 2026-09-11 P225] ORIG 0x085f2d05（call _get_option_type）后段为
+    // `mov %eax,-0x1c; cmpl $0x0,-0x1c; setne %al; test %al,%al; je <续>`（4.1
+    // 槽比零 bool 物化）；探针 /tmp/rr_probe_setne.cpp fB 实证 `while (e != 0)
+    // { body; }` 复现同形（4.4 对 if 形恒折直跳）。body 末尾 return ⇒ 语义等价。
+    while (err != 0)
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -928,7 +936,9 @@ static const int MAX_OPTION_VALUE = 100;
 
     int quantity = 0;
     err = _get_option_quantity(rarity, grade, outGrade, level, quantity);
-    if (err != 0)
+    // [K2ERandomBoss 2026-09-11 P225] 同 _get_option_type 处：ORIG 槽比零 setne/test
+    // 物化形（4.4 对 if 形恒折直跳，见 /tmp/rr_probe_setne.cpp；body 末尾 return ⇒ 等价）。
+    while (err != 0)
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -945,7 +955,8 @@ static const int MAX_OPTION_VALUE = 100;
 
     int groupId = 0;
     err = _choose_option_group(rarity, grade, group, level, outGrade, groupId);
-    if (err != 0)
+    // [K2ERandomBoss 2026-09-11 P225] 同上（ORIG 0x085f2e75 调用点后段 setne/test 物化形）。
+    while (err != 0)
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -1016,14 +1027,13 @@ static const int MAX_OPTION_VALUE = 100;
                 .get_value();
         if (sel < groupVec.size())
         {
-            OptionGroup og = groupVec[sel];
-            opts->m_fields[slotI].m_field0 = (unsigned char)og.m_type0;  // 槽首字节=组类型
-            remaining -= og.m_weight4;
-
-            // [b28d-solo-RandomRentalA2 P314/P50] ORIG 用默认构造迭代器 +
-            // `begin()+sel`（p167 MISSING `C1Ev`/`plERKi`/`deEv`；`+=` 形产 pLERKi+ixEj）。
             std::vector<OptionGroup>::iterator victim;
             victim = groupVec.begin() + sel;
+            // [K2ERandomBoss 2026-09-11] P167 差集：ORIG 2×`iterator::deEv`（同一
+            // victim 解引用两次）+ 无 `vector::ixEj`；原 `OptionGroup og = groupVec[sel]`
+            // 产 ixEj 且少 2 处 deEv。改为 `(*victim).m_fieldN` 直读同一迭代器。
+            opts->m_fields[slotI].m_field0 = (unsigned char)(*victim).m_type0;  // 槽首字节=组类型
+            remaining -= (*victim).m_weight4;
             groupVec.erase(victim);
 
             opts->m_fields[slotI].m_field1 =
@@ -1059,7 +1069,8 @@ static const int MAX_OPTION_VALUE = 100;
     unsigned char outGrade = 0;
     int err = 0;
     err = _get_option_type(itemIdx, rarity, level, grade, outGrade);
-    if (err != 0)
+    // [K2ERandomBoss 2026-09-11 P225] ORIG 0x085f1bef（call _get_option_type）后段 setne/test 物化形。
+    while (err != 0)
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -1076,7 +1087,8 @@ static const int MAX_OPTION_VALUE = 100;
     {
         err = RegenVer_get_option_quantity(rarity, grade, outGrade, level,
                                            quantity, roi);
-        if (err != 0)
+        // [K2ERandomBoss 2026-09-11 P225] 同上（ORIG 0x085f1cab call RegenVer_get_option_quantity 后段 setne/test）。
+        while (err != 0)
         {
             LogManager::logFormat(
                 1, "RandomOption.cpp",
@@ -1091,7 +1103,8 @@ static const int MAX_OPTION_VALUE = 100;
     else
     {
         err = _get_option_quantity(rarity, grade, outGrade, level, quantity);
-        if (err != 0)
+        // [K2ERandomBoss 2026-09-11 P225] 同上（ORIG 0x085f1d53 call _get_option_quantity 后段 setne/test）。
+        while (err != 0)
         {
             LogManager::logFormat(
                 1, "RandomOption.cpp",
@@ -1106,7 +1119,8 @@ static const int MAX_OPTION_VALUE = 100;
 
     int groupId = 0;
     err = _choose_option_group(rarity, grade, group, level, outGrade, groupId);
-    if (err != 0)
+    // [K2ERandomBoss 2026-09-11 P225] 同上（ORIG 0x085f1e05 call _choose_option_group 后段 setne/test）。
+    while (err != 0)
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -1169,13 +1183,12 @@ static const int MAX_OPTION_VALUE = 100;
                 .get_value();
         if (sel < groupVec.size())
         {
-            OptionGroup og = groupVec[sel];
-            opts->m_fields[slotI].m_field0 = (unsigned char)og.m_type0;
-            remaining -= og.m_weight4;
-
-            // [b28d-solo-RandomRentalA2 P314/P50] 同 give_option。
             std::vector<OptionGroup>::iterator victim;
             victim = groupVec.begin() + sel;
+            // [K2ERandomBoss 2026-09-11] P167 同 give_option：ORIG 同一 victim
+            // 解引用两次（deEv×2）、无 `vector::ixEj`。
+            opts->m_fields[slotI].m_field0 = (unsigned char)(*victim).m_type0;
+            remaining -= (*victim).m_weight4;
             groupVec.erase(victim);
 
             unsigned char v1;
@@ -1560,6 +1573,9 @@ static const int MAX_OPTION_VALUE = 100;
     // **残余 N86b 封顶**：比较段 ORIG `mov -0x1c(%ebp),%eax; cmp -0x18(%ebp),%eax; ja`
     // 单段 vs 我方两载入；尾 `mov -0x10(%ebp),%edx; add %edx,%eax` 两段 vs 我方
     // `add -0x10(%ebp),%eax` 折叠（r/acc 改 unsigned 实测反劣已回退）。语义完成。
+    // [K2ERandomBoss 2026-09-11 探针复核] /tmp/rr_probe_add.cpp 12 形在 446 后端
+    // 下全部折 `add mem,%eax` 单条 ⇒ 尾 ADD 两段为 4.1 独有；比较段两载为 4.4
+    // unsigned 槽比恒载寄存器（P209）⇒ 两段同判跨版本 N，维持封顶。
     // [SweepRandomRental 修正] ORIG 0x085f8e7b `mov $0xc,%ah; mov %ax,-0x40;
     // fldcw -0x40; fistpl`：控制字 RC=11 = **向零截断**（Ghidra 的 ROUND 系误标）。
     // 旧 ROUND(+0.5) 形在正/负小数上语义偏离 ⇒ 改回 (int) 截断。

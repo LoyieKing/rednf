@@ -186,6 +186,12 @@ struct ExchangeServerInfoMsgView
     // 分配方向，P212 头部声明法对带参 ctor 类不可用）；②ORIG push %ebx 将
     // session 形参跨 cMyTrace ctor 调用保活（`mov %ebx,0x8(%esp)`），4.4 恒在
     // 组参点重读形参槽（P75/N82附 多实参首值寄存器对调）——ndiff 22 封顶。
+    // [K2 2026-09-11 复核] fresh 165/166（NEAR）：唯一残差 = ①3 处 `lea -0x3f8a5(%ebp)`
+    // vs 我方 `-0x3f8a8`（CACHE_CHARACTER_TYPE 局部落 3 字节深：ORIG 槽基准为奇数 ⇒ 该
+    // 类型/局部对齐为 1，我方为 4/8 ⇒ **属 CacheCharacterType.h 侧（他人写域，已上报）**）；
+    // ②两处 SendResponseCharacInfo 实参装载角色（ORIG `mov -0x44,%ecx;…mov -0x1c,%ecx` vs
+    // 我方 `mov -0x44,%ebx; mov -0x1c,%ecx`，P200/P231 register 复本对「已物化 callee-saved
+    // 链」无效）⇒ N18a/N7 封顶。
     session->SetChannelNo(serverId);
     std::map<int, ExchangeServerInfo>::iterator it =
         m_serverMap.find(serverId);
@@ -367,6 +373,11 @@ struct ExchangeServerInfoMsgView
 // 真 bug 已修：GetCacheCharacter 实参 c→d。
 // 残差=块内局部槽向（pCache -0x34 vs -0x14、trace -0x30/-0x20 vs -0x2c/-0x3c，
 // N93 附）+ 1 条寄存器中转 mov 封顶。
+// [K2 2026-09-11 复核] 残差收窄为唯一 1 条（126/127）：`register bool valid` 的物化
+// 多 1 条 `mov %eax,%ebx`（ORIG 岛尾 `mov $0/$1,%eax` 后直接 `test %al,%al`）。
+// 探针 /tmp/k2p/boolmat.cpp v1..v7/w1..w5 八形实测：`if (a && b)` 四形全被 4.4
+// jump-thread（无岛）；要岛必须给具名变量 ⇒ 落槽形 +2、register 形 +1（无 0 成本形）
+// ⇒ N18a/N7 封顶。槽向残差已随 b28e 修消失（现两侧 -0x34/-0x30/-0x20 全等）。
 #include "ExchangeServer_Exchange/ReturnCacheCharacter.inc"
                                            bool e, CSession* session)
 {
@@ -952,12 +963,20 @@ struct ExchangeServerInfoMsgView
         }
         break;
     default:
-        // P226 裸语句表达式实测无效（4.4 仍 ctor 后读槽）⇒ 判 N7/N18a。
+    {
+        // [K2 2026-09-11] P231 纯 `register` 存储类提示（**非** asm 绑定，P0 合规）：
+        // ORIG 0x0849316b `mov -0x10(%ebp),%ebx` 在 cMyTrace ctor **之前**载入
+        // callee-saved 并跨 ctor 保活（对照 pktCode 的 `movzbl -0x9(%ebp),%ebx` 同形）。
+        // 探针 /tmp/k2p/hoist.cpp fD 实证：`register` 复本令 4.4 复现该提前装载；
+        // 对 pktType **本身**加 register 会消掉 ORIG 的 -0x10 槽（旧失败记录），
+        // 故只在 default 块内加复本，pktType 保持普通具名局部（槽 -0x10 不变）。
+        register int tracedType = pktType;
         cMyTrace("virtual int exchange_server::CExchangeServer::"
                  "DispatchPacket(exchange_server::CSession*, "
                  "char*, int)", 0x330, 0)
-            ("unknown packet type %d", pktType);
+            ("unknown packet type %d", tracedType);
         break;
+    }
     }
     return 0;
 }
@@ -1015,7 +1034,7 @@ struct ExchangeServerInfoMsgView
             cMyTrace("int exchange_server::CExchangeServer::"
                      "OnRecvMessageServerInfo(Stream*, int, int)", 0x34b, 0)
                 ("different server port (%d,%d) ",
-                 (int)(short)m_port08, (int)(short)sig->m_port0e);
+                 (int)(short)sig->m_port0e, (int)(short)m_port08);
         }
         SetServerType(EXCHANGE_SERVER_MASTER);
     }

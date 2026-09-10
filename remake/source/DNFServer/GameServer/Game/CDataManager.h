@@ -3642,7 +3642,11 @@ public:
                                        const std::vector<int>& emoticons);
     bool hasPreventString(const char* name);
     bool hasPreventStringName(const char* name);
-    int hasPreventPrefixCharacName(const char* name, int unused);
+    bool hasPreventPrefixCharacName(const char* name, int unused);   // [K6 2026-09-11·P292 档①]
+                                                                     // int→bool：ORIG 调用点 0x081c6b30
+                                                                     // `call; test %al,%al; je 0x081c6b37`
+                                                                     // （裸 bool 直判）；返回类型不入 mangling
+                                                                     // ⇒ 符号名/sizeof/成员偏移零变化。
     bool hasSpecialCharacter(const char* name);
     bool hasSpecialCharacterExceptSpace(const char* name);
     char* _subPunctuationMark(const char* src, char* dst);

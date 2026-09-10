@@ -509,7 +509,10 @@ __attribute__((weak)) TimerCheckConn::~TimerCheckConn() throw() {}
                 // P227：ORIG 08632d72 movswl→%esi（count）、08632d80 getCurCharacName→%ebx
                 // 均在 ctor 之前求值保活。
                 cMyTrace(__PRETTY_FUNCTION__, 0x3bc, 0)(
-                    "User %s - no response %dth ping.", user->getCurCharacName(),
+                    // [LeaTimer28Run 2026-09-11 · §6.5 串盲区] ORIG .rodata 实字节无句点
+                    // （`User %s - no response %dth ping\0`，objdump -s 实证）；
+                    // 旧源码多一个 '.' ⇒ 运行期日志文本与 ORIG 不同。
+                    "User %s - no response %dth ping", user->getCurCharacName(),
                     static_cast<int>(user->get_connect_count()));
                 // P0：ORIG 08632ddc `mov %eax,-0x1c(%ebp); mov -0x1c(%ebp),%eax` 槽往返
                 // ⇒ 原码有具名局部（旧码内联实参少 2 条）。
@@ -3014,6 +3017,17 @@ __attribute__((weak)) TimerFinishItemEffect::~TimerFinishItemEffect() throw() {}
     if (items == NULL)
         return 0;
 
+    // [LeaTimer28Run 2026-09-11] P248 档②·局部 unsigned 镜像视图：ORIG 0x08637b7e 段
+    // `mov (%eax),%edx; mov 0x10(%ebp),%eax; cmp %eax,%edx; sete %al` 要求字段侧
+    // **unsigned**（4.4 对 int 字段 + int 形参恒折单段内存直比 `cmp 0x10(%ebp),%eax`）。
+    // 探针 /tmp/lea_probe2.cpp f_m 实证：`reinterpret_cast<const ContU*>(&v[i])->m_itemIdx
+    // == (unsigned)p2` 逐条复现 ORIG 形、零额外指令；m_itemIdx 偏移 +0x00（头定义不变）。
+    struct ContinuousItemIdxView
+    {
+        unsigned int m_itemIdx;     // +0x00（ContinuousItemInfo::m_itemIdx 的 unsigned 视角）
+        unsigned int m_expireTime;  // +0x04
+    };
+
     // 循环条件每次迭代重新取 size()（ORIG +0x290 seta 无符号比较）。
     // [b28d-solo-TimerDispatcher] P157：p167 差集 MISSING = const operator[] ×2
     // （ORIG 对 m_itemIdx/m_expireTime 每次重发 `(*items)[i]`，无 entry 引用缓存）。
@@ -3024,7 +3038,8 @@ __attribute__((weak)) TimerFinishItemEffect::~TimerFinishItemEffect() throw() {}
         // **正向包裹**原形（Ghidra C 同形：`if (*piVar4 == param_2) {…}`）。旧码
         // `if (idx != p2) continue;` 产 `setne; jne` + 单段内存直比（ndiff 5 行）。
         // 探针 /tmp/td_p4.cpp：a1(`!=` 早返)⇒setne/jne；a2(`==` 正向包裹)⇒sete/je。
-        if ((*items)[i].m_itemIdx == p2)
+        if (reinterpret_cast<const ContinuousItemIdxView*>(&(*items)[i])->m_itemIdx ==
+            static_cast<unsigned int>(p2))
         {
             PacketGuard packet;              // ORIG try 区 0x8637bb1..0x8637cfd
             packet.put_header(0, 0xae);
@@ -4121,7 +4136,10 @@ __attribute__((weak)) Timer_DungeonInoutOpenTime::~Timer_DungeonInoutOpenTime() 
         // [S1 实验] ORIG 0863a0a6 前段 `mov -0x78(%ebp),%ebx`（curT 跨 cMyTrace ctor
         // 保活，实参位 0x10(%esp) 读 ebx）⇒ P227 全表达式临时链形；旧码具名两语句。
         cMyTrace(__PRETTY_FUNCTION__, 0x1462, 0)(
-            "DELTA %d , CHECK_T %d , CUR_T %d\\n", delta, checkT, curT);
+            // [LeaTimer28Run 2026-09-11 · §6.5 串盲区] ORIG .rodata 实字节以 0x0a 结尾
+            // （objdump -s 实证 `...CUR_T %d\n\0`）；旧源码写字面 `\\n`（反斜杠+n 两字符）
+            // ⇒ 运行期日志尾多打一个字面 `\n`。与 0x1462 同族 site 一致化。
+            "DELTA %d , CHECK_T %d , CUR_T %d\n", delta, checkT, curT);
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x94, delta, 0, dungeonIdx);
         cMyTrace traceClose(__PRETTY_FUNCTION__,

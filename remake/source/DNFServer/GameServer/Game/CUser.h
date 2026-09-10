@@ -3041,7 +3041,10 @@ public:
     void sendDecorationObjectCnt(short count);
 
     // ---- 角色选择 / 登录数据 ----
-    int SelectCharac(int slot, int param);
+    // [K7CUserOnlyOrig 2026-09-11 · P174 串定] ORIG .rodata 实串 `bool CUser::SelectCharac(int, int)`
+    //   （我方旧串 `int ...` 在 ORIG 内不存在）⇒ bool。返回类型不入 mangled，符号/布局零影响；
+    //   消费点 InterDispatcher.cpp:1908 忽略返回值、CUserOnlyOrig 定义侧同刻改。
+    bool SelectCharac(int slot, int param);
     int CreateCharac(SIG_CREATE_CHARAC* data);
     void DeleteCharac(unsigned int characNo);   // ORIG Ghidra: return; (void)
     void GiveItemsReturnUser();         // ORIG T 0x08692000
@@ -3728,7 +3731,9 @@ public:
     void rewardExp(int expBase, int& bonusA, int& bonusB, int& spBefore, int& spAfter, ::eExpAddReason reason, bool triggerGrowth);   // ORIG _ZN5CUser9rewardExpEiRiS0_S0_S0_13eExpAddReasonb（全局 13 前缀，非嵌套）
     void SaveBackupSkillInfo(SIG_LOAD_PREMIUM_LETHE* src, ENUM_SKILL_TREE_KIND kind);
     void saveCharacLinkMessageFlag(bool flag);
-    unsigned int SaveInventoryOnly();
+    // [K7CUserOnlyOrig 2026-09-11 · P174 串定] ORIG 实串 `bool CUser::SaveInventoryOnly()`
+    //   ⇒ bool；消费点 CUser.cpp:7478 忽略返回值（语句调用）。
+    bool SaveInventoryOnly();
     unsigned int SaveMercenaryData();
     void SaveMileage();
     	                             // select_charac_set_visible_values 已在头(2397)跳过
@@ -3805,7 +3810,9 @@ public:
         // P292/T3 返回 bool：ORIG 消费点 0x084c360b `call; xor $0x1,%eax; test %al,%al; je`
         // （无 setcc）；mangled 不含非模板返回类型（定义侧 CUserOnlyOrig.cpp:7267 同步）。
         bool setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* data);   // @0x08690098
-        int  setTagCharacInven(TAG_CHARAC_INVEN_DATA* data);                // @0x08690226
+        // [K7CUserOnlyOrig 2026-09-11 · P174 串定] ORIG 实串 `bool CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA*)`
+        //   ⇒ bool；消费点 InterDispatcher.cpp:2177 用 `!` 取反（bool 语义），:18448 忽略。
+        bool setTagCharacInven(TAG_CHARAC_INVEN_DATA* data);                // @0x08690226
         void SetTradePunishOverThirtyDays(bool flag);                       // @0x08689850
         void setUsedBreakAwayLuckPoint(bool flag);                          // @0x086971ee W(isUsedBreakAwayLuckPoint 头已有)
         // ---- 嵌套类 st_monstorkill（ORIG CUser::st_monstorkill::Check @0x0823049c

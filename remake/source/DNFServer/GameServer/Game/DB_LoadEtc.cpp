@@ -542,6 +542,11 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
         return false;
     }
     unsigned int srcLen = db->get_binary_length(0);
+    // [K2ADBLogin 2026-09-11] 负结论（本波实测）：ORIG 0x08406c88 的 dst 形
+    //   `mov 0xc(%ebp),%eax; add $0x40ce,%eax`（原地 add、结果留 %eax）源侧两种写法
+    //   均不可复现——成员数组退化与显式指针算术 `(char*)sig + 0x40ce` 都产
+    //   `lea 0x40ce(%eax),%edx`（4.4 地址生成恒 lea + 结果入 %edx）⇒ N107 反向
+    //   （ORIG add / 4.4 lea）+ N7 寄存器角色，判封顶（读数 161/161 不变）。
     if (!uncompress_zip(sig->m_expandData6, outLen, blob, srcLen))
     {
         return false;
@@ -662,6 +667,8 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
     }
     unsigned int srcLen = db->get_binary_length(0);
     unsigned int outLen = 0x1800;      // ORIG 0x08406531：srcLen 之后才初始化
+    // [K2ADBLogin 2026-09-11] 负结论（同 LoadRedeemItem）：显式指针算术形实测
+    //   仍产 `lea 0xb1a4(%eax),%edx`（ORIG 为 `add $0xb1a4,%eax`）⇒ N107 反向封顶。
     if (!uncompress_zip(sig->m_expandDataF, outLen, blob, srcLen))
     {
         return false;
@@ -1795,20 +1802,15 @@ struct SigLoadEtcBestClearTimeView
 
     for (int col = 0; col <= 0xa; ++col)                     // cmpl $0xa setle → ≤10
     {
-        // ORIG 地址式：sig + 0x10 + (col + 0x6b78)*2 = +0xd700 + col×2。
-        // [b28d-solo-DB_LoadEtc] 成员数组**基址在 +0x10**、索引含常量 0x6b78
-        // （而非基址 0 + 索引 0x6b80）——4.4 保留独立的 `add $0x10,%eax`
-        // （P30/P311 两步寻址；基址 0 形恒被折进索引常量 0x6b80）。
-        // 字节视图 + 显式 ×2 索引，`+0x10` 后置：ORIG 形 `add $0x6b78; add %eax,%eax;
-        // add sig; add $0x10`（5 条）。4.4 恒把 0x10 折进索引常量（`add $0x6b80`）
-        // 并令 base 用 eax、索引用 edx ⇒ 残余 = N1 两步常量折叠族（已试 4 形，
-        // 旧式元素型数组会额外多 1 条 `add $0x8`）。
-        struct ItemMakingSkillView
-        {
-            char m_bytes[(0x6b78 + 11) * 2 + 0x10];
-        };
-        ok = db->get_short(col, *reinterpret_cast<short*>(
-                &((ItemMakingSkillView*)sig)->m_bytes[(0x6b78 + col) * 2] + 0x10));
+        // ORIG 地址式 0x084041f0：`mov -0xc(%ebp),%eax; add $0x6b78,%eax;
+        //   add %eax,%eax; add 0xc(%ebp),%eax; add $0x10,%eax`（index 先、base 后、
+        //   成员偏移 +0x10 独立一条，共 5 条）⇒ 等价 +0xd700 + col*2。
+        // [K2ADBLogin 2026-09-11] 改 **完整类型成员直访问** `sig->m_itemMakingSkill[col]`
+        //   （P235/§4.3 真实成员优先于自造视图）后 base-first 反序翻正为 index-first，
+        //   读数 118/118 → ours 117（旧指针 cast 视图形为 base-first 5 行失配）。
+        // 残差：`add $0x6b80`（0x10 折进索引常量）vs ORIG `add $0x6b78`+`add $0x10`
+        //   两步 ⇒ N1 两步常量折叠族（4.4 代数化简不可关；已试元素型数组/双视图 4 形）。
+        ok = db->get_short(col, reinterpret_cast<short&>(sig->m_itemMakingSkill[col]));
         if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x15f2, 5)(

@@ -11,13 +11,14 @@ int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& p
         return 0x11;
     }
     // GetNeedMaterial() 返回 +0x24 处 pair<int,int>*（item idx, 数量），ORIG 读两 int
-    // [G5-MiscC] ORIG 0x081be6a5 只调用一次、结果直接在 %eax 上被取走两 int：
-    // `mov 0x4(%eax),%edx; mov (%eax),%eax`（单一 disp，无 add）⇒ 指针视图按
-    // pair 访问（原 `const int*` + `[1]` 在 4.4 生成 `add $0x4,%eax` 两步寻址）。
-    std::pair<int, int>* needMaterial =
-        reinterpret_cast<std::pair<int, int>*>(param.m_a8->GetNeedMaterial());
-    param.m_pair.first = needMaterial->first;
-    param.m_pair.second = needMaterial->second;
+    // [DpcMisc-P2 2026-09-11] ORIG 0x081be6a5-0x081be6bc 只调用一次、无任何具名指针槽：
+    //   `call GetNeedMaterial; mov 0x14(%ebp),%ecx; mov 0x4(%eax),%edx; mov (%eax),%eax;
+    //    mov %eax,0x98(%ecx); mov %edx,0x9c(%ecx)`
+    // （dest=param 缓存 %ecx + 两读交错 = 4.1 的 8 字节块拷贝形）⇒ 原码是**结构整体赋值**
+    // 而非「具名指针 + 逐字段访问」；旧形 `std::pair<int,int>* needMaterial = …` 在 4.4
+    // 生成 -0x14 槽 + 3 次槽回读（共 6 条额外指令，本件 gap=+10 的主要来源）。
+    param.m_pair =
+        *reinterpret_cast<std::pair<int, int>*>(param.m_a8->GetNeedMaterial());
     if (param.m_pair.first != -1)
     {
         // [G5-MiscC] P0/P183：ORIG 0x081be6d3 `lea 0x41(%eax),%esi`（&m_resultItem）/

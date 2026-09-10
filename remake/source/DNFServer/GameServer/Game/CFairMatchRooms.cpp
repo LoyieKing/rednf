@@ -143,6 +143,8 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // （return 4）、case3→0x8562b5e（return 0）——与本实现 case 0/3/1/4/5/2+default
 // 逐项一致；`pc >= X*2`（setge）/`total > X*2`（setg）差一亦一致。
 // 余 1 条跳表重定位伪差。call 差集 8=8 CLEAR。fresh ndiff=4（85=85）。
+// [GW20Run 2026-09-11 复核] fresh 85/85；ORIG 0x08562a6e 段 `cmp %eax,%ebx; setge`
+// /`setg` 与报告逐条一致、掩码/立即数无差；p167 8=8 CLEAR、enc_kr_scan 0 ⇒ 维持 N196。
 #include "CFairMatchRooms/CheckJoinable.inc"
 {
     if (!CheckUnusableEquipmentInUser(user))
@@ -779,6 +781,8 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 //      （Ghidra C `_MoveRoom(this,param_1,local_84,…)`）⇒ `_MoveRoom(room, moveTarget, …)`；
 //   ⑫ P227/P87：CSwitchLog 改全表达式临时链 + 用 GetUserName 返回值（ORIG `mov %eax,%ebx`
 //      跨 ctor 保活后 `mov %ebx,0xc(%esp)`，%s 实参是返回值非数组名）。
+// [GW20Run 2026-09-11 复核] fresh 500/500（NEAR）；p167 50=50 仅 CSwitchLog C1/C2、
+// PacketGuard C1/C2·D1/D2、cMyTrace C1/C2 同址别名 ⇒ 无语义缺口，余槽组差封顶。
 #include "CFairMatchRooms/OnMatchRoom.inc"
 {
     if (m_matchNotifyId != notifyId) {
@@ -911,6 +915,9 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // setbe）后仅剩 CSwitchLog varargs 的 esi↔edi 分配互换（ORIG 第1值→esi/第2→edi，
 // 4.4 反之）+ 对应压栈序（4 行 NEAR，113=113）。跨版本 callee-saved 分配不可择
 // （P75/N82附）⇒ 封顶。call 差集 11=11 CLEAR。
+// [GW20Run 2026-09-11 复核] fresh 116/116；ORIG 0x08564dfa 段 %esi=waiterCount /
+// %edi=pvp_battle_mode，我方两 callee-saved 角色互换（CLog 实参序随之）⇒ 跨版本
+// 分配差；p167 11=11 别名 ⇒ 维持。
 #include "CFairMatchRooms/_ReturnTeam.inc"
 {
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链（_PullOutRoom 实证同族）。
@@ -961,6 +968,9 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // P212「全头部声明 + 块内仅赋值」把 killCnt 提出块外 ⇒ 深槽号零改善、
 // 本函数 ndiff 6→8 反劣（已回滚）。⇒ P223 定案③「4.4 岛数 = 条件数或 0」
 // 成立，N121 封顶维持。
+// [GW20Run 2026-09-11 复核] fresh 158/157；ORIG-only 1 条 = 0x08565f73 冗余
+// `jmp 08565f76`（落点=下一指令；4.1 `break` 产物），4.4 恒 jump-thread 合并；
+// p167 10=10 别名、enc_kr_scan 0 ⇒ 维持 N121。
 #include "CFairMatchRooms/_PullOutRoomTeam.inc"
 {
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链（_PullOutRoom 实证同族）。
@@ -1020,6 +1030,9 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // team/room 走 %edx。unsigned team / `*&team` 两形实测均引 push %ebx（fnptr 落
 // %ebx 而非 ORIG %ecx）⇒ 净负回退。槽位集全等、call 差集 2=2 CLEAR。封顶。
 // fresh ndiff=5（33=33 NEAR）。
+// [GW20Run 2026-09-11 复核] fresh 33/33；ORIG 0x08564fec 先物化第 4 参 team(-0x10)→%eax
+// 再压 seat/room，4.4 先物化 userSeat(-0xc)→%eax；P231 register 形历史实测反劣
+// （33→35，NEAR→DIFF）已回滚；p167 2=2 CLEAR ⇒ 维持 N82附。
 #include "CFairMatchRooms/OnWalkOut.inc"
 {
     // [b28f-SweepCFairMatch 负结论] P231 纯 register 试形（翻转 5 实参装载序）
@@ -1216,6 +1229,9 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // -0x30→-0x3c、push_back this=-0x3c）；P183 去 sps/score 缓存、P3 `cmp $1,%al`、
 // dailyLimit 表达式内联、P135 push_back(O&&)。残 3 = N121 epilogue 尾岛
 // （我方多 `jmp+nop`）。p167 49=49 CLEAR。
+// [GW20Run 2026-09-11 复核] fresh 274/276；OURS-only 2 条 = EH cleanup 尾
+// `jmp <出口>; nop`（ORIG 0x085656f5 `jmp $+2` 直落 + 0x085656ff nop）⇒ N91/N104；
+// p167 49=49 全为 C1/C2·D1/D2 别名、enc_kr_scan 0 ⇒ 维持。
 #include "CFairMatchRooms/GiveTrainingSeal.inc"
 {
     if (user->getCurCharacR() == 0)
@@ -1443,6 +1459,9 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // cmp $1; jle; cmp $2; je; jmp` 形参载入 + 寄存器比较链）；P227 链式。残 = 伪差 +
 // 1 处 `m_teams[myTeam].m_field04=decision` 的 `add $0x20` vs `lea 0x20`（N107 族）；
 // call 差集 41=41 CLEAR。
+// [GW20Run 2026-09-11 复核] fresh 321/321；唯一实质差 = ORIG 0x085666b0
+// `add $0x20,%eax` vs 我方 0x…`lea 0x20(%eax),%edx`（N107 反向族，P211 档③已试零效）
+// + 尾 nop 豁免；p167 41=41 别名 ⇒ 维持。
 #include "CFairMatchRooms/OnAskRematch.inc"
 {
     PvP_Room* room = static_cast<PvP_Room*>(user->GetPVPRoom());

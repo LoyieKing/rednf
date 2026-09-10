@@ -451,13 +451,20 @@ public:
     virtual void dispatch(void* arg);          // ORIG T 0x0857d5be（线程体：epoll 收包）
 };
 
+// [K8GlobalData 2026-09-11 · P174 串定返回类型] ORIG .rodata 0x08ca9040 =
+// 'SOCKET UdpThread::_bindUDPSocket(short unsigned int)'（_ZZN9UdpThread14_bindUDPSocketEtE
+// 19__PRETTY_FUNCTION__ 符号直证，0x0857c3be 段 5 处 logFormat 引用）⇒ 原码返回类型
+// 拼写为 SOCKET（= int，见 ServerLab stdafx.h:22；本 .cpp 未 include 该头，故就地
+// 补等价 typedef —— C++ 允许多次 typedef 同名同型）。
+typedef int SOCKET;
+
 class UdpThread : public ThreadInterface
 {
 public:
     UdpThread();
     virtual void dispatch(void* arg);          // ORIG 0x0857c9de（线程体：bind + select/recv 循环）
 private:
-    int _bindUDPSocket(unsigned short port);   // ORIG 0x0857c3be
+    SOCKET _bindUDPSocket(unsigned short port);   // ORIG 0x0857c3be
     void _processUDPData(char* data, int len); // ORIG 0x0857c5a4
 };
 
@@ -812,14 +819,18 @@ struct tagCS_UPDATE_CHANNEL_INFO
         {
             return 0;
         }
-        cMyTrace(__FUNCTION__, 0x114, 0)(
+        // [K8GlobalData 2026-09-11 · §6.5 串盲区] ORIG .rodata 0x8b44000 =
+        // 'int CmmChannelProxy::RecvPacket()'（0x0810661d/0x08106687 两处
+        // `movl $0x8b44000,0x4(%esp)` 直证）⇒ 原码用 __PRETTY_FUNCTION__，
+        // 原写法 __FUNCTION__ 只产裸 'RecvPacket'。
+        cMyTrace(__PRETTY_FUNCTION__, 0x114, 0)(
             "RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
             m_sock, errno, strerror(errno));
         return -1;
     }
     if (nread == 0)
     {
-        cMyTrace(__FUNCTION__, 0x11a, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x11a, 0)(
             "Recv ERROR = 0 (%d) : %s, MaxRead(%d) nRead(%d)",
             errno, strerror(errno), 0x80000, nread);
         return -1;
@@ -2293,15 +2304,21 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
     // [GDataWriter 2026-09-11 第 2 试负结论] 把数组 sockets 提到 maxfd 之前声明
     // ⇒ timeval 反被顶到 -0x48（`movl $0x1,-0x48`），更劣。4.4 聚合优先占低槽
     // （N82附）不可由声明序翻 ⇒ sockets(-0x48)↔maxfd(-0x3c) 互换封顶。
-    int maxfd;
+    // [K8GlobalData 2026-09-11 试验] 现状残差=纯槽位互换：ORIG sockets[0]/nUnusedA
+    // 在 -0x3c/-0x38、maxfd 在 -0x48；我方 sockets[0]/nUnusedA 在 -0x48/-0x44、
+    // maxfd 在 -0x3c ⇒ 把 maxfd 移到最后声明，观察是否整块互换归位。
     int nUnusedA;
     int recvLen;
     int nUnusedB;
     int nfds;
     char buf[0x1800];
     fd_set readfds;
-    struct timeval timeout;
+    // [K8GlobalData 2026-09-11 试验②] 试①（maxfd 移末）已使 maxfd 归位 -0x48
+    // 且 ndiff 26→20；剩 sockets(-0x44) 与 timeout(-0x40/-0x3c) 相对序与原码相反
+    // （ORIG sockets@-0x3c 浅于 timeout@-0x44/-0x40）⇒ 交换 sockets/timeout 声明序。
     int sockets[1];
+    struct timeval timeout;
+    int maxfd;
 
     // [P171] ORIG 0x0857c9ea `movl $0x1,-0x38(%ebp)` 与 0x0857ca1a
     // `movl $0x0,-0x30(%ebp)`：两处只写不读的具名 dead 标量（全函数无第二
@@ -2317,9 +2334,13 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
         // [L8] 槽序：ORIG p(-0x24)/i(-0x28)；且 ORIG 尾测为 `cmpl $0x1f,-0x28;
         // setbe`（**无符号**比较）⇒ 计数变量须 unsigned（我方 int 版产 setle）。
         unsigned int fi;
-        int* fdBits = (int*)&readfds;
+        // [K8GlobalData 2026-09-11 · P291/P288 同 RecvPacket 实证] ORIG 0x0857ca56
+        // 循环体为 `mov -0x28(%ebp),%edx; mov -0x24(%ebp),%eax; movl $0x0,(%eax,%edx,4)`
+        // （scaled 直存，3 条）；旧 `int* fdBits = (int*)&readfds` 视角恒折
+        // `shl $2; add`（4 条）⇒ 改具名 `fd_set* fds` + `__FDS_BITS(fds)[fi]`。
+        fd_set* fds = &readfds;
         for (fi = 0; fi <= 0x1f; ++fi)
-            fdBits[fi] = 0;
+            __FDS_BITS(fds)[fi] = 0;
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
         maxfd = 0;
@@ -3637,6 +3658,16 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
         // cMyTrace ctor **前**提升到 callee-saved（跨 ctor 保活）；ORIG 同时保活
         // %ebx(strerror)/%edi(errno)/%esi(ret) 三值 ⇒ 4.4 缺 %edi 保留。试**纯
         // register** 存储类提示（P231/P307，非 asm 绑定）令 ret 免槽+升格。
+        // [K8GlobalData 2026-09-11 · 负结论，勿重烧] ORIG 0x084718e2 段确为
+        // `mov %eax,-0x1c(%ebp); cmpl $0x0,-0x1c(%ebp); setne %al; test %al,%al;
+        // je`（r 有具名槽 + bool 物化两尾）且 0x08471985 `mov -0x1c(%ebp),%esi`
+        // 跨 cMyTrace ctor 读回同槽。本轮三形穷举均不成立（每次私有 .o 复编实测）：
+        //   ① `register int ret` + `(bool)((ret=f())!=0)`：72 条/ndiff 19（最佳，保留）
+        //   ② 去 register（int ret）+ 赋值独立语句 + `if (ret != 0)`：70 条/ndiff 24
+        //      ⇒ 4.4 仍把槽改到 -0xc 且免 setne/test；
+        //   ③ ② + `if ((bool)(ret != 0))`：70 条/ndiff 24（4.4 对 bool cast 亦折叠）。
+        // 残差 4 项（push/pop %edi + setne/test + 帧 0x4c vs 0x40 + r 槽 -0x1c vs -0xc）
+        // 全部为 4.1/4.4 分配与物化差异，无源码形可翻 ⇒ N80/N82 封顶。
         register int ret;
         // ORIG 0x0847196d..0x084719c5（临时链式实证）：4.1 在 cMyTrace ctor
         // call 之前先按右起序求 varargs 并全部落 callee-saved —— 0x0847197c
@@ -3676,7 +3707,11 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
     if (m_socketState != ENUM_SOCKET_STATE_CONNECTED)
     {
         cMyTrace trace(__FUNCTION__, 0x138, 0);
-        trace("cannot send packet because PCRoom Server is disconnected.");
+        // [K8GlobalData 2026-09-11 · §6.5 串盲区] ORIG .rodata 0x8c6bd9c =
+        // 'cannot send packet because PCRoom Server is disconnected'（**无句点**），
+        // 0x08471a32 段 `movl $0x8c6bd9c,0x4(%esp)` 直证（另 0x8c6cc7c='SendTcpPacket'
+        // 证明此处用 __FUNCTION__ 正确）。
+        trace("cannot send packet because PCRoom Server is disconnected");
         return;
     }
     m_tcp.send_packet(data, len);
@@ -4710,6 +4745,13 @@ const char* const kPrettyResultOutput =
     // ⇒ 取址视图不可用；ORIG 0x08179e2x 的两段直读
     // （`mov -0x150(%ebp),%eax; mov -0x14c(%ebp),%edx; mov %eax,-0x36; mov %edx,-0x32`）
     // 对 4.4 的 `uid >> 32`（多 `mov %edx,%eax; xor %edx,%edx`）不可复现，维持原形记 N92 族。
+    // [K8GlobalData 2026-09-11 · 负结论，勿重烧] ORIG 0x08179e2x 的 8 字节直拷
+    // （`mov -0x150,%eax; mov -0x14c,%edx; mov %eax,-0x36; mov %edx,-0x32`）实测
+    // **不可由本 TU 源码形复现**：`memcpy(&m_tranNoLow,&uid,8)` 在 4.4 -O0 下
+    // 退化为 **call memcpy**（`movl $0x8,0x8(%esp); lea -0x150; lea -0x13b+0x105;
+    // call`）⇒ ndiff 10→**14**（328 条）。结合已作废的 `((const unsigned int*)&uid)[i]`
+    // 视图（反多 lea×2+add），维持两段 int 赋值原形（ndiff 10：`uid>>32` 多
+    // `mov %edx,%eax; xor %edx,%edx` 两条 + GetPuUser 处 1 条 sete）⇒ 记 N92/P22。
     rec.m_tranNoLow = (int)(unsigned int)uid;                    // ORIG -0x36 = 0x28(%ebp)
     rec.m_tranNoHigh = (int)(unsigned int)(uid >> 32);           // ORIG -0x32 = 0x2c(%ebp)
     rec.m_buyType = payFlag;                                     // ORIG -0x2e = 0x30(%ebp)
@@ -4720,6 +4762,14 @@ const char* const kPrettyResultOutput =
     // PuUser 标志：ORIG 08179e56..08179e73（BillingRecord.md）`call GetPuUser;
     // xor $0x1,%eax; test %al,%al; je skip` → 非 1（未认证）时补存（P22 bool 取反
     // xor 形态；原实现判定极性相反，按报告修正）。
+    // [K8GlobalData 2026-09-11 · 类型轴 N（K4CUser 裁决）] 本条残差 1 条 sete
+    // （我方 `test %al,%al; sete %al` vs ORIG `xor $0x1,%eax`）**禁止**通过改
+    // `CUser::GetPuUser()` 返回类型消除：ORIG 本体 0x08692b74 为
+    // `mov 0x8(%ebp),%eax; movzbl 0x796d8(%eax),%eax; ret`（无 testb/setne，生产端
+    // 形同 uchar 直返），且探针（4.4.7 -m32 -O0 /tmp/pu_probe.cpp）证 `bool g(S*)
+    // { return s->f; }`（f=unsigned char）恒 +2 条 ⇒ 改 bool 反使 identical 掉级；
+    // 字段亦不可 bool 化（InterDispatcher.cpp:18163 可写 >1）。按 P321 T3（两端
+    // 矛盾 ⇒ ORIG 声明自不一致）记 N。
     if (!user->GetPuUser())
         DB_SavePuUserCheck::makeRequest(user->get_acc_id());
 }
@@ -5434,6 +5484,11 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
         }
         break;
     }
+    // [K8GlobalData 2026-09-11 · 负结论，勿重烧] 残差 1 条 jmp（我方 151 vs
+    // ORIG 150，ORIG-only=- / OURS-only={'jmp':1}）实测**不可翻**：把
+    // `if (done) {…}` 改负极性早退 `if (!done) return;`（body 直落 epilogue）
+    // ⇒ 实测 154→**158**（反劣：早退点自身需 jmp，且 EH 清理块外提）。
+    // 维持原形，余 1 条记 N121（4.4 epilogue-threading）。
     if (done)
     {
         PacketGuard guard;
@@ -5489,7 +5544,11 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
         // ctor **之前**全部求值（m_host/-0x40、m_port/-0x3c、m_db/%edi、
         // m_user/%esi、first/%ebx），随后 ctor + operator() ⇒ 源形是单语句
         // 临时链 `cMyTrace(...)(...)`，不是具名对象两语句。
-        cMyTrace("CDBConnector::Connect", 0x4e, 9, true, true)
+        // [K8GlobalData 2026-09-11 · §6.5 串盲区] ORIG .rodata 0x8b36340 =
+        // 'bool CDBConnector::Connect(DBConnInfo)'（0x080ec760 段直证）——原写法
+        // 裸 "CDBConnector::Connect" 与 ORIG 串首参不符（ORIG 侧为 __PRETTY_FUNCTION__，
+        // 其 typedef 名 DBConnInfo 与本地 DBInfoMap 不同，故按 ORIG 字节写字面量）。
+        cMyTrace("bool CDBConnector::Connect(DBConnInfo)", 0x4e, 9, true, true)
             // [GlobalData-判据①] 实参序照 ORIG 0x080ec7c8(+0x46=db)/0x080ec7d9
             // (+0x1c=user)：ORIG 先算 arg5=it->second.m_db(+0x46)、再 arg4=
             // it->second.m_user(+0x1c) ⇒ 原码 arg4/arg5 为 (user, db)；旧写法
@@ -7213,6 +7272,14 @@ void* GlobalData::s_pAvatarRoulette = 0;
 
 // [b28d-18 N82] p167 CLEAR（36/36）；残差=槽位分配（ORIG -0x44/-0x48/-0x50 vs 4.4 -0x30/-0x18/-0x20） | ORIG 0x0829dd82
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（36/36）；残差=N82 槽位/寄存器 + N89 STL 展开。
+// [K8GlobalData 2026-09-11 · §6.5 串盲区 + P245/P281 反馈] ORIG prett 实串
+// `static bool GlobalData::initTournamentDB(const char*)`（符号
+// _ZZN10GlobalData16initTournamentDBEPKcE19__PRETTY_FUNCTION__@0x08c1b100）；ORIG
+// 0x0829dddb `mov 0x8(%ebp),%eax; mov %eax,0x4(%esp)` 直证 0x8(%ebp) 已是第 1 实参
+// （无 this）⇒ ORIG 侧是**类静态成员**。**父泳道裁决：本轮不落（N）** —— 本仓
+// GlobalData 为 namespace 形态（类化重构超范围）；在 namespace 内加 `static` 会变
+// 内部链接（_ZL… 与 ORIG 不符、TU 外不可见），成本远超收益（仅日志文本）⇒
+// prett 串差 `static` 字样 = namespace 形态固有；槽位残差按原 N82/N89 结论封顶。
 #include "GlobalData/initTournamentDB.inc"
 {
     typedef std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> > GroupNameMap;
@@ -7297,6 +7364,12 @@ void* GlobalData::s_pAvatarRoulette = 0;
 //      = ORIG 侧不可达死块；P337 家族，可用恒 0 `volatile bool` 守卫强制发射复现，本轮未做）；
 //      我方同行发 `je`（该块可达）。其余为 N82/N126 槽平移（-0x35c vs -0x2bc 等）+
 //      N89（4.1 对本 TU 用到的 vector/map operator[]/size 发 out-of-line 静态实例）。
+// [K8GlobalData 2026-09-11 · §6.5 串盲区 + P245/P281 反馈] ORIG prett 实串
+// `static bool GlobalData::Init()`（符号 _ZZN10GlobalData4InitEvE19__PRETTY_FUNCTION__）
+// + ORIG 0x0829fa0 段全程无 `mov 0x8(%ebp)` 取 this ⇒ ORIG 侧是类静态成员。
+// **父泳道裁决：本轮不落（N）** —— namespace 形态固有（类化重构超范围；namespace
+// 内 static 变 _ZL… 内部链接反而制造符号差）⇒ prett 串差 `static` 字样记 N；
+// 3139/3140 的槽位/尾岛残差维持原 N89/N126 结论。
 #include "GlobalData/Init_3.inc"
 {
     s_server_stop = false;

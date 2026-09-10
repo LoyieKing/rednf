@@ -94,7 +94,7 @@ public:
     ~SECRET_SHOP_DATA();
     void clear();
     int IsCompleteBuy();
-    int IsOpen();
+    bool IsOpen();
     void SetBuying(int idx, bool buy);
 
     int m_openCode;              // +0x00

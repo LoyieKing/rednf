@@ -114,7 +114,7 @@ public:
 //   [7] send                                   ← 本模板新增虚函数
 // 模板 C1 实证（0x85982b2）：调 IDispatcher::C1 后写本实例化 vptr，空体。
 // ---------------------------------------------------------------------------
-template <class MSG, class Param, ch_state state>
+template <class MSG_TYPE, class PARAM_TYPE, ch_state STATE>
 class IPacketDispatcher : public IDispatcher
 {
 public:
@@ -131,33 +131,37 @@ public:
     virtual void send(CUser* user, ParamBase& param);
 };
 
-template <class MSG, class Param, ch_state state>
-int IPacketDispatcher<MSG, Param, state>::check_state(CUser* user, PacketBuf& packet)
+template <class MSG_TYPE, class PARAM_TYPE, ch_state STATE>
+int IPacketDispatcher<MSG_TYPE, PARAM_TYPE, STATE>::check_state(CUser* user, PacketBuf& packet)
 {
     // ORIG 代码形态（ch_state0 实例 shr $0x1f / 其余 cmp $N-1,setle）：
     // 条件必须内联求值、不得引入具名局部；val 不初始化；len 以调用结果
     // 直接作实参（ORIG get_len 返回值驻留 %eax 直填 0x18(%esp)）。
-    if (user->get_state() <= (int)state - 1)
+    if (user->get_state() <= (int)STATE - 1)
     {
         packet.set_index(1);
         short val;
         packet.get_short(val);
-        LogManager::logFormat(1, "dispatcher.cpp",
-                              "int IPacketDispatcher::check_state(CUser*, PacketBuf&)",
-                              0x94, "state(%d) len(%d)", (int)val, packet.get_len());
+        // [K1-parent §6.5 串盲区] ORIG 0x0824c2bc 段 logFormat 三实参直证：
+        //   file = 0x08bc4613 "PacketDispatcher.h"；func = 0x08bca600 的
+        //   __PRETTY_FUNCTION__ 符号（模板展开形）；fmt = 0x08bc45f0
+        //   "return __LINE__: code(%d) size(%d)"。原先的手写串/格式串为发明文本。
+        LogManager::logFormat(1, "PacketDispatcher.h",
+                              __PRETTY_FUNCTION__,
+                              0x94, "return __LINE__: code(%d) size(%d)", (int)val, packet.get_len());
         return 0x95;
     }
     return 0;
 }
 
-template <class MSG, class Param, ch_state state>
-int IPacketDispatcher<MSG, Param, state>::dispatch_sig(CUser* user, PacketBuf& packet)
+template <class MSG_TYPE, class PARAM_TYPE, ch_state STATE>
+int IPacketDispatcher<MSG_TYPE, PARAM_TYPE, STATE>::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     return 0;
 }
 
-template <class MSG, class Param, ch_state state>
-void IPacketDispatcher<MSG, Param, state>::send(CUser* user, ParamBase& param)
+template <class MSG_TYPE, class PARAM_TYPE, ch_state STATE>
+void IPacketDispatcher<MSG_TYPE, PARAM_TYPE, STATE>::send(CUser* user, ParamBase& param)
 {
 }
 
@@ -173,8 +177,8 @@ void IPacketDispatcher<MSG, Param, state>::send(CUser* user, ParamBase& param)
 // MSG_BASE 用户 ctor 不可删（ORIG 派生类 C1 构造链 0x822dc10 调用它，nm 实证）。
 // 结论：3 条 ctor call 属 N-MSG_BASE（N7 族），落判词封顶。
 // ---------------------------------------------------------------------------
-template <class MSG, class Param, ch_state state>
-int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketBuf& packet)
+template <class MSG_TYPE, class PARAM_TYPE, ch_state STATE>
+int IPacketDispatcher<MSG_TYPE, PARAM_TYPE, STATE>::dispatch_template(CUser* user, PacketBuf& packet)
 {
     // b28d-solo-PacketDispatcher 判词（本模板覆盖 PacketDispatcher.cpp 117 件实例族；
     //   逐件 [ORIG 地址]/verdict/归因 见该 .cpp 顶部表与 /tmp/b28d_solo_PacketDispatcher_result.tsv）：
@@ -249,14 +253,14 @@ int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketB
     }
 
     // b28d-Main 回退 P298 承载器（见上方 N-MSG_BASE 判词）：恢复真实 `MSG msg;`。
-    MSG msg;
+    MSG_TYPE msg;
     int result = 0;
     if ((result = this->read(packet, msg)) != 0)   // [b28d-Main·检查点14] 隐式派生→基（N7 开关）
     {
         return result;
     }
 
-    Param param;
+    PARAM_TYPE param;
     if ((result = this->process(user, msg, param)) > 0)   // [b28d-Main·检查点14] 隐式派生→基（N7 开关）
     {
         return result;

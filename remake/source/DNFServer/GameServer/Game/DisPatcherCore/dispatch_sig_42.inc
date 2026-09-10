@@ -3,8 +3,10 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     MSG_DEBUG_COMMAND* msg =
         reinterpret_cast<MSG_DEBUG_COMMAND*>(packet.get_packet(0));
-    if (msg == 0)
-        return 0;
+    // [K6-DpcSigBig L5] P171/P140：ORIG 0x081fc4fd `mov %eax,-0x20(%ebp)` 后
+    // **直接** `mov -0x20(%ebp),%eax; movzbl 0xd(%eax),%eax`（0x081fc500..503）
+    // ⇒ 原码无判空；旧形发明的 `if (msg == 0) return 0;` 多发 4 条
+    // （`cmpl $0,-0x20; jne; mov $0x0,%eax; jmp`）。越界行为照抄 ORIG。
 
     bool allowed;                                        // ORIG bVar2
     if (msg->m_command != 0)

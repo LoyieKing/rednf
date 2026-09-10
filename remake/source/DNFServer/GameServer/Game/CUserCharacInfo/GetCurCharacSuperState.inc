@@ -1,1 +1,1 @@
-unsigned char CUserCharacInfo::GetCurCharacSuperState()
+bool CUserCharacInfo::GetCurCharacSuperState()

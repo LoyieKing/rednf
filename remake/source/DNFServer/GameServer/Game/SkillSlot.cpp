@@ -3358,7 +3358,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
             m_parent->GetCurCharacExpertJobType()));
     if (expert != 0)
     {
-        for (int i = 0; i < (int)expert->m_growSkillVec.size(); ++i)
+        // [TowerSkill20 2026-09-11] ORIG 0x086084bd `cmp -0x1c(%ebp),%eax;
+        // seta %al`（**无符号**）⇒ 索引为 unsigned；旧形 `int i` + `(int)size()`
+        // 产 `setg`（Diff OURS-only setg / ORIG-only seta）。
+        for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
         {
             int level =
                 m_parent->GetCurExpertJobLevel(m_parent->GetCurCharacExpertJobExp());

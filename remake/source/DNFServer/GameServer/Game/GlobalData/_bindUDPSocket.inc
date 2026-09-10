@@ -1,1 +1,1 @@
-int UdpThread::_bindUDPSocket(unsigned short port)
+SOCKET UdpThread::_bindUDPSocket(unsigned short port)

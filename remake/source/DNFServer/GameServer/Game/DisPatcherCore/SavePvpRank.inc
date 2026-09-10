@@ -1,6 +1,12 @@
 bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
 
 {
+    // [DpcMisc-R2 2026-09-11 残差说明] 父泳道读数 198/198 持平（verdict 仍 DIFF）。
+    // 剩余三处为跨版本族：① update_pvp_rank 具名 bool 槽（ORIG 0x081f07c5
+    // `mov %al,-0x1d(%ebp); movzbl -0x1d(%ebp),%eax`）——补则 +2 抵消 recv 块序收益，
+    // 暂不补；② ORIG 0x081f06b3 `mov -0x1c(%ebp),%eax; cmp -0x18(%ebp),%eax; jbe`
+    // vs 我方 `mov -0x18(%ebp),%eax; cmp -0x1c(%ebp),%eax; jae`（同语义 fold，N18b）；
+    // ③ 两处实参 callee-saved 角色（-0x10/-0x18 的 ebx↔edx，N7）。
     // ORIG 0x081f05ea T（报告 DisPatcher_ResPvpRank/SavePvpRank.md 全文转写）：
     // 分数(0x89=视图+0x7c)/时间(0x8d=视图+0x80) 反作弊 → job 3/4-grow2 折算 → update_pvp_rank
     // → PVPRoom SetPVPResult/recv 链。
@@ -65,16 +71,23 @@ bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
     {
         return false;
     }
-    if (!room->recv_pvp_rank_all())
+    // [DpcMisc-P4 2026-09-11] 轴 B 控制流（ORIG 直证）：ORIG 0x081f0853 `call
+    // recv_pvp_rank_all; test %al,%al; je 0x081f0862`（= **true 分支在物理前**、
+    // false 走 else 段），即原码是**正极性** `if (recv_pvp_rank_all()) { send_pvp_end(); }
+    // else { …count==1… }`；旧形 `if (!recv_pvp_rank_all())` 把两分支物理序写反
+    // （4.4 产 `sete` 归一 + 相反落点）。翻转后与 ORIG 块序一致。
+    // 残余 2 条 = callee `PvP_Room::recv_pvp_rank_all()` 返回类型非 bool（ORIG 调用点
+    // 无 setne 归一，P292 档①直证）⇒ 需 PvP_Room.h int→bool，属他泳道写域，已上报。
+    if (room->recv_pvp_rank_all())
+    {
+        room->send_pvp_end();
+    }
+    else
     {
         if (room->get_recv_pvp_rank_count() == 1)
         {
             room->insert_timer_recv_pvp_rank();
         }
-    }
-    else
-    {
-        room->send_pvp_end();
     }
     return true;
 }

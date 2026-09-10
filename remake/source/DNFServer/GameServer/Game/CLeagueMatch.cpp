@@ -451,6 +451,13 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // ② `int theirTeam` → `unsigned int`（P290 局部 unsigned 升格）⇒ 同上完全不变。
 // 残差构成经 -dr 归因复核：N125（lea-vs-shl ×10）+ N95 槽基平移 + trace 立即数拆分
 // （P227 全表达式链已用）+ setg/test 物化，无语义缺口【可翻项已试尽】。
+// [LeaTimer28Run 2026-09-11 复核 · N126 维持 + .h 待办] ORIG T 0x0855dc64（279 条）vs 我方 278：
+// ① 全帧恒定平移 8：ORIG 槽 -0x6c/-0x70/-0x1c/-0x18 vs 我方 -0x74/-0x78/-0x24/-0x20
+//    （`lea -0x6c(%ebp),%eax` ↔ `lea -0x74(%ebp),%eax`，逐槽差 8）⇒ N126（4.1 具名局部首槽 -0x4
+//    vs 4.4 -0xc）族，非源级可翻（P332）；
+// ② ORIG .rodata 串直证 `virtual bool CLeagueMatch::OnMatchRoom(PvP_Room*, int)`（二进制实串），
+//    我方发射 `virtual int CLeagueMatch::OnMatchRoom(PvP_Room*, int)`（见 .o .rodata，§6.5 盲区）
+//    ⇒ 声明返回类型应为 bool（P174 串定；须 IMatch 基类链同步，属 .h 待办，未落地）。
 #include "CLeagueMatch/OnMatchRoom.inc"
 {
     if (m_authValue != authValue) {

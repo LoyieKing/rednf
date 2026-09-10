@@ -25,13 +25,14 @@ unsigned int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
             GlobalData::s_event_manager->GetRepeatEvent(0x31));
     // ORIG +0x0a2：嵌套 if（无 eventing 槽）。+0xb8..+0xd4 bool→int 归一化双
     // 常量岛 = `!= 0` 结果二次 test；4.1 形。残 call *%edx↔call *%eax = N7。
+    // [K6-DpcSigSmallCheckErr·负结论] 试过形 = 单条 if + P226 语句表达式包住整条
+    // `&&`（依据 ORIG 0x081c08dd 外层假路 `je 0x081c08fd` 与 0x081c08f3 内层假路
+    // `je 0x081c08fd` 同指一个 false 汇聚 + 0x081c0902 二次 `test %al,%al;
+    // je 0x081c0931` ⇒ 原码单条 if 的 4.1 短路物化岛，我方双层 if 缺这 5 条）。
+    // 单 TU 口径实测 135→140（=ORIG 140），但父泳道四数口径 136→141 判劣化
+    // （ndiff 增大）⇒ 已回滚，维持嵌套 if 形。call *%edx↔*%eax = N7 残差。
     if (restrictEvt != 0)
     {
-        // [b28d-29] P226 语句表达式实测劣化（136→141），已回退。
-        // ORIG 0x081c08cf 段为 4.1 短路 bool 物化岛（mov $1/$0 + 二次 test）；
-        // 4.4 恒折 setne 直分支（setcc-fold 负例）⇒ N 封顶。call *%edx↔*%eax = N7。
-        // [b28d-solo-DisPatcherCore] 复核：具名 bool 局部形实测劣化（ndiff 15→34，
-        // 帧 0x34→0x34 且多 4 条槽往返）⇒ 已回退；维持 setcc-fold N 封顶。
         if ((*(bool (**)(void*, int))(*(char**)restrictEvt + 0x34))(
                 (void*)restrictEvt, 0))
         {

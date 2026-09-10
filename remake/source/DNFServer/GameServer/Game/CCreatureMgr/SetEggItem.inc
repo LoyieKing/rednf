@@ -41,6 +41,9 @@ bool CCreatureItemConverter::SetEggItem(Inven_Item* item)
         item->m_field0 = 1;
         break;
     }
+    // [TowerSkill20 2026-09-11 两形试毕·已回滚] ①去 `default:` 无标签形、②`case 0: default:`
+    // 合并形 —— 实测均仍 57 条 / ndiff 1（4.4 前端恒折叠该比较）⇒ ORIG 0x08336f0f
+    // `test %eax,%eax`（后随无条件 jmp）确认不可造，维持 N111 封顶。
     default:
         break;
     }

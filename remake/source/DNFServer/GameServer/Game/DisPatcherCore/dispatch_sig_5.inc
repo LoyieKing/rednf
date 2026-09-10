@@ -264,7 +264,15 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         if (user->CheckInParty() && !target->CheckInParty())
         {
-            CParty* party = static_cast<CParty*>(target->GetParty());
+            // [K6-DpcSigBig L5] 语义修复（接收者错，语义轴②）：ORIG 本分支
+            // （081f14fe `call CUser::CheckInParty`(user) + 081f150d(0x7c=target)
+            // + 081f152d `je` 同一基本块）在 0x081f1533 `mov 0xc(%ebp),%eax`
+            // → 0x081f1539 `call _ZN5CUser8GetPartyEv` ⇒ 取的是 **user** 的队伍；
+            // 我方旧写 `target->GetParty()`（我方 7bd2 `mov -0x80(%ebp),%eax`
+            // = target）。语义：本分支 target **未组队**（!target->CheckInParty()），
+            // 应把 target 加入 **user 已有的队伍**；取 target 的队伍恒得 0 ⇒
+            // 必然落入 party==0 错误出口，邀请入队功能整条失效。
+            CParty* party = static_cast<CParty*>(user->GetParty());
             if (party == 0)
             {
                 pgParty.clear();

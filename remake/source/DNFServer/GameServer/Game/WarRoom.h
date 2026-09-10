@@ -86,7 +86,10 @@ public:
                      CUser** out, bool& a, bool& b, bool& c);
     int HandleDieCharacer(CUser* user, int seat);
     bool HandleMonsterKill(CUser* user, int seat, CUser* killer);   // [b28d-Main·P292] int→bool（ORIG 调用点 0x081ecbfe `call; xor $0x1,%eax`）
-    int HandleGetItem(CUser* user, int idx);
+    bool HandleGetItem(CUser* user, int idx);   // [K6 2026-09-11·P292 档①] int→bool：
+                                                // ORIG 调用点 0x081c3cac `call; test %al,%al;
+                                                // je 0x081c3cd2`（单字节判定）；返回类型不入
+                                                // mangling ⇒ 符号名/sizeof/成员偏移零变化。
     int HandleItemDrop(CUser* user, int a, int b, char c, int d, int e);
     int HandleWpPerMonster(CUser* user, int a, int b, CUser* c);
     void HandleTimerTimeBomb();

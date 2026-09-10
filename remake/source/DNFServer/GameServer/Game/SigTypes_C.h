@@ -550,9 +550,13 @@ struct SIG_LOAD_ETC
         };
     };
     unsigned char m_oneDayLetheFlag;                 // +0x29fc
-    char     m_backupSkill[0x199];                   // +0x29fd
+    // [K2 2026-09-11 Main 批准] char→unsigned char：ORIG 0x084e8c92 段读该 blob 尾哨
+    // 为 `movzbl 0x2b95(%eax),%edx`（单字节零扩展直读），`(unsigned char)char_arr[i]`
+    // 在 4.4 恒多 1 条 `mov %eax,%edx`（探针 /tmp/k2p/ucmp2.cpp p7 vs /tmp/k2p/ucmp.cpp p1）
+    // ⇒ 原码字段为无符号字节。同宽 1B ⇒ sizeof(SIG_LOAD_ETC)/全部偏移/mangled 不变。
+    unsigned char m_backupSkill[0x199];              // +0x29fd
     unsigned char m_oneDayLetheFlag2ND;              // +0x2b96
-    char     m_backupSkill2ND[0x199];                // +0x2b97
+    unsigned char m_backupSkill2ND[0x199];           // +0x2b97（同上，0x2d2f 尾哨）
     char     m_pad2d30[0x2d30 - (0x2b97 + 0x199)];     // +0x2d30 前垫
     unsigned int m_serverGroup;                        // +0x2d30（RequestDBETC ← G_CEnvironment()->m_serverEnvir.m_serverGroup）
     int      m_channelNo;                              // +0x2d34（RequestDBETC ← CEnvironment::get_channel_no）
@@ -679,6 +683,11 @@ struct SIG_LOAD_ETC
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_LOAD_ETC) == 0x14b60, "SIG_LOAD_ETC ABI drift");
+// [K2 2026-09-11] char→unsigned char 同宽替换的偏移锁（Main 批准条件）。
+static_assert(offsetof(SIG_LOAD_ETC, m_backupSkill) == 0x29fd,
+              "SIG_LOAD_ETC m_backupSkill offset drift");
+static_assert(offsetof(SIG_LOAD_ETC, m_backupSkill2ND) == 0x2b97,
+              "SIG_LOAD_ETC m_backupSkill2ND offset drift");
 
 struct SIG_LOAD_EVENTITEM
 {

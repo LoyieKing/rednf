@@ -208,7 +208,12 @@ public:
     unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int excludeAddHackCount(CUser* user);   // ORIG T 0x081ca2a8
+    bool excludeAddHackCount(CUser* user);  // ORIG T 0x081ca2a8
+                                            // [K6 2026-09-11] int→bool：ORIG 调用点
+                                            // 0x081ca1be `call; test %al,%al; je`
+                                            // = 单字节判定（P292 档①）；mangled 不含
+                                            // 返回类型 ⇒ 符号/布局零影响；消费点仅
+                                            // DisPatcherCore/check_error_8.inc:95。
     void send(CUser* user, ParamBase& param);
 };
 

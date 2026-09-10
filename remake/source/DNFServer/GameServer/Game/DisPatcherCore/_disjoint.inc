@@ -188,6 +188,13 @@ int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
                 packet.put_short(newSlot);
                 packet.put_int((int)outItems[i].m_addInfo);
                 packet.put_int((int)outItems[i].m_addInfo2);
+                // [DpcMisc-P5 负结论 2026-09-11，已回滚] 试过把本处改写为合并正极性
+                // `if (targetUser != 0 && targetUser->GetCurCharacExpertJob() != 0)
+                //  { collect(FIELD=2); } else { collect(FIELD=0); }`
+                // （依据 ORIG 0x081f9c9x 段两个 `je` 同落 FIELD=0 共享尾、FIELD=2 走
+                // fall-through）。父泳道 fresh 核账：our **818→822（+4 劣化）**⇒ 4.4.6
+                // 对该合并形的物化（`&&` 短路 + setne 汇聚）反而更长；ORIG 的块序由
+                // 4.1 的独立条件发射产生，非源码可择。恢复到 `if/else if` 原形。
                 if (targetUser == 0)
                 {
                     GetInstanceCubeStatistic()->collectCubeStatistics(

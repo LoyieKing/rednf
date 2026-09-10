@@ -759,7 +759,14 @@ private:
                                        G_CDataManager()->GetItemMakingSkill())->
                                        m_map0.end())
                         {
-                            LogManager::logFormat(1, "user.cpp", __PRETTY_FUNCTION__,
+                            // [K7 2026-09-11 §6.5 PRETTY 串盲区] ORIG 0x08671887 压入
+                            // 0x8cf2bc0（.rodata 实串 `bool CUser::_ProcCompoundCore(const
+                            // IntPairVector&, IntPairVector&, IntVector&, int, bool,
+                            // PacketGuard*, bool&, RequestItemCountType, stEquipCondition,
+                            // CStackableItem*, Inven_Item&)`）；`__PRETTY_FUNCTION__` 在此
+                            // 展开为完整模板形（ORIG 无该串）⇒ 改字面量，与同函数另 3 处一致。
+                            LogManager::logFormat(1, "user.cpp",
+                                "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
                                                   0x5d0c,
                                                   "item_making_skill_level error : %d",
                                                   level);
@@ -851,24 +858,23 @@ private:
     if (!(oldFatigue != 0 && total != 0 && oldFatigue < 0x9du))
         return;
 
-    // [H6 2026-09-11 负结论·已回滚] 试 `int itemId = 0; int addCount = 0;` 前移到头部
-    // （欲复现 ORIG 0x086594c8/cf 的 `movl $0x0,-0x24/-0x20(%ebp)` 与 4.4 先声明深槽序）：
-    // our 234→**236**（gap -6→-8）劣化 ⇒ 回滚。声明序与零写在 4.4 下与 ORIG 槽图不同向。
+    // [K7 2026-09-11 合并旋钮 A+B] A：消「同日跨周」链首重比 dayA==dayB 的 3 条
+    //（ORIG 0x086595c2 `je +0x41b` 早返 → 0x086595c8 直落 itemId/addCount 赋值）；
+    // B：itemId/addCount 置顶并 `= 0`（ORIG 0x086594c8 `movl $0x0,-0x24(%ebp)` /
+    // 0x086594cf `movl $0x0,-0x20(%ebp)`），使 dayA/dayB 临时槽落回 -0x1c/-0x18。
+    // 旧 H6 记录「单独 B」234→236 反劣：A 未同消时槽图仍错 ⇒ 本次 A+B 同落。
+    unsigned int itemId = 0; int addCount = 0;   // ORIG 0x086594c8/cf（顶部零写）
     static const float DIV_DAY = 30.0f;  // ORIG .rodata DAY 常量（0x08cf3960 处值 30.0，已验证）
     int dayA = (int)(oldFatigue / DIV_DAY);
     int dayB = (int)(total / DIV_DAY);
-    if (dayA == dayB)
+    char body[256];
+    if (dayA == dayB)                       // 同日跨周
     {
         static const float DIV_WEEK = 156.0f;  // ORIG .rodata WEEK 常量（0x08cf3964 处值 156.0，已验证）
         int weekA = (int)(oldFatigue / DIV_WEEK);
         int weekB = (int)(total / DIV_WEEK);
         if (weekA == weekB)
             return;
-    }
-    int itemId; int addCount;
-    char body[256];
-    if (dayA == dayB)                       // 同日跨周
-    {
         itemId = 0x1d5e; addCount = 1;
         strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_75", 0), 0xff);
     }
@@ -8938,8 +8944,10 @@ struct UpdateDimensionInoutSigView
         // [A06 2026-09-10 轴B 试行记录·已回退]（同件第二循环，同上理由）
         for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
         {
-            int exp = GetCurCharacExpertJobExp();
-            int lvl = GetCurExpertJobLevel(exp);
+            // [K7 2026-09-11 单旋钮·P0 去具名槽] ORIG 0x0866bf1a `call GetCurCharacExpertJobExp`
+            // → 0x0866bf1f `mov %eax,0x4(%esp)` 直入实参（**无 exp 具名槽**；我方 -0x18 槽
+            // 每点多 store+load 一对 = 区间 ORIG 4 条 vs 我方 6 条）⇒ 内联右值。
+            int lvl = GetCurExpertJobLevel(GetCurCharacExpertJobExp());
             int j = get_charac_job();
             std::pair<int,int>& pr = expert->m_growSkillVec[i];
             ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, lvl,
@@ -11059,6 +11067,10 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         trace("CUser::SetInventory m_selected is null");
         return 0;
     }
+    // [K7 2026-09-11 单旋钮·复现 ORIG 独有段] ORIG 0x0864d24a `mov -0x2c(%ebp),%eax` +
+    // 0x0864d24d `mov %eax,-0x14(%ebp)`（循环前 equipMirror 的栈副本槽，2 条）⇒ 原码有具名
+    // 循环别名；我方 0x0000fb90 仅有 `movl $0x0,-0x14(%ebp)`（i 槽）。
+    char* equipLoop = equipMirror;                 // ORIG 0x0864d24a/d24d
     for (int i = 0; i < 0xc; ++i) {
         const CInventory* invenR = getCurCharacInvenR();
         // [A06 2026-09-10 C05④/P225 试行记录·已回退] ORIG 0x0864d1a4 段为
@@ -11066,7 +11078,7 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         // 实测**无效**（227/238→227/239、delta 268→267），且本处两侧均非具名局部
         // （元素字段 vs 镜像字段）⇒ 命中 Main 转发的 C05② 边界（仅「两个具名局部比较」命中）⇒ 回退。
         if (*reinterpret_cast<const int*>(reinterpret_cast<const char*>(invenR) + i * 0x3d + 0x1e) !=
-            *reinterpret_cast<int*>(equipMirror + i * 0x3d + 2)) {
+            *reinterpret_cast<int*>(equipLoop + i * 0x3d + 2)) {
             m_characterView.enableSaveCharacView();
             break;
         }
@@ -11352,7 +11364,10 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
             if (static_cast<unsigned int>(limit) <=
                 *reinterpret_cast<unsigned int*>(m_pad8e101 + 0x2e)) {   // +0x8e12f
                 // [A06 2026-09-10 P259] ORIG 0x08689f12 段同形。
-                CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x703d), true);
+                // [K7 2026-09-11 §6.5 常量盲区] ORIG 0x0868a16c `movl $0xa12b,0x8(%esp)`
+                // = Acquire 的行号实参（前一条 0x0868a167 `mov 0x940bd6c,%eax`
+                // = s_stream_pool）⇒ 原码行号 0xa12b；旧值 0x703d 使运行期锁/日志行号不符。
+                CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0xa12b), true);
                 guard.operator*()->operator<<(0x18a);
                 guard.operator*()->operator<<(static_cast<int>(GetUID()));
                 SIG_FIND_FACTORY_HUB* sig =
@@ -13446,8 +13461,15 @@ public:
             // `vector<pair>::operator[]`（ixEj 6/6 vs 旧 2/6）⇒ 删 const& mat，逐点索引。
             // +0x1ed: G_CDataManager() 0x080cc19b
             // +0x1f9: CDataManager::find_item(int) 0x0835fa32
-            CDataManager* dataMgr = G_CDataManager();
-            CItem* item = dataMgr->find_item(materials[matIdx].first);
+            // [K7 2026-09-11 分片①·P0/P183 去具名缓存] ORIG 0x0868c6ca-0x0868c6d4 段
+            // `mov -0x34(%ebp),%eax; mov %eax,0x4(%esp); lea -0x9c(%ebp),%eax; call operator[]`
+            // → `mov (%eax),%esi; call G_CDataManager; mov %esi,0x4(%esp); mov %eax,(%esp);
+            // call find_item` ⇒ **无 dataMgr 具名槽**（中间值走 %esi 保活）；我方 -0x38 槽
+            // 每处多 store+load 一对（我方 store/load 共比 ORIG 多 ~19 条）。
+            CItem* item = NULL;
+            // [K7 2026-09-11 分片③] ORIG 0x0868c6c3 `movl $0x0,-0x30(%ebp)` = item 槽预清零
+            // （先声明后赋值；ORIG outputs 处 0x0868c95c 段无预清零 ⇒ 仅材料循环这一处）。
+            item = G_CDataManager()->find_item(materials[matIdx].first);
 
             if (item != NULL) {
                 // +0x210: 虚调用 *(vtable+0x10) -> CItem::IsAvatarItem()
@@ -13492,8 +13514,7 @@ public:
 
     // +0x471..+0x489: 取产出物品（注意：ORIG 未判 outputs.size() 是否为 0，
     // 直接读 outputs[0]；size>1 已被拒，size==0 属 ORIG 原始 UB，忠实转写）
-    CDataManager* dataMgr = G_CDataManager();
-    CItem* outItem = dataMgr->find_item(outputs[0].first);
+    CItem* outItem = G_CDataManager()->find_item(outputs[0].first);   // 同上：ORIG 无 dataMgr 槽
     // +0x489: outItem == NULL -> 0x11
     if (outItem == NULL) {
         return 0x11;

@@ -216,8 +216,16 @@ struct BloodDungeonCountsViewD2
 // [b28d-solo-CPartyDepsD2] 判词 N82/N95（361=361）：已修 ①skip 改 ORIG 短路链
 // 寄存器形 `A || !B`（A=pDungeon!=0&&(m_89c!=0||possible>0)，消 skip 槽）
 // ②avg/band 三组交错 + float 预清两句式（ORIG -0x5c/-0x54/-0x50 族）。
-// 残余：帧 0x94 vs 0x84、avg1 与 int 中转槽互换（ORIG avg1=-0x5c/int=-0x6c vs
-// 我方 -0x58/-0x5c）——4.4 槽分配序差异（N82/N95 族）。语义/调用集齐。
+// [b28d-solo-CPartyDepsD2²] DIFF→AE 归零（361→361，AE 361/361）：三旋钮联动——
+// ①P252 ORIG 0x085bb163 `flds avg; flds 10.0f; fmulp; fstps -0x58` +
+//   0x085bb171 `flds avg; fadds -0x58` ⇒ 原码有具名 float 临时（三组复用同一
+//   槽、无预清）⇒ 补 `float bandTmp;`；
+// ②P212 全头部声明：4.4 块内「先声明浅」与 4.1 相反，声明整体提至函数头后
+//   同为「先声明深」单调 ⇒ 声明序按 ORIG 槽深→浅（avg1 -0x5c/tmp -0x58/…）
+//   使 0x94 帧与全部槽号（含 -0x40/-0x30/-0x2c 计数器区）逐位对齐；
+// ③0x085bb111 `test %al,%al; jg` 为**有符号**比较 ⇒ `(signed char)
+//   get_dimension_possible() > 0`（uchar 的 `> 0` 恒折 `jne`）。
+// 残余：0（check_tu_routed 已判 AE）。
 #include "CPartyDepsD2/CheckHackAverageHitCount.inc"
 {
     if (GlobalData::s_villageMonsterMgr->OnEvent())      // 村庄袭击中跳过（0x82f0f44）
@@ -230,31 +238,55 @@ struct BloodDungeonCountsViewD2
     // A = pDungeon!=0 && (m_89c!=0 || possible>0)，B = m_mapHitCount>1。
     if ((m_battleField.m_pDungeon != 0 &&
          (m_battleField.m_pDungeon->m_89c != 0 ||
-          m_battleField.m_pDungeon->get_dimension_possible() > 0)) ||
+          (signed char)m_battleField.m_pDungeon->get_dimension_possible() > 0)) ||
         !(m_mapHitCount > 1))
         return;
 
     // 三组平均值（asm fildl/fdivrp：整型转 float 相除）。ORIG 每组的
     // 「float avg=0 预清 → 除法 → 上下界」三件交错（avg1 -0x5c/-0x54/-0x50、
     // avg2 -0x4c/-0x48/-0x44、avg3 -0x3c/-0x38/-0x34），照抄顺序。
-    float avg1 = 0.0f;
-    avg1 = static_cast<float>(m_mapHitSum) / static_cast<float>(m_mapHitCount);
-    int band1Upper = D2_ROUND(avg1 + avg1 * 10.0f + 0.1f);   // fistpl -0x54
-    int band1Lower = D2_ROUND(avg1 - avg1 * 10.0f);          // fistpl -0x50
-    float avg2 = 0.0f;
-    avg2 = static_cast<float>(m_mapHitSum2) / static_cast<float>(m_mapHitCount);
-    int band2Upper = D2_ROUND(avg2 + avg2 * 10.0f + 0.1f);
-    int band2Lower = D2_ROUND(avg2 - avg2 * 10.0f);
-    float avg3 = 0.0f;
-    avg3 = static_cast<float>(m_mapHitSum3) / static_cast<float>(m_mapHitCount);
-    int band3Upper = D2_ROUND(avg3 + avg3 * 10.0f + 0.1f);
-    int band3Lower = D2_ROUND(avg3 - avg3 * 10.0f);
+    // [b28d-solo-CPartyDepsD2²] P212 全头部声明（4.4 块内作用域「先声明浅」与
+    // 4.1 相反；声明整体提至函数头后同为「先声明深」单调）：声明序按 ORIG 槽
+    // 深→浅排（avg1 -0x5c / tmp -0x58 / band1U -0x54 …zero3 -0x24），初始化
+    // 语句留在原处（int 清零与 float 预清发射序照 ORIG）。P252：ORIG
+    // 0x085bb163 `flds avg; flds 10.0f; fmulp; fstps -0x58` + `flds avg;
+    // fadds -0x58` ⇒ 原码有具名 float 临时（三组复用同一槽，且无预清）。
+    float avg1;          // -0x5c
+    float bandTmp;       // -0x58（三组复用）
+    int band1Upper;      // -0x54
+    int band1Lower;      // -0x50
+    float avg2;          // -0x4c
+    int band2Upper;      // -0x48
+    int band2Lower;      // -0x44
+    int inBand2;         // -0x40
+    float avg3;          // -0x3c
+    int band3Upper;      // -0x38
+    int band3Lower;      // -0x34
+    int inBand3;         // -0x30
+    int inBand1;         // -0x2c
+    int zero2;           // -0x28
+    int zero3;           // -0x24
 
-    int inBand1 = 0;                                     // -0x2c（list1 带内）
-    int inBand2 = 0;                                     // -0x40（list2 带内）
-    int zero2 = 0;                                       // -0x28（list2 为 0）
-    int inBand3 = 0;                                     // -0x30（list3 带内）
-    int zero3 = 0;                                       // -0x24（list3 为 0）
+    avg1 = 0.0f;
+    avg1 = static_cast<float>(m_mapHitSum) / static_cast<float>(m_mapHitCount);
+    bandTmp = avg1 * 10.0f;
+    band1Upper = D2_ROUND(avg1 + bandTmp + 0.1f);            // fistpl -0x54
+    band1Lower = D2_ROUND(avg1 - bandTmp);                   // fistpl -0x50
+    avg2 = 0.0f;
+    avg2 = static_cast<float>(m_mapHitSum2) / static_cast<float>(m_mapHitCount);
+    bandTmp = avg2 * 10.0f;
+    band2Upper = D2_ROUND(avg2 + bandTmp + 0.1f);
+    band2Lower = D2_ROUND(avg2 - bandTmp);
+    inBand2 = 0;                                         // -0x40（list2 带内）
+    avg3 = 0.0f;
+    avg3 = static_cast<float>(m_mapHitSum3) / static_cast<float>(m_mapHitCount);
+    bandTmp = avg3 * 10.0f;
+    band3Upper = D2_ROUND(avg3 + bandTmp + 0.1f);
+    band3Lower = D2_ROUND(avg3 - bandTmp);
+    inBand3 = 0;                                         // -0x30（list3 带内）
+    inBand1 = 0;                                         // -0x2c（list1 带内）
+    zero2 = 0;                                           // -0x28（list2 为 0）
+    zero3 = 0;                                           // -0x24（list3 为 0）
 
     for (int i = 0; i < m_mapHitCount; ++i)              // cmp [0x1874] setg
     {
@@ -758,6 +790,14 @@ struct BloodDungeonCountsViewD2
 //   acc-tick 表达式内联（LHS-first）、GetPCRoomNo 改空 if 体复现 `test;jmp`。
 // 残余：帧 0x9c vs 0xac、flag 形参 4.1 cmpb 直比 vs 4.4 movzbl+xor（P209/N）、
 // EH 尾块相对序（N104）、PCRoom trace 两 vararg 寄存器 esi↔ebx 互换（N7）。
+// [b28d-solo-CPartyDepsD2²] 定位：p167 唯一 EXTRA = `_Unwind_Resume`（+1）——
+// ORIG 0x085b17d9..0x085b1810 首个 cMyTrace 块尾**无 cleanup**（直 `jmp +0x6b6`），
+// 我方多 13 条 EH cleanup（`mov %edx,%ebx; mov %eax,%esi; … call ~cMyTrace;
+// mov %esi,%eax; mov %ebx,%edx; mov %eax,(%esp); call _Unwind_Resume`，子块入口
+// +0x1bd）⇒ 4.4 对「同 TU 可见性未知的 cMyTrace ctor call」布 landing pad（4.1 不布）。
+// 按 P216 需在 GameTypes.h 给 `cMyTrace::cMyTrace(char const*, int, int)` 声明+
+// 定义加 `throw()`（全仓热点头，属共享头 ⇒ 已上报 Main 派属主，本泳道不自行落）。
+// 该 13 条即 gap −7 的主体（另 6 条为槽序差）。
 #include "CPartyDepsD2/check_allmember_loading.inc"
 {
     const int memberCount = get_member_count();
@@ -1424,6 +1464,17 @@ struct BloodDungeonCountsViewD2
 //   `_ZNSt6vectorISt4pairIiiESaIS1_EE2atEj`，P175；补发 at 实例，AE +2）。
 // 既有修复保留：needCount 头部预清、itemList/pairValue 分步声明+拷贝赋值
 // （N86 反向）、quest==0 死块照抄（P184）、m_itemList 成员直访。
+// [b28d-solo-CPartyDepsD2²] **真语义修复 ×3**（ORIG 直证；旧写为字段错位的
+// 常量化误译，线上包内容错误）：
+//  ①put_short：ORIG 0x085bdaa7 `movzwl -0x7e(%ebp)` = item+0x0b m_fieldb
+//    （endurance，Inven_Item.h:281）⇒ 旧写 `put_short(0)` 恒发 0；
+//  ②分支条件：ORIG 0x085bdb07 `movzbl -0x88(%ebp); cmp $0x1,%al` = item+0x01
+//    m_field1（ITEM_TYPE）== 1 ⇒ 旧写 `(item.m_addInfo >> 16) == 1` 读 +0x04 半字；
+//  ③UseLuckPoint 第 2 实参：ORIG 0x085bdb4e `movzbl -0x88; movzbl %al,%eax`
+//    = `(int)item.m_field1` ⇒ 旧写 `(int)(m_addInfo >> 16)`（同错位）。
+// 读数：295→296（gap 0→-1），仍 DIFF——残差仅 1 条 `mov %eax,%edx`（4.1 把
+// get_rarity 结果挪到 %edx 再读 m_field1，4.4 直接落 %edx，N7 族）与 1 个尾部
+// `jmp+nop` 岛（4 个早退岛 vs 我方 5 个）。
 // 残余：4.4 槽基恒 ebp-8 起 vs ORIG 大局部顶到 ebp ⇒ 全帧槽号 +8 平移
 // （ORIG -0x89/-0x44/-0x4c vs 我方 -0x91/-0x4c/-0x54）；N95 定论（double
 // framePad 反致下移、int pad/声明序不可上移）。语义/调用集齐，byte 层封顶。
@@ -1487,15 +1538,24 @@ struct BloodDungeonCountsViewD2
             packet->put_short(slot);
             packet->put_int(item.m_addInfo);
             packet->put_int(item.get_add_info());
-            packet->put_short(0);
+            // [b28d-solo-CPartyDepsD2²] ORIG 0x085bdaa7 `movzwl -0x7e(%ebp)`
+            // = item+0x0b m_fieldb（endurance，Inven_Item.h:281）⇒ 旧写
+            // `put_short(0)` 是常量化误译（真语义 bug，线上包内容恒 0）。
+            packet->put_short(item.m_fieldb);
             packet->put_byte((int)item.m_amp.getAbilityType());
             packet->put_short((int)item.m_amp.getAbilityValue());
             ++count;
-            if ((item.m_addInfo >> 16) == 1)
+            // [b28d-solo-CPartyDepsD2²] ORIG 0x085bdb07 `movzbl -0x88(%ebp);
+            // cmp $0x1,%al` = item+0x01 m_field1（ITEM_TYPE）== 1；旧写
+            // `(item.m_addInfo >> 16)` 读的是 +0x04 半字（字段错位）。
+            if (item.m_field1 == 1)
             {
                 CItem* card = G_CDataManager()->find_item(item.m_addInfo);
                 if (card != 0)
-                    CLuckPoint::UseLuckPoint(user, (int)(item.m_addInfo >> 16),
+                    // ORIG 0x085bdb4e `movzbl -0x88(%ebp),%eax; movzbl %al,%eax`
+                    // ⇒ 第 2 实参同为 item+0x01 m_field1（(int) 扩展），旧写
+                    // `(m_addInfo >> 16)` 读 +0x04 半字（真语义 bug）。
+                    CLuckPoint::UseLuckPoint(user, (int)item.m_field1,
                                              card->get_rarity(),
                                              card->get_grade());
             }
@@ -1749,6 +1809,10 @@ struct Packet_Goldcard_Event_Statistic_GTS
 // 唯 it/e 双槽方向相反——ORIG 4.1 先声明深（it=-0x10/e=-0xc），4.4 先声明浅
 // （it=-0xc/e=-0x10）；交换声明序槽翻正但 C1Ev/end 发射序反（DIFF），两难不可兼得
 // ⇒ N93 类对象双槽方向封顶。p167 调用集齐（C1Ev/end/find/ne/ptEv/get_user_charac_name）。
+// [b28d-solo-CPartyDepsD2²] 第三形负结论：把 e 的声明移入内层复合块（块作用域
+// 槽重开）实测**无效**——`lea -0xc/-0x10` 与 `mov %eax,-0xc/-0x10` 逐条与基线
+// 全同（it 仍 -0xc/e 仍 -0x10），四数无变化（101/208/2/8）；连同已试的交换
+// 声明序形、P326 右值临时形，N93 在本件确认不可翻。
 // ---------------------------------------------------------------------------
 #include "CPartyDepsD2/Get_APC_Name_byIndex.inc"
 {

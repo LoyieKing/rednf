@@ -159,6 +159,8 @@
 //   补 MISSING C1ERKS×1 + D1Ev×2）；②`(*found).m_value += (*sit).m_value` 的
 //   operator*（deEv）形（P167：MISSING deEv×2 / EXTRA ptEv×2）。帧 0x8c=ORIG；
 //   残余仅槽号文本差（-0x3c vs ORIG -0x48 族，N86/N93 分配策略）；ORIG 0x08a6be66。
+// [GW20Run 2026-09-11 复核] fresh 195/195，助记符多重集**完全相等**（纯槽号/寄存器
+// 文本差）+ 1 条尾 nop（§6.1 豁免）；p167 28=28 全为 C1/C2·D1/D2 别名 ⇒ 维持 N126/N95。
 #include "CDataManagerScripts/getRewardStatus.inc"
     int level)
 {
@@ -267,6 +269,9 @@
 // 残余 gap 1 + 槽号整体平移 4（gradeIt -0x38 vs ORIG -0x34；P112/N93 块级槽向）；ORIG 0x08a5df0e。
 // [b28d-solo-CDataManagerScripts-5 复核] fresh orig 183 / ours 182；jcc 30/30
 // （序列错位源于块序/岛，无极性反写）⇒ 维持 N93/N112。
+// [GW20Run 2026-09-11 复核] fresh 183/182；ORIG 0x08a5dfea 冗余 `jmp $+0xe8`
+// （4.1 中继岛，我方 4.4 直跳）+ 尾 nop 豁免；p167 23/23（唯一差
+// PvPSkillTreeKey C1/C2 同址别名）⇒ 维持。
 #include "CDataManagerScripts/getPvPSkillPointNext.inc"
     int job, int firstGrow, int secondGrow, int grade) const
 {
@@ -1357,6 +1362,9 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item)
 // [F2d-C05② 甄别] 非命中形：比较对象之一是跨调用返回值 `m_vec.size()`（非两具名局部）；
 //   S1 一次性旋钮本件已用尽（idx 改 unsigned 实测劣化回滚）；show_func_diff orig=69 our=71
 //   gap=-2 ndiff=8 OURS-only={mov×2}。判 N18b/P209 + N18a。
+// [GW20Run 2026-09-11 复核] fresh 69/71；ORIG 0x08900b2 段 `cmp -0xc(%ebp),%eax`
+// mem 直比（P209 附，unsigned 比较改寄存器须联判符号性，禁单点）与
+// `mov 0x4(%eax,%ecx,4),%ecx` 单段（N18a）均与判词一致；p167 3=3 CLEAR ⇒ 维持。
 #include "CDataManagerScripts/get_reseal_cost.inc"
                                     unsigned char param_2,
                                     unsigned char param_3)
@@ -1502,6 +1510,9 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item)
 // `lea (%ecx,%eax,1),%eax; lea 0xc(%eax),%edx; mov val,(%edx)`（0x0890d052/0x0890d06d）；
 // 另实参装载序（ORIG kind 先于 node）与 %ebx 角色差。属 N107（add-vs-lea 折 disp）
 // + N7/N76（装载序）封顶；ORIG 0x0890cfda。
+// [GW20Run 2026-09-11 复核] fresh 55/53；判词所述 ORIG 0x0890d04f/0x0890d052
+// `lea (%ecx,%eax,1),%eax` + `lea 0xc(%eax),%edx` 仍逐条成立（我方 4.4 折 disp
+// `mov %eax,0xc(%edx)`）；p167 4=4 CLEAR、enc_kr_scan 0 ⇒ 维持 N107。
 #include "CDataManagerScripts/AddRewardItemInfo.inc"
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind,
     unsigned int rewardA, unsigned int rewardB)
@@ -1646,6 +1657,10 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item)
 // 与「命中分支 ret 直写 sret」双出口（单对象形被 4.4 NRVO 成整段 sret 写）。
 // 残余 = N107 成员数组寻址折叠（ORIG `mov 0xc(%eax,%ecx,1)` 单条 scaled
 // vs 4.4 `lea (%ecx,%eax,1); add $0xc`）；ORIG 0x0890d326。
+// [GW20Run 2026-09-11 复核] fresh 54/55；ORIG 0x0890d3b0 起单条 scaled/两级寻址
+// vs 我方 `add -0xc(%ebp),%eax; add $0xc,%eax` + 多次装载（寄存器角色族）；
+// p167 4/5 唯一实质差 = EXTRA `memmove`×1（= 本条判词所述「4.4 对 sret 8B POD
+// 拷贝发 call vs 4.1 内联两条 mov」的 N78/N84），余无 ⇒ 维持 N107/N7+N78。
 #include "CDataManagerScripts/GetRewardItem.inc"
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind)
 {
@@ -1961,6 +1976,8 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item)
 // [b28d-solo-CDataManagerScripts-5 复核] fresh orig 1441 / ours 1435；p167 201/201
 // （差集全为 C1/C2·D1/D2 别名 P93 伪差）；jcc ORIG 84 / 我方 86，上下文差集全部为
 // `test;je;jmp`（ORIG 岛形）↔ `test;jne;jmp`（我方）+ 槽平移对齐伪影 ⇒ 维持 N82/P164。
+// [GW20Run 2026-09-11 复核] fresh 1441/1434；P196 符号性 3 处 setg 已落（OUR setg×3
+// = ORIG，seta 归零）⇒ 余 setcc 直跳形 + N82 帧/槽分区；p167 74=74 CLEAR ⇒ 维持。
 #include "CDataManagerScripts/importAdvanceAltarShopParameter.inc"
     const char* path)
 {
@@ -2427,6 +2444,10 @@ std::vector<advancealtar::BuyUpgradeData>*
 // 多岛不可造，仅「不同落点连续尾标签」可造）。同族 2 条 xor 为 `while(ScanType)`
 // 条件形差（P292 表反例：改 for+if(!) 经 regen 件实测劣化 raw 300→301，已回滚）。
 // ⇒ 判 N（4.1 多岛 vs 4.4 merge，ORIG 0x0889b044..0x0889b05c 实证）。
+// [GW20Run 2026-09-11 复核] fresh 386/374；ORIG-only {xor:2, jmp:4} 与
+// 0x0889b046..0x0889b05e 共 8 条 `nop; jmp 0889b05f` 岛逐条核对一致（我方 5 岛）；
+// `while(ScanType)` 取反形（xor）差异已由前序泳道 for+if(!) 实测劣化回滚；
+// p167 48=48 CLEAR ⇒ 维持 N（P164/P223）。
 #include "CDataManagerScripts/importAchievementRewardParameter.inc"
     const char* path)
 {
@@ -2882,6 +2903,9 @@ stOneEmotionData& stOneEmotionData::operator=(const stOneEmotionData& rhs)
 // `cmp %ebx,%eax`（dst=call 结果/字段侧），ORIG 4.1 `cmp %eax,%ebx`（dst=局部 e）；
 // 本轮 fresh 复验：交换源码操作数（`e == m_expVec[i].m_exp`）仍产同形，P248 三档试尽；
 // 语义等价；ORIG 0x0849f420。
+// [GW20Run 2026-09-11 复核] fresh 32/32；ORIG 0x0849f447 `cmp %eax,%ebx; sete` vs
+// 我方 `cmp %ebx,%eax; sete`（P196 折痕；交换源码操作数历史实测同形、P248 三档试尽）
+// ⇒ 维持 N22/N18b。CUser.cpp:2352 消费点只读返回值，本件不动签名/mangled。
 #include "CDataManagerScripts/isBoundaryExpValue.inc"
 {
     // [b28c-L18] NEAR（fresh 32=32，助记符序列全等，仅 cmp 操作数序差 2 行）：

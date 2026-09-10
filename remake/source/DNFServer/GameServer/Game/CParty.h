@@ -358,7 +358,7 @@ public:
     int leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type);
     int walkout_member(CUser* user, int param);   // ORIG 0x859ca4a：8=非队长 4=槽位空 1=leave_user==1 0=成功
     int change_manager(CUser* user, int slot);   // ORIG T 0x0859c978：0 成功/8 非本人/18 已是/21 参数槽错
-    int change_manager();
+    bool change_manager();
     void battle_data_reset();     // 0x859aec2
     int set_host();
     int set_single_play(CUser* user);   // ORIG 返回 eax=1（0x859b142）
@@ -651,7 +651,7 @@ public:
     unsigned int getMonsterTotalExp(unsigned int monsterIdx, char flag, int a, float b,
                                     float c, bool d);
     // ---- 物品 ----
-    int get_item(CUser* user, int itemIdx, bool flag, char c, int& param,
+    bool get_item(CUser* user, int itemIdx, bool flag, char c, int& param,
                  unsigned char& flag2, bool& flag3);   // ORIG 返回 0/1
     void _onGetItem(CUser* user, unsigned int itemIdx, unsigned int count);
     int drop_item(CUser* user, int itemIdx, int count, char a, int b, int c);

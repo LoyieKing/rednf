@@ -56,11 +56,18 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    if (user->get_state() == 5 &&
-        user->getInDungeonItemSellCount(invenType, slot) == 7)
+    // [K6-DpcSigBig L5] P225/P133：ORIG 0x081f2fa1..0x081f2fd4 两条条件**各自
+    // 独立物化**为 `cmp $imm; sete %al; test %al,%al; je 081f3010`（双跳同一
+    // 失败目标，中间夹 getInDungeonItemSellCount 的完整实参装载）⇒ 原码是
+    // `if (state==5) { if (count==7) {...} }` 嵌套形；旧 `&&` 合并形 4.4 折成
+    // `jne` + `mov $1/jmp/mov $0/test` 岛（少 2 处 sete/test 对）。
+    if (user->get_state() == 5)
     {
-        user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x139,
-                                       1, 0, 0);
+        if (user->getInDungeonItemSellCount(invenType, slot) == 7)
+        {
+            user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x139,
+                                           1, 0, 0);
+        }
     }
 
     PacketGuard packetGuard;            // -0x60

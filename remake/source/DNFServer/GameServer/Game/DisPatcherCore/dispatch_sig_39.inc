@@ -94,12 +94,24 @@ int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     const int socketType = stackable->m_vec3a0[0];
     bool slotOk = false;                                              // ORIG local_d(-0x9)
+    // [K6-DpcSigBig L5] ORIG 0x0821a8e4..0x0821a917：三臂均为「bool 物化
+    // （`mov $1,%eax; jmp; mov $0,%eax` + 二次 `test %al,%al; je`）后**条件
+    // 赋 true**」（`movb $0x1,-0x9(%ebp)`）；旧形 `slotOk = <cond>` 只出
+    // `call *%edx; xor $1; mov %al,-0x9` 直存（实测每臂少 5 条，全件少 10 条）。
     if (socketType == 0)
-        slotOk = !equip->IsClearAvatar();
+    {
+        if (!equip->IsClearAvatar())
+            slotOk = true;
+    }
     else if (socketType == 1)
-        slotOk = equip->IsClearAvatar();
+    {
+        if (equip->IsClearAvatar())
+            slotOk = true;
+    }
     else if (socketType == 2)
+    {
         slotOk = true;
+    }
     if (!slotOk)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xd1, 0x11);

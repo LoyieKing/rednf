@@ -1,6 +1,19 @@
 void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& info)
 
 {
+    // [DpcMisc-R2 2026-09-11 负结论·16 件清单内] 本件 ORIG 412 / OUR 418（+6）。
+    // 逐条归一化后残差四类，全部为跨版本后端/旗标族（源码形无自由度），维持原形：
+    //  ① +2：limit 除法段中间物化 `mov %eax,-0x10(%ebp); mov -0x10(%ebp),%eax`
+    //     （ORIG 0x081c4d8b 处 `shr $0xd,%eax; imul $0x2710,%eax,%eax` 直连，
+    //     4.4 插一次槽往返；属 4.4 调度，非源侧具名局部——该表达式已是单条语句）。
+    //  ② -3：ORIG 把 addServerHackCnt 的第 4 实参先物化 `mov -0x14(%ebp),%ebx` 再
+    //     `mov %ebx,0x10(%esp)`（callee-saved 缓存），4.4 改 `mov -0x14(%ebp),%edx;
+    //     mov %edx,0x10(%esp)`（scratch %edx）⇒ 同条数、寄存器角色差（N7 族）。
+    //  ③ 浮点比较 lowering：ORIG `fucompp; fnstsw %ax; test $0x45,%ah; sete %al`
+    //     vs 4.4 `fucomip %st(1),%st; fstp %st(0); seta %al`（P230：需 -march=i486
+    //     才消 fnstsw/sahf 族；TU 级旗标由 dnf_game_cxx.sh 定，本泳道不可改）。
+    //  ④ +4：函数尾/循环尾各一组 4.4 自产 `jmp <epilogue>; nop` 中继岛（N121）。
+    // p167：父泳道实测本件 C1/C2·D1/D2 同址别名外零差集 ⇒ 无语义缺口。
     unsigned int limit = 0;
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party == 0)

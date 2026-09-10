@@ -1,1 +1,1 @@
-int CParty::change_manager()
+bool CParty::change_manager()

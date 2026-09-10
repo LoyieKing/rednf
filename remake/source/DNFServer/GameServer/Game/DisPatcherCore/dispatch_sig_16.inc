@@ -188,13 +188,22 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             static_cast<unsigned short>(die.m_fieldF), die, &monsterIdxOut);
         if (r == 0)
         {
-            PacketGuard pgFail;
-            pgFail.put_header(1, 0x2a);
-            pgFail.put_byte(0);
-            pgFail.put_byte(5);
-            pgFail.put_short((int)die.m_mobSeq & 0xffff);
-            pgFail.finalize(true);
-            user->Send(pgFail);
+            // [K6-DpcSigBig L5] P0/P78：`return 0` 原位于 PacketGuard 作用域内 ⇒
+            // 4.4 需把返回值跨析构保活 ⇒ 本函数全部 return 改用 ebx 载体（我方
+            // 0x1633e `mov $0x0,%ebx; mov %ebx,%eax`；37 处 `return LineFunc(...)`
+            // 各多 `mov %eax,%ebx`，合计 +37 条；实测 OUR mov$0,ebx=3 /
+            // mov %eax,%ebx=37 vs ORIG 0 / 4）。ORIG 0x081ecca8 `jmp 081eccc8`
+            // （析构段）→ 0x081eccd6 `mov $0x0,%eax`：**析构之后**才设返回值
+            // （eax 载体）⇒ 原码该 return 不在析构对象作用域内。收紧作用域复现。
+            {
+                PacketGuard pgFail;
+                pgFail.put_header(1, 0x2a);
+                pgFail.put_byte(0);
+                pgFail.put_byte(5);
+                pgFail.put_short((int)die.m_mobSeq & 0xffff);
+                pgFail.finalize(true);
+                user->Send(pgFail);
+            }
             return 0;
         }
 
@@ -271,10 +280,15 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                 static_cast<WongWork::ENUM_HACKTYPE>(0x6b);
             CUser* attacker =
                 G_GameWorld()->find_from_world(die.m_attackerList[i]);
-            bool attackerOk =
-                attacker != 0 &&
-                party->isMyMember((unsigned int)die.m_attackerList[i]) != 0;
-            if (!attackerOk)
+            // [K6-DpcSigBig L5] P0/P183：ORIG 0x081ebfa5..0x081ebfbc 该谓词
+            // **无栈槽往返**（`call CParty::isMyMember` 后直接
+            // `je 081ebfb5`(mov $0,%eax) / `mov $0x1,%eax` / `jmp` /
+            // `test %al,%al; je 081ec2b3`，全程寄存器）⇒ 原码是内联表达式，
+            // 非具名 bool 局部。我方旧形多 `mov %al,-0x3a(%ebp)` +
+            // `movzbl -0x3a(%ebp),%eax`（槽往返 2 条）+ 一条 `test %eax,%eax`。
+            // 德摩根等价改写（短路顺序不变：先判 attacker 非空）。
+            if (attacker == 0 ||
+                party->isMyMember((unsigned int)die.m_attackerList[i]) == 0)
                 continue;
             CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
                 attacker, limit, hackType);

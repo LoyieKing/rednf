@@ -2143,8 +2143,15 @@ afterQuest:
                 // 0x4(%esp)=&+0x14（itemIdx）、0x8(%esp)=&+0x10（subGroupIdx）
                 // ⇒ 原码 key 取 m_field14 的 unsigned long 别名、value 取
                 // m_field10，原重构写反（key/value 对调是真行为差）。
+                // [K9-CItemList 2026-09-11] ORIG 0x08512854 `lea 0x14(%eax),%edx`
+                //   （单条 lea，我方原写 `(unsigned long&)x.m_field14` 恒生
+                //   `add $0x14,%eax; mov %eax,%edx` 两条 ⇒ gap −1 唯一真差）。
+                //   探针实证（/tmp/probe44，同 4.4.6 路由）：`*(unsigned long*)
+                //   ((char*)base + offsetof(T,m_field14))` 形复现单条 lea；字段名
+                //   保留在 __builtin_offsetof 内，语义等价（同址同宽 4B）。
                 m_lottoMap.insert(std::make_pair<unsigned long&, int&>(
-                    (unsigned long&)shopList[i][j].m_field14,
+                    *(unsigned long*)((char*)&shopList[i][j] +
+                        __builtin_offsetof(STCeraShopItem, m_field14)),
                     (int&)shopList[i][j].m_field10));
             }
         }
@@ -2732,7 +2739,14 @@ bool OUTPUT_ITEM_STR::operator<(const OUTPUT_ITEM_STR& other) const
     //   inRarity 两处 `mov mem,%eax` 被折掉）⇒ 保持 int baseLevel（P321 T5：
     //   类型不用于凑装载序）。
     int baseLevel = _get_base_level(refs);
-    int inRarity = _convertInputItem(
+    // [K9-CItemList 2026-09-11] ORIG 0x0832ce0e/-0x0832ce1b 段（inRarity 窗口
+    //   守卫）为 `mov -0x24(%ebp),%eax; test %eax,%eax; jle` + `mov; cmp $0x2;
+    //   jg` 两段载入形；4.4 对 **int** 局部恒折 `cmpl $0x0/-0x24(%ebp)` 单段
+    //   （P209/N18a，改 `inRarity > 0` 等写法无效）。探针实证（/tmp/probe44，
+    //   同 4.4.6 路由）：局部类型为**枚举**时 4.4 恒发 mov+test/mov+cmp 两段
+    //   ⇒ 类型改 ENUM_INPUTITEMS_RARITY（该局部在 ORIG 只被当作 rarity 用，
+    //   取值域 0..2，转换点显式化，语义等价）。
+    ENUM_INPUTITEMS_RARITY inRarity = (ENUM_INPUTITEMS_RARITY)_convertInputItem(
         (ENUM_UNUSABLE_EQUIPMENT_TYPE)refs[0]->GetUsableEquipmentType());
 
     // [b28d-solo] ORIG 槽序（0x832cced/-0x28、0x832cd0c/-0x24、0x832cd0f/-0x20、
@@ -2786,8 +2800,15 @@ bool OUTPUT_ITEM_STR::operator<(const OUTPUT_ITEM_STR& other) const
         found = _FindItemAll_BindSphere(refs, select,
             (ENUM_OUTPUTITEMS_RARITY)outputRarity,
             std::pair<unsigned int, unsigned int>(
-                bonus.first + (unsigned int)baseLevel,
-                bonus.second + (unsigned int)baseLevel));
+                // [K9-CItemList 2026-09-11] ORIG 0x0832ce5e/-0x0832ce79 段为
+                //   `mov -0x5c(%ebp),%eax; add -0x28(%ebp),%eax`（内存加，2 条）；
+                //   原写 `bonus.first + (unsigned int)baseLevel` 使 4.4 走无符号
+                //   lea 形（`mov;mov;lea` 3 条，两处共 +2 ⇒ gap 0 平衡的另一半）。
+                //   探针实证（/tmp/probe44，同 4.4.6 路由）：转换包住**有符号**
+                //   加法即复现 mov+add-mem 单对。baseLevel/_get_base_level 恒非负
+                //   （等级均值），(int) 转换在实值域内语义等价。
+                (unsigned int)(baseLevel + (int)bonus.first),
+                (unsigned int)(baseLevel + (int)bonus.second)));
     }
     if (found == 0)
     {

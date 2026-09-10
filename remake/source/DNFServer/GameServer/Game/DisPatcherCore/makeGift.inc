@@ -1,6 +1,13 @@
 void DisPatcher_CreateCharac::makeGift(CUser* /*user*/, SIG_CREATE_CHARAC* sig)
 
 {
+    // [DpcMisc-R2 2026-09-11 负结论] 除下方 tmpClothes 声明位置修复外，本件唯一残差 =
+    // `CREATECHARACTEREQUIP[idx*2]` 的寻址折叠：ORIG 0x081c0a2x/0x081c0b7x
+    // `mov 0x9370180(,%eax,8),%ebx`（单条 scale8），4.4 恒 `add %eax,%eax;
+    // mov 0xc80(,%eax,4),%ebx`（+1 条）。全局表 `static const int CREATECHARACTEREQUIP[22]`
+    // 定义在聚合器 DisPatcherCore.cpp:462（他写域，不可改类型），且 N125 已定案
+    // 「4.4 对 i*2 下标缩放恒 add+scale4，不复现 4.1 的 scale8」⇒ 封 N，不试。
+    // 另：`call *%edx`↔`call *%eax`（虚调用目标寄存器）为 N7 族。
     // [b28d] P0/P183：ORIG 无 `job` 具名局部——0x081c0a24 / 0x081c0a49 / 0x081c0aab /
     // 0x081c0b75 / 0x081c0dd8 五处各自重发
     // `mov 0x10(%ebp),%eax; movzbl 0x22(%eax),%eax; movsbl %al,%eax`。
@@ -16,12 +23,17 @@ void DisPatcher_CreateCharac::makeGift(CUser* /*user*/, SIG_CREATE_CHARAC* sig)
     {
         sig->m_equipFindOk = 1;
         Inven_Item tmpWeapon;
+        // [DpcMisc-P7 2026-09-11] 声明位置（构造发射序）：ORIG 0x081c0a8x 段两个
+        // `Inven_Item::C1Ev` **相邻发射**（`lea -0x55; call C1Ev` 紧跟 `lea -0x92;
+        // call C1Ev`）后才用 tmpWeapon ⇒ 原码两个声明相邻（P28 声明序）。旧形把
+        // tmpClothes 声明在使用点前，4.4 把第二个 C1 延后到 tmpWeapon 用完之后
+        // （difflib 记 -1/+3 错位）。提前声明即对齐，指令数不变。
+        Inven_Item tmpClothes;
         tmpWeapon.m_addInfo =
             CREATECHARACTEREQUIP[static_cast<int>(static_cast<signed char>(sig->m_slot)) * 2];
         weapon->make_item(tmpWeapon);
         sig->m_weaponItem = tmpWeapon;                        // 0x3d 字节 → SIG+0x4e7b
 
-        Inven_Item tmpClothes;
         tmpClothes.m_addInfo = CREATECHARACTEREQUIP[
             static_cast<int>(static_cast<signed char>(sig->m_slot)) * 2 + 1];
         clothes->make_item(tmpClothes);

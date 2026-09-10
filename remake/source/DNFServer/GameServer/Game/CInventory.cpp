@@ -1683,6 +1683,11 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
     // 跨 G_CDataManager 保活后直接作 GetMoneyLimitPerLevel 实参）⇒ 该段现已与 ORIG
     // 逐条一致（含 push ebx/esi 与调用序）。残余 = 整帧 0x6c vs 0x5c（我方 money/bool
     // spill 槽分区与 ORIG 不同：-0x4c vs -0x3c），N82附 族封顶。
+    // [K8CInventory 2026-09-11 复核] 结构/调用集/结构偏移直方图三项全同（207/207）；
+    // 残余仅槽号：ORIG money(-0x40)/bool(-0x3c)/trace(-0x38) 三连续深槽
+    // （0x084ff3?? 段 `mov %eax,-0x40` / `mov %al,-0x3c` / `lea -0x38`），我方
+    // money(-0x2c)/trace(-0x3c)/bool(-0x4c)：4.4 把 bool 溢出槽压帧底
+    // （-0x4c = 帧 0x6c − outgoing 0x20）⇒ 帧恒 0x6c vs ORIG 0x5c。N82附 定谳。
     int money;
     int limit = 0x7fffffff;
     int oldMoney;
@@ -1765,6 +1770,11 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
     // [b28d-PoolMisc2 修成] 声明必须放**函数头第一位**（4.4 同 size 组按声明序由
     // 深到浅）⇒ 单此一改 ndiff 61→24→**8**。撑 overMoney[4]（16B）再抢深度实测反劣
     // （帧 0x5c→0x6c、多 `mov -0x40; mov -0x50` 拷贝，ndiff 8→14）⇒ 回滚标量形。
+    // [K8CInventory 2026-09-11 · 试形回退] ORIG overMoney 落 -0x40（紧邻 bool 溢出槽
+    // -0x3c 之下，直证 0x084ff5f4 `mov %eax,-0x40(%ebp)`），曾疑其属最深块内标量组
+    // ⇒ 实测把 `int overMoney` 移入 `if (limit < m_money)` 块内（块内声明）**劣化**：
+    // 槽差从 4 条（-0x40↔-0x24、-0x30↔-0x34）涨到 12 条（(4,)×10 + (-36,)×2），
+    // 4.4 把块内标量放到浅区而非 ORIG 的深区 ⇒ 维持函数头首位声明（P212 已落地形）。
     int overMoney;
     int oldMoney;
     int limit;
@@ -2233,6 +2243,10 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
 {
     // [SweepCInventory-2 复修] ORIG 209 / 我 209（gap 0）。同 stackInvenItemIntoQuickSlot：
     // 日志 cMyTrace 改全表达式临时链（P227/P37），实参求值序/跨 ctor 保活与 ORIG 同形。
+    // [K8CInventory 2026-09-11 复核] 209/209、结构/调用集/结构偏移直方图全同；残余仅槽号
+    // （(8,)×21 / (16,)×3 / (-36,)×4）与 bool 溢出槽差 0x10（ORIG -0x3c vs 我方 -0x4c，
+    // 帧 0x5c vs 0x6c）⇒ 与 gain_money 同族（4.4 bool spill 压帧底 + 局部区 rounding），
+    // N82附 定谳。
     if (item.m_field1 == 1)
     {
         return -1;
@@ -4064,10 +4078,17 @@ l_ces_skip2:;
         }
         if (it->second > 0)
         {
-            // [H8InvenPvPWorld 2026-09-11 · 负结论 N] 试「默认构造 + 逐字段赋值」
-            // （追 ORIG 的 `_ZNSt4pairIiiEC1Ev`）⇒ 本函数 158/166→158/154 与
-            // fndiff 102→72 双改善，但 **TU 四数回退**（identical 129→128、
-            // ae 270→269）⇒ 按「四数不劣」闸门回滚，维持双参构造形。
+            // [K8CInventory 2026-09-11 · 取地址轴实测回退] 双参构造 `std::pair newItem(itemIdx,
+            // need)` 在 gnu++0x 下走转发构造 `pair<int&,int&>(int&, int&)`（.o 直证
+            // `_ZNSt4pairIiiEC1IRiS2_EEOT_OT0_`）⇒ **取 need 地址** ⇒ 4.4 对 need 的 `--`/
+            // `-=` 退化为 load-modify-store：我方 0x8c13 `mov -0x30(%ebp),%eax; sub $0x1,%eax;
+            // mov %eax,-0x30(%ebp)`（3 条）vs ORIG 0x085057bc `subl $0x1,-0xc(%ebp)`（1 条）。
+            // 改「默认构造 + 逐字段赋值」确实复现 ORIG 形（0x085056e5 `pair::C1Ev` + 两次
+            // `mov %eax,-0x38/-0x34`），实测 166→155（ORIG 158），但**发射集变化**：
+            // IDENT 件 `_ZSt7forwardIRiEOT_ONSt8identityIS1_E4typeE`(5/5) 与 AE 件
+            // `_ZNSt4pairIiiEC1IRiS2_EEOT_OT0_`(17/17) 随之消失（不再实例化）⇒ TU 四数
+            // IDENT 129→128、AE 271→270 劣化 ⇒ 按「四数不劣」闸门回滚（与 H8 记录同因，
+            // 此处补明 = 转发构造 weak 实例消失所致，非本函数 verdict 变化）。
             std::pair<int, int> newItem(itemIdx, need);
             out.push_back(newItem);
         }
@@ -4702,9 +4723,19 @@ fail_return:
     // （ORIG 0x08509145..0x0850916e 为 find(-0x48)→end(-0x40)，4.4 对 `==` 右操作数先求值）
     // ⇒ our 268 = ORIG 268，gap 0，差异块 5→2。残余 2 块 = color2 段 find/end 求值序
     // （复用 color1 具名变量实测 our→270 劣化已回滚，见 color2 处注释）⇒ N 类残差。
+    // [K8CInventory 2026-09-11 复核] 268/268、结构/调用序/结构偏移直方图全同；残余 10 条
+    // 槽差 = color1/color2 两块的临时槽基**互换**：ORIG color1 组 -0x54/-0x50/-0x4c
+    // （0x08509145/0x0850913e/0x08509161）vs 我方 -0x4c/-0x48/-0x44（0xa7ab/a7a8/a7c7）；
+    // ORIG color2 组 -0x48/-0x44/-0x40 vs 我方 -0x54/-0x50/-0x40 ⇒ 4.1 先见块占更深槽、
+    // 4.4 反是，源码层不可达 ⇒ N 定谳。
     CItem* pClearItem = 0;
     CItem* pTargetItem = 0;
     CItem* localDummy = 0;   // ORIG -0x34 槽：第三个具名局部（初值 0，无使用点，P232）
+    // [K8CInventory 2026-09-11 · P331/P-L11d 双试形回退] ①把 colorId1/colorId2 提到函数级
+    // （同尺寸标量区，追 ORIG 先声明更深）实测 268/268 但槽差**条数不变**（10→10，仅从
+    // (-8)×5+(+12)×3 摊成 (-8)×4+(+8)×2+(-4)+(-16)+(+4)+(+12)）；②P-L11d「同名局部共用
+    // 促复用」不适用：ORIG 两组本就不复用（find sret -0x54 vs -0x48），互换的是**块分配
+    // 方向**（4.1 先见块占深槽 / 4.4 后见块占深槽）⇒ 源码层不可达，N 定谳。
     if (c != 0)
     {
         pClearItem = G_CDataManager()->find_item(c);
@@ -5019,6 +5050,11 @@ fail_return:
 #include "CInventory/CalBlankSlot.inc"
                               const std::vector<std::pair<int, int> >& items) const
 {
+    // [K8CInventory 2026-09-11 复核] 新鲜 .o 读数 **313/309**：唯一结构差 = 4 条 `nop`
+    // （ORIG 对齐填充，实测位于 0x085085? 循环回边/0x0850857e 与 0x085088?? 段的 `jmp` 前），
+    // 其余逐条一一对应；槽差 = start/end 一组整体浅 8（ORIG `lea -0x48/-0x4c`
+    // vs 我方 `lea -0x40/-0x44`，见上述 -0x48:5↔-0x40:5 / -0x4c:3↔-0x44:3 引用计数互换）。
+    // ⇒ N 定谳（对齐填充旗标 + 4.4 块内临时槽基），非声明序可调（本件 P212 已多形实测）。
     // b28d-36 [P159+P223]：ORIG 0x08508536 尾部 `nop; leave; ret`（无 mov$0）⇒ 返回 void；
     // 首守卫 ORIG 形 `sete %al; test; jne TAIL` + body 尾 `jmp`/TAIL `nop` ⇒
     // `if (items.size()==0) goto END;`（goto 尾标签产正向 jne；原地 return 产反向 je+eax 岛）。

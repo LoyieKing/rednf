@@ -12,6 +12,14 @@ void DisPatcher_BuySkill::try_master_new_skills_process(CUser* user, char treeKi
     {   // 公会技能 [200,208]：直接返回（ORIG cmp $0xd0 jbe → 尾声）
         return;
     }
+        // [DpcMisc-P8 负结论 2026-09-11，已回滚] ORIG 0x081bfe22-0x081bfe32 为
+        // 「store + 两次 load→cmp」两段形（`mov %eax,-0x1c(%ebp)` →
+        // `mov -0x1c(%ebp),%eax; cmp $0xffffffff,%eax; je` →
+        // `mov -0x1c(%ebp),%eax; test %eax,%eax; jne`），4.4 恒折成
+        // `cmpl $imm,-0x28(%ebp)` 单段 ⇒ 本件 gap −1/−2 的成因之一。
+        // 试形 `volatile int treeIdx`：父泳道 fresh 核账 **83→88（+5 超调，|84−88|=4）**
+        // —— volatile 强制每次访问落内存并阻止折叠，额外 load 远多于目标 2 条，
+        // 属失真写法 ⇒ 回滚。该两段形归 N（4.4 前端折叠，源码形无自由度）。
         int treeIdx = user->GetCurCharacSkillTreeIndex();
         if (treeIdx == -1 || treeIdx == 0)
         {

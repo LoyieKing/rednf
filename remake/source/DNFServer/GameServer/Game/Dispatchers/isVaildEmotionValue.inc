@@ -1,1 +1,1 @@
-int Dispatcher_ChangeEmotion::isVaildEmotionValue(short value)
+bool Dispatcher_ChangeEmotion::isVaildEmotionValue(short value)

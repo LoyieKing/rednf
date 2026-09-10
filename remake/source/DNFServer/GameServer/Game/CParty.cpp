@@ -946,6 +946,10 @@ typedef std::vector<MapInfo> MapInfoVec;
 // [SweepCParty] 补真调用 CUser::getAddExpRateFromPremium(0x4f)（旧码就地取
 // g_SPremiumInfo 表字段绕过调用 ⇒ p167 MISS 1，已消）。gap 1（220 vs 219）；p167 CLEAR
 //（余 C1/C2 别名）。残余 = N82/N126 帧槽（0x78 vs 0x88）。
+// [负结论·2026-09-11 本轮复核] 残余 gap −4（我方 215 vs ORIG 219）：唯一结构性差 =
+// 尾部浮点链 —— ORIG 0x085a26b3 `fmuls -0x20(%ebp); fdivrp %st,%st(1)`（2 条）vs
+// 我方 `flds -0x20; fmulp; fldl 100.0; fdivrp`（4 条，多 1 fdivrp + 1 flds）⇒ 4.4 对
+// u64×float 与常量浮点除的 lowering 差异（N 类），源码层无可翻形。
 #include "CParty/sumGainedEachExp.inc"
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS CUser::getAddExpRateFromPremium(ENUM_PREMIUM_TYPE)
@@ -1398,6 +1402,13 @@ typedef std::vector<MapInfo> MapInfoVec;
         // je <false 岛>`（P168a 取反族）+ `mov $1/$0,%eax` 物化，**无 noFat 槽**
         // ⇒ 原码是 `!(A||B||C||D)` 直用，非具名 bool。旧码 `bool noFat` 多 2 条
         // movb 槽写 + 1 条 cmpb（我方 -0x1d）。
+        // [负结论·2026-09-11 本轮实测] 全函数唯一残余差 = 本条件第 4 项
+        // `m_advanceAltarSurvivalFlag`：ORIG 0x085ac9xx `movzbl 0x800(%eax),%eax;
+        // xor $1,%eax; test %al,%al; je <false 岛>` vs 我方 `movzbl …; test %al,%al;
+        // jne <false 岛>`（差 1 条，269/268）。试形：De Morgan 全展开
+        // （`A!=1 && !(B&&C) && !D`）实测 codegen **零变化**（objdump 逐条核
+        // 28a9..28b2 仍 test/jne）⇒ 4.4 对 unsigned char 直读恒不产 xor，判 N。
+        // 已回滚该试形（源码复原为 `!(A||B||C||D)`）。
         if (!(m_battleField.m_bloodState == 1 ||
               (worldMap != 0 && worldMap->hasDeathTower()) ||
               m_battleField.m_pDungeon->isNoFatigueDungeon() ||
@@ -2382,21 +2393,33 @@ typedef std::vector<MapInfo> MapInfoVec;
     ((CPartyTelePort*)GetPartyTelePort())->process_leave_user_at_teleport(user);
     // ORIG 0859c14x `mov 0x8(%ebp),%eax; add $0x2a4,%eax` ⇒ 直接取 &m_padShop
     //（P167 EXTRA GetSecretShopData 已消：原 `GetSecretShopData()` 形多发一次 call）。
+    // [待 .h 属主·只报告] ORIG 0x0859c1b2 前为 `call IsOpen; test %al,%al; je`
+    // （P292 档① 单字节直判，无 setne 归一化）⇒ `SECRET_SHOP_DATA::IsOpen()` 应返
+    // **bool**；我方现因 int 返值多 2 条（`test %eax,%eax; setne %al; test %al,%al`）
+    // —— 本函数剩余 gap −2 全部来源。改 .h 后预计 474/474。
     if (m_secretShop.IsOpen())
     {
-        int pos = user->GetUserPosInParty();
-        m_secretShop.SetBuying(pos, false);
+        // [P-L11] ORIG 0x0859c18a..0x0859c1ad：GetUserPosInParty 结果**无槽**，
+        // 直进 SetBuying 的 0x4(%esp)；旧码 `int pos` 多 1 store + 1 load。
+        m_secretShop.SetBuying(user->GetUserPosInParty(), false);
     }
     if (m_battleField.m_pDungeon != 0)
     {
         // [2026-09-10 试形 P312/P78] ORIG 该点无 memset call（p167 EXTRA memset）；
         // `char[0x100] = {0}` 令 4.4 内联 rep stos（OnFightVillageMonster 同族实证）。
         char names[0x100] = {0};
-        int partyType = m_battleField.m_bloodState;
-        char* memberNames = _getMemberNames(names);
-        int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
-        const char* dname = m_battleField.m_pDungeon->GetDungeonName();
-        user->m_historyLog.LeaveDungeon(dname, diff, memberNames, partyType);
+        // [P-L11] ORIG 0x0859c1d9..0x0859c23a：四实参**全内联**（edi=partyType、
+        // esi=memberNames、ebx=diff、eax=dname 寄存器保活，无槽），求值序右→左；
+        // 旧码四个具名局部多 4 store + 4 load。
+        user->m_historyLog.LeaveDungeon(
+            m_battleField.m_pDungeon->GetDungeonName(),
+            reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
+            _getMemberNames(names),
+            m_battleField.m_bloodState);
+        // [负结论·2026-09-11 本轮实测] 全函数仅剩 1 条（我方 473 vs ORIG 474）：
+        // ORIG 0x0859c1d9..0x0859c1e2 `mov 0xcd8(%eax),%eax; mov %eax,%edi`
+        // （partyType 经 eax 中转到实参寄存器）vs 我方 `mov 0xcd8(%eax),%edi` 一步
+        // ⇒ 4.1 实参寄存器分配差，源码层无对应形，判 N。
         // [P0/P329] 同 ReturnToVillage：短路直跳，无 bool 槽（ORIG 两 test 直判）。
         if (IsSinglePlay() && user->isDungeonClearHackCheck())
         {
@@ -2426,13 +2449,14 @@ typedef std::vector<MapInfo> MapInfoVec;
             (int)user->GetPartyIndex());
         if (count < 1)
         {
-            int cState = (char)m_state;
-            int pIndex = m_partyIndex;
-            unsigned short dIdx = m_dungIndex;
+            // [P-L11] ORIG 0x0859c3c5..0x0859c3e5：cState/pIndex/dIdx 三实参**全内联**
+            // （movzbl 0x6a+movsbl / mov 0x74 / movzwl 0x13e 两级零扩展），无具名槽；
+            // 旧码三个具名局部多 3 store + 3 load（我方帧 -0x28 系槽）。
             LogManager::logFormat(1, "party.cpp",
                 __PRETTY_FUNCTION__, 0x5c5,
                 "[PARTYPOOL] member_count : %d, m_pManager : %x, dungeon_idx : %u, m_iIndex : %u, cState : %d",
-                count, m_manager, (unsigned int)dIdx, pIndex, cState);
+                count, m_manager, (unsigned int)(unsigned short)m_dungIndex,
+                m_partyIndex, (int)(char)m_state);
             for (int i = 0; i <= 3; ++i)
             {
                 if (m_member[i].m_pUser == 0)
@@ -5113,7 +5137,7 @@ fail:
                         LogManager::logFormat(
                             1, "party.cpp",
                             __PRETTY_FUNCTION__, 0x36f8,
-                            "INIT_CARD_NUM != dungeon_reward_card_[i]==>> "
+                            "INIT_CARD_NUM != dungeon_reward_card_[i]===>> "
                             "dungeon_reward_card_[i] = %d, i = %d, z = %d",
                             (int)(char)m_field204[0][i], i, z);
                     }
@@ -6483,7 +6507,12 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
         // 独立具名 float（与真分支不共用），保持分支内声明。
         raw = (long long)(round * baseExp);
         float fraw = (float)raw;
-        // ORIG：weight*fraw 先算落栈（fstps），再乘 inoutWeight（fmuls）。
+        // [负结论·2026-09-11 本轮实测] 全函数仅剩 1 条实质差：本行 ORIG
+        // `flds (%eax,%edx,4); flds -0xf0(%ebp); fmulp %st,%st(1)`（085b7f??
+        // 两操作数各 flds 后 fmulp）vs 我方 `flds …; fmuls -0x10(%ebp)`。
+        // 试形：显式 double 提升（`(double)m_rate[round] * fraw`）实测 codegen
+        // 零变化（仍 fmuls，赋回 float 时提升被折掉）⇒ 4.4 x87 选择器差异，判 N。
+        // `float w1 = fraw * m_rate[round]` 为等价值，保持不动。
         float w1 = G_CDataManager()->m_bloodDungeon.m_rate[round] * fraw;
         exp = (unsigned int)(long long)(w1 *
             G_CDataManager()->m_bloodDungeon.m_vec334[(unsigned int)inoutCnt]);
@@ -6513,6 +6542,9 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
     // ⇒ 原码单表达式链，无 ev8/pcr 具名指针；我方原两槽（-0x54/-0x50）已删。
     if (static_cast<CPCRoomBurningEvent*>(
             GlobalData::s_event_manager->GetRepeatEvent(8))->IsEventing(user))
+        // [负结论·本轮实测] 本处 ORIG 0x085b8130 为**整数除**（`mov $0x51eb851f,%edx;
+        // imul; sar $0x5; sar $0x1f; sub` 10 条 + `fildl -0xd0; fstps -0xb4`）⇒
+        // `/ 100` 正确；改 `/100.0f` 实测 323→331 反劣（-8 条 ORIG 独有段消失），已回滚。
         param.m_pcRoomBurningRate = (float)(static_cast<CPCRoomBurningEvent*>(
             GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
 
@@ -6549,11 +6581,14 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
         static_cast<unsigned int>(G_CEnvironment()->get_channel_no()),
         static_cast<unsigned int>(m_battleField.m_pDungeon->get_index()));
 
+    // [语义轴·真 bug] ORIG 0x085b829b / 0x085b82ba 段同为 `fildl -0xd0(%ebp);
+    // flds 100.0f; fdivrp` = **浮点除**（本函数三处除法全为浮点）；旧码 `/ 100`
+    // 整数除 ⇒ 费率被截断为整数。改 100.0f。
     if (user->IsHavePremiumAdvantage())
         param.m_premiumAdvantageRate = (float)(
-            user->GetPremiumInfo()->GetAdvantageExpRate() / 100);
+            user->GetPremiumInfo()->GetAdvantageExpRate() / 100.0f);
 
-    param.m_serverEventExpRate = (float)(CServerEvent::GetExpRate() / 100);
+    param.m_serverEventExpRate = (float)(CServerEvent::GetExpRate() / 100.0f);
     param.m_manageBonus = CalcurateManageBonus(
         ManageBonusType::T_0, user, (unsigned int)exp);
 

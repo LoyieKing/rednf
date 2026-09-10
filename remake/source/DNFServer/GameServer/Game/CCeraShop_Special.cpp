@@ -722,6 +722,21 @@ struct SaveCrazyLevelupPayloadView
 // b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 672/703 ndiff 890→863；lethe
 // 获取前置到 param 字段读取之前（ORIG 0x0827d3dc 序）；P167 CLEAR 101/101；余帧
 // 0xc0/0xf4 + 槽平移封 N82。
+// [CeraShop12Run 2026-09-11 本轮] 680/701→680/693（-8；TU 三数 176/319/3/11 与
+//   rule4 逐函数 verdict 全一致，仅本件 COUNT 改善）：
+//   ① m_char1f 按 bool 左值视图读（ORIG 0x0827d527..0x0827d531 `movzbl 0x1f(%eax);
+//      movzbl %al` 无 bool 归一化）⇒ 消 test/setne/movzbl 三条；
+//   ② needGain 三态赋值改单条 `if (A != 0 && B)` ⇒ 复现 ORIG 0x0827dcf5..0x0827dd17
+//      的 && 物化岛（mov $1/mov $0/test/je，%eax 单寄存器零槽），消 movb×2+cmpb（-7）。
+//   ③ 旋钮D 负结论：`(IsEndLetheAtLogin() ^ 1) != 0`（与 `!= 1` 对 uchar 等价）被
+//      4.4 规范化回 `cmp $1; setne`（693→693 逐条不变）⇒ 已回滚。
+// 余 gap +13 = N82 槽号平移 + 下述 .h 待办三处（各 +1 条）：
+//   · premium_helper_function::is_notify 返回 uchar（.h:26）⇒ ORIG 0x0827ddf5
+//     `call; xor $1; test` 直证应为 bool；我方出 `cmp $1; setne; test`。
+//   · CUserCharacInfo::IsEndLetheAtLogin 返回 uchar（.h:1115）⇒ ORIG 0x0827d905
+//     `call; xor $1; test` 直证应为 bool。
+//   · STSpecailItem_Param::m_char1f 声明 uchar（CCeraShop.h:223）⇒ ORIG 传 bool
+//     形参无 test/setne；本件已用 bool 左值视图规避（若改 bool 可去视图）。
 #include "CCeraShop_Special/respond_special_item_premium.inc"
                                                       const STSpecailItem_Param& param,
                                                       STSpecailItem_Result&)
@@ -773,8 +788,12 @@ struct SaveCrazyLevelupPayloadView
     int item = it->second.m_value8;             // 限制物品 idx
     // [H9MgrItemLoginCera.CCeraShop 回滚] `(bool)param.m_char1f` 实测 codegen 与
     // `!= 0` 完全相同（672/695/ndiff 396 逐值不变）⇒ 复原原形减噪。
+    // [CeraShop12Run 2026-09-11 旋钮A] ORIG 0x0827d527..0x0827d531：
+    // `movzbl 0x1f(%eax),%eax; movzbl %al,%eax` 直接零扩展作 bool 形参，
+    // 无 test/setne 归一 ⇒ 原码按 bool 读该字节（字段声明 uchar 属视图问题）；
+    // 用 bool 左值视图复现（`!= 0` 会多发 test/setne/movzbl 三条）。
     int resultVal = premium_helper_function::cal_premium_term(
-        term, param.m_char1f != 0, param.m_extra);
+        term, *reinterpret_cast<const bool*>(&param.m_char1f), param.m_extra);
 
 
     switch (ptype)
@@ -875,6 +894,12 @@ struct SaveCrazyLevelupPayloadView
         // +0x1de（SkillSlot.h m_skillSlot/m_skillSlot2 权威偏移，直加数形态）。
         if (lethe != 0)
         {
+            // [CeraShop12Run 2026-09-11 旋钮D 负结论] ORIG 0x0827d900..0x0827d90a：
+            // `call; xor $0x1,%eax; test %al,%al; je`（4.1 视其返回为 bool）；
+            // 我方声明 unsigned char（CUserCharacInfo.h:1115）⇒ 4.4 出
+            // `cmp $1; setne; test`（+1 条）。试 `(x ^ 1) != 0`（与 `x != 1`
+            // 对任意 uchar 等价、xor 只翻 bit0）实测 **4.4 同样规范化成 cmp+setne**
+            // （our 693→693 逐条不变）⇒ 回滚。根治需 .h 类型改 bool（见待办）。
             if (user->IsEndLetheAtLogin() != 1)
             {
                 lethe->BackupSkill(user, SKILL_TREE_1);
@@ -951,13 +976,13 @@ struct SaveCrazyLevelupPayloadView
         m_owner->SaveFeaturedIdx(user, count, (int)timeVal, ts);
     }
 
-    bool needGain = false;
-    if (g_SPremiumInfo[ptype].m_needDailyCheck == 0 ||
-        !user->CheckFatigue())
-        needGain = false;
-    else
-        needGain = true;
-    if (needGain)
+    // [CeraShop12Run 2026-09-11 旋钮C] ORIG 0x0827dcf5..0x0827dd17 为
+    // `test al; je; call CheckFatigue; xor $1; test; je; mov $1,%eax; jmp;
+    //  mov $0,%eax; test %al,%al; je` —— 值为单寄存器 %eax 的 && 物化岛，
+    // **无 bool 具名槽**（我方旧形 movb ×2 + cmpb + je 多 4 条）。
+    // 直接写 if 的 && 条件即复现该物化（语义等价：!(A==0 || !B) == A!=0 && B）。
+    if (g_SPremiumInfo[ptype].m_needDailyCheck != 0 &&
+        user->CheckFatigue())
         user->gainCurCharacFatigue(1);
 
     long end = 0;
@@ -1169,6 +1194,9 @@ namespace WongWork
     // local_20：归一化 category。ORIG 先按 itemIdx 特例置 1/3，再按区间映射。
     int category = 0;
 
+    // [CeraShop12Run 2026-09-11 负结论] 试把 case 6 窗口比较改用与 case 3
+    // 同一组函数级 static（ORIG 0x083244b5/0x083244bf 直证）+ 删除 case 3 块内
+    // 声明：实测 our 576→580（+4 反劣，四数不变）⇒ 已回滚（声明仍在 case 3 块内）。
     // P251/P286：ORIG 0x0832482a `mov 0x10(%ebp),%eax; cmp $0x1adbd,%eax; je;
     // cmp $0x1c13c,%eax; je` 为无槽多路比较链 ⇒ 源形是 switch(a)，非 if-else。
     switch (a)
@@ -1441,6 +1469,10 @@ namespace WongWork
         // ORIG 双 getCurCharacCreateTime（start/end 各自求值）+ 全展开
         // 0x65d6..0x65da × (InvenR+check | CargoR+check)（P48/P183 逐点重发禁缓存；
         // ORIG 静态全展开五组，非循环——调用点差集据此）。
+        // [CeraShop12Run 2026-09-11 负结论] ORIG 0x083244b5/0x083244bf 确有
+        // `movl $0x46a7b9d0,&eventStartTime; movl $0x46d5de50,&eventEndTime`
+        // （与 case 3 同一组符号 0x0943bec8/0x0943becc），但把 case 6 改用该
+        // static 形实测 our 576→580（+4 反劣）⇒ 维持立即数形。
         if (user->getCurCharacCreateTime() < 0x46a7b9d0)
             break;
         if (user->getCurCharacCreateTime() >= 0x46d5de50)

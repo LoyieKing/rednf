@@ -135,8 +135,8 @@ public:
     int HandleTimerUserRevive(int seat);
     int SkipLastRankResultTimer();
     int pvp_request_pvp_rank();
-    int recv_pvp_rank_all() const;
-    int recv_pvp_end_result_all() const;
+    bool recv_pvp_rank_all() const;
+    bool recv_pvp_end_result_all() const;
     int recv_pvp_end_result_team(CUser* user) const;
     int SetPVPResult(int seat, const PvpResultType& result);
     bool request_fight(CUser* user);

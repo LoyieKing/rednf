@@ -55,8 +55,12 @@ int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15, 4);
         return -1;
     }
-    CDataManager* dataMgr = G_CDataManager();
-    CItem* shopItem = dataMgr->find_item(data.m_item.m_addInfo);
+    // [K6-DpcProcess 2026-09-11] P0/P183：ORIG 0x081bdexx 段为
+    //   `mov 0x6(%eax),%eax; mov %eax,%ebx`（实参先物化入 callee-saved ebx）
+    //   → `call G_CDataManager` → `mov %ebx,0x4(%esp); mov %eax,(%esp)` → `find_item`
+    // —— 原码是**单条链式表达式** `G_CDataManager()->find_item(...)`，无具名
+    // `dataMgr` 槽；旧形具名局部多一条 store + 一条 load（我方正 gap +3 的主项）。
+    CItem* shopItem = G_CDataManager()->find_item(data.m_item.m_addInfo);
     if (shopItem == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15, 0x13);

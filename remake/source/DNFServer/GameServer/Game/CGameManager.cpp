@@ -248,7 +248,10 @@ StaticPool<_IO_FILE, 50>::StaticPool()
     m_pNode = new CNode[50];
     if (m_pNode == 0)
     {
-        cMyTrace(__FUNCTION__, 0x6c, 5)("[StaticPool] %s(%d) new fail", "StaticPool.cpp", 0x6c);
+        // [K9GameRestA-S322 · §6.5 串盲区] ORIG 0x084ba3bf/0x084ba3e2：格式串
+        // 0x8c86396 = "[%s][%d]"、vararg 第一参 = 0x8c869d0 = "StaticPool"（= __FUNCTION__）；
+        // 原 "…new fail"/"StaticPool.cpp" 是发明文案（全库 `[StaticPool]` 0 次命中）。
+        cMyTrace(__FUNCTION__, 0x6c, 5)("[%s][%d]", __FUNCTION__, 0x6c);
     }
     for (int i = 0; i < 50; ++i)
         m_Queue.push(&m_pNode[i]);
@@ -269,13 +272,17 @@ _IO_FILE* StaticPool<_IO_FILE, 50>::Acquire()
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace(__FUNCTION__, 0x89, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x084ba4f1：0x8c863a0 =
+        // "STATIC MEMORY_POOL Acquire error dummy(%x), node(%x)"（实参序 magic, pNode 不变）。
+        cMyTrace(__FUNCTION__, 0x89, 0)("STATIC MEMORY_POOL Acquire error dummy(%x), node(%x)", magic, pNode);
         m_nErrorCode = 3;
     }
     if (pNode->bUse != 0)
     {
         register int use = pNode->bUse;
-        cMyTrace(__FUNCTION__, 0x8f, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x084ba557：0x8c863d8 =
+        // "STATIC MEMORY_POOL Acquire error reference count(%d), node(%x)"。
+        cMyTrace(__FUNCTION__, 0x8f, 0)("STATIC MEMORY_POOL Acquire error reference count(%d), node(%x)", use, pNode);
         m_nErrorCode = 4;
     }
     pNode->bUse++;
@@ -285,17 +292,22 @@ _IO_FILE* StaticPool<_IO_FILE, 50>::Acquire()
 void StaticPool<_IO_FILE, 50>::Free(_IO_FILE* p)
 {
     if (p == 0)
-        cMyTrace(__FUNCTION__, 0xa0, 5)("[StaticPool] %s(%d) free null", "StaticPool.cpp", 0xa0);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x084ba5d5：0x8c86396 = "[%s][%d]"（与 ctor 同串）。
+        cMyTrace(__FUNCTION__, 0xa0, 5)("[%s][%d]", __FUNCTION__, 0xa0);
     CNode* pNode = (CNode*)p;
     m_Queue.push(pNode);
     if (pNode->magic != 0x8f21)
     {
-        cMyTrace(__FUNCTION__, 0xaa, 0)("[StaticPool] magic(%d) node(%p)", pNode->magic, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x084ba64a：0x8c86418 =
+        // "STATIC MEMORY_POOL Free error dummy(%x), node(%x)"。
+        cMyTrace(__FUNCTION__, 0xaa, 0)("STATIC MEMORY_POOL Free error dummy(%x), node(%x)", pNode->magic, pNode);
         m_nErrorCode = 5;
     }
     if (pNode->bUse != 1)
     {
-        cMyTrace(__FUNCTION__, 0xb0, 0)("[StaticPool] bUse(%d) node(%p)", pNode->bUse, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x084ba6b0：0x8c8644c =
+        // "STATIC MEMORY_POOL Free error reference count(%d), node(%x)"。
+        cMyTrace(__FUNCTION__, 0xb0, 0)("STATIC MEMORY_POOL Free error reference count(%d), node(%x)", pNode->bUse, pNode);
         m_nErrorCode = 6;
         PrintBackTrace();
     }
@@ -680,13 +692,17 @@ template class GlobalInstance<CGameManager>;
     // b28d-laneCGM S1 实测（2026-09-10）：`register int err` 反劣（ndiff 36→48、gap +2→+1）
     //   ⇒ 回滚裸形；ORIG 的 `mov -0x20(%ebp),%edi` 属 4.1/4.4 寄存器分配差（N7），
     //   不满足 P248 裸 register 四条件，封顶。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] 串已按 ORIG 0x082943ff 修正
+    //   （`MEMORY_POOL` 下划线形）；DIFF 126/124 残差 = ORIG `push %edi` + err 经 %edi
+    //   跨 cMyTrace ctor 保活（0x082943a8 段）vs 4.4 恒槽重读（N7），register 形实测反劣。
     int err = m_userPool.GetLastErrorCode();
     if (err != 0)
     {
         // ORIG 0x082943a8/0x082943bd：GetUID/NumberToString 结果入 %esi/%ebx 跨 ctor
         // 保活（无具名槽）⇒ 实参内联（P329/P227）。
         cMyTrace(__PRETTY_FUNCTION__, 0x8f6, 0)(
-            "STATIC MEMORY POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
+            // §6.5 串盲区修正：ORIG 0x082943ff 直证为 "MEMORY_POOL"（下划线，非空格）。
+            "STATIC MEMORY_POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
             err, user, NumberToString(accId, 0), uid, user->GetUID());
     }
     short nxt = getNextUID();
@@ -760,6 +776,9 @@ template class GlobalInstance<CGameManager>;
     //   0x08294cd8 NumberToString 结果入 %ebx 跨 cMyTrace ctor 保活；残余 =
     //   err 跨 ctor 的 %esi 缓存（ORIG `mov -0xc,%esi`）4.4 恒槽重读（裸 register
     //   实测反偏离 ORIG，已回滚）+ 尾部 `jmp epilogue` 岛（P285）⇒ N82/P52。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] 读 fresh .o：ORIG 0x08294cd8 段
+    //   `mov -0xc(%ebp),%esi; mov %esi,0x8(%esp)` vs 我方 `mov -0xc(%ebp),%eax;
+    //   mov %eax,0x8(%esp)`（纯寄存器角色 N7，指令数 148=148 持平）⇒ 封顶。
     // ORIG 0x08294b38：`cmpl $0x0,0xc(%ebp); je 08294d30`（08294d30 是 nop 空岛，
     // 08294d31 才是 epilogue）⇒ 裸早返形复现尾 nop 岛（P223 变体）。
     if (user == 0)
@@ -823,7 +842,11 @@ template class GlobalInstance<CGameManager>;
     else
     {
         LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0xa5f,
-                              "party index(%d) already alloc", party->GetPartyIndex());
+                              // [K9GameRestA-S322 · §6.5.1 编码+文案] ORIG 0x08294e10：
+                              // 实串 @0x8c16b70 = EUC-KR "이미 존재하는 번 할당 요청: %d"
+                              // （发明英文文案已换回 ORIG 字节转义）。
+                              "\xc0\xcc\xb9\xcc \xc1\xb8\xc0\xe7\xc7\xcf\xb4\xc2 \xb9\xe6 \xc7\xd2\xb4\xe7 \xbf\xe4\xc3\xbb: %d",
+                              party->GetPartyIndex());
     }
     return party;
 }
@@ -929,6 +952,11 @@ end:
     // b28d-laneCGM: P223 空 then 占位岛形——ORIG 0x0829840d `cmpl $0,0xc(%ebp); je
     //   +0x46(nop 岛)`；体尾 0x08298440 `jmp +0x47` 跨过 nop 落 epilogue。裸
     //   if/return 形被 4.4 jump-thread（无 jmp+nop，ndiff 2）。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] DIFF 26/27 唯一残差 = 我方尾
+    //   `movzbl -0xc(%ebp),%eax`。ORIG 0x08298409..0x08298448 在 party==0 路径直落
+    //   epilogue、复用入口 `mov 0x10(%ebp),%eax`（bool 形参由调用者零扩展）的 %eax 残值
+    //   ⇒ 4.1 spill 保活形；4.4 恒按槽零扩展（N7/P52）。已试 `!call()` 与
+    //   `(bool)(call()^1)` 两形产物逐条相同（4.4.7）⇒ 封顶。
     if (party == 0)
         goto L_quick_party_flag;
     return !G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0);
@@ -1040,6 +1068,10 @@ L_quick_party_flag:;
     // [b29x] ORIG 0x08295284/0x0829529e 是**两次独立** `cmpl $0x0,0x10(%ebp)`（name 与
     //   accName 各一枚三目），故保持两个独立三目（合并 if/else 会少一次 cmpl）；
     //   空串分支 ORIG `mov $0x8c161de,%esi/%ebx` 单条 vs 4.4 经 %eax 中转属 N7。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] 读 fresh .o：81=81 持平，残差仅
+    //   0x08295299/0x082952b3 的 `mov $0x8c161de,%esi/%ebx`（imm 直装）vs 我方
+    //   `mov $imm,%eax; mov %eax,%esi/%ebx`（4.4 imm 装载模板，N7）；串/实参序与
+    //   ORIG 0x082952f6（`pvp@log %s,%s, room(%d), %d`）一致。
     register int roomIdx = it->second->get_index();
     register const char* name = user == 0 ? "" : user->getCurCharacName();
     register const char* accName = user == 0 ? "" : user->get_acc_name();
@@ -1089,6 +1121,14 @@ L_quick_party_flag:;
     // ORIG 的 `xor $1; test; jne tail` 是 4.1 对 bool 取反的跳转形（保留 xor 段）。
     // b28d-laneCGM：空 then + else 结构复现 ORIG 的 `xor $1,%eax; test %al,%al;
     //   jne <tail>`（P223 变体 / 同 CheckOutTrade 形）；`if(f()){body}` 反向。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] 语义：ORIG 0x08297ec4..0x08297ec9
+    //   `call CheckInPvp; xor $1,%eax; test %al,%al; jne <tail>` ⇒ 真值执行 body ✓
+    //   现形一致；logFormat 串已按 ORIG 0x082980e3 实字节（.rodata 0x8c16f94 EUC-KR
+    //   `BE F8 B4 C2 C0 AF C0 FA PVPOut C3 B3 B8 AE ID[%d] ACCID[%s]`）修正。
+    //   DIFF 212/211 残差（读 fresh .o 实测）：① ORIG 0x08298125..0x0829812c
+    //   `test %eax,%eax; setg %al; test %al,%al; je`（4.1 的 `>0` 在 && 链 bool
+    //   物化）vs 4.4 直产 `jle`（-2 条，P168a/N122 族）；② ORIG 尾 `jmp <epilogue>`
+    //   （+1 条）。槽组 -0x1c/-0x20/-0x24/-0x54 ↔ -0x20/-0x24/-0x1c = N82。
     if (!user->CheckInPvp())
     {
     }
@@ -1135,7 +1175,9 @@ L_quick_party_flag:;
             else
             {
                 LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11bd,
-                                      "pvp@log room(%d) user(%s) leave fail",
+                                      // §6.5 串盲区修正：ORIG 0x082980e3 直证 .rodata
+                                      // 0x8c16f94 实字节 = EUC-KR（AE 归一只看地址，看不出）。
+                                      "\xbe\xf8\xb4\xc2\xc0\xaf\xc0\xfa PVPOut\xc3\xb3\xb8\xae ID[%d] ACCID[%s]",
                                       room->get_index(),
                                       NumberToString(user->get_acc_id(), 0));
             }
@@ -1189,8 +1231,14 @@ L_quick_party_flag:;
             //   嵌套 `if (quick&&E) goto; if (C) return;` 形 ndiff 12（our 69）；
             //   旧（错极性）复合形 ndiff 6 但语义反转 ⇒ 不可用。残差 = 4.4 短路 lowering
             //   不发 4.1 的 bool 物化岛（mov $1/$0 + test/je）+ `!E` 的 xor 归一化 ⇒ N122/N3 封顶。
-            if (!((quick && room->IsExistPassword()) ||
-                  room->IsQuickJoinablePVPRoom(user)))
+            // [K9GameRestA.CGameMgr12Run 2026-09-11 · 语义轴复核（P224）] 上一形的
+            //   `!((quick&&E) || C)` 展开 = `!(quick&&E) && !C` ⇒ **C==0 才返回**，
+            //   与 ORIG 0x082a3281..0x082a3298 直证相反（ORIG：`test %al,%al; je FALSE`
+            //   正极性 ⇒ C==1 落 `mov $0x1` ⇒ return room）。已按 ORIG 改为
+            //   `(!quick || !E) && C`：C 用**正**极性（消我方多出的 `xor $1`），
+            //   E 段 `xor $1; je FALSE` 与 ORIG 0x082a3268..0x082a326d 逐形一致。
+            if ((quick == 0 || !room->IsExistPassword()) &&
+                room->IsQuickJoinablePVPRoom(user))
                 return room;
         }
     it_inc:
@@ -1222,7 +1270,11 @@ L_quick_party_flag:;
     {
         LogManager::logFormat(1, "App.cpp",
                               __PRETTY_FUNCTION__, 0xb64,
-                              "quick party index(%d) already alloc",
+                              // [K9GameRestA-S322 · §6.5.1] ORIG 0x08295450：实串 @0x8c16bf8
+                              // = "QUICK_PARTY_LOG : " + EUC-KR(이미 존재하는 QUICK 파티 할당: %d)。
+                              // [CeraShop12Run 逐字节复核补正] 末尾韩文段是 `할당 요청`（含空格 +
+                              // \xbf\xe4\xc3\xbb），原稿漏 5 字节。
+                              "QUICK_PARTY_LOG : \xc0\xcc\xb9\xcc \xc1\xb8\xc0\xe7\xc7\xcf\xb4\xc2 QUICK \xc6\xc4\xc6\xbc \xc7\xd2\xb4\xe7 \xbf\xe4\xc3\xbb: %d",
                               qp->get_quick_party_index());
     }
     return qp;
@@ -1449,7 +1501,9 @@ L_quick_party_flag:;
     if (!tower->onLeaveUser(user))
     {
         LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
-                              "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
+                              // [K9GameRestA-S322 · §6.5.1] ORIG 0x0829833a：实串 @0x8c17024
+                              // = EUC-KR "없는유저 사망의뢰 아웃처리 ID[%d] ACCID[%s]"。
+                              "\xbe\xf8\xb4\xc2\xc0\xaf\xc0\xfa \xbb\xe7\xb8\xc1\xc0\xc7\xc5\xbe \xbe\xc6\xbf\xf4\xc3\xb3\xb8\xae ID[%d] ACCID[%s]",
                               tower->getIdx(),
                               NumberToString(user->get_acc_id(), 0));
     }
@@ -2015,8 +2069,12 @@ end:
     //   dm/hourTable 去具名缓存（P0/P183：ORIG 无 dm 槽，hourTable 直接 -0x1c）。
     // b28d-solo-CGameManager 判词：DIFF·N82（gap 1，76 vs 77）。ORIG 帧 0x34+push %ebx
     //   vs 我方 0x38——%ebx 是 4.1 对表索引加法 `add %ebx,%eax` 的 area 副本
-    //   （0x08298aa7 `mov -0x18(%ebp),%ebx`），4.4 恒用内存操作数（N18a/P0 族）；
+    //   (0x08298aa7 `mov -0x18(%ebp),%ebx`)，4.4 恒用内存操作数（N18a/P0 族）；
     //   本波 dm3 具名删（内联 G_CDataManager）后 diff 行 51、p167 CLEAR。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] verdict = **AE** 77/79（非 DIFF）：
+    //   唯一非地址差 = 我方内层循环入口多 1 条 4.4 对齐 nop（ORIG 4.1 无 loop
+    //   alignment；§6.1 豁免）+ 表索引 `mov -0x18,%ebx`（scratch）vs 4.4 内存操作数
+    //   （N18a）。p167 CLEAR 10=10。
     int hourTable = ((CDataManager*)G_CDataManager())->m_warAreaCounter.GetCurrenTimeTable();
     for (int area = 0; area < 10; ++area)
     {
@@ -2111,6 +2169,10 @@ end:
     // diff 行 432→332；p167 CLEAR（42=42）。语义等价，字节层 N82 封顶。
     // b28d-laneCGM（P227）：判词「gap 0 / diff 432→332」阶段的具名 tr0-tr3 逐点改
     //   全表达式临时链（同 CheckOutPvp/insert_game_world 实测有效形）。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] verdict = **NEAR** 311/312（助记符
+    //   序列全等，操作数文本异）：ORIG 索引槽 -0x48/-0x44、room 指针 -0x40 vs 我方
+    //   -0x44/-0x40/-0x3c（整体 +4），P212 提级形实测反劣（ndiff 52→58）⇒ 4.4 槽
+    //   分区封顶。p167 CLEAR 42=42。
     cMyTrace(__PRETTY_FUNCTION__, 0x306f, 0)("WarRoomCountManage Start");
     // ORIG 0x082a2768 实证：`mov $0x0,%eax; mov $0xa,%edx; mov %ebx,%edi;
     // mov %edx,%ecx; rep stos` —— **零初始化声明** `int current[10] = {0};` 在
@@ -2480,6 +2542,10 @@ end:
     //   残余 = 4.4 缺 push %esi（ORIG 用 %esi 跨循环缓存 group）+ 帧 0x1764 vs
     //   0x1750（N115：4.4 恒预留 16B 对齐 outgoing）+ 槽号整体平移 0x10（N82）；
     //   P167 CLEAR 43/43。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] DIFF 304/302：结构差唯一 = ORIG
+    //   0x08296528..0x08296531 `cmpl $0x4a,-0x18(%ebp); setg %al; test %al,%al; je`
+    //   （4.1 对 `++idx > 0x4a` 的 bool 物化）vs 4.4 直产 `jle`（-2 条，P168a/N122）
+    //   ⇒ 源码不可择，封顶；串/实参序已核（§6.5）。
     int userCount = 0;
     Packet_Monitor_UDP_Reply_UserInfo pkt;
     pkt.m_channel = (unsigned char)((CEnvironment*)G_CEnvironment())->get_channel_no();  // ORIG p[11]
@@ -2598,6 +2664,10 @@ L_user_by_acc_id_done:;
     //   ③第二循环去 bucket 指针缓存（ORIG 每访问重发 imul/lea/sub，P183）；
     //   ④empty() 改早返（ORIG call;test;jne <epilogue>，P16）；
     //   ⑤字段写序照 ORIG：packetSize→m_count→memcpy→m_connNo→SendPacket(,pkt.packetSize)。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] DIFF 178/182 残差唯一 = `% 10`
+    //   展开（ORIG 0x08295f5f..0x08295f6d `shr $0x3,%edx` 商留寄存器 + `mov %ecx,%edx;
+    //   sub %eax,%edx` 余数直落 -0x18）vs 4.4 商/余各经 -0x18 槽往返（+4 条）⇒
+    //   N86b 封顶。p167 CLEAR 16=16；串已核（§6.5/§6.5.1）。
     struct STTempUsers
     {
         unsigned short m_count;
@@ -2664,6 +2734,18 @@ enum ENUM_HARDCODE_ITEM
     // GetChannelType/IsEquipSlotSwitchChannel/getPunishTradeAlert/getCurCharacName 与
     // EXTRA getCurCharacLastPlayTick/make_pair<int&,int&>/std::move 已被后续修复清零，
     // 本波复验 0 missing / 0 extra）⇒ 语义闭合、仅剩 byte 层槽形差。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11] 本波真语义 bug×2（ORIG 直证 + 消费方
+    //   `CUser::_isMatchedItem` ORIG 0x0867cf0c「pair.first==itemIdx」定 pair=(addInfo,
+    //   count)）：vecA 两处 make_pair 实参序颠倒 ⇒ 已改 `make_pair(0xc84, 0)`
+    //   （ORIG 0x08296e1a..0x08296e3c：-0x64 存 __x=0xc84、装载 `mov %edx,0x4(%esp)`）
+    //   与 `make_pair((ENUM_HARDCODE_ITEM)0x4b0, 0)`（ORIG 0x08296e6e..0x08296e90：
+    //   call 0x082b2c12 = make_pair<ENUM,int>，-0x4c 存 __x=0x4b0）。旧形 (0, id) 恒
+    //   匹配不到槽 ⇒ 重置/删书请求全部落空。
+    //   codegen：proxy 链（0x08297957 段）与 GetPICSMap()->clear()（0x08297836 段）
+    //   去具名局部 ⇒ gap 901→892（fresh .o）；curSec2 内联实测到 891 但 verdict
+    //   DIFF→NEAR 使 TU near 1→2 越闸门 ⇒ 已回滚（见该件内注）。
+    //   残余 = 4.1 的 %edi/%esi/%ebx 实参保活角色 + `get_rand_int+600` 落 -0xec 槽
+    //   （ORIG 0x08297a8a）vs 4.4 寄存器形 = N7/N82；p167 CLEAR 193=193。
     if (user == 0)
     {
         LogManager::logFormat(1, "App.cpp",
@@ -2699,23 +2781,44 @@ enum ENUM_HARDCODE_ITEM
     {
         // P167：ORIG 调 make_pair<int,int>(int&&,int&&)（0x081b8d41）⇒ 实参为字面量
         // 右值；具名 a/b 左值会实例化 make_pair<int&,int&>（我们旧形 EXTRA）。
-        vecA.push_back(std::make_pair(0, 0xc84));
+        // [K9GameRestA.CGameMgr12Run 2026-09-11 · 真语义 bug（P224 实参序）] ORIG
+        //   0x08296e1a..0x08296e3c 直证：物化槽 -0x68=0（第二实参 __y）、-0x64=0xc84
+        //   （第一实参 __x，装载 `lea -0x64; mov %edx,0x4(%esp)`）；ORIG 的
+        //   `make_pair<int,int>` 体（0x081b8d41）以 0xc(%ebp)=__x 作 pair ctor 第一实参
+        //   ⇒ 原码 = make_pair(**0xc84, 0**)。语义判据：消费方 `CUser::_isMatchedItem`
+        //   （ORIG 0x0867cf0c「找 pair.first==itemIdx，返回 second」）⇒ pair = (addInfo,
+        //   count)，旧形 (0, 0xc84) 恒匹配不到任何槽（重置失效）。
+        vecA.push_back(std::make_pair(0xc84, 0));
     }
     if (user->getCurCharacGuildSecede() != 0)
     {
         // P167：ORIG 为 `make_pair<ENUM_HARDCODE_ITEM,int>` + 隐式转换构造
         // `pair<int,int>::pair<ENUM,int>(pair<ENUM,int>&&)` + push_back(pair&&)
         // ——匿名右值直传，无具名 p、无 std::move call（我们旧形 EXTRA 两项）。
-        vecA.push_back(std::make_pair((ENUM_HARDCODE_ITEM)0, 0x4b0));
+        // [K9GameRestA.CGameMgr12Run 2026-09-11 · 真语义 bug（P224 实参序）] ORIG
+        //   0x08296e6e..0x08296e90 直证：物化槽 -0x50=0（__y）、-0x4c=0x4b0（__x，
+        //   装载 `lea -0x4c; mov %edx,0x4(%esp)`），且 `call 0x082b2c12` 符号 =
+        //   `_ZSt9make_pairI18ENUM_HARDCODE_ITEMiE...`（T1=ENUM、T2=int）⇒ 原码 =
+        //   `make_pair((ENUM_HARDCODE_ITEM)0x4b0, 0)`（0x4b0 = 公会经验书 addInfo，
+        //   见下方 DB_GuildExpBookDelete::makeRequest）。旧形 (0, 0x4b0) 与
+        //   _isMatchedItem 的 (first==addInfo) 语义相反 ⇒ 删除请求恒落空。
+        vecA.push_back(std::make_pair((ENUM_HARDCODE_ITEM)0x4b0, 0));
         user->setCurCharacGuildSecede(0);
         DB_GuildExpBookDelete::makeRequest((unsigned int)user->get_charac_no(-1), 0, (ENUM_SERVER_GROUP)(size_t)user->GetServerGroup());
     }
     user->ResetItemByScript(vecA);
-    int curSec2 = GlobalData::s_systemTime_.getCurSec();
     // P167：ORIG 调 getCurCharacR()（0x08120432）后直读 +0x7b = m_lastPlayTick，
     // 不调 getCurCharacLastPlayTick（旧形 EXTRA +1）。
     // b28d-laneCGM（P0/P183）：lastPlay/env 均只用一次且 ORIG 无槽往返
     //   ⇒ 原码把 getter 表达式直接内联进实参位（具名形多 `mov REG,SLOT` 往返）。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 · ORIG 直证 + gap 复核后回滚]
+    //   ORIG 0x08296f15..0x08296f40：`movl $&s_systemTime_,(%esp); call getCurSec;
+    //   mov %eax,%ebx`（值跨后续两次调用保活于 **%ebx**，无槽）。本波实测：内联该
+    //   表达式后本件 891 insn ⇒ verdict DIFF→**NEAR**、TU near 1→2（越闸门）。
+    //   ORIG 的 %ebx 保活是 4.1 分配器行为，4.4 恒给槽往返 ⇒ 维持具名 curSec2
+    //   （N7/N82 封顶）。三条内联（pics/proxy×2）保留：它们把 gap 从 -11 收到 -2
+    //   且不改 verdict。
+    int curSec2 = GlobalData::s_systemTime_.getCurSec();
     if (CheckDailyScheduleTime(
             G_CEnvironment()->m_serverEnvir.m_fatigueTime,  // ORIG env+0x37c
             (long)user->getCurCharacR()->m_field7b, curSec2))  // _Charac_info +0x7b（CharLastPlayTick）
@@ -2868,9 +2971,10 @@ enum ENUM_HARDCODE_ITEM
     guard.put_header(0, 0x7c);
     guard.finalize(true);
     user->Send(guard);
-    std::map<std::pair<char, char>, int>* pics =
-        (std::map<std::pair<char, char>, int>*)user->GetPICSMap();
-    pics->clear();
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 · P0/P183/P52] ORIG 0x08297836..0x0829783e 直证：
+    //   `call GetPICSMap; mov %eax,(%esp); call map::clear` —— 返回直作 receiver，
+    //   **无 pics 具名槽**（我方旧形多 `mov %eax,-0x20(%ebp)` + `mov -0x20(%ebp),%eax`）。
+    ((std::map<std::pair<char, char>, int>*)user->GetPICSMap())->clear();
     user->ReCalcChattingEmoticon();
     user->SendChattingEmoticon();
     Packet_Monitor_Char_Info monitor;  // ORIG ctor 0x82a3ffa
@@ -2888,12 +2992,15 @@ enum ENUM_HARDCODE_ITEM
     memcpy(monitor.m_name, user->getCurCharacName(),
            (int)strlen(user->getCurCharacName()));
     monitor.m_returnUser = user->IsReturnUserFirstLogin();
-    int serverGroup = (int)(size_t)user->GetServerGroup();
-    CMonitorServerProxy* monitorProxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)serverGroup);
-    monitorProxy->SendTcpPacket((char*)&monitor, 0x3f);
-    int guildGroup = (int)(size_t)user->GetServerGroup();
-    CGuildServerProxy* guildProxy = GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)guildGroup);
-    guildProxy->SendTcpPacket((char*)&monitor, 0x3f);
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 · P183/P52/P329] ORIG 0x08297957..0x08297989
+    // 直证：`lea -0xdf(%ebp),%ebx`（&monitor 先物化）→ `call GetServerGroup; mov %eax,0x4(%esp)`
+    // → `mov &s_monitor_proxy_mgr,%edx; mov %edx,(%esp); call GetServerProxy` → 返回直作
+    // SendTcpPacket 的 this —— **单条链式 receiver**，无 serverGroup/monitorProxy 具名槽。
+    // 我方旧形多 4 条/处（`mov %eax,-0x2c; mov -0x2c,%edx` + `mov %eax,-0x28; mov -0x28,%eax`）。
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)(size_t)user->GetServerGroup())
+        ->SendTcpPacket((char*)&monitor, 0x3f);
+    GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)(size_t)user->GetServerGroup())
+        ->SendTcpPacket((char*)&monitor, 0x3f);
     g_schoolMgr.AddUser(user);
     if (user->get_charac_guildkey() != 0)
     {
@@ -2999,6 +3106,9 @@ enum ENUM_HARDCODE_ITEM
     // 已上无改善）。ORIG 0x082985a8。
     // b28d-solo-CGameManager 判词：N82 维持（P167 CLEAR；trace 槽 -0x20 vs ORIG -0x3c
     // 等分支内槽组分区差）。
+    // [K9GameRestA.CGameMgr12Run 2026-09-11 复核] verdict = **AE** 222/224：唯一非地址
+    //   差 = logFormat 段后我方多 1 条 4.4 布局 nop（ORIG 0x082988a2 后无）⇒ §6.1
+    //   豁免；数据地址差由 AE 归一口径吸收 ⇒ 本件已达上限。p167 CLEAR 44=44。
     if (user == 0)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1271, 5);

@@ -163,7 +163,10 @@ public:
     void sub_total_gage(int nGage);
     int get_booster_point(unsigned long dwItemIdx);
     static int cal_booster_gage(unsigned long dwItemIdx, CUser* pUser);
-    unsigned char check_max_booster_gage(unsigned long dwItemIdx);
+    // [K7 2026-09-11 §6.5/P174 返回类型盲区] ORIG 0x08675bc5 `mov %al,-0x11(%ebp)`（bool 形参
+    // 直传，无 setne 归一化）+ 0x080dd16c `mov %al,-0xd(%ebp)` + 0x080dd176 `cmpb $0x0,-0xd`
+    // ⇒ 返回类型 bool（旧 `unsigned char` 令调用点多 2 条 test/setne）。返回类型不入 mangled。
+    bool check_max_booster_gage(unsigned long dwItemIdx);
     void send_error_state_packet(CUser* pUser, unsigned long dwItemIdx);
     void send_data(CUser* pUser, int nParam);
     void make_postar(CUser* pUser, const Inven_Item& item, const char* pAgency, int nPeriod);

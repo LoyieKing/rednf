@@ -326,6 +326,11 @@ enum ENUM_TRADESTATE
 #include "CTradeSpace/add_item.inc"
 {
     // b28d-solo-CTradeSpace：按 ORIG 0x08529aa2 还原。
+    // [K2 2026-09-11 复验] fresh .o：gap 仍 +2（our 191 / orig 189）；2 处 =
+    //   ORIG 地址链尾 `add 0x8(%ebp),%eax`（dst 直落 caller-saved %eax，cmp/
+    //   memcpy 共用）vs 我方 `mov %eax,%ebx; add 0x8(%ebp),%ebx`（register 指针
+    //   落 callee-saved = N7/P231 跨版本寄存器分配）。交换 cmp 操作数与删
+    //   register（栈槽 +2/处）已实测不翻 ⇒ N7 封顶；p167 14/14 仅 C1/C2 别名差。
     //   ①dst 用纯 register 指针（P231，非绑定、P0 合规）复现 ORIG 单次全链
     //     计算 + cmp/memcpy 共用的无槽形（余 26 ndiff 为 N7：ORIG dst 落 %eax/
     //     &slot 落 %edx，4.4 分别落 %ebx/%eax）；②两个 trace 用全表达式临时链
@@ -438,6 +443,12 @@ enum ENUM_TRADESTATE
 //   （ORIG -0xd0ff/-0x1923e vs 我方 -0xd100/-0x19240）。Main 2026-09-09 裁决：
 //   不得删 InventoryMemory::m_tailC13f（ORIG 全量 110 处 CUser+0x858d4 反证
 //   sizeof=0xC140），本残差按 N 封顶（4.1 相邻同型局部 1B 布局差）。
+//   [K2 2026-09-11 复验] fresh .o 复核残差仍仅 4 行 = 两组 `lea -0xd0ff/-0x1923e`
+//   vs `-0xd100/-0x19240`（差 1B/2B）；两对象间隔 ORIG 0xC13F = InventoryMemory
+//   四段 memset 之和（CUser/reset_4.inc 0x4a58+0x1905+0x39aa+0x2438）⇒ 归
+//   **N115**「4.1 栈分配非 4 对齐 vs 4.4 恒 4 对齐」，同族判例
+//   WongWorkMiscB_A.cpp:415（-0xca0b↔-0xca0c）与 ExpertExtraction.cpp:168（-0xc957↔-0xc958）。
+//   非 CInventory sizeof 问题（sizeof 双侧一致 0xC140，Main 已裁）。
 #include "CTradeSpace/checkTrade.inc"
 {
     // b28d-35: DIFF→N82（425/424 差 1 条；§6.2 口径）。ORIG @0x08530210。
@@ -552,6 +563,9 @@ enum ENUM_TRADESTATE
 //   O530→533（=ORIG）、DIFF→NEAR（四数 near+1/diff-1）、ndiff 187→186，
 //   逐 hunk 净差全 0（残差仅 InventoryMemory 栈地址 -0xd12f↔-0xd130 等
 //   1~2 字节布局差，Main 已裁决 N）。p167 47/47 CLEAR。
+//   [K2 2026-09-11 复验] fresh .o：残差 4 行 = -0xd12f/-0x1926e ↔ -0xd130/-0x19270
+//   （1B/2B，同 checkTrade 的 N115 族：4.1 对 0xC13F 尺寸对象不补齐 4 对齐）；
+//   指令数 533=533、p167 35/35（仅 C1/C2·D1/D2 别名差 P93）⇒ 维持 NEAR 封顶。
 #include "CTradeSpace/checkCancelTrade.inc"
 {
     // b28f-SweepCTSpace: NEAR（533/533）。ORIG @0x0852dbb8。
@@ -679,6 +693,11 @@ enum ENUM_TRADESTATE
 //   块序重排）；槽位集 N82 平移（PacketGuard -0x58↔-0x60）。残差归因：
 //   [setcc-fold]/[jump-threading 类型四分支物理序]/[N18b put_short 前 count
 //   预载]/[N82 全帧槽号错位]。语义逐分支对照完整。
+// [K2 2026-09-11 复验] fresh .o：gap 不变；802 差异行 = 4 组：
+//   (a) setcc-fold 岛（gCharacR 判定）、(b) 四类型分支物理块序（等长块重排）、
+//   (c) N18b（put_short 前 count 预载）、(d) N82 槽平移：23 组 slot-pair 以
+//   -52×5 / +64×4 为主（PacketGuard 组）；p167 47/47 仅 C1/C2·D1/D2 别名差（P93）。
+//   未新增可翻旋钮 ⇒ 维持 N 封顶。
 #include "CTradeSpace/cancel_trade_for_china.inc"
 {
     // b28d-35: DIFF→N82（798/814）。ORIG @0x0852e544。
@@ -834,6 +853,10 @@ enum ENUM_TRADESTATE
 //   N126 版本常数 + case3 两循环槽复用差，声明序反转实测无效=首次使用序）
 //   + case3 块序（difflib 对齐漂移，N127）。p167 112/112 CLEAR（仅 C1/C2、
 //   D1/D2 同址别名差，P93 豁免）。
+// [K2 2026-09-11 复验] fresh .o：101 组 slot-pair 中 86 组为**恒定 +0x0c**
+//   （PacketGuard -0xc0↔-0xcc、-0x74/-0x70/-0x6c↔-0x80/-0x7c/-0x78、trace
+//   -0xb4↔-0xc0），与 N126「4.1 首槽基 -0x4 vs 4.4 -0xc」一致（帧 sub 0x13c 双侧
+//   相同 ⇒ 非帧差）；声明序反转已多轮实测无效 ⇒ 维持 N126/N82 封顶。
 #include "CTradeSpace/change_trade_state.inc"
 {
     // b28f-SweepCTradeSpace：ORIG @0x0852f134；虚调用槽已按 P282 修正为 0x10。
@@ -1162,6 +1185,9 @@ enum ENUM_TRADESTATE
 //   头内 inline 在 4.4 -O0 不内联 ⇒ 改具名成员 `m_pTraders[t]->m_goldControl`
 //   复现 ORIG 内联形（P119 反向）。p167 现 140/140 CLEAR。901→884。
 //   N 封顶：gap -8、N82 槽号平移、bool 汇聚岛。
+// [K2 2026-09-11 复验] fresh .o：105 组 slot-pair 呈**多段常数**（+112×11、
+//   +4×11、-108×7）⇒ 按 P331/N82 判据「多段不同常数 = 不可修」（非恒定平移）；
+//   p167 140/140 仅 C1/C2·D1/D2 别名差 ⇒ 维持 N 封顶。
 #include "CTradeSpace/proceed_trade.inc"
 {
     // b28d-35: DIFF→N82（1606/1618；§6.2）。ORIG @0x0853087a。
@@ -1508,6 +1534,10 @@ enum ENUM_TRADESTATE
 //   嵌套 if 实测零效）+ 短路链 receiver 装载序（P87/P329）+ cMyTrace 实参
 //   get_add_info 跨 call 保活落槽（ORIG %ebx）+ N82 全帧槽号平移。
 //   p167 227/227 CLEAR（C1/C2、D1/D2 同址别名差按 P93 豁免）。
+// [K2 2026-09-11 复验] fresh .o：155 组 slot-pair 分三类——(77,81)×15、
+//   (81,81)×16、(-77,-77)×15，属**多段常数**槽图错位（非恒定平移，P331 判
+//   不可修）；gap 2（O2021/N2019）与上轮一致；p167 227/227 仅别名差 ⇒ 维持
+//   N82/N127 封顶。
 #include "CTradeSpace/regist_item.inc"
 {
     // b28f-SweepCTSpace: DIFF ndiff=1280（O2021/N2019）。ORIG @0x08529e7e。

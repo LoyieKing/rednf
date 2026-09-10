@@ -37,12 +37,15 @@ unsigned int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
         {
             Inven_Item item = ((CInventory*)user->getCurCharacInvenR())
                                   ->GetInvenSlot(3, (int)req.m_fromPos);
-            // [DPC_CheckErr] P198②/codegen：ORIG 0x081c587d-0x081c58a6 该条件为
-            // **bool 寄存器物化岛**（`test %al,%al; je 0x081c5899; <右条件>; mov
-            // $0x1,%eax; jmp 0x081c589e; 0x081c5899: mov $0x0,%eax; 0x081c589e:
-            // test %al,%al; je 0x081c58a9`，值在 %eax 无栈槽）⇒ 原码的 `&&` 结果
-            // 被物化为临时 bool 再作 if 条件。我方原 `({ ... })` 语句表达式令 4.4
-            // 直跳折叠（少 5 条）。试 `== true` 形触发 4.4 的 bool 归一物化。
+            // [K6-DpcSigSmallCheckErr·负结论] ORIG 0x081c587d-0x081c589e 为 **4.1
+            // 分支式 bool 物化岛**（`test %al,%al; je 0x081c5899`（左假）→
+            // `mov $0x1,%eax; jmp 0x081c589e` / 0x081c5899 `mov $0x0,%eax` /
+            // `test %al,%al; je 0x081c58a9`，值在 %eax 无栈槽）⇒ ORIG 少 5 条对应我方
+            // 直跳折叠。三形实测（本轮全部复编验证）：①`== true` ②裸 `({ … })` 语句
+            // 表达式（P226 条件向）③`( … ) ? true : false` —— ours_insns **恒 103**
+            // （ORIG 108）⇒ 4.4 对无副作用 `&&` 恒直跳、且即便要求取值也只发 setcc 而
+            // 非 4.1 的分支式 0/1 物化 ⇒ 归跨版本 codegen（4.1 分支物化 vs 4.4 setcc）
+            // 天花板，保持原形。语义等价。
             if ((item.m_field0 != 0 && req.m_fromPos > 0x8b) == true)
             {
                 needLock = 1;

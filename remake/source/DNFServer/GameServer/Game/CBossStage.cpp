@@ -543,6 +543,10 @@ namespace WongWork
     //   ③expF/expF2 移入 for 体内: AE 差 18 块（our -0x1c/-0x18）⇒ 劣化回滚。
     //   ⇒ 4.4 在本件按「先用者浅」分区，与 ORIG 4.1「先用者深」方向相反，
     //   声明位置不可翻（P212 反向 + N82附），封顶。p167 CLEAR（仅 C1/C2 别名）。
+    // [K2ERandomBoss 2026-09-11 负结论] 前置 `char framePad[0x2c]`（P232 撑帧）
+    // 试验：帧 sub 0x60→**0x90**（ORIG 0x70，方向相反）、差异块 38/差异行 75
+    // **逐值不变** ⇒ 该旋钮不改 float 组槽序，已回滚（ORIG 0x0814d425 fstps
+    // -0x50 / 0x0814d484 fstps -0x4c 为 4.1「先用者深」分区，4.4 反向）。
     float expF;
     float expF2;
     int memberLevelGap = m_party->getMemberLevelGap();

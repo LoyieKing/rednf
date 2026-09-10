@@ -136,14 +136,17 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
             {
                 for (int i = 0; i < 4; ++i)
                 {
-                    if (!party->checkValidUser(i))
+                    // [K6-DpcProcess 2026-09-11] P59/P168a①：ORIG 为 `test %al,%al; je <循环尾>`
+                    // （0x081c8d0a 段，2 条）；`if (!checkValidUser(i)) continue;` 负形使 4.4
+                    // 产 `call; xor $0x1,%eax; test %al,%al; jne <体>`（3 条，每处 +1）。
+                    // 改正向包裹复现 ORIG 直跳。
+                    if (party->checkValidUser(i))
                     {
-                        continue;
+                        // P48：ORIG 本区两次独立 get_user(i)（首实参一次、getHackAnalyzer 一次）。
+                        CUser* hackArg = party->get_user(i);
+                        party->get_user(i)->getHackAnalyzer()->addServerHackCnt(
+                            hackArg, (WongWork::ENUM_HACKTYPE)0x1f8, 1u, 0u, 0u);
                     }
-                    // P48：ORIG 本区两次独立 get_user(i)（首实参一次、getHackAnalyzer 一次）。
-                    CUser* hackArg = party->get_user(i);
-                    party->get_user(i)->getHackAnalyzer()->addServerHackCnt(
-                        hackArg, (WongWork::ENUM_HACKTYPE)0x1f8, 1u, 0u, 0u);
                 }
                 out.m_8 = 8;
                 return 0;
@@ -224,11 +227,16 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
     if (dungeon->m_advanceAltarSurvivalFlag != 0)
     {
         // ---- 祭坛副本 ----
-        const int selErr = advancealtar::Manager::selectStage(
-            user, (int)req.m_dungeonIdx,
-            (advancealtar::StageDifficulty::T)(char)req.m_dungeonType);   // BLOCKED 符号见文档
+        // [K6-DpcProcess 2026-09-11 第6轮] P0/P183：ORIG 0x081c8a6x 段为
+        //   `call selectStage; mov %eax,0x4(%esp); mov 0xc(%ebp),%eax; mov %eax,(%esp);
+        //    call procErrorSelectStage` —— 返回值**直传实参槽**、无具名槽；
+        // 旧形 `const int selErr = …;` 多 store+load 两条（我方实测槽 -0x2c 往返）。
+        // BLOCKED 符号见文档。
         advancealtar::Manager::procErrorSelectStage(
-            user, (ENUM_ERROR)selErr);   // BLOCKED 符号见文档
+            user,
+            (ENUM_ERROR)advancealtar::Manager::selectStage(
+                user, (int)req.m_dungeonIdx,
+                (advancealtar::StageDifficulty::T)(char)req.m_dungeonType));
         return 0;
     }
 
@@ -237,15 +245,16 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
         // ---- 等级下限检查型（ORIG 不判空 party，保持一致）----
         for (int i = 0; i < 4; ++i)
         {
-            if (!party->checkValidUser(i))
+            // [K6-DpcProcess 2026-09-11 第5轮] 同 0x081c8d0a 段模式：ORIG 直分支形
+            // `test %al,%al; je <循环尾>`；`!` 负形多 1 条 `xor $0x1,%eax`（实测）。
+            if (party->checkValidUser(i))
             {
-                continue;
-            }
-            CUser* member = party->get_user(i);
-            if (member != 0 && member->get_charac_level() < dungeon->get_min_level())
-            {
-                out.m_c = 0xe;
-                return 0;
+                CUser* member = party->get_user(i);
+                if (member != 0 && member->get_charac_level() < dungeon->get_min_level())
+                {
+                    out.m_c = 0xe;
+                    return 0;
+                }
             }
         }
     }
@@ -275,18 +284,18 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
             }
             for (int i = 0; i < 4; ++i)
             {
-                if (!party->checkValidUser(i))
+                // [K6-DpcProcess 2026-09-11 第5轮] 同上（ORIG 直分支形）。
+                if (party->checkValidUser(i))
                 {
-                    continue;
-                }
-                CUser* member = party->get_user(i);
-                const unsigned char revengeCnt = member->GetCurRevengeDungeonCount();
-                if (revengeCnt == 0 || (unsigned char)dungeon->m_maxRevengeCount < revengeCnt)
-                {
-                    party->get_user(i)->SetCurRevengeDungeonCount(0);   // P48：ORIG 第二次独立 get_user
-                    out.m_c = 0xad;
-                    out.m_14 = i;
-                    return 0;
+                    CUser* member = party->get_user(i);
+                    const unsigned char revengeCnt = member->GetCurRevengeDungeonCount();
+                    if (revengeCnt == 0 || (unsigned char)dungeon->m_maxRevengeCount < revengeCnt)
+                    {
+                        party->get_user(i)->SetCurRevengeDungeonCount(0);   // P48：ORIG 第二次独立 get_user
+                        out.m_c = 0xad;
+                        out.m_14 = i;
+                        return 0;
+                    }
                 }
             }
         }

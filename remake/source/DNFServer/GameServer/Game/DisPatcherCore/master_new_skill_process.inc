@@ -64,6 +64,14 @@ void DisPatcher_BuySkill::master_new_skill_process(CUser* user, char treeKind,
     }
     else
     {   // ---- 非公会技能分支（ORIG +0x1bf..+0x2ad）----
+        // [DpcMisc-P8 负结论 2026-09-11，已回滚] ORIG 0x081bfb2x 两处
+        // `mov -0x1c(%ebp),%eax` + `cmp`/`test` 两段形 vs 4.4 `cmpl $imm,-0x28(%ebp)`
+        // 单段。volatile 试形读数 235→**240**（ORIG 239，|Δ|=1）——虽拉近条数，
+        // 但父泳道判其属失真写法（volatile 强制每次访问落内存），且同源件
+        // try_master 已证明超调（83→88）⇒ 一并回滚，判 N。
+        // 其余残差：-0x44/-0x40/-0x3c 三个具名副本（ORIG 0x081bfa84-a98 的
+        // gold/gsp/level 回读），我方槽集与 ORIG 分布式错位（我方 needGold@-0x40、
+        // needGSP@-0x42 vs ORIG -0x20/-0x22）⇒ 补副本会触发整段槽重排，暂不动。
         int treeIdx = user->GetCurCharacSkillTreeIndex();               // -0x1c
         if (treeIdx == -1 || treeIdx == 0)
         {

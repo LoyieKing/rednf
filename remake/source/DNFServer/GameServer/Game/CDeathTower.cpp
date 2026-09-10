@@ -1803,6 +1803,9 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
         // 位测试树（our 494→500、ndiff 11→19 劣化）；ORIG 0x08466754 的 6 项跳表
         // `mov &data#(.rodata)(,%eax,4); jmp *%eax` 属 4.1 switch lowering（P320
         // 代际差，4.4 门限更高）⇒ 维持 4-case+default 决策树。
+        // [TowerSkill20 2026-09-11 试形·已回滚] 去具名 attachType（`switch((unsigned
+        // int)citem->GetAttachType())`）⇒ our 494→492 但 ndiff 11→233 大劣（槽/求值序
+        // 错位）⇒ 复原具名槽形。
         unsigned int attachType = (unsigned int)citem->GetAttachType();
         switch (attachType)
         {
@@ -2075,6 +2078,9 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
         // 免槽直入 call arg（范式37）。
         // [H10 CDeathTowerTU 试形 B·已回滚] 具名 buffType 中转实测 ndiff 9→236
         // （帧 +0x10、多 2 mov）⇒ 非 ORIG 形；维持免槽直入（范式37）。
+        // [TowerSkill20 2026-09-11 试形·已回滚] receiver 具名前置（`CParty* party =
+        // m_party; party->choose_random_buff(...)`）⇒ our 441→442、ndiff 9→236 劣化；
+        // ORIG 0x08463cfe 形（receiver 先落 %edx、值留 %eax）属 4.1 寄存器分配族，源码不可择。
         m_party->choose_random_buff((QuickParty::RandomBuffDungeon)
             m_party->m_battleField.getRandomBuffDungeonType(0));
 

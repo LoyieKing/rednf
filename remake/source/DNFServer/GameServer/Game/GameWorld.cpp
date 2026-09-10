@@ -681,6 +681,11 @@ COND3:
     // [G9WorldTimerLeague 2026-09-10 复核封顶] 同族 12 形探针 × 双后端实测：
     // 最优仍为现形 22 条 vs ORIG 21 条（ORIG 0x080f1325 装载一次、0x080f1328 cmp
     // 与 0x080f1334 `mov %eax,%ecx` 复用同一 %eax）⇒ N96/N7 封顶，勿再试。
+    // [GW20Run 2026-09-11 第三轮复核] fresh .o 实测 21/23；逐条核 ORIG
+    // 0x080f1322-0x080f1334：ct 全程 %eax（装载 0x080f1325→cmp 0x080f1328→
+    // `mov %eax,%ecx` 0x080f1334），我方唯多 `mov %eax,%ebx`(cmp 前)/`mov %ebx,%eax`
+    // (shl 前) 两条中转；掩码 $0x1e700 与上界 $0x10 与源码逐值一致（非位掩码笔误）
+    // ⇒ 维持 N96/N7 封顶，勿再试源形。
     register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0x10)
     {
@@ -720,6 +725,8 @@ COND3:
         // 位折叠（shr/and $1，23-25）、fE/fJ/fM/fP 24-25、fQ 23。ORIG 0x081424f2
         // `cmp $0x10,%eax` 与 0x081424fe `mov %eax,%ecx` 复用同一 %eax（ct 全程
         // 不落 callee-saved），4.4 恒落 %ebx ⇒ N96/N7+后端选择差，非源形可控。
+        // [GW20Run 2026-09-11 第三轮复核] fresh .o 21/23；ORIG 0x081424ec-0x08142502
+        // 逐条核对同上（ct 全程 %eax，掩码 $0x1e7f0 与上界 $0x10 与源码一致）⇒ 维持封顶。
         register unsigned int one = 1u << ct;
         if (one & 0x1e7f0)
             return true;
@@ -738,6 +745,8 @@ COND3:
     // cc1plus446bin 4.4.6，-march=i486 -mtune=generic）实测：最优仍为现形 22 条
     // vs ORIG 21 条（ORIG 0x081a0abc `cmp $0x10,%eax` 与 0x081a0ac8 `mov %eax,%ecx`
     // 复用同一 %eax，ct 全程不落 callee-saved）⇒ N96/N7+后端选择差，非源形可控。
+    // [GW20Run 2026-09-11 第三轮复核] fresh .o 21/23；ORIG 0x081a0ab6-0x081a0aca 逐条
+    // 核对（ct 全程 %eax；掩码 $0x166a0、上界 $0x10 与源码逐值一致）⇒ 维持封顶。
     register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0x10)
     {
@@ -758,6 +767,8 @@ COND3:
     // [G9WorldTimerLeague 2026-09-10 复核封顶] 同族 12 形探针 × 双后端实测：
     // 最优仍为现形 22 条 vs ORIG 21 条（ORIG 0x085dfa9c `cmp $0xf,%eax` 与
     // 0x085dfaa8 `mov %eax,%ecx` 复用同一 %eax）⇒ N96/N7 封顶，后继勿再试。
+    // [GW20Run 2026-09-11 第三轮复核] fresh .o 21/23；ORIG 0x085dfa9c-0x085dfaaa 逐条
+    // 核对（ct 全程 %eax；掩码 $0x8110、上界 $0xf 与源码一致）⇒ 维持封顶。
     register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0xf)
     {
@@ -779,6 +790,8 @@ COND3:
     // cc1plus446bin 4.4.6，-march=i486 -mtune=generic）实测：最优仍为现形 22 条
     // vs ORIG 21 条（ORIG 0x082343d2 `cmp $0xf,%eax` 与 0x082343de `mov %eax,%ecx`
     // 复用同一 %eax）⇒ N96/N7 封顶，后继勿再试。
+    // [GW20Run 2026-09-11 第三轮复核] fresh .o 21/23；ORIG 0x082343cf-0x082343e0 逐条
+    // 核对（ct 全程 %eax；掩码 $0xc200、上界 $0xf 与源码一致）⇒ 维持封顶。
     register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0xf)
     {
@@ -4783,6 +4796,17 @@ END:;
 // vs 我方 `-0x8c`）系槽组平移使行级 diff 失配；净差 = N87（`and $0x1f` 掩码）/N89（STL 内联
 // 串槽）/N91（EH landing 块数）⇒ 封顶。case 0xd/0xf 两次独立 strlen 与 case 3/0x22
 // fallthrough 既有真修保留。
+// [GW20Run 2026-09-11 本轮真修 · packetSize 语义缺口] 三处监控包发送点此前只把动态长度
+// 作 send 实参、**未回写包头 size 字段**（发出报文的 header.packetSize 恒为 ctor 初值
+// 0x113/0x10f，与实际字节数不符 ⇒ 接收端按错长度解析）：① case1 Other_Channel_Chat
+// ORIG 0x086ca141 `add $0x3b,%eax` + 0x086ca144 `mov %ax,-0x1e1(%ebp)`（pkt 基址由
+// 0x086ca120 `lea -0x1e3` + 0x086ca126 `add $0x1c` 定点 ⇒ -0x1e1 = pkt+0x02 =
+// PacketHeader::packetSize）+ 0x086ca14b `movzwl -0x1e1` 读回；② case6 Guild_Chat
+// 0x086ca704/0x086ca70a/0x086ca711 同形；③ case8 Member_Chat 0x086ca826/0x086ca829/
+// 0x086ca830 同形。已落 `pkt.packetSize = <len+const>;` 并以该字段作实参。读数
+// 1255/1253 → 1255/1263（三处 store/load/读回；4.4 对跨 call 保活值用 %esi 而 ORIG 走
+// 栈槽 ⇒ gap 绝对值 2→8，按语义轴（ORIG 直证齐全）落地）。试过并回退的形：具名
+// `int sendSize = pkt.packetSize;` 作实参（每处再 +2、hunk 数 107 不变 ⇒ 回退）。
 #include "GameWorld/send_chat_msg.inc"
                               unsigned int characNo, char* msg, int len, char* nick,
                               int nickLen, ENUM_NOTIPACKET notify)
@@ -4873,8 +4897,12 @@ END:;
             memcpy(pkt.m_msg, msg, len);
             pkt.m_buddyNameLen = (char)nickLen;
             memcpy(pkt.buddy_n_user_id_what, nick, nickLen);
+            // [GW20Run 2026-09-11] ORIG 0x086ca141 `add $0x3b,%eax` + 0x086ca144
+            // `mov %ax,-0x1e1(%ebp)`（pkt+0x02 = PacketHeader::packetSize）⇒ 发包前
+            // 把动态长度写回包头 size 字段，并以该字段作 send 实参（0x086ca14b 读回）。
+            pkt.packetSize = 0x3b + len;
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket((char*)&pkt, 0x3b + len);
+                ->SendPacket((char*)&pkt, pkt.packetSize);
             break;
         }
         PacketGuard pm;
@@ -5038,8 +5066,14 @@ END:;
             pkt.m_guildKey = from->getCurCharacNo();
             pkt.m_msgLen = (unsigned char)len;
             memcpy(pkt.m_msg, msg, len);
+            // [GW20Run 2026-09-11] ORIG 0x086ca704 `add $0x13,%eax` + 0x086ca70a
+            // `mov %ax,-0x1e1(%ebp)`（pkt+0x02 = PacketHeader::packetSize）⇒ 原码在
+            // 发包前把**动态长度**写回包头 size 字段，并以该字段作 send 实参
+            // （0x086ca711 `movzwl -0x1e1(%ebp),%eax` 读回）。旧实现直接传 `len+0x13`
+            // ⇒ 包内 size 字段恒为 ctor 的 0x113（真语义缺口：接收端按错长度解析）。
+            pkt.packetSize = len + 0x13;
             GlobalData::s_guild_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket((char*)&pkt, len + 0x13);
+                ->SendPacket((char*)&pkt, pkt.packetSize);
         }
         else
         {
@@ -5058,8 +5092,11 @@ END:;
             pkt.m_memberId = from->get_charac_memberkey();
             pkt.m_msgLen = (unsigned char)len;
             memcpy(pkt.m_msg, msg, len);
+            // [GW20Run 2026-09-11] ORIG 0x086ca826 `add $0xf,%eax` + 0x086ca829
+            // `mov %ax,-0x1e1(%ebp)`（pkt+0x02）⇒ 同族动态长度回写（0x086ca830 读回）。
+            pkt.packetSize = len + 0xf;
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket((char*)&pkt, len + 0xf);
+                ->SendPacket((char*)&pkt, pkt.packetSize);
         }
         else
         {

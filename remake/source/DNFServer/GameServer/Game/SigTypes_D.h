@@ -50,7 +50,11 @@ struct SIG_LOGIN_PUNISH_INFO       // stride 0x18（@0x3a54，ARAD 复核同型�
 struct SIG_CHARAC_SLOT_VIEW
 {
     int  m_characNo;               // +0x00 槽内 charac_no（ORIG `mov (%eax),%eax`）
-    char m_rest[0x90];             // +0x04..0x93（name/job/lev 等，本视角不展开）
+    char m_name[0x16];             // +0x04..0x19 角色名（ORIG strncpy 0x1e 越读进
+                                   //            m_level/m_rest 照抄，P171）
+    unsigned short m_level;        // +0x1a 槽内等级（ORIG GetMercenarySystemInfo
+                                   //            0x084156a5 `movzwl 0xa(%eax),%ebx`）
+    char m_rest[0x78];             // +0x1c..0x93（job 等，本视角不展开）
 };
 struct SIG_CHARAC_SLOTS_VIEW
 {

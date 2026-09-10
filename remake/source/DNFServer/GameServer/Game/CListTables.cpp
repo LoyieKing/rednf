@@ -461,6 +461,10 @@ std::map<int, PvPMapInfo> CMapList::mapPvpMapInfo_;
 // int→bool（ORIG 0x0834d408 `call; xor $1; test %al`，定义侧 STDungeonScript.cpp
 // 已 bool）；③cMyTrace 改全表达式临时链（P227，size() 结果入 %ebx 跨 ctor 保活）。
 // 残差仅帧 0x55c vs 0x56c + script/it/cMyTrace 槽位差（N82 族）⇒ 封顶。
+// [K2 2026-09-11 复核·实验负结论] 试 P232 撑帧法（函数入口补 `char pad[0x10]`）：
+// 帧 0x55c→0x56c 命中 ORIG，但 script/it 槽整体深 0xc（-0x53c→-0x558 vs ORIG -0x54c）、
+// ndiff 22→26 ⇒ **帧与槽位不可同时满足**（撑帧只治帧、不治对象槽序；聚合对象优先占低槽
+// 的 4.4 排布 vs 4.1 生命周期穿插）⇒ 封 N82/N115，勿再试 pad。
 #include "CListTables/load_list.inc"
 {
     char* path = 0;
@@ -962,6 +966,10 @@ std::map<int, PvPMapInfo> CMapList::mapPvpMapInfo_;
     // [b28d-solo-CListTables N(N82): 138=138 + p167 调用点 CLEAR（17/17，== / mmEi /
     // ppEi 全对齐），残差仅槽号整体深移 0x10（ORIG it/range -0x4c/-0x48 vs 我们
     // -0x3c/-0x38）；char[0x10] 死局部撑帧实测 sub 0x58→0x78 且槽号不平移 ⇒ 封顶。]
+    // [K2 2026-09-11 复核·实验负结论] P190 双取址 double 撑帧实测：帧 0x58→0x78（+0x20
+    // 过头，ORIG 0x68）、且 pad 落**深侧**（低地址），浅侧 it/range 槽仍 -0x30（ORIG -0x40）
+    // **不平移** ⇒ 撑帧无法移动浅侧槽位；ndiff 42→16 但 verdict 仍 NEAR。
+    // ⇒ N126（4.1/4.4 首槽基址常数）/N82 封顶，勿再试 pad。
     int count = m_groupSkillMap[jobType].count(group);
     if (count == 0)
     {

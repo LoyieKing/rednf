@@ -10,9 +10,15 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     PacketGuard pgRes;
-    unsigned short peerIdx = 0;                  // ORIG msg+0xd（local_47）
-    char requestType = 0;                        // ORIG msg+0xf（local_45）
-    unsigned int cookie = 0;                     // ORIG msg+0x10（local_44）
+    // [K6-DpcSigSmallCheckErr] 改前形 = 三变量带 `= 0` 预清 → 改后形 = 去预清
+    // （值在 get_* 成功前不读，失败路径即 return，语义不变）。依据 ORIG
+    // 0x081eed65 `lea -0x50(%ebp),%eax; add $0xd,%eax`（msg 视图成员取址，视图
+    // base -0x50、peerIdx@+0xd / requestType@+0xf / cookie@+0x10）——ORIG 全函数
+    // 无 `movw/movb/movl $0x0,-0x4e/-0x4f/-0x54(%ebp)` 预清（我方 4.4 多发这 3 条）。
+    // 残差：成员取址两步形（ORIG lea+add）我方仍为单条 disp = N102/N4 族。
+    unsigned short peerIdx;                      // ORIG msg+0xd（local_47）
+    char requestType;                            // ORIG msg+0xf（local_45）
+    unsigned int cookie;                         // ORIG msg+0x10（local_44）
     if (!packet.get_short(peerIdx))
         return LineFunc(0x725a,
                         __PRETTY_FUNCTION__,

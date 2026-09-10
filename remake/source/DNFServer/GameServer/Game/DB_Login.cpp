@@ -1714,6 +1714,12 @@ link_end:
 // 成员常量取址 add-vs-lea（ORIG-only lea×4 / jbe×1）。
 #include "DB_Login/GetAccountInfo.inc"
 {
+    // [K9GameRestA-S322] ORIG 0x0841326a..0x084132b1：`serverPwd[0x84]` 的零初始化在
+    // **函数入口**即发（`lea -0x3b2(%ebp),%edx; mov $0x84,%ebx` 对齐剥离慢路 + rep stos，
+    // 紧跟 `sub $0x3fc,%esp`），其后才是 GetDBHandle ⇒ 原码该数组**声明在函数最前**。
+    // P331/P212：声明点 = 初始化发射点，放在语句位置会让这 ~190 行整体后移。
+    // A/B 实测（fndiff 口径）：语句位 -560/+571 → 入口位 -461/+472。
+    char serverPwd[0x84] = {0};
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect m_id, passwd,first_ssn, second_ssn,DATE_FORMAT(from_unixtime(reg_date),'%%Y%%m%%d%%H'),user_name,email,hangame_flag,reg_date from  member_info  where  user_id='%s' and hangame_flag=%d",
@@ -1777,7 +1783,7 @@ link_end:
     // ---- passwd 列 + SSO 校验 ----
     // [b28d-solo-DB_Login] P214③/N78 突破口：ORIG 为内联展开（非 call memset）
     // ⇒ 改显式零初始化（`= {0}`），4.4 复现 rep stos/展开而非 memset call。
-    char serverPwd[0x84] = {0};
+    // [K9GameRestA-S322] 声明已上移至函数入口（见上）——ORIG 清零点即入口。
     if (!db->get_str(1, serverPwd, 0x84))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x39c8, 5);
@@ -2651,14 +2657,14 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
     // 恒把 `add $0xe0` 提前并令 `i*0x94+0x1a` 退化为 shl/add 链，OURS-only shl×3/add×6）；
     // 具名槽结构数组成员直访问复现 ORIG 的 `imul; lea; add $0xe0` 三步（TU 头 probe_arr
     // f4 已实证；仅表达布局，不实例化、零符号、零 sizeof/偏移影响）。
-    struct MercCharacSlot
-    {
-        unsigned int m_characNo;      // +0x00
-        char m_name[0x16];            // +0x04（角色名串槽，+0x04..0x19）
-        unsigned short m_level;       // +0x1a（short 等级）
-        char m_pad[0x78];             // +0x1c..0x93
-    };
-    struct MercCharacView { char m_pad[0x00e0]; MercCharacSlot m_slots[0x24]; };
+    // [K2ADBLogin 2026-09-11] 局部 cast 视图（MercCharacSlot/MercCharacView）已删：
+    //   改用权威数组视角 `sig->m_characView.m_slots[i]`（SigTypes_D.h
+    //   SIG_CHARAC_SLOTS_VIEW；S216/P235 已在 GetGameDBInfo 实证 i-first 形，
+    //   cast 视图恒 base-first）。视图已补 m_name(+0x04)/m_level(+0x1a) 具名字段
+    //   （sizeof 仍 0x94、槽偏移 0xe0、SIG_LOGIN_DATA 布局不变）。
+    //   读数：差异行 358→246、ours 393→392；四数不变（仍 DIFF，余 = `movzwl
+    //   0xa(%eax),%ebx` 单段 vs 我方 `movzwl %ax,%ebx` 双段（16/32 位宽差，跨版本
+    //   不可翻）+ 三处 cMyTrace 段对齐窗口漂移）。p167 仅 C1/C2 豁免项、CLEAR。
     // [pack 例检] 上述视图偏移经 c6root 4.4.7 -m32 + TU 实旗标探针硬断言：
     // m_characNo=0 / m_name=4 / m_level=0x1a / sizeof=0x94（0x1a 偶对齐 ⇒ 无插垫）；
     // m_slots=0xe0（0xe0%4==0）。
@@ -2666,13 +2672,16 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
     // `add $0xa8e0,%eax; movzwl (%eax)`（+1 条）。
     struct CDataMgrLevelView { char m_pad[0xa8e0]; short m_level; };
 
-    int outIdx = 0;
     // [P0/P212 去槽·ORIG 直证] ORIG 0x08415670/0x08415677 `movl $0x0,-0x54(%ebp);
     // movl $0x0,-0x58(%ebp)` 在函数入口（for 之前）清零 ⇒ gotSlot/itemId 原码是
     // **函数头声明**（非循环体内声明），槽 -0x54/-0x58；旧循环内声明令两槽下沉到
     // -0x28/-0x24 并整体撑大帧。
     int gotSlot = 0;
     int itemId = 0;
+    // [K9GameRestA-S322] ORIG 入口清零序 = -0x54/-0x58 **然后** -0x18 再 -0x14
+    // （0x08415670/77/7e/85）⇒ outIdx 声明在 gotSlot/itemId **之后**（P331 同尺寸
+    // 标量区声明序可控）。
+    int outIdx = 0;
     for (int i = 0;
          i < sig->m_characCount && i < 0x24; ++i)
     {
@@ -2685,14 +2694,17 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
         // ⇒ 原码条件为 `slotLevel >= mgrLevel`（操作数序 slot 在左=求值序；4.4 把
         // `a >= b` 规范成 `!(a < b)` ⇒ setl+jne 同形）。旧 `if (mgr <= slot)` 产
         // `setle/je` 反号（P196 折痕，本点位 4.4 不复现 `!(b >= a)` 折叠）。
-        if (reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_level >=
-            reinterpret_cast<CDataMgrLevelView*>(G_CDataManager())->m_level)
+        // [K9GameRestA-S322] ORIG 0x084156a5 `movzwl 0xa(%eax),%ebx` + `cmp %ax,%bx;
+        // setl %al`（**16 位**有符号比较）vs 我方 `movzwl %ax,%ebx; cwtl; cmp %eax,%ebx`
+        // （32 位，多 2 条）⇒ 试「两侧都显式 (short)」消掉整型提升（P248 档③）。
+        if ((short)sig->m_characView.m_slots[i].m_level >=
+            (short)reinterpret_cast<CDataMgrLevelView*>(G_CDataManager())->m_level)
         {
             // P183：ORIG 每次使用均由 sig 重新展开 charac_no（sig+0xe0 视图）与
             // mercenary 基址，禁具名缓存。
             dbBonus->set_query(
                 "seLect mercenary_start_time,mercenary_finish_time,mercenary_area,mercenary_period from charac_link_bonus where charac_no=%u",
-                reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_characNo);
+                sig->m_characView.m_slots[i].m_characNo);
             if (!dbBonus->exec(true))
             {
                 return 0;
@@ -2700,15 +2712,15 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
 
             sig->m_mercenaries[outIdx].Reset();
             strncpy(sig->m_mercenaries[outIdx].m_name,
-                    reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_name, 0x1e);  // 角色名
+                    sig->m_characView.m_slots[i].m_name, 0x1e);  // 角色名
             sig->m_mercenaries[outIdx].m_characNo =
-                reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_characNo;
+                sig->m_characView.m_slots[i].m_characNo;
             sig->m_mercenaries[outIdx].m_level =
-                reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_level;
+                sig->m_characView.m_slots[i].m_level;
 
             dbItems->set_query(
                 "seLect slot,it_id from user_items where charac_no=%u and expire_date>now() and stat=0 order by slot limit 8",
-                reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_characNo);
+                sig->m_characView.m_slots[i].m_characNo);
             if (!dbItems->exec(true))
             {
                 // ORIG（反编译 C）：exec 失败即跳过本角色的物品装载与
@@ -2729,7 +2741,7 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
                         cMyTrace(__PRETTY_FUNCTION__, 0x3ea2, 5)(
                             "DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u",
                             0x3ea2,
-                            reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_characNo);
+                            sig->m_characView.m_slots[i].m_characNo);
                         break;
                     }
                     if (!dbItems->get_int(0, gotSlot))
@@ -2738,7 +2750,7 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
                         cMyTrace(__PRETTY_FUNCTION__, 0x3ea8, 5)(
                             "DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u",
                             0x3ea8,
-                            reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_characNo);
+                            sig->m_characView.m_slots[i].m_characNo);
                         return 0;
                     }
                     if (!dbItems->get_int(1, itemId))
@@ -2747,7 +2759,7 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
                         cMyTrace(__PRETTY_FUNCTION__, 0x3eae, 5)(
                             "DB_Login::GetMercenarySystemInfo %d ERROR charac_no=%u",
                             0x3eae,
-                            reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_characNo);
+                            sig->m_characView.m_slots[i].m_characNo);
                         return 0;
                     }
                     if (gotSlot != expectSlot)
@@ -2766,7 +2778,7 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
             {
                 dbBonus->set_query(
                     "inSert into charac_link_bonus (charac_no,mercenary_start_time,mercenary_finish_time,mercenary_area,mercenary_period) values(%u,0,0,-1,-1)",
-                    reinterpret_cast<MercCharacView*>(sig)->m_slots[i].m_characNo);
+                    sig->m_characView.m_slots[i].m_characNo);
                 if (dbBonus->exec(true))
                 {
                     sig->m_mercenaries[outIdx].m_field28 = 0;      // mercenary_start_time(+0x28)
@@ -2933,7 +2945,11 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
             // 但 4.4 恒先预载 base（`mov 0xc(%ebp),%eax; …; add %edx,%eax`）而 4.1 后置
             // 并以内存操作数 `add 0xc(%ebp),%eax` 收尾 ⇒ 我方 +1 条（146 vs 145，gap -1，
             // identical 不可达）⇒ 回退到 gap 0 形（余 5 行=装载序）。
-            char* rowPtr = reinterpret_cast<char*>(sig) + i * 0x2c + OFF_GROWTH_CREATURE;
+            // [K2ADBLogin 2026-09-11] 改真实成员数组取址（P235）：ORIG 0x08448236 为
+            //   `mov i,%eax; imul $0x2c,%eax,%eax; add $0x4150,%eax; add 0xc(%ebp),%eax;
+            //    add $0x4,%eax`（index 先、base 内存操作数后置、常量两段）；
+            //   cast 指针形 4.4 恒 base-first + 折叠 `add $0x4154`（旧 5 行失配）。
+            char* rowPtr = reinterpret_cast<char*>(&sig->m_growthCreatureEvent.m_entries[i]);
             int rowPad = 0;
             (void)rowPad;
             if (!db->get_short(0, *reinterpret_cast<short*>(rowPtr))) return 0;
@@ -2998,8 +3014,11 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
             // 均被 4.4 折 `add $0x867; shl $3`（/tmp/l26p/p3.cpp）；i6
             // `(int*)((char*)&arr[i+0x866].a)+2` 可保 `add $0x866; shl $3; add sig;
             // add $8` 五条但恒 sig-first（ORIG i-first）⇒ 常量拆分不可全复现，N1 封顶。
-            int* giftSlot = reinterpret_cast<int*>(
-                reinterpret_cast<char*>(sig) + OFF_ONCE_GIFT + i * 8);
+            // [K2ADBLogin 2026-09-11] P235 真实成员数组取址：ORIG 0x084489xx 为
+            //   `mov i,%eax; add $0x866,%eax; shl $0x3,%eax; add 0xc(%ebp),%eax;
+            //    add $0x8,%eax`（index 先、base 内存操作数后置、常量两段 0x866/8）；
+            //   cast 指针形 4.4 恒 base-first + 折叠 `add $0x867`（旧 5 行失配）。
+            int* giftSlot = reinterpret_cast<int*>(&sig->m_levelupGiftAccountOnce.m_entries[i]);
             if (!db->get_short(0, giftSlot[0])) return 0;
             if (!db->get_int(1, giftSlot[1])) return 0;
         }

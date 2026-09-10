@@ -445,6 +445,10 @@ __attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
 // [L14] 本轮复核：480/480，2 差异块 = ①ORIG `mov 0x8(%ebp),%edx; add $0x14,%edx`
 // vs 我方 `mov this,%eax; lea 0x14(%eax),%edx`（add-vs-lea，N4 族）；
 // ②`lea -0x10a(%ebp)` vs `-0x10e`（槽差 4，N82）⇒ 封顶。
+// [K2 2026-09-11 复验] fresh .o：24 组 slot-pair = +4×16 / +28×3 / -4×2（多段
+// 常数 ⇒ P331 判不可修）；帧 sub 0x15c 双侧相同；对象级错位（auctionPacket
+// character_ids `mov %eax,-0x100(%ebp,%edx,4)` ↔ `-0x104`、newPos/regPos 组
+// -0x60↔-0x64 / -0x54↔-0x50）⇒ 维持 N82/N4 封顶。
 #include "CPrivateStoreMgr/CreatePrivateStore.inc"
                                        short posX, short posY, unsigned short dollSlot)
 {
@@ -909,6 +913,10 @@ __attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
 // [L14] 本轮复核：302/301，仅 1 差异块（6 行）= ORIG 0x085c6d48+0x147
 // `mov %eax,%edx; lea -0x59(%ebp),%eax; mov %edx,0x8(%esp) … mov %eax,(%esp)`
 // vs 我方 eax↔edx 角色互换（长度全等）⇒ N7 封顶。
+// [K2 2026-09-11 复验] fresh .o：fn_diff 155 行中实质 slot-pair 仅 2 组（+63/0），
+// 实体差异仍为唯一块 = GetInvenSlot 调用点 `mov %eax,%edx; lea -0x59(%ebp),%eax`
+// vs 我方 `lea -0x59(%ebp),%edx; mov %eax,0x8(%esp)`（长度全等，N7：4.1 让 sret
+// lea 占 %eax / invenType 值落 %edx）⇒ 维持 N7 封顶。
 #include "CPrivateStoreMgr/AddItem.inc"
 {
     if (isDollCreated())
@@ -1055,6 +1063,11 @@ __attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
 // 的发射位置）。
 // [L14] 本轮复核：602/602，13 块/129 行 = ORIG 有 `push %edi` 而我方无 + 帧
 // 0xbc vs 0xc0 + 槽整块差 4（`movl $0,-0x38` vs `-0x3c` 全链）⇒ N82/N115 封顶。
+// [K2 2026-09-11 复验] 定位到根因：`push %edi` 缺失是**唯一实体差**——ORIG
+// 0x085c83e7 `mov -0x28(%ebp),%edi; mov %edi,0x1c(%esp)`（vararg 装载顺手用
+// callee-saved %edi）；其后本体逐条同形（fn_diff 的交替显示只是错位）。
+// 帧 0xbc↔0xc0 与全部 8 组 +4 slot-pair 均由该 push 派生 ⇒ N7 寄存器选择
+// （该值不跨 call，4.4 无保 edi 需求；诱导 4.4 升格无合法源形）⇒ 维持封顶。
 #include "CPrivateStoreMgr/BuyPrivateStoreItem.inc"
 {
     m_errorHandler.Set(m_pBuyer, 1, 0x55);
@@ -1544,6 +1557,10 @@ __attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
         // 残余 = ORIG 0x085c5273..0x085c5285 的 7 条数据区字节被 objdump 线性解码
         // 成荒谬指令（`or %cl,0x489d445(%ebp)` 等），非源码可造 ⇒ 该件封顶为
         // 「gap=0 + 数据区解码差」（§6.2 三件套：gap 0 ✓ / p167 CLEAR ✓）。
+        // [K2 2026-09-11 复验] fresh .o：gap 0（165=165）保持；残 53 行 = try/catch
+        // 两 EH 尾块相对序（ORIG 正常路径尾块置最末 + `cmpl $0,-0x18; sete %al;
+        // test %al,%al; jne` 槽比零物化 vs 4.4 恒直跳 `je`，N104/setcc-fold）+
+        // 上述数据区线性解码 ⇒ 三件套（gap 0 / p167 CLEAR / 槽集）已过，维持封顶。
         if (area != 0 &&
             ((area->m_villageIndex == 2 && area->m_areaIndex == 0) || area->m_areaType != 4))
         {
@@ -1667,6 +1684,11 @@ __attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
 //（已回退）⇒ 封顶。
 // [L14] 本轮复核：321/321 助记符序列全等、0 差异块；残 187 行全为槽号
 // （0x3d 逐字段拷贝块：我方 -0x6d.. 与 ORIG 相差 0x20 平移）⇒ N82/N95 帧槽族封顶。
+// [K2 2026-09-11 复验·修正] 精确残差 = 64 组 slot-pair（-61×32 / +61×32）⇒
+// 两个 Inven_Item 栈副本（0x3d=61B：ORIG avatar 组深 -0xaa、normal 组浅 -0x6d）
+// **整体互换** = N93/P212「4.4 块内先声明浅 vs 4.1 先声明深」，旧「0x20 平移」说
+// 作废；提前声明两对象需默认 ctor（每轮多发 C1Ev，p167 将现 EXTRA）⇒ 维持封顶。
+// （指令数 321=321、sub 0x140 双侧相同。）
 #include "CPrivateStoreMgr/RecallPrivateStoreItem.inc"
 {
     // [BigStore P191/P2] ORIG 0x085c63d5/0x085c63dc 双 `movl $0x0,-0x20`，尾测
@@ -1685,6 +1707,9 @@ __attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
                 // [b28d-solo] ORIG 0x85c642e 先把 item.m_item 逐字段拷到栈副本 -0xaa，
                 // 再按值拷入 outgoing 槽（两次拷贝，4.1 对按值实参的 lowering）⇒
                 // 显式具名副本复现。
+                // [K2 2026-09-11 实测回滚] 分支体加块作用域（P212 块级槽重开）：
+                //   fresh .o 残差仍 64 行（-61×32/+61×32 不变）⇒ 4.4 槽向不由块深
+                //   决定 ⇒ 回滚。
                 Inven_Item itemCopy = item.m_item;
                 // [BigStore P329] ORIG 0x085c64bb getCurCharacInvenW 结果直落
                 // insertAvatarIntoInventory this 实参槽（16+2 参），无 invenW 缓存槽。
@@ -1764,6 +1789,10 @@ __attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
 // [b28d-solo-CPrivateStoreMgr] P167 归零。残 357 行 = cMyTrace 具名对象发射位置
 //（ORIG C1 在 getCurCharacNo/Name 之后，P227）+ 帧 0x9c vs 0xac（N82）+ N18a
 // 单段直落（`mov 0x2(%eax),%edi` vs 我们两段）。
+// [K2 2026-09-11 复验] fresh .o：291=291 助记符全等；18 组 slot-pair = +16×10 /
+// -80×8 ⇒ 两组**互换**（ORIG 4 标量 -0x78..-0x6c 深区、两 trace 临时 -0x68/-0x58
+// 浅区；我方标量 -0x28..-0x1c 浅、trace -0x78/-0x68 深）= N82附「4.4 聚合对象
+// 优先占低槽、标量分区排布」；POD 聚合形已实测反劣（+10 条）⇒ 维持封顶。
 #include "CPrivateStoreMgr/DeleteItem.inc"
 {
     // [L14] 已测（回退）：4.4 对标量分区排布（标量落浅区、聚合占低槽），把 4 个标量
@@ -2262,6 +2291,9 @@ __attribute__((weak)) void CErrorHandler::Set(CUser* user, int sendError, int co
 // 实参改表达式直写。残 104 行 = N18a 单段 callee-saved 直落不可造 + 帧/槽（N82）。
 // [L14] 本轮复核：385/381，6 块 = 帧 0xec vs 0xfc（+0x10，N115）+ 槽差 0x70
 // + `mov 0x2(%eax),%edi` vs 我方 `mov 0x2(%eax),%eax; mov %eax,%edi`（N18a）⇒ 封顶。
+// [K2 2026-09-11 复验] fresh .o：帧 ORIG 0xec vs 我方 0xfc（+0x10 = N115 4.4
+// outgoing 预留）不变；15 组 slot-pair 以 +4×3 / -116×2 为主（多段 ⇒ P331 不
+// 可修）；N18a 两段物化 `mov 0x2(%eax),%eax; mov %eax,%edi` 仍不可造 ⇒ 维持封顶。
 #include "CPrivateStoreMgr/BuyItem.inc"
                            int /*commissionBase*/, int /*flag*/, int& outSlot)
 {

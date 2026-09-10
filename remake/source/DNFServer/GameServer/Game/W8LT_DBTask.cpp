@@ -1161,7 +1161,7 @@ char const* get_skill_table_name(bool use2nd);
         "nat_type_5,ping5,mtu_5,nat_type_6,ping6,mtu_6,nat_type_7,ping7,mtu_7,"
         "nat_type_8,ping8,mtu_8,occ_time,map_id,dungeon_id,ip_1,ip_2,ip_3,ip_4,"
         "ip_5,ip_6,ip_7,ip_8, end_reason) values('%s',%s,%d,%d,%d,%d,%d,%d,%d,%d,"
-        "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,now(),%d,%d,'%s','%s','%s',"
+        "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,now(),%d,%d,'%s','%s','%s',"
         "'%s','%s','%s','%s','%s',%d)",
         sig->m_ip,
         NumberToString(sig->m_accId, 0),
@@ -3538,7 +3538,7 @@ struct DB_SaveSkillCharacView
     bool ok;
     if (userIdx < 0)
         return 1;
-    db->set_query("upDate user_item set slot=%d,clear_avatar_id=%d where ui_id=%d",
+    db->set_query("upDate user_items set slot=%d,clear_avatar_id=%d where ui_id=%d",
                   slot, clearAvatarId, userIdx);
     ok = db->exec(true);
     if (!ok)
@@ -15603,6 +15603,10 @@ static_assert(sizeof(DB_BoosterGageView) == 8,
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     struct tm* ptm = localtime((const time_t*)&GlobalData::g_IPMonitorLastDBAccessTime);
+    // [L5 K5W8LTDBTask 负结论] P312 变体实测证伪：ORIG 0x0843310f `movzwl "",%eax`
+    // + 定宽清零（.rodata 0x8c52777 十六字节全 0 ⇒ 原码疑为空串字面量初始化），
+    // 但我方改 `= ""` 后 4.4 仍发同样 5 条 movl（our 270 未变，TU 四数 141/1750/12/57
+    // 逐值相同）⇒ 4.4 不作该展开，旋钮无效，回滚保 `{ '\0' }`。
     char timeBuf[0x14] = { '\0' };
     sprintf(timeBuf, "%d-%d-%d %d:%d:%d", ptm->tm_year + 0x76c, ptm->tm_mon + 1,
             ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
@@ -16430,15 +16434,16 @@ struct DB_PvPResultSchoolView
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_10,
                                                   E_SERVER_GROUP_NONE);
     Packet_PvPResult* sig = stream->GetOutBuffer<Packet_PvPResult>();
-    DB_PvPResultSchoolView* v =
-        reinterpret_cast<DB_PvPResultSchoolView*>(sig);
-    for (int i = 0; (unsigned char)v->m_count > i; ++i)
+    // [L5 K5W8LTDBTask] P0：去 `v` 具名缓存（ORIG 0x084317b2 段无第二槽往返，
+    // 全程 `((DB_PvPResultSchoolView*)sig)->...` 就地 cast 直读）。
+    for (int i = 0; (unsigned char)((DB_PvPResultSchoolView*)sig)->m_count > i; ++i)
     {
         for (int j = 0; j <= 1; ++j)
         {
             db->set_query(
                 "upDate school_member set last_play_time=NOW()  where m_id=%s and school_id=%d",
-                NumberToString(v->m_mId[j][i], 0), v->m_schoolId[j][i]);
+                NumberToString(((DB_PvPResultSchoolView*)sig)->m_mId[j][i], 0),
+                ((DB_PvPResultSchoolView*)sig)->m_schoolId[j][i]);
             if (db->exec(true) != 1)
                 return 0;
         }
@@ -17678,6 +17683,10 @@ static_assert(sizeof(DB_AutoPunishedSecondUserSetView) == 0x18,
         // out+0x14=req+0x10、out+0=req goldLo、out+0x4=req goldHi、
         // out+0x8=0、out+0xc=0、out+0x10=1（punished 硬编码 1，非 req）。
         out->m_mId = req->m_punished;
+        // [K5W8LTDBTask W8DiagD 负结论] u64 别名拷贝旋钮（P246/P92）实测无变化
+        // （our 215 未动、四数 141/1750/12/57 逐值相同）：4.4 对
+        // `*(unsigned long long*)&a = *(unsigned long long*)&b` 与逐字段赋值同码。
+        // ORIG 0x0843a5b3-0x0843a5b6 的 6 条 8 字节拷贝属 4.1 后端，不可迁。回滚。
         out->m_goldLo = req->m_goldLo;
         out->m_goldHi = req->m_goldHi;
         out->m_tradeCnt = 0;
@@ -19817,7 +19826,7 @@ struct DB_AutoPunishBlackIpView
         // ORIG 0x08442d2a `mov %eax,%ebx`：NumberToString 结果无具名槽、直落
         // callee-saved %ebx 跨 ctor 保活 ⇒ P0 实参内联 + P227 临时链。
         cMyTrace(__PRETTY_FUNCTION__, 0xa47e, 5)(
-            "InSert check_pick_up_random_option_item fail(m_id:%s)",
+            "inSert into check_pickup_random_option_item failed at m_id(%s) ",
             NumberToString(m_id, 0));
         return 0;
     }
@@ -19940,6 +19949,16 @@ struct DB_AutoPunishBlackIpView
                 reinterpret_cast<char&>(sig.m_rewards[i].m_field0)))  // quest_id
             return 0;
     }
+    // [K5W8LTDBTask W8DiagC 语义修正 ③⑨] ORIG 0x08439063-0x08439066
+    //   `mov -0x14(%ebp),%eax; mov %eax,-0x4c(%ebp)`
+    // —— sig 栈对象基址 -0x32c（ctor `lea -0x32c(%ebp)` @0x08438a3f，回包
+    //    `memcpy(out,&sig,0x2e4)` 同址）⇒ -0x4c = sig+0x2e0 = m_field2e0；
+    //    -0x14 = rowCount（循环上界，来自第二次 get_n_rows）。
+    // 该写无我方替代路径（-0x4c 全函数只此一写）；缺失使我方回包 m_field2e0
+    // 恒为 ctor 清零值 0 ⇒ 消费方 GlobalData.cpp:5870
+    //   `for (i=0; i<((const SIG_...*)this)->m_field2e0; ++i)` 循环 0 次，
+    //   断线重连奖励表整表不装载（真语义 bug）。
+    sig.m_field2e0 = rowCount;
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x86c5), true);
     guard.operator*()->operator<<(0x141);
@@ -20171,8 +20190,11 @@ struct DB_AutoPunishBlackIpView
         db->set_query(
             "seLect level, state from event_levelup_support where charac_no=%d",
             characNo);
+        // [K5W8LTDBTask W8DiagC 类型轴 ⑦] ORIG 0x0844ce17 `movl $_ZTIi,0x4(%esp)`
+        // ⇒ 抛出静态类型是 **int**（我方原 `unsigned int` 发 _ZTIj）；
+        // catch 同刻改 int（throw/catch 必须同型，否则异常逃逸）。
         if (!db->exec(true))
-            throw (unsigned int)0xc277;
+            throw (int)0xc277;
         CStreamGuard guard(
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc279), true);
         guard.operator*()->operator<<(0x350);
@@ -20190,18 +20212,18 @@ struct DB_AutoPunishBlackIpView
         for (int i = 0; i < rowCount; ++i)
         {
             if (!db->fetch())
-                throw (unsigned int)0xc28c;
+                throw (int)0xc28c;
             if (!db->get_ushort(0, level))
-                throw (unsigned int)0xc28d;
+                throw (int)0xc28d;
             if (!db->get_ushort(1, state))
-                throw (unsigned int)0xc28e;
+                throw (int)0xc28e;
             out->m_entries[i].m_level = level;
             out->m_entries[i].m_state = state;
         }
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
-    catch (unsigned int e)
+    catch (int e)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0xc297, 5)(
             "[ERROR] DB_LoadEventLevelupSupport. [line:%d]", e);
@@ -20277,60 +20299,64 @@ struct DB_AutoPunishBlackIpView
     DB_MailBoxSendNewMailView* sig =
         reinterpret_cast<DB_MailBoxSendNewMailView*>(
             stream->GetOutBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>());
-    char mailBuf[0x168];
-    memset(mailBuf, 0, sizeof(mailBuf));
-    // [J4S4-⑮ P183/P0] ORIG 0x0842735b/…67/…6d/…81/…ac 对 mailBuf 字段是**单条
-    // ebp 偏移 store**（`mov %eax,-0x172(%ebp)` 等），无具名 buf 指针槽
-    // ⇒ 每次就地 cast。
-    strncpy(reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_sender, sig->m_sender, 0x1d);
-    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field22 = sig->m_field24;
-    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field1e = sig->m_field28;
-    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field26 = 0;
-    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field57 = sig->m_field1a2;
+    // [K5W8LTDBTask W8DiagD 旋钮 P161/P311] ORIG 0x0842735b/…67/…7a/…96 对 mailBuf
+    // 字段是**单条 ebp 偏移 store**（`mov %eax,-0x172(%ebp)`、`mov %al,-0x13d(%ebp)`、
+    // `mov %dx,-0x13b(%ebp)`），无取址；我方逐次
+    // `reinterpret_cast<DB_MailSendDataView*>(mailBuf)->X` 每写多发 1 条
+    // `lea -0x194(%ebp),%eax`（chunk4/5/11/17/21 合计 +11）⇒ 改用具名视图对象。
+    // DB_MailSendDataView 位于 `#pragma pack(push,1)` 内、末字段 m_title[0x10d]@+0x5b
+    // ⇒ sizeof 恰 0x168，槽大小与全部偏移不变。
+    DB_MailSendDataView mailBuf;
+    memset(&mailBuf, 0, sizeof(mailBuf));
+    strncpy(mailBuf.m_sender, sig->m_sender, 0x1d);
+    mailBuf.m_field22 = sig->m_field24;
+    mailBuf.m_field1e = sig->m_field28;
+    mailBuf.m_field26 = 0;
+    mailBuf.m_field57 = sig->m_field1a2;
     if (sig->m_titleLen != 0)
     {
-        reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field59 = sig->m_titleLen;
-        strncpy(reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_title, sig->m_title, sig->m_titleLen);
+        mailBuf.m_field59 = sig->m_titleLen;
+        strncpy(mailBuf.m_title, sig->m_title, sig->m_titleLen);
     }
-    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field2a = 0;
-    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field33 = 0;
+    mailBuf.m_field2a = 0;
+    mailBuf.m_field33 = 0;
     try
     {
         if (sig->m_type == 0)
         {
             if (!DB_AvatarItemInsert::InsertAvatarItem(
                     reinterpret_cast<SIG_AVATAR_INSERT*>(sig->m_attach)))
-                throw (unsigned int)0x6871;
+                throw (int)0x6871;
             unsigned int identity = WongWork::DBCommon::GetIdentity(db);
             if (identity == 0)
-                throw (unsigned int)0x6874;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field2b = sig->m_field30;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field34 = (unsigned short)sig->m_field35;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_identity = identity;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field36 = sig->m_field54;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field56 = 1;
+                throw (int)0x6874;
+            mailBuf.m_field2b = sig->m_field30;
+            mailBuf.m_field34 = (unsigned short)sig->m_field35;
+            mailBuf.m_identity = identity;
+            mailBuf.m_field36 = sig->m_field54;
+            mailBuf.m_field56 = 1;
         }
         else if (sig->m_type == 1)
         {
             if (!DB_InsertCreatureItem::insertCreatureItem(
                     db, reinterpret_cast<SIG_CREATURE_ITEM*>(sig->m_attach)))
-                throw (unsigned int)0x6883;
+                throw (int)0x6883;
             unsigned int identity = WongWork::DBCommon::GetIdentity(db);
             if (identity == 0)
-                throw (unsigned int)0x6886;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field2b = sig->m_field34;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field34 = sig->m_field40;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_identity = identity;
-            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field58 = 1;
+                throw (int)0x6886;
+            mailBuf.m_field2b = sig->m_field34;
+            mailBuf.m_field34 = sig->m_field40;
+            mailBuf.m_identity = identity;
+            mailBuf.m_field58 = 1;
         }
         if (!DB_MailBox_Req_Send::insertMailData(
-                db, reinterpret_cast<const SIG_MAILBOX_SEND_NEW_MAIL*>(mailBuf)))
-            throw (unsigned int)0x6891;
+                db, reinterpret_cast<const SIG_MAILBOX_SEND_NEW_MAIL*>(&mailBuf)))
+            throw (int)0x6891;
         if (!DB_MailBox_Req_Send::sendResult(slot, 0, sig->m_field24,
                                              (ENUM_SERVER_GROUP)0))
-            throw (unsigned int)0x6894;   // ORIG xor$1/test%al vs 4.4 sete 物化，跨版本残差
+            throw (int)0x6894;   // ORIG xor$1/test%al vs 4.4 sete 物化，跨版本残差
     }
-    catch (unsigned int e)
+    catch (int e)
     {
         // ORIG 0x0842761c：cMyTrace(__PRETTY_FUNCTION__, 0x6899, 5) + trace("%d", e)。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x6899, 5);
@@ -20504,6 +20530,10 @@ struct DB_AutoPunishBlackIpView
         if (hackType == 0)
         {
             out->m_field0 = cnt;
+            // [K5W8LTDBTask W8DiagD 负结论] 旋钮 `(unsigned int)(etc & 0xffffffffULL)`
+            // → `(unsigned int)etc` 实测无变化（our 336 未动，四数 141/1750/12/57
+            // 逐值相同）⇒ 4.4 两形同码；ORIG 0x0842d402-0x0842d40e 的 9 条短形
+            // 属 4.1 后端，P246/P92 族不可迁。回滚保原式。
             out->m_field4 = (unsigned int)(etc & 0xffffffffULL);
             out->m_field8 = (unsigned int)(etc >> 32);
             continue;

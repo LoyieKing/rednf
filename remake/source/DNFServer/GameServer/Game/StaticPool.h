@@ -95,7 +95,9 @@ StaticPool<T, N>::StaticPool()
     if (m_pNode == 0)
     {
         // ORIG C1 实证：trace 落浅槽 -0x30（push 临时对象占 -0x58），临时对象形态
-        cMyTrace(__FUNCTION__, 0x6c, 5)("[StaticPool] %s(%d) new fail", "StaticPool.cpp", 0x6c);
+        // [K9GameRestA-S322 · §6.5] ORIG 实串 0x8c86396 = "[%s][%d]"（vararg1 = __FUNCTION__）；
+        // 原 "[StaticPool] … new fail" 全库 0 命中 = 发明文案。
+        cMyTrace(__FUNCTION__, 0x6c, 5)("[%s][%d]", __FUNCTION__, 0x6c);
     }
     for (int i = 0; i < N; ++i)
         m_Queue.push(&m_pNode[i]);
@@ -125,13 +127,15 @@ T* StaticPool<T, N>::Acquire()
         register int magic = pNode->magic;
         // ORIG 0x082b0351 实证：临时对象形态（非具名局部）→ magic trace 槽 -0x2c、
         // bUse trace 槽 -0x1c（具名写法槽序相反）
-        cMyTrace(__FUNCTION__, 0x89, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c863a0（Acquire dummy）。
+        cMyTrace(__FUNCTION__, 0x89, 0)("STATIC MEMORY_POOL Acquire error dummy(%x), node(%x)", magic, pNode);
         m_nErrorCode = 3;
     }
     if (pNode->bUse != 0)
     {
         register int use = pNode->bUse;
-        cMyTrace(__FUNCTION__, 0x8f, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c863d8（Acquire refcount）。
+        cMyTrace(__FUNCTION__, 0x8f, 0)("STATIC MEMORY_POOL Acquire error reference count(%d), node(%x)", use, pNode);
         m_nErrorCode = 4;
     }
     // ORIG `lea 0x1(%eax),%edx` = 后缀 ++（读改写单表达式，探针 t5 实证）
@@ -149,7 +153,9 @@ T* StaticPool<T, N>::Get(int index)
     {
         register int magic = pNode->magic;
         // ORIG 0x82b0xxx 实证：临时对象形态使 magic trace 槽落 -0x2c、bUse 落 -0x1c
-        cMyTrace(__FUNCTION__, 0xc3, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c18fc0（Get dummy；ORIG `Get` @0x082b0bec
+        // line=0xc3、__FUNCTION__="Get" 逐值一致）。
+        cMyTrace(__FUNCTION__, 0xc3, 0)("STATIC MEMORY_POOL Get error dummy(%x), node(%x)", magic, pNode);
         m_nErrorCode = 7;
     }
     if (pNode->bUse != 1)
@@ -157,7 +163,8 @@ T* StaticPool<T, N>::Get(int index)
         if (pNode->bUse != 0)
         {
             register int use = pNode->bUse;
-            cMyTrace(__FUNCTION__, 0xca, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
+            // [K9GameRestA-S322 · §6.5] ORIG 0x8c18ff4（Get refcount）。
+            cMyTrace(__FUNCTION__, 0xca, 0)("STATIC MEMORY_POOL Get error reference count(%d), node(%x)", use, pNode);
             m_nErrorCode = 8;
         }
     }
@@ -171,17 +178,20 @@ void StaticPool<T, N>::Free(T* p)
     // trace 全临时对象且实参直接写表达式（无具名中间量）→
     // 槽序 trnull-0x38/pNode-0x3c/trm-0x28/trb-0x18 + %esi 前置装载 + -- 单装载尾
     if (p == 0)
-        cMyTrace(__FUNCTION__, 0xa0, 5)("[StaticPool] %s(%d) free null", "StaticPool.cpp", 0xa0);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c86396（与 ctor 同串 "[%s][%d]"）。
+        cMyTrace(__FUNCTION__, 0xa0, 5)("[%s][%d]", __FUNCTION__, 0xa0);
     CNode* pNode = (CNode*)p;
     m_Queue.push(pNode);
     if (pNode->magic != 0x8f21)
     {
-        cMyTrace(__FUNCTION__, 0xaa, 0)("[StaticPool] magic(%d) node(%p)", pNode->magic, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c86418（Free dummy）。
+        cMyTrace(__FUNCTION__, 0xaa, 0)("STATIC MEMORY_POOL Free error dummy(%x), node(%x)", pNode->magic, pNode);
         m_nErrorCode = 5;
     }
     if (pNode->bUse != 1)
     {
-        cMyTrace(__FUNCTION__, 0xb0, 0)("[StaticPool] bUse(%d) node(%p)", pNode->bUse, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c8644c（Free refcount）。
+        cMyTrace(__FUNCTION__, 0xb0, 0)("STATIC MEMORY_POOL Free error reference count(%d), node(%x)", pNode->bUse, pNode);
         m_nErrorCode = 6;
         PrintBackTrace();
     }
@@ -202,13 +212,16 @@ int StaticPool<T, N>::GetIndex(T* p)
     {
         register int magic = pNode->magic;
         // ORIG 实证：临时对象形态 → magic trace 槽 -0x34、bUse 槽 -0x24（具名相反）
-        cMyTrace(__FUNCTION__, 0x50, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c19030（GetIndex dummy；ORIG GetIndex
+        // @0x082b0ab0 line=0x50、__FUNCTION__="GetIndex" 逐值一致）。
+        cMyTrace(__FUNCTION__, 0x50, 0)("STATIC MEMORY_POOL GetIndex error dummy(%x), node(%x)", magic, pNode);
         m_nErrorCode = 1;
     }
     if (pNode->bUse != 1)
     {
         register int use = pNode->bUse;
-        cMyTrace(__FUNCTION__, 0x56, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        // [K9GameRestA-S322 · §6.5] ORIG 0x8c19068（GetIndex refcount）。
+        cMyTrace(__FUNCTION__, 0x56, 0)("STATIC MEMORY_POOL GetIndex error reference count(%d), node(%x)", use, pNode);
         m_nErrorCode = 2;
     }
     if (index > N - 1)

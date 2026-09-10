@@ -1857,6 +1857,8 @@ struct Inter_LoadCharacAt68bViewI
     if (pPkt->m_8 != 0)        // req field @+0x8 → 0x13e3
         return 0x13e3;
 
+    // [K3 负结论 2026-09-11] 试删 curAccId/reqAccId 两具名槽改内联重读：我方 680→681 条
+    //   （+1）⇒ 4.4 下重读形比寄存器保活更贵，已回滚。
     const unsigned int curAccId = (unsigned int)user->get_acc_id();
     const unsigned int reqAccId =                      // msg+0x140
         pPkt->m_140;
@@ -2305,10 +2307,10 @@ struct Inter_LoadInvenPktView
             else
             {
                 inven->ResetSlot(0, slot);              // 仓库重置 → 回背包并邮寄兜底
-                const bool insertFailed =
-                    (inven->insertItemIntoInventory(item, (eItemAddReason)0xe, false, false)
-                     & 0x80000000) == 0;
-                if (!insertFailed)
+                // [K3 2026-09-11] P226：ORIG 084c4e 段直接对返回值测高位，无 bool 物化
+                //   （旧稿 `(r & 0x80000000) == 0` + `!` 多 5 条）；语义等价（高位非零 ≡ 失败）。
+                if (inven->insertItemIntoInventory(item, (eItemAddReason)0xe, false, false)
+                    & 0x80000000)
                 {
                     WongWork::CMailBoxHelper::ReqDBSendNewMail(
                         user, item, 0,
@@ -2964,6 +2966,9 @@ struct Inter_MonitorLoginOKPktView
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0x206a;
 
+    // [K3 负结论 2026-09-11] 试删 characNoMsg/channelNoMsg 两具名槽改逐处 `pPkt->m_24/m_28`
+    //   重读：我方 728→734 条（+6）、hunks 89→90 ⇒ ORIG 的重读形（mov -0x30(%ebp),%eax;
+    //   mov 0x24(%eax),%eax 两段）在 4.4 下比槽读更贵，已回滚，保留具名槽。
     const unsigned int characNoMsg =                   // msg+0x24
         pPkt->m_24;
     const unsigned int channelNoMsg =                  // msg+0x28
@@ -3448,9 +3453,10 @@ struct Inter_IPGResultPktView
         else if (pPkt->m_1d == 6)
         {   // 点数查询结果：经 CIPGHelper 虚槽 +0x2c 回填（类未建模——asm 桥残留保留，按 §8 协议待建模清理）
             typedef void (*QueryFn)(void*, CUser*, int);
-            void* helper = GlobalData::s_pIPGHelper;
-            QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);
-            query(helper, user, 10);
+            // [K3 2026-09-11] P0：ORIG 084ceb87 段把 s_pIPGHelper 全局地址读两次、query 只在
+            //   %ecx 中转，无 helper 槽（旧稿 `void* helper` 多 2 条槽往返）。
+            QueryFn query = *(QueryFn*)((*(void***)GlobalData::s_pIPGHelper)[0x2c / 4]);
+            query(GlobalData::s_pIPGHelper, user, 10);
             // P328⑩/P227：ORIG 0x84ceba4..0x84cebea 先求 msg+0xb3→槽、m_b2→%edi、
             // msg+0x64→%esi、msg+0x3c→%ebx 再 ctor ⇒ 全表达式临时链。
             cMyTrace(__PRETTY_FUNCTION__, 0x2b65, 0)(
@@ -3809,9 +3815,12 @@ struct Inter_MonitorNoticeGuildEnterPktViewI
     {
         // [b28d-solo-InterDispatcher] P0：ORIG 0x084c9259..0x084c92b4 中 cVar1→%ebx、
         // uVar2→%edi、uVar4→%esi 均无栈槽（内联右值）；仅 pcVar8 落 -0x3c（具名局部）。
-        char* pcVar8 = data + 0x20;
+        // [K3 2026-09-11] P212 物化点：ORIG `084c9280 add $0x20,%eax; mov %eax,-0x3c(%ebp)`
+        //   出现在 m_59/m_12/m_1c 取值**之后**、get_charac_guildkey **之前**（实参右→左
+        //   求值使该表达式跨调用落槽）⇒ 去具名声明，改实参内联形。
         user->m_historyLog.GuildJoin(
-            user->get_charac_guildkey(), pcVar8, pPkt->m_1c, pPkt->m_12,
+            user->get_charac_guildkey(), reinterpret_cast<char*>(pPkt) + 0x20,
+            pPkt->m_1c, pPkt->m_12,
             pPkt->m_59 != 0 ? '\x01' : '\0');
     }
 
@@ -9219,12 +9228,12 @@ struct Inter_AutoPunishRuleBlackIPPktView
         strncpy(ipStr, inet_ntoa(
                     *reinterpret_cast<in_addr*>(&(netIp |= addrPart))), 0x10);
 
-        const bool added =
-            GlobalData::g_autoPunishRuleBlackIPMgr->addBlackIP(
+        // [K3 2026-09-11] P0/极性：ORIG `084d4330 call addBlackIP; xor $0x1,%eax; test %al,%al;
+        //   je`（`!bool` 形，无 added 具名槽、无 setne/cmp）⇒ 去槽 + 取反形。
+        if (!GlobalData::g_autoPunishRuleBlackIPMgr->addBlackIP(
                 (unsigned long)addrPart,
                 *reinterpret_cast<unsigned char*>(data + i * 8 + 8),
-                *reinterpret_cast<unsigned char*>(data + i * 8 + 9));
-        if (added != 1)
+                *reinterpret_cast<unsigned char*>(data + i * 8 + 9)))
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
@@ -10045,7 +10054,8 @@ struct Inter_AuctionResultAskRegistedItemNumPktView
     if (user == 0)                                   // asm cmpl $0,user
         return 0;
 
-    const int reqCharacNo = pPkt->m_4;       // msg+0x04
+    // [K3 2026-09-11] P0 死变量：ORIG 084d5950 `mov -0x68(%ebp),%eax; mov 0x4(%eax),%eax;
+    //   mov %eax,%ebx` 直跨 getCurCharacNo 调用，无槽 ⇒ 原码无 reqCharacNo 局部（旧稿多 2 条）。
     if (pPkt->m_4 != user->getCurCharacNo()) // 差值即 ORIG setne 判定
         return 0;
 
@@ -11117,6 +11127,8 @@ struct Inter_PvPChannelInfoPktView
     packet.put_header(1, 0xc6);
     packet.put_byte(1);
     packet.put_int(pPkt->m_12);  // msg+0x12
+    // [K3 负结论 2026-09-11] 试删 channelCnt 具名槽改逐处重读：我方 137→138 条（+1）
+    //   ⇒ 4.4 下重读形更贵，已回滚。
     const unsigned int channelCnt =                  // msg+0x17 频道数
         static_cast<unsigned int>(pPkt->m_17);
     packet.put_byte(static_cast<int>(channelCnt));
@@ -12095,7 +12107,8 @@ struct Inter_NoticeServerMessageInfoPktView
 #include "InterDispatcher/dispatch_sig_178.inc"
 {
     Inter_NoticeServerMessageInfoPktView* pPkt = reinterpret_cast<Inter_NoticeServerMessageInfoPktView*>(data);
-    const char* const local_24 = data;
+    // [K3 2026-09-11] P0：ORIG 全程只用具名 pPkt 槽（-0x20），无第二个 data 槽（旧稿
+    //   local_24 令各点多一次 `mov -0x24(%ebp),%eax`）⇒ 内联。
     CSharedServerMessageManager* local_20 =
         G_CGameManager()->GetSharedServerMessageManager();
     if (local_20 != 0)
@@ -12105,8 +12118,8 @@ struct Inter_NoticeServerMessageInfoPktView
         {
             local_20->UpdateServerMessageByBroadcast(
                 (int)pPkt->m_c,
-                const_cast<char*>(local_24 + 0x11),
-                const_cast<char*>(local_24 + 0x47),
+                const_cast<char*>(data + 0x11),
+                const_cast<char*>(data + 0x47),
                 pPkt->m_5b);
         }
         cMyTrace(__PRETTY_FUNCTION__,
@@ -12115,9 +12128,9 @@ struct Inter_NoticeServerMessageInfoPktView
               (unsigned int)pPkt->m_b,
               (unsigned int)pPkt->m_c,
               pPkt->m_d,
-              local_24 + 0x11,
+              data + 0x11,
               pPkt->m_43,
-              local_24 + 0x47,
+              data + 0x47,
               pPkt->m_5b);
     }
 
@@ -12633,15 +12646,14 @@ struct Inter_ItemLimitEdition_Sell_StartPktView
 
     for (unsigned int i = 0; i < pPkt->m_b; ++i)
     {
-        // P30：ORIG 每处条目访问发 `mov <S>,%ecx`（从栈槽取索引）+ `mov data,%eax` +
-        //   `mov K(%eax,%ecx,1),…`（scale=1，disp=K），⇒ 原码把 `i * 0x48` 物化成具名局部；
-        //   我方原为全内联展开（每处多 1 条 `add $K,%eax` + 1 条 `add data,%eax`）。
-        const unsigned int offset = i * 0x48;
+        // [K3 2026-09-11] P0：ORIG 8 组访问各发 `mov %edx,%eax; shl $0x3,%eax; add %edx,%eax;
+        //   shl $0x3,%eax`（= i*0x48 逐处重算，共 4 条/处），无 offset 具名槽 ⇒ 去槽内联
+        //   （旧稿具名槽每处仅 `mov -0x20(%ebp),%eax` 1 条，正是 gap +24 的来源）。
         CItem* found = G_CDataManager()->find_item(
-            *reinterpret_cast<int*>(data + offset + 0x13));
+            *reinterpret_cast<int*>(data + i * 0x48 + 0x13));
         if (found == 0)
         {
-            if (*reinterpret_cast<int*>(data + offset + 0x13) == 1)   // cmp $1 je（P15）
+            if (*reinterpret_cast<int*>(data + i * 0x48 + 0x13) == 1)   // cmp $1 je（P15）
             {
                 goto regist;
             }
@@ -12652,14 +12664,14 @@ struct Inter_ItemLimitEdition_Sell_StartPktView
                 goto next_item;
 regist:
             G_CDataManager()->getItemLimitEditionMgr()->registItem(
-                *reinterpret_cast<stItemLimitEditionItemInfo_t*>(data + offset + 0xf));
+                *reinterpret_cast<stItemLimitEditionItemInfo_t*>(data + i * 0x48 + 0xf));
             cMyTrace(__PRETTY_FUNCTION__, 0x4638, 0)(
                 "ipg: %d, itemIdx: %d, totalCnt: %d/%d, sellEndTime: %d",
-                *reinterpret_cast<int*>(data + offset + 0xf),
-                *reinterpret_cast<int*>(data + offset + 0x13),
-                *reinterpret_cast<unsigned int*>(data + offset + 0x27),
-                *reinterpret_cast<unsigned int*>(data + offset + 0x2b),
-                *reinterpret_cast<unsigned int*>(data + offset + 0x37));
+                *reinterpret_cast<int*>(data + i * 0x48 + 0xf),
+                *reinterpret_cast<int*>(data + i * 0x48 + 0x13),
+                *reinterpret_cast<unsigned int*>(data + i * 0x48 + 0x27),
+                *reinterpret_cast<unsigned int*>(data + i * 0x48 + 0x2b),
+                *reinterpret_cast<unsigned int*>(data + i * 0x48 + 0x37));
         }
 next_item:;
     }
@@ -12827,11 +12839,8 @@ struct Inter_ItemLimitEdition_ReplyPktView
     if (user->get_state() < (ch_state)3)              // setle 界：state<3 → return 0
         return 0;
 
-    const unsigned int reqItemId =                    // msg+0x0e
-        pPkt->m_e;
-    const unsigned int reqCount =                     // msg+0x12
-        pPkt->m_12;
-
+    // [K3 2026-09-11] P0/P183：ORIG 084d.be 对 msg+0x0e/0x12 无缓存、跨调用寄存器保活
+    //   （`mov 0x12(%eax),%esi; mov 0xe(%eax),%ebx`），头部只有 2 个零初始化 ⇒ 删两具名槽。
     int specialRestrictCode = 0;
     CItemLimitEdition* edition = 0;                    // 前后半段共享（try 内赋值）
     CItem* ci = 0;
@@ -12840,7 +12849,7 @@ struct Inter_ItemLimitEdition_ReplyPktView
         // ORIG 四处独立 G_CDataManager：updateItem / getItemInfo / find_item /
         // GetRestrictCode。
         if (!G_CDataManager()->getItemLimitEditionMgr()->updateItem(
-                reqItemId, reqCount))
+                pPkt->m_e, pPkt->m_12))
             throw static_cast<ENUM_ERROR>(0x16);
         const unsigned char buyType = pPkt->m_16;
         if (buyType == '\x01')
@@ -12850,7 +12859,7 @@ struct Inter_ItemLimitEdition_ReplyPktView
         if (buyType != '\0')
             throw static_cast<ENUM_ERROR>(1);
 
-        edition = G_CDataManager()->getItemLimitEditionMgr()->getItemInfo(reqItemId);
+        edition = G_CDataManager()->getItemLimitEditionMgr()->getItemInfo(pPkt->m_e);
         if (edition == 0)
             throw static_cast<ENUM_ERROR>(0x11);
 
@@ -12964,7 +12973,7 @@ struct Inter_ItemLimitEdition_ReplyPktView
         char itemNameText[0x62];
         OS_API::snprintf(priceText, sizeof(priceText), "%d",
                          edition->getPriceCera());
-        OS_API::snprintf(uidText, 8, "%d", reqItemId);
+        OS_API::snprintf(uidText, 8, "%d", pPkt->m_e);
 
         const unsigned short relatedCnt = rq.m_stackCount;   // +0x0c
         if (edition->getRelateditem() == 1)
@@ -15183,18 +15192,21 @@ struct Inter_OnTimeEventRewardStartPktView
             pPkt->m_12,    // msg+0x12 itemNo
             pPkt->m_16,    // msg+0x16 itemCount
             pPkt->m_e);    // msg+0x0e endSpan
-        PacketGuard packet;
-        packet.put_header(0, 0x105);
-        packet.put_int(pPkt->m_e);
-        packet.finalize(true);
-        G_GameWorld()->send_all_with_state(packet, 3);
     }
     else
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x4fc5, 5)(
             "[ON_TIME_EVENT] isEventing = not, event_no(%u)",
             pPkt->m_a);
+        // P243 块序：与 RewardEnd 同族——ORIG 里发包块在 if/else **之后**，
+        //   else 支以 `mov $0x0,%ebx; jmp <函数尾>` 跳过发包 ⇒ 显式 return。
+        return 0;
     }
+    PacketGuard packet;
+    packet.put_header(0, 0x105);
+    packet.put_int(pPkt->m_e);
+    packet.finalize(true);
+    G_GameWorld()->send_all_with_state(packet, 3);
     return 0;
 }
 
@@ -15227,16 +15239,20 @@ struct Inter_OnTimeEventRewardStartPktView
         {
             Timer_Send_Ontime_Reward::RegistNextTimer();
         }
-        PacketGuard packet;
-        packet.put_header(0, 0x106);
-        packet.finalize(true);
-        G_GameWorld()->send_all_with_state(packet, 3);
     }
     else
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x501b, 5)(
             "[ON_TIME_EVENT] Inter_OnTimeEventRewardEnd() error");
+        // P243 块序：ORIG 0x084e115b `mov $0x0,%ebx; jmp 084e11e2<+0x180>`（函数尾）
+        //   ⇒ else 支显式 return，跳过下方发包块；而发包块在 ORIG 里位于 if/else **之后**
+        //   （0x084e10bc `jmp 084e1160<+0xfe>` 越过 else 块 0xbe..0xfd）。
+        return 0;
     }
+    PacketGuard packet;
+    packet.put_header(0, 0x106);
+    packet.finalize(true);
+    G_GameWorld()->send_all_with_state(packet, 3);
     return 0;
 }
 
@@ -15374,7 +15390,15 @@ struct Inter_AddPvPBuddyResultPktView
 
     if (pPkt->m_12 == '\0')
     {   // 拒绝分支（0x121）
-        if (pPkt->m_32 == '\0')
+        // P243 书写序：ORIG 0x084e1980 `test %al,%al; je <put121>` ⇒ err 块 fall-through 在前
+        //   （原码为 `if (m_32 != 0) { err } else { put }`），非我方旧稿的 `== '\0'` 先 put。
+        if (pPkt->m_32 != '\0')
+        {
+            user->SendCmdErrorPacket(
+                (ENUM_CMDPACKET)0x121,
+                pPkt->m_32);
+        }
+        else
         {
             PacketGuard packet;
             packet.clear();
@@ -15387,14 +15411,14 @@ struct Inter_AddPvPBuddyResultPktView
             packet.finalize(true);
             user->Send(packet);
         }
-        else
-        {
-            user->SendCmdErrorPacket(
-                (ENUM_CMDPACKET)0x121,
-                pPkt->m_32);
-        }
     }
-    else if (pPkt->m_32 == '\0')
+    else if (pPkt->m_32 != '\0')
+    {   // 拒绝分支（0x122）：同上 ORIG 0x084e19e0 `test %al,%al; je <put122>` ⇒ err 先
+        user->SendCmdErrorPacket(
+            (ENUM_CMDPACKET)0x122,
+            pPkt->m_32);
+    }
+    else
     {   // 同意分支（0x122）
         PacketGuard packet;
         packet.clear();
@@ -15406,12 +15430,6 @@ struct Inter_AddPvPBuddyResultPktView
         packet.put_str(pPkt->m_14, local_10);
         packet.finalize(true);
         user->Send(packet);
-    }
-    else
-    {
-        user->SendCmdErrorPacket(
-            (ENUM_CMDPACKET)0x122,
-            pPkt->m_32);
     }
     return 0;
 }
@@ -15678,6 +15696,8 @@ struct Inter_Antibot_PunishClientPktView
         NumberToString(pPkt->m_0, 0), (int)pPkt->m_4, target);
 
     // ORIG 0x84e4802..0x84e480f 决策链 cmp $2/cmp $3/cmp $1 ⇒ 原码 switch（P17/P251）。
+    // [K3 负结论 2026-09-11] 按 ORIG 判定序把 case 1 移到末尾（2→3→1）：我方 94→92 条，
+    //   hunks 5→6，且 ORIG 的 `cmp $0x1,%eax` 被我方 4.4 与 default 合并 ⇒ 劣化，已回滚。
     switch (pPkt->m_4)
     {
     case 1:
@@ -15854,8 +15874,10 @@ struct Inter_LoadCharacLinkBonusPktView
     unsigned int bonusExp = 0;                         // -0x28（msg+0x0）
     int bonusGold = 0;                                 // -0x24（msg+0x4）
 
-    char title[0x15] = { '\0' };                       // -0x3d（gcc 内联清零展开）
+    // P331 声明序=槽序：ORIG 084e1f1c 先清 body（-0x1a5,0x100）后清 title（-0x3d,0x15）
+    //   ⇒ 原码 body 先声明（我方旧稿 title 先）。
     char body[0x100] = { '\0' };                       // -0x1a5
+    char title[0x15] = { '\0' };                       // -0x3d（gcc 内联清零展开）
 
     strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_149", 0),
             0x14);
@@ -17483,12 +17505,14 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
 #include "InterDispatcher/dispatch_sig_281.inc"
     CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeOtherChannelChatHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatHyperLinkPktView*>(data);
     // ORIG 0x084e5528 报告 Inter_MonitorNoticeOtherChannelChatHyperLink/dispatch_sig.md
     // 两段全读。四分支按 msg[0x35]（1/2/3/其余）各组成 0x173 通知包。
+    // [K3 2026-09-11] P212 物化点：ORIG 先做 state 门，之后才 `mov 0x10(%ebp),%eax;
+    //   mov %eax,-0x2c(%ebp)` 落 pPkt 槽（旧稿声明在守卫前，多 2 条）。
     if (user->get_state() == 0)
         return 0;
 
+    Inter_MonitorNoticeOtherChannelChatHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatHyperLinkPktView*>(data);
     // §P0：ORIG 对 m_35/m_36 全程重读（无具名局部槽往返）⇒ 不缓存 linkType/itemCount/count。
     if (pPkt->m_35 == 1)
     {
@@ -17619,10 +17643,10 @@ struct Inter_Monitor_MegaphoneMsgHyperLinkPktView
     // ORIG 0x84e5cae/0x84e5ccb：strlen 双调（put_int/put_str 各算一次，O0 不 CSE）
     packet.put_int((int)strlen(pPkt->m_f));
     packet.put_str(pPkt->m_f, (int)strlen(pPkt->m_f));
-    const unsigned int linkLen =
-        (unsigned int)pPkt->m_166;
-    packet.put_int((int)linkLen);
-    packet.put_str(pPkt->m_167, (int)linkLen);
+    // [K3 2026-09-11] P0：ORIG 两处 `movzbl 0x166(%eax),%eax; movzbl %al,%eax` 重读
+    //   （无 linkLen 具名槽）⇒ 内联。
+    packet.put_int((int)(unsigned int)pPkt->m_166);
+    packet.put_str(pPkt->m_167, (int)(unsigned int)pPkt->m_166);
     packet.put_byte(
         (int)pPkt->m_2d);
     for (int i = 0;
@@ -17900,12 +17924,13 @@ struct Inter_NpcLimitBuyItemInfoRenewPktView
 #include "InterDispatcher/dispatch_sig_289.inc"
 {
     Inter_NpcLimitBuyItemInfoRenewPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoRenewPktView*>(data);
-    const int itemCount = pPkt->m_a;   // msg+0x0a 条目数
+    // [K3 2026-09-11] P0：ORIG 循环条件每轮重读 m_a（`mov -0x10(%ebp),%eax; mov 0xa(%eax),%eax;
+    //   cmp -0xc(%ebp),%eax; jle`），无 itemCount 具名槽 ⇒ 内联。
 
     PacketGuard packet;
     packet.put_header(0, 0x193);
-    packet.put_int(itemCount);
-    for (int i = 0; i < itemCount && i < 0x1e; ++i)   // asm 双条件（jle/jg 归并）
+    packet.put_int(pPkt->m_a);
+    for (int i = 0; i < pPkt->m_a && i < 0x1e; ++i)   // asm 双条件（jle/jg 归并）
     {
         packet.put_int(*reinterpret_cast<int*>(data + i * 0xc + 0xe));
         if (*reinterpret_cast<int*>(data + i * 0xc + 0x12) == 0)

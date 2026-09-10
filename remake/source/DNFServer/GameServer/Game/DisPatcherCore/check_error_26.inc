@@ -36,11 +36,19 @@ unsigned int DisPatcher_DropItem::check_error(CUser* user, MSG_BASE& msg, ParamB
     // 在 party==0 时空指针解引用（行为分叉：ORIG 跳过 dungeon 检查继续走）。
     // ORIG 的 dungeon 槽写（0x081c2e1b `mov %eax,-0x10(%ebp)`）落在 party 判空
     // 之后，且**无** `movl $0x0,-0x10(%ebp)` 预清 ⇒ 原码是条件内赋值短路形。
+    // [K6-DpcSigSmallCheckErr] 改前形 = 单条 if 的三段 `&&`（中间含赋值）→ 中间形 =
+    // 外层 `party != 0 && (dungeon = ...) != 0` 仍含赋值（4.4 实测仍物化，151 未降）→
+    // 改后形 = 赋值移出条件（`&&` 内不再有 MODIFY_EXPR）。依据 ORIG
+    // 0x081c2e0c/0x081c2e1e/0x081c2e2c 三处 `je` 全部指向同一出口 0x081c2e3c（无
+    // `mov $0x1/$0x0,%eax` 岛）⇒ 4.1 直跳折叠。
     CDungeon* dungeon;
-    if (party != 0 && (dungeon = party->m_battleField.m_pDungeon) != 0 &&
-        dungeon->m_bloodDungeonType != 0)
+    if (party != 0)
     {
-        return 0x13;
+        dungeon = party->m_battleField.m_pDungeon;
+        if (dungeon != 0 && dungeon->m_bloodDungeonType != 0)
+        {
+            return 0x13;
+        }
     }
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {

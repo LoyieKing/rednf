@@ -36,49 +36,62 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
     // ORIG thunk：0x822fe4e=GetPartyIndex、0x80cc18e=G_CGameManager、0x8294f32=GetParty(int)
     CParty* partyByIdx = G_CGameManager()->GetParty(user->GetPartyIndex());
 
-    // [J5-ProcD 2026-09-11 核账] 本轮 3 处试形（①`!=0` 早返回 ②`>0` 替 `>=1`
-    // ③then 尾独立 `return 0`）**已实测劣化 + 全量回滚**：ours 123→**126（+2/+3）**，
-    // ORIG 119。ORIG 0x081c2b00 `test %al,%al; je +0xfc` 与 0x081c2b60 `jle +0x173`
-    // 的布局虽为直证，但 4.4 -O0 在本处三旋钮叠加后整体劣化 ⇒ **勿再试本组合**；
-    // 恢复旧形 `if (… == 0) { 主体 }`（记 N）。
-    if (Global::CBossTowerFunc::DieCharacInDungeon(user) == 0)
+    // [K6-DpcProcess 2026-09-11] 拆 J5 的三旋钮叠加，本轮**单旋钮①**：ORIG 0x081c2afb
+    // `call DieCharacInDungeon` / 0x081c2b00 `test %al,%al` / 0x081c2b02 `je +0xfc(主体)`
+    // / 0x081c2b04 `mov $0x0,%eax` / 0x081c2b09 `jmp +0x190` ⇒ 原码是**正向守卫早返回**
+    // `if (f(user)) return 0;`（主体 fall-through），非 `if (f(user)==0){主体}`（旧形产
+    // `test %eax,%eax; sete %al; test %al,%al; je 尾` = 多 2 条）。
+    // [K6-DpcProcess 第2轮] 第1轮裸形实测 4 条（`test %al,%al; setne %al; test %al,%al; je`）
+    // 是因为当时 callee 声明为 char（4.4 对非 bool 返回的 if 条件做 bool 归一化）；
+    // 父泳道已落 `BossTowerFunc.h:48` char→bool（证据 0x081c2b00 `call; test %al,%al; je 主体`）
+    // ⇒ 按 P168a①「callee 返回 bool 时一律裸形」恢复裸形；ORIG 0x081c2b00 即 2 条直判。
+    if (Global::CBossTowerFunc::DieCharacInDungeon(user))
     {
-        if (user->get_state() == 0xd)
-        {
-            advancealtar::Manager::dieCharac(user);
-        }
+        return 0;
+    }
+    if (user->get_state() == 0xd)
+    {
+        advancealtar::Manager::dieCharac(user);
+    }
 
-        CParty* myParty = static_cast<CParty*>(user->GetParty());
-        // [DPC_Process] ORIG 0x081c2b34 `call GetParty; mov %eax,-0x10(%ebp)` 后
-        // 0x081c2b3c `cmpl $0x0,-0x10(%ebp)`/`je`，再 0x081c2b42
-        // `mov -0x10(%ebp),%eax; mov 0xcac(%eax),%eax; mov %eax,-0xc(%ebp);
-        // cmpl $0x0,-0xc(%ebp)` —— -0xc 是 **m_dungeon 值**的具名槽（无零初始化），
-        // 非 view 指针槽（旧文 `view = (CPartyDungeonView*)myParty` 多 store 且
-        // 使 0xcac 解引用两次：+2 条）。
-        CDungeon* myDungeon;
-        // [DPC_Process] ORIG 0x081c2b3c/0x081c2b4e/0x081c2b60 三跳全落 0x081c2b85
-        // （die_user 段）：`cmpl $0x0,-0x10/je`、`cmpl $0x0,-0xc/je`、
-        // `test %al,%al; jle` ⇒ 原码为 **`&&` 链** `party!=0 && dungeon!=0 &&
-        // (signed char)type>=1`（任一假 → 跳 else），Blood 体为 fall-through；
-        // 旧文 `||` 链 + 取反次序使 4.4 产 `jg <Blood>`（块布局相反）。
-        // [J5-ProcD 2026-09-11 核账] `> 0` 试形随本件一并回滚（整体 +2 劣化）：
-        // ORIG 0x081c2b60 `test %al,%al; jle +0x173` 为单向跳转直证，但 4.4 在本处
-        // 无论 `>= 1` 还是 `> 0` 都产 `mov $1/$0` 布尔物化 ⇒ 属 4.4/ORIG codegen 族，
-        // **勿再试**；恢复 `>= 1`。
-        if (myParty != 0 &&
-            (myDungeon = reinterpret_cast<CPartyDungeonView*>(myParty)->m_dungeon) != 0 &&
-            static_cast<signed char>(myDungeon->m_bloodDungeonType) >= 1)
+    CParty* myParty = static_cast<CParty*>(user->GetParty());
+    // [DPC_Process] ORIG 0x081c2b34 `call GetParty; mov %eax,-0x10(%ebp)` 后
+    // 0x081c2b3c `cmpl $0x0,-0x10(%ebp)`/`je`，再 0x081c2b42
+    // `mov -0x10(%ebp),%eax; mov 0xcac(%eax),%eax; mov %eax,-0xc(%ebp);
+    // cmpl $0x0,-0xc(%ebp)` —— -0xc 是 **m_dungeon 值**的具名槽（无零初始化），
+    // 非 view 指针槽（旧文 `view = (CPartyDungeonView*)myParty` 多 store 且
+    // 使 0xcac 解引用两次：+2 条）。
+    CDungeon* myDungeon;
+    // [K6-DpcProcess 2026-09-11] 单旋钮②：ORIG 三条件各自直跳同一出口
+    // （0x081c2b40 `je +0x173`、0x081c2b52 `je +0x173`、0x081c2b60
+    // `test %al,%al; jle +0x173`），Blood 体 fall-through；旧的 `a && b && c`
+    // 单条件式使 4.4 把整链物化成 bool（`mov $1/%eax … mov $0/%eax; test; je`
+    // = 多 5 条）。按 P225 推广拆嵌套 if 复现逐条直跳。
+    if (myParty != 0)
+    {
+        // [K6-DpcProcess 2026-09-11 第2轮读数修正] 第1轮把赋值留在条件里
+        // `if ((myDungeon = …) != 0)` 使 4.4 对赋值表达式的值再做 bool 归一化 ⇒
+        // `cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`（4 条，
+        // OURS +0x128 段实测）；ORIG 0x081c2b52 是 `cmpl $0x0,-0xc(%ebp); je`（2 条）
+        // ⇒ 赋值必须拆成**独立语句**（P0：ORIG 有 -0xc 值槽 = 原码本就两条语句）。
+        myDungeon = reinterpret_cast<CPartyDungeonView*>(myParty)->m_dungeon;
+        if (myDungeon != 0)
         {
-            myParty->BloodHandleDieUser(user);
-            out.m_errNo = 0x7fffffff;
-        }
-        else
-        {
-            if (partyByIdx != 0)
+            // ORIG 0x081c2b5e `test %al,%al` + 0x081c2b60 `jle +0x173`：
+            // 有符号字节 >= 1（等价于 >0）单向跳转直证。
+            if (static_cast<signed char>(myDungeon->m_bloodDungeonType) >= 1)
             {
-                partyByIdx->die_user(user);
+                myParty->BloodHandleDieUser(user);
+                out.m_errNo = 0x7fffffff;
+                // ORIG 0x081c2b6c `mov $0x0,%eax` / 0x081c2b71 `jmp +0x190`：
+                // Blood 分支尾是**独立 return**（不是共享尾）。
+                return 0;
             }
         }
+    }
+    if (partyByIdx != 0)
+    {
+        partyByIdx->die_user(user);
     }
     return 0;
 }

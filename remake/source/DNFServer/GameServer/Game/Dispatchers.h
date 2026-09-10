@@ -557,7 +557,10 @@ public:
     Dispatcher_BossDieCheck() {}
     virtual ~Dispatcher_BossDieCheck();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081cd71e
+    // [K1-parent §6.5 串盲区] ORIG 实串 @0x08bd4840 为
+    //   "int Dispatcher_BossDieCheck::check_error(CUser*, MSG_BASE&, ParamBase&)"
+    //   ⇒ 返回类型 int（返回类型不入 mangling，符号/布局零变化）。
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081cd71e
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -801,7 +804,8 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int isVaildEmotionValue(short value);   // ORIG T 0x081d1ebe（StubS3A）
+    // [K1] ORIG 0x081d1c0d `call; xor $0x1,%eax; test %al,%al; je`（P168a/P292 档① bool）。
+    bool isVaildEmotionValue(short value);   // ORIG T 0x081d1ebe（StubS3A）
 };
 
 class Dispatcher_Clear_Used_QP : public IPacketDispatcher<MSG_BASE, STQuestShopParam, ch_state0>
@@ -916,7 +920,10 @@ public:
     void send(CUser* user, ParamBase& param);
     // ORIG 真实符号（README Dispatcher_MouseRegister/ 8 函数全集）
     static bool checkValiedPassword(char const* pwd);                      // T 0x082632ca（ORIG 无 this，静态形态；[b28d-Main·检查点14 P292] ORIG 调用点 3 处 `call; xor $0x1,%eax; test %al,%al` ⇒ bool，旧「证 int 非 bool」判词方向反了）
-    static bool decryptPassword(char const* in, char* out, unsigned int len); // T 0x0826333a（同上）
+    // [K1-parent §6.5 串盲区] ORIG 的 __PRETTY_FUNCTION__ 实串 @0x08bec900 为
+    //   "static bool Dispatcher_MouseRegister::decryptPassword(const char*, char*, size_t)"
+    //   ⇒ 第 3 参须为 size_t（32 位下 mangled 仍为 `j`，符号/布局零变化）。
+    static bool decryptPassword(char const* in, char* out, size_t len); // T 0x0826333a（同上）
     static void doPassPadReplay(CUser* user, char* answer, char answerType, // T 0x082633c6（ORIG 静态：5 参全栈传无 this，调用点实证 0x08262ebb）
                          bool& ok, unsigned char& errCode);
 };
@@ -2646,7 +2653,8 @@ public:
     virtual ~Dispatcher_Compound_ExtreamItem();
     int _push_newitem();
     int _remove_victim();
-    int _reset();
+    // [K1] ORIG T 0x0822577e 尾部 0x08225804 `leave; ret`（无 eax 设置，P159）⇒ 返回 void。
+    void _reset();
     int _send_result();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);

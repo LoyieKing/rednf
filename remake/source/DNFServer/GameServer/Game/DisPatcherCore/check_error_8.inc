@@ -91,8 +91,11 @@ unsigned int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, Param
             // [G5-MiscC] P0/P52：ORIG 0x081ca1c2 的 getHackAnalyzer 结果只在
             // %eax 上跨实参布局（0x081ca1cd-0x081ca1f4 先直填 0x14/0x10/0xc/0x8(%esp)，
             // 最后才 `mov %eax,(%esp)` = this 最后求值），无具名槽 ⇒ 内联链式。
-            // [DPC_CheckErr·H5核账 2026-09-11] 同上，并入本件试形，随件回滚。
-            if (excludeAddHackCount(user) != false)
+            // [K6-DpcSigSmallCheckErr] 改前形 `excludeAddHackCount(user) != false`
+            // → 改后形裸调用。依据：K6 父泳道已把返回类型 int→bool（ORIG 调用点
+            // 0x081ca1be `call; test %al,%al; je` P292 档①），保留 `!= false` 会继续
+            // 生成 `test %eax,%eax; setne %al; test %al,%al` 三步归一。
+            if (excludeAddHackCount(user))
             {
                 user->getHackAnalyzer()->addServerHackCnt(
                     user, static_cast<WongWork::ENUM_HACKTYPE>(0x1f6), 1, 0, 0);

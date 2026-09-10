@@ -262,7 +262,11 @@ namespace WongWork
     int handleKillMonster(CUser*, unsigned short, unsigned short, const MSG_MONSTER_DIE&, int*);
     int handleLeaveUser(CUser*);
     int handleMoveMap();
-    int handlePickupItem(CUser*, int, bool, char);
+    // [K9GameRestA-S322 · R2] P292 档①：ORIG 调用点 0x081c3b93 `call; test %al,%al;
+    // je 0x081c3cd2`（单字节直判、无 setne 归一化）；我方原 int 返回使调用点多
+    // `test %eax,%eax; sete %al; test %al,%al`。返回类型不入 mangling ⇒ 符号名/
+    // vtable 槽序/sizeof 零影响。消费点：DisPatcherCore/process_43.inc:141（全仓唯一）。
+    bool handlePickupItem(CUser*, int, bool, char);
     int handleSelectEPLPCommand(CUser*, int);
     int handleStageCommand(CUser*, unsigned char);
     int handleStartGame(int, char, ENUM_DUNGEON_TYPE);

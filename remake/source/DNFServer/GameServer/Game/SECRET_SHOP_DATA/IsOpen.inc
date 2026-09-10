@@ -1,1 +1,1 @@
-int SECRET_SHOP_DATA::IsOpen()
+bool SECRET_SHOP_DATA::IsOpen()

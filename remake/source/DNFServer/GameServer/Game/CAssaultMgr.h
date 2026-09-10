@@ -530,7 +530,8 @@ public:
     int OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ef3be
     bool OnEvadeAssaultPlace(CUser* user);               // ORIG T 0x82efbf6；同上
     void _SendVictoryInfo(CUser* userA, CUser* userB);   // ORIG T 0x82efcb2
-    int OnConnectP2PAfterAssault(CUser* user, char* ip, int len);     // ORIG T 0x82ef320
+    // [K1] ORIG 0x08206cd0 `call; xor $0x1; test %al,%al; je`（P168a/P292 档① bool）。
+    bool OnConnectP2PAfterAssault(CUser* user, char* ip, int len);     // ORIG T 0x82ef320
     int check_party_teleport_user(char slotno, CUser* src,
                                   CUser* dest, bool notifyErr);       // ORIG T 0x82efe14
                                                                   // （map 摘除 + Reset + 归还池）

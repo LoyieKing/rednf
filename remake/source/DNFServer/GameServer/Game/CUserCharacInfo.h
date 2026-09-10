@@ -956,7 +956,8 @@ public:
     void SetCurCharacChaosResponTime(int t);
     int GetCurCharacChaosKillTime();
     void SetCurCharacChaosKillTime(int t);
-    unsigned char GetCurCharacSuperState();
+    // [K1] ORIG 0x08206bae `call; test %al,%al; je`（无 setne ⇒ bool，P292）。
+    bool GetCurCharacSuperState();
     void SetCurCharacSuperState(bool flag);
     bool IsCurCharacGhost();           // EXP: bool member+bool return
                                //   （bool 反产规范化岛、int 反产二段 promote）；

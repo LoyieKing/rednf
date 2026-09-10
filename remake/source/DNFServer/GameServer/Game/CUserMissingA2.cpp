@@ -1050,6 +1050,8 @@ namespace MercenaryHardCodingSettingValue
 // end=-0x14 / find=-0x10（4.1 先声明深），4.4 恒反向 ⇒ N93 封顶。
 #include "CUserMissingA2/GetETC.inc"
 {
+    // [b28d-solo-CUserMissingA2²] 第三形复测（P326 匿名临时内联）实测
+    // NEAR→DIFF（near 1→0 但 diff 8→9，四数劣化）⇒ 已回滚，N93 封顶确认。
     std::map<short, int>::iterator e = m_mapEtc.end();
     std::map<short, int>::iterator it = m_mapEtc.find(key);
     if (it == e)

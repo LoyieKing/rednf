@@ -918,7 +918,14 @@ inline SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* asLetheResult(void* p)
     }
     else
     {
-        CItem* found = G_CDataManager()->find_item(itemId);
+        // [K2 2026-09-11] P52/P231 实参升格：ORIG 0x084d9109 `mov -0x30(%ebp),%ebx`
+        // 在 receiver `call G_CDataManager` **之前**载入 callee-saved 并跨该 call 保活
+        // （旧判 N7/N75 封顶系误判）。探针 /tmp/k2p/recv.cpp r1(裸形：call 后
+        // `mov -0x30,%edx`) vs r2(`register` 复本：`mov -0x30(%ebp),%ebx` 前置) ⇒ 逐条命中。
+        // 注意：register **不能**加在 itemId 本身（会消掉 ORIG 的 -0x30 槽，旧记录），
+        // 只对该调用点的实参加复本；ebx 在本函数序言已 push，帧不变。
+        register int itemKey = itemId;
+        CItem* found = G_CDataManager()->find_item(itemKey);
         if (found == 0)
             return;
         // [SweepInterLoadEtcImpl] ORIG 0x084d912d `mov %eax,-0x80(%ebp)` 与
@@ -1123,6 +1130,17 @@ give_break_away_reward_end:;
 //   = N18a/N7（4.4 对 uchar 比较恒插中转）。**本轮新试 P266 形
 //   `*reinterpret_cast<unsigned char*>(sig->m_backupSkill + 0x198)`：实测劣化
 //   251→256（add $0x29fd + add $0x198 + movzbl 三段），已回退** ⇒ 封顶。
+// [K2 2026-09-11 复核·机理定案] 探针 /tmp/k2p/ucmp.cpp + ucmp2.cpp 实证：
+//   `(unsigned char)char_arr[i] == unsigned_char_global`（SigTypes_C.h:553 的
+//   `char m_backupSkill[0x199]`，元素 0x2b95）⇒ 4.4 恒多发 1 条 `mov %eax,%edx`
+//   （p7）；同式在 **unsigned char 数组** 上逐条命中 ORIG 形 `movzbl disp,%edx`（p1）。
+//   ⇒ 真因是权威头把该 blob 声明为 **char（signed）**；改成 `unsigned char` 即闭合
+//   （SigTypes_C.h 属共享头，已上报父泳道）。`&arr[i]` 取址形恒提前算地址（p8/p9）不可用。
+//   **已落地（Main 批准，2026-09-11）**：SigTypes_C.h 两字段 char→unsigned char +
+//   offsetof 锁 ⇒ 本件 251→248（gap −4→−1），4 处比较全部逐条命中 ORIG；
+//   余 1 条 = `out->m_characNo = user->getCurCharacNo()` 的 store 装载序（ORIG
+//   LHS-first `mov -0xc,%edx; mov %eax,0x4(%edx)` vs 我方 RHS-first+中转，P211 档③
+//   字段/RHS 同型性开关，落在 CUser.h / 该 SIG 结构字段类型 ⇒ 非本 TU 可修）。
 #include "Inter_LoadEtc_impl/ProcessOneDayLethe.inc"
 {
     // [Lane17 I 判词] ORIG 0x084e8c92：判据⑪ 直方图逐值全等 {−0xc,−0x10,−0x18}。
@@ -1201,6 +1219,10 @@ give_break_away_reward_end:;
 
 // [round5-A20 复核] 同 1 号（ORIG 0x084e8e1e 同构）：fresh .o 251/247；残余同为
 //   3~4 处 uchar 比较 eax→edx 中转（N18a/N7，P266 形实测劣化已回退）+ 槽深 N95。
+// [K2 2026-09-11 复核] 同 1 号的机理定案（探针 /tmp/k2p/ucmp2.cpp p7 vs p1，
+//   /tmp/k2p/ucmp.cpp p1）：根因 = SigTypes_C.h 的 `char m_backupSkill2ND[]` 符号性
+//   （0x2b97 系元素与 1 号同族）；**已随 1 号同批落地**（SigTypes_C.h 两字段
+//   char→unsigned char + offsetof 锁），4 处比较闭合，余残差同 1 号（store 序 1 条）。
 #include "Inter_LoadEtc_impl/ProcessOneDayLethe2ND.inc"
 {
     // [Lane17 I 判词] 同 1 号（ORIG 0x084e8e1e 同构）：判据⑪ 直方图逐值全等；

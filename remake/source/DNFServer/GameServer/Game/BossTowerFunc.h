@@ -45,7 +45,11 @@ public:
     // ---- 声明先行（DisP_GroupA 调用；定义待批次）----
     static bool FinishLoad(CUser* user);  // ORIG 0x08146916 尾 mov$1/$0；调用方 `test %al,%al; je`（char 返回恒插 setne，唯 bool 直判）
     static bool MoveMap(CUser* user, unsigned short* mapIndex); // ORIG T 0x08146ba2；调用方 test %al 直判（bool 形）
-    static char DieCharacInDungeon(CUser* user);                // ORIG T 0x08146824（DisP_GroupG 调用）
+    static bool DieCharacInDungeon(CUser* user);                // ORIG T 0x08146824（DisP_GroupG 调用）
+                                                                // [K6 2026-09-11·P292 档①] char→bool：
+                                                                // ORIG 调用点 0x081c2b00 `call; test %al,%al;
+                                                                // je 主体`（单字节判定，无 setne 归一化）；
+                                                                // 返回类型不入 mangling ⇒ 符号/sizeof 零变化。
     static int GiveUpGame(CUser* user);                         // ORIG T 0x08146ad8（尾 `mov $0x1,%eax` 恒返回 1；DisP_GroupG 调用）
     // ORIG T 0x081468aa（nm 实证）：state==12(0xc) → getBossTower()
     //   handleKillMonster；其余为二级校验路径。DisPatcher_DieMob 调用。
