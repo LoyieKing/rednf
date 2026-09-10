@@ -8812,7 +8812,10 @@ int CUser::InitOnAccept(int socketFd)
         {
             // [b28d-solo-CUserOnlyOrig P167] ORIG 循环上界用已缓存 stunCnt（不再调
             // size()），循环体两处完整内联 `GCE()->m_stunIP[i].m_ip`（无 ip 局部缓存）。
-            for (unsigned int i = 0; i < (unsigned int)stunCnt; ++i)
+            // [A06 2026-09-10 轴B（A32 清单 a 栏；地址自校：ORIG 0x0864975f
+            // `addl $1,-0xc; mov -0xc,%eax; cmp -0x10,%eax; setl` 有符号）] 旧 unsigned 索引
+            // ⇒ 4.4 `seta`；改 int 直用 stunCnt 以对齐 ORIG 符号性。
+            for (int i = 0; i < stunCnt; ++i)
             {
                 packet.put_int((int)strlen(
                     G_CEnvironment()->m_serverEnvir.m_stunIP[i].m_ip));

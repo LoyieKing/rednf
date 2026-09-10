@@ -1920,9 +1920,11 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
             return 0x17;
 
         // [2026-09-10 D06 · 轴 B 反向试验] ORIG 0x08555de4 `cmp $0x7,%eax; **ja**`
-        // （无符号跳表边界，default = `mov $0x17,%eax`）；我方 `jg`（有符号）⇒
-        // switch 索引按 unsigned 对齐 ORIG（P196：向 ORIG 对齐方向即为修复）。
-        switch ((unsigned int)proto->GetAttachType())
+        // （无符号跳表边界，default = `mov $0x17,%eax`）+ `mov <table>(,%eax,4); jmp *%eax`
+        // 跳表；实测 `switch ((unsigned int)…)` 形使 hunks 40→19 但 **chg 110→110 未改善**
+        // （4.4 对该稀疏 case 集恒发决策树 `cmp $0x3/$0x1`，不发跳表）⇒ 按协议回滚，
+        // 归 N（switch lowering 差异；只有 case 连续时才可能出跳表）。
+        switch (proto->GetAttachType())
         {
         case 1:
         case 2:

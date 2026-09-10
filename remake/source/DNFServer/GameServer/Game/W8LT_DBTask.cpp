@@ -19399,12 +19399,16 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
     out->m_count = 0;
     out->m_flag = reload;
     // ORIG 0x0842a8e6 `cmp $0x4,%eax; setbe`（无符号上界，P2/P310）
-    // [F2e-Singles2 轴B 2026-09-10] 外层 partType 上界**有符号**：ORIG 0842a89a
-    // `addl $1,-0x18; cmpl $0x4,-0x18(%ebp); setle`（signed）⇒ 改 int 复现 setle；
-    // 内层 rank 循环 ORIG 0842a8b0 `mov -0x1c,%eax; cmp $0x4,%eax; setbe`（unsigned，
-    // setbe 已对齐，两段寄存器形属 N96/N18a 残差）。
-    for (int partType = 0; partType <= 4; ++partType)
+    // [F2e-Singles2 轴B 2026-09-10 实测回滚] 试 `int partType` 复现 ORIG 0842a89a
+    // `cmpl $0x4,-0x18(%ebp); setle`：setle 确已翻正（我方 -0x18 槽），但 our
+    // 309→**310**（+1 条）、diff 451→452 行 ⇒ 净劣，按判据回滚。值域 0..4 无
+    // 符号分叉（纯 codegen 形态差）⇒ 维持 N96/N18a 封顶（内层 rank 两段寄存器形同）。
+    for (unsigned int partType = 0; partType <= 4; ++partType)
     {
+        // [A04-r5j · 轴 B **已试无效**] ORIG 0x0842a89a 为 `cmpl $0x4,-0x18(%ebp); setle;
+        // test; jne`（有符号）而我方 setbe；按轴 B 把 rank 改 int 后 **ndiff 117→117、
+        // our 309→309（零改善、零劣化）** ⇒ 按协议**回滚**（该点 setcc 差非此局部所致，
+        // 归 N82 帧-槽族残差），保持 unsigned。
         for (unsigned int rank = 1; rank <= 4; ++rank)
         {
             if (reload == 0)

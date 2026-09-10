@@ -835,6 +835,11 @@ bool CRandomOptionItemHandle::change_option(unsigned long itemIdx, ENUM_RARITY r
     std::for_each(groupVec.begin(), groupVec.end(), chooser);
 
     unsigned int sel = chooser.get_value();
+    // [D04 轴 B/P196 逐点自校 · 已试并回滚] ORIG 0x085f383e `cmp -0x10(%ebp),%eax;
+    // setbe %al; test; je <fail 块>` = `sel >= size()` guard 形；我方 `if (sel < size())`
+    // 产互补 `seta`。按 Main 轴 B 协议试 guard 形（失败块后置）：**ours 442→444（+2）反劣，
+    // 四数不变** ⇒ 已回滚。两 cc 均属无符号序（非 P196 符号性分叉），差异为 4.1/4.4 的
+    // 条件取反 fold（ORIG 用 setbe 走 fail 岛、4.4 用 seta 直落），源形不可择 ⇒ N。
     if (sel < groupVec.size())
     {
         // ORIG 0x085f38f8：begin()+sel 再 deEv（非 operator[]；P167 判据）。

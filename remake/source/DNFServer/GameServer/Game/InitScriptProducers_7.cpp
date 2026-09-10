@@ -170,7 +170,7 @@ int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
                     // [F2e-Singles2 轴B 2026-09-10] ORIG 089f7192 `movzwl 0x4(%eax),%edx;
                     // movzwl -0x12c(%ebp),%eax; cmp %ax,%dx; **jle**`（16 位**有符号**）；
                     // 旧文 `(unsigned short)lv` 使 4.4 折 `jbe`（无符号）⇒ 按 ORIG 改 signed。
-                    if ((short)out->m_field4 > lv)
+                    if (lv < (short)out->m_field4)
                         out->m_field4 = (unsigned short)lv;
                     break;
                 }

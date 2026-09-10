@@ -5046,11 +5046,20 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
             req->m_characNo = msg.m_scalars.m_characNo;
             req->m_buytype = msg.m_scalars.m_buytype;
             req->m_subCount = msg.m_entrySection.m_arr[j].m_subCount;
-            // [F2a-轴B单点试验·临时] ORIG 0x08177f2d/0x08177f30：
-            //   `movzbl 0x3d(%eax),%eax; cmp -0x20(%ebp),%eax; setg; test; jne 回边`
-            //   ⇒ ① 原码循环变量为 int（有符号序）；② **只有单条比较**（无 `& k < 0x23`）
-            //   ⇒ 我方多出的 `cmpl $0x22,-0x20(%ebp); ja` 是发明防御，按 P171 照抄 ORIG 删除。
-            //   一次一旋钮，测完即回滚。
+            // [F2a-轴B+A 双旋钮·命中保留] ORIG 0x08177f2d/0x08177f30：
+            //   `movzbl 0x3d(%eax),%eax; movzbl %al,%eax; cmp -0x20(%ebp),%eax;
+            //    setg %al; test %al,%al; jne <回边>`（**有符号序 + 单条比较**）。
+            //   我方原形：`unsigned int k` + `k < m_subCount && k < MAX_ENTRIES`
+            //   ⇒ `cmp -0x20(%ebp),%eax; jbe` + 多出 `cmpl $0x22,-0x20(%ebp); ja`
+            //   （发明上限防御；ORIG 全函数无任何 `$0x22/$0x23` 立即数，经报告段
+            //    17..1620 全文 grep 实证 ⇒ 按 P171 照抄 ORIG 删除）。
+            //   实改（单点）：`int k` + `(int)req->m_subCount` + 去 `&& k < MAX_ENTRIES`
+            //   ⇒ 本函数 insns **1606→1600 = ORIG 1600（gap −6→0）**，该段四条形
+            //   与 ORIG 逐条一致（cmp/setg/test/jne）；TU 四数
+            //   899/1791/11/38 逐值不变（净 identical 未降）。
+            //   [待裁决] optCount 循环同族（ORIG 0x08178010/0x08178013 同形）删除后
+            //   预计 insns 1600→1594（gap 0→+6，我方将少于 ORIG），按「gap 严格减小」
+            //   判据未落地，留待其它残差收敛后重估（已上报 Main）。
             for (int k = 0; k < (int)req->m_subCount; ++k)
             {
                 // 子项数组：entry+0x0e 起每项 5 字节 { int idx; uchar val; }

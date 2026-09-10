@@ -3394,13 +3394,13 @@ bool ExportMapScript(STMapScript* script, const char* path)
                     script->m_vecMonster[i].m_vec40.size());
                 fwrite("`[roaming]`", 1, 0xb, file);
                 fprintf(file, " %d", wayCount);
-                // [轴 B 反向修复 · ORIG 直证] ORIG 0x089e5898/0x089e589b 该两循环尾测为
-                // `call <size()>; cmp -0x58(%ebp),%eax; **seta**`（无符号）⇒ 循环界
-                // 必须直读 `size()` 且 k 为 unsigned（旧 `k < wayCount` int 版产
-                // `mov -0x54; cmp -0x58; setl`，与 ORIG 相反；wayCount 仅保留给打印）。
-                for (unsigned int k = 0; k < script->m_vecMonster[i].m_vec40.size(); ++k)
+                // [轴 B 反向已试·按 gap 协议回滚] 改 `unsigned k + 直读 size()` 后
+                // setcc 计数与 ORIG 全等（18 seta），但 our 2835→**2851**（gap 5→21，
+                // 每循环多 1 次 size() 调用 ⇒ +8 条/2 循环）⇒ 违反「gap 严格改善」，
+                // 按 Main 协议回滚；ORIG 0x089e5898 的 seta 须靠别的手法（非本旋钮）。
+                for (int k = 0; k < wayCount; ++k)
                     fprintf(file, " %d", script->m_vecMonster[i].m_vec40[k].first);
-                for (unsigned int k = 0; k < script->m_vecMonster[i].m_vec40.size(); ++k)
+                for (int k = 0; k < wayCount; ++k)
                     fprintf(file, " %d", script->m_vecMonster[i].m_vec40[k].second);
                 fputc(10, file);
             }

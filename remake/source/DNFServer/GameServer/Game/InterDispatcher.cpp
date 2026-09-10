@@ -1300,7 +1300,9 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             if (lockNow)
             {
                 user->m_mcap.m_blackIpTradeLockFlag = true;
-                if (user->m_mcap.getPoint() < 0x251c)
+                // ORIG 0x084c7464 `call getPoint; cmp $0x251b,%eax; setbe %al`
+                // = 无符号 `<= 0x251b`（轴 B 反向：旧 `< 0x251c` 产有符号 setge）。
+                if ((unsigned int)user->m_mcap.getPoint() <= 0x251bu)
                 {
                     user->m_mcap.incPoint(0x251c);
                 }

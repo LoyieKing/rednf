@@ -7702,7 +7702,10 @@ void CParty::clear_reward(int param)
             std::vector<std::pair<int, int> > clearItems;
             std::pair<int, int> entry;
             clearItems = quest->get_clear_itemlist(bfView.get_dungeon_index());
-            for (unsigned int ci = 0; ci < clearItems.size(); ++ci)
+            // [轴 B，地址自校 0x085b0907] ORIG `addl $1,-0x30; call <size>;
+            // cmp -0x30,%eax; setg %al` = **有符号**比较（我方旧文 unsigned
+            // 产 `seta`，符号性相反）⇒ 以 ORIG 为准改 int + (int)size()。
+            for (int ci = 0; ci < (int)clearItems.size(); ++ci)
             {
                 questItem.reset();
                 entry = clearItems.at(ci);

@@ -2123,6 +2123,9 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
     }
     if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
     {
+        // 2026-09-10 试形留痕（B 轴 · A17 地址自校 0x8606a5b/0x8606a5e）：
+        //   ORIG 为 `cmp $0x0,%eax; setge`（有符号）而我方 `seta`；加 `(int)`
+        //   强转后 insns 548 与 ndiff 代理 563 **均不变** ⇒ 已回滚（A17 直证留档）。
         if (((CUserCharacInfo*)m_parent)->get_pvp_grade() < 0)
         {
             result = 7;
@@ -3214,6 +3217,9 @@ bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     // [b28d-solo-SkillSlot] ORIG 0x0860830c 段：`pair = giveVec[i]` 具名 pair
     // （-0x3c/-0x38）+ 临时 -0x70/-0x6c（P50 先声明后赋值形）。
     std::pair<int, int> pair;
+    // 2026-09-10 试形留痕（B 轴反向 · A17 地址自校 0x86084bd/0x86084c0）：
+    //   ORIG 为 `call size; cmp -0x1c(%ebp),%eax; seta`（无符号）而我方 `setg`；
+    //   改 unsigned 后 InitSkill insns 340 与 ndiff 代理 466 **均不变** ⇒ 已回滚。
     for (int i = 0; i < (int)giveVec.size(); ++i)
     {
         pair = giveVec[i];

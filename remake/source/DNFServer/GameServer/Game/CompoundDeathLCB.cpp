@@ -679,7 +679,11 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
                 weight -= (G_CDataManager()->m_serverParameter.m_49f0 * weight) /
                           10000;
             }
-            if (m_rand->randInt(static_cast<unsigned long>(10000)) < weight)
+            // [轴 B 2026-09-10] ORIG 0x083331d1 `cmp -0x38(%ebp),%eax; setl %al`
+            // （**有符号序**，槽 -0x38 = weight）⇒ 原码比较为有符号；旧文
+            // `unsigned long < int` 按 C++ 规则转无符号 ⇒ 4.4 产 `setb`。
+            // 加 `(int)` 复现有符号序（randInt(10000) ∈ [0,9999]，值域内无分叉）。
+            if ((int)m_rand->randInt(static_cast<unsigned long>(10000)) < weight)
             {
                 const int r = get_rand_int(rec->m_b[subType]);
                 resultIdx = getItemIndex(rec->m_optsA[subType], r);  // +0x7c
