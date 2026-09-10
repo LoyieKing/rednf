@@ -291,7 +291,10 @@ public:
     static int OnUseStackableItem(CUser* user, unsigned long uid,
                                   const CItem* item);        // ORIG T 0x085d1712（LinkClosureA-2 改 static：ORIG 调用点 0x865e42e 无 ecx 设置、mangled 无 this 编码实证）
     static int GetQuestItemDropRate(CUser* user, int itemIdx);   // ORIG T 0x085d12ee（ORIG 无 this 槽）
-    static int CheckUsableStackableItem(CUser* user, const CItem* item);   // ORIG T 0x085d18e2（同上 static 实证）
+    // [IG1 2026-09-10 S2 授权] 返回类型 int→bool：ORIG 调用点 0x0865e177..0x0865e181
+    // 为 `call; xor $0x1,%eax; test %al,%al; je`（P248 档①/P292）⇒ callee bool。
+    // 返回类型不入 mangled、不改类布局 ⇒ 零 ABI 风险（定义侧机器码/尺寸 0x97 实测不变）。
+    static bool CheckUsableStackableItem(CUser* user, const CItem* item);   // ORIG T 0x085d18e2 sz0x97（同上 static 实证）
     // ORIG T 0x085d121e——实现由 ItemUpgradeVtableB2.cpp 提供（同名局部类待收敛）
     static bool IsExistContinuousEffectItem(CUser* user, int itemIdx);
 };

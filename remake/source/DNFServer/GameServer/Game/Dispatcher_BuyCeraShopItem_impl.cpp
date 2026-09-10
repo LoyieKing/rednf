@@ -239,7 +239,9 @@ int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser* user, PacketBuf& packet)
             if (item != 0 && item->IsAvatarItem())
             {
                 randIdx = get_rand_int(((CEquipItem*)item)->getAvatarOptionSize());   // B7
-                if (randIdx <= 100)   // ORIG cmp $0x63; jg skip → ≤100 才写
+                // ORIG 0x081fdc24: `cmpl $0x63,-0x30(%ebp); jg skip`（有符号）
+                // ⇒ 上限为 0x63(99)，randIdx>99 才跳过；原写 <=100 多放行 100 这一越界值。
+                if (randIdx <= 99)
                     msg.m_entrySection.m_arr[i].m_avatarType0 = (unsigned char)randIdx;
             }
         }

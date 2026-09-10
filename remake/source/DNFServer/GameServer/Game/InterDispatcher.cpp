@@ -9544,6 +9544,17 @@ struct Inter_AuctionResultAskRegistedItemNumPktView
 // 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
 // [b28d-lane2] verdict=DIFF ndiff=1035（ORIG 0x084d5930）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+21。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=802（ORIG 0x84d5930）：N22 cmp 操作数方向+P226 具名 bool/char 落槽+N18a 单段 regmove。
+// [IG2PartyCera 2026-09-10] 语义轴真缺口修复（清单 our_only 0x3/0xd 复核）：
+//   ① 0xd 来自旧 `for(i<sizeof(RandomOption))` 循环界，ORIG 0x084d66e5..0x084d66f7 起为**结构赋值展开**
+//      ⇒ 改 `pck.item_info.m_opt = item.m_random.m_random;`（源 item+0x25 ✓ 逐条同构）。
+//   ② 核 ORIG 该段（0x084d66d9..0x084d6730）直证：连续 24B 目标 item_info+0x13..+0x2b 分
+//      两段写入 —— 前 0xa = item.m_amp.m_guid（源 item+0x15/0x19/0x1d = amp+0x04/08/0c，
+//      4+4+2），后 0xe = RandomOption。旧实现只拷后者 ⇒ item_info+0x13..0x1c（m_pad）恒 0，
+//      与 ORIG 发出的包内容不一致（**真缺口**）⇒ 补 `*(stAmplifyGuidView*)m_pad = item.m_amp.m_guid;`。
+//   ③ 余 0x3（switch 决策树节点）为 lowering 差异（ORIG 用 case 0..5 跳表 0x8c8922c，
+//      我方树；case 集合 1/2/5→err0x91、3→flag、0/4→default 逐点核对一致）⇒ 记 N。
+//   读数：our 1074→1071（ORIG 1073，gap -1→+2，语义轴不受闸门）；TU 四数
+//   135/1370/1/115/703 改前改后逐值不变。
 int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultAskRegistedItemNumPktView* pPkt = reinterpret_cast<Inter_AuctionResultAskRegistedItemNumPktView*>(data);
@@ -9844,10 +9855,14 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
                     (unsigned char)((pck.item_info.m_attr & 0xe0) | 0x1);
         }
         {   // ORIG 逐字段（CONCAT13/CONCAT33）写 random_option，非 memcpy；随后 SetUpgradeSeparate
-            const unsigned char* src = reinterpret_cast<const unsigned char*>(&item) + 0x25;
-            unsigned char* dst = reinterpret_cast<unsigned char*>(&pck.item_info.m_opt);
-            for (int i = 0; i < (int)sizeof(RandomOption); ++i)
-                dst[i] = src[i];
+            // [IG2PartyCera] ORIG 0x084d66d9..0x084d6730 直证：连续 24 字节目标
+            // item_info+0x13..+0x2b 分两段结构赋值 —— 前 10B(0x84d66d9/d66e5/d66f1)
+            // = item.m_amp.m_guid（源 item+0x15/+0x19/+0x1d = amp+0x04/08/0c，4+4+2），
+            // 后 14B = RandomOption（源 item+0x25）。旧实现只拷后者 ⇒ DnfItemInfo
+            // +0x13..0x1c（m_pad）恒 0，与 ORIG 发出的包内容不一致（真缺口）。
+            *reinterpret_cast<stAmplifyGuidView*>(pck.item_info.m_pad) =
+                item.m_amp.m_guid;
+            pck.item_info.m_opt = item.m_random.m_random;
             pck.item_info.m_up.SetUpgradeSeparate(
                 item.m_upgradeSep.GetUpgradeSeparate());
         }

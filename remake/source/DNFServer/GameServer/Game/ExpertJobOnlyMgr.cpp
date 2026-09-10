@@ -117,7 +117,9 @@ int CAlchemist::GetQuestItemDropRate(CUser* user, int rate)
 }
 
 // ---- CheckUsableStackableItem（报告，ORIG T 0x085d18e2 sz 0x96）----
-int CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
+// [IG1 2026-09-10 S2 授权] bool 化：ORIG 调用点 xor $1/test/je 直证返回 bool
+// （P248 档①/P292；返回类型不入 mangled、不改布局；定义侧机器码/尺寸 0x97 实测不变）。
+bool CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
 {
     // ORIG：CStackableItem::get_sub_type()==2（APC 强力药水）时检查全队
     // GetUseAPCPotionTime 未到者存在则禁用；其余放行。
@@ -134,12 +136,12 @@ int CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
                     // b28：清 register asm 绑定（N96/P0 全域禁），直测内联。
                     if (member->GetUseAPCPotionTime() >
                         GlobalData::s_systemTime_.getCurSec())
-                        return 0;
+                        return false;
                 }
             }
         }
     }
-    return 1;
+    return true;
 }
 
 // ---- GetAssaultPrevent（报告，ORIG T 0x085d137c sz 0xa7）----

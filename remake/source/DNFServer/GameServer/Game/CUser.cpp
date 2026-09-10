@@ -10224,6 +10224,12 @@ void CUser::processDelDailyItem()
 // b28d-PoolCUser P230③ -march=i486 实验读数（2026-09-09，同 _processSpeical… 条）：
 //   (a) 现路由 ndiff **97**（140/149）；(b) +i486+mtune=generic ndiff **92**（140/150
 //   x87 段改善但未归零，残差主体在 N82 槽阶梯）；(c) 仅 i486 整 TU 崩不可用。
+// [IG1 2026-09-10 语义轴落地·删发明防御] ORIG 0x08680395..0x086803ad 调
+//   ServiceRestrictManager::isRestricted 前**无** srm!=0 判空（`call Singleton::Get;
+//   mov %eax,(%esp); call isRestricted` 直调）⇒ 我方 `srm != 0 &&` 系发明防御，已删；
+//   同时去掉具名 srm 局部（ORIG 无该槽，P0/P183）。改后 our_insns 142（ORIG 141）、
+//   gap -1（原 -10）、ndiff 94→95（difflib 噪声）、TU 四数不变 806/1684/4/101。
+//   余量：N85 x87 比较 lowering（fucompp/fnstsw/sahf vs fucomip/fstp）+ N82 槽阶。
 void CUser::reqHumanCertify4ClearMap(bool flag)
 {
     bool forceCertify;
@@ -10247,9 +10253,8 @@ void CUser::reqHumanCertify4ClearMap(bool flag)
         if (rate < getStdDropRate())
         {
             {
-                ServiceRestrictManager* srm =
-                    ARAD::Singleton<ServiceRestrictManager>::Get();
-                if (srm != 0 && srm->isRestricted(RestrictCategory::Enum_3, 1))
+                if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+                        RestrictCategory::Enum_3, 1))
             {
                 setStdDropRate(rate);
                 int nowRate = getStdDropRate();

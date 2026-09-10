@@ -862,6 +862,13 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
 //   stomach/exp/creatureType/noCharge/stat/expire/lockKey）各自 `= 0`。
 //   ⇒ 属**结构建模差异**（P250 packed 栈缓冲），非类型宽度问题；修法需按 ORIG
 //   0x74 布局建具名缓冲结构 + 整块 memset（改面较大，本波未动，留作后续首选）。
+// [IG1 2026-09-10 语义轴落地·used 判定形] ORIG 0x0840cd16/0x0840d556 为
+//   `movzbl used[i]; xor $1,%eax; test %al,%al; je` ⇒ 原码是 `if (!used[i])`
+//   且元素按布尔语义（P248 档②）；我方原写 `used[i]==1`（多出 `cmp $0x1`，
+//   清单 A 组候选）。已改 `char used[]`→`bool used[]` + 两处 `!used[...]`，
+//   两处逐条同 ORIG。our_insns 733→735（补 2 条 ORIG 已有的 xor）、
+//   ndiff 644→636（严格改善）、gap -2→-4、TU 四数不变 23/62/0/4。
+//   余量：dupSlot 判定 ORIG `cmpb $0x0,-0x11` vs 4.4 `xor $1;test;je`（N122 族）。
 bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 {
     static const int handleIdx = 3;
@@ -894,7 +901,10 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         return 0;
     }
 
-    char used[0x8d];
+    // ORIG 两处判定均为 `movzbl used[i]; xor $1; test %al; je`（0x0840cd16 /
+    // 0x0840d556）⇒ 元素按布尔语义（P248 档②：字段 bool 化 + 裸 `if(!used[i])`）；
+    // bool 数组 sizeof/寻址同 char（1B），memset/写 1 形不变。
+    bool used[0x8d];
     memset(used, 0, sizeof(used));
     std::vector<Inven_Item> overflow;
     bool dupSlot = false;
@@ -929,13 +939,17 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         }
         if (checkSlot <= 0x8c)
         {
-            if (used[checkSlot] == 1)
+            // ORIG 0x0840cd16/0x0840cd1e/0x0840cd23：`movzbl used[slot]; xor $1;
+            // test %al; je <dupSlot 块>` ⇒ 原码是 `if (!used[checkSlot])` 形
+            // （X 族 bool 取反物化，P168a/P22），非 `== 1`；then=used 置 1 直落、
+            // else=dupSlot=true 在 je 目标处（used 值域 {0,1}，两写法语义等价）。
+            if (!used[checkSlot])
             {
-                dupSlot = true;
+                used[checkSlot] = 1;
             }
             else
             {
-                used[checkSlot] = 1;
+                dupSlot = true;
             }
             if (!ok)
             {
@@ -1112,7 +1126,9 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
     {
         for (; emptySlot < 0x8d; ++emptySlot)
         {
-            if (used[emptySlot] != 1)
+            // ORIG 0x0840d556/0x0840d55e/0x0840d563：`movzbl used[emptySlot]; xor $1;
+            // test %al; je <++emptySlot 段>` ⇒ 同处 A 的 `if (!used[...])` 形。
+            if (!used[emptySlot])
             {
                 used[emptySlot] = 1;
                 if (emptySlot == 0x8c)
