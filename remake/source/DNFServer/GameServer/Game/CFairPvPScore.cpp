@@ -36,18 +36,6 @@ extern CDataManager* G_CDataManager();
 namespace fair_pvp
 {
 
-// ---- TU-local 线格式视图 ----------------------------------------------------
-// getData/loadData 的条目基址为 (idx+2)*0x10，ORIG 对该基址用
-// `lea 0x2(%ebx),%ecx; shl $0x4,%ecx` 后以 disp 0x10/0x14 访问（084a55fc/
-// 084a563b 段）；4.4 若直接写 `((Entry*)(sig+(idx+2)*0x10))[1]` 会把 +0x10
-// 折进基址（add $0x3; shl $4）。改用「双条目」具名视图令偏移全部落 disp。
-// POD、无成员函数 ⇒ 不发射任何符号；sizeof/偏移与 SIG_FAIR_PVP_SCORE_ENTRY×2 一致。
-struct FairPvpScoreEntryPair
-{
-    SIG_FAIR_PVP_SCORE_ENTRY m_e0;    // +0x00
-    SIG_FAIR_PVP_SCORE_ENTRY m_e1;    // +0x10（= (idx+2)*0x10 + 0x10）
-};
-
 // ---- ORIG 0x84a47dc CFairPvPScore::CFairPvPScore() --------------------------
 #include "CFairPvPScore/CFairPvPScore.inc"
     : charac_expand::CData()
@@ -140,15 +128,22 @@ bool JobKey::operator<(const JobKey& rhs) const
 }
 
 // ---- ORIG 0x84a55a8 getData(char*) const -----------------------------------
-// b28d-solo-CFairPvPScore 判词：DIFF·N 封顶（ORIG 183 vs 215；归一化 NDIFF 83
-// 全为 push esi 缺位引发的错位伪差 + 下列 N 族）。
-// 已修：p167 CLEAR（12=12；恢复 `it->` 三次 ptEv 084a6764 + 第三段 `it->second`
-// 整体结构赋值一次 ptEv）；索引单槽复用（三循环共用 -0xc）、迭代器 for 外初始化式、
-// 去 entry 指针缓存（P183）、双条目视图消 4.4 把 +0x10 折进基址。
-// 残余 N 归因：N7（ORIG 统计循环以 esi 缓存 this，4.4 恒用 ebx ⇒ push esi 缺位、
-// 帧 0x30 vs 0x34、全篇 difflib 错位）；N4/P30（`(idx+2)*0x10` 基址 + disp 的
-// scaled 写 `mov %dl,0x10(%ecx,%eax,1)` vs 4.4 先 lea 地址再 disp 写）；
-// N18a/N82（寄存器分配与槽号）。结构复原（ORIG 084a55a8 逐段实证）：
+// [L6S4 round5b] 判词更新：ORIG 183 vs 我方 **184**（gap −1；改前 215）。
+// 本轮修法（两处，均为 P291/P183 族）：
+//   ① 条目写侧：cast 指针算术（`((Pair*)(sig+(idx+2)*0x10))->m_e1`）⇒ 4.4 把 sig
+//      折进基址、每字段 6 条重算；改权威成员数组下标 `sig->m_jobScore[idx]`（同址）
+//      ⇒ 复现 ORIG「索引寄存器 + 基址寄存器 + disp」形（仅常量拆分差：4.4
+//      `lea 0x3/disp 0` vs ORIG `lea 0x2/disp 0x10`）。
+//   ② 模式统计段：逐字段写（+27 条）改成员整体赋值
+//      `*(COUNT*)&sig->m_modeStats[idx][0] = *(COUNT*)&m_modeStats[idx][0]`。
+// 残余 1 条 + 错位归因（均 4.4 lowering）：
+//   · N7（ORIG 统计段以 esi 缓存 this：`mov 0x8(%ebp),%esi` ⇒ prologue 多 push esi、
+//     epilogue 多 pop esi，我方用 ebx/重载；帧 0x30 vs 0x34）；
+//   · N4/P30（`(idx+2)*0x10` 的常量拆分习惯 + ORIG 写侧 `0x4(%eax,%ecx,1)` 索引/基址
+//     分离 vs 4.4 合并为单指针：整体赋值段 25 vs 23 条）；
+//   · 尾部 `sig->m_dailyPlayCount = m_dailyPlayCount` 4.4 多 1 条 `mov %eax,%edx` 中转。
+// 试形记录（本轮）：+0x10 起 100 元素具名数组视图 ⇒ 4.4 产 `lea 0x2; lea 0x1` 两段，
+// 劣化到 191 ⇒ 回滚。结构复原（ORIG 084a55a8 逐段实证）：
 // ① idx 单槽复用（三循环共用 -0xc；ORIG 头部 movl$0 与 for-init movl$0 成对）；
 // ② 迭代器为 for 外初始化式（begin() 直构 sret，无 C1Ev）；
 // ③ 条目基址 (idx+2)*0x10 每点重发（P183 禁指针缓存，旧版 entry 具名局部多一槽）；
@@ -161,15 +156,17 @@ bool JobKey::operator<(const JobKey& rhs) const
         m_jobScore_.begin();
     for (idx = 0; it != m_jobScore_.end() && idx <= 99; ++it, ++idx)
     {
-        // ORIG 基址形态 (idx+2)*0x10 + 0x10（084a55e1 `lea 0x2;shl 4; movb 0x10(%ecx,%eax)`）。
-        reinterpret_cast<FairPvpScoreEntryPair*>(
-            reinterpret_cast<char*>(sig) + (idx + 2) * 0x10)->m_e1.m_job =
-            (unsigned char)(unsigned int)it->first.m_job;
-        reinterpret_cast<FairPvpScoreEntryPair*>(
-            reinterpret_cast<char*>(sig) + (idx + 2) * 0x10)->m_e1.m_sub =
-            (unsigned char)(unsigned int)it->first.m_sub;
-        *(FAIR_PVP_SCORE_MODE_COUNT*)&reinterpret_cast<FairPvpScoreEntryPair*>(
-            reinterpret_cast<char*>(sig) + (idx + 2) * 0x10)->m_e1.m_cnt0 = it->second;
+        // [L6S4 P291/P183] ORIG 084a55e1 段为「索引寄存器 + 基址寄存器 + disp」：
+        //   `mov -0x10(%ebp),%eax; lea 0x2(%ebx),%ecx; shl $0x4,%ecx;
+        //    mov %dl,0x10(%ecx,%eax,1)`（值=%dl）/ 0x11 / 0x14..0x1c。
+        // 旧 cast 指针算术形把 sig 折进基址 ⇒ 每字段 6 条重算（215 条）。
+        // 权威成员数组下标形（m_jobScore@+0x30）降到 184 条（ORIG 183）：
+        // 唯一残差 = 常量拆分习惯差（4.4 `lea 0x3/disp 0` vs ORIG `lea 0x2/disp 0x10`，
+        // 4.1 把 +0x30 拆成 2*0x10+0x10）；「+0x10 起 100 元素」视图试形反而劣化
+        // 到 191（4.4 产 `lea 0x2; lea 0x1` 两段）⇒ 回滚。
+        sig->m_jobScore[idx].m_job = (unsigned char)(unsigned int)it->first.m_job;
+        sig->m_jobScore[idx].m_sub = (unsigned char)(unsigned int)it->first.m_sub;
+        *(FAIR_PVP_SCORE_MODE_COUNT*)&sig->m_jobScore[idx].m_cnt0 = it->second;
         ++sig->m_jobScoreCount;                          // 字节自增（ORIG movzbl/lea/movb）
     }
 
@@ -180,9 +177,13 @@ bool JobKey::operator<(const JobKey& rhs) const
 
     for (idx = 0; idx <= 1; ++idx)
     {
-        sig->m_modeStats[idx][0] = m_modeStats[idx][0];
-        sig->m_modeStats[idx][1] = m_modeStats[idx][1];
-        sig->m_modeStats[idx][2] = m_modeStats[idx][2];
+        // [L6S4] ORIG 084a5674 段为整体结构赋值（源/目标基址各算一次、3 读 3 写：
+        //   `mov 0x8(%edx),%ebx; mov %ebx,0x4(%eax,%ecx,1)` …）⇒ 逐字段写会
+        // 每字段重算两侧基址（+27 条）。与 loadData 区块 3 同一复现形。
+        // [L6S4] 方向必须为「成员 → 线格式」（sig 为目标）——上一编辑曾误交换，
+        // 已回滚（该形若反向即真语义 bug，勿再试）。
+        *(FAIR_PVP_SCORE_MODE_COUNT*)&sig->m_modeStats[idx][0] =
+            *(FAIR_PVP_SCORE_MODE_COUNT*)&m_modeStats[idx][0];
     }
     sig->m_field1c = m_field40;
     sig->m_field20 = m_field44;
@@ -386,7 +387,17 @@ bool JobKey::operator<(const JobKey& rhs) const
 
 // ---- ORIG 0x84a48f8 loadData(CUser*, char*) --------------------------------
 // b28d-solo-CFairPvPScore 判词：DIFF·N 封顶（§6.2 三件套：①p167 CLEAR 91=91；
-// ②gap 24（ORIG 848 vs 872）；③帧 0x22c vs 0x27c、全帧槽号平移 = N82/N95 族）。
+// ②gap（ORIG 848 vs 872）；③帧 0x22c vs 0x27c、全帧槽号平移 = N82/N95 族）。
+// [L6S4 round5b] gap 改善：872 → **867**（ORIG 849；gap −24 → −18），修法 =
+//   区块 1 条目访问宏改权威成员数组下标（`sig->m_jobScore[i]`）：旧 cast 指针算术
+//   把 sig 折进基址 ⇒ 6 个访问点各多 1 条 `lea (%ecx,%eax,1)`；改后复现 ORIG
+//   「索引寄存器 ecx + 基址寄存器 eax + disp 0x10」形（常量拆分差仍在：4.4
+//   `lea 0x3/disp 0` vs ORIG `lea 0x2/disp 0x10`）。⇒ 本 TU 双条目视图
+//   FairPvpScoreEntryPair 已无使用点，删除。
+// 残余 −18 归因（超大函数，§6.2 口径）：total 段 ORIG 用槽 -0x24 逐项累加
+//   （`mov -0x24,%eax; lea (%edx,%eax,1),%eax; mov %eax,-0x24`，每项 6 条）vs
+//   我方单表达式寄存器累加（每项 3~4 条）⇒ 该段我方**更省**；净差全部来自块间
+//   帧/槽平移（N82/N95，帧 0x22c vs 0x27c）与 N4/P30 寻址折叠、N7 寄存器分配。
 // 修法（含 4 处真语义 bug）：
 //   ①新键插入：第二实参直接引用线格式计数（ORIG 084a4929 `lea 0x14(%eax),%ebx`）
 //     + P178 嵌套 make_pair/pair 移动构造（mangled make_pair<JobKey,COUNT&> 实证）；
@@ -414,9 +425,12 @@ bool JobKey::operator<(const JobKey& rhs) const
     // key 为 make_pair 实参临时（mangled make_pair<JobKey,COUNT&> 实证）；
     // 第二实参直接引用线格式计数（`lea 0x14(%eax),%ebx`），旧版复制到局部 value
     // 会多 3 store 且丢失引用语义。
-#define FAIR_PVP_ENTRY(i)                                                   \
-    (reinterpret_cast<FairPvpScoreEntryPair*>(                              \
-         reinterpret_cast<char*>(sig) + ((i) + 2) * 0x10)->m_e1)
+// [L6S4 P291/P183] ORIG 084a4a1c 段为「索引寄存器 + 基址寄存器 + disp」形：
+//   `mov -0x34(%ebp),%ecx; mov -0x38(%ebp),%eax; add $0x2,%ecx; shl $0x4,%ecx;
+//    movzbl 0x10(%ecx,%eax,1),%eax`（eax=sig 独立于索引 ecx）；旧 cast 指针
+//   算术形把 sig 折进基址 ⇒ 每个访问点多 1 条 `lea (%ecx,%eax,1)`（6 处）。
+// 改用权威成员数组下标：m_jobScore@+0x30 与 (idx+2)*0x10+0x10 同址。
+#define FAIR_PVP_ENTRY(i) (sig->m_jobScore[i])
     for (idx = 0;
          (idx < (int)(unsigned char)sig->m_jobScoreCount) && (idx <= 99);
          ++idx)

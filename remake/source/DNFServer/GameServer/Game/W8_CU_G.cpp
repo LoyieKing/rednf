@@ -529,10 +529,17 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
         // GBK/EUC 多字节原样字节保真转写（objdump -s .rodata 实证）。
         static const char kSenderTitle[] =
             "\260\355\272\355\270\260\300\307\040\274\261\271\260";
+        // [S3-W8 2026-09-11 §6.5 真 bug] ORIG 0x8cf10fc 逐字节 = 40B
+        //   b0 ed ba ed b8 b0 c0 c7 20 bc b1 b9 b0 c0 cc 20 bf ec c6 ed c0 b8
+        //   b7 ce 20 b5 b5 c2 f8 c7 cf bf b4 bd c0 b4 cf b4 d9 2e
+        //   （EUC-KR "고블린의 선물이 우편으로 도착하였습니다."）。
+        //   旧码为八进制转义且错 4 处：缺 `\272\355`（"블"）、`\304` 多 1 字节、
+        //   `\360`→`\370`（f0→f8）、`\231`→`\331`（99→d9）⇒ 二进制串与 ORIG 不符。
+        //   改用 \xNN 十六进制逐字节保真，避免八进制歧义。
         static const char kFailMessage[] =
-            "\260\355\270\260\300\307\040\274\261\271\260\300\304\314\040\277\354\306"
-            "\355\300\270\267\316\040\265\265\302\360\307\317\277\264\275\300\264\317"
-            "\264\231.";
+            "\xb0\xed\xba\xed\xb8\xb0\xc0\xc7\x20\xbc\xb1\xb9\xb0\xc0\xcc\x20"
+            "\xbf\xec\xc6\xed\xc0\xb8\xb7\xce\x20\xb5\xb5\xc2\xf8\xc7\xcf\xbf"
+            "\xb4\xbd\xc0\xb4\xcf\xb4\xd9.";
 
         strncpy(title, kSenderTitle, 0x14);   // ORIG 0x08688490（长度 0x14）
         strncpy(body, kFailMessage, 0xff);    // ORIG 0x086884ab（长度 0xff）

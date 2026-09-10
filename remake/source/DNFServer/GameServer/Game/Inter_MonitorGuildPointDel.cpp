@@ -19,7 +19,9 @@
 
 #include "Inter_MonitorGuildPointDel.h"
 
-int Inter_MonitorGuildPointDel::g_lastDeleteTime;
+// [L9·2026-09-11] g_lastDeleteTime 的**带初值定义已迁至 InterDispatcher.cpp**（ORIG 归属实证：
+// ORIG static_init 实例 0x084e9004 尾部 `call 0x84ce6d2 <..._makeDefaultTimeEv>` + `mov ds:0x943dd88,eax`，
+// 由 GI `_GLOBAL__I__Z7getUserj` @0x084e904e 调用）。本文件**不得**再定义该符号（否则重复定义且丢初值）。
 
 #include "Inter_MonitorGuildPointDel/getLastDeleteTime.inc"
 {

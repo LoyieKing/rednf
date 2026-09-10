@@ -1174,7 +1174,10 @@ bool CMission::operator<(const CMission& other)
     //   —— je 落**函数尾部共享块** `mov $0x1,%eax`（+0x1ad），cond 真走 body 直落
     //   ⇒ 源码是 `if (it != end) { body } return 1;`；早返回形 `if (end == it)
     //   return 1;` 会就地物化 `mov $0x1,%ebx; jmp`（我方 127 vs ORIG 125 两段差）。
-    if (it != m_comboMap.end())
+    // [L6 #61-75 CMission 2026-09-11] ORIG 0x085e41a4-0x085e41aa 实参序：
+    //   `(%esp)` = end()（-0x10）、`0x4(%esp)` = it（-0x18）⇒ 源码为 `end() != it`
+    //   （4.4 对 `it != end()` 产 `(%esp)`=it、`0x4(%esp)`=end 的反序）。
+    if (m_comboMap.end() != it)
     {
         std::vector<std::pair<int, int> > items;
         items.push_back(it->second.m_bonus);

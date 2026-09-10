@@ -1,1 +1,1 @@
-bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int inLen)
+bool compress_zip(char* out, size_t& outLen, const char* in, size_t inLen)

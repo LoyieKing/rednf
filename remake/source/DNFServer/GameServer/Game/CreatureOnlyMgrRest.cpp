@@ -67,6 +67,8 @@ namespace user_creature
 // 残差 = N82附（4.4 聚合 sender/trace 占低槽、标量 reason 落 -0x1c，ORIG
 // reason 最深 -0x3c）+ N115 帧 0x4c vs 0x5c；reason 声明位置/顺序、结构体/
 // 数组聚合化、volatile、double framePad 四形实测不可翻（聚合化劣化已回退）。
+// [L2Free4to15.S3 复核] reason 改「声明+初始化同位（Send 后）」实测
+// ndiff 22→26 劣化，已回滚；残余 = 纯槽号漂移（gap=0、助记符序列相同）。
 #include "CreatureOnlyMgrRest/ChangeOwner.inc"
                                int param_4, int param_5)
 {
@@ -127,6 +129,8 @@ namespace user_creature
 // 经复核 = param_3 = ORIG 0x14(%ebp)，无 bug）+ P139（trace 串改
 // __PRETTY_FUNCTION__）。残差 = N82附 聚合/标量槽分区（ORIG reason -0x3c、
 // 我方 -0x1c）+ N115 帧 0x4c vs 0x5c（creatureItem/sender/trace 三槽统一浅 4）。
+// [L2Free4to15.S3 复核] gap=0、ORIG-only/OURS-only 皆空 ⇒ 纯槽号漂移
+// （-0x1c↔-0x20 / -0x34↔-0x38 / -0x2c↔-0x30），N82附+N115 封顶。
 #include "CreatureOnlyMgrRest/ChangeSlotNo.inc"
 {
     if (!IsCreatureEquipmentScope(newSlot))
@@ -348,12 +352,18 @@ namespace user_creature
 // 遍历宠物：IsSave() 为真 → SaveCreatureItem(item 区 @cnt*0x3d+4（Inven_Item 数组）、
 // detail 区 @cnt*0x38+0x21a0、m_user)，detail.m_uid(+4) 非 0 则 count++；
 // count==0 → Cancel 否则 Send。
-// [b28d-solo-CreatureOnlyMgrRest] verdict=N 封顶（DIFF，语义完整，p167 16/16
-// CLEAR）：真虚调用（entry->IsSave / entry->SaveCreatureItem，ORIG
-// 0x0833bc9b/bcb1）+ P171（删 entry 判空，ORIG 直接解引用）+ P183 count 每处
-// 重读 + P28 `it++`（ppEi）。残差 = N115 帧 0x4c vs 0x40、全槽深 0x10 与
-// push %edi（4.4 把函数指针/m_user/count 计算分配到 edi/esi，ORIG 用
-// ebx/ecx/eax/edx；detail 地址 `lea (,%eax,8); mov; sub` 链寄存器角色互换）。
+// [b28d-solo-CreatureOnlyMgrRest + L2Free4to15.S3] verdict=DIFF（语义完整，
+// p167 16/16 CLEAR）：真虚调用（entry->IsSave / entry->SaveCreatureItem，
+// ORIG 0x0833bc9b/bcb1）+ P171（删 entry 判空，ORIG 直接解引用）+ P183 count
+// 每处重读 + P28 `it++`（ppEi）。
+// [S3 收敛] 三处地址算式改「整型加法」形 `(int)list + cnt*K [+C]`
+// （ORIG 0x0833bc6a..bc70 / bcc1..bce6 均 `add -0x10(%ebp),%reg` 内存加、
+// `lea 0x21a0(%edx),%eax` 分步；char*+偏移形产 107 ndiff 且带 push %edi）。
+// 尾部 Cancel/Send 改 `if(count!=0) Send else Cancel` 复现 ORIG
+// 0x0833bd7d `test;jne` 前跳 then=Send 直落（原 `==0` 形产反向布局）。
+// 读数：our 165→161（gap −9→−5）、ndiff 107→35、帧 0x4c→0x40、push %edi 消。
+// 残余 = 4.4 临时寄存器重分配（detail 结果 eax→edx 搬运、cnt*0x38 经 %esi
+// 中转、`+1` 用 add 非 ORIG `lea 0x1(%eax)`）⇒ N7/N18a 族封顶。
 #include "CreatureOnlyMgrRest/SaveCreatureItem.inc"
 {
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x89, m_user);
@@ -390,22 +400,24 @@ namespace user_creature
         if (entry->IsSave())
         {
             entry->SaveCreatureItem(
-                (Inven_Item*)(void*)((char*)(void*)list +
-                                     (*(int*)(void*)list * 0x3d + 4)),
-                (SIG_CREATURE_ITEM_DETAIL_INFO*)(void*)(
-                    (char*)(void*)list + (*(int*)(void*)list * 0x38 + 0x21a0)),
+                (Inven_Item*)(
+                                     (*(int*)(void*)list * 0x3d +
+                                      (int)(void*)list) + 4),
+                (SIG_CREATURE_ITEM_DETAIL_INFO*)(
+                                     (*(int*)(void*)list * 0x38 + 0x21a0) +
+                                     (int)(void*)list),
                 m_user);
             // detail.m_uid（详情区 +4）非 0 视为写入成功。
-            if (*(int*)((char*)(void*)list +
+            if (*(int*)(void*)((int)(void*)list +
                         *(int*)(void*)list * 0x38 + 0x21a4) != 0)
                 *(int*)(void*)list = *(int*)(void*)list + 1;
         }
     }
 
-    if (*(int*)(void*)list == 0)
-        sender.Cancel();
-    else
+    if (*(int*)(void*)list != 0)
         sender.Send();
+    else
+        sender.Cancel();
     return true;
 }
 
@@ -462,22 +474,22 @@ namespace user_creature
                     m_equippedCreature->GetOverSkillRecoveryTime() / 1000 >
                 GlobalData::s_systemTime_.getCurSec() + 2)
             {
-                // b28d-solo-CreatureOnlyMgrRest [P0/P44/P227]：ORIG 槽集 =
-                // ovstR(-0x48, **已除 1000**)/stR(-0x44, **已除 1000**)/
-                // interval(-0x40)/last(-0x3c)；curSec/chNo/idStr 无槽（vararg
-                // 右起求值经 %ebx/%edi/%esi 跨 ctor 保活）⇒ 除法写进局部、
-                // 其余内联实参 + 全表达式临时链。
-                int ovstR = m_equippedCreature->GetOverSkillRecoveryTime() / 1000;
-                int stR = m_equippedCreature->GetSkillRecoveryTime() / 1000;
-                int interval = GlobalData::s_systemTime_.getCurSec() -
-                               *m_equippedCreature->GetOverSkillTime()->GetTime();
-                int last = *m_equippedCreature->GetOverSkillTime()->GetTime();
+                // [L2Free4to15.S3] 全部 vararg 内联（去 4 个具名局部）：
+                // ORIG 0x0833c5a8..c67e 证明求值序 = 实参右→左（ch_no→m_id→
+                // ovstR→stR→interval→last→curSec，各经调用间 spill 落
+                // -0x48/-0x44/-0x40/-0x3c），即源码无具名局部；具名形把
+                // 4 个数值提到 ctor 前 ⇒ 求值序错位 + 帧 +0x10。
+                // interval 与 last 各自独立重调 GetTime()（P48 无 CSE）。
                 cMyTrace(__PRETTY_FUNCTION__, 0xe6c, 0)(
                     "fail:cur_time(%u),last_used_skilltime(%u),interval(%d) "
                     "st(%d),ovst(%d),m_id(%s),ch_no(%u)",
                     (unsigned int)GlobalData::s_systemTime_.getCurSec(),
-                    (unsigned int)last,
-                    interval, stR, ovstR,
+                    (unsigned int)*m_equippedCreature->GetOverSkillTime()
+                        ->GetTime(),
+                    GlobalData::s_systemTime_.getCurSec() -
+                        *m_equippedCreature->GetOverSkillTime()->GetTime(),
+                    m_equippedCreature->GetSkillRecoveryTime() / 1000,
+                    m_equippedCreature->GetOverSkillRecoveryTime() / 1000,
                     NumberToString(m_user->get_acc_id(), 0),
                     (unsigned int)m_user->getCurCharacNo());
                 return 0x13;
@@ -635,7 +647,6 @@ namespace user_creature
 #include "CreatureOnlyMgrRest/InsertCreatureItemResult.inc"
 {
     Inven_Item localItem;
-    eItemAddReason reason;
     // b28d-solo-CreatureOnlyMgrRest [ORIG 0x0833b395/N107]：ORIG 仅
     // `lea -0x55; call Inven_Item::C1`（清零由 ctor reset 完成，无独立
     // memset）；`lea 0x4(%eax),%edx` = 显式指针算术 `(char*)sig + 4`。
@@ -657,7 +668,10 @@ namespace user_creature
     // b28d-solo-CreatureOnlyMgrRest [P235/P211]：ORIG 0x0833b417 全部为
     // disp 折叠成员访问（`movzbl 0x51(%eax)` / `mov 0x30(%eax),%esi` /
     // `mov 0x8(%eax),%eax` / `movzbl 0x5(%eax)`）⇒ 用具名字段而非指针算术。
-    reason = (eItemAddReason)(signed char)sig->m_reason;
+    // [L2Free4to15.S3] 试验记录：声明序交换（reason 前置）与块级声明两形
+    // 均实测无效（ndiff 恒 10）⇒ 4.4「聚合对象优先低槽、标量分区排布」
+    // （N82附）不可翻，保持原声明序。
+    eItemAddReason reason = (eItemAddReason)(signed char)sig->m_reason;
     m_user->getCurCharacInvenR()->WriteCreatureLog(
         (INVEN_TYPE)3,
         sig->m_itemView.m_itemIdx,                            // +0x08

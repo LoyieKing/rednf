@@ -345,7 +345,11 @@ bool DecreaseTradeLimitCount(Inven_Item& item);
 
 // ORIG T 0x081202a9 _Z30CheckTradeLimitItemCountToMoveRK10Inven_ItemRb：
 // proto 可 stackable/attachType!=7 时直接通过；attach==7 且交易限次非 0 → false。
-bool CheckTradeLimitItemCountToMove(const Inven_Item& item, bool& ok);
+// [L7 2026-09-11 · Main 批准] P159 返回类型轴：ORIG 0x081202a9 尾
+//   `add $0x24,%esp; pop %ebx; pop %ebp; ret`（无 eax 设置）+ Ghidra C 段为 void
+//   ⇒ void。返回类型不入 mangled、零布局影响；唯一消费点 Dispatchers.cpp:10731
+//   为语句调用（不消费返回值）。
+void CheckTradeLimitItemCountToMove(const Inven_Item& item, bool& ok);
 // ORIG T 0x0812032e _Z36CheckItemTradeLimitCountToMoveByUserR5CUseriiRb：
 // *ok=true；curCharac 缺失直接返回；GetInvenSlot(space,slot) 取实体后转上一函数。
 // [b28c-lane24] ORIG 尾 `leave; ret` 无 eax 设置（Ghidra C void）⇒ 返回类型 void

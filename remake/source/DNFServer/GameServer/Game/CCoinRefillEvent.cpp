@@ -49,9 +49,19 @@
 
 #include "CCoinRefillEvent/StartEvent_1.inc"
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x0832be82）：122/132 条、P167 调用点 6/6 CLEAR
-    // （0 缺 0 多）⇒ 语义完成；残差=callee-saved 组（ORIG push edi/esi/ebx）+
-    // 物化次数。byte 层封顶。
+    // [b28d-59 判词] （ORIG 0x0832be82）：122/132 条、P167 调用点 6/6 CLEAR。
+    // [L6S2b 修 · 视角 + 语义] ORIG 全部槽访问走 m_slots 单数组视角（基址 +0xc）：
+    //   ①while 段 `mov 0xc(%eax),%eax; lea 0x1(%eax),%edx; mov 0xc(%eax,%edx,4)`
+    //     = `m_slots[m_timeCount + 1]`（旧译 `m_times[m_timeCount]` 走 +0x10 基址，
+    //     地址虽同但少一条 lea）；
+    //   ②for 段 `mov 0xc(%eax,%edx,4)`（0x0832bf78/bf87，edx=j=j..m_timeCount，j 从
+    //     i=1 起）= `m_slots[j]`；旧译 `m_times[j]` 基址 +0x10 ⇒ **下标整体错 1 且
+    //     j=m_timeCount=4 时读到 +0x20（union 只到 +0x1f）= 越界读**（运行期真 bug）。
+    //   交换段同理 `m_slots[minIdx]`/`m_slots[i]`（0x0832bfb1/bfc5）。
+    // [L6S2b 修 · P227] ORIG 三个 trace 实参在 cMyTrace ctor **之前**右起求值并驻
+    //   %edi/%esi/%ebx 保活（`mov 0x18(%eax),%edi; mov 0x14(%eax),%esi;
+    //   mov 0x10(%eax),%ebx` @0x0832bfef..bffb，prologue push edi/esi/ebx）⇒ 具名
+    //   两语句形坍缩为 ctor 后 ecx/edx/eax 装载；改全表达式临时链即复现。
     SetEventFlag(true);
     memset(&m_timeCount, -1, 0x14);
     m_times[0] = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c 当前小时槽
@@ -60,11 +70,11 @@
     m_timeCount = 0;
     while ((unsigned int)m_timeCount <= 3u)
     {
-        if (m_times[m_timeCount] > 0x17)
+        if (m_slots[m_timeCount + 1] > 0x17)
         {
-            m_times[m_timeCount] = -1;
+            m_slots[m_timeCount + 1] = -1;
         }
-        if (m_times[m_timeCount] == -1)
+        if (m_slots[m_timeCount + 1] == -1)
         {
             break;
         }
@@ -76,19 +86,19 @@
         int minIdx = 5;
         for (int j = i; j <= m_timeCount; j = j + 1)
         {
-            if (m_times[j] < minVal)
+            if (m_slots[j] < minVal)
             {
-                minVal = m_times[j];
+                minVal = m_slots[j];
                 minIdx = j;
             }
         }
-        m_times[minIdx] = m_times[i];
-        m_times[i] = minVal;
+        m_slots[minIdx] = m_slots[i];
+        m_slots[i] = minVal;
     }
     registNextRefillTimer();
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x48, 0);
-    trace("Coin Refill Event Start! time(%d) time(%d) time(%d)",
-          m_times[0], m_times[1], m_times[2]);
+    cMyTrace(__PRETTY_FUNCTION__, 0x48, 0)(
+        "Coin Refill Event Start! time(%d) time(%d) time(%d)",
+        m_times[0], m_times[1], m_times[2]);
 }
 
 #include "CCoinRefillEvent/EndEvent.inc"
@@ -152,9 +162,19 @@
 
 #include "CCoinRefillEvent/registNextRefillTimer.inc"
 {
-    // [b28d-59 判词] 封 N82/P231（ORIG 0x0832c1fe）：93/93 条、P167 调用点 9/9 CLEAR
-    // ⇒ 语义完成；残差=帧 0x94 vs 0xa8 + ORIG 用 %ebx 跨调用保活（callee-saved）。
-    // byte 层封顶。
+    // [b28d-59 判词] （ORIG 0x0832c1fe）：93/93 条、P167 调用点 9/9 CLEAR。
+    // [L6S2b 形修正 · P0/P183/P231] ORIG 该函数有两处「值无槽往返、驻 callee-saved
+    //   %ebx 跨 call 保活」：① `mov -0x20(%ebp),%edx; mov -0x1c(%ebp),%eax;
+    //   mov %edx,%ebx; sub %eax,%ebx; call G_TimerQueue; … mov %ebx,0x10(%esp)`
+    //   （0x0832c2c9..2e2，delay 实参）；② `call ctime; mov %eax,%ebx; … call
+    //   cMyTrace::C1; mov %ebx,0x8(%esp)`（0x0832c311/336，ctime 结果）。
+    //   我方形为槽（`mov %eax,-0x10/-0xc(%ebp)` + 回读）且无 `push %ebx`（帧 0xa8 vs 0x94）。
+    //   修法：①删具名 `int delay`、表达式内联回实参位；②`char*` 加 `register`
+    //   存储类（裸 register 属 P231/P307 命中形：值跨 callee call 保活 + 4.4 不自
+    //   升格 + ORIG 目标为 callee-saved，非 asm 绑定故 P0 合规）。
+    //   探针 /tmp/L6S2_probe/pr_tq.cpp（g_named 槽/无 push vs g_inline ebx+push）与
+    //   pr_ts.cpp（h_plain 槽 vs h_reg ebx+push，h_inline 会改 ctime 调用序故不可用）
+    //   均与 ORIG 逐形一致。
     int curSec = GlobalData::s_systemTime_.getCurSec();
     tm cur;
     localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
@@ -169,10 +189,10 @@
     time_t nextSec = mktime(&next);
     if (nextSec - static_cast<time_t>(curSec) >= 0)
     {
-        int delay = static_cast<int>(nextSec) - curSec;
         G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(2), 0,
-                                    static_cast<TIMER_MESSAGE>(0x65), delay, 0, 0);
-        char* timeStr = ctime(&nextSec);
+                                    static_cast<TIMER_MESSAGE>(0x65),
+                                    static_cast<int>(nextSec) - curSec, 0, 0);
+        register char* timeStr = ctime(&nextSec);
         cMyTrace trace(__PRETTY_FUNCTION__, 0x88, 0);
         trace("Next coin refill time is %s", timeStr);
     }

@@ -38,8 +38,10 @@
 // break（CExchange::verifyMaterialItemByRule、SendCreateEmblemStatistic）均编译为
 // 正常前向跳转/回边，与 ORIG 一致。
 // ----------------------------------------------------------------------------
-// [b28d-D03 本波 判词]（fresh `check_tu_routed.sh`：identical=87 ae=148（合计 235）
-//   near=1 diff=3；shift 探针对 5 件全跑）
+// [b28d-D03 判词 · L2Free4to15.S6 本波更新]（fresh `check_tu_routed.sh`：identical=87 ae=148
+//   （合计 235）near=1 diff=3 = _Z41__static_initialization…（GI 假缺口：ORIG 该符号有 493 个
+//   实例，工具按名匹配取首个 0x0807ee76（属 PacketTypes）⇒ 逐 TU 读数不可比，零改动）
+//   + sendBringUpReward + process_update_ingame_history；shift 探针对 5 件全跑）
 //   · verifyMaterialItemByRule 0x0810fe1a —— 95/94：shift **PURE SHIFT c=0**（帧 0x24、
 //     槽直方图全等）；唯一残差 = ORIG 比我们多 1 条孤立 `nop`（中段对齐产物，N112：
 //     4.4 循环出口 nop 填充旗标无效、compare 口径已剥离尾部对齐 nop）⇒ 封 N112。
@@ -50,11 +52,16 @@
 //     `lea 0x4(%ebx),%edx; mov %eax,-0x3c(%ebp,%edx,4)`（算术等价：-0x4c+4*(ebx+8) ≡
 //     -0x3c+4*(ebx+4)）⇒ P30/N4「add-vs-lea/scaled 索引」封顶；另 2 处数据符号立即数
 //     （N132 AE 口径）。
-//   · sendBringUpReward 0x0810fe90 —— 331/335：shift MIXED，帧 0x60 vs 0x70（我方多 4 槽，
-//     push 数相同）；残差三类（历轮已锁定）：a) 帧/槽 = N82/N115；b) varargs 求值序
-//     ORIG 右起（m_itemIdx→getCurCharacNo→get_acc_id）vs 4.4 恒左起（P75/P87，P226
-//     语句表达式实测无效）；c) std::copy/back_inserter 内联块序（+1 jmp 同目标）。
-//     p167 58/58 CLEAR。
+//   · sendBringUpReward 0x0810fe90 —— **[S6 本波] 335→331（329/331，gap −4→−2）**，两类已消
+//     （均非 N 类）：①**语义修复**——ORIG 变参顺序 = (get_acc_id, getCurCharacNo,
+//     it->second.m_itemIdx)：0x0810ffcc/0x0810ffd9 先 characNo 后 accId，压栈位 0x1c/0x18/0x14
+//     依次为 esi(m_itemIdx)/ebx(characNo)/eax(accId) ⇒ 原码 (m_itemIdx, characNo, accId) 写反
+//     （日志输出错位），已按 ORIG 改正；②actionMng 由分支内声明提至 **for 之外** ⇒
+//     it(-0x40)/actionMng(-0x39) 与全部 10 处 `lea` 槽位及帧 0x60 与 ORIG 全对齐
+//     （P-L11d 正解；置于循环体内/if 前均只到 -0x3d/-0x3c）。残差 2 条：a) `sig->m_rewardFlag
+//     = f()` 装载 ORIG `mov -0xc(%ebp),%edx; mov %al,0xd(%edx)` vs 4.4 先搬 eax（N7/P211
+//     寄存器角色）；b) 正常路径 CStreamGuard 析构块 4.4 压至 landing pad 之后（多 1 jmp，
+//     N104 块排布）。p167 58/58 CLEAR（仅 C1/C2·D1/D2 同址别名）。
 //   · process_update_ingame_history 0x0810c82e —— 98/102：shift **PURE SHIFT c=0**；
 //     残差 = 4 处 sret 调用点的寄存器角色（ORIG `lea -0xNN(%ebp),%edx; mov %eax,0x4(%esp)`
 //     vs 4.4 `mov %eax,%edx; lea …,%eax`）⇒ N7（sret 地址/返回值寄存器角色互换，
@@ -200,20 +207,24 @@ namespace EventClassify
 // ②SIG_OBJECT_BRING_UP::m_serverGroup 1B→4B（SigTypes_D.h，Main 已批）：
 //   ORIG 0x0810ffb8 `movzbl %al,%edx; mov %edx,0x8(%eax)` 与 CUser::UpdateData
 //   0x08654089 同形，4B 写；sizeof 0x10 与 +0x0c/+0x0d 偏移不变；
-// ③残余仅三类跨版本产物，已逐条核对语义等价（jcc 目标序列、p167 58/58 CLEAR）：
-//   a) 帧 0x70 vs 0x60 与 it/actionMng 槽整体浅 4（N82/N115/N126 版本常数）；
-//   b) varargs 求值序：ORIG 左起（m_itemIdx→getCurCharacNo→get_acc_id），4.4 恒
-//      右起；P226 语句表达式 `({ it->second.m_itemIdx; })` 实测无效（保持原形）；
-//   c) std::copy/back_inserter 内联块序（ORIG 把 `lea -0x48;call` 前置，4.4 后置，
-//      多 1 条 jmp 到相同目标）。
+// ③[S6 本波归零] 原记「残余三类跨版本产物」中两类**实际可修**，均已落地：
+//   a) 帧 0x70 vs 0x60 与 it/actionMng 槽浅 4 —— **非版本常数**：actionMng 提至 for
+//      之外后 it(-0x40)/actionMng(-0x39) 及全部 10 处 `lea` 与 ORIG 逐槽对齐、帧两侧 0x60；
+//   b) varargs 顺序 —— 原码实参**写反**（ORIG = get_acc_id→getCurCharacNo→m_itemIdx，
+//      见 0x0810ffcc/0x0810ffd9 调用序与压栈位 0x14/0x18/0x1c = accId/characNo/m_itemIdx）
+//      ⇒ 属**语义轴**（日志输出错位），已按 ORIG 改正；
+//   c) std::copy/back_inserter 内联块序（4.4 把正常路径析构块压到 landing pad 之后，
+//      多 1 条 jmp）—— 保留为 N104 块排布残差。
 // 【b28d-D03 更正 · 该头依赖已闭合】原记「getBringUpRewardFlag 返回 uchar（头依赖，
 //   已上报 Main）」为**过时信息**：Main 已在 S350 代落 `CUserCharacInfo.h:567
 //   m_bringUpRewardFlag` 与 `getBringUpRewardFlag()` 双 bool 化（1 字节/偏移/mangled 不变）。
 //   本波 fresh 实测：调用点两侧均为 `call; test %al,%al; jne`（**无 setne 差异**）⇒ 该项
 //   不再是本件残差来源。C05④ 四步落点（留档）：①无消费者死比较？否 ②值槽化/表达式
 //   物化？否（两侧同寄存器直测）③callee 声明不一致？**否（已两侧 bool）**⇒ 归因 1 不成立
-//   ④本件残差 = 帧 0x60 vs 0x70（我方多 4 槽）+ varargs 求值序 ORIG 右起 vs 4.4 左起
-//   （P75/P87）+ std::copy/back_inserter 块序，均属跨版本结构性 ⇒ 维持 N82/N115 封顶。
+//   ④[S6 本波终值] 329/331（gap −2），残差仅 2 条：a) `sig->m_rewardFlag = f()` 装载
+//   ORIG `mov -0xc(%ebp),%edx; mov %al,0xd(%edx)` vs 4.4 先搬 eax（N7/P211 寄存器角色）；
+//   b) 正常路径 CStreamGuard 析构块位置（N104）。p167 58/58 CLEAR（仅 C1/C2·D1/D2 别名）
+//   ⇒ 语义完成、byte 层 N 封顶。
 #include "W8_EventClassifyB/sendBringUpReward.inc"
                                        std::vector<int>& rewardVec,
                                        unsigned char& flag)
@@ -233,6 +244,15 @@ namespace EventClassify
     int deadSlot = 1;
     (void)deadSlot;
 
+    // [L2Free4to15.S6 本波归零] P-L11d 正解 = 提到 **for 之外**（原置于 if 之前仅
+    //   使两分支共用槽，槽号仍 -0x3d/it -0x3c，与 ORIG 差 4）。判据：ORIG actionMng
+    //   槽 -0x39 高于 it 槽 -0x40（1B 对象落在分配单位末字节：[-0x3c,-0x39)）⇒
+    //   actionMng 的展开先于 it；or 内声明无法产生该序。提到 for 前实测：it/actionMng
+    //   及全部 10 处 `lea -0x40/-0x39` 与 ORIG 逐槽对齐，帧 0x60 两侧一致；
+    //   CEventActionMng 无 ctor/dtor（ORIG 两侧调用点均无 ctor/dtor call）⇒ 生命周期
+    //   提升无语义影响。
+    CEventActionMng actionMng;
+
     for (::std::vector< ::std::pair<ObjectBringUpScript::ObjectBringUpRule,
                                   ::Action_SendMail> >::iterator it =
              static_cast<ObjectBringUpScript*>(m_script1c)
@@ -251,7 +271,6 @@ namespace EventClassify
             if (user->getBringUpRewardFlag())
                 continue;
 
-            CEventActionMng actionMng;
             result = actionMng.process_action_send_mail(
                 user, it->second, false);
             if (result != 0)
@@ -260,8 +279,8 @@ namespace EventClassify
                     1, "EventClassify.cpp", __PRETTY_FUNCTION__, 0x7c3,
                     "CObjectBringUp::sendBringUpReward(m_id:%d, "
                     "charac_no:%d, reward:%d)",
-                    it->second.m_itemIdx, (int)user->getCurCharacNo(),
-                    (int)user->get_acc_id());
+                    (int)user->get_acc_id(), (int)user->getCurCharacNo(),
+                    it->second.m_itemIdx);
                 return false;
             }
             std::copy(it->second.m_vec38.begin(),
@@ -293,7 +312,6 @@ namespace EventClassify
         }
         else
         {
-            CEventActionMng actionMng;
             result = actionMng.process_action_send_mail(
                 user, it->second, false);
             if (result != 0)
@@ -302,8 +320,8 @@ namespace EventClassify
                     1, "EventClassify.cpp", __PRETTY_FUNCTION__, 0x7e2,
                     "CObjectBringUp::sendBringUpReward(m_id:%d, "
                     "charac_no:%d, reward:%d)",
-                    it->second.m_itemIdx, (int)user->getCurCharacNo(),
-                    (int)user->get_acc_id());
+                    (int)user->get_acc_id(), (int)user->getCurCharacNo(),
+                    it->second.m_itemIdx);
                 return false;
             }
             std::copy(it->second.m_vec38.begin(), it->second.m_vec38.end(),

@@ -66,11 +66,12 @@
 
 #include "CDungeonEntranceLog/InsertDungeonEntrance.inc"
 {
-    // [b28d-59] 封 N82附/N98（ORIG 0x860e59c）：已还原 int 返回 1（尾 mov %ebx,%eax）、
-    // 具名 nSize 槽 -0xc、早退 `cmpl $0,-0xc; jg body; mov $1,%ebx; jmp end`（125/125
-    // 指令数全等）。残差=槽位相对序：4.4 把编译器临时 end() sret 放浅槽 -0x10、具名
-    // guard/it 下沉（-0x18/-0x1c），4.1 为 guard -0x14 / it -0x18 / end 临时 -0x1c
-    // （声明序）；源码不可控编译器临时槽（P232/N98），语义等价。
+    // [b28d-59] 已还原 int 返回 1（尾 mov %ebx,%eax）、具名 nSize 槽 -0xc、早退
+    // `cmpl $0,-0xc; jg body; mov $1,%ebx; jmp end`（125/125 指令数全等）。
+    // [L6S3] 残差根因非「编译器临时槽不可控」：ORIG 的 end 是**具名缓存 e**（P13），
+    // 故无每轮 end() 的 sret 临时；其槽序 guard -0x14 / it -0x18 / e -0x1c。
+    // 探针 /tmp/probe_slot.cpp f1（同工具链 4.4.7 -m32 -O0）实测加具名 e 后
+    // 4.4.7 输出同槽（guard -0x14 / it -0x18 / e -0x1c）。
     // 语义：map 非空时把 (key, m_enter, m_partyEnter) 写入 Statistics DB 流
     //（msg 0xe0, LOGDB_Q=4），随后清空 map。
     int nSize = m_inoutMap.size();
@@ -80,9 +81,11 @@
     **guard << 0xe0;
     **guard << -1;
     **guard << nSize;
-    // [b28d-59] it 提到 for 外（ORIG 槽序 guard -0x14 / it -0x18 / end 临时 -0x1c）。
+    // [b28d-59] it/e 提到 for 外（ORIG 槽序 guard -0x14 / it -0x18 / e -0x1c）。
+    // [L6S3] e 具名缓存 = P13：ORIG 循环条件为 `it != e` 两槽直比，无每轮 end() 调用。
     std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
-    for (; it != m_inoutMap.end(); ++it)
+    std::map<int, STDungeonInoutCnt>::iterator e = m_inoutMap.end();
+    for (; it != e; ++it)
     {
         **guard << it->first;
         **guard << it->second.m_enter;        // 节点 +0x4
@@ -95,11 +98,11 @@
 
 #include "CDungeonEntranceLog/InsertDungeonEntrance_Hour.inc"
 {
-    // [b28d-59] 封 N82附/N98（ORIG 0x860e38e）：与 InsertDungeonEntrance 同构——已还原
-    // int 返回 1、具名 nSize 槽 -0xc、早退 `jg body; mov $1,%ebx`；残差同件（4.4 编译器
-    // 临时 end() sret 占浅槽致 guard/it 下沉），语义等价。语义：map 非空时把
-    // (key, m_total, m_curInside) 写入 Statistics DB 流（msg 0xe1, LOGDB_Q=4），
-    // 随后归零 m_total（ORIG 清节点 +0xc）。
+    // [b28d-59] 与 InsertDungeonEntrance 同构——已还原 int 返回 1、具名 nSize 槽 -0xc、
+    // 早退 `jg body; mov $1,%ebx`。[L6S3] 残差根因同件 = ORIG 的 end 为具名缓存 e
+    //（P13），非编译器临时槽（探针 /tmp/probe_slot.cpp f1/f2 实测 4.4.7 同槽）。
+    // 语义：map 非空时把 (key, m_total, m_curInside) 写入 Statistics DB 流
+    //（msg 0xe1, LOGDB_Q=4），随后归零 m_total（ORIG 清节点 +0xc）。
     int nSize = m_inoutMap.size();
     if (nSize <= 0)
         return 1;
@@ -107,17 +110,20 @@
     **guard << 0xe1;
     **guard << -1;
     **guard << nSize;
-    // [b28d-59] it 提到 for 外（同 InsertDungeonEntrance 的 ORIG 槽序）。
+    // [b28d-59] it/e 提到 for 外（同 InsertDungeonEntrance 的 ORIG 槽序）。
     std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
-    for (; it != m_inoutMap.end(); ++it)
+    std::map<int, STDungeonInoutCnt>::iterator e = m_inoutMap.end();
+    for (; it != e; ++it)
     {
         **guard << it->first;
         **guard << it->second.m_total;       // 节点 +0xc
         **guard << it->second.m_curInside;   // 节点 +0x10
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
-    for (std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
-         it != m_inoutMap.end(); ++it)
+    // [L6S3] 第二循环复用同一 it/e：ORIG 0860e516 `lea -0x2c` 临时 + `mov -0x2c→-0x18`
+    // 拷贝 = 赋值形 `it = m_inoutMap.begin()`（N86，4.1 不做 copy-elision）；
+    // 探针 /tmp/probe_slot.cpp f2 逐条复现该槽与形态。
+    for (it = m_inoutMap.begin(); it != e; ++it)
         it->second.m_total = 0;
     return 1;
 }

@@ -199,6 +199,11 @@ namespace DATABASE
 //   残余=槽组整体平移（ORIG escName -0x5c / spill -0xac..-0x7c vs 4.4 -0x98/-0x58..，
 //   N82/N95 槽分配策略）+ maxHP/maxMP 无槽（ORIG 用 %esi/%edi）+ insert 返回值尾部
 //   双 return 块序（ORIG Bfalse-ret0 在前，4.4 恒 Btrue-ret1 在前，N93附）。语义闭合。
+// [S5-2026-09-11 复攻] gap −2→**0**（195→193，ndiff 154→144）：删 maxHP/maxMP 两个
+//   具名局部（ORIG 0x0818b168 `mov 0x26(%eax),%esi` / 0x0818b223 `mov %esi,0x18(%esp)`
+//   实证无槽、寄存器直传），实参位直接展开 SIG_ATTR ⇒ 4.4 亦不再建槽往返（P0 正例）。
+//   残余 `je`(ORIG)/`jne`(OURS) 1 条 = N93附 尾块序；槽组平移 = N82/N95（编译器分配
+//   策略差：ORIG push %esi/%edi 保活、4.4 用栈槽）。语义闭合。
 #include "ARAD_Database/arad_sp_create_character.inc"
 {
     if (arad_sp_create_character_check(db, sig) != 0)
@@ -241,9 +246,6 @@ namespace DATABASE
     unsigned int magAtk  = SIG_ATTR(sig, m_magAtk);                          // -0x74
     unsigned int phyDef  = SIG_ATTR(sig, m_phyDef);                          // -0x70
     unsigned int phyAtk  = SIG_ATTR(sig, m_phyAtk);                          // -0x6c
-    unsigned int maxMP   = SIG_ATTR(sig, m_maxMP);      // %u（ORIG 无槽，寄存器直传）
-    unsigned int maxHP   = SIG_ATTR(sig, m_maxHP);      // %d（ORIG 无槽，寄存器直传）
-
     int ret = db->insert(
             "inSert into charac_info "
             "( m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,phy_defense,mag_attack,"
@@ -256,7 +258,7 @@ namespace DATABASE
             escName,
             static_cast<int>(static_cast<char>(sig->m_slot)),            // +0x22
             static_cast<int>(static_cast<char>(sig->m_ssnCheckFail)),    // +0x534c
-            maxHP, maxMP, phyAtk, phyDef, magAtk, magDef,
+            SIG_ATTR(sig, m_maxHP), SIG_ATTR(sig, m_maxMP), phyAtk, phyDef, magAtk, magDef,
             elementResist, specProperty,
             invenWt, hpRegen, mpRegen, moveSpd, atkSpd, castSpd, hitRecov, jump,
             chaWt, maxFatigue, expertJob);
@@ -302,6 +304,9 @@ namespace DATABASE
 //   实测 TU 四数零变化（63/130/0/6），dest 装载序未翻 ⇒ 维持 N 判词 | ORIG 0x0818b299
 //   `lea -0x4162(%ebp),%eax; mov $0x4152,%edx; mov %edx,0x8(%esp); movl $0x0,0x4(%esp);
 //   mov %eax,(%esp); call memset@plt`。
+// [S5-2026-09-11 复核] 维持 N：ORIG 的 `mov $imm,%edx; mov %edx,0x8(%esp)` 常量经寄存器
+//   中转是 4.1 风格（4.4 恒直出 `movl $imm,0x8(%esp)`），源码侧无旋钮（字面量/&arr[0]/
+//   sizeof 三形已试）；gap +1 = ORIG 独有段，判 N 不硬啃。SQL 串逐字节命中 ORIG。
 #include "ARAD_Database/arad_sp_create_inven.inc"
 {
     static const unsigned int kInvenSrcLen = sourceInvenSize;   // ORIG 背包快照长度
@@ -488,6 +493,12 @@ namespace DATABASE
 // 残余（语义等价）：①col 清零与 -0xc0 槽的先后（ORIG -0xc 先）；②成员取址
 //   `lea 0xc0(%eax),%edx` vs 4.4 `add $0xc0,%eax`（N107 六形探针全败）；③实参装载序
 //   （P75，ORIG 先读 col 再压常量/参数）⇒ 净 3 条。语义闭合。
+// [S5-2026-09-11 复攻] gap −3→**0**（356→353，ndiff 75→66）：①删 snprintf 两处
+//   `static_cast<int>`（直接传 unsigned，变参提升等价）⇒ 消 1 条 mov；②出生年两臂
+//   `(int)fssn + 2000/1900`（int 域加法）⇒ 4.4 由 `add $imm,%eax; mov %eax,%edx`
+//   翻成 ORIG `lea imm(%eax),%edx`，消 2 条 mov（重定基址）。负结论：`++col` 拆成
+//   `++col; get_uint(col,…)` 实测零变化（4.4 仍先算 arg3 再读 col）⇒ 已回滚；
+//   余下 3 处 lea↔add 为纯 N107（4.1 lea/4.4 add 风格差），源码不可择。
 #include "ARAD_Database/arad_sp_select_account_info.inc"
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
@@ -572,18 +583,18 @@ namespace DATABASE
     data->m_hangameUser =
         static_cast<unsigned char>(hangameFlag == 1 ? 1 : 0);
     OS_API::snprintf(data->m_birth, 0x10, "%d%d",   // +0x2284
-                     static_cast<int>(fssn), static_cast<int>(sssn));
+                     fssn, sssn);
     // ORIG 0x0818bcf1：先 fssn/=10000、sssn/=1000000（mul/shr 常量除法），
     // 再 sssn > 2 → year=fssn+2000(0x7d0)，否则 year=fssn+1900(0x76c)。
     fssn = fssn / 10000;
     sssn = sssn / 1000000;
     if (sssn > 2)
     {
-        data->m_birthYear = fssn + 2000;
+        data->m_birthYear = static_cast<int>(fssn) + 2000;
     }
     else
     {
-        data->m_birthYear = fssn + 1900;
+        data->m_birthYear = static_cast<int>(fssn) + 1900;
     }
     return 0;
 }
@@ -929,8 +940,11 @@ namespace DATABASE
 }
 
 // ORIG 0x0818c8b8：dnf_event_entry 全量装载到 vector<tagDNFEventEntry>。
+// [S5-2026-09-11] §6.5 prett：ORIG 串为 `…arad_sp_load_event_entry(SIG_LOGIN_DATA*,
+//   DB_Login::vecDNFEventEntry_t&)`（typedef 拼写）⇒ 第2参由展开型改 typedef 型，
+//   串逐字节命中；余 `static ` 前缀同一结构性报告（见 premium 处）。
 #include "ARAD_Database/arad_sp_load_event_entry.inc"
-    SIG_LOGIN_DATA* data, std::vector<DB_Login::tagDNFEventEntry>& out)
+    SIG_LOGIN_DATA* data, DB_Login::vecDNFEventEntry_t& out)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   static_cast<ENUM_SERVER_GROUP>(0));
@@ -1080,9 +1094,14 @@ namespace DATABASE
 //   `mov %edx,K(%ecx,%eax,1)`（N4/N107 寻址折叠 + 值/基址寄存器互换）+ 循环条件
 //   `&&` 短路物化侧（ORIG 物化第一条件 seta vs 4.4 物化第二条件，P197④/N 族；
 //   德摩根形实测不变）。语义等价。
+// [S5-2026-09-11 复攻] §6.5 串：SQL 串逐字节命中 ORIG（`seLect pre_type,…`）；
+//   prett 第4参拼写还原为 `vecPremiumRemoveInfo_t`（ORIG 串实证，见 .rodata 比对）；
+//   余 `static ` 前缀 + 第3参 `IntVector&` 需改 .h（class→namespace；全局 typedef
+//   IntVector 本仓缺失）⇒ 上游报告，不在本 TU 写域。gap −1 / ndiff 17 维持（N 族：
+//   ORIG `seta;test;jne` vs 4.4 `jbe` 循环条件物化侧）。
 #include "ARAD_Database/arad_sp_select_member_premium.inc"
     SIG_LOGIN_DATA* data, DB_Login::tagDNFEventEntry& entry,
-    std::vector<int>& removeList, std::vector<int> removeScratch)
+    IntVector& removeList, vecPremiumRemoveInfo_t removeScratch)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   static_cast<ENUM_SERVER_GROUP>(0));

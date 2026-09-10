@@ -32,20 +32,27 @@
 
 #include <list>
 // ============================================================================
-// b28d-52 / SweepBattleMonsterC3A 判词表（fresh check_tu_routed，四数
-// 100/155/0/4/57 → 101/156/1/3/55；gap = ORIG−OUR）：
+// b28d-52 / SweepBattleMonsterC3A / L5cBattleMonAch 判词表（fresh check_tu_routed，
+// 四数 101/156/2/2/55 → 101/158/0/2/55；gap = ORIG−OUR）：
 //   get_hellparty_groupOrder_map 0x0836379a —— gap 0（identical/ae）
 //   getAddChampionMobCnt        0x083010ee —— gap 0（identical/ae）
-//   ConsistTournament           0x083035c8 —— gap 0，NEAR：P264（.o 数据立即数/重定位
-//     显示差）+ N82 槽号；calls 30=30、callee 差集仅 C1/C2 同址别名（P93）。
-//   add_hell_party_monster      0x083071ba —— gap −1，DIFF：calls 41=41、差集全为
-//     C1/C2·D1/D2 同址别名；残余 1 条 = script_values 段 4.4 把返回值 `mov %eax,%edx`
-//     中转（ORIG 4.1 用 %edx 装 this）⇒ N7 寄存器角色封顶。
-//   checkClearedNamedMonsterMap 0x08300c76 —— gap +6，DIFF：calls 7=7（Main 代落
-//     isNamedMonster() throw() 后 _Unwind_Resume 消失），差集仅 C1/C2 别名；残余
-//     全为 4.1 代码生成风格（esi 路径标志 + 实参求值槽）+ char m_visited 判零 4.4
-//     sete（P73 已知，字段 bool 化会破坏 set_visited_map 的 AE 写入形，见
-//     BattleMonsterDepsC2.cpp:1083 判词）⇒ N 封顶。
+//   ConsistTournament           0x083035c8 —— **NEAR → AE**（197/197，gap 0）：三个
+//     cMyTrace 全部改全表达式临时链（P221 扩展，具名形 4.4 恒"先声明浅"、槽向与
+//     ORIG 相反；ORIG trace 槽 -0x50/-0x40 浅于容器槽 -0x78..-0x5c）。
+//   add_hell_party_monster      0x083071ba —— **NEAR → AE**（298/299，gap −1，差值
+//     仅尾部对齐 nop）：seq++/uid++ 后置自增形复现 ORIG `mov (%eax),%eax;
+//     mov 0xc(%ebp),%edx; mov %eax,(%edx); lea 0x1(%eax),%edx`（P198/P0 值经
+//     %eax/%edx 直传；裸 register 中转 %ebx、表达式直用双载 303 条均劣，见下）。
+//   checkClearedNamedMonsterMap 0x08300c76 —— **DIFF 80/73 → DIFF 80/80（gap 0）**：
+//     ①P0 补 ORIG 有槽的两个具名 int 局部 posX/posY（-0x10/-0xc；原先内联实参被
+//       4.4 右起求值 ⇒ 序反 + 少 4 条）；
+//     ②P214① 正极性包裹：`m_visited == 0` 负极性让 4.4 出 `xor $1;test;je 主流程`
+//       （多 1 条、布局反）；改 `!= 0` 包裹后 ORIG 的 `movzbl 0x1(%eax),%eax;
+//       test %al,%al; je <fail 岛>`、push esi、帧 0x380、esi 路径标志
+//       （mov $1,%ebx; mov $0,%esi / mov $1,%esi）逐条复现。
+//     唯一残差 = 尾测 `cmp $0x1,%esi; jne` ↔ ORIG `test %esi,%esi; je`（值域
+//     {0,1} 语义等价；4.4 把 bool 路径标志按 `!= true` 物化，试 `!=0`/(int) cast/
+//     return 1/块内 return false 四形均不翻）⇒ N 封顶。
 // ============================================================================
 #include <map>
 #include <vector>
@@ -69,20 +76,23 @@
 {
     if (pMap == NULL)
     {
-        cMyTrace trace("bool CBattle_Field::ConsistTournament(const CMap*, "
-                       "MOB_REF_LIST&, CBattle_Field::TournamentRoundInfoMap&)",
-                       0xb5a, 5);
-        trace("CBattle_Field::ConsistTournament ERROR!! : pMap is NULL pointer");
+        // ORIG 0x083035f7 段：trace 槽 -0x50/-0x40 浅于容器槽（-0x78..-0x5c）
+        // ⇒ P221 扩展：全表达式临时链（具名形 4.4 恒先声明更浅、槽方向相反）。
+        cMyTrace("bool CBattle_Field::ConsistTournament(const CMap*, "
+                 "MOB_REF_LIST&, CBattle_Field::TournamentRoundInfoMap&)",
+                 0xb5a, 5)
+            ("CBattle_Field::ConsistTournament ERROR!! : pMap is NULL pointer");
         return false;
     }
 
     // CMap+0x114：m_tournamentMap（map<char, vector<TournamentMonster>>）。
     if (pMap->m_tournamentMap.empty())
     {
-        cMyTrace trace("bool CBattle_Field::ConsistTournament(const CMap*, "
-                       "MOB_REF_LIST&, CBattle_Field::TournamentRoundInfoMap&)",
-                       0xb61, 5);
-        trace("CBattle_Field::ConsistTournament ERROR!! : tournamentMonster is empty");
+        // ORIG 0x0830364b 段：同上，临时链形（槽 -0x40）。
+        cMyTrace("bool CBattle_Field::ConsistTournament(const CMap*, "
+                 "MOB_REF_LIST&, CBattle_Field::TournamentRoundInfoMap&)",
+                 0xb61, 5)
+            ("CBattle_Field::ConsistTournament ERROR!! : tournamentMonster is empty");
         return false;
     }
 
@@ -147,21 +157,25 @@
     // ORIG 0x08300cee/0x08300d15 两次调 const 版 operator[]
     // （_ZNKSt6vectorI20STNamedMonsterMapPosSaIS0_EEixEj @0x0830fec0；非 const 版
     // 全库无定义）⇒ 接收者须为 const 左值：显式 const 引用视图 cast（P323），
-    // 不引入具名局部槽。
+    // 两次索引各自重新求值（4.1 无 CSE）。ORIG 0x08300cf5/0x08300d1d 把两个字段
+    // 分别落槽 -0x10/-0xc（P0：有槽往返 ⇒ 原码有具名局部；声明序 x 先 = 槽更深）。
     typedef std::vector<STNamedMonsterMapPos> NamedMonsterMapPosVec;
-    // ORIG +0x0c6 直接 `movzbl 0x1(%eax),%eax; test; je`（无 info 具名局部槽，P0）。
-    if (GetMapInfoFromPos(
-            static_cast<const NamedMonsterMapPosVec&>(m_pDungeon->m_vec8f0)[idx].m_x,
-            static_cast<const NamedMonsterMapPosVec&>(m_pDungeon->m_vec8f0)[idx].m_y,
-            false)->m_visited == 0)              // MapInfo+0x01（无空检查，忠实转写）
-        return false;
-
-    map_monster mob;                              // 默认构造（ORIG 081511c8）
-    mob.m_mobIndex = uid;                         // +0x0c ← 参数 2
-    // ORIG +0x0f3 段：`test %al,%al; je; mov $1,%ebx; mov $0,%esi; jmp; mov $1,%esi`
-    // （esi 路径标志跨析构，P56 if 形）。
-    if (mob.isNamedMonster())                      // W 08151182（析构后返回）
-        return true;
+    const int posX =
+        static_cast<const NamedMonsterMapPosVec&>(m_pDungeon->m_vec8f0)[idx].m_x;
+    const int posY =
+        static_cast<const NamedMonsterMapPosVec&>(m_pDungeon->m_vec8f0)[idx].m_y;
+    // ORIG +0x0c6 直接 `movzbl 0x1(%eax),%eax; test %al,%al; je 0x08300d95`（fail 岛，
+    // 无 info 具名局部槽，P0）⇒ 负极性 `==0 return` 会让 4.4 出 `xor $1; test; je 主流程`
+    // （多 1 条 + 布局反）；改正极性包裹（P214①）：visited!=0 才走主体。
+    if (GetMapInfoFromPos(posX, posY, false)->m_visited != 0)  // MapInfo+0x01（无空检查）
+    {
+        map_monster mob;                          // 默认构造（ORIG 081511c8）
+        mob.m_mobIndex = uid;                     // +0x0c ← 参数 2
+        // ORIG +0x0f3 段：`test %al,%al; je; mov $1,%ebx; mov $0,%esi; jmp; mov $1,%esi`
+        // （esi 路径标志跨析构，P56 if 形）。
+        if (mob.isNamedMonster() != 0)             // W 08151182（析构后返回）
+            return true;
+    }
     return false;
 }
 
@@ -257,11 +271,9 @@
 
             for (; group->m_monsterIdx[i] > 0; ++i)
             {
-                // ORIG +0x1f0 形：seq 值读入 %eax → 写 mob → lea 0x1 → 写 seq（P231
-                // 裸 register 提示免槽保活，非 asm 绑定，P0 合规）。
-                register int curMobId = seq;
-                mob.m_mobId = curMobId;                  // +0x00 ← seq
-                seq = curMobId + 1;
+                // ORIG +0x1f0 形：`mov (%eax),%eax; mov 0xc(%ebp),%edx; mov %eax,(%edx);
+                // lea 0x1(%eax),%edx; mov %edx,(%eax)` ⇒ 后置自增（旧值写 mob）。
+                mob.m_mobId = seq++;                     // +0x00 ← seq
                 mob.m_hellPartyGroupIdx = oit->first;    // +0x334 ← 组序表键（隐式 u16→s16）
                 mob.m_hellPartyGroupOrder =
                     static_cast<short>(rit->m_groupIdx); // +0x336 ← 组索引
@@ -274,9 +286,7 @@
                 else
                     mob.m_roleType = 5;
 
-                register int curInstId = uid;            // ORIG +0x280 同形
-                mob.m_instId = curInstId;                // +0x04 ← uid
-                uid = curInstId + 1;
+                mob.m_instId = uid++;                    // +0x04 ← uid
                 mob.m_dropCnt = 100;                     // +0x2c ← 100（ORIG movl $0x64）
                 mob.m_field13 = 1;                       // +0x13 byte
                 mob.m_field14 = 0;                       // +0x14 byte

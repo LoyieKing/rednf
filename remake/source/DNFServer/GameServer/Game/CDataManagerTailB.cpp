@@ -102,6 +102,23 @@
 //   残余：4.1 多路径 jmp+nop 汇合块（ORIG jcc 103 vs 我方 95）、P197④ setcc 物化、
 //   N18a lea/add、N122 bool 取反 xor（我方 2 处 vs ORIG 1 处）、else 分支
 //   `cmp $0x22` 被 4.4 DCE（P171 死比较跨版本前端差）。
+// [l5f 2026-09-11 · 二轮] ①§4.3 裸偏移具名化：CSkill::m_fieldC8（+0xc8）、
+//   Quest::{m_fieldB8(+0xb8), m_index(+0x04)×4, m_titleReward(+0xc4),
+//   m_selectReward(+0xd0), m_fieldDC(+0xdc), m_rewardItems(+0xec)} —— ORIG disp
+//   折叠形对齐（raw 1167→1161）。CMonster+0x58/+0x5c 的 m_independentDropCount/
+//   m_catchItemCount 虽已具名（CMonster.h:50/51）但为 **private**（编译实证
+//   02:45 报错）⇒ 本 TU 无法具名访问；.h 项按纪律只报告：建议属主提 public 或
+//   加 const getter（零布局影响），届时本处两行可同批具名化。
+//   ②槽集合对比（报告级）：ORIG 91 槽 / 我方 96 槽，主体为**恒定 0xc 平移**
+//   （ORIG -0x54/-0x58/-0x5c ↔ 我方 -0x60/-0x64/-0x68，bool 汇聚槽 -0x6a↔-0x6b），
+//   帧 ORIG `sub $0x1abc`+push edi/esi/ebx vs 我方 `sub $0x1ab0`+push esi/ebx
+//   （T=sub+4×push 差 0x10=4 具名对象；push edi 属 4.4 寄存器压力，P332 源级不可
+//   诱导）⇒ 按 §6.2 三件套判 N82/N126 封顶：gap 13、p167 166=166 CLEAR、槽位集恒差；
+//   勿用 pad/volatile 强凑（P182/P332 反例）。
+//   ③负结论（GI 假缺口，Main 2026-09-11 广播）：本 TU 的
+//   `_Z41__static_initialization_and_destruction_0ii` 读数为工具**按名错配**
+//   （ORIG 493 个实例，工具取首个 0x0807ee76 属 PacketTypes TU）⇒ 逐 TU 该件
+//   读数不可比；我方 16 条 `std::ios_base::Init`+`__cxa_atexit` 形正确，零改动。
 #include "CDataManagerTailB/Verify.inc"
 {
     // [ORIG +0x0008..+0x0027] 空循环照抄（ORIG 保留 i∈[1,0xc6) 死循环体）
@@ -130,7 +147,9 @@
         {
             // 【ORIG asm 08360f12/08360f15: mov 0x4(%eax),%eax; mov 0xc8(%eax),%eax】
             // ORIG 无 skill/sp 具名局部（P0：无槽往返 ⇒ 表达式直读；P335 消 P 对）。
-            if (*(const int*)((const char*)it->second + 0xc8) == 0)
+            // [l5f 2026-09-11 · §4.3] CSkill+0xc8 已在权威头具名（CSkill.h:121
+            // m_fieldC8），裸偏移转具名成员（ORIG disp 折叠形）。
+            if (it->second->m_fieldC8 == 0)
             {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x272e, 9, true, true);
                 trace("Skill [required level range] tag value error "
@@ -296,18 +315,20 @@
             Quest* quest = qit->second;
 
             // 【ORIG asm 083618aa: mov 0xb8(%eax)】quest 类型/tag 字段
-            // ORIG 无 qp 具名局部（P0）：按 quest 指针直接偏移访问。
-            const int state = *(const int*)((const char*)quest + 0xb8);
+            // [l5f 2026-09-11 · §4.3] Quest+0xb8 已在权威头具名（Quest.h:444
+            // m_fieldB8）；ORIG 无 qp 具名局部（P0）⇒ 表达式直读。
+            const int state = quest->m_fieldB8;
             if (state != 0 && state != 0x19)
             {
                 continue;
             }
 
             // 【ORIG +0xc4/+0xd0】两段 RewardItemInfo 奖励向量（当前 Quest.h
-            // 未建模此区布局，按 ORIG 偏移访问）
+            // [l5f 2026-09-11 · §4.3] 已具名：m_titleReward(+0xc4)/
+            // m_selectReward(+0xd0)/m_fieldDC(+0xdc)/m_rewardItems(+0xec)。
             {
                 std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<std::vector<RewardItemInfo>*>(reinterpret_cast<char*>(quest) + 0xc4);
+                    quest->m_titleReward;
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -319,14 +340,14 @@
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27a1, 5);
                         trace("Quest reward item element not found "
                               "(quest: %d)(item: %d)",
-                              *(const int*)((const char*)quest + 0x04), it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
+                              quest->m_index, it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
             }
             {
                 std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<std::vector<RewardItemInfo>*>(reinterpret_cast<char*>(quest) + 0xd0);
+                    quest->m_selectReward;
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -338,7 +359,7 @@
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27ac, 5);
                         trace("Quest reward select item element not found "
                               "(quest: %d)(item: %d)",
-                              *(const int*)((const char*)quest + 0x04), it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
+                              quest->m_index, it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
@@ -346,7 +367,7 @@
             // 【ORIG +0xdc】collision quest 列表（vector<int>）
             {
                 std::vector<int>& v =
-                    *reinterpret_cast<std::vector<int>*>(reinterpret_cast<char*>(quest) + 0xdc);
+                    quest->m_fieldDC;
                 for (std::vector<int>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -355,7 +376,7 @@
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27cd, 5);
                         trace("Quest reward collision quest element now found "
                               "(quest: %d)(collision quest: %d)",
-                              *(const int*)((const char*)quest + 0x04), *it);  // 【ORIG asm 08361b7e: quest+0x04】
+                              quest->m_index, *it);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
@@ -363,7 +384,7 @@
             // 【ORIG +0xec】collision item 向量（RewardItemInfo）
             {
                 std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<std::vector<RewardItemInfo>*>(reinterpret_cast<char*>(quest) + 0xec);
+                    quest->m_rewardItems;
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -375,7 +396,7 @@
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27da, 5);
                         trace("Quest reward collision item element not found "
                               "(quest: %d)(item: %d)",
-                              *(const int*)((const char*)quest + 0x04), (*it).m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
+                              quest->m_index, (*it).m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
@@ -391,7 +412,11 @@
                  it != m_monsterManager->m_monsterMap.end(); it++)
             {
                 CMonster* mon = it->second;
-                // ORIG 无 mp 具名局部（P0）：按 mon 指针直接偏移访问。
+                // [l5f 2026-09-11 · §4.3 报告项] CMonster+0x58/+0x5c 虽已具名
+                // （CMonster.h:50/51 m_independentDropCount/m_catchItemCount）但为
+                // private：本 TU 无法具名访问（编译实证 2026-09-11 02:45）。
+                // 建议属主把二者提为 public 或加 const getter（零布局影响），
+                // 本件在此之前保持按 ORIG 偏移直读（ORIG 无 mp 具名局部，P0）。
                 const int lvA = *(const int*)((const char*)mon + 0x58);  // 【ORIG asm +0x10de】
                 const int lvB = *(const int*)((const char*)mon + 0x5c);  // 【ORIG asm +0x10db】
                 if (lvA < 1 || 200 < lvA || lvB < 1 || 200 < lvB)
@@ -464,8 +489,12 @@
             {
                 dst[out++] = (char)*p;
                 dst[out++] = (char)p[1];
-                ++i;  // 双字节多消耗一个输入位（asm +0x1b4 处额外自增）
             }
+            // [l5f 2026-09-11 · 真语义修复] ORIG 0x08362ddf 的 addl $1,-0x10(%ebp)
+            // 在 find 判定**之外**（`je 08362ddf` 与 fall-through 同落该点）⇒
+            // 双字节字符无论是否命中跳过表都消耗 2 字节；旧码把 ++i 写在 if 体内
+            // ⇒ 未命中时只前进 1 字节（第二字节被当新字符处理），行为分叉。
+            ++i;  // 双字节多消耗一个输入位（asm +0x1bd 额外自增，与循环尾 +0x1c1 合计 2）
         }
     }
     dst[out] = '\0';
@@ -524,6 +553,11 @@
 //   槽位全对齐（sub $0x30、prefix -0x25、i -0x10、entryLen -0xc），仅余 4.4.6
 //   对 i*0x1e 索引展开的寄存器选择（`mov %edx,%ecx; sub; mov` vs `sub %eax,%edx`）
 //   与 `lea 0x190(%edx)` 折成 `mov+add` 共 2 处 4 条；p167 3=3 CLEAR。
+//   [l5f 2026-09-11 · 探针复核] /tmp/probe_hp.cpp 四形实测（f1 `&arr[i*0x1e]`＝
+//   当前形、f2 数组名退化+指针加法、f4 十进制常量 i*30、f6 `0x1e*i` 乘法交换）
+//   产物**逐条全同**：`mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; add $0x190,%eax`
+//   ⇒ 4.4.7 后端寄存器选择（4.1 为原地 `sub %eax,%edx` + `lea 0x190(%edx),%eax`），
+//   源形不可择 ⇒ 封 N18a（与旧判词同向，本次给出四形实证）。ORIG 0x08363620 段。
 //   ORIG 0x0836360c。
 #include "CDataManagerTailB/hasPreventPrefixCharacName.inc"
 {

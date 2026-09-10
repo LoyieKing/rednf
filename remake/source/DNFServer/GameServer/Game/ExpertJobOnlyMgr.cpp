@@ -365,6 +365,10 @@ namespace expert_job
     // 20→19），正向包裹为最优形（残差仅块序，见函数头判词）。
     // [2026-09-10 复测] 显式 `else { return 0x13; }` 形实测无效（仍 202/201，
     // 4.4 把 else 出口排到函数尾 landing pad 之后）⇒ 块序属 N93附/N121 族。
+    // [L3Free25to36 2026-09-11 复核·负结论] 唯一残差 = ORIG 0x085d38e4/0x085d38ee
+    // 两个**相邻**返回块（`mov $0xe,%ebx; jmp 尾` + `mov $0x13,%ebx; jmp 尾`，各带
+    // jmp）vs 我方 0x13 块被 4.4 排到 EH/尾落地区并共用尾 jmp（-1 条）。属块序+尾
+    // jmp 合并，非语义差（两侧 0x13 出口同效）；记 N121。
     if (it != GetEtcScript()->m_levelMap.end())
     {
         // ORIG 0x085d38c9 先取 it->second（movzwl+movswl→%ebx）再调
@@ -568,6 +572,14 @@ namespace expert_job
 // 残差：帧 0x60 vs ORIG 0x6c（4.4 带 call 帧恒 16k 量化，N115/P190②不可凑）+
 // 缺 push %edi（ORIG 用 %edi 存 &user->m_historyLog，4.4 用 %esi）⇒ 全帧槽号
 // 整体差 0x10；callee-saved 角色互换（N7/N82附）。指令集合/调用点全等。
+// [L3Free25to36 2026-09-11 复核·负结论] 逐槽核账：两侧**槽使用计数表完全相同**
+// （16/2/3/9/5/5/2/6/2/2 次）且相对间距全等（packet 对象 0xc、其后各槽间距一致）
+// ⇒ 局部变量集与物化点一致，唯一差异是整体 0x10 平移 + `push %edi`（ORIG idx2，
+// 我方无）。另核：ORIG 该件帧 0x6c 用 4 个 push（16B）、我方 0x60 用 3 个（12B），
+// %.esp 对齐两侧均满足 ⇒ 「16k 量化」不是帧差主因，真正缺的是 ORIG 在 %ebp 与首个
+// 被引用槽之间的 16B 不可见分配（-0x1c..-0x4 无任何 %ebp 引用）。
+// 试形记录：补 16B 死成员会令帧 0x60→0x70（>ORIG 0x6c）且仍无 `push %edi`，
+// 属布局产物、无源形可择 ⇒ 维持封顶（N115/N7）。
 #include "ExpertJobOnlyMgr/OnEnchantByBead.inc"
                                    int param4, int ringSlot)
 {
@@ -775,20 +787,31 @@ namespace expert_job
 
         // 删除双树技能（[skill] 表 first = skillIdx）。ORIG 每轮**两次**
         // operator[] + 两次 getCurCharacSkillW（P48 逐点重取，无具名 skillIdx）。
+        // [L3Free25to36 2026-09-11 **真语义 bug 修复**] 实参序为 (job, skillIdx)：
+        //   ①ORIG 0x0849e9ef-0x0849ea0f：`mov (%eax),%esi`（先取 vector[i].first）
+        //     → `call get_charac_job; mov %eax,%ebx` → `call getCurCharacSkillW`
+        //     → `movl $0,0xc(%esp); mov %esi,0x8(%esp); mov %ebx,0x4(%esp)`，
+        //     即 param1=job(%ebx)、param2=skillIdx(%esi)；
+        //   ②callee 语义直证：`_ZN10CSkillList10find_skillEii` 0x08351b74
+        //     `cmpl $0xa,0xc(%ebp); jle → return 0` + `param1*0x14 + this` 取 hash_map
+        //     组、`hash_map.find(&param2)` ⇒ **param1 = 职业组号(job)**，param2 = 技能 id；
+        //     全仓其余调用点亦均为 `find_skill(get_charac_job(), skillId)`。
+        //   ⇒ SkillSlot.h:290 / SkillSlot.cpp:925 的形参命名 (skillIdx, job) 与 ORIG
+        //     相反；本 TU 按 ORIG 实参序调用（我方链 find_skill(job, idx) 与 ORIG 同效）。
         for (unsigned int i = 0; i < (unsigned int)script->m_growSkillVec.size();
              ++i)
         {
             ((SkillSlot*)user->getCurCharacSkillW())->delete_skill(
-                script->m_growSkillVec[i].first, user->get_charac_job(),
+                user->get_charac_job(), script->m_growSkillVec[i].first,
                 (ENUM_SKILL_TREE_KIND)0);
             ((SkillSlot*)user->getCurCharacSkillW())->delete_skill(
-                script->m_growSkillVec[i].first, user->get_charac_job(),
+                user->get_charac_job(), script->m_growSkillVec[i].first,
                 (ENUM_SKILL_TREE_KIND)1);
         }
         user->send_skill_info();
 
         user->LogHistory("ExpertJob-,%d,%d,%d", user->get_charac_level(),
-                         user->GetCurCharacExpertJobType(), (int)giveupCount);
+                         user->GetCurCharacExpertJobType(), giveupCount);
         user->SetCurCharacExpertJobType(0);
         user->SetCurCharacExpertJobExp(-1);
 
@@ -881,6 +904,12 @@ namespace expert_job
                     continue;
                 // [b23S3C] P197③/P198①：ORIG 0x0832b556 先 `movl $0x0,-0xc(%ebp)`
                 // 再 GetRecipeInfo ⇒ 两句式。
+                // [L3Free25to36 2026-09-11 负结论] 本件唯一残差 = ORIG 0x0832b57d
+                // `cmpl $0x0,-0xc(%ebp); sete %al; test %al,%al; jne <continue>`（3 条，
+                // 指针 ==0 的**未折** lowering）vs 4.4.6 恒 `je <continue>`（1 条）。
+                // 试形：`if (!info)`（P168 族）实测同产 `je`，零变化；同 TU 内 ORIG 对
+                // `p != 0`（OnEnchantByBead 0x0849ed52 `cmpl $0; jne`）**折**直跳
+                // ⇒ 4.1 对 `ptr == 0` 独有的 setcc 物化，无源形可造，记 N96 附。
                 stRecipeInfo* info = 0;
                 info = script->GetRecipeInfo(i);
                 if (info == 0)

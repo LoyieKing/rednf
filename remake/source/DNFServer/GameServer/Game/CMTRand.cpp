@@ -99,17 +99,28 @@ static const unsigned long MT_MATRIX_A = 0x9908b0dfUL;
 //   （%ebx=this、%esi=kk=0xe3）；我方 81 条（register kk 后 83→81）⇒ N82 槽/寄存器族。
 #include "CMTRand/reload.inc"
 {
-    // [round3-L29] P231：ORIG 以 %esi 承载 kk（`mov $0xe3,%esi`），纯 register 复现。
-    register int kk;
-    for (kk = 0; kk < MT_N - MT_M; ++kk)
+    // [L6 #61-75 CMTRand 2026-09-11] ORIG 0x080cbb98-0x080cbc2b 为**指针遍历**：
+    //   %ebx = p（初值 this，每轮 `add $0x4,%ebx`）、%esi = 递减计数；
+    //   实参 `lea 0x4(%ebx),%edx`(p[1]) / `mov %ebx,0x8(%esp)`(*p) /
+    //   `lea 0x634(%ebx),%eax`(p[MT_M]，第二循环 `lea -0x38c(%ebx)` = p[MT_M-MT_N])。
+    // 索引形（旧）每轮产 lea/shl/add×3 ⇒ 多 22 条（81 vs 59）。按 ORIG 改指针形。
+    register unsigned long* p = m_mt;
+    // ORIG 0x080cbbc7 尾测为「`test %esi,%esi; setne %al; sub $0x1,%esi; test %al,%al`」
+    // ⇒ `while (kk-- != 0)`；第二循环 0x080cbbff 为「`sub $0x1,%esi; test %esi,%esi`」
+    // ⇒ `while (--kk != 0)`（递减计数，非 for 递增）。
+    register int kk = MT_N - MT_M;
+    while (kk-- != 0)
     {
-        m_mt[kk] = twist(m_mt[kk + MT_M], m_mt[kk], m_mt[kk + 1]);
+        *p = twist(p[MT_M], *p, p[1]);
+        ++p;
     }
-    for (; kk < MT_N - 1; ++kk)
+    kk = MT_M;
+    while (--kk != 0)
     {
-        m_mt[kk] = twist(m_mt[kk + MT_M - MT_N], m_mt[kk], m_mt[kk + 1]);
+        *p = twist(p[MT_M - MT_N], *p, p[1]);
+        ++p;
     }
-    m_mt[MT_N - 1] = twist(m_mt[MT_M - 1], m_mt[MT_N - 1], m_mt[0]);
+    *p = twist(p[MT_M - MT_N], *p, m_mt[0]);
 
     m_left = MT_N;
     m_next = m_mt;
@@ -196,13 +207,35 @@ static const unsigned long MT_MATRIX_A = 0x9908b0dfUL;
     //   「通用算法类只保证算法正确，不强制 identical」封顶，不计入回归。
     register int i = 1;
     register unsigned long j = 0;
-    register unsigned long k = (key_length >= MT_N) ? key_length : MT_N;
+    // [L6 #61-75 CMTRand 2026-09-11] ORIG 0x080d9f82-0x080d9f91 为**分支形**：
+    //   `mov 0x10(%ebp),%eax; cmp $0x270,%eax; jae +2; mov $0x270,%eax; mov %eax,%esi`
+    // 三目会让 4.4 产 `cmpl $0x270,0x10(%ebp); cmovae 0x10(%ebp),%esi`（见 diff）。
+    // 按 ORIG 改为「先赋值再 `<` 判断」两句。
+    register unsigned long k = key_length;
+    if (k >= MT_N)
+    {
+        // ORIG 形：`cmp $0x270,%eax; jae` 直接跳过赋值（4.1 正向后跳）
+    }
+    else
+    {
+        k = MT_N;
+    }
 
     for (; k != 0; --k)
     {
-        m_mt[i] = (m_mt[i] ^
-                   ((m_mt[i - 1] ^ (m_mt[i - 1] >> 30)) * 1664525UL)) +
-                  init_key[j] + j;
+        // [L6 #61-75 CMTRand 2026-09-11] 负结论：ORIG 第一循环把 `m_mt[i]` 副本 spill 到
+        //   -0x20(%ebp)（`mov %eax,-0x20(%ebp)` … `mov -0x20(%ebp),%edx`）、把 i 副本
+        //   spill 到 -0x24(%ebp) —— 试补 `unsigned long mti = m_mt[i];` 具名局部，
+        //   4.4 直接折叠（our 116 不变、ndiff 21→69 劣化）⇒ 回滚。属 4.1 表达式槽化族（N82）。
+        m_mt[i] = m_mt[i] ^
+                  ((m_mt[i - 1] ^ (m_mt[i - 1] >> 30)) * 1664525UL);
+        m_mt[i] += init_key[j] + j;
+        // [L6 #61-75 CMTRand 2026-09-11] ORIG 0x080d9fd1-0x080d9fee 为**两条语句**：
+        //   ① `mov -0x20(%ebp),%edx; xor %eax,%edx; mov %edx,(%eax,%ecx,4)`
+        //      （先落 `m_mt[i] ^ (…)`）② `mov (%eax,%ecx,4),%ecx; lea 0x0(,%edi,4),%eax;
+        //      add 0xc(%ebp),%eax; mov (%eax),%eax; add %edi,%eax; add %eax,%ecx;
+        //      mov %ecx,(%eax,%edx,4)`（读回后再 `+= init_key[j] + j`）。
+        // 单表达式合并会让 4.4 折叠成一次 store（少 2 段 store/reload）⇒ 按 ORIG 拆两句。
         ++i;
         ++j;
         if (i >= MT_N)
@@ -218,9 +251,11 @@ static const unsigned long MT_MATRIX_A = 0x9908b0dfUL;
 
     for (k = MT_N - 1; k != 0; --k)
     {
-        m_mt[i] = (m_mt[i] ^
-                   ((m_mt[i - 1] ^ (m_mt[i - 1] >> 30)) * 1566083941UL)) -
-                  i;
+        // [L6 #61-75 CMTRand 2026-09-11] 同第一循环：ORIG 0x080da078-0x080da089 亦为
+        // 两条语句（先 `xor` 落 store，再 `mov (%eax,%ecx,4),%ecx; sub %ebx,%ecx` 读回减 i）。
+        m_mt[i] = m_mt[i] ^
+                  ((m_mt[i - 1] ^ (m_mt[i - 1] >> 30)) * 1566083941UL);
+        m_mt[i] -= i;
         ++i;
         if (i >= MT_N)
         {
@@ -274,6 +309,11 @@ static const unsigned long MT_MATRIX_A = 0x9908b0dfUL;
     {
         // [b28d-L14 实证] ORIG 0x080da1d6 分两句（先 `(hashA<<8)+hashA` 落槽，
         // 再 `add p[i],hashA`），循环变量 unsigned（setbe）。
+        // [L6 #61-75 CMTRand 2026-09-11] ORIG 0x080da1f2-0x080da1fc 为「先算后存」
+        //   （`mov -0x14(%ebp),%edx; mov %edx,%eax; shl $0x8,%eax; add %edx,%eax;
+        //     mov %eax,-0x14(%ebp)`）；实测 `hashA = (hashA<<8)+hashA;` 与
+        //   `hashA = hashA + (hashA<<8);` 在 4.4 下均折叠为单条 `add %eax,-0x14(%ebp)`
+        //   （内存目标 +=，少 2 条）⇒ 4.1 表达式折叠族，4.4 不可复现（N82）。保留原形。
         hashA = hashA + (hashA << 8);
         hashA += p[i];
     }

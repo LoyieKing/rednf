@@ -73,61 +73,77 @@ unsigned int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, Param
     }
     // [DPC_CheckErr·H5核账 2026-09-11] 试形（裸调用替换 `!= false`）实测
     // ours_insns 230→231 劣化，按 codegen 轴纪律回滚，留 N。
-    if (user->CheckInParty() != false && user->get_state() == 3)
+    // [DPC-SigSmall 2026-09-11] 短路轴（SetPVPMapIndex 同族手法）：ORIG
+    // 0x081ca14x `call CheckInParty; ...; call get_state; cmp $0x3,%eax; sete %al;
+    // test %al,%al; je <tail>` —— 第二条件以 **sete 值物化**（非 0/1 岛）；
+    // probe /tmp/dpc_probe2.cpp v4 直证 4.4.6 只在**嵌套 if 内层**出 sete
+    // ⇒ 原码为嵌套 if，旧形 `A && B` 产岛（我方 OURS-only mov/jmp/jne）。
+    if (user->CheckInParty() != false)
     {
-        pCVar5 = static_cast<CParty*>(user->GetParty());
-        if (pCVar5 != 0)
+        if (user->get_state() == 3)
         {
-            // [G5-MiscC] P292 档①：ORIG 0x081ca16f 与 0x081ca181 均为
-            // `call; xor $1,%eax; test %al,%al; je <假岛 0x081ca18f: mov $0,%eax>`
-            // ⇒ 源码是 bool 取反 `!`（原 `== '\x01'` 变体不符，且我原先的
-            // if/else 正条件形亦不符）。两跳同落假岛 ⇒ 判据 = `!A && !B`，
-            // 0x081ca194 `test %al,%al; je 0x240` 即假（A 真或 B 真）跳过 0x15。
-            if (!pCVar5->CheckMemberArea() && !pCVar5->is_quick_party())
+            pCVar5 = static_cast<CParty*>(user->GetParty());
+            if (pCVar5 != 0)
             {
-                local_18->m_8 = 0xffffffff;
-                return 0x15;
-            }
-            // [G5-MiscC] P0/P52：ORIG 0x081ca1c2 的 getHackAnalyzer 结果只在
-            // %eax 上跨实参布局（0x081ca1cd-0x081ca1f4 先直填 0x14/0x10/0xc/0x8(%esp)，
-            // 最后才 `mov %eax,(%esp)` = this 最后求值），无具名槽 ⇒ 内联链式。
-            // [K6-DpcSigSmallCheckErr] 改前形 `excludeAddHackCount(user) != false`
-            // → 改后形裸调用。依据：K6 父泳道已把返回类型 int→bool（ORIG 调用点
-            // 0x081ca1be `call; test %al,%al; je` P292 档①），保留 `!= false` 会继续
-            // 生成 `test %eax,%eax; setne %al; test %al,%al` 三步归一。
-            if (excludeAddHackCount(user))
-            {
-                user->getHackAnalyzer()->addServerHackCnt(
-                    user, static_cast<WongWork::ENUM_HACKTYPE>(0x1f6), 1, 0, 0);
-            }
-            int iVar3b = G_GameWorld()->GetWorldMapIndex(user);
-            if (0 < iVar3b)
-            {
-                CWorldMap* this_00 = G_CDataManager()->m_worldMapList.find_world_map(iVar3b);
-                if (this_00 == 0)
+                // [G5-MiscC] P292 档①：ORIG 0x081ca16f 与 0x081ca181 均为
+                // `call; xor $1,%eax; test %al,%al; je <假岛 0x081ca18f: mov $0,%eax>`
+                // ⇒ 源码是 bool 取反 `!`（原 `== '\x01'` 变体不符，且我原先的
+                // if/else 正条件形亦不符）。两跳同落假岛 ⇒ 判据 = `!A && !B`，
+                // 0x081ca194 `test %al,%al; je 0x240` 即假（A 真或 B 真）跳过 0x15。
+                if (!pCVar5->CheckMemberArea() && !pCVar5->is_quick_party())
                 {
                     local_18->m_8 = 0xffffffff;
                     return 0x15;
                 }
-                // [G5-MiscC] P292 档①：ORIG 0x081ca25a `call; xor $1,%eax;
-                // test %al,%al; je 0x296` ⇒ bool 取反 ⇒ `!IsOpenRevengeDungeon()`
-                // （原 `!= '\x01'` 形不符）。
-                if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
+                // [G5-MiscC] P0/P52：ORIG 0x081ca1c2 的 getHackAnalyzer 结果只在
+                // %eax 上跨实参布局（0x081ca1cd-0x081ca1f4 先直填 0x14/0x10/0xc/0x8(%esp)，
+                // 最后才 `mov %eax,(%esp)` = this 最后求值），无具名槽 ⇒ 内联链式。
+                // [K6-DpcSigSmallCheckErr] 改前形 `excludeAddHackCount(user) != false`
+                // → 改后形裸调用。依据：K6 父泳道已把返回类型 int→bool（ORIG 调用点
+                // 0x081ca1be `call; test %al,%al; je` P292 档①），保留 `!= false` 会继续
+                // 生成 `test %eax,%eax; setne %al; test %al,%al` 三步归一。
+                if (excludeAddHackCount(user))
                 {
-                    // [G5-MiscC] P0/P52：ORIG 0x081ca261 `call getDungeonMinLevel;
-                    // mov %eax,%ebx` + 0x081ca26e `call getMemberMinLevel;
-                    // add $0x6,%eax; cmp %eax,%ebx; setge %al` —— 两结果均无槽
-                    // ⇒ 内联回比较两侧（右值 getDungeonMinLevel 先求值，与 ORIG 序同）。
-                    // [DPC_CheckErr·H5核账 2026-09-11] 试形（翻转比较方向对齐 ORIG
-                    // 先求值序 + setge）并入本件试形，实测 230→231 劣化 ⇒ 回滚。
-                    if (pCVar5->getMemberMinLevel() + 6 <= this_00->getDungeonMinLevel())
+                    user->getHackAnalyzer()->addServerHackCnt(
+                        user, static_cast<WongWork::ENUM_HACKTYPE>(0x1f6), 1, 0, 0);
+                }
+                // [DPC-SigSmall 2026-09-11 二轮·负结论] ORIG 0x081ca1f9 的
+                // `movl $0x0,-0x14(%ebp)` 预清虽可复现（ORIG-only 的 movl 项消失），
+                // 但本件实测 our 226→227、ndiff 10→11 **劣化**（新预清使槽序列错位）
+                // ⇒ 按纪律回滚为单句式（ORIG-only 保留 movl 项）。
+                int iVar3b = G_GameWorld()->GetWorldMapIndex(user);
+                if (0 < iVar3b)
+                {
+                    CWorldMap* this_00 = G_CDataManager()->m_worldMapList.find_world_map(iVar3b);
+                    if (this_00 == 0)
                     {
                         local_18->m_8 = 0xffffffff;
-                        return 0xe;
+                        return 0x15;
+                    }
+                    // [G5-MiscC] P292 档①：ORIG 0x081ca25a `call; xor $1,%eax;
+                    // test %al,%al; je 0x296` ⇒ bool 取反 ⇒ `!IsOpenRevengeDungeon()`
+                    // （原 `!= '\x01'` 形不符）。
+                    if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
+                    {
+                        // [G5-MiscC] P0/P52：ORIG 0x081ca261 `call getDungeonMinLevel;
+                        // mov %eax,%ebx` + 0x081ca26e `call getMemberMinLevel;
+                        // add $0x6,%eax; cmp %eax,%ebx; setge %al` —— 两结果均无槽
+                        // ⇒ 内联回比较两侧（右值 getDungeonMinLevel 先求值，与 ORIG 序同）。
+                        // [DPC_CheckErr·H5核账 2026-09-11] 试形（翻转比较方向对齐 ORIG
+                        // 先求值序 + setge）并入本件试形，实测 230→231 劣化 ⇒ 回滚。
+                        // [DPC-SigSmall 2026-09-11 二轮] 在嵌套 if 已落地（225 条）的
+                        // 基线上**单独**重试：ORIG 0x081ca261 `call getDungeonMinLevel;
+                        // mov %eax,%ebx` + 0x081ca26e `call getMemberMinLevel; add $0x6,%eax;
+                        // cmp %eax,%ebx; setge %al` ⇒ LHS=层级（先求值、落 %ebx）。
+                        if (this_00->getDungeonMinLevel() >= pCVar5->getMemberMinLevel() + 6)
+                        {
+                            local_18->m_8 = 0xffffffff;
+                            return 0xe;
+                        }
                     }
                 }
+                return 0;
             }
-            return 0;
         }
     }
     return 0;

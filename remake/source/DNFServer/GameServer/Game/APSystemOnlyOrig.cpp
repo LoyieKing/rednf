@@ -122,6 +122,9 @@ extern "C" int uncompress(unsigned char* dest, unsigned long* destLen,
     // 再赋 outLen（两步）。
     // [b28d-solo-APSystemOnlyOrig] 声明序 = ORIG 槽位映射（P309）：bound -0x1c、
     // ret -0x18、len -0x14、dst -0x10、dst4 -0xc；赋值语句序保持 ORIG 指令序。
+    // [S5-2026-09-11 §6.5] prett 串：ORIG .rodata = `bool compress_zip(char*, size_t&,
+    //   const char*, size_t)`（grep 自 ORIG 全字节，0x8cf… 区）；我方原为 `unsigned int`
+    //   展开拼写 ⇒ 签名行改 `size_t`（同型别名，mangled/指令零变化），串逐字节命中。
     unsigned int bound;
     int ret;
     int len;
@@ -459,6 +462,11 @@ namespace APSystem
 // [b28d-27] DIFF N82/N89：ORIG 0x08124386；p167 CLEAR（22/22），残差为 SQL/STL
 // [b28d-solo-APSystemOnlyOrig] 判词：**gap 0**（本轮还原 ORIG 0x08124472..d7 指令序：zipLen=0x400 → `cmp $0x7ff; jbe` → memset → compress_zip；旧版把检查放 compress 后、memset 放 zipLen 前 ⇒ 整段错位）。残差 = 实参装载时刻（ORIG 提前装 sig.m_apSum 到 %ebx）+ 寄存器分配（N7/N82）。p167 CLEAR 22/22。
 // 实例与帧/槽分配，语义闭合。
+// [S5-2026-09-11 §6.5 核查] 本件两条 SQL 串与 ORIG 逐字节命中（**TAB 敏感**比对：
+//   `update charac_action_point set ap_sum=%d, is_reward_medal=%u, \t…\tis_reward_item_1=…`
+//   与 `insert into charac_action_point\t…\t(occ_date, charac_no, ap_sum, …`）；变参顺序
+//   按报告逐条对齐；enc_kr_scan = 0 mismatch（无 §6.5.1 编码盲区）；本件无 prett 引用
+//   （ORIG 中不存在 `…DB_UpdateActionPoint::Update…` 的 __PRETTY_FUNCTION__ 串）。
 #include "APSystemOnlyOrig/Update.inc"
 {
     // 伪 helper 归一：ORIG 直接调 DBMgr::GetDBHandle
@@ -681,6 +689,9 @@ namespace APSystem
 }
 
 // Update —— 报告汇编+反编译转写。ORIG T 0x08124cb2。
+// [S5-2026-09-11 §6.5 核查] DB_UpdateRewardMedal::Update（AE 件）：SQL 串
+//   `update charac_action_point set is_reward_medal=%u \t…\twhere charac_no = %u…`
+//   TAB 敏感比对命中 ORIG；无 prett 引用；enc_kr_scan 0 mismatch。
 #include "APSystemOnlyOrig/Update_1.inc"
 {
     // ORIG 0x08124cb8..+0x1e：GetDBHandle(s_db_mgr,2,0) 直接内联（非经辅助函
@@ -831,6 +842,13 @@ namespace APSystem
 // [F2d-C05② 甄别] 比较对象为 enum 形参（非「两具名局部」）⇒ F2 不适用；A/B 实测删
 //   `(int)group` cast 两态逐条同形（show_func_diff orig=107 our=111 gap=-4 ndiff=12，
 //   OURS-only={mov×3,jmp×1}）⇒ 回滚维持原形，判 N18b。
+// [S5-2026-09-11 复攻·负结论] OURS-only 4 条逐处定位：(a)+(b) 两个 SendActionClear 调
+//   用点 `mov 0x17(%eax,%ecx,1),%eax; mov %eax,%ecx` vs ORIG 直落 `…,%ecx`（4.4 目标
+//   寄存器选择：ORIG 用 ecx 承接 groupIndex，4.4 用 eax 再中转）；(c) `mov …,%edx;
+//   mov 0x10(%ebp),%eax; cmp %eax,%edx` vs ORIG `mov …,%eax; cmp 0x10(%ebp),%eax`
+//   （enum 形参→int 载入中转）；(d) 末 then 块尾 4.4 多发 `jmp +1; nop` 空岛（ORIG
+//   直接 fall-through 到循环尾 addl），源码无对应构造（无 else/无多余语句）⇒ 不可消。
+//   均为 4.1↔4.4 后端分配差（N18b/N107），维持封顶。
 // 语义闭合。
 #include "APSystemOnlyOrig/ClearAction.inc"
                                       int itemIdx, ENUM_PACKETCLASS packetClass)
@@ -878,6 +896,8 @@ namespace APSystem
 // ⑥group 判定链顺序 0x1d/0x1e/0x1f/**0x2d**/0x20（P46 case 序）；
 // [b28d-solo-APSystemOnlyOrig] 判词：**gap 10→2**（本轮还原：标准 `for(;row<300 && it!=end; it++)` 循环旋转布局（4.1 init 后 jmp 底部条件）、P223 fA/fH goto 空标签岛补回 3 处 nop+jmp 岛、lo/hi 表达式直读；370 vs 368）。残差 = N18b（weekday 比较 2 条 mov 中转）+ N107（memcpy dest `add $0x15` vs `lea`）。p167 CLEAR 35/35。
 // ⑦循环尾 `it++`（ppEi 后置，P28 增量侧）。
+// [S5-2026-09-11 §6.5 核查] 本件**零字符串引用**（报告汇编 `$"…"` 抽取 = 0，与我方
+//   .o .rodata 一致）：仅 SQL 家族外的纯逻辑 ⇒ 无 §6.5 风险；enc_kr_scan 0 mismatch。
 #include "APSystemOnlyOrig/SetTodayAction.inc"
                                          ENUM_EXPERT_JOB_TYPE jobType,
                                          const std::map<unsigned short,
@@ -1055,6 +1075,9 @@ namespace APSystem
 // （`add $0x8,%eax`）；我方 0x203b 同槽 ⇒ make_item 目标一致（仅 %eax vs %edx = N7）。
 // [b28d-solo-APSystemOnlyOrig] 判词：**N82 + 档②封顶**（残差 = 槽基浅 4 + N93附 两处 `je` vs 4.4 `jne+mov$0+jmp` + N7 虚调目标寄存器 + P75 实参装载序 + P254 字段中转；m_isRewardItem uchar `cmp $1` vs ORIG bool `xor $1`（档②候选：探针 /tmp/ap_probe6.cpp gS3 显示需 bool 字段 + `if(!f)` 才出 xor，共享头改动未落）；p167 CLEAR 18/18）。
 // `if(entry==0)return false`（死检查照抄 P171），`m_flag00=1` 在该检查**之后**。
+// [S5-2026-09-11 §6.5 核查] ORIG 引用串 2 条（findString 键 `chn_game_server_msg_82`
+//   /`chn_game_server_msg_83`）与 SQL 家族串全部逐字节命中我方 .o；键序 82→title、
+//   83→msg 与源码一致（报告实参序逐条对齐）；enc_kr_scan 0 mismatch。
 #include "APSystemOnlyOrig/GetTodayRewardAndSendMail.inc"
     CUser& user, _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward)
 {
@@ -1128,6 +1151,8 @@ namespace APSystem
 // （`add $0x8,%eax`）；我方 0x22df 同槽 ⇒ make_item 目标一致（仅 %eax vs %edx = N7）。
 // [b28d-solo-APSystemOnlyOrig] 判词：**N82 封顶**（残差 = 槽基浅 4 + N93附 两处 return 块序 + N7 虚调目标寄存器 + P254 字段 eax→ebx 中转 + P75 实参装载序（`movl $0x8,S` 提前）；171 vs 175）。p167 CLEAR 20/20。
 // `const _MedalRewardItem& m = medals[i]` 只 1 次 ⇒ p167 MISSING 5）。
+// [S5-2026-09-11 §6.5 核查] 同 GetTodayRewardAndSendMail：ORIG 引用串 2 条（msg_82/83）
+//   逐字节命中；变参序一致；enc_kr_scan 0 mismatch。
 #include "APSystemOnlyOrig/SendMail.inc"
 {
     const std::vector<_MedalRewardItem>& medals =

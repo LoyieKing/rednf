@@ -46,6 +46,13 @@ namespace advancealtar
 //   advancealtar.h 的 17 个 .cpp（含经 CGameManager.h/CUser.h 的传递消费）须复编；
 //   4.4 生成的 EH landing 布局是否与 ORIG 4.1 逐条一致亦需实测（N91 族）。风险与
 //   波及超出单 TU 泳道 ⇒ 维持 N83/P67 封顶，路径交 Main 定夺。
+// [S4AltarStageMisc 2026-09-11 复核] p167 差集 = C2/D2 同址别名 + placement-new 机制
+//   （ORIG 0x0812f9c9 `call ProcStageC2(RCharacData&)` / 0x0812f9e0 EH 段
+//   `call ProcStageD2` + `call _Unwind_Resume`；我方 ProcStageC1/CharacDataC1 +
+//   _ZnwjPv/_ZdlPvS_×2）⇒ **子对象构造/析构调用齐全，非"漏调用"**。显式
+//   try/catch 补 ORIG EH 段实测：our_insns 62→74 且新引入 __cxa_begin_catch /
+//   __cxa_rethrow / __cxa_end_catch（ORIG 无此三符号）⇒ 回滚。异常路径
+//   （CharacData ctor 抛）ProcStage 不被析构属真缺口，但修法同为成员化（跨泳道）。
 #include "advancealtar_StageControl/StageControl.inc"
 {
     m_index = -1;
@@ -68,6 +75,12 @@ namespace advancealtar
 //   4.4 对用户显式析构体不建该 pad）。与 C1 同根因（成员化须拆 include 环，见 C1 判词）。
 //   可观察语义（逆序销毁 CharacData→ProcStage，指针/调用序/出参槽逐条同 ORIG）等价。
 //   N 封顶（P67/N91）。
+// [S4AltarStageMisc 2026-09-11 复核] p167：ORIG = CharacData::D2(0x0812fa19) +
+//   ProcStage::D2×2（0x0812fa2d EH 段 + 0x0812fa47 正常路径）+ _Unwind_Resume；
+//   我方 = CharacData::D1 + ProcStage::D1（D1/D2 同址别名，正常路径逐条等价）。
+//   唯一语义差 = 异常路径（CharacData 析构抛异常时 ORIG 仍析构 ProcStage）；4.4 对
+//   显式析构体不建 cleanup pad（P67/N91），源码侧无旋钮（cleanup pad 只能由成员
+//   子对象/RAII 局部产生，而本处为字节槽显式析构）⇒ N 封顶。
 #include "advancealtar_StageControl/dtor_StageControl.inc"
 {
     reinterpret_cast<CharacData*>(reinterpret_cast<char*>(this) + 0x98)->~CharacData();
@@ -355,6 +368,11 @@ namespace advancealtar
     // [b28d-sweep] P286 单 case switch 实测：得 `mov 0xc(%ebp),%eax; cmp $0x3,%eax`
     //   但整函数 27→28 条（第二次比较前仍重载形参，ORIG 26 条为单次装载三连比较）
     //   ⇒ 反向回退，维持 P85「4.1 跨语句 %eax 保活不可复现」封顶。
+    // [S4AltarStageMisc · 试2 复核 2026-09-11] case 0/1/2 空体三路 switch 实测：**单次
+    //   %eax 装载三连比较复现**（`mov 0xc(%ebp),%eax; test; js; cmp $0x2,%eax; jle;
+    //   cmp $0x3,%eax; jne`），但 4.4 把 ORIG 的三个独立空岛（`nop;jmp leave`×3，
+    //   0x0813063a/0x0813063d/0x08130640）合并为单出口 ⇒ 25 条 vs ORIG 30（丢 ORIG
+    //   独有 5 条），ndiff 3→7 ⇒ 反向回退，维持 goto 岛形（30/30，唯一残差 = 重载）。
     if (endType != 3)
         goto island3;
     // ORIG 0x0813060e：this+4 直访问 m_procStage 槽（无 getProcStage call）、
@@ -552,6 +570,15 @@ island3:
 // [round1-L29 2026-09-10 复核] 我方 292 / ORIG 289；判据① 分支数 66 vs 67，无目标错位。
 //   残差含 getTowerInfo 的 X 族（同 getCenterCount，待 callee bool 化）+ 槽号 N95/N126。
 //   ORIG 0x081301e0。
+// [S4AltarStageMisc 2026-09-11 复核] p167：46 vs 48 calls，差集**全部**为 C1/C2、D1/D2
+//   同址别名 + `_ZNKSt4listI11_mapMonsterSaIS0_EE5beginEv/3endEv`（ORIG const 版）vs
+//   我方 non-const + `_List_const_iteratorI11_mapMonsterEC1ERKSt14_List_iteratorIS0_E`×2
+//   （仅符号选择差，语义等价；const 形实测 identical −1，见函数体注）⇒ 维持非 const。
+//   §6.5 串核查：本 TU .rodata 全串（跳转表 + "%d"）在 ORIG 逐字存在，无发明串；
+//   §6.5.1 编码：enc_kr_scan 全库 0 命中。
+//   GI 假缺口（按名跨 TU 错配；ORIG 该符号实测 493 个实例，工具取首个 0x0807ee76 属
+//   PacketTypes）⇒ 逐 TU 读数不可比；我方 16 条 = `ios_base::Init`+`__cxa_atexit` 正确形，
+//   本 TU .bss 仅 STL 内部对象、无 advancealtar 静态对象 ⇒ 零改动。
 #include "advancealtar_StageControl/sendMapInfo.inc"
 {
     // [b28d-solo-StageControl] P183：ORIG 每访问点重算 this+0x98 / this+0x4

@@ -1280,12 +1280,14 @@ char const* get_skill_table_name(bool use2nd);
         sig->m_field1c,
         (unsigned char)sig->m_tryEntries[idx][1],
         buf,
-        // [b28d-solo-W8LT_DBTask] P214① 探针复核：数组名算术产 sig+0x28 三段
-        // （多 3 条）且仍折 0x6 进 disp，ORIG 的 add $0x20/$0xe 拆分不可复现
-        // ⇒ 维持视图表达式，N4/N18a 封顶。
-        reinterpret_cast<const DB_TryNatView*>(
+        // [r3-W8LT_DBTask] 已改：`(char*)sig + idx*10 + 0x20` 显式算术 +
+        // DB_TryNatSection 单级成员 ⇒ 复现 ORIG 0x08420e1a `add $0x20,%eax;
+        // mov 0xe(%eax)`（gap 1→0、ndiff 5→4、差集归零）。残余 = 装载序/常量
+        // 结合顺序（N18a）。反例已记：改 `&sig->m_tryEntries[idx][0]` 反劣
+        // （174→175、add:3/lea:1）。
+        reinterpret_cast<const DB_TryNatSection*>(
             reinterpret_cast<const char*>(
-                sig) + idx * 10)->m_sec.m_f,
+                sig) + idx * 10 + 0x20)->m_f,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,
@@ -1310,7 +1312,8 @@ char const* get_skill_table_name(bool use2nd);
     char buf[0x10];
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
     bool ok;
-    // 同 pvp 版：N18a 残差 2 对（装载序+折叠），行为等价。
+    // [r3] 同 pvp 版：`+0x20` 显式算术（ORIG 0842156a `add $0x20,%eax;
+    // mov 0xe(%eax)`）⇒ gap 1→0、ndiff 5→4；残余 = 装载序/常量结合序（N18a）。
     sprintf(buf, "%d.%d.%d.%d",
             (unsigned char)sig->m_tryEntries[idx][2],
             (unsigned char)sig->m_tryEntries[idx][3],
@@ -1330,9 +1333,9 @@ char const* get_skill_table_name(bool use2nd);
         sig->m_field1c,
         (unsigned char)sig->m_tryEntries[idx][1],
         buf,
-        reinterpret_cast<const DB_TryNatView*>(
+        reinterpret_cast<const DB_TryNatSection*>(
             reinterpret_cast<const char*>(
-                sig) + idx * 10)->m_sec.m_f,
+                sig) + idx * 10 + 0x20)->m_f,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,
@@ -4410,6 +4413,9 @@ struct DB_UpdateLogoutSigView
     // [b28d-solo-4] 早返形（if(ok)return false; body; return !exec）实测同 DIFF：
     // 4.4 恒把 return false 的 mov$0 块放 body 之后（body 尾多 jmp），ORIG 把它
     // 并入 choose 汇聚 +0x92（body 尾 xor$1;test 直落）⇒ N93附 尾块发射序封顶。
+    // [r3 负结论] 尾部 `return false;` 改显式 `else { return false; }` 包裹（P222）
+    // 实测**零变化**（62/63、ndiff 3、ORIG-only{test:1}/OURS-only{jmp:1,mov:1} 全同）
+    // ⇒ 回滚，维持 N93附 封顶。
     if (!(db->exec(true) == 1 && db->getAffectedRowCount() != 0))
     {
         db->set_query("inSert into login_common(m_id,member_bonus_fatigue,update_time) values(%s,%d,unix_timestamp(now()))",
@@ -4478,6 +4484,11 @@ struct DB_UpdateLogoutSigView
 // 按 +0x22(pcbang) 选 SQL 更新 member_play_info（当日行）并 exec；无行时
 // inSert 新行（exec 失败返 0）；+0x88 置位补会员疲劳；最后 SendResult。
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 08418612
+// [r3 负结论] 三处 `m_puUser ? 0 : 1`（ORIG 08418793/08418874/0841896c 形
+//   `test %al,%al; je L1; mov $0x0,%ebx; jmp L2; L1: mov $0x1,%ebx`）改
+//   `if/else` 赋函数级具名 `int puFlag` 实测**反劣**：our 317→326、ndiff
+//   96→345（4.4 对具名 int 恒发栈槽往返，ORIG 用 %ebx 寄存器保活）⇒ 回滚。
+//   该三处属 4.1 分支赋值 vs 4.4 setcc 常量三元，判 N 封顶。
 #include "W8LT_DBTask/dispatch_15.inc"
 {
     // [L4-r2 判据⑩ 一次性试验] ORIG ok(r)@-0x21 深于 sig@-0x20（4.1 声明序），
@@ -4964,6 +4975,9 @@ struct DB_UpdateLogoutSigView
 // 'Big Stream Size over code(%d), size(%u)' @0x8c367a8。
 // ---------------------------------------------------------------------------
 // [b28d-4] DIFF：P222：块序/极性（ORIG je 落点 vs 4.4 jne）；ORIG 083ff1c8
+// [r3 负结论] 三处 cMyTrace 实参 `mov -0x10(%ebp),%eax; mov %eax,0xc(%esp)`
+//   （ORIG 使用点重载）vs 我方 `mov -0x10(%ebp),%esi` 跨 call 保活 = 4.4
+//   callee-saved 保活策略，纯寄存器分配差（ndiff 12、差集空）⇒ N 封顶。
 #include "W8LT_DBTask/HandleEvents.inc"
 {
     Stream* stream = GlobalData::s_msgq_mgr->get(queueIdx);
@@ -7181,11 +7195,15 @@ struct EventCommon
 // MsgQueueMgr::put(LOGDB_Q(4), guard) → 返 1。guard 具名局部产生 ORIG 的
 // EH cleanup（_Unwind_Resume 重抛）。
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 08425b0c
+// [r3] 声明序改 qid→len（P331 声明序=槽序）：qid(-0x10)/len(-0x14) 复现
+//   ORIG 08425b0c `lea -0x14(%ebp),%eax`（len 先读）⇒ ndiff 27→5、gap 不变。
+//   残余 = 4.1 常量先装寄存器（`mov $0x6001,%edx; mov %edx,0x8(%esp)`）
+//   vs 4.4 直写栈（N18a）⇒ 封顶。
 #include "W8LT_DBTask/dispatch_39.inc"
 {
     char buf[0x6001];
-    int len = 0;
     int qid = 0;
+    int len = 0;
     memset(buf, 0, 0x6001);
     *stream >> len;
     stream->get_binary(buf, len);
@@ -11205,8 +11223,10 @@ loop_end:
 //   丢弃：ORIG xor $1/test/jmp 死代码）；end() 每轮调用（P13 反例）。
 // 循环结束 counter->Reset() → return 1。
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0841c458
-// [b28d-solo-4] 复核：P223 岛已复现（`jmp +1; nop`）；余 ORIG `xor $1,%eax; test %al,%al`
-//   dead bool 归一 2 条（exec 返回值源码未使用，4.1 残留物化 vs 4.4 直落）⇒ P168a③ 封顶。
+// [r3] 已修：`if (!db->exec(true)) goto L_next_query;` → `continue;` ⇒ 复现
+//   ORIG 0841c56d `xor $0x1,%eax; test %al,%al; jmp <incr>` 死岛 ⇒
+//   ndiff 2→0、gap 2→0（101/101、差集空）。旧 P168a③「封顶」判断作废：
+//   4.4 对 `continue;`（循环尾）保留物化，对 `goto L_next_query;` 才 jump-thread。
 #include "W8LT_DBTask/dispatch_99.inc"
                                              Stream* stream)
 {
@@ -11236,7 +11256,7 @@ loop_end:
             // 4.1 对 `if(!exec()) continue;` 保留物化 + 块尾 jmp（jle 落点
             // nop pad 在前）；4.4 threading 消 jmp ⇒ N75 残留一行。
             if (!db->exec(true))
-                goto L_next_query;
+                continue;
         }
     L_next_query:;
     }
@@ -12450,6 +12470,9 @@ static_assert(sizeof(DB_SelectCharacMidResultView) == 0x14,
 // +0x2b hidden、+0x2d 恒 0）→ MsgQueueMgr::put(DISPATCH_Q) → 返 1。
 // ============================================================================
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0840065e
+// [r3] jewel_socket 判定改极性早返 `if (!db->get_binary(7,&emblem,0x1e))
+//   return 0;`（去掉 else 块）⇒ ndiff 40→30；残余 xor:1 在 218 行处（另一
+//   失败出口的 4.1 归一化）+ `mov %eax,%edx` 中转（N18a/N82）⇒ 封顶。
 #include "W8LT_DBTask/dispatch_125.inc"
 {
     static const int handleIdx = 3;
@@ -12505,10 +12528,11 @@ static_assert(sizeof(DB_SelectCharacMidResultView) == 0x14,
                 throw 0xbf6;
             if (!db->get_int(5, abilityV))
                 throw 0xbf7;
-            if (!db->get_str(6, out->m_ipgAgencyNo, 0x18))
+            if (db->get_str(6, out->m_ipgAgencyNo, 0x18))
                 throw 0xbf9;
             emblem.init();
-            if (db->get_binary(7, &emblem, 0x1e))
+            if (!db->get_binary(7, &emblem, 0x1e))
+                return 0;
             {
                 if (!db->get_int(8, hiddenV))
                     throw 0xc00;
@@ -12537,10 +12561,6 @@ static_assert(sizeof(DB_SelectCharacMidResultView) == 0x14,
                 out->m_hiddenOption = (short)hiddenV;
                 out->m_field2d = zero;
                 GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-            }
-            else
-            {
-                return 0;
             }
         }
         catch (int)
@@ -13685,6 +13705,9 @@ static_assert(sizeof(DB_BestClearTimeView) == 0x5dc8,
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 0844280a
 // [L4-r1] cMyTrace 改 P227 全表达式临时链 ⇒ ndiff 54→8（余 4 条 mov 中转 =
 //   N18a 单段直落族封顶）。
+// [r3 负结论] `unsigned int tableNo = mId % 10;` 拆成声明+赋值两行实测**零变化**
+//   （our 98/ORIG 94 未动、ndiff 8、四数 141/1750/12/57 逐值相同）⇒ 4.4 对
+//   `%` 的商中间值恒走槽（ORIG 0844280c `shr $0x3,%edx` 用寄存器保活）⇒ N18a 封顶。
 #include "W8LT_DBTask/dispatch_146.inc"
                                           Stream* stream)
 {
@@ -13949,22 +13972,24 @@ static_assert(sizeof(DB_ResponseTimeSigView) == 0x7d8,
 // packet_count,total_response_time,avg_response_time) values%s", monthBuf,
 // values.c_str()) → exec(true)（结果跨 values 析构保留）→ 返回 exec 结果。
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0843fc26
+// [r3] db/sig 改「声明即初始化」并前置于 STL 局部之前（ORIG 0843fc4f db→
+//   0843fc5d sig→values ctor 序）⇒ ndiff 62→42、gap 2 不变；残余 = ORIG
+//   4.1 lea/add 地址重物化 + 槽号（N18a/N82）⇒ 封顶。
 #include "W8LT_DBTask/dispatch_151.inc"
 {
     // [J4S2-① P212/P309/P198①] ORIG 取得/物化序 = db(-0x24) → sig(-0x20) → i(-0x1c)：
     // 0x0843fc4f `mov %eax,-0x24`（db）→ 0x0843fc5d `mov %eax,-0x20`（sig）→
     // 0x0843fcc6 `movl $0x0,-0x1c`（i，位于 values 构造与 rowBuf 清零之后）。
-    MySQL* db;                      // -0x24（ORIG 0843fc4f）
-    SIG_INSERT_RESPONSE_TIME* sig;  // -0x20（ORIG 0843fc5d）
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
+                                                  E_SERVER_GROUP_NONE);
+    SIG_INSERT_RESPONSE_TIME* sig =
+        stream->GetOutBuffer<SIG_INSERT_RESPONSE_TIME>();
     int i;                          // -0x1c（ORIG 0843fcc6 movl $0x0,-0x1c）
     std::string values;             // -0x28
     char monthBuf[10] = { '\0' };   // -0x32（ORIG int/int/short 三段清零）
     time_t occTime;                 // -0x38
     struct tm tmBuf;                // -0x64
     char rowBuf[0xff] = { '\0' };   // -0x163（ORIG 255 字节带对齐分支 rep stos）
-    db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
-                                           E_SERVER_GROUP_NONE);
-    sig = stream->GetOutBuffer<SIG_INSERT_RESPONSE_TIME>();
     i = 0;
     while (i <= 99 && i < ((DB_ResponseTimeSigView*)sig)->m_count)
     {
@@ -14052,6 +14077,9 @@ static_assert(sizeof(DB_ResponseTimeSigView) == 0x7d8,
 // （m_characNo, str）→ exec 失败返 0；全绿返 1。
 // ============================================================================
 // [b28d-4] DIFF：N18a/P211：4.4 多 {'mov': 4} 中转 mov（单段直落/同型化待验）；ORIG 0843f8fa
+// [r3] 消具名 `char* str`（两次 blob_to_str 内联进 set_query 实参）：帧不再
+//   多 4B，槽序对齐 ORIG（db -0x10 / sig -0xc / zipBuf -0x1ac / zipLen -0x14）
+//   ⇒ ndiff 52→0 完全一致（orig=our=99、gap=0、差集空）。
 #include "W8LT_DBTask/dispatch_153.inc"
                                      Stream* stream)
 {
@@ -14069,18 +14097,16 @@ static_assert(sizeof(DB_ResponseTimeSigView) == 0x7d8,
     unsigned int zipLen = 0x198;                // -0x14（ORIG rep stos 之后初始化）
     if (!compress_zip(zipBuf, zipLen, (const char*)sig, 0x14a))
         return 0;
-    char* str = db->blob_to_str(0, zipBuf, (int)zipLen);
     db->set_query(
         "upDate fair_pvp_score set pvp_mission_info='%s' where charac_no=%u",
-        str, sig->m_characNo);
+        db->blob_to_str(0, zipBuf, (int)zipLen), sig->m_characNo);
     if (!db->exec(true))
         return 0;
     if (db->getAffectedRowCount() == 0)
     {
-        str = db->blob_to_str(0, zipBuf, (int)zipLen);
         db->set_query(
             "inSert into fair_pvp_score(charac_no, pvp_mission_info) values(%u, '%s')",
-            sig->m_characNo, str);
+            sig->m_characNo, db->blob_to_str(0, zipBuf, (int)zipLen));
         if (!db->exec(true))
             return 0;
     }
@@ -19848,6 +19874,9 @@ struct DB_AutoPunishBlackIpView
 // memcpy 0x2e4 → put(DISPATCH_Q) 返 1。
 // ============================================================================
 // [b28d-4] DIFF：P219/P248：字节字段物化/同型化差（ORIG movzbl vs 4.4 mov/shr/and）；ORIG 084389fe
+// [r3 负结论] `if (rowCount == 1) {} else { return 0; }` 空-if 极性包裹（P222）
+//   实测**无效**（484/484、ndiff 8、差集 {jne}/{je} 全同）：ORIG 08438c76 `jne`
+//   跳后部 return-0 块 + 两处 tail-merge 块 vs 4.4 本地 `je` ⇒ N 封顶。
 #include "W8LT_DBTask/dispatch_264.inc"
                                            Stream* stream)
 {
@@ -20096,6 +20125,9 @@ struct DB_AutoPunishBlackIpView
 // ============================================================================
 // [b28d-solo-3] DIFF：`char buf[0xed]={'\0'}`（P312）已消 p167 EXTRA memset
 // （差集 CLEAR）；余 N82 槽差（ORIG db(-0x2c) 6 读 vs 我方 -0x24 2 读 + 帧 4B）。
+// [r3 负结论] destLen/binLen 声明序互换（P331）实测**反劣**：ndiff 2→4、gap 0
+//   不变（ORIG 0842f3a0 该块 dst(lea/add) 先、len `mov -0x1c(%ebp),%edx` 后 =
+//   4.1 左→右求值；4.4 恒右→左）⇒ 回滚，判 N 封顶。
 // ORIG 0842f3a0。
 #include "W8LT_DBTask/dispatch_266.inc"
 {
@@ -20173,6 +20205,10 @@ struct DB_AutoPunishBlackIpView
 // [b28d-4] DIFF：N1/N107：ORIG lea+add 两步寻址 vs 4.4 折单条；ORIG 0844cd38
 // [b28d-solo-4] §6.2 三件套：p167 CLEAR（ORIG 36 = OUR 36，0/0）+ gap 1（211/210）
 //   ⇒ 语义完成；余 N104 EH 尾块相对序（ushort 槽已修）封顶。
+// [r3 负结论] 尾部 ORIG 0844cffb `jmp 0844d012`（跳过 EH landing-pad 岛 `mov
+//   %edx,%ebx; mov %eax,%esi`）在 4.4 被 jump-thread 消除、且我方把 `mov
+//   $0x1,%ebx` 提前到 put 之后（ORIG 在 +0x35f）⇒ our 210/ORIG 211 恒少 1 条，
+//   无源形可复现 ⇒ N104 封顶。
 #include "W8LT_DBTask/dispatch_267.inc"
 {
     int characNo = 0;

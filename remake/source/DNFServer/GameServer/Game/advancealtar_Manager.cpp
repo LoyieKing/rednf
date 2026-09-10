@@ -401,7 +401,7 @@ L_out:;
 }
 
 // ---- ORIG T 0x081313b6（decTicket.md）：先扣 m_ticket，不足扣 m_freeTicket；
-// 任一成功置 update=1 并返 1（头口径 char）。----
+// 任一成功置 update=1 并返 1（头口径 bool；调用点直证 0x0812e547 `xor $0x1; test; je`）。----
 #include "advancealtar_Manager/decTicket.inc"
 {
     // [b28d-D33 P183/P0] ORIG 0x081313b6 无 cur 具名槽：每次 `mov 0x8(%ebp),%eax;
@@ -941,8 +941,10 @@ L_out:;
     {
         return 2;
     }
-    // [b28d-solo-advancealtar_Manager] ORIG +0x12 `cmpl $0,0x10(%ebp); jne <尾 return 2>`
-    // ⇒ 正向包裹（P222/P257），return 2 归共享尾块。
+    // [L4d 2026-09-11] ORIG 0x081333d5 `jne 08133575`：返回 2 的块在**函数中部**
+    //   （A 段 setup 之后、循环体 0x0813357f 之前）= else 块位置 ⇒ 原码结构为
+    //   `if (type == 0) { A段 } else { return 2; }`，循环与尾段在 if/else 之外
+    //   （语义等价：type!=0 走 else 早退，循环不可达）。
     if (type == static_cast<CMDPacketStruct::ResetStarType::T>(0))
     {
     // ORIG +0x14 `call G_CDataManager; add $0x6334,%eax; mov %eax,-0x10` ⇒ 缓存
@@ -985,6 +987,11 @@ L_out:;
     setDefaultBuyItem(AdvanceAltarShopType::T_0);
     setDefaultBuyItem(AdvanceAltarShopType::T_1);
     setDefaultBuyItem(AdvanceAltarShopType::T_2);
+    }
+    else
+    {
+        return 2;
+    }
 
     for (std::map<int, _Stage>::const_iterator it = m_currentAdvanceAltarData->m_stages.begin();
          it != m_currentAdvanceAltarData->m_stages.end(); it++)
@@ -1024,8 +1031,6 @@ L_out:;
         HistoryLog::starAdd(*user, logType, 0, delta);
     }
     return 0;
-    }
-    return 2;
 }
 
 // ---- ORIG T 0x08133720（gmSetStar.md）：当前星=v、星池点=基数+v、update=1。----

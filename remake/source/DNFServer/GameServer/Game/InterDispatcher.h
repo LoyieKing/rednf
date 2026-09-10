@@ -968,7 +968,9 @@ public:
 
 private:
     // ORIG T 0x084ce6d2：_makeDefaultTime（月初 05:00 基准时间，7 月特例 6 日）。
-    time_t _makeDefaultTime();
+    // [L9·2026-09-11] ORIG 为 **static 成员**：static_init 调用点 0x084e9042 无 this 压栈直证；
+    // static 成员函数的 mangled 名不变（仅去隐式 this）。Main 2026-09-11 批准。
+    static time_t _makeDefaultTime();
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
 

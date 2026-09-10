@@ -91,6 +91,9 @@ using WongWork::CItemGenerator;
 
 // ORIG 0x0830107e：四段直写 m_dungeonClearTracer。
 // [b28d-D9] N95：ORIG 4.1 dead 局部 -0x4(%ebp) 单条 store；4.4 槽基恒 ebp-8（P232/P190 均不可上移），残 1 条（ORIG 0x0830107e sz 0x0000006f）
+// [S6 2026-09-11] 残差 N（帧）：ORIG 0x08301081 `sub $0x18,%esp` + `movl $0x0,-0x4(%ebp)`
+// vs 我方 0x28/%ebp-0xc（dummy 槽 4.4 恒 ebp-0xc、帧保守值 0x28）⇒ 2 处操作数差，
+// 助记符序全等（NEAR 已达成）；4.4 无源侧旋钮可抬槽基 ⇒ 判 N95/N82。
 #include "BattleMonsterDepsC2/setDungeonClearTrace.inc"
                                          int killedMonster)
 {
@@ -313,10 +316,9 @@ using WongWork::CItemGenerator;
             mob.m_field11b.m_field11b1 = static_cast<unsigned char>(ref.m_field14);
             mob.m_roleType = static_cast<char>(ref.m_roleType);        // mob+0x08 ← ref+0x18
             // P231：ORIG 读 uid 入 %eax 后跨 store 复用（`lea 0x1(%eax),%edx`）；裸
-            // register 提示让 4.4 免槽保活（非 asm 绑定，P0 合规）。
-            register int curUid = uid;
-            mob.m_instId = curUid;
-            uid = curUid + 1;
+            // 单条后置自增（一个求值点）⇒ 4.4 只读一次 uid 并跨 store 保活；
+            // 具名 curUid 局部令 4.4 落 %ebx，两句写法则因引用别名重读 uid（均反劣）。
+            mob.m_instId = uid++;
             mob.m_field20 = 0;
             mob.m_field24 = 0;
 
@@ -478,8 +480,8 @@ using WongWork::CItemGenerator;
 {
     if (m_pDungeon == NULL)
         goto apc_end;   // [round5-C05] P223 尾标签串：ORIG 三守卫直跳 epilogue
-                        // （仅 1 个对齐 nop 岛），平铺 `return;` 令 4.4 各发
-                        // `jmp epilogue;nop` 中继岛 ×4 ⇒ 改单尾标签。
+                        // （仅 1 个对齐 nop 岛）；实验「全 return;」实测尾部
+                        // 中继 jmp ×3（ndiff 6→8）⇒ 保留单尾标签，判 N。
     // P0：ORIG 0x083020e5 `movl $0x40,-0x10(%ebp)`（具名局部，非直填立即数）
     int mobId;
     mobId = 0x40;
@@ -513,12 +515,15 @@ using WongWork::CItemGenerator;
         // [b28d-Lane27] ORIG 0x083021ac 取旧值写 mob+0、自增在**函数尾** 0x08302296
         // （Add_Mob 之后 `addl $0x1,-0x10(%ebp)`）⇒ 拆两句并把 `++mobId` 后置。
         mob.m_mobId = mobId;
+        // [S6 2026-09-11] 残差 N：ORIG 0x08302181 `call getIdx; mov %eax,%edx;
+        // mov 0xc(%ebp),%eax; mov %edx,0xc(%eax)`（3 条）vs 4.4 `mov 0xc(%ebp),%edx;
+        // mov %eax,0xc(%edx)`（2 条，少 1 条中转）。显式 `static_cast<int>` 旋钮实测
+        // 无效（ndiff 6 不变，已回滚）⇒ 4.1 分配差异，判 N7。
         mob.m_mobIndex = ai->getIdx();
-        // P231：ORIG 读 uid 入 %eax 后跨 store 复用（`lea 0x1(%eax),%edx`）⇒ 裸 register
-        // 提示（非 asm 绑定，P0 合规）。
-        register int curUid = uid;
-        mob.m_instId = curUid;
-        uid = curUid + 1;
+        // P231：ORIG 读 uid 入 %eax 后跨 store 复用（`lea 0x1(%eax),%edx`）⇒ 源侧写成
+        // 单条后置自增（一个求值点），4.4 只读一次 uid；两句 `= uid; uid = uid+1;`
+        // 因引用别名保守判定会重读 uid（+1 条，已实测反劣）。
+        mob.m_instId = uid++;
         mob.m_roleType = 5;
         // [b23S3C] P47：ORIG 真臂 fall-through（dim>0 读 +0x238），getLevel
         // 在 je 臂；m_field11 short=0 产单 movw（ORIG 0x11/0x12 双 movb，
@@ -539,7 +544,6 @@ apc_end:
     ;
 }
 
-// ORIG 0x083022a8：从候选表中随机抽 count 只追加为宝箱怪（每轮一次 rand 取槽）。
 // [b28d-solo-BattleMonsterDepsC2] P197④/P225：ORIG `call size; test %eax; sete %al; test %al;
 // jne` ⇒ 源写 `size() == 0`（empty() 直跳少 2 条）；`begin()+slot` 不套 static_cast（ORIG
 // 直接把 slot 槽址绑 operator+ 第二引用参，cast 会多一条 -0x1c 临时）。
@@ -709,6 +713,11 @@ apc_end:
                                     static_cast<unsigned char>(mm.m_level),
                                     GetCurrentMapInfo()->m_mapBasisLevel,
                                     features, get_dungeon_diff());
+            // [S6 2026-09-11] 残差 N7：ORIG 0x08302a?? 段 `movzbl 0x8(%eax),%eax;
+            // movsbl %al,%edx`（%edx 装转换结果）+ 压栈前 `mov -0x1c(%ebp),%eax`
+            // （实参 elem 先读）；4.4 用 %eax 装 movsbl 结果、elem 最后读（指令数
+            // 全等 210=210，ndiff 16）。显式 `static_cast<int>(static_cast<signed
+            // char>(...))` 旋钮实测无效（已回滚）⇒ 分配差异判 N7。
             upgradeAbilityByChampionFeature(elem,
                                             static_cast<signed char>(mm.m_roleType),
                                             &features, &mm.m_active);
@@ -1309,6 +1318,11 @@ L_gridMazeNull:;
                         0x12e5,
                         "[CBattle_Field::MoveMap] Error(< map_candidator.size()==0) "
                         "gs->mapIndexes_[%d]=%d \n",
+                        // [S6 2026-09-11] 残差 N：ORIG 0x08308668 `mov (%eax),%eax;
+                        // mov %eax,0x18(%esp)`（第 4 实参求值后立即压栈）；4.4 先
+                        // `mov (%eax),%edx` 保活、算完第 3 实参后再压（指令数全等
+                        // 325=325，ndiff 4）。元素显式 static_cast<int> 旋钮实测
+                        // 无效（已回滚）⇒ 4.1 右起求值序差异，判 N。
                         static_cast<int>(i), gs->m_mapCandidates[i]);
                 }
             }

@@ -261,10 +261,15 @@ private:
     {
         // [b28d-solo-CUserOnlyOrig P167] ORIG 无 C1ERKS_/D1Ev 差集 ⇒ 实参是匿名右值
         // 临时（直构进按值参数槽），非具名 list 局部（具名左值恒调拷贝构造 + 析构）。
-        bool ok = reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())->check_skill_list(
-            get_charac_job(),
-            std::vector<std::pair<int, int> >(item->m_recipe174.m_vec18), 2);
-        if (ok)
+        // [H6B 2026-09-11 保留·B 旋钮复测] 两处具名 `bool ok` 内联进 if（P0：ORIG
+        // 0x08670fba `mov %eax,%ebx; xor $0x1,%ebx; test %bl,%bl` 全程无栈槽）。
+        // 复测读数：our 133→132、ndiff **78→61**（严格改善）、gap +2→+3（条数口径略远）
+        // ⇒ 按「四数不劣 + ndiff 严格改善」保留（旧 H6 记录只比较条数故曾回滚）。
+        // 差集随之由 {ORIG test/movl/xor/jmp/jne vs OURS mov/movzbl×2} 收敛为
+        // {ORIG cmpb/movl/xor/jmp/jne vs OURS mov/movzbl}。
+        if (reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())->check_skill_list(
+                get_charac_job(),
+                std::vector<std::pair<int, int> >(item->m_recipe174.m_vec18), 2))
         {
             return expert_job::CExpertJob::IsLearnRecipe(this, item);  // ==1 → true
         }
@@ -284,10 +289,9 @@ private:
 
     if (!checkRecipe)
     {
-        bool ok = reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())->check_skill_list(
-            get_charac_job(),
-            std::vector<std::pair<int, int> >(item->m_recipe174.m_vec18), 2);
-        if (!ok)
+        if (!reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())->check_skill_list(
+                get_charac_job(),
+                std::vector<std::pair<int, int> >(item->m_recipe174.m_vec18), 2))
             return false;
     }
     return true;
@@ -468,15 +472,18 @@ private:
     if (G_CEnvironment()->m_serverEnvir.m_serverGroup == 10 &&
         GlobalData::s_systemTime_.getCurSec() < 0x478e7051u)
     {
-      if (reason != (eChangeGrowTypeReason)0x1 && secondGrew == 0)
-      {
-        char msg[256];
-        strncpy(msg, g_scriptStringManager_.findString(4, "game_server_msg_13", 0), 0xff);
-        Inven_Item gift;
-        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            g_scriptStringManager_.findString(4, "game_server_msg_09", 0),
-            gift, 150000, getCurCharacNo(), msg, strlen(msg), 0, GetServerGroup(), 0, 0);
-      }
+      // [H6B 2026-09-11 试形·早退 return] Ghidra 反编译 0x086641xx 段为
+      // `if (param_4 == 1) return; if (param_2 != '\0') return; <body>`（两失败出口
+      // 为**早退**而非嵌套 if）；旧 `reason != 1 && secondGrew == 0` 单条短路 if 使
+      // 4.4 少发 ORIG 尾部 jmp 岛。改早退形，读 197→?（ORIG 199）。
+      if (reason == (eChangeGrowTypeReason)0x1) return;
+      if (secondGrew != 0) return;
+      char msg[256];
+      strncpy(msg, g_scriptStringManager_.findString(4, "game_server_msg_13", 0), 0xff);
+      Inven_Item gift;
+      WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+          g_scriptStringManager_.findString(4, "game_server_msg_09", 0),
+          gift, 150000, getCurCharacNo(), msg, strlen(msg), 0, GetServerGroup(), 0, 0);
     }
 
     // [A06 2026-09-10 P226 扩展 试行记录·已回退] ORIG 0x0866414d 段同形（无槽短路岛）；
@@ -908,12 +915,17 @@ private:
     // mov %ebx,0x4(%esp); mov %eax,(%esp); call find_item` —— 无 dm 具名指针槽
     // ⇒ 旧稿 -0x18 槽使 body/gift/title 各深 4B（-0x17e/-0x7e/-0x41 vs ORIG -0x17a/-0x7a/-0x3d）。
     CItem* proto = G_CDataManager()->find_item(itemId);
-    if (proto == 0) return;
-    gift.m_addInfo = itemId;
-    proto->make_item(gift);                 // virtual vtable+0x08 槽
-    gift.set_add_info(addCount);
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, gift, 0, getCurCharacNo(), body, strlen(body), 0, GetServerGroup(), 0, 0);
+    // [H6B 2026-09-11 第二轮试形·正向包裹] 旧 `if (proto == 0) return;` 产 1 条
+    // `jmp epilogue`；ORIG 尾部仅 5 条 jmp（我方 7 条）⇒ 改正向包裹使失败路径
+    // fall-through 到 epilogue（省 1 条 jmp）。
+    if (proto != 0)
+    {
+        gift.m_addInfo = itemId;
+        proto->make_item(gift);                 // virtual vtable+0x08 槽
+        gift.set_add_info(addCount);
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            title, gift, 0, getCurCharacNo(), body, strlen(body), 0, GetServerGroup(), 0, 0);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -3354,6 +3366,10 @@ SKIP_LINK_B:;
         int acc = 0;                                              // -0x10
         int i = 0;                                                // -0xc
         while (i <= 0x1f) {
+            // [H6B 2026-09-11 负结论·已回滚] 试交换操作数 `acc + *p`（欲令 4.4 出 ORIG
+            // 0x08682286-95 的读-加-写三段 `mov (%eax),%edx; mov -0x10(%ebp),%eax;
+            // lea (%edx,%eax,1),%eax; mov %eax,-0x10(%ebp)`）：实测 **137→137 中性**
+            // （4.4 两操作数序同折 `mov (%eax),%eax; add %eax,-0x10(%ebp)`）⇒ 回滚。
             acc = *reinterpret_cast<const int*>(tableAddr + i * 4) + acc;
             // ORIG 0x08682292 `cmp -0x14(%ebp),%eax`（acc 左操作数）+ jle 跳过 ⇒ 原码
             // 形式为 acc > rnd（4.4 对 `rnd < acc` 载入 rnd 出 jge 反向）。
@@ -3474,6 +3490,10 @@ SKIP_LINK_B:;
     }
     if (!found)
     {
+        // [H6B 2026-09-11 第二轮负结论·已回滚] 试把常量写在索引表达式左侧
+        // （`m_counts[0x23ac8 + m_itemSellCount]`，欲令 4.4 走 ORIG 的 `add $0x23ac8,%ecx`）：
+        // 实测 **76→76、ndiff 12→12 中性**（差集仍 ORIG-only add:1 / OURS-only lea:1）⇒ 回滚；
+        // N107「写点 add↔lea」不可源码择形。
         ((SellCountView*)this)->m_counts[m_itemSellCount + 0x23ac8] = it->m_addInfo;
         m_itemSellCount = m_itemSellCount + 1;
     }
@@ -9029,7 +9049,10 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
     m_multiboxLotteryFailCnt = 0;                      // +0x703bc（ORIG 0x086494b6 movl，clear 之后）
     m_breakAway.m_field14 = 0;                         // +0x703d8（ORIG 0x086494c3 movb $0x0）
     m_breakAway.m_field15 = 0;                         // +0x703d9（ORIG 0x086494cd movb $0x0）
-    reinterpret_cast<char*>(&m_breakAway.m_field16)[0] = (char)0xff;  // +0x703da（ORIG 0x086494d7 movb $0xff；bool 直赋会折成 1）
+    // [H6B 2026-09-11 负结论·已回滚] 试去下标 `[0]`（`*reinterpret_cast<char*>(&f)` 形）欲令
+    // 4.4 折单条 `movb $0xff,0x703da(%eax)`（ORIG 0x086494d7）：实测 **414→414 中性**
+    // （4.4 仍发 `add $0x703da,%eax; movb $0xff,(%eax)` 两条，取址形常量不折）⇒ 回滚。
+    reinterpret_cast<char*>(&m_breakAway.m_field16)[0] = (char)0xff;  // +0x703da（bool 直赋会折成 1）
 
     memset(m_skillCommands, 0, sizeof(m_skillCommands));  // ORIG memset(this+0x703db,0,200)
                                                           // （50×STCommand pack(1)=200B）
@@ -10736,6 +10759,10 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     // add $0x8d020,%edx` 两段。
     // [b28d-solo-CUserOnlyOrig P0] ORIG 无 src 槽 ⇒ 原码 src 是内联表达式
     // （旧 `void* sp = &proxy;` 生 -0xc 槽 + 回读，帧 0x28 vs ORIG 0x18）。
+    // [H6B 2026-09-11 第二轮负结论·已回滚] 试 `memcpy((void*)(unsigned int)&m_guildDB, …)`
+    // （P319 中转型，原理：int 加法逼出 ORIG 的两段 `add $0x8d020,%edx`）：实测
+    // **20→20、ndiff 6→6 中性**（4.4 仍折 `lea 0x8d020(%eax),%edx`，差集保持
+    // ORIG-only add:1 / OURS-only lea:1）⇒ 回滚；N102「4.4 恒折 lea」复核成立。
     memcpy(&m_guildDB, &proxy, 0x16);
     // ORIG 0x0865cd43：`mov 0xc(%ebp),%eax; movzbl 0x18(%eax),%edx; mov 0x8(%ebp),%eax;
     // mov %dl,0x8d0b5(%eax)`——uchar=uchar 同型单步零扩展直落（技巧5；Main 已落
@@ -11165,6 +11192,10 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         for (; it != end; it++) {
             LimitItemUsage usage;
             bool matched = false;
+            // [H6B 2026-09-11 负结论·已回滚] 试「先声明 int i 后 `i = 0;` 再空 for-init」
+            // 欲复现 ORIG 0x08688967/0x0868896e 的连续两条 `movl $0x0,-0xc(%ebp)`
+            // （ORIG-only movl:1）：实测 **157→157、ndiff 35→35 中性**（4.4 把两处
+            // 同一 zero store 合并为一条）⇒ 回滚；该 movl 属 4.1 冗余 store，不可复现。
             for (int i = 0; i < CUOO_LIM->m_count; ++i) {
                 if (CUOO_LIM->m_entries[i].m_itemId == it->m_a) {
                     usage.m_field10 = it->m_kind;

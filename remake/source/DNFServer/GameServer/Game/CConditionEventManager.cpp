@@ -94,6 +94,17 @@
 #include "CConditionEventManager/RequestConditionEventReward.inc"
     CUser* user, short curIdx, char step, std::map<int, int>& rewardMap)
 {
+    // [L6S2b 收尾 · N 封顶] ORIG 614 / our 610（负 gap +4）、ndiff 12。归一化逐行比对
+    //（/tmp/L6S2_probe/normdiff.py：去 call/jmp 目标与重定位占位后）真实残差**只有**
+    // 两处：ORIG `mov -0x20(%ebp),%eax; shr $0x1f,%eax; test %al,%al; je`
+    //（0x08334e64 / 0x08335074，insertItemIntoInventory 返回值 `< 0` 判定）vs 4.4
+    // `cmpl $0x0,-0x20(%ebp); jns`——2 处 × 2 条即 gap +4 的全部来源。
+    // 探针 /tmp/L6S2_probe/pr_sign.cpp f1..f5（`r<0` / `(unsigned)r>>31` / 具名 unsigned
+    // +`>>31` / `r&0x80000000` / `r>>31`）在 4.4.7 下全部折叠为 `cmpl $0; jns`（f3 仅多
+    // 一条 mov+test）⇒ 4.1 独有的 shr 符号位提取 lowering，源码层不可复现：按 §6.4
+    //「负 gap 命中 ORIG 独有段即判 N」封顶。
+    // 其余差异全为伪差（C1/C2·D1/D2 同址别名 P93 + `mov 0x941f7xx` vs `mov 0x0` 重定位
+    // 占位），p167 真差集 0。
     if (!GlobalData::s_event_manager->GetRepeatEvent(0x71)->IsEventing((CUser*)0))
     {
         return 0;

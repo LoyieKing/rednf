@@ -18,6 +18,11 @@
 // setServerHackAccumulatedCnt / checkCollectedHack）以 ORIG nm + objdump
 // 区间取证后转写并明确标注「报告缺失」。附带落 DB_SelectCharacMid /
 // DB_ReqSaveHackUserPunish::makeRequest（各自报告在手，此前无 owner）。
+// [GI 判据 · Main 裁决 2026-09-11，含更正] `_Z41__static_initialization_and_destruction_0ii`
+// 的逐 TU DIFF 一律为工具假缺口：ORIG 该符号有 493 个实例，工具按名错配取首个
+// （0x0807ee76，属 PacketTypes TU）⇒ 读数不可比，跳过、勿改。本 TU 静态数据
+// （_S_HACK_CHECK_RATE_BY_*/_S_HACK_RATIO_COEF_100F）均为常量初始化，
+// 按 GI 键 `_GLOBAL__I_...` 体间接目标复读本 TU 自身实例 = 16 条纯 ioinit ⇒ 无例外项。
 #include "CHackAnalyzer.h"
 
 #include <algorithm>
@@ -387,6 +392,10 @@ namespace WongWork
 
     int elapsed = m_field24 - m_field20;                 // ORIG fildl（先物化 elapsed）
     numMs = ms;                                          // ORIG fildll（有符号直转，无 2^64 修正段）
+    // [L6S4 实测负结论] 声明序旋钮（P331 混合尺寸区）已试：numMs 声明移至 elapsed
+    // 之后 ⇒ elapsed 槽 -0x10→-0x1c、x87 组 -0x1a/-0x1c→-0x2a/-0x2c（反向劣化 0x10），
+    // 回滚。ORIG numMs@-0x20/CW@-0x22/CW2@-0x24 与 4.4 的 -0x18/-0x1a/-0x1c 差 8 属
+    // 4.1/4.4 槽分配策略差（N82/N126），声明序不可翻 ⇒ 封顶。
     // ORIG flds 在 fdivrp 之后 ⇒ 左操作数为内存 float 变量（乘法左序）。
     int ratio = (int)(((double)numMs / (double)elapsed) *
                       _S_HACK_RATIO_COEF_100F);
@@ -810,6 +819,9 @@ struct CPartyHackView
             // msg 后）；本工具链对 m_entries[i] 恒 base-first。本轮实测新增两形
             // （交换下标 i[arr]、索引 (unsigned int)i 中转）仍 base-first，六形
             // 均不可翻；两侧指令数/助记符序列全等，仅两 load 序差，语义等价。
+            // [L6S4 实测负结论] 新试形：实参位 `(unsigned int)` 冗余 cast（P267 转换
+            // 节点改装载序）——实测仍 `mov 0x10(%ebp),%ecx` 先于 `mov -0xc(%ebp),%edx`
+            // （base-first 未翻），回滚。累计 9 形均不可翻 ⇒ N75/N76 封顶。
             if (isAvatar(((CheckMailReceiverListView*)msg)->m_entries[i].m_itemIdx))
                 sendAvatar(name, 0);
         }

@@ -238,6 +238,10 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // 残余 = N104（catch/unwind 块 29 条内容逐条全等、仅相对 % 检查块位置互换）+
 // N82（ok -0x25 vs -0x31、binLen 组整体深 4）+ 3 处 `jbe↔jae`（cmp 操作数方向
 // fold：ORIG `cmp %eax,B`=B−L 配 jbe，我方 `cmp B,%eax`=L−B 配 jae，落点同体）。
+// [L3CUserPremDBInven 本波复核（ORIG nm 0x0840b0d8）] 复算 725/725、diff 段仅剩
+//   上述 3 处 jbe↔jae + N104 的 29 条 landing-pad 位移（ORIG 0840ba4x 处 catch
+//   体 `cmp $0x1,%edx; je; call _Unwind_Resume; call __cxa_begin_catch` 在我方
+//   提前 29 条出现）⇒ 无新旋钮，维持 N104/N82 封顶。
 // ============================================================================
 #include "DB_LoadInventory/GetUserInven.inc"
 {
@@ -563,6 +567,12 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // b28d-solo-DB_LoadInventory：17 处 trace 改 __PRETTY_FUNCTION__（ORIG 有
 // _ZZ...E19__PRETTY_FUNCTION__ 符号）+ 前 6 处 db 检查改共用 bool ok（ORIG
 // `mov %al,-0x19`）。
+// [L3CUserPremDBInven 本波复核（ORIG 0x0840bd3a）]
+//   本波复算 699(切片 698+注释)/698：**全函数唯一缺口 = 上述 1 条 N76**（ORIG
+//   0x0840bfdc `call get_n_rows; mov %eax,%edx; mov 0x18(%ebp),%eax; mov %edx,(%eax)`
+//   vs 我方 `call; mov 0x18(%ebp),%edx; mov %eax,(%edx)`，opcode 序列 100% 等长
+//   仅此 1 条中转 ⇒ 距 IDENTICAL 仅 1 条）⇒ 维持 N76（跨版本 RHS-first 固有差，
+//   异型化旋钮在共享头 MySQL.h，非本泳道写域）。
 // ============================================================================
 #include "DB_LoadInventory/_GetUserAvatar.inc"
                                       AvatarDetailInfo* out,
@@ -849,17 +859,45 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // （+0x12880，步长 0x38）按 SIG_CREATURE_ITEM_DETAIL_INFO 写点填充。
 // 错误行号 0x27f0..0x28e9。
 // b28d-solo-DB_LoadInventory：exec/fetch/get_int(0) 共用 bool ok（ORIG -0x1d）
-// + 13 处 trace 全表达式临时链（ebx 保活）已归位；残差 = 4.4 标量/临时槽分区
-// （帧 0x280 vs 0x2c0、db -0x34 vs -0x1c）+ 循环体局部块（ORIG 单次 memset
-// 0x74 合并清零 vs 4.4 逐条初始化）⇒ N82 封顶；p167 差集 MISSING=0。
+// + 13 处 trace 全表达式临时链（ebx 保活）已归位；p167 差集 MISSING=0。
+// [L3CUserPremDBInven 本波落地（ORIG nm 0x0840ca74）] 逐条回 ORIG 同下标后
+//   消掉五类差异（差异行 444→112、opcode 匹配 678/731 = 92.7%、insns 735→737）：
+//   ① ok 槽：ORIG 有 6 处 `mov %al,-0x1d; movzbl -0x1d`（exec 0x0840cacf /
+//      fetch 0x0840cbfe / get_int(0) 0x0840cc9c / get_ulong(1) 0x0840cdb1 /
+//      get_int(3) 0x0840ceae / get_int(4) 0x0840cf2c），我方原只在 3 处 ⇒
+//      get_ulong(1)/get_int(3)/get_int(4) 恢复 `ok = ...; if (!ok)`（+6 条）。
+//   ② slot-overflow 形：ORIG 0x0840cd0x `cmpl $0x8c; jle <+0x29f>` + trace
+//      直落 + `jmp <+0xa9d>` ⇒ then=trace/else=主流程书写序（翻转后该块消除）。
+//   ③ P250 栈缓冲：ORIG 0840cc6e..0840cc77 单次 `memset(local_220,0,0x74)`；
+//      按 ORIG 取址实证建 RowLocals（itId +0x08 / endurance +0x14 / slot +0x2c /
+//      uiId +0x30 / name +0x34 / stomach +0x44 / m_field48 +0x48 / exp +0x4c /
+//      expire +0x54 / m_field58,+0x5c,+0x60）。D 侧 +0x1c/+0x2c/+0x30/+0x34 由
+//      ORIG 栈读（0840d4d2..0840d50e）⇒ 我方改为读 m_field48/58/5c/60（值 0）。
+//   ④ detailWord：ORIG 逐字节写（0840d07b byte0 / 0840d172 byte2 / 0840d1ec
+//      byte3），byte1 由缓冲 memset 清 0 ⇒ `unsigned char detailWord[4]` 独立
+//      槽 + 常量下标（常量下标才会折成 `mov %al,-0xNNN`；struct 成员会退化成
+//      `lea base; add $0x50; lea 0x2` 三步链）。
+//   ⑤ dupSlot：ORIG 0x0840d339 `cmpb $0x0,-0x11; je` ⇒ char 型 + `== 0`
+//      （bool + `!` 在 4.4 产 movzbl/xor 物化，N122 族）。
+//   ⑥ `if (dupSlot != 0) 栈副本 else 主槽` 翻转形实测劣化（opcode 匹配
+//      681→677、差异行 111→120）⇒ 已回滚，维持 `== 0` 主槽形。
+//   ⑦ 重复槽分支的栈副本：ORIG 0x0840d3d6 仅 `lea -0x1a5(%ebp),%eax;
+//      mov %eax,(%esp); call Inven_Item::Inven_Item()`（W 0x080cb854，ctor 内
+//      reset 已清全字段，CreatureOnlyMgrRest.cpp 有同判例）⇒ 删掉旧译多余的
+//      `memset(&item,0,sizeof(item))`（少 3 条实参 + 1 call，737 vs 742）。
+//   残差（N82/N122 封顶）：我方 737 vs ORIG 731（+6）= extra mov ×13 / add ×6 /
+//   movb ×4 / jne ×1 与 missing imul ×9（ORIG 用 `imul $0x3d` 算 m_invenType3
+//   步长，4.4 折成 `add $0xeed0` 常量）/ lea ×5 / movl ×2 / je ×1；帧 0x280 vs
+//   0x2c0、db -0x34 vs -0x1c。
 // ============================================================================
 // [L13-group6 判据⑫ 复核] widthscan：clr_l orig=3 / our=12（我方多 9 条
 //   `movl $0x0,-N`）+ clr_w 0/1 + cmp_b 1/0 + movzbl 13/14。逐条回 ORIG 同下标
 //   核对：ORIG 用**单次 `memset(local_220,0,0x74)`（116B 栈缓冲）合并清零**，
 //   我方把同一缓冲拆成 12 个独立具名局部（name[16]/itId/endurance/slot/uiId/
 //   stomach/exp/creatureType/noCharge/stat/expire/lockKey）各自 `= 0`。
-//   ⇒ 属**结构建模差异**（P250 packed 栈缓冲），非类型宽度问题；修法需按 ORIG
-//   0x74 布局建具名缓冲结构 + 整块 memset（改面较大，本波未动，留作后续首选）。
+//   ⇒ 属**结构建模差异**（P250 packed 栈缓冲），非类型宽度问题；**本波已按 ORIG
+//   0x74 布局落地**（见上方 ③：RowLocals + 单次 memset，我方 12 条 `movl $0x0`
+//   清零消失，差异行 444→111）。
 // [IG1 2026-09-10 语义轴落地·used 判定形] ORIG 0x0840cd16/0x0840d556 为
 //   `movzbl used[i]; xor $1,%eax; test %al,%al; je` ⇒ 原码是 `if (!used[i])`
 //   且元素按布尔语义（P248 档②）；我方原写 `used[i]==1`（多出 `cmp $0x1`，
@@ -905,7 +943,9 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
     bool used[0x8d];
     memset(used, 0, sizeof(used));
     std::vector<Inven_Item> overflow;
-    bool dupSlot = false;
+    // ORIG 0x0840d339 为 `cmpb $0x0,-0x11(%ebp); je`（内存直接比较）⇒ 原码
+    // 是 char 语义 + `== 0` 判（bool + `!` 在 4.4 产 movzbl/xor 物化，N122 族）。
+    char dupSlot = 0;
     for (row = 0; row < sig->m_creatureCount; ++row)
     {
         ok = db->fetch();
@@ -916,26 +956,61 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                  " charac_no=%u,%d", sig->m_characNo, row);
             break;
         }
-        // ORIG 以 memset(local_220,0,0x74) 合并清零下列局部变量，语义等价。
-        char name[16];
-        unsigned long itId = 0;
-        unsigned short endurance = 0;
-        int slot = 0, uiId = 0, stomach = 0, exp = 0;
-        int creatureType = 0, noCharge = 0, stat = 0, expire = 0;
-        unsigned char lockKey = 0;
-        memset(name, 0, sizeof(name));
+        // ORIG 0840cc6e..0840cc77 为**单次** `memset(local_220,0,0x74)` 合并清零
+        // 下列取址传引用的行内变量（0x74 = 116B）；各字段偏移由 ORIG 取址实证：
+        // itId +0x08 / endurance +0x14 / slot +0x2c / uiId +0x30 / name +0x34 /
+        // stomach +0x44 / exp +0x4c / expire +0x54（缓冲 -0x21c..-0x1a8）。
+        // P250：旧译拆成 12 个独立具名局部各自 `= 0`（12 条 movl $0x0），与 ORIG
+        // 单 memset 不等价（L13-group6 宽扫列首位）；按 ORIG 布局重建缓冲。
+        struct RowLocals
+        {
+            char m_pad00[0x08];
+            unsigned long itId;         // +0x08（get_ulong(1)）
+            char m_pad0c[0x08];
+            unsigned short endurance;   // +0x14（get_ushort(5)）
+            char m_pad16[0x16];
+            int slot;                   // +0x2c（get_int(0)）
+            int uiId;                   // +0x30（get_int(7)）
+            char name[0x10];            // +0x34（get_str(2,,0xd)，含 +0x41..0x43 pad）
+            int stomach;                // +0x44（get_int(3)）
+            int m_field48;              // +0x48（ORIG 仅被 memset 清 0，D+0x1c 源）
+            int exp;                    // +0x4c（get_int(4)）
+            char m_pad50[0x04];         // +0x50（detailWord 独立同址槽，见下）
+            int expire;                 // +0x54（get_int(11)）
+            int m_field58;              // +0x58（memset 清 0，D+0x2c 源）
+            int m_field5c;              // +0x5c（memset 清 0，D+0x30 源）
+            int m_field60;              // +0x60（memset 清 0，D+0x34 源）
+            char m_pad64[0x10];
+        } rowBuf;
+        // ORIG 无 movl $0x0 清零：这些变量的值总由 get_* 写出（失败即 return）。
+        int creatureType, noCharge, stat;
+        memset(&rowBuf, 0, sizeof(rowBuf));
+        // ORIG 的 detailWord 落在缓冲 +0x50（-0x1cc），由该次 memset 清 0；4.4 下
+        // 若把它做进 struct，字节写会退化成 `lea base; add $0x50; lea 0x2` 地址链；
+        // 独立 byte[4] 槽 + 常量下标则折成 ORIG 0840d07b/d172/d1ec 的
+        // `mov -src,%eax; mov %al,-0x1cc(%ebp)` 形（byte1 保持 0）。
+        unsigned char detailWord[4] = {0, 0, 0, 0};
 
-        ok = db->get_int(0, slot);
+        ok = db->get_int(0, rowBuf.slot);
         // dup 检测在 get_int 失败检查之前（ORIG 0x282c 出口顺序）。
         // ORIG 0840cc9f 段：`mov slot,%eax; mov %eax,-0xc; cmpl $0xee; jne;
         // movl $0x8c,-0xc; cmpl $0x8c,-0xc; jle` ⇒ 原码是「先赋值再条件
         // 覆盖」的 if 形（非三目），且判定为 `<= 0x8c`（jle 正向）。
-        int checkSlot = slot;
+        int checkSlot = rowBuf.slot;
         if (checkSlot == 0xee)
         {
             checkSlot = 0x8c;
         }
-        if (checkSlot <= 0x8c)
+        if (checkSlot > 0x8c)
+        {
+            // 实验：then=trace / else=主流程（诱 4.4 布 trace 直落，见 ORIG
+            // 0x0840cd0x `jle <+0x29f>` + trace + `jmp <+0xa9d>`）。
+            cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                     "SIG_LOAD_INVENTORY*)", 0x281d, 5)
+                ("DB_LoadInventory::GetUserCreature, charac_no=%u, slot=%d"
+                 " overflow", sig->m_characNo, checkSlot);
+        }
+        else
         {
             // ORIG 0x0840cd16/0x0840cd1e/0x0840cd23：`movzbl used[slot]; xor $1;
             // test %al; je <dupSlot 块>` ⇒ 原码是 `if (!used[checkSlot])` 形
@@ -947,7 +1022,7 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
             }
             else
             {
-                dupSlot = true;
+                dupSlot = 1;
             }
             if (!ok)
             {
@@ -957,7 +1032,8 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (!db->get_ulong(1, itId))
+            ok = db->get_ulong(1, rowBuf.itId);
+            if (!ok)
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x2833, 5)
@@ -965,7 +1041,7 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (!db->get_str(2, name, 0xd))
+            if (!db->get_str(2, rowBuf.name, 0xd))
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x2846, 5)
@@ -973,7 +1049,8 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (!db->get_int(3, stomach))
+            ok = db->get_int(3, rowBuf.stomach);
+            if (!ok)
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x284e, 5)
@@ -981,7 +1058,8 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (!db->get_int(4, exp))
+            ok = db->get_int(4, rowBuf.exp);
+            if (!ok)
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x2855, 5)
@@ -989,7 +1067,7 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (!db->get_ushort(5, endurance))
+            if (!db->get_ushort(5, rowBuf.endurance))
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x285b, 5)
@@ -1005,7 +1083,10 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (!db->get_int(7, uiId))
+            // ORIG 0x0840d07b：`mov -0x158(%ebp),%eax; mov %al,-0x1cc(%ebp)`
+            // （+0x50 = detailWord byte0 = creature_type，紧跟 get_int(6) 检查后）。
+            detailWord[0] = static_cast<unsigned char>(creatureType);
+            if (!db->get_int(7, rowBuf.uiId))
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x2869, 5)
@@ -1021,6 +1102,8 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
+            // ORIG 0x0840d172：byte2 = no_charge。
+            detailWord[2] = static_cast<unsigned char>(noCharge);
             if (!db->get_int(9, stat))
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
@@ -1029,6 +1112,10 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
+            // ORIG 0x0840d1ec：byte3 = stat；随后 `movb $0x0,-0x161` 是 lockKey
+            // 的声明处清零（0x0840d1f2），故 lockKey 声明移到此处。
+            detailWord[3] = static_cast<unsigned char>(stat);
+            unsigned char lockKey = 0;
             if (!db->get_ubyte(10, lockKey))
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
@@ -1037,7 +1124,7 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (!db->get_int(11, expire))
+            if (!db->get_int(11, rowBuf.expire))
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x28a6, 5)
@@ -1045,42 +1132,41 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
-            if (0xf1 < slot)
+            if (0xf1 < rowBuf.slot)
             {
                 cMyTrace("bool DB_LoadInventory::GetUserCreature("
                          "SIG_LOAD_INVENTORY*)", 0x28ad, 5)
                     ("DB_LoadInventory::GetUserCreature, slot_no overflow ERROR"
-                     " charac_no=%u, slot_no=%d", sig->m_characNo, slot);
+                     " charac_no=%u, slot_no=%d", sig->m_characNo, rowBuf.slot);
                 return 0;
             }
-            // detailWord 字节布局（SIG_CREATURE_ITEM_DETAIL_INFO +0x24）：
-            // [0]=creature_type [1]=0 [2]=no_charge [3]=stat。
-            int detailWord = static_cast<unsigned char>(creatureType);
-            detailWord |= static_cast<unsigned char>(noCharge) << 16;
-            detailWord |= static_cast<unsigned char>(stat) << 24;
-
-            if (!dupSlot)
+            // [本波实测] `if (dupSlot != 0) 栈副本 else 主槽` 翻转形：opcode
+            // 匹配 681→677 且差异行 112→120（4.4 仍产 `jne`+主槽直落）⇒ 回滚，
+            // 维持下方 `if (dupSlot == 0) 主槽 else 栈副本`（N122 族封顶）。
+            if (dupSlot == 0)
             {
                 // 主槽位（m_invenType3，步长 0x3d）。GetUserCreature.md 实证
                 // +0x02/+0x07 为两条独立 movl（4B），Ghidra 的 *(ulong*) 8B
                 // 表达为伪影 —— 原 (unsigned long long*) 写为宽度错误，修正。
-                Inven_Item& item = sig->m_invenType3[slot];
+                Inven_Item& item = sig->m_invenType3[rowBuf.slot];
                 item.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;  // +0x01 movb 5
-                item.m_fieldb = endurance;                              // +0x0b movw
-                item.m_addInfo = static_cast<int>(itId);                // +0x02 movl
-                item.m_addInfo2 = uiId;                                 // +0x07 movl
+                item.m_fieldb = rowBuf.endurance;                       // +0x0b movw
+                item.m_addInfo = static_cast<int>(rowBuf.itId);         // +0x02 movl
+                item.m_addInfo2 = rowBuf.uiId;                          // +0x07 movl
                 item.m_amp.SetLock(lockKey);                            // +0x11 r/w
             }
             else
             {
+                // ORIG 0x0840d3d6：仅 `lea -0x1a5(%ebp),%eax; mov %eax,(%esp);
+                // call Inven_Item::Inven_Item()`（W 0x080cb854）—— 清零由 ctor
+                // 内的 reset 完成，**无独立 memset**（旧译多 3 条实参 + 1 call）。
                 Inven_Item item;
-                memset(&item, 0, sizeof(item));
                 item.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
-                item.m_fieldb = endurance;
-                item.m_addInfo = static_cast<int>(itId);   // +0x02 movl 4B（ORIG 栈副本同构）
-                item.m_addInfo2 = uiId;
+                item.m_fieldb = rowBuf.endurance;
+                item.m_addInfo = static_cast<int>(rowBuf.itId);   // +0x02 movl 4B（ORIG 栈副本同构）
+                item.m_addInfo2 = rowBuf.uiId;
                 item.m_amp.SetLock(lockKey);
-                dupSlot = false;
+                dupSlot = 0;
                 overflow.push_back(item);
             }
             // 详情条目（基址 +0x12880 = m_creature，步长 0x38；ORIG 全 14 条
@@ -1089,28 +1175,21 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
             SIG_CREATURE_ITEM_DETAIL_INFO* d =
                 reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(sig->m_creature)
                 + row;
-            d->m_slotNo = slot;                              // +0x00
-            d->m_uid = uiId;                                 // +0x04
-            *reinterpret_cast<int*>(&d->m_name[0])  = *reinterpret_cast<int*>(&name[0]);
-            *reinterpret_cast<int*>(&d->m_name[4])  = *reinterpret_cast<int*>(&name[4]);
-            *reinterpret_cast<int*>(&d->m_name[8])  = *reinterpret_cast<int*>(&name[8]);
-            *reinterpret_cast<int*>(&d->m_pad14[0]) = *reinterpret_cast<int*>(&name[12]);
-            d->m_stomachValue = stomach;                     // +0x18
-            *reinterpret_cast<int*>(&d->m_pad1c[0]) = 0;     // +0x1c
-            d->m_exp = exp;                                  // +0x20
+            d->m_slotNo = rowBuf.slot;                       // +0x00
+            d->m_uid = rowBuf.uiId;                          // +0x04
+            *reinterpret_cast<int*>(&d->m_name[0])  = *reinterpret_cast<int*>(&rowBuf.name[0]);
+            *reinterpret_cast<int*>(&d->m_name[4])  = *reinterpret_cast<int*>(&rowBuf.name[4]);
+            *reinterpret_cast<int*>(&d->m_name[8])  = *reinterpret_cast<int*>(&rowBuf.name[8]);
+            *reinterpret_cast<int*>(&d->m_pad14[0]) = *reinterpret_cast<int*>(&rowBuf.name[12]);
+            d->m_stomachValue = rowBuf.stomach;              // +0x18
+            *reinterpret_cast<int*>(&d->m_pad1c[0]) = rowBuf.m_field48;   // +0x1c
+            d->m_exp = rowBuf.exp;                           // +0x20
             *reinterpret_cast<int*>(&d->m_creatureItemType) =
-                detailWord;                                  // +0x24..0x27 四字节
-            d->m_expireTime = expire;                        // +0x28
-            *reinterpret_cast<int*>(&d->m_pad2c[0]) = 0;     // +0x2c
-            *reinterpret_cast<int*>(&d->m_growExpFlag) = 0;  // +0x30
-            *reinterpret_cast<int*>(&d->m_pad32[2]) = 0;     // +0x34
-        }
-        else
-        {
-            cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                     "SIG_LOAD_INVENTORY*)", 0x281d, 5)
-                ("DB_LoadInventory::GetUserCreature, charac_no=%u, slot=%d"
-                 " overflow", sig->m_characNo, checkSlot);
+                *reinterpret_cast<int*>(&detailWord[0]);     // +0x24..0x27 四字节
+            d->m_expireTime = rowBuf.expire;                 // +0x28
+            *reinterpret_cast<int*>(&d->m_pad2c[0]) = rowBuf.m_field58;   // +0x2c
+            *reinterpret_cast<int*>(&d->m_growExpFlag) = rowBuf.m_field5c; // +0x30
+            *reinterpret_cast<int*>(&d->m_pad32[2]) = rowBuf.m_field60;    // +0x34
         }
     }
 
@@ -1167,6 +1246,12 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // ＝N107（`&sig->m_cargoCapacity` 4.4 恒 add $0xa8e0 两步 vs ORIG lea；字段须
 // unsigned 不可改）+ P75（3 处 uncompress_zip arg0/arg4 装载序跨版本）；
 // p167 差集 MISSING=0。
+// [L3CUserPremDBInven 本波实测（ORIG 0x0840ad2a）] 复算 277/278：残差逐条 =
+//   ① `reinterpret_cast<int&>(sig->m_cargoCapacity)` 4.4 恒 `add $0xa8e0,%eax;
+//   mov %eax,%edx`（0840ae79 ORIG 为单条 `lea 0xa8e0(%eax),%edx`）——本波改
+//   `*reinterpret_cast<int*>(&...)` 形**实测不变**（仍 add+mov，278 条）⇒ 回滚；
+//   ② 3 处 uncompress_zip arg0/arg4 装载序（ORIG 先 arg0 后 arg4）。
+//   ⇒ N107（4.4 对成员常量偏移恒折 add，非取址形可择）+ P75 双封顶。
 // SweepCInventoryTail（2026-09-09）：补回 ORIG 实有静态符号
 // `_ZZNK16DB_LoadInventory21_getCharacInvenExpand...E9handleIdx`（.rodata size 4，
 // nm 实证；旧注释误判「本函数无 handleIdx」系漏读 K 前缀）⇒ 恢复

@@ -86,6 +86,8 @@
 //   头改 `class CStackableItem : public CItem, public AradItemInfo`，删 m_arad148 成员，
 //   去 CStackableItem.cpp 12 处 `m_arad148.` 前缀 + CItemList.cpp:1986 + Arad_ItemBonus.cpp:431；
 //   CItem sizeof=0x148 权威 ⇒ 全部偏移/sizeof 不变、AradItemInfo 无虚函数 ⇒ 不引入第二 vptr。
+// [S1Charac 2026-09-11 复核] 292=292 维持 N（残差 4 行=vptr 写入时机，属 AradItemInfo
+// 次基类布局建模，Main 已裁决本轮不做）；§6.5：本函数无 rodata 串引用 ⇒ CLEAR。
 #include "CStackableItem/CStackableItem.inc"
 {
 }
@@ -443,6 +445,9 @@ public:
                       std::vector<std::pair<int, int> >* extra);
 #include "CStackableItem/createLotteryInfo.inc"
 #include "CStackableItem/createStackableLotteryInfo.inc"
+// [S1Charac 2026-09-11 复核] 652=652、无指令增删：diff 257+/257- 全为 call/跳转落点
+// （begin/de/ppEi/ctor 调用块的**位置重排**，如 ORIG +0x57e `jmp` vs 我方 +0x5a 段）
+// ⇒ 4.4 循环块调度差 + N95 槽号整体平移；§6.5：本函数无 rodata 串引用 ⇒ CLEAR。
 #include "CStackableItem/createStackableMultiBoxLotteryInfo.inc"
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
@@ -983,6 +988,9 @@ public:
 // vs -0x4/-0x8）。根因 = N115：4.1 参数直写帧底（outgoing 仅实参 4B），4.4 -O0 恒预留
 // 16B 对齐 outgoing 区（帧 +0x18）。P210 定义前置不可用（callee CItem::check_job_type
 // 定义在 CItem.cpp = 跨 TU，迁定义违 R1）；P190 double 撑帧方向反（本例需减帧）。
+// [S1Charac 2026-09-11 复核] 29=29 逐条同形（含 ORIG 0x0850ebba `mov %edx,0x4(%esp)` /
+// 0x0850ebc7 `xor $0x1,%eax` / `sete %al`）；真残差仅帧 0x28↔0x10 与 2 个 char 参数槽
+// （-0xc/-0x10 ↔ -0x4/-0x8）=N115（4.4 -O0 恒预留 16B 对齐 outgoing 区）。无串引用。
 #include "CStackableItem/check_change_job_type.inc"
                                            char checkJob) const
 {
@@ -1107,6 +1115,9 @@ public:
 // 4.4 按首次使用序把取地址具名标量排到匿名临时区之后）⇒ 槽分配方向不可择，判 N95/N93。
 // ORIG 0x850fbe4 两循环复用同一 const_iterator 槽 -0x48（第二循环 `it = begin()`
 // 重新赋值），循环体先 operator*（deEv）取引用地址入槽（-0x10/-0xc），增量段 ppEi。
+// [S1Charac 2026-09-11 复核] 118=118、无指令增删：diff 43+/43- 全为 begin/ctor/end/ppEi
+// 调用块的**位置重排**（ORIG 把 end() 提到循环前存 -0x40、range 槽 -0x38；我方 range
+// -0x44 且 end() 后置）⇒ 4.4 循环调度 + 槽分配差（N95/N93）；§6.5 无串引用 ⇒ CLEAR。
 #include "CStackableItem/get_limit_cube_item.inc"
 {
     unsigned long range;
@@ -1410,6 +1421,12 @@ public:
 //  ×4（N18a/N92 反向）；③m_field474 载 %eax 再中转 %esi（P87）；④m_stat2dc 段
 //  ORIG 两段 vs 4.4 单段（-1）。判定：**判据①（jcctgt 目标下标逐位）0 mismatch**；
 //  p167 调用点 84=84 CLEAR（仅 C1/C2 符号别名 P93）；TU 四数 431/900/3/6 零回退。
+// [S1Charac 2026-09-11 §6.5 串/变参核查 · CLEAR] ORIG 0x0850d98c-0x0850d9d9 的 cMyTrace
+// 段与我们对位全等：ctor(prett,0x80,5) → operator()(prett, script名, db名, script名, 0x80)
+// 形参序与栈位（0x8/0xc/0x10/0x14/0x18(%esp)）逐条一致；串
+// "Error!!! %s->%s [%s][%s][%d]" 与 prett 符号 _ZZN14CStackableItem8set_itemER17STStackableScriptE19__PRETTY_FUNCTION__
+// 均在 ORIG 有同物（本 TU 全量 .rodata 串 70/70 ⊂ ORIG，无发明串；enc_kr_scan 0 命中）。
+// 残差=帧 0x26c↔0x27c/地址缓存族（N115/P183），语义等价。
 #include "CStackableItem/set_item.inc"
 {
     char buf[500];
@@ -1976,6 +1993,14 @@ public:
     // [b28d-solo-N7] fresh 10/11 判 N7。本波补测：聚合初始化形 10/13 反劣
     // （先 movw/movb 清零再赋值）已回退；类型旋钮无可用（sec/flag 均 1/2 字节 packed，
     // 改型即改 sizeof=3；返回类型 CoolTimeOption 固定 sret）。
+    // [S1Charac 2026-09-11 新 5 形·全部回滚] K1 ptr-arith 视图 13（多 2 条 add）、
+    // K2 3 字节子对象整体拷贝 14——**唯一复现 ORIG 读序** `movzwl 0x2d8(%edx),%ecx;
+    // mov %cx,(%eax); movzbl 0x2da(%edx),%edx` 者，但 gcc 额外把 sret 指针保存到
+    // %ebx（push/mov ebx/mov ebx,eax/pop 共 4 条）⇒ 净 +4 反劣、K3 逗号表达式 11
+    // （=基线不变）、K9 同型 aggregate 赋值 16（退化 call memcpy）、K15 具名 const
+    // 引用 15（引用落 -0x4 槽）。⇒ 维持 10/11 N7 封顶：4.4 RA 对「同一 this 基址
+    // 的两次读」恒把首读结果放 %edx 并 reload this，4.1 的 %ecx 分列形在该后端
+    // 只能由 aggregate-copy 路径触发（K2），而该路径的 PARM_DECL 保存代价不可去。
     opt.sec  = m_option2d8.m_sec16;
     opt.flag = m_option2d8.m_field2;
     return opt;
@@ -1984,6 +2009,11 @@ public:
 // ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6)，effect 时长(秒)/标志
 // +0x2e4 为 CountinuousItemOption 子对象（m_option2e4：3 独立字节）。
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [S1Charac 2026-09-11 复核 · 与 GetCoolTimeOption 同族同判] 本波对 GetCoolTimeOption
+// 实测 5 形（ptr-arith 视图 13 / 3B 子对象整体拷贝 14——唯一复现 ORIG `%ecx` 首读形但
+// gcc 多保存 sret 指针到 %ebx 4 条 / 逗号表达式 11=基线 / 同型 aggregate 赋值 16 /
+// 具名 const 引用 15）全部不可翻 ⇒ 本件（+0x2e4 同构）维持 10/11 N7，未重复试形。
+// §6.5：本函数无 rodata 串引用 ⇒ CLEAR。
 #include "CStackableItem/GetEffectItemOption.inc"
 {
     CoolTimeOption opt;

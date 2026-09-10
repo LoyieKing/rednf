@@ -113,6 +113,12 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
 // 重查，第二次进入 switch 才按 map 查得的 key 执行正常动作；default 同时承担
 // find 未命中（key==-1）的 false 返回。
 // [DualArith 2026-09-09] gap 172→0（orig 977 / ours 977；基线 ours 805）。
+// [L4fEventAvatar 2026-09-11] AE 收口（977/977，clean 逐行相等）：①inited 分支里
+//   `find` 命中判定改三目整体赋值 `key = (it != end) ? it->second : -1;`
+//   （ORIG 0x088aef7c 真支算完 jmp 汇合 + 假支 mov $imm + 唯一落槽）；②循环尾
+//   `if (!inited) { leave; inited = true; } else { return true; }` 且**不写
+//   continue**（ORIG 0x088b00c9 的 `jmp 0x088aef74` 即 do-while 尾部回跳；写
+//   continue 会被 4.4 把该 jmp 排到 `mov $0x1,%eax` 之后并多 2 条 jmp 中继）。
 // p167 修正版（call rel32 + nm 区间 + .plt 反查，唯一认读口径）：MISSING 全为 C2 变体、
 // EXTRA 全为 C1 变体（pair/map/SpinLock/const_iterator/STAvatarHiddenAbilityVariation
 // ctor），严格 1:1 镜像、call 总数 150/150 ⇒ 按 Main 2026-09-09 裁定② clone 别名对
@@ -138,10 +144,11 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
         if (inited)
         {
             LookupMap::const_iterator it = lookup.find(tag.c_str());
-            if (it != lookup.end())
-                key = it->second;
-            else
-                key = -1;
+            // [L4fEventAvatar 2026-09-11] P47：ORIG 0x088aef7c..0x088aef98 为
+            //   `真支算到 %eax → jmp 汇合` + `假支 mov $0xffffffff,%eax` +
+            //   唯一 `mov %eax,-0x1c(%ebp)` ⇒ 三目整体赋值；if/else 会各自落槽
+            //   （我方旧形多 `mov %eax,-0x1c; jmp` + `movl $imm,-0x1c`）。
+            key = (it != lookup.end()) ? it->second : -1;
         }
         else
         {
@@ -451,9 +458,17 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
         {
             initLock.leave();
             inited = true;
-            continue;   // ORIG 0x088b00c9 jmp 0x088aef74
+            // ORIG 0x088b00c9 的 `jmp 0x088aef74` 即 do-while(true) 的尾部回跳
+            // （原码未写 continue，否则 4.4 会把该 jmp 排到 return true 之后）。
         }
-        return true;
+        else
+        {
+            // [L4fEventAvatar 2026-09-11] ORIG 块序为「continue 的 jmp 在前、
+            //   mov $0x1,%eax 直落 epilogue 在后」⇒ 原码 return true 在 else 块
+            //   （4.4 对平铺 `...; continue; } return true;` 会把 continue 的 jmp
+            //   排到 mov $1 之后并给 return true 另生 `jmp <epilogue>` 中继）。
+            return true;
+        }
     }
 }
 
@@ -637,9 +652,11 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
 #include "AvatarFixedHiddenOptionServer/CheckCondition.inc"
     CUser* user, arad::SigAvatarHiddenOptionChange* sig)
 {
-    // [b28d-56 判词·N] N7/N82附：ORIG 0x0817e4c6 236 条 vs 我们 239 条；残余为
-    // 寄存器角色差（ORIG 全程 %edx 算 materialSlot：`mov 0x10(%ebp),%edx;
-    // movzwl (%edx),%edx; movswl %dx,%edx`；4.4 恒 %eax+cwtl）。语义完成。
+    // [b28d-56 判词·N → L4fEventAvatar 2026-09-11 清零] ORIG 0x0817e4c6。
+    // 旧「残余寄存器角色差」经 P59 guard 形复原后消失：原 isMaterialItemIndex
+    // 判断写的是 if(真){正文} 后置失败块，4.4 把失败块排到函数尾（我方 239 条、
+    // ORIG 置前 236 条）；改为 `if (!isMaterialItemIndex(...)) { 失败块; return
+    // false; }` 后两侧逐行一致（AE，236/236）。
     CInventory* invW = user->getCurCharacInvenW();
     // 材料槽（INVEN 1）—— ORIG 以 sret 形式调用 GetInvenSlot（按值返回）
     Inven_Item material;
@@ -659,54 +676,66 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
     }
     // [b23S3C] ORIG +0x162 call Singleton::Get(); add $4 → m_script 再调成员
     // （P48 使用点重取单例），m_script 直成员调会少一发 call（p167 实证）。
-    if (ARAD::Singleton<AvatarFixedHiddenOptionServer>::Get()
-            ->isMaterialItemIndex((int)material.m_addInfo))
+    // [L4fEventAvatar 2026-09-11] P59 guard 形复原：ORIG 0x0817e63c `xor $0x1,%eax;
+    //   test %al,%al; je 0x0817e6aa <+0x1e4>`（je 直达 avatar 正文），失败块
+    //   （0x0817e643 logFormat「isMaterial() failed」+ SendCmdError + mov $0 + jmp）
+    //   紧随判断之后 ⇒ 原码 `if (!isMaterialItemIndex(...)) { …失败…; return false; }`；
+    //   写 if(真){正文} 后置失败块会被 4.4 排到函数尾（实测与我方旧形同）。
+    if (!ARAD::Singleton<AvatarFixedHiddenOptionServer>::Get()
+             ->isMaterialItemIndex((int)material.m_addInfo))
     {
-        Inven_Item avatar;
-        avatar = invW->GetInvenSlot(2, (int)sig->m_avatarSlot);
-        if (avatar.isEmpty())
-        {
-            LogManager::logFormat(
-                1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-                __PRETTY_FUNCTION__,
-                0x83,
-                "AVATAR HIDDEN OPTION CHANGE : Avatar GetInvenSlot() failed. [slot:%d] [charac_no:%d]",
-                (int)sig->m_avatarSlot, (unsigned int)user->getCurCharacNo());
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x16);
-            return false;
-        }
-        CItem* item = G_CDataManager()->find_item((int)avatar.m_addInfo);
-        if (item == 0 || !item->IsAvatarItem())
-            return false;
-        if (!item->IsHiddenOption())
-        {
-            LogManager::logFormat(
-                1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-                __PRETTY_FUNCTION__,
-                0x94,
-                "AVATAR HIDDEN OPTION CHANGE : IsHiddenOption() failed. [index:%d] [charac_no:%d]",
-                (int)avatar.m_addInfo, (unsigned int)user->getCurCharacNo());
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x11);
-            return false;
-        }
-        return true;
+        LogManager::logFormat(
+            1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x78,
+            "AVATAR HIDDEN OPTION CHANGE : isMaterial() failed [index:%d] [charac_no:%d]",
+            (int)material.m_addInfo, (unsigned int)user->getCurCharacNo());
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x11);
+        return false;
     }
-    LogManager::logFormat(
-        1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-        __PRETTY_FUNCTION__,
-        0x78,
-        "AVATAR HIDDEN OPTION CHANGE : isMaterial() failed [index:%d] [charac_no:%d]",
-        (int)material.m_addInfo, (unsigned int)user->getCurCharacNo());
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x11);
-    return false;
+    Inven_Item avatar;
+    avatar = invW->GetInvenSlot(2, (int)sig->m_avatarSlot);
+    if (avatar.isEmpty())
+    {
+        LogManager::logFormat(
+            1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x83,
+            "AVATAR HIDDEN OPTION CHANGE : Avatar GetInvenSlot() failed. [slot:%d] [charac_no:%d]",
+            (int)sig->m_avatarSlot, (unsigned int)user->getCurCharacNo());
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x16);
+        return false;
+    }
+    CItem* item = G_CDataManager()->find_item((int)avatar.m_addInfo);
+    if (item == 0 || !item->IsAvatarItem())
+        return false;
+    if (!item->IsHiddenOption())
+    {
+        LogManager::logFormat(
+            1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x94,
+            "AVATAR HIDDEN OPTION CHANGE : IsHiddenOption() failed. [index:%d] [charac_no:%d]",
+            (int)avatar.m_addInfo, (unsigned int)user->getCurCharacNo());
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x11);
+        return false;
+    }
+    return true;
 }
 
 #include "AvatarFixedHiddenOptionServer/ChangeHiddenOption.inc"
     CUser* user, arad::SigAvatarHiddenOptionChange* sig)
 {
-    // [b28d-56 判词·N] N7/N82附：ORIG 0x0817e8d6 230 条 vs 我们 234 条；残余为
-    // prologue 寄存器分配（ORIG push edi/esi/ebx + sub 0x7c vs 我们 push esi/ebx +
-    // sub 0x70）与实参装载序。语义完成。
+    // [b28d-56 判词·N → L4fEventAvatar 2026-09-11 收敛] ORIG 0x0817e8d6 230 条；
+    // 本轮按 ORIG 直证复原 4 处后：prologue 已对齐（push edi/esi/ebx + sub $0x7c）、
+    // traceDel/traceOk 已用链式临时形使实参先于 ctor 求值（4.1 调度）、
+    // GetSkillIndex 与 Acquire 的结果改寄存器直传（无具名槽）、save.m_slot 的
+    // `sig->m_avatarSlot+10` 改 unsigned 语境（ORIG 零扩展、无 movswl）。
+    // 残余 N：我方 231 条 / 帧同 0x7c，仅剩**全函数槽位整体偏移 4**（ORIG ref
+    // -0x20/item -0x1c/traceDel -0x40… 对 我方 -0x24/-0x20/-0x44…）——
+    // ORIG 把 traceOk 第三实参的 int 临时放**对象区最深槽 -0x5c**，4.4 则把
+    // 具名 int 放标量区最浅槽 -0x1c（删具名改用表达式临时实测劣化：帧 0x7c→0x8c、
+    // 231→237 条）⇒ 属 4.1/4.4 栈槽分配器分区差异，无源级旋钮。语义完成。
     if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE(1), (int)sig->m_materialSlot, 1,
                           eItemDelReason(3), true) != 1)
     {
@@ -721,12 +750,14 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
     }
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
                              (int)sig->m_materialSlot);
-    cMyTrace traceDel(
-        __PRETTY_FUNCTION__,
-        0xa6, 0);
-    traceDel("AVATAR HIDDEN OPTION CHANGE : delete_item() success. [slot:%d] "
-             "[charac_no:%d]",
-             (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
+    // [L4fEventAvatar 2026-09-11] P37：ORIG 0x0817e9b9..0x0817e9ed 在 cMyTrace ctor
+    //   之前先求值 operator() 的两个实参（getCurCharacNo→%ebx、m_materialSlot→%esi）
+    //   —— 这是**链式临时**形（`cMyTrace(...)(...)` 的实参先于对象构造求值），
+    //   命名对象形（ctor 语句在前）在 4.4 下必然先 ctor 后求参。
+    cMyTrace(__PRETTY_FUNCTION__, 0xa6, 0)(
+        "AVATAR HIDDEN OPTION CHANGE : delete_item() success. [slot:%d] "
+        "[charac_no:%d]",
+        (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
 
     Inven_Item* ref = user->getCurCharacInvenW()->GetInvenRef(2, (int)sig->m_avatarSlot);
     if (ref == 0)
@@ -737,29 +768,44 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
     if (!item->IsAvatarItem())
         return false;
 
-    int skillIdx = GetSkillIndex((ENUM_RARITY)item->get_grade());
-    ref->m_fieldSplit.m_fielddLo = (short)skillIdx;      // +0x0d word 写入
+    // [L4fEventAvatar 2026-09-11] P0/P183：ORIG 0x0817eaa3 `call GetSkillIndex; mov %eax,%edx;
+    //   mov -0x20,%eax; mov %dx,0xd(%eax)` 全程寄存器直传、无槽往返 ⇒ 原码无具名
+    //   skillIdx（我方具名形多 `mov %eax,-0x10; mov -0x10,%eax` 两次往返）。
+    ref->m_fieldSplit.m_fielddLo = (short)GetSkillIndex((ENUM_RARITY)item->get_grade());
     sig->m_hiddenOption = (unsigned short)(short)ref->m_fieldSplit.m_fielddLo;
 
+    // [L4fEventAvatar 2026-09-11] P0：ORIG 0x0817eb21 `movzwl -0x42(%ebp),%eax; cwtl;
+    //   mov %eax,-0x5c(%ebp)` 后由 0x0817eb5a `mov -0x5c(%ebp),%eax` 读回 ⇒
+    //   该 int 是具名局部（store+load 往返；且 -0x5c 是全函数最深槽 = 最后声明）。
+    int hiddenOption;
     arad::SigAradAvatarHiddenOptionSave save;             // +0/…清零语义同 ORIG W ctor
     save.m_field0 = user->get_acc_id();
     save.m_characNo = (unsigned int)user->getCurCharacR()->m_characNo;
     save.m_itId = (unsigned int)ref->m_addInfo;
-    save.m_slot = (short)((int)sig->m_avatarSlot + 10);
+    // [L4fEventAvatar 2026-09-11] 类型轴：ORIG 0x0817eafb 为 `movzwl 0x2(%eax),%eax;
+    //   add $0xa,%eax; mov %ax,-0x44`（**零扩展**、无 `movswl`）⇒ 原码该表达式在
+    //   unsigned 语境（m_avatarSlot 声明为 signed short，`(int)` 转换会生 movswl）。
+    save.m_slot = (short)((unsigned short)sig->m_avatarSlot + 10);
     save.m_hiddenOption = (short)ref->m_fieldSplit.m_fielddLo;
 
-    cMyTrace traceOk(
-        __PRETTY_FUNCTION__,
-        0xc2, 0);
-    traceOk("AVATAR HIDDEN OPTION CHANGE : success [slot:%d] [item_id:%d] "
-            "[hidden_option:%d] [charac_no:%d]",
-            (int)((int)sig->m_avatarSlot + 10), save.m_itId,
-            (int)(short)save.m_hiddenOption,
-            (unsigned int)user->getCurCharacNo());
+    hiddenOption = (int)(short)save.m_hiddenOption;
+    // [L4fEventAvatar 2026-09-11] ORIG 0x0817eb14..0x0817eb51 在 ctor 前求值全部实参
+    //   （getCurCharacNo→%ebx、itId→%edi、slot→%esi、hiddenOption→-0x5c）⇒ 链式临时形；
+    //   ORIG 0x0817eb2c `movzwl -0x44(%ebp),%eax; movswl %ax,%esi` 是**从 save.m_slot
+    //   读回**再符号扩展（不是重算 sig->m_avatarSlot+10）。
+    cMyTrace(__PRETTY_FUNCTION__, 0xc2, 0)(
+        "AVATAR HIDDEN OPTION CHANGE : success [slot:%d] [item_id:%d] "
+        "[hidden_option:%d] [charac_no:%d]",
+        (int)save.m_slot, save.m_itId,
+        hiddenOption,
+        (unsigned int)user->getCurCharacNo());
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp", 0xc6);
-    CStreamGuard guard(stream, true);
+    // [L4fEventAvatar 2026-09-11] P0/P183：ORIG 0x0817eb94 `call Acquire` 后结果
+    //   直接进 CStreamGuard ctor 的 0x4(%esp)、无 -0xc 具名槽（我方具名 stream 多
+    //   `mov %eax,-0xc; mov -0xc,%eax` 往返）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp", 0xc6),
+                       true);
     ARAD::DISPATCHER::make_internal_stream_jpn(
         guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2f, -1);
     guard.operator->()->put_binary(&save, 0x10);

@@ -150,6 +150,11 @@ namespace expert_job
 
 // ---- CAlchemist::OnTeleportCharacter（报告 OnTeleportCharacter.md，
 //      ORIG T 0x085d1424 sz 0x26f）----
+// [L2Free4to15.S3 复核] 唯一残差 = 符号位测试 lowering：ORIG 0x085d1453
+// `mov 0x10(%ebp),%eax; shr $0x1f,%eax; test %al,%al; je` vs 4.4
+// `cmpl $0x0,0x10(%ebp); jns`（ndiff 6、gap 2）。本轮再试 `(unsigned)area>>31`
+// 一形仍被 4.4 前端折成 cmpl/jns（连同旧注释四形共 5 形）⇒ N97 族封顶。
+// GI 假缺口（ORIG 该符号 493 实例，工具按名错配取首个；我方 16 条纯 ioinit 正确）。
 #include "ExpertJobLink4/OnTeleportCharacter.inc"
                                      int y, bool useGate)
 {
@@ -256,6 +261,10 @@ CDisjointMachine& CDisjointMachine::operator=(CDisjointMachine const& other)
 
 // ---- CDisjointer::OnCreateDisjointStore（报告 OnCreateDisjointStore.md，
 //      ORIG T 0x085d2d08 sz 0x391）----
+// [L2Free4to15.S3 复核] p167 CLEAR（差集仅 C1/C2·D1/D2 同址别名，P93）。
+// 残差 = 双对象槽方向相反（ORIG CDisjointMachine 临时 -0x3c / PacketGuard
+// -0x48；我方 -0x48 / -0x1c = N93）+ EH cleanup 块序（ORIG 侧
+// _Unwind_Resume 多 1）。交换声明序会改构造序/指令序 ⇒ N93 封顶。
 #include "ExpertJobLink4/OnCreateDisjointStore.inc"
                                        int x, int y)
 {
@@ -323,6 +332,10 @@ CDisjointMachine& CDisjointMachine::operator=(CDisjointMachine const& other)
 
 // ---- CDisjointer::get_disjoint_result_（报告 get_disjoint_result_.md，
 //      ORIG T 0x085d234a sz 0x6cc）。 ----
+// [L2Free4to15.S3 复核] p167 CLEAR（仅 C1/C2 别名）。残差 = x87 往返
+// （ORIG 4×`fstps X; flds X` 具名 float 局部，我方 0；P252 试形旧记录）
+// + 我方 5 处多余槽往返（-0x28/-0x20/-0x18/-0x14/-0x1c）
+// + add-vs-disp 2 处（N107）⇒ N85②/N107 封顶。
 #include "ExpertJobLink4/get_disjoint_result_.inc"
                                       int level, DisJointResult& result,
                                       bool selfService, CUser* user)
@@ -646,6 +659,9 @@ CDisjointMachine& CDisjointMachine::operator=(CDisjointMachine const& other)
 
 // complete_disjoint（报告 complete_disjoint.md，ORIG T 0x085d31a0 sz 0x42d）。
 // 耐久/经验结算 + 请求者付费、机主收款 + 机主耐久不足时经 slot1 关闭任务。
+// [L2Free4to15.S3 复核] p167 CLEAR（仅 C1/C2·D1/D2 别名）。残差 = x87 比较
+// 两向（ORIG `fucompp/fnstsw/test/sete` vs 4.4 `fucomip/fstp/seta`，N85）
+// + 槽差 8（-0x18/-0x1c ↔ -0x20/-0x24）⇒ N85 封顶。
 #include "ExpertJobLink4/complete_disjoint.inc"
 {
     // 耐久消耗 [m_enduranceReduce1(+0x26c), m_enduranceReduce2(+0x270)] 随机
@@ -834,6 +850,10 @@ CDisjointMachine& CDisjointMachine::operator=(CDisjointMachine const& other)
 //   [1] map 命中项的 stDisjointResult.m_field0（cube 索引）
 //   [2..] 附加/大奖物品表中未收录过的 m_itemIndex（std::find 去重）
 // ---------------------------------------------------------------------------
+// [L2Free4to15.S3 复核] p167 CLEAR（仅 C1/C2·D1/D2 别名）。prologue/帧全等、
+// ORIG-only/OURS-only 空、gap=0；残差 = 全帧槽号整体深 8
+// （ORIG -0x4b/-0x50/-0x54/-0x58 ↔ 我方 -0x53/-0x58/-0x5c/-0x60）
+// ⇒ N82/N95 族封顶。
 #include "ExpertJobLink4/GetPredictResult.inc"
                                                 Inven_Item* inventItem)
 {

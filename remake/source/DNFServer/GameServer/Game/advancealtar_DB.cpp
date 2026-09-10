@@ -21,25 +21,39 @@
 //   APSystem::CDBAndExchangeServerProc::GetActionPointFromMemory ORIG T 0x08121616（纯空函数）
 //   （追加段清单见文件尾注释块）
 // ----------------------------------------------------------------------------
-// [b28d-D03 本波 判词]（fresh `check_tu_routed.sh`：identical=83 ae=148（合计 231）
-//   near=0 diff=6 = _Z41__static_initialization…（N123 豁免）+ 下列 5 件；
+// [b28d-D03 判词 · L2Free4to15.S6 本波更新]（fresh `check_tu_routed.sh`：identical=83 ae=149
+//   （合计 232）near=0 diff=5 = _Z41__static_initialization…（GI 假缺口：ORIG 该符号有 493 个
+//   实例，工具按名匹配取首个 0x0807ee76（属 PacketTypes）⇒ 逐 TU 读数不可比，我方 ioinit 形
+//   正确、零改动）+ 下列 4 件；
 //   p167 调用点差集对三件实跑：ORIG calls == OUR calls（31/31、26/26、48/48），
 //   MISSING/EXTRA 仅为 C1↔C2、D1↔D2 同址别名伪差（P93）⇒ 语义无缺口）
 //   · getFromMemory 0x0813394c —— 32/31：唯一残差 = P211 档③ store 装载序
 //     （ORIG `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,(%eax)` RHS-first + edx 中转；
 //     我方 LHS-first 直存）。字段侧/callee 侧两旋钮历轮已试（判词见函数体）⇒ 封 N76 族。
-//   · requestLoadFromDBAndES 0x08133784 —— 123/122：同 P211 store 序 1 条 + EH 段
-//     `_Unwind_Resume` 我方缺失（CStreamGuard dtor 的 cleanup 合并差异，P216/P93 别名）；
-//     p167 26/26 且仅 C1/C2、D1/D2 别名差 ⇒ 语义等价封顶。
+//   · requestLoadFromDBAndES 0x08133784 —— **[S6 本波] 122→124（123/124，gap +1→−1）**：
+//     尾块 `mov $0x1,%ebx` 差异归零 —— ORIG 两臂各一份 ⇒ 源形为两臂各自 `return true;`
+//     （非共享尾块单 return）；改写后该差异消失。唯一残差 = `data->m_characNo` store 的
+//     LHS/RHS-first 1 条（4.4 对局部指针字段 store 恒 RHS-first+edx 中转，ORIG LHS-first
+//     直存）⇒ N76 族。p167 26/26 且仅 C1/C2、D1/D2 别名差 ⇒ 语义等价封顶。
 //   · DB_StatisticAdvanceAltar::dispatch 0x081412b2 —— 312/308：p167 31/31（仅 cMyTrace
 //     C1↔C2 别名差）；gap −4 = 跨版本 EH 域形态（sprintf/__cxa_allocate_exception/throw 段
 //     的常量地址伪代码化 + 我方少 4 条 cleanup 装载）⇒ N104（EH 尾块相对序）封顶。
-//   · DB_Update::update 0x0813ec5e —— 468/469：宽度直方图差 ext_movzwl orig=4/our=6
-//     （我方多 2 条 16 位零扩展）+ 帧 0xdc vs 0xbc（我方紧凑 0x20）；p167 48/48 仅
-//     std::string C1/C2、D1/D2 别名差 ⇒ N82（帧/槽）+ P19/N87 形态封顶。
-//   · DB_Load::SendResult 0x0813ea46 —— 66/71：ORIG 0x0813ea54 `cmpb $0x0,-0x1c(%ebp);
-//     je`（bool 形参截断槽直比）vs 4.4 `movzbl; xor $1; test; je` ⇒ N122（4.4 bool 取反
-//     恒 xor；h1..h5 五探针全败）+ N93附（尾块 `mov $1,%ebx` 物化位置）封顶。
+//   · DB_Update::update 0x0813ec5e —— **[S6 本波] 469→467（466/467，gap −3→−1）**：
+//     `db.m_update==1 && isValidRidableId(...)` 的 4.4 bool 物化岛（`mov $1/$0,%eax; test; je`）
+//     已消 —— 拆为两段独立 guard+continue，与 ORIG 0x0813ecb6/0x0813ecce 两处
+//     `xor $1; test %al,%al; jne`（各带 nop/jmp continue 中继 +0x6fa/+0x6fd）逐条对齐
+//     （探针 t1/t2 实证：`a&&b` 在 4.4 -O0 恒物化，两段 guard 生 ORIG 形）。残差 = a) 帧
+//     0xdc vs 0xbc 与全部槽号平移 0x10（N82：4.4 块内对象按序压深 —— insert 分支"重声明 q*"
+//     实验使帧 0xbc→0xcc、槽再深 0x10，实测反劣已回滚）；b) `db.m_update != 1` 1 条
+//     （ORIG 的 `xor $1` 形要求字段为 bool；现 unsigned char，advancealtar.h:246
+//     —— **.h 侧建议：uchar→bool（1B/偏移 0x517/mangled 零影响）本泳道不改，只报告**）。
+//     p167 48/48 仅 std::string C1/C2、D1/D2 别名差。
+//   · DB_Load::SendResult 0x0813ea46 —— **[S6 本波归零] 71→66（66/66 AE）**：原判 N122/N93附
+//     撤销 —— ORIG 0x0813ea54 `cmpb $0x0,-0x1c(%ebp); je +0xe6` 是**正面条件包裹**形
+//     `if (ok) { 体 } return true;`（-0x1c 即 bool 形参 spill 槽），非就地取反；探针实证
+//     `bool f(bool ok){ if(ok){g();} return true; }` 4.4 生逐条同形（`mov 0x18(%ebp),%eax;
+//     mov %al,-0x1c(%ebp); cmpb $0x0,-0x1c(%ebp); je …`），而 `if(!ok) return true;` 生
+//     `movzbl; xor $1; test` + return 物化漂移。结构改写后归位（AE 66/66）。
 #include <cstring>
 #include "CUser.h"
 #include "GlobalData.h"
@@ -444,7 +458,9 @@ namespace advancealtar
 // DisableCharacInfo(10) →（ValidLastLogin 时补 channelNo/characNo）→
 // GetInBuffer<_CharacAdvanceAltarDbData> 清零 0x51c 后写 m_characNo →
 // ValidLastLogin ? put 队列5 : put DB_Q(2) → 返回 1。
-// [b28d-solo-advancealtar_DB] N76+N93附+N104 封顶（orig 123 / ours 122，clean resid=25）：
+// [S6 本波] 123/124（我方 122→124）：原 N93附 尾块差异已消 —— ORIG 两臂各一份
+//   `mov $0x1,%ebx` ⇒ 源形为两臂各自 `return true;`；改写后该差异归零。
+// [b28d-solo-advancealtar_DB] 余 N76+N104 封顶（orig 123 / ours 124，clean resid=25）：
 //   (1) `data->m_characNo = get_charac_no(...)`：ORIG 0x081338d6 LHS-first 直存，
 //       4.4 对**局部指针**字段 store 恒 RHS-first+edx 中转（探针 f2 形参指针=LHS-first，
 //       局部指针形恒值先）⇒ N76 族；
@@ -481,11 +497,18 @@ namespace advancealtar
 
     // ORIG 0x081338ee `test %al,%al; je <put(2)>` ⇒ 正极性：IsValid 真走 fall-through
     //   put(队列5)，假走 DB_Q(2)。
+    // [L2Free4to15.S6 本波] ORIG 两臂各一份 `mov $0x1,%ebx`（0x0813392x/0x0813394x）
+    //   ⇒ 源形为两臂各自 `return true;`（非共享尾块单 return）。
     if (user.IsValidLastLoginCharac())
+    {
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(5), guard);  // 第 6 槽（ORIG 无枚举名）
+        return true;
+    }
     else
+    {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return true;
+        return true;
+    }
 }
 
 } // namespace advancealtar
@@ -693,23 +716,25 @@ public:
 }
 
 // [report SendResult.md / objdump 0x813ea46]
-// [b28d-solo-advancealtar_DB] N122+N93附 封顶（orig 66 / ours 71，clean resid=15）：
-//   (1) ORIG 0x0813ea54 `cmpb $0x0,-0x1c(%ebp); je <mov $1 尾岛>`（bool 形参截断槽
-//       直比）；4.4 对 `if (!ok)` 恒 `movzbl; xor $0x1; test; je`（N122，探针
-//       h1..h5 五形实测全败，唯一 cmpb 形 h2 的落点/块序相反）；
-//   (2) 尾块 `mov $0x1,%ebx` 物化位置差异（N93附）。语义等价。
+// [L2Free4to15.S6 本波归零] 原判 N122 撤销：ORIG 0x0813ea54 `cmpb $0x0,-0x1c(%ebp);
+// je +0xe6` 是**正面条件包裹**形（`if (ok) { 体 } return true;`），非就地取反。
+// 探针实证（4.4.7 -m32 -O0）：`bool f(bool ok){ if(ok){g();} return true; }` 生
+// `mov 0x8(%ebp),%eax; mov %al,-0xc(%ebp); cmpb $0x0,-0xc(%ebp); je …` —— 与 ORIG
+// 逐条同形（-0x1c 即 bool 形参 spill 槽）；而 `if (!ok) return true;` 生
+// `movzbl; xor $0x1; test` 且 return 物化位置漂移（N93附）。
 #include "advancealtar_DB/SendResult.inc"
 {
-    if (!ok)          // 残差见上 N122 判词（4.4 bool 取反恒 xor）
-        return true;
-    // ORIG 无 stream 具名槽：Acquire 结果经 eax 直传（P0/P89）。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-                           "localglobal/global_AdvanceAltar_Dispatcher.cpp", 0x1bf),
-                       true);
-    guard.operator*()->operator<<(uid);
-    guard.operator*()->operator<<(uniqueId);
-    guard.operator->()->put_binary(&data, 0x51c);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);   // ORIG QUEUE_IDX=1
+    if (ok)
+    {
+        // ORIG 无 stream 具名槽：Acquire 结果经 eax 直传（P0/P89）。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                               "localglobal/global_AdvanceAltar_Dispatcher.cpp", 0x1bf),
+                           true);
+        guard.operator*()->operator<<(uid);
+        guard.operator*()->operator<<(uniqueId);
+        guard.operator->()->put_binary(&data, 0x51c);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);   // ORIG QUEUE_IDX=1
+    }
     return true;
 }
 
@@ -997,7 +1022,18 @@ L_inc:;
         const _AdvanceAltarDbData& db = data.m_db[row];
         // [b28d-solo-advancealtar_DB] P89/P0：m_head() 在 -O0 是真实 call 且引用占槽；
         //   ORIG 行头字段以 db+disp 直取（无 view 槽）⇒ 直接用 m_ridable 成员。
-        if (db.m_update == 1 && isValidRidableId(db.m_ridable.m_ridableId))
+        // [L2Free4to15.S6 本波] P133/P63：ORIG 0x0813ecb6(+0x058) 与 0x0813ecce(+0x070)
+        //   是两段独立取反 guard（`xor $1; test %al,%al; jne`）+ 各自 continue 中继
+        //   （+0x6fa nop/jmp、+0x6fd nop，均落到 +0x6fe `addl $1`）。`a && b` 在 4.4
+        //   -O0 被物化为汇合 bool（`mov $1/$0,%eax; test; je`，探针 t1 实证）⇒ 拆回
+        //   两段 guard。第一段 ORIG 的 xor 形要求 m_update 为 bool；现字段为
+        //   unsigned char（advancealtar.h:246），此处按「非 1 即跳」的等价语义书写，
+        //   残余 1 条（cmpb $1 vs xor+test）为字段类型轴，.h 侧建议已随报（uchar→bool，
+        //   1B/偏移 0x517/mangled 零影响）。
+        if (db.m_update != 1)
+            continue;
+        if (!isValidRidableId(db.m_ridable.m_ridableId))
+            continue;
         {
             std::string stageStr;
             std::string slotStr;
@@ -1052,6 +1088,11 @@ L_inc:;
             result = mysql->exec(true);
             if (!(result && mysql->getAffectedRowCount() != 0))
             {
+                // [L2Free4to15.S6 本波负结论] ORIG insert 分支的 4 个 blob_to_str 结果确实
+                //   落在独立槽区（0x0813f1xx `mov %eax,-0x9c(%ebp)`，区别于 update 分支的
+                //   -0x80..-0x8c）；但**在 4.4 下改为分支内重新声明实测反劣**（帧 0xbc→0xcc、
+                //   mysql/result/row 槽 -0x38→-0x48，离 ORIG 的 -0x28/-0x21/-0x20 更远）⇒
+                //   4.4 块内对象按序压深、4.1 反之，属 N82/N115 版本槽策略，回滚保持赋值形。
                 qStage = mysql->blob_to_str(0, g_ZipStageBuffer, static_cast<int>(zipStageLen));
                 qSlot = mysql->blob_to_str(1, g_ZipSlotBuffer, static_cast<int>(zipSlotLen));
                 qBuyItem = mysql->blob_to_str(2, g_ZipBuyItemBuffer, static_cast<int>(zipBuyItemLen));

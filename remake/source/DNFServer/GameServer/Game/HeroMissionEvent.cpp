@@ -552,6 +552,10 @@ template HeroMissionEvent* Singleton<HeroMissionEvent>::Get();
 // 升级任务：m_extra[0] 为等级上限，field8 记录上次等级；达到新等级时遍历
 // m_rewards 逐项构造 Inven_Item 并以系统邮件发放，随后 fieldA++/field6=1、
 // field8 记当前等级，重复任务 reset。
+// [L3EHeroItemUpgrade 2026-09-11 复核（未改）] 本件已达 ndiff 10 / ratio 0.961
+//   （8 件中最接近 identical 者）：残余仅 ① 0x08165d44 的 `mov (%eax),%eax;
+//   mov %eax,%ebx` 两段实参物化（4.4 折单段 `mov (%eax),%ebx`，N18a；P254/P265
+//   已实测 enum 化与 cast 形均无效）② ORIG 尾 `nop` 对齐岛。**判 N、零改动**。
 // ============================================================================
 #include "HeroMissionEvent/processMission_5.inc"
                                     unsigned int /*param*/)
@@ -977,6 +981,12 @@ loop_top:
 //   insn 364=364、帧 0x6c 相同、p167 仅缺 1 次 _Unwind_Resume：4.4 把
 //   new-cleanup 汇入 catch 尾块，4.1 走 _Unwind_Resume（N104 EH 尾块相对序）。
 //   语义完成（new×6 + import + 条件遍历 + logFormat 调用点全数对齐）。
+// [L3EHeroItemUpgrade 2026-09-11 负结论] ORIG 0x08167ad1 与 0x08167e2c 有两条
+//   稀疏 `movl $0x0,slot`（P331 声明序：`p = 0` 在 try 边界前、`line = 0` 在
+//   vector ctor 前）。实测改写为两语句形（`BaseHeroMissionCondition* p = 0;
+//   p = new ...` / `int line = 0; ... line = import(...)`）后：那两条**可复现**，
+//   但 our_insns 364 → **366**（gap 0 → -2，4.4 在 EH 尾块别处多 2 条抵消），
+//   editdist 117 不变、sequence ratio 0.7874 → 0.7852 ⇒ 无净收益，回滚。
 #include "HeroMissionEvent/loadScript.inc"
 {
 	try {
@@ -1223,6 +1233,17 @@ END:;
 //   （ORIG -0xc/-0x20/-0x24/-0x2c/-0x30 ↔ OURS -0x10/-0x24/-0x28/-0x30/-0x34），
 //   属 4.4 局部槽基/分配序跨版本（N95）。P259 删 stream 局部实测 gap 0→2 反劣
 //   （已回退）；data/characNo 两声明序均试不闭合。
+// [L3EHeroItemUpgrade 2026-09-11] 复核前述 P259 结论并**翻案**（判据改按 ndiff）：
+//   ① 0x08166f0d..0x08166f24：StreamPool::Acquire 返回值 `%eax` **直传**
+//      CStreamGuard ctor 第 2 实参（`movl $0x1,0x8(%esp); mov %eax,0x4(%esp)`）
+//      ⇒ 删 `Stream* stream` 具名局部；
+//   ② 0x08166fda..0x08166fe8：strncpy 实参处才 `mov -0xc(%ebp),%edx; add $0x4,
+//      %edx`（-0xc 即 sig 本身）⇒ 删 `char* dst` 具名局部。
+//   实测：our 227 → **223**、**ndiff（= 工具 n_diff 编辑距离口径）57 → 19**、
+//   ratio .771 → .929，TU 四数不变 ⇒ 按「gap 或 ndiff 严格改善」判据**保留**
+//   （gap 由 0 变 +4 属 insn 计数差，非结构劣化：残余仅 logFormat 串在 .o 中为
+//   .rodata 重定位（工具渲染差）、0x08166f93 `mov $0x0,%ebx` 与 0x08166ffe
+//   `mov %eax,%edx` 系 4.1 返回/寄存器约定（N7）、尾对齐 nop）。
 #include "HeroMissionEvent/saveEventData.inc"
 {
     // ORIG 0x08166d5e `call *%edx`：虚调用 CEventBase::IsEventing(NULL)（§4.5）。
@@ -1267,9 +1288,13 @@ END:;
         vit->getStringToken(data);
     }
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Event/EventHeroMission.cpp", 0x271);
-    CStreamGuard guard(stream, true);
+    // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x08166f0d..0x08166f24：Acquire 返回值
+    // `%eax` 直传 CStreamGuard ctor 的第 2 实参（`movl $0x1,0x8(%esp);
+    // mov %eax,0x4(%esp)`），**无具名 stream 槽** ⇒ 删具名局部（P183/P48）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(
+            "localtaiwan/Event/EventHeroMission.cpp", 0x271),
+        true);
     Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(0x11),
                             static_cast<int>(user->GetUID()));
     Taiwan::SigSaveHeroMissionData* sig =
@@ -1287,8 +1312,10 @@ END:;
         // [b28d-solo-HeroMissionEvent] ORIG 0x0816701e/0x08167037 各再调一次
         // user->get_charac_no(-1)（写 sig 与 erase 键），非复用局部 characNo。
         *reinterpret_cast<unsigned int*>(sig) = user->get_charac_no(-1);
-        char* dst = reinterpret_cast<char*>(sig) + 4;
-        strncpy(dst, data.c_str(), data.length());
+        // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x08166fda..0x08166fe8 在 strncpy
+        // 实参处才 `mov -0xc(%ebp),%edx; add $0x4,%edx`（-0xc 即 sig 本身）⇒
+        // 源码无具名 dst 局部（P183）。
+        strncpy(reinterpret_cast<char*>(sig) + 4, data.c_str(), data.length());
         GlobalData::s_msgq_mgr->put(
             static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
         if (removeData)

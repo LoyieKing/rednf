@@ -310,8 +310,13 @@
         }
     }
     unsigned int time = 0;
-    time = g.m_t0 + (level - g.m_min) *
-                        ((g.m_t1 - g.m_t0) / (unsigned int)(g.m_max - g.m_min));
+    // [b28d-L4a 2026-09-11] ORIG 0x08a8c852 起求值序：先 (t1-t0)（0x08a8c85d
+    // `sub`）再 (max-min)（0x08a8c874）→ divl → 再 (level-min)（0x08a8c88b）→ imul；
+    // ORIG 全函数只用 esi/ebx（无 edi）。我方旧式左端写 (level-min) 使 4.4 先算它
+    // 并额外引入 edi（多 push/pop edi + flds/fmulp 共 3 条）⇒ 按 ORIG 把除法子式
+    // 写在乘法**左端**（乘法交换，语义等价）。
+    time = g.m_t0 + ((g.m_t1 - g.m_t0) / (unsigned int)(g.m_max - g.m_min)) *
+                        (level - g.m_min);
     if (time < g.m_t0)
     {
         time = g.m_t0;
@@ -631,6 +636,10 @@
                 // probe4 e1..e4 共 8 形已穷举；唯一可行旋钮=字段同型化
                 // `m_field0` int→enum（probe3 d1 实证）只能 62→61 且须改共享头
                 // ServerParameterScript.h，收益/成本不成立，留档待 Main 裁决）。
+                // [b28d-L4a 2026-09-11] 负结论：「单 FALSE 出口」if-链形（末尾共享
+                // `return false`）实测 4.4 反而把 TRUE 段就地展开为
+                // `jle <跳过后段>; mov $1; jmp tail`（+1 条 mov $1，仍 62）⇒ 不改善，
+                // 回滚到与 ORIG 段逐条同形的三目嵌套。
                 return (p->m_field4 > idx)
                            ? true
                            : ((p->m_field8 >= idx) ? false : true);
@@ -728,9 +737,9 @@
         --it;
         c = it->first;
     }
-    PvPPlayerKey key((unsigned char)a, (unsigned char)b, (unsigned char)c);
     std::map<PvPPlayerKey, std::vector<std::pair<int, int> > >::const_iterator
-        found = m_pvp49ac.find(key);
+        found = m_pvp49ac.find(
+            PvPPlayerKey((unsigned char)a, (unsigned char)b, (unsigned char)c));
     if (found == m_pvp49ac.end())
     {
         return 0;
@@ -819,6 +828,9 @@
     // ②`(unsigned char)open != 1` → 同 xor（ourN=103）；③正向 `open == 1`+goto 后置块
     // → 出 `cmpb $1; jne`（极性反，N93附）+ 尾 jmp/nop 岛（N121）ourN=105 更差 ⇒ 回退。
     // 判据①复核：jcc 目标下标逐位 0 mismatch（仅 cmp 助记符形态差）。判 N（N122）。
+    // [b28d-L4a 2026-09-11] 第四形实测：`open != 1`（bool 提升 int 比较）仍出
+    // `movzbl -0x3c; xor $0x1; test %al,%al; je`（4.4 对 bool 域 `!=1` 恒归一到
+    // `!open`）⇒ ourN=103 不变（101 vs 103），回滚。N122 封顶确认。
     if (open != true)
     {
         std::vector<int>::iterator it2 = std::find(

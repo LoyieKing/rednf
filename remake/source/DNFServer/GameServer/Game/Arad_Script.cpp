@@ -297,6 +297,9 @@
 // —— 4.1 声明序 vs 4.4 首次使用序的槽方向差，N82/N93 族（P212 全头部声明法不适用
 // 于依赖运行期实参构造的块内对象）；其余为 4.1 空块 nop;jmp 岛/块序（N104/N112/N121）
 // 与 `mov %eax,%ecx; lea` vs `add`（N18a/P30）。语义完成、byte 层 N 封顶。
+// [L3Free25to36.L3AUserHistoryAradScript 2026-09-11 · 再补一形] 列名行循环 `for(;;)`
+//   改 `while (true)`（语义等价）复编后：ndiff 196 不变、ORIG-only/OURS-only 助记符差
+//   不变（仍 {mov,je,lea} vs {add,jne,jmp}）⇒ 回滚。4.4 对本处两种书写发同一 CFG。
 #include "Arad_Script/Load.inc"
 {
     if (!Create())
@@ -791,6 +794,9 @@ namespace SCRIPT {
     // 先求值保活）vs 4.4 `lea &item,%eax; mov items`（实参先）——this-first 装载序
     // 不可翻（N7/P75 跨版本实参装载时刻；`(*items).`/语句表达式/static_cast receiver
     // 三形实测均 4 条不变）。gap=0、调用点集全等。
+    // [L3Free25to36.L3AUserHistoryAradScript 2026-09-11 · 再补一形] receiver 改下标形
+    // `items[0].push_back(item)` 复编后 ndiff 仍 =4、两侧助记符差均空 ⇒ 4.4 求值序
+    // 不变（实参仍先于 receiver 装载）⇒ 回滚。
 outer_test:
     if (!ScanType(token, true))
         goto outer_done;

@@ -2226,6 +2226,10 @@ L_SBR_END:;
     return m_selected ? CUR->m_dungeonHelpAbuseExp : 0;
 }
 
+// [S1Charac 2026-09-11 复核] 68/68、助记符逐条全等；真残差=匿名 8B 转换临时基准比 ORIG
+// 低 8B（我方 -0x38/-0x34、cw -0x3a/-0x3c、除数槽 -0x4c；ORIG -0x30/-0x2c、-0x32/-0x34、
+// -0x3c）连带帧 0x68↔0x58 ⇒ 4.4 聚合临时优先占深槽的分区排布（N95），无死局部可删。
+// 本波 §6.5 串核查：本函数无 rodata 串引用（报告内那条字符串系解析噪声）⇒ CLEAR。
 // [b28 BM8 P210] 定义序移到全部同 TU callee（get_level_up_exp/两 getter）之后：
 // 4.4 按已见 callee 帧继承 outgoing，缩帧向 ORIG 0x58 靠拢；原「fildll 槽对齐
 // 恒形 N」旧判词系未试 P210 前置。实测 P210 前置帧不变（仍 0x68）；具名 ull
@@ -2378,6 +2382,11 @@ L_SBR_END:;
 
 // [b28d-L14 N7/N4] ORIG 0x086459c4：残差=寄存器角色互换（%ecx↔%edx）+
 // `lea 0x380(%reg)` 物化时刻（4.1 于 fadds 后 / 4.4 前置）。p167 CLEAR（语义完整）。
+// [S1Charac 2026-09-11 复核] 59/59、p167 CLEAR。真残差 2 处仅寄存器角色：
+// ORIG 0x08645a28 `mov 0xc(%ebp),%ecx` / 0x08645a3a `flds 0xe(%edx,%ebx,4)` /
+// 0x08645a41 `lea 0x380(%ecx),%edx` / `fstps 0xe(%eax,%edx,4)`；我方同段为
+// `mov 0xc(%ebp),%edx` / `lea 0x380(%edx),%ecx` / `fstps 0xe(%eax,%ecx,4)`
+// ⇒ 4.1/4.4 RA 命名差（前面两轮 20 形已证无源形可翻）。维持 N82/N18a。
 #include "CUserCharacInfo/WarAreaKill.inc"
 {
     if (!m_selected)
@@ -3364,6 +3373,14 @@ L_SBR_END:;
     return m_selected ? CUR->m_curConditionEventRewardStep : 0;
 }
 
+// [S1Charac 2026-09-11 类型轴复核 · 非本写域可修] ORIG 0x0822f6f4 段共 13 条：
+//   0x0822f707 movzbl 0xe65(%eax),%eax → 0x0822f70e jmp → 直接返回字段原值，
+//   **无 test/setne 归一**；我方 16 条多出 `test %al,%al; je; mov $0x1,%eax`
+//   （bool 返回在 -O0 必做 0/1 归一）。4.4.6 cc1plus 探针（/tmp/s1_ss_probe.cpp，
+//   -O0 -m32）逐条复现：`bool A` → 16 条含 testb/je/movl $1；`unsigned char B`
+//   → 13 条与 ORIG 同形。⇒ 根因 = 返回类型 bool（CUserCharacInfo.h:964，K1Dispatchers
+//   本波 uchar→bool），而字段 m_superState 本身即 unsigned char（h:484）。
+//   函数体层面无解（签名轴，改必须动 .h）⇒ N（类型轴），已上报父泳道。
 #include "CUserCharacInfo/GetCurCharacSuperState.inc"
 {
     return m_selected ? CUR->m_superState : 0;
@@ -3515,6 +3532,11 @@ online_preliminary::COnlinePreliminaryTeam*
     return m_selected ? CUR->m_assaultFatigueCount : 0;
 }
 
+// [S1Charac 2026-09-11 复核] 100/104：真残差=4.4 把 LHS 地址（index+0x460）CSE 到
+// %esi 跨 call 保活（+push/pop %esi），并按「disp/scale≥2 折、==1 不折」定则把 disp
+// 0x10 折成 `lea 0x2(%esi),%edx`；ORIG 0x08677f97/0x08677fbc 每处独立
+// `lea 0x460(%ebx),%ecx` + disp 0x10 ⇒ N82附/N4 封顶。§6.5 串核查：本函数无 rodata
+// 串引用，且本 TU 全量 .rodata 串 24/24 均存在于 ORIG（无发明串）⇒ CLEAR。
 // [b28d-solo-CUserCharacInfo] ①字段直赋中转已修（P211 档③）：SigTypes_C.h
 // m_cooltimeCharacNo/m_effectCharacNo int→unsigned（与 m_characNo 同型）⇒ ORIG
 // 0x08677f34 单段 `mov 0x4(%eax),%edx`，ndiff 54→48。②余差 = N82附（4.4 把

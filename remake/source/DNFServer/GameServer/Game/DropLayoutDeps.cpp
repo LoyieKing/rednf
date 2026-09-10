@@ -322,6 +322,9 @@ namespace WongWork
     // add$1/setg 形）、idx 循环前预清（P198①）、全头部声明（P212）。残差=槽常数 4
     // + m_range[0] movw vs 两条 movb（P202/N78 族）+ N125（4.1 `add %eax,%eax` 两次
     // vs 4.4 shl）+ 多分支出口岛数（N108）。语义等价。
+    // [L1FreeTop12.S2 2026-09-11] §6.5 复核：ORIG 5 串（""/"[basis of rarity dicision]"/
+    //   "[drop prob count]"/"[dungeon difficulty drop prob]"/"[item drop ref table]"）与源码
+    //   逐条一致；错误码立即数集 ORIG−OURS=∅（0x302…0x34b 全等）；§6.5.1 enc 0 命中。
     if (!loadRDARScriptFile("", path))
         return 0x302;
     std::string token;
@@ -431,6 +434,10 @@ namespace WongWork
     // ②`e[1] = ScanInt(&ok)` store 序 ORIG RHS-first `mov -S,%edx; mov %eax,0x4(%edx)`
     // vs 4.4 LHS-first `lea 0x4(%eax),%ebx` 跨 call 缓存（N76）；已试 P211 异型化
     // （e→unsigned int* + cast）反劣 +1 条，回退。语义等价。
+    // [L1FreeTop12.S2 2026-09-11] §6.5 复核：ORIG 8 串（""/"[drop prob count]"/"[drop prob]"/
+    //   "[basis of rarity dicision]"/"[party member drop bonusrate]"/"[dungeon difficulty drop
+    //   bonusrate]"/"[monster type drop bonusrate]"/"[item drop ref table]"）与源码逐条一致；
+    //   错误码立即数集 ORIG−OURS=∅（0x5fb…0x661 全等）；§6.5.1 enc 0 命中。
     if (!loadRDARScriptFile("", path))
         return 0x5fb;
     std::string token;
@@ -579,7 +586,12 @@ namespace WongWork
     // （原循环少 3 个调用点，p167 MISSING -3）、全头部声明（P212）。残差=槽常数 4
     // （N126/N95）+ `e[1] = ScanInt(&ok)` store 序 ORIG RHS-first vs 4.4 LHS-first
     // （N76，与 CSpecialMonsterDrop 同型）+ 多分支出口 jmp/nop 岛数（P63/N108）。
-    // 逐段对照报告 Ghidra C 语义一致。语义等价。
+    //   逐段对照报告 Ghidra C 语义一致。语义等价。
+    // [L1FreeTop12.S2 2026-09-11] §6.5 复核：ORIG 12 串（""/"[drop prob count]"/"[drop prob]"/
+    //   "[basis of rarity dicision]"/"[party member drop bonusrate]"/"[dungeon difficulty drop
+    //   bonusrate]"/"[monster type drop bonusrate]"/"[item drop ref table]"/"[first boss/named
+    //   mob hunting]"/"[condition rate]"/"[gold quantity]"/"[gold volume]"）与源码逐条一致；
+    //   错误码立即数集 ORIG−OURS=∅（0x66b…0x70a 全等）；§6.5.1 enc 0 命中。
     if (!loadRDARScriptFile("", path))
         return 0x66b;
     std::string token;
@@ -825,6 +837,11 @@ namespace WongWork
     // 残差=局部槽序（4.4 首槽常数 8：section/token -0x55/-0x54 vs -0x4d/-0x4c，
     // N82/N126）+ 多分支出口岛数
     //（P63/N108）。语义等价。
+    // [L1FreeTop12.S2 2026-09-11] §6.5 复核：ORIG 21 串（含 ""/"[drop prob count]"/
+    //   "[drop prob]"/"default".."pcroom bonus"/"[gold card cost table]"/"[gold card create
+    //   rate]"/"[pcroom card blank item]"/"[reward item rate per map max count]"/"[gold card
+    //   blank item]"）与源码逐条一致；错误码立即数集 ORIG−OURS=∅（0x943…0xa41 全等）；
+    //   §6.5.1 enc 0 命中。
     if (!loadRDARScriptFile("", path))
         return 0x943;
     std::string section;
@@ -1201,6 +1218,11 @@ __attribute__((target("arch=i486")))
     // 删 register 帧 0x54→0x64 全槽漂）。残差 N18a/N7：静态 logCount 自增 ORIG
     // `lea 0x1(%ecx),%edx; mov %edx,addr` vs 4.4 `mov/add/mov`（+1 条，`+=1`/
     // `1+x`/`x+1` 三形实测同）+ bool 局部 %al vs %bl（跨版本寄存器分配）。
+    // [L1FreeTop12.S2 2026-09-11] 已修⑤：静态 logCount 自增改**后置自增形**
+    // `if (logCount++ % 1000 == 0)`（旧 `bool logIt=…; logCount+=1; if(logIt)` 恒 3 条
+    // mov/add/mov）——旧值留 %ecx、写回复用 `lea 0x1(%ecx),%edx`（ORIG 0x082f8a7e/
+    // 0x082f8a81 实证），bool 具名局部随之消失（sete %al 直 test）⇒ fresh .o 98/98
+    // 逐条全等 AE（原 99/98 gap −1）⇒ verdict DIFF→AE。
     int result = 0;                         // ORIG prolog 后立即清零（-0x14）
     double rate;                            // ORIG 不预初始化（仅 else 路径赋值）
     if (m_field00 != 0)
@@ -1212,11 +1234,11 @@ __attribute__((target("arch=i486")))
             rate = m_goldBaseRate;
         result = (int)((double)gold * rate);         // ORIG fistpl 直接截断（无 +0.5）
         static int logCount = 0;            // ORIG bss _ZZ...GetGoldDropAmountRateEiiE8logCount
-        register bool logIt = (logCount % 1000 == 0);
-        logCount += 1;   // [L27-r2] 实测 `++logCount` 与 `+=1` 同形（4.4 对 static 恒
-                         //   mov/add/mov 3 条，ORIG `lea 0x1(%ecx),%edx; mov %edx,<A>`
-                         //   2 条 lea 形）⇒ 按 P211 负例（static 复合赋值序不可翻）判 N
-        if (logIt)
+        // [L1FreeTop12.S2 2026-09-11] 后置自增形：旧值留在 %ecx，写回复用
+        // `lea 0x1(%ecx),%edx`（ORIG 0x082f8a7e/0x82f8a81 实证 2 条），替代
+        // `mov/add/mov` 3 条形（`+=1`/`1+x`/`x+1` 均 3 条）。同 P187/参
+        // LinkClosureB_Misc.cpp:483。
+        if (logCount++ % 1000 == 0)
         {
             cMyTrace trace(
                 __PRETTY_FUNCTION__, 0xce, 0);

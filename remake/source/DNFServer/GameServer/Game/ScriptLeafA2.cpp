@@ -512,8 +512,17 @@ char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
     // `movl $0x0,-0x48(%ebp)`（num 预清）⇒ 两句式带初值（P198①）。
     int num = 0;                                    // ORIG -0x48：多分支复用（P171 死写入照抄）
 
-    while (ScanType(token, true))
+    // [b28d-L4a 2026-09-11] ORIG 0x08a9de09 段为 **top-tested** 形：
+    // `+0x051 jmp +0x57 / +0x054 jmp +0x57`（双空块入口）→ +0x57 cond →
+    // `xor $1; test %al; jne +0x6be`（**失败跳 END**）→ body → 尾部 `jmp +0x57`
+    // ⇒ 原码是 `for (;;) { if (!ScanType(...)) break; ... }`，非 `while(...)`
+    // （我方旧式产 bottom-tested `jmp cond / body / cond: jne body`）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+        {
+            break;
+        }
         if ("[tag mode]" == token)
         {
             num = ScanInt(&ok);                     // 仅存局部、后续不读（ORIG 0x08a9de49 死写入）
@@ -555,8 +564,14 @@ char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
         else if ("[striker module impossible]" == token)
         {
             m_moduleImpossible.clear();
-            while (ScanStr(&s))
+            // ORIG 0x08a9dfc0 段同形：`xor $1; test; je <body>` + fall-through
+            // `nop; jmp +0x57`（失败 break 回外层 cond）⇒ top-tested。
+            for (;;)
             {
+                if (!ScanStr(&s))
+                {
+                    break;
+                }
                 m_moduleImpossible.push_back(
                     static_cast<ContentsType::T>(ContentsType::getType(s.c_str())));
             }
@@ -564,8 +579,13 @@ char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
         else if ("[striker dungeon impossible]" == token)
         {
             m_dungeonImpossible.clear();
-            while (ScanInt(&num))                   // ORIG 复用 -0x48（0x08a9e035/0x08a9e053）
+            // ORIG 0x08a9e035/0x08a9e053 段同形（失败 break 回外层 cond）。
+            for (;;)
             {
+                if (!ScanInt(&num))                 // ORIG 复用 -0x48
+                {
+                    break;
+                }
                 m_dungeonImpossible.push_back(num);
             }
         }
@@ -601,18 +621,31 @@ char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
                 skill.m_field08 = e;                // -0x50
                 skill.m_name = s;                   // -0x4c（0x08a9e198 operator=）
                 // map 键 = 两个截断 ushort 打包（栈 -0x5c/-0x5a 对）
-                int key = static_cast<int>(
-                    static_cast<unsigned short>(a) |
-                    (static_cast<unsigned int>(static_cast<unsigned short>(b))
-                     << 16));
+                // ORIG 0x08a9e19d..0x08a9e1b4 逐条：`mov -0x30,%eax; mov %ax,-0x5c`
+                // （+0x00 写 2 字节）→ `mov -0x2c,%eax; mov %ax,-0x5a`（+0x02 写 2 字节）
+                // → `lea -0x5c(%ebp),%edx; mov %edx,0x8(%esp)` 传该 4 字节对象**地址**给
+                // find（无 32 位读）⇒ 原码 = 4 字节具名结构（两 ushort 成员，成员必相邻）
+                // + 以 int 引用传参。（旧位移/或打包在 4.4 多出 movzwl/shl/or 链 +3 条；
+                // 两个独立 ushort 局部实测 4.4 不保证相邻 ⇒ 槽布局错。）
+                struct StrikerSkillKey
+                {
+                    unsigned short lo;      // +0x00
+                    unsigned short hi;      // +0x02
+                };
+                StrikerSkillKey keyParts;
+                keyParts.lo = static_cast<unsigned short>(a);
+                keyParts.hi = static_cast<unsigned short>(b);
+                // [b28d-L4a 2026-09-11] 负结论：具名 `int& keyRef = *(int*)&keyParts`
+                // 实测 4.4 为引用发额外槽（our 499，+2）⇒ 保持直接 (int*)&keyParts
+                // 表达式形（our 497 = ORIG 497）。
                 std::map<int, std::vector<StrikerSkill>*>::iterator it =
-                    m_skillMap.find(key);
+                    m_skillMap.find(*reinterpret_cast<int*>(&keyParts));
                 // p167：ORIG 调 _Rb_tree_iterator::operator==（非 !=）⇒ 反向包裹。
                 if (it == m_skillMap.end())
                 {
                     std::vector<StrikerSkill>* vec = new std::vector<StrikerSkill>;
                     vec->push_back(skill);
-                    m_skillMap[key] = vec;
+                    m_skillMap[*reinterpret_cast<int*>(&keyParts)] = vec;
                 }
                 else
                 {
@@ -647,8 +680,12 @@ char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
         else if ("[contents revision]" == token)
         {
             m_contentsRevision.clear();
-            while (ScanStr(&s))
+            for (;;)
             {
+                if (!ScanStr(&s))
+                {
+                    break;
+                }
                 ContentsRevision rev;
                 rev.m_type = ContentsType::getType(s.c_str());
                 rev.m_field04 = ScanInt(static_cast<bool*>(0));
@@ -740,12 +777,16 @@ public:
     //   不变），且 (c) 反而劣化 ⇒ 帧差（我方 0xe0 vs ORIG 0xf0，判据⑪ 整帧平移，
     //   N126）非声明序可修；恢复语义最干净形。ORIG 0x0836485c，p167 CLEAR 55=55。
     std::vector<_StageMapSummary> summaries;
+    // [b28d-L4a 2026-09-11] ORIG 0x08364875 `movl $0x0,-0x28(%ebp)`（summaries
+    // ctor 之后、begin() 之前）⇒ 函数级具名 `name` 带初值 0，循环内 `mov %eax,-0x28`
+    // 覆写（形 (c) 复原）。
+    const char* name = 0;
 
     for (std::map<int, std::string>::iterator it =
              g_stageMapScriptFileList.m_fileMap.begin();
          it != g_stageMapScriptFileList.m_fileMap.end(); it++)
     {
-        const char* name = it->second.c_str();
+        name = it->second.c_str();
         if (name == 0)
         {
             break;
@@ -780,7 +821,15 @@ public:
                      si != stages.end(); si++)
                 {
                     _StageMapSummary sum;
-                    sum.m_nextId = 0;
+                    // [b28d-L4a 2026-09-11] 真语义修复（字段错位轴③）：ORIG
+                    // 0x083649ad `movb $0x0,-0xa0(%ebp)` = sum+0xc（1 字节），
+                    // 0x08364b09 `movb $0x1,-0xb0(%ebp)` = sum+0xc（幕区收尾）；
+                    // ORIG 构造段对 +0x08（int m_nextId，尾循环 0x08364cec 起
+                    // `mov 0x4(%eax),%eax; mov %eax,0x8(%ebx)` 写入）**只靠 C1
+                    // memset 清零**。我方旧式 `sum.m_nextId = 0/1`（movl 写 +8）
+                    // 使 +0xc 的 bool 永远为 0 ⇒ getNextStage 0x08364e58 读该字节
+                    // 时 ORIG=1 / 我方=0，行为分叉。
+                    sum.m_flags = 0;
                     sum.m_stageId = si->m_field0;
                     sum.m_uniqueId =
                         makeStageMapUniqueId(ai->m_field0, di->m_field0,
@@ -790,12 +839,14 @@ public:
                 }
                 districtId = di->m_field0;
             }
-            districtId += 1;
+            // ORIG 0x08364ad6 `movl $0x0,-0x18(%ebp)`（stageIdx2 预清）**先于**
+            // 0x08364add `addl $0x1,-0x20(%ebp)`（districtId += 1）⇒ 语句序复原。
             int stageIdx2 = 0;
+            districtId += 1;
             if (0 < ai->m_field2c)
             {
                 _StageMapSummary sum;
-                sum.m_nextId = 1;
+                sum.m_flags = 1;      // ORIG 0x08364b09 `movb $0x1,-0xb0(%ebp)`
                 sum.m_stageId = ai->m_field2c;
                 sum.m_uniqueId =
                     makeStageMapUniqueId(ai->m_field0, districtId, stageIdx2);
@@ -812,7 +863,9 @@ public:
     {
         if (i == 0)
         {
-            m_firstStageId = summaries[0].m_stageId;
+            // ORIG 0x08364cb4 `mov -0xc(%ebp),%eax; mov %eax,0x4(%esp)`（传**变量 i**
+            // 而非立即数 0）⇒ 原码 `summaries[i]`（i==0 域内等价）。
+            m_firstStageId = summaries[i].m_stageId;
         }
         if (summaries.size() - 1 != i)
         {
@@ -868,23 +921,10 @@ namespace APSystem
     {
         if (!ScanType(token, true))
         {
-            // EOF：把各组元素指针登记进 +0x18 引用表（ORIG 尾段循环）
-            // p167：ORIG 用 const_iterator（转换构造 ×2）+ operator++(int) +
-            // operator->/operator[] const ⇒ 按 P96/P28 改写。
-            for (std::map<unsigned short, std::vector<CActionPointEx> >::const_iterator
-                     it = out.m_actionPoints.begin();
-                 it != out.m_actionPoints.end(); it++)
-            {
-                const std::vector<CActionPointEx>& vec = it->second;
-                for (size_t i = 0; i < vec.size(); ++i)
-                {
-                    out.m_actionPointRefs.insert(
-                        std::make_pair(it->first,
-                                       static_cast<const CActionPointEx*>(&vec[i])));
-                }
-            }
-            // ↑ [P330] ORIG EOF 正常出口：ebx=0
-            return 0;
+            // [b28d-L4a 2026-09-11] ORIG 0x08894a0b `jne 0x08895481 (+0xaeb)`：
+            // 扫描失败直接跳**函数尾部**的 EOF 段（非就地展开）⇒ 原码是
+            // `for (;;) { if (!ScanType(...)) break; ... }`，EOF 登记段位于循环之后。
+            break;
         }
 
         if (token == "[action point list]")
@@ -1091,6 +1131,24 @@ namespace APSystem
             }
         }
     }
+
+    // EOF：把各组元素指针登记进 +0x18 引用表（ORIG 0x08895481 尾段循环）
+    // p167：ORIG 用 const_iterator（转换构造 ×2）+ operator++(int) +
+    // operator->/operator[] const ⇒ 按 P96/P28 改写。
+    for (std::map<unsigned short, std::vector<CActionPointEx> >::const_iterator
+             it = out.m_actionPoints.begin();
+         it != out.m_actionPoints.end(); it++)
+    {
+        const std::vector<CActionPointEx>& vec = it->second;
+        for (size_t i = 0; i < vec.size(); ++i)
+        {
+            out.m_actionPointRefs.insert(
+                std::make_pair(it->first,
+                               static_cast<const CActionPointEx*>(&vec[i])));
+        }
+    }
+    // ↑ [P330] ORIG EOF 正常出口：ebx=0
+    return 0;
 }
 
 }  // namespace APSystem
@@ -1136,8 +1194,15 @@ namespace APSystem
     itemData curItem;                               // -0x1b8
     (void)deadPad;
 
-    while (ScanType(token, true))
+    // [b28d-L4a 2026-09-11] ORIG 0x080ef430 `xor $1; test %al,%al; jne 0x080f0201
+    // (+0xe5f)`：扫描失败直接跳**函数尾部**（非就地）⇒ 原码为 top-tested
+    // `for (;;) { if (!ScanType(...)) break; ... }`（与 importScript/APEtc 同形）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+        {
+            break;                                  // EOF → 尾段 return ok?1:0
+        }
     retry:
         static std::map<const char*, int, less_TCHAR> __lookup;
         static SpinLock __init_lock;

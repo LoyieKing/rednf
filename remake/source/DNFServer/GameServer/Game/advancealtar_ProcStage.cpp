@@ -596,6 +596,11 @@ L_done:;
     // b28d-solo-ProcStage：P167/P96——ORIG 0x812ebd9 `_ZNKSt6vectorI…Phase…EixEj`
     //   （const 版 operator[]）+ 全套 `__normal_iteratorIPKN…` ⇒ m_timeLine 为
     //   const TimeLine*（头已 const 化），phase 取 const 引用。
+    // [L4d 2026-09-11 负结论] ORIG 0x0812ec2a `mov -0x3c(%ebp),%eax; mov (%eax)…` 的
+    //   -0x3c 槽在 ORIG 里是 **m_timeLine 缓存**（0x0812ebca 落槽、0x0812ebf9 复用），
+    //   我方 4.4 把该成员留在寄存器、把 operator[] 结果落 -0x3c ⇒ 整组槽浅 4。
+    //   实测「补 `const TimeLine* tl = m_timeLine;` 具名槽」= 403→405 条 + NDIFF 552→586
+    //   （劣），回滚；4.4 不为该成员发槽（同 P0 族）。
     const Phase& phase = m_timeLine->m_phases[m_fieldc];
     ++m_fieldc;
     const int alive = m_summonObjectMs.getAliveMonsterCount();
@@ -611,8 +616,11 @@ L_done:;
     //   两处 `rangedIt == end()` 用 eq 正极性（差集 eq ×2）。
     std::vector<_ActionAssign>::const_iterator rangedIt = phase.m_assigns.end();
     std::vector<_ActionAssign>::const_iterator unlimitedIt = phase.m_assigns.end();
-    for (std::vector<_ActionAssign>::const_iterator it = phase.m_assigns.begin();
-         it != phase.m_assigns.end(); it++)
+    // [L4d 2026-09-11] P331 声明序=槽序：ORIG 0x0812ec54 先 begin()→ -0x78（it），
+    //   随后两次 end() → -0x7c/-0x80（rangedIt/unlimitedIt）；我方原序把 it 放 for-init
+    //   ⇒ 槽序倒置（it 落 -0x98、哨兵占 -0x78/-0x7c）且多 4 条中转。改先声明 it。
+    std::vector<_ActionAssign>::const_iterator it = phase.m_assigns.begin();
+    for (; it != phase.m_assigns.end(); it++)
     {
         if (it->m_minAliveCount == -1 && it->m_maxAliveCount == -1)
         {
@@ -645,6 +653,14 @@ L_done:;
             // ORIG 0x812f054 段：`mov m_field10→-0x18; …; add %eax,-0x18`（两步具名局部）
             // ⇒ 拆两句（P0/P186：合并成一句被 4.4 折 lea）。
             int spawnMs = m_field10;
+            // [L4d 2026-09-11] 语义轴①+槽复原：ORIG 0x812ee2c `mov 0x4(%eax),%eax;
+            //   mov %eax,-0x14` 把 m_pSummon 缓存进具名指针槽 -0x14，0x812ee32
+            //   `cmpl $0,-0x14; je <for 增量 0x812f034>` ⇒ 原码为「pSummon 判空正向
+            //   包裹整段」。我方旧形**无判空**且每用点重取 it->m_pSummon（find/
+            //   make_pair/memcpy 三处），既缺 ORIG 的空指针守卫又少 1 个槽 ⇒ 补。
+            _SummonObject* pSummon = it->m_pSummon;
+            if (pSummon != 0)
+            {
             spawnMs += it->m_firstDelayMs;
             while (spawnMs < phaseEnd)
             {
@@ -653,11 +669,15 @@ L_done:;
                 int create = 1;
                 if (it->m_flag != 0)
                 {
-                    const int key = it->m_pSummon->m_field0c;
-                    std::map<int, int>::iterator found = spawnCounts.find(key);
+                    // [L4d 2026-09-11] P0/P183 去具名 key 槽：ORIG 0x812ee72
+                    //   `mov -0x14(%ebp),%eax; lea 0xc(%eax),%edx` 直传
+                    //   &m_pSummon->m_field0c（map::find 收 const int&），两次用点
+                    //   各自重取 ⇒ 原码为表达式内联，无 key 局部。
+                    std::map<int, int>::iterator found =
+                        spawnCounts.find(pSummon->m_field0c);
                     if (found == spawnCounts.end())
                     {
-                        spawnCounts.insert(std::make_pair(key, 1));
+                        spawnCounts.insert(std::make_pair(pSummon->m_field0c, 1));
                     }
                     else if (found->second < it->m_flagValue)
                     {
@@ -672,13 +692,16 @@ L_done:;
                 {
                     _SummonObjectMs* so = new _SummonObjectMs;
                     so->m_ms = spawnMs;
-                    so->m_seq = m_field14;
-                    m_field14 = static_cast<short>(m_field14 + 1);
+                    // [L4d 2026-09-11] ORIG 0x812ef9f 段只读一次 m_field14：
+                    //   `movzwl 0x14(%eax),%eax` → `mov %ax,0x4(%edx)`（old 存 m_seq）
+                    //   → `lea 0x1(%eax),%edx` → `mov %dx,0x14(%eax)`（自增后写回）
+                    //   ⇒ 原码是后置自增 `so->m_seq = m_field14++;`（旧形两句各读一次）。
+                    so->m_seq = m_field14++;
                     so->m_actionDefineId = define->m_id;
                     // ORIG 0x812f020 段 `movb $0x0,0xc(%eax)`：new 后显式清零 m_deadFlag
                     //（P171 照抄原码显式写；ctor memset 已清但 ORIG 逐条发射）。
                     so->m_deadFlag = 0;
-                    std::memcpy(&so->m_summon, it->m_pSummon, 0x24);
+                    std::memcpy(&so->m_summon, pSummon, 0x24);
                     m_summonObjectMs.insertSummonObject(*so);
                     spawnMs += it->m_nextDelayMs;
                     if (firstIndex == -1)
@@ -690,6 +713,7 @@ L_done:;
                 {
                     spawnMs += it->m_nextDelayMs;
                 }
+            }
             }
         }
     }
@@ -1233,15 +1257,16 @@ L_out:;
     bool bFlag = false;
     // b28d-solo-ProcStage：P0/P183——ORIG 无 cam 引用槽（0x812e464 每次
     //   `mov -0x1c(%ebp),%edx; lea 0x8df60(%edx),%ecx` 内联）⇒ 全部实参内联。
-    if (!user->m_advanceAltar.clearStage(
+    // [L4d 2026-09-11] P222/P257 正向包裹：ORIG 0x812e497 `test %al,%al;
+    //   je 0812e6d5 <epilogue>`（真值直落 body、假值跳共享尾）；旧 `!call`
+    //   形产 `xor $1;test %al;jne` + 独立 return 岛（多 1 条 nop;jmp）⇒ 回退真值形。
+    if (user->m_advanceAltar.clearStage(
             getStageIndex(),
             static_cast<StageDifficulty::T>(m_difficulty),
             static_cast<StageType::T>(getStageType()),
             getClearSurvivalRoundNo(),
             starCount, unlockBuy, bFlag))
     {
-        return;
-    }
 
     std::map<int, _Reward> rewardMap;
     addAchievementReward(rewardMap);
@@ -1254,13 +1279,18 @@ L_out:;
     //   P197④——ORIG 0x812e51e `call size; test; je` ⇒ 原码 `size() != 0` 非 empty()；
     //   P168a 档①——ORIG 0x812e547 `call decTicket; xor $1; test; je` ⇒ bool 返回 + 裸 `!`。
     // ORIG 0x812e533 `test %al; je 主流程` + 0x812e54c `xor $1; test; je 主流程`
-    //   ⇒ 单条 `if ((A||B) && !C) return;`（A/B 物化为 mov$1/mov$0 汇合）。
-    //   P226 条件向语句表达式（内不含具名变量）复现 A||B 的零槽短路物化岛。
+    //   ⇒ 条件分两段、A||B 物化为 mov$1/mov$0 汇合岛（P226 条件向语句表达式，
+    //   内不含具名变量）。
+    // [L4d 2026-09-11] 嵌套 if（=ORIG 两段跳转形）：旧单条 `(A||B) && !C` 被
+    //   4.4 把右操作数物化成 mov$1/mov$0（+4 条）⇒ 拆嵌套后逐条件各一条
+    //   `test;je`（216=216 = ORIG）。
     if (({ getStageType() == 0 ||
-          (getStageType() == 1 && rewardItems.size() != 0); }) &&
-        !user->m_advanceAltar.decTicket())
+           (getStageType() == 1 && rewardItems.size() != 0); }))
     {
-        return;
+        if (!user->m_advanceAltar.decTicket())
+        {
+            return;
+        }
     }
     std::vector<_BuyItem> buyItems;
     if (unlockBuy)
@@ -1277,6 +1307,7 @@ L_out:;
     {
         HistoryLog::starAdd(*user, AddStarType::ADD_BY_CLEAR,
                             getStageIndex(), starCount);
+    }
     }
 }
 

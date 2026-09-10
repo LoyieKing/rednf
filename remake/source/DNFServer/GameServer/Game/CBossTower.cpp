@@ -324,6 +324,10 @@ namespace WongWork
 //   596/2/7/134 全等）⇒ 调用点 test/setne 2 条消除，DIFF→NEAR（82:82）。
 //   残余 = serverRarity 槽 -0xa vs ORIG -0x1d（N82附：4.4 聚合对象优先占低槽、
 //   标量分区排布——trace 对象占 -0x1c..-0xb 之后；声明序反转试形无效）。
+// [L5Free49to60 2026-09-11] **NEAR→AE（82:82，gap 0，bcmp NDIFF 15→0）**：P221 全表达式
+//   临时链 `cMyTrace(...)(...)` 替换具名 trace 对象后复现 ORIG 槽方向（trace 浅、
+//   serverRarity 深至 -0x1d）——证明该残差是「具名类对象 vs 临时链」槽方向旋钮，
+//   非同族 N82附 不可控项；凡 cMyTrace 与标量/数组互斥槽序的 NEAR 件可重试此形。
 #include "CBossTower/handlePickupItem.inc"
 {
     // [b28d-solo-CBossTower 真语义 bug 修正] ORIG 0x08143d3e..0x08143d68：
@@ -349,9 +353,11 @@ namespace WongWork
 
     if (serverRarity != c)
     {
-        cMyTrace trace("virtual bool WongWork::CBossTower::handlePickupItem(CUser*, "
-                       "int, bool, char)", 600, 5);
-        trace("server_item_rarity != client_item_rarity");
+        // [L5Free49to60 P221 试形] 具名 cMyTrace 对象在 4.4 占低槽（-0x1c 区），
+        // ORIG 该对象在 -0x1c..-0xb、serverRarity 深至 -0x1d ⇒ 改全表达式临时链
+        // 复现 ORIG 槽方向（P37/P221）。
+        cMyTrace("virtual bool WongWork::CBossTower::handlePickupItem(CUser*, "
+                 "int, bool, char)", 600, 5)("server_item_rarity != client_item_rarity");
     }
 
     if (user != 0 && c == 3)
@@ -505,6 +511,9 @@ namespace WongWork
 //   trace=-0x44/itemParams=-0x34（N82附：4.4 聚合对象优先占低槽、标量分区
 //   排布；声明序反转试形无效）。items -0x168、各分支 PacketGuard -0x50/
 //   -0x5c/-0x68/-0x74、-0x16c(useItems spill) 与 ORIG 全等。
+// [L5Free49to60 2026-09-11] **NEAR→AE（340:340，bcmp NDIFF 归零）**：同 P221 形——
+//   首个 cMyTrace 由具名对象改全表达式临时链 `cMyTrace(...)(...)`，4.4 的聚合对象
+//   低槽占用消失，itemParams 回深槽 -0x44、trace 回浅槽 -0x34，与 ORIG 逐槽全等。
 #include "CBossTower/checkStartGameCondition.inc"
 {
     Inven_Item items[4];                       // ebp-0x168 起 4*0x3d，整体清零 0xf4
@@ -514,9 +523,11 @@ namespace WongWork
 
     if (m_dungeon == 0 || !m_dungeon->IsOpenScheduleDungeon())
     {
-        cMyTrace trace("bool WongWork::CBossTower::checkStartGameCondition("
-                       "unsigned char&, bool)", 0xdb, 5);
-        trace("boss Tower dungeon is not open");
+        // [L5Free49to60 P221 试形] ORIG 该 cMyTrace 对象占浅槽 -0x34..-0x24（4.1
+        // 互斥块后声明占浅），4.4 具名对象恒占低槽 -0x44（与 itemParams 互换）
+        // ⇒ 改全表达式临时链复现 ORIG 槽方向（P37/P221）。
+        cMyTrace("bool WongWork::CBossTower::checkStartGameCondition("
+                 "unsigned char&, bool)", 0xdb, 5)("boss Tower dungeon is not open");
         PacketGuard packet;
         packet.clear();              // ORIG 0x0814309a（本分支 C1 后显式 clear）
         packet.put_header(1, 0x10);
@@ -1398,6 +1409,9 @@ namespace WongWork
 //   五形）与 4.4 均产不出该形 ⇒ N 封顶。重建保留真实业务语义（body 可达），
 //   残余 = 我们多 `je <第二条件>` + 两条 receiver 重载（ORIG 复用 eax=m_party）
 //   vs ORIG 单条 `jmp`（104:103）。
+// [L5Free49to60 2026-09-11 复核] fresh 103 vs 104 不变；bcmp 唯一差异 = ORIG 头部
+//   无条件 `jmp`（死块前端残留）vs 我方 `je <第二条件>; mov 0x8(%ebp),%eax` 两条
+//   ⇒ 维持 N（不为凑形态引入伪死块）。
 #include "CBossTower/onReturnVillage.inc"
 {
     if (m_party != 0 && m_party->GetEPLPState() == 2)

@@ -296,7 +296,10 @@ std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
     // 独立赋值（P198①）；负值判定为 `shr $0x1f,%eax; test %al,%al; je`（4.1 无符号移位形）。
     int price = -1;
     price = redeem->GetItemPrice(redeemId);
-    if (((unsigned int)price >> 31) != 0)
+    // [L4b 试验] 4.4 对 `(unsigned)price >> 31 != 0` 恒折叠为 `cmpl $0; jns`
+    // （ORIG 4.1 为 `shr $0x1f,%eax; test %al,%al; je`）。显式 8 位窄化比较
+    // 以期 4.4 直接产 `test %al,%al`（不引入槽往返）。
+    if ((unsigned char)((unsigned int)price >> 31) != 0)
     {
         SendCmdErrorPacket((ENUM_CMDPACKET)0x137, 3);
         return 0;
@@ -327,17 +330,31 @@ std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
         return 0;
     }
 
-    CUserCharacInfo::getCurCharacInvenW()->use_money(price, (eMoneySubReason)0x25, true);
+    // [L4b 语义轴③ 字段选择] ORIG 0x08647146 `mov -0x8c(%ebp),%ebx`（该函数内
+    // -0x8c 全函数**只读不写**，即 info 起始 -0xcc 的 +0x40 = `m_count40`；
+    // GetRedeemInfoR 的 sret 写入 0x44 字节覆盖该槽）⇒ use_money 的 amount 实参
+    // 是 info.m_count40（正常路径与 price=GetItemPrice 同值，均取该 list 项
+    // 的 +0x40），非 price 局部（旧形产 `mov -0x14(%ebp),%edx` 与本形不符）。
+    CUserCharacInfo::getCurCharacInvenW()->use_money(info.m_count40,
+                                                     (eMoneySubReason)0x25, true);
 
-    CItem* pItem = G_CDataManager()->find_item(item->m_addInfo);
     // 非堆叠 → 历史记录 count=1；堆叠 → count=item.m_addInfo2(+0x07)。
-    if (pItem == 0 || !pItem->is_stackable())
+    // [L4b 语义轴① 去发明防御] ORIG 0x0864718c `mov %eax,(%esp); call is_stackable`
+    // 把 find_item 返回值**直接**当 this 传入，**无** null 检查（无 test/je 岛）；
+    // `pItem == 0 ||` 属我方发明的防御，与 ORIG 行为不符 ⇒ 删除（ORIG 同址即
+    // 0x08647194 `test %al,%al; je +0x3cd` 直判 is_stackable 极性）。
+    // [L4b P59/P222 块序] ORIG：is_stackable **真** → fall-through 走 addInfo2 分支
+    // （0x08647198..0x086471b8），**假** → je +0x3cd 走 count=1 ⇒ 正极性书写。
+    // [L4b P0 去具名局部] ORIG 0x0864718c 把 find_item 返回值经 %eax 直传
+    // is_stackable，无 pItem 局部槽（我方旧形的 `mov %eax,-0xc; mov -0xc,%eax`
+    // 往返为多余）⇒ 表达式内联。
+    if (G_CDataManager()->find_item(item->m_addInfo)->is_stackable())
     {
-        m_historyLog.RedeemItemDel(item->m_addInfo, 1);
+        m_historyLog.RedeemItemDel(item->m_addInfo, item->m_addInfo2);
     }
     else
     {
-        m_historyLog.RedeemItemDel(item->m_addInfo, item->m_addInfo2);
+        m_historyLog.RedeemItemDel(item->m_addInfo, 1);
     }
 
     redeem->RedeemItem(redeemId);
@@ -466,6 +483,10 @@ std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
     // ②N7 间接 call 目标 %eax(4.4.7) vs %edx(4.1)。
     // [D04 实测] P190 `double framePad; (void)&framePad;` 撑帧：帧 0x44→0x54 但槽位反劣
     // （-0x24/-0x18/-0x14 更远离 ORIG 的 -0x20/-0x1c/-0x18）⇒ 已回滚；维持 N82/N98 判词。
+    // [L4b 2026-09-11] 本轮把 characNo 前置到 value 之前：value 归位 -0x24（同 ORIG），
+    // characNo 仍 -0x20（ORIG -0x18）、it/end 仍 -0x1c/-0x18（ORIG -0x20/-0x1c）；
+    // 「characNo 最前 / value 前 / 分支内声明」三形实测 ndiff 30/30/40 ⇒ 取 30 形。
+    // 权威口径 NEAR 166/166、ndiff=30（助记符全同、仅槽号与一处寄存器选择差）⇒ N82/N98。
     // ORIG 0x0816748e 判活为虚调用 IsEventing(0)
     // （vptr+0x34 = CEventBase::IsEventing），非直读 m_isEventing 字段。
     if (!IsEventing(0))
@@ -497,11 +518,15 @@ std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
         return false;
     }
 
+    // [L4b 槽序试验] ORIG 槽（深→浅）：value -0x24 / it -0x20 / end -0x1c /
+    // characNo -0x18（ORIG 0x08167619 characNo 槽 -0x18，浅于 value/it）。
+    // 实测：①头部声明（rewarded/advance 之后）→ characNo -0x24、value -0x20（反）；
+    // ②前置到 value 之前 → value 归位 -0x24、characNo -0x20（ndiff 30）；
+    // ③分支内声明（P-L11c）→ ndiff 反劣 40 ⇒ 已回滚，保留②形。
+    unsigned int characNo;
     bool rewarded = false;
     bool advance = false;
     HeroMissionValue* value = 0;
-    // ORIG 0x08167619：characNo 槽 -0x18（浅于 value/it）⇒ 声明提到分支外。
-    unsigned int characNo;
     if (findMissionValue(user, mission, value))
     {
         // ORIG 0x081675f9：missionType 判定与两臂各重新 it->second（ptEv 各一次，
@@ -670,6 +695,10 @@ std::vector<LevelupSupportSciprt::ItemInfo>*
         // shr $0xf,%eax; test %ax,%ax`（其余五形恒插 `movzwl %ax,%eax` 窄化中转 = +1 条）。
         // 残余 = 4.1 的 16 位窄化（`movzwl` 装载 / `shr %ax` / `test %al,%al`）vs 4.4 恒 32 位
         // 提升（`movswl` / `shr %eax` / `test %ax,%ax`）⇒ 结构性 N（同 N206/整数提升族）。
+        // [L4b 2026-09-11 复核 + 实测] 权威口径 DIFF 217/217、ndiff=6：唯一残差即上述
+        // 3 行窄化差。实测 `unsigned short slot` 形：判定侧载入变 movzwl（与 ORIG 配对），
+        // 但传参侧退化为 movzwl（ORIG 为 movswl，0x08147534 附近）⇒ 差异仅换位（ndiff 仍 6）。
+        // 同一变量不可两全（判定需零扩展、传参需符号扩展）⇒ N206 封顶。
         if ((unsigned short)((unsigned)(~slot) >> 15) != 0)
         {
             user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, slot);
@@ -742,7 +771,12 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            __PRETTY_FUNCTION__,
+            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
+            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
+            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
+            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
+            "bool random_option::CRandomOptionItemHandle::change_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
             0x356, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
             (int)itemIdx, (int)(unsigned char)rarity, level, group,
             (int)optType, err);
@@ -756,7 +790,12 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            __PRETTY_FUNCTION__,
+            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
+            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
+            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
+            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
+            "bool random_option::CRandomOptionItemHandle::change_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
             0x35d, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
             (int)(unsigned char)rarity, group, grade, level,
             (int)optType, outGroup, err);
@@ -765,9 +804,19 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
 
     // [b28d-solo-UserMiscLink] 判词（N 封顶）：443/432、p167 CLEAR(47=47)；
     // 残差=①帧 0xc0 vs 0xd0 + 局部槽深差（optType -0x53 vs -0x65、err -0x28 vs -0x1c）
-    // ⇒ N82/N95；②4.4 lea 折叠（optB[i] 字节写 vs ORIG disp 直写）；③寄存器分配。
+    // ⇒ N82/N95；②4.4 lea 折叠（reinterpret_cast<unsigned char*>(opts)[i] 字节写 vs ORIG disp 直写）；③寄存器分配。
     // 已复现：const_iterator（P96/P270 翻转 13 项 p167 差集）、begin()+sel 的 deEv/plERKi
     // （P167 判据）、setne 物化岛（P225 while 形）、union 字节键、GetRandomOption 逐点重取（P157）。
+    // [L4b 2026-09-11 本轮] ①P183 去 seedRoll 具名局部（444→442）；
+    // ②P243 `slot == i` 书写序（cmp 操作数序，ndiff −4）；
+    // ③§6.5 串盲区真差异修复：5 处 __PRETTY_FUNCTION__ 改为手写 ORIG 实串
+    //   `bool random_option::CRandomOptionItemHandle::change_option(itemIndex_t, ENUM_RARITY,
+    //   int, int, int, int, RandomOption*)`（旧形展开为 `long unsigned int`，运行期日志文本不符）；
+    // ④dwRaw 键按 `*reinterpret_cast<short*>(&dwRaw)` 直取（去 `movzwl+mov %ax,%临时`
+    //   物化，442→438）。复测回滚：去 optB 具名局部（权威 ndiff 412→448）、while→for（同码）。
+    // 残差（权威 DIFF 438/432、ndiff=424）：帧 0xe0/0xd0 与 optType(-0x53/-0x65)、
+    // err(-0x20/-0x1c) 槽差（N82/N95）；remaining -= w 的 4.1 %ebx 跨调用保活 5 条 vs
+    // 4.4 mem-sub 2 条；内层循环尾 break+回跳两条 jmp；sel<size 的 seta/setbe 极性 ⇒ N 封顶。
     // 不同权重表（GetRandomOption()+0xf4 = RandomOptionScript::m_mapf4）：
     // 键 = 低字节 rarity | 高字节 optType（ORIG 0x085f34d3/da 两次字节写 -0x6e/-0x6d
     // ⇒ 原码 union 字节视角）；P157：GetRandomOption() 每次重取（ORIG 四处独立 call）。
@@ -779,13 +828,22 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     } dwRaw;
     dwRaw.m_b[0] = (unsigned char)rarity;
     dwRaw.m_b[1] = optType;
+    // [L4b] ORIG 0x085f34dd 直接 `lea -0x6e(%ebp),%edx` 传 union 首址给 find
+    // （无 short 成员读出的临时物化）；旧形 `find(dwRaw.m_w)` 令 4.4 先
+    // `movzwl -0x62; mov %ax,-0x52` 再取临时地址（多 2 条）⇒ 显式按 short* 取址。
     std::map<short, DifferentWeightValue>::const_iterator dw =
-        reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapf4.find(dwRaw.m_w);
+        reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapf4.find(
+            *reinterpret_cast<short*>(&dwRaw));
     if (dw == reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_mapf4.end())
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            __PRETTY_FUNCTION__,
+            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
+            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
+            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
+            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
+            "bool random_option::CRandomOptionItemHandle::change_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
             0x369, "different_weight_ (%d,%d) ",
             (int)(unsigned char)rarity, (int)optType);
         return false;
@@ -799,13 +857,21 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            __PRETTY_FUNCTION__,
+            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
+            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
+            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
+            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
+            "bool random_option::CRandomOptionItemHandle::change_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
             0x371, "option_group_ (%d) ", outGroup);
         return false;
     }
 
     int remaining = ogIt->second.m_fieldC;
     std::vector<OptionGroup> groupVec = ogIt->second.m_vec0;   // 值拷贝后 erase
+    // [L4b 复测·回滚] 去 optB 具名局部（逐点重取参数）：权威口径 ndiff 412→448 反劣
+    // （条数恒 440）⇒ 维持具名局部形。ORIG 的 `mov 0x24(%ebp),%ecx` 形属 4.1 参数槽
+    // 直读，4.4 无该局部时寄存器分配走坏（%ebx 提前保活扰动全块）。
     unsigned char* optB = reinterpret_cast<unsigned char*>(opts);
     // ORIG 0x085f3705：迭代器默认构造（C1Ev）在循环之前 ⇒ 先声明后赋值（P50 复活）。
     std::vector<OptionGroup>::iterator selIt;
@@ -814,11 +880,15 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     // （i 的 ORIG 预清形 0x085f3674 `movl $0x0,-0xc` 属上述已回滚组。）
     for (int i = 0; i <= 2; ++i)
     {
-        if (i == slot || optB[i * 3] == 0)
+        // [L4b] P243 书写序：ORIG 0x085f3733 `mov 0x20(%ebp),%eax; cmp -0xc(%ebp),%eax;
+        // je`（eax=slot，cmp i）⇒ 源码槽序写 slot==i。
+        if (slot == i || optB[i * 3] == 0)
         {
             continue;
         }
         // ORIG 0x085f36b7：begin 在 if 内、while 形、`(*it).m` 走 deEv（P167 新判据）。
+        // [L4b 实测] for 形（++it 在 for 头）与 while 形同码（438/ndiff 424 不变）⇒
+        // 维持 while 形；尾部两条 jmp（break + 回跳）属 4.4 控制流布局，记 N。
         std::vector<OptionGroup>::iterator it = groupVec.begin();
         while (it != groupVec.end())
         {
@@ -853,14 +923,22 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
         optB[0xc] = (unsigned char)_get_option_value(dwv.m_field0, dwv.m_field4);
         optB[0xd] = (unsigned char)((optB[0xd] & 0xfc) | (slot & 3));
         unsigned long seedBound = 0x40;
-        int seedRoll = m_rand[10].randInt(seedBound);  // m_rand+0x61d0 → 池[10]
-        optB[0xd] = (unsigned char)((optB[0xd] & 3) | ((seedRoll & 0x3f) << 2));
+        // [L4b] P183 去 seedRoll 具名局部：ORIG 0x085f3945 直接把 randInt 结果
+        // 内联进表达式（`mov %eax,%edx; and $0x3f,%edx; lea 0(,%edx,4),%ecx`，
+        // 无独立槽、无「存槽再读」往返）。
+        optB[0xd] = (unsigned char)((optB[0xd] & 3) |
+                                    ((m_rand[10].randInt(seedBound) & 0x3f) << 2));
     }
     else
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            __PRETTY_FUNCTION__,
+            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
+            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
+            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
+            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
+            "bool random_option::CRandomOptionItemHandle::change_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
             0x390, "_option_group.size() %d, %d ", sel,
             (unsigned int)groupVec.size());
         return false;

@@ -758,6 +758,12 @@ inline unsigned int GetUIDOf(CUser* user) { return user->GetUID(); }
 // <循环增量>` 全等（旧 uchar 时代 `if(!f())`/continue 两形均不可复现）；
 // ②本件 106=106（raw 108=108），残余仅深区槽整体 -4 平移（ORIG it/-0x38、
 // minPeriod/-0x34、endIt/-0x30、period/-0x2c；我方浅 4），N82/P112 封顶。
+// [2026-09-11 本轮复核修正] 上述旧槽记录有误：ORIG 实测 it@-0x38、endIt@-0x3c、
+// minPeriod@-0x34、end() 临时@-0x30、period@-0x2c。本轮按 P328⑤ 把 `long period`
+// 改函数头裸声明（占槽不占指令）后 it/endIt/minPeriod 三槽与 ORIG 完全同址，
+// 残余仅 period(-0x30) 与 end() 临时(-0x2c) **两槽互换**：4.4 恒把匿名 sret 临时
+// 放最浅空闲槽 -0x2c，ORIG 4.1 把块内具名 period 放该处。已试 5 形（period 三种
+// 声明位、endIt 显式转换/直构/具名 mailEnd）均不翻 ⇒ N82/P112（保留 3/5 槽对齐形）。
 // ③InsertTimer 段 ORIG 用 %edi/%esi/%ebx 三 callee-saved 装载
 // （GetLoginTick/GetUID/GetCurCharacNo），4.4 角色互换（N7 族，本 TU 路由
 // 4.4.6 仍不翻）。
@@ -772,10 +778,11 @@ inline unsigned int GetUIDOf(CUser* user) { return user->GetUID(); }
     long deadline = 0x151800;
     long nowSec = GlobalData::s_systemTime_.getCurSec();
     deadline = deadline + nowSec;
+    // [2026-09-11 本轮] period 必须函数头裸声明（P328⑤ 占槽不占指令），
+    // 否则 it/endIt 整体浅 4（-0x34/-0x38 vs ORIG -0x38/-0x3c）。见函数尾判词。
+    long period;
     long minPeriod = deadline;
     MailMap::iterator it = mail_map(box).begin();
-    // 与 ORIG 槽阶梯（0x855242x：it@-0x3c / end() 临时@-0x34 / 转换 ctor @-0x40）
-    // 对齐（P326 右值临时形）。
     MailMap::const_iterator endIt = MailMap::const_iterator(mail_map(box).end());
     for (; it != endIt; ++it)
     {
@@ -784,7 +791,7 @@ inline unsigned int GetUIDOf(CUser* user) { return user->GetUID(); }
         // （bool callee；旧 uchar 时代 continue 形曾 +2 条，bool 化后与 ORIG 同形）。
         if (it->second->isUnlimit())
             continue;
-        long period = it->second->GetPeriod();
+        period = it->second->GetPeriod();
         minPeriod = std::min(minPeriod, period);
     }
     if (minPeriod != deadline)
@@ -1424,8 +1431,19 @@ return_true:
 // ← restrictCode 值、第 4 参 int& restrictCode ← outCnt；ORIG
 // 0x08553e94..0x08553eb0 / 0x08553fa3..0x08553fc4 压栈序实证 + 全仓同族
 // 调用点一致）⇒ ndiff 334→277，523 vs 534（+1 条为参数序寄存器分配）。
-// 残余 = 槽平移 + 4.4 bool 物化（N82/P168a④，ORIG `cmpl $0; setne; test; je`
-// vs 4.4 `cmpl $0; je`）。
+// [2026-09-11 本轮] gap −11 → **−1**（我方 525 / ORIG 524）。修复：
+//  ①`&&` 短路 → 两独立守卫（P222/P133，ORIG 08553a4d/08553a7c 同落 08553caa；
+//    4.4 合并形多 `mov $1/jmp/mov $0/test` 5 条 ×2）；
+//  ②find_item 结果具名局部（P0，ORIG 08553a6e `mov %eax,-0x20`）；
+//  ③slot 两句式预清（P198①，ORIG 0855405c `movl $0x0,-0x74`）+ logFormat
+//    第二守卫拆独立 if（ORIG 08553f55 cmp/jne + 08553fc9 xor/test/je）；
+//  ④logFormat 第 3 参手写签名串 → __PRETTY_FUNCTION__（P139 符号一致）；
+//  ⑤删 `CCeraShop* shop` 具名局部（P0，ORIG 每次 `mov &s_pCeraShop,%eax` 直读）。
+// 残余（N 封顶）：①帧槽整体浅 4（pkg sret −0xdd vs ORIG −0xd9，帧同为
+// sub $0xca30）⇒ N82/P112 聚合对象分区；②slot 判负 ORIG `mov slot,%eax;
+// shr $0x1f,%eax; test %al,%al; je`（4 条，08554132..）vs 4.4 `test %eax,%eax;
+// jns`（2 条）⇒ N22；已试回滚：具名 `unsigned slotSign = (unsigned)slot>>31`
+// 使帧 0xca30→0xca40、pkg→−0xdf、Inven_Item 压栈错位（gap −1→−3）。
 #include "CMailBoxHelper/_DoGetPackageItem.inc"
                                        std::vector<std::pair<int, int> >& items,
                                        bool bReset, ENUM_ERROR& err)
@@ -1443,7 +1461,6 @@ return_true:
         return user->DoGetCeraPointItem(mail->GetPackageMoney(), bReset, err,
                                         (unsigned long)pkg.m_addInfo);
 
-    WongWork::CCeraShop* shop = GlobalData::s_pCeraShop;
     // ORIG 0x08553936：bReset 与 !bReset 两分支各自一套
     // IsSpecialItem + find_item + _isUnusableSpecialItemInVillage 检查
     // （Ghidra C 0x08553a48 / 0x08553db7 两组，各 1 次调用）。
@@ -1452,48 +1469,55 @@ return_true:
         int specialA = 0;
         int specialB = 0;
         bool specialFlag = false;
-        if (shop->IsSpecialItem(pkg.m_addInfo, specialA, specialB, specialFlag) &&
-            _isUnusableSpecialItemInVillage(
-                G_CDataManager()->find_item(pkg.m_addInfo)))
+        // [2026-09-11] P222/P133：ORIG 08553a4d/08553a7c 两守卫各自
+        // `call; test %al,%al; je 08553caa`（正向 if 直落 fallback）；
+        // `&&` 短路物化多 5 条 ×2，`if(!g()) goto` 反产 xor 物化（+2 ×2）。
+        // P0：ORIG 08553a6e `mov %eax,-0x20(%ebp)` ⇒ find_item 结果具名局部。
+        if (GlobalData::s_pCeraShop->IsSpecialItem(pkg.m_addInfo, specialA,
+                                                   specialB, specialFlag))
         {
-            if (specialA == 1)
+            CItem* specItem = G_CDataManager()->find_item(pkg.m_addInfo);
+            if (_isUnusableSpecialItemInVillage(specItem))
             {
-                // [2026-09-10 D06 · 轴 B 试验] ORIG 0x08553a9f..0x08553aa4
-                // `mov -0x4c(%ebp),%edx; cmp %edx,%eax; setge %al`（**有符号**，
-                // = `GetCapacity() >= specialB`）；我方 `GetCapacity()` 返回
-                // unsigned ⇒ `int <= unsigned` 隐式转无符号 ⇒ `setbe` + 提前
-                // 物化（+4 条）。加 `(int)` cast 恢复有符号序。
-                if (specialB <= (int)user->getCurCharacCargoR()->GetCapacity())
+                if (specialA == 1)
                 {
-                    err = (ENUM_ERROR)0xd;
-                    return false;
+                    // [2026-09-10 D06 · 轴 B 试验] ORIG 0x08553a9f..0x08553aa4
+                    // `mov -0x4c(%ebp),%edx; cmp %edx,%eax; setge %al`（**有符号**，
+                    // = `GetCapacity() >= specialB`）；我方 `GetCapacity()` 返回
+                    // unsigned ⇒ `int <= unsigned` 隐式转无符号 ⇒ `setbe` + 提前
+                    // 物化（+4 条）。加 `(int)` cast 恢复有符号序。
+                    if (specialB <= (int)user->getCurCharacCargoR()->GetCapacity())
+                    {
+                        err = (ENUM_ERROR)0xd;
+                        return false;
+                    }
                 }
-            }
-            else if (specialA == 5)
-            {
-                // 背包镜像预演 event items 插入
-                std::vector<std::pair<int, int> > evItems;
-                CItem* proto = G_CDataManager()->find_item(pkg.m_addInfo);
-                // P96/P270：ORIG 用 const 版 begin/end + const_iterator
-                // （_ZNKSt6vectorI22STStackablePackageDataSaIS0_EE5beginEv）。
-                const std::vector<STStackablePackageData>& vec =
-                    static_cast<CStackableItem*>(proto)->m_pkg21c;  // +0x21c
-                for (std::vector<STStackablePackageData>::const_iterator it = vec.begin();
-                     it != vec.end(); ++it)
-                    evItems.push_back(std::make_pair(it->m_field0, it->m_field4));
+                else if (specialA == 5)
+                {
+                    // 背包镜像预演 event items 插入
+                    std::vector<std::pair<int, int> > evItems;
+                    CItem* proto = G_CDataManager()->find_item(pkg.m_addInfo);
+                    // P96/P270：ORIG 用 const 版 begin/end + const_iterator
+                    // （_ZNKSt6vectorI22STStackablePackageDataSaIS0_EE5beginEv）。
+                    const std::vector<STStackablePackageData>& vec =
+                        static_cast<CStackableItem*>(proto)->m_pkg21c;  // +0x21c
+                    for (std::vector<STStackablePackageData>::const_iterator it = vec.begin();
+                         it != vec.end(); ++it)
+                        evItems.push_back(std::make_pair(it->m_field0, it->m_field4));
 
-                CInventory mirror;
-                InventoryMemory mem;
-                mirror.SetInventoryMemory(&mem);
-                mirror.setCopy(*user->getCurCharacInvenRefR());  // ORIG RefR
-                int inserted = mirror.tryInsertEventItems(evItems);
-                if (inserted != (int)evItems.size())
-                {
-                    err = (ENUM_ERROR)4;
-                    return false;
+                    CInventory mirror;
+                    InventoryMemory mem;
+                    mirror.SetInventoryMemory(&mem);
+                    mirror.setCopy(*user->getCurCharacInvenRefR());  // ORIG RefR
+                    int inserted = mirror.tryInsertEventItems(evItems);
+                    if (inserted != (int)evItems.size())
+                    {
+                        err = (ENUM_ERROR)4;
+                        return false;
+                    }
                 }
+                return true;
             }
-            return true;
         }
         if (user->getCurCharacInvenR()->tryInsertItemIntoInventory(pkg) < 0)
         {
@@ -1506,10 +1530,15 @@ return_true:
     int specialA = 0;
     int specialB = 0;
     bool specialFlag = false;
-    if (shop->IsSpecialItem(pkg.m_addInfo, specialA, specialB, specialFlag) &&
-        _isUnusableSpecialItemInVillage(
-            G_CDataManager()->find_item(pkg.m_addInfo)))
+    // [2026-09-11] 同 bReset 分支：P133/P272 独立守卫（ORIG 08553dbc/08553ded
+    // 两 `test %al,%al; je 0855405c`）+ P0 具名 find_item 局部（ORIG 08553ddd
+    // `mov %eax,-0x14(%ebp)`）。
+    if (GlobalData::s_pCeraShop->IsSpecialItem(pkg.m_addInfo, specialA,
+                                               specialB, specialFlag))
     {
+        CItem* specItem = G_CDataManager()->find_item(pkg.m_addInfo);
+        if (_isUnusableSpecialItemInVillage(specItem))
+        {
         int restrictCode =
             G_CDataManager()->m_itemList->GetRestrictCode(pkg.m_addInfo);
         long curSec = GlobalData::s_systemTime_.getCurSec();
@@ -1522,35 +1551,43 @@ return_true:
         // restrictCode 被当出参覆写 ⇒ 参数错位。全仓同族调用点
         // （Arad_ItemBonus/CConditionEventManager/W8_CU_A/Dispatcher_*）均为
         // 「第 3 参 restrictCode、第 4 参出参」。
-        if (shop->ProcessSpecialItem(user, pkg.m_addInfo, restrictCode, outCnt, curSec, true,
-                                     outItems, param, '\0', '\0', false, 1))
+        if (GlobalData::s_pCeraShop->ProcessSpecialItem(user, pkg.m_addInfo, restrictCode,
+                                                        outCnt, curSec, true, outItems, param,
+                                                        '\0', '\0', false, 1))
         {
             if (outCnt != 0)
                 return false;
             if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
             {
                 user->SetRestrictedGoods(restrictCode);
-                shop->SaveFeaturedIdx(user, restrictCode, (int)curSec, 0);
+                GlobalData::s_pCeraShop->SaveFeaturedIdx(user, restrictCode, (int)curSec, 0);
                 user->SendRestrictedGoods(true, restrictCode);
             }
-            if (pkg.m_addInfo == 0xc1 &&
-                !shop->ProcessSpecialItem(user, 0x10, 0xc352, outCnt, curSec,
-                                          true, outItems, param, '\0', '\0', false, 1))
+            // [2026-09-11] P222：ORIG 08553f55 `cmp $0xc1; jne 08553ffc` 与
+            // 08553fc9 `xor $0x1; test %al,%al; je 08553ffc` 是两条独立守卫
+            // （同落 logFormat 之后），`&&` 短路物化多 5 条。
+            if (pkg.m_addInfo == 0xc1)
             {
-                LogManager::logFormat(
-                    1, "MailBox.cpp",
-                    "static bool WongWork::CMailBoxHelper::_DoGetPackageItem(CUser*, "
-                    "const WongWork::CMailBox::CMail*, "
-                    "WongWork::CMailBoxHelper::IntPairVector&, bool, ENUM_ERROR&)",
-                    0x34c, "AuctionVIP Error - Present to friend(add private-store)");
+                if (!GlobalData::s_pCeraShop->ProcessSpecialItem(
+                        user, 0x10, 0xc352, outCnt, curSec, true, outItems, param,
+                        '\0', '\0', false, 1))
+                {
+                    LogManager::logFormat(
+                        1, "MailBox.cpp", __PRETTY_FUNCTION__, 0x34c,
+                        "AuctionVIP Error - Present to friend(add private-store)");
+                }
             }
         }
         return true;
+        }
     }
-
-    int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+    // [2026-09-11] P198①：ORIG 0855405c `movl $0x0,-0x74(%ebp)` 预清，
+    // 0855412f 才写 call 结果 ⇒ 两句式；判负为 `mov slot,%eax; shr $0x1f,%eax;
+    // test %al,%al; je`（4 条）⇒ `(unsigned)slot >> 31` 取符号位形。
+    int slot = 0;
+    slot = user->getCurCharacInvenW()->insertItemIntoInventory(
         pkg, (eItemAddReason)0x15, true, false);
-    if (slot < 0)
+    if ((unsigned int)slot >> 31)
         return true; // ORIG：失败亦返回 1（不置错误码）
     items.push_back(std::make_pair((ENUM_ITEMSPACE)0, slot));
     return true;
@@ -1853,6 +1890,14 @@ namespace WongWork
 // 残余 N：N18a 中转（ORIG `mov 0x2e(%edx),%edx; mov %edx,%ecx` 4.4 折单段）、
 // 实参装载序（std::min 两实参 P75）、bool 物化岛与深区槽位（N82/N98）；
 // p167 CLEAR 38/38，462 vs 454。
+// [2026-09-11 本轮] gap −8 → **−3**（457/454）：拆 `isEquipableItemType()!=1 &&
+// m_addInfo2<addInfo` 的 `&&`（ORIG 08555cfe/08555d0a 两条独立守卫同落跳过点）
+// 消 5 条短路物化。残余（N 封顶）：①fee 初始化多一枚 -0x10 临时槽往返（2 条，
+//   P0 具名局部族；直构 `unsigned fee(...)` 形实测同，不改）；②N18a 两段中转
+//   （ORIG 08555b3f `mov 0x2e(%edx),%edx; mov %edx,%ecx`）；③`switch(proto->
+//   GetAttachType())` ORIG 出跳表 `mov 0x8ca13bc(,%eax,4)`，4.4.6 恒发决策树
+//   （P163/N，case 集稀疏）；④尾部 `return 10` 与 `xor $0x1` 块序（P194/N104）；
+//   ⑤帧槽 -0x1c/-0x10 局部集差 1（N82/P112）。
 #include "CMailBoxHelper/ReqDBSendNewMail_1.inc"
                                      unsigned int nCharacNo, bool bA,
                                      unsigned int nB, int nC)
@@ -1921,9 +1966,14 @@ namespace WongWork
             return 0x11;
         if (found.m_field1 == 4)
             return 0x17;
-        if (found.isEquipableItemType() != 1 &&
-            found.m_addInfo2 < MSGV->m_addInfo)
-            return 0x11;
+        // [2026-09-11] P222/P133：ORIG 08555cfe `xor $0x1; test %al; je <跳过>`
+        // + 08555d0a `cmp; jge <跳过>` 为两条独立守卫（同落跳过点）⇒ 拆 `&&`
+        // （4.4 短路物化多 `mov $1/jmp/mov $0/test/je` 5 条）。
+        if (found.isEquipableItemType() != 1)
+        {
+            if (found.m_addInfo2 < MSGV->m_addInfo)
+                return 0x11;
+        }
 
         CItem* proto = G_CDataManager()->find_item(found.m_addInfo);
         if (proto == 0)

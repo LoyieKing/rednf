@@ -46,6 +46,13 @@ unsigned int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
             // （ORIG 108）⇒ 4.4 对无副作用 `&&` 恒直跳、且即便要求取值也只发 setcc 而
             // 非 4.1 的分支式 0/1 物化 ⇒ 归跨版本 codegen（4.1 分支物化 vs 4.4 setcc）
             // 天花板，保持原形。语义等价。
+            // [DPC-SigSmall 2026-09-11 二轮·终] ORIG 0x081c587d-0x081c58a6 的 0/1 岛
+            // （`je L0` 左假 → `mov $1; jmp` / L0 `mov $0` / `test %al; je`）**不可造**：
+            // probe9（-m32 -O0 c6446r）证 4.4.6 在 if 上下文对 `A && B`、
+            // `(A && B) == true`、嵌套 if **全部折直跳**（t1/t2/t4 均无 `mov $1,%eax`），
+            // 唯一产岛的是含**函数调用**的侧（本件另一处 `({ needLock && CheckItemLock(); })`
+            // 与 probe4 w7 同因：调用结果需 bool 规范化）；本轮再试语句表达式包住
+            // 纯字段比较形，实测 ours 仍 102 / ndiff 仍 15（逐字节不变）⇒ 维持 N 封顶。
             if ((item.m_field0 != 0 && req.m_fromPos > 0x8b) == true)
             {
                 needLock = 1;

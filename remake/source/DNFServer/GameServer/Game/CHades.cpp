@@ -136,6 +136,10 @@ namespace XNuclear
 {
     // b28d-solo-CHades verdict=NEAR [N22] ORIG 0x084b9718 orig/ours=28/28
     // （check_tu_routed 口径 NEAR，残差 1 处）。
+    // [L6S4 round5b 复核] 读数维持 28/28；新探针 /tmp/l6s4b/probe_n2.o `_Z3nl3P1S`
+    // （`register int cached = s->m_connSec; if (GP()->m_connSec != cached)`）逐条复现
+    // 我方形 `mov (%eax),%ebx; …call…; mov (%eax),%eax; cmp %ebx,%eax; setne`
+    // ⇒ 4.4 恒把 call 结果当 dst，ORIG 的 `cmp %eax,%ebx`（dst=缓存）不可翻，维持封顶。
     // 唯一残差 = cmp 操作数序：ORIG `cmp %eax,%ebx`（dst=缓存局部）vs 4.4
     // `cmp %ebx,%eax`（dst=call 结果）——N22「4.4 恒把 call 结果当 dst」；
     // 探针六形（操作数交换 / unsigned / short / !(==) / 具名 cur）全产
@@ -195,6 +199,7 @@ namespace XNuclear
 #include "CHades/GetIP.inc"
 {
     // b28d-solo-CHades verdict=DIFF [N102] ORIG 0x084b9774 orig/ours=40/39，
+    // [L6S4 round5b 复核] 读数维持 40/39，残差仍唯一（`add $0x8e418` 两步）。
     // 唯一残差 = ORIG `add $0x8e418,%eax; movzbl (%eax),%eax` 两步数组退化读被
     // 4.4 折成单条 `movzbl 0x8e418(%eax),%eax`（N102：下标/*arr/指针局部/数组
     // 引用/嵌套成员八形探针全折 disp，唯裸偏移出 add 而 §4.3 禁）。

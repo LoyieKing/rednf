@@ -1660,7 +1660,20 @@ CDataManager* G_CDataManager()
 //     （m_rivalData2.empty() 返回值归一化）我方缺 test 1 条；探针
 //     /tmp/probe_dce2.o f1/f2/f4 复证 4.4 -O0 恒删无消费者比较/test
 //     （f7 具名 bool / f8 volatile 反多 store 与 movzbl）。
-// ⇒ 语义完成、byte 层 N 封顶。
+// [b28d-CDataManager DIFF→NEAR] 死比较/死 test 复活三处 + volatile 死读一处：
+//   ① passive->size()==item.m_objectIdx ② 第三次 at() 的 !=-1 ③ m_rivalData2
+//   .empty() ④ e.first vs 0x64 —— ORIG 均保留比较/test（0x08362401/0x0836248c/
+//   0x083629d7/0x08362a5e），我方原写法（裸表达式语句 / 具名 int cmp / 空体 if）
+//   被 4.4 tree-DCE。修法实测：① ② 空体 if（探针 /tmp/probe_deadcmp2.cpp f5/f6：
+//   `call; cmpl $-1,%eax` 逐条同形）③ `while (cond) break;`（/tmp/probe_dead4.cpp
+//   f17：`call; testb %al,%al` 精确复现；空体 if 的 test 会被 4.4 删，f15）
+//   ④ `*(volatile const int*)&e.first`（/tmp/probe_dead3.cpp f21）。
+//   读数 697/703 ndiff7 → **703/703、归一化 ndiff=0**（DIFF→NEAR）。
+// 残余 NEAR 归因（5 处聚合对象槽归属，N82附 族：4.4 聚合对象分区 vs 4.1 生命周期
+//   穿插）：dungeonList ORIG -0xd8 / 我方 -0xd0；itemList ORIG -0xc0 / 我方 -0xd8；
+//   ~list<_mapMonster> ORIG -0xd0 / 我方 -0xc8；end 临时 -0xc8/-0xc0；it++ 临时
+//   -0xc4/-0xbc。声明序=构造序=指令序，调换会改 push_back/get_item_list 调用序
+//   ⇒ 无源码解。
 #include "CDataManager/VerifyMap.inc"
 {
     // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
@@ -1744,7 +1757,12 @@ CDataManager* G_CDataManager()
             // ORIG 0x08362401 `call size; mov (%edx),%edx; cmp %edx,%eax`：
             // size() 结果与 m_objectIdx 的死比较（无消费者；4.4 把 cmp DCE、
             // 仅保留 call —— 跨版本 -O0 DCE 差，N 封顶）。
-            passive->size() == (unsigned int)item.m_objectIdx;
+            // [b28d-CDataManager 死比较复活] 裸表达式语句的 cmp 被 4.4 tree-DCE、
+            // 4.1 保留 ⇒ 改空体 if：两侧均 jump-to-next 删 jcc、保留比较（探针
+            // /tmp/probe_deadcmp2.cpp f5/f6：`call; cmpl $-1,%eax` 逐条同形）。
+            if (passive->size() == (unsigned int)item.m_objectIdx)
+            {
+            }
             // ORIG 0x0836240b/0x0836241d：`m_objectIdx != -1` 与 `!empty()` 两
             // 守卫共落 FALSE 块、`mov $1/jmp/mov $0` 寄存器物化 ⇒ 正极性短路
             // 形（P214①；旧 usable 具名 bool 产生槽物化 movb/cmpb 三连）。
@@ -1755,7 +1773,12 @@ CDataManager* G_CDataManager()
             if (passive->at(item.m_objectIdx).m_assignItemIdx < 1 ||
                 passive->at(item.m_objectIdx).m_assignItemIdx > 200)
                 {
-                passive->at(item.m_objectIdx);
+                // [b28d-CDataManager 死比较复活] ORIG 0x0836248c
+                // `mov (%eax),%eax; cmp $0xffffffff,%eax` = 第三次 at() 的死比较；
+                // 空体 if 保留比较、jcc 被 jump-to-next 删除（同 f6 探针）。
+                if (passive->at(item.m_objectIdx).m_assignItemIdx != -1)
+                {
+                }
                 }
             }
         }
@@ -1849,7 +1872,14 @@ CDataManager* G_CDataManager()
                 missingDungeon = true;
             // ORIG 0x083629c2：直读 m_eventMonsters(+0x690) 成员（内联 getEventMonsters）。
         if (dungeon->m_eventMonsters.empty() == false)
-                map.m_rivalData2.empty();
+        {
+            // ORIG 0x083629d4..0x083629d7：`call empty; test %al,%al`（jcc 被
+            // jump-to-next 删）。空体 if 会被 4.4 连 test 一并 DCE（探针
+            // /tmp/probe_dead4.cpp f15）；`while (cond) break;` 精确保留
+            // call+test 且无 jcc（同探针 f17／P225 dead 变体）。
+            while (map.m_rivalData2.empty())
+                break;
+        }
     }
 
         if (missingDungeon)
@@ -1863,8 +1893,12 @@ CDataManager* G_CDataManager()
             const std::pair<int, int>& e = *it;
         if (e.first >= 0 && e.second >= 0)
         {
-            int cmp = e.first;
-            (void)cmp;
+            // ORIG 0x08362a59..0x08362a5e `mov (%eax),%eax; cmp $0x64,%eax`
+            // （死比较、无分支）：非 volatile 读会被 4.4 tree-DCE（探针 f20），
+            // volatile 读强制发射且逐条同形（探针 /tmp/probe_dead3.cpp f21）。
+            if (*(volatile const int*)&e.first > 0x64)
+            {
+            }
         }
     }
     return 1;
@@ -2338,6 +2372,16 @@ pvp_done:
 // 改写 `eb 56`(jmp) 应为 `74 56`(je)，失败块不可达——合法 C++ 不可造（N111 类）；
 // c) EquipmentPartSet 段 data/pieces 引用槽序互换 1 对（N93，交换声明序实测
 // 反劣 5431/5432 + 658 行非槽差，已回滚）。
+// [b28d-solo3 残差复核] 槽归一化后本件仅 **3** 处残差：
+//   ① 我方多 8 条 new-expression landing pad（`m_itemGeneratorMgr = new
+//      WongWork::CItemGeneratorMgr;` 处 `jmp`→`call _ZdlPv`→`_Unwind_Resume` 段）。
+//      根因 = `CItemGeneratorMgr() throw() {}` 体内构造成员 m_common，而
+//      `CGeneratorCommonData()`（CItemGenerator.h:170）声明**无** throw() 且体在
+//      他处 ⇒ 4.4 判 C1 可能抛（探针 /tmp/probe_pad2.cpp 实证：成员 ctor 无
+//      throw() 时外层 throw() 不阻止 landing；成员 ctor 有 throw() 时零 landing）。
+//      ⇒ **.h 侧修法（属主代落，P216）**：给 CGeneratorCommonData() 加 throw()。
+//   ② ③ 0x0835cecb / 0x0835cfcb ORIG 出厂单字节改写 `eb 56`(jmp) 应为
+//      `74 56`(je)（失败块不可达）⇒ 合法 C++ 不可造（N111 类）。
 #include "CDataManager/init.inc"
 {
     // ORIG 版本五元组落在具名区最浅端（槽 -0xf1c/-0xf18/-0xf14/-0xf10/

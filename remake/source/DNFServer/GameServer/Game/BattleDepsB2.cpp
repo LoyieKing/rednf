@@ -166,6 +166,13 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
 //   push_back 右值重载、size() 三次独立调用；p167 CLEAR(25/25)。残差 = 4.1/4.4
 //   槽序（maze 等局部 N82/N98）+ `get_member_count()>1` 的 setg 物化
 //   （ORIG cmp/setg/test vs 4.4 直跳，P197④ 族）⇒ 封顶。
+// b28e 复核（gap=5 成因定案）：5 条缺口**全部**是循环体尾的 3 个 if-join 空岛
+//   （ORIG +0x19d `nop;jmp +0x1a4`、+0x1a0 `nop;jmp +0x1a4`、+0x1a3 `nop`；
+//   0x82ff2c5/0x82ff2c8 两岛由血战 je / hell jne 落达，第三岛直落 +0x1a4）。
+//   4.4 将三级失败路径全部 jump-thread 到循环尾 ⇒ 0 岛。P223 负条件 goto 法
+//   仅适用「各假路汇**同一**尾标签」；本件 ORIG 各岛落点**不同址**（多级早返
+//   分级），P223 边界负例（同级实测量不可择）⇒ 不翻。其余为槽基/槽序（N82/N95）。
+//   语义侧：p167 25/25 CLEAR，无缺口。
 #include "BattleDepsB2/GetAppropriateMaze.inc"
 {
     for (int questType = 0; questType < 2; ++questType)
@@ -403,6 +410,17 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
 //   空体（08316adc push/pop/ret），4.1 前端省略该调用；4.4 对 out-of-line 空 dtor
 //   恒发射。消除需 CBattle_Field.h 头内化 + CBattle_Field.cpp 删定义（非本泳道
 //   .cpp，已上报 Main）。其余残差为槽基/帧差（N82/N95）。
+// b28e 落地 4 处结构修复（verdict 仍 DIFF；gap +4→−2，our_insns 1097→1103）：
+//   ① dummy 循环 push_back 改显式临时 `push_back(std::pair<int,int>(vec20[idx]))`
+//      —— ORIG 0x82ffd59 段 12 条逐条复现（改前 6 条，m_vec20 索引面）；
+//   ② idx 预清两句式（ORIG +0x1bc `movl $0x0,-0x60` 复现，P198①）；
+//   ③ adjBossPos 声明前置到函数头 —— ORIG 三个 pair::C1Ev 在 +0x96 连续发射
+//      （4.1 初始化前置 N88，反向用法：声明前置即复现）；
+//   ④ triples 去引用缓存 + itEnd 具名缓存（P183 地址重物化：ORIG 0x8300xxx 段
+//      begin/end 各自重发 `mov this; lea 0x910` 全链，无 triples 指针槽）。
+//   残余（封顶）：`push %edi`/帧 0x1dc vs 0x1d0、槽基整体 −0x10、eventOn 的
+//   bool 局部槽化（ORIG 为寄存器 mov$1/mov$0 岛，P0 例外）、`add $0x4` 位置
+//   （N107 反向）—— 均属跨版本槽/寄存器策略，无源形可择。
 #include "BattleDepsB2/SetGridPath.inc"
 {
     m_gridMaze = maze;                           // +0x74
@@ -420,9 +438,11 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
     //   右值赋值回填。
     std::pair<int, int> startPos;
     std::pair<int, int> bossPos;
+    std::pair<int, int> adjBossPos;      // 相邻 boss 槽（优先下一格）
     // 注：ORIG 只有 3 个 pair C1Ev（-0xcc/-0xd4/-0xdc = startPos/bossPos/
-    //   adjBossPos），无 dummyPos 具名局部——dummy 循环经临时槽 -0xe4 直传
-    //   push_back（0x82ffd59/0x82ffd7b）。
+    //   adjBossPos）**都在函数头连续发射**（4.1 初始化前置；b28e 实证：声明
+    //   移到函数头即三连 C1Ev 复现），无 dummyPos 具名局部——dummy 循环经
+    //   临时槽 -0xe4 直传 push_back（0x82ffd59/0x82ffd7b）。
 
     if (m_gridMaze->m_vec14.size() == 0)               // 起点槽
         return;
@@ -436,22 +456,23 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
     if (dummyAppearCnt > 0)
     {
         int prevIdx = bossIdx;
+        int idx = 0;
         m_dummyMapPosIdx = 0;                    // +0xcc
         m_dummyMapPos.clear();                   // +0xc0
         for (int i = 0; i < dummyAppearCnt; ++i)
         {
             if (m_gridMaze->m_vec20.size() > 1)
             {   // 与上次不同下标（同值跳过再 +1）
-                int idx = (int)(::rand() % (m_gridMaze->m_vec20.size() - 1));
+                idx = (int)(::rand() % (m_gridMaze->m_vec20.size() - 1));
                 if (prevIdx <= idx)
                     idx += 1;
-                m_dummyMapPos.push_back(m_gridMaze->m_vec20[idx]);
+                m_dummyMapPos.push_back(
+                    std::pair<int, int>(m_gridMaze->m_vec20[idx]));
                 prevIdx = idx;
             }
         }
     }
 
-    std::pair<int, int> adjBossPos;              // 相邻 boss 槽（优先下一格）
     if (bossIdx - 1 >= 0)
         adjBossPos = m_gridMaze->m_vec20[bossIdx - 1];
     if (bossIdx + 1 <= (int)m_gridMaze->m_vec20.size() - 1)
@@ -519,9 +540,14 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
         }
 
         // —— 条件三元组（monsterIdx, spawnCnt, maxKillCnt）→ boss 房状态 ——
-        const std::vector<int>& triples = m_pDungeon->m_bossRoom90c.m_vec4;  // +0x910
-        std::vector<int>::const_iterator it = triples.begin();
-        while (it != triples.end())
+        // b28e（P183 地址重物化）：ORIG 每次访问都重发 `mov this; lea 0x910`
+        //   全链（+0x2xx 段 begin/end 各自独立物化），无 triples 引用槽
+        //   ⇒ 去引用缓存，改为 const 视图表达式逐点重物化。
+        std::vector<int>::const_iterator it =
+            ((const std::vector<int>&)m_pDungeon->m_bossRoom90c.m_vec4).begin();
+        std::vector<int>::const_iterator itEnd =
+            ((const std::vector<int>&)m_pDungeon->m_bossRoom90c.m_vec4).end();
+        while (it != itEnd)
         {
             int monsterIdx = *it;
             ++it;
@@ -728,6 +754,10 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
 //   nop 岛、全部失败路径汇入循环尾 ++it（ORIG +0x154）。残差仅 2 处 receiver/
 //   实参装载序（ORIG 先 receiver 后实参；4.4 恒先算实参，probe_ord2 f1..f10
 //   十形全同，4.4.6 后端读数逐字节一致）⇒ 跨版本装载时刻，封顶。
+// [b28e 复核] 117=117 不变；两处残差定位 = ①`GetQuestMazeScriptVector(questType)`
+//   调用（ORIG 先 receiver 后实参 vs 4.4 先实参）、②`CheckQuestConnection(maze->m_50,
+//   questType)`（ORIG arg1→receiver→arg2 vs 4.4 arg2→arg1→receiver）；均属 4.1/4.4
+//   实参装载时刻（P75），源形不可择 —— 维持封顶，无新增手法。
 #include "BattleDepsB2/setQuestMazeInfo.inc"
 {
     // b28d-solo-BattleDepsB2（ORIG 0x0830e170 逐条）：外层 `for(i=0;i<=1;++i)`（尾测 setle，P2）；

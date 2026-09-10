@@ -113,6 +113,12 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
             // 数组名退化为 char* ⇒ 命中 std::strrchr(char*,int) 非 const 重载
             // （mangled _ZSt7strrchrPci，匹配 ORIG 0x08264edc 的调用目标）；
             // ORIG 无额外中间指针具名量（其 -0x20 槽属 idx!=0 段的 ipLen）。
+            // [DPC-SigSmall 2026-09-11 负结论] 本轮复验父泳道 callsite 差集
+            // （MISSING `_ZSt7strrchrPci` / EXTRA `strrchr`）：试形 `std::strrchr(
+            // static_cast<char*>(peerIpBuf), '.')` 编后 `nm -u` 仍为 **`U strrchr`**
+            // （C 版）⇒ 该 TU 的 include 集合下 glibc `<string.h>` 的 `extern "C++"`
+            // 非 const 重载不可选，源码形无法翻转（改 include 属越界）⇒ 维持原判
+            // （weak/COMDAT 不计）。勿再试。
             dot = std::strrchr(peerIpBuf, '.');
             if (dot == 0)
             {

@@ -59,20 +59,29 @@ int DisPatcher_SetPVPMapIndex::dispatch_sig(CUser* user, PacketBuf& packet)
     G_GameWorld()->send_all(guard);
     // [b28d-29] P168a：ORIG 0x081f87d6 `movzbl flag; xor $0x1,%eax; test %al,%al`
     // ⇒ 原码是裸 `!flag`（bool 取反物化），`flag != true` 使 4.4 反产 test/sete。
-    if (!flag && room->get_pvp_battle_mode() == 4)
+    // [DPC-SigSmall 2026-09-11] 短路轴：ORIG 0x081f8791-0x081f87b3 为
+    // `xor $1; test; je <tail>` 后接 `call; cmp $4,%eax; sete %al; test; je <同一 tail>`
+    // —— 两跳同指 tail ⇒ 原码是**嵌套 if**（内层条件作值物化 sete），不是 `&&`。
+    // probe（/tmp/dpc_probe2.cpp，c6446r 4.4.6 -m32 -O0）：`A && B` 产分支 0/1 岛
+    // （jne/mov $1/jmp/mov $0，即旧形 OURS-only 三条），嵌套 if 产 sete/test/je
+    // 与 ORIG 逐条同形 ⇒ 落地。
+    if (!flag)
     {
-        int res = room->set_pvp_mode(user, 5);
-        if (0 < res)
+        if (room->get_pvp_battle_mode() == 4)
         {
-            guard.put_header(1, 0x3e);
-            guard.put_byte(0);
-            guard.put_byte(0x13);
-            guard.finalize(true);
-            user->Send(guard);
-            return 0;
+            int res = room->set_pvp_mode(user, 5);
+            if (0 < res)
+            {
+                guard.put_header(1, 0x3e);
+                guard.put_byte(0);
+                guard.put_byte(0x13);
+                guard.finalize(true);
+                user->Send(guard);
+                return 0;
+            }
+            room->make_seat_info(reinterpret_cast<char*>(&guard), 0xffff);
+            G_GameWorld()->send_all(guard);
         }
-        room->make_seat_info(reinterpret_cast<char*>(&guard), 0xffff);
-        G_GameWorld()->send_all(guard);
     }
     return 0;
 }

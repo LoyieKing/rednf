@@ -208,13 +208,21 @@ struct stGoldGenTable_t
 
     // ORIG 0x085387e5：`lea 0x60(%eax),%ebx; …; lea (%ebx,%eax,1),%edx` —— 数组名
     // 退化指针 + 下标形（同 _getGenItemProbIdx；探针 p5 f1/f2 实证）。
+    // [L5e 2026-09-11 负结论] 按值拷贝形（`stGenItemProb_t e = …;`，复现 ORIG
+    // 0x08538822 三槽拷贝 `mov (%eax),%edx; mov %edx,-0x3c; …`）实测指令数
+    // 202→206（gap 0→−4）：三槽拷贝本身对齐，但 4.4 在后续 x87 段/寄存器分配上
+    // 多出 4 条（ebx 缓存链被拉长），整体劣化 ⇒ 保持引用形（P0 判读：ORIG 的三槽
+    // 属 4.1 结构体拷贝产物，4.4 同构源码恒发不同形）。
     const stGenItemProb_t& e = (*(m_workProbs + refClear.m_dropProb))[idx];
     // ORIG 两处均 fistpl 截断（fnstcw/fldcw 0xc 截断模式），非 round；
     // 保持 (int) 强转截断语义。ORIG 的 x87 序：先算整数因子 A，再 fld1/fsubs
     // 得 (1.0f-dropRate) 并 fmulp（P243 书写序 ⇒ A * (1.0f-dropRate)）。
+    // [L5e 2026-09-11] ORIG 0x08538833 段序 = `fildl v2`（0x0853883c）先、
+    // `flds 0x4(refClear)`（0x08538845）后 ⇒ 内层乘法的**左操作数是 e.v[2]**
+    // （P243：首条 fildl/flds 即代码里先书写的操作数）。
     int thr = static_cast<int>(
         static_cast<float>(
-            (static_cast<int>(refClear.m_bonusRate * e.v[2]) +
+            (static_cast<int>(e.v[2] * refClear.m_bonusRate) +
              m_dungeonDropBonus[refClear.m_level]) *
             (param / 100)) *
         (1.0f - dropRate));
@@ -224,8 +232,11 @@ struct stGoldGenTable_t
     if (m_random.generateNumber(0, 10000) >= thr)
         return;
 
-    int dropType = 1;   // 初值（未命中即 1）
+    // [L5e 2026-09-11] ORIG 0x08538882 段两条初值 store 序为
+    // `movl $0x0,-0x28`（cum）先、`movl $0x1,-0x24`（dropType）后，且 cum 占更深槽
+    // ⇒ 原码声明序 = cum 在前（4.4 按声明序发 store 且先声明占深槽）。
     int cum = 0;
+    int dropType = 1;   // 初值（未命中即 1）
     int roll = m_random.generateNumber(2, 10000);
     for (int i = 1; i <= 4; ++i)
     {
@@ -366,6 +377,12 @@ struct stGoldGenTable_t
 // [b28d-solo-CClearReward] verdict=NEAR（N1 封顶）：102=102。唯一残差 = 概率表
 // 基址常量折叠——ORIG `add $0x1264,%edx; mov 0x14(%eax,%edx,4),%eax`（两步）vs
 // 4.4 折 `add $0x1269,%edx; mov (%eax,%edx,4),%eax`（一步；探针 p6 f1/f2/f6 穷举）。
+// [L5e-CargoClearReward 2026-09-11 复验·负结论] 再试「函数内局部视图分离基址」形
+// `struct { char m_head[0x14]; int m_probs[0x1264+6]; }` + `m_probs[i+0x1264]`：
+// 实测 102→103 反向劣化（`add $0x1264,%edx` + `add $0x4,%edx` +
+// `mov 0x4(%eax,%edx,4),%eax`）⇒ 4.4 对 scaled-index 寻址恒把 disp 中 4 的倍数
+// 部分折成**额外 add**（0x14→索引 +4 / 余 0x4 留 disp），永不保留 ORIG 的 disp 0x14。
+// 结合 p6 六形穷举 ⇒ 该件 N1 封顶确证，禁再试基址侧旋钮。
 #include "CClearReward/generatePremiumGoldCardItem.inc"
     stGenerateRefData_t const& ref, stGenerateResult_t& result,
     ENUM_RARITY rarity, unsigned int defaultItem)
@@ -475,6 +492,16 @@ struct stGoldGenTable_t
 // [b28d-solo-CClearReward] verdict=NEAR（N82 封顶）：182=182，助记符序列全等
 // （`setne` 物化经 P225 while+return 形复现）；仅余槽号/寄存器分配差
 // （ORIG 迭代器 -0x38 / result -0x10，我方 -0x28 / -0x18；帧同 0x60）。
+// [L5e-CargoClearReward 2026-09-11 复验·负结论] 全槽引用集合实测（两侧同帧
+// sub $0x60、同 push ebp/esi/ebx）：
+//   ORIG = {-0x4c,-0x3c,-0x38,-0x34,-0x30,-0x2c,-0x28,-0x24,-0x14,-0x10,-0xc}
+//   OURS = {-0x4c,-0x3c,-0x2c,-0x28,-0x24,-0x20,-0x1c,-0x18,-0x14,-0x10,-0xc}
+// 除 map 对象（-0x4c，相同）外，OURS 的对象区 {-0x38..-0x28 系} 比 ORIG **浅 0x10**，
+// 且 catch 块 cMyTrace 的槽方向相反（ORIG -0x24 / OURS -0x3c）。二者同源 = 4.4 按
+// 「首次使用序」分配对象槽而 4.1 按另一序（P212/N93），声明序翻转实测不可控（N98：
+// 交换声明无效）；catch/try 互斥块对象槽方向属 P221 族但本件无双 cMyTrace sibling 对，
+// 且 ORIG trace 为具名对象（同槽两次 `lea -0x24(%ebp)`）⇒ 临时链形不适用其证据。
+// 结论：残差为纯槽分配序，语义全等，N82/N93 封顶，禁再试声明序类旋钮。
 #include "CClearReward/chooseItem.inc"
 {
     // [b28d-solo-CClearReward] 逐条对齐 ORIG 0x085349a4：

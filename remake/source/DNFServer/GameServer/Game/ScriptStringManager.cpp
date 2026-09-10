@@ -117,6 +117,10 @@
     if (buffSize <= 3)
         return -1;                                  // 8acf444：需能写 buffer+4
     int offset = 4 + 4 * count;                     // offsets[0] = 4 + 4*count
+    // [L2-S5 试验-1 负结论] 写 `4 + 4*static_cast<int>(strings_.size())` 复现
+    // ORIG 8acf457-8acf470 的 count 重算（4 条 mov/sub/sar）⇒ 4.4 前端把第二次
+    // size() 折叠回 %ecx 复用（.o 逐条与改前全等，our nonop 87→87）⇒ 不可复现，
+    // 已回滚。
     // ORIG 8acf44e-8acf4b8：字节游标 `p`（写指针）+ `pos`（游标字节数）两具名局部
     // 跨循环使用 ⇒ 4.1 分别 spill 到 -0x20/-0x24；do-while 形（入口 jle + 尾部
     // 回跳，无旋转）。哨兵写用 break 前的 p（Ghidra C `*local_24 = iVar2`）。
@@ -154,6 +158,9 @@ after_offsets:
     *p = offset;                                    // 8acf4b8：哨兵 offsets[count]
     if (pos > buffSize)                             // 8acf4c5
         return -1;
+    // [L2-S5 试验-2 负结论] 按 P231/P307 给 dst 加纯 register 存储类提示（驱动
+    // 分配器偏好、非 asm 绑定）⇒ 4.4 对指针局部恒落栈槽，.o 逐条与改前全等
+    // （our nonop 87→87）⇒ 不可复现，已回滚（同 N128「指针局部恒落槽」）。
     unsigned char* dst = reinterpret_cast<unsigned char*>(p + 1);
     for (int i = 0; i < static_cast<int>(strings_.size()); ++i)
     {

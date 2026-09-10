@@ -1,1 +1,1 @@
-int Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
+bool Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,

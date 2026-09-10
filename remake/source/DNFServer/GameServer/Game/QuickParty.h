@@ -18,6 +18,19 @@
 
 #include "CParty.h"   // TIMER_MESSAGE（CQuickParty::gen_timer_key 签名需要）
 
+// [L3Free25to36] ORIG __PRETTY_FUNCTION__ 串直证（.rodata 逐字节）：
+//   `ENUM_ERROR QuickParty::CQuickPartySystemManager::check_match_proper_party(
+//      const QuickParty::STQuickPartyPoolMap_Key&, CParty*)`
+//   `ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(
+//      const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)`
+// ⇒ 两函数返回类型为 ENUM_ERROR（我方旧写 int，发射的是发明串 `int ...`）。
+// 返回类型不入 mangled、零 sizeof/offsetof/vtable 影响；就近定义（全仓同型守卫宏，
+// 先例 CUser.h:323 / advancealtar.h:37）。
+#ifndef DNF_GAME_ENUM_ERROR_DEFINED
+#define DNF_GAME_ENUM_ERROR_DEFINED
+enum ENUM_ERROR { ENUM_ERROR_NONE = 0 };
+#endif
+
 class CDungeon;
 class CParty;
 class CUser;
@@ -139,8 +152,8 @@ class CQuickPartySystemManager
     bool regist_quick_party(const STQuickPartyPoolMap_Key& key,    // T @0x0826adb6
                             STQuickPartyPoolMap_Data& data, int slotIdx,
                             CParty* party, int firstMatchingCnt);
-    int check_match_proper_party(const STQuickPartyPoolMap_Key& key,  // T @0x08269e34
-                                 CParty* party);                      // ENUM_ERROR
+    ENUM_ERROR check_match_proper_party(const STQuickPartyPoolMap_Key& key,  // T @0x08269e34
+                                        CParty* party);
     bool check_quick_party_min_count(const STQuickPartyPoolMap_Key& key,  // T @0x0826ab9e
                                      int count);
     CParty* make_quick_party(CQuickParty* qp);                     // T @0x0826b222
@@ -149,8 +162,8 @@ class CQuickPartySystemManager
 public:
     // DspD4 B1：Dispatcher_Register_Quick_Party/Direct_Entrance_Quick_Party
     // process 经 GetQuickPartySystemManager() 公开调用，需 public 可见。
-    int match_proper_party(const STQuickPartyPoolMap_Key& key,     // T @0x08269f3c
-                           CParty* party, CUser* user);            // ENUM_ERROR
+    ENUM_ERROR match_proper_party(const STQuickPartyPoolMap_Key& key,  // T @0x08269f3c
+                                  CParty* party, CUser* user);
     int direct_entrance_quick_party(CUser* user);                  // T @0x0826a762
 
 public:

@@ -483,6 +483,16 @@ advancealtar::AchievementRewardData*
 //   `reinterpret_cast<char*>(const_cast<AdvanceAltarData*>(&data))` 两 cast 形
 //   产物相同（均单段）；形参类型受 mangled 约束（RKNS_16AdvanceAltarDataE）不可异型化；
 //   ORIG 的 `mov mem,%eax; mov %eax,%reg` 属 4.1 冗余 regmove（N18a）不可造。
+// [S4AltarStageMisc 2026-09-11 复核] 本 TU §6.5 串核查：`objcopy -j .rodata` 得 15 个
+//   ≥4B 串（getFieldData 两处 logFormat 的文件串/__FUNCTION__/格式串、checkAndSet
+//   ActionDefine 的 printf 串 "advancealtar : not found ActionDefine Id = %d\n"、
+//   importPhase 的 "[...]" 段串、libstdc++ "vector::_M_insert_aux"），逐个在 ORIG
+//   全二进制字节匹配：**0 missing**（含 ORIG 0x8e05c24/0x8e05c4c/0x8e0617c/0x8e05c84/
+//   0x8e052e4 逐字核对）；变参顺序 ORIG `logFormat(0,file,func,line,fmt,level)` 与源码
+//   逐位相同。§6.5.1：enc_kr_scan.py 全库 0 命中（无非 ASCII 字面量编码错配）。
+//   GI 假缺口（按名跨 TU 错配，ORIG 493 实例取首个 0x0807ee76 属 PacketTypes）：本 TU
+//   自身实例 = ORIG 0x088a34a2（键 `_GLOBAL__I_...AdvanceAltarShopParameterC2Ev` 0x088a34e2
+//   call 之）为**纯 ioinit 形**（`ios_base::Init::C1` + `__cxa_atexit`）⇒ 无真缺口，零改动。
 // ============================================================================
 #include "advancealtar_misc/putRidableInfoToPacket.inc"
 {

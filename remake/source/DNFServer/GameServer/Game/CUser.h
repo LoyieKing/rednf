@@ -1595,8 +1595,13 @@ public:
     virtual bool Load();
     virtual int Destroy();
     bool FindIpgNo(unsigned int ipgNo);
-    int CheckBuyableProduct(CUser* user, unsigned int ipgNo,
-                            unsigned int itemIdx, int type);
+    // [L6Free61to75.S1 2026-09-11 · P292 返回类型链] int→bool（L6 父泳道已 R2 广播）：
+    // ORIG 0x080e0cdc `call FindUserInfoDetail; jmp 尾`、0x080e0ce2 `call CheckBuyableProduct;
+    // leave;ret` 两级直返**均无归一化**，且唯一消费点 0x08176d00
+    // `call IsBuyableRestrictItem; xor $0x1,%eax; test %al,%al; je` 证 bool（P292）
+    // ⇒ 同链三函数必须同为 bool（返回类型不入 mangled/零布局）。
+    bool CheckBuyableProduct(CUser* user, unsigned int ipgNo,
+                             unsigned int itemIdx, int type);
     // ORIG T 0x080e0d14 _ZN19CerashopAddRestrict7Manager25UpdateBuyableRestrictItemEP5CUserjj
     //（LinkE2.JpnExImpl 批次修正为 static：ORIG 调用点 0x817915c esp0=user 无 this 实证）。
     static void UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,

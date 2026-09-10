@@ -425,7 +425,9 @@ public:
                     int clearRound, int& starDelta, bool& unlockBuy,
                     bool& bOut);                        // ORIG T 0x0813175a
     void setNextStage(int stageIdx);                    // ORIG T 0x081331d4
-    char decTicket();                                   // ORIG T 0x081313b6：返回失败标志（0=成功扣票）
+    // ORIG T 0x081313b6；调用点直证 0x0812e547 `call decTicket; xor $0x1,%eax; test %al,%al; je`
+    // ⇒ 返回 bool（4.4.6 探针：!boolfunc() 产 xor 形，!charfunc() 产 sete 形）。
+    bool decTicket();                                  // 返回失败标志（0=成功扣票）
     void setUnlockBuyItem(AdvanceAltarShopType::T shopType, int stageIdx,
                           std::vector<_BuyItem>* out);  // ORIG T 0x08132d20
     void getClearStageSummary(int out[3]) const;        // ORIG T 0x081318e2

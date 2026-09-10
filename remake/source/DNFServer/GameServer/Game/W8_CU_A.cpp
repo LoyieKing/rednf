@@ -103,23 +103,21 @@ extern CInGameAdvertisementManager* InGameADManagerInstance();
     //   36 条（较原 37 少 1）但生成 `nop; jmp` 中继岛、形参仍未入寄存器 ⇒ 仍 DIFF
     //   且远离 ORIG 31 条，已回退。ORIG 的 tail-merge 共享出口（0x52/0x59）+
     //   形参一次载入 %eax 属 4.1 前端产物，4.4 不可复现 ⇒ N18b 维持。
-    if (itemIdx < 0x1d57u) {
-        if (itemIdx < 0x1d4cu) {
-            if (itemIdx < 0x1bc6u) {
-                return false;
-            }
-            if ((itemIdx > 0x1bf5u) && ((itemIdx - 0x1c15u) > 4u)) {
-                return false;
-            }
-        }
-    } else if (itemIdx < 0x1e5du) {
-        if ((itemIdx < 0x1e44u) && ((itemIdx - 0x1dcau) > 5u)) {
-            return false;
-        }
-    } else if ((itemIdx - 0x1ebau) > 1u) {
-        return false;
-    }
-    return true;
+    // [E11·形态⑤ 成功] 6 段区间并集（见下 return）实测 our 37→**31**（orig 31，
+    //   gap −6→0）：单一 return 使 4.4 也汇出 `mov $1; jmp end / mov $0` 双尾块，
+    //   与 ORIG 条数全等。残余形态：ORIG 为 `mov 0xc(%ebp),%eax` 一次载入 + 边界
+    //   cmp/jcc + 3× `sub imm; cmp` 复用；4.4 恒 `cmpl $imm,0xc(%ebp)` 槽直比
+    //   （N18b，槽直比不可消除）⇒ 判词 N18b 保留，读数为 gap 0。
+    //   6 段区间并集（与前述嵌套式逐段等价，未改动判定集合）：
+    //   [0x1bc6,0x1bf5] [0x1c15,0x1c19] [0x1d4c,0x1d56]
+    //   [0x1dca,0x1dcf] [0x1e44,0x1e5c] [0x1eba,0x1ebb]
+    //   ORIG 0x08673342 为 range-check 树 + 共享 mov $1/$0 尾块（31 条）。
+    return (itemIdx >= 0x1bc6u && itemIdx <= 0x1bf5u) ||
+           (itemIdx >= 0x1c15u && itemIdx <= 0x1c19u) ||
+           (itemIdx >= 0x1d4cu && itemIdx <= 0x1d56u) ||
+           (itemIdx >= 0x1dcau && itemIdx <= 0x1dcfu) ||
+           (itemIdx >= 0x1e44u && itemIdx <= 0x1e5cu) ||
+           (itemIdx >= 0x1ebau && itemIdx <= 0x1ebbu);
 }
 
 

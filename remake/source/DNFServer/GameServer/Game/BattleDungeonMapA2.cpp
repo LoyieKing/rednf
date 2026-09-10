@@ -305,14 +305,21 @@
 // find_map 失败走日志且不 finalize）、0xd4（无头的精简房间信息）、
 // 0x182（锦标赛轮次表）。MapInfo 字段访问按 ORIG 逐点重取
 // GetCurrentMapInfo()（P183 禁缓存；0x182 分支例外——ORIG 自身缓存 map ptr）。
+// [b28e] ① staleStackValue short→unsigned short：ORIG 0x8309368 `movzwl -0x114;
+//   movzwl %ax,%edx`（零扩展直证，P11；有符号 short 生 movswl）——修后该 read
+//   与 ORIG 同形；② 复核 orig 1053 / our 1055（+2）：残余 hunk = 槽基（-0x58 vs
+//   -0x64）+ `movs/zwl %ax,%edx`↔`cwtl`（P200 拓宽目标寄存器，跨版本）+ 第一
+//   put_byte 段的 xor$1（试 `!m_visited` 形令 xor 段 1→3 处、助记符 hunks 反增，
+//   已回滚；`== '\0'` 原形保留）⇒ 封顶。
 #include "BattleDungeonMapA2/MakePacket.inc"
 {
     InterfacePacketBuf* pkt = (InterfacePacketBuf*)packet;
 
     // ORIG 怪物序列化首个 put_short 读取未初始化栈槽 [ebp-0x114]
     // （报告 asm 0x8309368 为全函数唯一引用、无任何写入点）。以未初始化局部
-    // 变量复现同一行为。
-    short staleStackValue;
+    // 变量复现同一行为。b28e：ORIG 读取为 `movzwl -0x114; movzwl %ax,%edx`
+    // （零扩展，P11）⇒ 类型为 unsigned short（有符号 short 生 movswl）。
+    unsigned short staleStackValue;
 
     switch (packetId)
     {
@@ -586,6 +593,11 @@
 // 全局 enum PATH_DIRECTION 定义）后调用点符号全等。残余 102 行全为 4.1
 // 不复用槽（各分支独立 key@-0xbc/-0xac/…）vs 4.4 生命周期复用
 // （-0x68/-0x60/…）+ call/jmp 目标显示差；槽策略跨版本不可翻。
+// [b28e 复核 347=347，p167 CLEAR] 残差 = 12 个 if 块的 pair/iter/temp 槽排布：
+//   ORIG 每块 0x10 字节**连续交错**（块内浅→深 temp(4)/pair(8)/iter(4)，
+//   如 +0x8a 段 int@-0xbc/pair@-0xc4/iter@-0xc8，块间步长 0x10）；4.4 按**类型
+//   分区**（pair 区步长 8、iter 区、temp 区各自连续）⇒ N82附「4.4 聚合对象
+//   优先占低槽、标量分区排布」型，声明/具名均不可改分区规则 ⇒ 封顶。
 #include "BattleDungeonMapA2/InsertMap.inc"
 {
     if (map->get_map_type() == 0)
@@ -665,16 +677,22 @@
 
 // ---- insertStart(int, CMap*) —— ORIG 0x0834be5a（insertStart.md 全文） ----
 // 以 CMap::get_index() 为键把起始地图插入 m_maplist[idx]（hash_map @+0x64）。
-// [b28d-solo-BattleDungeonMapA2] NEAR 封顶（N86/N82）：31=31 助记符序列全等、
-// P167 CLEAR，pair 构造符号与 ORIG 全等（`C1IiRS2_EEOT_OT0_`）；仅三临时槽
-// 分配位互换（ORIG int 临时@-0xc/pair@-0x14/insert-sret@-0x20 vs 4.4
-// sret@-0x14/临时@-0x18/pair@-0x20）。本波实测：具名 key 形改符号为
-// `C1IRiRS2_E`（左值）不可用；static_cast<int&&> 形劣化为 DIFF；4.4 的
-// 临时槽分配序由前端固定，源形不可择。
+// [b28d-solo] NEAR 封顶（N86/N82）时的读数：31=31 助记符序列全等、P167 CLEAR，
+// pair 构造符号与 ORIG 全等（`C1IiRS2_EEOT_OT0_`）；仅三临时槽分配位互换
+// （ORIG int 临时@-0xc/pair@-0x14/insert-sret@-0x20 vs 4.4 sret@-0x14/
+// 临时@-0x18/pair@-0x20）。当时负结论：具名 key 形改 pair 符号为 `C1IRiRS2_E`
+// （左值）不可用；static_cast<int&&> 形劣化 DIFF —— 该两点仍成立。
+// [b28e 落地] NEAR→AE（31=31，助记符 hunks=0）：正解 = 把 insert 的 **sret
+// 结果具名接收**（下行 `ins`）⇒ 4.4 把 sret 槽从 -0x14 重排到 ORIG 的 -0x20，
+// 三临时槽序（int 临时/pair/sret）与 ORIG 全对齐，verdict 转 AE（数据地址
+// 伪差口径）。注意类型名不可猜：`m_maplist` 实为 CDungeon.h:765 的
+// `__gnu_cxx::hash_map<int,CMap*>`（写成 multimap 即时编不过）。
 #include "BattleDungeonMapA2/insertStart.inc"
 {
     std::multimap<int, CMap*>::value_type value(map->get_index(), map);
-    m_maplist[idx].insert(value);
+    std::pair<__gnu_cxx::hash_map<int, CMap*>::iterator, bool> ins =
+        m_maplist[idx].insert(value);
+    (void)ins;
 }
 
 // ---- IsOpenScheduleDungeon() const —— ORIG 0x0834d2d4（报告全文） ----

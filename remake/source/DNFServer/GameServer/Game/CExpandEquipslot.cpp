@@ -21,6 +21,10 @@
 // ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN16CExpandEquipslotC2Ev`（ORIG 0x849aa88）。
+// [GI 判据 · Main 裁决 2026-09-11，含更正] `_Z41__static_initialization_and_destruction_0ii`
+// 的逐 TU DIFF 一律为工具假缺口：ORIG 该符号有 493 个实例，工具按名错配取首个
+// （0x0807ee76，属 PacketTypes TU）⇒ 读数不可比，跳过、勿改；本 TU 实例为
+// 16 条标准 ioinit 形（GI 键 `_GLOBAL__I__ZN16CExpandEquipslotC2Ev` 体间接目标），本就正确。
 #include <iostream>
 
 
@@ -714,7 +718,10 @@ struct SIG_SAVE_EXPAND_CHARAC
                 }
                 int nEquip = 0;
                 nEquip = IsEquipable(pUser, item, expandSlot + 10);
-                if (nEquip != 0)
+                // b28d-65 [P225]：ORIG 0x0849a1da 段 `cmpl $0,-0x10; setne %al;
+                // test %al,%al; je`（4.1 对 int 条件物的物化）；4.4 对 if 恒折
+                // `cmpl;je`。while+return 形复现（探针 t23/p2_ee.o 逐条同形，含预清）。
+                while (nEquip != 0)
                 {
                     return nEquip;
                 }
@@ -806,20 +813,25 @@ struct SIG_SAVE_EXPAND_CHARAC
             }
             if (pUser != 0)
             {
-                if (pUser->CheckItemLock(1, slot))
+                // b28d-65 [P226/P214①]：ORIG 0x08499c64..0x08499ca2 为短路 && 的
+                // `je L_false ×2 / mov $1 / jmp / L_false: mov $0 / test %al; je`
+                // 零槽物化岛；4.4 对 `if (A && B)` 恒 jump-thread 成直跳。
+                // 语句表达式包住整个条件即复现（探针 t25/p2_ee.o 逐条同形，
+                // sret 缓冲仍落浅槽 -0x59）。
+                if (({ pUser->CheckItemLock(1, slot) &&
+                       invenW->GetInvenSlot(1, slot).m_field0 != 0; }))
                 {
-                    Inven_Item slotItem2 = invenW->GetInvenSlot(1, slot);
-                    if (slotItem2.m_field0 != 0)
-                    {
-                        return 0xd5;
-                    }
+                    return 0xd5;
                 }
             }
             int moveRet = 0;
             // b28d-65 真差异修正：ORIG 0x08499cb0 段压栈为 (pUser,type,slot,space,expandSlot-10)
             // —— 实参来源是形参 type/space（分支保证其值为 0/0x12），非字面量（P97/P171 照抄来源）。
             moveRet = Move_Item(pUser, type, slot, space, expandSlot - 10);
-            if (moveRet != 0)
+            // b28d-65 [P225]：ORIG 0x08499ce4 段 `cmpl $0,-0x10; setne %al;
+            // test %al,%al; je`（4.1 对 int 条件物的物化）；4.4 对 if 恒折
+            // `cmpl;je`。while+return 形复现 setne 物化（探针 t22/p2_ee.o）。
+            while (moveRet != 0)
             {
                 return moveRet;
             }

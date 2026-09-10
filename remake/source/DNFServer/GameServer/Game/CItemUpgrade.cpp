@@ -426,6 +426,9 @@ namespace WongWork
 //   本轮已修：删 repeatEvent 判空（ORIG 0x0854639f 直接解引用）、内联 reduce
 //   （无具名局部）。残余 = 4.4 对具名局部的槽化 vs ORIG 的 %ebx/%esi 寄存器
 //   保活（N82/N95 帧差 0xa4 vs 0x84）+ 常量折叠形差 ⇒ N 封顶。
+// [L6S6 2026-09-11 复验] 2 处 `add $0x104,%edx; mov 0xc(%eax,%edx,4)` 的探针穷举：
+//   /tmp/L6S6probe/p1.cpp g1-g4（int/enum 返回、加法交换、unsigned 局部）4.4.7
+//   恒产 `lea 0x104(%eax),%edx` ⇒ ORIG 为 4.1 独有段，4.4 无源码解 ⇒ N4 确认封顶。
 // ============================================================================
 // [round3-L29 2026-09-10 复核] 判据⑪ MIXED（OURS-only=[-101,-99,-40,-36] vs
 //   ORIG-only=[-116,-112,-93,-91]）⇒ 相对序差；观测 -0x20/-0x10(ORIG) vs -0x28/-0x18(我方)。
@@ -743,11 +746,12 @@ check_level:
         penalty = _ProcPenalty(user, &slotA, itemScript, msg->m_0d, packet);
         while (penalty != 0)
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x77e, 5);
-            trace("3RD_CHRONICLE_LOG : ENCHANT SYSTEM _ProcPenalty() ERROR!! ERROR CODE(%d)!! CHARAC NO(%u)\n",
-                  penalty, user->getCurCharacNo());
+            // [P227/P328⑩] ORIG 0x0854a75e 先求值 vararg（getCurCharacNo→%ebx）
+            //   再 ctor（movl x3 + lea + call C1），最后 `mov %ebx,0xc(%esp)`；
+            //   两语句具名形恒 ctor 先 ⇒ 必须写全表达式临时链。
+            cMyTrace(__PRETTY_FUNCTION__, 0x77e, 5)(
+                "3RD_CHRONICLE_LOG : ENCHANT SYSTEM _ProcPenalty() ERROR!! ERROR CODE(%d)!! CHARAC NO(%u)\n",
+                penalty, user->getCurCharacNo());
             return (ENUM_ERROR)penalty;
         }
     }
@@ -761,11 +765,10 @@ check_level:
                                       (ENUM_EQUIPMENTTYPE)itemScript->GetItemType(),
                                       msg->m_19, slotA, materialScript))
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x786, 5);
-            trace("3RD_CHRONICLE_LOG : ENCHANT SYSTEM ProcUpgrade_3rdChronicle() ERROR!! CHARAC NO(%u)\n",
-                  user->getCurCharacNo());
+            // [P227] 同上：ORIG 0x0854a80f 先 getCurCharacNo→%ebx 跨 ctor 保活。
+            cMyTrace(__PRETTY_FUNCTION__, 0x786, 5)(
+                "3RD_CHRONICLE_LOG : ENCHANT SYSTEM ProcUpgrade_3rdChronicle() ERROR!! CHARAC NO(%u)\n",
+                user->getCurCharacNo());
             return (ENUM_ERROR)1;
         }
     }
@@ -780,9 +783,19 @@ check_level:
 
     // ORIG 0x0854a8b2 `movb $0x0,-0x1d; addb $0x1,-0x1d` ⇒ count 是 **char**；
     // 且无 f 指针局部（`movzbl -0xba(%ebp),%eax` = slotA+0x1f 直取）。
+    // [L6S6 2026-09-11] 残差 2 条 `movzbl %al,%eax`（我方多）：ORIG 0x0854a8bc/
+    //   0x0854a8cb 为单条 `movzbl mem,%eax; and $0x1,%eax`。探针 /tmp/L6S6probe/
+    //   p2-p4.cpp 实证 4.4.7 对 `unsigned char & 1`（数组/标量/union 视角、!=0/
+    //   ==1/无比较、%2 共 11 形）恒产 `movzbl; movzbl %al; and`；唯**1 位位域**
+    //   （g9: `m_bits.b0`）产 ORIG 同形。⇒ 需在 Inven_Item.h 的
+    //   STEnchantedSkillOption 匿名 union 增 1 位位域视角（sizeof/偏移/mangled
+    //   零变化，P308 允许）后本处即可归零；.h 属禁改域 ⇒ 仅报告，待属主落。
     char count = 0;
-    if ((slotA.m_random.m_enchFields[0] & 1) != 0)  ++count;
-    if ((slotA.m_random.m_enchFields[1] & 1) != 0)  ++count;
+    // [L6 父泳道 2026-09-11] 直接用已存在的 1 位位域视角 `m_bits.m_flag`（= bit0，
+    // 与 `m_enchFields[i] & 1` 同义）⇒ 试复现 ORIG 单条 `movzbl mem,%eax; and $0x1`，
+    // 免去新增 .h 视角（S6 请求）。若不成则回滚并保留原 `& 1` 形。
+    if (slotA.m_random.m_skills[0].m_bits.m_flag)  ++count;
+    if (slotA.m_random.m_skills[1].m_bits.m_flag)  ++count;
 
     user->m_historyLog.Enchant3rdChronicleItem(doEnchant,
         itemScript->get_index(), material.m_addInfo, msg->m_19, count);

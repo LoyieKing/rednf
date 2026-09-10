@@ -1071,6 +1071,10 @@ namespace WongWork
 // P167 CLEAR、gap 1/14 ⇒ 语义等价。
 // 本波复测：clean/AE ndiff=7、14 vs 13（唯一缺口 = ORIG `lea 0x10(%eax),%edx;
 // mov %eax,(%edx)` 两段取址 vs 4.4 折 disp），N107 六形探针结论不变 ⇒ 维持封顶。
+// [L3CUserPremDBInven 本波实测（ORIG 0x086b084c）] 追加第 5 形：去 `(int)state`
+//   cast（`->m_state = state`，enum 同型直赋）——实测汇编逐条不变（同 13 条、
+//   同 `lea (%ecx,%eax,1),%edx; mov %eax,0x10(%edx)`）⇒ 回滚；N107 维持（P167
+//   CLEAR、per-字段语义等价、gap 1/14）。
 #include "CUserPremium/setPremiumState.inc"
 {
     (m_entries + (int)type)->m_state = (int)state;
@@ -1385,6 +1389,12 @@ namespace WongWork
 // const iterator 且 for 初始化处直构；改后差集清零（20/20 CLEAR）。
 // 终判（b28d）：同上——删 key 局部后 gap -3/758；残余帧差与槽基差（N82/N95/
 // P232）封顶。
+// [L3CUserPremDBInven 本波复核（ORIG 0x086aeca4）] 复算 758/760、diff 仅 5 块：
+//   ① 三处 `short` 数组取址（ORIG `movzwl -0x7e20(%ebp,%eax,2)` 单条 base+idx*2
+//      vs 4.4 `lea -0x7e28; imul $0x130; add $0xd0; lea 0x8` 常量链，等效地址差
+//      = N1/N4 折叠基准）；② `table[i].m_targetItemKey`（ORIG 0x86af54c 有 key
+//      栈槽往返、我方内联实参 = P0 取舍，带槽实测触发整帧 0x7e3c→0x7e4c 平移）。
+//   ⇒ 无新旋钮，维持 N82/N95/P232 封顶。
 #include "CUserPremium/LoadPremiumInfo.inc"
 {
     stPremiumTable_t table[0x6a];
@@ -1535,6 +1545,9 @@ void _Additioal_info::operator+=(const _Additioal_info& other)
 // ORIG 的 `movzx eax; mov edx,eax; …; lea eax,[edx+eax]; mov edx,eax` 舞
 // 无任何源形可择 ⇒ N-86b 维持；clean/AE ndiff 116→52（gap 12 条全为四 union
 // 字段 + 两循环体的收形差），语义逐字段相等。
+// [L3CUserPremDBInven 本波复核（ORIG 0x08146300）] 复算 165/153（gap 12）：diff
+// 全为上方 16 位收形 + 循环体 `%ecx/%edx` 索引选择（ORIG 用 `%edx` 中转、4.4 用
+// `%ecx`）⇒ N-86b 维持，未再动。
 #include "CUserPremium/add.inc"
 {
     m_field00 += other.m_field00;
@@ -1567,8 +1580,11 @@ void _Additioal_info::operator+=(const _Additioal_info& other)
 //   逐一相等，封 N。
 // [b28d-solo-CUserPremium] N-86b/N7 封顶（b28d 复测）：同 add——ORIG 16 位差
 // 经 lea/mov 寄存器舞 + %edx 索引中转，4.4 恒直接 sub/add + %ecx；0x4c/0x4e
-// 两字段加法特例已忠实保留。P167 CLEAR（0/0）⇒ 语义等价，封顶。
+//  两字段加法特例已忠实保留。P167 CLEAR（0/0）⇒ 语义等价，封顶。
 // 本波复测：同 add 探针族（13 形）不可择；clean/AE ndiff 121→62，语义等价。
+// [L3CUserPremDBInven 本波复核（ORIG 0x08693d04）] 复算 175/153（gap 22）：同 add
+// 的 16 位收形差（ORIG `mov %eax,%edx`+`lea/sub` 中途 vs 4.4 直接 sub/add）+
+// 0x4c/0x4e 两字段加法特例（ORIG `lea (%edx,%eax,1)` = 加，已忠实保留）⇒ 未再动。
 #include "CUserPremium/subtract.inc"
 {
     m_field00 -= other.m_field00;

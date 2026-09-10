@@ -279,7 +279,11 @@ unsigned int uint32Time(short* buf)
 //     超期 → count=0，idx<=field8 → 1 否则 0；未命中 → field8<idx → 0 否则 1。
 // b28d-solo-CCeraShopAddRestrict: NEAR→N 封顶（129=129、p167 CLEAR；残余 N95 槽基差 8
 // + N86 insert sret 槽位；P196 比较方向与 m_count unsigned 已修）。
-static int FindUserInfoDetail(
+// [L6-S1 2026-09-11 P292 链] int→bool：本函数全部 return 均为常量 0/1（bool 化后
+// 生成不变，探针 /tmp/l6p/p8.cpp bconst 实证 `mov $0x1,%eax`），而使
+// `CheckBuyableProduct` 的 `return FindUserInfoDetail(...)` 成为 bool 直返
+// （否则恒多 test/setne，ORIG 0x080e0cdc 直通无归一化）。
+static bool FindUserInfoDetail(
     std::map<unsigned int, unsigned int>& idxMap,
     std::map<unsigned int, paramDaily*>& dailyMap,
     unsigned int key, InfoDaily* info, unsigned int add)

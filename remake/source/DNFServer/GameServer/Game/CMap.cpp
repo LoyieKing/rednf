@@ -370,9 +370,12 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
     int accumulated = 0;
     // ORIG 0x0825?? P167：非 const iterator（P96）+ 循环外默认构造 pair（C1Ev）
     // + 体内临时 pair 右值赋值（deEv + aSEOS0_，P135）+ 后置 it++（ppEi，P28）。
+    // [L6S6b 2026-09-11] ORIG 0x0834ebf9 begin() 在前、0x0834ec0e pair C1Ev 在后，
+    //   且 it 槽 -0x24 **浅于** pair 槽 -0x2c（我方旧形 pair=-0x28/it=-0x2c 恰反向）
+    //   ⇒ 声明序必须是 iterator 先、pair 后（P28/P212），for 只留条件与步进。
+    std::list<std::pair<int, int> >::iterator it = itemList.begin();
     std::pair<int, int> item;
-    for (std::list<std::pair<int, int> >::iterator it = itemList.begin();
-         it != itemList.end(); it++)
+    for (; it != itemList.end(); it++)
     {
         item = std::pair<int, int>(*it);
         accumulated += item.second;
@@ -405,6 +408,13 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
 //      （0834e678 `mov %eax,-0x2ac` = +0x8）、m_4=0（0834e67e `movb $0,-0x2b0`）。
 //   ④ 内层 action 用索引 + 缓存指针（0834e5db operator[] 一次，结果 -0xc 复用），
 //      外层两处循环有 list::empty() 预检查（0834e57e / 0834e82f）。
+// [L6S6b 2026-09-11 残差] 523/522 gap+1：① 全函数匿名 sret/迭代器槽整体比 ORIG
+//   深 4B（ORIG it -0x240 / 临时 -0x238 / end -0x23c / insert 实参 -0x1d0/-0x160/
+//   -0xf8/-0x88/-0x90 区；我方各 +4）⇒ 疑似我方多一枚 4B 具名局部，属 N82/N95
+//   槽族；② 首段 `m_8 = script.m_c`：ORIG 0x0834e195 `mov 0xc(%eax),%eax;
+//   mov %eax,%edx` 两段（P254/P265 信号 ⇒ ORIG 侧字段与 RHS 异型），我方单段
+//   `mov 0xc(%eax),%edx` ⇒ 需 STMapScript::m_c 或 CMap::m_8 之一 enum 化才能翻，
+//   二者均在 .h（只报告，未改）；③ SPOBJ 条件链已按 P223 改为独立守卫+尾岛。
 #include "CMap/set_map.inc"
 {
     m_4 = script.m_index;
@@ -453,9 +463,19 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
                 SPOBJ_ACTION_DATAS* action = &spObj.m_vec10[i];
                 if (action->m_type == 0)
                 {
-                    if (action->m_10 != 0 &&
-                        get_rand_int(100) <= (action->m_c * 100) / action->m_10 &&
-                        action->m_8 < 0xc9 && action->m_8 > 0)
+                    // [L6S6b 2026-09-11] ORIG 0834e5f0..0834e72e 是**四个独立否定
+                    //   守卫各自 goto 到物理连续的尾中继岛**（落点 0x59b/0x59e/0x5a1/
+                    //   0x5a4 递增，岛序=守卫序；尾部 4×`jmp;nop`）⇒ 复合 && 会被
+                    //   4.4 折成 bool 汇聚岛（我方多 `mov$1;jmp;mov$0;test;je`），
+                    //   必须写 P223 多岛形：裸条件 goto + 尾标签串。
+                    if (action->m_10 == 0)
+                        goto SPOBJ_SKIP1;
+                    if (get_rand_int(100) > (action->m_c * 100) / action->m_10)
+                        goto SPOBJ_SKIP2;
+                    if (action->m_8 > 0xc8)
+                        goto SPOBJ_SKIP3;
+                    if (action->m_8 <= 0)
+                        goto SPOBJ_SKIP4;
                     {
                         monster.Clear();
                         monster.m_0 = action->m_4;
@@ -463,6 +483,10 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
                         monster.m_4 = 0;
                         insert_monster(monster, area);
                     }
+                    SPOBJ_SKIP1:;
+                    SPOBJ_SKIP2:;
+                    SPOBJ_SKIP3:;
+                    SPOBJ_SKIP4:;
                 }
                 else if (action->m_type == 2)
                 {

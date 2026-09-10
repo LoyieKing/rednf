@@ -1,1 +1,1 @@
-int CCargo::MakeItemList(PacketGuard* packet) const
+bool CCargo::MakeItemList(PacketGuard* packet) const

@@ -75,24 +75,30 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 #include "AvatarRechargeServer/SendDurability.inc"
                                           char param4, int param5)
 {
-    // [b28d-solo-AvatarRechargeServer] N 封顶（P223 负例，本文档已列 SendDurability）：
-    // ORIG 0x08190494 岛 A(`nop;jmp exit`)+0x08190497 岛 B(`nop`) 仅**前两级**早返有岛，
-    // 第 3/4 级 `jne +0x82` 直落 epilogue；4.4 岛数恒=条件数(4) ⇒ 49 vs 45。
-    // 已试三形均不闭合：否定早返 +2 jmp、正向嵌套 −2 jmp、P223 尾 goto 标签串 +2 jmp；
-    // 合并第 3/4 条件只得 3 岛。P167 callsite 3=3 CLEAR ⇒ 语义等价，保持可读早返形。
+    // [b28d-L5a 2026-09-11 落地] 旧「P223 负例 N 封顶（49 vs 45）」判词**作废**。
+    // ORIG 0x08190494 岛 A(`nop;jmp exit`)+0x08190497 岛 B(`nop`) 仅前两级早返有岛、
+    // 第 3/4 级 `jne exit` 直落 epilogue ⇒ 唯一复现形 = **混合形**：
+    //   前两级「负向 goto 共享尾标签」(`if(user==0) goto end; if(state!=5) goto end;`)
+    //   + 第 3/4 级「正向嵌套」(`if(param2==1){ if(param4==3){ 主流程 } }`，失败直落函数尾)。
+    // 逐条同构（`je 岛A` / `jne 岛B` / 两条 `jne exit` / 主流程尾 `jmp exit`），
+    // 45 = 45，TU 读数 ae +1 / diff −1；P167 callsite 3=3 CLEAR。
     if (user == 0)
-        return;
+        goto end;
     if (user->get_state() != 5)
-        return;
-    if (param2 != 1)
-        return;
-    if (param4 != 3)
-        return;
-    // 目标：默认单人(1)，在队伍中改队伍(2)。
-    CUser::eSendTarget target = (CUser::eSendTarget)1;
-    if (user->GetParty() != 0)
-        target = (CUser::eSendTarget)2;
-    UpdateAvatarEndurance(target, user, (short)param5);
+        goto end;
+    if (param2 == 1)
+    {
+        if (param4 == 3)
+        {
+            // 目标：默认单人(1)，在队伍中改队伍(2)。
+            CUser::eSendTarget target = (CUser::eSendTarget)1;
+            if (user->GetParty() != 0)
+                target = (CUser::eSendTarget)2;
+            UpdateAvatarEndurance(target, user, (short)param5);
+        }
+    }
+end:
+    ;
 }
 
 // ============================================================================
@@ -149,11 +155,17 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
     // map find/end + eq（end() 在左控实参序，P74 补充），不调 IsEmblemRechargeStone。
     // [b28d-solo-AvatarRechargeServer] ORIG 0x081907b8 先 `call end`（sret -0x20）后
     // `call find`（sret -0x1c，key 物化 -0x18）⇒ 具名 end 迭代器声明在前。
-    // 残余 NEAR=2：4.1 先声明占深槽（end -0x20/find -0x1c）vs 4.4 相反（N93 类对象
-    // 槽方向跨版本不可翻；P293 单表达式形 4.4 恒 find 先 ⇒ DIFF 更差，已回退）。
+    // [b28d-L5a 2026-09-11] 比较操作数序已按 ORIG 对齐（`it == itEnd`：ORIG
+    // 0x081907c0 `lea -0x20→0x4(%esp)` + `lea -0x1c→(%esp)` ⇒ this=it、参数=itEnd）。
+    // 残余 = **两迭代器槽互换**：ORIG end→-0x20 / find→-0x1c，我方 end→-0x1c / find→-0x20
+    // （4.1「先声明深」vs 4.4「先声明浅」，N93/N212 族）。三形实测均不闭合：
+    //  ①内层块包裹 it（P212 块作用域）⇒ 槽不变；②P326 显式转换右值临时形不适用
+    //  （本处无 const 转换、ORIG 侧无三级槽）；③全头部声明（P212 同序律）需默认构造
+    //  `_Rb_tree_iterator()` 产生 2 条 `movl $0x0` ⇒ 226→228 条，条数反劣，不采纳。
+    // 保持 NEAR（226=226，P167 25=25 CLEAR），语义等价。
     std::map<int, int>::iterator itEnd = m_emblemRechargeStoneMap.end();
     std::map<int, int>::iterator it = m_emblemRechargeStoneMap.find(stone->m_addInfo);
-    if (itEnd == it)
+    if (it == itEnd)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x11);
         LogManager::logFormat(
@@ -223,13 +235,17 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 // ②P227 两处 cMyTrace 全表达式临时链 + P139 __PRETTY_FUNCTION__；
 // ③P171 照抄 ORIG 只判 avatar->isEmpty()（无判空比较）；
 // ④map 键具名物化槽（ORIG 0x08190cae `mov %eax,-0x3c`）。
-// 残余 = 4.1 map-key 临时槽 -0x3c / trace1 -0x4c vs 4.4 -0x4c/-0x48（N82/N93
-// 槽分配方向）；P167 callsite 25=25 CLEAR。
+// [b28d-L5a 2026-09-11] 残余 = 4.1/4.4 临时槽分配方向互换（N82/N93 族）：
+//   ORIG  槽图 = save -0x54 / cMyTrace#1 -0x4c / key -0x3c / cMyTrace#2 -0x38
+//   我方  槽图 = save -0x54 / key -0x4c / cMyTrace#1 -0x48 / cMyTrace#2 -0x38
+// （4.1「先出现占深」，4.4 相反）。已试并回滚：①`int mapKey;` 声明提前到函数头
+// （原形）与就地声明 ⇒ **槽不变**（-0x4c 恒定，与声明位置无关）；②其余槽完全一致
+// （-0x38/-0x54 两侧相同）。cMyTrace 为匿名临时链（P227，ORIG 同形），无法具名化
+// 翻槽；P167 callsite 25=25 CLEAR ⇒ 保持 NEAR（231=231），语义等价。
 // ============================================================================
 #include "AvatarRechargeServer/Recharge.inc"
                                     arad::SigAradUseAvatarRecharge* sig)
 {
-    int mapKey;   // ORIG 0x08190cae 的 key 物化槽（-0x3c）——声明提前试验
     const Inven_Item* stoneRef =
         user->getCurCharacInvenR()->GetInvenRef(1, (int)sig->stoneSlot);
     const int stoneItemId = stoneRef->m_addInfo;   // ORIG 判空前读取，忠实保序
@@ -273,6 +289,7 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 
     // ORIG 0x08190cae `mov -0x24(%ebp),%eax; mov %eax,-0x3c(%ebp); lea -0x3c(%ebp),%eax`
     // ⇒ map 键经临时槽中转（4.1 对 operator[] const key& 的物化）。
+    int mapKey;   // ORIG 0x08190cae 的 key 物化槽（-0x3c）
     int newEndur = (int)avatar->m_fieldSplit.m_avatarEndur +
                    m_emblemRechargeStoneMap[mapKey = stoneItemId];
     if (newEndur > sig->maxEndurance)

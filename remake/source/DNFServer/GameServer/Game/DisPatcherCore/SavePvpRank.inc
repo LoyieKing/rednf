@@ -42,6 +42,13 @@ bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
         score = (unsigned int)(0.8 * (double)score);
     }
     // ORIG 折算后直接写回 score（-0x1c），无 adjusted 具名局部（P0）
+    // [DPC-SigSmall 2026-09-11] 负结论（probe7/probe7b，c6446r -m32 -O0 直证）：
+    // ORIG 0x081f06b3 `mov -0x1c(%ebp),%eax; cmp -0x18(%ebp),%eax; jbe`（eax=score /
+    // mem=playSec，无符号）在 4.4.6 下**四种等价写法全部归一**为
+    // `mov -0x18,%eax; cmp -0x1c,%eax; jae`：`playSec < score` / `score > playSec` /
+    // `score <= (unsigned)playSec` / `(unsigned)playSec >= score` 产物逐字节相同
+    // （唯一能改操作数序的 `(int)` 混合比较 s3 反产**有符号** jge，与本处 unsigned
+    // jbe 不符）⇒ 维持 N18b 封顶（跨版本操作数选择，源码形不可择）。
     if (playSec < score)
     {
         user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x73, 1, (int)score, (int)playSec);

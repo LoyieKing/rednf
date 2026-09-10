@@ -101,6 +101,10 @@ void CAdvertisementExposeInfo::operator delete(void* p, unsigned int size)
     // 能让 lea 提前，但额外物化 1~2 个槽 + 2 条 store/load（ORIG 无该槽），形态更劣。
     // ⇒ 4.1「无副作用地址计算提前调度 + callee-saved 直绑」不可复现（P75 跨版本
     // 实参装载调度 + N7 寄存器分配族）。残差 3 行（lea 位置 + %esi/%edx）。
+    // [L6S6b 2026-09-11 复核] 46/46 gap0 ndiff4：本轮重读 ORIG 0x080fdd8d/0x080fdd9c
+    //   确认唯一差异就是 `lea -0x1c,%esi`（new 前）vs 我方 `lea -0x1c,%edx`（new 后）
+    //   —— 上轮 9 形探针已穷举（含裸语句表达式），无一能让 4.4 把 lea 提前且不加槽，
+    //   故维持 N 封顶（P75 实参装载调度 + N7），不再派单。
     m_rand = new CMTRand(*reinterpret_cast<unsigned long*>(&now));
 }
 

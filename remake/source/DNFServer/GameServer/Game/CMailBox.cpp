@@ -146,10 +146,11 @@ namespace WongWork
 
     if (isAvatarPackage())
     {
-        CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
         // ORIG 8551b25/8551b34：GetRemainDate 返回即 put_int（avatar 分支也 put）
-        packet->put_int(inv->GetAvatarItemMgrR()->GetRemainDate(
-            m_package.m_item.m_addInfo2, (int)nowSec));
+        // ORIG 8551b01：m_addInfo2 先装 ebx、链式调用直传（无具名局部，P52/P183）
+        packet->put_int(const_cast<CInventory*>(user->getCurCharacInvenR())
+                            ->GetAvatarItemMgrR()->GetRemainDate(
+                                m_package.m_item.m_addInfo2, (int)nowSec));
     }
     else
     {
@@ -168,48 +169,57 @@ namespace WongWork
 
     if (m_package.m_item.m_field1 == 5)                               // ITEM_TYPE creature
     {
-        CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        user_creature::CCreatureMgr* cmgr =
-            const_cast<user_creature::CCreatureMgr*>(inv->GetCreatureMgrR());
-        packet->put_int(
-            cmgr->getRemainTempPeriod(m_package.m_item.m_addInfo2, (int)nowSec));
+        // ORIG 8551be3：同一 m_addInfo2 先装 ebx 再链式直传（无具名局部）
+        packet->put_int(const_cast<user_creature::CCreatureMgr*>(
+                            const_cast<CInventory*>(user->getCurCharacInvenR())
+                                ->GetCreatureMgrR())
+                            ->getRemainTempPeriod(
+                                m_package.m_item.m_addInfo2, (int)nowSec));
     }
 
     packet->put_packet(m_package.m_item);
 
     if (isAvatarPackage())
     {
-        int uid = m_package.m_item.m_addInfo2;
-
         packet->put_int(0x1e);
-        // ORIG 8551c6d/8551cab：getCurCharacInvenR/GetAvatarItemMgrR 各点重取（P48 去缓存）
+        // ORIG 8551c64/8551ca2：m_addInfo2 两次独立装载（ebx），getCurCharacInvenR/
+        // GetAvatarItemMgrR 各点重取（P48 去缓存，uid 不设具名局部）
         packet->put_binary(const_cast<CInventory*>(user->getCurCharacInvenR())
-                               ->GetAvatarItemMgrR()->getJewelSocketData(uid),
+                               ->GetAvatarItemMgrR()->getJewelSocketData(
+                                   m_package.m_item.m_addInfo2),
                            0x1e);
 
         const void* exp = const_cast<CInventory*>(user->getCurCharacInvenR())
-                              ->GetAvatarItemMgrR()->GetExpansionInfo(uid);
+                              ->GetAvatarItemMgrR()->GetExpansionInfo(
+                                  m_package.m_item.m_addInfo2);
         packet->put_int(4);
-        if (exp == 0)
+        // [b28d 二轮 L6S6] ORIG 0x08551cde `je 08551cfc<+0x2c6>`：then=非空分支
+        //   （put_binary(exp,4) 直落 0x2aa..0x2c4，空分支 init 后置 0x2c6）
+        //   ⇒ 正极性 `exp != 0`（P59/P222）。
+        if (exp != 0)
+        {
+            packet->put_binary(reinterpret_cast<const char*>(exp), 4);
+        }
+        else
         {
             stAvatarExpansionInfo_t init;
             init.init();
             packet->put_binary(reinterpret_cast<const char*>(&init), 4);
         }
-        else
-        {
-            packet->put_binary(reinterpret_cast<const char*>(exp), 4);
-        }
     }
 
-    if (!isUnlimit())
+    // ORIG 8551d21：call isUnlimit; test %al,%al; je <max 段> ⇒ 正极性直判、then=put_int(0)
+    if (isUnlimit())
     {
-        long remain = m_period - nowSec;
-        packet->put_int(std::max<int>((int)remain, 1));      // ORIG 8551d65 std::max<int>
+        packet->put_int(0);
     }
     else
     {
-        packet->put_int(0);
+        // ORIG 8551d45..8551d65：无 remain 具名槽，仅 max 的两枚引用临时(-0x14/-0x10)
+        // [b28d 二轮 L6S6] ORIG 先算 remain 再 store 常量 1（`sub; mov %eax,-0x14;
+        //   movl $0x1,-0x10; lea -0x14→0x4(%esp); lea -0x10→(%esp)`）⇒ cdecl 右起
+        //   求值要求常量作 **第二** 实参：`max(1, remain)`（4.4 才先求 remain）。
+        packet->put_int(std::max<int>(1, (int)(m_period - nowSec)));
     }
 
     packet->put_int((int)m_letterId);
@@ -321,14 +331,17 @@ namespace WongWork
     if (mail->GetLetterId() != 0)
     {
         // 若剩余邮件中不再有同 letterId 者 → 已加载计数 +1
-        // [b27 封顶] 唯一残差 = begin() 返回槽：ORIG -0x2c 临时槽→拷贝 jt(-0x1c)
-        // 两步（N86：4.1 无 copy-elision），4.4 直构进 jt 槽(-0x20) ⇒ jt 槽号
-        // 连锁平移。无源码解（直构即 4.4 语义）。语义/循环体/出口全等。
+        // ORIG 0x085521f0：begin() sret 复用 find 临时槽 -0x2c，随后
+        // `mov -0x2c,%eax; mov %eax,-0x1c` 拷回 it（P50/P314 先声明后赋值形）
+        // ⇒ 循环必须复用同一具名 it（赋值形），不能另声明 jt（直构进自身槽，
+        // 少 2 条拷贝且槽号连锁平移）。
         bool stillExists = false;
-        for (MailMap::iterator jt = m_mailMap.begin(); jt != m_mailMap.end(); ++jt)
+        it = m_mailMap.begin();
+        while (it != m_mailMap.end())
         {
-            if (jt->second->GetLetterId() == mail->GetLetterId())
+            if (it->second->GetLetterId() == mail->GetLetterId())
                 stillExists = true;
+            ++it;
         }
         if (!stillExists)
             m_loadedLetterCount += 1;
@@ -351,30 +364,38 @@ namespace WongWork
     if (mail == 0)
         return 0;
 
-    mail->m_mailIndex      = SIG_OFF(unsigned int, &inputRaw, 0x00);
-    mail->m_senderCharacNo = SIG_OFF(unsigned int, &inputRaw, 0x04);
-    mail->m_package.m_packageMoney   = SIG_OFF(unsigned int, &inputRaw, 0x08);
+    // 具名成员直访（ORIG 0x08551f86/0x08551f90/0x08551f9c 均为单条
+    // `mov K(%edx),%edx` disp 折叠；SIG_OFF 的 char*+offset 形会多发 `add $K`）。
+    mail->m_mailIndex      = inputRaw.m_mailIndex;
+    mail->m_senderCharacNo = inputRaw.m_senderCharacNo;
+    mail->m_package.m_packageMoney   = inputRaw.m_packageMoney;
 
     // ORIG：srcItem 分支逐字段展开拷贝；空时构造 Inven_Item() 后逐字段搬移。
-    const Inven_Item* srcItem = SIG_OFF(const Inven_Item*, &inputRaw, 0x24);
-    if (srcItem == 0)
-        mail->m_package.m_item = Inven_Item();
+    // ORIG 0x08551fa8/0x08551fb2 对该指针两次独立装载（`mov 0xc(%ebp),%eax;
+    // mov 0x24(%eax),%eax` + `test %eax,%eax` 无栈槽）⇒ 表达式直读两遍（P0）。
+    // [b28d 二轮 L6S6] ORIG 0x08551fb0 `je 0855201a<+0xc0>`：**then=非空分支**
+    //   （拷贝体直落 0x58..0xbe，空分支后置 0xc0）⇒ 必须写正极性 `!= 0`
+    //   （P59/P222；负极性 4.4 恒 `jne` 逆序）。
+    if (inputRaw.m_packageItem != 0)
+        mail->m_package.m_item = *inputRaw.m_packageItem;
     else
-        mail->m_package.m_item = *srcItem;
+        mail->m_package.m_item = Inven_Item();
 
-    mail->m_period = (long)SIG_OFF(unsigned int, &inputRaw, 0x18);
+    mail->m_period = inputRaw.m_period;
 
-    std::strncpy(mail->m_senderName, SIG_OFF(const char*, &inputRaw, 0x20), 0x1d);
+    std::strncpy(mail->m_senderName, inputRaw.m_senderName, 0x1d);
 
-    mail->m_packageType = SIG_OFF(int, &inputRaw, 0x14);
+    mail->m_packageType = inputRaw.m_packageType;
     // P292 全链 bool：ORIG 0x085520c4 `movzbl 0x1c(%edx),%edx; mov %dl,0x74(%eax)`
     // 单条直存（无 uchar→bool 归一化）⇒ 源类型同为 bool。
-    mail->m_unlimit     = SIG_OFF(bool, &inputRaw, 0x1c);
-    mail->m_letterId    = SIG_OFF(unsigned int, &inputRaw, 0x0c);
+    mail->m_unlimit     = inputRaw.m_unlimit;
+    mail->m_letterId    = inputRaw.m_letterId;
 
-    m_mailMap.insert(std::make_pair(mail->m_mailIndex, mail));
+    // ORIG 0x085520d7 首实参装载 = `mov 0xc(%ebp),%edx`（&input.m_mailIndex 即
+    // input 自身）⇒ 源用 inputRaw.m_mailIndex 而非 mail->m_mailIndex（后者多 1 条）。
+    m_mailMap.insert(std::make_pair(inputRaw.m_mailIndex, mail));
 
-    mail->m_remainSec = SIG_OFF(unsigned int, &inputRaw, 0x10);
+    mail->m_remainSec = inputRaw.m_remainSec;
     return mail;
 }
 

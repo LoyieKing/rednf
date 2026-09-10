@@ -102,6 +102,11 @@ const float kPercentDivisor = 100.0f;   // _DAT_08b7507c
 //   return 点直发 `mov $0x0/%1,%eax`+共享尾，4.4 以 %ebx 合并 epilogue（N82/寄存器分配）。
 //   while(true){if(3<i)return 1;...break;++i;} 形态 + 时间比较改 `GetRevivalTime() >
 //   getCurSec()` 已对齐 4.1 求值序/setg 方向；逐调用逐分支语义逐一相等，封 N。
+// [L5Free49to60 2026-09-11 复核] fresh 168 vs 170（gap −2，与基线一致）。bcmp 逐条：
+// ①第 1 守卫 ORIG `call; test %al; sete %al; test %al; je` vs 4.4 `xor $1`（N122/
+//   P168a④：4.4 对布尔取反恒 xor、4.1 的 sete 内存物化不可复现）；
+// ②packet2 段 4.4 多 5 条 `mov/lea/call/jmp` 中继（P63 早退共享出口族）。
+// 均属跨版本结构性差异 ⇒ 维持封 N。
 // ============================================================================
 #include "CBossPlay/handleDieUser.inc"
 
@@ -120,9 +125,23 @@ const float kPercentDivisor = 100.0f;   // _DAT_08b7507c
 
 // ============================================================================
 // generateRewardExp（ORIG 0x08149e20）
-// [b28d-46 判词·N/N82] 244 vs 267，p167 CLEAR（32/32）。已修：baseExp 具名 float
-// （P252 复现 fstps -0xf0 槽往返）、tower 内联表达式（P0/P183 无槽直用 %eax）。
-// 残差 = 帧 0x13c vs 0x174 全帧槽号平移（N82）＋ `1+a` 下标 add vs disp 折叠（P30/N4）⇒ 封顶。
+// [b28d-46] baseExp 具名 float（P252 复现 fstps -0xf0 槽往返）、tower 内联表达式。
+// [L5Free49to60 2026-09-11] 244 vs 267 → **244 vs 245**（gap −23→−1，bcmp NDIFF
+// 139→78）。本波旋钮（全为 P0/P183 删多余具名局部，依据 ORIG 无槽往返实证）：
+// ① 删 ev8/ev3/evF，GetRepeatEvent(8/3/0xf)->IsEventing() 内联（ORIG 0x08149fa7..
+//    0x08149fb8 虚调用链全程 %edx/%ecx 寄存器直用，无槽）；
+// ② 删 dm2/chScript/env/channelNo/channelType 五局部，getBonusRate 单表达式链
+//    （ORIG 0x08149f4c get_index→%edi、0x08149f5b GetChannelScript→%esi、
+//    0x08149f62/68 G_CEnvironment+0x378→%ebx、0x08149f73 channel_no→%eax）；
+// ③ pcrBurning/expDouble/premiumRate 去 `= 0.0f`（ORIG 三槽 c4/bc/b8/a8 无清零，
+//    仅条件分支内 fstps 写入 ⇒ P131/P171）；
+// ④ 删 pre（GetPremiumInfo），内联链式（ORIG 0x0814a0e1/0x0814a0e6 直用 %eax）；
+// ⑤ `m_rewardExpWeight[1 + a]` → `[a]`：ORIG `flds 0x4(%eax,%edx,4)` 由 stDeathTower_t
+//    的 m_apcExpWeight@+0x0 提供 +0x4 基址，旧写法多发 `add $0x1,%edx`。
+// 残差（封顶）：帧 0x13c vs 0x15c 全帧槽号平移 0x20 —— ORIG 把 8 个 float 局部排在
+// param(-0xcc,8B) 之后的 -0xc4..-0xa4、baseExp 落 -0xf0，4.4 恒「聚合对象优先占低槽、
+// 标量分区排布」（P332/N82附）；尾段 m_rewardExp[memberIdx] ORIG `lea 0x4(%edx),%ecx`
+// vs 我方 `add`（P30/N4 结构性伪影）；日志段 `.o` 重定位 imm 伪差。语义闭合。
 // ============================================================================
 #include "CBossPlay/generateRewardExp.inc"
 
@@ -147,6 +166,11 @@ const float kPercentDivisor = 100.0f;   // _DAT_08b7507c
 // 残差 gap 3 = ORIG 段 A/B 公共出口 `mov $0x1,%ebx` / item==0 路径 `mov $0x0,%ebx`
 //  + 循环尾 `test %ebx,%ebx`（**无消费者死物化**：4.1 条件值保留；ebx 全程无栈槽
 //  ⇒ 非具名局部，4.4 无对应源形，同 P197④/跨版本族）⇒ 语义闭合，封 N。
+// [L5Free49to60 2026-09-11 复核] fresh .o 327 vs 324（gap 3）不变；bcmp 逐条对比：
+// 指令序列全等，唯一实质差 = 全帧槽相位 4B —— ORIG 把 addInfo 排到深区 -0x12c
+// （fildl/fistpl 同址，ORIG 0x08149b18 段）而 4.4 分到浅区 -0x20；帧 sub 两侧同为
+// 0x13c（ORIG 深区多 4B、我方浅区多 4B）。属 N82附（4.4 聚合对象优先占低槽、标量
+// 分区排布；声明序/位置为 N98 不控）⇒ 维持封 N。
 // ============================================================================
 #include "CBossPlay/generateRewardItem.inc"
 

@@ -33,6 +33,20 @@
 //   · _generateOption 帧 72 vs 56（MIXED）：N82 具名 float 槽序（三形穷举不可达）。
 //   · getInvestMaterialInfo 60=60 NEAR：PURE SHIFT c=0（寄存器/装载序）。
 //   · get_upgrade_info 371=371 DIFF：PURE SHIFT c=0。
+// ----------------------------------------------------------------------------
+// [L3-b 2026-09-11 本波核账] 四数 92/193/2/2 不变，落地 1 项**真语义 bug**：
+//   · get_upgrade_info 两处折扣缩放：ORIG 0x08900780 段为 `fildl 字段; flds 表系数;
+//     fmulp; flds 0x8e122e8; faddp`，0x089007c7 段同形（0x8e122e8 = .rodata 常量池
+//     `00 00 00 3f` = **0.5f**）⇒ 源码是 `积 + 0.5f`（fistpll 截断前的就近舍入偏置），
+//     旧写法 `-100.0f + 积` 既错常量又错方向（我方 .o 实证发 `flds 100.0f;
+//     fsubrp %st,%st(1)`，而 GNU as AT&T 下 `fsubrp %st,%st(1)` ≡ ST(1)−ST(0)，
+//     c6root g++4.4.7 探针 `-100.0f + y` 生成同形可证）⇒ 已改 `积 + 0.5f`。
+//     归一 diff 136→132 行、our 371 不变（gap 0 保持），四数零变差。
+//   · 残差（N 族，穷举记录不变）：C1 我方多 1 条 `_Unwind_Resume`（EH 表族，24 vs 25
+//     调用点，指令总数 200=200）+ 7 组 `mov idx,%edx; mov this,%eax; add $K,%edx` vs
+//     4.4 `mov idx,%eax; lea K-2(%eax),%ecx; mov this,%eax`（同址等价）；
+//     _generateOption/getInvestMaterialInfo 的槽序整体浅/深互换（两序互试已存档）。
+// ----------------------------------------------------------------------------
 #include "CItemAmplifier/stInvestAmplifyOption_t.inc"
 {
     m_amount = 0;
@@ -533,14 +547,19 @@
     //   ③ m_floatMap 键 = **clamp(upgrade,0x12)**（ORIG 0x08900800
     //      `cmpb $0x12,-0x44(%ebp)`，-0x44 是 upgrade 形参槽；旧版误用 equipType）。
     out->m_discountBase = UPG_TBL_I32(this, growthGrade + 0x26);
-    // ORIG 0x08900780 先 `fildl -0x48` 把字段转 float、再取表系数 fmulp
-    // ⇒ 字段写在乘法左侧（先求值）。
+    // [L3-b 语义修复] ORIG 0x08900780 先 `fildl -0x48` 把字段转 float、再取表
+    // 系数 `fmulp`、随后 `flds 0x8e122e8(=0.5f); faddp` ⇒ 源码是
+    // `积 + 0.5f`（fistpll 的截断前就近舍入偏置），**不是** `-100.0f + 积`
+    // （旧写法的 100.0f 常量与减法方向均错：ORIG 常量池此位为 0.5f，
+    // 且 faddp 为加法）。同理第二处 0x089007da/0x089007e0。
     out->m_discountBase =
-        (int)(long long)(-100.0f + (float)out->m_discountBase *
-                                       UPG_TBL_F32(this, equipType + 4));
+        (int)(long long)((float)out->m_discountBase *
+                             UPG_TBL_F32(this, equipType + 4) +
+                         0.5f);
     out->m_discountBase =
-        (int)(long long)(-100.0f + (float)out->m_discountBase *
-                                       UPG_TBL_F32(this, rarity + 0x1a));
+        (int)(long long)((float)out->m_discountBase *
+                             UPG_TBL_F32(this, rarity + 0x1a) +
+                         0.5f);
     // ORIG 0x089007f9 `movl $0x12,-0x1c(%ebp)` 是死槽（后续从不读）⇒ 照抄
     // 一个"声明+赋值"两段式局部（P171/P198①）。
     int maxUpgradeLevel;

@@ -109,15 +109,19 @@ namespace QuickParty
 // get_quick_party_count @0x082698be：累加各登记 party 的当前成员数。
 // [b28d-L1] IDENTICAL/AE（routed 口径 check_tu_routed）：ORIG 0x082698be 逐条对齐（40/40，P167 CLEAR）。
 // [b28d-solo-QuickParty] verdict=AE（TU 口径 39=39）；P167 CLEAR（0 missing/0 extra）。
+// [L3FLinkClosureQuickParty 2026-09-11] ORIG 两个 `je` 落点不同：+0x23 `je +0x5f`（i++ 语句）
+// 与 +0x46 `je +0x5e`（= 循环体末尾 nop，被 continue 引用）。⇒ ORIG 外层为正面 if 包裹
+// （`if (m_partyIndex[i] != -1) {...}`），内层才是 `if (party == 0) continue;`。
+// 原写法把外层写成 continue，令 je#1 落到 nop、je#2 落到 i++，两处落点互换（40 vs 40 但形不同）。
 #include "QuickParty/get_quick_party_count.inc"
 {
     int total = 0;
     for (int i = 0; i < 4; ++i) {
-        if (m_partyIndex[i] == -1)
-            continue;
-        CParty* party = G_CGameManager()->GetParty(m_partyIndex[i]);
-        if (party != 0)
+        if (m_partyIndex[i] != -1)
         {
+            CParty* party = G_CGameManager()->GetParty(m_partyIndex[i]);
+            if (party == 0)
+                continue;
             // ORIG：get_member_count 结果落具名槽 -0xc 后再累加
             int memberCount = party->get_member_count();
             total += memberCount;
@@ -460,6 +464,8 @@ namespace QuickParty
     // ORIG：gen_timer_key→%ebx、get_quick_party_index→%esi callee-saved 缓存（P24 内联实参）。
     // b28c-lane3 判 N82附：裸内联实参 4.4 恒 esi/ebx 对调，裸语句表达式形（P226）
     // 实测无效（仍 esi/ebx）⇒ 多实参 call 首值 callee-saved 对调不可复现。
+    // [L3FLinkClosureQuickParty 2026-09-11] 复核：补测 `(int)qp->gen_timer_key(...)`
+    // 显式转换形亦无效（仍 gen→%esi / index→%ebx，28/28）⇒ N82附 封顶确认。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
                                 qp->get_quick_party_index(),
                                 (TIMER_MESSAGE)0x9e, 0x14,
@@ -643,15 +649,20 @@ L3: ;
 // ---- get_party_object() @0x0826972c：返回首个登记且仍存在的成员 party ----
 // [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x082696d0；P167 CLEAR（2/2）。
 // [b28d-solo-QuickParty] verdict=AE（TU 口径 33=33）；P167 CLEAR。
+// [L3FLinkClosureQuickParty 2026-09-11] ORIG 0x0826972c +0x1c `je +0x46`（i++ 语句，
+// 该处无 nop；函数共 33 条，尾块 `mov $0,%eax` 在 +0x55）⇒ ORIG 用正面 if 包裹
+// （`if (m_partyIndex[i] != -1) {...}`），无 continue ⇒ 4.4 不生成「循环体末尾 nop」。
+// 原 continue 形多出 1 条 nop（34 vs 33）。
 #include "QuickParty/get_party_object_1.inc"
 {
     for (int i = 0; i <= 3; ++i)
     {
-        if (m_partyIndex[i] == -1)
-            continue;
-        CParty* party = G_CGameManager()->GetParty(m_partyIndex[i]);
-        if (party != 0)
-            return party;
+        if (m_partyIndex[i] != -1)
+        {
+            CParty* party = G_CGameManager()->GetParty(m_partyIndex[i]);
+            if (party != 0)
+                return party;
+        }
     }
     return 0;
 }
@@ -684,8 +695,13 @@ L3: ;
 // 从档位 list 逐个弹出 index 取 CQuickParty；取不到的记 trace 继续弹。----
 // [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x0826a9fe；P167 CLEAR（7/7）。
 // [b28d-solo-QuickParty] verdict=AE（TU 口径 41=41）；P167 CLEAR。
+// [L3FLinkClosureQuickParty 2026-09-11] 负结论（ORIG 0x0826aa7b `nop` @+0x7d，循环条件
+// +0x7e 之前，1 条、无任何跳转引用）：三形实测均不可复现 —— ①`continue;`（无条件，
+// 42/42，无 nop）；②空语句 `;`（42/42，无 nop）；③`for (; !pool.empty(); )` 空增量
+// （42/42，无 nop）。⇒ 4.1 在循环体末尾/增量位置 emit nop 而 4.4 不 emit（版本差异，
+// 非源码形）。AE 口径（剥离 nop）已达标；保留 while 原形。
 #include "QuickParty/find_quick_party_in_pool.inc"
-    std::list<int>& pool)
+    QuickParty::LIST_QUICK_PARTY& pool)
 {
     CQuickParty* qp = 0;             // ORIG -0x10 头部 movl $0x0 初始化
     int qpIndex;                     // ORIG -0xc 深槽
@@ -782,10 +798,10 @@ L3: ;
     const STQuickPartyPoolMap_Key& key, CParty* party)
 {
     if (party == 0)
-        return 1;
+        return static_cast<ENUM_ERROR>(1);
     int members = party->get_member_count();
     if (members <= 0 || members > 3)
-        return 1;
+        return static_cast<ENUM_ERROR>(1);
 
     // [b28d-solo-QuickParty] 修法（P0/P35）：ORIG 0x08269e6f 无 dungeonIdx 具名槽——
     // 每处 `movzwl (%eax),%eax` 重读 key.m_dungeonIndex（条件 test %ax、日志参 cwtl、
@@ -801,7 +817,7 @@ L3: ;
 
     CDungeon* dungeon = G_CDataManager()->find_dungeon(key.m_dungeonIndex);
     if (dungeon == 0)
-        return 1;
+        return static_cast<ENUM_ERROR>(1);
 
     // 血色副本按人数上限直接放行；否则走常规出入副本条件检查。
     // [b28d-solo-QuickParty] 修法（P226 语句表达式）：ORIG 0x08269ee6 的 bloodPass 物化在
@@ -812,10 +828,11 @@ L3: ;
                 static_cast<signed char>(dungeon->get_blood_dungeon_type())) == 2 &&
             static_cast<int>(dungeon->get_limit_party_count()) <= members;
         }))
-        return 1;
-    return party->checkInoutConditionDungeon(dungeon,
+        return static_cast<ENUM_ERROR>(1);
+    return static_cast<ENUM_ERROR>(party->checkInoutConditionDungeon(
+                                             dungeon,
                                              static_cast<ENUM_DUNGEON_MODE>(0),
-                                             static_cast<ENUM_CMDPACKET>(0x1bc));
+                                             static_cast<ENUM_CMDPACKET>(0x1bc)));
 }
 
 // ---- check_quick_party_min_count @0x0826ab9e：开局最低人数校验 ----
@@ -904,18 +921,18 @@ L3: ;
                 party->get_quick_party_index());   // [b28d-solo-QuickParty] P171 照抄：
                                                    // ORIG 0x08269f7x 无 party 判空直接调用
         }
-        return 0x12;
+        return static_cast<ENUM_ERROR>(0x12);
     }
 
     int err = check_match_proper_party(key, party);
     if (err != 0)
-        return err;
+        return static_cast<ENUM_ERROR>(err);
 
     int memberCount = party->get_member_count();
     CDungeon* dungeon =
         G_CDataManager()->find_dungeon(static_cast<int>(key.m_dungeonIndex));
     if (dungeon == 0)
-        return 1;
+        return static_cast<ENUM_ERROR>(1);
 
     int maxMembers = 4;
     if (dungeon->get_blood_dungeon_type() == 2)
@@ -968,33 +985,33 @@ L3: ;
                                 1, "QuickParty.cpp",
                                 __PRETTY_FUNCTION__,
                                 0x1bc, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! (%d)", total);
-                            return 1;
+                            return static_cast<ENUM_ERROR>(1);
                         }
-                        return 0;
+                        return static_cast<ENUM_ERROR>(0);
                     }
                     start_game(qp);
-                    return 0;
+                    return static_cast<ENUM_ERROR>(0);
                 }
                 else
                 {
                     // 尚不足开局人数：并入现有等待队列（注册新组合）。
                     if (!regist_quick_party(key, it->second, need, party,
                                             memberCount))
-                        return 1;
-                    return 0;
+                        return static_cast<ENUM_ERROR>(1);
+                    return static_cast<ENUM_ERROR>(0);
                 }
             }
         }
 
         // 无可归并组合：以空队首领新池对象挂起等待。
         if (!regist_quick_party(key, it->second, 0, party, memberCount))
-            return 1;
-        return 0;
+            return static_cast<ENUM_ERROR>(1);
+        return static_cast<ENUM_ERROR>(0);
     }
 
     cMyTrace(__PRETTY_FUNCTION__, 0x1d6, 5)(
         "QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
-    return 1;
+    return static_cast<ENUM_ERROR>(1);
 }
 
 // ---- make_quick_party @0x0826b222：把池内 quick party 合并成一个真实 party ----

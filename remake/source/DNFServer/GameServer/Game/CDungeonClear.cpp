@@ -76,7 +76,13 @@ namespace WongWork
 
         CDungeon* pDungeon = G_CDataManager()->find_dungeon(dungeonIdx);
         unsigned char questCleared = 0;
-        unsigned int questId = 0;
+        // [L6S3] questId 须为 int（与 CDungeon::getHeroesRequiredQuest 返回同型，
+        // 赋值处无转换）；isClearedQuest 形参是 unsigned ⇒ 调用点留一次
+        // int→unsigned 转换。此异型是 ORIG `084841ae mov -0xc(%ebp),%ebx`
+        //（实参升格 callee-saved 跨 receiver call 保活）+ `084841bc add $0x4,%eax`
+        // 的成因；4.4 用 P274/P290 同族「实参侧转换」旋钮复现：探针
+        // /tmp/probe_ebx.cpp f6（int + 隐式）与 f2（int + 显式 cast）逐条同形。
+        int questId = 0;
         if (pDungeon)
             questId = pDungeon->getHeroesRequiredQuest();
         if (questId != 0)
@@ -126,7 +132,10 @@ namespace WongWork
 
         CDungeon* pDungeon = G_CDataManager()->find_dungeon(dungeonIdx);
         char questCleared = 0;
-        unsigned int questId = 0;
+        // [L6S3] 同 AradfromString：int 同型 + 调用点一次 int→unsigned 转换 ⇒
+        // 复现 ORIG `0848477e mov -0xc(%ebp),%ebx`（跨 receiver call 保活）与
+        // `0848478c add $0x4,%eax`（探针 /tmp/probe_ebx.cpp f6 定形）。
+        int questId = 0;
         if (pDungeon)
             questId = pDungeon->getHeroesRequiredQuest();
         if (questId != 0)
@@ -197,13 +206,19 @@ namespace WongWork
     // curSize(-0x24)=nUnknown、written(-0x20)=0，首段 snprintf("%d|%d") 用
     // (c_str, curSize)，循环内 snprintf(c_str+written, curSize-written, ",%d|%d")，
     // 返回负则 resize(curSize+nUnknown)、curSize+=nUnknown 后重试同元素。
-    int curSize = nUnknown;
+    // [L6S3] 档③同型化（P211/P274）：ORIG 0848468c `mov 0x10(%ebp),%eax;
+    // add -0x24(%ebp),%eax`（形参 int 先载 + 内存 add）与 08484653
+    // `mov %edx,%edi; sub %eax,%edi`（单段直减）⇒ curSize 侧为 unsigned 同型
+    // 运算；我方旧形写 `(unsigned int)(nUnknown + curSize)`/`(unsigned int)
+    // (curSize - written)` 恒多 eax/ebx 中转而 ORIG 无。curSize 声明改
+    // unsigned int，去掉全部显式窄化 cast。
+    unsigned int curSize = (unsigned int)nUnknown;
     out.resize((unsigned int)nUnknown);
     int written = 0;
     int w = 0;
     std::map<short, char>::const_iterator it = m_map.begin();
     written = OS_API::snprintf(const_cast<char*>(out.c_str()),
-                               (unsigned int)curSize, "%d|%d",
+                               curSize, "%d|%d",
                                (int)it->first, (int)it->second);
     ++it;
     std::map<short, char>::const_iterator end = m_map.end();
@@ -215,11 +230,11 @@ namespace WongWork
         while (true)
         {
             w = OS_API::snprintf(const_cast<char*>(out.c_str()) + written,
-                                 (unsigned int)(curSize - written), ",%d|%d",
+                                 curSize - written, ",%d|%d",
                                  (int)it->first, (int)it->second);
             if (w >= 0)
                 break;
-            out.resize((unsigned int)(nUnknown + curSize));
+            out.resize(nUnknown + curSize);
             curSize += nUnknown;
         }
         written += w;

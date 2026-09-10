@@ -77,8 +77,73 @@
 //    4.4 以 `movzbl` 加宽顶掉（本 TU 表现为 `movzbl`/`setne` 助记符差）。
 // ============================================================================
 
+// ============================================================================
+// b28d-L9InterDispatcherCUser 第七轮（2026-09-11 02:05–03:10，6 子代理并行 + 父泳道串行复编核账）
+//   TU 四数 135/1385/4/97（missing 703）→ **135/1388/5/93**（ae +3、diff −4、near 4→5 系一件
+//   DIFF→NEAR 的改善方向、missing 零增、**零劣化**）。
+//   A. 落地（逐件 ORIG 直证；父泳道每件 fresh 复编核账）：
+//      · Inter_ReplyGuildSecede（B#1）：包视图 m_10 int→unsigned 同型化（P211/P265 档③；
+//        ORIG 084c97a8 比较点 `mov %eax,%edx` 中转 + 084c997b 单段）⇒ **DIFF→AE**；
+//      · Inter_AddPvPBuddyResult（B#2）：len 槽 size_t→int（P265；ORIG 084e1ba8 `lea 0x14(%eax),%edx`）
+//        ⇒ **DIFF→AE**；
+//      · Inter_AutoPunishRuleBlackIP（A#1）：P30/P235 stride-8 数组成员视角 + P227/P261 去 totalCount/
+//        finalCount/maxIp 具名槽（ORIG 084d42b5/084d42bf/084d42fc scale 直取）⇒ **DIFF→AE**（gap −16→0）；
+//      · Inter_LoadDimensionInout（A#2）：P235 真实成员数组视角替 REC_BYTE 指针算术 ⇒ 差异点 96→28；
+//      · Inter_MonitorCallMemberList（A#3）：P0/P183 成员数组基址具名槽 ⇒ 191→106；
+//      · Inter_LoadEventLevelupSupport（A#4）：P235 stride-4 成员视角 + P-L11c 守卫后物化 ⇒ 172→113；
+//      · Inter_SetARSInfo（A#5）：P235 stride-0xc 条目视角 ⇒ 差异点 257→258（微增 1，但 gap −11→−1 保留）；
+//      · Inter_GuildCargoHistory（G#1）：m_e int→unsigned ⇒ 103→71；
+//      · Inter_LoadCerashopAddRestrictType（C#1）：if/else-if→switch（P251/P261）⇒ 29→9（72→71 与 ORIG 齐）；
+//      · Inter_ReqGameServerInfo（C#2）：两处 if/else-if→`switch((int)(unsigned char))` ⇒ 131→127；
+//      · Inter_LoadInven::_UpdateRentalItems/_UpdateDimensionRentalItems（C#3/#4）：字节索引→具型视图成员
+//        （P235/P248）⇒ 178→73 / 174→171（228→225 / 222→219）；
+//      · Inter_PvPChannelInfo（G#2/#3）：P-L11c 声明后置 + 循环基址具名槽 ⇒ 95→95（零变化，保留+留痕）。
+//      · Inter_NoticeServerMessageInfo（I#1）：4 处基址 data→pPkt 具名槽（ORIG `mov -0x20(%ebp),%eax;
+//        lea 0x47(%eax),%ebx`）⇒ 差异点 24→20；
+//      · Inter_UpdateServerMessage（I#2）：去具名 proxy 改链式（P183；ORIG `call GetServerProxy;
+//        movl $0x5f,0x8(%esp)`）⇒ 差异点 128→**2**，DIFF→**NEAR**；
+//      · Inter_VillageAttackedEnd（I#3）：pPkt 声明移到 guard 之后（P-L11c；ORIG 084e… `call
+//        IsIntegratedPvPBaseChannel; test %al,%al; je <ret0>` 后才物化）⇒ 268→261；
+//      · Inter_GuildBoardData（I#4）：包视图 m_13 int→unsigned 同型化（P211/P265；ORIG 084dee8e
+//        比较点 `mov %eax,%edx` 中转）⇒ 248→190。
+//      · Inter_RequestJoinGuild（M#1）：两个 strlen 具名局部合并为一个复用 `int strLen`（ORIG
+//        Ghidra `local_10 = strlen(...)` 两次赋值单槽）⇒ 101→98；
+//      · Inter_AuctionResultItemList / MyRegistedItems / MyBidding（M#2–#4）：守卫由早退形改
+//        **包裹形**（P59/P222；ORIG 084d75bc/084d7758/084d78f4 `cmp $0x3; jbe <尾 return 0>` +
+//        正文 fall-through）⇒ 差异点 102→**5** ×3（TU 四数不变）。
+//      · Inter_MailBox_Req_CheckReceiver（H#1）：载荷具名视图（含互斥区 union）+ 4 处
+//        `reinterpret_cast<char*>(sig)+K` 消除（ORIG `mov 0x31(%eax),%eax` / `lea 0x46(%eax),%esi`）
+//        ⇒ 差异点 373→367；Inter_MonitorNoticeOtherChannelChatHyperLink（H#2）：两步位移数组成员
+//        stride 0x68/元素内 +0x7（ORIG `imul 0x68; add $0x30; add base; add $0x7`）⇒ 389→**233**。
+//   B. 语义修复（不受闸门约束，Main 批准三步迁移）：
+//      · `Inter_MonitorGuildPointDel::g_lastDeleteTime` 缺初始化器 ⇒ 运行期恒 0（ORIG 为月初 05:00
+//        基准时刻）：ORIG static_init 实例 0x084e9004 尾部两条 `call 0x84ce6d2 <..._makeDefaultTimeEv>`
+//        + `mov ds:0x943dd88,eax`（由 GI `_GLOBAL__I__Z7getUserj` @0x084e904e 调用）。
+//        本文件 getUser() 之后承载带初值定义 + `Inter_MonitorGuildPointDel.cpp` 删无初值定义 +
+//        `InterDispatcher.h` 给 `_makeDefaultTime` 加 `static` ⇒ 我方 static_init 16→**18 条**，与 ORIG
+//        该 TU 实例逐条同形；四数零劣化。⚠ 该定义的**物理位置必须晚于本 TU 首函数 getUser**，
+//        否则 `_GLOBAL__I_` 键名变成变量名（identical −1 / missing +1，实测）。
+//   C. 回滚（负结论已写入各函数体注释）：
+//      · Inter_MonitorSetGuildKey 结构重排（B#3）：差异点 145→162 ⇒ 回滚；
+//      · Inter_LoadEventItem cast 删除 + 基址具名化（G#4）：135→143 ⇒ 回滚。
+//   D. 报告工具撞名：`_Z41__static_initialization_and_destruction_0ii` 在本 TU 的 report 读数
+//      （47 vs 16）是**工具按符号名错配**（ORIG 该名有 493 个实例，report 取首个 0x0807ee76 =
+//      PacketTypes TU）⇒ 不可比；本 TU 真对照须用 GI 键定位（见 B）。
+//   E. §6.5 串盲区真修（AE 不可见，按 ORIG .rodata 原字节直证）：
+//      · `Inter_CutOffCallUserInfo::dispatch_sig` 主支 cMyTrace 格式串多尾 `\n`：ORIG 0x084c8af2
+//        `mov [esp+0x4],0x8c87878` → .rodata 0xc3f878 处串 `"Cut Off Server Call UserInfo Arrived"`
+//        （NUL 紧跟 'd'）⇒ 去 `\n`。（同 TU `Inter_MonitorCallUserInfo` 的 `"%d Server Call UserInfo
+//        Arrived\n"` 与两函数的 null 支串 `"Inter_MonitorCallUserInfo::dispatch_sig()  G_CGameManager()
+//        is null"` 经同法核对**本就正确**。）
+//      · 方法学：新增 `/tmp/L9/str_refs.py <our.o> <ORIG> <mangled>` 逐函数比对「引用串集合」
+//        （rodata ours-only 扫描只能抓「ORIG 无此串」，抓不到「用错但串存在」）。
+//   证据与逐件读数：/tmp/L9/{A..M}/RESULT.md、/tmp/L9/*_sizes.tsv。
+// ============================================================================
+
 // ORIG 各 TU 一份 _ZL26GUILD_ADDRESS_DOUBLE_CHECK（r 0x2）：公会地址重复检查通过标志。
 static const int GUILD_ADDRESS_DOUBLE_CHECK = 4;
+
+// [L9·2026-09-11] g_lastDeleteTime 的带初值定义见下方 getUser() 之后（Main 批准的三步迁移之一）。
 
 // P254 视图字段枚型（本 TU）：ORIG 0x084d2fa6 / 0x084ca02f / 0x084ca1xx / 0x084c9798 等段
 // 对包视图 4 字节字段发 `mov disp(%eax),%eax; mov %eax,%edx`（4.1 对枚举字段保留 eax→edx
@@ -103,6 +168,18 @@ CUser* getUser(unsigned int uid)
         return 0;
     return it->second;
 }
+
+// [L9·2026-09-11] ORIG 静态成员定义归属（Main 批准的三步迁移之一）：本 TU 承载
+// `g_lastDeleteTime` 的**带初值定义** —— 直证：ORIG InterDispatcher TU 的 static_init
+// 实例 0x084e9004 尾部两条 `call 0x84ce6d2 <_ZN26Inter_MonitorGuildPointDel16_makeDefaultTimeEv>`
+// + `mov ds:0x943dd88,eax`；该实例由 GI `_GLOBAL__I__Z7getUserj` @0x084e904e 调用（= 本 TU 键）。
+// 旧形把无初值定义放在 Inter_MonitorGuildPointDel.cpp ⇒ 运行期恒 0（应为月初 05:00 基准时刻）。
+// 形态已由探针 /tmp/L9/probe/t1.cpp 复现（`call make; mov ds:g,eax`）。
+// ⚠ 本定义的位置与 GET/LOCAL 键相关：必须**晚于本 TU 首个函数 getUser**，否则
+// `_GLOBAL__I_` 键名会从 `_GLOBAL__I__Z7getUserj`（ORIG 键）变成变量名，丢 1 件 identical
+// 并多 1 个 only-NEW 符号（实测）。
+int Inter_MonitorGuildPointDel::g_lastDeleteTime =
+    Inter_MonitorGuildPointDel::_makeDefaultTime();
 
 // NumberToString —— ORIG T（_Z14NumberToStringji）；全局声明见 CInventory.h，
 // 此处按 CGameManager.cpp 同例作 TU 内声明避免引入重型头。
@@ -2388,17 +2465,29 @@ struct Inter_LoadInvenPktView
         InstanceRentalSystem::RentInElem elem;
         for (int i = 0; i < 1; ++i)
         {
-            char* p = reinterpret_cast<char*>(sig) + i * 0xc + 0x153e4;
-            if (*reinterpret_cast<int*>(p) == 0)
+            // [L9-C PATCH#3] ORIG 084c4612/084c461c/084c464d 为单条 disp 折叠
+            //   （`movzbl 0x4(%eax)` / `movzbl 0x5(%eax)` / `mov 0x8(%eax)`）；字节索引
+            //   `p[4]` 在 4.4 恒展开为 `add $0x4,%eax; movzbl (%eax)` 两步
+            //   （/tmp/L9/C/p_disp.cpp f_pidx vs f_member 直证）⇒ 偏移访问改具型视图成员。
+            struct ExchangeElemView
+            {
+                int m_0;                    // +0x0
+                unsigned char m_4;          // +0x4
+                unsigned char m_5;          // +0x5
+                int m_8;                    // +0x8
+            };
+            const ExchangeElemView* p = reinterpret_cast<const ExchangeElemView*>(
+                reinterpret_cast<const char*>(sig) + i * 0xc + 0x153e4);
+            if (p->m_0 == 0)
                 continue;
-            elem.m_sectionIdx = p[4];                   // 084c4612 movzbl 0x4(%eax)
-            elem.m_itemIdx = p[5];                      // 084c461c movzbl 0x5(%eax)
+            elem.m_sectionIdx = p->m_4;                 // 084c4612 movzbl 0x4(%eax)
+            elem.m_itemIdx = p->m_5;                    // 084c461c movzbl 0x5(%eax)
             elem.m_bEquip = 0;                          // 084c4623 movb $0x0,-0x3a(%ebp)
             // 084c4627..084c4644：sig 与 i 重算地址（不复用 p）取 +0xa，形态是
             //   「置 0 + 条件置 1」而不是三元 setne；ORIG 全程未写 elem+3(type)。
-            if (reinterpret_cast<char*>(sig)[i * 0xc + 0x153ea] != 0)
+            if (reinterpret_cast<const char*>(sig)[i * 0xc + 0x153ea] != 0)
                 elem.m_bEquip = 1;                      // 084c4646 movb $0x1,-0x3a(%ebp)
-            elem.m_rentItemId = *reinterpret_cast<int*>(p + 8);   // 084c464d mov 0x8(%eax)
+            elem.m_rentItemId = p->m_8;                 // 084c464d mov 0x8(%eax)
             input.m_elems.push_back(elem);
         }
     }
@@ -2472,16 +2561,29 @@ struct Inter_LoadInvenPktView
             InstanceRentalSystem::RentInElem elem;
         for (int i = 0; i <= 0xa; ++i)
         {
-            char* p = reinterpret_cast<char*>(sig) + (i + 0x2a7e) * 8;
-            if (*reinterpret_cast<int*>(p) == 0)
+            // [L9-C PATCH#4] ORIG 084c48fe/084c4908/084c4916 为单条 disp 折叠
+            //   （`movzbl 0x4/0x5/0x7(%eax)`）；字节索引在 4.4 恒展开为 `add $0xN,%eax;
+            //   movzbl (%eax)` 两步 ⇒ 改具型视图成员。ORIG 084c4929 的
+            //   `movzbl 0x6(%eax,%edx,8)`（scaled disp）在 4.4 不发 scaled 形
+            //   （/tmp/L9/C/p_scaled.cpp g_member 反证）⇒ 该处保留原索引形（封 N）。
+            struct ExchangeElemViewDim
+            {
+                int m_0;                    // +0x0
+                unsigned char m_4;          // +0x4
+                unsigned char m_5;          // +0x5
+                unsigned char m_7;          // +0x7
+            };
+            const ExchangeElemViewDim* p = reinterpret_cast<const ExchangeElemViewDim*>(
+                reinterpret_cast<const char*>(sig) + (i + 0x2a7e) * 8);
+            if (p->m_0 == 0)
                 continue;
-            elem.m_sectionIdx = p[4];                   // 084c48fe movzbl 0x4(%eax)
-            elem.m_itemIdx = p[5];                      // 084c4908 movzbl 0x5(%eax)
+            elem.m_sectionIdx = p->m_4;                 // 084c48fe movzbl 0x4(%eax)
+            elem.m_itemIdx = p->m_5;                    // 084c4908 movzbl 0x5(%eax)
             elem.m_bEquip = 0;                          // 084c490f movb $0x0,-0x3a(%ebp)
-            elem.m_type = p[7];                         // 084c4916 movzbl 0x7(%eax)
+            elem.m_type = p->m_7;                       // 084c4916 movzbl 0x7(%eax)
             // 084c4929 movzbl 0x6(%eax,%edx,8); test; je：sig 与 i 重算地址（不复用 p），
             // 且形态是「置 0 + 条件置 1」而非三元 setne。
-            if (reinterpret_cast<char*>(sig)[(i + 0x2a7e) * 8 + 6] != 0)
+            if (reinterpret_cast<const char*>(sig)[(i + 0x2a7e) * 8 + 6] != 0)
                 elem.m_bEquip = 1;                      // 084c4932 movb $0x1,-0x3a(%ebp)
             input.m_elems.push_back(elem);
         }
@@ -3207,8 +3309,11 @@ struct Inter_MonitorCallUserInfoPktView
     {
         char* p = data;
         G_CGameManager()->send_userinfos_to_cutoff_server();
+        // [L9·2026-09-11 §6.5 串盲区] ORIG 0x084c8af2 `mov [esp+0x4],0x8c87878` ⇒ 串为
+        //   "Cut Off Server Call UserInfo Arrived"（**无尾 \n**；.rodata 原字节已核，
+        //   ORIG 0xc3f878 处 NUL 紧跟 'd'）。旧形多一个换行 ⇒ 日志输出与 ORIG 不一致。
         cMyTrace(__PRETTY_FUNCTION__, 0x2252, 0)(
-            "Cut Off Server Call UserInfo Arrived\n");
+            "Cut Off Server Call UserInfo Arrived");
     }
     return 0;
 }
@@ -3575,6 +3680,10 @@ struct Inter_LoadEventItemPktView
         // P183：ORIG 无 skip 具名槽（084cf12f `cmp $0x3e7,%eax` 后 `je 主体`、
         //   次条件不满足时 `jne 循环尾`）⇒ 原码是单个短路条件，不设 bool skip；
         //   等价化简 (m10==999) || (state>2 && curCharacNo==m_4)。
+        // [L9-G PATCH#4 负结论 · 已回滚] 删 `(unsigned char)` cast + 循环基址 `data`→`pPkt`
+        //   实测**反劣**：fn_diff 差异点 135 → 143（TU 四数不动）。ORIG 0x084e5f.. 段确为
+        //   `call RecvInfoFromDB; test %al,%al; je` 与 -0x14 具名槽基址，但本件残差主体是
+        //   帧/槽平移（我方 164 vs ORIG 149），单点改动反而扩大错位窗口 ⇒ 恢复原形。
         if (*reinterpret_cast<int*>(data + i * 0x10 + 0x10) == 999
             || (target->get_state() > 2 &&
                 target->getCurCharacNo() == pPkt->m_4))
@@ -4869,6 +4978,11 @@ struct Inter_MonitorSetGuildKeyPktView
         return 0;
     }
 
+    // [L9·2026-09-11 子代理 B-PATCH#3 负结论 · 已回滚] 结构重排（早返 → `if (state > 2) { 主体 }`
+    // + 常量走 fall-through 落函数尾）实测**反劣**：fn_diff 差异点 145 → 162（raw ours 192 → 191），
+    // TU 四数不动（135/1387/4/95）。ORIG 084cbd78 确有 `setg` + 0x26d4 落尾 084cbff2，但 4.4 对
+    // 重排后的 `return 0` 出口仍就地物化 `mov $0x0,%eax`（ORIG 是 `jmp` 到共享尾块，P63 共享出口族），
+    // 差异只是前移。恢复原早返形（下）；后续若再做，须先解决 `return 0` 共享尾块。
     if (user->get_state() <= 2)                        // cmp $2; setg → !(state>2)
         return 0x26d4;
 
@@ -5943,6 +6057,11 @@ struct Inter_MonitorCallMemberListPktViewI
     //   ⇒ 原码只有一个具名指针（P0：无 `entry` 中间量）。
     Inter_MonitorCallMemberListEntryWinView* pWin_entry =
         reinterpret_cast<Inter_MonitorCallMemberListEntryWinView*>(&pPkt->m_12);
+    // [K3 2026-09-11] P0/P183 具名成员数组基址：ORIG 084d0fxx 段循环里发
+    //   `mov -0x10(%ebp),%eax; imul $0x2a,%eax,%eax; add -0x14(%ebp),%eax; add $0x2,%eax`
+    //   （成员基址只存一次槽 -0x14 = pWin_entry+0x2b；逐处只有 1 条 add，帧 0x50）。
+    //   我方原把 `pWin_entry->m_members[i]` 逐处展开 ⇒ 每处多 1 条 `add $0x20`（帧 0x40，+11 条）。
+    Inter_MonitorCallMemberListMemberWinView* pMember = pWin_entry->m_members;
     PacketGuard packet;
     packet.put_header(1, 0x52);
     packet.put_byte(1);
@@ -5959,15 +6078,15 @@ struct Inter_MonitorCallMemberListPktViewI
     packet.put_byte((int)pWin_entry->m_memberCnt);
     for (int i = 0; i < (int)pWin_entry->m_memberCnt; ++i)
     {
-        packet.put_byte((int)pWin_entry->m_members[i].m_flags0);
-        packet.put_byte((int)pWin_entry->m_members[i].m_flags1);
-        const int memberNameLen = strlen(pWin_entry->m_members[i].m_name);
+        packet.put_byte((int)pMember[i].m_flags0);
+        packet.put_byte((int)pMember[i].m_flags1);
+        const int memberNameLen = strlen(pMember[i].m_name);
         packet.put_int(memberNameLen);
-        packet.put_str(pWin_entry->m_members[i].m_name, memberNameLen);
-        packet.put_byte((int)(char)pWin_entry->m_members[i].m_grade20);
-        packet.put_byte((int)pWin_entry->m_members[i].m_grade21);
-        packet.put_int(pWin_entry->m_members[i].m_22);
-        packet.put_int(pWin_entry->m_members[i].m_26);
+        packet.put_str(pMember[i].m_name, memberNameLen);
+        packet.put_byte((int)(char)pMember[i].m_grade20);
+        packet.put_byte((int)pMember[i].m_grade21);
+        packet.put_int(pMember[i].m_22);
+        packet.put_int(pMember[i].m_26);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -6376,17 +6495,49 @@ struct Inter_TriggerEventEndPktView
 // SendErrorPacket/SendDBThread_forchina 为本类既有方法（NEEDS_DECL 见 meta）。
 // [b28d-lane2] verdict=DIFF ndiff=373（ORIG 0x084cf95a）：槽序/帧差(N82/P212/P221)+混合残差；gap-9。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=303（ORIG 0x84cf95a）：N22 cmp 操作数方向+N18a 单段 regmove+P30/N4 add-vs-lea。
+// [L9-H 2026-09-11] P235/P30「具名载荷视图」：ORIG 084cf95a 段对载荷偏移全发单条 disp 折叠
+//   （`mov 0x31(%eax),%eax`、`mov 0x1d(%eax),%eax`、`lea 0x46(%eax),%esi`、`mov 0x63(%eax)`…），
+//   我方 `reinterpret_cast<char*>(sig) + 0xNN` 的 char* 算术每条多 1 条 `add $0xNN,%eax`
+//   （探针 /tmp/L9/H/p1.cpp：char*+常量折 add+mov 两条；成员访问折单条 disp）。
+//   真实 SIG_MAILBOX_CHECK_RECEIVER 只具名了 DB 回填区（+0x1d..+0x2d）与 m_payload[0x3f88]，
+//   载荷内偏移无成员 ⇒ 本件自带同布局视图（+0x63..+0x6e 区在两条路径下互斥复用 ⇒ union）。
+#pragma pack(push, 1)
+struct Inter_MailBox_Req_CheckReceiverLoadView
+{
+    char m_receiverName[0x1d];        // +0x00（同权威 SIG）
+    unsigned int m_receiverCharacNo;  // +0x1d
+    unsigned int m_receiverLevel;     // +0x21
+    unsigned int m_receiverDeleteFlag;// +0x25
+    unsigned int m_receiverAccId;     // +0x29
+    unsigned int m_senderCharacNo;    // +0x2d
+    int m_checkType;                  // +0x31 ⇒ ORIG `mov 0x31(%eax),%eax`（1=cera/2=多附件）
+    char m_payload35[0x11];           // +0x35..+0x45 MSG_BUY_CERASHOP_ITEM / MSG_MAILBOX_SEND 载荷
+    char m_name46[0x1d];              // +0x46..+0x62 GetMoneyLimitPerLevel 名称实参
+    union                             // +0x63..+0x66：三条路径互斥复用（ORIG 各为独立 disp 直取）
+    {
+        unsigned int m_63;            // +0x63 单附件金额阈值
+        unsigned int m_64;            // +0x64 多附件金额阈值
+        unsigned int m_67;            // +0x67 cera 路径目标槽
+        unsigned char m_68;           // +0x68 多附件计数
+        char m_items6c[1];            // +0x6c 多附件 itemIdx 数组（stride 0xb）
+        unsigned int m_6e;            // +0x6e 单附件 itemIdx
+    } m_tail;
+    char m_pad67[0x3fb9 - 0x67];      // 到 m_resultFlag
+    unsigned int m_resultFlag;        // +0x3fb9 DB 结果（0 ok / 0x4d 名称非法）
+};
+#pragma pack(pop)
+
 #include "InterDispatcher/dispatch_sig_76.inc"
 {
     if (user->get_state() <= 2)                        // cmp $0x2,setle
         return 0;
 
-    SIG_MAILBOX_CHECK_RECEIVER* sig =                  // -0x30
-        reinterpret_cast<SIG_MAILBOX_CHECK_RECEIVER*>(data);
+    Inter_MailBox_Req_CheckReceiverLoadView* sig =     // -0x30（同一具名指针，槽数不变）
+        reinterpret_cast<Inter_MailBox_Req_CheckReceiverLoadView*>(data);
 
-    // ORIG 0x084cf95a：cmd/type 判定读 sig+0x31（m_payload 首 int，邮件类型
+    // ORIG 0x084cf95a：cmd/type 判定读 sig+0x31（载荷首 int，邮件类型
     // 1=cera 直购/2=多附件），不是 m_resultFlag(+0x3fb9，DB 结果 0/0x4d)。
-    const int mailType = *reinterpret_cast<const int*>(sig->m_payload);
+    const int mailType = sig->m_checkType;             // ORIG `mov 0x31(%eax),%eax`
     int cmd = 0x61;                                    // -0x2c
     if (mailType == 1)
         cmd = 0x43;
@@ -6410,23 +6561,23 @@ struct Inter_TriggerEventEndPktView
             }
 
             unsigned int err = 0;                      // -0x28
-            const int type = *reinterpret_cast<const int*>(sig->m_payload);
+            const int type = sig->m_checkType;         // ORIG `mov 0x31(%eax),%eax`
             if (type == 1)
-            {   // cera 直购：sig+0x35 载荷按 MSG_BUY_CERASHOP_ITEM 视图
-                *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x67) =
-                    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x1d);
-                *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x63) =
+            {   // cera 直购：+0x35 载荷按 MSG_BUY_CERASHOP_ITEM 视图
+                sig->m_tail.m_67 =                     // ORIG `mov ...,0x67(%eax)`
+                    sig->m_receiverCharacNo;           // ORIG `mov 0x1d(%eax),...`
+                sig->m_tail.m_63 =                     // ORIG `mov ...,0x63(%eax)`
                     sig->m_receiverAccId;
                 if (!GlobalData::s_pItemVendingMachine->BuyItem(
                         user, *reinterpret_cast<const MSG_BUY_CERASHOP_ITEM*>(
-                                  reinterpret_cast<const char*>(sig) + 0x35)))
+                                  sig->m_payload35)))
                     return 0x2d12;
                 return 0;
             }
             if (type == 0)
             {
                 const unsigned int itemIdx =           // -0x24（单附件）
-                    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x6e);
+                    sig->m_tail.m_6e;                  // ORIG `mov 0x6e(%eax),...`
                 if (itemIdx != 0)
                 {
                     CItem* ci = G_CDataManager()->find_item((int)itemIdx);  // -0x20
@@ -6437,22 +6588,21 @@ struct Inter_TriggerEventEndPktView
                         if (GlobalData::s_rentalSystem->CheckRentableItem(2, itemIdx))
                             return 0x11;
                         if (ci->GetAttachType() == 5 &&
-                            (int)user->get_acc_id() !=
-                                *reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 0x29))
+                            (int)user->get_acc_id() != sig->m_receiverAccId)
                         {
                             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x61, 0xd8);
                             return 0;
                         }
                     }
                 }
-                if (*reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 0x63) != 0)
+                if (sig->m_tail.m_63 != 0)             // ORIG `cmpl $0,0x63(%eax)`
                 {
                     int limit = 0x7fffffff;            // -0x1c
                     limit = G_CDataManager()->GetMoneyLimitPerLevel(
-                        *reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 0x21),
-                        reinterpret_cast<const char*>(sig) + 0x46);
+                        sig->m_receiverLevel,          // ORIG `mov 0x21(%eax),...`
+                        sig->m_name46);                // ORIG `lea 0x46(%eax),...`
                     if ((unsigned int)limit <
-                        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x63))
+                        sig->m_tail.m_63)
                     {
                         SendErrorPacket(user, (ENUM_CMDPACKET)0x61, 0xe);
                         return 0;
@@ -6460,8 +6610,8 @@ struct Inter_TriggerEventEndPktView
                 }
                 err = (unsigned int)WongWork::CMailBoxHelper::ReqDBSendNewMail(
                     user, reinterpret_cast<MSG_MAILBOX_SEND*>(
-                              reinterpret_cast<char*>(sig) + 0x35),
-                    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x1d), false,
+                              sig->m_payload35),
+                    sig->m_receiverCharacNo, false,
                     sig->m_receiverAccId, 0);
                 if (err == 0)
                 {
@@ -6480,13 +6630,12 @@ struct Inter_TriggerEventEndPktView
             else if (type == 2)
             {   // 多附件邮件
                 for (int i = 0;                                        // -0x18
-                     i < (int)(unsigned int)*reinterpret_cast<unsigned char*>(
-                             reinterpret_cast<char*>(sig) + 0x68);
+                     i < (int)(unsigned int)sig->m_tail.m_68;          // ORIG `movzbl 0x68(%eax)`
                      ++i)
                 {
                     const unsigned int itemIdx =       // -0x14
                         *reinterpret_cast<unsigned int*>(
-                            reinterpret_cast<char*>(sig) + 0x6c + i * 0xb);
+                            sig->m_tail.m_items6c + i * 0xb);          // ORIG `...+0x6c+i*0xb`
                     if (itemIdx != 0)
                     {
                         CItem* ci = G_CDataManager()->find_item((int)itemIdx);  // -0x10
@@ -6497,8 +6646,7 @@ struct Inter_TriggerEventEndPktView
                             if (GlobalData::s_rentalSystem->CheckRentableItem(2, itemIdx))
                                 return 0x11;
                             if (ci->GetAttachType() == 5 &&
-                                (int)user->get_acc_id() !=
-                                    *reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 0x29))
+                                (int)user->get_acc_id() != sig->m_receiverAccId)
                             {
                                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0xd8);
                                 return 0;
@@ -6506,21 +6654,22 @@ struct Inter_TriggerEventEndPktView
                         }
                     }
                 }
-                if (*reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 0x64) != 0)
+                if (sig->m_tail.m_64 != 0)             // ORIG `cmpl $0,0x64(%eax)`
                 {
                     int limit = 0x7fffffff;            // -0xc
                     limit = G_CDataManager()->GetMoneyLimitPerLevel(
-                        *reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 0x21),
-                        reinterpret_cast<const char*>(sig) + 0x46);
+                        sig->m_receiverLevel,
+                        sig->m_name46);
                     if ((unsigned int)limit <
-                        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x64))
+                        sig->m_tail.m_64)
                     {
                         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0xe);
                         return 0;
                     }
                 }
                 // b28c-l23 SIGFIX 消费点：bool callee ⇒ 裸形（P168a①）
-                if (!SendDBThread_forchina(user, sig))
+                if (!SendDBThread_forchina(
+                        user, reinterpret_cast<SIG_MAILBOX_CHECK_RECEIVER*>(sig)))
                     return 0;
             }
         }
@@ -8596,7 +8745,10 @@ struct Inter_ReplyGuildSecedePktView
     char m_pad0[0xa];  // 未消费
     unsigned int m_a;         // +0x0a
     short m_e;                // +0x0e
-    int m_10;                 // +0x10（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
+    // [L9·2026-09-11 子代理 B-PATCH#1] int→unsigned int 同型化（P211/P265 档③；sizeof/偏移/mangled
+    // 零影响）：ORIG 084c97a8 `mov %eax,%edx; mov -0x24(%ebp),%eax; mov 0x10(%eax),%eax; cmp %eax,%edx`
+    // 比较点中转直证 + 084c997b `mov 0x10(%eax),%edx` 单段；探针 /tmp/L9/B/pb_cmp.cpp fu 逐条同形。
+    unsigned int m_10;        // +0x10
     char m_pad14[0x4];  // 未消费
     int m_18;                 // +0x18
     signed char m_1c;         // +0x1c
@@ -9206,52 +9358,74 @@ struct Inter_AutoPunishRuleBlackIPPktView
 };
 #pragma pack(pop)
 
+// [K3 2026-09-11] P30/P235「数组成员视角」：ORIG 三条数据访问全是 stride-8 scale 直取
+//   （084d42b5 `mov 0x4(%eax,%edx,8),%ebx`、084d42bf `movzbl 0x8(%eax,%edx,8),%eax`、
+//     084d42fc `movzbl 0x9(%eax,%edx,8),%eax`）⇒ 原码是「+0x4 起的 8 字节条目数组」成员访问，
+//   而非 char* 算术（后者折 add/shl 序列，每次访问多 5 条）。既有聚合器
+//   Inter_AutoPunishRuleBlackIPPktView 只含 m_0 且不在本件写域，故本件自带同布局视图。
+#pragma pack(push, 1)
+struct Inter_AutoPunishRuleBlackIPEntryView
+{
+    unsigned int m_ip;         // 条目 +0x0 ⇒ msg+i*8+4（084d42b5 直证）
+    unsigned char m_startIp;   // 条目 +0x4 ⇒ msg+i*8+8（084d42bf 直证）
+    unsigned char m_maxIp;     // 条目 +0x5 ⇒ msg+i*8+9（084d42fc 直证）
+    char m_pad6[0x2];
+};
+struct Inter_AutoPunishRuleBlackIPListView
+{
+    unsigned short m_totalCount;                        // +0x0
+    char m_pad2[0x2];
+    Inter_AutoPunishRuleBlackIPEntryView m_entries[1];  // +0x4 起，stride 8
+};
+#pragma pack(pop)
+
 // [b28d-lane2] verdict=DIFF ndiff=128（ORIG 0x084d422a）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-15。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=117（ORIG 0x84d422a）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 #include "InterDispatcher/dispatch_sig_128.inc"
 {
-    Inter_AutoPunishRuleBlackIPPktView* pPkt = reinterpret_cast<Inter_AutoPunishRuleBlackIPPktView*>(data);
     GlobalData::g_autoPunishRuleBlackIPMgr->reset();
+    Inter_AutoPunishRuleBlackIPListView* pPkt =
+        reinterpret_cast<Inter_AutoPunishRuleBlackIPListView*>(data);
 
-    const unsigned short totalCount =                 // msg+0x0
-        (unsigned short)pPkt->m_0;
+    // P227/P261：totalCount 无具名槽（ORIG 084d4244 直读 data+0 入 %ebx 保活，084d43d7 循环处重读）。
     cMyTrace(__PRETTY_FUNCTION__,
-        0x3561, 0)("Black IP Load Start (TotalCount: %d)", (int)totalCount);
+        0x3561, 0)("Black IP Load Start (TotalCount: %d)",
+                   (int)pPkt->m_totalCount);
 
-    for (unsigned int i = 0; i < totalCount; ++i)     // cmp; seta
+    for (unsigned int i = 0; i < pPkt->m_totalCount; ++i)   // cmp; seta
     {
         char ipStr[16] = { '\0' };
-        unsigned int addrPart =                       // msg+i*8+4
-            *reinterpret_cast<unsigned int*>(data + i * 8 + 4);
-        unsigned int netIp = htonl(
-            (unsigned int)*reinterpret_cast<unsigned char*>(data + i * 8 + 8));
-        strncpy(ipStr, inet_ntoa(
-                    *reinterpret_cast<in_addr*>(&(netIp |= addrPart))), 0x10);
+        in_addr netIp;
+        // P0/P261：ORIG 084d42b5 先取 ip 入 %ebx、084d42cf `or %ebx,%eax`（ip 为左操作数）；
+        //   无 addrPart/netIp 具名临时（结果直落 netIp 槽），无 lea 取址往返。
+        netIp.s_addr = pPkt->m_entries[i].m_ip
+                       | htonl((unsigned int)pPkt->m_entries[i].m_startIp);
+        strncpy(ipStr, inet_ntoa(netIp), 0x10);
 
         // [K3 2026-09-11] P0/极性：ORIG `084d4330 call addBlackIP; xor $0x1,%eax; test %al,%al;
         //   je`（`!bool` 形，无 added 具名槽、无 setne/cmp）⇒ 去槽 + 取反形。
         if (!GlobalData::g_autoPunishRuleBlackIPMgr->addBlackIP(
-                (unsigned long)addrPart,
-                *reinterpret_cast<unsigned char*>(data + i * 8 + 8),
-                *reinterpret_cast<unsigned char*>(data + i * 8 + 9)))
+                (unsigned long)pPkt->m_entries[i].m_ip,
+                pPkt->m_entries[i].m_startIp,
+                pPkt->m_entries[i].m_maxIp))
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
                 __PRETTY_FUNCTION__,
                 0x356d,
                 "Black IP Load fail(StartIP:%s -> %d)", ipStr,
-                (int)*reinterpret_cast<unsigned char*>(data + i * 8 + 9));
+                (int)pPkt->m_entries[i].m_maxIp);
         }
-        const unsigned char maxIp =
-            *reinterpret_cast<unsigned char*>(data + i * 8 + 9);
+        // P227：maxIp 无具名槽（ORIG 084d4387 直读 data+i*8+9 → %ebx → 实参）。
         cMyTrace(__PRETTY_FUNCTION__,
-            0x356e, 0)("Black IP Load (StartIP:%s -> %d)", ipStr, (int)maxIp);
+            0x356e, 0)("Black IP Load (StartIP:%s -> %d)", ipStr,
+                       (int)pPkt->m_entries[i].m_maxIp);
     }
 
-    const int finalCount =
-        GlobalData::g_autoPunishRuleBlackIPMgr->getBlackIPCount();
+    // P227：getBlackIPCount 结果直内联（ORIG 084d43f8 `mov %eax,%ebx` 跨 ctor 保活，无 finalCount 槽）。
     cMyTrace(__PRETTY_FUNCTION__,
-        0x3570, 0)("Black IP Load End (TotalCount: %d)", finalCount);
+        0x3570, 0)("Black IP Load End (TotalCount: %d)",
+                   GlobalData::g_autoPunishRuleBlackIPMgr->getBlackIPCount());
     return 0;
 }
 
@@ -10780,38 +10954,43 @@ struct Inter_AuctionResultRegistCancelPktViewI
 {
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
-    if (static_cast<unsigned int>(len) <= 3)         // asm cmp $0x3; jbe
-        return 0;
-
-    // P183：ORIG 084d75e0 +0x024..084d75f5 直接 `movl $0x4,0x8(%esp)` + memcpy，
-    //   不见 `movl $0x0,-0x20(%ebp)` 预清零 ⇒ 原码无 `= 0` 初值（我方多 1 条存储）。
-    int characNoMsg;
-    memcpy(&characNoMsg, data, 4);                   // msg+0x00（本地 4 字节拷贝）
-    if (characNoMsg != user->getCurCharacNo())
-        return 0;
-
-    // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
-    for (int i = 0; i <= 4; ++i)
+    // 2026-09-11 L9GrpM（P59/P222 守卫极性 → 包裹形）：ORIG 0x084d75bc `cmp $0x3,%eax;
+    //   jbe 084d779x`（跳**尾部** return 0、正文 fall-through）；我方早退形令 4.4 产
+    //   `ja <正文>` + 失败块 fall-through（块序镜像 + 全函数错位 2 行）。
+    //   探针 /tmp/L9/M/pg.cpp：g0（现形 `<=3 return 0`）→ `ja`；g1（本形 `>3 {…}`）→
+    //   `jbe <尾>` = ORIG 同向。正文逐字未改，仅整体缩进 +4。
+    if (static_cast<unsigned int>(len) > 3)
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        // P183：ORIG 084d75e0 +0x024..084d75f5 直接 `movl $0x4,0x8(%esp)` + memcpy，
+        //   不见 `movl $0x0,-0x20(%ebp)` 预清零 ⇒ 原码无 `= 0` 初值（我方多 1 条存储）。
+        int characNoMsg;
+        memcpy(&characNoMsg, data, 4);               // msg+0x00（本地 4 字节拷贝）
+        if (characNoMsg != user->getCurCharacNo())
+            return 0;
+
+        // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
+        for (int i = 0; i <= 4; ++i)
         {
-            cMyTrace(__PRETTY_FUNCTION__,
-                0x3cab, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultItemList",
-                  user->getCurCharacNo());
-            break;
+            if (g_auctionResultGmList[i] == user->getCurCharacNo())
+            {
+                cMyTrace(__PRETTY_FUNCTION__,
+                    0x3cab, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultItemList",
+                      user->getCurCharacNo());
+                break;
+            }
         }
-    }
 
-    // [H2·2026-09-11 laneC P0] ORIG 084d774b `mov $0x0,%eax` 在 ~PacketGuard **之后**
-    //   （域外直接 eax）；旧写把 return 0 放在 packet 作用域内 ⇒ 4.4 用 %ebx 跨清理暂存
-    //   （mov $0x0,%ebx + mov %ebx,%eax，多 4 条，n 116 vs ORIG 112）⇒ 包独立作用域。
-    {
-        PacketGuard packet;
-        packet.put_header(1, 0xbd);
-        packet.put_byte(1);
-        packet.put_binary(data + 4, len - 4);            // 余包原样转发
-        packet.finalize(true);
-        user->Send(packet);
+        // [H2·2026-09-11 laneC P0] ORIG 084d774b `mov $0x0,%eax` 在 ~PacketGuard **之后**
+        //   （域外直接 eax）；旧写把 return 0 放在 packet 作用域内 ⇒ 4.4 用 %ebx 跨清理暂存
+        //   （mov $0x0,%ebx + mov %ebx,%eax，多 4 条，n 116 vs ORIG 112）⇒ 包独立作用域。
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0xbd);
+            packet.put_byte(1);
+            packet.put_binary(data + 4, len - 4);        // 余包原样转发
+            packet.finalize(true);
+            user->Send(packet);
+        }
     }
     return 0;
 }
@@ -10825,35 +11004,37 @@ struct Inter_AuctionResultRegistCancelPktViewI
 {
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
-    if (static_cast<unsigned int>(len) <= 3)         // asm cmp $0x3; jbe
-        return 0;
-
-    // P183：ORIG 084d777c +0x024 起直接 memcpy，无 `movl $0x0,-0x20(%ebp)` 预清零 ⇒ 原码无 `= 0` 初值。
-    int characNoMsg;
-    memcpy(&characNoMsg, data, 4);                   // msg+0x00（本地 4 字节拷贝）
-    if (characNoMsg != user->getCurCharacNo())
-        return 0;
-
-    // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
-    for (int i = 0; i <= 4; ++i)
+    // 2026-09-11 L9GrpM（P59/P222 守卫极性 → 包裹形）：ORIG 0x084d7758 同型
+    //   `cmp $0x3; jbe <尾>`（正文 fall-through）；现形 `ja` 镜像。探针 pg.cpp g1 实证。
+    if (static_cast<unsigned int>(len) > 3)
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        // P183：ORIG 084d777c +0x024 起直接 memcpy，无 `movl $0x0,-0x20(%ebp)` 预清零 ⇒ 原码无 `= 0` 初值。
+        int characNoMsg;
+        memcpy(&characNoMsg, data, 4);               // msg+0x00（本地 4 字节拷贝）
+        if (characNoMsg != user->getCurCharacNo())
+            return 0;
+
+        // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
+        for (int i = 0; i <= 4; ++i)
         {
-            cMyTrace(__PRETTY_FUNCTION__,
-                0x3ced, 0)("Trace Auction Delay, %s(%d)",
-                  "ACK AuctionResultMyRegistedItems", user->getCurCharacNo());
-            break;
+            if (g_auctionResultGmList[i] == user->getCurCharacNo())
+            {
+                cMyTrace(__PRETTY_FUNCTION__,
+                    0x3ced, 0)("Trace Auction Delay, %s(%d)",
+                      "ACK AuctionResultMyRegistedItems", user->getCurCharacNo());
+                break;
+            }
         }
-    }
 
-    // [H2·2026-09-11 laneC P0] 同 AuctionResultItemList（ORIG 084d7758 形）：return 0 置域外。
-    {
-        PacketGuard packet;
-        packet.put_header(1, 0xbf);
-        packet.put_byte(1);
-        packet.put_binary(data + 4, len - 4);            // 余包原样转发
-        packet.finalize(true);
-        user->Send(packet);
+        // [H2·2026-09-11 laneC P0] 同 AuctionResultItemList（ORIG 084d7758 形）：return 0 置域外。
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0xbf);
+            packet.put_byte(1);
+            packet.put_binary(data + 4, len - 4);        // 余包原样转发
+            packet.finalize(true);
+            user->Send(packet);
+        }
     }
     return 0;
 }
@@ -10867,35 +11048,37 @@ struct Inter_AuctionResultRegistCancelPktViewI
 {
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
-    if (static_cast<unsigned int>(len) <= 3)         // asm cmp $0x3; jbe
-        return 0;
-
-    // P183：ORIG 084d7918 +0x024 起直接 memcpy，无 `movl $0x0,-0x20(%ebp)` 预清零 ⇒ 原码无 `= 0` 初值。
-    int characNoMsg;
-    memcpy(&characNoMsg, data, 4);                   // msg+0x00（本地 4 字节拷贝）
-    if (characNoMsg != user->getCurCharacNo())
-        return 0;
-
-    // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
-    for (int i = 0; i <= 4; ++i)
+    // 2026-09-11 L9GrpM（P59/P222 守卫极性 → 包裹形）：ORIG 0x084d78f4 同型
+    //   `cmp $0x3; jbe <尾>`（正文 fall-through）；现形 `ja` 镜像。探针 pg.cpp g1 实证。
+    if (static_cast<unsigned int>(len) > 3)
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        // P183：ORIG 084d7918 +0x024 起直接 memcpy，无 `movl $0x0,-0x20(%ebp)` 预清零 ⇒ 原码无 `= 0` 初值。
+        int characNoMsg;
+        memcpy(&characNoMsg, data, 4);               // msg+0x00（本地 4 字节拷贝）
+        if (characNoMsg != user->getCurCharacNo())
+            return 0;
+
+        // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
+        for (int i = 0; i <= 4; ++i)
         {
-            cMyTrace(__PRETTY_FUNCTION__,
-                0x3d31, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultMyBidding",
-                  user->getCurCharacNo());
-            break;
+            if (g_auctionResultGmList[i] == user->getCurCharacNo())
+            {
+                cMyTrace(__PRETTY_FUNCTION__,
+                    0x3d31, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultMyBidding",
+                      user->getCurCharacNo());
+                break;
+            }
         }
-    }
 
-    // [H2·2026-09-11 laneC P0] 同 AuctionResultItemList（ORIG 084d78f4 形）：return 0 置域外。
-    {
-        PacketGuard packet;
-        packet.put_header(1, 0xc0);
-        packet.put_byte(1);
-        packet.put_binary(data + 4, len - 4);            // 余包原样转发
-        packet.finalize(true);
-        user->Send(packet);
+        // [H2·2026-09-11 laneC P0] 同 AuctionResultItemList（ORIG 084d78f4 形）：return 0 置域外。
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0xc0);
+            packet.put_byte(1);
+            packet.put_binary(data + 4, len - 4);        // 余包原样转发
+            packet.finalize(true);
+            user->Send(packet);
+        }
     }
     return 0;
 }
@@ -11112,9 +11295,15 @@ struct Inter_PvPChannelInfoPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=94（ORIG 0x84d8096）：N18a 单段 regmove+P30/N4 add-vs-lea。
 #include "InterDispatcher/dispatch_sig_157.inc"
 {
-    Inter_PvPChannelInfoPktView* pPkt = reinterpret_cast<Inter_PvPChannelInfoPktView*>(data);
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
+
+    // [L9-G PATCH#2] P-L11c：ORIG 入口 `cmpl $0x0,0xc(%ebp); jne <+0x18>; mov $0x0,%ebx; jmp <尾>`，
+    //   `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`（pPkt 物化）落在 jne 之后；旧形提前物化。
+    //   探针 /tmp/L9/G/pg2.cpp g1（前置）/g2（后置）：g2 = ORIG 形。
+    //   ⚠ 本波实测**零变化**（fn_diff 95→95，指令数 142 vs ORIG 133 不变）—— 与本函数残差
+    //   主体（整帧槽平移 + 循环体 base 形）耦合；保留此形（探针直证正确）不再单独回滚。
+    Inter_PvPChannelInfoPktView* pPkt = reinterpret_cast<Inter_PvPChannelInfoPktView*>(data);
 
     // P0/P183：ORIG 无 msg 具名槽（各用点重新 `mov 0x10(%ebp),%eax`），且地址按
     //   char* 基址 + (i+1)*0x10 + off 计算（形如 `mov 0x8(%edx,%eax,1)`），不是 int* 指针算术。
@@ -11134,11 +11323,16 @@ struct Inter_PvPChannelInfoPktView
     packet.put_byte(static_cast<int>(channelCnt));
     for (int i = 0; i < static_cast<int>(channelCnt); ++i)
     {
-        packet.put_int(*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x8));
-        packet.put_int(*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0xc));
-        if (*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x14) == 2)
-            *reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x10) = 4;  // 写回 4
-        packet.put_int(*reinterpret_cast<int*>(data + (i + 1) * 0x10 + 0x10));
+        // [L9-G PATCH#3] 循环内基址 `data`（形参）→ `pPkt`（具名槽）：ORIG 每处为
+        //   `mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax; add $0x1,%edx; shl $0x4,%edx;
+        //    mov 0x8(%edx,%eax,1),%eax`（base 走 -0x10 具名槽 + SIB），我方旧形为
+        //   `mov -0xc(%ebp),%eax; shl $0x4,%eax; add 0x10(%ebp),%eax; mov (%eax),%eax`
+        //   （形参直加）。探针 /tmp/L9/G/pg2.cpp g3（形参）/g4（具名槽）：g4 复现 base 独立装载。
+        packet.put_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x8));
+        packet.put_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0xc));
+        if (*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x14) == 2)
+            *reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x10) = 4;  // 写回 4
+        packet.put_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x10));
     }
     packet.finalize(true);
     user->Send(packet);
@@ -11301,6 +11495,20 @@ struct Inter_LoadDimensionInoutPktView
 };
 #pragma pack(pop)
 
+// [K3 2026-09-11] P235「真实成员数组视角」：ORIG 目标侧三条写全是**真实成员/成员数组**直取
+//   （`mov %cl,0xeb9(%eax,%edx,1)`、`movb $0x0,0xeb8(%eax)`、`movb $0x0,0xebf(%eax)`），
+//   源侧为 +0x4 起的 stride-1 字节数组（`movzbl 0x4(%ebx,%ecx,1),%ecx`）⇒ 改用 _Charac_info
+//   真实成员名与数组成员访问，替代 REC_BYTE 宏的指针算术（后者折 add/lea，每次访问多 2-3 条）。
+//   既有 Inter_LoadDimensionInoutPktView.m_pad4 为 signed char（会发 movsbl），故本件自带同布局视图。
+#pragma pack(push, 1)
+struct Inter_LoadDimensionInoutSrcWinView
+{
+    unsigned int m_0;                 // +0x00
+    unsigned char m_demension[0x8];   // +0x04（消费 [0..5]；ORIG stride-1 索引直证）
+    unsigned char m_c;                // +0x0c
+};
+#pragma pack(pop)
+
 // [b28d-lane2] verdict=DIFF ndiff=133（ORIG 0x084d83d2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+24。
 // [BigParty] 判 **N89**（本 TU 唯一剩余物化缺口件，已定性别动）：ORIG 对
 //   `std::vector<_Charac_info>::operator[](unsigned)` 发 **8 处 out-of-line call**（含
@@ -11319,7 +11527,8 @@ struct Inter_LoadDimensionInoutPktView
     // [G2A-PC 手法3/P324 语句顺序=物理序] ORIG 084d83f5 返回 0x3ef3 后才在 084d83ff 发
     //   `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)`（pPkt 物化）；本方原在函数首行物化
     //   ⇒ 本 diff `insert OURS[4:6]` / `delete ORIG[15:17]`。守卫前移 pPkt 声明即可。
-    Inter_LoadDimensionInoutPktView* pPkt = reinterpret_cast<Inter_LoadDimensionInoutPktView*>(data);
+    Inter_LoadDimensionInoutSrcWinView* pPkt =
+        reinterpret_cast<Inter_LoadDimensionInoutSrcWinView*>(data);
 
     // §P0：ORIG 对 pPkt->m_0 全程寄存器直传（无槽往返）⇒ 原码无 characNo 具名局部，三处内联。
     const int idx = user->get_charac_idx(pPkt->m_0);
@@ -11332,25 +11541,23 @@ struct Inter_LoadDimensionInoutPktView
     // §P183：ORIG 每处字段访问重发 vector<_Charac_info>::operator[]（8 处 out-of-line call，
     //   我方 recBase 缓存只发 2 处）⇒ 逐点重物化 `&user->m_characList[idx]`，不缓存基址。
     user->m_characList[idx].m_characNo = pPkt->m_0;
-#define REC_BYTE(off) \
-    (*(reinterpret_cast<unsigned char*>(&user->m_characList[idx]) + (off)))
+
     for (int i = 0; i <= 5; ++i)                       // cmpl $5; setle
     {
-        REC_BYTE(0xeb9 + i) =                          // +0xeb9 m_demensionInout[i]
-            *reinterpret_cast<unsigned char*>(data + 4 + i);
+        user->m_characList[idx].m_demensionInout[i] =  // +0xeb9 数组成员直存
+            pPkt->m_demension[i];                      // 源 +0x4 stride-1
         // §P0：ORIG got 值留 %ebx 跨 G_CDataManager call 保活（无槽）⇒ 内联比较表达式。
-        if (REC_BYTE(0xeb9 + i) !=
+        if (user->m_characList[idx].m_demensionInout[i] !=
             (unsigned char)G_CDataManager()->get_dimensionInout(i))   // [H2·laneD] ORIG `cmp %al,%bl`（8 位）⇒ 无符号
             changed = true;
     }
 
-    REC_BYTE(0xec2) = pPkt->m_c;                       // +0xec2 m_ultimateInout[2]
-    if (REC_BYTE(0xec2) !=
+    user->m_characList[idx].m_ultimateInout[2] = pPkt->m_c;   // +0xec0+2 ⇒ ORIG `mov %dl,0xec2(%eax)`
+    if (user->m_characList[idx].m_ultimateInout[2] !=
         (unsigned char)G_CDataManager()->get_limit_inout_count(ENUM_BLOOD_TYPE_2))   // [H2·laneD] 同上
         ultimateChanged = true;
-    REC_BYTE(0xeb8) = 0;                               // +0xeb8 m_saveDemensionInout
-    REC_BYTE(0xebf) = 0;                               // +0xebf m_saveBloodInout
-#undef REC_BYTE
+    user->m_characList[idx].m_fieldEB8 = 0;            // +0xeb8 ⇒ ORIG `movb $0x0,0xeb8(%eax)`
+    user->m_characList[idx].m_fieldEBF = 0;            // +0xebf ⇒ ORIG `movb $0x0,0xebf(%eax)`
 
     if (user->getCurCharacR() != 0 && user->IsFirstTimeLogin() &&
         user->get_charac_level() > 0x3b)
@@ -12040,9 +12247,8 @@ struct Inter_UpdateServerMessagePktView
         strncpy(info.m_msg, pPkt->m_10, 0x32);
         strncpy(info.m_name, pPkt->m_48, 0x14);
 
-        CMonitorServerProxy* proxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-        proxy->SendTcpPacket((char*)&info, 0x5f);
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->SendTcpPacket((char*)&info, 0x5f);
 
         // P328⑩/P227：ORIG 0x84da5eb..0x84da65f 先求 8 个实参（time→%edi、name→-0xbc、
         // nameLen→-0xb8、msg→-0xb4、msgLen→-0xb0、index→-0xac、kind→%esi、ch→%ebx）
@@ -12118,8 +12324,8 @@ struct Inter_NoticeServerMessageInfoPktView
         {
             local_20->UpdateServerMessageByBroadcast(
                 (int)pPkt->m_c,
-                const_cast<char*>(data + 0x11),
-                const_cast<char*>(data + 0x47),
+                const_cast<char*>(reinterpret_cast<char*>(pPkt) + 0x11),
+                const_cast<char*>(reinterpret_cast<char*>(pPkt) + 0x47),
                 pPkt->m_5b);
         }
         cMyTrace(__PRETTY_FUNCTION__,
@@ -12128,9 +12334,9 @@ struct Inter_NoticeServerMessageInfoPktView
               (unsigned int)pPkt->m_b,
               (unsigned int)pPkt->m_c,
               pPkt->m_d,
-              data + 0x11,
+              reinterpret_cast<char*>(pPkt) + 0x11,
               pPkt->m_43,
-              data + 0x47,
+              reinterpret_cast<char*>(pPkt) + 0x47,
               pPkt->m_5b);
     }
 
@@ -13698,7 +13904,9 @@ struct Inter_NoticeGuildCargoTail
 struct Inter_GuildCargoHistoryPktView
 {
     char m_pad0[0xe];  // +0x0..未消费
-    int m_e;                        // +0x0e
+    // [L9-G PATCH#1] P211/P265 档③ 同型化：ORIG 比较点 `mov %eax,%edx; mov -0x14(%ebp),%eax;
+    //   mov 0xe(%eax),%eax; cmp %eax,%edx`；探针 /tmp/L9/B/pb_cmp.cpp fu(unsigned) 同形。
+    unsigned int m_e;               // +0x0e
 };
 #pragma pack(pop)
 
@@ -14340,7 +14548,7 @@ struct Inter_GuildBoardDataPktView
     unsigned short m_c;             // +0x0c
     unsigned char m_e;              // +0x0e
     char m_padf[0x4];  // +0xf..未消费
-    int m_13;                       // +0x13
+    unsigned int m_13;              // +0x13（P211/P265 档③：ORIG 比较点 `mov %eax,%edx` 中转）
     signed char m_17;               // +0x17
 };
 #pragma pack(pop)
@@ -14570,9 +14778,10 @@ struct Inter_VillageAttackedEndPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF（ORIG 0x84df6a4）：本轮 P28 后置 it++ + P157/P183 revenge 表逐字段重读（G_CDataManager×4/vector[]×3，p167 CLEAR）；余 P226/N18a/N82。
 #include "InterDispatcher/dispatch_sig_216.inc"
 {
-    Inter_VillageAttackedEndPktView* pPkt = reinterpret_cast<Inter_VillageAttackedEndPktView*>(data);
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())   // test al → false 才继续
         return 0;
+
+    Inter_VillageAttackedEndPktView* pPkt = reinterpret_cast<Inter_VillageAttackedEndPktView*>(data);
 
     const unsigned int curSec =                        // -0x38
         GlobalData::s_systemTime_.getCurSec();
@@ -15098,11 +15307,38 @@ struct Inter_SetARSInfoEntryWinView
 };
 #pragma pack(pop)
 
+// [K3 2026-09-11] P235「数组成员视角」：ORIG 084e09ce 段每条目发
+//   `mov -0x1c(%ebp),%edx; mov -0x20(%ebp),%ecx; mov %edx,%eax; add %eax,%eax; add %edx,%eax;
+//    shl $0x2,%eax; movzwl 0xf(%eax,%ecx,1),%eax`
+//   —— i*0xc 算进寄存器后以 `disp(%idx,%base,1)` 直取（字段只在 disp 里），
+//   而我方 char* 算术式每条目多一条 `lea (%ecx,%eax,1),%eax`（10 处 ⇒ +10 条）。
+//   元素布局相对条目基址 +0xf：f/11/13/15/17/18/19 ⇒ 元素 stride 0xc；既有
+//   Inter_SetARSInfoEntryWinView 用 pPkt 绝对偏移建模，不能作数组成员，故本件自带元素视图。
+#pragma pack(push, 1)
+struct Inter_SetARSInfoElemView
+{
+    unsigned short m_f;    // 元素 +0x00 ⇒ pPkt + i*0xc + 0x0f
+    unsigned short m_11;   // +0x02 ⇒ +0x11
+    unsigned short m_13;   // +0x04 ⇒ +0x13
+    unsigned short m_15;   // +0x06 ⇒ +0x15
+    unsigned char m_17;    // +0x08 ⇒ +0x17
+    unsigned char m_18;    // +0x09 ⇒ +0x18
+    unsigned short m_19;   // +0x0a ⇒ +0x19
+};
+struct Inter_SetARSInfoListView
+{
+    char m_pad0[0xa];           // +0x0..+0x9
+    unsigned int m_a;           // +0x0a
+    unsigned char m_e;          // +0x0e
+    Inter_SetARSInfoElemView m_entries[1];  // +0x0f 起，stride 0xc
+};
+#pragma pack(pop)
+
 // [b28d-lane2] verdict=DIFF ndiff=259（ORIG 0x084e09ce）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+98。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=318（ORIG 0x84e09ce）：N18a 单段 regmove+P30/N4 add-vs-lea。
 #include "InterDispatcher/dispatch_sig_225.inc"
 {
-    Inter_SetARSInfoPktView* pPkt = reinterpret_cast<Inter_SetARSInfoPktView*>(data);
+    Inter_SetARSInfoListView* pPkt = reinterpret_cast<Inter_SetARSInfoListView*>(data);
     if (pPkt->m_e == 0)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->reset();
@@ -15120,32 +15356,32 @@ struct Inter_SetARSInfoEntryWinView
 
     for (int i = 0; i < (int)pPkt->m_a; ++i)
     {
-        if (((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_f == 0)
+        if (pPkt->m_entries[i].m_f == 0)
         {   // 交易总量条目：type=+0x11，total(u64)=+0x19
             GlobalData::g_autoPunishRuleHackTypeMgr->setTotalTrade(
-                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
-                (unsigned long long)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19);
+                (unsigned int)pPkt->m_entries[i].m_11,
+                (unsigned long long)pPkt->m_entries[i].m_19);
             cMyTrace(__PRETTY_FUNCTION__, 0x4f82, 0)("[ARS_INFO] TotalGold: %llu, TotalCount: %d",
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19,
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11);
+              (unsigned int)pPkt->m_entries[i].m_19,
+              (unsigned int)pPkt->m_entries[i].m_11);
         }
         else
         {   // hack 计数条目：main=+0xf val=+0x11 sub=+0x13 val=+0x15 flag=+0x17 ipCnt=+0x18 arg=+0x19
             GlobalData::g_autoPunishRuleHackTypeMgr->setHackCnt(
-                (WongWork::ENUM_HACKTYPE)(unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_f,
-                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
-                (WongWork::ENUM_HACKTYPE)(unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_13,
-                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_15,
-                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_17,
-                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_18,
-                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19);
+                (WongWork::ENUM_HACKTYPE)(unsigned int)pPkt->m_entries[i].m_f,
+                (unsigned int)pPkt->m_entries[i].m_11,
+                (WongWork::ENUM_HACKTYPE)(unsigned int)pPkt->m_entries[i].m_13,
+                (unsigned int)pPkt->m_entries[i].m_15,
+                (unsigned int)pPkt->m_entries[i].m_17,
+                (unsigned int)pPkt->m_entries[i].m_18,
+                (unsigned int)pPkt->m_entries[i].m_19);
             cMyTrace(__PRETTY_FUNCTION__, 0x4f8e, 0)("[ARS_INFO] MainType : %d (%d), SubType : %d(%d), ApplyFlag %d, IpCnt : %d",
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_f,
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_13,
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_15,
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_17,
-              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_18);
+              (unsigned int)pPkt->m_entries[i].m_f,
+              (unsigned int)pPkt->m_entries[i].m_11,
+              (unsigned int)pPkt->m_entries[i].m_13,
+              (unsigned int)pPkt->m_entries[i].m_15,
+              (unsigned int)pPkt->m_entries[i].m_17,
+              (unsigned int)pPkt->m_entries[i].m_18);
         }
     }
     return 0;
@@ -15425,7 +15661,10 @@ struct Inter_AddPvPBuddyResultPktView
         packet.put_header(1, 0x122);
         packet.put_byte(1);
         packet.put_byte(pPkt->m_13);
-        const size_t local_10 = strlen(pPkt->m_14);
+        // [L9·2026-09-11 子代理 B-PATCH#2] size_t→int（P265 同型化；同函数 case-0 分支已是 int）：
+        // ORIG 084e1ba8/084e1bab/084e1bae `mov -0x14(%ebp),%eax; lea 0x14(%eax),%edx; mov -0xc(%ebp),%eax`
+        // （先算 ptr 再装 len）；探针 /tmp/L9/B/pb_str.cpp b1(int)→lea 形逐条同形。
+        const int local_10 = (int)strlen(pPkt->m_14);
         packet.put_int(local_10);
         packet.put_str(pPkt->m_14, local_10);
         packet.finalize(true);
@@ -16210,8 +16449,13 @@ struct Inter_ReqGameServerInfoPktView
     // ORIG 084e2bcb/084e2bcd 为正向 `if (IsIntegratedPvPBaseChannel())` 双分支（真分支在前）。
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        if (pPkt->m_a == '\0')
+        // [L9-C PATCH#2] ORIG 084e2bcb..084e2ce0 段：`movzbl 0xa(%eax),%eax;
+        //   movzbl %al,%eax; test %eax,%eax; je case0; cmp $0x1,%eax; je case1; jmp 尾`
+        //   = 值只读一次 + int 提升后 cmp 链 ⇒ 源形是 switch（P251/P261，同 MONITOR
+        //   RegistGameServerAck 先例）；if/else-if 链恒退化为逐次重读 + 8 位 test/jne。
+        switch ((int)(unsigned char)pPkt->m_a)
         {
+        case 0:
             GlobalData::s_monitor_proxy_mgr
                 ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_b)
                 ->SendGameServerInfo(
@@ -16219,9 +16463,8 @@ struct Inter_ReqGameServerInfoPktView
                     (unsigned short)G_CEnvironment()->get_udp_port(),
                     (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
                     (unsigned char)G_CEnvironment()->get_channel_no());
-        }
-        else if (pPkt->m_a == '\x01')
-        {
+            break;
+        case 1:
             GlobalData::s_guild_proxy_mgr
                 ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_b)
                 ->SendGameServerInfo(
@@ -16229,12 +16472,15 @@ struct Inter_ReqGameServerInfoPktView
                     (unsigned short)G_CEnvironment()->get_udp_port(),
                     (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
                     (unsigned char)G_CEnvironment()->get_channel_no());
+            break;
         }
     }
     else
     {
-        if (pPkt->m_a == '\0')
+        // [L9-C PATCH#2] 同上（else 分支同型，ORIG 084e2d45..084e2d6a 一段）。
+        switch ((int)(unsigned char)pPkt->m_a)
         {
+        case 0:
             GlobalData::s_monitor_proxy_mgr
                 ->GetServerProxy((ENUM_SERVER_GROUP)0)
                 ->SendGameServerInfo(
@@ -16242,9 +16488,8 @@ struct Inter_ReqGameServerInfoPktView
                     (unsigned short)G_CEnvironment()->get_udp_port(),
                     (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
                     (unsigned char)G_CEnvironment()->get_channel_no());
-        }
-        else if (pPkt->m_a == '\x01')
-        {
+            break;
+        case 1:
             GlobalData::s_guild_proxy_mgr
                 ->GetServerProxy((ENUM_SERVER_GROUP)0)
                 ->SendGameServerInfo(
@@ -16252,6 +16497,7 @@ struct Inter_ReqGameServerInfoPktView
                     (unsigned short)G_CEnvironment()->get_udp_port(),
                     (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
                     (unsigned char)G_CEnvironment()->get_channel_no());
+            break;
         }
     }
     return 0;
@@ -16751,14 +16997,16 @@ struct Inter_RequestJoinGuildPktView
     packet.put_header(1, 0x15d);
     packet.put_byte(1);
     packet.put_int(pPkt->m_4);
-    const int guildNameLen =                         // msg+0x26 公会名
-        static_cast<int>(strlen(pPkt->m_26));
-    packet.put_int(guildNameLen);
-    packet.put_str(pPkt->m_26, guildNameLen);
-    const int requesterLen =                         // msg+0x08 申请者名
-        static_cast<int>(strlen(pPkt->m_8));
-    packet.put_int(requesterLen);
-    packet.put_str(pPkt->m_8, requesterLen);
+    // 2026-09-11 L9GrpM（P0/P183 具名量合并）：ORIG Ghidra 段 `local_10 = strlen(msg+0x26);
+    //   …; local_10 = strlen(msg+8);` = **同一局部两次赋值**（单槽 -0x10）；我方两具名
+    //   `guildNameLen`/`requesterLen` 各占一槽 ⇒ pPkt 由 ORIG 的 -0x10 被挤到 -0x14。
+    //   同文件 dispatch_sig_259（Inter_CheckJoinGuild）已是 `int strLen` 复用形（先例）。
+    int strLen = static_cast<int>(strlen(pPkt->m_26));   // msg+0x26 公会名
+    packet.put_int(strLen);
+    packet.put_str(pPkt->m_26, strLen);
+    strLen = static_cast<int>(strlen(pPkt->m_8));        // msg+0x08 申请者名
+    packet.put_int(strLen);
+    packet.put_str(pPkt->m_8, strLen);
     packet.put_int(pPkt->m_40);
     packet.put_int(pPkt->m_44);
     packet.finalize(true);
@@ -17500,6 +17748,37 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
 };
 #pragma pack(pop)
 
+// [L9-H 2026-09-11] P30/P235「数组成员两步位移」：ORIG 084e5528 段循环体发
+//   `imul …,0x68; add $0x30; add <基址槽>; add $0x7`（4 条 = 结构位移 0x30 + 元素内 0x7 两步），
+//   我方 `data + i*0x68 + 0x37` 把 0x30+7 折成单常量 ⇒ `imul; add $0x37; add data`（3 条）。
+//   同族先例：Inter_MonitorNoticeGuildChatMsgHyperLinkPktView.ItemView（stride 0x68，两步配方）。
+//   既有本件 PktView 的 m_pad37 不能在 0x30 处再挂数组（与 m_35/m_36 重叠），故本件自带
+//   含 ItemView 的组合视图；m_items[0].m_linkType/m_itemCount 与既有 m_35/m_36 同址
+//   （探针 /tmp/L9/H/p4.cpp：`m_items[0].m_linkType` ⇒ `movzx eax,[eax+0x35]` 单条等价）。
+#pragma pack(push, 1)
+struct Inter_MonitorNoticeOtherChannelChatHyperLinkListView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x5];  // 未消费
+    int m_13;                 // +0x13
+    char m_17[1];             // +0x17 串/字节区首元素（容量未建模）
+    char m_pad18[0x18];  // 未消费
+    struct ItemView
+    {
+        char m_pad0[0x5];           // 元素 +0x00..0x04（元素基 0x30）
+        unsigned char m_linkType;   // +0x05 ⇒ 绝对 +0x35（同 m_35）
+        unsigned char m_itemCount;  // +0x06 ⇒ 绝对 +0x36（同 m_36）
+        char m_binary[1];           // +0x07 ⇒ 绝对 +0x37（put_binary 载荷）
+        char m_pad[0x60];           // 补齐 stride 0x68
+    };
+    ItemView m_items[1];   // +0x30 起，stride 0x68
+    char m_pad98[0xd7];  // +0x98..0x16e 未消费
+    unsigned char m_16f;      // +0x16f
+    char m_170[1];            // +0x170 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 // [b28d-lane2] verdict=DIFF ndiff=423（ORIG 0x084e5528）：槽序/帧差(N82/P212/P221)+混合残差；gap+20。
 // [b28d-solo-InterDispatcher] verdict=DIFF（ORIG 0x84e5528）：本轮每分支单次 strlen 缓存+get_charac_no 两处独立调用（p167 CLEAR）；余 N22/P226/N18a。
 #include "InterDispatcher/dispatch_sig_281.inc"
@@ -17512,9 +17791,9 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
     if (user->get_state() == 0)
         return 0;
 
-    Inter_MonitorNoticeOtherChannelChatHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatHyperLinkPktView*>(data);
+    Inter_MonitorNoticeOtherChannelChatHyperLinkListView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatHyperLinkListView*>(data);
     // §P0：ORIG 对 m_35/m_36 全程重读（无具名局部槽往返）⇒ 不缓存 linkType/itemCount/count。
-    if (pPkt->m_35 == 1)
+    if (pPkt->m_items[0].m_linkType == 1)              // +0x35（同址）
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
@@ -17527,13 +17806,13 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
-        packet.put_byte(pPkt->m_36);
-        for (int i = 0; i < (int)pPkt->m_36; ++i)
-            packet.put_binary(data + i * 0x68 + 0x37, 0x68);
+        packet.put_byte(pPkt->m_items[0].m_itemCount);  // +0x36
+        for (int i = 0; i < (int)pPkt->m_items[0].m_itemCount; ++i)
+            packet.put_binary(pPkt->m_items[i].m_binary, 0x68);   // ORIG 4 条位移形
         packet.finalize(true);
         user->Send(packet);
     }
-    else if (pPkt->m_35 == 2)
+    else if (pPkt->m_items[0].m_linkType == 2)
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
@@ -17545,13 +17824,13 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
-        packet.put_byte(pPkt->m_36);
-        for (int i = 0; i < (int)pPkt->m_36; ++i)
-            packet.put_binary(data + i * 0x68 + 0x37, 0x68);
+        packet.put_byte(pPkt->m_items[0].m_itemCount);
+        for (int i = 0; i < (int)pPkt->m_items[0].m_itemCount; ++i)
+            packet.put_binary(pPkt->m_items[i].m_binary, 0x68);
         packet.finalize(true);
         user->Send(packet);
     }
-    else if (pPkt->m_35 == 3)
+    else if (pPkt->m_items[0].m_linkType == 3)
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
@@ -17563,9 +17842,9 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
-        packet.put_byte(pPkt->m_36);
-        for (int i = 0; i < (int)pPkt->m_36; ++i)
-            packet.put_binary(data + i * 0x68 + 0x37, 0x68);
+        packet.put_byte(pPkt->m_items[0].m_itemCount);
+        for (int i = 0; i < (int)pPkt->m_items[0].m_itemCount; ++i)
+            packet.put_binary(pPkt->m_items[i].m_binary, 0x68);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -17596,9 +17875,9 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
         packet.put_int(pPkt->m_16f);
         packet.put_str(pPkt->m_170,
                        pPkt->m_16f);
-        packet.put_byte(pPkt->m_36);
-        for (int i = 0; i < (int)pPkt->m_36; ++i)
-            packet.put_binary(data + i * 0x68 + 0x37, 0x68);
+        packet.put_byte(pPkt->m_items[0].m_itemCount);
+        for (int i = 0; i < (int)pPkt->m_items[0].m_itemCount; ++i)
+            packet.put_binary(pPkt->m_items[i].m_binary, 0x68);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -18730,17 +19009,22 @@ struct Inter_LoadCerashopAddRestrictTypePktView
     // [H2·2026-09-11 laneD P0] ORIG 080e21ba `mov 0x4(%eax),%eax; test`（无槽往返）与
     //   080e2164 `cmpl $0x0,-0x10(%ebp)`（判空用局部 p）⇒ 删 `const int type` 具名中转，
     //   第 3 实参经 pPkt 槽（非形参 data）。
-    if (pPkt->m_4 == 0)
+    // [L9-C PATCH#1] ORIG 080e21ba..080e21d2 为 `mov 0x4(%eax),%eax; test %eax,%eax; je A;
+    //   cmp $0x1,%eax; je B; jmp C`（值只读一次 + 32 位 cmp 链）⇒ 源形是 switch（P251/P261；
+    //   同 TU MonitorRegistGameServerAck 先例 + /tmp/L9/C/p_switch.cpp 探针直证）；if/else-if
+    //   链在 4.4 恒退化为逐次重读（`mov -0x10(%ebp),%eax; mov 0x4(%eax),%eax; cmp $1,%al`）。
+    switch (pPkt->m_4)
     {
+    case 0:
         CerashopAddRestrict::Manager::LoadProcess(
             info.m_field30, info.m_accountDaily,
             reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(pPkt));
-    }
-    else if (pPkt->m_4 == 1)
-    {
+        break;
+    case 1:
         CerashopAddRestrict::Manager::LoadProcess(
             info.m_field48, info.m_characDaily,
             reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(pPkt));
+        break;
     }
     CerashopAddRestrict::Manager::SendSyncPacket(user);
     return 0;
@@ -18757,11 +19041,29 @@ struct Inter_LoadEventLevelupSupportPktView
 };
 #pragma pack(pop)
 
+// [K3 2026-09-11] P235「数组成员视角」+ P-L11c：
+//   ① ORIG 084e8ce4 段对 msg 条目发 stride-4 成员直取：`movzwl 0x4(%eax,%edx,4),%eax`
+//      （条目 i 的 m_level）与 `movzwl 0x6(%edx,%ecx,4),%edx`（同条目 m_state ⇒ +0x4+2）⇒
+//      原码是 `{ int count; EventInfo entries[]; }` 数组成员访问（EventInfo 布局 u16 level/u16 state
+//      与 wire 一致）；我方 char* 算术折 shl/add，每处多 4 条。
+//   ② 守卫先行、指针物化在守卫之后（ORIG 先 `cmpl $0x0,0xc(%ebp)`/`0x10(%ebp)`，随后才
+//      `mov 0x10(%ebp),%eax; mov %eax,-0x28(%ebp)`）⇒ 唯一指针槽，无 local_2c 副本（P-L11c）。
+//   ③ 循环 1 条件 ORIG `cmp i,size; seta`（无符号）⇒ 去 `(int)`；
+//      `m_level <= get_charac_level()` ORIG `cmp %eax,%ebx; setle`（有符号 int）
+//      ⇒ 去 `(unsigned int)`（语义修复：负等级不再被当大数）。
+//   ④ 第三循环 state/level 无具名槽（ORIG 直入 %edi/%esi 跨 makeRequest call 保活）⇒ 内联实参。
+#pragma pack(push, 1)
+struct Inter_LoadEventLevelupSupportEntryPktView
+{
+    int m_count;                                        // +0x0（ORIG `mov (%eax),%eax`）
+    LevelupSupportEventManger::EventInfo m_entries[1];  // +0x4 起，stride 4
+};
+#pragma pack(pop)
+
 // [b28d-lane2] verdict=DIFF ndiff=167（ORIG 0x084e8ce4）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-7。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=93（ORIG 0x84e8ce4）：N22 cmp 操作数方向+N18a 单段 regmove+N82/P112 帧槽平移。
 #include "InterDispatcher/dispatch_sig_307.inc"
 {
-    Inter_LoadEventLevelupSupportPktView* pPkt = reinterpret_cast<Inter_LoadEventLevelupSupportPktView*>(data);
     if (user == 0 || data == 0)
     {
         cMyTrace(__PRETTY_FUNCTION__,
@@ -18770,36 +19072,33 @@ struct Inter_LoadEventLevelupSupportPktView
         return 0x6def;
     }
 
-    int* const local_2c =&pPkt->m_0;
+    Inter_LoadEventLevelupSupportEntryPktView* pPkt =
+        reinterpret_cast<Inter_LoadEventLevelupSupportEntryPktView*>(data);
 
     user->m_levelupEvents.clear();
     user->m_levelupEvents =
         ARAD::Singleton<LevelupSupportEventManger>::Get()->GetDefaultEventInfo();
 
-    // [A02-r5] 轴 B（循环变量符号性）单点实验留痕：按 A01 形改 `int` + `(int)size()`
-    //（P196 前置：ORIG 该族为有符号序 `setle`，允许改 int）。**实测结果**：本件 ndiff
-    // 175→174（−1 条）、TU 四数不变 ⇒ 保留；但两侧 setcc 序列仍差（OURS 首点 `setbe`
-    // 经核源自**另一处** unsigned 循环，非本循环）⇒ setcc 对齐未达成，余部按 N（N82/P112
-    // 帧槽 + 该 unsigned 循环的 B 轴点）封顶。
+    // [A02-r5 复核 2026-09-11] ORIG 条件为无符号序（`cmp i,size; seta`）⇒ `(int)` cast 撤销；
+    //   比较轴按 ORIG setle 取有符号（m_level(u16) 提升为 int vs get_charac_level() 返回 int）。
     for (int local_28 = 0;
-         local_28 < (int)user->m_levelupEvents.size();
+         local_28 < user->m_levelupEvents.size();
          ++local_28)
     {
         if (user->m_levelupEvents[local_28].m_level <=
-            (unsigned int)user->get_charac_level())
+            user->get_charac_level())                  // setle（有符号，ORIG 直证）
         {
             user->m_levelupEvents[local_28].m_state = 1;
         }
     }
 
-    for (int local_24 = 0; local_24 < *local_2c; ++local_24)
+    for (int local_24 = 0; local_24 < pPkt->m_count; ++local_24)
     {
         if (user->m_levelupEvents[local_24].m_level ==
-            (short)local_2c[local_24 + 1])
+            pPkt->m_entries[local_24].m_level)         // ORIG `movzwl 0x4(%eax,%edx,4)`
         {
             user->m_levelupEvents[local_24].m_state =
-                *reinterpret_cast<unsigned short*>(
-                    reinterpret_cast<char*>(local_2c) + local_24 * 4 + 6);
+                pPkt->m_entries[local_24].m_state;     // ORIG `movzwl 0x6(%edx,%ecx,4)`
         }
         else
         {
@@ -18812,18 +19111,17 @@ struct Inter_LoadEventLevelupSupportPktView
         }
     }
 
-    if (*local_2c == 0)
+    if (pPkt->m_count == 0)
     {
         for (unsigned int local_20 = 0;
              local_20 < user->m_levelupEvents.size();
              ++local_20)
         {
-            const unsigned short state = user->m_levelupEvents[local_20].m_state;
-            const unsigned short level = user->m_levelupEvents[local_20].m_level;
             DB_SaveEventLevelupSupport::makeRequest(
                 static_cast<int>(user->GetUID()),
                 static_cast<int>(user->getCurCharacNo()),
-                static_cast<int>(level), static_cast<int>(state));
+                static_cast<int>(user->m_levelupEvents[local_20].m_level),
+                static_cast<int>(user->m_levelupEvents[local_20].m_state));
         }
     }
 

@@ -31,16 +31,18 @@ unsigned int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
     // je 0x081c0931` ⇒ 原码单条 if 的 4.1 短路物化岛，我方双层 if 缺这 5 条）。
     // 单 TU 口径实测 135→140（=ORIG 140），但父泳道四数口径 136→141 判劣化
     // （ndiff 增大）⇒ 已回滚，维持嵌套 if 形。call *%edx↔*%eax = N7 残差。
-    if (restrictEvt != 0)
+    // [DPC-SigSmall 2026-09-11 二轮] 短路轴：ORIG 0x081c08d2 `cmpl $0; je 0x081c08fd`
+    // 与 0x081c08f4 `test %al,%al; je 0x081c08fd`（**两跳同指**）后接
+    // 0x081c08f6 `mov $1,%eax; jmp; 0x081c08fd: mov $0,%eax; test %al,%al; je`
+    // ⇒ 原码把「虚调 bool 结果」作**值**物化（&& 右侧含调用时 4.4 亦产岛，probe4 w7 同因）。
+    if (restrictEvt != 0 &&
+        (*(bool (**)(void*, int))(*(char**)restrictEvt + 0x34))(
+            (void*)restrictEvt, 0))
     {
-        if ((*(bool (**)(void*, int))(*(char**)restrictEvt + 0x34))(
-                (void*)restrictEvt, 0))
+        int limit = restrictEvt->getLimitCreateCharacter(user->get_charac_count());
+        if (limit != 0)
         {
-            int limit = restrictEvt->getLimitCreateCharacter(user->get_charac_count());
-            if (limit != 0)
-            {
-                return limit;
-            }
+            return limit;
         }
     }
     if (user->get_charac_count() >= (int)user->getCharacSlotLimit())

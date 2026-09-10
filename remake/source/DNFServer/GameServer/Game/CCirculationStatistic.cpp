@@ -50,16 +50,20 @@ CCirculationStatistic* GetInstanceCirculationStatistic()
 
     std::map<ENUM_SERVER_GROUP, stCirculationStatistic>::iterator it =
         m_data.find(user->GetServerGroup());
-    if (it == m_data.end())
+    // [L6-S1 P167/P220] ORIG 0x0860dbb0 段：`call _Rb_tree_iterator::operator!=;
+    // test %al,%al; je 0860dc0e(insert 分支)` —— 命中分支（+=）直落、insert 后置
+    // ⇒ 原码是**正极性** `it != end()`；旧 `== end()` 负极性使 p167 出现
+    // MISSING operator!= / EXTRA operator== 且两臂块序相反（MISSING/EXTRA 各 1）。
+    if (it != m_data.end())
+    {
+        it->second.m_values[user->get_charac_level()][field] += value;
+    }
+    else
     {
         stCirculationStatistic stat;
         memset(&stat, 0, 0x3540);
         stat.m_values[user->get_charac_level()][field] = value;
         m_data.insert(std::make_pair(user->GetServerGroup(), stat));
-    }
-    else
-    {
-        it->second.m_values[user->get_charac_level()][field] += value;
     }
     return true;
 }
@@ -73,8 +77,12 @@ CCirculationStatistic* GetInstanceCirculationStatistic()
 // 初始化列表已对位）。
 #include "CCirculationStatistic/InsertCirculationStatistic.inc"
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0860dccc 槽组整体平移 4
-    // （-0xf4/-0x1c vs -0xf8/-0x20）+ 一段顺序差（N82/N98 族）；语义等价。
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0860dccc 槽组整体平移 4（-0xf4/-0x1c vs -0xf8/-0x20）。
+    // [L6-S1 P0/P183 归位] 真因 = 具名 `CStatisticServerProxy* proxy` 多占 4B 槽（我方
+    // 多 `mov %eax,-0x10(%ebp)` + 调用点回载两条）：ORIG 0x0860ddd2 后直接
+    // `movl $0xd0,0x8(%esp); mov %ebx,0x4(%esp); mov %eax,(%esp); call SendPacket`
+    // ⇒ 原码是 `GetServerProxy(group)->SendPacket(...)` 内联实参形（P134）。删具名后
+    // 槽组整体回位（-0x28/-0x20/-0x1c/-0x18/-0xf8 → ORIG 的 -0x24/-0x1c/-0x18/-0x14/-0xf4）。
     for (std::map<ENUM_SERVER_GROUP, stCirculationStatistic>::iterator it =
              m_data.begin(), endIt = m_data.end();
          it != endIt; ++it)
@@ -101,9 +109,8 @@ CCirculationStatistic* GetInstanceCirculationStatistic()
             packet.fields.m_level = level;
             memcpy(packet.m_data, stat.m_values[level],
                    0x30 * sizeof(int));
-            CStatisticServerProxy* proxy =
-                GlobalData::s_statistic_proxy_mgr->GetServerProxy(group);
-            proxy->SendPacket(reinterpret_cast<char*>(&packet), 0xd0);
+            GlobalData::s_statistic_proxy_mgr->GetServerProxy(group)
+                ->SendPacket(reinterpret_cast<char*>(&packet), 0xd0);
         }
         stat.reset();
     }

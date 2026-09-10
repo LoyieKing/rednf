@@ -74,9 +74,16 @@ public:
     {
         return 0;
     }
-    // 残差 N（N18a/N7 族）：两循环 4.4 寄存器指派与 store 序与 4.1 异形
-    // （首循环 mov this 先于 mov i、常量拆 0x36a4+disp4；第二循环 ebx=this/
-    // esi=i 且表值滞留 eax），int 循环变量探针反致 setle 破坏 setbe，不可翻。
+    //   残余 N（N18a/N7 族）：两循环 4.4 寄存器指派与 store 序与 4.1 异形
+    //   （首循环 mov this 先于 mov i、常量拆 0x36a4+disp4；第二循环 ebx=this/
+    //   esi=i 且表值滞留 eax），int 循环变量探针反致 setle 破坏 setbe，不可翻。
+    //   [l5f 2026-09-11 · 探针复核] 根因定位（/tmp/probe_sr2.cpp）：v5（this 直接
+    //   成员、无 cast）逐条复现 ORIG 形（索引→%ebx 保活 + call 后重装 this + 值经
+    //   %edx 中转）；而 v6/v8/v13/v19/v20/v21（CDataManager→View 指针/引用 cast 六
+    //   形）**全部**产 this→%ebx 提升形（判词旧记录「取址/int cast 无效」的正因）。
+    //   ⇒ 唯一解 = 让 +8 处数组成为 CDataManager 自身具名成员（.h 项，按纪律只报告：
+    //   CDM+8 若可安全具名 unsigned int[0x3702]，本 TU 视图 CDataManagerRewardSpView
+    //   即可删除）；本 TU 内源形已穷举 7 形 ⇒ 封 N7/N18a。
     for (int i = 0; i < 0x60; ++i)
     {
         ((CDataManagerRewardSpView*)this)->m_sp8[0x36a2 + i] = 0;
@@ -105,10 +112,15 @@ public:
 // 任一插入冲突立即返回 0，全部成功返回 1。（计数器每个外层键重置。）
 #include "CDataManagerMethods/initRandomOptionItem.inc"
 {
-    // b28 BM4 判词（N18a/N4 在册）：fresh 实残 = make_pair 首 ref 实参 ORIG
-    // `lea 0x4(%eax),%ecx` 单条折叠 vs 4.4 `add $0x4,%eax; mov %eax,%edx`
-    // 两段+中转 hop（+1 行）；P30 穷举 add/lea 与寄存器名不可齐。其余
-    // 迭代器/插入流逐条同形（含 ++count 逗号序）。语义等价封顶。
+    //   b28 BM4 判词（N18a/N4 在册）：fresh 实残 = make_pair 首 ref 实参 ORIG
+    //   `lea 0x4(%eax),%ecx` 单条折叠 vs 4.4 `add $0x4,%eax; mov %eax,%edx`
+    //   两段+中转 hop（+1 行）；P30 穷举 add/lea 与寄存器名不可齐。其余
+    //   迭代器/插入流逐条同形（含 ++count 逗号序）。语义等价封顶。
+    //   [l5f 2026-09-11 · 探针复核] /tmp/probe_mp.cpp m1（C cast 取址）/m2（显式
+    //   引用模板实参 make_pair<unsigned long&,int&> + *(unsigned long*)& 解引用）
+    //   两形产物**逐条全同**（add $0x4,%eax; mov %eax,%edx；call 符号同为
+    //   make_pairIRmRiE）⇒ 取址 lowering 系 4.1↔4.4 代差（N107 同族），源形不可择；
+    //   ORIG 0x083580e9 单条 lea 为 4.1 独有形 ⇒ 封 N18a。
     int count = 0;
     for (std::map<int, std::map<int, BaseItemValue> >::iterator outerIt =
              ((CDataManagerBaseItemView*)this)->m_baseItemInfo.begin();
@@ -330,11 +342,13 @@ public:
             dungeon = m_dungeonList->find_dungeon(stageIdx);
             if (dungeon == 0)
             {
-                cMyTrace trace(
-                    __PRETTY_FUNCTION__,
-                    0x254b, 5);
-                trace("[Load Map] Not exist dungeon. [Index:%d] filename : [%s]",
-                      stageIdx, filename);
+                // [l5f 2026-09-11 · P221 落地] 全表达式临时链：ORIG 该 cMyTrace
+                // 临时占浅槽 -0x44（深区具名对象整体下沉 0x10）；两语句具名形令
+                // 4.4 把它排到最深槽 -0x3dc 并顶起全部深区对象。
+                // 实测：NEAR(317/317) → AE(317/317)，TU near 1→0 / ae 165→166。
+                cMyTrace(__PRETTY_FUNCTION__, 0x254b, 5)
+                    ("[Load Map] Not exist dungeon. [Index:%d] filename : [%s]",
+                     stageIdx, filename);
                 return 0;
             }
 

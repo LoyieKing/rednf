@@ -1,1 +1,1 @@
-int CQuickPartySystemManager::check_match_proper_party(
+ENUM_ERROR CQuickPartySystemManager::check_match_proper_party(

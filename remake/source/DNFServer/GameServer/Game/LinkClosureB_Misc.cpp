@@ -28,6 +28,12 @@
 #include "CAdvanceAltarLog.h" // advanceAltarstatistics_
 #include "advancealtar.h"    // advancealtar::HistoryLog（advanceAltarstatistics_ 类静态成员声明）
 
+// [L3FLinkClosureQuickParty 2026-09-11] §6.5.1 串直证：ORIG PF 串
+// `void WongWork::EventATI::ArrangeATIEventItem(memberIdentificationNumber_t, unsigned int)`
+// / EventMuz 同构，类型名**无限定** ⇒ typedef 必须在全局作用域（先例
+// DB_Login.cpp:89 / CGuildServerProxy.cpp:151）。= unsigned int，mangled 不变。
+typedef unsigned int memberIdentificationNumber_t;
+
 // ---------------------------------------------------------------------------
 // WongWork::DBCommon::GetIdentity —— ORIG T 0x083f9ad4（报告 DBCommon/GetIdentity.md）
 // seLect @@identity → exec(true)/fetch/get_uint(0)；任一步失败返回 0。
@@ -119,12 +125,18 @@ namespace WongWork {
 // ---------------------------------------------------------------------------
 namespace WongWork {
 
-struct EventATI
+// [L3FLinkClosureQuickParty 2026-09-11] §6.5.1 串直证：ORIG 的 Event 族 PF 串无
+// static（`void WongWork::EventATI::ArrangeATIEventItem(memberIdentificationNumber_t,
+// unsigned int)`），而 ORIG 里另有 22 条 `static void NS::Class::method(...)` 串
+// （实证 `static void DB_LogBuyItem::makeRequest(...)`）⇒ GCC 会给静态成员打印
+// static。ORIG 的 Event 族是 **namespace**（非 class 静态成员）。改后 mangled 不变、
+// 调用写法不变、PF 串去 static。Check*/Update* 不用 __PRETTY_FUNCTION__ ⇒ 无串影响。
+namespace EventATI
 {
-    static int CheckAlreadyGetATIItem(unsigned int uid, int itemNo);
-    static void UpdateEventATIInfo(unsigned int uid, int itemNo);
-    static void ArrangeATIEventItem(unsigned int mid, unsigned int serverId);
-};
+    int CheckAlreadyGetATIItem(unsigned int uid, int itemNo);
+    void UpdateEventATIInfo(unsigned int uid, int itemNo);
+    void ArrangeATIEventItem(memberIdentificationNumber_t mid, unsigned int serverId);
+}
 
 // CheckAlreadyGetATIItem —— ORIG T 0x083f9f2e (size 0xd9)
 // [b28d-D9] 修复：P46 叶块序：case1 写于 case2 前（交换后 .o AE 96/96）（ORIG 0x083f9f2e sz 0x0000017f）
@@ -224,7 +236,19 @@ struct EventATI
         return;
     }
 
-    unsigned int rows[10][4];      // [dbId, stackCount?, itemId, flag]
+    // [L3FLinkClosureQuickParty 2026-09-11] P311 反向（同族先例 WongWorkEvents_A
+    // ArrangeFCComboEventItem）：ORIG 每列寻址是两步 `shl $0x4; lea -0x8(%ebp);
+    // lea (%ebx,%edx,1); sub $K; mov`（4.1 不折 scaled）；二维 `unsigned int[10][4]`
+    // 会被 4.4 折成 `mov %eax,-0x100(%ebp,%edx,8)`（每处少 2 条）。struct 行数组
+    // 复现 ORIG 形态。
+    struct Entry
+    {
+        unsigned int m_id;         // [0] +0x00 id
+        int          m_characNo;   // [1] +0x04 item_charac_no / avata_charac_no
+        int          m_itemNo;     // [2] +0x08 item_no / avata_no
+        int          m_flag;       // [3] +0x0c 恒 1
+    };
+    Entry rows[10];
     int count = 0;
     // P283/P164：ORIG for 底部条件布局 + unsigned 尾测（seta）。
     for (unsigned int scanned = 0;
@@ -251,30 +275,30 @@ struct EventATI
         db->get_int(0xc, avataCheck2);
 
         // P171：ORIG 无 count<10 防御（照抄越界语义），存储序 [0],[2],[3],[1]。
-        if (itemCheck == 0 && itemServerId == static_cast<int>(serverId))
+        if (itemCheck == 0 && itemServerId == serverId)
         {
-            rows[count][0] = static_cast<unsigned int>(rowId);
-            rows[count][2] = static_cast<unsigned int>(itemNo);
-            rows[count][3] = 1;
-            rows[count][1] = static_cast<unsigned int>(itemCharacNo);
+            rows[count].m_id = static_cast<unsigned int>(rowId);
+            rows[count].m_itemNo = itemNo;
+            rows[count].m_flag = 1;
+            rows[count].m_characNo = itemCharacNo;
             ++count;
         }
-        if (avataServerId == static_cast<int>(serverId))
+        if (avataServerId == serverId)
         {
             if (avataCheck1 == 0)
             {
-                rows[count][0] = static_cast<unsigned int>(rowId);
-                rows[count][2] = static_cast<unsigned int>(avataNo1);
-                rows[count][3] = 1;
-                rows[count][1] = static_cast<unsigned int>(avataCharacNo);
+                rows[count].m_id = static_cast<unsigned int>(rowId);
+                rows[count].m_itemNo = avataNo1;
+                rows[count].m_flag = 1;
+                rows[count].m_characNo = avataCharacNo;
                 ++count;
             }
             if (avataCheck2 == 0)
             {
-                rows[count][0] = static_cast<unsigned int>(rowId);
-                rows[count][2] = static_cast<unsigned int>(avataNo2);
-                rows[count][3] = 1;
-                rows[count][1] = static_cast<unsigned int>(avataCharacNo);
+                rows[count].m_id = static_cast<unsigned int>(rowId);
+                rows[count].m_itemNo = avataNo2;
+                rows[count].m_flag = 1;
+                rows[count].m_characNo = avataCharacNo;
                 ++count;
             }
         }
@@ -282,9 +306,9 @@ struct EventATI
 
     for (int i = 0; i < count; ++i)
     {
-        UpdateEventATIInfo(rows[i][0], static_cast<int>(rows[i][2]));
-        EventCommon::InsertEventItem2EventTable(rows[i][1], rows[i][2],
-                                                rows[i][3], 2);
+        UpdateEventATIInfo(rows[i].m_id, rows[i].m_itemNo);
+        EventCommon::InsertEventItem2EventTable(rows[i].m_characNo, rows[i].m_itemNo,
+                                                rows[i].m_flag, 2);
     }
 }
 
@@ -295,12 +319,13 @@ struct EventATI
 // ---------------------------------------------------------------------------
 namespace WongWork {
 
-struct EventMuz
+// [L3FLinkClosureQuickParty 2026-09-11] 同 EventATI：ORIG Event 族为 namespace。
+namespace EventMuz
 {
-    static int CheckAlreadyGetMuzItem(unsigned int uid, int itemNo);
-    static void UpdateEventMuzInfo(unsigned int uid, int itemNo);
-    static void ArrangeMuzEventItem(unsigned int mid, unsigned int serverId);
-};
+    int CheckAlreadyGetMuzItem(unsigned int uid, int itemNo);
+    void UpdateEventMuzInfo(unsigned int uid, int itemNo);
+    void ArrangeMuzEventItem(memberIdentificationNumber_t mid, unsigned int serverId);
+}
 
 // CheckAlreadyGetMuzItem —— ORIG T 0x083fb047 (size 0xba)
 #include "LinkClosureB_Misc/CheckAlreadyGetMuzItem.inc"
@@ -355,7 +380,17 @@ struct EventMuz
         return;
     }
 
-    unsigned int rows[10][4];
+    // [L3FLinkClosureQuickParty 2026-09-11] P311 反向（同 ArrangeATIEventItem）：
+    // struct 行数组复现 ORIG 每列两步寻址（`shl $0x4; lea -0x8(%ebp); lea; sub $0xd0/
+    // $0xd4/$0xd8`）；二维数组会被 4.4 折 scaled。
+    struct Entry
+    {
+        unsigned int m_id;         // [0] +0x00 id
+        int          m_characNo;   // [1] +0x04 item_charac_no
+        int          m_itemNo;     // [2] +0x08 item_no
+        int          m_itemCnt;    // [3] +0x0c item_cnt
+    };
+    Entry rows[10];
     int count = 0;
     // P283/P164：ORIG 为 for 底部条件布局（fetch 在体内、get_n_rows 在尾条件），
     // 且 scanned 为 unsigned（尾测 seta）。
@@ -373,23 +408,22 @@ struct EventMuz
         db->get_int(4, itemCheck);
         db->get_int(5, itemCnt);
 
-        if (itemCheck == 0 &&
-            static_cast<int>(itemServerId) == static_cast<int>(serverId))
+        if (itemCheck == 0 && itemServerId == serverId)
         {
             // ORIG 存储序 [0],[2],[3],[1]（-0x30/-0x3c/-0x44/-0x38 实证）。
-            rows[count][0] = static_cast<unsigned int>(rowId);
-            rows[count][2] = static_cast<unsigned int>(itemNo);
-            rows[count][3] = static_cast<unsigned int>(itemCnt);
-            rows[count][1] = static_cast<unsigned int>(itemCharacNo);
+            rows[count].m_id = static_cast<unsigned int>(rowId);
+            rows[count].m_itemNo = itemNo;
+            rows[count].m_itemCnt = itemCnt;
+            rows[count].m_characNo = itemCharacNo;
             ++count;
         }
     }
 
     for (int i = 0; i < count; ++i)
     {
-        UpdateEventMuzInfo(rows[i][0], static_cast<int>(rows[i][2]));
-        EventCommon::InsertEventItem2EventTable(rows[i][1], rows[i][2],
-                                                rows[i][3], 5);
+        UpdateEventMuzInfo(rows[i].m_id, rows[i].m_itemNo);
+        EventCommon::InsertEventItem2EventTable(rows[i].m_characNo, rows[i].m_itemNo,
+                                                rows[i].m_itemCnt, 5);
     }
 }
 
@@ -512,7 +546,13 @@ CAdvanceAltarLog advancealtar::HistoryLog::advanceAltarstatistics_;  // ORIG B 0
                                                     int raritySize,
                                                     double controlRarity)
 {
-    // ORIG 为两条 mov 直拷（无 fld/fstp 中转）⇒ 声明与赋值分两句。
+    // ORIG 为两条 mov 直拷（无 fld/fstp 中转、无中间临时槽 ⇒ 帧少 0x10）。
+    // [L3FLinkClosureQuickParty 2026-09-11] 负结论：五形实测均无法消除 4.4 的
+    // double 拷贝中转（均为 214→221/218 或与声明+赋值形同）：①`double factor =
+    // controlRarity;` ②`const double factor = controlRarity;` ③P246/P180 u64 别名
+    // 位拷贝（221，多 lea/mov 对）④`__builtin_memcpy(&factor,&controlRarity,8)`
+    // （221，退化为 memcpy 调用序）⑤`*(double*)&factor = *(const double*)&controlRarity;`
+    // （218）。⇒ N85 封顶（4.4 对 double 局部拷贝恒 `mov→临时槽 + fld/fstp`）。
     double factor;
     factor = controlRarity;                      // ebp+0x18/0x1c 双槽载入
     // P59/P257 正向包裹：ORIG `test; je <mov $0 尾块>`，成功路径 mov $1 fall-through。

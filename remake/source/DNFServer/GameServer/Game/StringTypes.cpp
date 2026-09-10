@@ -253,6 +253,12 @@ static WideStringData* s_emptyWideStringData =
 
 #include "StringTypes/getHash.inc"
 {
+    // [L4e 2026-09-11 · 负结论：38/39，残余＝回边 jmp 后 1 条 `nop`] ORIG 0x08ad6c7c
+    // `cmpl $0,-0x14(%ebp)` 直接紧随 0x08ad6c7a `jmp`（无填充）。根因＝后端版本行为：
+    // 同形最小复现 /tmp/exp/t1.cpp(-m32) 在 cc1plus 4.4.4/4.4.6/4.4.7 均生成该 nop，
+    // c5root GCC 4.1.2 同源输出无 nop 且逐条全等；8 个候选旗标（-fno-exceptions/
+    // -falign-loops=1/-fno-reorder-blocks/…）无一消除 ⇒ 源码层不可修；整 TU 换 4.1.2
+    // 亦不可行（HashMap.h 等 4.4-only 语法编译失败）。
     // [b28d-solo-StringTypes] verdict=AE：残差仅 N112 循环出口对齐 nop（§6.1 豁免）。
     // [b28d-34] AE（compare_tu 口径，ndiff 2→0）：残差仅 4.4 循环出口 nop 填充
     // （4.1 无；-falign-loops=1/-fno-align-jumps 实测无效）⇒ §6.1 对齐 nop 豁免；
@@ -854,8 +860,8 @@ CharString& CharString::operator=(char src)
     // 4.4 复现三要素：① 变量必须是 **bool**（uchar 时 while 恒 setne 物化，bool 才
     // `cmpb;jne` 直跳）；② 头部守卫写「`if (x) {} else { 整个循环块 }`」（反置空 then
     // ⇒ `cmpb;jne` 直跳；写 `if (!x)` 触发 4.4 bool 取反 xor 物化 N122）；③ 条件写
-    // `(x = !x)`（产 ORIG 的 xorb 就地异或）。残余仅 1 字节局部/指针局部的槽位分配
-    // 序差（OURS -0x21/-0x15 vs ORIG -0x19/-0x11）⇒ P112/N82 族，指令数与助记符全等。
+    // `(x = !x)`（产 ORIG 的 xorb 就地异或）。原残余的槽位分配序差（-0x21/-0x15 vs
+    // ORIG -0x19/-0x11）已由下方「槽序归零组合旋钮」归零（compare_tu 口径 near→ae）。
     if (stringVector.empty())
     {
         return CharString();
@@ -863,58 +869,68 @@ CharString& CharString::operator=(char src)
     const char* separatorStrSrc = separator.c_str();
     int separatorStrLen = separator.length();
     int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    // [R22] ORIG 0x08ad9268/0x08ad9348 两遍扫描各带一个 runOnce bool 守卫
-    // （movb $0,-0x19 / -0x11 → 循环头 cmpb+jne 跳过 → 条件段 xorb $1 取反），
-    // 内层 while(runOnce){...; runOnce=false;} 只跑一次。照抄该形状。
-    bool token_runOnce = false;
-    if (token_runOnce)
+    // [L4e 2026-09-11 · NEAR→AE：槽序归零组合旋钮] ① newData/newDataBuf 顶层**声明**
+    // 提前到首个 runOnce 之前（赋值留原位）；② 两个 runOnce bool 移入各自块内。
+    // 单做①会整体平移 4B（更差），必须与②同做 ⇒ GCC4.4 槽序＝ORIG：newData -0x24 /
+    // newDataBuf -0x20 / bool1 -0x19(槽 -0x1c) / token1 -0x18 / bool2 -0x11(槽 -0x14)。
+    CharStringData* newData;
+    char* newDataBuf;
     {
-    }
-    else
-    {
-        std::vector<CharString>::const_iterator it = stringVector.begin();
-        std::vector<CharString>::const_iterator itEnd = stringVector.end();
-        while (it != itEnd && (token_runOnce = !token_runOnce))
+        // [R22] ORIG 0x08ad9268/0x08ad9348 两遍扫描各带一个 runOnce bool 守卫
+        // （movb $0,-0x19 / -0x11 → 循环头 cmpb+jne 跳过 → 条件段 xorb $1 取反），
+        // 内层 while(runOnce){...; runOnce=false;} 只跑一次。照抄该形状。
+        bool token_runOnce = false;
+        if (token_runOnce)
         {
-            const CharString& token = *it;
-            while (token_runOnce)
+        }
+        else
+        {
+            std::vector<CharString>::const_iterator it = stringVector.begin();
+            std::vector<CharString>::const_iterator itEnd = stringVector.end();
+            while (it != itEnd && (token_runOnce = !token_runOnce))
             {
-                totalLength += token.length();
-                token_runOnce = false;
+                const CharString& token = *it;
+                while (token_runOnce)
+                {
+                    totalLength += token.length();
+                    token_runOnce = false;
+                }
+                it++;
             }
-            it++;
         }
     }
     if (totalLength == 0)
     {
         return CharString();
     }
-    CharStringData* newData = CharStringData::createTerminated(totalLength);
-    char* newDataBuf = newData->getBuffer();
-    bool token_runOnce2 = false;
-    if (token_runOnce2)
+    newData = CharStringData::createTerminated(totalLength);
+    newDataBuf = newData->getBuffer();
     {
-    }
-    else
-    {
-        std::vector<CharString>::const_iterator it2 = stringVector.begin();
-        std::vector<CharString>::const_iterator itEnd2 = stringVector.end();
-        while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
+        bool token_runOnce2 = false;
+        if (token_runOnce2)
         {
-            const CharString& token = *it2;
-            while (token_runOnce2)
+        }
+        else
+        {
+            std::vector<CharString>::const_iterator it2 = stringVector.begin();
+            std::vector<CharString>::const_iterator itEnd2 = stringVector.end();
+            while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
             {
-                if (separatorStrLen >= 1 && it2 != stringVector.begin())
+                const CharString& token = *it2;
+                while (token_runOnce2)
                 {
-                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
-                    newDataBuf += separatorStrLen;
+                    if (separatorStrLen >= 1 && it2 != stringVector.begin())
+                    {
+                        memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
+                        newDataBuf += separatorStrLen;
+                    }
+                    int tokenLength = token.length();
+                    memcpy(newDataBuf, token.c_str(), tokenLength);
+                    newDataBuf += tokenLength;
+                    token_runOnce2 = false;
                 }
-                int tokenLength = token.length();
-                memcpy(newDataBuf, token.c_str(), tokenLength);
-                newDataBuf += tokenLength;
-                token_runOnce2 = false;
+                it2++;
             }
-            it2++;
         }
     }
     return CharString(newData);
@@ -1053,6 +1069,9 @@ CharString& CharString::operator=(char src)
 
 #include "StringTypes/getHash_1.inc"
 {
+    // [L4e 2026-09-11 · 负结论：38/39，残余＝回边 jmp 后 1 条 `nop`] ORIG 0x08ad9cd2
+    // `cmpl $0,-0x14(%ebp)` 直接紧随 0x08ad9cd0 `jmp`（无填充）；根因同 CharString::getHash
+    // （4.4.x 循环尾 nop / GCC 4.1.2 无，8 旗标无效）⇒ 源码层不可修。
     // [b28d-solo-StringTypes] verdict=AE：残差仅 N112 循环出口对齐 nop（§6.1 豁免）。
     // [b28d-34] AE（同 CharString::getHash，nop 豁免）。ORIG 0x08ad9c74。
     // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
@@ -1630,7 +1649,7 @@ WideString& WideString::operator=(wchar_t src)
 {
     // [R22 2026-09-10] DIFF(gap=-30) → NEAR 200=200：同 CharString::join 的 runOnce
     // 守卫复现（ORIG 0x08adc34e/0x08adc42e）。残余为 1 字节局部槽位分配序差
-    // （P112/N82 族，指令数与助记符全等）。
+    // （P112/N82 族）已由下方「槽序归零组合旋钮」归零（compare_tu 口径 near→ae）。
     if (stringVector.empty())
     {
         return WideString();
@@ -1638,56 +1657,65 @@ WideString& WideString::operator=(wchar_t src)
     const wchar_t* separatorStrSrc = separator.c_str();
     int separatorStrLen = separator.length();
     int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    // [R22] 同 CharString::join（ORIG 0x08adc34e/0x08adc42e 两遍 runOnce 守卫）。
-    bool token_runOnce = false;
-    if (token_runOnce)
+    // [L4e 2026-09-11] 同 CharString::join：newData/newDataBuf 顶层声明提前 + 两个
+    // runOnce bool 移入各自块 ⇒ 槽序复现 ORIG（newData -0x24 / newDataBuf -0x20 /
+    // bool1 -0x19 / token1 -0x18）。
+    WideStringData* newData;
+    wchar_t* newDataBuf;
     {
-    }
-    else
-    {
-        std::vector<WideString>::const_iterator it = stringVector.begin();
-        std::vector<WideString>::const_iterator itEnd = stringVector.end();
-        while (it != itEnd && (token_runOnce = !token_runOnce))
+        // [R22] 同 CharString::join（ORIG 0x08adc34e/0x08adc42e 两遍 runOnce 守卫）。
+        bool token_runOnce = false;
+        if (token_runOnce)
         {
-            const WideString& token = *it;
-            while (token_runOnce)
+        }
+        else
+        {
+            std::vector<WideString>::const_iterator it = stringVector.begin();
+            std::vector<WideString>::const_iterator itEnd = stringVector.end();
+            while (it != itEnd && (token_runOnce = !token_runOnce))
             {
-                totalLength += token.length();
-                token_runOnce = false;
+                const WideString& token = *it;
+                while (token_runOnce)
+                {
+                    totalLength += token.length();
+                    token_runOnce = false;
+                }
+                it++;
             }
-            it++;
         }
     }
     if (totalLength == 0)
     {
         return WideString();
     }
-    WideStringData* newData = WideStringData::createTerminated(totalLength);
-    wchar_t* newDataBuf = newData->getBuffer();
-    bool token_runOnce2 = false;
-    if (token_runOnce2)
+    newData = WideStringData::createTerminated(totalLength);
+    newDataBuf = newData->getBuffer();
     {
-    }
-    else
-    {
-        std::vector<WideString>::const_iterator it2 = stringVector.begin();
-        std::vector<WideString>::const_iterator itEnd2 = stringVector.end();
-        while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
+        bool token_runOnce2 = false;
+        if (token_runOnce2)
         {
-            const WideString& token = *it2;
-            while (token_runOnce2)
+        }
+        else
+        {
+            std::vector<WideString>::const_iterator it2 = stringVector.begin();
+            std::vector<WideString>::const_iterator itEnd2 = stringVector.end();
+            while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
             {
-                if (separatorStrLen >= 1 && it2 != stringVector.begin())
+                const WideString& token = *it2;
+                while (token_runOnce2)
                 {
-                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
-                    newDataBuf += separatorStrLen;
+                    if (separatorStrLen >= 1 && it2 != stringVector.begin())
+                    {
+                        memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
+                        newDataBuf += separatorStrLen;
+                    }
+                    int tokenLength = token.length();
+                    memcpy(newDataBuf, token.c_str(), tokenLength * sizeof(wchar_t));
+                    newDataBuf += tokenLength;
+                    token_runOnce2 = false;
                 }
-                int tokenLength = token.length();
-                memcpy(newDataBuf, token.c_str(), tokenLength * sizeof(wchar_t));
-                newDataBuf += tokenLength;
-                token_runOnce2 = false;
+                it2++;
             }
-            it2++;
         }
     }
     return WideString(newData);

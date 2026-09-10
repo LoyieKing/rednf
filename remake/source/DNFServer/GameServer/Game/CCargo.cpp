@@ -596,6 +596,16 @@ ZERO_AA:
 // 实测 (int) / (int)(unsigned int) / P226 语句表达式三形均无效。语义全等，byte 层 N 封顶。
 #include "CCargo/MakeItemList.inc"
 {
+    // [L5 R2 2026-09-11] 返回类型 int→bool 已落（Main 授权）：头 CUserCharacInfo.h:308 +
+    // 本件签名 + 尾 `return true;`。直证：ORIG 定义 0x0850bee2 尾 `mov $0x1,%eax`（无 setcc）；
+    // 调用点 CUser::send_itemspace 0x0865dc1a `call` → 0x0865dc1f `xor $0x1,%eax;
+    // test %al,%al; je`（P292）。返回类型不入 mangled、sizeof/offsetof 零影响。
+    // 本体残余：orig 184 / our 185（gap +1）——唯一多出条为 0x0850bf41 处
+    // `mov %eax,%edx`（value 中转）：ORIG `mov 0xc(%ebp),%edx; mov %eax,0x4(%esp);
+    // mov %edx,(%esp)`，4.4 对 `put_short(GetCapacity())`（unsigned 返回值 × int 形参）
+    // 走「值先入 edx」；同函数 `put_short(GetItemCount())`（int 返回值）与 ORIG 逐条同形。
+    // GetCapacity 不可改 int（CUser.cpp:10586 `sig->m_cargoCapacity=...` 需 unsigned 同型直存）。
+    // 已试 3 形无效：(int) cast / (int)(unsigned int) / P226 语句表达式 ⇒ P321 T5 记 N。
     // [b28d-solo-CCargo] P183：ORIG 无 buf 具名指针（每处 `mov 0xc(%ebp),%eax` 直用
     // 形参）；P0：无 world 局部（`call G_GameWorld; mov %eax,(%esp); call IsEnchant…`
     // 右值内联），且正极性 `if (IsEnchantRevisionChannel())`（ORIG `test; je <m_fieldd>`）。
@@ -635,7 +645,7 @@ ZERO_AA:
         }
     }
     ((InterfacePacketBuf*)packet)->finalize(true);
-    return 1;
+    return true;
 }
 
 // [b28d-solo-CCargo] AE（fresh 190=190；compare_tu clean 口径）——if/else 交换：

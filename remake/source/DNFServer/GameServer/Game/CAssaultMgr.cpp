@@ -605,6 +605,8 @@ CAssaultMgr* GetInstanceAssaultMgr()
     // 短整 cast、语句表达式、*&、receiver cast、具名 receiver、前置掩码上下文）
     // 4.4 全产 this-first；callee 返回类型旋钮不可用（CUser.h 冻结头）。
     // ORIG 同 TU SendUserState 同表达式无 hop（ORIG 自身分裂两形）。
+    // [S6 2026-09-11 复核] p167 CALLSITE CLEAR（7/7 无差集）；`GetUserState()` 返回
+    // int、`put_byte(int)` 同型（无窄化转换可借）⇒ 维持 N7 判词，零改动。
     p->put_header(0, 3);
     p->put_byte(1);
     p->put_short(user->get_unique_id() & 0xffff);
@@ -1207,6 +1209,11 @@ EMPTY:
 //   `j*4+k`：ORIG `mov j,%edx; mov k,%eax; shl $2,%edx; lea (%edx,%eax,1),%eax` vs 4.4
 //   `mov j,%eax; shl $2,%eax; add k_mem,%eax`（add-vs-lea，P30/N4/N102；八形探针全败）⇒ N。
 //   ORIG 0x082e6386。
+// [S6 2026-09-11 复核] 清单所指「缺 `CDisposition::C1Ev` 调用」= **C1/C2 同址别名假缺口**
+//   （非语义）：ORIG 调用点 0x082e62b9 → callee 0x082f1052（14B，体只写 vptr 0x8c1d1c8）；
+//   我方同位置 call 重定位到 `_ZN11pvp_assault12CDispositionC2Ev`，本 .o 内 C1Ev/C2Ev
+//   皆 0x0e 字节弱符号**同址别名** ⇒ 运行/布局等价；p167 差集 CLEAR（余项仅 C1/C2、
+//   D1/D2 别名）。改动前后 158/157、ndiff 17 不变 ⇒ 判 N（无源码旋钮）。
 #include "CAssaultMgr/CStaticDisposition.inc"
 {
     // b28d-solo-CAssaultMgr: N 封顶（P30/N4/N102 族；清单 DIFF 98 复验）— 用
@@ -1296,6 +1303,16 @@ EMPTY:
 #include "CAssaultMgr/CAssaultPlaceFactory.inc"
 #include "CAssaultMgr/dtor_CAssaultPlaceFactory.inc"
 
+// [S6 2026-09-11] 本 TU 三件伴生/假缺口判词（均零改动、无源码旋钮）：
+//  ① `StaticPool<CAssaultPlace,128>::CNode::~CNode`（ORIG 0x082f13e8，19B）：ORIG
+//     `sub $0x18,%esp`（4.1 保守帧基）vs 4.4 `sub $0x4,%esp`；助记符序与条数全等
+//     （NEAR 8=8）⇒ 帧大小不受源侧控制（加 dead 局部会多 store，反劣）⇒ 判 N82。
+//  ② `deque<CNode*>::_M_push_back_aux<CNode* const&>`（ORIG 0x082f3cc0，129B=41 条）
+//     **无** EH 段；我方 61 条含 `__cxa_begin_catch`/`_Unwind_Resume` 清尾（+20，gap −20）
+//     ⇒ 4.1 out-of-line STL 实例差异，判 N89 封顶。
+//  ③ `_Z41__static_initialization_and_destruction_0ii`：工具**按符号名跨 TU 错配**
+//     （ORIG 该符号有 493 个实例，工具取首个 0x0807ee76 属 PacketTypes）⇒ 逐 TU 读数
+//     不可比、我方 ioinit 16 条形态正确 ⇒ 零改动跳过。
 #include "CAssaultMgr/AcquireAssaultPlace.inc"
 {
     return m_pool.Acquire();
@@ -1483,6 +1500,7 @@ CAssaultPlaceFactory* GetInstanceAssaultPlaceFactory()       // ORIG 0x82f0fa9
     // 同双参重载：ORIG 0x82e8c5a+0x0a9 `call GetUserState; mov %eax,%edx;
     // mov packet,%eax; ...`（73 条）vs 4.4 this-first（72 条）——单条
     // %eax↔%edx 角色互换，语义等价。探针矩阵同双参件（/tmp/probe_mus*.cpp）。
+    // [S6 2026-09-11 复核] 同判词：p167 CALLSITE CLEAR（12/12）⇒ N7，零改动。
     // ORIG 0x82e8c5a +0x0b：`movl $0,-0x14; movl $0,-0x10` 双清零在前、
     // get_index 覆写 index 在后（dead init 照抄 P171，与 MakeView 同法）。
     packet->put_header(0, 3);

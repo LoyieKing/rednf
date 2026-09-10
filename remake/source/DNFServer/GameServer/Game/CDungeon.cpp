@@ -361,6 +361,22 @@
     //   改前/改后四数逐值相同，零回退）。
     // .h 改动已 R2 广播（S273 同步）；CDungeon/STDungeonScript/CParty/DisPatcherCore/
     // CGameManager/BattleMonsterDepsC2/CPartyDepsB2/CPartyOnlyOrig/PartyClosureC2 全复验零回归。
+    // [L6S2 收尾复核 · §6.2 三件套（2026-09-11）]
+    //  ①gap：ORIG 803~804 vs our 802；唯一来源 = 0x0834b15c `jmp 0x0834b15f` +
+    //    0x0834b15e `nop`（4.1 if-else 汇聚岛：失败路 `je 0x0834b15e` 落 nop、成功路
+    //    体尾 jmp 跳岛回循环条件 0x0834b15f）——§6.4 属「ORIG 有我方无」命中，判 N112。
+    //  ②p167：本 TU .o 逐 call 目标**真差集 = 0**；报告所列 MISSING/EXTRA 全部为
+    //    C1/C2、D1/D2 同址别名伪差（P93；nm 实证同址：cMyTrace 0x0854f718、pairIiiE
+    //    0x081b5c8e、pairIKiiE 0x082faac0、pairIKiSt6vector 0x083895fc、
+    //    _Rb_tree_const_iterator 0x08389550、D1/D2 0x08376d12/0x08376cfc）。
+    //  ③帧/槽：sub $0x2bc 两侧全等；深区（≥ -0x8c：nameBuf -0x29c、totalRate、迭代器
+    //    组…）槽位全等；残差仅中间区 4B（trace -0x84 vs -0x88、rit -0x74 vs -0x78、
+    //    p -0x70/-0x6c vs -0x74/-0x70）——该区对象数我方比 ORIG 少 1 个 4B 槽
+    //    （我方 -0x88 为空洞；4.4 把 cMyTrace(16B)+end(4B)+pair(8B) 自 -0x84 起连续
+    //    排布，ORIG 自 -0x88 起），pad0/pad1 死局部只推动深区 ⇒ N82/N93 族。
+    //  ⇒ 判「语义完成、byte 层 N112 + N82/N93 封顶」。
+    //  [L6S2 同轮修复] logFormat 第三参改 __PRETTY_FUNCTION__（P139，0x0834b126 直证，
+    //    与 0x0834ad91 首个 trace 块同一 _ZZ…E19__PRETTY_FUNCTION__ 符号 0x8c34980）。
     // ORIG 0x0834acc4：从脚本复制全部字段（顺序按 ORIG 汇编）
     m_index = script.m_18;
     m_standardLevel = script.m_ac;
@@ -443,9 +459,13 @@
             m_clearItemMap.insert(std::pair<const int, int>(totalRate, p.first));
             if (totalRate > 100)
             {
+                // [L6S2 · P139 直证] ORIG 0x0834b126 `movl $&_ZZN8CDungeon11set_dungeon
+                // ER15STDungeonScriptE19__PRETTY_FUNCTION__,0x8(%esp)`——与本函数首个
+                // trace 块 0x0834ad91 同一符号（0x8c34980）⇒ 第 3 参是
+                // __PRETTY_FUNCTION__（局部静态符号），旧译手写串既不生成该符号、
+                // 也走匿名 .rodata（符号差集 + §6.5 内容盲区）。
                 LogManager::logFormat(
-                    1, "data_manager.cpp",
-                    "void CDungeon::set_dungeon(STDungeonScript&)", 0x5e1,
+                    1, "data_manager.cpp", __PRETTY_FUNCTION__, 0x5e1,
                     "total_rate(%d) > 100", totalRate);
                 goto copy_rest;
             }
@@ -569,6 +589,12 @@ copy_rest:
     //（f+1 / +=1 / 1+f / (ushort)cast / register int / register ushort）一致 ⇒ 封顶。
     // [b28d-solo-CDungeon2 复验] fresh 编译仍唯一残差；T1 直证 movzwl/mov %dx ⇒ 宽度
     // 确定（unsigned short），残差仅 add-vs-lea ⇒ 按 P321-T5 禁改类型，N18a 封顶。
+    // [L6S2 复验] 真实旗标 4.4.7 下 12 形探针（/tmp/L6S2_probe/pr_incr.cpp f1..fc：
+    // `+1` / `+=1` / `++` / `(ushort)(x+1)` / `(ushort)(x+1u)` / 具名 uint 中转 /
+    // 具名 ushort / register ushort / `1+x` / 具名 int 中转 / static_cast 双段 /
+    // `(ushort)((unsigned)x + 1u)`）全部产 `lea 0x1(%eax),%edx` ⇒ ORIG
+    // `add $0x1,%eax; mov %eax,%edx` 两段（4.1 独有）不可复现，封顶维持。
+    // p167 4=4 CLEAR（C1/C2 别名已核）。
     m_data.m_enterCount = m_data.m_enterCount + 1;
     m_data.m_lastEnterLayer = m_data.m_lastEnterLayer + 1;
     m_data.m_lastEnterTime = GlobalData::s_systemTime_.getCurSec();
@@ -742,6 +768,13 @@ struct Packet_TowerOfDespair_Statistic_GTS
     //（elem -0x24 vs -0xc、i -0xc vs -0x10、r -0x10 vs -0x14、vector -0x20 vs -0x24；
     // 4.1 块内变量占浅槽 / 4.4 占深槽，N82/N93 族；声明序三变体 + elem 循环内声明
     // 实测均不可翻）。调用点差集/槽位集逐条核对成立。
+    // [L6S2 复验] 真实旗标 4.4.7 穷举 24 种声明排列 ×｛块内, 函数头｝共 48 形
+    //（探针 /tmp/L6S2_probe/pr_rand2.cpp，解析 analyze_rand.py）：vec 与 i/r 可对上
+    // ORIG（v30-v35/v38-v47：vec -0x24、i -0x10、r -0xc），但 elem 恒落 -0x18/-0x24
+    //（ORIG -0xc）且 push_back 实参临时恒落 -0x14（ORIG -0x18）⇒ 4.4 把指针类对象
+    // 与整型标量分区分配、ORIG 单列混排（4.1 声明序连续槽 -0x24..-0xc 全对齐），
+    // 声明序不可达 ⇒ N82/N98 槽图封顶，勿再试。
+    // 另：p167 18=18 差异全为 C1/C2、D1/D2 同址别名（P93，nm 实证无真缺口）。
 	// ORIG 0x0834d06c：唯一迷宫直返；否则按 [m_partyCountMin, m_partyCountMax]
 	// 收集候选；候选唯一/随机取，空则全表随机。
 	if (m_mazeList.size() == 1)
@@ -1143,24 +1176,32 @@ advancealtar::ClearRewardData& advancealtar::ClearRewardData::operator=(
     const ClearRewardData& other)
 {
     // [b28d-solo-CDungeon 判词 · N18a 封顶] ORIG 0x08376c9c / our 27（ORIG 28，
-    // gap 1）；p167 1=1 CLEAR。语义已按 ORIG 修正（--n 前置测试只拷前 2 个元素，
-    // P171 照抄）；指针步进 do-while（esi=dst/ebx=src 各 +0xc、edi=2 递减到 -1、
-    // `setne/test/jne`）；声明序 dst/n/src 对齐 ORIG 装载序（esi→edi→ebx）。
+    // gap 1）；p167 1=1 CLEAR。指针步进循环（esi=dst/ebx=src 各 +0xc、edi=2 递减
+    // 到 -1、`setne/test/jne`）；声明序 dst/n/src 对齐 ORIG 装载序（esi→edi→ebx）。
     // 残余唯一：ORIG `mov 0x8(%ebp),%eax; mov %eax,%esi` 被 4.4 折成单条
-    // `mov 0x8(%ebp),%esi`（单段 regmove 不可造）。本轮再试 `&m_vec[0]` 形仍折
-    // 单段；g1-g6/h1-h6 十二形探针（语句表达式/整型-void*-char* 中转/具名引用）+
-    // register 存储类保留均不可翻 ⇒ N18a。[b28d-solo-CDungeon2 复验] fresh 编译
-    // 仍唯一残差；根因归 N102（结构首成员数组 m_vec@+0 退化取址，4.4 恒折单条
-    // disp），不再试形。
+    // `mov 0x8(%ebp),%esi`（单段 regmove 不可造）。g1-g6/h1-h6 十二形探针
+    // （语句表达式/整型-void*-char* 中转/具名引用）+ register 存储类保留均不可翻
+    // ⇒ N18a。[L6S2 复验] 真实旗标 4.4.7 下再试四形 `(T*)(unsigned int)m_vec` /
+    // `(T*)(void*)this` / `(T*)((unsigned int)(void*)this + 0u)` / `&m_vec[0]`
+    // （探针 /tmp/L6S2_probe/pr_assign.cpp，CRD/CRD2/CRD3/CRD4/CRD5）全部仍折单条
+    // ⇒ 封顶；根因 N102（结构首成员数组 m_vec@+0 退化取址）。
+    // [L6S2 语义修正 · 真 bug] ORIG 0x08376cb2 `jmp 0x08376cc9` 的目标 = `cmp
+    // $0xffffffff,%edi` 本身（+0x2d），递减 `sub $0x1,%edi` 在 0x08376cc6（+0x2a）
+    // 即**循环体尾** ⇒ 原码是「尾递减」形 `while (n != -1) { …; --n; }`：edi=2 起
+    // 每轮体尾递减，体执行 3 次、拷贝 m_vec[0]/[1]/[2] 全部 3 个元素。旧译
+    // `while (--n != -1)` 把递减放进条件 ⇒ jmp 目标 = sub（+0x28）⇒ 体只执行
+    // 2 次、m_vec[2] 永不赋值 = 运行行为缺失（非 byte 轴、不受闸门约束）。
+    // 探针 /tmp/L6S2_probe/pr_loop.cpp：旧形 jmp→sub(+0x28)/2 次；新形
+    // jmp→cmp(+0x6b)、sub 在体尾/3 次，与 ORIG 逐形一致。
     register std::vector<advancealtar::_RewardItem>* dst = m_vec;
     register int n = 2;
     register const std::vector<advancealtar::_RewardItem>* src = other.m_vec;
-    // ORIG 0x08810d8a 为 `--n != -1` 前置测试 while：n=2 只拷贝 2 个元素（P171 照抄）。
-    while (--n != -1)
+    while (n != -1)
     {
         *dst = *src;
         ++dst;
         ++src;
+        --n;
     }
     return *this;
 }

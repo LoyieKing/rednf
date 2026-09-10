@@ -528,6 +528,11 @@ force_reset_end:;
 // 的版本常数 N115/N126）②实参先于 this 装载（ORIG `mov -0x2c(%ebp),%ebx;
 // call getCurCharacQuestR; add $0x4,%eax` vs 4.4 后读）③N107 成员偏移取址
 // add-vs-lea。P277 具名 receiver 形实测更劣（槽再深 4）⇒ 保持当前形。
+// [L5cBattleMonAch 2026-09-11] ④resetIds 移到 if 之外（ORIG 0x0828d235/0x0828d23c
+// 两条 movl 在 get_charac_level 调用**之前**无条件发射；原写在 if 内使 4.4 把
+// 初始化排在等级判断之后）⇒ 发射序与 ORIG 逐条对齐、our_insns 186→185=ORIG。
+// 余差仍为 ①②③（N82/N95 槽基 +8 平移 + P75 实参装载时刻），N 封顶；语义等价
+// （p167 calls 全等，仅寄存器/槽号差）。
 #include "CAchievement/_verifyAchievement.inc"
 {
     // ORIG 0x828d09e：不缓存 elements 引用，begin 一次、end 每次循环重新取
@@ -579,9 +584,11 @@ force_reset_end:;
         }
     }
 
+    // ORIG 0x0828d235/0x0828d23c：resetIds 两条 movl 在 get_charac_level 调用**之前**
+    // 发射（无条件初始化）⇒ 数组声明在 if 之外。
+    const unsigned int resetIds[2] = { 0x1983, 0x198b };
     if (m_user->get_charac_level() <= 0x45)
     {
-        const unsigned int resetIds[2] = { 0x1983, 0x198b };
         for (int i = 0; i <= 1; ++i)
         {
             _forceReset(resetIds[i]);
@@ -612,6 +619,15 @@ force_reset_end:;
 // slot@-0x24、category@-0x28、i@-0x14；&category/&slot 实参槽序经 0x0828cbb6
 // 段核对）。余下残差仅 N7 寄存器角色（isClearedQuest/find_quest 的 ebx↔edx
 // 缓存互换、movzwl 目标寄存器）+ N107 取址形。
+// [L5cBattleMonAch 2026-09-11 复测] 168=168 保持。两处机器差经 ORIG 地址复核：
+//  ①循环内 isClearedQuest 段 ORIG 0x0828c9eb `mov -0x20(%ebp),%ebx` 在 receiver
+//    call **之前**（P52 callee-saved 独占），4.4 恒后读入 %edx；语句表达式形已试
+//    无效（前端折叠）。
+//  ②三段 movzwl（ORIG 0x0828ca77..0x0828ca89 目标 %ebx/%ecx/%edx）4.4 为
+//    %ecx/%edx/%eax（同一台档位偏 1，因循环内 %ebx 占用情形不同）。
+//  ⇒ N7 寄存器角色 + P75 实参装载时刻，N 封顶（语义等价；《_Z41__static_init》为
+//  工具跨 TU 错配假缺口：本 TU 自身实例已用 objdump 按 ORIG 0x830e3db 核实 = 纯
+//  ioinit 形，零改动）。
 #include "CAchievement/adjust.inc"
 {
     // ORIG 0x828c97d：questIdx/achievementIdx 循环外预初始化（movl $0 序列）
@@ -802,6 +818,9 @@ force_reset_end:;
 //（ORIG GetServerGroup→edi、subject.c_str→esi、getCurCharacNo→ebx vs 4.4
 //  →esi/→ebx/→edi；74 条长度/助记符全等，无虚调用，实参求值序相同）。
 // P248 三档类型旋钮不适用（无 store 序/类型差）；本 TU 已路由 4.4.6 后端仍不翻。
+// [L5cBattleMonAch 2026-09-11 复测] 75/76 保持 NEAR；逐条核对仅上述三处寄存器
+// 角色差（其余含 0x24/0x20/0x18/0x14/0x10/0xc/0x8 压参序、字符串实参来源全等），
+// 无可行源码旋钮 ⇒ N7/N109 封顶。
 // ORIG 0x0828c152。
 #include "CAchievement/_sendPostal.inc"
                                std::string subject)

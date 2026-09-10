@@ -26,6 +26,18 @@
 //    `movl $N,0x8(%esp)` ⇒ N 封顶（P238 实参变体，无源形）；UpdateQueryCounter 的
 //    nop/尾岛；RegisterQuery 槽分区（N95/N82，槽集合两侧全等）；IncreaseQueryCount
 //    残余槽差 -0x1c↔-0x18（CStreamGuard 对象区）。
+// [2026-09-11 本轮 L2Free4to15.S2MailBoxQueryCounter 逐件核（ORIG 按 nm 精确切片）]:
+//  · UpdateQueryCounter gap +2 → **+1**（149/150）：按 P283 把 for 改
+//    `goto query_loop_cond` 尾条件形，复现 ORIG 0x85ecfb6 `begin()` 后
+//    `sub $0x4,%esp; jmp <条件块>; nop` 的 4.1 底部条件布局；残余 = 槽整体浅 4
+//    （-0x20 vs -0x1c）+ 另一处 `jmp;nop` 中继岛（N82/N121）。
+//  · IncreaseQueryCount（P0）：`m_current=it->second` 拆具名 `cur` 局部并让后半段
+//    `cur->second` 访问（ORIG 085eccxx `mov %eax,-0x14(%ebp)` + 后续
+//    `lea -0x14(%ebp),%eax` 做 operator-> this），残余槽差 -0x18 vs -0x1c 与
+//    ORIG 的 `jmp;nop` 尾岛（N82/N121）。
+//  · LoadQueryTable / SaveQuery：残余仅 `memset` 长度经 %edx 中转 1 条（N238，
+//    前波 4 形探针已证）与 trace 段块序（N104）；RegisterQuery：gap 0，残余为
+//    trace 对象槽 -0x64 vs ORIG -0x18 与实参装载顺序（P75/N95）。
 #include "CQueryCounter.h"
 
 // [T2 最后 1 条 · P338] ORIG 本 TU 有 GI `_GLOBAL__I_query_table`
@@ -456,17 +468,24 @@ const char* query_table[341] = {
     }
     else
     {
-        m_current = it->second;
+        // [2026-09-11] P0：ORIG 0x85eccxx `mov %eax,-0x14(%ebp);
+        // mov -0x14(%ebp),%edx; mov %edx,0x34(%eax)`（值先落具名槽再写成员）
+        // ⇒ 原码有具名 iterator 局部；4.4 直传 `mov %eax,0x34(%edx)` 少 2 条。
+        std::map<int, QUERY_INFO>::iterator cur = it->second;
+        m_current = cur;
         // [G5 2026-09-10 P167] ORIG 0x085ecc5e 调用差集：我方多 1×
         // `_ZNKSt17_Rb_tree_iteratorISt4pairIKiN13CQueryCounter10QUERY_INFOEEEptEv`。
         // 实测 `(*m_current).second` 形反劣（换出 +3 deEv 且 ORIG 需 ptEv×2）⇒ 维持
         // `->` 形；试后置自增（P38 反向：`= x+1` 单语句 SAVE_EXPR 合并成单次 ptEv，
         // 拆/`++` 形可出第二处访问）。
-        if (m_current->second.count == 0)
+        // [2026-09-11] 后半段 ORIG 用**局部** -0x14 做 operator-> this
+        // （`lea -0x14(%ebp),%eax; mov %eax,(%esp); call ptEv`），非
+        // `mov 0x8(%ebp),%eax; add $0x34,%eax`（成员取址 2 条）⇒ 后续访问走 cur。
+        if (cur->second.count == 0)
         {
             m_totalQueryCount = m_totalQueryCount + 1;
         }
-        m_current->second.count++;
+        cur->second.count++;
     }
 }
 
@@ -482,8 +501,12 @@ const char* query_table[341] = {
     **guard << m_totalQueryCount;
     // [b28d-62] P28 增量侧：ORIG 增量段调 operator++(int)（后置，带独立 sret
     //   临时槽）⇒ 源形必写 `it++`（`++it` 走 ppEv 免临时槽）。
-    for (std::map<int, QUERY_INFO>::iterator it = m_queryInfoMap.begin();
-         it != m_queryInfoMap.end(); it++)
+    // [2026-09-11] P283：ORIG 0x85ecfb6 `begin()` 后 `sub $0x4; jmp <条件块>`
+    // （4.1 的 for 底部条件布局 + nop 填充岛），4.4 恒条件置顶 ⇒ 用
+    // goto 尾条件形复现。
+    std::map<int, QUERY_INFO>::iterator it = m_queryInfoMap.begin();
+    goto query_loop_cond;
+query_loop_body:
     {
         int qid = it->first;
         int count = it->second.count;
@@ -495,6 +518,10 @@ const char* query_table[341] = {
             **guard << response;
         }
     }
+    it++;
+query_loop_cond:
+    if (it != m_queryInfoMap.end())
+        goto query_loop_body;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     Reset();
 }

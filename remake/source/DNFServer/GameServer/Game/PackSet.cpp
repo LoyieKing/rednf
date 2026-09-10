@@ -811,6 +811,10 @@ IndexEntry& IndexEntry::operator=(const IndexEntry& rhs)
     //   `er = equal_range(...)` 初始化式被 4.4 折叠，缺 C1Ev 与临时槽。
     // ②ORIG 无 code 预清（直接 `call _hash; mov %eax,-0x40`）⇒ 原码 `hash_t code;`
     //   无初始化（P171 照抄不写）。
+    // [2026-09-11 L2Free4to15.S4 复核] fresh .o：orig=180 our=180、gap=0、AE ndiff=**0**
+    //   （clean 口径全等）；strict 残差全部为「.o 未解析本地 call 标签」
+    //   （`call <_ZN7PackSet4findEPKc+0x15>` vs 链接后符号名，N124）⇒ AE 即 .o 阶段上限，
+    //   p167 CALLSITE 仅 C1/C2·D1/D2 同址别名。无需再改。
     hash_t code;
     IndexEntry dummy;
     std::pair<index_vector_it, index_vector_it> er;
@@ -860,6 +864,8 @@ find_cond:
     // const_iterator（ORIG 0x08ac4d43/0x08ac4dbb 两处 call
     // `__normal_iterator<const pair*>::C1<__normal_iterator<pair*>>` 转换构造，
     // nm 实证 @0x08ac7ce4）⇒ P96/P270 非 const 形；旧形全 const 使 4.4 直接位拷贝。
+    // [2026-09-11 L2Free4to15.S4 复核] fresh .o：orig=192 our=192、gap=0、AE ndiff=**0**、
+    //   p167 仅 C1/C2·D1/D2 同址别名（strict 残差 = .o 本地 call 标签，N124）⇒ 达 .o 上限。
     hash_t code;
     IndexEntry dummy;
     std::pair<index_vector_it, index_vector_it> er;
@@ -1155,6 +1161,9 @@ find_const_cond:
     //   地址装载 vs 4.4 `mov $A,%edx; mov (%edx),%edx`（非 volatile 会被折成
     //   `cmp $-1`）；b) fread 实参装载序（P75：ORIG 先 fp 后 fileSize，4.4 先把
     //   fileSize 载 %eax 再丢弃）——两处净差 1 条 mov。
+    // [2026-09-11 L2Free4to15.S4] fresh .o 复核：orig=438 / our=439、gap=−1、ndiff **6**。
+    //   试形：`*&tstring::npos`（去 volatile）⇒ 4.4 折 `cmp $<A>,%eax`（our 437、npos 降级
+    //   为立即数）而 ndiff 不变 ⇒ 回滚维持 volatile 取址形。残余 a/b 两项均 N 封顶。
     index_vector_it it;
     unsigned int idxHdrSize;        // -0x54：索引头区大小
     hash_t idxHdrCrc;               // -0x58：头 CRC（checksum/key）
@@ -1257,6 +1266,10 @@ find_const_cond:
                 // b28d-solo-PackSet（P304 同族）：ORIG `mov &_ZNSs4nposE,%edx;
                 // cmp %edx,%eax` 为内存装载 npos；4.4 把 npos 折成立即数 ⇒
                 // `*&` 强制取址装载。
+                // [2026-09-11 试形记录] `*&tstring::npos`（去 volatile）虽消掉取址中转、
+                //   但 4.4 折成 `cmp $<A>,%eax`（1 条）——比 ORIG 的 2 条
+                //   （`mov <A>,%edx; cmp %edx,%eax`）**少** 1 条且 npos 语义降级为
+                //   立即数；ndiff 不变（6）而 ours 438→437 ⇒ 回滚维持 volatile 取址形。
                 if (it->second.name().find(".ani", 0) !=
                     *reinterpret_cast<volatile tstring::size_type const*>(&tstring::npos))
                 {
@@ -1295,6 +1308,9 @@ find_const_cond:
     //   -0x6c、bufferSize -0x48、size_file -0x3c、proc_count -0x38…），4.4 按
     //   首次使用序紧密分配（contentSize -0x74、bufferSize -0x50…）⇒ 全帧槽号
     //   整体深 8、帧 0xac vs 0xcc。contentSize 声明位置两形实测均不翻 ⇒ 封顶。
+    // [2026-09-11 L2Free4to15.S4] fresh .o 复核：orig=628 / our=634、gap=−6、ndiff **254**
+    //   —— 254 行中仅 1 行为真 insert（fread(buff_file,size_file,1,fp) 实参装载序，P75），
+    //   其余全是整体深 8 的槽号 replace（首槽基址常数 = N126/N82，非源级可翻）。
     index_vector_it it;
 
     if (!is_ready())
@@ -1478,6 +1494,9 @@ find_const_cond:
     //   +0x82d 共享块（`if(fp) fclose` + 双判空 delete[] + `mov $1,%ebx`），
     //   4.4 -O0 恒内联各失败路径（我们多 3 条 mov $1,%ebx、少共享块 2×cmpl/je
     //   与 jmp）。显式 goto 尾标签（+内层块）实测劣化槽位（ndiff 41/127）⇒ 保持内联。
+    // [2026-09-11 L2Free4to15.S4] fresh .o 复核：orig=528 / our=526、gap=+2、ndiff **32**
+    //   —— 32 行 = 4 处 `return PACK_ERROR` 未 tail-merge（我方各多 `mov $1,%ebx`、
+    //   ORIG 共享块 2×`cmpl/je`+被跳过段）。属 N121（4.4 不合并条件尾块），非源级可翻。
     FILE* fp = 0;
     int accumOffset;                // -0x14（ORIG 在 sort 之后才清零）
     long sz;                        // -0x10

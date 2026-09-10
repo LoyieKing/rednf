@@ -32,6 +32,28 @@
 //   · ARAD::SCRIPT::AvatarConvert::loadScript NEAR：N7 寄存器角色（路由 446 后端已启用）。
 //   · `_ZNSt20__uninitialized_copyILb0EE…move_iterator…` 实例：N89 库头族。
 // ----------------------------------------------------------------------------
+// [L3-b 2026-09-11 本波核账] 四数 102/182/1/5 不变（4 件仍封顶），落地 4 项：
+//   · 串轴真 bug（Convert）：ORIG 0x08192ca5（makeRequest 第3参）与
+//     0x08192d2c/0x08192d34（insert_event_items 的 PKc/PKc）三条立即数都是
+//     0x8b9a913 = .rodata 空串 ""（前两条 0x8b9a912/0x8b9a913 连续 NUL）；
+//     旧源码发明 "AVATAR CONVERT" ⇒ 已改 `(char*)""` 与 `"", ""`。
+//   · Convert 三个 codegen 试形（实测读数，非推断）：
+//     ② `insertSlot` 具名局部内联 ⇒ 4.4 发 ORIG 同形的 `shr $0x1f,%eax;
+//        test %al,%al`（消 `mov %eax,槽; cmpl $0,槽; jns` 槽往返）；
+//     ③ 三个 `int`（slotIdx/slotOut/extra）的 `=0` 清零点移到 `s` 物化之后
+//        （ORIG 0x08192df4 先 begin()/const_iterator 拷贝构造，0x08192e21 才清）⇒
+//        归一 diff 191→188 行；④ `isRechargeStone` 去具名 bool（P183）⇒ 188→181；
+//     ⑤ `if (resultItem->is_stackable()){…} else {FAIL0}` 正向包裹 ⇒ 消 `xor $1`
+//        物化且 FAIL0 后置，与 ORIG 0x08192940 `test %al,%al; je 0x08192a30` 同形
+//        ⇒ 181→**171**（单本件累计 217→171，our 604→602）。
+//   · 回滚（负结论）：cMyTrace 三实参（charac_no/m_slot/m_selectNo）具名前置
+//     ⇒ our 603→609 且归一 diff 188→190（4.4 -O0 具名局部走栈槽，复现不了
+//     ORIG 0x08192f13..0x08192f30 的 ebx/edi/esi 跨 ctor 保活）⇒ N 族。
+//   · 其余残差全为 4.4/4.1 族：帧差（原 0x14c/我方 0x130）、ORIG 多 `push %edi`、
+//     N18a（`mov 0x4(%eax),%eax; mov %eax,%ebx` 两段装）、4.1 实参升格槽往返
+//     （ORIG 有 / 我方无，如 0x08192xxx `mov %eax,(%stk); mov (%stk),%eax`）、
+//     disp 分解（`mov idx,%edx; add $8,%edx` vs 4.4 `lea 8(%eax),%edx`）。
+// ----------------------------------------------------------------------------
 #include "DNFLexWrapper.h"  // loadRDARScriptFile/unloadRDARScriptFile/ScanType/
                             // ScanInt(bool*)/ScanTypeOrInt（真实符号声明）
 
@@ -489,8 +511,29 @@ namespace SCRIPT
     // stackable 校验通过后才写 m_addInfo2（+0x7，真语义 bug：原实现漏写两字段）。
     Inven_Item newItem;
     newItem.m_addInfo = sig->m_resultItemId;
-    // 结果物品入包（stackable 校验 → make_item → tryInsertItemIntoInventory）
-    if (!resultItem->is_stackable())
+    // [L3-b 试形] ORIG 0x08192940 `test %al,%al; je 0x08192a30`（**无 xor 物化**，
+    // FAIL0 块后置到 0x08192a30、位于 fail1 之后）⇒ 源码是正向 if/else 包裹。
+    if (resultItem->is_stackable())
+    {
+        newItem.m_addInfo2 = sig->m_resultCount;
+        resultItem->make_item(newItem);      // vtable slot2
+        // P0/P160：ORIG 无 invW 具名局部——5 处使用点各自重新取
+        // user->getCurCharacInvenW()（p167 差集 MISSING×4）。
+        // [L3-b 试形] ORIG 0x08192a24 `shr $0x1f,%eax; test %al,%al; jne` 直判返回值
+        // （无 insertSlot 具名局部，亦无 `mov %eax,槽; cmpl $0; jns` 往返）⇒ 内联。
+        if (user->getCurCharacInvenW()->tryInsertItemIntoInventory(newItem) < 0)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 4);
+            LogManager::logFormat(
+                1, "localjapan/Arad_EmblemReformServer.cpp",
+                __PRETTY_FUNCTION__,
+                0x329,
+                "AVATAR CONVERT : tryInsertItemIntoInventory() fail [item_id:%d] [charac_no:%d]",
+                sig->m_resultItemId, (unsigned int)user->getCurCharacNo());
+            return false;
+        }
+    }
+    else
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
         LogManager::logFormat(
@@ -498,23 +541,6 @@ namespace SCRIPT
             __PRETTY_FUNCTION__,
             0x322,
             "AVATAR CONVERT : is_stackable() fail [item_id:%d] [charac_no:%d]",
-            sig->m_resultItemId, (unsigned int)user->getCurCharacNo());
-        return false;
-    }
-    newItem.m_addInfo2 = sig->m_resultCount;
-    resultItem->make_item(newItem);          // vtable slot2
-    // P0/P160：ORIG 无 invW 具名局部——5 处使用点各自重新取
-    // user->getCurCharacInvenW()（p167 差集 MISSING×4）。
-    int insertSlot =
-        user->getCurCharacInvenW()->tryInsertItemIntoInventory(newItem);
-    if (insertSlot < 0)
-    {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 4);
-        LogManager::logFormat(
-            1, "localjapan/Arad_EmblemReformServer.cpp",
-            __PRETTY_FUNCTION__,
-            0x329,
-            "AVATAR CONVERT : tryInsertItemIntoInventory() fail [item_id:%d] [charac_no:%d]",
             sig->m_resultItemId, (unsigned int)user->getCurCharacNo());
         return false;
     }
@@ -551,8 +577,10 @@ namespace SCRIPT
     user->getCurCharacInvenW()->SendAvatarEvent(0x36, (int)uiId,
                                                 (int)(unsigned short)sig->m_slot + 10,
                                                 5, 0);
+    // [L3-b 串轴] ORIG 0x08192ca5 立即数 0x8b9a913（.rodata 空串 ""）⇒
+    // makeRequest 第3参是空串，非 "AVATAR CONVERT"（原实现发明串）。
     DB_UpdateAvatarHistory::makeRequest(user->getCurCharacNo(), (int)uiId,
-                                        (char*)"AVATAR CONVERT");
+                                        (char*)"");
 
     // 结果物品经事件发放 + 通知包
     std::vector<std::pair<int, int> > items;
@@ -560,9 +588,11 @@ namespace SCRIPT
     // ORIG 0x08192cf2：make_pair<unsigned long&, short&>（两成员均为左值，
     // 字段 m_resultItemId 为 unsigned long）→ pair<int,int> 转换构造。
     items.push_back(std::make_pair(sig->m_resultItemId, sig->m_resultCount));
+    // [L3-b 串轴] ORIG 0x08192d2c/0x08192d34 两条均 0x8b9a913（空串 ""）⇒
+    // insert_event_items 的 PKc/PKc 两实参为空串。
     int retSlots = user->getCurCharacInvenW()->insert_event_items(
         items, outSlots, eMoneyAddReason(0), eItemAddReason(10), false,
-        "AVATAR CONVERT", "AVATAR CONVERT");
+        "", "");
 
     PacketGuard packet;
     packet.clear();
@@ -575,11 +605,14 @@ namespace SCRIPT
     // b29（判据⑫，ORIG 0x08192e21/0x08192e28/0x08192e2f 三条 `movl $0x0,-0x28/-0x24/-0x20`）：
     // 三个具名 int 局部（=0 声明）在循环前，循环内赋值（原来在循环内声明 ⇒ clr_l 0 vs 3、
     // 帧少 0xc）。
+    // [L3-b 试形] ORIG 0x08192df4/0x08192e0c 先物化 s（begin() sret -0x70 →
+    // const_iterator 拷贝构造到 -0xb4），三条 `movl $0x0` 在其**之后**
+    // （0x08192e21..0x08192e2f）⇒ s 的初始化点先于三个 int 的声明（P212）。
+    std::vector<int>::const_iterator s = outSlots.begin();
     int slotIdx = 0;
     int slotOut = 0;
     int extra = 0;
-    for (std::vector<int>::const_iterator s = outSlots.begin();
-         s != outSlots.end(); s++)
+    for (; s != outSlots.end(); s++)
     {
         slotIdx = *s;
         packet.put_short(slotIdx);
@@ -589,9 +622,12 @@ namespace SCRIPT
         s++;
         extra = *s;
         packet.put_int(extra);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x368, 0);
+        // [L3-b 试形·回滚] ORIG 0x08192f13..0x08192f30 先算 charac_no(→ebx)、
+        // sig->m_slot(→edi)、sig->m_selectNo(→esi)，**再** call cMyTrace ctor
+        // （0x08192f51），三值跨 ctor 无槽保活。试「三值具名局部前置」实测：
+        // our 603→609 且归一 diff 188→190 行（4.4 -O0 对具名局部一律发栈槽往返，
+        // 复现不了 4.1 的 callee-saved 保活）⇒ 回滚，ORIG 该段形态属 N 族。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x368, 0);
         trace("AVATAR CONVERT : success [slot:%d] [selectNo:%d] [resultIdx:%d] "
               "[charac_no:%d]",
               (int)(unsigned short)sig->m_slot,
@@ -602,11 +638,13 @@ namespace SCRIPT
     user->Send(packet);
     // b28c-9 已把原成员 m_script 改为首个非主基类（ARAD::SCRIPT::AvatarRecharge
     // 落 +0x04），此处改走基类引用（ORIG 0x08190200 布局：+0x00 vptr / +0x04 脚本体）。
-    bool isRechargeStone =
+    // [L3-b 试形] ORIG 0x0819300x `call IsEmblemRechargeStone; test %al,%al; je`
+    // 直判返回值，无具名 bool 槽往返（P0/P183）⇒ 表达式内联。
+    StatisticsAvatarDisjoint(
+        item,
         static_cast<ARAD::SCRIPT::AvatarRecharge&>(
             *ARAD::Singleton<AvatarRechargeServer>::Get())
-            .IsEmblemRechargeStone(sig->m_resultItemId);
-    StatisticsAvatarDisjoint(item, isRechargeStone ? 1 : 0);
+            .IsEmblemRechargeStone(sig->m_resultItemId) ? 1 : 0);
 
     // ORIG 0x0819301d：统计实参复用 items（无独立 created vector——
     // p167 EXTRA 的 vector<pair> C1Ev/D1Ev + push_back 即该多建对象）。

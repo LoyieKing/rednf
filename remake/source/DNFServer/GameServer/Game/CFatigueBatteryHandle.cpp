@@ -81,6 +81,10 @@ public:
 {
     // [b28d-solo-CFatigueBatteryHandle] verdict = N1 封顶（跨版本常量折叠），
     // 非 identical 唯一成因；语义等价（下标恒等），p167 CLEAR（0 call，gap=1）。
+    // [L6S4 round5b 复核] 读数维持 20/19；新探针 /tmp/l6s4b/probe_n.o `_Z3limPK1Ti`
+    // 逐条复现我方形（`lea 0x7(%eax),%edx` 单步），ORIG 0x084a84dd 为
+    // `lea -0x1(%eax),%edx; add $0x8,%edx` 两步 —— 4.4 常量折叠不可逆（N1），
+    // 视图/拆形（含 P311 成员数组视图）均不改变索引寄存器的常量拆分 ⇒ 维持封顶。
     // b28d-solo 复证（19 形探针 /tmp/s99/p1.cpp+p2.cpp+p3.cpp，4.4.7 -m32 -O0）：
     // ORIG 尾段 `lea -0x1(%eax),%edx; add $0x8,%edx; movzwl 0x2(%eax,%edx,2),%eax`
     // 为 (level-1)+8 两步；数组下标形（A/B/D/E/G/J/M/N/O/P/Q/R 共 12 形，含
@@ -106,6 +110,9 @@ public:
                                                          int specialCnt)
 {
     // [b28d-solo-CFatigueBatteryHandle] verdict = N82/N112 + 跨版本截断读 封顶。
+    // [L6S4 round5b 复核] 读数维持 46/45（帧 0x48 vs ORIG 0x38、x87 组/truncated
+    // 槽向差、尾部 64 位读截断三条同前）；本次未再叠加新旋钮 —— 声明序/具名
+    // divisor/指针两步赋值八形已由 b28d-solo 穷举（帧回归即多 1 条 mov 装载序反）。
     // 指令序列与 ORIG 逐条同形（imul / movzbl×2 / idivl / fildl×2 / flds / fmulp /
     // fld1 / faddp / fmulp / fnstcw / fldcw / fistpll / fldcw 全等），p167 CLEAR
     // （1 call G_CDataManager 命中）。残差二项，均无语义影响：

@@ -1324,7 +1324,17 @@ L_14_ISLAND1:
 L_14_JOIN:
                 ;
             }
-            if (local_1c > 1)
+            // [S3-W8 2026-09-11] **P285 定案（本件由 DIFF 升 AE）**：ORIG
+            //   086bc036 `jle 086bc096 <+0x1f0>` 落 **nop 岛**（+0x1f0）后直落
+            //   +0x1f1 addl ⇒ if 的 else 岛是尾部第三岛；原正向 `if (local_1c > 1){}`
+            //   被 4.4 折叠成 `jle → addl`（无岛），并使 continue#2 的岛直落 addl
+            //   ⇒ 尾部只有 2 jmp + 2 nop（163 条）vs ORIG 3 jmp + 3 nop（165 条）。
+            //   改**负条件 goto 尾空标签**后：
+            //     +0x1e8 jmp（主路径）、+0x1ea nop 岛（continue#1）→+0x1eb jmp、
+            //     +0x1ed nop 岛（continue#2）→+0x1ee jmp、+0x1f0 nop 岛（本 if 的
+            //     else，jle 目标）直落 +0x1f1 ⇒ 三岛三 jmp 全等，**AE**。
+            if (local_1c <= 1)
+                goto L_24_TAIL;
             {
                 local_18 = local_20 / local_1c;
                 for (local_10 = 0; local_10 <= 5; ++local_10)
@@ -1347,6 +1357,9 @@ L_14_JOIN:
             }
         }
         continue;
+        // 尾部第三岛落点（P285）：空标签即 ORIG 086bc096 nop 岛。
+L_24_TAIL:
+        ;
     }
 }
 
@@ -2838,6 +2851,15 @@ struct stBloodWarGrowTable
                     again = 1;
                 }
             } while (again != 0);
+            // [S3-W8 2026-09-11 负结论 · 封 N] ORIG 089026af `test %ebx,%ebx;
+            //   je 089025b0 <+0x6d>(nop 岛); jmp 089025e6 <+0xa3>` = 3 条；
+            //   4.4 对 `do{}while(again!=0)` 尾条件恒**物化 bool**：
+            //   `test;setne %al;test %al,%al;jne;jmp`（多 2 条）。
+            //   实测两形均劣：①`while (again)`（隐式转换）⇒ setne 不动；
+            //   ②`for(;;){…; if (again==0) break;}` ⇒ setne 消除且 089026af 三条件
+            //   形与 ORIG 全等，但引入 4 条重复 jmp（+0x6e×2 / +0x11b×2，jump-thread
+            //   失效）⇒ our 124→128（gap −1→−5）劣化 ⇒ 已回滚。
+            //   ⇒ 本条 N 封顶（保留 ORIG 指令形证据如上）。
             // [b28d-solo-WarRoom-4 判据④/P223 多岛] ORIG 循环尾两个物理相邻但不同
             //   地址的落点：+0x6a（operator== 假分支）与 +0x6d（do-while again==0）。
             //   两个**不同源**的 goto 跳物理连续尾标签 ⇒ 4.4 不 jump-thread（P223 可造形）。
@@ -2897,7 +2919,12 @@ LOOP_TAIL:
         pg.finalize(true);
         user->Send(pg);
         LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__,
-                              0x976d, "create_room fail: 쟁역 방 생성 실패 ID[%d]\n",
+                              // [S3-W8 2026-09-11 §6.5.1] ORIG 串为 EUC-KR 字节
+                              //   `\xc0\xef\xbf\xaa \xb9\xe6 \xbb\xfd\xbc\xba \xbd\xc7\xc6\xd0`，
+                              //   旧码 UTF-8 直写 ⇒ 二进制字节不符（源仍 UTF-8，用 \xNN 表示）。
+                              0x976d,
+                              "create_room fail: \xc0\xef\xbf\xaa \xb9\xe6 \xbb\xfd\xbc\xba "
+                              "\xbd\xc7\xc6\xd0 ID[%d]\n",
                               room->GetIndex());
         G_CGameManager()->PutWarRoom(room);
         return 0;

@@ -305,7 +305,11 @@ public:
 
     // ---- 发包 ----
     void SendItemLockList() const;
-    int MakeItemList(PacketGuard* packet) const;
+    // [L5 R2 2026-09-11] 返回类型 int→bool（不入 mangled；无 sizeof/offsetof 影响）。
+    // ORIG 定义 _ZNK6CCargo12MakeItemListEP11PacketGuard @0x0850bee2 尾 `mov $0x1,%eax`（无
+    // setcc 归一化）；调用点 CUser::send_itemspace @0x0865dc1a `call` → 0x0865dc1f
+    // `xor $0x1,%eax; test %al,%al; je`（P292）；同族 CInventory.h:701 已 bool 化。
+    bool MakeItemList(PacketGuard* packet) const;
     void MakeItemPacket(PacketGuard* packet, int slot) const;
 
     CUser* m_pParent;       // +0x00
@@ -956,8 +960,13 @@ public:
     void SetCurCharacChaosResponTime(int t);
     int GetCurCharacChaosKillTime();
     void SetCurCharacChaosKillTime(int t);
-    // [K1] ORIG 0x08206bae `call; test %al,%al; je`（无 setne ⇒ bool，P292）。
-    bool GetCurCharacSuperState();
+    // [K1] 消费点 ORIG 0x08206bae `call; test %al,%al; je`——对 uchar 亦兼容（写法 `!=0`/`==0`）。
+    // [L5 R2 2026-09-11] 生产端直证改回 unsigned char：ORIG 本体 0x0822f6f4 段 13 条 =
+    // `movzbl 0xe65(%eax),%eax; jmp`（无 setne 归一化）；bool 声明版 16 条（多 testb/setne，
+    // 因三元 `m_selected ? CUR->m_superState : 0` 走 uchar→bool 归一）。字段 m_superState
+    // 本为 unsigned char（本头 :484）⇒ 同型直返。消费点零影响：L7 实测 Dispatchers.cpp:20680
+    // 保持 `if (user->GetCurCharacSuperState())` 写法时四数 IDENT/AE/NEAR/DIFF 零变化。
+    unsigned char GetCurCharacSuperState();
     void SetCurCharacSuperState(bool flag);
     bool IsCurCharacGhost();           // EXP: bool member+bool return
                                //   （bool 反产规范化岛、int 反产二段 promote）；

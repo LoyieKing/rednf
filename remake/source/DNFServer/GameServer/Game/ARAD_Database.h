@@ -23,6 +23,13 @@ struct SIG_LOGIN_DATA;
 #include "CGuildServerProxy.h"   // CEventBase / Word_Param / CEventManager
 #include "DB_Login.h"            // DB_Login::tagDNFEventEntry / vecDNFEventEntry_t
 
+// [类型轴 · ORIG prett 实串实证 2026-09-11 L1FreeTop12] ORIG .rodata 中
+//   `int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_member_premium(SIG_LOGIN_DATA*, DB_Login::tagDNFEventEntry&,
+//    IntVector&, ARAD::DATABASE::LOGIN_QUERY::vecPremiumRemoveInfo_t)`
+// 第 3 参打印为**裸** `IntVector&`（非展开的 std::vector<int>&）⇒ ORIG 源码在全局作用域有该 typedef。
+// 本仓原缺失（全仓仅有 CUserOnlyOrig.cpp 的同名手写 prett 串，无定义冲突）。
+typedef std::vector<int> IntVector;
+
 namespace ARAD
 {
 
@@ -35,51 +42,55 @@ static const unsigned int sourceJewelSize = 0xf03;      // 珠宝快照长度
 static const unsigned int sourceEquipSize = 0x2dc;      // 装备区快照长度
 static const unsigned int sourceCreatureSize = 0x184e;  // 宠物区快照长度
 
-// ---- CREATE_QUERY：角色创建 DB 写入族（全 static，无 ctor/dtor 符号）----
-class CREATE_QUERY
+// ---- CREATE_QUERY：角色创建 DB 写入族（namespace 自由函数，无 ctor/dtor 符号）----
+// [类型轴 · Main 2026-09-11 授权落] ORIG prett 串无 `static ` 前缀，如
+//   `int ARAD::DATABASE::CREATE_QUERY::arad_sp_charater_name_check(MySQL*, SIG_CREATE_CHARAC*, const char*)`；
+//   4.4.7 探针对照（/tmp/L1_pretty.cpp）：class 内 static 成员打印 `static int ...::f(...)`，
+//   namespace 自由函数打印 `int ...::f(...)` ⇒ ORIG 源码形态为 namespace，非 class+static。
+//   mangled/布局/指令零影响（无实例、无 sizeof、无 ctor/dtor 符号）。
+namespace CREATE_QUERY
 {
-public:
     // 返回 0 成功；-1 失败（同时写 SIG_CREATE_CHARAC +0x5344 错误码）
-    static int arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
-                                           char const* dbName);          // 0x0818ac54
-    static int arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig);        // 0x0818ad8b
-    static int arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* sig);    // 0x0818aea2
-    static int arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig);          // 0x0818af9a
-    static int arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig);        // 0x0818b26d
-    static int arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig);              // 0x0818b2b7
-    static int arad_sp_create_expand_inven(MySQL* db, SIG_CREATE_CHARAC* sig);       // 0x0818b406
-    static int arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig);              // 0x0818b443
-    static int arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig);              // 0x0818b588
-    static int arad_sp_create_pvp(MySQL* db, SIG_CREATE_CHARAC* sig);                // 0x0818b5f4
-    static int arad_sp_create_dungeon_point(MySQL* db, SIG_CREATE_CHARAC* sig);      // 0x0818b638
-    static int arad_sp_create_charac_dungeon(MySQL* db, SIG_CREATE_CHARAC* sig);     // 0x0818b642
-    static int arad_sp_create_charac_quest(MySQL* db, SIG_CREATE_CHARAC* sig);       // 0x0818b68c
-    static int arad_sp_create_npc_relationship(MySQL* db, SIG_CREATE_CHARAC* sig);   // 0x0818b6c9
-};
+    int arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
+                                    char const* dbName);          // 0x0818ac54
+    int arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig);        // 0x0818ad8b
+    int arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* sig);    // 0x0818aea2
+    int arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig);          // 0x0818af9a
+    int arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig);        // 0x0818b26d
+    int arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig);              // 0x0818b2b7
+    int arad_sp_create_expand_inven(MySQL* db, SIG_CREATE_CHARAC* sig);       // 0x0818b406
+    int arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig);              // 0x0818b443
+    int arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig);              // 0x0818b588
+    int arad_sp_create_pvp(MySQL* db, SIG_CREATE_CHARAC* sig);                // 0x0818b5f4
+    int arad_sp_create_dungeon_point(MySQL* db, SIG_CREATE_CHARAC* sig);      // 0x0818b638
+    int arad_sp_create_charac_dungeon(MySQL* db, SIG_CREATE_CHARAC* sig);     // 0x0818b642
+    int arad_sp_create_charac_quest(MySQL* db, SIG_CREATE_CHARAC* sig);       // 0x0818b68c
+    int arad_sp_create_npc_relationship(MySQL* db, SIG_CREATE_CHARAC* sig);   // 0x0818b6c9
+}
 
-// ---- LOGIN_QUERY：登录期账号/惩罚/GoblinPad 查询族（全 static）----
-class LOGIN_QUERY
+// ---- LOGIN_QUERY：登录期账号/惩罚/GoblinPad 查询族（namespace 自由函数）----
+// [类型轴 · 同上] ORIG prett 串无 `static ` 前缀（`int ARAD::DATABASE::LOGIN_QUERY::arad_sp_...`）⇒ namespace 形态。
+namespace LOGIN_QUERY
 {
-public:
     typedef std::vector<int> vecPremiumRemoveInfo_t;
 
-    static int arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* passwd);      // 0x0818b706
-    static int arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data);                // 0x0818bd67
-    static int arad_sp_select_punish_second_user(SIG_LOGIN_DATA* data);              // 0x0818bfb0
-    static int arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data);                  // 0x0818c0e0
-    static int arad_sp_delete_member_mouspass(SIG_LOGIN_DATA* data);                 // 0x0818c609
-    static int arad_sp_update_fail_record(SIG_LOGIN_DATA* data);                     // 0x0818c6c4
-    static int arad_sp_update_history(SIG_LOGIN_DATA* data, int modifyType);         // 0x0818c76f
-    static int arad_sp_check_goblin_reward(SIG_LOGIN_DATA* data, char* sinceTime);   // 0x0818c4f3
-    static int arad_sp_load_event_entry(
+    int arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* passwd);      // 0x0818b706
+    int arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data);                // 0x0818bd67
+    int arad_sp_select_punish_second_user(SIG_LOGIN_DATA* data);              // 0x0818bfb0
+    int arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data);                  // 0x0818c0e0
+    int arad_sp_delete_member_mouspass(SIG_LOGIN_DATA* data);                 // 0x0818c609
+    int arad_sp_update_fail_record(SIG_LOGIN_DATA* data);                     // 0x0818c6c4
+    int arad_sp_update_history(SIG_LOGIN_DATA* data, int modifyType);         // 0x0818c76f
+    int arad_sp_check_goblin_reward(SIG_LOGIN_DATA* data, char* sinceTime);   // 0x0818c4f3
+    int arad_sp_load_event_entry(
         SIG_LOGIN_DATA* data,
         std::vector<DB_Login::tagDNFEventEntry>& out);                               // 0x0818c8b8
-    static int arad_sp_select_member_brodcast(
+    int arad_sp_select_member_brodcast(
         SIG_LOGIN_DATA* data, DB_Login::tagDNFEventEntry& entry, int userIdx);       // 0x0818ca69
-    static int arad_sp_select_member_premium(
+    int arad_sp_select_member_premium(
         SIG_LOGIN_DATA* data, DB_Login::tagDNFEventEntry& entry,
-        std::vector<int>& removeList, std::vector<int> removeScratch);               // 0x0818cc74
-};
+        IntVector& removeList, std::vector<int> removeScratch);                      // 0x0818cc74
+}
 
 } // namespace DATABASE
 

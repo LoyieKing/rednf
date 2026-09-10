@@ -69,15 +69,18 @@
         // `mov -0x10(%ebp),%eax` 新装载）⇒ 维持原序；残余为 N82 块排布族。
         if (d->m_0 == (int)type && d->m_4 == idx)
         {
-            if (d->m_8 > *v)
-            {
-                ++(*v);
-                ++m_count;
-            }
-            else
+            // [L6S2b · P222/P194 块序翻正] ORIG 为 `cmp %eax,%edx; jg <自增块>`
+            // + 失败块 fall-through（0x082ff08d/08f/094：`jg +0xcb` → `mov $0x0,
+            // %eax; jmp 出口`），即否定早返形；旧译 if/else 被 4.4 反产
+            // `jle <失败>` + 自增 fall-through + 多一条 `jmp`（gap −2 的来源）。
+            // 探针 /tmp/L6S2_probe/pr_pol.cpp：f2(`if (m8 <= *v) return 0; ++…`) 产
+            // jg+失败块 fall-through（= ORIG），f1/f3 均产 jle 反形。
+            if (d->m_8 <= *v)
             {
                 return false;
             }
+            ++(*v);
+            ++m_count;
         }
         ++itd;
         ++itv;
@@ -96,15 +99,24 @@
 {
     // ORIG 0x82fef12：Clear 后若 vec 非空，+0x14 存 vec 地址，并对每个
     // 条目：m_flag(+0x00) += 条目 m_8 字段，同时向 m_vec push 一个 0。
+    // [L6S2b · P13 end 缓存] ORIG 在循环外各求值一次 begin()/end()
+    //（0x082fef42..f54 → it@-0x14 / 0x082fef57..f69 → end@-0x18），循环条件只调
+    // `__gnu_cxx::operator!=`（0x082fefc2）；旧译 `it != vec.end()` 每次迭代重调
+    // end()（+3 条/次、临时槽 -0x10 挤占）。语义不变，仅求值次数对齐。
     Clear();
     if (!vec.empty())
     {
         m_pCondVec = &vec;
-        for (std::vector<DungeonClearCondition>::iterator it = vec.begin();
-             it != vec.end(); ++it)
+        std::vector<DungeonClearCondition>::iterator it = vec.begin();
+        std::vector<DungeonClearCondition>::iterator itEnd = vec.end();
+        while (it != itEnd)
         {
-            m_flag += it->m_8;
+            // [L6S2b · P167 调用点判据] p167 在基线 .o 上给出 MISSING
+            // `_ZNK9__gnu_cxx17__normal_iteratorIP21DungeonClearCondition...EdeEv`(−1) +
+            // EXTRA `...ptEv`(+1) ⇒ ORIG 用 `*it`（deEv），旧译 `it->m_8` 走 ptEv。
+            m_flag += (*it).m_8;
             m_vec.push_back(0);
+            ++it;
         }
     }
 }

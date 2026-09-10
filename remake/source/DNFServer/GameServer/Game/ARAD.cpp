@@ -155,6 +155,12 @@ namespace ARAD
 // 旋钮）后槽位与 ORIG 全对齐（idx -0x20 / insert sret -0x28 / .second -0x24）。
 #include "ARAD/parsing.inc"
 {
+    // [L4e 2026-09-11 · 负结论：94/95，残余＝goto 后 1 条 `nop`] ORIG 0x81a2039 `jmp` 直落
+    // 0x81a20b9（无填充），我方同位置多 1 条 nop。根因＝后端版本行为：同形最小复现
+    // /tmp/exp/v20.cpp(-m32) 在 cc1plus 4.4.4/4.4.6/4.4.7 均于循环尾生成 nop，c5root
+    // GCC 4.1.2 同源无 nop 且逐条全等；8 个候选旗标（-fno-exceptions/-falign-loops=1/
+    // -fno-reorder-blocks/…）无一消除 ⇒ 源码层不可修；整 TU 换 4.1.2 亦不可行
+    // （HashMap.h 等 4.4-only 语法编译失败）。串引用差＝未 relink 显示（§6.3 假阳性），已核。
     Arad_Script script;
     if (!script.Load(data, "material_exception_item"))
         return 0x27;
@@ -205,6 +211,9 @@ check:
 // insert sret -0x34 / .second -0x30）。残余仅 4.4 循环对齐 nop（§6.1 豁免）。
 #include "ARAD/parsing_1.inc"
 {
+    // [L4e 2026-09-11 · 负结论：112/113，残余＝goto 后 1 条 `nop`] ORIG 0x81a21d6 `jmp`
+    // 直落 +0x147（无填充），我方同位置多 1 条 nop。根因同上（4.4.x 循环尾 nop，4.1.2 无，
+    // 8 旗标无效）⇒ 源码层不可修。OBJ 未链接的表象（call 目标/串偏移）为 §6.3 假阳性。
     Arad_Script script;
     if (!script.Load(data, "purchase_limit_item"))
         return 0x4c;                  // ORIG 0x81a21ab：Load 失败返 0x4c
@@ -267,6 +276,9 @@ check:
 //（ORIG 0x81a2426 `call GetInt; mov %eax,-0x34` 直存字段）。
 #include "ARAD/parsing_2.inc"
 {
+    // [L4e 2026-09-11 · 负结论：112/113，残余＝goto 后 1 条 `nop`] ORIG 0x81a23f2 `jmp`
+    // 直落 +0x146（无填充），我方同位置多 1 条 nop。根因同上（4.4.x 循环尾 nop，4.1.2 无，
+    // 8 旗标无效）⇒ 源码层不可修；本函数其余逐条全等（含 Data 循环外构造/字段直存）。
     Arad_Script script;
     if (!script.Load(data, "bonus_item"))
         return 0x79;

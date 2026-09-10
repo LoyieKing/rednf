@@ -294,6 +294,67 @@
 //   逐件 TSV：/tmp/CuA..CuE/patch.diff + result.tsv、/tmp/cuser_scan.tsv、/tmp/p167_summary.txt。
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// b28d-L9InterDispatcherCUser 第七轮（2026-09-11 02:05–03:10，6 子代理并行 + 父泳道串行复编核账）
+//   TU 四数 808/1707/5/78（missing 588）→ **808/1712/5/73**（ae +5、diff −5、near 持平、零劣化）。
+//   A. 落地（逐件 ORIG 直证；每件 fresh 复编核账）：
+//      · send_itemspace：外部依赖（L5 落 `CCargo::MakeItemList` int→bool，调用点 ORIG 0x0865dc1f
+//        `xor $0x1,%eax`）⇒ **DIFF→AE**；
+//      · SendOpenflag（F#2）：`put_byte((int)(char)GetOpencoin())` 复现 ORIG 0x08656a3c
+//        `call GetOpencoin; movsbl %al,%eax`（P9/P11）⇒ **DIFF→AE**；
+//      · gainCurCharacFatigue（F#4）：`prefatigue` 声明序前置（P-L11d/P212；ORIG 0x0864f7fe
+//        `movl $0x0,-0x1c(%ebp)` 槽向）⇒ **DIFF→AE**（原 NEAR）；
+//      · GetCurCharacOption（F#6）：裸偏移→具名成员 `getCurCharacR()->m_characterOption`
+//        （P83/P183；ORIG 0x0868f068 `mov %eax,%edx; add $0x12b7,%edx`）⇒ **DIFF→AE**；
+//      · SendNotiPacket（E#4）：case 2 内 `int p = param;` 补回 ORIG 0x0867bc90 具名槽（P0）⇒ **DIFF→AE**；
+//      · WorkPerFiveMin（F#3a/#3b）：两段 packet 的 m_expType store 提到 m_notify 读之前
+//        （P211/P324 语句序）⇒ DIFF→**NEAR**；
+//      · SendPacket（E#1）：if/else 链→`switch((int)target)` 翻正（P258/P305 窄枚举；
+//        ORIG 0x0867b902 决策树）⇒ 差异点 53→**6**（68/68 与 ORIG 齐）—— **旧负结论「switch 恒产跳表
+//        66→24」作废**（该读数与 4.4.6 真实路由不符）；
+//      · reqHumanCertify4ClearMap（E#2）：**语义修复**（符号性轴⑤）—— `0x7ffffffe < key` 按 unsigned
+//        比较（ORIG 0x0868044e `cmp $0x7ffffffe,%eax` + 0x08680453 `jbe`；signed 形仅 x==0x7fffffff
+//        清零 ⇒ 高位/负位模式行为相反）；差异点 102→39；
+//      · get_skill_command_buf（E#3）：`int idx = 0;` 移到 it/itEnd 声明之后（P212 物化点；
+//        ORIG 0x086545e8 在 begin/end 之后）⇒ 差异点 123→110；
+//      · SendLoginToPCRoomServer（D#1）：删具名 `int len` 内联 `pkt.GetLength()`（P0/P183；
+//        ORIG 0x086816a1 call 后无槽）⇒ 121→119；
+//      · UpdateData（D#2）：删 4 个具名 int，直传 `&sig->m_remain{Sp,Sfp}Tree{1,2}`（P0/P183/P329；
+//        ORIG 0x08653621/2f/39/43 四条 `add $0x344/0x340/0x1a4/0x8`）⇒ 1274→1268；
+//      · ReturnToSelectCharacList（D#3）：去具名 receiver proxy，链式内联（P183；
+//        ORIG 0x08687079→0x08687097 无槽写）⇒ 310→308。
+//      · ResetCurCharac / send_equip / deleteDailyStackableItem（L#1–#3）：删具名 characNo 两处内联
+//        （ORIG 0x0865851c `mov %eax,%ebx` 无槽）/ `if (slot != 0x16) return;` → 包裹形（ORIG
+//        0x0865def2 单条 `jmp <+0x1e1>`+nop）/ 末位 `if (m_char3c5 <= 0) continue;` → 包裹形
+//        （ORIG 0x0867e874 `jle <+0x141>` 直跳循环尾）⇒ **三件 DIFF→AE**（TU 808/1715/5/70）。
+//   B. 回滚（负结论已写入函数体注释）：
+//      · removeRentalItemInfoFromInvenBuf（F#5）极性改造：差异点 54→100、140→141 ⇒ 回滚（残差主体是
+//        -0x28 槽块序，非极性）；
+//      · DisConnSig（F#1a/#1b）`(int)(short)GetSlotIDX()`：零变化 494→494 ⇒ 保留但已标注负结论。
+//      · 组 J 五块（add_guild_pvp_result 视图 / RecoverFatigue 取址解引用→值成员 / UpdateCurCharac
+//        expansion[1]→视图 / FatigueUp `*(int*)((char*)this+0x8e064)+=v`→视图）**整体落地后 TU 劣化**
+//        （ae 1712→1711、missing 588→587、四件 verdict 未翻正）⇒ **五块全部回滚**（反向补丁
+//        `/tmp/L9/J/PATCHES_rev.md`，回滚后 808/1712/5/73 复原）。疑点：函数内 pack(1) 视图类型
+//        可能改变符号发射 ⇒ 下一轮须拆块单测（优先 J3/J4），并改为 TU 级视图或既有具名成员形。
+//        【已定位并修复·同一轮】子代理拆块单测 + nm 直证：**只有 J1 劣化** —— v1 把实例类型换成
+//        局部 struct ⇒ 不再发射 `_ZN36Packet_Notice_Guild_War_Point_ChangeC1/C2Ev` 两个 weak ctor
+//        （ORIG 存在 C1）⇒ 符号集偏离（与历史 NoticeHolder 教训同族）。修正版 `/tmp/L9/J/PATCHES2.md`
+//        改为**保留真实类型实例 + pack(1) 视图 cast 成员写**，五块（J1'+J2+J2b+J3+J4）全落地后
+//        **808/1712/5/73 missing 588 零劣化、符号集与基线 0 差异**，且逐件 raw 下降：
+//        add_guild_pvp_result 125→123、RecoverFatigue 336→334、UpdateCurCharac 92→91、FatigueUp 621→619。
+//   C. 报告工具撞名：`_Z41__static_initialization_and_destruction_0ii` 本 TU 读数 47 vs 16 为工具按名
+//      错配（ORIG 该名 493 实例，首个 0x0807ee76 属 PacketTypes）；我方 16 条纯 ioinit 形正确 ⇒ 跳过。
+//   D. 本波 CUser.h 与 .h 类改动：零（唯一涉及的 `CUser.h:1598` CheckBuyableProduct int→bool 由 L6 落）。
+//   E. §6.5 串盲区真修（AE 不可见，按 ORIG .rodata 原字节直证）：
+//      · `SendLoginToPCRoomServer` 的 printf 格式串多尾 `\n`：ORIG 0x0868167d `mov [esp],0x8ceff8c`
+//        ⇒ VA 0x8ceff8c = 文件偏移 0xca7f8c（本串起始），.rodata 原字节以 `m_id:%d\x00` 结束
+//        （**无尾 \n**）⇒ 去 `\n`。同波同 TU 的 `Inter_CutOffCallUserInfo::dispatch_sig` 同型修复在
+//        InterDispatcher 侧（见该文件头部第七轮 E 节）。
+//      · 方法学：新增 `/tmp/L9/str_refs.py <our.o> <ORIG> <mangled>` 逐函数比对「引用串集合」；
+//        rodata ours-only 扫描（本 TU 现已清零）只能抓「ORIG 无此串」。
+//   证据与逐件读数：/tmp/L9/{D,E,F,J,K,L}/RESULT.md、/tmp/{CUser,InterDispatcher}_sizes.tsv。
+// ---------------------------------------------------------------------------
+
 #include <string.h>
 #include <cstdarg>
 #include "TimeLog_.h"      // CUser::LogHistory（ORIG 0x0867c8d8 时间头）
@@ -1233,12 +1294,16 @@ void Character::operator+=(const Character& other)
     {
         // ORIG（CUser::ResetCurCharac 反汇编实证）：characNo = getCurCharacNo()，
         // 然后 getRankTable(i)->unregistBestRecord(characNo)（成员签名，见 CDeathTowerRanking.h）。
-        unsigned int characNo = getCurCharacNo();
+        // [L9-GrpL 2026-09-11 P0/P183 去具名局部] ORIG 0x0865851c 该循环段（报告反汇编
+        //   0x086585xx）为 `call getCurCharacNo; mov %eax,%ebx`（**无 characNo 槽**）→
+        //   `mov -0xc(%ebp),%eax`（循环变量 i 读自 -0xc）→ `mov %ebx,0x4(%esp)`；
+        //   我方具名 `unsigned int characNo` 多占 -0xc 槽、把循环变量 i 顶到 -0x10，
+        //   且每处多 store+load 一对（`mov %eax,-0xc(%ebp)` / `mov -0xc(%ebp),%edx`）；
+        //   段末 `addl $0x1,-0xc` vs 我方 -0x10 亦由此。⇒ 内联实参（ORIG 无该局部）。
         ((WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(i))
-            ->unregistBestRecord(characNo);
-        characNo = getCurCharacNo();
+            ->unregistBestRecord(getCurCharacNo());
         ((WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(i))
-            ->unregistRanking(characNo);
+            ->unregistRanking(getCurCharacNo());
     }
     resetCurCharacSchoolPoint();
     if (getCurCharacR() != 0)
@@ -2236,15 +2301,22 @@ struct SigForbidUserToPlayBody
     }
     else
     {
-        if (slot != 0x16)
-            return;
-        PacketGuard packet;
-        ((InterfacePacketBuf*)&packet)->put_header(0, 2);
-        ((InterfacePacketBuf*)&packet)->put_byte(0);
-        ((InterfacePacketBuf*)&packet)->put_short(1);
-        make_basic_info((char*)&packet, (char)0);
-        ((InterfacePacketBuf*)&packet)->finalize(true);
-        Send(packet);
+        // [L9-GrpL 2026-09-11 尾块跳转合并] ORIG 0x0865def2 全函数**只有一条** `jmp epilogue`
+        //   （`jmp 0865def5 <+0x1e1>` 后跟 `nop`，0x0865def5 即 `add $0x30,%esp`）；
+        //   我方 `if (slot != 0x16) return;` 额外产一条 `jmp +0x1e4`（raw 128 vs ORIG 125，
+        //   尾部 `jmp;nop;jmp;nop` 双岛）⇒ 去掉裸 return，改正向 if 包裹：
+        //   4.4 对 `if (cond) {…}` 恒 `jne <跳过体>`，跳过目标即 else 体出口（不再生成
+        //   return 的跳转指令）。
+        if (slot == 0x16)
+        {
+            PacketGuard packet;
+            ((InterfacePacketBuf*)&packet)->put_header(0, 2);
+            ((InterfacePacketBuf*)&packet)->put_byte(0);
+            ((InterfacePacketBuf*)&packet)->put_short(1);
+            make_basic_info((char*)&packet, (char)0);
+            ((InterfacePacketBuf*)&packet)->finalize(true);
+            Send(packet);
+        }
     }
 }
 
@@ -3081,11 +3153,17 @@ ST_END:;
     // ③ ORIG 0x0864f8ba `mov -0x10(%ebp),%eax; mov -0xc(%ebp),%edx;
     //    lea (%edx,%eax,1),%eax; test %eax,%eax; jns` ⇒ normal 侧**无 sum 具名槽**、
     //    if/else 两分支（我方原三目形产 `sar $0x1f; not; and` 位运算夹取 + 独有槽）。
+    // 2026-09-11 L9GrpF（P-L11d/P212 声明序）：ORIG 0x0864f7fe 帧内
+    //   `movl $0x0,-0x1c(%ebp)`（maxPrefatigue@-0x1c、prefatigue@-0x18），我方对调。
+    //   4.4 -O0 槽向 = 先声明→浅槽 ⇒ 把 prefatigue 声明提前（初始化语句仍留在原处）。
+    //   探针 /tmp/L9/F/pf3.cpp f0(现形)/f1(本形)：f1 与 ORIG 逐条同形（movl $0,-0x1c /
+    //   mov %eax,-0x1c / mov %eax,-0x18 / lea -0x1c→4(%esp) / lea -0x18→(%esp)）。
+    int prefatigue;
     int maxPrefatigue = 0;
     if (m_premium.GetAdvantageFatigueRate() != 0)
         maxPrefatigue = getCurCharacMaxPremiumFatigue() & 0xffff;
 
-    int prefatigue = getCurCharacPremiumFatigue() & 0xffff;
+    prefatigue = getCurCharacPremiumFatigue() & 0xffff;
     // ORIG 0x864f854 调用 std::min<int>(int const&, int const&)（外部函数调用，
     // 非三元/内联）——写显式 std::min<int> 以产出同符号调用点。
     int premiumVal = std::min<int>(prefatigue, maxPrefatigue);
@@ -3280,10 +3358,12 @@ public:
         _Charac_info* curW = getCurCharacW();
         curW->m_field35 = (unsigned short)(
             // dm+0x51c = SPS(+0x68)+0x4b4 = m_weekendBouns4b4.m_bonusFatiguePercent
+            // [L9-C组J PATCH J2] ORIG `movzwl 0x51c(%eax),%eax` 单条 disp；取址+解引用在 4.4
+            //   产 `add $0x51c,%eax; movzwl (%eax),%eax`（多 1 条）⇒ 直接值成员访问
+            //   （字段本为 unsigned short，ServerParameterScript.h:302，读值不变）。
             curW->m_field35
-            + *reinterpret_cast<const unsigned short*>(
-                &G_CDataManager()->m_serverParameter.m_weekendBouns4b4
-                     .m_bonusFatiguePercent));
+            + G_CDataManager()->m_serverParameter.m_weekendBouns4b4
+                  .m_bonusFatiguePercent);
         if (m_premium.GetAdvantageFatigueRate() != 0
             && GetPCRoomNo() != 0)
         {
@@ -3291,9 +3371,8 @@ public:
                 (unsigned short)(
                     (unsigned short)m_premium.GetAdvantageFatigueRate()
                         * DEFAULT_MAX_FATIGUE / 100
-                  + *reinterpret_cast<const unsigned short*>(
-                        &G_CDataManager()->m_serverParameter.m_weekendBouns4b4
-                             .m_bonusFatiguePercent)));
+                  + G_CDataManager()->m_serverParameter.m_weekendBouns4b4
+                        .m_bonusFatiguePercent));
         }
         else
         {
@@ -3667,24 +3746,28 @@ public:
     return 0;
 }
 
+// [L9-GrpE 2026-09-11 探针翻正·P305] ORIG 0x0867b902..0x0867b927 的
+//   `mov 0xc(%ebp),%eax; cmp $1,%eax; je <1体>; cmp $1,%eax; jg <2/3>; test %eax,%eax;
+//    je <0体>; jmp <默认>; cmp $2,%eax; je <2体>; cmp $3,%eax; je <3体>; jmp <默认>`
+//   是 4.4 O0 对 `switch((int)x)`（case 0/1/2/3）的**决策树** lowering（非跳表）；
+//   case 体物理序 = 书写序 0,1,2,3。
+//   同口径探针 /tmp/L9/E/p_sp2.cpp（4.4.6 + -march=i486 -mtune=generic）：
+//   FormB2=`switch((int)target)` 与 FormB3=`switch(int)` 均逐条复现上述链；
+//   FormB 裸 `switch(target)`（窄枚举 eSendTarget 只定义 {0,1}）被 -fstrict-enums
+//   把 case 2/3 静默删除 ⇒ **必须 `switch((int)target)`**（同 SendNotiPacket P305 修法）。
+//   旧负结论「switch 恒产跳表 66→24」不再成立（该读数与本次探针不符，已作废）。
 // b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0867b8fe | _ZN5CUser10SendPacketENS_11eSendTargetER11PacketGuard
 #include "CUser/SendPacket.inc"
 {
-    // b28d-PoolCUser 复测（2026-09-09，P251 尝试）+ 2026-09-11 lane1 复测（**负结论**）：
-    //   ORIG 0x0867b8fe 为 4.1 决策树「mov 0xc,%eax 单装载 + 寄存器复用 cmp$1 je /
-    //   cmp$1 jg / test je / cmp$2 / cmp$3」；写 `switch` 时**真实路由**（dnf_game_cxx.sh
-    //   对本 TU 的 4.4.6/4.4.7 变体）恒产跳表合并体 —— 实测 66→**24** 条（劣化 42，
-    //   lane1 探针 /tmp/cuser_lane1_probe/sw.cpp 的「switch 复现」读数在本 TU 实编译
-    //   下不成立，探针环境不可迁移）⇒ 回退 if 链形，维持跨版本 switch lowering 封顶
-    //   （P45/P46 族）。
-    if (target == (eSendTarget)1)
-        Send(packet);
-    else if (target < (eSendTarget)2)
+    switch ((int)target)
     {
-        if (target == (eSendTarget)0)
-            G_GameWorld()->send_all(packet, this);
-    }
-    else if (target == (eSendTarget)2)
+    case 0:
+        G_GameWorld()->send_all(packet, this);
+        break;
+    case 1:
+        Send(packet);
+        break;
+    case 2:
     {
         CParty* pParty = (CParty*)GetParty();
         if (pParty == 0)
@@ -3692,13 +3775,16 @@ public:
         else
             pParty->send_to_party(packet);
     }
-    else if (target == (eSendTarget)3)
+    break;
+    case 3:
     {
         WarRoom* pRoom = (WarRoom*)GetWarRoom();
         if (pRoom == 0)
             Send(packet);
         else
             pRoom->SendToRoom(packet);
+    }
+    break;
     }
     return 1;
 }
@@ -6102,8 +6188,10 @@ RET0:;
         packet.m_charNo = getCurCharacNo();
         packet.m_guildKey = get_charac_guildkey();
         packet.m_addExp = get_guild_exp();
-        packet.m_notify = m_field796d9;
+        // 2026-09-11 L9GrpF（P211/P324 store 序）：ORIG `movb $0x0,-0x2d` 在
+        //   `movzbl 0x796d9(%eax),%eax` **之前** ⇒ 常量 store 语句在字段读之前。
         packet.m_expType = 0;
+        packet.m_notify = m_field796d9;
         m_historyLog.GuildAddExp(get_charac_guildkey(),
                                  static_cast<const char*>(GetGuildDBInfo()),
                                  getCurCharacNo(), get_guild_exp());
@@ -6119,8 +6207,9 @@ RET0:;
         packet.m_charNo = getCurCharacNo();
         packet.m_guildKey = get_charac_guildkey();
         packet.m_addExp = get_guild_today_exp();
-        packet.m_notify = m_field796d9;
+        // 同 #3a（ORIG 第二段 `movb $0x2,-0x49` 亦在字段读之前）。
         packet.m_expType = 2;
+        packet.m_notify = m_field796d9;
         m_historyLog.GuildAddExp(get_charac_guildkey(),
                                  static_cast<const char*>(GetGuildDBInfo()),
                                  getCurCharacNo(), get_guild_today_exp());
@@ -6737,7 +6826,9 @@ done:;
         cMyTrace(__PRETTY_FUNCTION__, 0x911, 5)
             ("this %x,incre_id= %d, idx= %d, m_socket<0,m_ChState==NONE , "
               "DisConnSig %s, From %d",
-              this, (int)GetIncreID(), (int)GetSlotIDX(),
+              // [L9GrpF PATCH#1a 负结论] (int)(short)GetSlotIDX() 实测**零变化**
+              //   （fn_diff 差异点 494→494、指令数 594 持平；4.4.6 已把返回值折叠）
+              this, (int)GetIncreID(), (int)(short)GetSlotIDX(),
               // b28d-CUser p167：ORIG 0x08648ad9 直读 0x704ac（非 get_acc_id）。
               NumberToString(m_accId, 0), (int)sig);
         return;
@@ -6748,7 +6839,8 @@ done:;
         // ORIG +0x21c trace（0x917）：已在登出中。
         cMyTrace(__PRETTY_FUNCTION__, 0x917, 5)
             ("[Prog log out...]this %x,incre_id= %d, idx= %d, DisConnSig %s, From %d",
-              this, (int)GetIncreID(), (int)GetSlotIDX(),
+              // [L9GrpF PATCH#1b 负结论] 同 #1a：实测零变化（494→494）。
+              this, (int)GetIncreID(), (int)(short)GetSlotIDX(),
               NumberToString(m_accId, 0), (int)sig);   // ORIG 0x08648d89 直读
         return;
     }
@@ -7582,12 +7674,14 @@ done:;
         sig->m_characNo = (unsigned int)getCurCharacNo();
         // ORIG 0x0865360e `movzbl 0xa850(%eax)`（unsigned char 宽实证）
         sig->m_field411 = G_CDataManager()->m_pvpSkillTree.m_field50;
-        int sp1, sp2, sfp1, sfp2;
-        ((SkillSlot*)getCurCharacSkillR())->get_remain_sp(&sp1, &sp2, &sfp1, &sfp2);
-        sig->m_remainSpTree1 = sp1;
-        sig->m_remainSpTree2 = sp2;
-        sig->m_remainSfpTree1 = sfp1;
-        sig->m_remainSfpTree2 = sfp2;
+        // b28d-GrpD（P0/P183/P329）：ORIG 0x08653621/0x0865362f/0x08653639/0x08653643
+        //   `mov -0x60(%ebp),%eax; add $0x344/$0x340/$0x1a4/$0x8,%eax` —— 4 个实参就是
+        //   包内字段地址（Ghidra C：`get_remain_sp(this,(int*)(sig+8),…,(int*)(sig+0x344))`）；
+        //   字段均 `int`（SigTypes_C.h:1005/1008/1010/1011，偏移 8/0x1a4/0x340/0x344 全等），
+        //   形参 `int*`（SkillSlot.h:229）⇒ 删 4 个具名 int（我方原多 4 槽 + 4×3 条拷回）。
+        ((SkillSlot*)getCurCharacSkillR())->get_remain_sp(
+            &sig->m_remainSpTree1, &sig->m_remainSpTree2,
+            &sig->m_remainSfpTree1, &sig->m_remainSfpTree2);
         _Mastered_skill* buf0 =
             ((SkillSlot*)getCurCharacSkillR())->get_skillslot_buf((ENUM_SKILL_TREE_KIND)0);
         _Mastered_skill* buf1 =
@@ -8018,14 +8112,20 @@ done:;
         // 2026-09-10（§4.3 去裸偏移）：+0x3c5 日删标记改用具名字段访问
         //   （CStackableItem.h:543 `char m_char3c5`）。ORIG 该点 `movzbl 0x3c5(%eax),%eax`
         //   单条 disp 折叠；原裸偏移形 4.4 恒展成 `add $0x3c5; movzbl (%eax)` 两条。
-        if (((CStackableItem*)ci)->m_char3c5 <= 0)
-            continue;
-        enableSaveInven();
-        inven->delete_item((INVEN_TYPE)1, slot, item.m_addInfo2,
-                           (eItemDelReason)0x13, true);
-        // b28d-solo-CUser p167：ORIG 0x0867dcxx 实例化 `make_pair<ENUM_ITEMSPACE, int&>`
-        // （我方 (int) cast 致 `make_pair<int, int&>`）⇒ 去掉 cast（P61/P315）。
-        list.push_back(std::make_pair(ENUM_ITEMSPACE_0, slot));
+        // [L9-GrpL 2026-09-11 continue 岛消除] ORIG 0x0867e874 `jle 0867e875 <+0x141>`：
+        //   末位守卫（m_char3c5<=0）**直接跳循环尾**，全函数只有 3 个 `jmp +0x141` 岛
+        //   （0x0867e7bb/0x0867e7d1 两个 continue + push_back 尾岛）；我方 4 个 continue
+        //   各产一岛（raw 102 vs 100，`jmp +0x144;nop` ×4）⇒ 末位守卫改正向 if 包裹：
+        //   条件取反后体落 fall-through，`jle` 的跳过目标 = 循环尾（++slot），与 ORIG 同形。
+        if (((CStackableItem*)ci)->m_char3c5 > 0)
+        {
+            enableSaveInven();
+            inven->delete_item((INVEN_TYPE)1, slot, item.m_addInfo2,
+                               (eItemDelReason)0x13, true);
+            // b28d-solo-CUser p167：ORIG 0x0867dcxx 实例化 `make_pair<ENUM_ITEMSPACE, int&>`
+            // （我方 (int) cast 致 `make_pair<int, int&>`）⇒ 去掉 cast（P61/P315）。
+            list.push_back(std::make_pair(ENUM_ITEMSPACE_0, slot));
+        }
     }
 }
 
@@ -9202,7 +9302,15 @@ struct CharacViewCacheView
         {
             SubCurCharacChaosPoint(1);
             SetCurCharacAssaultFatigueCount(0);
-            *(int*)((char*)this + 0x8e064) += v;   // ORIG 混沌疲劳累计
+            // [L9-C组J PATCH J4] ORIG 0x08655d3c 段 `mov 0x8e064(%eax),%eax; mov %eax,%edx;
+            //   add 0xc(%ebp),%edx; mov %edx,0x8e064(%eax)` = 成员值读改写（disp 形）；
+            //   裸指针 cast 在 4.4 产 lea 取址形（多 1 条）⇒ 具型视图成员（POD，无符号发射）。
+            struct ChaosFatigueTail
+            {
+                char m_pad[0x8e064];
+                int m_chaosFatigue;   // +0x8e064
+            };
+            reinterpret_cast<ChaosFatigueTail*>(this)->m_chaosFatigue += v;
         }
     }
     m_fatigueGain = v;                             // +0x8e08c
@@ -9438,9 +9546,15 @@ struct CharacViewCacheView
     }
     case 2:
     {
-        ((InterfacePacketBuf*)&packet)->put_byte(param);
+        // [L9-GrpE 2026-09-11 P0 具名槽恢复] ORIG 0x0867bc90 `mov 0x14(%ebp),%eax;
+        //   mov %eax,-0xc(%ebp)` 后 put_byte（0x0867bc96 从 -0xc 读回）、put_short、
+        //   make_basic_info（0x0867bcbb `mov -0xc(%ebp),%eax; movsbl %al,%edx`）三处
+        //   均从具名槽 -0xc 读 ⇒ 原码在本分支把 param 拷入具名局部（Ghidra C：
+        //   `local_10 = param_4;`）。重建直读 `param` 形缺该槽。
+        int p = param;
+        ((InterfacePacketBuf*)&packet)->put_byte(p);
         ((InterfacePacketBuf*)&packet)->put_short(1);
-        make_basic_info((char*)&packet, (char)param);
+        make_basic_info((char*)&packet, (char)p);
         break;
     }
     default:
@@ -9490,8 +9604,23 @@ struct CharacViewCacheView
         //   （sizeof 0xc，真头字段化属 .h 类型轴，另报 Main）。
         Packet_Notice_Guild_War_Point_Change notice;
         unsigned char noticeTail[4];
-        *(unsigned int*)((char*)&notice + 0xa) = (unsigned int)get_charac_guildkey();
-        *(unsigned char*)((char*)&notice + 0xe) = (unsigned char)v;
+        // [L9-C组J PATCH J1'] ORIG 0x0865c9e7 `mov %eax,-0x15(%ebp)`（基址 −0x1f + 0xa）/
+        //   0x0865c9ed `mov %al,-0x11(%ebp)`（+0xe）= 成员 disp 直存；裸指针 cast 在 4.4 产
+        //   `lea 0xa(%eax),%ebx; mov %eax,(%ebx)` 双 lea（多 1 条/处）⇒ 视图 cast + 成员访问。
+        //   ⚠ 必须保留真实类型实例（v1 换类型的版本实测丢失
+        //   `_ZN36Packet_Notice_Guild_War_Point_ChangeC1/C2Ev` 两个 ORIG 存在的 weak 符号
+        //   ⇒ ae 1712→1711、missing 588→587，已回滚）。
+#pragma pack(push, 1)
+        struct NoticeWarPointLayout
+        {
+            char m_pad[0xa];
+            unsigned int m_guildKey;   // +0xa
+            unsigned char m_point;     // +0xe
+        };
+#pragma pack(pop)
+        reinterpret_cast<NoticeWarPointLayout*>(&notice)->m_guildKey =
+            (unsigned int)get_charac_guildkey();
+        reinterpret_cast<NoticeWarPointLayout*>(&notice)->m_point = (unsigned char)v;
         (void)noticeTail;
         // ORIG 0x0865c9fe..0x0865ca1f：代理指针无槽无判空（`mov &s_guild_proxy_mgr,%edx;
         //   mov %eax,0x4(%esp); mov %edx,(%esp); call GetServerProxy; ...; call SendPacket`）
@@ -10241,7 +10370,11 @@ struct CharacViewCacheView
     }
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(0, 0xb1);
-    ((InterfacePacketBuf*)&packet)->put_byte((int)GetOpencoin());
+    // 2026-09-11 L9GrpF（P9/P11 类型轴）：ORIG 0x08656a3c `call GetOpencoin; movsbl %al,%eax`
+    //   = 调用点按 **signed char** 扩宽（我方 `(int)` 只出 movzbl）。GetOpencoin 声明维持
+    //   CUserCharacInfo.h:1118 `unsigned char`（非本 TU 写域）⇒ 在调用点加 `(char)`；
+    //   值域 0..0xff、put_byte 仅取低字节 ⇒ 行为不变（探针 psi.cpp f0/f1 实证符号扩展形）。
+    ((InterfacePacketBuf*)&packet)->put_byte((int)(char)GetOpencoin());
     ((InterfacePacketBuf*)&packet)->put_int(lack);
     ((InterfacePacketBuf*)&packet)->finalize(true);
     Send(packet);
@@ -10761,7 +10894,14 @@ struct CharacViewCacheView
         if (reqHumanCertify())
         {
             setHumanCertified(false);
-            if (0x7ffffffe < m_humanCertifyTimerKey)
+            // [L9-GrpE 2026-09-11 语义修复·符号性轴⑤] ORIG 0x0868044e `cmp $0x7ffffffe,%eax`
+            //   + 0x08680453 `jbe 08680462` 直证该比较按 **unsigned** 进行（Ghidra C 亦为
+            //   `if (0x7ffffffe < *(uint *)(this + 0x8e0f8))`）。重建成员为 int 时 4.4 折成
+            //   `cmp $0x7fffffff; jne`（仅 x==0x7fffffff 清零），对 x∈[0x80000000,0xffffffff]
+            //   （高位/负位模式）行为与 ORIG 相反 ⇒ 显式 unsigned 比较。
+            //   同口径探针 /tmp/L9/E/p_rc.cpp：fA（现形）产 `cmp [..],0x7fffffff; jne`；
+            //   fB/fC（本形）产 `mov %eax,..; cmp $0x7ffffffe,%eax; jbe` 与 ORIG 逐条同形。
+            if (0x7ffffffe < (unsigned int)m_humanCertifyTimerKey)
                 m_humanCertifyTimerKey = 0;
             m_humanCertifyTimerKey += 1;
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, GetUID(),
@@ -11087,6 +11227,11 @@ struct CharacViewCacheView
         //   `int itemIndex` / `const CInventory* inven` 两个具名量 ORIG 均无；
         //   else 分支 0x08677638 亦从 rental 重算 m_itemIndex、0x0867767d 重调
         //   getCurCharacInvenR ⇒ 全部表达式内联。
+        // [L9GrpF PATCH#5 负结论 · 已回滚] 极性改造（`== 1` → `!fn()` + then/else 互换）
+        //   实测**反劣**：fn_diff 差异点 54 → 100、我方指令数 140 → 141（TU 四数不动）。
+        //   ORIG 0x0867760c 段确为 `xor $0x1,%eax; test %al,%al; je <OK块>`，但本件残差主体是
+        //   -0x28 槽块序（同族 removeRentalItemInfoFromInvenLoadBuf 能 AE 是因为其块序不同）
+        //   ⇒ 恢复原 `== 1` 极性。若后续重试，须先解决槽块序。
         if (getCurCharacInvenR()->CheckExistItemInInventoryOrEquipment(
                 rental.m_itemIndex, slot, bInEquip) == 1)
         {
@@ -12086,8 +12231,14 @@ struct SIG_LI_CreatureTailView
     //   失败早退）与 0x0868f068 `mov %eax,%edx; add $0x12b7,%edx`（两段地址算术）。
     if (getCurCharacR() == 0)
         return;
-    option = *reinterpret_cast<const CharacterOption*>(
-        reinterpret_cast<unsigned int>(getCurCharacR()) + 0x12b7);
+    // 2026-09-11 L9GrpF（P83 结构整体赋值 + P183 去裸偏移）：ORIG 0x0868f068
+    //   `mov %eax,%edx; mov 0xc(%ebp),%eax; add $0x12b7,%edx`（目标基址驻 %eax、源以
+    //   成员偏移在 %edx 上算）；`reinterpret_cast<unsigned int>` 算术形产
+    //   `add $0x12b7,%eax; mov %eax,%edx` 反序。`_Charac_info` 已具名建模
+    //   `CharacterOption m_characterOption;`（CUserCharacInfo.h:593，+0x12b7）
+    //   ⇒ 用具名成员整体拷贝（同 GetAuraAvatarOption 已 AE 的 m_auraAvatarOption 先例）。
+    //   探针 /tmp/L9/F/ph1.cpp h1：与 ORIG 逐条同形（h0=现形不一致）。
+    option = getCurCharacR()->m_characterOption;
 }
 
 // ORIG 0x0864dcf2 _ZNK5CUser8GetSkillEP14SIG_LOAD_SKILLP15SIG_COMBO_SKILL
@@ -12183,7 +12334,6 @@ struct SIG_LI_CreatureTailView
         reinterpret_cast<std::map<int, STSkillCommandData>*>(const_cast<char*>(getSkillCommand()));
     if (pMap == 0)
         return 0;
-    int idx = 0;
     // 2026-09-10 gA（A 组）P13/P133：
     //  · ORIG 0x086545cb 只调一次 map::begin()（sret -0x14 → 拷入 it -0x1c 槽），
     //    0x086545e0 只调一次 end()（-0x18 槽）；循环体 0x086545fa..0x08654753 内
@@ -12193,8 +12343,13 @@ struct SIG_LI_CreatureTailView
     //    `call operator!=; test %al,%al; jne body` 直跳无物化；写成
     //    `it != itEnd && idx <= 0x31` 会多出 `mov $0x1/%0x0; test` bool 物化（P133）
     //    ⇒ 拆为循环尾显式 break 形。
+    // [L9-GrpE 2026-09-11 P212 声明序/物化点] ORIG 0x086545e8 `movl $0x0,-0xc(%ebp)`
+    //   位于 begin()（0x086545cb）/end()（0x086545e0）**之后**、`it = tmp`（0x086545ef）
+    //   之前 —— 原码 `int idx = 0;` 写在两个迭代器声明之后；我方旧形把 idx 提到
+    //   begin 之前 ⇒ 该 movl 位置前移（137/134 的顺序残差之一）。
     std::map<int, STSkillCommandData>::iterator it = pMap->begin();
     std::map<int, STSkillCommandData>::iterator itEnd = pMap->end();
+    int idx = 0;
     for (; it != itEnd; )
     {
         // b28d-solo-CUser p167：同带参版，ORIG 每字段各发一次 operator->（P167/P183）。
@@ -13260,7 +13415,10 @@ RCEND:
     login.m_accId = (unsigned int)get_acc_id(); // ORIG：直接写 stLogin+0x20a（-0x1c(%ebp)）
     printf(
         "SEND nexon_packet::stLogin login:%d AccLen:%d Acc:%s CharLen:%d Char:%d "
-        "Addr:%d canTry_:%d UserIdx:%d m_id:%d\n",
+        // [L9·2026-09-11 §6.5 串盲区] ORIG 0x0868167d `mov [esp],0x8ceff8c` ⇒ 格式串 VA 0x8ceff8c
+        //   = 文件偏移 0xca7f8c，即本串起始；.rodata 原字节以 `m_id:%d\x00` 结束（**无尾 \n**）。
+        //   旧形多一个换行 ⇒ 与 ORIG 日志输出不一致（AE 盲区）。
+        "Addr:%d canTry_:%d UserIdx:%d m_id:%d",
         // ORIG 0x08681611..0x08681636：char 字段实参一律 `movzbl %al,%reg`（零扩展）
         // ⇒ 加 (unsigned char) cast（我方原为 `movsbl %al,%eax` + 3 个中转栈槽）。
         (unsigned char)login.m_type, (unsigned char)login.m_accLen, login.m_account,
@@ -13269,8 +13427,12 @@ RCEND:
         (int)login.m_accId);
 
     nexon_packet::stLoginPacket pkt(login);
-    int len = pkt.GetLength();
-    GlobalData::s_pcroom_proxy->SendTcpPacket((char*)&pkt, len);
+    // b28d-GrpD（P0/P183）：ORIG 0x086816a1 `call GetLength` → 0x086816c6 前
+    //   `lea -0x1438(%ebp),%ecx; mov s_pcroom_proxy,%edx; mov %eax,0x8(%esp)`
+    //   —— GetLength 返回值**无栈槽**直装载；我方 `int len` 具名局部多
+    //   `mov %eax,-0x1c(%ebp)` + `mov -0x1c(%ebp),%ecx` 各 1 条 + 4B 帧
+    //   （探针 /tmp/L9/D/p2.cpp 形 A vs 形 B 直证）⇒ 删局部内联实参。
+    GlobalData::s_pcroom_proxy->SendTcpPacket((char*)&pkt, pkt.GetLength());
     memset(&reply, 0, sizeof(reply));
     pkt.ReadPacket((const char*)&reply, reply);
 }
@@ -14148,10 +14310,13 @@ RCEND:
         int payMoney = get_member_pay_tex_money_to_upper();
         int payFatigue = get_member_pay_tex_fatigue_to_upper();
         unsigned int characNo = getCurCharacNo();
-        CMonitorServerProxy* proxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup());
-        proxy->SendMemberPayTax(is_connect_upper_member(), characNo, payMoney,
-                                payFatigue);
+        // b28d-GrpD（P183 去具名 receiver 缓存）：ORIG 0x08687079 `call GetServerProxy`
+        //   返回 eax 后**无槽写**，0x08687097 直接 call SendMemberPayTax；我方具名
+        //   proxy 多 `mov %eax,-0xc(%ebp)` + `mov -0xc(%ebp),%eax` 各 1 条
+        //   （探针 /tmp/L9/D/p5.cpp 形 C 直证 −2 条且 C1/C2 求值序不变）⇒ 内联 receiver。
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup())
+            ->SendMemberPayTax(is_connect_upper_member(), characNo, payMoney,
+                               payFatigue);
         if (payMoney > 0)
             set_member_pay_tex_money_to_upper(0);
         if (payFatigue > 0)
@@ -14281,9 +14446,18 @@ namespace Sanicova
                              ->GetExpansionInfo(inven->m_invenItem[i].m_addInfo2);
             if (info != 0)
             {
-                const short* expansion = static_cast<const short*>(info);
-                vis.m_field4 = expansion[0];
-                vis.m_field6 = expansion[1];
+                // [L9-C组J PATCH J3] ORIG `movzwl 0x2(%eax),%edx` 单条 disp；`expansion[1]`
+                //   （常量下标）在 4.4 产 `add $0x2,%eax; movzwl (%eax),%edx`（多 1 条）
+                //   ⇒ 改成员访问（p_disp f_pidx vs f_member 直证）。
+                struct ExpansionPair
+                {
+                    short m_first;   // +0x0
+                    short m_second;  // +0x2
+                };
+                const ExpansionPair* expansion =
+                    static_cast<const ExpansionPair*>(info);
+                vis.m_field4 = expansion->m_first;
+                vis.m_field6 = expansion->m_second;
         }
     }
             }

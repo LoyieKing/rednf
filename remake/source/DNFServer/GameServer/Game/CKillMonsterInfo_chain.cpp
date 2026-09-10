@@ -110,6 +110,12 @@
     // test; je <APC 路径>` ⇒ 原码极性为 `if (!isAPC)`（find_monster 直落）。
     // 两个校验结果均落具名槽（`mov %eax,-0x10/-0xc(%ebp); cmpl $0x0,槽; jne`，
     // P0 槽往返 ⇒ 原码有具名局部）；直比调用结果会多 sete 物化。
+    // [L6S6b 2026-09-11 残差 129/129 gap0 ndiff14] 真实差异仅 3 个匿名 sret 槽的
+    //   相对位置：ORIG find=-0x34/end=-0x30/insert(pair<it,bool>)=-0x2c（bool 读
+    //   -0x28）vs 我方 find=-0x2c/end=-0x28/insert=-0x34（bool 读 -0x30）——即
+    //   「it 深/max 浅」与「ins 深」两方向相反（4.1 与 4.4 的匿名临时分配方向差，
+    //   N93/N82 族；与 box_item_index 的方向恰好相反，说明不可用统一声明序旋钮）。
+    //   具名化/复制形会多 2~4 条 ⇒ 判 N 封顶，不再派单。
     if (!isAPC)
     {
         void* pMon = G_CDataManager()->find_monster(static_cast<int>(mobIdx));

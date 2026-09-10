@@ -57,8 +57,14 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
             (user->get_state() == 5 || limitNotOne))
         {
             out.m_9 = 0;
-            // [Lane5] P266 cast 形实测劣化（add $0xd + movzbl (%eax) 两步）⇒ 维持直读；
-            // 残余 `mov %eax,%edx` 中转需 PacketTypes.h m_itemSpace char→unsigned char（S2 待 Main）。
+            // [Lane5] P266 cast 形实测劣化（add $0xd + movzbl (%eax) 两步）⇒ 维持直读。
+            // [DPC-SigSmall 2026-09-11 更正] 旧注「需 PacketTypes.h m_itemSpace
+            // char→unsigned char」**已失效**：MSG_DELETE_ITEM::m_itemSpace 现为
+            // `unsigned char`（PacketTypes.h:711），两侧同为 movzbl ⇒ 本处**不是 .h 轴**。
+            // 残余 `movzbl 0xd(%eax),%eax; mov %eax,%edx`（ORIG 0x081c1c7x 单条
+            // `movzbl 0xd(%eax),%edx`）是 4.4 复用基址寄存器 %eax 作 tmp 后的
+            // 单条 regmove 中转（判据库 N18a：无源码写法可造 ORIG 的目标寄存器选择）
+            // ⇒ N 封顶，勿再改 .h。
             out.m_8 = req.m_itemSpace;
             for (int i = 0; i < (int)(signed char)req.m_count; ++i)
             {

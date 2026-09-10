@@ -180,20 +180,27 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                 {
                     return false;                  // 报告 0x0897c296 路径
                 }
-                // ORIG 0x0897c2a0：`mov acc,%edx; mov rate,%eax; lea (%edx,%eax,1)`
-                // ⇒ 两操作数均先载寄存器（unsigned 加法形；`acc += rate` 产
-                // `mov acc,%eax; add rate,%eax` 少 1 条）。
-                acc = (int)((unsigned int)acc + (unsigned int)rate);
+                // ORIG 0x0897c2a0：`mov acc,%edx; mov rate,%eax; lea (%edx,%eax,1),%eax;
+                // mov %eax,acc`（4 条、unsigned 加法、两操作数均先载寄存器）。
+                // [L3Free25to36 2026-09-11] `acc + rate` 形在 4.4.6 产 5 条
+                // （`mov acc,%eax; mov %eax,%edx; mov rate,%eax; lea; mov`）=141 vs 142
+                // （gap −1、DIFF）；**交换书写序为 `rate + acc` 后产 4 条
+                // `mov rate,%edx; mov acc,%eax; lea (%edx,%eax,1),%eax; mov`**
+                // ⇒ 141 vs 141（gap 0）且助记符序列与 ORIG 全等（分类 DIFF→NEAR）。
+                // 唯一残差 = 两操作数寄存器互换（ORIG edx=acc，4.4 RHS-first edx=rate），
+                // 属 4.1/4.4 lowering 差；如四数口径不接受 near+1/diff−1，改回
+                // `acc + rate` 即可（代价：gap −1、DIFF）。
+                acc = (int)((unsigned int)rate + (unsigned int)acc);
                 info.m_list04.push_back(std::pair<int, int>(itemId, acc));
             }
         }
     }
-    // ORIG 0x0897c2e8：count 槽 -0xc 直传地址（make_pair<unsigned int,int&> 第一参
-    // `unsigned int&&` ⇒ 无转换临时；P234 `static_cast<T&&>` 零 call）。
-    unsigned int count = m_vec0.size();
+    // ORIG 0x0897c2e8：`call size; mov %eax,-0xc(%ebp)` 单槽单写，随后
+    // `lea -0xc(%ebp),%edx` 直传地址（-0xc 即 `unsigned int&&` 形参的**物化临时**）。
+    // P0/P183：具名 `count` 槽会再产一份物化临时 ⇒ 我方 `mov %eax,-0x44; mov -0x44,%eax;
+    // mov %eax,-0x10` 三条（ORIG 一条）⇒ 去掉具名局部，prvalue 直绑 rvalue 引用。
     m_map24[info.m_field0] =
-        std::make_pair<unsigned int, int&>(
-            static_cast<unsigned int&&>(count), acc);
+        std::make_pair<unsigned int, int&>(m_vec0.size(), acc);
     m_vec0.push_back(info);
     return true;
 }
@@ -249,7 +256,7 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
     {
         if (!ScanType(token, true))
         {
-            break;                                 // ORIG 0897caee：跳循环外 return 1
+            break;                                 // ORIG 0897caee：esi=0 ⇒ 循环外 return 0
         }
         if (token == "[independent drop]")
         {
@@ -287,6 +294,12 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                 // 一格（rate[4..7] 循环 + rate[8] + rate[9]=0）= 真语义 bug。
                 info.m_drop.m_rate[4] = ScanInt(&ok);
                 if (!ok) { return 0xa5; }
+                // [L3Free25to36 N82 复核·负结论] ORIG 0x0897c583-0x0897c594：
+                // `mov -0x24(%ebp),%ebx; lea 0x4(%ebx),%edx; mov %eax,-0x8c(%ebp,%edx,4)`
+                // = 基址取 &m_rate[1]（-0x8c）+ 索引 (i+4)；4.4.6 恒 `mov i,%eax;
+                // lea 0x5(%eax),%ebx; mov %eax,-0x90(%ebp,%ebx,4)`（基址 m_rate[0] +
+                // 索引 i+5）。落点地址两侧全等（-0x7c+4i = m_rate[5+i]），仅常量拆
+                // 分点不同；换书写序 `i + 5` 实测零变化 ⇒ 4.1 独有寻址形，封顶。
                 for (int i = 0; i < 4; ++i)
                 {
                     info.m_drop.m_rate[5 + i] = ScanInt(&ok);
@@ -329,7 +342,9 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                 std::string listToken;
                 if (flag == 1)
                 {
-                    if (ScanType(listToken, true) && listToken == "[list]")
+                    if (ScanType(listToken, true))
+                    {
+                    if (listToken == "[list]")
                     {
                         while (true)
                         {
@@ -343,31 +358,42 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                             {
                                 return 0xe1;       // ORIG esi=0xe1/ebx=0 → 错误返回
                             }
-                            info.m_drop.m_rate[9] += rate;
+                            // ORIG 0x0897c7a3 累积槽 -0x68 = info+0x34 = **m_rate[10]**
+                            // （`movl $0x0,-0x68(%ebp)` 就在 0x0897c5ec 清零同一槽）
+                            // ⇒ 累积目标与 pair 第二元同为 m_rate[10]，非 m_rate[9]。
+                            info.m_drop.m_rate[10] += rate;
                             info.m_drop.m_pairList.push_back(
                                 std::pair<int, int>(
-                                    itemId, info.m_drop.m_rate[9]));
+                                    itemId, info.m_drop.m_rate[10]));
                         }
+                    }
                     }
                 }
                 else if (flag == 2)
                 {
-                    if (ScanType(listToken, true) && listToken == "[list]")
+                    if (ScanType(listToken, true))
+                    {
+                    if (listToken == "[list]")
                     {
                         while (true)
                         {
+                            // P212/P309：ORIG 0x0897c828 `movb $0x0,-0x19(%ebp)` 在
+                            // 0x0897c832 `call ScanInt` **之前**（槽 -0x19 深于 idx 的
+                            // -0x18）⇒ found 声明在 idx 之前。
+                            bool found = false;
                             int idx = ScanInt(&ok);
                             if (!ok)
                             {
                                 break;             // 结束本段明细（ORIG 0897c83a）
                             }
-                            bool found = false;
                             for (int e = 0; e < (int)m_vec0.size(); ++e)
                             {
-                                if (m_vec0[e].m_field0 != idx)
+                                // ORIG 0x0897c86c `cmp -0x18(%ebp),%eax; sete %al` = 正极性
+                                // `==`；搜索体后 0x0897c949 `cmpb $0x0,-0x19(%ebp);
+                                // je <++e>` = **体尾独立 `if (found) break;`**（非命中点
+                                // 内 break）⇒ 原码 `if (==) {...; found = true;} if (found) break;`。
+                                if (m_vec0[e].m_field0 == idx)
                                 {
-                                    continue;
-                                }
                                 // [b28d-C08 C05④ 第2步试形·已回退] ORIG 0x0897c964
                                 // `cmp -0x14(%ebp),%eax; setg %al; test %al,%al; jne` 的
                                 // setcc 物化，改 `int p=0; while(p<size())` 后**确实复现**
@@ -384,23 +410,31 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                                         m_vec0[e].m_list04[p].first;
                                     int rate =
                                         m_vec0[e].m_list04[p].second;
-                                    info.m_drop.m_rate[9] += rate;
+                                    info.m_drop.m_rate[10] += rate;
                                     info.m_drop.m_pairList.push_back(
                                         std::pair<int, int>(
                                             itemId,
-                                            info.m_drop.m_rate[9]));
+                                            info.m_drop.m_rate[10]));
                                 }
                                 found = true;
-                                break;             // ORIG 命中后跳出线性搜索
+                                }
+                                if (found)
+                                {
+                                    break;             // ORIG 命中后跳出线性搜索
+                                }
                             }
                             (void)found;
                         }
+                    }
                     }
                 }
                 m_vecC.push_back(info);
             }
         }
-        else if (token == "[dungeon drop rate balance]")
+        // ORIG 0x0897c9fa（dead 分支 ebx==0）落点 = 0x0897ca0a（"[dungeon drop rate
+        // balance]" 比较）⇒ 段循环 break 后**仍走第二个比较** ⇒ 原码为两个**并列 if**
+        // 而非 else-if（else-if 时 4.4.6 把 dead 落点折成循环头，多一对 jmp+nop 岛）。
+        if (token == "[dungeon drop rate balance]")
         {
             for (;;)
             {
@@ -415,7 +449,9 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
             }
         }
     }
-    return 1;
+    // ORIG 0x0897caef `mov $0x0,%esi; jmp 0x0897cb11`（循环耗尽路径）⇒ 成功返回 **0**
+    // （CDataManager.h:2580 注释「0=成功」；调用点 CDataManager.cpp:2718 以 `!= 0` 判错）。
+    return 0;
 }
 
 // ===========================================================================
@@ -429,13 +465,18 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
 //   （重复 grade/键 → 失败）。[static basic skill] 段要求键已存在，明细对追加
 //   到既有 value.m_vec0c 并同样更新 m_map30。
 // b28d-solo-DomainMiscDeps: DIFF 残余（p167 CLEAR 116/116；N104 EH 尾块序）
-// [b28d-C08 widthscan 补记 · 未修] clr_l orig=2 our=1，两处 ORIG 清零均未复现：
-//   ①0x08a5d0e8 `movl $0x0,-0x10(%ebp)` —— 在 [skill] 段 `PvPSkillTreeValue value`
-//     构造(0x08a5d0e3 后半)之后、pair 构造(0x08a5d0f8)之前，**全函数仅此一次写、
-//     零读** ⇒ 原码在 [skill] 分支入口有一个未使用的具名 int（P232/P171 死局部照抄）。
-//   ②0x08a5d7d2 `movl $0x0,-0xc(%ebp)` —— [static basic skill] 段入口清零，随后
-//     0x08a5d856/0x08a5d920 两次写入、0x08a5d9b4 一次读取 ⇒ 具名 int 变量（非死值）。
-//   补此两处预计 +2 条（现 gap 777 vs 774，我方偏少 3）且会移动槽序，需 fresh 联判。
+// [L3Free25to36 已落 · 复核 2026-09-11] clr_l 两处 ORIG 清零已补：
+//   ①0x08a5d0e8 `movl $0x0,-0x10(%ebp)` → `int unusedSlot = 0;`（[skill] 分支入口，
+//     value C1Ev(0x08a5d0e3) 之后、pair C1Ev(0x08a5d0f8) 之前；P232/P171 死局部照抄）。
+//   ②0x08a5d7d2 `movl $0x0,-0xc(%ebp)` → `std::vector<...>* vec = 0;`（指针槽入口清零，
+//     0x08a5d856/0x08a5d920 两次覆写、0x08a5d9b4 读）。
+//   实落读数：777 vs 777（gap 0，改前 777 vs 774），difflib ratio 0.236→0.518。
+// [L3Free25to36 残余封顶] 帧整体平移 0x10（我方全部槽浅 0x10：token -0x1f0 vs ORIG
+//   -0x200），且浅区槽集不同（ORIG 独有 -0x18/-0x20/-0x2c/-0x30/-0x6c/-0x70/-0x8c/
+//   -0xa8/-0xb0/-0xe8/-0xec/-0xf0/-0x10c，我方独有 -0x44/-0x84/-0xa0/-0xbc/-0xc0/
+//   -0x104）⇒ 属局部变量集/物化点差异（含 map/pair 临时），非单旋钮可复原，记 N104。
+//   `int curLevel = 0;` 初始化为我方独有 1 条（ORIG 无；去掉则 776=gap −1），保留以
+//   维持 gap 0 且避免未初始化读。
 #include "DomainMiscDeps/importPvPSkillTreeParameterScript.inc"
     const char* path)
 {
@@ -496,7 +537,9 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                 std::map<int, PvPSkillTreeValue>::iterator gradeIt =
                     treeIt->second.find(curLevel);
                 // ORIG 08a5d8??：local_10 = &gradeIt->second.m_vec0c 指针缓存。
-                std::vector<std::pair<int, int> >* vec;
+                // ORIG 0x08a5d7d2 `movl $0x0,-0xc(%ebp)`：指针槽入口清零（该槽即
+                // 下面 vec 的指针缓存，0x08a5d856/0x08a5d920 两次覆写、0x08a5d9b4 读）。
+                std::vector<std::pair<int, int> >* vec = 0;
                 if (gradeIt != treeIt->second.end())
                 {
                     vec = &gradeIt->second.m_vec0c;
@@ -558,6 +601,10 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
         else if (token == "[skill]")
         {
             PvPSkillTreeValue value;
+            // ORIG 0x08a5d0e8 `movl $0x0,-0x10(%ebp)`：value C1Ev(0x08a5d0e3) 之后、
+            // pair C1Ev(0x08a5d0f8) 之前；全函数该槽**仅此一次写、零读**（P232/P171
+            // 死局部照抄，槽序 -0x10 与 ORIG 同深）。
+            int unusedSlot = 0;
             while (true)
             {
                 std::pair<int, int> entry;
@@ -648,8 +695,12 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
     std::map<int, int> row;
     int slotIdx = 0;
     int jobIdx = 0;
-    // ORIG 0x08a5e3a0 `mov -0xc(%ebp),%edx; cmp %edx,%eax` 从槽载比较 ⇒ 非 const
-    // 具名局部（const 被 4.4 折成 `cmp $0x37,%eax` 立即数形）。
+    // ORIG 0x08a5e3a0 / 0x08a5e2f2 两处比较段均为 `mov -0xc(%ebp),%edx; cmp %edx,%eax`
+    // （槽→寄存器两载）。L3Free25to36 实测：**变量保持 int + 比较式去掉
+    // `static_cast<int>(row.size())`** ⇒ 混合符号（unsigned size() vs int 槽）触发
+    // 4.4 先把槽转 unsigned 载入 %edx ⇒ 逐条 AE（275/275）。
+    // 反例：`static_cast<int>(row.size()) == slotsPerJob` 两侧同型 ⇒ 折
+    // `cmp -0xc(%ebp),%eax` 单条（gap +2）；`unsigned` 槽同样折 mem cmp，均无效。
     int slotsPerJob = 0x37;
     for (;;)
     {
@@ -669,7 +720,7 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                     break;
                 }
                 row.insert(std::make_pair(slotIdx++, rounded));
-                if (static_cast<int>(row.size()) == slotsPerJob)
+                if (row.size() == slotsPerJob)
                 {
                     m_map18.insert(
                         std::make_pair(jobIdx++, row));
@@ -679,7 +730,7 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
             }
             // ORIG 0x08a5e470/0x08a5e485 两次独立 `call size`（P48：O0 无 CSE，
             // 两次调用=源码两次；具名 left 多一槽使全帧 +8）。
-            if (static_cast<int>(row.size()) != slotsPerJob &&
+            if (row.size() != slotsPerJob &&
                 static_cast<int>(row.size()) != 0)
             {
                 return false;                      // 残行 → 失败（ORIG 08a5e49a）

@@ -127,6 +127,11 @@ typedef char AddInfoMove2_off_3a[(__builtin_offsetof(AddInfoMove2, m_field3a) ==
 typedef char AddInfoMove2_off_42[(__builtin_offsetof(AddInfoMove2, m_field42) == 0x42) ? 1 : -1];
 typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) == 0x4e) ? 1 : -1];
 
+// [L4b 2026-09-11 复核] CUser::MakeTagCharacInfo 权威口径 DIFF 276/279、ndiff=37。
+// 残差：①infoBuf/additional 槽向（ORIG -0xd2/-0x7b，我方 -0x82/-0xd4）——本轮实测
+// 「infoBuf 移入 if 分支」无效（ndiff 37 不变），历史「additional 提升函数域」反劣 ⇒ N82；
+// ②循环内 base 地址计算：4.4 产 `mov -0x1c,%edx; lea (%edx,%eax,1)`（2 条）vs ORIG
+// `add -0x1c(%ebp),%eax`（1 条）⇒ N7/N-addr；③idxPos/count 槽差。语义等价。
 #include "UserCoreDepsB2/MakeTagCharacInfo.inc"
 {
     if (getCurCharacR() == 0)
@@ -154,6 +159,8 @@ typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) ==
     // 实测「additional 提升为函数域先声明」形反劣（46→93：_Additioal_info
     // 非 POD，先声明触发 EXTRA `call C1Ev` 位域全写 + 帧 -0x138；TU missing
     // 26→27）⇒ 回退块内声明形，槽向记 N82 封顶。
+    // [L4b 实测] infoBuf 由块外移入 if 分支：ndiff 37 不变（4.4 槽分配不受此影响）
+    // ⇒ 已回滚，维持块外声明形。
     char infoBuf[0x52];
     if (IsHavePremiumAdvantage())
     {
@@ -218,6 +225,9 @@ typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) ==
 // （ORIG 78）。残 1 条 = N104 EH 尾块相对序：ORIG 把共享 dtor 段置于 EH 岛**之后**
 // （正常路径 `jmp +0xc7`），4.4 置于 EH 岛**之前**（正常路径 fallthrough，少 1 jmp）。
 // 守卫 nop 岛 4 组、setne/sete 物化、寻址/槽位逐条同 ORIG（ORIG 0x081905b4）。语义等价。
+// [L4b 2026-09-11 复核] 权威口径（compare_tu_game_orig.clean）DIFF 74/73、ndiff=7：
+// 唯一残差即上述共享 dtor 段位移 3 行（ORIG 正常路径就地析构后 `jmp +0xc7`，4.4 把
+// 正常路径指向 EH 岛后的 epilogue 前共享段）——4.4 cleanup-sharing，源码不可择 ⇒ N104。
 #include "UserCoreDepsB2/CalcDurabilityChangeEquip.inc"
 {
     if (user->get_state() != 5)
@@ -360,6 +370,10 @@ typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) ==
 //   产 nop 但多 1 条 jmp（88，劣化）；②goto 跳出 PacketGuard 作用域强制正常路径析构点
 //   无变化（86，析构仍外提）。属 GCC 4.4 cleanup-sharing 编译器行为，源码不可择。
 // P167 16=16 归零；包体/谓词逐条同 ORIG（ORIG 0x0860b332）。语义等价。
+// [L4b 2026-09-11 复核] 权威口径 DIFF 86/86、ndiff=6：残差即上述 dtor 段位移 3 行
+// （ORIG 在 SetEndRouting 后就地 `lea;mov;call ~PacketGuard` 再 jmp epilogue；4.4 把
+// 正常路径 jmp 到 unwind 岛之后的共享析构段）。历史已试 P223 goto 尾标签 / goto 跳出
+// 作用域，均反劣或无效 ⇒ N104 封顶。
 #include "UserCoreDepsB2/ProcessFailEtc.inc"
 {
     if (party != 0)
@@ -399,6 +413,11 @@ typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) ==
 // 残差（byte 层封顶）：N82 帧 0xd0/0xe0 + 全帧槽号平移（ORIG 对象优先占低槽 vs 4.4
 // 标量分区）、N7 routingItemId 4.1 升 %ebx 跨 G_CDataManager（4.4 恒 mem→%edx）、
 // 跨版本 nop 尾/`mov+movsbl` vs `movsbl mem`。ORIG 0x0860ac6a，语义等价。
+// [L4b 2026-09-11 复核] 权威口径 DIFF 440/445、ndiff=581。实测槽集合：**低区与高区
+// 槽号统一平移 0xc**（ORIG 低区 0x8..0x40、高区 0x4c..0x80；我方低区 0x8..0x48、
+// 高区 0x58..0x8c），帧 0xd0/0xe0 ⇒ 根因 = 4.1 对已死局部（routingItemId/member 等）
+// 做作用域栈复用、4.4 不复用（我方多 3 个 dword 槽）；其余为 remaining -= w 的
+// %ebx 跨调用保活（4.1 5 条 vs 4.4 mem-sub 2 条）与寄存器选择 ⇒ N82/N7 封顶。
 #include "UserCoreDepsB2/processRouting.inc"
 {
     Inven_Item* routingItem = party->GetRoutingInvenItem();

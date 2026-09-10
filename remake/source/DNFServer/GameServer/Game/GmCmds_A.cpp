@@ -230,6 +230,9 @@ namespace game_master
 // [round5-A20 复核·N126] fresh .o 184/184、判据⑪ PURE SHIFT c=0x0（frame 96=96、
 //   槽集全等）⇒ 残差纯为 N7 间接调用目标寄存器角色（含 investAmplifyOption 实参
 //   装载序，P75）⇒ 与 CAddItemByMail 同族封顶。
+// [L1FreeTop12.S2 2026-09-11] §6.5 复核：ORIG 唯一串 `"%s:'%s' GM Mode Add Item(%d)."`
+//   （0x084aac6c，实参 0x4(%esp)）与源码全表达式 trace 链一致（变参序
+//   NumberToString→getCurCharacName→slot 对齐报告 +0x26c 段）；§6.5.1 enc 0 命中。
 #include "GmCmds_A/execute_3.inc"
 {
     if (m_itemIdx == -1)
@@ -340,6 +343,9 @@ L3:;
 //   槽集全等）⇒ 残差纯为 N7 间接调用 receiver 寄存器角色（ORIG `mov (%eax),%edx;
 //   …call *%edx` vs 4.4.7 全 %eax）+ `mov -0x28(%ebp),%ebx` 保活（P226/N18a）。
 //   P230 实测 4.4.6 后端亦不达 ⇒ 属路由域，封顶。
+// [L1FreeTop12.S2 2026-09-11] §6.5 复核：ORIG 两串 `"game_server_msg_144"`
+//   （0x084ac3da）/`"game_server_msg_143"`（0x084ac418）与源码 findString(4,…) 逐条一致；
+//   §6.5.1 enc 0 命中。
 #include "GmCmds_A/execute_4.inc"
 {
     CUser* user = GetUser();
@@ -683,7 +689,8 @@ done:
 //   **字段本身的地址**作 int&& 绑定）vs 4.4.7 对 `static_cast<int&&>(lotto.m_addInfo2)`
 //   恒先物化 4B 临时（`mov -0x6a(%ebp),%eax; mov %eax,-0x10(%ebp); lea -0x10,%edx`）
 //   ⇒ 4.1 引用直接绑字段、4.4.7 绑临时（`std::move` 形会多发一次 out-of-line call，
-//   P234 禁）⇒ N18a/P75 封顶。
+//   （P234 禁）⇒ N18a/P75 封顶。
+// [L1FreeTop12.S2 2026-09-11] §6.5 复核：本件 ORIG 无串引用、无 PRETTY；§6.5.1 enc 0 命中。
 #include "GmCmds_A/get_gold_lottery_result.inc"
                                            std::map<int, int>& result)
 {
@@ -823,6 +830,8 @@ struct CBoosterEmblemIdTableView
     int  m_ids[0x1000];       // +0x0c（ORIG 恒 `mov 0xc(%ebx,%eax,4)`）
 };
 
+// [L1FreeTop12.S2 2026-09-11] §6.5 复核：本件 ORIG 无串引用（`$"` 0 条）、无 PRETTY；
+//   §6.5.1 enc 全库 0 命中。
 #include "GmCmds_A/getCompoundEmblemResult.inc"
                                            std::map<int, int>& result)
 {
@@ -929,6 +938,8 @@ struct CBoosterEmblemIdTableView
 //   17 形探针全败）⇒ 92/93（gap -1，改前 91/93 gap -2）。残余仅 ORIG 0x084af450
 //   `jmp +1; nop` 空 then 中继岛（P184/P223 边界：该 jmp 为 4.1 空块占位产物，
 //   4.4 无对应发射点，`switch(ret){case -1:break;}` 形实测更劣 91）⇒ 封顶。
+// [L1FreeTop12.S2 2026-09-11] N-JMP 再试：`switch(ret==-1){default:break;}` 实测同 92
+//   （4.4 仍 DCE 该无条件 jmp+nop）⇒ 维持封顶。§6.5 复核：本件 ORIG 无串引用、无 PRETTY。
 #include "GmCmds_A/_selectJewelTypeIndex.inc"
                                         unsigned short const* sockets) const
 {
@@ -1314,6 +1325,8 @@ struct CBoosterEmblemIdTableView
 //   触发 P196「符号性/比较方向反演」真 bug 家族（值域含负时行为分叉）。本件缺的是
 //   ORIG 的寄存器**回写** `mov $0x3,%eax; mov %eax,-0x10(%ebp)`，F2 只翻比较侧
 //   ⇒ 无交集，保留 N18b + 路由域判词。
+// [L1FreeTop12.S2 2026-09-11] §6.5 复核：本件 ORIG 无串引用（`$"` 0 条）、无 PRETTY；
+//   §6.5.1 enc 全库 0 命中 ⇒ 无语义轴缺口，维持 N18b/路由域封顶。
 #include "GmCmds_A/reqValue.inc"
 {
     CUser* user = GetUser();

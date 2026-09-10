@@ -564,6 +564,13 @@ namespace WongWork
 // p167 14=14 CLEAR；非槽差异仅 `setb %al` 一处（ORIG 0x085476xx 的
 // `jae; mov $1,%eax; jmp; mov $0,%eax` setcc-fold 岛，P197④/N 封顶），
 // 其余为 prob/wornIdx 等局部槽号重排（N82）。语义与 ORIG 一致。
+// [L3EHeroItemUpgrade 2026-09-11 负结论] 复查 ORIG 0x0854776d..0x08547784 的
+// `jae; mov $0x1,%eax; jmp; mov $0x0,%eax; test %al,%al`（4.1 对**具名 bool
+// 局部** bVar1 的物化，Ghidra 反编译直证）。实测改写为
+// `bool failed=false; if (prob) { ... if (roll<prob) failed=true; }
+//  if (!failed) IncUpgrade(); return !failed;` 后 4.4 发
+// `setb→movb $1,-0x15; movzbl; xor $0x1; test; je`（166 → **168，劣化 +2**）⇒
+// 回滚。现形（return 折入分支，`setb %al`）163 为 4.4 最优，P197④ 封顶。
 // ============================================================================
 #include "ItemUpgradeVtableB2/_DoProcUpgrade.inc"
                                   const upgrade_info_t* info)
@@ -679,6 +686,15 @@ namespace WongWork
 //   Inven_Item C2（0x080cb854）+ GetInvenSlot 临时槽（-0x2c8）+ 15×movl+1×movb
 //   逐字段拷贝，共四处独立物化块（-0x15e/-0x19b/-0x1d8/-0x215）；重建端一律
 //   「默认构造 + 赋值」两步形，禁 `T x = f()` 直构（会折叠 sret 目标，丢整块）。
+// [L3EHeroItemUpgrade 2026-09-11] 本轮 2 处落地（our 1241→1237、editdist
+//   570→527、ratio .659→.690、TU 四数不变）：
+//   ① 0x085481a0 `movl $0x0,-0x2c(%ebp)`（Ghidra local_30=0）⇒ 源码是
+//      `pay = 0;` 显式初值（死写入，两分支随后覆盖），原写 `int pay = payBase`；
+//   ② 0x085481b7..0x085481cb：GetRepeatEvent 返回值**无具名局部槽**
+//      （`mov (%eax),%edx; add $0x34,%edx; ...; mov %eax,(%esp)`）⇒ 删
+//      `CEventBase* repeat` 中间槽（editdist -42 主因）。
+//   负结论：0x085482c2..0x085482ce 的 `(float)pay` 两具名 float 临时形实测
+//   our 1237→1240 但 editdist 527→**621** 大幅劣化 ⇒ 回滚（P243 书写序）。
 // ============================================================================
 #include "ItemUpgradeVtableB2/ProcUpgrade.inc"
                               PacketGuard* pg)
@@ -897,11 +913,18 @@ namespace WongWork
     {
         upgraded = _DoProcUpgrade(user, &target, &info);
 
-        int pay = payBase;                         // -0x2c
+        // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x085481a0 `movl $0x0,-0x2c(%ebp)`
+        // （Ghidra local_30 = 0）位于 GetRepeatEvent 之前 ⇒ 源码是 `pay = 0`
+        // 显式初值（死写入，两分支随后覆盖），非 `int pay = payBase`。
+        int pay = 0;                               // -0x2c
         // ORIG 无判空防御（0x085481bc 直接解引用返回值，P140）。
-        CEventBase* repeat =
-            GlobalData::s_event_manager->GetRepeatEvent(0x32);
-        if (repeat->IsEventing((CUser*)0) && !target.m_amp.hasAbility())
+        // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x085481b7..0x085481cb：
+        // `call GetRepeatEvent; mov (%eax),%edx; add $0x34,%edx; mov (%edx),%edx;
+        //  movl $0x0,0x4(%esp); mov %eax,(%esp); call *%edx` ⇒ 返回值**无具名
+        // 局部槽**（%eax 直用，P183/P48）；我们有 `repeat` 槽多 2 次 mov 中转。
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x32)
+                ->IsEventing((CUser*)0) &&
+            !target.m_amp.hasAbility())
         {
             // 第二次 GetRepeatEvent（0x0854820c）：ORIG 不缓存返回值（P48）。
             const int rate =
@@ -934,6 +957,11 @@ namespace WongWork
             const float discount =
                 ((CEquipItem*)discScript)->getUpgradeCostDiscount();
             // _DAT_08c9d304 = -100.0f（objdump flds 立即数直读，P185）。
+            // [L3EHeroItemUpgrade 2026-09-11 负结论] ORIG 0x085482c2..0x085482ce
+            // 把 `(float)pay` 两次各物化独立 float 槽（-0x2dc 供 fadds、-0x2d8
+            // 供 fmuls）。实测改写为两具名 float 临时（payForAdd/payForMul）后
+            // our 1237 → 1240，但 editdist **527 → 621 大幅劣化**（新槽打乱后续
+            // 全部槽号，4.4 亦可能未按声明序分配）⇒ 回滚，P243 书写序封顶。
             pay = (int)((discount * (float)pay) / -100.0f + (float)pay);
         }
 
@@ -1149,9 +1177,17 @@ namespace WongWork
 // p167 8=8 CLEAR。逐条核对 Ghidra C 与汇编：weight 字段确为 float
 // （CItemAmplifier.h `float m_additionalWeight[6]` @+0x240），4.4 对 float 局部
 // 拷贝恒 `mov` 位直搬、4.1 用 `flds/fstps`（0x085469bf，N85① 封顶）；
-// 寻址 `add $0x90,(%eax,%edx,4)` vs `add $0x8c; mov 0x10(%eax,%edx,4)`
-// 等价（0x8c*4+0x10 = 0x240，P30 拆分差）；fistpll 后 ORIG 多读高 32 位
-// （0x08546a3x，N92）；尾 3 岛为 4.1 多出口 jmp+nop（N/P223 负例）。
+//   `add $0x90,(%eax,%edx,4)` vs `add $0x8c; mov 0x10(%eax,%edx,4)`
+//   等价（0x8c*4+0x10 = 0x240，P30 拆分差）；fistpll 后 ORIG 多读高 32 位
+//   （0x08546a3x，N92）；尾 3 岛为 4.1 多出口 jmp+nop（N/P223 负例）。
+// [L3EHeroItemUpgrade 2026-09-11] **gap 7 → 1**（orig 108 / our 107）：
+//   尾 3 岛并非不可复现——改成 guard-return 形（`if (clamped < gap) return;
+//   if (minUpgrade >= up) return;` + 末尾显式 `return;`）后 4.4 也发出 3 个
+//   独立出口岛（+6 insn）。**已实测**：`&&` 合并形 101、嵌套 if 形 101（4.4
+//   cross-jump 合并，无效），guard-return 形 105、再加末尾 `return;` 107。
+//   残余 1 insn 为 ORIG 0x08546a38..0x08546a3e 的 `mov -0x40,%eax;
+//   mov -0x3c,%edx`（4.1 把 long long 整体载入 eax:edx 后再截断），4.4 只读低
+//   32 位 ⇒ N92 跨版本 lowering，源码形不可控。
 // 语义（pow 底数 up-m_additionalMinUpgrade、截断两段、make_pair 转换链、
 // count!=0 门禁）与 ORIG 逐点一致，判 N。
 // ============================================================================
@@ -1184,50 +1220,54 @@ namespace WongWork
 
     // ORIG 0x0854698d..0x085469a2：`mov -0xc,%edx; mov 0x23c(%eax),%eax;
     // cmp %eax,%edx; jb end` ⇒ 源码写 `clamped >= gap`（4.4 对 `a>=b` 发 jb）。
-    if ((unsigned int)clamped >=
-            (unsigned int)table.m_bodyView.m_named.m_additionalGradeGap &&
-        (unsigned int)table.m_bodyView.m_named.m_additionalMinUpgrade < up)
-    {
-        // ORIG 的 make_pair 实参是 `Rm Rj`（unsigned long& / unsigned int&
-        // 左值）⇒ pair 由转换 ctor C2<unsigned long,unsigned int> 落成
-        // pair<int,int>（0x08546a5c/0x08546a71 两个 call）⇒ 两量必须是有类型
-        // 的具名局部，不能是表达式直传。
-        unsigned long itemId =
-            (unsigned long)table.m_bodyView.m_named.m_additionalItemId;
-        // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x085469bf..0x085469ca 为
-        // `flds (%eax,%edx,4); fstps -0x4c(%ebp)`（4.1 的 float 拷贝经 x87），
-        // 4.4 恒 mov 位直搬（volatile 形实测反而多 flds+fmulp 一条，且初始化
-        // 仍为 mov）⇒ N85① 封顶（跨版本 float 拷贝 lowering 差异）。
-        const float weight = table.m_bodyView.m_named
-                                 .m_additionalWeight[itemScript->get_rarity()];
+    // [L3EHeroItemUpgrade] ORIG 0x0854699b `jb 0x08546a8a` / 0x085469ad
+    // `jae 0x08546a8d` / 0x08546a46 `je 0x08546a90`：三个条件各有一个
+    // nop+jmp 出口岛（0x150/0x152/0x155/0x158）⇒ 试 guard-return 形。
+    if ((unsigned int)clamped <
+        (unsigned int)table.m_bodyView.m_named.m_additionalGradeGap)
+        return;
+    if ((unsigned int)table.m_bodyView.m_named.m_additionalMinUpgrade >= up)
+        return;
+    // ORIG 的 make_pair 实参是 `Rm Rj`（unsigned long& / unsigned int&
+    // 左值）⇒ pair 由转换 ctor C2<unsigned long,unsigned int> 落成
+    // pair<int,int>（0x08546a5c/0x08546a71 两个 call）⇒ 两量必须是有类型
+    // 的具名局部，不能是表达式直传。
+    unsigned long itemId =
+        (unsigned long)table.m_bodyView.m_named.m_additionalItemId;
+    // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x085469bf..0x085469ca 为
+    // `flds (%eax,%edx,4); fstps -0x4c(%ebp)`（4.1 的 float 拷贝经 x87），
+    // 4.4 恒 mov 位直搬（volatile 形实测反而多 flds+fmulp 一条，且初始化
+    // 仍为 mov）⇒ N85① 封顶（跨版本 float 拷贝 lowering 差异）。
+    const float weight = table.m_bodyView.m_named
+                             .m_additionalWeight[itemScript->get_rarity()];
 
-        // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x085469db..0x08546a01：
-        // `mov 0x258(%eax),%eax; mov 0xc(%ebp),%edx; mov %edx,%ecx;
-        //  sub %eax,%ecx; mov %ecx,%eax; mov $0x0,%edx; mov %eax,-0x40;
-        //  mov %edx,-0x3c; fildll -0x40` = **unsigned int → double** 的零扩展
-        // 转换（32 位 unsigned 不能走 fildl）⇒ 底数类型是 unsigned int，
-        // 不是 (long long) 相减（那会出 sbb 链）。
-        // ORIG 0x08546a02..0x08546a39：pow 结果直接 `fnstcw/fldcw(RC=trunc)`
-        // 后 fistpl（截断，**无 +0.5**）；再 fildl + fmuls weight +
-        // fistpll（64 位截断）⇒ 源码是两次 (int)/(long long) C cast。
-        // span 无具名槽（ORIG 0x085469d1 用 %ecx/%eax 直传）⇒ 内联表达式。
-        const long long scaled =
-            (long long)((float)(int)std::pow(
-                            (double)(unsigned int)(
-                                up - table.m_bodyView.m_named
-                                         .m_additionalMinUpgrade),
-                            2.0) *
-                        weight);
-        unsigned int count = (unsigned int)scaled;
-        if (count != 0)
-        {
-            // ORIG 0x08546a4a..0x08546a6e：make_pair<Rm,Rj>（两左值）→
-            // pair<int,int> 转换 ctor → push_back(&&) 三连 call（P178 嵌套形；
-            // 直写 make_pair 只发两 call）。
-            items.push_back(
-                std::pair<int, int>(std::make_pair(itemId, count)));
-        }
+    // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x085469db..0x08546a01：
+    // `mov 0x258(%eax),%eax; mov 0xc(%ebp),%edx; mov %edx,%ecx;
+    //  sub %eax,%ecx; mov %ecx,%eax; mov $0x0,%edx; mov %eax,-0x40;
+    //  mov %edx,-0x3c; fildll -0x40` = **unsigned int → double** 的零扩展
+    // 转换（32 位 unsigned 不能走 fildl）⇒ 底数类型是 unsigned int，
+    // 不是 (long long) 相减（那会出 sbb 链）。
+    // ORIG 0x08546a02..0x08546a39：pow 结果直接 `fnstcw/fldcw(RC=trunc)`
+    // 后 fistpl（截断，**无 +0.5**）；再 fildl + fmuls weight +
+    // fistpll（64 位截断）⇒ 源码是两次 (int)/(long long) C cast。
+    // span 无具名槽（ORIG 0x085469d1 用 %ecx/%eax 直传）⇒ 内联表达式。
+    const long long scaled =
+        (long long)((float)(int)std::pow(
+                        (double)(unsigned int)(
+                            up - table.m_bodyView.m_named
+                                     .m_additionalMinUpgrade),
+                        2.0) *
+                    weight);
+    unsigned int count = (unsigned int)scaled;
+    if (count != 0)
+    {
+        // ORIG 0x08546a4a..0x08546a6e：make_pair<Rm,Rj>（两左值）→
+        // pair<int,int> 转换 ctor → push_back(&&) 三连 call（P178 嵌套形；
+        // 直写 make_pair 只发两 call）。
+        items.push_back(
+            std::pair<int, int>(std::make_pair(itemId, count)));
     }
+    return;
 }
 
 // ============================================================================
@@ -1264,6 +1304,18 @@ namespace WongWork
 //      savedUp 改 unsigned int + 掩码（复现 `movzbl %al,%eax; mov %eax,-0x38`）。
 // 残余 1 条为槽基平移 8（-0x40↔-0x48，N95/N126 版本常数）；`call *` 1 处
 // vptr+0x8（make_item）与 ORIG 0x0854743d 一致。
+// [L3EHeroItemUpgrade 2026-09-11] 本轮 3 处落地（our 633→632、editdist
+//   151→108、ratio .830→.866、TU 四数不变）：
+//   ① 保护券选择段 0x08546e3a..0x08546e62 复现为**正逻辑 if/else-if 链**
+//      （`cmp A,-1; je L1; sel=A; jmp done; …`）—— 原负逻辑嵌套 `if (A==-1)
+//      { if (B==-1) {…} }` 会被 4.4 发 jne 链 + 逆序赋值块；
+//   ② 0x08547084..0x085470bd：delete_item 直用 getCurCharacInvenW() 返回值
+//      （slot 用 %ebx 保活），删具名 `CInventory* invenW`（-31 editdist）；
+//   ③ 0x08546cbb..0x08546cc7 精确五条 `mov 0x20(%ebp),%eax; add $0x28,%eax;
+//      mov %eax,-0x3c; mov -0x3c,%eax; movl $0x1,(%eax)` ⇒ `prob20Slot` 只保
+//      **字段地址**，删 `upgrade_info_t* probSlot` 对象指针槽。
+//   负结论：0x08547207 `jmp 0854720a; nop` 冗余回边加显式 `continue;` 实测
+//   our 632 / editdist 108 **零变化**（4.4 跳线程）= 回滚。
 // ============================================================================
 #include "ItemUpgradeVtableB2/_ProcPenalty.inc"
                                const CItem* itemScript, unsigned short slot,
@@ -1314,8 +1366,13 @@ namespace WongWork
             // `mov info,%eax; add $0x28,%eax; mov %eax,-0x3c(%ebp); mov -0x3c,%eax;
             // movl $0x1,(%eax)` ⇒ 原码有具名指针局部（槽 -0x3c）；直接写
             // const_cast 链会被 4.4 折成单条 `movl $0x1,0x28(%eax)`（少 3 条）。
-            upgrade_info_t* probSlot = const_cast<upgrade_info_t*>(info);
-            probSlot->m_prob20[2] = 1;  // info +0x28
+            // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x08546cbb..0x08546cc7 精确五条：
+            // `mov 0x20(%ebp),%eax; add $0x28,%eax; mov %eax,-0x3c(%ebp);
+            //  mov -0x3c(%ebp),%eax; movl $0x1,(%eax)` ⇒ 源码只有**字段地址**
+            // 具名指针局部（info 本身无槽）。
+            int* prob20Slot =
+                &const_cast<upgrade_info_t*>(info)->m_prob20[2];
+            *prob20Slot = 1;  // info +0x28
         }
         // [b28d-solo-ItemUpgradeVtableB2] P167/P48：ORIG 0x08546cd9 比较用
         // GetUpgrade（值留 %eax 无槽）、0x08546d22/0x08546d4a 两个 SetUpgrade
@@ -1375,23 +1432,22 @@ namespace WongWork
             slotC = ((const CUserCharacInfo*)user)
                         ->getCurCharacInvenR()
                         ->check_item_exist(0x20ba);
-            if (slotA == -1)
-            {
-                if (slotB == -1)
-                {
-                    if (slotC != -1)
-                    {
-                        protectSlot = slotC;
-                    }
-                }
-                else
-                {
-                    protectSlot = slotB;
-                }
-            }
-            else
+            // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x08546e3a..0x08546e62 是
+            // **正逻辑 if/else-if 链**：`cmp A,-1; je L1; sel=A; jmp done;
+            // L1: cmp B,-1; je L2; sel=B; jmp done; L2: cmp C,-1; je done;
+            // sel=C`（而非负逻辑嵌套 `if (A==-1) { if (B==-1) {...} }` ——
+            // 4.4 对后者发 jne 链 + 逆序赋值块，多点 1 insn）。
+            if (slotA != -1)
             {
                 protectSlot = slotA;
+            }
+            else if (slotB != -1)
+            {
+                protectSlot = slotB;
+            }
+            else if (slotC != -1)
+            {
+                protectSlot = slotC;
             }
             int slotD = -1;
             slotD = ((const CUserCharacInfo*)user)
@@ -1434,9 +1490,13 @@ namespace WongWork
             }
         }
 
-        CInventory* invenW = ((CUserCharacInfo*)user)->getCurCharacInvenW();
-        if (invenW->delete_item(INVEN_TYPE_EQUIP, slot, 1, eItemDelReason_0xd,
-                                true) != 1)
+        // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x08547084..0x085470bd：slot 用
+        // %ebx 保活、getCurCharacInvenW() 返回值 %eax 直传 delete_item 的 this
+        // （无具名 invenW 缓存）⇒ 我们有 -0x3c 槽多 2 条 mov 中转（P183）。
+        if (((CUserCharacInfo*)user)
+                ->getCurCharacInvenW()
+                ->delete_item(INVEN_TYPE_EQUIP, slot, 1, eItemDelReason_0xd,
+                              true) != 1)
         {
             return 0x11;
         }
@@ -1469,6 +1529,9 @@ namespace WongWork
         if (result.m_f[i + 5] != 0)
         {
                 items.push_back(std::make_pair(result.m_f[i + 5], result.m_f[i]));
+                // [L3EHeroItemUpgrade 2026-09-11 负结论] ORIG 0x08547207
+                // `jmp 0854720a; nop`（冗余回边）实测加显式 `continue;` 后
+                // our 632 / editdist 108 **零变化**（4.4 跳线程消除）⇒ 回滚。
         }
             }
         _getAdditionalDisjointItem(savedUp, itemScript, items, table);

@@ -32,6 +32,19 @@
 //     `(ENUM_ASSAULT_STATE)(unsigned int)` 替代形仍单段（P265 在本后端不成立）⇒ N18a。
 //   · EndAssault（NEAR）：槽集合两侧全等、相对序差（P309 头部声明试验已证无效）。
 //   · RevivalUser：仅 _ZTI/全局 reloc 显示差 + 1 条，AE 后等价。
+// [L2-S5 2026-09-11 复核] 5 件逐个复测 + 2 个新旋钮实验：
+//   · **_SendHoldVictory：NEAR → AE（翻正，201=201）**。手法 = P212「**全**头部声明 +
+//     声明序按 ORIG 槽深→浅序」——旧判词 N98「声明序/头部声明不可翻」被此组合推翻
+//     （详见该函数头判词：14 个标量全部提前 + 按 0x082ecb59..0x082ecd30 实录槽址排序）。
+//   · EndAssault：新增实验-D（aliveCounts 提到 i/allDead 之前、声明序深→浅）⇒ 槽图
+//     逐条不变（packet 恒占 -0x24），再证 N82附「块内聚合优先低槽」固定分区，已回滚。
+//   · RevivalUser：复核 N104（unwind 块位置：ORIG 在函数末、4.4 就地 fall-through）——
+//     非槽问题（两侧槽集全等），P212 不适用。
+//   · _ProcessChaos：复核 N7/P75/N121（5 组装载序/寄存器角色 + 尾部双 jmp），P212 不适用。
+//   · EvadeAssaultPlace：基线即 AE，未触碰。
+//   · GI 假缺口：`_Z41__static_initialization_and_destruction_0ii` —— ORIG 该符号有
+//     493 个实例，工具按名错配取首个（0x0807ee76 属 PacketTypes）⇒ 逐 TU 读数不可比，
+//     我方 16 条 ioinit 形正确（Main 2026-09-11 更正判据）⇒ **零改动**。
 #include "CAssaultMgr.h"
 
 #include "CUser.h"
@@ -434,6 +447,10 @@ TRACE_END:
 {
     // [b28d-solo-W6_AssaultPlaceDepsA] P309 试验：ORIG 槽 i=-0x10 / allDead=-0x9
     //   （4.1 先声明深）⇒ 头部声明 i、allDead（赋值留原位）试归位。
+    // [L2-S5 实验-D 负结论] 把 aliveCounts 提到函数头（i/allDead 之前、声明序
+    //   深→浅）⇒ 4.4 仍给**块内聚合** PacketGuard 低槽 -0x24、counts 停 -0x18
+    //   （槽图逐条不变、四数不变）⇒ 证实 N82附「块内聚合优先占低槽」固定分区，
+    //   声明序不可翻，已回滚。
     int i;
     bool allDead;
     for (i = 0; i < 8; ++i) {
@@ -802,68 +819,94 @@ LOOP2_END:
 // ORIG T 0x82ecaee (size 0x2cd)：_SendHoldVictory(CUser*, CUser*, int)
 // 包 0x109：双方连破名单广播（无队用单名，有队 4 成员名）。
 // ---------------------------------------------------------------------------
-// [b28d-62][b28d-solo-W6_AssaultPlaceDepsA] NEAR 封 N（P321-T5）：N98——ORIG 4 处
-//   strlen 为 4.1 内联 word-at-a-time vs 4.4 恒 call（p167 EXTRA 4×strlen）；
-//   且 N82 槽序——ORIG s1=-0x3c/member=-0x38/name=-0x34/len=-0x30、s2=-0x20，
-//   4.4 按首次使用序使 s1=-0x38 等整体浅 4（-0x3c 被后用的 member2 占用）；
-//   声明序/头部声明两形实测均不闭合（N98「4.4 槽按首次使用分配」）。
-//   p167 CLEAR。ORIG 0x082ecaee
+// [L2-S5 2026-09-11 翻正：NEAR → **AE**，201=201] 手法 = **P212 全头部声明 +
+//   声明序按 ORIG 槽深→浅**（旧判词「N98 声明序不可翻」被本形推翻）：
+//   ① ORIG 槽实录（深→浅）：partyA -0x40 / s1 -0x3c / member1 -0x38 / name1 -0x34 /
+//      len1 -0x30 / name1b -0x2c / len1b -0x28 / partyB -0x24 / s2 -0x20 /
+//      member2 -0x1c / name2 -0x18 / len2 -0x14 / name2b -0x10 / len2b -0xc
+//      （0x082ecb59..0x082ecd30 逐点实证；packet 恒 -0x4c 不动）。
+//   ② 4.4 -O0 对**函数头**声明按「先声明 → 更深槽」分配（实验留痕：头部先声明
+//      s2/member2 ⇒ s2 落最深 -0x40 反证），块内声明才按首次使用序 ⇒ 全提头部 +
+//      按 ① 的深→浅序排列即逐槽归位（每个变量都落回 ORIG 槽址）。
+//   ③ 实证读数：改前 s1 -0x38 / member2 -0x3c（-0x3c 被后用的 member2 抢占）；
+//      改后逐槽全等、our 201 = orig 201、TU near 2→1 / ae 40→41。
+//   ④ 标量（int/指针/size_t）提前声明零语义/零符号影响（P331 禁的是非 POD 类对象
+//      提前；packet 保持首位、ctor 发射点不动）。p167 CLEAR。
+//   [历史] b28d-62/b28d-solo 判 N98「声明序不可翻」——本形（**全**头部 + ORIG 槽序）
+//   是当时未试的组合。ORIG 0x082ecaee
 #include "W6_AssaultPlaceDepsA/_SendHoldVictory.inc"
 {
-    PacketGuard packet;
+    // [L2-S5 实验-C] P212 全头部声明（块内仅赋值）：声明序 = ORIG 槽**深→浅**
+    //   （packet -0x4c → partyA -0x40 → s1 -0x3c → member1 -0x38 → name1 -0x34 →
+    //    len1 -0x30 → name1b -0x2c → len1b -0x28 → partyB -0x24 → s2 -0x20 →
+    //    member2 -0x1c → name2 -0x18 → len2 -0x14 → name2b -0x10 → len2b -0xc）。
+    //   依据 ORIG 全头部槽实录（0x082ecb59/-0x40、0x082ecb92/-0x3c、0x082ecbad/-0x38、
+    //   0x082ecbaf/-0x34、0x082ecbbd/-0x30、0x082ecc1a/-0x2c、0x082ecc28/-0x28、
+    //   0x082ecc61/-0x24、0x082ecc91/-0x20、0x082ecca3/-0x1c、0x082eccb7/-0x18、
+    //   0x082eccc5/-0x14、0x082ecd22/-0x10、0x082ecd30/-0xc）；标量（POD）提前
+    //   声明不改语义、不进 mangled、零符号变化（P331 禁的是非 POD 类对象提前）。
+    PacketGuard packet;          // -0x4c（类对象保持首位：ctor 发射点不动）
+    CParty* partyA;              // -0x40
+    int s1;                      // -0x3c
+    CUser* member1;              // -0x38
+    const char* name1;           // -0x34
+    std::size_t len1;            // -0x30
+    const char* name1b;          // -0x2c（无队分支）
+    std::size_t len1b;           // -0x28
+    CParty* partyB;              // -0x24
+    int s2;                      // -0x20
+    CUser* member2;              // -0x1c
+    const char* name2;           // -0x18
+    std::size_t len2;            // -0x14
+    const char* name2b;          // -0x10（第二无队分支）
+    std::size_t len2b;           // -0xc
+
     packet.put_header(0, 0x109);
 
     packet.put_byte((int)((CUser*)userA)->getPowerSide());
     packet.put_int(winTeam + 1);
 
-    CParty* partyA = (CParty*)((CUser*)userA)->GetParty();
+    partyA = (CParty*)((CUser*)userA)->GetParty();
     // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082ecb60 `cmpl $0x0,-0x40; je +0x10e`
     //   ⇒ 非零（有队）走 fall-through 有队分支、零落 +0x10e 无队块（P59 正极性）。
     if (partyA != 0) {
         packet.put_byte(partyA->get_member_count());
-        // [b28d-solo-W6_AssaultPlaceDepsA] N82：ORIG 循环变量槽 s1=-0x3c/s2=-0x20
-        //   （4.1 生命周期序）；4.4 按首次使用序（-0x38 共用 / 头部声明 -0x40/-0x3c），
-        //   实测两形均不闭合 ⇒ 槽序封顶（member/name/len 随之下移 4）。
-        for (int s = 0; s < 4; ++s) {
-            CUser* member = (CUser*)partyA->get_user(s);
-            if (member != 0) {
-                const char* name =
-                    ((CUserCharacInfo*)member)->getCurCharacName();
+        for (s1 = 0; s1 < 4; ++s1) {
+            member1 = (CUser*)partyA->get_user(s1);
+            if (member1 != 0) {
+                name1 = ((CUserCharacInfo*)member1)->getCurCharacName();
                 // P0：ORIG strlen 结果落具名槽 -0x30，put_int/put_str 复用同一槽。
-                size_t len = strlen(name);
-                packet.put_int((int)len);
-                packet.put_str(name, (int)len);
+                len1 = strlen(name1);
+                packet.put_int((int)len1);
+                packet.put_str(name1, (int)len1);
             }
         }
     } else {
         packet.put_byte(1);
-        const char* name =
-            ((CUserCharacInfo*)userA)->getCurCharacName();
-        size_t len = strlen(name);
-        packet.put_int((int)len);
-        packet.put_str(name, (int)len);
+        name1b = ((CUserCharacInfo*)userA)->getCurCharacName();
+        len1b = strlen(name1b);
+        packet.put_int((int)len1b);
+        packet.put_str(name1b, (int)len1b);
     }
 
-    CParty* partyB = (CParty*)((CUser*)userB)->GetParty();
+    partyB = (CParty*)((CUser*)userB)->GetParty();
     if (partyB != 0) {
         packet.put_byte(partyB->get_member_count());
-        for (int s = 0; s < 4; ++s) {
-            CUser* member = (CUser*)partyB->get_user(s);
-            if (member != 0) {
-                const char* name =
-                    ((CUserCharacInfo*)member)->getCurCharacName();
-                size_t len = strlen(name);
-                packet.put_int((int)len);
-                packet.put_str(name, (int)len);
+        for (s2 = 0; s2 < 4; ++s2) {
+            member2 = (CUser*)partyB->get_user(s2);
+            if (member2 != 0) {
+                name2 = ((CUserCharacInfo*)member2)->getCurCharacName();
+                len2 = strlen(name2);
+                packet.put_int((int)len2);
+                packet.put_str(name2, (int)len2);
             }
         }
     } else {
         packet.put_byte(1);
-        const char* name =
-            ((CUserCharacInfo*)userB)->getCurCharacName();
-        size_t len = strlen(name);
-        packet.put_int((int)len);
-        packet.put_str(name, (int)len);
+        name2b = ((CUserCharacInfo*)userB)->getCurCharacName();
+        len2b = strlen(name2b);
+        packet.put_int((int)len2b);
+        packet.put_str(name2b, (int)len2b);
     }
 
     packet.finalize(true);

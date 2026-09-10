@@ -1,1 +1,1 @@
-char CharacAdvanceAltarManager::decTicket()
+bool CharacAdvanceAltarManager::decTicket()

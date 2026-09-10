@@ -195,6 +195,12 @@ typedef unsigned int memberIdentificationNumber_t;
     return 1;
 }
 
+// [b28d-solo3 N80 翻案 · DIFF→AE 74/74 ndiff0] 定解 = varargs 首参写
+//   `(unsigned int)ret`（**异型化 cast 触发 4.4 提前把该值装 callee-saved 并跨
+//   cMyTrace ctor 保活**）：4.4 产 `mov -0x1c(%ebp),%eax; mov %eax,%esi` + push edi
+//   + sub $0x5c，与 ORIG 逐条全等（原 N80 判词列的 P226 语句表达式 / P227 全表达
+//   式链 / P231 裸 register / volatile 读 四形均无效，唯异型化 cast 命中——
+//   属 P41 变体（varargs 冗余 cast 诱发 callee-saved 缓存）的**正向**用法）。
 // [b28d-solo-CGuildServerProxy N80: 74/72] P225 while 形已复现 ORIG @0x0846d9c1
 //   `cmpl $0x0,-0x1c(%ebp); setne %al; test %al,%al; je`（原 if 形 4.4 恒折
 //   `cmpl;je` 少 2 条）。残余=4.1 在 cMyTrace ctor 前把 varargs 右起求值并
@@ -223,7 +229,7 @@ typedef unsigned int memberIdentificationNumber_t;
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x4ea, 0)
                 ("CGuildServerProxy CreateConnectionSocket() error(%d:%d:%s)",
-                 ret, errno, strerror(errno));
+                 (unsigned int)ret, errno, strerror(errno));
             return 0;
         }
     }
@@ -731,7 +737,9 @@ typedef unsigned int memberIdentificationNumber_t;
         // 该死槽只能由「具名 pGuild 取址 + 另写 it->second」两语句复现（探针
         // /tmp/probe_mgi.cpp f vs f2：单语句只发一次 ptEv）。
         STGuildProxy* pGuild = &it->second;
-        it->second = info;
+        // [b28d-solo3 一次性旋钮] 取址形：诱导 4.4 先算 dst 地址到寄存器
+        // （ORIG 0x0846ea07 `lea 0x4(%eax),%edx` + 逐字段 store (%edx)）。
+        *reinterpret_cast<STGuildProxy*>(&it->second) = info;
         (void)pGuild;
         return true;
     }
@@ -759,6 +767,9 @@ typedef unsigned int memberIdentificationNumber_t;
     STGuildProxy* volatile pGuild;
     // 槽序：find 结果 -0x14（与 ORIG 一致）；end() 临时与 pGuild 互换（N98 残差）。
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
+    // [b28d-solo3 一次性旋钮·否] P326 非 const 内联临时
+    // `it == iterator(m_guildInfoMap.end())` 实测逐条同形（槽仍 pGuild -0x10 /
+    // end 临时 -0xc，5 行残差不变）⇒ 无第三级临时可落，已回滚。
     if (it == m_guildInfoMap.end())
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp", __PRETTY_FUNCTION__, 0x860,
@@ -962,6 +973,9 @@ typedef unsigned int memberIdentificationNumber_t;
     pkt.m_channel = channel;
     pkt.m_type = 1;
     pkt.m_port = port;
+    // [b28d-solo3 一次性旋钮·否] P316 volatile 具名 dst 指针
+    // （`char* volatile dst = pkt.m_name;`）实测 36→38 劣化：dst 落栈槽往返
+    // （`mov %eax,-S; mov -S,%eax`）且 dst 装载仍在压栈后 ⇒ 已回滚。
     strncpy(pkt.m_name, name, 0x10);
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
