@@ -1538,7 +1538,7 @@ int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     // 岛（mov$1/mov$0/test al）零槽直测；具名 bool 初值+置位形 4.4 恒落槽（+3 条）。
     // ORIG 0x84bf239 内联字段读 `mov 0x378(%eax),%eax`（0x198+0x1e0）⇒ 字段访问，非 getter 调用。
     if (({ G_CEnvironment()->m_serverEnvir.m_serverGroup == 10 &&
-          GlobalData::s_systemTime_.getCurSec() <= 0x478e7050; }) &&
+          (unsigned int)GlobalData::s_systemTime_.getCurSec() <= 0x478e7050u; }) &&
         *reinterpret_cast<unsigned char*>(
             &sig->m_pad534d[0]) != 0)   // +0x534d
     {   // 活动创建礼（按职业表 0x1c70..0x1c74 取道具）
@@ -12139,9 +12139,9 @@ struct Inter_ItemLimitEdition_UpdatePktView
 int Inter_ItemLimitEdition_Update::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_ItemLimitEdition_UpdatePktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_UpdatePktView*>(data);
-    const unsigned int entryCount =                  // msg+0x0e 条目数
-        pPkt->m_e;
-
+    // ORIG 0x084dbd2x 入口直接进 PacketGuard ctor（无 count 槽、无 `mov 0xe(%eax),%eax` 预取）
+    // ⇒ 原码循环界内联 pPkt->m_e（P0：无槽往返即无具名局部）；旧 `const unsigned int entryCount`
+    // 提前物化多 3 条 + 帧 0x50 vs ORIG 0x30。
     PacketGuard packet;
     packet.put_header(0, 0xe1);
     packet.put_byte(0);
@@ -12149,7 +12149,7 @@ int Inter_ItemLimitEdition_Update::dispatch_sig(CUser* /*user*/, char* data, int
     int putCount = 0;                                // local_18/asm -0x14(%ebp)
     packet.put_byte(0);
 
-    for (unsigned int i = 0; i < entryCount; ++i)    // asm seta 无符号比较
+    for (unsigned int i = 0; i < (unsigned int)pPkt->m_e; ++i)   // asm seta 无符号比较（界直读）
     {
         CDataManager* mgrData = G_CDataManager();
         CItemLimitEditionMgr* mgr = mgrData->getItemLimitEditionMgr();
@@ -12158,6 +12158,8 @@ int Inter_ItemLimitEdition_Update::dispatch_sig(CUser* /*user*/, char* data, int
         if (info == 0 || info->isSellComplete())
             continue;                                // ORIG mov $1/mov $0 归并 true
 
+        // 二旋钮实验留痕：mgrData/mgr/count/itemIdx/mgr2 全内联实测 **our 130（ORIG 138，gap 2→−8）
+        // 反劣** ⇒ 原码确有这些具名槽（每点重算反而少 8 条）；维持 P0 保留具名形。
         const unsigned int count =
             *reinterpret_cast<unsigned int*>(data + i * 9 + 0x16);
         const unsigned int itemIdx =
@@ -18063,8 +18065,13 @@ int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*l
     user->m_levelupEvents =
         ARAD::Singleton<LevelupSupportEventManger>::Get()->GetDefaultEventInfo();
 
-    for (unsigned int local_28 = 0;
-         local_28 < user->m_levelupEvents.size();
+    // [A02-r5] 轴 B（循环变量符号性）单点实验留痕：按 A01 形改 `int` + `(int)size()`
+    //（P196 前置：ORIG 该族为有符号序 `setle`，允许改 int）。**实测结果**：本件 ndiff
+    // 175→174（−1 条）、TU 四数不变 ⇒ 保留；但两侧 setcc 序列仍差（OURS 首点 `setbe`
+    // 经核源自**另一处** unsigned 循环，非本循环）⇒ setcc 对齐未达成，余部按 N（N82/P112
+    // 帧槽 + 该 unsigned 循环的 B 轴点）封顶。
+    for (int local_28 = 0;
+         local_28 < (int)user->m_levelupEvents.size();
          ++local_28)
     {
         if (user->m_levelupEvents[local_28].m_level <=

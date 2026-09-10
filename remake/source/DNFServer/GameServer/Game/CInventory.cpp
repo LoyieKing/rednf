@@ -2211,6 +2211,9 @@ int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item item, eItemAddRe
         {
             if (bLog && m_pParent != 0)
             {
+                // [b28d-round5 复攻失败记录] 把 itemAddInfo/itemInfo 提升到函数头（T1b 配方②）
+                // 实测 209/209、四数不变、槽集不变 ⇒ 已回滚（ORIG 的深槽 -0x44/-0x40 与 4.4
+                // 的浅槽 -0x20/-0x1c 差属 N82附 分区族，非「多开具名局部」）。
                 int itemAddInfo = item.m_addInfo;
                 int itemInfo = item.get_add_info();
                 cMyTrace(__PRETTY_FUNCTION__,

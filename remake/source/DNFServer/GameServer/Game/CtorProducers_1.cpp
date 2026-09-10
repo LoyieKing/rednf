@@ -365,6 +365,11 @@ bool AvatarRouletteServer::InitAddCharacSkill()
         // 同 Init：ORIG 0x0817f3d5 `size()` 死调用（结果丢弃，P171）+ `li=0` +
         // 0x0817f3e7 第二次 `size()` 存 -0x20 作循环上界（p167 MISSING×1）。
         outer.size();
+        // [轴 B 已试·按 ORIG 直证回滚] li/n 循环的 ORIG 尾测在 **0x0817f6d0-0x0817f6d6**
+        // （`mov -0x24(%ebp),%eax; cmp -0x20(%ebp),%eax; setb %al`）= **无符号序**
+        // ⇒ li/n 保持 size_t（我方 setcc 实测 = setb ✓）。先前误把 **idx/count 循环**
+        // （0x0817f619-0x0817f623，`setl`）当作本循环，改成 int 后本循环变 setl 反而
+        // 与 ORIG 相反，已回滚（改前=改后=241/235、TU 四数不变）。
         size_t li = 0;
         size_t n = outer.size();
         for (; li < n; ++li)

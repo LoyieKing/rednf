@@ -491,7 +491,11 @@ case "$(basename "$src" .cpp)" in
                 # 4.4.7 identical=130/ae=239/near=3/diff=4 →
                 # 4.4.6 identical=130/ae=241/near=1/diff=4（doMatch/MultiMatch
                 # NEAR→AE，两后端 p167 均 5/6 CLEAR）⇒ 零回归。
-                exec "$C6446R" "$@" ;;
+                # [Main·2026-09-10 round5] 再叠 `-march=i486 -mtune=generic`（x87 比较
+                # lowering 族，P230/S275 同族）：实测 identical=130/ae=241(371)/near=1/
+                # diff=4 → identical=131/ae=241(372)/near=1/diff=3（identical +1、
+                # diff −1，零回退）。`-mtune=generic` 必须同带。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             # ---- 脚本 Import/Export 族 + 相关：ORIG GameServer 为 GCC 4.4.6（DWARF producer 实证），
             # 切 4.4.6 后端使寄存器/栈槽分配逐操作数对齐，翻 NEAR→IDENTICAL。 ----
             *Game/CreatureScript.cpp)
@@ -602,6 +606,23 @@ case "$(basename "$src" .cpp)" in
                 #   x87 比较 lowering 族（ORIG `fucompp; fnstsw %ax; sahf` vs 4.4.7 `fucomip/fstp`）。
                 #   实测（同口径两次编译，仅差该旗标）：623/1125(1748)/near4/diff20 →
                 #   623/1126(1749)/near4/diff19（ae +1 / diff −1，净 −1）。
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
+            *Game/PvpUserTable.cpp | \
+            *Game/ScriptLeafA2.cpp | \
+            *Game/GmCmds_E.cpp | \
+            *Game/CBattle_Field_kill_monster.cpp | \
+            *Game/CPrivateStoreMgr.cpp | \
+            *Game/CCreature.cpp)
+                # [Main·2026-09-10 round5] x87 比较 lowering 族路由 A/B（Main 独立复编核验：
+                #   同一 wrapper 下仅差 `-march=i486 -mtune=generic`，逐 TU 四数比对）：
+                #   PvpUserTable  16→18(id+ae) / diff 4→2
+                #   ScriptLeafA2  1732→1735    / diff 17→14
+                #   GmCmds_E      379→380      / diff 6→5
+                #   CBattle_Field_kill_monster 166→167 / diff 3→2
+                #   CPrivateStoreMgr identical 171→172 / diff 9→9
+                #   CCreature     21→22        / diff 2→1
+                #   ⇒ 合计 id+ae **+9** / diff **−9**，无任何 TU 回退。
+                #   `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
 
             *)

@@ -1113,6 +1113,10 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
     }
 
     int slot = 0;
+    // [round5 Main-B轴 实测负例·P196 红线] 曾试 `int row` + `(int)get_n_rows()`：改后该比较
+    //   变有符号 `jle`，而 ORIG 是 `call get_n_rows; cmp -0xc(%ebp),%eax; seta %al; test %al,%al;
+    //   jne 818cd68`（**seta = 无符号**）⇒ 违反 P196（禁止把无符号序改有符号），已回退。
+    //   真正的残差是「ORIG 物化 `seta;test;jne` vs 我方直接 `jbe`」，非符号性；row 保持 unsigned。
     for (unsigned int row = 0;
          row < static_cast<unsigned int>(db->get_n_rows()) && db->fetch();
          ++row)

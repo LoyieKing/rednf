@@ -55,12 +55,11 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
         out.m_count   = hit->second.m_count;
         for (int i = 0; i < (signed char)hit->second.m_count; ++i)
         {
-            // [L23-r2 P291 实测·本函数回退] 该函数的 `m_keyBytes[i]` 形反而
-            //   209→212 条（本函数内 4 处访问点均被 4.4 拆成
-            //   `mov 0xc(%ebp),%eax; lea 0x3(%eax),%edx; lea (%edx,%eax,1),%eax;
-            //   movzbl (%eax)`），而 `(&x.m_key0)[i]` 形 209 条更接近 ORIG 199；
-            //   同 TU 另两函数（overload-3 / customizingSkillCommand）改用视图后
-            //   84→78、120→114（=ORIG）为净收益 ⇒ 仅本函数回退（实测为准）。
+            // [P291 本函数回退：裸下标 `(&x.m_key0)[i]` 保留（m_keyBytes 视图
+            //   在本函数 4 处访问点会被 4.4 拆成三步 lea，209→212）]
+            // 实测（20:04）：同三参重载的「删 key 局部 + 重读 out」形在本函数
+            // **劣化 209→214**（裸下标重读要重发 4 步 lea 链，与 m_keyBytes 视图
+            // 的 3 步不同）⇒ 保持 key 具名局部。
             unsigned char key = (&hit->second.m_key0)[i];
             (&out.m_key0)[i]  = key;
             if (key == 7)
@@ -101,6 +100,11 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
 
     out.m_command = (unsigned short)sit->first;
     out.m_count   = (unsigned char)n;
+    // [轴 B 实测·本函数不适用] ORIG 0x08654e19 虽为 `cmp -0x10(%ebp),%eax; setl`
+    // 有符号序（P196 前置通过），但本函数改 `int i; i < (int)n` 实测
+    // **209→211 劣化**（`unsigned char key` 具名局部的 `movzbl` 链与 int 循环
+    // 的寄存器分配冲突）⇒ 回退 `size_t`；残差归 N82/N93（槽向 + getSkillCommand
+    // 具名缓存不可去），已按 P196/S1「一次旋钮、无改善即回滚」留痕。
     for (size_t i = 0; i < n; ++i)
     {
         // ORIG 读第 i 个 STKeyCommandUnit.m_ids[0] 低字节作命令键位

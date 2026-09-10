@@ -217,6 +217,14 @@ bool CBossStage::handleMoveMap(unsigned short* mapIndex)
 //   返回）；返回类型不入 mangled（_ZN8WongWork10CBossStage16handlePickupItemEP5CUseribRc
 //   不变），vtable 槽序/sizeof 零影响；本 TU 四数改前/改后 identical=228
 //   ae=368(596) near=2 diff=7 全等（零回归）。
+// [b28f-SweepDeps 命中 · P0「ORIG 无槽」形] `bool canRoute` / `bool canRandom`
+//   具名局部删除、条件内联进 `if`：ORIG 0x0814fbc0 段为**寄存器直测**
+//   （`mov $0x1,%eax; jmp; mov $0x0,%eax; test %al,%al; je`，**无槽往返**）；
+//   我方具名 bool 使 4.4 落槽（`mov %al,-0x1a; cmpb $0x0,-0x1a; je`，每处 +2 条）。
+//   实测：immcmp 1/3→**1/1**、test 15/13→**15/15**、our 338→**336**、gap −5→**−3**
+//   （ORIG 333）；TU 四数不变（228/369/2/6）⇒ 严格改善保留。
+//   残余 = 迭代器/聚合槽分区（ORIG it -0x64..-0x70 / 我 -0x28..-0x34，
+//   帧两侧同为 0xec）⇒ N82附 封顶。
 bool CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
                                   char& outRarity)
 {
@@ -267,12 +275,13 @@ bool CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
     }
     // [b28d-solo] p167：ORIG 无 getParty 调用（0 处）⇒ m_party 直读（P0）。
     CParty* party = m_party;
-    bool canRoute = party->get_member_count() > 1 &&
-                    getLiveMemberCount() > 1 &&
-                    item.m_count != 0 &&
-                    (script->get_rarity() == 4 ||
-                     script->IsRoutingItem());
-    if (canRoute)
+    // [b28f 实验 A 轴/P0] ORIG 0x0814fbc0 段为寄存器直测（`mov $0x1,%eax; jmp;
+    //   mov $0x0,%eax; test %al,%al; je`，无槽往返）⇒ 删具名 bool，条件内联。
+    if (party->get_member_count() > 1 &&
+        getLiveMemberCount() > 1 &&
+        item.m_count != 0 &&
+        (script->get_rarity() == 4 ||
+         script->IsRoutingItem()))
     {
         if (!RoutingPickupItem(user, (unsigned int)itemUID, item))
             return 0;
@@ -280,13 +289,13 @@ bool CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
     }
 
     outRarity = (char)script->get_rarity();
-    bool canRandom = party->get_member_count() > 1 &&
-                     getLiveMemberCount() > 1 &&
-                     item.m_count != 0 &&
-                     (script->get_rarity() == 1 ||
-                      script->get_rarity() == 2 ||
-                      script->get_rarity() == 3);
-    if (canRandom)
+    // [b28f 实验 A 轴/P0] 同上（ORIG 同段形）。
+    if (party->get_member_count() > 1 &&
+        getLiveMemberCount() > 1 &&
+        item.m_count != 0 &&
+        (script->get_rarity() == 1 ||
+         script->get_rarity() == 2 ||
+         script->get_rarity() == 3))
     {
         if (!RandomPickupItem(user, (unsigned int)itemUID, item))
         {

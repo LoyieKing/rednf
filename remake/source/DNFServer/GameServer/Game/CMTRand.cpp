@@ -189,7 +189,10 @@ void CMTRand::seed(unsigned long* init_key, unsigned long key_length)
 
     // [round3-L29] P231：ORIG 以寄存器承载 i/j/k（`mov $0x1,%ebx; mov $0x0,%edi;
     //   mov %eax,%esi`），纯 register 存储建议复现免槽形（非绑定，P0 合规）。
-    register unsigned long i = 1;
+    // [轴 B 2026-09-10 · a_S->U 清单命中件] ORIG 080da007 `cmp $0x26f,%ebx; jle
+    //   080da022` 为**有符号**序（%ebx 承载 i）⇒ i 须为 `int`；旧的
+    //   `unsigned long i` 使 4.4 产无符号 `jb`（P196 前置已核：ORIG 有符号 ⇒ 允许改）。
+    register int i = 1;
     register unsigned long j = 0;
     register unsigned long k = (key_length >= MT_N) ? key_length : MT_N;
 

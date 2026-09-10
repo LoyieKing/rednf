@@ -209,9 +209,11 @@ bool WongWork::CSimpleSSO::_checkValiedPassword(char* pwd, char const* clientHas
     char hexBuf[132];  // ORIG -0x98(%ebp)（catch 分支同样读此缓冲，故放 try 外）
     try
     {
-        // IMethod::GetBlockSize(this, 0)（ORIG 0x080b4416）：未初始化返回 0；
-        // 初始化时返回 m_blockSize。这里按等价字段访问内联（errOut=NULL 无写出）。
-        int blockSize = cipher.m_bInit ? static_cast<int>(cipher.m_blockSize) : 0;
+        // IMethod::GetBlockSize(this, NULL)（ORIG 0x08602bfe `call 080b4416` **真调用**；
+        // 旧形按等价字段访问内联 ⇒ 我方 171 vs ORIG 123）。语义等价（未初始化返 0 /
+        // 初始化返 m_blockSize），实现见 DBMW/Method.cpp:72；同域先例 Arad_Misc.cpp
+        // 即用 `cipher->IMethod::GetBlockSize(NULL)` 形。
+        int blockSize = cipher.IMethod::GetBlockSize(NULL);
 
         if (blockSize < 0)
         {
@@ -226,42 +228,24 @@ bool WongWork::CSimpleSSO::_checkValiedPassword(char* pwd, char const* clientHas
             paddedLen = (static_cast<int>(srcLen) / blockSize + 1) * blockSize;
         }
 
-        // IMethod::Pad(pwd, len, NULL)（ORIG 0x080b44a6）：未初始化跳过；
-        // rem=len%blockSize 非零时按 m_padding 填 padLen 字节。
-        if (blockSize >= 0 && cipher.m_bInit && cipher.m_padding >= 0)
+        // IMethod::Pad(pwd, len, NULL)（ORIG 0x08602c42 起 `call 080b44a6` **真调用**；
+        // 旧形把 Pad 体整体内联）。ORIG 守卫 = `if (-1 < blockSize)`
+        //（Ghidra C：`if (-1 < local_10) { IMethod::Pad(…) }`）。
+        if (blockSize >= 0)
         {
-            int rem = static_cast<int>(srcLen) % cipher.m_blockSize;
-            if (rem != 0)
-            {
-                int padLen = cipher.m_blockSize - rem;
-                char* p = pwd + static_cast<int>(srcLen);
-                for (int i = 0; i < padLen; ++i, ++p)
-                {
-                    switch (cipher.m_padding)
-                    {
-                    case 1:
-                        *p = ' ';                     // 0x20
-                        break;
-                    case 2:
-                        *p = static_cast<char>(padLen);
-                        break;
-                    case 0:
-                        *p = '\0';
-                        break;
-                    default:
-                        break;                        // 其他 padding 不写
-                    }
-                }
-            }
+            cipher.IMethod::Pad(pwd, static_cast<int>(srcLen), NULL);
         }
 
         unsigned char encBuf[132];  // ORIG -0x120(%ebp) 区（块缓冲 0x84 使用域）
         // ORIG 经 vtable+0xc 虚调用（slot=Encrypt）
         cipher.Encrypt(pwd, reinterpret_cast<char*>(encBuf), paddedLen);
 
-        unsigned int hexLen = paddedLen * 2 + 1;  // ORIG -0x14 更新为奇数 hex 长度
+        // ORIG 0x08602cde 段 `mov -0x10(%ebp),%eax; add %eax,%eax; add $0x1,%eax;
+        // mov %eax,-0x14(%ebp)` ⇒ **复用 -0x14 槽**（Ghidra C：`local_18 = local_14*2+1`）。
+        // 我方旧形另开 `hexLen` 具名局部 ⇒ 本函数全帧槽位整体深 4（P0 律：原码无该局部）。
+        srcLen = paddedLen * 2 + 1;
         DNFFLib::Binary2Hex(encBuf, static_cast<int>(paddedLen), hexBuf);
-        hexBuf[hexLen] = '\0';
+        hexBuf[srcLen] = '\0';
 
         if (strncmp(hexBuf, clientHash, 0x84) != 0)
         {

@@ -141,7 +141,14 @@ int CRedeemItem::Send_RedeemList(CUser* user)
     int count = 0;
     for (std::list<Inven_Item_Expand_RedeemInfo>::iterator it =
              m_redeemList.begin();
-         count < MAX_COUNT && it != m_redeemList.end(); ++it, ++count)
+         // ORIG 0x085f75c1/0x085f75c4/0x085f75c7：`mov -0x10(%ebp),%eax;
+         // cmp $0x14,%eax; ja` = **无符号序 + 两段寄存器形**（count > 20 退出）。
+         // P196 前置：ORIG 无符号 ⇒ 禁改 int；按 P310 翻案形保留 int 局部 +
+         // 比较处显式 (unsigned int) 转换即复现两段 + ja（直写 unsigned 局部
+         // 被 4.4 折成单段 mem 直比 + jg，即改前态）。
+         (unsigned int)count < (unsigned int)MAX_COUNT &&
+             it != m_redeemList.end();
+         ++it, ++count)
     {
         // ORIG 0x085f7452 单次 ptEv 后存具名指针 -0xc；其后每处字段访问
         // 都从该槽重载（禁缓存到 callee-saved）。

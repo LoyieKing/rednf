@@ -358,8 +358,11 @@ void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
     dr = std::max(dr, 0.0f);
 
     // 0x080959ae..0x080959de：out0 = dr / max(1.0f, (float)lvl * redConst + dr)
-    const float denom = static_cast<float>(basisLevel) * redConst + dr;
-    outDefenseRate = dr / std::max(1.0f, denom);
+    // [C03 修·配方②（槽复用）] ORIG 把 denom 作为**临时**（0x080959c4 `fstps -0x18`）
+    // 而非具名；我方原具名 denom 多开一个 4B 槽并占走 dr 的 -0x24 ⇒ 内联 denom 后
+    // **diff 行数 150→58**（其余为 call/jmp 重定位伪差）。反例留痕：补具名 `one`
+    // （1.0）后 diff 回到 86 且 dr 落 -0x20 ⇒ 已回退，维持内联形。
+    outDefenseRate = dr / std::max(1.0f, static_cast<float>(basisLevel) * redConst + dr);
 
     // 0x080959e3：if (dr == 0.0f && lvl <= 9) out0 = dr / 400.0f
     //   （fnstsw+test 0x45+sete：非无序且相等，即 C++ dr == 0.0f）
@@ -433,6 +436,8 @@ bool checkIsCriticalSDC(STComputeDamageVariable* v, float* dmg, unsigned int* ra
     // [b28d-L28 重核] ORIG 0x08095b6a 出**有符号** rem 序列（`imul %edx`(0x68db8bad)
     // + `sar $0xc` + `sar $0x1f` 修正 + `imul $0x2710`），我方旧 `% 10000u` 走无符号
     // `mul/shr` 序列 ⇒ 原码是先转 int 再对 int 常量取余。
+    // [C03 试验·F2c 轴 A（const 限定符）] 去 const 后 our_insns 171→**172**、
+    // 帧 0x34→0x24（反劣）⇒ 已回滚；本件保留 const（4.4 未对其做立即数折叠）。
     const int roll = static_cast<int>(SDC_Rand(randState)) % 10000;
 
     // 0x08095b9d..0x08095bb7：if (crit * 100.0f > (float)roll)

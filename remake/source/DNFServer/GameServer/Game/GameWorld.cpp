@@ -4977,6 +4977,13 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
 // [b28d-11b] N：帧差 + 位折叠（N6/N82）@0x086cfa10
 // [b28d-solo-GameWorld] _ZN9GameWorld24send_chat_msg_hyper_linkEP5CUserR27MSG_ITEM_HYPER_LINK_MESSAGE15ENUM_NOTIPACKET
 // verdict=DIFF 1321/1318 N82/N6/N89 封顶（帧 0xa5c vs 0x35c + 位折叠 + 大帧槽组）。
+// [A11-round5 轴 B 修复（已落地，净收益）] case 0xb/0xc/0xe/0x23（本文件 5277 行区）
+// ORIG 0x086d0af7/0x086d0afc/0x086d0b01 = `call CUserCharacInfo::getCurrCharacBlackCount;
+// cmp $0x12c,%eax; seta %al; test %al,%al; jne <case 尾 0x086d0e86>`（**无符号**正极性早退）；
+// 旧文 `if (from->getCurrCharacBlackCount() < 0x12d)` 产 `cmp $0x12c; setle`（有符号）。
+// 改 `if (from->getCurrCharacBlackCount() > 0x12cu) { break; }` + 裸块后我方与 ORIG 逐条同形；
+// 单件 diff 段 2079→**2075（−4 行）**、TU 四数 195/454/4/12 零回退（20:08:16）⇒
+// Main 轴 B「反向（unsigned 向 ORIG 对齐）」修法第二例（同 E08）。
 // b28d-solo 本轮真修：同 send_chat_msg case 0xd/0xf —— `put_int(strlen(...))` 内联 +
 // 具名 nameLen 两次独立 strlen/getCurCharacName（p167 MISSING 各 1 归零）。
 // p167 调用点差集（/tmp/tu_GameWorld.o）：MISSING G_GameWorld×3 / getCurCharacName×1 /
@@ -5274,7 +5281,14 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
     case 0xc:
     case 0xe:
     case 0x23:
-        if (from->getCurrCharacBlackCount() < 0x12d)
+        // [A11-round5 轴 B（P196 朝 ORIG 方向）] ORIG 0x086d0af7/0x086d0afc/0x086d0b01：
+        // `call CUserCharacInfo::getCurrCharacBlackCount; cmp $0x12c,%eax; seta %al;
+        // test %al,%al; jne <case 尾 0x086d0e86>` = **无符号**正极性早退 `if (X > 0x12c) break;`
+        // （我方原 `< 0x12d` 产 `cmp $0x12c; setle` 有符号序）。改无符号常量 + 早退形。
+        if (from->getCurrCharacBlackCount() > 0x12cu)
+        {
+            break;
+        }
         {
             Packet_Monitor_MegaPhone_Hyper_Link pkt;
             pkt.set(G_CEnvironment()->get_channel_no(), from->get_unique_id(),

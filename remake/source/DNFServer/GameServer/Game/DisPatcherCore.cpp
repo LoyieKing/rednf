@@ -2176,7 +2176,11 @@ unsigned int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
     {
         return -3;
     }
-    if (user->m_characList[(int)req.m_slot].m_characLinkType > 1)
+    // [b28e-L5] P196/轴B 真语义分叉修正：ORIG 0x081c16aa `movzbl 0x1246(%eax),%eax;
+    // cmp $0x1,%al; setg %al`（**有符号** setg），我方原写无符号比较产 `seta`
+    // ⇒ 值域 ≥0x80 时两侧分叉（0x80 起 ORIG 视为负而跳过异常链）⇒ 按 ORIG 加
+    // (signed char) 读法（字段本型不动）。
+    if ((signed char)user->m_characList[(int)req.m_slot].m_characLinkType > 1)
     {
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0xab4, 5);
@@ -9390,11 +9394,12 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             if (user->GetItemTimeChecker(nowTick, req.m_1a, req.m_1c, 0x5dc) != 0 &&
                 // CUser+0x8e444/0x8e446 = 内嵌 m_mcap(+0x8e3f0) 的 +0x54/+0x56
                 // （CMCAPManager.h m_timeChkDiffA/m_timeChkDiffB）；ORIG 0x081c37b2
-                // `movzwl 0x8e444(%eax); cmp $0x1f4,%ax` = 2B 零扩展，头内声明为
-                // short，故取同宽度无符号视图（符号修正建议已上报 Main）。
-                (*reinterpret_cast<const unsigned short*>(
+                // `movzwl 0x8e444(%eax); cmp $0x1f4,%ax; jg`（0x081c37cd `jle`）=
+                // 2B 比较 + **有符号序**，与头内 short 声明一致 ⇒ 取 short 视图
+                // （轴 B 正向修复：旧 unsigned short 视图产 ja/jbe）。
+                (*reinterpret_cast<const short*>(
                      &user->m_mcap.m_timeChkDiffA) > 0x1f4 ||
-                 *reinterpret_cast<const unsigned short*>(
+                 *reinterpret_cast<const short*>(
                      &user->m_mcap.m_timeChkDiffB) > 0x1f4))
             {
                 user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x130, 1, 0, 0);

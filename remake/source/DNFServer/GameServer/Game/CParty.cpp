@@ -3829,7 +3829,10 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 {
                     Inven_Item pet1 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 11);
                     int pct = 0;
-                    switch (pet1.m_addInfo)
+                    // [b28f-CTS 轴B] ORIG 0x085a4444/0x085a444d/0x085a4473 处
+                    //   `cmp $0x6802,%eax; jg`（**有符号**序）；`m_addInfo` 为
+                    //   unsigned int ⇒ 4.4 折无符号 `ja`。
+                    switch ((int)pet1.m_addInfo)
                     {
                     case 0x6603: case 0x66e5: case 0x6802: case 0x28e4a3: case 0x28e4a6:
                         pct = 3; break;
@@ -5514,10 +5517,15 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
     if (!GlobalData::s_villageMonsterMgr->OnEvent() &&
         GlobalData::s_villageMonsterMgr->GetRewardType() == 1)
     {
-        int nowSec = GlobalData::s_systemTime_.getCurSec();          // -0x34
-        int closeTime =
-            GlobalData::s_revengeDungeonMgr->GetCloseTime();         // -0x30
-        int remain = closeTime < nowSec ? 0 : closeTime - nowSec;    // -0x2c
+        // [轴 B，地址自校 0x085b9be0] ORIG `mov -0x2c,%eax; cmp -0x30,%eax;
+        // jb +0x24a` = **无符号**比较（我方旧文 int 产 `jl`，符号性相反）。
+        // 以 ORIG 为准改 unsigned：`remain` 仍为 int（仅写入 body+2 的 4 字节块）。
+        unsigned int nowSec =
+            (unsigned int)GlobalData::s_systemTime_.getCurSec();     // -0x34
+        unsigned int closeTime =
+            (unsigned int)GlobalData::s_revengeDungeonMgr->GetCloseTime();  // -0x30
+        int remain =
+            (int)(closeTime < nowSec ? 0 : closeTime - nowSec);      // -0x2c
         for (int i = 0; i < 4; ++i)                     // -0x28
         {
             if (members[i] != 0)

@@ -2157,6 +2157,9 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
         {
             // [b28d-solo-SkillSlot] P183：ORIG 每次 `mov -0x34(%ebp),%eax;
             // lea 0xc(%eax),%edx` 重读 expertScript+0xc，禁具名引用缓存。
+            // 2026-09-10 试形留痕（B 轴 · A17 线索）：本循环 `unsigned`→`int`+
+            //   `(int)` 强转 ⇒ ndiff 代理 563→**569（劣 6）** ⇒ 已回滚（A17 的
+            //   setge/jge 直证对应的是本函数 giveList/postList 两循环，非本处）。
             for (unsigned int i = 0;
                  i < ((std::vector<std::pair<int, int> >*)((char*)expertScript +
                                                            0xc))
@@ -2358,6 +2361,8 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
             ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType());
         if (expertScript != 0)
         {
+            // 2026-09-10 试形留痕（B 轴）：同 refund_skill ⇒ ndiff 代理 359→365
+            //   （劣 6）⇒ 已回滚；保留 giveList/postList 两循环的 int 化（那两处实测改善）。
             for (unsigned int i = 0;
                  i < ((std::vector<std::pair<int, int> >*)((char*)expertScript +
                                                            0xc))
@@ -3291,6 +3296,8 @@ void CSkillChanger::_ResetSFPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
     {
         return;
     }
+    // 2026-09-10 试形留痕（A 轴）：去 `const` ⇒ InitSkill insns 340 与 ndiff 代理
+    //   466 均不变（初值非常量、O0 无传播）⇒ 已回滚，维持原 `const`。
     register const int newPoint = user->get_charac_level() - 0x31;
     ((SkillSlot*)user->getCurCharacSkillW())
         ->set_remain_sfp_at_index(newPoint, kind);

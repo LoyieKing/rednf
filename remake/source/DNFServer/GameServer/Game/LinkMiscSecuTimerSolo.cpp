@@ -598,7 +598,10 @@ int CAutoMarketConditionsControl::LoadDatabase(
     // ORIG 1e4/1e7 为**单次基址装载**读入 callee-saved 对（`mov 0xc(%ebp),%eax;
     // mov 0x8(%eax),%ebx; mov 0xc(%eax),%esi`）。两个 32 位独立视图读各发一次
     // 基址装载（+1 条 = 残差①）；改 `register unsigned long long` + `>>32` 拆字
-    // 实测更劣（252 vs ORIG 246，多 shift/槽化）⇒ 回退，记 N。
+    // 实测更劣（252 vs ORIG 246）⇒ 回退。**[b28e 补测 P227 全表达式临时链
+    // （`cMyTrace(...)(...)` 构造即调用）]：fresh 读数 248 条 / 帧仍 `sub $0xac`
+    // / 四数 4/30/0/5 全不变 ⇒ 对「ctor 前求值 + 单次基址装载」无改善，回退**；
+    // 该段（含槽差 -0x30 vs ORIG -0x28、帧 +0x10）判 N80/N82 封顶。
     register unsigned int optGoldLo = msg->m_view.m_optimumGoldWords[0];
     register unsigned int optGoldHi = msg->m_view.m_optimumGoldWords[1];
     cMyTrace trace(

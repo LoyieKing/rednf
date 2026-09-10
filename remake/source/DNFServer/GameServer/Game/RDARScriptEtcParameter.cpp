@@ -1140,6 +1140,9 @@ int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
                                   "ERROR : \xc0\xe5\xba\xf1\xba\xce\xc0\xa7\xbc\xc2\xc6\xae \xb1\xb8\xbc\xba\xc7\xb0 %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.",
                                   it->second.m_name4.c_str());
             // ORIG 同一次 op-> 内读字段两遍（ebx 缓存）：具名指针缓存复现
+            // [b28d-solo-D02 实测] 表达式形 `if (it->second.m_script) delete
+            // it->second.m_script;` 反劣（347→351：4.4 发 `test;setne;test;je`
+            // 双物化 + 两次字段读）⇒ 具名缓存形保留，本处按 P0/N18a 封顶。
             STEquipmentScript* pDel = it->second.m_script;
             if (pDel)
                 delete pDel;                  // ORIG 不回写 m_script=0（P171 照抄）

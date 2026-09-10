@@ -705,6 +705,9 @@ void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
         }
         fwrite("[/category]\n", 1, 0xc, fp);
     }
+    // [T1b 槽复用配方·负结论（本件不适用）] 试把第二循环变量改独立具名（k）：
+    // 4.4 仍给它 -0x10（复用第一循环槽位），槽图与改前逐值相同、四数不变
+    // ⇒ 4.4 的槽复用非「同名」所致（lifetime 复用），本件维持 N82 封顶。
     int i = 0;
     int j;
     for (i = 0; i <= 3; ++i)

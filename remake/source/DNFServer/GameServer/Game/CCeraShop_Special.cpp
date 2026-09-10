@@ -1227,8 +1227,13 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
         // _ZZN8WongWork9CCeraShop21_CheckBuyingConditionEP5CUserjmjthtE14eventStartTime
         // @0x0943bec8 / ...E12eventEndTime @0x0943becc）**每次调用无条件重写**常量
         // ⇒ 原码为「声明无初值 + 赋值语句」（带初值声明会折进 .data 且无代码）。
-        static unsigned int eventStartTime;
-        static unsigned int eventEndTime;
+        // [L14 轴 B（a_S->U 命中）] ORIG 0x08324236/0x0832424b 直证为
+        // `mov <A>,%edx; cmp %edx,%eax; jl/jge`（**有符号序**）；
+        // `getCurCharacCreateTime()` 返回 long（CUserCharacInfo.h:846），
+        // 与 `unsigned int` 比较按 C++ 规则转无符号 ⇒ 我方出 `setb/setae`。
+        // 改 `int` 复现有符号序（常量 0x4589a450/0x45ae8e50 均为正，值不变）。
+        static int eventStartTime;
+        static int eventEndTime;
         eventStartTime = 0x4589a450;
         eventEndTime = 0x45ae8e50;
         // ORIG 调用两次 getCurCharacCreateTime 后比较 [start,end) 窗口。

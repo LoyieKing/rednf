@@ -32,6 +32,19 @@
 //   亦复核：本 TU 10 件 ORIG 段 `mov -N(%ebp),%reg; test %reg,%reg` 对**全 0 处**，
 //   我方 `cmpl $0x0,-N(%ebp)` 5 处均为两侧同形（StageMapList::loadList ×2、
 //   importUpgradeTable ×1、importActionPointSystemEtcScript ×2）⇒ 无该子型命中。
+//   [补·轴 B 清单（/tmp/r5/axisB_points.tsv）逐行按地址自校 —— 本 TU 两条**均为
+//   序号配对假阳性，记 N 不改源码**（自校三条件见 Main 纪律）]：
+//   · importActionPointSystemEtcScript（ORIG 0x08894996）：清单 a 行 setle→seta 的
+//     ORIG 点 0x8894bc1 实为 `cmpl $0x4,-0x20(%ebp); setle`（days 循环），其真实同构
+//     点是我方 @1d73 `cmpl $0x4,-0x1c(%ebp); setle`（**同为有符号，一致**）；清单 b 行
+//     ORIG 0x8895564 `cmp -0x10(%ebp),%eax; setb` 与我方 @1b3c `cmp -0x3c(%ebp),%eax;
+//     seta` 是**镜像无符号比较**（`i<limit` vs `limit>i`，等价）⇒ ②③ 不满足 ⇒ N。
+//   · importUpgradeTable（ORIG 0x08900c26）：清单 a 行 ORIG 0x8901016 `cmpl $0x4,
+//     -0x74(%ebp); setle` 的同构点是我方 @390b `cmpl $0x4,-0x50(%ebp); setle`（一致）；
+//     清单 b 行 ORIG 0x8901039 `cmp -0x7c(%ebp),%eax; jbe` ↔ 我方 @3895 `cmp
+//     -0x58(%ebp),%eax; setbe`（**同为无符号**，仅 jcc↔setcc 物化形差）⇒ 假配对 ⇒ N。
+//   · 真正命中并已修者仅 importAdvanceAltarShopParameter 3 处 size_t→int（setg×3 = ORIG，
+//     上下文同构 + ORIG 有符号 + 我方无符号，三条件齐备）。
 // [b28d-solo-ScriptLeafA2] APSystem::CActionPointEx 隐式 C1ERKS_(0x08895ebc)/
 // aSERKS_(0x0889603a) 判词 = **N（布局妥协，N18a/N76 族）**：
 //   ORIG 逐字段粒度 int@0/int@4/short@8/char@a/short@c/char@e/f/10 → vector@14 →

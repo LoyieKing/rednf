@@ -167,7 +167,10 @@ int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
                     item = ScanInt(&ok);
                     if (!ok) return 0x3e;
                     out->m_vec8.push_back(std::make_pair(lv, std::make_pair(gold, item)));
-                    if (out->m_field4 > (unsigned short)lv)   // ORIG 16 位 cmp 形：保留最小值
+                    // [F2e-Singles2 轴B 2026-09-10] ORIG 089f7192 `movzwl 0x4(%eax),%edx;
+                    // movzwl -0x12c(%ebp),%eax; cmp %ax,%dx; **jle**`（16 位**有符号**）；
+                    // 旧文 `(unsigned short)lv` 使 4.4 折 `jbe`（无符号）⇒ 按 ORIG 改 signed。
+                    if ((short)out->m_field4 > lv)
                         out->m_field4 = (unsigned short)lv;
                     break;
                 }

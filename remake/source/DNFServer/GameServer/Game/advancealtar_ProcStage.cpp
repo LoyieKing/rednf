@@ -56,8 +56,9 @@
 //   ProcStage::sendClearStage 0x0812e6de —— N86（迭代器/容器 copy-elision 槽差）
 //   ProcSummonObjectMs::debugLog 0x0812d804 —— N89（vector/map 迭代器外链 + trace 变参）
 // ----------------------------------------------------------------------------
-// [b28d-D03 本波 判词]（fresh `check_tu_routed.sh`：identical=226 ae=435（合计 661）
-//   near=0 diff=6 = _Z41__static_initialization…（N123 豁免）+ 下列 5 件）
+// [b28d-D03 本波 判词]（fresh `check_tu_routed.sh`：identical=226 ae=436（合计 662）
+//   near=0 diff=5 = _Z41__static_initialization…（N123 豁免）+ 下列 4 件；
+//   T1b② 槽复用命中 1 件：summonObjectAndSendPacket 见下）
 //   · makeCurrentPhaseSummonObject 0x0812eba8 —— 本波三改：①`int spawnMs = m_field10;
 //     spawnMs += it->m_firstDelayMs;` 拆两句（ORIG 0x812f054 段 `mov→槽; add %eax,槽`
 //     两步，合并写被 4.4 折 lea）②`int create = 1/0`（widthscan：ORIG 全函数 clr_b=0/
@@ -69,9 +70,14 @@
 //     槽基 1 字节（OURS -0x15b/-0x3bd vs ORIG -0x15c/-0x3be）。本波补试 `char[1]` 与
 //     `char = 0` 两种 1 字节前置死局部均无效/反劣（后者整槽组漂移）⇒ 维持 P312 framePad[1]
 //     现状，判 N95（槽基 gap 1B，4.4 分配器不可控）。
-//   · summonObjectAndSendPacket 0x0812d658 —— shift：MIXED，OURS-only[-0x48,-0x20,-0x14]
-//     vs ORIG-only[-0x44,-0x1c]（两组各深 4 + 我方净多 1 槽）；帧两侧同为 0x50。
-//     N95 封顶（历轮 P223/P48 修复已使 NDIFF 119→23）。
+//   · summonObjectAndSendPacket 0x0812d658 —— **[d03-T1b② 槽复用命中] MIXED→PURE SHIFT
+//     c=0**：原 OURS-only[-0x48,-0x20,-0x14] vs ORIG-only[-0x44,-0x1c]（整帧平移 4）⇒ 多开
+//     的 4 字节具名局部 = `CUser* user = m_characData->getUser();`（我方-only -0x14）。
+//     改内联 `m_characData->getUser()->Send(guard);` ⇒ 槽直方图与 ORIG **完全一致**、
+//     指令数 **132→130 = ORIG（130/130）**、TU 四数 ae 435→436、diff 6→5。
+//     残差仅 2 条跨版本项：ORIG 的 `call memcpy@plt`（我方 4.4 内联 rep movsl，N84/N78）
+//     + ORIG 的 `_Unwind_Resume`（4.4 判 memcpy nothrow 不布 landing，P216/N104 族）
+//     ⇒ 封 N84/N78+P216，gap=0。
 //   · dungeonClearInfo 0x08133bd4 —— shift：**PURE SHIFT c=0**（帧 0x15c 两侧一致、槽直方
 //     图全等）；唯一残差 = 1 条 N18a（ORIG `mov (%eax),%eax; mov %eax,%ebx` = CharacData::
 //     m_field0 读两段 vs 4.4 单段 `mov (%eax),%ebx`）。P254 路径（字段 enum 化）需新造
@@ -414,8 +420,9 @@ void ProcStage::ProcSummonObjectMs::summonObjectAndSendPacket()
             guard.put_header(0, 0x20b);
             guard.put_binary((char*)&body, 0x28);
             guard.finalize(true);
-            CUser* user = m_characData->getUser();
-            user->Send(guard);
+            // [d03-T1b② 槽复用试形] ORIG 无 user 具名槽（我方-only -0x14 疑为该 4 字节
+            //   局部致全帧平移 4）⇒ 内联表达式直调；一次旋钮，无改善即回滚。
+            m_characData->getUser()->Send(guard);
         }
     L_next:
         ++m_currentMs;

@@ -334,6 +334,11 @@ bool ScriptStringManager::importFromBuffer(const unsigned char* buffer,
     offsets.reserve(count);  // 8acf9bf
 
     const unsigned char* src = buffer + 4;    // local_440 / local_448
+    // [round5 轴B 实测负例（已回滚）] ORIG 8acfa22 `cmp %ebx,0x10(%ebp); jl 8acfc10`
+    //   （有符号）vs 我方 `cmp %edx,-0x444(%ebp); ja`（无符号）：按轴B 试 `int pos`
+    //   + 去 `(unsigned)` cast ⇒ 实测 ours_insns 与 diff 规模逐值不变
+    //   （238 / +132−136，与改前完全相同）⇒ 无收益，按「四数不劣但 ndiff/gap 须严格
+    //   改善」回退（轴B 在该点被 N82 槽差掩盖，属清单交叉配对类）。
     unsigned int pos = 8;                     // local_44c：读取游标
 
     if (count != 0)
@@ -356,13 +361,13 @@ bool ScriptStringManager::importFromBuffer(const unsigned char* buffer,
                 ++i;                              // 8acfa2b
                 off = *reinterpret_cast<const unsigned int*>(buffer + pos);
                 pos += 4;
-            } while (pos <= static_cast<unsigned int>(buffSize));
+            } while ((int)pos <= buffSize);
         }
         return false;  // 8acfc10：buffSize 不足
     }
 after_offsets:
     // LAB_08acfa69：哨兵 offsets[count] = *(uint*)src（src 停在最后一个条目）
-    if (pos > static_cast<unsigned int>(buffSize))  // 8acfa77
+    if (buffSize < (int)pos)  // 8acfa77（ORIG 有符号 jl：B 轴对齐）
         return false;
     offsets.push_back(*reinterpret_cast<const unsigned int*>(src));
     strings_.reserve(count);  // 8acfabb

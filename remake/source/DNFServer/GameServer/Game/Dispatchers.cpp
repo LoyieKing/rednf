@@ -12680,7 +12680,12 @@ Dispatcher_Antibot_DPCallBack::~Dispatcher_Antibot_DPCallBack() {}
 int Dispatcher_Antibot_DPCallBack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     typedef int (*CheckFn)(void*, int, char*, unsigned short, char*, short*);  // vtable +0x2c
-    char& retryCnt = user->m_field5;                               // +0x8d252（ORIG 有符号字节）
+    // [round5 A01 · 轴 B 反向（Main 判据：以 ORIG 符号性为准）] ORIG 0x0820b188/0x0820b196
+    //   均为 `movzbl 0x8d252(%eax),%eax` + `cmp $0x4/%0x5,%al; **ja**`（零扩展读 + **无符号**序）
+    //   ⇒ 该字节按 unsigned char 访问；旧码 `char&` 有符号 ⇒ 我方产 setl/jl（统计 u/s=1/3
+    //   vs ORIG 4/0）。语义等价（`<5` ⇔ `<=4`、无符号/有符号在 0..5 值域同解）。
+    unsigned char& retryCnt =
+        reinterpret_cast<unsigned char&>(user->m_field5);          // +0x8d252（movzbl 直证）
     if (retryCnt < 5)
     {
         retryCnt = static_cast<unsigned char>(retryCnt + 1);
@@ -27275,13 +27280,19 @@ void Dispatcher_ExpertExtraction::send(CUser* user, ParamBase& param)
     guard.put_byte(1);
     guard.put_short((int)p.m_8);
 
-    const size_t count = p.m_list.size() / 3;
+    // [round5 A01 · B 轴（循环变量符号性，Main 派单②）] ORIG 0x081d9700 槽图：
+    //   count=-0x18（uint，`size()/3` magic 除法）、索引累加器=-0x10（uint）、
+    //   循环变量=-0xc（int）；尾测 0x081d983d..0x081d9848
+    //   `mov -0xc(%ebp),%eax; cmp -0x18(%ebp),%eax; setl %al; test; jne` ⇒ **setl=有符号**
+    //   （P196 前置已过）⇒ i 必须 `int` + `(int)count`；索引走独立累加器（ORIG 每元素 post-inc）。
+    const unsigned int count = (unsigned int)(p.m_list.size() / 3);
     guard.put_byte((int)count);
-    for (size_t i = 0; i < count; ++i)
+    unsigned int idx = 0;                       // -0x10
+    for (int i = 0; i < (int)count; ++i)        // -0xc（setl 有符号序）
     {
-        guard.put_short(p.m_list[i * 3 + 0]);
-        guard.put_int(p.m_list[i * 3 + 1]);
-        guard.put_int(p.m_list[i * 3 + 2]);
+        guard.put_short(p.m_list[idx++]);
+        guard.put_int(p.m_list[idx++]);
+        guard.put_int(p.m_list[idx++]);
     }
     guard.finalize(true);
     user->Send(guard);

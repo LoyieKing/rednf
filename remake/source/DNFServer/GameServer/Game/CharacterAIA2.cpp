@@ -12,6 +12,10 @@
 //   ⇒ our 461→**473**（ORIG 475，gap 14→**2**）。取反形 `while(true){if(!ok)break;}`
 //   实测劣化（478，gap −3）已回退留痕。余 2 条 = 4.1 `movzbl/xor $1/test/je`
 //   取反物化族（N122）⇒ §6.2 判语义完成、byte 层 N 封顶。
+//   [新轴复核·Main 配方(A)const/(B)循环符号性] 均**不适用**：本函数无 `const` 局部
+//   参与比较（无 `cmpl $imm,-N` 常量传播点可去 const）；`for (int i = 0; i <= 21; ++i)`
+//   已是 int 有符号（ORIG 侧亦同）。余 2 条实证 = ORIG `cmp $0x14,%eax`（idx205/207
+//   寄存器比较）vs 我方 `cmpl $imm,-0x1c`（内存直比）⇒ **N18b** + 上述 N122。
 // importAICharacterCommonScript 0x088c9ccc：round5 把 [on attack]/[on key] 两段改
 //   `switch (ScanFloatStr(fv, tok))`（P251）并删多余 `float fv = 0.0f`（ORIG 全
 //   函数无该初始化写）⇒ our_insns 2111→2107；再补 [hell monster] 段具名 int

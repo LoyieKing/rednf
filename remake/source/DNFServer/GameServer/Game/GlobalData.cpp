@@ -4722,6 +4722,11 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
     user->resetUsedCera();
 
     const unsigned int itemCount = msg.m_scalars.m_itemCount;
+    // [F2a-A轴·已试无效·N] 去 `const`（A 轴常量传播旋钮）：本件 ORIG 该两处
+    //   （A08 筛查 idx 1250/1315，我方原为 `cmpl $0x22,-0x20(%ebp)`）确为槽读+寄存器
+    //   比较 ⇒ 机理成立，但**方向不利**：横测 ours 1606→**1608**（+2，两处各 +1），
+    //   ORIG 1600 ⇒ gap −6→**−8（劣化）**；本件我方指令数已多于 ORIG（N82 帧/槽膨胀），
+    //   A 轴只会加深负 gap ⇒ 按「gap 严格减小」判据回滚，恢复 `const`。
     const unsigned int MAX_ENTRIES = 0x23;   // 条目数上报上限（ProcessError 实参用）
 
     // ---- 第一遍：逐条目校验、总价累计 ----
@@ -5041,7 +5046,12 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
             req->m_characNo = msg.m_scalars.m_characNo;
             req->m_buytype = msg.m_scalars.m_buytype;
             req->m_subCount = msg.m_entrySection.m_arr[j].m_subCount;
-            for (unsigned int k = 0; k < req->m_subCount && k < MAX_ENTRIES; ++k)
+            // [F2a-轴B单点试验·临时] ORIG 0x08177f2d/0x08177f30：
+            //   `movzbl 0x3d(%eax),%eax; cmp -0x20(%ebp),%eax; setg; test; jne 回边`
+            //   ⇒ ① 原码循环变量为 int（有符号序）；② **只有单条比较**（无 `& k < 0x23`）
+            //   ⇒ 我方多出的 `cmpl $0x22,-0x20(%ebp); ja` 是发明防御，按 P171 照抄 ORIG 删除。
+            //   一次一旋钮，测完即回滚。
+            for (int k = 0; k < (int)req->m_subCount; ++k)
             {
                 // 子项数组：entry+0x0e 起每项 5 字节 { int idx; uchar val; }
                 // ORIG 0x08177ed6/0x08177f04：两处各自重算源地址直读直存

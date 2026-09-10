@@ -79,6 +79,11 @@ bool IS_PVP_CHANNEL(int channelType);
 //      ORIG 岛目标重复（0x889b05f×9；0x88a12ab×4 等 8 目标各 2~3 次）⇒ C05③ 负例
 //      （4.4 合并/跳板不可控），封 N；其余 7 件 ORIG/我方岛数相等（0~1，已对上）；
 //   ④ 数据区解码假象本 TU 未命中。⇒ 无 C05 可落地件，维持 N 判词。
+//   [补·本波新增两轴复核（Main 配方：cv 限定符 / 循环符号性）]
+//   轴A `const` 常量传播：本 TU 9 件 ORIG/OUR 的 `cmpl $imm,-N(%ebp)` 计数**全等**
+//      （0/0 … 2/2），ORIG 段 `cmp -N(%ebp),%e` 槽读形 0 处 ⇒ 无「我方多折叠」件；
+//   轴B 循环符号性：**已命中并修**（importAdvanceAltarShopParameter 3 处，见上），
+//      其余 8 件 setcc 符号序与 ORIG 一致（扫描数据见本块上位判词）。
 //   [补·Main 细化口径] `test` 零比较子型亦复核：本 TU 9 件 ORIG 段
 //   `mov -N(%ebp),%reg; test %reg,%reg` 对**全 0 处**；我方 `cmpl $0x0,-N(%ebp)`
 //   2 处（_getIntegratedPvPItemAttr / importAdvanceAltarShopParameter）两侧同形

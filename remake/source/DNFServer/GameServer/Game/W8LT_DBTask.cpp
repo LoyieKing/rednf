@@ -301,6 +301,11 @@
 //   `if (db->get_n_rows() == 0) { _sendResult(0x15, …); return 1; }` = **单条调用+return**
 //   ⇒ 不命中，**按 N-88/P197④ 封顶收工**（勿再对控制流试形；两侧 sete/setne 为 fold 方向差、
 //   语义等价，非 P196 真 bug）。
+// [A04-r5g 新轴复查（Main 转发 F2c）] （A）**cv 限定符轴**：本 TU 唯一的函数内局部 `const`
+//   是 DBTask::DBProcess 的 `const int length/poolType`，而该件已是 AE ⇒ 无常量传播残差可修；
+//   文件中其余 `const int` 全为**函数级 `static const`**（对应 ORIG `_ZZ…E…` 局部静态符号，
+//   必须保留，勿去 const）。（B）**循环变量符号性轴**：本 TU **无 `size_t`/unsigned 循环变量**
+//   （grep `for (size_t` / `size_t i|j =` 零命中）⇒ 无候选。两轴在本 TU 均已复查完毕。
 // ============================================================================
 #include "W8LT_DBTask.h"
 #include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）
@@ -4058,26 +4063,31 @@ bool DB_RequestJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
                       reply->m_guildId);
         if (db->exec(true) != 1)
             return 0;
-        if (db->get_n_rows() < 0x32)
+        // [A04-r5h · 轴 B/P196] ORIG 0x0843d026-0x0843d02e 为
+        // `call get_n_rows; cmp $0x31,%eax; **seta** %al; test %al,%al; je 0x843d05f`
+        // ⇒ 真形 = **正极性无符号** `get_n_rows() > 0x31`（then=0x5f 块落 fall-through、
+        // body 在跳转目标 0x843d05f）。原 `get_n_rows() < 0x32`（负极性 + signed）使 4.4
+        // 产 `setle` 且块序反 ⇒ 按 ORIG 改正极性比较（ORIG 为无符号序 ⇒ P196 前置通过）。
+        if (db->get_n_rows() > 0x31)
         {
-            db->escape_string(escBuf, sig->m_memo);
-            db->set_query("inSert into guild_join_list(guild_id,m_id,server_group,charac_no,born_year,memo,occ_time) values(%d,%s,%d,%d,'%s','%s',now())",
-                          reply->m_guildId, NumberToString(sig->m_mId, 0),
-                          sig->m_serverGroup, sig->m_characNo,
-                          sig->m_bornYear, escBuf);
-            if (db->exec(true) != 1)
-                return 0;
-            if (db->getAffectedRowCount() == 0)
-            {
-                reply->m_flag = 2;
-                GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-                return 1;
-            }
-            reply->m_flag = 0;
+            reply->m_flag = 0x5f;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             return 1;
         }
-        reply->m_flag = 0x5f;
+        db->escape_string(escBuf, sig->m_memo);
+        db->set_query("inSert into guild_join_list(guild_id,m_id,server_group,charac_no,born_year,memo,occ_time) values(%d,%s,%d,%d,'%s','%s',now())",
+                      reply->m_guildId, NumberToString(sig->m_mId, 0),
+                      sig->m_serverGroup, sig->m_characNo,
+                      sig->m_bornYear, escBuf);
+        if (db->exec(true) != 1)
+            return 0;
+        if (db->getAffectedRowCount() == 0)
+        {
+            reply->m_flag = 2;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            return 1;
+        }
+        reply->m_flag = 0;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
@@ -15845,8 +15855,12 @@ bool DB_BlackIPMonitorPartLoad::dispatch(int userIdx, int slot, Stream* stream)
     cMyTrace(__PRETTY_FUNCTION__, 0x7ac4, 0)(
         "BLACKIP GET DB ROWS COUNT : %d", db->get_n_rows());
     char buf[0xc80];
-    int rowCount = 0;
-    for (int i = 0; i < db->get_n_rows(); ++i)
+    // [A04-r5i · 轴 B/P196] ORIG 0x084333cc `cmpl $0x62,-0x24(%ebp); **ja**`、
+    // 0x084333dc `cmp -0x28(%ebp),%eax; **seta**`、0x08433503 循环尾 `**seta** %al;
+    // test; jne 0x08433255` ⇒ 三处**全为无符号序** ⇒ 按 ORIG 把 rowCount/i 声明为
+    // unsigned（原 int ⇒ 4.4 产 `jg/jle/setg`，与 ORIG 相反）；P196 前置通过（向 ORIG 对齐）。
+    unsigned int rowCount = 0;
+    for (unsigned int i = 0; i < db->get_n_rows(); ++i)
     {
         if (!db->fetch())
             return 0;
@@ -15864,7 +15878,7 @@ bool DB_BlackIPMonitorPartLoad::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         if (!db->get_uint(4, ((DB_IpMonitorPunishItem*)buf)[rowCount].m_endTime))
             return 0;
-        if (rowCount < 99 && i < db->get_n_rows() - 1)
+        if (rowCount <= 0x62 && i < db->get_n_rows() - 1)
         {
             ++rowCount;
         }
@@ -19385,7 +19399,11 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
     out->m_count = 0;
     out->m_flag = reload;
     // ORIG 0x0842a8e6 `cmp $0x4,%eax; setbe`（无符号上界，P2/P310）
-    for (unsigned int partType = 0; partType <= 4; ++partType)
+    // [F2e-Singles2 轴B 2026-09-10] 外层 partType 上界**有符号**：ORIG 0842a89a
+    // `addl $1,-0x18; cmpl $0x4,-0x18(%ebp); setle`（signed）⇒ 改 int 复现 setle；
+    // 内层 rank 循环 ORIG 0842a8b0 `mov -0x1c,%eax; cmp $0x4,%eax; setbe`（unsigned，
+    // setbe 已对齐，两段寄存器形属 N96/N18a 残差）。
+    for (int partType = 0; partType <= 4; ++partType)
     {
         for (unsigned int rank = 1; rank <= 4; ++rank)
         {

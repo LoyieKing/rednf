@@ -12163,7 +12163,11 @@ void CUser::_deleteSpecificItemAccountCargo(
     CAccountCargo* cargo = GetAccountCargo();
     std::vector<std::pair<int, int> > mailDel;
 
-    for (int slot = 0; slot < cargo->GetCapacity(); ++slot)
+    // 2026-09-10（B 轴反向 · AxisB 表 b_U->S）：ORIG 0x0867daa5 为 `seta`（无符号序）
+    //   而我方 `setg`（有符号）⇒ ORIG 该比较为无符号 ⇒ 索引局部改 unsigned 对齐
+    //   （P196 前置：ORIG 本身即无符号序）；`reinterpret_cast<unsigned int&>(slot)`
+    //   保持（p167 判据②的引用形实例化不变）。
+    for (unsigned int slot = 0; slot < (unsigned int)cargo->GetCapacity(); ++slot)
     {
         Inven_Item item = cargo->GetSlot(slot);
         if (item.m_addInfo == 0)
@@ -12424,7 +12428,7 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
     // 2026-09-10（C05② 类型旋钮）：ORIG 0x0869196a 为 `cmp -0x30(%ebp),%eax; setg`
     //   （内存直比 + 有符号）⇒ 索引局部必须是有符号 int（size_t 会让 4.4 先载寄存器
     //   并退化为 setb 无符号序）。
-    for (size_t i = 0; i + 1 < src.size(); i += 2)
+    for (int i = 0; i < (int)src.size(); i += 2)
     {
         Inven_Item it;                              // 默认构造后按 ORIG 填 8 字节
         *(int*)((char*)&it + 0) = src[i];

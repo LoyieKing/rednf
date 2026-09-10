@@ -626,7 +626,11 @@ void PvP_MissionSystem::get_New_DailyMission(
             mission->GetMissionKind(),
             mission->GetMissionIndex()));
     }
-    for (int j = 0; j < m_field30; ++j)
+    // [R26D · 轴 B 反向命中] ORIG 0x085e2ac0 段 `cmp -0x34(%ebp),%eax; seta %al`
+    // （无符号序）⇒ 循环变量须为 unsigned；旧文 `int j` 使 4.4 产 `setg`
+    // （有符号，/tmp/r5/axisB_points.tsv 记 seta→setg）。`j < m_field30`（int 成员）
+    // 经同宽无指令转换即无符号比较，P196 前置已核 ORIG 为 seta ⇒ 允许改。
+    for (unsigned int j = 0; j < (unsigned int)m_field30; ++j)
     {
         std::list<std::pair<unsigned int, unsigned int> > tmp(m_dailyMissionList);
         int weight = m_field3c;

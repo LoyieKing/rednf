@@ -645,6 +645,12 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
         return ret;
     }
 
+    // [E04 单点 spec·F2a 已试·N 回滚] 按 ORIG 0x08674b56（`call; mov %al,-0x45(%ebp);
+    //   cmpb $0x0,-0x45(%ebp); je`，1 字节直存无 test/setne）试
+    //   `char isFirst = (char)call; if (isFirst != 0)`:横测 ours
+    //   `_ZN5CUser21multibox_lottery_itemEii` **1017→1024（+7 劣化）**、TU 四数
+    //   27/71/0/5 不变 ⇒ 4.4 对 char 局部 + `!=0` 反产符号扩展/回读链（ORIG 的
+    //   `cmpb $0x0,槽` 单条不可复现）⇒ 按「gap 不改善即回滚」恢复 bool 形式。
     const bool isFirst =
         reinterpret_cast<CBoosterGage*>(
                     GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))

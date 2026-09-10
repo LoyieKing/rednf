@@ -536,6 +536,9 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
         //   （prob0*param5 <= roll ⇒ 受控），且 boundHigh **不落槽**（P0：原码把
         //   表达式内联进条件，只调一次 G_CDataManager）。旧重建用 signed
         //   `(int)boundHigh` + 具名槽 + 二段比较（jl/jne），符号性与槽皆不符。
+        // [A/B 轴复查 2026-09-10，**已试后回退**] ORIG 0846204f `cmp -0x20(%ebp),%eax; seta %al`
+        //   为 mem 直比；改把 roll 写在比较右侧（`expr <= roll`）实测**无效** —— 4.4 仍先
+        //   载 roll 入寄存器（形态 setae/setb 不变、our 357→359 劣化 +2）⇒ 按 N18b/P197④ 封顶。
         if ((unsigned int)roll >= (unsigned int)(
                 G_CDataManager()->m_deathTower.m_rewardItemProb[0] * (int)param5))
         {
@@ -543,6 +546,8 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
             // ORIG 084622a4..0x2b6：prob1 只求值一次（`imul; cmp; seta; je`），
             //   条件 = prob1*param5 > roll（unsigned）⇒ 写单比较（旧重建写
             //   `<= && - != 0` 两次求值，多一次 G_CDataManager）。
+            // 同上（A 轴/N18b 封顶）：ORIG 084622ae `cmp -0x20(%ebp),%eax; seta %al`；
+            //   交换操作数同样不产生 mem 直比，已回退。
             if ((unsigned int)roll < (unsigned int)(
                     G_CDataManager()->m_deathTower.m_rewardItemProb[1] * (int)param5))
             {

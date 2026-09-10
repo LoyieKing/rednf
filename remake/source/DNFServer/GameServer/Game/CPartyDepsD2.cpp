@@ -1496,7 +1496,11 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
         if (quest == 0)
             continue;
         itemList = quest->get_clear_itemlist(bf(this).get_dungeon_index());
-        for (size_t i = 0; i < itemList.size(); ++i)
+        // [b28f-CTS 轴B] ORIG 循环尾为 `cmp -0x..(%ebp),%eax; setg`（**有符号**序，
+        //   见 0x085bd9xx）⇒ 原码循环变量是 int；`size_t i < size()` 让 4.4 产
+        //   无符号序 `seta`（符号性分叉）。改 int + 显式 `(int)` 收窄复现 ORIG
+        //   （P196 前置已核：ORIG 是 setg 而非 seta）。at() 实参 32 位下零转换开销。
+        for (int i = 0; i < (int)itemList.size(); ++i)
         {
             Inven_Item item;
             item.reset();
@@ -2069,9 +2073,16 @@ void CParty::ClearDungeon()
                 "game_server_msg_191", "game_server_msg_192");
             if (putCount >= 1 && slots.size() >= 3)
             {
-                for (int i = 0; i < putCount; ++i)
+                // [b28f-CTS 轴B] ORIG 0x085a9dc9..0x085a9dd7 为
+                //   `addl $0x1,-0x14; addl $0x3,-0x10; mov -0x2c,%eax;
+                //    cmp -0x14,%eax; seta` ⇒ 原码是**无符号**循环变量
+                //   + **独立 unsigned 步进累加器**（off += 3，非 i*3 的
+                //   imul/lea 强度归约）。P196 前置已核：ORIG 为 seta
+                //   （无符号序）⇒ 允许/要求改 unsigned（禁止改 int）。
+                for (unsigned int i = 0, off = 0; i < (unsigned int)putCount;
+                     ++i, off += 3)
                 {
-                    unsigned int slot = (unsigned int)slots[i * 3];
+                    unsigned int slot = (unsigned int)slots[off];
                     getManager()->SendUpdateItem((CUser::eSendTarget)1,
                                                 (ENUM_ITEMSPACE)0, (int)slot);
                 }

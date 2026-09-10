@@ -275,8 +275,11 @@ void AvatarConvertServer::StatisticsEmblemCreate(
         //   call G_CDataManager; mov %ebx,0x4(%esp)`（实参先升格 callee-saved）；
         //   4.4 恒 receiver 先、实参后载 %edx。P231 纯 register 提示实测**无效**
         //   （112 条与基线同、TU 四数不变）⇒ 随判词①封顶（P75/N82附 装载时刻）。
-        const int itemId = it->first;
-        const int addInfo = it->second;
+        // [b28d-E03 2026-09-10 轴 A 命中] Main 新配方（const 常量传播）实测有效：
+        //   原 `const int itemId/addInfo` ⇒ ours 112 条；**去 const ⇒ 114 条**
+        //   （ORIG 115，gap −3→−1）；再加 `register` 反落回 112 ⇒ 保留 `int` 形。
+        int itemId = it->first;
+        int addInfo = it->second;
         it++;                                    // 语句位后置：4.4 保留 ppEi（探针实证）
         CItem* item = G_CDataManager()->find_item(itemId);
         if (item == 0)

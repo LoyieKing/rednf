@@ -1035,6 +1035,8 @@ bool HeroMissionEvent::loadScript()
     m_conditions[static_cast<HeroMissionCondition::MissionNo::T>(p->getMissionCode())] = p;
 
     std::vector<HeroMissionCondition> conds;
+    // [C07 · Main 新轴 A(cv 限定符) 试形已回退] `const int line` → `int line` 实测
+    //   本件四数与 loadScript ndiff **零变化**（364/364、ndiff 638 不变）⇒ 无收益回退。
     const int line = importHeroMissionConditionsData(&conds, "Event/HeroMissionEvent.evt");
     if (line == 0)
     {

@@ -1026,7 +1026,12 @@ int CClearReward::loadScript(char const* path)
         {
             for (;;)
             {
-                int idx = ScanInt(&ok);
+                // [b28d-C08 轴 B / P196 正向] ORIG 0x08539ace-0x08539ad2 =
+                // `cmpl $0x9,-0x10(%ebp); **jbe**`（**无符号**序）⇒ 该局部为 unsigned；
+                // 我方 `int idx` 产有符号 `jle` ⇒ `idx<0` 时 ORIG 走 return 0x9f6 拒绝，
+                // 我方却继续 `m_rewardRatePerMap[idx]`（负下标）⇒ **真语义分叉**，非纯 codegen。
+                // 轴 B 来源：/tmp/r5/axisB_points.tsv 第 71 行（b_U->S，ORIG jbe vs OUR jle）。
+                unsigned int idx = ScanInt(&ok);
                 if (!ok)
                     break;
                 if (idx > 9)

@@ -1446,7 +1446,12 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
         {
             if (specialA == 1)
             {
-                if (specialB <= user->getCurCharacCargoR()->GetCapacity())
+                // [2026-09-10 D06 · 轴 B 试验] ORIG 0x08553a9f..0x08553aa4
+                // `mov -0x4c(%ebp),%edx; cmp %edx,%eax; setge %al`（**有符号**，
+                // = `GetCapacity() >= specialB`）；我方 `GetCapacity()` 返回
+                // unsigned ⇒ `int <= unsigned` 隐式转无符号 ⇒ `setbe` + 提前
+                // 物化（+4 条）。加 `(int)` cast 恢复有符号序。
+                if (specialB <= (int)user->getCurCharacCargoR()->GetCapacity())
                 {
                     err = (ENUM_ERROR)0xd;
                     return false;
@@ -1914,7 +1919,10 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
         if (proto->isPackagable() != 1)
             return 0x17;
 
-        switch (proto->GetAttachType())
+        // [2026-09-10 D06 · 轴 B 反向试验] ORIG 0x08555de4 `cmp $0x7,%eax; **ja**`
+        // （无符号跳表边界，default = `mov $0x17,%eax`）；我方 `jg`（有符号）⇒
+        // switch 索引按 unsigned 对齐 ORIG（P196：向 ORIG 对齐方向即为修复）。
+        switch ((unsigned int)proto->GetAttachType())
         {
         case 1:
         case 2:

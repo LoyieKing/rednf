@@ -8674,6 +8674,9 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
         return;
     }
 
+    // [A06 2026-09-10 轴B 试行记录·已回退] 地址自校通过（ORIG 0x0866bed9
+    // `cmp -0x20(%ebp),%eax; setg` ↔ 我方 0x824260f `cmp -0x24(%ebp),%eax; seta`，上下文同构），
+    // 但改 int 后 **delta 56→58 反劣**（seta 2→0 形态虽对齐，4.4 另生中转）⇒ 按「严格改善才留」回退。
     for (unsigned int i = 0; i < giveVec.size(); ++i)
     {
         // ORIG 循环体顺序：先 get_charac_job、再 getCurCharacSkillW，
@@ -8689,6 +8692,7 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
         (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
     if (expert != 0)
     {
+        // [A06 2026-09-10 轴B 试行记录·已回退]（同件第二循环，同上理由）
         for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
         {
             int exp = GetCurCharacExpertJobExp();
@@ -9388,7 +9392,10 @@ L08666990:
                            get_give_skill((int)firstGrow, (int)secondGrow, giveVec, 0);
             if (got)
             {
-                for (unsigned int i = 0; i < giveVec.size(); ++i)
+                // [A06 2026-09-10 轴B 试行(P196 已前置：ORIG 对应循环尾为 setg/setl 有符号序)]
+                // 旧 `unsigned int i` ⇒ 4.4 `cmp -0xb4(%ebp),%eax; seta`（无符号）；
+                // 改 int + `(int)size()` 复现 ORIG 的有符号序。
+                for (int i = 0; i < static_cast<int>(giveVec.size()); ++i)
                 {
                     int j = get_charac_job();
                     pr = giveVec[i];
@@ -9402,6 +9409,8 @@ L08666990:
                     G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
                 if (expert != 0)
                 {
+                    // [A06 2026-09-10 轴B 试行记录·已回退] 本处（含下面 giveVec/第二 expert 循环共 3 处）
+                    // 改 int 实测 delta 2282→2287（+5）反劣 ⇒ 该 3 处 ORIG 侧非 setg（仅 9391 处命中）⇒ 维持 unsigned。
                     for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
                     {
                         int lvl = GetCurExpertJobLevel(GetCurCharacExpertJobExp());
@@ -9470,6 +9479,7 @@ L08666990:
                            get_give_skill((int)firstGrow, (int)secondGrow, giveVec, 0);
             if (got)
             {
+                // [A06 2026-09-10 轴B 试行记录·已回退]（同上：本处反劣）
                 for (unsigned int i = 0; i < giveVec.size(); ++i)
                 {
                     ENUM_SKILL_TREE_KIND kindI =
@@ -9482,6 +9492,7 @@ L08666990:
                     G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
                 if (expert != 0)
                 {
+                    // [A06 2026-09-10 轴B 试行记录·已回退]（同上：本处反劣）
                     for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
                     {
                         int lvl = GetCurExpertJobLevel(GetCurCharacExpertJobExp());
