@@ -11105,13 +11105,20 @@ int Dispatcher_SaveGameOption_1::process(CUser* user, MSG_BASE& msg, ParamBase& 
     {
         return -1;
     }
-    CETCOption& etc =
-        reinterpret_cast<MSG_SAVE_GAME_OPTION_1&>(msg).m_option;      // +0x11
+    // [Lane1Dispatchers 2026-09-10 · Main 判据②/P286 + P0] ORIG 0x081cea? 为
+    //   `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)`（具名 **msg 指针**槽）+ 每处
+    //   `mov -0x14(%ebp),%eax; add $0x11,%eax` 重算 m_option 地址；我方存 `&etc`
+    //   则每处退化为单次 -0x18 回读且整帧 +4。另 ORIG 无 short 具名局部
+    //   （`call getETCOption; test %ax,%ax`），我方具名 visible 融成
+    //   `mov %ax,-0xe; cmpw $0x0,-0xe`（cmpw ×1，ORIG cmpw=0）。
+    MSG_SAVE_GAME_OPTION_1& saveMsg =
+        reinterpret_cast<MSG_SAVE_GAME_OPTION_1&>(msg);              // -0x14
+    CETCOption& etc = saveMsg.m_option;                               // +0x11
     if ((short)etc.getETCOption((ENUM_OPTION_ETC)1) !=
         (unsigned char)user->get_charac_visible_grow_avatar())
     {
-        short visible = (short)etc.getETCOption((ENUM_OPTION_ETC)1);
-        user->set_charac_visible_grow_avatar(visible != 0);
+        user->set_charac_visible_grow_avatar(
+            (short)etc.getETCOption((ENUM_OPTION_ETC)1) != 0);
         user->send_charac_visible_data();
         user->m_characterView.enableSaveCharacView();
     }
@@ -20369,16 +20376,21 @@ int Dispatcher_LevelupSupportReqestItem::dispatch_sig(CUser* user, PacketBuf& pa
         // +0x124：user->m_levelupEvents[stepIdx].m_state（+0x02）
         LevelupSupportEventManger::EventInfo& info =
             user->m_levelupEvents[stepIdx];
-        unsigned short state = info.m_state;
-        if (state == 1)
+        // [Lane1Dispatchers 2026-09-10 · Main 判据②/P286 + P0] ORIG 0x0825fc3a 段为
+        //   `movzwl 0x2(%eax),%eax; movzwl %ax,%eax; cmp $0x1,%eax; cmp $0x2,%eax;
+        //   test %eax,%eax` —— **无具名 state 局部**（P0：值全程寄存器、零槽往返），
+        //   各分支各自重读 + `(unsigned short)` 截断 ⇒ 寄存器比较；带具名 ushort 局部
+        //   时 4.4 恒融 `cmpw $K,-0xa(%ebp)`（我方 cmpw×3、ORIG cmpw=0），改 switch 则
+        //   4.4 走跳表（实测 +11 条）。正解 = 内联 cast 表达式逐次重读。
+        if ((unsigned short)info.m_state == 1)
         {
             mgr->InsertItem(user, stepIdx, err);   // 0x081473cc
         }
-        else if (state == 2)
+        else if ((unsigned short)info.m_state == 2)
         {
             err = (ENUM_ERROR)0x12;
         }
-        else if (state == 0)
+        else if ((unsigned short)info.m_state == 0)
         {
             err = (ENUM_ERROR)0x13;
         }
