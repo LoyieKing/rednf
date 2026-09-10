@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CBlowFish/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CBlowFish/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // CBlowFish.cpp：df_game_r ORIG CBlowFish 还原（算法类，要求算法正确）。
 // 依据 docs/class_func_reports/CBlowFish/*.md + objdump 实测：
@@ -169,25 +171,308 @@ unsigned int const CBlowFish::scm_auiInitS[1024] =
     0x90d4f869, 0xa65cdea0, 0x3f09252d, 0xc208e69f, 0xb74e6132, 0xce77e25b, 0x578fdfe3, 0x3ac372e6,};
 
 #include "CBlowFish/CBlowFish.inc"
+    : m_left(iv), m_right(iv)
+{
+    std::memset(m_pbox, 0, sizeof(m_pbox));
+    if (keyLen != 0)
+    {
+        if (keyLen > 0x38)
+            keyLen = 0x38;
+        unsigned char localKey[0x38];
+        std::memcpy(localKey, key, keyLen);
+        std::memcpy(m_pbox, scm_auiInitP, sizeof(m_pbox));
+        std::memcpy(m_sbox, scm_auiInitS, sizeof(m_sbox));
+
+        unsigned char* kp = localKey;
+        unsigned int j = 0;      // 密钥字节计数（遇 keyLen 回绕）
+        for (unsigned int i = 0; i <= 0x11; ++i)
+        {
+            unsigned int word = 0;
+            for (int n = 4; n != 0; --n)
+            {
+                word = (word << 8) | *kp;
+                ++kp;
+                ++j;
+                if (j == keyLen)
+                {
+                    j = 0;
+                    kp = localKey;
+                }
+            }
+            m_pbox[i] ^= word;
+        }
+
+        SBlock block(0, 0);
+        for (unsigned int i = 0; i <= 0x11; i += 2)
+        {
+            Encrypt(block);
+            m_pbox[i] = block.m_data0;
+            m_pbox[i + 1] = block.m_data1;
+        }
+        for (unsigned int r = 0; r <= 3; ++r)
+        {
+            for (unsigned int c = 0; c <= 0xff; c += 2)
+            {
+                Encrypt(block);
+                m_sbox[r][c] = block.m_data0;
+                m_sbox[r][c + 1] = block.m_data1;
+            }
+        }
+    }
 }
 
 #include "CBlowFish/F.inc"
+{
+    unsigned char b1 = Byte(x >> 24);
+    unsigned char b2 = Byte(x >> 16);
+    unsigned char b3 = Byte(x >> 8);
+    unsigned char b4 = Byte(x);
+    return ((m_sbox[0][b1] + m_sbox[1][b2]) ^ m_sbox[2][b3]) + m_sbox[3][b4];
 }
 
 #include "CBlowFish/Encrypt.inc"
+{
+    unsigned int l = block.m_data0;
+    unsigned int r = block.m_data1;
+    l ^= m_pbox[0];
+    r ^= F(l) ^ m_pbox[1];
+    l ^= F(r) ^ m_pbox[2];
+    r ^= F(l) ^ m_pbox[3];
+    l ^= F(r) ^ m_pbox[4];
+    r ^= F(l) ^ m_pbox[5];
+    l ^= F(r) ^ m_pbox[6];
+    r ^= F(l) ^ m_pbox[7];
+    l ^= F(r) ^ m_pbox[8];
+    r ^= F(l) ^ m_pbox[9];
+    l ^= F(r) ^ m_pbox[10];
+    r ^= F(l) ^ m_pbox[11];
+    l ^= F(r) ^ m_pbox[12];
+    r ^= F(l) ^ m_pbox[13];
+    l ^= F(r) ^ m_pbox[14];
+    r ^= F(l) ^ m_pbox[15];
+    // ORIG 末轮形态（汇编实证 0x080a9984-0x080a99ab：F(r8)^P[16] 更新 l 后
+    // 直接存 l，out0 = r^P[17]）
+    block.m_data0 = r ^ m_pbox[17];
+    block.m_data1 = l;
+    // ORIG 末轮重读形态（O0 无 CSE，F(r)/P[16] 各算两遍，语义为输出交换）
+    block.m_data0 = r ^ m_pbox[17];
+    block.m_data1 = l ^ F(r) ^ m_pbox[16];
 }
 
 #include "CBlowFish/Decrypt.inc"
+{
+    unsigned int l = block.m_data0;
+    unsigned int r = block.m_data1;
+    l ^= m_pbox[17];
+    r ^= F(l) ^ m_pbox[16];
+    l ^= F(r) ^ m_pbox[15];
+    r ^= F(l) ^ m_pbox[14];
+    l ^= F(r) ^ m_pbox[13];
+    r ^= F(l) ^ m_pbox[12];
+    l ^= F(r) ^ m_pbox[11];
+    r ^= F(l) ^ m_pbox[10];
+    l ^= F(r) ^ m_pbox[9];
+    r ^= F(l) ^ m_pbox[8];
+    l ^= F(r) ^ m_pbox[7];
+    r ^= F(l) ^ m_pbox[6];
+    l ^= F(r) ^ m_pbox[5];
+    r ^= F(l) ^ m_pbox[4];
+    l ^= F(r) ^ m_pbox[3];
+    r ^= F(l) ^ m_pbox[2];
+    // ORIG 末轮形态（Decrypt 对称：存 l）
+    block.m_data0 = r ^ m_pbox[0];
+    block.m_data1 = l;
+    // ORIG 末轮重读形态（F(r)/P[1] 各算两遍）
+    block.m_data0 = r ^ m_pbox[0];
+    block.m_data1 = l ^ F(r) ^ m_pbox[1];
 }
 
 #include "CBlowFish/Encrypt_1.inc"
+{
+    if (len == 0 || (len & 7) != 0)
+        return 0x70000006;
+    SBlock block(0, 0);
+    if (mode == 1)
+    {
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(buf, block);
+            block ^= link;
+            Encrypt(block);
+            link = block;
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    else if (mode == 2)
+    {
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            Encrypt(link);
+            BytesToBlock(buf, block);
+            block ^= link;
+            link = block;
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    else
+    {
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(buf, block);
+            Encrypt(block);
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    return 0x6fffffff;
 }
 
 #include "CBlowFish/Decrypt_1.inc"
+{
+    if (len == 0 || (len & 7) != 0)
+        return 0x70000006;
+    SBlock block(0, 0);
+    if (mode == 1)
+    {
+        SBlock prev(0, 0);
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(buf, block);
+            prev = block;
+            Decrypt(block);
+            block ^= link;
+            link = prev;
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    else if (mode == 2)
+    {
+        SBlock prev(0, 0);
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(buf, block);
+            Encrypt(link);
+            prev = block;
+            block ^= link;
+            link = prev;
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    else
+    {
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(buf, block);
+            Decrypt(block);
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    return 0x6fffffff;
 }
 
 #include "CBlowFish/Encrypt_2.inc"
+{
+    if (len == 0 || (len & 7) != 0)
+        return 0x70000006;
+    SBlock block(0, 0);
+    if (mode == 1)
+    {
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(in, block);
+            block ^= link;
+            Encrypt(block);
+            link = block;
+            out += 8;
+            BlockToBytes(block, out);
+            in += 8;
+        }
+    }
+    else if (mode == 2)
+    {
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            Encrypt(link);
+            BytesToBlock(in, block);
+            block ^= link;
+            link = block;
+            out += 8;
+            BlockToBytes(block, out);
+            in += 8;
+        }
+    }
+    else
+    {
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(in, block);
+            Encrypt(block);
+            out += 8;
+            BlockToBytes(block, out);
+            in += 8;
+        }
+    }
+    return 0x6fffffff;
 }
 
 #include "CBlowFish/Decrypt_2.inc"
+{
+    if (len == 0 || (len & 7) != 0)
+        return 0x70000006;
+    SBlock block(0, 0);
+    if (mode == 1)
+    {
+        SBlock prev(0, 0);
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(in, block);
+            prev = block;
+            Decrypt(block);
+            block ^= link;
+            link = prev;
+            out += 8;
+            BlockToBytes(block, out);
+            in += 8;
+        }
+    }
+    else if (mode == 2)
+    {
+        SBlock prev(0, 0);
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(in, block);
+            Encrypt(link);
+            prev = block;
+            block ^= link;
+            link = prev;
+            out += 8;
+            BlockToBytes(block, out);
+            in += 8;
+        }
+    }
+    else
+    {
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(in, block);
+            Decrypt(block);
+            out += 8;
+            BlockToBytes(block, out);
+            in += 8;
+        }
+    }
+    return 0x6fffffff;
 }

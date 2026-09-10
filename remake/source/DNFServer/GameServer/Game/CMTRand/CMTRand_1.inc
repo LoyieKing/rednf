@@ -1,3 +1,1 @@
 CMTRand::CMTRand()
-{
-    seed();

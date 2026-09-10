@@ -1,3 +1,1 @@
 CMonsterManager::~CMonsterManager()
-{
-    destroy();

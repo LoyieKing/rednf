@@ -1,3 +1,1 @@
 STSkillScript::STSkillScript()
-{
-    Clear();

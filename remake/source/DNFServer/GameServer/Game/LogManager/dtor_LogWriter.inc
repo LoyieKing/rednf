@@ -1,2 +1,1 @@
 LogWriter::~LogWriter()
-{

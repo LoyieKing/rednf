@@ -1,3 +1,1 @@
 STMonsterTypeSpawnProb::STMonsterTypeSpawnProb()
-{
-    clear();

@@ -23,3 +23,4 @@ bool DNFFLib::CharacSetSwitch(char const* from, char const* to, char* src, char*
     dst[size2 - string_size] = '\0';
     iconv_close(it);
     return 1;
+}

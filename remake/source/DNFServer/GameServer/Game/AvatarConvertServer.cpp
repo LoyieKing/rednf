@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 AvatarConvertServer/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 AvatarConvertServer/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r Game/ AvatarConvertServer + ARAD::SCRIPT::AvatarConvert 实现。
 // 逐指令转写依据 docs/class_func_reports/ARAD__SCRIPT__AvatarConvert/*.md 与
@@ -57,9 +59,11 @@ namespace SCRIPT
 // （不 delete 条目——释放须经 clearScript，ORIG 如此）。
 // ============================================================================
 #include "AvatarConvertServer/AvatarConvert.inc"
+{
 }
 
 #include "AvatarConvertServer/dtor_AvatarConvert.inc"
+{
 }
 
 // ============================================================================
@@ -80,6 +84,58 @@ namespace SCRIPT
 // 残差：槽号整体浅 4（块内 endIt 的 end() sret -0x48 vs ORIG -0x34；试函数头先声明后
 // 赋值反而劣化 195 条 ⇒ 回退）⇒ N82/P112 槽分配族，语义完成。
 #include "AvatarConvertServer/loadScript.inc"
+{
+    if (!loadRDARScriptFile("Etc/EmblemRenewal/", "avatar_convert_jpn.etc"))
+        return -1;
+
+    std::string token;
+    bool isType = false;
+    bool isInt = false;
+    for (;;)
+    {
+        if (!ScanType(token, true))
+            break;               // P164：条件落循环头，复现 4.1 入口直落条件头
+        int totalWeight = 0;   // ORIG -0x40：每条记录重置
+        // ORIG 0x088b1baf：`new ConvertResult()` 的 value-init 前置零初始化
+        // （operator new(0x24) → 8×rep stos dword + 1B → call C1Ev）。
+        ConvertResult* convertResult = new ConvertResult();
+        convertResult->m_grade = ScanInt((bool*)0);
+        int field20 = ScanInt((bool*)0);   // ORIG -0x1c：比较前落槽
+        convertResult->m_field20 = (field20 == 1);
+        for (;;)
+        {
+            GetInfo info;
+            // P0：ORIG 无具名 key 局部——ScanTypeOrInt 返回值直落 info.m_key。
+            info.m_key = ScanTypeOrInt(isType, token, isInt, true);
+            if (isType)
+                break;   // TYPE → 插入分支
+            if (!isInt)
+                break;   // EOF/非法 → 丢弃该记录
+            info.m_count = static_cast<short>(ScanInt((bool*)0));
+            info.m_weight = static_cast<short>(ScanInt((bool*)0));
+            convertResult->m_infos.push_back(info);
+            totalWeight += info.m_weight;
+            convertResult->m_cumWeights.push_back(totalWeight);
+        }
+        if (isType)
+        {
+            std::map<int, ConvertResult*>::iterator endIt = m_convertMap.end();
+            if (m_convertMap.find(convertResult->m_grade) == endIt)
+            {
+                convertResult->m_totalWeight = convertResult->m_cumWeights.back();
+                m_convertMap.insert(
+                    std::map<int, ConvertResult*>::value_type(convertResult->m_grade,
+                                                              convertResult));
+            }
+            else
+            {
+                printf("%s duplicate grade:%d", token.c_str(), convertResult->m_grade);
+                return -2;
+            }
+        }
+    }
+    unloadRDARScriptFile();
+    return 0;
 }
 
 // ============================================================================
@@ -88,11 +144,23 @@ namespace SCRIPT
 // → map.clear()。
 // ============================================================================
 #include "AvatarConvertServer/clearScript.inc"
+{
+    std::map<int, ConvertResult*>::iterator it = m_convertMap.begin();
+    std::map<int, ConvertResult*>::iterator endIt = m_convertMap.end();
+    for (; it != endIt; ++it)
+        delete it->second;
+    m_convertMap.clear();
 }
 
 // getConvertResult —— ORIG T 0x88b1e48：先默认构造迭代器再赋值 find 结果；
 // 命中返回指针，未命中 0。
 #include "AvatarConvertServer/getConvertResult.inc"
+{
+    std::map<int, ConvertResult*>::iterator it;
+    it = m_convertMap.find(grade);
+    if (it != m_convertMap.end())
+        return it->second;
+    return 0;
 }
 
 }  // namespace SCRIPT
@@ -103,22 +171,33 @@ namespace SCRIPT
 // EmblemCompoundServer.cpp 注释（Singleton W 0x0819380a 未建模）。
 // ============================================================================
 #include "AvatarConvertServer/AvatarConvertServer.inc"
+{
 }
 
 #include "AvatarConvertServer/dtor_AvatarConvertServer.inc"
+{
 }
 
 // Load —— ORIG T 0x081930ba：cMyTrace(pretty,0x37f,9,true,false) +
 // operator()("\t- Loading Avatar Convert script - ")；loadScript() 非0 → 0。
 #include "AvatarConvertServer/Load.inc"
+{
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x37f, 9, true, false);
+    trace("\t- Loading Avatar Convert script - ");
+    if (loadScript())
+        return false;
+    return true;
 }
 
 // Destroy —— ORIG T 0x0819312c：return 1（基类槽1 void 约定）。
 #include "AvatarConvertServer/Destroy.inc"
+{
+    return 1;
 }
 
 // Test —— ORIG T 0x0819220c：空（非虚成员）。
 #include "AvatarConvertServer/Test.inc"
+{
 }
 
 // ============================================================================
@@ -160,6 +239,25 @@ namespace SCRIPT
     // 4.4.7 下恒 %eax；Main 已按本泳道双后端读数把本 TU 路由到 446 后端
     // （dnf_game_cxx.sh「仅换 446 后端」表），逐操作数一致。P282 已核虚槽 +0xc。
 #include "AvatarConvertServer/StatisticsAvatarDisjoint.inc"
+                                                   int isRechargeStone)
+{
+    // ORIG 0x08193136：Packet_Avater_Disjoint_Statistic（W C1 0x08110bae）构造
+    // 于 -0x34；m_field0a=1 先行；gradeIdx 具名临时 + if/else 两段（sete 物化 +
+    // 槽往返写回 +0x0e）；m_pad17 ← isRechargeStone（4 字节写 +0x17）；代理内联。
+    Packet_Avater_Disjoint_Statistic packet;
+    packet.m_field0a = 1;
+    int gradeIdx = 0;
+    if (item->get_rarity() == 2)
+        gradeIdx = 2;
+    else
+        gradeIdx = item->get_grade() - 1;
+    packet.m_gradeIdxA = gradeIdx;
+    packet.m_subTypeA = item->GetItemType();
+    packet.m_flagA = 1;
+    packet.m_pad17 = static_cast<unsigned int>(isRechargeStone);
+    GlobalData::s_statistic_proxy_mgr
+        ->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&packet), 0x28);
 }
 
 // [b28d-solo-AvatarConvertServer] DIFF 封顶（ORIG 0x081931dc，115 vs 114，p167 CLEAR）。
@@ -171,6 +269,50 @@ namespace SCRIPT
 // （P75/N82附）② `mov -0x18(%ebp),%ebx; call size; cmp %eax,%ebx`（N22）③ m_values 的
 // disp/索引分解 -0x58+4(i+8) vs -0x50+4(i+6)（N94/N4 族）。
 #include "AvatarConvertServer/StatisticsEmblemCreate.inc"
+    const std::vector<std::pair<int, int> >& created)
+{
+    Packet_Emblem_Create_Statistic packet;
+    if (created.size() > 5)
+        return;
+
+    // P198③/P212：i 先声明占最浅槽、赋值留到 begin/end 之后（ORIG i=0 在
+    // end() 调用后发射）。
+    int i;
+    std::vector<std::pair<int, int> >::const_iterator it = created.begin();
+    std::vector<std::pair<int, int> >::const_iterator endIt = created.end();
+    i = 0;
+    while (it != endIt)
+    {
+        // [b28d-E03 2026-09-10 试形回退] ORIG 0x0819327b `mov -0x14(%ebp),%ebx;
+        //   call G_CDataManager; mov %ebx,0x4(%esp)`（实参先升格 callee-saved）；
+        //   4.4 恒 receiver 先、实参后载 %edx。P231 纯 register 提示实测**无效**
+        //   （112 条与基线同、TU 四数不变）⇒ 随判词①封顶（P75/N82附 装载时刻）。
+        // [b28d-E03 2026-09-10 轴 A 命中] Main 新配方（const 常量传播）实测有效：
+        //   原 `const int itemId/addInfo` ⇒ ours 112 条；**去 const ⇒ 114 条**
+        //   （ORIG 115，gap −3→−1）；再加 `register` 反落回 112 ⇒ 保留 `int` 形。
+        int itemId = it->first;
+        int addInfo = it->second;
+        it++;                                    // 语句位后置：4.4 保留 ppEi（探针实证）
+        CItem* item = G_CDataManager()->find_item(itemId);
+        if (item == 0)
+            return;                              // ORIG 中途 return
+        if (item->GetItemType() != 0x14)
+            continue;                            // 非头像物品不计入
+        packet.m_grades[i] = item->get_grade();
+        packet.m_slots[i + 6] = addInfo;
+        ++i;
+        if (i > 5)
+            break;                               // ORIG 计数上限 cmp $5
+    }
+    if (i != (int)created.size())
+        return;
+    packet.m_count = i;
+    // [本波实测] P52 cast 形对照（reinterpret_cast<char*> vs (char*)）重编后读数
+    // 逐条相同（110/109、ndiff 13）⇒ 非 cast 选择；残余两条归 N94/N4
+    // （`-0x58+4(i+8)` vs `-0x50+4(i+6)` 同址不同分解 + callee-saved 装载时点）。
+    GlobalData::s_statistic_proxy_mgr
+        ->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&packet), 0x36);
 }
 
 // [b28d-solo-AvatarConvertServer] DIFF 封顶（ORIG 0x08192212，293 vs 292，p167 CLEAR 35/35）。
@@ -181,6 +323,110 @@ namespace SCRIPT
 // 残差：1 条 N18a——ORIG 0x081923d0 `mov 0x4(%eax),%eax; mov %eax,%ebx`（两段装 callee-saved），
 // 4.4 恒折单段 ⇒ N 封顶。
 #include "AvatarConvertServer/CheckCondition.inc"
+                                         arad::SigAradAvatarConvert* sig)
+{
+    // P0/P52：ORIG 无 invR 具名局部（链式 receiver）；m_slot 为 short 字段但
+    // ORIG 三处使用点均为 `movzwl 0x2; movzwl %ax` 两段零扩展 ⇒ 使用点显式
+    // `(unsigned short)` 收窄（负值语义照抄 ORIG）。
+    const Inven_Item* ref =
+        user->getCurCharacInvenR()->GetInvenRef(2,
+            (int)(unsigned short)sig->m_slot);
+    if ((ref == 0 || ref->isEmpty()))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x16);
+        ARAD::PRINT_ERROR::isEmpty("AVATAR CONVERT", user,
+                                   (unsigned short)sig->m_slot);
+        return false;
+    }
+    if (ref->m_addInfo != sig->m_itemId)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x2b5,
+            "AVATAR CONVERT : [item_id1:%d] [item_id2:%d] [charac_no:%d]",
+            ref->m_addInfo, sig->m_itemId,
+            (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    if (user->CheckItemLock(2, (int)(unsigned short)sig->m_slot))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0xd5);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            700,
+            "AVATAR CONVERT : lock [item_id1:%d] [item_id2:%d] [charac_no:%d]",
+            ref->m_addInfo, sig->m_itemId,
+            (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    CItem* item = G_CDataManager()->find_item(sig->m_itemId);
+    if (item == 0 || !item->IsAvatarItem())
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
+        ARAD::PRINT_ERROR::find_item("AVATAR CONVERT", user, sig->m_itemId);
+        return false;
+    }
+    if (!item->isEnableAvatarFunc((ENUM_AVATAR_FUNC_FILTER)2))
+    {   // AVATAR_FUNC_FILTER_DISJOINT
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x17);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x2d2,
+            "AVATAR CONVERT : isEnableAvatarFunc(AVATAR_FUNC_FILTER_DISJOINT) fail "
+            "[item_id:%d] [charac_no:%d]",
+            item->get_index(), (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    // avatar 到期检查（ORIG 0x081924ec：无 mgr 具名局部——链式 receiver +
+    // ref->m_addInfo2 先装 ebx 跨两次调用保活，P52）。
+    if (user->getCurCharacInvenW()->GetAvatarItemMgrR()
+            ->GetExpireDate(ref->m_addInfo2) != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x17);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x2d9,
+            "AVATAR CONVERT : GetExpireDate() fail [ui_id:%d] [charac_no:%d]",
+            ref->m_addInfo2, (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    ARAD::SCRIPT::AvatarConvert::ConvertResult* result =
+        getConvertResult(item->get_grade());
+    if (result == 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x2e2,
+            "AVATAR CONVERT : getConvertResult() fail [item_id:%d] [charac_no:%d]",
+            sig->m_itemId, (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    // [b28d-solo-AvatarConvertServer 真语义 bug] ORIG 0x08192614：
+    // `movzbl 0x20(%eax); xor $1; test; je <mov$0>` + `cmp; jb <mov$0>` ⇒
+    // 失败条件 = !m_field20 && size >= selectNo（原实现写成 m_field20 || size <= selectNo，
+    // 极性整段反置）。结尾 `return !bVar2` 即条件假时 return true。
+    if (!result->m_field20 &&
+        result->m_infos.size() >=
+            (std::vector<ARAD::SCRIPT::AvatarConvert::GetInfo>::size_type)sig->m_selectNo)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x17);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x2e9,
+            "AVATAR CONVERT : [isSelect:%d] [selectNo:%d] [item_id:%d] [charac_no:%d]",
+            (unsigned int)result->m_field20, (unsigned int)sig->m_selectNo,
+            sig->m_itemId, (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    return true;
 }
 
 // [b28d-solo-AvatarConvertServer] DIFF 封顶（ORIG 0x081926de，610 vs 601，p167 CLEAR
@@ -199,4 +445,171 @@ namespace SCRIPT
 // edi 保活（cMyTrace 段 ORIG `movzwl %ax,%edi; mov %edi,0xc(%esp)`）+ P168a③b（ORIG
 // is_stackable `test %al,%al; je` 无 xor，4.4 恒 xor 物化）⇒ 语义完成、byte 层 N 封顶。
 #include "AvatarConvertServer/Convert.inc"
+                                  arad::SigAradAvatarConvert* sig)
+{
+    CItem* item = G_CDataManager()->find_item(sig->m_itemId);
+    if (item == 0 || !item->IsAvatarItem())
+    {
+        ARAD::PRINT_ERROR::find_item("AVATAR CONVERT", user, sig->m_itemId);
+        return false;
+    }
+
+    int grade = item->get_grade();
+    if (item->GetItemType() == 9)
+        grade = 3;
+
+    unsigned int selectIdx = sig->m_selectNo;
+    ARAD::SCRIPT::AvatarConvert::ConvertResult* result =
+        getConvertResult(grade);
+    if (result->m_field20 != true)
+    {
+        // upper_bound(cumWeights, rand(totalWeight)) - begin
+        // P0/P183：ORIG 无 cw 引用局部——每处使用点内联 result->m_cumWeights。
+        // ORIG 亦无 count 局部：`mov %eax,-0x40(%ebp)` 直接写回 selectIdx。
+        int randVal = get_rand_int(result->m_totalWeight);
+        std::vector<int>::iterator up =
+            std::upper_bound(result->m_cumWeights.begin(),
+                             result->m_cumWeights.end(), randVal);
+        selectIdx = (unsigned int)(up - result->m_cumWeights.begin());
+    }
+    // P157：ORIG 0x08192888/0x081928a5 每字段重调 operator[]（无 info 引用缓存），
+    // 且后续统一复用已写回的 sig->m_resultItemId。
+    sig->m_resultItemId = result->m_infos[selectIdx].m_key;
+    sig->m_resultCount = result->m_infos[selectIdx].m_count;
+
+    CItem* resultItem = G_CDataManager()->find_item(sig->m_resultItemId);
+    if (resultItem == 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
+        ARAD::PRINT_ERROR::find_item("AVATAR CONVERT", user, sig->m_itemId);
+        return false;
+    }
+
+    // ORIG 0x08192919-0x0819294e：newItem 先构造并写 m_addInfo（+0x2），
+    // stackable 校验通过后才写 m_addInfo2（+0x7，真语义 bug：原实现漏写两字段）。
+    Inven_Item newItem;
+    newItem.m_addInfo = sig->m_resultItemId;
+    // 结果物品入包（stackable 校验 → make_item → tryInsertItemIntoInventory）
+    if (!resultItem->is_stackable())
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x322,
+            "AVATAR CONVERT : is_stackable() fail [item_id:%d] [charac_no:%d]",
+            sig->m_resultItemId, (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    newItem.m_addInfo2 = sig->m_resultCount;
+    resultItem->make_item(newItem);          // vtable slot2
+    // P0/P160：ORIG 无 invW 具名局部——5 处使用点各自重新取
+    // user->getCurCharacInvenW()（p167 差集 MISSING×4）。
+    int insertSlot =
+        user->getCurCharacInvenW()->tryInsertItemIntoInventory(newItem);
+    if (insertSlot < 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 4);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x329,
+            "AVATAR CONVERT : tryInsertItemIntoInventory() fail [item_id:%d] [charac_no:%d]",
+            sig->m_resultItemId, (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    // 释放原 avatar（type 2 槽删除 → UnRegistItem → SendAvatarEvent → DB history）
+    // ORIG 0x08192b14/0x08192b28：读路径走 const 版
+    // getCurCharacInvenR()->GetInvenRef（p167 MISSING const 版两符号）。
+    // b29（判据⑫/clr_l，ORIG 0x08192bc7-0x08192c92 三处 `movzwl %ax,%ebx`）：
+    // m_slot 三处零扩展收窄（原来写 (int) 生 movswl ⇒ ext_movswl 3 vs 0）。
+    const Inven_Item* oldRef =
+        user->getCurCharacInvenR()->GetInvenRef(
+            2, (int)(unsigned short)sig->m_slot);
+    unsigned int uiId = oldRef->m_addInfo2;
+    if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE(2),
+                                                (int)(unsigned short)sig->m_slot, 1,
+                                                eItemDelReason(6), true) != 1)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x16);
+        ARAD::PRINT_ERROR::delete_item("AVATAR CONVERT", user,
+                                       (unsigned short)sig->m_slot);
+        return false;
+    }
+    if (!user->getCurCharacInvenW()->GetAvatarItemMgrW()
+             ->UnRegistItem((int)uiId))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x16);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            __PRETTY_FUNCTION__,
+            0x33c,
+            "AVATAR CONVERT : UnRegistItem() fail [ui_id:%d] [charac_no:%d]",
+            uiId, (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    user->getCurCharacInvenW()->SendAvatarEvent(0x36, (int)uiId,
+                                                (int)(unsigned short)sig->m_slot + 10,
+                                                5, 0);
+    DB_UpdateAvatarHistory::makeRequest(user->getCurCharacNo(), (int)uiId,
+                                        (char*)"AVATAR CONVERT");
+
+    // 结果物品经事件发放 + 通知包
+    std::vector<std::pair<int, int> > items;
+    std::vector<int> outSlots;
+    // ORIG 0x08192cf2：make_pair<unsigned long&, short&>（两成员均为左值，
+    // 字段 m_resultItemId 为 unsigned long）→ pair<int,int> 转换构造。
+    items.push_back(std::make_pair(sig->m_resultItemId, sig->m_resultCount));
+    int retSlots = user->getCurCharacInvenW()->insert_event_items(
+        items, outSlots, eMoneyAddReason(0), eItemAddReason(10), false,
+        "AVATAR CONVERT", "AVATAR CONVERT");
+
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(1, 0x24f);
+    packet.put_byte(1);
+    packet.put_short((unsigned short)sig->m_slot);
+    packet.put_short(retSlots);
+    // ORIG 用 const_iterator（p167 MISSING ppEi/deEv 的 const 族）+
+    // 语句位后置 ++（4.4 保留 ppEi）。
+    // b29（判据⑫，ORIG 0x08192e21/0x08192e28/0x08192e2f 三条 `movl $0x0,-0x28/-0x24/-0x20`）：
+    // 三个具名 int 局部（=0 声明）在循环前，循环内赋值（原来在循环内声明 ⇒ clr_l 0 vs 3、
+    // 帧少 0xc）。
+    int slotIdx = 0;
+    int slotOut = 0;
+    int extra = 0;
+    for (std::vector<int>::const_iterator s = outSlots.begin();
+         s != outSlots.end(); s++)
+    {
+        slotIdx = *s;
+        packet.put_short(slotIdx);
+        s++;
+        slotOut = *s;
+        packet.put_int(slotOut);
+        s++;
+        extra = *s;
+        packet.put_int(extra);
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0x368, 0);
+        trace("AVATAR CONVERT : success [slot:%d] [selectNo:%d] [resultIdx:%d] "
+              "[charac_no:%d]",
+              (int)(unsigned short)sig->m_slot,
+              (int)(unsigned short)sig->m_selectNo, slotOut,
+              (unsigned int)user->getCurCharacNo());
+    }
+    packet.finalize(true);
+    user->Send(packet);
+    // b28c-9 已把原成员 m_script 改为首个非主基类（ARAD::SCRIPT::AvatarRecharge
+    // 落 +0x04），此处改走基类引用（ORIG 0x08190200 布局：+0x00 vptr / +0x04 脚本体）。
+    bool isRechargeStone =
+        static_cast<ARAD::SCRIPT::AvatarRecharge&>(
+            *ARAD::Singleton<AvatarRechargeServer>::Get())
+            .IsEmblemRechargeStone(sig->m_resultItemId);
+    StatisticsAvatarDisjoint(item, isRechargeStone ? 1 : 0);
+
+    // ORIG 0x0819301d：统计实参复用 items（无独立 created vector——
+    // p167 EXTRA 的 vector<pair> C1Ev/D1Ev + push_back 即该多建对象）。
+    StatisticsEmblemCreate(items);
+    return true;
 }

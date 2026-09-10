@@ -1,2 +1,1 @@
 CData::~CData()
-{

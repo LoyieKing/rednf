@@ -1,3 +1,1 @@
 bool InitAttackInfoScript()
-{
-    return true;

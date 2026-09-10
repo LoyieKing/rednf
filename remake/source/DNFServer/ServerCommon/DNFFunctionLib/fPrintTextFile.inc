@@ -7,3 +7,4 @@ void DNFFLib::fPrintTextFile(char* file, char* fmt, ...) {
     vsprintf(buffer, fmt, ap);
     va_end(ap);
     PrintTextFile(file, buffer);
+}

@@ -1,3 +1,1 @@
 SlotType::SlotType()
-{
-    clear();

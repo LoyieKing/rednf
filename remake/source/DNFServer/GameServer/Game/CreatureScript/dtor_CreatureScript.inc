@@ -1,2 +1,1 @@
 CreatureScript::~CreatureScript()
-{

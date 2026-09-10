@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 PIHash/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 PIHash/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // U3 PI 反作弊 hash 链 TU（U3ShopDb 批次，2026-08-23）。
 // 逐符号对照 docs/class_func_reports（_lt_global_gt_/PISenderManager/CUser）与
@@ -55,7 +57,18 @@ struct PISenderPadView
 
 // [b28d-L1] 修法：同 char* 版（ORIG W 0x0808c174），结构重写后残余为寄存器/槽位形态差（N7/N82）。P167 CLEAR（0/0）语义等价。
 #include "PIHash/DoSuperFastHash.inc"
+// [b28d-L1] 修法（结构重写）：按 ORIG 0x0808ca7a 还原「形参 len 作循环变量 + 单一 rem 累加 + 分步就地 op= + 逐字节 movzbl 组装 + 加法 lea」后 ndiff 147→70。残余 = callee-saved 寄存器分配（data[1] 落 %edx vs %eax）与 tmp 槽位（ORIG -0x4 vs -0x8），N7/N82 封顶。P167 CLEAR（0/0）语义等价。
 #include "PIHash/DoSuperFastHash_1.inc"
+
+// ---- MakeHash 前置（P210 callee 定义顺序定律：调用者定义须在 DoSuperFastHash
+// 定义之前，否则 4.4 按 callee 帧精确继承 outgoing，0x38 保守大帧塌缩为 0x20）----
+unsigned char MakeHash(unsigned char* data, unsigned int len, unsigned char seed)
+{
+    unsigned int hash;   // ORIG 无 init store（DoSuperFastHash 出参槽直传）
+    DoSuperFastHash(data, len, hash);
+    unsigned char* digest = reinterpret_cast<unsigned char*>(&hash);
+    return static_cast<unsigned char>(digest[0] ^ digest[1] ^ digest[2] ^
+                                      digest[3] ^ seed);
 }
 
 // ORIG T 0x0808c9a0（P210：定义须前置于 DoSuperFastHash 定义，保 0x38 保守大帧）：
@@ -100,14 +113,119 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 //   `mov tmp,%eax; cmp $2,%eax; je; cmp $3,%eax; je; cmp $1,%eax; jne`（4.1 装载一次，
 //   7 条）；switch 形 4.4 产 mov+cmp/je×3+jmp（8 条，多 1 条 default jmp）⇒ 两形均不闭合。
 #include "PIHash/DoSuperFastHash_2.inc"
+{
+    hash = 0;
+    unsigned int rem = len;
+    if (len == 0 || data == 0)
+        return 0;
+
+    // [SweepPIHash] ORIG t 槽 -0x8 深于 tmp 槽 -0x4 ⇒ t 须声明在 tmp 之前
+    // （4.4 函数头标量按声明序「先声明深」，与 ORIG 一致）。
+    unsigned int t;
+    unsigned int tmp = len & 3;
+    for (len >>= 2; len != 0; --len)
+    {
+        rem += ((unsigned int)(unsigned char)data[1] << 8) +
+               (unsigned int)(unsigned char)data[0];
+        // ORIG 用 `(data[3]<<8) + data[2]`（lea 合并），非 `|`（or 形）。
+        t = (((unsigned int)(unsigned char)data[3] << 8) +
+             (unsigned int)(unsigned char)data[2]) << 11 ^ rem;
+        rem = (rem << 16) ^ t;
+        data += 4;
+        rem += rem >> 11;
+    }
+    if (tmp == 2)
+    {
+        rem += ((unsigned int)(unsigned char)data[1] << 8) +
+               (unsigned int)(unsigned char)data[0];
+        rem ^= rem << 11;
+        rem += rem >> 17;
+    }
+    else if (tmp == 3)
+    {
+        rem += ((unsigned int)(unsigned char)data[1] << 8) +
+               (unsigned int)(unsigned char)data[0];
+        rem ^= rem << 16;
+        rem ^= (unsigned int)(int)(signed char)data[2] << 18;
+        rem += rem >> 11;
+    }
+    else if (tmp == 1)
+    {
+        // ORIG movsx（signed char）——与 tmp==3 的 data[2] 一致。
+        rem += (unsigned int)(int)(signed char)data[0];
+        rem ^= rem << 10;
+        rem += rem >> 1;
+    }
+    rem ^= rem << 3;
+    rem += rem >> 5;
+    rem ^= rem << 4;
+    rem += rem >> 17;
+    rem ^= rem << 25;
+    // ORIG 分两步（`add %eax,-0xc(%ebp)` 就地更新 rem 再读入 hash），
+    // 单表达式 `hash = rem + (rem>>6)` 4.4 恒产 edx 中转形。
+    rem += rem >> 6;
+    hash = rem;
+    return 1;
 }
 
 // ORIG W 0x0808c174：unsigned char* 重载（ORIG 中与 char* 版同为独立展开）。
 #include "PIHash/DoSuperFastHash_3.inc"
+{
+    // [b28d-L1] 同 char* 版修法（ORIG W 0x0808c174）：len 作循环变量、单一 rem
+    // 累加、分步就地 `rem op=`、逐字节 movzbl 组装。
+    // [SweepPIHash] 续修同 char* 版（139/138）：`(data[3]<<8)+data[2]`、t 前置声明、
+    // 尾部 `rem += rem>>6; hash = rem;` 分两步；残余为尾部 if 链内存直比（N）。
+    hash = 0;
+    unsigned int rem = len;
+    if (len == 0 || data == 0)
+        return 0;
+
+    // [SweepPIHash] 同 char* 版：t 声明前置于 tmp（ORIG t@-0x8 / tmp@-0x4）。
+    unsigned int t;
+    unsigned int tmp = len & 3;
+    for (len >>= 2; len != 0; --len)
+    {
+        rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
+        // ORIG `(data[3]<<8) + data[2]`（lea），非 `|`。
+        t = (((unsigned int)data[3] << 8) + (unsigned int)data[2]) << 11 ^ rem;
+        rem = (rem << 16) ^ t;
+        data += 4;
+        rem += rem >> 11;
+    }
+    if (tmp == 2)
+    {
+        rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
+        rem ^= rem << 11;
+        rem += rem >> 17;
+    }
+    else if (tmp == 3)
+    {
+        rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
+        rem ^= rem << 16;
+        rem ^= (unsigned int)(int)(signed char)data[2] << 18;
+        rem += rem >> 11;
+    }
+    else if (tmp == 1)
+    {
+        rem += (unsigned int)(int)(signed char)data[0];
+        rem ^= rem << 10;
+        rem += rem >> 1;
+    }
+    rem ^= rem << 3;
+    rem += rem >> 5;
+    rem ^= rem << 4;
+    rem += rem >> 17;
+    rem ^= rem << 25;
+    // 同 char* 版：ORIG 分两步就地更新 rem 再读入 hash。
+    rem += rem >> 6;
+    hash = rem;
+    return 1;
 }
 
 // ---- _NS_PI_2ND_GetPacketIndex ORIG @ 0x082772a9 ----
 #include "PIHash/_NS_PI_2ND_GetPacketIndex.inc"
+{
+    return *reinterpret_cast<short*>(packet + 1);
 }
 
 // this+0x4 为当前 key 字节（ORIG asm：movb $0x27,0x4(%eax) / movzbl 0x4(%eax)）；
@@ -127,10 +245,37 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 //      ORIG LHS-first（P211 档③）。
 // 残余仅 `and $0xc0,%ax`(ORIG 16 位) vs `and $0xc0,%eax`(4.4 32 位) 1 行 ⇒ NEAR。
 #include "PIHash/MakeHashForSending.inc"
+                                                 unsigned int len,
+                                                 bool bNewKey)
+{
+    if (bNewKey)
+        reinterpret_cast<PISenderPadView*>(this)->m_pad[0] = 0x27;
+    unsigned char key =
+        reinterpret_cast<PISenderPadView*>(this)->m_pad[0];
+    unsigned char rnd = static_cast<unsigned char>(rand());
+    reinterpret_cast<PISenderPadView*>(this)->m_pad[0] = rnd;
+
+    unsigned int nHash = 0;
+    unsigned int ret = 0;
+    unsigned char h = 0;
+    if (len == 0)
+        h = static_cast<unsigned char>(rand());
+    else
+        h = MakeHash(data, len, key);
+
+    nHash = static_cast<unsigned short>(
+        ((h & 3) << 6) | ((h & 0xc) << 12) | ((h & 0x30) >> 2) |
+        ((h & 0xc0) << 4) | ((rnd & 3) << 12) | ((rnd & 0xc) << 2) |
+        ((rnd & 0x30) << 4) | ((rnd & 0xc0) >> 6));
+    ret = (nHash << 8) | (rand() & 0xff);
+    return ret;
 }
 
 // ---- _NS_PI_2ND_ReconstructCheckSumRandomkey ORIG @ 0x0808ca60 ----
 #include "PIHash/_NS_PI_2ND_ReconstructCheckSumRandomkey.inc"
+                                             unsigned int randomKey)
+{
+    checksum = (checksum & 0xff) | (randomKey << 8);
 }
 
 // ---- _NS_PI_2ND_SendHash_SC ORIG @ 0x082751ee ----
@@ -147,6 +292,22 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 // mov %al,-0x11`（物化到 eax 再存字节），4.4 恒 `movb $1,-0x11`/`movb $0,-0x11`
 // （探针 t1/t2/t3 三形均 movb）⇒ 跨版本 bool 常量物化封顶。
 #include "PIHash/_NS_PI_2ND_SendHash_SC.inc"
+{
+    unsigned int bodyLen = len - 0xf;
+    unsigned char* body = reinterpret_cast<unsigned char*>(data + 0xf);
+    char first = data[0];
+    short index = _NS_PI_2ND_GetPacketIndex(data);
+    bool bNonClient;
+    if (first == '\0' && index == 1)
+        bNonClient = true;
+    else
+        bNonClient = false;
+
+    unsigned int hash =
+        reinterpret_cast<PISenderManager*>(user->GetPISenderManager())
+            ->MakeHashForSending(body, bodyLen, bNonClient);
+    unsigned int* pCksum = reinterpret_cast<unsigned int*>(data + 0xb);
+    _NS_PI_2ND_ReconstructCheckSumRandomkey(*pCksum, hash);
 }
 
 // ---- SetUserManagerToolIP ORIG @ 0x08655327 ----
@@ -160,6 +321,49 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 // `m_field24`(int) 异型 ⇒ 4.4 多 1 条 `mov %eax,%edx` 中转（P265；字段类型改动属
 // P321-S2 共享头旋钮，未落）。
 #include "PIHash/SetUserManagerToolIP.inc"
+{
+    if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
+        sig->m_pcbangFlag = 1;
+    else
+        sig->m_pcbangFlag = 0;
+
+    user->m_network.GetPeerIP2(sig->m_ipBuf, 0x10);
+
+    // peer IP 为空时回退用户 m_mcap.m_pcRoomIp（+0x8e418）记录的 IP。
+    if (sig->m_ipBuf[0] == '\0' && user->m_mcap.m_pcRoomIp[0] != '\0')
+    {
+        std::memset(sig->m_ipBuf, 0, 0x10);
+        std::strncpy(sig->m_ipBuf, user->m_mcap.m_pcRoomIp, 0x10);
+    }
+
+    // [SweepPIHash] ORIG 0x08655327 尾部为 4 个独立 nop+jmp 岛（落点 9d/a0/a3/a6，
+    // 均 jmp 出口 a7）⇒ 按 P223 多岛形写 4 条独立 goto + 尾标签串（标签序=守卫序）。
+    // 变量先声明（无初始化）以合法跨越 goto（P223 BM8）。
+    char* dot;
+    int prefixLen;
+    int suffixLen;
+    if (std::strlen(sig->m_ipBuf) > 0x10)
+        goto tool_ip_end1;
+    // 以最后一个 '.' 把 a.b.c.d 拆为前缀(+0x37)/后缀(+0x43)。
+    dot = std::strrchr(sig->m_ipBuf, '.');
+    if (dot == 0)
+        goto tool_ip_end2;
+    prefixLen = static_cast<int>(dot - sig->m_ipBuf);
+    if (static_cast<unsigned int>(prefixLen) > 0xc)
+        goto tool_ip_end3;
+    // [b23S3C] P48：后缀起点用 ipBuf+prefixLen+1 表达式（ORIG 两使用点各自
+    // `mov 0xc;lea 0x27;mov -0x10;add$1;lea(,%eax,1)` 重取 5 条；dot+1 缓存形
+    // 少 3 条/处，非 ORIG 表达式）。
+    suffixLen = static_cast<int>(std::strlen(sig->m_ipBuf + prefixLen + 1));
+    if (static_cast<unsigned int>(suffixLen) > 4)
+        goto tool_ip_end4;
+    std::strncpy(sig->m_ipPrefix, sig->m_ipBuf, prefixLen);
+    std::strncpy(sig->m_ipSuffix, sig->m_ipBuf + prefixLen + 1, suffixLen);
+    sig->m_ipDword = user->m_mcap.m_field24;  // +0x8e414
+tool_ip_end1:;
+tool_ip_end2:;
+tool_ip_end3:;
+tool_ip_end4:;
 }
 // ============================================================================
 // OnlyOrigBatch11 落地：_NS_PI_2ND_MakeHash / GetRandomHashKey /
@@ -176,4 +380,18 @@ unsigned char _NS_PI_2ND_GetRandomHashKey()
 // ((k2<<24) & 0xf000000) | (k3 << 28)。
 // [b28d-L1] 修法：ORIG 0x0808ca2c 首项 `movzbl %al,%edx`（单段落 %edx）；`(unsigned char)checksum` cast 形使 4.4 产 `movzbl %al,%eax; mov k1,%edx; or %eax,%edx`（首项落 %eax，DIFF 4 行）。改 `checksum & 0xff` 掩码形后逐条一致（探针 /tmp/b28d_l1/probe/p_rc.cpp r1 vs r4）。
 #include "PIHash/_NS_PI_2ND_ReconstructCheckSum.inc"
+                                    unsigned int k2, unsigned int k3)
+{
+    // [b28c-lane24] ORIG 0x0808ca2c 无帧（sub 无）、累积在 %edx（`movzbl %al,%edx`
+    // 起，逐 `or %eax,%edx`），末 `mov %edx,(%eax)` ⇒ 源码是单一赋值表达式
+    //（P0：无具名局部槽）。
+    // [b28d-L1] 修法：`(unsigned char)checksum` cast 形使 4.4 产
+    // `movzbl %al,%eax; mov k1,%edx; …; or %eax,%edx`（首项目标 %eax，DIFF 4 行）；
+    // 改 `checksum & 0xff` 掩码形后 4.4 直接 `movzbl %al,%edx` 与 ORIG
+    // 0x0808ca35 逐条一致（探针 /tmp/b28d_l1/probe/p_rc.cpp r1 vs r4：cast 首项
+    // 落 %eax、掩码形首项落 %edx）。语义同为取低 8 位。
+    checksum = (checksum & 0xff) |
+               ((k1 << 8) & 0xffff00) |
+               ((k2 << 24) & 0xf000000) |
+               (k3 << 28);
 }

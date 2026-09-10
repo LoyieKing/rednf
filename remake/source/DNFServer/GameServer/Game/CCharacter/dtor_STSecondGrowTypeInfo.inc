@@ -1,2 +1,1 @@
 STSecondGrowTypeInfo::~STSecondGrowTypeInfo()
-{

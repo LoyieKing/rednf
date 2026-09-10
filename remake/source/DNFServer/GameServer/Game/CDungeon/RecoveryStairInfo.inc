@@ -1,2 +1,1 @@
 RecoveryStairInfo::RecoveryStairInfo()
-{

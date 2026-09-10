@@ -1,3 +1,1 @@
 NpcDialogue::NpcDialogue()
-{
-    clear();

@@ -1,2 +1,1 @@
 CClearCondition::~CClearCondition()
-{

@@ -1,2 +1,1 @@
 CCeraShopBonusItemEvent::~CCeraShopBonusItemEvent()
-{

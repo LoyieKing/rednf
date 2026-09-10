@@ -1,3 +1,1 @@
 RidableScript::RidableScript()
-{
-    clear();

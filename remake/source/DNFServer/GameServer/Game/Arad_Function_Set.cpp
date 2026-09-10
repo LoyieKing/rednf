@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Arad_Function_Set/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Arad_Function_Set/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // Arad_Function_Set.cpp —— 原始工程 localjapan/Arad_Function_Set.cpp 的复刻 TU。
 // 收录 ARAD::PRINT_ERROR 三个静态错误上报函数与 ARAD::notifySystemMessage。
@@ -46,20 +48,54 @@ namespace ARAD
 // ---- PRINT_ERROR::isEmpty @ 0x08197ba4 ------------------------------------
 // N96 清绑：characNo 无槽 ⇒ 实参内联右值（21=21，与 ORIG 全等）。
 #include "Arad_Function_Set/isEmpty.inc"
+{
+    LogManager::logFormat(
+        1, "localjapan/Arad_Function_Set.cpp",
+        __PRETTY_FUNCTION__,
+        0x29d,
+        "%s : isEmpty() [slot:%d] [charac_no:%d]",
+        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
 }
 
 // ---- PRINT_ERROR::CheckItemLock @ 0x08197bfd -------------------------------
 // N96 清绑：同 isEmpty（21=21，与 ORIG 全等）。
 #include "Arad_Function_Set/CheckItemLock.inc"
+{
+    LogManager::logFormat(
+        1, "localjapan/Arad_Function_Set.cpp",
+        __PRETTY_FUNCTION__,
+        0x2a2,
+        "%s : CheckItemLock() fail [slot:%d] [charac_no:%d]",
+        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
 }
 
 // ---- PRINT_ERROR::delete_item @ 0x08197c56 ---------------------------------
 // N96 清绑：同 isEmpty（21=21，与 ORIG 全等）。
 #include "Arad_Function_Set/delete_item.inc"
+{
+    LogManager::logFormat(
+        1, "localjapan/Arad_Function_Set.cpp",
+        __PRETTY_FUNCTION__,
+        0x2a7,
+        "%s : delete_item() [slot:%d] [charac_no:%d]",
+        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
 }
 
 // ---- notifySystemMessage @ 0x08197d00（objdump 转写【推断】）-----------------
 #include "Arad_Function_Set/notifySystemMessage.inc"
+{
+    if (user == 0)          // 0x8197d08: cmpl $0x0,0x8(%ebp) → je ret
+        return;
+    if (msg == 0)           // 0x8197d12: cmpl $0x0,0xc(%ebp) → je ret
+        return;
+
+    int len = static_cast<int>(strlen(msg));   // 0x8197d22 strlen
+
+    PacketGuard packet;                        // -0x18 栈对象
+    // type=0、notify=(ENUM_NOTIPACKET)0xc（ORIG movl $0xc,0x18(%esp)）
+    G_GameWorld()->make_packet_chat_msg(
+        packet, user, msg, len, (char)0, (ENUM_NOTIPACKET)0xc);
+    user->Send(packet);
 }
 
 }  // namespace ARAD

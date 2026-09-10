@@ -1,2 +1,1 @@
 CCreatureItem::CCreatureItem()
-{

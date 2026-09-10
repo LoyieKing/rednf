@@ -1,21 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CUserGlobalInfoHandle/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CUserGlobalInfoHandle/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— CUserGlobalInfoHandle（G2-4 批次，用户全局信息句柄）。
-// 依据 docs/class_func_reports/CUserGlobalInfoHandle.md + ORIG 反汇编。
-// 布局：+0x00 bool m_used[0x10000] | +0x10000 int m_next（总尺寸 0x10004）。
-// ORIG 本 TU 符号区间 0x086ad820..0x086ad9d3（含 __ioinit/static_init/GI，见下方
-// include 注释）；ORIG 区间内 0 个 `call *`/`jmp *` 间接调用 ⇒ 无虚槽核对项。
-// 四数（check_tu_routed fresh）：identical=1 ae=6 合计7 near=0 diff=1 missing=2；
-// diff=1=N123 撞名 static_init（真副本 16=16 全等），missing=2=P93 C2/D2 同址别名。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <string.h>
@@ -27,11 +20,29 @@
 #include "CUserGlobalInfoHandle.h"
 
 #include "CUserGlobalInfoHandle/CUserGlobalInfoHandle.inc"
+{
+    m_next = 1;
+    for (int i = 0; i <= 0xfffe; ++i)
+    {
+        m_used[i] = 0;
+    }
 }
 
 #include "CUserGlobalInfoHandle/dtor_CUserGlobalInfoHandle.inc"
 
 #include "CUserGlobalInfoHandle/find_uniqueid.inc"
+{
+    int idx = m_next;
+    while (idx <= 0xfffe)
+    {
+        if (!m_used[idx])
+        {
+            m_used[idx] = 1;
+            return idx;
+        }
+        ++idx;
+    }
+    return -1;
 }
 
 // ============================================================================
@@ -52,9 +63,25 @@
 //       16 条助记符序列 16=16 全等），missing=2 为 P93 同址别名 C2/D2。
 // ============================================================================
 #include "CUserGlobalInfoHandle/get_uniqueid.inc"
+{
+    int idx = find_uniqueid();
+    // [P225 while+break] ORIG 0x086ad924 `cmpl $0xffffffff,-0x4(%ebp); sete %al;
+    // test %al,%al; je` 是 4.1 的 bool 物化后条件分支；4.4 对裸 `if` 恒折
+    // `cmpl $-1,-0x4(%ebp); jne` 直跳。按 P225（CVillageAttacked/CDropItem 实证）
+    // 改用 `while (cond) { body; break; }` 精确复现 setCC+test+je 四段物化。
+    while (idx == -1)
+    {
+        m_next = 1;
+        idx = find_uniqueid();
+        break;
+    }
+    m_next = idx + 1;
+    return idx;
 }
 
 #include "CUserGlobalInfoHandle/reset_uniqueid_flag.inc"
+{
+    m_used[uniqueid] = 0;
 }
 
 CUserGlobalInfoHandle* CUserGlobalInfoHandleInstance()

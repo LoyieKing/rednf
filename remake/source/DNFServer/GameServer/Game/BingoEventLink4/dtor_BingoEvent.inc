@@ -1,2 +1,1 @@
 BingoEvent::~BingoEvent()
-{

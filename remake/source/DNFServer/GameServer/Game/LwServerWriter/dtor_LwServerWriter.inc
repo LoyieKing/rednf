@@ -1,2 +1,1 @@
 LwServerWriter::~LwServerWriter()
-{

@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Cipher/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Cipher/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r Cipher（G7 分组算法容器）还原（2026-08-16）。
 // 依据 docs/class_func_reports/Cipher.md、ICryptoGraph.md、_lt_global_gt_.md：
@@ -33,6 +35,8 @@
 // 入口键名 = 第一个「强符号·外部链接·本 TU 定义」的实体名，故 GetCryptoType
 // 必须定义在本文件最前（ORIG 0x08097160 亦位于 TU 最前）。
 #include "Cipher/GetCryptoType.inc"
+{
+    return key % CRYPTO_GRAPH_MAX;
 }
 
 // ============================================================================
@@ -40,12 +44,17 @@
 // ============================================================================
 
 #include "Cipher/ICryptoGraph.inc"
+    : m_apiType((unsigned int)type)
+{
 }
 
 #include "Cipher/ICryptoGraph_1.inc"
+    : m_apiType(other.m_apiType)
+{
 }
 
 #include "Cipher/dtor_ICryptoGraph.inc"
+{
 }
 
 ICryptoGraph& ICryptoGraph::operator=(const ICryptoGraph& other)
@@ -56,6 +65,8 @@ ICryptoGraph& ICryptoGraph::operator=(const ICryptoGraph& other)
 }
 
 #include "Cipher/GetApiType.inc"
+{
+    return (int)m_apiType;
 }
 
 // ============================================================================
@@ -63,12 +74,30 @@ ICryptoGraph& ICryptoGraph::operator=(const ICryptoGraph& other)
 // ============================================================================
 
 #include "Cipher/Cipher.inc"
+    : m_totalKeyLength(0)
+{
+    // [N7 封顶] push_back 元素 GetKeySize() 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4)。
+    m_graphs.reserve(CRYPTO_GRAPH_MAX);
+    for (int i = 0; i < CRYPTO_GRAPH_MAX; ++i)
+    {
+        ICryptoGraph* graph = CreateCryptoGraph((CRYPTO_GRAPH_TYPE)i);
+        m_graphs.push_back(graph);
+        m_totalKeyLength += graph->GetKeySize();
+    }
 }
 
 #include "Cipher/dtor_Cipher.inc"
+{
+    for (int i = 0; i <= 0xd; ++i)
+    {
+        DestroyCryptoGraph(m_graphs[i]);
+        m_graphs[i] = 0;
+    }
+    m_graphs.clear();
 }
 
 #include "Cipher/Cipher_1.inc"
+{
 }
 
 Cipher& Cipher::operator=(const Cipher& other)
@@ -77,21 +106,98 @@ Cipher& Cipher::operator=(const Cipher& other)
 }
 
 #include "Cipher/GetTotalKeyLength.inc"
+{
+    return m_totalKeyLength;
 }
 
 #include "Cipher/Initialize.inc"
+{
+    std::memcpy(m_keyBuf, key, keyLen);
+    for (int i = 0; i < CRYPTO_GRAPH_MAX; ++i)
+    {
+        int ks = m_graphs[i]->GetKeySize();
+        // [b28c-L9] ORIG 0x08097357 `cmp -0xc(%ebp),%eax; jl return0岛`：body 为
+        // fall-through、`return 0` 外置岛（4.4 对否定早返恒反转成 jge + fall 岛）。
+        // 正向包裹（P222）复现 ORIG 极性与岛位：ndiff 21→6。
+        // 残差 6 = N7：m_graphs[i]->Initialize 间接 call 的 funcptr ORIG→%ecx、
+        // 实参链→%edx，4.4 恒互换（%edx/%ecx）；指令数 60=60、助记符全等 ⇒ NEAR 封顶。
+        if (keyLen >= ks)
+        {
+            m_graphs[i]->Initialize(key, ks);
+            key += ks;
+            keyLen -= ks;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 #include "Cipher/GetOriginalKey.inc"
+{
+    std::memcpy(dst, m_keyBuf, m_totalKeyLength);
 }
 
 #include "Cipher/AdjustDataSize.inc"
+{
+    // [b28d-46 判词·AE] 45/45 指令数全等、调用点差集零；ORIG 0x080973c0。
+    // Cipher 属加密/哈希类：按用户规则只要求算法正确（本件语义已逐条对应），豁免 byte 层。
+    // [jcc 逐位复核] ORIG 0x08097411 `je +0x74(leave)`：写回 `*size = v` 在 if 块**内**
+    // （v%bs==0 时不写回）；我方旧版写回在块外 ⇒ je 落点下标 40（写回行）≠ ORIG 43。
+    int type = GetCryptoType(key);
+    int v = *size;
+    int bs = m_graphs[type]->GetBlockSize();
+    if (v % bs != 0)
+    {
+        v += bs - v % bs;
+        *size = v;
+    }
 }
 
 #include "Cipher/Encrypt.inc"
+                    unsigned char* dst, int* dstLen)
+{
+    // [N7 封顶] m_graphs[type]->Encrypt 虚调用：ORIG funcptr→%ecx/实参链→%edx，
+    // 4.4 互换（funcptr→%edx/实参→%ecx），寄存器分配跨版本差。
+    if (srcLen < 1)
+    {
+        *dstLen = 0;
+        return 1;
+    }
+    int type = GetCryptoType(key);
+    int outCap = *dstLen;   // ORIG 在选图前死读 *dstLen（-0x10 槽，后续未用）
+    (void)outCap;
+    int bs = m_graphs[type]->GetBlockSize();
+    if (srcLen % bs != 0)
+        srcLen += bs - srcLen % bs;
+    if (m_graphs[type]->Encrypt(src, srcLen, dst, *dstLen) == 0x6fffffff)
+    {
+        *dstLen = srcLen;
+        return 1;
+    }
+    return 0;
 }
 
 #include "Cipher/Decrypt.inc"
+                    unsigned char* dst, int* dstLen)
+{
+    // [N7 封顶] 同 Encrypt：m_graphs[type]->Decrypt 虚调用寄存器互换。
+    if (srcLen < 1)
+    {
+        *dstLen = 0;
+        return 1;
+    }
+    int type = GetCryptoType(key);
+    int bs = m_graphs[type]->GetBlockSize();
+    (void)bs;   // ORIG Decrypt 调 GetBlockSize 但不调整长度
+    if (m_graphs[type]->Decrypt(src, srcLen, dst, *dstLen) == 0x6fffffff)
+    {
+        *dstLen = srcLen;
+        return 1;
+    }
+    return 0;
 }
 
 ICryptoGraph* CreateCryptoGraph(CRYPTO_GRAPH_TYPE type)
@@ -117,6 +223,12 @@ ICryptoGraph* CreateCryptoGraph(CRYPTO_GRAPH_TYPE type)
 }
 
 #include "Cipher/DestroyCryptoGraph.inc"
+{
+    if (graph)
+    {
+        delete graph;
+        graph = 0;
+    }
 }
 
 // [判据㉓ 符号绑定] ORIG `_Z8G_Cipherv` 实测为 W/0x0d（头内 inline、由使用点
@@ -140,15 +252,67 @@ __attribute__((weak)) Cipher* G_Cipher()
 // ORIG 另发射局部静态 `_ZZ20GenerateRandomStringPciE14nAlphabetCount`
 // （.rodata 4B，值 0x1a）⇒ 必须保留 static const 声明。
 #include "Cipher/GenerateRandomString.inc"
+{
+    static const unsigned int nAlphabetCount = 26;
+    --len;
+    for (int i = 0; i < len; ++i)
+    {
+        int r = std::rand();
+        if (r % 3 == 0)
+        {
+            r >>= 2;
+            out[i] = (char)('A' + r % nAlphabetCount);
+        }
+        else if (r % 3 == 1)
+        {
+            r >>= 2;
+            out[i] = (char)('a' + r % nAlphabetCount);
+        }
+        else
+        {
+            r >>= 2;
+            out[i] = (char)('0' + r % 10);
+        }
+    }
+    out[len] = '\0';
 }
 
 // ORIG @0x0809e58c（wchar_t 版；ORIG 全库无调用点，但符号必须存在）：
 // 结构与 char 版逐条同形，仅元素写宽度 4 字节（out[i] 走 shl $2 缩放），
 // 尾写 `movl $0,(%eax)` = out[len] = L'\0'。
 #include "Cipher/GenerateRandomString_1.inc"
+{
+    static const unsigned int nAlphabetCount = 26;
+    --len;
+    for (int i = 0; i < len; ++i)
+    {
+        int r = std::rand();
+        if (r % 3 == 0)
+        {
+            r >>= 2;
+            out[i] = (wchar_t)('A' + r % nAlphabetCount);
+        }
+        else if (r % 3 == 1)
+        {
+            r >>= 2;
+            out[i] = (wchar_t)('a' + r % nAlphabetCount);
+        }
+        else
+        {
+            r >>= 2;
+            out[i] = (wchar_t)('0' + r % 10);
+        }
+    }
+    out[len] = L'\0';
 }
 
 #include "Cipher/GenerateRandomKey.inc"
+{
+    for (int i = 0; i < len; ++i)
+        // ORIG 对 rand() 结果做 `sarl$31;shrl$24;addl;andl$255;subl` 非负
+        // mod256 归一（P176 族）——显式 `% 256` 触发该 codegen；rand 非负，
+        // 语义与 (unsigned char) 相同。
+        out[i] = (unsigned char)(std::rand() % 256);
 }
 
 // ============================================================================
@@ -160,6 +324,8 @@ __attribute__((weak)) Cipher* G_Cipher()
 int gNCryptoLastError = 0x6fffffff;
 
 #include "Cipher/NCryptoSetLastError.inc"
+{
+    gNCryptoLastError = err;
 }
 
 unsigned int NCryptoGetLastError()

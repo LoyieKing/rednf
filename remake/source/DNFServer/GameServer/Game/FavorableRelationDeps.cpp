@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 FavorableRelationDeps/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 FavorableRelationDeps/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r Game/ stFavorableRelationShip_t 嵌套类型生命周期 producer。
 //
@@ -57,37 +59,59 @@ const unsigned int NPC_FAVOR_REWARD_SLOTS = 3;
 // ORIG 0x08a00d58：循环默认构造 3 个 vector<stRewardItemElement_t>（stride 0xc）；
 // 权重计数区（unsigned int[3]）无初始化动作。
 #include "FavorableRelationDeps/stRewardItemInfo_t.inc"
+{
 }
 
 // ORIG 0x08581a80：自尾向首逐个析构 3 个 vector（步长 -0xc）。由隐式数组成员
 // 析构达成同一访问序列。
 #include "FavorableRelationDeps/dtor_stRewardItemInfo_t.inc"
+{
 }
 
 // ORIG 0x089fb4c0 T：j 0..≤2 —— vector.clear(j*0xc) 后 weight[j]=0（写位于槽尾
 // 0x24+4j，即本结构的权重计数字段）。
 #include "FavorableRelationDeps/clear.inc"
+{
+    for (int j = 0; j <= 2; ++j)
+    {
+        m_byDir[j].clear();
+        m_weight[j] = 0;
+    }
 }
 
 // ---- stRewardItem_t -------------------------------------------------------
 
 // ORIG 0x08a00dcc：行主序构造 15 个 stRewardItemInfo_t（外层 [5] stride 0x90）。
 #include "FavorableRelationDeps/stRewardItem_t.inc"
+{
 }
 
 // ORIG 0x08581aae：编译器生成的逐 Info 析构展开；隐式数组成员析构等价。
 #include "FavorableRelationDeps/dtor_stRewardItem_t.inc"
+{
 }
 
 // ORIG 0x089fb508 T：外层 i 0..≤4（stride 0x90）、内层 j 0..≤2（stride 0x30），
 // 逐槽 m_slots[i][j].clear()。
 #include "FavorableRelationDeps/clear_1.inc"
+{
+    for (int i = 0; i <= 4; ++i)
+    {
+        for (int j = 0; j <= 2; ++j)
+        {
+            m_slots[i][j].clear();
+        }
+    }
 }
 
 // ---- stLevelRewardInfo ----------------------------------------------------
 
 // ORIG 0x0858188a：string@+0xc、string@+0x10 默认构造后 level/flag0/flag1 清零。
 #include "FavorableRelationDeps/stLevelRewardInfo.inc"
+{
+    m_level = 0;
+    m_flag0 = 0;
+    m_flag1 = 0;
 }
 
 // ORIG 0x08a04160：word/dword/dword 标量拷贝 + 两 string 拷贝构造（+0xc/+0x10）。
@@ -102,6 +126,7 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 
 // ORIG 0x085823c6：m_desc(+0x10)、m_name(+0xc) 逆序析构（与隐式析构一致）。
 #include "FavorableRelationDeps/dtor_stLevelRewardInfo.inc"
+{
 }
 
 // ORIG 0x08a04268：标量逐位赋值 + 两 string 基本赋值（无自赋值检查）。
@@ -121,6 +146,10 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 
 // ORIG 0x085818f0：word@0、word@2、dword@4 全部清零。
 #include "FavorableRelationDeps/stBuffRewardInfo.inc"
+{
+    m_a = 0;
+    m_b = 0;
+    m_c = 0;
 }
 
 // ---- stPeriodRewardInfo ---------------------------------------------------
@@ -128,10 +157,19 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 // ORIG 0x08a00c70：三个 string（+0x4/+0x10/+0x14）默认构造 → 标量清零
 // （word@0、int@8、int@c）→ 三个 string 依次赋 ""（ORIG 空串常量 @0x08e1ce20）。
 #include "FavorableRelationDeps/stPeriodRewardInfo.inc"
+{
+    m_type = 0;
+    static const char* const kEmptyString = "";
+    m_name = kEmptyString;
+    m_a = 0;
+    m_b = 0;
+    m_desc = kEmptyString;
+    m_param = kEmptyString;
 }
 
 // ORIG 0x085819e4（W 0x73）：空体（三 string 成员按逆序 0x14→0x10→0x4 自动析构）。
 #include "FavorableRelationDeps/dtor_stPeriodRewardInfo.inc"
+{
 }
 
 // ---- stFavorableRelationShip_t::._140（命名类 _140；成员 +0x0 vector<pair<ENUM_NPC_MOOD,uint>>、
@@ -142,14 +180,19 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 // GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `_140`(4_140) 重建，
 // 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
 #include "FavorableRelationDeps/t_140.inc"
+{
+    // ORIG 0x089fb8b6：仅默认构造 +0x0/+0xc 两 vector<pair>；成员含 vector 自动构造。
 }
 
 #include "FavorableRelationDeps/dtor_t_140.inc"
+{
+    // ORIG 0x089fb8fc：先 this+0xc 后 this 逆序析构（vector 自动析构，序列与隐式一致）。
 }
 
 // b28c-L8：ORIG 0x0858046c 是另一 TU 的同形副本（仅 D1/D2），与 ._140D1 不同址
 // ⇒ 必须独立发射一份体，否则两个别名同址、objdump 只挂一个名字（our_insns=0 伪差）。
 #include "FavorableRelationDeps/dtor_t_199.inc"
+{
 }
 
 // ============================ stFavorableRelationShip_t::._140/._199 别名 ============================

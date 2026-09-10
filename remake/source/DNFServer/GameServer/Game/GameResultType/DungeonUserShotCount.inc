@@ -1,3 +1,1 @@
 DungeonUserShotCount::DungeonUserShotCount()
-{
-    reset();

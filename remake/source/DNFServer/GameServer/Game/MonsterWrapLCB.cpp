@@ -1,33 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 MonsterWrapLCB/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 MonsterWrapLCB/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// MonsterWrapLCB.cpp — LinkClosureB 批 B 怪物包装传递依赖收口（唯一 owner TU）
-//
-// 全部函数依据 df_game_r objdump/docs/class_func_reports 报告逐指令转写。
-// 覆盖符号：
-//   _ZNK12CAICharacter13IsHellMonsterEv                      W @0x08539de8
-//   _ZNK12CAICharacter22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE
-//                                                            T @0x0834a15e
-//   _ZNK8CMonster22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE
-//                                                            T @0x0834f8a6
-//   _ZNK8CMonster24generateCatchMonsterItemERSt6vectorI10Inven_ItemSaIS1_EE
-//                                                            T @0x0834f8e8
-//   _Z22generateDropAvatarItemRK23stEnamyDropAvatarInfo_thhRSt6vectorI10Inven_ItemSaIS3_EE
-//                                                            T @0x08349da0 (0x1ab)
-//   _Z24generateCatchMonsterItemRKSt6vectorI13CatchItemInfoSaIS0_EERS_I10Inven_ItemSaIS5_EE
-//                                                            T @0x08349f4b (0x11a)
-// CLuckPoint::UseLuckPoint(int,int,int,int) @0x08550b14 与
-// CLuckPoint::sendItemDropRate(char const*) @0x08550ef0 已由 CClearReward.cpp
-// 提供唯一 owner（LinkKillChain 批次，语义经 ORIG 报告逐分支核对一致），
-// 本 TU 不重复定义。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "MonsterIndependentDrop.h"
 
@@ -36,14 +17,33 @@
 
 // 全局生成函数自由声明（此前仅 mangled 符号存在于 ORIG；本 TU 为权威 owner）
 #include "MonsterWrapLCB/generateDropAvatarItem.inc"
+                            unsigned char rarity, unsigned char grade,
+                            std::vector<Inven_Item>& out);   // ORIG 0x08349da0
 #include "MonsterWrapLCB/generateCatchMonsterItem.inc"
+                              std::vector<Inven_Item>& out);  // ORIG 0x08349f4b
+
+// ----------------------------------------------------------------------------
+// ORIG W 0x08539de8 _ZNK12CAICharacter13IsHellMonsterEv（0xc）：
+//   movzbl 0x70(this) 直返。mirror 类 +0x30..+0x6b 为 m_dropAvatarInfo，
+//   +0x70 rarity 标志未具名建模，按字节视图读取。
+// 返回类型 bool：ORIG 体单条 `movzx eax,byte`（无 0/1 规范化 ⇒ 视图成员本身
+// bool），调用点 0x08535b08 `call;test %al,%al;je` 无 setne（P292）。
 #include "MonsterWrapLCB/IsHellMonster.inc"
+{
+    // [b28c-35] ORIG 0x08539de8 为单条 `movzbl 0x70(%eax),%eax`；裸偏移算术链
+    // （reinterpret_cast + 0x70）4.4 发 `add $0x70,%eax; movzbl (%eax)`（+1 条）。
+    // 改具名尾部视图成员访问（P82）即折叠单条 disp；视图只读该字节，不改类布局。
+    struct Tail { char m_pad[0x70]; bool m_flag; };
+    return reinterpret_cast<const Tail*>(this)->m_flag;
 }
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x0834a15e _ZNK12CAICharacter22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE：
 //   lea 0x30(this) 取 m_dropAvatarInfo 后转发自由函数。
 #include "MonsterWrapLCB/generateDropAvatarItem_1.inc"
+                                          std::vector<Inven_Item>& out) const
+{
+    ::generateDropAvatarItem(m_dropAvatarInfo, rarity, grade, out);
 }
 
 // ----------------------------------------------------------------------------
@@ -51,12 +51,20 @@
 //   call getMonsterScript(this) 后 lea 0xcf8 —— 即 m_script(+0x60) 内
 //   m_dropAvatarInfo(+0xc98) 子对象，具名访问后转发自由函数。
 #include "MonsterWrapLCB/generateDropAvatarItem_2.inc"
+                                      std::vector<Inven_Item>& out) const
+{
+    // ORIG 无 call：this+0x60+0xc98=+0xcf8 直算（成员直访折叠，无 script 槽）。
+    ::generateDropAvatarItem(m_script.m_dropAvatarInfo, rarity, grade, out);
 }
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x0834f8e8 _ZNK8CMonster24generateCatchMonsterItemERSt6vectorI10Inven_ItemSaIS1_EE：
 //   call getMonsterScript(this) 后 lea 0x70(script) 取 m_catchItems 转发。
 #include "MonsterWrapLCB/generateCatchMonsterItem_1.inc"
+{
+    // P134：ORIG call 后结果寄存器直用（lea 0x70(%eax)），无 script 局部槽。
+    ::generateCatchMonsterItem(
+        static_cast<STMonsterScript*>(getMonsterScript())->m_catchItems, out);
 }
 
 // ----------------------------------------------------------------------------
@@ -85,6 +93,47 @@
 //   `add $0x4,%edx; flds 0x8(%eax,%edx,4)`，复现需 .h 成员数组视图，本任务禁改 .h；
 //   N125 族）+ 槽号差（N82）。
 #include "MonsterWrapLCB/generateDropAvatarItem_3.inc"
+                            unsigned char rarity, unsigned char grade,
+                            std::vector<Inven_Item>& out)
+{
+    // ① 入门阈值（ORIG fildll/flds/fmulp/fistpll 序列：64 位整数域 + float 乘法，
+    //    表引用与 base 指针内联 —— ORIG 每访问点 `mov 0x8(%ebp),%eax` 重读参数，
+    //    无 base/tableA/tableB 具名槽）。
+    long long thresholdLL =
+        static_cast<long long>(static_cast<unsigned int>(info.m_field00));
+    thresholdLL = static_cast<long long>(
+        static_cast<float>(thresholdLL) *
+        *reinterpret_cast<const float*>(
+            reinterpret_cast<const char*>(&info) + 0x8 +
+            4 * (static_cast<unsigned>(rarity) + 4)) *
+        *reinterpret_cast<const float*>(
+            reinterpret_cast<const char*>(&info) + 0x8 +
+            4 * (static_cast<unsigned>(grade) - 1)));
+    const int threshold = static_cast<int>(thresholdLL);
+    if (get_rand_int(100000) > threshold)
+        return;
+
+    // ② roll 轮次
+    for (unsigned int round = 0; round < (unsigned int)info.m_field04; ++round)
+    {
+        const int r = get_rand_int(info.m_field2c);
+        std::vector<stEnamyDropAvatarElement_t>::const_iterator it =
+            info.m_elements.begin();
+        while (it != info.m_elements.end())
+        {
+            if (static_cast<unsigned int>(it->m_field4) >
+                static_cast<unsigned int>(r))
+            {
+                Inven_Item item;
+                item.m_addInfo = it->m_field0;              // ORIG 写 +0x02 视图
+                G_CDataManager()->m_itemList->create_item(
+                    (ENUM_ITEM_CREATE_TYPE)1, item, 1);
+                out.push_back(item);
+                break;                                      // 不推进迭代器（ORIG jmp +0x170）
+            }
+            it++;
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -102,4 +151,29 @@
 //   **实测零效果**：我方汇编改前/改后逐条相同、our_insns 93=93、岛数不变
 //   （3×`jmp+nop` 仍在）⇒ 已回滚（属 4.4 块布局/A28 族，非「多守卫同目标」可治）。
 #include "MonsterWrapLCB/generateCatchMonsterItem_2.inc"
+                              std::vector<Inven_Item>& out)
+{
+    for (std::vector<CatchItemInfo>::const_iterator it = items.begin();
+         it != items.end(); ++it)
+    {
+        const CatchItemInfo entry = *it;                    // [0x8349f86 de 三字段拷贝]
+        const float rate =
+            *reinterpret_cast<const float*>(&entry.m_field8);
+
+        if (entry.m_field4 == 0)                            // [0x8349fa7 test/je]
+            continue;
+        if (rate == 0.0f)                                   // [0x8349fb2 fucompp: je NaN 续行]
+            continue;
+
+        const int r = get_rand_int(0x64);                   // [0x8349fc2 $0x64]
+        if (!(static_cast<double>(rate) > static_cast<double>(r)))
+            continue;                                       // [0x8349fd1 seta]
+
+        Inven_Item item;
+        item.m_addInfo = entry.m_field0;                    // [0x8349fe5 写 +0x02 视图]
+        G_CDataManager()->m_itemList->create_item(
+            (ENUM_ITEM_CREATE_TYPE)1, item, 1);             // [0x8349ffd create_item(1,.,1)]
+        for (int j = 0; j < entry.m_field4; ++j)            // [0x834a031 setg signed]
+            out.push_back(item);
+    }
 }

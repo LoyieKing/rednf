@@ -1,17 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 StatisticsPvP/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 StatisticsPvP/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— StatisticsPvP（G2-4 批次，统计域）。
-// 依据 docs/class_func_reports/StatisticsPvP.md + ORIG 反汇编。
-// 布局：+0x00 Mutex | +0x18 map<PvP_Key,PvP_Room>。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <map>
@@ -65,11 +62,16 @@ public:
 };
 
 #include "StatisticsPvP/StatisticsPvP.inc"
+    : m_mutex(), m_map()
+{
 }
 
 #include "StatisticsPvP/dtor_StatisticsPvP.inc"
 
 #include "StatisticsPvP/reset.inc"
+{
+    Guard<Mutex> guard(&m_mutex);
+    m_map.clear();
 }
 
 // [b28d-solo-StatisticsPvP] incPvPRoomResult DIFF(ndiff=69) -> AE（96=96，p167 10/10 CLEAR）。
@@ -85,4 +87,28 @@ public:
 //     ORIG 读-读-写-写 8 字节块拷贝（P246），两条标量赋值 4.4 恒 load-store 交错。
 // 复验：check_tu_routed.sh COMPILE OK（identical=27 ae=47 near=0 diff=0）。
 #include "StatisticsPvP/incPvPRoomResult.inc"
+{
+    Guard<Mutex> guard(&m_mutex);
+
+    PvP_Key key;
+    key.m_a = keyA;
+    key.m_b = keyB;
+
+    std::map<PvP_Key, PvP_Room>::iterator it = m_map.find(key);
+    if (it == m_map.end())
+    {
+        // ORIG 0x860c653：PvP_Room 四字段 {keyA, keyB, 1, value}。
+        PvP_Room room;
+        room.m_key = key;
+        room.m_field8 = 1;
+        room.m_fieldC = value;
+        m_map.insert(std::pair<const PvP_Key, PvP_Room>(key, room));
+    }
+    else
+    {
+        // ORIG 0x860c6a6：单次 operator*（deEv）后取 &second 入具名槽 -0xc。
+        PvP_Room* pRoom = &(*it).second;
+        pRoom->m_field8 = pRoom->m_field8 + 1;
+        pRoom->m_fieldC = pRoom->m_fieldC + value;
+    }
 }

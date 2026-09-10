@@ -1,3 +1,1 @@
 stRankSystemInfo::stDungeonClearTimeData::stDungeonClearTimeData()
-{
-    clear();

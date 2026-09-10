@@ -1,3 +1,1 @@
 BlueMarbleTileScript::BlueMarbleTileScript()
-{
-    clear();

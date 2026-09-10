@@ -6,3 +6,4 @@ void CFLog::writeLog(char const* fmt, char* va) {
     vsprintf(message, fmt, va);
     fprintf(file, "%s\r\n", message);
     fflush(file);
+}

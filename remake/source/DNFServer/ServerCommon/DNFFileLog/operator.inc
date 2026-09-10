@@ -7,3 +7,4 @@ void CMyFileLog::operator()(char const* filename, char const* format, ...) {
     vsprintf(buff + strlen(buff), format, args);
     // 原始：Instance() 结果直接作为实参
     CFileLogWriterInstance()->writeLog(filename, buff);  // 原始：缓冲区直接作为格式串传递
+}

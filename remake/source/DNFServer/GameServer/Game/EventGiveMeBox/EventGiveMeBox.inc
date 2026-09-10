@@ -1,2 +1,1 @@
 EventGiveMeBox::EventGiveMeBox()
-{

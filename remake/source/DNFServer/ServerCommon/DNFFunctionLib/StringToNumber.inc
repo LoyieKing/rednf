@@ -3,3 +3,4 @@ int StringToNumber(char const* str) {
         return 0;
     }
     return strtoul(str, NULL, 10);
+}

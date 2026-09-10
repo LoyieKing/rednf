@@ -4,3 +4,4 @@ void DNFFLib::PrintTextFile(char* file, char* text) {
         fprintf(f, text);  // 原始：文本直接作为格式串
         fclose(f);
     }
+}

@@ -1,2 +1,1 @@
 AdvanceAltarData::~AdvanceAltarData()
-{

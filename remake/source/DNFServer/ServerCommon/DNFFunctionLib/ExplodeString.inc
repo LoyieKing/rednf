@@ -27,3 +27,4 @@ int DNFFLib::ExplodeString(char* str, char* delims, char** out, int maxCount) {
         pToken = strtok(NULL, delims);
     }
     return iTokenCnt;
+}

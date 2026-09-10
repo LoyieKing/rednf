@@ -1,3 +1,1 @@
 CParty::CItemRoutingData::CItemRoutingData()
-{
-    Reset();

@@ -5,3 +5,4 @@ void Char2Hex(unsigned char c, char* out) {
     out[0] = saucHex[c >> 4];
     out[1] = saucHex[c & 0xf];
     out[2] = '\0';
+}

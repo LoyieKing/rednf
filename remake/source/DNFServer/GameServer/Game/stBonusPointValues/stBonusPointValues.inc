@@ -1,3 +1,1 @@
 stBonusPointValues::stBonusPointValues()
-{
-    clear();

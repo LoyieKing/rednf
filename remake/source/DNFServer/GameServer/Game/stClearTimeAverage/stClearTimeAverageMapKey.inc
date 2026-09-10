@@ -1,3 +1,1 @@
 stClearTimeAverageMapKey::stClearTimeAverageMapKey()
-{
-    clear();

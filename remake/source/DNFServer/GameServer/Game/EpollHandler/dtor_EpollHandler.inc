@@ -1,4 +1,1 @@
 EpollHandler::~EpollHandler()
-{
-    destroy();
-    release();

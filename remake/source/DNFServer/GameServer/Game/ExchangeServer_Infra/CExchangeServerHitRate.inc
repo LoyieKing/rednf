@@ -1,3 +1,1 @@
 CExchangeServerHitRate::CExchangeServerHitRate()
-{
-    Reset();

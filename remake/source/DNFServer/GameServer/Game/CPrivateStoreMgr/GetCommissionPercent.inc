@@ -1,0 +1,1 @@
+int CPrivateStore::GetCommissionPercent()

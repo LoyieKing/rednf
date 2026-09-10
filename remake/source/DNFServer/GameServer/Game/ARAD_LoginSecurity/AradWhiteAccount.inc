@@ -1,3 +1,1 @@
 AradWhiteAccount::AradWhiteAccount()
-{
-    Load();

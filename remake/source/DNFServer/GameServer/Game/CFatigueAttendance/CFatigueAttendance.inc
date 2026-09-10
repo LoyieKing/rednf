@@ -1,2 +1,1 @@
 CFatigueAttendance::CFatigueAttendance()
-{

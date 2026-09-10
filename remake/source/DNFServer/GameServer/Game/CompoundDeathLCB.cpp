@@ -1,34 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CompoundDeathLCB/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CompoundDeathLCB/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// CompoundDeathLCB.cpp — WongWork::CCompoundAvatar 合成核心四方法 +
-//                        WongWork::CDeathTowerRanking 记录 packet（LinkClosureB）
-//
-// 全部实现逐段转写自 docs/class_func_reports/{WongWork__CCompoundAvatar,
-// WongWork__CDeathTowerRanking}/ 报告汇编+反编译 C：
-//   WongWork::CCompoundAvatar
-//     _MakeCompoundInfo            T 0x08331efe（sret 返回 tagCompoundInfo）
-//     _CheckCondition              T 0x0833260c（const）
-//     _ProcCompoundCore            T 0x08332ee8
-//     _SendDisjointAvatarStatistic T 0x08333ecc
-//     _generateIPGNo               T 0x08333df6（const；闭链 helper，报告同目录）
-//   WongWork::CDeathTowerRanking
-//     makeMyBestRecordPacket       T 0x08468b8e
-//     makeTopRankerRecordPacket    T 0x08468c68
-//     _makeRecordPacket            T 0x08468cb6（前两者共用的序列化 helper）
-// 同 TU 附加直接依赖 producer（报告完整、当前全源无定义）：
-//   getItemIndex(const std::vector<std::pair<int,int>>&, int) T 0x08332e4e
-//   Packet_Avater_Disjoint_Statistic C1 W 0x08110bae（内嵌 PacketHeader W 0x08110b70；
-//     权威布局已归口 Packet_Avater_Disjoint_Statistic.h，本 TU 仅 include）
-//   DB_UpdateAvatarHistory::makeRequest(unsigned int,int,char*) T 0x0844536a
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "CCompoundAvatar.h"
@@ -63,7 +43,27 @@
 // 元素 first；遍历完仍无 → 0。
 // ---------------------------------------------------------------------------
 #include "CompoundDeathLCB/getItemIndex.inc"
+
+// ---------------------------------------------------------------------------
+// DB_UpdateAvatarHistory —— ORIG T 0x0844536a（makeRequest.md 反编译转写）。
+// 流头 0x2b0 + -1；正文 characNo(uint)/avatarUid(int)/ipgNo 二进制 0x18 字节；
+// 入 MsgQueue 队列 2。
+// ---------------------------------------------------------------------------
 #include "CompoundDeathLCB/makeRequest.inc"
+                                         char* ipgNo)
+{
+    // P0：Acquire 返回值右值内联进 ctor（ORIG %eax 直通，无 stream 栈槽）。
+    // 每个 operator<< 前有独立 operator*(deEv)；put_binary 前是 operator->(ptEv)
+    // ——仓内惯用显式代理链（user-defined operator* 返回指针，*guard << v 不可编译）。
+    // characNo 为 uint → 选中 lsEj（0x080e2292）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xac3b), true);
+    guard.operator*()->operator<<((int)0x2b0);
+    guard.operator*()->operator<<((int)-1);
+    guard.operator*()->operator<<(characNo);       // lsEj
+    guard.operator*()->operator<<(avatarUid);      // lsEi
+    guard.operator->()->put_binary(ipgNo, 0x18);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 namespace WongWork {
@@ -139,6 +139,206 @@ namespace WongWork {
 //   ⑦删冗余 (int) cast（P41/P254）＋索引 `static_cast<unsigned int>` 触发 4.4
 //   中转（P211 异型化，消最后 2 条）。
 #include "CompoundDeathLCB/_MakeCompoundInfo.inc"
+    const CUser* user, const MSG_COMPOUND_AVATAR* msg) const
+{
+    tagCompoundInfo info;                        // ORIG C1 0x08334344
+    info.clear();                                // ORIG clear 0x0833424a
+
+    // msg 字段读取（MSG_COMPOUND_AVATAR.h；偏移/宽度与 ORIG movzwl/mov/movzbl 一致）：
+    //   m_optionCheckFlag→+0xd6 / m_optionIdx→+0xd0 / m_slot→+0xd4 /
+    //   m_avatarSlot→+0x90 / m_materialSlotA→+0x08 / m_materialSlotB→+0x48 /
+    //   m_materialItemIdA/B→find_item / m_type→+0xe8
+    info.m_fieldD6 = (msg->m_optionCheckFlag == 1);
+    info.m_fieldD0 = msg->m_optionIdx;
+    info.m_slot = msg->m_slot;
+    info.m_field90 = msg->m_avatarSlot;
+
+    // 三步形（0x08331f64..0x08332043）：临时槽 + 逐字段拷贝；每次重取
+    // getCurCharacInvenR（P183/P48 禁缓存 inv）。
+    // [b28d-solo-CompoundDeathLCB] ORIG 三步**复用同一 -0x88 临时槽**（0x08331fxx/
+    // 0x083320xx 三次 GetInvenSlot 的 sret 目标同址；帧 0x8c）⇒ 用块作用域同名
+    // 局部让 4.4 复用槽（三个不同名局部会各占 0x3d 字节，帧 0x11c，实测 +0x90）。
+    info.m_avatar = *&user->getCurCharacInvenR()->GetInvenSlot(
+        1, static_cast<int>(static_cast<short>(msg->m_avatarSlot)));
+
+    info.m_field08 = msg->m_materialSlotA;
+    info.m_materialA = *&user->getCurCharacInvenR()->GetInvenSlot(
+        2, static_cast<int>(static_cast<short>(msg->m_materialSlotA)));
+
+    info.m_field48 = msg->m_materialSlotB;
+    info.m_materialB = *&user->getCurCharacInvenR()->GetInvenSlot(
+        2, static_cast<int>(static_cast<short>(msg->m_materialSlotB)));
+
+    info.m_scriptA = G_CDataManager()->find_item(
+        static_cast<int>(msg->m_materialItemIdA));
+    info.m_scriptB = G_CDataManager()->find_item(
+        static_cast<int>(msg->m_materialItemIdB));
+
+    if (info.m_scriptA == 0 || info.m_scriptB == 0)
+    {
+        info.m_errorFlag = true;                 // ORIG +0xd7
+        return info;
+    }
+    // ORIG 0x08332133/0x0833215c：msg 两 itemIdx 必须与槽内物品 addInfo
+    //（Inven_Item+0x02，即 info+0x0c / info+0x4c）一致，任一不符 → errorFlag。
+    // [b28d-solo-CompoundDeathLCB] 两侧同为 unsigned int ⇒ 裸比较（ORIG
+    // 0x08332201 `mov 0x11(%eax),%edx` 单段直读）；冗余 `(int)` cast 令 4.4
+    // 多一条 `mov %eax,%edx` 中转（P41/P254 变体）。
+    if (msg->m_materialItemIdA != info.m_materialA.m_addInfo ||
+        msg->m_materialItemIdB != info.m_materialB.m_addInfo)
+    {
+        info.m_errorFlag = true;
+        return info;
+    }
+    // ORIG 0x08332153：job 0..10 匹配循环 —— 两脚本同 job 且均可用时
+    // m_field00=job；无匹配保持 clear 哨兵 0xb → 直接返回（不设 error）。
+    for (int job = 0; job <= 10; ++job)
+    {
+        // [b28d-solo-CompoundDeathLCB] ORIG 0x08332269 首段为 `cmp %al,%dl;
+        // setne %al; test; jne <continue>` ⇒ 源码是否定早返 `if (A != B)
+        // continue;`（P196/P133 极性判据；写 `==` 会产 sete/je 反形）。
+        // 第二段 `mov$1/mov$0; test %al,%al; je` 是**无槽**寄存器汇聚岛（P0）
+        // ⇒ 用 P226 语句表达式包住短路条件（具名 bool 会多 store+cmpb 两条）。
+        if (info.m_scriptA->check_job_type(static_cast<char>(job)) !=
+            info.m_scriptB->check_job_type(static_cast<char>(job)))
+        {
+            continue;
+        }
+        if (({ info.m_scriptA->check_job_type(static_cast<char>(job)) != 0 &&
+               info.m_scriptB->check_job_type(static_cast<char>(job)) != 0; }))
+        {
+            info.m_field00 = job;        // ORIG +0x00
+            break;
+        }
+    }
+    if (info.m_field00 == 0xb)                   // ORIG 0x0833221b：无匹配
+        return info;
+
+    unsigned int found = 0;                      // -0x2c：匹配到的 rec 下标
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x083322fb 每次迭代重发 `m_tables[f00]`
+    // 完整取址（f00*0xc + this，P183 禁缓存；引用局部会占槽并把帧撑大）。
+    for (unsigned int idx = 1; idx < m_tables[static_cast<unsigned int>(info.m_field00)].m_avatars.size();
+         ++idx)  // -0x24
+    {
+        const tagCompoundAvatar* rec =
+            m_tables[static_cast<unsigned int>(info.m_field00)].getCompoundAvatarInfo(
+                static_cast<int>(idx));
+        if (rec == 0)
+            continue;
+
+        // ORIG 4 个类型分支**各自完整展开**一遍迭代器遍历（begin/end/operator!=/operator++/operator-> 各 4 组，槽 -0x30/-0x34…-0x48/-0x4c），
+        // 不是提公共 vector 指针后单循环（P165 物理展开 / N-C）。
+        // [b28d-solo-CompoundDeathLCB] ORIG 0x08332329 为线性比较链
+        //（`test %al,%al; jne` / `cmp $0x1,%al; jne` / `cmp $0x3,%al; jne`）
+        // ⇒ 原码是 if-else-if 链而非 switch（P17；switch 令 4.4 发决策树
+        // cmp/jg/je 共 +10 条）。
+        if (msg->m_type == 0)
+        {
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_tailA.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_tailA.end();
+                // [b28d-solo-CompoundDeathLCB] ORIG 0x08332370..0x083323b7 循环体形：
+                // 命中直接 `found = idx; break;`（无 cand 中转槽；四个 case 的 cand
+                // 各占 4 字节 ⇒ 帧多 0x10）。
+                while (it != last)
+                {
+                    // ORIG 0x08332370 `mov 0x94(%eax),%esi` 单段直读 ⇒ 两侧同为
+                    // unsigned（`(int)` cast 会令 4.4 多一条 eax→esi 中转）。
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
+                    {
+                        found = idx;
+                        break;
+                    }
+                    ++it;
+                }
+                // ORIG 0x083323b7：每个分支循环后各有一份 `cmpl $0,-0x28(%ebp);
+                // je <下一 else-if>; jmp <跳出>`（= if (found != 0) break;）
+                if (found != 0)
+                    break;
+        }
+        else if (msg->m_type == 1)
+        {
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_tailB.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_tailB.end();
+                while (it != last)
+                {
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
+                    {
+                        found = idx;
+                        break;
+                    }
+                    ++it;
+                }
+                if (found != 0)
+                    break;
+        }
+        else if (msg->m_type == 3)
+        {
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_tailC.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_tailC.end();
+                while (it != last)
+                {
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
+                    {
+                        found = idx;
+                        break;
+                    }
+                    ++it;
+                }
+                if (found != 0)
+                    break;
+        }
+        else if (msg->m_type == 4)
+        {
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_cube.m_vec.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_cube.m_vec.end();
+                while (it != last)
+                {
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
+                    {
+                        found = idx;
+                        break;
+                    }
+                    ++it;
+                }
+                if (found != 0)
+                    break;
+        }
+        else
+        {
+            continue;                        // 其它类型跳过本轮
+        }
+    }
+    info.m_field04 = static_cast<unsigned int>(found);  // ORIG +0x6cd
+    info.m_type = msg->m_type;                   // ORIG +0x6d9
+    return info;
 }
 
 // ============================== _CheckCondition =============================
@@ -163,6 +363,223 @@ namespace WongWork {
 //   两个 vector 迭代器各显式构造（normal_iterator C2 ×2）+ begin/end ×2 + 循环后 ==。
 // 重建端禁缓存（一处缓存即整条链消失，本函数 gap 156 的主体即此）。
 #include "CompoundDeathLCB/_CheckCondition.inc"
+                                     const tagCompoundInfo& info) const
+{
+    // 【b28d-solo-CompoundDeathLCB 判词】DIFF 封顶（§6.2）：ORIG 611 / ours 615、
+    // p167 CLEAR(52/52)。本轮修法：table 引用内联（P183）、m_field04 检查前移至
+    // CI_UsableType1 之前、while+break 拆 &&（P225）、尾段正极性包裹（P214①）。
+    // 残余 = 间接虚调用目标寄存器 N7 ×18（4.4.7 恒 %eax / ORIG %edx；本 TU 换
+    // 4.4.6 后端实测 n7 50→10 但 TU 整体 ae/near/diff 变差 ⇒ 不路由）+ 尾段
+    // 块序/槽号（N82/N93 族）。
+    // 分离模式(type4)仅允许指定物品 0x2898c4。
+    if (info.m_type == 4 && info.m_avatar.m_addInfo != 0x2898c4)
+    {
+        return 0x11;
+    }
+    if (info.m_slot > 99)                                       // u16 cmp $0x63
+    {
+        return 0x11;
+    }
+    if (info.m_errorFlag != 0)
+    {
+        return 0x11;
+    }
+    if (info.m_field00 == 0xb)                                  // 表索引无效
+    {
+        return 0x17;
+    }
+    // [b28e] ORIG 0x08332687/0x08332691 为 `test a; je L11` + `test b; jne NEXT`
+    // —— **两跳同落同一个 `mov $0x11` 共享块 L11**（P272 双跳同落 then 形），
+    // 两个独立 if-return 会各发一份 `mov $0x11` 岛。
+    if (info.m_materialA.m_addInfo == 0 || info.m_materialB.m_addInfo == 0)
+    {
+        return 0x11;
+    }
+
+    // 任一材料的 uid 是临时 key → 1（0x083326a8 / 0x083326ba 两次实调 +
+    // mov$1/mov$0 汇聚岛）。
+    if (CAvatarItemMgr::IsTempKey(info.m_materialA.m_addInfo2) ||
+        CAvatarItemMgr::IsTempKey(info.m_materialB.m_addInfo2))
+    {
+        return 1;
+    }
+
+    if (!CI_IsAvatarItem(info.m_scriptA) ||
+        !CI_IsAvatarItem(info.m_scriptB))
+    {
+        return 0x11;
+    }
+    if (CI_SubType(info.m_scriptA) != CI_SubType(info.m_scriptB))
+    {
+        return 0x17;
+    }
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08332792 的 `m_field04 == 0 → 0x17`
+    // 位于 CI_UsableType1 虚检查（0x0833292f）**之前**（历史注释位置有误）。
+    if (info.m_field04 == 0)
+    {
+        return 0x17;
+    }
+    if (!(CI_UsableType1(info.m_scriptA) && CI_UsableType1(info.m_scriptB)))
+    {
+        throw static_cast<ENUM_ERROR>(0x17);                    // __cxa_throw
+    }
+
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x083327a5 直接把 `m_tables[m_field00]`
+    // 取址内联进调用点（`mov 0x4(%eax),%ecx` 先物化实参、后算表地址）；
+    // 具名 table 引用会占槽（P183 禁缓存）。
+    const tagCompoundAvatar* rec =
+        m_tables[info.m_field00].getCompoundAvatarInfo(info.m_field04);  // -0x1c
+
+    if (!(info.m_scriptA->get_rarity() < 2 &&
+          info.m_scriptB->get_rarity() < 2))
+    {
+        return 0x17;
+    }
+    if (info.m_scriptA->get_grade() != info.m_scriptB->get_grade())
+    {
+        return 0x17;
+    }
+
+    // 非“加攻标记”时才检查选项池里存在用户请求的 option 对：
+    // grade == rec->m_idx 用 m_optsC[sub]（+0x194），否则 grade 必须 ==
+    // rec->m_flag2dc（+0x2dc）再用 m_optsB[sub]（+0xf4）。
+    if (info.m_fieldD6 != 1)
+    {
+        // ORIG 两个迭代器先默认构造（-0x20/-0x24，normal_iterator C2 ×2），
+        // 再在两分支内各自 begin()/end() 赋值；循环用 != 条件 + 循环后 ==。
+        // ORIG 每个 begin()/end() 前都重发一次 CI_SubType 虚调用（0x0833292f
+        // 与 0x0833297b 各 12/13 insn；else 支 0x083329f3/0x08332a3f 同）⇒
+        // 下标不命名局部（P183/P36）。
+        std::vector<std::pair<int, int> >::const_iterator it;
+        std::vector<std::pair<int, int> >::const_iterator last;
+        if (info.m_scriptA->get_grade() == rec->m_idx)
+        {
+            it = rec->m_optsC[CI_SubType(info.m_scriptA)].begin();
+            last = rec->m_optsC[CI_SubType(info.m_scriptA)].end();
+        }
+        else
+        {
+            // [b28e] ORIG 0x083329cc 段为 `cmp; sete %al; test %al,%al; je
+            // <0x08332a8d: mov $1; jmp>`（相等 → 直落 begin/end，不等 → 跳出到
+            // 返回 1 岛）⇒ 原码是 **正极性 if(==){…} else {return 1;}** 的
+            // if/else 形，而非 `if(!=) return 1;` 早返（早返令 4.4 产
+            // `setne; test; je 越过 mov$1` 的镜像块序）。
+            if (info.m_scriptA->get_grade() == rec->m_flag2dc)
+            {
+                it = rec->m_optsB[CI_SubType(info.m_scriptA)].begin();
+                last = rec->m_optsB[CI_SubType(info.m_scriptA)].end();
+            }
+            else
+            {
+                return 1;
+            }
+        }
+        // [b28d-solo-CompoundDeathLCB] ORIG 循环体为 `cmp; sete %al; test %al,%al;
+        // jne <找到出口>` 的 bool 物化形（P225）⇒ 拆成 while(条件) + if break，
+        // 合并 && 会令 4.4 直产 je/jne 直跳（无 setcc）。
+        while (it != last)
+        {
+            if (it->first == info.m_fieldD0)
+            {
+                break;
+            }
+            ++it;
+        }
+        if (it == last)
+        {
+            return 1;
+        }
+    }
+
+    // grade 必须都 >= 所选 recipe 下标，且不超出表内上限 flag2dc。
+    if (info.m_scriptA->get_grade() < info.m_field04 ||
+        info.m_scriptB->get_grade() < info.m_field04)
+    {
+        return 0x17;
+    }
+    // [b28e] ORIG 0x08332b58/0x08332b6a 先 `call get_grade` 再装
+    // `rec->m_flag2dc`（`mov -0x1c(%ebp),%edx; mov 0x2dc(%edx),%edx; cmp
+    // %edx,%eax; jg/jle`）= 左操作数是 get_grade() 的 `>` 书写形；写
+    // `flag2dc < get_grade()` 会令 4.4 先把 flag2dc 缓存进 %ebx 再 call（求值序反）。
+    if (info.m_scriptA->get_grade() > rec->m_flag2dc ||
+        info.m_scriptB->get_grade() > rec->m_flag2dc)
+    {
+        return 0x17;
+    }
+
+    // 角色职业两件均可用（两臂各重取 job，0x08332ba8 / 0x08332bd2）。
+    if (!(info.m_scriptA->check_job_type(
+              static_cast<char>(user->get_charac_job())) == 1 &&
+          info.m_scriptB->check_job_type(
+              static_cast<char>(user->get_charac_job())) == 1))
+    {
+        return 0x17;
+    }
+
+    // 按类型验证事件材料消耗单（ORIG if/else-if 链，每分支重取
+    // getCurCharacInvenR，0x08332c27/0c6a/0cad/0cee）。
+    if (info.m_type == 0)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_tailA) != 1)
+        {
+            return 0x16;                                        // +0x2b8
+        }
+    }
+    else if (info.m_type == 1)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_tailB) != 1)
+        {
+            return 0x16;                                        // +0x2c4
+        }
+    }
+    else if (info.m_type == 3)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_tailC) != 1)
+        {
+            return 0x16;                                        // +0x2d0
+        }
+    }
+    else if (info.m_type == 4)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_cube.m_vec)
+                != 1)
+        {
+            return 0x16;                                        // +0x20c
+        }
+    }
+
+    const int curSec = GlobalData::s_systemTime_.getCurSec();
+    const int remainA =
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetRemainDate(info.m_materialA.m_addInfo2, curSec);
+    const int remainB =
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetRemainDate(info.m_materialB.m_addInfo2, curSec);
+    const bool noExpireA =
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetExpireDate(info.m_materialA.m_addInfo2) == 0;
+    const bool noExpireB =
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetExpireDate(info.m_materialB.m_addInfo2) == 0;
+
+    if (noExpireA != noExpireB)
+    {
+        return 0x13;
+    }
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08332dcx 尾段为 `jg <继续>` +
+    // `mov $0x18,%eax; jmp`（早返岛）⇒ 正极性包裹改写（P214①；负极性
+    // `if(cond){...} return 0x18;` 会让 4.4 产 jle 反形）。
+    if (!(noExpireA || (remainA > 5 && remainB > 5)))
+    {
+        return 0x18;
+    }
+    // 分离升级位标记禁拆者不允许操作。
+    if (info.m_materialA.m_upgradeSep.IsTradeRestriction() ||
+        info.m_materialB.m_upgradeSep.IsTradeRestriction())
+    {
+        return 0x17;
+    }
+    return 0;
 }
 
 // ============================== _ProcCompoundCore ===========================
@@ -183,6 +600,230 @@ namespace WongWork {
 //   ③ 余 18 为 N82 帧号重排下的块序对齐伪影（difflib 显示 -46/-32/-5 与总量
 //      -18 自相矛盾，而调用点差集已归零）⇒ 判语义完成、byte 层封顶。
 #include "CompoundDeathLCB/_ProcCompoundCore.inc"
+                                       tagCompoundAvatarTable* table)
+{
+    // 【b28d-solo-CompoundDeathLCB 判词】DIFF 封顶（§6.2）：ORIG 653 / ours 636、
+    // p167 CLEAR(61/61)、无缺失调用。残余 = 块序/极性（`if (m_fieldD6==0 ||
+    // m_type==4)` ORIG then 在后、4.4 在前）+ 间接虚调用 N7 + 帧 0xcc vs 0xc0
+    //（ORIG 多 callee-saved %edi）+ 权重抽样段物理展开差异（N82/N164 族）。
+    CInventory* inv = user->getCurCharacInvenW();
+    const tagCompoundAvatar* rec =
+        table->getCompoundAvatarInfo(info.m_field04);
+    const int subType = CI_SubType(info.m_scriptA);
+    int resultIdx = 0;                                         // -0x48
+
+    if (info.m_fieldD6 == 0 || info.m_type == 4)
+    {
+        if (info.m_type == 4)
+        {
+            const int r = get_rand_int(
+                rec->m_cube.m_field0c[subType]);               // +0x218 权重计数
+            resultIdx = getItemIndex(rec->m_cube.m_vecs[subType], r);  // +0x240
+        }
+        else
+        {
+            resultIdx = info.m_fieldD0;                        // 直接选定结果
+        }
+    }
+    else
+    {
+        // 输出权重池空则失败。
+        if (rec->m_b[subType] == 0 || rec->m_optsA[subType].empty())
+            return 1;
+
+        int weight = 0;                                        // -0x38
+        if (info.m_scriptA->get_grade() == 1 &&
+            info.m_scriptB->get_grade() == 1)
+        {
+            weight = rec->m_d[subType];                        // +0x16c
+            if (m_rand->randInt(
+                    static_cast<unsigned long>(10000)) < 5000) // setbe 0x1387
+            {
+                const int r = m_rand->randInt(
+                    static_cast<unsigned long>(weight));
+                resultIdx = getItemIndex(rec->m_optsC[subType], r);  // +0x194
+            }
+            if (resultIdx < 1)
+                weight = rec->m_a[subType];                    // +0x004 兜底权重
+        }
+        else
+        {
+            weight = rec->m_e[subType];                        // +0x2e0
+        }
+
+        if (resultIdx < 1)
+        {
+            // 服务端全局修正（datamgr+0x4a54 加成 / +0x4a58 千分比衰减；
+            // CDataManager 域具名化后改为成员访问）。
+            if (info.m_type == 1)
+            {
+                // datamgr+0x4a54 = m_serverParameter(+0x68)+0x49ec
+                //（importServerParameterScript "[upper bind cube rate bonus]" 写点）；
+                // ORIG 0x08333170 `mov 0x4a54(%eax),%eax` = 4 字节读 → int 成员。
+                weight += G_CDataManager()->m_serverParameter.m_49ec;
+            }
+            if (info.m_type == 3)
+            {
+                // datamgr+0x4a58 = m_serverParameter+0x49f0
+                //（"[lower bind cube rate bonus]"；ORIG 0x0833318c `mov 0x4a58(%eax),%eax`）。
+                weight -= (G_CDataManager()->m_serverParameter.m_49f0 * weight) /
+                          10000;
+            }
+            // [轴 B 2026-09-10 保留] ORIG 0x083331d1 `cmp -0x38(%ebp),%eax; setl %al`
+            // （**有符号序**，槽 -0x38 = weight；上下文同构：`call randInt(const&)`
+            // 后即刻比较，与 ORIG 0x083331cc/0x083331d1 逐条对应）⇒ 原码比较为有符号；
+            // 旧文 `unsigned long < int` 按 C++ 规则转无符号 ⇒ 4.4 产 `setb`。
+            // 加 `(int)` 复现有符号序（randInt(10000) ∈ [0,9999]，值域内无分叉）。
+            // 实测：our 636→635；汇编 diff 段 992→988 行（minus 364→361）⇒ ndiff 严格改善；
+            // TU 四数 32/50/1/3/8 逐值不变（不劣）⇒ 保留。
+            // 同件另一行（`_ProcCompoundCore` ORIG 0x08333157 `cmpl $0x0,-0x48; jg`）
+            // 经地址自校为**表内配对假阳性**：我方 0x1280 同为 `jg`（有符号）⇒ 不改。
+            if ((int)m_rand->randInt(static_cast<unsigned long>(10000)) < weight)
+            {
+                const int r = get_rand_int(rec->m_b[subType]);
+                resultIdx = getItemIndex(rec->m_optsA[subType], r);  // +0x7c
+            }
+        }
+    }
+
+    if (resultIdx == 0)
+    {
+        const int r = get_rand_int(rec->m_c[subType]);         // +0x054 权重计数
+        resultIdx = getItemIndex(rec->m_optsB[subType], r);    // +0xf4
+    }
+
+    if (resultIdx != 0 && G_CDataManager()->find_item(resultIdx) != 0)
+    {
+        // ---- 成功路径：删两件材料 ----
+        CItem* item = G_CDataManager()->find_item(resultIdx);
+        if (!item->IsCreatureItem())          // ORIG vtable+0x10（IsCreatureItem）
+            return 1;
+        // ORIG 0x083330ec：槽位由目标 item 的 avatar option size 随机重选，
+        // 且 >0x63(99) 时清零（覆盖客户端传入 slot）。
+        info.m_slot = static_cast<unsigned short>(get_rand_int(
+            reinterpret_cast<CEquipItem*>(item)->getAvatarOptionSize()));
+        if (info.m_slot > 99)
+            info.m_slot = 0;
+        if (inv->delete_item((INVEN_TYPE)2,
+                             static_cast<int>(info.m_field08), 1,
+                             static_cast<eItemDelReason>(3), true) == 1 &&
+            inv->delete_item((INVEN_TYPE)2,
+                             static_cast<int>(info.m_field48), 1,
+                             static_cast<eItemDelReason>(3), true) == 1)
+        {
+            bool bFoundAll = false;                            // -0x8d
+            // 【batch-16 物理展开】ORIG 0x0833321x..0x083332bx 是 4 个 if-else 分支
+            // **各自完整调用一次** delete_event_items + vector::size + 比较 + 独立
+            // `return 0x16` 出口（调用点差集实测：提公共 materials 指针后单调用会
+            // 少 3 个 delete_event_items 与 2 个 size）。type4 的 size 比较对象
+            // 仍是 tailC（ORIG 0x083332b7 读 +0x2d0）【怪癖保留】。
+            if (info.m_type == 0)
+            {
+                const int deleted = inv->delete_event_items(
+                    rec->m_tailA, info.m_results, bFoundAll,
+                    static_cast<eMoneySubReason>(0x12),
+                    static_cast<eItemDelReason>(0x12), false);
+                if (deleted != static_cast<int>(rec->m_tailA.size()))
+                    return 0x16;
+            }
+            else if (info.m_type == 1)
+            {
+                const int deleted = inv->delete_event_items(
+                    rec->m_tailB, info.m_results, bFoundAll,
+                    static_cast<eMoneySubReason>(0x12),
+                    static_cast<eItemDelReason>(0x12), false);
+                if (deleted != static_cast<int>(rec->m_tailB.size()))
+                    return 0x16;
+            }
+            else if (info.m_type == 3)
+            {
+                const int deleted = inv->delete_event_items(
+                    rec->m_tailC, info.m_results, bFoundAll,
+                    static_cast<eMoneySubReason>(0x12),
+                    static_cast<eItemDelReason>(0x12), false);
+                if (deleted != static_cast<int>(rec->m_tailC.size()))
+                    return 0x16;
+            }
+            else if (info.m_type == 4)
+            {
+                const int deleted = inv->delete_event_items(
+                    rec->m_cube.m_vec, info.m_results, bFoundAll,
+                    static_cast<eMoneySubReason>(0x12),
+                    static_cast<eItemDelReason>(0x12), false);
+                if (deleted != static_cast<int>(rec->m_tailC.size()))
+                    return 0x16;
+            }
+
+            const int curSec = GlobalData::s_systemTime_.getCurSec();
+            // 两段 remain 计算各自重取 invenR → GetAvatarItemMgrR（ORIG
+            // 0x0833330a / 0x08333345，不缓存 mgr）。
+            const int remainA =
+                ((CUserCharacInfo*)user)
+                    ->getCurCharacInvenR()
+                    ->GetAvatarItemMgrR()
+                    ->GetRemainDate(static_cast<int>(info.m_materialA.m_addInfo2),
+                                    curSec);
+            const int remainB =
+                ((CUserCharacInfo*)user)
+                    ->getCurCharacInvenR()
+                    ->GetAvatarItemMgrR()
+                    ->GetRemainDate(static_cast<int>(info.m_materialB.m_addInfo2),
+                                    curSec);
+
+            // 注销并广播移除事件。
+            inv->GetAvatarItemMgrW()->UnRegistItem(
+                static_cast<int>(info.m_materialA.m_addInfo2));
+            inv->SendAvatarEvent(0x36,
+                                 static_cast<int>(info.m_materialA.m_addInfo2),
+                                 1, static_cast<int>(info.m_field08) + 10, 0);
+            info.m_results.push_back(1);                       // 结果三元组①
+            info.m_results.push_back(static_cast<int>(info.m_field08));
+            info.m_results.push_back(1);
+            inv->GetAvatarItemMgrW()->UnRegistItem(
+                static_cast<int>(info.m_materialB.m_addInfo2));
+            inv->SendAvatarEvent(0x36,
+                                 static_cast<int>(info.m_materialB.m_addInfo2),
+                                 1, static_cast<int>(info.m_field48) + 10, 0);
+            info.m_results.push_back(1);                       // 结果三元组②
+            info.m_results.push_back(static_cast<int>(info.m_field48));
+            info.m_results.push_back(1);
+
+            char ipgNoBuf[0x14];                               // -0xa5
+            _generateIPGNo(user, curSec, ipgNoBuf);
+
+            // AddAvatarItem 走**重取**的 invenW（ORIG 0x083333xx getCurCharacInvenW）。
+            info.m_resultSlot = static_cast<unsigned short>(
+                user->getCurCharacInvenW()->AddAvatarItem(
+                    resultIdx, remainA + remainB, false,
+                                   static_cast<char>(info.m_slot),
+                                   static_cast<char>(-1), ipgNoBuf,
+                                   static_cast<eAvatarItemAddReason>(6), true,
+                                   0));
+            if (static_cast<short>(info.m_resultSlot) == -1)
+            {
+                cMyTrace trace(
+                    "ENUM_ERROR WongWork::CCompoundAvatar::_ProcCompoundCore(CUser*, "
+                    "WongWork::CCompoundAvatar::stCompoundAvatarInfo&, "
+                    "stCompoundAvatarTable*)",
+                    0x361, 5);
+                trace("[%s][%d] AddAvatarItem Fail",
+                      "ENUM_ERROR WongWork::CCompoundAvatar::_ProcCompoundCore(CUser*, "
+                      "WongWork::CCompoundAvatar::stCompoundAvatarInfo&, "
+                      "stCompoundAvatarTable*)",
+                      0x361);
+                return 0x11;
+            }
+            DB_UpdateAvatarHistory::makeRequest(
+                static_cast<unsigned int>(user->getCurCharacNo()),
+                static_cast<int>(info.m_materialA.m_addInfo2), ipgNoBuf);
+            DB_UpdateAvatarHistory::makeRequest(
+                static_cast<unsigned int>(user->getCurCharacNo()),
+                static_cast<int>(info.m_materialB.m_addInfo2), ipgNoBuf);
+            return 0;
+        }
+        return 0x16;                                           // delete_item 失败
+    }
+    return 1;                                                  // 结果不可实例化
 }
 
 // =========================== _SendDisjointAvatarStatistic ===================
@@ -195,12 +836,73 @@ namespace WongWork {
 //   ②proxy 具名局部改单语句链式调用（P52，消槽且 &packet 升格 ebx）。
 //   残余 = CI_SubType 虚调用目标寄存器 N7 ×2（4.4.7 恒 %eax / ORIG %edx）。
 #include "CompoundDeathLCB/_SendDisjointAvatarStatistic.inc"
+{
+    Packet_Avater_Disjoint_Statistic packet;
+
+    const CItem* scriptA = info.m_scriptA;
+    const CItem* scriptB = info.m_scriptB;
+
+    packet.m_field0a = 2;                                      // -0x36/local_36
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08333ef6/0x08333f52 两组分级**复用同一
+    // -0xc 槽**（各以 `movl $0,-0xc` 重新初始化）⇒ 源码必须是同一个具名局部
+    // 两次使用（P160 复用槽；两个独立局部会各占一槽，实测 +4 帧）。
+    int gradeIdx = 0;
+    if (scriptA->get_rarity() == 2)
+    {
+        gradeIdx = 2;
+    }
+    else
+    {
+        gradeIdx = scriptA->get_grade() - 1;
+    }
+    packet.m_gradeIdxA = gradeIdx;
+    packet.m_subTypeA = CI_SubType(scriptA);
+    packet.m_flagA = 0;
+    gradeIdx = 0;
+    if (scriptB->get_rarity() == 2)
+    {
+        gradeIdx = 2;
+    }
+    else
+    {
+        gradeIdx = scriptB->get_grade() - 1;
+    }
+    packet.m_gradeIdxB = gradeIdx;
+    packet.m_subTypeB = CI_SubType(scriptA);                   // 【ORIG 怪癖】保留
+    packet.m_flagB = 0;
+
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08333fa7：`lea -0x3c(%ebp),%ebx` 先把
+    // &packet 升格 callee-saved，再求 receiver（GetServerProxy）⇒ 单语句链式
+    // 表达式（P52）；具名 proxy 局部会多一个槽且 &packet 退化为实参处现算。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&packet),
+                      static_cast<int>(sizeof(packet)));       // 0x28
 }
 
 // ================================ _generateIPGNo ============================
 
 // ORIG T 0x08333df6（const）。"C%02d%02d%02d%02d%010d" 五元组。
 #include "CompoundDeathLCB/_generateIPGNo.inc"
+                                      char* buf) const
+{
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08333df6 直取形参地址（无 time_t t
+    // 局部槽）且把 localtime_r 返回值存具名指针槽 -0x1c 后经 p-> 读字段
+    //（P43/P0）；五个 snprintf 实参全内联、右起求值（characNo→mday→mon→
+    // year%2000→serverId），characNo 升格 %esi 跨 G_CEnvironment 保活
+    //（P226/P227 形）。
+    // 【定案】达成 **AE**：56/56 逐条全等（仅字符串立即数重定位标签伪差）。
+    struct tm lt;
+    struct tm* p = localtime_r(&curSec, &lt);
+    // ORIG 0x08333e63 `mov 0x1b0(%eax),%eax`（4 字节读）= CEnvironment+0x198
+    //（m_serverEnvir）+0x18 → Server_Envir::m_channelNo（通道号；同
+    // CDataManager.cpp:1461 具名口径）。
+    OS_API::snprintf(buf, 0x14, "C%02d%02d%02d%02d%010d",
+                     G_CEnvironment()->m_serverEnvir.m_channelNo,
+                     (p->tm_year + 1900) % 2000,
+                     p->tm_mon + 1,
+                     p->tm_mday,
+                     user->getCurCharacNo());
+    return buf;
 }
 
 }  // namespace WongWork
@@ -215,6 +917,24 @@ namespace WongWork {
 // 【batch-12 标注】o=89 n=88（gap 10 → 1）：strlen 两次独立调用已补齐（P48）；余 1
 //   为 ORIG 尾 `call leave ret` 前的 mov + 对齐 nop（§6.1 豁免）⇒ N 封顶。
 #include "CompoundDeathLCB/_makeRecordPacket.inc"
+                                           PacketGuard& packet)
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        // ORIG 0x08468cd6/0x08468d03：strlen **两次独立调用**（每次完整重发
+        // record+i*0x1e+4 两级寻址 + call），put_str 用第二次结果（P48/P183）。
+        packet.put_int(
+            static_cast<int>(strlen(record.m_memberData[i])));
+        // ORIG 0x8468d37 调 const 重载 put_str(PKci)@0x0822b770（非 Pci 版）。
+        packet.put_str(
+            record.m_memberData[i],
+            static_cast<int>(strlen(record.m_memberData[i])));
+        packet.put_byte(record.m_pad7c[1][i]);                // +0x80..+0x83
+        packet.put_byte(record.m_pad7c[2][i]);                // +0x84..+0x87
+    }
+    packet.put_short(static_cast<int>(record.m_stage));        // +0x88
+    packet.put_int(static_cast<int>(record.m_playTime));       // +0x8c
+    packet.put_int(record.m_field94);                          // +0x94
 }
 
 // ORIG T 0x08468b8e。查 best 表：命中 put_byte(1)+纪录；否则 put_byte(0)。
@@ -227,10 +947,55 @@ namespace WongWork {
 //   _Hashtable_const_iterator 转换 ctor 的 C2↔C1 符号名）；余 2 = 尾部 nop/装载
 //   步序（§6.1/N82）⇒ N 封顶。
 #include "CompoundDeathLCB/makeMyBestRecordPacket.inc"
+                                                unsigned int key,
+                                                PacketGuard& packet)
+{
+    // 【b28d-solo-CompoundDeathLCB 判词】NEAR（63/63 助记符逐条全等；仅 find/end
+    // 两组的 sret 临时与迭代器槽号互换：ORIG find 临时 -0x28/it -0x30、
+    // last -0x20/end 临时 -0x18；我们 it -0x28/find 临时 -0x20、end 临时 -0x18/
+    // last -0x30）。修法：补具名引用局部 `const stBestRecord_t& rec = it->second;`
+    // 复现 ORIG ptEv 后 `add $0x4` + 槽回读（63→63）。试过「先声明后赋值」形
+    // ⇒ EXTRA `_Hashtable_const_iterator::C1Ev` ×2（P50 负例，已回退）；指针/引用
+    // best、const/非 const 变量四形槽号不变 ⇒ N86/N93 封顶。
+    BestMap* best = _getBestRecordTable(towerIdx);
+    // [b28f-SweepGroup17 判据⑩ 实测负例] 试过交换为「先 end/last、后 find/it」以复现
+    //   ORIG 0x08468b8e 槽阶梯（end 临时 -0x18 < last -0x20 < find 临时 -0x28 <
+    //   it -0x30）⇒ NEAR→**DIFF**（near 2→1 / diff 3→4）反劣，已回滚。
+    //   维持原序（find→end）封顶 N86/N93。
+    const BestMap::const_iterator it = best->find(key);
+    // [b28f-SweepGroup17 判据⑩ 配方①（L29）] ORIG 不给 end() 具名槽 ⇒ 内联 end()
+    //   调用（不落 `last` 对象槽），只保留 it 具名 + end() 的 sret 临时。
+    if (it == best->end())
+    {
+        packet.put_byte(0);
+    }
+    else
+    {
+        packet.put_byte(1);
+        // ORIG 0x08468c42..c4a：ptEv 后 `add $0x4,%eax; mov %eax,-0xc(%ebp)`，
+        // 再于实参处 `mov -0xc(%ebp),%eax` 回读 ⇒ 原码有具名引用局部（P0 槽往返）。
+        const stBestRecord_t& rec = it->second;
+        _makeRecordPacket(rec, packet);
+    }
 }
 
 // ORIG T 0x08468c68。该塔 5 个榜首槽顺序序列化（基址 tower*0x390，stride 0x98）。
 #include "CompoundDeathLCB/makeTopRankerRecordPacket.inc"
+                                                   PacketGuard& packet)
+{
+    // ORIG 0x08468c68：i 从 1 起（movl $1,-0xc → cmpl $5,setle ⇒ i<=5），
+    // 槽址 = m_towers + towerIdx*0x390 + i*0x98（双 imul 直用 m_towers 基址，
+    // 不经 m_slots 具名 +0x98 偏移；具名 slots 局部会引入 add $0x90/+0x8
+    // 常量折叠与 -0x10 基址槽）。
+    // [b27] 残差：ORIG 先载 0xc(towerIdx)/-0xc(i) 后两 imul、我们 eax 预载
+    // m_towers 且 lea 合并——N18a 族寄存器序不可定向，语义/循环界/槽序已全等。
+    // 【b28d-solo-CompoundDeathLCB 定案】达成 **AE**：24/24 逐条全等。修法 =
+    // 真二维下标 `m_towers[towerIdx][i]`（两级索引令 4.4 发
+    // `mov 0xc(%ebp),%eax; mov -0xc,%edx; imul 0x98; imul 0x390; lea; add
+    // 0x8(%ebp),%eax`，与 ORIG 全等；旧 char* 算术形 25 条且 this-first 不可翻）。
+    // [b28d-Main·检查点14] stTowerBlock 包装类删除 ⇒ 成员访问改二维下标（同形）。
+    for (int i = 1; i <= 5; ++i)
+        _makeRecordPacket(m_towers[towerIdx][i], packet);
 }
 
 }  // namespace WongWork

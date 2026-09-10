@@ -1,6 +1,1 @@
 Arad_IInterDispatcher* Arad_InternalDispatcher::GetDispatcher(ENUM_INTERNALPACKET_JPN code)
-{
-    std::map<ENUM_INTERNALPACKET_JPN, Arad_IInterDispatcher*>::iterator it = m_dispatchers.find(code);
-    if (it != m_dispatchers.end())
-        return it->second;
-    return 0;

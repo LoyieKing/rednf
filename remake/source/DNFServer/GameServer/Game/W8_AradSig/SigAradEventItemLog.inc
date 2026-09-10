@@ -1,3 +1,1 @@
 SigAradEventItemLog::SigAradEventItemLog()
-{
-    init();

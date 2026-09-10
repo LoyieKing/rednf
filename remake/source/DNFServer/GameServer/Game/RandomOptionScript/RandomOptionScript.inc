@@ -1,3 +1,1 @@
 RandomOptionScript::RandomOptionScript()
-{
-    clear();

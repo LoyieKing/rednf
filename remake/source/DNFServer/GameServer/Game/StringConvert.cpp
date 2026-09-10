@@ -1,34 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 StringConvert/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 StringConvert/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// StringConvert.cpp —— CharString / WideString 自由 insert/replace/toUnicode/
-// convertTo* 函数（G4 域字符串自由函数）。
-//
-// 全部按 ORIG df_game_r 反汇编逐函数转写
-// （docs/class_func_reports/_lt_global_gt_/{insert,replace,toUnicode,
-//  convertToWideString,convertToCharString}_*.md）：
-//   insert CharString 4 重载      0x08ad76ce..0x08ad7841
-//   insert WideString 4 重载      0x08ada71e..0x08ada956
-//   replace CharString 4 重载     0x08ad7afa..0x08ad7dec
-//   replace WideString 4 重载     0x08adab85..0x08adae9d
-//   toUnicode 8 重载              0x08adf0f6..0x08adf3de
-//   convertToWideString 5 重载    0x08adf3f9..0x08adf6bd
-//   convertToCharString(RK10CharString/RK10WideStringj) 0x08adf6c0/0x08adf65b
-// convertToCharString(PKwj) 0x08adf57f 归 StringResource.cpp（本 TU 依赖其
-// 转发入口）；convertToCharString(PKw/RK10WideString) 亦在 StringResource.cpp。
-//
-// toUnicode 的 ORIG 以 %gs TLS 访问 10×0x1000 宽字符环形缓冲 + 槽索引
-// （(idx+1)%10），重建以同 TU static __thread 缓冲迁移（TU 局部，无跨 TU
-// ODR 冲突；与 SyncScriptDeps.cpp / UnicodeConvert.cpp 的缓冲互不共享，
-// 与 ORIG 各 TU 局部缓冲的语义一致）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "StringTypes.h"
@@ -52,9 +32,15 @@ static unsigned int gCodePage;
 // convertToCharString 共享本 TU 的 gCodePage ⇒ 修复「setCodePage 写他 TU 副本、
 // 转换读本 TU 恒 0 副本」的语义分叉（二进制曾实测 3 份 _ZL9gCodePage，ORIG 仅 1 份）。
 #include "StringConvert/getCodePage.inc"
+{
+    return gCodePage;
 }
 
 #include "StringConvert/setCodePage.inc"
+{
+    const int old = gCodePage;
+    gCodePage = nNewCodePage;
+    return old;
 }
 
 // [b28d-Main R3 迁移·检查点13] convertToCharString(PKwj/PKw/RK10WideString) 自
@@ -458,10 +444,14 @@ const wchar_t* toUnicode(const std::wstring& src)
 
 // _Z9toUnicodePKwRSbIwSt11char_traitsIwESaIwEE 0x08adf3df：sDst = src。
 #include "StringConvert/toUnicode.inc"
+{
+    dst = src;
 }
 
 // _Z9toUnicodeRKSbIwSt11char_traitsIwESaIwEERS2_ 0x08adf315：sDst = sSrc。
 #include "StringConvert/toUnicode_1.inc"
+{
+    dst = src;
 }
 
 // ---------------------------------------------------------------------------

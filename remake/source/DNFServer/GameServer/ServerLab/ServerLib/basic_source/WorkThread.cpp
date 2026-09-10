@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 WorkThread/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 WorkThread/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include <pthread.h>
 
@@ -31,39 +33,248 @@ namespace nsl {
 __thread unsigned int tlsThreadId;
 
 #include "WorkThread/WorkThread.inc"
+    : orderQueue()
+{
+    OrderPool = new boost::object_pool<Message, boost::default_user_allocator_new_delete>(0x800, 0);
+    mId = id;
+    pthread_mutex_init(&workerLock, NULL);
+    pthread_cond_init(&isEmpty, NULL);
+    mQueueSize = 0;
+    mTransactionCntPerSec = 0;
 }
 
 #include "WorkThread/dtor_WorkThread.inc"
+{
 }
 
 #include "WorkThread/SetArea.inc"
+{
+    mpArea = pArea;
 }
 
 #include "WorkThread/createOrderPool.inc"
+{
+    Message* msg = ((boost::object_pool<Message, boost::default_user_allocator_new_delete>*)OrderPool)->construct();
+    if (msg != NULL)
+    {
+        msg->initialize();
+    }
+    return msg;
 }
 
 #include "WorkThread/destroyOrderPool.inc"
+{
+    ((boost::object_pool<Message, boost::default_user_allocator_new_delete>*)OrderPool)->free(msg);
 }
 
 #include "WorkThread/PushTransaction.inc"
+{
+    pthread_mutex_lock(&workerLock);
+    if ((int)pMessage->mMsgType - 1U < 3)
+    {
+        orderQueue.push(pMessage);
+    }
+    else
+    {
+        TCPUser* u = ((Message*)pMessage)->getUserFromMessage();
+        if (u->isAboutToDisconnect() || u->isDisconnected())
+        {
+            u->SetWorking(false);
+            ((Message*)pMessage)->setUse(false);
+            pthread_cond_signal(&isEmpty);
+            pthread_mutex_unlock(&workerLock);
+            G_TraceLog()->sysLog(8, "161don't put this user");
+            return;
+        }
+        u->IncPendingWorkNum();
+        u->SetWorking(true);
+        orderQueue.push(pMessage);
+        // ORIG（二进制实测）：`Message::ident` 作为单个 64 位 vararg 传入——
+        // 一次双字装载进 ebx:esi，低/高字直接压栈（供 %d,%d 读取）。拆成两个
+        // (int) 参数（含 register 局部）会让 GCC 4.4 -O0 产生重复装载+xor 舞步。
+        G_TraceLog()->sysLog(4, "RECV PUSH USER=%x, ID=%d, msg=%d", u, u->mUserId, Message::ident);
+    }
+    mQueueSize = mQueueSize + 1;
+    pthread_cond_signal(&isEmpty);
+    pthread_mutex_unlock(&workerLock);
 }
 
 #include "WorkThread/PopTransaction.inc"
+{
+    pthread_mutex_lock(&workerLock);
+    while (orderQueue.size() == 0)
+    {
+        pthread_cond_wait(&isEmpty, &workerLock);
+    }
+    Message* msg = (Message*)orderQueue.front();
+    orderQueue.pop();
+    // ORIG: jbe join(nop); Dec; jmp join+1; nop; join: mQueueSize--  (goto 复现空块/nop)
+    if ((unsigned int)((int)msg->mMsgType - 1) <= 2)
+    {
+        goto join;
+    }
+    msg->getUserFromMessage()->DecPendingWorkNum();
+join:
+    mQueueSize = mQueueSize - 1;
+    pthread_mutex_unlock(&workerLock);
+    return (IMessageStruct*)msg;
 }
 
 #include "WorkThread/GetThreadId.inc"
+{
+    return mId;
 }
 
 #include "WorkThread/GetQueueSizeNoLock.inc"
+{
+    return mQueueSize;
 }
 
 #include "WorkThread/GetTransactionCntPerSec.inc"
+{
+    return mTransactionCntPerSec;
 }
 
 #include "WorkThread/InitTransactionCntPerSec.inc"
+{
+    mTransactionCntPerSec = 0;
 }
 
 #include "WorkThread/loop.inc"
+{
+    G_TraceLog()->sysLog(8, "Start up WorkThread");
+    // proxyLoop passes Thread* as temp (== this); ORIG loads arg@0xc for GetThreadId
+    tlsThreadId = ((WorkThread*)temp)->GetThreadId();
+    // ORIG 局部声明序（DWARF decl_line 375/377/378/380/382/383/390/393/398/404/405/411/413/414）
+    IMessageStruct* recvMessage;
+    ITimeEntity* teMsg;
+    Message* pkMsg;
+    Message* pMsg;
+    TCPUser* pUser;
+    CMsgCell* recvMsg;
+    TCPDispatcher* handlerTCP = pApp->super_Dispatchers.getTCPDispatcher();
+    InterDispatcher* pInterHandler = pApp->super_Dispatchers.GetInterDispatcher();
+    TimerThread* timerThread = pApp->super_Threads.getTimerThread();
+    TCPUser::ENUM_DATA_TYPE DataType;
+    int CompressLen = 0x3c00;
+    TMsgCell<524288> tmpBuffer;
+    CMsgCell* encMsg = GetMessageBuffer(0x80000);
+    CMsgCell* zipMsg = GetMessageBuffer(0x80000);
+    while (true)
+    {
+    RETRY_MSG:
+        recvMessage = PopTransaction();
+        // ORIG: cmpl/jne process; nop; jmp top（while(true)+continue 复现；null 不递增 mTransactionCntPerSec）
+        if (recvMessage == NULL)
+        {
+            continue;
+        }
+
+        int return_code = 0;
+        switch (recvMessage->mMsgType)
+        {
+        case 1:
+        {
+            pMsg = (Message*)recvMessage;
+            INTERNALMSG_HEADER* pInterMsg = pMsg->getCellFromMessage()->GetInternalMsg();
+            if (!pInterMsg->bWillDelete)
+            {
+                pInterHandler->dispatch(pMsg);
+                pInterMsg->bWillDelete = true;
+                pApp->super_Threads.getWorkThread(pInterMsg->mOwnerWorkId)
+                    ->PushTransaction(recvMessage);
+            }
+            else
+            {
+                pInterMsg->bWillDelete = false;
+                pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyMessage(pMsg);
+            }
+            break;
+        }
+        case 2:
+        {
+            teMsg = (ITimeEntity*)recvMessage;
+            if (!teMsg->isTerminated())
+            {
+                // ORIG（二进制实测）：cmpl $0; setne %al; test %al,%al; je
+                // ——条件内赋值形态 if((rc=op())!=0) 触发 bool 物化，无尾随 nop
+                if ((return_code = teMsg->operator()()) != 0)
+                {
+                    G_TraceLog()->sysLog(7, "Fail: TIME : failed to handle '%d', error_code('%d').",
+                                         teMsg->proc_id, return_code);
+                }
+                // ORIG：直接以 ITimeEntity 成员访问（proc_count@0x10/check_period@0xc/
+                // bWillDelete@0x14 与 Message 布局重叠；直成员访问产出 lea/位移形态，
+                // Message 强转访问会退化成 sub/指针物化形态）
+                if (teMsg->proc_count != 0 && teMsg->check_period != 0)
+                {
+                    teMsg->proc_count = teMsg->proc_count - 1;
+                    if (teMsg->proc_count == 0)
+                    {
+                        teMsg->bWillDelete = false;
+                        timerThread->PushTimeReqEvent(teMsg);
+                    }
+                }
+            }
+            else
+            {
+                // virtual destroyTimeEntity — leave as direct call for vtable *%reg form
+                pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyTimeEntity(teMsg);
+            }
+            break;
+        }
+        case 3:
+            break;
+        default:
+        {
+            pkMsg = (Message*)recvMessage;
+            pUser = pkMsg->getUserFromMessage();
+            if (pUser->isAboutToDisconnect() || pUser->isDisconnected())
+            {
+                pUser->SetWorking(false);
+                // ORIG（二进制实测）：ident 一次双字装载进 ebx:esi 作为单个
+                // 64 位 vararg 压 0xc/0x10
+                G_TraceLog()->sysLog(7, "\xb2\xf7\xb1\xe4 \xc0\xaf\xc0\xfa\xb0\xa1 worker\xb7\xce \xb5\xe9\xbe\xee\xbf\xd4\xb4\xd9. msg-%d", Message::ident);
+                pkMsg->setUse(false);
+                pUser->setActiveSyncByWorker(true);
+                G_ActiveNetClose()->pushActiveClose(pUser);
+                // ORIG: disconnect path skips mTransactionCntPerSec++ and re-pops
+                goto RETRY_MSG;
+            }
+            else
+            {
+                recvMsg = pkMsg->getCellFromMessage();
+                DataType = pUser->getRecvDataType();
+                // ORIG：GetPacket() 结果直用，无 pHeader 局部（避免多一个栈槽）
+                G_TraceLog()->sysLog(4, "RECV PCK ct    =%d", recvMsg->GetPacket()->getCategory());
+                G_TraceLog()->sysLog(4, "RECV PCK id    =%d", recvMsg->GetPacket()->getPacketID());
+                G_TraceLog()->sysLog(4, "RECV PCK seq   =%u", recvMsg->GetPacket()->sequence);
+                recvMsg->GetPacket();
+                // ORIG（二进制实测）：mov -0x20(%ebp),%eax; cmp $0x4,%eax; jne
+                // ——switch 单 case 形态（if 直比会退化成 cmpl 内存操作数）
+                switch (DataType)
+                {
+                case TCPUser::RECV_DATA_NORMAL:
+                    handlerTCP->dispatch(pUser, pkMsg);
+                    pkMsg->setUse(false);
+                    if (pUser->GetPendingWorkNum() == 0)
+                    {
+                        pUser->SetWorking(false);
+                    }
+                    break;
+                }
+                zipMsg->Clear();
+                encMsg->Clear();
+                CompressLen = 0x3c00;
+                // ORIG（二进制实测）：ident 一次双字装载进 ebx:esi 后作为单个
+                // 64 位 vararg 压 0xc/0x10（拆两个 (int) 会产生重复装载+xor 舞步）
+                G_TraceLog()->sysLog(8, "work ended id=%d", Message::ident);
+            }
+            break;
+        }
+        }
+        mTransactionCntPerSec = mTransactionCntPerSec + 1;
+    }
 }
 
 } // namespace nsl

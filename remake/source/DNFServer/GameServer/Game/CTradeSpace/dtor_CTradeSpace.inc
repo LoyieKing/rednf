@@ -1,2 +1,1 @@
 CTradeSpace::~CTradeSpace()
-{

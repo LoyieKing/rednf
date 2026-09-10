@@ -1,3 +1,1 @@
 SigAradUseAvatarRecharge::SigAradUseAvatarRecharge()
-{
-    init();

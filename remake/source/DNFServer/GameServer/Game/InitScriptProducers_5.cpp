@@ -1,79 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 InitScriptProducers_5/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 InitScriptProducers_5/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— CDataManager::init() 脚本装载自由函数（批次 5）。
-// 承载 DataManagerInitDepends.h 声明的以下符号（全部 ORIG nm 真实 T 符号，
-// objdump 逐指令转写；调用点证据 docs/class_func_reports/CDataManager/init.md）：
-//   InitMapEquipmentAniScript       _Z25InitMapEquipmentAniScriptv         0x089c0586  init.md:97
-//   initExpertJobScript             _Z19initExpertJobScriptPcS_            0x0896d830  init.md:524
-//   initIndependentDropScript       _Z25initIndependentDropScriptPcS_      0x0897c01c  init.md:875
-//   initEventCharacterScript        _Z24initEventCharacterScriptPcS_       0x0895ae5c  init.md:1596
-//   initAICharacterScript           _Z21initAICharacterScriptPKcS0_        0x088c98d4  init.md:1838
-//   initItemShopScript              _Z18initItemShopScriptPcS_             0x089dc4f8  init.md:2178
-//   initPvpMissionSystem            _Z20initPvpMissionSystemPcS_           0x08a5aad5  init.md:2219
-//   initWorldMapScript              _Z18initWorldMapScriptPcS_             0x08ab000c  init.md:2555
-//   initStageMapScript              _Z18initStageMapScriptPcS_             0x088a9e6c  init.md:2565
-//   initChattingEmoticonScriptList  _Z30initChattingEmoticonScriptListPcS_ 0x088e30f8  init.md:2740
-//   initCreatureScript              _Z18initCreatureScriptPKcS0_S0_        0x08a35d37  init.md:4579
-//   initPvPSkillTreeScript          _Z22initPvPSkillTreeScriptPcS_         0x08a5cd6c  init.md:4968
-//
-// initWorldMapScript 的被调依赖（当前源码缺失，本 TU 一并提供，ORIG nm 真实）：
-//   loadWorldMapCoordPattern        _Z24loadWorldMapCoordPatternv          0x08ab0234
-//     （报告 docs/class_func_reports/_lt_global_gt_/loadWorldMapCoordPattern.md）
-//   ScanAbsOrRel                    _Z12ScanAbsOrRelRbRSsS_b               0x088bcbef
-//   WorldMapScript::aWorldMapPatternTable_E    B 0x09501020 (0x4b0)
-//   WorldMapScript::aWorldMapPatternTable2ND_E B 0x095014e0
-//   g_mapEquipmentAniScript         B 0x094f7bf8（InitMapEquipmentAniScript 域）
-//
-// 统一模式（各函数 objdump 一致）：
-//   strncpy(g_*BaseDirectory, dir, N) → 末字符既非 '\\' 也非 '/' 时
-//   __builtin_strcat(dst, "\\")；随后 loadRDARScriptListFile(g_*FileList,
-//   baseDir, list, NULL)，返回值 !=0 即 true。
-//   注意：strncpy 长度按函数区分（多数 0x100；pvpMission/pvpSkillTree/
-//   ChatEmoticon/IndependentDrop 为 0xff），逐函数忠实保留。
-//   [b28d-solo 新范式] 分隔符追加必须写 `__builtin_strcat(dst, "\\")`：
-//   4.4 -O0 内建展开为 ORIG 的「先铺 n/src → strlen → add → mov (%esp),%eax;
-//   mov %eax,(%esp) → call memcpy」8 条形；手写 memcpy(dst+strlen,...) 恒先算
-//   dst（少 2 条且序反）。本 TU 里裸 strcat 未展开（头集影响），必须 builtin 形。
-//   实证 ORIG 0x089dc4f8 段；探针 /tmp/probe55b.cpp fSB 逐条同形。
-// ---------------------------------------------------------------------------
-// [b22判词·N族/索引伪差集 P93·P154 同族] __tcf_0（<global>）：本 TU 文件作用域带
-// 非平凡析构全局（WorldMapScript::aWorldMapPatternTable_[3][10] 图案表、各
-// g_*ScriptFileList STScriptFileList 全局）的 GCC 合成 atexit cleanup，无独立可写
-// 源码函数体，指令完全由本 TU 全局对象集合与构造序决定。ORIG 二进制内 `__tcf_0`
-// 同名 local 数百枚（每含全局对象 TU 一枚），compare 工具按名取到 0x0828f940
-// （WongWork::CDeathTowerRanking 域另一 TU，与本 TU 全局无关）→ 逐条 DIFF 系索引
-// 伪差集（§6.3 撞名族），非实现缺口。本 .o __tcf_0 已按本 TU 全局集合正确合成析构
-// 循环（0x4b0/0x28 对位图案表元素尺寸）。语义等价，不可源码复现，保留判词。
-// ============================================================================
-// [b28d-solo-InitScriptProducers_5] 本 TU 判词表（verdict = check_tu_routed.sh
-// fresh .o，compare_tu_game_orig AE 口径；TU 合计 identical=8 ae=35 diff=2，
-// 余 2 件 __static_initialization_and_destruction_0ii/__tcf_0 为编译器合成
-// （本 TU 全局对象集合决定；同名 local 撞名 → §6.3 索引伪差集，见上方 __tcf_0
-// 判词；无独立可写源码函数体）：
-//   initItemShopScript 0x089dc4f8        AE   __builtin_strcat 形（43/43）
-//   initStageMapScript 0x088a9e6c        AE   __builtin_strcat 形（43/43）
-//   initExpertJobScript 0x0896d830       AE   __builtin_strcat 形（43/43）
-//   initPvpMissionSystem 0x08a5aad5      AE   __builtin_strcat 形（43/43）
-//   initAICharacterScript 0x088c98d4     AE   __builtin_strcat 形（43/43）
-//   initPvPSkillTreeScript 0x08a5cd6c    AE   __builtin_strcat 形（43/43）
-//   initEventCharacterScript 0x0895ae5c  AE   __builtin_strcat 形（43/43）
-//   initIndependentDropScript 0x0897c01c AE   __builtin_strcat 形（43/43）
-//   initChattingEmoticonScriptList 0x088e30f8 AE __builtin_strcat 形（43/43）
-//   initCreatureScript 0x08a35d37        AE   strcat 形 + 列表指针去 cast（66/66）
-//   initWorldMapScript 0x08ab000c        AE   strcat 形 + P232 两死槽（145/145）
-//   ScanAbsOrRel 0x088bcbef              AE   P223 五岛 goto + find+1 槽存 +
-//                                            P0/P37 logFormat 全表达式临时链
-//                                            （189/189；裸 memcpy/具名 string 局部
-//                                             与具名 key 均为旧判词，已作废）
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <map>
@@ -93,6 +28,9 @@
 // 定义 STScriptFileList.cpp（int：恒 0/1；第 4 参未使用）。bool 视图声明：
 // P22（ORIG init* 尾 xor $1,%eax;test %al 为 bool 取反形；返回不入 mangled）。
 #include "InitScriptProducers_5/loadRDARScriptListFile.inc"
+                            const char* listPath, std::map<int, int>* unused);
+
+// ---- ORIG 全局（定义于各自权威 TU；本 TU extern 引用）----
 extern char g_expertJobScriptBaseDirectory[0x100];   // B 0x094f7660  CExpertJobList.cpp
 extern STScriptFileList g_expertJobScriptFileList;   // B 0x094f7760  CExpertJobList.cpp（本批正为对象模型）
 extern char g_itemShopScriptBaseDirectory[0x100];    // B 0x094fe160  CItemShop.cpp（本批由 g_itemShopScriptDir 正名 ORIG nm 名）
@@ -129,6 +67,9 @@ STScriptFileList g_worldMapScriptFileList;           // B 0x09501000 (0x18)
 // 定义 ScriptDepsA.cpp（本批已还原真实语义）。ORIG 尾 `mov %ebx,%eax; ret`
 // 返回 0/1（P159 判据：非 void；mangled 不含返回类型，调用点忽略返回值）。
 #include "InitScriptProducers_5/ImportEquipmentAniScript.inc"
+std::map<std::string, STEquipmentAniScript>* g_mapEquipmentAniScript = 0;  // B 0x094f7bf8
+
+// ORIG 静态成员定义（声明 CreatureScript.h）：B 0x094fefa0，396 字节。
 int CreatureScript::ExpTable_[0x63];
 
 // ============================================================================
@@ -145,6 +86,19 @@ int CreatureScript::ExpTable_[0x63];
 // add $<base>,%eax; mov %eax,(%esp); mov (%esp),%eax; mov %eax,(%esp); call memcpy`
 // 8 条形（探针 /tmp/probe55b.cpp fSB 逐条同形）；手写 memcpy(dst+strlen,..) 才 DIFF。
 #include "InitScriptProducers_5/initExpertJobScript.inc"
+{
+    strncpy(g_expertJobScriptBaseDirectory, dir, 0x100);
+    // P49 禁 TU helper：内联 strlen×2 条件 + 内建 strcat 展开（无空串防御，
+    // ORIG len==0 UB，P140）。
+    if (g_expertJobScriptBaseDirectory[strlen(g_expertJobScriptBaseDirectory) - 1] != '\\' &&
+        g_expertJobScriptBaseDirectory[strlen(g_expertJobScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_expertJobScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_expertJobScriptFileList,
+                                g_expertJobScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -154,6 +108,17 @@ int CreatureScript::ExpTable_[0x63];
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（同 initExpertJobScript；旧
 // N(P209/P75) 判词作废）。
 #include "InitScriptProducers_5/initAICharacterScript.inc"
+{
+    strncpy(g_aiCharacterScriptBaseDirectory, dir, 0x100);
+    if (g_aiCharacterScriptBaseDirectory[strlen(g_aiCharacterScriptBaseDirectory) - 1] != '\\' &&
+        g_aiCharacterScriptBaseDirectory[strlen(g_aiCharacterScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_aiCharacterScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_aiCharacterScriptFileList,
+                                g_aiCharacterScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -162,6 +127,17 @@ int CreatureScript::ExpTable_[0x63];
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 // ============================================================================
 #include "InitScriptProducers_5/initEventCharacterScript.inc"
+{
+    strncpy(g_eventCharacterScriptBaseDirectory, dir, 0x100);
+    if (g_eventCharacterScriptBaseDirectory[strlen(g_eventCharacterScriptBaseDirectory) - 1] != '\\' &&
+        g_eventCharacterScriptBaseDirectory[strlen(g_eventCharacterScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_eventCharacterScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_eventCharacterScriptFileList,
+                                g_eventCharacterScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -171,6 +147,17 @@ int CreatureScript::ExpTable_[0x63];
 // ============================================================================
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 #include "InitScriptProducers_5/initItemShopScript.inc"
+{
+    strncpy(g_itemShopScriptBaseDirectory, dir, 0x100);
+    if (g_itemShopScriptBaseDirectory[strlen(g_itemShopScriptBaseDirectory) - 1] != '\\' &&
+        g_itemShopScriptBaseDirectory[strlen(g_itemShopScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_itemShopScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_itemShopScriptFileList,
+                                g_itemShopScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -180,6 +167,17 @@ int CreatureScript::ExpTable_[0x63];
 // ============================================================================
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 #include "InitScriptProducers_5/initPvpMissionSystem.inc"
+{
+    strncpy(g_PvpMissionScriptBaseDirectory, dir, 0xff);
+    if (g_PvpMissionScriptBaseDirectory[strlen(g_PvpMissionScriptBaseDirectory) - 1] != '\\' &&
+        g_PvpMissionScriptBaseDirectory[strlen(g_PvpMissionScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_PvpMissionScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_PvpMissionScriptFileList,
+                                g_PvpMissionScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -189,6 +187,17 @@ int CreatureScript::ExpTable_[0x63];
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 // ============================================================================
 #include "InitScriptProducers_5/initPvPSkillTreeScript.inc"
+{
+    strncpy(g_pvpSkillTreeScriptBaseDirectory, dir, 0xff);
+    if (g_pvpSkillTreeScriptBaseDirectory[strlen(g_pvpSkillTreeScriptBaseDirectory) - 1] != '\\' &&
+        g_pvpSkillTreeScriptBaseDirectory[strlen(g_pvpSkillTreeScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_pvpSkillTreeScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_pvpSkillTreeScriptFileList,
+                                g_pvpSkillTreeScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -198,6 +207,17 @@ int CreatureScript::ExpTable_[0x63];
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 // ============================================================================
 #include "InitScriptProducers_5/initChattingEmoticonScriptList.inc"
+{
+    strncpy(g_ChattingEmoticonScriptBaseDirectory, dir, 0xff);
+    if (g_ChattingEmoticonScriptBaseDirectory[strlen(g_ChattingEmoticonScriptBaseDirectory) - 1] != '\\' &&
+        g_ChattingEmoticonScriptBaseDirectory[strlen(g_ChattingEmoticonScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_ChattingEmoticonScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_ChattingEmoticonScriptFileList,
+                                g_ChattingEmoticonScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -207,6 +227,17 @@ int CreatureScript::ExpTable_[0x63];
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 // ============================================================================
 #include "InitScriptProducers_5/initIndependentDropScript.inc"
+{
+    strncpy(g_independentDropScriptBaseDirectory, dir, 0xff);
+    if (g_independentDropScriptBaseDirectory[strlen(g_independentDropScriptBaseDirectory) - 1] != '\\' &&
+        g_independentDropScriptBaseDirectory[strlen(g_independentDropScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_independentDropScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_independentDropScriptFileList,
+                                g_independentDropScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -215,6 +246,17 @@ int CreatureScript::ExpTable_[0x63];
 // ============================================================================
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 #include "InitScriptProducers_5/initStageMapScript.inc"
+{
+    strncpy(g_stageMapScriptBaseDirectory, dir, 0x100);
+    if (g_stageMapScriptBaseDirectory[strlen(g_stageMapScriptBaseDirectory) - 1] != '\\' &&
+        g_stageMapScriptBaseDirectory[strlen(g_stageMapScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_stageMapScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_stageMapScriptFileList,
+                                g_stageMapScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -234,6 +276,21 @@ int CreatureScript::ExpTable_[0x63];
 // `movl $imm,(%esp)` + `mov 0xc(%ebp),%eax` 与 ORIG 全等（探针 /tmp/probe55d.cpp）。
 // ExpTable 循环体（ScanInt/倒计数/setle 物化）本已逐条全等。
 #include "InitScriptProducers_5/initCreatureScript.inc"
+{
+    strncpy(g_creatureScriptBaseDirectory, dir, 0x100);
+    if (g_creatureScriptBaseDirectory[strlen(g_creatureScriptBaseDirectory) - 1] != '\\' &&
+        g_creatureScriptBaseDirectory[strlen(g_creatureScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_creatureScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, expTable))
+        return false;
+    for (int i = 0; i <= 0x62; ++i)
+        CreatureScript::ExpTable_[i] = ScanInt((bool*)0);
+    if (!loadRDARScriptListFile(&g_creatureScriptFileList,
+                                g_creatureScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -242,6 +299,9 @@ int CreatureScript::ExpTable_[0x63];
 // g_mapEquipmentAniScript(0x94f7bf8) → ImportEquipmentAniScript(map)。
 // ============================================================================
 #include "InitScriptProducers_5/InitMapEquipmentAniScript.inc"
+{
+    g_mapEquipmentAniScript = new std::map<std::string, STEquipmentAniScript>();
+    ImportEquipmentAniScript(g_mapEquipmentAniScript);
 }
 
 // ============================================================================
@@ -256,6 +316,7 @@ int CreatureScript::ExpTable_[0x63];
 // ---- 本 TU 下方定义的依赖（前置声明）----
 #include "InitScriptProducers_5/loadWorldMapCoordPattern.inc"
 #include "InitScriptProducers_5/ScanAbsOrRel.inc"
+                                       // _Z12ScanAbsOrRelRbRSsS_b 0x088bcbef
 
 #include "WorldMapScript.h"
 
@@ -274,6 +335,47 @@ STWorldmapPattern2ND WorldMapScript::aWorldMapPatternTable2ND_[20];
 // [b28d-solo AE 145/145] __builtin_strcat 内建展开 + P232 两死槽（见下方注释）。
 // ============================================================================
 #include "InitScriptProducers_5/initWorldMapScript.inc"
+{
+    strncpy(g_worldMapScriptBaseDirectory, dir, 0x100);
+    if (g_worldMapScriptBaseDirectory[strlen(g_worldMapScriptBaseDirectory) - 1] != '\\' &&
+        g_worldMapScriptBaseDirectory[strlen(g_worldMapScriptBaseDirectory) - 1] != '/')
+    {
+        __builtin_strcat(g_worldMapScriptBaseDirectory, "\\");
+    }
+    if (!loadRDARScriptListFile(&g_worldMapScriptFileList,
+                                g_worldMapScriptBaseDirectory, list, 0))
+        return false;
+    if (!loadRDARScriptFile(g_worldMapScriptBaseDirectory,
+                            "WorldMapPatternTable.tbl"))
+        return false;
+
+    std::string token;
+    // P232/P171 死局部复现：ORIG 0x08ab00f7/0x08ab00fe 在 string ctor 之后对
+    // -0x30/-0x2c 各写一次 `movl $0x0` 且全函数无读取（原码遗留计数槽）⇒ 补两个
+    // 未使用零初始化 int 精确复原槽位（token→-0x34，i/j/k/l→-0x28..-0x1c）。
+    int legacyCountA = 0;
+    int legacyCountB = 0;
+    for (int i = 0; i <= 2; ++i)
+    {
+        if (!ScanType(token, true))
+            break;                       // ORIG jne 0x8ab01f7 → 直达 ④
+                for (int j = 0; j <= 9; ++j)
+        {
+            // ORIG 0x8ab013b/0x8ab017a：完整表达式逐次重算 i/j 偏移
+            // （(i*50+j*5+k)*2+l 复合索引），不缓存条目引用。
+            WorldMapScript::aWorldMapPatternTable_[i][j].m_str0 = token;
+            for (int k = 0; k <= 2; ++k)
+            {
+                for (int l = 0; l <= 1; ++l)
+                {
+                    WorldMapScript::aWorldMapPatternTable_[i][j]
+                        .m_coord.m_coord[k][l] = ScanInt((bool*)0);
+                }
+            }
+        }
+    }
+    loadWorldMapCoordPattern();
+    return true;
 }
 
 // ============================================================================
@@ -287,6 +389,30 @@ STWorldmapPattern2ND WorldMapScript::aWorldMapPatternTable2ND_[20];
 // ③ return gotValue（最后一次扫描结果）。
 // ============================================================================
 #include "InitScriptProducers_5/loadWorldMapCoordPattern_1.inc"
+{
+    if (!loadRDARScriptFile(g_worldMapScriptBaseDirectory,
+                            "WorldMapPatternTable2ND.tbl"))
+        return false;
+
+    bool isAbs = true;                   // ebp-0x29 初值 1
+    bool gotValue = false;               // ebp-0x2a 初值 0
+    std::string token;
+    for (int i = 0; i <= 0x13; ++i)
+    {
+        int base = (int)ScanAbsOrRel(isAbs, token, gotValue, true);
+        if (!gotValue)
+            break;                       // test al,al; jne 0x8ab0351
+        WorldMapScript::aWorldMapPatternTable2ND_[i].m_base = base;
+        for (int j = 0; j <= 2; ++j)
+        {
+            for (int k = 0; k <= 1; ++k)
+            {
+                WorldMapScript::aWorldMapPatternTable2ND_[i].m_coord[j][k] =
+                    ScanInt((bool*)0);
+            }
+        }
+    }
+    return gotValue;                     // movzx ebx,[ebp-0x2a]
 }
 
 // ============================================================================
@@ -317,4 +443,77 @@ STWorldmapPattern2ND WorldMapScript::aWorldMapPatternTable2ND_[20];
 const char* toTString(const char* pszSrc);   // SyncScriptDeps.h 权威声明（避免拖入其依赖）
 
 #include "InitScriptProducers_5/ScanAbsOrRel_1.inc"
+{
+    float result = 0;
+    isAbs = true;
+    for (;;)
+    {
+        int tok = g_dnfLex.getToken();
+        if (tok == 2)
+        {
+            result = (float)g_dnfLex.getDecimal();
+            isAbs = true;
+            gotValue = true;
+        }
+        else if (tok == 3)
+        {
+            result = (float)g_dnfLex.getHexDecimal();
+            isAbs = true;
+            gotValue = true;
+        }
+        else if (tok == 4)
+        {
+            result = g_dnfLex.getFloat();
+            isAbs = true;
+            gotValue = true;
+        }
+        else if (tok == 5)
+        {
+            str = toTString(g_dnfLex.getType());
+            std::string::size_type pos = str.find("[", 0) + 1;
+            str.erase(0, pos);
+            pos = str.find("]", 0);
+            str.erase(pos, str.size());
+            result = (float)atof(str.c_str());
+            isAbs = false;
+            gotValue = true;
+        }
+        else
+        {
+            isAbs = true;
+            gotValue = false;
+        }
+
+        // P223 多岛形（ORIG 0x088bce8f..0x088bce9c 五枚 nop;jmp 岛，落点各异）：
+        // 独立正向 goto + 连续尾标签，标签序 = 守卫序（2,3,4,5,0）。
+        if (tok == 2)
+            goto retTok2;
+        if (tok == 3)
+            goto retTok3;
+        if (tok == 4)
+            goto retTok4;
+        if (tok == 5)
+            goto retTok5;
+        if (tok == 0)
+            goto retTok0;
+
+        if (consume)
+        {
+            // P0/P37：ORIG 无具名 string 局部（-0x18/-0x1c 为两个按值返回临时，
+            // 右起求值：lastData→%esi、lineNo→%ebx、streamName→%eax），保持
+            // 全表达式临时链（探针 /tmp/probe55h.cpp p5 逐条同形，含 EH 块序）。
+            LogManager::logFormat(
+                0, "../RDARScript.cpp", __FUNCTION__, 1496,
+                "ERROR! %s - TYPE mismatch. %s:%d, token = '%s'",
+                "ScanAbsOrRel", g_dnfLex.getStreamName().c_str(),
+                g_dnfLex.getLastLineNo(),
+                g_dnfLex.getLastTokenDataAsString().c_str());
+        }
+    }
+retTok2:;
+retTok3:;
+retTok4:;
+retTok5:;
+retTok0:;
+    return result;
 }

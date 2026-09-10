@@ -1,2 +1,1 @@
 STAssignMonster::~STAssignMonster()
-{

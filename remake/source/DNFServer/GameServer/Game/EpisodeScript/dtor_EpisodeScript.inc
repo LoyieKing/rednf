@@ -1,2 +1,1 @@
 EpisodeScript::~EpisodeScript()
-{

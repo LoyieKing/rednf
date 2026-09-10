@@ -1,2 +1,1 @@
 STWarRoomData::~STWarRoomData()
-{

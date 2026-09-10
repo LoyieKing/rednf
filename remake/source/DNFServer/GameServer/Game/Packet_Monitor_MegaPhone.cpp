@@ -1,23 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Packet_Monitor_MegaPhone/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Packet_Monitor_MegaPhone/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// Packet_Monitor_MegaPhone::set（ORIG W 0x086d19b0，
-//   _ZN24Packet_Monitor_MegaPhone3setEhtPKchS1_h，
-//   objdump 逐指令转写；消费方 GameWorld::send_chat_msg case 0xb/c/e 家族）。
-//   参数序：channel/uniqueId/name/msgLen/msg/type。
-//   写 m_channel(+b)/m_uniqueId(+c)/m_type(+e) → strncpy m_name 0x1e →
-//   strncpy m_msg 0x100 → m_msgLength(+2d) → packetSize(+2) = msgLen + 0x2e。
-//   返回 void（ORIG ret 前无 eax 赋值；同族 Hyper_Link set 同式）。
-//   视图访问（P82）：ORIG gcc4.1 每处 store 先载 this 再载值，gcc4.4 对普通
-//   成员赋值生成相反顺序；经 pack(1) 视图逐字段赋值可恢复先 this 形态。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "Packet_Monitor_MegaPhone.h"
 #include <string.h>
@@ -39,4 +30,14 @@ struct Packet_Monitor_MegaPhone_View
 #pragma pack(pop)
 
 #include "Packet_Monitor_MegaPhone/set.inc"
+    unsigned char channel, unsigned short uniqueId, char const* name,
+    unsigned char msgLen, char const* msg, unsigned char type)
+{
+    ((Packet_Monitor_MegaPhone_View*)this)->m_channel = channel;
+    ((Packet_Monitor_MegaPhone_View*)this)->m_uniqueId = uniqueId;
+    ((Packet_Monitor_MegaPhone_View*)this)->m_type = type;
+    strncpy(((Packet_Monitor_MegaPhone_View*)this)->m_name, name, 0x1e);
+    strncpy(((Packet_Monitor_MegaPhone_View*)this)->m_msg, msg, 0x100);
+    ((Packet_Monitor_MegaPhone_View*)this)->m_msgLength = msgLen;
+    packetSize = 0x2e + msgLen;
 }

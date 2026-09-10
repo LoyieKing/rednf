@@ -1,3 +1,1 @@
 ExpBonusPointResult::ExpBonusPointResult()
-{
-    clear();

@@ -40,3 +40,4 @@ void CFileLogWriter::writeLog(char const* fileName, char const* logMsg, ...) {
             newLog->writeLog(result, logMsg, (char*)args);
         }
     }
+}

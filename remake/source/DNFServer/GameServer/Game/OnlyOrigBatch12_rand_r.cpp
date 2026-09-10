@@ -1,20 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 OnlyOrigBatch12_rand_r/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 OnlyOrigBatch12_rand_r/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// OnlyOrigBatch12_rand_r.cpp —— 由 OnlyOrigBatch12.cpp 按 ORIG TU 边界拆出。
-// 目标 ORIG TU：rand_r.cpp（ORIG GI 键 = _Z11timeGetTimev @0x0808be25）。
-// 本文件首个 file-scope 强符号·外部链接定义 = timeGetTime ⇒
-//   _GLOBAL__I__Z11timeGetTimev（P327）。
-// 其余并入本文件的定义均排在 timeGetTime 之后，不影响 GI 选名；它们各自的
-// ORIG TU 归属见逐条注释（拆分前同属 OnlyOrigBatch12.cpp）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <assert.h>
@@ -57,7 +51,11 @@
 extern char g_szScriptFileBaseDirectory[0x104];   // B 0x949b180（ScriptExtras.cpp）
 extern std::vector<std::string> g_szScriptFilePriorityBaseDirectory;  // B 0x949b168
 #include "OnlyOrigBatch12_rand_r/getScriptFileFullPath.inc"
+                           const char* dir, const char* name);        // T 0x088bba4e
 #include "OnlyOrigBatch12_rand_r/loadRDARScriptListFile.inc"
+                            const char* listPath, std::map<int, int>* unused);
+// g_script_package 的定义已按 ORIG TU（RDARScript.cpp）拆至
+// OnlyOrigBatch12_server_utility.cpp；本文件仅引用。
 extern PackSet g_script_package;                  // ORIG B 0x09494fe0
 
 // ===========================================================================
@@ -83,6 +81,14 @@ static bool is_base64(unsigned char c)
 // 无分隔符返回 -1。（ORIG TU = RDARScript.cpp）
 // ===========================================================================
 #include "OnlyOrigBatch12_rand_r/splitPathByDirectory.inc"
+{
+    int last = -1;
+    for (const char* p = path; *p != '\0'; ++p)
+    {
+        if (*p == '/' || *p == '\\')
+            last = static_cast<int>(p - path);
+    }
+    return last;
 }
 
 // ===========================================================================
@@ -90,6 +96,8 @@ static bool is_base64(unsigned char c)
 // （ORIG TU = RDARScriptSkill.cpp）
 // ===========================================================================
 #include "OnlyOrigBatch12_rand_r/isEndModuleTag.inc"
+{
+    return *tag == g_moduleNameTag[idx][1];
 }
 
 // ===========================================================================
@@ -98,6 +106,17 @@ static bool is_base64(unsigned char c)
 // （ORIG TU = RDARScriptObject.cpp）
 // ===========================================================================
 #include "OnlyOrigBatch12_rand_r/isValidExtension.inc"
+{
+    // ORIG 0x8a3c6b7 `cmp -0xc(%ebp),%eax; jge`（有符号序）⇒ 长度局部为
+    // signed int（size_t 局部 4.4 恒 jae 无符号序，P196 反演）。
+    int n1 = (int)a.length();
+    int n2 = (int)b.length();
+    if (n1 == 0)
+        return true;
+    if (n1 < n2)
+        return false;
+    std::string s = a.substr(n1 - n2, n2);
+    return s.compare(b) == 0;
 }
 
 // ===========================================================================
@@ -178,6 +197,11 @@ static const char* g_MainHudMenuActionString[26] = {
 };
 
 #include "OnlyOrigBatch12_rand_r/makeMenuActionHashMap.inc"
+{
+    if (!menuMap.empty())
+        menuMap.clear();
+    for (int i = 0; i <= 0x19; ++i)
+        menuMap.insert(std::make_pair(g_MainHudMenuActionString[i], i));
 }
 
 // ===========================================================================
@@ -249,6 +273,24 @@ static int parseStringLine(char* line, char** p1, char** p2)
 // 0644），内容 "%ld\n" getpid()。（ORIG TU = App.cpp）
 // ===========================================================================
 #include "OnlyOrigBatch12_rand_r/save_pid.inc"
+{
+    char path[0x1e];
+    memset(path, 0, sizeof(path));
+    sprintf(path, "./pid/%s.pid", G_CEnvironment()->get_file_name());
+    ssize_t n;
+    int fd = open(path, 0x42, 0x1a4);
+    if (fd < 0)
+        return 0;
+    char buf[0x200];
+    memset(buf, 0, sizeof(buf));
+    sprintf(buf, "%ld\n", static_cast<long>(getpid()));
+    n = write(fd, buf, strlen(buf));
+    if (n < 0)
+    {
+        close(fd);
+        return 0;
+    }
+    return 1;
 }
 
 // ===========================================================================
@@ -262,6 +304,36 @@ static int parseStringLine(char* line, char** p1, char** p2)
 // pid 先于 path 才得 pid@-0x14、path@-0x32。四槽与 ORIG 逐一对齐、帧 0x48
 // 不变、助记符序列全等。ORIG 0x0829e5de
 #include "OnlyOrigBatch12_rand_r/send_term_signal.inc"
+{
+    // pid 无预清零（ORIG 无 movl $0,-0x14），f/r 声明赋值分离（P198 孪生）。
+    int r;
+    FILE* f;
+    int pid;
+    char path[0x1e];
+    memset(path, 0, sizeof(path));
+    sprintf(path, "pid/%s.pid", G_CEnvironment()->get_file_name());
+    f = fopen(path, "r");
+    if (!f)
+    {
+        printf("%s process id file open \xbd\xc7\xc6\xd0\n", path);
+        return 0;
+    }
+    fscanf(f, "%d", &pid);
+    if (pid <= 0)
+    {
+        fclose(f);
+        printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
+        return 0;
+    }
+    r = kill(pid, 15);
+    if (r < 0)
+    {
+        fclose(f);
+        printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
+        return 0;
+    }
+    fclose(f);
+    return 0;
 }
 
 // ===========================================================================
@@ -276,9 +348,29 @@ struct script_tag
 };
 
 #include "OnlyOrigBatch12_rand_r/isCloseString.inc"
+{
+    // [b28c-lane17] ORIG 0x08a0c8b2：`movb $0x0,-0x9` 预清 + 条件置 1 +
+    // 尾 `movzbl -0x9` ⇒ bool 汇聚局部形；嵌套 if 才产 ORIG 的
+    // `seta;test;je` / `sete;test;je` 双物化（&& 被 4.4 折成 jbe/jne）。
+    bool result = false;
+    if (str.size() > 2)
+    {
+        if (str.at(1) == '/')
+            result = true;
+    }
+    return result;
 }
 
 #include "OnlyOrigBatch12_rand_r/isTypeString.inc"
+{
+    // [b28c-lane17] ORIG 0x08a0c8fa：同 isCloseString（size()>1 && at(0)=='['）。
+    bool result = false;
+    if (str.size() > 1)
+    {
+        if (str.at(0) == '[')
+            result = true;
+    }
+    return result;
 }
 
 // ===========================================================================
@@ -315,6 +407,45 @@ struct TgaHeader
 }  // namespace
 
 #include "OnlyOrigBatch12_rand_r/saveGreyImage.inc"
+{
+    FILE* f = fopen(path, "wb");
+    if (!f)
+        return 0;
+    TgaHeader hdr;
+    hdr.idLength = 0;
+    hdr.colorMapType = 0;
+    hdr.imageType = 2;
+    hdr.colorMapFirst = 0;
+    hdr.colorMapLength = 0;
+    hdr.colorMapEntrySize = 0;
+    hdr.xOrigin = 0;
+    hdr.yOrigin = 0;
+    hdr.width = static_cast<unsigned short>(img.getWidth());
+    hdr.height = static_cast<unsigned short>(img.getHeight());
+    hdr.depth = 0x20;
+    hdr.descriptor = 8;
+    fwrite(&hdr, 1, 0x12, f);
+
+    unsigned char* buf = new unsigned char[img.getWidth() * 4];
+    int y = img.getHeight() - 1;
+    while (y >= 0)
+    {
+        const unsigned char* row =
+            static_cast<const unsigned char*>(img.getImage()) + img.getWidth() * y;
+        for (int x = 0; x < img.getWidth(); ++x)
+        {
+            unsigned char v = static_cast<unsigned char>(~row[x]);
+            *reinterpret_cast<unsigned int*>(buf + x * 4) =
+                (static_cast<unsigned int>(v) << 16) |
+                (static_cast<unsigned int>(v) << 8) |
+                static_cast<unsigned int>(v) | 0xff000000u;
+        }
+        fwrite(buf, 1, img.getWidth() * 4, f);
+        --y;
+    }
+    delete[] buf;
+    fclose(f);
+    return 1;
 }
 
 // ===========================================================================
@@ -322,6 +453,14 @@ struct TgaHeader
 // 时返回 false，否则 true。（ORIG TU = CSCommonFunction.cpp）
 // ===========================================================================
 #include "OnlyOrigBatch12_rand_r/isServiceServerGroup.inc"
+{
+    // ORIG：无参数槽（比较直读 0x8(%ebp)）；结果字节槽 movb $1 初值、
+    // 命中 movb $0，尾 movzbl 返回。
+    bool result = true;
+    if (group == 8 || group == 10 || group == 7 || group == 13 ||
+        group == 0 || group == 0x12 || group == 0x65)
+        result = false;
+    return result;
 }
 
 // ===========================================================================
@@ -388,4 +527,12 @@ bool rewardSubKey::operator<(const rewardSubKey& other) const
 // （ORIG TU = RDARScriptEventCharacterParameter.cpp）
 // ===========================================================================
 #include "OnlyOrigBatch12_rand_r/clear.inc"
+{
+    for (int i = 0; i <= 0xa; ++i)
+        push_back(std::vector<tagRecommendNewbieOption>());
+    for (int i = 0; i <= 0xa; ++i)
+    {
+        operator[](i).clear();
+        operator[](i).reserve(6);
+    }
 }

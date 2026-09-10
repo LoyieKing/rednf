@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_U3/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_U3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // U3 杂项 DB 同步请求 TU（U3ShopDb 批次，2026-08-23）。
 // 两个 DB packet makeRequest，逐字段对照 docs/class_func_reports 反编译 C：
@@ -61,6 +63,25 @@ public:
 // epilogue、unwind 压最末且正常路径多 1 条 `mov $0x0,%ebx`（EH 状态初始化，82 条）。
 // 块内容逐条全等，仅两尾块互换 ⇒ N104（按 §6.2 三件套验收，p167 待核）。
 #include "DB_U3/makeRequest.inc"
+                                                unsigned int accId,
+                                                unsigned int a,
+                                                unsigned int money,
+                                                char* senderName, int nameLen)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8846), true);
+    guard.operator*()->operator<<(0x18b);  // SIG_CHECK_MY_ACCOUNT
+    guard.operator*()->operator<<((int)uid);
+
+    SIG_CHECK_MY_ACCOUNT_IN_DB* sig =
+        guard->GetInBuffer<SIG_CHECK_MY_ACCOUNT_IN_DB>();
+    sig->m_param0 = a;
+    sig->m_accId = accId;
+    sig->m_money = money;
+    std::memset(sig->m_name, 0, 0x1d);
+    std::strncpy(sig->m_name, senderName, nameLen);
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ---- DB_InsertCeraItemHistory::makeRequest ORIG @ 0x0844511a ----
@@ -70,6 +91,20 @@ public:
 // _Unwind_Resume）在函数中段、正常路径 `jmp` 汇入 ret 块；4.4 恒置函数尾
 // 并 fall-through（跨版本 EH 布局，P63 族）。
 #include "DB_U3/makeRequest_1.inc"
+                                           unsigned int senderCharacNo,
+                                           unsigned int receiverCharacNo,
+                                           char flag)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xac1b),
+                       true);
+    guard.operator*()->operator<<(0x2b1);          // SIG_INSERT_CERA_ITEM_HISTORY
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(itemIdx);
+    guard.operator*()->operator<<(senderCharacNo);   // ORIG lsEj（unsigned）
+    guard.operator*()->operator<<(receiverCharacNo); // ORIG lsEj（unsigned）
+    guard.operator*()->operator<<(flag);
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 
@@ -112,6 +147,26 @@ public:
 // SIG 结构在 SigTypes.h 为 0x100 占位缓冲，按报告偏移以函数内命名视图字段化
 // （成员访问折叠出与 ORIG 相同的 mov %edx,0xN(%eax) 存储形态）。
 #include "DB_U3/makeRequest_2.inc"
+    unsigned int accId, unsigned int characNo,
+    SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE type)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7349), true);
+    guard.operator*()->operator<<(0x117);          // SIG_INSERT_ACHIEVE_EVENT
+    guard.operator*()->operator<<(-1);
+
+    struct View
+    {
+        unsigned int m_accId;                      // +0x00
+        unsigned int m_characNo;                   // +0x04
+        SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE m_type;  // +0x08（原枚举存储）
+    };
+    View* v =
+        reinterpret_cast<View*>(guard.operator->()->GetInBuffer<SIG_INSERT_ACHIEVE_EVENT>());
+    v->m_accId = accId;
+    v->m_characNo = characNo;
+    v->m_type = type;
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
 // ---- DB_InsertUnlimitSupportLog::makeRequest ORIG @ 0x0842ebd0 ----
@@ -120,6 +175,32 @@ public:
 // （G_CEnvironment()+0x378 == m_serverEnvir.m_serverGroup，具名链见 CEnvironment.h）、
 // +0x08=characNo、+0x0c strncpy(name,0x1d)（ORIG 无 memset）。投 DB_Q（实参 2）。
 #include "DB_U3/makeRequest_3.inc"
+                                             const char* name)
+{
+    if (uid <= 0x946501)
+        return;
+
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7392), true);
+    guard.operator*()->operator<<(0x122);          // SIG_INSERT_UNLIMIT_SUPPORT_LOG
+    guard.operator*()->operator<<(-1);
+
+    struct View
+    {
+        unsigned int m_accId;                      // +0x00
+        unsigned int m_serverGroup;                // +0x04
+        unsigned int m_characNo;                   // +0x08
+        char m_name[0x1d];                         // +0x0c
+    };
+    View* v =
+        reinterpret_cast<View*>(guard.operator->()->GetInBuffer<SIG_INSERT_UNLIMIT_SUPPORT_LOG>());
+    v->m_accId = uid;
+    v->m_characNo = characNo;
+    // 报告语句序：先写 +8，再调 G_CEnvironment 回填 +4（serverGroup）。
+    v->m_serverGroup =
+        static_cast<unsigned int>(G_CEnvironment()->m_serverEnvir.m_serverGroup);
+    std::strncpy(v->m_name, name, 0x1d);
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ---- DB_ReqSaveHackUserPunish::makeRequest ORIG @ 0x08425494 ----
@@ -127,6 +208,32 @@ public:
 //   NULL → memcpy "000.000.000.000"（0x10 含 NUL）；否则 strncpy(ip,0x10)。
 //   两分支 ORIG 形态不同（add 直算 vs lea 经 edx），按原表达式转写。投 DB_Q。
 #include "DB_U3/makeRequest_4.inc"
+                                           const char* ip)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6304), true);
+    guard.operator*()->operator<<(0xb5);           // SIG_SAVE_HACK_USER_PUNISH
+    guard.operator*()->operator<<(-1);
+
+    struct View
+    {
+        unsigned int m_accId;                      // +0x00
+        // +0x04。int 字段←unsigned 形参异型 = 4.4 RHS-first 3 条形
+        // （ORIG 0x08425494 `mov 0xc(%ebp),%edx; mov -0xc(%ebp),%eax;
+        // mov %edx,0x4(%eax)`；同型 jA 形反产 LHS-first，探针 k4.cpp jD；
+        // 与 SigTypes_E.h::m_punish 同批改同源证据）。
+        int m_type;                                // +0x04
+        char m_ip[0x10];                           // +0x08
+    };
+    View* v =
+        reinterpret_cast<View*>(guard.operator->()->GetInBuffer<SIG_SAVE_HACK_USER_PUNISH>());
+    v->m_accId = uid;
+    v->m_type = type;
+    if (ip == 0)
+        std::memcpy(v->m_ip, "000.000.000.000", 0x10);
+    else
+        std::strncpy(v->m_ip, ip, 0x10);
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ============================================================================
@@ -162,6 +269,16 @@ public:
 // stream: opcode 0xbb | -1 | 逐字段 uid/accId/characNo/name（operator<< 直写）。
 // 投 DB_Q（ORIG put 第 2 实参 2）。
 #include "DB_U3/makeRequest_5.inc"
+                                         unsigned int characNo, const char* name)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x63a3), true);
+    guard.operator*()->operator<<(0xbb);
+    guard.operator*()->operator<<(uid);
+    guard.operator*()->operator<<(accId);
+    guard.operator*()->operator<<(characNo);
+    guard.operator*()->operator<<((char*)name);   // ORIG ls(Pc)：const char* 直接绑 bool 重载
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ---- DB_Insert0712WinterEventCoupon::_makeRequest ORIG @ 0x0842e6e0 ----
@@ -169,11 +286,41 @@ public:
 //   +0x00=accId、+0x04=characNo、+0x08=count。Get() 返回 Stream*，0=不可投递。
 // ORIG Acquire 后 guard 初始 false（release 语义差异，按原样保留）。
 #include "DB_U3/_makeRequest.inc"
+                                                     unsigned int accId,
+                                                     unsigned int characNo,
+                                                     unsigned int count)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7331), false);
+    guard.operator*()->operator<<((int)op);
+    guard.operator*()->operator<<(-1);
+
+    SIG_INSERT_0712_WINTER_EVENT_COUPON* v =
+        guard.operator->()->GetInBuffer<SIG_INSERT_0712_WINTER_EVENT_COUPON>();
+    v->m_accId = accId;
+    v->m_characNo = characNo;
+    v->m_count = count;
+
+    return guard.Get();
 }
 
 // ---- DB_Insert0712WinterEventCoupon::makeRequest ORIG @ 0x0842e648 ----
 // 0x112 → DB_Q（ORIG put 第 2 实参 2）；成功再 0x113 → LOGDB_Q（实参 4）。
 #include "DB_U3/makeRequest_6.inc"
+                                                 unsigned int characNo,
+                                                 unsigned int count)
+{
+    // b28c-33：ORIG 0x0842e648 两次 _makeRequest 复用同一 -0xc 槽（P160 复用律）
+    // ⇒ 单一具名 stream 局部，勿声明 first/second 两个槽。
+    // b28d-61 探针：外层裸早返 + 内层裸 if（ORIG 首失败出口 +0x94 nop 岛、
+    // body2 尾 jmp +0x95）——裸早返/ goto 尾标签 / 空 else 三形实测均多出两对
+    // jmp+nop 中继（43 insn）。
+    Stream* stream = _makeRequest((ENUM_INTERNALPACKET)0x112, accId, characNo, count);
+    if (stream == 0)
+        return;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, stream);
+    stream = _makeRequest((ENUM_INTERNALPACKET)0x113, accId, characNo, count);
+    if (stream != 0)
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, stream);
 }
 
 // ============================================================================
@@ -194,6 +341,26 @@ public:
 // to_charac_no,occ_date,change_type) values(%u,%u,%u,now(),%u)", itemIdx,
 // sender, receiver, (int)flag) → exec(true) → if(!ok) false else true。
 #include "DB_U3/dispatch.inc"
+{
+    unsigned int senderCharacNo = 0;
+    unsigned int receiverCharacNo = 0;
+    int itemIdx = 0;
+    char flag = 0;
+    *stream >> itemIdx;
+    *stream >> senderCharacNo;
+    *stream >> receiverCharacNo;
+    *stream >> flag;
+
+    MySQL* db =
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, E_SERVER_GROUP_NONE);
+    db->set_query(
+        "inSert into user_items_change_history(ui_id,from_charac_no,to_charac_no,"
+        "occ_date,change_type) values(%u,%u,%u,now(),%u)",
+        itemIdx, senderCharacNo, receiverCharacNo, (int)flag);
+    if (!db->exec(true))
+        return false;
+    else
+        return true;
 }
 
 // ---- DB_ReqSaveHackUserPunish::dispatch ORIG @ 0x8425374 ----
@@ -203,6 +370,30 @@ public:
 // 为 0，再 inSert into member_punish_info(...) values(%s, %d, ...) 同参；第二条
 // exec 失败 → 返 false，否则 true。
 #include "DB_U3/dispatch_1.inc"
+{
+    SIG_SAVE_HACK_USER_PUNISH* sig =
+        stream->GetOutBuffer<SIG_SAVE_HACK_USER_PUNISH>();
+    MySQL* db6 =
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+    MySQL* db1 =
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+
+    db1->set_query(
+        "upDate member_punish_info set occ_time=now(), start_time=now(), "
+        "end_time='9999-12-31 23:59:59', punish_value=0, apply_flag=2 where "
+        "m_id=%s and punish_type=%d",
+        NumberToString(sig->m_accId, 0), 2);
+    if (!db1->exec(true) || db1->getAffectedRowCount() == 0)
+    {
+        db1->set_query(
+            "inSert into member_punish_info(m_id, punish_type, occ_time, "
+            "start_time, end_time, punish_value, apply_flag) values(%s, %d, "
+            "now(), now(), '9999-12-31 23:59:59', 0, 2)",
+            NumberToString(sig->m_accId, 0), 2);
+        if (!db1->exec(true))
+            return false;
+    }
+    return true;
 }
 
 // ---- DB_UpdateHappyBeanInfo::dispatch ORIG @ 0x84258ee ----
@@ -211,6 +402,27 @@ public:
 // 若 exec 失败或影响行数 0，inSert into event_happybean_log(occ_date,m_id,cnt)
 // values(now(),%s,1)。恒返 1。
 #include "DB_U3/dispatch_2.inc"
+{
+    MySQL* db =
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+    unsigned int uid = 0;
+    unsigned int characNo = 0;
+    char name[0x1d];
+    *stream >> uid;
+    *stream >> characNo;
+    *stream >> name;
+
+    db->set_query(
+        "upDate event_happybean_log set cnt=cnt+1 where occ_date=now() and m_id=%s",
+        NumberToString(uid, 0));
+    if (!db->exec(true) || db->getAffectedRowCount() == 0)
+    {
+        db->set_query(
+            "inSert into event_happybean_log(occ_date,m_id,cnt) values(now(),%s,1)",
+            NumberToString(uid, 0));
+        db->exec(true);
+    }
+    return 1;
 }
 
 // ============================================================================
@@ -245,6 +457,40 @@ struct DBU3AccountHackOut
 };
 #pragma pack(pop)
 #include "DB_U3/dispatch_3.inc"
+{
+    SIG_CHECK_MY_ACCOUNT_IN_DB* sig =
+        stream->GetOutBuffer<SIG_CHECK_MY_ACCOUNT_IN_DB>();
+    unsigned int m_id = 0;
+    MySQL* db =
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
+    char name[0x3b] = { '\0' };
+
+    db->escape_string(name, sig->m_name);   // +0x08
+    db->set_query(
+        "seLect m_id from charac_info where charac_name='%s' limit 1", name);
+    if (!db->exec(true))
+        return false;
+    if (!db->fetch())
+        return false;
+    if (!db->get_int(0, m_id))
+        return false;
+
+    if (reinterpret_cast<DBU3AccountHackIn*>(sig)->m_accId != m_id)
+    {
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8833), true);
+        guard.operator*()->operator<<(0x18c);          // SIG_CHECK_MY_ACCOUNT_OK
+        guard.operator*()->operator<<(slot);
+
+        DBU3AccountHackOut* out =
+            reinterpret_cast<DBU3AccountHackOut*>(guard.operator->()->GetInBuffer<SIG_CHECK_MY_ACCOUNT_OK>());
+        out->m_a = reinterpret_cast<DBU3AccountHackIn*>(sig)->m_a;          // +0x00
+        out->m_money = reinterpret_cast<DBU3AccountHackIn*>(sig)->m_money;  // +0x25
+        out->m_id = m_id;
+
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+    return true;
 }
 // ---- DB_Insert0712WinterEventCoupon::dispatch ORIG @ 0x842e45e ----
 // GetOutBuffer<SIG_INSERT_0712_WINTER_EVENT_COUPON>（+0x00=m_id、+0x08=count）。
@@ -261,6 +507,45 @@ struct DBU3WinterCouponIn
     int m_count;                // +0x08
 };
 #include "DB_U3/dispatch_4.inc"
+{
+    SIG_INSERT_0712_WINTER_EVENT_COUPON* sig =
+        stream->GetOutBuffer<SIG_INSERT_0712_WINTER_EVENT_COUPON>();
+
+    if (userIdx == 0x112)
+    {
+        MySQL* db =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+        db->set_query(
+            "upDate event_goldcard_info set coupon=coupon+%d where m_id=%s",
+            reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count,
+            NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0));
+        if (!db->exec(true) || db->getAffectedRowCount() == 0)
+        {
+            db->set_query(
+                "inSert into event_goldcard_info(m_id,coupon) values(%s,%d)",
+                NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0),
+                reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count);
+            db->exec(true);
+        }
+    }
+    else
+    {
+        MySQL* db =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
+        db->set_query(
+            "upDate event_goldcard_log set cnt=cnt+%d where m_id=%s and occ_date=now()",
+            reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count,
+            NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0));
+        if (!db->exec(true) || db->getAffectedRowCount() == 0)
+        {
+            db->set_query(
+                "inSert into event_goldcard_log(m_id,cnt,occ_date) values(%s,%d,now())",
+                NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0),
+                reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count);
+            db->exec(true);
+        }
+    }
+    return true;
 }
 
 // ---- DB_InsertArchieveEventLog::dispatch ORIG @ 0x842e7be ----
@@ -275,6 +560,20 @@ struct DBU3AchieveIn
     SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE m_type;       // +0x08
 };
 #include "DB_U3/dispatch_5.inc"
+{
+    MySQL* db =
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
+    SIG_INSERT_ACHIEVE_EVENT* sig =
+        stream->GetOutBuffer<SIG_INSERT_ACHIEVE_EVENT>();
+
+    db->set_query(
+        "inSert into log_charac_lev_log(occ_time,m_id,charac_no,achieve_type) "
+        "values(now(),%s,%d,%d)",
+        NumberToString(reinterpret_cast<DBU3AchieveIn*>(sig)->m_accId, 0),
+        reinterpret_cast<DBU3AchieveIn*>(sig)->m_characNo,
+        reinterpret_cast<DBU3AchieveIn*>(sig)->m_type);
+    db->exec(true);
+    return true;
 }
 
 // ---- DB_InsertUnlimitSupportLog::dispatch ORIG @ 0x842eb2e ----
@@ -291,4 +590,19 @@ struct DBU3UnlimitIn
     char m_name[0x1d];          // +0x0c
 };
 #include "DB_U3/dispatch_6.inc"
+{
+    MySQL* db =
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+    SIG_INSERT_UNLIMIT_SUPPORT_LOG* sig =
+        stream->GetOutBuffer<SIG_INSERT_UNLIMIT_SUPPORT_LOG>();
+
+    db->set_query(
+        "inSert into event_unlimitsupport_lev(m_id,occ_time,server_id,charac_no,"
+        "charac_name) values(%s,now(),%d,%d,'%s')",
+        NumberToString(reinterpret_cast<DBU3UnlimitIn*>(sig)->m_accId, 0),
+        reinterpret_cast<DBU3UnlimitIn*>(sig)->m_serverId,
+        reinterpret_cast<DBU3UnlimitIn*>(sig)->m_characNo,
+        reinterpret_cast<DBU3UnlimitIn*>(sig)->m_name);
+    db->exec(true);
+    return true;
 }

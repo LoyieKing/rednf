@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CMemberExpRewardEvent/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CMemberExpRewardEvent/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r CMemberExpRewardEvent 实现（OrigMiscEvt 批补齐）。
 // 声明见 CMemberExpRewardEvent.h。逐函数依据
@@ -30,15 +32,31 @@
 // trace 采用 __FUNCTION__ 宏以对齐 ORIG _ZZN..E12__FUNCTION__ 符号。
 // [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x81b2b01 `_ZN21CMemberExpRewardEventC2Ev`。
 #include "CMemberExpRewardEvent/CMemberExpRewardEvent.inc"
+{
+    m_ratio = 10;
 }
 
 // 报告反编译：SetEventFlag(true) → m_ratio=10 → trace。
 #include "CMemberExpRewardEvent/StartEvent.inc"
+{
+    SetEventFlag(true);
+    m_ratio = 10;
+    cMyTrace trace(__FUNCTION__, 22, 0);
+    trace("Member Exp Reward Event Start!");
 }
 #include "CMemberExpRewardEvent/StartEvent_1.inc"
+{
+    SetEventFlag(true);
+    m_ratio = (unsigned int)param.m_duration;
+    cMyTrace(__FUNCTION__, 29, 0)("Member Exp Reward Event! ratio(%d)", param.m_duration);
 }
 // ORIG 0x081b2a5a：清标志；m_ratio 重置 10；trace 行号 36。
 #include "CMemberExpRewardEvent/EndEvent.inc"
+{
+    SetEventFlag(false);
+    m_ratio = 10;
+    cMyTrace trace(__FUNCTION__, 36, 0);
+    trace("Member Exp Reward Event");
 }
 
 // ORIG 0x081b29ec：m_ratio = param.m_duration；trace 行号 29（带参）。
@@ -46,8 +64,11 @@
 // ORIG C1 0x081b291c：基类构造 + vptr + m_ratio(+0xc) 置 10。
 // ORIG D1 0x081b2942：用户空析构（编译器生成 vptr+基类析构 + delete 分支）。
 #include "CMemberExpRewardEvent/dtor_CMemberExpRewardEvent.inc"
+{
 }
 
 // ORIG 0x081b2ab6：直返 +0xc（mov 0xc(%eax),%eax）。
 #include "CMemberExpRewardEvent/GetMemberExpRewardRatio.inc"
+{
+    return m_ratio;
 }

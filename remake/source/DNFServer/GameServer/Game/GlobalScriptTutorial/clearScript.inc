@@ -1,2 +1,1 @@
 void GlobalScriptTutorial::clearScript()
-{

@@ -1,21 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 BossTowerFunc/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 BossTowerFunc/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// BossTowerFunc.cpp —— Global::CBossTowerFunc::{UseItem,SelectDungeon} +
-// CUser::getBossTower（跨类叶子助手，与调用方同 TU 承载，避免触碰高并发
-// 编辑的 CUser.cpp）。
-//
-// 证据：docs/class_func_reports/Global__CBossTowerFunc/{UseItem,SelectDungeon}.md、
-// docs/class_func_reports/CUser/getBossTower.md（ORIG 汇编+反编译 C 全文已读）。
-// 阻塞符号（声明就位、定义待批次）：CBossTower::handleStartGame/handleUseItem。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "BossTowerFunc.h"
 
@@ -37,6 +30,37 @@
 // 0x81c2bd4、0x81c4b5b、0x81feef2、0x8232256、0x82324c0。
 // [b28d-D9] N18a：P231 裸 register 消槽成功（20/20）；残 2 条 = 4.1 冗余 mov $1,%edx; mov %edx,%ebx 不可造（ORIG 0x081466f0 sz 0x00000031）
 #include "BossTowerFunc/Get_State_Check.inc"
+{
+    // b28c-L8 复测（N6 位折叠判据）：ORIG 0x081466f0 保 `mov $0x1,%edx;
+    // mov %edx,%ebx; mov %eax,%ecx; shl %cl,%ebx; mov %ebx,%eax; and $0x3420`
+    // 的**左移位图**形。4.4 前端会把 `(1 << state) & 0x3420` 折成
+    // `0x3420 >> state` 的 shr 形（N6），唯一阻断法是让被移位值成为占槽局部
+    // （实测具名 bit 形保 shl，但引入 store/load）⇒ 封顶 N6。
+    // 本形同时按 P222 取正向包裹，使越界路径直落尾部共享 `mov $0` 岛
+    // （ORIG 两处失败均 `ja/je` 跳同一 +0x29 岛）。
+    // [b28d-D9] P231：ORIG 0x081466f0 的 bit 全程寄存器（%ebx）无栈槽
+    // （`mov $0x1,%edx; mov %edx,%ebx; shl %cl,%ebx`）；裸 register 存储类
+    // 提示改变 4.4 分配偏好（非 asm 绑定，P0 合规）。
+    if (static_cast<unsigned int>(state) <= 0xd)
+    {
+        // [round5 复测] 已穷举三形（均 20 条 NEAR，无法归零）：
+        // ①`bit = 1; bit <<= state;`（两句式）= 20 条 NEAR —— 缺 4.1 常量两跳
+        //   `mov $0x1,%edx; mov %edx,%ebx`，多一次 state 重载（净 0，序列异）；
+        // ②一句式 `bit = 1U << state` = 21 条 DIFF —— 两跳复现，但 4.4 对
+        //   `(unsigned)state` 二次使用恒**重载** `mov 0x8(%ebp),%eax`，ORIG 靠
+        //   register 保活（%eax 跨 cmp/移位）。
+        // ③`register unsigned int st = (unsigned)state;`（承载 state）= 23 条
+        //   DIFF —— 4.4 把 register 变量落 %ebx，多 `mov %ebx,%eax` 中转。
+        // ⇒ 残差 = N18a（4.1 常量两跳不可造）+ N7（4.1 register 值保活 %eax
+        //   vs 4.4 重载/%ebx），取 NEAR 形（20=20 长度全等）。
+        register unsigned int bit = 1;
+        bit <<= static_cast<unsigned int>(state);
+        if ((bit & 0x3420u) != 0)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 // ----------------------------------------------------------------------------
@@ -46,6 +70,32 @@
 // 两分支均返回 1；其它 state 返回 0。
 // ----------------------------------------------------------------------------
 #include "BossTowerFunc/UseItem.inc"
+{
+    switch (user->get_state())
+    {
+    case 5:
+        {
+            // ORIG _ZN5CUser8GetPartyEv 返回 CParty*；现头声明为 void*，此处语义转换
+            CParty* party = static_cast<CParty*>(user->GetParty());
+            if (party != 0)
+            {
+                party->useItem(user, item);
+            }
+        }
+        return true;
+    case 0xc:
+        {
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleUseItem(user,
+                                     static_cast<unsigned long>(item.m_addInfo),  // +0x02 dword
+                                     item.m_field1);                              // +0x01 ITEM_TYPE byte
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
 // ----------------------------------------------------------------------------
@@ -56,6 +106,29 @@
 // ----------------------------------------------------------------------------
 // [b28d-D9] P227/N82：cMyTrace 临时链 %ebx 保活 + PacketGuard 槽位差（ORIG 0x08146994 sz 0x00000144）
 #include "BossTowerFunc/GetItem.inc"
+{
+    WongWork::CBossTower* tower = user->getBossTower();
+    if (tower != 0)
+    {
+        const char result =
+            (char)tower->handlePickupItem(user, item, flag, type);
+        if (result != 0)
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0x2e);
+            packet.put_byte(1);
+            packet.finalize(true);
+            user->Send(packet);
+        }
+    }
+    else
+    {
+        // [P227/P221] ORIG 在 ctor call 前求 vararg（`call getCurCharacNo;
+        // mov %eax,%ebx`）且 cMyTrace 槽浅于 PacketGuard ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0xb7, 5)(
+            "bossTower not find : charac_no - %u", user->getCurCharacNo());
+    }
+    return 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -66,6 +139,55 @@
 // ----------------------------------------------------------------------------
 // [b28d-D9] N82/槽差：帧/槽序差（74 vs 66）（ORIG 0x08146722 sz 0x00000102）
 #include "BossTowerFunc/SelectDungeon.inc"
+                                           ENUM_DUNGEON_TYPE type)
+{
+    if (party == 0)
+    {
+        return false;
+    }
+
+    // ORIG +0x1d/+0x21：两个具名字节局部（result 深于 memberCount）；
+    // 决策树按 P163 补 case 1（与未列值同体）撑宽 range。
+    // [P211/P300] handleStartGame 返回 char（ORIG `mov %al,-0x12` 直存，无
+    // setne）；bool 目标会让 4.4 插 `test/setne` 归一化（多 2 条）⇒ 同址
+    // union 双视角：写入走 char 视角（直存），读取走 bool 视角（xor 直测）。
+    union ResByte
+    {
+        char c;
+        bool b;
+    };
+    ResByte result;
+    result.b = false;
+    char memberCount = 0;
+
+    WongWork::CBossTower* tower = G_CGameManager()->getBossTower();
+    if (tower == 0)
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0x34, 5);
+        trace("StaticPool BossTower NULL");
+    }
+    else
+    {
+        const int member = party->get_member_count();
+        switch (member)
+        {
+            case 1: memberCount = 0; break;
+            case 2: memberCount = 1; break;
+            case 3: memberCount = 2; break;
+            case 4: memberCount = 3; break;
+            default: break;  // ORIG: 越界值保持 0
+        }
+
+        result.c = tower->handleStartGame(party, static_cast<int>(dungeonIdx),
+                                          memberCount, type);
+        if (!result.b)
+        {
+            tower->_destroy();
+        }
+    }
+    return result.b;
 }
 
 // ----------------------------------------------------------------------------
@@ -73,6 +195,13 @@
 // m_bossTowerIdx(+0x8d010 short)<0 → 0；否则 G_CGameManager()->getBossTower(idx)。
 // ----------------------------------------------------------------------------
 #include "BossTowerFunc/getBossTower.inc"
+{
+    // ORIG 0x08655220：无 idx 槽——movzwl 直读→test %ax,%ax; js→尾零块+
+    // call 后 jmp 中继 = 三目返回形（P47）；传参点重读 movzwl+movswl（P200）。
+    return ((short)m_bossTowerIdx < 0)
+               ? 0
+               : G_CGameManager()->getBossTower(
+                     static_cast<int>(static_cast<short>(m_bossTowerIdx)));
 }
 
 // ----------------------------------------------------------------------------
@@ -80,6 +209,12 @@
 // m_advanceAltarIdx(+0x8d012 short)<0 → 0；否则 G_CGameManager()->getAdvanceAltar(idx)。
 // ----------------------------------------------------------------------------
 #include "BossTowerFunc/getAdvanceAltar.inc"
+{
+    // ORIG 0x08655262：同 getBossTower——三目返回形。
+    return ((short)m_advanceAltarIdx < 0)
+               ? 0
+               : G_CGameManager()->getAdvanceAltar(
+                     static_cast<int>(static_cast<short>(m_advanceAltarIdx)));
 }
 
 // ----------------------------------------------------------------------------
@@ -94,6 +229,29 @@
 // %eax、其余装载寄存器随之整体后移一格（助记符/长度全等，仅寄存器名差）。
 // ----------------------------------------------------------------------------
 #include "BossTowerFunc/DieCharacInDungeon.inc"
+{
+    switch (user->get_state())
+    {
+    case 0xa:
+        {
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleDieUser(user);
+            }
+        }
+        return 1;
+    case 0xc:
+        {
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleDieUser(user);  // ORIG vptr+0x10 = 槽[4] handleDieUser
+            }
+        }
+        return 1;
+    }
+    return 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -102,6 +260,29 @@
 // CBossTower::handleFinishLoading（直调）；其它返回 0。前两分支返回 1。
 // ----------------------------------------------------------------------------
 #include "BossTowerFunc/FinishLoad.inc"
+{
+    switch (user->get_state())
+    {
+    case 0xa:
+        {
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleFinishLoading(user);
+            }
+        }
+        return 1;
+    case 0xc:
+        {
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleFinishLoading(user);  // ORIG 直调 0x08143f6a（非虚分派）
+            }
+        }
+        return 1;
+    }
+    return 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -113,6 +294,38 @@
 // ORIG 尾 `mov $0x1,%eax; leave; ret`（单出口返 1）；case 体依源码序 5/0xa/0xc
 // 落槽 -0x14/-0x10/-0xc（ORIG 深→浅 = 4.1「先声明更深」）。
 #include "BossTowerFunc/GiveUpGame.inc"
+{
+    switch (user->get_state())
+    {
+    case 5:
+        {
+            CParty* party = static_cast<CParty*>(user->GetParty());
+            if (party != 0)
+            {
+                party->giveup_game(user, true, false, false);
+            }
+        }
+        break;
+    case 0xa:
+        {
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleLeaveUser(user);
+            }
+        }
+        break;
+    case 0xc:
+        {
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleLeaveUser(user);  // ORIG vptr+0x14 = 槽[5]
+            }
+        }
+        break;
+    }
+    return 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -123,4 +336,27 @@
 // b28c-L8 判词 [N(N7)]：同 DieCharacInDungeon 的 switch 翻形（ORIG 0x08146ba2 42=42
 // 逐条等）；残 6 行 = 虚槽 +0x18 handleMoveMap 的间接 call 目标 %edx vs 4.4 恒 %eax。
 #include "BossTowerFunc/MoveMap.inc"
+{
+    switch (user->get_state())
+    {
+    case 0xa:
+        {
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleMoveMap();
+            }
+        }
+        return 1;
+    case 0xc:
+        {
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleMoveMap(mapIndex);  // ORIG vptr+0x18 = 槽[6] handleMoveMap
+            }
+        }
+        return 1;
+    }
+    return 0;
 }

@@ -30,3 +30,4 @@ unsigned int DNFFLib::get_rand_int(int divide) {
         return result % divide;
     }
     return result;
+}

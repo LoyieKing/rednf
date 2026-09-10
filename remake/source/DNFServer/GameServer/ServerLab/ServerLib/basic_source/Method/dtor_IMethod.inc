@@ -1,2 +1,1 @@
 IMethod::~IMethod()
-{

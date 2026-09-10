@@ -1,3 +1,1 @@
 int DisPatcher_EndPvPResult::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233344 W _ZN23DisPatcher_EndPvPResult7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f88ae)（set_recv_pvp_end_result_flag → recv_pvp_end_result_all 全齐则 end_pvp_result/make_state_info 广播/end_pvp/battle_reset，报告 docs/class_func_reports/DisPatcher_EndPvPResult/dispatch_sig.md）
-
-// [b28d-29] P183 反向 + N93：ORIG 缓存 &msg+0xd 到 -0xc 后 disp 访问，4.4 逐次 mov 0xc(%ebp)+add；两侧 store 偏移集合 {0x25..0x4d} 完全一致（语义等价）  (ORIG 0x081f039e insn 172->179)

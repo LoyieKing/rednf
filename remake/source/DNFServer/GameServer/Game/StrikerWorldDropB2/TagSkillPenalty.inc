@@ -1,3 +1,1 @@
 TagSkillPenalty::TagSkillPenalty()
-{
-    clear();

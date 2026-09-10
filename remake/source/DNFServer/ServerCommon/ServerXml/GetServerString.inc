@@ -18,3 +18,4 @@ std::string CServerXml::GetServerString(int nTextID, bool* pbResult) const{
         return ret;
     }
     return pIter->second;
+}

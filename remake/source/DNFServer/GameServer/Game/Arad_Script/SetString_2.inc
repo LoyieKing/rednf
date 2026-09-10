@@ -1,3 +1,1 @@
 void Arad_Script::SetString(char* row, int col, char* value)
-{
-    SetString(GetIdx4Row(row), col, value);

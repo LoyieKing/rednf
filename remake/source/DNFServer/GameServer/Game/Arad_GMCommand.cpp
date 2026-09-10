@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Arad_GMCommand/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Arad_GMCommand/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // ARAD::GMCommandProcess + ARAD::Arad_GMCommandManger
 // ORIG: 0x08198230..0x081982a3, 每个 ORIG 函数均为 0xa 字节纯固定返回
@@ -59,39 +61,63 @@ public:
 
 // [GI-ioinit L21] 本 TU 首个强外部符号定义（_GLOBAL__I_ 键名来源，P327）。
 #include "Arad_GMCommand/Init.inc"
+{
+    return 1; // ORIG 0x8198230: mov $0x1,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_ON.inc"
+{
+    return 0; // ORIG 0x8198254: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_POWER_WAR_START.inc"
+{
+    return 0; // ORIG 0x819825e: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_POWER_WAR_END.inc"
+{
+    return 0; // ORIG 0x8198268: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_USER_REPEL.inc"
+{
+    return 0; // ORIG 0x8198272: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_REQUEST_MID.inc"
+{
+    return 0; // ORIG 0x819827c: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_INVISIBLE.inc"
+{
+    return 0; // ORIG 0x8198286: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_VISIBLE.inc"
+{
+    return 0; // ORIG 0x8198290: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_SET_USER_DEFINE.inc"
+{
+    return 0; // ORIG 0x819829a: mov $0x0,%eax
 }
 
 #include "Arad_GMCommand/Destory.inc"
+{
+    // ORIG 0x819823a: push %ebp; mov %esp,%ebp; pop %ebp; ret —— 真实空体
 }
 
 #include "Arad_GMCommand/Process.inc"
+{
+    return 1; // ORIG 0x8198240: mov $0x1,%eax
 }
 
 #include "Arad_GMCommand/__FindPorcess.inc"
+{
+    return 0; // ORIG 0x819824a: mov $0x0,%eax
 }
 
 } // namespace ARAD

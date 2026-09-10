@@ -1,2 +1,1 @@
 CPvPLiveEventData::CPvPLiveEventData()
-{

@@ -1,2 +1,1 @@
 CWaitingRoomList::~CWaitingRoomList()
-{

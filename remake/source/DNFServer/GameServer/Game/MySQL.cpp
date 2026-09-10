@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 MySQL/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 MySQL/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN5MySQLC2Ev`（ORIG 0x83f52ff）。
@@ -36,6 +38,10 @@ public:
 // 实体 ⇒ GI 键名 `_GLOBAL__I__ZN5MySQLC2Ev`（ORIG 0x83f52ff；4.4 外联 ctor 发 C1+C2，
 // C2 先入 assemble 队列）。改前键名 = `_GLOBAL__I__ZN9CDnFTimer11SetLastTimeEv`。
 #include "MySQL/MySQL.inc"
+{
+    m_dbHandle = 0;
+    m_pQueryCounter = 0;
+    m_bQueryCounterEnable = false;
 }
 
 // ---- CDnFTimer / CDnFTimerFactory（G7 计时族，ORIG 弱符号；算法正确即可）----
@@ -46,81 +52,434 @@ public:
 
 
 #include "MySQL/dtor_MySQL.inc"
+{
+    close();
 }
 
 #include "MySQL/set_compress_option.inc"
+{
+    if (mysql_options(m_dbHandle, MYSQL_OPT_COMPRESS, 0) != 0)
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x40, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x40);
+        return false;
+    }
+    return true;
 }
 
 #include "MySQL/set_read_default_grp_option.inc"
+{
+    if (mysql_options(m_dbHandle, MYSQL_READ_DEFAULT_GROUP, "UseSQL") != 0)
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x4f, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x4f);
+        return false;
+    }
+    return true;
 }
 
 #include "MySQL/set_charset_name_option.inc"
+{
+    return true;
 }
 
 #include "MySQL/set_reconnect_option.inc"
+{
+    return true;
 }
 
 #include "MySQL/init_db_handle.inc"
+{
+    if (m_dbHandle != 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x81, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x81);
+        return false;
+    }
+    m_dbHandle = mysql_init(0);
+    if (m_dbHandle == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x8c, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x8c);
+        return false;
+    }
+    return true;
 }
 
 #include "MySQL/init.inc"
+{
+    bool ret = init_db_handle();
+    if (ret != true)
+    {
+        return false;
+    }
+    ret = set_compress_option();
+    if (ret != true)
+    {
+        return false;
+    }
+    ret = set_read_default_grp_option();
+    if (ret != true)
+    {
+        return false;
+    }
+    ret = set_charset_name_option();
+    if (ret != true)
+    {
+        return false;
+    }
+    ret = set_reconnect_option();
+    if (ret != true)
+    {
+        return false;
+    }
+    memset(m_query, 0, 0x6001);
+    m_queryLen = 0;
+    m_result = 0;
+    m_lengths = 0;
+    m_nRows = 0;
+    m_nFields = 0;
+    memset(m_host, 0, 0x10);
+    memset(m_user, 0, 0x14);
+    memset(m_db, 0, 0x1e);
+    memset(m_passwd, 0, 0x14);
+    return true;
 }
 
 #include "MySQL/close.inc"
+{
+    if (m_dbHandle != 0)
+    {
+        mysql_close(m_dbHandle);
+        m_dbHandle = 0;
+    }
 }
 
 #include "MySQL/open.inc"
+{
+    strcpy(m_db, db);
+    strcpy(m_host, host);
+    strcpy(m_user, user);
+    strcpy(m_passwd, passwd);
+    if (mysql_real_connect(m_dbHandle, host, user, passwd, db, 0xcea, 0, 0x400) == 0)
+    {
+        register int err = mysql_errno(m_dbHandle);  // P87：ORIG ebx 跨 C1 调用缓存
+        cMyTrace(__PRETTY_FUNCTION__, 0x10a, 9, true, true)(
+            "\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
+            host, 0xcea, db, user, err);
+        cMyTrace(__PRETTY_FUNCTION__, 0x10e, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x10e);
+        return false;
+    }
+    return true;
 }
 
 #include "MySQL/open_1.inc"
+{
+    if (port == 0)
+    {
+        port = 0xcea;
+    }
+    strcpy(m_db, db);
+    strcpy(m_host, host);
+    m_port = port;
+    strcpy(m_user, user);
+    strcpy(m_passwd, passwd);
+    if (mysql_real_connect(m_dbHandle, host, user, passwd, db, port, 0, 0) == 0)
+    {
+        register int err = mysql_errno(m_dbHandle);  // P87
+        cMyTrace(__PRETTY_FUNCTION__, 0x138, 9, true, true)(
+            "\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
+            host, port, db, user, err);
+        cMyTrace(__PRETTY_FUNCTION__, 0x13c, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x13c);
+        return false;
+    }
+    return true;
 }
 
 #include "MySQL/set_query.inc"
+{
+    if (m_bQueryCounterEnable)
+    {
+        if (m_pQueryCounter == 0)
+        {
+            return false;
+        }
+        std::allocator<char> alloc;
+        std::string query(fmt, alloc);
+        m_pQueryCounter->IncreaseQueryCount(query);
+    }
+    // [b28d-lane11] ORIG 槽序 ap(-0x28 最深)→query(-0x24)→alloc(-0x1d)；
+    // 4.4 对块内局部优先占深槽，故把 ap 段包进独立块使 ap 落深槽。
+    {
+        va_list ap;
+        va_start(ap, fmt);
+        vsprintf(m_query, fmt, ap);
+        va_end(ap);
+    }
+    int len = strlen(m_query);
+    if (len > 0x5fff)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x169, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x169);
+        return false;
+    }
+    m_queryLen = len;
+    return true;
 }
 
 #include "MySQL/getAffectedRowCount.inc"
+{
+    return mysql_affected_rows(m_dbHandle);
 }
 
 #include "MySQL/exec.inc"
+{
+    // b28d-lane11 判词 N7（本 TU 447 路由）：残余仅 3 处间接 call 目标寄存器
+    // 差——ORIG 0x083f433f/0x083f437c/0x083f43da `mov (%eax),%edx … call *%edx`，
+    // 4.4.7 恒落 %eax（P230 补：该形唯 4.4.6 后端可翻，本 TU 非 446h46 路由）。
+    // m_nFields int→unsigned 后 +0x18 store 已回 LHS-first（P248 档③）。
+    int ret;
+    CDnFTimer* timer = CDnFTimerFactory::CreateDnFTimer();
+    timer->SetLastTime();
+    for (int retry = 0; retry < 5; retry = retry + 1)
+    {
+        ret = exec_query();
+        if (ret == 1)
+        {
+            if (m_bQueryCounterEnable)
+            {
+                m_pQueryCounter->SetResponseTime(timer->GetTimeInterval());
+            }
+            CDnFTimerFactory::DestroyDnFTimer(timer);
+            return false;
+        }
+        if (ret == 0)
+        {
+            break;
+        }
+    }
+    if (m_bQueryCounterEnable)
+    {
+        m_pQueryCounter->SetResponseTime(timer->GetTimeInterval());
+        CDnFTimerFactory::DestroyDnFTimer(timer);
+    }
+    if (ret == 0)
+    {
+        m_result = mysql_store_result(m_dbHandle);
+        if (m_result != 0)
+        {
+            m_nRows = (int)mysql_num_rows(m_result);
+            m_nFields = (int)mysql_num_fields(m_result);
+        }
+        else
+        {
+            m_nRows = 0;
+            m_nFields = 0;
+        }
+        return true;
+    }
+    if (bLog)
+    {
+        LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x244,
+                              "Database query error. The last query('%s') has been lost.(%d)",
+                              m_query, m_dbError);
+    }
+    return false;
 }
 
 #include "MySQL/fetch.inc"
+{
+    if (m_result == 0)
+    {
+        return false;
+    }
+    m_row = mysql_fetch_row(m_result);
+    if (m_row != 0)
+    {
+        m_lengths = mysql_fetch_lengths(m_result);
+        return true;
+    }
+    return false;
 }
 
 #include "MySQL/ping.inc"
+{
+    return mysql_ping(m_dbHandle);
 }
 
 #include "MySQL/blob_to_str.inc"
+{
+    if (idx < 0 || idx > 9 || data == 0 || len > 0x5fff)
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x267, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x267);
+    }
+    m_blob[idx][0] = 0;
+    if (len > 0)
+    {
+        char* p = m_blob[idx];
+        p = p + mysql_real_escape_string(m_dbHandle, p, (const char*)data, len);
+        *p++ = 0;
+    }
+    return m_blob[idx];
 }
 
 #include "MySQL/getServerVersion.inc"
+{
+    return mysql_get_server_info(m_dbHandle);
 }
 
 #include "MySQL/getClientVersion.inc"
+{
+    return mysql_get_client_info();
 }
 
 #include "MySQL/select.inc"
+{
+    if (!set_query())
+    {
+        return 3;
+    }
+    if (!exec(true))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 #include "MySQL/select_1.inc"
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsprintf(m_query, fmt, ap);
+    va_end(ap);
+    return select();
 }
 
 #include "MySQL/insert.inc"
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsprintf(m_query, fmt, ap);
+    va_end(ap);
+    if (!set_query())
+    {
+        return 3;
+    }
+    if (!exec(true))
+    {
+        return 5;
+    }
+    return 0;
 }
 
 #include "MySQL/update.inc"
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsprintf(m_query, fmt, ap);
+    va_end(ap);
+    if (!set_query())
+    {
+        return 3;
+    }
+    if (!exec(true))
+    {
+        return 5;
+    }
+    return 0;
 }
 
 #include "MySQL/set_query_1.inc"
+{
+    if (m_bQueryCounterEnable)
+    {
+        if (m_pQueryCounter == 0)
+        {
+            return false;
+        }
+        std::allocator<char> alloc;
+        std::string query(m_query, alloc);
+        m_pQueryCounter->IncreaseQueryCount(query);
+    }
+    int len = strlen(m_query);
+    if (len > 0x5fff)
+    {
+        LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x2d1,
+                              "[%s][%d]", __PRETTY_FUNCTION__, 0x2d1);
+        return false;
+    }
+    m_queryLen = len;
+    return true;
 }
 
 #include "MySQL/escape_string.inc"
+{
+    return mysql_real_escape_string(m_dbHandle, dst, src, strlen(src));
 }
 
 #include "MySQL/clear_result_set.inc"
+{
+    if (m_result != 0)
+    {
+        mysql_free_result(m_result);
+    }
+    m_result = 0;
+    m_row = 0;
 }
 
 #include "MySQL/exec_query.inc"
+{
+    clear_result_set();
+    int ret = mysql_real_query(m_dbHandle, m_query, m_queryLen);
+    if (ret != 0)
+    {
+        m_dbError = mysql_errno(m_dbHandle);
+        if (m_dbError == 0x7d5 || m_dbError == 0x7dd || m_dbError == 0x7d6)
+        {
+            // b28d-lane11：P221 全表达式临时链（翻互斥块对象槽方向）。
+            cMyTraceNoop()("DB connection lost, reconnecting...");
+            int ping = mysql_ping(m_dbHandle);
+            if (ping != 0)
+            {
+                if (mysql_errno(m_dbHandle) == 0x7d6)
+                {
+                    // b28d-lane11：P0 内联（ORIG 0x083f54c4 `call mysql_real_connect;
+                    // test %eax,%eax; sete %al; test %al,%al; je` 无 conn 槽往返）。
+                    if (mysql_real_connect(m_dbHandle, m_host, m_user, m_passwd,
+                                           m_db, m_port, 0, 0) == 0)
+                    {
+                        LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x19a,
+                                              "DB reconnection fail. err_no(%d)",
+                                              mysql_errno(m_dbHandle));
+                    }
+                    else
+                    {
+                        LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x19e,
+                                              "DB Reconnect By Server Gone Error");
+                    }
+                    LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x1a1,
+                                          "DB reconnection fail. %d (dbname : %s, ip : %s, port : %d, id : %s)",
+                                          ping, m_db, m_host, m_port, m_user);
+                }
+            }
+            return 2;
+        }
+        if (m_dbError != 0x426)
+        {
+            // b28d-lane11 真语义修正：ORIG 0x083f5573-0x083f558b 此处为 fresh
+            // `call mysql_errno(m_dbHandle)`（`lea 0x1c(%eax),%ebx` 先缓存 m_query，
+            // call 后 %eax 压 0x14(%esp)），非读缓存字段 m_dbError（字段读仅用于
+            // 紧随其后的 ==0x7d6 判定，ORIG 0x083f558f）。
+            LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x1af,
+                                  "DB error occured (%d) Query('%s')",
+                                  mysql_errno(m_dbHandle), m_query);
+            if (m_dbError == 0x7d6)
+            {
+                cMyTrace("bool MySQL::exec_query()", 0x1b2, 5)(
+                    "DB error occured Check Connection First, Must Be Not Connected!");
+            }
+        }
+        return 1;
+    }
+    return 0;
 }
 
 // ============================================================================
@@ -140,4 +499,6 @@ public:
 }  // namespace WongWork
 
 #include "MySQL/GetIdentityFromDB.inc"
+{
+    return (int)WongWork::DBCommon::GetIdentity(mysql);
 }

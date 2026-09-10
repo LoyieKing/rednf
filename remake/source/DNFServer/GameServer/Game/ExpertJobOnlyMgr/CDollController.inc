@@ -1,2 +1,1 @@
 CDollController::CDollController()
-{

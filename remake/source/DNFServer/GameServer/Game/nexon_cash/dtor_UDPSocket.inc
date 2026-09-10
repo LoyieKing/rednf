@@ -1,3 +1,1 @@
 UDPSocket::~UDPSocket()
-{
-    close();

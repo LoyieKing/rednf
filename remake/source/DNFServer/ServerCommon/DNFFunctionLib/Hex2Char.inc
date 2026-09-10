@@ -20,3 +20,4 @@ bool Hex2Char(char const* hex, unsigned char& out) {
         return 0;
     }
     return 1;
+}

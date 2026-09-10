@@ -1,2 +1,1 @@
 void nsl::LinuxService::remove()
-{

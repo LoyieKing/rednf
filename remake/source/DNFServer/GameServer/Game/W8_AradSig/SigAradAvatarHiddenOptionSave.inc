@@ -1,3 +1,1 @@
 SigAradAvatarHiddenOptionSave::SigAradAvatarHiddenOptionSave()
-{
-    init();

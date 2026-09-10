@@ -1,3 +1,1 @@
 RecipeInfo::RecipeInfo()
-{
-    clear();

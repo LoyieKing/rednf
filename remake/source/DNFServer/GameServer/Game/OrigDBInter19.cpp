@@ -1,29 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 OrigDBInter19/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 OrigDBInter19/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— DB/Inter 非 W8LT 域 SendResult/_sendResult 批（OrigDBInter19）
-// ORIG 符号（nm 核对，df_game_r elf32-i386；均为仅ORIG——重建侧此前无定义）：
-//   T _ZN17DB_GetUserRegdate10SendResultEiiP20SIG_GET_USER_REGDATE     0x0844309c
-//   T _ZN20DB_SecurityCardIssue11_sendResultEiPKcS1_S1_S1_10ENUM_ERROR 0x0842b410
-//   T _ZN21DB_ReqQueryCharacInfo11_sendResultEiiPKciiiiii              0x08426e04
-//   T _ZN23DB_RequestTagCharacInfo10sendResultEiP27SIG_REQUEST_TAG_CHARAC_INFO 0x084478a6
-//   T _ZN25DB_SecurityCardRetransfer11_sendResultEiPcPKcS2_10ENUM_ERROR 0x0842c7be
-// 报告：docs/class_func_reports/{DB_GetUserRegdate/SendResult,
-//   DB_SecurityCardIssue/_sendResult, DB_ReqQueryCharacInfo/_sendResult,
-//   DB_RequestTagCharacInfo/sendResult, DB_SecurityCardRetransfer/_sendResult}.md
-//   （逐指令转写）。类壳与 W8LT_DBTask.cpp 注册表一致（继承 DBDispatcher、
-//   sz 0x4 仅 vptr）；makeRequest 定义在 Dispatchers.cpp / DBSecuLink.cpp /
-//   CMailBoxHelper.cpp / StubS3A_deps.cpp（各权威 TU，本 TU 仅声明不定义）。
-// 共享 SIG 均为 pad 结构；跨字段区按 P80/P82 协议载荷视图语义访问（视图
-// 布局由 ORIG _sendResult 写偏移实证，static_assert 守尺寸）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "SigTypes.h"       // SIG_GET_USER_REGDATE / SIG_QUERY_CHARAC_INFO /
@@ -109,6 +94,17 @@ public:
 };
 
 #include "OrigDBInter19/SendResult.inc"
+                                   SIG_GET_USER_REGDATE* sig)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa4c1), true);
+
+    guard.operator*()->operator<<(userIdx);
+    guard.operator*()->operator<<(slot);
+    guard->put_binary(sig, 0xc);
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
 }
 
 // ============================================================================
@@ -127,6 +123,36 @@ public:
 };
 
 #include "OrigDBInter19/_sendResult.inc"
+                                       char const* param_3, char const* param_4,
+                                       char const* param_5, ENUM_ERROR error)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6dec), true);
+
+    guard.operator*()->operator<<(0xfd);
+    guard.operator*()->operator<<(param_1);
+
+    SecuIssueView* view = reinterpret_cast<SecuIssueView*>(
+        guard->GetInBuffer<SIG_SECURITY_CARD_ISSUE>());
+    view->m_error = error;
+    if (param_3 != 0)
+    {
+        strncpy(view->m_certKey, param_3, 0x21);
+    }
+    if (param_4 != 0)
+    {
+        strncpy(view->m_serverKey, param_4, 0x27);
+    }
+    if (param_5 != 0)
+    {
+        strncpy(view->m_phone, param_5, 5);
+    }
+    if (param_2 != 0)
+    {
+        strncpy(view->m_serial, param_2, 0xc);
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }
 
 // ============================================================================
@@ -145,6 +171,31 @@ public:
 };
 
 #include "OrigDBInter19/_sendResult_1.inc"
+                                       int characNo, int job, int lev,
+                                       int growType, int sex, int field2e)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6716), true);
+
+    guard.operator*()->operator<<(0xc4);
+    guard.operator*()->operator<<(slot);
+
+    QueryCharacInfoView* view = reinterpret_cast<QueryCharacInfoView*>(
+        guard->GetInBuffer<SIG_QUERY_CHARAC_INFO>());
+    view->m_errCode = errCode;
+    if (errCode == 0)
+    {
+        strncpy(view->m_name, name, 0x1d);
+        view->m_characNo = characNo;
+        view->m_job = static_cast<unsigned char>(job);
+        view->m_lev = static_cast<short>(lev);
+        view->m_growType = static_cast<unsigned char>(growType);
+        view->m_sex = static_cast<unsigned char>(sex);
+        view->m_field2e = static_cast<unsigned char>(field2e);
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
 }
 
 // ============================================================================
@@ -161,6 +212,19 @@ public:
 };
 
 #include "OrigDBInter19/sendResult.inc"
+                                         SIG_REQUEST_TAG_CHARAC_INFO* sig)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb23f), true);
+
+    guard.operator*()->operator<<(0x2fe);
+    guard.operator*()->operator<<(param_1);
+
+    SIG_REQUEST_TAG_CHARAC_INFO* out =
+        guard->GetInBuffer<SIG_REQUEST_TAG_CHARAC_INFO>();
+    memcpy(out, sig, 0x414c);
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }
 
 // ============================================================================
@@ -179,4 +243,30 @@ public:
 };
 
 #include "OrigDBInter19/_sendResult_2.inc"
+                                            char const* param_3,
+                                            char const* param_4, ENUM_ERROR error)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6fd2), true);
+
+    guard.operator*()->operator<<(0x138);
+    guard.operator*()->operator<<(param_1);
+
+    SecuRetransferView* view = reinterpret_cast<SecuRetransferView*>(
+        guard->GetInBuffer<SIG_SECURITY_CARD_RETRANSFER>());
+    view->m_error = error;
+    if (param_3 != 0)
+    {
+        strncpy(view->m_certKey, param_3, 0x21);
+    }
+    if (param_4 != 0)
+    {
+        strncpy(view->m_serverKey, param_4, 0x27);
+    }
+    if (param_2 != 0)
+    {
+        strncpy(view->m_serial, param_2, 0xc);
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }

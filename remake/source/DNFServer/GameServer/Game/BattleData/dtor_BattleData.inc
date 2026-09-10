@@ -1,2 +1,1 @@
 BattleData::~BattleData()
-{

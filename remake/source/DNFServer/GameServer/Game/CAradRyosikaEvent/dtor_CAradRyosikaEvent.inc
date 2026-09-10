@@ -1,2 +1,1 @@
 CAradRyosikaEvent::~CAradRyosikaEvent()
-{

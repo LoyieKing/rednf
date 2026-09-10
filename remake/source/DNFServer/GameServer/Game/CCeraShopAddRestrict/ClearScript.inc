@@ -1,2 +1,1 @@
 void ScriptLoader::ClearScript()
-{

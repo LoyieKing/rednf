@@ -34,3 +34,4 @@ void CFileLogWriter::writeRawLog(char const* fileName, char const* logMsg, ...) 
             newLog->writeLog(logMsg, (char*)args);
         }
     }
+}

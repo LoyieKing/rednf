@@ -1,3 +1,1 @@
 Character::Character()
-{
-    Reset();

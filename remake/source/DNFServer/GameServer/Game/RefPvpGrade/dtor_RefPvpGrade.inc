@@ -1,2 +1,1 @@
 RefPvpGrade::~RefPvpGrade()
-{

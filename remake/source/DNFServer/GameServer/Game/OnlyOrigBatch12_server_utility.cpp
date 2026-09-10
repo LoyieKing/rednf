@@ -1,22 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 OnlyOrigBatch12_server_utility/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 OnlyOrigBatch12_server_utility/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// OnlyOrigBatch12_server_utility.cpp —— 由 OnlyOrigBatch12.cpp 按 ORIG TU
-// 边界拆出。目标 ORIG TU：ServerUtility.cpp
-// （ORIG GI 键 = _ZN14server_utility12get_rand_intEi @0x0808ec31）。
-// 本文件首个 file-scope 强符号·外部链接定义 = server_utility::get_rand_int ⇒
-//   _GLOBAL__I__ZN14server_utility12get_rand_intEi（P327）。
-// 其余并入本文件的定义（含三个 ORIG 全局对象）均排在 get_rand_int 之后，
-// 不影响 GI 选名；对象定义相对顺序保持原序（g_petScriptFileList →
-// g_script_package），静态初始化相对顺序不变。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <assert.h>
@@ -59,11 +51,60 @@
 extern char g_szScriptFileBaseDirectory[0x104];   // B 0x949b180（ScriptExtras.cpp）
 extern std::vector<std::string> g_szScriptFilePriorityBaseDirectory;  // B 0x949b168
 #include "OnlyOrigBatch12_server_utility/getScriptFileFullPath.inc"
+                           const char* dir, const char* name);        // T 0x088bba4e
+// T 0x088bbd77（STScriptFileList.cpp 定义 int、恒 0/1；返回类型不入 mangled）。
+// bool 视图声明：ORIG initPetScript 尾 `xor $1,%eax; test %al` 为 bool 取反形
+// （P22/P168a①），int 声明使 4.4 产 test/sete 物化。
 #include "OnlyOrigBatch12_server_utility/loadRDARScriptListFile.inc"
+                            const char* listPath, std::map<int, int>* unused);
+
+// ===========================================================================
+// server_utility::get_rand_int  ORIG T 0x0808eafc：
+//   range<0 → 0；range==0 → rand()；r=rand() 若 r<=range 走 LCG 三拍
+//   （x = x*0x41c64e6d+0x3039，每拍取 (x/65536) 掩码位拼 c），
+//   否则 rand()%range。
+// （本文件首强实体 ⇒ GI 键名，ORIG TU = ServerUtility.cpp）
+// ===========================================================================
 namespace server_utility
 {
 
 #include "OnlyOrigBatch12_server_utility/get_rand_int.inc"
+{
+    if (range < 0)
+        return 0;
+    // P286：ORIG `mov 0x8(%ebp),%eax; test %eax,%eax; jne` 形（形参载入+寄存器
+    // 测试）只能由单 case switch 复现（if 形 4.4 恒折 `cmpl $0,mem`）。
+    switch (range)
+    {
+    case 0:
+        return rand();
+    }
+    int r = rand();
+    // [b28d-solo-OnlyOrigBatch12] AE（Main 采纳 -march=i486 路由后，clean 口径
+    // 73/73）：switch(range) 复现 ORIG `mov 0x8(%ebp),%eax; test` 形（P286）；
+    // 早返（P16/P214②）+ 拆语句（P38）+ unsigned 尾段 div 全部归位。三处
+    // `(r/65536)` 有符号除法 4.4.7 默认产 lea+test+cmovs，-march=i486 下转为
+    // ORIG 的 mov/sar/shr/lea（P230 补；探针 /tmp/probe_rand.cpp 实证）。
+    // ORIG 0x0808eafc
+    if (r > range)
+        return rand() % range;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    unsigned int c = static_cast<unsigned int>((r / 65536) & 0x7ff);
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    c <<= 10;
+    c ^= (r / 65536) & 0x3ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    c <<= 10;
+    c ^= (r / 65536) & 0x3ff;
+    // ORIG 尾段布局：`cmp c,%eax; jae <return c>`（fall-through 为 c%range）
+    // ⇒ 条件反转写 `if (range < c) return c % range; return c;`；c 声明
+    // unsigned int 令比较免 cast 中转（P209/P248 档③）。
+    if (static_cast<unsigned int>(range) < c)
+        return c % static_cast<unsigned int>(range);
+    return c;
 }
 
 }  // namespace server_utility
@@ -84,6 +125,24 @@ PackSet g_script_package;                // ORIG B 0x09494fe0
 // [b28d-solo-OnlyOrigBatch12] AE：P303 `__builtin_strcat` 复现 ORIG 8 条内建展开
 // （手写 memcpy 为 P68/P75 实参求值序反）；clean 口径 0 残差（43/43 条逐条同构）。
 #include "OnlyOrigBatch12_server_utility/initPetScript.inc"
+{
+    strncpy(g_petScriptBaseDirectory, dir, 0x100);
+    // ORIG 尾部校验/补 '\\'：strlen 三次内联右值重算（无长度局部，P0/Q189：
+    // 数据全程寄存器直传 ⇒ 原码无具名 len 局部）。最后一次 strlen 结果 + base
+    // 作 memcpy dest，取 "\\" 2 字节。
+    if (g_petScriptBaseDirectory[strlen(g_petScriptBaseDirectory) - 1] != '\\' &&
+        g_petScriptBaseDirectory[strlen(g_petScriptBaseDirectory) - 1] != '/')
+    {
+        // [b28d-solo-OnlyOrigBatch12] P303：目录分隔符追加必须 builtin 形
+        // （4.4 -O0 内建展开 = ORIG 8 条形；手写 memcpy 求值序反，P68/P75）。
+        __builtin_strcat(g_petScriptBaseDirectory, "\\");
+    }
+    // ORIG 尾：xor $1/test/je→mov$1 布尔物化。P0/N96 清绑：改 bool callee
+    // 裸形（P168a① `if (!call()) return false;`）。
+    if (!loadRDARScriptListFile(&g_petScriptFileList, g_petScriptBaseDirectory,
+                                listPath, 0))
+        return false;
+    return true;
 }
 
 // ===========================================================================

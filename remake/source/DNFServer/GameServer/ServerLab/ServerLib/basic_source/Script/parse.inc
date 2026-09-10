@@ -1,9 +1,1 @@
 bool Script::parse(char* line)
-{
-    remove_comment(line);
-    if (!get_key_val(line))
-    {
-        puts("\xC5\xE4\xC5\xAB\xC0\xBB \xBE\xF2\xBE\xEE \xBF\xC0\xB4\xC2\xB5\xA5 \xBD\xC7\xC6\xD0 \xC7\xCF\xBF\xB4\xBD\xBF");
-        exit(1);
-    }
-    return true;

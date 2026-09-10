@@ -1,2 +1,1 @@
 stEquipmentGradeSample::stEquipmentGradeSample()
-{

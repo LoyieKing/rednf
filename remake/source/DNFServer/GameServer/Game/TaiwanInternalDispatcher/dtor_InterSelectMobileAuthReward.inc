@@ -1,2 +1,1 @@
 InterSelectMobileAuthReward::~InterSelectMobileAuthReward()
-{

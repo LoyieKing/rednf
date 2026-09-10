@@ -1,2 +1,1 @@
 CBurnigGoldMonsterEvent::CBurnigGoldMonsterEvent()
-{

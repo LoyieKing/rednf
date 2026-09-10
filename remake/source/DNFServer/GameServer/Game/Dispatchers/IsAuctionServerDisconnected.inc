@@ -1,3 +1,1 @@
 bool IsAuctionServerDisconnected(unsigned char payType);
-
-// ORIG T 0x081f793c _Z11MakePVPRoomP5CUserR17MSG_MAKE_PVP_ROOM14ENUM_CMDPACKET15PVP_BATTLE_MODE

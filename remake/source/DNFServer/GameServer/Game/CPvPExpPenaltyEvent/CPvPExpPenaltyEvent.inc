@@ -1,2 +1,1 @@
 CPvPExpPenaltyEvent::CPvPExpPenaltyEvent()
-{

@@ -1,3 +1,1 @@
 BattleData::BattleData()
-{
-    Reset();

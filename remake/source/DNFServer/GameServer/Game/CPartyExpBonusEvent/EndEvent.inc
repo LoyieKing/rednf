@@ -1,5 +1,1 @@
 void CPartyExpBonusEvent::EndEvent()
-{
-    SetEventFlag(false);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1b, 0);
-    trace("Party Exp Bonus Event End!");

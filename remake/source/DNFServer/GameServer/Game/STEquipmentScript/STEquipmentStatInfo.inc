@@ -1,3 +1,1 @@
 STEquipmentStatInfo::STEquipmentStatInfo()
-{
-    clear();

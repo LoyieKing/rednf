@@ -1,2 +1,1 @@
 CQueryCounter::~CQueryCounter()
-{

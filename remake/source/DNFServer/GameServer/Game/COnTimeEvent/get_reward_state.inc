@@ -1,4 +1,1 @@
 int  COnTimeEvent::get_reward_state() { return m_rewardState; }
-
-// ORIG @0x081bb994：*(time_t*)(this+0x54) = time(NULL) + param。
-// ORIG 先把 time() 结果落 -0xc 栈槽再回读（time_t t = time(0); 两步）。

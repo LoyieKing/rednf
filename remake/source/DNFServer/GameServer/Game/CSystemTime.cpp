@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CSystemTime/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CSystemTime/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include <time.h>
 #include <stdio.h>
@@ -17,9 +19,14 @@
 
 // 构造：仅记录 m_lastSec 与毫秒（m_sec 留待 update 首次填充）
 #include "CSystemTime/CSystemTime.inc"
+{
+    gettimeofday(&m_tv, 0);
+    m_lastSec = m_tv.tv_sec;
+    m_msec = m_tv.tv_usec / 1000;
 }
 
 #include "CSystemTime/dtor_CSystemTime.inc"
+{
 }
 
 // ============================================================================
@@ -33,22 +40,39 @@
 namespace OS_API
 {
 #include "CSystemTime/GetDateTimeTick.inc"
+{
+    int tick = GlobalData::s_systemTime_.getCurSec();
+    return tick;
 }
 }
 
 #include "CSystemTime/getCurSec.inc"
+{
+    return m_sec;
 }
 
 #include "CSystemTime/getCurTickCount.inc"
+{
+    return m_msec;
 }
 
 // getCurDate：定义已移入 CSystemTime.h 内联（ORIG W 形，buf 随发）。
 
 #include "CSystemTime/update.inc"
+{
+    gettimeofday(&m_tv, 0);
+    m_sec = m_tv.tv_sec;
+    m_msec = (m_sec - m_lastSec) * 1000 + m_tv.tv_usec / 1000;
 }
 
 namespace OS_API
 {
 #include "CSystemTime/snprintf.inc"
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(buf, n, fmt, ap);
+    va_end(ap);
+    return r;
 }
 }

@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 MessageCounter/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 MessageCounter/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // MessageCounter.cpp —— 按报告 docs/class_func_reports/message_counter__*/*.md 忠实转写。
 #include "MessageCounter.h"
@@ -67,12 +69,29 @@ static const int UPDATE_PERIOD = 600;
 // （`_GLOBAL__I__ZN15message_counter13CTimeInterval6CreateEv`，ORIG 0x857015f）。
 // 只移函数定义；无 file-scope 对象移动 ⇒ 构造序零变化。ORIG 原址 0x0856f974。
 #include "MessageCounter/Create.inc"
+{
+    // [b28d-51] 判词 N（ORIG 0x0856f974，N77 族）：三 movl $0 前置清零 = 4.1 对
+    // `new T()` value-init 老规则（CWG434 后 4.4 对 user-ctor 类不 emit；手写
+    // memset/placement-new 均改布局）。语义/构造集齐，byte 层封顶。
+    // [b28c-27] N77 复核：ORIG 三 movl $0 前置清零 = 4.1 对 `new T()` value-init
+    // 老规则（CWG434 后 4.4 对 user-ctor 类不 emit；手写 memset/cast 清零形均改
+    // 调用布局）。语义等价（ctor 已写 vptr+基类成员），ndiff 3 封顶。
+    // ORIG @0x0856f974：operator new(0xc) → 三槽 u32 清零 →
+    // 构造派生 CUnixTimeInterval（ORIG call _ZN15message_counter17CUnixTimeIntervalC1Ev，
+    // 置派生 vtable；基类构造为空实现）→ 返回。
+    // [b28-L11 判 N·N77] 三 movl $0 前置清零 = 4.1 对 `new T()` value-init 的
+    // 老规则（CWG434 后 4.4 对 user-ctor 类不再 emit memset/直存段；手写
+    // memset/cast 清零形均改调用布局，N77 判词在册）。语义等价（ctor 已写
+    // vptr+基类成员），ndiff 3 封顶。
+    return new CUnixTimeInterval();   // ORIG：_Znwj(0xc) → C1（置 vptr）
 }
 
 // ===================== MessageKey =====================
 
 // ORIG @0x08570204。
 #include "MessageCounter/MessageKey.inc"
+    : m_id(id), m_type(type), m_size(size)
+{
 }
 
 // ORIG @0x08570192：先比 id（signed，< 返 1）；相等再比 type（unsigned char，
@@ -103,14 +122,20 @@ bool MessageKey::operator<(const MessageKey& rhs) const
 
 // ORIG @0x085702c6：仅设 vptr。
 #include "MessageCounter/CTimeInterval.inc"
+{
 }
 
 #include "MessageCounter/Destory.inc"
+{
+    // ORIG @0x0856f9b0：operator delete(param)，无析构链。
+    ::operator delete(p);
 }
 
 #include "MessageCounter/SetLastTime.inc"
 
 #include "MessageCounter/GetTimeInterval.inc"
+{
+    return 0;
 }
 
 // ===================== CUnixTimeInterval（派生） =====================
@@ -123,19 +148,73 @@ bool MessageKey::operator<(const MessageKey& rhs) const
 
 // ORIG @0x08570236：gettimeofday(&this->m_last, 0)。
 #include "MessageCounter/SetLastTime_1.inc"
+{
+    gettimeofday(&m_last, 0);
 }
 // ORIG @0x08570254：(now-last)_sec*1000 + (now-last)_usec/1000.0，
 // FP 取整后转 long long 返回。
 #include "MessageCounter/GetTimeInterval_1.inc"
+{
+    struct timeval now;
+    gettimeofday(&now, 0);
+
+    // [b28d-51] ORIG 0x0857028f 段：x87 全程在栈上（无具名 double 局部往返），
+    // fldcw 设 RC=11(截断) 后直接 fistpll 返回，无 `>=0.5` 进位调整。
+    return (long long)((double)((int)(now.tv_sec - m_last.tv_sec) * 1000) +
+                       ((double)((int)(now.tv_usec - m_last.tv_usec)) / 1000.0));
 }
 // ===================== CMessageCounter =====================
 
 // ORIG ctor @0x0844de36：map 默认构造 + this+0x18=param。
 #include "MessageCounter/CMessageCounter.inc"
+    : m_map(),
+      m_idBias(idBias)
+{
 }
 
 #include "MessageCounter/dtor_CMessageCounter.inc"
+
+// ORIG IncreaseMessage @0x0856f9c4：命中则 ++count → 64 位累加耗时字节 →
+// 滑动平均 avg = avg*((n'-1)/n') + newBytes*(1/n')；未命中插入首记录。
+// [R29-1 按 ORIG 报告逐条重写] 六项：
+// ① `it->second` 逐次重读（ORIG 6× _Rb_tree_iterator::ptEv，原我方具名引用 `value`
+//    只 1 次 ⇒ p167 MISSING 6）；
+// ② 比较用正向 `!=`（ORIG `neq`；我方原 `==` 生 `eq` ⇒ EXTRA）；
+// ③ bytes 累加为 64 位 `+=`（ORIG 0x0856fa8a `mov;mov;add;adc;mov;mov`；
+//    原我方分 low/high + 进位判断多 1 槽 3 指令）；
+// ④ `wOld`/`wNew` 两具名 double，声明于 find 之后（ORIG 预清 `fldz;fstpl` ×2 位于
+//    find 之后 end 之前，槽 -0x18/-0x10，wOld 更深 ⇒ 先声明）；
+// ⑤ 未命中插入记录 = { count=1, bytes=(unsigned long long)bytes,
+//    avg=(double)bytes }（ORIG 0x0856fb3e `movl $0x1,-0x7c`、bytes→-0x78/-0x74、
+//    `fildll -0x98; fstpl -0x70`）——**原我方写 `{0,0,0,0.0}` 是语义 bug**
+//    （首记录丢 bytes/avg、count 从 0 起）；
+// ⑥ 平均更新书写序 `m_avg * wOld + (double)bytes * wNew`（ORIG 首条 `fldl 0x14(%eax)`
+//    即 avg ⇒ P243 左操作数先 fld）。
 #include "MessageCounter/IncreaseMessage.inc"
+                                      unsigned short size, long long bytes)
+{
+    MessageKey key((int)id, type, size);
+    std::map<MessageKey, MessageValue>::iterator it = m_map.find(key);
+    double wOld = 0.0;
+    double wNew = 0.0;
+    if (it != m_map.end())
+    {
+        ++it->second.m_count;
+        it->second.m_bytes += (unsigned long long)bytes;
+
+        wOld = (double)(it->second.m_count - 1) / (double)it->second.m_count;
+        wNew = 1.0 / (double)it->second.m_count;
+        it->second.m_avg = it->second.m_avg * wOld + (double)bytes * wNew;
+        return;
+    }
+
+    // 未命中：插入首记录（ORIG 0x0856fb3e 段）。左值实参 make_pair(key, zero)，
+    // ORIG 发射 _ZSt9make_pairIRN15message_counter10MessageKeyERNS0_12MessageValueEE。
+    MessageValue zero;
+    zero.m_count = 1;
+    zero.m_bytes = (unsigned long long)bytes;
+    zero.m_avg = (double)bytes;
+    m_map.insert(std::make_pair(key, zero));
 }
 
 // ORIG WriteLog @0x0856fbb0：LOGDB_Q(#4) 投递 SIG_INSERT_RESPONSE_TIME；
@@ -144,6 +223,71 @@ bool MessageKey::operator<(const MessageKey& rhs) const
 // [b28d-51] 判词 N（ORIG 0x0856fbb0，N82/N89 族）：map 迭代器 + snprintf 变参
 // 装载序跨版本差；语义/调用集齐，byte 层封顶。
 #include "MessageCounter/WriteLog.inc"
+{
+    if (m_map.empty())
+        return;
+
+    // [R29-3] 按 ORIG 0x0856fbb0 重写：删 3 个「ORIG 无槽」具名局部
+    // （`StreamPool& pool` / `MsgQueueMgr& queueMgr` / `Stream* stream`，P0/P183：
+    // ORIG 0x0856fbcb 直接 `mov 0x940bd6c,%eax` 作 this 即调 Acquire，无槽往返）；
+    // CStreamGuard 构造用 Acquire 内联实参（ORIG 0x0856fbe8：Acquire 结果直接
+    // `mov %eax,0x4(%esp)`）；`<<` 走 `(*guard)`（P132：ORIG `call CStreamGuard::deEv`
+    // 先于 `call CStreamGuard::lsEi`）；GetInBuffer 走 `guard->`（P103：ORIG
+    // `call CStreamGuard::ptEv` 先于 GetInBuffer）。baseSec 复用 nowSec 槽
+    // （ORIG -0x10 被 `sub 余数` 改写后即 baseSec）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MessageCounter.cpp", 99),
+                       false);
+
+    (*guard)->operator<<(0x26c);
+    (*guard)->operator<<(-1);
+
+    char* sig = reinterpret_cast<char*>(
+        guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
+
+    int nowSec = GlobalData::s_systemTime_.getCurSec();
+    int mod = nowSec % UPDATE_PERIOD;
+    nowSec = nowSec - mod;
+    sig_init_head(sig, nowSec);
+
+    for (std::map<MessageKey, MessageValue>::iterator it = m_map.begin();
+         it != m_map.end(); ++it)
+    {
+        // [R29-3] 删 `key`/`value`/`slot`/`idField` 四个具名局部：ORIG 每字段
+        // 各重读 sig->count（4 次）并逐次 `it->first`/`it->second`（ptEv）；
+        // avg 按 ORIG `fistpl`（RC=11 截断，无 ±0.5 调整）写 `(int)`。
+        sig_write_entry_id(sig, sig_entry_count(sig),
+                           ((it->first.m_id == 0)
+                                ? 0u
+                                : (unsigned int)(it->first.m_id + m_idBias)) +
+                               (unsigned int)it->first.m_size);
+        sig_write_entry_count(sig, sig_entry_count(sig), it->second.m_count);
+        sig_write_entry_bytes(sig, sig_entry_count(sig), it->second.m_bytes);
+        sig_write_entry_avg(sig, sig_entry_count(sig), (int)it->second.m_avg);
+        sig_bump_count(sig);
+
+        if (sig_entry_count(sig) == 100)
+        {
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+
+            guard.Set(GlobalData::s_stream_pool->Acquire("MessageCounter.cpp", 0x7b));
+            (*guard)->operator<<(0x26c);
+            (*guard)->operator<<(-1);
+            sig = reinterpret_cast<char*>(
+                guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
+            sig_init_head(sig, nowSec);
+        }
+    }
+
+    if (sig_entry_count(sig) == 0)
+    {
+        GlobalData::s_stream_pool->Free(guard);
+    }
+    else
+    {
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    }
+
+    m_map.clear();
 }
 
 }  // namespace message_counter

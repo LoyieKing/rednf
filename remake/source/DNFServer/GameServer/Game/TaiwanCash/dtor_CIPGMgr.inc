@@ -1,2 +1,1 @@
 CIPGMgr::~CIPGMgr()
-{

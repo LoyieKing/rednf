@@ -20,3 +20,4 @@ long GetCurrentResetBaseTime(long t, int hour) {
         tm_ptr->tm_sec = 0;
         return mktime(tm_ptr);
     }
+}

@@ -1,3 +1,1 @@
 GridScript::GridScript()
-{
-    clear();

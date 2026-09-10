@@ -1,3 +1,1 @@
 void CLogGameChannel::StartLogTimer()
-{
-    SetNextLogTimer();

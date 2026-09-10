@@ -1,35 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 InitScriptProducers_2/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 InitScriptProducers_2/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// InitScriptProducers_2.cpp —— CDataManager::init（ORIG 0x08358332..0x0835f1d5，
-// 报告 docs/class_func_reports/CDataManager/init.md）依赖的脚本装载自由函数
-// 生产 TU（第 2 批，InitScripts_2）。
-//
-// 每个函数均转写自 docs/class_func_reports/_lt_global_gt_/ 对应报告（objdump
-// 汇编 + Ghidra C），统一模式：loadRDARScriptFile("",path) → ScanType 分派 →
-// ScanInt/ScanStr/ScanFloat 字段回填。调用点（init.md 行号 / 目标成员）：
-//   ImportReturnUserRewardScript 0x089180ea  init.md:1044  this+0xb548
-//   ImportBingoScript            0x089187b9  init.md:1071  this+0xb568
-//   ImportSecurityReward         0x089113ec  init.md:1123  this+0x50d8
-//   ImportItemMakingSkill        0x0890f564  init.md:1146  this+0xb458
-//   importGrowthPower            0x08911ee3  init.md:1796  this+0x8710
-//   ImportWarAreaCounter         0x089026f3  init.md:1956  this+0x87b4
-//   importEquipmentPartSetInfo   0x089073d9  init.md:4749  ("Etc/EquipmentPartSet.etc",3)
-//   importPairPvPStatScript      0x08977d9c  init.md:4936  this+0x4df8
-//
-// 附带本批函数的被调依赖（全工程此前无定义，已广播认领）：
-//   LoadRewardDataByGrowType 0x08917f44 / deleteTagBracketString 0x08917db3 /
-//   getSameStringIndex 0x08990ed5 / characterEquipmentTypeTags D 0x093f4fc0 /
-//   makeFairPVPEquipmentPackageKey 0x088945ad / g_equipmentPartSetMap_ B 0x094f7130 /
-//   STEquipmentPartSetData C1 0x891b002·D1 0x08907348。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <map>
@@ -86,11 +65,19 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 // 先于标量赋值（+0x00=-1、+0x08=0）⇒ 标量必须写在函数体，不能进初始化列表
 // （进列表会被 4.4 交错到成员构造之间，ndiff 19）。
 #include "InitScriptProducers_2/STEquipmentPartSetData.inc"
+    : m_name4(), m_pieces()
+{
+    m_field0 = -1;
+    m_script = 0;
 }
 
 // b28c-L20: AE — ORIG D1 0x08907348 orig=52 our=52 gap=0 ndiff=0：`m_script = 0` 在 if 之外无条件执行（P141：
 // 保留无条件 delete，编译器自带判空守卫，ORIG 双 test/je 形）。
 #include "InitScriptProducers_2/dtor_STEquipmentPartSetData.inc"
+{
+    if (m_script != 0)
+        delete m_script;
+    m_script = 0;
 }
 
 // ============================================================================
@@ -98,6 +85,15 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 // (short)a 落低 16 位、(short)b 落高 16 位后按 int 返回。
 // ============================================================================
 #include "InitScriptProducers_2/makeFairPVPEquipmentPackageKey.inc"
+{
+    // ORIG 0x088945ad：单 int 槽 -0x4，`mov %ax,-0x4`（job 低16）→
+    // `mov %ax,-0x2`（idx 高16）→ `mov -0x4,%eax` 整体回读。
+    // 两次 16-bit store 到同一 32-bit 槽 ⇒ P180 union 视图逐半字写（移位/or 形
+    // 被 4.4 生 movzwl+shl+or，int 局部赋 ushort 会走整 dword store 均不可）。
+    union { int u; unsigned short v[2]; } key;
+    key.v[0] = (unsigned short)job;
+    key.v[1] = (unsigned short)idx;
+    return key.u;
 }
 
 // ============================================================================
@@ -105,6 +101,13 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 // strcmp 线性查表，命中返回下标，未命中返回 -1。
 // ============================================================================
 #include "InitScriptProducers_2/getSameStringIndex.inc"
+{
+    for (int i = 0; i < count; ++i)
+    {
+        if (std::strcmp(s, table[i]) == 0)
+            return i;
+    }
+    return -1;
 }
 
 // deleteTagBracketString（ORIG T 0x08917db3）定义归 InitScriptProducers_1.cpp
@@ -121,6 +124,53 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   ②P164 纯 goto 循环复位头部条件块（0x08917f71），m_grow 失败与 ScanType 失败
 //   共享尾部 `mov $0,%ebx` 块。
 #include "InitScriptProducers_2/LoadRewardDataByGrowType.inc"
+{
+    std::string token;
+    bool ok = false;
+    // ORIG 0x08917f5b/0x08917f66：key(-0x36)/data(-0x40) 在**函数头**各构造一次
+    // （循环外复用），非每轮重构造。
+    LevelUpRewardItemTableKey key;
+    LevelUpRewardItemData data;
+
+    // P164：4.4 把 while 旋转成尾部条件头；纯 goto 循环复位到 ORIG 的头部条件块
+    // （0x08917f71），ScanType 失败与 m_grow 失败共享尾部 `mov $0,%ebx` 块。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
+    {
+        if (token == endTag)
+            return 0;
+
+        deleteTagBracketString(token);
+        const int job = getCharacterJobToEnumValue(token);
+        if (job == -1)
+            return 0x3693;
+
+        key.m_job = (unsigned char)job;                  // +0x02
+        key.m_grow = (unsigned char)ScanInt(&ok);        // +0x03
+        if (!ok)
+            goto scan_done;
+
+        while (true)
+        {
+            key.m_lv = (short)ScanInt(&ok);              // +0x00（b28c-L20: signed short）
+            if (!ok)
+                break;                                   // 回到外层标签扫描
+
+            data.m_field0 = ScanInt(&ok);
+            if (!ok)
+                return 0x36a3;
+            data.m_field4 = ScanInt(&ok);
+            if (!ok)
+                return 0x36a7;
+
+            out.m_map0.insert(
+                std::make_pair(key, data));
+        }
+    }
+    goto scan_top;
+scan_done:
+    return 0;
 }
 
 // ============================================================================
@@ -133,6 +183,43 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   （0x08918140）与尾部失败岛（0x08918235 nop; mov $0,%ebx）；②`[reward equip
 //   item]` 用正形 == 分支（ORIG 0x089181a5 `test; je`，无 xor 物化）。
 #include "InitScriptProducers_2/ImportReturnUserRewardScript.inc"
+{
+    if (!loadRDARScriptFile("", path))
+        return 0x36b4;
+
+    std::string token;
+    // [b28d-47] ORIG 0x0891813b/+0x45：`movb $0x0,-0xd`（死 bool 局部，P232）
+    // 与 `movl $0x0,-0xc`（ret）预清，声明序 flag→ret。
+    bool flag = false;
+    (void)flag;
+    int ret = 0;
+    out.m_levelUp.clear();
+
+    // ORIG 0x089180ea 单层 for(;;)：三处回边（[pacakege item]/非 [reward equip item]/
+    // ret==0）都回同一 ScanType 头；ScanType 失败落**尾部岛** `nop; mov $0,%ebx`
+    // （P223 岛 + P164 尾标签），故写 goto 尾标签而非就地 return。
+    for (;;)
+    {
+        if (!ScanType(token, true))
+            goto scan_fail;
+        if (token == "[pacakege item]")
+        {
+            ScanInt(&out.m_field0);
+            ScanInt(&out.m_field4);
+            continue;
+        }
+        if (token == "[reward equip item]")
+        {
+            ret = LoadRewardDataByGrowType(out.m_levelUp, "[/reward equip item]");
+            // ORIG 尾 `cmpl $0,-0xc; je <循环头>`（直跳）⇒ 写 break 形；`while(ret==0)`
+            // 4.4 反产 `sete %al; test %al; jne` 物化（多 2 条）。
+            if (ret != 0)
+                break;
+        }
+    }
+    return ret;
+scan_fail:
+    return 0;
 }
 
 // ============================================================================
@@ -153,6 +240,104 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   ORIG-only={je:2,jmp:1} vs OURS-only={jne:2}（循环尾 je-exit/jmp-body 布局）；
 //   p167 41/41 仅 C1↔C2 同址别名（P93）⇒ 无真缺口，N 封顶。
 #include "InitScriptProducers_2/ImportBingoScript.inc"
+{
+    if (!loadRDARScriptFile("", path))
+        return 0;
+
+    std::string token;
+    bool ok = false;
+
+    // P164：纯 goto 循环复位头部条件块（ORIG 0x08918800）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
+    {
+        if (token == "[board]")
+        {
+            const int count = ScanInt(&ok);
+            if (!ok)
+                goto scan_done;                          // ORIG 0x08918c96 尾部岛
+            // ++i 必须留在 for 增量位：ORIG 0x089189d3 `addl $1,-0x24` 在
+            // values 析构（0x089189ce D1）之后；写进循环体会被 4.4 提前到析构前。
+            for (int i = 0; i < count; ++i)
+            {
+                // 非 const 左值 ⇒ ORIG make_pair<int&,vector<int>&>（p167）。
+                int key = ScanInt(&ok);
+                if (!ok)
+                    break;                               // 直接回主循环，不插入
+
+                std::vector<int> values;                 // 每行新建（ORIG ctor+clear）
+                values.clear();                          // ORIG 0x089188ad 显式 clear
+                int limit = 25;                          // ORIG 上限存槽 -0x20（setl 形）
+                for (int j = 0; j < limit; )
+                {
+                    const int v = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    values.push_back(v);
+                    ++j;
+                }
+                out.m_map18.insert(std::make_pair(key, values));
+            }
+            goto scan_top;
+        }
+
+        if (token == "[quiz value]")
+        {
+            const int count = ScanInt(&ok);
+            if (!ok)
+                goto scan_done;
+            for (int i = 0; i < count; )
+            {
+                int k = ScanInt(&ok);
+                if (!ok)
+                    goto scan_done;
+                int v = ScanInt(&ok);
+                if (!ok)
+                    goto scan_done;
+                out.m_map0.insert(std::make_pair(k, v));
+                ++i;
+            }
+            goto scan_top;
+        }
+
+        if (token == "[reward]")
+        {
+            const int count = ScanInt(&ok);
+            if (!ok)
+                goto scan_done;
+            for (int i = 0; i < count; ++i)
+            {
+                std::pair<int, int> reward;              // 默认构造（ORIG pair()）
+                int a = ScanInt(&ok);
+                if (!ok)
+                    break;
+                reward.first = ScanInt(&ok);
+                if (!ok)
+                    break;
+                reward.second = ScanInt(&ok);
+                if (!ok)
+                    break;
+                out.m_map30.insert(std::make_pair(a, reward));
+            }
+            goto scan_top;
+        }
+
+        if (token == "[use item]")
+        {
+            while (true)
+            {
+                const int v = ScanInt(&ok);
+                if (!ok)
+                    break;
+                out.m_vec48.push_back(v);
+            }
+            goto scan_top;
+        }
+    }
+    goto scan_top;
+scan_done:
+    return 0;
 }
 
 // ============================================================================
@@ -163,6 +348,92 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   goto 主循环复位 ORIG 头部条件块（0x0890f5ab），四段 continue→`goto scan_top`；
 //   内层 `while(true)` 各段与 ORIG 同形。
 #include "InitScriptProducers_2/ImportItemMakingSkill.inc"
+{
+    if (!loadRDARScriptFile("", path))
+        return 0x279e;
+
+    std::string token;
+    bool ok = false;
+
+    // P164：4.4 把 while 旋转成尾部条件头；纯 goto 循环复位到 ORIG 头部条件块
+    // （0x0890f5ab），ScanType 失败落尾部岛（0x0890f8b2 nop; mov $0,%ebx）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
+    {
+        if (token == "[itemmaking exp limit]")
+        {
+            while (true)
+            {
+                const int lv = ScanInt(&ok);
+                if (!ok)
+                    break;
+                const int exp = ScanInt(&ok);
+                if (!ok)
+                    return 0x27b2;
+                out.m_vec18.push_back(std::make_pair(lv, exp));
+            }
+            goto scan_top;
+        }
+
+        if (token == "[itemmaking exp]")
+        {
+            out.m_exp = ScanInt(&ok);
+            if (!ok)
+                return 0x27bb;
+            out.m_bonusExp = ScanInt(&ok);
+            if (!ok)
+                return 0x27bf;
+            goto scan_top;
+        }
+
+        if (token == "[itemmaking level limit]")
+        {
+            out.m_levelLimit = ScanInt(&ok);
+            if (!ok)
+                return 0x27c5;
+            goto scan_top;
+        }
+
+        if (token == "[upgrade with compound]")
+        {
+            while (true)
+            {
+                stUpgradeWithCompound data;              // ctor 清零（ORIG clear）
+                const int key = ScanInt(&ok);
+                if (!ok)
+                    break;
+
+                data.m_field00 = ScanInt(&ok);
+                if (!ok)
+                    return 0x27d3;
+                data.m_field04 = ScanInt(&ok);
+                if (!ok)
+                    return 0x27d7;
+                data.m_field08 = ScanInt(&ok);
+                if (!ok)
+                    return 0x27db;
+                data.m_rangeExp0C = (data.m_field04 - data.m_field00) * 1000 + 999;
+
+                data.m_field10 = ScanInt(&ok);
+                if (!ok)
+                    return 0x27e1;
+                data.m_field14 = ScanInt(&ok);
+                if (!ok)
+                    return 0x27e5;
+                data.m_field18 = ScanInt(&ok);
+                if (!ok)
+                    return 0x27e9;
+                data.m_rangeExp1C = (data.m_field14 - data.m_field10) * 1000 + 999;
+
+                out.m_map0.insert(std::make_pair(key, data));
+            }
+            goto scan_top;
+        }
+    }
+    goto scan_top;
+scan_done:
+    return 0;
 }
 
 // ============================================================================
@@ -185,6 +456,107 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   残余 5 行 = ORIG do-while/while 尾「je exit; jmp body」+ 循环头 jmp，4.4 恒
 //   「jne body」单跳（跨版本循环尾布局，同 importEquipmentPartSetInfo 族）⇒ N。
 #include "InitScriptProducers_2/importGrowthPower.inc"
+{
+    if (out == 0)
+        return false;
+    if (!loadRDARScriptFile("", path))
+        return false;
+
+    std::string token;
+    std::string group;
+
+    // P164：4.4 把 while 旋转成尾部条件头；纯 goto 循环复位到 ORIG 头部条件块
+    // （0x08911f38），ScanType 失败落尾部岛（0x08912244 nop; mov $1,%ebx）。
+    // 每段循环内各有一个 bool ok 局部（ORIG 槽 -0x19/-0x1d 独立，且循环头预清）。
+    // [package selection] 的内层扫描是 `bool ScanInt(int*)`（ORIG 0x08912136
+    // `_Z7ScanIntPi`，返回值即成功标志），不是 `int ScanInt(bool*)`。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
+    {
+        if (token == "[breakaway section]")
+        {
+            while (true)
+            {
+                bool ok = false;
+                STBreakAwaySection section;
+                section.m_field0 = (char)ScanInt(&ok);
+                if (!ok)
+                    break;
+                section.m_field1 = (char)ScanInt((bool*)0);
+                section.m_field2 = (char)ScanInt((bool*)0);
+                out->m_vec0.push_back(section);
+            }
+            goto scan_top;
+        }
+
+        if (token == "[exp reward]")
+        {
+            while (true)
+            {
+                bool ok = false;
+                STExpReward reward;                      // ctor 仅清前 4 字节（同 ORIG）
+                // ORIG 逐字节写入 +0x00..+0x03（mov %al）：
+                //   +0x00=m_reward 低字节、+0x01=m_field4、+0x02=m_field5、
+                //   +0x03=m_powerUp。
+                reward.m_reward8 = (char)ScanInt(&ok);
+                if (!ok)
+                    break;
+                reward.m_field4 = (char)ScanInt((bool*)0);
+                reward.m_field5 = (char)ScanInt((bool*)0);
+                reward.m_powerUp = (char)ScanInt((bool*)0);
+                out->m_vecC.push_back(reward);
+            }
+            goto scan_top;
+        }
+
+        if (token == "[package reward]")
+        {
+            do
+            {
+                if (!ScanType(token, true))
+                    goto scan_top;                       // EOF → 回主循环
+
+                if (token == "[group]")
+                {
+                    if (!ScanStr(&group))
+                        return false;
+
+                    const int job = getCharacterJob(group.c_str());
+                    const int n = ScanInt((bool*)0);
+                    const int key = makeFairPVPEquipmentPackageKey(job, n);
+
+                    std::vector<std::vector<STStackablePackageData> > groups;
+                    ScanType(token, true);
+                    while (token == "[package selection]")
+                    {
+                        int idx;
+                        std::vector<STStackablePackageData> items;
+                        while (true)
+                        {
+                            if (!ScanInt(&idx))
+                                break;
+                            STStackablePackageData d;
+                            d.m_field0 = idx;
+                            d.m_field4 = ScanInt((bool*)0);
+                            items.push_back(d);
+                        }
+                        groups.push_back(items);
+                        ScanType(token, true);
+                    }
+                    out->m_map18[key] = groups;
+                }
+                // ORIG 0x08912232 只有 operator==（无 operator!=）：`if (token ==
+                // "[/package reward]") break;` 生 `test; je <循环头>` + fall 跳出。
+                if (token == "[/package reward]")
+                    break;
+            } while (true);
+            goto scan_top;
+        }
+    }
+    goto scan_top;
+scan_done:
+    return true;
 }
 
 // ============================================================================
@@ -204,6 +576,161 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   （恒定 +4 槽平移 + 4 处 setne/je/jne 循环尾物化）；p167 32/32 仅 C1↔C2 同址
 //   别名（P93）⇒ 无真缺口，维持 N82 封顶。
 #include "InitScriptProducers_2/ImportWarAreaCounter.inc"
+{
+    if (!loadRDARScriptFile("", "Etc/WarArea.etc"))
+    {
+        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
+                              __FUNCTION__, 0xdeb,
+                              "CRITICAL ERROR : \xc0\xef\xbf\xaa "
+                              "\xc4\xab\xbf\xee\xc5\xcd "
+                              "\xbd\xba\xc5\xa9\xb8\xb3\xc6\xae "
+                              "\xb7\xce\xb5\xe5 \xbd\xc7\xc6\xd0!");
+        return 0;
+    }
+
+    std::string token;
+    int deadLocal = 0;                     // -0x34：ORIG 初始化后从不读（P171 死局部）
+    (void)deadLocal;
+    int timeCount = 0;                     // -0x30（[counter] 段复用为下标）
+    bool ok = false;                       // -0x69
+    int maxValue = 0;                      // -0x2c
+    int maxIndex = -1;                     // -0x28
+
+    // P164：纯 goto 循环复位头部条件块（ORIG 0x0890278c），ScanType 失败落
+    // 尾部岛（0x08902b54 nop; mov $1,%ebx）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
+    {
+        if (token == "[time table]")
+        {
+            while (true)
+            {
+                const int v = ScanInt(&ok);              // -0x24
+                if (!ok)
+                    break;
+                out->m_timeHourList[timeCount] = v;      // ORIG 裸下标 this+(i+0x18)*4
+                ++timeCount;
+            }
+            goto scan_top;
+        }
+
+        if (token == "[door fee]")
+        {
+            int doorCount = 0;                           // -0x20（块内局部）
+            while (true)
+            {
+                const int v = ScanInt(&ok);              // -0x1c
+                if (!ok)
+                    break;
+                out->m_doorFee[doorCount] = v;           // ORIG 裸下标 this+(i+0x30)*4
+                ++doorCount;
+            }
+            goto scan_top;
+        }
+
+        if (token == "[ban interval]")
+        {
+            out->m_banInterval = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            goto scan_top;
+        }
+
+        if (token == "[kick point]")
+        {
+            out->m_kickPoint = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            goto scan_top;
+        }
+
+        if (token == "[ready count]")
+        {
+            out->m_readyCount = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            goto scan_top;
+        }
+
+        if (token == "[wp penalty]")
+        {
+            out->m_wpPenalty = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            goto scan_top;
+        }
+
+        if (token == "[monster exp const]")
+        {
+            out->m_monsterExpConst = ScanFloat(&ok);
+            if (!ok)
+                return 0;
+            goto scan_top;
+        }
+
+        if (token == "[wararea dungeon]")
+        {
+            int dungeonIdx = 2;                          // -0x18（块内局部，ORIG 从 2 起）
+            while (true)
+            {
+                const int v = ScanInt(&ok);              // -0x14
+                if (!ok)
+                    break;
+                out->m_warAreaDungeon[dungeonIdx] = v;   // ORIG 裸下标
+                ++dungeonIdx;
+            }
+            goto scan_top;
+        }
+
+        if (token == "[wp per monster hp]")
+        {
+            while (true)
+            {
+                stWarPoint wp;                           // -0x7c，ctor memset 0x10
+                // 非 const 左值：ORIG 实例为 make_pair<int&,stWarPoint&>
+                // （p167 MISSING `IRiR10stWarPoint`；const 版落 `<IRKiR...>`）。
+                int key = ScanInt(&ok);                  // -0x80
+                if (!ok)
+                    break;                               // 回主循环
+
+                for (int j = 0; j < 4; ++j)              // -0x10
+                {
+                    const int v = ScanInt(&ok);
+                    if (!ok)
+                        return 0;
+                    wp.m_pts[j] = v;
+                }
+                out->m_wpPerMonsterHp.insert(
+                    std::make_pair(key, wp));            // greater<int> 键序
+            }
+            goto scan_top;
+        }
+
+        if (token == "[counter]")
+        {
+            out->m_num = timeCount;                      // +0x140
+            timeCount = 0;                               // 复用为 counter（ORIG -0x30）
+            do
+            {
+                const int v = ScanInt(&ok);              // -0xc
+                if (!ok)
+                    break;
+                if (v > maxValue)
+                {
+                    maxValue = v;
+                    maxIndex = timeCount;
+                }
+                out->m_counterTable[timeCount] = v;      // ORIG 裸下标 this+i*4
+                ++timeCount;
+            } while (out->m_num != timeCount);
+            out->m_curHourIdx = maxIndex;                // ORIG 写 +0xe8
+            goto scan_top;
+        }
+    }
+    goto scan_top;
+scan_done:
+    return 1;
 }
 
 // ============================================================================
@@ -240,6 +767,218 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   ORIG 18 个集中 continue 跳板（0x08977e02..0x08977e3b 各 `nop; jmp 0x08977e3c`）
 //   vs 我方各段直接 jmp 循环头（ndiff 41 全在此）⇒ N 封顶，无真缺口。
 #include "InitScriptProducers_2/importPairPvPStatScript.inc"
+{
+    if (!loadRDARScriptFile("", path))
+        return false;
+
+    script.clear();
+
+    std::string token;
+    bool ok = false;
+    CharacterKind kind;
+    CharacterStatus* current = 0;
+
+    for (;;)
+    {
+        // ORIG 失败路径返回当前 ok 值（0897864c movzbl -0xc9(%ebp),%ebx），
+        // 非恒 false（我方旧形 DIFF 1 条 movzbl）。
+        if (!ScanType(token, true))
+            return ok;
+
+        if (token == "[job index]")
+        {
+            kind.m_job = (char)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+
+        if (token == "[grow type index]")
+        {
+            kind.m_grow = (char)ScanInt(&ok);
+            if (!ok)
+                return false;
+
+            CharacterStatus status;
+            std::memset(&status, 0, sizeof(status));     // ORIG memset 0x54
+            // ORIG 用 const_iterator 版 pair（p167 MISSING 转换构造
+            // `C1ISt17_Rb_tree_iteratorIS4_EbEEOS_IT_T0_E` + const_iterator ptEv）。
+            const std::pair<std::map<CharacterKind, CharacterStatus>::const_iterator,
+                            bool> inserted =
+                script.m_map0.insert(std::make_pair(kind, status));
+            if (!inserted.second)
+                return false;
+            current = const_cast<CharacterStatus*>(&inserted.first->second);
+            continue;
+        }
+
+        if (token == "[HP MAX]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field00 = ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[MP MAX]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field04 = ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[physical attack]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[0] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[physical defense]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[1] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[magical attack]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[2] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[magical defense]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[3] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[inventory limit]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field3c = ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[MP regen speed]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field42 = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[move speed]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field44 = ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[attack speed]")                   // ORIG 此段无判空
+        {
+            current->m_field48 = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[cast speed]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field4a = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[hit recovery]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field4c = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[jump power]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field4e = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[jump speed]")                     // ORIG 读后丢弃
+        {
+            ScanInt(&ok);
+            continue;
+        }
+        if (token == "[weight]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field50 = ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[dark resistance]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[6] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[light resistance]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[7] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[fire resistance]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[4] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (token == "[water resistance]")
+        {
+            if (current == 0)
+                return false;
+            current->m_field08[5] = (short)ScanInt(&ok);
+            if (!ok)
+                return false;
+            continue;
+        }
+    }
+    return false;
 }
 
 // ============================================================================
@@ -258,6 +997,51 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   /tmp/sw2/p7.cpp 两形（`&a[3]` 与 `&a[2]+1`）在 4.4.7 与 4.4.6 后端下均折单条
 //   `add $0xc` ⇒ 源形不可择，地址值等价，N1 封顶。
 #include "InitScriptProducers_2/ImportSecurityReward.inc"
+{
+    if (!loadRDARScriptFile("", "Etc/SecurityReward.etc"))
+    {
+        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
+                              __FUNCTION__, 0x2c36,
+                              "CRITICAL ERROR : SecurityReward faild!");
+        return false;
+    }
+
+    std::string token;
+
+    // ORIG 0x089113ec：每段 4 次**展开**的 `_Z7ScanIntPi`（bool ScanInt(int*)）
+    // 语句调用（返回值丢弃，P152/P171），非 for 循环；地址形 `add $8; add $4`
+    // 即 4.1 对 arr[3] 的两步常量算术。
+    // P164：4.4 会把 `while(cond)` 旋转成尾部条件头；用纯 goto 循环把条件头
+    // 复位到前部（ORIG 08911453），失败落尾部岛（0891157a nop; mov $1,%ebx）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
+    {
+        if (token == "[GoblinPad Reward]")
+        {
+            ScanInt(&out->m_goblinPad[0]);
+            ScanInt(&out->m_goblinPad[1]);
+            ScanInt(&out->m_goblinPad[2]);
+            ScanInt(&out->m_goblinPad[3]);
+        }
+        else if (token == "[SecurityCard Reward]")
+        {
+            ScanInt(&out->m_securityCard[0]);
+            ScanInt(&out->m_securityCard[1]);
+            ScanInt(&out->m_securityCard[2]);
+            ScanInt(&out->m_securityCard[3]);
+        }
+        else if (token == "[OTP Reward]")
+        {
+            ScanInt(&out->m_otp[0]);
+            ScanInt(&out->m_otp[1]);
+            ScanInt(&out->m_otp[2]);
+            ScanInt(&out->m_otp[3]);
+        }
+    }
+    goto scan_top;
+scan_done:
+    return true;
 }
 
 // ============================================================================
@@ -284,4 +1068,113 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 //   残余 4 行 = ORIG `test %ebx,%ebx; je exit; jmp body` vs 4.4 `testb %bl; jne body`
 //   （bool 寄存器宽度 + do-while 尾布局，跨版本，N 封顶）。
 #include "InitScriptProducers_2/importEquipmentPartSetInfo.inc"
+{
+    if (!loadRDARScriptFile("", path))
+    {
+        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
+                              __FUNCTION__, 0x168b,
+                              "ERROR : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 "
+                              "\xec\xb0\xbe\xec\x9d\x84\xec\x88\x98 "
+                              "\xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88\xeb\x8b\xa4.",
+                              path);
+        return false;
+    }
+
+    std::string token;
+    std::string name;
+    std::string pieceName;
+    std::string tag;
+    // ORIG 用 ebx 承载 ok（无栈槽；0x08907503 mov $0,%ebx / 0x089075a5 mov $1,%ebx /
+    // 0x089075cc test %ebx,%ebx）⇒ 原码是 register 形（P231 纯 register 合法，非 asm
+    // 绑定）。int 版 while(ok) 实测多 setne 物化（gap −2）；bool 版 testb %bl 最接近。
+    register bool ok;
+
+    g_equipmentPartSetMap_.clear();
+
+    // P164：主循环 goto 形复位头部条件块（ORIG 0x08907477）；ScanType 失败落
+    // scan_done（直接进入下方 for 循环，非 return）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
+    {
+        // ORIG 0x0890749d 正向 `if (token == X)` 形（用 operator==，无 operator!=）。
+        if (token == "[equipment part set]")
+        {
+            STEquipmentPartSetData data;
+            // ORIG 直接 `data+0 = ScanInt(0)`（无独立 key 局部；键取 data.m_field0）。
+            data.m_field0 = ScanInt((bool*)0);
+            ScanStr(&name);
+            data.m_name4 = name;
+
+            do
+            {
+                STEquipmentPartSetPiece piece;           // ctor 三 int=-1
+                // ORIG 0x089074fc 正向 `if (!ScanStr)`：失败臂 mov $0,%ebx、成功臂尾
+                // mov $1,%ebx（两臂各写 ok，非 `ok = ScanStr(...)` 单赋值）。
+                if (!ScanStr(&pieceName))
+                {
+                    ok = false;
+                }
+                else
+                {
+                    piece.m_name = pieceName;
+                    ScanStr(&tag);
+                    piece.m_field4 = getSameStringIndex(tag.c_str(),
+                                                        characterEquipmentTypeTags,
+                                                        0x1a);
+                    piece.m_field8 = ScanInt((bool*)0);
+                    piece.m_fieldc = ScanInt((bool*)0);
+                    data.m_pieces.push_back(piece);
+
+                    g_equipmentPartSetMap_[data.m_field0] = data;
+                    ok = true;
+                }
+            } while (ok);
+        }
+    }
+    goto scan_top;
+scan_done:
+
+    // ---- 逐集合装载装备脚本并合并 [-1] 参数条目 ----
+    // P183：ORIG 无 script / paramMap 具名局部——每处重新 `call operator->;
+    // mov 0xc(%eax),%eax` 取 it->second.m_script（0x08907653/0x0890765e/0x08907686/
+    // 0x089076b7/0x089076fd/0x08907729/0x08907756/0x089077a4/0x089077d9/0x089077f4）。
+    for (std::map<int, STEquipmentPartSetData>::iterator it =
+             g_equipmentPartSetMap_.begin();
+         it != g_equipmentPartSetMap_.end(); ++it)
+    {
+        // ORIG 0x08907619：new 结果经 ebx 跨 ctor 保活后直存成员（无具名指针局部）。
+        it->second.m_script = new STEquipmentScript;         // ORIG 0x894 字节
+
+        if (!ImportEquipmentScript(it->second.m_script,
+                                   it->second.m_name4.c_str(), false,
+                                   moduleType, it->first))
+        {
+            LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
+                                  __FUNCTION__, 0x16c2,
+                                  "ERROR : \xec\x9e\xa5\xeb\xb9\x84\xeb\xb6\x80"
+                                  "\xec\x9c\x84\xec\x85\x8b\xed\x8a\xb8 \xea\xb5"
+                                  "\xac\xec\x84\xb1\xed\x92\x88 %s \xed\x8c\x8c"
+                                  "\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe\xec\x9d"
+                                  "\xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb"
+                                  "\x8b\x88\xeb\x8b\xa4.",
+                                  it->second.m_name4.c_str());
+            delete it->second.m_script;
+            return false;
+        }
+
+        // ORIG 0x08907741 先 map::end、0x08907775 后 map::find（单表达式形，P293）。
+        if (it->second.m_script->m_paramMap678.find(-1) !=
+            it->second.m_script->m_paramMap678.end())
+        {
+            // ORIG 用 `paramMap[-1]` 取引用再拷贝构造（p167 MISSING ixERS4_），
+            // 非 `def->second`（后者多一次 EquipmentParameterInfo 迭代器 ptEv）。
+            const EquipmentParameterInfo merged(
+                it->second.m_script->m_paramMap678[-1]);
+            it->second.m_script->m_paramMap678.clear();
+            it->second.m_script->m_paramMap678[it->second.m_pieces.size()] =
+                merged;
+        }
+    }
+    return true;
 }

@@ -1,2 +1,1 @@
 ProcStage::~ProcStage()
-{

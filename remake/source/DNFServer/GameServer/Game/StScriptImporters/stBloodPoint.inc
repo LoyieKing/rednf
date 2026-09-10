@@ -1,3 +1,1 @@
 stBloodPoint::stBloodPoint()
-{
-    clear();

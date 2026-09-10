@@ -1,29 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 LinkMisc4_Data/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 LinkMisc4_Data/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// LinkMisc4_Data.cpp — LinkMisc4 批次杂项数据/叶子符号（df_game_r 忠实转写）
-//
-// 覆盖符号（地址经 nm -C -S 核实）：
-//   char* CHARACTER_JOB_NAMES[]      .data 0x093abae0 (0x2c, 11 槽含 2 NULL)
-//   char* BIND_NAMES[]               .data 0x093abb0c (0x08, 2 槽)
-//   char* RECIPE_NAMES[]             .data 0x093abb14 (0x0c, 3 槽)
-//   char* EQUIP_NAMES[]              .data 0x093abb20 (0x20, 8 槽)
-//   Packet_Monitor_Event_Start::Packet_Monitor_Event_Start()  W 0x084b4184
-//   CAICharacter::getIndepentDropItem() const                W 0x084b410e
-//   CAICharacter::GetName() const                            W 0x084b4138
-//   OS_API::WriteLog(char const*, char const*, ...)          T 0x0858c78a
-//
-// 说明：名字表仅被 game_master GmCmds_A.cpp 以 extern char* X[] 形式引用；
-//   该文件禁改，故表定义落本独立 TU。CHARACTER_JOB_NAMES 按 job 枚举索引，
-//   ORIG 第 8/9 槽为 NULL（保留）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include <cstdarg>
 #include <cstdio>
@@ -92,6 +77,8 @@ public:
 } __attribute__((packed));
 
 #include "LinkMisc4_Data/Packet_Monitor_Event_Start.inc"
+    : PacketHeader(0x44f, 0x12)
+{
 }
 
 // ---------------------------------------------------------------------------
@@ -128,10 +115,14 @@ private:
 };
 
 #include "LinkMisc4_Data/GetName.inc"
+{
+    return m_name.c_str();
 }
 
 std::vector<stMonsterIndependentDrop_t>
 #include "LinkMisc4_Data/getIndepentDropItem.inc"
+{
+    return m_independentDrops;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +134,23 @@ namespace OS_API
 {
 
 #include "LinkMisc4_Data/WriteLog.inc"
+{
+    FILE* fp = fopen(fileName, "ab");
+    // [b28c-34] ORIG 0x0858c7fe `je <+0x74 nop 岛>` + body 尾 `jmp +0x75`：
+    // 4.1 if-join 空块占位岛；4.4 对正向 if 块恒 jump-thread ⇒ 用负条件
+    // goto 共享尾空标签复现（P223 定案）。
+    if (fp == 0) goto end;
+    {
+        char buf[1024];
+        va_list ap;
+        va_start(ap, fmt);
+        vsprintf(buf, fmt, ap);
+        va_end(ap);
+        fputs(buf, fp);
+        fflush(fp);
+        fclose(fp);
+    }
+end:;
 }
 
 }  // namespace OS_API

@@ -42,3 +42,4 @@ std::string CServerXml::GetEventString(int nTextID, _eStringType type, bool* pbR
     default:
         return ret;
     }
+}

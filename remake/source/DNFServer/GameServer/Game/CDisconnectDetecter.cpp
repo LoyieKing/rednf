@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CDisconnectDetecter/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CDisconnectDetecter/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— disconnect_detecter::CDisconnectDetecter（断线检测器，
 // G2-4 批次）。逐函数对照 docs/class_func_reports/disconnect_detecter__CDisconnectDetecter.md
@@ -71,6 +73,12 @@ public:
 namespace disconnect_detecter
 {
 #include "CDisconnectDetecter/_IsTimeout.inc"
+{
+    if (GlobalData::s_systemTime_.getCurSec() - time > 30)
+    {
+        return true;
+    }
+    return false;
 }
 }  // namespace disconnect_detecter
 
@@ -79,6 +87,10 @@ namespace disconnect_detecter
 // 仍检测到断线用户则再次登记（自续期），见 TimerDetectDisconnect 报告。
 // ORIG 以 int 局部（-0xc(%ebp)）承载 10 再传参，帧 sub $0x38。
 #include "CDisconnectDetecter/registNextTimer.inc"
+{
+    int interval = 10;
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
+                                (TIMER_MESSAGE)0x6d, interval, 0, 0);
 }
 
 // cMyTrace 由 TimerQueue.h 间接引入的 GameTypes.h 声明（实现属独立 TU）。
@@ -91,6 +103,8 @@ namespace disconnect_detecter
 // ============================================================================
 
 #include "CDisconnectDetecter/DetectedObjectKey.inc"
+    : m_uid(uid), m_uniqueId(uniqueId)
+{
 }
 
 bool DetectedObjectKey::operator<(const DetectedObjectKey& other) const
@@ -114,28 +128,102 @@ bool DetectedObjectKey::operator<(const DetectedObjectKey& other) const
 // ============================================================================
 
 #include "CDisconnectDetecter/CDisconnectDetecter.inc"
+    : m_map()
+{
 }
 
 #include "CDisconnectDetecter/dtor_CDisconnectDetecter.inc"
+{
 }
 
 // [b28d-lane16 NEAR] ORIG 08472272：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 #include "CDisconnectDetecter/RegisterUser.inc"
+{
+    int mapSize = m_map.size();
+    long curSec = GlobalData::s_systemTime_.getCurSec();
+    DetectedObjectKey key(user->GetUID(), user->get_unique_id() & 0xffff);
+    std::pair<std::map<DetectedObjectKey, int>::iterator, bool> ret =
+        m_map.insert(std::make_pair<DetectedObjectKey, long>(key, curSec));
+    if (ret.second == false)
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0x25, 0);
+        trace("RegisterUser() wrong");
+        return 0;
+    }
+    if (mapSize == 0)
+    {
+        TimerDetectDisconnect::registNextTimer();
+    }
+    return 1;
 }
 
 #include "CDisconnectDetecter/UnregisterUser.inc"
+{
+    DetectedObjectKey key(user->GetUID(), user->get_unique_id() & 0xffff);
+    std::map<DetectedObjectKey, int>::iterator it = m_map.find(key);
+    if (it != m_map.end())
+    {
+        m_map.erase(it);
+        return true;
+    }
+    return false;
 }
 
 #include "CDisconnectDetecter/RefreshRecvTime.inc"
+{
+    DetectedObjectKey key(user->GetUID(), user->get_unique_id() & 0xffff);
+    std::map<DetectedObjectKey, int>::iterator it = m_map.find(key);
+    if (it != m_map.end())
+    {
+        it->second = GlobalData::s_systemTime_.getCurSec();
+    }
+    else
+    {
+        return false;
+    }
+    return true;
 }
 
 #include "CDisconnectDetecter/DoDetectingDisconnect.inc"
+{
+    for (std::map<DetectedObjectKey, int>::iterator it = m_map.begin();
+         it != m_map.end(); )
+    {
+        if (_IsTimeout(it->second))
+        {
+            CUser* user = _GetUser(it->first.m_uid, it->first.m_uniqueId);
+            if (user != 0)
+            {
+                OnDisconnect(user);
+            }
+            m_map.erase(it++);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    return !m_map.empty();
 }
 
 #include "CDisconnectDetecter/OnDisconnect.inc"
+{
+    user->OnDisconnect();
 }
 
 #include "CDisconnectDetecter/_GetUser.inc"
+{
+    CUser* user = G_CGameManager()->getUser(uid, 2);
+    if (user != 0)
+    {
+        if ((unsigned short)user->get_unique_id() != uniqueId)
+        {
+            return 0;
+        }
+    }
+    return user;
 }
 
 CDisconnectDetecter* GetInstanceDisconnectDetecter()

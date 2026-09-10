@@ -1,2 +1,1 @@
 void CBingoTest::resetQuiz()
-{

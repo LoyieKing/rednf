@@ -1,2 +1,1 @@
 TownScript::~TownScript()
-{

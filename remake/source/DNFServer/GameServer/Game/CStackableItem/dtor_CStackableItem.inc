@@ -1,2 +1,1 @@
 CStackableItem::~CStackableItem()
-{

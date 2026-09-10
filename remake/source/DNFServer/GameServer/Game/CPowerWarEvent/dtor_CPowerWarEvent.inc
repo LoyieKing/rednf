@@ -1,2 +1,1 @@
 CPowerWarEvent::~CPowerWarEvent()
-{

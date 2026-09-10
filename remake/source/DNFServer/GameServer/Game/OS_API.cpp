@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 OS_API/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 OS_API/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "OS_API.h"
 
@@ -27,28 +29,69 @@ namespace OS_API
 
 // ORIG 0x0858c53a _ZN6OS_API4ExitEi：直接 exit。
 #include "OS_API/Exit.inc"
+{
+    exit(exitCode);
 }
 
 // ORIG 0x0858c6d4 _ZN6OS_API17WriteLastBookmarkEPKci：
 // fopen(path,"wb") 成功则 fprintf "bm:%d" 后 fclose。
 #include "OS_API/WriteLastBookmark.inc"
+{
+    FILE* f = fopen(path, "wb");
+    if (f != 0)
+    {
+        fprintf(f, "bm:%d", value);
+        fclose(f);
+    }
 }
 
 // ORIG 0x0858c54c _ZN6OS_API12WriteLastSigEPKcS1_iiPKvi：
 // 256 栈缓冲清零 → sprintf "./log/%s/%s" → fopen("wb") →
 // fprintf "K:%d C:%d P:%p SZ:%d\n" → fclose。
 #include "OS_API/WriteLastSig.inc"
+{
+    char path[256] = { '\0' };
+    sprintf(path, "./log/%s/%s", dir, name);
+    FILE* f = fopen(path, "wb");
+    if (f != 0)
+    {
+        fprintf(f, "K:%d C:%d P:%p SZ:%d\n", k, c, p, sz);
+        fclose(f);
+    }
 }
 
 // ORIG 0x0858c5f4 _ZN6OS_API12WriteLastSigEPKcS1_jiiPKviiiiii：
 // 512 栈缓冲清零 → sprintf "./log/%s/%s" → NumberToString(u,0) →
 // CMyFileLog(__PRETTY_FUNCTION__, 0x4e) → log(path, "U:%s ...", us, 后续 9 参)。
 #include "OS_API/WriteLastSig_1.inc"
+                  int k, int c, void const* p,
+                  int tq, int dq, int nq, int dbq, int logdbq, int extra)
+{
+    char path[512] = { '\0' };
+    sprintf(path, "./log/%s/%s", dir, name);
+    register char* us = NumberToString(u, 0);
+    CMyFileLog log(__PRETTY_FUNCTION__, 0x4e);
+    log(path,
+        "U:%s K:%d C:%d P:%p SZ:%d TimerQ:%d DispatchQ:%d NetworkQ:%d DBQ:%d, LOGDBQ:%d\n",
+        us, k, c, p, tq, dq, nq, dbq, logdbq, extra);
 }
 
 // ORIG 0x0858c71e _ZN6OS_API14WriteLoginInfoEPKcS1_z：
 // fopen(path,"wb") 成功则 vsprintf 到 1024 栈缓冲 → fputs → fclose。
 #include "OS_API/WriteLoginInfo.inc"
+{
+    char buf[1024];
+    va_list ap;
+    FILE* f = fopen(path, "wb");
+    if (f != 0)
+    {
+        va_start(ap, fmt);
+        vsprintf(buf, fmt, ap);
+        va_end(ap);
+        fputs(buf, f);
+        fclose(f);
+    }
+    return;
 }
 
 }  // namespace OS_API

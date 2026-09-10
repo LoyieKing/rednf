@@ -1,27 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 SDCLink/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 SDCLink/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// SDCLink.cpp —— /tmp/undef_r21.txt SDC/伤害计算族 9 符号核销 TU（LinkHelper.SDCLinkHack）。
-// 全部符号 ORIG nm -S 已核实；无独立函数报告，逐条 objdump 反汇编转写。
-//
-// 证据（ORIG=/home/wangyilei/下载/df_game_r）：
-//   getAbilityConvertRateSDC(void*,ENUM_CONVERT_TABLE_TYPE) T 0x080950fb (0x13)
-//   getDamageInflict(STComputeDamageVariable*,void*)        T 0x08095193 (0x8d)
-//   isValidAttackInfoElement(STComputeDamageVariable*,int)  T 0x0809576e (0x55)
-//   getComputeDamageBasisLevelAttacker(STComputeDamageVariable*,bool) T 0x080957c3 (0x4d)
-//   getDefenseRateDamager(float&,float&,STComputeDamageVariable*,void*) T 0x08095810 (0x206)
-//   checkIsCriticalSDC(STComputeDamageVariable*,float*,unsigned int*)   T 0x08095a16 (0x21c)
-//   decryptBVHackPacket(char*,stBVHackInfo_t&)              T 0x088920f1 (0xd1)
-//   BLEEDING_DAMAGE_IN_ACTION_RATE  R 0x08af45e4 4B（.rodata 字节 00 00 c0 3f = 0.75f）
-//   g_maxTotalDefenseRate           D 0x0936e4a8 4B（.data   字节 0a d7 23 3c = 0.01f）
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "STComputeDamageVariable.h"   // STComputeDamageVariable / ENUM_CONVERT_TABLE_TYPE（权威布局，DspD1 产出）
@@ -48,6 +35,9 @@ float g_maxTotalDefenseRate = 0.01f;
 namespace _SDC
 {
 #include "SDCLink/isObjectType.inc"
+{
+    // ORIG 0x080950e8：无帧无槽，and 后直接 cmp 参数（P0 单表达式）。
+    return (objectType & code) == code;
 }
 }
 // ScriptDepsB.cpp 定义（D 0x093f5d18 / 0x093f5d30），声明复用 ScriptDepsB.h；本地直声明避免拖依赖。
@@ -88,6 +78,8 @@ static const float kCritRollScale = 100.0f; // 0x08b12f64
 //    → 两参均未读，恒返 1.0f（ORIG 即纯常量，非桩）。
 // ============================================================================
 #include "SDCLink/getAbilityConvertRateSDC.inc"
+{
+    return 1.0f;
 }
 // LinkFinal2：getDamageInflict 的三分派目标定义（ORIG T 0x08095220/0x08095508/0x08095275
 // objdump 逐指令转写）及其依赖 getDamageRateCreature T 0x080955e1、
@@ -115,15 +107,49 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // fldl+faddp，N85③）；double 临时槽 4.4 复用而 4.1 每步新槽（帧 0x68 vs 0x78，N82）。
 // 语义等价，按 §6 记 N 封顶。
 #include "SDCLink/getDamageRateCreature.inc"
+{
+    if (a > 0x32)
+        a = 0x32;
+    int sum = a + b;
+    double result = 1.0;
+    if (g_creature_damage_vector_.size() > 6)
+    {
+        // P175/P167：ORIG 8 处调用点全是 `vector::at(unsigned)`（非 operator[]）；
+        // 逐点写 at()，勿缓存引用。
+        // ORIG `fildl at(1); fildl sum; fmulp` ⇒ 两操作数各自 fildl（double 乘法），
+        // 不是先做 int 乘法再 fildl（后者产 imul+mov+fildl）。
+        // 且 ORIG 恒先求值「加法的右项」（at(0)+c / at(2) / at(5) 先落槽）⇒ 把该项
+        // 写在加法左侧（浮点加法可交换，值不变）。
+        double d1 = (static_cast<double>(g_creature_damage_vector_.at(0)) + static_cast<double>(c)) +
+                    static_cast<double>(g_creature_damage_vector_.at(1)) * static_cast<double>(sum);
+        double d3 = static_cast<double>(g_creature_damage_vector_.at(2)) +
+                    static_cast<double>(g_creature_damage_vector_.at(3)) * static_cast<double>(sum);
+        double d4 = (static_cast<double>(g_creature_damage_vector_.at(4)) / d3 + 1.0) * d1;
+        double d6 = static_cast<double>(g_creature_damage_vector_.at(5)) +
+                    static_cast<double>(g_creature_damage_vector_.at(3)) * static_cast<double>(sum);
+        result = (kDamageRateDiv100 / (d4 + static_cast<double>(g_creature_damage_vector_.at(6)) / d6)) * result;
+    }
+    return static_cast<float>(result);
 }
 
 // _Z31getCreatureDamageRateFromModule16ENUM_MODULE_TYPE @0x08095430 (0x6c)：
 // map find 命中返 value，未命中 1.0f。
 #include "SDCLink/getCreatureDamageRateFromModule.inc"
+{
+    std::map<ENUM_MODULE_TYPE, float>::iterator it =
+        g_creatureModuleDamageRateMap.find(type);
+    if (it != g_creatureModuleDamageRateMap.end())
+        return it->second;
+    return 1.0f;
 }
 
 // _Z30getCreatureDamageRateFromIndexi @0x0809549c (0x6c)：同型 map<int,float>。
 #include "SDCLink/getCreatureDamageRateFromIndex.inc"
+{
+    std::map<int, float>::iterator it = g_creatureIndexDamageRateMap.find(index);
+    if (it != g_creatureIndexDamageRateMap.end())
+        return it->second;
+    return 1.0f;
 }
 
 // _Z24getDamageInflictCreatureP23STComputeDamageVariable @0x08095508 (0xd9)：
@@ -139,6 +165,21 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // base/lv 槽位比 ORIG 浅 0x10（N126 版本首槽基址常数 + N82 槽复用，实测非声明序可翻）；
 // `mov -0x20(%ebp),%ecx` 装载时刻（P75）。按 §6 记 N 封顶。
 #include "SDCLink/getDamageInflictCreature.inc"
+{
+    if (v->m_char1B5 == 0)
+        return 0.0f;
+    float base = v->m_field000;
+    int lv = static_cast<int>(v->m_d1AA);   // fldcw 截断模式
+    float dmg = getDamageRateCreature(
+                    static_cast<int>(static_cast<signed char>(v->m_char1B7)),
+                    static_cast<int>(static_cast<signed char>(v->m_char1B8)), lv) * base;
+    dmg = dmg * v->m_f02B;
+    dmg = dmg * getCreatureDamageRateFromModule(
+                     static_cast<ENUM_MODULE_TYPE>(static_cast<signed char>(v->m_objTypeByte)));
+    if (static_cast<signed char>(v->m_objTypeByte) == 9)
+        dmg = dmg * getCreatureDamageRateFromIndex(
+                         static_cast<int>(static_cast<signed char>(v->m_char1B9)));
+    return dmg;
 }
 
 // _Z31getDamageInflictCollisionObjectP23STComputeDamageVariablePv @0x08095275 (0x1bb)：
@@ -149,6 +190,37 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // 4.4 恒折 fdivs）。其余 diff 行全为重定位地址伪差（0x8b12f54 vs .o 未解析 0x28）。
 // 语义等价，封顶。
 #include "SDCLink/getDamageInflictCollisionObject.inc"
+{
+    float dmg = v->m_field000;
+    if (v->m_char004 != 0)
+    {
+        if (v->m_damageType == 0 || v->m_damageType == 2)
+            dmg = dmg + v->m_field02F;
+        else if (v->m_damageType == 1)
+            dmg = dmg + v->m_field033;
+    }
+    dmg = dmg * (v->m_f006 * kDamageRateMul01 + 1.0f);
+    if (v->m_damageType == 0)
+        dmg = dmg * (v->m_f037 * kDamageRateMul01 + 1.0f);
+    else if (v->m_damageType == 1)
+        dmg = dmg * (v->m_f03B * kDamageRateMul01 + 1.0f);
+    if (v->m_damageType == 0)
+    {
+        float s2 = v->m_f03F;
+        if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
+            s2 = s2 * getAbilityConvertRateSDC(collisionObject, CONVERT_TABLE_3);
+        dmg = dmg * (g_physicalDamageRateConst_ / s2 + 1.0f);
+    }
+    else if (v->m_damageType == 1)
+    {
+        float s2 = v->m_f043;
+        if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
+            s2 = s2 * getAbilityConvertRateSDC(collisionObject, CONVERT_TABLE_5);
+        dmg = dmg * (g_magicalDamageRateConst_ / s2 + 1.0f);
+    }
+    dmg = dmg * getAbilityConvertRateSDC(collisionObject, CONVERT_TABLE_0);
+    dmg = v->m_f047 * dmg + dmg;
+    return dmg;
 }
 
 // _Z29getDamageInflictPassiveObjectP23STComputeDamageVariablePv @0x08095220 (0x55)：
@@ -159,6 +231,10 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // `mov %eax,-0xc; flds -0xc`（float 位模式过 eax），帧 0x28、无具名 float 局部。
 // 改三元后 fresh .o 判 identical/ae（SDCLink near 2→1）。P243 同族。
 #include "SDCLink/getDamageInflictPassiveObject.inc"
+{
+    return (v->m_char1B5 != 0 && v->m_char1B6 != 0)
+               ? getDamageInflictCreature(v)
+               : getDamageInflictCollisionObject(v, passiveObject);
 }
 
 // ============================================================================
@@ -173,6 +249,15 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // [b28d-lane15] check_tu_routed 复核：本件不在 near/diff 列表（identical/ae）；
 // game_func_report 的 DIFF 系 jmp 目标标签归一伪差，维持 AE。
 #include "SDCLink/isValidAttackInfoElement.inc"
+{
+    if (elem == 4)
+    {
+        if (!(v->m_elemEnable[0] || v->m_elemEnable[1] ||
+              v->m_elemEnable[2] || v->m_elemEnable[3]))
+            return true;
+        return false;
+    }
+    return v->m_elemEnable[elem] != 0;
 }
 
 // ============================================================================
@@ -187,6 +272,13 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // （非本泳道 TU，R1 禁编辑）⇒ 已上报 Main 定夺 TU 归属迁移，本件暂 N 封顶。
 // ============================================================================
 #include "SDCLink/getComputeDamageBasisLevelAttacker.inc"
+{
+    if (useAttackerLevel)
+    {
+        if (_SDC::isObjectType(v->m_attackerObjType, 0x111))
+            return (signed char)v->m_char1B4;
+    }
+    return (signed char)v->m_char1B3;
 }
 
 // ============================================================================
@@ -196,6 +288,12 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 //      否则 CollisionObject(v,obj)。
 // ============================================================================
 #include "SDCLink/getDamageInflict.inc"
+{
+    if (_SDC::isObjectType(v->m_field1BA, 0x21))
+        return getDamageInflictPassiveObject(v, defender);
+    if (_SDC::isObjectType(v->m_field1BA, 0x81))
+        return getDamageInflictCreature(v);
+    return getDamageInflictCollisionObject(v, defender);
 }
 
 // ============================================================================
@@ -215,6 +313,61 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // 已按五要素上报 Main；实测该旗标下本 TU ae 20→21、diff 7→6。）
 // ============================================================================
 #include "SDCLink/getDefenseRateDamager.inc"
+                           STComputeDamageVariable* v, void* defender)
+{
+    // 0x08095816：lvl = getComputeDamageBasisLevelAttacker(v, false)
+    int basisLevel = getComputeDamageBasisLevelAttacker(v, false);
+
+    float dr = 0.0f;        // -0x24 防御减伤基数
+    float s1 = 0.0f;        // -0x10
+    float redConst = 0.0f;  // -0xc
+
+    if (v->m_damageType == 0)            // 0x08095847：test 0x5 → 物理分支
+    {
+        dr = static_cast<float>(v->m_field093);                       // fildl 0x93
+        dr = (static_cast<float>(v->m_field097) * kDefRateMul01 + 1.0f) * dr;  // 0x97
+        redConst = g_physicalReduceRateConst_;                        // mov 0x93f5d18
+        s1 = v->m_field09B * kDefRateMul01;                           // flds 0x9b
+        if (v->m_objTypeByte == 9)                                    // 0x1b2
+            s1 *= getAbilityConvertRateSDC(defender, static_cast<ENUM_CONVERT_TABLE_TYPE>(8));
+    }
+    else if (v->m_damageType == 1)       // 0x080958d6：cmp $1 → 魔法分支
+    {
+        dr = static_cast<float>(v->m_field09F);                       // fildl 0x9f
+        dr = (static_cast<float>(v->m_field0A3) * kDefRateMul01 + 1.0f) * dr;  // 0xa3
+        redConst = g_magicalReduceRateConst_;                         // mov 0x93f5d30
+        s1 = v->m_field0A7 * kDefRateMul01;                           // flds 0xa7
+        if (v->m_objTypeByte == 9)
+            s1 *= getAbilityConvertRateSDC(defender, static_cast<ENUM_CONVERT_TABLE_TYPE>(0xA));
+    }
+
+    // 0x0809595b：dr *= getAbilityConvertRateSDC(defender, 1)
+    dr *= getAbilityConvertRateSDC(defender, static_cast<ENUM_CONVERT_TABLE_TYPE>(1));
+
+    // 0x08095976：if (v->m_char1E5) redConst *= 2（fadd st(0),st(0)）
+    if (v->m_char1E5 != 0)
+        redConst += redConst;
+
+    // 0x0809598c：dr = std::max(dr, 0.0f)
+    // [C03 实测] ORIG 该 max 的第一实参是具名 0.0f 局部（-0x20）、第二为 dr（-0x24），
+    //   但把 0.0f/1.0f 具名化后 4.4 全帧槽位反而上升 4（dr -0x20→-0x18，本件变差），
+    //   已回退；残差属 N85①+槽组族（见下）。
+    dr = std::max(dr, 0.0f);
+
+    // 0x080959ae..0x080959de：out0 = dr / max(1.0f, (float)lvl * redConst + dr)
+    // [C03 修·配方②（槽复用）] ORIG 把 denom 作为**临时**（0x080959c4 `fstps -0x18`）
+    // 而非具名；我方原具名 denom 多开一个 4B 槽并占走 dr 的 -0x24 ⇒ 内联 denom 后
+    // **diff 行数 150→58**（其余为 call/jmp 重定位伪差）。反例留痕：补具名 `one`
+    // （1.0）后 diff 回到 86 且 dr 落 -0x20 ⇒ 已回退，维持内联形。
+    outDefenseRate = dr / std::max(1.0f, static_cast<float>(basisLevel) * redConst + dr);
+
+    // 0x080959e3：if (dr == 0.0f && lvl <= 9) out0 = dr / 400.0f
+    //   （fnstsw+test 0x45+sete：非无序且相等，即 C++ dr == 0.0f）
+    if (dr == 0.0f && basisLevel <= 9)
+        outDefenseRate = dr / kDefRateDrFloorDiv;
+
+    // 0x08095a0c：out1 = s1
+    outReduceS1 = s1;
 }
 
 // ============================================================================
@@ -238,6 +391,67 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 // （局部 union 视角，P260 不适用于自动局部）。判 N（N85③+N87）。
 // ============================================================================
 #include "SDCLink/checkIsCriticalSDC.inc"
+{
+    if (dmg == 0)                                   // 0x08095a1d：cmpl $0,0xc(%ebp)
+        return false;
+
+    // [b28d-L28 重核] ORIG 0x08095a2d `mov $0x40400000,%eax; mov %eax,-0x10(%ebp)`（常量
+    // →槽二跳，P244/P232）后 `flds 0x13(%ebx); flds -0x10(%ebp); faddp`（成员先 fld，
+    // P243）⇒ 原码是具名 float 常量局部 + 成员在左的加法。
+    float baseCrit = 3.0f;
+    float crit = v->m_f00F[1] + baseCrit;
+
+    if (v->m_char1B6 != 0)                          // 0x1b6
+    {
+        if (_SDC::isObjectType(v->m_attackerObjType, 0x81))
+            crit += v->m_f05B;                      // flds 0x5b
+    }
+    else if (_SDC::isObjectType(v->m_attackerObjType, 0x11))
+    {
+        if (v->m_damageType == 0)
+            crit += v->m_f04B;                      // flds 0x4b
+        else if (v->m_damageType == 1)
+            crit += v->m_f04F;                      // flds 0x4f
+    }
+
+    if (v->m_char1DE != 0)                          // 0x1de
+    {
+        crit += v->m_f00F[2];                       // flds 0x17
+        if (_SDC::isObjectType(v->m_attackerObjType, 0x11))
+        {
+            if (v->m_damageType == 0)
+                crit += v->m_f053;                  // flds 0x53
+            else if (v->m_damageType == 1)
+                crit += v->m_f057;                  // flds 0x57
+        }
+    }
+
+    if (_SDC::isObjectType(v->m_defenderObjType, 0x11))   // 0x1c2
+        crit -= v->m_field0CF;                      // flds 0xcf
+
+    // 0x08095b6a：roll = SDC_Rand(randState) % 10000（有符号 rem，0x68db8bad/0x2710 序列）
+    // [b28d-L28 重核] ORIG 0x08095b6a 出**有符号** rem 序列（`imul %edx`(0x68db8bad)
+    // + `sar $0xc` + `sar $0x1f` 修正 + `imul $0x2710`），我方旧 `% 10000u` 走无符号
+    // `mul/shr` 序列 ⇒ 原码是先转 int 再对 int 常量取余。
+    // [C03 试验·F2c 轴 A（const 限定符）] 去 const 后 our_insns 171→**172**、
+    // 帧 0x34→0x24（反劣）⇒ 已回滚；本件保留 const（4.4 未对其做立即数折叠）。
+    const int roll = static_cast<int>(SDC_Rand(randState)) % 10000;
+
+    // 0x08095b9d..0x08095bb7：if (crit * 100.0f > (float)roll)
+    if (crit * kCritRollScale > static_cast<float>(roll))
+    {
+        float critMul = g_criticalDamageDefaultRate_;     // mov 0x936e4ac（=1.5f 初值）
+        if (_SDC::isObjectType(v->m_attackerObjType, 0x11))
+            critMul *= v->m_f06F;                   // flds 0x6f
+        critMul += v->m_field073;                   // flds 0x73
+        *dmg *= critMul;
+        v->m_isCritical = 1;                        // movb $1,0x1ce
+    }
+    else
+    {
+        v->m_isCritical = 0;                        // movb $0,0x1ce
+    }
+    return v->m_isCritical != 0;
 }
 
 // ============================================================================
@@ -264,6 +478,39 @@ struct stBVHackInfo_t
 static_assert(sizeof(stBVHackInfo_t) == 0x30, "stBVHackInfo_t must be 0x30 bytes");
 
 #include "SDCLink/decryptBVHackPacket.inc"
+{
+    if (payload == 0)                               // 0x088920f7
+        return 0;
+
+    // [b28d-lane15] ORIG 0x08892107 `movl $0x6e3f4b9c,-0x10(%ebp)` 是**死写入**局部
+    // （比较仍用立即数 `cmp $0x6e3f4b9c`）——P171 照抄，勿删。
+    unsigned int magic = 0x6e3f4b9cu;
+
+    if (*reinterpret_cast<unsigned int*>(payload) != 0x6e3f4b9cu)   // 0x08892113
+        return 0;
+
+    payload += 4;                                   // addl $0x4,0x8(%ebp)
+
+    const unsigned int key =
+        *reinterpret_cast<unsigned int*>(payload + 0x30);           // mov 0x30(%eax)
+
+    unsigned int* cur = reinterpret_cast<unsigned int*>(payload);   // -0x8 游标
+    // ORIG 0x0889215b `setbe`（无符号 ≤）⇒ 循环变量必须 unsigned（P2）。
+    for (unsigned int i = 0; i <= 11; ++i)          // cmpl $0xb … setbe（i≤11 共 12 次）
+    {
+        *cur = *cur ^ key;                          // mov (%edx); xor -0xc; mov (%eax)
+        ++cur;
+    }
+
+    // 6×double：ORIG 逐次 `fldl (payload); fstpl off(info); addl $0x8,payload`
+    // （形参自增，非数组下标 src[i]）。
+    info.m_values[0] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[1] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[2] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[3] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[4] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[5] = *reinterpret_cast<double*>(payload); payload += 8;
+    return 1;                                       // mov $0x1,%eax
 }
 
 // ============================================================================

@@ -1,2 +1,1 @@
 SecurityRestrictPolicy::~SecurityRestrictPolicy()
-{

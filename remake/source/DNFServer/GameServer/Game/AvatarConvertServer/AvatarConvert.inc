@@ -1,2 +1,1 @@
 AvatarConvert::AvatarConvert()
-{

@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CountryCode/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CountryCode/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // CountryCode —— ORIG 14 函数 + 7 静态成员 + ccTable/ccTable2 数据。
 // 报告：docs/class_func_reports/CountryCode/（全部 15 份已完整阅读）；
@@ -304,6 +306,7 @@ static const CountryCodeTableEntry ccTable[242] = {
 };
 
 #include "CountryCode/CountryCode.inc"
+{
 }
 
 // ---------------------------------------------------------------------------
@@ -316,13 +319,84 @@ static const CountryCodeTableEntry ccTable[242] = {
 #include "CountryCode/china.inc"
 #include "CountryCode/taiwan.inc"
 #include "CountryCode/usa.inc"
+
+// ---------------------------------------------------------------------------
+// 构造函数
+// ---------------------------------------------------------------------------
 #include "CountryCode/CountryCode_1.inc"
+{
 }
 
 #include "CountryCode/CountryCode_2.inc"
+{
+    int idx;
+    if ((signed char)a2Code[0] > 0x60 && (signed char)a2Code[0] <= 0x7a)
+    {
+        idx = (int)(char)(unsigned char)a2Code[0] * 0x1a - 0x9da;
+    }
+    else if ((signed char)a2Code[0] > 0x40 && (signed char)a2Code[0] <= 0x5a)
+    {
+        idx = (int)(char)(unsigned char)a2Code[0] * 0x1a - 0x69a;
+    }
+    else
+    {
+        m_idx = 0;
+        return;
+    }
+    if ((signed char)a2Code[1] > 0x60 && (signed char)a2Code[1] <= 0x7a)
+    {
+        idx += (int)(char)(unsigned char)a2Code[1] - 0x61;
+    }
+    else if ((signed char)a2Code[1] > 0x40 && (signed char)a2Code[1] <= 0x5a)
+    {
+        idx += (int)(char)(unsigned char)a2Code[1] - 0x41;
+    }
+    else
+    {
+        m_idx = 0;
+        return;
+    }
+    m_idx = ccTable2[idx];
+    if (m_idx == 0xff)
+    {
+        m_idx = 0;
+    }
 }
 
 #include "CountryCode/CountryCode_3.inc"
+{
+    int idx;
+    if (a2Code[0] > 0x60 && a2Code[0] <= 0x7a)
+    {
+        idx = a2Code[0] * 0x1a - 0x9da;
+    }
+    else if (a2Code[0] > 0x40 && a2Code[0] <= 0x5a)
+    {
+        idx = a2Code[0] * 0x1a - 0x69a;
+    }
+    else
+    {
+        m_idx = 0;
+        return;
+    }
+    if (a2Code[1] > 0x60 && a2Code[1] <= 0x7a)
+    {
+        idx += a2Code[1] - 0x61;
+    }
+    else if (a2Code[1] > 0x40 && a2Code[1] <= 0x5a)
+    {
+        idx += a2Code[1] - 0x41;
+    }
+    else
+    {
+        m_idx = 0;
+        return;
+    }
+    m_idx = ccTable2[idx];
+    if (m_idx == 0xff)
+    {
+        m_idx = 0;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -346,18 +420,31 @@ CountryCode& CountryCode::operator=(wchar_t const* a2Code)
 // 查询
 // ---------------------------------------------------------------------------
 #include "CountryCode/getAlpha2Code.inc"
+{
+    char t[3] = { 0 };
+    t[0] = ccTable[m_idx].alpha2_1;
+    t[1] = ccTable[m_idx].alpha2_2;
+    return std::string(t);
 }
 
 #include "CountryCode/getCountryName.inc"
+{
+    return std::string(toTString(ccTable[m_idx].name));
 }
 
 #include "CountryCode/getInternalValue.inc"
+{
+    return m_idx;
 }
 
 #include "CountryCode/getAlpha2CodeByte.inc"
+{
+    return &ccTable[m_idx].alpha2_1;
 }
 
 #include "CountryCode/isNone.inc"
+{
+    return m_idx == 0;
 }
 
 bool CountryCode::operator==(CountryCode other) const
@@ -371,4 +458,6 @@ bool CountryCode::operator!=(CountryCode other) const
 }
 
 #include "CountryCode/setInternalValue.inc"
+{
+    m_idx = value;
 }

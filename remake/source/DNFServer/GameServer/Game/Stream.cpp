@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Stream/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Stream/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— Stream / SmallStream / BigStream（S1 组）
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
@@ -18,54 +20,138 @@
 #include <string.h>
 
 #include "Stream/Stream.inc"
+{
+    // ORIG 存储顺序：+8(m_buffer) → +4(m_size) → +0xc → +0x10
+    m_buffer = 0;
+    m_size = 0;
+    m_inPtr = 0;
+    m_outPtr = 0;
+    set_big_stream(false);
+    resize(0x4000);
+    m_poolType = 0;
 }
 
 #include "Stream/Stream_1.inc"
+{
+    m_buffer = 0;
+    m_size = 0;
+    m_inPtr = 0;
+    m_outPtr = 0;
+    set_big_stream(false);
+    resize(size);
+    m_poolType = 0;
 }
 
 #include "Stream/Stream_2.inc"
+{
+    Stream();
+    *this << str;
 }
 
 #include "Stream/Stream_3.inc"
+{
+    Stream();
+    put_binary(other.get_buffer(), other.length());
 }
 
 #include "Stream/dtor_Stream.inc"
+{
+    delete[] m_buffer;
 }
 
 #include "Stream/size.inc"
+{
+    return m_size;
 }
 
 #include "Stream/length.inc"
+{
+    return in_ptr() - out_ptr();
 }
 
 #include "Stream/in_ptr.inc"
+{
+    return m_inPtr;
 }
 
 #include "Stream/in_ptr_1.inc"
+{
+    m_inPtr += n;
+    return m_inPtr;
 }
 
 #include "Stream/out_ptr.inc"
+{
+    return m_outPtr;
 }
 
 #include "Stream/out_ptr_1.inc"
+{
+    if (m_outPtr + n > m_inPtr)
+    {
+        return -1;
+    }
+    m_outPtr += n;
+    if (m_outPtr == m_inPtr)
+    {
+        reset();
+    }
+    return m_outPtr;
 }
 
 #include "Stream/reset.inc"
+{
+    m_inPtr = 0;
+    m_outPtr = 0;
+    set_big_stream(false);
+    m_poolType = 0;
 }
 
 #include "Stream/set_big_stream.inc"
+{
+    m_bigStream = b;
 }
 
 #include "Stream/is_big_stream.inc"
+{
+    return m_bigStream;
 }
 
 #include "Stream/resize.inc"
+{
+    char* buf = new char[n];
+    if (!buf)
+    {
+        return 0;
+    }
+    memcpy(buf, m_buffer + out_ptr(), length());
+    if (m_buffer)
+    {
+        delete[] m_buffer;
+    }
+    m_outPtr = 0;
+    m_inPtr = length();
+    m_buffer = buf;
+    m_size = n;
+    return 1;
 }
 
 #include "Stream/enable_in.inc"
+{
+    if (in_ptr() + n > size())
+    {
+        return false;
+    }
+    return true;
 }
 
 #include "Stream/enable_out.inc"
+{
+    if (out_ptr() + n > in_ptr())
+    {
+        return false;
+    }
+    return true;
 }
 
 Stream& Stream::operator<<(bool b)
@@ -167,6 +253,14 @@ Stream& Stream::operator<<(unsigned long v)
 }
 
 #include "Stream/put_binary.inc"
+{
+    while (!enable_in(len))
+    {
+        resize(size() * 2);
+    }
+    memcpy(m_buffer + in_ptr(), src, len);
+    in_ptr(len);
+    return 1;
 }
 
 bool Stream::operator>>(bool& b)
@@ -278,22 +372,51 @@ bool Stream::operator>>(unsigned long& v)
 }
 
 #include "Stream/str_len.inc"
+{
+    int len = 0;
+    int i = 0;
+    while (i <= 9999999)
+    {
+        if (s[i] == 0)
+        {
+            return len;
+        }
+        ++len;
+        ++i;
+    }
+    return 0;
 }
 
 #include "Stream/get_buffer.inc"
+{
+    return m_buffer + out_ptr();
 }
 
 #include "Stream/get_binary.inc"
+{
+    if (!enable_out(len))
+    {
+        return 0;
+    }
+    memcpy(dst, m_buffer + out_ptr(), len);
+    out_ptr(len);
+    return 1;
 }
 
 #include "Stream/SmallStream.inc"
+    : Stream(0x1000)
+{
 }
 
 #include "Stream/dtor_SmallStream.inc"
+{
 }
 
 #include "Stream/BigStream.inc"
+    : Stream(0x40000)
+{
 }
 
 #include "Stream/dtor_BigStream.inc"
+{
 }

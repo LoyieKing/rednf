@@ -1,3 +1,1 @@
 MissionScript::MissionScript()
-{
-    clear();

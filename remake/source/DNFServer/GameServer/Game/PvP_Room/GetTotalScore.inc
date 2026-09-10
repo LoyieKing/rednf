@@ -1,0 +1,1 @@
+int PvpResultType::GetTotalScore() const

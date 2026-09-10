@@ -1,2 +1,1 @@
 CAccountFirstLoginDaily::~CAccountFirstLoginDaily()
-{

@@ -1,3 +1,1 @@
 EventProcessManager::~EventProcessManager()
-{
-    destroy();

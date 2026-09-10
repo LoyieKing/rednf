@@ -1,3 +1,1 @@
 STAssignSpecialPassiveObj::STAssignSpecialPassiveObj()
-{
-    Clear();

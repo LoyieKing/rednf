@@ -1,2 +1,1 @@
 CDeathTower::CPlayData::CPlayData() throw()
-{

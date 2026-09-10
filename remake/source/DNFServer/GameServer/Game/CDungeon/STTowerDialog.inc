@@ -1,3 +1,1 @@
 STTowerDialog::STTowerDialog()
-{
-    clear();

@@ -1,27 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 StringCaseTools/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 StringCaseTools/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// StringCaseTools.cpp —— CharString / WideString 大小写/裁剪/反转/删除自由函数
-// 与 readStringFromBuffer 缓冲读取工具。
-//
-// 全部按 ORIG df_game_r 反汇编逐函数转写（OnlyOrigBatch7 批次）：
-//   lower   CharString 0x08ad8062 / WideString 0x08adb119
-//   upper   CharString 0x08ad8120 / WideString 0x08adb1d9
-//   reverse CharString 0x08ad81de / WideString 0x08adb299
-//   remove  CharString 0x08ad7a01 / WideString 0x08adaa7a
-//   trim    CharString 0x08ad84c0 / WideString 0x08adb596（trimLeft(trimRight)）
-//   trimLeft  CharString 0x08ad82a9 / WideString 0x08adb369
-//   trimRight CharString 0x08ad83c0 / WideString 0x08adb491
-//   readStringFromBuffer(char*,int,char*&)   0x08ad0130
-//   readStringFromBuffer(std::string&,char*&) 0x08ad0460
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "StringTypes.h"
@@ -68,6 +55,15 @@ inline __attribute__((always_inline)) unsigned short readWordFromBuffer(char*& b
 // 4.1 inline 展开遗留的 only-ORIG weak 符号）；4.4 重读形参并把 n 槽化
 // （-0xe）、min() 折 cmovg。源形不可造，语义等价。
 #include "StringCaseTools/readStringFromBuffer.inc"
+{
+    // [b28e-L5] 改用 inline readWordFromBuffer（ORIG 在此点内联展开并写 static
+    // wordBuffer）⇒ 复现 `movzwl (%eax),%edi; mov %di,0x9501a1a; add $0x2,%eax;
+    // mov %eax,(%ebx)` 序列。
+    const unsigned short n = readWordFromBuffer(buf);
+    const int len = (int)n <= maxLen - 1 ? (int)n : maxLen - 1;
+    memcpy(dst, buf, len);
+    dst[len] = 0;
+    buf += n;
 }
 
 // ---------------------------------------------------------------------------
@@ -323,4 +319,10 @@ WideString trim(const WideString& str)
 // `mov %si,0x9501a1a`（readWordFromBuffer 局部 static，weak 合并）；4.4 槽化
 // n（-0xa）+ 逐次重读 0xc(%ebp)。语义等价。
 #include "StringCaseTools/readStringFromBuffer_1.inc"
+{
+    // [b28e-L5] 同上（ORIG 此处 `mov %si,0x9501a1a`）。
+    const unsigned short n = readWordFromBuffer(buf);
+    str.resize(n + 1, 0);
+    str.assign(buf, n);
+    buf += n;
 }

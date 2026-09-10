@@ -1,3 +1,1 @@
 EpollHandler::EpollHandler()
-{
-    init();

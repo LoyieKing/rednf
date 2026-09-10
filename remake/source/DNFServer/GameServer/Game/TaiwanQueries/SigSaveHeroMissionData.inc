@@ -1,3 +1,1 @@
 SigSaveHeroMissionData::SigSaveHeroMissionData()
-{
-    init();

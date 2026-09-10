@@ -1,2 +1,1 @@
 STSkillScript::~STSkillScript()
-{

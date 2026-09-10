@@ -1,2 +1,1 @@
 CQuestShop::~CQuestShop()
-{

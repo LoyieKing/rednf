@@ -1,20 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 StatisticsNatType/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 StatisticsNatType/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— StatisticsNatType（G2-4 批次，统计域）。
-// 依据 docs/class_func_reports/StatisticsNatType.md + ORIG 反汇编。
-// 布局：+0x00 map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*>。
-// NAT_TYPE_PEER_TO_PEER(0x8)/RESULT_COUNT(0x8)/SIG_NAT_TYPE(0x14) 见下。
-// 类定义统一到权威头 GameWorld.h（StatisticsNatType/嵌套 key/value），
-// 本 TU 仅保留方法定义。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <map>
@@ -61,23 +55,125 @@
 
 // ORIG 08610262：参数对按升序存储（m_a <= m_b）
 #include "StatisticsNatType/NAT_TYPE_PEER_TO_PEER.inc"
+{
+    if (a > b)
+    {
+        m_a = b;
+        m_b = a;
+    }
+    else
+    {
+        m_a = a;
+        m_b = b;
+    }
 }
 
 // ORIG 08610294：两个计数清零
 #include "StatisticsNatType/RESULT_COUNT.inc"
+{
+    m_countA = 0;
+    m_countB = 0;
 }
 
 #include "StatisticsNatType/StatisticsNatType.inc"
+    : m_counts()
+{
 }
 
 #include "StatisticsNatType/dtor_StatisticsNatType.inc"
+{
+    std::map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*>::iterator it = m_counts.begin();
+    while (it != m_counts.end())
+    {
+        RESULT_COUNT* rc = it->second;
+        if (rc != 0)
+        {
+            delete rc;
+            rc = 0;
+        }
+        it++;
+    }
 }
 
 #include "StatisticsNatType/Reset.inc"
+{
+    std::map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*>::iterator it = m_counts.begin();
+    while (it != m_counts.end())
+    {
+        RESULT_COUNT* rc = it->second;
+        if (rc != 0)
+        {
+            rc->m_countB = 0;
+            rc->m_countA = 0;
+        }
+        it++;
+    }
 }
 
 #include "StatisticsNatType/IncreaseNatType.inc"
+{
+    NAT_TYPE_PEER_TO_PEER key(natA, natB);
+    std::map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*>::iterator it = m_counts.find(key);
+
+    RESULT_COUNT* rc = 0;
+    if (it != m_counts.end())
+    {
+        rc = it->second;
+    }
+    else
+    {
+        rc = new RESULT_COUNT();
+        // ORIG 0x0860c924 段：pair 转发 ctor `_ZNSt4pairIK…EEC1IRS1_RS4_EEOT_OT0_`
+        // （K&/V& 直构）⇒ 源码为 value_type(key, rc) 直构；make_pair 会多出
+        // `_ZSt9make_pairIR…E` + move 转换 ctor 两次调用（P192 配套）。
+        m_counts.insert(std::map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*>::value_type(key, rc));
+    }
+
+    if (count != 0)
+    {
+        ++rc->m_countA;
+    }
+    else
+    {
+        ++rc->m_countB;
+    }
 }
 
 #include "StatisticsNatType/UpdateNatType.inc"
+{
+    // ORIG 0860c968：入口先 _Rb_tree_iterator::C1Ev（-0x1c）⇒ 迭代器【先声明后赋值】
+    // （P50/P314 复活形）；begin() 经 sret 临时 -0x2c 再拷贝进 it。
+    std::map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*>::iterator it;
+    time_t now = time(0);
+    it = m_counts.begin();
+    // ORIG 条件块在尾部（0x0860cb61：end() -0x18 + operator!=），增量段 0x0860cb44
+    // 为【后置】operator++（ppEi，sret 临时 -0x14）⇒ while + it++（P28）；
+    // it->second 每处重读（ORIG 无 rc 缓存槽：条件 3 次 + 写字段 2 次 ptEv）。
+    while (it != m_counts.end())
+    {
+        // ORIG 0x0860c9b5..0x0860cb44：null 检查落「空 then 占位岛」（0xcb43 nop）+
+        // body 尾 `jmp <inc>`（P223 空块 nop 中继岛；标签置复合块外以合法跨越声明）。
+        if (it->second == 0) goto L_inc;
+        {
+            if (it->second->m_countB > 0 || it->second->m_countA > 0)
+            {
+                CStreamGuard guard(
+                    GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x1c7), true);
+
+                **guard << 0x83;
+                **guard << -1;
+                SIG_NAT_TYPE* sig = guard->GetInBuffer<SIG_NAT_TYPE>();
+                memset(sig, 0, sizeof(SIG_NAT_TYPE));
+                sig->m_natType = it->first.m_a;        // ORIG 0x0860caa8（+0x00 ← m_a）
+                sig->m_natTypeOther = it->first.m_b;   // ORIG 0x0860caaf（+0x04 ← m_b）
+                sig->m_failCnt = it->second->m_countB;   // ORIG 0x0860cac3（+0x08）
+                sig->m_successCnt = it->second->m_countA;// ORIG 0x0860cadc（+0x0c）
+                sig->m_time = now;                     // ORIG 0x0860caf4（+0x10，同型直存）
+                GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+            }
+        }
+    L_inc:;
+        it++;
+    }
+    Reset();
 }

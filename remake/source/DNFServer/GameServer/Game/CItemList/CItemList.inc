@@ -1,2 +1,1 @@
 CItemList::CItemList()
-{

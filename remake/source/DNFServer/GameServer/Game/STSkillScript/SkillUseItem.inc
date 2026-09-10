@@ -1,3 +1,1 @@
 SkillUseItem::SkillUseItem()
-{
-    clear();

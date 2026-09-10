@@ -1,35 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Arad_Verify/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Arad_Verify/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// Game/Arad_Verify.cpp —— OrigArad20 独占 TU（Arad/脚本域缺口）。
-//
-// 覆盖 ORIG 符号（df_game_r nm -S 实证）：
-//   _ZN4ARAD21arad_equipment_verifyEP10Inven_ItemPK5CItemN9ARAD_TYPE14INVENTORY_TYPEE
-//                                                                 T 0x0819eaee（0xa 字节）
-//   _ZN4ARAD21arad_stackable_verifyEP10Inven_ItemPK5CItem        T 0x0819eae4（0xa 字节）
-//   _ZN4ARAD19FN_DeleteGameScriptclERSt4pairIKSsPNS_24Arad_InterfaceGameScriptEE
-//                                                                 W 0x08188c56
-//
-// 证据来源：
-//   docs/class_func_reports/ARAD/{arad_equipment_verify,arad_stackable_verify}.md
-//   （FN_DeleteGameScript 无独立报告，按 objdump 0x08188c56 逐指令转写。）
-//
-// 语义说明：
-//   - arad_equipment_verify / arad_stackable_verify 为 ORIG 常量返回函数
-//     （10 字节：push ebp; mov ebp,esp; mov $imm,%eax; pop ebp; ret），
-//     参数全部未使用，返回值 0 / 0xb0 为 ORIG 硬编码【报告实证】。
-//   - FN_DeleteGameScript::operator() 为 Arad_DataManager::destroyAradData
-//     for_each 删除函子：脚本对象非空 → 先调 vtable 槽3 clearScriptData()，
-//     再测非空 → delete（vtable 槽1 D0 deleting dtor），最后 pair.second 置 0。
-//     ORIG 两次独立重读 p.second（P48 无 CSE：两处调用各自读成员）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "Arad_DataManager.h"    // ARAD::Arad_InterfaceGameScript 完整类型（虚槽2/3）
 #include "ARAD_FN_DeleteGameScript.h"
@@ -57,10 +36,14 @@ namespace ARAD
 
 // ORIG T 0x0819eaee（10 字节）：mov $0x0,%eax; ret。
 #include "Arad_Verify/arad_equipment_verify.inc"
+{
+    return 0;
 }
 
 // ORIG T 0x0819eae4（10 字节）：mov $0xb0,%eax; ret。
 #include "Arad_Verify/arad_stackable_verify.inc"
+{
+    return 0xb0;
 }
 
 // ORIG W 0x08188c56：destroyAradData 的 for_each 删除函子。
@@ -71,6 +54,14 @@ namespace ARAD
 //   取 vptr; add $0x4; call *(槽1)                              ← D0 deleting dtor
 //   movl $0,0x4(pair)                                          ← p.second = 0
 #include "Arad_Verify/operator.inc"
+    std::pair<const std::string, Arad_InterfaceGameScript*>& p)
+{
+    if (p.second != 0)
+    {
+        p.second->clearScriptData();
+        delete p.second;
+        p.second = 0;
+    }
 }
 
 }  // namespace ARAD

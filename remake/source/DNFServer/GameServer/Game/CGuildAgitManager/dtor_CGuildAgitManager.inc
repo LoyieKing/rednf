@@ -1,2 +1,1 @@
 CGuildAgitManager::~CGuildAgitManager()
-{

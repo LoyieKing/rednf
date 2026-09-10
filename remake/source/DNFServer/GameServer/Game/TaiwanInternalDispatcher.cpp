@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 TaiwanInternalDispatcher/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 TaiwanInternalDispatcher/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— TaiwanInternalDispatcher（台湾内部分发器，ORIG T @0x081601d0 族）。
 // 报告：docs/class_func_reports/TaiwanInternalDispatcher/（6 函数齐全）。
@@ -95,34 +97,73 @@
 // ---- TaiwanInternalDispatcher ----
 
 #include "TaiwanInternalDispatcher/TaiwanInternalDispatcher.inc"
+{
+    m_dispatchers.clear();   // ORIG @0x081601d0：map::map + map::clear
 }
 
 // ---- Inter* 子类最小实现（仅基类 ctor + vptr；业务方法不在本批）----
 
 #include "TaiwanInternalDispatcher/InterLoadServiceRestrictPolicy.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)1)  // ORIG @0x08161ecd movl $0x1
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterLoadServiceRestrictPolicy.inc"
+{
 }
 
 #include "TaiwanInternalDispatcher/InterLoadGeolocation.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)4)  // ORIG @0x08161f3f movl $0x4
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterLoadGeolocation.inc"
+{
 }
 
 #include "TaiwanInternalDispatcher/InterCheckStayTimeEvent.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)5)  // ORIG @0x08161fb1 movl $0x5
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterCheckStayTimeEvent.inc"
+{
 }
 
 #include "TaiwanInternalDispatcher/InterSelectCreateDnfUserInfo.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)0xa)  // ORIG @0x08162095 movl $0xa
+{
 }
 // ORIG W 0x081620b0/0x081620e0：vptr + 基类析构（D0 另加 operator delete）。
 #include "TaiwanInternalDispatcher/dtor_InterSelectCreateDnfUserInfo.inc"
+{
 }
 // ---- makeRequest（InterSelectMobileAuthReward）----
 // ORIG T 0x081615ae：同 CreateDnfUserInfo 模式，internal_stream(guard, 0xc,
 // param_1)；空 → logFormat(0x18b)；否则写 +0x0/+0x4 入 Msg 并 put(1, guard)。
 #include "TaiwanInternalDispatcher/makeRequest.inc"
+                                              bool param_3)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp", 0x186),
+                       true);
+    Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(0xc), param_1);
+    Msg* msg = guard->GetInBuffer<Msg>();
+    if (msg == 0)
+    {
+        LogManager::logFormat(
+            1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
+            __PRETTY_FUNCTION__,
+            0x18b, "[Taiwan, MobileAuth] m_id:%d rewarded:%d", param_2,
+            // [b28c-32] ORIG 0x08161626 cmpb/je/mov$1/mov$0 三目物化（P47）；
+            // (unsigned int)param_3 直转会退化为 movzbl 单条。
+            param_3 ? 1 : 0);
+    }
+    else
+    {
+        msg->m_id = param_2;
+        // ORIG 0x08161218 为 4.1 bool→int 分支物化（mov$1/mov$0）；4.4 对 bool
+        // 恒 movzbl 直读不可翻（P168a ③b 族），语义等价标 N。
+        msg->m_rewarded = param_3 != 0;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
 }
 
 // ---- makeRequest ----
@@ -130,6 +171,26 @@
 // internal_stream(guard, 0xa, uid) → guard->GetInBuffer<Msg>()；
 // 写 m_id/received 入 MsgQueueMgr::put(1, guard)。
 #include "TaiwanInternalDispatcher/makeRequest_1.inc"
+                                               bool received)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp", 0x14d),
+                       true);
+    Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(0xa), uid);
+    Msg* msg = guard->GetInBuffer<Msg>();
+    if (msg == 0)
+    {
+        LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
+                              __PRETTY_FUNCTION__, 0x152,
+                              "[Taiwan, Event] m_id:%d isReceived:%d",
+                              memberId, received);
+    }
+    else
+    {
+        msg->m_id = memberId;
+        msg->m_received = received;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
 }
 
 // ---- dispatch_sig ----
@@ -143,60 +204,207 @@
 //   见其 dispatch_sig 注释；ORIG 槽序与 CGuildServerProxy.h 注释有出入，用直调保 ABI）。
 // [b28d-solo-TaiwanInternalDispatcher] AE（Msg 视图+eventing 去槽+rewardable char+内联变参）
 #include "TaiwanInternalDispatcher/dispatch_sig.inc"
+{
+    Msg* msg = reinterpret_cast<Msg*>(buf);
+    if (msg == 0)
+    {
+        LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
+                              __PRETTY_FUNCTION__, 0x12e,
+                              "[Taiwan, Event] interMsg is null.");
+        return 0x12f;
+    }
+    CEventCreateDnf* event =
+        (CEventCreateDnf*)GlobalData::s_event_manager->GetRepeatEvent(0xa0);
+    // §4.5 真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h
+    // 权威）。与 ORIG `call *%edx` 相比 GCC 4.4 用 `call *%eax`（寄存器分配 N7 类差），
+    // 实测 typedef 直调与该实调用指令数同为 148（+9 系函数既有 N82 帧差，非本转换引入）。
+    if (event == 0 ||
+        event->IsEventing(0) != '\x01')
+    {
+        LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
+                              __PRETTY_FUNCTION__, 0x138,
+                              "[Taiwan, Event] stayEvent=%s eventing:%d",
+                              (event == 0) ? "nullptr" : "ok",
+                              event->IsEventing(0));
+        return 0x139;
+    }
+    char rewardable = 0;
+    if (!msg->m_received && event->IsRewardCondition())
+    {
+        rewardable = 1;
+    }
+    user->SetEventCreateDnfReward(msg->m_received);
+    PacketGuard pg;
+    pg.put_header(0, 0x22d);
+    pg.put_short((unsigned short)event->GetRate());
+    pg.put_byte(rewardable);
+    pg.finalize(true);
+    user->Send(pg);
+    return 0;
 }
 
 #include "TaiwanInternalDispatcher/InterSelectMobileAuthReward.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)0xc)  // ORIG @0x08162107 movl $0xc
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterSelectMobileAuthReward.inc"
+{
 }
 
 #include "TaiwanInternalDispatcher/InterSelectPcroomDailyReward.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)0xd)  // ORIG @0x08162179 movl $0xd
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterSelectPcroomDailyReward.inc"
+{
 }
 
 #include "TaiwanInternalDispatcher/InterUpdateP2pHolePunchingState.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)0xf)  // ORIG @0x081621eb movl $0xf
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterUpdateP2pHolePunchingState.inc"
+{
 }
 
 #include "TaiwanInternalDispatcher/InterInsertGiveBoxEventReward.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)0x10)  // ORIG @0x0816225d movl $0x10
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterInsertGiveBoxEventReward.inc"
+{
 }
 
 #include "TaiwanInternalDispatcher/InterLoadHeroMissionEventData.inc"
+    : TaiwanInterfaceInterDispatcher((TaiwanInternalPack::T)0x12)  // ORIG @0x081622cf movl $0x12
+{
 }
 #include "TaiwanInternalDispatcher/dtor_InterLoadHeroMissionEventData.inc"
+{
 }
 
 // ---- TaiwanInterfaceInterDispatcher 基类（ORIG W：C1 0x08161e32 / D1 0x08161e4a / D0 0x08161e70 / getCode 0x08161e8e）----
 
 #include "TaiwanInternalDispatcher/TaiwanInterfaceInterDispatcher.inc"
+    : m_code(code)
+{
 }
 #include "TaiwanInternalDispatcher/dtor_TaiwanInterfaceInterDispatcher.inc"
+{
 }
 #include "TaiwanInternalDispatcher/getCode.inc"
+{
+    return m_code;
 }
 
 #include "TaiwanInternalDispatcher/dtor_TaiwanInternalDispatcher.inc"
+{
+    std::for_each(m_dispatchers.begin(), m_dispatchers.end(), FnDelete());  // ORIG @0x08160212
 }
 
 // [b28c-31] N7 复核：虚调用 callee ORIG %edx vs 4.4 %eax（18=18，仅寄存器名差）。
 #include "TaiwanInternalDispatcher/operator.inc"
+    std::pair<const TaiwanInternalPack::T, TaiwanInterfaceInterDispatcher*>& item)
+{
+    /* N7 封顶（b26 NL26）：同 TaiwanDBDispatcher::FnDelete 判词。 */
+    delete item.second;   // ORIG @0x08161e9a：test+je + vtable D0 调用
 }
 
 #include "TaiwanInternalDispatcher/getDispatcher.inc"
+{
+    std::map<TaiwanInternalPack::T, TaiwanInterfaceInterDispatcher*>::iterator it =
+        m_dispatchers.find(code);
+    if (it != m_dispatchers.end())
+    {
+        return it->second;
+    }
+    return 0;
 }
 
 #include "TaiwanInternalDispatcher/addDispatcher.inc"
+                                             TaiwanInterfaceInterDispatcher* disp)
+{
+    if (getDispatcher(code) != 0)
+    {
+        return false;
+    }
+    m_dispatchers[code] = disp;
+    return true;
 }
 
 #include "TaiwanInternalDispatcher/delDispatcher.inc"
+{
+    if (getDispatcher(code) != 0)
+    {
+        m_dispatchers.erase(m_dispatchers.find(code));
+    }
 }
 
 // [b28d-solo-TaiwanInternalDispatcher] AE（10 链式块 + p=0；CreateDnfEventInfo ctor nothrow）
 #include "TaiwanInternalDispatcher/init.inc"
+{
+    TaiwanInterfaceInterDispatcher* p = 0;
+    p = new InterLoadServiceRestrictPolicy();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterLoadGeolocation();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterCheckStayTimeEvent();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterSelectCreateDnfEventInfo();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterSelectCreateDnfUserInfo();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterSelectMobileAuthReward();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterSelectPcroomDailyReward();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterUpdateP2pHolePunchingState();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterInsertGiveBoxEventReward();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    p = new InterLoadHeroMissionEventData();
+    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 // ============================================================================
@@ -221,6 +429,45 @@
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N111 封顶（ORIG 0x08161384 无条件 jmp 后
 // 0x5a..0x263 发邮件主体为无入口死块，4.4 恒 DCE；可达 tail 已逐条对齐，p167 3 MISSING 全在死块）
 #include "TaiwanInternalDispatcher/dispatch_sig_1.inc"
+{
+    Msg* msg = reinterpret_cast<Msg*>(buf);
+    if (msg == 0)
+    {
+        LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
+                              __PRETTY_FUNCTION__,
+                              0x161, "[Taiwan, MobileAuth] interMsg is null.");
+        return 0x162;
+    }
+    // ORIG 0x08161384 = 无条件 jmp（源码条件第二项编译期恒假），其后 0x08161389..0x0816158c
+    // 的发邮件主体是 ORIG **文本发射的不可达代码**（0x204 字节）。4.4 前端把 `&& 0` 整体
+    // 折叠并 DCE 该块 ⇒ 用恒 0 的局部 volatile 守卫迫使后端照常发射（局部量不产生符号；
+    // 守卫恒 0 ⇒ 可观察行为与 ORIG 一致：该块永不执行）。
+    volatile bool dead = false;
+    if ((msg->m_rewarded ^ 1) != 0)
+    {
+        if (dead)
+        {
+            std::vector<std::pair<int, int> > items;
+            items.push_back(std::pair<int, int>(0x28983a, 1));
+            char title[0x1d];
+            char mail[0xff];
+            strncpy(title, g_scriptStringManager_.findString(4, "tw_mobile_authentication_title_01", 0), 0x1d);
+            strncpy(mail, g_scriptStringManager_.findString(4, "tw_mobile_authentication_mail_01", 0), 0xff);
+            Inven_Item invenItems[10];
+            WongWork::CMailBoxHelper::MakeSystemMultiMailPostal(items, invenItems, 10);
+            WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
+                title, invenItems, (unsigned int)items.size(), 0,
+                (unsigned int)user->getCurCharacNo(), mail, (int)strlen(mail), 0,
+                user->GetServerGroup(), false);
+            CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0xa1);
+            if (ev != 0 && ev->IsEventing(0))
+            {
+                static_cast<CEventCeraShopRewardPoint*>(ev)->SendReward(user);
+            }
+        }
+    }
+    user->m_field8ec31 = msg->m_rewarded;
+    return 0;
 }
 
 // ============================================================================
@@ -241,6 +488,24 @@ struct P2pHoleMsgV
 
 // [b28d-solo-TaiwanInternalDispatcher] AE（proxy 具名局部去槽 + GetServerProxy()->SendPacket 链式）
 #include "TaiwanInternalDispatcher/dispatch_sig_2.inc"
+{
+    // ORIG 0x08161952：统计包 → 国家代码 + 对端 IP → 经统计代理 UDP 转发。
+    // ORIG 0x081619xx：buf 入口单槽物化 -0xc（无 char*+view 双中转，p 删除），
+    // 三处字段读均经该槽 reload（技巧36 反向）。
+    P2pHoleMsgV* v = reinterpret_cast<P2pHoleMsgV*>(buf);
+    Packet_GameServer2Statisctics2DBServer pkt;
+    pkt.m_serverGroup = (short)G_CEnvironment()->get_server_group();
+    // ORIG `movzbl 0xd(%eax)`/`mov 0xe(%eax)`/`mov 0x12(%eax)` 单段 disp ⇒
+    // pack(1) 视图具名字段（§4.3；裸 add 形实测不折 disp）。
+    pkt.m_connectedType = v->m_connectedType;
+    pkt.m_requiredTime = v->m_requiredTime;
+    pkt.m_checkTime = v->m_checkTime;
+    user->m_network.GetPeerIP2(pkt.m_peerAddress, 0x10);
+    RestrictGeolocation::Get()->getCountryCode(
+        pkt.m_nationCode, 0x10, std::string(pkt.m_peerAddress));
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy(
+        (ENUM_SERVER_GROUP)0)->SendPacket((char*)&pkt, 0x35);
+    return 0;
 }
 
 // ============================================================================
@@ -306,6 +571,37 @@ struct SigLoadServiceRestrictPolicy
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N7+N18a 反向封顶（虚调 make_item 目标 %eax vs
 // ORIG %edx；kRewardItem_ 装载单段 vs ORIG 两段；p167 16/16 CLEAR、gap 0）
 #include "TaiwanInternalDispatcher/dispatch_sig_3.inc"
+{
+    char* msg = buf;
+    if (msg == 0)
+    {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0xc9, 5);
+        tr("[Taiwan, StayEvent] SigStayTimeEvent is null.");
+        return 0xca;
+    }
+    // ORIG 直调 vtable+0x34 槽（同 TaiwanInternalDispatcher.cpp 既有口径，保 ABI；无空检）。
+    // §4.5 正解：真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h 权威）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x9f)->IsEventing(0) != '\x01')
+    {
+        return 0;
+    }
+    CItem* item = G_CDataManager()->find_item(CEventStayTime::kRewardItem_);
+    if (item == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xd3, 5)(
+            "[Taiwan, StayEvent] Invalid item index. (%u)", CEventStayTime::kRewardItem_);
+        return 0;
+    }
+    Inven_Item inv;
+    inv.m_addInfo = item->get_index();   // ORIG 0x08160b54 mov %eax,-0x73（inv+0x02）
+    item->make_item(inv);
+    inv.set_add_info(1);
+    const char* title = g_scriptStringManager_.findString(4, "tw_ccb_stress_title_01", 0);
+    const char* mail = g_scriptStringManager_.findString(4, "tw_ccb_stress_mail_01", 0);
+    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+        title, inv, 0, (unsigned int)user->getCurCharacNo(), mail, (int)strlen(mail), 0xe,
+        user->GetServerGroup(), false, false);
+    return 0;
 }
 
 // ===== InterInsertGiveBoxEventReward::dispatch_sig —— ORIG 0x08161a8a =====
@@ -313,6 +609,37 @@ struct SigLoadServiceRestrictPolicy
 // 脚本串 tw_givemebox2_title/tw_givemebox2_mail；buf==0 → 日志(0x1dc) 返回 0x1dd。
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N7+N18a 反向封顶（同 StayTime 形因；p167 16/16 CLEAR）
 #include "TaiwanInternalDispatcher/dispatch_sig_4.inc"
+{
+    char* msg = buf;
+    if (msg == 0)
+    {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x1dc, 5);
+        tr("[Taiwan, GiveMeBoxEvent] msg is null.");
+        return 0x1dd;
+    }
+    // §4.5 正解：真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h 权威）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0xa5)->IsEventing(0) != '\x01')
+    {
+        return 0;
+    }
+    CItem* item = G_CDataManager()->find_item(EventGiveMeBox::kRewardItem_);
+    if (item == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e6, 5)(
+            "[Taiwan, GiveMeBoxEvent] Invalid item index. (%u)",
+            EventGiveMeBox::kRewardItem_);
+        return 0;
+    }
+    Inven_Item inv;
+    inv.m_addInfo = item->get_index();   // ORIG 0x08161b9c mov %eax,-0x73（inv+0x02）
+    item->make_item(inv);
+    inv.set_add_info(1);
+    const char* title = g_scriptStringManager_.findString(4, "tw_givemebox2_title", 0);
+    const char* mail = g_scriptStringManager_.findString(4, "tw_givemebox2_mail", 0);
+    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+        title, inv, 0, (unsigned int)user->getCurCharacNo(), mail, (int)strlen(mail), 0xe,
+        user->GetServerGroup(), false, false);
+    return 0;
 }
 
 // ===== InterLoadGeolocation::dispatch_sig —— ORIG 0x0816088a =====
@@ -321,6 +648,29 @@ struct SigLoadServiceRestrictPolicy
 // 每项 cMyTrace(0xb9,9,true,true) 日志 "GeoIP Allow Country Code : %s"；返回 0。
 // [b28d-solo-TaiwanInternalDispatcher] AE（0x2du 无符号比较 + 两处 cMyTrace 临时链）
 #include "TaiwanInternalDispatcher/dispatch_sig_5.inc"
+{
+    SigLoadGeolocation* sig = reinterpret_cast<SigLoadGeolocation*>(buf);
+    if (sig == 0)
+    {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0xac, 5);
+        tr("[Taiwan, GeoIP] SigLoadRestrictPolicy is null.");
+        return 0xad;
+    }
+    if (sig->countryCount > 0x2du)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xb2, 5)(
+            "[Taiwan, GeoIP] Invalid GeoIP country count. (%d)", sig->countryCount);
+        sig->countryCount = 0x2d;
+    }
+    for (int i = 0; i < sig->countryCount; ++i)
+    {
+        // ORIG：构造临时 string 直接值传（无拷贝），addAllowCountry 参数槽复用
+        ARAD::Singleton<RestrictGeolocation>::Get()->addAllowCountry(
+            std::string(sig->countryCode[i]));
+        cMyTrace(__PRETTY_FUNCTION__, 0xb9, 9, true, true)(
+            "GeoIP Allow Country Code : %s", sig->countryCode[i]);
+    }
+    return 0;
 }
 
 // ===== InterLoadHeroMissionEventData::dispatch_sig —— ORIG 0x08161c92 =====
@@ -329,6 +679,23 @@ struct SigLoadServiceRestrictPolicy
 // sendMissionData(user)；返回 0。
 // [b28d-solo-TaiwanInternalDispatcher] AE（sig 提前 + Get() 链式 + IsFirstTimeLogin bool）
 #include "TaiwanInternalDispatcher/dispatch_sig_6.inc"
+{
+    SigLoadHeroMissionEventData* sig =
+        reinterpret_cast<SigLoadHeroMissionEventData*>(buf);
+    if (sig == 0)
+    {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x1ff, 5);
+        tr("[HeroMission] msg is null.");
+        return 0x200;
+    }
+    ARAD::Singleton<HeroMissionEvent>::Get()->setEventData(user, sig->data);
+    if (user->IsFirstTimeLogin())
+    {
+        ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
+            user, HeroMissionCondition::MissionNo::T_5, 0);
+    }
+    ARAD::Singleton<HeroMissionEvent>::Get()->sendMissionData(user);
+    return 0;
 }
 
 // ===== InterLoadServiceRestrictPolicy::dispatch_sig —— ORIG 0x08160796 =====
@@ -336,4 +703,16 @@ struct SigLoadServiceRestrictPolicy
 // string 取 buf+0x119d，beginPolicy(Get(), *(int*)buf, string)；返回 0。
 // [b28d-solo-TaiwanInternalDispatcher] AE（sig 提前 + std::string 临时全表达式）
 #include "TaiwanInternalDispatcher/dispatch_sig_7.inc"
+{
+    SigLoadServiceRestrictPolicy* sig =
+        reinterpret_cast<SigLoadServiceRestrictPolicy*>(buf);
+    if (sig == 0)
+    {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x94, 5);
+        tr("[Taiwan, Restrict] SigLoadRestrictPolicy is null.");
+        return 0x95;
+    }
+    ARAD::Singleton<ServiceRestrictManager>::Get()->beginPolicy(
+        (RestrictCategory::Enum)sig->category, std::string(sig->policyString));
+    return 0;
 }

@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CNCryptoAlgo/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CNCryptoAlgo/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r CNCrypto 包装层底层的标准分组密码实现（G7，2026-08-16）。
 // setup/ecb 函数移植自 LibTomCrypt（公有领域，SPDX: Unlicense）；RC6 为标准 RC6。
@@ -55,12 +57,85 @@ static inline unsigned int rc6_rol32(unsigned int x, int n)
 }
 
 #include "CNCryptoAlgo/rc6_key_setup.inc"
+{
+    unsigned char* K = alg->K;                 // +0x20
+    const unsigned char* key = alg->key;
+    unsigned int L[8] = { 0 };
+    int keyWords = (keylen + 3) / 4;           // ORIG 80b5b60..74（向上取整）
+    int n = keyWords - 1;
+    L[n] = 0;                                  // ORIG 80b5b77（仅清 L[n]）
+    for (int i = keylen - 1; i >= 0; --i)      // ORIG 80b5b8a..d8（大端字节聚合）
+        L[i / 4] = (L[i / 4] << 8) | key[i];
+
+    K[0] = 0x63;                               // ORIG 80b5bdd
+    for (int i = 1; i <= 0x2b; ++i)            // ORIG 80b5be0..0d
+        K[i] = (unsigned char)(K[i - 1] - 0x47);
+
+    unsigned int A = 0, B = 0;
+    int i = 0, j = 0;
+    int rounds = 0x2c;                         // ORIG 80b5c28
+    if (keyWords > rounds)                     // ORIG 80b5c43..5c
+        rounds = keyWords;
+    rounds *= 3;                               // ORIG 80b5c5f..68
+
+    for (int r = 1; r <= rounds; ++r)
+    {
+        // K[i] = (byte)rol32(K[i]+B+A, 3) —— ORIG 80b5c77..92（ror 0x1d）
+        unsigned int x = (unsigned int)K[i] + B + A;
+        K[i] = (unsigned char)((x << 3) | (x >> 29));
+        B = K[i];                              // ORIG 80b5c94..9a
+        // L[j] = rotl32(L[j]+B+A, (B+A)&0x1f) —— ORIG 80b5c9d..cf3
+        unsigned int y = L[j] + B + A;
+        unsigned int sh = (B + A) & 0x1f;
+        L[j] = sh ? rc6_rol32(y, sh) : y;
+        A = L[j];                              // ORIG 80b5cf3..f7
+        i = (i + 1) % 0x2c;                    // ORIG 80b5cfa..27
+        j = (j + 1) % keyWords;                // ORIG 80b5d29..4e
+    }
 }
 
 #include "CNCryptoAlgo/rc6_block_encrypt.inc"
+{
+    const unsigned char* K = alg->K;
+    unsigned int A = in[0];                    // ORIG 80b5d82
+    unsigned int B = in[1] + K[0];             // ORIG 80b5dab
+    unsigned int C = in[2];                    // ORIG 80b5d98
+    unsigned int D = in[3] + K[1];             // ORIG 80b5dba
+
+    for (int r = 2; r <= 0x28; r += 2)         // ORIG 80b5dc3..eaa
+    {
+        unsigned int t = rc6_ror32(B * 2 + 1, 0x1b);   // ORIG 80b5dcf..dd
+        unsigned int u = rc6_ror32(D * 2 + 1, 0x1b);   // ORIG 80b5de1..ed
+        A = rc6_rol32(A ^ t, u & 0x1f) + K[r];         // ORIG 80b5df3..39
+        C = rc6_rol32(C ^ u, t & 0x1f) + K[r + 1];     // ORIG 80b5e3c..85
+        unsigned int tmp = A; A = B; B = C; C = D; D = tmp;  // ORIG 80b5e88..a3
+    }
+    out[0] = A + K[0x2a];                      // ORIG 80b5eb9..c5
+    out[1] = B;                                // ORIG 80b5ee5
+    out[2] = C + K[0x2b];                      // ORIG 80b5ecb..d4
+    out[3] = D;                                // ORIG 80b5efb
 }
 
 #include "CNCryptoAlgo/rc6_block_decrypt.inc"
+{
+    const unsigned char* K = alg->K;
+    unsigned int A = in[0] - K[0x2a];          // ORIG 80b5f53..5c
+    unsigned int B = in[1];                    // ORIG 80b5f28
+    unsigned int C = in[2] - K[0x2b];          // ORIG 80b5f44..4d
+    unsigned int D = in[3];                    // ORIG 80b5f3c
+
+    for (int r = 0x28; r >= 2; r -= 2)         // ORIG 80b5f5f..6051
+    {
+        unsigned int tmp = D; D = C; C = B; B = A; A = tmp;  // ORIG 80b5f6b..86
+        // ORIG 80b5f89 取 -0x1c（轮换后 D = 加密前 D）、80b5f9b 取 -0x24
+        // （轮换后 B = 加密前 B）——u/t 与加密同源。
+        unsigned int u = rc6_ror32(D * 2 + 1, 0x1b);
+        unsigned int t = rc6_ror32(B * 2 + 1, 0x1b);
+        C = rc6_ror32(C - K[r + 1], t & 0x1f) ^ u;     // ORIG 80b5fad..ffa
+        A = rc6_ror32(A - K[r], u & 0x1f) ^ t;         // ORIG 80b6000..4a
+    }
+    B -= K[0]; D -= K[1];                              // ORIG 80b6060..78
+    out[0] = A; out[1] = B; out[2] = C; out[3] = D;
 }
 // ==================== anubis ====================
 /* LibTomCrypt, modular cryptographic library -- Tom St Denis */
@@ -1072,6 +1147,11 @@ static int s_anubis_setup(const unsigned char *key, int keylen, int num_rounds, 
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/anubis_setup_1.inc"
+{
+  int err;
+  err = s_anubis_setup(key, keylen, num_rounds, skey);
+  burn_stack(sizeof(int) * 5 + sizeof(ulong32) * (MAX_N + MAX_N + 5));
+  return err;
 }
 #endif
 
@@ -1177,6 +1257,17 @@ static void anubis_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/anubis_ecb_encrypt.inc"
+{
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   if (skey->anubis.R < 12 || skey->anubis.R > 18) {
+       return CRYPT_INVALID_ROUNDS;
+   }
+
+   anubis_crypt(pt, ct, skey->anubis.roundKeyEnc, skey->anubis.R);
+   return CRYPT_OK;
 }
 
 /**
@@ -1187,12 +1278,25 @@ static void anubis_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/anubis_ecb_decrypt.inc"
+{
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   if (skey->anubis.R < 12 || skey->anubis.R > 18) {
+       return CRYPT_INVALID_ROUNDS;
+   }
+
+   anubis_crypt(ct, pt, skey->anubis.roundKeyDec, skey->anubis.R);
+   return CRYPT_OK;
 }
 
 /** Terminate the context
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/anubis_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -1201,6 +1305,26 @@ static void anubis_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/anubis_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize >= 40) {
+      *keysize = 40;
+   } else if (*keysize >= 36) {
+      *keysize = 36;
+   } else if (*keysize >= 32) {
+      *keysize = 32;
+   } else if (*keysize >= 28) {
+      *keysize = 28;
+   } else if (*keysize >= 24) {
+      *keysize = 24;
+   } else if (*keysize >= 20) {
+      *keysize = 20;
+   } else if (*keysize >= 16) {
+      *keysize = 16;
+   } else {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   return CRYPT_OK;
 }
 
 #undef MAX_N
@@ -1534,6 +1658,14 @@ static void s_blowfish_encipher(ulong32 *L, ulong32 *R, symmetric_key *skey)
 }
 
 #include "CNCryptoAlgo/blowfish_enc.inc"
+{
+   unsigned long i;
+   ulong32 *d = data;
+
+   for (i = 0; i < blocks; ++i) {
+      s_blowfish_encipher(d, d + 1, skey);
+      d += 2;
+   }
 }
 
 // [b28d-Main·检查点18] 原 static 助手改宏（ORIG 无该局部符号）。
@@ -1556,6 +1688,52 @@ static void s_blowfish_encipher(ulong32 *L, ulong32 *R, symmetric_key *skey)
     @return CRYPT_OK if successful
  */
 #include "CNCryptoAlgo/blowfish_expand.inc"
+                    const unsigned char *data, int datalen,
+                    symmetric_key *skey)
+{
+   ulong32 x, y, A, B[2];
+   int i;
+
+   LTC_ARGCHK(key != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   /* load in key bytes (Supplied by David Hopwood) */
+   i = 0;
+   for (x = 0; x < 18; x++) {
+       A = s_blowfish_stream2word(key, keylen, &i);
+       skey->blowfish.K[x] ^= A;
+   }
+
+
+   i = 0;
+   B[0] = 0;
+   B[1] = 0;
+   for (x = 0; x < 18; x += 2) {
+      if (data != NULL) {
+         B[0] ^= s_blowfish_stream2word(data, datalen, &i);
+         B[1] ^= s_blowfish_stream2word(data, datalen, &i);
+      }
+      /* encrypt it */
+      s_blowfish_encipher(&B[0], &B[1], skey);
+      /* copy it */
+      skey->blowfish.K[x] = B[0];
+      skey->blowfish.K[x+1] = B[1];
+   }
+
+   /* encrypt S array */
+   for (x = 0; x < 4; x++) {
+       for (y = 0; y < 256; y += 2) {
+          if (data != NULL) {
+             B[0] ^= s_blowfish_stream2word(data, datalen, &i);
+             B[1] ^= s_blowfish_stream2word(data, datalen, &i);
+          }
+          /* encrypt it */
+          s_blowfish_encipher(&B[0], &B[1], skey);
+          /* copy it */
+          skey->blowfish.S[x][y] = B[0];
+          skey->blowfish.S[x][y+1] = B[1];
+       }
+   }
 
 #ifdef LTC_CLEAN_STACK
    zeromem(B, sizeof(B));
@@ -1573,6 +1751,18 @@ static void s_blowfish_encipher(ulong32 *L, ulong32 *R, symmetric_key *skey)
    @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/blowfish_setup.inc"
+                  symmetric_key *skey)
+{
+   /* check key length */
+   if (keylen < 8 || keylen > 72) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   /* check rounds */
+   if (num_rounds != 0 && num_rounds != 16) {
+      return CRYPT_INVALID_ROUNDS;
+   }
+
+   return blowfish_setup_with_data(key, keylen, NULL, 0, skey);
 }
 
 /**
@@ -1587,6 +1777,12 @@ static void s_blowfish_encipher(ulong32 *L, ulong32 *R, symmetric_key *skey)
 */
 
 #include "CNCryptoAlgo/blowfish_setup_with_data.inc"
+                             const unsigned char *data, int datalen,
+                             symmetric_key *skey)
+{
+   XMEMCPY(skey->blowfish.K, ORIG_P, sizeof(ORIG_P));
+   XMEMCPY(skey->blowfish.S, ORIG_S, sizeof(ORIG_S));
+   return blowfish_expand(key, keylen, data, datalen, skey);
 }
 
 /**
@@ -1623,6 +1819,10 @@ static int s_blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, sy
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/blowfish_ecb_encrypt_1.inc"
+{
+    int err = s_blowfish_ecb_encrypt(pt, ct, skey);
+    burn_stack(sizeof(ulong32) * 2 + sizeof(int));
+    return err;
 }
 #endif
 
@@ -1680,6 +1880,10 @@ static int s_blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sy
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/blowfish_ecb_decrypt_1.inc"
+{
+    int err = s_blowfish_ecb_decrypt(ct, pt, skey);
+    burn_stack(sizeof(ulong32) * 2 + sizeof(int));
+    return err;
 }
 #endif
 
@@ -1688,6 +1892,8 @@ static int s_blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sy
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/blowfish_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 #undef F
@@ -2169,6 +2375,11 @@ static int s_cast5_setup(const unsigned char *key, int keylen, int num_rounds, s
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/cast5_setup_1.inc"
+{
+   int z;
+   z = s_cast5_setup(key, keylen, num_rounds, skey);
+   burn_stack(sizeof(ulong32)*8 + 16 + sizeof(int)*2);
+   return z;
 }
 #endif
 
@@ -2255,6 +2466,10 @@ static int s_cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symme
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/cast5_ecb_encrypt_1.inc"
+{
+   int err = s_cast5_ecb_encrypt(pt,ct,skey);
+   burn_stack(sizeof(ulong32)*3);
+   return err;
 }
 #endif
 
@@ -2304,6 +2519,10 @@ static int s_cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symme
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/cast5_ecb_decrypt_1.inc"
+{
+   int err = s_cast5_ecb_decrypt(ct,pt,skey);
+   burn_stack(sizeof(ulong32)*3);
+   return err;
 }
 #endif
 
@@ -2312,12 +2531,63 @@ static int s_cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symme
   @return CRYPT_OK if functional, CRYPT_NOP if self-test has been disabled
 */
 #include "CNCryptoAlgo/cast5_test.inc"
+{
+ #ifndef LTC_TEST
+    return CRYPT_NOP;
+ #else
+   static const struct {
+       int keylen;
+       unsigned char key[16];
+       unsigned char pt[8];
+       unsigned char ct[8];
+   } tests[] = {
+     { 16,
+       {0x01, 0x23, 0x45, 0x67, 0x12, 0x34, 0x56, 0x78, 0x23, 0x45, 0x67, 0x89, 0x34, 0x56, 0x78, 0x9A},
+       {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+       {0x23, 0x8B, 0x4F, 0xE5, 0x84, 0x7E, 0x44, 0xB2}
+     },
+     { 10,
+       {0x01, 0x23, 0x45, 0x67, 0x12, 0x34, 0x56, 0x78, 0x23, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+       {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+       {0xEB, 0x6A, 0x71, 0x1A, 0x2C, 0x02, 0x27, 0x1B},
+     },
+     { 5,
+       {0x01, 0x23, 0x45, 0x67, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+       {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF},
+       {0x7A, 0xC8, 0x16, 0xD1, 0x6E, 0x9B, 0x30, 0x2E}
+     }
+   };
+   int i, y, err;
+   symmetric_key key;
+   unsigned char tmp[2][8];
+
+   for (i = 0; i < (int)(sizeof(tests) / sizeof(tests[0])); i++) {
+       if ((err = cast5_setup(tests[i].key, tests[i].keylen, 0, &key)) != CRYPT_OK) {
+          return err;
+       }
+       cast5_ecb_encrypt(tests[i].pt, tmp[0], &key);
+       cast5_ecb_decrypt(tmp[0], tmp[1], &key);
+       if ((ltc_compare_testvector(tmp[0], 8, tests[i].ct, 8, "CAST5 Encrypt", i) != 0) ||
+             (ltc_compare_testvector(tmp[1], 8, tests[i].pt, 8, "CAST5 Decrypt", i) != 0)) {
+          return CRYPT_FAIL_TESTVECTOR;
+       }
+      /* now see if we can encrypt all zero bytes 1000 times, decrypt and come back where we started */
+      for (y = 0; y < 8; y++) tmp[0][y] = 0;
+      for (y = 0; y < 1000; y++) cast5_ecb_encrypt(tmp[0], tmp[0], &key);
+      for (y = 0; y < 1000; y++) cast5_ecb_decrypt(tmp[0], tmp[0], &key);
+      for (y = 0; y < 8; y++) if (tmp[0][y] != 0) return CRYPT_FAIL_TESTVECTOR;
+
+   }
+   return CRYPT_OK;
+ #endif
 }
 
 /** Terminate the context
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/cast5_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -2326,6 +2596,15 @@ static int s_cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symme
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/cast5_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize < 5) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   if (*keysize > 16) {
+      *keysize = 16;
+   }
+   return CRYPT_OK;
 }
 
 #undef GB
@@ -2457,18 +2736,114 @@ static ulong32 FL( ulong32 in, int round_no, symmetric_key *key )
 }
 
 #include "CNCryptoAlgo/kasumi_ecb_encrypt.inc"
+{
+    ulong32 left, right, temp;
+    int n;
+
+    LTC_ARGCHK(pt   != NULL);
+    LTC_ARGCHK(ct   != NULL);
+    LTC_ARGCHK(skey != NULL);
+
+    LOAD32H(left, pt);
+    LOAD32H(right, pt+4);
+
+    for (n = 0; n <= 7; ) {
+        temp = FL(left,  n,   skey);
+        temp = FO(temp,  n++, skey);
+        right ^= temp;
+        temp = FO(right, n,   skey);
+        temp = FL(temp,  n++, skey);
+        left ^= temp;
+    }
+
+    STORE32H(left, ct);
+    STORE32H(right, ct+4);
+
+    return CRYPT_OK;
 }
 
 #include "CNCryptoAlgo/kasumi_ecb_decrypt.inc"
+{
+    ulong32 left, right, temp;
+    int n;
+
+    LTC_ARGCHK(pt   != NULL);
+    LTC_ARGCHK(ct   != NULL);
+    LTC_ARGCHK(skey != NULL);
+
+    LOAD32H(left, ct);
+    LOAD32H(right, ct+4);
+
+    for (n = 7; n >= 0; ) {
+        temp = FO(right, n,   skey);
+        temp = FL(temp,  n--, skey);
+        left ^= temp;
+        temp = FL(left,  n,   skey);
+        temp = FO(temp,  n--, skey);
+        right ^= temp;
+    }
+
+    STORE32H(left, pt);
+    STORE32H(right, pt+4);
+
+    return CRYPT_OK;
 }
 
 #include "CNCryptoAlgo/kasumi_setup.inc"
+{
+    static const u16 C[8] = { 0x0123,0x4567,0x89AB,0xCDEF, 0xFEDC,0xBA98,0x7654,0x3210 };
+    u16 ukey[8], Kprime[8];
+    int n;
+
+    LTC_ARGCHK(key  != NULL);
+    LTC_ARGCHK(skey != NULL);
+
+    if (keylen != 16) {
+       return CRYPT_INVALID_KEYSIZE;
+    }
+
+    if (num_rounds != 0 && num_rounds != 8) {
+       return CRYPT_INVALID_ROUNDS;
+    }
+
+    /* Start by ensuring the subkeys are endian correct on a 16-bit basis */
+    for (n = 0; n < 8; n++ ) {
+        ukey[n] = (((u16)key[2*n]) << 8) | key[2*n+1];
+    }
+
+    /* Now build the K'[] keys */
+    for (n = 0; n < 8; n++) {
+        Kprime[n] = ukey[n] ^ C[n];
+    }
+
+    /* Finally construct the various sub keys */
+    for(n = 0; n < 8; n++) {
+        skey->kasumi.KLi1[n] = ROL16(ukey[n],1);
+        skey->kasumi.KLi2[n] = Kprime[(n+2)&0x7];
+        skey->kasumi.KOi1[n] = ROL16(ukey[(n+1)&0x7],5);
+        skey->kasumi.KOi2[n] = ROL16(ukey[(n+5)&0x7],8);
+        skey->kasumi.KOi3[n] = ROL16(ukey[(n+6)&0x7],13);
+        skey->kasumi.KIi1[n] = Kprime[(n+4)&0x7];
+        skey->kasumi.KIi2[n] = Kprime[(n+3)&0x7];
+        skey->kasumi.KIi3[n] = Kprime[(n+7)&0x7];
+    }
+
+    return CRYPT_OK;
 }
 
 #include "CNCryptoAlgo/kasumi_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 #include "CNCryptoAlgo/kasumi_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize >= 16) {
+      *keysize = 16;
+      return CRYPT_OK;
+   }
+   return CRYPT_INVALID_KEYSIZE;
 }
 
 #undef ROL16
@@ -3049,6 +3424,84 @@ static const ulong64 c[R + 1] = {
     @return CRYPT_OK if successful
  */
 #include "CNCryptoAlgo/khazad_setup.inc"
+{
+   int               r;
+   const ulong64    *S;
+   ulong64           K2, K1;
+
+   LTC_ARGCHK(key  != NULL);
+   LTC_ARGCHK(skey != NULL);
+   if (keylen != 16) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   if (num_rounds != 8 && num_rounds != 0) {
+      return CRYPT_INVALID_ROUNDS;
+   }
+
+   /* use 7th table */
+   S = T7;
+
+    /*
+    * map unsigned char array cipher key to initial key state (mu):
+    */
+   K2 =
+      ((ulong64)key[ 0] << 56) ^
+      ((ulong64)key[ 1] << 48) ^
+      ((ulong64)key[ 2] << 40) ^
+      ((ulong64)key[ 3] << 32) ^
+      ((ulong64)key[ 4] << 24) ^
+      ((ulong64)key[ 5] << 16) ^
+      ((ulong64)key[ 6] <<  8) ^
+      ((ulong64)key[ 7]      );
+   K1 =
+      ((ulong64)key[ 8] << 56) ^
+      ((ulong64)key[ 9] << 48) ^
+      ((ulong64)key[10] << 40) ^
+      ((ulong64)key[11] << 32) ^
+      ((ulong64)key[12] << 24) ^
+      ((ulong64)key[13] << 16) ^
+      ((ulong64)key[14] <<  8) ^
+      ((ulong64)key[15]      );
+
+   /*
+    * compute the round keys:
+    */
+   for (r = 0; r <= R; r++) {
+      /*
+       * K[r] = rho(c[r], K1) ^ K2;
+       */
+      skey->khazad.roundKeyEnc[r] =
+         T0[(int)(K1 >> 56)       ] ^
+         T1[(int)(K1 >> 48) & 0xff] ^
+         T2[(int)(K1 >> 40) & 0xff] ^
+         T3[(int)(K1 >> 32) & 0xff] ^
+         T4[(int)(K1 >> 24) & 0xff] ^
+         T5[(int)(K1 >> 16) & 0xff] ^
+         T6[(int)(K1 >>  8) & 0xff] ^
+         T7[(int)(K1      ) & 0xff] ^
+         c[r] ^ K2;
+      K2 = K1; K1 = skey->khazad.roundKeyEnc[r];
+   }
+   /*
+    * compute the inverse key schedule:
+    * K'^0 = K^R, K'^R = K^0, K'^r = theta(K^{R-r})
+    */
+   skey->khazad.roundKeyDec[0] = skey->khazad.roundKeyEnc[R];
+   for (r = 1; r < R; r++) {
+      K1 = skey->khazad.roundKeyEnc[R - r];
+      skey->khazad.roundKeyDec[r] =
+         T0[(int)S[(int)(K1 >> 56)       ] & 0xff] ^
+         T1[(int)S[(int)(K1 >> 48) & 0xff] & 0xff] ^
+         T2[(int)S[(int)(K1 >> 40) & 0xff] & 0xff] ^
+         T3[(int)S[(int)(K1 >> 32) & 0xff] & 0xff] ^
+         T4[(int)S[(int)(K1 >> 24) & 0xff] & 0xff] ^
+         T5[(int)S[(int)(K1 >> 16) & 0xff] & 0xff] ^
+         T6[(int)S[(int)(K1 >>  8) & 0xff] & 0xff] ^
+         T7[(int)S[(int)(K1      ) & 0xff] & 0xff];
+   }
+   skey->khazad.roundKeyDec[R] = skey->khazad.roundKeyEnc[0];
+
+   return CRYPT_OK;
 }
 
 static void khazad_crypt(const unsigned char *plaintext, unsigned char *ciphertext,
@@ -3121,6 +3574,12 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/khazad_ecb_encrypt.inc"
+{
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+   khazad_crypt(pt, ct, skey->khazad.roundKeyEnc);
+   return CRYPT_OK;
 }
 
 /**
@@ -3131,6 +3590,12 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/khazad_ecb_decrypt.inc"
+{
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+   khazad_crypt(ct, pt, skey->khazad.roundKeyDec);
+   return CRYPT_OK;
 }
 
 /**
@@ -3138,6 +3603,7 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if functional, CRYPT_NOP if self-test has been disabled
 */
 #include "CNCryptoAlgo/khazad_test.inc"
+{
 #ifndef LTC_TEST
   return CRYPT_NOP;
 #else
@@ -3194,6 +3660,8 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/khazad_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -3202,6 +3670,13 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/khazad_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize >= 16) {
+      *keysize = 16;
+      return CRYPT_OK;
+   }
+   return CRYPT_INVALID_KEYSIZE;
 }
 
 #undef R
@@ -3291,6 +3766,27 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
 
 
 #include "CNCryptoAlgo/multi2_setup.inc"
+{
+   ulong32 sk[8], dk[2];
+   int      x;
+
+   LTC_ARGCHK(key  != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   if (keylen != 40) return CRYPT_INVALID_KEYSIZE;
+   if (num_rounds == 0) num_rounds = 128;
+
+   skey->multi2.N = num_rounds;
+   for (x = 0; x < 8; x++) {
+       LOAD32H(sk[x], key + x*4);
+   }
+   LOAD32H(dk[0], key + 32);
+   LOAD32H(dk[1], key + 36);
+   s_setup(dk, sk, skey->multi2.uk);
+
+   zeromem(sk, sizeof(sk));
+   zeromem(dk, sizeof(dk));
+   return CRYPT_OK;
 }
 
 /**
@@ -3301,6 +3797,17 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/multi2_ecb_encrypt.inc"
+{
+   ulong32 p[2];
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+   LOAD32H(p[0], pt);
+   LOAD32H(p[1], pt+4);
+   s_encrypt(p, skey->multi2.N, skey->multi2.uk);
+   STORE32H(p[0], ct);
+   STORE32H(p[1], ct+4);
+   return CRYPT_OK;
 }
 
 /**
@@ -3311,6 +3818,17 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/multi2_ecb_decrypt.inc"
+{
+   ulong32 p[2];
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+   LOAD32H(p[0], ct);
+   LOAD32H(p[1], ct+4);
+   s_decrypt(p, skey->multi2.N, skey->multi2.uk);
+   STORE32H(p[0], pt);
+   STORE32H(p[1], pt+4);
+   return CRYPT_OK;
 }
 
 /**
@@ -3318,6 +3836,8 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if functional, CRYPT_NOP if self-test has been disabled
 */
 #include "CNCryptoAlgo/multi2_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -3326,6 +3846,14 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/multi2_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize >= 40) {
+      *keysize = 40;
+   } else {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   return CRYPT_OK;
 }
 
 #endif
@@ -3385,6 +3913,33 @@ static const ulong32 RC[] = {
     @return CRYPT_OK if successful
  */
 #include "CNCryptoAlgo/noekeon_setup.inc"
+{
+   ulong32 temp;
+
+   LTC_ARGCHK(key != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   if (keylen != 16) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+
+   if (num_rounds != 16 && num_rounds != 0) {
+      return CRYPT_INVALID_ROUNDS;
+   }
+
+   LOAD32H(skey->noekeon.K[0],&key[0]);
+   LOAD32H(skey->noekeon.K[1],&key[4]);
+   LOAD32H(skey->noekeon.K[2],&key[8]);
+   LOAD32H(skey->noekeon.K[3],&key[12]);
+
+   LOAD32H(skey->noekeon.dK[0],&key[0]);
+   LOAD32H(skey->noekeon.dK[1],&key[4]);
+   LOAD32H(skey->noekeon.dK[2],&key[8]);
+   LOAD32H(skey->noekeon.dK[3],&key[12]);
+
+   kTHETA(skey->noekeon.dK[0], skey->noekeon.dK[1], skey->noekeon.dK[2], skey->noekeon.dK[3]);
+
+   return CRYPT_OK;
 }
 
 /**
@@ -3434,6 +3989,10 @@ static int s_noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, sym
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/noekeon_ecb_encrypt_1.inc"
+{
+   int err = s_noekeon_ecb_encrypt(pt, ct, skey);
+   burn_stack(sizeof(ulong32) * 5 + sizeof(int));
+   return err;
 }
 #endif
 
@@ -3483,6 +4042,10 @@ static int s_noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/noekeon_ecb_decrypt_1.inc"
+{
+   int err = s_noekeon_ecb_decrypt(ct, pt, skey);
+   burn_stack(sizeof(ulong32) * 5 + sizeof(int));
+   return err;
 }
 #endif
 
@@ -3491,12 +4054,96 @@ static int s_noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
   @return CRYPT_OK if functional, CRYPT_NOP if self-test has been disabled
 */
 #include "CNCryptoAlgo/noekeon_test.inc"
+{
+ #ifndef LTC_TEST
+    return CRYPT_NOP;
+ #else
+ static const struct {
+     int keylen;
+     unsigned char key[16], pt[16], ct[16];
+ } tests[] = {
+   {
+      16,
+      { 0xAA, 0x3C, 0x8C, 0x86, 0xD9, 0x8B, 0xF8, 0xBE, 0x21, 0xE0, 0x36, 0x09, 0x78, 0xFB, 0xE4, 0x90 },
+      { 0xE4, 0x96, 0x6C, 0xD3, 0x13, 0xA0, 0x6C, 0xAF, 0xD0, 0x23, 0xC9, 0xFD, 0x45, 0x32, 0x23, 0x16 },
+      { 0xA6, 0xEC, 0xB8, 0xA8, 0x61, 0xFD, 0x62, 0xD9, 0x13, 0x02, 0xFE, 0x9E, 0x47, 0x01, 0x3F, 0xC3 }
+   },
+   {
+      16,
+      { 0xED, 0x43, 0xD1, 0x87, 0x21, 0x7E, 0xE0, 0x97, 0x3D, 0x76, 0xC3, 0x37, 0x2E, 0x7D, 0xAE, 0xD3 },
+      { 0xE3, 0x38, 0x32, 0xCC, 0xF2, 0x2F, 0x2F, 0x0A, 0x4A, 0x8B, 0x8F, 0x18, 0x12, 0x20, 0x17, 0xD3 },
+      { 0x94, 0xA5, 0xDF, 0xF5, 0xAE, 0x1C, 0xBB, 0x22, 0xAD, 0xEB, 0xA7, 0x0D, 0xB7, 0x82, 0x90, 0xA0 }
+   },
+   {
+      16,
+      { 0x6F, 0xDC, 0x23, 0x38, 0xF2, 0x10, 0xFB, 0xD3, 0xC1, 0x8C, 0x02, 0xF6, 0xB4, 0x6A, 0xD5, 0xA8 },
+      { 0xDB, 0x29, 0xED, 0xB5, 0x5F, 0xB3, 0x60, 0x3A, 0x92, 0xA8, 0xEB, 0x9C, 0x6D, 0x9D, 0x3E, 0x8F },
+      { 0x78, 0xF3, 0x6F, 0xF8, 0x9E, 0xBB, 0x8C, 0x6A, 0xE8, 0x10, 0xF7, 0x00, 0x22, 0x15, 0x30, 0x3D }
+   },
+   {
+      16,
+      { 0x2C, 0x0C, 0x02, 0xEF, 0x6B, 0xC4, 0xF2, 0x0B, 0x2E, 0xB9, 0xE0, 0xBF, 0xD9, 0x36, 0xC2, 0x4E },
+      { 0x84, 0xE2, 0xFE, 0x64, 0xB1, 0xB9, 0xFE, 0x76, 0xA8, 0x3F, 0x45, 0xC7, 0x40, 0x7A, 0xAF, 0xEE },
+      { 0x2A, 0x08, 0xD6, 0xA2, 0x1C, 0x63, 0x08, 0xB0, 0xF8, 0xBC, 0xB3, 0xA1, 0x66, 0xF7, 0xAE, 0xCF }
+   },
+   {
+      16,
+      { 0x6F, 0x30, 0xF8, 0x9F, 0xDA, 0x6E, 0xA0, 0x91, 0x04, 0x0F, 0x6C, 0x8B, 0x7D, 0xF7, 0x2A, 0x4B },
+      { 0x65, 0xB6, 0xA6, 0xD0, 0x42, 0x14, 0x08, 0x60, 0x34, 0x8D, 0x37, 0x2F, 0x01, 0xF0, 0x46, 0xBE },
+      { 0x66, 0xAC, 0x0B, 0x62, 0x1D, 0x68, 0x11, 0xF5, 0x27, 0xB1, 0x13, 0x5D, 0xF3, 0x2A, 0xE9, 0x18 }
+   },
+   {
+      16,
+      { 0xCA, 0xA4, 0x16, 0xB7, 0x1C, 0x92, 0x2E, 0xAD, 0xEB, 0xA7, 0xDB, 0x69, 0x92, 0xCB, 0x35, 0xEF },
+      { 0x81, 0x6F, 0x8E, 0x4D, 0x96, 0xC6, 0xB3, 0x67, 0x83, 0xF5, 0x63, 0xC7, 0x20, 0x6D, 0x40, 0x23 },
+      { 0x44, 0xF7, 0x63, 0x62, 0xF0, 0x43, 0xBB, 0x67, 0x4A, 0x75, 0x12, 0x42, 0x46, 0x29, 0x28, 0x19 }
+   },
+   {
+      16,
+      { 0x6B, 0xCF, 0x22, 0x2F, 0xE0, 0x1B, 0xB0, 0xAA, 0xD8, 0x3C, 0x91, 0x99, 0x18, 0xB2, 0x28, 0xE8 },
+      { 0x7C, 0x37, 0xC7, 0xD0, 0xAC, 0x92, 0x29, 0xF1, 0x60, 0x82, 0x93, 0x89, 0xAA, 0x61, 0xAA, 0xA9 },
+      { 0xE5, 0x89, 0x1B, 0xB3, 0xFE, 0x8B, 0x0C, 0xA1, 0xA6, 0xC7, 0xBE, 0x12, 0x73, 0x0F, 0xC1, 0x19 }
+   },
+   {
+      16,
+      { 0xE6, 0xD0, 0xF1, 0x03, 0x2E, 0xDE, 0x70, 0x8D, 0xD8, 0x9E, 0x36, 0x5C, 0x05, 0x52, 0xE7, 0x0D },
+      { 0xE2, 0x42, 0xE7, 0x92, 0x0E, 0xF7, 0x82, 0xA2, 0xB8, 0x21, 0x8D, 0x26, 0xBA, 0x2D, 0xE6, 0x32 },
+      { 0x1E, 0xDD, 0x75, 0x22, 0xB9, 0x36, 0x8A, 0x0F, 0x32, 0xFD, 0xD4, 0x48, 0x65, 0x12, 0x5A, 0x2F }
+   }
+ };
+ symmetric_key key;
+ unsigned char tmp[2][16];
+ int err, i, y;
+
+ for (i = 0; i < (int)LTC_ARRAY_SIZE(tests); i++) {
+    zeromem(&key, sizeof(key));
+    if ((err = noekeon_setup(tests[i].key, tests[i].keylen, 0, &key)) != CRYPT_OK) {
+       return err;
+    }
+
+    noekeon_ecb_encrypt(tests[i].pt, tmp[0], &key);
+    noekeon_ecb_decrypt(tmp[0], tmp[1], &key);
+    if (ltc_compare_testvector(tmp[0], 16, tests[i].ct, 16, "Noekeon Encrypt", i) ||
+          ltc_compare_testvector(tmp[1], 16, tests[i].pt, 16, "Noekeon Decrypt", i)) {
+        return CRYPT_FAIL_TESTVECTOR;
+    }
+
+    /* now see if we can encrypt all zero bytes 1000 times, decrypt and come back where we started */
+    for (y = 0; y < 16; y++) tmp[0][y] = 0;
+    for (y = 0; y < 1000; y++) noekeon_ecb_encrypt(tmp[0], tmp[0], &key);
+    for (y = 0; y < 1000; y++) noekeon_ecb_decrypt(tmp[0], tmp[0], &key);
+    for (y = 0; y < 16; y++) if (tmp[0][y] != 0) return CRYPT_FAIL_TESTVECTOR;
+ }
+ return CRYPT_OK;
+ #endif
 }
 
 /** Terminate the context
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/noekeon_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -3505,6 +4152,13 @@ static int s_noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/noekeon_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize < 16) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   *keysize = 16;
+   return CRYPT_OK;
 }
 
 #undef kTHETA
@@ -3565,6 +4219,26 @@ static const int ikeystep[] = { 9, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
     @return CRYPT_OK if successful
  */
 #include "CNCryptoAlgo/skipjack_setup.inc"
+{
+   int x;
+
+   LTC_ARGCHK(key  != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   if (keylen != 10) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+
+   if (num_rounds != 32 && num_rounds != 0) {
+      return CRYPT_INVALID_ROUNDS;
+   }
+
+   /* make sure the key is in range for platforms where CHAR_BIT != 8 */
+   for (x = 0; x < 10; x++) {
+       skey->skipjack.key[x] = key[x] & 255;
+   }
+
+   return CRYPT_OK;
 }
 
 #define RULE_A \
@@ -3672,6 +4346,10 @@ static int s_skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, sy
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/skipjack_ecb_encrypt_1.inc"
+{
+   int err = s_skipjack_ecb_encrypt(pt, ct, skey);
+   burn_stack(sizeof(unsigned) * 8 + sizeof(int) * 2);
+   return err;
 }
 #endif
 
@@ -3736,6 +4414,10 @@ static int s_skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sy
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/skipjack_ecb_decrypt_1.inc"
+{
+   int err = s_skipjack_ecb_decrypt(ct, pt, skey);
+   burn_stack(sizeof(unsigned) * 7 + sizeof(int) * 2);
+   return err;
 }
 #endif
 
@@ -3743,6 +4425,8 @@ static int s_skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sy
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/skipjack_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -3751,6 +4435,15 @@ static int s_skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sy
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/skipjack_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize < 10) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   if (*keysize > 10) {
+      *keysize = 10;
+   }
+   return CRYPT_OK;
 }
 
 #undef g_func
@@ -4185,6 +4878,11 @@ static int s_twofish_setup(const unsigned char *key, int keylen, int num_rounds,
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/twofish_setup_1.inc"
+{
+   int x;
+   x = s_twofish_setup(key, keylen, num_rounds, skey);
+   burn_stack(sizeof(int) * 7 + sizeof(unsigned char) * 56 + sizeof(ulong32) * 2);
+   return x;
 }
 #endif
 
@@ -4255,6 +4953,10 @@ static int s_twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, sym
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/twofish_ecb_encrypt_1.inc"
+{
+   int err = s_twofish_ecb_encrypt(pt, ct, skey);
+   burn_stack(sizeof(ulong32) * 10 + sizeof(int));
+   return err;
 }
 #endif
 
@@ -4327,6 +5029,10 @@ static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
 
 #ifdef LTC_CLEAN_STACK
 #include "CNCryptoAlgo/twofish_ecb_decrypt_1.inc"
+{
+   int err = s_twofish_ecb_decrypt(ct, pt, skey);
+   burn_stack(sizeof(ulong32) * 10 + sizeof(int));
+   return err;
 }
 #endif
 
@@ -4334,6 +5040,8 @@ static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/twofish_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -4342,6 +5050,21 @@ static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/twofish_keysize.inc"
+{
+   LTC_ARGCHK(keysize);
+   if (*keysize < 16) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   if (*keysize < 24) {
+      *keysize = 16;
+      return CRYPT_OK;
+   }
+   if (*keysize < 32) {
+      *keysize = 24;
+      return CRYPT_OK;
+   }
+   *keysize = 32;
+   return CRYPT_OK;
 }
 
 #undef MDS_POLY
@@ -4374,6 +5097,32 @@ static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
 
 
 #include "CNCryptoAlgo/xtea_setup.inc"
+{
+   ulong32 x, sum, K[4];
+
+   LTC_ARGCHK(key != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   /* check arguments */
+   if (keylen != 16) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+
+   if (num_rounds != 0 && num_rounds != 32) {
+      return CRYPT_INVALID_ROUNDS;
+   }
+
+   /* load key */
+   LOAD32H(K[0], key+0);
+   LOAD32H(K[1], key+4);
+   LOAD32H(K[2], key+8);
+   LOAD32H(K[3], key+12);
+
+   for (x = sum = 0; x < 32; x++) {
+       skey->xtea.A[x] = (sum + K[sum&3]) & 0xFFFFFFFFUL;
+       sum = (sum + 0x9E3779B9UL) & 0xFFFFFFFFUL;
+       skey->xtea.B[x] = (sum + K[(sum>>11)&3]) & 0xFFFFFFFFUL;
+   }
 
 #ifdef LTC_CLEAN_STACK
    zeromem(&K, sizeof(K));
@@ -4390,6 +5139,32 @@ static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/xtea_ecb_encrypt.inc"
+{
+   ulong32 y, z;
+   int r;
+
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   LOAD32H(y, &pt[0]);
+   LOAD32H(z, &pt[4]);
+   for (r = 0; r < 32; r += 4) {
+       y = (y + ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r])) & 0xFFFFFFFFUL;
+       z = (z + ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r])) & 0xFFFFFFFFUL;
+
+       y = (y + ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r+1])) & 0xFFFFFFFFUL;
+       z = (z + ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r+1])) & 0xFFFFFFFFUL;
+
+       y = (y + ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r+2])) & 0xFFFFFFFFUL;
+       z = (z + ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r+2])) & 0xFFFFFFFFUL;
+
+       y = (y + ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r+3])) & 0xFFFFFFFFUL;
+       z = (z + ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r+3])) & 0xFFFFFFFFUL;
+   }
+   STORE32H(y, &ct[0]);
+   STORE32H(z, &ct[4]);
+   return CRYPT_OK;
 }
 
 /**
@@ -4400,12 +5175,40 @@ static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
   @return CRYPT_OK if successful
 */
 #include "CNCryptoAlgo/xtea_ecb_decrypt.inc"
+{
+   ulong32 y, z;
+   int r;
+
+   LTC_ARGCHK(pt   != NULL);
+   LTC_ARGCHK(ct   != NULL);
+   LTC_ARGCHK(skey != NULL);
+
+   LOAD32H(y, &ct[0]);
+   LOAD32H(z, &ct[4]);
+   for (r = 31; r >= 0; r -= 4) {
+       z = (z - ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r])) & 0xFFFFFFFFUL;
+       y = (y - ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r])) & 0xFFFFFFFFUL;
+
+       z = (z - ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r-1])) & 0xFFFFFFFFUL;
+       y = (y - ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r-1])) & 0xFFFFFFFFUL;
+
+       z = (z - ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r-2])) & 0xFFFFFFFFUL;
+       y = (y - ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r-2])) & 0xFFFFFFFFUL;
+
+       z = (z - ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r-3])) & 0xFFFFFFFFUL;
+       y = (y - ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r-3])) & 0xFFFFFFFFUL;
+   }
+   STORE32H(y, &pt[0]);
+   STORE32H(z, &pt[4]);
+   return CRYPT_OK;
 }
 
 /** Terminate the context
    @param skey    The scheduled key
 */
 #include "CNCryptoAlgo/xtea_done.inc"
+{
+  LTC_UNUSED_PARAM(skey);
 }
 
 /**
@@ -4414,6 +5217,13 @@ static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, sym
   @return CRYPT_OK if the input key size is acceptable.
 */
 #include "CNCryptoAlgo/xtea_keysize.inc"
+{
+   LTC_ARGCHK(keysize != NULL);
+   if (*keysize < 16) {
+      return CRYPT_INVALID_KEYSIZE;
+   }
+   *keysize = 16;
+   return CRYPT_OK;
 }
 
 

@@ -1,2 +1,1 @@
 CEventCeraShopRewardPoint::~CEventCeraShopRewardPoint()
-{

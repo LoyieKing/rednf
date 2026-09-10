@@ -1,2 +1,1 @@
 Dispatcher_SDC_ActiveStatus_Damage_Check::Dispatcher_SDC_ActiveStatus_Damage_Check() throw()
-{

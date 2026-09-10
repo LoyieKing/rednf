@@ -14,3 +14,4 @@ void DNFFLib::Binary2Hex(unsigned char const* data, int len, char* out) {
         i++;
         pucBinStr1++;
     }
+}

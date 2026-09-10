@@ -1,3 +1,1 @@
 void CCommunityServerProxy::Init()
-{
-    InitTcp();

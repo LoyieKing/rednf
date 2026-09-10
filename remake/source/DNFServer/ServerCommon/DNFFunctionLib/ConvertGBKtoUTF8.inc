@@ -4,3 +4,4 @@ bool DNFFLib::ConvertGBKtoUTF8(char* src, char* dst) {
         return 0;
     }
     return 1;
+}

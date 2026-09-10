@@ -13,3 +13,4 @@ bool DNFFLib::Hex2Binary(char const* hex, unsigned char* out, int maxLen) {
         out++;
     }
     return 1;
+}

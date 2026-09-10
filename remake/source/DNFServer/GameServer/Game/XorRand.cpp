@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 XorRand/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 XorRand/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // XorRand8 实现（ORIG 0x08adfc92 起 12 函数；ms_table0..7 数据自 ORIG .rodata
 // VA 0x08e33cc0..0x08e37cc0 提取）。getStaticUInt64() 的 TLS 局部
@@ -22,39 +24,80 @@
 // 恰为 ORIG 帧 0x18（定义于 getUInt32 后会精确继承 callee 帧 0x10+4=0x14，
 // 与 ORIG 槽差 4；XorRand8 大帧函数定义在前时保守值升至 0x28）。
 #include "XorRand/getInt32.inc"
+{
+    return (int)getUInt32();
 }
 
 #include "XorRand/XorRand8.inc"
+{
+    m_counter = 0;
 }
 
 #include "XorRand/XorRand8_1.inc"
+{
+    m_counter = seed;
 }
 
 #include "XorRand/seed.inc"
+{
+    m_counter = seed;
 }
 
 #include "XorRand/getUInt64.inc"
+{
+    unsigned long long v = m_counter++;
+    unsigned char* c = (unsigned char*)&v;
+    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]] ^
+           ms_table4[c[4]] ^ ms_table5[c[5]] ^ ms_table6[c[6]] ^ ms_table7[c[7]];
 }
 
 #include "XorRand/getInt64.inc"
+{
+    unsigned long long u;
+    return (long long)getUInt64();
 }
 
 #include "XorRand/operator.inc"
+{
+    return getUInt64();
 }
 
 #include "XorRand/min.inc"
+{
+    return 0;
 }
 
 #include "XorRand/max.inc"
+{
+    return 0xffffffffffffffffULL;
 }
 
 #include "XorRand/getStaticInt64.inc"
+{
+    return (long long)getStaticUInt64(seed);
 }
 
 #include "XorRand/getStaticInt64_1.inc"
+{
+    return (long long)(int)(unsigned int)getStaticUInt64();
 }
 
 #include "XorRand/getStaticUInt64.inc"
+{
+    static __thread bool s_isCounterInited;
+    static __thread unsigned long long s_counter;
+    unsigned long long v;
+    unsigned char* c;
+    if (!s_isCounterInited)
+    {
+        unsigned long long seed = (unsigned long long)((long long)clock() + (unsigned long long)pthread_self());
+        s_counter = getStaticUInt64(seed);
+        s_isCounterInited = true;
+    }
+    v = s_counter++;
+    c = (unsigned char*)&v;
+    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]] ^
+           ms_table4[c[4]] ^ ms_table5[c[5]] ^ ms_table6[c[6]] ^ ms_table7[c[7]];
 }
 
 
@@ -430,36 +473,73 @@ const unsigned long long XorRand8::ms_table7[256] = {
 // ---- XorRand4（ORIG 0x08adfa90 起 12 函数；ms_table0..3 数据自 ORIG .rodata
 // VA 0x08e32cc0..0x08e338c0 提取）----
 #include "XorRand/XorRand4.inc"
+{
+    m_counter = 0;
 }
 
 #include "XorRand/XorRand4_1.inc"
+{
+    m_counter = seed;
 }
 
 #include "XorRand/seed_1.inc"
+{
+    m_counter = seed;
 }
 
 #include "XorRand/getUInt32.inc"
+{
+    unsigned int v = m_counter++;
+    unsigned char* c = (unsigned char*)&v;
+    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]];
 }
 
 #include "XorRand/operator_1.inc"
+{
+    return getUInt32();
 }
 
 #include "XorRand/min_1.inc"
+{
+    return 0;
 }
 
 #include "XorRand/max_1.inc"
+{
+    return 0xffffffffu;
 }
 
 #include "XorRand/getStaticInt32.inc"
+{
+    return (int)getStaticUInt32(seed);
 }
 
 #include "XorRand/getStaticUInt32.inc"
+{
+    unsigned char* c = (unsigned char*)&seed;
+    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]];
 }
 
 #include "XorRand/getStaticInt32_1.inc"
+{
+    return (int)getStaticUInt32();
 }
 
 #include "XorRand/getStaticUInt32_1.inc"
+{
+    static __thread bool s_isCounterInited;
+    static __thread unsigned int s_counter;
+    unsigned int v;
+    unsigned char* c;
+    if (!s_isCounterInited)
+    {
+        unsigned int seed = (unsigned int)(clock() + (unsigned int)pthread_self());
+        s_counter = getStaticUInt32(seed);
+        s_isCounterInited = true;
+    }
+    v = s_counter++;
+    c = (unsigned char*)&v;
+    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]];
 }
 
 

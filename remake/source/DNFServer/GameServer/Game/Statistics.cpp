@@ -1,22 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Statistics/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Statistics/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— Statistics（G2-4 批次，统计域）。
-// 依据 docs/class_func_reports/Statistics.md + ORIG 反汇编逐函数转录。
-// 本类只做消息打包并转发给 SendSignal（ORIG 中 SendSignal 为空实现，
-// 实际投递由后续层完成）。
-// [b26-NL28] 8 个上报方法 ORIG 为 static（参数槽 a@0x8 起无 this，mangled 同形），
-//   头已同步加 static（Main 批准）。RankResult 由此落 AE。
-//   其余 7 件 NEAR 残差=帧 0xc + char 槽对齐差（4.1 紧密槽 vs 4.4 八对齐/出参区
-//   复用策略，N82 族，源形不可消除），已封顶勿再耗轮次。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
@@ -82,36 +74,124 @@ struct StatDungeonData
 #include "Statistics/dtor_Statistics.inc"
 
 #include "Statistics/BreakJar.inc"
+{
+    unsigned int localA;
+    unsigned int localB;
+    int localC;
+
+    localA = a;
+    localB = b;
+    localC = c;
+    SendSignal(0x37, &localA, 0xc);
 }
 
 #include "Statistics/Composition.inc"
+{
+    StatCompositionData data;
+
+    data.a = a;
+    data.b = b;
+    data.type = 0x63;  // 'c'
+    data.c = c;
+    SendSignal(0x38, &data, 0xd);
 }
 
 #include "Statistics/Decomposition.inc"
+{
+    StatCompositionData data;
+
+    data.a = a;
+    data.b = b;
+    data.type = 0x64;  // 'd'
+    data.c = c;
+    SendSignal(0x38, &data, 0xd);
 }
 
 #include "Statistics/UseCoin.inc"
+{
+    unsigned int localA;
+    unsigned int localB;
+    int localC;
+
+    localA = a;
+    localB = b;
+    localC = c;
+    SendSignal(0x39, &localA, 0xc);
 }
 
 #include "Statistics/PvpPlay.inc"
+{
+    unsigned int localA;
+    unsigned int localB;
+    int localC;
+    int localD;
+
+    localA = a;
+    localB = b;
+    localC = c;
+    localD = d;
+    SendSignal(0x3a, &localA, 0x10);
 }
 
 #include "Statistics/RankResult.inc"
+                            int f, int g, GameResultType& result)
+{
+    MSG_STAT_RANKRES msg;
+
+    msg.m_a = a;
+    msg.m_b = b;
+    msg.m_c = c;
+    msg.m_d = d;
+    msg.m_e = e;
+    msg.m_f = g;   // param_7 -> +0x14
+    msg.m_g = f;   // param_6 -> +0x18
+    msg.m_result = result;
+    SendSignal(0x3b, &msg, 0x6c);
 }
 
 #include "Statistics/DungeonClear.inc"
+                              int f)
+{
+    StatDungeonData data;
+
+    data.a = a;
+    data.b = b;
+    data.c = c;
+    data.d = d;
+    data.type = 0x63;  // 'c'
+    data.e = e;
+    data.f = f;
+    SendSignal(0x3c, &data, 0x19);
 }
 
 #include "Statistics/DungeonGiveUp.inc"
+                               int f)
+{
+    StatDungeonData data;
+
+    data.a = a;
+    data.b = b;
+    data.c = c;
+    data.d = d;
+    data.type = 0x67;  // 'g'
+    data.e = e;
+    data.f = f;
+    SendSignal(0x3c, &data, 0x19);
 }
 
 #include "Statistics/DungeonFail.inc"
+{
+    G_GameWorld()->getStatisticsShusiaService()->incDungeonFailure(dungeonIdx);
 }
 
 #include "Statistics/UseShusiaService.inc"
+{
+    G_GameWorld()->getStatisticsShusiaService()->incServiceUsage(value);
 }
 
 #include "Statistics/PVPPlay2.inc"
+{
+    G_GameWorld()->getStatisticsPvP()->incPvPRoomResult(a, b, c);
 }
 
 // [b28c-4 P210] SendSignal 定义必须晚于全部 caller：4.4 对"已见定义"的 callee 按

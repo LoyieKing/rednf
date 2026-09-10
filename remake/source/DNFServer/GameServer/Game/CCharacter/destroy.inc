@@ -1,3 +1,1 @@
 void CCharacter::destroy()
-{
-    clear();

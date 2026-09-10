@@ -1,3 +1,1 @@
 CCreatureMgr::CCreatureMgr()
-{
-    Reset();

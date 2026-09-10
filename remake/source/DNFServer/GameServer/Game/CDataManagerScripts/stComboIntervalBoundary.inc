@@ -1,3 +1,1 @@
 stRankSystemInfo::stComboIntervalBoundary::stComboIntervalBoundary()
-{
-    clear();

@@ -3,3 +3,4 @@ void DNFFLib::Make_Dir(char* path) {
     if (dir == NULL) {
         mkdir(path, 0x1ff);
     }
+}

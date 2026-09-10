@@ -1,2 +1,1 @@
 CCubeStatistic::CCubeStatistic()
-{

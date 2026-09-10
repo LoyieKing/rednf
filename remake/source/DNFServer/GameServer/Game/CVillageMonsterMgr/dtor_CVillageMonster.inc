@@ -1,2 +1,1 @@
 CVillageMonster::~CVillageMonster()
-{

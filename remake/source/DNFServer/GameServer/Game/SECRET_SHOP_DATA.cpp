@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 SECRET_SHOP_DATA/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 SECRET_SHOP_DATA/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r secretshop::SECRET_SHOP_DATA 还原（G2-5 批次）。
 // CParty +0x2a4，总尺寸 0x88。符号（nm -C）：
@@ -28,33 +30,72 @@ namespace secretshop
 {
 
 #include "SECRET_SHOP_DATA/SECRET_SHOP_INFO.inc"
+    : m_retailer(), m_shopper()
+{
 }
 
 #include "SECRET_SHOP_DATA/dtor_SECRET_SHOP_INFO.inc"
+{
 }
 
 #include "SECRET_SHOP_DATA/clear.inc"
+{
+    m_bClear = 0;
+    m_retailer.clear();
+    m_shopper.clear();
 }
 
 #include "SECRET_SHOP_DATA/GetSaleInfo.inc"
+{
+    return m_retailer.GetSaleInfo(idx);
 }
 
 #include "SECRET_SHOP_DATA/SECRET_SHOP_DATA.inc"
+{
 }
 
 #include "SECRET_SHOP_DATA/dtor_SECRET_SHOP_DATA.inc"
+{
 }
 
 #include "SECRET_SHOP_DATA/clear_1.inc"
+{
+    m_openCode = 0;
+    for (int i = 0; i < 4; ++i)
+    {
+        m_info[i].clear();
+        m_buying[i] = 0;
+    }
 }
 
 #include "SECRET_SHOP_DATA/IsCompleteBuy.inc"
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        if (m_buying[i] != 0)
+        {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 #include "SECRET_SHOP_DATA/IsOpen.inc"
+{
+    // ORIG: 两个 `je` 共指 return-0 岛（field==0 / ==1000），return-1 作 fall-through。
+    if (m_openCode != 0 && m_openCode != 1000)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 #include "SECRET_SHOP_DATA/SetBuying.inc"
+{
+    if (idx >= 0 && idx < 4)
+    {
+        m_buying[idx] = buy;
+    }
 }
 
 }  // namespace secretshop

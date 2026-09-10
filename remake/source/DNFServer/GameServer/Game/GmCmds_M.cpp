@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 GmCmds_M/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 GmCmds_M/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // GmCmds_M.cpp — game_master::CMoveCharacCmd（id=0x01 "move"，样板实现）
 // + 9 个命令类的 execute/parse 补齐（vtable key function 落地 TU）。
@@ -52,10 +54,59 @@ namespace game_master
 
 // ORIG parse 0x084a8cce：trim(parser->args)；m_str0 = parser->args（目标角色名）。
 #include "GmCmds_M/parse.inc"
+{
+    trim(m_parser->m_args);
+    m_str0 = m_parser->m_args;
 }
 
 // ORIG execute 0x084a8d02。
 #include "GmCmds_M/execute.inc"
+{
+    // P48：ORIG 每用点 fresh G_GameWorld()（find/move_area/send_to_area 各调）
+    CUser* target =
+        G_GameWorld()->find_user_by_charac_name(m_str0.c_str());
+    if (target == 0)
+    {
+        return;
+    }
+    if (target->getCurCharacR() == 0)                       // ORIG CUserCharacInfo::getCurCharacR 判 0
+    {
+        return;
+    }
+    int vill = static_cast<int>(target->getCurCharacVill());
+    int area = target->get_area(false);
+    unsigned int x = target->get_posX() & 0xffff;
+    unsigned int y = target->get_posY() & 0xffff;
+
+    // ORIG(0x084a8dd4)：同 vill && 同 area → set_position，否则 move_area。
+    // [G5 2026-09-10 P167/P183 真缺口修复] 旧码 `CUser* self = GetUser();` 把 5 个用点
+    //   合并成 1 次调用；p167 实证 ORIG 调 `CCommand::GetUser()` **5 次**
+    //   （MISSING 4×，OUR calls 27 vs ORIG 31）⇒ 删具名缓存，逐用点 fresh 重发
+    //   （P48/P183：ORIG 在实参位直读、无 self 槽）。
+    if (static_cast<int>(GetUser()->getCurCharacVill()) == vill &&
+        GetUser()->get_area(false) == area)
+    {
+        GetUser()->set_position(static_cast<unsigned short>(x),
+                                static_cast<unsigned short>(y), 0);
+    }
+    else
+    {
+        G_GameWorld()->move_area(GetUser(), vill, area,
+                                 static_cast<int>(x), static_cast<int>(y),
+                                 0, false, 0, 0, 0);
+    }
+
+    PacketGuard packet;
+    packet.put_header(0, 0x8a);
+    packet.put_short(static_cast<int>(GetUser()->get_unique_id() & 0xffff));
+    packet.put_short(static_cast<int>(x));
+    packet.put_short(static_cast<int>(y));
+    packet.put_byte(0);
+    packet.finalize(true);
+    if (vill != 0 || area != 0)
+    {
+        G_GameWorld()->send_to_area(vill, area, packet);
+    }
 }
 
     // -------------------------------------------------------------------
@@ -234,13 +285,27 @@ namespace game_master
 // 4.4 编译本函数体时基类 ctor 定义尚不可见 → 保守 outgoing 帧 sub $0x18，
 // 与 ORIG 逐条全等（推翻 b23「6 形探针穷举不可达」判词——缺的正是定义顺序维度）。
 #include "GmCmds_M/CGameMasterCharacterItemDropRate.inc"
+{
 }
 
 #include "GmCmds_M/CGameMasterCharacter.inc"
+{
 }
 
 #include "GmCmds_M/sendServerState.inc"
+{
 }
 
 #include "GmCmds_M/sendServerState_1.inc"
+    CUser* user, char const* msg)                            // 0x084b4330
+{
+    PacketGuard packet;
+    packet.put_header(0, 0xc);
+    packet.put_byte(0);
+    packet.put_short(0);
+    packet.put_byte(0);
+    packet.put_int((int)strlen(msg));
+    packet.put_str(msg, (int)strlen(msg));
+    packet.finalize(true);
+    user->Send(packet);
 }

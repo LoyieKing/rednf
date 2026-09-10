@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 EventRewardWrite/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 EventRewardWrite/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // EventRewardWrite.cpp —— eventReward 奖励发放链（OrigStStructs 独占）。
 //
@@ -83,46 +85,260 @@ struct EventRewardCheckerPos
 // ORIG 以 this+0x18 内嵌 CSlotBoundChecker 调用 get_slot_bound；重建 CDataManager.h
 // 以同布局 map 成员 m_slotBoundMap 保持 ABI（CSlotBoundChecker 静态实现无成员），
 #include "EventRewardWrite/StartEndPos.inc"
+                              int cap) const
+{
+    if (!reinterpret_cast<EventRewardCheckerPos const*>(this)->m_checker.get_slot_bound(
+            type, cap, start, end))
+    {
+        start = 0;
+        end = 0;
+    }
 }
 
 // ============================================================================
 // eventReward::applyItemOption —— ORIG T 0x080f0d6e
 // ============================================================================
 #include "EventRewardWrite/applyItemOption.inc"
+                                  const itemData& data)
+{
+    if (item->is_stackable())
+    {
+        inven.m_addInfo2 = data.m_count;            // item+0x07 = data+0x08
+        return;
+    }
+    reinterpret_cast<unsigned char&>(inven.m_field0) = data.m_seal;
+    register unsigned int attachType = item->GetAttachType();  // ORIG 单次调用（寄存器化）
+    if (attachType < 6 && ((1u << attachType) & 0x27))
+    {
+        inven.m_field0 = 0;
+    }
+    if (data.m_upgrade > 1)                         // +0x00 字节
+    {
+        inven.SetUpgrade(data.m_upgrade);
+    }
+    // ORIG 0x80f0d6e：虚调用 vptr+0x4c = vtable+0x54 = vt[21] IsRandomOption
+    // （vptr 指向 vtable+8；勿与 vt[19] IsPossibleKiriProtection 混淆）
+    // ORIG +0x91..+0xaf：短路物化岛（mov $1/jmp/mov $0 汇聚 + test）⇒ P226 语句表达式形。
+    if (({ item->IsRandomOption() && data.m_roi == 0; }))  // +0x02 字节
+    {
+        this->unsealRandomOption(item, inven);
+    }
 }
 
 // ============================================================================
 // eventReward::unsealRandomOption —— ORIG T 0x080f0e40
 // ============================================================================
 #include "EventRewardWrite/unsealRandomOption.inc"
+{
+    if (item == 0)
+        return 0;
+    // ORIG 0x80f0e40：虚调用 vptr+0x4c = vtable+0x54 = vt[21] IsRandomOption
+    if (!item->IsRandomOption())
+        return 0;
+    // ORIG 反汇编：第二次虚调用 vptr+0x50 = vtable 槽 20 = GetRandomOptionGrade
+    //（CItem vtable @0x8c96da8：s19=IsRandomOption, s20=GetRandomOptionGrade）。
+    // ORIG +0x3c..+0x42：&inven.m_random(+0x25) 在首个 getter 之前物化到 -0x1c 槽 ⇒ 具名指针局部。
+    RandomOption* pOption = &inven.m_random.m_random;
+    register int period = item->GetRandomOptionGrade();
+    register int group = item->getItemGroupName();
+    register int lvl = item->getUsableLevel();
+    register int rarity = item->get_rarity();
+    if (!GlobalData::g_randomOptionHandle->give_option(
+            (unsigned long)inven.m_addInfo,
+            (ENUM_RARITY)rarity, lvl, group, period, pOption))
+    {
+        LogManager::logFormat(
+            1, "eventReward.cpp",
+            __PRETTY_FUNCTION__, 0x240,
+            "autoUnsealItem : %d", inven.m_addInfo);
+    }
+    return 1;
 }
 
 // ============================================================================
 // eventReward::rewardWriteUserInven —— ORIG T 0x080f0408
 // ============================================================================
 #include "EventRewardWrite/rewardWriteUserInven.inc"
+{
+    if (this->m_map0.empty())
+        return 0;
+    std::map<rewardKey, std::map<int, std::vector<itemData> > >::iterator it =
+        this->m_map0.find(key);
+    if (it == this->m_map0.end())
+        return 0;
+    // [L10-2] p167 EXTRA `_ZNKSt17_Rb_tree_iterator…ptEv` +1 ⇒ 我方比 ORIG 多一次
+    // `it->second`（4.4 每处 `it->` 各发一次 const ptEv）⇒ ORIG 为单次解引用缓存。
+    std::map<int, std::vector<itemData> >& subMap = it->second;
+    std::map<int, std::vector<itemData> >::iterator fit = subMap.find(count);
+    if (fit == subMap.end())
+        return 0;
+    std::vector<itemData>& vec = fit->second;
+    if (vec.empty())
+        return 0;
+    // [L10-2] P28 增量侧：ORIG 调 `ppEi`（后置）⇒ `vit++`。
+    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); vit++)
+    {
+                // ORIG +0x11a..+0x134：*vit 取 m_itemIdx（ebx 跨 G_CDataManager 调用存活）
+        // 直接嵌套实参；citem 判空后 +0x157 再 *vit 一次写 inven.m_addInfo。
+        CItem* citem = G_CDataManager()->find_item(vit->m_itemIdx);
+        if (citem == 0)
+            return 0;
+                Inven_Item inven;
+        inven.m_addInfo = vit->m_itemIdx;       // ORIG +0x162/+0x165（make_item 前）
+        citem->make_item(inven);                    // vtable+0x8
+        applyItemOption(inven, citem, *vit);
+        int start = 0;
+        int end = 0;
+        StartEndPos(static_cast<Inven_Item::ITEM_TYPE>(inven.m_field1),
+                    start, end, 0);
+        for (int i = start; i <= end; ++i)
+        {
+            if (item[i].m_addInfo == 0)             // +0x02 槽判空
+            {
+                item[i] = inven;                    // 整体 0x3d 字节写入
+                break;
+            }
+        }
+    }
+    return 1;
 }
 
 // ============================================================================
 // eventReward::rewardWriteUserEquip —— ORIG T 0x080f06da
 // ============================================================================
 #include "EventRewardWrite/rewardWriteUserEquip.inc"
+{
+    if (this->m_map0.empty())
+        return 0;
+    std::map<rewardKey, std::map<int, std::vector<itemData> > >::iterator it =
+        this->m_map0.find(key);
+    if (it == this->m_map0.end())
+        return 0;
+    // [L10-2] 同 rewardWriteUserInven：ORIG 单次解引用（消 p167 EXTRA const ptEv）。
+    std::map<int, std::vector<itemData> >& subMap = it->second;
+    std::map<int, std::vector<itemData> >::iterator fit = subMap.find(count);
+    if (fit == subMap.end())
+        return 0;
+    std::vector<itemData>& vec = fit->second;
+    if (vec.empty())
+        return 0;
+    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); vit++)
+    {
+                // ORIG +0x11a..+0x134：*vit 取 m_itemIdx（ebx 跨 G_CDataManager 调用存活）
+        // 直接嵌套实参；citem 判空后 +0x157 再 *vit 一次写 inven.m_addInfo。
+        CItem* citem = G_CDataManager()->find_item(vit->m_itemIdx);
+        if (citem == 0)
+            return 0;
+                Inven_Item inven;
+        inven.m_addInfo = vit->m_itemIdx;       // ORIG +0x162/+0x165（make_item 前）
+        citem->make_item(inven);                    // vtable+0x8
+        applyItemOption(inven, citem, *vit);
+        if (citem->is_stackable())
+            return 0;
+        const int slot = citem->GetItemType();      // vtable+0xc
+        item[slot - 10] = inven;                    // slot*0x3d - 0x262
+    }
+    return 1;
 }
 
 // ============================================================================
 // eventReward::sendPostalReward —— ORIG T 0x080f0976
 // ============================================================================
 #include "EventRewardWrite/sendPostalReward.inc"
+                                  const char* title, const char* body)
+{
+    if (this->m_map0.empty())
+        return 0;
+    std::map<rewardKey, std::map<int, std::vector<itemData> > >::iterator it =
+        this->m_map0.find(key);
+    if (it == this->m_map0.end())
+        return 0;
+    // [L10-2] 同 rewardWriteUserInven：ORIG 单次解引用（消 p167 EXTRA const ptEv）。
+    std::map<int, std::vector<itemData> >& subMap = it->second;
+    std::map<int, std::vector<itemData> >::iterator fit = subMap.find(count);
+    if (fit == subMap.end())
+        return 0;
+    std::vector<itemData>& vec = fit->second;
+    if (vec.empty())
+        return 0;
+    // [L10-2] P28 增量侧：ORIG 调 `normal_iterator::ppEi`（后置）⇒ 源形 `vit++`；
+    // `++vit` 走 ppEv 会缺 ppEi 并多发 ppEv（p167 MISSING/EXTRA 实证）。
+    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); vit++)
+    {
+        const int itemIdx = vit->m_itemIdx;
+        Inven_Item inven;
+        CItem* citem = G_CDataManager()->find_item(itemIdx);
+        int serverGroup = 0;
+                // ORIG +0x159..+0x185：IsIntegratedPvPBaseChannel 先测，test %al 无取反；
+        // 真分支（集成 PvP）取 user.GetServerGroup，假分支取 G_CEnvironment+0x378。
+        if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+                        serverGroup = static_cast<int>(user.GetServerGroup());
+        else
+            serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+        if (citem != 0)
+        {
+            inven.m_addInfo = itemIdx;              // item+0x02
+            citem->make_item(inven);                // vtable+0x8
+            applyItemOption(inven, citem, *vit);
+            char buf[256] = { '\0' };
+            // ORIG +0x243：`call get_charac_level; mov %eax,%ebx`（无槽，跨 findString 保活）
+            // ⇒ P226 语句表达式实参（值升格 callee-saved）。
+            OS_API::snprintf(buf, 0xff,
+                             g_scriptStringManager_.findString(4, body, 0),
+                             ({ user.get_charac_level(); }));
+            // ORIG +0x2ab：读的是 inven.m_addInfo（-0x87 = inven+0x02），非 itemIdx 形参副本；
+            // 且短路带 bool 物化岛（mov $1/jmp/mov $0 + test）⇒ P226 语句表达式。
+            if (({ inven.m_addInfo != 0 && citem->is_stackable(); }))
+            {
+                const int expDate = citem->getExpirationDate();
+                // ORIG +0x2c2..+0x2e6：strlen→%esi、getCurCharacNo→%ebx、title 串→%eax
+                // 均无栈槽 ⇒ 实参位内联 + P226 语句表达式升格。
+                WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                    g_scriptStringManager_.findString(4, title, 0), inven, 0,
+                    ({ user.getCurCharacNo(); }), buf, ({ (int)strlen(buf); }),
+                    expDate, static_cast<ENUM_SERVER_GROUP>(serverGroup), 0, 1);
+            }
+        }
+    }
+    return 1;
 }
 
 // ============================================================================
 // eventReward::createCharacInvenReward —— ORIG T 0x080f0270
 // ============================================================================
 #include "EventRewardWrite/createCharacInvenReward.inc"
+{
+    bool ok = false;
+    if (G_CDataManager()->m_eventReward.rewardWriteUserInven(item, key, count))
+        ok = true;
+    key.m_a = 0;                                    // +0x11
+    key.m_sub.m_action = 1;                         // +0x14（inven）
+    if (G_CDataManager()->m_eventReward.rewardWriteUserInven(item, key, count))
+        ok = true;
+    key.m_job = 0xb;                                // +0x10
+    key.m_a = 0;                                    // +0x11
+    key.m_sub.m_action = 1;                         // +0x14
+    if (G_CDataManager()->m_eventReward.rewardWriteUserInven(item, key, count))
+        ok = true;
+    return ok;
 }
 
 // ============================================================================
 // eventReward::createCharacEquipReward —— ORIG T 0x080f033c
 // ============================================================================
 #include "EventRewardWrite/createCharacEquipReward.inc"
+{
+    bool ok = false;
+    if (G_CDataManager()->m_eventReward.rewardWriteUserEquip(item, key, count))
+        ok = true;
+    key.m_a = 0;                                    // +0x11
+    key.m_sub.m_action = 2;                         // +0x14（equip）
+    if (G_CDataManager()->m_eventReward.rewardWriteUserEquip(item, key, count))
+        ok = true;
+    key.m_job = 0xb;                                // +0x10
+    key.m_a = 0;                                    // +0x11
+    key.m_sub.m_action = 2;                         // +0x14
+    if (G_CDataManager()->m_eventReward.rewardWriteUserEquip(item, key, count))
+        ok = true;
+    return ok;
 }

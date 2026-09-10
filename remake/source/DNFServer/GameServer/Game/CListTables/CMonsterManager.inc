@@ -1,2 +1,1 @@
 CMonsterManager::CMonsterManager()
-{

@@ -1,3 +1,1 @@
 RidableObject::RidableObject()
-{
-    clear();

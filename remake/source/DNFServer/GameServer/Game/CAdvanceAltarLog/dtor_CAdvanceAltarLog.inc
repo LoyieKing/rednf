@@ -1,3 +1,1 @@
 CAdvanceAltarLog::~CAdvanceAltarLog()
-{
-    initStatistics();

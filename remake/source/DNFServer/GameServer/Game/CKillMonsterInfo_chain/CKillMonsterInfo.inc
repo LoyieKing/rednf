@@ -1,3 +1,1 @@
 CKillMonsterInfo::CKillMonsterInfo()
-{
-    _reset();

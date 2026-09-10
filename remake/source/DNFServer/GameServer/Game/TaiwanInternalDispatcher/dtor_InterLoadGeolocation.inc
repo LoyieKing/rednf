@@ -1,2 +1,1 @@
 InterLoadGeolocation::~InterLoadGeolocation()
-{

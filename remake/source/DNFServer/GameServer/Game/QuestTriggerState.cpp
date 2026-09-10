@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 QuestTriggerState/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 QuestTriggerState/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— stQuestTriggerState_t 独立 TU（batch 迁移自 GameStubs.cpp）。
 // 权威符号（ORIG df_game_r）：
@@ -40,6 +42,9 @@
 #include "QuestTriggerState.h"
 
 #include "QuestTriggerState/stQuestTriggerState_t.inc"
+{
+    // ORIG：movl $0x0,(%eax); movl $0x0,0x4(%eax) —— 按 8 字节（2×int）整块清零
+    *(long long*)this = 0;
 }
 
 void stQuestTriggerState_t::operator=(int const& v)
@@ -57,12 +62,60 @@ void stQuestTriggerState_t::operator=(int const& v)
 }
 
 #include "QuestTriggerState/incTirggerState.inc"
+{
+    // ORIG 0x086ad602：读 `movzwl; andw $0x1ff,%ax; movzwl %ax,%eax; cmp $0x3fe`，
+    // 自增段 `movzwl; andw $0x1ff,%ax; add $0x1,%eax; andw $0x1ff,%ax` + 位域写回
+    // （保留高 7 位）。位域 `++m_triggerN` 逐条复现（探针 /tmp/qts/b.cpp，73=73）。
+    if (v & 0x10)
+    {
+        if (m_trigger0 <= 0x3fe)
+            ++m_trigger0;
+    }
+    if (v & 0x20)
+    {
+        if (m_trigger1 <= 0x3fe)
+            ++m_trigger1;
+    }
+    if (v & 0x40)
+    {
+        if (m_trigger2 <= 0x3fe)
+            ++m_trigger2;
+    }
 }
 
 #include "QuestTriggerState/subTriggerState.inc"
+{
+    if (v == 0)
+    {
+        // ORIG 0x086ad6fc：`mov (%eax),%eax; lea -1(%eax),%edx; mov %edx,(%eax)` ——
+        // 对 +0x00 的 4 字节视图（m_trigger0/m_trigger1 同容器）裸自减 1（m_low32）。
+        --m_low32;
+        return;
+    }
+    // ORIG 自减段：读同 inc（`add $0x1ff,%ax` 即 16 位 -1）+ 位域写回保留高 7 位。
+    if (v & 0x10)
+    {
+        if (m_trigger0 > 0)
+            --m_trigger0;
+    }
+    if (v & 0x20)
+    {
+        if (m_trigger1 > 0)
+            --m_trigger1;
+    }
+    if (v & 0x40)
+    {
+        if (m_trigger2 > 0)
+            --m_trigger2;
+    }
 }
 
 // ORIG 0x0836dd68：每字段 `movzwl; andw $0x1ff,%ax; movzwl %ax,%eax`（位域读），
 // 后两字段 `shl` 后 `or %eax,-0x4(%ebp)` ⇒ 具名 int r + |= 形（探针 23=23）。
 #include "QuestTriggerState/getTrigger.inc"
+{
+    int r = m_trigger0;
+    r |= (m_trigger1 << 9);
+    r |= (m_trigger2 << 18);
+    return r;
 }

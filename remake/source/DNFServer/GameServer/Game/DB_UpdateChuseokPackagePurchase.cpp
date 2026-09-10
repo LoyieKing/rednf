@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_UpdateChuseokPackagePurchase/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_UpdateChuseokPackagePurchase/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— DB_UpdateChuseokPackagePurchase（2010 秋夕包购买计数 DB
 // 请求，DBThread 派发）。逐函数对照
@@ -33,6 +35,15 @@
 // mangled _ZN31DB_UpdateChuseokPackagePurchase11makeRequestEj
 // ============================================================================
 #include "DB_UpdateChuseokPackagePurchase/makeRequest.inc"
+{
+    // b28c-33：ORIG 0x0843c8b6 无 stream 具名局部（Acquire 返回值 eax 直传 guard
+    // ctor 0x4(%esp)，guard 槽 -0x10）；值缓存局部多 store/load 且槽平移 -0x14。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x90bd), true);
+    guard.operator*()->operator<<(0x213);
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(mId);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ============================================================================
@@ -40,4 +51,28 @@
 // mangled _ZN31DB_UpdateChuseokPackagePurchase8dispatchEiiP6Stream
 // ============================================================================
 #include "DB_UpdateChuseokPackagePurchase/dispatch.inc"
+                                               Stream* s)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                  (ENUM_SERVER_GROUP)0);
+    unsigned int mId = 0;
+    *s >> mId;
+
+    // ORIG：NumberToString(local_14, 0) 后直接拼入硬编码表名 SQL。
+    db->set_query(
+        "upDate event_1009_package_count set purchase_cnt = purchase_cnt+1 "
+        "where m_id=%s",
+        NumberToString(mId, 0));
+    if (!db->exec(true))
+        return false;
+    if (db->getAffectedRowCount() == 0)
+    {
+        db->set_query(
+            "inSert into event_1009_package_count(m_id, purchase_cnt) "
+            "values(%s, %u)",
+            NumberToString(mId, 0), 1);
+        if (!db->exec(true))
+            return false;
+    }
+    return true;
 }

@@ -1,2 +1,1 @@
 ST_TrainingQuest_Select_Prob::~ST_TrainingQuest_Select_Prob()
-{

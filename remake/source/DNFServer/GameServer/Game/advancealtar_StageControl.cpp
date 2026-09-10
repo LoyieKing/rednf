@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 advancealtar_StageControl/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 advancealtar_StageControl/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r Game/ advancealtar::StageControl 专属 TU（从 GameStubs.cpp 拆出）。
 // 声明唯一归口 advancealtar.h（具名布局：m_index@+0x00 / ProcStage 槽@+0x04 /
@@ -45,6 +47,12 @@ namespace advancealtar
 //   4.4 生成的 EH landing 布局是否与 ORIG 4.1 逐条一致亦需实测（N91 族）。风险与
 //   波及超出单 TU 泳道 ⇒ 维持 N83/P67 封顶，路径交 Main 定夺。
 #include "advancealtar_StageControl/StageControl.inc"
+{
+    m_index = -1;
+    CharacData* characData = reinterpret_cast<CharacData*>(
+        reinterpret_cast<char*>(this) + 0x98);
+    new (reinterpret_cast<void*>(m_procStage)) ProcStage(*characData);
+    new (characData) CharacData;
 }
 
 // ----------------------------------------------------------------------------
@@ -61,14 +69,21 @@ namespace advancealtar
 //   可观察语义（逆序销毁 CharacData→ProcStage，指针/调用序/出参槽逐条同 ORIG）等价。
 //   N 封顶（P67/N91）。
 #include "advancealtar_StageControl/dtor_StageControl.inc"
+{
+    reinterpret_cast<CharacData*>(reinterpret_cast<char*>(this) + 0x98)->~CharacData();
+    reinterpret_cast<ProcStage*>(m_procStage)->~ProcStage();
 }
 
 // ORIG W 0x81348ba：(const) return *(int*)this;
 #include "advancealtar_StageControl/getIndex.inc"
+{
+    return m_index;
 }
 
 // ORIG W 0x82a669c：*(int*)this = idx;
 #include "advancealtar_StageControl/setIndex.inc"
+{
+    m_index = idx;
 }
 
 // ORIG T 0x0812fc4e（leaveUser.md 全文）：getUser/getCurCharacR 判空 → 0；
@@ -78,28 +93,72 @@ namespace advancealtar
 //   SendItemLockListInven() → setAdvanceAltarIndex(-1)（CUser+0x8d012）→
 //   destroy(this) → 1。
 #include "advancealtar_StageControl/leaveUser.inc"
+{
+    CUser* user =
+        reinterpret_cast<CharacData*>(m_characData)->getUser();
+    if (user == 0)
+    {
+        return 0;
+    }
+    if (user->getCurCharacR() == 0)
+    {
+        return 0;
+    }
+    HistoryLog::leaveDungeon(*user, *getProcStage());
+    G_GameWorld()->out_from_dungeon(user);
+    PacketGuard guard;
+    guard.put_header(0, 2);
+    guard.put_byte(0);
+    guard.put_short(1);
+    user->make_basic_info((char*)&guard, 0);
+    guard.finalize(true);
+    G_GameWorld()->send_all(guard, user);
+    user->send_itemspace(0);
+    user->getCurCharacInvenR()->SendItemLockListInven();
+    user->setAdvanceAltarIndex(-1);  // ORIG CUser::setAdvanceAltarIndex(user,-1)
+    destroy();                // ORIG 尾部真实调用 destroy(this)（leaveUser.md 实证）
+    return 1;                 // ORIG uVar4 = 1
 }
 
 // ORIG T 0x0812fb98（onTimerStageTick.md 全文）：ProcStage::getState 为 3/4 时
 //   CharacData::upGage() + ProcStage::procTimeLine()，恒返回 1。
 #include "advancealtar_StageControl/onTimerStageTick.inc"
+{
+    if (reinterpret_cast<ProcStage*>(m_procStage)->getState() == ProcStage::State::S_N3 ||
+        reinterpret_cast<ProcStage*>(m_procStage)->getState() == ProcStage::State::S_N4)
+    {
+        reinterpret_cast<CharacData*>(m_characData)->upGage();
+        reinterpret_cast<ProcStage*>(m_procStage)->procTimeLine();
+    }
+    return true;  // ORIG 恒返回 1
 }
 
 // ORIG T 0x0812fa54（reset.md 全文）：ProcStage::resetAll() + CharacData::reset()。
 #include "advancealtar_StageControl/reset.inc"
+{
+    // ORIG 直访 this+0x04 / this+0x98（不进 getProcStage/getCharacData thunk 函数；P-O0 内联访问器直访）。
+    reinterpret_cast<ProcStage*>(m_procStage)->resetAll();
+    reinterpret_cast<CharacData*>(m_characData)->reset();
 }
 
 // ORIG T 0x081300ce（docs/class_func_reports/advancealtar__StageControl/destroy.md
 // 全文，Prod_GlobalAdv 2026-08-24）：reset(this) → G_CGameManager()->returnAdvanceAltar(this)。
 #include "advancealtar_StageControl/destroy.inc"
+{
+    reset();
+    G_CGameManager()->returnAdvanceAltar(this);
 }
 
 // ORIG W 0x081348ae：return (ProcStage*)(this + 0x04)。
 #include "advancealtar_StageControl/getProcStage.inc"
+{
+    return reinterpret_cast<ProcStage*>(m_procStage);
 }
 
 // ORIG W 0x081348a0：return (CharacData*)(this + 0x98)。
 #include "advancealtar_StageControl/getCharacData.inc"
+{
+    return reinterpret_cast<CharacData*>(m_characData);
 }
 
 // ----------------------------------------------------------------------------
@@ -112,6 +171,26 @@ namespace advancealtar
 //   struct 写法（去 body[]+memcpy 二次拷贝，68/68 指令对齐）；仅剩 call/符号地址
 //   AE 占位差异。
 #include "advancealtar_StageControl/sendStageInfo.inc"
+{
+    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+
+    // ORIG 用 _NotiAdvanceAltarStageInfo（memset 0,8 的 ctor + 两 int 直赋），
+    // 栈上两 int 连续成 8B payload；P48 去 body[]+memcpy 的二次拷贝形。
+    NOTIPacketStruct::_NotiAdvanceAltarStageInfo body;
+    body.m_stageIndex =
+        reinterpret_cast<ProcStage*>(m_procStage)->getStageIndex();
+    body.m_stageDifficulty =
+        reinterpret_cast<ProcStage*>(m_procStage)->getStageDifficulty();
+
+    PacketGuard guard;
+    guard.put_header(0, 0x209);
+    guard.put_binary(reinterpret_cast<char*>(&body), 8);
+    guard.finalize(true);
+    user->Send(guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -135,6 +214,44 @@ namespace advancealtar
 //   N76/P183 反向不可补）；另 `lea 0x98(%eax),%edx` vs `add $0x98,%eax`（N107 六形探针全败）。
 //   ORIG 0x0812fdd4 / 0x0812fe1c。
 #include "advancealtar_StageControl/selectStage.inc"
+                              advancealtar::StageDifficulty::T diff)
+{
+    if (user == 0)
+    {
+        return 3;
+    }
+    // [b28d-D9] ORIG 0x0812fdd4 段每次重算 `add $0x8df60,%eax`（P183 地址重物化，
+    // 无具名引用槽）；具名 CharacAdvanceAltarManager& 使 4.4 落 -0x18 槽往返。
+    if (!user->m_advanceAltar.isAvailableTciket())
+    {
+        return 0xf5;
+    }
+    if (!user->m_advanceAltar.isEnterStage(stageId))
+    {
+        return 8;
+    }
+
+    // [b28d-solo-StageControl] P183/P0：ORIG 每个访问点重算 this+0x98 / this+0x4
+    // （无 getCharacData/getProcStage call、无具名指针槽）；逐点表达式直用。
+    reinterpret_cast<CharacData*>(m_characData)->m_field0 =
+        user->m_advanceAltar.getCurrentRidableId();
+    reinterpret_cast<CharacData*>(m_characData)->setUser(user);
+    reinterpret_cast<CharacData*>(m_characData)->setSlotItem();
+
+    reinterpret_cast<ProcStage*>(m_procStage)->resetAll();
+    // P198①：ORIG 在 startStage 前有 `movl $0x0,-0xc(%ebp)` 预清 ⇒ 两句式。
+    int err = 0;
+    err = reinterpret_cast<ProcStage*>(m_procStage)->startStage(stageId, diff);
+    if (err != 0)
+    {
+        return err;
+    }
+
+    sendStageInfo();
+    sendMapInfo();
+    reinterpret_cast<ProcStage*>(m_procStage)->setNotSurvivalModeFirstRound();
+    user->set_state((ch_state)0xd);
+    return 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -149,6 +266,23 @@ namespace advancealtar
 //   （`mov %al,-0x9` 直存、body 字段处 `movzbl -0x9; mov %al` 读回），且声明在 body
 //   之前 ⇒ 调用序在 body ctor 之前；旧 `? 1 : 0` 三目被物化成 test/je/mov$1/jmp/mov$0。
 #include "advancealtar_StageControl/sendEplp.inc"
+{
+    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+
+    const bool isAvailableTicket = user->m_advanceAltar.isAvailableTciket();
+    NOTIPacketStruct::_NotiAdvanceAltarEplpState body;
+    body.m_eplpType = endType;
+    body.m_isAvailableTicket = isAvailableTicket;
+
+    PacketGuard guard;
+    guard.put_header(0, 0x20e);
+    guard.put_binary((char*)&body, 8);
+    guard.finalize(true);
+    user->Send(guard);
 }
 
 // ORIG T 0x08130644（onEplp.md 全文）：sendEplp(endType) +
@@ -167,10 +301,33 @@ namespace advancealtar
 //   StageEndType::T 值域 END_N0..END_N3 含 0，无 P305 越界删 case 风险；
 //   `(int)` 显式转换即 f5 的 int 形参口径（同宽零开销）。
 #include "advancealtar_StageControl/onEplp.inc"
+{
+    // ORIG 0x813064a：bool 岛 -0x9（预清 movb $0x0、case 叶块物化 movb $0/$1、无读者——
+    // 4.1 保留死 store；volatile 强制 4.4 保留写与槽）。
+    volatile bool flag = false;
+    switch ((int)endType)
+    {
+    case 0:
+    case 1:
+    case 2:
+        flag = false;
+        break;
+    case 3:
+        flag = true;
+        break;
+    }
+    sendEplp(endType);
+    Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex());
 }
 
 // ORIG T 0x08130692（onEplpReturnVillage.md 全文）：ProcStage::getState()==6 → leaveUser()。
 #include "advancealtar_StageControl/onEplpReturnVillage.inc"
+{
+    if (reinterpret_cast<ProcStage*>(m_procStage)->getState() ==
+        ProcStage::State::S_N6)
+    {
+        leaveUser();
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -190,6 +347,26 @@ namespace advancealtar
 // [round1-L29 2026-09-10 复核] 判据① CLEAR；P286 单 case switch 已实测（27→28 条反劣，已回退）。
 //   残差同 onEplp（P85 族）⇒ N（ORIG 0x081305f6）。
 #include "advancealtar_StageControl/onClearReward.inc"
+{
+    if (endType < 0)
+        goto island1;
+    if (endType <= 2)
+        goto island2;
+    // [b28d-sweep] P286 单 case switch 实测：得 `mov 0xc(%ebp),%eax; cmp $0x3,%eax`
+    //   但整函数 27→28 条（第二次比较前仍重载形参，ORIG 26 条为单次装载三连比较）
+    //   ⇒ 反向回退，维持 P85「4.1 跨语句 %eax 保活不可复现」封顶。
+    if (endType != 3)
+        goto island3;
+    // ORIG 0x0813060e：this+4 直访问 m_procStage 槽（无 getProcStage call）、
+    // mov (%eax) 直读 m_index（无 getIndex call）、第二参透传 endType（0x81330629）。
+    reinterpret_cast<ProcStage*>(m_procStage)->setState(ProcStage::State::S_N6);
+    Timer_StageControl::RegistTimerEPLP(m_index, endType);
+island1:
+    ;
+island2:
+    ;
+island3:
+    ;
 }
 
 // ----------------------------------------------------------------------------
@@ -199,6 +376,24 @@ namespace advancealtar
 // ----------------------------------------------------------------------------
 // [b28d-D9] P85/P209：ORIG 线性比较链值全程 %eax；4.4 signed 形参 mem 直比（unsigned 强转实测反劣 29>27）（ORIG 0x0812fbfa sz 0x00000053）
 #include "advancealtar_StageControl/onTimer.inc"
+{
+    // [b28d-solo-StageControl] P251：ORIG 值全程 %eax 无槽 + cmp 链 ⇒ 原码是
+    // switch((int)msg)（窄枚举需 (int) 规避 P305 越界 case 静默删除）；叶块顺序 =
+    // case 书写顺序（P46）照 ORIG：a8 → a9 → aa。
+    switch ((int)msg)
+    {
+    case 0xa8:
+        onClearReward(endType);
+        break;
+    case 0xa9:
+        onEplp(endType);
+        break;
+    case 0xaa:
+        onEplpReturnVillage();
+        break;
+    default:
+        break;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -212,6 +407,49 @@ namespace advancealtar
 // 头声明 static（ORIG 无 this）；类外定义不带 static。
 // [b28d-D9] 槽差/P227：trace 临时链位置 + 槽序差（ORIG 0x0812fdd4 sz 0x000002fa）
 #include "advancealtar_StageControl/gotoStage.inc"
+{
+    Village* vill = G_GameWorld()->getUserVillage(user);
+    if (vill == 0)
+    {
+        // [b28d-solo-StageControl] P227：ORIG 在 ctor 前求 vararg 实参并以 %ebx 跨
+        //   ctor 保活（`call getCurCharacVill; movsbl %al,%ebx; ... call C1; mov %ebx,
+        //   0x8(%esp)`）⇒ 全表达式临时链形。
+        cMyTrace(__PRETTY_FUNCTION__, 0x585, 5)(
+            "%d", (int)user->getCurCharacVill());
+        return;
+    }
+    // [b23S3C] P48：ORIG 两次独立 get_area(false)——+0x80 结果 eax 直落
+    // getArea 实参槽（无 areaId 槽）、判空分支 +0xab 再 call 一次喂 trace。
+    Area* area = vill->getArea(user->get_area(false));
+    if (area == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x58c, 5)(
+            "%d", user->get_area(false));
+        return;
+    }
+
+    area->erase_user(user);
+    PacketGuard guard;
+    guard.put_header(0, 0x17);
+    guard.put_short(user->get_unique_id() & 0xffff);
+    guard.put_byte(user->getCurCharacVill());
+    guard.put_byte(0xff);
+    guard.put_short(user->get_posX() & 0xffff);
+    guard.put_short(user->get_posY() & 0xffff);
+    guard.put_byte(user->get_direction());
+    guard.put_byte(user->get_charac_visible_values());
+    guard.finalize(true);
+    user->Send(guard);
+
+    guard.clear();
+    guard.put_header(0, 3);
+    guard.put_byte(1);
+    guard.put_short(user->get_unique_id() & 0xffff);
+    guard.put_byte(1);
+    guard.finalize(true);
+    user->Send(guard);
+    G_GameWorld()->send_all(guard, user);
+    user->set_state((ch_state)0xd);
 }
 
 
@@ -239,6 +477,47 @@ namespace advancealtar
 //   ORIG 0x08130869 证据形：`mov %al,-0x9; movzbl -0x9,%eax; xor $1,%eax; test %al,%al;
 //   jne <skip>; addl $1,-0x14; jmp <join>; <skip>: nop`。
 #include "advancealtar_StageControl/getCenterCount.inc"
+{
+    // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调
+    //   getUser（无具名 procStage/characData 指针槽）；P28：ORIG 增量段调 ppEi（后置
+    //   迭代器带独立 sret 临时槽）⇒ 源形必写 `it++`。
+    CMap* map = reinterpret_cast<const ProcStage*>(m_procStage)->getMap();
+    if (map == 0)
+    {
+        return 0;
+    }
+    CUser* user = reinterpret_cast<const CharacData*>(m_characData)->getUser();
+    if (user == 0)
+    {
+        return 0;
+    }
+
+    int count = 0;                                      // -0x14
+    // [回滚记录 b28d-sweep] 曾试 const 容器 + const_iterator（ORIG 0x08135d88 段确用
+    //   `_ZNKSt4list...5beginEv`/`_ZNKSt20_List_const_iterator...`）；verdict 无改善
+    //   （残差仍是下方 hit 物化，仍 DIFF），且本 TU 不再发射 ORIG 别处实存的非 const
+    //   `_ZNSt14_List_iteratorI11_mapMonsterEppEi/EptEv`（0x08311764/0x08311756）⇒
+    //   check_tu_routed identical 80→78 回退，故维持非 const iterator 形。
+    std::list<_mapMonster> monsters = map->get_monster_list();
+    // ORIG 0x0813080e：`lea -0x2c,%eax; mov %eax,-0x10(%ebp)` —— 具名 list 指针槽
+    // -0x10，begin/end 均从该槽取 this（Ghidra local_14 = local_30）。
+    std::list<_mapMonster>* monsterList = &monsters;
+    for (std::list<_mapMonster>::iterator it = monsterList->begin();
+         it != monsterList->end(); it++)
+    {
+        int valueA = 0;                                 // local_88[1]
+        int valueB = 0;                                 // local_88[0]
+        // ORIG 0x08130869：getTowerInfo 结果先落具名字节槽 -0x9（`mov %al,-0x9`），
+        // 再 `movzbl -0x9; xor $1; test; jne <skip>; ++count; jmp; nop` 取反物化。
+        const bool hit =
+            user->m_advanceAltar.getTowerInfo(it->m_mobId, valueA, valueB);
+        // ORIG 0x08130869：jne <skip 岛> + body 尾 jmp <join> ⇒ P223 goto 尾空标签形。
+        if (!hit)
+            goto hit_done;
+        ++count;
+    hit_done:;
+    }
+    return count;
 }
 
 // ----------------------------------------------------------------------------
@@ -274,22 +553,152 @@ namespace advancealtar
 //   残差含 getTowerInfo 的 X 族（同 getCenterCount，待 callee bool 化）+ 槽号 N95/N126。
 //   ORIG 0x081301e0。
 #include "advancealtar_StageControl/sendMapInfo.inc"
+{
+    // [b28d-solo-StageControl] P183：ORIG 每访问点重算 this+0x98 / this+0x4
+    // （无 getCharacData/getProcStage out-of-line call、无具名 procStage 指针槽）。
+    // [b28d-sweep] 原 P190 两个取址 double 撑帧（0x80→0x90）；补 hit/phaseIndex/
+    //   monsterList 具名局部后 4.4 帧已自涨到 0xa0（ORIG 0x90）⇒ 撑帧局部转为冗余，
+    //   删除后帧回落 0x90（实测 sub 立即数逐字对齐）。
+    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+    CMap* map = reinterpret_cast<ProcStage*>(m_procStage)->getMap();
+    if (map == 0)
+    {
+        return;
+    }
+    // ORIG 0x0813026e：body ctor 在 map 判空之后、getTimeLine 之前（Ghidra local_5c）。
+    NOTIPacketStruct::_NotiAdvanceAltarMapInfo body;
+    const TimeLine* timeLine =   // [b28d-Main 代落·S374] getTimeLine 返回 const TimeLine*（ORIG 调用点 0x8130237 为 `_ZNK...getTimeLineEv`，消费端仅读）
+        reinterpret_cast<ProcStage*>(m_procStage)->getTimeLine();
+    if (timeLine == 0)
+    {
+        return;
+    }
+
+    body.m_stageType =
+        reinterpret_cast<ProcStage*>(m_procStage)->getStageType();
+    body.m_currentSurvivalRoundNo =
+        reinterpret_cast<ProcStage*>(m_procStage)->getCurrentSurvivalRoundNo();
+    body.m_mapIndex = map->get_index();
+    // TimeLine+0x0c = m_summary（TimeLineSummary）+0x00 = m_field0（int，`mov 0xc(%eax)`）。
+    body.m_currentPhaseIndex = timeLine->m_summary.m_field0;
+    body.m_mapBasisLevel =
+        reinterpret_cast<ProcStage*>(m_procStage)->getMapBasisLevel();
+
+    PacketGuard guard;
+    guard.put_header(0, 0x20a);
+    guard.put_binary(reinterpret_cast<char*>(&body), 0x14);
+    guard.put_int(static_cast<int>(timeLine->m_summary.m_phaseSummarys.size()));
+    // [b28d-sweep] P167：ORIG 三处 put_binary 目标均为 `_ZN18InterfacePacketBuf10put_binaryEPci`
+    //   （char* 重载 @0x0811df08），此前 phase 循环误用 `put_binary(const char*,int)`
+    //   （@0x0815096a）⇒ 调用点差集 MISSING/EXTRA 各 1。改传 char*（const_cast 去 const）。
+    // [b28d-sweep] P28 增量侧：ORIG 0x08130393 增量段调
+    //   `_ZN9__gnu_cxx17__normal_iteratorIPKN...EEEppEi`（后置，带独立 sret 临时槽
+    //   -0x40）⇒ 源形写 `it++`。
+    // P328⑥/P171：ORIG 在 `call begin`（sret -0x68）之后发 `movl $0x0,-0x20(%ebp)`，
+    //   每轮增量段 `addl $0x1,-0x20(%ebp)`（死计数器，全函数无读者）⇒ 照抄死写入。
+    std::vector<_PhaseSummary>::const_iterator it =
+        timeLine->m_summary.m_phaseSummarys.begin();
+    int phaseIndex = 0;
+    for (; it != timeLine->m_summary.m_phaseSummarys.end(); it++, ++phaseIndex)
+    {
+        guard.put_binary(reinterpret_cast<char*>(
+                             const_cast<_PhaseSummary*>(&*it)), 0xc);
+    }
+
+    // ORIG 0x08130391：`cmp $1,%eax; jne L_true; call; test; je L_false; L_true: mov $1;
+    // jmp; L_false: mov $0; test %al,%al; je L_else` —— 无具名 bool 槽（P214①）。
+    // 极性：jne/je 均落 L_true ⇒ monsters 分支 = `stageType != 1 || isSurvivalModeFirstRound()`
+    // （P224：je 落点定极性；此前误写 `!isSurvivalModeFirstRound()` = 真语义 bug）。
+    if (reinterpret_cast<ProcStage*>(m_procStage)->getStageType() != 1 ||
+        reinterpret_cast<ProcStage*>(m_procStage)->isSurvivalModeFirstRound())
+    {
+        // [b28d-sweep] 试过 const 化 monsters（ORIG 0x081303ce 段确调 `_ZNKSt4list...5beginEv`
+        //   const 版）：p167 调用差集 48→46=ORIG，但本 TU 少发射
+        //   `_ZNSt20_List_const_iteratorI11_mapMonsterEC1ERKSt14_List_iteratorIS0_E`
+        //   ⇒ check_tu identical 80→79 回退，故维持非 const 形（语义等价，仅符号选择差）。
+        std::list<_mapMonster> monsters = map->get_monster_list();
+        // ORIG 0x081303d6：`lea -0x3c(%ebp),%eax; mov %eax,-0x18(%ebp)` ⇒ 具名 list
+        //   指针槽（begin/end 均从该槽取 this）。
+        std::list<_mapMonster>* monsterList = &monsters;
+        guard.put_int(getCenterCount());
+        // [b28d-sweep] P183：ORIG 0x08130456 每轮重算 `mov -0x2c(%ebp),%edx;
+        //   lea 0x8df60(%edx),%ecx`（无具名引用槽）⇒ 去掉 CharacAdvanceAltarManager& 局部。
+        // [b28d-sweep] P28 增量侧：ORIG 增量段调 `_ZNSt20_List_const_iteratorI11_mapMonsterEppEi`
+        //   （后置，带 sret 临时槽）⇒ 源形写 `it++`。
+        for (std::list<_mapMonster>::const_iterator it = monsterList->begin();
+             it != monsterList->end(); it++)
+        {
+            advancealtar::_MapMonsterSummary summary;
+            summary.m_orderIdx = it->m_orderIdx;          // _mapMonster+0x2c
+            summary.m_seq = 0;                            // addCreatedMapMonster 覆写
+            int towerValue = 0;                           // getTowerInfo 出参 1
+            int towerCount = 0;                           // getTowerInfo 出参 2
+            // [b28d-sweep] 真 bug：ORIG 0x08130454 `mov (%eax),%eax` 取 it->+0x00
+            //   （_mapMonster::m_mobId）作 getTowerInfo 首实参；此前误传 m_orderIdx
+            //   （+0x2c，仅用于下方 summary.m_orderIdx 赋值，ORIG 0x0813042c 实证）。
+            //   ORIG 0x0813047c `mov %al,-0xd(%ebp)` + 回读 ⇒ 具名字节局部（P0 槽往返）。
+            unsigned char hit = user->m_advanceAltar.getTowerInfo(
+                it->m_mobId, towerValue, towerCount);
+            // [round1-L29 2026-09-10 复核] bool 具名局部 + P223 goto 尾标签形实测劣化
+            //   （295 vs ORIG 289）⇒ 回退保持 uchar 形；残差归 N（ORIG 0x0813047c）。
+            if (hit)
+            {
+                summary.m_towerRefA =
+                    static_cast<short>(towerValue);       // u16 截断 [+0x06]
+                summary.m_towerRefB =
+                    static_cast<unsigned char>(towerCount);  // 低字节 [+0x08]
+                summary.m_roleType = static_cast<unsigned char>(
+                    it->m_roleType);                      // +0x18 低字节
+                summary.m_posX = static_cast<unsigned char>(
+                    it->m_posX);                          // +0x20 低字节
+                summary.m_champion = it->m_champion;      // +0x1c
+                reinterpret_cast<ProcStage*>(m_procStage)->
+                    addCreatedMapMonster(summary);
+                guard.put_binary(reinterpret_cast<char*>(&summary), 0xd);
+            }
+        }
+    }
+    else
+    {
+        // ORIG 0x08130570：`movl $0x0,-0xc(%ebp); mov -0xc(%ebp),%eax; ... put_int`
+        // —— 具名零局部（P0 槽往返），非字面量直压。
+        int zero = 0;
+        guard.put_int(zero);
+    }
+    guard.finalize(true);
+    // ORIG 0x0813059c：Send 前重新 `this+0x98` 调 getUser（不复用开头 user 槽）。
+    reinterpret_cast<CharacData*>(m_characData)->getUser()->Send(guard);
 }
 
 // ---- TimeLine / Phase / TimeLineSummary（ORIG advancealtar__TimeLine 报告）----
 #include "advancealtar_StageControl/Phase.inc"
+    : m_field0(0), m_field4(0), m_assigns()
+{
 }
 
 #include "advancealtar_StageControl/reset_1.inc"
+{
+    // ORIG T 0x08899cf8：仅 m_field0 清零 + m_assigns.clear()（+0x04 不清）。
+    m_field0 = 0;
+    m_assigns.clear();
 }
 
 #include "advancealtar_StageControl/TimeLineSummary.inc"
+    : m_field0(0), m_phaseSummarys()
+{
 }
 
 #include "advancealtar_StageControl/dtor_TimeLineSummary.inc"
+{
 }
 
 #include "advancealtar_StageControl/TimeLineSummary_1.inc"
+    : m_field0(other.m_field0), m_phaseSummarys(other.m_phaseSummarys)
+{
 }
 
 TimeLineSummary& TimeLineSummary::operator=(const TimeLineSummary& other)
@@ -300,18 +709,27 @@ TimeLineSummary& TimeLineSummary::operator=(const TimeLineSummary& other)
 }
 
 #include "advancealtar_StageControl/reset_2.inc"
+{
+    // ORIG T 0x08899d4e：int 清零 + vector clear。
+    m_field0 = 0;
+    m_phaseSummarys.clear();
 }
 
 // TimeLine ctor（ORIG T 0x08899d6e）：vector<Phase> 默认构造 + summary@+0xc 构造。
 #include "advancealtar_StageControl/TimeLine.inc"
+    : m_phases(), m_summary()
+{
 }
 
 // TimeLine dtor（ORIG T 0x08899db4）：summary 先、vector 后自动析构。
 #include "advancealtar_StageControl/dtor_TimeLine.inc"
+{
 }
 
 // 拷贝构造（ORIG W 0x0837e642）：vector/summary 成员拷贝。
 #include "advancealtar_StageControl/TimeLine_1.inc"
+    : m_phases(other.m_phases), m_summary(other.m_summary)
+{
 }
 
 TimeLine& TimeLine::operator=(const TimeLine& other)
@@ -322,6 +740,10 @@ TimeLine& TimeLine::operator=(const TimeLine& other)
 }
 
 #include "advancealtar_StageControl/reset_3.inc"
+{
+    // ORIG T 0x08899dfa：vector<Phase>::clear + TimeLineSummary::reset。
+    m_phases.clear();
+    m_summary.reset();
 }
 
 }  // namespace advancealtar

@@ -1,4 +1,1 @@
 CompiledDNFLex::~CompiledDNFLex()
-{
-    CloseInputStream();
-    destroy();

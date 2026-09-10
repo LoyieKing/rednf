@@ -1,2 +1,1 @@
 CBingoTest::CBingoTest()
-{

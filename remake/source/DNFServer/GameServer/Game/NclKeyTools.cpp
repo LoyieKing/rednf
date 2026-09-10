@@ -1,30 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 NclKeyTools/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 NclKeyTools/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r ncl_* license key 工具族（ORIG 自由函数，objdump 直转）。
-// ----------------------------------------------------------------------------
-// ORIG 符号（df_game_r，全部 T 强符号，同一工具区域 0x085723fc-0x08572e1c）：
-// [b28d-D43] AE: 循环变量复用 sock 槽复现 4.1 lifetime 复用（ORIG 0x085723fc 的 -0x10 单槽）。
-//   ncl_make_mac(char*)                _Z12ncl_make_macPc    0x085723fc (0xd3)
-//   ncl_char_plus(char, int)           _Z13ncl_char_plusci   0x08572581 (0x3c)
-//   ncl_check_digit_str(char*)         _Z19ncl_check_digit_strPc 0x08572531 (0x50)
-//   ncl_make_date(char*)               _Z13ncl_make_datePc   0x085724cf (0x62)
-//   ncl_encrypt_key(char*,char*,char*,char*) _Z15ncl_encrypt_keyPcS_S_S_ 0x085725bd
-//   ncl_decrypt_key(char*,char*,char*,char*) _Z15ncl_decrypt_keyPcS_S_S_ 0x085729ce
-//   ncl_check_key(char*)               _Z13ncl_check_keyPc   0x08572cb5 (0x167)
-//   ncl_check_date(char*, char*)       _Z14ncl_check_datePcS_ 0x08572e1c (0x7a)
-// 加密/哈希类（用户规则 2026-08-16）只要求算法正确，不要求 identical。
-// 原 ncl_check_key「非空即通过」骨架位于 GameMain.cpp，已删除并由本 TU 提供
-// 真实实现（ORIG：decrypt → 长度 0x28 → MAC 等于本机 eth0 → 当日日期落入
-// [date1, date2] 闭区间）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <cstdio>
@@ -40,12 +24,28 @@
 // ncl_char_plus(char, int) —— 数字字符加增量后按 0-9 回绕。
 // ORIG：movsbl 符号扩展 → sub $0x30 → add n → i586 除法魔法 %10。
 #include "NclKeyTools/ncl_char_plus.inc"
+{
+    return (c - '0' + n) % 10;
 }
 
 // ncl_check_digit_str(char*) —— 全数字返回 strlen，含非数字返回 -1。
 // ORIG：len=strlen；逐字符 sub $0x30; cmp $0x9; jbe（无符号 ≤9 合法）→
 // 非法时 len=-1 并跳出；jbe 对应 (unsigned)(c-'0') <= 9。
 #include "NclKeyTools/ncl_check_digit_str.inc"
+{
+    // ORIG 槽向：len@-0xc（浅）、i@-0x10（深）；4.4 先声明占深槽，
+    // 故 i 声明前置（未初始化无指令序影响，P210 附/N93 平铺版复现）。
+    int i;
+    int len = static_cast<int>(std::strlen(s));
+    for (i = 0; i < len; ++i)
+    {
+        if ((unsigned int)(s[i] - '0') > 9)
+        {
+            len = -1;
+            break;
+        }
+    }
+    return len;
 }
 
 // ncl_make_mac(char*) —— 本机 eth0 MAC，每字节 "%03d"（3 位十进制）拼接。
@@ -54,12 +54,42 @@
 //   close → 6 字节各 sprintf("%03d") 到 out，每 3 字符后补 '\0'（rodata
 //   0x8ca6a10="eth0" / 0x8ca6a15="%03d"）。
 #include "NclKeyTools/ncl_make_mac.inc"
+{
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    struct ifreq ifr;
+    std::memset(&ifr, 0, sizeof(ifr));
+    std::memcpy(ifr.ifr_name, "eth0", 5);
+    ioctl(sock, SIOCGIFHWADDR, &ifr);
+    close(sock);
+    int off = 0;
+    // [b28d-D43] 循环变量复用 sock 槽（ORIG 0x0857247c/0x08572483 同一 -0x10
+    // 槽：4.1 对已死 sock 做 lifetime 复用；4.4 不复用，独立 i 会多占一槽并使
+    // ifr 整体浅移 4 ⇒ 源码改用同一变量，槽序即与 ORIG 全等）。
+    for (sock = 0; sock <= 5; ++sock)
+    {
+        std::sprintf(out + off, "%03d",
+                     static_cast<unsigned char>(ifr.ifr_hwaddr.sa_data[sock]));
+        off += 3;
+        out[off] = '\0';
+    }
 }
 
 // ncl_make_date(char*) —— 当日 "YYYYMMDD"（8 位数字）。
 // ORIG：time → localtime_r → sprintf("%04d%02d%02d", year+1900, mon+1, mday)
 // （rodata 0x8ca6a1a="%04d%02d%02d"；tm 字段经返回指针访问，P43）。
 #include "NclKeyTools/ncl_make_date.inc"
+{
+    // ORIG：time(&t)（传指针，P43）；tm 字段直读结构槽（非经 p 指针）。
+    time_t t;
+    std::time(&t);
+    struct tm tmBuf;
+    struct tm* p = localtime_r(&t, &tmBuf);
+    // ORIG 0x85724f9：`je <nop 岛>` + sprintf + 尾 `jmp` + nop（P223 空块占位岛）。
+    if (p == 0)
+        goto L_done;
+    std::sprintf(out, "%04d%02d%02d",
+                 tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday);
+L_done:;
 }
 
 // ncl_encrypt_key(char* out, char* mac, char* date1, char* date2)
@@ -75,6 +105,80 @@
 // [b28d-D43] N82/N89 大函数（344/344）：槽序与寄存器分配跨版本差（ORIG
 // 0x085725bd；控制流/调用点逐条同构，语义闭合）。
 #include "NclKeyTools/ncl_encrypt_key.inc"
+{
+    if (ncl_check_digit_str(mac) != 0x12)
+    {
+        return -1;
+    }
+    if (ncl_check_digit_str(date1) != 0x8)
+    {
+        return -1;
+    }
+    if (ncl_check_digit_str(date2) != 0x8)
+    {
+        return -1;
+    }
+
+    int outIdx = 0;
+    int sum = 0;
+    int macIdx = 0;
+    out[outIdx++] = '0';
+    for (int i = 0; i <= 7; ++i)
+    {
+        int v;
+        v = ncl_char_plus(mac[macIdx++], 1);
+        sum += v;
+        out[outIdx++] = static_cast<char>(v + '0');
+        v = ncl_char_plus(date1[i * 2], 2);
+        sum += v;
+        out[outIdx++] = static_cast<char>(v + '0');
+        v = ncl_char_plus(date1[i * 2 + 1], 3);
+        sum += v;
+        out[outIdx++] = static_cast<char>(v + '0');
+        v = ncl_char_plus(date2[i], 1);
+        sum += v;
+        out[outIdx++] = static_cast<char>(v + '0');
+        if (i & 1)
+        {
+            out[outIdx] = static_cast<char>(sum % 10 + '0');
+            ++outIdx;
+            sum = 0;
+        }
+    }
+    int v = ncl_char_plus(mac[macIdx++], 5);
+    sum += v;
+    out[outIdx++] = static_cast<char>(v + '0');
+    v = ncl_char_plus(mac[macIdx++], 6);
+    sum += v;
+    out[outIdx++] = static_cast<char>(v + '0');
+    out[outIdx] = static_cast<char>(sum % 10 + '0');
+    ++outIdx;
+    out[outIdx] = '\0';
+
+    std::srand(static_cast<unsigned int>(std::time(0)));
+    int pos = std::rand() % 10;
+    out[0] = static_cast<char>(pos + '0');
+    if (pos != 0)
+    {
+        out[9] = static_cast<char>(std::rand() % 10 + '0');
+    }
+    if (pos != 1)
+    {
+        out[18] = static_cast<char>(std::rand() % 10 + '0');
+    }
+    if (pos != 2)
+    {
+        out[27] = static_cast<char>(std::rand() % 10 + '0');
+    }
+    if (pos != 3)
+    {
+        out[36] = static_cast<char>(std::rand() % 10 + '0');
+    }
+    if (pos != 4)
+    {
+        out[39] = static_cast<char>(std::rand() % 10 + '0');
+    }
+    return static_cast<int>(std::strlen(out));
 }
 
 // ncl_decrypt_key(char* key, char* mac, char* date1, char* date2)
@@ -94,6 +198,83 @@
 //   用变量 to(=8)/macIdx，非常量下标（Ghidra param_3/param_4[local_14]）；初始化序
 //   from→to→macIdx。跳表 rodata 地址经 AE 归一，判 identical_ae。
 #include "NclKeyTools/ncl_decrypt_key.inc"
+{
+    if (ncl_check_digit_str(key) != 0x28)
+    {
+        return -1;
+    }
+    int expected;
+    int sum;
+    int first = key[0] - '0';
+    int from;
+    int to;
+    int macIdx;
+    switch (first)
+    {
+    case 0:
+        from = 1;
+        to = 9;
+        expected = key[9] - '0';
+        break;
+    case 1:
+        from = 0xa;
+        to = 0x12;
+        expected = key[0x12] - '0';
+        break;
+    case 2:
+        from = 0x13;
+        to = 0x1b;
+        expected = key[0x1b] - '0';
+        break;
+    case 3:
+        from = 0x1c;
+        to = 0x24;
+        expected = key[0x24] - '0';
+        break;
+    case 4:
+        from = 0x25;
+        to = 0x27;
+        expected = key[0x27] - '0';
+        break;
+    default:
+        return -1;
+    }
+    sum = 0;
+    for (; from < to; ++from)
+    {
+        sum += key[from] - '0';
+    }
+    if (sum % 10 != expected)
+    {
+        return -1;
+    }
+
+    from = 1;
+    to = 0;
+    macIdx = 0;
+    for (; to < 8; ++to)
+    {
+        mac[macIdx++] = static_cast<char>(
+            ncl_char_plus(key[from++], 9) + '0');
+        date1[to] = static_cast<char>(
+            ncl_char_plus(key[from++], 8) + '0');
+        mac[macIdx++] = static_cast<char>(
+            ncl_char_plus(key[from++], 7) + '0');
+        date2[to] = static_cast<char>(
+            ncl_char_plus(key[from++], 9) + '0');
+        if (to & 1)
+        {
+            ++from;
+        }
+    }
+    mac[macIdx++] = static_cast<char>(
+        ncl_char_plus(key[from++], 5) + '0');
+    mac[macIdx++] = static_cast<char>(
+        ncl_char_plus(key[from++], 4) + '0');
+    mac[macIdx] = '\0';
+    date1[to] = '\0';
+    date2[to] = '\0';
+    return static_cast<int>(std::strlen(key));
 }
 
 // ncl_check_key(char*) —— license key 校验（真实实现替换原「非空即通过」骨架）。
@@ -101,10 +282,46 @@
 //   date2) == 0x28 才继续 → ncl_make_mac 与本机 MAC 相等 → ncl_make_date 的
 //   当日字符串落入 [date1, date2] 闭区间（strcmp <0 / >0 判非法）。
 #include "NclKeyTools/ncl_check_key.inc"
+{
+    int ok = 0;
+    char today[0x80];   // 提升到函数首部：ORIG 使 today 落栈顶 -0x8c（if 块内声明则落最深 -0x20c）
+    char mac[0x80];
+    char date1[0x80];
+    char date2[0x80];
+    std::memset(mac, 0, sizeof(mac));
+    std::memset(date1, 0, sizeof(date1));
+    std::memset(date2, 0, sizeof(date2));
+    if (ncl_decrypt_key(key, mac, date1, date2) == 0x28)
+    {
+        ok = 1;
+        std::memset(today, 0, sizeof(today));
+        ncl_make_mac(today);
+        if (std::strcmp(mac, today) != 0)
+        {
+            ok = 0;
+        }
+        std::memset(today, 0, sizeof(today));
+        ncl_make_date(today);
+        if (std::strcmp(today, date1) < 0 || std::strcmp(today, date2) > 0)
+        {
+            ok = 0;
+        }
+    }
+    return ok;
 }
 
 // ncl_check_date(char*, char*) —— 当日字符串在 [a, b] 闭区间内返回 1，否则 0。
 // ORIG（0x08572e1c）：memset(0x80) → ncl_make_date → strcmp(today,a) < 0 ||
 //   strcmp(today,b) > 0 → 0。
 #include "NclKeyTools/ncl_check_date.inc"
+{
+    int ok = 1;
+    char today[0x80];
+    std::memset(today, 0, sizeof(today));
+    ncl_make_date(today);
+    if (std::strcmp(today, a) < 0 || std::strcmp(today, b) > 0)
+    {
+        ok = 0;
+    }
+    return ok;
 }

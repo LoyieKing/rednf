@@ -1,2 +1,1 @@
 RandomOptionScript::~RandomOptionScript()
-{

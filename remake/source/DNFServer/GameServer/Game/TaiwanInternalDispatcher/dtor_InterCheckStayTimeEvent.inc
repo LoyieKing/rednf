@@ -1,2 +1,1 @@
 InterCheckStayTimeEvent::~InterCheckStayTimeEvent()
-{

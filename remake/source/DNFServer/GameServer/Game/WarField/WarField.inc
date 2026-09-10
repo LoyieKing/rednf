@@ -1,2 +1,1 @@
 WarField::WarField()
-{

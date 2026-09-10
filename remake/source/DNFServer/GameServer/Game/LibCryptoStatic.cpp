@@ -1,52 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 LibCryptoStatic/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 LibCryptoStatic/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// LibCryptoStatic.cpp — df_game_r 静态链入的 libcrypto 符号收口批（真实定义）
-//
-// 来源：ORIG /home/wangyilei/下载/df_game_r（nm -S 定尺寸，objdump 全文逐指令
-//       转写；逐符号证据表见 /tmp/df_batches/LinkClosureLib.md）。
-// 这批符号在 ORIG 中为**强符号 T**（libcrypto.a 静态链入产物）。按 Main 授权，
-// 纯 C 符号以 extern "C" 真实实现落地新 TU（guide §4.5 所禁为 asm("_ZN..") 桥，
-// 与本做法不同；不做链接——link 由 Main 收口）。
-//
-// 本批交付（/tmp/undef_lib.txt 的 10 符号）+ 直接触发路径上的伴生真实函数：
-//   BIO_s_file               T 0x087ec6c0 (0x06)
-//   BIO_new                  T 0x087ec490 (0x11f)
-//   BIO_ctrl                 T 0x087eba50 (0x129)
-//   BIO_free_all             T 0x087ec320 (0x02f)
-//   RSA_private_encrypt      T 0x087eaf40 (0x0c)  [Encrypt 路径伴生，同 pub_decrypt 尾跳]
-//   RSA_public_decrypt       T 0x087eaf60 (0x00c)
-//   RSA_public_decrypt       T 0x087eaf60 (0x00c)
-//   RSA_size                 T 0x087eb2e0 (0x026)
-//   RSA_free                 T 0x087eab50 (0x127)  [nm 实测全局 C 符号]
-// 伴生（BIO_s_file 方法表与 SET_FILENAME 路径必需，均为 ORIG T/t 真实符号）：
-//   methods_filep 数据 @.data 0x093f3800（dump 原样镜像，值为函数地址）
-//   file_new/file_free/file_read/file_write/file_gets/file_puts/file_ctrl
-//     （t 0x087ec6d0/700/7a0/870/750/a70/ae0）
-//   BIO_clear_flags T 0x087eb7d0 (0xe)、BUF_strlcpy T 0x088115c0 (0x57)
-//
-// Taiwan:: 三符号事实核查（2026-09-09 nm -S 复核）：ORIG 无 _ZN6Taiwan5{RSA_free,
-// ntohl,ntohs}… mangled；ORIG 经 U ntohl@@GLIBC_2.0 / U ntohs@@GLIBC_2.0 与
-// 全局 T RSA_free（0x087eab50）提供能力。上述三个 Taiwan:: 薄包装系重建侧发明，
-// 已按泳道口径删除：调用点直接使用 ::ntohl / ::ntohs / RSA_free（三方 C 符号本身豁免）。
-//
-// 未转写的传递依赖（extern "C" 引用，遗留清单交 Main 收口裁决）：
-//   CRYPTO_add_lock 0x087f5cd0 / CRYPTO_malloc 0x087f65d0 /
-//   CRYPTO_free 0x087f66a0 / CRYPTO_free_locked 0x087f6580 /
-//   CRYPTO_new_ex_data 0x087f91e0 / CRYPTO_free_ex_data 0x087f9080 /
-//   ERR_put_error 0x087edff0 / ERR_add_error_data 0x087ee240 /
-//   BN_num_bits 0x087fb6d0 / BN_clear_free 0x087fbe80 /
-//   BN_BLINDING_free 0x088007b0 / ENGINE_finish 0x087eb4a0 /
-//   BIO_free 0x087ec260 / PEM_ASN1_read_bio 0x087f0ba0 /
-//   d2i_RSA_PUBKEY 0x08820500 + glibc stdio errno
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <cstdio>
@@ -61,6 +23,7 @@ extern "C" {
 void*  CRYPTO_malloc(int num, const char* file, int line);
 #include "LibCryptoStatic/CRYPTO_free.inc"
 #include "LibCryptoStatic/CRYPTO_add_lock.inc"
+                       const char* file, int line);
 #include "LibCryptoStatic/CRYPTO_free_locked.inc"
 #include "LibCryptoStatic/CRYPTO_new_ex_data.inc"
 #include "LibCryptoStatic/CRYPTO_free_ex_data.inc"
@@ -71,6 +34,10 @@ void*  CRYPTO_malloc(int num, const char* file, int line);
 #include "LibCryptoStatic/BN_BLINDING_free.inc"
 #include "LibCryptoStatic/ENGINE_finish.inc"
 #include "LibCryptoStatic/BIO_free.inc"
+void*  PEM_ASN1_read_bio(void* (*d2i)(void**, const unsigned char**, long),
+                         const char* name, void* bp, void** x,
+                         void* cb, void* u);
+void*  d2i_RSA_PUBKEY(void** a, const unsigned char** in, long len);
 struct _IO_FILE;
 typedef struct _IO_FILE FILE_C;
 FILE_C* fopen64(const char* filename, const char* mode);
@@ -166,6 +133,19 @@ static_assert(sizeof(bio_st_st) == 0x40, "BIO_ST layout must be 0x40");
 #include "LibCryptoStatic/file_new.inc"
 #include "LibCryptoStatic/file_free.inc"
 #include "LibCryptoStatic/BIO_clear_flags.inc"
+unsigned long BUF_strlcpy(char* dst, const char* src, unsigned long size);
+
+// ---------------------------------------------------------------------------
+// methods_filep —— ORIG .data 0x093f3800 dump 原样镜像：
+//   93f3800  02040000 0823de08 70c87e08 a0c77e08
+//   93f3810  70ca7e08 50c77e08 e0ca7e08 d0c67e08
+//   93f3820  00c77e08 00000000
+// 地址换算（t 符号 nm -S 实测）：
+//   name="FILE pointer"@0x08de2308, bwrite=file_write@0x087ec870,
+//   bread=file_read@0x087ec7a0, bputs=file_puts@0x087eca70,
+//   bgets=file_gets@0x087ec750, ctrl=file_ctrl@0x087ecae0,
+//   create=file_new@0x087ec6d0, destroy=file_free@0x087ec700,
+//   callback_ctrl=NULL
 static bio_method_st methods_filep = {
     0x0402,
     "FILE pointer",
@@ -183,6 +163,10 @@ static bio_method_st methods_filep = {
 // 伴生：BIO_clear_flags @0x087eb7d0 (0xe)
 // ===========================================================================
 #include "LibCryptoStatic/BIO_clear_flags_1.inc"
+{
+    // mov flags,%eax / not / and %eax,(b->flags+0x14)
+    b->flags &= ~flags;
+    return 1;                          // 函数返回值由调用方忽略（eax 残留）
 }
 
 // ===========================================================================
@@ -220,25 +204,80 @@ done_tail:
     return copied + std::strlen(reinterpret_cast<const char*>(s));
 }
 #include "LibCryptoStatic/file_free_1.inc"
+{
+    // 87ec700..74d 逐指令还原：
+    //   b==0                    → ret 0
+    //   shutdown(+0x10)==0      → ret 1（未托管 fp）
+    //   init(+0xc)!=0 且 fp!=0 → fclose(fp); ptr=0; flags(+0x14)=0; init=0; ret 1
+    //   否则仅 init=0; ret 1
+    if (b == 0)
+        return 0;
+    if (b->shutdown == 0)
+        return 1;
+    if (b->init != 0) {
+        if (b->ptr != 0) {
+            std::fclose(static_cast<std::FILE*>(b->ptr));   // fclose@plt
+            b->ptr   = 0;
+            b->flags = 0;               // ORIG: movl $0,0x14(%ebx)（flags 槽）
+        }
+    }
+    b->init = 0;
+    return 1;
 }
 
 // file_read @0x087ec7a0 (0xd0)：init&&fp&&out 检查 → fread(out,1,outl,fp)
 // ferror 时按 ORIG 双 ERR 上报后 -1。
 #include "LibCryptoStatic/file_read_1.inc"
+{
+    std::FILE* fp = static_cast<std::FILE*>(b->ptr);
+    if (b->init == 0 || out == 0 || fp == 0)   // 87ec7b3/b8/b8 联合判定
+        return 0;                              // xor edx,edx
+    std::size_t r = std::fread(out, 1, static_cast<std::size_t>(outl), fp);
+    if (std::ferror(fp)) {                     // 87ec7ed..f6
+        static const char kFile[] = "bss_file.c";
+        ERR_put_error(2, 0x0b, *__errno_location(), kFile, 0xf5);
+        ERR_put_error(0x20, 0x82, 2, kFile, 0xf6);
+        return -1;                             // 87ec853
+    }
+    return static_cast<long>(r);
 }
 
 // file_write @0x087ec870 (0x48)：init&&in && fwrite(in,inl→1,inl? ORIG
 // fwrite(in, larg, 1, fp)? 参数序 (in, inl, 1, fp)（87ec88c movl $1,+8 =第3参 size, +4=inl 第2参）。
 #include "LibCryptoStatic/file_write_1.inc"
+{
+    std::FILE* fp = static_cast<std::FILE*>(b->ptr);
+    if (b->init == 0 || in == 0)
+        return 0;
+    std::size_t w = std::fwrite(in, static_cast<std::size_t>(inl), 1, fp);
+    if (w != 0)
+        return static_cast<long>(inl);         // ORIG: mov 0x28(%esp)（原参 larg/inl 回传）
+    return 0;
 }
 
 // file_puts @0x087eca70 (0x64)：strlen(str) 后 fwrite(str,len,1,fp)，成功回传 len
 #include "LibCryptoStatic/file_puts_1.inc"
+{
+    if (b->init == 0 || str == 0)
+        return 0;
+    unsigned long len = std::strlen(str);
+    std::FILE* fp = static_cast<std::FILE*>(b->ptr);
+    if (std::fwrite(str, 1, len, fp) != 0)
+        return static_cast<long>(len);
+    return 0;
 }
 
 // file_gets @0x087ec750 (0x43)：buf[0]=0；fgets(buf,size,fp)；成功且首字节非
 // '\0' → tail-jmp strlen(buf)；否则 0。
 #include "LibCryptoStatic/file_gets_1.inc"
+{
+    buf[0] = 0;                                        // movb $0,(%ebx)
+    std::FILE* fp = static_cast<std::FILE*>(b->ptr);
+    if (std::fgets(buf, size, fp) == 0)
+        return 0;
+    if (buf[0] == 0)
+        return 0;
+    return static_cast<long>(std::strlen(buf));        // 87ec78e tail jmp strlen
 }
 
 // file_ctrl @0x087ecae0 (0x38a)：OpenSSL file BIO 命令分发（命令码均来自
@@ -247,6 +286,127 @@ done_tail:
 //   0x08 GET_CLOSE 0x09 SET_CLOSE(larg&1) 0x0b FLUSH 0x0c FORCE_RET1 0x6a=SET_FP
 //   0x6b GET_FP 0x80/0x85=fseek 同路 0x6c=SET_FILENAME（模式串组合见内注）
 #include "LibCryptoStatic/file_ctrl_1.inc"
+{
+    static const char kFile[] = "bss_file.c";   // ORIG 0x8de22ee
+    std::FILE* fp = static_cast<std::FILE*>(b->ptr);   // [b+0x20]
+
+    switch (cmd) {
+    case 0x0b:                                  // 87ecaff==FLUSH fflush
+        std::fflush(fp);
+        return 1;
+
+    case 0x03:                                  // 87ecc10 ftell
+        return std::ftell(fp);
+
+    case 0x08:                                  // 87eccf8 GET_CLOSE
+        return b->shutdown;
+
+    case 0x09:                                  // 87ecb72 SET_CLOSE
+        b->shutdown = static_cast<int>(larg & 0xffffffffUL);   // mov %ebx,0x10
+        return 1;
+
+    case 0x06:                                  // 无此 case→default（ORIG cmp 0xb 先行）
+    default:
+        break;
+    }
+
+    if (cmd < 0x0b) {
+        switch (cmd) {
+        case 0x03: return std::ftell(fp);       // 0x03 已在上处理（不可达），保留对齐
+        case 0x08: return b->shutdown;
+        case 0x09: b->shutdown = static_cast<int>(larg); return 1;
+        case 0x01:                              // fseek RESET
+        case 0x80:
+        case 0x85:
+            return std::fseek(fp, static_cast<long>(larg), 0 /*SEEK_SET*/);
+        case 0x02:                              // feof
+            return std::feof(fp);
+        case 0x6a: {                            // SET_FP（106）
+            if (b->shutdown != 0) {
+                if (b->init != 0 && fp != 0) {
+                    std::fclose(fp);
+                    b->ptr      = 0;            // +0x20=0
+                    b->shutdown = 0;            // +0x14=0
+                }
+                b->init = 0;                    // +0x0c=0
+            }
+            int want_close = static_cast<int>(larg) & 1;
+            b->shutdown = want_close;           // mov %ebx,0x10(%esi)
+            b->ptr = parg;                      // mov %edi,0x20(%esi)
+            b->init  = 1;
+            return 1;
+        }
+        default:
+            break;
+        }
+        if (cmd == 0x0c) return 1;              // 87ecba0 je 0xc → ret 1
+        return 0;                               // 其余 <0x0b 分支 xor eax,eax
+    }
+
+    // cmd > 0x0b 区段
+    if (cmd == 0x6b) {                          // GET_FP
+        if (parg == 0)
+            return 1;                           // 87ecc28 edi==0 → ccee ret1
+        *static_cast<void**>(parg) = fp;        // mov %edx,(%edi)
+        return 1;
+    }
+    if (cmd == 0x80 || cmd == 0x85)             // fseek 变体（ORIG je→共用 fseek 块）
+        return std::fseek(fp, static_cast<long>(larg), 0);
+    if (cmd == 0x6c) {                          // SET_FILENAME
+        if (b->shutdown != 0) {
+            if (b->init != 0 && fp != 0) {
+                std::fclose(fp);
+                b->ptr      = 0;
+                b->shutdown = 0;
+            }
+            b->init = 0;
+        }
+        int close_flag = static_cast<int>(larg) & 1;
+        b->shutdown = close_flag;               // mov %eax,0x10
+
+        char mode_buf[16];                       // esp+0x2c 栈缓冲（5 字节足够）
+        const bool is_append = (larg & 0x8) != 0;
+        if (is_append) {
+            if ((larg & 0x2) == 0) {
+                BUF_strlcpy(mode_buf, "a", sizeof(mode_buf));        // 0x8de707d
+            } else {
+                BUF_strlcpy(mode_buf, "a+", sizeof(mode_buf));       // 0x8d01651
+            }
+        } else {
+            int rw = static_cast<int>(larg) & 0x6;
+            if (rw == 6) {
+                BUF_strlcpy(mode_buf, "r+", sizeof(mode_buf));       // 0x8d0165e
+            } else if ((larg & 0x4) != 0) {
+                BUF_strlcpy(mode_buf, "w", sizeof(mode_buf));        // 0x8d034c7
+            } else if ((larg & 0x2) != 0) {
+                BUF_strlcpy(mode_buf, "r", sizeof(mode_buf));        // 0x8d78111
+            } else {
+                ERR_put_error(0x20, 0x74, 0x65, kFile, 0x17b);
+                return 0;                       // xor eax,eax
+            }
+        }
+
+        std::FILE* new_fp =
+            reinterpret_cast<std::FILE*>(
+                fopen64(static_cast<const char*>(parg), mode_buf));
+        if (new_fp == 0) {
+            int e = *__errno_location();
+            ERR_put_error(2, 1, e, kFile, 0x18e);
+            ERR_add_error_data(5,
+                               static_cast<const char*>(parg),  // 文件名（ebx/edi）
+                               "', '",                          // ORIG 0x8de22fc
+                               mode_buf,                        // ebx 模式缓冲
+                               "fopen('(",                      // ORIG 0x8de2300
+                               "')");                           // ORIG 0x8de22f9
+            ERR_put_error(0x20, 0x74, 0x74, kFile, 0x190);
+            return 0;
+        }
+        b->ptr = new_fp;                        // mov %eax,0x20(%esi)
+        b->init = 1;
+        BIO_clear_flags(b, 0);                  // 87eccdf call BIO_clear_flags
+        return 1;
+    }
+    return 0;                                   // 默认 xor eax,eax
 }
 
 // ===========================================================================
@@ -305,6 +465,35 @@ void* BIO_new(bio_method_st* type)
 // 无 method/ctrl → ERR_put_error(0x20,0x67,0x79,"bio_lib.c",0x168) 且 -2；
 // ORIG 行为差异点（如实转写）：第二次回调存在时其返回值即函数返回值。
 #include "LibCryptoStatic/BIO_ctrl.inc"
+{
+    static const char kFile[] = "bio_lib.c";
+    bio_st_st* b = static_cast<bio_st_st*>(a);
+
+    if (b == 0)                                      // 87eba75
+        return 0;
+
+    bio_method_st* m = b->method;
+    if (m == 0 || m->ctrl == 0) {                    // 87eba81/8b
+        ERR_put_error(0x20, 0x67, 0x79, kFile, 0x168);
+        return -2;                                   // 87ebb43
+    }
+
+    if (b->callback != 0) {                          // 87eba96..ac
+        long cb_ret = b->callback(b, 0x06,
+                                  static_cast<char*>(parg),
+                                  cmd, larg, 1L);
+        if (cb_ret <= 0)
+            return static_cast<int>(cb_ret);         // 87ebac8
+    }
+
+    long ctrl_ret = m->ctrl(static_cast<bio_st_st*>(a), cmd, larg, parg); // 87ebadf
+
+    if (b->callback != 0) {
+        return static_cast<int>(
+            b->callback(b, 0x86, static_cast<char*>(parg),
+                        cmd, larg, ctrl_ret));       // 87ebb01 ORIG 以其值为返回
+    }
+    return static_cast<int>(ctrl_ret);
 }
 
 // === BIO_free_all @0x087ec320 ===============================================
@@ -312,6 +501,18 @@ void* BIO_new(bio_method_st* type)
 //（其内部再 decref），随后手动 dec 本地计数差一次（87ec344 补偿），直到本地
 // 计数 ≤0 才前进 next；next 空则退出。
 #include "LibCryptoStatic/BIO_free_all.inc"
+{
+    bio_st_st* b = static_cast<bio_st_st*>(head);
+    if (b == 0) return;                              // 87ec32b
+    for (;;) {
+        int delta = b->references;                   // 87ec336 [+0x2c]
+        bio_st_st* nxt = b->next;                    // 87ec339 [+0x24]
+        BIO_free(b);                                 // 87ec33f
+        delta -= 1;                                  // 87ec344 sub $1,%ebx
+        if (delta > 0) continue;                     // 87ec347 jle→前进
+        b = nxt;                                     // 87ec330..334
+        if (b == 0) break;
+    }
 }
 
 // === PEM_read_bio_RSA_PUBKEY @0x087f0720 ====================================
@@ -329,16 +530,29 @@ void* PEM_read_bio_RSA_PUBKEY(void* bp, void** x, void* cb, void* u)
 // === RSA_private_encrypt @0x087eaf40 ========================================
 // mov padding_arg→rsa槽 / [rsa+0x08]=meth / [meth+0x0c]=rsa_priv_enc / jmp
 #include "LibCryptoStatic/RSA_private_encrypt.inc"
+                        unsigned char* to, void* rsa, int padding)
+{
+    RSA_VIEW* r = static_cast<RSA_VIEW*>(rsa);
+    RSA_METH* meth = static_cast<RSA_METH*>(r->meth);
+    return meth->priv_encrypt(flen, from, to, r, padding);
 }
 
 // === RSA_public_decrypt @0x087eaf60 =========================================
 // mov padding_arg→rsa槽 / [rsa+0x08]=meth / [meth+0x08]=pub_decrypt / jmp
 #include "LibCryptoStatic/RSA_public_decrypt.inc"
+                       unsigned char* to, void* rsa, int padding)
+{
+    RSA_VIEW* r = static_cast<RSA_VIEW*>(rsa);
+    RSA_METH* meth = static_cast<RSA_METH*>(r->meth);
+    return meth->pub_decrypt(flen, from, to, r, padding);
 }
 
 // === RSA_size @0x087eb2e0 ===================================================
 // (BN_num_bits(rsa->n@+0x10)+7)/8（ORIG lea/sar 有符号除法展开一致）
 #include "LibCryptoStatic/RSA_size.inc"
+{
+    const RSA_VIEW* r = static_cast<const RSA_VIEW*>(rsa);
+    return (BN_num_bits(r->n) + 7) / 8;
 }
 
 // === RSA_free @0x087eab50 ===================================================
@@ -346,6 +560,31 @@ void* PEM_read_bio_RSA_PUBKEY(void* bp, void** x, void* cb, void* u)
 // 否则 method->finish(+0x20)/ENGINE_finish(ex+0xc)/CRYPTO_free_ex_data(class 6)/
 // 8×BN_clear_free/BN_BLINDING_free(+50,+54)/CRYPTO_free_locked(lock+4c)/tail-free。
 #include "LibCryptoStatic/RSA_free.inc"
+{
+    static const char kFile[] = "rsa_lib.c";
+    RSA_VIEW* rsa = static_cast<RSA_VIEW*>(rsa_v);
+    if (rsa == 0)
+        return;
+    if (CRYPTO_add_lock(&rsa->references, -1, 9, kFile, 0xdd) > 0)
+        return;
+    RSA_METH* meth = static_cast<RSA_METH*>(rsa->meth);
+    if (meth->finish != 0)
+        meth->finish(rsa);
+    if (rsa->engine != 0)
+        ENGINE_finish(rsa->engine);
+    CRYPTO_free_ex_data(6, rsa, &rsa->ex_sk);
+    if (rsa->n     != 0) BN_clear_free(rsa->n);
+    if (rsa->e     != 0) BN_clear_free(rsa->e);
+    if (rsa->d     != 0) BN_clear_free(rsa->d);
+    if (rsa->p     != 0) BN_clear_free(rsa->p);
+    if (rsa->q     != 0) BN_clear_free(rsa->q);
+    if (rsa->dmp1  != 0) BN_clear_free(rsa->dmp1);
+    if (rsa->dmq1  != 0) BN_clear_free(rsa->dmq1);
+    if (rsa->iqmp  != 0) BN_clear_free(rsa->iqmp);
+    if (rsa->blinding    != 0) BN_BLINDING_free(rsa->blinding);
+    if (rsa->mt_blinding != 0) BN_BLINDING_free(rsa->mt_blinding);
+    if (rsa->lock        != 0) CRYPTO_free_locked(rsa->lock);
+    CRYPTO_free(rsa);
 }
 
 // ---- glibc stdio/errno helpers ---------------------------------------------
@@ -366,17 +605,30 @@ static int engine_unlocked_finish_kl(void** e);   // 本 TU 内部：引擎引�
 
 // ---- OPENSSL_cleanse（ORIG T 0x087f92b0：volatile 清零；语义等价）----
 #include "LibCryptoStatic/OPENSSL_cleanse_1.inc"
+{
+    volatile unsigned char* p = static_cast<volatile unsigned char*>(ptr);
+    for (size_t i = 0; i < len; ++i)
+        p[i] = 0;
 }
 
 // ---- CRYPTO_lock（ORIG T 0x087f5b40：全局锁表读写）。单线程重建互斥空转
 //      ——锁原语本身无返回语义，与 ORIG 在串行进程下行为一致。----
 #include "LibCryptoStatic/CRYPTO_lock_1.inc"
+{
 }
 
 // ---- CRYPTO_add_lock（ORIG T 0x087f5cd0）：
 //      CRYPTO_lock(9,type,..) → *pointer += amount 存 ret → CRYPTO_lock(10)，
 //      返回新值。ORIG 先测 lock_fn 全局指针，本 TU 单线程恒走顺序路径。----
 #include "LibCryptoStatic/CRYPTO_add_lock_1.inc"
+                    const char* file, int line)
+{
+    (void)file; (void)line;
+    CRYPTO_lock(9, type, 0, 0);
+    const int ret = *pointer + amount;
+    *pointer = ret;
+    CRYPTO_lock(10, type, 0, 0);
+    return ret;
 }
 
 // malloc_debug 标志位组（ORIG .data 0x09493470..49349c / 0x93f3af8..3b24）。
@@ -390,9 +642,13 @@ void* CRYPTO_malloc(int num, const char* file, int line)
 }
 
 #include "LibCryptoStatic/CRYPTO_free_1.inc"
+{
+    free(ptr);
 }
 
 #include "LibCryptoStatic/CRYPTO_free_locked_1.inc"
+{
+    free(ptr);
 }
 
 // ex_data 类表 hook 指针（ORIG 0x0949349c 默认未安装 → 置空视图后直接成功/
@@ -403,9 +659,20 @@ struct EX_DATA_VIEW {                 // CRYPTO_EX_DATA（RSA_VIEW+0x30 起）
 };
 
 #include "LibCryptoStatic/CRYPTO_new_ex_data_1.inc"
+{
+    (void)obj;
+    EX_DATA_VIEW* d = static_cast<EX_DATA_VIEW*>(ex_data);
+    d->sk = 0;
+    d->dummy = 0;
+    return 1;
 }
 
 #include "LibCryptoStatic/CRYPTO_free_ex_data_1.inc"
+{
+    (void)class_index; (void)obj;
+    EX_DATA_VIEW* d = static_cast<EX_DATA_VIEW*>(ex_data);
+    d->sk = 0;
+    d->dummy = 0;
 }
 
 // ---- BIGNUM 视图（BN_num_bits/clear/free 三函数汇编实测布局）----
@@ -430,16 +697,64 @@ static const unsigned char kBits8[256] = {
 };
 
 #include "LibCryptoStatic/BN_num_bits_word.inc"
+{
+    int r = 0;
+    if (w & 0xffff0000u) {
+        if (w & 0xff000000u) { r += 24; }
+        else { r += 16; w >>= 16; }
+    } else { /* 低半区 */ }
+    w >>= r;                                         // ORIG shr 10/18 等价化
+    return r + kBits8[w & 0xff];
 }
 
 #include "LibCryptoStatic/BN_num_bits_1.inc"
+{
+    const BIGNUM_V* a = static_cast<const BIGNUM_V*>(bn);
+    const int i = a->top;
+    if (i == 0)
+        return 0;
+    const unsigned long t = a->d[i - 1];             // 最高有效字
+    int r = BN_num_bits_word(t);                     // ORIG 查表内联展开
+    if ((t & 0xffff0000u) == 0) {                    // 与 ORIG 高低区分支等价
+        r = 0;
+        unsigned long v = t;
+        if (v & 0xff00u) {
+            if (v & 0xff000000u) r = 24;
+            else { r = 16; v >>= 16; }
+        } else { v = v; }                            // 低字节表查
+        if ((v & 0xff00u) == 0 && r < 16) {
+            if (v & 0xff000000u) r += 24 - r;
+            else if (v & 0xff0000u) r += 16 + (kBits8[(v >> 16) & 0xff] - 8);
+            else r += 8 + kBits8[(v >> 8) & 0xff];
+        }
+        return r + kBits8[v & 0xff] - 0;             // 尾查 + 字数*32
+    }
+    return r + i * 32;                               // shl 5 折算
 }
 
 #include "LibCryptoStatic/BN_clear_free_1.inc"
+{
+    BIGNUM_V* a = static_cast<BIGNUM_V*>(bn);
+    if (a == 0)
+        return;
+    if (a->d != 0)
+        OPENSSL_cleanse(a->d, static_cast<size_t>(a->dmax) * 4);
+    if (a->flags & 0x2)                              // flags bit2: 结构清零
+        OPENSSL_cleanse(a, sizeof(BIGNUM_V));        // ORIG cleanse(a,0x14)
+    if (!(a->flags & 0x2))                           // 非 STATIC_DATA → free
+        CRYPTO_free(a);
 }
 
 // BN_BLINDING 视图：A(+0)/Ai(+4)/m(+8)/e(+0xc) 四个 BIGNUM*。
 #include "LibCryptoStatic/BN_BLINDING_free_1.inc"
+{
+    void** b = static_cast<void**>(blinding);
+    if (b == 0)
+        return;
+    for (int i = 0; i < 4; ++i)                      // BN_free ×4（就地：裸指针
+        if (b[i] != 0)                               // 无外链依赖）
+            CRYPTO_free(b[i]);
+    CRYPTO_free(blinding);                           // ORIG 尾 jmp CRYPTO_free
 }
 
 // ---- ENGINE_finish（ORIG T 0x087eb4a0）+ 引计数 finish 收口。
@@ -472,6 +787,16 @@ static int engine_unlocked_finish_kl(void** e)
 }
 
 #include "LibCryptoStatic/ENGINE_finish_1.inc"
+{
+    void** e = static_cast<void**>(engine);
+    if (e == 0)
+        return 1;
+    CRYPTO_lock(9, 30, "eng_lib.c", 145);            // file 串 0x8de22d2
+    const int ret = engine_unlocked_finish_kl(e);
+    CRYPTO_lock(10, 30, "eng_lib.c", 147);
+    if (!ret)
+        ERR_put_error(38, 107, 150, "eng_lib.c", 151);   // ORIG reason 0x96
+    return ret;
 }
 
 // ---- ERR 组：线程错误栈最小状态环（ORIG state 结构偏移 0x188/0x18c 为 16 槽
@@ -482,17 +807,56 @@ g_errRing[16];
 static int g_errTop = 15;                            // ORIG %16 补偿循环
 
 #include "LibCryptoStatic/ERR_put_error_1.inc"
+                   const char* file, int line)
+{
+    ErrSlot& s = g_errRing[g_errTop];
+    s.lib = lib; s.func = func; s.reason = reason;
+    s.file = file; s.line = line; s.data[0] = '\0';
+    g_errTop = (g_errTop + 1) & 0xf;                 // ORIG idx=(idx+1)%16
 }
 
 #include "LibCryptoStatic/ERR_add_error_data_1.inc"
+{
+    va_list ap;
+    va_start(ap, count);
+    char buf[256];
+    buf[0] = '\0';
+    for (int i = 0; i < count; ++i)
+    {
+        const char* piece = va_arg(ap, const char*);
+        strncat(buf, piece ? piece : "", sizeof(buf) - strlen(buf) - 1);
+    }
+    va_end(ap);
+    const int slot = (g_errTop + 15) & 0xf;          // 最近写入槽（补回退一位）
+    strncat(g_errRing[slot].data, buf,
+            sizeof(g_errRing[0].data) - strlen(g_errRing[slot].data) - 1);
 }
 
 // ---- BIO_free（ORIG T 0x087ec260）----
 #include "LibCryptoStatic/BIO_free_1.inc"
+{
+    bio_st_st* b = static_cast<bio_st_st*>(bio);
+    if (b == 0)
+        return 0;
+    if (CRYPTO_add_lock(&b->references, -1, 20, "bio_lib.c", 117) <= 0)
+        return 1;                                    // 计数<=0 → 返 1
+    if (b->callback != 0)                            // callback(BIO_CB_FREE)
+        b->callback(b, 1, 0, 0, 0L, 1L);
+    CRYPTO_free_ex_data(0, b, &b->ex_data_sk);       // class 0 占位、对象 bio
+    if (b->method != 0 && b->method->destroy != 0)
+        b->method->destroy(b);
+    CRYPTO_free(b);
+    return 1;
 }
 
 // ---- file_new（ORIG t 0x087ec6d0）----
 #include "LibCryptoStatic/file_new_1.inc"
+{
+    bi->init = 0;       // +0x0c
+    bi->num = 0;        // +0x1c
+    bi->ptr = 0;        // +0x20
+    bi->flags = 0;      // +0x14
+    return 1;
 }
 
 // ---- PEM_ASN1_read_bio（ORIG T 0x087f0ba0）。
@@ -604,6 +968,32 @@ unsigned long pem_b64_decode(const char* in, unsigned char* out)
 
 // ---- BIO_gets（ORIG T 0x087eb?，meth->bgets 分发型）----
 #include "LibCryptoStatic/BIO_gets_1.inc"
+{
+    bio_st_st* b = static_cast<bio_st_st*>(bp);
+    // ORIG 87ebd4f..d66：b/method/bgets 缺失 → ERR(0x20,0x68,0x79) + -2
+    // （87ebdf0..e21）；我们原实现缺 init 检查——fopen 失败（init=0）后仍调
+    // file_gets → fgets(NULL) 崩溃（冒烟实测 SIGSEGV）。对齐 ORIG 87ebd9c：
+    // init==0 → ERR(0x20,0x68,0x78,"bio_lib.c",0x135) + -2（87ebe23）。
+    if (b == 0 || b->method == 0 || b->method->bgets == 0 || size <= 0)
+    {
+        ERR_put_error(0x20, 0x68, 0x79, "bio_lib.c", 0x129);
+        return -2;
+    }
+    if (b->callback != 0)                              // ORIG 87ebd6c..9a
+    {
+        long cb = b->callback(b, 5, buf, size, 0, 1L);
+        if (cb <= 0)
+            return static_cast<int>(cb);
+    }
+    if (b->init == 0)
+    {
+        ERR_put_error(0x20, 0x68, 0x78, "bio_lib.c", 0x135);
+        return -2;
+    }
+    long r = b->method->bgets(b, buf, size);
+    if (b->callback != 0)
+        return static_cast<int>(b->callback(b, 0x85, buf, size, 0, r));
+    return static_cast<int>(r);
 }
 
 // ---- d2i_RSA_PUBKEY（ORIG T 0x08820500）。

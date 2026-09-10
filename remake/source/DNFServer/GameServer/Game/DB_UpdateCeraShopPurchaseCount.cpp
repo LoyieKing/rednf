@@ -1,26 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_UpdateCeraShopPurchaseCount/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_UpdateCeraShopPurchaseCount/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— DB_UpdateCeraShopPurchaseCount（塞拉商城购买计数 DB 请求）。
-// 归属批次：OrigCeraCount（仅 ORIG 4 符号：dispatch/_select/_update/_insert；
-// makeRequest 为 LinkE2.JpnExImpl 批次既有实现）。
-// ORIG 符号（df_game_r 80）：
-//   T 0x0844b0cc _ZN30DB_UpdateCeraShopPurchaseCount8dispatchEiiP6Stream
-//   T 0x0844b450 _ZN30DB_UpdateCeraShopPurchaseCount20_selectPurchaseCountEjRt
-//   T 0x0844b680 _ZN30DB_UpdateCeraShopPurchaseCount20_updatePurchaseCountEjt
-//   T 0x0844b808 _ZN30DB_UpdateCeraShopPurchaseCount20_insertPurchaseCountEj
-//   T 0x0844b31c _ZN30DB_UpdateCeraShopPurchaseCount11makeRequestEjmii（既有）
-// 语义：dispatch 读流 SIG（m_id + purchase_cnt）→ select 计数 → 无则 insert(1) /
-// 有则 update(+1) → 组 0x2d9 回发 DISPATCH_Q。DB 异常统一 throw const char*。
-// vtable @0x8c5e020 = [offtop][typeinfo][dispatch][~D1][~D0]。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "GlobalData.h"
@@ -76,6 +64,50 @@ private:
 //   154=154 insns，p167 CLEAR(22=22)，compare_tu clean=ae（残差仅 .o 重定位
 //   数据地址/call 目标，P264 口径）。ORIG 0x0844b0cc。
 #include "DB_UpdateCeraShopPurchaseCount/dispatch.inc"
+{
+    SIG_CERASHOP_PURCHASE_COUNT* sig =
+        stream->GetOutBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
+    if (sig == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbac, 5)(
+            "[PURCAHSE BONUS] ptrData is null.");
+        return false;
+    }
+
+    if (!_selectPurchaseCount(sig->m_id, sig->m_purchaseCnt))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbb2, 5)(
+            "[PURCAHSE BONUS] select query fail.");
+        return false;
+    }
+
+    if (sig->m_purchaseCnt == 0)
+    {
+        sig->m_purchaseCnt = 1;
+        _insertPurchaseCount(sig->m_id);
+    }
+    else
+    {
+        sig->m_purchaseCnt = sig->m_purchaseCnt + 1;
+        _updatePurchaseCount(sig->m_id, sig->m_purchaseCnt);
+    }
+
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xbbc1), true);
+    guard.operator*()->operator<<((int)0x2d9);   // ORIG operator*() → operator<<(int)
+    guard.operator*()->operator<<(slot);         // ORIG 0x10(%ebp) 第 3 形参
+    SIG_CERASHOP_PURCHASE_COUNT* replySig =
+        guard->GetInBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
+    if (replySig == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbc9, 5)(
+            "[PURCAHSE BONUS] ptrData is null");
+        return false;
+    }
+
+    *replySig = *sig;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return true;
 }
 
 // ============================================================================
@@ -88,6 +120,41 @@ private:
 //   catch(const char* e) → trace(0xbc0b) "select purchase count (error:%s)" → false。
 // ============================================================================
 #include "DB_UpdateCeraShopPurchaseCount/_selectPurchaseCount.inc"
+                                                          unsigned short& out)
+{
+    try
+    {
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                      (ENUM_SERVER_GROUP)0);
+        if (db == 0)
+            throw "handle_null";
+        if (!db->set_query(
+                " seLect purchase_cnt from event_purchase_cnt where m_id = %s ",
+                NumberToString(mId, 0)))
+            throw "set_query";
+        if (!db->exec(true))
+            throw "exec";
+        if (db->get_n_rows() == 1)
+        {
+            if (!db->fetch())
+                throw "fetch";
+            if (!db->get_ushort(0, out))
+                throw "get_ushort";
+        }
+        else
+        {
+            out = 0;
+        }
+        return true;
+    }
+    catch (const char* e)
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0xbc0b, 5);
+        trace("[PURCAHSE BONUS] select purchase count (error:%s)", e);
+        return false;
+    }
 }
 
 // ============================================================================
@@ -99,6 +166,28 @@ private:
 //   "update purchase count (error:%s)"。void 返回。
 // ============================================================================
 #include "DB_UpdateCeraShopPurchaseCount/_updatePurchaseCount.inc"
+                                                          unsigned short count)
+{
+    try
+    {
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                      (ENUM_SERVER_GROUP)0);
+        if (db == 0)
+            throw "handle_null";
+        if (!db->set_query(
+                " upDate event_purchase_cnt set purchase_cnt=%d where m_id = %s ",
+                count, NumberToString(mId, 0)))
+            throw "set_query";
+        if (!db->exec(true))
+            throw "exec";
+    }
+    catch (const char* e)
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0xbc22, 5);
+        trace("[PURCAHSE BONUS] update purchase count (error:%s)", e);
+    }
 }
 
 // ============================================================================
@@ -110,6 +199,27 @@ private:
 //   "update purchase count (error:%s)"。void 返回。
 // ============================================================================
 #include "DB_UpdateCeraShopPurchaseCount/_insertPurchaseCount.inc"
+{
+    try
+    {
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                      (ENUM_SERVER_GROUP)0);
+        if (db == 0)
+            throw "handle_null";
+        if (!db->set_query(
+                " inSert into event_purchase_cnt(m_id, purchase_cnt) values(%s, 1) ",
+                NumberToString(mId, 0)))
+            throw "set_query";
+        if (!db->exec(true))
+            throw "exec";
+    }
+    catch (const char* e)
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0xbc39, 5);
+        trace("[PURCAHSE BONUS] update purchase count (error:%s)", e);
+    }
 }
 
 // ============================================================================
@@ -126,6 +236,28 @@ private:
 //   compare_tu clean=ae（残差仅 .o 重定位数据地址/call 目标，P264 口径）。
 //   ORIG 0x0844b31c。
 #include "DB_UpdateCeraShopPurchaseCount/makeRequest.inc"
+                                                 unsigned long itemUid,
+                                                 int count, int param4)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xbbd6), true);
+    guard.operator*()->operator<<((int)0x2d9);
+    guard.operator*()->operator<<(param4);
+    SIG_CERASHOP_PURCHASE_COUNT* sig =
+        guard->GetInBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
+    if (sig == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbde, 5)(
+            "[PURCAHSE BONUS] ptrData is null");
+        return;  // ORIG jmp → ~CStreamGuard 后 ret（无入队）
+    }
+
+    sig->m_count = count;
+    sig->m_id = accId;
+    sig->m_itemUid = (unsigned int)itemUid;   // ORIG +0x4 仅 4 字节写
+    sig->m_purchaseCnt = 0;
+
+    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
 
 // ============================================================================
@@ -143,4 +275,16 @@ public:
 };
 
 #include "DB_UpdateCeraShopPurchaseCount/makeRequest_1.inc"
+{
+    // P0/P183：Acquire 返回值右值内联进 CStreamGuard ctor（ORIG %eax 直通，
+    // 无 stream 栈槽）。
+    // ORIG 每个 operator<< 前有一次独立的 operator* 调用（deEv 返回值作 lsEi/lsEj
+    // 的 this）。user-defined operator* 返回指针，`*guard << v` 不可编译，
+    // 仓内统一惯用 guard.operator*()->operator<<(v) 显式代理链。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xbcf4), true);
+    guard.operator*()->operator<<((int)0x2e2);   // SIG opcode
+    guard.operator*()->operator<<((int)-1);
+    guard.operator*()->operator<<(accId);        // uint → lsEj
+    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }

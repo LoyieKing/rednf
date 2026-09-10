@@ -1,2 +1,1 @@
 CAvatarDisjointRandomReward::~CAvatarDisjointRandomReward()
-{

@@ -1,2 +1,1 @@
 CStabToDeathEvent::~CStabToDeathEvent()
-{

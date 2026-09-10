@@ -1,3 +1,1 @@
 SigAvatarHiddenOptionChange::SigAvatarHiddenOptionChange()
-{
-    init();

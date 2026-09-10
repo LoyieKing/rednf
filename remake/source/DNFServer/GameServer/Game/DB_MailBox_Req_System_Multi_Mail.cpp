@@ -1,26 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_MailBox_Req_System_Multi_Mail/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_MailBox_Req_System_Multi_Mail/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— DB_MailBox_Req_System_Multi_Mail（OrigSysMail 批，4 ORIG 符号）
-// 报告：docs/class_func_reports/DB_MailBox_Req_System_Multi_Mail/{dispatch,
-//   _InsertLetter,_InsertPostal,sendResult}.md（逐指令转写；objdump 已核实地址）
-// 依赖：
-//   - SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL（SigTypes_D.h，m_data[0x3a9] pad）——
-//     本 TU 以 pack(1) 镜像 SigSystemMultiMailView 按 ORIG 偏移访问。
-//   - _InsertPostal 的元素域（stride 0x3d）：ORIG 以多套基址寻址同一元素——
-//     seal `add $0x126` 单段、item 域 `add $0x120`+成员 disp、amp/blob 域
-//     `add $0x130`+成员 disp、seperate `add $0x150; add $0x9`。元素基址
-//     = sig+0x126，本 TU 以 SigPostalItem m_item[10] 元素视图统一具名访问；
-//     ORIG 各基址与元素视图字段换算见逐字段注释。
-//   - WongWork::DBCommon::GetIdentity 定义归 WongWorkEvents_A.cpp（TU 局部声明同款）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "DB_MailBox_Req_System_Multi_Mail.h"
@@ -142,6 +130,29 @@ struct SigMailboxSendReplyView
 //   视图字段已按此改名，值序不变 ⇒ 本件汇编零变化。
 // ============================================================================
 #include "DB_MailBox_Req_System_Multi_Mail/_InsertLetter.inc"
+    MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
+{
+    char titleBuf[0x1ff] = { 0 };
+    db->escape_string(titleBuf,
+                      ((SigSystemMultiMailView*)sigRaw)->m_sendCharacName);
+
+    char nameBuf[0x3d] = { 0 };
+    db->escape_string(nameBuf, ((SigSystemMultiMailView*)sigRaw)->m_letterText);
+
+    db->set_query(
+        "inSert into letter(charac_no,send_charac_no,send_charac_name,letter_text,reg_date,stat) values(%d,%d,'%s','%s',from_unixtime(%d),%d)",
+        ((SigSystemMultiMailView*)sigRaw)->m_recvCharacNo,
+        ((SigSystemMultiMailView*)sigRaw)->m_sendCharacNo, nameBuf, titleBuf,
+        ((SigSystemMultiMailView*)sigRaw)->m_occTime,
+        (int)((SigSystemMultiMailView*)sigRaw)->m_stat);
+
+    if (!db->exec(true))
+    {
+        return 0;
+    }
+    ((SigSystemMultiMailView*)sigRaw)->m_letterId =
+        (int)WongWork::DBCommon::GetIdentity(db);
+    return 1;
 }
 
 // ============================================================================
@@ -162,6 +173,68 @@ struct SigMailboxSendReplyView
 //   ⇒ P30/N102/N4 族封顶。调用点差集仅 P93 别名（string/cMyTrace C1↔C2、D1↔D2 同址）。
 // ============================================================================
 #include "DB_MailBox_Req_System_Multi_Mail/_InsertPostal.inc"
+    MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
+{
+    std::string str;
+    unsigned int i;
+
+    str.clear();
+
+    for (i = 0; i < ((SigSystemMultiMailView*)sigRaw)->m_count; ++i)
+    {
+        if (i != 0)
+        {
+            ((SigSystemMultiMailView*)sigRaw)->m_gold = 0;
+        }
+
+        unsigned char ampType = 0;
+        unsigned short ampValue = 0;
+        ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_ag.m_amp.getValues(
+            ampType, ampValue);
+
+        char buf[0x400] = { 0 };
+
+        sprintf(buf,
+            "(from_unixtime(%d),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d,%d,%d,%d,'%s','%s',%d,%d)",
+            ((SigSystemMultiMailView*)sigRaw)->m_occTime,
+            ((SigSystemMultiMailView*)sigRaw)->m_sendCharacNo,
+            ((SigSystemMultiMailView*)sigRaw)->m_recvCharacNo,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_sealFlag,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_itemId,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_addInfo,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_endurance,
+            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->GetItemAttr(),
+            ampType, ampValue,
+            ((SigSystemMultiMailView*)sigRaw)->m_gold, (const char*)sigRaw,
+            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->IsCreatureItemType(),
+            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->isAvatarItemType(),
+            ((SigSystemMultiMailView*)sigRaw)->m_letterId,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_extendInfo,
+            db->blob_to_str(0,
+                (void*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_ag.m_g.m_guidBlob[0], 10),
+            db->blob_to_str(1,
+                (void*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_randomBlob[0], 0xe),
+            ((UpgradeSeparateInfo*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_seperateUpgrade)->GetUpgradeSeparate(),
+            ((SigSystemMultiMailView*)sigRaw)->m_unlimitFlag);
+        str.append(buf);
+
+        if (i < ((SigSystemMultiMailView*)sigRaw)->m_count - 1)
+        {
+            str.append(",");
+        }
+    }
+
+    db->set_query(
+        "inSert into postal(occ_time,send_charac_no,receive_charac_no,seal_flag,item_id,add_info,endurance,upgrade ,amplify_option,amplify_value,gold,send_charac_name,creature_flag,avata_flag,letter_id,extend_info,item_guid,random_option,seperate_upgrade,unlimit_flag) values %s",
+        str.c_str());
+
+    if (!db->exec(true))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xa5b5, 5)(
+            "Insert Postal Fail - inQuery(%s)", str.c_str());
+        return 0;
+    }
+    return 1;
 }
 
 // ============================================================================
@@ -171,6 +244,44 @@ struct SigMailboxSendReplyView
 // _InsertPostal（失败返 0）→ sendResult(+0x11e = m_recvCharacNo, +0x395) → 1。
 // ============================================================================
 #include "DB_MailBox_Req_System_Multi_Mail/dispatch.inc"
+{
+    static const int handleIdx = 3;
+    struct tm tmBuf;
+    time_t now;
+    SigSystemMultiMailView* sig = (SigSystemMultiMailView*)
+        stream->GetOutBuffer<SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL>();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
+        DB_HANDLE_3, (ENUM_SERVER_GROUP)sig->m_serverGroup);
+    struct tm* tmPtr;
+    time_t t;
+
+    now = GlobalData::s_systemTime_.getCurSec();
+    tmPtr = localtime_r(&now, &tmBuf);
+    tmPtr->tm_hour += 1;
+    tmPtr->tm_min = 0;
+    tmPtr->tm_sec = 0;
+    t = mktime(tmPtr);
+
+    if (sig->m_duration < 0xf)
+    {
+        t = t - sig->m_duration * 0x15180;
+    }
+    else if (sig->m_duration > 0xf)
+    {
+        t = sig->m_duration * 0x15180 + t - 0x13c680;
+    }
+    sig->m_occTime = (int)t;
+
+    if (!_InsertLetter(db, (SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL*)sig))
+    {
+        return 0;
+    }
+    if (!_InsertPostal(db, (SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL*)sig))
+    {
+        return 0;
+    }
+    sendResult(sig->m_recvCharacNo, (ENUM_SERVER_GROUP)sig->m_serverGroup);
+    return 1;
 }
 
 // ============================================================================
@@ -179,4 +290,19 @@ struct SigMailboxSendReplyView
 // → 写 +0x00=0/+0x04=userIdx/+0x08=group → put(DISPATCH_Q, guard) → 1。
 // ============================================================================
 #include "DB_MailBox_Req_System_Multi_Mail/sendResult.inc"
+                                                  ENUM_SERVER_GROUP group)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa5be), true);
+
+    guard.operator*()->operator<<(0x80);
+    guard.operator*()->operator<<(-1);
+
+    SigMailboxSendReplyView* sig = (SigMailboxSendReplyView*)
+        guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
+    sig->m_field00 = 0;
+    sig->m_field04 = userIdx;
+    sig->m_field08 = (int)group;
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
 }

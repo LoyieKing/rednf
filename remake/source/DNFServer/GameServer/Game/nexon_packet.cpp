@@ -1,15 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 nexon_packet/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 nexon_packet/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// nexon_packet 域实现。逐符号按 ORIG 反汇编转写（df_game_r）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "nexon_packet.h"
 
@@ -41,10 +40,14 @@ static const DomainStringEntry domainString[] = {
 
 // ORIG 0x086940d2 (sz 0x1f): m_offset=offset; m_size=size; m_buffer=buffer
 #include "nexon_packet/CPacketHelper.inc"
+    : m_offset(startOffset), m_size(size), m_buffer(buffer)
+{
 }
 
 // ORIG 0x086940f2 (sz 0xa): return this->m_offset;
 #include "nexon_packet/get_offset.inc"
+{
+    return m_offset;
 }
 
 // ORIG 0x086940fc (sz 0x64):
@@ -52,6 +55,17 @@ static const DomainStringEntry domainString[] = {
 //   for (i=0; i<count; ++i) { m_buffer[m_offset++] = src[i]; }
 //   return 1;
 #include "nexon_packet/padding.inc"
+{
+    if (static_cast<int>(static_cast<unsigned>(m_offset)) + count >= m_size)
+        return false;
+    // ORIG 0x08694126：`m_buffer[m_offset++] = src[i]` 后缀自增形——m_buffer
+    // 落 %ecx、src+i 落 %edx、m_offset 留 %eax 跨 store（拆两句使 4.4 把
+    // src+i 占 %eax 并重载 m_offset，+1 条；b28c-lane25 探针 /tmp/l25probe/pad.cpp fB）。
+    for (int i = 0; i < count; ++i)
+    {
+        m_buffer[m_offset++] = static_cast<char>(src[i]);
+    }
+    return true;
 }
 
 // ORIG 0x08694160 (sz 0x6c):
@@ -60,6 +74,15 @@ static const DomainStringEntry domainString[] = {
 //   return 1;
 // [b28d-D9] N18a/P200：ORIG 值先 eax 再中转 edx + m_buffer 缓存 %ebx；4.4 单段/不同寄存器（ORIG 0x08694160 sz 0x0000006c）
 #include "nexon_packet/scan.inc"
+{
+    if (static_cast<int>(static_cast<unsigned>(m_offset)) + count >= m_size)
+        return false;
+    for (int i = 0; i < count; ++i)
+    {
+        dst[i] = static_cast<char>(m_buffer[m_offset]);
+        ++m_offset;
+    }
+    return true;
 }
 
 // ---- stHeader --------------------------------------------------------------
@@ -69,19 +92,27 @@ static const DomainStringEntry domainString[] = {
 
 // ORIG 0x086941e8 (sz 0x22): m_length = htons(length);
 #include "nexon_packet/SetLength.inc"
+{
+    m_length = htons(length);
 }
 
 // ORIG 0x0869420a (sz 0x1a): return ntohs(m_length);
 #include "nexon_packet/GetLength.inc"
+{
+    return ntohs(m_length);
 }
 
 // ORIG 0x0869423e (sz 0x13): 只调用基类 stHeader ctor。
 #include "nexon_packet/stPacket.inc"
+    : stHeader()
+{
 }
 
 // ORIG 0x08694224 (sz 0x19):
 //   return static_cast<int>(stHeader::GetLength()) + 3;
 #include "nexon_packet/GetLength_1.inc"
+{
+    return static_cast<int>(stHeader::GetLength()) + 3;
 }
 
 // ---- stLoginPacket ---------------------------------------------------------
@@ -102,6 +133,25 @@ static const DomainStringEntry domainString[] = {
 //   SetLength(helper.get_offset()+1);
 //   m_cmd = 0x27;
 #include "nexon_packet/stLoginPacket.inc"
+{
+    CPacketHelper helper(m_body, MaxBodySize, 0);
+
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_type), 1);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_accLen), 1);
+    helper.padding(
+        reinterpret_cast<unsigned char*>(login.m_account),
+        static_cast<int>(static_cast<unsigned char>(login.m_accLen)));
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_charLen), 1);
+    helper.padding(
+        reinterpret_cast<unsigned char*>(login.m_characName),
+        static_cast<int>(static_cast<unsigned char>(login.m_charLen)));
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_ip), 4);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_canTry), 1);
+    // ORIG 一条 padding 长度 8：连续覆盖 userIdx(+0x206..+0x209)+accId(+0x20a..+0x20d)
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_userIdx), 8);
+
+    SetLength(static_cast<unsigned short>(helper.get_offset() + 1));
+    m_cmd = 0x27;
 }
 
 // ORIG 0x086943af (sz 0x131)：与 ctor 对称的读取路径。ORIG 将 m_body 内容
@@ -118,6 +168,21 @@ static const DomainStringEntry domainString[] = {
 //   helper.scan((unsigned char*)packet+0x206,8);        // m_userIdx+m_accId
 // [b28d-D9] N95：CPacketHelper 对象槽基差 0xc（-0x18 vs -0xc）+ 帧 0x28 vs 0x20（ORIG 0x086943af sz 0x00000131）
 #include "nexon_packet/ReadPacket.inc"
+{
+    (void)out;  // ORIG 未使用该参数（解码目标为 packet 缓冲）
+
+    CPacketHelper helper(m_body, MaxBodySize, 0);
+
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)), 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 1, 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 2,
+                static_cast<int>(static_cast<unsigned char>(packet[1])));
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x101, 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x102,
+                static_cast<int>(static_cast<unsigned char>(packet[0x101])));
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x201, 4);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x205, 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x206, 8);
 }
 
 }  // namespace nexon_packet

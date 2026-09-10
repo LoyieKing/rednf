@@ -1,3 +1,1 @@
 EpisodeScript::EpisodeScript()
-{
-    clear();

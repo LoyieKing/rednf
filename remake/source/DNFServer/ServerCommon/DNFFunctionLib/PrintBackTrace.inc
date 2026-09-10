@@ -24,3 +24,16 @@ void PrintBackTrace() {
         //   guild 0x811aa74 / manager 0x8159bc4），不得用字面量；
         //   statics/monitor 亦为 __FUNCTION__（0x1d1），
         //   见 2026-08-11 coserver/manager 第 2 轮记录。
+#if defined(DNF_SVC_POINT) || defined(DNF_SVC_AUCTION) || defined(DNF_SVC_GUILD) || defined(DNF_SVC_DBMW) || defined(DNF_SVC_COMMUNITY) || defined(DNF_SVC_MANAGER) || defined(DNF_SVC_STATICS) || defined(DNF_SVC_MONITOR)
+        CMyFileLog log(__FUNCTION__, 0x1d1);
+#elif defined(DNF_SVC_COSERVER)
+        // coserver ORIG 实测（0x8054328）：__FUNCTION__ 符号 + 0x186。
+        CMyFileLog log(__FUNCTION__, 0x186);
+#else
+        // df_game_r（未定义 DNF_SVC_* 宏的构建）ORIG 实测：__FUNCTION__ + 0x1d1。
+        CMyFileLog log(__FUNCTION__, 0x1d1);
+#endif
+        log("./log/BackTrace", s);
+    }
+    free(symbols);
+}

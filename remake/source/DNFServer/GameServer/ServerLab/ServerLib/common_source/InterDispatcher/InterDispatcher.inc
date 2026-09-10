@@ -1,2 +1,1 @@
 InterDispatcher::InterDispatcher() throw()
-{

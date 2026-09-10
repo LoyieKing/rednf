@@ -1,3 +1,1 @@
 RefPvpGrade::RefPvpGrade()
-{
-    Clear();

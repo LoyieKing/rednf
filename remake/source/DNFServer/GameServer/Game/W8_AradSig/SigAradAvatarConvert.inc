@@ -1,3 +1,1 @@
 SigAradAvatarConvert::SigAradAvatarConvert()
-{
-    init();

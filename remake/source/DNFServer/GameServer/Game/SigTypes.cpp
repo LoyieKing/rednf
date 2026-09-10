@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 SigTypes/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 SigTypes/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— GetInBuffer<T> 显式实例化
 #include <string.h>       // memset（CHARAC_DATA/TAG_* 清理原语）
@@ -681,20 +683,56 @@ template Taiwan::SigSaveHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigSa
 #include "SigTypes/SIG_SAVE_DIMENSION_RENT_ITEM.inc"
 
 #include "SigTypes/clear.inc"
+{
+    /* ORIG 帧 0x28/循环变量槽 -0xc：4.1 死 28B pad 槽经 double framePad
+     * 撑帧复现（P190/技巧31 系，/tmp/p26_slot.cpp probeC 实证同形）。 */
+    double framePad;
+    for (int i = 0; i <= 0; ++i)
+        m_entry[i].clear();
+    (void)&framePad;
 }
 
 #include "SigTypes/clear_1.inc"
+{
+    /* ORIG 帧 0x28/循环变量槽 -0xc：4.1 死 28B pad 槽经 double framePad
+     * 撑帧复现（P190/技巧31 系，NL26 probeC 同族实证）。 */
+    double framePad;
+    for (int i = 0; i <= 10; ++i)
+        m_entry[i].clear();
+    (void)&framePad;
 }
 
 
 #include "SigTypes/Reset.inc"
+{
+    // this+0x60 起 _Additioal_info（步长 0x52，见 CCharacter.cpp ctor 注释）
+    m_add.clear();
+    memset(m_data + 0x04, 0, 0x1e);      // ORIG +0x0b2 行
+    memset(m_data + 0x34, 0, 0x19);      // ORIG +0x0d0 行
+    memset(m_data + 0x138, 0, 0x53e);    // ORIG +0x0ee 行（至 +0x676，不含 m_schoolNo）
+    memset(m_data + 0x0b9, 0, 0x10);     // ORIG +0x10d 行
+    m_unkB2.m_b124 = 0;                  // ORIG +0x12e..+0x131：逐字节清零簇
+    m_unkB2.m_b129 = 0;
+    m_unkB2.m_b12a = 0;
+    m_unkB2.m_b12b = 0;
+    m_unkB2.m_b12c = 0;
+    m_unkB2.m_b12d = 0;
+    m_unkB2.m_b12f = 0;                  // 注意：+0x12e 未清（ORIG 跳过）
+    m_unkB2.m_i130 = 0;                  // ORIG +0x139：dword 清零（movl $0,0x130(%eax)）
 }
 
 #include "SigTypes/clear_2.inc"
+{
+    memset(this, 0, sizeof(TAG_CHARAC_DATA));   // 0x78 字节清零（ORIG 实参序：size→0→this）
+    m_data[0x25] = static_cast<char>(0xff);   // ORIG 尾部：+0x25 置 0xff
 }
 
 #include "SigTypes/clear_3.inc"
+{
+    memset(this, 0, sizeof(TAG_CHARAC_INVEN_DATA));   // 0x4024 字节清零
 }
 
 #include "SigTypes/clear_4.inc"
+{
+    memset(this, 0, sizeof(TAG_CHARAC_ETC_DATA));   // 0x330 字节清零（tagSkillSlot+tagSkillCombo）
 }

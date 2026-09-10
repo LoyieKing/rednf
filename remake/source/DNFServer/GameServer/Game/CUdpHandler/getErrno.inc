@@ -1,3 +1,1 @@
 int getErrno()
-{
-    return errno;

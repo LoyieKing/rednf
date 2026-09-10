@@ -1,2 +1,1 @@
 void upgradeAbilityByBossFeature(ActiveStaticInfo* /*info*/)
-{

@@ -1,3 +1,1 @@
 SigAradJumpingCharacter::SigAradJumpingCharacter()
-{
-    init();

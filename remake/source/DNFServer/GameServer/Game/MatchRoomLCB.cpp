@@ -1,31 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 MatchRoomLCB/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 MatchRoomLCB/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— 匹配备份域批次 B（LinkClosureB.MatchRooms 独占 TU）
-// 承载符号（ORIG /home/wangyilei/下载/df_game_r nm/objdump 实证）：
-//   1. CLeagueMatchRoomList::CLeagueMatchRoomList()
-//        W _ZN20CLeagueMatchRoomListC1Ev @0x08568fb0
-//        （vtable 写入 0x8ca3bb0，基类 IRoomList ctor 0x8568fa2）
-//   2. CMultiMatchRoomList::CMultiMatchRoomList()
-//        W _ZN19CMultiMatchRoomListC1Ev @0x08566efc
-//        （vtable 写入 0x8ca3bc8；+0x04 起 std::map<int,CWaitingRoomList>，
-//          按 GetPlayCountPerOneTeam()&0xff 预建等待列表）
-//   3. fair_pvp::CFairMatch::GetPlayCountPerOneTeam()
-//        T _ZN8fair_pvp10CFairMatch22GetPlayCountPerOneTeamEv @0x08562834
-//        （ORIG 体：push/mov %esp,%ebp/mov $0x1,%eax/pop %ebp/ret —— 恒返 1）
-//   4. online_preliminary::COnlinePreliminary::_ReturnTeam(PvP_Room*,int,CUser*)
-//        T _ZN18online_preliminary18COnlinePreliminary11_ReturnTeamEP8PvP_RoomiP5CUser
-//        @0x08561e40（objdump 逐指令转写，尾部 this+0x4=0）
-// 报告依据：docs/class_func_reports/{CLeagueMatchRoomList,CMultiMatchRoomList,
-//   fair_pvp__CFairMatch/_ReturnTeam.md,online_preliminary__COnlinePreliminary}。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include <utility>
 
@@ -55,6 +38,8 @@ namespace fair_pvp
 //    p167 调用点差集 CLEAR（0/0）；Ghidra C 亦为 `return 1;`。
 // ---------------------------------------------------------------------------
 #include "MatchRoomLCB/GetPlayCountPerOneTeam.inc"
+{
+    return 1;
 }
 
 }  // namespace fair_pvp
@@ -77,6 +62,34 @@ namespace online_preliminary
 //   seatIdx 为 unsigned（ORIG 尾测 setbe），仅在 for 内单次初始化（ORIG 头
 //   只有一条 movl $0x0,-0x10 —— 头部再声明一条会多 1 条 DIFF）。
 #include "MatchRoomLCB/_ReturnTeam.inc"
+{
+    CUser* seat = 0;                 // -0x18（get_user_seat 结果，ABI 按 int 承载指针）
+    PvP_Room* newRoom = 0;           // -0x14
+    for (unsigned int seatIdx = 0; seatIdx <= 7; ++seatIdx) {  // 尾测 cmpl $7; setbe
+        seat = (CUser*)room->get_user_seat(seatIdx);
+        if (seat == 0)
+            continue;                                          // 岛1（+0xff nop;jmp）
+
+        const int curTeam = room->get_team(seatIdx);           // -0xc
+        if (team == curTeam) {
+            if (team != 2)
+                continue;                                      // 岛2（+0x102 nop;jmp）
+            room->OnSetPVPSeatState(seat, seatIdx,
+                                    (ENUM_SEAT_STATE)1, (ENUM_WALKOUT_TYPE)2);
+        } else {
+            // 排除席（ORIG 0x8561ed1..：cmpl $0,user; je 续; cmp -0x18,user;
+            // je skip）。get_user_seat(int) 槽位实际存放 CUser*，直接指针比较。
+            if (user != 0 && seat == user)
+                continue;                                      // 岛3（+0x105 nop）
+
+            _PullOutRoom(seat, room, seatIdx);
+            if (newRoom == 0)
+                newRoom = _MakeRoom(seat);                     // ORIG 返回 PvP_Room*
+            else
+                _PutInRoom(seat, newRoom, true);               // 观战者入新房间
+        }
+    }
+    m_field04 = 0;
 }
 
 }  // namespace online_preliminary

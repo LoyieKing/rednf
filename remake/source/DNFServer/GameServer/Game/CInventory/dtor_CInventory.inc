@@ -1,2 +1,1 @@
 CInventory::~CInventory()
-{

@@ -1,3 +1,1 @@
 STAssignMonster::STAssignMonster()
-{
-    Clear();

@@ -13,3 +13,4 @@ char checkTimeToday(long t, int hour) {
         result = 1;
     }
     return result;
+}

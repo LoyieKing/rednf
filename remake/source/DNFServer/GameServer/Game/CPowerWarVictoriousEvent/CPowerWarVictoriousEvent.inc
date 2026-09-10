@@ -1,2 +1,1 @@
 CPowerWarVictoriousEvent::CPowerWarVictoriousEvent()
-{

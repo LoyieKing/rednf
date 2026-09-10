@@ -1,33 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DispDebugJoint4/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DispDebugJoint4/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— LinkMisc4 批次：Dispatcher 域 2 符号（DispDebugJoint4.cpp）
-//
-//   1. DisPatcher_DebugCommand::_debugCommandSetLevel(CUser*, int)
-//      ORIG _ZN23DisPatcher_DebugCommand21_debugCommandSetLevelEP5CUseri
-//      T 0x0858efde sz 0x3db
-//      报告 docs/class_func_reports/DisPatcher_DebugCommand/_debugCommandSetLevel.md
-//      声明为 DisPatcherCore.h 类内纯追加（本批次）。
-//
-//   2. 自由函数 DisPatcher_DisJointItem_disjoint —— 桥接转写。
-//      ORIG 真实对应静态成员
-//      DisPatcher_DisJointItem::_disjoint(CUser*, int, int, ENUM_CMDPACKET,
-//                                         CUser*, unsigned short)
-//      ORIG _ZN23DisPatcher_DisJointItem9_disjointEP5CUserii14ENUM_CMDPACKETS1_t
-//      T 0x081f92ca sz 0xcee
-//      报告 docs/class_func_reports/DisPatcher_DisJointItem/_disjoint.md
-//      桥接原因：调用方 GmCmds_F.cpp:58 已按自由函数名
-//      DisPatcher_DisJointItem_disjoint 声明并禁改；ORIG 静态成员无 this、
-//      i386 下与同参数表自由函数 ABI 一致，故在本 TU 以该自由函数承载完整
-//      ORIG 逻辑（逐段对照报告汇编/反编译 C 转写）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <algorithm>
@@ -67,4 +48,97 @@ static const char g_disjointSourceFile[] = "PacketDispatcher_Impl_1.cpp";
 //    ORIG 0x0858efde..0x0858f3b9
 // ===========================================================================
 #include "DispDebugJoint4/_debugCommandSetLevel.inc"
+{
+    // b28d-37 [N18a 封顶，ORIG 0x0858efde]：`mov $I,%eax` vs `mov $I,%ebx`
+    // callee-saved 分配差（264/266），语义闭合。
+    if (!user->isGMUser())                       // +0x00e isGMUser; !=1 → ret 0
+        return 0;
+    if (level > 0x46)                            // +0x024 cmpl $0x46; jle 继续
+        return 0;
+
+    bool changed = true;                         // -0x19 local_1d
+    int delta = level - user->get_charac_level();  // -0x18 local_1c
+
+    if (delta == 0)
+    {
+        changed = false;
+    }
+    else if (delta < 1)
+    {
+        // +0x0bb 降级环：for(i=0; delta<i; --i) SetCharacLevel(min(200, lv-1))
+        for (int i = 0; delta < i; --i)
+        {
+            int next = std::min(200, user->get_charac_level() - 1);
+            user->SetCharacLevel(next);
+        }
+    }
+    else
+    {
+        // +0x064 升级环：for(i=0; i<delta; ++i) SetCharacLevel(min(lv+1, 200))
+        for (int i = 0; i < delta; ++i)
+        {
+            int next = std::min(user->get_charac_level() + 1, 200);
+            user->SetCharacLevel(next);
+        }
+    }
+
+    user->_onLevelUp();                          // +0x110
+    // +0x11b setCurCharacExp(G_CDataManager()->get_level_exp(get_charac_level()))
+    int curLevel = user->get_charac_level();
+    user->setCurCharacExp(G_CDataManager()->get_level_exp(curLevel));
+
+    if (!changed)                                // +0x14e test local_1d
+        return 0;
+
+    user->CalcurateUserMaxLevel();               // +0x158
+
+    // +0x163 雇佣兵信息包：header(1,0x1ba)/byte(1)/SetMercenaryInfoPacket/
+    // finalize(true)/Send
+    PacketGuard mercenaryPacket;                 // -0x38 local_3c
+    mercenaryPacket.put_header(1, 0x1ba);
+    mercenaryPacket.put_byte(1);
+    user->SetMercenaryInfoPacket(mercenaryPacket);
+    mercenaryPacket.finalize(true);
+    user->Send(mercenaryPacket);
+
+    // +0x1d3 满装备等级追平角色等级则清零
+    bool resetMaxEquip = false;
+    int maxEquipLevel = user->GetCurCharacMaxEquipLevel();
+    if (maxEquipLevel != 0 &&
+        maxEquipLevel == user->get_charac_level())
+    {
+        resetMaxEquip = true;
+    }
+    if (resetMaxEquip)
+        user->SetCurCharacMaxEquipLevel(0);      // +0x21c
+    // ORIG 两分支各持独立 PacketGuard 槽（-0x44/-0x50）；C++ 分支内构造无法
+    // 复刻帧布局，提升为函数级共享槽（本地缓冲，无行为差异）。
+    PacketGuard questPacket;
+
+    int state = user->get_state();
+    if (state == 3)
+    {
+        // +0x23f 地下城内：0x25 提示 + 双段任务信息刷新
+        user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),
+                             static_cast<ENUM_NOTIPACKET>(0x25), 0);
+        user->SendNotiPacket(static_cast<CUser::eSendTarget>(0),
+                             static_cast<ENUM_NOTIPACKET>(2), 0);
+        user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),
+                             static_cast<ENUM_NOTIPACKET>(2), 1);
+        UserQuest* quest = user->getCurCharacQuestR();
+        quest->get_quest_info(reinterpret_cast<char*>(&questPacket));
+        user->Send(questPacket);
+    }
+    else if (state == 5)
+    {
+        // +0x309 战场内：0x25 提示 + 任务信息刷新
+        user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),
+                             static_cast<ENUM_NOTIPACKET>(0x25), 0);
+        user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
+                             static_cast<ENUM_NOTIPACKET>(2), 1);
+        UserQuest* quest = user->getCurCharacQuestR();
+        quest->get_quest_info(reinterpret_cast<char*>(&questPacket));
+        user->Send(questPacket);
+    }
+    return changed ? 1 : 0;                      // +0x3d0 movzbl local_1d
 }

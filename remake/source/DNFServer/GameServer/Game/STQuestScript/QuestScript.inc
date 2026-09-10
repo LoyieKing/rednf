@@ -1,3 +1,1 @@
 QuestScript::QuestScript()
-{
-    clear();

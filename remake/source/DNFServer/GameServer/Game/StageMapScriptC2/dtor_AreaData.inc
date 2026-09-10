@@ -1,2 +1,1 @@
 AreaData::~AreaData()
-{

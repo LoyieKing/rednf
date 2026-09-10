@@ -1,3 +1,1 @@
 SigAvatarRoulette::SigAvatarRoulette()
-{
-    init();

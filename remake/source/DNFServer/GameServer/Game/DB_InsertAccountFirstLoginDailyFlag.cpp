@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_InsertAccountFirstLoginDailyFlag/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_InsertAccountFirstLoginDailyFlag/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— DB_InsertAccountFirstLoginDailyFlag（账号每日首次登录标记 DB 请求）。
 // 逐函数对照 docs/class_func_reports/DB_InsertAccountFirstLoginDailyFlag/。
@@ -38,6 +40,16 @@
 // mangled _ZN35DB_InsertAccountFirstLoginDailyFlag11makeRequestEijji
 // ============================================================================
 #include "DB_InsertAccountFirstLoginDailyFlag/makeRequest.inc"
+                                                      unsigned int p3, int p4)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x953d), true);
+    guard.operator*()->operator<<(0x342);
+    guard.operator*()->operator<<(p1);
+    guard.operator*()->operator<<(p2);
+    guard.operator*()->operator<<(p3);
+    guard.operator*()->operator<<(p4);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ============================================================================
@@ -45,4 +57,53 @@
 // mangled _ZN35DB_InsertAccountFirstLoginDailyFlag8dispatchEiiP6Stream
 // ============================================================================
 #include "DB_InsertAccountFirstLoginDailyFlag/dispatch.inc"
+                                                    Stream* s)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                  (ENUM_SERVER_GROUP)0);
+    unsigned int local_20 = 0;   // m_id
+    unsigned int local_24 = 0;   // charac_no
+    // P0/P171：ORIG 0x0843e93e 仅对 p1/p2 预清（movl $0），p3 无预清（直接读入）。
+    int          local_28;       // 事件记录类型（0x19c）
+    // b28d-52/P171：ORIG 0x0843e8f0 头有 `movl $0x0,-0x14(%ebp)` 死写入
+    // （该槽此后不再被读），照抄保留。
+    int          local_14 = 0;
+    (void)local_14;
+    *s >> local_20;
+    *s >> local_24;
+    *s >> local_28;
+
+    // P0：ORIG 无 dm 槽（G_CDataManager() 结果经 %eax 直传 get_event_script_mng）。
+    EventClassify::CEventScriptMng* sm =
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng());
+    // ORIG 0x0843e950 `jne <后置 return-0 块>`（else 直落失败块、body 前置）⇒
+    // 正向 if/else 形（与早返形互为镜像，探针 /tmp/flagprobe/p.o g1/g3 实证）。
+    EventClassify::CEventEntity* ent = 0;
+    if (local_28 == 0x19c)
+    {
+        ent = sm->get_event_entity(local_28);
+        if (ent == 0)
+            return 0;
+    }
+    else
+        return 0;
+
+    // ORIG 0x0843e99c/0x0843ea12：两处均为 fresh 虚调用
+    // `ent->get_db_table_name()`（vptr+0x20，P48 no-CSE / P282），结果直接作
+    // toTString 实参，无具名引用缓存（旧版缓存导致第二次虚调用缺失）。
+    db->set_query("upDate %s set charac_no=%u, occ_date=now() where m_id=%u",
+                  toTString(ent->get_db_table_name()), local_24, local_20);
+    if (!db->exec(true))
+        return 0;
+
+    if (db->getAffectedRowCount() == 0)
+    {
+        db->set_query("inSert into %s(m_id, charac_no, occ_date) "
+                      "values(%u, %u, now())",
+                      toTString(ent->get_db_table_name()), local_20, local_24);
+        if (!db->exec(true))
+            return 0;
+    }
+    return 1;
 }

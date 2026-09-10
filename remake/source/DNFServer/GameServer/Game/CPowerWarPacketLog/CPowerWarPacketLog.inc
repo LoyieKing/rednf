@@ -1,3 +1,1 @@
 CPowerWarPacketLog::CPowerWarPacketLog()
-{
-    Reset();

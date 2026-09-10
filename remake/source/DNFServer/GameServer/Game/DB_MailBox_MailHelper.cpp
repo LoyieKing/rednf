@@ -1,28 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_MailBox_MailHelper/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_MailBox_MailHelper/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— DB_MailBox 域 Mail helper 自由函数（OrigDBMail20 批，
-// 独占 TU，未入 CMake，待 Main 登记）
-// 覆盖 5 个 ORIG T 符号（地址见 DB_MailBox_MailHelper.h 头注释）：
-//   1. GetOnlyMailCount       0x0841cc6a
-//   2. RemoveMailByMailIndex  0x0841ce06
-//   3. FindLastOccTimeMail    0x0841cf5a
-//   4. CompareLetter          0x0841d032
-//   5. ArrangeMailAndLetter   0x0841d2ef
-// 报告均已全文阅读后转写（docs/class_func_reports/_lt_global_gt_/{...}.md）。
-// SIG 布局：SIG_MAILBOX_LIST（SigTypes_D.h，sizeof 0x338a）经权威头具名视图
-//   m_box.m_postals[i]（postal_id@+0、m_tail.m_occ.field55@+0x55 /
-//   letterId@+0x5c）访问——P235 具名嵌套复现 ORIG「下标先、基址后」+ add $0x50；
-//   SIG_LETTER_INFO（CMailBoxHelper.h，0x12b）的 +0x125 / 首字段用视图访问。
-// 依赖：RemoveMailByLatestLetter 定义归 DB_MailBox_Req_List.cpp（本 TU 仅声明）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "DB_MailBox_MailHelper.h"
 
@@ -44,7 +30,23 @@ struct LetterOccView
 
 // RemoveMailByLatestLetter —— ORIG 0x0841cd03，定义归 DB_MailBox_Req_List.cpp
 #include "DB_MailBox_MailHelper/RemoveMailByLatestLetter.inc"
+
+// ============================================================================
+// GetOnlyMailCount —— ORIG 0x0841cc6a：postal 区扫 +0x5c（letter_id），
+// 统计为 0 的条目数，返计数。
+// ============================================================================
+// [sweep] AE：ORIG 0x0841cc6a；改走 m_box.m_postals[i].m_tail.m_occ.m_letterId
+// 后循环体装载序/寻址与 ORIG 逐条同形（25=25，p167 不适用=0 call）。
 #include "DB_MailBox_MailHelper/GetOnlyMailCount.inc"
+{
+    int count = 0;
+    int i;
+    for (i = 0; i < list->m_box.m_count; ++i)
+    {
+        if (list->m_box.m_postals[i].m_tail.m_occ.m_letterId == 0)
+            ++count;
+    }
+    return count;
 }
 
 // ============================================================================
@@ -57,6 +59,28 @@ struct LetterOccView
 // [sweep] 残差 1 处 = N18b（成员 vs 形参比较 4.4 恒折 `cmp mem,reg`，ORIG 两段
 //   `mov mem,reg; mov arg,reg; cmp reg,reg`），指令数 110 vs 111。
 #include "DB_MailBox_MailHelper/RemoveMailByMailIndex.inc"
+{
+    int i = 0;
+    int foundIdx = 0;
+    bool found = false;
+    for (i = 0; i < list->m_box.m_count; ++i)
+    {
+        if (mailIdx == list->m_box.m_postals[i].m_postalId)
+        {
+            found = true;
+            foundIdx = i;
+            break;
+        }
+    }
+    if (!found)
+        return 0;
+    for (i = foundIdx; i < list->m_box.m_count - 1; ++i)
+    {
+        list->m_box.m_postals[i] = list->m_box.m_postals[i + 1];
+    }
+    list->m_box.m_count -= 1;
+    list->m_box.m_remain += 1;
+    return 1;
 }
 
 // ============================================================================
@@ -70,6 +94,27 @@ struct LetterOccView
 //   同时改走权威头 m_box.m_postals[i].m_postalId / m_tail.m_occ.m_field55
 //   （SigTypes_D.h 具名视图，67=67 逐条同形）。
 #include "DB_MailBox_MailHelper/FindLastOccTimeMail.inc"
+{
+    int maxVal = 0;
+    for (int i = 0; i < list->m_box.m_count; ++i)
+    {
+        int v = list->m_box.m_postals[i].m_tail.m_occ.m_field55 - 0x13c680;
+        if (v > occTime && maxVal < v)
+            maxVal = v;
+    }
+    int lastIdx = -1;
+    unsigned int maxId = 0;
+    for (int i = 0; i < list->m_box.m_count; ++i)
+    {
+        int v = list->m_box.m_postals[i].m_tail.m_occ.m_field55 - 0x13c680;
+        if (v == maxVal &&
+            maxId < (unsigned int)list->m_box.m_postals[i].m_postalId)
+        {
+            maxId = (unsigned int)list->m_box.m_postals[i].m_postalId;
+            lastIdx = i;
+        }
+    }
+    return lastIdx;
 }
 
 // ============================================================================
@@ -77,6 +122,12 @@ struct LetterOccView
 //   比首字段（无符号）严格小于。
 // ============================================================================
 #include "DB_MailBox_MailHelper/CompareLetter.inc"
+{
+    if (((LetterOccView*)&a)->m_occ < ((LetterOccView*)&b)->m_occ)
+        return 1;
+    if (((LetterOccView*)&a)->m_occ == ((LetterOccView*)&b)->m_occ)
+        return *(const unsigned int*)&a < *(const unsigned int*)&b;
+    return 0;
 }
 
 // ============================================================================
@@ -94,4 +145,38 @@ struct LetterOccView
 //   减指令方向相反；且③的比较对象含跨调用返回值 size()（非两具名局部）。本轮实测
 //   ORIG-only={setne,test}（=②物化段）⇒ 残余归 P197④/N18b。
 #include "DB_MailBox_MailHelper/ArrangeMailAndLetter.inc"
+                         std::vector<SIG_LETTER_INFO>& vecNew, int count,
+                         std::vector<SIG_LETTER_INFO>& vecOld)
+{
+    std::sort(vecNew.begin(), vecNew.end(), CompareLetter);
+    int start = (int)vecNew.size() - count;
+    while ((unsigned int)vecNew.size() > (unsigned int)start)
+    {
+        int mailIdx = -1;
+        mailIdx = FindLastOccTimeMail(list,
+                                      ((LetterOccView*)&vecNew[(size_t)start])->m_occ);
+        if (mailIdx != -1)
+        {
+            int letterIdx =
+                (int)list->m_box.m_postals[mailIdx].m_tail.m_occ.m_letterId;
+            if (RemoveMailByLatestLetter(list, mailIdx))
+            {
+                if (letterIdx != 0)
+                {
+                    std::vector<SIG_LETTER_INFO>::iterator it = vecOld.begin();
+                    std::vector<SIG_LETTER_INFO>::iterator itEnd = vecOld.end();
+                    for (; it != itEnd; ++it)
+                    {
+                        if (*(const int*)&*it == letterIdx)
+                        {
+                            vecOld.erase(it);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        ++start;
+    }
+    return 1;
 }

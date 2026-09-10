@@ -1,2 +1,1 @@
 CCacheCharacterMgr::~CCacheCharacterMgr()
-{

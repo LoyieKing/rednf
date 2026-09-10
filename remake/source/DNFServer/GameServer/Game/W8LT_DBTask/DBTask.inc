@@ -1,3 +1,1 @@
 DBTask::DBTask()
-{
-    RegistDispatcher();

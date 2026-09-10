@@ -16,3 +16,4 @@ void CToolFileLog::operator()(char const* filename, int no, char const* format, 
     } else {
         CFileLogWriterInstance()->writeLog(filename, buff);
     }
+}

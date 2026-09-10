@@ -1,2 +1,1 @@
 CConditionEvent::~CConditionEvent()
-{

@@ -1,2 +1,1 @@
 CMemberExpRewardEvent::~CMemberExpRewardEvent()
-{

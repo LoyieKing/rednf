@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 StringResource/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 StringResource/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— StringResource / CStringManager 实现（报告依据见 .h 文件头）。
 // 逐段转写自 ORIG objdump（地址见各函数注释）；static helper
@@ -25,6 +27,16 @@
 // ---------------------------------------------------------------------------
 #include "StringResource/StringResource.inc"
 #include "StringResource/dtor_StringResource.inc"
+
+// ---------------------------------------------------------------------------
+// parseStringLine —— ORIG t _ZL15parseStringLinePcPiPS_ @0x08ad490f。
+// 行格式 "<key数字> > <value>"；'/' 开头("//")为注释；'\r'/'\n' 开头空行；
+// 返回：0=成功（*key=atoi(key 区)、*value=value 起）、-1=key 含非数字、
+// -2=key 位数>11。value 内 "\n" 转义为真实换行并左移，
+// 其余 '\' 删除前缀字符（与 ORIG 循环形态一致），行结束('\r'/'\n')截断。
+// 错误码经调用方 "Parse error : line:%d reason:%d" 记入 error。
+// ---------------------------------------------------------------------------
+// [b28d-solo-StringResource AE: 155=155 逐条全等（P264 归一后） | ORIG 0x08ad490f]
 static int parseStringLine(char* line, int* key, char** value)
 {
     char* p = line;
@@ -105,12 +117,29 @@ static int parseStringLine(char* line, int* key, char** value)
 // get —— ORIG T 0x08ad4878：find != end 时 *out=&second 返回 1，否则返回 0。
 // ---------------------------------------------------------------------------
 #include "StringResource/add.inc"
+{
+    // ORIG @0x8ad47d0：insert(std::pair<int, CharString>(id, value)) —— 临时
+    // 值 pair 直构（C1IRiRKS0_ 引用实参形）→ EOS_ 右值转 pair<const int,...>
+    // → insert。make_pair 会先物化 make_pair 调用改变装载序（P61/P81）。
+    return m_strings.insert(std::pair<int, CharString>(id, value)).second;
 }
 
 #include "StringResource/set.inc"
+{
+    m_strings[id] = value;
 }
 
 #include "StringResource/get.inc"
+{
+    std::map<int, CharString>::const_iterator it = m_strings.find(id);
+    // [b28c-lane17] ORIG 0x08ad4898：`operator!=` + 成功块直落、失败 mov$0 归尾块
+    // ⇒ 正极性包裹（P220 迭代器比较极性）。
+    if (it != m_strings.end())
+    {
+        *out = &it->second;
+        return true;
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +157,74 @@ static int parseStringLine(char* line, int* key, char** value)
 // EH 少 1×_Unwind_Resume（N104 块合并）；163/165，p167 MISSING 1×_Unwind_Resume，语义完成
 // | ORIG 0x08ad4ac2]
 #include "StringResource/loadFromString.inc"
+{
+    m_strings.clear();
+
+    // toTString(const char*)：ORIG _Z9toTStringPKc @0x08adeb75（恒等转换，
+    // 定义 SyncScriptDeps.cpp）；本 TU 属字符串底座，按 InitScriptProducers_5
+    // 先例局部声明避免拖入 SyncScriptDeps.h 依赖。
+    const char* toTString(const char* pszSrc);
+
+    char* val;                      // ORIG -0x34（P212 全头部声明，先声明占深槽）
+    int key;                        // ORIG -0x30
+    int lineNo = 0;                 // -0x20
+    char* lineStart = text;         // -0x1c
+    int i = 0;                      // -0x18
+    while (i <= length)
+    {
+        // ORIG @0x2c-0x4a：c 为 byte 槽（-0x11，mov %al）；三条件
+        // cmpb je/cmpb je/cmp jne 全部直跳，共享行末 i++（@0x1fd）——
+        // 非行内联 \0/补偿块。
+        const char c = text[i];
+        if (c == '\n' || c == '\r' || i == length)
+        {
+            ++lineNo;                   // 行号在边界块首自增（@0x50）
+            text[i] = '\0';
+            val = 0;                    // ORIG @0x5d 唯一 0 初始化（块内）
+            // [D01 · C05② 细化负例 2026-09-10] `test %eax,%eax` 零比较子型的
+            // 类型旋钮实测无效：本点 ORIG 为 `mov -0x10(%ebp),%eax; test %eax,%eax`
+            // （载寄存器两段），而 4.4 对具名局部恒折 `cmpl $0x0,-0x10(%ebp)`，
+            // **int 与 unsigned 两态同形**（改 unsigned 后 fresh .o 逐字节不变、
+            // 四数 43/63/1/3 不变）⇒ 已回退 int，本点归 N18b 常量比较子型。
+            int r = parseStringLine(lineStart, &key, &val);   // -0x10
+            if (r != 0)
+            {
+                // ORIG：仅 error!=0 时报错并 return false；error==0 时
+                // 忽略解析失败继续（@0x87 je →val 检查）。
+                if (error != 0)
+                {
+                    // ORIG 0x08ad4b5c：format 为静态 sret，直写 -0x2c 局部槽，
+                    // 无 C1Ev/无 op=（P215 展开形）。
+                    CharString msg = CharString::format(
+                        "Parse error : line:%d reason:%d", lineNo, r);
+                    *error = msg;
+                    return false;
+                }
+            }
+            if (val != 0)               // ORIG @0xf5 判 val（非 key）
+            {
+                CharString v(toTString(val));      // -0x28（toTString 恒等）
+                bool ok = add(key, v);             // -0x9 byte 槽
+                if (!ok)
+                {
+                    // 重复 key：写 err 后**整表加载失败返回**（@0x16c-0x1d5）。
+                    if (error != 0)
+                    {
+                        CharString dupMsg = CharString::format(
+                            "Duplicated key : line:%d key:%d", lineNo, key);
+                        *error = dupMsg;
+                    }
+                    return false;
+                }
+            }
+            // \r\n 连续补偿在 val 处理之后（@0x1d7），随后 lineStart 前移。
+            if (c == '\r' && text[i + 1] == '\n')
+                ++i;
+            lineStart = text + i + 1;
+        }
+        ++i;
+    }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +233,8 @@ static int parseStringLine(char* line, int* key, char** value)
 // 在 ORIG 中未启用），转写为空实现。签名 (void*, int, CharString*)。
 // ---------------------------------------------------------------------------
 #include "StringResource/loadFromResource.inc"
+{
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +265,65 @@ static int parseStringLine(char* line, int* key, char** value)
 // 帧同 0x60；未使用局部 pad 反致整体再深 4）+ XOR 循环地址重算（P205/P183）；
 // 361/363 gap −2，p167 CLEAR 42=42，语义完成 | ORIG 0x08ad4e04]
 #include "StringResource/loadFromBinary.inc"
+{
+    CharString content;                              // -0x48
+
+    if (size > 4 && data[0] == 'S' && data[1] == 'C' &&
+        data[2] == '0' && data[3] == '1')
+    {
+        int origSize = *reinterpret_cast<const int*>(data + 4);     // -0x2c
+        int payloadBytes = (size + 3) / 4 * 4;                      // -0x28
+        unsigned int k0 = 0x5819af17u;                              // -0x24
+        char* buf = new char[payloadBytes];                         // -0x20
+        memcpy(buf, data + 8, size);
+
+        int slotPad;
+        char* cur = buf;                                            // -0x18
+        unsigned int key = k0;                                      // -0x14
+        for (unsigned int i = 0; i < (unsigned int)payloadBytes / 4; ++i)
+        {
+            *reinterpret_cast<unsigned int*>(cur + i * 4) =
+                *reinterpret_cast<unsigned int*>(cur + i * 4) ^ key;
+            key = key ^ *reinterpret_cast<unsigned int*>(cur + i * 4);
+        }
+
+        WideString ws;
+        bool converted = convertFromUtf8(buf, origSize, &ws);
+        delete[] buf;                        // ORIG @0x12b 单对判空守卫为
+                                             // 编译器隐式形（P141），勿再显式
+        if (!converted)
+            return false;
+        content = convertToCharString(ws);
+    }
+    // BOM 常量用无符号立即数值（ORIG cmp $0xef/$0xbb/$0xbf,%al）：
+    // '\xef' 等 char 字面量为负值，与 uchar 提升值恒不等，4.4 折叠死分支。
+    else if (size > 3 && data[0] == 0xef &&
+             data[1] == 0xbb && data[2] == 0xbf)
+    {
+        WideString ws;
+        bool converted = convertFromUtf8(
+            reinterpret_cast<const char*>(data + 3), size - 3, &ws);
+        if (!converted)
+            return false;
+        content = convertToCharString(ws);
+    }
+    else if (size > 2 && data[0] == 0xff && data[1] == 0xfe)
+    {
+        WideString ws(reinterpret_cast<const wchar_t*>(data + 2),
+                      (size - 2) / 2);
+        content = convertToCharString(ws);
+    }
+    else
+    {
+        CharString tmp(reinterpret_cast<const char*>(data), size);
+        content = tmp;
+    }
+
+    char* copyBuf = new char[content.length() + 1];                 // -0x34
+    memcpy(copyBuf, content.c_str(), content.length() + 1);
+    bool result = loadFromString(copyBuf, content.length(), error); // -0x2d
+    delete[] copyBuf;                    // 同上 P141：隐式单守卫
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +337,34 @@ static int parseStringLine(char* line, int* key, char** value)
 // A(int fileSize)/B(具名 binData)/C((int)cast)/D(B+C) 四变体实测均劣（具名形多 2 条且槽漂）
 // | ORIG 0x08ad4ce4]
 #include "StringResource/loadFromFile.inc"
+{
+    FILE* fp = fopen(path, "rb");
+    if (fp == NULL)
+    {
+        if (error)
+            *error = "Cannot open file";
+        return false;
+    }
+    fseek(fp, 0, SEEK_END);
+    const long fileSize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (fileSize < 0)
+    {
+        fclose(fp);
+        return false;
+    }
+    // ORIG 各使用点直接读 ftell 槽（-0x14）：无具名 int 中间量（P183）。
+    char* buf = new char[fileSize];
+    fread(buf, 1, (size_t)fileSize, fp);
+    fclose(fp);
+
+    /* loadFromBinary 实参装载 N80 族封顶（b26 NL26，Main 裁定）：ORIG 4.1 右到左串联装
+     * 载全程 %eax；4.4 恒 arg0=eax、arg2/arg1=edx 交错。具名中间量/逗号重
+     * 排/size_t 内置 5 探针全败（/tmp/p26_lf.cpp、p26_lf2.cpp），语义完成。 */
+    const bool result = loadFromBinary(
+        reinterpret_cast<const unsigned char*>(buf), fileSize, error);
+    delete[] buf;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +388,8 @@ static const char* STRING_FILE = 0;
 // loadString —— ORIG T 0x08ac35cc：stringResource()->loadFromFile(path,err)。
 // ---------------------------------------------------------------------------
 #include "StringResource/loadString.inc"
+{
+    return app::stringResource()->loadFromFile(STRING_FILE, error);
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +429,75 @@ static const char* STRING_FILE = 0;
 // c ORIG -0x11 vs 4.4 -0xa；帧同 0x30，i 同 -0x18）+ 返回物化 %eax/%ebx；
 // 161/162 gap −1，p167 CLEAR 8=8，语义完成 | ORIG 0x08adf893]
 #include "StringResource/convertFromUtf8.inc"
+{
+    int wideCount = 0;                        // -0x24
+    int i = 0;                                // -0x18
+    while (i < srcLength)
+    {
+        const unsigned char b = (unsigned char)src[i];
+        // ORIG 块排布：ASCII 为 fall-through 首块（test;js→多字节区 @0xf8）。
+        if ((char)b >= 0)
+        {
+            wideCount += 1;
+            i += 1;
+        }
+        else
+        {
+            if (b <= 0xdf && i + 1 < srcLength)
+    {
+            wideCount += 1;
+            i += 2;
+        }
+            else if (b <= 0xef && i + 2 < srcLength)
+        {
+            wideCount += 1;
+            i += 3;
+        }
+        else
+                return false;
+        }
+    }
+    if (wideCount == 0)
+    {
+        *out = L"";                           // ORIG operator=(wchar_t const*)
+        return true;
+    }
+
+    WideStringData* data = WideStringData::createTerminated(wideCount);
+    wchar_t* dst = data->getBuffer();
+    i = 0;
+    while (i < srcLength)
+    {
+        const unsigned char b = (unsigned char)src[i];
+        // 同上：ASCII 首块 + js 直跳多字节区；合成段间用加法（ORIG add
+        // %eax,%edx，4.1 对无重叠位 or 发射 add；4.4 的 | 直出 or）。
+        if ((char)b >= 0)
+        {
+            *dst++ = (wchar_t)b;
+            i += 1;
+        }
+        else
+        {
+            if (b <= 0xdf && i + 1 < srcLength)
+    {
+                *dst++ = (wchar_t)(((b & 0x1f) << 6) +
+                                   ((int)src[i + 1] & 0x3f));
+            i += 2;
+        }
+            else if (b <= 0xef && i + 2 < srcLength)
+        {
+                *dst++ = (wchar_t)((unsigned short)(b << 12) +
+                                   (((int)src[i + 1] & 0x3f) << 6) +
+                                   ((int)src[i + 2] & 0x3f));
+            i += 3;
+        }
+        else
+                return false;
+        }
+    }
+    WideString tmp(data);
+    *out = tmp;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +507,12 @@ static const char* STRING_FILE = 0;
 // [b28d-solo-StringResource AE: 32=32 逐条全等（CharString::format 静态 sret 化后；旧
 // 非静态形 32/55 系共享头签名错） | ORIG 0x08ad54cc]
 #include "StringResource/getStr.inc"
+{
+    const CharString* entry;        // ORIG 无初始化槽（@0x8ad54d6 直接取址传参）
+    if (app::stringResource()->get(id, &entry))
+        return *entry;
+    // ORIG 0x08ad5508：静态 sret 直写返回对象，无局部 C1Ev/无拷贝。
+    return CharString::format("getStr(%d) == none", id);
 }
 
 // ---------------------------------------------------------------------------
@@ -272,11 +535,43 @@ static bool is_sr_loaded = false;
 // 链接期绑定其 W 实例。签名与 mangled 逐字对齐（RAT__c = char(&)[N]）。
 template <size_t N>
 #include "StringResource/ss_sprintf.inc"
+
+// [b28d-solo-StringResource AE(源码 66=66 逐条全等): 唯一残差 = compare_tu 的 TLS_LE_LEA_RE
+// 只归一「源/目标同寄存器」形，ORIG `lea -0x3c048(%eax),%ebx`（eax→ebx）未归一而 OURS
+// `lea <A>(%eax),%ebx` 已归一 ⇒ 假 NEAR；已上报 Main 放宽该正则 | ORIG 0x08ac35f8]
 #include "StringResource/getStr_1.inc"
+{
+    // ORIG _ZZN14CStringManager6getStrEiE8errorMsg：bss 0x20 字节 TLS 形式
+    // 访问（asm `mov %gs:0x0,%eax; lea disp(%eax)` 两段、参数位与 return 各
+    // 重算一次——__thread 局部静态，无共享槽缓存，P183）。
+    static __thread char errorMsg[32];
+    if (!is_sr_loaded)
+    {
+        // ORIG @0x30-0x48 双岛：return 0 在 err 作用域内 → 失败路径与正常路径
+        // 合流到共享析构 cleanup（ebx=0/esi=0 vs esi=1，test %esi 决定走向）。
+        {
+            CharString err;
+            if (loadString(&err))
+            {
+                is_sr_loaded = true;
+            }
+            else
+                return 0;
+        }
+    }
+
+    const CharString* entry;              // ORIG 无初始化（直接取址传参）
+    if (app::stringResource()->get(id, &entry))
+        return const_cast<char*>(entry->c_str());
+
+    ss_sprintf(errorMsg, "getStr(%d) == none", id);
+    return errorMsg;
 }
 
 // ---------------------------------------------------------------------------
 // CStringManager::setStringResourceLoaded —— ORIG T 0x08ac36d2：置位即返回。
 // ---------------------------------------------------------------------------
 #include "StringResource/setStringResourceLoaded.inc"
+{
+    is_sr_loaded = true;
 }

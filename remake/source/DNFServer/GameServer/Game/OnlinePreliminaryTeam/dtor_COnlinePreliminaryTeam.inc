@@ -1,2 +1,1 @@
 COnlinePreliminaryTeam::~COnlinePreliminaryTeam()
-{

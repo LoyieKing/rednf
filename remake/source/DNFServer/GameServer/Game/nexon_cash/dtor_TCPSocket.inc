@@ -1,3 +1,1 @@
 TCPSocket::~TCPSocket()
-{
-    close();

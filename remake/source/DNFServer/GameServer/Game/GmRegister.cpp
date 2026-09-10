@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 GmRegister/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 GmRegister/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // GmRegister.cpp — game_master::CGameMasterMgr 构造注册链完整还原。
 // 对照 ORIG CGameMasterMgr::CGameMasterMgr() @0x082a8a28（size 0x18fb）：
@@ -31,6 +33,102 @@ namespace game_master
 //   验收：gap 0（1609=1609）；p167 调用点差集 CLEAR（318/318，0 missing/0 extra）；
 //   our_insns 1489→1609；87 注册块 (new尺寸↔类↔id/串↔顺序) 与 ORIG 逐块全等。
 #include "GmRegister/CGameMasterMgr.inc"
+{
+    m_senior = new CSeniorGameMaster(0);                // 链尾
+    m_junior = new CJuniorGameMaster(m_senior);         // 分发入口
+
+    // ---- 数字 id 注册（ORIG 顺序逐条一致）----
+    // b28d-solo-GmRegister：以下 47 个类在 ORIG 均带 `new T()` value-init 前置清零
+    // （P299/P318；类侧已删用户默认 ctor，改由编译器隐式合成）⇒ 必须写带括号 new。
+    m_cmdMap.add(0x01, new CMoveCharacCmd());           // "move"
+    m_cmdMap.add(0x02, new CPvPStartCmd());
+    m_cmdMap.add(0x06, new CCirculationStatisticCmd());
+    m_cmdMap.add(0x07, new CAutoMarketConditionsControlCmd());
+    m_cmdMap.add(0x08, new CItemDropRateCmd());
+    m_cmdMap.add(0x09, new CCharacStatCmd());
+    m_cmdMap.add(0x0a, new CSetTutorialFlagCmd());
+    m_cmdMap.add(0x0b, new CViewTutorialFlagCmd());
+    m_cmdMap.add(0x0c, new CResetTutorialFlagCmd());
+    m_cmdMap.add(0x0d, new CCreateDisjointStoreCmd());
+    m_cmdMap.add(0x0e, new CRequestDisjointCmd());
+    m_cmdMap.add(0x0f, new CTeleportCmd());
+    m_cmdMap.add(0x10, new CChangeExpertJobCmd());
+    m_cmdMap.add(0x11, new CChangeExpertJobExpCmd());
+    m_cmdMap.add(0x12, new CStartMacroCmd());
+    m_cmdMap.add(0x13, new CStopMacroCmd());
+    m_cmdMap.add(0x14, new CRunMacroCmd());
+    m_cmdMap.add(0x16, new CTestDisjointCmd());
+    m_cmdMap.add(0x17, new CAssaultAbuseUserCmd());
+    m_cmdMap.add(0x18, new CPcroomPremiumCmd());
+    m_cmdMap.add(0x1d, new CBloodMonsterListCmd());
+    m_cmdMap.add(0x1e, new CVillageAttackedStartCmd());
+    m_cmdMap.add(0x21, new CVillageAttackedStopCmd());
+    m_cmdMap.add(0x20, new CVillageAttackedFightCmd());
+    m_cmdMap.add(0x22, new CItemInfoCmd());
+    m_cmdMap.add(0x1f, new CAddItemPollutionCmd());
+    m_cmdMap.add(0x23, new CChangeNPCMaxDayCmd());
+    m_cmdMap.add(0x24, new CChangeNPCFavorCmd());
+    m_cmdMap.add(0x25, new CClearInventoryCmd());
+    m_cmdMap.add(0x26, new CClearAvatarInvenCmd());
+    m_cmdMap.add(0x27, new CReselectDailyQuestCmd());
+    m_cmdMap.add(0x28, new CResetTrainingQuestCmd());
+    m_cmdMap.add(0x2a, new CInvalidGold());
+    m_cmdMap.add(0x2b, new CPowerWarStraightVictory());
+    m_cmdMap.add(0x2c, new CDeleteGuild());
+    m_cmdMap.add(0x29, new CEnduranceCmd());
+    m_cmdMap.add(0x2d, new CChangeCharacName());
+    m_cmdMap.add(0x2e, new CStartEvent());
+    m_cmdMap.add(0x2f, new CEndEvent());
+    m_cmdMap.add(0x30, new CSecretShopCheckLottery());
+    m_cmdMap.add(0x31, new CSecretShopNpc());
+    m_cmdMap.add(0x34, new CItemDropInDungeon());
+    m_cmdMap.add(0x36, new CDeleteAccountCargo());
+    m_cmdMap.add(0x37, new CLinkSystem());
+    m_cmdMap.add(0x3a, new CGuildExpBookDelete());
+    m_cmdMap.add(0x3c, new CUserPremiumDelete());
+    m_cmdMap.add(0x3d, new CAddItemByMail());
+    m_cmdMap.add(0x3f, new CAdjustCharacStat);
+    m_cmdMap.add(0x41, new CSetGuildFund);
+    m_cmdMap.add(0x42, new CGuildDebug);
+    m_cmdMap.add(0x44, new CDropItem);
+    m_cmdMap.add(0x46, new CGetCashInven);
+    m_cmdMap.add(0x47, new CPickup);
+    m_cmdMap.add(0x48, new CRefund);
+    m_cmdMap.add(0x4b, new CMonsterDropTest);
+    m_cmdMap.add(0x4c, new CBoosterTest);
+    m_cmdMap.add(0x4d, new CRandomObjectTest);
+    m_cmdMap.add(0x4e, new CBindCubeTest);
+    m_cmdMap.add(0x52, new COneADayItemShop);
+    m_cmdMap.add(0x79, new CCraneNeedMaterial);
+    m_cmdMap.add(0x5d, new CTitleBookReset);
+    m_cmdMap.add(0x5e, new CTitleBookAdjust);
+    m_cmdMap.add(0x5f, new CTitleBookNoClear);
+    m_cmdMap.add(0x60, new CAchievementReset);
+    m_cmdMap.add(0x61, new CAchievementReport);
+    m_cmdMap.add(0x62, new CAchievementClear);
+    m_cmdMap.add(0x63, new CAchievementAllClear);
+    m_cmdMap.add(0x64, new CAchievementNoClear);
+    m_cmdMap.add(0x66, new CInGameEventSetDay);
+    m_cmdMap.add(0x6d, new CChoiceItem);
+    m_cmdMap.add(0x6f, new CIndependentDrop);
+    m_cmdMap.add(0x70, new CUpgradeCardDebug);
+    m_cmdMap.add(0x76, new NpcLimitBuyItem);
+    m_cmdMap.add(0x77, new CIndependentDropByForce);
+    m_cmdMap.add(0x78, new DungeonDifficulty);
+    m_cmdMap.add(0x7d, new BlueMarbleSet);
+    m_cmdMap.add(0x7e, new CTestTradeRestrict);
+    m_cmdMap.add(0x7f, new CGrowhWeaponEvent);
+    m_cmdMap.add(0x80, new CClearRewardTest);
+
+    // ---- 名字/混合注册（ORIG 顺序：bongfail 先于 0x82，汇编 0x1469 区实证）----
+    m_cmdMap.add(std::string("bongfail"), new CSetMultiboxFailCnt);        // 0x8c1621f
+    m_cmdMap.add(0x82, new CBingoGmTest);
+    m_cmdMap.add(std::string("lv"), new CLevelUp);                          // 0x8c16228
+    m_cmdMap.add(std::string("recipeprob"), new CRecipeSuccess);            // 0x8c1622b
+    m_cmdMap.add(std::string("cash"), new CBillingRechargeCommand);         // 0x8c16236
+    m_cmdMap.add(std::string("restrict"), new CMobileRestrictCommand);      // 0x8c1623b
+    m_cmdMap.add(std::string("pcroomrewardreset"), new CPcroomRewardReset); // 0x8c16244
+    m_cmdMap.add(std::string("heromission"), new CHeroMissionCommand);      // 0x8c16256
 }
 
 } // namespace game_master

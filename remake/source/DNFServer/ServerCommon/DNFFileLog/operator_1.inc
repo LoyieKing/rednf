@@ -5,3 +5,4 @@ void CMyRawFileLog::operator()(char const* filename, char const* format, ...) {
     vsprintf(buff, format, args);
     // 原始：Instance() 结果直接作为实参（不存局部变量）
     CFileLogWriterInstance()->writeRawLog(filename, buff);
+}

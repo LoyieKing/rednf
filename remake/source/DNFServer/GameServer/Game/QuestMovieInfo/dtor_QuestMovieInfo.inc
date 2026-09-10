@@ -1,2 +1,1 @@
 QuestMovieInfo::~QuestMovieInfo()
-{

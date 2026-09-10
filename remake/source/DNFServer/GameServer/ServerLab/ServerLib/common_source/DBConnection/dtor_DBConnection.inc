@@ -1,3 +1,1 @@
 DBConnection::~DBConnection()
-{
-    close();

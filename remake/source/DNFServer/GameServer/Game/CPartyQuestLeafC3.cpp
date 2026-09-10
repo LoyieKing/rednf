@@ -1,40 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CPartyQuestLeafC3/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CPartyQuestLeafC3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// CPartyQuestLeafC3.cpp —— CParty/CBattle_Field 任务迷宫叶子恢复（2026-08-24，CPartyQuestLeafC3）
-//
-// 完整读取 docs/class_func_reports/ 对应 .md 的 ## 汇编 + ## 反编译 C 后转写：
-//   CBattle_Field::setQuestMaze(bool)                T 0x0830e302
-//     （docs/class_func_reports/CBattle_Field/setQuestMaze.md）
-//   CParty::getMemberMaxLevel()                      T 0x085b60be
-//     （docs/class_func_reports/CParty/getMemberMaxLevel.md；
-//      报告内两处调用被 report_resolve 标注为 global-ctor 偏移，经 nm 复核：
-//      0x080da2b8 = _ZNK15CUserCharacInfo16get_charac_levelEv（W），
-//      0x0808e218 = _ZSt3maxIiERKT_S2_S2_（W）。）
-//
-// 指派核对项——ORIG 真实符号已由在册 TU 提供，此处跳过定义（防 ODR）：
-//   CParty::CheckQuestConnection(int, ENUM_MAZE_QUEST_TYPE) T 0x085b6478
-//     → PartyClosureC2.cpp（cmake/game/CMakeLists.txt 已登记）
-//   CParty::GetRoutingDiceMemberList(vector<pair<int,int>>&, CItem*) T 0x085ba294
-//     → PartyClosureC2.cpp
-//   stMapMonsterKillChecker_t::setUseSkillMaterial(unsigned) 全局 W 0x0830e72c
-//     → FieldSmallStructs.cpp（已登记）
-//
-// setUseSkillMaterial 嵌套/全局核对结论（详见 /tmp/df_batches/CPartyQuestLeafC3.md）：
-//   ORIG 另有嵌套 W 符号 _ZN8WongWork11CDeathTower25stMapMonsterKillChecker_t19setUseSkillMaterialEj
-//   @0x0823464c（仅写 +0x00，无计数自增；嵌套 init @0x0823462a 仅清 0xc 字节）。
-//   ORIG DisPatcher_DeleteItem::exercise_mode（T 0x081c1ad6，+0x130 处 call 0x823464c）
-//   调用的是该嵌套符号；当前 DisPatcherCore.cpp 将 tower+0xb58 cast 为全局类型后调用
-//   全局符号（多出 ++m_field14@+0x14 的写），语义偏差待统一 CDeathTower 尾部布局修正，
-//   本 TU 不越权改头/改他文件，仅报告。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <algorithm>
@@ -54,6 +28,8 @@
 // （char 成员会先做 bool→char 扩展，与 ORIG 次序不符，经探针核实）。
 // ============================================================================
 #include "CPartyQuestLeafC3/setQuestMaze.inc"
+{
+    m_questMaze = flag;
 }
 
 // ============================================================================
@@ -65,4 +41,15 @@
 // 返回 maxLevel。转写与同族 getMemberMaxLevelBeforeDungeon（CPartyDepsB2.cpp）一致。
 // ============================================================================
 #include "CPartyQuestLeafC3/getMemberMaxLevel.inc"
+{
+    int level;                                          // -0x10（槽位对齐 ORIG）
+    int maxLevel = 0;                                   // -0x14
+    for (int i = 0; i <= 3; ++i)                        // -0xc
+    {
+        if (!_checkValidUser(i))
+            continue;
+        level = m_member[i].m_pUser->get_charac_level();
+        maxLevel = std::max(maxLevel, level);
+    }
+    return maxLevel;
 }

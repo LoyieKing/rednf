@@ -1,3 +1,1 @@
 void CCeraAuctionServerProxy::OnDisconnect()
-{
-    Init();

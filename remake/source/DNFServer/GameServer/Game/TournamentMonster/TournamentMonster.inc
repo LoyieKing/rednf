@@ -1,3 +1,1 @@
 TournamentMonster::TournamentMonster()
-{
-    Clear();

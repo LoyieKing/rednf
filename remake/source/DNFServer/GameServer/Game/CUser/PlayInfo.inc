@@ -1,3 +1,1 @@
 PlayInfo::PlayInfo()
-{
-    Reset();

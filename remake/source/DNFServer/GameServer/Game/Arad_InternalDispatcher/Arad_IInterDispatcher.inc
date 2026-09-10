@@ -1,3 +1,1 @@
 Arad_IInterDispatcher::Arad_IInterDispatcher(ENUM_INTERNALPACKET_JPN code)
-{
-    m_code = code;

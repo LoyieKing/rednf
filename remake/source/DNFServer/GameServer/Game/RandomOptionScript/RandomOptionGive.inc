@@ -1,3 +1,1 @@
 RandomOptionGive::RandomOptionGive()
-{
-    clear();

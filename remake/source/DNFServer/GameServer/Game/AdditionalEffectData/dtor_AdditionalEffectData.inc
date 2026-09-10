@@ -1,2 +1,1 @@
 AdditionalEffectData::~AdditionalEffectData()
-{

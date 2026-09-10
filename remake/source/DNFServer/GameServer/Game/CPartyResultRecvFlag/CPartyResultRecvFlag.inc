@@ -1,3 +1,1 @@
 CPartyResultRecvFlag::CPartyResultRecvFlag()
-{
-    Clear();

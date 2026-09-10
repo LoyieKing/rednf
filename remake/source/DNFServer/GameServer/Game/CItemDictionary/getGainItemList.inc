@@ -22,3 +22,4 @@ std::vector<int> CItemDictionary::getGainItemList() {
             }
     }
     return result;
+}

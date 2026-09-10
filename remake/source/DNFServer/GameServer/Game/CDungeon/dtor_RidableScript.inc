@@ -1,2 +1,1 @@
 RidableScript::~RidableScript()
-{

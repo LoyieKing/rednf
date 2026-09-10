@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DNFFunctionLib/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DNFFunctionLib/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "DNFFunctionLib.h"
 
@@ -34,7 +36,6 @@
 
 
 #include "DNFFunctionLib/Char2Hex.inc"
-}
 
 
 // ---- 字符集全局（原始为 file-scope static std::string，_ZL 本地符号） ----
@@ -90,34 +91,17 @@ char* NumberToString(unsigned long long value, int index) {
 }
 
 #include "DNFFunctionLib/PrintBackTrace.inc"
-#if defined(DNF_SVC_POINT) || defined(DNF_SVC_AUCTION) || defined(DNF_SVC_GUILD) || defined(DNF_SVC_DBMW) || defined(DNF_SVC_COMMUNITY) || defined(DNF_SVC_MANAGER) || defined(DNF_SVC_STATICS) || defined(DNF_SVC_MONITOR)
-        CMyFileLog log(__FUNCTION__, 0x1d1);
-#elif defined(DNF_SVC_COSERVER)
-        // coserver ORIG 实测（0x8054328）：__FUNCTION__ 符号 + 0x186。
-        CMyFileLog log(__FUNCTION__, 0x186);
-#else
-        // df_game_r（未定义 DNF_SVC_* 宏的构建）ORIG 实测：__FUNCTION__ + 0x1d1。
-        CMyFileLog log(__FUNCTION__, 0x1d1);
-#endif
-        log("./log/BackTrace", s);
-    }
-    free(symbols);
-}
 
 #include "DNFFunctionLib/StringToNumber.inc"
-}
 
 #include "DNFFunctionLib/checkTimeToday.inc"
-}
 
 // ORIG T 0x0810912a _Z23GetCurrentResetBaseTimeli（返回 reset 时间戳 long）。
 #include "DNFFunctionLib/GetCurrentResetBaseTime.inc"
-}
 
 // 反编译：saucHex = "0123456789abcdef"
 
 #include "DNFFunctionLib/Hex2Char.inc"
-}
 
 #ifndef DF_NO_CODEPAGE
 unsigned int SDC_Rand(unsigned int* seed) {
@@ -147,10 +131,8 @@ unsigned int SDC_Rand(unsigned int* seed) {
 // ---- DNFFLib ----
 
 #include "DNFFunctionLib/Binary2Hex.inc"
-}
 
 #include "DNFFunctionLib/Hex2Binary.inc"
-}
 
 // ORIG 证据（全部 9 个服务）：r / 65536 用非 cmov 的
 // mov edx,eax; sar 31,edx; shr 16,edx; lea; sar 16 形态（i586 除法定型），
@@ -158,72 +140,46 @@ unsigned int SDC_Rand(unsigned int* seed) {
 // divide==0 分支为 switch 形态（mov divide,%eax; test; jne），不能写成 if。
 __attribute__((target("arch=i586")))
 #include "DNFFunctionLib/get_rand_int.inc"
-}
 
 // ORIG 中自由函数 get_rand_int 与 DNFFLib::get_rand_int 为同字节的独立复制体
 // （73 条指令逐条一致），并非包装调用；此处保持与成员版本相同的完整实现。
 __attribute__((target("arch=i586")))
 #include "DNFFunctionLib/get_rand_int_1.inc"
-}
 
 #include "DNFFunctionLib/ExplodeString.inc"
-}
 
 #include "DNFFunctionLib/PrintTextFile.inc"
-}
 
 #include "DNFFunctionLib/fPrintTextFile.inc"
-}
 
 #ifndef DF_NO_CODEPAGE
 #include "DNFFunctionLib/CharacSetSwitch.inc"
-}
 
 #include "DNFFunctionLib/ConvertGBKtoUTF8.inc"
-}
 
 #include "DNFFunctionLib/ConvertUTF8toGBK.inc"
-}
 #endif
 
 #include "DNFFunctionLib/Make_Dir.inc"
-}
 
 #include "DNFFunctionLib/Sleep_Ext.inc"
-}
 
 #ifndef DF_NO_CODEPAGE
 // ---- CodePage ----
 
 #include "DNFFunctionLib/initCodePage.inc"
-#if defined(DNF_SVC_AUCTION) || defined(DNF_SVC_POINT) || defined(DNF_SVC_GUILD)
-    // auction/point/guild ORIG 实测 script 编码为 GBK。
-    gScriptEncoding = "GBK";
-#else
-    // manager/monitor/statics/community/dbmw 等其余服务 ORIG 实测为 BIG5。
-    gScriptEncoding = "BIG5";
-#endif
-    gDatabaseEncoding = "UTF-8";
-}
 
 #include "DNFFunctionLib/client.inc"
-}
 
 #include "DNFFunctionLib/script.inc"
-}
 
 #include "DNFFunctionLib/database.inc"
-}
 
 #include "DNFFunctionLib/client2Database.inc"
-}
 
 #include "DNFFunctionLib/database2Client.inc"
-}
 
 #include "DNFFunctionLib/database2Script.inc"
-}
 
 #include "DNFFunctionLib/script2Database.inc"
-}
 #endif

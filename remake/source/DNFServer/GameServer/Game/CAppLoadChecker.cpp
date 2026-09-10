@@ -1,27 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CAppLoadChecker/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CAppLoadChecker/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r Game/ CAppLoadChecker 实现（ORIG ServerLoadChecker.cpp）。
-// 逐函数 objdump 转写：
-//   CAppLoadChecker()        0x85ffc6a (0x48)
-//   CAppLoadCheckerInstance  0x85ffc24 (0x46)  guard 0x9473200 / 实例 0x9473208
-//   setQueue                 0x86004b0 (0x28)
-//   CheckLoad                0x86004d8 (0xa7)
-//   RequestDB                0x8600580 (0x12c)
-//   checkLoad_dbq            0x85ffcb2 (0x1fd)  基准 +0x00 状态 +0x10
-//   checkLoad_logdbq         0x85ffeb0 (0x1ff)  基准 +0x04 状态 +0x11
-//   checkLoad_timerq         0x86000b0 (0x1ff)  基准 +0x08 状态 +0x12
-//   checkLoad_packetq        0x86002b0 (0x1ff)  基准 +0x0c 状态 +0x13
-// 四个 checkLoad_* 已逐一反汇编核对：阈值阶梯完全一致（上行 10/25/40/80/150/250，
-// 下行同值），仅基准字段与状态字节不同；按 ORIG 各自独立展开，不共享辅助函数。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit + 把键名符号
 // （CAppLoadCheckerInstance，ORIG 0x86006ec）定义前移为本 TU 首强符号。
@@ -59,26 +46,153 @@ CAppLoadChecker* CAppLoadCheckerInstance()
 }
 
 #include "CAppLoadChecker/CAppLoadChecker.inc"
+{
+    m_baseDbq = 0;
+    m_baseLogdbq = 0;
+    m_baseTimerq = 0;
+    m_basePacketq = 0;
+    m_stateDbq = 0;
+    m_stateLogdbq = 0;
+    m_stateTimerq = 0;
+    m_statePacketq = 0;
 }
 
 #include "CAppLoadChecker/setQueue.inc"
+{
+    m_baseDbq = dbq;
+    m_baseLogdbq = logdbq;
+    m_baseTimerq = timerq;
+    m_basePacketq = packetq;
 }
 
 #include "CAppLoadChecker/checkLoad_dbq.inc"
+{
+    int up = cur - m_baseDbq;     // ORIG -0x8(%ebp)：param − this->+0x00
+    int down = m_baseDbq - cur;   // ORIG -0x4(%ebp)
+
+    if (m_stateDbq <= 0 && up > 10) { m_stateDbq = 1; return true; }
+    if (m_stateDbq <= 1 && up > 25) { m_stateDbq = 2; return true; }
+    if (m_stateDbq <= 2 && up > 40) { m_stateDbq = 3; return true; }
+    if (m_stateDbq <= 3 && up > 80) { m_stateDbq = 4; return true; }
+    if (m_stateDbq <= 4 && up > 150) { m_stateDbq = 5; return true; }
+    if (m_stateDbq <= 5 && up > 250) { m_stateDbq = 6; return true; }
+    if (m_stateDbq == 6 && up > 250) return true;
+
+    if (m_stateDbq >= 0 && down > 10) { m_stateDbq = -1; return true; }
+    if (m_stateDbq >= -1 && down > 25) { m_stateDbq = -2; return true; }
+    if (m_stateDbq >= -2 && down > 40) { m_stateDbq = -3; return true; }
+    if (m_stateDbq >= -3 && down > 80) { m_stateDbq = -4; return true; }
+    if (m_stateDbq >= -4 && down > 150) { m_stateDbq = -5; return true; }
+    if (m_stateDbq >= -5 && down > 250) { m_stateDbq = -6; return true; }
+    if (m_stateDbq == -6 && down > 250) return true;
+    return false;
 }
 
 #include "CAppLoadChecker/checkLoad_logdbq.inc"
+{
+    int up = cur - m_baseLogdbq;     // ORIG -0x8(%ebp)：param − this->+0x04
+    int down = m_baseLogdbq - cur;   // ORIG -0x4(%ebp)
+
+    if (m_stateLogdbq <= 0 && up > 10) { m_stateLogdbq = 1; return true; }
+    if (m_stateLogdbq <= 1 && up > 25) { m_stateLogdbq = 2; return true; }
+    if (m_stateLogdbq <= 2 && up > 40) { m_stateLogdbq = 3; return true; }
+    if (m_stateLogdbq <= 3 && up > 80) { m_stateLogdbq = 4; return true; }
+    if (m_stateLogdbq <= 4 && up > 150) { m_stateLogdbq = 5; return true; }
+    if (m_stateLogdbq <= 5 && up > 250) { m_stateLogdbq = 6; return true; }
+    if (m_stateLogdbq == 6 && up > 250) return true;
+
+    if (m_stateLogdbq >= 0 && down > 10) { m_stateLogdbq = -1; return true; }
+    if (m_stateLogdbq >= -1 && down > 25) { m_stateLogdbq = -2; return true; }
+    if (m_stateLogdbq >= -2 && down > 40) { m_stateLogdbq = -3; return true; }
+    if (m_stateLogdbq >= -3 && down > 80) { m_stateLogdbq = -4; return true; }
+    if (m_stateLogdbq >= -4 && down > 150) { m_stateLogdbq = -5; return true; }
+    if (m_stateLogdbq >= -5 && down > 250) { m_stateLogdbq = -6; return true; }
+    if (m_stateLogdbq == -6 && down > 250) return true;
+    return false;
 }
 
 #include "CAppLoadChecker/checkLoad_timerq.inc"
+{
+    int up = cur - m_baseTimerq;     // ORIG -0x8(%ebp)：param − this->+0x08
+    int down = m_baseTimerq - cur;   // ORIG -0x4(%ebp)
+
+    if (m_stateTimerq <= 0 && up > 10) { m_stateTimerq = 1; return true; }
+    if (m_stateTimerq <= 1 && up > 25) { m_stateTimerq = 2; return true; }
+    if (m_stateTimerq <= 2 && up > 40) { m_stateTimerq = 3; return true; }
+    if (m_stateTimerq <= 3 && up > 80) { m_stateTimerq = 4; return true; }
+    if (m_stateTimerq <= 4 && up > 150) { m_stateTimerq = 5; return true; }
+    if (m_stateTimerq <= 5 && up > 250) { m_stateTimerq = 6; return true; }
+    if (m_stateTimerq == 6 && up > 250) return true;
+
+    if (m_stateTimerq >= 0 && down > 10) { m_stateTimerq = -1; return true; }
+    if (m_stateTimerq >= -1 && down > 25) { m_stateTimerq = -2; return true; }
+    if (m_stateTimerq >= -2 && down > 40) { m_stateTimerq = -3; return true; }
+    if (m_stateTimerq >= -3 && down > 80) { m_stateTimerq = -4; return true; }
+    if (m_stateTimerq >= -4 && down > 150) { m_stateTimerq = -5; return true; }
+    if (m_stateTimerq >= -5 && down > 250) { m_stateTimerq = -6; return true; }
+    if (m_stateTimerq == -6 && down > 250) return true;
+    return false;
 }
 
 #include "CAppLoadChecker/checkLoad_packetq.inc"
+{
+    int up = cur - m_basePacketq;     // ORIG -0x8(%ebp)：param − this->+0x0c
+    int down = m_basePacketq - cur;   // ORIG -0x4(%ebp)
+
+    if (m_statePacketq <= 0 && up > 10) { m_statePacketq = 1; return true; }
+    if (m_statePacketq <= 1 && up > 25) { m_statePacketq = 2; return true; }
+    if (m_statePacketq <= 2 && up > 40) { m_statePacketq = 3; return true; }
+    if (m_statePacketq <= 3 && up > 80) { m_statePacketq = 4; return true; }
+    if (m_statePacketq <= 4 && up > 150) { m_statePacketq = 5; return true; }
+    if (m_statePacketq <= 5 && up > 250) { m_statePacketq = 6; return true; }
+    if (m_statePacketq == 6 && up > 250) return true;
+
+    if (m_statePacketq >= 0 && down > 10) { m_statePacketq = -1; return true; }
+    if (m_statePacketq >= -1 && down > 25) { m_statePacketq = -2; return true; }
+    if (m_statePacketq >= -2 && down > 40) { m_statePacketq = -3; return true; }
+    if (m_statePacketq >= -3 && down > 80) { m_statePacketq = -4; return true; }
+    if (m_statePacketq >= -4 && down > 150) { m_statePacketq = -5; return true; }
+    if (m_statePacketq >= -5 && down > 250) { m_statePacketq = -6; return true; }
+    if (m_statePacketq == -6 && down > 250) return true;
+    return false;
 }
 
 #include "CAppLoadChecker/CheckLoad.inc"
+{
+    bool dbqOver = checkLoad_dbq(dbq);
+    bool logdbqOver = checkLoad_logdbq(logdbq);
+    bool timerqOver = checkLoad_timerq(timerq);
+    bool packetqOver = checkLoad_packetq(packetq);
+
+    if (dbqOver || logdbqOver || timerqOver || packetqOver)
+    {
+        setQueue(dbq, logdbq, timerq, packetq);
+        return true;
+    }
+    return false;
 }
 
 #include "CAppLoadChecker/RequestDB.inc"
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("ServerLoadChecker.cpp", 0x1b5),
+        true);
+
+    (**guard) << 0x183;
+    (**guard) << -1;
+
+    SigInsertServerLoadStatisticView* view =
+        reinterpret_cast<SigInsertServerLoadStatisticView*>(
+            guard->GetInBuffer<SIG_INSERT_SERVER_LOAD_STATISTIC>());
+    view->m_serverGroup =
+        static_cast<unsigned char>(G_CEnvironment()->get_server_group());
+    view->m_channelNo =
+        static_cast<unsigned char>(G_CEnvironment()->get_channel_no());
+    view->m_dbq = static_cast<short>(dbq);
+    view->m_logdbq = static_cast<short>(logdbq);
+    view->m_timerq = static_cast<short>(timerq);
+    view->m_packetq = static_cast<short>(packetq);
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 

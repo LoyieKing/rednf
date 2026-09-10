@@ -1,2 +1,1 @@
 PremiumServiceData::~PremiumServiceData()
-{

@@ -1,3 +1,1 @@
 CServerXml::CServerXml()
-{
-    InitString();

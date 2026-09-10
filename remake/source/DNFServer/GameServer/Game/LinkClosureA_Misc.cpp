@@ -1,24 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 LinkClosureA_Misc/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 LinkClosureA_Misc/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// LinkClosureA_Misc.cpp — undef_bizA 收口批 A 杂项域
-//
-// 覆盖符号（唯一 owner = 本 TU）：
-//   CItem::getAdvanceAltarNeedGage        W 0x081347ca（报告缺失，objdump 转写）
-//   ::EnableWorld(CItem const*, CItem const*) T 0x0849d768（报告缺失）
-//   GetUserName(IMatch*, char*)           T 0x08563ff7（报告缺失）
-//   GetCurrentResetBaseTime(long, int)    T 0x0810912a
-//     （报告 docs/class_func_reports/_lt_global_gt_/GetCurrentResetBaseTime.md）
-//   advancealtar::Manager::gmTimeSpeed_   D 0x09370094（4 字节 .data 初值 1，
-//     ctor 记录 _GLOBAL__I..gmTimeSpeed_E 0x081343f9 静态初始化实证）
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <stdio.h>
@@ -44,6 +34,8 @@ int Manager::gmTimeSpeed_ = 1;
 // ORIG 汇编（objdump 0x81347cd）：push %ebp; mov %esp,%ebp;
 // mov 0x8(%ebp),%eax; mov 0x68(%eax),%eax; pop %ebp; ret —— 直返 +0x68 字段。
 #include "LinkClosureA_Misc/getAdvanceAltarNeedGage.inc"
+{
+    return m_field68;
 }
 
 // ---- EnableWorld（ORIG T 0x0849d768 报告缺失，77 字节 objdump 全文转写）--
@@ -51,6 +43,16 @@ int Manager::gmTimeSpeed_ = 1;
 // 0x849d78e 段 this=0xc(%ebp)=b、arg=0x8(%ebp)=a——objdump 实参槽实证）：
 // 任一方向失败返 0，否则返 1。
 #include "LinkClosureA_Misc/EnableWorld.inc"
+{
+    if (!a->IsEnableWorld(b))           // [objdump 0x849d76e..0x787]
+    {
+        return false;                   // [0x849d780 xor $1; 失败 mov $0]
+    }
+    if (!b->IsEnableWorld(a))           // [0x849d78e this=b, arg=a]
+    {
+        return false;                   // [0x849d79b..0x7a7]
+    }
+    return true;                        // [0x849d7ae mov $1]
 }
 
 // ---- GetUserName（ORIG T 0x08563ff7 报告缺失，0x159 字节 objdump 转写）---

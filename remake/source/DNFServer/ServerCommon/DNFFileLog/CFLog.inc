@@ -5,3 +5,4 @@ CFLog::CFLog(std::string& filename) : name() {
     if ((file = fopen(filename.c_str(), "ab")) == NULL) {
         file = stdout;
     }
+}

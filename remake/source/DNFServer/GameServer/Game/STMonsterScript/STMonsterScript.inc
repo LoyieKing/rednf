@@ -1,3 +1,1 @@
 STMonsterScript::STMonsterScript()
-{
-    Clear();

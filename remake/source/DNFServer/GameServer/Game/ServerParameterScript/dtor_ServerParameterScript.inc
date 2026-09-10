@@ -1,2 +1,1 @@
 ServerParameterScript::~ServerParameterScript()
-{

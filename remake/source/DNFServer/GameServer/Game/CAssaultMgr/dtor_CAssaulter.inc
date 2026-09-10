@@ -1,2 +1,1 @@
 CAssaulter::~CAssaulter()
-{

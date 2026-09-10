@@ -1,3 +1,1 @@
 selectiveGrowCreatureInfo::selectiveGrowCreatureInfo()
-{
-    clear();

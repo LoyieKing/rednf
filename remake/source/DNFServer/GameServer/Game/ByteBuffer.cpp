@@ -1,24 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 ByteBuffer/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 ByteBuffer/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// nexon::cash::ByteBuffer —— 大端序读写游标缓冲（独立 TU）。
-//
-// [GI 拆分] 本文件由 nexon_cash.cpp 拆出：ORIG 侧 ByteBuffer 属独立编译单元
-// `ByteBuffer.cpp`，其 _GLOBAL__I_ 键名 = 本 TU 首个「强符号 · 外部链接 ·
-// 本 TU 定义」实体 = _ZN5nexon4cash10ByteBufferlsEPKc（ORIG @0x081acedd，
-// 对应函数体 @0x081acba0）。故 operator<<(const char*) 必须保持为本文件
-// 第一处外联定义；ctor/wrap 等保持其后（相对次序与 nexon_cash.cpp 内一致，
-// 避免 P210 帧继承形态变化）。
-//
-// 逐符号按 df_game_r ORIG 反汇编转写；地址见各函数注释。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 #include "nexon_cash.h"
 
@@ -59,6 +49,8 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
 
 // ORIG 0x081ae9e2：start=write=read=buffer; capacity=len。
 #include "ByteBuffer/ByteBuffer.inc"
+    : m_start(buffer), m_writePtr(buffer), m_readPtr(buffer), m_capacity(len)
+{
 }
 
 // [b28d-D43] ORIG 0x081ae9b8：static 成员 + 按值 sret 返回 —— 体 = 单次
@@ -67,6 +59,12 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
 // sret/buffer/len 三参、无 this ⇒ P88/P245 static 判据。旧重建的
 // `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
 #include "ByteBuffer/wrap.inc"
+{
+    // [b28d-solo-nexon_cash] N 封顶（帧量化跨版本）：ORIG `sub $0x14` vs 4.4
+    // `sub $0xc`。实测 4.4 帧增量恒 align16(局部需求)（char[4]/char[8]/int 均
+    // 落 $0x1c），$0x14 不可达（P190 附注②/N95 族）。体 16/16 条全等，仅帧
+    // sub/add 立即数差，语义等价。
+    return ByteBuffer(buffer, len);
 }
 
 // ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
@@ -214,6 +212,8 @@ ByteBuffer& ByteBuffer::operator>>(unsigned int& value)
 // 定义置于全部 <<x/>>x 消费者之后：ORIG 各 W body 内 call length 为宽松帧
 // （sub $0x18 + 具名 value 槽 -0xc），同 TU 定义前置会收紧 caller 帧（技巧31）。
 #include "ByteBuffer/length.inc"
+{
+    return static_cast<unsigned int>(m_writePtr - m_start);
 }
 
 }  // namespace cash

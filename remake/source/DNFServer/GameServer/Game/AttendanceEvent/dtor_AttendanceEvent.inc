@@ -1,2 +1,1 @@
 AttendanceEvent::~AttendanceEvent()
-{

@@ -1,2 +1,1 @@
 SlangFilter::~SlangFilter()
-{

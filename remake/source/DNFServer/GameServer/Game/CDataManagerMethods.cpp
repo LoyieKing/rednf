@@ -1,37 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CDataManagerMethods/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CDataManagerMethods/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— CDataManager 独立方法 TU（Prod_CDataManager 批次）
-// ---- b28d-solo-CDataManagerMethods 判词汇总（本 TU 5 件复核后状态）----
-// hasSpecialCharacter 0x08363140 → IDENTICAL（修法：const_iterator+缓存 end、
-//   2 字节 union 视图拼 big-endian、for+else 内 ++i、r.m_max>=p[0] 比较方向）；
-// initFairPVPSkillPoint 0x0835f1d6 → IDENTICAL（修法：删引用局部 s、展开
-//   perIt->second、push_back 改 pair 直构、continue 改正向包裹、cMyTrace 改
-//   P221 全表达式临时链）；
-// load_map_files 0x0835fe02 → NEAR（修法：dungeon/map 提升函数级、迭代器先声明
-//   后赋值、两处后置 it++、pos 整体赋值；残差全帧槽号平移 0x10 = N82/P112）；
-// set_reward_sp 0x08360bde → DIFF 封 N76/N94（P167 CLEAR；两循环 4.4 恒 LHS-first
-//   「先装 this 再求下标」，ORIG 4.1 为 RHS-first+`mov %eax,%edx` 中转；探针
-//   f_int/h_int 证明成员函数下类型异型化不翻，寄存器指派亦不可齐）；
-// initRandomOptionItem 0x083580aa → DIFF 封 N107/N18a（P167 CLEAR；唯一残差
-//   `&innerIt->second.m_field0` ORIG `lea 0x4(%eax),%ecx` vs 4.4 恒
-//   `add $0x4,%eax; mov %eax,%edx`；六形探针含字段 unsigned long 化全产 add）。
-// 仅承载以下六个真实 ORIG 符号，逐指令对照
-// docs/class_func_reports/CDataManager/ 各报告转写：
-//   set_reward_sp                              _ZN12CDataManager13set_reward_spEv        0x08360bde
-//   initRandomOptionItem                       _ZN12CDataManager20initRandomOptionItemEv 0x083580aa
-//   initFairPVPSkillPoint                      _ZN12CDataManager21initFairPVPSkillPointEv 0x0835f1d6
-//   load_map_files(vector<PVPMAP_DATA>&)       _ZN12CDataManager14load_map_filesERSt6vectorI11PVPMAP_DATASaIS1_EE 0x0835fe02
-//   hasSpecialCharacter                        _ZN12CDataManager19hasSpecialCharacterEPKc 0x08363140
-//   loadAdvanceAltarTimeLineParameter          _ZN12CDataManager33loadAdvanceAltarTimeLineParameterERN12advancealtar22StageTimeLineParameterE 0x08365010
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <stdio.h>
@@ -59,8 +36,19 @@ extern std::map<int, std::string> g_stMapScriptFileList;
 
 // ImportMapScript：ORIG T 0x089dcf54，定义于 STMapScript.cpp。
 #include "CDataManagerMethods/ImportMapScript.inc"
+
+// importSpPerLevelReferenceTable：ORIG T 0x08910505（脚本导入域实现）。
+// stSpPerLevelTable 在 ORIG 中 W ctor/dtor 与空 vector<unsigned int> 一致
+// （sizeof 0xc），本 TU 以派生视图获得内联生命周期与继承 operator[]，
+// 引用形参产生与 ORIG 一致的 mangled 名 R17stSpPerLevelTable。
 struct stSpPerLevelTable : public std::vector<unsigned int> {};
 #include "CDataManagerMethods/importSpPerLevelReferenceTable.inc"
+
+namespace
+{
+
+// initRandomOptionItem 访问视图（与 CItemList.cpp 的 CDataManagerExt 同一
+// 证据链：insert_item 写 +0x4e70；initRandomOptionItem 读 +0x4e70/+0x4e88）。
 class CDataManagerBaseItemView
 {
 public:
@@ -80,6 +68,31 @@ public:
 // 导入失败返回 0。成功时将 +0xDA90 表清零后自 index1 起回填表值
 // （index0 恒为 0），返回 1。逐次重读 this（与 O0 成员访问一致）。
 #include "CDataManagerMethods/set_reward_sp.inc"
+{
+    stSpPerLevelTable table;
+    if (importSpPerLevelReferenceTable("Etc/spTable.etc", table))
+    {
+        return 0;
+    }
+    // 残差 N（N18a/N7 族）：两循环 4.4 寄存器指派与 store 序与 4.1 异形
+    // （首循环 mov this 先于 mov i、常量拆 0x36a4+disp4；第二循环 ebx=this/
+    // esi=i 且表值滞留 eax），int 循环变量探针反致 setle 破坏 setbe，不可翻。
+    for (int i = 0; i < 0x60; ++i)
+    {
+        ((CDataManagerRewardSpView*)this)->m_sp8[0x36a2 + i] = 0;
+    }
+    for (unsigned long i = 1; i < 0x60; ++i)
+    {
+        // [round5-A26 判词·N7/N18a 复核] ORIG 0x08360c4c 形 = i 值跨 operator[]
+        // call 保活入 %ebx + RHS-first + `mov %eax,%edx` 中转 + this 在 store 前
+        // 重载；4.4 恒 this→%ebx、索引 `lea 0x36a2(%eax),%esi` 预置、无中转。
+        // 本轮实测两形：①取址 `(unsigned short&)`/`(int)` cast 调用点旋钮无效；
+        // ②同址 int 视角 union（m_sp8i）+ 去 cast 使两端异型 —— 产物与 unsigned
+        // 原形**逐条全同**（66 条，无中转）⇒ 4.4 视同宽整型转换为无操作，
+        // 属寄存器指派族（N7/N18a）封顶，判词同 b28d bm4。
+        ((CDataManagerRewardSpView*)this)->m_sp8[0x36a2 + i] = table[i];
+    }
+    return 1;
 }
 
 // ===================== initRandomOptionItem =====================
@@ -91,6 +104,35 @@ public:
 // 对每个内层元素以 make_pair(值, 递增序号) 插入 +0x4e88 反查表；
 // 任一插入冲突立即返回 0，全部成功返回 1。（计数器每个外层键重置。）
 #include "CDataManagerMethods/initRandomOptionItem.inc"
+{
+    // b28 BM4 判词（N18a/N4 在册）：fresh 实残 = make_pair 首 ref 实参 ORIG
+    // `lea 0x4(%eax),%ecx` 单条折叠 vs 4.4 `add $0x4,%eax; mov %eax,%edx`
+    // 两段+中转 hop（+1 行）；P30 穷举 add/lea 与寄存器名不可齐。其余
+    // 迭代器/插入流逐条同形（含 ++count 逗号序）。语义等价封顶。
+    int count = 0;
+    for (std::map<int, std::map<int, BaseItemValue> >::iterator outerIt =
+             ((CDataManagerBaseItemView*)this)->m_baseItemInfo.begin();
+         outerIt !=
+             ((CDataManagerBaseItemView*)this)->m_baseItemInfo.end();
+         ++outerIt)
+    {
+        count = 0;
+        // ORIG：++innerIt 先于 ++count 发射 ⇒ ++count 位于 for-third（逗号序）。
+        for (std::map<int, BaseItemValue>::iterator innerIt =
+                 outerIt->second.begin();
+             innerIt != outerIt->second.end(); ++innerIt, ++count)
+        {
+            if (!((CDataManagerBaseItemView*)this)
+                     ->m_lookupIndex.insert(
+                         std::make_pair(
+                             (unsigned long&)innerIt->second.m_field0,
+                             count)).second)
+            {
+                return 0;
+            }
+        }
+    }
+    return 1;
 }
 
 // ===================== initFairPVPSkillPoint =====================
@@ -109,6 +151,127 @@ public:
 //    find_skill 经全局 G_CDataManager()（与 ORIG 调用形态一致），
 //    参数序 (job, skillId) 为汇编实证（ebx=+0x00 字节, esi=map key）。
 #include "CDataManagerMethods/initFairPVPSkillPoint.inc"
+{
+    bool ok = true;
+
+    if (!m_pvpSkillTree.m_map0.empty())
+    {
+        for (std::map<PvPSkillTreeKey,
+                      std::map<int, PvPSkillTreeValue> >::iterator it =
+                 m_pvpSkillTree.m_map0.begin();
+             it != m_pvpSkillTree.m_map0.end(); ++it)
+        {
+            for (std::map<int, PvPSkillTreeValue>::iterator lv =
+                     it->second.begin();
+                 lv != it->second.end(); ++lv)
+            {
+                if (m_pvpSkillTree.m_field48 < lv->first)
+                {
+                    m_pvpSkillTree.m_field48 = lv->first;
+                }
+            }
+        }
+    }
+
+    if (!m_pvpSkillTree.m_map18.empty())
+    {
+        for (std::map<int, std::map<int, int> >::iterator it =
+                 m_pvpSkillTree.m_map18.begin();
+             it != m_pvpSkillTree.m_map18.end(); ++it)
+        {
+            if (m_pvpSkillTree.m_field4c < it->first)
+            {
+                m_pvpSkillTree.m_field4c = it->first;
+            }
+        }
+    }
+
+    if (!m_pvpSkillTree.m_map30.empty())
+    {
+        for (std::map<PvPSkillTreeKey,
+                      FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>::iterator perIt =
+                 m_pvpSkillTree.m_map30.begin();
+             perIt != m_pvpSkillTree.m_map30.end(); ++perIt)
+        {
+            std::map<int, int> totalSp;
+            int sum = 0;
+            for (std::map<int, int>::iterator add =
+                     perIt->second.m_addSkills.begin();
+                 add != perIt->second.m_addSkills.end(); ++add)
+            {
+                CSkill* skill =
+                    G_CDataManager()->find_skill(
+                        perIt->first.m_a, add->first);
+                if (skill != 0)
+                {
+                    int sp = skill->get_need_sp_for_level(0, add->second);
+                    sum += sp;
+                    totalSp.insert(std::make_pair(add->first, sp));
+                }
+            }
+
+            int running = 0;
+            for (std::map<int, int>::iterator rem =
+                     perIt->second.m_removeSkills.begin();
+                 rem != perIt->second.m_removeSkills.end(); ++rem)
+            {
+                CSkill* skill =
+                    G_CDataManager()->find_skill(
+                        perIt->first.m_a, rem->first);
+                if (skill != 0) {
+                int sp = skill->get_need_sp_for_level(0, rem->second);
+                sum -= sp;
+
+                std::map<int, int>::iterator found = totalSp.find(rem->first);
+                if (found != totalSp.end())
+                {
+                    found->second -= sp;
+                    if (found->second < 0)
+                    {
+                        cMyTrace(__PRETTY_FUNCTION__, 0x2379, 0)
+                            ("skill point (-) error");
+                        ok = false;
+                    }
+                }
+
+                perIt->second.m_giveSkills.push_back(
+                    std::pair<int, int>(rem->first, rem->second));
+
+                int current = 0;
+                for (std::map<int, int>::iterator it = totalSp.begin();
+                     it != totalSp.end(); ++it)
+                {
+                    current += it->second;
+                }
+                if (current + running != sum)
+                {
+                    running += sum - current;
+                    cMyTrace(__PRETTY_FUNCTION__, 0x2390, 0)
+                        ("skill point diff job(%d), skill(%d)",
+                         (int)perIt->first.m_a, rem->first);
+                    ok = false;
+                }
+                }
+            }
+
+            int grand = 0;
+            for (std::map<int, int>::iterator it = totalSp.begin();
+                 it != totalSp.end(); ++it)
+            {
+                grand += it->second;
+            }
+            if (grand != sum)
+            {
+                cMyTrace(__PRETTY_FUNCTION__, 0x239f, 0)
+                    ("skill point diff");
+                ok = false;
+            }
+
+            perIt->second.m_pointCost = sum;
+        }
+    }
+
+    return ok ? 1 : 0;
 }
 
 // ===================== load_map_files(vector<PVPMAP_DATA>&) =====================
@@ -123,6 +286,83 @@ public:
 // m_mapList；否则逐 dungeon 下标（find_dungeon 失败 trace 后返回 0）
 // 按 m_recoveryObjects 各坐标注册进 dungeon 与 m_mapList；m_dungeonStartArea.m_w>0 时额外 insertStart。
 #include "CDataManagerMethods/load_map_files.inc"
+{
+    const char* filename = 0;
+    STMapScript script;
+    CDungeon* dungeon = 0;
+    CMap* map = 0;
+    std::map<int, std::string>::iterator it;
+    std::list<int>::iterator stageIt;
+    it = g_stMapScriptFileList.begin();
+    std::pair<int, int> pos;
+    while (it != g_stMapScriptFileList.end())
+    {
+        filename = it->second.c_str();
+        if (filename == 0)
+        {
+            break;
+        }
+        if (it->first == 50000)
+        {
+            script.Clear();
+        }
+        else if (!ImportMapScript(&script, filename))
+        {
+            printf("Error in script('%s')\n", filename);
+            return 0;
+        }
+
+        // ORIG 同样不释放错误路径上的 CMap（忠实转写）。
+        map = new CMap();
+        map->set_map(script);
+
+        if (script.m_list4.size() == 0)
+        {
+            m_mapList->insert_map(15, 15, map, pvpMaps);
+            it++;
+            continue;
+        }
+
+        stageIt = script.m_list4.begin();
+        while (stageIt != script.m_list4.end())
+        {
+            int stageIdx = *stageIt;
+            dungeon = m_dungeonList->find_dungeon(stageIdx);
+            if (dungeon == 0)
+            {
+                cMyTrace trace(
+                    __PRETTY_FUNCTION__,
+                    0x254b, 5);
+                trace("[Load Map] Not exist dungeon. [Index:%d] filename : [%s]",
+                      stageIdx, filename);
+                return 0;
+            }
+
+            if (script.m_recoveryObjects.size() == 0)
+            {
+                dungeon->InsertMap(15, 15, map);
+                m_mapList->insert_map(15, 15, map, pvpMaps);
+                if (script.m_dungeonStartArea.m_w > 0)  /* +0x148 = m_dungeonStartArea.m_w（新 0x1c MapArea 吸收旧独立 int）*/
+                {
+                    dungeon->insertStart(15, map);
+                }
+            }
+
+            for (int i = 0; i < static_cast<int>(script.m_recoveryObjects.size()); ++i)
+            {
+                pos = script.m_recoveryObjects[i];
+                dungeon->InsertMap(pos.first, pos.second, map);
+                m_mapList->insert_map(pos.first, pos.second, map, pvpMaps);
+                if (script.m_dungeonStartArea.m_w > 0)  /* +0x148 = m_dungeonStartArea.m_w（新 0x1c MapArea 吸收旧独立 int）*/
+                {
+                    dungeon->insertStart(pos.first, map);
+                }
+            }
+            stageIt++;
+        }
+        it++;
+    }
+    return 1;
 }
 
 // ===================== hasSpecialCharacter =====================
@@ -134,6 +374,75 @@ public:
 // uchar 区间表(+0x0c)/单字表(+0x00)；双字节拼 big-endian u16 后走 ushort
 // 区间表(+0x24)/单字表(+0x18)。命中即 true；扫完返回 false。
 #include "CDataManagerMethods/hasSpecialCharacter.inc"
+{
+    for (size_t i = 0; i < strlen(name); ++i)
+    {
+        const unsigned char* p =
+            reinterpret_cast<const unsigned char*>(name + i);
+        if (_isOneByteCharacter(p[0]))
+        {
+            for (std::vector<InvalidCharData::stRangeElement<unsigned char> >::
+                     const_iterator range = m_invalidChar.m_charRange.begin(),
+                     rangeEnd = m_invalidChar.m_charRange.end();
+                 range != rangeEnd; ++range)
+            {
+                const InvalidCharData::stRangeElement<unsigned char>& r =
+                    *range;
+                if (r.m_min <= p[0] && r.m_max >= p[0])
+                {
+                    return true;
+                }
+            }
+            for (std::vector<unsigned char>::const_iterator ch =
+                     m_invalidChar.m_charList.begin(),
+                     chEnd = m_invalidChar.m_charList.end();
+                 ch != chEnd; ++ch)
+            {
+                if (*ch == p[0])
+                {
+                    return true;
+                }
+            }
+        }
+        else
+        {
+            union stShortValueView
+            {
+                unsigned short m_value;
+                unsigned char m_bytes[2];
+            } shortValue;
+            shortValue.m_value = 0;
+            shortValue.m_bytes[0] = p[1];
+            shortValue.m_bytes[1] = p[0];
+            const unsigned short value =
+                *reinterpret_cast<const unsigned short*>(&shortValue);
+            for (std::vector<InvalidCharData::stRangeElement<
+                     unsigned short> >::const_iterator range =
+                     m_invalidChar.m_shortRange.begin(),
+                     rangeEnd = m_invalidChar.m_shortRange.end();
+                 range != rangeEnd; ++range)
+            {
+                const InvalidCharData::stRangeElement<unsigned short>& r =
+                    *range;
+                if (r.m_min <= value && value <= r.m_max)
+                {
+                    return true;
+                }
+            }
+            for (std::vector<unsigned short>::const_iterator ch =
+                     m_invalidChar.m_shortList.begin(),
+                     chEnd = m_invalidChar.m_shortList.end();
+                 ch != chEnd; ++ch)
+            {
+                if (*ch == value)
+                {
+                    return true;
+                }
+            }
+            ++i;
+        }
+    }
+    return false;
 }
 
 // ===================== loadAdvanceAltarTimeLineParameter =====================
@@ -141,6 +450,18 @@ public:
 // Etc/AdvanceAltar/AdvanceAltarSummonData.etc)；非 0 打印 Fail(%d)，
 // 否则 debugLog；透传返回值。
 #include "CDataManagerMethods/loadAdvanceAltarTimeLineParameter.inc"
+    advancealtar::StageTimeLineParameter& param)
+{
+    param.reset();
+    int result = param.importStageTimeLineParameter(
+        "Etc/AdvanceAltar/AdvanceAltarSummonData.etc");
+    if (result != 0)
+    {
+        printf("importStageTimeLineParameter Fail(%d)\n", result);
+        return result;
+    }
+    param.debugLog();
+    return result;
 }
 
 // ===================== _isOneByteCharacter =====================
@@ -148,4 +469,6 @@ public:
 // sub $0x4,%esp 后直接 mov $0x1,%eax 返回 —— 恒真（ORIG 为单字节恒定实现，
 // 双字节分支由 hasSpecialCharacter 的步进 2 路径承担）。
 #include "CDataManagerMethods/_isOneByteCharacter.inc"
+{
+    return true;
 }

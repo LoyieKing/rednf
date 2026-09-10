@@ -1,2 +1,1 @@
 CUserPacketCounter::~CUserPacketCounter()
-{

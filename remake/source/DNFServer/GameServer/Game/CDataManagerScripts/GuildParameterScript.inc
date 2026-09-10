@@ -1,3 +1,1 @@
 GuildParameterScript::GuildParameterScript()
-{
-    clear();

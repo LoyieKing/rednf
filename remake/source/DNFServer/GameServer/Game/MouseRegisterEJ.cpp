@@ -1,40 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 MouseRegisterEJ/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 MouseRegisterEJ/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// MouseRegisterEJ.cpp — 台湾 MouseRegister 域 + expert_job 统计（LinkClosureB）
-//
-// 报告来源（逐份转写，汇编+反编译 C）：
-//   docs/class_func_reports/DB_MouseRegister/{convertPassPadInfo,
-//       _getDBHandleForDevideAccountDB,_updateFailCnt,_updateHistory}.md
-//     DB_MouseRegister::convertPassPadInfo        T 0x08422e6a（static）
-//       c++filt 权威形参：(unsigned int, char*, int&, char&, int&, bool&,
-//       char*, bool&, char*, long&, bool&)；mangled
-//       _ZN16DB_MouseRegister18convertPassPadInfoEjPcRiRcS1_RbS0_S3_S0_RlS3_
-//       （返回值以 int 错误码承载：失败计数字路径 eax=0x48/0x49 被上层 dispatch
-//       直接消费 ==0x48→errcode5、==0xa6→9；mangled 不含返回类型）
-//     DB_MouseRegister::_getDBHandleForDevideAccountDB T 0x08422938
-//     DB_MouseRegister::_updateFailCnt            T 0x084231b6
-//     DB_MouseRegister::_updateHistory            T 0x08423914
-//     encryptAES_(CRijndael*, char*, char*)       T 0x0846c398
-//   docs/class_func_reports/expert_job__CEnchanter/_TryEnchant.md
-//     expert_job::CEnchanter::_TryEnchant         T 0x0849dcc4
-//   docs/class_func_reports/{CExpertJobStatistic,_lt_global_gt_}/
-//     CExpertJobStatistic C1 W 0x0861074a / D1 W 0x086108ae
-//     ExpertJobKey C1 W 0x08610720 / operator< W 0x086106da
-//     increaseItemCount                            T 0x0860f9d4
-//     GetInstanceExpertJobStatistic                T 0x0860f940（__cxa_guard 单例，
-//                                                  guard@0x09473320 instance@0x09473350）
-//
-// 说明：IMethod::GetBlockSize/IMethod::Pad 定义已在 DBMW/Method.cpp（mangled 一致）；
-// getItemIndex 已在 HeroMissionLink4.cpp；本 TU 均只复用不重复定义。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "MySQL.h"
@@ -82,9 +56,32 @@ struct SIG_CSR_WRITEVIEW
 };
 
 #include "MouseRegisterEJ/makeRequest.inc"
+{
+    // ORIG T 0x0843741e：Acquire(__PRETTY_FUNCTION__,0x8389) → <<0x195 <<param2
+    // → GetInBuffer<SIG_RESTING_USER_RESTRICT> 写 uid@+0 → put DB_Q。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0x8389), true);
+    **guard << 0x195;
+    **guard << param2;
+    SIG_RESTING_USER_RESTRICT* sig =
+        guard->GetInBuffer<SIG_RESTING_USER_RESTRICT>();
+    sig->m_uid = uid;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 #include "MouseRegisterEJ/makeRequest_1.inc"
+{
+    // ORIG T 0x08444408：Acquire(__PRETTY_FUNCTION__,0xab34) → <<0x2ab <<param1
+    // → GetInBuffer 写 uid@+0 param3@+4 → put DB_Q。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0xab34), true);
+    **guard << 0x2ab;
+    **guard << param1;
+    SIG_CHECK_USER_SECU_REWARD* sig =
+        guard->GetInBuffer<SIG_CHECK_USER_SECU_REWARD>();
+    reinterpret_cast<SIG_CSR_WRITEVIEW*>(sig)->m_uid = uid;
+    reinterpret_cast<SIG_CSR_WRITEVIEW*>(sig)->m_param3 = param3;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +196,11 @@ private:
 };
 
 #include "MouseRegisterEJ/_getDBHandleForDevideAccountDB.inc"
+{
+    // ORIG：GetDBHandle(s_db_mgr, 6, 0)，结果经 -0xc 局部中转（O0 命名局部形态）。
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
+        DB_HANDLE_6, static_cast<ENUM_SERVER_GROUP>(0));
+    return db;
 }
 
 // [b28d-47 / b28c-R26 复验] verdict=DIFF(routed) [N93附 + P168a③] ORIG 0x084231b6
@@ -213,12 +215,173 @@ private:
 //   已试形（本轮复验）：① if/else 具名 else{return false;}（四数不变，仍 DIFF）；
 //   ② 早返回正向形 / `if(exec) return false;`（判词记录 79 insn 反劣，mov$0/mov$1 双岛）。
 #include "MouseRegisterEJ/_updateFailCnt.inc"
+{
+    (void)ip;   // ORIG 形参未被函数体消费（Ghidra 同）。
+    MySQL* db = _getDBHandleForDevideAccountDB();
+    db->set_query("upDate member_mousepass set fail_cnt=%d where m_id=%s",
+                  failCnt, NumberToString(mid, 0));
+    db->exec(true);
+    MySQL* grade = GlobalData::s_db_mgr->GetDBHandle(
+        DB_HANDLE_1, static_cast<ENUM_SERVER_GROUP>(0));
+    grade->set_query(
+        "upDate member_security_grade set goblin_fail_cnt=%d where m_id=%s",
+        failCnt, NumberToString(mid, 0));
+    // 实测三形后取双 return（bool 返回）：判定段 xor/test/jne+or/test/jne+
+    // mov$1/mov$0 与 ORIG 全等；汇聚 bool 局部形 4.4 必落 -0x9 槽（4 条差）
+    // 反劣。残差仅尾部 jmp+mov$0（4.4 双 return 分离块 vs ORIG 汇聚共同
+    // leave，跨版本块排布 N 族）。[b28 BM8 复验] P222 两形互试：
+    // `if(exec) return false; return true;` 反劣 79 insn（mov$0/mov$1 双岛），
+    // 维持 `return !exec()`（75，ndiff 3 封顶，N93附 族）。
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
+    {
+        grade->set_query(
+            "inSert into member_security_grade(m_id, goblin_fail_cnt) values(%s, %d)",
+            NumberToString(mid, 0), failCnt);
+        return !grade->exec(true);
+    }
+    return false;
 }
 
 #include "MouseRegisterEJ/_updateHistory.inc"
+{
+    MySQL* db = _getDBHandleForDevideAccountDB();
+    db->set_query("seLect mousepass from member_mousepass where m_id=%s",
+                  NumberToString(mid, 0));
+    if (!(db->exec(true) && db->get_n_rows() != 0 && db->fetch()))
+    {
+        return false;
+    }
+
+    char prevMousepass[36];
+    if (!db->get_str(0, prevMousepass, 0x24))
+    {
+        return false;
+    }
+
+    char ym[10] = { '\0' };
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm lt;
+    localtime_r(&now, &lt);
+    strftime(ym, 10, "%Y%m", &lt);
+    db->set_query(
+        "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass,"
+        " modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
+        ym, NumberToString(mid, 0), prevMousepass, modifyType, ip);
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+    {
+        return false;
+    }
+    return true;
 }
 
 #include "MouseRegisterEJ/convertPassPadInfo.inc"
+                                         int& failCnt, char& cancelCnt,
+                                         int& cancelCnt2,
+                                         bool& validityExpired, char* ip,
+                                         bool& flag2, char* buf3,
+                                         long& validityTime, bool& flag3)
+{
+    validityExpired = false;
+
+    MySQL* db = _getDBHandleForDevideAccountDB();
+    db->set_query(
+        "seLect mousepass, fail_cnt, cancel_cnt, version_info,"
+        " validity_time>unix_timestamp(now()),"
+        " adddate(now(),interval -1 month) >= occ_time from member_mousepass"
+        " where m_id=%s and enable_flag = '1'",
+        NumberToString(mid, 0));
+    if (!db->exec(true))
+    {
+        return 1;
+    }
+    if (db->get_n_rows() == 0)
+    {
+        cancelCnt = '\0';
+        return 0;
+    }
+    if (!db->fetch())
+    {
+        return 1;
+    }
+    if (!db->get_str(0, ip, 0x24))
+    {
+        return 1;
+    }
+    if (!db->get_int(1, failCnt))
+    {
+        return 1;
+    }
+    if (!db->get_int(2, cancelCnt2))
+    {
+        return 1;
+    }
+    char versionInfo;
+    if (!db->get_byte(3, versionInfo))
+    {
+        return 1;
+    }
+    validityTime = 0;
+    if (!db->get_uint(4, reinterpret_cast<unsigned int&>(validityTime)))
+    {
+        return 1;
+    }
+    char expiredFlag = '\0';
+    if (!db->get_byte(5, expiredFlag))
+    {
+        return 1;
+    }
+    flag3 = (expiredFlag != 0);
+
+    flag2 = false;
+    if (validityTime != 0)
+    {
+        flag2 = true;
+    }
+
+    if (versionInfo == '\x02')
+    {
+        validityExpired = true;
+        cancelCnt = '\x02';
+        return 0;
+    }
+
+    cancelCnt = '\x01';
+    {
+        char plainPadded[36];
+        char cipherHex[36];
+        strncpy(plainPadded, mousepass, 0x24);
+        encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_,
+                    plainPadded, cipherHex);
+        if (strncmp(ip, cipherHex, 0x24) != 0)
+        {
+            failCnt = failCnt + 1;
+            _updateFailCnt(mid, failCnt, buf3);  // ORIG param_9=buf3（报告 +0x265）
+            if (failCnt > 9)
+            {
+                return 0x49;
+            }
+            return 0x48;
+        }
+    }
+
+    failCnt = 0;
+    cancelCnt2 = 0;
+    if (!_updateHistory(mid, 7, buf3))  // ORIG param_9=buf3（报告 +0x2ab）
+    {
+        return 1;
+    }
+    db->set_query(
+        "upDate member_mousepass set enable_flag = '0' where m_id=%s",
+        NumberToString(mid, 0));
+    // ORIG 尾：`exec;xor$1;test;jne(ret1); getAffected;or %edx,%eax;test;
+    // mov$1/mov$0; test %al; je` ⇒ 内联判定，无 bool 局部（`register bool`
+    // 会强占 ebx 使帧变大 +0x64/push ebx）。
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+    {
+        return 1;
+    }
+    validityExpired = false;
+    return 0;
 }
 
 // ============================================================================
@@ -230,21 +393,303 @@ private:
 // ============================================================================
 
 #include "MouseRegisterEJ/checkPassword.inc"
+                                    bool param3, int& failCnt, int& cancelCnt,
+                                    bool& validityExpired, char* ip, char* buf3)
+{
+    // ORIG 栈槽：0x8=mid 0xc=mousepass 0x10=param3 0x14=failCnt& 0x18=cancelCnt&
+    // 0x1c=validityExpired& 0x20=ip 0x24=buf3（static 无 this 槽）。
+    char local35[36];       // 明文缓冲（-0x31，strncpy dst / encryptAES src）
+    char local59[36];       // encryptAES_ 密文缓冲（-0x55）
+    char local11;           // version_info（-0xd）
+    MySQL* db;              // -0xc
+
+    db = _getDBHandleForDevideAccountDB();
+    validityExpired = false;
+    cancelCnt = 0;
+    memset(ip, 0, 0x24);
+    db->set_query(
+        "seLect mousepass,fail_cnt,cancel_cnt, version_info from member_mousepass"
+        " where m_id=%s and enable_flag = '1'",
+        NumberToString(mid, 0));
+    if (!db->exec(true))
+    {
+        return 1;
+    }
+    if (db->get_n_rows() == 0)
+    {
+        return 0;
+    }
+    if (!db->fetch())
+    {
+        return 1;
+    }
+    if (!db->get_str(0, ip, 0x24))
+    {
+        return 1;
+    }
+    if (!db->get_int(1, failCnt))
+    {
+        return 1;
+    }
+    if (!db->get_int(2, cancelCnt))
+    {
+        return 1;
+    }
+    if (param3 && failCnt > 2)
+    {
+        return 0x49;
+    }
+    if (!db->get_byte(3, local11))
+    {
+        return 1;
+    }
+    if (local11 == '\x01')
+    {
+        return 0xa6;
+    }
+    strncpy(local35, mousepass, 0x24);
+    encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_, local35, local59);
+    validityExpired = true;
+    return 0;
 }
 
 #include "MouseRegisterEJ/_registNewPassword.inc"
+                                         char* ip, int param4)
+{
+    // ORIG 栈槽：0x8=this 0xc=mid 0x10=pwd 0x14=ip 0x18=param4。
+    MySQL* db;      // -0x10
+    MySQL* grade;   // -0xc
+
+    db = _getDBHandleForDevideAccountDB();
+    db->set_query("seLect enable_flag from member_mousepass where m_id=%s",
+                  NumberToString(mid, 0));
+    if (!db->exec(true))
+    {
+        return 1;
+    }
+    if (db->get_n_rows() == 0)
+    {
+        db->set_query(
+            "inSert into member_mousepass(m_id,mousepass,occ_time,version_info,"
+            " validity_time, reward_time,enable_flag) values(%s,'%s',now(),'2',"
+            " unix_timestamp(now()), 0,'1')",
+            NumberToString(mid, 0), pwd);
+    }
+    else
+    {
+        db->set_query(
+            "upDate member_mousepass set mousepass = '%s', occ_time = now() ,"
+            "version_info = '2', validity_time=unix_timestamp(now()),"
+            " enable_flag = '1', reward_time = 0 where m_id = %s",
+            pwd, NumberToString(mid, 0));
+    }
+    if (!db->exec(true))
+    {
+        if (db->getDBError() == 0x426)
+        {
+            return 0x12;
+        }
+        return 1;
+    }
+    DB_CancelRestingUserRestrict::makeRequest(mid, param4);
+    if (!_updateHistory(mid, 8, ip))
+    {
+        return 1;
+    }
+    grade = GlobalData::s_db_mgr->GetDBHandle(
+        DB_HANDLE_1, static_cast<ENUM_SERVER_GROUP>(0));
+    grade->set_query(
+        "upDate member_security_grade set goblin_pass_mod=now() where m_id=%s",
+        NumberToString(mid, 0));
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
+    {
+        grade->set_query(
+            "inSert into member_security_grade(m_id, goblin_pass_mod)"
+            " values(%s, now())",
+            NumberToString(mid, 0));
+        if (!grade->exec(true))
+        {
+            return 1;
+        }
+    }
+    DB_CheckSecuReward::makeRequest(param4, mid, 1);
+    return 0;
 }
 
 #include "MouseRegisterEJ/_modifyPassword.inc"
+                                      char* ip, int param4, bool param5)
+{
+    // ORIG 栈槽：0x8=this 0xc=mid 0x10=pwd 0x14=ip 0x18=param4 0x1c=param5。
+    MySQL* db;      // -0x14
+    MySQL* grade;   // -0x10
+    SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD* p;   // -0xc
+
+    db = _getDBHandleForDevideAccountDB();
+    if (!_updateHistory(mid, 9, ip))
+    {
+        return 0x15;
+    }
+    db->set_query(
+        "upDate member_mousepass set mousepass='%s',occ_time=now() where m_id=%s"
+        " and enable_flag = '1'",
+        pwd, NumberToString(mid, 0));
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+    {
+        return 0x15;
+    }
+    grade = GlobalData::s_db_mgr->GetDBHandle(
+        DB_HANDLE_1, static_cast<ENUM_SERVER_GROUP>(0));
+    grade->set_query(
+        "upDate member_security_grade set goblin_pass_mod=now() where m_id=%s",
+        NumberToString(mid, 0));
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
+    {
+        grade->set_query(
+            "inSert into member_security_grade(m_id, goblin_pass_mod)"
+            " values(%s, now())",
+            NumberToString(mid, 0));
+        if (!grade->exec(true))
+        {
+            return 0;
+        }
+    }
+    if (param5)
+    {
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5dcd), true);
+        (**guard) << 0x245;
+        (**guard) << param4;
+        // ORIG 0x0842373b 实有中间槽（`mov %eax,-0xc; movzbl -0x2c,%edx;
+        // mov -0xc,%eax; mov %edx,(%eax)`）＝ 具名 p 变量形态。
+        p = guard->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
+        // [b28d-47] 具名成员访问：4.4 对 `p->m = b` 产 ORIG 的 RHS 值先装载序
+        // （探针 f3；reinterpret_cast 视图形恒 LHS 指针先）。
+        p->m_adviceChangePwd = param5;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+    return 0;
 }
 
 #include "MouseRegisterEJ/_unregistPassword.inc"
+{
+    // ORIG 栈槽：0x8=this 0xc=mid 0x10=ip。
+    MySQL* db;      // -0x10
+    MySQL* grade;   // -0xc
+
+    db = _getDBHandleForDevideAccountDB();
+    if (!_updateHistory(mid, 10, ip))
+    {
+        return 0x15;
+    }
+    db->set_query("deLete from member_mousepass where m_id=%s",
+                  NumberToString(mid, 0));
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+    {
+        return 0x15;
+    }
+    grade = GlobalData::s_db_mgr->GetDBHandle(
+        DB_HANDLE_1, static_cast<ENUM_SERVER_GROUP>(0));
+    grade->set_query(
+        "upDate member_security_grade set goblin_pass_mod='0000-00-00 00:00:00'"
+        " where m_id=%s",
+        NumberToString(mid, 0));
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
+    {
+        grade->set_query(
+            "inSert into member_security_grade(m_id, goblin_pass_mod)"
+            " values(%s, '0000-00-00 00:00:00')",
+            NumberToString(mid, 0));
+        if (!grade->exec(true))
+        {
+            return 0;
+        }
+    }
+    return 0;
 }
 
 #include "MouseRegisterEJ/_sendResult.inc"
+                                   int param4, SIG_MOUSE_REGISTER* param5)
+{
+    // ORIG 栈槽：0x8=this 0xc=mid 0x10=param2 0x14=param3 0x18=param4
+    // 0x1c=param5（cdecl：this 入栈）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5e4e), true);
+    SIG_MOUSE_REGISTER* out;   // GetInBuffer 结果（-0xc）
+
+    (**guard) << 0xa3;
+    (**guard) << param4;
+    out = guard->GetInBuffer<SIG_MOUSE_REGISTER>();
+    memcpy(out, param5, 0x59);
+    reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_accId = mid;
+    reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_pkgType = param3;
+    reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field16 = param2;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }
 
 #include "MouseRegisterEJ/dispatch.inc"
+{
+    // ORIG 栈槽：0x8=this 0xc=param1(未用) 0x10=param2 0x14=stream。
+    char buf58[36];        // 明文缓冲（-0x54）
+    char buf7c[36];        // encryptAES_ 密文缓冲（-0x78）
+    MySQL* db;             // -0x18（仅赋值未消费，ORIG 同）
+    SIG_MOUSE_REGISTER* out;   // -0x14
+    int ret;               // -0x10
+    SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD* p;   // -0xc
+
+    (void)param1;
+    db = _getDBHandleForDevideAccountDB();
+    out = stream->GetOutBuffer<SIG_MOUSE_REGISTER>();
+    ret = 0;
+    char buf2c[16] = { '\0' };   // webAddress 快照（-0x28；声明置 GetOutBuffer 后，
+                                 // 清零指令序与 ORIG 一致）
+    strncpy(buf2c, out->m_webAddress, 0x10);
+    strncpy(buf58, out->m_password2, 7);
+    encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_, buf58, buf7c);
+    if (strncmp(out->m_padPassword, buf7c, 0x24) == 0)
+    {
+        CStreamGuard guard2(
+            GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5b59), true);
+        (**guard2) << 0x246;
+        (**guard2) << param2;
+        // ORIG 0x08422a94 实有中间槽（`mov %eax,-0xc; mov -0xc,%eax; movl
+        // $0,(%eax)`）＝ 具名 p 变量形态（fn_diff_tu 实证）。
+        p = guard2->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
+        p->m_adviceChangePwd = 0;   // [b28d-47] 具名字段（同上）
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard2);
+        return 0;
+    }
+    switch (out->m_pkgType)
+    {
+    case 1:
+        ret = _registNewPassword(out->m_accId, buf7c, buf2c, param2);
+        if (ret == 0)
+        {
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1a = 1;
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1f = 0;
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1b = 0;
+            memcpy(out->m_padPassword, buf7c, 0x24);
+        }
+        break;
+    case 2:
+        ret = _modifyPassword(out->m_accId, buf7c, buf2c, param2,
+                              out->m_advideChangePwd);
+        if (ret == 0)
+        {
+            memcpy(out->m_padPassword, buf7c, 0x24);
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1f = 0;
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1b = 0;
+        }
+        break;
+    case 3:
+        ret = _unregistPassword(out->m_accId, buf2c);
+        if (ret == 0)
+        {
+            memset(out->m_padPassword, 0, 0x24);
+        }
+        break;
+    }
+    _sendResult(out->m_accId, ret, out->m_pkgType, param2, out);
+    return 1;
 }
 
 // ============================ expert_job 域 ==================================
@@ -267,6 +712,36 @@ namespace expert_job {
 //   残差 = N7（4.4.7 间接 call 目标恒 %eax；ORIG 0x0849dd0e `mov (%eax),%edx` +
 //   `call *%edx`，我方 `mov (%eax),%eax` + `call *%eax`），属寄存器角色跨版本差。
 #include "MouseRegisterEJ/_TryEnchant.inc"
+                            ENUM_TRY_ENCHANT_TYPE type)
+{
+    int ret = 0;
+
+    typedef void (*CloseFn)(void*, CUser*, int);
+    // P251/P286/P324：ORIG 0x0849dcd1 先 `mov 0x14(%ebp),%eax` 再寄存器比较链
+    // （cmp $1/je、cmp $2/je、test/jne），且三叶块物理序 = case 书写序 0→1→2
+    // （ORIG 0x0849dcea case0 直落、+0x65 case1、+0xa6 case2）⇒ 原码是 switch(type)。
+    switch (type)
+    {
+    case ENUM_TRY_ENCHANT_TYPE_0:
+        ret = _TryEnchantMine(user, pos);
+        (*(CloseFn*)(*(void* const*)this + 0x04))(this, user, 0);
+        break;
+    case ENUM_TRY_ENCHANT_TYPE_1:
+        ret = _TryEnchantOther(user, pos);
+        // P225：ORIG 0x0849dd45 `cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`
+        // 为 4.1 槽比零的 bool 物化；4.4 对 if 恒出 cmp/jne 直跳 ⇒ 用 while+break 复现。
+        while (ret != 0)
+        {
+            m_materials[1].Reset();                       // this+0x18 材料②复位
+            m_field40 = 0;                                // 登记配方物品清空
+            break;
+        }
+        break;
+    case ENUM_TRY_ENCHANT_TYPE_2:
+        (*(CloseFn*)(*(void* const*)this + 0x04))(this, user, 2);
+        break;
+    }
+    return ret;
 }
 
 }  // namespace expert_job
@@ -275,11 +750,26 @@ namespace expert_job {
 
 // ORIG C1 W 0x0861074a：map 默认构造后紧接 clear()（双调用形态保留）。
 #include "MouseRegisterEJ/CExpertJobStatistic.inc"
+{
+    m_counts.clear();
 }
 
 // ORIG D1 W 0x086108ae：map 逆序析构（编译器生成等价）。
 #include "MouseRegisterEJ/dtor_CExpertJobStatistic.inc"
+
+// ORIG ctor W 0x08610720：直接落两字段。
 #include "MouseRegisterEJ/ExpertJobKey.inc"
+                                                unsigned long itemIdx)
+{
+    // P95：ORIG 0x8610720 首句先载 this 后载 type（enum 参数）；4.4 直初始化值先。
+    // 具名视图复现（m_field00 = +0x00）。
+    struct EJKeyView
+    {
+        int m_field00;
+        unsigned long m_itemIdx04;
+    };
+    ((EJKeyView*)this)->m_field00 = type;
+    ((EJKeyView*)this)->m_itemIdx04 = itemIdx;
 }
 
 // ORIG operator< W 0x086106da：int 有符号前置序 + unsigned long 无符号次序。
@@ -298,6 +788,18 @@ bool CExpertJobStatistic::ExpertJobKey::operator<(const ExpertJobKey& other) con
 // ORIG T 0x0860f9d4（increaseItemCount.md）：find 未命中则以 count 为初值插入，
 // 否则 value += count。
 #include "MouseRegisterEJ/increaseItemCount.inc"
+                                            unsigned long itemIdx, int count)
+{
+    std::map<ExpertJobKey, int>::iterator it =
+        m_counts.find(ExpertJobKey(type, itemIdx));
+    if (it != m_counts.end())
+    {
+        it->second = it->second + count;
+    }
+    else
+    {
+        m_counts.insert(std::make_pair(ExpertJobKey(type, itemIdx), count));
+    }
 }
 
 // ORIG T 0x0860f940：__cxa_guard 单例（instance/guard BSS 0x09473350/0x09473320）。
@@ -313,4 +815,27 @@ CExpertJobStatistic* GetInstanceExpertJobStatistic()
 // [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x0860faca orig/ours=137/137
 //   残差：槽/寄存器分配跨版本差（指令数全等，语义对齐）。
 #include "MouseRegisterEJ/UpdateExpertJob.inc"
+{
+    if (m_counts.empty())
+    {
+        return;
+    }
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x65a), true);
+    guard.operator*()->operator<<(0x182);
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(static_cast<int>(m_counts.size()));
+    // 判据⑩/P326：ORIG 0x0860fba7 在循环外构造 end 迭代器（-0x20），循环条件只调 ne；
+    // 内联 `it != m_counts.end()` 会被 4.4 搬进条件块每轮重算并占浅槽 -0x10
+    // （ORIG 该槽是 begin() 的返回临时）⇒ 具名 end（声明在 it 之后，保持 begin→end 构造序）。
+    std::map<ExpertJobKey, int>::const_iterator it = m_counts.begin();
+    std::map<ExpertJobKey, int>::const_iterator itEnd = m_counts.end();
+    for (; it != itEnd; ++it)
+    {
+        guard.operator*()->operator<<(it->first.m_field00);
+        guard.operator*()->operator<<(static_cast<int>(it->first.m_itemIdx04));
+        guard.operator*()->operator<<(it->second);
+    }
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    m_counts.clear();
 }

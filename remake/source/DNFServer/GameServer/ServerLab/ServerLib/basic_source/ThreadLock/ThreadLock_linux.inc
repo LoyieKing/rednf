@@ -1,6 +1,1 @@
 ThreadLock_linux::ThreadLock_linux()
-{
-    pthread_mutex_t h = {0};
-    h.__data.__kind = 2;
-    handle_ = h;
-    pthread_mutex_init(&handle_, NULL);

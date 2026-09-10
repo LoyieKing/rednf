@@ -1,27 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DBSecuLink/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DBSecuLink/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// DBSecuLink.cpp —— DBSecuLink 批（DB_Secu / 公会 DB makeRequest + Secu_DataControl）
-// 独占 TU，覆盖 ORIG 符号（nm /home/wangyilei/下载/df_game_r 实证，全部 T）：
-//   T 0x0843cc06 _ZN17DB_CheckJoinGuild11makeRequestEiP20SIG_CHECK_JOIN_GUILD
-//   T 0x0843df0e _ZN16DB_DenyJoinGuild11makeRequestEijj
-//   T 0x0843dd7c _ZN16DB_GuildJoinList11makeRequestEij17ENUM_SERVER_GROUP
-//   T 0x0842b57a _ZN20DB_SecurityCardIssue11makeRequestEijPKcS1_S1_S1_S1_
-//   T 0x0842bb5c _ZN23DB_SecurityCardActivate11makeRequestEijPKcb
-//   T 0x08286a30 _ZN16Secu_DataControl14SetControlDataEP5CUserhtt
-// 引用方：Dispatchers.cpp extern "C" asm 声明 / DspD3_Integ_check.cpp 直调。
-// 包构建约定同 W7LinkDB.cpp（自 docs/class_func_reports/<类>/makeRequest.md
-// 逐指令转写）：StreamPool::Acquire("DBThread.cpp", 行号) → CStreamGuard(stream,
-// true) → guard << opcode [/ << 参数] [→ GetInBuffer<SIG_*> 填 payload] →
-// MsgQueueMgr::put(DB_Q, guard)。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "GlobalData.h"
@@ -155,6 +142,98 @@ public:
 //   ③ clamp 改单表达式 std::min(std::max((int)v1, 0), N)，getPoint 两次调用
 //      内联、去 static_cast<int>：ORIG 0x08286cc3 为单段 shr/sub 无 regmove（P0/P41）。
 #include "DBSecuLink/SetControlData.inc"
+                                      unsigned short v1, unsigned short v2)
+{
+    if (user == 0)
+        return;
+
+    switch (type)
+    {
+    case 0:  // Hacktype 注入
+    {
+        // ORIG 0x08286a9e/0x08286aaf/0x08286ab9 为 jle/jg（有符号）⇒ 局部 int，
+        // 非 unsigned（P196/P2：jcc 逐位判据）。
+        int hackType = static_cast<int>(v1);
+        int cnt = static_cast<int>(v2);
+
+        if (hackType > 100 && hackType <= 0xfa0 && cnt < 10)
+        {
+            // ORIG 0x08286ad5..0x08286afa：NumberToString 结果存 %ebx 跨 cMyTrace
+            // ctor 保活（P227 全表达式临时链；具名 mid 局部会槽化并丢 push %ebx）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x1e, 0)(
+                "[SecuCommand] (mid:%s) Hacktype : %d     Cnt : %d ",
+                NumberToString(user->get_acc_id(), 0), hackType, cnt);
+
+            // ORIG 0x08286b6d 尾测 setl（有符号）⇒ 循环变量 int。
+            for (int i = 0; i < cnt; ++i)
+            {
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1, 0, 0);
+            }
+        }
+
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(0x262), 1, 0, 0);
+        break;
+    }
+
+    case 1:  // CleanPad Set Point（仅 GM）
+    {
+        if (!user->isGMUser())
+            break;
+
+        // ORIG 0x08286bcc..0x08286c04：单表达式 clamp —— 临时槽 -0x64(10000)/
+        // -0x60(0)/-0x5c((int)v1) 按 4.1 右→左求值创建，结果落独立槽 -0x10；
+        // 两条赋值语句形会让 4.4 写回同一槽并丢临时槽（P211/P0）。
+        int v = std::min(std::max(static_cast<int>(v1), 0), 10000);
+
+        cMyTrace(__PRETTY_FUNCTION__, 0x32, 0)(
+            "[SecuCommand] (mid:%s) CleanPad Set Point : %d",
+            NumberToString(user->get_acc_id(), 0), v);
+
+        user->m_mcap.setPoint(static_cast<unsigned short>(v));
+
+        // ORIG 0x08286c8b/0x08286cab 两次 getPoint（无具名槽、寄存器直比 seta）⇒
+        // 表达式内联；`static_cast<int>` 会引入 4 条多余 regmove（ORIG 0x08286cc3
+        // `shr $0x5,%edx; mov $0x64,%eax; sub %edx,%eax`）。
+        if (user->m_mcap.getPoint() > 1000)
+            user->setStdDropRate(100 - user->m_mcap.getPoint() / 100);
+        break;
+    }
+
+    case 2:  // CleanPad Open（仅 GM）
+    {
+        if (!user->isGMUser())
+            break;
+
+        cMyTrace(__PRETTY_FUNCTION__, 0x40, 0)(
+            "[SecuCommand] (mid:%s) CleanPad Open!",
+            NumberToString(user->get_acc_id(), 0));
+
+        user->reqHumanCertify4ClearMap(false);
+        break;
+    }
+
+    case 3:  // DropRate（仅 GM）
+    {
+        if (!user->isGMUser())
+            break;
+
+        // ORIG 0x08286d7c..0x08286db4：同 case 1 的单表达式 clamp（上界 100，
+        // 结果落独立槽 -0xc）。
+        int v = std::min(std::max(static_cast<int>(v1), 0), 100);
+
+        cMyTrace(__PRETTY_FUNCTION__, 0x4a, 0)(
+            "[SecuCommand] (mid:%s) DropRate : %d",
+            NumberToString(user->get_acc_id(), 0), v);
+
+        user->setStdDropRate(v);
+        break;
+    }
+
+    default:
+        break;
+    }
 }
 // ----------------------------------------------------------------------------
 // DB_CheckJoinGuild::makeRequest(int uid, SIG_CHECK_JOIN_GUILD* sig)
@@ -164,6 +243,18 @@ public:
 // 无 memset）→ put(DB_Q)。无 -1 槽。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/makeRequest.inc"
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x911a), true);
+
+    **guard << 0x216;                   // op<<(int)
+    **guard << uid;                     // op<<(int)
+
+    {
+        SIG_CHECK_JOIN_GUILD* p = guard->GetInBuffer<SIG_CHECK_JOIN_GUILD>();
+        memcpy(p, sig, 0x1c);           // sizeof(SIG_CHECK_JOIN_GUILD) == 0x1c
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -173,6 +264,17 @@ public:
 // << applicant(uint) → put(DB_Q)。无 GetInBuffer。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/makeRequest_1.inc"
+                                   unsigned int applicant)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x92b4),
+                       true);
+
+    guard.operator*()->operator<<(0x21c);              // op*(guard)→op<<(int)
+    guard.operator*()->operator<<(static_cast<int>(uid));
+    guard.operator*()->operator<<(guildKey);           // op<<(unsigned int)
+    guard.operator*()->operator<<(applicant);          // op<<(unsigned int)
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -182,6 +284,16 @@ public:
 // << group（op<<(int)，参数槽按 int）→ put(DB_Q)。无 GetInBuffer。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/makeRequest_2.inc"
+                                   ENUM_SERVER_GROUP group)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9299), true);
+
+    **guard << 0x21a;                   // op<<(int)
+    **guard << uid;                     // op<<(int)
+    **guard << guildKey;                // op<<(unsigned int)
+    **guard << static_cast<int>(group); // op<<(int)
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -196,6 +308,30 @@ public:
 // 注意 ORIG 汇编 strncpy 次序与反编译一致（cardData@+0x37 先于 sha1Hex@+0x63）。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/makeRequest_3.inc"
+                                       char const* certKey, char const* serverKey,
+                                       char const* phone, char const* sha1Hex,
+                                       char const* cardData)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e0a), true);
+
+    **guard << 0xfd;                    // op<<(int)
+    **guard << uid;                     // op<<(int)
+
+    {
+        SIG_SECURITY_CARD_ISSUE* p =
+            guard->GetInBuffer<SIG_SECURITY_CARD_ISSUE>();
+        p->m_mId = accId;                          // +0x00（4B mov）
+        // &x[0] 显式取首元素：union 包裹成员的数组衰减在 gcc4.4 生成
+        // `addl $off,%eax`（原地破坏寄存器存活），ORIG（gcc4.1，plain 视图）
+        // 为 `lea off(%eax),%edx`；&x[0] 形态恢复同形（/tmp/leatest2 实证）。
+        strncpy(&p->m_certKey[0], certKey, 6);         // +0x31
+        strncpy(&p->m_serverKey[0], serverKey, 0x21);  // +0x04
+        strncpy(&p->m_serial[0], phone, 0xc);          // +0x25
+        strncpy(&p->m_card[0], cardData, 0x27);        // +0x37
+        strncpy(&p->m_phone[0], sha1Hex, 0x29);        // +0x63
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -207,6 +343,21 @@ public:
 // → put(DB_Q)。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/makeRequest_4.inc"
+                                          char const* certKey, bool activated)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e99), true);
+
+    **guard << 0xff;                    // op<<(int)
+    **guard << uid;                     // op<<(int)
+    {
+        SIG_SECURITY_CARD_ACTIVATE* p =
+            guard->GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>();
+        p->m_mId = accId;                        // +0x00（4B mov）
+        strncpy(&p->m_certKey[0], certKey, 6);   // +0x04（&x[0] 同上，保 ORIG lea 形）
+        p->m_historyFlag = activated;            // +0x0b 1B（ORIG 直接存 bool，movzbl/mov %dl）
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ============================================================================
@@ -221,6 +372,13 @@ public:
 // → exec(true)。void。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/saveSecurityCardHistory.inc"
+                             ENUM_SECURITYCARD_MOD_TYPE mod)
+{
+    db->set_query(
+        "inSert into member_security_card_history(occ_time,m_id,modify_type) "
+        "values(now(),%s,%d)",
+        NumberToString(m_id, 0), static_cast<int>(mod));
+    db->exec(true);
 }
 
 // ----------------------------------------------------------------------------
@@ -230,6 +388,15 @@ public:
 // NumberToString(m_id,0)) → exec(true)。void。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/turnOnSecurityFlag.inc"
+{
+    char table[0x14];
+    memset(table, 0, 0x14);
+    memcpy(table, "member_login", 0xd);
+
+    db->set_query(
+        "upDate %s set security_flag=1 where m_id=%s and security_flag=0",
+        table, NumberToString(m_id, 0));
+    db->exec(true);
 }
 
 // ----------------------------------------------------------------------------
@@ -237,6 +404,15 @@ public:
 // 仅 SQL 的 security_flag 目标值相反。
 // ----------------------------------------------------------------------------
 #include "DBSecuLink/turnOffSecurityFlag.inc"
+{
+    char table[0x14];
+    memset(table, 0, 0x14);
+    memcpy(table, "member_login", 0xd);
+
+    db->set_query(
+        "upDate %s set security_flag=0 where m_id=%s and security_flag=1",
+        table, NumberToString(m_id, 0));
+    db->exec(true);
 }
 
 // ============================================================================
@@ -247,6 +423,20 @@ public:
 // 失败返 0，成功返 1（无基类 dispatch 检查、无回包）。
 // ============================================================================
 #include "DBSecuLink/dispatch.inc"
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8,
+                                                  E_SERVER_GROUP_NONE);
+    unsigned int guildKey = 0;
+    unsigned int applicant = 0;
+    *stream >> guildKey;
+    *stream >> applicant;
+
+    db->set_query(
+        "deLete from guild_join_list where guild_id=%d and charac_no=%d",
+        guildKey, applicant);
+    if (!db->exec(true))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -262,6 +452,49 @@ public:
 // → put(DISPATCH_Q) → 返 1。
 // ============================================================================
 #include "DBSecuLink/dispatch_1.inc"
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8,
+                                                  E_SERVER_GROUP_NONE);
+    SIG_CHECK_JOIN_GUILD* sig = stream->GetOutBuffer<SIG_CHECK_JOIN_GUILD>();
+    int unused = 0;              // ORIG -0x10 槽（dead local，P31）
+    char nameBuf[0x2f];          // escape_string 中转（尺寸按 ORIG 帧反推）
+
+    db->escape_string(nameBuf, reinterpret_cast<const char*>(sig));
+    db->set_query(
+        "seLect guild_name,master_name,lev,member_count from guild_info "
+        "where server_id=%d and expire_flag=0 and guild_name='%s'",
+        sig->m_serverId, nameBuf);
+    if (!db->exec(true))
+        return 0;
+
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x90e6), true);
+    guard.operator*()->operator<<(0x216);
+    guard.operator*()->operator<<(slot);
+
+    SIG_CHECK_JOIN_GUILD_DB_REPLY* reply =
+        guard->GetInBuffer<SIG_CHECK_JOIN_GUILD_DB_REPLY>();
+    if (db->get_n_rows() == 0)
+    {
+        reply->m_result = 0x15;
+    }
+    else
+    {
+        if (!db->fetch())
+            return 0;
+        reply->m_result = 0;
+        if (!db->get_str(0, reply->m_guildName, 0x17))
+            return 0;
+        if (!db->get_str(1, reply->m_name, 0x1e))
+            return 0;
+        if (!db->get_int(2, reply->m_arg3c))
+            return 0;
+        if (!db->get_int(3, reply->m_arg40))
+            return 0;
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
 }
 
 // DB_SecurityCardActivate::dispatch —— ORIG @ 0x0842b86c（0x2f0）：
@@ -275,6 +508,64 @@ public:
 // GetInBuffer<SIG_SECURITY_CARD_ACTIVATE> 回写 +0xa=ok → put → 返 1。
 // ============================================================================
 #include "DBSecuLink/dispatch_2.inc"
+{
+    SIG_SECURITY_CARD_ACTIVATE* sig =
+        stream->GetOutBuffer<SIG_SECURITY_CARD_ACTIVATE>();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query(
+        "upDate member_security_card set apply_flag=1, cert_flag=1, "
+        "cert_cnt = 0 where m_id=%s and cert_key='%s'",
+        NumberToString(sig->m_mId, 0), &sig->m_certKey[0]);
+    db->exec(true);
+
+    bool ok = false;   // -0x21（回写 +0x0a）
+    if (db->getAffectedRowCount() == 1)
+    {
+        ok = true;
+        turnOnSecurityFlag(db, sig->m_mId);
+    }
+
+    DB_CancelRestingUserRestrict::makeRequest(sig->m_mId, slot);
+
+    if (sig->m_historyFlag != 0)
+        saveSecurityCardHistory(db, sig->m_mId,
+                                ENUM_SECURITYCARD_MOD_TYPE_ACTIVATE);
+    else
+        saveSecurityCardHistory(db, sig->m_mId, ENUM_SECURITYCARD_MOD_TYPE_NONE);
+
+    MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
+                                                   E_SERVER_GROUP_NONE);
+    if (ok)
+    {
+        db2->set_query(
+            "upDate member_security_grade set security_card_reg=now() "
+            "where m_id=%s",
+            NumberToString(sig->m_mId, 0));
+        if (!db2->exec(true) || db2->getAffectedRowCount() == 0)
+        {
+            db2->set_query(
+                "inSert into member_security_grade(m_id, security_card_reg) "
+                "values(%s, now())",
+                NumberToString(sig->m_mId, 0));
+            if (!db2->exec(true))
+                return 0;
+        }
+        // ORIG @0x0842ba64：CheckSecuReward 仅在 ok 分支调用（ok==0 时
+        // +0x13b `je 0842ba80` 直达回包段；docs/class_func_reports/
+        // DB_SecurityCardActivate/dispatch.md 汇编实证）——原实现误置于块外。
+        DB_CheckSecuReward::makeRequest(slot, sig->m_mId, 0);
+    }
+
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e89), true);
+    guard.operator*()->operator<<(0xff);
+    guard.operator*()->operator<<(slot);
+    SIG_SECURITY_CARD_ACTIVATE* reply =
+        guard->GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>();
+    reply->m_activateResult = ok;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
 }
 
 // ============================================================================
@@ -296,6 +587,97 @@ public:
 //   （ORIG arg2 先）；`unsigned int now` + reinterpret_cast 使 4.4 arg1 先。
 //   改 `time_t now` + 纯 `&now` 后与 ORIG 同形（289=289，AE）。
 #include "DBSecuLink/dispatch_3.inc"
+{
+    if (!DBDispatcher::dispatch(userIdx, slot, stream))
+        return 0;
+
+    SIG_SECURITY_CARD_ISSUE* sig =
+        stream->GetOutBuffer<SIG_SECURITY_CARD_ISSUE>();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
+                                                  E_SERVER_GROUP_NONE);
+    try
+    {
+        db->set_query(
+            "seLect apply_flag from member_security_card where phone='%s' "
+            "and apply_flag=1",
+            &sig->m_phone[0]);
+        if (!db->exec(true) || (unsigned int)db->get_n_rows() > 4)
+            throw static_cast<ENUM_ERROR>(0x77);
+
+        db->set_query(
+            "seLect re_issue_cnt,unix_timestamp(last_issue_time) from "
+            "member_security_card where m_id=%s",
+            NumberToString(sig->m_mId, 0));
+        if (!db->exec(true))
+            throw static_cast<ENUM_ERROR>(1);
+
+        char q[5] = { '\0' };
+        generateSecurityCardQuestion(q);
+        strncpy(&sig->m_qPos[0], q, 5);
+
+        if (db->get_n_rows() == 0)
+        {
+            db->set_query(
+                "inSert into member_security_card(m_id,occ_time,phone,"
+                "cert_key,server_key,card,fail_cnt,re_issue_cnt,"
+                "last_issue_time,validity_time,apply_flag,q_pos) "
+                "values(%s,now(),'%s','%s','%s','%s',0,0,now(),0,0,'%s')",
+                NumberToString(sig->m_mId, 0), &sig->m_phone[0],
+                &sig->m_certKey[0], &sig->m_serverKey[0], &sig->m_card[0], q);
+            db->exec(true);   // ORIG 无检查（结果丢弃）
+        }
+        else
+        {
+            unsigned int nIssue = 0;   // ORIG 声明/初始化先于 fetch
+            unsigned int lastTime = 0;
+            if (!db->fetch())
+                throw static_cast<ENUM_ERROR>(1);
+            db->get_uint(0, nIssue);
+            db->get_uint(1, lastTime);
+
+            // b28d-54：now 仅用于 localtime_r；声明为 time_t 使实参为纯 `&now`
+            //   （与第一次调用同形 ⇒ 4.4 复现 ORIG arg2 先求值序，P23）。
+            time_t now =
+                static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
+            time_t tLast = static_cast<time_t>(lastTime);
+            struct tm tmLast;
+            struct tm tmNow;
+            localtime_r(&tLast, &tmLast);
+            localtime_r(&now, &tmNow);
+
+            if (tmLast.tm_yday == tmNow.tm_yday)
+            {
+                ++nIssue;
+                if (nIssue > 3)
+                    throw static_cast<ENUM_ERROR>(0x78);
+            }
+            else
+            {
+                nIssue = 0;
+            }
+
+            db->set_query(
+                "upDate member_security_card set phone='%s',cert_key='%s',"
+                "server_key='%s',card='%s',fail_cnt=0,re_issue_cnt=%d,"
+                "last_issue_time=now(),validity_time=0,apply_flag=0,"
+                "q_pos='%s' where m_id=%s",
+                &sig->m_phone[0], &sig->m_certKey[0], &sig->m_serverKey[0],
+                &sig->m_card[0],
+                nIssue, q, NumberToString(sig->m_mId, 0));
+            db->exec(true);
+        }
+
+        turnOffSecurityFlag(db, sig->m_mId);
+        _sendResult(slot, &sig->m_serial[0], &sig->m_serverKey[0],
+                    &sig->m_card[0], &sig->m_qPos[0], ENUM_ERROR_NONE);
+    }
+    // [b28c-L29] ORIG 0x0842af94：begin_catch 后直接 mov (%eax),%eax（值先
+    // 入槽，无指针槽回读）⇒ 按值 catch（P229）。
+    catch (ENUM_ERROR e)
+    {
+        _sendResult(slot, 0, 0, 0, 0, e);
+    }
+    return 1;
 }
 // DB_GuildJoinList::dispatch —— ORIG @ 0x0843d87c（0x4ff）：
 // GetDBHandle(8) + GetDBHandle(2) → Acquire("DBThread.cpp",0x9243) →
@@ -311,4 +693,87 @@ public:
 //   （ORIG `mov -0x38(occ),%edx; mov -0x18(now),%ecx`）；now 改 int 与 occ 同型后
 //   4.4 复现同序（347=347，AE）。
 #include "DBSecuLink/dispatch_4.inc"
+{
+    MySQL* db1 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8,
+                                                   E_SERVER_GROUP_NONE);
+    MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                   E_SERVER_GROUP_NONE);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9243), true);
+    guard.operator*()->operator<<(0x21a);
+    guard.operator*()->operator<<(slot);
+
+    unsigned int guildKey = 0;
+    *stream >> guildKey;
+    int applicant = 0;
+    *stream >> applicant;
+
+    db1->set_query(
+        "delete from guild_join_list where guild_id=%d and server_group != %d",
+        guildKey, applicant);
+    if (!db1->exec(true))
+        return 0;
+    db1->set_query(
+        "seLect charac_no,memo,unix_timestamp(occ_time) from guild_join_list "
+        "where guild_id=%d",
+        guildKey);
+    if (!db1->exec(true))
+        return 0;
+
+    SIG_GUILD_JOIN_LIST* reply =
+        guard->GetInBuffer<SIG_GUILD_JOIN_LIST>();
+    int occ = 0;                 // ORIG -0x38（声明于 time 前）
+    // b28d-54：ORIG 0x0843dc8c 段 `mov -0x38(occ),%edx; mov -0x18(now),%ecx;
+    //   sub %edx,%ebx` 先载 occ（P211 异型侧）；改 now 为 int 与 occ 同型试翻。
+    int now = static_cast<int>(time(0));
+    int nRows;
+    nRows = (unsigned int)db1->get_n_rows() > 0x32
+                ? 0x32
+                : db1->get_n_rows();
+    reply->m_list.m_count = nRows;
+
+    for (int i = 0; i < nRows; ++i)
+    {
+        if (!db1->fetch())
+            return 0;
+        if (!db1->get_uint(0, reply->m_list.m_entry[i].m_characNo))
+            return 0;
+        if (!db1->get_str(1, &reply->m_list.m_entry[i].m_memo[0], 0x1a))
+            return 0;
+        if (!db1->get_int(2, occ))
+            return 0;
+        reply->m_list.m_entry[i].m_remainTime = now - occ;
+    }
+
+    for (int j = 0; j < nRows; ++j)
+    {
+        db2->set_query(
+            "seLect charac_name,lev,job,grow_type,sex from charac_info "
+            "where charac_no=%d",
+            reply->m_list.m_entry[j].m_characNo);
+        if (!db2->exec(true))
+            return 0;
+        if (db2->get_n_rows() == 0)
+        {
+            // ORIG：无行直接跳过（sete/jne 形态）
+        }
+        else
+        {
+            if (!db2->fetch())
+                return 0;
+            if (!db2->get_str(0, &reply->m_list.m_entry[j].m_name[0], 0x1e))
+                return 0;
+            if (!db2->get_byte(1, reply->m_list.m_entry[j].m_lev))
+                return 0;
+            if (!db2->get_byte(2, reply->m_list.m_entry[j].m_job))
+                return 0;
+            if (!db2->get_byte(3, reply->m_list.m_entry[j].m_growType))
+                return 0;
+            if (!db2->get_byte(4, reply->m_list.m_entry[j].m_sex))
+                return 0;
+        }
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
 }

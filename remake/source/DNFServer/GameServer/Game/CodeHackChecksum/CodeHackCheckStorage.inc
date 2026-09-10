@@ -1,3 +1,1 @@
 CodeHackCheckStorage::CodeHackCheckStorage()              // T @0x08575c22
-{
-    reset();                                              // call 08575e74

@@ -1,41 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DispLinkA3/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DispLinkA3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// DispLinkA3.cpp —— LinkHelper.DispLinkA3 独占 TU
-// 核销 /tmp/undef_r21.txt 中 7 类 8 个 Dispatcher 符号（调用方 Dispatchers.cpp，
-// 本 TU 不改它）。类声明均在 Dispatchers.h（include，勿改）。
-//
-// 符号清单（ORIG 地址 / 报告路径见各函数头注释）：
-//   1. Dispatcher_SecretShopBuyItem::check_error(CUser*, MSG_BASE&, ParamBase&)
-//        ORIG _ZN28Dispatcher_SecretShopBuyItem11check_errorEP5CUserR8MSG_BASER9ParamBase
-//        @0x081d26c0 T  报告 docs/class_func_reports/Dispatcher_SecretShopBuyItem/check_error.md
-//   2. Dispatcher_SecretShopOpenClose::check_error(CUser*, MSG_BASE&, ParamBase&)
-//        ORIG _ZN30Dispatcher_SecretShopOpenClose11check_errorEP5CUserR8MSG_BASER9ParamBase
-//        @0x081d288a T  报告 docs/class_func_reports/Dispatcher_SecretShopOpenClose/check_error.md
-//   3. Dispatcher_SecurityCardAuthCancel::process(CUser*)
-//        ORIG _ZN33Dispatcher_SecurityCardAuthCancel7processEP5CUser @0x0820a580 T
-//        报告 docs/class_func_reports/Dispatcher_SecurityCardAuthCancel/process.md
-//   4. Dispatcher_SelectUltimateDifficulty::process(CUser*, MSG_BASE&, ParamBase&)
-//        ORIG _ZN35Dispatcher_SelectUltimateDifficulty7processEP5CUserR8MSG_BASER9ParamBase
-//        @0x0823426c W（ORIG 即空体 return 0，逐指令核对 0x0823426c..0x08234276）
-//   5. Dispatcher_SDC_ActiveStatus_Damage_Check::Dispatcher_SDC_ActiveStatus_Damage_Check()
-//        ORIG _ZN40Dispatcher_SDC_ActiveStatus_Damage_CheckC1Ev @0x08596674 W
-//        （objdump：仅调 IPacketDispatcher<MSG_BASE,ParamBase,ch_state0>::C1 + 设 vptr；
-//         类无数据成员，正常空定义由编译器生成同形代码）
-//   6. Dispatcher_UseCreatureEvolutionItem::process(CUser*, unsigned char, short, int)
-//        ORIG _ZN35Dispatcher_UseCreatureEvolutionItem7processEP5CUserhsi @0x08228bcc T
-//        报告 docs/class_func_reports/Dispatcher_UseCreatureEvolutionItem/process.md
-//   7. Dispatcher_ValidateScriptHash::check_error(CUser*, MSG_BASE&)
-//        ORIG _ZN29Dispatcher_ValidateScriptHash11check_errorEP5CUserR8MSG_BASE @0x0826435a T
-//        报告 docs/class_func_reports/Dispatcher_ValidateScriptHash/check_error.md
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "Dispatchers.h"
@@ -76,6 +49,14 @@ public:
 //    语义：channel state 必须为 5（dungeon 内）；否则 0x7fffffff（上层静默）。
 // ============================================================================
 #include "DispLinkA3/check_error.inc"
+{
+    (void)msg;
+    (void)param;
+    if (user->get_state() != 5)
+    {
+        return (int)0x7fffffff;
+    }
+    return 0;
 }
 
 // ============================================================================
@@ -83,6 +64,14 @@ public:
 //    ORIG @0x081d288a [0x081d288a, 0x081d28b3]，与 SecretShopBuyItem 同型。
 // ============================================================================
 #include "DispLinkA3/check_error_1.inc"
+{
+    (void)msg;
+    (void)param;
+    if (user->get_state() != 5)
+    {
+        return (int)0x7fffffff;
+    }
+    return 0;
 }
 
 // ============================================================================
@@ -93,6 +82,39 @@ public:
 //          两条路径尾部的 getCancelCnt() 读取调用在 ORIG 中存在（内联读），保留。
 // ============================================================================
 #include "DispLinkA3/process.inc"
+{
+    // [b23S3C] P48：ORIG getSecurityCard ×5 / getPad ×5 每用点独立重取
+    // （p167 MISSING 各 -4 即此），card/pad 无具名槽。
+    if (user->getSecurityCard()->isActivate() != 0)
+    {
+        user->getSecurityCard()->setRequestState(
+            WongWork::CSecurityCard::eRequestStateNone);
+        user->getSecurityCard()->incCancelCnt();
+        DB_SecurityCardUpdateCancelCnt::makeRequest(
+            user->get_acc_id(),
+            (unsigned int)user->getSecurityCard()->getCancelCnt());
+        // [b23S3C] ORIG +0x08c：尾部 getCancelCnt 后 `cmp $0x9,%eax` 死比较
+        // （结果弃置、无分支）⇒ 比较表达式语句形。
+        if (user->getSecurityCard()->getCancelCnt() == 9)  // ORIG cmp $9（死比较岛）
+        {
+        }
+    }
+    else
+    {
+        if (user->getPad()->isActivate() != 0)
+        {
+            user->getPad()->setRequestState(Sanicova::CPad::eRequestStateNone);
+            user->getPad()->incCancelCnt();
+            DB_PassPadUpdateCancelCnt::makeRequest(
+                user->get_acc_id(),
+                (unsigned int)user->getPad()->getCancelCnt(),
+                (char*)user->getWebAddress());
+            if (user->getPad()->getCancelCnt() == 9)      // ORIG +0x12d cmp $9（死）
+            {
+            }
+        }
+    }
+    return 1;
 }
 
 // ============================================================================
@@ -101,6 +123,9 @@ public:
 //    实际业务逻辑在 dispatch_sig（Dispatchers.cpp 已还原）。
 // ============================================================================
 #include "DispLinkA3/process_1.inc"
+{
+    (void)user; (void)msg; (void)param;
+    return 0;
 }
 
 // ============================================================================
@@ -109,6 +134,7 @@ public:
 //    类无新增数据成员；空定义由编译器生成同形代码（vptr 由基类多态隐式写入）。
 // ============================================================================
 #include "DispLinkA3/Dispatcher_SDC_ActiveStatus_Damage_Check.inc"
+{
 }
 
 
@@ -118,4 +144,8 @@ public:
 //    ORIG @0x0826435a [0x0826435a, 0x08264363]：mov $0x0,%eax; pop ebp; ret。
 // ============================================================================
 #include "DispLinkA3/check_error_2.inc"
+{
+    (void)user;
+    (void)msg;
+    return 0;
 }

@@ -1,3 +1,1 @@
 GameResultType::GameResultType()
-{
-    Clear();

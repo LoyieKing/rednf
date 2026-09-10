@@ -1,2 +1,1 @@
 CharacData::~CharacData()
-{

@@ -1,2 +1,1 @@
 Arad_OnePlusCardEvent_ItemList::~Arad_OnePlusCardEvent_ItemList()
-{

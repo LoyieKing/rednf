@@ -8,3 +8,4 @@ void CFLog::writeLog(tm* t, char const* fmt, char* va) {
     sprintf(line, "[%02d:%02d:%02d] %s", t->tm_hour, t->tm_min, t->tm_sec, message);
     fprintf(file, "%s\r\n", line);
     fflush(file);
+}

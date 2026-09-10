@@ -1,2 +1,1 @@
 TrainingQuestScript::~TrainingQuestScript()
-{

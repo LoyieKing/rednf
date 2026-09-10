@@ -1,3 +1,1 @@
 NpcScript::NpcScript()
-{
-    clear();

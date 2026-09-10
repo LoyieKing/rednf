@@ -1,33 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 CParty_KillChain/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 CParty_KillChain/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// CParty_KillChain.cpp —— CParty 域击杀/奖励链第三阶依赖（LinkKillChain 批次）。
-//
-// 覆盖 10 个 ORIG 真实符号（全部经 docs/class_func_reports/CParty/ 对应报告
-// ## 汇编 + ## 反编译 C 完整读取后忠实转写，无桩）：
-//   MemberRegisterKillMonster      T 0x085bae6e（MemberRegisterKillMonster.md）
-//   _makeRewardItemInfo            T 0x085ad0be（_makeRewardItemInfo.md）
-//   DungeonPermission              T 0x085b12f8（DungeonPermission.md）
-//   calDeadUserDungeonPenalty      T 0x085ad9b4（calDeadUserDungeonPenalty.md）
-//   existSamePCRoomUser            T 0x085b67ca（existSamePCRoomUser.md）
-//   increase_result_card_gold      T 0x0859ba98（increase_result_card_gold.md）
-//   hasPCRoomPlayer                T 0x085b4a70（hasPCRoomPlayer.md；链上依赖）
-//   GetPartyMemberForceDropFlag    T 0x085bdc00（GetPartyMemberForceDropFlag.md；依赖）
-//   addDungeonClear                T 0x085bddfc（addDungeonClear.md；DungeonPermission 依赖）
-//   getDungeonTypeKind             T 0x085bdd2a（getDungeonTypeKind.md；依赖）
-//
-// 成员槽布局（ORIG 实证）：m_member[i] @ this+i*0x18+0x78，m_pUser 在槽首；
-// m_field14(+0x8c) 为成员副本次数槽。每日入场次数记录数组位于 this+0x1808
-// （每成员 8 字节：short uniqueId / int 计数，addDungeonClear 实证），处于
-// CParty.h 占位区，按裸偏移访问。m_dungeonIdx 为 this+0xcb8（同上）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <string.h>
@@ -104,6 +85,18 @@ struct KcDataMgrDailyLimitView
 // 任一有效成员持有 0xc 号 premium → true。
 // ============================================================================
 #include "CParty_KillChain/hasPCRoomPlayer.inc"
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        // ORIG 0x85b4a7f 域：两独立守卫（xor;test;jne continue → call;test;je
+        // skip）——合并 && 违 P133（汇聚 setne 形）。
+        if (!_checkValidUser(i))
+            continue;
+        if (m_member[i].m_pUser->isAffectedPremium(
+                static_cast<ENUM_PREMIUM_TYPE>(0xc)))
+            return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -111,6 +104,16 @@ struct KcDataMgrDailyLimitView
 // 任一成员 get_user(i)!=0 且 isGMUser 且 getForceDropFlag → 1。
 // ============================================================================
 #include "CParty_KillChain/GetPartyMemberForceDropFlag.inc"
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        CUser* user = get_user(i);
+        if (user == 0)
+            continue;
+        if (user->isGMUser() && user->getForceDropFlag())
+            return 1;
+    }
+    return 0;
 }
 
 // ============================================================================
@@ -118,6 +121,25 @@ struct KcDataMgrDailyLimitView
 // 统计 PC 房号==pcbangNo 且非 0 的有效成员数，>=2 → true。
 // ============================================================================
 #include "CParty_KillChain/existSamePCRoomUser.inc"
+{
+    int count = 0;
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (_checkValidUser(i))
+        {
+            // ORIG 两次调用 GetPCRoomNo：uVar3==param_1 且 iVar4!=0。
+            if (static_cast<unsigned int>(
+                    m_member[i].m_pUser->GetPCRoomNo()) == pcbangNo
+                && static_cast<unsigned int>(
+                    m_member[i].m_pUser->GetPCRoomNo()) != 0)
+            {
+                count += 1;
+                if (count > 1)
+                    return true;
+            }
+        }
+    }
+    return false;
 }
 
 // ============================================================================
@@ -139,6 +161,25 @@ struct KcDataMgrDailyLimitView
 //      ——成员数组视图/int* 加法/char* 加法/具名指针——全部折叠，源形不可择）。
 // P167 CLEAR（本函数无 call 点）。语义等价，封顶。
 #include "CParty_KillChain/calDeadUserDungeonPenalty.inc"
+{
+    float rate = 0.0f;
+    // P0：ORIG 0x085ad9c2 在 slot 判定前即读入 memberCount 并占槽 -0x4。
+    const int memberCount = m_battleData.m_field68c;
+    if (slot < 0)
+        return rate;
+
+    if (memberCount > 1)
+    {
+        // P0/P183：ORIG 无 deadCnt 具名槽（0x085ad9eb 直接 fildl 临时槽）——
+        // 表达式内联进 float 转换，禁具名 int 局部。
+        rate = static_cast<float>(
+                   reinterpret_cast<const KcDeadCountView*>(this)
+                       ->m_deadCounts[slot + 0xe0])
+             / static_cast<float>(memberCount - 1);
+        if (rate == 0.3f)
+            rate = 0.0f;
+    }
+    return rate;
 }
 
 // ============================================================================
@@ -158,6 +199,53 @@ struct KcDataMgrDailyLimitView
 // `lea 0x3d(%eax),%ebx` + 0x3d 字节按值拷贝 ⇒ 入参是 item+0x3d 的尾随 Inven_Item 视图对象。
 // 123=123 AE，P167 CLEAR。
 #include "CParty_KillChain/_makeRewardItemInfo.inc"
+                                 PacketGuard& packet)
+{
+    // P198①：ORIG 0x085ad0c5 函数头 `movl $0xffffffff,-0xc(%ebp)` ⇒ 具名 int
+    // slot 预清 -1（else 分支才回写 tryInsert 结果）。
+    int slot = -1;
+
+    if (kcTailItem(item)->m_addInfo == 0xffffffffu)
+    {
+        kcTailItem(item)->m_addInfo = 0;
+        kcTailItem(item)->set_add_info(0);
+    }
+
+    // ORIG 0x085ad106 `test; je <put_byte(1) 块>`：extFlag==0 走**跳转**块，
+    // 非 0 直落 ⇒ 源码须写 `!= 0` 正向臂 + `== 0` 落尾（P59/P194 极性判据）。
+    if (kcTailItem(item)->m_addInfo != 0)
+    {
+        // ORIG 0x085ad111 `lea 0x3d(%eax),%ebx` + 0x3d 字节按值拷贝 ⇒ 入参是
+        // 尾随 Inven_Item 视图对象（不是 item 本体）。
+        // P0/P52：ORIG 0x085ad114 无 inven 具名槽（getCurCharacInvenR 结果在
+        // %eax 跨按值拷贝段保活）⇒ receiver 链式内联，禁中间指针局部。
+        slot = const_cast<CUser*>(user)
+                   ->getCurCharacInvenR()
+                   ->tryInsertItemIntoInventory(*kcTailItem(item));
+        // ORIG 0x085ad19e `js <put_byte(1) 块>`：slot<0 走跳转块，slot>=0 直落。
+        if (slot >= 0)
+        {
+            packet.put_byte(2);
+        }
+        else
+        {
+            packet.put_byte(1);
+            kcTailItem(item)->m_addInfo = 0;
+            kcTailItem(item)->set_add_info(0);
+        }
+    }
+    else
+    {
+        packet.put_byte(1);
+    }
+
+    packet.put_int(0);
+    packet.put_int(item->get_add_info());
+    if (kcTailItem(item)->m_addInfo != 0)
+    {
+        packet.put_int(kcTailItem(item)->m_addInfo);
+        packet.put_int(kcTailItem(item)->get_add_info());
+    }
 }
 
 // ============================================================================
@@ -170,6 +258,26 @@ struct KcDataMgrDailyLimitView
 // fresh .o 复验，routed 口径 identical/ae），vector begin/end/operator* 链与 ORIG 一致，
 // P167 CLEAR。
 #include "CParty_KillChain/increase_result_card_gold.inc"
+{
+    std::vector<Inven_Item>::iterator it = result.m_dropItems.begin();
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (!checkValidUser(i))
+            continue;
+        // P220 正极性包裹：ORIG `call ==; test; je`（==真跳主流程后）
+        if (it != result.m_dropItems.end())
+        {
+            QuickParty::RewardData_Param param(this);
+            param.m_param4 = kcbf(this).get_dungeon_index();
+            QuickParty::RewardData_Result res;
+            // P167 判据：ORIG 0x0859bb46/0x0859bb7f 调 `operator*`(deEv) 而非
+            // `operator->`(ptEv) ⇒ 源形必须写 (*it).m（it-> 会多 2 个 ptEv 调用点）。
+            res.m_value00 = (*it).m_addInfo2;   // item+0x07 金卡金额
+            set_basic_reward(QuickParty::BASIC_REWARD_CARD_GOLD, param, res);
+            (*it).m_addInfo2 = res.m_value00;
+            ++it;
+        }
+    }
 }
 
 // ============================================================================
@@ -182,6 +290,57 @@ struct KcDataMgrDailyLimitView
 // 具名槽（ORIG 0x085baec0/0x085baed6 实证；原 void* data 槽语义错位）；③GetCharacExpandData
 // 返回 CExpandEquipslot*，用 reinterpret_cast。160=160 AE，P167 CLEAR。
 #include "CParty_KillChain/MemberRegisterKillMonster.inc"
+{
+    if (monster.m_roleType == 3)
+    {
+        for (int i = 1; i <= 3; ++i)
+        {
+            if (!checkValidUser(i))
+                continue;
+            // P0：ORIG 0x085baec0 有 user(-0x28)/kmi(-0x24) 两具名槽，且
+            // m_mobIndex 每处重读（0x085baee0，无缓存局部）。
+            CUser* user = get_user(i);
+            CKillMonsterInfo* kmi = reinterpret_cast<CKillMonsterInfo*>(
+                user->GetCharacExpandData(
+                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xc)));
+            if (!kmi->CheckBossKill(
+                    static_cast<unsigned int>(monster.m_mobIndex), flag))
+                kmi->RegisterBossKill(
+                    static_cast<unsigned int>(monster.m_mobIndex), flag);
+        }
+    }
+    else if (monster.m_roleType == 8)
+    {
+        for (int i = 1; i <= 3; ++i)
+        {
+            if (!checkValidUser(i))
+                continue;
+            CUser* user = get_user(i);
+            CKillMonsterInfo* kmi = reinterpret_cast<CKillMonsterInfo*>(
+                user->GetCharacExpandData(
+                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xc)));
+            if (!kmi->CheckAPCBossKill(
+                    static_cast<unsigned int>(monster.m_mobIndex), flag))
+                kmi->RegisterAPCBossKill(
+                    static_cast<unsigned int>(monster.m_mobIndex), flag);
+        }
+    }
+    else if (monster.isNamedMonster())
+    {
+        for (int i = 1; i <= 3; ++i)
+        {
+            if (!checkValidUser(i))
+                continue;
+            CUser* user = get_user(i);
+            CKillMonsterInfo* kmi = reinterpret_cast<CKillMonsterInfo*>(
+                user->GetCharacExpandData(
+                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xc)));
+            if (!kmi->CheckNamedKill(
+                    static_cast<unsigned int>(monster.m_mobIndex), flag))
+                kmi->RegisterNamedKill(
+                    static_cast<unsigned int>(monster.m_mobIndex), flag);
+        }
+    }
 }
 
 // ============================================================================
@@ -190,6 +349,27 @@ struct KcDataMgrDailyLimitView
 // 血轮 type1/type2 → 4/5；绝望塔 → 6；锦标赛 → 7；其余 0。
 // ============================================================================
 #include "CParty_KillChain/getDungeonTypeKind.inc"
+{
+    if (dungeon == 0)
+        return 8;
+    // m_89c（CDungeon.h:777，unsigned char）：ORIG movzbl 0x89c(%eax);test %al
+    if (dungeon->m_89c != 0)
+        return 1;
+    // ORIG 0x85bdd40 test %al;setg —— 有符号字节 >0 比较（(signed char) 先例同
+    // CPartyDepsB2:550/CPartyOnlyOrig:881）；uchar 直 >=1 会折 setne。
+    if ((signed char)dungeon->get_dimension_possible() > 0)
+        return 2;
+    if (dungeon->getDungeonKind() == 1)
+        return 3;
+    if (dungeon->get_blood_dungeon_type() == 1)
+        return 4;
+    if (dungeon->get_blood_dungeon_type() == 2)
+        return 5;
+    if (dungeon->isTowerOfDespairDungeon())
+        return 6;
+    if (dungeon->isTournamentDungeon())
+        return 7;
+    return 0;
 }
 
 // ============================================================================
@@ -210,6 +390,63 @@ struct KcDataMgrDailyLimitView
 // DIFF）⇒ N18a；②三处 `mov 0x8(%ebp),%eax` 先于 `mov -0xc(%ebp),%edx`（ORIG 相反）⇒
 // N7/P75 装载序。P167 CLEAR（8=8）。
 #include "CParty_KillChain/addDungeonClear.inc"
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        // ORIG 0x085bde2d 先 call get_unique_id、0x085bde3a 后读记录（cmp %dx,%ax）
+        // ⇒ 左操作数写 get_unique_id（求值序对齐；记录在左会把记录读提前到 call 前）。
+        if (static_cast<short>(m_member[slot].m_pUser->get_unique_id()) !=
+            reinterpret_cast<const KcClearRecView*>(this)
+                ->m_recs[i].m_uniqueId)
+            continue;
+
+        // P251：ORIG 0x085bde5f `cmp $1,%eax; je; cmp $2,%eax; je;
+        // test %eax,%eax; jne`（kind 无槽往返）⇒ 源形 switch(call())。
+        switch (getDungeonTypeKind(dungeon))
+        {
+        case 0:
+            // P226 扩展：ORIG 0x085bdebf `mov $1/jmp; mov $0; test; je` 短路
+            // 物化岛 ⇒ 语句表达式包整个条件（内不含具名变量）。
+            if (({ (param >= static_cast<int>(
+                            reinterpret_cast<const KcDataMgrDailyLimitView*>(
+                                G_CDataManager())->m_limitKind0) &&
+                        reinterpret_cast<const KcClearRecView*>(this)
+                                ->m_recs[i].m_count <= 10 &&
+                        m_member[slot].m_field14 == 0); }))
+            {
+                return m_member[slot].m_pUser->AddDungeonClear(
+                    m_battleField.m_dungeonIndex, 3);
+            }
+            continue;
+        case 1:
+            if (({ (param >= static_cast<int>(
+                            reinterpret_cast<const KcDataMgrDailyLimitView*>(
+                                G_CDataManager())->m_limitKind12) &&
+                        reinterpret_cast<const KcClearRecView*>(this)
+                                ->m_recs[i].m_count <= 0x1e &&
+                        m_member[slot].m_field14 == 0); }))
+            {
+                return m_member[slot].m_pUser->AddDungeonClear(
+                    m_battleField.m_dungeonIndex, 3);
+            }
+            continue;
+        case 2:
+            if (({ (param >= static_cast<int>(
+                            reinterpret_cast<const KcDataMgrDailyLimitView*>(
+                                G_CDataManager())->m_limitKind12) &&
+                        reinterpret_cast<const KcClearRecView*>(this)
+                                ->m_recs[i].m_count <= 0x32 &&
+                        m_member[slot].m_field14 == 0); }))
+            {
+                return m_member[slot].m_pUser->AddDungeonClear(
+                    m_battleField.m_dungeonIndex, 3);
+            }
+            continue;
+        default:
+            return false;
+        }
+    }
+    return false;
 }
 
 // ============================================================================
@@ -226,4 +463,66 @@ struct KcDataMgrDailyLimitView
 // ORIG -0xc/-0xd）与 set find/end/key 槽组整体浅 4（difflib 因重复 call 行对齐放大）；
 // 全头部声明（P212）反多一条 movb（210）⇒ N82/N98 槽分配族。P167 CLEAR（29=29）。
 #include "CParty_KillChain/DungeonPermission.inc"
+{
+    // P52：ORIG 0x085b1300 先把 m_dungeonIndex 物化 %ebx 跨 G_CDataManager call。
+    CDungeon* dungeon = G_CDataManager()->find_dungeon(
+        m_battleField.m_dungeonIndex);
+    if (dungeon == 0)
+        return;
+
+    const int minLevel = dungeon->get_min_level();
+    for (int i = 0; i <= 3; ++i)
+    {
+        bool granted = false;
+        if (!_checkValidUser(i))
+            continue;
+        // P0：ORIG 0x085b1371 无 user 具名槽（直接 this 载入 → call get_charac_level）。
+        if (minLevel > static_cast<int>(
+                           m_member[i].m_pUser->get_charac_level()))
+            continue;
+
+        // P251：ORIG 0x085b139f `cmp $1,%eax; je; cmp $2,%eax; je;
+        // test %eax,%eax; jne`（diff 无槽往返）⇒ 源形 switch(call())。
+        switch (kcbf(this).get_dungeon_diff())
+        {
+        case 0:
+            granted = m_member[i].m_pUser->AddDungeonClear(
+                m_battleField.m_dungeonIndex, 1);
+            break;
+        case 1:
+            // P226：ORIG 0x085b1403 `cmp; setle %al; test %al,%al; je 岛` 物化。
+            if (({ (static_cast<int>(
+                        reinterpret_cast<const KcDataMgrDailyLimitView*>(
+                            G_CDataManager())->m_limitDiff1) <= param); }))
+                granted = m_member[i].m_pUser->AddDungeonClear(
+                    m_battleField.m_dungeonIndex, 2);
+            break;
+        case 2:
+            // P167/P183：ORIG 0x085b147e/0x085b1486 两次完整重读
+            // getUltimateDungeonList（无指针缓存），0x085b14aa 用 operator==
+            // 比较后 jne 跳过授予；ORIG 0x085b1476 调 const 版 set::find。
+            if (static_cast<const std::set<int>*>(
+                    G_CDataManager()->getUltimateDungeonList())
+                    ->find(dungeon->get_index()) ==
+                static_cast<const std::set<int>*>(
+                    G_CDataManager()->getUltimateDungeonList())->end())
+                goto DUNGEON_PERM_NEXT;
+            granted = addDungeonClear(dungeon, param, i);
+        DUNGEON_PERM_NEXT:
+            break;
+        default:
+            break;
+        }
+
+        if (granted)
+        {
+            PacketGuard packet;
+            packet.put_header(0, 5);
+            packet.put_short(1);
+            packet.put_short(m_battleField.m_dungeonIndex);
+            packet.put_short(kcbf(this).get_dungeon_diff() + 1);
+            packet.finalize(true);
+            m_member[i].m_pUser->Send(packet);
+        }
+    }
 }

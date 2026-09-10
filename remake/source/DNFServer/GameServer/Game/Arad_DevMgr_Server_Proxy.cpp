@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 Arad_DevMgr_Server_Proxy/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 Arad_DevMgr_Server_Proxy/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // CNetwork<6144,100000> 在本 TU 隐式实例化（ORIG 同：10 个 W 符号位于本 TU
 // 0x0818df60-0x0818e837；CNetwork.h 的 extern template 已按 Main 批准移除该实例）；
@@ -24,19 +26,59 @@
 #include "LogManager.h"
 
 #include "Arad_DevMgr_Server_Proxy/Arad_DevMgr_Server_Proxy.inc"
+    : m_port(port), m_ip(ip), m_network()
+{
 }
 
 #include "Arad_DevMgr_Server_Proxy/open.inc"
+{
+    return 1;
 }
 
 #include "Arad_DevMgr_Server_Proxy/init.inc"
+{
+    if (m_network.m_sock < 0)
+    {
+        m_ip = "127.0.0.1";
+        m_port = 30000;
+        if (CNetwork<6144, 100000>::CreateConnectionSocket(m_network.m_sock, m_ip.c_str(), m_port) == 0)
+        {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 #include "Arad_DevMgr_Server_Proxy/disconnect.inc"
+{
+    m_network.disconnect();
 }
 
 #include "Arad_DevMgr_Server_Proxy/recv.inc"
+{
+    int size = m_network.recv_packet();
+    if (size > 0)
+    {
+        if (!m_network.Parsing_ServerPacket(size))
+        {
+            LogManager::logFormat(1, "localjapan/Arad_DevMgr_Server_Proxy.cpp", __FUNCTION__, 0x34, "Monitor Recv Parsing Err!!!");
+            return 0;
+        }
+        return 1;
+    }
+    if (size <= 0)
+    {
+        disconnect();
+        return 0;
+    }
+    return 1;
 }
 
 #include "Arad_DevMgr_Server_Proxy/send.inc"
+{
+    if (m_network.send_packet() < 0)
+    {
+        return -1;
+    }
+    return m_network.GetRemainSendSize();
 }

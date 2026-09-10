@@ -1,2 +1,1 @@
 CObjectBringUp::~CObjectBringUp()
-{

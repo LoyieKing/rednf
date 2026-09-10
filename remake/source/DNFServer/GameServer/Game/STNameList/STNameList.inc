@@ -1,3 +1,1 @@
 STNameList::STNameList()
-{
-    Clear();

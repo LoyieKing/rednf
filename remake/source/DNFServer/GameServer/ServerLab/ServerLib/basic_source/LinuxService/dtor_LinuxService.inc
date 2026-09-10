@@ -1,2 +1,1 @@
 LinuxService::~LinuxService()
-{

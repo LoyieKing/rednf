@@ -1,21 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_MailBox_Req_Send/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_MailBox_Req_Send/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r 还原 —— DB_MailBox_Req_Send（OrigMailSend 批，4 ORIG 符号）
-// 报告：docs/class_func_reports/DB_MailBox_Req_Send/{InsertLetter,insertMailData,
-//   sendResult,dispatch}.md（逐指令转写；objdump 已核实地址）
-// 依赖：SIG_MAILBOX_SEND_NEW_MAIL（SigTypes_D.h，m_data[0x168] pad）——本 TU 以
-//   pack(1) 镜像 SigMailboxSendNewMailView 按 ORIG 偏移访问（CMailBoxHelper.cpp
-//   MailBoxSendNewMailV 同源，0x8555756 _makeSendMailData 逐字段证据）。
-// WongWork::DBCommon::GetIdentity 定义归 WongWorkEvents_A.cpp（TU 局部声明同款）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include "DB_MailBox_Req_Send.h"
@@ -90,6 +83,21 @@ struct SigMailboxSendNewMailView
 // 4.4 恒先 reload sig 再备值，探针视图/链式/中间量不可翻（NL6 2026-09-08）。
 // ============================================================================
 #include "DB_MailBox_Req_Send/sendResult.inc"
+                                    ENUM_SERVER_GROUP group)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x559f), true);
+
+    guard.operator*()->operator<<(0x80);
+    guard.operator*()->operator<<(-1);
+
+    SigMailboxSendNewMailView* sig = reinterpret_cast<SigMailboxSendNewMailView*>(
+        guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>());
+    sig->m_field00 = 0;
+    sig->m_field04 = mailIdx;
+    sig->m_field08 = (int)group;
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return true;
 }
 
 // ============================================================================
@@ -98,6 +106,34 @@ struct SigMailboxSendNewMailView
 // exec → GetIdentity → *letterId → 1。
 // ============================================================================
 #include "DB_MailBox_Req_Send/InsertLetter.inc"
+                                       const char* name, const char* title,
+                                       int& letterId, time_t regDate,
+                                       ENUM_LETTER_STAT stat)
+{
+    if (strlen(title) > 0xaa)
+    {
+        LogManager::logFormat(1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x54bc,
+            "send_charac_no : %d, recv_charac_no : %d, letter_size : %d",
+            sendCharacNo, characNo, (int)strlen(title));
+        return 0;
+    }
+
+    char titleBuf[0x1ff] = { 0 };
+    db->escape_string(titleBuf, title);
+
+    char nameBuf[0x3d] = { 0 };
+    db->escape_string(nameBuf, name);
+
+    db->set_query(
+        "inSert into letter(charac_no,send_charac_no,send_charac_name,letter_text,reg_date,stat) values(%d,%d,'%s','%s',from_unixtime(%d),%d)",
+        characNo, sendCharacNo, nameBuf, titleBuf, (long)regDate, (int)stat);
+
+    if (!db->exec(true))
+    {
+        return 0;
+    }
+    letterId = (int)WongWork::DBCommon::GetIdentity(db);
+    return 1;
 }
 
 // ============================================================================
@@ -122,6 +158,90 @@ struct SigMailboxSendNewMailView
 //    与 set_query vararg 单段 `mov 0x1e(%eax),%edx`（0x0841f67f）。
 // p167 CLEAR、jcc 17/17 逐位同、指令数 291=291。
 #include "DB_MailBox_Req_Send/insertMailData.inc"
+{
+    static int last_letter_id = 0;   // ORIG _ZZN19DB_MailBox_Req_Send14insertMailDataEP5MySQLPK25SIG_MAILBOX_SEND_NEW_MAILE14last_letter_id 0x0943c230
+    struct tm tmBuf;
+    time_t now;
+    struct tm* tmPtr;
+    time_t t;
+    int letterId;
+
+    now = GlobalData::s_systemTime_.getCurSec();
+    tmPtr = localtime_r(&now, &tmBuf);
+    tmPtr->tm_hour += 1;
+    tmPtr->tm_min = 0;
+    tmPtr->tm_sec = 0;
+    t = mktime(tmPtr);
+
+    if (((const SigMailboxSendNewMailView*)sigRaw)->m_flag != 0)
+    {
+        t = (int)((const SigMailboxSendNewMailView*)sigRaw)->m_nB - 0x13c680;
+    }
+    else if (((const SigMailboxSendNewMailView*)sigRaw)->m_nB <= 0xe)
+    {
+        // b28d: P211 档③——LHS 与 RHS 异型（unsigned int）⇒ 4.4 出 ORIG 的
+        // `mov t,%edx; imul; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,t`
+        // （原 (int) 同型形恒折 `sub %eax,-0x1c(%ebp)`，ORIG 0x0841f389..0x841f3a1）。
+        t = (time_t)((unsigned int)t - ((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u);
+    }
+    else if (((const SigMailboxSendNewMailView*)sigRaw)->m_nB > 0xf)
+    {
+        // b28d: 同上——`(unsigned int)t` 触发 lea 合并形
+        // （ORIG 0x0841f3bd..0x841f3ce `imul→%edx; mov t,%eax; lea (%edx,%eax,1),%eax`）。
+        t = (time_t)((int)(((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u) + (unsigned int)t - 0x13c680);
+    }
+
+    if (((const SigMailboxSendNewMailView*)sigRaw)->m_nType != 0 &&
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_nType != last_letter_id)
+    {
+        db->set_query("upDate letter set stat =%d where letter_id = %d",
+                      1, ((const SigMailboxSendNewMailView*)sigRaw)->m_nType);
+        db->exec(true);
+    }
+    last_letter_id = ((const SigMailboxSendNewMailView*)sigRaw)->m_nType;
+    letterId = ((const SigMailboxSendNewMailView*)sigRaw)->m_nType;
+
+    if (((const SigMailboxSendNewMailView*)sigRaw)->m_titleLen != 0 && letterId == 0)
+    {
+        if (!InsertLetter(db, ((const SigMailboxSendNewMailView*)sigRaw)->m_amount,
+                          ((const SigMailboxSendNewMailView*)sigRaw)->m_senderCharacNo,
+                          (const char*)sigRaw, ((const SigMailboxSendNewMailView*)sigRaw)->m_title,
+                          letterId, t, (ENUM_LETTER_STAT)1))
+        {
+            LogManager::logFormat(1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x550c,
+                                  "InsertLetter() error");
+        }
+        if (((const SigMailboxSendNewMailView*)sigRaw)->m_addInfo == 0 &&
+            ((const SigMailboxSendNewMailView*)sigRaw)->m_destCharacNo == 0)
+        {
+            return 1;
+        }
+    }
+
+    char nameBuf[0x57] = { 0 };
+    strcpy(nameBuf, (const char*)sigRaw);
+    db->set_query(
+        "inSert into postal(occ_time,send_charac_no,receive_charac_no,seal_flag,item_id,add_info,endurance,upgrade,amplify_option,amplify_value,gold,send_charac_name,creature_flag,avata_flag,letter_id,extend_info,item_guid,random_option,seperate_upgrade,unlimit_flag) values(from_unixtime(%d),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d,%d,%d,%d,'%s','%s',%d,%d)",
+        t, ((const SigMailboxSendNewMailView*)sigRaw)->m_senderCharacNo,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_amount,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_itemField0,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_addInfo,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_addInfo2,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_fieldb,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_itemAttr,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_ampType,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_ampIdx,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_destCharacNo, nameBuf,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_isCreature,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_isAvatarSend, letterId,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_fieldd,
+        // blob_to_str 按 ORIG +0x3a/+0x47 裸偏移（byte-blob 读 10/0xe 字节，非自然宽度
+        // 字段；&view->m_field15/25 的 int 类型与读长不配会产生地址物化差异）。
+        db->blob_to_str(0, (void*)((char*)sigRaw + 0x3a), 10),
+        db->blob_to_str(1, (void*)((char*)sigRaw + 0x47), 0xe),
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_upgradeSep,
+        ((const SigMailboxSendNewMailView*)sigRaw)->m_cashShopFlag);
+    return db->exec(true);
 }
 
 // ============================================================================
@@ -130,4 +250,16 @@ struct SigMailboxSendNewMailView
 // 成功 sendResult(slot, 0, sig+0x22, sig+0x15f)。
 // ============================================================================
 #include "DB_MailBox_Req_Send/dispatch.inc"
+{
+    static const int handleIdx = 3;
+    SIG_MAILBOX_SEND_NEW_MAIL* sigRaw = stream->GetOutBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
+        DB_HANDLE_3, (ENUM_SERVER_GROUP)((const SigMailboxSendNewMailView*)sigRaw)->m_serverGroup);
+    if (!insertMailData(db, sigRaw))
+    {
+        return 0;
+    }
+    return sendResult(slot, 0,
+                      (int)((const SigMailboxSendNewMailView*)sigRaw)->m_amount,
+                      (ENUM_SERVER_GROUP)((const SigMailboxSendNewMailView*)sigRaw)->m_serverGroup);
 }

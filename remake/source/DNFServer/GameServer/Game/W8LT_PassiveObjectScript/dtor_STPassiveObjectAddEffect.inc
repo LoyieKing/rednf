@@ -1,2 +1,1 @@
 STPassiveObjectAddEffect::~STPassiveObjectAddEffect()
-{

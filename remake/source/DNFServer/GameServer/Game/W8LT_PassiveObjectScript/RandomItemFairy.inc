@@ -1,3 +1,1 @@
 RandomItemFairy::RandomItemFairy()
-{
-    clear();

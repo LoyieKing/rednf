@@ -1,2 +1,1 @@
 TownAreaScript::~TownAreaScript()
-{

@@ -1,20 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 OnlyOrigBatch12_security_server/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 OnlyOrigBatch12_security_server/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// OnlyOrigBatch12_security_server.cpp —— 由 OnlyOrigBatch12.cpp 按 ORIG TU
-// 边界拆出。目标 ORIG TU：SecurityServer.cpp
-// （ORIG GI 键 = _Z16pi_2nd_print_binPcs @0x0827563e）。
-// 本文件首个 file-scope 强符号·外部链接定义 = pi_2nd_print_bin ⇒
-//   _GLOBAL__I__Z16pi_2nd_print_binPcs（P327）。
-// 其余并入本文件的定义均排在 pi_2nd_print_bin 之后，不影响 GI 选名。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 #include <assert.h>
@@ -57,6 +51,22 @@
 // pi_2nd_print_bin  ORIG T 0x082744a4（本文件首强实体 ⇒ GI 键名）
 // ===========================================================================
 #include "OnlyOrigBatch12_security_server/pi_2nd_print_bin.inc"
+{
+    // b28c-l23 根因翻案（旧"双槽不可翻"判词作废）：ORIG @0x082744aa 只出**一条**
+    // 形参 spill（`mov 0xc(%ebp),%eax; mov %ax,-0x1c(%ebp)`）后 `cmpw $0x64,-0x1c`
+    // 内存直比 ⇒ 原码是**直接 clamp 形参本身**（P77 形参直用）；我方引入具名
+    // `short n` 使 4.4 多出 spill+`movzwl/mov %ax` 双槽物化（帧 0x48 vs 0x38）。
+    // buf 侧 ORIG 为两条 dword 清零（`movl $0x0,-0x18/-0x14`）⇒ `char buf[8] = {0}`
+    // （P202①/P214③：显式零初始化复现 4.1 逐字清零，第三条 -0x10 是 for 的 i）。
+    if (count > 0x64)
+        count = 0x64;
+    char buf[8] = {0};
+    for (int i = 0; i < count; ++i)
+    {
+        unsigned char v = static_cast<unsigned char>(data[i]);
+        sprintf(buf, "%02x", v);
+        printf("%s ", buf);
+    }
 }
 
 static unsigned int ROL(unsigned int v, int bits)
@@ -151,15 +161,52 @@ extern int ss_strcpy(char* dest, size_t count, const char* src);
 // （ORIG TU = SecureStdio.cpp）
 // ===========================================================================
 #include "OnlyOrigBatch12_security_server/ss_sprintf.inc"
+{
+    // ORIG 0x08ad4548：va_list 槽（lea 0x14(%ebp) 单条）+ 返回值具名局部槽。
+    va_list args;
+    va_start(args, format);
+    int r = ss_vsprintf(buffer, count, format, reinterpret_cast<char*>(args));
+    va_end(args);
+    return r;
 }
 
 #include "OnlyOrigBatch12_security_server/ss_swprintf.inc"
+{
+    // ORIG 0x08ad45bf：va_list 槽（lea 0x14(%ebp)）+ 返回值具名局部槽。
+    va_list args;
+    va_start(args, format);
+    int r = ss_vswprintf(buffer, count, format, (char*)args);
+    va_end(args);
+    return r;
 }
 
 #include "OnlyOrigBatch12_security_server/ss_wcscpy.inc"
+{
+    // ORIG 0x08ad468b：else 块（清空 dest 返回 1）fall-through，
+    // memcpy 块 jg 前跳；len 槽有符号比较（jg）⇒ (int)count > len。
+    int len = wcslen(src);
+    if ((int)count <= len)
+    {
+        dest[0] = L'\0';
+        return 1;
+    }
+    memcpy(dest, src, (len + 1) * sizeof(wchar_t));
+    return 0;
 }
 
 #include "OnlyOrigBatch12_security_server/ss_wcscat.inc"
+{
+    // ORIG 0x08ad473e：count 槽有符号 jg ⇒ (int)count <= cur+len 为守卫，
+    // return 1 fall-through、memcpy 块 jg 前跳；memcpy 首参按字节
+    // (char*)dest+cur*4（shl $2+add），size (len+1)<<2（add+shl+mov edx）。
+    int cur = wcslen(dest);
+    int len = wcslen(src);
+    if ((int)count <= cur + len)
+    {
+        return 1;
+    }
+    memcpy(&dest[cur], src, (len + 1) << 2);
+    return 0;
 }
 
 // ---- 模板版（ORIG W：ss_sprintf<1024/256/32/512>、ss_strcpy<30>）----
@@ -167,10 +214,24 @@ extern int ss_vsprintf(char* buffer, size_t count, const char* format, char* arg
 extern int ss_strcpy(char* dest, size_t count, const char* src);
 template <size_t N>
 #include "OnlyOrigBatch12_security_server/ss_sprintf_1.inc"
+{
+    // [b28d-solo-OnlyOrigBatch12] 主模板体 = ORIG 256/32/512 三实例形
+    // （0x08aa69b4/0x08ac36de/…：sub $0x28 + va_list 槽 -0x10 + 返回槽 -0xc
+    // 中转），三件与本源形逐条全等 AE。1024 实例 @0x08acf0e0 为 sub $0x18
+    // 无槽直传形（同模板自相矛盾 = N105）⇒ 由下方 ss_sprintf<1024> 显式特化
+    // 单独复现（判词见该处）。反向删 va_list/返回槽会把 256/32/512 三件打成
+    // DIFF（P211 陷阱法联判已否）。
+    va_list args;
+    va_start(args, format);
+    int r = ss_vsprintf(buffer, N, format, (char*)args);
+    va_end(args);
+    return r;
 }
 
 template <size_t N>
 #include "OnlyOrigBatch12_security_server/ss_strcpy.inc"
+{
+    return ss_strcpy(dest, N, src);
 }
 
 // [b28d-solo-OnlyOrigBatch12] ss_sprintf<1024> 显式特化（weak，与 ORIG W 绑定一致）：
@@ -193,6 +254,10 @@ __attribute__((weak)) int ss_sprintf<1024>(char (&buffer)[1024], const char* for
 // ===========================================================================
 template <class T>
 #include "OnlyOrigBatch12_security_server/swap_value.inc"
+{
+    T tmp = a;
+    a = b;
+    b = tmp;
 }
 
 // ===========================================================================
@@ -202,6 +267,57 @@ namespace
 {
 
 #include "OnlyOrigBatch12_security_server/forceEmitBatch12.inc"
+{
+        char buf1024[1024];
+        char buf256[256];
+        char buf32[32];
+        char buf512[512];
+        char buf30[30];
+        ss_sprintf(buf1024, "%d", 1);
+        ss_sprintf(buf256, "%d", 1);
+        ss_sprintf(buf32, "%d", 1);
+        ss_sprintf(buf512, "%d", 1);
+        ss_strcpy(buf30, "x");
+
+        IntervalSet* a = 0;
+        IntervalSet* b = 0;
+        swap_value(a, b);
+
+        stCeraShopBonusInfo_t ceraA;
+        stCeraShopBonusInfo_t ceraB;
+        ceraA = ceraB;
+
+        WongWork::CGMAccounts::stGMInfo_t gm1; gm1.mid = 1; gm1.type = 2;
+        WongWork::CGMAccounts::stGMInfo_t gm2; gm2.mid = 1; gm2.type = 2;
+        volatile bool eq = (gm1 == gm2);
+
+        stQuestTargetCharacter_t qt1(ENUM_CHARACTERJOB_0, 0, 0);
+        stQuestTargetCharacter_t qt2(ENUM_CHARACTERJOB_0, 0, 0);
+        volatile bool eq2 = (qt1 == qt2);
+
+        stSeriaBlessingScript seria;
+        stSeriaBlessingScript::Value v;
+        volatile bool ok1 = seria.get_value(1, v);
+        volatile bool ok2 = seria.is_possible_lv(1);
+
+        stLimitItemUsageInfo lim;
+        lim.Add(1, 2, 3);
+
+        stNPCEventItemInfo npi;
+        stNPCEventItemInfo npi2;
+        npi = npi2;
+
+        rewardSubKey rk1;
+        rewardSubKey rk2;
+        volatile bool lt = (rk1 < rk2);
+
+        // [b29-SymForceBatch] tagRecommendNewbieOptionTable tnt 删除：ORIG 无
+        // 该派生类的 C1/C2/D1/D2（仅 importRecommendNewbieOptionScript 以引用
+        // 收参，从不构造/析构）；栈对象会发明四个 mangled。Table::clear（ORIG
+        // W 0x0891ad8c）已由 importRecommendNewbieOptionScript 体内 out.clear()
+        // （ORIG 0x89045b2 实证）自然 ODR-use，无需此处触发。
+
+        (void)eq; (void)eq2; (void)ok1; (void)ok2; (void)lt;
 }
 
 }  // namespace

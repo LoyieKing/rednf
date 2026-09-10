@@ -1,2 +1,1 @@
 ComboSkill::~ComboSkill()
-{

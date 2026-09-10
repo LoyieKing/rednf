@@ -1,3 +1,1 @@
 stUltimateWarMonsterInfo::stUltimateWarMonsterInfo()
-{
-    clear();

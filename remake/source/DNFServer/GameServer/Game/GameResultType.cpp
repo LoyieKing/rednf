@@ -1,17 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 GameResultType/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 GameResultType/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
-// ============================================================================
-// ============================================================================
-// df_game_r GameResultType（G2-4 战报类型，0x50 字节）
-// 逐函数对照 docs/class_func_reports/GameResultType.md 与 ORIG 反汇编实现；
-// 内嵌 4 x DungeonUserShotCount（+0x14，0x20；ctor 084b766a / reset 084b767e）。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
@@ -67,31 +64,90 @@ public:
 };
 
 #include "GameResultType/GameResultType.inc"
+{
+    Clear();
 }
 
 #include "GameResultType/dtor_GameResultType.inc"
+{
 }
 
 // [GI-ioinit L21] DungeonUserShotCount 两个定义后移，使 GameResultType ctor
 //（ORIG 键名 `_GLOBAL__I__ZN14GameResultTypeC2Ev` @0x84b764d）成为本 TU 首个强符号（P327）。
 #include "GameResultType/DungeonUserShotCount.inc"
+{
+    reset();
 }
 
 #include "GameResultType/reset.inc"
+{
+    m_count = 0;
+    m_field4 = 0;
 }
 
 #include "GameResultType/Set.inc"
+{
+    *this = other;
+    return 1;
 }
 
 #include "GameResultType/Clear.inc"
+{
+    m_field0 = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+    m_field9 = 0;
+    m_fielda = 0;
+    m_fieldc = 0;
+    m_field10 = 0;
+    m_field34 = 0;
+    m_field36 = 0;
+    m_field38 = 0;
+    m_field3a = 0;
+    m_field3c = 0;
+    m_field3e = 0;
+    m_field40 = 0;
+    m_field42 = 0;
+    m_field48 = 0;
+    m_field44 = 0;
+    m_field4a = 0;
+    m_field4c = 0;
+    memset(m_shot, 0, sizeof(m_shot));
 }
 
 // [b28d-54 修复] ORIG 0x084b750c：m_field44 改 unsigned int（P211 档③同型化）后
 //   4.4 复现 ORIG 单段 `mov 0x44(%eax),%edx` + 无符号 jae；整函数 AE。
 #include "GameResultType/UpdateHighScore.inc"
+{
+    int flags = 0;
+    if (other.m_field40 > m_field40)
+    {
+        m_field40 = other.m_field40;
+        flags |= 1;
+    }
+    if (other.m_field42 > m_field42)
+    {
+        m_field42 = other.m_field42;
+        flags |= 2;
+    }
+    if (other.m_field48 > m_field48)
+    {
+        m_field48 = other.m_field48;
+        flags |= 8;
+    }
+    // b28d-54 判词：ORIG 0x084b7588 段 `mov 0x44(%eax),%edx; cmp %eax,%edx; jae`
+    //   ⇒ 无符号比较 + 单段装载；字段改 unsigned int（与 RHS 同型，P211 档③）。
+    if (other.m_field44 < m_field44)
+    {
+        m_field44 = other.m_field44;
+        flags |= 4;
+    }
+    return flags;
 }
 
 #include "GameResultType/GetUniqueKey.inc"
+{
+    return m_field4 * 10 + m_field8;
 }
 
 // ---- GameResultSet（ORIG T 0x84b75d2 / 0x84b75e6 / 0x84b75fa，与 GameResultType
@@ -106,10 +162,14 @@ public:
 };
 
 #include "GameResultType/GameResultSet.inc"
+{
 }
 
 #include "GameResultType/dtor_GameResultSet.inc"
+{
 }
 
 #include "GameResultType/Clear_1.inc"
+{
+    GameResultType::Clear();
 }

@@ -1,2 +1,1 @@
 CUXGameLogEvent::CUXGameLogEvent()
-{

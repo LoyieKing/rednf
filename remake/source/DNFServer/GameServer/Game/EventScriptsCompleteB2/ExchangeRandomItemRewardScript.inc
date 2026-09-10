@@ -1,3 +1,1 @@
 ExchangeRandomItemRewardScript::ExchangeRandomItemRewardScript()
-{
-    reset();

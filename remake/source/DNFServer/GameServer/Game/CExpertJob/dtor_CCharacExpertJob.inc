@@ -1,2 +1,1 @@
 CCharacExpertJob::~CCharacExpertJob()
-{

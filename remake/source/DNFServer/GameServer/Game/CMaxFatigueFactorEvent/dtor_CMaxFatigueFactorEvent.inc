@@ -1,2 +1,1 @@
 CMaxFatigueFactorEvent::~CMaxFatigueFactorEvent()
-{

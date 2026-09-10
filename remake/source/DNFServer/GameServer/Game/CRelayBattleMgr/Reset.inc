@@ -1,7 +1,1 @@
 void CRelayBattle::Reset()
-{
-    m_state = 0;
-    m_seq = 0;
-    m_team = 0;
-    m_requestFight = 0;
-    m_killCount = 0;

@@ -1,3 +1,1 @@
 STItemScript::STItemScript()
-{
-    Clear();

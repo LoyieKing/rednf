@@ -1,2 +1,1 @@
 InterSelectPcroomDailyReward::~InterSelectPcroomDailyReward()
-{

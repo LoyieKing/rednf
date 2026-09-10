@@ -1,3 +1,1 @@
 PvPSkillTreeParameterScript::PvPSkillTreeParameterScript()
-{
-    clear();

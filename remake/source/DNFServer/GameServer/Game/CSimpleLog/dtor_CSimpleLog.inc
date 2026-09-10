@@ -1,3 +1,1 @@
 CSimpleLog::~CSimpleLog()
-{
-    CloseFile();

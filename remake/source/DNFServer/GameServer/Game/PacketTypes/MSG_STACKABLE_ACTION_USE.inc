@@ -1,2 +1,1 @@
 MSG_STACKABLE_ACTION_USE::MSG_STACKABLE_ACTION_USE()
-    : m_0d(0), m_0f(0), m_10(0), m_14(0), m_15(0), m_19(0) {}  // ORIG 0x826033e

@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 ARAD/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 ARAD/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r Game/ ARAD 命名空间类实现（批3：从 GameStubs.cpp 迁移，批4：Arad 脚本生命周期）。
 // 依据 docs/class_func_reports/ARAD__Arad_DataManager/* + 各子对象报告 + ORIG elf 反汇编。
@@ -48,23 +50,88 @@ namespace ARAD
 //（it -0x2c / e -0x30 / fail -0x28 / success -0x18）。残余 diff 全为 .o 未 relink
 // 的 call/jmp 与 .rodata 重定位显示（§6.3 假阳性）。
 #include "ARAD/LoadScript.inc"
+{
+    // ORIG 0x81a11dc：Init() 后遍历 set 调用各脚本 Load()；全成功返回 1，
+    // 否则 cMyTrace "Fail" 返回 0；每次成功也记 "Success"。
+    Init();
+    // b28d-60：P13 end 缓存（ORIG end() 在循环外一次 → -0x30 槽）；
+    // 成功路径 cMyTrace 第4/5参 ORIG 为 (0,1) ⇒ 源码 (false, true)（原 true,false 反）。
+    for (std::set<ScriptInterface*>::const_iterator it = m_scripts.begin(),
+                                                     e = m_scripts.end();
+         it != e; ++it)
+    {
+        if (!(*it)->Load())
+        {
+            // ORIG 0x81a1276：失败记 cMyTrace(pretty, 0x12, 9, true, true) + "Fail"。
+            // b28d-solo-ARAD：P221 全表达式临时链（槽序试探）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x12, 9, true, true)("Fail");
+            return false;
+        }
+        // ORIG 0x81a12f4：每次成功记 cMyTrace(pretty, 0x15, 9, true, false) + "Success"。
+        cMyTrace(__PRETTY_FUNCTION__, 0x15, 9, false, true)("Success");
+    }
+    return true;
 }
 
 #include "ARAD/DestroyScript.inc"
+{
+    // ORIG 0x81a12f8：遍历 set 逐个 Unload()，返回 1。
+    // ORIG end() 一次求值（P13 缓存）；it 槽浅 -0xc / e 槽深 -0x10 ⇒
+    // it 先声明（P212 头部直构试探）。
+    std::set<ScriptInterface*>::const_iterator it = m_scripts.begin();
+    std::set<ScriptInterface*>::const_iterator e = m_scripts.end();
+    for (; it != e; ++it)
+        (*it)->Destroy();
+    return true;
 }
 
 #include "ARAD/RegistScript.inc"
+{
+    // ORIG 0x81a136c：find 已存在（重复注册）→
+    // printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)\n", priority) + exit(0)；
+    // 不存在 → insert，返回 true。
+    // b28d-60：NEAR 残差=insert 后 `leave` 前一条对齐 nop（ORIG 无）——if/else
+    // 双块形替代 guard-return 试探（消 4.4 的块对齐 nop）。
+    if (m_scripts.find(s) == m_scripts.end())
+    {
+        m_scripts.insert(s);
+    }
+    else
+    {
+        printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)", priority);
+        exit(0);
+    }
 }
 
 #include "ARAD/Init.inc"
+{
+    // ORIG 0x81a13f6（59 指令）：按序 RegistScript(Singleton<X>::Get(), 0x13) 共 9 个：
+    //   AvatarFixedHiddenOptionServer → AvatarRechargeServer → EmblemCompoundServer →
+    //   AvatarConvertServer → CerashopAddRestrict::Manager → LevelupSupportEventManger →
+    //   Arad_DataManager → CreateDnfEventSciprtServer → LevelupSupport2ndEventManger。
+    // 当前依赖闭包完整的六个（保持 ORIG 相对次序；#3/#4 由 FixAradEmblemConvert 落地）：
+    RegistScript(Singleton<AvatarFixedHiddenOptionServer>::Get(), 0x13);
+    RegistScript(Singleton<AvatarRechargeServer>::Get(), 0x13);
+    RegistScript(Singleton<EmblemCompoundServer>::Get(), 0x13);   // #3（ORIG 次序）
+    RegistScript(Singleton<AvatarConvertServer>::Get(), 0x13);    // #4（ORIG 次序）
+    RegistScript(Singleton<CerashopAddRestrict::Manager>::Get(), 0x13);
+    RegistScript(Singleton<LevelupSupportEventManger>::Get(), 0x13);    // #6（ORIG 次序）
+    RegistScript(Singleton<Arad_DataManager>::Get(), 0x13);
+    RegistScript(Singleton<CreateDnfEventSciprtServer>::Get(), 0x13);   // #8（ORIG 次序）
+    RegistScript(Singleton<LevelupSupport2ndEventManger>::Get(), 0x13); // #9（ORIG 次序）
 }
 
 #include "ARAD/Arad_InterfaceGameScript.inc"
+    : m_scriptDataName(name)
+{
 }
 
 #include "ARAD/dtor_Arad_InterfaceGameScript.inc"
 
 #include "ARAD/scriptDataName.inc"
+{
+    // ORIG 0x8188b18：return m_scriptDataName
+    return m_scriptDataName;
 }
 
 }  // namespace ARAD
@@ -82,10 +149,47 @@ namespace ARAD
 // ============================================================================
 #include "ARAD/ExceptionItem.inc"
 #include "ARAD/dtor_ExceptionItem.inc"
+
+// b28d-solo-ARAD verdict=IDENTICAL/AE：P283 goto 尾标签复现 4.1「begin 后 jmp 到底部
+// 条件块」；具名 `int idx` 由块内提至函数级 + 具名 insert 结果 `res`（P212/P247 槽序
+// 旋钮）后槽位与 ORIG 全对齐（idx -0x20 / insert sret -0x28 / .second -0x24）。
 #include "ARAD/parsing.inc"
+{
+    Arad_Script script;
+    if (!script.Load(data, "material_exception_item"))
+        return 0x27;
+    if (script.GetRowNum() == 0)
+        return 0x2a;
+    // ORIG 循环每轮重调 GetRowNum
+    // b28d-60：P283 4.1「begin 后无条件 jmp 到底部条件块」布局——原 while(true)+
+    // break 使 4.4 条件置顶（setle/jne end）；改 goto 尾标签复现 setg/jne body。
+    int r = 0;
+    int idx;   // b28d-solo-ARAD：P212 全头部声明（槽序试探）
+    goto check;
+loop_body:
+    {
+        idx = script.GetInt(r, "material_exception_item_index");
+        // b28d-solo-ARAD：具名 sret 槽试探（ORIG insert sret 在 -0x28、.second -0x24）。
+        std::pair<std::map<int, int>::iterator, bool> res =
+            m_exceptionItemIndex.insert(std::make_pair(idx, idx));
+        if (!res.second)
+            return 0x33;   // ORIG insert 失败（.second==0）→ 0x33
+        ++r;
+    }
+check:
+    if (script.GetRowNum() > r)
+        goto loop_body;
+    return 0;
 }
 
 #include "ARAD/find_index.inc"
+{
+    // ORIG 0x81a210c：find 先于 end（求值序），且尾为 test/je/mov$1/jmp/mov$0
+    // 分支归一化（P56）——具名迭代器 + if(cond)return true 复现。
+    std::map<int, int>::iterator it = m_exceptionItemIndex.find(index);
+    if (it != m_exceptionItemIndex.end())
+        return true;
+    return false;
 }
 
 // ============================================================================
@@ -94,10 +198,60 @@ namespace ARAD
 // ============================================================================
 #include "ARAD/PurchaseLimitItem.inc"
 #include "ARAD/dtor_PurchaseLimitItem.inc"
+
+// b28d-solo-ARAD verdict=IDENTICAL/AE：Info 提到循环外构造一次（ORIG 0x81a21dc 在
+// r=0 之前）+ Item_Index 写入 Info+0x04（make_pair first = `lea -0x2c; add $0x4`，
+// 即 info.reserved 槽）+ 具名 insert 结果 res ⇒ 槽位全对齐（script -0x88 / Info -0x2c /
+// insert sret -0x34 / .second -0x30）。残余仅 4.4 循环对齐 nop（§6.1 豁免）。
 #include "ARAD/parsing_1.inc"
+{
+    Arad_Script script;
+    if (!script.Load(data, "purchase_limit_item"))
+        return 0x4c;                  // ORIG 0x81a21ab：Load 失败返 0x4c
+    if (script.GetRowNum() == 0)
+        return 0x4f;                  // ORIG 0x81a21cc：无行返 0x4f
+    // b28d-solo-ARAD：ORIG 0x81a21dc 在 r=0 之前**循环外**构造一次 Info（-0x2c），
+    // 循环内复用 ⇒ Info 声明必须在函数级（原循环体内声明使 script 槽 -0x8c、Info -0x34）。
+    Info info;
+    int r = 0;
+    goto check;
+loop_body:
+    {
+        // b28d-solo-ARAD：ORIG 0x81a220a 把 Item_Index 写入 Info+0x04（reserved 槽，
+        // make_pair 的 first 即 `lea -0x2c; add $0x4`），非独立 idx 局部。
+        info.reserved = (unsigned int)script.GetInt(r, "Item_Index");
+        info.purchaseType = (unsigned short)script.GetInt(r, "purchase_Type");
+        info.limitCount = (unsigned short)script.GetInt(r, "puchase_limit_count");
+        // ORIG 0x81a2297：insert 而非 operator[]（重复 key 保留首条），
+        // 插入失败（已存在）返 0x5c。
+        // b28d-solo-ARAD：具名 sret（同 ExceptionItem）令 4.4 把 insert 返回槽排到
+        // ORIG 的 -0x34（.second -0x30），Info 上移到 -0x2c。
+        std::pair<std::map<unsigned int, Info>::iterator, bool> res =
+            m_purchaseLimitMap.insert(std::make_pair(info.reserved, info));
+        if (!res.second)
+            return 0x5c;
+        ++r;
+    }
+check:
+    if (script.GetRowNum() > r)
+        goto loop_body;
+    return 0;
 }
 
 #include "ARAD/find.inc"
+{
+    // ORIG 0x81a2310：map<uint,Info> 命中写 out 返回 true。
+    // P96：4.4 的 const_iterator 与 iterator 是不同类型，find 返回值赋 const_iterator
+    // 会多一次转换构造（ORIG 无该 call）；ORIG 侧 cv 限定为非 const iterator。
+    std::map<unsigned int, Info>::iterator it = m_purchaseLimitMap.find(itemIndex);
+    // P222：ORIG 0x81a235f 为正向包裹（`test; je <mov $0 失败岛>; 命中体; mov $1`），
+    // 否定早返 `if (it == end) return false;` 产反向块序。
+    if (it != m_purchaseLimitMap.end())
+    {
+        out = it->second;
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -106,7 +260,41 @@ namespace ARAD
 // ============================================================================
 #include "ARAD/AradBonusItem.inc"
 #include "ARAD/dtor_AradBonusItem.inc"
+
+// b28d-solo-ARAD verdict=IDENTICAL/AE：ORIG 0x81a23f8 在 r=0 之前**循环外**构造
+// 一次 Data（-0x38），循环内复用；make_pair 实例 `_ZSt9make_pairIRjRN13AradBonusItem4DataEE`
+// 的 first = &Data+0x04（即 unsigned int itemId 字段），无独立 itemIdx 局部
+//（ORIG 0x81a2426 `call GetInt; mov %eax,-0x34` 直存字段）。
 #include "ARAD/parsing_2.inc"
+{
+    Arad_Script script;
+    if (!script.Load(data, "bonus_item"))
+        return 0x79;
+    if (script.GetRowNum() == 0)
+        return 0x7c;
+    // b28d-solo-ARAD：Data 循环外构造（同 PurchaseLimitItem::Info）。
+    Data d;
+    int r = 0;
+    goto check;
+loop_body:
+    {
+        // ORIG 0x81a2426/0x81a2446/0x81a2467：item_id→Data+4、bonus_type→Data+8、
+        // bonus_value→Data+0（GetInt 结果直存，无中间局部）。
+        d.itemId = (unsigned int)script.GetInt(r, "item_id");
+        d.bonusType = (unsigned short)script.GetInt(r, "bonus_type");
+        d.bonusValue = script.GetInt(r, "bonus_value");
+        // b28d-solo-ARAD：具名 sret 令 insert 返回槽落 ORIG 的 -0x40（.second -0x3c），
+        // Data 上移到 -0x38。
+        std::pair<std::map<int, Data>::iterator, bool> res =
+            m_bonusMap.insert(std::make_pair(d.itemId, d));
+        if (!res.second)
+            return 0x88;   // ORIG insert 失败（.second==0）→ 0x88
+        ++r;
+    }
+check:
+    if (script.GetRowNum() > r)
+        goto loop_body;
+    return 0;
 }
 
 // b28d-solo-ARAD verdict=IDENTICAL/AE：P96/P270 非 const iterator（消 const_iterator
@@ -114,6 +302,16 @@ namespace ARAD
 // 后结构整体赋值（ORIG 0x81a2590 逐字段读节点到 -0x14/-0x10/-0xc，再 memcpy(out,&tmp,10)
 // 带自赋值检查）。槽位 key -0x1c / find -0x20 / end -0x18 / tmp -0x14 全对齐。
 #include "ARAD/find_1.inc"
+{
+    // ORIG 0x81a252c：map<int,Data> 命中写 out（拷 10 字节）返回 true。
+    int key = itemId;   // ORIG 具名 key 槽（-0x1c）
+    std::map<int, Data>::iterator it = m_bonusMap.find(key);
+    if (it != m_bonusMap.end())
+    {
+        out = Data(it->second);
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -124,13 +322,79 @@ namespace ARAD
 // 16→14 条。默认值清零发生在 parsing()（`m_defaultPercent = 0` 行），ctor 侧删初始化。
 #include "ARAD/Arad_Mileage_Data.inc"
 #include "ARAD/dtor_Arad_Mileage_Data.inc"
+
+// b28d-solo-ARAD verdict=IDENTICAL/AE：补具名 `int found = find(ipg)`（P0 槽往返，
+// ORIG 0x81a3598 `mov %eax,-0xc`）后全帧槽位对齐（script -0x74 / r -0x18 / ipg -0x14 /
+// percent -0x10 / found -0xc / Data -0x20），154=154 指令全等；残余 diff 全为 .o
+// 未 relink 的 call/jmp 与 .rodata 重定位显示（§6.3 假阳性）。
+// p167：ORIG 0x81a35ca 调 push_back(Data&&)（`OS1_`）⇒ 匿名临时形
+// `push_back(Data(ipg, percent))`（具名 d 选 RKS1_，差集 1/1）；改后 0/0 CLEAR。
 #include "ARAD/parsing_3.inc"
+{
+    Arad_Script script;
+    if (!script.Load(data, "default"))
+        return 0x18c;
+    if (script.GetRowNum() == 0)
+        return 0x18f;
+
+    m_defaultPercent = 0;
+    m_defaultPercent = script.GetInt(0, "percent");
+    if (m_defaultPercent < 0 || m_defaultPercent > 0x3e8)
+    {
+        LogManager::logFormat(
+            1, "localjapan/Arad_Script_Loader.cpp",
+            "virtual int Arad_Mileage_Data::parsing(char*)",
+            0x197, "[ERROR] invalid mileage default value. (%f)", m_defaultPercent);
+        return 0x198;
+    }
+
+    if (!script.Load(data, "item"))
+        return 0x19e;
+    if (script.GetRowNum() == 0)
+        return 0;
+
+    for (int r = 0; r < script.GetRowNum(); ++r)
+    {
+        int ipg = script.GetInt(r, "ipg_no");
+        int percent = script.GetInt(r, "percent");
+        // b28d-solo-ARAD：P0——ORIG 0x81a3598 `call find; mov %eax,-0xc(%ebp)` 有具名
+        // 结果槽（-0xc），判断为 `cmpl $0x0,-0xc; jns <错误块>`；内联 find() 被 4.4
+        // 折成 `shr $0x1f,%eax` 且整帧浅 4（script -0x70 vs ORIG -0x74）。
+        int found = find(ipg);
+        if (found < 0)
+        {
+            // b28d-solo-ARAD：ORIG 0x081a35ca 调 push_back(Data&&)（`OS1_` 右值重载）⇒
+            // 原码是匿名临时形（Data 临时占 -0x20 sret 槽，P0 限定①类临时不可由槽区分
+            // 具名性）；具名 `Data d; push_back(d)` 选 RKS1_（p167 差集 1/1）。
+            m_mileageList.push_back(Data(ipg, percent));
+        }
+        else
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_Script_Loader.cpp",
+                "virtual int Arad_Mileage_Data::parsing(char*)",
+                0x1b0, "[ERROR] already exist item index (IPG:%d, percent:%d)",
+                ipg, percent);
+            return 0x1b1;
+        }
+    }
+    return 0;
 }
 
 #include "ARAD/find_2.inc"
+{
+    // ORIG 0x81a3668：按 ipgNo 找 Data，命中返回 percent，未命中返回 -1。
+    for (std::vector<Data>::iterator it = m_mileageList.begin();
+         it != m_mileageList.end(); ++it)
+        if (it->ipgNo == ipgNo)
+            return it->percent;
+    return -1;
 }
 
 #include "ARAD/default_value.inc"
+{
+    // ORIG 0x81a36f0：return *(int*)(this+0x04)
+    return m_defaultPercent;
 }
 
 // ============================================================================
@@ -140,21 +404,97 @@ namespace ARAD
 // ============================================================================
 // ORIG ctor @0x08188d0a / dtor @0x08188d6a（vector 成员自动构造/析构）。
 #include "ARAD/Arad_OnePlusCardEvent_ItemList.inc"
+{
 }
 
 #include "ARAD/dtor_Arad_OnePlusCardEvent_ItemList.inc"
+{
 }
 
 #include "ARAD/parsing_4.inc"
+{
+    Arad_Script script;
+    // [b23判词·AE假阳性] 167/167 归一化逐条相等（含两段 Load 的实参来源、循环体内
+    // 默认值先行 store、logFormat 五个 %esp 实参槽序）；残余 diff 全为未 relink .o 的
+    // call/jmp 重定位占位与 .rodata/g_dnfLex 数据地址（立即数为节内偏移 + R_386_32，
+    // 已逐处核对其字符串内容与 ORIG 0x8bac8xx 一致，§6.3 假阳性），relink 后转
+    // IDENTICAL_AE。
+    if (!script.Load(data, "item"))
+        return 0x1db;
+    if (script.GetRowNum() == 0)
+        return 0;
+    for (int r = 0; r < script.GetRowNum(); ++r)
+    {
+        // ORIG 0x081a3767/0x081a376d：循环体先写默认值（movw $0x0 到 -0x12、
+        // movl $0xffffffff 到 -0x10），再 GetInt 覆盖（P0：具名默认初始化局部）。
+        unsigned short webId = 0;
+        unsigned long itemIndex = 0xffffffff;
+        webId = (unsigned short)script.GetInt(r, "web_id");
+        itemIndex = (unsigned long)script.GetInt(r, "item_index");
+        if (find_item(webId))
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_Script_Loader.cpp",
+                "virtual int Arad_OnePlusCardEvent_ItemList::parsing(char*)",
+                0x1ea,
+                "[ERROR] already exist data id OnePlusCardEvent(id:%d, item:%u)",
+                (int)webId, (unsigned int)itemIndex);
+            return 0x1eb;
+        }
+        m_cardList.push_back(Data(webId, itemIndex));
+    }
+    // ORIG 0x081a3857：第二段 Load 用 g_dnfLex.getInputStreamBuffer() 当前输入缓冲，
+    // 非形参 data（item 段 Load 消耗后 lexer 流位置）。
+    if (!script.Load(g_dnfLex.getInputStreamBuffer(), "limited_map"))
+        return 0x1f3;
+    if (script.GetRowNum() == 0)
+        return 0;
+    for (int r = 0; r < script.GetRowNum(); ++r)
+    {
+        unsigned int map = (unsigned int)script.GetInt(r, "index");
+        if (is_limited_map(map))
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_Script_Loader.cpp",
+                "virtual int Arad_OnePlusCardEvent_ItemList::parsing(char*)",
+                0x1fe,
+                "[ERROR] already exist limited map index (map:%u)",
+                map);
+            return 0x1ff;
+        }
+        m_limitedMap.push_back(map);
+    }
+    return 0;
 }
 
 #include "ARAD/find_item.inc"
+{
+    // ORIG 0x081a398e：Data(webId,0) + std::find → operator==（0x081a420a）按 webId 匹配。
+    Data tmp(webId, 0);
+    std::vector<Data>::iterator it = std::find(m_cardList.begin(), m_cardList.end(), tmp);
+    if (it == m_cardList.end())
+        return false;
+    out.webId = it->webId;
+    out.itemIndex = it->itemIndex;
+    return true;
 }
 
 #include "ARAD/find_item_1.inc"
+{
+    // ORIG 0x081a3a6e：Data(0,0) 委托两参 find_item，返回值透传。
+    Data tmp(0, 0);
+    return find_item(webId, tmp);
 }
 
 #include "ARAD/is_limited_map.inc"
+{
+    std::vector<unsigned int>::iterator it = std::find(
+        m_limitedMap.begin(), m_limitedMap.end(), mapIndex);
+    if (it == m_limitedMap.end())
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ============================================================================
@@ -167,6 +507,50 @@ namespace ARAD
 #include "ARAD/dtor_Arad_VillageAttackRewardItem.inc"
 
 #include "ARAD/parsing_5.inc"
+{
+    // ORIG 0x81a3b48：Load 失败分别返回 0x232/0x24c；GetRowNum()==0 提前返回 0；
+    // 循环条件每轮重调 GetRowNum()。原 if 包裹写法吞掉了错误码（真语义差）。
+    Arad_Script script;
+    if (!script.Load(data, "reward_item"))
+        return 0x232;
+    if (script.GetRowNum() == 0)
+        return 0;
+    for (int r = 0; r < script.GetRowNum(); ++r)
+    {
+        // ORIG 0x81a3bbc：先构造 d（-0x1c）再构造 out（-0x28），GetInt 填 out 后拷 d，
+        // find 用 d、logFormat/push_back 用 out。按此形态书写以匹配字节。
+        Data d;
+        Data out;
+        out.winPoint = script.GetInt(r, "win_point");
+        out.itemIndex = script.GetInt(r, "item_index");
+        out.itemCount = script.GetInt(r, "item_count");
+        d = out;
+        if (find_reward_item(d.winPoint, d))
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_Script_Loader.cpp",
+                "virtual int Arad_VillageAttackRewardItem::parsing(char*)",
+                0x244,
+                "[ERROR] Already exist data. (point:%d, item:%u, count:%d)",
+                out.winPoint, out.itemIndex, out.itemCount);
+            return 0x245;
+        }
+        m_rewardList.push_back(out);
+    }
+    if (!script.Load(data, "reward_ranker"))
+        return 0x24c;
+    if (script.GetRowNum() == 0)
+        return 0;
+    for (int r = 0; r < script.GetRowNum(); ++r)
+    {
+        RankData d;
+        d.itemIndex = script.GetInt(r, "item_index");
+        d.itemCount = script.GetInt(r, "item_count");
+        d.itemIndex2 = script.GetInt(r, "item_index2");
+        d.itemCount2 = script.GetInt(r, "item_count2");
+        m_rankList.push_back(d);
+    }
+    return 0;
 }
 
 // b28d-solo-ARAD verdict=IDENTICAL/AE：ORIG 0x81a3e3c 不是循环而是
@@ -175,9 +559,29 @@ namespace ARAD
 //（ORIG 全程无 0xc(%ebp) 读取，原码遗留，P171 照抄）；命中后 `out = *it`
 //（ORIG 0x81a3ed1 三对 dword mov = 结构整体赋值 P247）。
 #include "ARAD/find_reward_item.inc"
+{
+    // ORIG 0x81a3e52：std::find<iterator,Data>(sret -0x18, begin -0x10, end -0x14, out)。
+    (void)winPoint;   // ORIG 未使用该形参（比较值取自 out）
+    std::vector<Data>::iterator it =
+        std::find(m_rewardList.begin(), m_rewardList.end(), out);
+    if (it != m_rewardList.end())
+    {
+        out = *it;
+        return true;
+    }
+    return false;
 }
 
 #include "ARAD/find_ranking_reward_item.inc"
+{
+    // ORIG 0x81a3ef0：cmpw rank + js（rank<0）+ cmp 16 位 size + jle（rank>=size）
+    // —— 有符号 16 位比较；合并 || 以匹配 js/jle 前置 false 布局。
+    if (rank >= 0 && rank < (short)m_rankList.size())
+    {
+        out = m_rankList[rank];
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -186,15 +590,27 @@ namespace ARAD
 namespace ARAD
 {
 #include "ARAD/Arad_DataManager.inc"
+    : m_scriptMap(), m_exceptionItem(), m_purchaseLimitItem(), m_bonusItem(),
+      m_mileageData(), m_onePlusCard(), m_villageAttackReward()
+{
 }
 
 #include "ARAD/dtor_Arad_DataManager.inc"
+{
+    Destroy();    // ORIG 0x08188170：D1 写 vptr 后调 Destroy()（成员随后自动析构）
 }
 
 #include "ARAD/Load.inc"
+{
+    // ORIG 0x81882cc：转发 initAradData()
+    return initAradData();
 }
 
 #include "ARAD/Destroy.inc"
+{
+    // ORIG 0x81882e0：转发 destroyAradData()，返回 true（vtable 槽1）。
+    destroyAradData();
+    return 1;
 }
 
 // b28d-solo-ARAD verdict=IDENTICAL/AE：P118/P139 第一参用 __FUNCTION__（ORIG 局部静态符号
@@ -206,15 +622,95 @@ namespace ARAD
 // `cmpl $0,槽; setne; test; je`；trace2(0x59) 标志位按 ORIG 为 (true,false)。
 // 345=345 指令全等，clean 归一化 0 残差。
 #include "ARAD/initAradData.inc"
+{
+    // b28d-solo-ARAD：ORIG 0x08188304 单槽 -0x20 初始化一次，ep/st 两段复用同一
+    // 基类指针变量（Ghidra local_24 被两派生类型共用；虚调用 vptr+8=槽2=loadScriptData）。
+    // 派生*→基类* 的赋值另出 ORIG `mov %ebx,%eax; mov %eax,-0x20` 中转（P211 档③）。
+    Arad_InterfaceGameScript* script = 0;
+    // 各段起始/失败/成功均按 ORIG 记 cMyTrace（line/flag/bC/bD 逐点核对）：
+    // 段①起(0x48,9,1,0)、Fail(0x4c/0x52,9,1,1)、Success(0x55,9,0,1)；
+    // 段②起(0x59,9,1,0)、Fail(0x5d/0x63,9,1,1)、Success(0x66,9,0,1)；
+    // 段③起(0x94,9,1,0)、open 失败(0x97/0x9d/0xa3/0xb2/0xbb,9,1,1) 带
+    // "…script load fail. (line:%d)" 参数为 open 返回值。
+    cMyTrace(__FUNCTION__, 0x48, 9, true, false)("\t- Loading Event Period Script - ");
+    script = new Arad_EventPeriodDataManager();
+    if (script == 0 || !script->loadScriptData())
+    {
+        cMyTrace(__FUNCTION__, 0x4c, 9, true, true)("Fail");
+        return false;
+    }
+    if (!__insertGameScript(script))
+    {
+        cMyTrace(__FUNCTION__, 0x52, 9, true, true)("Fail");
+        return false;
+    }
+    cMyTrace(__FUNCTION__, 0x55, 9, false, true)("Success");
+
+    cMyTrace(__FUNCTION__, 0x59, 9, true, false)("\t- Loading Statistics Item List - ");
+    script = new Arad_StatisticsEventItemList();
+    if (script == 0 || !script->loadScriptData())
+    {
+        cMyTrace(__FUNCTION__, 0x5d, 9, true, true)("Fail");
+        return false;
+    }
+    if (!__insertGameScript(script))
+    {
+        cMyTrace(__FUNCTION__, 0x63, 9, true, true)("Fail");
+        return false;
+    }
+    cMyTrace(__FUNCTION__, 0x66, 9, false, true)("Success");
+
+    int openResult = 0;
+    cMyTrace(__FUNCTION__, 0x94, 9, true, false)("\t- Loading NexonFolder Script - ");
+    openResult = m_exceptionItem.open("Nexon/AradSpecialUseItems.txt");
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0x97, 9, true, true)(
+        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+    return false; }
+    openResult = m_purchaseLimitItem.open("Nexon/AradSpecialUseItems.txt");
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0x9d, 9, true, true)(
+        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+    return false; }
+    openResult = m_bonusItem.open("Nexon/AradSpecialUseItems.txt");
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0xa3, 9, true, true)(
+        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+    return false; }
+    openResult = m_mileageData.open("Nexon/CeraShopMileage.txt");
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0xb2, 9, true, true)(
+        "CeraShopMileage script load fail. (line:%d)", openResult);
+    return false; }
+    openResult = m_villageAttackReward.open("Nexon/VillageAttackRewardItem.txt");
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0xbb, 9, true, true)(
+        "VillageAttackRewardItem script load fail. (line:%d)", openResult);
+    return false; }
+    return true;
 }
 
 #include "ARAD/destroyAradData.inc"
+{
+    // ORIG 0x8188952：std::for_each(begin,end,FN_DeleteGameScript()) 逐项删除，clear。
+    // FN_DeleteGameScript::operator() 定义归 Arad_Verify.cpp（ORIG 0x8188c56），
+    // 类声明见 ARAD_FN_DeleteGameScript.h（唯一声明点）。
+    std::for_each(m_scriptMap.begin(), m_scriptMap.end(), FN_DeleteGameScript());
+    m_scriptMap.clear();
 }
 
 #include "ARAD/__insertGameScript.inc"
+{
+    // ORIG 0x81889bc：scriptDataName 未注册则 m_scriptMap[name]=script 返回 true；否则 false。
+    // 【b26 NL10】ORIG 以 (end结果槽, find结果槽) 序调 iterator::operator!=，
+    // 源码写 end() != it 复现该实参序（4.1 实参求值 R→L）。
+    std::map<std::string, Arad_InterfaceGameScript*>::iterator it =
+        m_scriptMap.find(script->scriptDataName());
+    if (m_scriptMap.end() != it)
+        return false;
+    m_scriptMap[script->scriptDataName()] = script;
+    return true;
 }
 
 #include "ARAD/findGameScript.inc"
+{
+    // ORIG 0x81882ac：return m_scriptMap[name]（未命中插入空指针，返回 0）。
+    return m_scriptMap[name];
 }
 
 // Singleton<T> 模板定义已在 Arad_DataManager.h 提供。ORIG 对这两个实例只发射
@@ -235,6 +731,27 @@ template ScriptManager* Singleton<ScriptManager>::Get();
 // p167：ORIG 0x08197963 调 put_binary(char*,int)（Pc）⇒ cast 改 (char*)（原
 // (const char*) 选 PKc，差集 1/1）；改后 0/0 CLEAR。
 #include "ARAD/notifyOpenMessageDialog.inc"
+                             const AradServerStateMessage& msg)
+{
+    // [b23判词·AE假阳性] 65/65 归一化逐条相等（含 guard 局部 -0x18 寻址、put_binary
+    // 的 `movl $0xc` 长度实参、异常清理路径的 %ebx/%esi 交换序）；残余 diff 全为未
+    // relink .o 的 call 重定位占位 + GlobalData::s_systemTime_ 数据地址显示 0x0
+    // （§6.3 假阳性），relink 后转 IDENTICAL_AE。
+    if (user == 0)
+        return 0;
+    PacketGuard guard;
+    // ORIG 0x8197907：getCurSec() 结果存 -0xc(%ebp) 栈槽后未再读（P0 具名死局部，
+    // ORIG 原码含该存储语句；-O0 下保留槽与 store，与 ORIG 一致）。
+    int curSec = GlobalData::s_systemTime_.getCurSec();
+    (void)curSec;
+    guard.put_header(0, 0x21a);
+    guard.put_int(a);
+    guard.put_int(b);
+    // b28d-solo-ARAD：ORIG 0x08197963 调 put_binary(char*,int)（Pc），非 const 版；
+    // 原 (const char*) cast 选成 PKc 重载（p167 EXTRA/MISSING 各 1）。
+    guard.put_binary((char*)&msg, 0xc);
+    guard.finalize(true);
+    return user->Send(guard);
 }
 
 }  // namespace ARAD

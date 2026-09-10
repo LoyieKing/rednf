@@ -7,3 +7,4 @@ STPvPBuddyDBInfo::STPvPBuddyDBInfo() {
     this->m_growType = 0;
     this->m_sex = 0;
     memset(this->m_name, 0, sizeof(this->m_name));
+}

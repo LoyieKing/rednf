@@ -1,12 +1,14 @@
 // ============================================================================
-// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
-//   每个顶层函数已移入 DB_AvatarChangeOwner/<Func>.inc（不参与编译、内部不含 #include）。
-//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
-//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 DB_AvatarChangeOwner/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
 //     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
 //     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
-//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // df_game_r 还原 —— DB_AvatarChangeOwner（球员换主 DB 请求，DBThread 派发）。
 // 逐函数对照 docs/class_func_reports/DB_AvatarChangeOwner/makeRequest.md。
@@ -23,4 +25,24 @@
 // DB_AvatarChangeOwner::makeRequest @ 0x0840055c
 // ============================================================================
 #include "DB_AvatarChangeOwner/makeRequest.inc"
+                                       unsigned int c, unsigned char d)
+{
+    // [b28d-48] P259：ORIG 0x0840055c 的 Acquire 结果直传 CStreamGuard 实参
+    // （无 stream 具名局部；`lea -0x14; mov %eax,0x4(%esp)` 直传），具名局部使
+    // 4.4 多发 `mov %eax,-0x14` 缓存并使帧 0x30→0x40。
+    // 收口：NDIFF 63→47（72/77），帧已对齐 0x30；残差 = guard 槽 -0x18 vs
+    // -0x14 与 d+10 的 addb 形（ORIG `addb $0xa,-0x1c(%ebp)` 直接改形参槽
+    // vs 4.4 读中转），N82/N18a 封顶。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb7f), true);
+    guard.operator*()->operator<<(0x35);
+    guard.operator*()->operator<<(-1);
+    SIG_AVATAR_CHANGE_OWNER* sig =
+        guard.operator->()->GetInBuffer<SIG_AVATAR_CHANGE_OWNER>();
+    char* p = (char*)sig;
+    *(unsigned int*)(p + 0x0) = a;
+    *(unsigned int*)(p + 0x4) = b;
+    *(unsigned int*)(p + 0x8) = c;
+    *(unsigned char*)(p + 0xc) = (unsigned char)(d + 10);  // param_4 + '\n'
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

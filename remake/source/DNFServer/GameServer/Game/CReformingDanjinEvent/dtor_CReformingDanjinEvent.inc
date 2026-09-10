@@ -1,2 +1,1 @@
 CReformingDanjinEvent::~CReformingDanjinEvent()
-{

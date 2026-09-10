@@ -1,3 +1,1 @@
 QuestParameterScript::QuestParameterScript()
-{
-    clear();

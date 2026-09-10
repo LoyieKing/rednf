@@ -1,2 +1,1 @@
 CreateDnfEventSciprt::CreateDnfEventSciprt()
-{

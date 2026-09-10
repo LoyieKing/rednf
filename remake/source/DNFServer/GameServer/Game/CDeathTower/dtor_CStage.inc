@@ -1,2 +1,1 @@
 CDeathTower::CStage::~CStage()
-{

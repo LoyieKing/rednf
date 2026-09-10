@@ -1,2 +1,1 @@
 CParty::CItemRoutingData::~CItemRoutingData()
-{

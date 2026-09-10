@@ -1,2 +1,1 @@
 DBUpdateExitTime::~DBUpdateExitTime()
-{

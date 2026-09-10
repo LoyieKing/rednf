@@ -1,2 +1,1 @@
 AttackInfo::~AttackInfo()
-{
