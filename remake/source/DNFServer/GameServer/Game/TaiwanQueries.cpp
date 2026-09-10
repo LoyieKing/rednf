@@ -258,8 +258,9 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
 {
     if (token == 0)
     {
-        cMyTrace trace(__FUNCTION__, 0x7a, 5);
-        trace("[Taiwan, Auth] Token is null!");
+        // [b28d-solo-D02] P221：具名 cMyTrace → 全表达式临时链（ORIG 0x08173222
+        // 该 trace 占 -0x48，4.4 具名形占更深槽 ⇒ 反向）。
+        cMyTrace(__FUNCTION__, 0x7a, 5)("[Taiwan, Auth] Token is null!");
         return 0x7b;
     }
 
@@ -307,14 +308,15 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     unsigned int gold = out.getGoldMemberType();
     unsigned short gca = out.getGcaType();
     unsigned int stamp = out.getTimeStamp();
-    char* uname = out.getUname();
-    unsigned int uid = out.getUid();
 
-    cMyTrace trace(__FUNCTION__, 0x99, 0);
-    trace("[Taiwan, Auth] Success!! Uid:%u, UserName:%s, Timestamp:%u, "
-          "GcaType:%u, GoldMemberType:%u, Mobile:%u",
-          uid, uname, stamp, gca, gold,
-          static_cast<unsigned int>(mobile));
+    // [b28d-solo-D02] P221：同上（ORIG 0x081734da 该 trace 占 -0x30 浅槽）。
+    // 另：ORIG 0x081734a8/0x081734b5 的 getUname/getUid 结果**无槽**（留 %edi/%esi
+    // 跨 ctor 保活）⇒ 原码这两个值是实参内联表达式（P0），不具名。
+    cMyTrace(__FUNCTION__, 0x99, 0)(
+        "[Taiwan, Auth] Success!! Uid:%u, UserName:%s, Timestamp:%u, "
+        "GcaType:%u, GoldMemberType:%u, Mobile:%u",
+        out.getUid(), out.getUname(), stamp, gca, gold,
+        static_cast<unsigned int>(mobile));
     return 0;
 }
 

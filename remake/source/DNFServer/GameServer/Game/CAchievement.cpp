@@ -551,7 +551,7 @@ void CAchievement::_verifyAchievement(unsigned int self)
                 // call getCurCharacQuestR; add $0x4,%eax; mov %ebx,0x4(%esp)`）+ 槽基比
                 // 我方浅 8（it -0x38 vs -0x40）；P277 具名 receiver 形实测更劣
                 //（槽再深 4、内层 i 由 -0x14 漂到 -0x18），已回退。
-                if (((WongWork::CQuestClear*)((char*)m_user
+                if (((WongWork::CQuestClear*)((unsigned int)m_user
                                                   ->getCurCharacQuestR() +
                                               4))
                         ->isClearedQuest(clearQuestIdx))
@@ -616,7 +616,7 @@ void CAchievement::adjust()
         // ORIG 0x0828ca5x：getCurCharacQuestR() 结果 `add $0x4,%eax` 后直接调
         // WongWork::CQuestClear::isClearedQuest（bool 返回 ⇒ 调用点 test/je 无
         // setne；UserQuest::isClearQuest 包装是另一符号，p167 会记 MISSING）。
-        if (((WongWork::CQuestClear*)((char*)m_user->getCurCharacQuestR() + 4))
+        if (((WongWork::CQuestClear*)((unsigned int)m_user->getCurCharacQuestR() + 4))
                 ->isClearedQuest(questIdx))
         {
             // [真 bug 修复] ORIG 0x0828ca18 压栈的是 -0x18(%ebp)=m_achievementIdx

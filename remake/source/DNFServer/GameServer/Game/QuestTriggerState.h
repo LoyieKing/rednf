@@ -23,6 +23,18 @@
 // 我方原为 T 强绑定（外联定义于 QuestTriggerState.cpp / Quest.cpp）。
 // 在声明处标 weak 复现同一绑定：定义点不变（本 TU 仍发射实体，四数/符号集零变化），
 // Quest.cpp 的 setTrigger 定义同样随之落 W。mangled/sizeof/布局零影响。
+//
+// [位域建模 2026-09-10，E04] 字段由 `short` 改「16 位容器 9 位位域 + 同址 int 视图」，
+// 依据 ORIG 指令形（本 TU 四函数与 Quest.cpp 的 setTrigger 一致）：
+//   读：`movzwl (%eax),%eax; andw $0x1ff,%ax; movzwl %ax,%eax`（16 位 and 后零扩展）；
+//   写：`movzwl 旧容器; andw $0xfe00,%ax; or 新值; mov %ax,容器`（保留高 7 位）；
+//   operator= 解包：`and $0x3fe00,%eax; sar $0x9` / `and $0x7fc0000,%eax; sar $0x12`
+//   ⇒ 原码是 (v & (0x1ff<<9)) >> 9 形；subTriggerState v==0 对 +0x00 的 4 字节自减
+//   （`mov (%eax),%eax; lea -1(%eax),%edx; mov %edx,(%eax)`）⇒ 需 m_low32 视图。
+// 双编译器探针 /tmp/qts/b.cpp（4.4.7）与 ORIG 逐条一致；4.1.2 同形（/tmp/qts/p2_41.s m8）。
+// sizeof 8 / 偏移 0,2,4,6 / 对齐 2 与 short 版逐值不变；7 个符号 mangled 全不变。
+// operator= 返回类型引用→void：返回类型不入 mangled（`aSERKi`），ORIG 0x086ad56c 尾部
+// `pop %ebp; ret` 无 eax 装载（void 形）；全部调用点为语句式（UserQuest.cpp `state = m_trigger[i];`）。
 #define ST_QUEST_TRIGGER_STATE_WEAK __attribute__((weak))
 
 struct stQuestTriggerState_t
@@ -30,15 +42,28 @@ struct stQuestTriggerState_t
     stQuestTriggerState_t() ST_QUEST_TRIGGER_STATE_WEAK;
     void setTrigger(short a, short b, short c) ST_QUEST_TRIGGER_STATE_WEAK;
     int getTrigger() ST_QUEST_TRIGGER_STATE_WEAK;
-    stQuestTriggerState_t& operator=(int const& v) ST_QUEST_TRIGGER_STATE_WEAK;
+    void operator=(int const& v) ST_QUEST_TRIGGER_STATE_WEAK;
     void incTirggerState(char v) ST_QUEST_TRIGGER_STATE_WEAK;
     void subTriggerState(char v) ST_QUEST_TRIGGER_STATE_WEAK;
 
-    short m_trigger0;  // +0x00
-    short m_trigger1;  // +0x02
-    short m_trigger2;  // +0x04
-    short m_trigger3;  // +0x06（保留；ORIG C1/operator= 2×movl 清 8 字节实证）
+    union
+    {
+        struct
+        {
+            unsigned short m_trigger0 : 9;   // +0x00 bit0..8
+            unsigned short m_reserved0 : 7;  // +0x00 bit9..15（ORIG `and $0xfe00` 保留位）
+            unsigned short m_trigger1 : 9;   // +0x02 bit0..8
+            unsigned short m_reserved1 : 7;  // +0x02 bit9..15
+        };
+        int m_low32;                         // +0x00 的 4 字节视图（subTriggerState v==0）
+    };
+    unsigned short m_trigger2 : 9;           // +0x04 bit0..8
+    unsigned short m_reserved2 : 7;          // +0x04 bit9..15
+    short m_trigger3;                        // +0x06（保留；ORIG C1/operator= 2×movl 清 8 字节）
 };
+
+static_assert(sizeof(stQuestTriggerState_t) == 8,
+              "stQuestTriggerState_t ABI layout drift");
 
 #undef ST_QUEST_TRIGGER_STATE_WEAK
 

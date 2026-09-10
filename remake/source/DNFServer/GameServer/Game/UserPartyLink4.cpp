@@ -231,7 +231,12 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     // （`movzbl -0x71; mov %al,-0xb8` 位于 0x0b/0x0d 两条之间）⇒ 语句序须如此。
     drop.m_item.m_field0 = invenItem.m_field0;         // byte +0x10
     drop.m_item.m_fieldd = invenItem.m_fieldd;         // dword +0x1d ← src union
-    drop.m_item.m_amp = invenItem.m_amp;               // +0x21..+0x2e 整体（14B POD）
+    // ORIG 0x085a74dd..0x085a7503：m_amp（stAmplifyOption_t，14B）拆为
+    // guid 视图三条（+0x15/+0x19/+0x1d）在前、head 视图一条（+0x11）在后
+    // ⇒ 原码是两次视图赋值（`m_guid` 先、`m_amp0Head` 后），整体赋值 4.4 恒按
+    // 偏移升序（0x11 提前）错位。
+    drop.m_item.m_amp.m_guid = invenItem.m_amp.m_guid;         // +0x15/+0x19/+0x1d
+    drop.m_item.m_amp.m_amp0Head = invenItem.m_amp.m_amp0Head; // +0x11
     drop.m_item.m_random.m_random =                    // RandomOption 子块整体（14B）
         invenItem.m_random.m_random;
     drop.m_item.m_upgradeSep.SetUpgradeSeparate(

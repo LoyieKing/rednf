@@ -655,7 +655,12 @@ bool CUser::VerifyPresentAvengerTitle()
     }
 
     Inven_Item item;
-    int itemIdx = 0x28d3af;         // ORIG 0x868b77c 独立栈槽 -0x8c（非 Inven_Item
+    unsigned int itemIdx = 0x28d3af;   // [b28d-C08 P209/P218 档②] ORIG 0x868b7b0/7ba
+                                    // `mov -0x8c(%ebp),%eax; test %eax,%eax; je` +
+                                    // `mov -0x8c(%ebp),%eax; cmp $0xffffffff,%eax; jne`
+                                    // = **寄存器**比较 ⇒ 该局部为 unsigned（signed 会折
+                                    // mem 直比 `cmpl $0x0,-N(%ebp)`）；日志实参 `%u` 亦证。
+                                    // ORIG 0x868b77c 独立栈槽 -0x8c（非 Inven_Item
                                     // 成员——0x868b77c 与 item@-0x8e 尺寸不重叠实证；
                                     // ChronicleRandomOptionInfo 亦无 +1 偏移 int 成员）
                                     // b28d-W8: 去 const —— ORIG 0x868b9ae 从槽

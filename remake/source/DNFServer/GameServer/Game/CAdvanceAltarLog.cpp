@@ -151,8 +151,9 @@ void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
     data.m_useCount = static_cast<unsigned short>(data.m_useCount + useCountDelta);
     data.m_useStar = static_cast<unsigned short>(data.m_useStar + useStarDelta);
     // ORIG 0x08156e52 段：operator[] 结果 %eax 直比 &data（无具名槽），
-    //   `cmp %edx,%eax; je <出口>` ⇒ 源形是「具名指针 + 非自拷贝守卫」。
-    STAdvanceAltarLayerStatData* slot = &m_layers[key];
+    //   `cmp %edx,%eax; je <出口>`（call 结果直用、无 store/load）⇒ 试 P231
+    //   纯 register 存储类提示（非 asm 绑定，P0 合规）让值留寄存器。
+    register STAdvanceAltarLayerStatData* slot = &m_layers[key];
     if (slot != &data)
         std::memcpy(slot, &data, 0xe);
 }
@@ -168,9 +169,11 @@ void CAdvanceAltarLog::updateDatabase()
 {
     Guard<Mutex> guard(&m_mutex);
 
-    Stream* raw = GlobalData::s_stream_pool->Acquire(
-        "localglobal/global_Statistics.cpp", 0xe5);
-    CStreamGuard stream(raw, true);
+    // [b28d-E03 2026-09-10] P259/P0：ORIG 0x08156f08..0x08156f1f 无 raw 具名槽
+    //   （Acquire 结果 %eax 直传 CStreamGuard ctor 实参槽），删具名局部后帧/槽归位。
+    CStreamGuard stream(GlobalData::s_stream_pool->Acquire(
+                            "localglobal/global_Statistics.cpp", 0xe5),
+                        true);
 
     stream.operator<<(static_cast<int>(0x33b));   // ORIG operator<<(0x33b)
     stream.operator<<(-1);                        // 广播
@@ -182,10 +185,13 @@ void CAdvanceAltarLog::updateDatabase()
         STAdvanceAltarEntranceData* slot =
             stream->GetInBuffer<STAdvanceAltarEntranceData>();
         std::memcpy(slot, &it->second, 0x10);
-        cMyTrace trace("void CAdvanceAltarLog::updateDatabase()", 0xf4, 0);
-        trace("[AdvanceAltar] stageIndex:%d, enterCount:%d, successCount:%d, obtainStar:%d",
-              it->second.m_stageIndex, it->second.m_enterCount,
-              it->second.m_successCount, it->second.m_obtainStar);
+        // [b28d-E03 2026-09-10] P328⑩/P221：ORIG 0x08157000..0x08157074 先把 4 个
+        //   vararg 求值保活（%edi/%esi/%ebx + -0x74 槽），**之后**才 cMyTrace C1 ⇒
+        //   源形是「构造即调用」单语句临时链；两语句具名形把 C1 提前 1 段。
+        cMyTrace(__PRETTY_FUNCTION__, 0xf4, 0)(
+            "[AdvanceAltar] stageIndex:%d, enterCount:%d, successCount:%d, obtainStar:%d",
+            it->second.m_stageIndex, it->second.m_enterCount,
+            it->second.m_successCount, it->second.m_obtainStar);
     }
     m_entrances.clear();
 
@@ -197,11 +203,13 @@ void CAdvanceAltarLog::updateDatabase()
             stream->GetInBuffer<STAdvanceAltarLayerStatData>();
         // pair+8 起复制 0x10（超过 ST 0xe 的 2 字节为 ORIG 原样超读，勿改 0x10）。
         std::memcpy(slot, &it->second, 0x10);
-        cMyTrace trace("void CAdvanceAltarLog::updateDatabase()", 0x106, 0);
-        trace("[AdvanceAltar] itemType:%u, itemIndex:%u, itemLevel:%u, useCount:%u, useStar:%u",
-              (unsigned int)it->second.m_itemType, it->second.m_itemIndex,
-              (unsigned int)it->second.m_itemLevel, (unsigned int)it->second.m_useCount,
-              (unsigned int)it->second.m_useStar);
+        // ORIG 0x08157147..0x081571ee 同形（5 个 vararg 先求值：%ebx/%esi/%edi +
+        //   -0x6c/-0x70 槽 → C1(-0x38) → operator()）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x106, 0)(
+            "[AdvanceAltar] itemType:%u, itemIndex:%u, itemLevel:%u, useCount:%u, useStar:%u",
+            (unsigned int)it->second.m_itemType, it->second.m_itemIndex,
+            (unsigned int)it->second.m_itemLevel, (unsigned int)it->second.m_useCount,
+            (unsigned int)it->second.m_useStar);
     }
     m_layers.clear();
 

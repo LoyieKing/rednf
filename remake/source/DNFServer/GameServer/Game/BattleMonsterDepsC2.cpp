@@ -521,13 +521,16 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
 void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x, int y)
 {
     if (m_pDungeon == NULL)
-        return;
+        goto apc_end;   // [round5-C05] P223 尾标签串：ORIG 三守卫直跳 epilogue
+                        // （仅 1 个对齐 nop 岛），平铺 `return;` 令 4.4 各发
+                        // `jmp epilogue;nop` 中继岛 ×4 ⇒ 改单尾标签。
     // P0：ORIG 0x083020e5 `movl $0x40,-0x10(%ebp)`（具名局部，非直填立即数）
-    int mobId = 0x40;
+    int mobId;
+    mobId = 0x40;
     if ((m_endX == x && m_endY == y) ||
         (m_startX == x && m_startY == y))                                  // +0xc/+0x10、+0x4/+0x8
     {
-        return;
+        goto apc_end;
     }
     // [b23S3C] P48 双取：ORIG getAICharacterAppearRate() 每判各调一次
     // （非空检查 1 次、rand 比较 1 次存 %ebx 跨 get_rand_int call）；
@@ -548,7 +551,7 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
             G_CDataManager()->m_aiCharacterList->getByLevel(
                 static_cast<unsigned int>(m_pDungeon->get_standard_level()));
         if (ai == NULL)
-            return;
+            goto apc_end;
 
         std::memset(&mob, 0, sizeof(map_monster));  // ORIG 显式 memset 0x34c
         // [b28d-Lane27] ORIG 0x083021ac 取旧值写 mob+0、自增在**函数尾** 0x08302296
@@ -576,6 +579,8 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
         ++mobId;                                    // ORIG 0x08302296 尾置自增
       }
     }
+apc_end:
+    ;
 }
 
 // ORIG 0x083022a8：从候选表中随机抽 count 只追加为宝箱怪（每轮一次 rand 取槽）。
@@ -1328,7 +1333,11 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
             {
                 for (size_t i = 0; i < gs->m_mapCandidates.size(); ++i)
                 {
-                    (void)G_CDataManager()->find_map(gs->m_mapCandidates[i]);
+                    // [round5-C05 2026-09-10] P171 死写入照抄：ORIG 0x08308631
+                    // `mov %eax,-0x24(%ebp)` 把 find_map 结果写回具名 `map` 槽
+                    // （其后无读点）；我方 `(void)` 丢弃 ⇒ 少 1 条（327 vs 325）。
+                    map = static_cast<CMap*>(
+                        G_CDataManager()->find_map(gs->m_mapCandidates[i]));
                     LogManager::logFormat(
                         1, "battle_field.cpp",
                         "int CBattle_Field::get_candidator_map(const CDungeon*, "

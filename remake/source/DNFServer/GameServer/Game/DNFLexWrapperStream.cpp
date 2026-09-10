@@ -88,10 +88,13 @@ int DNFLexWrapper::getInputStreamSize()
 // getStreamName（ORIG 0x8ace8a0）：tstring 返回（按 DNFLexWrapper.cpp
 // getLastTokenDataAsString 的 by-value std::string 惯例）：lexType_ != 0 时
 // 返回 "NONE"；NORMAL 时委托 DNFLex::getStreamName。
-// b28d-21: NEAR 封顶 — 29=29 助记符序列全同，唯一残差为 lexType_ 载入寄存器
-// （ORIG `mov 0x14(%eax),%edx; test %edx,%edx` vs 4.4.6 `%ecx`）——N7 跨版本
-// 寄存器角色差（本 TU 路由 c6446r -O2，P230 补：N7 判词限定为「4.4.7 恒 %eax」，
-// 本件为 -O2 分配器产物，无源码旋钮）。ORIG 0x8ace8a0。
+// b28d-21 + E06 复测: NEAR 封顶 — 29=29 助记符序列全同，唯一残差为 lexType_
+// 载入寄存器（ORIG `mov 0x14(%eax),%edx; test %edx,%edx` vs 4.4.x `%ecx`）。
+// E06 实测矩阵：①本 TU 路由 c6446r -O2 → %ecx；②c6root 4.4.7 全旗标 -O2（无
+// 路由改写）→ %ecx；③源码形穷举 `lexType_ != 0` / Yoda `NORMAL != lexType_` /
+// 三目条件式（此处反劣为 DIFF，已回退）→ 均 %ecx。⇒ 4.4 分配器恒选 %ecx，
+// 属 N7 跨版本寄存器角色差（P321-T5：寄存器角色不改类型/源码），无源码旋钮。
+// ORIG 0x8ace8a0。
 std::string DNFLexWrapper::getStreamName()
 {
     if (lexType_ != LEX_TYPE_NORMAL)
@@ -138,9 +141,13 @@ bool DNFLexWrapper::setStringStreamData(DNFLex::stream_data_t* s, char* buffer,
 //   - size>1 时读 2 字节魔数 0xd0b0 → COMPILED：转发 CompiledDNFLex::
 //     SwitchInputStream（buffer 为读取区或新分配拷贝；若用 sd->stream 读则
 //     完成后释放 istream）；否则 NORMAL：转发 DNFLex::SwitchInputStream。
-// b28d-21: NEAR 封顶 — 120=120 助记符序列全同，唯一残差为 lexerError_
-// （0x6108(%esi)）载入寄存器（ORIG `%ebx` vs 4.4.6 `%edx`）——N7 跨版本寄存器
-// 角色差（-O2 分配器产物）。ORIG 0x8aceaa0。
+// b28d-21 + E06 复测: NEAR 封顶 — 120=120 助记符序列全同，唯一实质残差为
+// lexerError_（0x6108(%esi)）载入寄存器（ORIG `mov 0x6108(%esi),%ebx; test %ebx,
+// %ebx` vs 4.4.x `%edx`）。E06 实测矩阵：①本 TU 路由 c6446r -O2 → %edx；
+// ②c6root 4.4.7 全旗标 -O2（无路由改写）→ %edx。⇒ N7/P321-T5 跨版本寄存器
+// 角色差，无源码旋钮（后续同址 `call *0x6108(%esi)` 两侧逐条一致，证明语义等价）。
+// 另余 ORIG `nop; lea 0x0(%esi,%eiz,1),%esi` 与本方 `lea…; nop` 的对齐填充顺序差
+// （§6.1 填充豁免）。ORIG 0x8aceaa0。
 bool DNFLexWrapper::switchInputStream(const char* dir, const char* filename,
                                       DNFLex::stream_data_t* s)
 {

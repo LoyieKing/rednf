@@ -625,7 +625,9 @@ bool ProcStage::makeCurrentPhaseSummonObject()
             spawnMs += it->m_firstDelayMs;
             while (spawnMs < phaseEnd)
             {
-                bool create = true;
+                // widthscan：ORIG 全函数无 movb/cmpb（clr_b/cmp_b orig=0）⇒ create 是 int
+                //（4.4 写 bool 会产 movb $1 + cmpb；ORIG 为 cmpl）。
+                int create = 1;
                 if (it->m_flag != 0)
                 {
                     const int key = it->m_pSummon->m_field0c;
@@ -640,7 +642,7 @@ bool ProcStage::makeCurrentPhaseSummonObject()
                     }
                     else
                     {
-                        create = false;   // 该对象本轮配额用尽
+                        create = 0;       // 该对象本轮配额用尽
                     }
                 }
                 if (create)
@@ -650,6 +652,9 @@ bool ProcStage::makeCurrentPhaseSummonObject()
                     so->m_seq = m_field14;
                     m_field14 = static_cast<short>(m_field14 + 1);
                     so->m_actionDefineId = define->m_id;
+                    // ORIG 0x812f020 段 `movb $0x0,0xc(%eax)`：new 后显式清零 m_deadFlag
+                    //（P171 照抄原码显式写；ctor memset 已清但 ORIG 逐条发射）。
+                    so->m_deadFlag = 0;
                     std::memcpy(&so->m_summon, it->m_pSummon, 0x24);
                     m_summonObjectMs.insertSummonObject(*so);
                     spawnMs += it->m_nextDelayMs;

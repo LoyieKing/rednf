@@ -73,8 +73,10 @@ DB_LoadInventory::~DB_LoadInventory()
 // ============================================================================
 bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
 {
-    // P212/P309 试验：全头部声明 + 声明序按 ORIG 槽深序（sig -0x14 / err -0x10
-    // / i -0xc），复现 4.1「先声明深」的标量区布局。
+    // P212/P309：全头部声明 + 声明序按 ORIG 槽深序复现 4.1「先声明深」标量区。
+    // ORIG 槽图：sent(-0x15,bool) / sig(-0x14) / err(-0x10) / i(-0xc) ⇒ sent 声
+    // 明最先（最深），故 sent 亦提至函数头（P212「全头部声明」含 bool 汇聚变量）。
+    bool sent;
     SIG_LOAD_INVENTORY* sig;
     int err;
     int i;
@@ -130,6 +132,7 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
         // test %al,%al; je <继续>`（4.1 对 int 形参/局部槽比零的 bool 物化）——
         // 4.4 对 `if (err != 0)` 恒折 `je` 直跳（少 2 条）。P225 复现形 =
         // `while (err != 0) { body; }`（body 以 throw 结束 ⇒ 无回边/无 break jmp）。
+        err = 0;   // P198① 预清：ORIG 0x0840a8ab `movl $0x0,-0x10(%ebp)`（调用前）
         err = _getCharacInvenExpand(sig);
         while (err != 0)
         {
@@ -137,6 +140,7 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
                 ("DB_LoadInventory::dispatch, _getCharacInvenExpand ERROR"
                  " charac_no=%u, line(%d)", sig->m_characNo, err);
             throw 4;
+            break;
         }
         err = GetItemLock(sig->m_characNo,
                           &sig->m_locks[0]);
@@ -146,6 +150,7 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
                 ("DB_LoadInventory::dispatch, GetItemLock ERROR charac_no=%u,"
                  " line(%d)", sig->m_characNo, err);
             throw 6;
+            break;
         }
         if (!_GetEquipMaxItemLevel(sig))
         {
@@ -164,7 +169,7 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
     }
     // ORIG 尾形：SendResult 结果落具名 bool 槽 -0x15 → `xor $1; test; je` 分支，
     // 成功 `mov $1,%eax`、失败 `mov $0,%eax`（直接 return 调用被 4.4 tail 化）。
-    bool sent = SendResult(userIdx, slot, sig);
+    sent = SendResult(userIdx, slot, sig);
     if (!sent)
     {
         return false;

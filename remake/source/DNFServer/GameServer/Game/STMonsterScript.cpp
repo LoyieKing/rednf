@@ -463,8 +463,11 @@ void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* inf
     (void)framePad;
     const int tableIdx = getMonsterTableIndex(script, dungeonIdx,
                                               roleType, flagA, flagB);
+    // ORIG 0x088b9685 `mov -0x34(%ebp),%eax; cmp $0x4,%eax; jne`（寄存器比较链）。
+    // [D07 试形记录] 单 case switch 形可复现该链（P286 有效）但多 2 条（switch 出口
+    // jmp + default 落点），实测 481/484 劣于 if 形 481/482 ⇒ 回退 if，封 P209/N18b。
     if (tableIdx == 4)                         // +0x85 难度表 4 用副本等级查行
-        level = dungeonIdx;                    // （P209：4.4 signed 局部恒 mem 直比，N）
+        level = dungeonIdx;
 
     // +0x93..0x15c：g_monsterBaseParameters[tableIdx] 中首列==level 的首个命中；
     // 脚本自带基础表时改取脚本内同下标行（operator[] 无界，忠实 ORIG）。
@@ -474,10 +477,12 @@ void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* inf
     {
         if (g_monsterBaseParameters[tableIdx][i].m_value[0] == level)
         {
+            // ORIG 0x088b96d4..0x088b972a：命中后**先取全局表项**（operator[]×2
+            // → -0x30），再由 `size()!=0` 条件覆盖为脚本表项；写成 if/else 会让
+            // 4.4 把 size 检查放到 then 块首（ORIG 的 then 首段是全局表取址）。
+            param = &g_monsterBaseParameters[tableIdx][i];
             if (script->m_baseParameters.size() != 0)           // +0x102
                 param = &script->m_baseParameters[i];
-            else
-                param = &g_monsterBaseParameters[tableIdx][i];
             break;
         }
     }

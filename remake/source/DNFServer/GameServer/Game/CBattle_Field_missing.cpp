@@ -901,6 +901,9 @@ bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int 
         MapInfo* mapInfo = GetCurrentMapInfo();
         std::map<int, map_monster>::iterator it =
             GetCurrentMapInfo()->m_monsterMap.begin();
+        // [round5 实测·第三形] while 前置条件（`while (field <= round)`，无 end()
+        // 比较版）复测仍反劣：ndiff 24→36（4.4 恒把条件旋转到尾部并产 `jmp <cond>`），
+        // 已回滚为 `for(;;){ if (field > round) break; ... }`（最优 24）。
         for (;;)
         {
             // [判据·多余门禁] ORIG 0x0830605f 循环体首条即 `operator->()` 解引用
@@ -918,6 +921,8 @@ bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int 
             // 实测两形均不可翻：①否定形 `if (!(field <= round))` → 仍 setg/jne（差异 12 行不变）；
             // ②while 条件前置 `while (field <= round)` → 反劣 12→56 行。⇒ 记 N（与 L4 的
             // P292/P168a③ 同族封顶）。
+            // ORIG 0x08306071 的正向物化 `setle/je` 在 4.4 恒折反向 `setg/jne`
+            // （P292/P197④ 同族）⇒ 极性差封 N。
             if (it->second.m_bloodRoundOrder2 > round)
                 break;
             if (it->second.m_bloodRoundOrder2 == round &&

@@ -571,6 +571,10 @@ int CAutoMarketConditionsControl::LoadDatabase(
     // 1e4 ebx=msg+8、1e7 esi=msg+c）跨调用保活（P87/P37 形；寄存器归属
     // 差异记 N7）。
     register int field00Now = m_field00;
+    // ORIG 1e4/1e7 为**单次基址装载**读入 callee-saved 对（`mov 0xc(%ebp),%eax;
+    // mov 0x8(%eax),%ebx; mov 0xc(%eax),%esi`）。两个 32 位独立视图读各发一次
+    // 基址装载（+1 条 = 残差①）；改 `register unsigned long long` + `>>32` 拆字
+    // 实测更劣（252 vs ORIG 246，多 shift/槽化）⇒ 回退，记 N。
     register unsigned int optGoldLo = msg->m_view.m_optimumGoldWords[0];
     register unsigned int optGoldHi = msg->m_view.m_optimumGoldWords[1];
     cMyTrace trace(

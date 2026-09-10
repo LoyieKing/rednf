@@ -737,21 +737,21 @@ int importBloodDungeonScript(const char* path, stBloodDungeon_t& out)
         }
         else if (token == "[exp standard monster cnt]")
         {
-            int v = ScanInt(&ok);
-            out.m_field320 = v;
+            // ORIG 0890e1/0890e4 `mov 0xc(%ebp),%edx; mov %eax,0x320(%edx)` ⇒ 直存，
+            // 无具名 int 局部（P0/配方⑦）。
+            out.m_field320 = ScanInt(&ok);
             if (!ok) { return 0x192f; }
         }
         else if (token == "[reward item prob]")
         {
-            int v1 = ScanInt(&ok);
+            // ORIG 0890911e..0890919a：三次 ScanInt 结果均 `mov %eax,%edx` 后与成员
+            // 相加/直存，无具名 int 局部（P0/配方⑦）；ok 检查在各直存之后。
+            out.m_field324[0] = ScanInt(&ok);
             if (!ok) { return 0x1936; }
-            out.m_field324[0] = v1;
-            int v2 = ScanInt(&ok);
+            out.m_field324[1] = out.m_field324[0] + ScanInt(&ok);
             if (!ok) { return 0x1939; }
-            out.m_field324[1] = out.m_field324[0] + v2;
-            int v3 = ScanInt(&ok);
+            out.m_field324[2] = out.m_field324[1] + ScanInt(&ok);
             if (!ok) { return 0x193c; }
-            out.m_field324[2] = out.m_field324[1] + v3;
         }
         else if (token == "[reward gold weight]")
         {

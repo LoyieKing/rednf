@@ -602,12 +602,7 @@ case "$(basename "$src" .cpp)" in
                 #   实测（同口径两次编译，仅差该旗标）：623/1125(1748)/near4/diff20 →
                 #   623/1126(1749)/near4/diff19（ae +1 / diff −1，净 −1）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
-            *Game/CStackableItem.cpp)
-                # [Main·2026-09-10 round5] 路由 A/B 实证（C04 上报 + Main 独立复编核验）：
-                #   N7 间接/寄存器角色族（ORIG 值进 %ecx 且保留 %edx=this 供第二读）。
-                #   实测：C6 436/884(1320)/near5/diff22 → C6446R 438/884(1322)/near3/diff22
-                #   （identical +2、near −2，净 −2 非identical）。
-                exec "$C6446R" "$@" ;;
+
             *)
                 exec "$C6" "$@" ;;
         esac ;;

@@ -68,6 +68,8 @@ public:
 //   探针 /tmp/addr_probe.cpp g0–g6（char* 算术 / 类型化下标 / uint 算术+回 cast /
 //   交换操作数 / u 后缀 七形）读数全同 g0；唯一省掉中转的 g2（具名基址指针）引入
 //   `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax` 槽往返 ⇒ 净 −1 条反劣。判 N18a。
+//   另试 `do{…}while(0)` + 9 处 break 形（替代 goto L_done）：our_insns 仍 314、
+//   岛数不变（4.4 把 break 出口同样物化为 jmp+nop 岛）⇒ 岛族无源码解，维持 goto 形。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)

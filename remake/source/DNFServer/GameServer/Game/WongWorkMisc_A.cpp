@@ -243,7 +243,7 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
         out->m_field0c = static_cast<unsigned short>((level - 1) * 0x23 + 0x3c);
         out->m_field0e = static_cast<unsigned short>((level - 1) * 0x19 + 0x32);
         out->m_field3a = (level - 1) * 3000 + 400000;
-        out->m_field4a = static_cast<unsigned short>((level - 1) * 0x14 + 6000);
+        out->m_hitRecovery = static_cast<short>((level - 1) * 0x14 + 6000);
         break;
     case 1:
         out->m_field00 = level * 400 + 0xc99u;
@@ -254,7 +254,7 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
         out->m_field0e = static_cast<unsigned short>((level + 1) * 0x19);
         out->m_field3a = (level - 1) * 3000 + 400000;
         out->m_field46 = static_cast<unsigned short>(level * 10 + 0x2080);
-        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x16a8);
+        out->m_hitRecovery = static_cast<short>(level * 32 - level * 2 + 0x16a8);
         break;
     case 2:
         out->m_field00 = level * 0x15e + 0x101du;
@@ -265,9 +265,9 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
         out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 8 - 0xf5);
         out->m_field10[2] = static_cast<unsigned short>((level + 7) << 3);  // +0x14
         out->m_field3a = (level - 1) * 3000 + 400000;
-        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 - 0xd2);
+        out->m_mpRegen = static_cast<short>((level * 4 + level) * 4 - 0xd2);
         out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x19f0);
-        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x1810);
+        out->m_hitRecovery = static_cast<short>((level * 4 + level) * 2 + 0x1810);
         break;
     case 3:
         out->m_field00 = level * 0x226 + 0x20du;
@@ -278,7 +278,7 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
         out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 4 + 0x73);
         out->m_field3a = (level - 1) * 3000 + 400000;
         out->m_field42 = level * 10 + 0x2080u;
-        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 8 + 0x15f4);
+        out->m_hitRecovery = static_cast<short>((level * 4 + level) * 8 + 0x15f4);
         break;
     case 4:
         out->m_field00 = level * 0x20d + 0x3cfu;
@@ -288,9 +288,9 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
         out->m_field0c = static_cast<unsigned short>(level * 32 - level * 2 + 0x73);
         out->m_field0e = static_cast<unsigned short>(level * 32 - level * 2 - 0x41);
         out->m_field3a = (level - 1) * 3000 + 400000;
-        out->m_field40 = static_cast<unsigned short>(level * 4 + level + 0x3c);
+        out->m_mpRegen = static_cast<short>(level * 4 + level + 0x3c);
         out->m_field48 = static_cast<unsigned short>(level * 10 + 0x1aa4);
-        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 4 + 0x1608);
+        out->m_hitRecovery = static_cast<short>((level * 4 + level) * 4 + 0x1608);
         break;
     default:
         break;
@@ -398,8 +398,13 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
         out->m_field0c = static_cast<unsigned short>((level - 1) * 0x28 + 0x50);
         out->m_field0e = static_cast<unsigned short>((level - 1) * 0x28 + 0x46);
         out->m_field3a = (level - 1) * 0x9c4 + 280000;
-        out->m_field40 = static_cast<unsigned short>((level - 1) * 10 + 200);
-        out->m_field4a = static_cast<unsigned short>((level - 1) * 10 + 5000);
+        // [2026-09-10 D06] P321-T1/P196 类型直证：ORIG 0x0831fd1f `add $0xc8,%ax`
+        // / 0x0831fd3d `add $0x1388,%ax`（16 位窄化 add）⇒ 源类型为 **signed
+        // short**（探针 /tmp/d06/p16.cpp f0/f14/f16：unsigned short 恒产
+        // `lea 0xc8(%eax),%edx`，signed short 才产 `add $imm,%ax; mov %eax,%edx`）。
+        // 用 m_mpRegen/m_hitRecovery（CCharacter.h 同址 signed 视角，+0x40/+0x4a）。
+        out->m_mpRegen = static_cast<short>((level - 1) * 10 + 200);
+        out->m_hitRecovery = static_cast<short>((level - 1) * 10 + 5000);
         break;
     case 1:
         out->m_field00 = level * 0x113 + 0x627u;
@@ -409,9 +414,9 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
         out->m_field0c = static_cast<unsigned short>(level * 0x2d - 0x32);
         out->m_field0e = static_cast<unsigned short>(level * 0x2d - 0x3c);
         out->m_field3a = level * 0x9c4 + 0x43bfc;
-        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
+        out->m_mpRegen = static_cast<short>((level * 4 + level) * 4 + 10);
         out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x25a8);
-        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x137e);
+        out->m_hitRecovery = static_cast<short>((level * 4 + level) * 2 + 0x137e);
         break;
     case 2:
         out->m_field00 = level * 300 + 0x465u;
@@ -421,9 +426,9 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
         out->m_field0c = static_cast<unsigned short>((level + 1) * 0x28);
         out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 8 + 0x1e);
         out->m_field3a = level * 0x9c4 + 0x43bfc;
-        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
+        out->m_mpRegen = static_cast<short>((level * 4 + level) * 4 + 10);
         out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x25a8);
-        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x137e);
+        out->m_hitRecovery = static_cast<short>((level * 4 + level) * 2 + 0x137e);
         break;
     case 3:
         out->m_field00 = level * 400 - 0x2a3u;
@@ -435,8 +440,8 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
         out->m_field3a = level * 0x9c4 + 0x43bfc;
         out->m_field46 = static_cast<unsigned short>(level * 10 + 0x265c);
         out->m_field42 = level * 10 + 0x265cu;
-        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x1216);
-        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 2 + 0xbe);
+        out->m_hitRecovery = static_cast<short>(level * 32 - level * 2 + 0x1216);
+        out->m_mpRegen = static_cast<short>((level * 4 + level) * 2 + 0xbe);
         break;
     case 4:
         out->m_field00 = level * 0x15e + 0xe1u;
@@ -446,9 +451,9 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
         out->m_field0c = static_cast<unsigned short>(level * 0x23 + 0x82);
         out->m_field0e = static_cast<unsigned short>(level * 0x23 + 0x78);
         out->m_field3a = level * 0x9c4 + 0x43bfc;
-        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
+        out->m_mpRegen = static_cast<short>((level * 4 + level) * 4 + 10);
         out->m_field48 = static_cast<unsigned short>(level * 10 + 0x265c);
-        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 4 + 0x12ca);
+        out->m_hitRecovery = static_cast<short>((level * 4 + level) * 4 + 0x12ca);
         break;
     default:
         break;
