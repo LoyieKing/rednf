@@ -370,13 +370,22 @@ bool InitCharacterScript(const char* dir, const char* list,
 struct MonsterBaseParameter
 {
     enum { FIELD_COUNT = 24 };
-    int m_value[FIELD_COUNT];               // +0x00..+0x5c，按解析顺序填充
+    // [b29-SweepSTMonsterScript2] ORIG 两处循环列组用 base=param+4、idx=i+0xc/i+0x10
+    // 寻址（clear `movl $0,0x4(%eax,%edx,4)` @0x08a3ce4a；ImportMonsterBaseTable
+    //  `mov %eax,-0xe8(%ebp,%edx,4)` @0x08a3c8a8/0x08a3c8d9）⇒ 原码数组成员自
+    //  +0x04 起（首 int 独立）。匿名 union 双视角复现该寻址；sizeof 0x60、全部
+    //  偏移、mangled 零变化（POD 拷贝仍 rep movsl 0x18 dwords）。
+    union {
+        int m_value[FIELD_COUNT];   // +0x00..+0x5c，按解析顺序填充（既有消费点）
+        // m_grid[3][i]=m_value[13+i]（this+4+(12+i)*4）、
+        // m_grid[4][i]=m_value[17+i]（this+4+(16+i)*4）⇒ 复现 ORIG
+        // `mov i,%edx; add $0xc/$0x10,%edx; movl $0,0x4(%eax,%edx,4)` 两步寻址。
+        // sizeof 仍 0x60（4 + 5*4*4 + 3*4 = 96），全部偏移/mangled 零变化。
+        struct { int m_value0; int m_grid[5][4]; int m_value21, m_value22, m_value23; };
+    };
 
     void clear()
     {
-        // [b28d-solo-InitScriptProducers_4 N4/P30封顶] ORIG `add $0xc,%edx`+disp4 vs
-        // 4.4 `lea 0xd(%eax),%edx`+disp0（同语义两寻址形；索引/指针算术两写法均折叠）；
-        // 52/52 助记符序列同，仅寻址形差。
         // [b28c-L29] ORIG W 0x08a3ce4a：前 13 字段逐条独立 store，随后
         // i∈[0,3] 循环写 m_value[13+i]/m_value[17+i]（+0xc/+0x10 偏移寻址），
         // 尾 3 字段独立 store——照抄原码展开形（非单一 24 次循环）。
@@ -395,8 +404,8 @@ struct MonsterBaseParameter
         m_value[12] = 0;
         for (int i = 0; i <= 3; ++i)
         {
-            m_value[13 + i] = 0;
-            m_value[17 + i] = 0;
+            m_grid[3][i] = 0;   // ORIG disp=+0x04、idx=i+0xc（value[13+i]）
+            m_grid[4][i] = 0;   // ORIG disp=+0x04、idx=i+0x10（value[17+i]）
         }
         m_value[21] = 0;
         m_value[22] = 0;
@@ -505,8 +514,17 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
 //   0x8a1245c/0x8a12540 均为 movzbl __inited; xor $1; test; je <else>）；
 //   ②MonsterBaseParameter 循环 first(-0x78) 预清零且声明序在 param 之前（P198①/P0；
 //   ORIG 0x8a117a6 movl $0,-0x78 在 0x8a117b0 param C1 之前）。
-// 残余为 N82 槽号/寄存器分配与循环尾 r++ 位置（ORIG `while` 形）等结构性产物，
-// 非语义缺口（nop 剥离后 1220 vs 1226；ORIG 侧多 6 条对齐 nop，§6.1 豁免）。
+// [本轮 2026-09-10 结构归位 · byte 层封顶] ①row 循环内 first/ok/param 三者上提至
+//   tableIdx 体内（ORIG 0x8a1146a first=0 → 0x8a11471 ok=false → 0x8a11478 param C1
+//   → 0x8a11486 row=0；C1 全函数仅一次）；②m_value[13+k]/[17+k] 改 m_grid[3][k]/
+//   m_grid[4][k]（MonsterBaseParameter 匿名 union 视角，P311）；③三段难度表循环改
+//   `int r=0; while(true){…;++r; if(!ok||r==13) break;}`（t11 形，ORIG 0x8a11844..
+//   0x8a11875 逐条同构）；④补 ORIG 0x8a117a6 死局部 deadIdx@-0x84（P244 照抄）；
+//   ⑤resize 分支的 def 改匿名临时 `resize(row+1, MonsterBaseParameter())`。
+//   ⇒ 指令数 1226→1220 与 ORIG 全等；flat（槽号归一）ndiff 528→36；p167 168/168 CLEAR。
+// 残余 = N93/N98 槽分配策略差（4.4 给深层嵌套/后声明对象**更深**槽，4.1 相反；探针
+//   /tmp/tu4probe/r.cpp t1/t2/t3 三形实证）⇒ param/def/tableIdx/r 等整体错位 4~8B，
+//   无源码形可翻（全头部声明会改 ctor 发射点与顺序，P331 明禁）⇒ byte 层 N 封顶。
 bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 {
     if (list != 0)                          // ORIG cmpl $0x0,0xc(%ebp)
@@ -536,13 +554,14 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                                     MONSTER_BASIS_PARAMETER_TABLE_NAMES[tableIdx]))
                 return false;
 
+            // [槽布局对齐] ORIG 0x8a1146a(first=0) → 0x8a11471(ok=false) →
+            // 0x8a11478(param C1) → 0x8a11486(row=0)：三者声明在 row 循环**外**
+            // （C1 全函数仅此一处，row 循环内不再构造）⇒ 每 tableIdx 重置一次。
+            int first = 0;                          // ORIG -0x78 具名中转
             bool ok = false;
+            MonsterBaseParameter param;             // ORIG -0x26c(%ebp)
             for (int row = 0;; ++row)       // ORIG -0x74(%ebp)
             {
-                // ORIG 0x8a1146a..0x8a11481：first(-0x78) 预清零在 param C1 之前
-                // （P198① 预清必写）⇒ 声明序 first 在前、ScanInt 结果再回写。
-                int first = 0;                          // ORIG -0x78 具名中转
-                MonsterBaseParameter param;             // ORIG -0x26c(%ebp)
                 first = ScanInt(&ok);
                 if (!ok)                                // ORIG 0x8a114aa jne
                     break;
@@ -561,24 +580,24 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 param.m_value[11] = ScanInt((bool*)0);
                 param.m_value[12] = ScanInt((bool*)0);
                 for (int k = 0; k <= 3; ++k)            // ORIG -0x70 循环
-                    param.m_value[13 + k] = ScanInt((bool*)0);
+                    param.m_grid[3][k] = ScanInt((bool*)0);
                 for (int k = 0; k <= 3; ++k)            // ORIG -0x6c 循环
-                    param.m_value[17 + k] = ScanInt((bool*)0);
+                    param.m_grid[4][k] = ScanInt((bool*)0);
                 param.m_value[21] = ScanInt((bool*)0);         // +0x54
                 param.m_value[22] = ScanInt((bool*)0);         // +0x58
                 param.m_value[23] = ScanInt((bool*)0);         // +0x5c
 
                 // ORIG P157：operator[] 每用点独立取（size×2/push_back/resize/
                 // 赋值共 5 次），勿建 vec 引用缓存。
-                if (row == static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
+                if (static_cast<unsigned int>(row) ==
+                    g_monsterBaseParameters[tableIdx].size())
                     g_monsterBaseParameters[tableIdx].push_back(param);   // ORIG 0x8a11670
                 // ORIG 0x8a1169a seta（size_t 无符号比较），勿 cast 成 int（会生 setl）。
                 else if (static_cast<unsigned int>(row) >
                          g_monsterBaseParameters[tableIdx].size())
                 {
                     // ORIG 0x8a116a1: 默认元素 resize(row+1) 后再赋值。
-                    MonsterBaseParameter def;
-                    g_monsterBaseParameters[tableIdx].resize(row + 1, def);
+                    g_monsterBaseParameters[tableIdx].resize(row + 1, MonsterBaseParameter());
                 }
                 g_monsterBaseParameters[tableIdx][row] = param;          // ORIG rep movsl 0x18
             }
@@ -593,9 +612,14 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
         return false;
     }
 
+    // ORIG 0x8a117a6/0x8a117b0/0x8a117b7 初始化序：movl $0,-0x84（原码遗留死
+    // 局部，全函数从不读）→ movl $0,-0x80（r）→ movb $0,-0x151（ok）；声明序照抄
+    // 以复现槽位（P232/P244：ORIG 未使用局部照抄）。
+    int r = 0;
+    int deadIdx = 0;                            // ORIG -0x84 [推断：原码遗留未使用局部]
     bool ok = false;
     // 难度加成主表：13 行 × 5 列（缺项报错行号 0x7fc，末行/末列豁免）。
-    for (int r = 0; r <= 12; ++r)
+    while (true)
     {
         for (int c = 0; c <= 4; ++c)
         {
@@ -609,11 +633,13 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 break;
             }
         }
-        if (!ok)
+        ++r;
+        if (!ok || r == 13)
             break;
     }
     // 死塔加成：13 行 × 4 列（行号 0x818）。
-    for (int r = 0; r <= 12; ++r)
+    r = 0;
+    while (true)
     {
         for (int c = 0; c <= 3; ++c)
         {
@@ -627,11 +653,13 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 break;
             }
         }
-        if (!ok)
+        ++r;
+        if (!ok || r == 13)
             break;
     }
     // 血条系统加成：13 行 × 4 列写入 5 列数组前 4 列（行号 0x833）。
-    for (int r = 0; r <= 12; ++r)
+    r = 0;
+    while (true)
     {
         for (int c = 0; c <= 3; ++c)
         {
@@ -645,7 +673,8 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 break;
             }
         }
-        if (!ok)
+        ++r;
+        if (!ok || r == 13)
             break;
     }
 
@@ -972,6 +1001,12 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 //   P22/P133 负极性改写（if (!inited)…else…）与 first(-0x78) 预清零（P198①/P0）。
 // 注：本函数体内行内注释的 0x8a11xxxx/0x8a12xxxx 地址系上轮自 3 参版复制的同构位置
 // 注释；本版真实地址以 objdump 0x08a3b0ad 起为准（仅注释，机器码不受影响）。
+// [本轮 2026-09-10 结构归位 · byte 层封顶] 与 3 参版同批：①first/ok/param 上提至
+//   tableIdx 体内（ORIG 0x8a3b205 first=0 → ok=false → param C1 → row=0）；②m_grid
+//   双视角写；③三段难度表循环改 `while(true){…;++r; if(!ok||r==13) break;}`；
+//   ④deadIdx@-0x84；⑤resize 分支 def 改匿名临时；⑥row==size 比较改 unsigned 形。
+//   ⇒ 指令数 1227→1221 与 ORIG 全等，flat ndiff → 36；p167 168/168 CLEAR。
+//   残余同 3 参版 = N93/N98 槽分配策略差。
 bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* map,
                        const char* apcBonus)
 {
@@ -1002,13 +1037,14 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                                     MONSTER_BASIS_PARAMETER_TABLE_NAMES[tableIdx]))
                 return false;
 
+            // [槽布局对齐] ORIG 0x8a3b205(first=0) → 0x8a3b20c(ok=false) →
+            // param C1 → row=0：三者声明在 row 循环**外**（C1 每 tableIdx 仅一次，
+            // row 循环内不再构造）⇒ 与 3 参版同构。
+            int first = 0;                          // ORIG -0x78 具名中转
             bool ok = false;
+            MonsterBaseParameter param;             // ORIG -0x26c(%ebp)
             for (int row = 0;; ++row)       // ORIG -0x74(%ebp)
             {
-                // ORIG 0x8a3b205..0x8a3b21c：first(-0x78) 预清零在 param C1 之前
-                // （P198① 预清必写）⇒ 声明序 first 在前、ScanInt 结果再回写。
-                int first = 0;                          // ORIG -0x78 具名中转
-                MonsterBaseParameter param;             // ORIG -0x26c(%ebp)
                 first = ScanInt(&ok);
                 if (!ok)                                // ORIG 0x8a3b245 jne
                     break;
@@ -1027,24 +1063,24 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 param.m_value[11] = ScanInt((bool*)0);
                 param.m_value[12] = ScanInt((bool*)0);
                 for (int k = 0; k <= 3; ++k)            // ORIG -0x70 循环
-                    param.m_value[13 + k] = ScanInt((bool*)0);
+                    param.m_grid[3][k] = ScanInt((bool*)0);
                 for (int k = 0; k <= 3; ++k)            // ORIG -0x6c 循环
-                    param.m_value[17 + k] = ScanInt((bool*)0);
+                    param.m_grid[4][k] = ScanInt((bool*)0);
                 param.m_value[21] = ScanInt((bool*)0);         // +0x54
                 param.m_value[22] = ScanInt((bool*)0);         // +0x58
                 param.m_value[23] = ScanInt((bool*)0);         // +0x5c
 
                 // ORIG P157：operator[] 每用点独立取（size×2/push_back/resize/
                 // 赋值共 5 次），勿建 vec 引用缓存。
-                if (row == static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
+                if (static_cast<unsigned int>(row) ==
+                    g_monsterBaseParameters[tableIdx].size())
                     g_monsterBaseParameters[tableIdx].push_back(param);   // ORIG 0x8a11670
                 // ORIG 0x8a1169a seta（size_t 无符号比较），勿 cast 成 int（会生 setl）。
                 else if (static_cast<unsigned int>(row) >
                          g_monsterBaseParameters[tableIdx].size())
                 {
                     // ORIG 0x8a116a1: 默认元素 resize(row+1) 后再赋值。
-                    MonsterBaseParameter def;
-                    g_monsterBaseParameters[tableIdx].resize(row + 1, def);
+                    g_monsterBaseParameters[tableIdx].resize(row + 1, MonsterBaseParameter());
                 }
                 g_monsterBaseParameters[tableIdx][row] = param;          // ORIG rep movsl 0x18
             }
@@ -1059,9 +1095,13 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
         return false;
     }
 
+    // 同 3 参版：[ORIG 初始化序] movl $0,-0x84（原码遗留死局部）→ movl $0,-0x80(r)
+    // → movb $0,-0x151(ok)。声明序照抄以复现槽位。
+    int deadIdx = 0;                            // ORIG -0x84 [推断：原码遗留未使用局部]
+    int r = 0;
     bool ok = false;
     // 难度加成主表：13 行 × 5 列（缺项报错行号 0x7fc，末行/末列豁免）。
-    for (int r = 0; r <= 12; ++r)
+    while (true)
     {
         for (int c = 0; c <= 4; ++c)
         {
@@ -1075,11 +1115,13 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 break;
             }
         }
-        if (!ok)
+        ++r;
+        if (!ok || r == 13)
             break;
     }
     // 死塔加成：13 行 × 4 列（行号 0x818）。
-    for (int r = 0; r <= 12; ++r)
+    r = 0;
+    while (true)
     {
         for (int c = 0; c <= 3; ++c)
         {
@@ -1093,11 +1135,13 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 break;
             }
         }
-        if (!ok)
+        ++r;
+        if (!ok || r == 13)
             break;
     }
     // 血条系统加成：13 行 × 4 列写入 5 列数组前 4 列（行号 0x833）。
-    for (int r = 0; r <= 12; ++r)
+    r = 0;
+    while (true)
     {
         for (int c = 0; c <= 3; ++c)
         {
@@ -1111,7 +1155,8 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 break;
             }
         }
-        if (!ok)
+        ++r;
+        if (!ok || r == 13)
             break;
     }
 

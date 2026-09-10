@@ -64,6 +64,10 @@
 //   （sizeof 仍 4、偏移/mangled 零变化）⇒ choose_item / RegenVer_choose_item 的
 //   `*(int*)&key` / `reinterpret_cast<const int&>(key)` 改 `key.m_key`
 //   （RegenVer_choose_item 本件已 AE 归零）。
+//   剩余真缺口 = 7（NEAR `_get_option_type` 4.1 两段迭代器直构族；DIFF
+//   `choose_item`（4.4 cross-jumping 合并 `rarity=0` 失败块 + 槽位）、
+//   `give_option` / `RegenVer_give_option` / `Regenerate` / `_get_option_value` /
+//   `RegenVer_get_option_value`（槽基常数 N126 族））。
 // ============================================================================
 
 #include <sstream>

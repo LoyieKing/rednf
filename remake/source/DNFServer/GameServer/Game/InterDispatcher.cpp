@@ -112,6 +112,7 @@ public:
 #include "APSystemDbDispatchers.h"  // APSystem::DB_UpdateRewardMedal + _SIG_LOAD_REWARD_MEDAL
 #include "Packet_Monitor_Charac_Delete.h"  // shared/packet 权威包（Inter_DeleteCharac）
 #include "CMailBoxHelper.h"       // W0 批 MailBox 链
+#include "PacketTypes.h"          // MSG_MAILBOX_SEND 权威布局（Inter_MultiMailBoxReqSend 栈上组包缓冲）
 #include "Arad_DataManager.h"     // W0 批 ARAD 数据管理器
 #include "ServerParameterScript.h"  // W0 批 conditionEnterRevenge 视图
 #include "CPremiumLetheManager.h" // W0 批
@@ -10900,7 +10901,7 @@ struct Inter_UpdateOneDayLethePktView
     int m_0;                  // +0x00
     unsigned char m_4;        // +0x04
     char m_pad5[0x198];  // 未消费
-    signed char m_19d;        // +0x19d
+    unsigned char m_19d;      // +0x19d（ORIG movzbl 装载+moval 存储：无符号字节）
     signed char m_19e;        // +0x19e
 };
 #pragma pack(pop)
@@ -10925,7 +10926,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->SetOneDayLetheFlag(
                     CPremiumLetheManager::USE_LETHE_STATE);
                 user->SaveBackupSkillInfo(
-                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                        reinterpret_cast<char*>(pPkt) + 5),
                     (ENUM_SKILL_TREE_KIND)0);
             }
             else
@@ -10933,7 +10935,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->SetOneDayLetheFlag2ND(
                     CPremiumLetheManager::USE_LETHE_STATE);
                 user->SaveBackupSkillInfo(
-                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                        reinterpret_cast<char*>(pPkt) + 5),
                     (ENUM_SKILL_TREE_KIND)1);
             }
 
@@ -10951,7 +10954,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
             else
             {
-                char state;                            // -0x9
+                char state = 0;                        // -0x9（ORIG 084d8aeb movb $0x0）
                 if (pPkt->m_19e == -1 ||
                     pPkt->m_19e == 0)
                     state = 1;
@@ -10966,7 +10969,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
         }
     }
     else if (pPkt->m_4 ==
-             (signed char)CPremiumLetheManager::SKILL_CONFIRM_STATE)
+             CPremiumLetheManager::SKILL_CONFIRM_STATE)
     {
         if (pPkt->m_0 != 0)
         {
@@ -10982,9 +10985,10 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->SetOneDayLetheFlag(
                     CPremiumLetheManager::NOT_USE_LETHE_STATE);
                 pPkt->m_19d =
-                    (signed char)CPremiumLetheManager::SKILL_CONFIRM_STATE;
+                    CPremiumLetheManager::SKILL_CONFIRM_STATE;
                 user->SaveBackupSkillInfo(
-                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                        reinterpret_cast<char*>(pPkt) + 5),
                     (ENUM_SKILL_TREE_KIND)0);
             }
             else
@@ -10992,9 +10996,10 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->SetOneDayLetheFlag2ND(
                     CPremiumLetheManager::NOT_USE_LETHE_STATE);
                 pPkt->m_19d =
-                    (signed char)CPremiumLetheManager::SKILL_CONFIRM_STATE;
+                    CPremiumLetheManager::SKILL_CONFIRM_STATE;
                 user->SaveBackupSkillInfo(
-                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                    reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                        reinterpret_cast<char*>(pPkt) + 5),
                     (ENUM_SKILL_TREE_KIND)1);
             }
         }
@@ -11010,7 +11015,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             pPkt->m_19d =
                 CPremiumLetheManager::USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
-                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                    reinterpret_cast<char*>(pPkt) + 5),
                 (ENUM_SKILL_TREE_KIND)0);
         }
         else
@@ -11020,7 +11026,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             pPkt->m_19d =
                 CPremiumLetheManager::USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
-                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                    reinterpret_cast<char*>(pPkt) + 5),
                 (ENUM_SKILL_TREE_KIND)1);
         }
     }
@@ -11035,7 +11042,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             pPkt->m_19d =
                 CPremiumLetheManager::NOT_USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
-                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                    reinterpret_cast<char*>(pPkt) + 5),
                 (ENUM_SKILL_TREE_KIND)0);
         }
         else
@@ -11045,7 +11053,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             pPkt->m_19d =
                 CPremiumLetheManager::NOT_USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
-                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
+                reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(
+                    reinterpret_cast<char*>(pPkt) + 5),
                 (ENUM_SKILL_TREE_KIND)1);
         }
     }
@@ -12259,20 +12268,26 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         rq.m_subCount = static_cast<unsigned char>(optionCnt);
         for (unsigned int i = 0; i < optionCnt; ++i)                   // stride 8 子项@0x48
         {
-            *reinterpret_cast<int*>(&rq.m_subEntries[i][0]) =
+            // [Lane7GlobalData · Main 批准跨 TU 迁移 2026-09-10 · 「视图 cast 反模式」]
+            // 目的侧改具名数组视角（SigTypes_E.h 匿名 union，sizeof/偏移/mangled 不变）：
+            // 旧 `*reinterpret_cast<T*>(&rq.m_subEntries[i][0])=` 目的侧 cast 使 4.4 折
+            // add+shl 普通 store；ORIG 为 stride-8 scaled 直存。源侧仍是 5 字节步长
+            // 线格式缓冲读，保留 cast（P156 线格式豁免）。
+            rq.m_subItems[i].m_itemIdx =
                 *reinterpret_cast<int*>(data + 0x19 + i * 5);   // idx 槽 +0x00
-            rq.m_subEntries[i][4] = *(data + 0x1d + i * 5);     // val 槽 +0x04
+            rq.m_subItems[i].m_value = *(data + 0x1d + i * 5);  // val 槽 +0x04
         }
         const unsigned int avatarCnt =                                 // msg+200(0xc8)
             pPkt->m_c8;
         rq.m_optCount = static_cast<unsigned char>(avatarCnt);
         for (unsigned int j = 0; j < avatarCnt; ++j)                   // stride 8 选项@0x164
         {
-            *reinterpret_cast<unsigned int*>(&rq.m_optEntries[j][0]) =
+            // 同上（ORIG stride-8 scaled 直存）：目的侧改具名视角 m_optItems。
+            rq.m_optItems[j].m_itemUid =
                 static_cast<unsigned int>(*reinterpret_cast<int*>(data + 9 + j * 8));
-            *reinterpret_cast<unsigned short*>(&rq.m_optEntries[j][4]) =
+            rq.m_optItems[j].m_a =
                 *reinterpret_cast<unsigned short*>(data + 0xd + j * 8);
-            *reinterpret_cast<unsigned short*>(&rq.m_optEntries[j][6]) =
+            rq.m_optItems[j].m_b =
                 *reinterpret_cast<unsigned short*>(data + 0xf + j * 8);
         }
 
@@ -12405,9 +12420,9 @@ int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     Inter_SetIPCountPktView* pPkt = reinterpret_cast<Inter_SetIPCountPktView*>(data);
     if (pPkt->m_a == 0)
         GlobalData::g_autoPunishRuleHackTypeMgr->ResetIpCounterData();
-    const int count =
-        (int)(unsigned char)pPkt->m_b;
-    for (int i = 0; i < count; ++i)
+    // §P0：ORIG 084dcbc5 循环尾 `movzbl 0xb(%eax),%eax; movzbl %al,%eax; cmp -0x1c(%ebp),%eax`
+    //   = 每轮重读 m_b（count 无栈槽）⇒ 不设具名 count，条件内联表达式。
+    for (int i = 0; i < (int)(unsigned char)pPkt->m_b; ++i)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->setIPCounterData(
             (unsigned int)*reinterpret_cast<unsigned short*>(data + i * 0x14 + 0xc),
@@ -12439,9 +12454,8 @@ int Inter_SetFullIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     Inter_SetFullIPCountPktView* pPkt = reinterpret_cast<Inter_SetFullIPCountPktView*>(data);
     if (pPkt->m_a == 0)
         GlobalData::g_autoPunishRuleHackTypeMgr->ResetFullIpCounterData();
-    const int count =
-        (int)(unsigned char)pPkt->m_b;
-    for (int i = 0; i < count; ++i)
+    // §P0：与 SetIPCount 同族，循环尾每轮重读 m_b（count 无栈槽）。
+    for (int i = 0; i < (int)(unsigned char)pPkt->m_b; ++i)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->setFullIPCounterData(
             (unsigned int)*reinterpret_cast<unsigned short*>(data + i * 0x18 + 0xc),
@@ -15173,21 +15187,15 @@ Inter_MultiMailBoxReqSend::~Inter_MultiMailBoxReqSend() {}
 // ORIG 0x084e27b8 T dispatch_sig —— 多邮件批量发送：逐收件人构造 MSG_MAILBOX_SEND 请求 DB 发信。
 // 报告 docs/class_func_reports/Inter_MultiMailBoxReqSend/dispatch_sig.md 全文转写。
 #pragma pack(push, 1)
-// MailBufSendView —— 本函数栈上 MSG_MAILBOX_SEND 组包缓冲视图（0x145B；
-//   权威类 MSG_MAILBOX_SEND 头尚为前向声明，字段宽度按 ORIG 084e27b8 写指令
-//   （movl/movb/movw + strncpy 0x1d@+0x0d）逐条核实；只建模本函数写入槽）。
-struct MailBufSendView
+// Inter_MultiMailBoxReqSendItemView —— 包内条目区（+0x60 起，stride 0xb）视图；
+//   ORIG 084e2896/084e28b8/084e28d8 = `add $0x60` 后 disp 0xa/0xc/0x10
+//   （条目基址为动态表达式 ⇒ ORIG 保留 add 0x60 与成员 disp 两段）。
+struct Inter_MultiMailBoxReqSendItemView
 {
-    char m_pad0[0xd];               // +0x00..0x0c memset 清零区
-    char m_name0d[0x1d];            // +0x0d strncpy(local_15c) 收件人名区
-    char m_pad2a[0x4];  // 未消费
-    unsigned int m_2e;              // +0x2e = pPkt m_64（时间戳/序号）
-    char m_pad32[0x4];  // 未消费
-    unsigned char m_36;             // +0x36 收件人项 uchar
-    unsigned short m_37;            // +0x37 收件人项 ushort
-    unsigned int m_39;              // +0x39 收件人项 uint
-    unsigned int m_3d;              // +0x3d 收件人项 uint
-    char m_pad41[0x104];  // 未消费（memset 区；总缓冲 0x145）
+    char m_pad0[0xa];
+    unsigned short m_slot;          // +0x0a
+    unsigned int m_itemId;          // +0x0c
+    unsigned int m_extra;           // +0x10
 };
 #pragma pack(pop)
 
@@ -15213,39 +15221,42 @@ struct Inter_MultiMailBoxReqSendPktView
 
 // [b28d-lane2] verdict=DIFF ndiff=138（ORIG 0x084e27b8）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=135（ORIG 0x84e27b8）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [Lane30-InterDispatcher] 权威头 MSG_MAILBOX_SEND 具名成员直访（原 TU 局部 MailBufSendView
+//   cast 反模式）：ORIG 084e27b8 的 mail 缓冲槽 -0x165 的写点即 -0x165+0x0d/0x11/0x2e/0x36/
+//   0x37/0x39/0x3d = m_nameLenD/m_name11/m_gold2e/m_space36/m_slot37/m_itemId39/m_extra3d
+//   （无中间视图指针槽：原 pMail 局部使帧 +0x10 并多出 lea/mov 与 lea 折址）。
 int Inter_MultiMailBoxReqSend::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MultiMailBoxReqSendPktView* pPkt = reinterpret_cast<Inter_MultiMailBoxReqSendPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
+    Inter_MultiMailBoxReqSendPktView* pPkt =
+        reinterpret_cast<Inter_MultiMailBoxReqSendPktView*>(data);
+    unsigned int local_14 = 0;
     for (int local_10 = 0;
          local_10 < (int)(unsigned int)pPkt->m_68;
          ++local_10)
     {
-        // ORIG 局部 MSG_MAILBOX_SEND 0x145 字节清零（权威头尚为 pad 占位，
-        char mailBuf[0x145];
-        memset(mailBuf, 0, 0x145);
-        MailBufSendView* pMail = reinterpret_cast<MailBufSendView*>(mailBuf);
-        const unsigned int local_15c =
-            pPkt->m_42;
-        strncpy(pMail->m_name0d, pPkt->m_46, local_15c);
-        pMail->m_2e =
-            pPkt->m_64;
+        MSG_MAILBOX_SEND mailBuf;
+        memset(&mailBuf, 0, 0x145);
+        mailBuf.m_nameLenD = pPkt->m_42;
+        strncpy(mailBuf.m_name11, reinterpret_cast<char*>(pPkt) + 0x46,
+                mailBuf.m_nameLenD);
+        mailBuf.m_gold2e = pPkt->m_64;
         pPkt->m_64 = 0;
-        pMail->m_36 =
-            *reinterpret_cast<unsigned char*>(data + local_10 * 0xb + 0x69);
-        pMail->m_37 =
-            *reinterpret_cast<unsigned short*>(data + local_10 * 0xb + 0x6a);
-        pMail->m_39 =
-            *reinterpret_cast<unsigned int*>(data + local_10 * 0xb + 0x6c);
-        pMail->m_3d =
-            *reinterpret_cast<unsigned int*>(data + local_10 * 0xb + 0x70);
+        mailBuf.m_space36 = *reinterpret_cast<unsigned char*>(
+            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x69);
+        mailBuf.m_slot37 = reinterpret_cast<Inter_MultiMailBoxReqSendItemView*>(
+            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x60)->m_slot;
+        mailBuf.m_itemId39 = reinterpret_cast<Inter_MultiMailBoxReqSendItemView*>(
+            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x60)->m_itemId;
+        mailBuf.m_extra3d = reinterpret_cast<Inter_MultiMailBoxReqSendItemView*>(
+            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x60)->m_extra;
 
-        const unsigned int local_14 =
+        local_14 =
             WongWork::CMailBoxHelper::ReqDBSendNewMail(
                 user,
-                reinterpret_cast<MSG_MAILBOX_SEND*>(mailBuf),
+                &mailBuf,
                 pPkt->m_1d,
                 false,
                 pPkt->m_29,
@@ -18023,22 +18034,6 @@ int Inter_NpcLimitBuyItemInfo::checkError(CUser* user, LimitNpcBuyItemInfo* info
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfo/dispatch_sig.md 全文转写。
 // LimitNpcBuyItemUpdate NEEDS_DECL（PacketHeader(0x27dd,0x1a) 派生，见 meta）。
 #pragma pack(push, 1)
-// NpcLimitMailView —— Inter_NpcLimitBuyItemInfo 栈上 MSG_MAILBOX_SEND(0x145)
-// 组包缓冲视图。字段宽度按本函数 ORIG 写指令核实：strncpy @+0x01(0x14B)、
-// movl @+0x35/@+0x3d。（与 Inter_MultiMailBoxReqSend::MailBufSendView 槽位不同：
-// 两处 ORIG 各写不同偏移；MSG_MAILBOX_SEND 权威布局属主落定后再统一。）
-struct NpcLimitMailView
-{
-    char m_pad0[0x1];           // 未消费
-    char m_name01[0x14];        // +0x01 收件人名（strncpy 0x14）
-    char m_pad15[0x20];  // 未消费
-    int m_35;                   // +0x35 = m_addInfo
-    char m_pad39[0x4];  // 未消费
-    int m_3d;                   // +0x3d = m_addInfo2
-    char m_pad41[0x104];        // 未消费
-};
-#pragma pack(pop)
-#pragma pack(push, 1)
 // Inter_NpcLimitBuyItemInfoPktView —— Inter_NpcLimitBuyItemInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
 struct Inter_NpcLimitBuyItemInfoPktView
@@ -18128,14 +18123,16 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
                 (int)strlen(body), 0x1e,
                 user->GetServerGroup(), false, false) == 0)
         {
-            char mail[0x145];                          // -0x288（MSG_MAILBOX_SEND 0x145 视图）
-            memset(mail, 0, 0x145);
-            NpcLimitMailView* pMail = reinterpret_cast<NpcLimitMailView*>(mail);
-            strncpy(pMail->m_name01, title, 0x14);     // 收件人名 @+0x01
-            pMail->m_35 = m_invenItem1.m_addInfo;
-            pMail->m_3d = m_invenItem1.m_addInfo2;
+            // ORIG 084e6989..084e69d9：0x145 清零后写 -0x288+0x11(m_name11, strncpy 0x14)、
+            // -0x288+0x39(m_itemId39=m_addInfo)、-0x288+0x3d(m_extra3d=m_addInfo2)
+            // ⇒ 即权威 MSG_MAILBOX_SEND 具名成员（原 NpcLimitMailView 槽位 +0x01/+0x35 为误读）。
+            MSG_MAILBOX_SEND mail;
+            memset(&mail, 0, 0x145);
+            strncpy(mail.m_name11, title, 0x14);
+            mail.m_itemId39 = m_invenItem1.m_addInfo;
+            mail.m_extra3d = m_invenItem1.m_addInfo2;
             user->m_historyLog.SendMail(               // ORIG (user+0x79700)
-                reinterpret_cast<MSG_MAILBOX_SEND*>(mail), 0);
+                &mail, 0);
         }
         m_data1c = 1;
     }

@@ -23901,8 +23901,11 @@ int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
 
     // 消耗品尾部三字节选项条件区：+0x365 job、+0x366 type、+0x367 grade
     // （AvatarOptionChangeType 3 字节视图：低 ushort = job/type，高字节 = grade）
-    const unsigned short tail365 =
-        *reinterpret_cast<const unsigned short*>(&consume->m_avatar365.m_field0);
+    // [Lane1Dispatchers 2026-09-10 · Main「视图 cast 反模式」修法] 原
+    //   `*reinterpret_cast<const unsigned short*>(&consume->m_avatar365.m_field0)`
+    //   取址 cast 在 4.4 恒产 `lea 0x365(%eax),%edx; movzwl (%edx)`；改用
+    //   Lane34 已落盘的 union 16 位视角 `m_jobType16`（同址零布局）⇒ 单条 disp 读。
+    const unsigned short tail365 = consume->m_avatar365.m_jobType16;
     const signed char optJob = (signed char)(tail365 & 0xff);
     const signed char optType = (signed char)((tail365 >> 8) & 0xff);
     const signed char optGrade = (signed char)consume->m_avatar365.m_field2;
@@ -28945,7 +28948,10 @@ void Dispatcher_TournamentRewardSelect::send(CUser* user, ParamBase& param)
 
 // ---- SDC 伤害计算依赖（均经 ORIG nm 核实；定义归 SDC/伤害域批次，UNLINKED）----
 extern float  getDamageInflict(STComputeDamageVariable*, void*);                       // T 0x08095193
-extern int    isValidAttackInfoElement(STComputeDamageVariable*, int);                 // T 0x0809576e
+// [Lane1Dispatchers 2026-09-10 · P292 档①] 权威定义 SDCLink.cpp:224 与 CreatureScript.cpp:332
+//   均已为 `bool`；本 TU 旧镜像声明 `int` 使调用点产 `test %eax`，ORIG 为
+//   `call; test %al,%al; je`（无 setcc）⇒ 同步为 bool（返回类型不入 mangled，零 ABI 险）。
+extern bool   isValidAttackInfoElement(STComputeDamageVariable*, int);                 // T 0x0809576e
 namespace _SDC { bool isObjectType(int, int); }                                       // T 0x080950e8
 extern float  getAbilityConvertRateSDC(void*, ENUM_CONVERT_TABLE_TYPE);               // T 0x080950fb
 extern unsigned int SDC_Rand(unsigned int*);                                          // T 0x0808bd3f
@@ -28974,7 +28980,10 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
     float dmg = getDamageInflict(v, defender);                 // 0x08095c56；fstps -0x60
 
     // 0x08095c6b: m_attackElem != 4 且元素有效 → *1.05f（0x08b12f68）
-    if (v->m_attackElem != 4 && isValidAttackInfoElement(v, (int)v->m_attackElem))
+    // [Lane1Dispatchers 2026-09-10] m_attackElem 为 `unsigned char`（+0x1DD）；ORIG 该点
+    //   `movzbl 0x1dd(%eax),%eax; movsbl %al,%eax` 两段 ⇒ 源码是 `(int)(char)…`
+    //   （我方旧写 (int) 只出 movzbl）。
+    if (v->m_attackElem != 4 && isValidAttackInfoElement(v, (int)(char)v->m_attackElem))
         dmg *= 1.05f;
 
     // 0x08095cb7: 防御方对象 0x11 且攻击元素无效 → 四元素取 max

@@ -839,32 +839,11 @@ struct DB_CheckAddFriendView
 static_assert(sizeof(DB_CheckAddFriendView) == 0x23,
               "DB_CheckAddFriendView ABI drift");
 
-// ---- SIG_IP_MONITOR_PUNISH（SigTypes_B.h m_pad[0xc88] 占位）载荷视图 ----
-// dispatch（ORIG 0x8432ad2）写 +0x00=count、+0x04..+0xc83=item 数组
-// （100×0x20，行：ip[0x10]/type/m_id_cnt/start_time/end_time）、
-// +0xc84=flag 字节（SIG 全长 0xc88 含 3 尾 pad）。
-#pragma pack(push, 1)
-struct DB_IpMonitorPunishItem
-{
-    char m_ip[0x10];          // +0x00（get_str(0,..,0x10)）
-    int m_type;               // +0x10（get_int(1)）
-    unsigned int m_idCnt;     // +0x14（get_uint(2)）
-    unsigned int m_startTime; // +0x18（get_uint(3)）
-    unsigned int m_endTime;   // +0x1c（get_uint(4)）
-};                            // 0x20
-#pragma pack(pop)
-static_assert(sizeof(DB_IpMonitorPunishItem) == 0x20,
-              "DB_IpMonitorPunishItem ABI drift");
-#pragma pack(push, 1)
-struct DB_IpMonitorPunishView
-{
-    int m_count;                          // +0x00
-    DB_IpMonitorPunishItem m_items[100];  // +0x04..+0xc83
-    unsigned char m_flag;                 // +0xc84
-};                                        // 0xc85
-#pragma pack(pop)
-static_assert(sizeof(DB_IpMonitorPunishView) == 0xc85,
-              "DB_IpMonitorPunishView ABI drift");
+// ---- SIG_IP_MONITOR_PUNISH 行视图 ----
+// [Lane31W8LTDBTaskView] 权威头（SigTypes_B.h）已把整包字段化（匿名 union 双
+// 视角，sizeof 0xc88 不变）：+0x00 m_count、+0x04 m_items[100]（步长 0x20）、
+// +0xc84 m_flag。行类型唯一定义点在头内，本处用别名（删本地重复定义）。
+typedef SIG_IP_MONITOR_PUNISH_ITEM DB_IpMonitorPunishItem;
 
 // stPvPTempTable_t —— ORIG 仅存 W 析构 _ZN16stPvPTempTable_tD1Ev/D2Ev @0x08458e92
 // （push/mov/pop/ret 空体，5 字节）及 vector<stPvPTempTable_t> 的 allocator 实例化。
@@ -1800,7 +1779,11 @@ class DB_ReqChangeCharacName : public DBDispatcher { public: DB_ReqChangeCharacN
     // 在本 TU 复写（与 DB_LinkMisc4.cpp 版逐字一致），链接期仍由该强定义覆盖（行为不变）。
     // 两非虚成员与 DB_ReqChangeCharacName.h 权威头一致（ORIG T 0x084266a4 / 0x084267c2）。
     int _hasSameCharacName(MySQL* db, char const* table, char const* name);
-    void _sendResult(SIG_CHANGE_CHARAC_NAME* sig, int slot, int ret);
+    // [Lane31W8LTDBTaskView] 签名对齐权威（DB_ReqChangeCharacName.h:36 /
+    // DB_LinkMisc4.cpp:301 与 ORIG nm `_ZN22DB_ReqChangeCharacName11_sendResultEPK22SIG_CHANGE_CHARAC_NAMEii`
+    // 均为 `SIG_CHANGE_CHARAC_NAME const*`）——原非 const 声明产生未定义 mangled
+    // `…P22SIG_CHANGE_CHARAC_NAMEii`（全量链接 undefined reference 根因）。
+    void _sendResult(SIG_CHANGE_CHARAC_NAME const* sig, int slot, int ret);
     virtual bool dispatch(int userIdx, int slot, Stream* stream)
     {
         if (!DBDispatcher::dispatch(userIdx, slot, stream))
@@ -2753,17 +2736,10 @@ public:
     static void makeRequest(int userIdx, unsigned int accId);
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0843b3b6
 };   // ORIG C1 0x844f422 (sz 0x4: base ctor+vptr only)
-// ---- DB_LoadAccountCargo / DB_SaveAccountCargo 的 SIG_ACCOUNT_CARGO_DATA 视图 ----
-// （SigTypes_A.h m_pad[0xd60] 占位；ORIG dispatch 0x843b3b6/0x843b7c2 逐偏移：
-// +0x00 capacity(uint) / +0x04 money(uint) / +0x08 cargo[0xd58]（zip 载荷，
-// Save 压缩 0xd58 字节源 / Load 解压目标）。
-struct DB_AccountCargoView
-{
-    unsigned int m_capacity;   // +0x00
-    unsigned int m_money;      // +0x04
-    char m_cargo[0xd58];       // +0x08
-};
-static_assert(sizeof(DB_AccountCargoView) == 0xd60, "DB_AccountCargoView ABI drift");
+// ---- DB_LoadAccountCargo / DB_SaveAccountCargo 的 SIG_ACCOUNT_CARGO_DATA ----
+// [Lane31W8LTDBTaskView] 视图 cast 反模式清理：本地 DB_AccountCargoView 与
+// SigTypes_A.h 的 SIG_ACCOUNT_CARGO_DATA 同布局（+0x00 capacity/+0x04 money/
+// +0x08 cargo[0xd58]），删本地定义改权威类型直访问（字段名不变）。
 // ---- DB_SaveMileage / DB_LoadMileage 的 SIG_MILEAGE_STRUCT 载荷视图 ----
 // （SIG m_pad[0xc]，pack(1)；CUserOnlyOrig.cpp 写 +0=accId / +4=characNo /
 // +8=mileage）。
@@ -3569,7 +3545,7 @@ bool DB_LoadAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
 {
     unsigned int mId = 0;
     MySQL* db;
-    DB_AccountCargoView* sig;
+    SIG_ACCOUNT_CARGO_DATA* sig;
     int binLen;
     unsigned int outLen;
     char buf[0x100f] = { '\0' };
@@ -3589,8 +3565,7 @@ bool DB_LoadAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8c53), true);
     guard.operator*()->operator<<(userIdx);
     guard.operator*()->operator<<(slot);
-    sig = reinterpret_cast<DB_AccountCargoView*>(
-        guard.operator->()->GetInBuffer<SIG_ACCOUNT_CARGO_DATA>());
+    sig = guard.operator->()->GetInBuffer<SIG_ACCOUNT_CARGO_DATA>();
     memset(sig, 0, 0xd60);
     if (db->get_uint(0, sig->m_capacity) != 1)
         return 0;
@@ -3620,14 +3595,13 @@ bool DB_LoadAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
 bool DB_SaveAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
 {
     unsigned int mId = 0;
-    DB_AccountCargoView* sig;
+    SIG_ACCOUNT_CARGO_DATA* sig;
     MySQL* db;
 
     // ORIG 0x0843b7cd 语句序：mId=0 → >>mId → GetOutBuffer → buf 清零 →
     // bufLen=0x100f（声明序决定槽位；buf 清零在 stream 读之后）。
     *stream >> mId;
-    sig = reinterpret_cast<DB_AccountCargoView*>(
-        stream->GetOutBuffer<SIG_ACCOUNT_CARGO_DATA>());
+    sig = stream->GetOutBuffer<SIG_ACCOUNT_CARGO_DATA>();
     static const int compressed_buff_size = 0x100f;  // ORIG _ZZ…DB_SaveAccountCargo…E20compressed_buff_size
     char buf[0x100f] = { '\0' };
     unsigned int bufLen = compressed_buff_size;
@@ -3944,6 +3918,10 @@ bool DB_JoinGuildInfo::dispatch(int userIdx, int slot, Stream* stream)
 bool DB_RequestJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db;
+    // [Lane31W8LTDBTaskView] 语句序照 ORIG（0x0843ccf2）：GetDBHandle 先于
+    // StreamPool::Acquire/CStreamGuard 构造（ORIG `call GetDBHandle; mov 0x940bd6c,%eax;
+    // … call Acquire; call CStreamGuard::C1` 顺序实证）。
+    db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8, E_SERVER_GROUP_NONE);
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9129), true);
     DB_RequestJoinGuildReplyView* reply;
@@ -3951,7 +3929,6 @@ bool DB_RequestJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
     int result = 0;
     char escBuf[53];
 
-    db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8, E_SERVER_GROUP_NONE);
     guard.operator*()->operator<<((int)0x217);
     guard.operator*()->operator<<(slot);
     reply = reinterpret_cast<DB_RequestJoinGuildReplyView*>(
@@ -4700,13 +4677,15 @@ bool DB_UpdateLogout::dispatch(int userIdx, int slot, Stream* stream)
     SIG_UPDATE_LOGOUT* sig = stream->GetOutBuffer<SIG_UPDATE_LOGOUT>();
     if (sig == 0)
         return 0;
-    ((DB_UpdateLogoutSigView*)sig)->m_serverId = 0;
+    // [Lane31W8LTDBTaskView] 视图 cast 反模式：`((View*)sig)->f=v` 使 4.4 走
+    // base-first（base 提前入 callee-saved 跨 call）；权威头 SIG_UPDATE_LOGOUT
+    // 具名字段直访问复现 ORIG RHS-first（0x0841865c `mov 0x10(%ebp),%edx` …
+    // 0x0841866e `mov -0x20(%ebp),%edx; mov %eax,0xe(%edx)`）。
+    sig->m_serverId = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
-        ((DB_UpdateLogoutSigView*)sig)->m_serverId =
-            GlobalData::s_db_mgr->GetServerType(slot);
+        sig->m_serverId = GlobalData::s_db_mgr->GetServerType(slot);
     else
-        ((DB_UpdateLogoutSigView*)sig)->m_serverId =
-            G_CEnvironment()->m_serverEnvir.m_serverGroup;
+        sig->m_serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     GlobalData::s_db_mgr->removeUserDBInfo(slot);
     bool r = UpdateLogout(sig);
     if (!r)
@@ -8310,29 +8289,9 @@ bool DB_UpdatePvPResult::dispatch(int userIdx, int slot, Stream* stream)
 //   +0x50 guild_id（get_uint(4)）
 //   +0x54 equipment[0xa]（slot 0..9 的 it_id；ORIG *(int*)(sig+(slot+0x14)*4+4)）
 //   +0x7c 附加 dword（inventory.equipslot 解压数据偏移 2 的 dword）。
-#pragma pack(push, 1)
-struct DB_LoadPowerWarStatueInfoView
-{
-    // [b28c-32] P211：ORIG 0x08434a1x 尾段 `mov -0x38(%ebp),%eax; mov %eax,%edx;
-    // mov -0xc(%ebp),%eax; mov %edx,(%eax)` = RHS 先 + eax→edx 中转 ⇒ 字段与
-    // unsigned int 局部 characNo 异型 ⇒ 声明 int（同型化则 4.4 产 LHS-first）。
-    int m_characNo;            // +0x00
-    char m_name[0x1d];         // +0x04
-    char m_pad21;              // +0x21（ORIG 空洞）
-    char m_lev;                // +0x22
-    char m_job;                // +0x23
-    char m_growType;           // +0x24
-    char m_guildName[0x28];    // +0x25
-    char m_pad4d[3];           // +0x4d（ORIG 空洞）
-    unsigned int m_guildId;    // +0x50
-    int m_equipment[0xa];      // +0x54
-    int m_field7c;             // +0x7c
-};
-#pragma pack(pop)
-static_assert(sizeof(DB_LoadPowerWarStatueInfoView) == 0x80,
-              "DB_LoadPowerWarStatueInfoView ABI drift");
-static_assert(offsetof(DB_LoadPowerWarStatueInfoView, m_equipment) == 0x54,
-              "DB_LoadPowerWarStatueInfoView m_equipment offset drift");
+// [Lane31W8LTDBTaskView] 视图 cast 反模式清理：本地 DB_LoadPowerWarStatueInfoView
+// 已整体字段化至 SigTypes_C.h SIG_LOAD_POWER_WAR_STATUE_INFO（匿名 union 双视角，
+// 字段名/偏移逐项相同，含 int m_characNo 同型化与 m_field7c@+0x7c），本地定义删除。
 // ---- inventory.equipslot 解压数据区视图（DB_LoadPowerWarStatueInfo::
 // GetAvatarInfo 0x08434886 / DB_LoadTODUserState 0x08440cb6 区域同款）----
 // ORIG 将解压缓冲叠放于栈上 Inven_Item[22] 的 &items[10]（10*0x3d=0x262，
@@ -8387,7 +8346,7 @@ bool DB_LoadPowerWarStatueInfo::dispatch(int userIdx, int slot, Stream* stream)
             "DB_LoadPowerWarStatueInfo::GetInvenInfo, exec GetInvenInfo charac_no=%u",
             characNo);
     }
-    ((DB_LoadPowerWarStatueInfoView*)sig)->m_characNo = characNo;
+    sig->m_characNo = characNo;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
@@ -8410,13 +8369,13 @@ bool DB_LoadPowerWarStatueInfo::GetCharacInfo(
         return 0;
     // 技巧36：删具名 v 中转（ORIG 每次 `mov 0xc(%ebp),%eax` 参数槽直读+
     // add disp，0x08434b62/0x08434b98/…；指针槽会多占 -0x10 使整帧平移）。
-    if (!db->get_str(0, ((DB_LoadPowerWarStatueInfoView*)sig)->m_name, 0x1d))
+    if (!db->get_str(0, sig->m_name, 0x1d))
         return 0;
-    if (!db->get_byte(1, ((DB_LoadPowerWarStatueInfoView*)sig)->m_job))
+    if (!db->get_byte(1, sig->m_job))
         return 0;
-    if (!db->get_byte(2, ((DB_LoadPowerWarStatueInfoView*)sig)->m_lev))
+    if (!db->get_byte(2, sig->m_lev))
         return 0;
-    if (!db->get_byte(3, ((DB_LoadPowerWarStatueInfoView*)sig)->m_growType))
+    if (!db->get_byte(3, sig->m_growType))
         return 0;
     // ORIG 0x08434c22-0x08434c30：G_CEnvironment+0x378 取 serverId（-0x10）
     // 与死局部 -0xc 清零均发生在第 5 个 get_uint 之前（4.1 声明序）。
@@ -8425,18 +8384,18 @@ bool DB_LoadPowerWarStatueInfo::GetCharacInfo(
     int serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     int deadC = 0;
     (void)deadC;
-    if (!db->get_uint(4, ((DB_LoadPowerWarStatueInfoView*)sig)->m_guildId))
+    if (!db->get_uint(4, sig->m_guildId))
         return 0;
-    if (((DB_LoadPowerWarStatueInfoView*)sig)->m_guildId == 0)
+    if (sig->m_guildId == 0)
         return 1;
     guildDb->set_query(
         "seLect guild_name from guild_info where guild_id=%d and server_id=%d",
-        ((DB_LoadPowerWarStatueInfoView*)sig)->m_guildId, serverId);
+        sig->m_guildId, serverId);
     if (!guildDb->exec(true) || !guildDb->fetch())
         return 0;
     if (guildDb->get_n_rows() != 1)
         return 0;
-    if (!guildDb->get_str(0, ((DB_LoadPowerWarStatueInfoView*)sig)->m_guildName, 0x28))
+    if (!guildDb->get_str(0, sig->m_guildName, 0x28))
         return 0;
     return 1;
 }
@@ -8495,7 +8454,7 @@ bool DB_LoadPowerWarStatueInfo::GetAvatarInfo(
               characNo, 0x53e, dbSize);
         return 0;
     }
-    DB_LoadPowerWarStatueInfoView* v = (DB_LoadPowerWarStatueInfoView*)sig;
+    SIG_LOAD_POWER_WAR_STATUE_INFO* v = sig;
     v->m_field7c =
         reinterpret_cast<DB_EquipslotBlobView*>(&items[10])->m_dword2;
     db->set_query(
@@ -9420,14 +9379,9 @@ int DB_LoadNoCacheData::LoadBloodDungeonReward(SIG_LOAD_NO_CACHE_DATA* sig)
 // （NULL 返 0）→ memset 0x2c → sig+0=characNo → LoadBloodDungeonReward →
 // MsgQueueMgr::put(DISPATCH_Q=1, guard) 返 1。
 // ============================================================================
-// SIG_LOAD_NO_CACHE_DATA +0x00 的 int 同型视图（P248 档③；SIG 权威声明为
-// unsigned int，此处仅做同宽同偏移的类型视图，sizeof/偏移/mangled 零影响）。
-#pragma pack(push, 1)
-struct DB_LoadNoCacheDataIntView
-{
-    unsigned int m_characNo;   // +0x00
-};
-#pragma pack(pop)
+// [Lane31W8LTDBTaskView] 视图 cast 反模式清理：同型/同偏移视角已并入权威头
+// （SigTypes_C.h SIG_LOAD_NO_CACHE_DATA 的 m_characNo/m_characNoInt 双视角），
+// 本地 DB_LoadNoCacheDataIntView 删除。
 // [b28d-4] DIFF ndiff2：P248 档③ 同型化后 gap=0（int 视图消 `mov %eax,%edx` 中转）；
 // 残差 = ORIG RHS-first（`mov -0x10,%edx` 先于载目标）vs 4.4 同型 LHS-first，
 // 异型形反多中转 ⇒ N18a/N76 封顶。ORIG 08437df4。
@@ -9457,7 +9411,7 @@ bool DB_LoadNoCacheData::dispatch(int userIdx, int slot, Stream* stream)
     // （ORIG `Stream::rsERi` 实证）⇒ 4.4 恒插 `mov %eax,%edx` 转换中转；
     // ORIG 0x08437e.. store 为单段 RHS-first（无中转）。用本 TU int 视图
     // 与 RHS 同型化（布局同宽、sizeof/偏移不变）。
-    reinterpret_cast<DB_LoadNoCacheDataIntView*>(sig)->m_characNo = characNo;
+    sig->m_characNoInt = characNo;
     LoadBloodDungeonReward(sig);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -11812,9 +11766,11 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
                 true);
             guard.operator*()->operator<<(0x156);
             guard.operator*()->operator<<(-1);
-            DB_IpMonitorPunishView* sig =
-                (DB_IpMonitorPunishView*)guard.operator->()
-                    ->GetInBuffer<SIG_IP_MONITOR_PUNISH>();
+            // [Lane31W8LTDBTaskView] 视图 cast 反模式→权威头具名直访问（ORIG
+            // 0x08432ad2：`mov %eax,0x0(%edx)` 等 RHS-first；cast 形在 4.4 下
+            // base 先入 callee-saved 跨 call）。
+            SIG_IP_MONITOR_PUNISH* sig =
+                guard.operator->()->GetInBuffer<SIG_IP_MONITOR_PUNISH>();
             sig->m_count = buffered + 1;
             memcpy(&sig->m_items[0], buf, 0xc80);
             if (!flag)
@@ -13112,8 +13068,8 @@ bool DB_LoadAutoMarketConditionsControl::dispatch(int userIdx, int slot,
             SIG_AUTO_MARKET_CONDITIONS_CONTROL* outSig =
                 guard.operator->()->GetInBuffer<SIG_AUTO_MARKET_CONDITIONS_CONTROL>();
             memcpy(outSig, &sig, 0x6c);
-            reinterpret_cast<DB_AutoMarketConditionView*>(outSig)->m_flag =
-                flag ? 1 : 0;
+            // [Lane31W8LTDBTaskView] 权威头具名视角直写（去 cast；ORIG 写 +0x68）。
+            outSig->m_view.m_flag = flag ? 1 : 0;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             return 1;
         }
@@ -15788,9 +15744,9 @@ bool DB_BlackIPMonitorPartLoad::dispatch(int userIdx, int slot, Stream* stream)
                 GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7ae9), true);
             guard.operator*()->operator<<((int)0x156);
             guard.operator*()->operator<<((int)-1);
-            SIG_IP_MONITOR_PUNISH* raw =
+            // [Lane31W8LTDBTaskView] 同上（ORIG 0x084330d4 段 RHS-first）。
+            SIG_IP_MONITOR_PUNISH* view =
                 guard->GetInBuffer<SIG_IP_MONITOR_PUNISH>();
-            DB_IpMonitorPunishView* view = (DB_IpMonitorPunishView*)raw;
             view->m_count = rowCount + 1;
             memcpy(view->m_items, buf, 0xc80);
             view->m_flag = 0;
@@ -15820,8 +15776,9 @@ void DB_SaveAccountCargo::makeRequest(int userIdx, unsigned int accId,
     guard.operator*()->operator<<((int)0x1f1);
     guard.operator*()->operator<<((int)userIdx);
     guard.operator*()->operator<<((unsigned int)accId);
-    DB_AccountCargoView* sig = (DB_AccountCargoView*)guard->GetInBuffer<
-        SIG_ACCOUNT_CARGO_DATA>();
+    // [Lane31W8LTDBTaskView] 权威头直取（去 cast；ORIG RHS-first）。
+    SIG_ACCOUNT_CARGO_DATA* sig =
+        guard->GetInBuffer<SIG_ACCOUNT_CARGO_DATA>();
     memset(sig, 0, 0xd60);
     sig->m_capacity = cargo->m_capacity;
     sig->m_money = cargo->m_money;
@@ -16668,24 +16625,10 @@ bool DB_DeletePowerWarStatueMessage::dispatch(int /*userIdx*/, int /*slot*/,
 // <<slot(int) → GetInBuffer<SIG_FIND_FACTORY_HUB_USER_NO_CONN>（视图 +0 m_id,
 // +4 charac_no, +8 flag(ushort)）写 mId/characNo/sig+0x1e → put(DISPATCH_Q(1))；
 // 返 1。
-#pragma pack(push, 1)
-struct DB_FindFactoryHubUserView
-{
-    char m_characName[0x1e];   // +0x00（%s 源）
-    unsigned short m_flag;     // +0x1e
-};
-#pragma pack(pop)
-#pragma pack(push, 1)
-struct DB_FindFactoryHubUserNoConnView
-{
-    // [Lane4 P211 复修] ORIG 尾段为**单段直落**（`mov -0x2c(%ebp),%edx; mov -0x10(%ebp),%eax;
-    // mov %edx,(%eax)`）= 字段与 RHS **同型** ⇒ 4.4 不插转换中转。此前把字段异型化
-    // （int/uint/short）反使 4.4 多 1 条 `mov %eax,%edx` 中转（实测 144 vs ORIG 141）。
-    unsigned int m_mId;        // +0x00（与 unsigned mId 同型）
-    int m_characNo;            // +0x04（与 int characNo 同型）
-    unsigned short m_flag;     // +0x08（与 ushort v->m_flag 同型）
-};
-#pragma pack(pop)
+// [Lane31W8LTDBTaskView] 视图 cast 反模式→权威头具名直访问：两处局部视图
+// （DB_FindFactoryHubUserView / DB_FindFactoryHubUserNoConnView）与 SigTypes_B.h
+// 的 SIG_FIND_FACTORY_HUB_USER / SIG_FIND_FACTORY_HUB_USER_NO_CONN 完全同布局，
+// 删本地重复定义改用权威类型（字段名一致：m_characName/m_flag/m_mId/m_characNo）。
 
 // [b28d-solo] P212 全头部声明 + P244 具名 char* 局部 + P133 独立守卫；
 // 两个 ORIG 死局部（-0x20/-0x1c 仅初始化）按 P232 照抄以复现帧。ORIG 08437a32
@@ -16704,8 +16647,7 @@ bool DB_Find_Factory_Hub_User::dispatch(int /*userIdx*/, int slot,
     const char* query =
         "seLect charac_no,m_id from charac_info where charac_name='%s'";
     // ORIG 无 v/ov 视图指针槽——每处内联 cast（P89/P183）。
-    db->set_query(query,
-                  reinterpret_cast<DB_FindFactoryHubUserView*>(sig)->m_characName);
+    db->set_query(query, sig->m_characName);
     if (!db->exec(true))
         return 0;
     for (unsigned int i = 0; i < (unsigned int)db->get_n_rows(); ++i)
@@ -16721,14 +16663,13 @@ bool DB_Find_Factory_Hub_User::dispatch(int /*userIdx*/, int slot,
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x850f), true);
     guard.operator*()->operator<<((int)0x1a1);
     guard.operator*()->operator<<((int)slot);
-    DB_FindFactoryHubUserNoConnView* out =
-        reinterpret_cast<DB_FindFactoryHubUserNoConnView*>(
-            guard.operator->()->GetInBuffer<SIG_FIND_FACTORY_HUB_USER_NO_CONN>());
+    SIG_FIND_FACTORY_HUB_USER_NO_CONN* out =
+        guard.operator->()->GetInBuffer<SIG_FIND_FACTORY_HUB_USER_NO_CONN>();
     // [b28d-solo-W8LT_DBTask] 复核：显式 (int)/(short) cast 探针无效（仍 RHS
     // 两段中转）⇒ 字段/RHS 异型化旋钮（P211 档③）对本件不可翻，N76/N18a 封顶。
     out->m_mId = mId;
     out->m_characNo = characNo;
-    out->m_flag = reinterpret_cast<DB_FindFactoryHubUserView*>(sig)->m_flag;
+    out->m_flag = sig->m_flag;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
@@ -19047,14 +18988,9 @@ struct DB_TowerRankerPlayView
     unsigned int m_stage;          // +0x00
     unsigned int m_playTime;       // +0x04
 };
-struct DB_DeathTowerRankerView
-{
-    unsigned int m_count;              // +0x00
-    unsigned char m_flag;              // +0x04
-    char m_pad05[0xfa0 - 0x05];        // +0x05..+0xf9f
-    DB_TowerRankerRowView m_rows[0x100];   // +0xfa0
-    DB_TowerRankerPlayView m_plays[0x100]; // +0x1000
-};
+// [Lane31W8LTDBTaskView] 包头（count/flag）已字段化至 SigTypes_B.h
+// SIG_DEATH_TOWER_LOAD_TOP_RANKER（匿名 union 双视角）；行区继续用显式偏移
+// 视图（P82），本地包头视图 DB_DeathTowerRankerView 删除。
 #pragma pack(pop)
 
 // ---- SIG_DEATH_TOWER_GET_BEST_RECORD（0x878）行视图 ----
@@ -19118,13 +19054,8 @@ struct DB_TowerBestRecordRowView
     unsigned int m_stage4;         // +0x1b0（ORIG 越入下行）
     unsigned int m_playTime4;      // +0x1b4（ORIG 越入下行）
 };
-struct DB_TowerBestRecordView
-{
-    unsigned int m_count;         // +0x00
-    unsigned int m_characNo;      // +0x04
-    char m_pad08[0x4];            // +0x08..+0x0b
-    DB_TowerBestRecordRowView m_rows[4];  // +0x0c，步长 0x1b0
-};
+// [Lane31W8LTDBTaskView] 包头（count/characNo）已字段化至 SigTypes_B.h
+// SIG_DEATH_TOWER_GET_BEST_RECORD；行区继续显式偏移视图（P82）。
 #pragma pack(pop)
 // ---- SIG_GOBLIN_UPDATE_REWARD（0x18）视图 ----
 #pragma pack(push, 1)
@@ -19137,42 +19068,11 @@ struct DB_GoblinPadUpdateRewardView
 };
 #pragma pack(pop)
 
-// ---- SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION（0x8）/ SIG_LOAD_CHARAC_HOTKEY_OPTION（0xc4）视图 ----
-#pragma pack(push, 1)
-struct DB_ReqLoadHotKeyOptionView
-{
-    unsigned int m_accId;      // +0x00
-    int m_hotkeyType;          // +0x04
-};
-struct DB_LoadHotKeyOptionView
-{
-    unsigned int m_accId;      // +0x00
-    unsigned char m_hotkeyType;// +0x04
-    CHotkeyOption m_hotkey;    // +0x05（0xbc 字节）
-};
-#pragma pack(pop)
-
-// ---- SIG_EVENT_LEVEUP_SUPPORT_INFO（0x2c）视图 ----
-#pragma pack(push, 1)
-struct DB_EventLevelupSupportView
-{
-    int m_count;               // +0x00（ORIG store LHS-first ⇒ 与 rowCount 同型）
-    struct Entry
-    {
-        unsigned short m_level;  // +0x04 + i*4
-        unsigned short m_state;  // +0x06 + i*4
-    } m_entries[0x10];
-};
-#pragma pack(pop)
-
-// ---- SIG_BREAK_AWAY_PREVENT_MESSAGE（0x8）视图 ----
-#pragma pack(push, 1)
-struct DB_BreakAwayMessageView
-{
-    unsigned int m_nextRewardTime;  // +0x00
-    int m_rewardOrder;              // +0x04
-};
-#pragma pack(pop)
+// [Lane31W8LTDBTaskView] 视图 cast 反模式批量清理：以下三类载荷视图已字段化
+// 至权威头（SigTypes_C.h SIG_LOAD_CHARAC_HOTKEY_OPTION；
+// SigTypes_D.h SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION；SigTypes_B.h
+// SIG_EVENT_LEVEUP_SUPPORT_INFO；SigTypes_A.h SIG_BREAK_AWAY_PREVENT_MESSAGE），
+// 本地重复定义删除，写点改权威类型直访问（字段名不变）。
 
 // ---- SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK（0x1a4）视图 ----
 #pragma pack(push, 1)
@@ -19246,27 +19146,10 @@ struct DB_AutoPunishBlackIpView
 };
 #pragma pack(pop)
 
-// ---- SIG_AUTO_PUNISH_RULE_HACK_TYPE（0x2720）视图 ----
-#pragma pack(push, 1)
-struct DB_AutoPunishHackTypeView
-{
-    unsigned int m_field0;     // +0x00（hackType==0 时 cnt）
-    unsigned int m_field4;     // +0x04（etc 低 32）
-    unsigned int m_field8;     // +0x08（etc 高 32）
-    unsigned short m_count;    // +0x0c
-    struct Entry                // 步长 0x14，自 +0x10 起
-    {
-        unsigned short m_hackType;    // +0x00
-        unsigned short m_cnt;         // +0x02
-        unsigned short m_hackSubType; // +0x04
-        unsigned short m_hackSubCnt;  // +0x06
-        unsigned short m_applyFlag;   // +0x08
-        char m_pad0a[2];              // +0x0a
-        unsigned int m_ipCnt;         // +0x0c
-        unsigned int m_etcLo;         // +0x10
-    } m_entries[0x1f4];
-};
-#pragma pack(pop)
+// ---- SIG_AUTO_PUNISH_RULE_HACK_TYPE（0x2720）----
+// [Lane31W8LTDBTaskView] 视图 cast 反模式清理：本地 DB_AutoPunishHackTypeView
+// 已整体字段化至 SigTypes_A.h SIG_AUTO_PUNISH_RULE_HACK_TYPE（含行类型
+// SIG_AUTO_PUNISH_RULE_HACK_TYPE_ENTRY，步长 0x14），本地定义删除。
 
 // ============================================================================
 // CLocalGlobal_DB_STATICS_BOSSTOWER::dispatch —— ORIG 0x0812825e
@@ -19350,8 +19233,9 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x6c21), true);
     guard.operator*()->operator<<(0xe4);
     guard.operator*()->operator<<(-1);
-    DB_DeathTowerRankerView* out = reinterpret_cast<DB_DeathTowerRankerView*>(
-        guard->GetInBuffer<SIG_DEATH_TOWER_LOAD_TOP_RANKER>());
+    // [Lane31W8LTDBTaskView] 权威头直取（去 cast）。
+    SIG_DEATH_TOWER_LOAD_TOP_RANKER* out =
+        guard->GetInBuffer<SIG_DEATH_TOWER_LOAD_TOP_RANKER>();
     out->m_count = 0;
     out->m_flag = reload;
     // ORIG 0x0842a8e6 `cmp $0x4,%eax; setbe`（无符号上界，P2/P310）
@@ -19609,8 +19493,9 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6bb2), true);
     guard.operator*()->operator<<(0xe2);
     guard.operator*()->operator<<(slot);
-    DB_TowerBestRecordView* out = reinterpret_cast<DB_TowerBestRecordView*>(
-        guard.operator->()->GetInBuffer<SIG_DEATH_TOWER_GET_BEST_RECORD>());
+    // [Lane31W8LTDBTaskView] 权威头直取（去 cast）。
+    SIG_DEATH_TOWER_GET_BEST_RECORD* out =
+        guard.operator->()->GetInBuffer<SIG_DEATH_TOWER_GET_BEST_RECORD>();
     out->m_count = db->get_n_rows();
     out->m_characNo = characNo;
     // [b28d-BigW8LT 循环形复原] ORIG 0x08429c38 `movl $0x0,-0xc(%ebp)` +
@@ -20146,9 +20031,9 @@ bool DB_LoadBreakAwayRewardData::dispatch(int userIdx, int slot,
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8745), true);
     guard.operator*()->operator<<(0x143);
     guard.operator*()->operator<<(slot);
-    DB_BreakAwayMessageView* out =
-        reinterpret_cast<DB_BreakAwayMessageView*>(
-            guard->GetInBuffer<SIG_BREAK_AWAY_PREVENT_MESSAGE>());
+    // [Lane31W8LTDBTaskView] 权威头具名直访问（ORIG RHS-first，避免 cast 形 base 先载）。
+    SIG_BREAK_AWAY_PREVENT_MESSAGE* out =
+        guard->GetInBuffer<SIG_BREAK_AWAY_PREVENT_MESSAGE>();
     if (rewardOrder == 0 || rewardOrder == 2)
         out->m_nextRewardTime = (unsigned int)curSec + 0x15180;
     out->m_rewardOrder = rewardOrder;
@@ -20186,13 +20071,17 @@ bool DB_LoadCharacHotKeyOption::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x746e), true);
     guard.operator*()->operator<<(0x320);
     guard.operator*()->operator<<(slot);
-    DB_LoadHotKeyOptionView* out = reinterpret_cast<DB_LoadHotKeyOptionView*>(
-        guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC_HOTKEY_OPTION>());
-    out->m_accId = req->m_accId;
+    // [Lane31W8LTDBTaskView] 权威头具名直访问（+0x00 权威名 m_uid）。
+    SIG_LOAD_CHARAC_HOTKEY_OPTION* out =
+        guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC_HOTKEY_OPTION>();
+    out->m_uid = req->m_accId;
     out->m_hotkeyType = (unsigned char)req->m_hotkeyType;
     if (db->get_n_rows() == 0)
     {
-        out->m_hotkey.clear();
+        // [Lane31W8LTDBTaskView] +0x05 为 CHotkeyOption 字节视角（C++98 匿名
+        // union 不得含有构造函数成员）⇒ 取址转类型调真实 clear（保留 ORIG 的
+        // _ZN14CHotkeyOption5clearEv 调用）。
+        reinterpret_cast<CHotkeyOption*>(&out->m_hotkey)->clear();
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
@@ -20259,9 +20148,9 @@ bool DB_LoadEventLevelupSupport::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc279), true);
         guard.operator*()->operator<<(0x350);
         guard.operator*()->operator<<(slot);
-        DB_EventLevelupSupportView* out =
-            reinterpret_cast<DB_EventLevelupSupportView*>(
-                guard->GetInBuffer<SIG_EVENT_LEVEUP_SUPPORT_INFO>());
+        // [Lane31W8LTDBTaskView] 权威头具名直访问。
+        SIG_EVENT_LEVEUP_SUPPORT_INFO* out =
+            guard->GetInBuffer<SIG_EVENT_LEVEUP_SUPPORT_INFO>();
         int rowCount = db->get_n_rows();
         out->m_count = rowCount;
         // ORIG 0x0844cebc：循环前 `movw $0,-0x4a/-0x4c` 两 ushort 槽预清
@@ -20547,9 +20436,9 @@ bool DB_ReloadAutoPunishRuleHackType::dispatch(int userIdx, int slot,
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7094), true);
     guard.operator*()->operator<<(0x109);
     guard.operator*()->operator<<(-1);
-    DB_AutoPunishHackTypeView* out =
-        reinterpret_cast<DB_AutoPunishHackTypeView*>(
-            guard.operator->()->GetInBuffer<SIG_AUTO_PUNISH_RULE_HACK_TYPE>());
+    // [Lane31W8LTDBTaskView] 权威头直取（去 cast）。
+    SIG_AUTO_PUNISH_RULE_HACK_TYPE* out =
+        guard.operator->()->GetInBuffer<SIG_AUTO_PUNISH_RULE_HACK_TYPE>();
     memset(out, 0, 0x2720);
     // [b28d-TakeW8LT 形复原] ORIG 0x0842d586 每轮循环**重算**循环上界：
     // `movl $0x1f4,-0x1c; call get_n_rows; mov %eax,-0x18; lea -0x1c,0x4(%esp);

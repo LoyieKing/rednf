@@ -921,9 +921,15 @@ void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
     }
     else
     {
-        // [SweepDBLogin 本轮] P223：ORIG 0x08410112 `cmp $0x1; sete; test; je <nop 岛>`
+        // [Lane26 复核] P223：ORIG 0x08410112 `cmp $0x1; sete; test; je <nop 岛>`
         // + get_byte 段尾 0x084101a5 `jmp exit`（多源汇入连续尾标签）⇒ 负条件 goto
-        // 共享尾空标签；条件写 `!(==1)` 以保留 ORIG 的 sete 物化。
+        // 共享尾空标签。判据①（jcc/jmp 目标下标逐位）：本形 bmm=0（全部跳转落点与
+        // ORIG 同下标同方向）；唯一残差 = setcc 折痕镜像（ORIG sete/je vs 4.4
+        // setne/jne，P196 等价，非真反）。
+        // 【Lane26 对照实验】`while (db->get_n_rows() == 1) { body; goto link_end; }`
+        // 可复现 ORIG 的 sete/je 物化（推翻旧「sete 侧不可翻」判词，P225 形有效），
+        // 但 body 尾 `jmp exit` 被 4.4 jump-threading 恒消（N121；break/goto/return
+        // 三形实测同），代价 = 少 1 条指令 + 9 处 jcc delta 位移。按判据①取本形。
         if (!(db->get_n_rows() == 1))
         {
             goto link_end;
@@ -1894,6 +1900,9 @@ bool DB_Login::IsPCRoomIP(char* ip)
 // mask / 字段 uchar / 探针 probe_cast2 八形全败，助记符序列相同 ⇒ NEAR 封顶）。
 // S216：P267 双 cast 序 / P268 mask / P226 语句表达式三形再测均不翻
 // （movzbl %al,%eax vs ORIG movzbl %al,%edx）⇒ 维持 NEAR 封顶。
+// [Lane26 复核] P268 mask 形 `(unsigned int)(sig->m_loginType & 0xff)` 实测反劣
+// （`movsbl %al,%eax; and $0xff,%eax` 8 条 vs 原 5 条，jcc/jmp 序列 bmm 0→0 但 gap 0→-1）
+// ⇒ 回退；维持 `(unsigned int)(unsigned char)` 双 cast 形。
 bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
 {
     // [b28c-L9] 残差 3 = N18a：hangame_flag 实参 ORIG `movzbl %al,%edx; mov %edx,0xc(%esp)`
@@ -1935,6 +1944,9 @@ bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
 // [b28d-solo-DB_Login] verdict=DIFF ndiff=9 gap=0（N7/P75：Hex2Binary 第三实参
 // ORIG 多 `mov %eax,%edx` 中转、Decrypt 侧我方多该中转；(int)/(unsigned int)/
 // 无 cast 三形均不翻。p167 CLEAR）。
+// [Lane26 复核] 探针 /tmp/l26p/pd.cpp：局部缓冲 t7 恒 `shrl %eax; mov %eax,0x8(%esp)`
+// （无 edx）；同形仅第二参为**形参指针**时才出 edx 中转（pc.cpp t4）。ORIG 为局部
+// 缓冲却出 `mov %eax,%edx` ⇒ 4.1/4.4 实参压栈时刻版本差（P75），源形不可造 ⇒ N7/P75。
 // S216：Hex2Binary/Decrypt 第三实参 cast 互换（(int)↔(unsigned int)）四形实测
 // 逐条不变（同宽 cast 被 4.4 折叠）⇒ 维持 N7/P75 封顶。
 bool DB_Login::_DecryptUserInfo(char* hex, char* out, memberIdentificationNumber_t mid)
@@ -3139,6 +3151,13 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
             // [solo] P311 数组视图试验：4.4 产 `mov sig; mov i; imul; add $0x4150;
             // add; add $4`（7 条，多一条 mov sig 预载）vs ORIG 6 条
             // （`mov i; imul; add $0x4150; add sig(mem); add $4`）⇒ 劣化，回退。
+            // [Lane26 复核] 判据①（jcc/jmp 下标）+ 报告复读：ORIG 0x08448236 链
+            // `mov i; imul $0x2c; add $0x4150; add sig; add $4` 的 0x4150/4 是
+            // **同一常量 0x4154 的 4.1 拆分**（报告 memset 起点 0x4154 0x1e4 与
+            // 四字段目标 0x4154/58/5c/60 实证语义 = 我们的表达式），4.4 恒折
+            // `add $0x4154`；视图数组形（/tmp/l26p/p2.cpp g：数组起点 0x4150 +
+            // 元素内 +4）虽同构，但要求数组起点 = 0x4150，与 eventCharacInfo 物理
+            // 布局（0x4154 起、元素 0x2c、name[30]）不可两全（4+0x2c≠0x2c）⇒ N1 封顶。
             char* rowPtr = reinterpret_cast<char*>(sig) + i * 0x2c + OFF_GROWTH_CREATURE;
             int rowPad = 0;
             (void)rowPad;
@@ -3201,6 +3220,10 @@ bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
             // `(i+0x867)*8`（探针 probe_gift f5）⇒ 该 3 条常量折叠差封顶。
             // [S216] N1 复核：P205 显式拆形 `(i+0x866)*8+8` 实测仍被 4.4 折成
             // `(i+0x867)*8`（ndiff 30 不变）⇒ 维持 OFF_ONCE_GIFT 常量形。
+            // [Lane26 复核] 探针再证：h1/h2 `(char*)(arr+i+0x866)+8`、`&arr[i+0x866]+8`
+            // 均被 4.4 折 `add $0x867; shl $3`（/tmp/l26p/p3.cpp）；i6
+            // `(int*)((char*)&arr[i+0x866].a)+2` 可保 `add $0x866; shl $3; add sig;
+            // add $8` 五条但恒 sig-first（ORIG i-first）⇒ 常量拆分不可全复现，N1 封顶。
             int* giftSlot = reinterpret_cast<int*>(
                 reinterpret_cast<char*>(sig) + OFF_ONCE_GIFT + i * 8);
             if (!db->get_short(0, giftSlot[0])) return 0;
@@ -3223,6 +3246,9 @@ bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
 // （5→2）。p167 CLEAR）。
 // S216：union{unsigned int;int} 同址 int 视图实测仍产 add+mov（探针
 // /tmp/s216_probe2.cpp fA/fB）⇒ 维持 N107（成员常量取址 lea-vs-add）封顶。
+// [Lane26 复核] 再探具名数组成员取址 `arr[i].m_id`、union 数组视角 `u.m_ids[0]`
+// （/tmp/l26p/pc.cpp t2/t3）实测仍 `add $0x413c,%eax; mov %eax,%edx`，4.4 对成员
+// 取址恒 add、无 lea 路径 ⇒ 维持 N107；jcc/jmp 目标下标本件 bmm=8 全为位移差。
 bool DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
 {
     // [b28d-solo-DB_Login] P0/P140：ORIG 无 bingo 引用局部（地址直传 clear）、

@@ -217,15 +217,42 @@ struct SIG_CREATURE_ITEM_LIST
 static_assert(sizeof(SIG_CREATURE_ITEM_LIST) == 0x4078,
               "SIG_CREATURE_ITEM_LIST ABI drift");
 
+// [Lane31W8LTDBTaskView] 头部字段化 + 匿名 union 双视角：ORIG
+// DB_GetDeathTowerBestRecord::dispatch 0x08429c07 写 +0x00 count(get_n_rows)、
+// +0x04 charac_no；行区按显式偏移视图访问（消费 TU 保留 P82 视图）。
 struct SIG_DEATH_TOWER_GET_BEST_RECORD
 {
-    char m_pad[0x878];
+    union
+    {
+        char m_pad[0x878];
+        struct
+        {
+            unsigned int m_count;      // +0x00
+            unsigned int m_characNo;   // +0x04
+            char m_pad08[0x878 - 0x08];
+        };
+    };
 };
-
+// [Lane31W8LTDBTaskView] 头部字段化：ORIG DB_DeathTowerLoadTopRanker::dispatch
+// 0x0842a6?? 写 +0x00 count=0 / +0x04 flag=reload；行区（+0xfa0/+0x1000，
+// 步长 0x6c）按显式偏移视图访问。
 struct SIG_DEATH_TOWER_LOAD_TOP_RANKER
 {
-    char m_pad[0x35b68];
+    union
+    {
+        char m_pad[0x35b68];
+        struct
+        {
+            unsigned int m_count;      // +0x00
+            unsigned char m_flag;      // +0x04
+            char m_pad05[0x35b68 - 0x05];
+        };
+    };
 };
+static_assert(sizeof(SIG_DEATH_TOWER_GET_BEST_RECORD) == 0x878,
+              "SIG_DEATH_TOWER_GET_BEST_RECORD ABI drift");
+static_assert(sizeof(SIG_DEATH_TOWER_LOAD_TOP_RANKER) == 0x35b68,
+              "SIG_DEATH_TOWER_LOAD_TOP_RANKER ABI drift");
 
 // 字段视图（DB_UpdateDeathTowerBestRecord::makeRequest 0x0842a35e / dispatch 0x0842a11e
 // 实证：+0x00 accId、+0x04 towerIndex、+0x06 memberCount、+0x08 起 members blob
@@ -297,10 +324,30 @@ struct SIG_DUNGEON_DATA_STATISTIC
 static_assert(sizeof(SIG_DUNGEON_DATA_STATISTIC) == 0x80, "SIG_DUNGEON_DATA_STATISTIC ABI drift");
 
 
+// [Lane31W8LTDBTaskView] 字段化 + 匿名 union 双视角：ORIG DB_LoadEventLevelupSupport
+// ::dispatch 0x0844cd38 写 +0x00 count（get_n_rows()）、+0x04 起 ushort level/
+// ushort state 对（步长 4，逐行 fetch）。包长 0x2c ⇒ 行数组 10 项
+// （旧 TU 视图写 0x10 项会越界，元素步长不变故生成码等价）。
+#pragma pack(push, 1)
 struct SIG_EVENT_LEVEUP_SUPPORT_INFO
 {
-    char m_pad[0x2c];
+    union
+    {
+        char m_pad[0x2c];
+        struct
+        {
+            int m_count;              // +0x00
+            struct
+            {
+                unsigned short m_level;  // +0x04 + i*4
+                unsigned short m_state;  // +0x06 + i*4
+            } m_entries[10];             // +0x04..+0x2b
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_EVENT_LEVEUP_SUPPORT_INFO) == 0x2c,
+              "SIG_EVENT_LEVEUP_SUPPORT_INFO ABI drift");
 
 // SIG_EVENT_SERVER_MESSAGE 完整定义唯一化至 CSharedServerMessageManager.h
 // （真实布局：byte m_count + stSERVER_MESSAGE m_msg[0x64]；原 pad 占位已删除）。
@@ -448,10 +495,30 @@ struct SIG_FIND_FACTORY_HUB_USER
 static_assert(sizeof(SIG_FIND_FACTORY_HUB_USER) == 0x20,
               "SIG_FIND_FACTORY_HUB_USER ABI drift");
 
+// [Lane31W8LTDBTaskView] 字段化 + 匿名 union 双视角：ORIG DB_Find_Factory_Hub_User
+// ::dispatch 0x08437a32 尾段写 +0x00 m_id(uint，`mov %edx,(%eax)`)、+0x04
+// charac_no(int)、+0x08 flag(ushort，读 SIG_FIND_FACTORY_HUB_USER+0x1e)；
+// 字段与 RHS 同型（Lane4 P211 复修实证）。sizeof 0xc 不变。
+#pragma pack(push, 1)
 struct SIG_FIND_FACTORY_HUB_USER_NO_CONN
 {
-    char m_pad[0xc];
+    union
+    {
+        char m_pad[0xc];
+        struct
+        {
+            unsigned int m_mId;        // +0x00（与 unsigned mId 同型）
+            int m_characNo;            // +0x04（与 int characNo 同型）
+            unsigned short m_flag;     // +0x08（与 ushort sig->m_flag 同型）
+            char m_pad0a[2];           // +0x0a..+0x0b
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_FIND_FACTORY_HUB_USER_NO_CONN) == 0xc,
+              "SIG_FIND_FACTORY_HUB_USER_NO_CONN ABI drift");
+static_assert(0x004 + sizeof(((SIG_FIND_FACTORY_HUB_USER_NO_CONN*)0)->m_characNo) == 0x008,
+              "SIG_FIND_FACTORY_HUB_USER_NO_CONN m_flag at +0x008");
 
 struct SIG_FORBID_USER_TO_PLAY
 {
@@ -638,10 +705,42 @@ struct SIG_IN_GAME_ADVERTISEMENT_LOG
     int m_pad1c;                     // +0x1c（恒 -1）
 };
 
+// 行视图（步长 0x20）：ORIG 0x08432ad2/0x084330d4 逐列 get_str(0,..,0x10)/
+// get_int(1)/get_uint(2)/get_uint(3)/get_uint(4) 实证。
+#pragma pack(push, 1)
+struct SIG_IP_MONITOR_PUNISH_ITEM
+{
+    char m_ip[0x10];          // +0x00
+    int m_type;               // +0x10
+    unsigned int m_idCnt;     // +0x14
+    unsigned int m_startTime; // +0x18
+    unsigned int m_endTime;   // +0x1c
+};
+// [Lane31W8LTDBTaskView] 字段化 + 匿名 union 双视角（m_pad 保留字节视角）：
+// ORIG DB_BlackIPMonitor::dispatch 0x08432ad2 写 +0x00 count、+0x04 item 数组
+// （100×0x20）、+0xc84 flag（首包 1 后续 0）；DB_BlackIPMonitorPartLoad::dispatch
+// 0x084330d4 同布局。视图 cast 形使 4.4 base-first，具名字段直访问复现 RHS-first。
 struct SIG_IP_MONITOR_PUNISH
 {
-    char m_pad[0xc88];
+    union
+    {
+        char m_pad[0xc88];
+        struct
+        {
+            int m_count;                        // +0x00
+            SIG_IP_MONITOR_PUNISH_ITEM m_items[100];  // +0x04..+0xc83
+            unsigned char m_flag;               // +0xc84
+            char m_pad0c85[3];                  // +0xc85..+0xc87
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_IP_MONITOR_PUNISH_ITEM) == 0x20,
+              "SIG_IP_MONITOR_PUNISH_ITEM ABI drift");
+static_assert(sizeof(SIG_IP_MONITOR_PUNISH) == 0xc88,
+              "SIG_IP_MONITOR_PUNISH ABI drift");
+static_assert(0x004 + sizeof(((SIG_IP_MONITOR_PUNISH*)0)->m_items) == 0xc84,
+              "SIG_IP_MONITOR_PUNISH m_flag at +0xc84");
 
 // SIG_ITEM_DICTIONARY_FLAG —— 物品词典位图存档（ORIG int characNo + 5000 字节位图，共 0x138c）。
 // CItemDictionary.cpp 曾以本地匿名命名空间 struct 定义（与权威冲突）；按 ORIG 迁移至本头。

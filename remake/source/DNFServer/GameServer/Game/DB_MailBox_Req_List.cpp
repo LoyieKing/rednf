@@ -16,6 +16,21 @@
 //   按 ORIG 0x0841e8d7 直调真函数，p167 MISSING 归零）。
 // b28d-solo 判词见各函数头 [b28d-solo-DB_MailBox_Req_List]；结果 TSV
 //   /tmp/b28d_solo_DB_MailBox_Req_List_result.tsv。
+// [b28d-lane32 视图 cast 批量] 22 条 `(MailPostalItem*)SIG_PTR(sig, rowIdx*0x61)`
+//   写访问 → 权威头 SIG_MAILBOX_POSTAL 具名成员直访问（SigTypes_D.h §8.3 字段化，
+//   R2 已广播）：行首 m_postalId / m_sendCharacNo(+0x04) / m_sendName[0x1d](+0x08)；
+//   m_tail 顺序具名 itemId/sealFlag/occTime/addInfo/endurance/upgrade/itemGuid/
+//   m_amp/m_field43/m_field44/m_ext0/m_ext1/m_ext2Lo；m_occ（TAIL 直接成员，
+//   保 4.4 折叠锚点 abs 0x50）m_field55/m_avataFlag/m_creatureFlag/m_unlimit/
+//   m_letterId/m_field60/m_ext2Hi/m_ext3/m_field54。TU 局部视图类型
+//   （MailPostalItem/MailAmpView/MailExtView）已删除；amp/ext 源改类型化局部
+//   （SIG_MAILBOX_POSTAL_AMP ampBuf / union MailExtSource{m_ro,m_ext}）以复现
+//   ORIG 栈直读。嵌套 if 展平为 continue 链（复现 ORIG 0x0841e8a0..0x0841e8e2
+//   的 23 个「失败 → 循环尾」跳转岛）。
+//   读数：dispatch orig 1169 / our 1224 / gap −55 / ndiff 856（改前 cast 版 1084）；
+//   分支目标逐位比对 equal 块内 0 mismatch（116 vs 118）；p167 88=88 CLEAR
+//   （仅 C1/C2、D1/D2 同址别名对）。TU 四数 53/131/1/4 不变。
+//   协同：CMailBoxHelper 141/308/2/6、DB_MailBox_MailHelper 11/40/0/2 均零回退。
 // ============================================================================
 
 #include "DB_MailBox_Req_List.h"
@@ -310,57 +325,21 @@ struct MailBoxListReqView
 };
 #pragma pack(pop)
 
-// postal 明细项（stride 0x61=97）
-#pragma pack(push, 1)
-struct MailPostalItem
+// ext 源 union（ORIG 0x0841e7fb..0x0841e82c：源为 RandomOption 局部 -0x102 起的**直读**
+// `mov -0x102(%ebp),%edx`；目标 ext 行同上）。同址双视角：写侧 m_ro（reset/get_binary），
+// 读侧 m_ext（权威头行类型 SIG_MAILBOX_POSTAL_EXT，保 ORIG 的直读形）。
+union MailExtSource
 {
-    int m_postalId;                  // +0x00
-    int m_sendCharacNo;              // +0x04
-    char m_sendName[0x1d];           // +0x08
-    int m_itemId;                    // +0x25
-    char m_sealFlag;                 // +0x29（unlimit_flag==1）
-    unsigned int m_occTime;          // +0x2a（unix_timestamp(occ_time)，movl 4 字节）
-    unsigned int m_addInfo;          // +0x2e
-    char m_endurance;                // +0x32
-    short m_upgrade;                 // +0x33
-    unsigned int m_itemGuid;         // +0x35（movl 4 字节）
-    unsigned int m_ampOpt;           // +0x39（amplify_option）
-    unsigned int m_ampVal;           // +0x3d（amplify_value）
-    unsigned short m_rndOpt;         // +0x41（random_option）
-    char m_field43;                  // +0x43（get_byte 16）
-    short m_field44;                 // +0x44（get_short 17）
-    unsigned int m_ext0;             // +0x46（extend_info 14 字节）
-    unsigned int m_ext1;             // +0x4a
-    unsigned int m_ext2;             // +0x4e
-    unsigned short m_ext3;           // +0x52
-    char m_field54;                  // +0x54（get_byte 19）
-    int m_field55;                   // +0x55（send_charac_no + 0x13c680）
-    char m_avataFlag;                // +0x59（avata_flag==1）
-    char m_creatureFlag;             // +0x5a（creature_flag==1）
-    char m_unlimitFlag;              // +0x5b（unlimit_flag==1）
-    unsigned int m_letterId;         // +0x5c
-    char m_field60;                  // +0x60（get_byte 20）
+    RandomOption m_ro;
+    SIG_MAILBOX_POSTAL_EXT m_ext;
 };
-#pragma pack(pop)
 
-// ORIG 0x0841e691..0x0841e6b6（amp 三字段）与 0x0841e80a..0x0841e82c（ext 四字段）
-// 都是「一次 `add $0x30,%eax` 基址 + 连续 store」= 结构体整体赋值形；逐字段赋
-// 会每字段重发完整 imul/lea/add 链（P183/P247）。
-#pragma pack(push, 1)
-struct MailAmpView
-{
-    unsigned int m_opt;              // +0x39
-    unsigned int m_val;              // +0x3d
-    unsigned short m_rnd;            // +0x41
-};
-struct MailExtView
-{
-    unsigned int m_e0;               // +0x46
-    unsigned int m_e1;               // +0x4a
-    unsigned int m_e2;               // +0x4e
-    unsigned short m_e3;             // +0x52
-};
-#pragma pack(pop)
+// postal 明细项视图（stride 0x61）已**整体迁入权威头** SigTypes_D.h：
+//   SIG_MAILBOX_POSTAL/SIG_MAILBOX_POSTAL_TAIL/SIG_MAILBOX_POSTAL_OCC/
+//   SIG_MAILBOX_POSTAL_AMP/SIG_MAILBOX_POSTAL_EXT（§8.3 字段化，R2 已广播）。
+// 旧 TU 局部 cast 视图（MailPostalItem/MailAmpView/MailExtView）已删除——
+// cast 视图形恒「基址先载」，与 ORIG 4.1 的「下标先、基址后」装载序相反（P235），
+// 且属「视图 cast 反模式」；现全部经参数类型自身成员具名访问。
 
 // ============================================================================
 // SelectLetter —— ORIG 0841d52c（普通成员，this 调用）：
@@ -691,8 +670,8 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
         // [b28d-solo-DB_MailBox_Req_List] ORIG 0x0841e8d7 `lea -0x106(%ebp),%eax;
         // call RandomOption::reset` ⇒ 原码是 RandomOption 局部 + reset()（不是
         // memset 等价物）；p167 MISSING `_ZN12RandomOption5resetEv` 由此归零。
-        RandomOption extOpt;
-        extOpt.reset();
+        MailExtSource extOpt;
+        extOpt.m_ro.reset();
 
         // ORIG 各列取数失败跳到循环尾（0x0841e8a0..0x0841e8e2 共 23 岛）⇒ continue
         if (!db->get_int(0, p0)) continue;
@@ -721,25 +700,32 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
             unsigned long u14 = 0;
             int b16 = 0;
             int s17 = 0;
-            unsigned char ampBuf[10];
+            SIG_MAILBOX_POSTAL_AMP ampBuf;
             char b19 = 0, b20 = 0;
 
-            if (db->get_uint(idx++, u13) && (u4 != 0 || i8 != 0))
+            // [b28d] ORIG 0x0841e3ae..0x0841e8e2 有 23 个「失败 → 循环尾」跳转岛
+            // （每处 `test;jne <岛>` + 岛 `jmp +0xa99; nop`；O[340]/O[343]/O[346]
+            // 三段独立判断实证）⇒ 原码是**独立早退**（嵌套 if 形 4.4 只产 13 岛 ⇒
+            // 少 10 条 jmp+10 条 nop）。故展平为 continue 链（落点=循环尾，同 ORIG）。
+            if (!db->get_uint(idx++, u13))
+                continue;
+            if (u4 == 0 && i8 == 0)
+                continue;
+            if (!db->get_ulong(idx++, u14))
+                continue;
+            if (!db->get_binary(idx++, &ampBuf, 10))           // amplify 区（-0x116）
+                continue;
+            if (!db->get_byte(idx++, b16))
+                continue;
+            if (!db->get_short(idx++, s17))
+                continue;
+            if (!db->get_binary(idx++, &extOpt.m_ro, 0xe)) // extend_info 区（-0x102）
+                continue;
+            if (!db->get_byte(idx++, b19))
+                continue;
+            if (!db->get_byte(idx++, b20))
+                continue;
             {
-                if (db->get_ulong(idx++, u14))
-                {
-                    if (db->get_binary(idx++, ampBuf, 10))            // amplify 区（-0x116）
-                    {
-                        if (db->get_byte(idx++, b16))
-                        {
-                            if (db->get_short(idx++, s17))
-                            {
-                                if (db->get_binary(idx++, &extOpt, 0xe)) // extend_info 区（-0x102）
-                                {
-                                    if (db->get_byte(idx++, b19))
-                                    {
-                                        if (db->get_byte(idx++, b20))
-                                        {
                                             if (u13 != 0)
                                             {
                                                 extraMap.insert(
@@ -749,67 +735,83 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
 
                                             // P183：ORIG 每字段重发完整 imul/lea/add 链
                                             // （0x0841e5ae..0x0841e640），禁缓存 item 指针。
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_postalId = p0;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field55 = p1 + 0x13c680;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_sendCharacNo = p2;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_sealFlag = (char)(s3 == 1);
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_occTime = (unsigned int)u4;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_addInfo = (unsigned int)i5;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_upgrade = s6;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_endurance = b7;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_itemGuid = (unsigned int)u14;
-                                            // ORIG 519..529 段用单 disp 直读
-                                            // （`add $0x30,%eax` 一次基址 + 0x9/0xd/0x11），
-                                            // `(char*)&ampBuf+4` 形恒多 lea/add 链。
-                                            *(MailAmpView*)&((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_ampOpt =
-                                                *(MailAmpView*)ampBuf;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_itemId = i8;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_unlimitFlag = (char)(s10 == 1);
+                                            // [b28d] 视图 cast → 权威头 SIG_MAILBOX_POSTAL 具名成员
+                                            // 直访问（SigTypes_D.h 字段化），各字段附 ORIG 地址链。
+                                            sig->m_box.m_postals[rowIdx].m_postalId = p0;
+                                            // ORIG 0x0841e5c2 `add $0x50,%eax; mov %edx,0x5(%eax)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_field55 = p1 + 0x13c680;
+                                            // ORIG 0x0841e5f5 `mov %ecx,0x4(%edx,%eax,1)`
+                                            sig->m_box.m_postals[rowIdx].m_sendCharacNo = p2;
+                                            // ORIG 0x0841e5f8 `cmp $0x1,%dx; sete %dl; add $0x29,%eax`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_sealFlag = (char)(s3 == 1);
+                                            // ORIG 0x0841e614 `add $0x20,%edx; mov %eax,0xa(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occTime = (unsigned int)u4;
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_addInfo = (unsigned int)i5;
+                                            // ORIG 0x0841e644 `add $0x20,%edx; mov %ax,0x13(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_upgrade = s6;
+                                            // ORIG 0x0841e65e `add $0x32,%edx; mov %al,(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_endurance = b7;
+                                            // ORIG 0x0841e676 `add $0x20,%edx; mov %eax,0x15(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_itemGuid = (unsigned int)u14;
+                                            // ORIG 0x0841e691..0x0841e6b6：一次 `add $0x30` 基址 +
+                                            // 0x9/0xd/0x11 连续 store = amp 组**整体赋值**形。
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_amp = ampBuf;
+                                            // ORIG 0x0841e6ba `add $0x20,%edx; mov %eax,0x5(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_itemId = i8;
+                                            // ORIG 0x0841e6d2 `add $0x5b,%eax; mov %dl,(%eax)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_unlimit = (s10 == 1);
                                             if (s11 == 1)
                                             {
-                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_avataFlag = 1;
+                                                // ORIG 0x0841e6fe `add $0x59,%eax; movb $0x1,(%eax)`
+                                                sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_avataFlag = 1;
                                                 avataList[0] = avataList[0] + 1;
                                                 avataList[avataList[0]] = (unsigned int)i5;
                                             }
                                             else
                                             {
-                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_avataFlag = 0;
+                                                // ORIG 0x0841e734 `add $0x59,%eax; movb $0x0,(%eax)`
+                                                sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_avataFlag = 0;
                                             }
                                             if (s12 == 1)
                                             {
-                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_creatureFlag = 1;
+                                                // ORIG 0x0841e753 `add $0x5a,%eax; movb $0x1,(%eax)`
+                                                sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_creatureFlag = 1;
                                                 creatureList[0] = creatureList[0] + 1;
                                                 creatureList[creatureList[0]] = (unsigned int)i5;
                                             }
                                             else
                                             {
-                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_creatureFlag = 0;
+                                                // ORIG 0x0841e789 `add $0x5a,%eax; movb $0x0,(%eax)`
+                                                sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_creatureFlag = 0;
                                             }
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_letterId = u13;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field43 = (char)b16;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field44 = (short)s17;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field60 = b20;
-                                            // ORIG 0x0841f0xx 段：`lea opt; mov (%eax),%edx`
-                                            // / `lea opt; add $4; mov (%eax),%edx`（+0/+4/+8
-                                            // 逐段 add 形，P82 尾部视图）。
-                                            // ORIG 618..637：同基址 + 0x16/0x1a/0x1e/0x22 单 disp。
-                                            *(MailExtView*)&((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_ext0 =
-                                                *(MailExtView*)&extOpt;
-                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field54 = b19;
-                                            strncpy(((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_sendName, name9, 0x1d);
+                                            // ORIG 0x0841e79b `add $0x50,%edx; mov %eax,0xc(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_letterId = u13;
+                                            // ORIG 0x0841e7b3 `add $0x43,%edx; mov %al,(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_field43 = (char)b16;
+                                            // ORIG 0x0841e7ca `add $0x30,%edx; mov %ax,0x14(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_field44 = (short)s17;
+                                            // ORIG 0x0841e7e3 `add $0x60,%edx; mov %al,(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_field60 = b20;
+                                            // ORIG 0x0841e7fb..0x0841e82c：一次 `add $0x30` 基址 +
+                                            // 0x16/0x1a/0x1e/0x22 连续 store（extend_info 14 字节）。
+                                            // ext2（abs 0x4e..0x51）跨 m_occ 边界（abs 0x50）⇒ 按
+                                            // 2+2 字节具名写（权威头 SIG_MAILBOX_POSTAL_OCC.m_ext2Hi），
+                                            // 源地址每次内联重算（P183，勿缓存指针局部）。
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_ext0 = extOpt.m_ext.m_e0;
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_ext1 = extOpt.m_ext.m_e1;
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_ext2Lo = extOpt.m_ext.m_e2Lo;
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_ext2Hi = extOpt.m_ext.m_e2Hi;
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_ext3 = extOpt.m_ext.m_e3;
+                                            // ORIG 0x0841e830 `add $0x54,%edx; mov %al,(%edx)`
+                                            sig->m_box.m_postals[rowIdx].m_tail.m_occ.m_field54 = b19;
+                                            // ORIG 0x0841e848 `imul $0x61; add base; lea 0x8; call strncpy`
+                                            strncpy(sig->m_box.m_postals[rowIdx].m_sendName, name9, 0x1d);
 
 
                                             SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID) =
                                                 std::max(SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID),
                                                          (unsigned int)p0);
                                             ++rowIdx;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
     }

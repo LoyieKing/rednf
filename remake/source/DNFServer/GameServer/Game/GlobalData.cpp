@@ -71,6 +71,55 @@
 //    `-march=i486 -mtune=generic` 后 cmov 30→0 但 TU 四数**完全不变**
 //    （899/1787/11/42）⇒ 该族函数的残差不止 cmov，改路由非本 TU 的解；
 //    路由变更属 Main 域，本泳道不动 dnf_game_cxx.sh。
+//  · [Main「视图 cast 反模式」修法 · 2026-09-10 · 跨 TU 批准] 本次共修 3 件
+//    形差异（诊断源 = 分类器 /tmp/l7/classify_gd2.py + 逐条 asm 复核）：
+//    ① `ItemVendingMachine::ProcessBuyRequestEx` 子项/选项写入 5 处：去掉
+//       `*reinterpret_cast<T*>(&m_subEntries[k][0])=`（4.4 折 add+shl 普通 store）
+//       → SigTypes_E.h 匿名 union 具名视角 `m_subItems[k].m_itemIdx/.m_value`、
+//       `m_optItems[k].m_itemUid/.m_a/.m_b`（旧 2D 字节视图保留，消费点零破坏）。
+//       实测 scaled 直存全部现形：`mov %edx,0x8(%eax,%ecx,8)` /
+//       `mov %dl,0xc(%eax,%ecx,8)` / `mov %edx,0x4(...)` / `mov %dx,0x8(...)` /
+//       `mov %dx,0xa(...)` = ORIG 0x08177edf/0x08177f0d/0x08177f87/0x08177fb4/
+//       0x08177fe3 五处逐条同形（探针 /tmp/l7/probe7.cpp f1 vs f2）。
+//       注：L3901-3902 的 `*(unsigned long*)&…[0]` **保留**——其 `unsigned long&`
+//       类型是为选中 `make_pair<ulong&,uchar&>` 实例（P61/P135），非反模式。
+//    ② `ItemVendingMachine::ProcessIPG_ResultOutput` bonus-rate 段：改单条嵌套
+//       实参链 + 链置比较符左侧 ⇒ 我方 933..939 与 ORIG 894..900 逐条同形
+//       （`cmp %eax,%ebx; setge`，insns 1179→1178，ORIG 1158）。
+//    ③ InterDispatcher.cpp `Inter_ItemLimitEdition_Reply::dispatch_sig`（Main 批
+//       准跨 TU）：目的侧同法迁移 ⇒ 752→745 insns（ORIG 711）、ndiff 705→676；
+//       该 TU 四数 135/1352/5/129 迁移前后逐位相同（A/B 对照实证）。
+//  · GlobalData::Init 全函数**唯一**助记符差 = 1 条（ORIG i2751 `jmp` vs 我方
+//    `je`），且**帧与槽集合侧全等**（两侧 `sub $0x79c`、81 个 ebp 槽、最深
+//    0x77c 一致）⇒ 该件 1478 行 ndiff 系 N127 对齐坍缩伪差，非真缺口。
+//    该 1 条 = **4.1 保留不可达 else 的折常真分支**：ORIG 0x0829cd71 段
+//    `call *%ebx; test %eax,%eax; setne %al; test %al,%al; jmp 0x829cdc0`
+//    （无条件跳转越过 0x0829cd7a..0x0829cdbb 的 cMyTrace+`return 0` 死块），
+//    4.4 同源形恒产 `je <then>`（死块被删/改为可达）。探针 /tmp/l7/probe8.cpp
+//    8 形（`ok||true` / `ok&&true` / `f()||true` / `ok|1` / while+break /
+//    `ok?true:true` / 逗号 `(ok,true)`）**均不能复现**「保留死 else + 无条件
+//    jmp」⇒ 判 N（跨代 codegen；若该虚调用返回值恒非 0 则两侧可观察行为一致，
+//    照抄 ORIG 需删整个失败分支，属改写语义，不做）。
+//  · [只读分类 · 编译冻结窗口产出] 全 55 件非 identical 按「帧/槽集合/助记符
+//    多重集」三轴分类（脚本口径：objdump 双侧 × nm 区间，无编译参与）：
+//      A. **仅寄存器/顺序差**（d=0 且 slotΔ=0）：Connect / CheckInventoryEmptyCount
+//         （compare_tu 口径已 ndiff=0）/ CRandomOptionItemHandle C1 / St3map::ix /
+//         St4pair D1 ⇒ 前两件已闭合，余 3 件 N7/S 族。
+//      B. **仅槽号差**（d=0, slotΔ>0）：initTournamentDB(14) / CDBEnviroment::parse(8)
+//         / DispatchThread::dispatch(4) ⇒ N82 族（声明序/首用序）。
+//      C. **近战**（d≤4 且 |Δinsn|≤2，共 14 件，下一窗口优先队列）：
+//         Init(d=3) / QueryConnInfo(1) / CServerProxyMgr D1×3(1) / proc_addFatigue(1)
+//         / InitTcp(2) / CheckupAllRentalItems×2(1,2) / PC·Dim log×2(1,帧 0x4c vs 0x3c)
+//         / ProcessEquipItem·ProcessInsertItem(1, N18a tG 旋钮待 Main 裁决) /
+//         CSimpleSSO::init(2) / Secu(3, N121 尾岛) / __tcf_0(3, 结构性)。
+//      D. **真缺口候选**（助记符差 ≥5 且指令数差 ≥3）：MonitorTcpThread(1575/1836,
+//         cmov 28× + EH 尾岛) / ProcessBuyRequestEx(1599/1606) / ProcessIPG_ResultOutput
+//         (1158/1178) / UdpThread::dispatch(137/149) / _processUDPData(266/274) /
+//         AcceptThread(518/522) / BillingRecord(324/327) / init_function_type(157/169) /
+//         checkAllRentalItemScript(282/293) / checkSelectionListScript(252/262) /
+//         GetRentItemInfo(111/117) / DeleteAllRentalItem(119/124) /
+//         CHumanCertifier::init(64/76) / RecvPacket(171/176) / SendCheckChannelScript
+//         (289/291) / generateImage(685/682) / STL 3 件（N130）。
 // ============================================================================
 // ============================================================================
 // [b28d-solo-GlobalData 泳道判词] 清单 /tmp/b28d_tu/GlobalData.tsv（44 件）。

@@ -171,14 +171,34 @@ public:
     bool m_isRoutingItem;                 // +0xbd（IsRoutingItem，源自脚本 +0x10f）
     std::vector<std::pair<int, int> > m_vecC0;  // +0xc0
     int m_questBonus;                     // +0xcc
-    bool m_boolD0;                        // +0xd0（IsUse2ndUpgradeTableRecipe 0x869475e：movzbl 0xd0 直返）
+    // [b28d-solo-CStackableItem] +0xd0 双视角（同址零布局）：ORIG 读侧
+    // IsUse2ndUpgradeTableRecipe 0x0869475e `movzbl 0xd0`（bool 直返），写侧
+    // CStackableItem::set_item 0x0850e26e `movzbl 0x3d0(%eax),%edx; mov %dl,0xd0(%eax)`
+    // （char 源逐字节直存，无 bool 归一化）⇒ 保留 bool 视角 + 补 char 视角。
+    union
+    {
+        bool m_boolD0;                    // +0xd0（IsUse2ndUpgradeTableRecipe 直返）
+        char m_charD0;                    // +0xd0（set_item 字节写视角）
+    };
     std::set<int> m_setd4;                // +0xd4..0xec
     int m_intEC;                          // +0xec
     int m_intF0;                          // +0xf0
     int m_intF4;                          // +0xf4
     bool m_boolF8;                        // +0xf8（IsHiddenOption）
-    float m_floatFC;                      // +0xfc（GetExpertJobCompoundMaterialVariation）
-    float m_float100;                     // +0x100（GetExpertJobCompoundRateVariation）
+    // [b28d-solo-CStackableItem] +0xfc/+0x100 双视角（同址零布局）：浮点读视角见
+    // GetExpertJobCompoundMaterialVariation（flds）与 CEquipItem 脚本装载；整数写
+    // 视角见 CStackableItem::set_item 0x0850e2e3 `mov %edx,0xfc(%eax)` /
+    // 0x0850e2f5 `mov %edx,0x100(%eax)`（整数 mov，非 fstps）。
+    union
+    {
+        float m_floatFC;                  // +0xfc（GetExpertJobCompoundMaterialVariation）
+        int m_intFC;                      // +0xfc（set_item 整数写视角）
+    };
+    union
+    {
+        float m_float100;                 // +0x100（GetExpertJobCompoundRateVariation）
+        int m_int100;                     // +0x100（set_item 整数写视角）
+    };
     std::vector<STItemScript::SEXPERTJOB::SUSABLE> m_vec104;  // +0x104..0x110
     STItemScript::SEXPERTJOB::stExpertCompoundResultVariation
         m_compound110;                    // +0x110（8 字节）
@@ -190,6 +210,25 @@ public:
     unsigned long m_parentBoosterItemId;  // +0x140（派生类 set/get_parent_booster_item_id）
     char m_char144;                       // +0x144
 };
+
+// [b28d-solo-CStackableItem] union 双视角零布局佐证（ORIG 证据：CItem 构造 0x85152d4 族
+// 成员偏移 + set_item 0x0850e26e/0x0850e2e3/0x0850e2f5 写点 + IsUse2ndUpgradeTableRecipe
+// 0x0869475e 读点）。匿名 union 成员同址：sizeof/对齐/后续偏移全部不变。
+static_assert(sizeof(CItem) == 0x148, "CItem ABI drift (ORIG size 0x148)");
+static_assert(__builtin_offsetof(CItem, m_increaseStatusType) == 0x8c,
+              "CItem m_increaseStatusType offset drift (set_item 0x0850e7cb mov %edx,0x8c)");
+static_assert(__builtin_offsetof(CItem, m_boolD0) == 0xd0,
+              "CItem m_boolD0 offset drift (IsUse2ndUpgradeTableRecipe 0x0869475e movzbl 0xd0)");
+static_assert(__builtin_offsetof(CItem, m_charD0) == 0xd0,
+              "CItem m_charD0 offset drift (set_item 0x0850e26e mov %dl,0xd0)");
+static_assert(__builtin_offsetof(CItem, m_floatFC) == 0xfc,
+              "CItem m_floatFC offset drift (set_item 0x0850e2e3 mov %edx,0xfc)");
+static_assert(__builtin_offsetof(CItem, m_intFC) == 0xfc,
+              "CItem m_intFC offset drift (set_item 0x0850e2e3 mov %edx,0xfc)");
+static_assert(__builtin_offsetof(CItem, m_float100) == 0x100,
+              "CItem m_float100 offset drift (set_item 0x0850e2f5 mov %edx,0x100)");
+static_assert(__builtin_offsetof(CItem, m_int100) == 0x100,
+              "CItem m_int100 offset drift (set_item 0x0850e2f5 mov %edx,0x100)");
 
 // ORIG 0x08326739 T 全局：GetItemType() ∈ {0xe, 0xf, 0x10} 即包类商品
 //（CCeraShop_Special.cpp 的 file-static 同名版已移除，统一走本全局定义）。

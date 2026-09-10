@@ -1138,8 +1138,18 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[dungeon]")                             // 0x089dd56d
         {
             script->m_list4.clear();
-            while (okInt = ScanInt(&ok), ok == true)
-                script->m_list4.push_back(okInt);
+            // [lane22 A/B] ORIG 0x89dd57f：4.1 while 旋转 + bool 取反物化
+            // （`movzbl ok; xor $1; test; je body` + body 尾 jmp 回 cond）。
+            // 探针 /tmp/lane22/p4.cpp r3 实测：仅「goto 尾标签环」能出该 `je` 形态。
+            goto L_dungeon_cond;
+        L_dungeon_body:
+            script->m_list4.push_back(okInt);
+        L_dungeon_cond:
+            okInt = ScanInt(&ok);
+            if (!ok)
+                goto L_dungeon_exit;
+            goto L_dungeon_body;
+        L_dungeon_exit:
             continue;
         }
         if (tok == "[type]")                                // 0x089dd5d7

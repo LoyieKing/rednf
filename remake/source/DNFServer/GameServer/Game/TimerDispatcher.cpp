@@ -2893,6 +2893,11 @@ __attribute__((weak)) TimerFinishItemEffect::~TimerFinishItemEffect() throw() {}
 // [TimerDispatcher-3 2026-09-10 判据①] 22 条 jcc 目标核对：i63 `je/sete`↔`jne/setne`
 // 同目标（N18b 折痕，语义等价）；i147 `jmp` 目标差 9 = ORIG `mov $0x1,%esi` 中继块位置
 // 差（N104 EH 尾块序）；我方多出 `jmp <next>;nop` 属 4.4 epilogue-threading 岛（N121）。
+// [Main P164 回扫 2026-09-10] /tmp/td_entryjmp.py 全 TU 扫描（`jmp L`+nop 填充+L 恰为
+// 填充之后）：本件 OURS hits=1 / ORIG hits=0（其余 2 件两侧一致）⇒ 确有我方多余跳板。
+// 按 P164 修法试「continue 移至循环体末」形（反条件 if/else 保块序）实测跳板仍在
+// （仅位移 i177→i178）、ndiff 25 不变、四数不变 ⇒ **非 P164 族**（本件无后跳 goto，
+// 系 PacketGuard 析构 esi 分流后的 latch 跳板）⇒ 回滚，维持 N121 判词。
 int TimerFinishItemEffect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 0x3);

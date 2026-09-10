@@ -1863,9 +1863,9 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             pkt.put_byte((int)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_level);
             pkt.put_byte(0);
             if (!(nowSec < reinterpret_cast<CharacListElemView&>(m_characList[i]).m_expireSec))
-                reinterpret_cast<CharacListElemView&>(m_characList[i]).m_reenterable = 0;
+                m_characList[i].m_fieldE66 = 0;   // +0xe66 ≡ ElemView::m_reenterable（Main 视图 cast 反模式修法：具名直访问）
             else
-                reinterpret_cast<CharacListElemView&>(m_characList[i]).m_reenterable = 1;
+                m_characList[i].m_fieldE66 = 1;
             if (reinterpret_cast<CharacListElemView&>(m_characList[i]).m_viewState == 0xff)
                 pkt.put_byte(8);
             else
@@ -1889,8 +1889,8 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             else if (reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayLeftSec < 1)
             {
                 pkt.put_int(0);
-                reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayFlag = 0;
-                reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayLeftSec = 0;
+                m_characList[i].m_pad83 = 0;      // +0x83 ≡ ElemView::m_forbidPlayFlag
+                m_characList[i].m_field84 = 0;    // +0x84 ≡ ElemView::m_forbidPlayLeftSec
                 // P259：ORIG 无 Stream* 具名槽（Acquire 结果 %eax 直传 C1）。
                 CStreamGuard guard(
                     GlobalData::s_stream_pool->Acquire("user.cpp", 0x344c), true);

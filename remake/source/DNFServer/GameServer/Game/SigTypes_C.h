@@ -22,6 +22,7 @@
 #include "GamePODTypes.h"    // AvatarDetailInfo（m_avatarDetail 真实元素类型，0x4b）
 #include "CTitleBook.h"      // stItemLockInfo（SIG_LOAD_INVENTORY +0x14784 锁区，8 字节）
 #include "SIG_SAVE_EXPAND_EQUIPSLOT.h"  // SIG_SAVE_EXPAND_EQUIPSLOT（SIG_LOAD_INVENTORY +0x14aa4 子对象）
+#include "CGameOption.h"     // CHotkeyOption（SIG_LOAD_CHARAC_HOTKEY_OPTION +0x05 子对象，0xbc）
 #include "../../../shared/packet/include/STPvPBuddyDBInfo.h"
 
 // ---- CHARAC_LOAD_MERCENARY 方法声明依赖的前向（完整定义见 CUser.h/PacketTypes.h）----
@@ -340,8 +341,28 @@ struct SIG_LOAD_CHARAC_HOTKEY_OPTION
     // 0x081cee64 store `call get_acc_id; mov -0xc,%edx; mov %eax,(%edx)`
     // 具名字段同型直存形实证，探针 store.cpp hC；pad 解引用形反产 LHS 早载
     // 跨 call %ebx 缓存）。sizeof 0xc4 不变。
-    union { unsigned int m_uid; char m_pad[0xc4]; };
+    // [Lane31W8LTDBTaskView] 补 +0x04 hotkeyType（ORIG DB_LoadCharacHotKeyOption
+    // ::dispatch 0x0842fd42 `movzbl 0x4(%eax)`）与 +0x05 hotkey 字节区（0xbc，
+    // uncompress_zip 目标，ORIG `lea 0x5(%eax)` 实证）。CHotkeyOption 有构造函数，
+    // C++03 禁止其作 union 成员 ⇒ 头内以字节区表达；消费点按地址转 CHotkeyOption*
+    // 调用其成员（clear）保留 ORIG 的 CHotkeyOption::clear 弱符号调用。
+    // m_pad 字节视角保留（Dispatchers.cpp m_pad[4]/[5] 不动）。
+    union
+    {
+        char m_pad[0xc4];
+        struct
+        {
+            unsigned int m_uid;          // +0x00
+            unsigned char m_hotkeyType;  // +0x04
+            char m_hotkey[0xbc];         // +0x05（CHotkeyOption 字节视角）
+            char m_pad_c1[3];            // +0xc1..+0xc3
+        };
+    };
 };
+static_assert(sizeof(SIG_LOAD_CHARAC_HOTKEY_OPTION) == 0xc4,
+              "SIG_LOAD_CHARAC_HOTKEY_OPTION ABI drift");
+static_assert(0x005 + sizeof(((SIG_LOAD_CHARAC_HOTKEY_OPTION*)0)->m_hotkey) == 0xc1,
+              "SIG_LOAD_CHARAC_HOTKEY_OPTION m_pad_c1 at +0xc1");
 
 struct SIG_LOAD_CLEANPAD_POINT
 {
@@ -875,14 +896,44 @@ struct SIG_LOAD_NO_CACHE_DATA
         unsigned int m_characNo;   // +0x00（ORIG dispatch 0x08446e.. `movl %edx,(%eax)`
                                    //   int RHS→unsigned 字段 = P211 异型 RHS-first 形，
                                    //   b28-L11；协议 charac_no 非负，unsigned 仅表线格式）
+        int m_characNoInt;         // +0x00（同址 int 视角：RHS 为 int 局部时同型直存，
+                                   //   [Lane31W8LTDBTaskView] 消除视图 cast 反模式）
         char m_pad[0x2c];
     };
 };
 
+// [Lane31W8LTDBTaskView] 整体字段化 + 匿名 union 双视角：ORIG
+// DB_LoadPowerWarStatueInfo::GetCharacInfo 0x08434a8a / GetAvatarInfo 0x08434886
+// 按偏移逐字段读（+0x00 charac_no、+0x04 name[0x1d]、+0x22 lev、+0x23 job、
+// +0x24 grow_type、+0x25 guild_name[0x28]、+0x50 guild_id、+0x54 equipment[0xa]、
+// +0x7c dword）；m_pad 字节视角保留。sizeof 0x80 不变。
+#pragma pack(push, 1)
 struct SIG_LOAD_POWER_WAR_STATUE_INFO
 {
-    char m_pad[0x80];
+    union
+    {
+        char m_pad[0x80];
+        struct
+        {
+            int m_characNo;            // +0x00
+            char m_name[0x1d];         // +0x04
+            char m_pad21;              // +0x21（ORIG 空洞）
+            char m_lev;                // +0x22
+            char m_job;                // +0x23
+            char m_growType;           // +0x24
+            char m_guildName[0x28];    // +0x25
+            char m_pad4d[3];           // +0x4d（ORIG 空洞）
+            unsigned int m_guildId;    // +0x50
+            int m_equipment[0xa];      // +0x54
+            int m_field7c;             // +0x7c
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_LOAD_POWER_WAR_STATUE_INFO) == 0x80,
+              "SIG_LOAD_POWER_WAR_STATUE_INFO ABI drift");
+static_assert(0x050 + sizeof(((SIG_LOAD_POWER_WAR_STATUE_INFO*)0)->m_guildId) == 0x054,
+              "SIG_LOAD_POWER_WAR_STATUE_INFO m_equipment at +0x54");
 
 struct SIG_LOAD_PU_USER_INFO
 {

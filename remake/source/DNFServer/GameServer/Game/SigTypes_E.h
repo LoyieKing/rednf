@@ -7,6 +7,7 @@
 // ============================================================================
 
 #include <cstddef>  // offsetof static_assert
+#include <time.h>    // SIG_NAT_TYPE 的 time_t 字段
 
 #include "Inven_Item.h"   // SIG_SAVE_INVENTORY 背包 Inven_Item 数组（pack(1)，0x3d）
 #include "MissionTypes.h"  // MissionInfo（SIG_REQUEST_PVP_MISSION_LIST 任务列表）
@@ -519,7 +520,9 @@ struct SIG_UPDATE_LOGOUT
             unsigned int   m_characNo;          // +0x04（movl；getCurCharacNo）
             unsigned int   m_gcNo;              // +0x08（movl；get_gc_no[_hardcode]）
             unsigned short m_fatigue;           // +0x0c（mov %dx；GetFatigue）
-            char           m_pad0e[4];          // +0x0e..0x11（无写点）
+            int            m_serverId;          // +0x0e（DB_UpdateLogout::dispatch
+                                                //   0x0841866e `mov %eax,0xe(%edx)`
+                                                //   = GetServerType(slot)/m_serverGroup）
             unsigned char  m_stateFlag;         // +0x12（movb $0/$1；get_state()>1）
             int            m_playTime;          // +0x13（movl；now-m_loginTime，this+0x71ba4）
             unsigned int   m_field17;           // +0x17（movl ←this+0x8d10c）
@@ -548,6 +551,17 @@ struct SIG_UPDATE_LOGOUT
     };
 };
 #pragma pack(pop)
+// [Lane31W8LTDBTaskView] 字段化 ABI 佐证：pack(1) 下偏移 = 前置 sizeof 和
+// （避免 offsetof 对匿名 union 成员触发 GCC4.4 告警；仅 sizeof，不访问 NULL）。
+static_assert(sizeof(SIG_UPDATE_LOGOUT) == 0x8b, "SIG_UPDATE_LOGOUT ABI drift");
+#define SIG_UPDATE_LOGOUT_SZOF(field) (sizeof(((SIG_UPDATE_LOGOUT*)0)->field))
+static_assert(0x000 + SIG_UPDATE_LOGOUT_SZOF(m_accId)    == 0x004, "SIG_UPDATE_LOGOUT m_characNo at +0x004");
+static_assert(0x004 + SIG_UPDATE_LOGOUT_SZOF(m_characNo) == 0x008, "SIG_UPDATE_LOGOUT m_gcNo at +0x008");
+static_assert(0x008 + SIG_UPDATE_LOGOUT_SZOF(m_gcNo)     == 0x00c, "SIG_UPDATE_LOGOUT m_fatigue at +0x00c");
+static_assert(0x00c + SIG_UPDATE_LOGOUT_SZOF(m_fatigue)  == 0x00e, "SIG_UPDATE_LOGOUT m_serverId at +0x00e");
+static_assert(0x00e + SIG_UPDATE_LOGOUT_SZOF(m_serverId) == 0x012, "SIG_UPDATE_LOGOUT m_stateFlag at +0x012");
+static_assert(0x021 + SIG_UPDATE_LOGOUT_SZOF(m_puUser)   == 0x022, "SIG_UPDATE_LOGOUT head end +0x022");
+#undef SIG_UPDATE_LOGOUT_SZOF
 
 // 字段化（CUserMain 2026-09-04）：CUser::UpdateData @0x08652xxx quest 脏块
 // （报告 docs/class_func_reports/CUser/UpdateData.md）：+0 movl characNo、
@@ -842,7 +856,30 @@ struct SIG_DELETE_CHANNEL { char m_pad[0xc]; };
 struct SIG_INSERT_CHANNEL { char m_pad[0x5c]; };
 struct SIG_INSERT_TICKET { char m_pad[0x8]; };
 struct SIG_MANNERLESS_USER { char m_pad[0x13a]; };
-struct SIG_NAT_TYPE { char m_pad[0x14]; };
+// 字段化（Lane33，ORIG 证据：写侧 StatisticsNatType::UpdateNatType @0x0860caa8..0x0860cafd
+// 逐字段 `mov <pair.first>+N,%edx; mov -0xc(%ebp),%eax; mov %edx,N(%eax)`（N=0/4/8/0xc）
+// 与 `mov -0xc(%ebp),%eax; mov -0x10(%ebp),%edx; mov %edx,0x10(%eax)`（time_t 同型直存）；
+// memset(sig,0,0x14) 后写序 = nat_type/nat_type_other/fail_cnt/success_cnt/occ_time。
+// 读侧 DB_UpdateNatType::dispatch @0x0841c74e：SQL
+// log_nat_daily(occ_time,nat_type,nat_type_other,success_cnt,fail_cnt) 取 +0x10/+0x0/+0x4/+0xc/+0x8。
+// sizeof 仍 0x14、各字段偏移不变）。
+struct SIG_NAT_TYPE
+{
+    int    m_natType;       // +0x00
+    int    m_natTypeOther;  // +0x04
+    // +0x08/+0x0c 计数：字段 unsigned + 源 int 异型 ⇒ 4.4 产 ORIG 的
+    // `mov 0x4(%eax),%eax; mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,N(%eax)`
+    // 两段中转（探针 /tmp/l33_probe.cpp W2；P211 档③/P274）。
+    unsigned int m_failCnt;     // +0x08
+    unsigned int m_successCnt;  // +0x0c
+    time_t m_time;          // +0x10（occ_time；32 位 time_t = long，ORIG 直存形）
+};
+static_assert(sizeof(SIG_NAT_TYPE) == 0x14, "SIG_NAT_TYPE ABI drift");
+static_assert(offsetof(SIG_NAT_TYPE, m_natType) == 0x00, "SIG_NAT_TYPE m_natType offset drift");
+static_assert(offsetof(SIG_NAT_TYPE, m_natTypeOther) == 0x04, "SIG_NAT_TYPE m_natTypeOther offset drift");
+static_assert(offsetof(SIG_NAT_TYPE, m_failCnt) == 0x08, "SIG_NAT_TYPE m_failCnt offset drift");
+static_assert(offsetof(SIG_NAT_TYPE, m_successCnt) == 0x0c, "SIG_NAT_TYPE m_successCnt offset drift");
+static_assert(offsetof(SIG_NAT_TYPE, m_time) == 0x10, "SIG_NAT_TYPE m_time offset drift");
 struct SIG_REMOVE_EVENTITEM { char m_pad[0x18]; };
 struct SIG_REMOVE_FEATURED_GOODSIDX { char m_pad[0x14]; };
 // SIG_REQUEST_PVP_MISSION_LIST —— PvP 任务存档结构（ORIG 0x14a 字节）。

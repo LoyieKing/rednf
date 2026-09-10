@@ -620,13 +620,16 @@ static bool GetItemCategory(STItemScript* item)
     {
         int state = 0;
         // [sweep-STStackableScript] P333/P177（ORIG 0x089bfdc5 逐条实证）：
-        // 三件套落循环体（guard 每轮执行，ORIG 0x89bfde8 为 retry 回跳目标）；
+        // 三件套 + retry 标签同落循环体：ORIG retry 回跳目标 0x89bfde8 = 三件套
+        // guard 检查段首条（`mov $&__lookup,%eax`）⇒ 标签必须在 static 声明
+        // **之前**（guard 每轮执行）；放在声明之后会让 4.4 的回跳落到 __inited
+        // 检查处（0x2e35），jcc 目标偏离 ORIG（判据①）。
         // 单次 find（仅 __inited 分支）+ case 0/0x30ae 共享块 + case 尾 fallthrough
         // 插入 + default `if(__inited) return false` + 建表后 `goto retry` 重查。
+    retry:
         static std::map<const char*, int, less_TCHAR> __lookup;
         static SpinLock __init_lock;
         static bool __inited = false;
-    retry:
         int v;
         if (__inited)
         {
@@ -697,13 +700,14 @@ static bool GetExpertJobTypeList(STItemScript* item)
             break;
 
         int typeSel = 0;
-        // P177：三件套声明落循环标签处 ⇒ guard 检查每轮执行（ORIG 0x89bf72d
-        // guard 段在 ScanStr 之后、retry 回跳目标处；函数级声明会把 guard 提到
-        // 函数入口 = 我方旧形）。
+        // P177：三件套 + retry 标签同落循环体——ORIG retry 回跳目标 0x89bf72d
+        // 就是 guard 检查段首条，故标签须置于 static 声明**之前**（guard 每轮
+        // 执行）；放声明之后会让 4.4 回跳落到 __inited 检查处（jcc 目标偏离，
+        // 判据①）。函数级声明则把 guard 提到函数入口 = 我方更旧形。
+    retry:
         static std::map<const char*, int, less_TCHAR> __lookup;   // 0x94fde48
         static SpinLock __init_lock;                              // 0x94fde60
         static bool __inited = false;                             // 0x94fde64
-    retry:
         int v;
         if (__inited)
         {

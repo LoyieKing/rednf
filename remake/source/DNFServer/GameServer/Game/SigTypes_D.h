@@ -369,36 +369,97 @@ static_assert(offsetof(SIG_MAILBOX_DEL_MAIL, m_type) == 0x54,
 // `add $0x20; mov 0xe(%edx)`（add_info@+0x2e 两级）——视图经**参数类型自身的成员**
 // 访问才能复现 ORIG 4.1 的「下标先、基址后」装载序（cast 视图形恒 base 先，
 // P235；探针 /tmp/p2/rm2.cpp 与 ORIG 0x0841cd03 逐条同形）。
+// amplify 三字段（ORIG 0x0841e691..0x0841e6b6：一次 `add $0x30` 基址 + 0x9/0xd/0x11
+// 连续 store = 结构体整体赋值形）——具名行类型供 dispatch 写入侧整体赋值（消 cast 视图）。
+struct SIG_MAILBOX_POSTAL_AMP
+{
+    unsigned int m_opt;          // abs +0x39（amplify_option）
+    unsigned int m_val;          // abs +0x3d（amplify_value）
+    unsigned short m_rnd;        // abs +0x41（random_option）
+};
+// extend_info 14 字节行类型（ORIG dispatch 0x0841e807..0x0841e82c：一次 `add $0x30`
+// 基址 + 0x16/0x1a/0x1e/0x22 连续 store 实证）。e2 跨 m_occ(abs 0x50) 边界 ⇒ 双半视角。
+struct SIG_MAILBOX_POSTAL_EXT
+{
+    unsigned int m_e0;           // abs +0x46
+    unsigned int m_e1;           // abs +0x4a
+    union
+    {
+        unsigned int m_e2;       // abs +0x4e
+        struct
+        {
+            unsigned short m_e2Lo;   // abs +0x4e
+            unsigned short m_e2Hi;   // abs +0x50
+        };
+    };
+    unsigned short m_e3;         // abs +0x52
+};
+static_assert(sizeof(SIG_MAILBOX_POSTAL_EXT) == 0xe,
+              "SIG_MAILBOX_POSTAL_EXT size drift");
+// +0x50 (abs) 具名子结构（MailHelper 族消费点 m_tail.m_occ.* 路径）：
+//   0x0841cc8f `add $0x50; mov 0xc(%eax)`（letter_id 统计，GetOnlyMailCount）
+//   0x0841cf7f/0x0841cfdd `add $0x50; mov 0x5(%eax)`（FindLastOccTimeMail）
+//   0x0841d3a0 同形（ArrangeMailAndLetter）；m_field55 = charac_no + 0x13c680。
+// 起点 abs +0x50（TAIL +0x30）为**直接成员** ⇒ 4.4 折叠锚点 add $0x50 与 ORIG
+// 0x0855254c 段一致（CMailBoxHelper isUnlimitMail AE 前提，勿改其位置）。
+// 前 5 字节（abs 0x50..0x54）与 extend_info 尾部（ext2 高半/ext3/field54）同址 ——
+// ORIG dispatch 该 5 字节是 ext 组整体赋值的一部分（0x0841e80a..0x0841e82c），
+// 故按具名字段化（ext2 拆 2+2 字节，零 cast）。
+struct SIG_MAILBOX_POSTAL_OCC
+{
+    unsigned short m_ext2Hi;     // +0x50..0x51（extend_info 第 3 dword 高半）
+    unsigned short m_ext3;       // +0x52..0x53（extend_info 第 4 字段）
+    char m_field54;              // +0x54（get_byte 19）
+    int m_field55;               // +0x55（send_charac_no + 0x13c680）
+    char m_avataFlag;            // +0x59（ORIG 0x0841e70a `add $0x59` 写 1/0）
+    char m_creatureFlag;         // +0x5a（ORIG 0x0841e75f `add $0x5a` 写 1/0）
+    // +0x5b 无限信标志（isUnlimitMail ORIG 0x08552580 `add $0x5b,%eax;
+    // movzbl (%eax),%eax` 单字节直返 ⇒ bool；偏移/sizeof 与 m_pad2[3] 等价）
+    bool m_unlimit;              // +0x5b
+    unsigned int m_letterId;     // +0x5c
+    char m_field60;              // +0x60（get_byte 20，ORIG 0x0841e7e3 `add $0x60`）
+};
 struct SIG_MAILBOX_POSTAL_TAIL
 {
-    unsigned char m_pad[5];      // +0x20..0x24
-    int m_itemId;                // +0x25
-    char m_sealFlag;             // +0x29
-    int m_occTime;               // +0x2a
-    unsigned int m_addInfo;      // +0x2e
-    unsigned char m_pad2[0x50 - 0x32];   // +0x32..0x4f
-    // +0x50 具名子结构（§8.3 字段化，MailHelper 族 ORIG 实证）：
-    //   0x0841cc8f `add $0x50; mov 0xc(%eax)`（letter_id 统计，GetOnlyMailCount）
-    //   0x0841cf7f/0x0841cfdd `add $0x50; mov 0x5(%eax)`（FindLastOccTimeMail）
-    //   0x0841d3a0 同形（ArrangeMailAndLetter）；m_field55 = charac_no + 0x13c680。
-    // 4.4 探针 /tmp/p235probe.cpp getf/getl 与 ORIG 逐条同形（cast 视图形恒折单 disp）。
-    struct OccSub
-    {
-        unsigned char m_pad[5];      // +0x50..0x54
-        int m_field55;               // +0x55
-        unsigned char m_pad2[2];     // +0x59..0x5a
-        // +0x5b 无限信标志（isUnlimitMail ORIG 0x08552580 `add $0x5b,%eax;
-        // movzbl (%eax),%eax` 单字节直返 ⇒ bool；偏移/sizeof 与 m_pad2[3] 等价）
-        bool m_unlimit;              // +0x5b
-        unsigned int m_letterId;     // +0x5c
-        unsigned char m_rest[1];     // +0x60
-    } m_occ;                         // +0x50
+    unsigned char m_pad[5];      // +0x00 (abs 0x20..0x24，send_charac_name 尾部)
+    int m_itemId;                // +0x05 (abs 0x25)
+    char m_sealFlag;             // +0x09 (abs 0x29)
+    int m_occTime;               // +0x0a (abs 0x2a)
+    unsigned int m_addInfo;      // +0x0e (abs 0x2e)
+    char m_endurance;            // +0x12 (abs 0x32)
+    short m_upgrade;             // +0x13 (abs 0x33)
+    unsigned int m_itemGuid;     // +0x15 (abs 0x35)
+    // +0x19 (abs 0x39) 起（§8.3 字段化，b28d DB_MailBox_Req_List dispatch 写入侧实证：
+    // ORIG 0x0841e5ae..0x0841e89a 逐字段写序）——顺序具名成员，无 union：
+    SIG_MAILBOX_POSTAL_AMP m_amp;    // +0x19 (abs 0x39)
+    char m_field43;                  // +0x23 (abs 0x43，seperate_upgrade)
+    short m_field44;                 // +0x24 (abs 0x44，type)
+    unsigned int m_ext0;             // +0x26 (abs 0x46，extend_info dword 0)
+    unsigned int m_ext1;             // +0x2a (abs 0x4a，extend_info dword 1)
+    unsigned short m_ext2Lo;         // +0x2e (abs 0x4e，extend_info 第 3 dword 低半)
+    SIG_MAILBOX_POSTAL_OCC m_occ;    // +0x30 (abs 0x50) —— 直接成员（锚点见上）
 };
 struct SIG_MAILBOX_POSTAL
 {
-    int m_postalId;              // +0x00
-    unsigned char m_head[0x20 - 4];
-    SIG_MAILBOX_POSTAL_TAIL m_tail;   // +0x20
+    // 匿名 union 双视角（§8.3 字段化，b28d DB_MailBox_Req_List dispatch 写入侧证据）：
+    //   视角 A = 既有布局（MailHelper 族消费点 m_postals[i].m_postalId/m_tail 路径不变）；
+    //   视角 B = dispatch 写入侧具名行首字段（ORIG 0x0841e5f5 `mov %ecx,0x4(%edx,%eax,1)`
+    //     = send_charac_no@+0x04；0x0841e848 strncpy dst=base+8、len 0x1d = send_name@+0x08）。
+    union
+    {
+        struct
+        {
+            int m_postalId;              // +0x00
+            unsigned char m_head[0x20 - 4];
+            SIG_MAILBOX_POSTAL_TAIL m_tail;   // +0x20
+        };
+        struct
+        {
+            unsigned char m_headB[4];    // +0x00（postal_id 经视角 A 的 m_postalId 访问）
+            int m_sendCharacNo;          // +0x04
+            char m_sendName[0x1d];       // +0x08..+0x24
+        };
+    };
 };
 struct SIG_MAILBOX_LIST_BOX
 {
@@ -474,6 +535,48 @@ static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_unlimit) == 0x5b,
               "SIG_MAILBOX_POSTAL occ unlimit offset drift");
 static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_letterId) == 0x5c,
               "SIG_MAILBOX_POSTAL occ letterId offset drift");
+// [b28d DB_MailBox_Req_List] 字段化偏移断言（ORIG dispatch 地址链见结构内注释）
+static_assert(sizeof(SIG_MAILBOX_POSTAL) == 0x61, "SIG_MAILBOX_POSTAL ORIG size drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_sendCharacNo) == 0x04,
+              "SIG_MAILBOX_POSTAL sendCharacNo offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_sendName) == 0x08,
+              "SIG_MAILBOX_POSTAL sendName offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_itemId) == 0x25,
+              "SIG_MAILBOX_POSTAL itemId offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_endurance) == 0x32,
+              "SIG_MAILBOX_POSTAL endurance offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_upgrade) == 0x33,
+              "SIG_MAILBOX_POSTAL upgrade offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_itemGuid) == 0x35,
+              "SIG_MAILBOX_POSTAL itemGuid offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_amp.m_opt) == 0x39,
+              "SIG_MAILBOX_POSTAL ampOpt offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_amp.m_val) == 0x3d,
+              "SIG_MAILBOX_POSTAL ampVal offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_amp.m_rnd) == 0x41,
+              "SIG_MAILBOX_POSTAL rndOpt offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_field43) == 0x43,
+              "SIG_MAILBOX_POSTAL field43 offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_field44) == 0x44,
+              "SIG_MAILBOX_POSTAL field44 offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_ext0) == 0x46,
+              "SIG_MAILBOX_POSTAL ext0 offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_ext1) == 0x4a,
+              "SIG_MAILBOX_POSTAL ext1 offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_ext2Lo) == 0x4e,
+              "SIG_MAILBOX_POSTAL ext2Lo offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_ext2Hi) == 0x50,
+              "SIG_MAILBOX_POSTAL ext2Hi offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_ext3) == 0x52,
+              "SIG_MAILBOX_POSTAL ext3 offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_field54) == 0x54,
+              "SIG_MAILBOX_POSTAL field54 offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_avataFlag) == 0x59,
+              "SIG_MAILBOX_POSTAL avataFlag offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_creatureFlag) == 0x5a,
+              "SIG_MAILBOX_POSTAL creatureFlag offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_field60) == 0x60,
+              "SIG_MAILBOX_POSTAL field60 offset drift");
 
 // [2026-09-09 Lane20] 字段化（§8.3）：原 opaque m_data[0x168] → 具名字段。
 // 证据 = ORIG CMailBoxHelper::_makeSendMailData 0x08555756 / _DoSendNewMail

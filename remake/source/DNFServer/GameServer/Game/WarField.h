@@ -180,7 +180,10 @@ struct stMapPlayInfo_t
 struct MapInfo
 {
     char m_key;                       // +0x00
-    char m_visited;                   // +0x01
+    // [b28d-Lane27] 类型旋钮 char→bool（Main 批准）：ORIG 0x08307fae `movzbl 0x1(%eax),
+    // %eax; test %al,%al; je`（**无 setcc** ⇒ 字段 bool，P292 字段版）；char 判空 4.4 多
+    // setne（+2 条/处）。同宽 1B ⇒ sizeof/offsetof/mangled 零变化。
+    bool m_visited;                   // +0x01
     char m_visitedGoto;               // +0x02
     char m_pad3[1];                   // +0x03
     int m_mapIndex;                   // +0x04

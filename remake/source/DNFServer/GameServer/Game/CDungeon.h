@@ -700,7 +700,11 @@ public:
     int getTowerMaxClearRewardItemNum() const;
     int getHeroesRequiredQuest() const;
     int GetDummyAppearCount() const;
-    unsigned char IsHaveDummyMap() const;          // ORIG 单 movzbl（830e616）
+    // [b28d-Lane27] 类型旋钮 uchar→bool（Main 批准）：ORIG 调用点 0x08307efe
+    //   `call; test %al,%al; je`（**2 条、无 setne** = bool callee，P292 表）；
+    //   本体 0x0830e610 单 `movzbl 0x624(%eax),%eax; ret`（无归一化，字段本身即 bool 语义）。
+    //   返回类型不入 mangled；bool/unsigned char 同宽 ⇒ sizeof/偏移零变化。
+    bool IsHaveDummyMap() const;
     // [b28d-solo-CBossStage] 返回类型 uchar→bool：ORIG 调用点 0x0814d6dc
     //   `call; test %al,%al; je`（P292 两条形=bool；uchar 恒 4 条含 setne）。
     //   返回类型不入 mangled；sizeof/成员偏移零影响。
@@ -759,7 +763,7 @@ public:
     std::multimap<int, CMap*> m_map1a4[16];       // +0x1a4
     std::multimap<int, CMap*> m_dummyMap324[16];  // +0x324
     std::multimap<int, CMap*> m_dummyMap4a4[16];  // +0x4a4
-    unsigned char m_hasDummyMap;    // +0x624（IsHaveDummyMap）
+    bool m_hasDummyMap;             // +0x624（IsHaveDummyMap；[b28d-Lane27] uchar→bool，同宽）
     int m_dummyAppearCount;         // +0x628（GetDummyAppearCount）
     std::vector<MazeScript> m_mazeList;     // +0x62c
     std::vector<MazeScript> m_mazeList0[2]; // +0x638（ORIG 数组循环构造/析构）

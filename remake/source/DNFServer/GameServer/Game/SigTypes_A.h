@@ -88,10 +88,29 @@ struct Packet_Tcp_Server_Connect
     char m_serverFlag;     // +0x0a（ORIG 0x0863814c mov %dl,0xa(%eax) 单字节写）
 };
 
+// [Lane31W8LTDBTaskView] 字段化 + 匿名 union 双视角：ORIG DB_LoadAccountCargo
+// ::dispatch 0x0843b3b6 / DB_SaveAccountCargo::dispatch 0x0843b7c2 / makeRequest
+// 逐偏移 +0x00 capacity(uint)/+0x04 money(uint)/+0x08 cargo[0xd58]（zip 载荷）。
+// sizeof 0xd60 不变。
+#pragma pack(push, 1)
 struct SIG_ACCOUNT_CARGO_DATA
 {
-    char m_pad[0xd60];
+    union
+    {
+        char m_pad[0xd60];
+        struct
+        {
+            unsigned int m_capacity;   // +0x00
+            unsigned int m_money;      // +0x04
+            char m_cargo[0xd58];       // +0x08（zip 载荷）
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_ACCOUNT_CARGO_DATA) == 0xd60,
+              "SIG_ACCOUNT_CARGO_DATA ABI drift");
+static_assert(0x008 + sizeof(((SIG_ACCOUNT_CARGO_DATA*)0)->m_cargo) == 0xd60,
+              "SIG_ACCOUNT_CARGO_DATA m_cargo end +0xd60");
 
 // 字段化（W8DB，ORIG 0x0842ad30 makeRequest 实证：+0 uint accId、+4 byte
 // flag（写侧 `flag?1:0`）、+8 uint uid；dispatch 0x0842acf4 读 +4 byte==1
@@ -320,10 +339,45 @@ struct SIG_AUTO_PUNISH_RULE_BLACK_IP
     char m_pad[0x3e84];
 };
 
+// [Lane31W8LTDBTaskView] 字段化 + 匿名 union 双视角：ORIG DB_ReloadAutoPunishRule
+// HackType::dispatch 0x0842d??? 写 +0x00 cnt(hackType==0 分支)/+0x04 etc 低 32/
+// +0x08 etc 高 32/+0x0c count(ushort)/+0x10 起条目[0x1f4]（步长 0x14）。
+// sizeof 0x2720 不变。m_pad 字节视角保留。
+#pragma pack(push, 1)
+struct SIG_AUTO_PUNISH_RULE_HACK_TYPE_ENTRY
+{
+    unsigned short m_hackType;    // +0x00
+    unsigned short m_cnt;         // +0x02
+    unsigned short m_hackSubType; // +0x04
+    unsigned short m_hackSubCnt;  // +0x06
+    unsigned short m_applyFlag;   // +0x08
+    char m_pad0a[2];              // +0x0a
+    unsigned int m_ipCnt;         // +0x0c
+    unsigned int m_etcLo;         // +0x10
+};
 struct SIG_AUTO_PUNISH_RULE_HACK_TYPE
 {
-    char m_pad[0x2720];
+    union
+    {
+        char m_pad[0x2720];
+        struct
+        {
+            unsigned int m_field0;     // +0x00（hackType==0 时 cnt）
+            unsigned int m_field4;     // +0x04（etc 低 32）
+            unsigned int m_field8;     // +0x08（etc 高 32）
+            unsigned short m_count;    // +0x0c
+            char m_pad0e[2];           // +0x0e..+0x0f
+            SIG_AUTO_PUNISH_RULE_HACK_TYPE_ENTRY m_entries[0x1f4];  // +0x10
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_AUTO_PUNISH_RULE_HACK_TYPE_ENTRY) == 0x14,
+              "SIG_AUTO_PUNISH_RULE_HACK_TYPE_ENTRY ABI drift");
+static_assert(sizeof(SIG_AUTO_PUNISH_RULE_HACK_TYPE) == 0x2720,
+              "SIG_AUTO_PUNISH_RULE_HACK_TYPE ABI drift");
+static_assert(0x010 + sizeof(((SIG_AUTO_PUNISH_RULE_HACK_TYPE*)0)->m_entries) == 0x2720,
+              "SIG_AUTO_PUNISH_RULE_HACK_TYPE m_entries end +0x2720");
 
 // 具名布局（GoalAuditDB7；ORIG DB_AvatarChangeOwner::dispatch 0x84004bc /
 // makeRequest 0x840055c 实证）：+0x00 ui_id、+0x04 原 charac_no、+0x08 新
@@ -457,10 +511,25 @@ struct SIG_BLOOD_DUNGEON
 };
 static_assert(sizeof(SIG_BLOOD_DUNGEON) == 0x28, "SIG_BLOOD_DUNGEON ABI drift");
 
+// [Lane31W8LTDBTaskView] 字段化 + 匿名 union 双视角：ORIG DB_LoadBreakAwayRewardData
+// ::dispatch 0x0842f??? 写 +0x00 nextRewardTime（`(uint)curSec + 0x15180`，条件
+// rewardOrder==0||2）、+0x04 rewardOrder(int)。sizeof 0x8 不变。
+#pragma pack(push, 1)
 struct SIG_BREAK_AWAY_PREVENT_MESSAGE
 {
-    char m_pad[0x8];
+    union
+    {
+        char m_pad[0x8];
+        struct
+        {
+            unsigned int m_nextRewardTime;  // +0x00
+            int m_rewardOrder;              // +0x04
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_BREAK_AWAY_PREVENT_MESSAGE) == 0x8,
+              "SIG_BREAK_AWAY_PREVENT_MESSAGE ABI drift");
 
 // ORIG W ctor 0x0831d2b0：m_rewards[30] 隐式构造循环（+0x10 起步进 0x18，循环初值
 // 0x1d=29，P151 口径 30 次）→ 7×movw(+0..+0xc) → movb(+0xe) → movl(+0x2e0)；sizeof 0x2e4。

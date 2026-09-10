@@ -76,6 +76,8 @@
 #include "CMailBoxHelper.h"           // WongWork::CMailBoxHelper::ReqDBSendNewSystemMail
 #include "PacketGuard.h"              // PacketGuard（InterfacePacketBuf clear/put_*/finalize）
 #include "CStreamGuard.h"             // CStreamGuard（operator*/operator<<）
+#include "PacketTypes.h"              // MSG_MAILBOX_SEND 完整定义（sizeof 0x145，
+                                      // m_name11@+0x11/m_itemId39@+0x39/m_extra3d@+0x3d）
 #include "MsgQueueMgr.h"              // MsgQueueMgr::put/DB_Q
 #include "DB_SaveEventLevelupSupport.h"
 #include "DB_EventAccountCharacterLevelUpOnceGift.h"
@@ -229,8 +231,9 @@ void CUser::eventDeliveryBuyItem(int deliveryType, const Inven_Item& item)
     // 对应压栈寄存器互换（P248② 反例族）。试形：cast/具名中间量/求值序均不可翻
     // ⇒ N7 封顶（助记符序列全等，仅 callee-saved 角色）。ORIG 0x0866463c。
     BuyItemDeliveryMsg msg;                        // lea -0x20(%ebp) ctor
+    register int serverGroup = GetServerGroupToPvP();   // [L29 实验] N7 旋钮
     msg.setBaseData(2, get_acc_id(), getCurCharacNo(),
-                    GetServerGroupToPvP());        // W 0x086978ec
+                    serverGroup);                  // W 0x086978ec
     msg.m_deliveryType = deliveryType;             // -0x10(%ebp) → +0x10
     msg.m_item = &item;                            // -0xc(%ebp) → +0x14
     GlobalData::s_event_manager->eventDeliveryNotify(
@@ -473,31 +476,23 @@ void CUser::processLevelUpEventReward(bool growupFlag)
                 static_cast<int>(strlen(body)), 0, GetServerGroup(),
                 0, 0) == 0)
         {
-            // local_2c6 缓冲；ORIG 0x08663fd5 两处写入是常量 disp 直存
-            // （`mov -0x7b(%ebp),%eax; mov %eax,-0x289(%ebp)`），裸指针
-            // `*(int*)(history+0x39)` 在 4.4 恒 lea+add+store ⇒ 用 union 具名
-            // 视图（m_itemId39@+0x39 / m_extra3d@+0x3d）折叠为同一 disp 形。
-            union
-            {
-                char raw[0x145];
-                struct
-                {
-                    char m_pad39[0x39];
-                    int m_itemId;              // +0x39
-                    int m_extra;               // +0x3d
-                    char m_tail[0x145 - 0x41];
-                } __attribute__((packed)) fields;   // 内层 packed：sizeof 0x145
-            } history;                         // ORIG 基址 -0x2c2（对齐 1）
-            memset(history.raw, 0, sizeof(history.raw));
-            strncpy(history.raw + 0x11,
+            // [L29 翻正] ORIG 0x08663f76..0x08664005 实证 history 是
+            // **MSG_MAILBOX_SEND 局部**（sizeof 0x145，POD：memset 后无 ctor，
+            // MSG_BASE 仅 char m_head[0xd]）：①`memset(&history,0,0x145)`；
+            // ②strncpy 目标 `lea -0x2c2(%ebp); add $0x11`（成员数组名退化）；
+            // ③+0x39/+0x3d 常量 disp 直存（m_itemId39/m_extra3d）；
+            // ④`lea 0x79700(%eax),%edx`（this-first）+`lea &history` 直传。
+            // 旧 union+reinterpret_cast 形令 4.4 先算实参（lea）再 `add $0x79700`
+            // 算 this ⇒ 与 ORIG 反序并折 add。
+            MSG_MAILBOX_SEND history;              // 基址 -0x2c2（pack(1)，0x145）
+            memset(&history, 0, sizeof(history));
+            strncpy(history.m_name11,              // +0x11
                     g_scriptStringManager_.findString(4, "game_server_msg_187",
                                                       (bool*)0),
                     0x14);
-            history.fields.m_itemId = item.m_addInfo;
-            history.fields.m_extra = item.m_addInfo2;
-            m_historyLog.SendMail(
-                reinterpret_cast<MSG_MAILBOX_SEND*>(history.raw),
-                0);                                // T 0x086847ea
+            history.m_itemId39 = item.m_addInfo;   // +0x39
+            history.m_extra3d = item.m_addInfo2;   // +0x3d
+            m_historyLog.SendMail(&history, 0);    // T 0x086847ea
         }
     }
 }

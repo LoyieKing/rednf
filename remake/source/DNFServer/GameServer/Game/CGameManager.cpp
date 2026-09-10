@@ -601,7 +601,9 @@ CUser* CGameManager::createUser()
     check_user_var(user);
     int idx = GetIdx(user);
     user->SetSlotIDX((short)idx);
-    int err = m_userPool.GetLastErrorCode();
+    // b28d-laneCGM 候选（P231/P87，一次性旋钮协议 S1）：ORIG 0x082943bf `mov -0x20(%ebp),%edi`
+    //   在 CSwitchLog ctor 前把 err 载入 callee-saved 并跨 ctor 保活；4.4 裸形恒槽重读。
+    register int err = m_userPool.GetLastErrorCode();
     if (err != 0)
     {
         // ORIG 0x082943a8/0x082943bd：GetUID/NumberToString 结果入 %esi/%ebx 跨 ctor

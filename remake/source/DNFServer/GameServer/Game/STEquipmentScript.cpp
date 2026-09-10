@@ -30,6 +30,11 @@
 //   setEquipmentAniScriptLay NEAR→AE（rbegin() 具名 reverse_iterator 复位深槽）。
 //   余 2 件游戏域：ImportEquipmentScript（帧 0x19fc vs 0x1a3c，N82 槽复用族）、
 //   GetItemCategory（state 占 4.1 深槽 -0x78 vs 4.4 浅槽 -0x20）。
+//   [补 2026-09-10] ImportEquipmentScript prologue 顺序修正：stopFlag/curParam/
+//   setAbilityBackup 的声明点移到 m_str664 赋值之后（ORIG idx 132..138 同序，
+//   消旧形 prologue 多发的 12 条），upgMin/upgMax/upgType 删声明处初值
+//   （ORIG 初值在 [upgrade] 段 idx 7992..8000 每次进入时重置，本文件同序已有）。
+//   四数不变（710/1439/2/7/464）；该件余量仍为全帧 0x40 槽差（1451 差异块/5579 行）。
 // [SweepSTEquip 2026-09-09 单文件泳道收口判词] 本轮 13 件逐件读数：
 //   ■ 真缺口修复 8 件（gap 降序）：
 //     setEquipmentAniScriptLay 44→2（find 传 key->c_str() 临时 string /
@@ -556,12 +561,14 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     bool hideFlag774;                      // ORIG -0x10d1（[hide layer] 循环出参，ORIG 无显式初始化）
     bool hideFlag780;                      // ORIG -0x10d9（[hide growtype avatar] 循环出参）
     bool rateFlag;                         // ORIG -0x1145（[change status on change hp] 循环出参）
-    bool stopFlag = false;                 // ORIG -0x96
-    EquipmentParameterInfo* curParam = &script->m_param1c0;  // ORIG -0x9c
-    std::vector<std::pair<int, int> > setAbilityBackup;      // ORIG -0x10c8
-    int upgMin = -1;                       // ORIG -0x1164
-    int upgMax = -1;                       // ORIG -0x1168
-    int upgType = 5;                       // ORIG -0x116c
+    // [2026-09-10 顺序修正] stopFlag/curParam/setAbilityBackup 的声明点见下方
+    // m_str664 赋值之后（ORIG idx 132..138）；upgMin/upgMax/upgType 初值不在
+    // 声明点：ORIG prologue 无 `movl $-1/-1/5`，
+    // 初值由 [upgrade] 段每次进入时重置（ORIG idx 7992..8000：`upgMin=-1;
+    // upgMax=-1; ScanInt(&upgMin); ScanInt(&upgMax); upgType=5;`，本文件同序已存在）。
+    int upgMin;                            // ORIG -0x1160
+    int upgMax;                            // ORIG -0x1164
+    int upgType;                           // ORIG -0x1168
     char printBuf[0x200];                  // ORIG -0x1550
 
     if (!loadRDARScriptFile(kEquipmentScriptBaseDir, path))
@@ -571,6 +578,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     script->Clear();
     getDirectoryPath(scanBuf, "%s%s", kEquipmentScriptBaseDir, path);
     script->m_str664 = scanBuf;
+
+    // [2026-09-10 顺序修正] ORIG 的声明点在此（idx 132..138，for 之前）；初始化
+    // 指令序 = curParam → setAbilityBackup(构造) → stopFlag（见上注释）。
+    EquipmentParameterInfo* curParam = &script->m_param1c0;
+    std::vector<std::pair<int, int> > setAbilityBackup;
+    bool stopFlag = false;
 
     for (;;)
     {

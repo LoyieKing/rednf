@@ -138,10 +138,28 @@ public:
     AvatarOptionChangeType();
     void clear();
 
-    unsigned char m_field0;  // +0x00
-    unsigned char m_field1;  // +0x01
-    unsigned char m_field2;  // +0x02
+    // [b28d-solo-CStackableItem] 双视角（同址零布局，模式同 CountinuousItemOption）：
+    // ORIG CStackableItem::set_item 0x0850e7xx 段 `movzwl 0x47c(%edx),%ecx;
+    // mov %cx,0x365(%eax)` 一次性写 2 字节（job+type），而 clear 链按逐字节写
+    // （STStackableScript.cpp m_field2→m_field1→m_field0）。⇒ 保留逐字节视角 +
+    // 新增 16 位视角；pack 保类对齐 1（CStackableItem +0x365 奇偏移不漂移、sizeof 3）。
+    union
+    {
+        struct {
+            unsigned char m_field0;  // +0x00
+            unsigned char m_field1;  // +0x01
+            unsigned char m_field2;  // +0x02
+        };
+        struct __attribute__((packed)) {
+            unsigned short m_jobType16;  // +0x00 16 位视图（job+type）
+        };
+    };
 };   // sizeof 3
+
+static_assert(sizeof(AvatarOptionChangeType) == 3,
+              "AvatarOptionChangeType ABI drift (ORIG W 0x08513b6e sizeof 3)");
+static_assert(__builtin_offsetof(AvatarOptionChangeType, m_jobType16) == 0x00,
+              "AvatarOptionChangeType m_jobType16 offset drift (ORIG set_item mov %cx,0x365)");
 
 // ---- 附魔键/值（STEquipmentScript.h 已含 STEnchantSystemData 权威基类）----
 // ORIG 布局实证：

@@ -439,7 +439,11 @@ public:
     Mutex m_mutexField;                    // +0x90
     Mutex m_mutexEvent;                    // +0xa8
     std::vector<std::pair<int, int> > m_dummyMapPos;  // +0xc0
-    unsigned int m_dummyMapPosIdx;         // +0xcc
+    // [b28d-Lane27] 类型旋钮 unsigned int→int（Main 批准）：ORIG choose_random_bossmap_
+    // dummymaps 0x08307f24 `mov 0xcc(%eax),%eax; mov %eax,%ebx`（两段 mov 中转）+ 随后
+    // `cmp %eax,%ebx; setb`（无符号比较）= 字段 int 与 `size()`(size_t) 异型触发转换中转
+    // （P211/P248 档③）；unsigned 同型 ⇒ 4.4 单段直落丢中转。同宽 4B ⇒ sizeof/偏移零变化。
+    int m_dummyMapPosIdx;                  // +0xcc
     CRidable m_ridable;                    // +0xd0
     CClearCondition m_clearCondition;      // +0xf0
     CMap* m_pMap;                          // +0x108
@@ -553,6 +557,14 @@ public:
 };
 
 static_assert(sizeof(CBattle_Field) == 0xcd0, "CBattle_Field size");
+// [b28d-Lane27] 三处同宽类型旋钮的零布局佐证（uchar→bool / uint→int / char→bool）：
+static_assert(sizeof(CDungeon) == 0x934, "CDungeon size after bool knobs");
+static_assert(__builtin_offsetof(CDungeon, m_dummyAppearCount) == 0x628,
+              "CDungeon +0x628 drift after m_hasDummyMap bool");
+static_assert(__builtin_offsetof(CBattle_Field, m_ridable) == 0xd0,
+              "CBattle_Field +0xd0 drift after m_dummyMapPosIdx int");
+static_assert(__builtin_offsetof(MapInfo, m_playInfo) == 0x7c,
+              "MapInfo +0x7c drift after m_visited bool");
 static_assert(sizeof(_mapMonster) == 0x40, "_mapMonster size");
 static_assert(sizeof(map_item) == 0x54, "map_item size");
 static_assert(sizeof(MapInfo) == 0xec, "MapInfo size");

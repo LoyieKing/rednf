@@ -1312,10 +1312,14 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
     // P183：无 cs 具名局部（ORIG 每次重发 sig+0x14aaa 全链，槽 -0x14 起不漂移）。
     // 成员视图直接命中 ORIG 的 disp 形（`mov %dl,0x14aae(%eax)`），避免 cast 视图
     // `add $0x14aaa,%eax` + disp4（N107）。
+    // [b29-Lane21 实测] Main「视图 cast 反模式」洞察在本件**反向**：改权威类型
+    // `reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_tree1Count = nRows;`
+    // ⇒ 4.4 产 `add $0x14aaa,%eax; mov -0xc,%edx; mov %dl,0x4(%eax)`（disp 被拆成两段），
+    // ndiff 6→18 反劣，已回退（本件真差异是 store 装载序 LHS/RHS，非 disp/N107）。
     struct ComboSkillView
     {
         char m_pad[0x14aae];
-        unsigned char m_tree1Count;      // +0x14aae（N76 封顶：P211 档③不适用——字段与
+        unsigned char m_tree1Count;      // +0x14aae（N76：P211 档③不适用——字段与
         unsigned char m_tree2Count;      // +0x14aaf  RHS 本已异型，signed/unsigned 同形）
         char m_pad2[4];                  // +0x14ab0
         comoboSkillData m_tree1Data[6];  // +0x14ab4（0x54）
@@ -1323,10 +1327,8 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
     };
     if (kind == 0)
     {
-        // [b28d-solo-DB_LoadEtc] 去 `(unsigned char)` cast：ORIG 0x0844a5c7 为
-        //   `mov -0xc(%ebp),%eax; mov %eax,%edx; mov 0xc(%ebp),%eax; mov %dl,0x14aae(%eax)`
-        //   （int→uchar 异型 ⇒ RHS-first + eax→edx 中转，P211 档③）；
-        //   写 cast 使两侧同型 ⇒ 4.4 折成 LHS-first 直存。
+        // ORIG 0x0844a5c7：`mov -0xc(%ebp),%eax; mov %eax,%edx; mov 0xc(%ebp),%eax;
+        //   mov %dl,0x14aae(%eax)`（RHS-first + eax→edx 中转，N76 封顶）。
         ((ComboSkillView*)sig)->m_tree1Count = nRows;
     }
     else if (kind == 1)
