@@ -12132,9 +12132,12 @@ void CUser::SetCharacInfo(int count, char* data)
             *reinterpret_cast<int*>(rec + 0x1e);                      // wpBonus
 
         {   // local_dd9：&0xfd | 1 | bit*2（rec[0x1c] bit4）
-            const unsigned char bit =
-                static_cast<unsigned char>(
-                    ((static_cast<unsigned char>(rec[0x1c]) >> 4) << 7) >> 7);
+            // [Lane6 2026-09-10 真语义 bug 修复] ORIG 0x0864c4xx `movzbl 0x1c(%eax),%eax;
+            // shr $0x4,%al; and $0x1,%eax; shl $0x7,%eax; sar $0x7,%al; and $0x1,%eax`
+            // = **bit4 单 bit**（末尾 and $1 归一）。旧译文 `((x >> 4) << 7) >> 7` 在 4.4
+            // 下恒等 ⇒ 得到完整半字节（0..15），使 `| (bit*2)` 污染 dst 高位 ⇒ 语义不同。
+            const unsigned char bit = static_cast<unsigned char>(
+                (static_cast<unsigned char>(rec[0x1c]) >> 4) & 1);
             unsigned char& dst =
                 info.m_tagVisibleFlags;   // +0xe40 tagCharacVisibleFlag 首字节
             dst = static_cast<unsigned char>((dst & 0xfd) | 1 | (bit * 2));
