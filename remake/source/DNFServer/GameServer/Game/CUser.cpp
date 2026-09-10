@@ -6304,9 +6304,12 @@ void CUser::ResetDailyQuest()
 void CUser::ResetTrainingQuest()
 {
     std::vector<int> questList;
-    short level = get_charac_level();
-    QuestList* pQuestList = G_CDataManager()->m_questList;
-    pQuestList->GetTrainingQuestList(questList, level);
+    // b28d-lane5 复测（P0/P200）：ORIG 0x08657662 段——`call get_charac_level;
+    //   movswl %ax,%ebx`（level **无槽**、拓宽直传 callee-saved）与
+    //   `call G_CDataManager; mov 0x18(%eax),%eax; mov %eax,(%esp)`（m_questList
+    //   **无具名指针槽**）⇒ 删 level/pQuestList 两个具名局部，表达式就位内联。
+    G_CDataManager()->m_questList->GetTrainingQuestList(questList,
+                                                       get_charac_level());
     for (std::vector<int>::iterator it = questList.begin(); it != questList.end(); ++it)
     {
         int questId = *it;
@@ -9724,15 +9727,16 @@ void CUser::SendOpenflag()
     int lack = 0;
     CCoinEventPerDay* pEvent =
         (CCoinEventPerDay*)GlobalData::s_event_manager->GetRepeatEvent(4);
-    bool eventOn = (pEvent != 0) && (pEvent->IsEventing((CUser*)0) != 0);
-    if (eventOn)
+    if (pEvent != 0 && pEvent->IsEventing((CUser*)0) != 0)
         coinNeed = (unsigned int)pEvent->GetCoinNoPerDay(1);
     if (IsHavePremiumAdvantage())
         // ORIG 0x086568fc：GetPremiumInfo() 转发后 GetAdvantageCoin，不直读 m_premium
         coinNeed = coinNeed + (unsigned int)GetPremiumInfo()->GetAdvantageCoin();
     unsigned int coin = getCurCharacInvenR()->GetCoin();
-    bool enough = !(coin < coinNeed && GetOpencoin() != (char)1);
-    if (enough)
+    // b28d-lane5 复测（P0/P214①）：ORIG 0x08656a7x 该判据为**零槽** `mov $0x0,%eax;
+    //   test %al,%al; je`（我方旧形 `mov %al,-0x11(%ebp); cmpb $0,-0x11` 多一具名
+    //   bool 槽并致全帧 +0xc）⇒ 内联条件、删具名变量。
+    if (!(coin < coinNeed && GetOpencoin() != (char)1))
     {
         lack = 0;
     }
@@ -12142,8 +12146,10 @@ void CUser::_deleteSpecificItemAccountCargo(
             matched = _isMatchedItem(item.m_addInfo, list);
             if (matched != -1)
             {
-                if ((unsigned int)item.m_addInfo2 > (unsigned int)matched)
-                    del = true;   // P196: ORIG 0x0867d9xx `cmp %edx,%eax; seta` ⇒ 下面改 unsigned
+                if (item.m_addInfo2 > matched)
+                    del = true;   // P196 复核：ORIG 0x0867d9xx 该处为 `cmp -0x14(%ebp),%eax;
+                                  //   jle`（有符号，两侧一致）⇒ 维持 int 比较；同函数另一处
+                                  //   `seta`（0x0867da1x）才是无符号语义，非本比较点。
             }
             else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
                          item.m_addInfo))
@@ -13127,6 +13133,11 @@ void CUser::CalcurateUserMaxLevel()
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868e704 | _ZN5CUser22SetMercenaryInfoPacketER11PacketGuard
 void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
 {
+    // b28d-lane5 复测（判据⑩ 声明序 = 槽深序）：ORIG 0x0868e70b/0x0868e712 在 `sub $0x24`
+    //   后立即两条 `movl $0x0,-0x18/-0x14`（循环变量置 0 **在函数头**）⇒ remainSec/nameLen
+    //   须在函数头带初值声明（原形声明在循环内 ⇒ 少两槽、leveledUp 槽 -0xd 漂到 -0x15）。
+    int remainSec = 0;
+    int nameLen = 0;
     bool leveledUp = CalcurateManageLevel();
     if (leveledUp)
         SendManageLevelUpNoti();
@@ -13141,13 +13152,11 @@ void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
         //   `vector<CHARAC_LOAD_MERCENARY>::operator[]`（共 9 次；我方缓存引用 merc
         //   仅 1 次，MISSING ×8）⇒ 去缓存逐字段访问（P157/P183）。
         // 剩余时间 = 到期秒 - 当前秒
-        int remainSec =
-            m_mercenaryMgr.m_characs[i].m_field2c
-            - GlobalData::s_systemTime_.getCurSec();
+        remainSec = m_mercenaryMgr.m_characs[i].m_field2c
+                    - GlobalData::s_systemTime_.getCurSec();
 
         packet.put_int(m_mercenaryMgr.m_characs[i].m_characNo);
 
-        int nameLen;
         if (&m_mercenaryMgr.m_characs[i].m_name[0] == 0)
             nameLen = 0;
         else

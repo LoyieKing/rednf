@@ -1680,6 +1680,8 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     // 相同；帧 0x6c vs 0x5c 与 bool 截断槽 -0x4c vs -0x3c 为分区后果 ⇒ NEAR 封顶。
     // [b28d-PoolMisc2 复验] 再补「money[2] 数组化推深槽」形：4.4 反把 trace 对象
     // 挤到 -0x40、money[0] 读回多一条 mov ⇒ ndiff **16→24** 劣化，已回滚标量形。
+    // [判据⑩ 实测回退] 「带初值者深」（limit 提到 money 之前）在本件**无效**
+    // （-0x3c 仍 2/2、-0x28 反由 4→2）⇒ 维持原声明序，槽差记 N82附/N126 族。
     int money;
     register int level;
     register const char* accName;
@@ -4000,8 +4002,10 @@ int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& ite
         {
             continue;
         }
-        int start = 0;
-        int end = 0;
+        // [判据⑫ 直证 clr_l orig=0 our=2] ORIG 无 start/end 清零（无 `movl $0x0,-N(%ebp)`）
+        // ⇒ 删初始化器，直接传引用给 StartEndPos（P171 照抄）。
+        int start;
+        int end;
         StartEndPos((Inven_Item::ITEM_TYPE)type, start, end);
         int need = it->second;
         for (int i = start; i <= end; i++)
@@ -4761,6 +4765,8 @@ void CInventory::SendAvatarEvent(int a, int b, int c, int d, int e) const
         buf[0xd] = (char)c;
         // ORIG（0x08508dfd/+0x1cf 段）：+0x0e 槽判定用 (byte)c、写 e；
         // +0x12 槽判定用 (byte)b、写 d。结构未初始化字节按 ORIG 原样发送。
+        // [判据⑫ 实测两形均反劣，已回退] ①具名局部 v0e/v12 形 d 80→72 但总量 267→273；
+        // ②buf 直写先清零形 d 76/总量 273 ⇒ 维持三目直写形（ORIG 的 clr_l=2 疑非本段）。
         *(int*)(buf + 0xe) = GetClearAvatar((unsigned char)c) != 0 ? e : 0;
         *(int*)(buf + 0x12) = GetClearAvatar(b & 0xff) != 0 ? d : 0;
         guard->put_binary(buf, 0x16);
@@ -5029,16 +5035,21 @@ void CInventory::CalNeedSlot(int* out,
     // （消除两对 start/end 的重复槽：帧 0x68→0x58 对齐 ORIG）。
     int start;
     int end;
+    // [判据⑩ 实测序] ORIG 槽深→浅 = found(-0x19) / i(-0x18) / count(-0x14) /
+    // itemIdx(-0x10) / type(-0x0c) ⇒ 声明序照此排（found..itemIdx 提升块级、循环内仅赋值）。
+    bool found;
+    int itemIdx;
     int i;
+    unsigned int count;
     typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
     Iterator it = items.begin();
     std::pair<int, int> cur;
     while (it != items.end())
     {
-        bool found = false;
+        found = false;
         cur = std::pair<int, int>(*it);
-        int itemIdx = cur.first;
-        int count = cur.second;
+        itemIdx = cur.first;
+        count = cur.second;
         if (itemIdx == 0)
         {
             it++;

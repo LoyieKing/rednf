@@ -14,6 +14,11 @@
 //  N18a 反向 ExpAdd 形参二次使用 4.4 恒重载 1 条（register 形参/局部 4 形寄存器角色全变）。
 // 另有 N123（_Z41__static_initialization_and_destruction_0ii）为结构性噪音。
 // 四数（本 TU）：identical=37 ae=170 near=0 diff=7 missing_in_game=20。
+// [G5 2026-09-10 · L12 round2 组5 复核] 5 件：p167（ExpAdd CLEAN、ItemAdd MISSING=EXTRA=2
+//   = C1/C2·D1/D2 别名）⇒ 无语义缺口。4 件残余统一为 `lea 0x15(%eax),%ebx` ↔
+//   我方 `add $0x15,%eax; mov %eax,%ebx`（N107 成员取址，旧批 16 形探针全 add）；
+//   ExpAdd 为形参二次使用重载（N18a 反向）⇒ 全部 N 封顶。
+//   复核四数：identical=37 ae=171 near=0 diff=6 missing_in_game=20。
 #include "CUser.h"
 #include "SkillSlot.h"        // CSkillChanger / SkillSlot / _Mastered_skill（SkillSPInfoSave/SkillSave 依赖）
 #include "DNFFunctionLib.h"   // NumberToString / DNFFLib::Binary2Hex

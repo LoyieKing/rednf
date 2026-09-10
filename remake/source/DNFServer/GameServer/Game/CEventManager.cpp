@@ -253,41 +253,41 @@ bool filterEvent(int type)
         register unsigned int bit = 1U << channel;
         if ((bit & 0x1a100U) != 0)
         {
-            if (type < 0x3a)
+            // P251/P286：ORIG 0x5d 段是**寄存器**比较决策树（`mov 0x8(%ebp),%eax;
+            // cmp $0x39,%eax; jg …`，首键 0x39 = 8 键索引中点）⇒ 原码为
+            // switch(type)；if 链在 4.4 恒退化为内存直比 `cmpl $imm,0x8(%ebp)`。
+            switch (type)
             {
-                if (type < 0x36)
-                {
-                    if (type != 0xb)
-                        return 1;
-                }
+            case 0xb:
+            case 0x36: case 0x37: case 0x38: case 0x39:
+            case 0x3d: case 0x3e:
+            case 0x5c:
+                return 0;   // 全 case 共享同一 body ⇒ 单个 TRUE 岛（ORIG +0x80）
             }
-            else
-            {
-                if (type < 0x3d)
-                    return 1;
-                if (type > 0x3e && type != 0x5c)
-                    return 1;
-            }
-            return 0;
+            return 1;
         }
         else if ((bit & 0x4000U) != 0)
         {
-            if (type == 0x39)
-                return 0;
-            if (type < 0x3a)
+            switch (type)
             {
-                if (type != 0xb)
-                    return 1;
-                return 0;
+            case 0xb:
+            case 0x39:
+            case 0x3d: case 0x3e:
+                break;
+            default:
+                return 1;
             }
-            if (type - 0x3dU <= 1)
-                return 0;
-            return 1;
+            return 0;
         }
         else if ((bit & 0x600U) != 0)
         {
-            if (type != 9)
+            switch (type)
+            {
+            case 9:
+                break;
+            default:
                 return 1;
+            }
             return 0;
         }
     }

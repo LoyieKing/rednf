@@ -1,5 +1,19 @@
 // df_game_r 还原 —— CQueryCounter（D4 批次）
 // 参照 docs/class_func_reports/CQueryCounter.md；源文件 QueryCounter.cpp。
+// [G5 2026-09-10 · L12 round2 组5 复核] 5 件全核（判据⑩/⑪ + p167 + 归一化 asm 对比）：
+//  · **真缺口修复 1**：IncreaseQueryCount —— p167 显示我方多 1×
+//    `_ZNKSt17_Rb_tree_iteratorISt4pairIKiN13CQueryCounter10QUERY_INFOEEEptEv`
+//    （const operator->）；`(*m_current).second` 形反劣（换出 +3 deEv 且 ORIG 需 ptEv），
+//    改 `m_current->second.count++`（后置自增，P38 反向）后 calls 30→29、
+//    **CALLSITE CLEAN**（真缺口清零）。
+//  · LoadQueryTable/SaveQuery/RegisterQuery 的 7 处具名 cMyTrace 改全表达式临时链（P227）：
+//    LoadQueryTable 实测四数不变（中性，保留）。
+//  · 残余 N 族：SaveQuery/LoadQueryTable 的 `memset(buf,0,N)` 常量经 %edx 中转
+//    （ORIG 0x085ed3a2/0x085ed18a `mov $N,%edx; mov %edx,0x8(%esp)`）—— 本波探针
+//    /tmp/probe_memset.cpp f1..f4（普通/sizeof/unsigned/cast）四形恒直写
+//    `movl $N,0x8(%esp)` ⇒ N 封顶（P238 实参变体，无源形）；UpdateQueryCounter 的
+//    nop/尾岛；RegisterQuery 槽分区（N95/N82，槽集合两侧全等）；IncreaseQueryCount
+//    残余槽差 -0x1c↔-0x18（CStreamGuard 对象区）。
 #include "CQueryCounter.h"
 
 #include <stdio.h>
@@ -75,11 +89,16 @@ void CQueryCounter::IncreaseQueryCount(const std::string& query)
     else
     {
         m_current = it->second;
+        // [G5 2026-09-10 P167] ORIG 0x085ecc5e 调用差集：我方多 1×
+        // `_ZNKSt17_Rb_tree_iteratorISt4pairIKiN13CQueryCounter10QUERY_INFOEEEptEv`。
+        // 实测 `(*m_current).second` 形反劣（换出 +3 deEv 且 ORIG 需 ptEv×2）⇒ 维持
+        // `->` 形；试后置自增（P38 反向：`= x+1` 单语句 SAVE_EXPR 合并成单次 ptEv，
+        // 拆/`++` 形可出第二处访问）。
         if (m_current->second.count == 0)
         {
             m_totalQueryCount = m_totalQueryCount + 1;
         }
-        m_current->second.count = m_current->second.count + 1;
+        m_current->second.count++;
     }
 }
 

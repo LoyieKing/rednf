@@ -344,7 +344,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_Join_Power : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -842,7 +842,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_GenCeraTicket : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1351,7 +1351,7 @@ class Dispatcher_LimitNpcBuyItem : public IPacketDispatcher<MsgLimitNpcBuyItem, 
 public:
     Dispatcher_LimitNpcBuyItem() {}
     virtual ~Dispatcher_LimitNpcBuyItem();
-    unsigned int check_error(CUser* user, MSG_BASE& msg);
+    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1859,7 +1859,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_GuildCargoPopItem : public IPacketDispatcher<MSG_GUILD_CARGO_POP_ITEM, stGuildCargoPopItemParam, ch_state0>
@@ -1921,7 +1921,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_SecurityCardIssue : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2134,7 +2134,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_FrameLagStatistics : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2334,7 +2334,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_CreatureSendMessage : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2440,7 +2440,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_ResponseAddPvPBuddy : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2471,7 +2471,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_SecurityCardAuthReq : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2993,7 +2993,7 @@ class Dispatcher_LogIngameAdvertisement : public IPacketDispatcher<MSG_LOG_INGAM
 public:
     Dispatcher_LogIngameAdvertisement() {}
     virtual ~Dispatcher_LogIngameAdvertisement();
-    unsigned int check_error(CUser* user, MSG_BASE& msg);
+    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3014,7 +3014,7 @@ class Dispatcher_RequestCharacSkillInfo : public IPacketDispatcher<MSG_REQUEST_C
 public:
     Dispatcher_RequestCharacSkillInfo() {}
     virtual ~Dispatcher_RequestCharacSkillInfo();
-    unsigned int check_error(CUser* user, MSG_BASE& msg);
+    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);

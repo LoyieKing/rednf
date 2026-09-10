@@ -8,6 +8,10 @@
 // 预填 6 组组合技映射；saveData/loadData 按 SIG_COMBO_SKILL 的 pack(1) 布局
 // 在 +0x0a/+0x5e 存取两棵树（comoboSkillData 0xe 字节/条）。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN10ComboSkill9resetTreeE20ENUM_SKILL_TREE_KIND`（ORIG 0x80ea3c7）。
+#include <iostream>
+
 
 #include <utility>
 

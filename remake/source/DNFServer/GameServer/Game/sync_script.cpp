@@ -1338,10 +1338,13 @@ bool CSyncScript::insert_item_info_master_to_db()
          it != m_weaponMap.end(); ++it)
     {
         // ORIG 0x086257a9：weapon 分支**只发 1 个 sprintf**——键取
-        // `m_map7c[it->second.m_field1]`（pair+0x9），无 name 中间串，
+        // `m_map64[it->second.m_field1]`（pair+0x9），无 name 中间串，
         // insert 第三参直接 m_str8.c_str()（P167：旧形多 1×sprintf、
         // 多 1×m_map64::operator[]，且键字段取错 m_field2→m_field1）。
-        sprintf(full, "<%s>%s", m_map7c[it->second.m_field1].c_str(),
+        // [b28f-SweepGroup17 真 bug] ORIG 0x086257af `add $0x64,%eax` = this+0x64
+        //   （m_map64），原写 m_map7c（+0x7c）⇒ 武器名查错映射表（armor 分支的
+        //   m_map7c 在 0x086258d5 = +0x1bb 处，与此段无关）。
+        sprintf(full, "<%s>%s", m_map64[it->second.m_field1].c_str(),
                 it->second.m_str8.c_str());
         if (!insert_one_item_info_master(it->second.m_field1,
                                          it->second.m_field4,

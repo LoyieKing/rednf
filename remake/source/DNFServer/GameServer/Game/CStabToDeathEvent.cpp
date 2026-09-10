@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CStabToDeathEvent/ 全部 6 个方法（已完整阅读
 // CStabToDeathEvent / ~CStabToDeathEvent / ~CStabToDeathEvent_0827f554 /
 // StartEvent / StartEvent_0827f5c4 / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN17CStabToDeathEventC2Ev`（ORIG 0x827f6a7）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CStabToDeathEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

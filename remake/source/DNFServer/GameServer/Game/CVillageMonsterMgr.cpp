@@ -371,14 +371,14 @@ void CVillageMonsterArea::OnRunVillageMonster()
 // 单 double pad 深 8、双 double 帧 0x50 均反劣。p167 CLEAR（17/17）。
 void CVillageMonsterArea::SendVillageMonsterPosition()
 {
-    float framePad;
-    (void)&framePad;
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xef);
     int countIdx = packet.get_index();
     int count = 0;
     packet.put_byte(count);
+    int deadPad = 0;   // ORIG -0x10 死槽（P232：写后未读）
+    (void)deadPad;
     for (std::map<unsigned short, CVillageMonster>::iterator it =
              m_monsters.begin();
          it != m_monsters.end(); ++it)
@@ -654,19 +654,20 @@ int CVillageMonsterMgr::OnFightVillageMonster(CUser* user, unsigned short zone)
     int out1 = 0;   // → monster.m_field20 → party+0xcb8
     int out2 = 0;   // → monster.m_field24 → party+0xc58
     int ret = areaObj->OnFightVillageMonster(user, zone, out1, out2);
-    if (ret != 0)
-        return ret;
-    ((CPartyVillageStateView*)party)->m_villageMonsterZone = zone;
-    ((CPartyVillageStateView*)party)->m_villageVill =
-        (int)(signed char)user->getCurCharacVill();
-    ((CPartyVillageStateView*)party)->m_villageArea = user->get_area(false);
-    ((CPartyVillageStateView*)party)->m_villageMonsterField24 = out2;
-    ((CPartyVillageStateView*)party)->m_villageMonsterField20 = out1;
-    PacketGuard packet;
-    packet.clear();
-    packet.put_header(0, 0xf3);
-    packet.finalize(true);
-    party->send_to_party(packet);
+    if (ret == 0)
+    {
+        ((CPartyVillageStateView*)party)->m_villageMonsterZone = zone;
+        ((CPartyVillageStateView*)party)->m_villageVill =
+            (int)(signed char)user->getCurCharacVill();
+        ((CPartyVillageStateView*)party)->m_villageArea = user->get_area(false);
+        ((CPartyVillageStateView*)party)->m_villageMonsterField24 = out2;
+        ((CPartyVillageStateView*)party)->m_villageMonsterField20 = out1;
+        PacketGuard packet;
+        packet.clear();
+        packet.put_header(0, 0xf3);
+        packet.finalize(true);
+        party->send_to_party(packet);
+    }
     return ret;
 }
 

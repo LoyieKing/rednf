@@ -492,15 +492,19 @@ bool AvatarConvertServer::Convert(CUser* user,
     // 释放原 avatar（type 2 槽删除 → UnRegistItem → SendAvatarEvent → DB history）
     // ORIG 0x08192b14/0x08192b28：读路径走 const 版
     // getCurCharacInvenR()->GetInvenRef（p167 MISSING const 版两符号）。
+    // b29（判据⑫/clr_l，ORIG 0x08192bc7-0x08192c92 三处 `movzwl %ax,%ebx`）：
+    // m_slot 三处零扩展收窄（原来写 (int) 生 movswl ⇒ ext_movswl 3 vs 0）。
     const Inven_Item* oldRef =
-        user->getCurCharacInvenR()->GetInvenRef(2, (int)sig->m_slot);
+        user->getCurCharacInvenR()->GetInvenRef(
+            2, (int)(unsigned short)sig->m_slot);
     unsigned int uiId = oldRef->m_addInfo2;
     if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE(2),
-                                                (int)sig->m_slot, 1,
+                                                (int)(unsigned short)sig->m_slot, 1,
                                                 eItemDelReason(6), true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x16);
-        ARAD::PRINT_ERROR::delete_item("AVATAR CONVERT", user, sig->m_slot);
+        ARAD::PRINT_ERROR::delete_item("AVATAR CONVERT", user,
+                                       (unsigned short)sig->m_slot);
         return false;
     }
     if (!user->getCurCharacInvenW()->GetAvatarItemMgrW()
@@ -516,7 +520,8 @@ bool AvatarConvertServer::Convert(CUser* user,
         return false;
     }
     user->getCurCharacInvenW()->SendAvatarEvent(0x36, (int)uiId,
-                                                (int)sig->m_slot + 10, 5, 0);
+                                                (int)(unsigned short)sig->m_slot + 10,
+                                                5, 0);
     DB_UpdateAvatarHistory::makeRequest(user->getCurCharacNo(), (int)uiId,
                                         (char*)"AVATAR CONVERT");
 
@@ -534,27 +539,34 @@ bool AvatarConvertServer::Convert(CUser* user,
     packet.clear();
     packet.put_header(1, 0x24f);
     packet.put_byte(1);
-    packet.put_short(sig->m_slot);
+    packet.put_short((unsigned short)sig->m_slot);
     packet.put_short(retSlots);
     // ORIG 用 const_iterator（p167 MISSING ppEi/deEv 的 const 族）+
     // 语句位后置 ++（4.4 保留 ppEi）。
+    // b29（判据⑫，ORIG 0x08192e21/0x08192e28/0x08192e2f 三条 `movl $0x0,-0x28/-0x24/-0x20`）：
+    // 三个具名 int 局部（=0 声明）在循环前，循环内赋值（原来在循环内声明 ⇒ clr_l 0 vs 3、
+    // 帧少 0xc）。
+    int slotIdx = 0;
+    int slotOut = 0;
+    int extra = 0;
     for (std::vector<int>::const_iterator s = outSlots.begin();
          s != outSlots.end(); s++)
     {
-        int slotIdx = *s;
+        slotIdx = *s;
         packet.put_short(slotIdx);
         s++;
-        int slotOut = *s;
+        slotOut = *s;
         packet.put_int(slotOut);
         s++;
-        int extra = *s;
+        extra = *s;
         packet.put_int(extra);
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x368, 0);
         trace("AVATAR CONVERT : success [slot:%d] [selectNo:%d] [resultIdx:%d] "
               "[charac_no:%d]",
-              (int)sig->m_slot, (int)sig->m_selectNo, slotOut,
+              (int)(unsigned short)sig->m_slot,
+              (int)(unsigned short)sig->m_selectNo, slotOut,
               (unsigned int)user->getCurCharacNo());
     }
     packet.finalize(true);

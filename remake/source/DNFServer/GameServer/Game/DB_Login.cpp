@@ -781,6 +781,11 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 
     // ---- PassPad 换算（+0x38e0 有效且 +0x390e 非 1 时执行）----
     // ORIG：res = _convertPassPadInfo(sig)；==0x48 → errcode 5；==0xa6 → 9；其它非零 → 6。
+    // [判据⑫ 实测回退] ORIG clr_l=7 vs 我方 4 ⇒ `_getRewardInfo` call 后 ORIG 有 3 条
+    // 连续 `movl $0x0,-N`（0x0840fba6→-0x18、0x0840fbad→-0x14、0x0840fbb4→-0x10，
+    // -0x14 为 res 的赋值点 0x0840fbec）。按「补 2 个死局部照抄」实测：
+    // 指令 791→793（ORIG 794，gap −3→−1）**但帧 0x50→0x60**（ORIG 0x40）、槽差
+    // 0x10→0x18 ⇒ 反劣，已回退。⇒ 归 N82（4.1 与 4.4 的局部计数/槽分区差）。
     int res = 0;
     if (sig->m_passPadEnable != 0 &&
         sig->m_passPadCertified != 1)

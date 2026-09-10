@@ -75,11 +75,13 @@ public:
     ~COpensslRSA();                      // ORIG W 0x0816c246：RSA_free + 置空
 
     // ORIG T 0x0816c26e：Init("publickey.pem")。
-    bool Init();
+    // [L10-2] P216：加 throw() 使 caller（AuthGarenaToken::init 0x081730d6）不布
+    // EH landing（ORIG 无 _Unwind_Resume，我方 p167 EXTRA +1）；callee 恒不抛。
+    bool Init() throw();
     // ORIG T 0x0816c28a：BIO_new(BIO_s_file()) → GetAppFolder()+path →
     // BIO_ctrl(bio,0x6c/*BIO_C_SET_FILENAME*/,3,path) → PEM_read_bio_RSA_PUBKEY
     // → key 非空返回 true。
-    bool Init(const char* path);
+    bool Init(const char* path) throw();
 
     // ORIG T 0x0816c532：按 RSA_size 分块 RSA_public_decrypt(RSA_PKCS1_PADDING=1)
     // 后 insert 到 out 尾部；任一块失败返回 false。

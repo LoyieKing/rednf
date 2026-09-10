@@ -95,15 +95,21 @@ void CEventCreateDnf::StartEvent()
 
 void CEventCreateDnf::StartEvent(Word_Param param)
 {
-    // b28d-D42 verdict=DIFF [N102/N4] ORIG 0x08163be0 orig/ours=73/71 ndiff=64。
-    // P244 已复现 `&param` 具名槽；残余为 ORIG `movzbl 0x1(%eax),%edx` 单条
-    // disp 被 4.4 折成 `add $1,%eax; movzbl (%eax),%edx`（N102 反向，源形不可择）
-    // + 帧 0x38 vs 0x28（N82）。P244：ORIG 先把 &param 存 -0xc 槽再逐字节重读
-    // （`lea 0xc(%ebp),%eax; mov %eax,-0xc(%ebp); movzbl (%eax),%edx`）。
-    const unsigned char* p = reinterpret_cast<const unsigned char*>(&param);
-    m_startHour = p[0];
-    m_endHour = p[1];
-    m_reloadInterval = static_cast<unsigned short>(p[2] * 60);
+    // b28d-D42 + round1 R19：ORIG 0x08163be0 逐字节读参（`lea 0xc(%ebp),%eax;
+    // mov %eax,-0xc(%ebp); movzbl (%eax),%edx; movzbl 0x1(%eax),%edx;
+    // movzbl 0x2(%eax),%eax`）⇒ P244 具名指针槽 + P311 成员视图（`p[i]` 下标形
+    // 被 4.4 折成 `add $0xN,%eax` 两条，成员视图才出 disp 单条）。
+    struct WordParamBytes
+    {
+        unsigned char m_b0;  // +0x00 → m_startHour
+        unsigned char m_b1;  // +0x01 → m_endHour
+        unsigned char m_b2;  // +0x02 → m_reloadInterval（分钟数）
+        unsigned char m_b3;  // +0x03（ORIG 未读）
+    };
+    const WordParamBytes* p = reinterpret_cast<const WordParamBytes*>(&param);
+    m_startHour = p->m_b0;
+    m_endHour = p->m_b1;
+    m_reloadInterval = static_cast<unsigned short>(p->m_b2 * 60);
     if (m_startHour < 24 && m_endHour < 24 &&
         m_reloadInterval > 59 && m_reloadInterval < 3601)
         StartEvent();
@@ -211,11 +217,12 @@ void CEventCreateDnf::RegistNextTimer()
                                 (TIMER_MESSAGE)0xae,
                                 static_cast<unsigned int>(m_reloadInterval), 0, 0);
 
-    // trace("[Taiwan, CreateDnfEvent] next db load time:%d", m_reloadInterval+getCurSec())
-    const int next = static_cast<int>(m_reloadInterval) +
-                     GlobalData::s_systemTime_.getCurSec();
+    // b28d-D42 + round1 R19：ORIG 0x08163e20 无 next 具名槽——`movzwl 0x12(%eax);
+    // movzwl %ax,%ebx` 先物化 reloadInterval，ctor 前 `call getCurSec; add %eax,%ebx`
+    // 跨 ctor 保活（N80/P0）⇒ 删具名 next、内联回 vararg 位（P227 全表达式临时链）。
     cMyTrace("CEventCreateDnf::RegistNextTimer()", 0x55, 0)(
-        "[Taiwan, CreateDnfEvent] next db load time:%d", next);
+        "[Taiwan, CreateDnfEvent] next db load time:%d",
+        static_cast<int>(m_reloadInterval) + GlobalData::s_systemTime_.getCurSec());
 }
 
 void CEventCreateDnf::SendReward(CUser* user)
@@ -228,9 +235,10 @@ void CEventCreateDnf::SendReward(CUser* user)
     // ORIG 0x0816428d：ARAD::Singleton<CreateDnfEventSciprtServer>::Get()；
     // lea 0x4(%eax) → Server @+0x04 的 CreateDnfEventSciprt 基类子对象
     // （b28c-32 已把原成员 m_script 改为首个非主基类，故此处走基类引用）。
-    CreateDnfEventSciprtServer* server =
-        ARAD::Singleton<CreateDnfEventSciprtServer>::Get();
-    static_cast<CreateDnfEventSciprt&>(*server).GetItemInfo(items, m_reserved);   // ORIG 第二参 = this+0x14 byte
+    // round1 R19：ORIG 无 server 具名槽（`movzbl 0x14(%eax),%eax; movzbl %al,%ebx;
+    // call Get; lea 0x4(%eax),%edx`）⇒ P0/P183 全表达式内联，删具名指针。
+    static_cast<CreateDnfEventSciprt&>(*ARAD::Singleton<CreateDnfEventSciprtServer>::Get())
+        .GetItemInfo(items, m_reserved);   // ORIG 第二参 = this+0x14 byte
 
     // ORIG 0x081642a8..0x0816431c：RDARScriptStringManager::findString(4, key, 0) + strncpy
     char szTitle[30];                                            // ORIG -0x4a（0x1d cap）
@@ -256,16 +264,18 @@ void CEventCreateDnf::SendReward(CUser* user)
 
     // ORIG 0x081643e1..0x081644c3：PacketGuard → put_header(1, 0x258) →
     // byte(1) → byte(size) → [int(first), byte(second)]*size → finalize(true) → Send
+    // round1 R19：①ORIG 每个 put_* 前重新 `lea -0x58(%ebp),%eax`（P183 地址重物化）
+    // ⇒ 删具名 `pkt` 引用；②循环上界 ORIG 在循环外算一次（`mov %eax,-0x1c`），
+    // i 先声明（`movl $0x0,-0x20`）⇒ 逗号声明 i/count 并缓存 size()。
     PacketGuard packet;
-    InterfacePacketBuf& pkt = *(InterfacePacketBuf*)&packet;     // 项目既有模式
-    pkt.put_header(1, 0x258);
-    pkt.put_byte(1);
-    pkt.put_byte((int)items.size());
-    for (unsigned int i = 0; i < items.size(); ++i)
+    ((InterfacePacketBuf*)&packet)->put_header(1, 0x258);
+    ((InterfacePacketBuf*)&packet)->put_byte(1);
+    ((InterfacePacketBuf*)&packet)->put_byte((int)items.size());
+    for (unsigned int i = 0, count = items.size(); i < count; ++i)
     {
-        pkt.put_int(items[i].first);
-        pkt.put_byte(items[i].second);                            // ORIG put_byte（Ghidra 0x08164480 实证）
+        ((InterfacePacketBuf*)&packet)->put_int(items[i].first);
+        ((InterfacePacketBuf*)&packet)->put_byte(items[i].second);   // ORIG put_byte（Ghidra 0x08164480 实证）
     }
-    pkt.finalize(true);
+    ((InterfacePacketBuf*)&packet)->finalize(true);
     user->Send(packet);
 }

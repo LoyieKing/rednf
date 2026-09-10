@@ -31,7 +31,8 @@ public:
     int toType(std::string type);
     // b28d-168a①：ORIG initTileList 调用点为 `call; xor $1,%eax; test %al,%al`，
     // 理想形需 callee bool 化；本件定义属主非本泳道（R1）⇒ 保留 int，调用点封 N。
-    int importScript(const char* path);
+    bool importScript(const char* path);   // [b29 R20] ORIG initTileList 0x088d6381 调用后
+                                           // `xor $1,%eax; test %al,%al; je` ⇒ bool（P248 档①）
 
     int m_type;    // +0x00
     // [b28d-solo-BlueMarble] char→bool：ORIG getRandomDungeon 0x080d74a5

@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CPCRoomWorldDropEvent/（C1/D1/D0 有报告；
 // StartEvent/StartEvent(Word_Param)/EndEvent 为 ORIG W 弱符号
 // 0x082678be/0x08267910/0x0826792a，objdump 转写）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN21CPCRoomWorldDropEventC2Ev`（ORIG 0x82678a2）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CPCRoomWorldDropEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

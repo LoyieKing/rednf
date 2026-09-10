@@ -163,6 +163,9 @@ void GrowthEquipEvent::SendGrowthWeaponEventInfo(CUser& user)
 // ============================================================================
 void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
 {
+    // [实测] ORIG 0x080f70xx `mov %eax,-0x18(%ebp)` + `mov -0x18(%ebp),%eax;
+    // movzbl (%eax)` ⇒ data **是具名局部并占槽**（ORIG 的 `push %esi` 属 characNo，
+    // 见下）；`register` 形（用 %ebx）实测反劣 ⇒ 保持具名。
     char* data = static_cast<char*>(user.getGrowthWeaponEventdata());
     if (*data == '\x01')            // 已领取过：直接返回
         return;
@@ -196,6 +199,10 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
     if (giftBoxIdx != 0)
     {
         const int titleLen = static_cast<int>(strlen(title));
+        // [实测] ORIG 0x080f7179 `mov %eax,%esi` + 0x080f71cb `mov %esi,0x14(%esp)`
+        // （以 %esi 跨 findString call 保活），但加裸 `register` 提示实测指令数
+        // 115→117 反劣（4.4 未按预期选 %esi）⇒ 保持具名；本件残差归 N82/N7
+        // （帧 0x180 vs 0x190、data 槽 -0x18 vs -0x1c）。
         const unsigned int characNo =
             static_cast<unsigned int>(user.getCurCharacNo());
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(

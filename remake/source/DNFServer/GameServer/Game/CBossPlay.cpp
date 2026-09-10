@@ -331,7 +331,9 @@ bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
 
     float pcrBurning = 0.0f;
     float expDouble = 0.0f;
-    int burningRate = 0;
+    // [L4-r3 判据⑫] widthscan: clr_l orig=0 / our=1 ⇒ ORIG 无任何 int 具名局部的
+    // `=0` 初始化（我方多 1 条 `movl $0,-N`）⇒ 去初始化器（赋值点在使用前）。
+    int burningRate;
     float premiumRate = 0.0f;
 
     CEventBase* ev8 = GlobalData::s_event_manager->GetRepeatEvent(8);

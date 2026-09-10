@@ -1,5 +1,9 @@
 // df_game_r 还原 —— CUdpHandler（UDP 句柄，ORIG 0x8483518 族，8 函数）。
 // 参照 docs/class_func_reports/CUdpHandler.md；getErrno 同 TU（ORIG 0x8483e75）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN11CUdpHandlerC2Ev`（ORIG 0x8483e59）；键名符号需前移（首定义现为 getErrno）。
+#include <iostream>
+
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>

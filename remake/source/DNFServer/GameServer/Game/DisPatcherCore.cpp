@@ -10100,8 +10100,15 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
         }
         if (info.m_23[idx] > 10000)
         {
-            unsigned int quotient = info.m_23[idx] / 10000;
-            unsigned int remainder = info.m_23[idx] % 10000;
+            // [b28e-L5] 判据⑫（clr_l orig=5 / our=3）：ORIG 0x081c4e22 与 0x081c4e29
+            // 各有一条 `movl $0x0,-0x14(%ebp)` / `movl $0x0,-0x10(%ebp)`（两个具名
+            // int 局部**预清**），随后 0x081c4e4f/0x081c4e79 才回写商与余数 ⇒ 原码是
+            // 「声明=0 + 赋值语句」两句式（P198① 预清必写 / 判据⑫ 缺具名局部），
+            // 初始化式会被 4.4 折成单条 store（我方案发 2 条预清）。
+            unsigned int quotient = 0;
+            unsigned int remainder = 0;
+            quotient = info.m_23[idx] / 10000;
+            remainder = info.m_23[idx] % 10000;
             // ORIG 不为 dungeon 设局部：0x081c4e82（==0 判定）与 0x081c4eda
             // （else-if 取 index）各自重新 call CUser::GetParty 并直读 +0xcac。
             if (static_cast<CParty*>(member->GetParty())->m_battleField.m_pDungeon == 0)

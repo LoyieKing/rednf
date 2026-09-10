@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN11CGameOptionC2Ev`（ORIG 0x84b731a）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CGameOption.h"
 
 CGameOption::CGameOption()

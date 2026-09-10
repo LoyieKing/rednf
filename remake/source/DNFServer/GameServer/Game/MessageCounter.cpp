@@ -73,10 +73,6 @@ bool MessageKey::operator<(const MessageKey& rhs) const
 // P210：派生 ctor 定义前置于基类 ctor 定义之前——4.4 对「TU 内尚未见定义」的
 // callee 不精确继承 outgoing，取保守大帧（ORIG sub $0x18；b28-L11 复验旧
 // 「16k+4 不可达」判词：帧差根因是定义顺序而非 pad 量化）。
-CUnixTimeInterval::CUnixTimeInterval() : CTimeInterval()
-{
-    // ORIG C1 仅调基类 ctor + 换 vptr；m_last 清零由 ORIG value-init 在调用点内联（gcc4.1）
-}
 
 // ORIG @0x085702c6：仅设 vptr。
 CTimeInterval::CTimeInterval()
@@ -116,6 +112,12 @@ long long CTimeInterval::GetTimeInterval()      // W 空覆盖 @0x08570182
 
 // ===================== CUnixTimeInterval（派生） =====================
 
+// [R29-2] CUnixTimeInterval() 用户 ctor 已删（声明同步删，P299/CWG434）：
+// ORIG nm 中 C1Ev/C2Ev 为 W size 0x1c ⇒ 隐式 ctor；仅此才能让
+// `new CUnixTimeInterval()` 的 value-init 前置清零发射（ORIG Create 0x0856f974
+// 三 movl $0 + call C1Ev）。隐式 ctor 体 = 调基类 C1Ev + 置派生 vptr，与旧
+// 空体用户 ctor 逐条等价。
+
 // ORIG @0x08570236：gettimeofday(&this->m_last, 0)。
 void CUnixTimeInterval::SetLastTime()
 {
@@ -145,40 +147,46 @@ CMessageCounter::CMessageCounter(int idBias)
 CMessageCounter::~CMessageCounter() {}
 
 // ORIG IncreaseMessage @0x0856f9c4：命中则 ++count → 64 位累加耗时字节 →
-// 滑动平均 avg = newBytes*(1/n') + oldAvg*((n'-1)/n')；未命中插入全零记录。
-// [b28d-51] 判词 N（ORIG 0x0856f9c4，N82/N89 族）：map 查找/插入临时槽阶梯 +
-// MessageKey 构造跨版本差；语义/调用集齐，byte 层封顶。
+// 滑动平均 avg = avg*((n'-1)/n') + newBytes*(1/n')；未命中插入首记录。
+// [R29-1 按 ORIG 报告逐条重写] 六项：
+// ① `it->second` 逐次重读（ORIG 6× _Rb_tree_iterator::ptEv，原我方具名引用 `value`
+//    只 1 次 ⇒ p167 MISSING 6）；
+// ② 比较用正向 `!=`（ORIG `neq`；我方原 `==` 生 `eq` ⇒ EXTRA）；
+// ③ bytes 累加为 64 位 `+=`（ORIG 0x0856fa8a `mov;mov;add;adc;mov;mov`；
+//    原我方分 low/high + 进位判断多 1 槽 3 指令）；
+// ④ `wOld`/`wNew` 两具名 double，声明于 find 之后（ORIG 预清 `fldz;fstpl` ×2 位于
+//    find 之后 end 之前，槽 -0x18/-0x10，wOld 更深 ⇒ 先声明）；
+// ⑤ 未命中插入记录 = { count=1, bytes=(unsigned long long)bytes,
+//    avg=(double)bytes }（ORIG 0x0856fb3e `movl $0x1,-0x7c`、bytes→-0x78/-0x74、
+//    `fildll -0x98; fstpl -0x70`）——**原我方写 `{0,0,0,0.0}` 是语义 bug**
+//    （首记录丢 bytes/avg、count 从 0 起）；
+// ⑥ 平均更新书写序 `m_avg * wOld + (double)bytes * wNew`（ORIG 首条 `fldl 0x14(%eax)`
+//    即 avg ⇒ P243 左操作数先 fld）。
 void CMessageCounter::IncreaseMessage(unsigned int id, unsigned char type,
                                       unsigned short size, long long bytes)
 {
     MessageKey key((int)id, type, size);
     std::map<MessageKey, MessageValue>::iterator it = m_map.find(key);
-    if (it == m_map.end())
+    double wOld = 0.0;
+    double wNew = 0.0;
+    if (it != m_map.end())
     {
-        // [b28d-SymMsgCtr] MessageValue POD 化后，插入零记录用聚合初始化 +
-        // 左值实参 make_pair(key, zero)：ORIG 发射的是
-        // _ZSt9make_pairIRN15message_counter10MessageKeyERNS0_12MessageValueEE...
-        // （两个左值引用形参），右值形会多发 ORIG 没有的
-        // _ZSt7forwardIN15message_counter12MessageValueEE...。
-        MessageValue zero = { 0, 0, 0, 0.0 };   // 初值来源：ORIG 未命中插入全零记录
-        m_map.insert(std::make_pair(key, zero));
+        ++it->second.m_count;
+        it->second.m_bytes += (unsigned long long)bytes;
+
+        wOld = (double)(it->second.m_count - 1) / (double)it->second.m_count;
+        wNew = 1.0 / (double)it->second.m_count;
+        it->second.m_avg = it->second.m_avg * wOld + (double)bytes * wNew;
         return;
     }
 
-    MessageValue& value = it->second;
-    ++value.m_count;
-
-    unsigned int addLow = (unsigned int)(unsigned long long)bytes;
-    unsigned int addHigh = (unsigned int)((unsigned long long)bytes >> 32);
-    unsigned int beforeLow = value.m_bytesLow;
-    value.m_bytesLow += addLow;
-    value.m_bytesHigh += addHigh;
-    if (value.m_bytesLow < beforeLow)
-        ++value.m_bytesHigh;                    // CARRY4 汇入高位
-
-    double wNew = 1.0 / (double)value.m_count;                  // 1/n'
-    double wOld = (double)(value.m_count - 1) / (double)value.m_count;
-    value.m_avg = (double)bytes * wNew + value.m_avg * wOld;
+    // 未命中：插入首记录（ORIG 0x0856fb3e 段）。左值实参 make_pair(key, zero)，
+    // ORIG 发射 _ZSt9make_pairIRN15message_counter10MessageKeyERNS0_12MessageValueEE。
+    MessageValue zero;
+    zero.m_count = 1;
+    zero.m_bytes = (unsigned long long)bytes;
+    zero.m_avg = (double)bytes;
+    m_map.insert(std::make_pair(key, zero));
 }
 
 // ORIG WriteLog @0x0856fbb0：LOGDB_Q(#4) 投递 SIG_INSERT_RESPONSE_TIME；

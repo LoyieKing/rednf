@@ -184,6 +184,10 @@ void CDisconnectDetecter::OnDisconnect(CUser* user)
     user->OnDisconnect();
 }
 
+// [GI-ioinit L21 PENDING] 键名符号 _IsTimeout（ORIG 0x0847260d）需前移为本 TU 首强符号，
+// 但 CDisconnectDetecter 的类声明来自文件后段的 `#include "CDisconnectDetecter.h"`
+//（约第 76 行），单独前移该定义不可编译（已实测 COMPILE FAILED）⇒ 需先把该 include
+// 提前到本区之前；本轮保留 include（GI 已恢复发射）、键名待办。
 bool CDisconnectDetecter::_IsTimeout(int time)
 {
     if (GlobalData::s_systemTime_.getCurSec() - time > 30)

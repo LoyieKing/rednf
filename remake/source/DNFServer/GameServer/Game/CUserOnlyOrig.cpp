@@ -10796,11 +10796,12 @@ int CUser::SelectCharac(int idx, int tagIdx)
         trace("CUser::SelectCharac m_selected is not null");
         return 0;
     }
-    bool idxValid = (idx >= 0) && (static_cast<int>(m_characList.size()) > idx);
-    if (idxValid) {
+    // [L6 判据⑫/P0] ORIG 0x0864cd92 段为 `mov $0x0/%eax; test %al,%al; je`（值在 %al，
+    // 无栈槽）vs 我方 `mov %al,-0x3f(%ebp); cmpb $0x0,-0x3f(%ebp)`（多槽物化）⇒
+    // 原码无具名 bool 局部（idxValid/tagValid 各占一槽 -0x3f/-0x43）⇒ 条件内联（P0）。
+    if ((idx >= 0) && (static_cast<int>(m_characList.size()) > idx)) {
         setCurCharac(&m_characList[idx]);
-        bool tagValid = (tagIdx >= 0) && (static_cast<int>(m_characList.size()) > tagIdx);
-        if (tagValid) {
+        if ((tagIdx >= 0) && (static_cast<int>(m_characList.size()) > tagIdx)) {
             setTagCharac(&m_characList[tagIdx]);
             const CInventory* tagInven =
                 reinterpret_cast<const CInventory*>(getTagCharacInvenR());

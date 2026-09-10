@@ -48,7 +48,7 @@ BlueMarbleTileScript* BlueMarbleMapScript::getTile(unsigned int zone)
     return m_tiles[zone - 1];
 }
 
-int BlueMarbleMapScript::importScript(const char* path)
+bool BlueMarbleMapScript::importScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
     {

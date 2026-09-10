@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN17CSourceVersionMgrC2Ev`（ORIG 0x86b2388）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CSourceVersionMgr.h"
 
 CSourceVersionMgr::CSourceVersionMgr()

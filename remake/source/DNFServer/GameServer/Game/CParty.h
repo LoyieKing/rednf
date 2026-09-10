@@ -655,7 +655,10 @@ public:
                  unsigned char& flag2, bool& flag3);   // ORIG 返回 0/1
     void _onGetItem(CUser* user, unsigned int itemIdx, unsigned int count);
     int drop_item(CUser* user, int itemIdx, int count, char a, int b, int c);
-    void drop_item_gm(CUser* user, unsigned int itemIdx);
+    // [L17ScriptLeafDataMgr 本波] 返回类型 void→int：ORIG 0x085a73a6 尾
+    // `mov %ebx,%eax` + 5 处 `mov $0x13/-1/0x17/0x16/0x0,%ebx` 错误码写点
+    // ⇒ 原码返回 int 错误码。mangled 不变；消费点 GmCmds_D.cpp:370 忽略返回值。
+    int drop_item_gm(CUser* user, unsigned int itemIdx);
     bool isMonsterDrop_item(int monsterIdx);
     void _makeRewardItemInfo(CUser const* user, Inven_Item* item,
                              PacketGuard& packet);

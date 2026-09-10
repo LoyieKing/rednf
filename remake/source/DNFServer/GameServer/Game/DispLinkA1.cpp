@@ -265,7 +265,7 @@ int Dispatcher_Compound_ExtreamItem::_read_packet(PacketBuf& packet)
 // ============================================================================
 // 10. Dispatcher_CreateDisjointStore::check_error  ORIG 0x081cf8d4
 // ============================================================================
-int Dispatcher_CreateDisjointStore::check_error(CUser* user, MSG_BASE& msg,
+unsigned int Dispatcher_CreateDisjointStore::check_error(CUser* user, MSG_BASE& msg,
                                                 ParamBase& param)
 {
     (void)msg;

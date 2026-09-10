@@ -11063,7 +11063,10 @@ bool DB_LoadDimension::dispatch(int userIdx, int slot, Stream* stream)
         return 0;
     // 声明序照 ORIG 栈槽（低→高）：guard(-0x2c) db(-0x24) sig(-0x20)
     // out(-0x1c)；guard 于末尾 put 前构造（ORIG 同点）。
-        bool bVar1;
+    // [L4-r2 宽度旋钮已实测回退] widthscan clr_b/cmp_b = orig 0 / our 2 曾疑为
+    // 「我方偏窄」，改 `int bVar1` 后 gap/四数不变而 ndiff 107→**109 反劣** ⇒
+    // 该 byte 形非局部宽度问题（归 P292/N82 槽分区，见 Main 判据⑫ 反误判条）。
+    bool bVar1;
     MySQL* db =
         GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     SIG_LOAD_DIMENSION* sig = stream->GetOutBuffer<SIG_LOAD_DIMENSION>();

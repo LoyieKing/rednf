@@ -84,6 +84,10 @@ bool CUser::IsOldLotteryItem(unsigned int itemIdx)
     //   局部 37 条（值落 %ebx+push/pop，ORIG 为 %eax 无 push）；③显式 early
     //   return 36 条；④goto 尾标签 45 条（4.4 在 goto 岛补 nop+jmp）——四形
     //   mnemonic 序列均与 ORIG 31 条不符，语义/边界全等 ⇒ 封顶。
+    // [round2-L30 复核·N18b（Main 反误判规则 2）] widthscan `cmp_l orig=0 our=6`：
+    //   ORIG 实为**两段寄存器比较**（`mov 0xc(%ebp),%eax; cmp $0x1d56,%eax; ja`，
+    //   形参一次载入 %eax 全程复用；我方 4.4 退化为 `cmpl $imm,0xc(%ebp)` 槽直比）
+    //   ⇒ 判 N18b，非类型宽度问题（不改类型）。
     if (itemIdx < 0x1d57u) {
         if (itemIdx < 0x1d4cu) {
             if (itemIdx < 0x1bc6u) {
@@ -249,6 +253,8 @@ int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialV
 //    （movb/-0x51 槽 vs ORIG 寄存器 test）、short 形参槽中转（movswl 经
 //    -0x22 中转）——语义与调用序列逐块比对零缺口，byte 层 N 封顶。
 // ===========================================================================
+// [round2-L30 复核·N95/N82] shift.py: frame ORIG=780 OURS=780，MIXED（相对序差，含 8-dword
+//   结构拷贝展开位）⇒ 大件未改造，判 N；ORIG 0x086733a2（0x15c6）。
 int CUser::lottery_item(int slot)
 {
     // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。
@@ -592,6 +598,8 @@ int CUser::lottery_item(int slot)
 // ===========================================================================
 // 7) CUser::multibox_lottery_item(int boxSlot, int keySlot) @0x08674968
 // ===========================================================================
+// [round2-L30 复核·N126] 残余=整帧槽号常数平移 0x10（ORIG -0x14d… vs 我方 -0x15d…；帧
+//   0x25c vs 0x24c）⇒ 判据⑪ (b) 类，声明重排无效；ORIG 0x08674968（0x115d）。
 int CUser::multibox_lottery_item(int boxSlot, int keySlot)
 {
     // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。

@@ -7,6 +7,10 @@
 // vtable 0x08b530e0 = 基类 14 槽 + 派生新增槽 15（IsEventing 非 const
 // 重载，未覆盖基类 const IsEventing）；无派生数据字段（sizeof 0xc）。
 // 追踪用 __FUNCTION__（_ZZN21CFirstServerOpenEvent*E12__FUNCTION__）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN21CFirstServerOpenEventC2Ev`（ORIG 0x811cc46）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CFirstServerOpenEvent.h"
 #include "GameTypes.h"   // cMyTrace
 

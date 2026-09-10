@@ -12,6 +12,9 @@
 //   +0x18 vector<pair<int,int>> m_vecShareKind
 // stSERVER_MESSAGE = 0x58（kind/index/len/msg[52]/len2/msg2[20]/endTime）。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN27CSharedServerMessageManagerC2Ev`（ORIG 0x86019b4）。
+#include <iostream>
 
 #include "CSharedServerMessageManager.h"
 #include "GameTypes.h"

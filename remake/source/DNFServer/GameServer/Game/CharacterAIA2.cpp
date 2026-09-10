@@ -528,6 +528,11 @@ void STAIInfoScript::destroy()
         {
             if (m_patterns[p][i] != 0)
             {
+                // [L16 本轮] 去具名试验（写成两次 `m_patterns[p][i]` 内联）实测**反劣**：
+                // 4.4 O0 对两次下标各发一次 ix() 装载 ⇒ ourN 90→102（ORIG 86，gap −4→−16）。
+                // ORIG 0x0836753a 的 `mov (%eax),%ebx; test %ebx,%ebx; je` 是 4.1 把
+                // 具名 `std::string* elem` 保在 callee-saved %ebx ⇒ 属 N128/P183
+                // 「4.4 指针局部恒落栈槽」族，不可源级复现。维持原具名形并封 N。
                 std::string* elem = m_patterns[p][i];
                 if (elem != 0)
                     delete elem;

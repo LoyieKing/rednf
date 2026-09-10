@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN21CStatisticServerProxyC2ESsi`（ORIG 0x8472162）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CStatisticServerProxy.h"
 
 #include <cstring>

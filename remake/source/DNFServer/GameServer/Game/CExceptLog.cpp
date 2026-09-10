@@ -5,12 +5,28 @@
 // 自动生成的 ios_base::Init 静态初始化。
 // 注：fPrintTextFile 以 this 对象内存作 vsprintf 缓冲（ORIG 原行为）。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN10CExceptLog13PrintTextFileEPcS0_`（ORIG 0x846d7e5）；键名符号为
+// PrintTextFile（非 ctor），待移序为 TU 首强符号。
+#include <iostream>
+
 #include "CExceptLog.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x0846d640。
+void CExceptLog::PrintTextFile(char* name, char* content)
+{
+    FILE* stream = fopen(name, "a");
+    if (stream != NULL)
+    {
+        fprintf(stream, content);
+        fclose(stream);
+    }
+}
 
 // ORIG ctor @0x0846d736：memset(this,0,2000) → Set_Time_String(buf) →
 // fPrintTextFile("Except.txt","%s\n%s\n",buf,str.c_str())。
@@ -21,17 +37,6 @@ CExceptLog::CExceptLog(std::string& str)
     char buf[128];
     Set_Time_String(buf);
     fPrintTextFile("Except.txt", "%s\n%s\n", buf, str.c_str());
-}
-
-// ORIG @0x0846d640：fopen(name,"a") 成功后 fprintf+fclose。
-void CExceptLog::PrintTextFile(char* name, char* content)
-{
-    FILE* stream = fopen(name, "a");
-    if (stream != NULL)
-    {
-        fprintf(stream, content);
-        fclose(stream);
-    }
 }
 
 // ORIG @0x0846d682：vsprintf 写入 (char*)this，再 PrintTextFile(name,(char*)this)。

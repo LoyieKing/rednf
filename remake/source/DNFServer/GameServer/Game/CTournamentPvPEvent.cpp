@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CTournamentPvPEvent/ 全部 6 个方法（已完整阅读
 // CTournamentPvPEvent / ~CTournamentPvPEvent / ~CTournamentPvPEvent_08284618 /
 // StartEvent / StartEvent_0828463c / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN19CTournamentPvPEventC2Ev`（ORIG 0x828471f）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CTournamentPvPEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

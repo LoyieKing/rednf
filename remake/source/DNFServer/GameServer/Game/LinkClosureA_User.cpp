@@ -9,8 +9,17 @@
 //   UpdateRating(float)            W 0x08568e9c
 //   GetUserGainItem 域外自由核对：CLuckPoint 三方法落 CClearReward.cpp
 // const 重载版本（_ZNK5CUser24GetCurCharacInventoryRefEtt T 0x08680c8a，
-// OnlyOrig_CreatureJob 批声明）亦按 objdump 同构转写。
+//   OnlyOrig_CreatureJob 批声明）亦按 objdump 同构转写。
 // ============================================================================
+// [G5 2026-09-10 · L12 round2 组5 复核] 5 件：p167（getUserQuestRewardItem CLEAN、
+//   gold MISSING=EXTRA=1 别名）⇒ 无语义缺口。逐件：
+//   · CalculateExpertJobMaterials（NEAR）：交换 ci/mi 声明序试验四数不变
+//     （31/40/2/5）⇒ 后置 ++ 的 sret 临时 -0x10/-0x14 相对序属 4.4 分配产物（N86），已回滚。
+//   · compute_quest_basic_reward_exp：帧 0x44↔0x54 + 槽整体浅 4（N95/N115/P232）。
+//   · compute_quest_basic_reward_gold：`xor $1; test; jne` ↔ ORIG `test; je` 直判
+//     （P292/P133 族，否定早返物化方向）+ itemIdx 槽 -0xc↔-0x18。
+//   · getUserQuestRewardItem / GetCurCharacInventoryRef：仅尾 nop 岛（P223 已试）与
+//     .rodata addend 显示差 ⇒ AE 等价。
 
 #include "CUser.h"
 #include "Quest.h"
@@ -265,6 +274,11 @@ int CUser::compute_quest_basic_reward_exp(Quest* quest)
     STExpReward growthView;                                // [ctor 085bed52 -0x28]
     int growthBonus = 0;                                   // [-0x10]
     growthView.m_reward = get_growth_power_exp_reward().m_reward;  // [sret 临时 + mov dword]
+    // [G5 2026-09-10 widthscan 线索·实测反劣已回滚] ORIG 0x0866e58a 为
+    //   `movzbl -0x25(%ebp),%eax; movzbl %al,%eax`——`-0x25 = -0x28+3` = m_reward 槽
+    //   最高字节**直读**（非 `>>24` 移位；widthscan `ext_movzbl orig=6 our=5` 实证）。
+    //   纯 cast 字节视图形实测反劣（153→155 insns，gap +3→+5：4.4 未折叠成单条
+    //   `movzbl -0x25(%ebp)`）⇒ 需 STExpReward 的 union 双视角（头改动）才可能收益，回滚。
     float growthRate =
         static_cast<float>(static_cast<short>(
             static_cast<unsigned char>(

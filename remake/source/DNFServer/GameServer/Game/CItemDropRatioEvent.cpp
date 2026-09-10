@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CItemDropRatioEvent/ 全部 6 个方法
 // （CItemDropRatioEvent / ~CItemDropRatioEvent / ~CItemDropRatioEvent_08533226 /
 //  StartEvent / StartEvent_085332b6 / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN19CItemDropRatioEventC2Ev`（ORIG 0x85333f1）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CItemDropRatioEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

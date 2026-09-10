@@ -847,16 +847,31 @@ CharString CharString::join(const std::vector<CharString>& stringVector,
     {
         return CharString();
     }
+    bool token_runOnce;
     const char* separatorStrSrc = separator.c_str();
     int separatorStrLen = separator.length();
     int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    std::vector<CharString>::const_iterator it = stringVector.begin();
-    std::vector<CharString>::const_iterator itEnd = stringVector.end();
-    while (it != itEnd)
+    // [R22] ORIG 0x08ad9268/0x08ad9348 两遍扫描各带一个 runOnce bool 守卫
+    // （movb $0,-0x19 / -0x11 → 循环头 cmpb+jne 跳过 → 条件段 xorb $1 取反），
+    // 内层 while(runOnce){...; runOnce=false;} 只跑一次。照抄该形状。
+    token_runOnce = false;
+    if (token_runOnce)
     {
-        const CharString& token = *it;
-        totalLength += token.length();
-        it++;
+    }
+    else
+    {
+        std::vector<CharString>::const_iterator it = stringVector.begin();
+        std::vector<CharString>::const_iterator itEnd = stringVector.end();
+        while (it != itEnd && (token_runOnce = !token_runOnce))
+        {
+            const CharString& token = *it;
+            while (token_runOnce)
+            {
+                totalLength += token.length();
+                token_runOnce = false;
+            }
+            it++;
+        }
     }
     if (totalLength == 0)
     {
@@ -864,20 +879,32 @@ CharString CharString::join(const std::vector<CharString>& stringVector,
     }
     CharStringData* newData = CharStringData::createTerminated(totalLength);
     char* newDataBuf = newData->getBuffer();
-    std::vector<CharString>::const_iterator it2 = stringVector.begin();
-    std::vector<CharString>::const_iterator itEnd2 = stringVector.end();
-    while (it2 != itEnd2)
+    bool token_runOnce2;
+    token_runOnce2 = false;
+    if (token_runOnce2)
     {
-        if (separatorStrLen >= 1 && it2 != stringVector.begin())
+    }
+    else
+    {
+        std::vector<CharString>::const_iterator it2 = stringVector.begin();
+        std::vector<CharString>::const_iterator itEnd2 = stringVector.end();
+        while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
         {
-            memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
-            newDataBuf += separatorStrLen;
+            const CharString& token = *it2;
+            while (token_runOnce2)
+            {
+                if (separatorStrLen >= 1 && it2 != stringVector.begin())
+                {
+                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
+                    newDataBuf += separatorStrLen;
+                }
+                int tokenLength = token.length();
+                memcpy(newDataBuf, token.c_str(), tokenLength);
+                newDataBuf += tokenLength;
+                token_runOnce2 = false;
+            }
+            it2++;
         }
-        const CharString& token = *it2;
-        int tokenLength = token.length();
-        memcpy(newDataBuf, token.c_str(), tokenLength);
-        newDataBuf += tokenLength;
-        it2++;
     }
     return CharString(newData);
 }

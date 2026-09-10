@@ -5,6 +5,10 @@
 //   sha256_starts/update/finish、StrCpyMaxPath → 权威 producer 见
 //   ShaSupport.h/.cpp（W7AB 组新建；sha256_process 为其内部压缩函数）。
 // ===========================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__Z18ZeroMemoryChecksumP16CodeHackChecksum`（ORIG 0x808ac67）。
+#include <iostream>
+
 
 #include "CodeHackChecksum.h"
 

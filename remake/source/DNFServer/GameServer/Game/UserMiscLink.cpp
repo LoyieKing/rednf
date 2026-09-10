@@ -643,6 +643,9 @@ bool CRandomOptionItemHandle::change_option(unsigned long itemIdx, ENUM_RARITY r
 
 
     unsigned char optType = 0;
+    // [L31 round2 实测回滚 · 判据⑫/P198①] ORIG 0x085f3365 对 err 有预清（`int err = 0;`
+    // 两句式），但实测把 err/i/pick/sel 四处预清全补后 clean 差异 **406→416 行**（反劣；
+    // clr_l 计数虽由 3→6 匹配 ORIG 的 5，但槽位连锁错位加剧）⇒ 四处全部回滚。
     int err = _get_option_type(itemIdx, rarity, level, group, optType);
     // [b28d-solo-UserMiscLink] P225：ORIG 0x085f33a1 为 `cmpl $0; setne %al; test %al,%al;
     // je`（bool 物化岛）⇒ while 形复现（4.4 裸 if 恒直跳）。
@@ -719,6 +722,7 @@ bool CRandomOptionItemHandle::change_option(unsigned long itemIdx, ENUM_RARITY r
     std::vector<OptionGroup>::iterator selIt;
 
     // 第一组已占槽（非本次 slot）按其组类型扣权重并移出候选。
+    // （i 的 ORIG 预清形 0x085f3674 `movl $0x0,-0xc` 属上述已回滚组。）
     for (int i = 0; i <= 2; ++i)
     {
         if (i == slot || optB[i * 3] == 0)

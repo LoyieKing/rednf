@@ -255,20 +255,16 @@ void CDeathMatchBattleMgr::checkWinnerForTeamPlay(
                     i, (unsigned int)teamWin[i]);
         }
     }
-    int aliveTeam1 = 0;
-    int aliveTeam2 = 0;
+    // [本波·R20 建议] ORIG 0x085df296 用 `int winCount[2]`（基址 -0x24 + team 索引）
+    // 而非两个独立标量 ⇒ 改数组形（索引访问形态与 ORIG 的 `-0x24(,%edx,4)` 一致）。
+    int aliveTeam[2] = {0, 0};
     for (int i = 0; i <= 7; ++i)
     {
         if (win[i] && users[i] != 0)
         {
             int t = teamWin[i] - 1;
             if (t >= 0 && t <= 1)
-            {
-                if (t == 0)
-                    ++aliveTeam1;
-                else
-                    ++aliveTeam2;
-            }
+                ++aliveTeam[t];
         }
     }
     unsigned char winTeam;
@@ -276,9 +272,9 @@ void CDeathMatchBattleMgr::checkWinnerForTeamPlay(
         winTeam = 2;
     else if (killTeam1 > killTeam2)
         winTeam = 1;
-    else if (aliveTeam1 > aliveTeam2)
+    else if (aliveTeam[0] > aliveTeam[1])
         winTeam = 1;
-    else if (aliveTeam2 > aliveTeam1)
+    else if (aliveTeam[1] > aliveTeam[0])
         winTeam = 2;
     else
         winTeam = (rand() & 1) ? 2 : 1;

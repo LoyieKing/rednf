@@ -937,6 +937,10 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     // 语义：首条 0 即 break（`test %eax,%eax; je`），非零则 count++/idx++。
     while (idx <= 0x3e7)
     {
+        // [b29-Lane21] 成员偏移两种分解实测：①`m_rows[idx].m_first`（本形）⇒ 4.4
+        // `add $0xecd8; mov (%eax)`（8 折进基址常量，ORIG 为 `add $0xecd0; mov 0x8(%eax)`）；
+        // ②`*(int*)((char*)&m_rows[idx] + 8)` ⇒ `add $0xecd0; add $0x8; mov (%eax)`（多 1 条）。
+        // 两形各含对方缺的一半 ⇒ N1 两步常量折叠族封顶。
         if (reinterpret_cast<SigLoadEtcBestClearTimeView*>(sig)->m_rows[idx].m_first == 0)
             break;
         ++count;

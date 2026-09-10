@@ -7,6 +7,10 @@
 //   m_expandAvatarSlot[12]@+0x5bd，sizeof = 0x899。
 // CUser/CInventory/CItem/CParty 等暂无权威头，仅声明本 TU 调用形态。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN16CExpandEquipslotC2Ev`（ORIG 0x849aa88）。
+#include <iostream>
+
 
 #include <cstring>
 #include <vector>

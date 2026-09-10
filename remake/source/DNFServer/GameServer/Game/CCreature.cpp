@@ -160,12 +160,12 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     reinterpret_cast<int&>(m_creatureItemType) = (int)(char)info->m_creatureItemType;  // movsbl
     m_stomach.SetStomachValue((float)info->m_stomachValue);
     strncpy(m_name, info->m_name, 0xc);            // → +0x1c，12B（ORIG call strncpy PLT）
-    // ORIG 8338657：xor $0x1 取反形（X2 具名 uchar 局部，movzbl+xor+test+je
-    // 共享 else 块在后）；高 16 位提取走 union 拆半（P197①：整字落槽 -0x10 →
-    // movzwl -0xe + cwtl 符号扩展直传 GetExpLevel）。
-    unsigned char isNotGrow = m_isGrow;
-    isNotGrow ^= 1;
-    if (isNotGrow)
+    // ORIG 8338657：`movzbl 0x4c(%eax),%eax; xor $0x1,%eax; test %al,%al; je`
+    // ⇒ P248 档②/P292 字段 bool 直证：m_isGrow 本身已是 bool（CGameManager.h:367）
+    // ⇒ 删具名 uchar 局部（4.4 恒落栈槽 `mov %al,-0xd; xorb $1,-0xd; cmpb $0,-0xd`
+    // 并顶掉后续全部槽 4B）、写裸 `if (!m_isGrow)`。
+    // 高 16 位提取走 union 拆半（P197①：整字落槽 -0x10 → movzwl -0xe + cwtl 直传）。
+    if (!m_isGrow)
     {
         union { int all; unsigned short w[2]; } u;
         u.all = m_exp;
@@ -228,12 +228,13 @@ bool CCreature::RenameCreature(const char* name)
 // 读数：清绑前 our_insns=20（TU 口径 AE）；清绑后 our_insns=22 / orig=20（TU 口径 DIFF）。
 bool CCreature::IsEvolutionCreature(int creatureId)
 {
-    // ORIG: test m_script; je 返 0 岛；body 内 sete %al → test %al → je 共享
-    // 返 0 块（X 族 bool 物化；N96 清绑后具名 bool 局部自然形）。
+    // round1 R19：ORIG 第二守卫 `cmp 0xc(%ebp),%eax; sete %al; test %al,%al; je`
+    // （寄存器物化、无槽）⇒ 按 P225 推广拆嵌套 if 复现 setcc 物化；具名 bool 局部
+    // 在 4.4 恒落栈槽（`mov %al,-0x9; cmpb $0,-0x9`，帧 0x28 vs ORIG 0x18），
+    // `&&` 合并则被 4.4 折成直跳。
     if (m_script != 0)
     {
-        bool eq = (m_script->GetEvolutionCreatureId() == creatureId);
-        if (eq)
+        if (m_script->GetEvolutionCreatureId() == creatureId)
             return 1;
     }
     return 0;

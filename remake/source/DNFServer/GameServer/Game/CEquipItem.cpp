@@ -139,6 +139,9 @@ bool CEquipItem::checkItemUpgradePossible() const
     {
         return 0;
     }
+    // [L23-r3 试形记录·回退] ORIG 0x085138b2 单次 `mov 0x234(%eax),%eax` 后在
+    //   %eax/%ecx 复用；试 `register unsigned int itemType = (unsigned int)m_itemType;`
+    //   后实测仍 36 条（= 试前，ORIG 34）⇒ 4.4 寄存器复用不可造（N18a 族），已回退。
     if ((unsigned int)m_itemType < 0x16 &&
         ((1 << (unsigned int)m_itemType) & 0x3ff400U) != 0)
     {

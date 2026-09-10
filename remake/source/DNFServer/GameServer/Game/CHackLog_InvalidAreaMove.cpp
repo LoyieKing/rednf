@@ -1,3 +1,8 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN24CHackLog_InvalidAreaMove11GetHackTypeEv`（ORIG 0x828619a）；
+// GetHackType 定义已是本 TU 首强符号。
+#include <iostream>
+
 #include "CHackLog_InvalidAreaMove.h"
 
 // 全部方法按 ORIG df_game_r（elf32-i386）逐指令反汇编转写。

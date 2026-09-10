@@ -222,16 +222,12 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     // 语义（非 P196 反演）。实测 ndiff 263→186、verdict 桶不变。
 
     // A 窗口：无归还记录或回归天数越过上限 → luck_point 主通道。
-    if (login->m_breakAwayLastRewardTime == 0 || dayLimit <= dayDiff)
+    if (login->m_breakAwayLastRewardTime == 0 || dayDiff >= dayLimit)
     {
-        if (calBreakAwayUserPoint())
+        bool pointOk = calBreakAwayUserPoint();
+        if (pointOk)
         {   // ORIG 内联（applyWindowReward key=0 order=1 writeOrder）
-            if (login->m_breakAwayAccureCera < 0)
-            {
-                if (login->m_breakAwayLuckPoint == 0)
-                    user->setBreakAwayRewardData(false);
-            }
-            else
+            if (login->m_breakAwayAccureCera >= 0)
             {
                 // ORIG 0x0831cee2：bool 预清 + 赋值两句式（P198①）。
                 bool ok = false;
@@ -243,6 +239,11 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
                         static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(1));
                 }
             }
+            else
+            {
+                if (login->m_breakAwayLuckPoint == 0)
+                    user->setBreakAwayRewardData(false);
+            }
         }
         return;
     }
@@ -251,17 +252,17 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     // ORIG 0x0831cf6e：三条件独立短路（无 questFieldsIdle/firstReward 具名局部）。
     if (login->m_breakAwayDungeonClearCnt == 0 &&
         login->m_breakAwayQuestTime != 0 &&
-        login->m_breakAwayRewardBoundB < login->m_breakAwayRewardBoundA &&
-        (signed char)(unsigned char)m_keys[2].m_data[0] <= dayDiff &&
-        dayDiff <= (signed char)(unsigned char)m_keys[2].m_data[1])
+        login->m_breakAwayRewardBoundB < login->m_breakAwayRewardBoundA)
     {
-        if (login->m_breakAwayAccureCera < 0)
+        // ORIG 0x0831cfba/0x0831cfd0：日界两守卫各落**独立** nop 中继岛
+        // （0831d158/0831d15b），非共享尾 —— 必须写成两条独立否定 goto
+        // （P223 双守卫版；合并进外层 && 链会被 4.4 jump-thread，少 4 条）。
+        if ((signed char)(unsigned char)m_keys[2].m_data[0] > dayDiff)
+            goto WIN1_LOW_FAIL;
+        if (dayDiff > (signed char)(unsigned char)m_keys[2].m_data[1])
+            goto WIN1_HIGH_FAIL;
+        if (login->m_breakAwayAccureCera >= 0)
         {   // ORIG 内联（applyWindowReward key=2 order=3 writeOrder）
-            if (login->m_breakAwayLuckPoint == 0)
-                user->setBreakAwayRewardData(false);
-        }
-        else
-        {
             bool ok = false;
             ok = selectReward(2, login->m_breakAwayAccureCera, user);
             if (ok)
@@ -270,6 +271,11 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
                 user->setBreakAwayRewardOrder(
                     static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(3));
             }
+        }
+        else
+        {
+            if (login->m_breakAwayLuckPoint == 0)
+                user->setBreakAwayRewardData(false);
         }
         return;
     }
@@ -281,13 +287,8 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
         (signed char)(unsigned char)m_keys[4].m_data[0] <= dayDiff &&
         dayDiff <= (signed char)(unsigned char)m_keys[4].m_data[1])
     {
-        if (login->m_breakAwayAccureCera < 0)
+        if (login->m_breakAwayAccureCera >= 0)
         {   // ORIG 内联（applyWindowReward key=4 无 order 写）
-            if (login->m_breakAwayLuckPoint == 0)
-                user->setBreakAwayRewardData(false);
-        }
-        else
-        {
             bool ok = false;
             ok = selectReward(4, login->m_breakAwayAccureCera, user);
             if (ok)
@@ -295,7 +296,14 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
                 user->setBreakAwayRewardData(true);
             }
         }
+        else
+        {
+            if (login->m_breakAwayLuckPoint == 0)
+                user->setBreakAwayRewardData(false);
+        }
     }
+WIN1_LOW_FAIL: ;
+WIN1_HIGH_FAIL: ;
 }
 
 } // namespace break_away_prevent

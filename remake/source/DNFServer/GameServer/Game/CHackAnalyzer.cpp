@@ -346,7 +346,15 @@ int CHackAnalyzer::analyzeHackReport(CUser* user, PacketBuf* pkt)
     return 1;
 }
 
-// b28d-solo-CHackAnalyzer: NEAR 封顶（N82 族：4.1 保留死局部槽）——ORIG 0x080f7cca。
+// b28d-solo-CHackAnalyzer: N 封顶（N82+ 槽分区，本轮五形复测）——ORIG 0x080f7cca。
+//   槽图（ORIG）: ratio@-0xc, elapsed@-0x10, X(8B 死区)@-0x18..-0x11,
+//   numMs@-0x20..-0x19, CW@-0x22, CW2@-0x24；帧 0x38。
+//   4.4 x87 工作槽恒**紧贴最深槽对象**，故两态不可两全：
+//   ①无死局部（V0）：numMs@-0x18/CW@-0x1a/-0x1c（帧 0x38 ✓，numMs 浅 8）；
+//   ②`long long deadPad`/`char[8]`/2×int/`long long[2]` 置于 numMs 后：
+//     numMs@-0x20 ✓ 但死局部恒落 numMs **深侧**（-0x28）⇒ CW 被推至 -0x2a/-0x2c、
+//     帧 0x48（4 形实测同结论；V3 置于 numMs 前反使 numMs 回 -0x18）。
+//   4.4 未使用标量「按最深可用处分配」，源码不可控其浅侧落位 ⇒ N 封顶（帧/助记符全等）。
 void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
 {
     // ORIG 0x080f7cca（_analyzeSpeedHack.md）：ratio=(int)(100.0f*ms/elapsed)；
@@ -361,6 +369,7 @@ void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
     }
 
     long long numMs;                                     // ORIG 声明在前（槽最深），赋值在后
+
     int elapsed = m_field24 - m_field20;                 // ORIG fildl（先物化 elapsed）
     numMs = ms;                                          // ORIG fildll（有符号直转，无 2^64 修正段）
     // ORIG flds 在 fdivrp 之后 ⇒ 左操作数为内存 float 变量（乘法左序）。
@@ -402,7 +411,7 @@ void CHackAnalyzer::_analyzeMemoryHack(unsigned int val)
     }
 }
 
-// b28d-solo-CHackAnalyzer: N 封顶（N1+N18a，复核 b27）——ORIG 0x080f7e18。
+// b28d-solo-CHackAnalyzer: 槽序列视图（P311 同族）——ORIG 0x080f7e18。
 void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
 {
     // ORIG 0x080f7e18（_analyzeEquipmentUpgradeHack.md）：当前角色背包装备栏
@@ -410,20 +419,31 @@ void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
     if (checkCollectedHack(REPORT_4_HACK_FLAG_EQUIPMENT_UPGRADE))
         return;
 
-    const CInventory* inv = ((CUser*)m_baseHackType)->getCurCharacInvenR();
+    // [hc 收] ORIG 0x080f7e18 寻址链五条 = imul $0x3d;add $0x10;add inv(-0x10 槽);
+    // add $0xc;mov %eax,(%esp)（两常量分列、i 侧先算）。旧裸偏移链 4.4 恒折
+    // inv-first + 0x1c 单常量（判 N1+N18a 已作废）。视觉具名化 = 槽序列视图：
+    // CInventory 起始 +0x10 为 0x3d 步长槽数组、槽内 +0xc 为 Inven_Item 区；
+    // 探针 /tmp/hc_probe.cpp fF/fG 与 ORIG 逐条同形（元素内 char[0x31] 数组退化）。
+    // 语义承载 = 槽序列（未建模子对象占位，§5.3），GetUpgrade 具名访问槽内项。
+    struct InvenSlotView
+    {
+        char m_head[0xc];        // +0x00..+0x0b（本函数不读）
+        char m_item[0x31];       // +0x0c：Inven_Item 区（0x3d - 0xc）
+    };
+    struct InvenSlotsView
+    {
+        char m_head[0x10];       // +0x00..+0x0f
+        InvenSlotView m_slots[0x16];
+    };
+    static_assert(sizeof(InvenSlotView) == 0x3d, "InvenSlotView stride drift");
+    static_assert(offsetof(InvenSlotView, m_item) == 0xc, "slot item offset drift");
+    static_assert(offsetof(InvenSlotsView, m_slots) == 0x10, "slots base drift");
+
+    const InvenSlotsView* inv = reinterpret_cast<const InvenSlotsView*>(
+        ((CUser*)m_baseHackType)->getCurCharacInvenR());
     for (int i = 0; i < 0x16; ++i)
     {
-        // [hc 收] ORIG 0x080f7e18..：inv 为 CInventory 起始 +0x3d 步长 Inven_Item
-        // 槽数组、+0x1c 为背包 ptr 槽区基址裸偏移跳入槽项；语义承载 = 槽序列
-        // （§5.3 未建模子对象占位 / 序列化缓冲豁免，GetUpgrade 具名访问槽内字段）。
-        // ORIG 地址链三步（imul;+0x10;+inv;+0xc）无槽中转 ⇒ this 内联表达式。
-        // [b27 封顶 + b28d-solo 复测] 唯一残差 = 寻址链求值序：ORIG
-        // i→imul→+0x10→+inv→+0xc（eax 单承载、两常量分列），4.4 恒 inv 先载 +
-        // 0x1c 常量合并 + edx 双承载。本轮新增两形实测：「整数侧先算
-        // (i*0x3d+0x10+inv)+0xc」被折回 lea+0x1c、「(char*)(i*0x3d+0x10)+inv+0xc」
-        // 被折回原形 ⇒ 前端 fold/canonicalize 不可绕过，N1+N18a 族封顶。
-        if (((const Inven_Item*)((char const*)inv + (i * 0x3d + 0x10) + 0xc))
-                ->GetUpgrade() != table[i])
+        if (((const Inven_Item*)inv->m_slots[i].m_item)->GetUpgrade() != table[i])
         {
             _addHackInfo(REPORT_4_HACK_FLAG_EQUIPMENT_UPGRADE,
                          (ENUM_HACKTYPE)0x3c3, 0);

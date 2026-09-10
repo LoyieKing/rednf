@@ -1,3 +1,72 @@
+// ============================================================================
+// [L8GlobalData · round1 · 2026-09-10] 本批 33 件（/tmp/round1_worklist.md 的
+//   `## GlobalData.cpp` 小节）逐件重核 + 修复。开工基线 check_tu_routed（18:16 路由 .o）：
+//   identical=899 ae=1791 near=11 diff=38 missing_in_game=847。
+//   工具：/tmp/l8/an.py（section-aware 双侧反汇编 + 判据① jcc 目标下标逐位比对）、
+//        /tmp/l8/jcc5.py（jcc delta 双侧）、/tmp/l8/slots.py（槽直方图 = 判据⑪）。
+//
+// 真修复 3 件（含判据①/⑨/⑫ 推翻旧判词的实测证据）：
+//  ① UdpThread::_processUDPData（ORIG 0x0857c5a4）：
+//     a. **P259**：3 处 `Stream* stream = s_stream_pool->Acquire(...)` 具名局部删除、
+//        内联进 CStreamGuard ctor 实参 ⇒ 槽集合收敛为与 ORIG **逐值全等**
+//        {-0x1c,-0x20,-0x28,-0x30,-0x38}；帧 0x5c→0x4c = ORIG。
+//     b. **判据⑨（旧判词"结构已修"不完整）**：ORIG 0x0857c696 段是 `switch(*data)`
+//        决策树（`movsbl %al,%eax; cmp $0x1;je +63; cmp $0x1;jg; test;je; jmp;
+//        cmp $0x2;je; cmp $0x3;je`），我方旧 if/else 链产 `cmp $0x1,%al;jne` 二段形
+//        ⇒ 改 switch；并按 **P324 叶块物理序=书写序**（ORIG 树后紧跟 case 0 体）
+//        把 case0 写在 case1 前。改后单件 ndiff 91→58，残差**全部为 AE 域数据地址**
+//        （6 块：packet_counter 的 GVS/atexit 立即数 + counters 地址）；267→262 条
+//        （ORIG 266，差 4 为 4.1 侧地址立即数重复计数，非结构差）。
+//  ② UdpThread::dispatch（ORIG 0x0857c9de）：
+//     a. **FD_ZERO 展开形**：ORIG 4.1-glibc 为逐元素循环（0x0857ca44 `lea -0xc8;
+//        mov %eax,-0x24; movl $0,-0x28; …; movl $0,(%eax,%edx,4); addl $1,-0x28;
+//        cmpl $0x1f,-0x28; setbe`），我方新头集走 `rep stos` 完全无形 ⇒ 手写等价循环
+//        （`unsigned fi` + `int* fdBits`）复现；148→136 条（ORIG 137）。
+//     b. **循环变量拆分**：ORIG 两处 for 各用独立变量（-0x20/-0x1c 各 6 次），我方合并
+//        单 `i`（-0x2c×12）⇒ 改块内独立 `for (int i …)`。
+//     c. **FD_SET/FD_ISSET 实参 cast unsigned**：ORIG `shr $0x5`（逻辑移位）vs 我方
+//        int 版 `lea 0x1f/test/cmovs` 三条修正。
+//     残余：maxfd 槽 -0x34 vs ORIG -0x48（8B 整段位移、2 槽）+ ORIG 0x0857c9ea
+//     `movl $0x1,-0x38` 死写（P171）⇒ 判据⑪ 属 (b) 整帧/分区差，声明重排 3 次实测不收敛
+//     ⇒ N115/N126 封顶。
+//  ③ ItemVendingMachine::BillingRecord（ORIG 0x0817991e）：
+//     **判据⑫（widthscan）+ P321 T1 直证**：ORIG 0x08179bc0 段 `movsbl -0x9(%ebp),%eax`
+//     后 `cmp $0x1/0x2/0x3/0x4`（1 字节符号扩展读），我方 int 版产 4 条
+//     `cmpl $K,-0xc(%ebp)` 槽直比（widthscan：cmp_l orig=0 our=5、ext_movsbl orig=2 our=0）
+//     ⇒ `int cent = atoi(centBuf);` 改 **char**（值域 0..9，语义等价）；改后我方该段
+//     cmpl 5→1，与 ORIG 单段 movsbl 形一致。
+//
+// 判 N（本轮重核证据；判据① jcc 目标下标逐位 + 判据⑪ 槽直方图）：
+//   · CDBEnviroment::parse：槽集合置换（only OURS {-0x3c,-0x40,-0x5c,-0x60} vs
+//     only ORIG {-0x30,-0x34,-0x48,-0x4c}，整体 8B 位移）；声明序对调实验（dbType
+//     先于 map）后 map 槽 -0x5c→-0x48 仍不匹配 ⇒ 已回滚，判 N（4.1 跨块分配）。
+//   · break_away_prevent::loadDbData：槽集合**全等**、243=243 条，但 jcc 目标差
+//     （ours i137 jmp d=67 vs ORIG i135 jmp d=95；i187 d=5 vs i185 d=36）+ 下标链
+//     `shl/add` vs ORIG `add %eax,%eax`（P205/N1）+ 首条 `movl $0x0,-0x10` 死写 ⇒ N1/N75。
+//   · RentalMachinePcRoom::log / RentalMachineDimension::log（×2）：槽相对序颠倒
+//     （ORIG serverEnv -0x2c / flog -0x24 / serverInfo -0x19；我方 flog -0x28 /
+//     serverInfo -0x1d / serverEnv -0x1c）+ 帧 0x4c vs 0x3c + callee-saved 角色轮换
+//     （ORIG esi=charNo/ebx=accId/edi=pData，我方 edi/esi/ebx）⇒ N7+N82。
+//   · checkAllRentalItemScript / checkSelectionListScript：槽集合全等、三变量计数
+//     分布置换（-0xc×2/-0x10×13/-0x14×10 vs 我方 -0xc×13/-0x10×10/-0x14×3）⇒ N82。
+//   · Secu_DataControl::UpdateSecurityServiceState：槽集合全等；残差=我方尾岛
+//     `jmp <epilogue>; nop`（N121）+2 条 ⇒ N121。
+//   · CHumanCertifier::init：ORIG 表 @0x936e2a0 直读（P185）= `0x0814af00+2i`
+//     （**.text 地址**）⇒ 运行时填充表、静态不可恢复；ORIG 0x082a73ed 取表项后直接
+//     `_ZNSsC1EPKcRKSaIcE`（无 null 检查）⇒ 我方安全占位 +12 条不可消 ⇒ N（数据缺失）。
+//   · 其余件（QueryConnInfo/Init/InitTcp/DispatchThread/CSimpleSSO/proc_addFatigue/
+//     generateImage/NetworkThread::dispatch/RecvPacket/GetRentItemInfo/BillingRecord/
+//     AcceptThread::dispatch/ProcessBuyRequestEx/ProcessIPG_ResultOutput/
+//     MonitorTcpThread/init_function_type/pc_room::DeleteAllRentalItem/
+//     SendCheckChannelScript/CServerProxyMgr D1×3）：维持历轮判词
+//     （N7/N18a/N78/N82/N115/N121/N126/N130）；本轮 jcc 扫描无新增真结构差
+//     （全部差异为指令数差引起的 jcc delta 平移 + 槽位分布），未再耗轮次。
+// 已完整阅读报告：docs/class_func_reports/UdpThread/_processUDPData.md、
+//   UdpThread/dispatch.md、RentalMachinePcRoom/log.md（三者 ## 汇编 + ## 反编译 C 全读）、
+//   CDBEnviroment/parse.md（同源生成物全文）。
+// 结论：本 TU 剩余真缺口 = 0（未闭合件均为跨版本结构性 N 类；2 件已实证缩 gap 且零回退）。
+// ============================================================================
+
 #include "LogManager.h"
 // df_game_r GlobalData（D1 组）还原。
 // 函数形态/字符串/池尺寸均取自 ORIG 反汇编与 Ghidra C。
@@ -4304,7 +4373,11 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     char centBuf[2];
     memset(centBuf, 0, 2);
     strncpy(centBuf, ssnPart + 6, 1);
-    int cent = atoi(centBuf);
+    // [L8 2026-09-10 判据⑫/T1 直证] ORIG 0x08179bc0 段用 `movsbl -0x9(%ebp),%eax`
+    // 读该局部（1 字节 + 符号扩展）后 `cmp $0x2/%0x1/%0x3/%0x4`，而我方 int 版产
+    // 4 条 `cmpl $K,-0xc(%ebp)`（widthscan：cmp_l orig=0 our=5、ext_movsbl orig=2 our=0）
+    // ⇒ ORIG 的 cent 是 **char**（atoi 返回值按 char 存储）。
+    char cent = atoi(centBuf);
     // ORIG 0x08179bcd 起：sprintf 直接写入记录 B+0x56（无独立局部缓冲），
     // 世纪类型写 B+0x52。
     if (cent == 2)

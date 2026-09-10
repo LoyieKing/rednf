@@ -110,10 +110,10 @@ char Global::CBossTowerFunc::GetItem(CUser* user, int item, bool flag, char type
     }
     else
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xb7, 5);
-        trace("bossTower not find : charac_no - %u", user->getCurCharacNo());
+        // [P227/P221] ORIG 在 ctor call 前求 vararg（`call getCurCharacNo;
+        // mov %eax,%ebx`）且 cMyTrace 槽浅于 PacketGuard ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0xb7, 5)(
+            "bossTower not find : charac_no - %u", user->getCurCharacNo());
     }
     return 1;
 }
@@ -133,6 +133,20 @@ bool Global::CBossTowerFunc::SelectDungeon(CParty* party, short dungeonIdx,
         return false;
     }
 
+    // ORIG +0x1d/+0x21：两个具名字节局部（result 深于 memberCount）；
+    // 决策树按 P163 补 case 1（与未列值同体）撑宽 range。
+    // [P211/P300] handleStartGame 返回 char（ORIG `mov %al,-0x12` 直存，无
+    // setne）；bool 目标会让 4.4 插 `test/setne` 归一化（多 2 条）⇒ 同址
+    // union 双视角：写入走 char 视角（直存），读取走 bool 视角（xor 直测）。
+    union ResByte
+    {
+        char c;
+        bool b;
+    };
+    ResByte result;
+    result.b = false;
+    char memberCount = 0;
+
     WongWork::CBossTower* tower = G_CGameManager()->getBossTower();
     if (tower == 0)
     {
@@ -140,25 +154,27 @@ bool Global::CBossTowerFunc::SelectDungeon(CParty* party, short dungeonIdx,
             __PRETTY_FUNCTION__,
             0x34, 5);
         trace("StaticPool BossTower NULL");
-        return false;
     }
-
-    char memberCount = 0;
-    switch (party->get_member_count())
+    else
     {
-        case 2: memberCount = 1; break;
-        case 3: memberCount = 2; break;
-        case 4: memberCount = 3; break;
-        default: break;  // ORIG: count==1 或越界值保持 0
-    }
+        const int member = party->get_member_count();
+        switch (member)
+        {
+            case 1: memberCount = 0; break;
+            case 2: memberCount = 1; break;
+            case 3: memberCount = 2; break;
+            case 4: memberCount = 3; break;
+            default: break;  // ORIG: 越界值保持 0
+        }
 
-    const bool started = tower->handleStartGame(party, static_cast<int>(dungeonIdx),
-                                                memberCount, type);
-    if (!started)
-    {
-        tower->_destroy();
+        result.c = tower->handleStartGame(party, static_cast<int>(dungeonIdx),
+                                          memberCount, type);
+        if (!result.b)
+        {
+            tower->_destroy();
+        }
     }
-    return started;
+    return result.b;
 }
 
 // ----------------------------------------------------------------------------
@@ -262,28 +278,12 @@ bool Global::CBossTowerFunc::FinishLoad(CUser* user)  // ORIG T 0x08146916
 // state==5 且队伍存在 → giveup_game(user,true,false,false)；恒返回 1。
 // ----------------------------------------------------------------------------
 // [b28d-D9] N82/槽差：帧/槽序差（59 vs 57）（ORIG 0x08146ad8 sz 0x000000ca）
-void Global::CBossTowerFunc::GiveUpGame(CUser* user)
+// ORIG 尾 `mov $0x1,%eax; leave; ret`（单出口返 1）；case 体依源码序 5/0xa/0xc
+// 落槽 -0x14/-0x10/-0xc（ORIG 深→浅 = 4.1「先声明更深」）。
+int Global::CBossTowerFunc::GiveUpGame(CUser* user)
 {
     switch (user->get_state())
     {
-    case 0xa:
-        {
-            WongWork::CDeathTower* tower = user->getDeathTower();
-            if (tower != 0)
-            {
-                tower->handleLeaveUser(user);
-            }
-        }
-        return;
-    case 0xc:
-        {
-            WongWork::CBossTower* tower = user->getBossTower();
-            if (tower != 0)
-            {
-                tower->handleLeaveUser(user);  // ORIG vptr+0x14 = 槽[5]
-            }
-        }
-        return;
     case 5:
         {
             CParty* party = static_cast<CParty*>(user->GetParty());
@@ -292,8 +292,27 @@ void Global::CBossTowerFunc::GiveUpGame(CUser* user)
                 party->giveup_game(user, true, false, false);
             }
         }
-        return;
+        break;
+    case 0xa:
+        {
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleLeaveUser(user);
+            }
+        }
+        break;
+    case 0xc:
+        {
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleLeaveUser(user);  // ORIG vptr+0x14 = 槽[5]
+            }
+        }
+        break;
     }
+    return 1;
 }
 
 // ----------------------------------------------------------------------------

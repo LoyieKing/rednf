@@ -16,7 +16,7 @@ BlueMarbleTileScript::BlueMarbleTileScript()
 //   loadRDARScriptFile("", path) 失败 → 0；否则循环 ScanType：
 //   "[type]"→ScanStr 后 toType 写回 m_type；"[enter dungeon]"→ScanInt，
 //   非 0 置 m_char4=1。扫描结束返回 1。
-int BlueMarbleTileScript::importScript(const char* path)
+bool BlueMarbleTileScript::importScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
     {

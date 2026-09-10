@@ -79,7 +79,7 @@ COpensslRSA::~COpensslRSA()
 }
 
 // ORIG T 0x0816c26e：Init("publickey.pem")。
-bool COpensslRSA::Init()
+bool COpensslRSA::Init() throw()
 {
     return Init("publickey.pem");
 }
@@ -93,7 +93,7 @@ bool COpensslRSA::Init()
 // ②返回汇聚寄存器——ORIG 各 return 直接 `mov $0/1,%eax`（0x816c298/0x816c38c/0x816c393），
 // 4.4 因 return 前需析构 full/rel 两个 string 而用 %ebx 汇聚、尾 `mov %ebx,%eax`。
 // 语义等价（三 return 与 ORIG 同控制流），封顶。
-bool COpensslRSA::Init(const char* path)
+bool COpensslRSA::Init(const char* path) throw()
 {
     if (path == 0)
         return false;
@@ -131,7 +131,11 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
         {
             return false;
         }
-        out.insert(out.end(), block.begin(), block.begin() + written);
+        // [L10-2] P167 实证：ORIG 0x0816c5ff..0x0816c644 为
+        // `operator[](0)`×2（first/last 各一次）+ `insert<unsigned char*>`（指针版）
+        // ⇒ 源形 `&block[0], &block[0] + written`；`.begin()+n` 会发 `begin()`×2 +
+        // `normal_iterator::operator+` + 迭代器版 insert（p167 EXTRA/MISSING 差集）。
+        out.insert(out.end(), &block[0], &block[0] + written);
         pos += chunk;
     }
     return true;
@@ -162,7 +166,8 @@ bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& o
         {
             return false;
         }
-        out.insert(out.end(), block.begin(), block.begin() + written);
+        // [L10-2] 同 Decrypt（ORIG 0x0816c47x 段同形：指针版 insert + 2×operator[]）。
+        out.insert(out.end(), &block[0], &block[0] + written);
         pos += chunk;
     }
     return true;

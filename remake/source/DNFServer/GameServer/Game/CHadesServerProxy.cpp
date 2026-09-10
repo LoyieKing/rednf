@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN17CHadesServerProxyC2EPcii`（ORIG 0x84708c7）；ctor 已是首强符号。
+#include <iostream>
+
 #include "LogManager.h"
 // df_game_r 还原 —— CHadesServerProxy（E1 批次）。
 // 参照 docs/class_func_reports/CHadesServerProxy.md + docs/hades_protocol.md。

@@ -67,7 +67,11 @@ struct CHARAC_QUEST_SHOP_DATA
     union
     {
         CHARAC_QUEST_SHOP_DATA_FIELDS m_data;    // +0x00c..+0xa5
-        short m_statusCounts[0x4d];               // 同区计数视角（b28d-36 试：异型化翻 store 序）
+        // [L11·round3 定稿] 符号性修正 short→unsigned short：ORIG SetTagCharacQuestShopData
+        // (0x085efdc0) 的 make_pair 实例为 `_ZSt9make_pairIRiRtE…`（Rt=unsigned short&）
+        // 与 pair ctor `C2IitE`；short 视角使我方发 `IRiRsE`/`C1IisE` ⇒ p167 MISSING/EXTRA
+        // 各 2（NEAR 根因）。同宽同址 ⇒ sizeof 0xaa / 全部偏移 / mangled 零变化。
+        unsigned short m_statusCounts[0x4d];      // 同区计数视角（0x4d*2 = 0x9a）
     };
     unsigned int   m_questPiece;             // +0x0a6
 };

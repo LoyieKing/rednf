@@ -1,3 +1,8 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN8WongWork12CGenUniqueNo12m_nTimeCountE`（ORIG 0x84b7850）；
+// 类静态数据成员定义已是本 TU 首强符号。
+#include <iostream>
+
 #include "CGenUniqueNo.h"
 #include "CSystemTime.h"
 #include "GlobalData.h"

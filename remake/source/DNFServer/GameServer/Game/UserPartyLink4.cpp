@@ -49,7 +49,10 @@ void CUser::RewardTutorial(unsigned int flag)
 {
     std::vector<int> outSlots;
 
-    // ORIG：G_CDataManager()+0x68 = CDataManager::m_serverParameter。
+    // [本波实测·判 N] 两形均未翻正：(a) P183 内联 serverParameter（去具名指针）
+    //   ⇒ gap 8→10；(b) P232 `char[0x10]` dead 撑帧使 sub $0x50→$0x60（与 ORIG 帧
+    //   全等）但槽仍 -0x24 vs ORIG -0x2c（非整帧平移：outSlots/rewards 间距
+    //   0x10 vs ORIG 0x1c）⇒ 相对序不可控，恢复原形（ORIG 0x086475d8）。
     ServerParameterScript* serverParameter = &G_CDataManager()->m_serverParameter;
     std::vector<std::pair<int, int> >* rewards =
         serverParameter->GetEscaladeTutorialReward(flag);
@@ -179,28 +182,32 @@ void CUser::deleteGuildExpBook()
 // 0x13 目标交易中 / 0x16 战场掉落失败 / 0x17 绑定装备禁止 GM 丢弃；
 // 本 TU 按 CParty.h:630 既有 void 声明定义（调用方 GmCmds_D 忽略返回值）。
 // ---------------------------------------------------------------------------
-void CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
+int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
 {
     if (user->CheckInTrade())
-        return;                                        // ORIG ret 0x13
+        return 0x13;                                   // ORIG 0x085a73c1 `mov $0x13,%ebx`
 
     CItem* item = G_CDataManager()->find_item(itemIdx);
     if (item == 0)
-        return;                                        // ORIG ret -1
+        return -1;                                     // ORIG 0x085a73e8 `mov $0xffffffff,%ebx`
 
     Inven_Item invenItem;
     invenItem.m_addInfo = (int)itemIdx;
     item->make_item(invenItem);                        // vtable slot make_item
-    if (invenItem.m_addInfo == 0)
-        return;
-
-    if (invenItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+    // ORIG 0x085a742a `mov -0x6f(%ebp),%eax; test %eax,%eax; je 085a754f`：
+    // m_addInfo==0 时**跳过** equip 检查（非 early return）。
+    // [本波·P225 推广] `&&` 两条件 4.4 恒折直跳（多一条 xor 归一）；拆嵌套 if
+    // 复现 ORIG 0x085a742a/0x085a7439 各自独立的 `test/cmp + je`。
+    if (invenItem.m_addInfo != 0)
     {
-        // 装备类物品实为 CEquipItem；+0x234 = CEquipItem::m_itemType。
-        const CEquipItem* equip = static_cast<const CEquipItem*>(item);
-        if (equip->m_itemType == Inven_Item::ITEM_TYPE_INVALID ||
-            equip->m_itemType <= Inven_Item::ITEM_TYPE_9)
-            return;                                    // ORIG ret 0x17
+        if (invenItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+        {
+            // 装备类物品实为 CEquipItem；+0x234 = CEquipItem::m_itemType。
+            const CEquipItem* equip = static_cast<const CEquipItem*>(item);
+            if (equip->m_itemType == Inven_Item::ITEM_TYPE_INVALID ||
+                equip->m_itemType <= Inven_Item::ITEM_TYPE_9)
+                return 0x17;                           // ORIG 0x085a745f `mov $0x17,%ebx`
+        }
     }
 
     map_item drop;                                     // ORIG ctor 081512cc
@@ -221,13 +228,19 @@ void CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     int slotIdx = reinterpret_cast<CBattle_Field*>(&m_battleField)
                       ->drop_item(drop);               // 按值传 0x54 字节
     if (slotIdx == -1)
-        return;                                        // ORIG ret 0x16
+        return 0x16;                                   // ORIG 0x085a758b `mov $0x16,%ebx`
 
+    // [本波·宽度旋钮] ORIG 0x085a7595/0x085a759b 发 `movw $0x12c,-0x20(%ebp)` /
+    // `movw $0xf0,-0x1e(%ebp)`（两个 **short 具名局部**），传参时经 short→int
+    // 提升 `movswl`（0x085a75e4/0x085a75f7）⇒ 原码是 short 局部而非字面量直传
+    // （我方原写 `put_short(300)` 产 `movl $0x12c` 直压）。
+    short field12c = 300;
+    short fieldf0 = 240;
     PacketGuard packet;
     packet.put_header(0, 0x28);
     packet.put_short((unsigned short)user->get_unique_id());
-    packet.put_short(300);                             // 0x12c
-    packet.put_short(240);                             // 0xf0
+    packet.put_short(field12c);                        // 0x12c
+    packet.put_short(fieldf0);                         // 0xf0
     packet.put_short(slotIdx);
     packet.put_int(drop.m_item.m_addInfo);
     packet.put_byte(drop.m_item.GetItemAttr());
@@ -240,4 +253,5 @@ void CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     packet.put_byte(drop.m_count == 0 ? 1 : 0);
     packet.finalize(true);
     send_to_party(packet);
+    return 0;                                          // ORIG 0x085a774b `mov $0x0,%ebx`
 }

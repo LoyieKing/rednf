@@ -843,6 +843,13 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
 // （帧 0x280 vs 0x2c0、db -0x34 vs -0x1c）+ 循环体局部块（ORIG 单次 memset
 // 0x74 合并清零 vs 4.4 逐条初始化）⇒ N82 封顶；p167 差集 MISSING=0。
 // ============================================================================
+// [L13-group6 判据⑫ 复核] widthscan：clr_l orig=3 / our=12（我方多 9 条
+//   `movl $0x0,-N`）+ clr_w 0/1 + cmp_b 1/0 + movzbl 13/14。逐条回 ORIG 同下标
+//   核对：ORIG 用**单次 `memset(local_220,0,0x74)`（116B 栈缓冲）合并清零**，
+//   我方把同一缓冲拆成 12 个独立具名局部（name[16]/itId/endurance/slot/uiId/
+//   stomach/exp/creatureType/noCharge/stat/expire/lockKey）各自 `= 0`。
+//   ⇒ 属**结构建模差异**（P250 packed 栈缓冲），非类型宽度问题；修法需按 ORIG
+//   0x74 布局建具名缓冲结构 + 整块 memset（改面较大，本波未动，留作后续首选）。
 bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 {
     static const int handleIdx = 3;

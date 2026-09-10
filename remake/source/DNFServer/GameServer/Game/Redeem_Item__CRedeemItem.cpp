@@ -64,7 +64,10 @@ bool CRedeemItem::isAddableFilter(const Inven_Item& item)
         item.GetUpgrade() == 0)
         return 0;
     // ORIG 0x085f77f4 调用 CItem::IsBanRedeemItem()（非内联，生成 call）；
-    // 后随 `test %al,%al; je` 直判（无 setne 归一）⇒ 显式 `!= 0` 比较。
+    // 后随 `test %al,%al; je` 直判（无 setne 归一）。
+    // [b28d-L28 round2 实测] 调用点由 `!= 0` 改隐式转 bool **无效**（4.4 对
+    // 非 bool 返回的条件恒插 `test; setne %al; test; je`，99/101 不变）⇒ 正解在
+    // **被调方返回类型**（CItem::IsBanRedeemItem 应 bool，属 CItem 头，需 spec 上报）。
     if (ci->IsBanRedeemItem() != 0)
         return 0;
     return 1;

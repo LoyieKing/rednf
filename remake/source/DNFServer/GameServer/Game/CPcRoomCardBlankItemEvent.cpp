@@ -1,5 +1,9 @@
 // df_game_r PC 房卡片空白道具事件 CPcRoomCardBlankItemEvent 实现。
 // 报告：docs/class_func_reports/CPcRoomCardBlankItemEvent/ 全部 6 个方法。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN25CPcRoomCardBlankItemEventC2Ev`（ORIG 0x826758f）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CPcRoomCardBlankItemEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

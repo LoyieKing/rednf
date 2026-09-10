@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN15CReliablePerson13InitTradeGoldEjjj`（ORIG 0x86454a8）。
+#include <iostream>
+
 // CReliablePerson — 交易金币可信度统计（ORIG 0x86453b8..0x86454a8；
 // 权威参照 docs/class_func_reports/CReliablePerson.md）
 // 布局（+0x00..+0x0f）：

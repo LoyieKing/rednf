@@ -1,6 +1,10 @@
 // df_game_r 还原 —— CSchoolServerProxy（学校服务器 UDP 代理）。
 // 函数与布局参照 docs/class_func_reports/CSchoolServerProxy.md。
 
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN18CSchoolServerProxyC2ESsi`（ORIG 0x8471f52）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CSchoolServerProxy.h"
 
 #include "LogManager.h"

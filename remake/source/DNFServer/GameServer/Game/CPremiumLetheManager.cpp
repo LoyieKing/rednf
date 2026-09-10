@@ -212,10 +212,11 @@ FAIL_TRACE:
 void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
                                      ENUM_SKILL_TREE_KIND kind)
 {
-    SkillSlot* slot = (SkillSlot*)user->getCurCharacSkillW();
-    slot->clear_all_skills(kind);
-    slot = (SkillSlot*)user->getCurCharacSkillW();
-    slot->set_parent(user);
+    // [L16 round3] P0/P183：ORIG 段为 `call getCurCharacSkillW; mov 0x14(%ebp),%edx;
+    // mov %edx,0x4(%esp); mov %eax,(%esp); call clear_all_skills`（返回值 %eax 直传、
+    // 无具名 slot 槽往返）⇒ 删具名缓存、逐点链式重取。
+    ((SkillSlot*)user->getCurCharacSkillW())->clear_all_skills(kind);
+    ((SkillSlot*)user->getCurCharacSkillW())->set_parent(user);
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
         int kind2;                       // ORIG：kind==NONE(-1)→0、kind==1(0)→1、其余→2
@@ -233,8 +234,7 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
         PvPSkillTreeParameterScript* script =
             &G_CDataManager()->m_pvpSkillTree;
         int point = script->getPvPSkillPoint(job, first, second, grade, false);
-        slot = (SkillSlot*)user->getCurCharacSkillW();
-        slot->set_remain_sp_at_index(point, kind);
+        ((SkillSlot*)user->getCurCharacSkillW())->set_remain_sp_at_index(point, kind);
         if (flag)
         {
             user->send_skill_info();
@@ -273,9 +273,8 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
             for (i = 0; i < (int)vec.size(); ++i)
             {
                 p = vec[i];
-                slot = (SkillSlot*)user->getCurCharacSkillW();
-                slot->growtype_skill(user->get_charac_job(), p.first, p.second,
-                                     kind);
+                ((SkillSlot*)user->getCurCharacSkillW())->growtype_skill(
+                    user->get_charac_job(), p.first, p.second, kind);
             }
             int expertJob = user->GetCurCharacExpertJobType();
             void* script = G_CDataManager()->GetExpertJobScript(expertJob);
@@ -290,9 +289,8 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
                         user->GetCurExpertJobLevel(
                             user->GetCurCharacExpertJobExp());
                     int skillIdx = (*expertVec)[i2].first;
-                    slot = (SkillSlot*)user->getCurCharacSkillW();
-                    slot->growtype_skill(user->get_charac_job(), skillIdx, level,
-                                         kind);
+                    ((SkillSlot*)user->getCurCharacSkillW())->growtype_skill(
+                        user->get_charac_job(), skillIdx, level, kind);
                 }
             }
             WongWork::CSkillChanger changer;

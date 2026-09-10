@@ -411,6 +411,9 @@ void upgradeAbilityByBossFeature(ActiveStaticInfo* /*info*/)
 // const 数组）、5 处 haveChampionFeature + 立即数实参、fadd st,st 加倍形、lea 加 50。
 // 残余：4.4 对 elem 与立即数比较恒 mem 直比（ORIG 单次 mov+test/cmp 复用 %eax）、
 // IF/ELSEIF 块序镜像（P47）、索引写回 add-vs-lea（P30/N4）。语义等价封顶。
+// [L14 round2 修] P251/P286 switch 化：if/else-if → `switch(elem){case 0..3 合并; case 4;}`
+// ⇒ 复现 ORIG `mov 0x8(%ebp),%eax; test; js; cmp $3; jle; cmp $4; je` 寄存器比较链，
+// gap **−6→0**（229/229）、差异块 5→2、strict 33→21（无回退）。余槽整块浅 4 ⇒ N126。
 void upgradeAbilityByChampionFeature(int elem, int roleType,
                                      std::vector<int>* features,
                                      ActiveStaticInfo* info)

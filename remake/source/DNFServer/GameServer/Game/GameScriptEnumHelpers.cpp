@@ -1005,6 +1005,10 @@ int getModuleType(const char* name)
             /* fall through */
 
         default:
+            // [L16 本轮] 极性交换实测**反劣**：`if (__inited) return 17;` 使 4.4 丢
+            // ORIG 的 `xor $1,%eax`（ndiff 2→8、gap −2→0）⇒ 维持负极性原形。
+            // 残差（2 条 jmp 跳板：ORIG 0x088c141a `jmp +0xc` 直跳 vs 4.4 经 4660 中转）
+            // = 块排放/跳板 N 族（P63 反向）。
             if (!__inited)
             {
                 __init_lock.leave();        // ORIG 0x088c140e

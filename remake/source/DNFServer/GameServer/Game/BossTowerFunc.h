@@ -46,7 +46,7 @@ public:
     static bool FinishLoad(CUser* user);  // ORIG 0x08146916 尾 mov$1/$0；调用方 `test %al,%al; je`（char 返回恒插 setne，唯 bool 直判）
     static bool MoveMap(CUser* user, unsigned short* mapIndex); // ORIG T 0x08146ba2；调用方 test %al 直判（bool 形）
     static char DieCharacInDungeon(CUser* user);                // ORIG T 0x08146824（DisP_GroupG 调用）
-    static void GiveUpGame(CUser* user);                        // ORIG T 0x08146ad8（恒返回 1；DisP_GroupG 调用）
+    static int GiveUpGame(CUser* user);                         // ORIG T 0x08146ad8（尾 `mov $0x1,%eax` 恒返回 1；DisP_GroupG 调用）
     // ORIG T 0x081468aa（nm 实证）：state==12(0xc) → getBossTower()
     //   handleKillMonster；其余为二级校验路径。DisPatcher_DieMob 调用。
     static int DieMob(CUser* user, unsigned short mobSeq, unsigned short param,

@@ -313,10 +313,10 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
             if (!ok)
                 return false;
             for (;;)
-            {
+        {
                 int weight = ScanInt(&ok);
                 if (!ok)
-                    break;                                 // ORIG → 回外层循环
+                goto next_token;                       // ORIG 0x8a5b942 je 越 944 nop/945 jmp 836（P223 goto 岛）
                 int missionIdx = ScanInt(&ok);
                 if (!ok)
                     return false;
@@ -324,20 +324,22 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
                     std::make_pair((unsigned int)weight,
                                    (unsigned int)missionIdx));   // +0x10
                 param.m_field18 += weight;                      // +0x18
-            }
-        }
-        else if (token == "[mission reward exp table]")
-        {
-            param.m_baseExp.resize(0x1e);                 // +0x1c
-            for (int i = 0; i < 0x1e; ++i)
-            {
-                unsigned int v = (unsigned int)ScanInt(&ok);
-                param.m_baseExp[i] = v;
-                if (!ok)
-                    return false;
-            }
         }
     }
+        else if (token == "[mission reward exp table]")
+            {
+            param.m_baseExp.resize(0x1e);                 // +0x1c
+            for (int i = 0; i < 0x1e; ++i)
+        {
+            // ORIG 0x8a5ba1d..0x8a5ba35：operator[] 取址 → ScanInt → 直 store → ok 检查
+            //（无 v 具名槽，P0）
+            param.m_baseExp[i] = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                    return false;
+        }
+    }
+    next_token:;                                      // ORIG 0x8a5b836 外层 while 条件头
+}
     return true;
 }
 

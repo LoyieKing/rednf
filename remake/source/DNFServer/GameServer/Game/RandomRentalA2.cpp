@@ -1055,6 +1055,12 @@ bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
     // `optB[slotI*3+k] = (unsigned char)v` 使 4.4 折 LHS-first/窄化中转；改权威头
     // 具名字段直访问（RandomOption::m_fields[i] 3 字节组，偏移零变化）。
 
+    // [Lane17 Q1 判据⑫ 已试并回退] ORIG clr_l=6（-0x1c/-0x68/-0x6c/-0x14/-0x10/-0xc）
+    // vs 我方 4；按「缺具名 int 局部」补 `int fieldIdx = 0;` + 循环末 `fieldIdx = fieldIdx + 1;`
+    // 后实测**反劣**：ours 435→438（gap −1→−4），我方 clr 4→5 但仍缺 1。
+    // ⇒ ORIG 的 -0x10/-0xc 两槽对应的是**循环变量 i 与 sel 的具名声明**
+    // （我方 slotI 单变量已同时承担两者、同步递增，补独立索引纯增冗余指令）。
+    // 判据⑫ 在本件不成立，已回退；give_option 残余维持 P292 族判词。
     for (int slotI = 0; slotI < quantity && slotI <= 2; ++slotI)
     {
         unsigned long bound = (unsigned long)remaining;

@@ -29,7 +29,9 @@ public:
     int m_state;          // +0x00
     short m_seq;          // +0x04
     char m_team;          // +0x06
-    char m_requestFight;  // +0x07
+    bool m_requestFight;  // +0x07（P248 档②：ORIG 0x085de18c/0x085de83e 读形
+                          // `movzbl 0x7(...),%eax; xor $0x1,%eax; test %al,%al; je`
+                          // = bool 字段直证；char 会恒缺 xor $1。偏移/sizeof 不变）
     char m_killCount;     // +0x08
     char m_pad9[3];       // +0x09
 };

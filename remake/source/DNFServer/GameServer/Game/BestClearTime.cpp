@@ -122,17 +122,20 @@ bool BestClearTime::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
     _reset();
-    const int count = *reinterpret_cast<const int*>(pData + 4);
-    for (int i = 0; i < count && i < 1000; ++i)
+    // ORIG 0x080c8776：data(-0x10)/i(-0xc) 具名；循环条件每轮重读 data+4
+    // （无 count 具名局部）；记录基址 data+i*0x18 每字段重算（无 entry 指针
+    // 缓存，P183）；make_pair 两实参为记录内 int&/SIG& 左值。
+    char* data = pData;
+    int i = 0;
+    while (i < *reinterpret_cast<int*>(data + 4) && i < 1000)
     {
-        // ORIG：make_pair<int&,SIG&>(...) → pair<int,SIG> 拷贝 →
-        // map::insert(value_type const&)（三段调用与 ORIG 展开一致）。
-        char* entry = pData + 8 + i * 0x18;
-        // b28d-lane25：P167 差集实证 ORIG 以 make_pair 右值临时直入 insert
-        // （value_type 转换构造为 move 形 C1<int,SIG>(pair<int,SIG>&&)）。
+        // ORIG：make_pair<int&,SIG&>(记录.m_key, 记录.m_data) → pair<int,SIG>
+        // 拷贝 → map::insert(value_type const&)（三段调用与 ORIG 展开一致）。
         m_map.insert(std::make_pair(
-            *reinterpret_cast<int*>(entry),
-            *reinterpret_cast<SIG_BEST_CLEAR_TIME_DIFFICULTY*>(entry + 4)));
+            *reinterpret_cast<int*>(data + i * 0x18 + 8),
+            *reinterpret_cast<SIG_BEST_CLEAR_TIME_DIFFICULTY*>(data + i * 0x18 +
+                                                               0xc)));
+        ++i;
     }
     return true;
 }
@@ -141,35 +144,38 @@ bool BestClearTime::loadData(CUser* pUser, char* pData)
 // （characNo@+0 不由本函数写，由 _saveData 填。）
 void BestClearTime::getData(char* pData) const
 {
-    // b28d-lane25：ORIG 0x080c883c 结构 = 循环头 end/ne 判定 → i>999 直接 return
-    // （不写 count）→ 两次 ptEv（first 一次、second 缓存引用一次）；正常收敛写 count。
+    // ORIG 0x080c883c 结构：data(-0x10)/i(-0xc) 具名 + begin 具名迭代器(-0x18)；
+    // 循环体先 i>0x3e7 直接 return（不写 count）；逐字段重算 i*0x18（无 entry
+    // 指针缓存，P183）；first 一次 ptEv、second 一次取值后连读 5 个 int。
+    char* data = pData;
+    int i = 0;
     std::map<int, SIG_BEST_CLEAR_TIME_DIFFICULTY>::const_iterator it =
         m_map.begin();
-    int i = 0;
     while (it != m_map.end())
     {
         if (i > 0x3e7)
             return;
-        int* entry = reinterpret_cast<int*>(pData + i * 0x18);
-        entry[2] = it->first;
+        *reinterpret_cast<int*>(data + i * 0x18 + 0x8) = it->first;
         const SIG_BEST_CLEAR_TIME_DIFFICULTY& d = it->second;
-        entry[3] = d.m_time[0];
-        entry[4] = d.m_time[1];
-        entry[5] = d.m_time[2];
-        entry[6] = d.m_time[3];
-        entry[7] = d.m_time[4];
+        *reinterpret_cast<int*>(data + i * 0x18 + 0xc) = d.m_time[0];
+        *reinterpret_cast<int*>(data + i * 0x18 + 0x10) = d.m_time[1];
+        *reinterpret_cast<int*>(data + i * 0x18 + 0x14) = d.m_time[2];
+        *reinterpret_cast<int*>(data + i * 0x18 + 0x18) = d.m_time[3];
+        *reinterpret_cast<int*>(data + i * 0x18 + 0x1c) = d.m_time[4];
         ++it;
         ++i;
     }
-    *reinterpret_cast<int*>(pData + 4) = i;
+    *reinterpret_cast<int*>(data + 4) = i;
 }
 
 // ORIG 0x080c8616：BigStreamPool 序列化 → put DB_Q（QUEUE_IDX 2）。
 bool BestClearTime::_saveData(CUser* pUser)
 {
-    Stream* stream =
-        GlobalData::s_big_stream_pool->Acquire("BestClearTime.cpp", 0x16);
-    CStreamGuard guard(stream, true);
+    // ORIG 无 stream 具名槽（P0/P259：Acquire 结果 %eax 直传 CStreamGuard C1
+    // 第二实参；旧形 +1 store/load 且 guard 槽 -0x14→-0x1c）。
+    CStreamGuard guard(
+        GlobalData::s_big_stream_pool->Acquire("BestClearTime.cpp", 0x16),
+        true);
     // ORIG 0x080c8616：`(*guard)->operator<<(x)`（operator* de() + operator<<）
     // 与 `guard->GetInBuffer`（operator-> pt()）标识调用形态，勿改为直接成员调用
     // （直接 `guard << x` 会省略 ORIG 的 de() 调用）。
@@ -177,15 +183,18 @@ bool BestClearTime::_saveData(CUser* pUser)
     (*guard)->operator<<((int)pUser->GetUID());
 
     SIG_BEST_CLEAR_TIME* sig = guard->GetInBuffer<SIG_BEST_CLEAR_TIME>();
-    bool ok = (sig != 0);
-    if (ok)
+    // ORIG：`cmpl $0,sig; jne body; mov $0,%ebx; jmp 尾部` + 尾 `mov $1,%ebx`
+    // ⇒ 返回值跨析构保活于 ebx（无 bool 槽）：早退形（旧 `bool ok` 形落槽
+    // -0x9 并令 guard 槽 -0x14→-0x18）。
+    if (sig == 0)
     {
-        memset(sig, 0, sizeof(SIG_BEST_CLEAR_TIME));
-        // ORIG 虚调 vtable slot2 = getData(char*)。
-        getData(reinterpret_cast<char*>(sig));
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(sig)) =
-            pUser->get_charac_no(-1);   // sig->characNo @+0
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        return false;
     }
-    return ok;
+    memset(sig, 0, sizeof(SIG_BEST_CLEAR_TIME));
+    // ORIG 虚调 vtable slot2 = getData(char*)。
+    getData(reinterpret_cast<char*>(sig));
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(sig)) =
+        pUser->get_charac_no(-1);   // sig->characNo @+0
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return true;
 }

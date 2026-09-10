@@ -165,14 +165,16 @@ struct SIG_BOOSTER_GAGE_DATA
 // CBoosterGage
 // ============================================================================
 
-CBoosterGage::~CBoosterGage()
-{
-}
-
 void CBoosterGage::inc_total_gage(int nGage)
 {
     alter();
     m_dwTotalGage += nGage;
+}
+
+// [GI-ioinit L21] 键名符号须为本 TU 首个强符号（P327）：inc_total_gage 前移，
+// D2 定义排其后（ORIG 的 D2 为头内 inline 弱符号，不参与键名）。
+CBoosterGage::~CBoosterGage()
+{
 }
 
 void CBoosterGage::sub_total_gage(int nGage)

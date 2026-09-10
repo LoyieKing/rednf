@@ -1,5 +1,9 @@
 // df_game_r 不适用巴尔肯事件 CNotApplyBalkeunEvent 实现。
 // 报告：docs/class_func_reports/CNotApplyBalkeunEvent/ 全部 6 个方法。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN21CNotApplyBalkeunEventC2Ev`（ORIG 0x81b9f81）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CNotApplyBalkeunEvent.h"
 
 #include "CEnvironment.h"          // G_CEnvironment / m_serverEnvir.m_channelNo

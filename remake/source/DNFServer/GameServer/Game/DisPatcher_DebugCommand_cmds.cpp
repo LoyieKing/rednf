@@ -23,6 +23,19 @@
 //   _debugCommandLevelUpDown     T 0x0858f3ba _ZN23DisPatcher_DebugCommand24_debugCommandLevelUpDownEP5CUseri
 //   _debugCommandPowerWarEnd     T 0x0859044e _ZN23DisPatcher_DebugCommand24_debugCommandPowerWarEndEP5CUser
 //   _debugCommandSetGrowType     T 0x0858ee54 _ZN23DisPatcher_DebugCommand24_debugCommandSetGrowTypeEP5CUserii
+//
+// ============================================================================
+// b28f-SweepGroup17 判词汇总（四数 21/71/1/2 保持，零回退）：
+//   · `_debugCommandGuildLevelUp`（ORIG T 0x0858f64c，NEAR 99=99，2 块）：唯一差为
+//     三个 callee-saved 结果的角色互换（ORIG `mov %eax,%esi`→第2个槽 /
+//     `mov %eax,%ebx`→第3个槽，4.4 相反）+ 对应 vararg 压栈序 `mov %esi,0x8(%esp)`
+//     ↔ `mov %ebx,0x8(%esp)`；助记符/条数/槽集全等 ⇒ P75/N82附 跨版本寄存器调度，
+//     禁绑定形（P0/N96）⇒ 封顶。
+//   · `_debugCommandSetEnchant`（ORIG T 0x0858fb4e，DIFF 109/112，8 SEM）：同族
+//     寄存器角色（`movzbl %al,%ecx`↔`%edx`、装载序）+ 槽分区 ⇒ 封顶。
+//   · p167 两件调用点差集全 CLEAN。
+//   ⇒ 本 TU 剩余真缺口 = 0。
+// ============================================================================
 //   _debugCommandGuildLevelUp    T 0x0858f64c _ZN23DisPatcher_DebugCommand25_debugCommandGuildLevelUpEP5CUser
 //   _debugCommandCargoCapacity   T 0x0858fdc8 _ZN23DisPatcher_DebugCommand26_debugCommandCargoCapacityEP5CUserR17MSG_DEBUG_COMMAND
 //   _debugCommandClearAvtInven   T 0x08590254 _ZN23DisPatcher_DebugCommand26_debugCommandClearAvtInvenEP5CUserR17MSG_DEBUG_COMMAND
@@ -630,14 +643,22 @@ bool DisPatcher_DebugCommand::_debugCommandSetEnchant(CUser* user,
             packet.put_header(0, 0xe);                          // +0xad header(0,0xe)
             packet.put_byte(msg.m_arg);                         // +0xc2 put_byte(itemspace)
             packet.put_short(1);                                // +0xdf put_short(1)
-            if (user->getCurCharacInvenR()->MakeItemPacket(     // +0x100 MakeItemPacket
+            // [b28e] ORIG 0x0858fc4e 调用点为 `call MakeItemPacket; xor $0x1,%eax;
+            // test %al,%al; je 0858fc61`（否定式直推导数，P292/P248 档①）且失败
+            // 分支是 `mov $0x0,%ebx; jmp 0858fca8`（早返 false 经 ebx 汇聚到
+            // 析构入口）⇒ 原码是 **`if (!MakeItemPacket(…)) return false;` 早返
+            // 形**；写 `if (MakeItemPacket(…)) {…; return true;}` 会反产
+            // `test; je <失败>` 并把返回值物化到第二个 callee-saved（%esi/%edi，
+            // 帧 0x30→0x3c、多 3 条）。
+            if (!user->getCurCharacInvenR()->MakeItemPacket(    // +0x100 MakeItemPacket
                     static_cast<INVEN_TYPE>(invenType),
                     msg.payload.ench.slotInt, packet))
             {
-                packet.finalize(true);                          // +0x133 finalize
-                user->Send(packet);                             // +0x14d Send
-                return true;
+                return false;
             }
+            packet.finalize(true);                              // +0x133 finalize
+            user->Send(packet);                                 // +0x14d Send
+            return true;
         }
     }
     return false;                                               // 失败析构后返 0

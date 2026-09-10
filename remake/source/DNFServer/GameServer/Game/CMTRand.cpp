@@ -99,7 +99,8 @@ void CMTRand::initialize(unsigned long s)
 // ORIG 用寄存器指针遍历，4.4 槽化，gap 59 vs 83。
 void CMTRand::reload()
 {
-    int kk;
+    // [round3-L29] P231：ORIG 以 %esi 承载 kk（`mov $0xe3,%esi`），纯 register 复现。
+    register int kk;
     for (kk = 0; kk < MT_N - MT_M; ++kk)
     {
         m_mt[kk] = twist(m_mt[kk + MT_M], m_mt[kk], m_mt[kk + 1]);
@@ -174,9 +175,11 @@ void CMTRand::seed(unsigned long* init_key, unsigned long key_length)
 {
     initialize(19650218UL);
 
-    unsigned long i = 1;
-    unsigned long j = 0;
-    unsigned long k = (key_length >= MT_N) ? key_length : MT_N;
+    // [round3-L29] P231：ORIG 以寄存器承载 i/j/k（`mov $0x1,%ebx; mov $0x0,%edi;
+    //   mov %eax,%esi`），纯 register 存储建议复现免槽形（非绑定，P0 合规）。
+    register unsigned long i = 1;
+    register unsigned long j = 0;
+    register unsigned long k = (key_length >= MT_N) ? key_length : MT_N;
 
     for (; k != 0; --k)
     {

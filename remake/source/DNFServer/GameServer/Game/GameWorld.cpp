@@ -4769,11 +4769,13 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             trace("getUserVillage() call failed");
             break;
         }
-        bool needClean = false;
+        // [L11·widthscan T1 直证] ORIG 该局部为 `movl $0x0,-0x31(%ebp)`（32 位清零）
+        // ⇒ 原码是 int（我方 bool 产 `movb $0x0`）。
+        int needClean = 0;
         if (village->get_gate_area() != from->get_area(false) &&
             from->getCurCharacVill() != 8 && (int)notify != 0x72 && (int)notify != 0x77)
         {
-            needClean = true;
+            needClean = 1;
         }
         if (needClean)
         {
@@ -5111,11 +5113,12 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
             trace("getUserVillage() call failed");
             break;
         }
-        bool needClean = false;
+        // 同上（widthscan T1 直证）：ORIG `movl $0x0,-0xNN` ⇒ int。
+        int needClean = 0;
         if (village->get_gate_area() != from->get_area(false) &&
             from->getCurCharacVill() != 8 && (int)notify != 0x72)
         {
-            needClean = true;
+            needClean = 1;
         }
         if (needClean)
         {

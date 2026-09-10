@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CReformingDanjinEvent/ 全部 6 个方法（已完整
 // 阅读 CReformingDanjinEvent / ~CReformingDanjinEvent /
 //  ~CReformingDanjinEvent_0826e978 / StartEvent / StartEvent_0826e9e8 / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN21CReformingDanjinEventC2Ev`（ORIG 0x826eacb）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CReformingDanjinEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

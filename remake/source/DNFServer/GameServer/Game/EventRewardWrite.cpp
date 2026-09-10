@@ -134,14 +134,17 @@ bool eventReward::rewardWriteUserInven(Inven_Item* item, rewardKey key, int coun
         this->m_map0.find(key);
     if (it == this->m_map0.end())
         return 0;
-    std::map<int, std::vector<itemData> >::iterator fit =
-        it->second.find(count);
-    if (fit == it->second.end())
+    // [L10-2] p167 EXTRA `_ZNKSt17_Rb_tree_iterator…ptEv` +1 ⇒ 我方比 ORIG 多一次
+    // `it->second`（4.4 每处 `it->` 各发一次 const ptEv）⇒ ORIG 为单次解引用缓存。
+    std::map<int, std::vector<itemData> >& subMap = it->second;
+    std::map<int, std::vector<itemData> >::iterator fit = subMap.find(count);
+    if (fit == subMap.end())
         return 0;
     std::vector<itemData>& vec = fit->second;
     if (vec.empty())
         return 0;
-    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); ++vit)
+    // [L10-2] P28 增量侧：ORIG 调 `ppEi`（后置）⇒ `vit++`。
+    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); vit++)
     {
                 // ORIG +0x11a..+0x134：*vit 取 m_itemIdx（ebx 跨 G_CDataManager 调用存活）
         // 直接嵌套实参；citem 判空后 +0x157 再 *vit 一次写 inven.m_addInfo。
@@ -179,9 +182,10 @@ bool eventReward::rewardWriteUserEquip(Inven_Item* item, rewardKey key, int coun
         this->m_map0.find(key);
     if (it == this->m_map0.end())
         return 0;
-    std::map<int, std::vector<itemData> >::iterator fit =
-        it->second.find(count);
-    if (fit == it->second.end())
+    // [L10-2] 同 rewardWriteUserInven：ORIG 单次解引用（消 p167 EXTRA const ptEv）。
+    std::map<int, std::vector<itemData> >& subMap = it->second;
+    std::map<int, std::vector<itemData> >::iterator fit = subMap.find(count);
+    if (fit == subMap.end())
         return 0;
     std::vector<itemData>& vec = fit->second;
     if (vec.empty())
@@ -217,14 +221,17 @@ int eventReward::sendPostalReward(CUser& user, rewardKey key, int count,
         this->m_map0.find(key);
     if (it == this->m_map0.end())
         return 0;
-    std::map<int, std::vector<itemData> >::iterator fit =
-        it->second.find(count);
-    if (fit == it->second.end())
+    // [L10-2] 同 rewardWriteUserInven：ORIG 单次解引用（消 p167 EXTRA const ptEv）。
+    std::map<int, std::vector<itemData> >& subMap = it->second;
+    std::map<int, std::vector<itemData> >::iterator fit = subMap.find(count);
+    if (fit == subMap.end())
         return 0;
     std::vector<itemData>& vec = fit->second;
     if (vec.empty())
         return 0;
-    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); ++vit)
+    // [L10-2] P28 增量侧：ORIG 调 `normal_iterator::ppEi`（后置）⇒ 源形 `vit++`；
+    // `++vit` 走 ppEv 会缺 ppEi 并多发 ppEv（p167 MISSING/EXTRA 实证）。
+    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); vit++)
     {
         const int itemIdx = vit->m_itemIdx;
         Inven_Item inven;

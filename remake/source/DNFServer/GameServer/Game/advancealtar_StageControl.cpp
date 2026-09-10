@@ -455,11 +455,12 @@ void StageControl::gotoStage(CUser* user)
 //   const_iterator（ORIG 0x08135d88/0x08135dae 段确用 `_ZNKSt4list...` const 版）⇒
 //   verdict 无改善（仍 DIFF）且本 TU 少发射 iterator→const_iterator 转换构造
 //   ⇒ check_tu identical 80→79 回退，已回退维持非 const iterator。
-// [round1-L29 2026-09-10 复核] 判据① jcc 目标逐条核对 CLEAR（仅 4 条物化段差）。本轮实测三形：
-//   `if(hit^1){}else{++count;}`（现形）、`bool hit + if(!hit)`（劣化 42 处）、X2 `hit^=1; if(hit)`
-//   （劣化 47 处）；判据⑪ 槽位逐值全等 ⇒ 非槽问题。唯一解=callee `getTowerInfo` 返回类型
-//   uchar→bool（P248 档①/P168a 定论），已上报 Main。ORIG 0x08130869 证据：
-//   `mov %al,-0x9; movzbl -0x9,%eax; xor $1,%eax; test %al,%al; jne`。
+// [round1-L29 2026-09-10 修复] 真因：callee `getTowerInfo` 权威声明**已是 bool**
+//   （advancealtar.h:421 / advancealtar_DB.cpp:314），我方却用 `unsigned char hit` 接收 ⇒
+//   4.4 折 `cmpb $1,-0x9`。改为 `const bool hit` + P223 goto 尾空标签形
+//   （`if (!hit) goto hit_done; ++count; hit_done:;`）⇒ **AE 102/102 ndiff=0**。
+//   ORIG 0x08130869 证据形：`mov %al,-0x9; movzbl -0x9,%eax; xor $1,%eax; test %al,%al;
+//   jne <skip>; addl $1,-0x14; jmp <join>; <skip>: nop`。
 int StageControl::getCenterCount() const
 {
     // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调

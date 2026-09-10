@@ -273,6 +273,23 @@ WideString trim(const WideString& str)
 // readStringFromBuffer（2 字节长度前缀缓冲读取）
 // ---------------------------------------------------------------------------
 
+// readWordFromBuffer —— [b28e-L5] 真缺口修复：ORIG 的 readStringFromBuffer 两重载里
+// 都出现 `movzwl (%eax),%edi; mov %di,_ZZ18readWordFromBufferRPcE10wordBuffer`
+// （0x08ad0130 段 / 0x08ad0460 段），而 ORIG 符号表**只有**该函数局部 static
+// （nm: `09501a1a 00000002 V _ZZ18readWordFromBufferRPcE10wordBuffer`），
+// **没有** `_Z18readWordFromBufferRPc` 独立函数符号（size 0 ⇒ 从不 out-of-line 发射）
+// ⇒ 原码是「外部链接 inline + always_inline」的 16 位读取器，调用点全部前端展开。
+// 我方原直写 `*(unsigned short*)buf; buf += 2;` 缺了这次 static 写入（真语义缺口：
+// 该缓冲被同 TU 其它读取器共享）。据此补回，inline 为外部链接（mangled 与 ORIG 同，
+// 不带 L 前缀）。
+inline __attribute__((always_inline)) unsigned short readWordFromBuffer(char*& buf)
+{
+    static unsigned short wordBuffer;                 // ORIG 0x09501a1a（sz 2, V）
+    wordBuffer = *reinterpret_cast<unsigned short*>(buf);   // mov (%eax),%reg; mov %reg16,global
+    buf += 2;
+    return wordBuffer;
+}
+
 // _Z20readStringFromBufferPciRS_ 0x08ad0130：
 // 读 ushort 长度 n（buf 前移 2），拷贝 min(n, maxLen-1) 字节并以 NUL 收尾，
 // buf 前进 n 字节。
@@ -282,8 +299,10 @@ WideString trim(const WideString& str)
 // （-0xe）、min() 折 cmovg。源形不可造，语义等价。
 void readStringFromBuffer(char* dst, int maxLen, char*& buf)
 {
-    const unsigned short n = *(unsigned short*)buf;
-    buf += 2;
+    // [b28e-L5] 改用 inline readWordFromBuffer（ORIG 在此点内联展开并写 static
+    // wordBuffer）⇒ 复现 `movzwl (%eax),%edi; mov %di,0x9501a1a; add $0x2,%eax;
+    // mov %eax,(%ebx)` 序列。
+    const unsigned short n = readWordFromBuffer(buf);
     const int len = (int)n <= maxLen - 1 ? (int)n : maxLen - 1;
     memcpy(dst, buf, len);
     dst[len] = 0;
@@ -297,8 +316,8 @@ void readStringFromBuffer(char* dst, int maxLen, char*& buf)
 // n（-0xa）+ 逐次重读 0xc(%ebp)。语义等价。
 void readStringFromBuffer(std::string& str, char*& buf)
 {
-    const unsigned short n = *(unsigned short*)buf;
-    buf += 2;
+    // [b28e-L5] 同上（ORIG 此处 `mov %si,0x9501a1a`）。
+    const unsigned short n = readWordFromBuffer(buf);
     str.resize(n + 1, 0);
     str.assign(buf, n);
     buf += n;

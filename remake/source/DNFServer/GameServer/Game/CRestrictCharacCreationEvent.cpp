@@ -3,6 +3,10 @@
 // （CRestrictCharacCreationEvent / ~CRestrictCharacCreationEvent /
 //  ~CRestrictCharacCreationEvent_08273c9a / StartEvent / StartEvent_08273d0a /
 //  EndEvent / getLimitCreateCharacter）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN28CRestrictCharacCreationEventC2Ev`（ORIG 0x8273e2a）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CRestrictCharacCreationEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

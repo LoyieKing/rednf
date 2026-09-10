@@ -108,6 +108,9 @@ bool CObjectBringUp::verifyGiveBringUpReward(
 // ②idx 类型 int→unsigned int：ORIG 0x810fd65 `lea 0x10(%eax),%edx` 先物化
 //   容器基址再载 idx（this-first），int 下标 4.4 恒 idx-first（P218 探针）。
 // 语义/调用点全等（p167 CLEAR 10/10）。
+// [L14 round2 复核] 95/94：唯一差异 = ORIG 0x0810fcea 段在**循环回边目标前**多 1 个
+// 4.1 对齐 nop（orig[37]，紧跟 `call GetInvenSlot; movzbl; mov %eax,-0xc` 之后），
+// 4.4 不发同形填充 ⇒ N112 封顶（§6.1 口径）。
 bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
                                               unsigned int itemIdx)
 {
@@ -542,6 +545,9 @@ int CExchangeRandomItemReward::verifyMaterialItemByRule(
 // check_tu 已归 ae；残余仅 make_pair 模板实参 `IRmRiE`(unsigned long&) vs
 // `IRjRiE`(unsigned int&) —— Inven_Item::m_addInfo 声明宽度的共享头旋钮，
 // 已上报 Main 决策（本 TU 单文件不可改）。
+// [L14 round2 复核] 223/223、strict ndiff=**0**：前轮 3 行「差异」全为 .o 未解析
+// 重定位的显示形（ORIG `$0x8b4c2c0/$0x8b4d400/$0x8b4c264` 串地址 vs 我方节内偏移
+// `$0x2f/$0x240/$0xe8`）⇒ 实为等价，工具 NEAR 为伪差（P264/.o 口径）。
 int CExchangeRandomItemReward::deleteUsedMaterialItem(
     CUser* user, std::vector<std::pair<int, int> >& materials,
     std::vector<std::pair<int, int> >& returnItems)

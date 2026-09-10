@@ -3,6 +3,10 @@
 // （CIntegratedPvPServerMatchEvent / ~CIntegratedPvPServerMatchEvent /
 //  ~CIntegratedPvPServerMatchEvent_0811d484 / StartEvent /
 //  StartEvent_0811d4f4 / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN30CIntegratedPvPServerMatchEventC2Ev`（ORIG 0x811d5a1）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CIntegratedPvPServerMatchEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

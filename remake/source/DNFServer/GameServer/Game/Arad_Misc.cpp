@@ -113,7 +113,13 @@ unsigned int inet_a2n(const char* addrText)
     return addr;
 }
 
-// [b28d-L1] N82 封顶：ORIG 0x08197a4d；P167 报 GAP 但 .o 实含 inet_ntoa/string C1EPKcRKSaIcE 重定位（同 init_quick_party_pool 的区间假象）。残余为帧/槽位与 EH 段形态差（real diff 55）。语义等价。
+// [L31 round3 判 N · N82 族] ORIG 0x08197a4d（sz 0x121 = 85 条）：清零形为
+//   4×`movl $0x0,{-0x2c..-0x20}`（前 16B）+ `memset(-0x1c,0,0x10)`（后 16B），
+//   且 `inet_ntoa` 两次独立调用。实测两形均不可翻：
+//   ①`char buf[0x20] = {0};` + 两次 inet_ntoa ⇒ 我方 93 条 / clean 差异 **27→87 行（反劣）**；
+//   ②原形（分段 memset + 具名 text 缓存）⇒ 58 条 / 27 行。
+//   ⇒ 4.4 对 0x20 数组 `={0}` 不产 4×movl 分段形（clr_l 恒 orig=4 our=0），属跨版本初始化器展开差，
+//   与 P312/P202 反向（那两族的 ORIG 是 rep stos 慢路）；回滚保留原形。
 std::string inet_n2a(struct in_addr addr)
 {
     // ORIG：buf[0x20] 清零后 inet_ntoa→strncpy(buf,..,0x10)；null → 空串。

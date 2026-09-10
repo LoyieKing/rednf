@@ -689,14 +689,11 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         sumKill += kill;
 
         // 维度刷图频率检测前置条件（asm +0x3be..+0x40f 组合）
-        bool dimTrack = false;
+        // [b28d-round1-L24] P0/P183：ORIG 无 bool 槽（widthscan clr_b orig=0 vs
+        // 旧码 3）⇒ 条件直接内联进 if，不设 dimTrack 具名局部（clr_b 3→2）。
         if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_89c != 1 &&
             m_battleField.m_pDungeon->get_dimension_possible() == 0 &&
             prevAux != 0 && m_field1aa0 != 1)
-        {
-            dimTrack = true;
-        }
-        if (dimTrack)
         {   // user+0x8eb48 计数超 9 归零并上报 0xdc
             ++memberUser(this, i)->m_field8eb48;
             if (9 < memberUser(this, i)->m_field8eb48)

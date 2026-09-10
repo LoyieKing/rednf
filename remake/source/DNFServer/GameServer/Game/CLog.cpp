@@ -1,6 +1,10 @@
 // df_game_r 还原 —— CLog 全局日志单例实现。
 // 报告：docs/class_func_reports/CLog/（17 函数全量转写；setLogWriterWired 无报告，
 // 按 nm 0x0854e3db objdump 转写）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN4CLog5this_E`（ORIG 0x82a3bd9）；类静态数据成员定义为首强符号。
+#include <iostream>
+
 #include <cstdarg>
 #include <sys/stat.h>
 #include <sys/types.h>

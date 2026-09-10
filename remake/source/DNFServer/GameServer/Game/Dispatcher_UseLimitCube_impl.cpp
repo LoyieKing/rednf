@@ -141,16 +141,16 @@ int Dispatcher_UseLimitCube::read(PacketBuf& packet, MSG_BASE& msg)
 //   否则构造 PacketGuard：header(1,0x153) | byte(1) | int(param.resultIdx)
 //        | short(param.resultCount) | finalize(true) → CUser::Send
 // ============================================================================
-// [b28d-28] DIFF | ORIG 0x081d4784 | P73/P248档①：ORIG bool 结果槽化
-// （`mov -0xc,%eax; test %al,%al`），4.4 产 `mov %al,-0x11; cmpb $0,-0x11`；
-// 余为帧（0x20 vs 0x30）/槽差。语义等价。
+// [round3-L30 修] ORIG 0x081d4784：error **无具名槽**（P0）——
+//   判空 `movzbl 0x4(%eax),%eax; test %al,%al`（寄存器直判），使用时**重新读**
+//   `mov -0xc(%ebp),%eax; movzbl 0x4(%eax),%eax; movzbl %al,%eax`（P48 无 CSE，
+//   两次独立字段读）⇒ 删我方 `unsigned char error` 具名局部（旧判词 P73/P248 作废）。
 void Dispatcher_UseLimitCube::send(CUser* user, ParamBase& param)
 {
     stUseLimitCube& st = *reinterpret_cast<stUseLimitCube*>(&param);
-    unsigned char error = st.m_4;        // +0x04（ORIG movzbl，send.md 0x11）
-    if (error != 0)
+    if (st.m_4 != 0)                     // +0x04（ORIG movzbl + test %al 直判）
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x153, error);
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x153, st.m_4);
         return;
     }
     int resultIdx = st.m_8;              // +0x08 movl → put_int

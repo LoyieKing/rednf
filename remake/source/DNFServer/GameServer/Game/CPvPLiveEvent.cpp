@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CPvPLiveEvent/ 全部 6 个方法（已完整阅读
 // CPvPLiveEvent / ~CPvPLiveEvent / ~CPvPLiveEvent_08268f04 / StartEvent /
 // StartEvent_08268f74 / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN13CPvPLiveEventC2Ev`（ORIG 0x8269021）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CPvPLiveEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

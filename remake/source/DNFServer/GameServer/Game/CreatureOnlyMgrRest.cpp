@@ -1,6 +1,12 @@
 // ============================================================================
 // df_game_r 还原 —— user_creature::CCreatureMgr 收尾批（CreatureOnlyMgrRest）。
 // ---- b28d-61 判词汇总（本 TU 14 件非 identical）----
+// [L14 round2 复核] 5 件逐件重核（check_tu_routed fresh 40/77/3/3）：
+//   ChangeOwner 121/121、ChangeSlotNo 127/127、InsertCreatureItemResult 81/81 —— 0 差异块；
+//   槽直方图 (a) 相对序（ORIG -0x3c/-0x34/-0x2c 对我方 -0x38/-0x30/-0x20，最小差 3~4，
+//   非恒定平移），声明序/聚合化/volatile/framePad 四形前轮已实测不可翻 ⇒ 维持 N82附/N115；
+//   SetOverSkillTime 215/220（N115 帧 + N97 /1000 lowering）、SaveCreatureItem 156/165
+//   （我方多 push %edi + 槽浅 0x10）⇒ 维持原判词。
 // 已修 AE：UpdateCreatureItemResult（显式指针算术 `(char*)sig+4` 复现 ORIG lea）、
 //   EventEvoluteCreature（P222 正向包裹翻 setge 极性）。
 // N 封顶（ORIG 地址见各函数头/报告）：

@@ -22,7 +22,8 @@ public:
     BlueMarbleTileScript* getTile(unsigned int zone);
     // b28d-168a①：ORIG initMapList 调用点同 initTileList（xor $1 取反形）；
     // 定义属主非本泳道（R1）⇒ 保留 int。
-    int importScript(const char* path);
+    bool importScript(const char* path);   // [b29 R20] ORIG initMapList 0x088d6560 调用后
+                                           // `xor $1,%eax; test %al,%al; je` ⇒ bool（P248 档①）
 
     // BlueMarble::setMaxBoardSize（ORIG T 0x080d6e88）把 getMap() 返回值直接作为
     // `std::vector<BlueMarbleTileScript*>::size` 的 this（+0x00 == m_tiles），

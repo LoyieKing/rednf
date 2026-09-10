@@ -149,16 +149,16 @@ void CRelayBattleMgr::OnReady(int seat, bool ready)
     m_battles[seat].m_state = ready ? 1 : 0;
 }
 
-// b28d-31: N 封顶（N96+N18a，复核 b28c-L18）——ORIG 0x085de83e；ORIG
-// `xor $0x1,%eax` 寄存器物化（m_requestFight bool 裸形），4.4 无绑定不可达。
+// ORIG 0x085de18c：条件读形 `movzbl 0x7(%eax,%ecx,1),%eax; xor $0x1,%eax;
+// test %al,%al; je`。旧判词 N96+N18a（"寄存器物化无绑定不可达"）已作废——
+// 正解 = 字段 m_requestFight **bool 化**（P248 档②）+ 裸 if(!f)，零布局影响。
 void CRelayBattleMgr::OnRequestFight(int seat)
 {
     if (seat < 0)
         return;
     if (seat > 7)
         return;
-    // [b28c-L18-unbind] P0：register asm("eax") 绑定清除，改自然形
-    // （ORIG `movzbl;xor$1;test` 寄存器物化为 4.1 分配产物，N96+N18a+P168a④）。
+    // [b29 P248档②] 字段 bool 化后裸形即复现 ORIG `movzbl; xor$1; test`（P0 合规）。
     if (!m_battles[seat].m_requestFight)
     {
         m_battles[seat].m_requestFight = 1;
@@ -338,7 +338,7 @@ void CRelayBattleMgr::ArrangeNoChangeSequence(std::vector<int>& seq, int team,
     {
         if (m_battles[i].m_team == team && m_battles[i].m_state == 1)
         {
-            // [b28c-L18-unbind] P0：绑定清除改自然形（N96+N18a+P168a④）。
+            // [b29 P248档②] 同 OnRequestFight：bool 字段 + 裸形。
             if (!m_battles[i].m_requestFight)
             {
                 m_battles[i].m_seq = (short)seq[outIdx++];
@@ -408,8 +408,8 @@ int CRelayBattleMgr::TurnPlayer()
     {
         return 1;
     }
-    int index;
     PacketGuard guard;
+    int index;   // ORIG -0x28（比 guard -0x24 深；4.4 把聚合放最深 ⇒ NEAR 槽互换，N82附）
     int seat;
     int team;
     int count;
@@ -422,12 +422,12 @@ int CRelayBattleMgr::TurnPlayer()
         guard.put_byte(seat);
         index = guard.get_index();
         count = 0;
-        guard.put_byte(0);
+        guard.put_byte(count);   // ORIG 0x085deb71/0x085deb74：读 count 槽（非立即数）
         if (m_changeSeqCount[team] > 0)
         {
             for (i = 0; i < 8; ++i)
             {
-                if (m_battles[i].m_requestFight != 0 &&
+                if (m_battles[i].m_requestFight &&
                     m_battles[i].m_team == team)
                 {
                     guard.put_byte(i);

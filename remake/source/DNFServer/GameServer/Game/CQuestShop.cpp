@@ -482,7 +482,10 @@ bool CQuestShop::_saveData(CUser* user)
          it != itEnd; ++it)
     {
         const unsigned char key = it->first;        // -0xb
-        const unsigned short value = static_cast<unsigned short>(it->second);
+        // [L11·round3] 目标成员 `m_statusCounts` 已定稿为 unsigned short（ORIG SetTag
+        // 的 make_pair `IRiRt` 直证）⇒ 此处 value 保持 **short**（与目标异型，P211 档③）
+        // 以保留 ORIG 的 store 装载序（同型化会把 `mov -0x10(%ebp),%eax` 提前 1 条）。
+        const short value = static_cast<short>(it->second);
         if (it->first > 0x4c)                       // cmp $0x4c seta → skip
             continue;
         view->m_main.m_statusCounts[key] = value;   // mov %cx,0xc(key*2)

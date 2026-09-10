@@ -956,8 +956,12 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
         STExpReward growthView;                            // [ctor -0x3c]
         growthView.m_reward =
             user->get_growth_power_exp_reward().m_reward;  // [sret 临时 + mov dword]
-        float seriaRatio =
-            static_cast<float>((growthView.m_reward >> 8) & 0xff) / 2.0f;
+        // [判据⑫/ORIG 0x085a2558..0x085a2563] ORIG 双 movzbl（`movzbl -0x3b,%eax;
+        //   movzbl %al,%eax; mov %ax,-0x5e; filds -0x5e`）= 源为「short←uchar 两级窄化」
+        //   ⇒ 试形：显式 (short)(unsigned char) 链复现两次零扩展 + filds 短装载。
+        float seriaRatio = static_cast<float>(
+            static_cast<short>(static_cast<unsigned char>(
+                (growthView.m_reward >> 8) & 0xff))) / 2.0f;
         // fildll(exp)*fmuls(ratio) → fistpl
         seriaBonus = static_cast<int>(
             static_cast<double>(static_cast<unsigned long long>(baseExp)) *

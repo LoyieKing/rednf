@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CUnlimitFatigueEvent/ 全部 6 个方法（已完整阅读
 // CUnlimitFatigueEvent / ~CUnlimitFatigueEvent / ~CUnlimitFatigueEvent_08285c90 /
 // StartEvent / StartEvent_08285d00 / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN20CUnlimitFatigueEventC2Ev`（ORIG 0x8285de3）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CUnlimitFatigueEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

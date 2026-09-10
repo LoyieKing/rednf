@@ -4,6 +4,10 @@
 // TurnOffEvent 0x0863bc87 / GetEventInterval 0x084e9294）。
 // ORIG 为静态成员 + 3 个静态数据（B 符号），见 CServerEvent.h。
 
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN12CServerEvent10m_nExpRateE`（ORIG 0x8366034）；类静态数据定义为首强符号。
+#include <iostream>
+
 #include "CServerEvent.h"
 
 int CServerEvent::m_nExpRate = 0;              // 0x943c138

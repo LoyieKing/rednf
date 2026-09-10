@@ -8,6 +8,10 @@
 // +0x0c 为会员经验加成比值（千分数）：GetMemberExpRewardRatio 直返；
 // StartEvent()/EndEvent 重置为 10；StartEvent(Word_Param) 写 param。
 // ORIG 追踪用 __FUNCTION__（_ZZN21CMemberExpRewardEvent*E12__FUNCTION__）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN21CMemberExpRewardEventC2Ev`（ORIG 0x81b2b01）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CMemberExpRewardEvent.h"
 #include "GameTypes.h"   // cMyTrace
 // ORIG 0x081b2990：置标志；比值重置为 10；trace 行号 22。

@@ -186,7 +186,10 @@ bool CCharacBloodDungeon::_saveData(CUser* pUser)  // ORIG 0x832a330
 
     SIG_BLOOD_DUNGEON* sig = guard.operator->()->GetInBuffer<SIG_BLOOD_DUNGEON>();
     memset(sig, 0, sizeof(SIG_BLOOD_DUNGEON));   // ORIG memset 0x28
-    sig->m_characNo = (int)pUser->getCurCharacNo();
+    // [P211 档③] ORIG 0x0832a3e7 `mov -0xc(%ebp),%edx; mov %eax,(%edx)` = LHS-first
+    // 直存 ⇒ 目标字段与 RHS 须同型；旧码 `(int)` 显式 cast 使 4.4 走 RHS-first+中转
+    //   （`mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`）⇒ 删 cast 试同型化。
+    sig->m_characNo = pUser->getCurCharacNo();
     sig->m_point = m_point;                      // this+0x08 → sig+0x04
     sig->m_weeklyEnterCount = m_weeklyEnterCount;
     sig->m_useGold = m_useGold;

@@ -2672,14 +2672,21 @@ bool SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
             if (expertScript != 0)
             {
                 found = false;
+                // [round1-L19 2026-09-09] P323/P96：oracle 视图须为 **const**
+                // vector —— 非 const 视图使 `.begin()` 返回 iterator 而变量声明为
+                // const_iterator ⇒ 4.4 生成混合实例 `__gnu_cxx::ne<const pair*,
+                // pair*, vector>`（p167 EXTRA +1）；const 视图后两侧同型 const
+                // ⇒ `ne<const pair*, vector>` 与 ORIG 一致。
                 std::vector<std::pair<int, int> >::const_iterator eit =
-                    (*(std::vector<std::pair<int, int> >*)(
-                         (char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
-                        .begin();
+                    ((const std::vector<std::pair<int, int> >*)&
+                     reinterpret_cast<STExpertJobScript*>(expertScript)
+                         ->m_growSkillVec)
+                        ->begin();
                 while (eit !=
-                       (*(std::vector<std::pair<int, int> >*)(
-                            (char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
-                           .end())
+                       ((const std::vector<std::pair<int, int> >*)&
+                        reinterpret_cast<STExpertJobScript*>(expertScript)
+                            ->m_growSkillVec)
+                           ->end())
                 {
                     if (eit->first == (unsigned char)buf[i].m_index)
                     {

@@ -175,7 +175,13 @@ bool CAccountCargo::CheckInsertCondition(Inven_Item& item)
         // （P0/P28），跳表覆盖 0..5（P163 补未列 case 0/4/5 撑宽 range）；
         // case 3 判定为 `m_field0 == 0 → return 0`（ORIG `xor $1; test; je 继续`，
         // 原 `!= 1` 会误拒 m_field0>=2 的物品=真语义 bug）。
-        int attachType = ci->GetAttachType();
+        // [L8 2026-09-10 判据⑨ 旧判词重核] ORIG 0x08289b56 段为**跳转表**
+        // （`mov -0x14(%ebp),%eax; cmp $0x5,%eax; ja +0x13e; mov <A>(,%eax,4),%eax;
+        // jmp *%eax`，6 项 0..5）且用**无符号** `ja`。旧判词「补 case 0/4/5 反生
+        // bitmask」是在 `int` 表达式下测的（有符号 lowering）；改 **unsigned** 并补
+        // [L8 实测] 补 case 0/4/5 反使 4.4 走 **bitmask**（`mov $0x1,%edx; shl %cl,%ebx`
+        // 段，189 条 > 原 177）⇒ 已回退补 case，仅保留 **unsigned** 表达式。
+        unsigned int attachType = (unsigned int)ci->GetAttachType();
         switch (attachType) {
         case 1:
         case 2:
@@ -302,7 +308,12 @@ bool CAccountCargo::CheckSlotEmpty(int slot)
     // je BODY; mov $0,%eax; jmp end; BODY: …` —— return 0 块在前、命中路径跳走。
     if (!CheckValidSlot(slot))
         return 0;
-    return m_slots[slot].m_addInfo == 0 ? 1 : 0;
+    // [L8 2026-09-10 P56/P47] ORIG 0x0828a607 段为**分支形态**（`test %eax,%eax;
+    // jne L; mov $0x1,%eax; jmp end; L: mov $0x0,%eax`）；三目 `? 1 : 0` 4.4 恒折
+    // `sete %al`（ndiff=5 的唯一残差）⇒ 改写 if-return 两条。
+    if (m_slots[slot].m_addInfo == 0)
+        return 1;
+    return 0;
 }
 
 int CAccountCargo::GetSpecificItemSlot(int itemIdx)

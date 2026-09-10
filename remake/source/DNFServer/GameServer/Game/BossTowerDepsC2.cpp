@@ -67,19 +67,11 @@ void CForcedMoveCharacter::ForcedMove()
 
     // ORIG：%al 标志直传（无内存 bool 中转）。先比村庄（movsbl 后有符号
     // 比较），不等即走 move_area；相等再比 get_area(false)，均等才原地
-    // set_position。
-    int needMove = 0;
-    if (static_cast<int>(static_cast<signed char>(m_user->getCurCharacVill())) !=
-        m_destVill)
-    {
-        needMove = 1;
-    }
-    else if (m_user->get_area(false) != m_destArea)
-    {
-        needMove = 1;
-    }
-
-    if (needMove)
+    // set_position。短路结果无槽物化 ⇒ P226 语句表达式（旧具名 int
+    // needMove 落槽致帧/指令膨胀）。ORIG 0x082e567c。
+    if (({ static_cast<int>(static_cast<signed char>(m_user->getCurCharacVill())) !=
+            m_destVill ||
+          m_user->get_area(false) != m_destArea; }))
     {
         G_GameWorld()->move_area(m_user, m_destVill, m_destArea, m_x, m_y,
                                  m_dir, false, 0, 0, 0);
@@ -112,39 +104,32 @@ void CForcedMoveCharacter::ForcedMove()
 // getPowerSide 两次独立调用（ORIG 指令流如此）；非 1/2 时其余字段不写
 // （保持未初始化栈值，与 ORIG 一致）。
 // ============================================================================
-// [b28d-L8] N82 | 帧差 0x38 vs 0x48 + 缓存槽（具名局部 vs 直读，ORIG 0x08xxxxxx）
+// [b28d-L8][W6] P226：ORIG 短路 bool 无槽物化（%eax 直传 + test %al,%al; je 尾）
+// ⇒ 用语句表达式包住整个 && 条件（内不含具名变量），消掉 int enter 落槽
+// （旧形帧 0x48 vs ORIG 0x38）。ORIG 0x082ed6a6。
 void CAssaultPlace::ForcedMoveAtPowerWarPlace(CUser* user)
 {
-    int enter = 0;
-    if (GlobalData::s_power_manager->IsPowerWarEventOn())
+    if (({ GlobalData::s_power_manager->IsPowerWarEventOn() &&
+           user->getCurCharacVill() == 7; }))
     {
-        if (user->getCurCharacVill() == 7)
+        CForcedMoveCharacter request;   // ORIG 栈对象，无构造调用
+        request.m_user = user;
+        if (user->getPowerSide() == 1)
         {
-            enter = 1;
+            request.m_destVill = 7;
+            request.m_destArea = 0;
+            request.m_x = 0x255;
+            request.m_y = 300;
         }
+        else if (user->getPowerSide() == 2)
+        {
+            request.m_destVill = 7;
+            request.m_destArea = 4;
+            request.m_x = 0x139;
+            request.m_y = 0x13a;
+        }
+        request.ForcedMove();
     }
-    if (!enter)
-    {
-        return;
-    }
-
-    CForcedMoveCharacter request;   // ORIG 栈对象，无构造调用
-    request.m_user = user;
-    if (user->getPowerSide() == 1)
-    {
-        request.m_destVill = 7;
-        request.m_destArea = 0;
-        request.m_x = 0x255;
-        request.m_y = 300;
-    }
-    else if (user->getPowerSide() == 2)
-    {
-        request.m_destVill = 7;
-        request.m_destArea = 4;
-        request.m_x = 0x139;
-        request.m_y = 0x13a;
-    }
-    request.ForcedMove();
 }
 
 // ============================================================================
@@ -214,10 +199,12 @@ int TowerOfDespairMgr::CheckEnterable(CUser* user, const CDungeon* dungeon)
     {
         if (!user->isGMUser())
         {
-            long curSec = GlobalData::s_systemTime_.getCurSec();
-            long lastClearTime = state->getLastClearTime();
+            // ORIG：两值跨后续调用保活于 callee-saved（%esi/%ebx，无栈槽）⇒
+            // 按实参右→左求值内联书写（P0/P52），勿落具名局部（旧形两槽
+            // ⇒ 帧 0x60→0x78 且缺 push %esi/%ebx）。
             if (!CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                                        lastClearTime, curSec))
+                                        state->getLastClearTime(),
+                                        GlobalData::s_systemTime_.getCurSec()))
             {
                 return 0xf5;
             }

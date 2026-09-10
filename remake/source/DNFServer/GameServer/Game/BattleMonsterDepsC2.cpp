@@ -1263,7 +1263,9 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
         {
             // [b28d-Lane27] ORIG 槽位：map=-0x2c / i=-0x28（map **先声明**更深）⇒ 把
             // map 提到 for 之前声明（P212/P331 同尺寸标量声明序）。
-            CMap* map = NULL;
+            // [L27-r2·判据⑩②/widthscan] ORIG 该槽无零初始化（我方 `movl $0x0,-0x2c` 为多出）
+            //   ⇒ 先声明、循环内赋值（P198 孪生）。
+            CMap* map;
             for (unsigned int i = 0; i < gs->m_secondCandidates.size(); ++i)
             {
                 map = static_cast<CMap*>(
@@ -1310,7 +1312,8 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
         else
         {
             // [b28d-Lane27] ORIG 槽位：map=-0x24 / i=-0x20（map 先声明更深）。
-            CMap* map = NULL;
+            // [L27-r2·判据⑩②/widthscan] 同上：去 `= NULL` 消 `movl $0x0,-0x24`。
+            CMap* map;
             for (unsigned int i = 0; i < gs->m_mapCandidates.size(); ++i)
             {
                 map = static_cast<CMap*>(

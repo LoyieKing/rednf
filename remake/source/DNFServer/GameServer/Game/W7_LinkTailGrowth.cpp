@@ -122,6 +122,8 @@ bool stSeriaBlessingScript::get_value(int lv, Value& out)
     // N93/N98 封顶：「先声明后赋值」形引入迭代器 C1Ev 默认构造 call + 临时槽拷贝
     // （72 insn，P50/N86），已实测回退；声明序再换会翻构造序（call 块序）反劣。
     FindOneByLv pred(lv);                                   // ORIG 构造序第 1（+0x13）
+    // [L27-r3·判据⑩ 已实测] 声明序翻转（it 先 / itEnd 后）对本件**无效**：两槽仍互换
+    //   （ORIG itEnd=-0x18/it=-0x10 vs 我方恒反）且 call 块序受影响 ⇒ 维持原声明序、判 N。
     std::map<int, Value>::iterator itEnd = m_map0.end();    // ORIG 构造序第 2（+0x25）
     std::map<int, Value>::iterator it = m_map0.begin();     // ORIG 构造序第 3（+0x3a）
     std::map<int, Value>::iterator found = std::find_if(it, itEnd, pred);  // ORIG：返回值独立变量

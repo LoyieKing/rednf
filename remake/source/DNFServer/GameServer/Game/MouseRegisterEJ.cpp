@@ -219,9 +219,17 @@ MySQL* DB_MouseRegister::_getDBHandleForDevideAccountDB()
     return db;
 }
 
-// [b28d-47] verdict=DIFF(routed) [N93附] ORIG 0x084231b6 orig/ours=74/75
-//   残差：尾部双 return 块发射序相反（ORIG Bfalse-ret0 前/Btrue-ret1 后，4.4 恒反）
-//   + 1 条 jmp 中继；P222 两形互试已做（反劣 79），N93附 封顶。
+// [b28d-47 / b28c-R26 复验] verdict=DIFF(routed) [N93附 + P168a③] ORIG 0x084231b6
+//   orig/ours=74/75；p167 调用点差集 CLEAR（ORIG calls=12 / OUR calls=12，无 MISSING/EXTRA）。
+//   残差两处均为跨版本 codegen、无源形解：
+//   ① ORIG 尾 0x084232db `test %al,%al`（紧随 `xor $0x1,%eax`）是 4.1 对
+//      `return !exec()` 的 bool 归一落空指令（dead test，无分支消费者）；
+//      P168a③ 总闸实测 4.4 恒以 `movzbl %al,%eax` 加宽顶掉 dead test。
+//   ② ORIG 的 `mov $0,%eax`(0x0842328b) 同时服务条件汇聚 r=false 与 `return false`
+//      （4.1 尾常量共享，函数只有一处 mov $0）；4.4 恒在函数尾另发 `mov $0,%eax`
+//      并使 insert 块尾多发 `jmp` 中继（N93附 尾块发射序）。
+//   已试形（本轮复验）：① if/else 具名 else{return false;}（四数不变，仍 DIFF）；
+//   ② 早返回正向形 / `if(exec) return false;`（判词记录 79 insn 反劣，mov$0/mov$1 双岛）。
 bool DB_MouseRegister::_updateFailCnt(unsigned int mid, int failCnt, char* ip)
 {
     (void)ip;   // ORIG 形参未被函数体消费（Ghidra 同）。
@@ -710,31 +718,44 @@ namespace expert_job {
 //   type==2 仅虚槽(user,2)；其它类型无副作用。
 // 虚槽经 vptr 偏移 +0x04 显式调用：与 ORIG 指令逐条对应；CExpertJob 虚表槽序
 // 审计收敛后可替换回语义虚调用。
-// [b28d-47] verdict=DIFF(routed) [N7/N82] ORIG 0x0849dcc4 orig/ours=64/59
-//   残差：虚槽调用寄存器角色 + 槽/帧分配跨版本差（ORIG 经 vptr+0x04 显式虚调）。
+// [b28d-47 / b28c-R26 复验] verdict=NEAR(routed) [N7] ORIG 0x0849dcc4 orig/ours=64/64
+//   本轮改动（DIFF→NEAR，两处）：
+//   ① if/else-if 链 → switch(type)：ORIG 0x0849dcd1 先 `mov 0x14(%ebp),%eax` 再
+//      寄存器比较链（cmp $1/je、cmp $2/je、test/jne），三叶块物理序 = case 书写序
+//      0→1→2（ORIG 0x0849dcea case0 直落 / +0x65 case1 / +0xa6 case2）⇒ P251/P286/P324；
+//   ② case1 内 `if (ret != 0)` → `while (ret != 0) { …; break; }`：复现 ORIG
+//      0x0849dd45 `cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`（P225）。
+//   残差 = N7（4.4.7 间接 call 目标恒 %eax；ORIG 0x0849dd0e `mov (%eax),%edx` +
+//   `call *%edx`，我方 `mov (%eax),%eax` + `call *%eax`），属寄存器角色跨版本差。
 int CEnchanter::_TryEnchant(CUser* user, stItemPos_t* pos,
                             ENUM_TRY_ENCHANT_TYPE type)
 {
     int ret = 0;
 
     typedef void (*CloseFn)(void*, CUser*, int);
-    if (type == ENUM_TRY_ENCHANT_TYPE_1)
+    // P251/P286/P324：ORIG 0x0849dcd1 先 `mov 0x14(%ebp),%eax` 再寄存器比较链
+    // （cmp $1/je、cmp $2/je、test/jne），且三叶块物理序 = case 书写序 0→1→2
+    // （ORIG 0x0849dcea case0 直落、+0x65 case1、+0xa6 case2）⇒ 原码是 switch(type)。
+    switch (type)
     {
+    case ENUM_TRY_ENCHANT_TYPE_0:
+        ret = _TryEnchantMine(user, pos);
+        (*(CloseFn*)(*(void* const*)this + 0x04))(this, user, 0);
+        break;
+    case ENUM_TRY_ENCHANT_TYPE_1:
         ret = _TryEnchantOther(user, pos);
-        if (ret != 0)
+        // P225：ORIG 0x0849dd45 `cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`
+        // 为 4.1 槽比零的 bool 物化；4.4 对 if 恒出 cmp/jne 直跳 ⇒ 用 while+break 复现。
+        while (ret != 0)
         {
             m_materials[1].Reset();                       // this+0x18 材料②复位
             m_field40 = 0;                                // 登记配方物品清空
+            break;
         }
-    }
-    else if (type == ENUM_TRY_ENCHANT_TYPE_2)
-    {
+        break;
+    case ENUM_TRY_ENCHANT_TYPE_2:
         (*(CloseFn*)(*(void* const*)this + 0x04))(this, user, 2);
-    }
-    else if (type == ENUM_TRY_ENCHANT_TYPE_0)
-    {
-        ret = _TryEnchantMine(user, pos);
-        (*(CloseFn*)(*(void* const*)this + 0x04))(this, user, 0);
+        break;
     }
     return ret;
 }
@@ -820,8 +841,12 @@ void CExpertJobStatistic::UpdateExpertJob()
     guard.operator*()->operator<<(0x182);
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(static_cast<int>(m_counts.size()));
-    for (std::map<ExpertJobKey, int>::const_iterator it = m_counts.begin();
-         it != m_counts.end(); ++it)
+    // 判据⑩/P326：ORIG 0x0860fba7 在循环外构造 end 迭代器（-0x20），循环条件只调 ne；
+    // 内联 `it != m_counts.end()` 会被 4.4 搬进条件块每轮重算并占浅槽 -0x10
+    // （ORIG 该槽是 begin() 的返回临时）⇒ 具名 end（声明在 it 之后，保持 begin→end 构造序）。
+    std::map<ExpertJobKey, int>::const_iterator it = m_counts.begin();
+    std::map<ExpertJobKey, int>::const_iterator itEnd = m_counts.end();
+    for (; it != itEnd; ++it)
     {
         guard.operator*()->operator<<(it->first.m_field00);
         guard.operator*()->operator<<(static_cast<int>(it->first.m_itemIdx04));

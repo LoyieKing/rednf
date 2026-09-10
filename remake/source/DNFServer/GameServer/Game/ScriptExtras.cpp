@@ -288,7 +288,9 @@ bool loadRDARNameFile(STNameList* list, const char* dir, const char* file)
     list->Clear();
 
     std::string name;
-    bool ok = false;
+    // [L10-2] 判据⑫ widthscan：ORIG `clr_b=0`（无带初始化器的 bool 局部）⇒
+    // 按 P171 照抄去掉 `= false`；ok 由 ScanInt 写入后读取，语义等价。
+    bool ok;
     for (;;)
     {
         if (!ScanStr(&name))
@@ -321,7 +323,8 @@ bool addRDARScriptListFile(STScriptFileList* list, const char* dir, const char* 
         return false;
 
     std::string name;
-    bool ok = false;
+    // [L10-2] 判据⑫：同 loadRDARNameFile（ORIG clr_b=0）⇒ 去初始化器。
+    bool ok;
     for (;;)
     {
         int idx = ScanInt(&ok);

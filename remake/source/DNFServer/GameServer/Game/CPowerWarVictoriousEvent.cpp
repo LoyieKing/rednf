@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CPowerWarVictoriousEvent/ 全部 6 个方法
 // （CPowerWarVictoriousEvent / ~CPowerWarVictoriousEvent / ~CPowerWarVictoriousEvent_08268968 /
 //  StartEvent / StartEvent_08268a68 / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN24CPowerWarVictoriousEventC2Ev`（ORIG 0x8268c0b）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CPowerWarVictoriousEvent.h"
 
 #include "CEnvironment.h"          // G_CEnvironment / m_serverEnvir.m_channelNo

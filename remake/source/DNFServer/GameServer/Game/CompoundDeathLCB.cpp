@@ -398,12 +398,10 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
     {
         return 0x17;
     }
-    // ORIG 两个独立守卫（0x08332687 / 0x08332691 各 je/jne 直跳统一出口，P133）。
-    if (info.m_materialA.m_addInfo == 0)
-    {
-        return 0x11;
-    }
-    if (info.m_materialB.m_addInfo == 0)
+    // [b28e] ORIG 0x08332687/0x08332691 为 `test a; je L11` + `test b; jne NEXT`
+    // —— **两跳同落同一个 `mov $0x11` 共享块 L11**（P272 双跳同落 then 形），
+    // 两个独立 if-return 会各发一份 `mov $0x11` 岛。
+    if (info.m_materialA.m_addInfo == 0 || info.m_materialB.m_addInfo == 0)
     {
         return 0x11;
     }
@@ -471,12 +469,20 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
         }
         else
         {
-            if (info.m_scriptA->get_grade() != rec->m_flag2dc)
+            // [b28e] ORIG 0x083329cc 段为 `cmp; sete %al; test %al,%al; je
+            // <0x08332a8d: mov $1; jmp>`（相等 → 直落 begin/end，不等 → 跳出到
+            // 返回 1 岛）⇒ 原码是 **正极性 if(==){…} else {return 1;}** 的
+            // if/else 形，而非 `if(!=) return 1;` 早返（早返令 4.4 产
+            // `setne; test; je 越过 mov$1` 的镜像块序）。
+            if (info.m_scriptA->get_grade() == rec->m_flag2dc)
+            {
+                it = rec->m_optsB[CI_SubType(info.m_scriptA)].begin();
+                last = rec->m_optsB[CI_SubType(info.m_scriptA)].end();
+            }
+            else
             {
                 return 1;
             }
-            it = rec->m_optsB[CI_SubType(info.m_scriptA)].begin();
-            last = rec->m_optsB[CI_SubType(info.m_scriptA)].end();
         }
         // [b28d-solo-CompoundDeathLCB] ORIG 循环体为 `cmp; sete %al; test %al,%al;
         // jne <找到出口>` 的 bool 物化形（P225）⇒ 拆成 while(条件) + if break，
@@ -501,8 +507,12 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
     {
         return 0x17;
     }
-    if (static_cast<int>(rec->m_flag2dc) < info.m_scriptA->get_grade() ||
-        static_cast<int>(rec->m_flag2dc) < info.m_scriptB->get_grade())
+    // [b28e] ORIG 0x08332b58/0x08332b6a 先 `call get_grade` 再装
+    // `rec->m_flag2dc`（`mov -0x1c(%ebp),%edx; mov 0x2dc(%edx),%edx; cmp
+    // %edx,%eax; jg/jle`）= 左操作数是 get_grade() 的 `>` 书写形；写
+    // `flag2dc < get_grade()` 会令 4.4 先把 flag2dc 缓存进 %ebx 再 call（求值序反）。
+    if (info.m_scriptA->get_grade() > rec->m_flag2dc ||
+        info.m_scriptB->get_grade() > rec->m_flag2dc)
     {
         return 0x17;
     }
@@ -954,8 +964,9 @@ void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
     //   it -0x30）⇒ NEAR→**DIFF**（near 2→1 / diff 3→4）反劣，已回滚。
     //   维持原序（find→end）封顶 N86/N93。
     const BestMap::const_iterator it = best->find(key);
-    const BestMap::const_iterator last = best->end();
-    if (it == last)
+    // [b28f-SweepGroup17 判据⑩ 配方①（L29）] ORIG 不给 end() 具名槽 ⇒ 内联 end()
+    //   调用（不落 `last` 对象槽），只保留 it 具名 + end() 的 sret 临时。
+    if (it == best->end())
     {
         packet.put_byte(0);
     }

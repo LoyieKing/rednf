@@ -26,6 +26,7 @@
 
 #include <map>
 #include <sys/time.h>
+#include <stddef.h>
 
 namespace message_counter
 {
@@ -50,8 +51,20 @@ public:
     // 不发 ctor 符号，语义与原手写清零一致。
 
     int           m_count;      // pair+0x08
-    unsigned int  m_bytesLow;   // pair+0x0c
-    unsigned int  m_bytesHigh;  // pair+0x10
+    // [R29-1] ORIG IncreaseMessage 0x0856fa8a 段对 +0x0c/+0x10 发
+    // `mov 0xc(%ecx),%eax; mov 0x10(%ecx),%edx; add -0x98(%ebp),%eax;
+    //  adc -0x94(%ebp),%edx; mov %eax,0xc(%ecx); mov %edx,0x10(%ecx)`
+    // = 一次 64 位 `+=`（add/adc 对），故 bytes 为 64 位整型视角；
+    // 低/高 32 位名保留（WriteLog 消费）。sizeof/偏移零变化。
+    union
+    {
+        unsigned long long m_bytes;     // pair+0x0c（低@+0x0c 高@+0x10）
+        struct
+        {
+            unsigned int  m_bytesLow;   // pair+0x0c
+            unsigned int  m_bytesHigh;  // pair+0x10
+        };
+    };
     double        m_avg;        // pair+0x14
 };
 
@@ -68,10 +81,20 @@ protected:
     struct timeval m_last;            // +0x04
 };                                    // sizeof = 0xc
 
+// [R29-1] 布局锁（union 视角零影响验证；ORIG pair+0x08/+0x0c/+0x10/+0x14 实证）
+static_assert(sizeof(MessageValue) == 0x14, "MessageValue size drift");
+static_assert(offsetof(MessageValue, m_count) == 0x0, "m_count @+0x0");
+static_assert(offsetof(MessageValue, m_bytes) == 0x4, "m_bytes @+0x4");
+static_assert(offsetof(MessageValue, m_bytesLow) == 0x4, "m_bytesLow @+0x4");
+static_assert(offsetof(MessageValue, m_bytesHigh) == 0x8, "m_bytesHigh @+0x8");
+static_assert(offsetof(MessageValue, m_avg) == 0xc, "m_avg @+0xc");
+
 class CUnixTimeInterval : public CTimeInterval
 {
 public:
-    CUnixTimeInterval();
+    // [R29-2] 用户 ctor 已删（P299/CWG434）：ORIG nm 中 C1Ev/C2Ev 为 **W** size 0x1c
+    // ⇒ 原码无用户提供默认 ctor；删后 `new CUnixTimeInterval()` 的 value-init
+    // 前置清零（ORIG Create 0x0856f974 三 movl $0）才能发射。
     virtual void SetLastTime();       // W 0x08570236 gettimeofday→成员
     virtual long long GetTimeInterval(); // W 0x08570254 毫秒差取整
 };

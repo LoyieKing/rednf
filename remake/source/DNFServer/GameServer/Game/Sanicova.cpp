@@ -43,14 +43,19 @@ void CPad::reset()
     {
         int checkTime = (int)(m_checkTime28 + 0xb4);
         int curTime = (int)time(0);
-        cMyTrace trace1(__PRETTY_FUNCTION__, 65, 0);
-        trace1("[Before]Goblin Certified check_time(%d), cur_time(%d), Certified(%d)",
-               checkTime, curTime, m_certified25);
+        // [b28f-SweepGroupR3 P227] ORIG 0x08599616 在 C1 call **之前**右起求 varargs
+        //   并把 `m_certified25` 读入 **callee-saved %ebx** 跨 ctor 保活
+        //   （`movzbl 0x25(%eax),%eax; movzbl %al,%ebx` → `mov %ebx,0x10(%esp)`）；
+        //   两语句形（具名 trace1/trace2）4.4 只在 ctor 后才求实参 ⇒ 每次重读内存
+        //   + 少 push %ebx。改全表达式临时链即复现。
+        cMyTrace(__PRETTY_FUNCTION__, 65, 0)(
+            "[Before]Goblin Certified check_time(%d), cur_time(%d), Certified(%d)",
+            checkTime, curTime, m_certified25);
         if (checkTime < curTime)
             setCertified(false);
-        cMyTrace trace2(__PRETTY_FUNCTION__, 74, 0);
-        trace2("[After]Goblin Certified check_time(%d), cur_time(%d), Certified(%d)",
-               checkTime, curTime, m_certified25);
+        cMyTrace(__PRETTY_FUNCTION__, 74, 0)(
+            "[After]Goblin Certified check_time(%d), cur_time(%d), Certified(%d)",
+            checkTime, curTime, m_certified25);
     }
 }
 
@@ -214,31 +219,27 @@ int WongWork::CSecurityCard::getRequestState()
 void WongWork::CSecurityCard::generateQuestion(short& a, short& b, short& c,
                                                short& d)
 {
-    // b28d-37 [N82/N78 封顶，ORIG 0x8?]：帧/槽 + 内联清零残差。
-    char q0 = m_question3c[0];
-    char q1 = m_question3c[1];
-    char q2 = m_question3c[2];
-    char q3 = m_question3c[3];
-
-    bool allZero = (q0 == 0 && q1 == 0 && q2 == 0 && q3 == 0);
-    bool outOfRange =
-        ((q0 < 0 || q0 > 9) || (q1 < 0 || q1 > 3) ||
-         (q2 < 0 || q2 > 9) || (q3 < 0 || q3 > 3));
-    if (allZero || outOfRange)
+    // [b28f-SweepGroupR3 判据 P0/P183] ORIG 0x085fddb2 全程**无具名局部槽**：4 个字段
+    //   各自 `movzbl 0x3c+i(%eax),%eax; test %al,%al; jne <T>` 直测（widthscan：
+    //   我方 clr_b our=2/cmp_b our=14 vs ORIG movzbl 16 处）⇒ 原码把 4 个 char
+    //   与两个 bool **全部内联**到表达式/条件；原写的 q0..q3 + allZero/outOfRange
+    //   具名局部各占槽并令条件退化为 `cmpb $0x0,-0xN(%ebp)`。
+    if ((m_question3c[0] == 0 && m_question3c[1] == 0 &&
+         m_question3c[2] == 0 && m_question3c[3] == 0) ||
+        ((m_question3c[0] < 0 || m_question3c[0] > 9) ||
+         (m_question3c[1] < 0 || m_question3c[1] > 3) ||
+         (m_question3c[2] < 0 || m_question3c[2] > 9) ||
+         (m_question3c[3] < 0 || m_question3c[3] > 3)))
     {
         m_question3c[0] = 0;
         m_question3c[1] = 0;
         m_question3c[2] = 1;
         m_question3c[3] = 1;
-        q0 = 0;
-        q1 = 0;
-        q2 = 1;
-        q3 = 1;
     }
-    a = (short)q0;
-    b = (short)q1;
-    c = (short)q2;
-    d = (short)q3;
+    a = (short)m_question3c[0];
+    b = (short)m_question3c[1];
+    c = (short)m_question3c[2];
+    d = (short)m_question3c[3];
 }
 
 // ===========================================================================

@@ -8,6 +8,10 @@
 //   ImportMonsterScript T 0x08a12827 / exportMonsterScript T 0x08a22520
 // [b28d-23 N·N90] STMonsterScript::operator= W 0x08377994 为编译器隐式拷贝
 // （1200/1272，ORIG 大 dword 成员分块启发式跨版本差）⇒ N。
+// [L14 round2 复核] operator= 1200/1200、p167 CALLSITE CLEAR（89/89）；
+// setBasicAbilityByLevel 481/482、p167 CALLSITE CLEAR（25/25）⇒ 语义完成，残余 N90/N82。
+// exportMonsterScript 6791/6792：p167 仅 C1↔C2 同址别名（STWarp/vector）+ EXTRA 族
+// （_ZNSsD1Ev +22 / allocator +10 等 std::string 临时构造析构）⇒ N89 结构性噪音。
 // [b29-SweepSTMonsterScript2] ①ImportMonsterScript 五处 sound 字段补
 //   `if (!ScanStr(&token)) return 0;` + `script->m_xxx = token`（ORIG 0x8a13b44..
 //   0x8a13dee 五处 `_ZNSsaSERKSs` 目标 +0x6ac/+0x6a8/+0x6a4/+0x69c/+0x6a0）⇒

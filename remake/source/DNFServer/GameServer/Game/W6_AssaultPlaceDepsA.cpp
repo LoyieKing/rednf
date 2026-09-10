@@ -8,6 +8,18 @@
 //   （EndAssault N82附、RevivalUser N104、_ProcessChaos N7/P75/N121、
 //   _SendHoldVictory N98/N82、EvadeAssaultPlace N18b/N7/N108、
 //   TimeoutEndAssault N18a），逐条实测数据见各函数头判词。
+// [G5 2026-09-10 · L12 round2 组5 复核] 6 件全核：p167 逐件核对，EvadeAssaultPlace CLEAN，
+//   其余 MISSING=EXTRA 同数（C1/C2、D1/D2 同址别名）⇒ **无语义缺口**。
+//   · _SendHoldVictory（NEAR）：ORIG s=-0x3c / member=-0x38 / name=-0x34 ↔ 我方
+//     s=-0x38 / member=-0x34 / name=-0x30 ⇒ **整体平移 4**（N126/N95 族，非相对序差，
+//     判据⑪ 判定后不再做声明重排）。
+//   · _ProcessChaos / EvadeAssaultPlace：ORIG `call; mov 0x8(%ebp),%edx;
+//     mov 0x124(%edx),%edx; cmp %edx,%eax` ↔ 我方 eax↔edx 角色互换（N7/N22；交换操作数
+//     在 CHCT/TimeoutEndAssault 已实测反劣）。
+//   · TimeoutEndAssault：残余 1 条 regmove（`mov 0x10c(%eax),%eax; mov %eax,%ebx`）；
+//     `(ENUM_ASSAULT_STATE)(unsigned int)` 替代形仍单段（P265 在本后端不成立）⇒ N18a。
+//   · EndAssault（NEAR）：槽集合两侧全等、相对序差（P309 头部声明试验已证无效）。
+//   · RevivalUser：仅 _ZTI/全局 reloc 显示差 + 1 条，AE 后等价。
 #include "CAssaultMgr.h"
 
 #include "CUser.h"

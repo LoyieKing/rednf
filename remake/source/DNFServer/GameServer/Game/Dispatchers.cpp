@@ -3292,19 +3292,19 @@ int Dispatcher_GuildCargo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // ORIG 0x081d0ae2：param+4 = check_error(...)；>0 直接返 0；<0 LineFunc(0x2c26)；
     // ==0 构造 Packet_Guild_Cargo_Requst，填 guildkey(+6)/characNo(+0xa)，
     // SendTcpPacket(pkt, *(ushort*)(pkt+2))，写历史日志 reason=0 后返 0。
-    int err = check_error(user, msg, param);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = err;
-    if (err > 0)
+    stGuildCargoParam& out = static_cast<stGuildCargoParam&>(param);
+    out.m_4 = check_error(user, msg, param);
+    if (out.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (out.m_4 < 0)
     {
         return LineFunc(0x2c26,
                         __PRETTY_FUNCTION__,
-                        err, user->get_acc_id());
+                        out.m_4, user->get_acc_id());
     }
-    Packet_Guild_Cargo_Requst pkt;   // ORIG W ctor 0x0822be52（局部帧 -0x1e 起）
+    Packet_Guild_Cargo_Requst pkt;   // ORIG W 0x0822be52（局部帧 -0x1e 起）
     // 帧偏移：-0x1c=pkt+0x2(ushort size)、-0x18=pkt+0x6(guildkey)、-0x14=pkt+0xa(characNo)
     *reinterpret_cast<int*>(reinterpret_cast<char*>(&pkt) + 6) =
         user->get_charac_guildkey();
@@ -9077,7 +9077,7 @@ Dispatcher_LimitNpcBuyItem::~Dispatcher_LimitNpcBuyItem() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e1172 orig/ours=207/210 ndiff-blocks=42
 //   帧差 sub $f0 vs $104 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0xf0,%esp | mov    %eax,-0x10(%ebp)
-unsigned int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
+int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081e1172（docs/class_func_reports/Dispatcher_LimitNpcBuyItem/check_error.md）
     if (user == 0)
@@ -9145,17 +9145,17 @@ unsigned int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
 //   首差: sub    $0x44,%esp | mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%edx
 int Dispatcher_LimitNpcBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    LimitNpcBuyItem& out = static_cast<LimitNpcBuyItem&>(param);
-    out.m_4 = check_error(user, msg);
-    if (out.m_4 >= 1)
+    *(int*)((char*)&param + 4) = check_error(user, msg);
+    int err = *(int*)((char*)&param + 4);
+    if (err >= 1)
     {
         return 0;
     }
-    if (out.m_4 < 0)
+    if (err < 0)
     {
         return LineFunc(0x55ae,
                         __PRETTY_FUNCTION__,
-                        out.m_4, 0);
+                        err, 0);
     }
     LimitNpcBuyItemInfo info;   // local_3a（栈对象 0x26）
     info.m_itemIdReq = user->GetUID();             // local_30（+0xa）
@@ -11884,17 +11884,17 @@ int Dispatcher_GuildCargoHistory::process(CUser* user, MSG_BASE& msg, ParamBase&
     // ORIG 0x081d0cb4：param+4 = check_error(...)；>0 返 0；<0 LineFunc(0x2c6d,err,0)；
     // ==0 构造 Packet_Guild_Cargo_History_Request，guildkey(+6)/characNo(+0xa)，
     // SendTcpPacket(pkt, *(ushort*)(pkt+2))，历史日志 reason=3 后返 0。
-    int err = check_error(user, msg, param);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = err;
-    if (err > 0)
+    stGuildCargoHistoryParam& out = static_cast<stGuildCargoHistoryParam&>(param);
+    out.m_4 = check_error(user, msg, param);
+    if (out.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (out.m_4 < 0)
     {
         return LineFunc(0x2c6d,
                         __PRETTY_FUNCTION__,
-                        err, 0);
+                        out.m_4, 0);
     }
     Packet_Guild_Cargo_History_Request pkt;   // ORIG W ctor 0x0822be8a（局部帧 -0x1e 起）
     // 帧偏移：-0x1c=pkt+0x2(ushort size)、-0x18=pkt+0x6(guildkey)、-0x14=pkt+0xa(characNo)
@@ -13495,18 +13495,17 @@ int Dispatcher_EnterDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase
 {
     // ORIG 0x081d01ae：check_error(三参) 结果写 param+0x04；
     // err>0 → 0；err<0 → LineFunc(0x2adf)；err==0 → 分解机进入商店。
-    int err = check_error(user, msg, param);
-    *(int*)(reinterpret_cast<char*>(&param) + 0x4) = err;
-
-    if (err > 0)
+    stEnterDisjointStoreParam& out = static_cast<stEnterDisjointStoreParam&>(param);
+    out.m_4 = check_error(user, msg, param);
+    if (out.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (out.m_4 < 0)
     {
         LineFunc(0x2adf,
                  __PRETTY_FUNCTION__,
-                 err, (unsigned int)user->get_acc_id());
+                 out.m_4, (unsigned int)user->get_acc_id());
         return 0;
     }
 
@@ -14401,17 +14400,17 @@ Dispatcher_CreateDisjointStore::~Dispatcher_CreateDisjointStore() {}
 //   首差: sub    $0x34,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x18(%ebp)
 int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    int err = check_error(user, msg, param);
-    *(int*)((char*)&param + 4) = err;
-    if (err > 0)
+    stCreateDisjointStoreParam& out = static_cast<stCreateDisjointStoreParam&>(param);
+    out.m_4 = check_error(user, msg, param);
+    if (out.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (out.m_4 < 0)
     {
         return LineFunc(0x29c4,
                         __PRETTY_FUNCTION__,
-                        err, user->get_acc_id());
+                        out.m_4, user->get_acc_id());
     }
     // MSG_CREATE_DISJOINT_STORE 冻结头未建模 payload（仅 m_pad[0x100]）；
     // §8.3 TU 局部视图具名（偏移/宽度证据=本函数 ORIG + read get_* 序列）。
@@ -18981,7 +18980,7 @@ int Dispatcher_Float_RDATA_Modulation::read(PacketBuf& packet, MSG_BASE& msg)
 
 Dispatcher_LogIngameAdvertisement::~Dispatcher_LogIngameAdvertisement() {}
 // b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081e4ec8 orig/ours=21/21
-unsigned int Dispatcher_LogIngameAdvertisement::check_error(CUser* user, MSG_BASE& msg)
+int Dispatcher_LogIngameAdvertisement::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081e4ece：user!=0 正向嵌套 + setle 物化（技巧9）+ msg 死槽 -0xc。
     // 技巧23：入口岛须摆在 cond 之后（ORIG jne BODY 块序）。
@@ -19002,17 +19001,17 @@ int Dispatcher_LogIngameAdvertisement::process(CUser* user, MSG_BASE& msg, Param
 {
     // ORIG 0x081e4df2：check_error 结果写 param+0x04；
     // err>0 → 0；err<0 → LineFunc(0x5d83)；err==0 → 广告管理器写日志。
-    stLogIngameAdvertisement& out = static_cast<stLogIngameAdvertisement&>(param);
-    out.m_result = check_error(user, msg);
-    if (out.m_result > 0)
+    int err = check_error(user, msg);
+    *(int*)(reinterpret_cast<char*>(&param) + 0x4) = err;
+    if (err > 0)
     {
         return 0;
     }
-    if (out.m_result < 0)
+    if (err < 0)
     {
         LineFunc(0x5d83,
                  __PRETTY_FUNCTION__,
-                 out.m_result, 0);
+                 err, 0);
         return 0;
     }
 
@@ -19097,7 +19096,7 @@ Dispatcher_RequestCharacSkillInfo::~Dispatcher_RequestCharacSkillInfo() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e3c08 orig/ours=75/68 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,-0xc(%ebp)
-unsigned int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BASE& msg)
+int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BASE& msg)
 {
     MSG_REQUEST_CHARAC_SKILL_INFO& mref = reinterpret_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     if (user == 0)
@@ -19136,17 +19135,17 @@ unsigned int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BAS
 int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     MSG_REQUEST_CHARAC_SKILL_INFO& mref = reinterpret_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
-    stRequestCharacSkillInfo& out = static_cast<stRequestCharacSkillInfo&>(param);
-    out.m_4 = check_error(user, msg);
-    if (out.m_4 > 0)
+    int err = check_error(user, msg);
+    *(int*)((char*)&param + 4) = err;
+    if (err > 0)
     {
         return 0;
     }
-    if (out.m_4 < 0)
+    if (err < 0)
     {
         return LineFunc(0x5b32,
                         __PRETTY_FUNCTION__,
-                        out.m_4, 0);
+                        err, 0);
     }
     // ORIG 0x081e3a78/0x081e3aa8/0x081e3ade/0x081e3ba9：四次独立 vector::operator[]
     // （P183 去引用缓存；characIdx 每次从 msg+0xd 重读，P0 表达式直读）。

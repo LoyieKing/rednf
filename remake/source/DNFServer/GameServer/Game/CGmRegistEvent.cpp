@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/CGmRegistEvent/ 全部 6 个方法
 // （CGmRegistEvent / ~CGmRegistEvent / ~CGmRegistEvent_0811ccc4 /
 //  StartEvent / StartEvent_0811cd2c / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN14CGmRegistEventC2Ev`（ORIG 0x811cdf4）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CGmRegistEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

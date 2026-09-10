@@ -60,7 +60,8 @@ public:
     ~BlueMarbleInfoScript();
 
     void clear();
-    int importScript(const char* dir, const char* path);
+    bool importScript(const char* dir, const char* path);   // [b29 R20] ORIG initBlueMarbleInfo
+                                           // 0x088d663f `call; leave; ret` 透传同型 ⇒ bool
 
     std::vector<int> getRandomDungeonIndex(int level);
     std::vector<int> getBossDungeonIndex(int level);

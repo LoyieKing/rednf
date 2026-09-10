@@ -67,7 +67,9 @@ namespace village_attacked
 // OnMoveArea / OnEvent / InsertVillageMonster 由已登记的 CVillageMonsterMgr.cpp
 // 提供定义（本 TU 不再重复定义，避免多重定义）。
 
-// [b28d-L8] P200/N82 | 帧差 0x38 vs 0x30 + 实参拓宽装载序（ORIG 0x086b4964）
+// [round2-L30 复核·N82/P200] 残余：ORIG `sub $0x38` 无 callee-saved vs 我方
+//   `push %esi; push %ebx; sub $0x30`（我方多 2 push，跨 find 保活 c/d）+ 槽整体浅 4
+//   （ORIG -0x18/-0x12/-0x10 vs 我方 -0x14/-0xe/-0xc）⇒ N82 帧/槽分区族；ORIG 0x086b4964。
 int CVillageMonsterMgr::OnKillVillageMonster(int a, int b, unsigned short c, bool d)
 {
     Zone zone((unsigned char)a, (unsigned char)b);
@@ -109,7 +111,11 @@ int CVillageMonsterArea::OnKillVillageMonster(CUser* user, unsigned short zone, 
 //            else     { OnChangeState(0); SendVillageMonsterFightResult(user, false); }
 //            return 0;
 // ============================================================================
-// [b28d-L8] N96/N18a | bool 形参取反物化 movzbl+xor vs 4.4 cmpb（P168a④ 无绑定不可达）+ 块序（ORIG 0x086b34a0）
+// [round2-L30 修] 否定极性 + 分支交换：ORIG 0x086b34ef `movzbl -0xc(%ebp),%eax;
+//   xor $0x1,%eax; test %al,%al; je <+0x8e>`（!flag 为真则落 fall-through 的
+//   OnChangeState(0)/SendFight(false) 段，+0x8e 为 true 段）⇒ 源形必写
+//   `if (!flag) { …0… } else { …2… }`（P222/P214①；正极性 `if (flag)` 4.4 产直判
+//   `cmpb; je` 且块序相反）。
 int CVillageMonster::OnKillVillageMonster(CUser* user, int a, int b, int c, bool flag)
 {
     if (m_state != 1)
@@ -119,19 +125,22 @@ int CVillageMonster::OnKillVillageMonster(CUser* user, int a, int b, int c, bool
         if (user->GetPartyIndex() != m_partyIndex)
             return 0x13;
     }
-    if (flag)
+    if (!flag)
+    {
+        OnChangeState(ENUM_VILLAGE_MONSTER_STATE_0);
+        // ORIG 0x086b350d/0x086b357b：两分支都 `movzbl -0xc(%ebp),%eax;
+        //   mov %eax,0x8(%esp)` ⇒ 实参是 flag 变量本身（非 false/true 常量）。
+        SendVillageMonsterFightResult(user, flag);
+        return 0;                       // ORIG 0x086b3527 `mov $0x0,%eax; jmp`（分支内独立设值）
+    }
+    else
     {
         OnChangeState(ENUM_VILLAGE_MONSTER_STATE_2);
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x86, c, a, b);
-        SendVillageMonsterFightResult(user, true);
+        SendVillageMonsterFightResult(user, flag);
+        return 0;                       // ORIG 0x086b3595 `mov $0x0,%eax`
     }
-    else
-    {
-        OnChangeState(ENUM_VILLAGE_MONSTER_STATE_0);
-        SendVillageMonsterFightResult(user, false);
-    }
-    return 0;
 }
 
 // ============================================================================
@@ -188,7 +197,8 @@ void CVillageMonsterArea::SendPacket(PacketGuard& packet)
 //   0xf9 发送。差异=ORIG 用 ctor W 0x86b4b84 一次性 memset 全结构，我方显式
 //   memset(m_pad4)+双循环清0（多 ~27 条），纯 lowering 表示差异，语义等价。
 // ============================================================================
-// [b28d-L8] N/B24D | ctor 一次性清零 lowering 差（B24D 判词，语义等价，ORIG 0x086b330a）
+// [round2-L30 复核·N/B24D] 残余 3 条 + 整帧平移 4：ORIG ctor W 0x86b4b84 一次性 memset
+//   全结构 vs 我方显式清零 lowering（语义等价）；ORIG 0x086b330a。
 void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
 {
     if (user == 0)
@@ -253,7 +263,10 @@ bool CVillageMonster::MakeVillageMonsterListPacket(PacketGuard& packet)
 //            成功则 count++；put_byte(idx,count)；finalize(true)；
 //            user==0 → SendPacket(packet)，否则 user->Send(packet)。
 // ============================================================================
-// [b28d-L8] N82 | 槽平移 4 + 块序（ORIG 0x086b37fa）
+// [round2-L30 复核·N126] 残余=整帧槽号常数平移 4（ORIG packet -0x20/countIdx -0x24/
+//   count -0x10 vs 我方 -0x1c/-0x20/-0xc，间距全等；帧同为 sub $0x30）⇒ 判据⑪ (b)
+//   类，声明重排无效（ORIG 0x086b37fa）。已修：占位字节改传具名 count（ORIG
+//   0x086b3814 `mov -0x10(%ebp),%eax; mov %eax,0x4(%esp)`，非立即数 0）。
 void CVillageMonsterArea::SendVillageMonsterList(CUser* user)
 {
     PacketGuard packet;
@@ -261,7 +274,9 @@ void CVillageMonsterArea::SendVillageMonsterList(CUser* user)
     packet.put_header(0, 0xee);
     int countIdx = packet.get_index();
     int count = 0;
-    packet.put_byte(0);
+    // ORIG 0x086b37ff：占位字节传的是**具名 count 变量**（0x81 `mov -0x10(%ebp),%eax;
+    //   mov %eax,0x4(%esp)`），非立即数 0 ⇒ 源形 `put_byte(count)`（此时 count==0）。
+    packet.put_byte(count);
     for (std::map<unsigned short, CVillageMonster>::iterator it =
              m_monsters.begin();
          it != m_monsters.end(); ++it)

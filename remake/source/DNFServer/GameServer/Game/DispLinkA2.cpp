@@ -314,7 +314,7 @@ bool Dispatcher_EPLPCommand::isReTurnToVillage(CUser* user)
 //    （p167：ORIG-only `std::set<int>::find(int const&) const`，我方原为非 const 版）
 //    + 具名 const_iterator 令 find 先于 end 求值（ORIG sret -0x28/-0x20 序）。
 // ============================================================================
-int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
+unsigned int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     if (user->get_state() <= 2)
         return 0x7fffffff;
@@ -366,7 +366,7 @@ int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, ParamBase&
 // 7. Dispatcher_EnterDisjointStore::check_error
 //    报告 docs/class_func_reports/Dispatcher_EnterDisjointStore/check_error.md
 // ============================================================================
-int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& msg,
+unsigned int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& msg,
                                                ParamBase& param)
 {
     if ((user->get_state() <= 2) ? true : (user->getCurCharacR() == 0))
@@ -392,7 +392,7 @@ int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& msg,
 // 8. Dispatcher_GuildCargo::check_error
 //    报告 docs/class_func_reports/Dispatcher_GuildCargo/check_error.md
 // ============================================================================
-int Dispatcher_GuildCargo::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
+unsigned int Dispatcher_GuildCargo::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // P196 真语义 bug：ORIG 当 getCurCharacR()==0 才返 -1（原 !=0 方向反）。
     if (user->get_state() != 3 || user->getCurCharacR() == 0)
@@ -409,7 +409,7 @@ int Dispatcher_GuildCargo::check_error(CUser* user, MSG_BASE& msg, ParamBase& pa
 // 9. Dispatcher_GuildCargoHistory::check_error
 //    报告 docs/class_func_reports/Dispatcher_GuildCargoHistory/check_error.md
 // ============================================================================
-int Dispatcher_GuildCargoHistory::check_error(CUser* user, MSG_BASE& msg,
+unsigned int Dispatcher_GuildCargoHistory::check_error(CUser* user, MSG_BASE& msg,
                                               ParamBase& param)
 {
     // P196 真语义 bug：ORIG 当 getCurCharacR()==0 才返 -1（原 !=0 方向反）。
@@ -453,7 +453,7 @@ int Dispatcher_PrecheckSoloTeleport::check_error(CUser* user, MSG_BASE& msg,
 // 13. Dispatcher_RequestDisjointItem::check_error
 //     报告 docs/class_func_reports/Dispatcher_RequestDisjointItem/check_error.md
 // ============================================================================
-int Dispatcher_RequestDisjointItem::check_error(CUser* user, MSG_BASE& msg,
+unsigned int Dispatcher_RequestDisjointItem::check_error(CUser* user, MSG_BASE& msg,
                                                 ParamBase& param)
 {
     if ((user->get_state() <= 2) ? true : (user->getCurCharacR() == 0))

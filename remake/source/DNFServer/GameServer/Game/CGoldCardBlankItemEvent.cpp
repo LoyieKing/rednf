@@ -3,6 +3,10 @@
 // （CGoldCardBlankItemEvent / ~CGoldCardBlankItemEvent /
 //  ~CGoldCardBlankItemEvent_0811ce70 / StartEvent / StartEvent_0811ce94 /
 //  EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN23CGoldCardBlankItemEventC2Ev`（ORIG 0x811cf77）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CGoldCardBlankItemEvent.h"
 
 #include "GameTypes.h"             // cMyTrace
