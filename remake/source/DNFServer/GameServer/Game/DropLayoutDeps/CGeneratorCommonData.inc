@@ -1,1 +1,1 @@
-CGeneratorCommonData::CGeneratorCommonData() {}
+CGeneratorCommonData::CGeneratorCommonData() throw() {}

@@ -167,7 +167,13 @@ namespace WongWork
 class CGeneratorCommonData
 {
 public:
-    CGeneratorCommonData();                          // ORIG W 0x08374ebc（空体）
+    // [Main·2026-09-11 P216 全局 A/B] ctor 加 `throw()`：外层 `WongWork::CItemGeneratorMgr`
+    // 的 ctor 经成员构造内联了本 ctor，我方声明无 throw() ⇒ 4.4 认为成员构造可抛 ⇒
+    // `new CItemGeneratorMgr` 点生成 8 条 cleanup（`_ZdlPv` + jmp LP）。
+    // ORIG 同点 0x0835cd26 之后紧接 0x0835cd2b `mov %ebx,%edx`（直接续正常路径、无 LP），
+    // 且全函数 `_ZdlPv` ORIG 26 次 vs 我方 27 次 ⇒ 该 ctor 在 ORIG 为 nothrow。
+    // 体空（0x08374ebc push/mov/pop/ret）⇒ 与 `PacketHeader` 反例同族，**以全局核账定稿**。
+    CGeneratorCommonData() throw();                   // ORIG W 0x08374ebc（空体）
     ~CGeneratorCommonData();                         // ORIG W 0x08374ec2（空体）
 
     // ORIG T 0x08534456 _ZN8WongWork20CGeneratorCommonData10loadScriptEPKc
