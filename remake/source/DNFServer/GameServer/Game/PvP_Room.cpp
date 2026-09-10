@@ -1326,10 +1326,13 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
             // ⇒ 源形正极性 `!= 0`（旧 `== 0` 形 4.4 产 sete、且 setne 差集 +1）。
             if (P_SEATS(local_3c)->getCurCharacR() != 0)
             {
-                // [Lane10] N4/P30 反向：ORIG 0x085d70xx `movzbl 0x75(%eax),%eax` 单条
-                // disp 折叠；旧 `*(unsigned char*)((const char*)p + 0x75)` 恒产
-                // `add $0x75,%eax; movzbl (%eax),%eax` 两条（4.4 对指针算术恒折 add）。
-                local_70.put_byte((unsigned char)((const char*)P_SEATS(local_3c)->getCurCharacR())[0x75]);
+                // [Lane10] Main「视图 cast 反模式」洞察应用：ORIG 0x085d70xx
+                // `movzbl 0x75(%eax),%eax` 单条 disp 折叠；旧形 `*(unsigned char*)
+                // ((const char*)p + 0x75)`（及数组下标形）恒产 `add $0x75,%eax;
+                // movzbl (%eax),%eax` 两条。改**权威头具名字段直访问**
+                // （CUser.h:545 `unsigned char m_stamina; // +0x75`，宽度证据
+                // SelectCharac 恢复/make_charac_stat 序列化）即复现单条 disp。
+                local_70.put_byte(P_SEATS(local_3c)->getCurCharacR()->m_stamina);
             }
             else
             {
@@ -1430,7 +1433,8 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
     // ⇒ 源形正极性 `!= 0`（旧 `== 0` 形 4.4 产 sete）。
     if (user->getCurCharacR() != 0)
     {
-        local_70.put_byte(*(unsigned char*)((const char*)user->getCurCharacR() + 0x75));
+        // [Lane10] 同 1327 处：改权威具名字段 m_stamina（CUser.h:545，+0x75）。
+        local_70.put_byte(user->getCurCharacR()->m_stamina);
     }
     else
     {
