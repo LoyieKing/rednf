@@ -16612,7 +16612,7 @@ bool DB_UpdatePvPLastPlayTime::dispatch(int /*userIdx*/, int /*slot*/,
     Packet_PvPResult* sig = stream->GetOutBuffer<Packet_PvPResult>();
     DB_PvPResultSchoolView* v =
         reinterpret_cast<DB_PvPResultSchoolView*>(sig);
-    for (int i = 0; (unsigned char)v->m_count > i; ++i)
+    for (int i = 0; (unsigned char)v->m_count > (unsigned char)i; ++i)
     {
         for (int j = 0; j <= 1; ++j)
         {

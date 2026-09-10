@@ -1669,6 +1669,15 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 //   `mov 0x8(%ebp),%edx; mov 0x124(%edx),%edx; cmp %edx,%eax` = call 结果留 %eax；
 //   我方 `mov %eax,%edx; mov this,%eax; mov 0x124(%eax),%eax; cmp %eax,%edx`）⇒ N22/N18b 封顶。
 //   p167：calls 60=60；MISSING/EXTRA 仅 PacketGuard C1/C2·D1/D2 同址别名（P93 良性）。
+// [round5-A29 破 N · 类型旋钮净账留痕，2026-09-10] 上述 N22/N18b 判词**已作废**：按
+//   P254/P248档③ 对 `CAssaultPlace::m_state`(+0x10c) 与 `m_winTeam`(+0x124) 做 **enum 同型化**
+//   （本 TU 侧先落 7 处显式 cast：`m_state = (ENUM_ASSAULT_STATE){0,6,7}` ×6 +
+//   `m_winTeam = (ENUM_ASSAULT_TEAM)0`）⇒ 4.4 恢复 ORIG 的两段装载
+//   `mov 0x8(%ebp),%edx; mov 0x124(%edx),%edx; cmp %edx,%eax`，**本件 DIFF→AE 归零**。
+//   **净账（Main「类型旋钮先算两侧 identical 增量」红线）**：CAssaultMgr TU
+//   `identical 109→109（不降） / ae 292→293（+1） / near 1→1 / diff 6→5（−1）` ⇒
+//   **净 identical ≥ 0 且总非 identical 下降**，合规保留。字段侧为 enum（非返回类型）
+//   ⇒ 定义侧 store 无归一化插入（`(ENUM)7` 直存），符合「两侧同核」要求。
 void CAssaultPlace::CloseAssault()
 {
     // b28d-solo: ORIG 0x082e9ade/0x082e9ae5 头部双初始化 `movl $0,-0x28;

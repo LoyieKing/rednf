@@ -115,8 +115,7 @@ void generateDropAvatarItem(const stEnamyDropAvatarInfo_t& info,
         return;
 
     // ② roll 轮次
-    const unsigned int rounds = (unsigned int)info.m_field04;
-    for (unsigned int round = 0; round < rounds; ++round)
+    for (unsigned int round = 0; round < (unsigned int)info.m_field04; ++round)
     {
         const int r = get_rand_int(info.m_field2c);
         std::vector<stEnamyDropAvatarElement_t>::const_iterator it =
@@ -159,7 +158,9 @@ void generateCatchMonsterItem(const std::vector<CatchItemInfo>& items,
         const float rate =
             *reinterpret_cast<const float*>(&entry.m_field8);
 
-        if (entry.m_field4 == 0 || rate == 0.0f)            // [0x8349fa7/0x8349fb2 同目标守卫]
+        if (entry.m_field4 == 0)                            // [0x8349fa7 test/je]
+            continue;
+        if (rate == 0.0f)                                   // [0x8349fb2 fucompp: je NaN 续行]
             continue;
 
         const int r = get_rand_int(0x64);                   // [0x8349fc2 $0x64]
