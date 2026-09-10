@@ -38,15 +38,6 @@
 #include "CServerProxyMgr.h"          // GetServerProxy 完整定义
 #include "MonsterIndependentDrop.h"        // CAICharacter 完整镜像（destroy 需 delete）
 
-// CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
-// m_battleField[0x158] 等 pad 占位、未引入 CBattle_Field 类型；
-// 与 QuickParty.cpp/CParty.cpp 口径一致）。布局：pad 0xb24 + BF 0xcd0。
-struct CPartyBattleFieldView
-{
-    char m_pad[0xb24];
-    CBattle_Field m_battleField;   // +0xb24
-};
-
 // ---- 死亡塔统计/记录接口（定义见 Store.cpp / OnlyOrigBatch14.cpp / W8LT_DBTask.cpp）----
 enum DEATHTOWER_VALUE_STATISTIC_FIELD
 {
@@ -1969,8 +1960,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
         // ORIG 0x08463ce9：party 内嵌 BF（+0xb24）getRandomBuffDungeonType(0) 结果
         // 免槽直入 call arg（范式37）。
         m_party->choose_random_buff((QuickParty::RandomBuffDungeon)
-            reinterpret_cast<CPartyBattleFieldView*>(m_party)
-                ->m_battleField.getRandomBuffDungeonType(0));
+            m_party->m_battleField.getRandomBuffDungeonType(0));
 
         CPacketHandler packet;  // ORIG -0x30：析构在 try 尾（0x8463e81），lifetime 覆盖后续全部
         packet.put_header(0, 0x8e);
@@ -2811,8 +2801,11 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
 
         if (assign.m_assignItemIdx != -1)
         {
-            *reinterpret_cast<char*>(&refData1.m_rankBonusIndex) =
-                static_cast<char>(assign.m_assignItemIdx);
+            // [Main 视图 cast 反模式] 旧 `*reinterpret_cast<char*>(&refData1.m_rankBonusIndex)`
+            // 取址 cast 使 4.4 产 `lea -0xb6c; lea 0x38; mov %al,(%ebx)`（3 条）；权威头
+            // union 已有 +0x38/+0x39 字节视角 ⇒ 具名直写复现 ORIG 0x084610ad
+            // `mov %al,-0xb30(%ebp)` 单条 disp 写（零布局/sizeof/mangled 影响）。
+            refData1.m_field38 = static_cast<unsigned char>(assign.m_assignItemIdx);
         }
         else
         {
@@ -2820,14 +2813,12 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             if (dungeonMgr.getStandardLevel() < 1 ||
                 dungeonMgr.getStandardLevel() > 0xc8)
                 continue;
-            *reinterpret_cast<char*>(&refData1.m_rankBonusIndex) =
-                static_cast<char>(dungeonMgr.getStandardLevel());
+            refData1.m_field38 = static_cast<unsigned char>(dungeonMgr.getStandardLevel());
         }
         // ORIG 0x84610fb..0x846111b：refData1+0x39 = src.m_field04 低字节
         //（+0x38/+0x39 即 m_rankBonusIndex 的低两字节，ORIG 均为 movb 单字节写：
         //  084610ad/084610f5 写 +0x38、0846110f 写 +0x39）
-        *(reinterpret_cast<char*>(&refData1.m_rankBonusIndex) + 1) =
-            static_cast<char>(src.m_field04);
+        refData1.m_field39 = static_cast<unsigned char>(src.m_field04);
 
         stGenerateResult_t result;
         // [SweepSTEventScript 2026-09-09 真 bug 修正] ORIG 0x0846114x 虚槽 `add $0xc`
