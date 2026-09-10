@@ -25,6 +25,17 @@
 // SIG_LOGIN_DATA 字段访问说明：SigTypes_D.h 已按 ORIG 偏移字段化（m_punishInfos/
 // m_restrictedGoods/m_passPadPassword 等），本 TU 一律具名成员访问；仅对头内
 // 仍为 pad 的字节区使用 TU-local 同址视图（见下方 SigPad394cView）。
+//
+// [Main 高优先级排查 2026-09-10 · jcc 目标下标逐位核对] 本 TU 全 161 函数用
+// /tmp/jcc_check.py 提取每条 jmp/jcc 的 `<func+0xNN>` 目标序列（ORIG 用 nm -S
+// 区间切片 + objdump --no-show-raw-insn），**不经 compare_tu clean() 的 <T> 归一**
+// 直接比对：mismatched=1/161，唯一不一致为 N123 撞名件
+// `_Z41__static_initialization_and_destruction_0ii`（ORIG +0x21 vs 我方 +0x3e，
+// 同名 local 副本撞名假差）；其余 160 件（含 punish_user_check/premium_info_set/
+// pad_certifiaction_check/pvp_grade_check/db_dispatch 等全部分支密集件）目标下标
+// 逐位一致（回边与出口均对齐）⇒ 无「goto 退出标签落在 if 体内致循环提前退出」类
+// bug（本 TU 无 import*Script 解析器；唯一 goto 为 punish_user_check 的
+// `punish_next:`，标签在循环体内 `++index` 前，目标已核对）。
 // ============================================================================
 
 #include "ARAD_LoginSecurity.h"

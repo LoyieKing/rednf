@@ -1494,7 +1494,9 @@ int getActivePropertyTypeToEnumValue(std::string& s)
 }
 // ===== _Z13G_EncryptToolv —— ORIG 0x0848e1c6 =====
 // ORIG：mov 尾调 GlobalInstance<EncryptTool>::inst_ptr()（inst_ptr 0x848e1d3）。
-EncryptTool* G_EncryptTool()
+// [b14 判据㉓·Main 已批准单点修法] ORIG nm 绑定 = **W**（弱符号，0x0848e1c6 W
+// 0xd）；本 TU 原为 T 强绑定。加 weak 使绑定对齐（尺寸/mangled/函数体零变化）。
+__attribute__((weak)) EncryptTool* G_EncryptTool()
 {
     return GlobalInstance<EncryptTool>::inst_ptr();
 }

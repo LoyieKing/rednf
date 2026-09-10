@@ -218,7 +218,9 @@ public:
     CGuildServerProxy();                                        // 0x082a6a96 W
     CGuildServerProxy(std::string ip, int udpPort, int tcpPort);// 0x0846d818 T
     ~CGuildServerProxy();                                       // 0x082b31be W
-    void Init(std::string ip, int udpPort, int tcpPort);        // 0x082a6b3a W
+    // ORIG 0x082a6b3a W：尾 `call Init(); leave; ret`（eax = 无参 Init 的 bool）
+    // ⇒ 返回类型 bool（返回类型不入 mangled；createServerProxy 以该返回值作返回）。
+    bool Init(std::string ip, int udpPort, int tcpPort);        // 0x082a6b3a W
 
     bool Init();                        // 0x0846d8c2
     bool InitUdp();                     // 0x0846d912
@@ -319,12 +321,12 @@ inline CGuildServerProxy::~CGuildServerProxy()
 {
 }
 
-inline void CGuildServerProxy::Init(std::string ip, int udpPort, int tcpPort)
+inline bool CGuildServerProxy::Init(std::string ip, int udpPort, int tcpPort)
 {
     m_ip = ip;
     m_udpPort = udpPort;
     m_tcpPort = tcpPort;
-    Init();
+    return Init();
 }
 
 #endif  // GAME_CGUILDSERVERPROXY_H_

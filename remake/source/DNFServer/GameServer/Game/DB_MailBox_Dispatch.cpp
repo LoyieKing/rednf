@@ -16,6 +16,11 @@
 //   两步 `add $0xdb,%eax; mov %eax,%ecx`（P319；数组退化在 4.4 恒折单条 lea）。
 // 依赖：DB_MailBox_Req_Send::InsertLetter（DB_MailBox_Req_Send.h，已实现）；
 //   NumberToString 定义归 LinkFinalDeps.cpp；DBDispatcher::dispatch 归 DB_Login.cpp。
+// [b28d-SweepDBMailBoxDispatch 循环/goto 专项] 本 TU 无「循环内 goto 退出标签」模式：
+//   仅 2 个 for 循环 + 1 个函数级 goto done（QueryCharacInfo::dispatch 尾部 return 1）。
+//   jmp/jcc 目标**指令下标**逐位核对（全部 29 共同符号 + 5 主函数）MATCH=True；
+//   循环回边：getList2inQuery `jne`(src29→tgt12)、CheckReceiver::dispatch
+//   `jne`(src145→tgt86)，均 BACKWARD 指向循环体，与 ORIG 逐位一致。
 // ============================================================================
 
 #include "DB_MailBox_Dispatch.h"

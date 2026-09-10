@@ -16,6 +16,8 @@
 #include "CSystemTime.h"
 #include "GlobalData.h"
 #include "InterfacePacketBuf.h"
+#include "PacketGuard.h"   // PacketGuard 完整定义（本 TU 直接以 packet.<member>() 调用，
+                           // 不再经 InterfacePacketBuf* 基类中转 —— ORIG 直读形参形）
 
 // ============================================================================
 // CItemLimitEdition
@@ -186,12 +188,11 @@ CItemLimitEditionMgr::~CItemLimitEditionMgr()
     clear();
 }
 
-// [b28d-51] 判词 N（ORIG 0x084e975e，N82/N86 族）：map insert pair 临时槽 +
-// 帧方向差；语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
 {
     // ORIG 0x084e975e：new CItemLimitEdition(info)，按 getIPGNO 查重，命中则删旧并 erase，
-    // 再 insert（key = getIPGNO）。
+    // 再 insert（key = 二次调用 getIPGNO —— ORIG 0x84e9803 再次 call getIPGNO，
+    // 结果落 -0xc 后作 make_pair 首参；复用首个 key 局部会少一次 call = 判据㉑ 缺调用）。
     CItemLimitEdition* edition = new CItemLimitEdition(info);
     unsigned int key = (unsigned int)edition->getIPGNO();
     __gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
@@ -199,11 +200,12 @@ void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
                         std::allocator<CItemLimitEdition*> >::iterator it
         = m_items.find(key);
     if (it != m_items.end()) {
-        if (it->second)
-            delete it->second;
+        // ORIG 0x84e97b0..0x84e97c2：ptEv 后直接 `test %ebx,%ebx; je` 判空 + D1 + _ZdlPv
+        // （编译器自带 delete 判空守卫，P141）；显式 if 会多 setne 物化。
+        delete it->second;
         m_items.erase(it);
     }
-    m_items.insert(std::make_pair(key, edition));
+    m_items.insert(std::make_pair(edition->getIPGNO(), edition));
 }
 
 void CItemLimitEditionMgr::removeItem(unsigned int itemIdx)
@@ -234,18 +236,19 @@ bool CItemLimitEditionMgr::updateItem(unsigned int itemIdx, unsigned int count) 
     return true;
 }
 
-// [b28d-51] 判词 N（ORIG 0x0834852e，N86/N89 族）：hash_map 迭代器转换构造 +
-// 临时槽阶梯跨版本差（ORIG 帧 0x34 vs 4.4 0x24）；语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::clear()
 {
-    // ORIG 0x08374d4e：遍历容器 delete 每个项，再容器 clear()。
-    for (__gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
-                             __gnu_cxx::hash<unsigned int>, std::equal_to<unsigned int>,
-                             std::allocator<CItemLimitEdition*> >::iterator it
-             = m_items.begin();
-         it != m_items.end(); ++it) {
-        if (it->second)
-            delete it->second;
+    // ORIG 0x08374d4e：const_iterator it/itEnd（非 const begin()/end() 返回 iterator 后
+    // 各经 _Hashtable_const_iterator::C1 转换构造，0x8374d77/0x8374d9e），end 循环外缓存；
+    // 循环体 `ptEv; test %ebx,%ebx; je` + D1 + _ZdlPv（编译器判空守卫，P141，无显式 if）。
+    typedef __gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
+                                __gnu_cxx::hash<unsigned int>,
+                                std::equal_to<unsigned int>,
+                                std::allocator<CItemLimitEdition*> > ItemMap;
+    ItemMap::const_iterator it = m_items.begin();
+    ItemMap::const_iterator itEnd = m_items.end();
+    for (; it != itEnd; ++it) {
+        delete it->second;
     }
     m_items.clear();
 }
@@ -267,46 +270,43 @@ bool CItemLimitEditionMgr::empty() const
     return m_items.empty();
 }
 
-// [b28d-51] 判词 N（ORIG 0x085132ca，N82/N86 族）：迭代器/临时槽方向差；
-// 语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::makeItemLimitEditionInfo(PacketGuard& packet) const
 {
     // ORIG 0x085132ca：get_index 留计数位，循环遍历 m_items 调 makeInfoPacket，
-    // 末尾 put_byte(index, count)。
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    int countIdx = buf->get_index();
-    buf->put_byte(0);
+    // 末尾 put_byte(index, count)。ORIG 无 buf 局部（每次 mov 0xc(%ebp),%eax 重读形参）、
+    // 无 it->second 判空（0x8513324 段 ptEv 后直接取 second）、end() 循环外缓存一次。
+    int countIdx = packet.get_index();
+    packet.put_byte(0);
     int count = 0;
-    for (__gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
-                             __gnu_cxx::hash<unsigned int>, std::equal_to<unsigned int>,
-                             std::allocator<CItemLimitEdition*> >::const_iterator it
-             = m_items.begin();
-         it != m_items.end(); ++it) {
-        if (it->second)
-            it->second->makeInfoPacket(packet);
+    typedef __gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
+                                __gnu_cxx::hash<unsigned int>,
+                                std::equal_to<unsigned int>,
+                                std::allocator<CItemLimitEdition*> > ItemMap;
+    ItemMap::const_iterator it = m_items.begin();
+    ItemMap::const_iterator itEnd = m_items.end();
+    for (; it != itEnd; ++it) {
+        it->second->makeInfoPacket(packet);
         ++count;
     }
-    buf->put_byte(countIdx, count);
+    packet.put_byte(countIdx, count);
 }
 
-// [b28d-51] 判词 N（ORIG 0x08513382，N82/N86 族）：迭代器/临时槽方向差；
-// 语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::makeItemLimitEditionRemoveInfo(PacketGuard& packet) const
 {
     // ORIG 0x08513382：get_index 留计数位，循环遍历 m_items 写 getIPGNO，
-    // 末尾 put_byte(index, count)。
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    int countIdx = buf->get_index();
-    buf->put_byte(0);
+    // 末尾 put_byte(index, count)。ORIG 无 buf 局部、无 it->second 判空、end() 缓存。
+    int countIdx = packet.get_index();
+    packet.put_byte(0);
     int count = 0;
-    for (__gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
-                             __gnu_cxx::hash<unsigned int>, std::equal_to<unsigned int>,
-                             std::allocator<CItemLimitEdition*> >::const_iterator it
-             = m_items.begin();
-         it != m_items.end(); ++it) {
-        if (it->second)
-            buf->put_int(it->second->getIPGNO());
+    typedef __gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
+                                __gnu_cxx::hash<unsigned int>,
+                                std::equal_to<unsigned int>,
+                                std::allocator<CItemLimitEdition*> > ItemMap;
+    ItemMap::const_iterator it = m_items.begin();
+    ItemMap::const_iterator itEnd = m_items.end();
+    for (; it != itEnd; ++it) {
+        packet.put_int(it->second->getIPGNO());
         ++count;
     }
-    buf->put_byte(countIdx, count);
+    packet.put_byte(countIdx, count);
 }

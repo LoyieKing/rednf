@@ -4327,7 +4327,13 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                     while (true)
                     {
                         if (!ScanTypeOrStr(isStr, token2, true))
-                            goto rid_def_exit;         // 读失败 → 收尾 push
+                            // [b29-SweepSTMonsterScript2 真 bug] ORIG 0x8a1ec89
+                            // `jne 8a1f765` 跳到「析构 sk/token2 + jmp case 尾」，
+                            // **不 push**（push 在循环体内正常出口 0x8a1ef41，
+                            // 随后 `movb $0x1,-0x6d`=closed=1 退出）。旧实现
+                            // `goto rid_def_exit` 落在 push 之前 ⇒ 读失败也 push
+                            // 半成品 sk（多一条 ridable skill）。
+                            goto rid_def_fail;         // 读失败 → 丢弃（不 push）
                         if (isStr)
                             break;
                     }
@@ -4536,8 +4542,8 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                     if (doneLine)
                         closed = 1;
                 } while (closed == 0);
-            rid_def_exit:;
                 script->m_ridableSkills.push_back(sk);
+            rid_def_fail:;   // 读失败落点：跳过 push（ORIG 0x8a1f765 同）
             }
             break;
         }

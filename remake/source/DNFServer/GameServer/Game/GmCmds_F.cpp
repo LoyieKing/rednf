@@ -11,6 +11,28 @@
 // [b28d-solo-GmCmds_F 补] CSetTutorialFlagCmd::m_flag unsigned int→int
 // （+0x08/sizeof 0xc/偏移/mangled 不变，Main 已批准；P211 双旋钮闭合 parse
 // 0x084a921a 无中转 + execute 0x084a9252 两段，见下方 parse 判词）。
+//
+// [b28d-solo-GmCmds_F2 复核] TU 级符号差集闭合（唯一残余）：.o 相对 ORIG 多 1 个
+// `_GLOBAL__I__ZN11game_master19CRequestDisjointCmd5parseEv`（compare_tu
+// missing_in_game=1）。根因（编译器 -H 实测 include 链，非推断）：
+//   GmCmds_F.cpp → TaiwanQueries.h → TaiwanCash.h → ThreadInterface.h:16
+//   `#include <iostream>` ⇒ 本 TU 发射 std::ios_base::Init __ioinit
+//   （.o 的 _Z41__static_initialization_and_destruction_0ii 体仅
+//    ios_base::InitC1 + __cxa_atexit，逐条核过）。
+// ORIG 全二进制无任何 GmCmds/GmCmds_F 相关 _GLOBAL__I_（nm 实查）⇒ ORIG 该 TU
+// 无 file-scope 动态初始化。唯一修法 = 删 ThreadInterface.h 的该 include（共享头：
+// 7 处直接 include + TaiwanCash.h 12 处 + MySQL.h 56 处间接消费）⇒
+// Main 2026-09-10 裁决「不删」（收益仅 1 个 GI 键、风险面大；P327/N132 已把此类
+// 键名归属列为结构性噪音）。判 N/P327 封顶，本 TU 保持原状。
+//
+// [b28d-solo-GmCmds_F2 复核·Main「jmp/jcc 目标下标」新判据] 本 TU 唯一循环 =
+// CStartEvent::getParam 的 while(find(' '))（本文件 362 行；全 TU 源码无
+// goto/break/continue）。全 18 函数 jmp+jcc 的**函数内落点 +0xNN** 逐位比对
+// ORIG vs NEW = 47/47 全等、0 mismatch（getParam 17 个跳转，含循环回边
+// `jne +0x6f` 与条件头 `jmp +0x145`，与 ORIG 逐位同）⇒ 无
+// EventScriptsCompleteB2 型「goto 退出标签 ⇒ 每文件只解析首 token 即 return」
+// bug（AE 归一化只掩盖目标文本、未掩盖落点，本例落点亦全等）。
+// 核对脚本：/tmp/jmp_check_F.py（jmp+jcc，目标解析优先 `sym+0xNN`）。
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>

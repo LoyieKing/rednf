@@ -24,9 +24,27 @@
 // importAttendanceScript / importPcBangPlayTimeScript /
 // importUsedFatigueGiveItemEventScript / importExchangeRandomItemRewardScript
 // 四函数按报告逐指令还原该真实双相形（不再用直接 token 比较简化形）；其余
-// 同族函数暂保留简化形（各自报告到位后同法收敛）。回边布局技巧：外循环头
-// 写 `if (!ScanType) { scan_exit: goto scan_done; }` + 公共尾 `goto
-// scan_exit;`，可阻止 4.4 循环旋转、复现 ORIG 4.1 入口直落 + 尾部回跳岛。
+// 同族函数暂保留简化形（各自报告到位后同法收敛）。
+//
+// 【2026-09-10 真 bug 修正（jcc 目标下标判据）】原 10 个 import*EventScript
+// （Attendance/PcBangPlayTime/FatigueQuantity/AddItemCountDB/AccountFirstLogin/
+// Exchange/UsedFatigueGiveItem/AvatarDisjointRandomReward/PurchaseCashItemBonus/
+// ObjectBringUp）循环体末尾写 `goto scan_exit;`，而 `scan_exit:` 标签落在
+// `if(!ScanType(...)){...}` 体内 ⇒ 编译为 `jmp scan_done`（**退出循环**），
+// 脚本每文件只解析首个 token 就 return；ORIG 同处为回边 `jmp <循环头>`
+// （Attendance 0x08981dc7 → 0x0898157e，其余 +0x42/+0x45/+0x4f 同族）。
+// 旧判 AE/IDENTICAL 系 clean() 把 jcc 目标归一为 `<T>` 造成的**假匹配**
+// （本轮新暴露的判据盲区）。已删 10 处 `goto scan_exit;` 改自然回边，
+// 语义与 ORIG 一致（jcc 目标 = 循环头）。
+//
+// 代价（N 类结构性，Main 2026-09-10 裁决①）：4.4 对「末尾条件块 + 回边」恒插
+// 1 条 entry jmp（`jmp <循环头>`，占 ORIG 无 nop 处），而 ORIG(4.1) 为
+// 「条件跳过 if 体 + 尾部无条件回边 jmp」；指令总数相同（518 vs 518）仅 jmp
+// 位置头/尾互换。12 形源码探针实测（/tmp/probe_loop{,2..8}.cpp：for(;;)/
+// while(true)/do-while/纯 goto 块/自然回边/continue/goto 循环头/标签在循环头/
+// 显式 else 回边/正向条件回边/外部回边标签/末尾 goto 退出标签）——**仅**
+// 「末尾 goto scan_exit（语义错）」能消 entry jmp，其余全部保留 ⇒ 不可消。
+// TU 四数：297/571(868)/1/4 → 297/562(859)/1/13（ae −9 为语义修正必要代价）。
 
 #include <map>
 #include <string>
@@ -473,7 +491,6 @@ bool importFatigueQuantityEventScript(FatigueQuantityScript* script, char const*
             __inited = true;                            // +0x48e
             goto redo_lookup;                           // +0x495 → guard 重派发
         }
-        goto scan_exit;                                 // +0x49b → ScanType 回边
     }
 scan_done:
     return result;
@@ -600,7 +617,6 @@ bool importAccountFirstLoginEventScript(AccountFirstLoginScript* script, char co
             __inited = true;                            // +0x488
             goto redo_lookup;                           // +0x48f → guard 重派发
         }
-        goto scan_exit;                                 // +0x495 → ScanType 回边
     }
 scan_done:
     return result;
@@ -758,7 +774,6 @@ bool importAddItemCountDBEventScript(AddItemCountDBScript* script, char const* p
             __inited = true;                            // +0x573
             goto redo_lookup;                           // +0x57a → guard 重派发
         }
-        goto scan_exit;                                 // +0x580 → ScanType 回边
     }
 scan_done:
     return ok;
@@ -935,7 +950,6 @@ bool importPcBangPlayTimeScript(PcBangPlayTimeScript* script, char const* path)
                 __inited = true;                        // +0x62b
                 goto redo_lookup;                       // +0x632 → guard 重派发
             }
-            goto scan_exit;                             // +0x638 → ScanType 回边
     }
 scan_done:
     return result;
@@ -1116,7 +1130,6 @@ bool importExchangeRandomItemRewardScript(ExchangeRandomItemRewardScript* script
             __inited = true;                            // +0x650
             goto redo_lookup;                           // +0x657 → guard 重派发
         }
-        goto scan_exit;                                 // +0x65d → ScanType 回边
     }
 scan_done:
     return ok;
@@ -1261,7 +1274,6 @@ bool importAvatarDisjointRandomRewardScript(AvatarDisjointRandomRewardScript* sc
             __inited = true;                            // +0x540
             goto redo_lookup;                           // +0x547 → guard 重派发
         }
-        goto scan_exit;                                 // +0x54d → ScanType 回边
     }
 scan_done:
     return ok;
@@ -1506,7 +1518,6 @@ bool importAttendanceScript(AttendanceScript* script, char const* path)
                 __inited = true;                        // +0x881
                 goto redo_lookup;                       // +0x888 → guard 重派发
             }
-            goto scan_exit;                             // +0x88e → ScanType（岛回跳）
     }
 scan_done:
     return ok;
@@ -1723,7 +1734,6 @@ bool importUsedFatigueGiveItemEventScript(UsedFatigueGiveItemScript* script,
                 __inited = true;                        // +0x7bc
                 goto redo_lookup;                       // +0x7c3 → guard 重派发
             }
-            goto scan_exit;                             // +0x7c9 → ScanType 回边
     }
 scan_done:
     return result;
@@ -1894,9 +1904,9 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
             else
             {
                 std::vector<unsigned int> fatigues;     // -0x178 节局部
-            send_sec_head:;
                 for (;;)
                 {
+            send_sec_head:;
                 if (!ScanType(token, true))
                         break;              // EOF → 退节（+0x7af→+0x7b0）
                 if (token == "[get eventitem fatigue]")
@@ -2002,9 +2012,8 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
             __init_lock.leave();                        // +0xa79
             __inited = true;                            // +0xa7e
             goto redo_lookup;                           // +0xa85 → guard 重派发
-        }
-        goto scan_exit;                                 // +0xa8b → ScanType 回边
             }
+        }
 scan_done:
     return result;
 }
@@ -2631,7 +2640,6 @@ bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
             __inited = true;                            // +0x94d
             goto redo_lookup;                           // +0x954 → guard 重派发
         }
-        goto scan_exit;                                 // +0x95a → ScanType 回边
     }
 scan_done:
     return ok;

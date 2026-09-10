@@ -46,6 +46,25 @@ public:
     static void makeRequest(int uid, int characNo, char const* name, int flag);
 };
 
+// ---------------------------------------------------------------------------
+// ORIG 0x084a905e：getCurCharacAddInfoR() 的附加信息缓冲在 +0x42/+0x46/+0x48
+// 处存放 move/attack/cast speed，ORIG 对三处一律单条 disp 访问
+//（`mov 0x42(%eax),%eax` / `movzwl 0x46(%eax),%eax` / `movzwl 0x48(%eax),%eax`）。
+// 用 `unsigned char*` + 常量偏移在 4.4 会退化成 `add $0xNN,%eax; mov (%eax),%eax`
+// 两步（N107 族）⇒ 按 P328② 用具名 pack(1) 视图恢复 disp 折叠。视图仅表达布局，
+// 不发符号、不改任何权威头。
+// ---------------------------------------------------------------------------
+namespace
+{
+struct CharacAddInfoStatView
+{
+    unsigned char m_pad[0x42];
+    int           m_moveSpeed;    // +0x42
+    unsigned short m_attackSpeed; // +0x46
+    unsigned short m_castSpeed;   // +0x48
+} __attribute__((packed));
+}
+
 namespace game_master
 {
 
@@ -93,39 +112,42 @@ void CChangeExpertJobCmd::parse()
 // （178 vs 182）。ORIG 0x084a9900。
 void CChangeExpertJobCmd::execute()
 {
-    int jobType = m_jobType;
-    GetUser()->SetCurCharacExpertJobType(jobType);
+    // b28d-22：P0/P48 — ORIG 0x084a9900 无 jobType 槽，两次独立直读 m_jobType
+    // （各自入 %ebx 跨 call 保活）。
+    GetUser()->SetCurCharacExpertJobType(m_jobType);
 
     STExpertJobScript* script =
-        static_cast<STExpertJobScript*>(G_CDataManager()->GetExpertJobScript(jobType));
+        static_cast<STExpertJobScript*>(G_CDataManager()->GetExpertJobScript(m_jobType));
     if (script != 0)
     {
         for (std::vector<std::pair<int, int> >::size_type i = 0;
              i < script->m_growSkillVec.size(); ++i)
         {
-            if (GetUser()->getCurCharacR() == 0)
+            // b28d-22：P296 — ORIG 用正向包裹（test;setne;test;je 落增量块），
+            // 旧 `if(...==0) continue;` 使 4.4 多出 jmp+nop 中继岛（+2 条）。
+            if (GetUser()->getCurCharacR() != 0)
             {
-                continue;
+                // b28d-21：P167 差集（ORIG 39 calls vs 重建 33）证明 ORIG 在两次
+                // growtype_skill 调用点各自重取 skillW/curJob 并重发 operator[]
+                // （P157/P183 禁缓存）⇒ 全部内联，删 skillIdx/skillLevel/curJob/skillW
+                // 四个具名局部。占位声明返回 char*，ORIG 实为 SkillSlot*。
+                reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
+                    ->growtype_skill(GetUser()->get_charac_job(),
+                                     script->m_growSkillVec[i].first,
+                                     script->m_growSkillVec[i].second,
+                                     (ENUM_SKILL_TREE_KIND)0);
+                reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
+                    ->growtype_skill(GetUser()->get_charac_job(),
+                                     script->m_growSkillVec[i].first,
+                                     script->m_growSkillVec[i].second,
+                                     (ENUM_SKILL_TREE_KIND)1);
             }
-            // b28d-21：P167 差集（ORIG 39 calls vs 重建 33）证明 ORIG 在两次
-            // growtype_skill 调用点各自重取 skillW/curJob 并重发 operator[]
-            // （P157/P183 禁缓存）⇒ 全部内联，删 skillIdx/skillLevel/curJob/skillW
-            // 四个具名局部。占位声明返回 char*，ORIG 实为 SkillSlot*。
-            reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
-                ->growtype_skill(GetUser()->get_charac_job(),
-                                 script->m_growSkillVec[i].first,
-                                 script->m_growSkillVec[i].second,
-                                 (ENUM_SKILL_TREE_KIND)0);
-            reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
-                ->growtype_skill(GetUser()->get_charac_job(),
-                                 script->m_growSkillVec[i].first,
-                                 script->m_growSkillVec[i].second,
-                                 (ENUM_SKILL_TREE_KIND)1);
         }
-        expert_job::CCharacExpertJob* expand =
-            reinterpret_cast<expert_job::CCharacExpertJob*>(
-                GetUser()->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0));
-        expand->InitScript(script);
+        // b28d-22：P0/P183 — ORIG 无 expand 具名局部，GetCharacExpandData 结果
+        // 直接作 this 调用 InitScript。
+        reinterpret_cast<expert_job::CCharacExpertJob*>(
+            GetUser()->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+            ->InitScript(script);
         GetUser()->SetCurCharacExpertJobExp(0);
     }
 
@@ -169,10 +191,10 @@ void CChangeNPCFavorCmd::parse()
     int pos = m_parser->m_args.find(" ", 0);
     std::string first = m_parser->m_args.substr(0, pos);
     std::string second = m_parser->m_args.substr(pos + 1, std::string::npos);
-    int v0 = atoi(first.c_str());
-    int v1 = atoi(second.c_str());
-    m_npcId = v0;
-    m_favor = v1;
+    // b28d-22：P0 — ORIG 0x084aadd8 把 atoi 结果直接写成员（无 v0/v1 槽，
+    // 无 store+load 往返），删两个具名中转局部。
+    m_npcId = atoi(first.c_str());
+    m_favor = atoi(second.c_str());
 }
 
 // ORIG execute 0x084aaef2：空实现（ret）。
@@ -192,10 +214,9 @@ void CChangeNPCMaxDayCmd::parse()
     int pos = m_parser->m_args.find(" ", 0);
     std::string first = m_parser->m_args.substr(0, pos);
     std::string second = m_parser->m_args.substr(pos + 1, std::string::npos);
-    int v0 = atoi(first.c_str());
-    int v1 = atoi(second.c_str());
-    m_npcId = v0;
-    m_maxDay = v1;
+    // b28d-22：P0 — ORIG 0x084aacb8 同构，atoi 结果直写成员。
+    m_npcId = atoi(first.c_str());
+    m_maxDay = atoi(second.c_str());
 }
 
 // ORIG execute 0x084aadd2：空实现（ret）。
@@ -218,12 +239,14 @@ void CCharacStatCmd::execute()
     // 显式零初始化 `= {0}` 复现。
     char buf[255] = {0};                                  // ORIG -0x127(%ebp)
 
-    unsigned char const* add = static_cast<unsigned char const*>(
+    // b28d-22：N107 族 —— ORIG 三处附加信息字段是单条 disp（mov/movzwl），
+    // 原 `unsigned char*` + `add + 0xNN` 退化成 add+mov 两步；改 pack(1) 视图。
+    CharacAddInfoStatView const* add = static_cast<CharacAddInfoStatView const*>(
         GetUser()->getCurCharacAddInfoR());
     sprintf(buf, "charac_stat move_speed=%d,attack_speed=%d,cast_speed=%d",
-            *(int const*)(add + 0x42),
-            (unsigned int)*(unsigned short const*)(add + 0x46),
-            (unsigned int)*(unsigned short const*)(add + 0x48));
+            add->m_moveSpeed,
+            (unsigned int)add->m_attackSpeed,
+            (unsigned int)add->m_castSpeed);
 
     PacketGuard packet;
     packet.put_header(0, 0xc);
@@ -258,10 +281,10 @@ void CChoiceItem::execute()
     CItem* item = G_CDataManager()->find_item(m_itemIdx);
     // ORIG：bad = (item==0 || is_stackable) bool 汇聚（mov$1 落 +0x61 fall，mov$0
     // 为 je 岛），if(!bad) 才 setChoiceItem(true, idx)。
-    // b28d-21：P0/N96 清绑（原 `register unsigned char bad asm("eax")`），
-    // 改纯 register 存储类提示（P231/P248 非绑定形）。
-    register unsigned char bad = (item == 0) || item->is_stackable();
-    if (bad)
+    // b28d-22：P0 —— ORIG 无 bad 槽也无 callee-saved 需求（值留 %al），
+    // 具名局部（含 register 提示）会多 store/load 或 `mov %eax,%ebx`；
+    // 探针 /tmp/pc/probe.cpp FORM4（条件内联进 if）逐条复现 ORIG。
+    if ((item == 0) || item->is_stackable())
         goto done;
     G_CDataManager()->setChoiceItem(true, (unsigned int)m_itemIdx);
 done:

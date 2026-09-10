@@ -195,57 +195,57 @@ void PvP_Room::SetIDX(int idx)
     reset();
 }
 
-int PvP_Room::get_index()
+__attribute__((weak)) int PvP_Room::get_index()
 {
     return m_index;
 }
 
-int PvP_Room::get_state()
+__attribute__((weak)) int PvP_Room::get_state()
 {
     return m_state;
 }
 
-void PvP_Room::set_state(int state)
+__attribute__((weak)) void PvP_Room::set_state(int state)
 {
     m_state = state;
 }
 
-int PvP_Room::get_pvp_battle_mode()
+__attribute__((weak)) int PvP_Room::get_pvp_battle_mode()
 {
     return m_pvpBattleMode;
 }
 
-int PvP_Room::GetManager() const
+__attribute__((weak)) int PvP_Room::GetManager() const
 {
     return (int)m_seats[7];
 }
 
-int PvP_Room::GetManagerSeat() const
+__attribute__((weak)) int PvP_Room::GetManagerSeat() const
 {
     return m_managerSeat;
 }
 
-unsigned char PvP_Room::isRematchable() const
+__attribute__((weak)) unsigned char PvP_Room::isRematchable() const
 {
     return m_field61c;
 }
 
-void PvP_Room::setReamtchable(bool flag)
+__attribute__((weak)) void PvP_Room::setReamtchable(bool flag)
 {
     m_field61c = flag;
 }
 
-int PvP_Room::GetRequestedMapNo()
+__attribute__((weak)) int PvP_Room::GetRequestedMapNo()
 {
     return (int)m_requestedMapNo;
 }
 
-void PvP_Room::SetRequestedMapNo(short mapNo)
+__attribute__((weak)) void PvP_Room::SetRequestedMapNo(short mapNo)
 {
     m_requestedMapNo = mapNo;
 }
 
-int PvP_Room::GetTeamCount(int team)
+__attribute__((weak)) int PvP_Room::GetTeamCount(int team)
 {
     int local_f8 = 0;
     for (int local_fc = 0; local_fc < 8; local_fc = local_fc + 1)
@@ -258,11 +258,11 @@ int PvP_Room::GetTeamCount(int team)
     return local_f8;
 }
 
-void PvP_Room::lock()
+__attribute__((weak)) void PvP_Room::lock()
 {
 }
 
-void PvP_Room::unlock()
+__attribute__((weak)) void PvP_Room::unlock()
 {
 }
 // CheckTimerKey 0x863bccc，报告缺失，objdump 取证）：计数数组即成员
@@ -275,28 +275,28 @@ unsigned int PvP_Room::gen_timer_key(TIMER_MESSAGE msg)
     return ++P_TIMER_KEY(msg);
 }
 
-int PvP_Room::get_timer_key(TIMER_MESSAGE msg)
+__attribute__((weak)) int PvP_Room::get_timer_key(TIMER_MESSAGE msg)
 {
     return P_TIMER_KEY(msg);
 }
 
-bool PvP_Room::CheckTimerKey(TIMER_MESSAGE msg, int key)
+__attribute__((weak)) bool PvP_Room::CheckTimerKey(TIMER_MESSAGE msg, int key)
 {
     return P_TIMER_KEY(msg) == key;
 }
-bool PvP_Room::IsExistPassword()
+__attribute__((weak)) bool PvP_Room::IsExistPassword()
 {
     return m_isExistPassword;
 }
 
-bool PvP_Room::IsEndPvpBattle()
+__attribute__((weak)) bool PvP_Room::IsEndPvpBattle()
 {
     return m_isEndPvpBattle;
 }
 
 // [SweepPvPRoom2] P292/P321-T3：ORIG 0x082a4322 体 movzbl;ret（bool 字段直返同形），
 // 调用点 0x08298134 call;xor $1;test %al;je ⇒ bool（字段与返回同时 bool 化）。
-bool PvP_Room::IsInsertTimerRecvPvpRank()
+__attribute__((weak)) bool PvP_Room::IsInsertTimerRecvPvpRank()
 {
     return m_isInsertTimerRecvPvpRank;
 }
@@ -469,8 +469,11 @@ LAB_NEXT2_2C: ;
                     // local_14 初始化即减 1，循环尾自减（4.1 for 形：init; jmp COND;
                     // BODY; subl; COND @0x085da4fc/0x085da500）。
                     int local_34 = local_18;
-                    int local_14 = local_18 - 1;
-                    while (-1 < local_14)
+                    // [SweepPvPRoom-2] 真 bug（Main 高优先级排查）：原 while 形把自减放
+                    // 循环体末尾 ⇒ `continue` 跳过自减（遇观察者座位死循环）；ORIG
+                    // 0x085da4f3 `je +0x2ec` / 0x085da4fc `subl $0x1,-0x10` 增量在体后、
+                    // COND(0x085da500) 之前（for 形）⇒ continue 恒执行增量。改 for 复现。
+                    for (int local_14 = local_18 - 1; -1 < local_14; local_14 = local_14 - 1)
                     {
                         int local_10 = rank[local_14];
                         // [DualMisc] ORIG 0x085da6xx：同前，&& 物化后 jne 跳过（无 xor）。
@@ -482,7 +485,6 @@ LAB_NEXT2_2C: ;
                         {
                             local_34 = local_34 - 1;
                         }
-                        local_14 = local_14 - 1;
                     }
                     bool local_2d = m_userTable.GetWinTeam() == local_20;
                     P_SEATS(local_24)->m_winPointBuffer =
@@ -1305,13 +1307,15 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
             local_70.put_int(P_SEATS(local_3c)->m_network.get_mtu());
             // ORIG 0x085d709d..0x085d70c3（P48/P0 去缓存）：条件臂与 else 臂各自
             // 独立调用 getCurCharacR() 一次，不缓存到具名局部（缓存则单 call 不同形）。
-            if (P_SEATS(local_3c)->getCurCharacR() == 0)
+            // [SweepPvPRoom-2] P59/P292 极性：ORIG 0x085d7095 `test; setne; test; je`
+            // ⇒ 源形正极性 `!= 0`（旧 `== 0` 形 4.4 产 sete、且 setne 差集 +1）。
+            if (P_SEATS(local_3c)->getCurCharacR() != 0)
             {
-                local_70.put_byte(0);
+                local_70.put_byte(*(unsigned char*)((const char*)P_SEATS(local_3c)->getCurCharacR() + 0x75));
             }
             else
             {
-                local_70.put_byte(*(unsigned char*)((const char*)P_SEATS(local_3c)->getCurCharacR() + 0x75));
+                local_70.put_byte(0);
             }
         }
     }
@@ -1404,13 +1408,15 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
     local_70.put_int(user->m_network.get_mtu());
     // ORIG 0x085d..（P48/P0 去缓存）：条件臂与 else 臂各自独立调用
     // getCurCharacR() 一次（Ghidra C 双臂 getter），不缓存到具名局部。
-    if (user->getCurCharacR() == 0)
+    // [SweepPvPRoom-2] P59/P292 极性：ORIG 0x085d755c `test; setne; test; je`
+    // ⇒ 源形正极性 `!= 0`（旧 `== 0` 形 4.4 产 sete）。
+    if (user->getCurCharacR() != 0)
     {
-        local_70.put_byte(0);
+        local_70.put_byte(*(unsigned char*)((const char*)user->getCurCharacR() + 0x75));
     }
     else
     {
-        local_70.put_byte(*(unsigned char*)((const char*)user->getCurCharacR() + 0x75));
+        local_70.put_byte(0);
     }
     local_70.finalize(true);
     send_to_pvp(local_70);
@@ -1729,8 +1735,29 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
             "pvp@log %s,%s,room(%d),%d,%d,%d,%d", user->get_acc_name(),
             user->getCurCharacName(), idx, mode, seat, st, wc);
     }
-    if (state == ENUM_SEAT_STATE_0xfe)
+    // [SweepPvPRoom-2] P272/P59 块序交换：ORIG 0x085d7888 `mov 0x14(%ebp),%eax;
+    // cmp $0xfe,%eax; je <A 体>` + `cmp $0xff,%eax; jne <C 体>`（B 体直落）；
+    // 反写 `if (state != 0xfe) { if (state == 0xff) B else C } else { A }` 复现该
+    // 物理序（旧 `if (state == 0xfe) A else if …` 形 4.4 把 A 体直落、B/C 后置）。
+    // [SweepPvPRoom-2] P286/P324：ORIG 0x085d7888 的「形参载入 + 寄存器比较」
+    // 链（`mov 0x14(%ebp),%eax; cmp $0xfe,%eax; je A; cmp $0xff,%eax; jne C`）
+    // 由 switch 复现（探针 probe_enum3 逐条同形）；叶块物理序 = 书写序
+    // ⇒ case 顺序 0xff / 0xfe / default（旧 if 反写形 4.4 恒 cmpl 内存直比）。
+    switch (state)
     {
+    case (ENUM_SEAT_STATE)0xff:
+        {
+            if (m_seats[7] != user)
+            {
+                return 8;
+            }
+            // [SweepPvPRoom] P97：ORIG 同形（第二实参取形参 state，非立即数 0xff）。
+            change_team(seat, (int)state);
+            a = true;
+        }
+        break;
+    case ENUM_SEAT_STATE_0xfe:
+        {
         if (m_state == 2)
         {
             if (P_SEATS(seat) == 0)
@@ -1836,25 +1863,18 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
                 a = true;
             }
         }
-    }
-    else if (state == (ENUM_SEAT_STATE)0xff)
-    {
-        if (m_seats[7] != user)
-        {
-            return 8;
         }
-        // [SweepPvPRoom] P97：ORIG 同形（第二实参取形参 state，非立即数 0xff）。
-        change_team(seat, (int)state);
-        a = true;
-    }
-    else
-    {
-        if (P_SEATS(seat) != user)
+        break;
+    default:
         {
-            return 8;
+            if (P_SEATS(seat) != user)
+            {
+                return 8;
+            }
+            change_team(seat, (int)state);
+            a = true;
         }
-        change_team(seat, (int)state);
-        a = true;
+        break;
     }
     return 0;
 }
@@ -2126,19 +2146,22 @@ void PvP_Room::send_to_pvp_team(PacketGuard& guard, CUser* user)
                 }
             }
         }
-        if (local_18 != 0)
+        if (local_18 == 0)
+            return;
+        // [SweepPvPRoom-2] P223 变体（裸早返产尾岛）：`if (local_18 == 0) return;`
+        // 复现 ORIG 0x085dbf7f nop 岛（je 落点）+ 0x085dbf7a jmp（第二循环出口）
+        // 双岛形（94=94 AE）；旧 `if (local_18 != 0) { … }` 包裹形被 4.4 合并成一个
+        // 尾岛（92 条）。
+        for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
         {
-            for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
+            // 同第一循环：ORIG 0x085dbf36 段亦为「前两条件物化岛 + 第三条件
+            // 独立比较」⇒ 语句表达式 + 嵌套 if。
+            if (({ (P_SEATS(local_10) != 0) &&
+                   ((char)IsPvpObserver(local_10) != 1); }))
             {
-                // 同第一循环：ORIG 0x085dbf36 段亦为「前两条件物化岛 + 第三条件
-                // 独立比较」⇒ 语句表达式 + 嵌套 if。
-                if (({ (P_SEATS(local_10) != 0) &&
-                       ((char)IsPvpObserver(local_10) != 1); }))
+                if (P_TEAMS(local_10) == local_18)
                 {
-                    if (P_TEAMS(local_10) == local_18)
-                    {
-                        P_SEATS(local_10)->Send(guard);
-                    }
+                    P_SEATS(local_10)->Send(guard);
                 }
             }
         }
@@ -2825,6 +2848,9 @@ bool PvP_Room::IsThereSameGuildMember()
 {
     if ((m_pvpBattleMode == 2) || (m_pvpBattleMode == 3))
     {
+        int local_dead;
+        local_dead = 4;
+        (void)local_dead;
         int local_54[8];
         local_54[4] = 0;
         local_54[5] = 0;

@@ -1,6 +1,6 @@
 // ============================================================================
 // df_game_r 还原 —— DB_MailBox 域 Mail helper 自由函数（OrigDBMail20 批，
-// 独占 TU，未入 CMake，待 Main 登记）
+// 独占 TU；已入 cmake/game/CMakeLists.txt）
 // ORIG 符号（nm 核对，df_game_r elf32-i386，全部 T）：
 //   int  GetOnlyMailCount(SIG_MAILBOX_LIST*)              0x0841cc6a
 //   bool RemoveMailByMailIndex(SIG_MAILBOX_LIST*, int)    0x0841ce06
@@ -12,9 +12,10 @@
 // 报告：docs/class_func_reports/_lt_global_gt_/{GetOnlyMailCount,
 //   RemoveMailByMailIndex,FindLastOccTimeMail,CompareLetter,
 //   ArrangeMailAndLetter}.md（逐指令转写）。
-// 依赖：SIG_MAILBOX_LIST（SigTypes_D.h，m_data[0x338a]）按 ORIG 偏移访问
-//   （本 TU 用裸偏移宏，与 DB_MailBox_Req_List.cpp 同款先例）；SIG_LETTER_INFO
-//   （CMailBoxHelper.h，0x12b）；RemoveMailByLatestLetter 定义归
+// 依赖：SIG_MAILBOX_LIST（SigTypes_D.h，sizeof 0x338a）经权威头具名视图
+//   m_box.m_postals[i]（postal_id@+0、m_tail.m_occ.field55@+0x55 /
+//   letterId@+0x5c）访问；SIG_LETTER_INFO（CMailBoxHelper.h，0x12b）的
+//   +0x125 / 首字段用本 TU pack(1) 视图；RemoveMailByLatestLetter 定义归
 //   DB_MailBox_Req_List.cpp（OrigMailList19 批，本 TU 仅声明）。
 // 注：ArrangeMailAndLetterIndex / IsContainedLetter 等既有 helper 归
 //   DB_MailBox_Req_List.cpp；本头只声明本批 5 个，不与其重复。

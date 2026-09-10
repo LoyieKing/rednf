@@ -15547,8 +15547,13 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     char content[30];   // -0x56，0x1e
-    // [b28d-solo-Dispatchers] P171：ORIG 0x0821d9ee 区间对 -0x56 只有 lea（无
-    //   memset/rep stos/逐字节清零写），且 p167 报我方 EXTRA `memset` +1 ⇒ 删。
+    // [b28d-solo-Dispatchers] 语义修正（Main 新判据②回边核对命中）：ORIG
+    //   0x0821dcd3-0x0821dd22 是 `memset(content,0,0x1e)` 的 4.1 **内联慢路**展开
+    //   （`lea -0x56(%ebp),%eax; mov $0x1e,%ebx; …and $2…; mov %edx,(%eax,%ecx,1);
+    //   add $0x4,%ecx; cmp %esi,%ecx; jb`+尾 2/1 字节），即 ORIG **有**清零。
+    //   第一波据 p167 EXTRA `memset`+1 误判「ORIG 无清零」而删除 ⇒ 丢失语义
+    //   （get_str 短串时 strcmp 读未初始化尾部）⇒ 恢复 memset。
+    memset(content, 0, sizeof(content));
     if (packet.get_str(content, 0x1e, contentLen) != 1)
     {
         return LineFunc(0xd1f9, __PRETTY_FUNCTION__, 0, 0);

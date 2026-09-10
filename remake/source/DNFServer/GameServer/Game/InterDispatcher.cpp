@@ -4509,19 +4509,22 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
     int memberCountPos = packet.get_index();           // -0x2c（put_byte(int&,int) 回填需左值）
     int memberCount = 0;                               // -0x14
     packet.put_byte(0);
+    // ORIG 循环体 `mov -0xSLOT(%ebp),%ecx; lea (%ecx,%eax,1),%eax`：基址走 pPkt 具名槽。
+#define pData (reinterpret_cast<char*>(pPkt))
     for (int i = 0;                                    // -0x10
          i < (int)(unsigned int)pPkt->m_5a;
          ++i)
     {
         if (user->getGuildMemberGrade() != 0 &&        // ORIG 双调用短路原样（正极性 P214①）
             user->getGuildMemberGrade() != 0 &&
-            *reinterpret_cast<int*>(data + i * 5 + 0x5b) >= 200)
+            *reinterpret_cast<int*>(pData + i * 5 + 0x5b) >= 200)
         {
-            packet.put_int(*reinterpret_cast<int*>(data + i * 5 + 0x5b));
-            packet.put_byte((int)*reinterpret_cast<signed char*>(data + i * 5 + 0x5f));
+            packet.put_int(*reinterpret_cast<int*>(pData + i * 5 + 0x5b));
+            packet.put_byte((int)*reinterpret_cast<signed char*>(pData + i * 5 + 0x5f));
             ++memberCount;
         }
     }
+#undef pData
     packet.put_byte(memberCountPos, memberCount);      // ORIG put_byte(int&,int) 回填
 
     const int noticeLen = (int)strlen(pPkt->m_d4);      // 公告
@@ -6786,11 +6789,11 @@ int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, i
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
-    const unsigned char result =
-        pPkt->m_30;   // msg+0x30 结果码
     PacketGuard packet;
     packet.put_header(1, 0x7a);
-    if (result == 1)
+    // ORIG 0x84d1034 段：无 result 具名槽（每比较点重发 `mov -0xSLOT(%ebp),%eax;
+    // movzbl 0x30(%eax),%eax; cmp $K,%al`）⇒ 内联 pPkt->m_30（P0/P226）。
+    if (pPkt->m_30 == 1)
     {
         // deleteToBlackList 返回 bool：ORIG xor $0x1,%eax; test %al 取反检验
         if (!user->deleteToBlackList(
@@ -6809,12 +6812,12 @@ int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, i
             packet.put_byte(1);
         }
     }
-    else if (result == 2)
+    else if (pPkt->m_30 == 2)
     {
         packet.put_byte(0);
         packet.put_int(0x4b);
     }
-    else if (result == 3)
+    else if (pPkt->m_30 == 3)
     {
         packet.put_byte(0);
         packet.put_int(0x4c);

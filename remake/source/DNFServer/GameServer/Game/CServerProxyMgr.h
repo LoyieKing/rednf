@@ -36,8 +36,8 @@ public:
     T* GetServerProxy(ENUM_SERVER_GROUP group);
     T* GetServerProxyArrayAt(int idx);
     int GetServerProxyArraySize();
-    T* createServerProxy(int count, int index, ENUM_SERVER_GROUP group,
-                         char* ip, int tcpPort, int udpPort);
+    bool createServerProxy(int count, int index, ENUM_SERVER_GROUP group,
+                           char* ip, int tcpPort, int udpPort);
 
 private:
     int* m_pIndexArray;   // +0x00
@@ -184,36 +184,33 @@ int CServerProxyMgr<T>::GetServerProxyArraySize()
 }
 
 template <class T>
-T* CServerProxyMgr<T>::createServerProxy(int count, int index,
-                                         ENUM_SERVER_GROUP group,
-                                         char* ip, int tcpPort, int udpPort)
+// ORIG 三实例（CMonitor 0x082b3dc2 / CGuild 0x082b4018 / CStatistic 0x082b426e）
+// 在 `call InitESsii` 后 `mov %eax,%ebx` 并以其为返回值 ⇒ 原码 `return …Init(...)`；
+// 三个 Init(Ssii) 尾均 `call Init(); leave; ret`（eax = 无参 Init 的 bool）
+// ⇒ Init(Ssii) 与 createServerProxy 的返回类型均为 **bool**（返回类型不入 mangled）。
+// 数组分配按 ORIG：`new T[count]`（`_Znaj` + cookie + 元素构造循环 + `_ZdaPv` 异常清理），
+// 非手工 new char[]+placement new（后者多 `_ZnwjPv`/`_ZdlPvS_` 且缺 `_ZdaPv`）。
+bool CServerProxyMgr<T>::createServerProxy(int count, int index,
+                                           ENUM_SERVER_GROUP group,
+                                           char* ip, int tcpPort, int udpPort)
 {
     if (group == E_SERVER_GROUP_NONE)
     {
         m_pProxyArray = &m_proxy;
         m_count = 1;
-        m_proxy.Init(std::string(ip), tcpPort, udpPort);
-        return &m_proxy;
+        return m_proxy.Init(std::string(ip), tcpPort, udpPort);
     }
     if (!m_allocated)
     {
         m_allocated = 1;
         m_pIndexArray = new int[count];
-        char* buf = new char[count * sizeof(T) + 4];
-        *(int*)buf = count;
-        char* p = buf + 4;
-        for (int i = count - 1; i != -1; i--)
-        {
-            new ((T*)p) T();
-            p += sizeof(T);
-        }
-        m_pProxyArray = (T*)(buf + 4);
+        m_pProxyArray = new T[count];
         m_count = count;
     }
     m_pIndexArray[index] = (int)group;
-    T* t = (T*)((char*)m_pProxyArray + index * sizeof(T));
-    t->Init(std::string(ip), tcpPort, udpPort);
-    return t;
+    // ORIG 无具名 t 局部（P0/P183）：地址链内联进调用实参位。
+    return ((T*)((char*)m_pProxyArray + index * sizeof(T)))
+        ->Init(std::string(ip), tcpPort, udpPort);
 }
 
 #endif  // GAME_CSERVERPROXYMGR_H_

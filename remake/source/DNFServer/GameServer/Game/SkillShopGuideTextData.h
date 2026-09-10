@@ -19,10 +19,25 @@
 class SkillShopGuideTextData
 {
 public:
-    SkillShopGuideTextData();                                  // W 0x0891cb4c
-    SkillShopGuideTextData(SkillShopGuideTextData const&);     // W 0x08932804
-    ~SkillShopGuideTextData();                                 // W 0x0891cb62
-    SkillShopGuideTextData& operator=(SkillShopGuideTextData const&);  // W 0x089328e6
+    // ORIG 四件套全为 W 弱符号（C1/C2 0x0891cb4c W 0x16、C1ERKS_/C2ERKS_ 0x08932804
+    // W 0x5d、D1/D2 0x0891cb62 W 0x16、aSERKS_ 0x089328e6 W 0x60）⇒ 原码是头内 inline
+    // 定义，由 ODR 使用点发射弱副本（P233/P204；我方原 .cpp 外联定义发射 T = 判据㉓ 缺口）。
+    // 函数体与 ORIG 外联版逐条同（尺寸不变），仅绑定 T→W。
+    SkillShopGuideTextData() {}
+    SkillShopGuideTextData(SkillShopGuideTextData const& o)
+        : m_levelMin(o.m_levelMin), m_levelMax(o.m_levelMax), m_text(o.m_text),
+          m_colorR(o.m_colorR), m_colorG(o.m_colorG), m_colorB(o.m_colorB) {}
+    ~SkillShopGuideTextData() {}
+    SkillShopGuideTextData& operator=(SkillShopGuideTextData const& o)
+    {
+        m_levelMin = o.m_levelMin;
+        m_levelMax = o.m_levelMax;
+        m_text = o.m_text;
+        m_colorR = o.m_colorR;
+        m_colorG = o.m_colorG;
+        m_colorB = o.m_colorB;
+        return *this;
+    }
 
     int m_levelMin;        // +0x00 [level range] 首值（推断）
     int m_levelMax;        // +0x04 [level range] 次值（推断）

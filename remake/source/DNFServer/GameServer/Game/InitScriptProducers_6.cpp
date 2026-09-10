@@ -189,6 +189,9 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
 // importDimensionActivationData 的 break 版不同——此处 else 是 return）后
 // ourN 687→**737**（gap −14→−64）、jcc 目标块差异段 13→13 且 jcc 数 91/109→
 // 91/127，明显反劣 ⇒ 已回滚。P333 的负极性守卫形仅在 else 为 `break` 时成立。
+// [SweepInitProd9 本轮·回边方向审计] ORIG backward 2 / 我方 1：两条 continue
+// （0x7b2 guard 重试 / 0x1343 尾部置位）汇聚共享尾块 0x134c → `jmp 687`(+0x13
+// 循环头)，ORIG 为两条独立 jmp 直达 +0x13 ⇒ 共享块合并，**回边未丢失**。
 // ORIG 0x088be63d。
 int getGrowTypeIndex(const char* name)
 {
@@ -1697,6 +1700,10 @@ int importDailyScheduleEtcScript(const char* path,
 // [SweepInitProd9 本轮] fresh 读数：origN 1143 / ourN 1141（gap +2）；jcc 155/156、
 // 目标块差异 9 段（delete/insert 成对，均为静态表守卫块与 [section]/[give group]
 // 内层循环的 nop 中继岛落点差，jcc 方向无互换）⇒ 维持 N82/N95，无真反。
+// [SweepInitProd9 本轮·回边方向审计] ORIG backward 16 / 我方 14：差的 2 条 = 4.4
+// 把 4 条 continue（leave 点 0x494d/0x4c8b/0x4e99/0x5960）合并到 2 个共享尾块
+// （0x5974→jmp 4773=+0x8e 主表 guard 头；0x4ea6→jmp 4ab1=+0x3cc 子表 guard 头），
+// ORIG 为 4 条独立 jmp 直达同目标 ⇒ **无回边丢失、无「退出循环」误写**。
 bool importDimensionActivationData(const char* path,
                                    DimensionActivationData* out)
 {

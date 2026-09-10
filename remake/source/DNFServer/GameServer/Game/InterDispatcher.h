@@ -2472,6 +2472,12 @@ private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
 
+// ORIG 0x084e0390 段 __PRETTY_FUNCTION__ 逐字节实证形参类型是 typedef 名：
+//   "void Inter_VillageAttackedReward::_send_reward_item(CUser*,
+//    itemIndexOnlyServer_t, int, int)"（sz 0x5d）；底层 unsigned long（mangled
+// `m` 不变，P110 typedef 不入 mangling）。
+typedef unsigned long itemIndexOnlyServer_t;
+
 class Inter_VillageAttackedReward : public ISigDispatcher
 {
 public:
@@ -2481,7 +2487,7 @@ public:
 
     // ORIG T 0x084e0390 _ZN27Inter_VillageAttackedReward17_send_reward_itemEP5CUsermii
     //   （m=itemIdx，i1=count→create_item param，i2=win/rank；InterWave1 W0 批）
-    void _send_reward_item(CUser* user, unsigned long itemIdx, int count, int rank);
+    void _send_reward_item(CUser* user, itemIndexOnlyServer_t itemIdx, int count, int rank);
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

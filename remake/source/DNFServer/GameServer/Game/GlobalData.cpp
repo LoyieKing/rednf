@@ -8492,12 +8492,15 @@ int get_seed_from_date()
 // ============================================================================
 // ---- 全局单例访问器（ORIG W：G_TimerDispatcher 0x0847e8a4 /
 // G_InterDispatcher 0x0847e8b7，GlobalInstance inst_ptr 形态，同 G_TimerQueue）----
-TimerDispatcher* G_TimerDispatcher()
+// 判据㉓（符号绑定）：ORIG nm `_Z17G_TimerDispatcherv` = **W** 0x0847e8c4 size 0xd；
+// 我方原为 T 强绑定（Main 已批准「各 TU 对自己 TU 内 G_* 定义加 weak」的单点修法）。
+__attribute__((weak)) TimerDispatcher* G_TimerDispatcher()
 {
     return GlobalInstance<TimerDispatcher>::inst_ptr();
 }
 
-InterDispatcher* G_InterDispatcher()
+// 同上：ORIG `_Z17G_InterDispatcherv` = W 0x0847e8b7 size 0xd。
+__attribute__((weak)) InterDispatcher* G_InterDispatcher()
 {
     return GlobalInstance<InterDispatcher>::inst_ptr();
 }

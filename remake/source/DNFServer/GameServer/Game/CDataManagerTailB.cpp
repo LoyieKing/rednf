@@ -88,10 +88,14 @@ int CDataManager::VerifyDungeon(const CDungeon& dungeon) const
 //   ② ORIG is_stackable 守卫为 08361222 `test %al,%al; je 083617d5`（正极性，
 //      无 xor $1）；旧码 `if(!is_stackable()) continue;` 4.4 恒发 xor $1（P168a），
 //      已改 `if (is_stackable()) { body }` 包裹。
-//   读数：raw insns 1154→1172（ORIG 1174，gap -20→-2）；call * 2→4=ORIG 4；
+//   读数：raw insns 1154→1172→1167（ORIG 1174）。二轮按 P335/P0 对齐：删 4 个
+//   ORIG 无的具名局部（skill/sp、qp、mp；P0 无槽往返 ⇒ 表达式直读），补 ORIG
+//   有的 dungeon 局部（08361fab mov %eax,-0x1c; mov -0x1c,%eax）⇒ fn_diff_tu
+//   bad 1068→989、store-reload 成对 P 7→3；call * 2→4=ORIG 4；
 //   p167 166=166 CLEAR（MISSING 全为 C1/C2、D1/D2 同址别名，P93 豁免）。
-//   残余：N82 槽号（帧 0x1ac0 vs 0x1abc）、P197④ 4.1 setcc 物化、N18a lea/add、
-//   N122 bool 取反 xor（我方 2 处 vs ORIG 1 处）、else 分支 `cmp $0x22` 被 4.4 DCE。
+//   残余：4.1 多路径 jmp+nop 汇合块（ORIG jcc 103 vs 我方 95）、P197④ setcc 物化、
+//   N18a lea/add、N122 bool 取反 xor（我方 2 处 vs ORIG 1 处）、else 分支
+//   `cmp $0x22` 被 4.4 DCE（P171 死比较跨版本前端差）。
 bool CDataManager::Verify() const
 {
     // [ORIG +0x0008..+0x0027] 空循环照抄（ORIG 保留 i∈[1,0xc6) 死循环体）
@@ -118,10 +122,9 @@ bool CDataManager::Verify() const
                  it(m_skillList->getSkillList(job)->begin()),
                  e(m_skillList->getSkillList(job)->end()); it != e; ++it)
         {
-            CSkill* skill = it->second;
-            // 【ORIG asm 08360f15: mov 0xc8(%eax),%eax】required level range tag
-            const char* sp = (const char*)skill;
-            if (*(const int*)(sp + 0xc8) == 0)
+            // 【ORIG asm 08360f12/08360f15: mov 0x4(%eax),%eax; mov 0xc8(%eax),%eax】
+            // ORIG 无 skill/sp 具名局部（P0：无槽往返 ⇒ 表达式直读；P335 消 P 对）。
+            if (*(const int*)((const char*)it->second + 0xc8) == 0)
             {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x272e, 9, true, true);
                 trace("Skill [required level range] tag value error "
@@ -285,10 +288,10 @@ bool CDataManager::Verify() const
                  qe(ql->m_questMap.end()); qit != qe; ++qit)
         {
             Quest* quest = qit->second;
-            const char* qp = (const char*)quest;
 
             // 【ORIG asm 083618aa: mov 0xb8(%eax)】quest 类型/tag 字段
-            const int state = *(const int*)(qp + 0xb8);
+            // ORIG 无 qp 具名局部（P0）：按 quest 指针直接偏移访问。
+            const int state = *(const int*)((const char*)quest + 0xb8);
             if (state != 0 && state != 0x19)
             {
                 continue;
@@ -298,7 +301,7 @@ bool CDataManager::Verify() const
             // 未建模此区布局，按 ORIG 偏移访问）
             {
                 std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<std::vector<RewardItemInfo>*>(const_cast<char*>(qp) + 0xc4);
+                    *reinterpret_cast<std::vector<RewardItemInfo>*>(reinterpret_cast<char*>(quest) + 0xc4);
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -310,14 +313,14 @@ bool CDataManager::Verify() const
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27a1, 5);
                         trace("Quest reward item element not found "
                               "(quest: %d)(item: %d)",
-                              *(const int*)(qp + 0x04), it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
+                              *(const int*)((const char*)quest + 0x04), it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
             }
             {
                 std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<std::vector<RewardItemInfo>*>(const_cast<char*>(qp) + 0xd0);
+                    *reinterpret_cast<std::vector<RewardItemInfo>*>(reinterpret_cast<char*>(quest) + 0xd0);
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -329,7 +332,7 @@ bool CDataManager::Verify() const
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27ac, 5);
                         trace("Quest reward select item element not found "
                               "(quest: %d)(item: %d)",
-                              *(const int*)(qp + 0x04), it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
+                              *(const int*)((const char*)quest + 0x04), it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
@@ -337,7 +340,7 @@ bool CDataManager::Verify() const
             // 【ORIG +0xdc】collision quest 列表（vector<int>）
             {
                 std::vector<int>& v =
-                    *reinterpret_cast<std::vector<int>*>(const_cast<char*>(qp) + 0xdc);
+                    *reinterpret_cast<std::vector<int>*>(reinterpret_cast<char*>(quest) + 0xdc);
                 for (std::vector<int>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -346,7 +349,7 @@ bool CDataManager::Verify() const
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27cd, 5);
                         trace("Quest reward collision quest element now found "
                               "(quest: %d)(collision quest: %d)",
-                              *(const int*)(qp + 0x04), *it);  // 【ORIG asm 08361b7e: quest+0x04】
+                              *(const int*)((const char*)quest + 0x04), *it);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
@@ -354,7 +357,7 @@ bool CDataManager::Verify() const
             // 【ORIG +0xec】collision item 向量（RewardItemInfo）
             {
                 std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<std::vector<RewardItemInfo>*>(const_cast<char*>(qp) + 0xec);
+                    *reinterpret_cast<std::vector<RewardItemInfo>*>(reinterpret_cast<char*>(quest) + 0xec);
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -366,7 +369,7 @@ bool CDataManager::Verify() const
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27da, 5);
                         trace("Quest reward collision item element not found "
                               "(quest: %d)(item: %d)",
-                              *(const int*)(qp + 0x04), (*it).m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
+                              *(const int*)((const char*)quest + 0x04), (*it).m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
                         questFail = true;
                     }
                 }
@@ -382,9 +385,9 @@ bool CDataManager::Verify() const
                  it != m_monsterManager->m_monsterMap.end(); it++)
             {
                 CMonster* mon = it->second;
-                const char* mp = (const char*)mon;
-                const int lvA = *(const int*)(mp + 0x58);  // 【ORIG asm +0x10de】
-                const int lvB = *(const int*)(mp + 0x5c);  // 【ORIG asm +0x10db】
+                // ORIG 无 mp 具名局部（P0）：按 mon 指针直接偏移访问。
+                const int lvA = *(const int*)((const char*)mon + 0x58);  // 【ORIG asm +0x10de】
+                const int lvB = *(const int*)((const char*)mon + 0x5c);  // 【ORIG asm +0x10db】
                 if (lvA < 1 || 200 < lvA || lvB < 1 || 200 < lvB)
                 {
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x2808, 9, true, true);
@@ -399,8 +402,10 @@ bool CDataManager::Verify() const
                      it(m_dungeonList->m_dungeonMap.begin());
                  it != m_dungeonList->m_dungeonMap.end(); ++it)
             {
-                clearSim.addClearedDungeon(
-                    (short)(*it->second).get_index(), '\x04');
+                // ORIG 08361fab: mov %eax,-0x1c(%ebp); mov -0x1c(%ebp),%eax
+                // ⇒ 原码有具名局部（P0：有槽往返）；08361fb9 cwtl = (short) 转换。
+                CDungeon* dungeon = it->second;
+                clearSim.addClearedDungeon((short)dungeon->get_index(), '\x04');
             }
             char buf[0x1800];
             if (clearSim.toString(buf, 0x1800) < 0)

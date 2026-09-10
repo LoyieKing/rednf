@@ -101,6 +101,10 @@ public:
     std::vector<stSPReturnInfo_t> m_returns2;   // +0x28
 };
 
+// 判据㉓ 符号绑定：ORIG 本类六符号全 W（C1/C2 0x084eef48、D1/D2 0x084efc92、
+// SendSkillPointReturnInfo 0x084eefd4、SetSkillTree 0x084ef4a6；nm 实查）
+// ⇒ 本 TU 内定义加 weak（不改头；ORIG 头内定义形即 W）。
+__attribute__((weak))
 CSkillTreeParam::CSkillTreeParam(CUser* user, SIG_LOAD_ETC* sig, PacketGuard& packet)
     // P29/P55：ORIG 0x084eef50 先写 +0x00/0x04/0x08（列表），再构造 +0x1c/+0x28
     // vector 成员，最后 body 清零 +0x0c..0x18 ⇒ 前三者走初始化列表。
@@ -112,7 +116,7 @@ CSkillTreeParam::CSkillTreeParam(CUser* user, SIG_LOAD_ETC* sig, PacketGuard& pa
     m_field18 = 0;
 }
 
-CSkillTreeParam::~CSkillTreeParam()
+__attribute__((weak)) CSkillTreeParam::~CSkillTreeParam()
 {
 }
 
@@ -133,7 +137,7 @@ CSkillTreeParam::~CSkillTreeParam()
 //   同型第二包：put_byte(1)、put_int(m_field18)、put_int(m_field10)、
 //   遍历 m_returns2。空差值或空列表 → 跳过发包。
 // ---------------------------------------------------------------------------
-void CSkillTreeParam::SendSkillPointReturnInfo()
+__attribute__((weak)) void CSkillTreeParam::SendSkillPointReturnInfo()
 {
     // [b28d-solo-Inter_LoadEtc_impl] P0/P183 去缓存：ORIG 无 skill 具名局部
     // （`call getCurCharacSkillR; mov %eax,(%esp)` 返回值寄存器直传），原码为内联
@@ -213,7 +217,7 @@ void CSkillTreeParam::SendSkillPointReturnInfo()
 //      对两树 growtype_skill(job, first, second, kind)；
 //   8) 专家职业脚本 m_growSkillVec（+0x0c）遍历：未掌握技能同样 growtype_skill。
 //      正常路径最终返回 0。
-int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
+__attribute__((weak)) int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
 {
     // [b28d-solo-Inter_LoadEtc_impl] verdict=N 539/536（fresh）：p167 CLEAR（87/87）。
     // b28d-solo 本轮已修：① 4 处 skillR 缓存局部去缓存（P0/P183，帧 0x90→0x70 归位）；
@@ -429,6 +433,15 @@ int   ComputeDaysScheduleTime(int hour, long lastTime, long curTime);
 // 但该头与 MoreTypes.h 存在五组 Sig 类 ODR 重定义，include 任一均冲突。
 // dispatch_sig 尾部 Taiwan 段调用按 ORIG 保留语义登记为 blocked_dependencies：
 //   garena->getGcaType() / getMobileAuth() / GarenaCyberCafe / GarenaAuthPCRoom
+// [P327/N132 封顶] 本 TU 相对 ORIG 多 1 个
+//   `_GLOBAL__I__ZN15CSkillTreeParamC2EP5CUserP12SIG_LOAD_ETCR11PacketGuard`：
+//   根因（-H 实测链）CUser.h:85 → TaiwanQueries.h → TaiwanCash.h →
+//   ThreadInterface.h:29 `#include <iostream>` ⇒ 本 TU 发射
+//   std::ios_base::Init __ioinit（static_init 体仅 InitC1 + __cxa_atexit）。
+//   ORIG 本区唯一 GI 为 _GLOBAL__I__Z7getUserj（属 InterDispatcher.cpp 的 TU）；
+//   删直接 include 无效（CUser.h 仍传递）。唯一修法 = 删共享头
+//   ThreadInterface.h 的 iostream（7 直接 + 12/56 间接消费）⇒ Main 2026-09-10
+//   按 GmCmds_F 同判例裁决「不删」⇒ 结构性噪音封顶。
 bool Taiwan_GarenaCyberCafe(unsigned short cafeFlag);      // T 0x0817313c [INFERENCE 归属名]
 void Taiwan_GarenaAuthPCRoom(CUser* user);                 // T 0x0855428e [INFERENCE]
 
@@ -666,8 +679,14 @@ bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
     // `lossGrade > pvpGrade` 短路进 body；P48 双臂各重取 getPvPExpLossGrade/RefR。
     int minPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(
                        GlobalData::s_ref_pvp_grade->getPvPExpLossGrade());
-    if (GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() >
-            user->getPVPResultRefR()->m_pvpGrade ||
+    // [SweepInterLoadEtcImpl2 2026-09-10] 真语义 bug（判据㊲ 条件极性反写；
+    // jcc 目标下标交叉验证）：旧写 `lossGrade > pvpGrade || expPoint > minPoint`
+    // 与 ORIG 整体反相。ORIG 0x084c29eb `cmp %eax,%ebx; jg +0xa5`（→ mov $0,%eax）
+    // 与 0x084c2a00 `cmp %eax,%edx; jle +0xa5` 两跳同落 false 块、$1 走
+    // fall-through ⇒ body 条件 = (lossGrade <= pvpGrade) && (expPoint > minPoint)。
+    // AE 归一化把跳转目标统一为 <T>，故 92/92 的旧读数是假阴性。
+    if (GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() <=
+            user->getPVPResultRefR()->m_pvpGrade &&
         user->getPVPResultRefR()->m_expPoint > minPoint)
     {
         // ORIG 0x084c2a12：now/lastPlay 寄存器直传（%ebx/%eax，无槽，P0）
@@ -2081,7 +2100,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 // ORIG W 0x084e9cd2 sz 0x30（D1：vptr=0x8c8fff0 → ISigDispatcher D1 → delete
 // 条件体）。out-of-line 定义使本 TU 成为 vtable for Inter_LoadEtc 的发出点
 // （key function=析构；此前无定义导致链接 undefined vtable）。
-Inter_LoadEtc::~Inter_LoadEtc() {}
+// 判据㉓ 符号绑定：ORIG _ZN13Inter_LoadEtcD1Ev/D2Ev 0x084e9cd2、D0Ev 0x084e9d02
+// 全 W（头内定义形）；我方外联定义发 T ⇒ 本 TU 内定义加 weak（不改头）。
+__attribute__((weak)) Inter_LoadEtc::~Inter_LoadEtc() {}
 
 // ---------------------------------------------------------------------------
 // LinkClosureB-2 追加：CAradRyosikaEvent::DoEvent（ORIG T 0x081a107c sz 0x7d，
@@ -2135,7 +2156,10 @@ void CAradRyosikaEvent::SendMail(CUser* user, int param2, int param3, int param4
 // ORIG W 0x084e913a sz 0x6a（_ZNK27PvPSkillTreeParameterScript21getInitSkillTreeGradeEi，
 // objdump 逐指令转写，无独立报告）：m_map54（this+0x54 map<int,int>）find(grade)，
 // 命中返回 second，否则 0。
-int PvPSkillTreeParameterScript::getInitSkillTreeGrade(int grade) const
+// 判据㉓ 符号绑定：ORIG `_ZNK27PvPSkillTreeParameterScript21getInitSkillTreeGradeEi`
+// = W 0x084e913a sz 0x6a（头内定义形；同 TU 其它成员 getGivePvPSkillPoint 等为 T）
+// ⇒ 本 TU 内定义加 weak（不改头）。
+__attribute__((weak)) int PvPSkillTreeParameterScript::getInitSkillTreeGrade(int grade) const
 {
     std::map<int, int>::const_iterator it = m_map54.find(grade);
     if (it != m_map54.end())
@@ -2334,7 +2358,7 @@ void Inter_RequestCharacSkillInfo::_PutSkillInfoToCharac(
 // _send_reward_item.md 全文已读）。按 itemIdx 现做道具经系统邮件发放：
 // -1 → 错误日志直返；1 → 耐久字段 m_fieldb 置 1；第 4 参 ORIG 未消费。
 void Inter_VillageAttackedReward::_send_reward_item(CUser* user,
-                                                    unsigned long itemIdx,
+                                                    itemIndexOnlyServer_t itemIdx,
                                                     int count, int rank)
 {
     // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 151/151：content 声明提前于 title

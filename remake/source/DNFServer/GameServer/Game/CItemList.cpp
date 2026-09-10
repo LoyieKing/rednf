@@ -14,6 +14,21 @@
 //     0x081a3059 析构 pair 后才读 .second ⇒ `pair<const long long,Data>` 直构
 //     + 具名 insert 结果局部。
 //   其余件按 T1–T5/S1 停止规则收敛（详见各函数头判词），near/diff 不上升。
+// [2026-09-10 SweepCEquipItem2 复核] dual_rank 候选 4 件逐件 fresh 核对（四数
+//   696/1365/7/14/480 零回退）：
+//   · insert_equiptment_item_to_db gap 11（orig 2898 / our 2888）：§6.2 三件套
+//     —— p167 488/487（唯一 MISSING 为**自调用误报**：ORIG 0x0861da66 `call
+//     861d87e` 1 次、我方 `R_386_PC32` 同符号 1 次，双向各 1 已逐位核实；其余
+//     全为 C1/C2 同址别名）；立即数多重集 MISSING 空（仅 EXTRA 0x400 = `lea
+//     0x400(%eax)` vs `add $0x400` 寻址拆分，N4/P30）；差异为 N18a 单段
+//     regmove、N7 寄存器角色与 N82 槽号 ⇒ 判语义完成。
+//   · insert_stackable_item_to_db gap 7（orig 1437 / our 1430）：p167 309/309；
+//     立即数差 `$0x1`×2/`$0x0`×1 已定位为 ORIG 的 4.1 bool 归一化块
+//     （`xor $0x1,%eax; mov $0x0,%ebx; mov $0x1,%ebx`，4.4 不生成）⇒ N 封顶。
+//   · insert_item gap 1：三形块序实测记录见函数头（形① 最优，N104 封顶）；
+//     虚槽 +0x4c = CItem::IsRandomOption 与 ORIG 0x08511xxx 一致。
+//   · _determine_level_bonus_index gap 1：register/语句表达式两形实测反劣
+//     （见函数头判词），N7/N82 封顶。
 
 #include "CItemList.h"
 #include "STEquipmentScript.h"   // EquipmentAniInfoScript / STEquipmentAniScript（insert ani 段真实类型）
@@ -750,7 +765,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         }
     }
     char local_3e90[0x2c00] = {0};
-    int local_68 = 4;
+    unsigned int local_68 = 4;
     // local_168：0xb4 空则取 0x6a4
     std::string local_168;
     // ORIG（+0xdac）：string::length() != 0 判非空（setne 物化），先 b4 后 6a4。
@@ -1702,8 +1717,18 @@ bool CItemList::insert_item(int group, int idx, CItem* item)
         m_itemMap.insert(std::pair<const int, CItem*>(idx, item));
         if (item->GetQuestItemDropBouns())
         {
+            // [SweepCItemList2 2026-09-10] 真语义 bug 修正（判据⑳ make_pair 键值序）：
+            //   ORIG 0x08511441..0x0851146d 直证：call GetQuestItemDropBouns → `mov
+            //   %eax,-0x8c`；`mov 0x10(%ebp),%eax → -0x88`；压栈 `0x8(%esp)=&-0x8c`
+            //   (arg2) / `0x4(%esp)=&-0x88` (arg1) ⇒ arg1 = **idx**、arg2 = questBonus
+            //   （实例 `_ZSt9make_pairImiE…` 要求 arg1 为 unsigned long ⇒ 源码
+            //   `make_pair((unsigned long)idx, (int)questBonus)`）。语义互证：
+            //   CUser.cpp:8529 查询键是 `Inven_Item::m_addInfo`（Inven_Item.h:269 =
+            //   item idx）⇒ 本表键必须是 idx、值才是 questBonus；原键值互换使
+            //   GetQuestItemDropBouns(idx) 恒查不到。
             m_lottoCount.insert(
-                std::make_pair(item->GetQuestItemDropBouns(), (int)idx));
+                std::make_pair((unsigned long)idx,
+                               (int)item->GetQuestItemDropBouns()));
         }
         // [b28d-20] P5 直调：ORIG 0x081f???? `mov (%eax),%eax; add $0x4c,%eax;
         //   mov (%eax),%edx; … call *%edx` = CItem vtable +0x4c = IsRandomOption

@@ -25,6 +25,26 @@
 //     fucompp/fnstsw/sete vs fucomip/jp 代际）。
 //   [sweep] 虚调用核对：ORIG/我方各 2 处 `call *%edx`（new_allocator<CRabbitBox>
 //     ::destroy / _Destroy<CRabbitBox>）位置与槽一致。
+//   [sweep] TU 级符号：去掉 `#include "DNFLexWrapper.h"`（→ DNFLex.h →
+//     <iostream>）后本 TU 不再发射 `_Z41__static_initialization_and_destruction_0ii`
+//     与 `_GLOBAL__I_*`（P338/P327：ORIG 本 TU 无任何 GI —— nm 全表无
+//     stStackable/STStatChange/STRecovery/CountinuousItemOption/
+//     AvatarOptionChangeType/RecipeInfo/ImportStackable 键名，且
+//     0x0898xxxx..0x089cxxxx 区间 GI 计数 = 0）。扫描器接口改局部声明
+//      （签名与 DNFLexWrapper.h 逐字一致；nm -u 7 个符号与 ORIG T 全等）。
+//     四数：diff 11→9、missing 470→468。
+//   [sweep] 判据㉓（符号绑定 W vs T）：本 TU 原有 34 个符号我方 T / ORIG W
+//     （RecipeInfo::additionalInfo、STStatChange/CVector、STStatusRecovery、
+//     STBuff、STSummonMonster、STSummonApc、AvatarOptionChangeType、
+//     Arad_STStackableScript、stStackableBooster_t、STStackableScript::operator=
+//     的 C1/C2/D1/D2/clear/operator=）⇒ 全部在**定义处**加
+//     `__attribute__((weak))`（.cpp 内单点，零头风险；全仓 grep 确认这些定义
+//     仅本 TU 存在）。改后绑定比对 T→W 34→0，四数不变。
+//     余 9 个 W→t（stStackableBoosterElement_t 的 C1/C2/C1ERKS_/C2ERKS_/D1/D2/
+//     aSERKS_、stStackableBoosterItemInfo_t 的 D1/D2）：ORIG 为**每 TU 各一份
+//     局部副本**（0x085138ee 与 0x089aee9c 两处同名 t），即原码头内/ .cpp 内部
+//     定义；本重建因 `stStackableBooster_t m_booster280` 是共享头成员、类型必须
+//     可见 ⇒ 定义位置不可迁移 ⇒ N（符号可见性差异，P154 结构性噪音）。
 
 #include "STStackableScript.h"
 #include "CStackableItem.h"  // RecipeInfo 权威布局（0x4c，ORIG 0x8513c6a 族）
@@ -36,18 +56,32 @@
 
 #include <string.h>
 
-#include "DNFLexWrapper.h"
 #include "NpcScript.h"   // STScriptFileList（g_stStackableScriptFileList 双视图）
+                         // + loadRDARScriptFile / getCharacterJob（权威声明）
+
+// ---- DNFLex 扫描器接口：本 TU 只用这 6 个自由函数，故不 include
+//      DNFLexWrapper.h —— 其 → DNFLex.h → <iostream> 会带出 __ioinit 与多余的
+//      `_GLOBAL__I_`（ORIG 本 TU 无任何 GI：nm 全表无 stStackable/STStatChange/
+//      STRecovery/CountinuousItemOption/AvatarOptionChangeType/RecipeInfo/
+//      ImportStackable 键名的 GI，且 0x0898xxxx..0x089cxxxx 区间 GI 计数 = 0）
+//      ⇒ P338/P327。局部声明与 DNFLexWrapper.h 权威签名逐字一致（mangled 相同，
+//      链接到同一 ORIG 函数）。----
+bool ScanType(std::string& token, bool consume);
+bool ScanInt(int* value);
+int ScanInt(bool* ok);
+float ScanFloat(bool* ok);
+bool ScanStr(std::string* value);
+int ScanTypeOrInt(bool& isType, std::string& s, bool& isInt, bool consume);
 
 // ---- stStackableBooster_t::clear（ORIG W 0x089c3076：
 //      vector::clear(@+0x00) + map::clear(@+0x0c)）----
-void stStackableBooster_t::clear()
+__attribute__((weak)) void stStackableBooster_t::clear()
 {
     m_elements.clear();
     m_map.clear();
 }
 
-stStackableBooster_t& stStackableBooster_t::operator=(
+__attribute__((weak)) stStackableBooster_t& stStackableBooster_t::operator=(
     const stStackableBooster_t& other)
 {
     m_elements = other.m_elements;
@@ -56,11 +90,11 @@ stStackableBooster_t& stStackableBooster_t::operator=(
 }
 
 // ---- STStatChange（ORIG clear 0x089c329e：+0x0c→+0x00→+0x04→+0x08 字节清零）----
-STStatChange::STStatChange()
+__attribute__((weak)) STStatChange::STStatChange()
 {
     clear();
 }
-void STStatChange::clear()
+__attribute__((weak)) void STStatChange::clear()
 {
     m_fieldC = 0;
     m_field0 = 0;
@@ -70,12 +104,12 @@ void STStatChange::clear()
 
 // ---- STStatChangeVector（ORIG C1 0x089c32c8 / clear 0x089c330a /
 //      D1 0x089c3ace / operator= 0x089c40fe）----
-STStatChangeVector::STStatChangeVector() : m_vec0()
+__attribute__((weak)) STStatChangeVector::STStatChangeVector() : m_vec0()
 {
     clear();
 }
-STStatChangeVector::~STStatChangeVector() {}
-STStatChangeVector& STStatChangeVector::operator=(const STStatChangeVector& other)
+__attribute__((weak)) STStatChangeVector::~STStatChangeVector() {}
+__attribute__((weak)) STStatChangeVector& STStatChangeVector::operator=(const STStatChangeVector& other)
 {
     // ORIG：vector operator= 后逐个拷贝 +0x0c/+0x10 int 与 +0x14 字节。
     m_vec0 = other.m_vec0;
@@ -86,7 +120,7 @@ STStatChangeVector& STStatChangeVector::operator=(const STStatChangeVector& othe
 }
 
 // ---- ORIG clear 0x089c330a：容器清空 + 三标量清零。保持显式定义供引用。----
-void STStatChangeVector::clear()
+__attribute__((weak)) void STStatChangeVector::clear()
 {
     m_vec0.clear();
     m_fieldC = 0;
@@ -95,11 +129,11 @@ void STStatChangeVector::clear()
 }
 
 // ---- STStatusRecovery（ORIG C1 0x089c30dc 调 clear；clear 0x089c30f0）----
-STStatusRecovery::STStatusRecovery()
+__attribute__((weak)) STStatusRecovery::STStatusRecovery()
 {
     clear();
 }
-void STStatusRecovery::clear()
+__attribute__((weak)) void STStatusRecovery::clear()
 {
     m_field0 = 0;
     m_field4 = 0;
@@ -109,11 +143,11 @@ void STStatusRecovery::clear()
 }
 
 // ---- STBuff（ORIG C1 0x089c3194 调 clear；clear 0x089c31a8）----
-STBuff::STBuff()
+__attribute__((weak)) STBuff::STBuff()
 {
     clear();
 }
-void STBuff::clear()
+__attribute__((weak)) void STBuff::clear()
 {
     m_field0 = 0;
     m_field4 = 0;
@@ -122,11 +156,11 @@ void STBuff::clear()
 }
 
 // ---- STSummonMonster（ORIG C1 0x089c31d2 调 clear；clear 0x089c31e6）----
-STSummonMonster::STSummonMonster()
+__attribute__((weak)) STSummonMonster::STSummonMonster()
 {
     clear();
 }
-void STSummonMonster::clear()
+__attribute__((weak)) void STSummonMonster::clear()
 {
     m_field0 = 0;
     m_field4 = 0;
@@ -139,11 +173,11 @@ void STSummonMonster::clear()
 }
 
 // ---- STSummonApc（ORIG C1 0x089c3238 调 clear；clear 0x089c324c）----
-STSummonApc::STSummonApc()
+__attribute__((weak)) STSummonApc::STSummonApc()
 {
     clear();
 }
-void STSummonApc::clear()
+__attribute__((weak)) void STSummonApc::clear()
 {
     m_field0 = 0;
     m_field4 = 0;
@@ -167,27 +201,27 @@ void CountinuousItemOption::clear()
 
 // ---- AvatarOptionChangeType（ORIG C1 0x08513b6e 调 clear；clear 0x08513b48）----
 // clear 链：m_b2 = 0xff → m_b1 = m_b2 → m_b0 = m_b1。
-AvatarOptionChangeType::AvatarOptionChangeType()
+__attribute__((weak)) AvatarOptionChangeType::AvatarOptionChangeType()
 {
     clear();
 }
-void AvatarOptionChangeType::clear()
+__attribute__((weak)) void AvatarOptionChangeType::clear()
 {
     m_field2 = 0xff;
     m_field1 = m_field2;
     m_field0 = m_field1;
 }
 
-Arad_STStackableScript::Arad_STStackableScript()
+__attribute__((weak)) Arad_STStackableScript::Arad_STStackableScript()
 {
     AradStClear();
 }
 
-Arad_STStackableScript::~Arad_STStackableScript()
+__attribute__((weak)) Arad_STStackableScript::~Arad_STStackableScript()
 {
 }
 
-Arad_STStackableScript& Arad_STStackableScript::operator=(
+__attribute__((weak)) Arad_STStackableScript& Arad_STStackableScript::operator=(
     const Arad_STStackableScript& other)
 {
     m_0 = other.m_0;
@@ -200,7 +234,7 @@ Arad_STStackableScript& Arad_STStackableScript::operator=(
 
 // ORIG 0x089c348e：清 +0x00/+0x04/-0x08..+0x10 三个 string；+0x14 由
 // STStackableScript::Clear 单独清（见 Clear 尾部 movl $0,0x18c）。
-void Arad_STStackableScript::AradStClear()
+__attribute__((weak)) void Arad_STStackableScript::AradStClear()
 {
     m_0 = 0;
     m_4 = -1;
@@ -273,7 +307,7 @@ STStackableScript::~STStackableScript()
 // STBuff/STSummonMonster/STSummonApc 三个平凡区用 memcpy（ORIG call memcpy@plt）。
 // [b28d-solo-STStackableScript] DIFF→N-ptrfold 封顶（621 vs 627：6 处
 // self 守卫 4.4 折成 `this != &other` 且 memcpy 实参重算地址；p167 CLEAR 43=43）。
-STStackableScript& STStackableScript::operator=(const STStackableScript& other)
+__attribute__((weak)) STStackableScript& STStackableScript::operator=(const STStackableScript& other)
 {
     STItemScript::operator=(other);
     m_arad178 = other.m_arad178;
@@ -533,7 +567,7 @@ void STStackableScript::Clear()
     m_set50c.clear();
 }
 
-void RecipeInfo::additionalInfo(STStackableScript& script)
+__attribute__((weak)) void RecipeInfo::additionalInfo(STStackableScript& script)
 {
     // ORIG 0x8513d44（_ZN10RecipeInfo14additionalInfoER17STStackableScript）：
     // m_field34 = script.m_4f0; m_field38 = script.m_4f4; m_field3c = script.m_4f8;
@@ -566,7 +600,10 @@ void RecipeInfo::additionalInfo(STStackableScript& script)
 
 // ---- ORIG 全局（定义 InitScriptProducers_4.cpp）：脚本目录与文件列表 ----
 extern char g_szStackableScriptBaseDirectory[0x100];
-extern std::map<int, std::string> g_stStackableScriptFileList;
+// [sweep] P237：改为权威型（定义见 InitScriptProducers_4.cpp:274
+// `STScriptFileList g_stStackableScriptFileList;`），消除「局部 extern 声明为
+// std::map 视图 + reinterpret_cast」的 ODR 违规与多余 cast。
+extern STScriptFileList g_stStackableScriptFileList;
 
 // ---- ORIG TU-local 静态 helper（ORIG 与 ImportStackableScript 同 TU：
 //      RDARScriptItem.cpp，ORIG t 0x089bf6ca/0x089bfc2f/0x089bfc84/0x089bfdc5）。
@@ -4584,8 +4621,7 @@ break;
     }
     if (idx == -1)
     {
-        script->m_field0 = reinterpret_cast<STScriptFileList*>(
-            &g_stStackableScriptFileList)->FindIndexByFullScan(path);
+        script->m_field0 = g_stStackableScriptFileList.FindIndexByFullScan(path);
     }
     else
     {

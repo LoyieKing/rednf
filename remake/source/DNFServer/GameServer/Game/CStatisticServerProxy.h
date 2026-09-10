@@ -25,7 +25,9 @@ public:
     CStatisticServerProxy();                          // ORIG W 0x082a6b72
     CStatisticServerProxy(std::string ip, int port);  // ORIG T 0x08471f84
     ~CStatisticServerProxy();                         // ORIG W 0x082b3282
-    void Init(std::string ip, int tcpPort, int udpPort); // ORIG W 0x082a6bc0
+    // ORIG W 0x082a6bc0：尾 `call Init(); leave; ret`（eax = 无参 Init 的 bool）
+    // ⇒ 返回类型 bool（返回类型不入 mangled；createServerProxy 以该返回值作返回）。
+    bool Init(std::string ip, int tcpPort, int udpPort); // ORIG W 0x082a6bc0
     bool Init();                                      // ORIG T 0x08471fda
     void SendPacket(char* packet, int size);          // ORIG T 0x08472044
     void SendFileStatistic(const char* file);         // ORIG T 0x08472092
@@ -46,11 +48,11 @@ inline CStatisticServerProxy::CStatisticServerProxy()
 }
 
 // ORIG W 弱符号（0x082a6bc0）：记录 IP/端口后转调无参 Init()（udpPort 未用）。
-inline void CStatisticServerProxy::Init(std::string ip, int tcpPort, int udpPort)
+inline bool CStatisticServerProxy::Init(std::string ip, int tcpPort, int udpPort)
 {
     m_ip = ip;
     m_port = tcpPort;
-    Init();
+    return Init();
 }
 
 // ORIG W 弱符号（0x082b3282）：仅 string 析构（CUdpHandler 无用户析构）。

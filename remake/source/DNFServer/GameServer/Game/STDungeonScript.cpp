@@ -24,7 +24,9 @@ extern std::map<int, std::string> g_stDungeonScriptFileList;   // 定义 InitScr
 
 // ORIG _ZL13g_gridSymbols（[greed] 网格符号，16 项两字符编码；STMapScript.cpp 同表为文件内
 // static，本 TU 单独复现以支撑 import/exportDungeonScript 引用）。
-static const char* const g_gridSymbols[16] = {
+// ORIG nm 实证：该符号类型 = **d**（.data，可写指针数组，尺寸 0x40）；我方原 `const char* const`
+// 落 .rodata（r）⇒ 去掉内层 const 使数组本身可写（指向内容仍 const），段归属对齐。
+static const char* g_gridSymbols[16] = {
     "AA", "BB", "CC", "DD", "EE", "FF", "GG", "HH",
     "II", "JJ", "KK", "LL", "MM", "NN", "OO", "PP",
 };
@@ -38,16 +40,19 @@ bool ConvertWeekdayStringToInt(std::string s, unsigned int& out);
 bool ConvertHHMMSSStringToInt(std::string s, unsigned char& h, unsigned char& m,
                               unsigned char& sec);
 
-STDungeonScript::STDungeonScript()
+// ORIG nm 实证：Clear/C1/C2/D1/D2 全为 **W**（0x0836abc6/0x0836b5e2/0x0836bd5c，
+// 尺寸 0x856/0x779/0x789 与我方逐位相同）⇒ 原码是 CDungeon.h 类内 inline 定义。
+// 按 Main 已批准的 G_* 单点修法：.cpp 定义加 weak 属性对齐绑定（mangled/尺寸零变化）。
+__attribute__((weak)) STDungeonScript::STDungeonScript()
 {
     Clear();
 }
 
-STDungeonScript::~STDungeonScript()
+__attribute__((weak)) STDungeonScript::~STDungeonScript()
 {
 }
 
-void STDungeonScript::Clear()
+__attribute__((weak)) void STDungeonScript::Clear()
 {
     // b28d-solo-STDungeonScript 判词：AE（473=473、p167 48=48 CLEAR）。
     // 修法：①函数级 i 声明+复用——ORIG 5 个物理循环共用 -0x18（首条
@@ -550,7 +555,8 @@ case 0x10d:  // "[required item]"
     {
         script->m_requiredItem7c.m_itemIdx = ScanInt((bool*)0);  // +0x7c
         script->m_requiredItem7c.m_itemCount = ScanInt((bool*)0);  // +0x80
-        script->m_requiredItem7c.m_enableFlag = ScanInt(&ok) != 0;  // +0x84
+        // ORIG 0x088e7657（0x16fd）：`movl $0x0,(%esp)` ⇒ 实参 (bool*)0（非 &ok）。
+        script->m_requiredItem7c.m_enableFlag = ScanInt((bool*)0) != 0;  // +0x84
         break;
     }
 
@@ -574,7 +580,8 @@ case 0x118:  // "[event required item]"
     {
         script->m_requiredItem8c.m_itemIdx = ScanInt((bool*)0);  // +0x8c
         script->m_requiredItem8c.m_itemCount = ScanInt((bool*)0);  // +0x90
-        script->m_requiredItem8c.m_enableFlag = ScanInt(&ok) != 0;  // +0x94
+        // ORIG 0x088e7785（0x182b）：同 (bool*)0 形。
+        script->m_requiredItem8c.m_enableFlag = ScanInt((bool*)0) != 0;  // +0x94
         break;
     }
 
@@ -648,7 +655,8 @@ case 0x19d:  // "[experience increasing point]"
     }
     else
     {
-        script->m_b0 = ScanFloat(&ok);   // +0xb0（float；export 对称 %.3f）
+        // ORIG 0x088e6b09（0x1baf）：`movl $0x0,(%esp)` ⇒ (bool*)0。
+        script->m_b0 = ScanFloat((bool*)0);   // +0xb0（float；export 对称 %.3f）
         break;
     }
 
@@ -1208,7 +1216,7 @@ case 0x37c:  // "[use zoom rate]"
     }
     else
     {
-        script->m_154 = ScanFloat(&ok);
+        script->m_154 = ScanFloat((bool*)0);   // ORIG 0x088e8f2f（0x37d5）(bool*)0
         break;
     }
 
@@ -1539,7 +1547,7 @@ case 0x430:  // "[monster exp bonus per user decrease]"
     }
     else
     {
-        script->m_warRoom18c.m_bc = ScanFloat(&ok);
+        script->m_warRoom18c.m_bc = ScanFloat((bool*)0);   // ORIG 0x088ea90b（0x49b1）
         break;
     }
 
@@ -1550,7 +1558,7 @@ case 0x433:  // "[result exp bonus per user decrease]"
     }
     else
     {
-        script->m_warRoom18c.m_c0 = ScanFloat(&ok);
+        script->m_warRoom18c.m_c0 = ScanFloat((bool*)0);   // ORIG 0x088ea985（0x4a2b）
         break;
     }
 
@@ -1599,7 +1607,7 @@ case 0x45b:  // "[monster type spawn interval rate]"
     else
     {
         for (int i = 0; i < 4; ++i)
-            script->m_warRoom18c.m_dc[i] = ScanFloat(&ok);
+            script->m_warRoom18c.m_dc[i] = ScanFloat((bool*)0);   // ORIG 0x088eabf3（0x4c99）
         break;
     }
 
@@ -1773,7 +1781,7 @@ case 0x4b9:  // "[kill count const]"
     }
     else
     {
-        script->m_warRoom18c.m_ac = ScanFloat(&ok);
+        script->m_warRoom18c.m_ac = ScanFloat((bool*)0);   // ORIG 0x088eb374（0x541a）
         break;
     }
 
@@ -2292,7 +2300,6 @@ case 0x5e5:  // "[advance altar survival clear reward]"
                     script->m_survival2f8.m_vec.push_back(rrd);
                     break;
                 }
-                bool ok = false;
                 if (sub == "[round]")
                 {
                     rrd.m_0 = ScanInt(&ok);

@@ -6,6 +6,18 @@
 // 类方法（W 符号）布局证据：objdump 0x0891cb4c/0x08932804/0x089328e6；
 //   分配尺寸 0x10（new_allocator::construct movl $0x10），C1/D1 仅 string 成员，
 //   拷贝 ctor/op= 逐字段 int,int,string,byte,byte,byte。
+//   [判据㉓ 本轮] 四件套定义已移入 SkillShopGuideTextData.h 类内（ORIG nm 全 W：
+//   C1/C2 0x0891cb4c、D1/D2 0x0891cb62、C1ERKS_/C2ERKS_ 0x08932804、aSERKS_ 0x089328e6；
+//   我方原 .cpp 外联定义发射 T）⇒ nm 绑定 342 共有符号 bind-diff=0；C1ERKS_ 逐条全等
+//   （33=32+对齐 nop）；sizeof/偏移/mangled 零变化；四数不回退。
+//   [P327/P338 本轮] 断 DNFLexWrapper.h 链：其 DNFLex.h:16 `#include <iostream>` 使本 TU
+//   发射 std::ios_base::Init __ioinit + `_GLOBAL__I_<本 TU 首强符号>`（ORIG 全 509 个 GI
+//   无 SkillShop 键名 ⇒ 仅 NEW 符号）⇒ 改局部权威声明四个 DNFLex 函数（mangled 与 ORIG
+//   实证一致）。nm 确认 GI/ioinit/static_init 全消，四数 diff 3→2、missing_in_game 62→61。
+//   [Main 排查 2026-09-10] 脚本循环 `goto/break` 目标逐点核：goto loop → ORIG jmp
+//   08914553（guard 段回边）一致；ScanType 失败 break → ORIG jne 08914d40（函数出口）一致；
+//   Tree 内层 break → ORIG jmp 089143e5（外层 continue）一致。全 TU jmp/jcc 目标方向
+//   （F/B）逐位核对 239 符号仅 2 处差异（P164 两跳/单跳、岛中转 vs 直跳），无回边→出口反转。
 // importSkillShopGuideText：ORIG T 0x08914483，无调用者（全量 objdump 无 call 命中），
 //   语义：装载 SkillShopGuideText.etc，段键经 static map 查找（首次 SpinLock 保护
 //   注册键值），"[character job]"+growType 为键、"[text]/[color]/[level range]"
@@ -13,7 +25,6 @@
 // ============================================================================
 
 #include "SkillShopGuideTextData.h"
-#include "DNFLexWrapper.h"   // loadRDARScriptFile/ScanType/ScanInt/ScanStr
 #include "CEnvironment.h"    // class SpinLock / less_TCHAR
 #include "LogManager.h"
 #include "Quest.h"           // enum ENUM_CHARACTERJOB
@@ -23,38 +34,24 @@
 #include <vector>
 #include <utility>
 
+// DNFLexWrapper.h 在本 TU 只提供 loadRDARScriptFile/ScanType/ScanInt/ScanStr 四个
+// 函数声明，但其 include 链 DNFLex.h:16 `#include <iostream>` 会带出
+// std::ios_base::Init __ioinit 与 `_GLOBAL__I_<本 TU 首强符号>`（ORIG 本 TU 无 GI，
+// P327/P338；属「仅 NEW」符号）⇒ 改用局部权威声明断链。签名由 ORIG mangled 实证：
+// _Z18loadRDARScriptFilePKcS0_ / _Z8ScanTypeRSsb / _Z7ScanStrPSs / _Z7ScanIntPb；
+// 返回类型由调用点判据定（P292/P168a：`xor $1;test;je` ⇒ bool；ScanInt 单字节/32 位
+// 两处使用 ⇒ int）。
+bool loadRDARScriptFile(const char* path, const char* fileName);
+bool ScanType(std::string& token, bool skip);
+bool ScanStr(std::string* out);
+int ScanInt(bool* ok);
+
 // ORIG T 0x088be63d（定义于 InitScriptProducers_6.cpp，本 TU 仅引用）
 int getGrowTypeIndex(const char* name);
 
-// ============================================================================
-// SkillShopGuideTextData 四件套（ORIG W 0x0891cb4c / 0x0891cb62 /
-// 0x08932804 / 0x089328e6）
-// ============================================================================
-SkillShopGuideTextData::SkillShopGuideTextData()
-{
-}
-
-SkillShopGuideTextData::SkillShopGuideTextData(SkillShopGuideTextData const& o)
-    : m_levelMin(o.m_levelMin), m_levelMax(o.m_levelMax), m_text(o.m_text),
-      m_colorR(o.m_colorR), m_colorG(o.m_colorG), m_colorB(o.m_colorB)
-{
-}
-
-SkillShopGuideTextData::~SkillShopGuideTextData()
-{
-}
-
-SkillShopGuideTextData& SkillShopGuideTextData::operator=(SkillShopGuideTextData const& o)
-{
-    m_levelMin = o.m_levelMin;
-    m_levelMax = o.m_levelMax;
-    m_text = o.m_text;
-    m_colorR = o.m_colorR;
-    m_colorG = o.m_colorG;
-    m_colorB = o.m_colorB;
-    return *this;
-}
-
+// SkillShopGuideTextData 四件套（ORIG W 0x0891cb4c / 0x0891cb62 / 0x08932804 /
+//   0x089328e6）已按判据㉓ 移入 SkillShopGuideTextData.h 类内 inline 定义
+//   （ORIG 全 W ⇒ 头内定义由 ODR 使用点发射；.cpp 外联定义发射 T 是绑定缺口）。
 // ============================================================================
 // importSkillShopGuideText —— ORIG T 0x08914483
 // 报告 docs/class_func_reports/_lt_global_gt_/importSkillShopGuideText.md

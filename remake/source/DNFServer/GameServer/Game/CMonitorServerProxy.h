@@ -25,7 +25,9 @@ public:
     CMonitorServerProxy();                                      // 0x082a69cc W
     CMonitorServerProxy(std::string ip, int udpPort, int tcpPort);// 0x0847097c T
     ~CMonitorServerProxy();                                     // 0x082b312c W
-    void Init(std::string ip, int udpPort, int tcpPort);        // 0x082a6a4a W
+    // ORIG 0x082a6a4a W：尾 `call Init(); leave; ret`（eax = 无参 Init 的 bool）
+    // ⇒ 返回类型 bool（返回类型不入 mangled；createServerProxy 以该返回值作返回）。
+    bool Init(std::string ip, int udpPort, int tcpPort);        // 0x082a6a4a W
 
     bool Init();                        // 0x08470a00
     bool InitUdp();                     // 0x08470a7c
@@ -91,12 +93,12 @@ inline CMonitorServerProxy::~CMonitorServerProxy()
 {
 }
 
-inline void CMonitorServerProxy::Init(std::string ip, int udpPort, int tcpPort)
+inline bool CMonitorServerProxy::Init(std::string ip, int udpPort, int tcpPort)
 {
     m_ip = ip;
     m_udpPort = udpPort;
     m_tcpPort = tcpPort;
-    Init();
+    return Init();
 }
 
 #endif  // GAME_CMONITORSERVERPROXY_H_

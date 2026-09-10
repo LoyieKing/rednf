@@ -261,7 +261,8 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
     //     end→find 为 ORIG 的 find→end，sret 槽 -0x6c/-0x38 与 ORIG 全等）；
     //  ⑨ 尾部 3×if-return 改单一 return(!bRec&&!bRec2&&!bTool)（ORIG 0x0891047f 三连
     //     movzbl;xor$1;test;je + movzbl %al,%ebx）。
-    // 验证：insns 396=396；jcc 67/67 助记符与目标偏移全等（mismatch=0）；结构化 diff 仅剩
+    // 验证：insns 396=396；**jmp+jcc 67/67 目标下标逐位全等**（含无条件 jmp，mismatch=0；
+    // 回边 4=4 方向一致 ⇒ 非 clean() 目标归一假匹配，无 goto-退出）；结构化 diff 仅剩
     // 4 处字符串立即数（ORIG 报告 $"..."/我方 .o 重定位占位，AE 归一化）；p167 48/48
     // （MISSING/EXTRA 仅 C1/C2、D1/D2 同址别名，P93）；槽位集全等（token -0x3c / data -0x50 /
     // jobStr -0x54 / growStr -0x58 / count -0x5c / itemIdx -0x60 / key -0x64 / val -0x68 /
@@ -384,6 +385,7 @@ tooltip_skip:;    // [P223] 空 then 占位岛锚点（复现 ORIG 0x0891043c �
 int importPartyMatchingInfo(const char* path, std::vector<stPartyMatchingInfo>* out)
 {
     // [b28d-solo-StScriptImporters] AE：指令数 180=180、p167 26/26 CLEAR。
+    // [SweepStScriptImporters 2026-09-10 复核] jmp+jcc 28/28 目标下标逐位全等（回边 8=8）。
     // 修复：①补 ORIG -0x14 死 string 局部（槽序/析构序列照抄，P232/P171）；
     // ②外层改 for(;;){ if(!ScanType) break; } 破 4.4 循环旋转；
     // ③do-while 改 do{...if(!ok)break;}while(true) 复现 `movzbl;xor$1;test;je` + 入口 jmp；
@@ -447,6 +449,7 @@ int importPartyMatchingInfo(const char* path, std::vector<stPartyMatchingInfo>* 
 int importPCBANGScript(const char* path, std::vector<stNeoplePCBANG>& out)
 {
     // [b28d-solo-StScriptImporters] AE：指令数 393=393、p167 69/69 CLEAR。
+    // [SweepStScriptImporters 2026-09-10 复核] jmp+jcc 46/46 目标下标逐位全等（回边 21=21）。
     // 修复：①外层改 for(;;){ if(!ScanType) break; } 破 4.4 循环旋转（ORIG 入口 jmp cond +
     // 各 case 尾 jmp cond）；②补 ORIG -0x10/-0xc 两个死 int 局部（P232 槽序，令
     // token/data/statusPair 槽位 -0x14/-0x2c/-0x34 与 ORIG 精确对齐）。
@@ -589,6 +592,9 @@ int importBloodWarEtcScript(const char* path,
                             stBloodWarBloodPointTable* bloodPoint,
                             std::vector<stBloodWarBgmTable>* bgm,
                             // [b28d-solo-StScriptImporters] 判词：指令数 338=338、p167 43/43 CLEAR。
+                            // [SweepStScriptImporters 2026-09-10 复核] 跳转 62/60：回边 11=11
+                            // 方向一致（循环多轮语义完好，无 goto-退出 假匹配），仅少 2 个
+                            // 前向 jmp（do-while 入口岛，N 族）。
                             // 本波修复：①register int cont（P231 纯 register，非绑定）复现 ORIG
                             // 全程 %ebx + test %ebx；②if(!ok)/else if(!ScanStr)/else 结构复现
                             // `xor $1;test;je` 物化；③外层与 [BLOOD POINT] 改 for(;;)+break 复现

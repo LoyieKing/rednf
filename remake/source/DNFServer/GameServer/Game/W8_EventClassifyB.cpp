@@ -16,6 +16,15 @@
 // 每函数依据 docs/class_func_reports/EventClassify__*/ 对应 md 的
 // ## 汇编 + ## 反编译 C 完整转写；类布局见 EventClassify_Action.h /
 // InGameEventScripts.h / CEventScriptMng.h。
+// [b28d-W8EventB 回边专项核对（Main 高优先级排查）] 全 17 个游戏函数逐位核对
+// jmp/jcc **目标下标**（非仅助记符）：回边（BACK）数量与助记符两侧全等
+// （sendBringUpReward 1/1、verifyMaterialItemByRule 1/1、process_update_ingame_history
+// 1/1、CExchange::verifyMaterialItemByRule 4/4、deleteUsedMaterialItem 2/2、
+// SendCreateEmblemStatistic 1/1，其余 0/0），且回边目标处指令均为**循环体头**
+// （+0x72 / +0xc4 / +0x35 / …），非函数出口 ⇒ **不存在**「goto 退出标签 ⇒ 循环只
+// 解析/迭代一轮」模式。本 TU 无 goto；2 处 continue（sendBringUpReward）与 2 处
+// break（CExchange::verifyMaterialItemByRule、SendCreateEmblemStatistic）均编译为
+// 正常前向跳转/回边，与 ORIG 一致。
 
 #include <cstring>
 #include <utility>

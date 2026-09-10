@@ -436,23 +436,39 @@ bool WindowsExeFile::ReadPeHeader()
     {
         return false;
     }
+    // [b28d-ReadPeHeader 修形②] PE 头常量偏移访问用结构视图（4.4.7 对
+    // `*(T*)(base+K)` 恒 add+mov，对 `view->m_field` 折 disp，同 sh/opt 判据）。
+    struct PeImageDosHeader
+    {
+        unsigned char m_pad[0x3c];
+        unsigned long m_lfanew;                              // +0x3c e_lfanew
+    };
+    struct PeCoffFileHeader
+    {
+        unsigned short m_machine;                            // +0x00
+        unsigned short m_numberOfSections;                   // +0x02
+    };
     unsigned char* img = m_image;                            // -0x68
     unsigned char* p = img;                                  // -0x60 节表游标
-    unsigned char* pe = p;                                   // -0x5c
-    p = img + *reinterpret_cast<unsigned int*>(pe + 0x3c);   // e_lfanew
+    PeImageDosHeader* pe = reinterpret_cast<PeImageDosHeader*>(p); // -0x5c
+    p = img + pe->m_lfanew;                                  // e_lfanew
     unsigned int sig = *reinterpret_cast<unsigned int*>(p);  // -0x64 PE 签名
     (void)sig;
     p += 4;
-    unsigned char* fileHdr = p;                              // -0x58 COFF 头
+    PeCoffFileHeader* fileHdr = reinterpret_cast<PeCoffFileHeader*>(p); // -0x58 COFF 头
     p += 0x14;
-    unsigned long* opt = reinterpret_cast<unsigned long*>(p);// -0x54 可选头
+    // [b28d-ReadPeHeader 修形] 常量下标必须走「数组引用」：4.4.7 对 `unsigned long*`
+    // 的 `p[K]` 恒发 `mov p,%eax; add $4K,%eax; mov (%eax)`（+1 条/处），ORIG 4.1.2
+    // 为 `mov p,%eax; mov 4K(%eax)`（disp 折叠）。探针 /tmp/shp2.cpp g1/g2(数组引用/
+    // 结构视图→disp) vs g3(指针下标→add) 实证；本函数 20+ 处常量访问即 gap -29 主体。
+    unsigned long (&opt)[56] = *reinterpret_cast<unsigned long (*)[56]>(p); // -0x54 可选头
     p += 0xe0;
 
     for (int s = 0;
-         s < static_cast<int>(*reinterpret_cast<unsigned short*>(fileHdr + 2));
+         s < static_cast<int>(fileHdr->m_numberOfSections);
          ++s, p += 0x28)
     {
-        unsigned long* sh = reinterpret_cast<unsigned long*>(p);
+        unsigned long (&sh)[10] = *reinterpret_cast<unsigned long (*)[10]>(p);
         unsigned long vaDelta = sh[5] - sh[3];
         if (static_cast<long>(sh[9]) < 0 || (sh[9] & 0x40000000UL) == 0)
         {
@@ -479,9 +495,10 @@ bool WindowsExeFile::ReadPeHeader()
             for (it = workSet.m_intervals.begin();
                  it != workSet.m_intervals.end(); ++it)
             {
-                const Interval& iv = *it;
-                range.m_start = iv.m_start;
-                range.m_size  = iv.m_size;
+                // [b28d-ReadPeHeader 修形③] ORIG 08573aaa 一次 operator* + 两读两写
+                // （`mov 0x4(%eax),%edx; mov (%eax),%eax` 后双存）= 结构整体赋值；
+                // 写 `const Interval& iv = *it;` 会引入引用槽（我方 -0x58 多 4 条）。
+                range = *it;
                 WindowsExeConstantSection* item = new WindowsExeConstantSection;
                 item->start      = range.m_start;
                 item->fileOffset = range.m_start + vaDelta;
@@ -585,9 +602,7 @@ bool WindowsExeFile::ReadPeHeader()
             for (it = workSet.m_intervals.begin();
                  it != workSet.m_intervals.end(); ++it)
             {
-                const Interval& iv = *it;
-                range.m_start = iv.m_start;
-                range.m_size  = iv.m_size;
+                range = *it;                             // 同上：结构整体赋值（ORIG 08573fbb）
                 WindowsExeConstantSection* item = new WindowsExeConstantSection;
                 item->start      = range.m_start;
                 item->fileOffset = range.m_start + vaDelta;
@@ -1413,12 +1428,16 @@ bool WindowsCodeProtectorServer::GenerateChecksum(CodeHackChecksumEx* ckEx,
 // CCompressedBlob —— objdump 0x0844de52..0x0844e0aa 逐指令转写
 // [b28c-lane24] throw()（P216 static-local guard 边界）：ORIG put_compressed_blob_data
 // @0x083fbd06 无 landing pad；W 体尺寸不变（-fno-enforce-eh-specs 无 unexpected guard）。
+// [判据㉓ 符号绑定] ORIG 8 符号全 W（头内 inline 定义由使用点 TU 发射，DB_Login.cpp
+//   get_compressed_blob_data / W8LT_DBTask.cpp put_compressed_blob_data 为使用点）；
+//   我方唯一权威定义落本 TU ⇒ 定义处加 __attribute__((weak)) 对齐绑定（不改头，
+//   mangled/尺寸/体零变化：nm 双侧 0xea/0x29/0x56/0xa5/0x18/0x30 逐值相等）。
 // ===========================================================================
-CCompressedBlob::CCompressedBlob() throw() : m_buf(0), m_size(0)
+__attribute__((weak)) CCompressedBlob::CCompressedBlob() throw() : m_buf(0), m_size(0)
 {
 }                                                            // 0x0844de52
 
-CCompressedBlob::~CCompressedBlob() throw()
+__attribute__((weak)) CCompressedBlob::~CCompressedBlob() throw()
 {                                                            // 0x0844de6a
     if (m_buf != 0)
     {
@@ -1427,7 +1446,7 @@ CCompressedBlob::~CCompressedBlob() throw()
     }
 }
 
-void CCompressedBlob::resize(int needSize)                   // 0x0844e02a
+__attribute__((weak)) void CCompressedBlob::resize(int needSize) // 0x0844e02a
 {
     if (m_size < needSize)
     {
@@ -1443,13 +1462,14 @@ void CCompressedBlob::resize(int needSize)                   // 0x0844e02a
     }
 }
 
-void CCompressedBlob::reset()                                // 0x0844e080
+__attribute__((weak)) void CCompressedBlob::reset()          // 0x0844e080
 {
     memset(m_buf, 0, m_size);
 }
 
-bool CCompressedBlob::compress(MySQL* db, int fieldIdx, char* src, int srcLen,
-                               char** outStr)                // 0x0844de9a
+__attribute__((weak)) bool CCompressedBlob::compress(MySQL* db, int fieldIdx, char* src,
+                                                     int srcLen,
+                                                     char** outStr) // 0x0844de9a
 {
     // ORIG 0x0844de9a：单一 unsigned int 槽（-0xc）既作 resize 入参又作
     // compress_zip 的 unsigned int& 出参（blob_to_str 读回同槽）——引入独立
@@ -1467,8 +1487,9 @@ bool CCompressedBlob::compress(MySQL* db, int fieldIdx, char* src, int srcLen,
     return true;
 }
 
-bool CCompressedBlob::uncompress(MySQL* db, int fieldIdx, char* dst,
-                                 int dstLen, int align)      // 0x0844df40
+__attribute__((weak)) bool CCompressedBlob::uncompress(MySQL* db, int fieldIdx, char* dst,
+                                                       int dstLen,
+                                                       int align) // 0x0844df40
 {
     // ORIG 0x0844df40：needSize 单槽（-0x10）复用 uint& 出参；binaryLen 独立
     // 槽 -0xc；尾部 align 检查 `align!=0 && needSize%align!=0 && needSize!=0`。

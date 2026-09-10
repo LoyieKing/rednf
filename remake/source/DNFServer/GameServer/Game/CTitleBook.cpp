@@ -31,6 +31,17 @@
 // 四数：85/163/0/0/39 → 86/163/0/1(N123 SIAD 撞名豁免)/39；vtable 9 槽逐槽、
 // jcc 序列、call*/call 目标差集（仅 C1/C2·D1/D2 同址别名）、全局数据引用、
 // TITLE_BOOK_MAX 常量 (70,200,120,60) 逐项核对 CLEAN。
+//
+// b28d-solo-CTitleBook 第三波（Main「jmp/jcc 目标下标」盲区排查，2026-09-10）：
+//   真 bug 2 处（AE 归一化把 jcc 目标折成 <T> 掩盖，mnemonic 序列核对查不出）：
+//   getTitle/putTitle 的 `if ((itemIdx != 0) && (x.m_addInfo != itemIdx)) return 2;`
+//   在 itemIdx==0 时**继续**执行；ORIG（getTitle 0x086426d1 / putTitle 0x086420d9）
+//   为 `cmpl $0,itemIdx; je <mov $0x2,%..; jmp 返回>` + `cmp m_addInfo,itemIdx;
+//   je <继续>` ⇒ **itemIdx==0 也 return 2**（语义相反）。修为
+//   `if ((itemIdx == 0) || (x.m_addInfo != itemIdx)) return 2;`。
+//   验证：四数 86/163/0/1(N123)/39 不回退；getTitle 389=389、putTitle 335=335；
+//   自写 jumpcheck（比较 (助记符, 函数内目标偏移) 序列）由 2 处 mismatch → 47/49
+//   一致（余 2 = D2Ev/C2Ev 同址别名，objdump --disassemble 空输出，P93）。
 #include <algorithm>
 #include <cstring>
 #include <map>

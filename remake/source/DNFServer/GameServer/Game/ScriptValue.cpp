@@ -17,15 +17,51 @@
 //     ≈ ORIG 12 条 `mov $0/1,%esi`）。残余 = GCC 4.1 bool 返回值用 ebx+esi 双寄存器
 //     （4.4 单 ebx）+ 2 条对齐 nop（§6.1 豁免）⇒ N7/N18a 封顶；p167 47=47 CLEAR（差集
 //     仅 C1/C2、D1/D2 同址别名）；局部静态符号名/尺寸/个数 6/6 全等（P187）。
-//   `_Z41__static_initialization_and_destruction_0ii` DIFF = N123 撞名豁免。
+//   判据㉓ 符号绑定：ScriptValue 5 符号 ORIG 全 W / 我方原 T ⇒ 三处定义加
+//     __attribute__((weak))（尺寸 0x38/0x3e/0x41 不变，全仓唯一 .cpp 定义无覆盖风险）。
+//   判据⑫/P338：本 TU 原 include DNFLexWrapper.h → DNFLex.h → FlexLexer.h → <iostream>
+//     带出 __ioinit，多发 `__static_initialization_and_destruction_0ii` +
+//     `_GLOBAL__I_…`（ORIG 本 TU 无 GI，nm 实证）⇒ 改 TU 局部权威签名声明
+//     （P144 镜像 + DNF_TOK_* 值照抄）后 GI/__static_init/ioinit 三者全消。
+//   TU 四数（check_tu_routed fresh）：43/74/0/3/23 → 43/75/0/1/22，零回退。
 // ============================================================================
-#include "DNFLexWrapper.h"
 #include "SyncScriptDeps.h"
 #include "CEnvironment.h"   // less_TCHAR（strcmp 比较器）、SpinLock
 
 #include <map>
 #include <string>
 #include <utility>
+
+// [b28d-ScriptValue P338/判据⑫] 本 TU **不** include DNFLexWrapper.h：其
+// DNFLex.h → FlexLexer.h → <iostream> 会带出 std::ios_base::Init __ioinit，
+// 进而多发 `_Z41__static_initialization_and_destruction_0ii` +
+// `_GLOBAL__I__Z15scanScriptValueR11ScriptValue`（仅 NEW 符号）。ORIG 本 TU 无 GI
+// （nm 全二进制 509 个 `_GLOBAL__I_` 无任何 ScriptValue/scanScriptValue 键名实证）
+// ⇒ 原码不经重头取得这些声明。按 P144 改用 TU 局部权威签名声明（非虚成员调用
+// 仅依赖 mangled 名，布局无关）；DNF_TOK_* 值逐条照抄 DNFLex.h:32-46。
+enum
+{
+    DNF_TOK_DECIMAL     = 2,
+    DNF_TOK_HEXADECIMAL = 3,
+    DNF_TOK_FLOAT       = 4,
+    DNF_TOK_STRING      = 7
+};
+
+class DNFLexWrapper
+{
+public:
+    int   getToken();       // 0x8ace7e0
+    char* getString();      // 0x8ace6f0
+    int   getHexDecimal();  // 0x8ace780
+    int   getDecimal();     // 0x8ace2f0
+    float getFloat();       // 0x8ace730
+};
+extern DNFLexWrapper g_dnfLex;
+
+bool ScanFloat(float* value);                                  // 0x88bc58e 族
+int  ScanInt(bool* ok);                                        // 0x88bc37b
+bool ScanStr(std::string* value);                              // 0x88bc7a2
+bool ScanTypeOrStr(bool& isType, std::string& s, bool consume); // 0x88bc9bf
 
 // [b28d-ScriptValue P211 档①] 本 TU 镜像声明（定义侧在 GameScriptEnumHelpers.cpp；
 // 返回类型不入 mangled、ABI 同：eax 传值、值域非负）。故本 TU 不 include 该权威头，
@@ -38,8 +74,14 @@ unsigned int getChangeStatusType(std::string& s);      // 0x8892b0d
 unsigned int getTargetToEnumValue(std::string& s);     // 0x88c2c34
 int getActiveStatusToEnumValue(std::string& s);        // 0x88c29a2
 
+// [b28d-ScriptValue 判据㉓ 符号绑定] ORIG 五个符号全为 **W**（弱绑定）：
+//   C1/C2 0x088c4200 W 0x38、C1ERKS_/C2ERKS_ 0x083661e2 W 0x3e、aSERKS_ 0x08366220 W 0x41；
+// 我方原为 T（强绑定，唯一 .cpp 外联定义）。ORIG 的两处地址分布说明其定义在头内、
+// 由各使用点发射；按 Main 批准的「属主对自己 TU 内定义加 __attribute__((weak))」
+// 单点修法（SweepCipher 广播 判据㉓ 清单口径），此处三处定义加 weak ⇒ 绑定对齐 W，
+// 尺寸/函数体/mangled 零变化（本类全仓仅本 TU 定义，无覆盖风险）。
 // ORIG 0x088c4200：type=3（空标记），value[0..3]=0（循环 0..3）。
-ScriptValue::ScriptValue()
+__attribute__((weak)) ScriptValue::ScriptValue()
 {
     type = 3;
     for (int i = 0; i < 4; ++i)
@@ -47,7 +89,7 @@ ScriptValue::ScriptValue()
 }
 
 // ORIG 0x083661e2：逐字段拷贝（type + 4×value）。
-ScriptValue::ScriptValue(const ScriptValue& other)
+__attribute__((weak)) ScriptValue::ScriptValue(const ScriptValue& other)
 {
     type = other.type;
     for (int i = 0; i < 4; ++i)
@@ -55,7 +97,7 @@ ScriptValue::ScriptValue(const ScriptValue& other)
 }
 
 // ORIG 0x08366220：同拷贝，返回 *this。
-ScriptValue& ScriptValue::operator=(const ScriptValue& other)
+__attribute__((weak)) ScriptValue& ScriptValue::operator=(const ScriptValue& other)
 {
     type = other.type;
     for (int i = 0; i < 4; ++i)
@@ -67,7 +109,9 @@ ScriptValue& ScriptValue::operator=(const ScriptValue& other)
 // ORIG 0x088bd381：switch(tok) 树（cmp $0x3 为根；DECIMAL=2/FLOAT=4/STRING=7）。
 bool scanScriptValue(ScriptValue& v)
 {
-    DNFLEX_TOKEN tok = static_cast<DNFLEX_TOKEN>(g_dnfLex.getToken());
+    // getToken() 返回 DNFLEX_TOKEN（ORIG 底层 int）；本 TU 不引入该枚举类型
+    // （见顶部 P338 说明），用 int 承载——二进制与枚举形相同。
+    int tok = g_dnfLex.getToken();
     switch (tok)
     {
     // [b28d-ScriptValue P324] 叶块物理序 = 书写序：ORIG 0x3ca(STRING)/0x4e1(DECIMAL)/

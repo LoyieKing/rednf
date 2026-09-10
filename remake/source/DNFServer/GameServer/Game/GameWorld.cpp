@@ -142,7 +142,9 @@ int Village::get_gate_area()
 // ============================================================================
 // 单例
 // ============================================================================
-GameWorld* G_GameWorld()
+// 判据㉓（符号绑定，Main 已批准单点修法）：ORIG `_Z11G_GameWorldv` 0x080da3a7 为
+// W 弱绑定，我方原为 T 强绑定 ⇒ 定义加 weak（只改本 .cpp，零头文件风险）。
+__attribute__((weak)) GameWorld* G_GameWorld()
 {
     return GlobalInstance<GameWorld>::inst_ptr();
 }

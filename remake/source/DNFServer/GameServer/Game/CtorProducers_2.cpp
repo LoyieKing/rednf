@@ -257,8 +257,12 @@ void StrikerScript::destory()
         if (it->second != 0)
         {
             delete it->second;
-            it->second = 0;
         }
+        // [SweepCtorProd2·jmp 目标下标判据] ORIG 0x08a9dd9c 的 `movl $0,0x4(%eax)`
+        // 在 if **外**（无条件重写 0；Ghidra C `if(...){delete} *(iVar2+4)=0;` 实证）：
+        // ORIG `je +0x91`（置 0 块）vs 原写 if 内 `je +0xa3`（跳过置 0）——目标不同，
+        // 旧 AE 归一化（TGT）掩盖了该差异。移出后 je 目标与 ORIG 逐位一致。
+        it->second = 0;
     }
     m_skillMap.clear();   // ORIG 尾部 map clear
 }

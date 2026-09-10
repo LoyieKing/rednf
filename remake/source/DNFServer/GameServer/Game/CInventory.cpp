@@ -4322,8 +4322,9 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
         }
         else if (itemIdx == 2)
         {
-            if ((unsigned int)((CUserCharacInfo*)m_pParent)->GetWinPoint() >=
-                (unsigned int)amount)
+            // [P41] GetWinPoint 已 unsigned（SweepCPrivateStore 头改动）⇒ 删冗余 cast，
+            // 试复现 ORIG 0x08505f5b `cmp %edx,%eax; setae %al`。
+            if (((CUserCharacInfo*)m_pParent)->GetWinPoint() >= (unsigned int)amount)
             {
                 m_pParent->UseWinPoint(amount, (eWPSubReason)3);
                 deleteCount++;

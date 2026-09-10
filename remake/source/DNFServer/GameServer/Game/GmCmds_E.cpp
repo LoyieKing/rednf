@@ -43,6 +43,26 @@
 //   TU 级（fresh check_tu_routed）：identical=126 ae=253 near=0 diff=6
 //   （本轮起点 126/252/1/6 ⇒ ae +1、near −1、零回退）；无 .h 改动；无子子代理。
 //
+// b28d-loopaudit（Main 高优先级系统性排查：脚本循环「goto 退出标签」假 AE 模式）
+//   本 TU 无 `goto`（仅 for/while/switch + break/continue）；按「jcc/jmp 目标
+//   **指令下标**」逐位核对全部 469 符号（非字节偏移，避免 AE 归一化掩盖）：
+//   - 7 件目标下标不一致：5 件游戏域 + N123 static_init + N97 _M_incr；
+//   - 5 件游戏域逐条展开核对，落点差异全部语义等价，无「循环退出 vs 回边」错位：
+//     · processKillMonster #12/#16：ORIG 落点含 callee-saved 载入
+//       （`movzbl -0x35(%ebp),%ebx` / `mov -0x34(%ebp),%edi`）vs 我方栈直读
+//       ⇒ N82/P332 装载时机差；
+//     · CMonsterDropTest::parse #0/#4：je/jb 落点相差一个对齐 nop（§6.1）；
+//     · CRandomObjectTest::execute #8：memset 实参装载序（P75，已知 gap2）；
+//     · makeUpgradeDropList / passedMapMonsterKill：落点全对应（仅指令数平移）。
+//   - 回边完整性：processKillMonster(2)/passedMapMonsterKill(3)/
+//     CRandomObjectTest::execute(1)/singleMapMonsterKill(2)/CMonsterDropTest::
+//     execute(4) 的 `jne <循环条件块>` 回边数量与落点均与 ORIG 一一对应，
+//     无「continue/break 落到函数出口」形态；
+//   - AE/IDENTICAL 循环密集件落点 DIFF=0：singleMapMonsterKill/
+//     makeGoldItemDropList/makeFileGoldContents/CMonsterDropTest::execute/
+//     getVendingMachineInfo/getVendingMachineItem/processVendingMachineItemLottery。
+//   ⇒ 本 TU 无该 bug 模式，无需修复。
+//
 // 头文件 GameMasterCmd.h 本批禁止编辑：+0x08 通用槽在头里为占位
 // std::string（gcc4.4 旧 ABI sizeof=4）。本批多数类的 ORIG 真实语义是
 // int（atoi/sscanf 解析结果），经 str_as_int / str_as_int2 别名访问；

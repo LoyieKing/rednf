@@ -1608,36 +1608,35 @@ void CShutdowManager::SendShutdownSignal()
 // 4.4 不占槽 ⇒ N98 不可翻；再补 int dead 反使帧 0x444 劣化，已回退）。
 bool check_argv(int argc, char** argv)
 {
-    // P232：ORIG 帧 0x434（旧 0x424）撑帧；P244：op 提前声明（赋值仍在使用点）。
-    char framePad[0x10];
-    (void)framePad;
+    // P244：op 提前声明（赋值仍在使用点）。
     const char* op;
     if (argc <= 2)
-        return 0;
+        goto L_RET0;
 
     G_CEnvironment()->set_file_name(argv[1]);
     if (argc == 4)
         G_CDataManager()->SetScriptPacks(argv[3]);
 
     if (!G_CEnvironment()->load())
-        return 0;
+        goto L_RET0;
     G_CEnvironment()->adjust_base_script_directory();
 
     if (*G_CEnvironment()->get_exchange_server_ip() == '\0')
     {
         std::puts("Exchange Server IP load FAIL, please check cfg file");
-        return 0;
+        goto L_RET0;
     }
     if (G_CEnvironment()->get_exchange_server_port() == 0)
     {
         std::puts("Exchange Server PORT load FAIL, please check cfg file");
-        return 0;
+        goto L_RET0;
     }
 
     // server_shells_key 校验（env+0x318 缓冲区，ORIG 原样裸偏移）
     int ncl_check_key(char* key);  // NclKeyTools.cpp（ORIG 0x8572cb5）
+    bool keyOk;   // 声明/赋值分离：goto L_RET0 不得跨初始化（C++ 规则）
     // P0：ORIG 无 shellsKey 具名局部（实参表达式直用 `mov %eax,(%esp)`）。
-    bool keyOk = ncl_check_key(
+    keyOk = ncl_check_key(
         reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318)) != 0;
     // ORIG printf 再独立 G_CEnvironment()+0x318（P183 重物化，勿缓存 shellsKey）。
     std::printf("lls_key :: %s\n",
@@ -1648,7 +1647,7 @@ bool check_argv(int argc, char** argv)
     if (!keyOk)
     {
         std::puts("[!] Server key Check FAIL");
-        return 0;
+        goto L_RET0;
     }
     std::puts("[!] Server key Check OK");
 
@@ -1660,13 +1659,13 @@ bool check_argv(int argc, char** argv)
         {
             std::printf("There is not %s config_file\n",
                         G_CEnvironment()->get_file_name());
-            return 0;
+            goto L_RET0;
         }
         if (check_pid_file())
         {
             std::printf("Process(%s) is already operated.\n",
                         G_CEnvironment()->get_channel_name());
-            return 0;
+            goto L_RET0;
         }
         rdar_init(argv);
         if (std::strcmp(op, "start") == 0)
@@ -1683,12 +1682,12 @@ bool check_argv(int argc, char** argv)
     if (std::strcmp(op, "stop") == 0)
     {
         GetInstanceShutdowManager()->SendShutdownSignal();
-        return 0;
+        goto L_RET0;
     }
     if (std::strcmp(op, "suspend") == 0)
     {
         send_suspend_signal();
-        return 0;
+        goto L_RET0;
     }
     if (std::strcmp(op, "test") == 0)
     {
@@ -1698,24 +1697,33 @@ bool check_argv(int argc, char** argv)
     if (std::strcmp(op, "mess") == 0)
     {
         int total = 0;
+        int ret;
         char buf[0x400];
         std::memset(buf, 0, sizeof(buf));
         for (int i = 3; i < argc; ++i)
         {
             std::strcat(buf, argv[i]);
-            total += static_cast<int>(std::strlen(argv[i]));
+            // ORIG 0x0829ede0：`mov -0x14,%edx; add %edx,%eax; mov %eax,-0x14`
+            // 读-加-写三段（`+=` 在 4.4 恒折 `add %eax,-N(%ebp)` 两段）。
+            total = total + static_cast<int>(std::strlen(argv[i]));
             std::strcat(buf, " ");
             ++total;
         }
-        if (send_chat_msg(buf, total) < 0)
+        // ORIG 0x0829ee28：`mov %eax,-0x10(%ebp); cmpl $0x0,-0x10(%ebp); jns`
+        // ⇒ 具名 int ret 局部（P0 槽往返），非直测返回值。
+        ret = send_chat_msg(buf, total);
+        if (ret < 0)
             std::puts("[ERROR]Fail to Send Notice Message");
-        return 0;
+        goto L_RET0;
     }
     if (std::strcmp(op, "info") == 0)
     {
         printGameServerInfo(false);
-        return 0;
+        goto L_RET0;
     }
+    // ORIG 0x0829ee75：全部 return 0 路径共享函数尾 `mov $0x0,%eax` 块
+    // （P325 多 return 共享尾出口）。
+L_RET0:
     return 0;
 }
 

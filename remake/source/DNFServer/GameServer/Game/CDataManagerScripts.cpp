@@ -27,6 +27,14 @@ bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 bool IS_PVP_CHANNEL(int channelType);
 #include <algorithm>     // std::find（CWorldMap::hasDungeon）
 
+// [b28d-solo-CDataManagerScripts-6 Main 盲区排查] 本 TU **无任何 goto 语句**（grep 实证，
+// 命中全为判词注释）⇒「`goto scan_exit` 落进 `if(!ScanType){...}` 体内导致退出循环」
+// 的模式结构上不适用；全部 continue/break 均位于循环体内（C++ 语义保证回边/退出正确）。
+// jmp/jcc 目标方向（回边 B / 前跳 F）逐位核对（objdump 提 (addr,op,target) 分类）：
+// createStackableLotteryInfo(AE) 6/6、get_break_away_section_data(AE) 4/4、
+// getRewardStatus(NEAR) 12/12 全 0 mismatch；两 import 大件（DIFF，非 AE 假匹配）
+// 方向错位全部由「ORIG 每 continue 独立 `nop;jmp 循环头` 岛 vs 4.4 tail-merge 共享回边」
+// 解释，回边语义一致。
 // [b28d-solo-CDataManagerScripts-3] dual_rank gap 榜首位（gap 15）复核结论：
 // `_ZNSt12_Vector_baseIN12advancealtar9FieldType1TESaIS2_EED1Ev` 为 libstdc++ 头
 // 内模板弱符号，本 TU 副本尺寸 0x67 与 ORIG 0x67 **逐条全等**（含 4.1 的
