@@ -192,6 +192,9 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
 // [SweepInitProd9 本轮·回边方向审计] ORIG backward 2 / 我方 1：两条 continue
 // （0x7b2 guard 重试 / 0x1343 尾部置位）汇聚共享尾块 0x134c → `jmp 687`(+0x13
 // 循环头)，ORIG 为两条独立 jmp 直达 +0x13 ⇒ 共享块合并，**回边未丢失**。
+// [C03CryptoInit68 复核·2026-09-10] p167 双向差集 71=71，MISSING/EXTRA 全部是
+// C1↔C2 同址别名伪差（`_ZNSt4pairIKPKciEC2I…` vs `…C1I…`、`_Rb_tree_const_iterator`
+// 的 C1/C2、`_ZNSt3mapI…EC2Ev` vs `C1Ev`、`SpinLockC2Ev` vs `C1Ev`）⇒ 无真语义缺口（P93）。
 // ORIG 0x088be63d。
 int getGrowTypeIndex(const char* name)
 {
@@ -1735,6 +1738,10 @@ int importDailyScheduleEtcScript(const char* path,
 // 把 4 条 continue（leave 点 0x494d/0x4c8b/0x4e99/0x5960）合并到 2 个共享尾块
 // （0x5974→jmp 4773=+0x8e 主表 guard 头；0x4ea6→jmp 4ab1=+0x3cc 子表 guard 头），
 // ORIG 为 4 条独立 jmp 直达同目标 ⇒ **无回边丢失、无「退出循环」误写**。
+// [C03CryptoInit68 复核·2026-09-10] p167 双向差集 175=175；MISSING 全为 D2/C2 与
+// 我方 D1/C1 的**同址别名伪差**（`_ZNSsD2Ev`/`_ZNSsC2Ev`、`_ZN19EventRewardItemInfoD2Ev`、
+// `_ZNSaIcED2Ev`、`_ZN18EventRewardSectionD2Ev`、`_ZNSt3map…C2Ev`、`SpinLockC2Ev`、
+// `_ZNSt4pairIKPKciEC2I…` 等），EXTRA 侧为其 C1/D1 对应物 ⇒ 无真语义缺口（P93）。
 bool importDimensionActivationData(const char* path,
                                    DimensionActivationData* out)
 {

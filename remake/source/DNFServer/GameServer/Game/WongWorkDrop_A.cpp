@@ -98,6 +98,12 @@ struct StRefCtx2
 // [A28 round5 复核 2026-09-10] 重跑 clean 口径：orig=123 / ours=125，残差仍仅尾部
 //   2×`jmp`（ORIG `jne <T>; leave; ret` 直落 ⇒ 无岛）⇒ N121（4.4 epilogue-threading
 //   尾岛不可消）维持封顶；p167 调用点 CLEAR。
+// [A28 round5 · C05③ P223 实测 2026-09-10 19:42] 按 Main 转发的「单尾标签串消早返
+//   中继岛」范式，把三处早返改为 `goto end;` + 尾 `end:;`（跨 goto 的 slot/threshold/acc
+//   一律声明与赋值分两句）：**实测无效**，orig=123/ours=125 与残差 2×`jmp` 逐字不变
+//   （CWorldDrop 的岛来自 4.4 自身 epilogue-threading，非早返平铺产物）⇒ 已回退为
+//   `return;` 形，N121 维持。C05①② 对本 TU 其余件亦无命中（残差无 `cmp mem` 类、
+//   无「失败出口落函数尾」布局差）。
 void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
                                     stGenerateResult_t& result)
 {

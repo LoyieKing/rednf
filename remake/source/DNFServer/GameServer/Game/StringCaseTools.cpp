@@ -23,6 +23,46 @@
 #include <wchar.h>    // towlower/towupper
 #include <wctype.h>   // towlower/towupper
 
+// [P327 GI 键名] ORIG 本 TU `_GLOBAL__I_` 键名 = _Z20readStringFromBufferPciRS_ ⇒
+// 该重载定义须为本 TU 首个强符号（此前 lower 定义在前 ⇒ 键名错为
+// _GLOBAL__I__Z5lowerRK10CharString）。readWordFromBuffer 是 inline（weak，不参与
+// 选名）故一并前置。纯前置定义顺序，符号集合/函数体零变化。
+// readWordFromBuffer —— [b28e-L5] 真缺口修复：ORIG 的 readStringFromBuffer 两重载里
+// 都出现 `movzwl (%eax),%edi; mov %di,_ZZ18readWordFromBufferRPcE10wordBuffer`
+// （0x08ad0130 段 / 0x08ad0460 段），而 ORIG 符号表**只有**该函数局部 static
+// （nm: `09501a1a 00000002 V _ZZ18readWordFromBufferRPcE10wordBuffer`），
+// **没有** `_Z18readWordFromBufferRPc` 独立函数符号（size 0 ⇒ 从不 out-of-line 发射）
+// ⇒ 原码是「外部链接 inline + always_inline」的 16 位读取器，调用点全部前端展开。
+// 我方原直写 `*(unsigned short*)buf; buf += 2;` 缺了这次 static 写入（真语义缺口：
+// 该缓冲被同 TU 其它读取器共享）。据此补回，inline 为外部链接（mangled 与 ORIG 同，
+// 不带 L 前缀）。
+inline __attribute__((always_inline)) unsigned short readWordFromBuffer(char*& buf)
+{
+    static unsigned short wordBuffer;                 // ORIG 0x09501a1a（sz 2, V）
+    wordBuffer = *reinterpret_cast<unsigned short*>(buf);   // mov (%eax),%reg; mov %reg16,global
+    buf += 2;
+    return wordBuffer;
+}
+
+// _Z20readStringFromBufferPciRS_ 0x08ad0130：
+// 读 ushort 长度 n（buf 前移 2），拷贝 min(n, maxLen-1) 字节并以 NUL 收尾，
+// buf 前进 n 字节。
+// [b28d-28] DIFF | ORIG 0x08ad0130 | N82/P75：ORIG 以 ebx/esi/edi 缓存
+// dst/maxLen/buf 与 n（`mov %di,_ZZ18readWordFromBufferRPcE10wordBuffer`——
+// 4.1 inline 展开遗留的 only-ORIG weak 符号）；4.4 重读形参并把 n 槽化
+// （-0xe）、min() 折 cmovg。源形不可造，语义等价。
+void readStringFromBuffer(char* dst, int maxLen, char*& buf)
+{
+    // [b28e-L5] 改用 inline readWordFromBuffer（ORIG 在此点内联展开并写 static
+    // wordBuffer）⇒ 复现 `movzwl (%eax),%edi; mov %di,0x9501a1a; add $0x2,%eax;
+    // mov %eax,(%ebx)` 序列。
+    const unsigned short n = readWordFromBuffer(buf);
+    const int len = (int)n <= maxLen - 1 ? (int)n : maxLen - 1;
+    memcpy(dst, buf, len);
+    dst[len] = 0;
+    buf += n;
+}
+
 // ---------------------------------------------------------------------------
 // lower / upper
 // ---------------------------------------------------------------------------
@@ -268,46 +308,6 @@ CharString trim(const CharString& str)
 WideString trim(const WideString& str)
 {
     return trimLeft(trimRight(str));
-}
-
-// ---------------------------------------------------------------------------
-// readStringFromBuffer（2 字节长度前缀缓冲读取）
-// ---------------------------------------------------------------------------
-
-// readWordFromBuffer —— [b28e-L5] 真缺口修复：ORIG 的 readStringFromBuffer 两重载里
-// 都出现 `movzwl (%eax),%edi; mov %di,_ZZ18readWordFromBufferRPcE10wordBuffer`
-// （0x08ad0130 段 / 0x08ad0460 段），而 ORIG 符号表**只有**该函数局部 static
-// （nm: `09501a1a 00000002 V _ZZ18readWordFromBufferRPcE10wordBuffer`），
-// **没有** `_Z18readWordFromBufferRPc` 独立函数符号（size 0 ⇒ 从不 out-of-line 发射）
-// ⇒ 原码是「外部链接 inline + always_inline」的 16 位读取器，调用点全部前端展开。
-// 我方原直写 `*(unsigned short*)buf; buf += 2;` 缺了这次 static 写入（真语义缺口：
-// 该缓冲被同 TU 其它读取器共享）。据此补回，inline 为外部链接（mangled 与 ORIG 同，
-// 不带 L 前缀）。
-inline __attribute__((always_inline)) unsigned short readWordFromBuffer(char*& buf)
-{
-    static unsigned short wordBuffer;                 // ORIG 0x09501a1a（sz 2, V）
-    wordBuffer = *reinterpret_cast<unsigned short*>(buf);   // mov (%eax),%reg; mov %reg16,global
-    buf += 2;
-    return wordBuffer;
-}
-
-// _Z20readStringFromBufferPciRS_ 0x08ad0130：
-// 读 ushort 长度 n（buf 前移 2），拷贝 min(n, maxLen-1) 字节并以 NUL 收尾，
-// buf 前进 n 字节。
-// [b28d-28] DIFF | ORIG 0x08ad0130 | N82/P75：ORIG 以 ebx/esi/edi 缓存
-// dst/maxLen/buf 与 n（`mov %di,_ZZ18readWordFromBufferRPcE10wordBuffer`——
-// 4.1 inline 展开遗留的 only-ORIG weak 符号）；4.4 重读形参并把 n 槽化
-// （-0xe）、min() 折 cmovg。源形不可造，语义等价。
-void readStringFromBuffer(char* dst, int maxLen, char*& buf)
-{
-    // [b28e-L5] 改用 inline readWordFromBuffer（ORIG 在此点内联展开并写 static
-    // wordBuffer）⇒ 复现 `movzwl (%eax),%edi; mov %di,0x9501a1a; add $0x2,%eax;
-    // mov %eax,(%ebx)` 序列。
-    const unsigned short n = readWordFromBuffer(buf);
-    const int len = (int)n <= maxLen - 1 ? (int)n : maxLen - 1;
-    memcpy(dst, buf, len);
-    dst[len] = 0;
-    buf += n;
 }
 
 // _Z20readStringFromBufferRSsRPc 0x08ad0460：

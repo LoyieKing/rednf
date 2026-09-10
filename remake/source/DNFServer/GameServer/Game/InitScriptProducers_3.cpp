@@ -969,10 +969,12 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
 
     // ORIG +0x61 处条件在循环顶部（call ScanType; xor eax,1; test; jne +0x9d8），
     // 退出标号 +0x9d8 是一个 nop（break 出口）后接 return true。
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            break;
+    // [2026-09-10 D06] 外层同样改 goto 形（P164/P283）：`for (;;)` 会让 4.4 在
+    // 循环头前多插一条入口 `jmp <head>; nop`（实测 241b `jmp 241e`），ORIG 是
+    // `movb $0x0,-0xe1` 后**顺序流入** +0x61。
+outer_retry:;
+    if (!ScanType(token, true))
+        goto outer_done;
 
         // ORIG 的重派发跳回 +0x82（__lookup 的 __cxa_guard 检查），
         // 说明三个函数级静态声明位于外层 token 循环体内部。
@@ -1200,7 +1202,8 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
             goto titlebook_next_token;
         }
     titlebook_next_token:;
-    }
+    goto outer_retry;
+outer_done:;
 
     return true;
 }

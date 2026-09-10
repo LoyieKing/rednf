@@ -1,5 +1,15 @@
 // ============================================================================
 // df_game_r 还原 —— InitScriptProducers_8.cpp
+// [C03CryptoInit68 复核·2026-09-10] 本 TU 的 4 个 DIFF 件
+// （importUnlimitChallengeScript / importVendingMachineInfoCore /
+//  importUseJobFatigueGiftScript / importSeriaRoomAnimationDecoEvent）
+// 经 p167 双向调用点差集复核（121=121 / 39=39 / 62=62）：ORIG-only 与 our-only
+// **全部是 C1↔C2 / D1↔D2 同址别名伪差**（`_ZNSsC2Ev` vs `_ZNSsC1Ev`、
+// `stUnlimitChallengeMessageInfoC2Ev` vs `C1Ev`、`_ZN22stVendingMachineInfo_tC2Ev`、
+// `useCharacterJobFatigue::fatigueMatchGiftC2Ev`、`_ZNSt4pairIKPKciEC2I…` vs `C1I…`、
+// `_ZNSt23_Rb_tree_const_iteratorI…EC2E…` vs `C1E…` 等），**无真语义缺口**（P93）。
+// 残差均属跨版本形态族：N85 x87 链 / N82 槽复用 / N112·P223 nop 中继岛 /
+// P211 store 装载序 / N130 右值重载；语义等价，按 §6 记 N 封顶。
 // CDataManager::init()（ORIG 0x08358332..0x0835f1d5，docs/class_func_reports/
 // CDataManager/init.md）依赖的 12 个脚本装载自由函数 + 被调依赖
 // importVendingMachineInfoCore（本 TU 定义）。importDeathTowerScript 唯一定义

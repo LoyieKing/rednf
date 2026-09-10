@@ -231,6 +231,7 @@ void CAdvanceAltarLog::updateDatabase()
     }
     m_layers.clear();
 
-    MsgQueueMgr& msgq = *GlobalData::s_msgq_mgr;
-    msgq.put(MsgQueueMgr::LOGDB_Q, stream);   // ORIG put(s_msgq_mgr,4,guard)
+    // [b28d-E03 2026-09-10] P259/P0：ORIG 0x08157226..0x0815723d 无 msgq 具名槽
+    //   （`mov &s_msgq_mgr,%eax` 后直接压栈作 receiver）⇒ receiver 内联。
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, stream);
 }

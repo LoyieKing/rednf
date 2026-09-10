@@ -103,6 +103,10 @@ void Secu_HackLogCheck::Init(CUser* user)
 // 槽与其 `mov %al,-slot; cmpb $0,-slot` 往返）⇒ ndiff 91→46，-0x29/-0x20/-0x24
 // 标量槽与 ORIG 逐位复齐；余 46=N78 结构展开 10 行 + 双 0x52 缓冲槽向（见函数
 // 体内实测回退记录）+ idxPos -0x80/-0x30 随动，封顶。
+// [D01 · 闸3 A/B 2026-09-10] 0x52 块搬移改 pack(2) 局部镜像 AddInfoMove2（定义见下）：
+// peel 1→2 字节与 ORIG 0x086908ce 段逐形一致；our_insns 288→279（ORIG 276，gap
+// +12→+3），四数 39/64/0/6 零回退、nm 零符号泄漏；余 3 条 = getTagCharacR/
+// getTagCharacSkillW 重调序列次数差（P48/P183 族）。
 // ---------------------------------------------------------------------------
 // [D01 · P142 派生判据 · Main 批准闸3 A/B] `_Additioal_info` 为 pack(1)
 // （alignof=1）⇒ 其 0x52 块整体赋值在 4.4 下只能发 1 字节 peel

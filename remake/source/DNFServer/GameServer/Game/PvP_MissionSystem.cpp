@@ -599,12 +599,17 @@ void PvP_MissionSystem::get_New_DailyMission(
             m_missionMap.find(static_cast<int>(id));
         if (it == m_missionMap.end())
             continue;
-        CMission* mission = it->second;
+        // [R26D] P167：ORIG 该点直接 `mov 0x4(%eax),%eax`（operator-> 内联），
+        // 我方 `it->second` 多一次 `_ZNK...ptEv` 调用 ⇒ 改 `(*it).second`。
+        CMission* mission = (*it).second;
         if (mission == 0)
             continue;
+        // [R26D] P167：ORIG 用 `_ZSt9make_pairIiiE`（int,int），旧文的多余
+        // static_cast<unsigned int> 使其选 `make_pairIjjE`（MISSING i 版 ×2 /
+        // EXTRA j 版 ×2）；push_back 处由 pair<unsigned,unsigned> 转换构造承接。
         out.push_back(std::make_pair(
-            static_cast<unsigned int>(mission->GetMissionKind()),
-            static_cast<unsigned int>(mission->GetMissionIndex())));
+            mission->GetMissionKind(),
+            mission->GetMissionIndex()));
     }
     for (int j = 0; j < m_field30; ++j)
     {
@@ -623,10 +628,10 @@ void PvP_MissionSystem::get_New_DailyMission(
                     m_missionMap.find(static_cast<int>(missionIdx));
                 if (mi != m_missionMap.end() && mi->second != 0)
                 {
-                    CMission* m = mi->second;
+                    CMission* m = (*mi).second;
                     out.push_back(std::make_pair(
-                        static_cast<unsigned int>(m->GetMissionKind()),
-                        static_cast<unsigned int>(m->GetMissionIndex())));
+                        m->GetMissionKind(),
+                        m->GetMissionIndex()));
                 }
                 weight -= static_cast<int>(li->first);
                 tmp.erase(li);

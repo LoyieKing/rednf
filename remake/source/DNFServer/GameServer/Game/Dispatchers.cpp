@@ -2041,10 +2041,13 @@ int Dispatcher_SkillInit::check_error(CUser* user, MSG_BASE& msg)
         return 7;
     }
     MSG_SKILL_INIT* req = reinterpret_cast<MSG_SKILL_INIT*>(&msg);   // -0x10（先声明远槽）
-    // [round5 A01 · C05② 复查] ORIG 0x081e5a72 起 `mov -0xc(%ebp),%eax; cmp $0xffffffff,%eax`
-    // 载寄存器比较；C05 实证「`int` 局部 ⇒ 4.4 折内存直比」方向，故按 S1 一次性旋钮把
-    // 原 `unsigned int idx` 改回 `int`（T1–T4 无直证 ⇒ 允许一次替代形态尝试）。
-    int idx = user->GetCurCharacSkillTreeIndex();
+    // b28c-L19：ORIG 0x081e5a72 起 `mov -0xc(%ebp),%eax; cmp $0xffffffff,%eax` 载寄存器
+    // 比较（P209：无符号参数/局部比较恒载寄存器；signed 才 mem 直比）⇒ 槽声明 unsigned。
+    // [round5 A01 · C05② 复查（S1 一次性旋钮，已试毕回退）] 按 C05「`int` 局部 ⇒ 内存直比」
+    // 把 idx 改 int 后 fresh 复编（19:42:17）读数**逐值不变**（identical/ae/near/diff =
+    // 1008/2472/3/274，该件仍 DIFF、仍 `cmpl $0xffffffff,-0xc(%ebp)`）⇒ 本件属 N18b
+    // （常量 vs 局部比较的内存直比），C05② 的 int 旋钮**不命中**，按 S1 立即恢复此处 unsigned。
+    unsigned int idx = user->GetCurCharacSkillTreeIndex();
     // b28c-L19 清绑（P0/N96 全域禁 register asm）：改自然短路形。
     // ORIG 0x081e5a43：`cmp $-1; je LZERO; test; jne LELSE; LZERO:` = 短路或形
     // `idx == -1 || idx == 0`（两比较各自重载 idx，LZERO 为第二 jne 的自然 fall-through）。

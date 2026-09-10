@@ -210,6 +210,14 @@ StageMapScript::~StageMapScript()
 //     %ebx 并多 1 条 `mov %eax,%ebx`（引用/间接基址寄存器分配差，N7 族）；
 //   · 0x088aa46c 岛区 4.4 多 1 条 `jmp`（多目标共享 continue 岛布局，
 //     负例「空 else nop;jmp 岛 vs jump-threading」族）。
+// [C05 范式复查留痕] 已按 Main 转发的 F1（尾部 fail 块）/F2（int 局部⇒cmp 内存
+//   直比）/③（P223 早返中继岛）逐条复查本件残差，**均不适用**：
+//   · 本函数无 `cmp` 类残差（元组不同），F2 无对象；
+//   · 残差 jmp 经 objdump 目标分析为 **4.4 跳转合并跳板**：6 处 `jmp 962`（其中
+//     0x8f3/0x92b 用 rel8、0x61f/0x64c/0x685/0x805 用 rel32）+ 跳板 `962: jmp 5bc`
+//     共 7 条 vs ORIG 6 条直跳 `jmp 088a9f7e`；属编译器跳转合并布局（P223 管的是
+//     「早返 return 各发 jmp+nop 中继岛」，形不同，已实测非其族）；
+//   · 另一条 `mov %eax,%ebx` 为间接基址寄存器分配差（N7/N18a 族）。
 bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
 {
     if (!loadRDARScriptFile(g_stageMapScriptBaseDirectory, path))

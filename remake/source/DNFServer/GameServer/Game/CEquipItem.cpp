@@ -39,9 +39,11 @@ extern CDataManager* G_CDataManager();
 //   x87 比较 lowering 需 -march=i486 才出 ORIG 的 fnstsw/sahf 形（P230 补；已上报 Main 路由）。
 int getLevelLinearAbility(int a, int b, int c, int d, int level)
 {
-    double diff;                                    // ORIG：声明在函数头（深槽 -0x50）
-    char framePad[0x10];                            // [b28e 试形 C] P232：未用局部占帧
+    // [b28e 帧对齐] ORIG 帧 `sub $0x68`（4.1 对 x87 段多预留 0x10）；无此局部时
+    // 我方 0x58（帧差 0x10）。按 P232 补未使用局部后帧 **0x68 = ORIG**。
+    char framePad[0x10];
     (void)framePad;
+    double diff;                                    // ORIG：声明在函数头（深槽 -0x50）
     int vSpan = b - a;                              // ORIG：先求除数（-0x2c）
     int vLevel = level - a;                         // ORIG：再求被除数（-0x28）
     int vDiff = d - c;                              // ORIG：-0x24（在 x87 段之前）

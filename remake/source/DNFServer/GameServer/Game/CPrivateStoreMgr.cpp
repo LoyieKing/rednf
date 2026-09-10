@@ -1550,30 +1550,22 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
         }
         areaNo = user->get_area(false);
         area = village->getArea(areaNo);
-        // [b28d-solo] ORIG 0x85c5251 `cmp -0x18,0; sete al; test; jne 继续`。
-        // [L14] 本轮实测三形：(a) 原 4×if/return 形 —— 173/165（gap+8，近端岛）；
-        // (b) `bool ok` + 单表达式短路（Ghidra 同形）—— 168/165，**多占 -0x20 ok 槽
-        // 使全帧槽号平移 4**（ORIG 无 ok 槽：失败/成功直落 `mov $0/%1,%ebx`）；
-        // (c) P222 正向包裹 + 死块置于 return 之后 —— 151/165（4.4 前端对 return
-        // 后不可达代码做 DCE，死块整段消失 ⇒ 更差）。⇒ 维持 (a)，残差为
-        // 4.1 fail 岛远端化 + ebx 缓存 vs 4.4 逐次重载（N82/N7 封顶）。
-        while (area == 0)
-            return false;
-
-        if (area->m_villageIndex == 2 && area->m_areaIndex == 0)
+        // [b28d-solo] ORIG 0x85c5251 `cmp -0x18,0; sete al; test; jne <远端岛>`。
+        // [L14] 实测四形：(a) 原 4×if/return —— 173/165（近端岛）；(b) `bool ok` +
+        // 单表达式短路 —— 168/165 且 ok 占 -0x20 槽使全帧平移；(c) P222 正向包裹 +
+        // 死块置 return 之后 —— 151/165（4.4 对 return 后不可达代码 DCE）；
+        // (d) 本形 = C05① 尾 fail 块嵌套 + 死块**保留为可达体**（无 return）。
+        if (area != 0 &&
+            ((area->m_villageIndex == 2 && area->m_areaIndex == 0) || area->m_areaType != 4))
+        {
             return true;
-        // [DualStore] ORIG 0x085c5274..0x085c529e 的 `getArea call failed (area no:%d)`
-        // cMyTrace 块在 ORIG 侧无任何跳转入口（0x85c526e `jmp 0x85c531a` 直接跳过），
-        // 但其 P167 调用点确实存在（新版 p167 MISSING cMyTrace::operator() ×1）。
-        // 按 ORIG 形复现该块（上方 while 已拦 area==0 ⇒ 此条件恒假，运行时行为不变）。
+        }
+        // 死块照抄（ORIG 0x5286..0x529e 无入口；保留其 cMyTrace::operator() 调用点）。
         if (area == 0)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x24c, 5)("getArea call failed (area no:%d)", areaNo);
-            return false;
         }
-        if (area->m_areaType == 4)
-            return false;
-        return true;
+        return false;
     }
     catch (...)
     {

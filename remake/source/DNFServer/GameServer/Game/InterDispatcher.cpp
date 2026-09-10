@@ -17511,6 +17511,10 @@ int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
 
     Inven_Item item;                                   // ORIG Inven_Item::Inven_Item()
+    // ORIG 0x084e7212 `movl $0x0,-0x1c(%ebp)` 落于 msgBuf 清零（lea -0x18b/mov $0x100,%ebx）
+    // 之前 ⇒ 原码在缓冲前有一枚「初始化式 = 0」的具名 int 局部（P198① 预清必写；4.4 对
+    // 未读但带初始化式的局部仍发 store）。语义未用（ORIG 后续无读点），照抄 P171。
+    int itemCount = 0;
     char msgBuf[0x100] = { '\0' };                     // P4 内联清零
     char titleBuf[0x1e] = { '\0' };
 

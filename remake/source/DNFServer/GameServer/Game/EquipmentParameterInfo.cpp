@@ -4024,6 +4024,10 @@ static bool importAllSkillItem(EquipmentParameterInfo* info)
     // 路径（head3>0x46 / head4>0x46 / head3>head4）共享的 `mov $0,%ebx; jmp`，与函数末
     // return 0 同出口。正向包裹形（`if(h3<=h4){…}` 嵌套）4.4 反产 `jg`+独立 mov 块
     // （389 vs 391，更差）；早返形 391=391 仅余该共享块落点差 ⇒ N 封顶（N121/P63 族）。
+    // [A18 本波 试形·C05 范式① 实测**不适用**本件] 提前 return 形
+    // （`if(h3>=0x47||h4>=0x47) return 0;`）劣化 ndiff 2→4：ORIG 0x089bf1f5 的
+    // `ja` 与 head3 失败块**共享**（两条 `ja` 同落点），4.4 对提前 return 恒产
+    // `jbe <跳过>; mov $0,%ebx; jmp` 独立块拆散共享 ⇒ 已回退为下方包裹形。
     if ((unsigned)sp.m_head3 < 0x47 && (unsigned)sp.m_head4 < 0x47)
     {
         if (sp.m_head3 > sp.m_head4) return 0;

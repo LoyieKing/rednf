@@ -229,6 +229,11 @@ void CCreature::SetState(CUser* user, CREATURE_STATE state)
     // [P321-S1 已试] 交换左右操作数后 4.4 仍产 `mov 0x3c,%edx; mov state,%eax;
     // cmp %eax,%edx`（两寄存器比较）⇒ 恢复直证形；残余 = P209/N18b 形参 mem 直比
     // 不可造（4.4 恒载入寄存器）。ORIG 0x8337192 `cmp 0x10(%ebp),%eax`。
+    // [C01/F2 复查·已试无效] Main 转发 C05 F2（int 局部 ⇒ 比较内存直比）在本件
+    // **不适用**：ORIG 0x8337192 `cmp 0x10(%ebp),%eax` 的 mem 直比对象是**形参槽**
+    // （enum CREATURE_STATE，mangled 固定不可改型），非局部；试具名 int 局部形
+    // `const int st=(int)state;` 后本件 135→**141**（多 3 条 store/load 且预载
+    // `mov 0x10(%ebp),%edx` 仍在）⇒ 已回退，维持 P209/N18b 封顶。
     if ((int)state != m_state && (int)state == 1 && m_isGrow != 0)
     {
         // 切入战斗态（state 1）：按 60 秒 × 饱食度系数插入复活定时器

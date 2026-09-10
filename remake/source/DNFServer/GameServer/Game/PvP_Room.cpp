@@ -3502,25 +3502,36 @@ int PvP_Room::time_out(int* seats)
         lock();
         if (!local_3d)
         {
-            int local_84[10];
-            local_84[5] = 0;
-            local_84[6] = 0;
-            local_84[7] = 0;
-            local_84[8] = 0;
-            local_84[9] = 0;
-            local_84[0] = 0;
-            local_84[1] = 0;
-            local_84[2] = 0;
-            local_84[3] = 0;
-            local_84[4] = 0;
+            // [L10b P311 成员数组视图] ORIG 0x085d9da2 段为**单条 scaled disp**
+            // `mov -0x6c(%ebp,%eax,4),%edx`（= base+5 段，索引不含 +5）与
+            // `mov -0x80(%ebp,%eax,4)`（= base+0 段）；旧 `int local_84[10]` + 下标
+            // `[T+5]` 令 4.4 拆 `lea 0x14(%eax)` + 重算两段（每处 +2 条）。
+            // 视图：{m_cnt0[5] @+0, m_cnt5[5] @+0x14}，同址等价（sizeof 40）。
+            struct PvPTeamScoreView
+            {
+                int m_cnt0[5];    // local_84[0..4]
+                int m_cnt5[5];    // local_84[5..9]
+            };
+            PvPTeamScoreView local_84;
+            local_84.m_cnt5[0] = 0;
+            local_84.m_cnt5[1] = 0;
+            local_84.m_cnt5[2] = 0;
+            local_84.m_cnt5[3] = 0;
+            local_84.m_cnt5[4] = 0;
+            local_84.m_cnt0[0] = 0;
+            local_84.m_cnt0[1] = 0;
+            local_84.m_cnt0[2] = 0;
+            local_84.m_cnt0[3] = 0;
+            local_84.m_cnt0[4] = 0;
             for (int local_30 = 0; local_30 < 8; local_30 = local_30 + 1)
             {
                 if ((P_SEATS(local_30) != 0) && (P_TEAMWIN(local_30) != 0) &&
                     (P_TEAMWIN(local_30) < 0xfe))
                 {
-                    local_84[P_TEAMWIN(local_30) + 5] = local_84[P_TEAMWIN(local_30) + 5] + 1;
-                    local_84[P_TEAMWIN(local_30)] =
-                        local_84[P_TEAMWIN(local_30)] + seats[local_30];
+                    local_84.m_cnt5[P_TEAMWIN(local_30)] =
+                        local_84.m_cnt5[P_TEAMWIN(local_30)] + 1;
+                    local_84.m_cnt0[P_TEAMWIN(local_30)] =
+                        local_84.m_cnt0[P_TEAMWIN(local_30)] + seats[local_30];
                 }
             }
             unsigned int local_38 = 0;
@@ -3531,10 +3542,10 @@ int PvP_Room::time_out(int* seats)
             // `cmpl $0x4,-0x28(%ebp); setle %al` ⇒ 局部声明 **int** 即复现。
             for (int local_2c = 1; local_2c < 5; local_2c = local_2c + 1)
             {
-                if ((0 < local_84[local_2c + 5]) && (local_84[local_2c] < local_34))
+                if ((0 < local_84.m_cnt5[local_2c]) && (local_84.m_cnt0[local_2c] < local_34))
                 {
                     local_38 = local_2c;
-                    local_34 = local_84[local_2c];
+                    local_34 = local_84.m_cnt0[local_2c];
                 }
             }
             for (int local_28 = 0; local_28 < 8; local_28 = local_28 + 1)

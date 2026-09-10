@@ -1740,15 +1740,17 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
             if (it->m_eventId >= 70000 && it->m_eventId <= 89999)
             {
                 // 落表事件：登记到 sig 事件 id 列表
-                unsigned short cnt = sig->m_restrictedGoodsCount;
-                sig->m_restrictedGoods[cnt] = it->m_eventId;
-                sig->m_restrictedGoodsCount = cnt + 1;
+                // [P0/C05②] ORIG 0x0841237f `movzwl 0x293a(%eax),%ebx; movzwl %bx,%esi;
+                // lea 0xa4c(%esi),%ecx; lea 0x1(%ebx),%edx; … mov %dx,0x293a`（寄存器
+                // 直传、零栈往返）⇒ 原码无具名 cnt 局部 ⇒ 字段表达式内联（旧具名版
+                // 多发 `mov %ax,-N; movzwl -N,%ebx` 一对）。
+                sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
+                sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
             }
             else if (it->m_eventId == 59000)
             {
-                unsigned short cnt = sig->m_restrictedGoodsCount;
-                sig->m_restrictedGoods[cnt] = it->m_eventId;
-                sig->m_restrictedGoodsCount = cnt + 1;
+                sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
+                sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
             }
             else if (!WongWork::CUserPremium::IsRestrictedPremium((int)it->m_eventId))
             {
@@ -1808,18 +1810,16 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
                         SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0xc) = svcStart;
                         SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0x10) = svcEnd;
                         rowIdx += 1;
-                        unsigned short cnt = sig->m_restrictedGoodsCount;
-                        sig->m_restrictedGoods[cnt] = it->m_eventId;
-                        sig->m_restrictedGoodsCount = cnt + 1;
+                        sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
+                        sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
                     }
                 }
             }
             else
             {
                 // 受限 premium 事件：只登事件 id
-                unsigned short cnt = sig->m_restrictedGoodsCount;
-                sig->m_restrictedGoods[cnt] = it->m_eventId;
-                sig->m_restrictedGoodsCount = cnt + 1;
+                sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
+                sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
             }
         }
     }

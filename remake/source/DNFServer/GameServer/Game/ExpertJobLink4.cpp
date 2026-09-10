@@ -462,7 +462,13 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
         // script+0x30 [disjoint self service]：{概率, 奖励A, 奖励B}
         // （stSelfDisjoinMaterialInfo m_field0/m_field4/m_field8）。
         int* svc = &GetScript()->m_selfDisjoin.m_field0;
-        if (rarity >= 2 && svc[0] > get_rand_int(100))
+        // [C07 · Main 范式②(F2) 落地] ORIG 0x85d2f? 段 `mov -0x1c(%ebp),%eax;
+        //   mov (%eax),%eax; mov %eax,-0x18(%ebp); cmpl $0x1,-0x4c(%ebp); jle;
+        //   call get_rand_int(100); cmp -0x18(%ebp),%eax; jge`（具名 int 局部 +
+        //   内存直比）。内联 `svc[0] > get_rand_int(100)` 使 4.4 把 svc[0] 升格
+        //   %ebx 跨 call 并折成 register-cmp（多 1 条 mov 且判据寄存器化）。
+        int selfRate = svc[0];
+        if (rarity >= 2 && selfRate > get_rand_int(100))
         {
             result.m_f[2] = svc[2];   // +0x08
             result.m_f[7] = svc[1];   // +0x1c
@@ -473,9 +479,14 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
             const CInventory* inv = user->getCurCharacInvenR();
             int jobLevel =
                 user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
-            float variation =
+            // [C07 · P252] ORIG 段 `call <T>; fstps -0x28(%ebp); flds -0x28(%ebp);
+            //   flds <_DAT_08cc0814>; fdivrp %st,%st(1); fstps -0x10(%ebp)` ⇒ 原码
+            //   有**具名 float 中间量**（访存往返）；直写 `f(...) / 100.0f` 时 4.4
+            //   折 `flds` 直读（少 2 条、装载序反）。
+            float rawRate =
                 inv->GetExpertJobSelfDisjointResultVariation(
-                    (ENUM_EXPERT_JOB_TYPE)3, jobLevel) / 100.0f;   // _DAT_08cc0814
+                    (ENUM_EXPERT_JOB_TYPE)3, jobLevel);            // _DAT_08cc0814
+            float variation = rawRate / 100.0f;
 
             int tmp[5];
             for (int i = 0; i <= 4; ++i)

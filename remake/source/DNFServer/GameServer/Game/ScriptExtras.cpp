@@ -258,8 +258,13 @@ bool saveRDARScriptListFile(STScriptFileList* list, const char* dir, const char*
     std::multimap<int, Comment*>* b)
 {
     (void)dir; (void)a; (void)b;
-    if (file == 0)
-        return false;
+    // [D01 · C05① 尾 fail 块形] ORIG 0x088bbf52 段 `cmpl $0,0x10(%ebp); je
+    // <+0xfb 函数尾独立 mov $0,%eax 块>`；平铺早返 `if(file==0) return false;`
+    // 被 4.4 折成 `jne <cont>; mov $0; jmp`（就地失败块）与 ORIG 尾块形不符
+    // ⇒ 主体嵌套进 `if (file != 0) { … return true; } return false;`（探针
+    // /tmp/tail_probe.cpp fA/fB，Main 转发 C05 实证）。
+    if (file != 0)
+    {
     std::FILE* fp = std::fopen(file, "wt");
     if (fp == 0)
         return false;
@@ -276,6 +281,8 @@ bool saveRDARScriptListFile(STScriptFileList* list, const char* dir, const char*
     }
     std::fclose(fp);
     return true;
+    }
+    return false;
 }
 
 // ORIG 0x088bc068：装载名字表文件（name id 对），插入 STNameList；

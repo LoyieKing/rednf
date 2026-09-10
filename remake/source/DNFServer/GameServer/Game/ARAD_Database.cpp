@@ -261,9 +261,14 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
             chaWt, maxFatigue, expertJob);
     if (ret == 0)
     {
-        return 0;
+        // [round5 C05-F1 复验] ORIG 0x0818b25d 尾块序 = `je <成功块>` + 失败
+        //   `mov $0xffffffff,%eax; jmp` 直落（成功 mov $0 落函数尾）；4.4 对
+        //   平铺 if/return 恒产反序 `jne <失败块>` + 成功直落 ⇒ 试 goto 尾标签。
+        goto ok_ret;
     }
     return -1;
+ok_ret:
+    return 0;
 }
 // ORIG 0x0818b26d：inSert into charac_stat …… 失败时错误码置 2。
 int CREATE_QUERY::arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig)

@@ -1518,20 +1518,16 @@ int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg
     // 无视图指针，get_charac_no 右值经 %edx 直落 sig 首字（P0 双向对应律）。
     sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
-    int res;
+    // [C05-① 复查] ORIG 0x081c73dd/0x081c7400 两分支均为 `mov $0x1,%ebx; jmp <共享尾块>`
+    // （尾块 0x081c7422 = guard D1Ev + `mov %ebx,%eax` + epilogue），且**全函数无 res 栈槽**
+    // ⇒ 原码是两分支各自 `return 1;`（不引入具名 res 局部，P0）；4.1 用 %ebx 汇聚返回值。
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
-        res = 1;
-        goto L_end;                 // ORIG +0x166 显式 jmp 尾岛（防 4.4 尾复制）
+        return 1;
     }
-    else
-    {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-        res = 1;
-    }
-L_end:
-    return res;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return 1;
 }
 
 // ORIG 0x081c7bac T _ZN23DisPatcher_SelectCharac20RegistTimerSchedulesEP5CUser

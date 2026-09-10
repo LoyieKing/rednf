@@ -1645,6 +1645,12 @@ bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Ma
     // b28d-solo-CParty2 试形记录：ORIG 0x85b7fxx `mov -0x18(%ebp),%ebx` 为 callee 前
     // 寄存器装载形；haveCount 改 unsigned + `(unsigned int)list2.size()` 比较实测仍折
     // `cmp -0x18(%ebp),%eax` 内存直比（S1 一次旋钮已用）⇒ 恢复 int 直证形态，判 N18b。
+    // [2026-09-10 F2 复查（C05 范式②，已实测并回退）] 改 `unsigned int haveCount`
+    // + 无 cast 比较 `haveCount == list2.size()` 后 **仍折** `cmp -0x18(%ebp),%eax`
+    // 内存直比（ORIG 0x085a7fd7 为两段 `mov -0x18(%ebp),%ebx; call size;
+    // cmp %eax,%ebx; sete`），且总条数 188→187、ops 1→3 / delta 2→4 **劣化**
+    // ⇒ F2 在本上下文（比较对象为 `size()` 调用返回值 + 跨越界检查）不成立，
+    // 维持 int 直证形态 + 显式 cast 比较，判 N18b。
     int haveCount = 0;       // local_1c
     int slot = 0;            // local_18
     Inven_Item item;         // local_6d
@@ -1683,8 +1689,8 @@ bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Ma
                         ++haveCount;
                 }
             }
-            // P310：ORIG 0x085a7fd7 `mov -0x18(%ebp),%ebx; call size; cmp %eax,%ebx; sete`
-            //   两段寄存器形 ⇒ 试「int 局部 + 显式 unsigned cast 比较」。
+            // P310：ORIG `mov -0x18(%ebp),%ebx; call size; cmp %eax,%ebx; sete`
+            //   两段寄存器形；F2 同型无 cast 形实测劣化 ⇒ 维持显式 cast 比较。
             if ((unsigned int)haveCount == (unsigned int)list2.size())
                 ++passCount;
             else
@@ -2909,10 +2915,11 @@ int CParty::GetPartyType()
     // 为两段（P254/P211 档③）：局部与 callee 返回类型异型 ⇒ 4.4 才发 eax→edx
     // 中转而非 mem 直比。guildKey 声明 unsigned int。
     // N18b 封顶：int 化实测同形（cmp mem,%eax 恒折）⇒ 恢复直证形态。
-    // [2026-09-10 复测] 局部与 callee 返回（CUserCharacInfo::get_charac_guildkey 为
-    // int）**同型**时按 P211 档③ 应出 ORIG 的 LHS-first 两段
-    // `mov -0x1c(%ebp),%edx; cmp %edx,%eax`（实测重跑）。
-    int guildKey = 0;
+    // [2026-09-10 复测] P211 档③ 的**同型旋钮**（局部 unsigned int → int，与 callee
+    // `CUserCharacInfo::get_charac_guildkey()` 的 int 同型）与 F2（C05 范式②）两态
+    // 实测**均仍折** `cmp -0x1c(%ebp),%eax`（ORIG 0x85b637d 为两段
+    // `mov -0x1c(%ebp),%edx; cmp %edx,%eax`）⇒ 恢复直证 unsigned 形，判 N18b。
+    unsigned int guildKey = 0;
     bool sameGuild = false;
     int onlineCnt = 0;
     int validCnt = 0;

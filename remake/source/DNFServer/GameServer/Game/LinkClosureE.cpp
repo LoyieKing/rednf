@@ -68,26 +68,22 @@ public:
 //   探针 /tmp/addr_probe.cpp g0–g6（char* 算术 / 类型化下标 / uint 算术+回 cast /
 //   交换操作数 / u 后缀 七形）读数全同 g0；唯一省掉中转的 g2（具名基址指针）引入
 //   `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax` 槽往返 ⇒ 净 −1 条反劣。判 N18a。
-//   另试 `do{…}while(0)` + 9 处 break 形（替代 goto L_done）：our_insns 仍 314、
-//   岛数不变（4.4 把 break 出口同样物化为 jmp+nop 岛）⇒ 岛族无源码解，维持 goto 形。
+//   [C05 范式③ 命中·D08 实测] 七守卫由「7 条独立 `if(…) goto L_done;`」改为**单条
+//   `||` 短路 `if (c0||c1||…||c6) goto L_done;`**：4.4 对短路 or 逐条
+//   `movzwl/test/jne` **直达同一尾标签**，7 组 `jmp+nop` 中继岛全消 ——
+//   our_insns 314→**300**（ORIG 299）、gap +15→**+1**。反例留痕：`do{…}while(0)`+9 处
+//   `break` 形实测仍 314（break 出口同样物化为岛）；7 条独立 goto 形亦 314。
+//   余 +1 条 = 上述基表源地址 `imul/lea` 装载形（N18a，探针 g0–g6 七形不可造）。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)
 {
     // ORIG 0x08145e70..0x08145ed3：七条独立守卫各自 jne 直跳函数尾
-    if (info.m_field08 != 0)
-        goto L_done;
-    if (info.m_field0c != 0)
-        goto L_done;
-    if (info.m_field0a != 0)
-        goto L_done;
-    if (info.m_field0e != 0)
-        goto L_done;
-    if (info.m_field00 != 0)
-        goto L_done;
-    if (info.m_field04 != 0)
-        goto L_done;
-    if (info.m_field42 != 0)
+    // [D08 2026-09-10] C05 范式③试验：七守卫合并为单条 `||` 短路 goto
+    // （4.4 对短路 or 逐条 test/jne 直达同一尾标签，企消 7 组 jmp+nop 岛）。
+    if (info.m_field08 != 0 || info.m_field0c != 0 || info.m_field0a != 0
+        || info.m_field0e != 0 || info.m_field00 != 0 || info.m_field04 != 0
+        || info.m_field42 != 0)
         goto L_done;
 
     info.clear();

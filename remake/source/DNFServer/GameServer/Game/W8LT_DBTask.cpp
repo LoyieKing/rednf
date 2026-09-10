@@ -257,6 +257,19 @@
 //      另一消费侧 StatisticsPvP.cpp 的同名类型已按 16 字节建模（ORIG sizeof 16）
 //      ⇒ 需 R2 广播后改共享头 GameWorld.h（加 `PvP_Key m_key` 前缀，保 sizeof 16），
 //      本波未落（跨泳道头，留 Main 裁决）。
+// [A04-r5b C05 范式（Main 转发）逐件复查] 本 TU 标注 N93附/N18b/N209 的件复核结论：
+//   · DB_UpdateLogout::UpdateAccountMemberBonusFatigue（N93附）—— 尾部是
+//     `call exec; xor $0x1,%eax; test %al,%al` 后直落 epilogue（0x08418522-0x08418525，
+//     **dead test**），不是 C05① 的 `cmp; jne <函数尾 mov $0,%eax 块>` 形 ⇒ 范式①不适用，
+//     维持 P168a③/N122（尾块三形已穷举）。
+//   · DB_InsertChannel::InsertChannel（N18a/P209）—— 范式②（unsigned 局部→int）历史已套用
+//     （P310 翻案），当前已不在非 identical 清单，无新残留。
+//   · DB_UpdatePvPLastPlayTime::dispatch —— ORIG `mov 0x8(%ecx,%eax,4),%ebx`（单条 scaled
+//     访存）vs 我们 `add %eax,%eax; lea 0x0(,%eax,8),%edx; sub %eax,%edx; lea (%edx,%ebx,1),%eax;
+//     add $0x24,%eax` + `mov (%eax)` ⇒ 属 j*0x38 强度归约（N125/N94 族），**非 P196 真 bug**
+//     （school_id/m_id 无 0x80 符号分叉）；下轮可试 P205 两乘积拆形。
+//   · DB_ReqQueryCharacInfo::dispatch（setne vs sete）—— ORIG movl+1/setne+1 vs 我们 mov+5/sete+1
+//     ⇒ P292 bool 物化族（非比较方向真反），维持封顶。
 // ============================================================================
 #include "W8LT_DBTask.h"
 #include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）

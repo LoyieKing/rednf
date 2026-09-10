@@ -1290,6 +1290,11 @@ void CBingoGmTest::resetData()
 //   jle; movl $0x3,-0x10`（内存形）。判据⑪ PURE SHIFT c=0（frame 64=64、槽集全等）
 //   ⇒ 非槽问题；前轮 12 形探针 + 本轮复核结论一致：寄存器回写形仅 `-march=i486`
 //   （消 cmov/MIN_EXPR，P230①）可达，属路由域 ⇒ N18b/P321-T5 封顶。
+// [round5-A20 配方②复查] **禁按 C05-F2（unsigned→int 内存直比）反向套用本件**：
+//   ORIG 条件码为 `jle`（**有符号序**）⇒ gained 必为 int；改 unsigned 会得 `jbe`，
+//   触发 P196「符号性/比较方向反演」真 bug 家族（值域含负时行为分叉）。本件缺的是
+//   ORIG 的寄存器**回写** `mov $0x3,%eax; mov %eax,-0x10(%ebp)`，F2 只翻比较侧
+//   ⇒ 无交集，保留 N18b + 路由域判词。
 void CBingoGmTest::reqValue()
 {
     CUser* user = GetUser();

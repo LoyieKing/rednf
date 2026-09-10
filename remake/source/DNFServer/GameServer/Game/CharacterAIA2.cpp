@@ -1065,7 +1065,11 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                     break;
                 ScanStr(&line);
                 const int prob = ScanInt((bool*)0);
-                int slot = -1;                            // ORIG 0x1092 先置 -1
+                // ORIG 0x088cadb2 先置 -1（`movl $0xffffffff,-0x44`），且尾段谓词为
+                // `cmpl $0x6e,-0x44(%ebp); ja`（**无符号** + 内存直比）⇒ T2 直证该
+                // 局部为 unsigned（P310：4.4 对 unsigned 局部恒折 mem 单段；int+cast
+                // 形反产寄存器版）。语义等价：-1 在两型下同为 0xffffffff。
+                unsigned int slot = (unsigned int)-1;
                 if (tok == "[on attack]")
                 {
                     // ORIG 0x088cad83..0x088caeed：独立块（与 [on key] 不共享代码）。
@@ -1130,7 +1134,7 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                     else if (tok == "[on stand]")  slot = 0x6c;
                     else
                         return false;                // ORIG: esi=0 → 返回失败
-                    if ((unsigned)slot <= 0x6e)      // cmpl $0x6e; ja skip
+                    if (slot <= 0x6e)                // ORIG cmpl $0x6e,-0x44; ja（无符号）
                         script->m_speeches[slot].add(line, prob);
                 }
             }
