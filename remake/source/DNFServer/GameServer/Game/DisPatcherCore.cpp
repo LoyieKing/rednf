@@ -4784,6 +4784,8 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
         (user->get_state() == 5 || limitNotOne))
     {
         out.m_9 = 0;
+        // [Lane5] P266 cast 形实测劣化（add $0xd + movzbl (%eax) 两步）⇒ 维持直读；
+        // 残余 `mov %eax,%edx` 中转需 PacketTypes.h m_itemSpace char→unsigned char（S2 待 Main）。
         out.m_8 = req.m_itemSpace;
         for (int i = 0; i < (int)(signed char)req.m_count; ++i)
         {
@@ -5474,13 +5476,15 @@ int DisPatcher_BuyItem::check_error(CUser* user, MSG_BASE& msg)
     if (!G_CDataManager()->checkValidShopItem((unsigned int)req.m_deliveryType,
                                               (unsigned long)req.m_itemIdx))
     {
-        if (G_CDataManager()->m_itemShop->IsOneADayShop(req.m_deliveryType) == 0)
+        // [Lane5] P47/P194 正极性：ORIG 0x081be4b6 `call; test %al,%al; je <hack块>`
+        // + fall `mov $0x11` ⇒ 原码 `if (f()) return 0x11;`（负极性 ==0 生 xor $1）。
+        if (G_CDataManager()->m_itemShop->IsOneADayShop(req.m_deliveryType))
         {
-            user->getHackAnalyzer()->addServerHackCnt(
-                user, (WongWork::ENUM_HACKTYPE)0x3c9, 1, 0, 0);
-            return -1;
+            return 0x11;
         }
-        return 0x11;
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, (WongWork::ENUM_HACKTYPE)0x3c9, 1, 0, 0);
+        return -1;
     }
     if (user->CheckInTrade())
     {
@@ -5583,46 +5587,46 @@ unsigned int DisPatcher_BuyItem::get_nMaxBuyableCount(CUser* user, BuyItemParam&
     // byUserPowerWarPoint -0xc（=0 预清两条，P198① 两句式）。
     // 每块用三目 min 形（ORIG 0x081beafa `mov maxCount,%eax; cmp byX,%eax; jge L;
     // mov maxCount,%eax; jmp; L: mov byX,%eax`），非 if 形。
-    unsigned int maxCount = 0x7fffffff;
-    unsigned int byMoney;
-    unsigned int byCera;
-    unsigned int byWinPoint;
-    unsigned int byFinishPoint;
-    unsigned int byGuildPowerWarPoint = 0;
-    unsigned int byUserPowerWarPoint = 0;
+    // [Lane5] P209/P310 试形：局部 int 化（ORIG 比较为 `mov maxCount,%eax; cmp byX,%eax`
+    // 的 mem 直比形；unsigned 局部使 4.4 双载寄存器）。
+    int maxCount = 0x7fffffff;
+    int byMoney;
+    int byCera;
+    int byWinPoint;
+    int byFinishPoint;
+    int byGuildPowerWarPoint = 0;
+    int byUserPowerWarPoint = 0;
     if (param.m_80 != 0)
     {
-        byMoney = (unsigned int)user->getCurCharacMoney() / (unsigned int)param.m_80;
-        maxCount = ((int)maxCount < (int)byMoney) ? maxCount : byMoney;
+        byMoney = (int)((unsigned int)user->getCurCharacMoney() / (unsigned int)param.m_80);
+        maxCount = (maxCount < byMoney) ? maxCount : byMoney;
     }
     if (param.m_84 != 0)
     {
-        byCera = (unsigned int)user->GetCera() / (unsigned int)param.m_84;
-        maxCount = ((int)maxCount < (int)byCera) ? maxCount : byCera;
+        byCera = (int)((unsigned int)user->GetCera() / (unsigned int)param.m_84);
+        maxCount = (maxCount < byCera) ? maxCount : byCera;
     }
     if (param.m_88 != 0)
     {
-        byWinPoint = (unsigned int)user->GetWinPoint() / (unsigned int)param.m_88;
-        maxCount = ((int)maxCount < (int)byWinPoint) ? maxCount : byWinPoint;
+        byWinPoint = (int)((unsigned int)user->GetWinPoint() / (unsigned int)param.m_88);
+        maxCount = (maxCount < byWinPoint) ? maxCount : byWinPoint;
     }
     if (param.m_8c != 0)
     {
-        byFinishPoint = (unsigned int)user->GetFinishPoint() / (unsigned int)param.m_8c;
-        maxCount = ((int)maxCount < (int)byFinishPoint) ? maxCount : byFinishPoint;
+        byFinishPoint = (int)((unsigned int)user->GetFinishPoint() / (unsigned int)param.m_8c);
+        maxCount = (maxCount < byFinishPoint) ? maxCount : byFinishPoint;
     }
     if (param.m_90 != 0)
     {
         byGuildPowerWarPoint =
-            (unsigned int)user->GetGuildPowerWarPoint() / (unsigned int)param.m_90;
-        maxCount =
-            ((int)maxCount < (int)byGuildPowerWarPoint) ? maxCount : byGuildPowerWarPoint;
+            (int)((unsigned int)user->GetGuildPowerWarPoint() / (unsigned int)param.m_90);
+        maxCount = (maxCount < byGuildPowerWarPoint) ? maxCount : byGuildPowerWarPoint;
     }
     if (param.m_94 != 0)
     {
         byUserPowerWarPoint =
-            (unsigned int)(int)user->GetUserPowerWarPoint() / (unsigned int)param.m_94;
-        maxCount =
-            ((int)maxCount < (int)byUserPowerWarPoint) ? maxCount : byUserPowerWarPoint;
+            (int)((unsigned int)(int)(short)user->GetUserPowerWarPoint() / (unsigned int)param.m_94);
+        maxCount = (maxCount < byUserPowerWarPoint) ? maxCount : byUserPowerWarPoint;
     }
     return maxCount;
 }
@@ -6191,9 +6195,10 @@ int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
     {
         return 0x13;                  // ORIG ja → +0x3a 共享 0x13 块
     }
-    register unsigned int bit = 1;
-    bit <<= state;
-    if ((bit & 0x15e8) == 0)
+    // [Lane5] 试形（33→32 insn，ndiff 17→14）：bit 去具名 + `(1u<<state)&0x15e8`
+    // 单表达式（ORIG 无 bit 槽、`mov $1,%edx` 直出）。残余=N6（4.4 折 shr/mask）+
+    // N22（`mov %eax,%edx` 中转）+ 条件极性（jbe vs ja）+ push/pop esi。
+    if (((1u << state) & 0x15e8) == 0)
     {
         return 0x13;
     }
@@ -6737,6 +6742,11 @@ int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
 
 
 DisPatcher_Lottery::~DisPatcher_Lottery() {}
+// [Lane5] ORIG 0x081f845b `lea -0x1f(%ebp),%eax; add $0xd,%eax`（get_short 目标）
+// + 0x081f84a2 `movzwl -0x12(%ebp)` 读回 + PacketGuard@-0x2c ⇒ 原码有 0xf 字节
+// pack(1) 请求体局部（ORIG 未出线，仅 m_0d 被读）。**实测**：加 0xf 视图结构体后
+// 4.4 帧 0x50→0x60、PacketGuard -0x2c→-0x40、ndiff 133（劣化）⇒ 回退为裸 `short idx`；
+// 残余为 N93/P221 互斥块对象槽向（ORIG guard1 浅/guard2 深，4.4 反向）。
 // ORIG 0x081f8380 T _ZN18DisPatcher_Lottery12dispatch_sigEP5CUserR9PacketBuf
 // [b28d-29] N82：帧内对象槽整体平移 8（ORIG -0x2c，4.4 -0x34），助记符序列与调用点全等  (ORIG 0x081f8380 insn 166->167)
 // 报告：docs/class_func_reports/DisPatcher_Lottery/dispatch_sig.md（汇编+反编译 C 全读）
@@ -6757,7 +6767,7 @@ int DisPatcher_Lottery::dispatch_sig(CUser* user, PacketBuf& packet)
         user->Send(guard);
         return 0;
     }
-    short idx;
+    short idx;                                 // ORIG msg 视图未定（-0x1f 基址，见上）
     if (!packet.get_short(idx))
     {
         return LineFunc(0x861c,
@@ -6818,6 +6828,8 @@ int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
     // `mov -0xc(%ebp),%eax; test %eax,%eax` vs 4.4 折 `cmpl $imm,-0xc(%ebp)` 直比
     // （N18b：4.4 对具名 int 局部比较恒折 mem 直比，无源码写法产两段物化；
     // switch 形实测 30 条且产 add/cmp/ja 树，更劣）⇒ N18b 封顶。
+    // 复核（本轮）：P310 形 `(unsigned)treeIdx == K` 与 volatile 形实测均劣化
+    // （35 条 / 31 条，ndiff 17/23），原 if/else-if 形 28 条为最优 ⇒ N18b 封顶维持。
     if (treeIdx == -1 || treeIdx == 0)
     {
         if (pReq->m_head[0xd] == 1)
@@ -9079,8 +9091,11 @@ int DisPatcher_UseCoin::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     MSG_USE_COIN& req = *reinterpret_cast<MSG_USE_COIN*>(&msg);
     out.m_8 = req.m_0d;  // movzwl 0xd(%eax) -> mov %dx,0x8(%eax)
-    int state = user->get_state();
-    if (state == 5)
+    // [Lane5] P251/P279：ORIG 0x081ca8a6 `call get_state; cmp $0x5,%eax; je;
+    // cmp $0x8,%eax; je; jmp default` = 无槽 switch(call结果)，if 链会带状态槽。
+    switch (user->get_state())
+    {
+    case 5:
     {
         CParty* party = (CParty*)user->GetParty();  // ORIG thunk 0x865514c = CUser::GetParty
         if (party == 0)
@@ -9089,25 +9104,26 @@ int DisPatcher_UseCoin::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                             __PRETTY_FUNCTION__,
                             0, user->get_acc_id());
         }
-        if (!party->checkFreeRevivalCondition((CDungeon const*)0))
+        // ORIG 0x081ca929 `mov %al,-0x9(%ebp); movzbl -0x9(%ebp),%eax; xor $1`（具名 bool 槽）
+        bool freeRevival = party->checkFreeRevivalCondition((CDungeon const*)0);
+        if (!freeRevival)
         {
-            CInventory* inven = user->getCurCharacInvenW();  // thunk 0x80da28e
-            inven->UseCoin(eCoinSubReason_0);                // asm push $0x0
-            UserQuest* quest = user->getCurCharacQuestW();   // thunk 0x814aa5e
-            quest->set_authen_data(QUEST_CONDITION_3, 1, 0); // asm (3,1,0)
-            party->IncreaseUsedCoinCount();                  // thunk 0x822d8ce = CParty::IncreaseUsedCoinCount
+            // ORIG 无具名局部（`call getCurCharacInvenW; movl $0; mov %eax,(%esp); call UseCoin`）
+            user->getCurCharacInvenW()->UseCoin(eCoinSubReason_0);   // asm push $0x0
+            user->getCurCharacQuestW()->set_authen_data(QUEST_CONDITION_3, 1, 0);  // asm (3,1,0)
+            party->IncreaseUsedCoinCount();   // thunk 0x822d8ce = CParty::IncreaseUsedCoinCount
             // ORIG 首参 0x25（_ActionGroupIndex 枚举，直压立即数）
             APSystem::CUserProc::ClearActionAndSendtoUser(
                 user, (APSystem::_ActionGroupIndex)0x25, 0, (ENUM_PACKETCLASS)0);
         }
+        break;
     }
-    else if (state == 8)
-    {
-        CInventory* inven = user->getCurCharacInvenW();
-        inven->UseCoin((eCoinSubReason)4);  // asm push $0x4（枚举仅建模了 0 值）
-        UserQuest* quest = user->getCurCharacQuestW();
-        quest->set_authen_data(QUEST_CONDITION_3, 1, 0);
+    case 8:
+        // ORIG 同样无具名局部（结果直传实参槽）
+        user->getCurCharacInvenW()->UseCoin((eCoinSubReason)4);  // asm push $0x4
+        user->getCurCharacQuestW()->set_authen_data(QUEST_CONDITION_3, 1, 0);
         user->IncreaseUsedCoinCount();      // thunk 0x823082a = CUser::IncreaseUsedCoinCount
+        break;
     }
     return 0;
 }
@@ -10713,6 +10729,7 @@ void DisPatcher_DropItem::send(CUser* user, ParamBase& param)
 // 均不可动 ⇒ N76 封。NEAR(2)，bad 总数不增。
 int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
+
     // ORIG +0x09/+0x0f：req(msg)→远槽 -0x34、out(param)→近槽 -0x30（技21 声明序）；
     // errNo store 双钉（技45）。state 无槽：三段各自 `call get_state; cmp $K,%eax;
     // sete %al; test %al,%al; je`（技9 (bool)==K 物化形）。
@@ -10744,7 +10761,7 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             {
                 // [b28d-solo-DisPatcherCore] P211 档③：ORIG RHS-first
                 // （`mov -0x28,%edx; mov -0x30,%eax; mov %edx,0x4(%eax)`）⇒ RHS 局部异型化。
-                out.m_errNo = ret;
+                out.m_errNo = ret;   // [Lane5] 视图 cast 实测无效（4.4 视同为同型）⇒ 待头侧类型旋钮
                 out.m_8 = req.m_11;
             }
         }
@@ -10949,6 +10966,7 @@ int DisPatcher_MakePVP::dispatch_sig(CUser* user, PacketBuf& packet)
         if (CSyncSlangFilter::GetInstance()->HasSlang(name))
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x35, 0x9f);
+            return 0;               // [Lane5] ORIG +0x70：独立 `mov $0,%ebx; jmp dtor`
         }
         else
         {
@@ -11223,7 +11241,9 @@ DisPatcher_DiePvP::~DisPatcher_DiePvP() {}
 // ORIG 0x081ece64 T _ZN17DisPatcher_DiePvP12dispatch_sigEP5CUserR9PacketBuf
 // [b28d-29] N82：帧 0x6c vs 0x60 + 槽平移（ushort 数组 -0x36 vs -0x26），调用点全等  (ORIG 0x081ece64 insn 146->147)
 // 报告：docs/class_func_reports/DisPatcher_DiePvP/dispatch_sig.md（汇编+反编译 C 全读）
-// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 53（ORIG 146 / ours 147），残差=N7/N82 帧与 callee-saved 角色/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [Lane5] P227 已落（gap 146→146=0）：getter 内联进 CSwitchLog 构造即调用单表达式，
+// trace ctor 提到 getter 之前的问题消除。残余=整帧槽深 +4（-0x36 vs -0x3a 等）+
+// 帧 0x6c vs 0x5c（N82/N115 族），ndiff ~60。
 int DisPatcher_DiePvP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() != 7)
@@ -11251,15 +11271,14 @@ int DisPatcher_DiePvP::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     PacketGuard guard;
     int result = room->die_charac(user, target);
-    int battleMode = room->get_pvp_battle_mode();
-    int roomIdx = room->get_index();
-    const char* accName = user->get_acc_name();
-    const char* charName = user->getCurCharacName();
-    CSwitchLog trace(
-        __PRETTY_FUNCTION__,
-        0x6f22, 0, 0);
-    trace("pvp@log %s,%s,room(%d),%d,%d,%d",
-          accName, charName, roomIdx, battleMode, result, 0x3a);
+    int battleMode = room->get_pvp_battle_mode();   // ORIG -0x4c 具名槽
+    // [Lane5] P227/P37 全表达式临时链：ORIG 0x081ecea4..0x081eceb8 在 ctor **之前**
+    // 求值 get_index/getCurCharacName/get_acc_name 到 %edi/%esi/%ebx 保活
+    // （两语句形会把 ctor 提到 getter 之前）⇒ 构造即调用单表达式。
+    CSwitchLog(__PRETTY_FUNCTION__, 0x6f22, 0, 0)(
+        "pvp@log %s,%s,room(%d),%d,%d,%d",
+        user->get_acc_name(), user->getCurCharacName(), room->get_index(),
+        battleMode, result, 0x3a);
     if (0 < result)
     {
         guard.put_header(1, 0x3a);
@@ -12534,9 +12553,11 @@ void add(CUser* user, const char* tableName, const char* fieldName,
     strcpy(packet.m_fieldName, fieldName);
     strcpy(packet.m_key, key);
     packet.m_value = value;
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendPacket(reinterpret_cast<char*>(&packet), 0x89);
+    // [Lane5] P36/P52：ORIG 无 proxy 具名局部（`call GetServerGroup; mov mgr,%edx;
+    // call GetServerProxy; mov %eax,(%esp); call SendPacket`），且 `lea packet,%ebx`
+    // 提前到 GetServerGroup 之前 ⇒ 链式单语句（&packet 跨调用由 ebx 承载）。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(&packet), 0x89);
 }
 }  // namespace statistc_proxy
 
