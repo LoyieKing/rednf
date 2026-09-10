@@ -82,7 +82,11 @@ public:
     void clear();
     DyeInfo& operator=(const DyeInfo& other);
     int getDyeColorIndex();                 // ORIG 0x898d37c _ZN7DyeInfo16getDyeColorIndexEv
-private:
+    // [Lane41 · Main 批准] 两成员 private→public：仅访问控制变化，成员类型/声明
+    // 顺序不变 ⇒ sizeof(16)/offsetof(+0x00/+0x04)/mangled 零变化。
+    // 依据：ORIG ImportStackableScript 0x089b9601 段对 +0x164 `mov %edx,0x164(%eax)`、
+    // 0x089b9629 `lea 0x168(%eax),%ecx`（[dye type]/[dye info]）直访成员，消费侧据此
+    // 删除 TU 局部 DyeInfoView + reinterpret_cast 视图 cast 反模式。
     int m_field0;                            // +0x00
     std::vector<std::pair<int, int> > m_vec4;  // +0x04（vector<pair<int,int>>）
 };
@@ -207,5 +211,13 @@ public:
     DyeInfo m_dyeInfo;               // +0x164
     std::string m_str174;            // +0x174
 };
+
+// [Lane41] DyeInfo 零布局锁（private→public 改动不触布局；此断言防漂移）：
+// int + vector<pair<int,int>> = 4 + 12 = 16 字节；成员序固定 ⇒ m_vec4 必在 +0x04
+// （+0x164 整体偏移的 +0x168 直访见 ORIG 0x089b9629 `lea 0x168(%eax),%ecx`）。
+// 注：不用 offsetof(DyeInfo, m_vec4) —— gcc4.4 对非 POD 成员取址恒告警
+// （invalid access to non-static data member），保留 sizeof 断言已锁死布局。
+// 证据：ORIG DyeInfo ctor 0x8513ac6 / clear 0x898d718 / getDyeColorIndex 0x898d37c 族。
+static_assert(sizeof(DyeInfo) == 16, "DyeInfo size drift");
 
 #endif  // GAME_STITEMSCRIPT_H_
