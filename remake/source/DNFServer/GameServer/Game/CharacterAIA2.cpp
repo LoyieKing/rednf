@@ -1065,11 +1065,12 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                     break;
                 ScanStr(&line);
                 const int prob = ScanInt((bool*)0);
-                // ORIG 0x088cadb2 先置 -1（`movl $0xffffffff,-0x44`），且尾段谓词为
-                // `cmpl $0x6e,-0x44(%ebp); ja`（**无符号** + 内存直比）⇒ T2 直证该
-                // 局部为 unsigned（P310：4.4 对 unsigned 局部恒折 mem 单段；int+cast
-                // 形反产寄存器版）。语义等价：-1 在两型下同为 0xffffffff。
-                unsigned int slot = (unsigned int)-1;
+                // [C05 F2/P310 一次性旋钮实测·已回退] `unsigned slot` 确使尾段谓词
+                // 对齐 ORIG 的 `cmpl $0x6e,-0x44; ja`（内存直比；widthscan 的
+                // cmp_l orig=8 our=7 差消失），但 `(std::size_t)slot+1` 三处使用点
+                // 因无符号语义各多 1 条 ⇒ our_insns 2108→2111、gap −3→−6（净负）
+                // ⇒ 按 P321 S1 恢复直证形态并封 N（本旋钮不可用，勿再试）。
+                int slot = -1;                            // ORIG 0x088cadb2 先置 -1
                 if (tok == "[on attack]")
                 {
                     // ORIG 0x088cad83..0x088caeed：独立块（与 [on key] 不共享代码）。
@@ -1134,7 +1135,7 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                     else if (tok == "[on stand]")  slot = 0x6c;
                     else
                         return false;                // ORIG: esi=0 → 返回失败
-                    if (slot <= 0x6e)                // ORIG cmpl $0x6e,-0x44; ja（无符号）
+                    if ((unsigned)slot <= 0x6e)      // ORIG cmpl $0x6e,-0x44; ja（无符号）
                         script->m_speeches[slot].add(line, prob);
                 }
             }

@@ -399,7 +399,7 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
     int dead30 = 0;                // ORIG -0x30 `movl $0`（dead 局部，P31/P232）
     bool done = false;
 
-    while (true)
+    for (;;)
     {
         while (true)
         {
@@ -784,7 +784,9 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
         if (token == "[power parameter end]")
         {
             done = true;
-            break;
+            // [2026-09-10 D06] ORIG 该处只有**一条** `jmp <return done>`；`break`
+            // 跳出 while 会多一条（4.4 的 while 出口 + epilogue 跳板），改单 goto。
+            goto scan_end;
         }
     }
 
@@ -1000,7 +1002,7 @@ outer_retry:;
                 if (__inited)
                 {
                     __init_lock.leave();
-                    continue;
+                    goto titlebook_retry;
                 }
                 id = 0;
             }
@@ -1199,10 +1201,8 @@ outer_retry:;
             // [2026-09-10 D06] ORIG 0x08aa8ae3 `jmp 08aa8171 <+0x61>`：已初始化路径
             // **一跳直落外层循环头**；写 `break`（跳出内层）会多出一条内层出口 jmp
             // （4.4 把内层出口与外层回边分成两条，实测 ours 643 vs orig 642 = +1）。
-            goto titlebook_next_token;
+            goto outer_retry;
         }
-    titlebook_next_token:;
-    goto outer_retry;
 outer_done:;
 
     return true;

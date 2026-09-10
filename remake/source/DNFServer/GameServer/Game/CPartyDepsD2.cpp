@@ -1477,11 +1477,14 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
         if (quest == 0)
             continue;
         // +0x75da = UserQuest.m_authenData(+0x75d8) + 2 = m_characClass（CUser.h:1220）
-        short dungeonItemIdx = questRef->m_authenData.m_characClass;
         // P183：ORIG 0x085bd878/0x085bd8e3 两次独立 call get_dungeon_index
         //（无缓存槽，各自直传实参）。
+        // [b28f-CTS P200] ORIG 0x085bd86x 为 `movswl %ax,%ebx`（短整表达式作
+        //   普通实参直传、2 操作数扩展到 callee-saved）；原码无具名 short 局部
+        //   —— 具名形退化为 `mov %ax,-0x16(%ebp); movswl -0x16(%ebp),%ebx`
+        //   并多占 4 字节帧槽（全函数槽号整体深 4）。内联直传复现 ORIG。
         if (!quest->check_clear_item(bf(this).get_dungeon_index(),
-                                     (int)dungeonItemIdx))
+                                     questRef->m_authenData.m_characClass))
             continue;
         needCount = questRef->m_quest[q];
         if (needCount <= 0)

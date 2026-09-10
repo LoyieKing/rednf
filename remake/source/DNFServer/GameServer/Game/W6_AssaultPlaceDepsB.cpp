@@ -474,6 +474,19 @@ void CAssaultPlace::_SendStraightVictories(CUser* user)
 //   残差：N95/N82 槽序（4.4 按首次使用序给 u 最深 -0x34 vs ORIG -0x2c，且
 //   winPoint/losePoint 与 u 的相对序相反）+ N86b（`losePoint += bonus` 4.4 恒
 //   折内存 add，ORIG 为 movzbl/lea/mov 四条形）。
+// [E02·R5 fresh 实测] verdict=DIFF 335/329（our 331→329）；p167 调用点差集
+//   36=36 CLEAR（MISSING/EXTRA 仅 Packet_Guild_Change_Power_War_Point 与
+//   cMyTrace 的 C1/C2 同址别名 = P93 良性）⇒ 语义缺口 0，残差纯形态（槽序）。
+//   本轮修法⑤（P0/P52/P134）：删具名 `CGuildServerProxy* proxy` 局部，改链式
+//   `GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE)
+//    ->SendPowerWarPoint(pkt);` —— ORIG 0x82ed2xx 为 `call GetServerProxy;
+//   lea -0x69(%ebp),%edx; mov %edx,0x4(%esp); mov %eax,(%esp); call
+//   SendPowerWarPoint`（结果 %eax 直通 receiver 实参，无栈往返）；我方旧形多
+//   `mov %eax,-0x20(%ebp)` + 回读一对（−2 insn）。
+//   反劣实验记录（勿重试）：删 cMyTrace 实参位 `static_cast<int>(winPoint)` /
+//   `static_cast<int>(losePoint)` 显式提升 ⇒ our 329→331（+2）；此处 cast 是
+//   uchar→int 提升必需形（ORIG `movzbl -0x3d,%eax; movzbl %al,%edi`），与
+//   C28L0「vararg 冗余 cast 反劣」方向相反，非冗余。
 void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
                                                     ENUM_POWER_WAR_WINNER_OR_LOSER winner,
                                                     int winCnt, int loseCnt,

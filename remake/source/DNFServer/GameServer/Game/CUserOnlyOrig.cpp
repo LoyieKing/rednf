@@ -396,8 +396,10 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
     // 具名 bool on 反产 `movb %al,-0x29; cmpb $0,-0x29; je` 物化 + 多 jcc/jmp。
     {
         // [Lane39 判据①/P223 定案] ORIG 两个失败出口同落 +0xb4（共享 join）⇒ 4.4 复现形
-        // 唯一为「负条件 goto 到共享尾空标签」；`&&` 合并/嵌套 if 均被 jump-thread 或
-        // 生 bool 物化岛（实测 +1 条 mov$1/jmp/mov$0/test）。
+        // 唯一为「负条件 goto 到共享尾空标签」。
+        // [A06 2026-09-10 C05③ 试行记录·已回退] 按 D08 正解改单条 `if (c0 || c1) goto`
+        // 实测**反劣**（199/203→199/207、delta 48→53：4.4 为 `||` 短路另发跳板/物化岛）
+        // ⇒ 本件不命中「多守卫同目标」族（其岛属 4.4 epilogue-threading，A28 边界）⇒ 回退。
         if (!GlobalData::s_event_manager->GetRepeatEvent(0x15)->IsEventing((CUser*)0))
             goto GROW_SKIP;
         if (reason == (eChangeGrowTypeReason)0x1)
@@ -10727,6 +10729,10 @@ bool CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
     }
     for (int i = 0; i < 0xc; ++i) {
         const CInventory* invenR = getCurCharacInvenR();
+        // [A06 2026-09-10 C05④/P225 试行记录·已回退] ORIG 0x0864d1a4 段为
+        // `cmp %eax,%edx; setne %al; test %al,%al; je <T>`；按 P225 改 `while (cond) { body; break; }`
+        // 实测**无效**（227/238→227/239、delta 268→267），且本处两侧均非具名局部
+        // （元素字段 vs 镜像字段）⇒ 命中 Main 转发的 C05② 边界（仅「两个具名局部比较」命中）⇒ 回退。
         if (*reinterpret_cast<const int*>(reinterpret_cast<const char*>(invenR) + i * 0x3d + 0x1e) !=
             *reinterpret_cast<int*>(equipMirror + i * 0x3d + 2)) {
             m_characterView.enableSaveCharacView();
@@ -12197,6 +12203,10 @@ void CUser::SetCharacInfo(int count, char* data)
             *reinterpret_cast<int*>(rec + 0x90);                      // 删除截止
         info.m_fielde5d =
             *reinterpret_cast<int*>(rec + 0x8c);                      // local_dbc
+        // [A06 2026-09-10 P0 具名 bool 试行记录·已回退] ORIG 0x08649f9x 段为
+        // `movzbl 0x1c(%eax),%eax; and $0x1,%eax; test %al,%al; setne %al; mov %al,-0x9d5(%ebp)`
+        // （bool 物化落槽）；补具名 `const bool` 局部实测**反劣**（316→318、delta 279→281）
+        // ⇒ 该段属 4.1 转换路径产物（AND→bool 转换的 setne 在 4.4 被折），维持内联形并封 N。
         info.m_pad1240 = static_cast<char>((rec[0x1c] & 1) != 0);      // 禁玩标记
         info.m_field14b7 = static_cast<unsigned char>(rec[0x1d]);      // powerSide
         info.m_field14b8 =

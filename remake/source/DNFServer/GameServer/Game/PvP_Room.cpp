@@ -3446,6 +3446,16 @@ int PvP_Room::time_out(int* seats)
     // （ORIG 0x085d9c51 movb 直存 + 0x085d9cb5 movzbl/xor$1 取反物化，P248 档②）。
     // 残余 84 = 4.1 sub+test 物化（0x085d9be5，4.4 恒 cmp 折叠）+ N76/N18a scaled
     // 折叠 + N82 槽号 + C2/C1/重定位显示差。insn 365/367。
+    // [L10b 2026-09-10] 两处实测（本件 367→**366**，ORIG 365）：
+    //  ① **C05-F2 生效（-1）**：`unsigned int local_2c` → `int local_2c` ⇒ 复现 ORIG
+    //     0x085d9df3 内存直比 `cmpl $0x4,-0x28(%ebp); setle %al`（P209 反向可用形，
+    //     旧 unsigned 形恒 `mov -N(%ebp),%eax; cmp $0x4,%eax; setle` 多 1 条）。
+    //  ② P311 成员数组视图（`PvPTeamScoreView { int m_cnt0[5]; int m_cnt5[5]; }` 替代
+    //     `int local_84[10]` + 下标 `[T+5]`）：**实测中性**（366=366）——4.4 把
+    //     `m_cnt5[idx]` 编译为 `lea 0x14(%eax)` + `add $0x14,%eax` 两段（与旧 `[T+5]`
+    //     的 lea/add 同条数），未复现 ORIG 单条 scaled disp；保留（更真实的成员数组
+    //     建模，零指令回归）。
+    //  残余 1 条 = 上述两处形态差中的末条 + N82 槽号。
     if (m_battleEndFlag != 0)
     {
         return 0;
@@ -3528,10 +3538,10 @@ int PvP_Room::time_out(int* seats)
                 if ((P_SEATS(local_30) != 0) && (P_TEAMWIN(local_30) != 0) &&
                     (P_TEAMWIN(local_30) < 0xfe))
                 {
-                    local_84.m_cnt5[P_TEAMWIN(local_30)] =
-                        local_84.m_cnt5[P_TEAMWIN(local_30)] + 1;
-                    local_84.m_cnt0[P_TEAMWIN(local_30)] =
-                        local_84.m_cnt0[P_TEAMWIN(local_30)] + seats[local_30];
+                    // [L10b] `+=` 单语句形：ORIG 0x085d9da2/0x085d9d.. 为单求值
+                    // （同一 %eax 索引 load/store 两次），`= X + k` 形令 4.4 重算索引。
+                    local_84.m_cnt5[P_TEAMWIN(local_30)] += 1;
+                    local_84.m_cnt0[P_TEAMWIN(local_30)] += seats[local_30];
                 }
             }
             unsigned int local_38 = 0;

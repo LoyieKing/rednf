@@ -37,6 +37,11 @@ extern CDataManager* G_CDataManager();
 //      不是旧写的 `ratio == 0.0`（后者 4.4 产 fucomip+jne/jp 双跳）；
 //   ③ `double diff = (double)vDiff;` 具名局部复现 ORIG `fildl -0x24;fstpl -0x50`。
 //   x87 比较 lowering 需 -march=i486 才出 ORIG 的 fnstsw/sahf 形（P230 补；已上报 Main 路由）。
+// [b28e 三形实测] 帧/槽：①无 pad ⇒ `sub $0x58`（ORIG 0x68）、diff -0x38、floor 临时 -0x40；
+//   ②pad 置首（本形）⇒ `sub $0x68` = ORIG、diff -0x38、临时 -0x50；③`double diff` 迁到
+//   三个 int 之后 ⇒ 全槽整体平移（vSpan -0x34 等）、更劣已回退。ORIG 形（diff -0x50、
+//   临时 -0x40、帧 0x68）要求 4.1 的「具名 double 深槽 / 临时浅槽」方向，4.4 恒反向
+//   （具名 -0x38 / 临时 -0x50），与 0x.. 帧差无关 ⇒ 残差 = 两 double 槽互换，N82附/P112 族。
 int getLevelLinearAbility(int a, int b, int c, int d, int level)
 {
     // [b28e 帧对齐] ORIG 帧 `sub $0x68`（4.1 对 x87 段多预留 0x10）；无此局部时

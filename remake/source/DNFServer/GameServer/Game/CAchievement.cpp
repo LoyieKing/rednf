@@ -351,7 +351,13 @@ void CAchievement::_checkComplete(unsigned int id)
 void CAchievement::_forceClear(unsigned int id)
 {
     Quest* quest = G_CDataManager()->find_quest((int)id);
-    if ((quest == 0) || (quest->m_type != 7))
+    // ORIG 0x0828ce5c/0x0828ce69：`je +0x238` 与 `jne +0x23b` **落点不同**
+    // （各带独立尾岛）⇒ 两条独立守卫（P133①），合并短路会共落点少一岛。
+    if (quest == 0)
+    {
+        return;
+    }
+    if (quest->m_type != 7)
     {
         return;
     }
@@ -463,20 +469,19 @@ void CAchievement::_forceReset(unsigned int id)
     {
         Inven_Item* invenItem =
             ((CInventory*)m_user->getCurCharacInvenW())->GetInvenRef(0, 0xb);
-        // ORIG 0x0828d032 `je +0x247`（invenItem==0 落独立 nop 岛）与
-        // 0x0828d043 `jne +0x248`（addInfo 不等直落 epilogue）落点不同；
-        // 嵌套 if / goto 尾标签 / 早返三形实测：4.4 恒给 6 个 nop;jmp 岛
-        // （our 172 vs ORIG 170）或共落点 4 岛（our 168）——无法同时给出
-        // ORIG 的「5 个 nop;jmp 岛 + 尾裸 nop」（P223 负例：4.4 岛数恒=
-        // 条件数或 0，ORIG 的末条件直落 epilogue 属 4.1 布局产物）。
-        // 取原 && 短路形：指令数差最小且语义等价。
-        if ((invenItem != 0) && (invenItem->m_addInfo == titleIdx))
+        // ORIG 0x0828d032 `je +0x247`（invenItem==0 落**独立** nop 岛）与
+        // 0x0828d043 `jne +0x248`（addInfo 不等**直落** epilogue）落点不同 ⇒
+        // 两条独立守卫 + 尾标签（P133①/P223 多源 goto 尾标签）：
+        // 多源同目标 goto 由 4.4 逐条发射，不 jump-thread。
+        if (invenItem == 0)
+            goto force_reset_end;
+        if (invenItem->m_addInfo == titleIdx)
         {
             invenItem->reset();
-            m_user->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0,
-                                   0xb);
+            m_user->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, 0xb);
         }
     }
+force_reset_end:;
 }
 
 stAchievement CAchievement::_getTrigger(unsigned int id)
@@ -617,10 +622,11 @@ void CAchievement::adjust()
         // WongWork::CQuestClear::isClearedQuest（bool 返回 ⇒ 调用点 test/je 无
         // setne；UserQuest::isClearQuest 包装是另一符号，p167 会记 MISSING）。
         // ORIG 0x0828ca5b：`mov -0x20(%ebp),%ebx` 在 receiver call **之前**物化
-        // 并跨 call 保活（P52 callee-saved 独占形）；实参用语句表达式包住
-        // （P226）令 4.4 亦升格 %ebx 跨 getCurCharacQuestR call 保活。
+        // 并跨 call 保活（P52 callee-saved 独占形）。[2026-09-10 复测] 语句表达式
+        // `({ questIdx; })` 形被 4.4 前端折叠（仍 `mov -0x20(%ebp),%edx`）⇒ 无效；
+        // 残余 = N7 实参保活寄存器/时刻差。
         if (((WongWork::CQuestClear*)((unsigned int)m_user->getCurCharacQuestR() + 4))
-                ->isClearedQuest(({ questIdx; })))
+                ->isClearedQuest(questIdx))
         {
             // [真 bug 修复] ORIG 0x0828ca18 压栈的是 -0x18(%ebp)=m_achievementIdx
             // （stAdjust +0x08），不是 isClearedQuest 用的 -0x20(%ebp)=m_questIdx

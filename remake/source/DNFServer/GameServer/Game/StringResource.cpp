@@ -169,6 +169,11 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
             ++lineNo;                   // 行号在边界块首自增（@0x50）
             text[i] = '\0';
             val = 0;                    // ORIG @0x5d 唯一 0 初始化（块内）
+            // [D01 · C05② 细化负例 2026-09-10] `test %eax,%eax` 零比较子型的
+            // 类型旋钮实测无效：本点 ORIG 为 `mov -0x10(%ebp),%eax; test %eax,%eax`
+            // （载寄存器两段），而 4.4 对具名局部恒折 `cmpl $0x0,-0x10(%ebp)`，
+            // **int 与 unsigned 两态同形**（改 unsigned 后 fresh .o 逐字节不变、
+            // 四数 43/63/1/3 不变）⇒ 已回退 int，本点归 N18b 常量比较子型。
             int r = parseStringLine(lineStart, &key, &val);   // -0x10
             if (r != 0)
             {

@@ -3596,11 +3596,15 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
     fprintf(file, "[champion] %d %d %d %d %d\n",
             script->m_b4[0], script->m_b4[1], script->m_b4[2], script->m_b4[3],
             script->m_b4[4]);
-    if (!script->m_vec98.empty())
+    // [E06 2026-09-10 真 bug 修正] ORIG 0x088f0d46/0x088f0d84/0x088f0e03 均 `+0xc8`
+    //（`_ZNKSt6vectorISt4pairIiiESaIS1_EE5emptyEv` 实证）⇒ [item] 段导出的成员是
+    // m_vecc8（tag "[item]" 的宿主，见 import case 0x1a6），非 m_vec98
+    //（后者属 tag "[clear reward item]"，ORIG export 不导出）。
+    if (!script->m_vecc8.empty())
     {
         fwrite("[item]\n", 1, 7, file);
-        for (std::vector<std::pair<int, int> >::iterator it = script->m_vec98.begin();
-             it != script->m_vec98.end(); it++)
+        for (std::vector<std::pair<int, int> >::iterator it = script->m_vecc8.begin();
+             it != script->m_vecc8.end(); it++)
             fprintf(file, "%d %d\n", (*it).first, (*it).second);   // P167：ORIG 发 deEv 非 ptEv
         fwrite("[/item]\n", 1, 8, file);
     }
@@ -3683,7 +3687,8 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         // ORIG 0x088f14ff/0x088f1505：begin() 经独立 sret 临时 -0x5cc 再
         // `mov -0x5cc,%eax; mov %eax,-0xa0` 拷入具名 it（4.1 不做 copy-elision，
         // N86）。`*&f()`（P316）与显式转换临时两形实测均被 4.4 折叠 ⇒ 封 N86。
-        for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec20.begin();
+        // [E06 2026-09-10 复测] P50 形：复用上段先声明后赋值的 `it`（无 for 内声明）。
+        for (it = maze.m_vec20.begin();
              it != maze.m_vec20.end(); it++)
             fprintf(file, "%d %d\n", (*it).first, (*it).second);
         fwrite("[/boss map]\n", 1, 12, file);

@@ -196,6 +196,10 @@ void CBattle_Field::add_monster_list_bossroom_condition(std::list<_mapMonster>& 
 {
     // [b28d-Lane27] ORIG 0x083013f5/0x08301406 两条独立 `je`（各带岛）+ 0x0830141e
     // `jne <epilogue>`（直跳）⇒ 拆三条独立守卫。
+    // [round5-C05 2026-09-10 实测] D08 合并形（单条短路 `||` 守卫 / goto 尾标签两形
+    // 均试）对本件**零收益**（仍 our 176 / ORIG 173）；残余 1 对 `jmp epilogue;nop`
+    // 属 4.4 epilogue-threading/rel8 跳板（A27/A28 边界：源码层不可控）⇒ 恢复
+    // ORIG 直对应的三条独立守卫并封顶。
     if (m_pDungeon == NULL)
         return;
     if (m_pMap == NULL)
@@ -1180,12 +1184,12 @@ void CBattle_Field::choose_random_bossmap_from_dummymaps(const CDungeon* dungeon
 
     if (dungeon->IsHaveDummyMap())
     {
-        // [b28d-Lane27] ORIG 0x08307f0f/0x08307f1e：两条**独立** `jne <epilogue>`
-        // （P133 独立守卫；`||` 合并形 4.4 会多一个尾部中继岛）。
-        if (m_endX != x)                                                  // +0xc
-            return;
-        if (m_endY != y)                                                  // +0x10
-            return;
+        // [round5-C05 2026-09-10] D08 配方（多守卫同目标合并为单条短路 goto）：
+        // ORIG 0x08307f0f/0x08307f1e 两条 `jne <epilogue>`，我方平铺 return 令
+        // 4.4 在尾部各发一对 `jmp epilogue;nop` 中继岛（尾部 5 岛 vs ORIG 3 岛）
+        // ⇒ 合并为单条 `||` goto 到尾标签串（与上方三守卫同目标）。
+        if (m_endX != x || m_endY != y)                                   // +0xc/+0x10
+            goto L_dungeonNull;
         if (static_cast<unsigned int>(m_dummyMapPosIdx) <
             m_dummyMapPos.size())                                         // +0xcc < +0xc0.size
         {

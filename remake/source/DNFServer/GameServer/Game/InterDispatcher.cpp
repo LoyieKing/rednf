@@ -12095,24 +12095,23 @@ struct Inter_ItemLimitEdition_Sell_EndPktView
 int Inter_ItemLimitEdition_Sell_End::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_ItemLimitEdition_Sell_EndPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_Sell_EndPktView*>(data);
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
-    const unsigned int count = pPkt->m_e;
-
+    // ORIG 0x084dbbc2 仅一枚具名包指针（-0x10）；`char* recv`/`const unsigned int count`
+    // 两个具名局部在 ORIG 无槽往返（循环界与下标基址均直读）⇒ P0/P329 内联删除。
+    unsigned int i = 0;
     PacketGuard packet;
     packet.put_header(0, 0xe1);
     packet.put_byte(1);
     // ORIG 084dbbfc：0xe 按 32 位读（mov 0xe(%eax),%eax）直传 put_byte 形参。
     packet.put_byte(pPkt->m_e);
 
-    unsigned int i = 0;
-    while (i < count)                                  // cmp/seta 无符号
+    while (i < (unsigned int)pPkt->m_e)                 // cmp/seta 无符号（界直读无具名槽）
     {
         const unsigned int ipg =
-            *reinterpret_cast<unsigned int*>(recv + 0x12 + i * 4);
+            *reinterpret_cast<unsigned int*>(data + 0x12 + i * 4);
         G_CDataManager()->getItemLimitEditionMgr()->removeItem(ipg);
         cMyTrace(__PRETTY_FUNCTION__,
             0x465a, 0)("ipg: %d", ipg);
-        packet.put_int(*reinterpret_cast<int*>(recv + 0x12 + i * 4));
+        packet.put_int(*reinterpret_cast<int*>(data + 0x12 + i * 4));
         i = i + 1;                                     // addl $0x1,mem 形态
     }
     packet.finalize(true);
@@ -17512,8 +17511,11 @@ int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     Inven_Item item;                                   // ORIG Inven_Item::Inven_Item()
     // ORIG 0x084e7212 `movl $0x0,-0x1c(%ebp)` 落于 msgBuf 清零（lea -0x18b/mov $0x100,%ebx）
-    // 之前 ⇒ 原码在缓冲前有一枚「初始化式 = 0」的具名 int 局部（P198① 预清必写；4.4 对
-    // 未读但带初始化式的局部仍发 store）。语义未用（ORIG 后续无读点），照抄 P171。
+    // **之前** ⇒ 原码在缓冲前有一枚「初始化式 = 0」的具名 int 局部（P198① 预清必写；4.4 对
+    // 未读但带初始化式的局部仍发 store）。语义未被 ORIG 读取，照抄 P171。
+    // 残：槽位（ORIG itemCount -0x1c 浅于 pPkt -0x20；4.4 先声明深 ⇒ 本序给我方 -0x24/-0x20）
+    //   = N82/P212 槽族；两次声明位置实验（前置于 pPkt：pPkt -0x20 达阵但 store 提前到函数首）
+    //   已留痕，取 store 位置正确形。
     int itemCount = 0;
     char msgBuf[0x100] = { '\0' };                     // P4 内联清零
     char titleBuf[0x1e] = { '\0' };

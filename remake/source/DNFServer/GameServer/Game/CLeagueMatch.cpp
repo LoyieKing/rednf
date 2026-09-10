@@ -350,6 +350,12 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // 追加 4 形（probeD2.cpp f9..f13：成员数组元素取址直传 out-of-line callee / `arr+i`
 // 指针加法 / `arr[i].field` 字段访问 / `reinterpret_cast<Ent*>((char*)t+i*0x1c)` 偏移链）
 // 仍恒 `shl $0x2` ⇒ 12 源形全败，后继勿再试。
+// [A11-round5 C05/D08 复查 · 无落点] ①范式①（尾 fail 块）：本 TU 18 件 DIFF 的 ORIG
+// 尾 16 条独立 `mov $0/$1,%eax` 均为正常返回值块（GetUser/GetSchoolNo/OnMatchRoom/
+// CheckMatchable/TeamInfo::add·del/_getSameSchool 等），我方同形；②范式③（早返中继岛）
+// 与 D08（多守卫同目标合并）：全 33 件 diff 的 `jmp` 行差逐件为 0 ⇒ 无岛可消；
+// ③范式②（F2）：「ORIG `cmp mem,reg`」行（TeamInfo 族 stride 链）两侧同为内存直比，
+// 残差仅槽号/lea-vs-shl，非装载序 ⇒ 不适用。
 // [b28d-solo-CLeagueMatch] DIFF 19/20·N-STRIDE（S180 定稿）：stride 0x1c 的 i*4
 // ORIG 用 lea(,%eax,4)、4.4 恒 shl $2（探针 /tmp/b28d_cm/probe_stride.cpp 11 形 +
 // probe2.cpp 7 索引类型 + 4.4.6 后端 + 8 旗标全败）⇒ 4.4 多 1 条 mov %edx,%eax

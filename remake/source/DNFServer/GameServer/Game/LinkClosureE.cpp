@@ -56,13 +56,14 @@ public:
                                int job, int level, int grow1, int grow2);
 };
 
-// [b28d-solo-LinkClosureE] DIFF 299/314（p167 CLEAR 17/17）：唯一残差 = 7 个 epilogue
-//   中继岛（每守卫 1 组 `jmp+nop`，共 14 条）；`return` 与 `goto` 尾标签两形实测均不消
-//   ⇒ N121 封顶。其余逐条全等：七守卫独立 `movzwl/mov + test + jne`、结构体拷贝
-//   （对齐剥离 + rep movsl + 尾 2/1 字节，替代 memcpy）、三 trace 槽 -0x58/-0x48/-0x38、
-//   12 个 vararg 全表达式（前 9 spill、末 3 落 %edi/%esi/%ebx）。
-// [D08 2026-09-10] 复核 gap 精确分解：14 条 = N121 七岛（每守卫 1 组 `jmp+nop`）；
-//   +1 条 = 基表源地址计算 —— ORIG 0x08145f5c 段 `mov 0x14(%eax),%ecx; mov job,%eax;
+// [b28d-solo-LinkClosureE 旧判词，已被 D08 推翻] 原 DIFF 299/314：残差 = 7 个
+//   epilogue 中继岛（每守卫 1 组 `jmp+nop`，共 14 条），当时 `return`/独立 `goto` 两形
+//   均不消 ⇒ 曾判 N121 封顶。**[D08 2026-09-10] 该 14 条已按 C05 范式③ 全消**
+//   （our_insns 314→300，见下方判词）⇒ N121 判词作废。其余逐条全等：七守卫
+//   `movzwl/mov + test + jne` 直达尾、结构体拷贝（对齐剥离 + rep movsl + 尾 2/1 字节，
+//   替代 memcpy）、三 trace 槽 -0x58/-0x48/-0x38、12 个 vararg 全表达式。
+// [D08 2026-09-10] 消岛后 gap 精确分解（仅余 +1）：基表源地址计算 ——
+//   ORIG 0x08145f5c 段 `mov 0x14(%eax),%ecx; mov job,%eax;
 //   imul $0x7dc,%eax,%edx; lea (%ecx,%edx,1),%edx` vs 我方 `mov 0x14(%eax),%eax;
 //   mov %eax,%edx; imul $0x7dc,%eax,%eax; add %eax,%edx`（4.4 多一条 eax→edx 中转）。
 //   探针 /tmp/addr_probe.cpp g0–g6（char* 算术 / 类型化下标 / uint 算术+回 cast /
@@ -74,6 +75,11 @@ public:
 //   our_insns 314→**300**（ORIG 299）、gap +15→**+1**。反例留痕：`do{…}while(0)`+9 处
 //   `break` 形实测仍 314（break 出口同样物化为岛）；7 条独立 goto 形亦 314。
 //   余 +1 条 = 上述基表源地址 `imul/lea` 装载形（N18a，探针 g0–g6 七形不可造）。
+//   **适用边界（Main 汇总 A06/A28 反例）**：本法仅在「ORIG 有**相邻多守卫·同目标**、
+//   且我方多岛」时成立 —— `_onChangeGrowType` 按同法合并两条 goto **反劣 +4**（199/207），
+//   `CWorldDrop::generateRandomItem` / `CPrivateStore::IsAreaNearEntranceDungeon` 类岛根因
+//   是 4.4 epilogue-threading / rel8 跳板（拉长后造跳板 +1 jmp）⇒ 源码不可控，命中即按
+//   A28 封顶。判据：先数 ORIG 各 `je/jne` 的**落点是否为同一址**；同址才试合并。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)

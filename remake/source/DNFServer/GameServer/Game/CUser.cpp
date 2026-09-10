@@ -2863,7 +2863,11 @@ bool CUser::CheckFatigue()
 // b28d-lane5 N封顶: N97/P230 cmov; N82/P112 槽号分配 | ORIG 0x0864f7fe | _ZN5CUser20gainCurCharacFatigueEi
 void CUser::gainCurCharacFatigue(int value)
 {
-    unsigned int maxPrefatigue = 0;
+    // C05②「test 零比较子型」（Main 细化口径 + A12 反例）：ORIG 0x0864f81x 段对该局部
+    //   发 `mov -0x18(%ebp),%eax; test %eax,%eax`（载寄存器两段），我方 unsigned 局部
+    //   被 4.4 折 `cmpl $0x0,-0x18(%ebp)`（mem 直比）⇒ 按 S1 试 int（值域 0..0xffff
+    //   由 `& 0xffff` 保证，改型无值域风险）。
+    int maxPrefatigue = 0;
     if (m_premium.GetAdvantageFatigueRate() != 0)
         maxPrefatigue = getCurCharacMaxPremiumFatigue() & 0xffff;
 
@@ -12412,7 +12416,10 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
     // ORIG 0x086916??：m_vec3a0 以 **non-const** vector<int>& 访问
     //   （call _ZNSt6vectorIiSaIiEEixEj，非 const 重载）。
     std::vector<int>& src = item->m_vec3a0;   // ORIG +0x3a0
-    for (size_t i = 0; i + 1 < src.size(); i += 2)
+    // 2026-09-10（C05② 类型旋钮）：ORIG 0x0869196a 为 `cmp -0x30(%ebp),%eax; setg`
+    //   （内存直比 + 有符号）⇒ 索引局部必须是有符号 int（size_t 会让 4.4 先载寄存器
+    //   并退化为 setb 无符号序）。
+    for (int i = 0; i < (int)src.size(); i += 2)
     {
         Inven_Item it;                              // 默认构造后按 ORIG 填 8 字节
         *(int*)((char*)&it + 0) = src[i];

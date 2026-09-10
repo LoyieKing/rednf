@@ -1551,10 +1551,15 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
         areaNo = user->get_area(false);
         area = village->getArea(areaNo);
         // [b28d-solo] ORIG 0x85c5251 `cmp -0x18,0; sete al; test; jne <远端岛>`。
-        // [L14] 实测四形：(a) 原 4×if/return —— 173/165（近端岛）；(b) `bool ok` +
-        // 单表达式短路 —— 168/165 且 ok 占 -0x20 槽使全帧平移；(c) P222 正向包裹 +
-        // 死块置 return 之后 —— 151/165（4.4 对 return 后不可达代码 DCE）；
-        // (d) 本形 = C05① 尾 fail 块嵌套 + 死块**保留为可达体**（无 return）。
+        // [L14] 实测四形：(a) 原 4×if/return —— 173/165（近端岛，gap +8）；
+        // (b) `bool ok` + 单表达式短路 —— 168/165 且 ok 占 -0x20 槽使全帧平移；
+        // (c) P222 正向包裹 + 死块置 return 之后 —— 151/165（4.4 对 return 后不可达
+        // 代码 DCE，死块整段消失）；**(d) 采纳形** = C05① 尾 fail 块嵌套
+        // （主体进正向 if + 尾 `return false`）+ 死块**保留为可达体**（若块内带
+        // `return` 会被 4.4 DCE）⇒ **165 = 165，gap +8 → 0**。
+        // 残余 = ORIG 0x085c5273..0x085c5285 的 7 条数据区字节被 objdump 线性解码
+        // 成荒谬指令（`or %cl,0x489d445(%ebp)` 等），非源码可造 ⇒ 该件封顶为
+        // 「gap=0 + 数据区解码差」（§6.2 三件套：gap 0 ✓ / p167 CLEAR ✓）。
         if (area != 0 &&
             ((area->m_villageIndex == 2 && area->m_areaIndex == 0) || area->m_areaType != 4))
         {

@@ -151,8 +151,15 @@ void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
     data.m_useCount = static_cast<unsigned short>(data.m_useCount + useCountDelta);
     data.m_useStar = static_cast<unsigned short>(data.m_useStar + useStarDelta);
     // ORIG 0x08156e52 段：operator[] 结果 %eax 直比 &data（无具名槽），
-    //   `cmp %edx,%eax; je <出口>`（call 结果直用、无 store/load）⇒ 试 P231
-    //   纯 register 存储类提示（非 asm 绑定，P0 合规）让值留寄存器。
+    //   `cmp %edx,%eax; je <出口>`（call 结果直用、无 store/load）。
+    // [b28d-E03 2026-09-10 定案 N18a/N7 封顶 112 vs 111] 试形与读数：
+    //   ①具名无 register（store/load 落 -0xc 槽）=113；②P15 赋值即条件=115；
+    //   ③纯 register（非 asm 绑定，P0 合规）值落 %ebx=**112（最优）**；
+    //   ④register + 反转比较方向（&data != slot）=113（已回退）。
+    //   另以 c5root 4.1.2 实证（/tmp/probe_mc2.cpp、/tmp/probe_caa41*.cpp）：4.1.2 对
+    //   具名/const/register 三种指针形**一律 spill**（cmp 前必有 `mov -0xN(%ebp),%eax`），
+    //   无法造出 ORIG「call 结果跨 lea/cmp/je 保持 %eax」的无槽形 ⇒ 4.4 侧恒多 1 条
+    //   `mov %eax,%ebx`（callee-saved 保存），跨版本寄存器分配差封顶。
     register STAdvanceAltarLayerStatData* slot = &m_layers[key];
     if (slot != &data)
         std::memcpy(slot, &data, 0xe);

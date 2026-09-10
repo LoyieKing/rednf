@@ -727,8 +727,10 @@ int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
     // （0x083054b3-0x083054b9，跨 GetPartyIndex 保活，P0）；引入具名 int（头声明 +
     // 块内声明两形）实测恒把余槽整体加深 0x10（帧 0x4c→0x5c、键槽 -0x2c）⇒ 反劣，
     // 已回退。两件合计 NEAR(ndiff=4) 封顶（N82/N126 槽族）。
-    int key;                                  // ORIG key（-0x34）
+    // [round5 实验] P309：4.4 对函数头声明按「先声明浅」分配 ⇒ key 后置一次，
+    // 试复现 ORIG 的 key 深槽（-0x34，4.1「先声明深」）。
     int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
+    int key;                                  // ORIG key（-0x34）
     if (cnt < 0 || 10 < cnt)
         return -1;
     if (cnt == 0)

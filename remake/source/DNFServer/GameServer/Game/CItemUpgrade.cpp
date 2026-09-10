@@ -5,6 +5,12 @@
 //     `lea 0x104(%eax),%edx`（一条折叠）⇒ P30/N4 结构性伪影（P311 二维指针视角已实测反劣
 //     323→329）；另 float 局部槽 -0x74/-0x70（ORIG）vs -0x14/-0x10 + Inven_Item 临时槽
 //     ∓8 = N95/N126 帧族（判据⑪ MIXED）。
+//     [C05② 复查 2026-09-10] 本件 cmp mem 仅 2 处（discountGroup `cmp -0x28(%ebp),%eax`、
+//     predict `cmp -0xc(%ebp),%eax`），objdump 实测**均已是 mem 直比**，与 ORIG
+//     `cmp -0x20(%ebp),%eax; setl` / `cmp -0xc(%ebp),%eax; jae` 同形 ⇒ **非**「两个具名
+//     局部比较」命中形，未触发 int/unsigned 旋钮。边界留痕（Main 2026-09-10 定稿）：
+//     `cmp $imm` 常量比较子型不适用（A01）；`test` 零比较子型可试（A12）；比较对象为
+//     形参 / 跨调用返回值 / 该值被 setcc 物化 —— 均不适用（A07）。
 //   · ProcUpgrade(MSG_ENCHANT) 437/437：p167 CLEAR 41/41；残余 = 帧 0x1ac/0x19c 与槽号平移
 //     （N82/N95）+ 位域读 2 处多 `movzbl %al,%eax`（P168a③）+ cMyTrace 实参寄存器角色
 //     `%ebx`↔`%eax`（N7）+ 数据地址伪差（N132）。

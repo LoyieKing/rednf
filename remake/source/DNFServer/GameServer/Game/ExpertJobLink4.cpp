@@ -479,16 +479,17 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
             const CInventory* inv = user->getCurCharacInvenR();
             int jobLevel =
                 user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
-            // [C07 · P252] ORIG 段 `call <T>; fstps -0x28(%ebp); flds -0x28(%ebp);
-            //   flds <_DAT_08cc0814>; fdivrp %st,%st(1); fstps -0x10(%ebp)` ⇒ 原码
-            //   有**具名 float 中间量**（访存往返）；直写 `f(...) / 100.0f` 时 4.4
-            //   折 `flds` 直读（少 2 条、装载序反）。
-            float rawRate =
+            // [C07 · P252 试形已回退] 加具名 float 中间量（`float rawRate = f(...);
+            //   float variation = rawRate / 100.0f;`）实测 gap 14→12 但 ndiff
+            //   106→344（槽整体平移 4、difflib 对齐坍缩）⇒ 净负，恢复直写形。
+            float variation =
                 inv->GetExpertJobSelfDisjointResultVariation(
-                    (ENUM_EXPERT_JOB_TYPE)3, jobLevel);            // _DAT_08cc0814
-            float variation = rawRate / 100.0f;
+                    (ENUM_EXPERT_JOB_TYPE)3, jobLevel) / 100.0f;   // _DAT_08cc0814
 
-            int tmp[5];
+            // [C07 · P214③] ORIG 在循环前发 5 条 `movl $0x0,-0xa8..-0x98(%ebp)`
+            //   （连续寻址）⇒ 原码是**显式零初始化数组**（我方裸 `int tmp[5];` 无
+            //   清零，缺 5 条）。
+            int tmp[5] = { 0, 0, 0, 0, 0 };
             for (int i = 0; i <= 4; ++i)
             {
                 tmp[i] = round_nearest(result.m_f[i] * variation);

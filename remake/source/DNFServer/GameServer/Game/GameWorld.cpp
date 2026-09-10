@@ -4604,6 +4604,13 @@ void GameWorld::check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char typ
 // `shl %cl` 无掩码 vs 4.4 恒插 `and $0x1f`；②符号序 —— ORIG `movsbl; cmp $0x1e;
 // ja` vs 4.4 `cmpb $0x1e,mem; jg`（等价，P196 判据：值域 char 无 ≥0x80 分叉）；
 // ③string 临时槽组/寄存器（N82/N89 STL 内联）。p167 CLEAR 语义完成。
+// [A11-round5 C05/D08 复查 · 无落点] ①尾 fail 块（ORIG 尾 16 条独立 mov $0/$1,%eax）
+// 本件尾部无该类块；②F2「两个具名局部比较」—— diff 的 `cmp $0x1e,%al` 属「常量 vs
+// 局部」（C05② 边界）⇒ N18b，且修之使 1253→1255 反超 ORIG 1255（不落地）；
+// ③jmp 行差 0（无早返中继岛，D08 法无对象）；④点 4781 `if (village == 0) {…break;}`
+// 对应 ORIG 0x086c… `call getUserVillage; mov %eax,-0x30(%ebp); cmpl $0x0,-0x30(%ebp);
+// sete %al; test %al,%al; je` vs 我方 `…; jne`（P197④/P295 族形式命中）—— 该件已
+// N89/N87/N82 封顶（单点不归零）且改形扰动本 1255 条巨件的块布局 ⇒ 判风险>收益留痕。
 // p167 调用点差集（/tmp/tu_GameWorld.o）：MISSING G_GameWorld×3 / getCurCharacName×1 /
 // strlen×1；EXTRA make_packet_chat_msg×1 / send_to_area×1 / G_CGameManager×2 /
 // PacketGuardC1/D1×3 / basic_string D1×1（ORIG 部分 case 走 G_GameWorld()-> 自由函数

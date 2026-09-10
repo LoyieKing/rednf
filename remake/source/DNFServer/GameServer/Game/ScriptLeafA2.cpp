@@ -15,6 +15,23 @@
 //       char const*, CActionPointEtcParameter&)                    T 0x08894996
 //   eventReward::ImportRewardScript(char const*, char const*)      T 0x080ef3a2
 //   importUpgradeTable(char const*, upgrade_table_t*)              T 0x08900c26
+// [A16 round5 · C05 四范式复查留痕（fresh 19:38-19:39）] 本 TU 10 件非 identical
+//   逐件机械扫描，结论：**无正向命中**。
+//   ① F2（ORIG `cmp -N(%ebp),%eax` + setcc 内存直比）命中 0 处 ⇒ 无 P209 反向可用形；
+//   ② 尾 fail 块（尾 `mov $0/$1,%eax`）仅 isBoundaryExpValue 命中 1 处（正常
+//      `return false` 尾块，与残差无关，该件残差仅 1 条 cmp 操作数序 = N22）；
+//   ③ 岛差 5 件**全部命中 C05③ 负例**（ORIG 岛目标重复 ⇒ 4.4 合并/跳板，源层不可控）：
+//      StrikerScript::importScript 3 岛同目标 0x8a9de09×3（我方 0 岛，gap -9）、
+//      eventReward::ImportRewardScript 2 岛 2 目标（4.4 epilogue-threading，gap -18）、
+//      importAchievementRewardParameter 13 岛（0x889b05f×9，gap -12）、
+//      importRegenerationRandomOptionScript 0x8a7e660×2（gap +3）、
+//      importAdvanceAltarShopParameter 30 岛（8 个目标各重复 2~3 次，gap -6）
+//      ⇒ 按 A28/Main 实测口径全部封 N，勿再烧轮次；
+//   ④ 数据区解码假象（`0x48 9d 4?` 类荒谬 disp / movsb·cltd·clc 簇）本 TU 未命中。
+//   [补·Main 细化口径] `test` 零比较子型（`unsigned`→`int` 可翻转 mem 直比⇔载寄存器）
+//   亦复核：本 TU 10 件 ORIG 段 `mov -N(%ebp),%reg; test %reg,%reg` 对**全 0 处**，
+//   我方 `cmpl $0x0,-N(%ebp)` 5 处均为两侧同形（StageMapList::loadList ×2、
+//   importUpgradeTable ×1、importActionPointSystemEtcScript ×2）⇒ 无该子型命中。
 // [b28d-solo-ScriptLeafA2] APSystem::CActionPointEx 隐式 C1ERKS_(0x08895ebc)/
 // aSERKS_(0x0889603a) 判词 = **N（布局妥协，N18a/N76 族）**：
 //   ORIG 逐字段粒度 int@0/int@4/short@8/char@a/short@c/char@e/f/10 → vector@14 →

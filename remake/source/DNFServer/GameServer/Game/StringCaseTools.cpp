@@ -27,6 +27,12 @@
 // 该重载定义须为本 TU 首个强符号（此前 lower 定义在前 ⇒ 键名错为
 // _GLOBAL__I__Z5lowerRK10CharString）。readWordFromBuffer 是 inline（weak，不参与
 // 选名）故一并前置。纯前置定义顺序，符号集合/函数体零变化。
+// [N·GI 体跨版本差，不可消；Main 2026-09-10 裁决保留] ORIG GI（nm t 0x08ad00a0）
+// 体为 9 条 -O2 前端内联形：直接 `call _ZNSt8ios_base4InitC1Ev` + `__cxa_atexit`
+// （static_init 被内联）；我方 4.4 -O0 恒为 7 条「call
+// _Z41__static_initialization_and_destruction_0ii」标准形（与 TimerQueue ORIG
+// 0x0863baef 逐条同形，互为佐证）⇒ compare 判 GI 本体 DIFF，属跨版本前端差、
+// 源码层不可控。勿再试形（改该 TU 编译选项会破坏其余 14 个已对齐函数）。
 // readWordFromBuffer —— [b28e-L5] 真缺口修复：ORIG 的 readStringFromBuffer 两重载里
 // 都出现 `movzwl (%eax),%edi; mov %di,_ZZ18readWordFromBufferRPcE10wordBuffer`
 // （0x08ad0130 段 / 0x08ad0460 段），而 ORIG 符号表**只有**该函数局部 static

@@ -1740,17 +1740,21 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
             if (it->m_eventId >= 70000 && it->m_eventId <= 89999)
             {
                 // 落表事件：登记到 sig 事件 id 列表
-                // [P0/C05②] ORIG 0x0841237f `movzwl 0x293a(%eax),%ebx; movzwl %bx,%esi;
-                // lea 0xa4c(%esi),%ecx; lea 0x1(%ebx),%edx; … mov %dx,0x293a`（寄存器
-                // 直传、零栈往返）⇒ 原码无具名 cnt 局部 ⇒ 字段表达式内联（旧具名版
-                // 多发 `mov %ax,-N; movzwl -N,%ebx` 一对）。
-                sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
-                sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
+                // [C05② 实测：零收益已回退] ORIG 0x0841237f 段 `movzwl 0x293a(%eax),%ebx;
+                // movzwl %bx,%esi; lea 0xa4c(%esi),%ecx; lea 0x1(%ebx),%edx`（该值无栈
+                // 往返）曾是 P0「原码无具名局部」的候选，但 4.4 对**内联字段表达式**
+                // 实测与具名 cnt 版**逐值相同**（同口径 game_func_report：orig 678 /
+                // our 676 两态一致；TU 四数 47/137/1/10 不变）⇒ 属跨版本「局部保留在
+                // 寄存器 vs 落槽」差（N82 附族），维持具名 cnt 局部（零改动即最优）。
+                unsigned short cnt = sig->m_restrictedGoodsCount;
+                sig->m_restrictedGoods[cnt] = it->m_eventId;
+                sig->m_restrictedGoodsCount = cnt + 1;
             }
             else if (it->m_eventId == 59000)
             {
-                sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
-                sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
+                unsigned short cnt = sig->m_restrictedGoodsCount;
+                sig->m_restrictedGoods[cnt] = it->m_eventId;
+                sig->m_restrictedGoodsCount = cnt + 1;
             }
             else if (!WongWork::CUserPremium::IsRestrictedPremium((int)it->m_eventId))
             {
@@ -1810,16 +1814,18 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
                         SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0xc) = svcStart;
                         SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0x10) = svcEnd;
                         rowIdx += 1;
-                        sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
-                        sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
+                        unsigned short cnt = sig->m_restrictedGoodsCount;
+                        sig->m_restrictedGoods[cnt] = it->m_eventId;
+                        sig->m_restrictedGoodsCount = cnt + 1;
                     }
                 }
             }
             else
             {
                 // 受限 premium 事件：只登事件 id
-                sig->m_restrictedGoods[sig->m_restrictedGoodsCount] = it->m_eventId;
-                sig->m_restrictedGoodsCount = sig->m_restrictedGoodsCount + 1;
+                unsigned short cnt = sig->m_restrictedGoodsCount;
+                sig->m_restrictedGoods[cnt] = it->m_eventId;
+                sig->m_restrictedGoodsCount = cnt + 1;
             }
         }
     }
@@ -3476,6 +3482,11 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     // quest_time!=0 且已过期且命中奖励时点 → add_info=-1 / quest_time=0 回写
     if (sig->m_breakAwayQuestTime != 0)
     {
+        // [C05② 实测回退·ORIG 符号性直证] ORIG 该比较为 `mov 0x3f4c(%eax),%ebx;
+        // cmp %eax,%ebx; jae` —— **jae=无符号** ⇒ 原码局部必为 unsigned（改 int 实测
+        // 生 `jge` 有符号，语义对负值分叉，属真偏差）。4.4 对 unsigned 具名局部恒折
+        // `cmp -0x10(%ebp),%eax` 内存直比 vs 4.1 寄存器直比 ⇒ 跨版本差（N18b/P209
+        // 族）封顶，维持 unsigned。
         unsigned int questTime = sig->m_breakAwayQuestTime;
         unsigned int nowSec = GlobalData::s_systemTime_.getCurSec();
         if (questTime < nowSec &&

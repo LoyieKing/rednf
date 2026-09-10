@@ -1478,6 +1478,10 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
         user->get_character_job(
             static_cast<unsigned int>(user->GetLastLoginCharacNo())),
         user->get_character_job(sig->m_characNo));
+    // [b28e-L5] C05-① 复查实测**不命中**（已回退）：套用 Ticket/Skill 的「两分支各自
+    // `return 1;`」形后本件 our_insns 159→161（ORIG 160）且 TU 四数不变（仍 DIFF）
+    // ⇒ 本件残差主体是 N18a（`mov 0xe(%eax),%eax; mov %eax,%edx` 单段直落）而非尾块布局，
+    // 保持原形（单尾 return 1）不再试形。
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
@@ -1749,6 +1753,9 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
     sig->m_tagEtc.clear();
     reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_job =
         user->GetCharacJob(static_cast<int>(static_cast<signed char>(msg.m_slot)));
+    // [b28e-L5] C05-① 复查实测**不命中**（已回退）：本件 ORIG 尾部同样是两分支
+    // `mov $0x1,%ebx; jmp 0x081c7822` 共享尾块，但套形后 our_insns 153→155（ORIG 152）
+    // 且 TU 四数不变 ⇒ 残差主体为 P254/N18a 中转与帧差，保持原形。
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
@@ -1786,20 +1793,17 @@ int DisPatcher_SelectCharac::RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg)
     // sig 槽 reload 后直落首字（SigTypes_C.h m_characNo 权威字段，无局部视图）。
     sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
-    int res;                      // ORIG +0x161 `mov $0x1,%ebx`
+    // [C05-① 命中形，同 RequestDBTicket] ORIG +0x161/+0x1a6 两分支均 `mov $0x1,%ebx;
+    // jmp <共享尾块 0x081c7082：guard D1Ev + `mov %ebx,%eax` + epilogue>`，全函数无 res
+    // 栈槽 ⇒ 原码两分支各自 `return 1;`（无 res 具名局部，P0）。实测 RequestDBTicket
+    // 同法 120=120（TU ae +1 / diff −1）。
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
-        res = 1;
-        goto L_end2;                // ORIG +0x166 显式 jmp 尾岛
+        return 1;
     }
-    else
-    {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-        res = 1;
-    }
-L_end2:
-    return res;   // guard dtor 后 `mov %ebx,%eax`（技39 EH-ebx）
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return 1;   // guard dtor 后 `mov %ebx,%eax`（技39 EH-ebx）
 }
 
 // [b28d-TakeDispatchCore] 真缺口修复（P183 地址重物化 + 调用链）：① CStreamGuard 链

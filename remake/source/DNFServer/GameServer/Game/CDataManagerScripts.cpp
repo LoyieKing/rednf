@@ -67,6 +67,17 @@ bool IS_PVP_CHANNEL(int channelType);
 //     （版本首槽基址常数，P332「永封部分」）+ 1 nop 豁免。
 //   · getPvPSkillPointNext 0x08a5df0e（gap -1）：N93/N112 —— 槽号整体平移 4
 //     （jcc 30/30 无极性反写）。
+//   [A16 round5 · C05 四范式复查留痕（fresh 19:38-19:39）] 本 TU 9 件机械扫描：
+//   ① F2（ORIG `cmp -N(%ebp),%eax` + setcc）命中 **0** 处 ⇒ 无 P209 反向可用形；
+//   ② 尾 fail 块（尾 `mov $0/$1,%eax`）命中 **0** 处；
+//   ③ 岛差：importAchievementRewardParameter / importAdvanceAltarShopParameter 的
+//      ORIG 岛目标重复（0x889b05f×9；0x88a12ab×4 等 8 目标各 2~3 次）⇒ C05③ 负例
+//      （4.4 合并/跳板不可控），封 N；其余 7 件 ORIG/我方岛数相等（0~1，已对上）；
+//   ④ 数据区解码假象本 TU 未命中。⇒ 无 C05 可落地件，维持 N 判词。
+//   [补·Main 细化口径] `test` 零比较子型亦复核：本 TU 9 件 ORIG 段
+//   `mov -N(%ebp),%reg; test %reg,%reg` 对**全 0 处**；我方 `cmpl $0x0,-N(%ebp)`
+//   2 处（_getIntegratedPvPItemAttr / importAdvanceAltarShopParameter）两侧同形
+//   ⇒ 无 `unsigned`→`int` 可翻转点，勿重试。
 
 // ============================================================================
 // 脚本 POD 生命周期（ORIG 语义，见 docs/class_func_reports 与 ORIG 反汇编）。

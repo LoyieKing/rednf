@@ -270,6 +270,16 @@
 //     （school_id/m_id 无 0x80 符号分叉）；下轮可试 P205 两乘积拆形。
 //   · DB_ReqQueryCharacInfo::dispatch（setne vs sete）—— ORIG movl+1/setne+1 vs 我们 mov+5/sete+1
 //     ⇒ P292 bool 物化族（非比较方向真反），维持封顶。
+// [A04-r5c C05③ 复查（含 A32 候选表分诊）] 工具：/tmp/a04_islands.py（全 TU jcc 同目标直方图）
+//   ⇒ ORIG 侧任何非 identical 函数**均无「同目标守卫 ≥3」**（最大=2：DB_CheckAddFriend
+//   0x0844c8a9×2 与 0x0844c855×2）⇒ C05③ 在本 TU 只有一处可施：
+//   **DB_CheckAddFriend::dispatch** 的 outCode 清零块（ORIG 唯一一份 `movl $0x0,-0x24` @0x0844c8a9，
+//   两条 jcc 同目标：flag==0 的 je@0x0844c79b 与 isGM==false 的 je@0x0844c89e；GM 路径
+//   0x0844c8a0 `movl $0x5a,-0x24; jmp` 跳过）——原 `else outCode=0;` 双份写法使 4.4 发两份清零；
+//   改为显式 `goto set_zero` + 共享尾标签 ⇒ **ndiff 14→12、our 211→209**（保留，零回退）。
+//   A32 候选表（/tmp/r5/c05_f3_candidates.tsv）中本 TU 两件 DB_UpdatePvPResult（同目标 3/3）与
+//   DB_ReqBlackCount（4/4）均为「同目标 原≈我」族 ⇒ 按 Main 分诊规则（A28 边界：多为 4.4
+//   epilogue-threading / rel8 跳板，源码不可控）**先封顶**，勿再烧。
 // ============================================================================
 #include "W8LT_DBTask.h"
 #include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）
@@ -11928,15 +11938,20 @@ bool DB_CheckAddFriend::dispatch(int userIdx, int slot, Stream* stream)
             goto send_packet;
         if (!db->get_int(0, result))
             goto send_packet;
+        // [A04-r5c] C05③/P223 同目标合并：ORIG 唯一一份清零块 @0x0844c8a9
+        // （`movl $0x0,-0x24(%ebp); jmp +0x1df`），两条 jcc 同目标 0844c8a9
+        // 实证（flag==0 的 `je`@0x0844c79b 与 isGM==false 的 `je`@0x0844c89e）；
+        // GM 路径 0x0844c8a0 `movl $0x5a,-0x24; jmp <after>` 跳过清零块。
+        // 原 `else outCode=0;` 双份写法使 4.4 发两份 movl $0（多 1 条）。
         if (GlobalData::s_pGMAccounts_->isGM((unsigned int)result))
+        {
             outCode = 0x5a;
-        else
-            outCode = 0;
+            goto send_packet;
+        }
     }
-    else
-    {
-        outCode = 0;
-    }
+    goto set_zero;
+set_zero:
+    outCode = 0;
 send_packet:
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc05e), true);

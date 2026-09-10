@@ -5,9 +5,26 @@
 //   resize(0x24,list)）、D1（P141 delete 直删）、Load_list（P198/P140/P167 全段还原）。
 // b28d-70：get_WithinMissionIndex 0x085e2f00 已修（CMission.h MissionRankRange 改为
 //   std::pair<int,int>，本函数同步 pair 形，P167 CLEAR）。
-// N 封顶：importPvpMissionParameterScript 0x08a5b7ec（MISSING string operator==×3，
-//   重载选择差异）、get_New_DailyMission 0x085e26e0（MISSING make_pair×2）、
-//   importPvpMissionScript 0x08a5ac28（MISSING string==×8，N89/大函数）。
+// [R26D 本轮修正] 三件 DIFF 全部推进（p167 真缺口清零/收敛）：
+//  · importPvpMissionParameterScript 0x08a5b7ec —— 头置条件形（for(;;)+
+//    if(!ScanType) break；ORIG +0x4a 循环头、+0x266 出口）⇒ gap −7→−3。
+//    残余：①`push_back(idx)` 左值选 ERKj 而 ORIG 用 EOj 右值重载（改右值实测
+//    identical −1：本 TU 唯一的 push_backERKj 实例不再发射，代价 > 收益，已回退；
+//    p167 仍 MISSING EOj/EXTRA ERKj）；②`m_field0c = ScanInt()` 的 RHS-first+
+//    edx 中转需该字段 unsigned 化（P211 档③；探针 h3 实证，cast 形 h6 无效）⇒
+//    属共享头 MissionTypes.h，未落；③槽号/帧镜像 N82（ORIG idx 复用 −0x38，
+//    4.4 独立分槽 ⇒ 帧 0x50 vs ORIG 0x40）。
+//  · importPvpMissionScript 0x08a5ac28 —— 尾置条件形（while(ScanType)…；ORIG
+//    +0xb26 尾条件块 `test %al; jne +0x79`、失败 +0xb47 `mov $1,%ebx`）+
+//    `!(token == "[condition]")`（P167：ORIG 调 eq 版，旧文 `!=` 生成 ne）⇒
+//    gap +5→+2；残余 = N89（ORIG 内联头 inline，4.4 恒 call）+ C1/C2 别名伪差。
+//  · get_New_DailyMission 0x085e26e0 —— `make_pair` 去多余 static_cast<unsigned>
+//    （ORIG 用 make_pairIiiE；旧文选 IjjE）+ `!(mi==end)` 取反式（eq 版）+
+//    `(*mi).second` 与 `it->second` 混用（ptEv/deEv 各 1 = ORIG 同量）⇒ p167
+//    差集由 7 项收敛到 3 项（余 _Unwind_Resume×2 = EH 段、vector::clear×1 = N89、
+//    C1/C2 别名）。
+//  · 全 TU 四数（fresh check_tu_routed）：225/466/0/6/691/missing171 →
+//    225/465/0/6/690/missing170（missing −1、仅NEW −1、identical 不变）。
 #include "CMission.h"
 #include "MissionLessThan.h"
 #include "PvPTypes.h"          // CMTRand
@@ -599,9 +616,7 @@ void PvP_MissionSystem::get_New_DailyMission(
             m_missionMap.find(static_cast<int>(id));
         if (it == m_missionMap.end())
             continue;
-        // [R26D] P167：ORIG 该点直接 `mov 0x4(%eax),%eax`（operator-> 内联），
-        // 我方 `it->second` 多一次 `_ZNK...ptEv` 调用 ⇒ 改 `(*it).second`。
-        CMission* mission = (*it).second;
+        CMission* mission = it->second;
         if (mission == 0)
             continue;
         // [R26D] P167：ORIG 用 `_ZSt9make_pairIiiE`（int,int），旧文的多余
@@ -626,7 +641,9 @@ void PvP_MissionSystem::get_New_DailyMission(
                 const unsigned int missionIdx = li->second;
                 std::map<int, CMission*>::iterator mi =
                     m_missionMap.find(static_cast<int>(missionIdx));
-                if (mi != m_missionMap.end() && mi->second != 0)
+                // [R26D] P167：ORIG 该点用 `==`（`_ZNK...eqERKS5_` ×1 差集）⇒
+                // 写取反式而非 `!=`（ne 版是 EXTRA）。
+                if (!(mi == m_missionMap.end()) && mi->second != 0)
                 {
                     CMission* m = (*mi).second;
                     out.push_back(std::make_pair(

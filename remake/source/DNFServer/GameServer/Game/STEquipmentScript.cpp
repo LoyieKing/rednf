@@ -4465,7 +4465,7 @@ static bool GetItemCategory(STItemScript* item)
     // 被 4.4 折成 `cmpl $0,slot; je`（P209/N18b 跨版本折叠，无源码解）。
     // [P28/P212 全头部声明 2026-09-10] ORIG 的 state 占深槽 -0x78（与 token -0x74
     // 同区），声明在函数级；循环体首只做 `state = 0`（ORIG 0x089bfde1）。
-    int state;
+    unsigned int state;
     std::string token;
     int v;                      // switch 判别值（ORIG -0x1c）
     while (ScanStr(&token))

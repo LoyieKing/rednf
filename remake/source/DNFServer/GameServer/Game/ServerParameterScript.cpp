@@ -617,6 +617,13 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
                 // 零值守卫并入同一表达式（probe8 k2）实测**反劣**（62→70：bool
                 // 返回下 4.4 复制守卫链并多发 mov $0），已回退；残余 +2 为
                 // 4.4 不共享零值守卫的 `mov $0`（N93附 尾部块序）。
+                // [C04 · Main C05② 细化口径（2026-09-10）] 本件另一条残差
+                // （`cmp 0xc(%ebp),%eax` ORIG mem 直比 vs 4.4 先载 %edx）属
+                // **enum 形参比较**子型 ⇒ 按细化口径「形参比较（enum/底层 signed）
+                // 不适用 C05②」归 N18b/P209 **封顶，勿再试**（probe3 d1..d8 +
+                // probe4 e1..e4 共 8 形已穷举；唯一可行旋钮=字段同型化
+                // `m_field0` int→enum（probe3 d1 实证）只能 62→61 且须改共享头
+                // ServerParameterScript.h，收益/成本不成立，留档待 Main 裁决）。
                 return (p->m_field4 > idx)
                            ? true
                            : ((p->m_field8 >= idx) ? false : true);

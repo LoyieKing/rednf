@@ -245,6 +245,10 @@ void CEventManager::dailyresetData()
 // 段3 多 `mov %ebx,%eax` 恢复（净 +1）。已试并回退：去 register（槽化）、
 // 三档类型旋钮（P248）、`==`/`!` 极性、goto/break 形。块体物理序 A/C/B（ORIG）
 // vs A/B/C（我方）同属该族。
+// [round5 C05 范式复检] 按 Main 转发 C05② 适用边界（常量比较 / 形参 / 跨调用返回值
+// 三者均不适用）逐条核：本件两侧皆为**立即数寄存器比较**（`cmp $0x10,%eax` vs
+// `cmp $0x10,%ebx`），无内存直比可换，既不属 C05② 命中形（需两个具名局部比较），
+// 也非 C05①/③/④（无尾 fail 块、我方岛数已对齐、无 setne 段）⇒ 归 N7 寄存器角色族。
 // P56 直分支形 + P133 独立守卫已应用。
 // b28d-solo 双后端实测：4.4.7 DIFF / 4.4.6 后端 DIFF（后端不敏感）。
 bool filterEvent(int type)

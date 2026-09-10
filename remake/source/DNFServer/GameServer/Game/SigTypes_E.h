@@ -661,16 +661,32 @@ struct STAdvanceAltarLayerStatData
     unsigned short m_itemLevel;    // +0x08
     unsigned short m_useCount;     // +0x0a
     unsigned short m_useStar;      // +0x0c
-    unsigned short m_padE;         // +0x0e（补齐至 0x10；自然布局由对齐插入）
+    // [b28d-E03 2026-09-10] 尾部 0x0e..0x0f 为**隐式** padding（4 对齐，sizeof 仍 0x10）：
+    //   ORIG pair 拷贝实例 0x081583e2 只搬 0xe 字节（4×mov+1×movzwl），显式成员
+    //   m_padE 会被隐式拷贝一起搬（4×mov）⇒ 删除，靠编译器填充（P26/P173）。
 
     // ORIG W C1/C2 @0x081573ea：movw 0@+0 / movl 0@+4 / movw 0@+8 / movw 0@+0xa /
-    // movw 0@+0xc（+0x2 空洞与 +0xe pad 不清，实证 0x81573ea）。
+    // movw 0@+0xc（+0x2 空洞与 +0xe..0xf 尾部隐式 padding 不清，实证 0x81573ea）。
     STAdvanceAltarLayerStatData()
         : m_itemType(0), m_itemIndex(0), m_itemLevel(0),
           m_useCount(0), m_useStar(0)
     {
     }
 };                                 // 0x10
+// [b28d-E03 2026-09-10] ABI 锁定（删显式 m_padE 后 sizeof/偏移必须不变）：
+//   证据 = ORIG pair 拷贝实例 0x081583e2（3×mov + 尾 movzwl，搬 0xe 字节）。
+static_assert(sizeof(STAdvanceAltarEntranceData) == 0x10,
+              "STAdvanceAltarEntranceData ABI drift");
+static_assert(sizeof(STAdvanceAltarLayerStatData) == 0x10,
+              "STAdvanceAltarLayerStatData ABI drift");
+static_assert(offsetof(STAdvanceAltarLayerStatData, m_itemIndex) == 0x04,
+              "STAdvanceAltarLayerStatData m_itemIndex offset drift");
+static_assert(offsetof(STAdvanceAltarLayerStatData, m_itemLevel) == 0x08,
+              "STAdvanceAltarLayerStatData m_itemLevel offset drift");
+static_assert(offsetof(STAdvanceAltarLayerStatData, m_useCount) == 0x0a,
+              "STAdvanceAltarLayerStatData m_useCount offset drift");
+static_assert(offsetof(STAdvanceAltarLayerStatData, m_useStar) == 0x0c,
+              "STAdvanceAltarLayerStatData m_useStar offset drift");
 
 // STBossDungeonTowerLog 权威定义见 CBossDungeonEntranceLog.h（0x10 POD，
 // 四个 uint 字段；ORIG memset 0x10 + 偏移 +0x0/+0x4/+0x8/+0xc 证据）。

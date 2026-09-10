@@ -501,10 +501,14 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
 //      具名迭代器复用（ORIG 只 begin 一次却 deEv 两次）；随机分支 ORIG 无 `empty()`
 //      守卫、无 `RewardData_Result::clear`。
 //   ⇒ p167 差集 16→12 项（begin/deEv/front/empty/setCopy/G_CDataManager 全清）、
-//      missing_in_game 25→24。残余 = C1/C2·D1/D2 变体（P93 同址伪差：0814ab06 C2==C1
-//      同址、0814ab4c D2==D1）+ setcc 物化（ORIG seta×2/test×2，4.4 恒直跳，P197④ 族）
-//      + 槽往返（我方 370 vs ORIG 347）+ ref 末两 short 经 lea+add（stGenerateRefData_t
-//      字段建模）。⇒ N 封顶。ORIG 0x08461fc0
+//      missing_in_game 25→24。
+//   ④ [配方 C05② 正向（A27 机理）+ P0] 删 6 处 ORIG 无的具名局部（dropEmpty 直判
+//      `!empty()`、itemList/grade/rarity 内联、genMgr→gen 链内联）⇒ our **388→357**
+//      （ORIG 347，gap −41→**−10**）。
+//   残余 = C1/C2·D1/D2 变体（P93 同址伪差：0814ab06 C2==C1、0814ab4c D2==D1）
+//      + setcc 物化（ORIG seta×2/test×2，4.4 恒直跳，P197④ 族，等价 −4 条）+ ref 末
+//      两 short 经 lea+add（stGenerateRefData_t 字段建模 +4）+ 杂项 ⇒ N 封顶。
+//   ORIG 0x08461fc0
 void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                                                 const CDungeonMgr& dungeonMgr,
                                                 unsigned int param4, unsigned int param5,
@@ -545,18 +549,20 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                 ref.m_dungeon = dungeonMgr.getDungeon();       // ORIG movl（指针）
                 *reinterpret_cast<int*>(&ref.m_goldBase) = 0;  // ORIG movl $0 覆盖 +0x3c/+0x3e
 
-                CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
-                CItemGenerator* gen = genMgr->getGenerator(
-                    (WongWork::CItemGeneratorMgr::eGenerateType_t)2);
                 // [P282 真 bug 修] ORIG 08462311 `mov (%eax),%edx; add $0x8,%edx;
                 //   mov (%edx),%ecx; call *%ecx` ⇒ 本分支（roll>=boundHigh、ref
                 //   0x3f800000）走 **vtable+0x08**；ORIG _ZTV @0x08c9a788
                 //   word[4]=0x0853a400=generateRandomItem ⇒ 原码本分支调
                 //   generateRandomItem（旧重建调 generateSpecificItem=+0x0c，相反）。
-                gen->generateRandomItem(ref, result);
+                // [P0] ORIG 无 genMgr/gen 具名局部：084622f2..0846230d 为直链
+                //   `call G_CDataManager; call getItemGenerator; …; mov (%eax),%edx`。
+                G_CDataManager()->getItemGenerator()
+                    ->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2)
+                    ->generateRandomItem(ref, result);
 
-                const bool dropEmpty = result.m_dropItems.empty();
-                if (!dropEmpty)
+                // [P0/配方 C05② 正向（A27 机理）] ORIG 无 dropEmpty 具名局部：
+                //   08462338 `call empty; xor $0x1,%eax; test %al,%al; je` 直判。
+                if (!result.m_dropItems.empty())
                 {
                     Inven_Item& dst = m_rewards[memberIdx].m_items[i];
                     // [P167] ORIG `call begin(); call operator*`（迭代器槽
@@ -566,15 +572,19 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                     // ORIG 084623b5..0x485：operator* 结果 15×dword+1byte 块拷贝
                     //   到 -0xf5（Inven_Item 0x3d 字节平凡拷贝）⇒ 源是拷贝构造。
                     Inven_Item probe(*result.m_dropItems.begin());
-                    CItemList* itemList = G_CDataManager()->m_itemList;   // [b28d-Main] dm+0xc 直读
-                    CItem* found = itemList->find_item(probe.m_addInfo);
+                    // [P0] ORIG 无 itemList 具名局部（08462452 `mov 0xc(%eax),%eax`
+                    //   直入 find_item，dm+0xc 直读）。
+                    CItem* found =
+                        G_CDataManager()->m_itemList->find_item(probe.m_addInfo);
                     if (found != 0)
                     {
-                        const int grade = found->get_grade();
-                        const int rarity = found->get_rarity();
+                        // [P0] ORIG 无 grade/rarity 具名局部：08462477/0x484 两 call
+                        //   结果经 %ebx/%edi 跨调用保活，按 R2L 序直传 UseLuckPoint 的
+                        //   第 4/3 实参（084624a7 `mov %ebx,0xc(%esp)`）。
                         ::CLuckPoint::UseLuckPoint(party->get_user(memberIdx),
                                                  (unsigned char)probe.m_field1,
-                                                 rarity, grade);
+                                                 found->get_rarity(),
+                                                 found->get_grade());
                     }
                 }
             }
@@ -593,13 +603,13 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
             *(reinterpret_cast<unsigned short*>(&ref.m_dungeon) + 1) = 1; // ORIG movw 高 16 位
 
             stGenerateResult_t randomResult;                   // ORIG -0xb8 独立结果区
-            CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
-            CItemGenerator* gen = genMgr->getGenerator(
-                (WongWork::CItemGeneratorMgr::eGenerateType_t)2);
             // [P282 真 bug 修] ORIG 08462131 `mov (%eax),%edx; add $0xc,%edx;
             //   call *%ecx` ⇒ 本分支（roll<boundHigh、ref 0x10001 组）走
             //   **vtable+0x0c** = generateSpecificItem（_ZTV word[5]=0x0853a406）。
-            gen->generateSpecificItem(ref, randomResult);
+            // [P0] ORIG 无 genMgr/gen 具名局部（084620f0..0x12b 直链）。
+            G_CDataManager()->getItemGenerator()
+                ->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2)
+                ->generateSpecificItem(ref, randomResult);
 
             // [P171] ORIG 本分支无 empty 守卫（08462df..0x4fa 直接 begin+解引用）；
             //   empty 检查只在受控分支（ORIG 08462338）出现。

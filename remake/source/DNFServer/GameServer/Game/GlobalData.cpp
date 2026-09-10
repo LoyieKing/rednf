@@ -308,6 +308,27 @@
 //  （missing_in_game=847）**零回退**；p167 除 C1/C2·D1/D2 同址别名（P93）与 N130 右值重载外
 //  **零 MISSING**。
 // ============================================================================
+// [SweepGD 2026-09-10 round5b · C05 家族（①尾 fail 块 / ②int 局部比较 / ③多守卫合并）复查：
+//  逐件核对 33 件，**命中并落地 1 件**，其余逐条给不适用理由（避免重复烧轮次）：
+//  ✔ **pc_room::DeleteAllRentalItemInSameSectionForNewRent**（ORIG 0x08271807）gap **+5→−1**
+//    （net 123→117，ORIG 118）：三修全部 ORIG 直证 —— ①删 `const int itemId` 具名槽
+//    （0x08271874 `mov 0x4(%eax),%eax; mov %eax,%ebx` 值走 %ebx 无槽）→ 使用点内联重读；
+//    ②删 `CInventory* invR` 具名槽（0x08271879..99 getCurCharacInvenR 结果直传、无 -0xc 槽）→
+//    内联到调用表达式（P183）；③entry 写序改 ORIG `slot→bEquip→itemId`（0x08271902/909/910）
+//    + m_bEquip 直存 `= isEquip`（movzbl+mov，P136）。残 −1 = ORIG 双条收尾
+//    `lea -0x8(%ebp),%esp; add $0x0,%esp` vs 4.4 单条 add（N115/N126 结构性）。
+//  ✗ 不适用清单（逐条理由）：
+//    · 尾 fail 块形（C05①）：本 TU 失败出口多为 `xor $1; test; jne <函数尾>` 且与 4.4 产物
+//      已同形（DeleteAllRentalItem/Secu 均已核），其余件（checkAll/checkSelection/GetRentItemInfo）
+//      残差为槽分布（N82）非岛，改包裹无收益；
+//    · int 局部比较（C05②）：本 TU 的 `cmp mem` 族（CServerProxyMgr D1×3）经 §6.2 判定为
+//      **模板体在 CServerProxyMgr.h**（改头需跨泳道广播且 gap 已 0），且 Main 已确认该范式仅
+//      对「**两个具名局部**比较」命中（常量/形参/跨调用返回值三类均负例）；
+//    · 多守卫同目标合并（C05③/D08）：本 TU 无「多守卫 + 各自 jmp+nop 岛」件
+//      （Secu 为单守卫、MonitorTcpThread 的岛已由 while 条件重构消除）；
+//    · 本方全 TU 已按 A28 口径核过：我方多岛处（MonitorTcpThread 尾 1 处、RecvPacket 0 处）
+//      实测无源码形可消，按 N121 封顶。
+// ============================================================================
 
 #include "GlobalData.h"
 #include "PCRoomServerProxy.h"   // CPCRoomServerProxy 权威（原 TU 局部定义收敛，Fix14_I）
@@ -8024,6 +8045,16 @@ bool CheckInventoryEmptyCount(CUser& user, int need)
 // ---- DeleteAllRentalItemInSameSectionForNewRent —— T 0x08271807 ------------
 // [b28d-18 NEAR] 修：(*it) 代 it->（P167 deEv）+ ResetSlot 双分支独立调用（P48）；p167 CLEAR 18/18 | ORIG 0x08271807
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（18/18）；残差=N82 槽位/STL 展开。
+// [SweepGD 2026-09-10] **gap +5→−1**（net 123→117，ORIG 118）三修（全部 ORIG 直证）：
+//   ① 删 `const int itemId` 具名槽（ORIG 0x08271874 `mov 0x4(%eax),%eax; mov %eax,%ebx`
+//      ⇒ 值走 %ebx 跨 call、无槽；我方旧 -0x10 槽 = store+load 两条）→ 两处使用点内联
+//      `(*it).m_itemIndex`（P0/P157 逐处重读）；
+//   ② 删 `CInventory* invR` 具名槽（ORIG 0x08271879..0x08271899 `getCurCharacInvenR`
+//      结果直传 CheckExist、无 -0xc 槽；我方旧 store+load 两条）→ 内联到调用表达式（P183）；
+//   ③ entry 写序改 ORIG 序 **slot→bEquip→itemId**（0x08271902/909/910）且 m_bEquip 直存
+//      `= isEquip`（ORIG movzbl+mov，P136/P54），m_itemId 从 `(*it)` 重读 +4 而非复用局部。
+// 残余 **−1 条** = ORIG 收尾 `lea -0x8(%ebp),%esp; add $0x0,%esp`（双条，4.1 帧 8 对齐产物）
+// vs 4.4 单条 `add $0x40,%esp` ⇒ 结构性（N115/N126 族），封顶；p167 仍 CLEAR 18/18。
 void DeleteAllRentalItemInSameSectionForNewRent(
     CUser& user,
     std::vector<InstanceRentalSystem::DeletedRentItem>& deleted, int rentalType)
@@ -8039,13 +8070,16 @@ void DeleteAllRentalItemInSameSectionForNewRent(
          it != rentalList.end(); ++it)
     {
         // ORIG 0x08271807：`(*it).m_itemIndex`（deEv，非 ptEv；P167 判据）。
-        const int itemId = (*it).m_itemIndex;   // RentalInfo+0x04
-
+        // [SweepGD 2026-09-10 P0/P183 直证] ORIG 0x08271874 `mov 0x4(%eax),%eax;
+        // mov %eax,%ebx`（itemId 经 %ebx 跨调用、**无具名槽**）+ 0x08271879..0x08271899
+        // `getCurCharacInvenR` 结果**直传** CheckExist（**无 invR 槽**）⇒ 删
+        // `const int itemId` 与 `CInventory* invR` 两具名局部（我方旧形多 4 条往返：
+        // itemId -0x10 / invR -0xc 各一条 store + 一条 load），使用点内联重读。
         int slot = 0;
         bool isEquip = false;
-        CInventory* invR =
-            const_cast<CInventory*>(user.getCurCharacInvenR());
-        if (!invR->CheckExistItemInInventoryOrEquipment(itemId, slot, isEquip))
+        if (!const_cast<CInventory*>(user.getCurCharacInvenR())
+                 ->CheckExistItemInInventoryOrEquipment(
+                     (*it).m_itemIndex, slot, isEquip))
         {
             continue;
         }
@@ -8061,10 +8095,14 @@ void DeleteAllRentalItemInSameSectionForNewRent(
             user.getCurCharacInvenW()->ResetSlot(1, slot);
         }
 
+        // [SweepGD P29/P54 直证] ORIG 0x08271902..0x08271916 写序 = slot(-0x2e)
+        // → bEquip(-0x30) → itemId(-0x2c)；且 m_itemId 从 `(*it)` 引用**重读** +4
+        // （0x08271910 `mov -0xc(%ebp),%eax; mov 0x4(%eax),%eax`），不复用任何 itemId
+        // 局部；m_bEquip 为 unsigned char ⇒ `= isEquip` 直存（ORIG movzbl+mov，P136）。
         InstanceRentalSystem::DeletedRentItem entry;
-        entry.m_bEquip = isEquip ? 1 : 0;
         entry.m_slot = (unsigned short)slot;
-        entry.m_itemId = itemId;
+        entry.m_bEquip = isEquip;
+        entry.m_itemId = (*it).m_itemIndex;
         deleted.push_back(entry);
     }
 }

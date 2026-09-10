@@ -92,11 +92,19 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
 // full += substr(pos+1,size())；ss_strcpy 回写 path，pack 模式查
 // g_script_package.is_exist，否则 access(path,0)==0；命中即 true（path 保留
 // full），未命中 ss_strcpy 还原 pathStr 后 false；pos==-1 直接 false。
-// 验收（batch-12）：182/181，语义与 ORIG 切片逐条对位（含此前缺失的
-// s_bUseScriptPack/PackSet 双分支与 full 默认构造+substr 临时 operator=
-// 链）；唯一残差 = pack 开关 4.4 对 char 返回 `!f()` 发 sete+test（2 行）
-// vs 4.1 movzbl+xor（1 行）——setcc-fold N 类；UseScriptPack 调用替换
-// ORIG TU-local static 直读（_ZL 符号跨 TU 不可达，改经其真实访问器）。
+// [b28e 定稿] **P189 结构性封顶：TU-local static 直读 vs 跨 TU call 不可由源形消除。**
+// ORIG 0x088bb982..0x088bb98e 为同 TU 直读 `movzbl 0x93f4d24,%eax; xor $1,%eax;
+// test %al,%al; je`（s_bUseScriptPack 与 findFileWithServerToken 在 ORIG 同一
+// RDARScript.cpp 内）；重建把 RDAR 域拆到两个 TU（定义在 ScriptExtras.cpp），
+// `_ZL16s_bUseScriptPack` 为内部链接（P189 禁 extern 桥）⇒ 只能经真实访问器
+// `call _Z14UseScriptPackv`，调用点恒为 call（1 条）而非 movzbl（1 条）⇒ 助记符
+// 序列永久差 1，属 N。**双向实测**：①char 声明（现形）182 条、gap +1
+// （`call; test; sete; test; je`）；②bool 声明（P292 消费端判据）181 条 = ORIG
+// 181、gap 0（`call; xor $1; test; je`），但定义侧 `_Z13UseScriptPackv` 由 AE 落
+// DIFF（多 test/setne），ScriptExtras 合计 293→292 ⇒ **净负，两侧同步回 char**
+// （判据：跨 TU 类型统一必须先核算两侧 identical 账）。后人勿再试。
+// 其余语义（含 pack/PackSet 双分支、full 默认构造+substr 临时 operator= 链）与
+// ORIG 切片逐条对位。
 // ===========================================================================
 bool findFileWithServerToken(char* path)
 {
@@ -510,12 +518,21 @@ void DB_UpdateAutoMarketConditionsControl::makeRequest(
 // 槽（-0x64=+0x3e8、-0x60=+0x380）/callee-saved（edi=this[0]、ebx/esi=
 // msg+0x8/0xc）（N80 跨版本装载时刻；本侧两具名局部+其余表达式，push 段
 // 指令等量，寄存器归属差记 N）。
-// 验收（batch-12）：250/246，可达路径指令全对位；残差 4 条 =
+// [b28e 定稿] 248/246（改前 250/246）；残差 2 条 =
 // ①trace msg 双字段 4.1 共享单次基址装载、4.4 每局部重读（+1，N18a 族）；
-// ②push 段 4.4 寄存器中转多一跳（+1）；③diff 计算 4.4 RHS-first 预装载
-// optGold 后拷回 ecx/ebx（+2，P75 求值时刻跨版本）；均属结构性伪影，
-// 语义（base 唯一 64 位局部/三处内联 utodf/整数 diff 减法/clamp/
-// channel==1 上报参数）与 ORIG 逐条一致。
+// ②push 段 4.4 寄存器中转多一跳（+1，N7）。
+// **本轮已修 −2**：`long long diff = base - (long long)msg->m_view.m_optimumGold`
+// 的**冗余 cast** 是 4.4 RHS-first 预装载（`mov 0xc(%ebp),%eax; mov 0xc(%eax),%edx;
+// mov 0x8(%eax),%eax; mov %eax,%ecx; mov %edx,%ebx; mov -slot,%eax; mov -slot+4,%edx;
+// sub %ecx,%eax; sbb %ebx,%edx`，多 2 条 regmove）的根因（P41 变体：32 位平台对
+// 同宽 signed↔unsigned 的显式 cast 触发 4.4 转换中转）；删 cast 写
+// `base - msg->m_view.m_optimumGold` 后为 `mov -slot,%eax; mov -slot+4,%edx;
+// mov 0xc(%ebp),%ecx; mov 0xc(%ecx),%ebx; mov 0x8(%ecx),%ecx; sub %ecx,%eax;
+// sbb %ebx,%edx` = ORIG 4.1 的 LHS-first 形，逐条对位（250→248）。
+// 另：`register unsigned long long optGoldNow = …; (int)(optGoldNow>>32)` 拆字形
+// 实测 **252**（多 shift/槽化）⇒ 已回退记 N；帧差 0x10（0xac vs 0x9c）与槽号整体
+// 偏移属 N82/N126（版本首槽基址常数）。语义（base 唯一 64 位局部/三处内联 utodf/
+// 整数 diff 减法/clamp/channel==1 上报参数）与 ORIG 逐条一致。
 // ===========================================================================
 // ===========================================================================
 // Inter_MonitorServerEventStart::SendEventNotiPacket  ORIG T 0x084cf2de

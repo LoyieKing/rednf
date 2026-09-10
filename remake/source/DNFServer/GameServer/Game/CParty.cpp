@@ -5983,14 +5983,16 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
     bool isTournament = m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->isTournamentDungeon() != 0;
     if (slot < 1)
     {
-        CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
-        bool ev41ing = ev41->IsEventing(0);
         // P167：ORIG 两分支各一次完整邮件块（findString-155 + find_item +
         // ReqDBSendNewSystemMail；以及 findString-250 + find_item + ReqDBSend），
         // 计数 2/2/2 —— 拆开写而非 senderKey 合并。
-        bool bMail155 = ev41ing && items[1].m_addInfo != 0 &&
-                        items[1].m_addInfo != -1 && !isTournament;
-        if (bMail155 &&
+        // [P329/P183/P0 去具名局部] ORIG 0x085aae5x 段为 `…; call *%edx;
+        // test %al,%al; je <T>`（IsEventing 虚调结果**直测**、无 ev41/ev41ing 槽）
+        // + 短路链物化 `mov $0x0,%eax; test %al,%al`（**无 bMail155 byte 槽**）
+        // ⇒ 原码是单条全表达式 if，中间量不具名。
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x41)->IsEventing(0) &&
+            items[1].m_addInfo != 0 && items[1].m_addInfo != -1 &&
+            !isTournament &&
             G_CDataManager()->find_item(items[1].m_addInfo) != 0)
         {
             char title[21];                         // -0x89（msg_155 活动线）

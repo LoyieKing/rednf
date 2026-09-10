@@ -259,16 +259,19 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
             elementResist, specProperty,
             invenWt, hpRegen, mpRegen, moveSpd, atkSpd, castSpd, hitRecov, jump,
             chaWt, maxFatigue, expertJob);
+    // [round5 C05-F1 三形复验，判 N93附 维持封顶] ORIG 0x0818b25d 尾块序 =
+    //   `cmpl $0,-0x1c(%ebp); je <成功块>; mov $0xffffffff,%eax; jmp <尾>; <成功>:
+    //   mov $0x0,%eax`（失败直落、成功块落函数尾）。三形实测：
+    //   ① 平铺 `if (ret==0){return 0;} return -1;` ⇒ 4.4 反序 `jne <失败块>; mov $0; jmp`；
+    //   ② `goto ok_ret;` 尾标签形 ⇒ **极性/块序翻正**（`je <成功块>; mov $-1; jmp`）但多发
+    //     1 条对齐 nop（指令数 +1 = 退化）⇒ 按 C05③/A28 边界回退；
+    //   ③ P47 三目 `return (ret==0)?0:-1;` ⇒ 同 ①（反序）。
+    //   TU 四数三形恒 193/0/6/13（无净收益）⇒ 取最小改动形（①），N93附 封顶。
     if (ret == 0)
     {
-        // [round5 C05-F1 复验] ORIG 0x0818b25d 尾块序 = `je <成功块>` + 失败
-        //   `mov $0xffffffff,%eax; jmp` 直落（成功 mov $0 落函数尾）；4.4 对
-        //   平铺 if/return 恒产反序 `jne <失败块>` + 成功直落 ⇒ 试 goto 尾标签。
-        goto ok_ret;
+        return 0;
     }
     return -1;
-ok_ret:
-    return 0;
 }
 // ORIG 0x0818b26d：inSert into charac_stat …… 失败时错误码置 2。
 int CREATE_QUERY::arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig)

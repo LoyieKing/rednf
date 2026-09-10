@@ -252,7 +252,10 @@ bool InitRDARScript(const char* dir, bool compiled, const char* file, int* err)
 
 // ORIG 0x088bbf52：把 list->m_fileMap 以 "%d\t`%s`" 写入 param_3 指定文本文件。
 // param_1/2/4/5 在 ORIG 中未被使用。
-// [b28d-lane16 DIFF] ORIG 088bbf52：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [D01 · C05① 尾 fail 块形 2026-09-10] DIFF→AE：ORIG 088bbf52 `cmpl $0,0x10(%ebp);
+// je <+0xfb 尾块>`（失败出口落函数尾独立 mov $0,%eax 块）⇒ 主体嵌套进
+// `if (file != 0) { … return true; } return false;` 复现尾块；平铺早返恒被 4.4 折成
+// 就地 `jne <cont>; mov $0; jmp`。原 lane16 判词（p167 CLEAR/跨版本残差 N）作废。
 bool saveRDARScriptListFile(STScriptFileList* list, const char* dir, const char* file,
     std::map<int, int>* a,
     std::multimap<int, Comment*>* b)

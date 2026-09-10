@@ -5,6 +5,24 @@
 // 用户规则：算法族为语义正确真实现（标准 FIPS 180-4 / FIPS-197 Rijndael），
 // 不要求逐指令 identical；类封装结构与错误路径按 ORIG 报告转写。
 // ORIG 错误码：CKS_* 见 ChecksumAlgo.h；AES 族 0x1001..0x1004 见头文件。
+// ---------------------------------------------------------------------------
+// [C03CryptoInit68 验收·2026-09-10] 本 TU 属加密/校验域 ⇒ 按 §6 只保算法正确、
+// 不追 identical（本 TU 现状 identical=23 ae=62 near=8 diff=82，missing=19，全部
+// 记豁免）。算法正确性**已用标准向量实测**（fresh 编译本 TU + md5.cpp，NIST/FIPS
+// 向量与回环，全部 ALL OK；harness 见 /tmp/sha_crypto_test2.cpp、/tmp/d41_crypto_test.cpp
+// 与 /tmp/rmw/md5_test.cpp，链接脚本 /tmp/rmw 下复现）：
+//   · SHA-1（CSHA1）FIPS-180 "abc" = a9993e36…d89d + 1000B 分块一致；
+//   · SHA-256（CSHA/CSHA256）"abc" = ba7816bf…015ad + 200B 分块一致；
+//   · SHA-384 "abc" = cb00753f…25a7；SHA-512 "abc" = ddaf35a1…a49f + 300B 分块一致；
+//   · MD5（CNChecksumMd5）RFC1321 "abc" = 900150983cd24fb0d6963f7d28e17f72、
+//     空串 = d41d8cd98f00b204e9800998ecf8427e、56B 边界一次性==分块（ChecksumStart/
+//     Update×56/Finish）；
+//   · DES（DES_Encrypt/DES_Decrypt）NIST 单块向量 0123456789abcdef→85e813540f0ab405
+//     + 回环；DES-CBC（24B）与 DES-OFB（13B 非整块）加解密回环一致；
+//   · 3DES EDE 加解密回环；AES-128 FIPS-197 单块 00112233…eeff→69c4e0d8…5a；
+//   · AES-128-CBC NIST SP800-38A F.2.1 解密向量 64B 逐字节命中。
+// 未覆盖：anubis_setup/anubis_ecb_* （CNChecksumAnubis 依赖）在 ORIG 中由外部归档
+// 提供，本仓无该实现源 ⇒ 本次未验（不属本 TU 可修范围）。
 // ============================================================================
 
 #include "ChecksumCrypto.h"

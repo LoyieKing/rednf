@@ -24,16 +24,12 @@ void CBossDungeonEntranceLog::IncrementBossStageStart(CUser& user,
                                                       unsigned char a,
                                                       unsigned char b)
 {
-    // [round2-L30] 修法（ORIG 0x081564f0/0x0815662e/0x0815678e）：
-    //   ①`|` 两侧书写序交换（先 `(job & 0xf)` / `((b & 0xf) << 4)`）⇒ 复现 ORIG
-    //     `call; and $0xf,%eax; mov %eax,%edx; and $0xf,%edx` 的右操作数先求值序；
-    //   ②删 `unsigned int key = k.key;` 具名局部，find/insert 直接用 `k.key`
-    //     （P0/P183：ORIG 无 key 槽，直传 &k）。
-    // 残余（gap +2）：ORIG 两处 4.1 冗余 `and $0xf,%eax`（call 结果先窄化再中转，
-    //   4.4 恒 1 条）⇒ N18a/P292 跨版本族封顶。
-    // [E04 2026-09-10 解 N] key 是「32 位容器 + 4 位位域」双视角（ORIG 两处
-    //   `and $0xf,%eax` 冗余截断 = 位域赋值的值截断 + 赋值截断；byte0..2 为普通
-    //   uchar 成员），union 版使 `k.key = 0` 复现单条 `movl $0x0,-0x40(%ebp)`。
+    // [E04 2026-09-10 解 N]（旧 round2-L30 判词「残余 gap +2 ⇒ N18a/P292 跨版本族
+    //   封顶」作废）key 是「32 位容器 + 4 位位域」双视角：byte0..2 为普通 uchar 成员、
+    //   byte3 为两个 4 位位域 —— 位域赋值自身产生 ORIG 的两处
+    //   `and $0xf,%eax; mov %eax,%edx; and $0xf,%edx`（值截断 + 赋值截断）；
+    //   union 版使 `k.key = 0` 复现单条 `movl $0x0,-0x40(%ebp)`（`*(unsigned int*)&k`
+    //   形会多发 lea+mov）。探针 /tmp/qts/cb.cpp：93 = 93 逐条全等。
     union KeyBits {
         unsigned int key;
         struct {
@@ -191,9 +187,13 @@ void CBossDungeonEntranceLog::BossTowerLogDBUpdate()
     //   ③3 处 header 写 + 1 处 key 写补 `guard.operator*()->operator<<(x)`（P132）；
     //   ④循环体 `it->first`（ptEv）+ 具名 key + `guard.operator->()->GetInBuffer`
     //      （P103/P0）。
-    // 结果 116→126（orig 127，gap 11→1）；残余 = 整帧槽号常数平移 4（ORIG it -0x14 /
-    //   guard -0x20 / count -0x10 vs 我方 -0x18/-0x24/-0x14，相对间距全等）⇒ 判据⑪
-    //   (b) 类 ⇒ **N126（版本首槽基址常数）**，声明重排无效。
+    // 结果 116→126（orig 127，gap 11→1）；残余 = 槽号分区差（判据⑫ 封顶）：
+    //   ORIG 浅→深 = out -0xc / count -0x10 / it -0x14 / itEnd -0x18 / guard -0x20 /
+    //   key -0x24；我方 = out -0xc / key -0x10 / count -0x14 / it -0x18 / itEnd -0x1c /
+    //   guard -0x24 ⇒ 4 个头部变量整体深 4（N126 版本首槽基址常数），而循环内具名
+    //   `key` 方向相反（ORIG 占最深槽 vs 我方占浅槽）= 4.1/4.4 对「循环内标量 vs 头部
+    //   聚合」的槽分区方向相反（P331 分区律）。实测：把 `unsigned int key;` 上提到
+    //   函数头（先声明深）槽号**逐值不变**（19:44 实验，已回退）⇒ 无源码解，N126 封顶。
     // ORIG 0x081568d4：头部先 `call begin`（-0x14）再 `call end`（-0x18）——两个
     //   迭代器都在函数头求值（P13/P214④）。
     std::map<unsigned int, STBossDungeonTowerLog>::iterator it = m_logMap.begin();
