@@ -790,7 +790,12 @@ bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h �
             path = (char*)it->second.c_str();
             if (path == 0)
             {
-                return 1;
+                // [round5-A29] P325 多 return 共享尾出口：ORIG 0x0834fa?? 对
+                // `path == 0` 发 `je <共享 ret-true 块>`（单一出口，块内含
+                // `mov $1,%eax`），4.4 对裸 `return 1;` 恒内联成
+                // `mov $1,%ebx; jmp <epilogue>`（+2 条，fn_diff 唯一残差）。
+                // 改 goto 与循环后 `return 1` 共享同一标签即复现 `je` 直跳。
+                goto ret_true;
             }
             STMonsterScript script;
             if (!ImportMonsterScript(&script, 3, path, false))
@@ -804,16 +809,21 @@ bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h �
                 printf("insert_monster_category Error: %s\n", path);
                 return 0;
             }
-            std::vector<stIndependentDropInfo>& drops =
-                G_CDataManager()->m_independentDrop.m_vecC;
+            // [round5-A29] P183/P329 去具名缓存：ORIG script 对象基址 -0x1918 而
+            // 我方 -0x191c（fn_diff 实测 `mov -0x1914 / -0x1910` vs `-0x1918 /
+            // -0x1914`，恒定 ±4）——差的正是本 `vector&` 引用槽。删除后在每个
+            // 访问点重发 `G_CDataManager()->m_independentDrop.m_vecC` 全链。
             // [b28d-solo-CListTables P196/P218] ORIG 0x0834fc48 `cmp i; setg` 有符号
             // 比较（unsigned i 生 seta）⇒ 下标局部 int 化。
-            for (int i = 0; i < (int)drops.size(); ++i)
+            for (int i = 0;
+                 i < (int)G_CDataManager()->m_independentDrop.m_vecC.size(); ++i)
             {
-                if (drops[i].m_field0 == 0 &&
-                    drops[i].m_monsterIndex == script.m_index)
+                if (G_CDataManager()->m_independentDrop.m_vecC[i].m_field0 == 0 &&
+                    G_CDataManager()->m_independentDrop.m_vecC[i].m_monsterIndex ==
+                        script.m_index)
                 {
-                    script.m_dropList.push_back(drops[i].m_drop);
+                    script.m_dropList.push_back(
+                        G_CDataManager()->m_independentDrop.m_vecC[i].m_drop);
                 }
             }
             monster = new CMonster();
@@ -825,6 +835,7 @@ bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h �
             insert_monster(monster->get_index(), monster);
             it++;
         }
+    ret_true:   // P325：与循环内 `goto ret_true` 共享真出口（见上）
         return 1;
     }
 }

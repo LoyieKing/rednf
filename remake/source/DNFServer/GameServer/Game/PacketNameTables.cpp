@@ -20,11 +20,12 @@ extern char* GetInterMessageName(ENUM_INTERNALPACKET type);
 extern int getNotiPacketNameCount();
 extern int getCmdPacketNameCount();
 
-namespace
-{
-
 // ---- GetNotifyPacketName NAMES 表（ORIG .data 提取，563 项）----
-const char* const kNotifyNames[563] = {
+// ORIG 真名：D 0x0936d040 size 0x8cc（563×4 指针表，CU=CSCommonPacket.cpp；
+// 唯一消费者 GetNotifyPacketName @0x082a2184 `mov 0x936d040(,%eax,4),%eax`）。
+// 原 TU-local `kNotifyNames` 按 ORIG 真名改外部链接（数组顶层无 const ⇒ external
+// linkage，mangled 即裸名）；表内容已与 ORIG .data 逐项比对 563/563 全等。
+const char* g_szNotiPacketName[563] = {
     "ENUM_NOTIPACKET_CHECK_CONNECTION",
     "ENUM_NOTIPACKET_CHANNELINFO",
     "ENUM_NOTIPACKET_USERINFO",
@@ -590,8 +591,11 @@ const char* const kNotifyNames[563] = {
     "ENUM_NOTIPACKET_END",
 };
 
+// ORIG 真名：D 0x0936d920 size 0x97c（607×4 指针表）；数组顶层无 const ⇒ external
+// linkage（裸名符号）。原 TU-local `kCommandNames` 按 ORIG 真名外部化（consumed by
+// GetCommandPacketName 0x082a2191）。表内容逐项不变。
 // ---- GetCommandPacketName NAMES 表（ORIG .data 提取，607 项）----
-const char* const kCommandNames[607] = {
+const char* g_szCmdPacketName[607] = {
     "ENUM_CMDPACKET_CHECK_CONNECTION",
     "ENUM_CMDPACKET_LOGIN",
     "ENUM_CMDPACKET_SET_UDP_IP_PORT",
@@ -1203,7 +1207,6 @@ const char* const kCommandNames[607] = {
 
 // ---- GetInterMessagePacketName NAMES 表（ORIG .data 提取，852 项）----
 
-}  // namespace
 
 // ORIG 0x082a2112：class 0/1 分派，其他 → "?"（0x8c18c22）。
 char* GetPacketName(ENUM_PACKETCLASS packetClass, unsigned short packetId)
@@ -1230,7 +1233,7 @@ char* GetNotifyPacketName(ENUM_NOTIPACKET type)
     static const char* NONAME = "???";
     if ((int)type < 0 || (int)type >= getNotiPacketNameCount())
         return const_cast<char*>(NONAME);
-    return const_cast<char*>(kNotifyNames[(int)type]);
+    return const_cast<char*>(g_szNotiPacketName[(int)type]);
 }
 
 // ORIG 0x082a2191：越界 → NONAME。
@@ -1240,7 +1243,7 @@ char* GetCommandPacketName(ENUM_CMDPACKET type)
     static const char* NONAME = "???";
     if ((int)type < 0 || (int)type >= getCmdPacketNameCount())
         return const_cast<char*>(NONAME);
-    return const_cast<char*>(kCommandNames[(int)type]);
+    return const_cast<char*>(g_szCmdPacketName[(int)type]);
 }
 
 // ORIG 0x082a21d2：id<0 或 >0x353 → NONAME。

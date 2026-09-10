@@ -91,9 +91,12 @@ void CCreateDisjointStoreCmd::execute()
     // ORIG 0x084a9740：job 在 GetUser call 前物化入 %ebx 跨调用保活（4.1 实参
     // 提前物化）；4.4 恒 call 后重读槽（N-P75 跨版本调度，语句表达式 P226 实测
     // 不升格——/tmp/bm3/p13 fSE 同结论），余 2 条为寄存器名差（N7）。
-    // [round5-GmCmds_C] P226/P52 探针：实参用裸语句表达式（内不含具名变量）令值升格
-    // %ebx 跨 GetUser call 保活，复现 ORIG 0x084a9740 `mov -0xc(%ebp),%ebx` 前置形。
-    GetUser()->SetCurCharacExpertJob(({ job; }));
+    // [round5-GmCmds_C 判词·N-P75/N7 复核] ORIG 0x084a9740 在 GetUser call **之前**
+    // `mov -0xc(%ebp),%ebx` 把 job 值保活入 callee-saved；本轮补测两形均无效：
+    // ①纯 `register` 存储类提示（P231/P248 四条件齐备）⇒ 45→46 条（且 push %ebx
+    // 前移帧）；②裸语句表达式 `({ job; })`（P226）⇒ 与裸形逐条全同。⇒ 4.4 对纯槽
+    // 装载实参恒 call 后重读（N-P75 跨版本实参调度），余 2 条为寄存器名差（N7）封顶。
+    GetUser()->SetCurCharacExpertJob(job);
     static_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
         GetUser(), "test", 500,
         static_cast<int>(static_cast<unsigned short>(GetUser()->get_posX())),

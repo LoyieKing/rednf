@@ -161,15 +161,15 @@ bool CSkillChanger::_fnEnumQuestClear(unsigned int questIdx, char* args)
     //   不设 `slots` 中间层（旧形多一具名槽 -0x34 且读形为 `mov -0x34(%ebp),%eax;
     //   add $0x4,%eax`）。
     int* spA = *(int**)args;
-    args = &args[4];
+    args += 4;
     int* spB = *(int**)args;
-    args = args + 4;
+    args += 4;
     int* sfpA = *(int**)args;
-    args = args + 4;
+    args += 4;
     int* sfpB = *(int**)args;
-    args = args + 4;
+    args += 4;
     CSkillChanger* self = *reinterpret_cast<CSkillChanger**>(args);
-    args = args + 4;
+    args += 4;
     CUser* user = *reinterpret_cast<CUser**>(args);
 
     Quest const* quest = G_CDataManager()->find_quest(static_cast<int>(questIdx));
@@ -228,15 +228,11 @@ void CGMAccounts::AppendGM_Sys(unsigned int mid, char type)
     info.type = static_cast<unsigned int>(static_cast<int>(type));
     m_gmList.push_back(info);
 
-    // ORIG NumberToString → %ebx 跨 CMyFileLog ctor 保活（P44/P24 即时求值形）。
-    // [b28d-41 判词·N82/N18a] DIFF：残差 (a) NumberToString 结果 ORIG 升格 %ebx
-    // 跨 ctor 保活，4.4 恒落槽 -0xc；(b) 帧 0x48 vs 0x34、info 槽 -0x14/-0x10 vs
-    // ORIG -0x18/-0x14。本轮加试 P226 裸语句表达式 `({ NumberToString(mid,0); })`
-    // ——4.4 仍落槽（同 b27 判词），内联实参形令 ctor 先于 NumberToString（次序反）
-    // 亦不可用 ⇒ 维持 N82/N18a 封顶。
-    char* midStr = ({ NumberToString(mid, 0); });
-    CMyFileLog log("AppendGM_Sys", 0xcd);
-    log("./log/Init", "GM List Add mid:%s", midStr);
+    // ORIG 0x08109524 段：`call NumberToString; mov %eax,%ebx`（ctor 前求值 + %ebx
+    //   跨 CMyFileLog ctor 保活）⇒ P227 全表达式临时链形（具名 log 对象/语句表达式
+    //   两形在 4.4 下把结果落槽 -0xc，多 1 store + 1 reload）。
+    CMyFileLog("AppendGM_Sys", 0xcd)("./log/Init", "GM List Add mid:%s",
+                                      NumberToString(mid, 0));
 }
 
 }  // namespace WongWork

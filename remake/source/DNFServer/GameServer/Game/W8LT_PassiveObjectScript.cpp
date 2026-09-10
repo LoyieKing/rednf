@@ -316,6 +316,13 @@ void STPassiveObjectScript::clear()
 // libstdc++ 版含 _M_deallocate 的 EH landing + push esi/ebx，4.4 头无 ⇒ N89。
 int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
 {
+    // [round5 收口实测] ndiff 122→87（2254/2249）：已把 quest type / homing follow /
+    // m_i40 三处 if-else 链改 switch（P251：ORIG 一次载入 + 多路寄存器比较；
+    // quest type 122→111，三处合计 −35）。残余＝①x87 比较 lowering
+    // `fucompp/fnstsw/sahf` vs `fucomip/fstp` ×7（N85；P230 指出 `-march=i486`
+    // 可消此族，但旗标归 Main，本波不动）；②case 叶块物理序（ORIG default 块
+    // fall-through 最先、其余逆序 vs 4.4＝书写序，N93附/P324 族）。
+    // p167：仅 C1↔C2/D1↔D2 别名对（P93 伪差）⇒ 无语义缺口。
     static char saveFileName[0x100];
     // ORIG 0x08a29f74：函数级局部先清零，[pass type] 与 [follow parent] 复用同一
     // 槽 -0x54(%ebp)（P0：ORIG 有槽往返 ⇒ 原码有具名局部）。

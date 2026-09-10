@@ -87,5 +87,13 @@ static_assert(sizeof(CHARAC_QUEST_SHOP_DATA_FIELDS) == 0x9a,
               "CHARAC_QUEST_SHOP_DATA_FIELDS ABI drift");
 static_assert(sizeof(CHARAC_QUEST_SHOP_DATA) == 0xaa,
               "CHARAC_QUEST_SHOP_DATA ABI drift");
+// [round5-A26] 三视角同址同宽锁零（m_data @+0x0c 0x9a 字节 / m_statusCounts 与
+// m_statusCountsU 各 0x4d*2 = 0x9a 字节）；m_questPiece 首字节紧邻该 union 尾。
+static_assert(offsetof(CHARAC_QUEST_SHOP_DATA, m_statusCounts) == 0x0c,
+              "m_statusCounts offset drift");
+static_assert(offsetof(CHARAC_QUEST_SHOP_DATA, m_statusCountsU) == 0x0c,
+              "m_statusCountsU offset drift");
+static_assert(offsetof(CHARAC_QUEST_SHOP_DATA, m_questPiece) == 0xa6,
+              "m_questPiece offset drift");
 
 #endif  // DNF_GAME_CHARAC_QUEST_SHOP_DATA_H_

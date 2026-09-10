@@ -76,11 +76,13 @@ unsigned int Encryption::crc32N(void* data, int len)
 
 void _NS_PI_2ND_MakeChecksumTo1Byte(char* p)
 {
-    // [round5-Encryption] ORIG 0x0808cc17：源为 5 项平铺 xor，p0 先装载入 %edx
-    // 并在末尾 `xor %eax,%edx` 合流（链 p1^p2^p3^0x18 落 %eax）。
-    // 实测三形：①`p1^p2^p3^0x18^p0`=21 条（链 %ecx/p0 %edx，常量被 4.4 提链尾）；
-    // ②`p0 ^= (p1^p2^p3^0x18)`=23 条（多 push %ebx 保活 p0）；③本形（p0 前置）
-    // 见下方判定。属 4.1「先 expand op0 再 op1」/4.4 逆序 = N18a 族。
+    // [round5-A26 判词·N18a] ORIG 0x0808cc17 形：p0 先装载入 %edx 并在**末尾**
+    // `xor %eax,%edx` 合流，右链 ((p1^p2)^p3)^0x18 落 %eax（4.1 先 expand op0 再 op1，
+    // 且常量 xor 在链尾）。本轮三形实测（21/21 条，仅寄存器镜像）：
+    // ①`p1^p2^p3^0x18^p0`：链落 %ecx、p0 落 %edx、常量被 4.4 提链尾；
+    // ②`p0 ^= (p1^p2^p3^0x18)`（复合赋值形）：23 条，4.4 把 p0 保活入 %ebx（多 push/pop）；
+    // ③本形（p0 前置 5 项平铺）：链落 %edx、p0 落 %ecx —— 与①互为镜像，同 21 条。
+    // ⇒ 4.4 恒把 5 项链尾项/常量做链尾，与 4.1 的「p0 最外层」树形不可同构，封顶。
     ((unsigned char*)p)[0] =
         (unsigned char)(((unsigned char*)p)[0] ^ ((unsigned char*)p)[1] ^
                         ((unsigned char*)p)[2] ^ ((unsigned char*)p)[3] ^ 0x18U);
@@ -179,10 +181,16 @@ void Encryption::getOriginalBuf(char* data, int len, unsigned int& seed)
     int j;
     for (i = 0; i < len; ++i)
     {
-        // ORIG 0x0848dc8c：`mov idx,%edx; mov i,%eax; imul $0x12c,%edx,%edx;
-        // lea (%edx,%eax,1),%eax`（两操作数均入寄存器后 lea 合并）。
-        // 实测：下标换序 / 数组名指针算术（=60 条）均不产该形；本形（register
-        // 存储类提示，P231）见判定。
+        // [round5-A26 判词·N（4.4 mem 直用族）] ORIG 0x0848dc8c 为
+        // `mov -0x14,%edx; mov -0x10,%eax; imul $0x12c,%edx,%edx;
+        // lea (%edx,%eax,1),%eax`（**两操作数均入寄存器**后 lea 合并，4 条）；
+        // 4.4 恒折 `mov idx,%eax; imul $0x12c,%eax,%eax; add -0x10(%ebp),%eax`
+        // （mem 直用，3 条，gap=-1）。本轮穷举 6 形均不产 ORIG 形：
+        // ①`idx*300+i`（本形，56 条）②`i+idx*300`（同 56）③`300*idx+i`（同 56）
+        // ④`*(index_array + idx*300 + i)` 数组名指针算术（60 条，劣）
+        // ⑤`register int i`（57 条但整帧改观：i 失槽 + 数组 disp -0x140，语义等价性
+        //   尚可，但改变了 ORIG 的 i 槽形 ⇒ 不用）⑥`unsigned int idx`（59 条，劣）。
+        // ⇒ 4.4 对「寄存器+内存」加法恒 mem 直用（P209 附同族），源形不可择，封顶。
         pos = (int)index_array[idx * 300 + i];
         j = i;
         while (pos < j)

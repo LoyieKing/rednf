@@ -397,6 +397,18 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
     return 0;
 }
 
+// ---- ORIG 全局：g_RegenerationRandomOptionScriptBaseDirectory
+//      （B 0x095005c0 size 0x100，CU=RDARScriptRegeneration_ROI.cpp，与本函数同 TU）----
+// char[0x100] 零初始化脚本目录缓冲（init 流程填充）。ORIG 全二进制零指令、零数据
+// 引用（二进制扫描唯一命中在 .symtab 自身）⇒ 死数据；补定义对齐符号账
+// （REAL_GAP_SYMBOL），不新增消费点（importRegenerationRandomOptionScript 的路径
+// 参数仍按 ORIG 0x08a7e610 实参字面量 "Etc/RandomOption/..." 形式）。
+// 位置说明（P327）：本 TU 首符号保持 convertTabTypeStringToEnum（ORIG 另一 TU 的
+// GI 键名），故不把本变量前移；ORIG 的
+// `_GLOBAL__I_g_RegenerationRandomOptionScriptBaseDirectory`（0x08a7ea66）与本 TU
+// 键名互斥，属结构性 REORDER_ONLY。
+char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
+
 // ============================================================================
 // importRegenerationRandomOptionScript —— ORIG T 0x08a7e610
 // 报告 _lt_global_gt_/importRegenerationRandomOptionScript.md 全文转写。
@@ -1188,18 +1200,17 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
         {
         case 0:         // 首轮哨兵（与 [/reward] 共体）
         case 0x8f:      // [/reward]
-            // [本波试验] ORIG 0x080ef6b8 段为 `movzbl __inited; xor $1; test %al;
-            // je <业务>`（P168a/N122：4.4 对 `!` 形才产 xor）；改写为否定形
-            // 「then=insert 落 fall-through、else=业务 在跳转目标」，语义不变。
-            if (!__inited)
-            {
-                __lookup.insert(
-                    std::map<const char*, int, less_TCHAR>::value_type("[/reward]", 0x8f));
-            }
-            else
+            // [A16 复核] ORIG 0x080ef6b8 段 `movzbl __inited; xor $1; test %al; je`
+            // 不可复现：把本处改写为否定形 `if(!__inited){insert}else{return 1;}`
+            // 实测 4.4 产 `test;jne`（**无 xor**）且 +1 条 ⇒ 回退。4.4 对静态
+            // bool/char 的 `!` 恒折 `test;jne`（N122 仅覆盖具名局部），
+            // 与 4.1 的 xor 物化互斥 ⇒ 12 处检查点差记 N168a/N122 封顶。
+            if (__inited)
             {
                 return 1;
             }
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/reward]", 0x8f));
             // fallthrough
         case 0x93:      // [job type]
             if (__inited)
@@ -1413,10 +1424,20 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 // [P248 档①] 返回 bool（全部 return 为常量 0/1 ⇒ 机器码与 int 版逐条相同）。
 bool importUpgradeTable(const char* path, upgrade_table_t* table)
 {
-    // [b28d-solo-ScriptLeafA2] 判词 = N（§6.2 超大函数口径：p167 仅 3 项残差）。
-    //   残余 = string ctor ×1 / dtor ×2 计数差（ORIG 多一个 string 局部及其 EH
-    //   路径）+ _Unwind_Resume ×1（我方多一处 EH landing）；gap 1119 vs 1166 为
-    //   N82 帧/槽族。语义等价（token 比较方向/表插入/错误路径均与 ORIG 对齐）。
+    // [A16 round5 修复 + 判词] 本件含一处**真语义修**：12 处把 int 视角
+    //   `m_prob00[k] / m_w38[4] / m_w4c[j] / m_w5c[j]` 改成同址 float 视角
+    //   （m_f00[0,1,5,2,6,3]/m_f38[4]/m_f4c[1]/m_f5c[0]/m_f5c[1]/m_f4c[2]/
+    //   m_f5c[2]/m_f4c[3]），因 ORIG 该 12 处为 `fildl … fstps`（浮点存储）：
+    //   int 视角下 4.4 恒折 fnstcw/movzwl/fldcw×2/fistpl/mov 六条往返（12 处
+    //   共 -95 条），且**运行期把 float 位模式当整数截断**（下游 CItemAmplifier.cpp
+    //   0x0854b282 段以 m_f00/m_f4c 视图读取）⇒ 原为真 bug。
+    //   fresh 读数：改前 fistpl 12/fnstcw 12/fldcw 24/fstps 8，改后 fildl 2/fstps 20
+    //   = ORIG 完全一致；gap 1167→1072（ORIG 1119：+48 → -47）。
+    //   残余 47 条 = 帧/槽分区：ORIG `sub $0x190` vs 我方 `$0x160`（试补
+    //   char[0x30] 死局部可让帧回 0x190，但槽号不动、gap 与四数零变化 ⇒ 已回退）
+    //   + 槽号体系差（ORIG ok@-0xc6 vs 我方 -0x95）⇒ N82/N126 版本常数封顶；
+    //   p167 仅别名伪差（C1/C2·D1/D2 同址，P93）+ _Unwind_Resume ×1（我方多一处
+    //   EH landing）。语义等价（token 比较方向/表插入/错误路径均与 ORIG 对齐）。
     if (!loadRDARScriptFile("", path))
     {
         return 0;

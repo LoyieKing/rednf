@@ -356,7 +356,14 @@ void CDeathTower::CPacketHandler::makeUpdateItemList(CUser* user, ENUM_ITEMSPACE
 // 报告 WongWork__CDeathTower__CPlayData/generateRewardExp.md）；所得 exp 与最终
 // 结算结果 >0x10c8e0(1100000) 时写 BLOOD_LOG 并截断。各加成系数仅进日志参数流。
 // ==============================================================================
-// [b28d-24] DIFF 残148（P282 候选）: vcall 偏移 52 ORIG 3 次 vs 我方 2 次（/tmp/b28d_vcall_cand.tsv）——须按 P282 流程（vptr=_ZTV+8、word[(off+8)/4]）复核虚调目标。ORIG 0x08462538
+// [b28d-24 历史] DIFF 残148（P282 候选）: vcall 偏移 52 ORIG 3 次 vs 我方 2 次。
+// [2026-09-10 round5 复核] **p167 CALLSITE CLEAN 36/36**：残余仅 C1/C2 变体差
+//   （_ZN23stClearRewardBonusExp_t C1==C2 同址 0x0814a800、_ZN27stClearRewardExpParameter_t
+//   C1==C2 同址 0x0814a8b8 ⇒ P93 伪差，非缺口）；vcall +0x34（IsEventing）三处已齐。
+//   本轮修：删 channelNo/dungeonIdx 具名局部（P0，值经 %ebx/%esi 跨 call 保活直传）、
+//   G_CEnvironment 两处调用改复用 env。残余 = 我方 308 vs ORIG 291（帧 0x178 vs 0x130：
+//   具名 float 局部槽基差，N82/N95 族；mn_cmp 残差全为「+mov|+mov」槽往返对）⇒ N 封顶。
+// ORIG 0x08462538
 void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
                                                unsigned int baseExp, CParty* party,
                                                CDungeonMgr& dungeonMgr)
@@ -422,12 +429,14 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
     CEnvironment* env = G_CEnvironment();
-    const unsigned int channelNo = (unsigned int)env->get_channel_no();
-    const unsigned int dungeonIdx = (unsigned int)dungeonMgr.getDungeon()->get_index();
+    // [P0] ORIG 084627xx：channelNo/dungeonIdx **无具名局部**（值经 %ebx/%esi
+    //   跨 call 保活直传 getBonusRate 的第 2/3 实参），且 G_CEnvironment 全函数
+    //   只调一次（旧重建两处调用 + 两个具名槽 ⇒ 帧 0x178 vs ORIG 0x130）。
     const float channelRate =
         channelScript->getBonusRate(
-            (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
-            channelNo, dungeonIdx);
+            (unsigned char)env->m_serverEnvir.m_serverGroup,
+            (unsigned int)env->get_channel_no(),
+            (unsigned int)dungeonMgr.getDungeon()->get_index());
 
     float premiumAdvantageRate = 0.0f;
     if (user->IsHavePremiumAdvantage())
@@ -465,15 +474,37 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
 // get_rand_int(1000)：rnd>rate 高阶掉落分支的概率锚点为 DataManager+0x5e20 /
 // +0x5e24（乘 param5 比较）= m_deathTower.m_rewardItemProb[0]/[1]（0x5198+0xc88
 // 起 int 数组，ORIG `mov 0x5e20(%eax),%eax` int 宽实证）；计数率因子
-// +0x5e2c = m_deathTower.m_rewardGoldWeight（ORIG `flds` float）。随机分支经生成器虚槽 +0x08
-// （generateRandomItem）；受控分支经虚槽 +0x0c（generateSpecificItem，ref 带
-// dungeon/m_rankBonusIndex/goldBase/Factor 上下文）。受控分支额外触发幸运点
+// +0x5e2c = m_deathTower.m_rewardGoldWeight（ORIG `flds` float）。**受控分支**
+// （roll>=prob0*param5）经生成器虚槽 +0x08 = generateRandomItem、**随机分支**经
+// 虚槽 +0x0c = generateSpecificItem（P282 实证，见函数头 2026-09-10 判词；旧注释
+// 把两者写反）。受控分支额外触发幸运点
 // 扣减（::CLuckPoint::UseLuckPoint）。ref 对象由其 ctor 初始化，上下文区按
 // 具名字段写入（宽度逐条对齐 ORIG：movb/movw/movl，见
 // WongWork__CDeathTower__CPlayData/generateRewardItem.md 0846205d..099 /
 // 084622bc..328）。
 // ==============================================================================
-// [b28d-24] DIFF 残380: P167 迭代器写法差（MISSING begin/deEv×5；EXTRA front/C1/D1/G_CDataManager 等）——按 P167 判据改访问形。ORIG 0x08461fc0
+// [b28d-24 历史] DIFF 残380: P167 迭代器写法差（MISSING begin/deEv×5；EXTRA front/C1/D1/G_CDataManager 等）。
+// [2026-09-10 round5 定稿] 真 bug 修 + P167 修（P282 流程）：
+//   ① **两分支虚调目标互换（真 bug）**：P282 五步核 _ZTVN8WongWork14CItemGeneratorE
+//      @0x08c9a788 —— word[2]=0x0853a3f0 setDropRatio / word[3]=0x0853a3f6 loadScript /
+//      word[4]=0x0853a400 generateRandomItem / word[5]=0x0853a406 generateSpecificItem。
+//      ORIG 08462311 段 `mov (%eax),%edx; add $0x8,%edx; call *%ecx` ⇒ **受控分支
+//      （ref 0x3f800000、roll>=prob0*param5）调 generateRandomItem**；ORIG 08462131 段
+//      `add $0xc,%edx` ⇒ 随机分支（ref 0x10001 组）调 generateSpecificItem —— 旧重建
+//      恰好相反（两分支掉落语义颠倒）。
+//   ② 条件符号性：ORIG `cmp -0x20(%ebp),%eax; seta %al; test %al,%al; je` 为 **unsigned**
+//      （prob0*param5 <= roll ⇒ 受控）；旧重建写 `(int)boundHigh` signed 比较 + 二段
+//      `||` + boundHigh 具名槽。prob1 内层 ORIG 只求值一次 G_CDataManager（旧重建
+//      `<= && - != 0` 两次 ⇒ EXTRA +1）。
+//   ③ P167：`.front()`→`*v.begin()`（ORIG begin×4/deEv×5）；`probe` 由 setCopy 改
+//      **拷贝构造**（ORIG 084623b5..0x43f = 15×dword+1byte 块拷贝到 -0xf5）；随机分支
+//      具名迭代器复用（ORIG 只 begin 一次却 deEv 两次）；随机分支 ORIG 无 `empty()`
+//      守卫、无 `RewardData_Result::clear`。
+//   ⇒ p167 差集 16→12 项（begin/deEv/front/empty/setCopy/G_CDataManager 全清）、
+//      missing_in_game 25→24。残余 = C1/C2·D1/D2 变体（P93 同址伪差：0814ab06 C2==C1
+//      同址、0814ab4c D2==D1）+ setcc 物化（ORIG seta×2/test×2，4.4 恒直跳，P197④ 族）
+//      + 槽往返（我方 370 vs ORIG 347）+ ref 末两 short 经 lea+add（stGenerateRefData_t
+//      字段建模）。⇒ N 封顶。ORIG 0x08461fc0
 void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                                                 const CDungeonMgr& dungeonMgr,
                                                 unsigned int param4, unsigned int param5,

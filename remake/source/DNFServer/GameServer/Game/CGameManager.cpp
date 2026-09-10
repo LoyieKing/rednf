@@ -1,4 +1,42 @@
 #include "GameRand.h"
+// [A12-2026-09-10 · 本轮 15 件复核（判据⑩⑪⑫ + 报告兜底取证）] 结论：13 业务件全 N 封顶，
+// 零净改动（TU 四数 identical=729/ae=1894/near=0/diff=16 改前=改后）。
+//  · 判据⑪（/tmp/shift.py，必读 .o）：returnUserPool / GetPvp(int,CUser*,int) 为
+//    PURE SHIFT c=0（帧 96=96 / 76=76，无槽平移，残差纯指令级）；createUser（帧
+//    108 vs 96）、Send_userinfos_to_upper_server（5968=5968，槽 [-56,-50,-48] vs
+//    [-54,-52,-44]）、WarRoomCountAdjustByChannelInfo（60 vs 64）、CheckOutPvp（MIXED）
+//    ⇒ N82/N115 族（分区规律差，非恒定平移）。
+//  · 判据⑫（/tmp/widthscan.py）：无 clr_l/cmp_l 单向差命中（不涉类型宽度）。
+//  · ① GetPvp(int,CUser*,int) **报告缺失**：docs/class_func_reports/CGameManager/
+//    GetPvp.md 是无参重载 `_ZN12CGameManager6GetPvpEv`(0x0829507c)，非目标 ⇒ §3.2
+//    兜底：nm 定址 `_ZN12CGameManager6GetPvpEiP5CUseri` @0x08295206 size 0x11c，
+//    objdump 区间转写对比（81=81 insns）。NDIFF=24 绝大多数为 .o 未解析重定位
+//    （call 标注）伪差；实质残差 = `user==0 ? "" : getCurCharacName()/get_acc_name()`
+//    两处三目臂落点与 CSwitchLog ctor 实参装载序（P231/P277 寄存器-块序族）。
+//  · ② CheckOutQuickParty（26/26）：唯一残差 = ORIG `xor$1; test%al; jmp; nop` 的
+//    dead test（P225 4.1 bool 归一）缺席 + 我方 epilogue 前 `movzbl -0xc(%ebp),%eax`
+//    （`return flag;` 归一）。ORIG 的 party==0 路径复用入口 `mov 0x10(%ebp),%eax`
+//    残值（4.1 spill 保留寄存器），4.4 恒从槽零扩展 ⇒ 跨版本存活差，N 封顶。
+//  · ③ WarRoomCountManageTest @+0x43..0x46：ORIG `mov -0x8c(%ebp,%eax,4),%edx;
+//    add $1,%edx; mov %edx,-0x8c(%ebp,%eax,4)`（scaled 读改写）vs 我方多一条
+//    `mov -0x48(%ebp),%edx` 中转 ⇒ N82/N86 族（4.4 槽分区）。
+//  · ④ FindQuickJoinablePvPRoom @+0x27：ORIG `cmpb $0,-0x2c(%ebp); je`（内存直比）
+//    vs 我方 `movzbl; xor $1; test; jne`（N122：4.4 bool 局部取反恒 xor）⇒ 封顶。
+//  · ⑤ send_userinfos_to_cutoff_server @+0x60..：`% 10` 展开 ORIG 商留寄存器
+//    （`shr $3,%edx; mov %edx,%eax; shl; add; add; sub`）vs 我方商落 -0x18 槽 + 两条
+//    重载（+4 条）—— 4.4 除法/取模 lowering 中间值落槽，源形不可择 ⇒ N86b 族。
+//  · ⑥ StaticPool<CTradeSpace,300>::~StaticPool **报告缺失**（game_func_report report=NO）
+//    ⇒ §3.2 兜底：nm 定址 `_ZN10StaticPoolI11CTradeSpaceLi300EED1Ev` @0x082ae79c
+//    **size 0x65（101B/37 insns）**，objdump 逐条转写 —— ORIG 体 = m_pNode 判空
+//    (`mov this,%eax; mov (%eax),%eax; test; je +0x51`) → 逆序 `CNodeD1` 循环
+//    (`imul $0xf78`步长, `je` 出口) → `_ZdaPv` → **fallthrough** `queue D1`
+//    (`add $4,%eax; call ~queue`)，**全函数无 _Unwind_Resume / 无 EH 段**。
+//    我方 50 insns/87B：主体逐条同构，多 = EH landing 块（`mov %edx,%ebx; mov %eax,%esi;
+//    call ~queue; _Unwind_Resume`）+ 体尾 `jmp <epilogue>` + `push %esi`（共 13 条）
+//    ⇒ **N91 封顶**（4.4 对 delete[] 元素析构循环恒布 cleanup；P216 边界明文：throw()
+//    对 D1 侧无效、元素 dtro 加 throw() 亦无效；P284 全特化 throw() 仅适用于析构平凡 T
+//    如 _IO_FILE）。
+// ============================================================================
 #include "CShutdowManager.h"   // GetInstanceShutdowManager 完整类型（SendLastMsgDBQueue 调用）
 // [b28d-solo-CGameManager 本波判词（2026-09-09）] 清单 23 件收口（TU 编译绿、
 // p167 逐符号核对：语义件全 CLEAR；N91 族 D1Ev/MoreAlloc 的 delete[] EH EXTRA 与

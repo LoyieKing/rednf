@@ -11585,9 +11585,13 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     sig->m_curConditionEventRewardStep = GetCurConditionEventRewardStep();
     sig->m_properDungeonClearCount = GetProperDungeonClearCount();
 
-    // expand type 6 → +0x40ce（真实虚调用 getData @ vtable+8）
-    CExpandEquipslot* e6 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)6);
-    e6->getData((char*)sig->m_expandData6);
+    // expand type 6 → +0x40ce（真实虚调用 getData @ vtable+8）。
+    // 2026-09-10（P183/P0，报告 0x08677a79..0x08677a95 实证）：ORIG 对每个 expand 段
+    //   都是 `movl $type,0x4(%esp); … call GetCharacExpandDataR; mov (%eax),%edx;
+    //   add $0x8,%edx; mov (%edx),%ecx; … call *%ecx` **全链内联**，帧仅 sub $0x10 ⇒
+    //   原码无任何 `CExpandEquipslot* eXX` 具名局部（我方 12 个局部致帧 0x40、+40 指令）⇒
+    //   全部改链式单表达式。
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)6)->getData((char*)sig->m_expandData6);
 
     sig->m_curVillageAttackCount = GetCurVillageAttackCount();
     sig->m_curRevengeDungeonCount = GetCurRevengeDungeonCount();
@@ -11606,14 +11610,14 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     // ORIG 顺序：type 7/0xd/8/0xb 无条件；tag 角色存在时只填充 tag 角色技能槽，
     // 其余 type 0xa/0x10/0xe/0xf/0x11/0x12、aura、option、attendance、
     // blueMarble、type 0x13 均无条件执行。
-    CExpandEquipslot* e7 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)7);
-    e7->getData(&sig->m_mixedRegion[0xcf1f - 0xc9c0]);
-    CExpandEquipslot* ed = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xd);
-    ed->getData(&sig->m_mixedRegion[0xd718 - 0xc9c0]);
-    CExpandEquipslot* e8 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
-    e8->getData(&sig->m_mixedRegion[0xcdd5 - 0xc9c0]);
-    CExpandEquipslot* eb = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xb);
-    eb->getData(&sig->m_mixedRegion[0xd5a7 - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)7)
+        ->getData(&sig->m_mixedRegion[0xcf1f - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xd)
+        ->getData(&sig->m_mixedRegion[0xd718 - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8)
+        ->getData(&sig->m_mixedRegion[0xcdd5 - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xb)
+        ->getData(&sig->m_mixedRegion[0xd5a7 - 0xc9c0]);
 
     // tag 角色技能槽（+0x10/+0x1a8）
     if (getTagCharacR() != 0)
@@ -11626,18 +11630,18 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     }
 
     // ORIG 0x0867794c：expand type 0xa → mix+0xd6fc（0xd6fc - 0xc9c0）。
-    CExpandEquipslot* ea = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xa);
-    ea->getData(&sig->m_mixedRegion[0xd6fc - 0xc9c0]);
-    CExpandEquipslot* e10 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x10);
-    e10->getData(&sig->m_mixedRegion[0xd73c - 0xc9c0]);
-    CExpandEquipslot* ee = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xe);
-    ee->getData((char*)sig->m_expandDataE);
-    CExpandEquipslot* ef = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xf);
-    ef->getData((char*)sig->m_expandDataF);
-    CExpandEquipslot* e11 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x11);
-    e11->getData(&sig->m_mixedRegion[0xecc8 - 0xc9c0]);
-    CExpandEquipslot* e12 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x12);
-    e12->getData(&sig->m_mixedRegion[0xecd0 - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xa)
+        ->getData(&sig->m_mixedRegion[0xd6fc - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x10)
+        ->getData(&sig->m_mixedRegion[0xd73c - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xe)
+        ->getData((char*)sig->m_expandDataE);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xf)
+        ->getData((char*)sig->m_expandDataF);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x11)
+        ->getData(&sig->m_mixedRegion[0xecc8 - 0xc9c0]);
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x12)
+        ->getData(&sig->m_mixedRegion[0xecd0 - 0xc9c0]);
 
     // aura（+0xd730）/ character option（+0xeac8）在混合区内
     GetAuraAvatarOption(
@@ -11648,9 +11652,9 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     // attendance（+0x14a99）+ blueMarble（+0x14a98）+ expand 0x13（+0x14a9a）
     GetCharacCashAttendanceInfo(*(SIG_ATTENDANCE_EVENT*)&sig->m_attendanceEvent);
     sig->m_blueMarbleEnterCount = getBlueMarbleEnterCount();
-    CExpandEquipslot* e13 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x13);
-    // e13 区 = attendanceEvent 内 +1 字节起（0x14a99 起 0x11 字节，0x14a9a=+1）。
-    e13->getData((char*)&sig->m_attendanceEvent + 1);
+    // type 0x13 区 = attendanceEvent 内 +1 字节起（0x14a99 起 0x11 字节，0x14a9a=+1）。
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x13)
+        ->getData((char*)&sig->m_attendanceEvent + 1);
 
     return 1;
 }
@@ -13171,7 +13175,10 @@ void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
         remainSec = m_mercenaryMgr.m_characs[i].m_field2c
                     - GlobalData::s_systemTime_.getCurSec();
 
-        packet.put_int(m_mercenaryMgr.m_characs[i].m_characNo);
+        // 2026-09-10（P265 档③）：ORIG 0x0868e7b5 段该实参为 `mov (%eax),%eax;
+        //   mov %eax,%edx`（字段先入 %eax 再中转 %edx）= int 字段经**异型**实参转换
+        //   ⇒ 实参位显式 cast 触发同形中转（我方原形单段 `mov (%eax),%edx`）。
+        packet.put_int((unsigned int)m_mercenaryMgr.m_characs[i].m_characNo);
 
         if (&m_mercenaryMgr.m_characs[i].m_name[0] == 0)
             nameLen = 0;

@@ -260,6 +260,54 @@
 //    StubS3A_deps.cpp 后 AE 49=49）、InitTcp（N80/N82）；CHumanCertifier::init
 //   N-数据缺失；Init/Fini/dispatch 族与 IPG/ vending 超大件维持原判词。
 // ============================================================================
+// ============================================================================
+// [SweepGD 2026-09-10 round5 交付小结] 残余 33 件逐件处置（gap = 净指令数，去 nop 口径）
+//  本波真修 2 件（合计 −255 条）+ 微修 1 件；其余 30 件逐件复核后维持/重判 N：
+//  ① MonitorTcpThread::dispatch（ORIG 0x0857d95a）**gap 256→17**（our 1830→1592）四修：
+//     a. FD_ZERO 手写旧 glibc 逐元素循环（ORIG +0x0f5/+0x123 `lea; mov %eax,-0x50;
+//        movl $0,-0x54; …; movl $0,(%eax,%edx,4); cmpl $0x1f,-0x54; setbe`）——
+//        用 `fd_set* fds + __FDS_BITS(fds)[fi]` 具名数组成员视角产 scaled 存
+//        （旧 `int* fdBits[fi]` 恒折 shl+add，多 2 条/处）；
+//     b. FD_SET/FD_ISSET 实参 (unsigned) cast ×26：ORIG `shr $0x5`+`and $0x1f` 无符号形，
+//        我方 int 实参产 cmovs 有符号除链（sar$0x1f/shr$0x1b/add/sar$0x5 + %32 五条）；
+//     c. 外层循环改 `while (!GlobalData::s_server_stop)`（ORIG +0x1a32 尾条件块
+//        `movzbl; xor $0x1; test; jne body` + 函数头 jmp 直达）——原
+//        `while(true){if(s_server_stop)return;}` 的函数头 4 个 jmp+nop 中继岛全消；
+//     d. 去 7 条多余 `movl $0` 清零（ORIG 函数头仅 5 条：soError+lastReconnect×4；
+//        裸声明 -O0 零指令，P328⑤）。
+//     残余 = N126/N95 帧槽整体浅 8（fd_set@-0x180 vs ORIG -0x188，sub 同 0x21c）
+//        + 4 处 setcc-fold 比较折叠（`cmp $0xffffffff; setne; test; je` vs 我方 `cmp; je`）
+//        + 1 处 N121 尾岛。
+//  ② CmmChannelProxy::RecvPacket（ORIG 0x0810645c）gap 4→3（净 175→174）：
+//     FD_ZERO 循环改 `fd_set* fds = &readfds; __FDS_BITS(fds)[i] = 0;` ⇒ 复现 ORIG
+//     0x08106496 段 `mov -0x20,%edx; mov -0x1c,%eax; movl $0,(%eax,%edx,4)` scaled 直存
+//     （**旧判词 N125 作废**；`unsigned long* pBits` 版恒折 shl+add）。
+//     残余 = FD_SET 单份 scratch（ORIG `shr $5`→%eax 直用+`mov %eax,%edx` 复制；具名 ix
+//     174 vs 内联 176，取前者）记 N18a/N96。
+//  ③ 其余 31 件（本轮逐件复核，ORIG/OURS 净条数）：
+//     · gap 0（槽位/寄存器族 N82/N7/N18a/N18b/N93/N95/N126）：initTournamentDB 220/220 /
+//       Init 3139/3139（N89 libstdc++ 全内联） / QueryConnInfo 169/169 / CDBEnviroment::parse
+//       289/289 / NetworkThread::dispatch 204/204 / CRandomOptionItemHandle C1 69/69 /
+//       DispatchThread::dispatch 325/325 / CServerProxyMgr D1×3 67/67（模板体在 .h） /
+//       proc_addFatigue 73/73（N98/N212） / loadDbData 243/243 / RentalMachinePcRoom::log 58/58 /
+//       RentalMachineDimension::log 58/58。
+//     · gap 1–6：SendCheckChannelScript 289/290 / Secu_DataControl 150/151（N121 尾岛） /
+//       GetRentItemInfo 111/113（N7 块启发） / AcceptThread 516/519（N82） /
+//       BillingRecord 324/327（N1/N75） / RecvPacket 171/174 / checkAllRentalItemScript
+//       282/286 / checkSelectionListScript 252/256 / DeleteAllRentalItem 118/123 /
+//       ProcessBuyRequestEx 1598/1604（p167 仅 C1/C2·D1/D2 同址别名 P93，无真缺口） /
+//       InitTcp 73/71 / _processUDPData 263/261 / CSimpleSSO::init 45/44 /
+//       UdpThread::dispatch 136/135 / generateImage 682/679。
+//     · gap ≥10：CHumanCertifier::init 64/74（ORIG 人证表 .text 运行时填充 0x0814af00+2i，
+//         静态不可恢复 = 数据缺失 N） / StackableAction::Action::init_function_type 157/169
+//         （boost::bind 展开 + arg<1> placeholder 构造跨版本差异 N） /
+//       ProcessIPG_ResultOutput 1158/1177（p167 EXTRA 全为多发局部对象 ctor/dtor
+//         `vector<Inven_Item>`×4/`PacketGuard`×4 + static guard EH `__cxa_guard_abort`×2/
+//         `_Unwind_Resume`×2 ⇒ N82/N91 族）。
+//  工具实测：`check_tu_routed.sh` **COMPILE OK**，四数 identical=899 ae=1791 near=11 diff=38
+//  （missing_in_game=847）**零回退**；p167 除 C1/C2·D1/D2 同址别名（P93）与 N130 右值重载外
+//  **零 MISSING**。
+// ============================================================================
 
 #include "GlobalData.h"
 #include "PCRoomServerProxy.h"   // CPCRoomServerProxy 权威（原 TU 局部定义收敛，Fix14_I）

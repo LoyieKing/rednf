@@ -5019,6 +5019,9 @@ void CParty::TournamentDungeonClear(bool flag)
             "Tournament Dungeon is NULL");
         return;
     }
+    // ORIG 0x085bd3aa `call isTournamentDungeon; xor $0x1,%eax; test %al,%al; je <主体>`
+    // ⇒ 原码是**否定守卫早退**（`!= 1` → xor 物化 + 错误块直落 fall-through），
+    // 不是 if/else 正极性（正极性产 `test; je <错误块>` 且块序相反）。
     if (dungeon->isTournamentDungeon() != 1)
     {
         // P0：ORIG 085bd3aa 对 get_dungeon_index 重新 add $0xb24（不缓存 bf 指针）。
@@ -5028,20 +5031,22 @@ void CParty::TournamentDungeonClear(bool flag)
             m_battleField.get_dungeon_index());
         return;
     }
-
     // ORIG：两句式 if/else 各一次 SaveCoin（两个独立 call 岛），非三元表达式。
     if (flag)
-        SaveCoin((eCoinSubReason)1);
-    else
-        SaveCoin((eCoinSubReason)2);
-    PacketGuard packet;
+            SaveCoin((eCoinSubReason)1);
+        else
+            SaveCoin((eCoinSubReason)2);
+        PacketGuard packet;
     for (int slot = 0; slot < 4; ++slot)                // -0x18
     {
         if (_checkValidUser(slot))
         {
             Inven_Item items[2];                        // -0xa6
-            if (m_battleField.m_tournamentReward.GetItemFromCard(
-                    ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, slot, items, 2))
+            // ORIG 085bd3xx `call; mov %al,-0xd(%ebp); cmpb $0x0,-0xd(%ebp)` =
+            // 具名 **char** 局部（截断直存、无 setne 归一化）⇒ 声明 char 非 bool。
+            char got = (char)m_battleField.m_tournamentReward.GetItemFromCard(
+                ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, slot, items, 2);
+            if (got != 0)
             {
                 _putItemIntoUser(m_member[slot].m_pUser, items, packet);
             }
@@ -5049,8 +5054,9 @@ void CParty::TournamentDungeonClear(bool flag)
             {
                 for (int i = 0; i < 2; ++i)
                     items[i].reset();
-                if (m_battleField.m_tournamentReward.GetItemFromCard(
-                        ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, slot, items, 2))
+                char got2 = (char)m_battleField.m_tournamentReward.GetItemFromCard(
+                    ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, slot, items, 2);
+                if (got2 != 0)
                 {
                     _putItemIntoUser(m_member[slot].m_pUser, items, packet);
                 }

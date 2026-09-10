@@ -236,6 +236,11 @@ const int IMPORT_FAIL  = 0;
 //   ⑥ [reward item] 0x089fdc81/0x089fdcf0/0x089fddeb：三层 `!ScanType || tok==end`
 //      拆两条独立 if（P225 推广），消 4.4 setcc 物化。
 //   残余 = 4.1/4.4 结构性差异（N 封顶）：ORIG 9 条 continue 中继岛
+//   [round5 复核] p167 复算 ORIG 351 calls = OUR 351 calls，MISSING/EXTRA 全部成对
+//   为 C1↔C2 / D1↔D2 **同址别名**（`-24 _ZNSsD2Ev` ↔ `+24 _ZNSsD1Ev`、
+//   `-11 _ZNSsC2Ev` ↔ `+11 _ZNSsC1Ev`、stGiftItemInfo 的 C2Im… ↔ C1Im… 等，P93）
+//   ⇒ **无真语义缺口**；逐助记符比对得 109 个形态差异块（我方 2532 / ORIG 2593），
+//   主体为下述 N 族，不属可译缺口。
 //   （0x089fc2f4..0x089fc30e 九对 jmp/nop 同落 +0xab，4.4 就地 jmp）、bool 局部
 //   物化（ORIG mov %al,-S; movzbl; xor$1 vs 4.4 直接 test，N122）、状态机路径标志
 //   （ORIG %esi/%ebx vs 4.4 栈 bool）、`fav` 引用缓存致成员偏移基数差 0x170

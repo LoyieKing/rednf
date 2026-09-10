@@ -2753,6 +2753,12 @@ void CPrivateStoreMgr::LoadPrivateStore(CUser* user)
 // `sig->m_storeItems[i].m_addInfo` ⇒ 4.4 折 scaled disp（ORIG 0x85cc5bc 段
 // `mov 0xa/0xf/0x13/0x15(%edx,%eax,1)`）；裸字节数组 + cast 形恒先物化 base
 // （多 1 条 `add $8`）。需真实类型（方法调用/引用实参）处用 PS_REAL。
+// [L14 结论] 156/152 → 153/152（gap +4→+1）：4 处字段读全等；m_addInfo(0xa)/
+// m_fieldd(0x15) 经镜像 **enum 视角**复现 ORIG 的 eax→edx 两段装载（P254，
+// m_addInfo2(0xf) 保持 int 单段）。余 2 处 = ORIG `add $0x10;…;add $0x9` 加法
+// 分组 vs 我方 `add $8; add $0x11`（同 4 条，N1 常量分组）+ put_packet 实参
+// ORIG `lea 0x8(%eax),%edx` vs 我方 `add $8,%eax; mov %eax,%edx`（N107：成员常量
+// 偏移取址 4.4 恒 add、4.1 恒 lea，六形探针全败）⇒ 停 NEAR 级残差。
 #define PS_ITEM(i) (sig->m_storeItems[(i)])
 #define PS_REAL(i) (*reinterpret_cast<PrivateStoreItem*>(&sig->m_storeItems[(i)]))
 __attribute__((weak)) int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig)

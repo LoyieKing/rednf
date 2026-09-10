@@ -36,6 +36,11 @@ CMission::CMission(const MissionScript& script)
     // ORIG C1 0x085e304b/0x085e305f 两处 8 字节逐字段内联拷贝：成员与 MissionScript
     // +0x10/+0x18 同为 std::pair<int,int>（pair 拷贝构造对 <int,int> trivial ⇒ 内联，
     // 无 call；get_WithinMissionIndex 0x085e2f00 的 pair 消费实证该真实类型，b28d-70）。
+    // [2026-09-10 round5 复核] 残余精确定位：ORIG `mov 0x8(%ebp),%eax; lea 0x18(%eax),%ecx;
+    //   …; mov %eax,(%ecx); mov %edx,0x4(%ecx)`（dest 缓存 %ecx 的块拷贝，P246 判据）
+    //   vs 我方 4.4 恒 `mov %eax,0x18(%ecx)` disp 直存（2 处各少 1 条 lea）。
+    //   唯一已知翻法 = P246 把 MissionScript::m_grade/m_rate 改 POD union 双视角
+    //   （共享头 + 两 TU 联判），收益 2 条 ⇒ 本轮不做，按 N18a 封顶。
     , m_rankRange(script.m_grade)
     , m_rateRange(script.m_rate)
     , m_grade(script.m_field20)
@@ -862,6 +867,9 @@ int CMission_within::Update(MissionInfo& info,
     // [2026-09-10 复核] 改把 (short) cast 放在**乘法内侧**（旧形 cast 在外，4.4 视
     //   `(int)ushort` 为免指令 ⇒ 缺 cwtl）；`(short)info.m_count * 2` 才是 ORIG 的
     //   「读 ushort + 符号扩展 + 乘 2」三段源形。
+    //   **实测（第 7 形）仍无 cwtl**（ourN 仍 32 vs ORIG 33）⇒ 4.4 对 `(short)ushort`
+    //   恒折 movzwl 直用（前端已知低 16 位语义），与 P168a③ 同族 ⇒ N 封顶；语义等价
+    //   （仅低 16 位存回，(int)*2 与 (short)*2 低 16 位一致）。
     info.m_count = (short)((short)info.m_count * 2);
     info.m_count = (short)(info.m_count +
                            ((param.m_victory & 1) ? 1 : 0));
@@ -1131,10 +1139,15 @@ int CMission_combo_clear::getClearCondition() const
     return 0;
 }
 
-// [round3-L29 2026-09-10 复核] 我方 127 / ORIG 125（ndiff12）：difflib 显示我方多两段
-//   「mov $0x1,%ebx; jmp」/「mov $0x1,%ebx; lea; call」= 早返回 true 的物化 + 多 1 处 call；
-//   帧两侧相同（80=80）、判据⑪ PURE SHIFT c=0 ⇒ 非槽问题。疑似 `if(cond) return true;`
-//   与 ORIG fall-through 的语义重写（P292 正极性包裹候选）；本轮未及改。
+// [round3-L29 2026-09-10 复核] 我方 127 / ORIG 125：difflib 显示我方多两段
+//   「mov $0x1,%ebx; jmp」/「mov $0x1,%ebx; lea; call」= 早返回 true 的物化。
+// [2026-09-10 round5 定稿 **已修**] 按 P292 正极性包裹改写：ORIG 0x085e41af
+//   `test %al,%al; je 085e42e1`（je 落**函数尾部共享块** `mov $0x1,%eax`，cond 真
+//   走 body 直落）⇒ 源形必须是 `if (it != m_comboMap.end()) { body } return 1;`
+//   （早返回 `if (end()==it) return 1;` 会就地物化 mov $1,%ebx + jmp）。
+//   改后：origN=ourN=125、帧 80=80、判据⑪ PURE SHIFT c=0；.o 口径 DIFF→**NEAR**
+//   （残余仅 2 处字符串地址重定位伪差：ORIG 0x8cc2c5c/0x8cc2c70 vs 我方 .o 的
+//   addend 0x0/0x14 = N124/N132）⇒ 链接口径 AE。
 int CMission_combo_clear::_Reward(CUser& user) const
 {
     combo_script_key key;

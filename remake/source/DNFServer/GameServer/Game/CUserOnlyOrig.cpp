@@ -1063,6 +1063,8 @@ void CUser::AddTicket(int ticketIdx, bool notify)
         }
         m_list8cf80.push_back(ticketIdx);
 
+        // [A06 2026-09-10 P259 试行记录·已回退] 本件 ORIG 133 条含该 store/load 对
+        // （内联后我方 133→131、delta 26→32 反劣）⇒ ORIG 该处确有具名槽，维持具名形。
         Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x703d);
         CStreamGuard guard(s, true);
         // [b28d-solo-CUserOnlyOrig P167/P132] ORIG 0x08678xxx 命中
@@ -6050,7 +6052,10 @@ void CUser::saveCharacLinkMessageFlag(bool flag)
 // ----------------------------------------------------------------------------
 // ORIG 0x086501c8 CUser::SaveInventoryOnly() uint
 // [b28d-22 N82] ORIG 0x086501c8：p167=CLEAR，gap=1；语义完成、byte 层帧槽/物化族封顶。
-// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x086501c8：N82 封顶——帧/槽差（p167 CLEAR，gap 1）。
+// [A06 2026-09-10 归零] 192/192 AE/identical（delta=0）。修法 = P259：删 `Stream* s`
+// 具名局部，Acquire 结果直落 CStreamGuard ctor 实参（ORIG 0x086501c8 段
+// `call Acquire; mov %eax,0x4(%esp)`，无 stream 槽；旧形多一对 store/load 并顶浅全帧）。
+// 此项原判 N82 已作废。
 unsigned int CUser::SaveInventoryOnly()
 {
     if (isLocked4DataLoad()) {
@@ -7794,8 +7799,8 @@ RENTAL_END:;
 // （p167 CLEAR，gap 10）。
 void CUser::UpdateDimensionInout()
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bd0);
-    CStreamGuard guard(stream, true);
+    // [A06 2026-09-10 P259] ORIG 0x08651fba 段同形（Acquire 直落实参，无具名 stream 槽）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bd0), true);
     guard.operator*()->operator<<(0x14f);
     // ORIG 08652030 call operator<<(int)：传参为 int（GetUID 返回 uint，须显式转 int
     // 选中 operator<<(int) 重载——否则误落 operator<<(unsigned int)，const 重载甄别）。
@@ -10955,8 +10960,8 @@ void CUser::SendMail(bool certified)
                     static_cast<double>(randv) * 0.01)));
             if (static_cast<unsigned int>(limit) <=
                 *reinterpret_cast<unsigned int*>(m_pad8e101 + 0x2e)) {   // +0x8e12f
-                Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xa12b);
-                CStreamGuard guard(stream, true);
+                // [A06 2026-09-10 P259] ORIG 0x08689f12 段同形。
+                CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0xa12b), true);
                 guard.operator*()->operator<<(0x18a);
                 guard.operator*()->operator<<(static_cast<int>(GetUID()));
                 SIG_FIND_FACTORY_HUB* sig =

@@ -1078,6 +1078,11 @@ int CInventory::GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE ty
     switch (invenType)
     {
     case 0:
+    // [b28d-round5 P163] ORIG 0x084fb68a..0x084fb69a 为 `cmp $0x6,%eax; ja <ret count>`
+    // + `.rodata` 跳表（7 项，0..6）⇒ 原码显式覆盖 0..6。补未列 case 4/5（与 0/6 同体）
+    // 使 4.4 放弃 bitmask/比较链、发出与 ORIG 同宽的表。
+    case 4:
+    case 5:
     case 6:
         LogManager::logFormat(
             1, "inventory.cpp",

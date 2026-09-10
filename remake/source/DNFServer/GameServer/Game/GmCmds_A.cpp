@@ -712,8 +712,12 @@ void CBoosterTest::getBoosterResult(CItem const* item,
         while (it != end)
         {
             // [b28d-solo-GmCmds_A] P167：ORIG 用 operator*（deEv），非 ptEv。
-            int itemId = (*it).m_itemIdx;
-            std::map<int, int>::iterator pos = result.find(itemId);
+            // [round5-GmCmdsA] P157/P0（无槽律）：ORIG 全程**无 itemId 具名槽**
+            // ——0x084afa60 deEv 后直存 -0x38 仅作 find 实参临时，0x084afad4 处
+            // 再 deEv 一次存 -0x14 作 make_pair 实参；具名 itemId 会多占一槽
+            // 并连带整组槽深偏 4（旧读数 items -0x48 vs ORIG -0x4c）。
+            // ⇒ 两个使用点各自重读成员。
+            std::map<int, int>::iterator pos = result.find((*it).m_itemIdx);
             if (pos != result.end())
             {
                 ++pos->second;
@@ -752,8 +756,10 @@ void CBoosterTest::getRandomboxResult(CItem const* item,
             // [b28d-solo-GmCmds_A] N84③：ORIG 为结构整体赋值逐字段浅拷贝
             // （+0x6b 段 16×mov dword + movzbl），memcpy 是 EXTRA call。
             dropped = drops[j].first;
-            int itemId = dropped.m_addInfo;
-            std::map<int, int>::iterator pos = result.find(itemId);
+            // [round5-GmCmdsA] P157/P0：ORIG 无 itemId 具名槽（0x084aff79 读
+            // dropped+2 直入 find 实参临时、0x084affb3 处再读一次作 make_pair
+            // 实参）⇒ 两个使用点各自重读 dropped.m_addInfo。
+            std::map<int, int>::iterator pos = result.find(dropped.m_addInfo);
             // [b28d-47] P220 正极性：ORIG 用 `ne`（pos != end 时 ++），旧 `==` 形
             // 产 eq（P167 MISSING ne / EXTRA eq）。
             if (pos != result.end())
@@ -762,7 +768,7 @@ void CBoosterTest::getRandomboxResult(CItem const* item,
             }
             else
             {
-                result.insert(std::make_pair(static_cast<int>(itemId), 1));  // [b28d-47] P61 右值化
+                result.insert(std::make_pair(static_cast<int>(dropped.m_addInfo), 1));  // [b28d-47] P61 右值化
             }
         }
     }
@@ -797,10 +803,12 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
 {
     // [b28d-solo-GmCmds_A] ORIG +0x00e..+0x039：两个具名 item 副本
     // （-0x28/-0x24）+ 死槽 count=2（-0x20）+ jewelType 预置 -1（-0x1c）。
+    // [round5-GmCmds_A] P212/判据⑩：ORIG sockets 槽 -0x48 **深于** p1(-0x28)
+    // ⇒ 4.1「先声明者深」⇒ 原码 sockets 声明在 p1/p2 之前（仅赋值在后）。
+    unsigned short sockets[2];
     CItem const* p1 = item;
     CItem const* p2 = item;
     int count = 2;
-    unsigned short sockets[2];
     sockets[0] = static_cast<CStackableItem const*>(p1)->getJewelTargetSocket();
     sockets[1] = static_cast<CStackableItem const*>(p2)->getJewelTargetSocket();
 

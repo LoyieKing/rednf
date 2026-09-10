@@ -60,6 +60,9 @@ struct stHellPartyRateSrcViewC
 // 由成员声明序自动构造；此处仅复刻 ORIG 的标量初值与容器清理操作。
 CBattle_Field::CBattle_Field()
 {
+    // [round5 收口实测] ndiff=11（346/347）：正文前 198 条逐条一致；唯一残差是
+    // 「正常路径 epilogue 位置」（ORIG 就地 ret、4.4 epilogue-threading 挪到函数尾
+    // 并改 `jmp <尾>`）⇒ N121/N104 族（叠加 N91 ctor EH cleanup 残段）封顶。
     // [b28d-solo-CBattle_Field_missing 判词 · N91] ORIG 0x082a44fe：CBattle_Field.h
     // 已按 ORIG 修正（m_endX/m_endY/m_field14/m_field18 + m_curPos[4] +
     // m_lastPos[4]，R2 已广播）后，前 190 条指令与 ORIG 逐条一致（两组 4 次
@@ -151,6 +154,7 @@ int CBattle_Field::pickup_item(int uid)
 // 全字段清零链，逐字段按 ORIG 汇编映射到 CBattle_Field.h 具名成员。
 void CBattle_Field::reset_field()
 {
+    // [round5 收口] 本件 AE（与 ORIG 逐条一致），无需改动。
     // [b28d-solo-CBattle_Field_missing 判词 · AE] ORIG 0x0830a1f6：头建模修正
     //（m_curPos[4]/m_lastPos[4] 具名数组）后与 ORIG 逐条一致——原 m_pos[i+2]/
     // [i+6] 的 add-vs-lea 残差消除（ORIG 的 add $0x2/$0x6 + disp 0xc 与数组基址
@@ -241,6 +245,9 @@ void CBattle_Field::reset_field()
 // 从 CDataManager 的 hellparty 脚本值（float 数组）拷贝各组比例；分母 10000.0f。
 void CBattle_Field::reset_hell_party_value()
 {
+    // [round5] 六处固定字段翻正为 disp 直读；三处循环源复现 ORIG 两步寻址。
+    // 残余（NEAR）：目标侧 4.1 保留 base disp（lea 0x7c+disp 0x10）vs 4.4 折进索引
+    // （lea 0x80+disp 0）⇒ P30/N4 族封顶。
     // [b28d-round5-CBattle_Field_missing 翻正 · 判据②+P30/P311] ORIG 0x0830a57c：
     // ①固定比例字段为**权威 stHellParty_t 具名字段 disp 直读**
     //   （`mov 0x4(%eax),%edx` / `flds 0x10(%eax)` vs 旧稿 add 形，N107 五处翻正）；
@@ -252,6 +259,12 @@ void CBattle_Field::reset_hell_party_value()
     // 共 9 对 G_CDataManager/get_hellparty_script_values 调用（6 固定 + 3 循环整组）。
     // 前三个字段为整数 dword 拷贝（script[0]/[+4]/[+0xc] = m_maxBaseValue/m_minBaseValue/
     // m_baseRisingValue），与 m_hellPartyRatioN 同为 int ⇒ 直赋即 mov。
+    // [本轮收口] 六处固定字段已翻正为 disp 直读（identical 段）；三处循环源已复现
+    // ORIG 形（`add $0x4/$0x8/$0xc,%edx; flds 0x8/0x8/0xc(%eax,%edx,4)`）✓。
+    // 残余（NEAR，ndiff=10）：目标侧 4.1 保留 base disp（`lea 0x7c(%ebx),%edx;
+    // fstps 0x10(%eax,%edx,4)`）而 4.4 恒把成员偏移折进索引（`lea 0x80(%ebx),%edx;
+    // fstps (%eax,%edx,4)`）；具名直访问/视图+常数索引/头声明/块内声明四形实测，
+    // 4.4 恒折 ⇒ P30/N4 族（4.1 与 4.4 成员常量偏移寻址拆分差异），封顶。
 
     // —— 固定比例字段 ——
     m_hellPartyRatio0 = static_cast<stHellParty_t*>(
@@ -512,6 +525,10 @@ bool CBattle_Field::checkBloodSpawnOrder(short smallRound)
 void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
                                             short nextRound)
 {
+    // [round5 收口实测] ndiff=22（231/229）：ORIG 有 `mov $0x0/$0x1,%ebx` + 尾
+    // `test %ebx,%ebx`（bool 结果寄存器物化），本侧为 `jmp <尾块>`；另两处 EH cleanup
+    // 尾块相对序（我们多 PacketGuard/map_monster C1Ev/D1Ev）⇒ N91/N104 族。
+    // p167：MISSING `map_monsterC2Ev` = P93 同址别名伪差，其余 CLEAR（无语义缺口）。
     // [b28d-solo-CBattle_Field_missing] ORIG 0x08305992 逐条转写：
     // ①putCount(-0xc) 声明在 PacketGuard 之前；
     // ②ORIG 在 put_short(cnt) 之后构造一个全程未被读写的局部 map_monster
@@ -583,6 +600,9 @@ void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
 void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
                                     int timerKey, int phaseIdx)
 {
+    // [round5 收口实测] ndiff=123（285/288）：帧 0x7c vs 0x6c（+0x10）且全槽号整体
+    // 平移 0x10（形参槽 -0x5c vs -0x4c、-0x44 vs -0x3c …）⇒ N115（4.4 恒预留 16B
+    // 对齐 outgoing 区）/N126（版本首槽基址常数）族；p167 32=32 CLEAR ⇒ 无语义缺口。
     // [b28d-solo-CBattle_Field_missing 判词 · N82/N93] ORIG 0x0830553a：删 hi/tq
     // 具名局部后帧 0x7c vs ORIG 0x6c（仍差 0x10 槽基 + 3 条指令），N82 lifetime
     // 槽复用/槽基族；逐字段语义等价。
@@ -703,6 +723,10 @@ int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
     // 延后赋值」。两形实测：key 前置声明 **18→2 行差**（保留）；key 后置（cnt 之后）
     // 反劣 2→8 行（已回滚）。残余 2 行为 key 槽 -0x28 vs ORIG -0x34（0xc 错位，
     // P212/N93 块级槽方向族，无更优源形）⇒ 封 N。
+    // [本轮 round5 实测补充] ORIG 尚有 -0x30 槽 = 第 4 实参 `i+0x17` 的具名物化
+    // （0x083054b3-0x083054b9，跨 GetPartyIndex 保活，P0）；引入具名 int（头声明 +
+    // 块内声明两形）实测恒把余槽整体加深 0x10（帧 0x4c→0x5c、键槽 -0x2c）⇒ 反劣，
+    // 已回退。两件合计 NEAR(ndiff=4) 封顶（N82/N126 槽族）。
     int key;                                  // ORIG key（-0x34）
     int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
     if (cnt < 0 || 10 < cnt)
@@ -847,6 +871,10 @@ int CBattle_Field::getNextRoundDifficulty(short round)
 // ---------------------------------------------------------------------------
 bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int diff)
 {
+    // [round5 收口实测] ndiff=24（134/134）：①槽位整体浅 4（it/begin-sret/find-sret，
+    // N82/N93 块级槽族）；②循环首条件极性 `setg/jne` vs ORIG `setle/je`（4.1 的 16 位
+    // bool 物化 vs 4.4 直跳，P292/P197④ 族；while 前置形实测 12→56 反劣）⇒ 封 N。
+    // p167：16=16 CALLSITE CLEAR。
     // [b28d-solo-CBattle_Field_missing] ORIG 0x08305f50：
     // ①`int nextDiff = diff` 具名槽 -0x18（P0 槽往返）仅供首次调用；
     // ②short result(-0x12) 预清 0；③GetCurrentMapInfo 每用点重调（begin/end/

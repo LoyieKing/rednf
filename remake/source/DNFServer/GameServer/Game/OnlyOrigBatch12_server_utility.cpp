@@ -205,6 +205,10 @@ const char* const AVTVARIATION_TAG_NAME[47] = {
 unsigned int importRecommendNewbieOptionScript(
     const char* path, tagRecommendNewbieOptionTable& out)
 {
+    // [round5 收口实测] ndiff=551（1138/1133，gap=-5）：p167 118=118 且差集仅
+    // C1↔C2/D1↔D2 别名对（P93 伪差）⇒ 无语义缺口。残余为槽位族：string 组浅 4
+    // （-0x8c vs -0x90）、running/标志浅 8（-0x49 vs -0x51）、若干语句序（P112/N82/
+    // N93 + P75 装载序），与既有判词一致 ⇒ 维持 N 封顶，本轮无更优源形。
     if (!loadRDARScriptFile("", path))                      // 890458f movl $""（空基目录实参）
         return 0;                                           // 89045a2 esi=0
     out.clear();                                            // 89045b2

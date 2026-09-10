@@ -36,7 +36,6 @@ namespace stagemap
 struct StageData
 {
     StageData();
-    ~StageData();
     void clear();
 
     int m_field0;  // +0x00
@@ -104,10 +103,6 @@ struct StageMapScript
     std::string m_mapImage;             // +0x10, [map image]
     std::vector<AreaData> m_areaVec;    // +0x14, [area] list
 };
-
-StageData::~StageData()
-{
-}
 
 StageData::StageData()
 {
@@ -243,15 +238,13 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
             goto scan_next;
         }
 
-        // [本波·P222] p167 EXTRA operator!=(string,char const*) / MISSING
-        // operator==×1 ⇒ ORIG 用 `==` 形式（我方原写 `!=` 选错重载）。
-        if (!(token == "[area]"))
-            goto scan_next;
-
+        // [P222] 正向包裹：ORIG 0x088aa051 为 `test %al,%al; je <loop_head>`
+        // （无 xor 物化）；写 `if (!(...)) goto` 会让 4.4 先 xor $1 再分支。
+        if (token == "[area]")
+        {
         // The first [area] integer is special: a failed scan selects the
         // ORIG fatal/finalize path (ebx=0), rather than merely ending this
         // area.  The lexical scope still destroys AreaData as ORIG does.
-        {
             std::string areaToken;
             stagemap::AreaData area;
             area.clear();
@@ -335,13 +328,13 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
                             if (area.m_slots.find(slot.m_field0) ==
                                 area.m_slots.end())
                             {
-                                register stagemap::SlotType& dst =
-                                    area.m_slots[slot.m_field0];
-                                dst.m_field0 = slot.m_field0;
-                                dst.m_field4 = slot.m_field4;
-                                dst.m_field8 = slot.m_field8;
-                                dst.m_fieldC = slot.m_fieldC;
-                                dst.m_field10 = slot.m_field10;
+                                stagemap::SlotType* dst =
+                                    &area.m_slots[slot.m_field0];
+                                dst->m_field0 = slot.m_field0;
+                                dst->m_field4 = slot.m_field4;
+                                dst->m_field8 = slot.m_field8;
+                                dst->m_fieldC = slot.m_fieldC;
+                                dst->m_field10 = slot.m_field10;
                             }
                         }
                         continue;
@@ -403,6 +396,7 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
                 }
             }
         }
+        goto scan_next;
     }
 
 finish:

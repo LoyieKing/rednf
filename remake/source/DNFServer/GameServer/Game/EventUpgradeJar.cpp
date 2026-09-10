@@ -309,8 +309,19 @@ bool Event_Upgrade_Jar::isNewNPC() const
 // 段：`[group info]`（npcCount + 索引 map + 配方 map）、`[fortune index]`（材料索引）、
 // `[fortune fail rate]`（分段失败率）、`[event upgrade table]`（折扣率 + NPC 脚本）、
 // `[upgrade max]`。任一 Scan 失败返回 false（0）。
-// [b28d-solo-EventUpgradeJar] N 封顶：ORIG 405 insn / 我方 404 insn，p167 调用点
-// 43/43 CLEAR（--demangle），残余为跨版本结构性差异：① 4.4 对本函数**大 body**
+// [b28d-solo-EventUpgradeJar] N 封顶：ORIG 405 insn / 我方 404 insn（round5：
+// 402→404），p167 调用点 43/43 CLEAR（--demangle），残余为跨版本结构性差异：
+// [round5 两项归位] ①槽位：ORIG 全帧槽号比原版我方**统一深 4**（token -0x6c vs
+// -0x68、ok -0x71 vs -0x6d、id -0x78 vs -0x74、npc -0x80 vs -0x7c）而两侧 sub
+// 同为 $0x90 ⇒ 差在槽基（N95）。在函数头补 4B 死局部 `int slotBasePad;`
+// （P232：4.4-OO 对未使用局部照样占栈）后深区逐槽与 ORIG 全等；同法在标量区
+// 补第二个 pad **反效**（深区被推深 4 而 recipeIndex 不动）已回退 ⇒ 标量区
+// （recipeIndex -0x28 vs ORIG -0x2c）属 P212/N98 不可移。②[fortune fail rate]
+// 原 `while ((groupIdx = ScanInt(&ok), ok == true))` 产 `test; jne`（无 xor）⇒
+// 改 `for(;;){ groupIdx = ScanInt(&ok); if (!ok) break; ... }` 复现 ORIG 的
+// `movzbl ok; xor $0x1; test %al,%al; je`（P168a②/P292 档①），402→404。
+// 残余 1 条 + 4 个 ORIG `nop` 中继岛（P223 空 then 占位）：
+// ① 4.4 对本函数**大 body**
 // 的段分支反转布局（`jne <body>; jmp 循环头` vs ORIG `je <下一段>; body; jmp 循环头`；
 // 小 body 探针 /tmp/eu_probe9.cpp f/g/h 三形均产 ORIG 形 ⇒ 属 4.4 reorder-blocks
 // 启发式，非源形可控；__builtin_expect 实测反劣 404→407）；② 槽位分配

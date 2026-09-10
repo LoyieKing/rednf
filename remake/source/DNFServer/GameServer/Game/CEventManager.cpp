@@ -231,16 +231,22 @@ void CEventManager::dailyresetData()
 
 // b28d-solo-CEventManager: [N 封顶] P292 档① 已修——ORIG 两处调用点均
 // `call; test %al,%al; je`（无 setne）⇒ 返回类型改 bool（TriggerEventStart/End
-// 同步归位）。本体 ORIG 0x08115bf4：78 vs 82（本轮 84→82）。P222 正向包裹
-// `if (channel <= 0x10) { … } return 0;` 已复现 ORIG 的 `ja <共享尾 mov$0>` 方向
-// （旧 `if (channel >= 0x11) return 0;` 生反极 `jbe` + 独立 mov$0 块）。
-// 残余 N 三项：①ORIG 的 A/C/B 体置函数尾部（`and/test; jne A`）vs 4.4 fall-through
-// 内联（`je 跳过`）——跨版本块排布（N3/N93附族；goto 尾标签形实测 87 条/8 个
-// nop;jmp 岛反劣，已回退）；②ORIG 内部 return 0 全共享函数尾 `mov $0` 块 vs 4.4
-// 各自内联（N93附尾部 return 块发射序）；③channel/bit ORIG 全程无栈槽且 channel 留
-// %eax、bit 经 %edx 中转 and——4.4 落 channel=%ebx/bit 重载（N7 寄存器分配）。
+// 同步归位）。本体 ORIG 0x08115bf4：78 vs 79（round5：82→79，残 1 条）。P222
+// 正向包裹 `if (channel <= 0x10) { … } return 0;` 已复现 ORIG 的 `ja <共享尾 mov$0>`
+// 方向（旧 `if (channel >= 0x11) return 0;` 生反极 `jbe` + 独立 mov$0 块）。
+// [round5] 本轮试形与实测（每形均 check_tu_routed 复算）：
+//  ①纯 return 版（4 个独立 `mov $0` 块）= 82；②全 goto 尾标签 = 85（4.4 给每个
+//    case 组各生 `nop;jmp` 岛：段1 4 岛 vs ORIG 1 岛）；③全 break+goto = 75
+//    （case 直接跳、0 岛）；④**混合**（段1 break→1 岛，段2/段3 goto→3 岛/1 岛）
+//    = **79**，岛数与 ORIG 的 1+3+1 逐段全等 ⇒ 取此形。
+// 残余 1 条 = channel 寄存器角色（N7）：ORIG 的 register 值留 %eax
+// （`cmp $0x10,%eax` / `mov %eax,%ecx`），4.4 把 register 变量落 %ebx ⇒ 多
+// `mov %eax,%ebx`+`mov %ebx,%eax` 两条，而掩码区段1 少 `mov %eax,%edx` 复制、
+// 段3 多 `mov %ebx,%eax` 恢复（净 +1）。已试并回退：去 register（槽化）、
+// 三档类型旋钮（P248）、`==`/`!` 极性、goto/break 形。块体物理序 A/C/B（ORIG）
+// vs A/B/C（我方）同属该族。
 // P56 直分支形 + P133 独立守卫已应用。
-// b28d-solo 双后端实测：4.4.7 DIFF（78 vs 82）/ 4.4.6 后端 DIFF（后端不敏感）。
+// b28d-solo 双后端实测：4.4.7 DIFF / 4.4.6 后端 DIFF（后端不敏感）。
 bool filterEvent(int type)
 {
     if (type == 2)
@@ -472,9 +478,16 @@ bool CEventManager::TriggerEventEnd(int idx)
 //   119 CEventAdvanceAltarOpen 116 CAradRyosikaEvent 155 Arad_MomijiEvent
 //   158 LevelupSupportEvent 159 CEventStayTime 160 CEventCreateDnf
 //   165 EventGiveMeBox
-// §6.2 巨件核销：P167 153/153 [0缺0多]；gap 927→927；残差归因 N 类
-// （4.1 bool 取反物化 xor$1/test/je+块序 fall-else 在前 vs 4.4 test%al+jne，
-// 详见 docs/asm_translation_patterns.md 负例表；try/catch joiner 与槽位一致）。
+// §6.2 巨件核销：P167 153/153 [0缺0多]；gap 927→927。
+// [round5 归零] 原残余尾部 7 条（缺 `xor $0x1,%eax` 段 + 两臂块序）。真因 =
+// 「汇聚变量」：ORIG 的 if 在 **try 体内**、两臂写 4 字节 `mov $0x0/%0x1,%ebx`，
+// catch 体同写 `mov $0x0,%ebx` 并 fall-through 到 0x08115977 `mov %ebx,%eax`
+// ⇒ 变量为 **register int**（非 bool 局部：不占槽、不物化 movb），函数返回类型
+// 为 **int**（尾块无 bool 归一化 setne，P9/P159）。改法：`register int result;`
+// 裸声明（零发射）+ `if (!LoadEventFromDB()) result = 0; else result = 1;` 移入
+// try 内 + `return result;`；同步 CGuildServerProxy.h 返回类型 bool→int
+// （mangled 不含返回类型、全仓无调用点 ⇒ 零 ABI 风险）。实测 927=927（AE 归位，
+// TU diff 3→2）。
 int CEventManager::InitEventManager()
 {
     // b28d-solo-CEventManager: [N82/N80 封顶] §6.2 三件套已验——①gap=0（927=927）；
@@ -570,6 +583,10 @@ bool CEventManager::LoadEventFromDB()
     // 均不可翻（P182/N95）。变参寄存器已对齐 %edi/%esi/%ebx（P87）。
     // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 NEAR（槽平移非后端敏感，
     // 与 N7 不同族）。
+    // [round5 复测] 槽位序：ORIG db=-0x24 / ok=-0x25（ok 紧贴 db 之下）而 4.4
+    // 旧形 db=-0x28 / ok=-0x21（ok 反落在 db 之上）⇒ 试把 `bool ok;` 声明提前
+    // 到 db 之前（4.4 对函数头声明按「先声明深」分配，P309/P331）。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect event_type, parameter1, parameter2 from dnf_event_log where "
@@ -578,7 +595,6 @@ bool CEventManager::LoadEventFromDB()
         G_CEnvironment()->m_serverEnvir.m_serverGroup);
     cMyTrace traceEnter(__PRETTY_FUNCTION__, 0x296, 9, true, true);
     traceEnter("[!] Load Event From DB");
-    bool ok;
     ok = db->exec(true);
     if (!ok)
         return false;

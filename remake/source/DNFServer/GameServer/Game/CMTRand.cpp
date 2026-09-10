@@ -1,5 +1,11 @@
 // ============================================================================
 // df_game_r CMTRand 还原（G2-5 批次，MT19937，尺寸 0x9c8）。
+// [2026-09-10 round5 复核] 本 TU 三件（seed/hash/reload）全部为 §6 通用算法类
+//   （MT19937 init_by_array / hash / reload）：判词维持 N——seed 129 vs 103
+//   （ORIG 用寄存器承载 i/j/k + `cmp $0x270,%eax; jae` 分支形，已加纯 register
+//   i/j/k 后 104→103；4.4 仍产 cmovae，-march=i486/-mtune=generic A/B 实测本 TU
+//   计数不变）、reload 59 vs 81（ORIG 内联 twist + 寄存器指针遍历）、hash 54 vs 50
+//   （ORIG 全栈槽形，加 register 反劣 54 条/ndiff 12→58 ⇒ 已回退）。算法正确性优先。
 // 无独立报告，按 ORIG 反汇编逐函数转录：
 //   C1/C2(const unsigned long&) 080cba2a / C1/C2() 080d9f48
 //   randInt() 080cba46 / randInt(const unsigned long&) 080cbabe

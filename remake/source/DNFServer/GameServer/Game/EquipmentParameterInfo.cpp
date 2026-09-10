@@ -5962,41 +5962,45 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
     // [active status]：名称段 16 条常量 fwrite（ORIG 0x89adb49..0x89ade98：
     // switch(m_activeStatusType)+逐条 fwrite(str,1,len,file)，无参数字符串不
     // 经 fprintf）＋ 值/等级共享尾（0x12 不输出名称段）。
+    // [A18 本波 真语义修正] ORIG 比较常量序实证（0x089add6d..0x089ade75）：
+    // 0..0xa, **0x11**, 0xb, 0xc, 0xd, 0xe —— 旧实现把 armor break 挂在 0xb 并把
+    // bleeding/haste/bless/element 顺移一格（11..15）⇒ 名称/索引整体错位。
+    // 且 ORIG 无具名 t 缓存（`mov 0x144(%eax),%eax; test/cmp $K,%eax` 每链直读，
+    // P157/P183）⇒ 删 `int t`。
     {
-        int t = info->m_activeStatusType;
-        if (t == 0)
+        if (info->m_activeStatusType == 0)
             fwrite("[active status] `[slow]`", 1, 0x18, file);
-        if (t == 1)
+        else if (info->m_activeStatusType == 1)
             fwrite("[active status] `[freeze]`", 1, 0x1a, file);
-        if (t == 2)
+        else if (info->m_activeStatusType == 2)
             fwrite("[active status] `[poison]`", 1, 0x1a, file);
-        if (t == 3)
+        else if (info->m_activeStatusType == 3)
             fwrite("[active status] `[stun]`", 1, 0x18, file);
-        if (t == 4)
+        else if (info->m_activeStatusType == 4)
             fwrite("[active status] `[curse]`", 1, 0x19, file);
-        if (t == 5)
+        else if (info->m_activeStatusType == 5)
             fwrite("[active status] `[blind]`", 1, 0x19, file);
-        if (t == 6)
+        else if (info->m_activeStatusType == 6)
             fwrite("[active status] `[lightning]`", 1, 0x1d, file);
-        if (t == 7)
+        else if (info->m_activeStatusType == 7)
             fwrite("[active status] `[stone]`", 1, 0x19, file);
-        if (t == 8)
+        else if (info->m_activeStatusType == 8)
             fwrite("[active status] `[sleep]`", 1, 0x19, file);
-        if (t == 9)
+        else if (info->m_activeStatusType == 9)
             fwrite("[active status] `[burn]`", 1, 0x18, file);
-        if (t == 10)
+        else if (info->m_activeStatusType == 10)
             fwrite("[active status] `[weapon break]`", 1, 0x20, file);
-        if (t == 11)
+        else if (info->m_activeStatusType == 0x11)
             fwrite("[active status] `[armor break]`", 1, 0x1f, file);
-        if (t == 12)
+        else if (info->m_activeStatusType == 11)
             fwrite("[active status] `[bleeding]`", 1, 0x1c, file);
-        if (t == 13)
+        else if (info->m_activeStatusType == 12)
             fwrite("[active status] `[haste]`", 1, 0x19, file);
-        if (t == 14)
+        else if (info->m_activeStatusType == 13)
             fwrite("[active status] `[bless]`", 1, 0x19, file);
-        if (t == 15)
+        else if (info->m_activeStatusType == 14)
             fwrite("[active status] `[element]`", 1, 0x1b, file);
-        if (t != 0x12)   // ORIG 0x89adea6：共享值尾（0x12 无名段亦无值段）
+        if (info->m_activeStatusType != 0x12)   // ORIG 0x89adea6：共享值尾（0x12 无名段亦无值段）
             fprintf(file, " %.2f %d\n",
                     (double)info->m_activeStatusValue, info->m_activeStatusLevel);
     }

@@ -53,6 +53,11 @@ void seriaDecoObjectInfo::clear()
 bool importSeriaRoomDecoEventObjectList(seriaRoomDecoEventObjectListScript* s,
                                         const char* path)
 {
+    // [round5 收口实测] ndiff=195（263/262）且 shift.py=MIXED：主体为**整体 +8 平移**
+    // （token -0x5c→-0x54、tmpStr -0x60→-0x58、info -0x78→-0x70、key -0x7c→-0x74；
+    // 两侧帧同为 0x90）⇒ 4.4 outgoing 对齐区/首槽基址常数族（N115/N126）；
+    // 余项为 STL 临时/分配器槽（-0x51 vs -0x75，P86/P89 族）。p167：32 调用点
+    // （ScanType/ScanStr/ScanInt/insert pair/dtor 链）两侧 CLEAR ⇒ 无语义缺口，封 N。
     if (!loadRDARScriptFile("", path))
         return false;
     if (s == 0)

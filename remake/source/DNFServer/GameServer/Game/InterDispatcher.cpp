@@ -7954,7 +7954,7 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
 
     Inter_ReplyGuildInviteToCallerPktView* pPkt = reinterpret_cast<Inter_ReplyGuildInviteToCallerPktView*>(data);
     // ORIG 0x084d2f**：m_a/m_12 各处独立 reload（P48 无 CSE，无具名槽）。
-    if (pPkt->m_a != user->get_charac_no(-1))
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -12941,6 +12941,25 @@ struct Inter_NoticeGuildCargoPktView
     char m_pad12[0x18d8];  // 未消费
     unsigned int m_18ea;      // +0x18ea
 };
+// 载荷元素 stride 0x35（ORIG 0x084dd4xx 循环 `imul $0x35,%eax,%eax; lea (%edx,%eax,1)`）；
+// 元素内 +0x10 起的载荷子结构必须具名，否则 4.4 把 +0x10/+0x3 折成单条 `add $0x13`
+//（ORIG 保留 `add $0x10,%eax; mov 0x3(%eax)` 两步 —— 与 SetIPCount 同族判据）。
+struct Inter_NoticeGuildCargoBody
+{
+    char m_bytes[0x25];   // +0x10..+0x34 载荷字节区（put_binary 源 = 本区 +0x2）
+};
+struct Inter_NoticeGuildCargoEntry
+{
+    char m_pad10[0x10];              // 元素内 +0x00..+0x0f
+    Inter_NoticeGuildCargoBody m_body;   // 元素内 +0x10
+};
+static_assert(sizeof(Inter_NoticeGuildCargoEntry) == 0x35, "NoticeGuildCargoEntry stride");
+// body 内 +0x3 的 4 字节字段等址视图（ORIG `add $0x10,%eax; mov 0x3(%eax),%eax`）
+struct Inter_NoticeGuildCargoTail
+{
+    char m_pad3[3];
+    int m_3;
+};
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=115（ORIG 0x084dd4b2）：寄存器中转(N18a/N7)+混合残差；gap+5。
@@ -12974,10 +12993,18 @@ int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_short(putCount);
     for (int i = 0; i <= 0x77; ++i)                  // asm cmpl $0x77, setle
     {
-        if (*reinterpret_cast<int*>(data + i * 0x35 + 0x13) != 0)
+        // ORIG 循环 `mov -0x14(%ebp),%edx` 基址取自具名槽（非 0x10(%ebp) 形参槽）⇒
+        // 元素访问经同一具名 base（pPkt）而非形参，避免第二指针槽（P89/P0）。
+        // ORIG `mov -0xc(%ebp),%eax; mov -0x14(%ebp),%edx; imul $0x35,...`（先装 i 后装
+        // base）⇒ 索引写在指针运算左（i + base），base-first 形恒反序（P218 同族）。
+        if (reinterpret_cast<const Inter_NoticeGuildCargoTail*>(
+                (i + reinterpret_cast<const Inter_NoticeGuildCargoEntry*>(pPkt))
+                    ->m_body.m_bytes)->m_3 != 0)
         {
             packet.put_short((short)i);              // ORIG `cwtl`（源码 (short) 截断）
-            packet.put_binary(data + i * 0x35 + 0x12, 0x35);
+            packet.put_binary(
+                (i + reinterpret_cast<const Inter_NoticeGuildCargoEntry*>(pPkt))
+                    ->m_body.m_bytes + 2, 0x35);
             ++putCount;
         }
     }
@@ -16601,7 +16628,11 @@ struct Inter_MonitorNoticeGuildChatMsgHyperLinkPktView
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
     char m_pad13[0x1d];  // 未消费
     unsigned char m_30;       // +0x30
-    char m_pad31[0x138];  // 未消费
+    // ORIG 0x084e51xx 循环体走数组寻址 `imul $0x68 → add $0x30 → add 基址槽 → add $0x1`
+    //（结构位移 0x30 + 元素首字段 0x1 两步；Member 版同配方 probe addr4 t18 实证）。
+    struct ItemView { char m_0[1]; char m_pad[0x67]; };  // stride 0x68
+    ItemView m_items[1];      // +0x31 链接项区（实际个数=m_30；容量未建模）
+    char m_pad31[0xd0];  // 未消费
     unsigned char m_169;      // +0x169
     char m_16a[1];            // +0x16a 串/字节区首元素（容量未建模）
 };
@@ -16645,7 +16676,7 @@ int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* da
          i < (int)(unsigned int)pPkt->m_30;
          ++i)
     {
-        packet.put_binary(data + i * 0x68 + 0x31, 0x68);
+        packet.put_binary(pPkt->m_items[i].m_0, 0x68);
     }
     packet.finalize(true);
     user->Send(packet);
