@@ -3169,7 +3169,9 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
             ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
         i = GlobalData::s_guild_proxy_mgr->GetNextIndex(index);
     L_cond_g:
-        if (i < GlobalData::s_guild_proxy_mgr->GetEndIndex())
+        // ORIG 084c8e3a `mov -0x18(%ebp),%edx; cmp %edx,%eax; setg`：条件测的是
+        // index（GetNextIndex 引用更新者，取址 ⇒ 载入寄存器），非 i。
+        if (GlobalData::s_guild_proxy_mgr->GetEndIndex() > index)
             goto L_body_g;
     }
     else if (pPkt->m_a == '\xc9')
@@ -3184,7 +3186,7 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
             ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
         i = GlobalData::s_monitor_proxy_mgr->GetNextIndex(index);
     L_cond_m:
-        if (i < GlobalData::s_monitor_proxy_mgr->GetEndIndex())
+        if (GlobalData::s_monitor_proxy_mgr->GetEndIndex() > index)
             goto L_body_m;
     }
     return 0;
