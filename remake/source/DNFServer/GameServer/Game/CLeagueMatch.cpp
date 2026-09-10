@@ -194,6 +194,41 @@
 //      符号按 ORIG 归属迁到消费 TU，非语义回退；diff/near/missing 全不变；
 //      Main 已裁决保留）。
 //   · 真语义 bug：本轮 0 新增；本 TU 剩余真缺口 = 0。
+//
+// [SweepLeagueMatch3·判据① 全 TU jcc/jmp 目标下标逐位比对 + 前 20 件复核]
+// 口径 = check_tu_routed.sh 新鲜 .o（4.4.6 路由）+ 自研双侧目标下标/块指纹
+// （/tmp/lane11_jccidx.py、/tmp/lane11_blockfp.py、/tmp/lane11_align.py）。
+//   · 判据①（19 件逐位）：14 件 flow **完全全等**（CheckMatchable/GetGap/GetUser/
+//     OnEndFight/GetSchoolNo/OnLeaveRoom/OnWalkOut/_RegisterWaitingRoom/
+//     _MakeRoom/_ReturnTeam/_CheckMatchable/addBadge/TeamInfo add·del·refresh·size）；
+//     5 件有差异，逐件核目标块内容后全部语义等价：
+//     ① _PutInRoom：ORIG 两出口分支尾各 `mov -0x1c(%ebp),%ebx; jmp <尾块>`
+//        （+0xaf/+0xf5），我方合并为尾块头单条 mov + else 侧直落 ⇒ 少 2 条
+//        （N104）；两侧目标块（lea -0x18; call D1; mov %ebx,%eax; …）逐条等价。
+//     ② OnCompleteLoad / _SendMatchStatePacket：恒定 +2 下标漂移 = 两处 ORIG
+//        4.1 冗余 `mov %R,%R`（0x70 族 expand_mult）；目标块逐条全等。
+//     ③ TeamInfo::reset：gap 1（我方 N-STRIDE 多一条 `mov %edx,%eax` 中转），
+//        jmp/jne 目标块（cmpl $3 / mov -0xc,%eax）全等。
+//     ④ OnMatchRoom：148/155 `jg↔jl` 为 cmp 操作数反向折叠（落点同为
+//        mov $1 / mov $0）；160/161 差 1 由 badSize 具名槽（下）。
+//   · **本轮改动（净收益）**：OnMatchRoom badSize 两处比较操作数序翻正——
+//     ORIG 0x0855df26..df2d 段实证为「先 call size()/get_player_count()、
+//     后 `movzbl 0x93abb74`」，即原码写 `call(...) > (int)nPlayerCountPerOneTeam_`
+//     （call 在左）；我方原写 `<` 使全局读先物化（倒数第二操作数先算）。
+//     改后 141..158 段与 ORIG 逐条全等（仅 N95 槽基 8 与 .o reloc 伪差），
+//     单件 canon 未匹配 81→75（lane11_align）；p167 29/29 CLEAR（差集仅
+//     C1/C2 同址别名 P93）。语义等价（`size() > n` ⟺ `n < size()`）。
+//   · **实测回滚**：badSize 加裸 `register`（P231 提示形）⇒ 我方 159-161 变
+//     `mov %eax,%ebx; test %bl,%bl`（免槽但多 1 条 regmove；ORIG 为
+//     `test %al,%al` 单条），四数/canon 零净收益 ⇒ 回滚；ORIG 该处无槽属
+//     4.4 具名 bool 局部恒落槽（N82/P332），S408 已试 P226 语句表达式反劣。
+//   · missing_in_game=17 全量核销：17 个全为 **C1/C2、D1/D2 同址别名**
+//     （ORIG nm 实证：C2Ev≡C1Ev@0x0855cd74、D2Ev≡D1Ev@0x0855ce4c、
+//     PVP_ROOM_INFO@0x08568f16/5c、Packet_PvPResult@0x08568dc6、IMatch/
+//     IRoomList/CLeagueMatchRoomList 及 STL allocator/map/Rb_tree 的 C2·D2），
+//     反汇编缓存按地址去重丢名 ⇒ P93 伪差，0 真缺口。
+//   · 四数（不回退）：identical=43 ae=61 near=1 diff=18 missing_in_game=17。
+//   · 真语义 bug：本轮 0 新增；本 TU 剩余真缺口 = 0。
 // ============================================================================
 
 #include "CLeagueMatch.h"
@@ -614,8 +649,8 @@ int CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
     }
 
     bool badSize =
-        ((int)nPlayerCountPerOneTeam_ < m_teamA.size()) ||
-        ((int)nPlayerCountPerOneTeam_ < theirRoom->get_player_count());
+        (m_teamA.size() > (int)nPlayerCountPerOneTeam_) ||
+        (theirRoom->get_player_count() > (int)nPlayerCountPerOneTeam_);
     if (badSize) {
         cMyTrace(__PRETTY_FUNCTION__, 0x2ca, 0)(
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x2ca);
