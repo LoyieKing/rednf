@@ -1932,8 +1932,11 @@ bool CItemList::load_item_files()
             if (pStack->m_lotto.m_items.size() !=
                 pStack->m_lotto.m_counts.size())
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x94f, 5);
-                trace("Stackable item set_item fail (file [%s])", path);
+                // [L13-b14 P227] ORIG 在 cMyTrace C1 call **之前**右起求 varargs 并
+                // 跨 ctor 保活 callee-saved；两语句形（具名 trace）4.4 只在 ctor
+                // 后求实参 ⇒ 少 push/帧偏小。改全表达式临时链复现。
+                cMyTrace(__PRETTY_FUNCTION__, 0x94f, 5)(
+                    "Stackable item set_item fail (file [%s])", path);
                 return false;
             }
         }
@@ -1942,8 +1945,9 @@ bool CItemList::load_item_files()
             if (pStack->m_lotto.m_items.size() !=
                 pStack->m_lotto.m_counts.size())
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x957, 5);
-                trace("Stackable item set_item fail 2 (file [%s])", path);
+                // [L13-b14 P227] 同上（ORIG 0x8511xxx 段）。
+                cMyTrace(__PRETTY_FUNCTION__, 0x957, 5)(
+                    "Stackable item set_item fail 2 (file [%s])", path);
                 return false;
             }
         }

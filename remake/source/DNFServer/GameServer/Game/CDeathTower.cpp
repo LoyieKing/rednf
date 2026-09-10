@@ -1512,6 +1512,13 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
                     routedTurn = 0;
                 }
                 int local_24 = 0;
+                // [判据⑩/P331] ORIG 槽序（深→浅）：result(-0x2c)/isFromMap(-0x25)/
+                // routedTurn(-0x24)/local_24(-0x20)/**maxC(-0x1c)**/i#1(-0x18)/i#2(-0x14)
+                // ⇒ maxC 是 int（`movl $0,-0x1c` 清零 + `cmp -0x1c,%eax` 32 位比较，
+                // T1 直证）；声明位置按 ORIG 清零点（第二循环前）。
+                // [判据①/T1 直证] ORIG 0x0846?? 该槽清零为 `movl $0x0,-0x1c`（4 字节）
+                // 且比较为 `movsbl %al,%eax; cmp -0x1c(%ebp),%eax`（32 位内存比较）
+                // ⇒ maxC 是 **int**（旧 char 使 4.4 落 1 字节槽 -0x19 + 8 位 cmpb）。
                 for (int i = 0; i < 4; ++i)
                 {
                     // [判据①] ORIG 循环体首 `movl $0x0,-0x14` ⇒ member 两段式
@@ -1523,10 +1530,13 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
                     if (!m_playData.isMemberAlive(i))
                         continue;
 
-                    CInventory* invenR = (CInventory*)member->getCurCharacInvenR();
+                    // [判据①/P0] ORIG 0x08466e5e `call getCurCharacInvenR; mov %eax,%edx`
+                    // （结果在 %edx 跨 Inven_Item 实参复制保活，**无栈槽**；旧具名
+                    // invenR 使 4.4 多发 `mov %eax,-0x14; mov -0x14,%eax` 一对 + 全帧 +4）
+                    // ⇒ receiver 内联。
                     // [判据①] ORIG 0x08466e9c `cmp $0xffffffff,%eax; sete %al; test
                     // %al,%al; jne 循环尾`：ins 无具名槽（P0 直比 + sete 物化）⇒ continue。
-                    if (invenR->tryInsertItemIntoInventory(item.m_item) == -1)
+                    if (member->getCurCharacInvenR()->tryInsertItemIntoInventory(item.m_item) == -1)
                         continue;
 
                     countBuf[i] += 1;
@@ -1546,7 +1556,7 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
                     countBuf[i] += get_rand_int(100 - countBuf[i]);
                     local_24 += 1;
                 }
-                char maxC = 0;
+                int maxC = 0;
                 for (int i = 0; i < 4; ++i)
                 {
                     CUser* member = 0;

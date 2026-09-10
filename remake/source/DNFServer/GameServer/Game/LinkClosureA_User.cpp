@@ -395,6 +395,8 @@ void CUser::CalculateExpertJobMaterials(
 
     // b28d-66 [N86]：ORIG 迭代器 = 先声明（C1Ev ×2）后赋值（begin 经 -0x3c 临时中转
     // 再 mov 拷贝到 -0x2c/-0x30），非 4.4 的拷贝初始化直构。
+    // [G5 2026-09-10 判据⑩试验·无效] 交换 ci/mi 声明序（期望翻转后置 ++ 的 sret 临时
+    // -0x10/-0x14 相对序）实测四数不变（31/40/2/5）⇒ 已回滚，维持原声明序。
     std::vector<std::pair<int, int> >::iterator ci;         // [-0x2c]
     std::vector<std::pair<int, int> >::iterator mi;         // [-0x30]
     ci = reduced.begin();

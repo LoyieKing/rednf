@@ -1310,6 +1310,11 @@ int reseal_table_t::get_reseal_cost(unsigned char param_1,
         return -4;
 
     // (param_2-1)/10（0x66666667 乘法魔数 → 无符号除 10 的 32 位无符号截断）
+    // [本波实测] S1 一次性旋钮：idx 改 unsigned（与 size() 同型）**劣化**——
+    // 除法由有符号魔数（`imul $0x66666667; sar $0x2; sar $0x1f` 修正链）退化为无符号
+    // `mul`，且新增 `mov %eax,-0x2c` 中转槽（帧 0x38→0x48）；已回滚。
+    // ⇒ 残余 2 条（`cmp -0xc(%ebp),%eax` mem 直比 vs 4.4 `mov -0xc,%edx; cmp %edx,%eax`）
+    // 归 N（P209：4.4 对 unsigned 比较恒载寄存器；ORIG 0x08900b86 为无符号 mem 直比）。
     int idx = (param_2 - 1) / 10;
     if (m_vec.size() <= idx)      // setbe → vector::size() <= idx（ORIG 0x08900b86 mem 直比 dst=eax）
         idx = (int)m_vec.size() - 1;   // 取末元素
@@ -1788,6 +1793,12 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
     if (!(loadRDARScriptFile("", path)))
         return 0;
 
+    // [本波] P223 多岛形（不同落点物理连续标签）：ORIG 0x0889b70e/0x0889b711
+    // 为两个相邻岛（`nop; jmp 0x0889b712` 与 `nop`），分别被 0x0889b887/0x0889b8a2
+    // 的 `jne` 后跳命中（目标 +0x42/+0x45 不同）⇒ 源码写两条独立 `goto` 到
+    // 循环头前的连续空标签（标签序 = 守卫序），替代 `continue`（4.4 恒 je+jmp）。
+    LoopIsland1:;
+    LoopIsland2:;
     for (;;)
     {
         if (!(ScanType(token, true)))
@@ -1831,12 +1842,11 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
         else
         {
             // ORIG 0x0889b885/0x0889b8a2：`test %al,%al; jne <循环头岛>` 正极性
-            // ⇒ continue/嵌套包裹/goto 尾标签三形 4.4 实测恒产反极性 je+jmp（P222/P223
-            // 均不翻），保留语义等价的最短形。
+            // ⇒ 用 goto 到循环头前的连续空标签（P223 多岛：不同落点可造）。
             if (token == "[/gage up rate]")
-                continue;
+                goto LoopIsland1;
             if (token == "[/gage upgrade cost percent]")
-                continue;
+                goto LoopIsland2;
             (void)(token == "[/daily refill ticket]");
         }
     }
@@ -2327,6 +2337,13 @@ advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
 // [b28d-solo-CDataManagerScripts-5 复核] fresh orig 386 / ours 374；p167 48/48
 // （差集全为 C1/C2·D1/D2 同址别名 P93 伪差）；jcc 30/30、逐位错位 10（岛/块序所致，
 // 两侧同序号 jcc 语义指令均存在，无极性反写）⇒ 维持 N。
+// [本波 fresh 复核 · 硬证据] orig 373 / our 367（我方少 6 条），ORIG-only
+// {xor:2, jmp:4}。ORIG 报告 `## 汇编` 0x0889b044..0x0889b05c 有 **9 条连续 jmp
+// 全部指向同一目标 0x0889b05f**（每 3 字节一条，+0x94/+0x97/…/+0xac）＝ 4.1 为
+// 每个 `continue` 各发一条独立岛；4.4 恒 jump-thread 合并（P223 边界：同落点
+// 多岛不可造，仅「不同落点连续尾标签」可造）。同族 2 条 xor 为 `while(ScanType)`
+// 条件形差（P292 表反例：改 for+if(!) 经 regen 件实测劣化 raw 300→301，已回滚）。
+// ⇒ 判 N（4.1 多岛 vs 4.4 merge，ORIG 0x0889b044..0x0889b05c 实证）。
 int advancealtar::RewardParameter::importAchievementRewardParameter(
     const char* path)
 {

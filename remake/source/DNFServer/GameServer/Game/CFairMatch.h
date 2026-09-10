@@ -120,7 +120,10 @@ public:
     static void SetMatchAble(bool able);                     // 0x8562b96（写静态 bMatchable_）
     void UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                      ENUM_SCHOOL_MATCH_TEAM team, int a, int b, int c);  // 0x8565700
-    int  CheckRematch(PvP_Room* room);                       // 0x8565d04
+    // [b28f-SweepCFairMatch P248档①/P292] 返回 int→bool：ORIG OnRematchTimeout 调用点
+    // 0x0856678x `call; xor $0x1,%eax; test %al,%al; je`（bool 直推导数）；写 `==1`
+    // 恒产 `cmp $1,%eax; sete %al`。返回类型不入 mangled/布局 ⇒ 零 ABI 影响。
+    bool CheckRematch(PvP_Room* room);                       // 0x8565d04
     // ORIG 0x8562bdc 首参读 0x8(%ebp) 且全程无 this 参与 ⇒ static 成员
     //（P245；mangled 不含 static，符号不变）。b28d-L8 实证。
     static int  CheckUnusableEquipment(const Inven_Item* item);

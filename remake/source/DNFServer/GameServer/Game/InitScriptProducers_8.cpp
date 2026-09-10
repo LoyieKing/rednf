@@ -600,7 +600,8 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
     for (;;)
     {
         if (!ScanType(token, true))
-            return true;                               // EOF → 成功
+            break;                                     // P164 配套：EOF 落点移到循环外
+                                                       // （`return true` 会被 4.4 inline 到检查点后）
 
         if (token == "[dungeon clear time average]")
         {
@@ -724,9 +725,10 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
             // `je +0x4e`），非段内 do-while 循环；ok==false → return 1。
             out->m_field74 = ScanInt(&ok);
             if (!ok)
-                return true;
+                break;             // P164 配套：并入循环外共享成功出口
         }
     }
+    return true;                                       // ORIG 尾部共享成功出口
 }
 
 // ============================================================================
@@ -776,13 +778,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
     for (;;)
     {
         if (!ScanType(token, true))
-            return true;                               // EOF → 成功
+            break;                               // EOF → 成功
 
         if (token == "[onoff]")
         {
             int value = ScanInt(&ok);                  // -0x30
             if (!ok)
-                return true;                           // 0x0890bd1a
+                break;                                 // P164 配套：并入共享成功出口（0x0890bd1a）
             if (value == 0)
                 out->m_field0 = false;                 // movb $0,(%eax)
             else
@@ -1166,6 +1168,8 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
             }
         }
     }
+    return true;
+
 }
 
 // ============================================================================
@@ -1461,7 +1465,7 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
     for (;;)
     {
         if (!ScanType(token, true))
-            return true;                                    // EOF → 成功
+            break;                                    // EOF → 成功
 
         if (token == "[using item]")
         {
@@ -1621,6 +1625,8 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
             }
         }
     }
+    return true;
+
 }
 
 // ============================================================================

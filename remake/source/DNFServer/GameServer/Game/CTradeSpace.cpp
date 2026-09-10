@@ -267,30 +267,29 @@ bool CTradeSpace::_IsTradable(const Inven_Item& item)   // [b28d-Main·P292] int
         return false;
     if (item.m_upgradeSep.IsTradeRestriction())
         return false;
-    // b28d-solo-CTradeSpace：按 ORIG 0x08529dce 还原。
-    //   t 为 int 局部 + 显式 (unsigned int) 比较 ⇒ 4.4 发 ORIG 的
-    //   `mov slot,%eax; cmp $0x5,%eax; ja`（P310）；bit 用纯 register 存储类
-    //   提示（P231，非绑定、P0 合规）复现 ORIG 无槽 %eax 存活形；
-    //   m_field0 是 bool ⇒ `!item.m_field0` 发 ORIG 的 xor $1 物化（P292）。
-    //   [b28d-solo-CTradeSpace 判词] 余 17 ndiff 全为跨版本 codegen：①ORIG bit 主副本
-    //   在 %eax、scratch 用 %edx（4.4 恒 eax，N7 寄存器角色）；②ORIG 在 cmp 后复用
-    //   %eax 免 t 重装载（4.4 保守重载 +1）；③ORIG 尾部死块 `and $1;test;jmp`
-    //   （4.4 jump-thread 成 je 岛，N121/setcc-fold，删死块后 23→17）。语义/边界全等。
-    // [b28f-SweepCTSpace gap 3 复核] 两条待试形实测无效：
-    //   ① `register int t`（P231）：4.4 给 t 加 callee-saved 中转
-    //      （mov %eax,%ebx; mov %ebx,%eax）反 +1 条，重载未消；
-    //   ② 空 `else if (bit & 1) {}`（P184 死块照抄）：4.4 前端直接删空 then，
-    //      不发射 `and $1; test; jmp`（ORIG +0x83 为该形，属 4.1 前端残留）。
-    //   ⇒ 63/60 gap 3 封顶：+1 重载（N18a）+ -2 死块（setcc-fold/N121）。
-    int t = ci->GetAttachType();
-    if ((unsigned int)t < 6) {
-        register unsigned int bit = 1u << t;
-        if ((bit & 0x36) != 0)
+    // [b28f-L27 判据①/P17] ORIG 0x08529de2..0x08529e5d 是 `1<<t` 位掩码派发
+    //   （cmp $5/ja 范围检查 → `&0x36` → `&0x8` → `&0x1` 三组测试，
+    //   末组 `and $1;test;jmp tail` 为 case0/default 同体残留）
+    //   ⇒ 原码是 switch（if 链恒被折成内存直比链，永不产 1<<t 位掩码）。
+    //   位掩码组：{1,2,4,5}⇒return false（0x36）、{3}⇒m_field0 检查（0x8）、
+    //   {0}⇒与 default 同体（0x1）。m_field0 为 bool ⇒ `!item.m_field0`
+    //   发 ORIG `movzbl;xor $1;test;je tail`（P292）。
+    //   ORIG `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax; cmp $0x5,%eax` 有槽往返
+    //   ⇒ 原码是具名 t（P0）。
+    unsigned int t = ci->GetAttachType();
+    switch (t)
+    {
+    case 1:
+    case 2:
+    case 4:
+    case 5:
+        return false;
+    case 3:
+        if (!item.m_field0)
             return false;
-        if ((bit & 8) != 0) {
-            if (!item.m_field0)
-                return false;
-        }
+        break;
+    case 0:
+        break;
     }
     return true;
 }

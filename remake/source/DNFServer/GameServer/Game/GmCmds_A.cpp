@@ -211,6 +211,8 @@ void CAddItemPollutionCmd::parse()
 // （P227/P328⑩，ORIG 三串实参先于 cMyTrace ctor 求值）。修后 orig/ours=187/187，
 // 残余 2 条：investAmplifyOption 实参装载序（ORIG 右→左逐个压栈、4.4 先物化 arg0
 // 到 %edx，P75 跨版本，探针 p3/p4 五形不翻）。
+// [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%edx; mov -0x18(%ebp),%edx;
+//   0xc(%esp)…` vs 4.4.7 `%ecx/%edx` 角色互换（间接 call 目标寄存器族，P230 补）。
 void CAddItemPollutionCmd::execute()
 {
     if (m_itemIdx == -1)
@@ -314,6 +316,9 @@ void CAddItemByMail::parse()
 // `int itemId = 0; … itemId = m_itemIdx;`（P198①）后 orig/ours=187/187。
 // 残余 2 条：`G_CDataManager()->find_item(itemId)` ORIG 先装实参到 %ebx 再调
 // receiver，4.4 恒 receiver 先（P75/P23 跨版本求值序，探针 p2/p3 五形不翻）。
+// [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%edx; lea -0x82(%ebp),%eax;
+//   mov %eax,0x4(%esp); mov -0x1c(%ebp),%eax; mov %eax,(%esp); call *%edx` vs 4.4.7 用 %eax 目标；
+//   另 `mov -0x28(%ebp),%ebx` 保活（ORIG）vs 4.4.7 直读（P226/N18a）。
 void CAddItemByMail::execute()
 {
     CUser* user = GetUser();
@@ -423,6 +428,8 @@ void CBoosterTest::clear()
 // 寄存器角色（N7）；④跳表基址 `.rodata` 重定位（AE）。
 // [b28e-solo-2] ①已修：同 CBindCubeTest::execute，ORIG 函数头 fileBuf 清零是
 // 数组初始化形（size 经 %edx 中转），`char fileBuf[95000] = {0};` 精确复现。
+// [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%edx; mov -0x20(%ebp),%eax;
+//   mov %eax,(%esp); call *%edx` vs 4.4.7 `mov (%eax),%eax; … call *%eax`（residual 4 行）。
 void CBoosterTest::execute()
 {
     CUser* user = GetUser();
@@ -1268,9 +1275,11 @@ void CBingoGmTest::reqValue()
         if (gained > 0)
         {
             // [b23S3C] ORIG +0x0f5 分支形 clamp（读槽→cmp reg→jle→mov $3→写回）。
-            // [b28d-solo-GmCmds_A] 实测：if 形 ndiff=4（4.4 折 `cmpl $3,-0x10;
-            // movl $3,-0x10`）、三目形 ndiff=5（发 cmovle）、副本三段 ndiff=42
-            // ⇒ 取 if 形，余 3 条寄存器/内存形差 N18b 封顶。
+            // [b29-Lane21] 实测：if 形残差 4 行（4.4 折 `cmpl $3,-0x10; movl $3,-0x10`）；
+            //   三目形 `(gained>3)?3:gained` 残差 5 行（4.4 发 `cmovle -0x10,%eax`，本 TU
+            //   无 -march=i486 ⇒ cmov 族不可消，P230①/Main 路由域）⇒ 保留 if 形。
+            //   残差 = N18b/P321-T5（禁为装载序改类型）：ORIG `mov -0x10,%eax; cmp $3,%eax;
+            //   jle; mov $3,%eax; mov %eax,-0x10`（寄存器比较 + 常量经 eax 统一写回）。
             if (gained > 3)
                 gained = 3;
             static_cast<BingoData*>(user->getBingoData())->m_pad4 =
@@ -1315,6 +1324,8 @@ void CBillingRechargeCommand::parse()
 //   （P230 实测 446 后端亦不达 %ecx）⇒ N7 封顶，连锁实参/数据寄存器名互换。
 // [b28d-solo-GmCmds_A] verdict=NEAR ndiff=21 [N7] p167 CLEAR(3/3)；三处间接 call
 // 目标寄存器 ORIG %ecx vs 4.4.7 %eax / 4.4.6 %edx（P230 实测），语义完成封顶。
+// [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%ecx; … call *%ecx` / `call *%edx`
+//   vs 4.4.7 全 %eax；槽/条数两侧全等，仅寄存器角色（residual 6 行）。
 void CBillingRechargeCommand::execute()
 {
     CUser* user = GetUser();

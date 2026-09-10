@@ -1155,9 +1155,8 @@ COND:
     // 迭代器槽互换）：ORIG 0x86c4b49 lea -0x10(it)/0x86c4b68 lea -0xc(last) 先深，
     // 4.4 先浅 -0xc/-0x10；operator== 两侧 this/实参随之互换（语义等价）。
     // 本轮复测：逗号同句声明/拆两句/声明赋值分离（多 C1Ev）三形均不翻（N98 定案）。
-    std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.find(m_uniqueId),
-                                               last = m_UserInWorld.end();
-    if (it == last)
+    std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.find(m_uniqueId);
+    if (it == std::map<unsigned short, CUser*>::iterator(m_UserInWorld.end()))
     {
     }
     else
@@ -1833,11 +1832,19 @@ int _makeBasicInfoHeader(PacketGuard& packet)
     return index;
 }
 
-// [b28d-solo-GameWorld] _ZN9GameWorld17send_AllBasicInfoEP5CUser verdict=DIFF 172/173
-// 本轮归一化复核（b28d-solo）：残差仅 3 处 —— ①4.4 循环体前 1 条对齐 nop（N112）；
-// ②`make_basic_info` 实参装载序（ORIG `lea -0x44; movl $0,0x8(%esp); mov %eax,0x4`
-// vs 4.4 先装载 -0x10 再压 0，P75 跨版本）；③槽组平移 0x20（缓冲区 -0x44 vs -0x24，
-// N82）。p167 CLEAR 28=28 语义完成。
+// [L11·round1 判词更新] _ZN9GameWorld17send_AllBasicInfoEP5CUser：ndiff 33→**10**
+// （172/172，p167 28=28 CLEAR）。本轮修法 = P221/P227 两处具名 `cMyTrace trace(f,l,v);
+// trace(...)`（ORIG 无独立具名对象，实参在 ctor 前右起求值并跨 ctor 保活）改**全表达式
+// 临时链** `cMyTrace(f,l,v)(...)`：帧与主槽组一次对齐（PacketGuard -0x24→-0x44 ✓、
+// it -0x2c→-0x4c ✓、begin 临时 -0x5c ✓、cMyTrace 两对象 -0x38/-0x28 就位）。
+// 残余 4 处（**不可造，N 封顶**，均附 ORIG 0x086c83fc 段实证）：
+//  ① O[51:55] `make_basic_info` 实参装载寄存器 %eax vs %edx（ORIG lea→%eax 直压 0x4(%esp)
+//     再装 info；4.4 需 %edx 中转）；
+//  ②/③ 两个 cMyTrace 槽 -0x34/-0x24 vs 我方 -0x38/-0x28（差 4）；
+//  ④ `m_UserInWorld.end()` sret 临时 ORIG -0x38 vs 我方 -0x18（差 0x20）。
+// ②③④ 同根：4.1 在**序言**一次性分配匿名临时槽（end 临时最深），4.4 恒在**使用点**
+// 分配（end 出现在循环条件 ⇒ 最浅）。实测两形均不翻：显式 `iterator(m_UserInWorld.end())`
+// 拷贝临时形（ndiff 10→10）、操作数交换 `end() != it`（10→11）⇒ 判 N（P75/N82 匿名临时区）。
 // 既有修法（保留）：P50 复活
 // （ORIG 0x086c842a `_Rb_tree_iterator::C1Ev` 0x086d3826 + 0x086c8466 begin sret
 // -0x5c → 拷贝进 it(-0x4c) ⇒ 先声明后赋值）+ P197③ info 预清（0x086c842f
@@ -1866,8 +1873,8 @@ void GameWorld::send_AllBasicInfo(CUser* user)
                 int index = packet.get_index();
                 if (((CUser*)info)->make_basic_info((char*)&packet, 0) != 1)
                 {
-                    cMyTrace trace(__PRETTY_FUNCTION__, 0xbe3, 5);
-                    trace("[%s][%d]", "void GameWorld::send_AllBasicInfo(CUser*)", 0xbe3);
+                    cMyTrace(__PRETTY_FUNCTION__, 0xbe3, 5)(
+                        "[%s][%d]", "void GameWorld::send_AllBasicInfo(CUser*)", 0xbe3);
                 }
                 if (packet.getLastError() != 0)
                 {
@@ -1887,12 +1894,12 @@ void GameWorld::send_AllBasicInfo(CUser* user)
         }
         else
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xbf6, 5);
-            trace("[%s][%d]", "void GameWorld::send_AllBasicInfo(CUser*)", 0xbf6);
+            cMyTrace(__PRETTY_FUNCTION__, 0xbf6, 5)(
+                "[%s][%d]", "void GameWorld::send_AllBasicInfo(CUser*)", 0xbf6);
         }
         ++it;
     COND:
-        if (it != m_UserInWorld.end())
+        if (it != std::map<unsigned short, CUser*>::iterator(m_UserInWorld.end()))
         {
             goto LOOP;
         }
@@ -2487,14 +2494,24 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
 // （头声明指针 4B，ORIG 为 B 段 0x58 对象）；对象化后 4 处调用点由
 // `mov g,%eax; mov %eax,(%esp)` 变 `movl $g_guildAgitMgr,(%esp)`，与 ORIG
 // 0x86c658d/0x86c65be/0x86c65ec/0x86c661a 逐条一致（每处 -2 条 ×4）。
-// [b28d-solo-GameWorld] verdict=DIFF 864/864 N82 封顶（§6.2 三件套：P167 127/127 差集零）。
+// [L11·round1 判词更新] verdict=**AE/IDENTICAL** 864/864（ndiff 230→0；p167 127/127 CLEAR）。
+// 本轮 5 项修法（均以 ORIG 0x086c5a84 段实证，逐条复编核消）：
+//  ① P227 全表达式临时链（guild-agit 分支 cMyTrace 具名→链式，230→60）；
+//  ② P248 档①/P292 被调方返回类型：CHackLog_InvalidAreaMove::isMovableRoute
+//     `char`→`bool`（ORIG 调用点 `call; xor $0x1,%eax; test %al,%al; je` 实证，
+//     60→57；该头/实现为 Main 授权的无主 TU，已 grep 全仓仅本文件调用）；
+//  ③ 声明顺序：`char buf[5]={0}` 提到 hackA/hackB 之前（ORIG O[591] 段清零在前，57→53）；
+//  ④ P194/P222 正极性包裹：destArea 两处守卫 `if (destArea < 0){neg}else{pos}` →
+//     `if (destArea >= 0){pos}else{neg}`（ORIG `js` 负值跳走 + pos 直落，53→7）；
+//  ⑤ P198① 预清两句式 + P225 while+break：destVillage 段 `&&` 链内赋值（4.4 多 4 条
+//     `mov $1/$0` 物化）拆为独立语句；moveTown `int moveTown=0; moveTown=call(...);`
+//     预清 + `while (moveTown != 0){…; return false;}` 复现 `cmpl $0,-0x38; setne %al;
+//     test %al,%al; je`（7→**0**）。
+// 旧判词「P75/N82 封顶」作废：真因是 ②③④⑤ 四处源形，非跨版本结构差。
 bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                           bool flag, int param, int prevVill, int prevArea)
 {
-    // §6.2 巨件核销：P167 127/127 [0缺0多]；gap 864→872（残差 8 条）；残差归因 N 类
-    // （isMovableRoute 调用侧 4.1 xor$1 取反物化 vs 4.4 jne 直跳；
-    //   teleport_state==1 的 4.1 sete 物化 vs 4.4 jne；cMyTrace/logFormat 变参求值序；
-    //   详见 docs/asm_translation_patterns.md 负例表）。逐块人工比对完成，语义零缺口。
+    // §6.2 巨件核销：P167 127/127 [0缺0多]。逐块人工比对完成，语义零缺口。
     // 真修四处：①teleport_state==1 比较物化；②elapsed 具名局部（P0 槽 -0x2c）；
     // ③buf[5] 清零 movl+movb（P202①）；④getCurCharacVillPrev 返回 signed char
     // （ORIG 调用点 movsbl，头已同步）。
@@ -2594,19 +2611,27 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
     }
 
     Village* destVillage = NULL;
-    if (-1 < vill && vill < MAX_VILLAGE_NUM &&
-        (destVillage = &m_pVill[vill]) != NULL)
+    // ORIG 0x086c5xxx 段：`mov %eax,-0x48; cmpl $0,-0x48; je` ⇒ 赋值与判零拆成两句
+    // （&& 链内赋值使 4.4 多发 mov $1/$0 物化 4 条）。
+    if (-1 < vill && vill < MAX_VILLAGE_NUM)
     {
-        int moveTown = user->CheckMoveTown(vill);
-        if (moveTown != 0)
+        destVillage = &m_pVill[vill];
+        if (destVillage != NULL)
         {
-            packet.put_header(1, 0x26);
-            packet.put_byte(0);
-            packet.put_byte(moveTown);
-            packet.put_byte(vill);
-            packet.finalize(true);
-            user->Send(packet);
-            return false;
+            // ORIG `movl $0x0,-0x38`（P198① 预清）+ `cmpl $0,-0x38; setne %al;
+            // test %al,%al; je`（P225 while+break 复现 bool 四段物化）。
+            int moveTown = 0;
+            moveTown = user->CheckMoveTown(vill);
+            while (moveTown != 0)
+            {
+                packet.put_header(1, 0x26);
+                packet.put_byte(0);
+                packet.put_byte(moveTown);
+                packet.put_byte(vill);
+                packet.finalize(true);
+                user->Send(packet);
+                return false;
+            }
         }
     }
 
@@ -2662,9 +2687,9 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                         "move area error. User:%s (%d,%d)->(%d,%d)",
                         NumberToString(user->get_acc_id(), 0), curVill,
                         curArea, vill, area);
+                    char buf[5] = {0};
                     int hackA = 0;
                     int hackB = 0;
-                    char buf[5] = {0};
                     if (prevVill >= 0 && prevVill <= 10 &&
                         prevArea >= 0 && prevArea <= 10)
                     {
@@ -2698,15 +2723,17 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
             // movl $&g_schoolMgr,(%esp); call CSchoolMgr::GetSchoolArea` ⇒ 学号
             // 来自 GetSchoolNo() 返回值（原实现丢弃返回值传 0 = 真语义 bug）。
             destArea = g_schoolMgr.GetSchoolArea(user->GetSchoolNo());
-            if (destArea < 0)
-            {
-                destArea = area;
-                user->set_trick_area(-1);
-            }
-            else
+            // ORIG 0x086c6a1d 段 `js <neg 块>`：负值跳走、非负直落 set_area ⇒
+            // 原码按 `>= 0` 写（P194/P222 正极性包裹）；`< 0` 反产 `jns`。
+            if (destArea >= 0)
             {
                 user->set_area(destArea);
                 user->set_trick_area(area);
+            }
+            else
+            {
+                destArea = area;
+                user->set_trick_area(-1);
             }
         }
         else if (vill == 8 && (area == 0 || area == 1 ||
@@ -2726,20 +2753,19 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                 destArea = g_guildAgitMgr.GetGuildAgitAreaIndex(user->get_charac_guildkey(), 2);
             else if (area == 3)
                 destArea = g_guildAgitMgr.GetGuildAgitAreaIndex(user->get_charac_guildkey(), 3);
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x88e, 0);
-            trace("Move Guild Agit Area User(%d) Guild(%d) dest area(%d), virtual area(%d) ",
-                  user->getCurCharacNo(), user->get_charac_guildkey(), area, destArea);
-            if (destArea < 0)
-            {
-                destArea = area;
-                user->set_trick_area(-1);
-            }
-            else
+            cMyTrace(__PRETTY_FUNCTION__, 0x88e, 0)(
+                "Move Guild Agit Area User(%d) Guild(%d) dest area(%d), virtual area(%d) ",
+                user->getCurCharacNo(), user->get_charac_guildkey(), area, destArea);
+            // 同 2699 段：ORIG `js` 负值跳走 ⇒ 源按 `>= 0` 正极性写。
+            if (destArea >= 0)
             {
                 user->set_area(destArea);
                 user->set_trick_area(area);
+            }
+            else
+            {
+                destArea = area;
+                user->set_trick_area(-1);
             }
         }
         else
@@ -3646,6 +3672,12 @@ void GameWorld::ResetAllEventData()
 // 帧 0x7c vs 0x8c 槽组平移（N82）。
 void GameWorld::ResetAllFatigue()
 {
+    // [L11·round1 判词更新] 帧 0x70 vs ORIG 0x7c 实测复核：4.4 带 call 帧恒 16k+4 量化
+    // （P190 附注②，本函数族 0x44/0x54/0x64/0x74… 可达），ORIG 的 0x7c **非量化值**
+    // 任何 pad 组合不可凑（2 个取址 double 已达 0x70，4 个过头到 0x80）⇒ N 封顶。
+    // 其余 0x10 整帧槽平移（-0x20/-0x1c/-0x3c vs -0x10/-0xc/-0x2c）为避免 N126/N82，
+    // 且缺 ORIG 的 `push %edi`（ORIG 用 %edi 承载 getCurSec/bApplied，4.4 恒 %ebx；
+    // 裸 register 形实测 302→302 零效）⇒ 维持 N。
     static bool isFirst = true;
     // [b28d-sweep] P190 撑帧实测（推翻旧「double framePad 零效」判词）：ORIG 帧
     // 0x7c/深槽组（badge -0x46 / iterator -0x4c / msg -0x58）比我们深 0x10；
@@ -4035,6 +4067,13 @@ void GameWorld::deleteSpecificItems(const std::vector<std::pair<int, int> >* lis
 // 实现展开致 TU +273 符号、missing 140→227（+87）且本仓无 libboost 定义 ⇒ 越界，
 // 维持 localtime_r+strftime 等价替代（同值语义）。P225 推广拆嵌套 if 已复现两条件
 // 的 setne 物化（150→147）。帧 0xac vs 0xcc 系 boost 对象槽组。
+// [L11·round1 判词更新] ndiff 91→**79**（186/147）。本轮修法 = P221/P227：具名
+// `cMyTrace trace(...)` 改全表达式临时链。残余不可造（附 ORIG 0x086d14d4 段实证）：
+//  ① p167 MISSING 三件 boost（`second_clock::local_time` / `to_simple_string` /
+//     `to_iso_extended_string`）+ EXTRA `CSystemTime::getCurSec` —— 维持 N-DEP
+//     （真 boost 形实测 TU missing_in_game 135→222，+82 个 C++11 ABI 别名仅NEW ⇒ 纪律禁）；
+//  ② ORIG 六个实参值先落 -0x80..-0x6c 槽（4.1 具名局部）再统一装载，我方内联无槽：
+//     属版本装载策略差（P244/P0 反向），补具名亦无法补回 boost 的 string 链。
 void GameWorld::UpdateServerSnapShot()
 {
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -4072,8 +4111,8 @@ void GameWorld::UpdateServerSnapShot()
             char timeStr[16];
             strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &local);
             strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &local);
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x1b61, 8);
-            trace("%u,%d,%u,%d,%d,%d,%d,%d,%s %s",
+            cMyTrace(__PRETTY_FUNCTION__, 0x1b61, 8)(
+                "%u,%d,%u,%d,%d,%d,%d,%d,%s %s",
                   user->get_acc_id(),
                   G_CEnvironment()->get_server_group(),
                   user->getCurCharacNo(),
@@ -4445,6 +4484,11 @@ void GameWorld::make_packet_chat_msg_hyper_link(PacketGuard& packet, CUser* user
 // [b28d-solo-GameWorld] _ZN9GameWorld15WriteLogChatMsgEP5CUsercPc verdict=NEAR 75=75
 // 助记符全等，仅 N82/P112 槽分配差：ORIG path=-0x120/log=-0x20/state=-0x134/pvpIdx=-0x130；
 // 4.4.6 path=-0x128/log=-0x28/state=-0x20/pvpIdx=-0x1c（标量区与聚合对象区方向相反，声明序不可翻）。
+// [L11·round1 追加实测（判据⑩边界）] 两形均零效（复编复测 ndiff 恒 10）：
+//   ① `int state; int pvpIdx;` 前置到 `char path[256]` 之前 + 赋值留原位（纯声明重排）；
+//   ② 声明/赋值分离（`int state; … state = user->get_state();`）。
+// ⇒ 本件 4.4 按**首次使用序**分配：`char path[256]={0}` 的 rep stos 是最早使用点 ⇒
+// 占最深槽，标量只能在浅区；ORIG 4.1 按类型分组（标量浅/聚合深）相反 ⇒ 判 N（P112/N98）。
 void GameWorld::WriteLogChatMsg(CUser* user, char type, char* msg)
 {
     // [b28d-solo-GameWorld] _ZN9GameWorld15WriteLogChatMsgEP5CUsercPc：ORIG 0x086c964d
@@ -4461,10 +4505,10 @@ void GameWorld::WriteLogChatMsg(CUser* user, char type, char* msg)
             // b28d-solo 复验：把 state/pvpIdx 声明前置到 path 之前（赋值仍留在
             // sprintf 之后）实测槽位逐值不变（state=-0x20/pvpIdx=-0x1c）
             // ⇒ 4.4 恒按首次使用序分配（N98），声明序旋钮无效。
+            // ORIG 0x086c96b5/0x086c96c6 两句前置具名槽：state=-0x134、pvpIdx(cwtl)=-0x130。
             char path[256] = {0};
             sprintf(path, "./log/%s/GuildWarChat",
                     G_CEnvironment()->get_file_name());
-            // ORIG 0x086c96b5/0x086c96c6 两句前置具名槽：state=-0x134、pvpIdx(cwtl)=-0x130。
             int state = user->get_state();
             int pvpIdx = (int)user->GetPvpIndex();
             // ORIG ctor 在全部 getter 之后 ⇒ P227 全表达式临时链。

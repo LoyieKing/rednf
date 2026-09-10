@@ -129,9 +129,9 @@ bool CHackLog_InvalidAreaMove::IsInvalidMovableArea(int a, int b, int c, int d)
 //   (6,0,3,6,3,1) (4,1,4,0,4,3) (4,3,4,0,4,1) (1,3,4,0,4,4)
 //   (4,4,4,0,1,3) (2,2,2,8,5,0) (5,0,2,8,2,2) (2,4,2,0,3,0)
 //   (4,1,4,0,1,3) (4,0,1,3,1,0) (3,6,6,0,6,1)
-char CHackLog_InvalidAreaMove::isMovableRoute(int a, int b, int c, int d, int e, int f)
+bool CHackLog_InvalidAreaMove::isMovableRoute(int a, int b, int c, int d, int e, int f)
 {
-    char result = 0;
+    bool result = false;
     if ((a == 3 && b == 2 && c == 3 && d == 0 && e == 2 && f == 0) ||
         (a == 3 && b == 1 && c == 3 && d == 0 && e == 2 && f == 0) ||
         (a == 2 && b == 0 && c == 3 && d == 0 && e == 3 && f == 1) ||
@@ -147,7 +147,7 @@ char CHackLog_InvalidAreaMove::isMovableRoute(int a, int b, int c, int d, int e,
         (a == 4 && b == 1 && c == 4 && d == 0 && e == 1 && f == 3) ||
         (a == 4 && b == 0 && c == 1 && d == 3 && e == 1 && f == 0) ||
         (a == 3 && b == 6 && c == 6 && d == 0 && e == 6 && f == 1))
-        result = 1;
+        result = true;
     return result;
 }
 

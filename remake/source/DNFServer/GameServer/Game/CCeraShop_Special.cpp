@@ -288,6 +288,9 @@ void SpecialItemHandler::respond_special_item_booster_selection(
     // b28d-solo(P0)：ORIG 0x0827ccfc 九个实参各自占具名栈槽（-0x34..-0x19，
     // 逐字段 `mov 0x10(%ebp),%eax; mov disp(%eax),%eax; mov %eax,-N(%ebp)`），
     // 声明序 = ORIG 槽序 user/itemIdx/items/ceraParam/count/time/flag/c1/c2。
+    // [L14] 判据⑩ 攻法实测（回退）：头声明 `char framePad[0x10]` 使帧 0x50→0x60
+    // （P232 生效），但九个具名标量槽号仍 -0x24..-0x9 **不动**（4.4 把数组 pad
+    // 另置，不入标量块）⇒ 整块平移不可由 pad 修正，判 N82附。
     CUser* user = static_cast<CUser*>(param.m_user);
     int itemIdx = param.m_itemIdx;
     std::vector<Inven_Item>* items =
@@ -296,9 +299,10 @@ void SpecialItemHandler::respond_special_item_booster_selection(
         static_cast<WongWork::CCeraShop::stCeraShopItemParam_t*>(param.m_ceraParam);
     int count = param.m_count;
     long time = param.m_time;
-    // ORIG 0x0827cd3d 无 bool 归一化（直接 movzbl 落槽）；4.4 对 unsigned char→bool
-    // 必发 test/setne（探针实测 bool 版 2 条 < unsigned char 版 3 条）⇒ N 封顶。
-    bool flag = param.m_flag;
+    // [L14] ORIG 0x0827cd3d `mov 0x18(%eax),%eax; mov %al,-0x1b(%ebp)`（直存字节、
+    // 无 test/setne 归一化）⇒ 原码该局部是 **unsigned char**（bool 局部会发 setne）。
+    // 传参处 ORIG 0x0827cdxx `movzbl -0x1b(%ebp),%ebx` 与 uchar 直传一致。
+    unsigned char flag = param.m_flag;
     char c1 = static_cast<char>(param.m_char1d);
     char c2 = static_cast<char>(param.m_char1e);
     m_owner->_processBoosterSelect(user, itemIdx, count, result.m_value, time,

@@ -201,7 +201,15 @@ int getGrowTypeIndex(const char* name)
         static GrowTypeMap __lookup;  // ORIG ...E8__lookup
         static SpinLock __init_lock;                             // ORIG ...E11__init_lock
         static bool __inited = false;                            // ORIG ...E8__inited
-        if (!__inited)
+        // [L16 本轮] 极性翻正（P222/P214①）：ORIG 为 `movzbl __inited; test %al,%al;
+        // je else` 正极性（无 xor），我方原 `!__inited` 形多出发 `xor $0x1,%eax`。
+        if (__inited)
+        {
+            GrowTypeMap::const_iterator it =
+                __lookup.find(name);
+            idx = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
             if (__inited)
@@ -210,12 +218,6 @@ int getGrowTypeIndex(const char* name)
                 continue;               // ORIG 088be81f jmp 088be650（回 guard 重检）
             }
             idx = 0;
-        }
-        else
-        {
-            GrowTypeMap::const_iterator it =
-                __lookup.find(name);
-            idx = (it != __lookup.end()) ? it->second : -1;
         }
         switch (idx)
         {
@@ -459,7 +461,7 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out)
         }
         if (token == "[avatar coin info]")
         {
-            out.m_avatarCoinInfo = ScanInt((bool*)0);
+            out.m_avatarCoinInfoU = ScanInt((bool*)0);   // [L16] P211 档③（ORIG 0891179f 段 RHS-first）
             goto after_sections;        // ORIG 0891179f jmp 08911b5c（共享岛）
         }
         else if (token == "[rare clone avatar rate]")
@@ -636,7 +638,9 @@ int importDeathTowerScript(const char* path, stDeathTower_t& out)
             int i = 1;
             for (;;)
             {
-                out.m_rewardCardNum[i] = ScanInt(&ok);       // (0xc8+i)*4+4 → +0x324+i*4
+                // [L16 本轮] P211 档③ 试形：RHS 显式 unsigned 与 int 字段异型
+                // ⇒ 复现 ORIG RHS-first + `mov %eax,%edx` 中转（08908b06 段）。
+                out.m_rewardCardNumU[i] = ScanInt(&ok);  // (0xc8+i)*4+4 → +0x324+i*4
                 ++i;
                 if (!ok) { break; }
             }
@@ -656,7 +660,7 @@ int importDeathTowerScript(const char* path, stDeathTower_t& out)
             int i = 1;
             for (;;)
             {
-                out.m_illusionRewardCardNum[i] = ScanInt(&ok);      // (0x258+i)*4+4 → +0x964+i*4
+                out.m_illusionRewardCardNumU[i] = ScanInt(&ok);  // P211 档③（08908ba8 段）
                 ++i;
                 if (!ok) { break; }
             }
@@ -669,11 +673,13 @@ int importDeathTowerScript(const char* path, stDeathTower_t& out)
         else if (token == "[reward item prob]")
         {
             // P211：字段 int 与 RHS unsigned 异型 ⇒ RHS-first + `mov %eax,%edx` 中转。
-            out.m_rewardItemProb[0] = (unsigned int)ScanInt(&ok);   // ORIG 先存储后校验
+            out.m_rewardItemProbU[0] = ScanInt(&ok);   // ORIG 先存储后校验（08908a73 段）
             if (!ok) { return 0x18be; }
-            out.m_rewardItemProb[1] = (unsigned int)ScanInt(&ok) + out.m_rewardItemProb[0];
+            // [L16 本轮] 书写序两形实测：`mem + call()` 反劣（ourN 236、ndiff 26）；
+            // `call() + mem` 最优（ourN 232、ndiff 6，残 lea-vs-add 2 处 = N4/P205）。
+            out.m_rewardItemProbU[1] = (unsigned int)ScanInt(&ok) + out.m_rewardItemProbU[0];
             if (!ok) { return 0x18c1; }
-            out.m_rewardItemProb[2] = (unsigned int)ScanInt(&ok) + out.m_rewardItemProb[1];
+            out.m_rewardItemProbU[2] = (unsigned int)ScanInt(&ok) + out.m_rewardItemProbU[1];
             if (!ok) { return 0x18c4; }
         }
         else if (token == "[reward gold weight]")
@@ -1347,7 +1353,9 @@ bool importConditionEventScript(const char* path, stConditionEventInfo* out)
             {
                 goto loop_exit;
             }
-            out->m_field0 = v;                     // ORIG mov %edx,(%eax) → +0x00
+            // [L16 本轮] 唯一残差点（NEAR ndiff=2）：ORIG `mov v,%edx; mov out,%eax;
+            // mov %edx,(%eax)` = RHS-first ⇒ RHS 异型化（P211 档③）。
+            out->m_field0U = v;                    // ORIG mov %edx,(%eax) → +0x00
         }
         else if (token == "[condition match]")
         {
@@ -1720,6 +1728,8 @@ bool importDimensionActivationData(const char* path,
         return false;
     }
 
+    // [L16 本轮] 槽基对齐试验（P232 两个 char[4] 死局部）：前 99 条槽逐条对齐、
+    // ndiff 1181→623，但第 99 条起仍差 8 ⇒ 未闭合且台账四数不变，已回滚（判 N126/N95）。
     // b28d-21: ORIG 08916130/0891613e 两串 ctor 在 load 检查之后（声明位置即
     // ctor 发射点）——旧版声明在判空之前，序言 8 条整体前移。
     std::string token;                  // ORIG -0x19c（节名，ctor 首位）

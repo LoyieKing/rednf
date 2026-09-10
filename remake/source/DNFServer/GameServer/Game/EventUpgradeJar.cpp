@@ -509,6 +509,10 @@ bool updateUpgradeTableFromEventUpgradeJarScript(upgrade_table_t* table, EventUp
     // 乘法书写序按 P243：ORIG 先 fildl 旧值（-0x1c）后 flds 折扣率 ⇒ 旧值在左。
     for (unsigned int i = 0; i < 100; ++i)
     {
+        // [round1-L19 2026-09-09] 基址 table+4/索引 i+0x28 形已实测**反劣**
+        // （83/83 gap=0 → 83/87 gap=-4、ndiff 12→20：4.4 折成
+        // `add $0x29; shl $2; lea`，不产出 ORIG 的 `add $0x28;disp 4` 两步形）
+        // ⇒ 维持 m_bodyView 视图（P30/N81/N4 封顶，仅前导偏移拆分常数不同）。
         UPG_TBL_I32(table, (int)i + 0x26) =
             (int)((float)UPG_TBL_I32(table, (int)i + 0x26) * info->m_discountRate);
     }

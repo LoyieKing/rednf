@@ -1661,14 +1661,17 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
                 break;
             }
             DBMgr::stUserDBInfo_t info;
-            unsigned int characNo = 0;
-            unsigned int serverId = 0;
-            unsigned int midFromDb = 0;
+            // [P171/P0 照抄原码] ORIG clr_l 计数 5 vs 我方 9（多 4 条 `movl $0x0,-N`）
+            // ⇒ 原码这四个出参**无初始化器**（get_uint 失败时值未定义，ORIG 亦如此）；
+            // 旧 `= 0` 每处多 1 条清零。
+            unsigned int characNo;
+            unsigned int serverId;
+            unsigned int midFromDb;
             bool ok = dbAccount->get_uint(0, midFromDb);          // m_id（分库键）
             info.m_userDBIdx = (int)midFromDb;
             if (ok) ok = dbAccount->get_uint(1, characNo);
             if (ok) ok = dbAccount->get_uint(2, serverId);
-            unsigned int startTime = 0;
+            unsigned int startTime;
             if (ok) ok = dbAccount->get_uint(3, startTime);
             if (!ok)
             {
@@ -2917,8 +2920,10 @@ bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
     {
         // [hc 收] sig->m_characData 为 SIG_LOGIN_DATA 角色视图数组（步长 0x94），
         // +0x1a 即槽内等级(short)字段裸偏移（§5.3 线格式序列化缓冲豁免）。
-        short level = *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a);       // 槽内 charac 等级(short)
-        if (*reinterpret_cast<short*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa8e0) <= level)
+        // [判据①/P0] ORIG 0x084156a5 `movzwl 0xa(%eax),%ebx`（level 直入 %ebx，**无栈槽**；
+        // 槽表无 -0x12 对应槽）⇒ 原码无 `short level` 具名局部，等级是右值内联表达式。
+        if (*reinterpret_cast<short*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa8e0) <=
+            *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a))
         {
             // P183：ORIG 每次使用均由 sig 重新展开 charac_no（sig+0xe0 视图）与
             // mercenary 基址，禁具名缓存。

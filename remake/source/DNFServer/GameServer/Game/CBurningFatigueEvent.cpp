@@ -5,6 +5,10 @@
 //   StartEvent 0x810a042：空
 //   StartEvent(Word_Param) 0x810a048 / EndEvent 0x810a09a：SetEventFlag + cMyTrace
 //   getBonusExpRate 0x810a0ec / getRefillFatigue 0x810a166：遍历 m_params
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN20CBurningFatigueEventC2Ev`（ORIG 0x810a265）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CBurningFatigueEvent.h"
 
 #include "CGuildServerProxy.h"   // G_CDataManager / CDataManager

@@ -36,6 +36,33 @@
 //   残余全部为跨版本结构性 N（已在函数头逐一记证），无未判定真缺口。
 //   P0：全域无 register asm 绑定（唯一 register 为 P231 纯存储类提示）。
 // ---------------------------------------------------------------------------
+// [b28d-solo-WarRoom-4 · 2026-09-10] 四数 114/243/2/9 → **114/245/0/9**
+//   （near 清零；ae +2）。本轮修为（判据⑩/⑪ + P231 + P223）：
+//     · SendGuildFP 0x086bc0b0      NEAR → **AE（271=271）**：三标量（i1/minFp/count）
+//       全头部声明并按 ORIG 槽深序（i1@-0x20/minFp@-0x1c/count@-0x18）落序；
+//       `int minFp=…;/int count=0;` 的声明位置改独立赋值语句（保 ORIG 指令序）。
+//     · EnterWarRoom 0x08201e7a      NEAR → **AE（279=279）**：声明序 packet, ret,
+//       party, **seat**（seat 置队尾）+ 探针 /tmp/wr4/p.cpp f1..f5 五形对照；
+//       `seat = 0;` 保留在 Join 前（086be6xx 形）。
+//     · CalcGuildFP 0x086bbea6       168/-3 → **164/+1**：①两数组声明序交换
+//       （local_40[6]={0} 先、local_4c[12] 后）= ORIG -0x48/-0x3c 槽序；②商
+//       `local_20/local_1c` 复用 local_18（ORIG 086bc043/086bc075），消重复 idiv。
+//     · ImportWarRoomWPTable 0x08902543  126/2 → **128/0**：①`register int again`
+//       + `again != 0`（消 4.4 setne 物化，出 ORIG `test %ebx,%ebx`）；②do 体后与
+//       else 各发 goto（LOOP_TAIL/ELSE_ISLAND 物理相邻）复现双落点。
+//   p167 复验：本 TU 全部残余件 MISSING 仅 C1/C2、D1/D2 **同址别名镜像**（P93）
+//   —— 脚本 /tmp/mirrorchk.sh 逐符号核 .o 的 U/D 符号，REALMISS=0 ⇒ 语义 CLEAR。
+//   判据⑪ 槽直方图（objdump --disassemble 逐值对比）：
+//     · OnEnterState：两侧 **11 槽逐值全等**（残余=E H 段序 N104 + 跳表 N4/N125）。
+//     · HandleGetItem：整帧平移常数 **0xc**（我方 -0x40:46 ↔ ORIG -0x4c:46）⇒ N126。
+//     · ClearReward：-0x50↓ 槽组平移 0xc（-0x54↔-0x50、-0xb4↔-0xa4/-0xa8…）⇒ N126+
+//       N85（flds/fstps vs mov 直搬）、N76 store 序。
+//     · HandleItemDrop / HandleMonsterKill / CalcGuildFP / WPTable：push Δ=0、
+//       槽表近全等，残余 = 跳表 lowering(N4/N125)、算术强度归约(N86/N1，445/443)、
+//       字节清零合并(N78/N202)、P223 单源尾岛。
+//   结论：**本 TU 剩余真缺口 = 0**（9 件 DIFF 全为已记证 N 族；near 已清零）。
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 #include "CGameManager.h"        // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
 #include "CItem.h"
 #include "CEquipItem.h"
@@ -1183,16 +1210,23 @@ CF_ISLAND:
 
 void WarRoom::CalcGuildFP()
 {
-    // [b28d-solo-WarRoom-3] ORIG 0x086bbea6：165 orig / 168 our（gap -3）判 N。
-    //   ①槽序：ORIG local_4c[12]@-0x48..-0x3d（深）+ local_40[6]@-0x3c..-0x25；
-    //   4.4 按**首次使用序**把 local_40[6]@-0x48（声明式 `= {0}` 首用最早）⇒
-    //   两数组深浅互换。若把清零语句移到 local_4c 之后可翻槽序，但清零块顺序
-    //   与 ORIG（086bbed0 local_40 在前）相反 ⇒ 指令序反而更差（两难，P212/N98）。
-    //   ②6 个 `local_4c[i]=0`：4.1 合并为 `movl $0,-0x42; movw $0,-0x3e`
-    //   （086bbed0/086bbfaa），4.4 恒 6×movb（探针 /tmp/probe_zero.cpp f1/f2）。
-    //   语义正确（P167 无缺口）⇒ N 封顶。
-    char local_4c[12];
+    // [b28d-solo-WarRoom-4] ORIG 0x086bbea6：**165 orig / 164 our（gap +1，原 168/-3）**。
+    //   本轮修两处（探针 /tmp/wr4/a.cpp）：
+    //   ① 数组槽序翻正：ORIG local_4c[12]@-0x48..-0x3d（深）+ local_40[6]@-0x3c..-0x25；
+    //      4.4 给**带初始化列表的数组**优先深槽 ⇒ 交换声明序（local_40 先、local_4c 后）
+    //      = a2 命中 ORIG（a1=旧形）。
+    //   ② 商只算一次：ORIG 086bc043 `mov %eax,-0x14(%ebp)` 存 local_18、086bc075
+    //      循环内 `mov -0x14(%ebp),%edx` 复用（Ghidra 把复用显示成第二次除法=假象）
+    //      ⇒ 源码 `m_slotFp[local_10] = local_18;`，消去重复 idiv（-5 条）。
+    //   残余（N 族，均附 ORIG 指令形）：
+    //   · 12 字节字节清零合并：ORIG `movl $0,-0x42; movw $0,-0x3e` / `-0x48/-0x44`
+    //     （086bbed0/086bbfaa），4.4 恒 6×movb（探针 /tmp/wr4/s.cpp g1/g2）⇒ N78/N202 族。
+    //   · local_4c[i+6] 的 disp 折叠：ORIG `movb $1,-0x42(%ebp,%eax,1)`，4.4 恒
+    //     `add $0x6,%eax` + `-0x48(%ebp,%eax,1)` ⇒ N94 族（改 struct 视图亦为 add 形）。
+    //   · ORIG 循环尾 nop 中继岛（086bbf20/086bc023/086bc07f 等 6 处 jmp+nop），4.4 恒
+    //     jump-thread ⇒ P223 单源负例。语义正确（p167 CLEAR 2/2 调用点）⇒ N 封顶。
     int local_40[6] = {0};
+    char local_4c[12];
     int local_28;
     int local_24;
     int local_20;
@@ -1249,7 +1283,11 @@ void WarRoom::CalcGuildFP()
                 for (local_10 = 0; local_10 <= 5; ++local_10)
                 {
                     if ((m_slots[local_10] != 0) && (local_4c[local_10] != 0))
-                        m_slotFp[local_10] = local_20 / local_1c;
+                        // [b28d-solo-WarRoom-4] ORIG 086bc043 商只算一次存 local_18
+                        //   （-0x14 槽），086bc075 循环内 `mov -0x14(%ebp),%edx` 复用
+                        //   ⇒ 原码写具名 local_18，非重复 `local_20/local_1c`（Ghidra
+                        //   反编译把复用显示成第二次除法，属假象）。
+                        m_slotFp[local_10] = local_18;
                 }
             }
         }
@@ -1265,22 +1303,32 @@ void WarRoom::SendGuildFP()
     //   ②第二循环：slot==0 goto nop 岛（ORIG 086bc1a6 je→086bc235）+ 两分支体尾 jmp；
     //   ③第三循环：三守卫三岛 goto 串（ORIG 086bc31c je→086bc369、086bc328 jne→
     //     086bc36c、086bc347 je→086bc36d；P223 多岛形）。
-    //   残余 = 标量槽序差（i1 -0x1c vs ORIG -0x20、minFp -0x18 vs -0x1c、
-    //   count -0x20 vs -0x18；同尺寸标量区声明序 4.1/4.4 相反，P331 反转尝试
-    //   会连带 cMyTrace/PacketGuard 槽 ⇒ N82 封顶）+ 重定位地址显示差（AE 口径）。
+    //   [b28d-solo-WarRoom-4] 三标量槽序翻正 ⇒ **271=271 AE（离开 NEAR）**：
+    //   ORIG i1@-0x20 / minFp@-0x1c / count@-0x18，原重建 i1@-0x1c / minFp@-0x18 /
+    //   count@-0x20（块作用域致 4.4 把函数级 count 先占深槽）。判据⑩（全头部声明）
+    //   必须按 **ORIG 槽深序 = 声明序**（i1, minFp, count）落地；三者全部提至函数头，
+    //   块内仅赋值，且原 `int minFp = 0x7fffffff;` / `int count = 0;` 的声明位置
+    //   改为独立赋值语句（保持 ORIG 指令序 086bc179 / 086bc2ea）。其余槽
+    //   （-0x44 vector / -0x48 i2 / -0x4c it / -0x30 packet / -0x14 bestFp / -0x10 i3）
+    //   两侧本就逐值相同。
     PacketGuard packet;
     packet.put_header(0, 0x60);
     packet.put_byte(GetWaiterCount());
-    for (int i = 0; i <= 5; ++i)
+    // [判据⑩ 槽序反转律 · b28d-solo-WarRoom-4] ORIG 槽：i1@-0x20(minFp -0x1c / count
+    //   -0x18)；4.4 受块作用域影响把函数级 count 先占深槽 ⇒ 全头部声明按 ORIG 槽深序。
+    int i1;
+    int minFp;
+    int count;
+    for (i1 = 0; i1 <= 5; ++i1)
     {
-        if (m_slots[i] == 0)
+        if (m_slots[i1] == 0)
             goto FP_NOP;
         // ORIG 086bc13b/086bc14e/086bc150：cond 假 je→086bc151(incr)、body 尾
         //   jmp→086bc151、slot==0 je→086bc150(nop 岛)；goto 尾标签串复现。
-        if ((m_slotsUser[i])->GetFinishPointTotal() <
+        if ((m_slotsUser[i1])->GetFinishPointTotal() <
             G_CDataManager()->m_warAreaCounter.m_kickPoint)
         {
-            m_slotData[i] = 9;
+            m_slotData[i1] = 9;
         }
         goto FP_END;
     FP_NOP:
@@ -1290,7 +1338,7 @@ void WarRoom::SendGuildFP()
     }
     if (GetWaiterCount() > 4)
     {
-        int minFp = 0x7fffffff;
+        minFp = 0x7fffffff;
         std::vector<int> v;
         for (int i = 0; i <= 5; ++i)
         {
@@ -1321,7 +1369,7 @@ void WarRoom::SendGuildFP()
         }
     }
     char local_3a[6] = {0};
-    int count = 0;
+    count = 0;
     while (count < GetWaiterCount())
     {
         int bestSlot = -1;
@@ -2556,18 +2604,20 @@ struct stBloodWarGrowTable
 // ============================================================================
 int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
 {
-    // [b28d-solo-WarRoom] NEAR(27) | ORIG 0x08201e7a | 复核 lane25 判词：全部
-    //   残差 = PacketGuard 对象槽基 -0x1c(ORIG) vs -0x20(4.4) 的 4 字节平移
-    //   （seat 随之 -0x20→-0x14）= N82附「4.4 聚合对象优先占低槽、标量分区」。
-    //   本轮复测声明序交换/全头部声明/聚合化均不翻（P212 对本形无效）⇒ 封顶。
-    // b28d-lane25 判词 N82附/N98：ORIG 0x08201e7a 槽序 seat=-0x20/packet=-0x1c/
-    // ret=-0x10/party=-0xc（4.1 按声明序）；4.4 按首次使用序（packet 首用最早）⇒
-    // packet=-0x20、seat=-0x14。实测声明序交换与 seat 聚合化（POD struct）均不翻，
-    // 全头部声明亦无效 ⇒ N82附 聚合优先低槽封顶，保持声明序与语义。
-    int seat;                 // -0x20（ORIG）
+    // [b28d-solo-WarRoom-4] ORIG 0x08201e7a：原 NEAR（残差=packet 槽基 -0x1c vs
+    //   -0x20、seat -0x20 vs -0x14）⇒ **279=279 AE（离开 NEAR）**。
+    //   旋钮（探针 /tmp/wr4/p.cpp f1..f5）：ORIG 槽序 seat(-0x20)/packet(-0x1c)/
+    //   ret(-0x10)/party(-0xc)；4.4 对「聚合+标量」混合帧**把标量声明在聚合之后**
+    //   才给 seat 深槽 -0x20、packet -0x1c（f3 命中），seat 前置(f1)/聚合化(f2)/
+    //   volatile(f4)/数组(f5) 四形均不翻。故声明序 = packet, ret, party, **seat**
+    //   （seat 移至队尾）；`seat = 0;` 语句仍留在 Join 前（ORIG 086be6xx 指令序）。
     PacketGuard packet;       // -0x1c
     int ret;                  // -0x10（IsJoinable 与 Join 复用同一槽，ORIG 实证）
     CParty* party;            // -0xc
+    int seat;                 // -0x20（ORIG）
+    // [判据⑩ 延伸 · WarRoom-4] 探针 /tmp/wr4/p.cpp f1/f3 对照：把标量 seat 置于
+    //   packet 声明之后（队尾）时 4.4 才给 seat 深槽 -0x20、packet -0x1c（与 ORIG
+    //   完全一致）；seat 前置/聚合化/volatile 三形均不翻（f1/f2/f4）。
     if (user->get_state() != 3)
     {
         packet.put_header(1, cmd);
@@ -2661,15 +2711,18 @@ int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
 // ============================================================================
 int ImportWarRoomWPTable(stBloodWarGrowTable* table)
 {
-    // [SweepWarRoom] DIFF | ORIG 0x08902543 | 复核 b28d 判词：our 126 / orig 128
-    //   （gap 2，P167 CLEAR 16/16）。残余 = 4.1 while 头部双入口岛：
-    //   ORIG 089025ab jmp→HEAD、089025ad nop、089025ae jmp→HEAD（else 分支岛）、
-    //   089025b0 nop（do-while again==0 落点）⇒ 4.4 对 else-goto 恒 jump-thread
-    //   成单 nop + fall；本轮再试三形均无效（①`goto LOOP_HEAD` 双标签串；
-    //   ②删 else 直落；③同层显式 continue 形）——指令数恒 126，4.4 恒把
-    //   单源 goto/continue 尾岛 thread 成 fall（P223 负例），且 do-while 尾
-    //   ORIG `test %ebx; je NOP2; jmp DO_BODY` vs 4.4 `test %bl; jne DO_BODY;
-    //   jmp HEAD`（P283 底部条件布局）⇒ N 封顶。语义与 ORIG 一致。
+    // [b28d-solo-WarRoom-4] ORIG 0x08902543：126/128（gap 2）⇒ **128/128（gap 0）**。
+    //   本轮两旋钮（P231 + P223 多岛）：
+    //   ① 循环条件变量 `register bool again` → **`register int again`** 并写 0/1
+    //      （ORIG 08902669/08902688 `mov $0/$1,%ebx`、089026af 需 32 位 test）
+    //      且 do-while 条件写 `again != 0` ⇒ 消 4.4 的 `setne %al; test %al,%al`
+    //      两步物化，改出 ORIG 的 `test %ebx,%ebx` 直判。
+    //   ② do 体后与 else 分支各发一个 goto（LOOP_TAIL / ELSE_ISLAND 物理相邻），
+    //      复现 ORIG 两个不同落点（089025ad nop+089025ae jmp 与 089025b0 nop）。
+    //   残余（N 封顶，附 ORIG 指令形）：ORIG 089025ab/089025ae 两处 `jmp 头` 与
+    //   089025b0 nop 岛；4.4 对单源尾岛恒 jump-thread（本轮已试双标签串/删 else 直落/
+    //   同层 continue 三形，P223 单源负例）⇒ 我方少 1 个 jmp+nop、并在 do-while 尾
+    //   多 2 条中继。语义与 ORIG 一致（p167 CLEAR 16/16，MISSING 仅 C1/C2 镜像）。
     if (!loadRDARScriptFile("", "Etc/WarRoomWPTable.tbl"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xdb8,
@@ -2696,7 +2749,7 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
             // [b28d-solo-WarRoom P223] ORIG 循环头双岛：089025ad nop + 089025ae
             //   jmp HEAD（if 假分支落点）、089025b0 nop（do-while again==0 落点）。
             //   试 continue 形（同层 continue + 循环尾自然 fall）复现双岛。
-            register bool again;
+            register int again;
             do
             {
                 std::vector<std::pair<int, int> > row;
@@ -2712,19 +2765,25 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
                     row.push_back(p);
                 }
                 if (!ok)
-                    again = false;
+                    again = 0;
                 else
                 {
                     if (table != 0)
                         table->push_back(row);
-                    again = true;
+                    again = 1;
                 }
-            } while (again);
+            } while (again != 0);
+            // [b28d-solo-WarRoom-4 判据④/P223 多岛] ORIG 循环尾两个物理相邻但不同
+            //   地址的落点：+0x6a（operator== 假分支）与 +0x6d（do-while again==0）。
+            //   两个**不同源**的 goto 跳物理连续尾标签 ⇒ 4.4 不 jump-thread（P223 可造形）。
+            goto LOOP_TAIL;
         }
         else
         {
-            goto LOOP_TAIL;
+            goto ELSE_ISLAND;
         }
+ELSE_ISLAND:
+        ;
 LOOP_TAIL:
         ;
     }

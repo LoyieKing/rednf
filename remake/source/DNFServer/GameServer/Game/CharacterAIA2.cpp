@@ -60,15 +60,10 @@ extern char g_aiCharacterScriptBaseDirectory[0x100];
 // ORIG 字符串表数据（extern "C"，nm: D 符号无 mangled 前缀）
 // ============================================================================
 
-// D 0x093f4d80：15 项 + NULL 终止（objdump -s .data/.rodata 逐指针提取）。
-extern "C" const char* ACTIVEOBJECT_STATE_STRING[16];
-const char* ACTIVEOBJECT_STATE_STRING[16] = {
-    "[stand]",       "[sit]",         "[sit forever]", "[damage]",
-    "[down]",        "[die]",         "[jump]",        "[jump attack]",
-    "[attack]",      "[hold]",        "[throw]",       "[dash]",
-    "[dash attack]", "[get item]",    "[buff]",        0,
-};
-
+// [L32 GI 调序] 定义序按 ORIG 键名：ORIG `_GLOBAL__I_ACTIVESTATUS_ATTACK_TAG`
+//   0x0810e4xx（CU=RDARScriptServerParameter.cpp）⇒ 本 TU 首个强符号须为
+//   ACTIVESTATUS_ATTACK_TAG；仅交换两块定义的先后，零语义/零布局改动（P327：
+//   移的是常量静态数组，不做动态初始化，构造序不变）。
 // D 0x093f54e0：19 项 + NULL 终止。
 extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];
 const char* ACTIVESTATUS_ATTACK_TAG[20] = {
@@ -77,6 +72,15 @@ const char* ACTIVESTATUS_ATTACK_TAG[20] = {
     "[sleep]",  "[burn]",   "[weapon break]", "[bleeding]",
     "[haste]",  "[bless]",  "[element]", "[confuse]",
     "[hold]",   "[armor break]", "[none]", 0,
+};
+
+// D 0x093f4d80：15 项 + NULL 终止（objdump -s .data/.rodata 逐指针提取）。
+extern "C" const char* ACTIVEOBJECT_STATE_STRING[16];
+const char* ACTIVEOBJECT_STATE_STRING[16] = {
+    "[stand]",       "[sit]",         "[sit forever]", "[damage]",
+    "[down]",        "[die]",         "[jump]",        "[jump attack]",
+    "[attack]",      "[hold]",        "[throw]",       "[dash]",
+    "[dash attack]", "[get item]",    "[buff]",        0,
 };
 
 // ============================================================================

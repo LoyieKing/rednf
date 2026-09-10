@@ -1,5 +1,6 @@
 #ifndef GAME_STCHARACTERSCRIPT_H_
 #define GAME_STCHARACTERSCRIPT_H_
+#include <cstddef>
 #include <map>
 #include <string>
 #include <utility>
@@ -143,9 +144,10 @@ public:
         STSecondGrowTypeData() { clear(); }
         void clear();                    // ORIG W 0x08367a28
 
-        STRDCharacterStatus m_statusA;                  // +0x00（awakening 1）
-        STRDCharacterStatus m_statusB;                  // +0x57（awakening 2）
-        char m_padae[2];
+        // [round1 L26 数组化] ORIG clear 0x08367a28 `imul $0x57; add 0x8(%ebp),%eax`
+        // = 数组寻址 ⇒ awakening 1/2 为 stride 0x57 的 2 元素数组；原显式
+        // m_padae[2] 由自然对齐填充替代（sizeof/偏移零变化）。
+        STRDCharacterStatus m_statusA[2];               // +0x00（awakening 1/2）
         std::vector<std::pair<int, int> > m_skills[2];  // +0xb0
         CharacterEtcStats m_etc[2];                     // +0xc8
     };  // sizeof == 0x100
@@ -162,8 +164,10 @@ public:
     std::string m_growtypeName[6];                    // +0x004（[growtype name]）
     int m_width;                                      // +0x01c
     int m_height;                                     // +0x020
-    STRDCharacterStatus m_initialStatus;              // +0x024（[initial value]，步长 0x57）
-    STRDCharacterStatus m_growStatus[6];              // +0x07b（[growtype 1..6]）→ 止于 0x285
+    // [round1 L26 数组化] ORIG 原形即单一数组：Clear 0x08367b40 `imul $0x57;
+    // add $0x20; add this; add $4` = 「数组元素 + 成员偏移」，且 initial@+0x24 与
+    // growtype1@+0x7b 步长同为 0x57 首尾相接 ⇒ 原码 `STRDCharacterStatus m_status[7]`。
+    STRDCharacterStatus m_status[7];                  // +0x024（[0]=initial，[1..6]=growtype 1..6）→ 止于 0x285
     std::vector<std::pair<int, int> > m_skillList[7]; // +0x288（[0]=initial，[1..6]=growtype N）
     CharacterEtcStats m_etcStats[7];                  // +0x2dc（[category]/[module damage rate]）
     std::string m_awakeningName[6][2];                // +0x3a0 → 止于 0x3d0
@@ -216,5 +220,11 @@ static_assert(sizeof(_ComboInfo) == 0x3c, "_ComboInfo size drift");
 static_assert(sizeof(STCharacterScript::STSecondGrowTypeData) == 0x100,
               "STSecondGrowTypeData size drift");
 static_assert(sizeof(STCharacterScript) == 0xc1c, "STCharacterScript size drift");
+// [round1 L26] 数组化后的同址/步长锁（零布局变化证明）
+static_assert(offsetof(STCharacterScript, m_status[1]) -
+              offsetof(STCharacterScript, m_status) == 0x57, "m_status stride drift");
+static_assert(offsetof(STCharacterScript::STSecondGrowTypeData, m_statusA[1]) -
+              offsetof(STCharacterScript::STSecondGrowTypeData, m_statusA) == 0x57,
+              "m_statusA stride drift");
 
 #endif  // GAME_STCHARACTERSCRIPT_H_

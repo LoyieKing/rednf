@@ -4,6 +4,10 @@
 // +0x08 CUdpHandler m_udpHandler（sizeof 0x10）。
 // 与 BaseServerProxy/CHadesServerProxy 不同：本类不继承 BaseServerProxy，
 // 直接内嵌 string + port + CUdpHandler（ORIG ctor 0x846d300 逐成员推导）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN27CDoubleConnCheckServerProxyC2ESsi`（ORIG 0x846d56e）。
+#include <iostream>
+
 #include <string>
 
 #include "CUdpHandler.h"

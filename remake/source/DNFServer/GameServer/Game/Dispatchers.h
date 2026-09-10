@@ -216,7 +216,7 @@ public:
     Dispatcher_Teleport() {}
     virtual ~Dispatcher_Teleport();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG 0x081d056c（三参形态）
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG 0x081d056c（三参形态）
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -557,7 +557,7 @@ public:
     Dispatcher_BossDieCheck() {}
     virtual ~Dispatcher_BossDieCheck();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081cd71e
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081cd71e
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -654,7 +654,7 @@ class Dispatcher_MailBox_Open : public IPacketDispatcher<MSG_BASE, stMailboxOpen
 public:
     Dispatcher_MailBox_Open() {}
     virtual ~Dispatcher_MailBox_Open();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -664,7 +664,7 @@ class Dispatcher_MailBox_Send : public IPacketDispatcher<MSG_MAILBOX_SEND, stMai
 {
 public:
     Dispatcher_MailBox_Send() {}
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -676,7 +676,7 @@ class Dispatcher_MemberSecede : public IPacketDispatcher<MSG_MEMBER_SECEDE, stMe
 public:
     Dispatcher_MemberSecede() {}
     virtual ~Dispatcher_MemberSecede();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -889,7 +889,7 @@ class Dispatcher_HatchCreature : public IPacketDispatcher<MSG_HATCH_CREATURE, st
 public:
     Dispatcher_HatchCreature() {}
     virtual ~Dispatcher_HatchCreature();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1029,7 +1029,7 @@ class Dispatcher_CallMemberList : public IPacketDispatcher<MSG_BASE, stCallMembe
 public:
     Dispatcher_CallMemberList() {}
     virtual ~Dispatcher_CallMemberList();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -1144,7 +1144,7 @@ class Dispatcher_PcRoomRentItem : public IPacketDispatcher<MSG_RENT_ITEM, stRent
 {
 public:
     Dispatcher_PcRoomRentItem() {}
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1176,7 +1176,7 @@ class Dispatcher_RenameCreature : public IPacketDispatcher<MSG_RENAME_CREATURE, 
 public:
     Dispatcher_RenameCreature() {}
     virtual ~Dispatcher_RenameCreature();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1351,7 +1351,7 @@ class Dispatcher_LimitNpcBuyItem : public IPacketDispatcher<MsgLimitNpcBuyItem, 
 public:
     Dispatcher_LimitNpcBuyItem() {}
     virtual ~Dispatcher_LimitNpcBuyItem();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1362,7 +1362,7 @@ class Dispatcher_MailBox_Extract : public IPacketDispatcher<MSG_MAILBOX_EXTRACT_
 public:
     Dispatcher_MailBox_Extract() {}
     virtual ~Dispatcher_MailBox_Extract();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);   // P211 档①：ORIG 调用点 RHS-first+edx 中转 ⇒ callee 返回类型与 int 字段异型
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1537,7 +1537,7 @@ class Dispatcher_ChangeLetterStat : public IPacketDispatcher<MSG_CHANGE_LETTER_S
 public:
     Dispatcher_ChangeLetterStat() {}
     virtual ~Dispatcher_ChangeLetterStat();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1601,7 +1601,7 @@ class Dispatcher_MemberEnterReply : public IPacketDispatcher<MSG_MEMBER_ENTER_RE
 public:
     Dispatcher_MemberEnterReply() {}
     virtual ~Dispatcher_MemberEnterReply();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -1689,7 +1689,7 @@ class Dispatcher_RequestBlackList : public IPacketDispatcher<MSG_BASE, stRequest
 public:
     Dispatcher_RequestBlackList() {}
     virtual ~Dispatcher_RequestBlackList();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -1869,7 +1869,7 @@ public:
     virtual ~Dispatcher_GuildCargoPopItem();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d14aa（StubS3A）
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d14aa（StubS3A）
     void send(CUser* user, ParamBase& param);
 };
 
@@ -2083,7 +2083,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_CompatibilityIndex : public IPacketDispatcher<MSG_COMPATIBILITY_INDEX, ParamBase, ch_state0>
@@ -2155,7 +2155,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d18dc（StubS3A）
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d18dc（StubS3A）
 };
 
 class Dispatcher_GuildCargoPushItem
@@ -2166,7 +2166,7 @@ public:
     Dispatcher_GuildCargoPushItem() {}          // 定义 Dispatchers.cpp
     virtual ~Dispatcher_GuildCargoPushItem();
     // ORIG T 0x081d0f64（3 参数符号；字段自 param+0xd/0xe/0x10 读）。
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d10d4
@@ -2207,7 +2207,7 @@ class Dispatcher_RequestMemberEnter : public IPacketDispatcher<MSG_REQUEST_MEMBE
 public:
     Dispatcher_RequestMemberEnter() {}
     virtual ~Dispatcher_RequestMemberEnter();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2458,7 +2458,7 @@ class Dispatcher_SaveCharacterOption : public IPacketDispatcher<MSG_SAVE_CHARACT
 public:
     Dispatcher_SaveCharacterOption() {}
     virtual ~Dispatcher_SaveCharacterOption();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -2875,7 +2875,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_AuctionAskAveragePrice : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2993,7 +2993,7 @@ class Dispatcher_LogIngameAdvertisement : public IPacketDispatcher<MSG_LOG_INGAM
 public:
     Dispatcher_LogIngameAdvertisement() {}
     virtual ~Dispatcher_LogIngameAdvertisement();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3014,7 +3014,7 @@ class Dispatcher_RequestCharacSkillInfo : public IPacketDispatcher<MSG_REQUEST_C
 public:
     Dispatcher_RequestCharacSkillInfo() {}
     virtual ~Dispatcher_RequestCharacSkillInfo();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3060,7 +3060,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_VerifyPrivateStoreItem : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>

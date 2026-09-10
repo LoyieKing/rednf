@@ -113,6 +113,10 @@ enum ENUM_CHARAC_LINK_BONUS_STATE { ENUM_CHARAC_LINK_BONUS_STATE_0 = 0 };
                                  //   供 SigTypes_C.h SIG_LOAD_SKILL 数组成员构造）
 #include "CCharacter.h"   // _Additioal_info 完整类型（CUserPremium::GetAdditionalInfo 返回值；
                           // 叶子头：string.h/utility/vector，无环）
+// [L31CharacPad 2026-09-10 · Main 批准 R2] _Charac_info 余 13 处 pad/占位 → 真实子对象成员
+//   （ORIG C1 0x08695cf8 的隐式成员构造点；两个叶子头无环，sizeof 由断言锁定）。
+#include "STGrowthType.h"         // STGrowthType（_Charac_info +0x29/+0x2a；sizeof 1）
+#include "STPowerWarCharacData.h" // STPowerWarCharacData（_Charac_info +0xe8d；sizeof 0xc）
 #include "STGuildSkill.h" // STGuildSkill 完整类型（STGuildDBInfoOnly::m_skills[16]；
                           // 叶子头：pack(1) 5B，无环）
 // [Lane37CUser 2026-09-10 解环] STGuildDBInfoOnly 迁至独立叶子头（SkillSlot.h 的
@@ -515,6 +519,21 @@ struct CHARAC_LOGIN_DATA
 
 typedef char charac_login_data_size_ok[(sizeof(CHARAC_LOGIN_DATA) == 0x90) ? 1 : -1];
 
+// ---------------------------------------------------------------------------
+// tagCharacVisibleFlag —— _Charac_info +0xe40 子对象（权威定义点，2026-09-10 L31CharacPad
+// 自 CUserOnlyOrig.cpp 的 TU 局部声明提升；删局部声明由该 TU 属主同步）。
+// 证据：ORIG C1 0x8695d5c `add $0xe40; mov (%esp); call 0x08695c60`；ctor/reset 体同为
+//       `movb $0x0,(%eax)`（各 0xb 尺寸）⇒ 本波按**首字节视图**建模（sizeof 1，断言锁定），
+//       0xe41..0xe8c 区间内标量字段保留在 _Charac_info。
+// ---------------------------------------------------------------------------
+class tagCharacVisibleFlag
+{
+public:
+    tagCharacVisibleFlag();   // ORIG W _ZN20tagCharacVisibleFlagC1Ev @0x08695c60
+    void reset();             // ORIG W _ZN20tagCharacVisibleFlag5resetEv @0x08695c6c
+    unsigned char m_flag;     // +0x0（ctor/reset 写 0）
+};
+
 #pragma pack(push, 1)
 struct _Charac_info
 {
@@ -534,8 +553,11 @@ struct _Charac_info
     unsigned char m_field25;          // +0x25 备份 data[0x22]
     char m_field26;         // +0x26（job）
     short m_level;          // +0x27（ORIG CalcurateUserMaxLevel 两处 movzwl+cwtl 符号扩展⇒signed；getCharacLevelByCharacNo 单 movzwl 系 ORIG 源码显式 (unsigned short) cast，非字段类型，CUserC8 反证回滚）
-    char m_field29;         // +0x29（MakeTagCharacInfo put_byte(movsbl)）
-    char m_pad2a;                     // +0x2a
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695d00/0x8695d0e：两处 `mov 0x8(%ebp); add $0x29/
+    //   $0x2a; mov (%esp); call STGrowthType::C1(0x8486bce)`（ctor 写 0xff）⇒ 1 字节子对象；
+    //   消费点改 `.m_growthType` 字节视角（sizeof 1 由断言锁定）。
+    STGrowthType m_field29;           // +0x29
+    STGrowthType m_pad2a;             // +0x2a
     int m_field2b;                    // +0x2b ← CHARAC_DATA+0x28 (int)
     // 2026-09-04 §4.3 字段化（CUserOnlyOrig 批次，Main 授权 _Charac_info 区；
     // 全部宽度证据 docs/class_func_reports/_Charac_info/Reset.md objdump 0x086822b8）
@@ -563,23 +585,14 @@ struct _Charac_info
     char m_pad83;                     // +0x83 ← Reset movb $0,0x83（R+0x1e6；CharacListElemView
                                       //   m_forbidPlayFlag 同位）
     int m_field84;                    // +0x84 ← Reset movl $0,0x84（R+0x1f0；ElemView m_forbidPlayLeftSec 同位）
-    int m_field88;                    // +0x88 ← CHARAC_DATA+0x60 (int，_Additioal_info 子对象首字)
-    int m_field8c;                    // +0x8c ← CHARAC_DATA+0x64 (int)
-    unsigned short m_field90;         // +0x90..0x96 四连 u16 ← CHARAC_DATA+{0x68,0x6a,0x6c,0x6e}
-    unsigned short m_field92;
-    unsigned short m_field94;
-    unsigned short m_field96;
-    char m_data98[8];                 // +0x98 ← memcpy(CHARAC_DATA+0x70,8)
-    char m_dataA0[0x22];              // +0xa0 ← memcpy(CHARAC_DATA+0x78,0x22)
-    int m_fieldc2;                    // +0xc2 ← CHARAC_DATA+0x9a (int)
-    unsigned short m_fieldc6;         // +0xc6 ← +0x9e
-    unsigned short m_fieldc8;         // +0xc8 ← +0xa0
-    int m_fieldca;                    // +0xca ← +0xa2 (int)
-    unsigned short m_fieldce;         // +0xce ← +0xa6
-    unsigned short m_fieldd0;         // +0xd0 ← +0xa8
-    unsigned short m_fieldd2;         // +0xd2 ← +0xaa
-    unsigned short m_fieldd4;         // +0xd4 ← +0xac
-    int m_fieldd6;                    // +0xd6 ← +0xae (int)
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695d1c `add $0x88; mov (%esp); call
+    //   _Additioal_info::C1`（0x8348254 → clear：memset(this,0,0x52)）⇒ 0x88..0xd9 原 17 个
+    //   CHARAC_DATA 镜像字段实为该子对象成员（权威名 m_field00/m_field04/m_field08/m_field0a/
+    //   m_field0c/m_field0e/m_field10[4]/m_field18[17]/m_field3a/m_field3e/m_field40/m_field42/
+    //   m_field46/m_field48/m_field4a/m_field4c/m_field4e；sizeof 0x52 断言锁定）。
+    //   消费点改 `...m_additioalInfo.<权威名>`（原 `*(const _Additioal_info*)&...m_field88`
+    //   视图 cast 一并有据消除）。
+    _Additioal_info m_additioalInfo;  // +0x88..0xd9（0x52）
     // [Lane37CUser 2026-09-10 · Main 立项] pad 视图区 → 真实子对象成员（布局零变化）：
     //   探针实测 sizeof(CInventory)=0x7b8 / sizeof(SkillSlot)=0x518 / sizeof(CCargo)=0x14，
     //   0x7b8+0x518+0x14 == 0xce4 == 0xdbe-0xda 恰好拼满原 pad 区（/tmp/tu__ProbeCharacLayout.o
@@ -615,9 +628,11 @@ struct _Charac_info
     int m_fieldE37;                   // +0xe37 ← Reset movl $0（R+0x1b8）
     unsigned char m_needCheckOverEquipItem;  // +0xe3b（SetNeedCheckOverEquipItem 0x0867ceae 写 1）
     int m_fieldE3C;                   // +0xe3c ← Reset movl $0（R+0x1fd）
-    unsigned char m_tagVisibleFlags;  // +0xe40 tagCharacVisibleFlag 首字节（Reset movb/clear 视图；
-                                      //   getCharacInfoDetail 0x0864c7e6 movzbl 读→CHARAC_DATA+0x12e，
-                                      //   2026-09-04 CUserMain 证据，unsigned 宽保 movzbl 形态）
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695d67 `add $0xe40; mov (%esp); call
+    //   tagCharacVisibleFlag::C1`（0x8695c60 写首字节 0）⇒ 子对象成员（首字节视图 sizeof 1，
+    //   断言锁定）；0xe41..0xe8c 标量保留。消费点 `...m_tagVisibleFlags` → `.m_flag`
+    //   （getCharacInfoDetail 0x0864c7e6 movzbl 读→CHARAC_DATA+0x12e → m_flag 仍 unsigned char）。
+    tagCharacVisibleFlag m_tagVisibleFlags;  // +0xe40
     int m_fieldE41;                   // +0xe41 ← Reset movl $0（R+0x246）
     int m_fielde45;                   // +0xe45..0xe5d 六连 int ← CHARAC_DATA+{0xed,0xd5,0xd9,0xdd,0xe1,0xe5}
     int m_fielde49;
@@ -640,12 +655,16 @@ struct _Charac_info
     int m_fielde81;                   // +0xe81 ← +0x10a
     int m_fieldE85;                   // +0xe85 ← Reset movl $0（R+0x358）
     int m_fieldE89;                   // +0xe89 ← Reset movl $0（R+0x365）
-    char m_dataE8D[0xc];              // +0xe8d ← Reset memset(0,0xc)（R+0x2aa；STPowerWarCharacData
-                                      //   子对象区，ctor placement-new @0xe8d 同址；+0xe90 写 1
-                                      //   用 m_dataE8D[3]）
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695d6c `add $0xe8d; mov (%esp); call
+    //   STPowerWarCharacData::C1`（0x86959dc：+0 word=0 / +2 byte=0 / +3 byte=1 / +4 int=0 /
+    //   +8 int=0，sizeof 0xc 断言锁定）⇒ 真实子对象。
+    STPowerWarCharacData m_powerWarData;  // +0xe8d..0xe98
     char m_fieldE99;                  // +0xe99 ← Reset movb $0（R+0x37f）
-    char m_padE9A[0x18];              // +0xe9a..0xeb1（std::vector<ContinuousItemInfo>×2 子对象
-                                      //   视图区 @0xe9a/@0xea6；Reset 无标量写证据）
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695d87/0x8695d97：两处 `add $0xe9a/$0xea6; mov (%esp);
+    //   call std::vector<ContinuousItemInfo>::vector()`（0x86980de）⇒ 两个真实 vector 成员
+    //   （各 sizeof 0xc，偏移由断言锁定；编译器隐式构造/析构，dtor 顺序随声明逆序=偏移降序）。
+    std::vector<ContinuousItemInfo> m_continuousItemListA;  // +0xe9a..0xea5
+    std::vector<ContinuousItemInfo> m_continuousItemListB;  // +0xea6..0xeb1
     char m_fieldEB2;                  // +0xeb2 ← Reset movb $0（R+0x393）
     char m_padEB3;                    // +0xeb3（无证据）
     char m_fieldEB4;                  // +0xeb4 ← Reset movb $0（R+0x3a4）
@@ -664,9 +683,11 @@ struct _Charac_info
     char m_fieldEE9;                  // +0xee9 ← Reset movb $0（R+0x45a）
     char m_fieldEEA;                  // +0xeea ← Reset movb $0（R+0x464）
     short m_fieldEEB;                 // +0xeeb ← Reset movw $0（R+0x46e）
-    char m_dataEED[0x199];            // +0xeed ← Reset memset(0,0x199)（R+0x47f；SIG_LOAD_PREMIUM_LETHE
-                                      //   ×2 placement-new @0xeed/@0x1086 同址区）
-    char m_pad1086[0x121f - 0x1086];  // +0x1086..0x121e（第二 SIG_LOAD_PREMIUM_LETHE 视图区）
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695db7/0x8695dc7：两处 `add $0xeed/$0x1086; mov (%esp);
+    //   call SIG_LOAD_PREMIUM_LETHE::C1`（0x848ff7c：0xcc×_Mastered_skill 循环构造；sizeof
+    //   0x199 断言锁定）⇒ 两个真实子对象。
+    SIG_LOAD_PREMIUM_LETHE m_premiumLethe;   // +0xeed..0x1085
+    SIG_LOAD_PREMIUM_LETHE m_premiumLethe2;  // +0x1086..0x121e
     unsigned short m_field121f;       // +0x121f ← CHARAC_DATA+0x10e (u16)
     int m_field1221;                  // +0x1221 ← +0x110 (int)
     int m_field1225;                  // +0x1225 ← +0x114 (int)
@@ -729,13 +750,18 @@ struct _Charac_info
     int m_field1291;                  // +0x1291 ← Reset movl $0（R+0x698）
     int m_field1295;                  // +0x1295 ← Reset movl $0（R+0x6b2）
     int m_field1299;                  // +0x1299 ← Reset movl $0（R+0x6bf）
-    char m_data129D[8];               // +0x129d ← Reset memset(0,8)（R+0x6cc）
-    char m_data12A5[8];               // +0x12a5 ← Reset memset(0,8)（R+0x6f1）
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695de7/0x8695df7：`call WpBonusPointResult::C1`
+    //   （0x8695c78→clear）/`call ExpBonusPointResult::C1`（0x8695ca4→clear，各 +0/+4 清零）；
+    //   两类型 sizeof 8（断言锁定）⇒ Reset 的 memset(8) 由 ctor 等价覆盖。
+    WpBonusPointResult m_wpBonusPointResult;    // +0x129d..0x12a4
+    ExpBonusPointResult m_expBonusPointResult;  // +0x12a5..0x12ac
     int m_field12ad;                  // +0x12ad ← +0x130 (int)
     int m_field12B1;                  // +0x12b1 ← Reset movl $0（R+0x719）
     short m_field12B5;                // +0x12b5 ← Reset movw $0（R+0x726）
-    char m_data12B7[0x200];           // +0x12b7 ← Reset memset(0,0x200)（R+0x737；CharacterOption
-                                      //   子对象视图区 @0x12b7 sizeof 0x200）
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695e07 `add $0x12b7; mov (%esp); call
+    //   CharacterOption::C1`（0x822abec：memset(this,0xff,0x200)；sizeof 0x200 断言锁定）
+    //   ⇒ 真实子对象；字节视图消费点改 `.m_pad`。
+    CharacterOption m_characterOption;   // +0x12b7..0x14b6
     unsigned char m_field14b7;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
     int m_field14b8;                  // +0x14b8（SelectCharac::process 回填 MSG_CHARAC_SELECT+0xe）
     // [b28d-solo-CUserOnlyOrig 代落 P248档②] char→bool：ORIG SendTagCharacInfo
@@ -746,8 +772,10 @@ struct _Charac_info
     int m_field14BE;                  // +0x14be ← Reset movl $0（R+0x77d）
     int m_field14C2;                  // +0x14c2 ← Reset movl $0（R+0x78a）
     int m_viewState;        // +0x14c6
-    short m_field14CA;                // +0x14ca ← Reset movw $0（R+0x797）
-    short m_field14CC;                // +0x14cc ← Reset movw $0（R+0x7b0）
+    // [L31CharacPad 2026-09-10] ORIG C1 0x8695e17 `add $0x14ca; mov (%esp); call
+    //   seriaRoom_AniDeco::C1`（0x822ee18：两 movw $0 ⇒ 两 short 成员 m_field0/m_field2；
+    //   sizeof 4 断言锁定）⇒ 覆盖原 0x14ca/0x14cc 两标量（Reset 的 movw $0 即其成员写）。
+    seriaRoom_AniDeco m_aniDeco;      // +0x14ca..0x14cd
     char m_field14CE;                 // +0x14ce ← Reset movb $0（R+0x7bc）
     char m_field14CF;                 // +0x14cf ← Reset movb $0（R+0x7c6）
     char m_field14D0;                 // +0x14d0 ← Reset movb $0（R+0x7d0）
@@ -763,6 +791,31 @@ static_assert(__builtin_offsetof(_Charac_info, m_cargo) == 0xdaa,
               "_Charac_info CCargo @0xdaa");
 static_assert(__builtin_offsetof(_Charac_info, m_guildId) == 0xdbe,
               "_Charac_info m_guildId @0xdbe");
+// [L31CharacPad 2026-09-10 · Main 批准] 子对象尺寸 + 13 处成员化偏移锁定。
+// 依据：ORIG `_ZN12_Charac_infoC1Ev` @0x08695cf8（sz 0x1f7）逐条 objdump 的 18 个
+// 隐式成员构造点；任一处不符即回滚该处成员化（不得改断言迁就）。
+static_assert(sizeof(STGrowthType) == 1, "STGrowthType 1B view");
+static_assert(sizeof(_Additioal_info) == 0x52, "_Additioal_info 0x52");
+static_assert(sizeof(tagCharacVisibleFlag) == 1, "tagCharacVisibleFlag 1B view");
+static_assert(sizeof(STPowerWarCharacData) == 0xc, "STPowerWarCharacData 0xc");
+static_assert(sizeof(SIG_LOAD_PREMIUM_LETHE) == 0x199, "SIG_LOAD_PREMIUM_LETHE 0x199");
+static_assert(sizeof(WpBonusPointResult) == 8, "WpBonusPointResult 8");
+static_assert(sizeof(ExpBonusPointResult) == 8, "ExpBonusPointResult 8");
+static_assert(sizeof(CharacterOption) == 0x200, "CharacterOption 0x200");
+static_assert(sizeof(seriaRoom_AniDeco) == 4, "seriaRoom_AniDeco 4");
+static_assert(__builtin_offsetof(_Charac_info, m_field29) == 0x29, "STGrowthType @0x29");
+static_assert(__builtin_offsetof(_Charac_info, m_pad2a) == 0x2a, "STGrowthType @0x2a");
+static_assert(__builtin_offsetof(_Charac_info, m_additioalInfo) == 0x88, "_Additioal_info @0x88");
+static_assert(__builtin_offsetof(_Charac_info, m_tagVisibleFlags) == 0xe40, "tagCharacVisibleFlag @0xe40");
+static_assert(__builtin_offsetof(_Charac_info, m_powerWarData) == 0xe8d, "STPowerWarCharacData @0xe8d");
+static_assert(__builtin_offsetof(_Charac_info, m_continuousItemListA) == 0xe9a, "vector @0xe9a");
+static_assert(__builtin_offsetof(_Charac_info, m_continuousItemListB) == 0xea6, "vector @0xea6");
+static_assert(__builtin_offsetof(_Charac_info, m_premiumLethe) == 0xeed, "SIG_LOAD_PREMIUM_LETHE @0xeed");
+static_assert(__builtin_offsetof(_Charac_info, m_premiumLethe2) == 0x1086, "SIG_LOAD_PREMIUM_LETHE @0x1086");
+static_assert(__builtin_offsetof(_Charac_info, m_wpBonusPointResult) == 0x129d, "WpBonusPointResult @0x129d");
+static_assert(__builtin_offsetof(_Charac_info, m_expBonusPointResult) == 0x12a5, "ExpBonusPointResult @0x12a5");
+static_assert(__builtin_offsetof(_Charac_info, m_characterOption) == 0x12b7, "CharacterOption @0x12b7");
+static_assert(__builtin_offsetof(_Charac_info, m_aniDeco) == 0x14ca, "seriaRoom_AniDeco @0x14ca");
 
 
 // ---- 子对象最小类（尺寸按构造偏移推导；方法签名按 ORIG nm 核对） ----

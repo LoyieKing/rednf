@@ -55,10 +55,15 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
         out.m_count   = hit->second.m_count;
         for (int i = 0; i < (signed char)hit->second.m_count; ++i)
         {
-            unsigned char key = (&hit->second.m_key0)[i];
-            (&out.m_key0)[i]  = key;
+            // [L23-r2 P291/P311] ORIG 0x08654b94 段为单条
+            //   `movzbl 0x3(%edx,%eax,1),%eax`（disp+scaled index）——
+            //   取 `(&x.m_key0)[i]` 形 4.4 会拆成 `lea 0x3(%eax),%edx;
+            //   lea (%edx,%eax,1)`；改用头内既有匿名 union 数组视角
+            //   `m_keyBytes[5]`（同址、sizeof/偏移零变化）即折叠为单条。
+            unsigned char key = hit->second.m_keyBytes[i];
+            out.m_keyBytes[i]  = key;
             if (key == 7)
-                (&out.m_key0)[i] = 8;
+                out.m_keyBytes[i] = 8;
         }
         return true;
     }
@@ -99,9 +104,9 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
     {
         // ORIG 读第 i 个 STKeyCommandUnit.m_ids[0] 低字节作命令键位
         int v = skill->m_keyCommandList[i].m_ids[0];
-        (&out.m_key0)[i] = (unsigned char)v;
+        out.m_keyBytes[i] = (unsigned char)v;
         if ((unsigned char)v == 7)
-            (&out.m_key0)[i] = 8;
+            out.m_keyBytes[i] = 8;
     }
     return true;
 }
@@ -127,10 +132,11 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out, bool flag
     out.m_count   = it->second.m_count;
     for (int i = 0; i < (signed char)it->second.m_count; ++i)
     {
-        unsigned char key = (&it->second.m_key0)[i];
-        (&out.m_key0)[i]  = key;
+        // [L23-r2 P291] 同 findSkillCommandData：用具名数组视角替换裸下标。
+        unsigned char key = it->second.m_keyBytes[i];
+        out.m_keyBytes[i]  = key;
         if (key == 7)
-            (&out.m_key0)[i] = 8;
+            out.m_keyBytes[i] = 8;
     }
     return true;
 }
@@ -150,8 +156,9 @@ int CUser::customizingSkillCommand(STSkillCommandData& data)
     // 先还原 ORIG 的占位键 0x8 → 0x7，再以上下文键寻位
     for (int i = 0; i < (signed char)data.m_count; ++i)
     {
-        if ((&data.m_key0)[i] == 8)
-            (&data.m_key0)[i] = 7;
+        // [L23-r2 P291] 同族：具名数组视角 `m_keyBytes[5]`（ORIG 单条 disp+scaled）。
+        if (data.m_keyBytes[i] == 8)
+            data.m_keyBytes[i] = 7;
     }
 
     int key = (int)(short)data.m_command;    // ORIG cwtl 有符号扩展
@@ -161,7 +168,7 @@ int CUser::customizingSkillCommand(STSkillCommandData& data)
         it->second.m_command = data.m_command;
         it->second.m_count   = data.m_count;
         for (int i = 0; i < (signed char)data.m_count; ++i)
-            (&it->second.m_key0)[i] = (&data.m_key0)[i];
+            it->second.m_keyBytes[i] = data.m_keyBytes[i];
     }
     else
     {

@@ -83,7 +83,23 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
     // `m_flag08 == cardNo` 后我方比较段逐条复现 ORIG；168/170 与 p167 9=9 CLEAR 不变。
 // [SweepCTournament 2026-09-09] 复核 168/170：残 = N18a 索引中转×5 + 三失败块
 // 尾部合并（N-JMP：ORIG 就地 `mov $0,%eax; jmp`×3）；p167 9=9 CLEAR ⇒ N 封顶。
-    if (maxItems < 3 && (int)type >= 0 && (int)type < 2)
+// [round1-L19 2026-09-09] 复修（判据① jcc 落点 + 判据⑨ 旧判复核）：
+// 守卫重构 = ① `maxItems > 2` 独立早返（复现 ORIG 0x0828503a `cmpl $0x2,0x18(%ebp);
+// jbe <body>` + fall-through fail 块）；② `(int)type < 0 || (int)type > 1` **合并
+// 短路**（复现 ORIG 0x08285049 `js <共享 fail>` + `cmp $1; jle <cont>` 两跳共享
+// 0x08285055 fail 块）。旧形 `maxItems<3 && type>=0 && type<2` 生 `ja` 异极性链。
+// 读数：168/170 gap=-2 → **168/174 gap=-6**、ndiff 118→110、**槽集合差 ∅（全等）**。
+// p167 9=9 CLEAR。残余 = 6 条 `mov %eax,%edx` 二维索引中转（ORIG `lea 0x0(,%eax,4),
+// %ecx` 直落 vs 4.4 累加器恒 eax ⇒ 多 1 条/访问，N7/N18a 后端族；12 形探针
+// /tmp/idx_probe{,2}.cpp + fB..fI 已验证不可择）+ 1 处 jne/je。
+    if (maxItems > 2)
+    {
+        return 0;
+    }
+    if ((int)type < 0 || (int)type > 1)
+    {
+        return 0;
+    }
     {
         for (int i = 0; i < 2; ++i)
         {
@@ -348,7 +364,8 @@ void CTournamentDungeonReward::_ForceSelectCard(
         if (static_cast<unsigned char>(m_rewards[(int)type][slot].m_flag08) == 0xff)
         {
             // ORIG 增量段调 operator++(it,0)（后置，带独立 sret 临时槽 -0x10）⇒
-            // 源形必写 it++（P28 增量侧推论）。
+            // 源形必写 it++（P28 增量侧推论）。显式 itEnd 缓存实测 ndiff 63→73
+            // 反劣（4.4 不按 P13 缓存 end），故维持 `it != members.end()`。
             for (std::vector<int>::const_iterator it = members.begin();
                  it != members.end(); it++)
             {

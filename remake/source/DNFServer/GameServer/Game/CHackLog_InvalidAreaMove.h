@@ -18,7 +18,11 @@ public:
     static bool IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b, int c, int d);
     static bool checkSeriaRoom(int a, int b);   // ORIG 0x08284250 调用处 test %al;je 无 setne ⇒ bool（char/int 必物化 setne）
     static bool IsInvalidMovableArea(int a, int b, int c, int d);
-    static char isMovableRoute(int a, int b, int c, int d, int e, int f);
+    // [L11·P248 档①/P292] ORIG 调用点（GameWorld::move_area 0x086c629x）
+    // `call; xor $0x1,%eax; test %al,%al; je` = bool 直推导数（无 setne/cmp）
+    // ⇒ 原码返回 bool；char 令 4.4 产 `test %al,%al; jne`（缺 xor）。mangled 不含
+    // 返回类型 ⇒ 符号/布局零变化。全仓调用点仅 GameWorld.cpp:2636（已 grep）。
+    static bool isMovableRoute(int a, int b, int c, int d, int e, int f);
 
 private:
     // ORIG 内部辅助（弱符号，仅供上述方法内部调用）

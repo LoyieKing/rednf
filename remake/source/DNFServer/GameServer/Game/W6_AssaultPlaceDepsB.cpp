@@ -534,6 +534,10 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
             G_CDataManager()->m_powerParameter.m_powerWarPointMultiple *
             (winCnt - winAliveCnt));
     }
+    // [b28d-L28 round2 · P322② 实测负例] ORIG 0x82ed1cb 段为读-加-写四条形
+    // （`movzbl -0x41,%edx; mov -0x41,%eax; lea (%edx,%eax,1),%eax; mov %al,-0x41`），
+    // 但加 `volatile` 后**全部使用点**（5 处读 + pkt 写入）都强制重载 ⇒ ourN 331→339
+    // （gap +4→−4、块 5→11）反劣，已回退。P322② 仅适用于「该累加器无其它使用点」场景。
     unsigned char losePoint;
     if (G_CDataManager()->m_powerParameter.m_powerWarPointMultiple * loseCnt > 0xff) {
         LogManager::logFormat(

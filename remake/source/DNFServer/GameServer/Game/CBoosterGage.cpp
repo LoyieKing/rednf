@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN12CBoosterGage14inc_total_gageEi`（ORIG 0x80dd4b7）。
+#include <iostream>
+
 #include <cstdio>
 #include <cstring>
 #include <ctime>

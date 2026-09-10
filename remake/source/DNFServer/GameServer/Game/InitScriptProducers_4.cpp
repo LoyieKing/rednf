@@ -69,6 +69,12 @@ bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 //      sizeof 0x18 = std::map<int,std::string>；ORIG ctor 0x088bacf8）----
 
 
+// [L32 GI 调序] ORIG `_GLOBAL__I_DIFFICULTY_OF_DUNGEON_BONUS`
+//   （CU=RDARMonsterAbilityFormula.cpp）⇒ 本 TU 首个强符号须为
+//   DIFFICULTY_OF_DUNGEON_BONUS（静态初始化 float 表，无构造序影响；P327）。
+//   ORIG D 0x93f4a00 [0x104]=13×5，.data 初值为首元 1.0f 其余 0。
+float DIFFICULTY_OF_DUNGEON_BONUS[13][5]  = { { 1.0f } };
+
 // ===================== 地图脚本域（InitMapScript）=====================
 
 // ORIG B 0x94fe2a0 [0x100]
@@ -468,7 +474,7 @@ std::vector<std::vector<MonsterBaseParameter> > g_monsterBaseParameters;  // B 0
 
 // ORIG D 0x93f4a00 [0x104]=13×5 / D 0x93f4b20 [0x104]=13×5 /
 //       D 0x93f4c40 [0xd0]=13×4；.data 初值均为首元 1.0f 其余 0。
-float DIFFICULTY_OF_DUNGEON_BONUS[13][5]  = { { 1.0f } };
+// [L32 GI 调序] DIFFICULTY_OF_DUNGEON_BONUS 定义已前移到文件首，此处不再重复定义。
 float BLOOD_SYSTEM_BONUS[13][5]           = { { 1.0f } };
 float DEATH_TOWER_BONUS[13][4]            = { { 1.0f } };
 

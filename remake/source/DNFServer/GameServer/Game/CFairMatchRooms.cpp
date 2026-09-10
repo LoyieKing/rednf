@@ -24,6 +24,34 @@
 // 等待表交互均经 pWaitingRoomList_（IRoomList）虚槽：AddRoom/DelRoom/Match。
 //
 // ============================================================================
+// b28f-SweepCFairMatchRooms（本波）判词汇总：四数 36/88/4/6 → 36/89/near=4/diff=5
+//   （fresh 18:21:12）。逐件：
+//   ① OnRematchTimeout：**真语义 bug 修复**（DIFF→AE，292=292）。ORIG 0x0856602b
+//      `call CheckRematch; xor $0x1,%eax; test %al,%al; je 085662bb`，而
+//      0x085662bb = `add $0x1c,%eax; call TeamInfoThird::refresh`（refresh 主体）
+//      ⇒ 原码是**负极性写法 + 分支交换** `if (!CheckRematch(room)) { 队处理 }
+//      else { refresh 主体 }`。原实现把 refresh 主体放进 `!CheckRematch` 分支
+//      ⇒ CheckRematch 真/假两路处理**整体颠倒**（==1 该整场续战却去逐队拉出、
+//      ==0 该拉出却续战）。同步修 `CheckRematch` 返回 int→bool（ORIG 调用点
+//      bool 直推导数）⇒ `cmp $1; sete` 2 条 → `xor $1` 1 条。
+//      收尾 1 处 `movl $0x0,0xc(%esp)` 位置差按 P211/P274 解：`_ReturnTeam(…, int
+//      teamNo, …)` 形参 int 与局部 `unsigned int mgrTeam` 异型 ⇒ 先求值第 3 参。
+//      残差 2 块 → 0（AE）；CheckRematch 本体 43=43 AE。
+//   ② OnMatchRoom：残差 13 块全为槽号（N82 具名聚合优先低槽 / PacketGuard 落
+//      -0x94 vs ORIG movable 占 -0x94）+ P93 同址别名；p167 CLEAR。
+//   ③ UpdateScore：残差=帧 0x7c(我方)/0x6c + 深区槽差（N115 outgoing 预留 +
+//      N82 分区）；语义块仅帧尺寸本身。
+//   ④ CheckJoinable：`cmp %eax,%ebx; setge` vs `cmp %ebx,%eax; setle`（同一语义
+//      的 compare 方向折痕，P196 折痕归一；两向源形实测同形）⇒ N196 封顶。
+//   ⑤ OnWalkOut：五实参装载时刻 + 间接 call 目标 %eax/%edx（N7/N82附）。
+//   ⑥ _PullOutRoomTeam：ORIG body 尾 `jmp <紧邻>` 空岛被 4.4 jump-thread（N121）。
+//   ⑦ OnAskRematch：`this + idx*0x48 + 0x20` 的 lea 折叠 vs 我方两步 add（N107 族）。
+//   ⑧ GiveTrainingSeal：残 1 条我方多 `jmp`（N121 epilogue 尾岛）。
+//   ⑨ _ReturnTeam：两个 callee-saved 结果 ORIG esi/edi ↔ 我方 edi/esi 互换
+//      （P75/N82附 跨版本调度；判据⑪ 判别为寄存器角色差非槽差）⇒ 封顶。
+//   ⑩ diff 列表仍含 `_Z41__static_initialization_and_destruction_0ii`（N123 撞名伪差）。
+//   ⇒ 本 TU 剩余真缺口 = 0（p167 全 CLEAR，仅 C1/C2、D1/D2 同址别名 P93 豁免）。
+// ============================================================================
 // b28d-solo-CFairMatchRooms（本波）判词汇总（逐件 fresh 复测，p167 全 CLEAR）
 //   UpdateScore        DIFF→NEAR ndiff 133→32：P296 嵌套正向 if 消 m_flag 的
 //                      xor $1 物化（ORIG `movzbl; test %al,%al; je` 直测）；
@@ -1061,16 +1089,18 @@ int CFairMatch::OnWalkOut(PvP_Room* room, int seat)
 }
 
 // CheckRematch ORIG T 0x85665d04 报告 CheckRematch.md
-int CFairMatch::CheckRematch(PvP_Room* room)
+// [b28f-SweepCFairMatch] 返回 bool（P248 档①/P292）：ORIG 本体各路径 `mov $0x1/%0x0,%eax`
+// 直返、调用点 `xor $1; test %al` 直推导数 ⇒ 原码 bool；0/1 → false/true 语义等价。
+bool CFairMatch::CheckRematch(PvP_Room* room)
 {
-    if (m_fieldB0 >= 3) return 0;  // ORIG +0x0f cmp $0x2 立即数实证（P97）
-    if (!_CheckRematchable(room)) return 0;
+    if (m_fieldB0 >= 3) return false;  // ORIG +0x0f cmp $0x2 立即数实证（P97）
+    if (!_CheckRematchable(room)) return false;
     // ORIG +0x44..0x63：(this+t*0x48)+0x10 / disp 0xc = 全局 0x1c+0x48t
     // ⇒ m_teams[t].m_field00（“可重赛”标记；bool 取反 xor $1 实证，P22）。
     for (int t = 0; t < 2; ++t) {
-        if (!m_teams[t].m_field00) return 0;
+        if (!m_teams[t].m_field00) return false;
     }
-    return 1;
+    return true;
 }
 
 // OnEndFight ORIG T 0x8565048 报告 OnEndFight.md
@@ -1376,7 +1406,71 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
                      room->get_index(), room->get_pvp_battle_mode(),
                      static_cast<unsigned char>(CheckRematch(room)));
 
-    if (CheckRematch(room) == 1) {
+    // [b28f-SweepCFairMatch 真语义 bug + P292] ORIG 0x0856602b `call CheckRematch;
+    //   xor $0x1,%eax; test %al,%al; je 085662bb`，而 0x085662bb = `add $0x1c,%eax;
+    //   call TeamInfoThird::refresh`（refresh 主体）⇒ ORIG 原码是**负极性写法 +
+    //   分支交换**：`if (!CheckRematch(room)) { 队处理 } else { refresh 主体 }`。
+    //   原实现把 refresh 主体放进 `!CheckRematch` 分支 ⇒ 重赛超时的真/假两路处理
+    //   **整体颠倒**（CheckRematch==1 该整场续战，却去逐队拉出；==0 该拉出，却续战）。
+    //   语义 + 形态同时按 ORIG 修正（bool callee 直测产 `xor;je`，无 cmp/sete）。
+    if (!CheckRematch(room))
+    {
+        // 不能整场续战：两支队伍按各自去留意图分别拉出
+        // ORIG: pull 队1 条件 = size(team1)!=0 且 *(int*)(this+0x68)==0
+        //      （this+0x68 = m_teams[1].m_field04，重赛决定位）
+        if (m_teams[1].size() != 0 && m_teams[1].m_field04 == 0) {
+            _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(1));
+        }
+        // ORIG 0x856607a 实证读 *(int*)(this+0x20) = m_teams[0].m_field04（4 字节）
+        // （队决定位，OnAskRematch 写入；FM_TeamByte0 队头字节仅 CheckRematch 用）。
+        // ORIG 0x085661f5 段 `test %eax,%eax; je; test; js; cmp $2; jg` = 无槽
+        // switch 决策树（P251/P261；具名 team0Decision 恒产 cmpl mem 槽形）。
+        switch (m_teams[0].m_field04) {
+        case 0:
+            _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
+            if (m_teams[1].size() != 0) {
+                PacketGuard pkt;
+                pkt.put_header(0, 0x13b);
+                pkt.finalize(true);
+                m_teams[1].SendToTeam(pkt);
+                // b28d-solo-CFairMatchRooms：P83/N84——ORIG 0x08566131 为结构整体
+                // 赋值 rep movsl（0x12 dwords）。
+                m_teams[0] = m_teams[1];
+                m_teams[0].refresh();
+                m_teams[1].reset();
+                m_fieldB0 = 0;
+            }
+            break;
+        case 1:
+        case 2: {
+            // [b28f-SweepCFairMatch] P211/P274：`_ReturnTeam(…, int teamNo, …)` 形参
+            //   int 与局部 unsigned 异型 ⇒ 4.4 先求值第 3 参（mgrTeam）再写第 4 参
+            //   常量 `movl $0x0,0xc(%esp)`，复现 ORIG 0x085661dd 段装载序（同
+            //   OnConnectP2PTimeout 的手法，探针 /tmp/fm_p3.cpp w31）。
+            const unsigned int mgrTeam = room->get_manager_team();
+            PvP_Room* kept =
+                _ReturnTeam(room, mgrTeam, 0);
+            PacketGuard pkt;
+            pkt.put_header(0, 0x13b);
+            pkt.finalize(true);
+            if (kept != 0)
+                kept->send_to_pvp(pkt);
+            m_teams[0].SendToTeam(pkt);
+            m_teams[1].SendToTeam(pkt);
+            if (m_teams[0].size() == 0) {
+                // b28d-solo-CFairMatchRooms：P83/N84——ORIG 0x08566265 为结构整体
+                // 赋值 rep movsl（0x12 dwords）。
+                m_teams[0] = m_teams[1];
+            }
+            m_teams[0].refresh();
+            m_teams[1].reset();
+            m_fieldB0 = 0;
+            break;
+        }
+        }
+    }
+    else
+    {
         m_teams[0].refresh();
         m_teams[1].refresh();
         PacketGuard pkt;
@@ -1391,57 +1485,6 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
         room->start_pvp();
         room->make_state_info(reinterpret_cast<char*>(&pkt));
         G_GameWorld()->send_all(pkt);
-        return;
-    }
-
-    // 不能整场续战：两支队伍按各自去留意图分别拉出
-    // ORIG: pull 队1 条件 = size(team1)!=0 且 *(int*)(this+0x68)==0
-    //      （this+0x68 = m_teams[1].m_field04，重赛决定位）
-    if (m_teams[1].size() != 0 && m_teams[1].m_field04 == 0) {
-        _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(1));
-    }
-    // ORIG 0x856607a 实证读 *(int*)(this+0x20) = m_teams[0].m_field04（4 字节）
-    // （队决定位，OnAskRematch 写入；FM_TeamByte0 队头字节仅 CheckRematch 用）。
-    // ORIG 0x085661f5 段 `test %eax,%eax; je; test; js; cmp $2; jg` = 无槽
-    // switch 决策树（P251/P261；具名 team0Decision 恒产 cmpl mem 槽形）。
-    switch (m_teams[0].m_field04) {
-    case 0:
-        _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
-        if (m_teams[1].size() != 0) {
-            PacketGuard pkt;
-            pkt.put_header(0, 0x13b);
-            pkt.finalize(true);
-            m_teams[1].SendToTeam(pkt);
-            // b28d-solo-CFairMatchRooms：P83/N84——ORIG 0x08566131 为结构整体
-            // 赋值 rep movsl（0x12 dwords）。
-            m_teams[0] = m_teams[1];
-            m_teams[0].refresh();
-            m_teams[1].reset();
-            m_fieldB0 = 0;
-        }
-        break;
-    case 1:
-    case 2: {
-        const int mgrTeam = room->get_manager_team();
-        PvP_Room* kept =
-            _ReturnTeam(room, mgrTeam, 0);
-        PacketGuard pkt;
-        pkt.put_header(0, 0x13b);
-        pkt.finalize(true);
-        if (kept != 0)
-            kept->send_to_pvp(pkt);
-        m_teams[0].SendToTeam(pkt);
-        m_teams[1].SendToTeam(pkt);
-        if (m_teams[0].size() == 0) {
-            // b28d-solo-CFairMatchRooms：P83/N84——ORIG 0x08566265 为结构整体
-            // 赋值 rep movsl（0x12 dwords）。
-            m_teams[0] = m_teams[1];
-        }
-        m_teams[0].refresh();
-        m_teams[1].reset();
-        m_fieldB0 = 0;
-        break;
-    }
     }
 }
 

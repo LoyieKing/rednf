@@ -1205,7 +1205,9 @@ int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
         result = (int)((double)gold * rate);         // ORIG fistpl 直接截断（无 +0.5）
         static int logCount = 0;            // ORIG bss _ZZ...GetGoldDropAmountRateEiiE8logCount
         register bool logIt = (logCount % 1000 == 0);
-        logCount += 1;
+        logCount += 1;   // [L27-r2] 实测 `++logCount` 与 `+=1` 同形（4.4 对 static 恒
+                         //   mov/add/mov 3 条，ORIG `lea 0x1(%ecx),%edx; mov %edx,<A>`
+                         //   2 条 lea 形）⇒ 按 P211 负例（static 复合赋值序不可翻）判 N
         if (logIt)
         {
             cMyTrace trace(

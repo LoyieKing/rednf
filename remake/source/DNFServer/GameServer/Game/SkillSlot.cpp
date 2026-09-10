@@ -1640,6 +1640,11 @@ int SkillSlot::get_give_skill(
 int SkillSlot::master_new_skill(int skillIdx, int level, int job,
                                 int firstGrow, int secondGrow, int addLevel)
 {
+    // [round1-L19 2026-09-09] 复修（P0/P183/P248 判据）：删 `UserQuest* quest` 与
+    // `GameWorld* world` 两个具名中间局部（ORIG Ghidra `this_00`/`this_02` 为寄存器
+    // 无槽）⇒ 读数 464/462 gap=2 → **464/458 gap=6**、ndiff 584→562；
+    // 剩余 = ORIG 0x08603bb6 `xor $1;test %al,%al;jmp`（isClearQuest 死 bool 物化，
+    // P168a③ 跨版本族）+ preSkill 迭代器段槽差 0x10 + 二维索引中转（N18a）。
     // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；464 vs 472，gap=+8）：
     // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：p167 残差 1 处
     // `_List_const_iterator<_pre_skill>::operator==` EXTRA（同 try_master_new_skills，
@@ -1683,8 +1688,7 @@ int SkillSlot::master_new_skill(int skillIdx, int level, int job,
     char isSteal = 0;
     if (skill->IsStealable(firstGrow, secondGrow) != 0)
     {
-        UserQuest* quest = m_parent->getCurCharacQuestR();
-        quest->isClearQuest(0x163);
+        m_parent->getCurCharacQuestR()->isClearQuest(0x163);
         if (m_parent->is_clear_stealingSkillMission() == 0)
         {
             return -1;
@@ -1694,8 +1698,7 @@ int SkillSlot::master_new_skill(int skillIdx, int level, int job,
     }
     unsigned short overLevel =
         m_parent->GetPremiumInfo()->getOverSkillLevel();
-    GameWorld* world = G_GameWorld();
-    if (world->IsPvPSkilTreeChannel() == 0)
+    if (G_GameWorld()->IsPvPSkilTreeChannel() == 0)
     {
         if (skill->can_learn(level + overLevel, firstGrow, secondGrow,
                              targetLevel) != 1)
@@ -1826,6 +1829,9 @@ int SkillSlot::try_master_new_skills(int skillIdx, int level, int job,
                                      int firstGrow, int secondGrow,
                                      int addLevel)
 {
+    // [round1-L19 2026-09-09] 复修（同 master_new_skill）：删 quest/world 具名局部
+    // ⇒ 339/337 gap=2 → **339/333 gap=6**、ndiff 452→376；剩余同族（N18a 索引 +
+    // list 迭代器槽差 + P168a③ bool 物化）。
     // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；339 vs 347，gap=+8）：
     // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：结构与 ORIG
     // 同族（preSkillList const_iterator + `it++` 后置、_pre_skill 逐字段、
@@ -1861,8 +1867,7 @@ int SkillSlot::try_master_new_skills(int skillIdx, int level, int job,
     char isSteal = 0;
     if (skill->IsStealable(firstGrow, secondGrow) != 0)
     {
-        UserQuest* quest = m_parent->getCurCharacQuestR();
-        quest->isClearQuest(0x163);
+        m_parent->getCurCharacQuestR()->isClearQuest(0x163);
         if (m_parent->is_clear_stealingSkillMission() == 0)
         {
             return -1;
@@ -1872,8 +1877,7 @@ int SkillSlot::try_master_new_skills(int skillIdx, int level, int job,
     }
     unsigned short overLevel =
         m_parent->GetPremiumInfo()->getOverSkillLevel();
-    GameWorld* world = G_GameWorld();
-    if (world->IsPvPSkilTreeChannel() == 0)
+    if (G_GameWorld()->IsPvPSkilTreeChannel() == 0)
     {
         if (skill->can_learn(level + overLevel, firstGrow, secondGrow,
                              targetLevel) != 1)
@@ -2036,7 +2040,14 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
     {
         return -5;
     }
-    needGSP = skill->get_guildSkillNeedGSP(learnCnt);
+    // [round1-L19 2026-09-09] P248 档①（callee 返回类型侧）：ORIG 该 store 段为
+    // `mov 0x2c(%ebp),%edx; mov %ax,(%edx)`（LHS-first 直存 16 位）⇒ 原码 RHS 与
+    // short 目标**同型**；我方 `CSkill::get_guildSkillNeedGSP` 声明 int
+    //（CSkill.h:102）⇒ 4.4 产 `mov %eax,%edx; mov 0x2c(%ebp),%eax; mov %dx,(%eax)`
+    // 中转。调用点 `(short)` 收窄后该段逐条归位（ndiff 15 → 15，内容置换：残余
+    // 转为其后两处实参装载序 + `movzbl %al,%edx` 寄存器选择）。根治需 CSkill.h:102
+    // int→short 并同步 CSkill.cpp 定义（跨 TU，未落）。
+    needGSP = (short)skill->get_guildSkillNeedGSP(learnCnt);
     if (needGSP < 0 || availableGSP < needGSP)
     {
         return -2;
@@ -2061,17 +2072,30 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
 int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                             int secondGrow, int refundCount, int& result)
 {
-    // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；549 vs 571，gap=+22）：
-    // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：p167 残差 1 处
-    // `vector<pair<int,int>>::at(unsigned int)` EXTRA ⇒ ORIG 用 `operator[]`
-    // 而本件某处用 at()（P175 方向待核：ORIG 索引形用 at 还是 []）。
-    // 残余为跨版本槽/寄存器族。
+    // [round1-L19 2026-09-09] 复修（判据 P0/P183/P329 + 判据⑨）：
+    //   ① 删 8 处「具名中间局部」（treeKind/treeKind2/treeKind3/treeKind4/
+    //      characJob/characJob2/newRemain/giveResult/characNo/accId/str）——
+    //      ORIG Ghidra C 用寄存器 uVar3/uVar8/iVar9（无槽）承载，P0 判据；
+    //   ② `for(it=begin(); it!=end(); it++)` 专家脚本循环改 `->operator[](i)`
+    //      （旧用 at() ⇒ p167 EXTRA `vector::at`）；
+    //   ③ 守卫改嵌套 `if (IsPvPSkilTreeChannel()!=0){ if(pvp_grade<0) fail }`，
+    //      复现 ORIG `call; test %al,%al; je <body>`（4.4 对 `A==0||B` 恒插
+    //      `xor $1` 物化，嵌套正极形才直测）；
+    //   ④ skill 预清两句式（P197③：ORIG 0x086069e1 `movl $0x0,-0x50` + 独立赋值）。
+    // 读数：549/571 gap=+22 → **547/546 gap=1**、ndiff 680→447（check_tu_routed 18:18）。
+    // 残余 = ①第二项 ORIG `cmp $0;setge;test;jne` vs 4.4 `shr $0x1f;test;je`
+    //（4.1 短路第二项 bool 物化，4.4 恒符号位直测，P168a③b 族）；
+    // ② 全帧槽号平移 0x10（我方 group 落 -0x4c vs ORIG -0x50）+ 1 条 mov 中转。
+    // ORIG 证据：asm 0x08606a4a（`test %al,%al; je 0x08606a78`）、
+    // Ghidra C `local_50=CSkill::get_group; local_4c=get_skillslot_no(...)`、
+    // p167 调用点差集 CLEAR。语义全等（実参/副作用序一致）⇒ N7/N82 封顶。
     result = 0x13;
     if (m_parent == 0)
     {
         return -4;
     }
-    CSkill* skill = G_CDataManager()->find_skill(job, skillIdx);
+    CSkill* skill = 0;
+    skill = G_CDataManager()->find_skill(job, skillIdx);
     if (skill == 0)
     {
         return -1;
@@ -2082,9 +2106,14 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
         result = 7;
         return -5;
     }
-    GameWorld* world = G_GameWorld();
-    if (world->IsPvPSkilTreeChannel() == 0 ||
-        ((CUserCharacInfo*)m_parent)->get_pvp_grade() > -1)
+    if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
+    {
+        if (((CUserCharacInfo*)m_parent)->get_pvp_grade() < 0)
+        {
+            result = 7;
+            return -3;
+        }
+    }
     {
         ENUM_SKILL_TREE_KIND kind =
             (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
@@ -2121,7 +2150,7 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
             {
                 if (((std::vector<std::pair<int, int> >*)((char*)expertScript +
                                                           0xc))
-                        ->at(i)
+                        ->operator[](i)
                         .first == skillIdx)
                 {
                     result = 7;
@@ -2131,8 +2160,7 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
         }
         std::pair<int, int> pair;
         std::vector<std::pair<int, int> > giveList;
-        int giveResult = get_give_skill(job, firstGrow, secondGrow, giveList);
-        if (giveResult < 0)
+        if (get_give_skill(job, firstGrow, secondGrow, giveList) < 0)
         {
             return -1;
         }
@@ -2150,9 +2178,9 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
             }
         }
         std::vector<std::pair<int, int> > postList;
-        int characJob = ((CUserCharacInfo*)m_parent)->get_charac_job();
         G_CDataManager()->m_skillList->get_post_learning_skill(
-            characJob, skillIdx, postList);
+            ((CUserCharacInfo*)m_parent)->get_charac_job(), skillIdx,
+            postList);
         for (int i = 0; i < (int)postList.size(); ++i)
         {
             int preSkillIdx = postList[i].first;
@@ -2185,9 +2213,10 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
         if (skill->IsSpecialSkill() == 1)
         {
             char kindChar = 0;
-            int treeKind =
-                ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex();
-            if (treeKind == -1 || treeKind == 0)
+            if (((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex() ==
+                    -1 ||
+                ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex() ==
+                    0)
             {
                 kindChar = 2;
             }
@@ -2199,79 +2228,71 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                 (ENUM_SKILL_TREE_KIND)kindChar);
             set_remain_sfp_at_index(remain + returnSP,
                                     (ENUM_SKILL_TREE_KIND)kindChar);
-            int treeKind2 =
-                ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex();
-            int characJob2 = ((CUserCharacInfo*)m_parent)->get_charac_job();
             (&m_parent->m_historyLog)
-                ->SkillDel(characJob2, treeKind2, skillIdx, refundCount,
-                           (eSkillDelReason)1);
+                ->SkillDel(
+                    ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                    ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
+                    skillIdx, refundCount, (eSkillDelReason)1);
             (&m_parent->m_historyLog)
                 ->SFPAdd((int)kindChar, remain + returnSP, returnSP,
                          (eSPAddReason)2);
             if (0 < refundCount && 10 < returnSP / refundCount)
             {
-                int characNo =
-                    ((CUserCharacInfo*)m_parent)->getCurCharacNo();
-                unsigned int accId = m_parent->get_acc_id();
-                char* str = NumberToString(accId, 0);
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
                     __PRETTY_FUNCTION__,
                     0x93b,
                     "Wrong refund TP skill mId:%s char_no:%d rSkillIdx:%d rSp:%d rCount:%d",
-                    str, characNo, skillIdx, returnSP, refundCount);
+                    NumberToString(m_parent->get_acc_id(), 0),
+                    ((CUserCharacInfo*)m_parent)->getCurCharacNo(), skillIdx,
+                    returnSP, refundCount);
             }
         }
         else
         {
-            ENUM_SKILL_TREE_KIND treeKind =
+            int remain = get_remain_sp_at_index(
                 (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-                    ->GetCurCharacSkillTreeIndex();
-            int remain =
-                get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)treeKind);
-            ENUM_SKILL_TREE_KIND treeKind2 =
+                    ->GetCurCharacSkillTreeIndex());
+            set_remain_sp_at_index(
+                remain + returnSP,
                 (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-                    ->GetCurCharacSkillTreeIndex();
-            set_remain_sp_at_index(remain + returnSP,
-                                   (ENUM_SKILL_TREE_KIND)treeKind2);
-            ENUM_SKILL_TREE_KIND treeKind3 =
-                (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-                    ->GetCurCharacSkillTreeIndex();
-            int characJob2 = ((CUserCharacInfo*)m_parent)->get_charac_job();
+                    ->GetCurCharacSkillTreeIndex());
             (&m_parent->m_historyLog)
-                ->SkillDel(characJob2, treeKind3, skillIdx, refundCount,
-                           (eSkillDelReason)1);
-            int newRemain = remain + returnSP;
-            ENUM_SKILL_TREE_KIND treeKind4 =
-                (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-                    ->GetCurCharacSkillTreeIndex();
+                ->SkillDel(
+                    ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                    ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
+                    skillIdx, refundCount, (eSkillDelReason)1);
             (&m_parent->m_historyLog)
-                ->SPAdd(treeKind4, newRemain, returnSP, (eSPAddReason)2);
+                ->SPAdd(
+                    ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
+                    remain + returnSP, returnSP, (eSPAddReason)2);
             if (0 < refundCount && 1000 < returnSP / refundCount)
             {
-                int characNo =
-                    ((CUserCharacInfo*)m_parent)->getCurCharacNo();
-                unsigned int accId = m_parent->get_acc_id();
-                char* str = NumberToString(accId, 0);
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
                     __PRETTY_FUNCTION__,
                     0x921,
                     "Wrong refund SP skill mId:%s char_no:%d rSkillIdx:%d rSp:%d rCount:%d",
-                    str, characNo, skillIdx, returnSP, refundCount);
+                    NumberToString(m_parent->get_acc_id(), 0),
+                    ((CUserCharacInfo*)m_parent)->getCurCharacNo(), skillIdx,
+                    returnSP, refundCount);
             }
         }
         result = 0;
         return slot;
     }
-    result = 7;
-    return -3;
 }
 
 int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
                                 int firstGrow, int secondGrow,
                                 int refundCount, int& result)
 {
+    // [round1-L19 2026-09-09] 复修（P0/P183/P329）：删 `expertList` 引用（改为
+    // 每次重推导 `((vector*)((char*)expertScript+0xc))->operator[](i)`，P183/P157）、
+    // `giveResult`/`characJob` 具名局部（ORIG 用 iVar9/uVar8 寄存器）⇒
+    // 355/352 gap=3 → **355/350 gap=5**、ndiff 319→215。
+    // 剩余 = 全帧槽号平移 0x10（我方 -0x2c.. vs ORIG -0x3c..）+ `cmp $0;setge` /
+    // `js/seta` 符号性 lowering 差（P196/P209，jcc 落点已逐位复核一致）。
     // [b28d-solo-SkillSlot] 判词（N82/P75 封顶，355 vs 356，p167 CLEAR 36=36）：
     // 已复现：skill 预清(P198①)、G_GameWorld 内联、`get_pvp_grade() >= 0`
     // 等价形、expertScript 视图去具名引用、两处 0xcc 扫描、EH cleanup 段全等。
@@ -2322,12 +2343,16 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
             ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType());
         if (expertScript != 0)
         {
-            std::vector<std::pair<int, int> >& expertList =
-                *(std::vector<std::pair<int, int> >*)((char*)expertScript +
-                                                      0xc);
-            for (unsigned int i = 0; i < expertList.size(); ++i)
+            for (unsigned int i = 0;
+                 i < ((std::vector<std::pair<int, int> >*)((char*)expertScript +
+                                                           0xc))
+                         ->size();
+                 ++i)
             {
-                if (expertList[i].first == skillIdx)
+                if (((std::vector<std::pair<int, int> >*)((char*)expertScript +
+                                                          0xc))
+                        ->operator[](i)
+                        .first == skillIdx)
                 {
                     result = 7;
                     return -5;
@@ -2336,8 +2361,7 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
         }
         std::pair<int, int> pair;
         std::vector<std::pair<int, int> > giveList;
-        int giveResult = get_give_skill(job, firstGrow, secondGrow, giveList);
-        if (giveResult < 0)
+        if (get_give_skill(job, firstGrow, secondGrow, giveList) < 0)
         {
             return -1;
         }
@@ -2355,9 +2379,9 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
             }
         }
         std::vector<std::pair<int, int> > postList;
-        int characJob = ((CUserCharacInfo*)m_parent)->get_charac_job();
         G_CDataManager()->m_skillList->get_post_learning_skill(
-            characJob, skillIdx, postList);
+            ((CUserCharacInfo*)m_parent)->get_charac_job(), skillIdx,
+            postList);
         for (unsigned int i = 0; i < postList.size(); ++i)
         {
             int preSkillIdx = postList[i].first;
@@ -2418,6 +2442,9 @@ void SkillSlot::InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason)
     //    翻正（this 最后装载）但 receiver 槽化 -0x1c + 槽位重排 ⇒ 59 vs 57 DIFF。
     // receiver 无槽往返（P0 ⇒ 原码无具名局部），4.4 无法在无槽下把 this 求值后置
     // ⇒ 跨版本求值序结构性差，封 N7；语义等价（全部实参/副作用序一致）。
+    // [round1-L19 2026-09-09] 第 ⑤ 形复测：`(&m_parent->m_historyLog)->InitSkill(...)`
+    // 与链式形逐条同形（56=56、ndiff 12 不变）⇒ 维持 N7 封顶（4.4 恒先算 receiver
+    // 落 %edx、spKind 落 %eax；ORIG 0x086085fa 段为 spKind→%edx、receiver→%ecx）。
     if (m_parent == 0)
     {
         return;

@@ -434,6 +434,15 @@ struct MailBoxLoadReqV
 // （InvenItemRawV / MailInputV 已删：SetMailBoxInfo 改用 &item+disp 直写
 //  amp/random 区 + 权威头 stAddNewMailInput 具名字段，两视图无剩余消费方。）
 } // namespace
+
+// [L32 GI 调序] ORIG `_GLOBAL__I__ZN8WongWork14CMailBoxHelper13g_MailBoxPoolE`
+//   （CU=MailBox.cpp）⇒ 本 TU 首个强符号须为 CMailBoxHelper::g_MailBoxPool。
+//   定义前移到所有函数定义之前；它是本 TU 唯一动态初始化池对象，相对构造序不变（P327）。
+namespace WongWork
+{
+StaticPool<CMailBox, 600> CMailBoxHelper::g_MailBoxPool; // ORIG B 0x0943e000
+}  // namespace WongWork
+
 // ---- ORIG 全局 T 符号（本 TU 提供定义） ----
 
 // ORIG DB_AccountHack_CheckMyAccount::makeRequest（0x843a13e，T）——全局命名空间，
@@ -1681,7 +1690,8 @@ int CMailBoxHelper::ReqDBCheckReceiver_forchina(CUser* user, const char* name,
 
 namespace WongWork
 {
-StaticPool<CMailBox, 600> CMailBoxHelper::g_MailBoxPool; // ORIG B 0x0943e000
+// [L32 GI 调序] g_MailBoxPool 定义已前移到文件首（须保持 ORIG 的 GI 键名），
+// 此处不再重复定义。
 
 // ---- 发信 ----
 // [b28d-L8] P75/N82 | 帧差 0x28 vs 0x30 + 实参装载序（strncpy/memcpy 参数，ORIG 0x08555756）

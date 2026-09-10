@@ -390,7 +390,13 @@ public:
     void getAvatarList(bool& isOk, ENUM_CHARACTERJOB job,
                        std::vector<std::vector<std::pair<unsigned long, int> > >& out);
     void getStikerList(bool& isOk, ENUM_CHARACTERJOB job, std::vector<int>& out);
-    int m_avatarCoinInfo;               // +0x00 [avatar coin info]
+    // [L16 2026-09-10] P235 同址 union 双视角：ORIG importAvatarRouletteList
+    // 0x0891179f 段 store 为 `mov %eax,%edx; mov this,%eax; mov %edx,(%eax)`
+    // （RHS-first + 中转 = 字段与 RHS 异型，P211 档③）⇒ 原名 int 保留。
+    union {
+        int m_avatarCoinInfo;           // +0x00 [avatar coin info]
+        unsigned int m_avatarCoinInfoU; // +0x00 同址 unsigned 视角（[L16]）
+    };
     int m_rareCloneAvatarRate;          // +0x04 [rare clone avatar rate]
     int m_rareAvatarRate;               // +0x08 [rare avatar rate]
     int m_upperAvatarRate;              // +0x0c [upper avatar rate]

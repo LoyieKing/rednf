@@ -923,8 +923,8 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     // 缓存 %ebx 为 4.1 寻址寄存器分配，4.4 不缓存 → 残余 N，助记符已全同）。
     // ORIG 全程复用同一循环变量槽 -0x20（17 次使用，跨 5 个循环）⇒ 原码声明一个
     // 函数级变量供各循环共用（4.4 对每个循环新声明会给独立槽，槽图不符）。
-    int r = 0;
-    int c;                                   // P212：与 r 同层头部声明 ⇒ 4.4「先声明深」槽序
+    int r = 0;                               // [b28d-solo-STMapScript] register 提示实测反劣
+    int c;                                   //（帧 0x34→0x20 + 多 push %esi）⇒ 回滚，N82/N126 封顶
     for (r = 0; r < 2; ++r)
         for (c = 0; c < 3; ++c)               // ORIG 内层占槽 -0x1c
             m_sightScroll[r * 3 + c] = 100; //  0x20+r*3+c word 基 0x22..0x27
@@ -3675,28 +3675,26 @@ const char* getSkillCategoryName(ENUM_CHARACTERJOB job, int category)
     // 【P305】ENUM_CHARACTERJOB 为窄枚举（全仓仅 _0=0），switch(job) 的
     // case 1..7 会被 -fstrict-enums 静默删除 ⇒ 必须 switch((int)job) 才发
     // ORIG 的 8 路跳表（0x088be51c `jmp *table(,%eax,4)`）。
-    if (job <= 0xa)
+    // ORIG 0x088be4e5 `jg`(job>0xa) 与 0x088be4ed `jbe`(cat<=4 → body) 共落
+    // 0x088be4ef 单一 zero 块（`mov $0,%eax; jmp epilogue`）⇒ 合并短路守卫（P133）。
+    if (job > 0xa || (unsigned int)category > 4u)
+        return 0;
+    if (category == 4)
+        return CStringManager::getStr(0x522a);
+    int base = 0;
+    switch ((int)job)
     {
-        if ((unsigned int)category > 4u)
-            return 0;                       // ORIG 0x088be4f9 段：jbe body 落点
-        if (category == 4)
-            return CStringManager::getStr(0x522a);
-        int base = 0;
-        switch ((int)job)
-        {
-        case 0:  base = 0x5226; break;
-        case 1:  base = 0x522b; break;
-        case 2:  base = 0x522f; break;
-        case 3:  base = 0x5233; break;
-        case 4:  base = 0x5237; break;
-        case 5:  base = 0x522f; break;
-        case 6:  base = 0x3310; break;
-        case 7:  base = 0x522b; break;
-        default: break;
-        }
-        return CStringManager::getStr(base + category);
+    case 0:  base = 0x5226; break;
+    case 1:  base = 0x522b; break;
+    case 2:  base = 0x522f; break;
+    case 3:  base = 0x5233; break;
+    case 4:  base = 0x5237; break;
+    case 5:  base = 0x522f; break;
+    case 6:  base = 0x3310; break;
+    case 7:  base = 0x522b; break;
+    default: break;
     }
-    return 0;
+    return CStringManager::getStr(base + category);
 }
 
 // ORIG 0x088c0144：字符串向量线性查找，命中返回下标，未命中 0xffffffff。
@@ -4061,7 +4059,7 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
     fprintf(file, "[jump speed] %d\n", script->m_jumpSpeed);
     fputc(10, file);
     fwrite("[initial value]\n", 1, 0x10, file);
-    exportCharacterStatusScript(file, &script->m_initialStatus);
+    exportCharacterStatusScript(file, script->m_status);
     exportCharacterGiveSkillScript(file, &script->m_skillList[0]);
     exportCharacterEtcStatsScript(file, &script->m_etcStats[0]);
     for (i = 1; i < 7; ++i)                 // ORIG 复用同一 unsigned i（槽 -0x1c，0x8a1046a 尾测 setbe）
@@ -4069,7 +4067,7 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
         fprintf(file, "\n[\xbe\xd5\xd0\xd1\xbc\xbc%d]\n", i);  // ORIG "\n[觉醒技%d]\n"
         // ORIG 0x8a1038b：`imul $0x57; add $0x20; add this; add $4` ⇒ 基址取
         // m_initialStatus(+0x24) + i*0x57（与 m_growStatus[i-1] 同址，P30 两步折叠形）。
-        exportCharacterStatusScript(file, &(&script->m_initialStatus)[i]);
+        exportCharacterStatusScript(file, &script->m_status[i]);
         exportCharacterGiveSkillScript(file, &script->m_skillList[i]);
         exportCharacterEtcStatsScript(file, &script->m_etcStats[i]);
     }

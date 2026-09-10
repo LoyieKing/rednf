@@ -351,8 +351,14 @@ int CREATE_QUERY::arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     static const unsigned int kEquipSrcLen = sourceEquipSize;    // ORIG 初始装备区长度
     char zipBuf[0x333] = {0};
-    unsigned int zipLen = 0x333;
-    char* equipSrc = reinterpret_cast<char*>(&sig->m_giftItem);  // ORIG -0xc 具名局部
+    // ORIG 槽布局：zipLen@-0x10（深）、equipSrc@-0xc（浅）；存储序 zipLen=0x333
+    //   先于 equipSrc 计算；调用实参序则 equipSrc 读取先于第 4 参常量压栈
+    //   （0x818b4bb）。4.4 恒「后声明深」，故 equipSrc 先声明（浅 −0xc）但延后赋值，
+    //   zipLen 后声明（深 −0x10）带初值 ⇒ 同时满足槽位与存储序；equipSrc 以
+    //   volatile 变量钉住读取点，复现「先读第 3 参」（create_skill 同法已 AE）。
+    char* volatile equipSrc;                                              // ORIG -0xc 具名局部
+    unsigned int zipLen = 0x333;                                          // ORIG -0x10 具名局部
+    equipSrc = reinterpret_cast<char*>(&sig->m_giftItem);
     if (!compress_zip(zipBuf, zipLen, equipSrc,
                       kEquipSrcLen))   // +0x4e01 初始装备区
     {
@@ -461,11 +467,14 @@ int CREATE_QUERY::arad_sp_create_npc_relationship(MySQL* db, SIG_CREATE_CHARAC* 
 // ORIG 0x0818b706：member_info 主账号信息。逐列解析失败仅 trace 并返 0（ORIG 如此）；
 //   成功时写 passwd 数值(+0xc0)、regdate(+0xcc)、hangame 标志(+0x38dd)、
    // ssn 拼接(+0x2284)与出生年(+0xc8)。【ABI 镜像】字段见 login_field 标注偏移。
-// verdict=DIFF 353/353（gap 1→0）：P167 调用点集 34/34 CLEAR；已删 `unsigned int year`
-//   具名槽（ORIG 两臂各自直写 data->m_birthYear，P0）⇒ 消 1 对 store-reload 且补回
-//   gap。残余 N：cMyTrace 具名对象槽号组（ORIG -0xb0…-0x40 递减 vs 4.4 -0x34… 递增，
-//   b28d 实测 P221 临时链反劣 355 ⇒ 保持具名）+ `fssn+2000` 的 lea-vs-add（N107）+ 帧
-//   （ORIG push %ebx 保活 m_accId 跨 trace ctor vs 4.4 无）。语义闭合。
+// verdict=DIFF 353/356（gap=-3）：P167 调用点集 34/34 CLEAR。已修：
+//   ①删 `unsigned int year` 具名槽（ORIG 两臂各自直写 data->m_birthYear，P0）；
+//   ②10 处具名 cMyTrace 对象改**全表达式临时链** `cMyTrace(f,l,v)(fmt,…)`（P227，
+//     Main/L4 实证配方）⇒ ORIG prologue `push %ebx; sub $0xf4` 逐条复现
+//     （旧具名形 4.4 无 push %ebx、帧 0xf8），difflib 差异段 72→27。
+// 残余（语义等价）：①col 清零与 -0xc0 槽的先后（ORIG -0xc 先）；②成员取址
+//   `lea 0xc0(%eax),%edx` vs 4.4 `add $0xc0,%eax`（N107 六形探针全败）；③实参装载序
+//   （P75，ORIG 先读 col 再压常量/参数）⇒ 净 3 条。语义闭合。
 int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
@@ -489,8 +498,7 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
     }
     if (db->get_n_rows() != 1)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1f5, 5);
-        trace("query get_n_rows() ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f5, 5)("query get_n_rows() ERROR m_id=%u", data->m_accId);
         return 0;
     }
 
@@ -503,56 +511,47 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
     int col = 0;
     if (!db->get_uint(++col, data->m_accId))       // col1
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x201, 5);
-        trace("user m_id ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x201, 5)("user m_id ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_str(++col, param_2, 0x84))                              // col2
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x207, 5);
-        trace("user password ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x207, 5)("user password ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_uint(++col, fssn))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x20d, 5);
-        trace("user fssn ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x20d, 5)("user fssn ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_uint(++col, sssn))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x213, 5);
-        trace("user sssn ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x213, 5)("user sssn ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_uint(++col, regMid))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x219, 5);
-        trace("user regdate ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x219, 5)("user regdate ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_str(++col, data->m_userDetailIpPort, 0x80))  // user_name（+0x2184）
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x21f, 5);
-        trace("user user_name ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x21f, 5)("user user_name ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_str(++col, data->m_userDetailSsn, 0x80))  // email（+0x2204）
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x225, 5);
-        trace("user email ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x225, 5)("user email ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_str(++col, reinterpret_cast<char*>(data), 0x1e))           // user_id
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x22b, 5);
-        trace("user id ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x22b, 5)("user id ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_uint(++col, hangameFlag))                                  // col9
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x231, 5);
-        trace("user HanGameUser Check ERROR m_id=%u", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x231, 5)("user HanGameUser Check ERROR m_id=%u", data->m_accId);
         return 0;
     }
 
@@ -1011,8 +1010,11 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
     //   `mov -N,%eax; mov %eax,%ebx; …call…; cmp %eax,%ebx; setg` 的 %ebx 保活。
     //   残余仅槽号（ORIG startTime -0x1c/userInfo -0x18 vs 4.4 -0x10/-0x1c，
     //   4.4 按首次使用序，声明序调整无效）与数据地址。语义闭合。
-    unsigned int startTime = 0;                 // ORIG -0x1c
+    // 判据⑩（b28d 槽序律）：4.4 恒「后声明者占深槽」；ORIG 布局 startTime@-0x1c（深）/
+    //   userInfo@-0x18..-0x10（浅）⇒ 源码须 userInfo 先声明、startTime 后声明
+    //   （create_equip 同法已 AE）。
     DBMgr::stUserDBInfo_t userInfo;             // ORIG -0x18：col0/1/2 复用 +0/+4/+8
+    unsigned int startTime = 0;                 // ORIG -0x1c
     if (!db->get_uint(0, reinterpret_cast<unsigned int&>(userInfo.m_userDBIdx)))
     {
         return -1;

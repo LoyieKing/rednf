@@ -417,17 +417,20 @@ CDungeonList* CDataManager::getDungeonIndexList()
 // 再 `it = find(idx)`（P50）、insert 改 value_type 直构 `pair<const int,CDungeon*>(
 // dungeon->get_index(), dungeon)`（ORIG 0x0838a848 C2IiRS2_EEOT_OT0_；旧 make_pair
 // 多出 make_pair + 转换 ctor 两个 EXTRA call，p167 现 CLEAR）。
+// [round1-L29 2026-09-10 修复] ①end 改内联 `if (it == m_dungeonMap.end())`（ORIG 的 end 无具名槽）；
+//   ②`int idx;` 前置声明（先声明浅槽 -0x2c）+ 赋值语句后置到 it 声明之后（保 C1Ev→get_index 调用序）
+//   ⇒ 69=69 IDENTICAL（此前 NEAR）。
 bool CDungeonList::insert_dungeon(CDungeon* dungeon)
 {
     // [b28d-solo-CListTables] ORIG 0x0834d6d2：迭代器先 C1Ev 默认构造（-0x34）
     // 再 `it = find(idx)`（sret -0x40 拷贝，P50）；insert 用 value_type 直构
     // `pair<const int,CDungeon*>(get_index(), dungeon)`（ORIG 0x0838a848 实例
     // `C2IiRS2_EEOT_OT0_`，且 key 是**重新调用** get_index()，非缓存 idx）。
+    int idx;
     __gnu_cxx::hash_map<int, CDungeon*>::iterator it;
-    int idx = dungeon->get_index();
+    idx = dungeon->get_index();
     it = m_dungeonMap.find(idx);
-    __gnu_cxx::hash_map<int, CDungeon*>::iterator end = m_dungeonMap.end();
-    if (it == end)
+    if (it == m_dungeonMap.end())
     {
         m_dungeonMap.insert(
             __gnu_cxx::hash_map<int, CDungeon*>::value_type(
@@ -732,6 +735,8 @@ int CMonsterManager::insert_monster(int level, int monsterIdx)
 // it/end 槽互换（ORIG it -0x2c/end -0x24 vs 4.4 it -0x24/end -0x2c）。it 为先
 // 声明后赋值（P50 复活，ORIG 单次 C1Ev），end 为初始化式直构；全头部声明多出
 // 第二个 C1Ev（+5 条），交换声明序又改执行序 ⇒ 4.4 按首次使用序分配不可翻，封顶。
+// [round1-L29 2026-09-10 修复] end 改内联 `if (it == m_monsterMap.end())`（ORIG end 无具名槽，
+//   it/end 两具名对象槽互换消失）⇒ 54=54 IDENTICAL（此前 NEAR）。
 bool CMonsterManager::insert_monster(int level, CMonster* monster)
 {
     // [b28d-32] ORIG 0x0834fdee：迭代器先默认构造（C1Ev）再 find 赋值
@@ -739,8 +744,7 @@ bool CMonsterManager::insert_monster(int level, CMonster* monster)
     // pair<const int,CMonster*>(int&,CMonster*&) 直构，无 make_pair 中转。
     __gnu_cxx::hash_map<int, CMonster*>::iterator it;
     it = m_monsterMap.find(level);
-    __gnu_cxx::hash_map<int, CMonster*>::iterator end = m_monsterMap.end();
-    if (it == end)
+    if (it == m_monsterMap.end())
     {
         m_monsterMap.insert(std::pair<const int, CMonster*>(level, monster));
         return true;
@@ -753,6 +757,9 @@ bool CMonsterManager::insert_monster(int level, CMonster* monster)
 // `xor $1; test; je`（P168a）、drops 下标 unsigned→int 复现 `setg`（P196）。
 // 残差 8 处槽位差（unusedIt -0x38 vs -0x3c、STMonsterScript 基址 ±4、path==0
 // 分支 je/jne 布局）：sizeof 0x1cc0/0x1cc4 两探针均不可同时对齐 ⇒ N82 槽位族封顶。
+// [round1-L29 2026-09-10 部分修复] 判据⑩：`unusedIt` 移到 it 声明之后（后声明者深）⇒
+//   -0x38(5)/-0x3c(1) 与 ORIG 逐值对齐。剩 `script` 基址 -0x1918 vs ORIG -0x1910（±8）+ 1 条 gap
+//   ⇒ N126/N82 族；script 声明前移试验反劣（ndiff 15→22，已回退）。
 bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h 声明同步（ORIG caller xor $1 形）
 {
     // [b28d-solo-CListTables P168a] ORIG 0x0834fa8e `call; xor $1; test %al,%al;
@@ -765,13 +772,13 @@ bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h �
     {
         char* path = 0;
         CMonster* monster = 0;
-        // [b28d-solo-CListTables] ORIG 有一处未使用的 list<int>::iterator C1Ev
-        // （p167 MISSING 1；P171/P232 死局部照抄）。
-        std::list<int>::iterator unusedIt;
         // [b28d-solo-CListTables] ORIG：主循环 map 迭代器先 C1Ev 后 begin() 赋值
         // （P50）+ 尾后置 it++（ppEi，P28）。
         std::map<int, std::string>::iterator it;
         it = g_stMonsterScriptFileList.begin();
+        // [b28d-solo-CListTables] ORIG 有一处未使用的 list<int>::iterator C1Ev
+        // （p167 MISSING 1；P171/P232 死局部照抄）。声明序按判据⑩（后声明者深）。
+        std::list<int>::iterator unusedIt;
         while (it != g_stMonsterScriptFileList.end())
         {
             path = (char*)it->second.c_str();
@@ -872,13 +879,17 @@ CSkill* CSkillList::find_skill(int jobType, int skillIdx)
 // ⇒ 源码须 `if (it == end) { insert; return; } trace;`（旧 `if (it != end) { trace;
 // return; }` 令 4.4 选 ne 实例并反转块序）。残差为 idx/it/end/trace1/trace2 槽分配
 // 差（ORIG trace1 -0x54/trace2 -0x18 分散，4.4 集中 -0x60/-0x50）⇒ 封顶。
+// [round1-L29 2026-09-10 复核·判据⑪ 槽直方图] 我方槽集合 = ORIG 槽集合 + 0x10 常数平移
+//   （ours -0x50/-0x48/-0x44… vs ORIG -0x60/-0x58/-0x54…，逐值间距全同）⇒ **N126 版本首槽基址
+//   常数**，声明重排无效（按判据⑪ 未耗编译轮次）。trace1 已改全表达式临时链（P227）
+//   使平移由段内错位归一为单一常数。剩 N126 封顶（ORIG 0x083519a6）。
 void CSkillList::insert_skill(int jobType, CSkill* skill)
 {
     // [b28d-solo-CListTables] it 先 C1Ev 后 find 赋值（P50）已对齐；残差见函数头判词。
     if (skill == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xf91, 5);
-        trace("[%s][%d]_(0 == pSkill)",
+        cMyTrace(__PRETTY_FUNCTION__, 0xf91, 5)(
+            "[%s][%d]_(0 == pSkill)",
               __PRETTY_FUNCTION__, 0xf91);
         return;
     }
@@ -887,8 +898,6 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
     // `it = find()`（sret -0x70 拷贝，P50 复活）；end 初始化式（-0x44）。
     __gnu_cxx::hash_map<int, CSkill*>::iterator it;
     it = m_skillList[jobType].find(idx);
-    __gnu_cxx::hash_map<int, CSkill*>::iterator end =
-        m_skillList[jobType].end();
     // [b28d-solo-CListTables] ORIG 0x08351a82 调 operator==（eq）后 `je trace`：
     // 相等走 insert fall-through、不等落 trace 尾块 ⇒ 源码必须是正向
     // `if (it == end) { insert; return; } trace;`（写 `if (it != end) { trace;
@@ -897,7 +906,7 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
     //   +0x0fd _ZNSt4pairIKiP6CSkillEC1IRiRS2_EEOT_OT0_（idx 左值）→ hash_map::insert
     //   +0x14f _ZNSt4pairIKiP6CSkillEC1IiRS2_EEOT_OT0_ （get_group() 右值，无中间变量）
     //          → multimap::insert；make_pair 会多出转换临时（第三次 call）。
-    if (it == end)
+    if (it == m_skillList[jobType].end())
     {
         m_skillList[jobType].insert(
             __gnu_cxx::hash_map<int, CSkill*>::value_type(idx, skill));
@@ -1563,6 +1572,9 @@ void QuestList::select_quest(std::list<int>& out, stSelectQuestParam& param,
 // ORIG +0x136/+0x139/+0x13c 三 nop 岛复现）、flag 守卫改嵌套 `if (!flag) {...}`
 // 复现 ORIG `movzbl -0x3c; xor $1; test %al; je`（旧 `if (flag) goto DO_PUSH` 被
 // 4.4 折成 `cmpb $0; jne`）。残差仅 it/range/param 槽位差（N82 族）⇒ 封顶。
+// [round1-L29 2026-09-10 修复] 判据⑩：`int npcIdx;` 前置声明（无初值→浅槽 -0x24）+ 循环内改
+//   赋值 `npcIdx = *it;`（保留 it→range→npcIdx 调用序）⇒ AE 128/128 ndiff=0（此前 NEAR）。
+//   注：把 cit 也提到头部（全头部声明）反劣 131 vs 128，已回退。
 void QuestList::allowable_questlist_as_npc(
     std::list<int>& out, const std::multimap<int, int>& npcList,
     stSelectQuestParam& param, const WongWork::CQuestClear& clear, bool flag)
@@ -1571,13 +1583,14 @@ void QuestList::allowable_questlist_as_npc(
     // + 尾后置 it++（ppEi）；range 先 C1Ev（-0x2c，函数头）再
     // `range = equal_range(...)`（op=(&&) 赋值，同 GetDailyQuestList）。
     std::list<int>::iterator it;
+    int npcIdx;
     Quest* quest = 0;
     std::pair<std::multimap<int, int>::const_iterator,
               std::multimap<int, int>::const_iterator> range;
     it = m_listE0.begin();
     while (it != m_listE0.end())
     {
-        int npcIdx = *it;
+        npcIdx = *it;
         range = npcList.equal_range(npcIdx);
         for (std::multimap<int, int>::const_iterator cit = range.first;
              cit != range.second; ++cit)

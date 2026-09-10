@@ -697,7 +697,8 @@ void CParty::init()
     m_recvResultFlag = 0;
     memset(m_title, 0, 0x20);
     // b28d-solo-CParty：ORIG 0x859ab7a `lea 0x1(%eax),%edx`（P30/N1：4.4 对
-    // int+1 恒折 add+mov）⇒ 用 char 截断表达式试复现 lea。
+    // int+1 恒折 add+mov）。试形记录（已回滚）：(unsigned char) 窄化 / (char)
+    // 截断 / 目标 char 直赋 三形均产 add+mov 且总数 201→203 反劣 ⇒ 判 N1。
     m_titleIndex = get_rand_int(0xff) + 1;
     m_userMax = 4;
     m_dungIndex = (unsigned short)0xffff;
@@ -1668,6 +1669,9 @@ bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Ma
                  it != list2.end(); ++it)
             {
                 slot = m_member[i].m_pUser->getCurCharacInvenR()->check_item_exist(*it);
+                // P225 试形记录（已回滚）：`while (slot != -1) { body; break; }` 可补回
+                //   ORIG 0x085a7eb4 的 `setne %al; test %al,%al` 两段，但同时多发
+                //   `jmp <join>; nop`（+2）且总条数 187→193 劣于 ORIG 191 ⇒ 回滚为 if 形。
                 if (slot != -1)
                 {
                     item = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(1, slot);
@@ -1675,7 +1679,9 @@ bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Ma
                         ++haveCount;
                 }
             }
-            if (haveCount == (int)list2.size())
+            // P310：ORIG 0x085a7fd7 `mov -0x18(%ebp),%ebx; call size; cmp %eax,%ebx; sete`
+            //   两段寄存器形 ⇒ 试「int 局部 + 显式 unsigned cast 比较」。
+            if ((unsigned int)haveCount == (unsigned int)list2.size())
                 ++passCount;
             else
                 list1.push_back(i);
@@ -2319,9 +2325,10 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
         int userState = user->get_state();
         unsigned int accId = user->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
-        char log[16];
-        new (log) cMyTrace(__PRETTY_FUNCTION__, 0x5b8, 0);
-        (*reinterpret_cast<cMyTrace*>(log))(
+        // [P227/N83] ORIG 无 placement-new（p167 EXTRA _ZnwjPv/_ZdlPvS_/_Unwind_Resume
+        //   即旧码 `new (log) cMyTrace(…)` 残留）⇒ 改真实具名对象（lea 取址构造 + op()）。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x5b8, 0);
+        trace(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
             accIdStr, userState, (int)partyIdx);
         if (count < 1)
@@ -2522,15 +2529,14 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
                                             (eItemDelReason)0xe, true);
             if (r != 1)
             {
-                int itemIdx2 = dungeon->m_entryRequiredItem.m_itemCount;
-                int slot2 = param[i];
-                int characNo = m_member[i].m_pUser->getCurCharacNo();
-                cMyTrace trace(
-                    __PRETTY_FUNCTION__,
-                    0xa60, 5);
-                trace(
+                // [P227 全表达式临时链] ORIG 0x0859eb84..0x0859ebf6：ctor 前右起求 varargs
+                //   并跨 call 保活（dungeon+0x7f8→%edi、param[i]→%esi、characNo→%ebx），
+                //   ctor 后才压栈 ⇒ 旧码三个具名局部 + 具名 trace 令 4.4 在 ctor 后求值，
+                //   少 push %edi（帧 0x5c vs 0x60）。
+                cMyTrace(__PRETTY_FUNCTION__, 0xa60, 5)(
                     "CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
-                    characNo, slot2, itemIdx2);
+                    dungeon->m_entryRequiredItem.m_itemCount, param[i],
+                    m_member[i].m_pUser->getCurCharacNo());
                 return 0;
             }
             PacketGuard packet;
@@ -2584,6 +2590,9 @@ void CParty::set_charac_live(CUser* user, ENUM_USER_DUNGEON_STATE state)
 
         // b28d-solo-CParty：ORIG 0x085b2a0d 先 `mov 0x10(%ebp),%eax; test; je <尾 0 岛>`
         // ⇒ 负条件 if/else（P222/P257：零分支落尾、state 只载一次）。
+        // [P251/P286 试形记录（已回滚）] `switch (state){case 0:…}` 实测产 126 条
+        // （比 if 形多 1）且首比较仍非 `mov 0x10(%ebp),%eax; test` 寄存器链
+        // ⇒ 4.1「一次载入 + 三次使用」形不可复现，判 N18b 族。
         if (state != ENUM_USER_DUNGEON_STATE_0)
         {
             if (state >= ENUM_USER_DUNGEON_STATE_0 && state < (ENUM_USER_DUNGEON_STATE)3)
@@ -5403,8 +5412,11 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
     CUser* members[4] = {0, 0, 0, 0};                   // -0x54
     for (int i = 0; i < 4; ++i)                         // -0x3c
     {
-        if (checkValidUser(i))
-            members[i] = get_user(i);
+        // ORIG 0x085b99f4 `xor $0x1,%eax; test %al,%al; jne <nop 岛>` ⇒ 负极性早退
+        //（P168a②/裸形：`if (!f()) continue;`），旧码正向 if 缺 xor 段。
+        if (!checkValidUser(i))
+            continue;
+        members[i] = get_user(i);
     }
     if (user == 0)
     {
@@ -5417,28 +5429,28 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
             }
         }
     }
+    // ORIG 0x085b9a7c `mov $0x3,%ebx` + 0x085b9e14 `mov %ebx,%eax` ⇒ 单一 ret 出口。
+    int ret = 0;                                        // -0x3c
     if (user == 0)
-        return 3;
-
-    bool notClear;                                      // -0x42
-    bool isClear;                                       // -0x41
-    // P183：ORIG 各使用点重取址（无引用缓存槽）⇒ 宏直用。
-#define bf (*reinterpret_cast<CBattle_Field*>(&m_battleField))
-    if (!bf.check_grid_clear())
     {
-        notClear = true;
-        isClear = false;
+        ret = 3;
     }
     else
     {
-        notClear = false;
+    // ORIG 0x085b9a86/0a8a 先两次 `movb $0x0` 预清，再按 clear 分支各置 1
+    //（`test %al,%al; je <else>` 阳性 then = isClear=true；-0x3e=notClear 为死写）。
+    bool notClear = false;                              // -0x3e
+    bool isClear = false;                               // -0x3d
+    // P183：ORIG 各使用点重取址（无引用缓存槽）⇒ 宏直用。
+#define bf (*reinterpret_cast<CBattle_Field*>(&m_battleField))
+    if (bf.check_grid_clear())
         isClear = true;
-    }
-    if (GlobalData::s_villageMonsterMgr->OnKillVillageMonster(user, notClear)
-        != 0)
+    else
+        notClear = true;
+    // ORIG 0x085b9ab3 `movzbl -0x3d(%ebp),%edx`（=isClear）⇒ 旧码误传 notClear，真 bug。
+    ret = GlobalData::s_villageMonsterMgr->OnKillVillageMonster(user, isClear);
+    if (ret == 0)
     {
-        return 0;
-    }
 
     giveup_game(user, false, isClear, flag);
     // ORIG OnFinishVillageMonsterFighting.md 085b9b12 `movw $0x0,0xc4c(%eax)` =
@@ -5463,18 +5475,22 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
         {
             if (members[i] != 0)
             {
-                CUserCharacInfo* ci =
-                    reinterpret_cast<CUserCharacInfo*>(members[i]);
                 char body[10];                          // -0x6a
                 memset(body, 0, sizeof(body));
                 *(int*)(body + 2) = remain;             // ORIG body+2 写 remain
                 PacketGuard packet;                     // -0x78
                 packet.put_header(0, 0x1ec);
                 // ORIG 0x085b9c68：size() 先于 attackCount（Ghidra local_24/local_20 序）。
-                int condCnt =
-                    (int)G_CDataManager()->m_serverParameter.m_revenge498.size();
-                unsigned char attackCount =
-                    (unsigned char)ci->GetCurVillageAttackCount();
+                // [判据③/N18b] ORIG 槽 -0x20(uint size)/-0x1c(uint attackCount，uchar 截断后
+                //   存 32 位槽：`movzbl %al,%eax; mov %eax,-0x1c`)/-0x18(循环变量 uint)/
+                //   -0x14/-0x10/-0xc 三字段。旧码 attackCount 用 uchar 槽(-0x19)、
+                //   循环变量 int（ORIG 尾测 `setb` 无符号）⇒ 全部 32 位无符号化。
+                unsigned int condCnt =
+                    (unsigned int)
+                        G_CDataManager()->m_serverParameter.m_revenge498.size();
+                unsigned int attackCount =
+                    (unsigned char)reinterpret_cast<CUserCharacInfo*>(members[i])
+                        ->GetCurVillageAttackCount();
                 if (2 < attackCount)                    // ORIG body+6 条件写 0x1e41
                     *(int*)(body + 6) = 0x1e41;
                 packet.put_binary(body, 10);
@@ -5483,7 +5499,9 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
                 members[i]->SetVillageAttackedReward(false);
                 // P175：ORIG 走 size()+operator[] 索引形（p167 MISS operator[]/size，
                 // EXTRA 迭代器族）；每次下标重取 G_CDataManager()（3 次独立调用）。
-                for (int k = 0; k < condCnt; ++k)
+                // P183 反向：ORIG 无 CUserCharacInfo* 具名缓存，两处调用点各自从
+                //   `-0x50(%ebp,%eax,4)` 重取 members[i]（旧码 ci 缓存槽 ⇒ 实参装载序差）。
+                for (unsigned int k = 0; k < condCnt; ++k)
                 {
                     unsigned int f0 = G_CDataManager()
                         ->m_serverParameter.m_revenge498[k].m_field0;
@@ -5491,17 +5509,24 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
                         ->m_serverParameter.m_revenge498[k].m_field4;
                     int f8 = G_CDataManager()
                         ->m_serverParameter.m_revenge498[k].m_field8;
-                    if (f0 <= attackCount && attackCount <= f4)
+                    // P196 折痕方向：ORIG 0x085b9d66 `mov -0x1c(attackCount),%eax;
+                    //   cmp -0x14(f0),%eax; jb` ⇒ 写成 attackCount 居左才出该装载序。
+                    if (attackCount >= f0 && attackCount <= f4)
                     {
-                        ci->SetCurRevengeDungeonCount((unsigned char)f8);
-                        ci->VillageAttack_DBUpdate();
+                        reinterpret_cast<CUserCharacInfo*>(members[i])
+                            ->SetCurRevengeDungeonCount((unsigned char)f8);
+                        reinterpret_cast<CUserCharacInfo*>(members[i])
+                            ->VillageAttack_DBUpdate();
                         break;
                     }
                 }
             }
         }
     }
-    return 0;
+        ret = 0;                                        // ORIG 085b9de7 `mov $0x0,%ebx`
+    }
+    }
+    return ret;
 }
 #undef bf
 
@@ -5530,10 +5555,13 @@ void CParty::prepare_dungeon_clear()
         // b28d-solo-CParty2：ORIG 0x85aa3f6 `call; xor $0x1,%eax; test %al,%al; jne <尾>`
         // = 负极性早退（bool callee 取反物化）。正向嵌套 `if (f()) { … }` 实测产
         // `test %al,%al; je`（缺 xor 段）⇒ 改写为 `if (!f()) goto L_next;` 复现。
-        // 第二条件 ORIG 为直落型，保持正向 if。
+        // [判据③/P223 多 continue 岛] ORIG 0x85aa557..0x85aa55c 为「body 尾 jmp T /
+        //   G: nop;jmp T / S: nop / T: i++」三出口两岛形 —— 同层两个 `continue`
+        //   时 4.4 才逐岛复现（旧单 goto 尾标签形被 jump-thread 成单岛，少 1 jmp）。
         if (!_checkValidUser(i))
-            goto L_next;
-        if (m_battleField.m_bloodState != 1)     // +0xcd8
+            continue;
+        if (m_battleField.m_bloodState == 1)     // +0xcd8
+            continue;
         {
             // P183 反向（ORIG 0x85aa42e/457/46b/49a/4c8/4f6/524 实证）：ORIG 无
             // user/quest/mgr 具名缓存，每个使用点各自 9 条重算 m_member[i].m_pUser。
@@ -5556,7 +5584,6 @@ void CParty::prepare_dungeon_clear()
             }
             m_member[i].m_pUser->m_fatigueGain = 0;
         }
-    L_next:;
     }
 
     if (reinterpret_cast<CBattle_Field*>(&m_battleField)
@@ -5686,9 +5713,9 @@ void CParty::party_dungeon_fail()
         int mgrState = m_manager->get_state();
         unsigned int accId = m_manager->get_acc_id();
         char* idStr = NumberToString(accId, 0);
-        char log1[16];
-        new (log1) cMyTrace(__PRETTY_FUNCTION__, 0x3541, 0);
-        (*reinterpret_cast<cMyTrace*>(log1))(
+        // [P227/N83] 删 placement-new（ORIG 无 _ZnwjPv/_ZdlPvS_）⇒ 具名对象直构。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3541, 0);
+        trace(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
             idStr, mgrState, (int)mgrIndex);
         m_manager->SetPartyIndex(-1);
@@ -6048,11 +6075,15 @@ void CParty::onBloodClear(bool flag, int param)
         //  ② `int playTime; (unsigned int)playTime / 1000`（P66）
         //  ③ `unsigned int playTime; playTime / 1000U`
         // ⇒ 属无符号除法求值固有差（N92 族），保持真型/直证形。
+        // 试形记录（已回滚）：int 具名局部（P66 形）与 unsigned 同产 scratch 副本
+        //   `mov %eax,-0xc; mov -0xc,%eax; mov %eax,-0x2c`（我方帧 0x40 vs ORIG 0x30）。
         unsigned int playTime = GetMapPlayingTime();
         m_member[param].m_pUser->m_historyLog.MapClear(
             // b28d-solo-CParty：ORIG 085b7cd8 `movzwl 0x183e(%eax)` 单条 disp ⇒
             // 走 CParty.h 的 m_resultView 具名视角（P235），不再对 pad 取址 cast。
             m_gameResultSet.m_field4a,
+            // 试形记录（已回滚）：`/1000`（int 常量）与 `/1000U` 同产 scratch 副本
+            //   `mov %eax,-0xc; mov -0xc,%eax; mov %eax,-0x2c; …mul`（+2）⇒ 判 N92 族。
             playTime / 1000U, 0);
         // ORIG 085b7d1f `movzbl 0x89f(%eax)` = CDungeon::m_bloodDungeonType
         //（unsigned char 宽度修正：原 *(char*) 为 movsbl 异形）

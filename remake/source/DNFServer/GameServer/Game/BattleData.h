@@ -47,8 +47,14 @@ public:
         int param_1, int param_2, const CMDPacketStruct::_STReqEventDungeonClearRoom& st);
     char IsClearEventDungeonRoom(int param_1, unsigned short roomIdx) const;
 
-    int m_field0;        // +0x00
-    int m_field4;        // +0x04
+    // [b28d-solo-CPartyDepsD2] P180/P246 u64 别名：ORIG SetPlayResult
+    // 0x085b2457 `mov 0x330(%eax),%edx; mov 0x32c(%eax),%eax`（64 位整体装载后取
+    // 低 32 位）/ ClearDungeon 0x085a9517 段 `mov %eax,0x32c(%ecx); mov %edx,0x330(%ecx)`
+    // 双字直存 ⇒ 原码是 64 位字段运算（探针 /tmp/probe_ll.cpp 四形，4.4.7 同形）。
+    union {                       // +0x00 清图结算 played 结果（lo/hi）
+        struct { int m_field0; int m_field4; };
+        unsigned long long m_clearPlayedTime;
+    };
     // P180 u64 别名（Main 批准批）：ORIG GetMapPlayingTime 0x085b6768 /
     // ClearDungeon 0x085a94e0 均以双 sub/sbb 直对 64 位字段运算；int 拼接会
     // 产生 sar/or 展开。union 别名不改任何偏移/尺寸。
@@ -64,8 +70,12 @@ public:
         struct { int m_field18; int m_field1c; };
         unsigned long long m_enterTick;
     };
-    int m_field20;       // +0x20
-    int m_field24;       // +0x24
+    // [b28d-solo-CPartyDepsD2] 同上：ClearDungeon 0x085a94f4..0x085a9515
+    // `mov 0x350(%ecx),%ebx; mov 0x34c(%ecx),%ecx; sub/sbb` 直对 64 位减数运算。
+    union {                       // +0x20 清图 played 减数 1（lo/hi）
+        struct { int m_field20; int m_field24; };
+        unsigned long long m_clearEnterTime;
+    };
     char m_flag28[4];    // +0x28
     // [b28d-solo-CPartyDepsD2] P246/P180 u64 别名：ORIG check_allmember_loading
     // 0x085b1985 段以 `sub/sbb` + `add/adc` 做 64 位 acc += now - moveTick
@@ -110,5 +120,14 @@ public:
     char m_arr7e4[4];    // +0x7e4
     int m_arr7e8[4];     // +0x7e8
 };
+
+// [b28d-solo-CPartyDepsD2] 零布局锁：union 别名不得改变尺寸/偏移。
+static_assert(sizeof(BattleData) == 0x7f8, "BattleData size drift");
+static_assert(__builtin_offsetof(BattleData, m_clearPlayedTime) == 0x00,
+              "BattleData +0x00 alias drift");
+static_assert(__builtin_offsetof(BattleData, m_clearEnterTime) == 0x20,
+              "BattleData +0x20 alias drift");
+static_assert(__builtin_offsetof(BattleData, m_accTick) == 0x2c,
+              "BattleData +0x2c alias drift");
 
 #endif  // GAME_BATTLEDATA_H_

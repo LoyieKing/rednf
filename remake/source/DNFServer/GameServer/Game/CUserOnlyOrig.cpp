@@ -2624,7 +2624,9 @@ void CUser::DeleteCharac(unsigned int characNo)
                                       m_characList[i].m_name,
                                       (int)m_characList[i].m_field26,
                                       (int)(short)m_characList[i].m_level,
-                                      (int)m_characList[i].m_field29);
+                                      // ORIG 0x0864b0xx `movzbl 0x29(%eax),%eax; movsbl %al,%edi`
+                                      // 双段 = 字节读后**符号扩展**传参（P11）⇒ 显式 signed char cast。
+                                      (int)static_cast<signed char>(m_characList[i].m_field29.m_growthType));
             m_historyLog.CharacDel(i);
             erased = true;
         }
@@ -3202,11 +3204,18 @@ int CUser::getCompoundUpgrade(const CStackableItem* item, stEquipCondition cond)
     }
     if (tableAddr != 0) {
         int rnd = get_rand_int(0x2710);                           // 10000
+        // [L6 判据⑨重核] ORIG 0x08682286-0x08682295 累加为读-加-写三段
+        // （`mov acc,%eax; lea (%edx,%eax,1),%eax; mov %eax,acc`）、比较点
+        // `mov acc,%eax; cmp rnd,%eax; jle` 为寄存器形；P322② 的 volatile 累加器
+        // 试形实测**反劣**（ndiff 24→62、帧平移 +4、upgrade 初值发射点漂移）⇒ 回滚，
+        // 归 P30/N18a 结构性残差（4.1 读-加-写三段 vs 4.4 `add mem` 折形）。
         int acc = 0;                                              // -0x10
         int i = 0;                                                // -0xc
         while (i <= 0x1f) {
             acc = *reinterpret_cast<const int*>(tableAddr + i * 4) + acc;
-            if (rnd < acc) {
+            // ORIG 0x08682292 `cmp -0x14(%ebp),%eax`（acc 左操作数）+ jle 跳过 ⇒ 原码
+            // 形式为 acc > rnd（4.4 对 `rnd < acc` 载入 rnd 出 jge 反向）。
+            if (acc > rnd) {
                 upgrade = i;                                      // -0x1c = i
                 break;
             }
@@ -6041,9 +6050,13 @@ void CUser::saveCharacLinkMessageFlag(bool flag)
 unsigned int CUser::SaveInventoryOnly()
 {
     if (isLocked4DataLoad()) {
-        cMyTrace trace((char*)__PRETTY_FUNCTION__, 0x187a, 5);
-        trace("Can not save character until loading done(m_id: %s, charac_no: %d",
-              NumberToString(get_acc_id(), 0), getCurCharacNo());
+        // [L6 判据⑨重核 · P37/P227] ORIG 0x086501c8 段：先求 varargs（`call NumberToString;
+        // mov %eax,%esi` + `call getCurCharacNo; mov %eax,%ebx`）**再** `cMyTraceC1`（常量
+        // 5/0x187a/串三实参）**最后** operator() —— 两语句形把 C1 提到 varargs 求值之前
+        // （构造即调用形），故用全表达式临时链保持 ORIG 求值序。
+        cMyTrace((char*)__PRETTY_FUNCTION__, 0x187a, 5)(
+            "Can not save character until loading done(m_id: %s, charac_no: %d",
+            NumberToString(get_acc_id(), 0), getCurCharacNo());
         return 0;
     }
     if (G_GameWorld()->GetChannelType() == 7) return 0;
@@ -6363,7 +6376,7 @@ void CUser::sendCharacOption()
     PacketGuard packet;
     packet.put_header(0, 0x186);
     packet.put_int(0x200);
-    packet.put_binary(reinterpret_cast<char*>(const_cast<_Charac_info*>(getCurCharacR())->m_data12B7), 0x200);  // +0x12b7 CharacterOption 视图区 // 角色选项块
+    packet.put_binary(const_cast<_Charac_info*>(getCurCharacR())->m_characterOption.m_pad, 0x200);  // +0x12b7 CharacterOption 具名区 // 角色选项块
     packet.finalize(true);
     Send(packet);
 }
@@ -7316,9 +7329,9 @@ bool CUser::setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* da
         strncpy(m_characList[idx].m_name, &data->m_name[0], 0x1d);        // wire +0x04
         m_characList[idx].m_field26 = data->m_field21;                    // wire +0x21 → +0x26 job
         m_characList[idx].m_level = static_cast<short>(data->m_field22);  // wire +0x22 → +0x27
-        m_characList[idx].m_field29 = data->m_field24;                    // wire +0x24 → +0x29
+        m_characList[idx].m_field29.m_growthType = data->m_field24;       // wire +0x24 → +0x29
         m_characList[idx].m_field1239 = data->m_field25;                  // wire +0x25 -> +0x1239
-        memcpy(&m_characList[idx].m_field88, &data->m_add, 0x52);         // _Additioal_info
+        memcpy(&m_characList[idx].m_additioalInfo, &data->m_add, 0x52);   // 具名 _Additioal_info
         return 1;
     }
     return 0;
@@ -8110,8 +8123,12 @@ unsigned char CUser::UseLimitItem(int itemIdx, bool sendNoti)
     for (std::vector<LimitItemUsage>::iterator it = m_limitItemUsage.begin();
          it != m_limitItemUsage.end(); it++)   // ORIG 命中 operator++(int)（P28）
     {
-        if (it->m_field15 != itemIdx)
-            continue;
+        // [L6 判据①/P222 极性重核] ORIG 0x08688ae6 段 `mov 0x15(%eax),%eax;
+        // cmp 0xc(%ebp),%eax; sete %al; test %al,%al; je` ⇒ 原码是**正极性**守卫
+        // `if (field == itemIdx) { 体 }`（体在 je 之后直落）；旧 `if (field != itemIdx)
+        // continue;` 使 4.4 反产 `setne %al; test; je`。体各路径均 return，改写等价。
+        if (it->m_field15 == itemIdx)
+        {
         if (it->isUsable() != 1)
             ok = 0;
         if (sendNoti)
@@ -8131,6 +8148,7 @@ unsigned char CUser::UseLimitItem(int itemIdx, bool sendNoti)
             return 1;
         }
         return 0;
+        }
     }
     return ok;
 }
@@ -10092,8 +10110,7 @@ void CUser::ValidateStrikerInfo()
                               // 与 ORIG 语义不同 ⇒ 内层 cast 才正确（与 setCharacInfoDetail
                               // 同址段形一致）。
                               static_cast<char>(
-                                  static_cast<signed char>(
-                                      m_characList[linkedIdx].m_field29 << 4) >> 4),
+                                  m_characList[linkedIdx].m_field29.m_sub),
                               static_cast<int>(
                                   static_cast<unsigned char>(m_characList[i].m_field14b7))))
             {
@@ -10202,15 +10219,19 @@ void CUser::set_ingame_event_history(SIG_INGAME_EVENT_HISTORY* sig)
             continue;
         // ORIG 0x0868d6a5 `mov (%eax),%ebx` 跨 G_CDataManager/get_event_script_mng
         // 保活 ⇒ 链式内联实参（P52），勿用具名 scriptMng 槽。
-        if (!static_cast<EventClassify::CEventScriptMng*>(
+        // [L6 判据①/P222 极性重核] ORIG 0x0868d6xx `call is_current_ingame_event_record_type;
+        // test %al,%al; je <T>` = **正极性**守卫（体在 je 之后直落）；旧 `if (!…) continue;`
+        // 使 4.4 反产 `xor $1,%eax; test %al,%al; jne`。
+        if (static_cast<EventClassify::CEventScriptMng*>(
                 G_CDataManager()->get_event_script_mng())->
                 is_current_ingame_event_record_type(
                     reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key))
-            continue;
-        set_ingame_event_history(
-            reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key,
-            reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v1,
-            reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v2);
+        {
+            set_ingame_event_history(
+                reinterpret_cast<const IngameEventRecord*>(sig)[i].m_key,
+                reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v1,
+                reinterpret_cast<const IngameEventRecord*>(sig)[i].m_v2);
+        }
     }
 }
 
@@ -10983,7 +11004,7 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
     info.m_field26 = static_cast<char>(sig->m_slot);           // job
     info.m_level = 1;
     info.m_field2b = 0;
-    info.m_field29 = 0;
+    info.m_field29.m_growthType = 0;
     info.m_stamina = 100;
     reinterpret_cast<CommonTime*>(info.m_delReqTime)->SetCurTime();  // +0x39
     info.m_field33 = 0;
@@ -11002,7 +11023,7 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
             + static_cast<char>(sig->m_slot) * 0x7dc);
     info.m_resetDwordDf4 = 0;
     info.m_resetDwordDf8 = 0;
-    info.m_dataE8D[2] = 0;                                    // +0xe8f
+    info.m_powerWarData.m_data2 = 0;                          // +0xe8f（具名 STPowerWarCharacData）
     info.m_field1239 = 0xff;
     info.m_pad1240 = static_cast<char>(sig->m_eventCharacFlag != 0);
     // [b28d-solo-CUserOnlyOrig P0/P235] ORIG 帧 0x14fc（仅 info 0x14e9 + 小局部）
@@ -11203,14 +11224,8 @@ public:
     int GetMaxFatigueFactor();   // ORIG W _ZN22CMaxFatigueFactorEvent19GetMaxFatigueFactorEv
 };
 
-// tagCharacVisibleFlag：ORIG W 0x08695c6c reset / 0x08695c60 ctor；权威类未建模，
-// 本 TU 最小声明 + reinterpret_cast 视图消费（_Charac_info +0xe40 区）。
-class tagCharacVisibleFlag
-{
-public:
-    tagCharacVisibleFlag();   // ORIG W _ZN20tagCharacVisibleFlagC1Ev @0x08695c60（LinkE2）
-    void reset();   // ORIG W _ZN20tagCharacVisibleFlag5resetEv
-};
+// tagCharacVisibleFlag：权威类定义已入 CUser.h:530（L31CharacPad `_Charac_info` 成员化），
+// 本 TU 删除局部重复声明（否则 redefinition）；成员函数定义见下（`m_flag = 0;`）。
 
 // ---------------------------------------------------------------------------
 // CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* src)
@@ -11250,31 +11265,34 @@ bool CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* sr
     m_characList[slot].m_field26 = src->m_field24;         // job
     m_characList[slot].m_level = static_cast<short>(src->m_field25);
     m_characList[slot].m_field2b = src->m_field28;
-    m_characList[slot].m_field29 = src->m_field27;
+    m_characList[slot].m_field29.m_growthType = src->m_field27;
     m_characList[slot].m_stamina = src->m_unkB2.m_fieldb2;
-    m_characList[slot].m_field88 = src->m_add.m_field00;
-    m_characList[slot].m_field8c = src->m_add.m_field04;
-    m_characList[slot].m_field90 = src->m_add.m_field08;
-    m_characList[slot].m_field92 = src->m_add.m_field0a;
-    m_characList[slot].m_field94 = src->m_add.m_field0c;
-    m_characList[slot].m_field96 = src->m_add.m_field0e;
-    memcpy(m_characList[slot].m_data98, &src->m_add.m_field10[0], 8);
-    memcpy(m_characList[slot].m_dataA0, &src->m_add.m_field18[0], 0x22);
-    m_characList[slot].m_fieldc2 = src->m_add.m_field3a;
-    m_characList[slot].m_fieldc6 = src->m_add.m_field3e;
-    m_characList[slot].m_fieldc8 = src->m_add.m_field40;
-    m_characList[slot].m_fieldca = src->m_add.m_field42;
-    m_characList[slot].m_fieldce = src->m_add.m_field46;
-    m_characList[slot].m_fieldd0 = src->m_add.m_field48;
-    m_characList[slot].m_fieldd2 = src->m_add.m_field4a;
-    m_characList[slot].m_fieldd4 = src->m_add.m_field4c;
-    m_characList[slot].m_fieldd6 = src->m_add.m_field4e;
+    // [L6 判据②/§8.3 + L31CharacPad 成员化] 0x88..0xd9 由 17 个 pad 字段合并为具名
+    // 子对象 `_Additioal_info m_additioalInfo`（offsetof 断言锁定 +0x88）⇒ 视图 cast
+    // 反模式消除，逐字段具名直访问（宽度/偏移不变）。
+    m_characList[slot].m_additioalInfo.m_field00 = src->m_add.m_field00;
+    m_characList[slot].m_additioalInfo.m_field04 = src->m_add.m_field04;
+    m_characList[slot].m_additioalInfo.m_field08 = src->m_add.m_field08;
+    m_characList[slot].m_additioalInfo.m_field0a = src->m_add.m_field0a;
+    m_characList[slot].m_additioalInfo.m_field0c = src->m_add.m_field0c;
+    m_characList[slot].m_additioalInfo.m_field0e = src->m_add.m_field0e;
+    memcpy(&m_characList[slot].m_additioalInfo.m_field10[0], &src->m_add.m_field10[0], 8);
+    memcpy(&m_characList[slot].m_additioalInfo.m_field18[0], &src->m_add.m_field18[0], 0x22);
+    m_characList[slot].m_additioalInfo.m_field3a = src->m_add.m_field3a;
+    m_characList[slot].m_additioalInfo.m_field3e = src->m_add.m_field3e;
+    m_characList[slot].m_additioalInfo.m_field40 = src->m_add.m_field40;
+    m_characList[slot].m_additioalInfo.m_field42 = src->m_add.m_field42;
+    m_characList[slot].m_additioalInfo.m_field46 = src->m_add.m_field46;
+    m_characList[slot].m_additioalInfo.m_field48 = src->m_add.m_field48;
+    m_characList[slot].m_additioalInfo.m_field4a = src->m_add.m_field4a;
+    m_characList[slot].m_additioalInfo.m_field4c = src->m_add.m_field4c;
+    m_characList[slot].m_additioalInfo.m_field4e = src->m_add.m_field4e;
     global::tools::InitializeCharacStat::initCharacStat(
-        *reinterpret_cast<_Additioal_info*>(&m_characList[slot].m_field88),
+        m_characList[slot].m_additioalInfo,
         static_cast<unsigned int>(m_characList[slot].m_characNo),
         static_cast<int>(m_characList[slot].m_field26), static_cast<int>(m_characList[slot].m_level),
-        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29 << 4) >> 4),
-        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29 * 2) >> 5));
+        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29.m_growthType << 4) >> 4),
+        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29.m_growthType * 2) >> 5));
     m_characList[slot].m_field33 = src->m_field2c;
     m_characList[slot].m_field35 = src->m_field2e;
     m_characList[slot].m_field37 = src->m_field30;
@@ -11396,8 +11414,8 @@ void _Charac_info::Reset()
     m_field23 = 0;                                    // +0x23 movb
     m_field26 = 0;                                    // +0x26 movb
     m_level = 0;                                      // +0x27 movw
-    m_field29 = 0;                                    // +0x29 movb
-    m_pad2a = 0;                                      // +0x2a movb
+    m_field29.m_growthType = 0;                       // +0x29 movb（具名 STGrowthType）
+    m_pad2a.m_growthType = 0;                         // +0x2a movb（具名 STGrowthType）
     m_field2b = 0;                                    // +0x2b movl
     m_field2f = 0;             // +0x2f movl（pad 未建模）
     m_field33 = 0;                                    // +0x33 movw
@@ -11408,7 +11426,7 @@ void _Charac_info::Reset()
     m_field79 = 0;                                    // +0x79 movw
     m_field7b = 0;                                    // +0x7b movl
     m_field7f = 0;                                    // +0x7f movl
-    reinterpret_cast<_Additioal_info*>(&m_field88)->clear();  // +0x88 call（子对象首字）
+    m_additioalInfo.clear();                                  // +0x88 call（具名子对象；判据②消视图 cast）
     reinterpret_cast<CInventory*>(reinterpret_cast<char*>(this) + 0xda)->reset();       // +0xda 子对象视图
     reinterpret_cast<SkillSlot*>(reinterpret_cast<char*>(this) + 0x892)->clear_all_skills_both();  // +0x892 子对象视图
     reinterpret_cast<CCargo*>(reinterpret_cast<char*>(this) + 0xdaa)->reset();          // +0xdaa 子对象视图
@@ -11445,8 +11463,8 @@ void _Charac_info::Reset()
     m_fielde55 = 0;                                   // +0xe55 movl
     m_fielde59 = 0;                                   // +0xe59 movl
     m_fieldE61 = 0;            // +0xe61 movl（pad）
-    memset(m_dataE8D, 0, 0xc);       // +0xe8d memset(0xc)（pad；STPowerWarCharacData 子对象区，见 STPowerWarCharacData.h 注记）
-    m_dataE8D[3] = 1; // movb $1（pad）（Reset.md 证据）
+    memset(&m_powerWarData, 0, 0xc);  // +0xe8d memset(0xc)（具名 STPowerWarCharacData）
+    m_powerWarData.m_data3 = 1;      // +0xe90 movb $1（具名；ctor 亦置 1，Reset 复查同形）
     m_field24 = 0;                                    // +0x24 movb
     m_fieldE65 = 0; // movb（pad）（Reset.md 证据）
     m_fielde5d = 0;                                   // +0xe5d movl
@@ -11482,7 +11500,7 @@ void _Charac_info::Reset()
     m_fieldEE9 = 0; // movb（pad）（Reset.md 证据）
     m_fieldEEA = 0; // movb（pad）（Reset.md 证据）
     m_fieldEEB = 0;  // +0xeeb movw（pad）
-    memset(m_dataEED, 0, 0x199);     // +0xeed memset(0x199)（pad）
+    memset(&m_premiumLethe, 0, 0x199);   // +0xeed memset(0x199)（具名 SIG_LOAD_PREMIUM_LETHE）
     memset(m_tradeRestrictData, 0, 0x10);             // +0x55 memset(0x10)
     m_field121f = 0;                                  // +0x121f movw
     m_field1221 = 0;                                  // +0x1221 movl
@@ -11530,12 +11548,12 @@ void _Charac_info::Reset()
     m_field128D = 0;  // +0x128d movl（pad）
     m_field1295 = 0;  // +0x1295 movl（pad）
     m_field1299 = 0;  // +0x1299 movl（pad）
-    memset(m_data129D, 0, 8);      // +0x129d memset(8)（pad）
-    memset(m_data12A5, 0, 8);      // +0x12a5 memset(8)（pad）
+    memset(&m_wpBonusPointResult, 0, 8);    // +0x129d memset(8)（具名）
+    memset(&m_expBonusPointResult, 0, 8);   // +0x12a5 memset(8)（具名）
     m_field12ad = 0;                                  // +0x12ad movl
     m_field12B1 = 0;           // +0x12b1 movl（pad）
     m_field12B5 = 0;     // +0x12b5 movw（pad）
-    memset(m_data12B7, 0, 0x200);                  // +0x12b7 memset(0x200)（pad）
+    memset(m_characterOption.m_pad, 0, 0x200);     // +0x12b7 memset(0x200)（具名 CharacterOption）
     m_field14b7 = 0;                                  // +0x14b7 movb
     m_field14b8 = 0;                                  // +0x14b8 movl
     m_field14BC = 0;                                 // +0x14bc movb（pad）
@@ -11543,8 +11561,8 @@ void _Charac_info::Reset()
     m_field14BE = 0;       // +0x14be movl（pad）
     m_field14C2 = 0;       // +0x14c2 movl（pad）
     m_viewState = 0;                                  // +0x14c6 movl
-    m_field14CA = 0;         // +0x14ca movw（pad）
-    m_field14CC = 0;     // +0x14cc movw（pad）
+    m_aniDeco.m_field0 = 0;  // +0x14ca movw（具名 seriaRoom_AniDeco）
+    m_aniDeco.m_field2 = 0;  // +0x14cc movw（具名）
     m_field14CE = 0;                                 // +0x14ce movb（pad）
     m_field14CF = 0;                                 // +0x14cf movb（pad）
     m_field14D0 = 0;                                 // +0x14d0 movb（pad）
@@ -11720,12 +11738,12 @@ void ExpBonusPointResult::clear()
 
 tagCharacVisibleFlag::tagCharacVisibleFlag()
 {
-    *reinterpret_cast<unsigned char*>(this) = 0;   // ORIG 0x08695c60：movb $0,(%eax)
+    m_flag = 0;   // ORIG 0x08695c60：movb $0,(%eax)（权威类首字节成员）
 }
 
 void tagCharacVisibleFlag::reset()
 {
-    *reinterpret_cast<unsigned char*>(this) = 0;   // ORIG 0x08695c6c：movb $0,(%eax)
+    m_flag = 0;   // ORIG 0x08695c6c：movb $0,(%eax)
 }
 
 
@@ -11759,27 +11777,13 @@ void tagCharacVisibleFlag::reset()
 // `_ZdlPvS_`×9（4.1 placement new 前端内联 0 call，4.4 恒 extern call+EH cleanup）。
 _Charac_info::_Charac_info()
 {
-    char* p = reinterpret_cast<char*>(this);
-    new (p + 0x29) STGrowthType();                        // call 0x8486bce
-    new (p + 0x2a) STGrowthType();                        // call 0x8486bce
-    new (p + 0x88) _Additioal_info();                     // call 0x8348254（inline memset 0x52 同语义）
-    // [Lane37 2026-09-10 广播 · Lane39 同步] +0xda/+0x892/+0xdaa 三区已由 Lane37 在
-    // CUser.h 改成真实成员（CInventory m_curCharacInven / SkillSlot m_skillSlot /
-    // CCargo m_cargo，offsetof 断言锁定）⇒ 编译器在 ctor prologue 自动构造，
-    // 此处 placement new 属**二次构造**（真 bug）⇒ 删除。
-    new (p + 0xe40) tagCharacVisibleFlag();               // call 0x8695c60
-    new (p + 0xe8d) STPowerWarCharacData();               // call 0x86959dc
-    new (p + 0xe9a) std::vector<ContinuousItemInfo>();    // call 0x86980de
-    new (p + 0xea6) std::vector<ContinuousItemInfo>();    // call 0x86980de
-    // m_bloodBestRecords(+0xecc)/m_skillCommandsMap(+0x1254) 为具名 std::map 成员
-    // （CUser.h:587/605），编译器于 ctor 自动构造；此前手动 placement-new 属二次构造
-    // 冗余 -> 删除，交由自动构造（净空 map 同语义，少 2 次 ctor call）。
-    new (p + 0xeed) SIG_LOAD_PREMIUM_LETHE();             // call 0x848ff7c
-    new (p + 0x1086) SIG_LOAD_PREMIUM_LETHE();            // call 0x848ff7c
-    new (p + 0x129d) WpBonusPointResult();                // call 0x8695c78
-    new (p + 0x12a5) ExpBonusPointResult();               // call 0x8695ca4
-    new (p + 0x12b7) CharacterOption();                   // call 0x822abec
-    new (p + 0x14ca) seriaRoom_AniDeco();                 // call 0x822ee18
+    // [L6 判据⑨重核 + L31CharacPad 成员化 2026-09-10] 13 处 placement new 全部删除：
+    // CUser.h 已把 +0x29/+0x2a/+0x88/+0xe40/+0xe8d/+0xe9a/+0xea6/+0xeed/+0x1086/
+    // +0x129d/+0x12a5/+0x12b7/+0x14ca 建模为真实子对象成员（offsetof 断言锁定），
+    // +0xda/+0x892/+0xdaa/+0xecc/+0x1254 早已成员化 ⇒ 编译器在 body 前按**声明序
+    // =偏移升序**隐式构造，正是 ORIG 0x08695cf8 的 18 个 call 序列。N83
+    // （4.4 placement operator new 恒 extern `_ZnwjPv` call + size 装载 + EH cleanup
+    // ≈+10 条/处）随之消除；旧形同时构成二次构造（真 bug）。
     Reset();                                              // call 0x86822b8
 }
 
@@ -11789,16 +11793,12 @@ _Charac_info::_Charac_info()
 // 策略 N）+ vector D1 out-of-line 实例（N89）。
 _Charac_info::~_Charac_info()
 {
-    // m_skillCommandsMap(+0x1254)/m_bloodBestRecords(+0xecc) 为具名 std::map 成员，
-    // 编译器于 dtor 尾部自动析构；此前手动 ~map() 属二次析构（双重释放）冗余 -> 删除，
-    // 交由自动析构（同 ctor 侧去二次构造，对称）。
-    // [b28d-solo-CUserOnlyOrig P0/P183] ORIG 每点 `mov 0x8(%ebp),%eax; add $off,%eax`
-    // 直接重载 this 形参；旧 `char* p=this` 具名缓存生 -0xc 槽 + 每点回读（帧 0x20 vs ORIG 0x10）。
-    reinterpret_cast<std::vector<ContinuousItemInfo>*>((char*)this + 0xea6)->~vector();   // call 0x86980f2
-    reinterpret_cast<std::vector<ContinuousItemInfo>*>((char*)this + 0xe9a)->~vector();   // call 0x86980f2
-    // [Lane37 2026-09-10 广播 · Lane39 同步] CCargo@0xdaa / SkillSlot@0x892 / CInventory@0xda
-    // 三区已是真实成员 ⇒ 编译器在 dtor 尾（body 之后）按逆声明序自动析构；此处显式
-    // 析构属**二次析构 / double free**（真 bug）⇒ 删除。
+    // [L6 判据⑨重核 + L31CharacPad 成员化 2026-09-10] body 清空：7 个非平凡子对象
+    // （map@0x1254 / map@0xecc / vector@0xea6 / vector@0xe9a / CCargo@0xdaa /
+    // SkillSlot@0x892 / CInventory@0xda）现全为真实成员 ⇒ 编译器在 body 之后按
+    // **逆声明序 = 偏移降序**隐式析构，与 ORIG 0x08697982 的 7 个 D1 call 序
+    // （0x1254→0xecc→0xea6→0xe9a→0xdaa→0x892→0xda）逐点一致；旧两处显式
+    // `~vector()` 属二次析构（double free），已删。
 }
 // ORIG 0x08699863：编译器生成的拷贝构造。平凡区（含 _Additioal_info@0x88、
 // CCargo@0xdaa 等无堆成员子对象）逐字段拷贝；非平凡子对象调用拷贝构造。
@@ -12110,6 +12110,12 @@ void CUser::SetCharacInfo(int count, char* data)
 
     for (int i = 0; i < count; ++i)
     {
+        // [L6 2026-09-10 P183 试形**实测反劣**] 删 `char* rec = data + i*0x94;` 缓存 +
+        // 逐点 `rec + i*0x94` 内联（并删 `char* p = (char*)&info;`）后读数：
+        // gap 0→**-52**、ndiff 430→**548**（ORIG-only imul 19→3 改善，但 OURS-only
+        // lea 22/shl 9/add 18 新增 —— 4.4 对 `char* + i*0x94 + K` 折 lea/shl 链而非
+        // ORIG 的 imul+独立 add）⇒ 已回滚。ORIG 0x08649cxx 的 19 处
+        // `imul $0x94,%eax,%eax; add -0x1c(%ebp),%eax` 属 P30/N107 地址物化族封顶。
         char* rec = data + i * 0x94;
         info.Reset();                                  // _Charac_info::Reset
         char* p = reinterpret_cast<char*>(&info);
@@ -12165,7 +12171,7 @@ void CUser::SetCharacInfo(int count, char* data)
             const unsigned char bit = static_cast<unsigned char>(
                 (static_cast<unsigned char>(rec[0x1c]) >> 4) & 1);
             unsigned char& dst =
-                info.m_tagVisibleFlags;   // +0xe40 tagCharacVisibleFlag 首字节
+                info.m_tagVisibleFlags.m_flag;   // +0xe40 tagCharacVisibleFlag 首字节成员（权威名）
             dst = static_cast<unsigned char>((dst & 0xfd) | 1 | (bit * 2));
         }
         p[0x1c04] = expireFlag;                                       // local_15

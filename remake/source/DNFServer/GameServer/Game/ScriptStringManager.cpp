@@ -321,6 +321,9 @@ bool ScriptStringManager::importFromBuffer(const unsigned char* buffer,
 {
     // ORIG 8acf97f-8acf992：两个**独立**守卫（buffer==NULL 早退 8acf984；
     // count 先读入槽 -0x440 再判 `buffSize > 3` 正向 8acf98c/992）。
+    // [L4-r2 判据⑩ 一次性试验已回退] 试把 count 下移到 offsets 之后 ⇒ vector
+    // ctor 被提到 NULL 守卫之前（多 3 条 movl $0）且 count 槽仍 -0x43c ⇒ 反劣，
+    // 已还原。槽差归 N82/N18a（寄存器角色 %esi↔%ebx 同族）。
     unsigned int count;
     if (buffer == 0
         || (count = *reinterpret_cast<const unsigned int*>(buffer), buffSize < 4))

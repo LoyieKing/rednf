@@ -2,6 +2,10 @@
 // df_game_r 还原 —— CEventCharacterHandler（G2-4 批次，活动角色处理）。
 // 依据 docs/class_func_reports/CEventCharacterHandler.md + ORIG 反汇编。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__Z30CEventCharacterHandlerInstancev`（ORIG 0x848ecb2）。
+#include <iostream>
+
 
 #include <algorithm>
 #include <utility>
@@ -152,6 +156,13 @@ public:
     char m_pad[0xa86c];                                  // +0x00
     EventCharacterParameterScript m_eventCharacScript;   // +0xa86c
 };
+// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x0848ecb2。
+CEventCharacterHandler* CEventCharacterHandlerInstance()
+{
+    static CEventCharacterHandler instance;
+    return &instance;
+}
+
 CEventCharacterHandler::CEventCharacterHandler() {}
 
 bool CEventCharacterHandler::_checkMakeCommand(CUser* user, int level, int& cmdIdx)
@@ -439,8 +450,3 @@ bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
     return true;
 }
 
-CEventCharacterHandler* CEventCharacterHandlerInstance()
-{
-    static CEventCharacterHandler instance;
-    return &instance;
-}

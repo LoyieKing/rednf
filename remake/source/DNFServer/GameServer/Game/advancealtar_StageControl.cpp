@@ -197,6 +197,10 @@ void StageControl::sendStageInfo()
 //   call ⇒ push ebx/sub $0x24、+5 条），ORIG 4.1 为 RHS-first 直存 `mov %eax,0x98(%edx)`；
 //   P211 档②/③（字段 unsigned 化、RHS (unsigned) cast）实测均不翻（4.4.6 同 LHS-first）。
 //   另 setUser/startStage 实参寄存器角色 eax↔edx 互换（P75 跨版本）。语义逐条等价。
+// [round1-L29 2026-09-10 复核] 判据① CLEAR。残差 = `mov this,%edx; mov %eax,0x98(%edx)`（ORIG
+//   RHS-first）vs 我方 `push %ebx; mov this,%ebx; mov %eax,(%ebx)`（LHS-first+指针缓存，
+//   N76/P183 反向不可补）；另 `lea 0x98(%eax),%edx` vs `add $0x98,%eax`（N107 六形探针全败）。
+//   ORIG 0x0812fdd4 / 0x0812fe1c。
 int StageControl::selectStage(CUser* user, int stageId,
                               advancealtar::StageDifficulty::T diff)
 {
@@ -278,6 +282,9 @@ void StageControl::sendEplp(StageEndType::T endType)
 //   唯一残差 = 4.4 语句级重载形参多一条 `mov 0xc(%ebp),%eax` + 第二比较 `cmpl $3,mem`
 //   vs ORIG `cmp $3,%eax`（P85：ORIG 4.1 跨语句保留 %eax；P0 禁具名局部/绑定形）。
 //   语义逐值等价（e<0/e>3 均不写 flag，e∈[0,2]→0、e==3→1）。N 封顶（P85/N82 族）。
+// [round1-L29 2026-09-10 复核] 判据① jcc 目标逐条核对 CLEAR；残差 = 4.4 语句级重载形参多 1 条
+//   `mov 0xc(%ebp),%eax` + 第二比较 `cmpl $3,mem` vs ORIG `cmp $3,%eax`（P85 跨语句 %eax 保活；
+//   P0 禁绑定）⇒ N（ORIG 0x08130644）。
 void StageControl::onEplp(StageEndType::T endType)
 {
     // ORIG 0x813064a：bool 岛 -0x9（预清 movb $0x0、条件链物化 movb $0/$1、无读者——
@@ -322,6 +329,8 @@ void StageControl::onEplpReturnVillage()
 //   第三岛直落；body 尾 jmp join 同形）。唯一残差 = 4.4 语句级重载形参多一条
 //   `mov 0xc(%ebp),%eax` + 第三比较 `cmpl $3,mem` vs ORIG `cmp $3,%eax`（P85 跨语句
 //   %eax 保活；P0 禁具名局部/绑定形）。语义逐值等价。N 封顶（P85 族）。
+// [round1-L29 2026-09-10 复核] 判据① CLEAR；P286 单 case switch 已实测（27→28 条反劣，已回退）。
+//   残差同 onEplp（P85 族）⇒ N（ORIG 0x081305f6）。
 void StageControl::onClearReward(StageEndType::T endType)
 {
     if (endType < 0)
@@ -446,6 +455,11 @@ void StageControl::gotoStage(CUser* user)
 //   const_iterator（ORIG 0x08135d88/0x08135dae 段确用 `_ZNKSt4list...` const 版）⇒
 //   verdict 无改善（仍 DIFF）且本 TU 少发射 iterator→const_iterator 转换构造
 //   ⇒ check_tu identical 80→79 回退，已回退维持非 const iterator。
+// [round1-L29 2026-09-10 复核] 判据① jcc 目标逐条核对 CLEAR（仅 4 条物化段差）。本轮实测三形：
+//   `if(hit^1){}else{++count;}`（现形）、`bool hit + if(!hit)`（劣化 42 处）、X2 `hit^=1; if(hit)`
+//   （劣化 47 处）；判据⑪ 槽位逐值全等 ⇒ 非槽问题。唯一解=callee `getTowerInfo` 返回类型
+//   uchar→bool（P248 档①/P168a 定论），已上报 Main。ORIG 0x08130869 证据：
+//   `mov %al,-0x9; movzbl -0x9,%eax; xor $1,%eax; test %al,%al; jne`。
 int StageControl::getCenterCount() const
 {
     // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调
@@ -479,15 +493,13 @@ int StageControl::getCenterCount() const
         int valueB = 0;                                 // local_88[0]
         // ORIG 0x08130869：getTowerInfo 结果先落具名字节槽 -0x9（`mov %al,-0x9`），
         // 再 `movzbl -0x9; xor $1; test; jne <skip>; ++count; jmp; nop` 取反物化。
-        unsigned char hit =
+        const bool hit =
             user->m_advanceAltar.getTowerInfo(it->m_mobId, valueA, valueB);
-        if (hit ^ 1)
-        {
-        }
-        else
-        {
-            ++count;
-        }
+        // ORIG 0x08130869：jne <skip 岛> + body 尾 jmp <join> ⇒ P223 goto 尾空标签形。
+        if (!hit)
+            goto hit_done;
+        ++count;
+    hit_done:;
     }
     return count;
 }
@@ -521,6 +533,9 @@ int StageControl::getCenterCount() const
 //   残余 = hit 取反物化（ORIG movzbl/xor/test/jne 4 条 vs 4.4 `cmpb $0` 2 条，P168a④
 //   /N18b 封顶）+ 槽号分配差（N95/N126 版本常数）。p167：put_binary 差集清零，仅剩
 //   D1/D2、C1/C2 同址别名与 list const/非 const 迭代器符号选择差（非语义缺口）。
+// [round1-L29 2026-09-10 复核] 我方 292 / ORIG 289；判据① 分支数 66 vs 67，无目标错位。
+//   残差含 getTowerInfo 的 X 族（同 getCenterCount，待 callee bool 化）+ 槽号 N95/N126。
+//   ORIG 0x081301e0。
 void StageControl::sendMapInfo()
 {
     // [b28d-solo-StageControl] P183：ORIG 每访问点重算 this+0x98 / this+0x4
@@ -612,6 +627,8 @@ void StageControl::sendMapInfo()
             //   ORIG 0x0813047c `mov %al,-0xd(%ebp)` + 回读 ⇒ 具名字节局部（P0 槽往返）。
             unsigned char hit = user->m_advanceAltar.getTowerInfo(
                 it->m_mobId, towerValue, towerCount);
+            // [round1-L29 2026-09-10 复核] bool 具名局部 + P223 goto 尾标签形实测劣化
+            //   （295 vs ORIG 289）⇒ 回退保持 uchar 形；残差归 N（ORIG 0x0813047c）。
             if (hit)
             {
                 summary.m_towerRefA =

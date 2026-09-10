@@ -1067,33 +1067,41 @@ bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
     // [b28d-solo-CCreatureMgr] ORIG 0x833b8b4 `lea -0x61(%ebp); call Inven_ItemC1`
     // 在 memset 之后、begin 之前 ⇒ invenItem 是**函数体作用域**局部（非循环体内）。
     Inven_Item invenItem;
-    int count = 0;
     // ORIG 0x833b8xx：begin/end 循环外各求值一次（P13）+ while 前置条件形
     // （P25/P164）；`it++` 后置（P28 增量侧：ORIG 增量段为 ppEi 三槽阶梯）。
     std::map<int, CCreatureItem*>::const_iterator it = m_creatureItems.begin();
     std::map<int, CCreatureItem*>::const_iterator itEnd = m_creatureItems.end();
+    // [P191 双初始化配套] ORIG 0x833b86d/0x833b870 两条相邻 `movl $0x0,-0x10(%ebp)`
+    //   ⇒ 原码 = `int count = 0;` 声明 + 循环前再清零一句，两处都要写。
+    int count = 0;
+    count = 0;
     while (it != itEnd && count <= 0x8c)
     {
         CCreatureItem* item = it->second;
-        // [P214① 指针算术 lea 位移链] ORIG 0x833b89e 形 = `shl $3; lea (,%eax,8);
-        //   sub; lea 0x12880(%edx); add 0xc(%ebp)` ⇒ 原码在 char* 上算 `count*0x38`
-        //   再 cast（数组名参与算术），非 `reinterpret_cast<T*>(arr)+count` 下标形。
-        SIG_CREATURE_ITEM_DETAIL_INFO* dst =
-            reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(sig->m_creature
-                                                              + count * 0x38);
-        // [b28d-Main·检查点14 CCreatureItem 多态化] 补 ORIG 0x0833b88d..b8ca 的
-        //   虚调用（vtable 槽3 = SaveCreatureItem）：`mov (%eax),%eax; add $0xc,%eax;
-        //   mov (%eax),%ebx` + 实参 `&invenItem([ebp-0x61]) / dst(+0x12880+count*0x38)
-        //   / m_user([this+0x1c])`，`call *%ebx`。原占位写 dst->m_slotNo 不在 ORIG 序列中。
-        // [b28d-solo-CCreatureMgr 试形失败] 内联 dst 表达式（P0/P183 去具名槽）使
-        //   帧 0x70→0x7c + push edi/esi（多 13 条，147→160）⇒ 保留 dst 具名局部。
-        item->SaveCreatureItem(&invenItem, dst, m_user);
+        // [P183 地址重物化铁律] ORIG 0x833b89d..b8b2 在实参位重算 count*0x38 全链
+        //   （`shl $3; lea (,%eax,8); sub; lea 0x12880(%edx); add 0xc(%ebp)`），
+        //   **无 dst 具名局部**；第二处 store 亦重算（`lea 0x128a8(%edx)`）⇒
+        //   [b28d-Main·检查点14 CCreatureItem 多态化] 虚调用 = vtable 槽3
+        //   (SaveCreatureItem)，实参 `&invenItem([ebp-0x61]) / 重算 dst / m_user(+0x1c)`。
+        //   [b28d-solo-CCreatureMgr 旧试形失败] 那次「内联」同时保留了 dst 的旧注释形，
+        //   帧 0x70→0x7c ⇒ 本次按 ORIG 两处各自独立重算。
+        item->SaveCreatureItem(
+            &invenItem,
+            &reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
+                sig->m_creature)[count],
+            m_user);
         // ORIG 每轮两次 operator->（P167 差集：ptEv 少 1）——getExpireTime 经
         // 第二次 it->second 取，勿复用上面缓存的 item 指针。
-        dst->m_expireTime = it->second->getExpireTime();  // 条目 +0x28
+        // [L23 本轮试形记录] 三形实测（fresh .o）：①dst 具名缓存=147 条（少算
+        //   两处重算链，与 ORIG 结构不符）；②本形（两处内联元素指针）=161 条；
+        //   ③`count*0x38 + sig->m_creature` 交换操作数=165 条（4.4 仍 base-first
+        //   且多 %esi 中转）⇒ 取②，结构对齐 ORIG（无缓存 + 两处独立重算）。
+        reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
+            sig->m_creature)[count].m_expireTime =
+            it->second->getExpireTime();  // 条目 +0x28
         // P167：第一个 map 的 ORIG 增量段是前置 ppEv（第二个 map 才是 ppEi）。
         ++it;
-        count++;
+        ++count;
     }
     sig->m_creatureCount = count;
 
@@ -2509,13 +2517,21 @@ void user_creature::CCreatureItem::Set(user_creature::CCreatureItem* src)
 // （ORIG 0x833a27a `movb $0,(%eax)` + 0x833a28d `mov %edx,0x2(%eax)`；原写的
 // m_addInfo=0/m_addInfo2 是错字段）；④newItem 函数头预清（P198①）；⑤`register bool ok`
 // （P231，ORIG 无槽 ebx 汇聚）；⑥Set(egg) 隐式派生→基类转换；⑦Set 实参复用 egg
-// （消第二次 operator->）。残余 = N82/N93/N98 槽布局族（it/end -0x34/-0x30 vs
-// -0x24/-0x20、cMyTrace 与 sender 槽互换；4.4 按首次使用分配 vs 4.1 声明序）
-// + N86（4.1 迭代器临时槽）。326 vs 325。ORIG 0x08339fa0
-// [b28d-solo-CCreatureMgr §6.2 封顶] p167 CLEAR(60=60) + gap 1 + 逐块比对：残余 =
-//   N82/N93/N98 槽布局（it/end -0x34/-0x30 vs -0x24/-0x20、sender 与 trace 槽互换）
-//   + Set 实参装载序 + LogHistory 寄存器角色（N7）+ sender 析构块序（N104）。
-//   P194 内联判定+分支写 ok 试形使帧 -0x60→-0x64 全帧漂移（560 diff 行）⇒ 已回滚。
+//   （消第二次 operator->）。326 vs 325。ORIG 0x08339fa0
+// [b28d-solo-CCreatureMgr §6.2 封顶] p167 CLEAR(60=60) + gap 1 + 逐块比对。
+// [L23 本轮重核 2026-09-10] 旧判词「槽布局族 it/end -0x34/-0x30 vs -0x24/-0x20 +
+//   sender 与 trace 槽互换」**作废**：fresh .o 槽表与 ORIG **逐值全等**
+//   （respondent -0x60 / sender -0x40 / it-sret -0x34 / itEnd-sret -0x30 /
+//    trace -0x2c / creatureItemId -0x38 / unwind -0x8）⇒ 判据⑩不适用、无槽问题。
+//   本轮已修：ok 由「赋值即初始化」改 `register bool ok; if(!call()){…ok=false;}
+//   else{…ok=true;}` ⇒ 复现 ORIG 0x0833a2e0 `call; xor $0x1,%eax; test %al,%al; je`
+//   直判形 + %ebx 汇聚（ORIG 0x0833a345 `mov $0,%ebx` / 0x0833a3ff `mov $1,%ebx`），
+//   原形多 `mov %eax,%ebx; mov %ebx,%eax` 两条。
+//   残余（唯一族）：Set/SetItemId/SetExpireTime/RegisterCreatureItem 四处实参装载序
+//   （ORIG 0x833a0eb `mov -0x18,%edx; mov -0x1c,%eax; mov %edx,0x4(%esp)` 双载 vs
+//   我方逐条压栈；SetItemId 处两侧恰好相反）+ LogHistory 寄存器角色（N7）+ sender
+//   析构块序（N104）= P75/N-G 跨版本装载序族。P277 不适用：ORIG 槽表无具名派生
+//   指针槽（⇒ 原码无该局部）。
 bool user_creature::CCreatureMgr::Hatch(int addInfo)
 {
     // ORIG 0x8339fa4 `movl $0x0,-0x1c(%ebp)`：newItem 先预清再赋值
@@ -2581,17 +2597,19 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
     slotItem->m_addInfo = newItem->GetItemId();
 
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);
-    // [P194 试形失败] 内联判定+分支写 ok 使帧 -0x60→-0x64 全帧漂移（560 diff 行）⇒
-    // 回滚。ORIG 0x833a2e0 `xor $1;test;je` + 尾 `mov %ebx,%eax`：ok 无栈槽、跨成功块
-    // 多个 call 保活于 callee-saved %ebx ⇒ 纯 register 存储类提示（P231/P248，
-    // 非 asm 绑定，P0 合规）；残余 eax→ebx→eax 双中转 = 4.4 具名 bool 物化（N18a）。
-    register bool ok = sender.HatchCreature(newItem->GetUid(), 1, newItem->GetItemId());
-    if (!ok)
+    // ORIG 0x833a2db..a2e5：`call HatchCreature; xor $0x1,%eax; test %al,%al; je
+    //   <成功块>` —— call 结果**直判**（无 eax→ebx 中转），ok 的值只在两条分支
+    //   尾部写 callee-saved %ebx（0x833a345 `mov $0,%ebx` / 0x833a3ff `mov $1,%ebx`）
+    //   ⇒ 原码 = `register bool ok;`（无初始化）+ `if (!call()) {失败; ok=false;} else
+    //   {成功; ok=true;}`（P231/P248 裸 register 四条件全满足；禁 asm 绑定）。
+    register bool ok;
+    if (!sender.HatchCreature(newItem->GetUid(), 1, newItem->GetItemId()))
     {
         // P227/P221：ORIG ctor 前求值 vararg 并跨 ctor 保活 %ebx ⇒ 全表达式临时链。
         cMyTrace(__PRETTY_FUNCTION__, 0xb1a, 5)(
             "cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         respondent.SetError(2);
+        ok = false;
     }
     else
     {
@@ -2602,6 +2620,7 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
         respondent.MakeNotipacketCreatureItemList(&m_creatureItems, newItem->GetSlotNo());
         respondent.Send();
         m_user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)7, newItem->GetSlotNo());
+        ok = true;
     }
     return ok;
 }

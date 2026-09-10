@@ -4,6 +4,10 @@
 //   StartEvent.md(0x0832be7c) / StartEvent_0832be82.md(0x0832be82) /
 //   EndEvent.md(0x0832c048) / getLastEventTime.md(0x0832c0b8) /
 //   getNextEventTime.md(0x0832c148) / registNextRefillTimer.md(0x0832c1fe)。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN16CCoinRefillEventC2Ev`（ORIG 0x832c399）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CCoinRefillEvent.h"
 
 #include <cstdio>

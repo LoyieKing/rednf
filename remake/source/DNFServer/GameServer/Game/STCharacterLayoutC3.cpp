@@ -13,7 +13,7 @@
 //
 // C1 0x08368348 转写（构造顺序 = 成员声明顺序，随后调 Clear()）：
 //   +0x004  m_growtypeName[6]        6×SsC1Ev（步长4）
-//   +0x024  m_initialStatus+m_growStatus[6]
+//   +0x024  m_status[7]（initial + growtype 1..6）
 //                                    7×STRDCharacterStatusC1Ev（步长0x57；
 //                                    该 C1 0x0836773e 即调用自身 Clear 清零）
 //   +0x288  m_skillList[7]           7×vector<pair<int,int>>C1Ev（步长0xc）

@@ -421,21 +421,33 @@ void upgradeAbilityByChampionFeature(int elem, int roleType,
     const float kAttackRatio[4] = {0.0f, 1.5f, 2.0f, 0.0f};
     const float kHpRatio[4] = {0.0f, 1.5f, 3.0f, 0.0f};
 
-    if (elem >= 0 && elem <= 3)
+    // [L14 round2] P251/P286：ORIG 0x088b7c29 该段为
+    // `mov 0x8(%ebp),%eax; test %eax,%eax; js; cmp $0x3,%eax; jle; cmp $0x4,%eax; je`
+    // （形参载入寄存器一次 + 多路比较链，无栈槽往返）⇒ 原码是 switch(elem) 的
+    // 0..3 合并 case + case 4，而非 if/else-if（4.4 对 if 链恒折 `cmpl $0,%ebp` 直比）。
+    switch (elem)
+    {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
     {
         const int oldValue = info->m_elemAttack[elem];
         info->m_elemAttack[elem] = static_cast<int>(
             static_cast<float>(oldValue) +
             (150 - oldValue) * kElemRatio[roleType]);
+        break;
     }
-    else if (elem == 4)
-    {
+    case 4:
         info->m_attack =
             static_cast<int>(static_cast<float>(info->m_attack) *
                              kAttackRatio[roleType]);
         info->m_magicAttack =
             static_cast<int>(static_cast<float>(info->m_magicAttack) *
                              kAttackRatio[roleType]);
+        break;
+    default:
+        break;
     }
 
     info->m_hpBase = static_cast<int>(static_cast<float>(info->m_hpBase) *

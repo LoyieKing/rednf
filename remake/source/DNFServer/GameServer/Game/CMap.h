@@ -158,8 +158,11 @@ struct STAssignBloodPhaseTime
     float m_time;            // +0x0c
     int m_field10;           // +0x10
     int m_spawnCnt;          // +0x14
+    // [L16 2026-09-10] P26：删显式 `char m_pad19[3]`——ORIG 隐式拷贝构造只拷
+    // 1 字节（`movzbl 0x18(%edx),%edx; mov %dl,0x18(%eax)`），显式 pad 使 4.4
+    // 合并成 4 字节 `mov 0x18(%edx),%edx; mov %edx,0x18(%eax)`（new_allocator
+    // ::construct 两实例各 4 行 diff）。尾部靠编译器自然填充，sizeof 0x1c 不变。
     char m_difficulty;       // +0x18
-    char m_pad19[3];         // +0x19
 
     void Clear();
 };

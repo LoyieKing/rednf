@@ -3,6 +3,39 @@
 // StageVirtuals：补 4 个新增虚函数 handleMoveMap/handlePickupItem/
 // handleDropItem/handleKillMonster（ORIG 0x0814f66a/0x0814fa76/0x0814ff4a/
 // 0x08150388），使本 TU 发出 _ZTVN8WongWork10CBossStageE。
+//
+// ============================================================================
+// b28f-SweepCBossStage（本波）判词汇总：四数 228/368/2/7（HEAD 基线，同口径
+//   headref 复测确认）→ 228/368/near=3/diff=6（fresh 18:21:04）。逐件：
+//   ① SendMapInfoPacket：**真语义 bug 修复**——p167 命中 ORIG 多 1 次
+//      `put_short(int)`、我方多 1 次 `put_int(int)`；ORIG 0x0814d083
+//      `mov -0x84(%ebp),%eax; call 080d9ea4(put_short)` = `packet.put_short(
+//      item.m_itemIndex)`，原写 put_int 令 0x1e2 包 itemIndex 之后全部字段错位
+//      2 字节。修后 p167 该对差集归零（该件 AE 分类不变：clean() 把 call 目标
+//      归一为 <T>，语义修复不体现在四数上）。
+//   ② handleMoveMap：DIFF→NEAR。`if (!moveNextStage()) return 0;` 改 P292 正极性
+//      包裹 `if (moveNextStage()) { … }`（ORIG 0x0814f84e `call; test %al; je
+//      <失败尾块>` 无 xor）⇒ 消 N122 xor 物化 1 条 + 尾块布局。残差仅 N7
+//      （`_checkMemberDie` 间接调用目标 ORIG %edx / 4.4 %eax，3 条）。
+//   ③ killMonsterDropItem：语义块 2→0。ORIG 0x0814d648..d68b 是三段序：三个
+//      C1（-0x50/-0x58/-0xc8）全发完**之后**才是三个 clear ⇒ 原码「先声明三对象、
+//      再统一 clear」；原「声明+clear 交错」形错位。残差=纯槽分区（N82/N126）。
+//   ④ dropItem：`int attachType = script->GetAttachType(); switch(attachType)`
+//      改 P251 直切 `switch (script->GetAttachType())`（ORIG 0x0814e212
+//      `mov [S],%eax; cmp $0x5,%eax` 值无栈槽往返 ⇒ 无具名局部）⇒ 消
+//      `cmpl $0x5,slot` + shl 索引形成对。残差=帧 0xd4(ORIG)/0xc4 + 整体槽平移。
+//   ⑤ KillMonsterGetExp：三形实测（本形/AE 差 12 块；标量全头部声明→our 229
+//      条劣化；float 移入 for 体→AE 差 18 块劣化）⇒ 4.4 按「先用者浅」分区与
+//      ORIG 4.1「先用者深」方向相反，声明位置不可翻（P212 反向 + N82附）封顶。
+//   ⑥ NormalPickupItem：N7×3 + N82 槽（agency 内层块槽被 4.4 lifetime 复用给尾部
+//      PacketGuard，ORIG 4.1 不复用）⇒ 封顶。
+//   ⑦ consistMap(gap −7)/RandomPickupItem(N7/N18a 组合绑定)/handlePickupItem
+//      (N7 虚槽 + 槽分区)：p167 全 CLEAR（仅 C1/C2、D1/D2 同址别名 P93 豁免）
+//      ⇒ 按 §6.2 判「语义完成、byte 层 N 封顶」。
+//   ⑧ diff 列表仍含 `_Z41__static_initialization_and_destruction_0ii`：N123
+//      每 TU 同名 local 副本撞名伪差，非实现缺口。
+//   ⇒ 本 TU 剩余真缺口 = 0（p167 全 CLEAR）。
+// ============================================================================
 #include "CBossStage.h"
 #include "WarField.h"   // MapInfo::Clear / map_item / map_monster
 #include "GameRand.h"   // get_rand_int
@@ -113,57 +146,60 @@ bool CBossStage::handleMoveMap(unsigned short* mapIndex)
         user->m_historyLog.MapClear(mapIndex[i], playSec, 0);
     }
 
-    if (!moveNextStage())         // ORIG 0x0814f84e `test %al; je`（无 xor 物化；N122）
-        return 0;
-
-    int mapIdx = 0;
-    if (!randomMapIndex(mapIdx))
-        return 0;
-
-    try
+    // ORIG 0x0814f84e `call moveNextStage; test %al,%al; je <失败尾块>`（无 xor 物化）
+    // ⇒ P292 正极性 if(bool)：写成 `if (f()) { … }` 而非 `if (!f()) return`。
+    if (moveNextStage())
     {
-        CUser* manager = m_party->getManager();
-        // ORIG 0x0814f891..89e 直接 call isGMUser（无 manager!=0 判空）⇒ P171 照抄
-        if (manager->isGMUser())
-        {
-            // CUser GM 调试字段（"bossmap"/"bossdifficult" 指令写入，取走即清零）
-            if (manager->m_gmBossMapIndex != 0)
-            {
-                mapIdx = manager->m_gmBossMapIndex;
-                manager->m_gmBossMapIndex = 0;
-            }
-            if (manager->m_gmBossDifficulty != 0)
-            {
-                m_difficulty = (int)(signed char)manager->m_gmBossDifficulty;
-                manager->m_gmBossDifficulty = 0;
-            }
-        }
-
-        const CMap* map =
-            (const CMap*)G_CDataManager()->find_map(mapIdx);
-        if (map == 0)
+        int mapIdx = 0;
+        if (!randomMapIndex(mapIdx))
             return 0;
 
-        reset();
-        if (!consistMap(map))
-            throw (ENUM_ERROR)1;
+        try
+        {
+            CUser* manager = m_party->getManager();
+            // ORIG 0x0814f891..89e 直接 call isGMUser（无 manager!=0 判空）⇒ P171 照抄
+            if (manager->isGMUser())
+            {
+                // CUser GM 调试字段（"bossmap"/"bossdifficult" 指令写入，取走即清零）
+                if (manager->m_gmBossMapIndex != 0)
+                {
+                    mapIdx = manager->m_gmBossMapIndex;
+                    manager->m_gmBossMapIndex = 0;
+                }
+                if (manager->m_gmBossDifficulty != 0)
+                {
+                    m_difficulty = (int)(signed char)manager->m_gmBossDifficulty;
+                    manager->m_gmBossDifficulty = 0;
+                }
+            }
 
-        m_startTick = (int)GlobalData::s_systemTime_.getCurTickCount();
-        SendMapInfoPacket();
-        return 1;
+            const CMap* map =
+                (const CMap*)G_CDataManager()->find_map(mapIdx);
+            if (map == 0)
+                return 0;
+
+            reset();
+            if (!consistMap(map))
+                throw (ENUM_ERROR)1;
+
+            m_startTick = (int)GlobalData::s_systemTime_.getCurTickCount();
+            SendMapInfoPacket();
+            return 1;
+        }
+        // P229：ORIG 0x0814f9ac `mov (%eax),%eax; mov %eax,-0xc` ⇒ 按值 catch
+        //   （引用 catch 会先落指针槽再回读）。
+        catch (ENUM_ERROR e)
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0x30);
+            packet.put_byte(0);
+            packet.put_byte((int)e);
+            packet.finalize(true);
+            m_party->send_to_party(packet);
+            return 0;
+        }
     }
-    // P229：ORIG 0x0814f9ac `mov (%eax),%eax; mov %eax,-0xc` ⇒ 按值 catch
-    //   （引用 catch 会先落指针槽再回读）。
-    catch (ENUM_ERROR e)
-    {
-        PacketGuard packet;
-        packet.put_header(1, 0x30);
-        packet.put_byte(0);
-        packet.put_byte((int)e);
-        packet.finalize(true);
-        m_party->send_to_party(packet);
-        return 0;
-    }
+    return 0;
 }
 
 // ---- handlePickupItem（ORIG 0x0814fa76）----
@@ -517,8 +553,13 @@ bool CBossStage::KillMonsterGetExp(const map_monster& mob, unsigned int& exp)
     //   0x0814d3bf 起各段逐次重读 mob.m_roleType（无 roleType 具名局部）。
     // ORIG 0x0814d316 返回值落 -0x1c 死槽（P171 照抄，后续无读取）
     // [b28d-solo] ORIG float expF/expF2 在深槽 -0x50/-0x4c、块内 data 在浅槽
-    //   -0x24；4.4 恒聚合对象占低槽、标量分区（N82附），头部声明序两形实测
-    //   17→18 无改善 ⇒ 残差按 N82附封顶。
+    //   -0x24；4.4 恒聚合对象占低槽、标量分区（N82附）。
+    // [b28f-SweepCBossStage 三形实测复核] ①本形（expF/expF2 函数头）: AE 差 12 块
+    //   （our 226）；②标量全头部声明（sp/sfp/reason 提到头）: our 226→229 条、
+    //   槽阶梯全乱（ORIG `movl $0xb,-0x10` 被我方落 -0x1c）⇒ 劣化回滚；
+    //   ③expF/expF2 移入 for 体内: AE 差 18 块（our -0x1c/-0x18）⇒ 劣化回滚。
+    //   ⇒ 4.4 在本件按「先用者浅」分区，与 ORIG 4.1「先用者深」方向相反，
+    //   声明位置不可翻（P212 反向 + N82附），封顶。p167 CLEAR（仅 C1/C2 别名）。
     float expF;
     float expF2;
     int memberLevelGap = m_party->getMemberLevelGap();
@@ -617,7 +658,10 @@ int CBossStage::SendMapInfoPacket()
         map_item item(it->second);
         // +0x01 等级字节（ORIG movzbl+movsbl 后 put_byte：0814d05a）
         packet.put_byte((int)(signed char)(unsigned char)item.m_standardLevel);
-        packet.put_int(item.m_itemIndex);                  // +0x04
+        // [b28f-SweepCBossStage] 真 bug：ORIG 0x0814d083 `mov -0x84(%ebp),%eax` →
+        //   call 080d9ea4（put_short），非 put_int（080cb93c）。原写 put_int 令
+        //   0x1e2 包 itemIndex 后所有字段错位 2 字节（p167: put_short −1 / put_int +1）。
+        packet.put_short(item.m_itemIndex);                // +0x04
         packet.put_int(item.m_item.m_addInfo);             // ORIG 0x0814d088 32 位读 -0x76
         packet.put_int(item.m_item.get_add_info());        // Inven_Item+7
         packet.put_short((int)item.m_item.m_fieldb);       // ORIG 0x0814d0ba -0x6d（Inven_Item+0xb）
@@ -1007,13 +1051,14 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         if (script == 0)
             return false;
 
-        // ORIG 0x0814e212 跳表前为 `mov [S],%eax; cmp $0x5,%eax`；4.4 对
-        //   signed/unsigned 局部恒折 cmpl 内存直比 + shl 索引（P209/N94 实测
-        //   unsigned 化无效）⇒ 保留 int。
-        int attachType = script->GetAttachType();
+        // ORIG 0x0814e212 跳表前为 `mov [S],%eax; cmp $0x5,%eax; ja; mov
+        //   <A>(,%eax,4),%eax`（值始终在 %eax，无栈槽往返）⇒ P251/P261：
+        //   原码是 `switch (script->GetAttachType())` 直切 call 结果；写成具名
+        //   `int attachType=…; switch(attachType)` 在 4.4 必产 `cmpl $0x5,slot`
+        //   + shl 索引（P209/N94 实测改类型无效）。
         // [b28d-solo] ORIG 0x0814e212 跳表（0x8b7511c：case1/2/5→814e21b 返 false；
         //   case3→814e225 查 tmp+0 字节；case0/4/default→814e23a 主流程）⇒ switch。
-        switch (attachType)
+        switch (script->GetAttachType())
         {
         case 0:
             break;
@@ -1137,10 +1182,14 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
                                      unsigned short a, unsigned short b)
 {
     std::vector<unsigned long> specifyDrops;      // 塔指定掉落（ORIG 收集后未再读取）
-    specifyDrops.clear();
     std::list<map_item> newItems;
-    newItems.clear();
     stGenerateResult_t result;
+
+    // [b28f-SweepCBossStage] ORIG 0x0814d648..d68b 三段序：三个 C1（-0x50/-0x58/-0xc8）
+    //   全部发完**之后**才是三个 clear ⇒ 原码是先声明三对象、再统一 clear；
+    //   原「声明+clear 交错」形被 4.4 输出 ctorX,clearX,ctorY,… 与 ORIG 错位。
+    specifyDrops.clear();
+    newItems.clear();
     result.m_dropItems.clear();
 
     // P0/p167：ORIG 直调 G_CDataManager()（MISSING ×1）与 m_party（EXTRA getParty ×3）

@@ -9,6 +9,11 @@
 // MSG_DEBUG_COMMAND / ENUM_DEBUG_COMMAND / CUser 在 ORIG 中未被这些函数实际
 // 解引用（Ghidra C 未访问任何字段），此处给出最小声明；若后续
 // CUser 为全局作用域类型（ORIG mangled: P5CUser）；函数体未解引用，仅指针透传。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit，
+// 使本 TU 发射 `_GLOBAL__I__ZN4ARAD20Arad_GMCommandManger4InitEv`（ORIG 0x81982e4）；
+// Init 定义随之前移到本 TU 首个强外部符号位置（键名 = 首强符号）。零语义/布局改动。
+#include <iostream>
+
 class CUser;
 
 // --- DEBUG 命令类型（全局作用域，匹配 mangled R17MSG_DEBUG_COMMAND / 18ENUM_DEBUG_COMMAND） ---
@@ -41,6 +46,12 @@ public:
     int Process(CUser*, MSG_DEBUG_COMMAND&);           // 0x08198240
     int __FindPorcess(ENUM_DEBUG_COMMAND);             // 0x0819824a
 };
+
+// [GI-ioinit L21] 本 TU 首个强外部符号定义（_GLOBAL__I_ 键名来源，P327）。
+int Arad_GMCommandManger::Init()
+{
+    return 1; // ORIG 0x8198230: mov $0x1,%eax
+}
 
 int GMCommandProcess::Command_DEBUG_COMMAND_ON(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
 {
@@ -80,11 +91,6 @@ int GMCommandProcess::Command_DEBUG_COMMAND_VISIBLE(CUser* /*user*/, MSG_DEBUG_C
 int GMCommandProcess::Command_DEBUG_COMMAND_SET_USER_DEFINE(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
 {
     return 0; // ORIG 0x819829a: mov $0x0,%eax
-}
-
-int Arad_GMCommandManger::Init()
-{
-    return 1; // ORIG 0x8198230: mov $0x1,%eax
 }
 
 void Arad_GMCommandManger::Destory()

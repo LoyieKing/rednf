@@ -120,11 +120,12 @@ void PvpResultType::Clear()
     m_field80 = 0;
 }
 
-int PvpResultType::GetTotalScore() const
-{
-    return m_avg[11] + m_avg[12] + m_avg[13] + m_avg[14] + m_field6c +
-           m_field70 + m_field74 + m_field78;
-}
+// [L10-2 P210②] GetTotalScore 的 out-of-line 定义迁往 PvP_Room.cpp（置于
+// SetPVPResult 之前）：4.4 只对「本 TU 内定义且先于 caller」的 callee 精确继承
+// outgoing 帧（ORIG 0x085dc034 `sub $0x4`；跨 TU 仅声明时保守 `sub $0x14`）。
+// 全仓唯一消费者 = PvP_Room::SetPVPResult（grep 实证），迁移零副作用；
+// ORIG 中 GetTotalScore @0x085d5efe 与 PvP_Room 段（0x085d6012..）地址相邻，
+// 本身即同 TU 旁证。
 // ============================================================================
 // PvpResultSet（G2-4 PvP 结果集合，PvpResultType 派生薄封装）
 // 三个薄封装定义原在 PvpResultSet.cpp——ORIG outgoing sub $0x4 为 4.1 对同 TU

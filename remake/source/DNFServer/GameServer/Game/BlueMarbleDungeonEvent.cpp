@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/BlueMarbleDungeonEvent/ 全部 6 个方法已读。
 //   C1 0x080dc470 / D1 0x080dc48c / D0 0x080dc4bc / StartEvent 0x080dc4da /
 //   StartEvent(Word_Param) 0x080dc52c（完整实现）/ EndEvent 0x080dc57e。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN22BlueMarbleDungeonEventC2Ev`（ORIG 0x80dc60f）；ctor 已是首强符号。
+#include <iostream>
+
 #include "BlueMarbleDungeonEvent.h"
 
 #include "GameTypes.h"   // cMyTrace

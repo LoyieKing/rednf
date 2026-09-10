@@ -282,6 +282,10 @@ bool ArrangeMailAndLetterIndex(SIG_MAILBOX_LIST* list,
         // （0x0841d1e3 `call operator[]; mov (%eax),%eax; mov %eax,0x4(%esp)`），
         // 无 letterId 具名局部；具名会多 1 槽 + 2 条 mov。
         mailIdx = FindLastLetterIndexMail(list, *(int*)&vecNew[start]);
+        // [b28e-L5] P225 `while (mailIdx != -1) {…break;}` 试验**无收益**（clean 差异
+        // 24→24、jcc 相对偏移反 +7 字节）⇒ 回滚维持原 `if`；ORIG 0x0841d1fc
+        // `cmpl $0xffffffff,-0x10(%ebp); setne %al; test %al,%al; je +0x159`
+        // 属 P197④ 槽比 setcc 物化（4.4 恒直跳）⇒ N，附地址。
         if (mailIdx != -1)
         {
             int letterIdx = ((LetterListView*)list)->m_postals[mailIdx].m_letterId;

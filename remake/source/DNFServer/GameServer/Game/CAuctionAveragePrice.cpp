@@ -1,6 +1,11 @@
 // df_game_r 还原 —— CAuctionAveragePrice（G2-4 批次）
 // 参照 docs/class_func_reports/CAuctionAveragePrice.md 与 ORIG 反汇编逐函数实现。
 // 原源文件 AuctionAveragePrice.cpp；数据表 auction_average_price。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN20CAuctionAveragePriceC2Ev`（ORIG 0x82f5f03）；FindPrice 类内 inline
+// 成员为弱符号不参与键名，首个强符号即 CAuctionAveragePrice ctor。
+#include <iostream>
+
 #include <algorithm>
 #include <map>
 #include <utility>

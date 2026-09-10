@@ -1191,6 +1191,10 @@ bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
 // icon 字段拆两句对齐 this 重载 store；残余 = N86(4.1 临时+拷贝 vs 4.4 直构形)
 // + N87(ARP 索引 add/lea vs 折叠位移) + CDispositionC1vsC2 基构造（跨版本），
 // fresh .o 复验 our=154/orig=158，调用点差集仅 C1/C2 同名差，语义等价。
+// [round1-L29 2026-09-10 复核] 判据⑪ 槽位直方图逐值全等 ⇒ 非槽问题。唯一残差 = 索引两步寻址
+//   `j*4+k`：ORIG `mov j,%edx; mov k,%eax; shl $2,%edx; lea (%edx,%eax,1),%eax` vs 4.4
+//   `mov j,%eax; shl $2,%eax; add k_mem,%eax`（add-vs-lea，P30/N4/N102；八形探针全败）⇒ N。
+//   ORIG 0x082e6386。
 CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e62aa
 {
     // b28d-solo-CAssaultMgr: N 封顶（P30/N4/N102 族；清单 DIFF 98 复验）— 用
@@ -1447,6 +1451,8 @@ void CAssaultPlace::_SendUserState()
 }
 
 // ORIG T 0x82e8c5a：包 0x03 全场用户状态；先记录写位置，尾部回填人数。
+// [round1-L29 2026-09-10 复核] 同 2 参版：1 处 N7 寄存器角色互换 + 尾部 epilogue 1 条
+//   （ORIG 0x082e8c5a）。判据① CLEAR（16 vs 16 分支，目标无错位）。
 void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 {
     // b28d-solo-CAssaultMgr: N 封顶（N7 寄存器角色互换；清单 DIFF 27 复验）
@@ -1647,6 +1653,10 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 // 需改冻结头，S2 归 Main）+ N121（循环尾与 FreeAssaultPlace 后 `jmp+nop` 岛，
 // 三形实测不消）+ N123/重定位（`mov 0x0,%eax` 系 .o 未解析 R_386_32，P264）。
 // 无语义缺口。
+// [round1-L29 2026-09-10 复核] difflib 唯一差异 = 比较两操作数装载序（ORIG 0x082e9ad6：
+//   `mov 0x8(%ebp),%edx; mov 0x124(%edx),%edx; cmp %edx,%eax` = call 结果留 %eax；
+//   我方 `mov %eax,%edx; mov this,%eax; mov 0x124(%eax),%eax; cmp %eax,%edx`）⇒ N22/N18b 封顶。
+//   p167：calls 60=60；MISSING/EXTRA 仅 PacketGuard C1/C2·D1/D2 同址别名（P93 良性）。
 void CAssaultPlace::CloseAssault()
 {
     // b28d-solo: ORIG 0x082e9ade/0x082e9ae5 头部双初始化 `movl $0,-0x28;

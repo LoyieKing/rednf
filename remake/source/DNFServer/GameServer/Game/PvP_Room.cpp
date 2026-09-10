@@ -1476,6 +1476,9 @@ int PvP_Room::leave_room(CUser* user, bool& flag)
     register int roomIndex = get_index();
     register const char* characName = user->getCurCharacName();
     register const char* accName = user->get_acc_name();
+    // [L10] P221 反向试验实测（2026-09-10，已回退）：ORIG 对象槽 -0x30（浅于标量
+    // -0x44/-0x40/-0x3c）；临时链与具名两形 4.4 均给对象深槽（-0x3c）、标量浅
+    //（-0x2c/-0x28/-0x24）⇒ 对象/标量分区方向跨版本不可翻（N82附），维持临时链。
     CSwitchLog(__PRETTY_FUNCTION__, 0x6c2, 0, 0)("pvp@log %s,%s,room(%d),%d,%d,%d",
              accName, characName, roomIndex, local_3c, local_40, local_44);
     lock();
@@ -2004,6 +2007,14 @@ int PvP_Room::make_room_info(char* buf)
     // [SweepPvPRoom] P200：去掉冗余 (int) cast ⇒ short 实参直传复现 ORIG
     // `movswl %ax,%edx`（cast 形恒退化成 `cwtl` 单条，少 1 条）。
     local_ec->put_short(m_requestedMapNo);
+    // [L10] 判词（三形实测 2026-09-10，三件 gap=1 同源）：ORIG 0x085db81d 段
+    //  `mov 0x4(%eax),%eax; mov %eax,%edx; mov %edx,0x4(%esp)`（字段→eax→edx 两段
+    //  中转），make_seat_info 0x085dba25 / make_state_info 0x085dbdc4 同形。
+    //  ① 字段 unsigned + 实参 (PVP_BATTLE_MODE) cast ⇒ 4.4 仍单段（P265 不成立）；
+    //  ② 字段改 int ⇒ 中转出现（三件各 +1）但 set_pvp_mode NEAR + revengeMission
+    //     DIFF 双回归（ae 130→128、near 7→8、diff 18→19）⇒ 净负，已回退；
+    //  ③ 原形（unsigned，直传）= 单段。
+    //  ⇒ 记 N（跨版本字段-实参两段中转；字段类型旋钮须全消费段联判，已测并回退）。
     local_ec->put_byte(m_pvpBattleMode);
     for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
     {
@@ -2044,6 +2055,7 @@ void PvP_Room::make_seat_info(char* buf, int seat)   // [b28c-16 SIGFIX] ORIG �
     InterfacePacketBuf* local_18 = (InterfacePacketBuf*)buf;
     local_18->put_header(0, 0x2b);
     local_18->put_short(m_index);
+    // [L10] P265 实测无效（同上 make_room_info 注释），记 N。
     local_18->put_byte(m_pvpBattleMode);
     if (seat == 0xffff)
     {
@@ -2114,6 +2126,7 @@ int PvP_Room::make_state_info(char* buf)
     // [SweepPvPRoom] P200：ORIG 0x085dbd6x `movswl %ax,%edx`（short 直传）；
     // 冗余 (int) cast 退化成 `cwtl`（gap 1）。
     local_f4->put_short(m_requestedMapNo);
+    // [L10] P265 实测无效（同上 make_room_info 注释），记 N。
     local_f4->put_byte(m_pvpBattleMode);
     local_f4->put_int(((IMatch*)m_matching)->GetIndentification());
     local_f4->finalize(true);
@@ -2294,6 +2307,17 @@ int PvP_Room::change_manager_to_winner()
 // 是 `IsIntegratedPvPBaseChannel && IsEventing` 的零槽物化岛（5 条），旧形拆嵌套 if 缺该岛；
 // 合并后槽基差 8→4（-0xb4 vs ORIG -0xb0）。残余 = 上述槽基差 + 1 条 `lea ...%ebx` 取址缓存
 // 与 1 条 ORIG 尾 jmp（N95/P231 族）。
+// [L10] 176→174（ORIG 175）：P52/P183 —— 删 `CStatisticServerProxy* proxy` 具名局部改
+// 单语句链式（ORIG 0x085dcc8x 段 GetServerProxy 结果经 %eax 直传 SendPacket receiver，
+// 无 -0xc store/reload）。实测差异行 129→66。**当前残余已收敛为两项**：
+//  ① N104 EH 尾块相对序：ORIG 157..166 `jmp +0x274`（正常路径跳出）→ unwind 段
+//     （`mov %edx,%ebx; mov %eax,%esi; lea -0xb0; call PvpResultType::D1Ev; ... ;
+//     call _Unwind_Resume`）居中；4.4 把同一 epilogue 就地内联于正常路径
+//     （`add $0xc0,%esp; pop %ebx/%esi/%ebp; ret`）而 unwind 压尾 ⇒ 块互换、内容逐条同。
+//  ② N132 数据地址显示差：ORIG `mov 0x941f730,%eax`（s_event_manager）/`mov 0x940be30,%edx`
+//     （s_statistic_proxy_mgr）vs .o `mov 0x0`（未重定位）。
+// ⇒ 语义完成（p167 CLEAR、call 多重集相等），byte 层 N104/N132 封顶。
+// [L10] p167 复验（2026-09-10）：差集仅 C1/C2、D1/D2 同址别名（P93 豁免）⇒ CLEAR。
 void PvP_Room::GiveOuterPenalty(CUser* user)   // [b28c-16 SIGFIX] ORIG 串 void
 {
     PvpResultType local_b4;
@@ -2320,10 +2344,14 @@ void PvP_Room::GiveOuterPenalty(CUser* user)   // [b28c-16 SIGFIX] ORIG 串 void
             Packet_Server_Match_data local_2d;
             local_2d.m_serverGroup = (char)(long)user->GetServerGroup();
             local_2d.m_lose = 1;
-            CStatisticServerProxy* proxy =
-                GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-                    (ENUM_SERVER_GROUP)(long)user->GetServerGroup());
-            proxy->SendPacket((char*)&local_2d, 0xd);
+            // [L10] P52/P183 实测：ORIG 0x085dcc8x 段无 proxy 具名槽（GetServerProxy
+            // 结果经 %eax 直传 SendPacket receiver，无 -0xc store/reload）⇒ 保链式。
+            // 实测：具名 proxy 形 176 条/129 差异行 → 链式 174 条/66 差异行
+            //（ORIG 175 条）。残余 = ORIG 0x085dcca0 `lea -0x29(%ebp),%ebx` 实参
+            // 预物化（N18a/P52）与槽基差 4（N95）。
+            GlobalData::s_statistic_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)(long)user->GetServerGroup())
+                ->SendPacket((char*)&local_2d, 0xd);
         }
     }
     if (G_GameWorld()->IsPVPChannel() != 0)
@@ -3547,6 +3575,10 @@ int PvP_Room::time_out(int* seats)
 // 差）+ N88 装载序 + 少量 4.4 布尔物化（jcc+5）；逐块人工比对语义与 Ghidra C
 // 一致（详见 docs/asm_translation_patterns.md 负例表）⇒ N 封顶。
 // [b28d-7 N82] ORIG 0x085da882：帧 $0xfc + 槽组 -0x68/-0x6c 起，4.4 帧 $0x140 + 槽组 -0xa8 起（N82 槽复用差异反向放大 ndiff）；P167 CLEAR（153=153）⇒ 语义完成、byte 层封顶。
+// [L10] gap 复测 2026-09-10：1038 vs 1090 → 1088（P52/P183 删 proxy 具名局部改链式，
+// 见函数内 local_a1 段注释）；p167 复验差集仅 C1/C2、D1/D2 同址别名（P93）⇒ CLEAR。
+// 残余 = N82 帧/槽整体平移（帧 $0xfc vs $0x140）+ N88 装载序 + 4.4 布尔物化岛，
+// 判据① jcc 目标下标序列（ORIG 68 vs 4.4 72，多出 4 条集中于槽/帧平移段）封顶。
 // [b28d-solo-PvP_Room] 本轮：P225 拆 `P_WIN!=0 && IsPvpObserver!=1` 嵌套 if、P0 去
 // `CEventBase* ev` 具名局部（内联 GetRepeatEvent->IsEventing）⇒ 1096→1088；残余 N82
 // 帧 $0xfc/36 槽 vs $0x140/55 槽全平移 + 布尔物化。
@@ -3637,10 +3669,11 @@ void PvP_Room::pvp_reward()   // [b28c-16 SIGFIX] ORIG 串 void
                 {
                     local_a1.m_win = 1;
                 }
-                CStatisticServerProxy* proxy =
-                    GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-                        (ENUM_SERVER_GROUP)(long)local_58->GetServerGroup());
-                proxy->SendPacket((char*)&local_a1, 0xd);
+                // [L10] P52/P183（GiveOuterPenalty 同族实证 -2 条）：ORIG 段无 proxy
+                // 具名槽 ⇒ 保链式，消 -0xNN store/reload。
+                GlobalData::s_statistic_proxy_mgr
+                    ->GetServerProxy((ENUM_SERVER_GROUP)(long)local_58->GetServerGroup())
+                    ->SendPacket((char*)&local_a1, 0xd);
             }
             unsigned int local_84 = 0;
             if (((local_5d == 0) || (P_WIN(local_5c) == 0)) ||
@@ -3814,6 +3847,9 @@ void PvP_Room::pvp_reward()   // [b28c-16 SIGFIX] ORIG 串 void
                     local_94.put_int(local_28);
                     if ((m_pvpBattleMode == 4) || (m_pvpBattleMode == 5))
                     {
+                        // [L10] P227 实测（已回退）：改全表达式临时链后 push 3→4 与 ORIG
+                        // 对齐，但指令 1088→1091、差异行 1008→1049 反劣（vararg 求值
+                        // 前置引入额外槽往返）⇒ 维持具名形（N82 帧/槽族，非 P227 适用件）。
                         cMyTrace local_80(__PRETTY_FUNCTION__, 0xdab, 0);
                         local_80("<PVP_REWARD> Room(%d), iRank(%d), iRankMember(%d), Player(%s), mode(%d), KillCnt(%d), DeathCnt(%d)",
                                  get_index(), local_34, local_30,
@@ -4031,6 +4067,15 @@ int PvP_Room::GetRanking(int* out) const
 
 // [b28d-7 N-帧量化] ORIG 0x085dc034 `sub $0x4` vs 4.4 `sub $0x14`：callee PvpResultType::GetTotalScore 定义在 PvpResultType.cpp（跨泳道，仅声明可见）⇒ 4.4 保守 outgoing 量化（P190 附注②）；指令序列全等、P167 CLEAR。
 // [b28d-solo-PvP_Room] N-P190: ORIG 0x085dc034 sub $0x4 vs 4.4 $0x14 outgoing 量化；callee PvpResultType::GetTotalScore 跨 TU 仅声明
+// [L10-2 P210②] GetTotalScore 定义迁入本 TU 并置于 caller 之前 ⇒ 4.4 精确继承
+// outgoing（同 PvpResultType.cpp 内 PvpResultSet 三薄封装的前例）。原地址
+// 0x085d5efe 与 PvP_Room 段相邻，属 ORIG 同 TU。
+int PvpResultType::GetTotalScore() const
+{
+    return m_avg[11] + m_avg[12] + m_avg[13] + m_avg[14] + m_field6c +
+           m_field70 + m_field74 + m_field78;
+}
+
 int PvP_Room::SetPVPResult(int seat, const PvpResultType& result)
 {
     // ORIG 0x085dc060：写 PvP_Room 内嵌数组 m_field78[seat] / m_field98[seat]

@@ -4,6 +4,10 @@
 //   ~CCharacterDayEvent_0810a51e.md(D0 0x0810a51e) / StartEvent.md(0x0810a53c) /
 //   StartEvent_0810a58e.md(0x0810a58e) / EndEvent.md(0x0810a5ec)。
 // GetEventJob(0x08697886) 无独立报告（nm 定址 objdump：movzwl 0xa 直返）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN18CCharacterDayEventC2Ev`（ORIG 0x810a67d）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CCharacterDayEvent.h"
 
 #include "GameTypes.h"   // cMyTrace

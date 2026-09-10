@@ -513,13 +513,16 @@ case "$(basename "$src" .cpp)" in
                 #   仅 `-march=i486`（不带 mtune）= 771/11/0/1710 **崩** ⇒ mtune 必须同带。
                 #   其余 2480 件读数逐项不变；符号集待 relink 用 nm 逐名复核（铁律1）。
                 exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
-            *Game/STMapScript.cpp | *Game/OnlyOrigBatch14.cpp | \
-            *Game/NPCScript.cpp | *Game/GameScriptEnumHelpers.cpp | *Game/EventScriptsCompleteB2.cpp | \
-            *Game/W8LT_PassiveObjectScript.cpp | *Game/InitScriptProducers_6.cpp | *Game/sync_script.cpp | \
-            *Game/EquipmentParameterInfo.cpp | *Game/DispLinkA2.cpp | *Game/CAuction.cpp)
-                exec "$C6446R" "$@" ;;
             *Game/FlexLexerEngine.cpp)
                 # flex 2.5.35 生成 TU：ORIG 与 4.4.6 虚调用/寄存器分配一致
+                exec "$C6446R" "$@" ;;
+            *Game/CBossStage.cpp | *Game/CFairMatchRooms.cpp)
+                # [Main·2026-09-10 round1 路由 A/B 实证] 切 4.4.6 后端（头集保持 4.4.7）：
+                #   CBossStage        c6 228/368(596)/near3/diff6 → c6446r 228/369(597)/near2/diff6
+                #                     （近 N7 族 `call *%edx` vs 4.4.7 `call *%eax`）；
+                #   CFairMatchRooms   c6  36/ 81(117)/near11/diff6 → c6446r 36/ 88(124)/near4/diff6
+                #                     （near 11→4、ae +7，本波单 TU 最大路由收益）。
+                #   两 TU 均零语义风险（仅后端选择），消费面自持。
                 exec "$C6446R" "$@" ;;
             *Game/SlangFlexLexerEngine.cpp)
                 exec "$C6446R" "$@" ;;

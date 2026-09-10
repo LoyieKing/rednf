@@ -19,6 +19,14 @@
 #include "GameTypes.h"       // Guard<Mutex> / Mutex（0x18）
 #include "cHistoryTrace.h"
 
+// [L32 GI 调序] ORIG `_GLOBAL__I__ZN10HistoryLog9logfiles_E`（CU=HistoryLog.cpp）
+//   ⇒ 本 TU 首个强符号须为 HistoryLog::logfiles_。整块类静态定义前移到所有函数定义
+//   之前；logfiles_ 仍是本 TU 唯一动态初始化对象（count_/time 为 POD），
+//   相对构造序不变（P327）。
+StaticPool<_IO_FILE, 50> HistoryLog::logfiles_;
+int HistoryLog::count_;
+char HistoryLog::time[0x10];
+
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 void get_str_datetime(char* buf, int len);
 void get_str_date(char* buf, int len, char sep);
@@ -113,9 +121,7 @@ static const char FMT_CREATE_CH[] =
 // HistoryLog 类声明见 HistoryLog.h（唯一声明点）
 // ----------------------------------------------------------------------------
 
-StaticPool<_IO_FILE, 50> HistoryLog::logfiles_;
-int HistoryLog::count_;
-char HistoryLog::time[0x10];
+// [L32 GI 调序] 类静态定义已前移到文件首（须保持 ORIG 的 GI 键名），此处不再重复定义。
 
 bool HistoryLog::Init()
 {

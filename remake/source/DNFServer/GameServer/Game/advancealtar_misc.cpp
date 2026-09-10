@@ -617,23 +617,31 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
     //   原 memcpy 到非 const 局部形多 ctor+memcpy 且实例化非 const make_pair。
     for (int i = 0; i <= 0xb; ++i)                                 // [objdump 0x889952c]
     {
-        const char* rec = reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10;
-        const int& slotType = *reinterpret_cast<const int*>(rec + 2);   // [objdump 0x88993d1 +2]
-        if (slotType == 0)
+        // [L13-group6 判据⑩/P0 实验] ORIG 槽表无 rec/slotType/slotKey/slotValue 任何
+        // 具名槽（我方曾多 -0x40..-0x34 四槽）；`*reinterpret_cast<const T*>` 本身
+        // 即左值 ⇒ make_pair 仍实例化 const 引用形（p167 不变），全部内联重算。
+        if (*reinterpret_cast<const int*>(                            // [objdump 0x88993d1 +2]
+                reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 2) == 0)
         {
             continue;                                              // [objdump 0x88993d6 je]
         }
-        const unsigned char& slotKey =
-            *reinterpret_cast<const unsigned char*>(rec + 1);      // [objdump 0x8899413 key=rec+1]
-        const _Slot& slotValue =
-            *reinterpret_cast<const _Slot*>(rec + 6);              // [objdump 0x889942a +6]
-        if (slotType == 1)                                         // [objdump 0x88993f6]
+        if (*reinterpret_cast<const int*>(                            // [objdump 0x88993f6]
+                reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 2) == 1)
         {
-            m_slots1.insert(std::make_pair(slotKey, slotValue));   // [objdump 0x8899461 target +0x84]
+            m_slots1.insert(std::make_pair(                        // [objdump 0x8899461 target +0x84]
+                *reinterpret_cast<const unsigned char*>(           // key=rec+1
+                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 1),
+                *reinterpret_cast<const _Slot*>(                   // +6
+                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 6)));
         }
-        else if (slotType == 2)                                    // [objdump 0x88994a5]
+        else if (*reinterpret_cast<const int*>(                       // [objdump 0x88994a5]
+                     reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 2) == 2)
         {
-            m_slots2.insert(std::make_pair(slotKey, slotValue));   // [objdump 0x8899503 target +0x9c]
+            m_slots2.insert(std::make_pair(                        // [objdump 0x8899503 target +0x9c]
+                *reinterpret_cast<const unsigned char*>(
+                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 1),
+                *reinterpret_cast<const _Slot*>(
+                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 6)));
         }
     }
 
@@ -641,37 +649,43 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
     // 计数条件读 m_field4（db+0x22d+i*12），value 取自 m_field4 起 12 字节。
     for (int i = 0; i <= 0x31; ++i)                                // [objdump 0x8899614]
     {
-        const char* rec = reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc;
-        const int& count = *reinterpret_cast<const int*>(rec + 4); // [objdump 0x889955e +0xd→abs 0x22d]
-        if (count <= 0)
+        // [L13-group6 判词⑩/P0 实验·续] 同 slots 段：ORIG 无 rec/count/itemKey/
+        // itemValue 具名槽（仅保留 target = getBuyItemMap 单次调用结果，见 p167
+        // CLEAR 的调用次数约束），逐处内联重算。
+        if (*reinterpret_cast<const int*>(                         // [objdump 0x889955e +0xd→abs 0x22d]
+                reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc + 4) <= 0)
         {
             continue;                                              // [objdump 0x8899563 jle]
         }
-        const int& itemKey = *reinterpret_cast<const int*>(rec);   // [objdump 0x8899580 +0x9→abs 0x229]
         std::map<int, _BuyItem>* target =
-            getBuyItemMap((AdvanceAltarShopType::T)itemKey);       // [objdump 0x889958d]
+            getBuyItemMap((AdvanceAltarShopType::T)                // [objdump 0x889958d, +0x9→abs 0x229]
+                          *reinterpret_cast<const int*>(
+                              reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc));
         if (target == 0)
         {
             continue;                                              // [objdump 0x8899599 je]
         }
-        const _BuyItem& itemValue =
-            *reinterpret_cast<const _BuyItem*>(rec + 4);           // [objdump 0x88995c6 value=+0xd]
-        target->insert(std::make_pair(itemKey, itemValue));
+        target->insert(std::make_pair(                             // [objdump 0x88995c6 value=+0xd]
+            *reinterpret_cast<const int*>(
+                reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc),
+            *reinterpret_cast<const _BuyItem*>(
+                reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc + 4)));
     }
 
     // rewards：i<=0x1d（数组 29 项 + 第 30 次读取落入尾部 pad，忠实 ORIG 上限）；
     // key/value 同址取 m_rewards[i].m_field0。
     for (int i = 0; i <= 0x1d; ++i)                                // [objdump 0x88996c6]
     {
-        const char* rec = reinterpret_cast<const char*>(&db) + 0x480 + i * 5;
-        const int& rewardKey = *reinterpret_cast<const int*>(rec + 1);  // [objdump 0x8899644 +1→abs 0x481]
-        if (rewardKey <= 0)
+        if (*reinterpret_cast<const int*>(                         // [objdump 0x8899644 +1→abs 0x481]
+                reinterpret_cast<const char*>(&db) + 0x480 + i * 5 + 1) <= 0)
         {
             continue;                                              // [objdump 0x8899649 jle]
         }
-        const _Reward& rewardValue =
-            *reinterpret_cast<const _Reward*>(rec + 1);
-        m_rewards.insert(std::make_pair(rewardKey, rewardValue));  // [objdump 0x889683]
+        m_rewards.insert(std::make_pair(                           // [objdump 0x889683]
+            *reinterpret_cast<const int*>(
+                reinterpret_cast<const char*>(&db) + 0x480 + i * 5 + 1),
+            *reinterpret_cast<const _Reward*>(
+                reinterpret_cast<const char*>(&db) + 0x480 + i * 5 + 1)));
     }
 }
 
@@ -810,9 +824,13 @@ int StageTimeLineParameter::checkAndSetActionDefine(
     // ORIG 外层为「体内 `pit++` + 体末 `++phaseIndex`」（0x0889a1d0 ppEi 位于
     //   `add %eax,-0x14` 之后、`addl $1,-0x10` 之前）⇒ 原码非 for 增量位。
     int totalDuration = 0;                                         // local_18
+    // [L13-group6 判据⑩「先声明+延后赋值/后声明带初值」] ORIG 0x0889a0xx：
+    //   totalDuration 初始化在函数头（`movl $0x0,-0x14`），phaseIndex 的
+    //   `movl $0x0,-0x10` 落在 `begin()` call **之后** ⇒ 原码 pit 初始化语句
+    //   位于两者之间；我方把两 meminit 都提前（4.4 meminit 顺序 = 声明序）。
+    std::vector<Phase>::iterator pit = timeLine.m_phases.begin();
     int phaseIndex = 0;                                            // local_14
-    for (std::vector<Phase>::iterator pit = timeLine.m_phases.begin();
-         pit != timeLine.m_phases.end(); )
+    for (; pit != timeLine.m_phases.end(); )
     {
         std::vector<_ActionAssign>& assigns = pit->m_assigns;
         for (std::vector<_ActionAssign>::iterator ait = assigns.begin();

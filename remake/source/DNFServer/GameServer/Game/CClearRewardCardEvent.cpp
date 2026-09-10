@@ -1,5 +1,9 @@
 // df_game_r 清奖励卡事件 CClearRewardCardEvent 实现。
 // 报告：docs/class_func_reports/CClearRewardCardEvent/（6 函数全读）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN21CClearRewardCardEventC2Ev`（ORIG 0x810a873）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CClearRewardCardEvent.h"
 
 #include "GameTypes.h"             // cMyTrace

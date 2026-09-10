@@ -669,6 +669,12 @@ int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
     // ②`cnt==0` 写 `++cnt`（ORIG addl 形，P38）；
     // ③循环体用 smallRound 本身（非副本），`++smallRound` 在
     //   incBloodSmallRoundOrder 之前。
+    // [L31 round2 · 判据⑩/⑪] ORIG 槽表：key@-0x34、cnt@-0x24、i@-0x20、interval@-0x1c
+    // （ORIG 0x083054a6 `mov %eax,-0x34(%ebp)` 为循环内赋值点）⇒ key 用「无初值声明 +
+    // 延后赋值」。两形实测：key 前置声明 **18→2 行差**（保留）；key 后置（cnt 之后）
+    // 反劣 2→8 行（已回滚）。残余 2 行为 key 槽 -0x28 vs ORIG -0x34（0xc 错位，
+    // P212/N93 块级槽方向族，无更优源形）⇒ 封 N。
+    int key;                                  // ORIG key（-0x34）
     int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
     if (cnt < 0 || 10 < cnt)
         return -1;
@@ -683,7 +689,7 @@ int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
             BloodCrazyMonsterSpawnPacket();
         m_bloodSpawnCnt[i] = smallRound;
         m_bloodSpawnTime[i] = 0;
-        const int key = (int)m_party->gen_timer_key((TIMER_MESSAGE)(0x17 + i));
+        key = (int)m_party->gen_timer_key((TIMER_MESSAGE)(0x17 + i));
         G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
                                                 m_party->GetPartyIndex(),
                                                 (TIMER_MESSAGE)(0x17 + i),
@@ -843,6 +849,14 @@ bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int 
             // [判据·P196 符号性] ORIG 0x0830606a-0x0830607a 为 16 位有符号比较
             // （`movzwl 0x34a; cmp -0x2c(%ebp),%ax; setle`）；旧码 `(int)(unsigned
             // short)` 无符号扩展 + 32 位比较（movzwl+movswl+setg），负值语义分叉。
+            // [L31 round2 实测] while 条件前置形（`while (field <= round)`）实测
+            // 反劣 12→56 行差（4.4 对 while 前测恒旋转 + bool 归一化段错位），已回滚。
+            // [L31 round2 判 N · P292/P197④ 跨版本 bool 归一化] ORIG 0x08306071-0x0830607a
+            // 为正向物化 `cmp -0x2c(%ebp),%ax; setle %al; test %al,%al; je 退出`；
+            // 我方 `field > round` 恒折反向 `setg/jne`（语义等价、极性/助记符差）。
+            // 实测两形均不可翻：①否定形 `if (!(field <= round))` → 仍 setg/jne（差异 12 行不变）；
+            // ②while 条件前置 `while (field <= round)` → 反劣 12→56 行。⇒ 记 N（与 L4 的
+            // P292/P168a③ 同族封顶）。
             if (it->second.m_bloodRoundOrder2 > round)
                 break;
             if (it->second.m_bloodRoundOrder2 == round &&

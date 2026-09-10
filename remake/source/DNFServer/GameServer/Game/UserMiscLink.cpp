@@ -66,9 +66,22 @@ public:
         ++m_count;
     }
     // ORIG 形参按值（_ZN11CRandomListIjEclE11OptionGroup，无 RK 前缀）。
+    // [L31 round2] ORIG 0x085f58d2（sz 0x58 = 34 条）**不是转发**，而是与
+    // unsigned 版相同的体**在本函数内联展开**：`mov 0x8(%eax),%edx; mov 0x4(%eax),%eax;
+    // cmp; ja` 起手，权重直接两次读形参槽 `0x10(%ebp)`（P0：无具名局部）。旧码
+    // `(*this)(static_cast<unsigned int>(og.m_weight4));` 让 4.4 发 call（我方仅 10 条）。
     void operator()(OptionGroup og)
     {
-        (*this)(static_cast<unsigned int>(og.m_weight4));
+        if (m_sum > m_n)
+        {
+            return;
+        }
+        if (m_n - m_sum < (unsigned int)og.m_weight4)
+        {
+            m_value = m_count;
+        }
+        m_sum += (unsigned int)og.m_weight4;
+        ++m_count;
     }
 
     // ORIG _ZN11CRandomListIjE9get_valueEv W @0x085f49a0（非 const，直读 +0）

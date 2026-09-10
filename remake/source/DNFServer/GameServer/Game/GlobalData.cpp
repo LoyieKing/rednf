@@ -2077,49 +2077,58 @@ void UdpThread::_processUDPData(char* data, int len)
         // movzbl (%eax),%eax; movsbl %al,%eax; cmp $0x1,%eax`（符号扩展后直接比，
         // 无栈槽往返）⇒ 原码**无具名 char 局部**（P0/P86 表达式直读）；旧写法
         // `char cVar2 = *data;` 产 `mov %al,-0x2d; cmpb $0x1,-0x2d` 槽化两段。
-        if (*data == 1)
+        // [L8 2026-09-10 判据①/P251/P261/判据⑨ 旧判推翻] ORIG 0x0857c696 段是
+        // **switch(*data) 决策树**：`movzbl (%eax),%eax; movsbl %al,%eax;
+        // cmp $0x1,%eax; je L63; cmp $0x1,%eax; jg L4; test %eax,%eax; je L7;
+        // jmp L110; cmp $0x2,%eax; je L185; cmp $0x3,%eax; je L121`（case 1/0/2/3
+        // + default 全 4 支）。旧 if/else 链 4.4 产 `cmp $0x1,%al; jne <case1>`
+        // 二段形，结构与叶块序均不符 ⇒ 改 switch 复现（4.1 少 case 用线性比较链，P17）。
+        switch (*data)
         {
-            Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xf8);
-            CStreamGuard guard(stream, true);
+        case 0:
+        {
+            char* local_24 = data;
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xe8), true);
+            **guard << 0x3d;
+            **guard << -1;
+            guard->put_binary(local_24, 0x52);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            return;
+        }
+        // [L8 P324 叶块序] ORIG 决策树 `cmp $1;je +63`（case1 体远在 +63=i128）、
+        // 树后紧跟 i76 起的是 **case 0 体** ⇒ 书写序 case0 在前、case1 在后。
+        case 1:
+        {
+            // [L8 2026-09-10 P259] ORIG 0x0857c6ea 段：Acquire 返回值直接经 %eax 传
+            // CStreamGuard ctor（`call Acquire; movl $0x1,0x8(%esp); mov %eax,0x4(%esp);
+            // lea -0x28(%ebp),%eax; call ctor`），**无 stream 具名局部** ⇒ 我方
+            // `Stream* stream = …` 每分支多发一个 4B 槽（×3 分支 = 0xc），把三个
+            // CStreamGuard 槽整体顶深 0xc（我方 -0x34/-0x3c/-0x44 vs ORIG -0x28/-0x30/-0x38）
+            // 并使帧 0x5c vs ORIG 0x4c。改为内联实参。
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xf8), true);
             **guard << 0x9f;
             **guard << -1;
             // 线格式负载切块：header(+0x00..0x01) 之后原始字节，ORIG lea 0x2(%eax)（P156 豁免）。
             guard->put_binary(data + 2, len);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            break;
         }
-        else if (*data < 2)
+        case 2:
+            return;
+        case 3:
         {
-            if (*data == 0)
-            {
-                char* local_24 = data;
-                Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xe8);
-                CStreamGuard guard(stream, true);
-                **guard << 0x3d;
-                **guard << -1;
-                guard->put_binary(local_24, 0x52);
-                GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-                return;
-            }
+            GlobalData::s_auction_proxy->SetRunning(false);
+            GlobalData::s_cera_auction_proxy->SetRunning(false);
+            char* local_20 = data;
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0x126), true);
+            **guard << 0x3d;
+            **guard << -1;
+            guard->put_binary(local_20, 0x52);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            return;
         }
-        else
-        {
-            if (*data == 2)
-            {
-                return;
-            }
-            if (*data == 3)
-            {
-                GlobalData::s_auction_proxy->SetRunning(false);
-                GlobalData::s_cera_auction_proxy->SetRunning(false);
-                char* local_20 = data;
-                Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0x126);
-                CStreamGuard guard(stream, true);
-                **guard << 0x3d;
-                **guard << -1;
-                guard->put_binary(local_20, 0x52);
-                GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-                return;
-            }
+        default:
+            break;
         }
         if (reinterpret_cast<PacketHeader*>(data)->packetId < 1000)
         {
@@ -2135,10 +2144,16 @@ void UdpThread::_processUDPData(char* data, int len)
 // ---------------------------------------------------------------------------
 // [b28d-18 N82] p167 CLEAR（8/8）；残差=帧槽（N82） | ORIG 0x0857c9de
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82 槽位/寄存器分配。
+// [L8 2026-09-10] ORIG 0x0857ca44 段实证：4.1 的 FD_ZERO 展开为**逐元素循环**
+//   （`lea -0xc8,%eax; mov %eax,-0x24; movl $0x0,-0x28; …; movl $0x0,(%eax,%edx,4);
+//   addl $1,-0x28; cmpl $0x1f,-0x28; setbe`）——即「具名 fd_set* 局部 + 独立循环
+//   计数」两槽（-0x24/-0x28）；我方新头集 FD_ZERO 走 rep stos（0x22 段
+//   `mov $0x20,%ecx; cld; rep stos`）完全无形且少这两槽，并把 readfds/buf 顶浅 0xc。
+//   同时 ORIG 两处 for 使用**各自独立**的循环变量（-0x20/-0x1c 各 6 次），我方合并
+//   为单个 `i`（-0x2c×12）⇒ 改为块内独立声明。
 void UdpThread::dispatch(void* arg)
 {
     (void)arg;
-    int i;
     char buf[0x1800];
     fd_set readfds;
     int maxfd;
@@ -2152,13 +2167,23 @@ void UdpThread::dispatch(void* arg)
     while (!GlobalData::s_server_stop)
     {
         memset(buf, 0, sizeof(buf));
-        FD_ZERO(&readfds);
+        // FD_ZERO(&readfds) 的 ORIG 4.1-glibc 展开形（逐元素循环；见函数头判词）。
+        // [L8] 槽序：ORIG p(-0x24)/i(-0x28)；且 ORIG 尾测为 `cmpl $0x1f,-0x28;
+        // setbe`（**无符号**比较）⇒ 计数变量须 unsigned（我方 int 版产 setle）。
+        unsigned int fi;
+        int* fdBits = (int*)&readfds;
+        for (fi = 0; fi <= 0x1f; ++fi)
+            fdBits[fi] = 0;
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
         maxfd = 0;
-        for (i = 0; i <= 0; ++i)
+        for (int i = 0; i <= 0; ++i)
         {
-            FD_SET(sockets[i], &readfds);
+            // [L8] ORIG 0x0857ca90 段 `mov -0x3c(%ebp,%eax,4),%eax; shr $0x5,%eax`
+            // 为**逻辑**右移（无 `lea 0x1f/test/cmovs` 修正）⇒ FD_SET 的实参须按
+            // unsigned 参与 `__FDELT(d)=d/32` 折叠；而 max 侧按 int 左值传址
+            // （0x0857cac6 `lea -0x3c(%ebp)`）⇒ 各处分别 cast。
+            FD_SET((unsigned int)sockets[i], &readfds);
             maxfd = std::max(maxfd, sockets[i]);
         }
         maxfd += 1;
@@ -2167,9 +2192,9 @@ void UdpThread::dispatch(void* arg)
         {
             continue;
         }
-        for (i = 0; i <= 0; ++i)
+        for (int i = 0; i <= 0; ++i)
         {
-            if (FD_ISSET(sockets[i], &readfds))
+            if (FD_ISSET((unsigned int)sockets[i], &readfds))
             {
                 recvLen = recv(sockets[i], buf, sizeof(buf), 0);
                 if (recvLen > 0)
@@ -6444,6 +6469,10 @@ bool CDBEnviroment::parse(char* buf)
         std::map<std::string, std::string> tmp;
         // ORIG 0x0829dc2f..0x0829dc4a：m_dbType 先值拷贝到具名局部（-0x34）再取址
         // 传 operator[](const ENUM_SERVER_GROUP&)（P0 槽往返 + ㉕实参来源判据）。
+        // [L8 2026-09-10 判据⑩ 实验] 声明序对调（dbType 先于 tmp）后我方槽集合变为
+        // {…-0x3c,-0x40,-0x48(map),-0x60,-0x64…}（map 由 -0x5c 移 -0x48），与 ORIG
+        // {…-0x30,-0x34,-0x48,-0x4c,-0x64(map)…} 仍不匹配且 diff 未降 ⇒ 已回滚。
+        // 结论：4.1 跨块槽分配与 4.4 的「声明序」旋钮方向不一致（P112 明文），判 N。
         ENUM_SERVER_GROUP dbType = m_dbType;
         ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map[dbType] = tmp;
     }

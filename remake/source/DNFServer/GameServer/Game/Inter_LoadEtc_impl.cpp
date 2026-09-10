@@ -219,7 +219,10 @@ __attribute__((weak)) void CSkillTreeParam::SendSkillPointReturnInfo()
 //      正常路径最终返回 0。
 __attribute__((weak)) int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
 {
-    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 539/536（fresh）：p167 CLEAR（87/87）。
+    // [Lane17 I 判词] ORIG 0x084ef4a6：p167 CLEAR（87/87）；判据⑪ 直方图逐值全等
+    // {−0xc…−0x54} ⇒ 非槽/帧问题；gap −4 位于函数头部两次 `m_skillSlot` 初始化段
+    // （ORIG 84ef4ae..84ef4f3 两段 `mov 0x8(%ebp),%eax; mov 0x4(%eax),%eax;
+    // lea 0x29fd/0x2b97(%eax)…` 各 9 条）⇒ 待逐段比对（本轮未完成）。旧判词：DIFF 539/536。
     // b28d-solo 本轮已修：① 4 处 skillR 缓存局部去缓存（P0/P183，帧 0x90→0x70 归位）；
     // ② 4 处 skillW 缓存去缓存（ORIG `call getCurCharacSkillW; mov %eax,(%esp)` 无槽）；
     // ③ **真语义 bug**：通道守卫 `!chan && grade<=9` → `!chan || grade>9`（P196 落点体
@@ -518,6 +521,9 @@ int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
     // 且 bool callee 直判恒多 setne（P168a③b 跨版本 bool ABI）。语义等价，封顶。
     // ORIG 0x84c2b08：static（0x8=questIdx 无 this）；ctx 参数槽原地自增
     // （lea 0x4; mov →0xc(%ebp) 后读旧值），源码 = 读旧值 + ctx+=4 两条语句。
+    // [L22-L17 L1 已试并回退] P319 整型加法+回 cast 形：4.4 产
+    // `mov 0xc(%ebp),%eax; add $0x4,%eax; mov %eax,0xc(%ebp)`（三/四条，`add` 非 `lea`，
+    // 第二处再多一条 mov）⇒ 指令数 40→42 但形态仍 DIFF。N107 确认（4.4 恒 add）。
     InterfacePacketBuf* buf = *reinterpret_cast<InterfacePacketBuf**>(ctx);
     ctx += 4;
     int* count = *reinterpret_cast<int**>(ctx);
@@ -544,9 +550,17 @@ int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
 
 bool Inter_LoadEtc::SetFatigue(CUser* user)
 {
-    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 170/169：p167 CLEAR（29/29）；残差为
-    // 局部槽分配（days -0x28 vs -0x24、charging -0x22 vs -0x1e、cMyTrace -0x48 vs -0x44）
-    // = N82附/N98 首次使用序，及 vararg %esi/%edi 角色互换（N7 族）。decAmount short→int 已修。
+    // [Lane22-L17 L6] 判据⑩/P212：ORIG 槽 curCharging=**-0x50**（084c3221 实证，深于
+    // days -0x24 / charging -0x1e / decAmount -0x1c 的浅区）⇒ 原码 curCharging 属
+    // **函数级**声明（4.1 先声明深）；我方块内声明被 4.4 「浅=后声明」放到 -0x20，
+    // 连带 days/charging 深移 4。提出到函数头（未初始化声明，P232 仍占槽）。
+    // [Lane17 I 结果] 实测：days/charging 已归位（-0x24/-0x1e 与 ORIG 逐值一致），
+    // curCharging 落 -0x28（ORIG -0x50，仍在浅区）；判据⑪ 直方图 ORIG
+    // {−0x1c,−0x1e,−0x24,−0x34,−0x44,−0x4c,−0x50} vs 我方
+    // {−0x1c,−0x1e,−0x24,−0x28,−0x38,−0x48,−0x4c} ⇒ 残余 = curCharging 区划
+    // （4.1 把 trace 前求值缓存放深区 −0x50/−0x4c，4.4 放浅区）+ vararg %esi/%edi
+    // 角色互换（N7）⇒ 封顶。
+    int curCharging;
     if (user->getCurCharacR() == 0)
         return false;
 
@@ -568,7 +582,7 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
         if (charging > 0)
         {
             user->IncFatigueBatteryCharging(charging);
-            int curCharging = user->GetFatigueBatteryCharging();
+            curCharging = user->GetFatigueBatteryCharging();
             cMyTrace(__PRETTY_FUNCTION__, 0x139a, 0)(
                 "FATIGUE BATTERY : charno(%d) days(%d), lastplaytick(%d), "
                 "curTick(%d), charging(%d), cur charging(%d)",
@@ -608,6 +622,9 @@ void Inter_LoadEtc::verifyCharacVillage(CUser* user)
     // [b28d-solo-Inter_LoadEtc_impl] verdict=N 102/101（fresh）：vill int 槽（movsbl→-0x14）、
     // needMove 预清+条件置位、嵌套 if（P225 推广）均已归位；残余为 switch 尾 default 岛
     // （4.4 恒发 `jmp;nop`，P223 边界=4.4 自身 epilogue-threading，四形实测不可消）。
+    // [Lane17 I 佐证] 判据⑪ 直方图**逐值全等** {−0x9,−0x10,−0x14} ⇒ 确认非槽问题；
+    // 归一化后仅剩尾岛（我方 `1272: nop; jmp 1276` vs ORIG 单 `nop`）与跳转表
+    // `mov 0xf4(%eax)`（.o 未重定位假象，链接后 = ORIG `mov 0x8c8a480(%eax)`）⇒ N121 封顶。
     if (G_GameWorld()->IsPVPChannel())
         return;
 
@@ -706,7 +723,10 @@ bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
 
 bool Inter_LoadEtc::SendResult(CUser* user)
 {
-    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 402/397（fresh）：P167 CLEAR（72/72）。
+    // [Lane17 I 判词] ORIG 0x084eb2a7：p167 CLEAR（72/72）。判据⑪ 直方图显示
+    // **相对序差**（ORIG −0x44 ↔ 我方 −0x3c 差 8、ORIG −0x28 ↔ 我方 −0x2c 差 4、
+    // −0x50↔−0x48、−0x54↔−0x4c、−0x24↔−0x28 交错）⇒ (a) 类、判据⑩ 可攻；
+    // 本轮未做（预算）⇒ 记「待攻」。旧判词：DIFF 402/397。
     // 本轮已修：`for (unsigned j…)` → `int j`（P2：ORIG 尾测 setle，旧 setbe 为 unsigned）。
     // 残差 71 块：packet/it 槽组 -0x3c vs -0x44（N98 首次使用序）+ `m_type==0x21`
     // 的 setcc-fold（ORIG `cmp $0x21; sete; test; jne` vs 4.4 直跳 jne，跨版本 N）。
@@ -809,8 +829,11 @@ bool Inter_LoadEtc::SendResult(CUser* user)
 
 void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
 {
-    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 246/251（fresh）：p167 CLEAR（39/39）；残差为
-    // 帧形态（ORIG `push %edi; sub $0x1ac` vs 我方 `sub $0x1b0`）与 title/body 槽深差 8
+    // [Lane17 I 判词] ORIG 0x084d8e68：判据⑪ 直方图**逐值全等**
+    // {−0x1c…−0x182 共 11 值两侧一致} ⇒ 无槽/帧问题；归一化逐行实测**唯一残差**
+    // = 实参中转寄存器角色 1 处：ORIG `mov -0x30(%ebp),%ebx; mov %ebx,0x4(%esp)`
+    // vs 我方 `mov -0x30(%ebp),%edx; mov %edx,0x4(%esp)` ⇒ **N7 封顶**
+    // （跨版本 callee-saved 选择，源形不可择）。旧判词：帧差 0x1ac/0x1b0（已随槽位归位消失）。
     // = N82附/P190 帧分配，语义等价。
     char title[21];
     char body[256];
@@ -1057,8 +1080,12 @@ void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
 
 int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
-    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 251/247：p167 CLEAR（35/35）；已修去
-    // job/skillR 缓存（内联实参）、skill=m_skillSlot(+0x46)、reason=eSkillSaveReason(1)；
+    // [Lane17 I 判词] ORIG 0x084e8c92：判据⑪ 直方图逐值全等 {−0xc,−0x10,−0x18}。
+    // 归一化残差 = 3 处「字节读比较」双段形：ORIG `movzbl 0x2b95(%eax),%edx;
+    // movzbl &CPremiumLetheManager::…_STATE,%eax`（2 条）vs 我方 `movzbl 0x2b95(%eax),%eax;
+    // mov %eax,%edx; movzbl …,%eax`（3 条，多 eax→edx 中转）⇒ **N18a/N7 封顶**
+    // （4.4 对 uchar 比较恒插中转，源码侧 cast/操作数交换均被前端折叠）。
+    // 已修：job/skillR 缓存（内联实参）、skill=m_skillSlot(+0x46)、reason=eSkillSaveReason(1)。
     // 残差为 lethe/out/guard 槽深（帧 0x40 vs 0x30）= N82附/N98。
     user->SetOneDayLetheFlag((unsigned char)sig->m_backupSkill[0x198]);  // +0x2b95（backupSkill 尾哨）
     CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
@@ -1129,8 +1156,9 @@ int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
 
 int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
-    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 251/247：同 1 号（p167 CLEAR 35/35；
-    // 去缓存 + m_skillSlot + reason=1 已落地；残差为帧/槽 N82附）。
+    // [Lane17 I 判词] 同 1 号（ORIG 0x084e8e1e 同构）：判据⑪ 直方图逐值全等；
+    // 残差同为 3 处 uchar 比较的 eax→edx 中转（N18a/N7）⇒ 封顶。
+    // p167 CLEAR 35/35；去缓存 + m_skillSlot + reason=1 已落地。
     user->SetOneDayLetheFlag2ND((unsigned char)sig->m_backupSkill2ND[0x198]);  // +0x2d2f
     CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
     if (lethe == 0)

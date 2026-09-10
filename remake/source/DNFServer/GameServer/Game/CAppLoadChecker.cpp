@@ -13,6 +13,10 @@
 // 四个 checkLoad_* 已逐一反汇编核对：阈值阶梯完全一致（上行 10/25/40/80/150/250，
 // 下行同值），仅基准字段与状态字节不同；按 ORIG 各自独立展开，不共享辅助函数。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit + 把键名符号
+// （CAppLoadCheckerInstance，ORIG 0x86006ec）定义前移为本 TU 首强符号。
+#include <iostream>
+
 #include "CAppLoadChecker.h"
 
 #include "CEnvironment.h"
@@ -36,6 +40,13 @@ struct SigInsertServerLoadStatisticView
 };
 
 }  // namespace
+
+// [GI-ioinit L21] 本 TU 首个强外部符号定义（_GLOBAL__I_ 键名来源，P327）。
+CAppLoadChecker* CAppLoadCheckerInstance()
+{
+    static CAppLoadChecker instance;   // ORIG _ZZ23...E8instance @0x9473208
+    return &instance;
+}
 
 CAppLoadChecker::CAppLoadChecker()
 {
@@ -188,8 +199,3 @@ void CAppLoadChecker::RequestDB(int dbq, int logdbq, int timerq, int packetq)
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
-CAppLoadChecker* CAppLoadCheckerInstance()
-{
-    static CAppLoadChecker instance;   // ORIG _ZZ23...E8instance @0x9473208
-    return &instance;
-}

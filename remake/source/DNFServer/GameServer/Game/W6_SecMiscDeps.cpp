@@ -60,6 +60,15 @@ using namespace GlobalData;
 // 真成员调用，与 GlobalData.cpp:3465 IPGOutputConfirm 真调用先例同族。
 // ----------------------------------------------------------------------------
 
+// [L32 GI 调序] ORIG `_GLOBAL__I__ZN8WongWork9CWebEvent14m_strEventNameE`（CU=WebEvent.cpp）
+//   ⇒ 本 TU 首个强符号须为 WongWork::CWebEvent::m_strEventName。定义前移到所有函数
+//   定义之前；该表为静态初始化 char 数组，不影响任何动态初始化对象的相对构造序（P327）。
+//   数据取自 df_game_r D 0x093ace60（size 0xb4），槽长 0x12，
+//   非零槽逐一转抄，其余为零串。
+char WongWork::CWebEvent::m_strEventName[10][0x12] = {
+    "", "", "Yegam", "ATI Coupon", "DNF Guide book",
+    "Everland", "Muz", "King of Alttle", "Free Charge Combo", "" };
+
 // ============================ WongWork::CSecurityCardCenter =================
 
 WongWork::CSecurityCardCenter::CSecurityCardCenter()
@@ -406,11 +415,8 @@ bool WongWork::CEventMgr::IsPCRoomEventing()
 
 // ============================ WongWork::CWebEvent ===========================
 
-// 数据表内容取自 df_game_r D 0x093ace60（size 0xb4）/ 0x093acf20（size 0x6e），
-// 槽长 0x12/0xb，非零槽逐一转抄，其余为零串。
-char WongWork::CWebEvent::m_strEventName[10][0x12] = {
-    "", "", "Yegam", "ATI Coupon", "DNF Guide book",
-    "Everland", "Muz", "King of Alttle", "Free Charge Combo", "" };
+// [L32 GI 调序] CWebEvent::m_strEventName 定义已前移到文件首（须保持 ORIG 的
+// GI 键名），此处不再重复定义。
 
 // 一维化（Main 批准）：槽 3/4 非空。33 个 '\0' 前缀 = 槽 0..2 空置，
 // "IP00000001"+"\0" 占槽 3（偏移 33..43），"IP00000002" 占槽 4（44..54），余自动补 0。

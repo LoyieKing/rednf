@@ -716,6 +716,9 @@ int CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
     bool badSize =
         (m_teamA.size() > (int)nPlayerCountPerOneTeam_) ||
         (theirRoom->get_player_count() > (int)nPlayerCountPerOneTeam_);
+    // [SweepLeagueMatch4·L11 round1 补充实测] badSize 直接内联进 if（去具名 bool）
+    // ⇒ ndiff 79→**111**、insn 277→276（劣化，已回滚）：ORIG 该处虽无槽，但 4.4 的
+    // 具名 bool 槽恰与 ORIG 的匿名物化区重合 ⇒ 保留具名形为最优可接受形（N82/P332）。
     if (badSize) {
         cMyTrace(__PRETTY_FUNCTION__, 0x2ca, 0)(
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x2ca);

@@ -949,6 +949,10 @@ void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
     // ⇒ EXTRA `_Hashtable_const_iterator::C1Ev` ×2（P50 负例，已回退）；指针/引用
     // best、const/非 const 变量四形槽号不变 ⇒ N86/N93 封顶。
     BestMap* best = _getBestRecordTable(towerIdx);
+    // [b28f-SweepGroup17 判据⑩ 实测负例] 试过交换为「先 end/last、后 find/it」以复现
+    //   ORIG 0x08468b8e 槽阶梯（end 临时 -0x18 < last -0x20 < find 临时 -0x28 <
+    //   it -0x30）⇒ NEAR→**DIFF**（near 2→1 / diff 3→4）反劣，已回滚。
+    //   维持原序（find→end）封顶 N86/N93。
     const BestMap::const_iterator it = best->find(key);
     const BestMap::const_iterator last = best->end();
     if (it == last)

@@ -444,9 +444,6 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
     // 档位抽取：randVal<roulette+0x0c 时 band∈{0,1}，否则从
     // m_avatars[0].size()-2 偏移取 band（内联 size helper 08180760 实证）。
     int randVal = get_rand_int(m_totalCount);
-    // ORIG -0x1c（Ghidra local_20，uint）：两处 `get_rand_int` 结果均先落此槽再读
-    // （0x0817fd0e/0x0817fe47 `mov %eax,-0x1c; mov -0x1c,%eax`）；旧内联形缺 2 条/处。
-    unsigned int randIdx;
     // [b28d-solo-CtorProducers_1 修复·P171] ORIG 0x0817fb42 `movl $0x0,-0x2c`
     // 并在两分支写 2/1，但全程**未读**（Ghidra C `local_30` 无消费者）= 原码死
     // 写入，必须照抄（缺它 -0x2c 槽与后续装载形态全异）。
@@ -482,9 +479,14 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
 
     std::pair<unsigned long, int>& entry =
         m_pRoulette->m_avatars[grade][static_cast<int>(picked.m_gradeBand)][index];
+    // [b28e-L21 已试无效] P41 去 cast 试验：ORIG 0x0817fc90 `mov (%eax),%eax;
+    // mov %eax,%edx`（两段）vs 我方单段 `mov (%eax),%edx`；去 static_cast（改隐式
+    // 窄化）实测形态不变（TU 四数零变化）⇒ 属 N18a/P211 跨版本单段折叠，封顶。
     picked.m_itemId = static_cast<unsigned int>(entry.first);   // ORIG 仅写低 dword
     picked.m_zoneType = static_cast<char>(entry.second);
 
+    // [b28e-L21 已试无效] ORIG 0x0817fcab `mov 0x4(%eax),%esi` 单段直读 vs 我方
+    // `mov 0x4(%eax),%eax; mov %eax,%esi` 两段；去 (int) cast 实测无变化 ⇒ 同封顶。
     CItem* item = G_CDataManager()->find_item(static_cast<int>(picked.m_itemId));
     if (item == 0)
         return false;
@@ -492,6 +494,9 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
         return false;
 
     CEquipItem* equip = static_cast<CEquipItem*>(item);
+    // [b28e-L21 判据⑩] ORIG randIdx 槽 -0x1c（全身最浅）⇒ 原码声明在 equip 之后
+    // （0x0817fd0e `mov %eax,-0x1c(%ebp)` + 0x0817fd11 回读 = 先声明后赋值两段式）。
+    unsigned int randIdx;
     randIdx = static_cast<unsigned int>(get_rand_int(equip->getAvatarOptionSize()));
     picked.m_optionOrSkillIdx = static_cast<char>(randIdx);
 

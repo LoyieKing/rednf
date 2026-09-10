@@ -905,6 +905,10 @@ int CExchangeServer::DispatchPacket(CSession* session, char* data,
     // [b28e] ORIG 0x8493150 `mov -0x10(%ebp),%ebx` 在 cMyTrace ctor 之前读槽并
     // 跨 ctor 保活（P87/P227）；对照 pktCode 的 `(int)pktCode` 实参形使 4.4
     // 提前求值 ⇒ pktType 实参同样显式 cast（裸 register 会消掉 ORIG 的 -0x10 槽）。
+    // [b28e-L21 已试无效] P231 纯 register 提示：ORIG 0x8493150 `mov -0x10(%ebp),%ebx`
+    // 在 cMyTrace ctor **之前**载入 callee-saved 并跨 ctor 保活；4.4 裸形恒 ctor 后
+    // 读槽；加 register 后 4.4 直接**消掉 -0x10 槽**（帧 0x50→0x40）⇒ 更偏离，已回退。
+    // 判 N80/P87（单实参 varargs 4.4 不提前求值）。
     int pktType = (signed char)data[0];
     const unsigned char pktCode = (unsigned char)data[1];
 
@@ -935,7 +939,7 @@ int CExchangeServer::DispatchPacket(CSession* session, char* data,
             cMyTrace("virtual int exchange_server::CExchangeServer::"
                      "DispatchPacket(exchange_server::CSession*, char*, int)",
                      0x328, 0)
-                ("unknown packet code %d", (int)pktCode);
+                ("unknown packet code %d", pktCode);
             break;
         }
         break;
@@ -944,7 +948,7 @@ int CExchangeServer::DispatchPacket(CSession* session, char* data,
         cMyTrace("virtual int exchange_server::CExchangeServer::"
                  "DispatchPacket(exchange_server::CSession*, "
                  "char*, int)", 0x330, 0)
-            ("unknown packet type %d", (int)pktType);
+            ("unknown packet type %d", pktType);
         break;
     }
     return 0;
@@ -990,10 +994,9 @@ int CExchangeServer::OnRecvMessageServerInfo(Stream* stream, int a,
 
     if (sig->m_channel0a == GetServerChannelNo())
     {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvMessageServerInfo(Stream*, int, int)",
-                       0x347, 0);
-        trace("This is Exchange Master Server");
+        cMyTrace("int exchange_server::CExchangeServer::"
+                 "OnRecvMessageServerInfo(Stream*, int, int)", 0x347, 0)
+            ("This is Exchange Master Server");
         m_flag38 = true;
 
         // [b28d-solo-Exchange 真 bug] ORIG 0x84932ef `je 8493343` 跳过 trace 直达
@@ -1010,19 +1013,17 @@ int CExchangeServer::OnRecvMessageServerInfo(Stream* stream, int a,
     }
     else
     {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvMessageServerInfo(Stream*, int, int)",
-                       0x351, 0);
-        trace("This is Exchange Slave Server");
+        cMyTrace("int exchange_server::CExchangeServer::"
+                 "OnRecvMessageServerInfo(Stream*, int, int)", 0x351, 0)
+            ("This is Exchange Slave Server");
 
         if (!m_sessionMgr.TryConnect(
                 inet_ntoa(ipv),
                 (int)(short)sig->m_port0e))
         {
-            cMyTrace trace("int exchange_server::CExchangeServer::"
-                           "OnRecvMessageServerInfo(Stream*, int, int)",
-                           0x354, 0);
-            trace("cannot connect to other game server!");
+            cMyTrace("int exchange_server::CExchangeServer::"
+                     "OnRecvMessageServerInfo(Stream*, int, int)", 0x354, 0)
+                ("cannot connect to other game server!");
         }
         SetServerType(EXCHANGE_SERVER_SLAVE);
     }
@@ -1155,30 +1156,27 @@ bool CExchangeServer::FreeMessage(Stream* stream, int flag)
             // 跨 ctor 保活（push %ebx; sub $0x54；ORIG 无 push、ctor 后重读
             // -0xc），88→91 insn 反劣 ⇒ 维持具名形；残差 4 条 lea 槽号
             // （三臂 cMyTrace 槽深方向跨版本相反，N93 主案）。
-            cMyTrace trace("bool exchange_server::CExchangeServer::"
-                           "FreeMessage(Stream*, int)", 0x3b5, 0x5);
-            trace("Small Stream Size over code(%d), size(%u)", flag,
-                  (unsigned int)len);
+            cMyTrace("bool exchange_server::CExchangeServer::"
+                     "FreeMessage(Stream*, int)", 0x3b5, 0x5)
+                ("Small Stream Size over code(%d), size(%u)", flag, len);
         }
         GlobalData::s_small_stream_pool->Free(stream);
         break;
     case 0:                                           // StreamPool
         if (len > 0x3fff)
         {
-            cMyTrace trace("bool exchange_server::CExchangeServer::"
-                           "FreeMessage(Stream*, int)", 0x3c0, 0x5);
-            trace("Default Stream Size over code(%d), size(%u)", flag,
-                  (unsigned int)len);
+            cMyTrace("bool exchange_server::CExchangeServer::"
+                     "FreeMessage(Stream*, int)", 0x3c0, 0x5)
+                ("Default Stream Size over code(%d), size(%u)", flag, len);
         }
         GlobalData::s_stream_pool->Free(stream);
         break;
     case 2:                                           // BigStreamPool
         if (len > 0x3ffff)
         {
-            cMyTrace trace("bool exchange_server::CExchangeServer::"
-                           "FreeMessage(Stream*, int)", 0x3cb, 0x5);
-            trace("Big Stream Size over code(%d), size(%u)", flag,
-                  (unsigned int)len);
+            cMyTrace("bool exchange_server::CExchangeServer::"
+                     "FreeMessage(Stream*, int)", 0x3cb, 0x5)
+                ("Big Stream Size over code(%d), size(%u)", flag, len);
         }
         GlobalData::s_big_stream_pool->Free(stream);
         break;

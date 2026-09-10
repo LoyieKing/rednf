@@ -43,33 +43,37 @@ void CItemLimitEdition::updateCurSellNum(unsigned int count)
 
 // [b28d-51] 判词 N（ORIG 0x085130e8，N82/N86 族）：PacketGuard 引用形参 +
 // sret/临时槽方向差；语义/调用集齐，byte 层封顶。
+// [L13-group6 P0/P183] ORIG 每个调用点 fresh 读 `0xc(%ebp)`（`mov 0xc(%ebp),%eax`
+// 直压实参），我方具名 `InterfacePacketBuf* buf` 占 -0xc 槽且每处 reload（帧
+// 0x24 vs ORIG 0x14）⇒ 删具名局部，以宏（P49 寻址助手用宏）逐点内联同一表达式。
+#define CILE_PACKET_BUF(p) ((InterfacePacketBuf*)(void*)&(p))
 void CItemLimitEdition::makeInfoPacket(PacketGuard& packet) const
 {
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_int(m_ipgNo);                       // +0x00
-    buf->put_item_idx((unsigned long)m_itemIdx); // +0x04
-    buf->put_int(m_relatedItemCnt);              // +0x08
-    buf->put_byte((int)m_avatarTypeSelect);      // +0x0c
-    buf->put_int(m_priceCera);                   // +0x10
-    buf->put_int(m_priceGold);                   // +0x14
-    buf->put_int(m_curSellNum);                  // +0x48
-    buf->put_int(m_totalSellNum);                // +0x1c
-    buf->put_int(m_featuredIdx);                 // +0x20
+    CILE_PACKET_BUF(packet)->put_int(m_ipgNo);                       // +0x00
+    CILE_PACKET_BUF(packet)->put_item_idx((unsigned long)m_itemIdx); // +0x04
+    CILE_PACKET_BUF(packet)->put_int(m_relatedItemCnt);              // +0x08
+    CILE_PACKET_BUF(packet)->put_byte((int)m_avatarTypeSelect);      // +0x0c
+    CILE_PACKET_BUF(packet)->put_int(m_priceCera);                   // +0x10
+    CILE_PACKET_BUF(packet)->put_int(m_priceGold);                   // +0x14
+    CILE_PACKET_BUF(packet)->put_int(m_curSellNum);                  // +0x48
+    CILE_PACKET_BUF(packet)->put_int(m_totalSellNum);                // +0x1c
+    CILE_PACKET_BUF(packet)->put_int(m_featuredIdx);                 // +0x20
     // ORIG 0x085131bb..0x0851320b：售罄剩余时间逐分支各 fresh put_int（now>=sellEnd
     // 则 put_int(0)，否则 put_int(sellEnd - now)）；非合并后单 put_int。
     if (GlobalData::s_systemTime_.getCurSec() >= m_sellEndTime)
-        buf->put_int(0);                         // ORIG 85131e4
+        CILE_PACKET_BUF(packet)->put_int(0);                         // ORIG 85131e4
     else
-        buf->put_int(m_sellEndTime - GlobalData::s_systemTime_.getCurSec()); // ORIG 851320b
-    buf->put_int(m_field2c);                     // +0x2c
-    buf->put_byte(m_condCharacJob);              // +0x30
-    buf->put_short((int)m_condCharacLevelBegin); // +0x34
-    buf->put_short((int)m_condCharacLevelEnd);   // +0x36
-    buf->put_int(m_condAccCreateTimeBegin);      // +0x38
-    buf->put_int(m_condAccCreateTimeEnd);        // +0x3c
-    buf->put_int(m_condCharacCreateTimeBegin);   // +0x40
-    buf->put_int(m_condCharacCreateTimeEnd);     // +0x44
+        CILE_PACKET_BUF(packet)->put_int(m_sellEndTime - GlobalData::s_systemTime_.getCurSec()); // ORIG 851320b
+    CILE_PACKET_BUF(packet)->put_int(m_field2c);                     // +0x2c
+    CILE_PACKET_BUF(packet)->put_byte(m_condCharacJob);              // +0x30
+    CILE_PACKET_BUF(packet)->put_short((int)m_condCharacLevelBegin); // +0x34
+    CILE_PACKET_BUF(packet)->put_short((int)m_condCharacLevelEnd);   // +0x36
+    CILE_PACKET_BUF(packet)->put_int(m_condAccCreateTimeBegin);      // +0x38
+    CILE_PACKET_BUF(packet)->put_int(m_condAccCreateTimeEnd);        // +0x3c
+    CILE_PACKET_BUF(packet)->put_int(m_condCharacCreateTimeBegin);   // +0x40
+    CILE_PACKET_BUF(packet)->put_int(m_condCharacCreateTimeEnd);     // +0x44
 }
+#undef CILE_PACKET_BUF
 
 // ---- getters（ORIG 逐字段偏移）----
 int CItemLimitEdition::getIPGNO() const

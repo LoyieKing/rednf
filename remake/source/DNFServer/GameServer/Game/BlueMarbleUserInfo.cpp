@@ -4,6 +4,10 @@
 // BuffInfo/TileIndexInfo 为跨类依赖；本 TU 直接按 ORIG C1/reset 语义清零字段，
 // 不调用 BuffInfo.h（0x10 与 ORIG 0xc 布局分歧）/TileIndexInfo 的 reset 符号
 // （避免跨 TU 重复定义与尺寸错配），§9 落地。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN18BlueMarbleUserInfoC2Ev`（ORIG 0x80d9e63）；ctor 已是首强符号定义。
+#include <iostream>
+
 #include "BlueMarbleUserInfo.h"
 
 // ============================================================================

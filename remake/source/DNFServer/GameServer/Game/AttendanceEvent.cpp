@@ -3,6 +3,10 @@
 //   C1 0x080c828c / D1 0x080c82a8 / D0 0x080c82d8 / StartEvent 0x080c82f6 /
 //   StartEvent(Word_Param) 0x080c8312 / EndEvent 0x080c83f4 /
 //   getRewordItem 0x080c8446。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN15AttendanceEventC2Ev`（ORIG 0x80c84a8）；ctor 已是首强符号。
+#include <iostream>
+
 #include "AttendanceEvent.h"
 
 #include "GameTypes.h"     // cMyTrace

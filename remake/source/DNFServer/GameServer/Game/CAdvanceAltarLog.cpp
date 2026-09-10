@@ -123,12 +123,14 @@ void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
     const long long key = makeKey(itemType, itemIndex, a3);
     std::map<long long, STAdvanceAltarLayerStatData>::iterator it =
         m_layers.find(key);
+    // ORIG 0x08156e7d/0x08156e94 每语句**只发 1 次** `_Rb_tree_iterator::operator->`
+    // （`movzwl 0x12(%eax),%edx; add -0x44(%ebp),%dx; mov %dx,0x12(%eax)`，写回同一
+    // %eax）；展开式 `it->second.f = (ushort)(it->second.f + d)` 使 `it->second` 出现
+    // 两次 ⇒ 4.4 每语句 2 次 op->（共 4 call）⇒ 必须用复合赋值（本波 -8 条）。
     if (it != m_layers.end())
     {
-        it->second.m_useCount = static_cast<unsigned short>(
-            it->second.m_useCount + useCountDelta);
-        it->second.m_useStar = static_cast<unsigned short>(
-            it->second.m_useStar + useStarDelta);
+        it->second.m_useCount += static_cast<unsigned short>(useCountDelta);
+        it->second.m_useStar += static_cast<unsigned short>(useStarDelta);
         return;
     }
 

@@ -97,7 +97,8 @@ char Global::CBossTowerFunc::GetItem(CUser* user, int item, bool flag, char type
     WongWork::CBossTower* tower = user->getBossTower();
     if (tower != 0)
     {
-        const int result = tower->handlePickupItem(user, item, flag, type);
+        const char result =
+            (char)tower->handlePickupItem(user, item, flag, type);
         if (result != 0)
         {
             PacketGuard packet;
@@ -263,30 +264,35 @@ bool Global::CBossTowerFunc::FinishLoad(CUser* user)  // ORIG T 0x08146916
 // [b28d-D9] N82/槽差：帧/槽序差（59 vs 57）（ORIG 0x08146ad8 sz 0x000000ca）
 void Global::CBossTowerFunc::GiveUpGame(CUser* user)
 {
-    const int state = user->get_state();
-    if (state == 0xa)
+    switch (user->get_state())
     {
-        WongWork::CDeathTower* tower = user->getDeathTower();
-        if (tower != 0)
+    case 0xa:
         {
-            tower->handleLeaveUser(user);
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleLeaveUser(user);
+            }
         }
-    }
-    else if (state == 0xc)
-    {
-        WongWork::CBossTower* tower = user->getBossTower();
-        if (tower != 0)
+        return;
+    case 0xc:
         {
-            tower->handleLeaveUser(user);  // ORIG vptr+0x14 = 槽[5] handleLeaveUser
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleLeaveUser(user);  // ORIG vptr+0x14 = 槽[5]
+            }
         }
-    }
-    else if (state == 5)
-    {
-        CParty* party = static_cast<CParty*>(user->GetParty());
-        if (party != 0)
+        return;
+    case 5:
         {
-            party->giveup_game(user, true, false, false);
+            CParty* party = static_cast<CParty*>(user->GetParty());
+            if (party != 0)
+            {
+                party->giveup_game(user, true, false, false);
+            }
         }
+        return;
     }
 }
 

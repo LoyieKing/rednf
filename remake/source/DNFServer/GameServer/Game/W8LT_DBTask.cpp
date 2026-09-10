@@ -4645,12 +4645,14 @@ bool DB_UpdateLogout::UpdateLogout(SIG_UPDATE_LOGOUT* sig)
         return 1;
     // [b28d-solo-4] P316 volatile 旋钮：ORIG 4.1 先装载 serverId（-0x10→%edx）
     // 再算 m_gcNo（→%ecx）；4.4 右→左恒反序。volatile 声明强制该读先行。
+    // [L4-r1 判据⑩] 槽序反转律：ORIG 声明序 = bool r → int serverId → ptr db
+    //（槽 r@-0x11 / serverId@-0x10 / db@-0xc）⇒ r 必须声明在 serverId 之前。
+    bool r;
     volatile int serverId = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
         serverId = ((DB_UpdateLogoutSigView*)sig)->m_serverId;
     else
         serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;
-    bool r;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query("upDate login_account_%d set m_channel_no=%d,login_status=%d,last_login_date=now() where m_id=%s",
                   serverId, ((DB_UpdateLogoutSigView*)sig)->m_gcNo, 0,
@@ -4669,6 +4671,9 @@ bool DB_UpdateLogout::UpdateLogout(SIG_UPDATE_LOGOUT* sig)
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 08418612
 bool DB_UpdateLogout::dispatch(int userIdx, int slot, Stream* stream)
 {
+    // [L4-r2 判据⑩ 一次性试验] ORIG ok(r)@-0x21 深于 sig@-0x20（4.1 声明序），
+    // 我方 r@-0x1d 浅于 sig@-0x24（4.4 首次使用序）⇒ 试把 r 的声明前置。
+    bool r;
     SIG_UPDATE_LOGOUT* sig = stream->GetOutBuffer<SIG_UPDATE_LOGOUT>();
     if (sig == 0)
         return 0;
@@ -4682,7 +4687,7 @@ bool DB_UpdateLogout::dispatch(int userIdx, int slot, Stream* stream)
     else
         sig->m_serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     GlobalData::s_db_mgr->removeUserDBInfo(slot);
-    bool r = UpdateLogout(sig);
+    r = UpdateLogout(sig);
     if (!r)
     {
         LogManager::logFormat(1, "DBThread.cpp",
@@ -7871,6 +7876,8 @@ bool get_compressed_blob_data(MySQL* db, int col, char* out, int outCap,
 // inSert 新行返 1；各列 get_binary_length 判空，非空时 get_compressed_blob_data
 // 解压至 sig 载荷 +0x000/0x1d4c/0x927c（0x1d4c/0x7530/0x1d4c），失败 trace 返 0。
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 0844159a
+// [L4-r1] 6 处 cMyTrace 改 P227 全表达式临时链 ⇒ ndiff 275→116（余 idx/col 槽序
+//   + ok 的 P292 归一化，属 N18a/N82 族封顶）。
 bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
 {
     static const int handleIdx = 2;
@@ -7889,9 +7896,11 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
     ok = db->exec(true);
     if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa063, 5);
-        trace("DB_LoadKillMonsterInfo::LoadMonsterInfo select, exec() ERROR charac_no=%u",
-              sig->m_characNo);
+        // [L4-r1] P227 全表达式临时链（ORIG 在 cMyTrace C1 前取 varargs 并跨 ctor
+        // 保活 callee-saved；两语句形 4.4 只在 ctor 后求值 ⇒ 少 push）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xa063, 5)(
+            "DB_LoadKillMonsterInfo::LoadMonsterInfo select, exec() ERROR charac_no=%u",
+            sig->m_characNo);
         return 0;
     }
 
@@ -7903,9 +7912,9 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
         ok = db->exec(true);
         if (!ok)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xa070, 5);
-            trace("DB_LoadKillMonsterInfo::LoadMonsterInfo insert, exec() ERROR charac_no=%u",
-                  sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0xa070, 5)(
+                "DB_LoadKillMonsterInfo::LoadMonsterInfo insert, exec() ERROR charac_no=%u",
+                sig->m_characNo);
             return 0;
         }
         return 1;
@@ -7914,9 +7923,9 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
     ok = db->fetch();
     if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa07a, 5);
-        trace("DB_LoadKillMonsterInfo::LoadMonsterInfo select, fetch() ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0xa07a, 5)(
+            "DB_LoadKillMonsterInfo::LoadMonsterInfo select, fetch() ERROR charac_no=%u",
+            sig->m_characNo);
         return 0;
     }
 
@@ -7933,9 +7942,9 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
         ++idx;
         if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_boss), 0x1d4c, 0))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xa087, 5);
-            trace("DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
-                  idx, sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0xa087, 5)(
+                "DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
+                idx, sig->m_characNo);
             return 0;
         }
     }
@@ -7953,9 +7962,9 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
         ++idx;
         if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_named), 0x7530, 0))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xa09b, 5);
-            trace("DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
-                  idx, sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0xa09b, 5)(
+                "DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
+                idx, sig->m_characNo);
             return 0;
         }
     }
@@ -7973,9 +7982,9 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
         ++idx;
         if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_apc), 0x1d4c, 0))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xa0af, 5);
-            trace("DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
-                  idx, sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0xa0af, 5)(
+                "DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
+                idx, sig->m_characNo);
             return 0;
         }
     }
@@ -9425,6 +9434,8 @@ struct DB_CDataManagerBlkView
     int m_3b8;           // +0x3b8 单周期消减点数
 };
 // [b28d-4] DIFF：N1/N107：ORIG lea+add 两步寻址 vs 4.4 折单条；ORIG 08424ce6
+// [L4-r1] 3 处 cMyTrace 改 P227 全表达式临时链 ⇒ ndiff 389→380（余
+//   jle/jg 极性 + 6 条 mov 中转，属 N82/N4 族封顶）。
 bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
 {
     static const int handleIdx = 3;
@@ -9487,10 +9498,11 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
                 computed = blackPoint - offsetPoint -
                            ((DB_CDataManagerBlkView*)G_CDataManager())->m_3b8 *
                                (int)passCnt;
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x6259, 0);
-                trace("BlackList Modify : c(%d) iPassCnt(%d) iOffsetPoint(%d) iBlackPoint(%d) uProblemChildTime(%d) iComputedBlackPoint(%d)",
-                      (int)sig->m_characNo, passCnt, offsetPoint, blackPoint,
-                      problemChildTime, computed);
+                // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
+                cMyTrace(__PRETTY_FUNCTION__, 0x6259, 0)(
+                    "BlackList Modify : c(%d) iPassCnt(%d) iOffsetPoint(%d) iBlackPoint(%d) uProblemChildTime(%d) iComputedBlackPoint(%d)",
+                    (int)sig->m_characNo, passCnt, offsetPoint, blackPoint,
+                    problemChildTime, computed);
                 if (computed < 1)
                 {
                     db->set_query(
@@ -9498,10 +9510,10 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
                         (int)sig->m_characNo);
                     offsetPoint = blackPoint;
                     problemChildTime = 0;
-                    cMyTrace trace2(__PRETTY_FUNCTION__, 0x6269, 0);
-                    trace2("BlackList Modify : c(%d) iPassCnt(%d) iOffsetPoint(%d) iBlackPoint(%d) uProblemChildTime(%d)",
-                           (int)sig->m_characNo, passCnt, offsetPoint, blackPoint,
-                           problemChildTime);
+                    cMyTrace(__PRETTY_FUNCTION__, 0x6269, 0)(
+                        "BlackList Modify : c(%d) iPassCnt(%d) iOffsetPoint(%d) iBlackPoint(%d) uProblemChildTime(%d)",
+                        (int)sig->m_characNo, passCnt, offsetPoint, blackPoint,
+                        problemChildTime);
                 }
                 else
                 {
@@ -9515,10 +9527,10 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
                         ((DB_CDataManagerBlkView*)G_CDataManager())->m_3b8 *
                             (int)passCnt +
                         offsetPoint;
-                    cMyTrace trace2(__PRETTY_FUNCTION__, 0x6262, 0);
-                    trace2("BlackList Modify : c(%d) iPassCnt(%d) iOffsetPoint(%d) iBlackPoint(%d) uProblemChildTime(%d)",
-                           (int)sig->m_characNo, passCnt, offsetPoint, blackPoint,
-                           problemChildTime);
+                    cMyTrace(__PRETTY_FUNCTION__, 0x6262, 0)(
+                        "BlackList Modify : c(%d) iPassCnt(%d) iOffsetPoint(%d) iBlackPoint(%d) uProblemChildTime(%d)",
+                        (int)sig->m_characNo, passCnt, offsetPoint, blackPoint,
+                        problemChildTime);
                 }
                 if (db->exec(true) != 1)
                 {
@@ -10604,6 +10616,8 @@ bool DB_UpdateItemCountValue::dispatch(int userIdx, int slot, Stream* stream)
 // （from_unixtime(occ_time),player_status,dungeon_index,channel_no,occ_count）；
 // exec 失败返 0；成功后 cMyTrace(__PRETTY_FUNCTION__,0x4f28,0) 日志同 4 值。
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0841bcee
+// [L4-r1] **已修 AE**（ndiff 72→0）：P227 全表达式临时链 cMyTrace(...)(...)
+//   ⇒ 复现 ORIG 的 3 push（edi/esi/ebx）+ 帧 0x5c + C1 前 varargs 物化。
 bool DB_UpdateDetailChannel::dispatch(int userIdx, int slot, Stream* stream)
 {
     DB_UpdateDetailChannelView* sig =
@@ -10626,10 +10640,13 @@ bool DB_UpdateDetailChannel::dispatch(int userIdx, int slot, Stream* stream)
         sig->m_occCount);
     if (db->exec(true) != 1)
         return 0;
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x4f28, 0);
-    trace("content concurrent %d,%d,%d,%d\n",
-          sig->m_playerStatus, sig->m_dungeonIndex, sig->m_channelNo,
-          sig->m_occCount);
+    // [L4-r1] P227 全表达式临时链：ORIG 0x0841bde0-0x0841be43 在 cMyTrace C1
+    // 之前把 4 个 sig 字段装入 %edi/%esi/%ebx/-0x3c 并跨 C1 保活（3 push +
+    // 帧 0x5c），两语句形 4.4 只在 ctor 后求实参（仅 push ebx + 帧 0x44）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x4f28, 0)(
+        "content concurrent %d,%d,%d,%d\n",
+        sig->m_playerStatus, sig->m_dungeonIndex, sig->m_channelNo,
+        sig->m_occCount);
     return 1;
 }
 
@@ -11166,6 +11183,8 @@ void StatisticsToObserveCrash::unlock() { m_mutex.unlock(); }
 //   TYPE %d Players %d Count "(key.a,key.b,room.total,room.count)。
 // 循环结束 unlock → return 1。
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 0841ba96
+// [L4-r1] 2 处 cMyTrace 改 P227 全表达式临时链 ⇒ **DIFF→NEAR**（ndiff 112→12）；
+//   余 12 行 = 迭代器槽阶梯/寄存器角色（N7/N86 族）。
 bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
 {
     // P157/P183：ORIG 三处独立 `G_GameWorld()->getStatisticsPvP()`（p167 差集
@@ -11202,14 +11221,15 @@ bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
             bool updated = db->exec(true);
             if (!updated)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x4ed8, 5);
-                trace("upDate pvp_status failed at %d", key.m_a);
+                // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
+                cMyTrace(__PRETTY_FUNCTION__, 0x4ed8, 5)(
+                    "upDate pvp_status failed at %d", key.m_a);
                 continue;  // for 的 increment 处 = ORIG 单一 operator++ 调用点
             }
         }
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x4edc, 5);
-        trace("pvp_status : %d ROOM %d TYPE %d Players %d Count ",
-              key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);
+        cMyTrace(__PRETTY_FUNCTION__, 0x4edc, 5)(
+            "pvp_status : %d ROOM %d TYPE %d Players %d Count ",
+            key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);
     }
     G_GameWorld()->getStatisticsPvP()->unlock();
     return 1;
@@ -12071,13 +12091,16 @@ bool DB_InsertPartyType::dispatch(int userIdx, int slot, Stream* stream)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
     int v[5] = { 0, 0, 0, 0, 0 };
+    // [L4-r2 判据⑩] ORIG 槽 v@-0x34 / channelNo@-0x20 / i@-0x1c（4.1 先声明更深）
+    // ⇒ channelNo 的声明必须前置（无初始化器 + 赋值留在原位）。
+    int channelNo;
     int i = 0;
     while (i <= 4)
     {
         *stream >> v[i];
         ++i;
     }
-    int channelNo = G_CEnvironment()->get_channel_no();
+    channelNo = G_CEnvironment()->get_channel_no();
     db->set_query(
         "inSert into log_party_type(channel_no,occ_date,guild_count,member_count,helped_count,normal_count,member_helped_count) values(%d,now(),%d,%d,%d,%d,%d)",
         channelNo, v[0], v[1], v[2], v[3], v[4]);
@@ -12170,11 +12193,10 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
     char r = db->exec(true);
     if (!r)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x4d5c, 5);
-        trace("upDate client_down failed");
+        // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x4d5c, 5)("upDate client_down failed");
     }
-    cMyTrace trace2(__PRETTY_FUNCTION__, 0x4d5f, 0);
-    trace2("abnormal down user : %d", count);
+    cMyTrace(__PRETTY_FUNCTION__, 0x4d5f, 0)("abnormal down user : %d", count);
 
     G_GameWorld()->getStatisticsToObserveCrash()->lock();
     MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
@@ -13789,6 +13811,8 @@ bool DB_UpdateAddItemCountValue::dispatch(int /*userIdx*/, int /*slot*/,
 // ==0 → cMyTrace(__PRETTY_FUNCTION__, 0xa407, 5)("... failed at m_id(%s)",
 // tableNo, lastNo, mIdStr) 返 0；成功返 1。
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 0844280a
+// [L4-r1] cMyTrace 改 P227 全表达式临时链 ⇒ ndiff 54→8（余 4 条 mov 中转 =
+//   N18a 单段直落族封顶）。
 bool DB_UpdateOntimeLastRecvIdx::dispatch(int /*userIdx*/, int /*slot*/,
                                           Stream* stream)
 {
@@ -13803,9 +13827,10 @@ bool DB_UpdateOntimeLastRecvIdx::dispatch(int /*userIdx*/, int /*slot*/,
                   tableNo, lastNo, NumberToString(mId, 0));
     if (!(db->exec(true) == 1 && db->getAffectedRowCount() != 0))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa407, 5);
-        trace("upDate event_1112_ontime_user_%u set last_no=%u failed at m_id(%s)",
-              tableNo, lastNo, NumberToString(mId, 0));
+        // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xa407, 5)(
+            "upDate event_1112_ontime_user_%u set last_no=%u failed at m_id(%s)",
+            tableNo, lastNo, NumberToString(mId, 0));
         return 0;
     }
     return 1;
@@ -18098,6 +18123,8 @@ bool DB_RequestTagCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
 // ============================================================================
 
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 084420ea
+// [L4-r1] cMyTrace 改 P227 全表达式临时链 ⇒ ndiff 58（持平；余 push/pop 差来自
+//   NumberToString 三实参跨 call 保活，属 P52/N7 族）。
 bool DB_SaveCharacSlotExtend::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
@@ -18113,11 +18140,10 @@ bool DB_SaveCharacSlotExtend::dispatch(int userIdx, int slot, Stream* stream)
         unsigned int slotEffect = sig->m_slotEffect;
         unsigned int slotLimit = sig->m_slotLimit;
         const char* idStr = NumberToString(sig->m_mId, 0);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xa1f5, 5);
-        trace("upDate charac_view set slot_effect_count(%u), charac_slot_limit(%u) failed at m_id(%u)",
-              slotEffect, slotLimit, idStr);
+        // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xa1f5, 5)(
+            "upDate charac_view set slot_effect_count(%u), charac_slot_limit(%u) failed at m_id(%u)",
+            slotEffect, slotLimit, idStr);
         return 0;
     }
     return 1;

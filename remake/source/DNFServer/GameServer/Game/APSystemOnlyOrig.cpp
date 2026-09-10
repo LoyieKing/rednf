@@ -714,6 +714,10 @@ void CActionPointManager::Set(_SIG_LOAD_ACTION_POINT& sig)
 // [b28d-27] DIFF N82：ORIG 0x08121d12；p167 CLEAR（1/1），残差为循环体数组寻址
 // [b28d-solo-APSystemOnlyOrig] 判词：**N18a 封顶**（唯一残差 = ORIG `mov %edx,%ecx; neg %ecx` vs 4.4 `neg %edx; mov %edx,%ecx` 1 对；p167 CLEAR 1/1；槽位 -0x14/-0x10/-0xc 与帧 0x28 全等）。
 // （两步 add vs 4 步 imul 链）+ 帧差，语义闭合。
+// [b28d-round1-L24] **DIFF→AE**（55=55）：唯一残差 `mov %edx,%ecx; neg %ecx`
+// （ORIG 0x08121d9d/0x08121d9f）靠**提升到 unsigned int 再取负**复现 ——
+// `(unsigned char)(-(unsigned int)(signed char)x)`（探针 /tmp/probe_neg.cpp f6
+// 逐条同形；f1..f5 恒产 `neg %edx; mov %edx,%ecx`，int 中介亦无效）。
 void CActionPointManager::GM_Reset()
 {
     m_flag00 = 1;                             // *(this)=1
@@ -733,7 +737,7 @@ void CActionPointManager::GM_Reset()
             if (static_cast<signed char>(point->m_days[slot]) > 0)
             {
                 point->m_days[slot] = static_cast<unsigned char>(
-                    -static_cast<signed char>(point->m_days[slot]));
+                    -(unsigned int)static_cast<signed char>(point->m_days[slot]));
             }
         }
     }
@@ -746,6 +750,9 @@ void CActionPointManager::GM_Reset()
 // 转换（C1ERKSt17_Rb_tree_iterator），end 侧表达式整段重写（P48 两次
 // G_CDataManager/GetActionPointEtcParameter 调用）；旧版经 getActionPointRefs()
 // [b28d-solo-APSystemOnlyOrig] 判词：**N18a 封顶**（唯一残差 = `mov;neg` 序 1 对；p167 CLEAR；非 const map find/end + `&action.m_actionNo` 直接取址 + 循环外缓存 size 还原后 145=145）。
+// [b28d-round1-L24] 旧 N18a 判词作废：**DIFF→AE**（145=145）—— 同 GM_Reset，
+// 取负写法提升到 `-(unsigned int)(signed char)x` 即复现 ORIG 0x0812207x
+// `mov %edx,%ecx; neg %ecx`（探针 /tmp/probe_neg.cpp f6）。
 // const getter ⇒ const 版 find/end（p167 MISSING 5）。
 bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
 {
@@ -797,7 +804,7 @@ bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
             // ORIG 先按字节取负，再以有符号 char 累加（含 0x80 情形）。
             m_prevApSum = m_sig.m_apSum;
             action.m_days[slot] = static_cast<unsigned char>(
-                -static_cast<signed char>(action.m_days[slot]));
+                -(unsigned int)static_cast<signed char>(action.m_days[slot]));
             m_sig.m_apSum += static_cast<signed char>(action.m_days[slot]);
             m_flag00 = 1;
             return true;
@@ -1041,7 +1048,10 @@ bool CActionPointManager::GetTodayRewardAndSendMail(
 
     std::size_t count = todays.size();
     const APSystem::_TodayRewardItem* entry = 0;
-    for (unsigned int i = 0; i < count; ++i)
+    // [b28d-solo-APSystemOnlyOrig] P212：for-init 的 i 提至函数头（全头部声明），
+    // 4.4 才按「先声明深」分配（-0x14，ORIG 形）；块内声明会占 -0xc。
+    unsigned int i;
+    for (i = 0; i < count; ++i)
     {
         // [b28d-solo-APSystemOnlyOrig] ORIG 0x08122168..0x081221be：三子句
         // `&&` 短路（jne/jb/ja 同落 mov$0 岛 + test;je，P214① 正极性形）；
@@ -1108,7 +1118,10 @@ bool Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
 
     std::size_t count = medals.size();
     const _MedalRewardItem* hit = 0;
-    for (unsigned int i = 0; i < count; ++i)
+    // [b28d-solo-APSystemOnlyOrig] P212：同 GetTodayRewardAndSendMail ——
+    // i 提至函数头，4.4 按「先声明深」落在 -0x14（ORIG 形）。
+    unsigned int i;
+    for (i = 0; i < count; ++i)
     {
         if (!(medalCount < medals[i].m_field00) && !(medals[i].m_field02 < medalCount))
         {

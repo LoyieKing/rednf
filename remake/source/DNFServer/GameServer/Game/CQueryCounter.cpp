@@ -140,20 +140,20 @@ bool CQueryCounter::LoadQueryTable()
         memset(query, 0, 0x6001);
         if (!mysql->fetch())
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x22f, 5);
-            trace("LoadQueryTable, fatch ERROR");
+            // [G5 2026-09-10 P227 试验] ORIG 0x085ed18a 段为 cMyTrace ctor 后直接
+            // operator()（varargs 在 ctor 前右起求值并保活 callee-saved）⇒ 改全表达式
+            // 临时链；具名两语句形使 4.4 把 ctor 提前、帧 0x…。
+            cMyTrace(__PRETTY_FUNCTION__, 0x22f, 5)("LoadQueryTable, fatch ERROR");
             return false;
         }
         if (!mysql->get_int(0, qid))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x235, 5);
-            trace("LoadQueryTable, get_int(0) ERROR");
+            cMyTrace(__PRETTY_FUNCTION__, 0x235, 5)("LoadQueryTable, get_int(0) ERROR");
             return false;
         }
         if (!mysql->get_str(1, query, 0x6000))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x23b, 5);
-            trace("LoadQueryTable, get_str(1) ERROR");
+            cMyTrace(__PRETTY_FUNCTION__, 0x23b, 5)("LoadQueryTable, get_str(1) ERROR");
             return false;
         }
         if (!RegisterQuery(query, qid, 0))

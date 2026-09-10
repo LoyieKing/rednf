@@ -16,6 +16,27 @@
 //   · 余件残差为 N 族：N82（槽组分区）/N91（delete[] EH cleanup）/N115（帧）/
 //     N122（bool 取反 xor）/N7（三目 join 点）/P321-T5（lea-vs-add），已逐件在函数头
 //     记 ORIG 地址与实测两形数据。
+// [CGM4 2026-09-10 · L12 复核（判据⑩槽序 + ①jcc + ②视图 + p167 三件套）] 本波 15 件全核：
+//   · p167 逐符号核对：**全部 CLEAR**。差异仅 C1↔C2 / D1↔D2 同址别名（P93 伪差集）；
+//     `insert_game_world` 完整核对 193/193：`vector<pair<int,int>>::C1Ev/D1Ev ×3/×6`
+//     ↔ ORIG 的 C2Ev/D2Ev 同址别名，**无真缺口**（旧判「EXTRA vector」已证伪）。
+//   · 实测反劣并回滚 1 项：WarRoomCountAdjustByChannelInfo 的 dmW/b/a 三处纯 register
+//     提示（P231/P307）⇒ 74→79 insns、帧 0x3c→0x4c（register 局部仍各占槽 + 多 mov
+//     中转）⇒ 维持表达式形。
+//   · 残余 N 族（ORIG 地址见各函数体判词）：N82 槽组分区 ×9（createUser 缺 push %edi +
+//     Guard 槽 -0x54↔-0x44 @0x08294296；Send_userinfos_to_upper_server @0x082961be；
+//     insert_game_world @0x08296d30；CheckOutPvp @0x08297eaa；WarRoomCountManage
+//     @0x082a271a(+Test @0x082a2c08)；send_userinfos_to_cutoff_server @0x08295e84
+//     （商 `shr $0x3,%edx` 留寄存器 vs 4.4 落槽 +4 条）；returnUserPool @0x08294b2c；
+//     GetPvp @0x08295206（空串立即数落 %esi vs 4.4 经 %eax 中转））；
+//     N115 帧 ×2（Send_userinfos_to_upper_server 帧 0x1764↔0x1750、N82/N115 同族）；
+//     N7 寄存器角色 ×3（WarRoomAlloc @0x08298a30 / user_exit @0x082985a8 /
+//     FindQuickJoinablePvPRoom @0x082a3202 的 `quick==0` cmpb↔xor，S1 实测两形逐条相同
+//     = N122）；N107/P321-T5（WarRoomCountAdjustByChannelInfo flds+x87 槽往返）；
+//     N91（StaticPool<CTradeSpace,300>::~StaticPool @0x082ae79c：delete[] 元素析构循环
+//     的 EH landing，我方多 1×_Unwind_Resume；P216 边界= D1 侧对元素 ctor `throw()`
+//     无效，等 L21CtorExchange 试验结论后复核）。
+//   · 本波零头文件改动（无 R2 广播需求）。
 // df_game_r CGameManager（G2 单例对象池/房间管理器）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/CGameManager.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
@@ -1984,6 +2005,10 @@ void CGameManager::WarRoomCountAdjustByChannelInfo()
             // 在乘法表达式里（ORIG 无 dmR 槽：0x8298a0a `call G_CDataManager` 结果
             // 直接 `mov -0x1c(%ebp),%edx; add $0x21ec,%edx; mov 0x4(%eax,%edx,4),%eax`
             // ——P0/P183 表达式直传）。
+            // [TD4 2026-09-10 复核] ORIG 0x082989a1..0x082989b7 内层头把 dmW/b/a 载入
+            // %esi/%ebx/%edi 跨调用保活；本波实测三处纯 register 提示（P231/P307）
+            // 反劣（74→79、帧 0x3c→0x4c：register 变量仍各占槽 + 多 mov 中转）⇒ 回滚，
+            // 维持表达式形，按 N7/N82 记录（ORIG 的 callee-saved 独占属 4.1 分配产物）。
             CDataManager* dmW = (CDataManager*)G_CDataManager();
             float f = info->m_gridPercent[a];  // ORIG *(float*)(info+8+(a+4)*4)
             // 写表：dmW+8+(b*10+a+0x223c)*4 = m_warRoomCount[b][a]（ORIG 0x082989f2..

@@ -5,6 +5,10 @@
 // 布局：+0x00 std::map<DetectedObjectKey,int> m_map（sizeof 0x18）
 // DetectedObjectKey：+0 uid（CUser::GetUID）| +4 uniqueId（get_unique_id & 0xffff）
 // map value = 最后收包时间（CSystemTime::getCurSec），超时 30s 判断线。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN19disconnect_detecter19CDisconnectDetecter10_IsTimeoutEi`（ORIG 0x847260d）。
+#include <iostream>
+
 #include <map>
 #include <utility>
 #include "TimerQueue.h"

@@ -278,6 +278,9 @@ void AvatarConvertServer::StatisticsEmblemCreate(
     if (i != (int)created.size())
         return;
     packet.m_count = i;
+    // [本波实测] P52 cast 形对照（reinterpret_cast<char*> vs (char*)）重编后读数
+    // 逐条相同（110/109、ndiff 13）⇒ 非 cast 选择；残余两条归 N94/N4
+    // （`-0x58+4(i+8)` vs `-0x50+4(i+6)` 同址不同分解 + callee-saved 装载时点）。
     GlobalData::s_statistic_proxy_mgr
         ->GetServerProxy((ENUM_SERVER_GROUP)0)
         ->SendPacket(reinterpret_cast<char*>(&packet), 0x36);

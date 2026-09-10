@@ -329,6 +329,9 @@ void CMonsterDropTest::processDungeonDrop(CParty* party, DropStat& drop,
 // 需 -march=i486 的 TU 级旗标，路由表禁改）与帧/槽差（N82/N115，ORIG
 // push edi/esi/ebx + sub 0x9c vs 0x98；P190 double framePad 实测 0x98→0xa8
 // 反劣已回退），语义完成、byte 层封顶。
+// [round1-L29 2026-09-10 复核] 判据① CLEAR（38 vs 38 分支，目标无错位）。残差 = ORIG
+//   `push edi/esi/ebx + sub $0x9c` vs 我方 `sub $0x98`（callee-saved 3 个差异；P332：源级
+//   不可诱导，本函数已无多余具名对象可删）⇒ N（ORIG 0x084add20）。
 void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
                                           map_monster& mob, std::vector<bool>& flags,
                                           int killCnt, std::list<map_item>& items)
@@ -456,6 +459,8 @@ void CMonsterDropTest::singleMapMonsterKill(CParty* party, DropStat& drop,
 // sret↔this 寄存器角色互换（4.4.7 恒 `mov %edx,%eax?`+sret=%eax/this=%edx，
 // ORIG sret=%edx/this=%eax；N7/P230 后端敏感族）——本 TU 不在 dnf_game_cxx.sh
 // 的 4.4.6 路由表内（禁改路由表）⇒ N 封顶。
+// [round1-L29 2026-09-10 复核] 判据① CLEAR（38 vs 38）。我方 163 / ORIG 161 ⇒ 帧/push 族
+//   （P332）⇒ N（ORIG 0x084ae7xx）。
 void CMonsterDropTest::passedMapMonsterKill(CParty* party, DropStat& drop,
                                             GradeStat& grade)
 {
@@ -592,6 +597,8 @@ void CMonsterDropTest::makeGoldItemDropList(std::list<map_item>& items, DropStat
 //    copy-elision 直构，无源码解；② N98 槽序（4.4 按首次使用序）+ N82；
 // ③ EH 析构路径差（p167 EXTRA pair/map D1；正常路径构造/析构次数一致）。
 // 语义完成、byte 层封顶。
+// [round1-L29 2026-09-10 复核] 判据① CLEAR（86 vs 86）。残差 = ORIG `push esi/ebx +
+//   sub $0x130` vs 我方（P332 帧/push 族）⇒ N（ORIG 0x084ae14c）。
 void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat& out)
 {
     for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)

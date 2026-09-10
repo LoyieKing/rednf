@@ -146,6 +146,30 @@ public:
 // ⑥ 静态初始化噪音 1 件：_Z41__static_initialization_and_destruction_0ii（N123 豁免）。
 // 剩余 18 件（diff 13，含 N123 豁免 1 件 + near 5）全部落 N 判词，每件判词区已附
 // 判据①读数（分支目标逐条对应/无语义缺口）。
+// ---------------------------------------------------------------------------
+// [TD4 2026-09-10 · L12 复核（判据⑩槽序 + ①jcc + ②视图 + p167 三件套）] 本波 17 件全核：
+//  · 翻正 1 件：**TimerCreature::dispatch_sig DIFF/NEAR → AE**。判据⑩（声明序=槽由深到浅）
+//    把 `bool died;` 移到 user 之前 ⇒ died 落 -0x11、saveInventory -0x9、user -0x10 与
+//    ORIG 0x08635f2f/0x08635f11/0x08635eb8 逐槽全等（ae 699→700、near 5→4）。
+//  · 实测反劣并回滚 2 项试验：①CHCT `(unsigned)p2 < key` 交换操作数 ⇒ push %ebx +
+//    `cmp %eax,%ebx; setb`（106→107 insns）②TimerStamina 三 getter 改 register 具名局部
+//    ⇒ 四数不变（60/700/4/13）。
+//  · p167：16 件逐符号核对**全 CLEAR** —— 残差仅 C1↔C2 / D1↔D2 同址别名（P93 伪差集），
+//    无任何真 EXTRA/MISSING ⇒ 无语义缺口。
+//  · 残余 N 族（每件函数体内判词均附 ORIG 地址 + 指令形证据）：
+//    N86b/N1 ×3（DDS/SDCI/UCE 的 `%0x1e` 余数 lea↔add；本波探针 /tmp/probe_mod.cpp
+//      f1..f6 六形含显式 `x - q*30` 恒产 add ⇒ 源形不可择）；
+//    N7 ×3（TimerStamina/TimerDBUpdate 尾部三 getter edi/esi/ebx 角色轮换、
+//      DBSelectCreateDnfEventInfo 立即数实参 vs this 装载序）；
+//    N98 ×1（TimerStatisticsLog：4.1 声明序 vs 4.4 首次使用序，int 组无法推深）；
+//    N104 ×3（ScheduleGuildWarEnd/CheckConn/FinishItemEffect：EH 尾块相对序）；
+//    N115/N82（CloseTime/DDIO：outgoing 16B 预留 + tm/map 槽分区）；
+//    N85/P196（GeneratePowerUpNotiTime）、N107（NotResponseUserTimeout 成员取址
+//      add-vs-lea）、N93附（Send_Ontime_Reward 尾块镜像）、N22/N7（CHCT call 结果
+//      eax↔edx 中转）。
+//  · P227 族复核：16 件 cMyTrace 均已为**全表达式临时链**且 push 数与 ORIG 全等
+//    （push 计数脚本 /tmp 比对：仅 StaticPool/createUser 类非本 TU cMyTrace 件不等）
+//    ⇒ 非 P227 缺口。
 // ===========================================================================
 // ======== 基类 ========
 
@@ -558,6 +582,9 @@ int TimerStamina::dispatch_sig(int p1, int p2, unsigned int p3)
         user->IncCurCharacLuckPoint(G_CDataManager()->m_serverParameter.m_80);
         user->SetCurCharacLuckPointUpdateTimeCount(0);
     }
+    // [TD4 2026-09-10 P231/P307 试验·失败] 三 getter 结果改 register 具名局部
+    // （按 ORIG 求值序）后四数不变（60/700/4/13）⇒ ORIG 0x08633d6c..0x08633db3 的
+    // %edi/%esi/%ebx 角色属 4.1 callee-saved 分配产物（N7），源码侧不可控 ⇒ 回滚内联实参形。
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
                                 (TIMER_MESSAGE)2, 0x3c, user->GetLoginTick(),
                                 static_cast<unsigned int>(user->getCurCharacNo()));
@@ -1810,6 +1837,10 @@ int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08635e96：getUser 第二实参为常量 1（movl $0x1,0x8(%esp)）；
     // 三段独立早退（jne 岛 + 两条 cmp/setne 物化，ORIG +0x29/+0x46/+0x62）。
+    // [TD4 2026-09-10 判据⑩] ORIG 槽位浅→深 = saveInventory(-0x9) → user(-0x10) →
+    // died(-0x11)；按「声明序=槽由深到浅」⇒ 原码 died 声明在 user **之前**。
+    // 旧形把 died 声明在 saveInventory 之后 ⇒ died 落 -0xa（紧贴 save）。
+    bool died;
     CUser* user = G_CGameManager()->getUser(p1, 1);
     if (user == 0)
         return 0;
@@ -1827,7 +1858,6 @@ int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
     // 8B 隙），4.4 对 1 字节局部紧邻分配 -0xa ⇒ 本件唯一残差（2 行）。实测把 died
     // 改 long long 借 8 字节对齐推深槽基 → 55→58 反劣（store/load 变 8B 两段），
     // 已回退 bool；volatile/double framePad（P190）不适用（本函数无 double 实体）。
-    bool died;
     // ORIG 0x08635eeb/0x08635f08：isSaveInven 先调（byte 槽 -0x9），
     // CheckDiedCreature 后调（-0x11，4.1 两 byte 槽间留隙）
     const bool saveInventory = user->isSaveInven();   // b28c-L26 档①：callee bool 化
@@ -2561,6 +2591,9 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 
     // [b28e-TimerDispatcher] 比较反形实测 116 insns（原 106）⇒ 回退；ORIG `cmp %edx,%eax`
     // 的 call 结果留 %eax 属 N22/N7 寄存器角色差（P248 一次性旋钮，赌输即回滚）。
+    // [TD4 2026-09-10 判据①/P248 档③实测] 交换操作数书写序为 `(unsigned)p2 < key`
+    // ⇒ 4.4 反劣（push %ebx + `cmp %eax,%ebx; setb`，帧 0x38→0x34、insns 106→107）；
+    // ORIG `cmp %edx,%eax; seta`（call 结果留 %eax）属 N22/N7 寄存器角色差，回滚原形。
     if ((unsigned int)user->getHumanCertifyTimerKey() > (unsigned int)p2)
     {
         return 1;

@@ -25,12 +25,16 @@
 //      +0x00 std::map<int,std::string>，大小 0x18）----
 
 
+// [L32 GI 调序] ORIG `_GLOBAL__I_g_PvpMissionScriptBaseDirectory`（CU=RDARScriptPvpMission.cpp）
+//   ⇒ 本 TU 首个强符号须为 g_PvpMissionScriptBaseDirectory。仅交换两块定义的先后：
+//   零语义/零布局改动（g_PvpMissionScriptFileList 仍是本 TU 唯一动态初始化对象，
+//   相对构造序不变，P327）。
+// ORIG 全局（BSS 0x09500100，0x100 字节）：PvP 任务脚本根目录（运行期由
+// 部署环境填充；BSS 初值即空串）。文件列表全局见下方 g_PvpMissionScriptFileList。
+char g_PvpMissionScriptBaseDirectory[0x100];
 // ORIG 全局 STScriptFileList（PvP 任务脚本列表，BSS 0x0949…）。由
 // CDataManager::init 的 loadRDARScriptListFile 填充；此处提供符号。
 STScriptFileList g_PvpMissionScriptFileList;
-// ORIG 全局（BSS 0x09500100，0x100 字节）：PvP 任务脚本根目录（运行期由
-// 部署环境填充；BSS 初值即空串）。文件列表全局见上方 g_PvpMissionScriptFileList。
-char g_PvpMissionScriptBaseDirectory[0x100];
 
 // ---- ORIG _ZN13MissionScript5clearEv @0x08a5bbb2 ----
 void MissionScript::clear()

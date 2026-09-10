@@ -75,7 +75,9 @@ struct stAssaultChaosPointWeight
         m_w0 = 1.0f;
         m_w1 = 1.0f;
     }
-    ~stAssaultChaosPointWeight() {}   // ORIG D1 W 0x08a936f4：空体
+    // [b28d-L28 P317/P12] 原 `~stAssaultChaosPointWeight() {}` 为 user-provided 空体 ⇒
+    // 4.4 判 non-trivial：局部对象多发 D1Ev×2 + _Unwind_Resume landing（p167 EXTRA），
+    // ORIG 0x08a8c668 调用点 0 次 D1（D1 W 0x08a936f4 仍由使用点发射）。删声明回归 trivial。
     int m_min;      // +0x00
     int m_max;      // +0x04
     float m_w0;     // +0x08
@@ -91,7 +93,7 @@ struct stAssaultLevelGhostPanalty
         m_t0 = 0;
         m_t1 = 0;
     }
-    ~stAssaultLevelGhostPanalty() {}   // ORIG D1 W 0x08a938fa：空体
+    // [b28d-L28 P317/P12] 同上：删 user-provided 空析构回归 trivial（ORIG D1 W 0x08a938fa）。
     int m_min;      // +0x00
     int m_max;      // +0x04
     unsigned int m_t0;  // +0x08
@@ -107,7 +109,7 @@ struct stAssaultChaosPointGhostPanalty
         m_r0 = 1.0f;
         m_r1 = 1.0f;
     }
-    ~stAssaultChaosPointGhostPanalty() {}   // ORIG D1 W 0x08a93b00：空体
+    // [b28d-L28 P317/P12] 同上：删 user-provided 空析构回归 trivial（ORIG D1 W 0x08a93b00）。
     int m_min;      // +0x00
     int m_max;      // +0x04
     float m_r0;     // +0x08

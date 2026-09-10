@@ -429,6 +429,19 @@ struct STFriendReqView
 #pragma pack(pop)
 static_assert(sizeof(STFriendReqView) == 0x44, "STFriendReqView size");
 
+// [b28e-L5] P250：IncreStatus::dispatch_sig ORIG 载荷槽基 -0x2f（**非 4 对齐**）+
+// `add $0xd` 取成员（0x081ede34 `lea -0x2f(%ebp),%eax; add $0xd,%eax`）⇒ 原码是
+// pack(1) 结构体局部（val@+0x0d，sizeof 0x10），非裸 short。
+#pragma pack(push, 1)
+struct IncreStatusSigView
+{
+    char m_head[0xd];     // +0x00..0x0c 包头
+    short m_val;          // +0x0d（get_short(short&)）
+    char m_tail[0x1];     // +0x0f
+};
+#pragma pack(pop)
+static_assert(sizeof(IncreStatusSigView) == 0x10, "IncreStatusSigView size");
+
 // DisPatcher_MoveMap::read/process 消息视图（ORIG DWARF 语义修正 vs PacketTypes 冻结版）：
 //  m_1a = bool：ORIG read `mov %al,0x1a(%edx)`（QI 直存）+ process `xor $0x1,%eax;
 //  test %al,%al`（唯 bool 取反形，0x081...）；0x33..0x38 = get_short(0x33)+get_int(0x35)
@@ -829,24 +842,10 @@ DisPatcher_Exit::~DisPatcher_Exit() {}
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 344（ORIG 316 / ours 372），残差=P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    char local_48[16];
-    local_48[0] = '\0';
-    local_48[1] = '\0';
-    local_48[2] = '\0';
-    local_48[3] = '\0';
-    local_48[4] = '\0';
-    local_48[5] = '\0';
-    local_48[6] = '\0';
-    local_48[7] = '\0';
-    local_48[8] = '\0';
-    local_48[9] = '\0';
-    local_48[10] = '\0';
-    local_48[0xb] = '\0';
-    local_48[0xc] = '\0';
-    local_48[0xd] = '\0';
-    local_48[0xe] = '\0';
-    local_48[0xf] = '\0';
-    user->m_network.GetPeerIP2(local_48, 0x10);
+    // [b28e-L5] P214③/N78：ORIG 0x081ed948 函数头为 `movl $0x0,-0x44/-0x40/-0x3c/-0x38`
+   // 4×dword 常量清零（16 字节数组）⇒ 原码是 `char x[0x10] = {0};`；逐字节 16×movb
+    // 是早期 hack 写法，多 12 条指令且与 ORIG 形态不符。
+    char local_48[16] = {0};
     unsigned char local_49 = 0;
     if (packet.get_byte(local_49) != true)
     {
@@ -1951,6 +1950,7 @@ unsigned int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
     }
     if (user->get_charac_count() == 0x24)
     {
+        // [b28e-L5] P227 链式实测**无收益**（本件 diff 63→63），恢复两语句形。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x8a0, 5);
         trace("DisPatcher_CreateCharac pUser->get_charac_count() == MAX_CHARAC_SLOT false");
         return 4;
@@ -2154,6 +2154,9 @@ unsigned int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
     if (user->getCurCharacNo() != 0 &&
         user->getCurCharacNo() == user->get_charac_no(req.m_slot))
     {
+        // [b28e-L5] P227 全表达式临时链**实测劣化**（本函数 114→177 diff 行）：
+        // 本处 ORIG 的 varargs 是 ctor **后**求值（两语句形），链式反而改变装载序 ⇒
+        // 恢复两语句形（与 ORIG 0x081c1a0x 段一致）。
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0xaa4, 5);
         trace("pUser->getCurCharacNo() == recv_pk_del_charac.charac_index %d %d",
@@ -4294,6 +4297,12 @@ int DisPatcher_SelectDungeon::checkBlueMarble(CParty* party)
     {
         return 0;
     }
+    // [b28e-L5] 判据① 唯一残差：ORIG 0x081c….+0x5c 处 `je <0x5c>`（IsSinglePlay
+    // false）与 `jne <0x5c>`（getMoveSpace!=1）**两跳同落** packed-false 岛，随后
+    // `0x5c: mov $0,%eax; 0x61: test %al,%al; je <0x6c>; mov $1,%eax; jmp; 0x6c:
+    // mov $0,%eax` 为 4.1 的 bool→int 归一岛；我方该 je 直落 0x6c（4.4 直跳折叠）。
+    // 已试三目形（`return cond ? 1 : 0;`）实测 **ae -1 回退**（4.4 折成单层直跳，
+    // 丢 getManager 二次调用路径）⇒ 恢复原双层 if 形，本处记 N（4.1 归一岛不可造）。
     if (party->IsSinglePlay())
     {
         if ((party->getManager()->getMoveSpace() == 1) == true)
@@ -7429,12 +7438,14 @@ void DisPatcher_BuySkill::try_master_new_skills_process(CUser* user, char treeKi
             static_cast<int>(user->getCurCharSecondGrowType());                       // -0x34
         int firstGrow =
             static_cast<int>(user->getCurCharFirstGrowType());                        // -0x30
-        int job = user->get_charac_job();           // ORIG esi
-        int level = user->get_charac_level();       // ORIG ebx
-        SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
-        info.m_4 = skillW->try_master_new_skills(
-            static_cast<unsigned char>(info.m_0), level, job, firstGrow,
-            secondGrow, addLevel);
+        // [b28e-L5] P52/P290/P200：ORIG 0x081bfe86..0x081bfed2 把 (job→%esi,
+        // level→%ebx, (byte)info.m_0→%edi) 物化入 callee-saved 后跨
+        // getCurCharacSkillW call 保活（`push %edi/%esi/%ebx; sub $0x4c`）；拆具名
+        // job/level/skillW 局部会使 4.4 三值各占栈槽（帧 0x4c→0x58、丢三 push）。
+        // 链式单表达式的 receiver 置于末尾求值，实参位相应对齐 ORIG 装载序。
+        info.m_4 = ((SkillSlot*)(user->getCurCharacSkillW()))->try_master_new_skills(
+            static_cast<unsigned char>(info.m_0), user->get_charac_level(),
+            user->get_charac_job(), firstGrow, secondGrow, addLevel);
 }
 
 DisPatcher_IncreStatus::~DisPatcher_IncreStatus() {}
@@ -7451,13 +7462,16 @@ int DisPatcher_IncreStatus::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    short val;
-    if (!packet.get_short(val))
+    // [b28e-L5] P250：ORIG 载荷为 pack(1) 结构体局部（槽基 -0x2f、val@+0x0d，
+    // `lea -0x2f(%ebp),%eax; add $0xd,%eax` 两步取址；0x081ede5a/0x081ede7c 等多处
+    // `movzwl -0x22(%ebp),%eax` 即 m_val 重读）。
+    IncreStatusSigView sig;
+    if (!packet.get_short(sig.m_val))
     {
         return LineFunc(0x70fc, __PRETTY_FUNCTION__, 0, 0);
     }
     CItem* pItem = GlobalData::s_pSecuProtectionField->GetItemPtr(
-        user, (char)0, (short)val);
+        user, (char)0, (short)sig.m_val);
     if (pItem == 0)
     {
         return LineFunc(0x7101, __PRETTY_FUNCTION__, 0, 0);
@@ -7471,15 +7485,17 @@ int DisPatcher_IncreStatus::dispatch_sig(CUser* user, PacketBuf& packet)
             (ENUM_CMDPACKET)0x20, (unsigned char)secu, guard);
         return 0;
     }
-    if (val < 0x99)
+    if (sig.m_val < 0x99)
     {
-        user->increase_status((short)val);
+        user->increase_status((short)sig.m_val);
     }
     else
     {
-        user->UseQuestItem((int)val);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x710f, 5);
-        trace("__ USE QUEST ITEM __ %d", (int)val);
+        user->UseQuestItem((int)sig.m_val);
+        // [b28e-L5] P227 全表达式临时链（ORIG 0x081ede9x 在 C1 call 前右起求 varargs
+        // 并 `movswl %ax,%ebx` 跨 ctor 保活 ⇒ 单语句链式）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x710f, 5)("__ USE QUEST ITEM __ %d",
+                                                 (int)sig.m_val);
     }
     return 0;
 }
@@ -7945,6 +7961,12 @@ unsigned int DisPatcher_FinishLoad::check_error(CUser* user, MSG_BASE& /*msg*/)
 void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
 {   // ORIG 栈位映射：-0x40 sameIp / -0x3f multiBox / -0x3e job(sbyte) /
     // -0x3d growType / -0x50 baseIpPrefix[16] / -0x3c,-0x38,-0x34 = 技能三槽 index。
+    // -0x50：0 号成员 IP 最后一个 '.' 前缀。ORIG 函数头 4×movl $0 预清零
+    // （0x08264c3a/41/48/4f）⇒ 原码数组带 {0} 初始化；缺清零会令 strncpy
+    // 短写后残留栈垃圾（越界读隐患）。
+    // [b28e-L5] 判据⑩（声明序 = 槽由深到浅）：ORIG basePrefix@-0x50 是最深槽 ⇒
+    // 原码**最先声明**（其 4×movl $0 落在 sameIp 之前）。故声明提到 sameIp 之前。
+    char basePrefix[16] = {0};
     char sameIp = 1;
     char multiBox = 1;
     signed char jobByte = 0;
@@ -7952,10 +7974,6 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
     unsigned int skillIdx0 = 0;
     unsigned int skillIdx1 = 0;
     unsigned int skillIdx2 = 0;
-    // -0x50：0 号成员 IP 最后一个 '.' 前缀。ORIG 函数头 4×movl $0 预清零
-    // （0x08264c3a/41/48/4f）⇒ 原码数组带 {0} 初始化；缺清零会令 strncpy
-    // 短写后残留栈垃圾（越界读隐患）。
-    char basePrefix[16] = {0};
 
     CParty* party = static_cast<CParty*>(user->GetParty());   // ORIG _ZN5CUser8GetPartyEv
     if (party == 0)
@@ -10765,7 +10783,11 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             {
                 // [b28d-solo-DisPatcherCore] P211 档③：ORIG RHS-first
                 // （`mov -0x28,%edx; mov -0x30,%eax; mov %edx,0x4(%eax)`）⇒ RHS 局部异型化。
-                out.m_errNo = ret;   // [Lane5] 视图 cast 实测无效（4.4 视同为同型）⇒ 待头侧类型旋钮
+                // [b28e-L5] P211 档③ 镜像试验（RHS 侧 `(unsigned)` 转换节点）实测**无效**
+                // ——4.4 仍出 LHS-address-first `mov -0x30(%ebp),%eax; mov -0x28(%ebp),%edx`
+                // ⇒ 不改字段符号性该旋钮不生效；m_errNo 必须 signed（`<0`/`>0` 语义）
+                // 故头侧不可动，本处按 N76 封顶（ORIG RHS-first 不可造）。
+                out.m_errNo = ret;
                 out.m_8 = req.m_11;
             }
         }
@@ -11836,7 +11858,6 @@ void DisPatcher_RemoveFriend::send(CUser* user, ParamBase& param)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 44（ORIG 85 / ours 81），残差=N7/N82 帧与 callee-saved 角色/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_REMOVE_FRIEND& req = *reinterpret_cast<MSG_REMOVE_FRIEND*>(&msg);
     stRemoveFriendParam& out = static_cast<stRemoveFriendParam&>(param);
 
     out.m_errNo = check_error(user, msg);
@@ -11849,16 +11870,27 @@ int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& para
         return LineFunc(0x2141, __PRETTY_FUNCTION__, out.m_errNo, user->get_acc_id());
     }
 
+    // ORIG 0x081cb6a4：msg 指针具名局部 -0x10（在本分支内声明，非函数头）+ 每处重算
+    // `mov -0x10(%ebp),%eax; add $0x11,%eax`（strlen 与 memcpy 各一次，P183 禁缓存）；
+    // 0x081cb6d2 `mov %eax,-0xc(%ebp)` + 0x081cb6d5 回读 = strlen 结果经具名 len 槽
+    // （P197② 具名结果槽）。len 槽存在使 pkt/全部局部槽基下移 4（-0x40→-0x44）。
+    MSG_BASE* pReq = &msg;                                              // -0x10（先声明，
+                                                                        // ORIG +0x07f store
+                                                                        // 早于 pkt ctor）
     Packet_Monitor_Del_Buddy pkt;
     pkt.m_charNo = static_cast<unsigned int>(user->getCurCharacNo());   // +0x0a
     pkt.m_idByChannel = user->GetUID();                                 // +0x0e
-    // ORIG 0x081cb6xx：msg 指针具名局部（-0x10）后每处重算 `mov -0x10,%eax; add $0x11`
-    // （strlen 与 memcpy 各一次）⇒ 禁 reqName 缓存（P183），内联表达式两次。
-    memcpy(pkt.m_name, reinterpret_cast<STFriendReqView*>(&msg)->m_name,
-           strlen(reinterpret_cast<STFriendReqView*>(&msg)->m_name));   // msg+0x11
-    CMonitorServerProxy* proxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendPacket(reinterpret_cast<char*>(&pkt), pkt.packetSize);   // +0x02 长度字段(0x30)
+    // P319 试验（已回滚，实测 ae -1 回退）：整型加法 cast 形不能把这处 lea 折回转；
+    // 该处 `mov -0x10,%edx; add $0x11,%edx`（ORIG）vs `lea 0x11(%eax),%edx`（4.4）
+    // 属 P30/N4 寻址折叠族，记 N。
+    size_t len = strlen(reinterpret_cast<STFriendReqView*>(pReq)->m_name);
+    memcpy(pkt.m_name, reinterpret_cast<STFriendReqView*>(pReq)->m_name, len);
+    // [b28e-L5] P52 应用例：ORIG 0x081cb6f4 先 `movzwl -0x42(%ebp),%eax; movzwl %ax,%esi`
+    // 与 `lea -0x44(%ebp),%ebx` 把 (size, pktAddr) 物化入 callee-saved，再跨
+    // GetServerGroup→GetServerProxy 两次 call 保活，最后三压参。单条链式表达式复现
+    // （拆具名 proxy 局部会使 4.4 两语句坍缩、丢 push %esi/%ebx 与物化段）。
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(&pkt), pkt.packetSize);    // +0x02 长度字段(0x30)
     return 0;
 }
 

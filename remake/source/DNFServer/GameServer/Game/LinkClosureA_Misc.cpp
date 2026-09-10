@@ -19,6 +19,17 @@
 #include "CUser.h"            // get_acc_name
 #include "advancealtar.h"
 
+// [L32 GI 调序] ORIG `_GLOBAL__I__ZN12advancealtar7Manager12gmTimeSpeed_E`
+//   （CU=global_AdvanceAltar.cpp）⇒ 本 TU 首个强符号须为 advancealtar::Manager::gmTimeSpeed_。
+//   仅把该定义提到文件首（数值初值 1 为静态初始化，无构造序影响；P327）。
+namespace advancealtar
+{
+
+// gmTimeSpeed_ D 符号定义（ORIG .data 初值 1 实证）。
+int Manager::gmTimeSpeed_ = 1;
+
+}  // namespace advancealtar
+
 // ---- CItem::getAdvanceAltarNeedGage（ORIG W 0x081347ca 报告缺失）----------
 // ORIG 汇编（objdump 0x81347cd）：push %ebp; mov %esp,%ebp;
 // mov 0x8(%ebp),%eax; mov 0x68(%eax),%eax; pop %ebp; ret —— 直返 +0x68 字段。
@@ -75,10 +86,5 @@ char* GetUserName(IMatch* match, char* out)
 // mangled _Z23GetCurrentResetBaseTimeli 与 ORIG 一致）；本 TU 不再重复定义，
 // 避免生成 ORIG 不存在的 _Z23GetCurrentResetBaseTimeii 冗余符号。
 
-namespace advancealtar
-{
-
-// gmTimeSpeed_ D 符号定义（ORIG .data 初值 1 实证）。
-int Manager::gmTimeSpeed_ = 1;
-
-}  // namespace advancealtar
+// [L32 GI 调序] advancealtar::Manager::gmTimeSpeed_ 的定义已提到文件首（见上），
+// 原尾部的重复定义已删（同一符号仅一处定义点）。

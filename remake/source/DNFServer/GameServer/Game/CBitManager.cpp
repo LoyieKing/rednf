@@ -15,6 +15,10 @@
 // landing pad 与 -0x18(%ebp) 槽）。
 // C++98 / 32 位 / O0；字段均为具名成员，无偏移宏。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN11CBitManagerC2Ev`（ORIG 0x831c3af）。
+#include <iostream>
+
 #include "WindowsPackFiles.h"
 
 #include <cstdlib>

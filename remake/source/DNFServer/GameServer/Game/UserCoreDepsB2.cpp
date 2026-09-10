@@ -118,7 +118,10 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 
     packet.put_byte((int)(short)getTagCharacR()->m_level);   // movswl +0x27 → byte
     packet.put_byte((int)(char)getTagCharacR()->m_field26);  // movsbl +0x26
-    packet.put_byte((int)(char)getTagCharacR()->m_field29);  // movsbl +0x29
+    // [Main 2026-09-10] m_field29 已由 L31CharacPad 类型化为 STGrowthType（sizeof 1，
+    // 断言锁定）；此处 ORIG 为 `movsbl +0x29`（有符号字节读）⇒ 取首字节视角并显式
+    // 有符号转换（避免 4.4 折恒等，见判据⑤）。
+    packet.put_byte((int)(signed char)getTagCharacR()->m_field29.m_growthType);  // movsbl +0x29
 
     packet.put_byte(getCurCharacStrikerSkillIndex() & 0xff);
 

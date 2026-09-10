@@ -94,15 +94,17 @@ int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
 // rep movsl 0x11，结构整体赋值即内联该复制）。
 void CRedeemItem::getData(char* pData) const
 {
-    // [b28d-46 判词·N/N82+P83] ORIG 0x085f78bc：75 vs 74；帧/槽号平移（N82）＋
-    // 0x44 字节结构整体赋值 rep movsl（P83）⇒ 封顶。
-    char* dst = pData;
+    // [b28d-L28 round2 翻正] 旧判词「N82+P83 封顶」作废：ORIG 0x085f78d4 起对目标缓冲
+    // **每次重载形参**（`mov -0x10(%ebp),%edx; mov %eax,0x4(%edx)`，
+    // `mov -0x10(%ebp),%edx` 在每处写点重现）——我方 `char* dst = pData;` 具名局部
+    // 使 4.4 缓存到 %ebx（`lea 0x4(%eax),%ebx` 一次 + `mov %eax,(%ebx)`），
+    // 属 P183「禁指针缓存」⇒ 删缓存、逐点用形参表达式。
     std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
         m_redeemList.begin();
-    *(int*)(dst + 4) = (int)m_redeemList.size();
+    *(int*)(pData + 4) = (int)m_redeemList.size();
     int i = 0;
     for (; i <= 0x14 && it != m_redeemList.end(); ++it, ++i)
-        *(Inven_Item_Expand_RedeemInfo*)(dst + i * 0x44 + 8) = *it;
+        *(Inven_Item_Expand_RedeemInfo*)(pData + i * 0x44 + 8) = *it;
 }
 
 

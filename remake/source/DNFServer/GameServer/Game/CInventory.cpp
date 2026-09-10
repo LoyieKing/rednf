@@ -2418,6 +2418,8 @@ int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, 
         // receiver 后装载位置；比较处保持 unsigned（改 signed 比较会使装载位置回退）。
         // 残余 1 条 `cmpl $0xffffffff,-0x1c`：4.4 对局部与常量比较恒折 mem 直比
         // （P209/N18b；P286 单 case switch、P310 int+cast 两形实测均不可翻）⇒ 封顶。
+        // [实测回退] P310 形（int 局部 + 显式 (unsigned) 比较）在本件 d 3→5 **反劣**
+        // （三处 receiver 装载位置连带变差）⇒ 维持 unsigned 局部形，残余 1 条 N18b 封顶。
         unsigned int dbLogType = (unsigned int)G_CDataManager()->IsDBLogItem(item.m_addInfo);
         if (dbLogType != (unsigned int)-1)
         {
@@ -4086,6 +4088,9 @@ bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& it
         }
         else
         {
+            // [实测·b28d-tu-CInventory] type 改 enum 在本件**零效**（差异 d=3 不变；
+            // CalNeedSlot/CalBlankSlot 处有效是因那两件 type 是**块级声明+循环内赋值**）
+            // ⇒ 保留 int 形，残余 1 条装载序差记 P75。
             int type = GetItemType(itemIdx);
             if (type == 0)
             {
@@ -4247,6 +4252,8 @@ int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& ite
             inven.m_addInfo2 = count;
             pItem->make_item(inven);
             slot = insertItemIntoInventory(inven, (eItemAddReason)8, false, true);
+            // [直证 b28d-tu-CInventory] ORIG 该处为 `cmpl $0xffffffff,-0x10; je <return>`
+            // （直跳，**非** sete 物化）⇒ 保持 if 形。
             if (slot == -1)
             {
                 goto fail_return;
@@ -4259,7 +4266,10 @@ int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& ite
             {
                 pItem->make_item(inven);
                 slot = insertAvatarIntoInventory(inven, eAvatarItemAddReason_0, false);
-                if (slot == -1)
+                // [P225 复现形·定位直证] ORIG 三处 slot==-1 检查中**中间那处**
+                // （IsAvatarItem 分支，0x0850? index 204）为 `cmpl $0xffffffff,-0x10;
+                // sete %al; test %al,%al; jne` ⇒ 该处用 while 形（前后两处为直跳 je）。
+                while (slot == -1)
                 {
                     goto fail_return;
                 }
@@ -4271,6 +4281,7 @@ int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& ite
                 {
                     pItem->make_item(inven);
                     slot = insertItemIntoInventory(inven, (eItemAddReason)8, false, true);
+                    // [直证] ORIG 该处（index 259）为 `cmpl; je` 直跳 ⇒ 保持 if 形。
                     if (slot == -1)
                     {
                         break;
@@ -4501,7 +4512,9 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
     }
     if (deleteCount != (int)items.size())
     {
-        deleteCount = 0;
+        // [ORIG 0x0850? 直证] ORIG 该臂为 `je T40; mov $0x0,%eax; jmp <end>; T40:
+        // mov -0xc(%ebp),%eax`（返回常量 0，**非**先写槽再读回）⇒ 改早返回形。
+        return 0;
     }
     return deleteCount;
 }
@@ -4607,8 +4620,12 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
             m_pEquipSlot[b] = item;
             if (m_pParent != 0)
             {
+                // ORIG 0x08503fb8：`mov -0x1c(%ebp),%eax` + imul $0x3d ⇒
+                // get_add_info 的 receiver 是**具名局部 i**（循环退出值），
+                // 而 `return b`（0x08503ffa `mov 0x50(%ebp),%eax`）用形参 b。
+                // 原码此处混用 i/b（P171 照抄），改动仅此一处 receiver。
                 m_pParent->m_historyLog.ItemAdd(
-                    INVEN_TYPE_EQUIP, m_pEquipSlot[b].get_add_info(), item.get_add_info(), item,
+                    INVEN_TYPE_EQUIP, m_pEquipSlot[i].get_add_info(), item.get_add_info(), item,
                     itemReason);
             }
             return b;
@@ -4849,16 +4866,25 @@ void CInventory::CalBlankSlot(int* out,
     {
     // [P212] ORIG 0x08508536：itemIdx/count/type/start/end 在循环外声明（Ghidra local_1c/
     // local_14/local_10/local_48/local_4c 均为函数级），循环内仅赋值 ⇒ 提升后槽集对齐。
-    int itemIdx;
-    unsigned int count;
-    int type;
     int start;
     int end;
+    // [判据⑩ 实测] ORIG 0x08508536 槽深序（深→浅）= found(-0x1d) / itemIdx(-0x1c) /
+    // i(-0x18) / count(-0x14) / cnt(-0x10) / type(-0x0c)，start/end 最深(-0x48/-0x4c)
+    // ⇒ 声明序照此排（§ 判据⑩：声明序 = 槽由深到浅）。原声明序 itemIdx/count/type/
+    // i/cnt/found 使六个槽各自错位。
+    bool found;
+    int itemIdx;
+    int i;
+    unsigned int count;
+    unsigned int cnt;
+    // [CalNeedSlot 同法实证] type 声明为 enum ⇒ StartEndPos 实参复现 ORIG 的 %eax 串行装载。
+    Inven_Item::ITEM_TYPE type;
     typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
     Iterator it = items.begin();
     std::pair<int, int> cur;
     while (it != items.end())
     {
+        found = false;   // ORIG 循环体首 `movb $0x0,-0x19`（每轮重置 local_21）
         cur = std::pair<int, int>(*it);
         itemIdx = cur.first;
         // [P196/P218] ORIG 0x085086a7 比较 `mov -0xc; cmp -0x10; jae`（无符号）⇒ count/found
@@ -4869,41 +4895,43 @@ void CInventory::CalBlankSlot(int* out,
             it++;
             continue;
         }
-        type = GetItemType(itemIdx);
+        type = (Inven_Item::ITEM_TYPE)GetItemType(itemIdx);
         if (type == 0)
         {
             it++;
             continue;
         }
-        start = 0;
-        end = 0;
+        // [P171 照抄] ORIG 0x08508536 在 StartEndPos 前**无** start/end 清零
+        // （直证：`jmp`→`lea &end`→`mov 0xc(%esp)`→`lea &start`→`mov 0x8(%esp)`，
+        // 无 `movl $0x0`）⇒ 我方原两句清零为多发，删除。
         StartEndPos((Inven_Item::ITEM_TYPE)type, start, end);
         if (type == 1)
         {
-            unsigned int found = 0;
-            for (int i = start; i <= end; i++)
+            cnt = 0;
+            for (i = start; i <= end; i++)
             {
                 if (m_pEquipSlot[i].m_addInfo == itemIdx)
                 {
-                    found++;
-                    // [b28d-36 复测] 改 `out[type]++`（变量索引）实测 nd 256→325 反劣 ⇒ 回滚；
-                    // 本处保留 out[1]（ORIG 0x08508671 段的索引形与实测最优形一致）。
-                    out[1]++;
-                    if (found == count)
+                    cnt++;
+                    // [b28d-tu-CInventory 复测] ORIG 0x08508671 段直证为 `mov slot,%eax;
+                    // shl $0x2,%eax; add 0xc(%ebp),%eax` = **变量**索引 out[type]（常量
+                    // out[1] 在 4.4 恒折 `mov out,%eax; add $0x4,%eax`，多失配）⇒ 改回变量形。
+                    out[type]++;
+                    if (cnt == count)
                     {
                         break;
                     }
                 }
             }
-            if (found < count)
+            if (cnt < count)
             {
-                for (int i = 3; i < 9; i++)
+                for (i = 3; i < 9; i++)
                 {
                     if (m_pEquipSlot[i].m_addInfo == itemIdx)
                     {
-                        found++;
+                        cnt++;
                         out[0]++;
-                        if (found == count)
+                        if (cnt == count)
                         {
                             break;
                         }
@@ -4913,18 +4941,21 @@ void CInventory::CalBlankSlot(int* out,
         }
         else
         {
+            // [ORIG 0x08508703 直证] 分支序 = `call IsCreatureItemType; test; je <非creature>`
+            // ⇒ **creature 在前**（Ghidra C 显示为 `!IsCreatureItemType` 是其自身 if 反转）；
+            // 内层 `call isEquipableItemType; test; je <非装备>` ⇒ 装备分支在前。
             if (IsCreatureItemType(type))
             {
                 if (isEquipableItemType(type))
                 {
-                    unsigned int found = 0;   // [P196] 同 type==1 分支：ORIG 无符号比较
-                    for (int i = start; i <= end; i++)
+                    cnt = 0;
+                    for (i = start; i <= end; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx)
                         {
-                            found++;
+                            cnt++;
                             out[type]++;
-                            if (found == count)
+                            if (cnt == count)
                             {
                                 break;
                             }
@@ -4933,37 +4964,20 @@ void CInventory::CalBlankSlot(int* out,
                 }
                 else
                 {
-                    bool found = false;
-                    for (int i = start; i <= end; i++)
+                    for (i = start; i <= end; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx &&
                             (unsigned int)m_pEquipSlot[i].m_addInfo2 == (unsigned int)count)
                         {
-                            found = true;
                             out[type]++;
                             break;
-                        }
-                    }
-                    if (!found)
-                    {
-                        for (int i = 3; i < 9; i++)
-                        {
-                            if (m_pEquipSlot[i].m_addInfo == itemIdx &&
-                                (unsigned int)m_pEquipSlot[i].m_addInfo2 == (unsigned int)count)
-                            {
-                                // [b28d-36 复测] 改 out[type] 实测 nd 256→326 反劣（本处确为
-                                // ORIG 0x085088a3 base 直取形 out[0]）⇒ 回滚保留。
-                                out[0]++;
-                                break;
-                            }
                         }
                     }
                 }
             }
             else
             {
-                bool found = false;
-                for (int i = start; i <= end; i++)
+                for (i = start; i <= end; i++)
                 {
                     if (m_pEquipSlot[i].m_addInfo == itemIdx &&
                         (unsigned int)m_pEquipSlot[i].m_addInfo2 == (unsigned int)count)
@@ -4975,11 +4989,13 @@ void CInventory::CalBlankSlot(int* out,
                 }
                 if (!found)
                 {
-                    for (int i = 3; i < 9; i++)
+                    for (i = 3; i < 9; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx &&
                             (unsigned int)m_pEquipSlot[i].m_addInfo2 == (unsigned int)count)
                         {
+                            // [b28d-36 复测] 改 out[type] 实测 nd 256→326 反劣（本处确为
+                            // ORIG 0x085088a3 base 直取形 out[0]）⇒ 回滚保留。
                             out[0]++;
                             break;
                         }
@@ -5028,7 +5044,10 @@ void CInventory::CalNeedSlot(int* out,
             it++;
             continue;
         }
-        int type = GetItemType(itemIdx);
+        // [GetInvenData 实证·P211 档①] type 声明为 enum ⇒ 复现 ORIG StartEndPos 实参的
+        // %eax 串行装载（`lea end;mov 0xc(%esp);lea start;mov 0x8(%esp);mov type,%eax;mov 0x4(%esp)`）；
+        // int 局部时 4.4 提前载 type 并使两个 lea 走 %edx。ORIG 0x08508? 直证。
+        Inven_Item::ITEM_TYPE type = (Inven_Item::ITEM_TYPE)GetItemType(itemIdx);
         if (type == 0)
         {
             it++;
@@ -5083,7 +5102,8 @@ void CInventory::CalNeedSlot(int* out,
                 }
                 if (!found)
                 {
-                    for (int i = 3; i < 9; i++)
+                    // [判据·P212] ORIG 全函数仅一个循环下标槽（local_18）⇒ 内层循环复用块级 i。
+                    for (i = 3; i < 9; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx)
                         {
@@ -7030,11 +7050,11 @@ void CInventory::SendItemLockList(const Inven_Item* items, int count,
         if (items[i].m_amp.GetLock() != 0) {
             ((InterfacePacketBuf*)&packet)->put_byte((int)space);
             ((InterfacePacketBuf*)&packet)->put_short(i);
-            CExpandEquipslot* expand = m_pParent->GetCharacExpandDataR(
-                (ENUM_CHARAC_EXPAND_TYPE)2);
-            reinterpret_cast<const item_lock::CItemLock*>(expand)
-                ->MakeItemLockPacket(packet,
-                                     (unsigned char)items[i].m_amp.GetLock());
+            // [P0/P183 删具名局部] ORIG 无 expand 槽：call GetCharacExpandDataR 的结果
+            // 直接作 receiver（`mov %ebx,0x8(%esp)` 传锁值，无 -0xNN 往返）⇒ 单条链式表达式。
+            reinterpret_cast<const item_lock::CItemLock*>(
+                m_pParent->GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2))
+                ->MakeItemLockPacket(packet, (unsigned char)items[i].m_amp.GetLock());
             ++cnt;
         }
     }

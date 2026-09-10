@@ -1,5 +1,9 @@
 // df_game_r 每日币事件 CCoinEventPerDay 实现。
 // 报告：docs/class_func_reports/CCoinEventPerDay/（7 函数全读）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN16CCoinEventPerDayC2Ev`（ORIG 0x810ad89）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CCoinEventPerDay.h"
 
 #include "GameTypes.h"             // cMyTrace

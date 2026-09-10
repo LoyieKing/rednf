@@ -1,3 +1,8 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN14CEventStayTime12kRewardItem_E`（ORIG 0x816c118）；
+// 类静态 kRewardItem_ 定义（R 型、外部链接）已是本 TU 首强符号。
+#include <iostream>
+
 #include "CEventStayTime.h"
 #include "CStreamGuard.h"
 #include "GlobalData.h"

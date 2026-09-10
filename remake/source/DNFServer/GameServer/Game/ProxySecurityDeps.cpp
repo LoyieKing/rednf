@@ -70,14 +70,17 @@ bool getSha256UsingSalt(const unsigned char* src, int len, char* out)
     salt[2] = 's';
     salt[3] = '\0';
 
-    unsigned char* buf = new unsigned char[len + 4];      // ORIG _Znaj
-    memset(buf, 0, len + 4);
+    // [L16 本轮] ORIG 全函数 call 多重集无 memset（p167：我方 EXTRA +1 memset）
+    // ⇒ 原码是 value-init 清零（P90/P318）：`new T[n]()`。
+    unsigned char* buf = new unsigned char[len + 4]();    // ORIG _Znaj + 内联清零
     strcpy(reinterpret_cast<char*>(buf),
            reinterpret_cast<const char*>(src));
     strcat(reinterpret_cast<char*>(buf),
            reinterpret_cast<const char*>(salt));
 
-    unsigned char digest[0x20];                   // ORIG -0x48 零初始化展开
+    // [L16 本轮] p167 精确对齐：ORIG call 多重集含 **1 次 memset**（给 digest）；
+    // buf 的清零则是内联（无 memset call）⇒ 本处保留 memset 调用形。
+    unsigned char digest[0x20];                   // ORIG -0x48
     memset(digest, 0, sizeof(digest));
 
     IChecksum* checksum = CreateCryptoChecksum((CRYPTO_CHECKSUM_TYPE)1);

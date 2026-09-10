@@ -2,6 +2,10 @@
 //
 // 依据 docs/class_func_reports/ARAD__Arad_StatisticsEventItemList/*（ORIG elf32 反汇编
 // + Ghidra C）。loadScriptData 为固定 30 个物品索引的 push_back 序列，逐项忠实转写。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN4ARAD28Arad_StatisticsEventItemListC2Ev`（ORIG 0x819d16f）；ctor 已是首强符号。
+#include <iostream>
+
 #include "Arad_StatisticsEventItemList.h"
 
 #include <algorithm>

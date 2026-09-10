@@ -31,8 +31,11 @@ class Comment;
 
 
 // 定义于 STScriptFileList.cpp（ORIG T 0x088bbd77）。
-int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* unused);
+// [L10-2] P292/档①：ORIG 调用点 0x088bffdc `xor $0x1,%eax; test %al,%al; je`
+// ⇒ 该 callee 实为 bool（int 声明会产 `test%eax; sete%al`）。返回类型不入
+// mangled/布局；定义宿主 STScriptFileList.cpp 应同步（已上报 Main）。
+bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* unused);
 
 // R3 迁移（Main 批准）：以下两 static 原宿主 OnlyOrigBatch12/14.cpp（占位），
 // ORIG host 属 RDARScript.cpp 域，正位本 TU。
@@ -373,22 +376,21 @@ bool InitRDARScriptStringManager(const char* dir, const char* file,
     // 0x086d2cd8）存槽 -0x14；循环 i<size、name 经 STScriptFileList::
     // GetFileName(i)（0x088bad4e，0x088c0044 call）取，索引 i 同时是
     // loadStringFile 的 table 形参（-0x10 槽）。
-    STScriptFileList* fileList =
-        static_cast<STScriptFileList*>(g_scriptStringManager_.getStringFileList());
-    int count = static_cast<int>(fileList->m_fileMap.size());
+    // [L10-2] P183/P0：ORIG 0x088c0012 `call getStringFileList; mov %eax,(%esp);
+    // call size()`（无具名 fileList 槽往返）⇒ 内联，省 -0x18 槽。
+    int count = static_cast<int>(static_cast<STScriptFileList*>(
+        g_scriptStringManager_.getStringFileList())->m_fileMap.size());
     for (int table = 0; table < count; ++table)
     {
         const char* name = static_cast<STScriptFileList*>(
             g_scriptStringManager_.getStringFileList())->GetFileName(table);
         DNFLex::stream_data_t stream;
-        if (loadStream(file, name, &stream))
-        {
-            std::istream* in = static_cast<std::istream*>(stream.stream);
-            bool ok = g_scriptStringManager_.loadStringFile(in, name, table, err);
-            allOk = ok && allOk;
-            stream.destroy();
-        }
-        else
+        // [L10-2] 判据①/档①：ORIG 0x088c0065 `call *%eax; xor $0x1,%eax; test
+        // %al,%al; je <成功路径>` ⇒ 负向判定（bool callee），失败路径直落；
+        // 且成功路径 allOk 物化为 `movzbl %al,%eax; and %ebx,%eax; test; setne
+        // %al; mov %al,-0x15`（0x088c0109..0x088c0113）= 单表达式 `f() && allOk`，
+        // 无具名 ok 局部、无具名 istream* in（ORIG 直接读 stream 首字段）。
+        if (!loadStream(file, name, &stream))
         {
             allOk = false;
             if (err != 0)
@@ -398,6 +400,15 @@ bool InitRDARScriptStringManager(const char* dir, const char* file,
                 entry.m_message = name;
                 err->push_back(entry);
             }
+        }
+        else
+        {
+            // [L10-2] ORIG 0x088c0109 段无短路分支，直接
+            // `movzbl %al,%eax; and %ebx,%eax; test; setne %al; mov %al,-0x15`
+            //（allOk 先入 %ebx 跨 call 保活）⇒ 原码为按位与物化（非短路 &&）。
+            allOk = allOk & g_scriptStringManager_.loadStringFile(
+                                 static_cast<std::istream*>(stream.stream), name, table, err);
+            stream.destroy();
         }
     }
     return allOk;

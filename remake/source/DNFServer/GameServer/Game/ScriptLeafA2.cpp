@@ -106,16 +106,31 @@ int convertTabTypeStringToEnum(const char* text)
     //   已修：①insert 实参改 map::value_type 直构（P315）→ p167 CLEAR（29=29）；
     //   ②迭代器改 `!= end`（ORIG operator!=）；③__inited 改 bool + `!` 极性复现
     //   ORIG `movzbl;xor $1;test;je`（P168a/N122）。帧 sub $0x8c 与 ORIG 全等。
-    //   残余 = 4.1/4.4 的 return 岛物理位置（P47/P59 族，ours 241 vs orig 225
-    //   insn）⇒ N 封顶；语义等价（p167 CLEAR）。
+    //   本波（fresh）再修三处极性/布局（P292/P222/P59 族，ORIG 0x08aa7d98）：
+    //   ① 头段 ORIG 为 **正极性直测** `movzbl __inited; test; je <lock 段>`
+    //      ⇒ 源码写 `if (__inited) {find} else {lock}`（then=find 落 fall-through，
+    //      lock 段在后），消去 4.4 对 `!` 的 `xor $1` 并翻正块序；
+    //   ② 尾段 ORIG 为 `movzbl; xor $1; test; je <nop;mov $4>` ⇒ 源码写
+    //      `if (!__inited) {leave; __inited=1; continue;} return 4;`（leave 段
+    //      fall-through、return 4 在 else 后）；
+    //   ③ `int ret = 0;` → `int ret;`（ORIG 函数头无 `movl $0,-0x1c` 初始化，
+    //      仅 else 段赋值 ret=0，P197③ 两段式）。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
 
-    int ret = 0;
+    int ret;
     for (;;)
     {
-        if (!__inited)
+        // ① 正极性：`if (__inited)` 直测（4.4 对 bool 局部 `!` 恒 xor，N122）
+        if (__inited)
+        {
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(text);
+            // ORIG 0x08aa7ea7 段调 operator!=（非 ==，p167 EXTRA ==/MISSING !=）。
+            ret = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
             if (__inited)
@@ -124,13 +139,6 @@ int convertTabTypeStringToEnum(const char* text)
                 continue;
             }
             ret = 0;
-        }
-        else
-        {
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(text);
-            // ORIG 0x08aa7ea7 段调 operator!=（非 ==，p167 EXTRA ==/MISSING !=）。
-            ret = (it != __lookup.end()) ? it->second : -1;
         }
 
         switch (ret)
@@ -181,13 +189,18 @@ int convertTabTypeStringToEnum(const char* text)
             }
         }
 
-        if (__inited)
+        // ② 尾段固定形：`!__inited` ⇒ leave+置位+回跳落 fall-through，
+        //    `return 4` 走 else 后的尾岛（ORIG 0x08aa80d9 段 `xor $1; test;
+        //    je <nop;mov $4>`）。
+        if (!__inited)
         {
-            return 4;
+            __init_lock.leave();
+            __inited = 1;
+            continue;
         }
-        __init_lock.leave();
-        __inited = 1;
+        break;      // 未命中：落到函数尾的单一 return（4.4 尾块 fall-through）
     }
+    return 4;
 }
 
 
@@ -326,6 +339,9 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
             for (;;)
             {
                 std::vector<stNPCCommonData_t::stOneBuff_t> buffs;
+                // [本波实测] 槽序反转律在本块**无效**：把 `int first;` 提前到
+                // buffs 之前重编后，first 仍落 -0x1c（ORIG -0x48），帧/计数零变化
+                // ⇒ 块内标量+类对象混合区归 N98（4.4 按首次使用序）域，声明序不可翻。
                 int first = ScanInt(&ok);
                 if (!ok)
                 {
@@ -394,8 +410,12 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
     //   已修：①4 处 token 比较改「字面量在左」复现 operator==(char const*, string)
     //   （P196 族，原 4×EXTRA 反向）；②[choose part] 去 entry 引用缓存、循环内
     //   重写 reg.m_map0[part].m_vec8（P157/P183，补回 1×operator[]）。
+    //   [本波实测] 循环头改 `for(;;){ if(!ScanType(...)) break; }` 复现 ORIG
+    //   0x08a7e673 的 `xor $1; test; jne`：**实测劣化**（我方 raw 300→301、
+    //   OURS-only 增 setl/je、ORIG-only jl 丢失）⇒ 已回滚。ORIG 的 jne 远跳
+    //   （exit 在函数尾 0x3ba）+ 4.4 恒 `je <body>` 短跳，方向不可选择 ⇒ N。
     //   残余 = 局部槽基差（ORIG token@-0x2c/s@-0x30/ok@-0x31/part@-0x38 与我方
-    //   -0x28/-0x2c/-0x2d/-0x34 整体浅 4）+ 容器实例化族（N89）；语义等价。
+    //   -0x24/-0x28/-0x29/-0x30 整体浅 8，帧同 0x60 ⇒ N126 版本首槽基址常数）；
     if (!loadRDARScriptFile("", path))
     {
         return 0;
@@ -505,8 +525,13 @@ bool StrikerScript::importScript(const char* path)
     //   [striker skill macro]（0x08a9e2e8）；②[striker skill] 还原 5 个具名 int
     //   局部 a..e（ORIG -0x30..-0x20，0x08a9e129..0x08a9e198 先取值后逐字段拷进
     //   skill，帧差 0x10 的来源）。
-    //   读数（本波 fresh）：gap 21→10（ORIG 497 vs 我方 487）；残余 = 帧/槽形差
-    //   （ORIG 帧 0x8c vs 我方，N82）；语义等价。
+    //   读数（本波 fresh）：orig 490 / our 487（gap 21→10→3），ndiff 60→57。
+    //   残余 = ①ORIG-only {xor:4, je:3} vs OURS {jne:3}：ORIG 0x08a9e040
+    //   `xor $1; test %al,%al; je <body>` 为 4.1 对 `while(ScanInt(&num))`/`if(!ok)`
+    //   的跨版本 bool 归一化（4.4 恒折 `test;jne` 顶掉 xor）⇒ Main 已定 N 族
+    //   （P292/P168a③，勿恋战）；②OURS {movzwl:2, shl:1, or:1} = [striker skill]
+    //   key 打包 `(ushort)a | (uint)(ushort)b<<16` 的零扩展链（ORIG 用形参槽直读）。
+    //   语义等价（p167 CLEAR 87=87）。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -515,7 +540,9 @@ bool StrikerScript::importScript(const char* path)
     std::string token;
     std::string s;
     bool ok = false;
-    int num;                                        // ORIG -0x48：多分支复用（P171 死写入照抄）
+    // ORIG 0x08a9dde5 段：`movb $0x0,-0x41(%ebp)`（ok 预清）后紧跟
+    // `movl $0x0,-0x48(%ebp)`（num 预清）⇒ 两句式带初值（P198①）。
+    int num = 0;                                    // ORIG -0x48：多分支复用（P171 死写入照抄）
 
     while (ScanType(token, true))
     {
@@ -736,9 +763,14 @@ bool StageMapList::loadList()
     //   operator->/operator++(int)，P28 后置 ++）+ ORIG 的容器引用缓存（Ghidra C
     //   `local_20 = local_20 + 0x20`）+ 尾循环条件/体内各调 summaries.size()
     //   （ORIG 三处调用点）⇒ 本件 +18 AE。
-    //   读数（本波 fresh）：gap 3（ORIG 356 vs 我方 353），帧 ORIG 0xf0 vs 我方 0xe0
-    //   （块内局部未提函数头，ORIG -0x2c/-0x24/-0x20/-0x1c/-0x18/-0x14/-0x10 为
-    //   函数级槽）；p167 CLEAR；语义等价 ⇒ N82 封顶。
+    //   [本波实测·三形均未翻正，判 N] ORIG 0x08364875 `movl $0x0,-0x28(%ebp)`
+    //   （预清）→ 0x083648b3 `mov %eax,-0x28`（= it->second.c_str()）→ 0x083648b6
+    //   `cmpl $0x0,-0x28; je`（判空 break）⇒ 原码是函数级具名 `const char* name`。
+    //   实测三形：(a) 循环内 `const char* name = c_str()`（现状）gap 3 / ndiff 359；
+    //   (b) 补 `int ok = 0;` 两句式 gap 1 / ndiff 57；(c) 函数级
+    //   `const char* name = 0;`+循环内赋值 gap 2 / ndiff 360。三形均为 DIFF（分类
+    //   不变），且 (c) 反而劣化 ⇒ 帧差（我方 0xe0 vs ORIG 0xf0，判据⑪ 整帧平移，
+    //   N126）非声明序可修；恢复语义最干净形。ORIG 0x0836485c，p167 CLEAR 55=55。
     std::vector<_StageMapSummary> summaries;
 
     for (std::map<int, std::string>::iterator it =

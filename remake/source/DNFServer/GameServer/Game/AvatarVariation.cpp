@@ -1,6 +1,10 @@
 // AvatarVariation 域实现 —— ORIG 0x088d43f0..0x088d495b 转写。
 // 类型权威定义见 CDataManager.h（namespace AvatarVariation）；声明见 AvatarVariation.h。
 // importAvatarColorVariation（ORIG 0x088d444f）定义于 InitScriptProducers_8.cpp。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN15AvatarVariation8colorRGBC2Ev`（ORIG 0x88d499c）；首强符号 = colorRGB ctor。
+#include <iostream>
+
 #include "CDataManager.h"
 #include "AvatarVariation.h"
 

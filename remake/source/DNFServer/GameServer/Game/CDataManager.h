@@ -1316,12 +1316,20 @@ public:
     // ORIG D1 0x837c938：+0x08 map<int,pair<int,int>> +0x20
     // multimap<int,stConditionEventRewardInfo> +0x38
     // multimap<int,stConditionEventRewardInfo>，sizeof 0x50
-    int m_field0;                                      // +0x00
+    // [L16 2026-09-10] P235 同址 union 双视角：ORIG importConditionEventScript
+    // 0x0890e8xx `mov v,%edx; mov out,%eax; mov %edx,(%eax)`（RHS-first，P211 档③）。
+    union {
+        int m_field0;                                  // +0x00
+        unsigned int m_field0U;                        // +0x00 同址 unsigned 视角（[L16]）
+    };
     int m_field4;                                      // +0x04
     std::map<int, std::pair<int, int> > m_map8;        // +0x08
     std::multimap<int, stConditionEventRewardInfo> m_multiMap20;  // +0x20
     std::multimap<int, stConditionEventRewardInfo> m_multiMap38;  // +0x38
 };
+
+static_assert(sizeof(stConditionEventInfo) == 0x50, "[L16] stConditionEventInfo sizeof 锁");
+static_assert(offsetof(stConditionEventInfo, m_field0U) == 0x00, "[L16] offsetof");
 
 class ConditionLevelChkDungeon
 {
@@ -1604,14 +1612,32 @@ struct stDeathTower_t
     // 字段语义 = importDeathTowerScript（ORIG T 0x089089f3）脚本节名：
     float m_apcExpWeight;                  // +0x000（[apc exp weight] fstps 实证为 float）
     float m_rewardExpWeight[200];          // +0x004（[reward exp weight]，脚本下标从 1 起）
-    int   m_rewardCardNum[200];            // +0x324（[reward card num]，下标从 1 起）
+    // [L16 2026-09-10] P235 同址 union 双视角：ORIG importDeathTowerScript
+    // 0x08908b06 / 0x08908ba8 的 store 为 `mov %eax,%edx; mov this,%eax; mov %edx,(%eax)`
+    // （RHS-first + 中转 = 字段与 RHS 符号性异型，P211 档③）⇒ 原名 int 保留给既有
+    // 消费点，新增 unsigned 视角供脚本装载点使用。sizeof/偏移/mangled 零变化。
+    union {
+        int   m_rewardCardNum[200];            // +0x324（[reward card num]，下标从 1 起）
+        unsigned int m_rewardCardNumU[200];    // +0x324 同址 unsigned 视角（[L16]）
+    };
     float m_illusionRewardExpWeight[200];  // +0x644（[illusion reward exp weight]）
-    int   m_illusionRewardCardNum[200];    // +0x964（[illusion reward card num]）
+    union {
+        int   m_illusionRewardCardNum[200];        // +0x964（[illusion reward card num]）
+        unsigned int m_illusionRewardCardNumU[200];// +0x964 同址 unsigned 视角（[L16]）
+    };
     float m_monsterExpWeight;              // +0xc84（[monster exp weight] fstps 实证为 float）
-    int   m_rewardItemProb[3];             // +0xc88..+0xc93（[reward item prob] 三级累计：
-                                           //   [0]=v1、[1]=[0]+v2、[2]=[1]+v3；ORIG memset 区）
+    union {
+        int   m_rewardItemProb[3];             // +0xc88..+0xc93（[reward item prob] 三级累计：
+                                               //   [0]=v1、[1]=[0]+v2、[2]=[1]+v3；ORIG memset 区）
+        unsigned int m_rewardItemProbU[3];     // +0xc88 同址 unsigned 视角（[L16]）
+    };
     float m_rewardGoldWeight;              // +0xc94（[reward gold weight]，ctor 置 1.0f）
 };
+
+static_assert(sizeof(stDeathTower_t) == 0xc98, "[L16] stDeathTower_t sizeof 锁");
+static_assert(offsetof(stDeathTower_t, m_rewardCardNumU) == 0x324, "[L16] offsetof");
+static_assert(offsetof(stDeathTower_t, m_illusionRewardCardNumU) == 0x964, "[L16] offsetof");
+static_assert(offsetof(stDeathTower_t, m_rewardItemProbU) == 0xc88, "[L16] offsetof");
 
 struct stBloodDungeon_t
 {

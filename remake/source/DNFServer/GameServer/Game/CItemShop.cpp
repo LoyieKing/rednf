@@ -51,12 +51,16 @@ extern CSystemTime s_systemTime_;
 
 // ---- 跨类符号（ORIG 真实符号） ----
 
-STScriptFileList g_itemShopScriptFileList;  // ORIG 全局（0x94fe260），原 GameStubs.cpp 定义迁移
-
+// [L32 GI 调序] ORIG `_GLOBAL__I_g_itemShopScriptBaseDirectory`（CU=RDARScriptItemShop.cpp）
+//   ⇒ 本 TU 首个强符号须为 g_itemShopScriptBaseDirectory。仅交换两块定义的先后：
+//   零语义/零布局改动（g_itemShopScriptFileList 仍是本 TU 唯一动态初始化对象，
+//   相对构造序不变，P327）。
 // ORIG g_itemShopScriptBaseDirectory（B 0x094fe160[0x100]）：脚本目录全局
 // 缓冲（initItemShopScript 0x89dc4f8 填充；本 TU 提供符号，空目录等价
 // loadRDARScriptFile("", path)）。nm 权威名见 InitScriptProducers_5.cpp。
 char g_itemShopScriptBaseDirectory[0x100];
+
+STScriptFileList g_itemShopScriptFileList;  // ORIG 全局（0x94fe260），原 GameStubs.cpp 定义迁移
 
 // [b28d-38b] 返回类型 bool：ORIG loadItemShopFiles 0x08512b33 调用点
 // `xor $0x1,%eax; test %al,%al; je`（P292：无 setcc ⇒ bool；原 int 生 test+sete）。

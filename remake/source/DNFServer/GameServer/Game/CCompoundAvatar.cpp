@@ -13,6 +13,12 @@
 //                          LoadScript T 0x08333ea6
 // importCompoundAvatarTable(T 0x08903ea7) 仅声明——定义归脚本导入域批次。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN8WongWork15CCompoundAvatarC2Ev`（ORIG 0x8334202）；本 TU 前面的
+// STAncientRareAvatarCube/tagCompoundAvatar*/tagCompoundAvatarTable 定义均为 W 弱符号，
+// 不参与键名（P327），WongWork::CCompoundAvatar C1 即首个强符号。
+#include <iostream>
+
 #include "CCompoundAvatar.h"
 #include "PvPTypes.h"      // CMTRand 完整类型（0x9c8）
 

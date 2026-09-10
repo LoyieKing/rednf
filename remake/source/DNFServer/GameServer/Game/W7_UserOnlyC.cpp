@@ -102,10 +102,9 @@ struct HeaderChecksumIntView
 // ---- CPacketTimeChecker（ORIG W 0x8696d5c reset / 0x8696d74 check）----
 // ============================================================================
 
-int CPacketTimeChecker::validCount_ = 100;     // D 0x093ace48
-int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
-// reset/check 定义迁至 CUser.cpp（unit-at-a-time outgoing 塌缩修复）。
-
+// [L32 GI 调序] ORIG `_GLOBAL__I__ZN15CPacketVerifier13m_nVaridCountE`（CU=user.cpp）
+//   ⇒ 本 TU 首个强符号须为 CPacketVerifier::m_nVaridCount。两组 int 静态定义互换先后，
+//   零语义/零布局改动（皆为静态初始化 POD，不产生构造序）。
 // ============================================================================
 // ---- CPacketVerifier（ORIG 0x8696fe0 C1 / 0x8696de4 Init / 0x8696e58
 //      UpdatePacket / 0x8696e48 GetSequence）----
@@ -115,6 +114,10 @@ int CPacketVerifier::m_nVaridCount = 5;         // D 0x093ace38
 int CPacketVerifier::m_nVaridSecond = 1;        // D 0x093ace3c
 int CPacketVerifier::m_nAuctionVaridCount = 6;  // D 0x093ace40
 int CPacketVerifier::m_nAuctionVaridSecond = 1; // D 0x093ace44
+
+int CPacketTimeChecker::validCount_ = 100;     // D 0x093ace48
+int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
+// reset/check 定义迁至 CUser.cpp（unit-at-a-time outgoing 塌缩修复）。
 
 CPacketVerifier::CPacketVerifier()
 {

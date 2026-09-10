@@ -504,6 +504,10 @@ bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
         {
             break;
         }
+        // [L13-b14 复核·N122 复证] ORIG 0x88bdd7x 段 `cmpb $0x0,-0x2c(%ebp); je`
+        // （内存直测 2 条）；我方 `if (!x)` 产 movzbl+xor$1+test+je（4 条）。
+        // 本波实测 `== 0` 形与 `!x` **逐条同形**（xor 物化不变）⇒ 维持 N122 封顶，
+        // 回滚试验形（语义等价，不留无收益改写）。
         if (!ignoreUnknown)
         {
             LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x746,
@@ -585,9 +589,14 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
 {
     // ok2 无初始化式（ScanTypeOrInt 写入后即读）；ORIG 预清仅两条
     // （`movb $0,-0xe; movb $0,-0xf`）。声明序三形实测见函数头判词。
-    bool ok2;
-    bool unusedFlag = false;
+    // [L13-b14 判据⑩ 槽序反转律试验] ORIG 槽深→浅 = ok1(-0xf)/unusedFlag(-0xe)/
+    // ok2(-0xd)/v(-0xc)；按「深=先声明」把 ok1 提到声明序首位（形 A：123=123，
+    // info/s 槽 -0x20/-0x24 与 ORIG 一致）。形 B（v 提前）实测 info/s 整体下移 4
+    // （-0x24/-0x28）⇒ 回滚。残余 = 4.4 对 int(v)/bool 分组方向与 4.1 相反
+    // （v 恒最深 -0x10 vs ORIG -0xc）⇒ N82/N126 版本槽基差封顶。
     bool ok1 = false;
+    bool unusedFlag = false;
+    bool ok2;
     int v;
     RewardItemInfo info;
     std::string s;
@@ -596,6 +605,11 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
         v = ScanTypeOrInt(ok1, s, ok2, 1);
         if (ok1)
         {
+            // [L13-b14 判据 P47/P222 试验·回滚] ORIG 形 `test %al,%al; jne <岛>` +
+            // fall-through `mov $0x0,%ebx`（false 紧接）。实测：`!=` 形（本形）得
+            // `je <T>` + false 紧接 = **逐条最优**（ae 800 / 123=123）；`==` 正向
+            // if-return 形仍产 `je` 且把 true 块前置（ae 799，净 −1）⇒ 回滚本形。
+            // 残余 = 块序极性（P47 跨版本）+ bool/v 槽基（N82/N126）⇒ N 封顶。
             if (s != token)
                 return false;
             return true;

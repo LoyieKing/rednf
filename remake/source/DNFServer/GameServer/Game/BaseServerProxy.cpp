@@ -1,6 +1,10 @@
 #include "LogManager.h"
 // df_game_r 还原 —— BaseServerProxy（E1 批次）。
 // 参照 docs/class_func_reports/BaseServerProxy.md。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN15BaseServerProxyC2EPciS0_`（ORIG 0x82fdd4f）；ctor 已是首强符号。
+#include <iostream>
+
 #include "BaseServerProxy.h"
 
 #include <errno.h>

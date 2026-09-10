@@ -6,6 +6,10 @@
 //   StartEvent(Word_Param) 0x081a0f8a / EndEvent 0x081a0fbe。
 // 布局（权威头）：CEventBase 基区 + int m_field0c@+0x0c + int m_field10@+0x10
 //   （ctor 双双置 -1）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN17CAradRyosikaEventC2Ev`（ORIG 0x81a1139）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CAradRyosikaEvent.h"
 
 #include "GameTypes.h"   // cMyTrace

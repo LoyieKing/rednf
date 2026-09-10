@@ -165,6 +165,10 @@ bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(
         return true;
     int killTeam1 = 0;
     int killTeam2 = 0;
+    // [本波] ORIG 0x085df126 序言发三个零初始化 `movl $0x0,-0x18/-0x14/-0x10`
+    // ⇒ maxKill 是**函数级具名 int（带 0 初值）**，三目赋值降为循环后的独立语句
+    // （P28/P212 槽序：killTeam1 -0x18 → killTeam2 -0x14 → maxKill -0x10 → i -0xc）。
+    int maxKill = 0;
     for (int i = 0; i <= 7; ++i)
     {
         if (users[i] != 0 || m_killCount[i] != 0)
@@ -182,17 +186,28 @@ bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(
                     i, (unsigned int)teamWin[i]);
         }
     }
-    int maxKill = killTeam1 > killTeam2 ? killTeam1 : killTeam2;
+    maxKill = killTeam1 > killTeam2 ? killTeam1 : killTeam2;
+    // [本波·P56] ORIG 各 case 为 `cmpl $N,-0x10; jle <尾岛 mov $0>` + `mov $0x1,%eax`
+    // 分支形（jle×4 + jmp×4）；直写 `return maxKill > N;` 被 4.4 折成 `setg` 单流 ⇒
+    // 改 if-return 显式形。
     switch (teamCnt)
     {
     case 1:
-        return maxKill > 1;
+        if (maxKill > 1)
+            return true;
+        return false;
     case 2:
-        return maxKill > 4;
+        if (maxKill > 4)
+            return true;
+        return false;
     case 3:
-        return maxKill > 7;
+        if (maxKill > 7)
+            return true;
+        return false;
     case 4:
-        return maxKill > 9;
+        if (maxKill > 9)
+            return true;
+        return false;
     default:
         return true;
     }
@@ -300,10 +315,12 @@ int CDeathMatchBattleMgr::getRanking(CUser** users, int* out) const
     for (int j = 0; j < count; ++j)
     {
         out[j] = rank[j].first;
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x1695, 0);
-        trace("CDeathMatchBattleMgr::getRanking => Room(%d), Idx(%d), Rank(%d)",
-              m_pRoom->get_index(), j, out[j]);
+        // [本波·P227] 全表达式临时链（Main 配方②）：ORIG 0x085df576 在 cMyTrace
+        // ctor **之前**右起求 varargs 并以 callee-saved 跨 ctor 保活；具名两语句形
+        // 使 4.4 只在 ctor 后求值（帧/槽差 0x10 的来源）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1695, 0)(
+            "CDeathMatchBattleMgr::getRanking => Room(%d), Idx(%d), Rank(%d)",
+            m_pRoom->get_index(), j, out[j]);
     }
     return count;
 }

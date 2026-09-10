@@ -4,6 +4,10 @@
 //   StartEvent(Word_Param) 0x08109e78（完整实现）/ EndEvent 0x08109ed6。
 // 依赖：DB_LoadBreakAwayPreventData::makeRequest(bool)（ORIG T 0x08438920），
 //   定义缺失 → 上报 Main 分派实现批次（声明在本 TU，U 引用合规）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN22CBreakAwayPreventEventC2Ev`（ORIG 0x8109f73）；ctor 已是首强符号。
+#include <iostream>
+
 #include "CBreakAwayPreventEvent.h"
 
 #include "GameTypes.h"   // cMyTrace

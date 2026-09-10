@@ -4,6 +4,10 @@
 //   C1 0x0819e738 / D1 0x0819e754 / D0 0x0819e784 / StartEvent 0x0819e7a2 /
 //   StartEvent(Word_Param) 0x0819e7f4（thunk）/ EndEvent 0x0819e80e。
 // 注意：StartEvent()/EndEvent() 中 trace 在 SetEventFlag 之前（ORIG 汇编序）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit ⇒
+// 本 TU 发射 `_GLOBAL__I__ZN16Arad_MomijiEventC2Ev`（ORIG 0x819e89f）；ctor 已是首强符号。
+#include <iostream>
+
 #include "Arad_MomijiEvent.h"
 
 #include "GameTypes.h"   // cMyTrace
