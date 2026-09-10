@@ -4,6 +4,75 @@
 // 外部类（后续批次）仅在本 TU 以最小 stub 声明，符号留给 ORIG/后续 TU。
 //
 // ============================================================================
+// [Lane7GlobalData 2026-09-10 · 判据①全 TU jcc/jmp 目标下标逐位比对]
+// 基线 check_tu_routed：identical=899 ae=1785 near=10 diff=45
+//    （FT_Done_Memory 等 10 件第三方占位 + _Z41__static_init/__tcf_0 结构性
+//     豁免 ⇒ **真实件 33**）。
+// 收口：identical=899 ae=**1787** near=**11** diff=**42**（ae +2 / near +1 /
+//    diff −3，零回退；合计函数数 2684→2686 = 2 件 DIFF→AE）。
+// 判据①执行器：/tmp/l7/jcc4.py（objdump 双侧按 nm 符号区间取指令，逐 jcc/jmp
+//    算「目标下标 − 自身下标」delta 双侧比对；extent 取 min(nm size, 下一符号)
+//    避免弱符号 size 失真的假数据）；ctx.py 打点位上下文。
+// 逐件（mangled 简写 / 段类型 / 修法 / 读数）：
+//  ① CDBConnector::Connect（DIFF→AE，ndiff 22→0）：
+//     判据①命中 #2/#4 极性 je↔jne（ORIG 0x080ec792/0x080ec7a4/0x080ec7b4 为
+//     **正极性守卫** `test;je T;cmp $5;jne F;test %al;jne <跳过体>`）+ #1/#5/#6
+//     目标差 2。修 3 处：①`if (!(a==0||a==5)){body}` → `if (a==0||a==5) continue;`
+//     （探针确认正极性守卫复现 ORIG 落点）；②cMyTrace 变参 arg4/arg5 反序修正
+//     （ORIG 先算 arg5=m_db(+0x46=second+4+0x42) 后 arg4=m_user(+0x1c)；
+//     +0x04 基址来自 pair::second 偏移，与 CEnvironment.h 布局一致，非错布局）；
+//     ③删 arg3 冗余 `(int)` cast（P41：多一条 `mov %eax,%edi` 中转）。
+//     已读报告：docs/class_func_reports/CDBConnector/Connect.md（汇编+反编译 C 全读）。
+//  ② pc_room::CheckInventoryEmptyCount（DIFF→AE，ndiff 22→0）：
+//     判据①命中 7 处极性（ORIG 0x082710b9 族 `xor $1;test;jne 0x082711e9`）。
+//     修法：改**单个三元全表达式链** `(!c1||…||!c7) ? true : (GetRemainCapacity>=need)`
+//     （探针 /tmp/l7/probe1.cpp D 形逐条同形；A 嵌套形反产 je、B/C/E 多一级物化）。
+//     旧嵌套形另含**真语义 bug**（运行语义=任一 check 为真即 true，与 ORIG 相反，
+//     与其自述判词矛盾）。已读报告：pc_room/CheckInventoryEmptyCount.md。
+//  ③ DispatchThread::dispatch（DIFF→NEAR，ndiff 257→38）：
+//     判据①命中首差 #7 `js/jle` vs ORIG `je/je`；实为 **switch case 映射真 bug**：
+//     ORIG 0x0847e61d `cmp $1;je +0x35f; cmp $2;je +0x442; test;je +0x3d2;
+//     jmp +0x4b0` ⇒ case1→SmallStreamPool(0xfff)、**case0→s_stream_pool(0x3fff,
+//     "Default…")**、case2→BigStreamPool(0x3ffff)、**default 空体**；旧源码把
+//     case0 并入 case1（错发 SmallStreamPool）且把 s_stream_pool 体挂 default
+//     （错：任意其它 streamType 在我们这边会误 Free）。按 P324 叶块物理序
+//     （1,0,2）+ default 空体改写。已读报告：DispatchThread/dispatch.md。
+//  ④ UdpThread::_processUDPData（DIFF 结构已修，ndiff 大残差）
+//     ①判据①命中 #4 `je` vs ORIG `jne` ⇒ 空 then + else 体形
+//     （`if (dispatchPacket(data)) { } else { … }`，探针 /tmp/l7/probe3.cpp t2）：
+//     4.4 得 `test %al,%al; jne <岛>` 与 ORIG 逐条同形（旧 `if(!f())` 多 1 条 xor）；
+//     ②删 `uVar1/tracer` 具名局部（P0/P52：ORIG packetId 升格 %ebx 跨
+//     CPacketTracerInstance call 保活 ⇒ 单语句链式实参）；③删 `char cVar2` 具名
+//     局部、比较字面量改 int 形（ORIG 逐次重读 `*data`，P0/P86）。残余=4.4 把
+//     `char` 提升比较折成 `cmpb` 而 ORIG `movzbl+movsbl+cmp`（T5：类型非排序旋钮）
+//     + 槽位/迭代器族。已读报告：UdpThread/_processUDPData.md。
+// 判 N（本轮新证据，勿再耗轮次）：
+//  · N18a「两段装载」族（pc_room::ProcessEquipItem/ProcessInsertItem、
+//    CheckupAllRentalItems×2：ORIG `mov mem,%eax; mov %eax,%esi/%ebx`，4.4 恒
+//    折单段）。**新旋钮证据**：探针 /tmp/l7/probe5.cpp tG —— 局部/字段声明
+//    `unsigned int` 且消费方形参 `int` 时 4.4 即产 ORIG 两段形；但 T2/T5 明文
+//    「纯 load/store 宽度不能定 int/unsigned」「禁为装载序改类型、无直证直接记 N」
+//    ⇒ 本泳道**不改共享头/局部类型**，登记旋钮供 Main 裁决（涉及
+//    ServerParameterScript.h EventRewardItemInfo::m_field0）。
+//  · N121（Secu_DataControl::UpdateSecurityServiceState ndiff=1）：我方多
+//    `jmp <epilogue>; nop` 尾岛；ORIG 0x08270777 自 PacketGuard D1 call **直落**
+//    epilogue。否定早返/共享尾标签/显式 return 三形不消（P285 反向）⇒ 封顶。
+//  · N125（CmmChannelProxy::RecvPacket 清零循环 `pBits[i]=0`）：ORIG
+//    0x0810649c `movl $0,(%eax,%edx,4)` scaled 直存 vs 4.4 恒 `shl+add`。
+//  · CSimpleSSO::init：ORIG 0x08602826 `mov -0xc(%ebp),%ecx` 提前装载 +
+//    `add %ecx,%eax` 寄存器形；4.4 恒折 `add -0xc(%ebp),%eax`（N18a 反向）；
+//    二维视图/cast 两形探针（/tmp/l7/probe2.cpp）均反劣。
+//  · FT_* 10 件 + _Z41__static_initialization_and_destruction_0ii + __tcf_0
+//    + STL 模板 3 件（N130 C++11 右值重载族）：结构性豁免（第三方占位/N123/
+//    libstdc++ 代际），不计真缺口。
+//  · 旗标探针（P230 代数）：本 TU 现路由 = cc1plus 4.4.6 / -O0 / **无**
+//    -march=i486（bash -x 实证）；我方含 30 条 `cmov`（MIN_EXPR 展开），
+//    ORIG 对应位点为 `setbe/setg/setne` 分支形（P230 签名）。**实测**加
+//    `-march=i486 -mtune=generic` 后 cmov 30→0 但 TU 四数**完全不变**
+//    （899/1787/11/42）⇒ 该族函数的残差不止 cmov，改路由非本 TU 的解；
+//    路由变更属 Main 域，本泳道不动 dnf_game_cxx.sh。
+// ============================================================================
+// ============================================================================
 // [b28d-solo-GlobalData 泳道判词] 清单 /tmp/b28d_tu/GlobalData.tsv（44 件）。
 // 开工基线 check_tu_routed：identical=832 ae=1637 near=9 diff=54；
 // 收口：identical=832 ae=1639 near=8 diff=53（AE +2，无劣化）。
@@ -1925,19 +1994,33 @@ void UdpThread::_processUDPData(char* data, int len)
     // 跨服 UDP 包 = 10 字节 PacketHeader 线格式（shared/packet/include/PacketHeader.h）；
     // ORIG 0857c5ad：每处读都重取形参（mov 0xc(%ebp),%eax; movzwl (%eax)，P86 逐次重读）
     // → +0x00 ushort packetId。
-    unsigned short uVar1 = reinterpret_cast<PacketHeader*>(data)->packetId;
-    CPacketTracer* tracer = CPacketTracerInstance();
-    tracer->AddUdpLog(3, (int)uVar1);
+    // [GlobalData-判据①] ORIG 0x0857c5b5 段：packetId 在 CPacketTracerInstance()
+    // **之前**求值并升格 %ebx 跨 call 保活（`movzwl (%eax),%eax; movzwl %ax,%ebx;
+    // call CPacketTracerInstance; mov %ebx,0x8(%esp)`）⇒ 原码是单语句链式实参
+    // （P52/P226），无 `uVar1`/`tracer` 具名局部（旧形多 -0x36/-0x34 两槽 + 3 条）。
+    CPacketTracerInstance()->AddUdpLog(
+        3, (int)reinterpret_cast<PacketHeader*>(data)->packetId);
 
     static CPacketCounter<1000, 10240> packet_counter(
         G_CEnvironment()->get_file_name(), "InterDispatcher");
     packet_counter.IncrementPacketCount(
         (int)reinterpret_cast<PacketHeader*>(data)->packetId);
 
-    if (!CDispatchServerPacket::dispatchPacket(data))
+    // [GlobalData-判据①] ORIG 0x0857c68d `call dispatchPacket; test %al,%al;
+    // jne +0x42a`（jne 落空 then 岛；无 `xor $1`）⇒ 原码是**正向 if + 空 then +
+    // else 体**（探针 /tmp/l7/probe3.cpp t2 逐条同形）；旧写法 `if (!f()){体}`
+    // （t1/t3/t4/t5）4.4 恒产 `xor $1,%eax; test %al,%al; je`，多一条 xor 且
+    // 分支落点从空岛变成 epilogue 本体。
+    if (CDispatchServerPacket::dispatchPacket(data))
     {
-        char cVar2 = *data;
-        if (cVar2 == '\x01')
+    }
+    else
+    {
+        // [GlobalData-判据①] ORIG 0x0857c696 族逐次重读 `mov 0xc(%ebp),%eax;
+        // movzbl (%eax),%eax; movsbl %al,%eax; cmp $0x1,%eax`（符号扩展后直接比，
+        // 无栈槽往返）⇒ 原码**无具名 char 局部**（P0/P86 表达式直读）；旧写法
+        // `char cVar2 = *data;` 产 `mov %al,-0x2d; cmpb $0x1,-0x2d` 槽化两段。
+        if (*data == 1)
         {
             Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xf8);
             CStreamGuard guard(stream, true);
@@ -1947,9 +2030,9 @@ void UdpThread::_processUDPData(char* data, int len)
             guard->put_binary(data + 2, len);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         }
-        else if (cVar2 < '\x02')
+        else if (*data < 2)
         {
-            if (cVar2 == '\0')
+            if (*data == 0)
             {
                 char* local_24 = data;
                 Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xe8);
@@ -1963,11 +2046,11 @@ void UdpThread::_processUDPData(char* data, int len)
         }
         else
         {
-            if (cVar2 == '\x02')
+            if (*data == 2)
             {
                 return;
             }
-            if (cVar2 == '\x03')
+            if (*data == 3)
             {
                 GlobalData::s_auction_proxy->SetRunning(false);
                 GlobalData::s_cera_auction_proxy->SetRunning(false);
@@ -2129,10 +2212,15 @@ void DispatchThread::dispatch(void* arg)
         }
         switch (streamType)
         {
-        // ORIG 0x0847e??? 决策树为 `cmp $2; je L2; test %eax,%eax; je L1;
-        // jmp Ldef`（4.1 未列 case 0 与首键共 leaf）⇒ 按 P163 补 case 0
-        // fallthrough 到 case 1，使 4.4 放弃跳表并复现同序二分树。
-        case 0:
+        // [GlobalData-判据①] ORIG 0x0847e61d 决策树 `cmp $1;je +0x35f;
+        // cmp $2;je +0x442; test %eax,%eax;je +0x3d2; jmp +0x4b0`：
+        //   case 1 → +0x35f（0xfff / "Small…" / s_small_stream_pool）
+        //   case 0 → +0x3d2（0x3fff / "Default…" / s_stream_pool）★旧源码把
+        //            case 0 并入 case 1（错发 SmallStreamPool::Free），且把
+        //            s_stream_pool 体挂在 default（错：default 应为空体
+        //            +0x4b0 直落循环尾）。
+        //   case 2 → +0x442（0x3ffff / "Big…" / s_big_stream_pool）
+        // 叶块物理序（P324）= 书写序 = 1, 0, 2；default 空体。
         case 1:
             if (0xfff < length)
             {
@@ -2141,6 +2229,15 @@ void DispatchThread::dispatch(void* arg)
                     code, idx, length);
             }
             GlobalData::s_small_stream_pool->Free(stream);
+            break;
+        case 0:
+            if (0x3fff < length)
+            {
+                cMyTrace(__PRETTY_FUNCTION__, 0xa8, 5)(
+                    "Default Stream Size over code(%d), idx(%d), size(%u)",
+                    code, idx, length);
+            }
+            GlobalData::s_stream_pool->Free(stream);
             break;
         case 2:
             if (0x3ffff < length)
@@ -2152,13 +2249,6 @@ void DispatchThread::dispatch(void* arg)
             GlobalData::s_big_stream_pool->Free(stream);
             break;
         default:
-            if (0x3fff < length)
-            {
-                cMyTrace(__PRETTY_FUNCTION__, 0xa8, 5)(
-                    "Default Stream Size over code(%d), idx(%d), size(%u)",
-                    code, idx, length);
-            }
-            GlobalData::s_stream_pool->Free(stream);
             break;
         }
     }
@@ -4869,19 +4959,30 @@ bool CDBConnector::Connect(DBInfoMap infoMap)
     // 布局**，不重排 CEnvironment.h 的 STDBConnInfo（风险远超收益）⇒ N 封顶。
     for (DBInfoMap::iterator it = infoMap.begin(); it != infoMap.end(); ++it)
     {
-        if (!(it->first == 0 || it->first == (ENUM_DB_HANDLE_IDX)5))
+        // [b28d-solo-GlobalData 判据①] ORIG 0x080ec790/0x080ec7a1/0x080ec7b4 极性：
+        // `test;je T(真)` + `cmp $5;jne F` + `test %al;jne <++it>` ⇒ 原码是
+        // **正极性守卫** `if (a==0 || a==5) continue;`（旧 `if(!(…)){body}` 形把
+        // 两侧跳转落点互换：ours je→F/jne→body，ORIG je→T/jne→跳过体）。
+        if (it->first == 0 || it->first == (ENUM_DB_HANDLE_IDX)5)
         {
-            // ORIG 0x080ec7ba..0x080ec864（P37/P87/P329）：五个实参在 cMyTrace
-            // ctor **之前**全部求值（m_host/-0x40、m_port/-0x3c、m_db/%edi、
-            // m_user/%esi、first/%ebx），随后 ctor + operator() ⇒ 源形是单语句
-            // 临时链 `cMyTrace(...)(...)`，不是具名对象两语句。
-            cMyTrace("CDBConnector::Connect", 0x4e, 9, true, true)
-                ("Open(type:%2d, %s/%d/%s/%s)", (int)it->first, it->second.m_host,
-                 (int)it->second.m_port, it->second.m_db, it->second.m_user);
-            if (!Open(it->first, (ENUM_SERVER_GROUP)0, it->second))
-            {
-                return false;
-            }
+            continue;
+        }
+        // ORIG 0x080ec7ba..0x080ec864（P37/P87/P329）：五个实参在 cMyTrace
+        // ctor **之前**全部求值（m_host/-0x40、m_port/-0x3c、m_db/%edi、
+        // m_user/%esi、first/%ebx），随后 ctor + operator() ⇒ 源形是单语句
+        // 临时链 `cMyTrace(...)(...)`，不是具名对象两语句。
+        cMyTrace("CDBConnector::Connect", 0x4e, 9, true, true)
+            // [GlobalData-判据①] 实参序照 ORIG 0x080ec7c8(+0x46=db)/0x080ec7d9
+            // (+0x1c=user)：ORIG 先算 arg5=it->second.m_db(+0x46)、再 arg4=
+            // it->second.m_user(+0x1c) ⇒ 原码 arg4/arg5 为 (user, db)；旧写法
+            // (db, user) 反序（R2L 先算 user+4）。注意 +0x04 基址来自 pair 的
+            // second 偏移，与 CEnvironment.h 布局一致（QueryConnInfo 0x080ecb53
+            // db@+0x42 直证）。
+            ("Open(type:%2d, %s/%d/%s/%s)", (int)it->first, it->second.m_host,
+             it->second.m_port, it->second.m_user, it->second.m_db);
+        if (!Open(it->first, (ENUM_SERVER_GROUP)0, it->second))
+        {
+            return false;
         }
     }
     return true;
@@ -7629,39 +7730,25 @@ bool CheckInventoryEmptyCount(CUser& user, int need)
     // `if (cVar1 == 1) { … } return 1;`）；旧重建写 `return false` 与 ORIG 相反。
     // 末检查 0x082711e7 `jl +0x164(=mov $0,%eax)` ⇒ GetRemainCapacity < need 才
     // return 0，否则 return 1。照抄 ORIG 可观察行为（P171）。
-    // [b28d-solo-GlobalData] P63/P296 共享出口改写：ORIG 7 处 `xor $1;test;jne +0x15d`
-    // 全部直达同一 `mov $1` 尾块（4.1 共享 return 块）；平铺 if-return 令 4.4
-    // 每处独立发 mov$1+jmp，短路链 `&&` 则反产 `je NEXT`。改嵌套正向 if 包裹
-    // （P296 消同层多中继岛 + P222 否定早返改正向包裹）。
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
-    {
-        if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
-        {
-            if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
-            {
-                if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
-                {
-                    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
-                    {
-                        if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
-                        {
-                            if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
-                            {
-                                // ORIG 0x082711e4 `cmp 0xc(%ebp),%eax; jl +0x164`
-                                // —— remain < need 直返 0。
-                                if (user.getCurCharacInvenR()->GetRemainCapacity(
-                                        (INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) < need)
-                                {
-                                    return false;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return true;
+    // [GlobalData-判据①] 0x082710b9 族 7 处 `xor $1;test %al,%al;jne 0x082711e9`
+    // 全部直达**同一** `mov $1` 尾块（0x082711e9，同时也是末比较 `jl` 的直落臂）
+    // ⇒ 原码是**单个三元表达式全表达式链**（4.1 短路 `||` 逐项 `jne L_true`，真臂
+    // 与末项真臂共尾）：
+    //   return (!c1 || … || !c7) ? true : (GetRemainCapacity(2,8) >= need);
+    // 探针 /tmp/l7/probe1.cpp D 形逐条同形（A 嵌套 `if(!c)` 形反产 `je RET1`、
+    // B/C/E 形各多一级 bool 物化或 setcc）。旧嵌套形另含**真语义 bug**：其运行语义
+    // 为「任一 check 为真即 return true」，与 ORIG「任一 check 为假即 return 1」
+    // 相反（旧注释自述即 ORIG 语义，代码却反写）。
+    return (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)1, need)
+            || !user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)2, need)
+            || !user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)3, need)
+            || !user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)10, need)
+            || !user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)9, need)
+            || !user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)5, need)
+            || !user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
+               ? true
+               : (user.getCurCharacInvenR()->GetRemainCapacity(
+                      (INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) >= need);
 }
 
 // ---- DeleteAllRentalItemInSameSectionForNewRent —— T 0x08271807 ------------
