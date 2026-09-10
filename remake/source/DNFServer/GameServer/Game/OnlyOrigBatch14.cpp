@@ -271,6 +271,24 @@ int InitTileScript()
     return 1;
 }
 
+// ===== g_stMapScriptFileList —— ORIG B 0x094fe3a0 =====
+// [b14 归属迁移·Main 批准] ORIG 本 TU static_init（0x089e81d2，经
+// _GLOBAL__I__Z14InitTileScriptv 0x089e823b 调用）体在 ioinit C1+atexit 之后
+// 紧接 `movl $0x94fe3a0,(%esp); call STScriptFileList::C1(0x088bacf8)` +
+// `mov $0x80f1352(D1),%eax; … __cxa_atexit`（本 TU 原体 31 条）⇒ 该全局的
+// ORIG 归属 TU 即本文件（原定义在 InitScriptProducers_4.cpp，属 P186/P128
+// 归属错位）。定义位置保持在 InitTileScript 之后 ⇒ GI 键名仍为本 TU 首个强符号
+// `_Z14InitTileScriptv`（P327），与 ORIG 键名一致。
+// 迁移后本 TU static_init（.o 内 0xcb20 GI 调 0xcbxx static_init）= 23 条，与
+// ORIG 本 TU 副本（0x089e81d2..0x089e823a，23 条）逐条同形（仅 .bss/.rodata
+// 立即数属未解析重定位）。compare_tu 对该 local 符号按**名**索引会取到他 TU 的
+// 47 条同名副本（N123 撞名），故仍记 DIFF —— 非实现缺口。
+// 验收读数：本 TU identical+ae 1178→1195（+17，STScriptFileList 成员/模板实例
+// 随定义落入本 TU）；InitScriptProducers_4 588→596（+8）、diff 12→6、missing
+// 154→143（迁移前基线用 HEAD 版复编实测）；符号 nm 核对：g_stMapScriptFileList
+// B 0x18（ORIG B 0x18）、_ZN16STScriptFileListD2Ev W 0x13（ORIG W 0x13）等全等。
+STScriptFileList g_stMapScriptFileList;
+
 // ORIG T 0x0841d2ea _Z11PrintLetter15SIG_LETTER_INFO：空体。
 void PrintLetter(SIG_LETTER_INFO)
 {
@@ -408,20 +426,23 @@ unsigned int Rand_r(unsigned int* seed)
 // 3) 脚本 import/export 族
 // ============================================================================
 
-// ORIG T 0x088bdb56 _Z11ScanAnyDataRiRSsS_b：任意类型值扫描。
-// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N98/N82 槽序 + P75）] p167 CLEAR
-// （26=26 calls）。残差：①ORIG bool 槽 -0xd / 结果槽 -0x14 与 4.4 -0x11 /
-// -0x10 互换（4.4 栈槽按首次使用序分配，声明序翻转/提函数头实测无效，
-// N98/N82）；②LogManager::logFormat 变参装载序（ORIG 先值后串 vs 4.4 相反，
-// P75 跨版本实参装载时刻）；③bool 局部取反物化 xor（N122）。语义等价。
+// [b14 本波·报告核对] 三处修复：
+//  ①槽序：ORIG token@-0x14 / got@-0xd（4.4「后声明更深」）⇒ 声明序改 token/got；
+//  ②`token = 7` 位置按 ORIG 0x88bdcb8 提到 findString 之前；
+//  ③**真语义 bug**：报告 Ghidra C 0x88bdd77 段 logFormat 变参序为
+//    ("ScanAnyData", streamName, lineNo, tokenData)，原写 (streamName,"ScanAnyData")
+//    两串互换（日志内容反写）⇒ 已按报告修正。
+// ndiff 54→4。残余 1 处（N 封顶）：`if(!ignoreUnknown)` ORIG 为 4.1
+// `cmpb $0,-0x2c` 内存直测 vs 4.4 `movzbl; xor $1; test`（N122 bool 取反 lowering；
+// `==0`/`==false`/`!=true` 三形实测同形）。p167 CLEAR（26=26）。语义等价。
 bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
 {
     type = 3;
-    bool got = false;
-    // [b28d-solo-OnlyOrigBatch14] P309：4.4 对函数头声明按「先声明浅」分配
-    // ⇒ token 提至函数头（声明序 got 先/token 后）复现 ORIG got@-0xd、
-    // token@-0x14 的槽向；循环内仅赋值。
     int token;
+    bool got = false;
+    // 声明序 token/got：4.4 对函数头标量按「后声明更深」分配（本 TU
+    // importActiveStatus/importHiddenNpcListInfo 同律复证）⇒ token@-0x10? 见
+    // 实测 token@-0x14(深)/got@-0x11(浅) 方向已对齐 ORIG。
     for (;;)
     {
         token = g_dnfLex.getToken();
@@ -462,12 +483,15 @@ bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
             int key = g_dnfLex.getPairInt();
             if (g_dnfLex.getToken() == 0xa)
             {
+                // ORIG 0x88bdcb8 `movl $0x7,-0x14(%ebp)` 紧接判 0xa 的
+                // `je` 之后、findString 调用**之前** ⇒ 源码里 token=7 在
+                // findString 之前（顺序照 ORIG 汇编）。
+                token = 7;   // ORIG 0x88bdcb8 movl $0x7,-0x14(%ebp)
                 str = g_scriptStringManager_.findString(key,
                                                         g_dnfLex.getPairStr(),
                                                         0);
                 type = 0;
                 got = true;
-                token = 7;   // ORIG 0x88bdcb8 movl $0x7,-0x14(%ebp)
             }
         }
         else
@@ -484,8 +508,12 @@ bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
         {
             LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x746,
                                   "ERROR! %s - TYPE mismatch. %s:%d, token = '%s'",
-                                  g_dnfLex.getStreamName().c_str(),
+                                  // [b14 报告核对·真语义 bug] 报告 Ghidra C
+                                  // 0x88bdd77 段实参序为 ("ScanAnyData", streamName,
+                                  // lineNo, tokenData)：原写 (streamName, "ScanAnyData")
+                                  // 两串互换 ⇒ 日志%s 内容反写。
                                   "ScanAnyData",
+                                  g_dnfLex.getStreamName().c_str(),
                                   g_dnfLex.getLastLineNo(),
                                   g_dnfLex.getLastTokenDataAsString().c_str());
         }
@@ -539,32 +567,38 @@ void ScanChampionFeatures(int count, STAICharacterMapArrangeData& data)
 }
 
 // ORIG T 0x08a65da5 _Z15ScanRewardItemsRSt6vectorI14RewardItemInfoSaIS0_EESs。
-// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N98 槽序 + P292）] 本波修：三个
-// bool 声明序 ok2/dead/ok1 + ok2 无初始化式（P309 先声明浅 + P171 dead 预清）
-// 使预清序 -0xe/-0xf 与 ORIG 一致；ScanInt 改经具名 v2 中转（P0：ORIG
-// 0x08a65e80 `lea -0xc; call ScanInt; mov -0xc,%eax; mov %eax,-0x18`）。
-// p167 CLEAR（13=13）。残差：ok1/ok2 槽 -0xf/-0xd vs 4.4 -0xf/-0xe（N98 首次
-// 使用序，声明序翻转实测不闭合）+ bool 物化岛极性 je/jne 随槽号错位（P292）。
+// [b14 报告核对·两条真修复]
+//  ①真语义缺口（报告 Ghidra C 0x8a65e6a 段 + objdump 0x8a65e6a..0x8a65eec 双证）：
+//    ORIG 为 `if (ok1) { if (s=="[job]") { ScanInt→m_job; ScanInt→m_growType; }
+//    ScanInt→v; } info.m_count = v;` —— 最后一次 ScanInt 在 ok1 分支内**无条件**
+//    执行（非 "[job]" 时 `je 0x12e` 亦落该段）；原实现写在 else 分支 ⇒ [job]
+//    情形少消耗一个 int（真 bug）。修后 123=123、gap 0。
+//  ②ORIG 全程只用一个 -0xc 变量（v 兼作 ScanInt 中转槽；Ghidra local_10 贯穿）
+//    ⇒ 删除原 v2 具名中转。
+// 声明序按 4.4「后声明更深」排：info@-0x20 / s@-0x24 已与 ORIG 一致。
+// 残差（N 封顶）：①标量区槽基 4 字节差（我方 ok1/unusedFlag/ok2/v = -0xb/-0x9/-0xa/-0x10
+//   对 ORIG -0xf/-0xe/-0xd/-0xc；N82/N126 版本首槽基址常数；前置 dead pad 实测
+//   ndiff 44→66 反劣，已回退）；②`s == token` 真块物理位置镜像（ORIG `jne <true岛>`
+//   真块在远处、false 紧随；P47 块排布，`!=`/显式 else 两形均 44 行无更优）。
+// p167 CLEAR（13=13）。ndiff 44 属 N127 对齐坍缩（实际助记符差仅 1 条 je↔jne）。
 bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
 {
-    // [b28d-solo-OnlyOrigBatch14] P309：4.4 函数头声明「先声明浅」⇒
-    // 声明序 ok2(浅 -0xd)/dead(-0xe)/ok1(深 -0xf) 对齐 ORIG；ORIG 预清仅
-    // 两条（`movb $0,-0xe; movb $0,-0xf`）⇒ ok2 无初始化式（ScanTypeOrInt
-    // 写入后即读）。
+    // ok2 无初始化式（ScanTypeOrInt 写入后即读）；ORIG 预清仅两条
+    // （`movb $0,-0xe; movb $0,-0xf`）。声明序三形实测见函数头判词。
     bool ok2;
     bool unusedFlag = false;
     bool ok1 = false;
+    int v;
     RewardItemInfo info;
     std::string s;
-    int v2;
     for (;;)
     {
-        int v = ScanTypeOrInt(ok1, s, ok2, 1);
+        v = ScanTypeOrInt(ok1, s, ok2, 1);
         if (ok1)
         {
-            if (s == token)
-                return true;
-            return false;
+            if (s != token)
+                return false;
+            return true;
         }
         if (!ok2)
             return false;
@@ -573,32 +607,29 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
         v = ScanStrOrInt(ok2, s, ok1, 1);
         if (!ok2)
             return false;
+        // [b14 报告核对·真语义缺口] ORIG 0x08a65e6a..0x8a65eec 控制流（报告
+        // Ghidra C 0x8a65e6a 段 + objdump 逐条核对）：
+        //   ok1==0 → je 0x8a65eec（共享 m_count 赋值尾，直接用 ScanStrOrInt 返回值）；
+        //   ok1==1 → s=="[job]" 时读 m_job/m_growType，随后**无条件**再 ScanInt；
+        //            非 "[job]" 时也执行该 ScanInt（je 0x12e 落在同一段）。
+        // 原实现把最后那次 ScanInt 写成 else 分支 ⇒ [job] 情形少读一个 int（真 bug）。
+        // 同时 ORIG 全程只用一个 -0xc 变量（v 兼作 ScanInt 中转槽，Ghidra local_10
+        // 贯穿），故删除 v2。
         if (ok1)
         {
             if (s == "[job]")
             {
-                // [b28d-solo-OnlyOrigBatch14] P0：ORIG 0x08a65e80 段
-                // `lea -0xc(%ebp),%eax; call ScanInt; mov -0xc(%ebp),%eax;
-                // mov %eax,-0x18(%ebp)`（具名 int 中转槽 -0xc，再存 info.m_job）
-                // ⇒ 原码经具名局部而非直接 ScanInt(&info.m_job)。
-                if (!ScanInt(&v2))
+                if (!ScanInt(&v))
                     return false;
-                info.m_job = v2;
-                if (!ScanInt(&v2))
+                info.m_job = v;
+                if (!ScanInt(&v))
                     return false;
-                info.m_growType = v2;
+                info.m_growType = v;
             }
-            else
-            {
-                if (!ScanInt(&v2))
-                    return false;
-                info.m_count = v2;
-            }
+            if (!ScanInt(&v))
+                return false;
         }
-        else
-        {
-            info.m_count = v;
-        }
+        info.m_count = v;
         out.push_back(info);
     }
 }
@@ -677,58 +708,65 @@ static const char* const g_activeResistName[17] = {
     "[piercing resistance]", "[stuck resistance]", "[confuse resistance]",
     "[hold resistance]", "[armor break resistance]"
 };
-// [b28d-solo-OnlyOrigBatch14] N 封顶（N85/P176 x87 除法 lowering）：ORIG 对
-// `(double)field / 10.0f` 发 `mov $0,%edx; mov %eax,-0x28; mov %edx,-0x24;
-// fildll -0x28; flds 常量; fdivrp %st,%st(1); fstpl 0x8(%esp)`（int→ll 中转 +
-// fdivrp），4.4 恒 `filds/fdivs` 直算；x87 两向跨版本差异，IEEE 语义等价。
+// [b14 本波·AE 归零] 三条真缺口（旧判词「N85 x87 除法 lowering 封顶」作废）：
+//  ①`(double)field` → `(float)field`：4.4 对 double 常量发 `fldl <A>`，ORIG 是
+//    `flds <A>`（float 常量）；且 `(float)unsigned int`（+0x0/+0x4/+0x42）走
+//    `mov $0,%edx; … fildll` 零扩展形、`(float)int`（+0x3a/+0x4e）走 `fildl`
+//    —— 与 ORIG 逐段同形（探针 /tmp/b14_probe2.cpp pA/pB/pC/pE）。
+//  ②elemResist(+0x10..+0x16) 与 activeResist(+0x18..) 需 `(float)(short)field`：
+//    ORIG 发 `movzwl; mov %ax,-0x1e; filds -0x1e`（16 位载入，共 5 处），直写
+//    `(float)field` 只给 32 位 `fildl`（探针 pC 复证）。
+//  ③m_hpRegen/m_mpRegen/m_hitRecovery/m_jumpPower(+0x3e/+0x40/+0x4a/+0x4c) 同为
+//    filds 形，各加 `(short)`。
+// 终态 orig=331 our=331 gap=0 ndiff=0。
 void exportCharacterStatusScript(FILE* fp, STRDCharacterStatus* st)
 {
     if (st->m_hpMax != 0)
-        fprintf(fp, "[HP MAX] %.1f\n", (double)st->m_hpMax / 10.0f);
+        fprintf(fp, "[HP MAX] %.1f\n", (float)st->m_hpMax / 10.0f);
     if (st->m_mpMax != 0)
-        fprintf(fp, "[MP MAX] %.1f\n", (double)st->m_mpMax / 10.0f);
+        fprintf(fp, "[MP MAX] %.1f\n", (float)st->m_mpMax / 10.0f);
     if (st->m_physAttack != 0)
-        fprintf(fp, "[physical attack] %.1f\n", (double)st->m_physAttack / 10.0f);
+        fprintf(fp, "[physical attack] %.1f\n", (float)st->m_physAttack / 10.0f);
     if (st->m_physDefense != 0)
-        fprintf(fp, "[physical defense] %.1f\n", (double)st->m_physDefense / 10.0f);
+        fprintf(fp, "[physical defense] %.1f\n", (float)st->m_physDefense / 10.0f);
     if (st->m_magAttack != 0)
-        fprintf(fp, "[magical attack] %.1f\n", (double)st->m_magAttack / 10.0f);
+        fprintf(fp, "[magical attack] %.1f\n", (float)st->m_magAttack / 10.0f);
     if (st->m_magDefense != 0)
-        fprintf(fp, "[magical defense] %.1f\n", (double)st->m_magDefense / 10.0f);
+        fprintf(fp, "[magical defense] %.1f\n", (float)st->m_magDefense / 10.0f);
     if (st->m_elemResist[0] != 0)
-        fprintf(fp, "[fire resistance] %.1f\n", (double)st->m_elemResist[0] / 10.0f);
+        fprintf(fp, "[fire resistance] %.1f\n", (float)(short)st->m_elemResist[0] / 10.0f);
     if (st->m_elemResist[1] != 0)
-        fprintf(fp, "[water resistance] %.1f\n", (double)st->m_elemResist[1] / 10.0f);
+        fprintf(fp, "[water resistance] %.1f\n", (float)(short)st->m_elemResist[1] / 10.0f);
     if (st->m_elemResist[2] != 0)
-        fprintf(fp, "[dark resistance] %.1f\n", (double)st->m_elemResist[2] / 10.0f);
+        fprintf(fp, "[dark resistance] %.1f\n", (float)(short)st->m_elemResist[2] / 10.0f);
     if (st->m_elemResist[3] != 0)
-        fprintf(fp, "[light resistance] %.1f\n", (double)st->m_elemResist[3] / 10.0f);
+        fprintf(fp, "[light resistance] %.1f\n", (float)(short)st->m_elemResist[3] / 10.0f);
     for (int i = 0; i <= 0x10; ++i)
     {
         if (st->m_activeResist[i] != 0)
         {
             fprintf(fp, "%s %.1f\n", g_activeResistName[i],
-                    (double)st->m_activeResist[i] / 10.0f);
+                    (float)(short)st->m_activeResist[i] / 10.0f);
         }
     }
     if (st->m_inventoryLimit != 0)
-        fprintf(fp, "[inventory limit] %.1f\n", (double)st->m_inventoryLimit / 10.0f);
+        fprintf(fp, "[inventory limit] %.1f\n", (float)st->m_inventoryLimit / 10.0f);
     if (st->m_hpRegen != 0)
-        fprintf(fp, "[HP regen speed] %.1f\n", (double)st->m_hpRegen / 10.0f);
+        fprintf(fp, "[HP regen speed] %.1f\n", (float)(short)st->m_hpRegen / 10.0f);
     if (st->m_mpRegen != 0)
-        fprintf(fp, "[MP regen speed] %.1f\n", (double)st->m_mpRegen / 10.0f);
+        fprintf(fp, "[MP regen speed] %.1f\n", (float)(short)st->m_mpRegen / 10.0f);
     if (st->m_moveSpeed != 0)
-        fprintf(fp, "[move speed] %.1f\n", (double)st->m_moveSpeed / 10.0f);
+        fprintf(fp, "[move speed] %.1f\n", (float)st->m_moveSpeed / 10.0f);
     if (st->m_attackSpeed != 0)
-        fprintf(fp, "[attack speed] %.1f\n", (double)st->m_attackSpeed / 10.0f);
+        fprintf(fp, "[attack speed] %.1f\n", (float)st->m_attackSpeed / 10.0f);
     if (st->m_castSpeed != 0)
-        fprintf(fp, "[cast speed] %.1f\n", (double)st->m_castSpeed / 10.0f);
+        fprintf(fp, "[cast speed] %.1f\n", (float)st->m_castSpeed / 10.0f);
     if (st->m_hitRecovery != 0)
-        fprintf(fp, "[hit recovery] %.1f\n", (double)st->m_hitRecovery / 10.0f);
+        fprintf(fp, "[hit recovery] %.1f\n", (float)(short)st->m_hitRecovery / 10.0f);
     if (st->m_jumpPower != 0)
-        fprintf(fp, "[jump power] %.1f\n", (double)st->m_jumpPower / 10.0f);
+        fprintf(fp, "[jump power] %.1f\n", (float)(short)st->m_jumpPower / 10.0f);
     if (st->m_weight != 0)
-        fprintf(fp, "[weight] %.1f\n", (double)st->m_weight / 10.0f);
+        fprintf(fp, "[weight] %.1f\n", (float)st->m_weight / 10.0f);
 }
 
 // ORIG T 0x08919127 _Z22importQuestPieceScriptPKcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE。
@@ -802,25 +840,9 @@ slang_done:
     return true;
 }
 
-// ORIG T 0x08917848 _Z23importHiddenNpcListInfoPKcRSt6vectorIiSaIiEE。
-// [b28d-solo-OnlyOrigBatch14；gap 3→0 / DIFF→NEAR 本波收敛]
-// 已修：①done 改 unsigned char + `for(;;){ if(done) break; … }` ⇒ 条件块
-// 复现 ORIG 0x08917900 `cmpb $0,-0x9(%ebp); jne`（消 sete/xor 取反物化，
-// N122）；②补 dead bool 预清（ORIG 0x089178f8 `movb $0,-0xa`，P171）使帧
-// 0x30 对齐；③loadRDARScriptFile 参数序修为 ("", path)（真语义 bug）。
-// 本波 gap-3 修复（三条真缺口，实测 123=123 助记符序列全等）：
-//   (a) `s == "[/hidden npc]"` 路径 ORIG 0891794b/4f 为 `movb $1,done;
-//       mov $1,%esi; jmp 08917990`（统一 dtor 点后 `cmp $1,%esi; je 外层头`）
-//       ⇒ 原码是 **break 内层循环**（回外层由 done 检查退出），不是 return true；
-//   (b) `token != "[hidden npc]"` 的 fail 块 ORIG 物理在函数尾（089179ad）⇒
-//       正向 `if(token=="[hidden npc]"){…}else{return false;}` 复现块序
-//       （guard 形 `if(!=)return` 被 4.4 内联在跳转点后，实测 DIFF）；
-//   (c) 同上 (b) 同时补回 ORIG 089178d8 `je 089179ad` 的尾部落点布局。
-// 残余 NEAR（N98 槽序）：ORIG v@-0x14 / isType@-0x15 / isInt@-0x16 / s@-0x1c
-// vs 4.4 v@-0x1c / isType@-0x11 / isInt@-0x12 / s@-0x18（4.4 按首次使用序分配、
-// 4.1 按声明序；P212 全头部声明不适用于每轮构造/析构的 string s）。
-// p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`（string==const char*
-// 外链实例，4.4 libstdc++ 全内联，N89）。
+// [b14 本波·AE 归零] 内层循环局部槽序（旧判词「残余 NEAR=N98 槽序」作废）：
+// ORIG s@-0x1c(深)/isInt@-0x16/isType@-0x15/v@-0x14(浅)，4.4「后声明更深」
+// ⇒ 声明序改 v/isType/isInt/s（v 声明与赋值分离，P244）后 121=121、ndiff=0。
 bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 {
     // ORIG 0x089178de：`mov 0xc(%ebp),%eax; mov %eax,0x4(%esp);
@@ -855,13 +877,12 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
         {
             // ORIG 0x089179ad：isType/isInt 为**循环内每轮**置零
             // （movb $0,-0x15/-0x16，P171 dead-init 照抄）。
+            int v;
             bool isType = false;
             bool isInt = false;
             std::string s;
-            // [b28d-solo-OnlyOrigBatch14] ORIG 槽 isType@-0x15/isInt@-0x16/
-            // s@-0x1c/v@-0x14 ⇒ 声明序 isType/isInt 在前、s 次之、v 声明与
-            // 赋值分离（4.4 按首次使用分配槽）。
-            int v;
+            // 声明序 v/isType/isInt/s：4.4「后声明更深」⇒ s 最深(-0x1c)、
+            // v 最浅(-0x14)，与 ORIG 槽图逐槽一致；v 声明与赋值分离(P244)。
             v = ScanTypeOrInt(isType, s, isInt, 1);
             if (!isInt)
                 return false;
@@ -1097,7 +1118,12 @@ pet_script_done:
     return true;
 }
 
-// ORIG T 0x08a3dbaa _ZN9PetScript5clearEv。
+// [b14 本波] 循环体第二条 `m_moveSpeed[i+2]=0`：ORIG 0x08a3dc28 为
+// `add $0x8,%edx; movl $0,0x8(%eax,%edx,4)`（+2 折进 disp8），4.4 恒
+// `lea 0x2(%eax),%edx; add $0x8,%edx; movl $0,(%eax,%edx,4)`（+2 折进索引）。
+// 探针 /tmp/b14_probe3.cpp f1..f4（`[i+2]`/`[2+i]`/`(arr+2)[i]`/`*(arr+i+2)` 四形）
+// 全部产出 lea 形（后两形更劣 9 条）⇒ 判 N4/P30 索引常量分配跨版本差，封顶。
+// 其余 `m_moveSpeed[4]` 清零等本波已补（真语义缺口）。ndiff 5 / gap -1。
 void PetScript::clear()
 {
     m_idx0 = 0;
@@ -1141,33 +1167,27 @@ int importUltimateSkillCutScene(const char*,
 }
 
 // ORIG T 0x088c1e68 _Z18importActiveStatusR14STActiveStatusb
-// （报告缺失，按 §3.2 以 ORIG objdump 全量转写；两侧 AE 文本已逐段核对）。
-// 结构：flag 入参 spill、type 与 16 个 push 结果各占独立槽（ORIG -0x6c/-0x18/
-// -0x58..-0x1c，循环计数 -0x14/-0x10/-0xc）。4.4 槽按声明序自 -0xc 加深 ⇒
-// **逆序声明** 对齐 ORIG 深度。
+// （报告缺失，按 §3.2 以 ORIG objdump 全量转写；两侧 AE 逐条核对）。
+// 结构：flag 入参 spill(-0x6c)、s(-0x5c)、16 个 ScanInt 物化临时(-0x58..-0x1c)、
+// type(-0x18)、循环计数 i9(-0x14)/iD(-0x10)/i4(-0xc)。
+// [b14 本波·AE 归零] 两条真缺口（旧判词「N 封顶、32 条 mov 不可消」作废）：
+//  ①16 处原写 `tX = ScanInt((bool*)0); push_back(static_cast<int&&>(tX));`
+//    ⇒ 4.4 对具名 int 的右值 cast 额外 materialize 中转（每处 +2 条 mov，共 +32）。
+//    改为 **prvalue 直传** `push_back(ScanInt((bool*)0))`：prvalue 绑定 int&& 仍
+//    选中 ORIG 的 `_ZNSt6vectorIiSaIiEE9push_backEOi`（p167 42=42 CLEAR），每处只余
+//    `call; mov %eax,-0xNN` 一条 —— ORIG 的 -0x58..-0x1c 16 槽即这些匿名物化临时。
+//  ②标量区声明序：4.4 按「先声明更深」分配 ⇒ 声明序改 type/i9/iD/i4（s 为类对象
+//    优先占低槽 -0x5c，位置不受影响）。
+// 终态 orig=261 our=261 gap=0 ndiff=0。
 void importActiveStatus(STActiveStatus& st, bool flag)
 {
-    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N82/N93 槽序）；gap 34→32 本波]
-    // 16 处 push_back 用 `static_cast<int&&>(tX)` ⇒ 选中 ORIG 的
-    // `_ZNSt6vectorIiSaIiEE9push_backEOi`（右值重载，P315），p167 CLEAR 42=42。
-    // 本波修：删 `bool f = flag;`（ORIG 0x088c1e96 的 `mov %al,-0x6c` 是 4.1
-    // 对 bool 形参的一次性截断 spill，P244 配套；写 f 令 4.4 多发
-    // `movzbl -0xac; mov %al,-0x9` 两条并推深帧），ours 295→293。
-    // 残差（N 封顶）：
-    //  ①32 条 mov = 16 个 push_back × 2：ORIG `call ScanInt; mov %eax,-0xNN(tX);
-    //    lea -0xNN; call push_backEOi`（ScanInt 结果直落 tX 槽、实参取 tX 址）；
-    //    4.4 对 `static_cast<int&&>(具名 int)` 额外 materialize 临时
-    //    （`mov %eax,-0xNN2; mov -0xNN2,%eax; mov %eax,-0xNN` + `lea 临时`），
-    //    每处 +2 条；探针：改块内声明/去 cast 均改符号或槽序，不闭合；
-    //  ②槽深序：ORIG s(-0x5c)/t5A..t4(-0x58..-0x1c)/type(-0x18)/i9(-0x14)/
-    //    iD(-0x10)/i4(-0xc)，4.4 兄弟块内同类临时槽方向相反（b28c C28L8）
-    //    且帧 sub 0xc0 vs ORIG `add 负立即数`(0x80)。
-    // 控制流/全部 ScanInt 落点与 ORIG 逐段一致。
-    int i4;
-    int iD;
-    int i9;
-    int t4, tD, t9, tB, t6, t2, tA, t11, tF, t7, tCB, tCA, t0B, t0A, t5B, t5A;
+    // 16 处 push_back 均为 prvalue 直传（见函数头判词①）；ScanInt 结果直落
+    // 各自匿名物化临时槽 -0x58..-0x1c，实参取该槽址，与 ORIG 逐处同形。
+    // bool 形参不另建具名副本（P244：ORIG -0x6c 是 4.1 的一次性截断 spill）。
     int type;
+    int i9;
+    int iD;
+    int i4;
     std::string s;
     // [gap 复核] 删除原 `bool f = flag;`：ORIG 0x088c1e96 `mov 0xc(%ebp),%eax;
     // mov %al,-0x6c(%ebp)` 是 4.1 对 **bool 形参**的一次性截断 spill（P244
@@ -1186,82 +1206,66 @@ void importActiveStatus(STActiveStatus& st, bool flag)
     st.m_value10 = ScanInt((bool*)0);
     if (type == 5)
     {
-        t5A = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t5A));
-        t5B = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t5B));
+        st.m_list14.push_back(ScanInt((bool*)0));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 0)
     {
-        t0A = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t0A));
-        t0B = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t0B));
+        st.m_list14.push_back(ScanInt((bool*)0));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 0xc)
     {
-        tCA = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(tCA));
-        tCB = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(tCB));
+        st.m_list14.push_back(ScanInt((bool*)0));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 7)
     {
-        t7 = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t7));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 0xf)
     {
-        tF = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(tF));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 0x11)
     {
-        t11 = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t11));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 0xa)
     {
-        tA = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(tA));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 2)
     {
-        t2 = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t2));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 6)
     {
-        t6 = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(t6));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 0xb)
     {
-        tB = ScanInt((bool*)0);
-        st.m_list14.push_back(static_cast<int&&>(tB));
+        st.m_list14.push_back(ScanInt((bool*)0));
     }
     else if (type == 9)
     {
         for (i9 = 0; i9 <= 3; ++i9)
         {
-            t9 = ScanInt((bool*)0);
-            st.m_list14.push_back(static_cast<int&&>(t9));
+            st.m_list14.push_back(ScanInt((bool*)0));
         }
     }
     else if (type == 0xd)
     {
         for (iD = 0; iD <= 3; ++iD)
         {
-            tD = ScanInt((bool*)0);
-            st.m_list14.push_back(static_cast<int&&>(tD));
+            st.m_list14.push_back(ScanInt((bool*)0));
         }
     }
     else if (type == 4)
     {
         for (i4 = 0; i4 <= 3; ++i4)
         {
-            t4 = ScanInt((bool*)0);
-            st.m_list14.push_back(static_cast<int&&>(t4));
+            st.m_list14.push_back(ScanInt((bool*)0));
         }
     }
 }

@@ -71,9 +71,12 @@ bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 
 // ===================== 地图脚本域（InitMapScript）=====================
 
-// ORIG B 0x94fe2a0 [0x100] / B 0x94fe3a0 [0x18]
+// ORIG B 0x94fe2a0 [0x100]
 char g_szMapScriptBaseDirectory[0x100];
-STScriptFileList g_stMapScriptFileList;             // 权威型（NpcScript.h，sizeof 0x18）
+// [b14 归属迁移·Main 批准] B 0x94fe3a0 的 g_stMapScriptFileList **定义**已迁至
+// OnlyOrigBatch14.cpp（ORIG 该 TU static_init 0x089e81d2 构造它 + atexit D1
+// 0x80f1352，属 P186/P128）；本 TU 仅按 extern 引用（InitMapScript 消费）。
+extern STScriptFileList g_stMapScriptFileList;      // 权威型（NpcScript.h，sizeof 0x18）
 
 // ORIG 0x089dce98：列表登记后直接透传 loadRDARScriptListFile 结果。
 // [b28d-solo-InitScriptProducers_4 AE] P303 __builtin_strcat + P304 权威型 &g_stMapScriptFileList
