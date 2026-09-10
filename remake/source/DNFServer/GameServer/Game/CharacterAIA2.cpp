@@ -11,9 +11,12 @@
 //   §6.2 判语义完成、byte 层 N 封顶（p167 差集仅 C1↔C2 / D1↔D2 同址别名对）。
 // importAICharacterCommonScript 0x088c9ccc：round5 把 [on attack]/[on key] 两段改
 //   `switch (ScanFloatStr(fv, tok))`（P251）并删多余 `float fv = 0.0f`（ORIG 全
-//   函数无该初始化写）⇒ our_insns 2111→2107（gap −6→−2）；余 2 条 + 帧 352 vs
-//   304 = ORIG 函数级共享 int 中转槽（-0xa4 族，4.1 槽复用策略）⇒ N82/N95 封顶，
-//   §6.2 三件套：callsite 320/320 CLEAR + gap −2 + 槽位集逐段核。
+//   函数无该初始化写）⇒ our_insns 2111→2107；再补 [hell monster] 段具名 int
+//   中转槽（ORIG 0x088cbfc3 `mov %eax,-0x10; cmpl $0x0,-0x10; setne %dl`）⇒
+//   2107→2108，全函数 13 处「非分支比较」与 ORIG **逐条同形（含槽号 -0x10）**。
+//   余差 = ORIG 函数级共享 int 槽（-0xa4 族，4.1 不按 lifetime 复用）与帧
+//   352 vs 304 ⇒ N82/N95 封顶；§6.2 三件套：callsite 320/320 CLEAR + gap −3 +
+//   槽位集逐段核（N95：4.4 局部槽基恒 ebp-8，全帧偏移差的根）。
 //
 // 本 TU 提供的 ORIG df_game_r 真实符号（nm 核验）：
 //   STAICharacterCommonScript C1 T 0x088c8a78 / clear T 0x088c9592 /
@@ -798,10 +801,10 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
 // importAICharacterCommonScript —— ORIG T 0x088c9ccc
 // 报告 _lt_global_gt_/importAICharacterCommonScript.md 完整转写。
 // §6.2 超大函数（2105 insns）验收：调用点差集 320/320 全命中（MISS/EXTRA=0）；
-// gap 186 → −5 → **−2**（round5：两处 `switch(ScanFloatStr)` + 删 fv 初值）；
-// 残余为 N82 帧槽错位（ORIG 0x130 vs NEW 0x160，P182 不强凑）与 ORIG 的共享
-// int 中转槽（-0xa4 族；4.1 不按 lifetime 复用，我方按分支各自声明）⇒
-// 判语义完成、byte 层 N 封顶。
+// gap 186 → −5 → **−3**（round5：两处 `switch(ScanFloatStr)` + 删 fv 初值 +
+// [hell monster] 补具名 int 中转槽，our 2111→2108）；13 处非分支比较已与 ORIG
+// 逐条同形（含 -0x10 槽号）。残余为 N82 帧槽错位（ORIG 0x130 vs NEW 0x160，
+// P182 不强凑）与 ORIG 共享 int 槽（-0xa4 族）⇒ 判语义完成、byte 层 N 封顶。
 // 返回 bool：文件加载失败 / [rarity] 解析失败或=6 / [pvp win point] 逆序 /
 //   [drop avatar item] 任一扫描失败 / [animation job] 失败 /
 //   兜底 importAIInfoScript 失败 → false；ScanType 终结 → true。

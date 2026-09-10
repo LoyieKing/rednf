@@ -411,15 +411,17 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
     bool hellKilledAll = false;
     if (mob.m_hellPartyGroupIdx != 0)
     {
-        CBattle_Field* bf = &party->m_battleField;
-        bf->KillHellPartyGroupMonsterCnt(mapInfo, mob, hellKilledAll);
+        // P0/P183：ORIG 0x084ae042 `mov 0xc(%ebp),%eax; lea 0xb24(%eax),%edx`
+        // 直接作 this 传参，无 `bf` 具名指针槽（我方旧形多 add+store+reload 3 条）。
+        party->m_battleField.KillHellPartyGroupMonsterCnt(mapInfo, mob, hellKilledAll);
     }
 
-    int memberCount = party->get_member_count();
-    CBattle_Field* bf = &party->m_battleField;
-    bf->_MakeDropItems(items, mapInfo, mob,
-                       static_cast<unsigned short>(0), memberCount, 100, killCnt,
-                       hellKilledAll, flags, 1.0f, premRate);
+    // P0：ORIG 0x084ae07b `call get_member_count` 结果留 %eax 直压 0x14(%esp)，
+    // 无 memberCount 具名槽（我方旧形多 store/reload 一对）。
+    party->m_battleField._MakeDropItems(items, mapInfo, mob,
+                                        static_cast<unsigned short>(0),
+                                        party->get_member_count(), 100, killCnt,
+                                        hellKilledAll, flags, 1.0f, premRate);
 }
 
 // ORIG singleMapMonsterKill 0x084ad93a：当前地图全部 m_dropCnt==100 怪 × count 次。
@@ -1176,7 +1178,11 @@ void CRandomObjectTest::execute()
         // 对齐 ⇒ 触发 P312 对齐剥离慢路，且使 fileBuf 起点落在 -0x1746b）。
         char fname[255] = {0};
         char fileBuf[95000];
-        memset(fileBuf, 0, sizeof(fileBuf));
+        // P68：ORIG 0x084b01af 先 `lea -0x1746b(%ebp),%eax` 再压 size
+        // （`mov $0x17318,%edx; mov %edx,0x8(%esp)`）⇒ `memset((char*)buf,0,N)`
+        // 触发先载 buf 到 eax；循环内第二次 memset 为裸形（ORIG 0x084b024d
+        // 直接 `movl $imm,0x8(%esp)` 后补 lea），两者源形不同不可统一。
+        memset((char*)fileBuf, 0, sizeof(fileBuf));
 
         bool loop = true;
         while (loop)

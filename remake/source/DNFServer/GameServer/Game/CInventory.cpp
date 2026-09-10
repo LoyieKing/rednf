@@ -475,6 +475,9 @@ __attribute__((used)) void force_emit_CInventory_copy_ops(const CInventory& src,
 // 由 TU 级 force 使用点（上）发射隐式 W 版（b28d-37 探针 /tmp/probe_inv.o 实证与 ORIG AE）。
 // 语义 = 成员逐个赋值（POD 数组块拷贝 + m_creatureMgr/m_avatarItemMgr 的 aSERKS_），
 // 与旧逐字段体完全等价；A32 独立核查全仓无 CInventory 对象级赋值使用点。
+// [A32 建议上锁 · b28d-round5] ORIG 总尺寸 0x7b8（CInventory.h 头注释与成员偏移表自洽）；
+// 隐式 C1ERKS_/aSERKS_ 的块拷贝长度直接取自 sizeof ⇒ 布局漂移会同时让两件失配（N84）。
+static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
 
 void CInventory::reset()
 {
@@ -1636,6 +1639,11 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     // 挤到 -0x40、money[0] 读回多一条 mov ⇒ ndiff **16→24** 劣化，已回滚标量形。
     // [判据⑩ 实测回退] 「带初值者深」（limit 提到 money 之前）在本件**无效**
     // （-0x3c 仍 2/2、-0x28 反由 4→2）⇒ 维持原声明序，槽差记 N82附/N126 族。
+    // [b28d-round5 复攻] 删 level/accName 两个具名局部（ORIG 0x084ff2bb..0x084ff2ee 直证
+    // 无槽：`call get_acc_name; mov %eax,%esi` / `call get_charac_level; mov %eax,%ebx`
+    // 跨 G_CDataManager 保活后直接作 GetMoneyLimitPerLevel 实参）⇒ 该段现已与 ORIG
+    // 逐条一致（含 push ebx/esi 与调用序）。残余 = 整帧 0x6c vs 0x5c（我方 money/bool
+    // spill 槽分区与 ORIG 不同：-0x4c vs -0x3c），N82附 族封顶。
     int money;
     int limit = 0x7fffffff;
     int oldMoney;
@@ -2126,6 +2134,11 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
     {
         return -1;
     }
+    // [b28d-round5 判据⑩/P212 复攻] ORIG 槽序（0x085058da 段）：两个具名局部最深
+    // （itemAddInfo -0x44 / itemInfo -0x40）、循环变量 i 最浅（-0x1c）、trace -0x2c；
+    // 4.4 同 size 组「先声明更深」⇒ 提升到函数头最前，块内仅赋值。
+    int itemAddInfo;
+    int itemInfo;
     for (int i = 3; i <= 8; i++)
     {
         if (m_pEquipSlot[i].m_addInfo != item.m_addInfo)
@@ -2136,8 +2149,8 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
         {
             if (bLog && m_pParent != 0)
             {
-                int itemAddInfo = item.m_addInfo;
-                int itemInfo = item.get_add_info();
+                itemAddInfo = item.m_addInfo;
+                itemInfo = item.get_add_info();
                 cMyTrace(__PRETTY_FUNCTION__,
                          0x157c, 4)
                     ("INVEN INT_MAX setting 1 : m_id(%s),charac_id(%d) inven(%d)+add(%d) item_id(%d)",
@@ -5786,6 +5799,14 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
 {
     // b28d-solo-CInventory：117/117，ORIG push %edi + sub 0x5c vs 我方 sub 0x60（callee-saved 缓存差）⇒ N18a/N82 封顶。
     // b28d-37 [N18a/N82 封顶，ORIG 0x8509e78]：callee-saved push 差 + 槽位残差（117=117 指令数，语义闭合）。
+    // [b28d-round5 **DIFF→NEAR 翻正**，ORIG 0x08509f2b..0x08509f7c 直证] 旧 N 判词作废：
+    // 真因是 avatarUid/characNo **两个具名局部**（ORIG 无槽：`movsbl -0x30(%ebp),%edi`(c)/
+    // `movzbl -0x2c(%ebp),%esi`(b) 跨 get_charac_no 保活、avatarUid 保活 %ebx、characNo
+    // 由 %eax 直压 0x4(%esp)）⇒ 按 P0 改单条语句 + 内联实参后 117/117 且 push edi/esi/ebx
+    // 与 sub $0x5c 全数复现（帧/push 与 ORIG 一致）。残余 = `m_expansion` 一处 3 行装载序
+    // （ORIG LHS-first `mov -0x1c→%eax` 先载 vs 4.4 RHS-first 先算 `*(int*)&expansion`）：
+    // 直写 cast / 匿名 union 具名视角 / 具名引用三形实测同产 RHS-first（P235 方向不成立），
+    // 记 N76 族；其余为 .o 重定位伪差。
     if (m_pParent == 0)
         return false;
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("inventory.cpp", 0x2360), true);

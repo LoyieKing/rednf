@@ -13697,8 +13697,6 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
     stGuildCargoPushItemParam& result = static_cast<stGuildCargoPushItemParam&>(param);
     const MSG_GUILD_CARGO_PUSH_ITEM* const M =
         reinterpret_cast<const MSG_GUILD_CARGO_PUSH_ITEM*>(&msg);
-    const unsigned char itemSpace = M->m_field0d;
-    const unsigned short slot = M->m_field0e;
 
     result.m_4 = check_error(user, msg, param);         // +0x04 错误码
     if (result.m_4 >= 1)
@@ -13706,12 +13704,15 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
     if (result.m_4 < 0)
         return LineFunc(0x2cf0, __PRETTY_FUNCTION__, result.m_4, 0);
 
+    // [round5 A01] P0/P183：ORIG 0x081d1163/0x081d1183/0x081d11b5 段**无** itemSpace/slot/
+    //   dataMgr 具名槽（M 是唯一 -0x28 具名指针；G_CDataManager() 内联进 find_item 的 receiver）
+    //   ⇒ 三处内联，消 3 组 store/reload 对（我方 pairs 2 vs ORIG 0）。
     const CInventory* inven = user->getCurCharacInvenR();
     const int invenType =
-        GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(unsigned char)itemSpace);
-    const Inven_Item slotItem = inven->GetInvenSlot(invenType, static_cast<int>(slot));
-    CDataManager* dataMgr = G_CDataManager();
-    CItem* item = dataMgr->find_item(slotItem.m_addInfo);
+        GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(unsigned char)M->m_field0d);
+    const Inven_Item slotItem =
+        inven->GetInvenSlot(invenType, static_cast<int>(M->m_field0e));
+    CItem* item = G_CDataManager()->find_item(slotItem.m_addInfo);
 
     // ---- ORIG 0x081d11c9..0x081d1305（Fix7_I 恢复真实调用）----
     // ORIG is_stackable 读两次（P48）：一次存 bool、一次作分支判据。

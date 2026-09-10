@@ -447,7 +447,7 @@ int decryptBVHackPacket(char* payload, stBVHackInfo_t& info)
     const unsigned int key =
         *reinterpret_cast<unsigned int*>(payload + 0x30);           // mov 0x30(%eax)
 
-    unsigned int* cur = reinterpret_cast<unsigned int*>(payload);   // -0x8 游标
+    register unsigned int* cur = reinterpret_cast<unsigned int*>(payload);   // -0x8 游标
     // ORIG 0x0889215b `setbe`（无符号 ≤）⇒ 循环变量必须 unsigned（P2）。
     for (unsigned int i = 0; i <= 11; ++i)          // cmpl $0xb … setbe（i≤11 共 12 次）
     {

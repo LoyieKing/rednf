@@ -20,16 +20,6 @@
 #include "SigTypes.h"
 #include <cstring>
 #include <cstdlib>
-#include <map>
-
-// ---- ORIG 全局：hashkey_map（B 0x093f5810 size 0x18，CU=PacketIntegrityManager.cpp）----
-// 类型由 ORIG 自身 static_init 实证：`movl $0x93f5810,(%esp); call
-// _ZNSt3mapIjhSt4lessIjESaISt4pairIKjhEEEC1Ev`（0x0808c0ab）⇒
-// std::map<unsigned int, unsigned char>（sizeof 0x18，4.4 实测一致）。
-// ORIG 全二进制除同 TU 的 __static_initialization_and_destruction_0
-// （0x0808c0a7 / 0x0808c0c1）外零业务读写引用 ⇒ 补定义对齐符号账（REAL_GAP_SYMBOL）。
-// 置于本 TU 首个强符号位：GI 键名对齐 ORIG `_GLOBAL__I_hashkey_map`（0x0808c0cf）。
-std::map<unsigned int, unsigned char> hashkey_map;
 
 // [SweepPIHash] PISenderManager::m_pad（+0x04，char[4]）的无符号字节左值视图。
 // 依据：`char = unsigned char` 属符号性异型 ⇒ 4.4 store 走 RHS-first

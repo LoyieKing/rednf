@@ -3859,9 +3859,12 @@ struct Inter_MonitorNoticeGuildChatMsgPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=79（ORIG 0x84c9e30）：N22 cmp 操作数方向+N18a 单段 regmove+P264 .o 重定位/立即数。
 int Inter_MonitorNoticeGuildChatMsg::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeGuildChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgPktView*>(data);
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
+
+    // ORIG 该件包基址槽在 state 门之后物化（同 Inter_Monitor_DeleteBlackListResult
+    // 配方：`mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)` 落于守卫之后）⇒ 声明下移。
+    Inter_MonitorNoticeGuildChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgPktView*>(data);
 
     if (user->get_charac_no(-1) !=
         pPkt->m_e)         // msg+0x0e 角色号校验
@@ -6804,9 +6807,12 @@ struct Inter_Monitor_DeleteBlackListResultPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=58（ORIG 0x84d1034）：P226 具名 bool/char 落槽+N18a 单段 regmove。
 int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_Monitor_DeleteBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_DeleteBlackListResultPktView*>(data);
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
+
+    // ORIG 0x084d1042 段：包基址在 state 门之后（且晚于首个分支块）才物化
+    //（`mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)` 落于 jmp 之后）⇒ 声明位置照抄（P0）。
+    Inter_Monitor_DeleteBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_DeleteBlackListResultPktView*>(data);
 
     PacketGuard packet;
     packet.put_header(1, 0x7a);
@@ -16017,9 +16023,10 @@ struct Inter_RequestJoinGuildPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=66（ORIG 0x84e3924）：混合残差（寄存器分配/槽序：N7/N18a/N82/P112）。
 int Inter_RequestJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_RequestJoinGuildPktView* pPkt = reinterpret_cast<Inter_RequestJoinGuildPktView*>(data);
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
+
+    Inter_RequestJoinGuildPktView* pPkt = reinterpret_cast<Inter_RequestJoinGuildPktView*>(data);
 
     if (pPkt->m_0 != 0)          // msg+0x00 错误码
     {
@@ -17980,7 +17987,6 @@ struct Inter_LoadCerashopAddRestrictTypePktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=44（ORIG 0x80e2104）：P30/N4 add-vs-lea。
 int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_LoadCerashopAddRestrictTypePktView* pPkt = reinterpret_cast<Inter_LoadCerashopAddRestrictTypePktView*>(data);
     if (user == 0 || data == 0)
     {
         cMyTrace(__PRETTY_FUNCTION__,
@@ -17988,6 +17994,8 @@ int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int
               __PRETTY_FUNCTION__);
         return 0x201;
     }
+
+    Inter_LoadCerashopAddRestrictTypePktView* pPkt = reinterpret_cast<Inter_LoadCerashopAddRestrictTypePktView*>(data);
 
     if (data == 0)
     {
