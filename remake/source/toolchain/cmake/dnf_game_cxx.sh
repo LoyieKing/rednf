@@ -636,6 +636,25 @@ case "$(basename "$src" .cpp)" in
                 #   前缀或 nm 显示 `W`/`w`）的「翻正」一律**不计入预期**。
                 # `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
+            *Game/CEventCreateDnf.cpp | \
+            *Game/EventRewardWrite.cpp | \
+            *Game/StubS3A_deps.cpp | \
+            *Game/BestClearTime.cpp | \
+            *Game/DB_InsertAccountFirstLoginDailyFlag.cpp | \
+            *Game/DB_InsertAccountFirstLoginFlag.cpp | \
+            *Game/Dispatcher_AuctionRegistItem_impl.cpp | \
+            *Game/LinkClosureD.cpp | \
+            *Game/MouseRegisterEJ.cpp | \
+            *Game/MySQL.cpp | \
+            *Game/W9_StructMisc.cpp | \
+            *Game/CEventScriptMng.cpp)
+                # [Main·2026-09-10 round5] **446 后端杠杆**（`-B cc1plus446bin/`）路由 A/B。
+                # 该族画像是「间接调用目标寄存器 ORIG `call *%edx` vs 4.4.7 `call *%eax`」（N7），
+                # 机器筛出 88 件/56 TU，本批为逐 TU A/B 有增益者（其余 34 TU 零变化、
+                # 3 TU 回退已剔除：MatchingSystem id+ae −2、CompoundDeathLCB/GameMain near→diff）。
+                # .o 口径合计：Δident **+14** / Δnear **−18** / Δdiff 0（非 identical 净 −17）。
+                # ⚠ 与 x87 臂同规矩：**全局核账定稿**（weak/COMDAT 重复发射会高估）。
+                exec "$C6" -B"${ROOT}/cc1plus446bin/" "$@" ;;
 
             *)
                 exec "$C6" "$@" ;;
