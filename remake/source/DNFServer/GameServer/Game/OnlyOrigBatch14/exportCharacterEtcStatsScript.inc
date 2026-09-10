@@ -21,6 +21,14 @@ void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
     int i;
     for (i = 0; i <= 3; ++i)
     {
+        // [P1T1 本波 A/B·旗标申请] ORIG 0x08a10202-0x8a10211 `fld [eax+edx*4+0xc];
+        // fldz; fucompp; fnstsw %ax; sahf; jne; jp`（x87 4.1 lowering）；4.4.6 恒发
+        // `fucomip %st(1),%st; fstp %st(0)`（P230/N85 族）。实测给本 TU 叠
+        // `-march=i486 -mtune=generic`（同带）⇒ 本件翻 AE（119=119），且非 weak 件零
+        // 劣化；但同 TU 13 个 weak 模板实例（std::uninitialized_copy）转 DIFF ⇒
+        // TU 四数 396/799/1/12 → 396/786/1/24（劣化）。⇒ 需 Main 按 weak 口径裁决；
+        // 函数级 `#pragma GCC target("arch=i486"/"no-sse")` 在 4.4.6 实测无效
+        //（/tmp/p1/probe_x87.cpp f1/f2/f3 三形全 fucomip）⇒ 本件维持 DIFF。
         if (stats->m_moduleDamageRate[i] != 0.0f)
             break;
     }

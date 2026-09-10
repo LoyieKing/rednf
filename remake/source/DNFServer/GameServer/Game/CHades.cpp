@@ -220,13 +220,19 @@ namespace XNuclear
     //   g5 裸 `register` 指针 ⇒ 出 `lea 0x8e400(%eax),%ebx` + `push %ebx`（ORIG 无 push、用 add）。
     // ⇒ 无合法源形可复现「裸 add + 直 deref、无栈无 push」；0x8e418 属
     //   CNetwork<4096,450000> 内部缓冲偏移（非本 TU 布局），P311 数组视图不适用。
+    // [P6S3 round6 · 钥匙 §2①②/P341 指针加法和形，落地] 上述 g1..g5 漏了
+    // **「基址 + (元素地址 − 基址)」显式指针加法**形：探针 /tmp/p6/sc/p1.cpp
+    // D/E 两形在同旗标下逐条产 `mov 0x20(%eax),%eax; addl $0x8e418,%eax;
+    // movzbl (%eax),%eax`（零栈物化、无 push，即 ORIG 形；g1 式成员下标恒 fold）。
+    // ⇒ 用等值指针表达式替换下标读，语义不变（值仍为 m_pcRoomIp[0]）。
     m_user->m_network.GetPeerIP2(out, 4);
     // [b28c-16] P223/BM8 尾标签串：ORIG `jne +0x84(nop)/je +0x87(nop)/体尾
     // jmp +0x88` 三岛 ⇒ 两否定 goto + L1/L2 空标签串（4.4 对嵌套 if 恒
     // jump-thread 合并出口）。
     if (out[0] != '\0')
         goto L1;
-    if (m_user->m_mcap.m_pcRoomIp[0] == 0)
+    if (*(char*)((char*)m_user +
+                 ((char*)m_user->m_mcap.m_pcRoomIp - (char*)m_user)) == 0)
         goto L2;
     memset(out, 0, 0x10);
     strncpy(out, m_user->m_mcap.m_pcRoomIp, 0x10);

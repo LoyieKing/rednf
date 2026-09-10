@@ -1,1 +1,1 @@
-int eventReward::unsealRandomOption(const CItem* item, Inven_Item& inven)
+bool eventReward::unsealRandomOption(const CItem* item, Inven_Item& inven)

@@ -324,7 +324,7 @@ namespace expert_extraction
 //   具名局部会令 4.4 再复制一份到临时并使全帧深移 4（-0x34 vs ORIG -0x30）。
 //   p167 27/27 CLEAR。
 #include "ExpertExtraction/extraction.inc"
-                                      std::vector<std::pair<int, int> >& needItems)
+                                      IntPairVector& needItems)
 {
     const CInventory* invenR = user->getCurCharacInvenR();
     Inven_Item item = invenR->GetInvenSlot(1, (int)param);
@@ -447,7 +447,7 @@ namespace expert_extraction
 //   （pick 两句 + cMyTrace 全表达式链 + 内联 count；单结果表无 result_type 分支）。
 //   p167 25/25 CLEAR。
 #include "ExpertExtraction/extraction_1.inc"
-                                      std::vector<std::pair<int, int> >& needItems)
+                                      IntPairVector& needItems)
 {
     const CInventory* invenR = user->getCurCharacInvenR();
     Inven_Item item = invenR->GetInvenSlot(1, (int)param);
@@ -607,7 +607,7 @@ namespace expert_extraction
 //   （pick 两句 + cMyTrace 全表达式链 + 内联 count；字段 m_field8、
 //   stDollControllerResult 表）。p167 27/27 CLEAR。
 #include "ExpertExtraction/extraction_2.inc"
-                                           std::vector<std::pair<int, int> >& needItems)
+                                           IntPairVector& needItems)
 {
     const CInventory* invenR = user->getCurCharacInvenR();
     Inven_Item item = invenR->GetInvenSlot(1, (int)param);

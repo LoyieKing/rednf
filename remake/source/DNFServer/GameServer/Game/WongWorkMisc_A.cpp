@@ -43,6 +43,12 @@ namespace WongWork
 //   `add %eax,%ecx`+`lea 0x8(%ebx),%edx`）= N7+N18a。已试 7 形（`=`/`+=`/交换加数/
 //   语句表达式/register 索引/register 元素/long 索引）+ 4.4.6 后端复测，同形 ⇒ 封顶。
 //   p167: 0 missing / 0 extra；语义与 Ghidra C 逐 case 一致（mod 2^16 等价）。
+// [P3Wave4 试形 8·P339 全头部声明·中性已回滚] 上述 7 形均未动 **i 的声明位置**；
+//   本波补试「`int i;` 上移函数头 + `for (i = 0; …)`」⇒ 复编实测 **119/121 不变**
+//   （寄存器角色残差原样：i→%ebx、值→%ecx、`add %eax,%ecx`+`lea 0x8(%ebx),%edx`），
+//   即声明位置在本件不改变 4.4 伪寄存器分配 ⇒ 无收益，按最小改动原则回滚为块内
+//   声明（本形 8 已试毕，勿重复）。ORIG 侧 0x0831e985 `mov -0x8(%ebp),%ecx` 与
+//   0x0831e99b `mov %eax,%ebx` 证明 ORIG 为 i→%ecx / 值→%ebx（N7+N18a 角色互换）。
 #include "WongWorkMisc_A/ApplyElixerItem.inc"
 {
     // [b27 封顶] 残差仅 case9 循环体寄存器角色（ORIG arr值→ebx/i基址重读→ecx，
@@ -81,6 +87,7 @@ namespace WongWork
         // `add $0x8,%ecx`）；去 cast 形与复合赋值形实测与 cast 形**同值**（119 vs 121，
         // 差异恒为寄存器角色互换）⇒ 循环变量符号性（两侧同为有符号 setle）与 cv 限定
         // 符均非本件变量，维持 N7/N78 封顶。
+        // [P3Wave4 试形 8·P339] 声明位置上移已试并复编为中性（119/121 不变），已回滚。
         for (int i = 0; i < 4; ++i)                          // 循环上界 cmp $0x3,setle
             out->m_field10[i] = static_cast<unsigned short>(
                 out->m_field10[i] + value * 10);

@@ -610,6 +610,12 @@ namespace item_lock
 // CItemLock 权威声明在 CTitleBook.h（item_lock::CItemLock）
 
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0832a778 | _ZN13charac_expand8CDataMgrC1Ev
+// 2026-09-11 CuA（P5 父泳道点名「EXTRA 3×placement new/memset/delete」复核）：
+//   p167fix 的 EXTRA `_ZnwjPv`/`memset`/`_ZdlPvS_` ×3 与 MISSING `_ZdlPv` 均**非多余结构** ——
+//   ORIG 0x0832a781..0x0832a7b8 把 `operator new(size,ptr)` **内联**并把手写常量 `memset`
+//   内联成 `rep stos`；4.4 两者都走 out-of-line call。我方源码已是最小单表达式
+//   （下行三处 `new (memset(::operator new(N),0,N)) T()`，无额外指针具名/无显式析构）
+//   ⇒ 属 N78b 跨版本内联差，无源码可改。
 #include "CUser/CDataMgr.inc"
 {
     // slot0 +0x00：ORIG 0x0832a781..0x0832a7b8 `movl $0x30,(%esp); call operator new;
@@ -3028,6 +3034,10 @@ ST_END:;
 }
 
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868adfc | _ZN5CUser17setInitQuestPointEv
+// 2026-09-11 CuA（剩余 1 条 `jmp` 的终判）：ORIG 0x868aeff `jmp 868af02` + 0x868af01
+//   `nop` 是 4.1 为**空 else/空语句**发射的 nop 岛（if 体尾必须 jmp 跳过）；探针
+//   /tmp/P5/p_nop p.cpp f1(`else ;`)/f2 在 4.4 下产物**逐条相同且无 nop/无 jmp**
+//   ⇒ 该条 jmp 不可造（N）。本方其余指令已逐条对齐。
 #include "CUser/setInitQuestPoint.inc"
 {
     // ORIG 0x868adfc T：清空 init QP 与 piece，再按 NPC 任务表逐条累加已清任务奖励点。
@@ -3337,6 +3347,11 @@ public:
 
 // 0x08657ada
 // b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08657ada | _ZN5CUser14RecoverFatigueEi
+// 2026-09-11 CuA 复核（**勿按「形参互换」改**）：ORIG 0x8657b35..0x8657b5a 的
+//   makeRequest(get_acc_id, getCurCharacSchoolPoint, GetUID) 段，ORIG 把 arg3(GetUID) 放
+//   %ebx、arg2 放 %esi；我方 %ebx/%esi 恰好对调 —— 但**两侧求值序同为右→左**
+//   （arg3 先算），esi/ebx 内容同步互换、写入 0x8/0x4(%esp) 的槽位不变 ⇒
+//   语义等价，仅 4.1↔4.4 寄存器选择差（N7）。改源码反而会真错位。
 #include "CUser/RecoverFatigue.inc"
 {
     // ORIG 0x08657ada：角色为空直接返回（跳过全部）；否则先写回
@@ -3579,6 +3594,10 @@ public:
 }
 
 // b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08678526 | _ZN5CUser13CheckMoveTownEi
+// 2026-09-11 CuA 探针终判（/tmp/P5/p_cmp probe_cmp{,2}.cpp）：4.4 对 **(int 参数 + `(unsigned)` cast)**
+//   恒产 `mov 0xc(%ebp),%eax; cmp $0xa,%eax`；折成 ORIG 的 `cmpl $0xa,0xc(%ebp)` 只在
+//   **形参自身为 unsigned**（`_Z1bj` 探针）或 e1..e5 五种等价写法全不改 —— 而本件 mangled
+//   是 `…13CheckMoveTownEi`（int）⇒ 不可造。判 N，勿再试。
 #include "CUser/CheckMoveTown.inc"
 {
     if (G_GameWorld()->IsPVPChannel())
@@ -6061,6 +6080,13 @@ void STBreakAwayRewards::operator=(const STBreakAwayRewards& other)
     // 4.4 双槽（probe17）；big[0x9c] 垫 0xa4 帧。local 初始化多余——删，仅留 arg  spill。
     char big[0x9c]; (void)big;
     (void)rewardType;
+    // P139 prett 缺口（P5 父泳道点名）：ORIG .rodata 有
+    //   `_ZZN5CUser17AddSecuRewardItemEhE19__PRETTY_FUNCTION__` @0x8cf2660 size=0x2d
+    //   （串 "void CUser::AddSecuRewardItem(unsigned char)"，逐字节同）；
+    //   全库 ORIG 反汇编 0 处引用它（DEAD 串），但 4.1 为该函数发射了它 ⇒ 我方
+    //   也须发射以对齐符号形态。sizeof 是编译期量，**零指令/零行为影响**（/tmp/P5/p_prett
+    //   探针：加了 sizeof 后函数仍是 0x14 字节逐条同，且 emit 该 prett 符号）。
+    (void)sizeof(__PRETTY_FUNCTION__);
 }
 
 // ORIG _ZN5CUser24GenerateCleanPadVeriDataERtRhS0_ T 0x08649ac4：生成三段
@@ -7325,8 +7351,16 @@ done:;
 
     if (isGuildSkill)
     {
-        if (!IsGuildMaster() && !IsSubGuildMaster())
-            return;
+        // 2026-09-11 CuA（P59/P222 守卫包裹形 + 去取反物化）：ORIG 0x866afd2..0x866affe
+        //   `call IsGuildMaster; test %al,%al; jne +0x1e` / `call IsSubGuildMaster; test
+        //   %al,%al; je +0x19` / `mov $0x1,%eax; jmp` / `mov $0x0,%eax; test %al,%al;
+        //   je <尾部 return>` —— **无 `xor $0x1` 物化**（正向 `A||B` 到 al 再 test）。
+        //   原写 `!A() && !B()`（德摩根反写）令 4.4 恒产 `xor $0x1,%eax`（每侧一条）+
+        //   jne/je 极性镜像。探针 /tmp/P5/p_guard g.cpp：v1(`!A&&!B`)/v2(`!(A||B)`) 均产
+        //   xor；v3(`A||B`)/w1(void 版 + else return) 与 ORIG 逐条同形。
+        if (IsGuildMaster() || IsSubGuildMaster())
+        {
+        // ⚠ 内层缩进未调整（最小化 diff）：本 `if` 的正文即原 guild 块全部语句。
         // ORIG 0x0866b..：经 GetGuildDBInfo() 访问器取 guildDB(+0x42=m_guildSkillPoint)。
         unsigned short guildLevel =
             ((STGuildDBInfoOnly*)GetGuildDBInfo())->m_guildSkillPoint;
@@ -7344,6 +7378,11 @@ done:;
                                          (unsigned int)get_charac_guildkey(),
                                          (int)skillIdx, learnCnt, needGSP,
                                          (unsigned int)needGold);
+        }
+        }
+        else
+        {
+            return;
         }
     }
     else
@@ -9763,8 +9802,18 @@ struct CharacViewCacheView
     if (flag)
     {
         delta = delta + 1;
-        if (!(G_GameWorld()->IsIntegratedPvPBaseChannel() &&
-              G_CDataManager()->GetPvPChannelType() == 0))
+        // 2026-09-11 CuA（P59/P222 守卫包裹形 + 去 xor 物化）：ORIG 0x865c70b..
+        //   0x865c74f 为 `call IsIntegratedPvPBaseChannel; test %al,%al; je +0x1a` /
+        //   `call GetPvPChannelType; test %eax,%eax; jne +0x14` / `mov $0x1,%eax; jmp` /
+        //   `mov $0x0,%eax; test %al,%al; jne <join>` —— **无 `xor $0x1`**、then 为空、
+        //   body 在 else。原写 `!(A && B==0)` 令 4.4 产 `xor $0x1,%eax` + 极性镜像
+        //   （我方 index 44/67 两处）。探针 /tmp/P5/p_guard h.cpp c1：正向空 then +
+        //   else body 与 ORIG 逐条同形（含 mov $1/mov $0 物化）。
+        if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
+            G_CDataManager()->GetPvPChannelType() == 0)
+        {
+        }
+        else
         {
             getPVPResultW()->m_totalWinCount += 1;
         }
@@ -9772,8 +9821,11 @@ struct CharacViewCacheView
     else
     {
         // ORIG：整合 PvP 基础频道且渠道类型 0 → 不计败场。
-        if (!(G_GameWorld()->IsIntegratedPvPBaseChannel() &&
-              G_CDataManager()->GetPvPChannelType() == 0))
+        if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
+            G_CDataManager()->GetPvPChannelType() == 0)
+        {
+        }
+        else
         {
             getPVPResultW()->m_totalLoseCount += 1;
         }
@@ -11477,6 +11529,11 @@ HIT:
 // 注意 ORIG 在循环构造 STGuildSkill（-1/0xff）后又 memset(+0x45,0,0x50) 覆盖清零，
 // 净效果 skills 全 0（CUser.h 冻结 m_skills 为 char[0x50]，无构造语义，直接清零）。
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08693f56 | _ZN17STGuildDBInfoOnlyC1Ev
+// 2026-09-11 CuA 探针终判（/tmp/P5/p_bits b.cpp g1..g6）：`b |= 1`、`b = b|1`、
+//   具名读-改-写、`b &= ~2` 等 6 形在 4.4 下**全部**产 5 条
+//   `mov %eax,%edx; movzbl 0x1c(%eax),%eax; or $1,%eax; mov 0x8(%ebp),%eax; mov %al,0x1c(%edx)`，
+//   而 ORIG 0x08694069 是 4 条的 `movzbl 0x1c(%eax),%edx; or $1,%edx; mov %dl,0x1c(%eax)`
+//   （this 保 %eax、值走 %edx，且后续重载 this）⇒ 4.4 不产该分配，判 N（勿再改写法）。
 // b28d-GrpD 按 ORIG 0x08693f56 直证改写（两处）：
 //  ① ORIG 生成序 = [0x17..0x44 逐字段 movl/movb/movw] → [16× call STGuildSkill::C1Ev
 //     循环 @+0x62] → [0x95..0xb9 逐字段 @+0x7f] → [函数体 memset…]。循环夹在标量

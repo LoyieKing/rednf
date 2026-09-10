@@ -336,6 +336,11 @@ const char* const kVendBonusTag = "[bonus output]";
 // ORIG 全等、output/bonus 改 for(;;)+if(!ok)break 形（P165 两份物理独立块）、
 // make_pair<unsigned long&,unsigned int&>、push_back(O&&)、P171 越界读照抄。
 // 残余为 4.1/4.4 块序（ORIG 两连 jmp 中继 vs 4.4 jump-thread）——N104/N121 封顶。
+// [P1T2 复验 2026-09-11] 残余 4 块（clean 320/321，原 327/328）：ORIG 在循环头
+// 0x890b330 前有 3 条 `jmp 890b330` 中继（0x890b327 fall-through 入口、
+// 0x890b32a/0x890b32d 分别由 0x890b3c1/0x890b42f[je] 进入），4.4 把 continue
+// 就地物化（我方 0x2167 等）⇒ 净差 1 条。A/B 三档（-B cc1plus446bin、
+// -B …/4.4.4/、-fno-thread-jumps）TU 四数逐项相同、件级 gap 不变 ⇒ 源码不可翻。
 #include "InitScriptProducers_8/importVendingMachineInfoCore.inc"
                                  stVendingMachine_t& vm)
 {
@@ -731,6 +736,10 @@ eof_exit:
 // 段改 `if(!ok) break;` 正向后置（ORIG 0x890cc8c je 继续）。残余仅 ScanType 失败块
 // 极性（ORIG jne 尾块 vs 4.4 je+mov $1,%ebx 就地物化，0x0890bcd3/0x0890cdb4）与
 // 循环入口旋转岛——N104/N121 封顶，语义全等。
+// [P1T2 复验 2026-09-11] 残余 4 块（clean 1070/1070；原始 1094/1092 之差为
+// nop 填充）：ORIG 索引 461/938 处中继 jmp（同 4.1 尾岛族）vs 4.4 `je` 就地
+// 物化（索引 103/468 我方多 `jmp`）。A/B 三档（-B cc1plus446bin、
+// -B …/4.4.4/、-fno-thread-jumps）读数逐项相同 ⇒ 源码不可翻。
 #include "InitScriptProducers_8/importUnlimitChallengeScript.inc"
 {
     if (!loadRDARScriptFile("", path))
@@ -1241,6 +1250,11 @@ eof_exit:
 // 0x895ffaf 返回 ok 槽）。已对齐：value_type 转发构造（P315）、三件套移入循环体
 // （P177）、fatigueMatchGift ctor throw()（P216）。残余仅循环入口旋转 jmp/nop 岛
 // 与尾部岛——N104/N121 封顶。
+// [P1T2 复验 2026-09-11] 残余 2 块（clean 470/470；原始 472/473）：①我方在
+// `movl $0xffffffff,-0x124(%ebp)`（jobType=-1）后多一条 `jmp` 到紧邻 fall-through
+// 的循环头（我方 0x10853）；②ORIG 0x895ffa4 `jmp 0x895f8a5` 循环头中继（我方
+// 直接 jmp 到目标）。A/B 三档（-B cc1plus446bin、-B …/4.4.4/、-fno-thread-jumps）
+// 读数逐项相同 ⇒ 源码不可翻。
 #include "InitScriptProducers_8/importUseJobFatigueGiftScript.inc"
                                    const char* path)
 {
@@ -1413,8 +1427,17 @@ eof_exit:
 // 并按 P333 重写 [finish ani] 惰性注册链：首轮 v=0 沿 case 0→0x318→0x31b
 // fallthrough 建表（ORIG 0x8960efb/0x8960f55），case 体负极性 if(!__inited)，
 // default 在 __inited 时 return false（未知层名），三件套声明移入子循环（P177，
-// ORIG 重扫 0x8960fc9 jmp 0x8960cf2）。残余仅 ScanType/ScanInt 失败块极性（ORIG
-// jne 尾块 vs 4.4 je 就地物化）——N104 封顶。
+// ORIG 重扫 0x8960fc9 jmp 0x8960cf2）。
+// [P1T2 2026-09-11 复修] ①删多余具名局部 `layer`（P0）：ORIG 无该槽，make_pair
+// 左值实参直接取 layerId 的槽（ORIG 0x89610d6 `lea -0x128(%ebp),%edx`）；旧码
+// `T layer = static_cast<T>(layerId)` 多占 4 字节 ⇒ 全函数栈槽整体下移 4
+// （ORIG -0xe4 ↔ 我方 -0xe8，33 槽全体），删后槽集合逐一对齐（slotcmp 实证）。
+// ②[finish sound] else-if 块移到 [finish ani] 之后：ORIG 块序实证 0x89611bb
+// （偏移 0x95a，在 [finish ani] 段 0x8960e..–0x89611.. 之后），4.4 按源码序摆放；
+// token 互斥，语义不变。效果：86 差异块 → 3（clean 620/621，gap -1→+1）。
+// 残余 N 类：①0x8960938 `jne 89609c1` 尾块 vs 4.4 `je`+`jmp` 就地物化；
+// ②pair 构造实参寄存器 ORIG %edx vs 4.4 %ecx（求值序）；A/B 三档
+// （-B cc1plus446bin、-B …/4.4.4/、-fno-thread-jumps）读数逐项相同。
 #include "InitScriptProducers_8/importSeriaRoomAnimationDecoEvent.inc"
                                        const char* path)
 {
@@ -1489,10 +1512,6 @@ eof_exit:
                     return false;
                 s->m_aniList.insert(std::make_pair(key, info));
             }
-        }
-        else if (token == "[finish sound]")
-        {
-            ScanStr(&s->m_finishSound);
         }
         else if (token == "[finish ani]")
         {
@@ -1584,12 +1603,21 @@ eof_exit:
                     return false;
                 if (!ScanInt(&info.m_c))
                     return false;
-                // ORIG make_pair<aniLayer::T&, seriaRoomDecoAniInfo&>（左值实参）
-                seriaRoomDecoAniEventScript::aniLayer::T layer =
-                    static_cast<seriaRoomDecoAniEventScript::aniLayer::T>(
-                        layerId);
-                s->m_finishAniMap.insert(std::make_pair(layer, info));
+                // ORIG make_pair<aniLayer::T&, seriaRoomDecoAniInfo&>（左值实参）：
+                // 实参就是 layerId 本身的槽（ORIG 0x89610d6 `lea -0x128(%ebp),%edx`
+                // 直取 layerId 地址），无 layer 具名槽（P0）。
+                s->m_finishAniMap.insert(std::make_pair(
+                    reinterpret_cast<seriaRoomDecoAniEventScript::aniLayer::T&>(
+                        layerId),
+                    info));
             }
+        }
+        // ORIG 块序：0x89611bb（函数尾，偏移 0x95a）才是 [finish sound] 段，
+        // 位于 [finish ani] 段（0x8960e..–0x89611..）之后；4.4 按源码序摆放，
+        // 故此处链序须与 ORIG 一致（token 互斥，语义不变）。
+        else if (token == "[finish sound]")
+        {
+            ScanStr(&s->m_finishSound);
         }
     }
     return true;

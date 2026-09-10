@@ -64,6 +64,12 @@ namespace APSystem
     //  _ZN8APSystem12_ActionPointC1Ev` = 3 条（mov this; mov (esp); call），
     //  我方平铺布局只能 `memset(this,0,0xb)` = 5 条且在成员构造之后发射；
     //  欲同形需 .h 令 CActionPointEx 真正继承 _ActionPoint（越界，未做）。
+    // [P6AuditOldN-S1 2026-09-11 负结论 · p167fix call 差集线索] 试形
+    //   `new (reinterpret_cast<_ActionPoint*>(&m_field00)) _ActionPoint();`
+    //   ⇒ our 56→**60**（gap −1→−5，反劣）：4.4 -O0 不内联 `operator new(size_t,void*)`
+    //   （多 `movl $0xb,(%esp); call <operator new>` + `test %edx; je` null 检查），
+    //   且 ctor 发射点仍在成员构造之后 ⇒ 已回滚。欲得 ORIG 3 条形需 .h 真继承
+    //   （`class CActionPointEx : public _ActionPoint`）—— 属 P7 头部轴，本 TU 越界。
     memset(&m_field00, 0, 0xb);   // 基类 _ActionPoint 子对象 [+0x00,+0x0b)
     // P183 反向：`&m_bytes02[0x0a]` 取址式 4.4 恒发 `mov this; add $0xc; movw (%eax)`
     // 三条；ORIG 0x08895684 为 `movw $0x0,0xc(%eax)` 两条 ⇒ 走 m_record 具名成员

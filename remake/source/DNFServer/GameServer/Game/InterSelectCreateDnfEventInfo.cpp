@@ -126,6 +126,14 @@
     // word[15]，P48 无 CSE 各自独立调用，P167 CLEAR 0 missing/0 extra）；残余为
     // 4.4.7 间接 call 目标恒 %eax vs ORIG %edx（N7，4.4.6 后端可翻，本 TU 未路由）
     // + 槽号平移 4（msg -0x14 vs -0x10）。真语义 bug 已修（m_rate/m_hour）。
+    // [P1T2 2026-09-11 复验] 现存残余**仅**两处 call 目标寄存器（p167fix CLEAR、
+    // 槽平移已不存在）：ORIG 0x08160ddd / 0x08160e0e 均
+    // `mov (%eax),%edx; mov -0xc(%ebp),%eax; movl $0x0,0x4(%esp); mov %eax,(%esp);
+    // call *%edx` vs 4.4.7 `mov (%eax),%eax; movl $0x0,0x4(%esp);
+    // mov -0xc(%ebp),%edx; mov %edx,(%esp); call *%eax`。
+    // A/B 实测：`-B cc1plus446bin` 反而 gap -1→-3（多一条 `mov %eax,%edx` 且
+    // 实参序颠倒；`-B …/4.4.4/` 亦零变化）⇒ 旧注「4.4.6 后端可翻」被推翻，
+    // 本件在本工具链下不可翻。
     Msg* msg = reinterpret_cast<Msg*>(data);
     if (msg == 0)
     {

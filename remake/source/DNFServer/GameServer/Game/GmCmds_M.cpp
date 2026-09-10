@@ -72,10 +72,12 @@ namespace game_master
     // [N2-S5 负结论] ORIG 两处早退 `je 0x084a8f62` 同目标（单一落点），但合并为
     // `target == 0 || getCurCharacR() == 0` 实测 4.4 反劣 170→171（`||` 求值序
     // 使 getCurCharacR 结果多一次布尔归一）⇒ 保持两条独立 if。
-    if (target->getCurCharacR() == 0)   // ORIG CUserCharacInfo::getCurCharacR 判 0
+    // [P6AuditOldN.P6S2 2026-09-11] P59 守卫包裹试验：ORIG 0x084a8d17..0x084a8d1d
+    //   = `test %eax,%eax; setne %al; test %al,%al; je 0x084a8f62`（正条件物化 +
+    //   零跳尾），我方早退形恒 `sete/jne`。探针 /tmp/p6/probe/p1.cpp g3 实证
+    //   「if (f()!=0) { 正文 } else { return; }」产 setne/je ⇒ 以此形替换早退。
+    if (target->getCurCharacR() != 0)   // ORIG CUserCharacInfo::getCurCharacR 判 0
     {
-        return;
-    }
     int vill = static_cast<int>(target->getCurCharacVill());
     int area = target->get_area(false);
     // [N2-S5] ORIG 槽 -0x10/-0xc 由 `movzwl %ax,%eax` 提升后直存 int 槽
@@ -117,6 +119,19 @@ namespace game_master
     if (vill != 0 || area != 0)
     {
         G_GameWorld()->send_to_area(vill, area, packet);
+    }
+    // [P6AuditOldN.P6S2 2026-09-11 · 负结论] 残余 = 尾部 PacketGuard 析构布局
+    //   （-5 insns）：ORIG 0x084a8eef..0x084a8f19 在 send_to_area 分支**内联**一份
+    //   `lea -0x28(%ebp),%eax; mov %eax,(%esp); call 0x858de80<~PacketGuard>; jmp 0x84a8f62`，
+    //   0x084a8f3a 另一份供 else（area==0）路径共用；我方 4.4 把真支折成
+    //   `jmp <共享析构块>`（该块位于 EH cleanup 之后）⇒ 少 4 条、多 1 条 jmp，净 -5。
+    //   已试钥匙（均无效/回滚）：① send_to_area 分支显式 `return;`（4.4 仍共享，
+    //   读数 171 不变）；② 括号包裹/goto 尾标签同效。判 4.1/4.4 尾块布局 lowering 差，
+    //   源码不可控。本件本轮落地 = P59 守卫包裹（setne/je 块已消）。
+    }
+    else
+    {
+        return;
     }
 }
 

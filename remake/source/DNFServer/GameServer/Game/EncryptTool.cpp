@@ -57,6 +57,13 @@ static const char s_keyTable[16][0x20] = {
 }
 
 // [b28d-lane6] DIFF·豁免：加密/密钥生成类按用户规则只要求算法正确（不强制 identical）；258 vs 238，语义经 decrypt 往返验证。
+// [P6AuditOldN.P6S2 2026-09-11 · 本波复核] n1_v DIFF 258/238 gap=+20（本片最大缺口）。
+//   ORIG 0x0848d5b0 索引/常量计算段：`mov 0x200(%eax),%ecx; …; movzbl 0x9(%eax),%eax;
+//   mov %eax,%edx; …; lea (%edx,%eax,1),%eax` vs 我方 `mov 0x200(%eax),%edx; …;
+//   movzbl 0x9(%eax),%ecx; …; lea (%ecx,%eax,1),%eax; lea 0x5(%eax),%ecx; shl $0x5,%edx;
+//   mov %cl,(%edx,%eax,1)`。新钥匙判定：P339（无槽序入口）/P59（无守卫）/真 switch
+//   （无 cmp 链）/类型轴三式（掩码 cast 形未现）均不适用，属 4.1↔4.4 索引计算与
+//   装载序；未落地，维持 N（未决）。
 #include "EncryptTool/createEncKey.inc"
 {
     unsigned int local_10 = time(0);

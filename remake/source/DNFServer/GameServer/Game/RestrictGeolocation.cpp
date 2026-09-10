@@ -160,13 +160,14 @@ DONE:
     // （P221/N82 帧策略族；P221 全表达式临时链对本例实测不翻）⇒ 语义等价封顶。
     if (m_geoip == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x44, 5);
-        trace("[Taiwan, GeoIP] Geo instance is null.");
+        // [P2S5] ORIG 0x08170b50/0x08170b9c 为**链式临时**（gimplify 先算子调用实参、
+        // 后算对象 ctor ⇒ 有副作用的实参代码在 ctor 之前）⇒ 具名对象+两次语句改回链式。
+        cMyTrace(__PRETTY_FUNCTION__, 0x44, 5)(
+            "[Taiwan, GeoIP] Geo instance is null.");
         return true;
     }
 
-    char countryCode[0x10];
-    std::memset(countryCode, 0, sizeof(countryCode));
+    char countryCode[0x10] = { 0, };
     if (GeoIP_country_code_by_addr(m_geoip, ip.c_str()) != 0)
     {
         strcpy(countryCode, GeoIP_country_code_by_addr(m_geoip, ip.c_str()));
@@ -174,43 +175,50 @@ DONE:
 
     if (isAllowCountryCode(countryCode))
     {
-        cMyTrace okTrace(__PRETTY_FUNCTION__, 0x4e, 0);
-        okTrace("[Taiwan, GeoIP] Success Account:%s, IP:%s, CountryCode:%s",
-                account.c_str(), ip.c_str(), countryCode);
+        cMyTrace(__PRETTY_FUNCTION__, 0x4e, 0)(
+            "[Taiwan, GeoIP] Success Account:%s, IP:%s, CountryCode:%s",
+            account.c_str(), ip.c_str(), countryCode);
         return true;
     }
 
     if (G_CEnvironment()->get_server_group() == 3)
     {
-        cMyTrace globalTrace(
-            __PRETTY_FUNCTION__, 0x55, 0);
-        globalTrace("[Taiwan, GeoIP] Success Global server group. Account:%s, IP:%s, CountryCode:%s",
-                    account.c_str(), ip.c_str(), countryCode);
+        cMyTrace(__PRETTY_FUNCTION__, 0x55, 0)(
+            "[Taiwan, GeoIP] Success Global server group. Account:%s, IP:%s, CountryCode:%s",
+            account.c_str(), ip.c_str(), countryCode);
         return true;
     }
 
     {
-        cMyTrace failTrace(__PRETTY_FUNCTION__, 0x5a, 0);
-        failTrace("[Taiwan, GeoIP] Fail Account:%s, IP:%s, CountryCode:%s",
-                  account.c_str(), ip.c_str(), countryCode);
+        cMyTrace(__PRETTY_FUNCTION__, 0x5a, 0)(
+            "[Taiwan, GeoIP] Fail Account:%s, IP:%s, CountryCode:%s",
+            account.c_str(), ip.c_str(), countryCode);
     }
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/System/RestrictGeolocation.cpp", 0x5c);
-    CStreamGuard guard(stream, true);
-    try
-    {
-        guard << 0x11b;
-        guard << -1;
-        SIG_SAVE_GEO_REJECT* sig = guard.GetInBuffer<SIG_SAVE_GEO_REJECT>();
-        char* base = sig->m_pad;
-        strncpy(base + 0x10, countryCode, 0x10);
-        strncpy(base, ip.c_str(), 0x10);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-    catch (...)
-    {
-        throw;
-    }
+    // [P2S5] ORIG 0x08170d18：Acquire 结果全程寄存器直传（call 后直接
+    // `movl $0x1,0x8(%esp) … lea guard …`，无具名 Stream* 槽）⇒ 内联实参（P0）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localtaiwan/System/RestrictGeolocation.cpp", 0x5c),
+                       true);
+    // [P2S5] ORIG 0x08170ea5 landing pad 仅 `lea guard; call ~CStreamGuard;
+    // call _Unwind_Resume`（无 __cxa_begin_catch/rethrow）⇒ ORIG 无 catch 块，
+    // guard 由作用域正常析构；我方伪造的 try/catch(...){throw;} 多出整段 EH 序。
+    // [P2S5] ORIG 0x08170dec/0x08170e07 各多一次 `lea guard; call
+    // CStreamGuard::operator*()`（0x080c8c46）再 `call operator<<(int)`；
+    // 0x08170e22 多一次 `operator->()`（0x080c8c4e）再 GetInBuffer
+    // ⇒ 原码为 `*guard << x`（operator* 返回 CStreamGuard&）与
+    //   `guard->GetInBuffer<T>()`。本仓 CStreamGuard.h:34 把 operator* 声明为
+    //   `CStreamGuard*`（头轴：应为 `CStreamGuard&`，已上报父泳道）⇒ 此处用
+    //   显式成员调用等价复现同一机器码。
+    guard.operator*()->operator<<(0x11b);
+    guard.operator*()->operator<<(-1);
+    // [P2S5] ORIG 0x08170e35 只落一个槽（-0xc = sig）：`call GetInBuffer` →
+    // `mov %eax,-0xc(%ebp)` → 两次 `mov -0xc(%ebp),…` 直接算 m_pad(+0)/
+    // m_pad+0x10 ⇒ 无 `char* base` 具名中转。
+    SIG_SAVE_GEO_REJECT* sig =
+        guard.operator->()->GetInBuffer<SIG_SAVE_GEO_REJECT>();
+    strncpy(sig->m_pad + 0x10, countryCode, 0x10);
+    strncpy(sig->m_pad, ip.c_str(), 0x10);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return false;
 }

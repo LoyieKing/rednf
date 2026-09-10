@@ -2,6 +2,7 @@
 #define DNF_GAME_DISPATCHERS_H_
 
 #include "PacketDispatcher.h"
+#include "GameTypes.h"   // StrVector（P7 类型轴：oldGmRoutine 第 3 参拼写）
 #include "Arad_InternalDispatcher.h" // ARAD::DISPATCHER 六派发器权威声明（沉降）
 #include "PacketTypes.h"
 #include "NpcScript.h"  // ENUM_NPC_FAVOR_CHANGE_CONST（Dispatcher_GiveGiftToNPC 参数）
@@ -2395,7 +2396,11 @@ public:
     // （报告 docs/class_func_reports/Dispatcher_New_Gmdebug_Command/oldGmRoutine.md；
     //   定义 W8LT_GmdebugOld.cpp）：新 GM 命令系统未注册时的旧式 GM 调试命令
     //   解释器（空格分隔命令字 → 分支分发）。
-    int oldGmRoutine(CUser* user, PacketBuf& packet, std::vector<std::string>& args);
+    // [P7HeaderAxis 2026-09-11] 第 3 参拼写 StrVector（ORIG prett 直证 size 0x51
+    // `int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser*, PacketBuf&, StrVector&)`
+    // vs 我方 0xf5；mangled `_ZN30Dispatcher_New_Gmdebug_Command12oldGmRoutineEP5CUserR9PacketBufRSt6vectorISsSaISsEE`
+    // 展开为 St6vectorISsSaISsEE ⇒ 同底层类型、零 ABI）。定义侧同步见其 .inc（P6AuditOldN）。
+    int oldGmRoutine(CUser* user, PacketBuf& packet, StrVector& args);
 };
 
 class Dispatcher_PowerWarProcessInfo : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>

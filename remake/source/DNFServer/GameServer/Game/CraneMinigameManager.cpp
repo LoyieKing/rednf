@@ -332,6 +332,10 @@ CraneItemInfo& CraneItemInfo::operator=(const CraneItemInfo& other)
 // +0x26 余数三段搬运 / +0x49 双 callee-saved 保活），语义等价。
 #include "CraneMinigameManager/updateCraneItemNeedMaterial.inc"
 {
+    // [P6AuditOldN.P6S2 2026-09-11] 试验旋钮：ORIG 0x080ebec4 在 size() 调用**前**
+    //   先 `mov 0xc(%ebp),%ebx` 保活 count（4.1 求值序），4.4 调用后才读 ⇒ 用裸
+    //   register（P231 非绑定、不占槽）承载 count 值，强制提前读并跨调用保活。
+    register unsigned int regCount = static_cast<unsigned int>(count);
     unsigned int size = m_needMaterials.size();
     // b28c-L19 清绑（P0/N96 全域禁 register asm）：改 P0 表达式直传形。
     // ORIG +0x26..+0x2f：余数三段搬运后 1 字节存 +0x68；+0x49/+0x50：at() 结果
@@ -344,8 +348,14 @@ CraneItemInfo& CraneItemInfo::operator=(const CraneItemInfo& other)
     //     vs 4.4 `mov %edx,%eax`（两段）—— 窄化链跨版本差异。
     // 已试旋钮：去双重 static_cast 改隐式窄化 `count % size` ⇒ 40/38 与 diff 逐条不变
     // ⇒ 回滚。判 N 类封顶（ORIG 地址 0x080ebebc，形见 report）。
-    m_selectIdx = static_cast<unsigned char>(
-        static_cast<unsigned int>(count) % size);
+    // [P6AuditOldN.P6S2 2026-09-11] 本波落地 2 旋钮：裸 register 承载 count
+    //   （regCount，P231 非绑定不占槽）⇒ ORIG 0x080ebec4 `mov 0xc(%ebp),%ebx` 提前
+    //   读 + `mov %ebx,%eax` 两段已复现；再加深 register 余数 regRem ⇒ 38→39 条
+    //   （gap +2→+1）。残余仅 ORIG 0x080ebee2..e6 `mov %edx,%ecx; mov %ecx,%eax`
+    //   三段搬运（4.4 恒两段；已试 `register unsigned char` 形 ⇒ `%bl` 写并重载
+    //   this，更劣已回滚）。判 N 类封顶。
+    register unsigned int regRem = regCount % size;
+    m_selectIdx = static_cast<unsigned char>(regRem);
     NeedMaterialDataManager::getInstance()->setNeedMaterialInfo(
         m_material, m_needMaterials.at(m_selectIdx));
 }

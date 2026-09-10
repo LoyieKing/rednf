@@ -8,6 +8,10 @@ bool IsDamageActiveStatus(int status)
 // 直比），4.4 对 unsigned 参与比较恒先载寄存器（`mov 0x8(%ebp),%eax;
 // cmp $0xb,%eax`，P209）；写 signed 会翻 `jg` 并改变负数语义（真 bug 风险）
 // ⇒ N 封顶。p167 CLEAR（0 calls 双侧）。
+// [P1T1 本波穷举] 边界比较四形探针（/tmp/p1/probe_small.cpp s1..s4：`<=0xb`/
+// `<0xc`/`>=0 && <=0xb`/`&0xffff` 后比）**全部**先 `mov 0x8(%ebp),%eax` 再
+// `cmp $0xb,%eax`；4.4 只在操作数此后不再使用时才折成内存比较，而本处 status
+// 还要供 `shl %cl` ⇒ ORIG 0x089bd046 `cmpl $0xb,0x8(%ebp)` 不可复现，维持封顶。
 {
     bool ret = false;
     if ((unsigned int)status <= 0xb)

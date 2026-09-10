@@ -85,6 +85,13 @@ template <unsigned int N>
 // ORIG 0x8ace8a0。
 #include "DNFLexWrapperStream/getStreamName.inc"
 {
+    // [P6S3 round6 · §6.5 串审计命中复核 → 判**工具归因假阳性**，非语义缺口]
+    // strall.py 报本函数 `O-only[1] NONE`；但 `strings -a /tmp/tu_DNFLexWrapperStream.o`
+    // 直证我方 .o 首串即 `NONE`，且本函数体内确有
+    // `movl $0x14,0x4(%esp) + R_386_32 .rodata.str1.1` + `call _ZNSsC1EPKcRKSaIcE`
+    // （= `std::string("NONE")`，与 ORIG 0x8ace9xx 同形）⇒ 串未缺，属逐函数归因偏差。
+    // 残余真差仅 1 处寄存器：ORIG `mov 0x14(%eax),%edx; test %edx,%edx` vs 我方
+    // `%ecx`（N22 族「后求值者作 dst / 首槽寄存器择取」，源码不可翻）。
     if (lexType_ != LEX_TYPE_NORMAL)
         return std::string("NONE");
     return dnfLex_.getStreamName();
@@ -142,6 +149,11 @@ template <unsigned int N>
     char errbuf[0x400];
     DNFLex::stream_data_t local;
     short magic;
+    // [P6S3 round6 · §6.5 串审计命中复核 → 判**工具归因假阳性**，非语义缺口]
+    // strall.py 报本函数 `O-only[1] %s/%s Read failed!`；`strings -a
+    // /tmp/tu_DNFLexWrapperStream.o` 直证该串在我方 .o 中（首串），且下方
+    // `ss_sprintf(errbuf, "%s/%s Read failed!", toMbcs(dir), toMbcs(filename))`
+    // 逐字存在 ⇒ 非缺串。残余真差为 N22/N82 寄存器-槽族（124/127）。
 
     if (s == 0)
     {

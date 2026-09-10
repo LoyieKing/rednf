@@ -91,17 +91,26 @@ int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 
     for (i = 0; i < (int)(unsigned int)rentEntries.m_count; ++i)
     {
-        if (rentEntries.m_entries[i].m_rentDaysType == 1)
-            rentDays = 0x1e;
-        else if (rentEntries.m_entries[i].m_rentDaysType == 2)
-            rentDays = 0x16d;
-        else if (rentEntries.m_entries[i].m_rentDaysType != 0)
+        // [P5-DPC 2026-09-11] P251/P261 真 switch 轴：ORIG 0x081eea45..0x081eea92 为 -O0
+        // switch 决策树（`movzbl 0xe(%eax),%eax; movzbl %al,%eax`；`cmp $0x1,%eax; je
+        // <0x1e>`；`cmp $0x2,%eax; je <0x16d>`；`test %eax,%eax; jne <err>`；case 0 落
+        // `movl $0x7,-0x2c(%ebp); jmp`）⇒ 原码为 case 0/1/2 的 switch（default=错误路），
+        // 我方旧 if/else-if 产不出该树（diff at orig[296..] 段）。
+        switch (rentEntries.m_entries[i].m_rentDaysType)
         {
+        case 0:
+            rentDays = 7;
+            break;
+        case 1:
+            rentDays = 0x1e;
+            break;
+        case 2:
+            rentDays = 0x16d;
+            break;
+        default:
             RentAvatarErrorProc(user, 1);
             return 0;
         }
-        else
-            rentDays = 7;
         rentSeconds = rentDays * 0x15180;
 
         CStreamGuard streamGuard(

@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "CCeraShop.h"  // WongWork::CCeraShop 完整定义（stCeraShopItemParam_t 形参）
+#include "GameTypes.h"  // itemIndexOnlyServer_t（P7 类型轴：CashShopModeVendingItem 第 2 参拼写）
 
 class CUser;
 class Inven_Item;
@@ -41,7 +42,10 @@ public:
     void CashShopModeCreature(CUser* user, unsigned long itemIdx, unsigned short stack,
                               int& outCodeA, int& outCodeB, unsigned int accId,
                               int characNo, char buyFlag);                              // 0x0819c670
-    void CashShopModeVendingItem(CUser* user, unsigned long itemIdx, unsigned short stack,
+    // [P7HeaderAxis 2026-09-11] 第 2 参拼写 itemIndexOnlyServer_t（ORIG prett 直证 size 0xe5
+    // `void Arad_IPGProcess::CashShopModeVendingItem(CUser*, itemIndexOnlyServer_t, short unsigned int, …)`
+    // vs 我方 0xe1；mangled 展开为 `m`=unsigned long ⇒ 同底层类型、零 ABI）。定义侧见 .cpp 聚合器（P6AuditOldN）。
+    void CashShopModeVendingItem(CUser* user, itemIndexOnlyServer_t itemIdx, unsigned short stack,
                                  int count, long seq, std::vector<Inven_Item>& out,
                                  WongWork::CCeraShop::stCeraShopItemParam_t& param,
                                  int& restrictOut, int characNo, char buyFlag);         // 0x0819c862

@@ -7,6 +7,10 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
     // info/s 槽 -0x20/-0x24 与 ORIG 一致）。形 B（v 提前）实测 info/s 整体下移 4
     // （-0x24/-0x28）⇒ 回滚。残余 = 4.4 对 int(v)/bool 分组方向与 4.1 相反
     // （v 恒最深 -0x10 vs ORIG -0xc）⇒ N82/N126 版本槽基差封顶。
+    // [P1T1 本波复核] 现状 = **NEAR**（124=124，助记符逐条相同，仅 -0x9/-0xa/-0xb/
+    // -0x10 与 ORIG -0xf/-0xe/-0xd/-0xc 的槽号差；fdiff 16 块全为槽号替换）。
+    // 4.4 对 bool 组与 int(v) 组按**相反**方向分组（我方 bools 浅/v 深），
+    // 形 A/B 已实测（形 B 令 info/s 下移 4 更劣）⇒ 无新源形，维持 NEAR 不回退。
     bool ok1 = false;
     bool unusedFlag = false;
     bool ok2;

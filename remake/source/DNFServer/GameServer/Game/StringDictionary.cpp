@@ -76,6 +76,12 @@ static unsigned int getStringHashValue(const char* s)
     //   4.4 在 for-init 双声明下于尾部多发 `~vector<StringEntity>`/`~vector<uchar*>`
     //   两次析构调用（+4 条，ORIG 无）⇒ 该形比原形更远。回滚到 for(cond 内
     //   blocks_.end(), ++it) 形（76 vs ORIG 73 为既有封顶态）。
+    // [P6S4 2026-09-11 负结论 · 按 p167fix 修正口径] ①ORIG 0x08ab22ed 只调一次
+    // end()（槽 -0x14，循环外提升）⇒ 试 end() 具名缓存形：4.4 反在 EH 清理块多
+    // 发两次 ~vector 析构 call，blocks 5→7 ⇒ 回滚。②ORIG 循环尾用 `ppEi`（后置，
+    // 带返回临时槽 -0xc）⇒ 试 `it++`：76→80 条（4.4 postfix 临时 + EH 清理块多
+    // 2 次析构 call）⇒ 回滚；③`it` 循环外声明 + `++it` 实测与原 for-init 形逐条
+    // 相同（76/blocks 5）⇒ 维持原形。以上三项均不可造，N93/N91 封顶维持。
     for (std::vector<unsigned char*>::iterator it = blocks_.begin();
          it != blocks_.end(); ++it)
     {

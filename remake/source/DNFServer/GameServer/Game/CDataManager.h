@@ -2991,7 +2991,10 @@ public:
     int importRewardTable(const char* dir, const char* file);
     void StartEndPos(Inven_Item::ITEM_TYPE type, int& start, int& end, int cap) const;
     void applyItemOption(Inven_Item& inven, const CItem* item, const itemData& data);
-    int unsealRandomOption(const CItem* item, Inven_Item& inven);
+    // [P8S5 2026-09-11] P139 prett size 不等修复：ORIG 串 `bool eventReward::unsealRandomOption(
+    // const CItem*, Inven_Item&)`（ORIG 符号 _ZZ…E19__PRETTY_FUNCTION__ size 0x40@0x08b3aee0）；
+    // 调用点 EventRewardWrite.cpp:134 忽略返回值 ⇒ 零语义变化，返回类型不入 mangled。
+    bool unsealRandomOption(const CItem* item, Inven_Item& inven);
     bool rewardWriteUserInven(Inven_Item* item, rewardKey key, int count);
     bool rewardWriteUserEquip(Inven_Item* item, rewardKey key, int count);
     int sendPostalReward(CUser& user, rewardKey key, int count,

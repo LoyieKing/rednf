@@ -18,6 +18,7 @@
 #include <string>
 
 #include "CGuildServerProxy.h"
+#include "GameTypes.h"   // memberIdentificationNumber_t（P7 类型轴：SendLogin 第 2 参拼写）
 
 class CMonitorServerProxy
 {
@@ -35,7 +36,11 @@ public:
     void Disconnect();                  // 0x08470bee
     void SendCharLevelGrowType(unsigned int, unsigned int, short, short);// 0x08470c04
     void SendHeartBeat(int);            // 0x08470c5e
-    void SendLogin(int, unsigned int, int, char*, unsigned char, char*);// 0x08470c94
+    // [P7HeaderAxis 2026-09-11] 第 2 参拼写 memberIdentificationNumber_t（ORIG prett 直证
+    // `void CMonitorServerProxy::SendLogin(int, memberIdentificationNumber_t, int, char*, unsigned char, char*)`
+    // size 0x69 vs 我方 0x59；mangled `_ZN19CMonitorServerProxy9SendLoginEijiPchS0_` 展开为 j=unsigned int
+    // ⇒ 同底层类型、零 ABI）。定义侧同步见 CMonitorServerProxy/SendLogin.inc（P6AuditOldN）。
+    void SendLogin(int, memberIdentificationNumber_t, int, char*, unsigned char, char*);// 0x08470c94
     void SendLogout(unsigned int, int, char*, unsigned int, unsigned int,
                     unsigned int, unsigned char, unsigned char);// 0x08470d68
     void SendPacket(char*, int);        // 0x08470df4

@@ -148,7 +148,12 @@ L:;
         // [b28c-4] ORIG `movl $str,-0x18`：未使用指针须"声明后赋值"——初始化形被
         // 4.4 折叠为 movl $0（探针 /tmp/l4/lit2.cpp h1）。
         const char* pMsgName;
-        pMsgName = "chn_game_server_msg_82";
+        // [P6AuditOldN-S1 2026-09-11 修正 · 语义轴串引用] ORIG 0x081225a3
+        //   `c7 45 e8 a0 d4 b5 08` = `movl $0x8b5d4a0,-0x18(%ebp)`；objdump -s 实读
+        //   0x8b5d4a0 处首字节为 **0x00**（空串），相邻的 "chn_game_server_msg_82"
+        //   在 +1（0x8b5d4a1，串池共享存储）⇒ ORIG 引用的是 `""` 而非该邻串。
+        //   旧形误引邻串（strall N-only 1 条）⇒ 改回空串，指令形与串集合同时对齐。
+        pMsgName = "";
         int msgLen = strlen(buf);
         int a = 0;
         int b = 0;

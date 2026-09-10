@@ -579,8 +579,15 @@ public:
         (puser)->Send(_g);                                                    \
     } while (0)
 
+// [P6AuditOldN.P6S2 2026-09-11 · 本波复核] 父泳道已落签名首行同步（第 3 参
+//   `std::vector<std::string>&` → `StrVector&`，prett 串 ORIG 81 == OURS 81）。
+//   n1_v DIFF 6625/6641 gap=-16（blocks=696，整体槽/装载序）。新钥匙判定：P339
+//   （696 块、无单点槽序入口）/P0 删多余具名局部（无目标槽证据）/真 switch（无 cmp 链）
+//   均不适用；未落地，维持 N（未决）。
+//   另：p167fix 报 `Dispatcher_EnchantByBead::check_error` MISSING `set<int>::find const`
+//   / EXTRA 非 const 版（本 TU 内非本件，父泳道线索）——本波未及处理。
 #include "DispLinkA2/oldGmRoutine.inc"
-                                                 std::vector<std::string>& args)
+                                                 StrVector& args)
 {
     (void)packet;                        // ORIG 仅持引用，函数体不消费
     DisPatcher_DebugCommand dbgCmd;      // local_254（ORIG 栈构造）

@@ -55,9 +55,12 @@
     if (script.GetRowNum() == 0)
         return 0xaf;
 
+    // [P3·UsedFatigueRewardItem] ORIG 0x081a2774：Data::Data() 只在循环外构造一次
+    // （在 movl $0x0,-0xc(%ebp) 之前），循环体 [0x081a2785,0x081a2883] 内无构造调用，
+    // 且全 ELF 无任何 Data::~Data 外部调用点；故对象声明在循环外、每轮复用。
+    Data d;
     for (int i = 0; i < script.GetRowNum(); ++i)
     {
-        Data d;
         d.m_begin = (short)script.GetInt(i, "fatigue");
         d.m_end = (short)script.GetInt(i, "item_count");
         d.m_id = script.GetInt(i, "item_id");
@@ -103,6 +106,11 @@
     memset(m_name, 0, sizeof(m_name));
 }
 
-#include "UsedFatigueRewardItem/dtor_Data.inc"
-{
-}
+// [P3Wave4 2026-09-11] 原 `#include "…/dtor_Data.inc"` + `~Data` 空体定义已删除
+// （部件文件同步删除）：
+// ORIG 的 Data 是隐式 trivial 析构（直证：ORIG `_ZSt8_Destroy<Data*>` @0x081a7c69
+// call 目标 = `_ZNSt12_Destroy_auxILb1EE9__destroyIPN…DataEEEvT_S5_` @0x081a8452，
+// ORIG 符号表无 ILb0）；用户定义空析构令 4.4 走 ILb0 分支并使 parsing 多发 1 次
+// 析构调用 + 1 个 EH landing pad（11 条残差）。ORIG 的 `Data::~Data` W D1/D2
+// @0x081a6bf4 由本 TU `new_allocator<Data>::destroy` 的显式 `p->~Data()` odr-use
+// 发射（复编后 nm 已核该符号仍在）。

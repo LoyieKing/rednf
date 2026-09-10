@@ -20,6 +20,10 @@ void PetScript::clear()
         // add $0x8,%edx; movl $0,0x8(%eax,%edx,4)`（+2 折进 disp）；4.4 恒把
         // +2 折进索引 `lea 0x2(%eax),%edx`（P30/N4 索引常量分配差），
         // `(m_moveSpeed+2)[i]` 形更劣（73）。⇒ N 封顶。
+        // [P1T1 本波穷举] i+2 索引五形探针（/tmp/p1/probe_small.cpp c1..c5：
+        // `m[i+2]`/具名 `const int k=i+2`/`m[2+i]`/`*(m+i+2)`/register i）**全部**
+        // 产 `lea 0x2(%eax),%edx`；ORIG 0x08a3dc2b 的 `mov i,%edx; add $0x8,%edx`
+        // +disp 0x8 形属 4.1 index 常量分配 ⇒ 维持封顶。
         m_moveSpeed[i + 2] = 0;
     }
     m_moveSpeed[4] = 0;

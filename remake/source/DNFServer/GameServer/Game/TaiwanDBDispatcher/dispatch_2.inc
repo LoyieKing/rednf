@@ -43,7 +43,7 @@ bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
         LogManager::logFormat(
             1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
             0x219,
-            "[Taiwan, Event] select event_create_dnf_event_info. (error:%s)", e);
+            "[Taiwan, Event] select event_create_dnf_info. (error:%s)", e);
         return 0;
     }
 }

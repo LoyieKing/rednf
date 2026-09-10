@@ -196,6 +196,16 @@ namespace ARAD
     Arad_Dispatcher* d = m_interDispatchers[code];
     if (d == 0)
     {
+        // [P6S4 2026-09-11 P139 prett 审计·结论] 本 TU 4 处手写 prett 串经 pstr.py 与
+        // ORIG 字节逐条比对 = **逐字节相同**（`_ZZ…E19__PRETTY_FUNCTION__` 符号仍缺，
+        // 因未引用宏）：①本处 `bool ARAD::Arad_Dispatcher_Manager::inter_dispatch(
+        // ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE, CUser*, char*, int)`
+        // （ORIG 0x…，size 0x7c）②`virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::
+        // inter_dispatch(CUser*, char*, int)`（0x54）③`virtual int …::db_dispatch(int, int,
+        // Stream*)`（0x58）④`int ARAD::DATABASE::ITEM_QUERY::arad_sp_buy_item_check(
+        // ARAD_DATAS::BuyItemInfo&)`（0x51）。**不替换为 __PRETTY_FUNCTION__**：本 TU
+        // Manager::inter_dispatch 形参拼写作 `int code`（非枚举限定名），宏会生成
+        // `(int, CUser*, char*, int)` ≠ ORIG ⇒ 串内容反劣（手写串现为正确形）。
         LogManager::logFormat(
             1, "localjapan/Arad_Dispatch_Manager.cpp",
             "bool ARAD::Arad_Dispatcher_Manager::inter_dispatch("

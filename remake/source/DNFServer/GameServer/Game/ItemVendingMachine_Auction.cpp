@@ -331,6 +331,10 @@ struct VendingItemListView { char m_pad[0xc]; CItemList* m_list; };  // CDataMan
 //   试形②double framePad;(void)&framePad（P190）→ 同样只撑帧不动槽基 ⇒ 封 N82。
 #include "ItemVendingMachine_Auction/GetFinalProbability.inc"
 {
+    // [P6S6 2026-09-11 复核·仍 N] 试 P339 声明序反转（goods→rate→weight）：
+    //   4.4 槽位随声明序变（goods -0x14/rate -0x10/weight -0xc），difflib 块 3→4
+    //   反劣（ORIG 为 goods -0xc/rate -0x1c/weight -0x24 稀疏深槽 + cw 夹 -0x1e/-0x20，
+    //   4.4 恒紧凑 + cw 置尾）⇒ 已回滚，维持 N82。
     float weight;
     int rate;
     CCeraShopGoods* goods;

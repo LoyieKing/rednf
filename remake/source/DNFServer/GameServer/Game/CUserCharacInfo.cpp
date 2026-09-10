@@ -578,6 +578,8 @@ static_assert(offsetof(CharacInvenView, m_inven) == 0xda,
 // ③or 操作数序改 field 先（ORIG 先读 field 再算 1<<bit，寄存器 %ebx/%edi 归位）；
 // ④路由 `-march=i486 -mtune=generic`（Main 2026-09-09 已批）+ `index / 8` 复现
 //   ORIG 6 条符号修正链（探针 /tmp/s156_probe/p13i486.o）。
+// [P8 2026-09-11 新口径复核] n1_v（objdump -dr + reloc 归一）verdict=AE，108/109；
+//   旧判词 NEAR 系 `game_func_report.py --no-compile`（objdump 无 -r）的假残差。
 #include "CUserCharacInfo/setCurCharacTutorialFlag.inc"
 {
     if (m_selected)
@@ -1452,6 +1454,8 @@ L_SBR_END:;
     return m_selected ? CUR->m_exp : 0;
 }
 
+// [P8 2026-09-11 新口径复核] n1_v（objdump -dr + reloc 归一）verdict=AE，62/63；
+//   旧判词 NEAR 系 `game_func_report.py --no-compile`（objdump 无 -r）的假残差。
 #include "CUserCharacInfo/get_charac_10_level_section.inc"
 {
     if (m_selected)
@@ -1901,6 +1905,8 @@ L_SBR_END:;
 // ②P169 尾标签守卫 + 低位分支共享尾 return（消两处 `mov $0; jmp` 岛）；
 // ③路由 `-march=i486 -mtune=generic`（Main 已批）+ `index / 8` 复现 ORIG 6 条修正链
 //   （探针 /tmp/s156_probe/p13i486.o）。
+// [P8 2026-09-11 新口径复核] n1_v（objdump -dr + reloc 归一）verdict=AE，69/71；
+//   旧判词 NEAR 系 `game_func_report.py --no-compile`（objdump 无 -r）的假残差。
 #include "CUserCharacInfo/getCurCharacEscaladeTutorialFlag.inc"
 {
     if (m_selected)
@@ -2248,6 +2254,9 @@ L_SBR_END:;
 // 与 cw/除数槽相对 ebp 整体下移 8（-0x30/-0x32/-0x3c → -0x38/-0x3a/-0x4c）及帧
 // 0x58↔0x68：4.4 对 (double)uint 的匿名 8B 临时优先占深槽（N95/N82附）；本件无死
 // 局部可删（P232）、撑帧只会加深（P190 反向）⇒ 维持 NEAR 封顶（p167 CLEAR）。
+// [P8 2026-09-11 第二遍回扫] 本波新钥匙复核：n1_v=NEAR 68/68（与旧一致）、
+//   P139 prett 无缺口/无 size 差、strall 串 CLEAR、p167 call 差集 CLEAR
+//   ⇒ 旧判词 N82附/N95 维持，无可翻案旋钮（未新增改动）。
 #include "CUserCharacInfo/calc_disp_help_abuse_ratio.inc"
 {
     int levelUpExp = get_level_up_exp(get_charac_level());
@@ -2409,6 +2418,9 @@ L_SBR_END:;
 // 表达式 `({...})`/volatile 视图/`*&` 双算/两处独立下标）全部产 LHS 地址前置
 // `lea 0x380(%edx),%ecx`；P211 档③ cast 异型化（int↔unsigned）亦无 RHS-first
 // ⇒ N76/N18a 封顶定论（ORIG 4.1 为 fadds 后 `lea 0x380(%ecx),%edx`）。
+// [P8 2026-09-11 第二遍回扫] 新钥匙复核：prett 符号 size=0x33 与 ORIG 相等、
+//   串 CLEAR、p167 CLEAR；n1_v=DIFF 59/60 的唯一残差仍是 4.1/4.4 RA 命名
+//   （%ecx/%edx 互换 + lea 位置）⇒ 维持封顶，未改动。
     ((WarAreaKillWindow*)CUR)->m_warAreaKillFlat[index + 0x380] += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal,
@@ -3381,6 +3393,9 @@ L_SBR_END:;
 //   → 13 条与 ORIG 同形。⇒ 根因 = 返回类型 bool（CUserCharacInfo.h:964，K1Dispatchers
 //   本波 uchar→bool），而字段 m_superState 本身即 unsigned char（h:484）。
 //   函数体层面无解（签名轴，改必须动 .h）⇒ N（类型轴），已上报父泳道。
+// [P8 2026-09-11 新口径复核] n1_v（objdump -dr + reloc 归一）verdict=AE，13/14；
+//   旧判词 DIFF 系 `game_func_report.py --no-compile`（objdump 无 -r）的假残差
+//   （返回类型 bool vs ORIG unsigned char 的 .h 项另报 P7HeaderAxis）。
 #include "CUserCharacInfo/GetCurCharacSuperState.inc"
 {
     return m_selected ? CUR->m_superState : 0;
@@ -3548,6 +3563,10 @@ online_preliminary::COnlinePreliminaryTeam*
 // cast 异型化、unsigned 下标）均产同一「LHS 地址（index+0x460）前置跨 call 保活」形；
 // disp 折叠经探针确认为 4.4 定则（disp/scale≥2 折、==1 不折：gcii.cpp k1 vs k3）
 // ⇒ N76/N82附/N4 封顶定论。
+// [P8 2026-09-11 第二遍回扫] 新钥匙复核：prett 无缺口/无 size 差、串 CLEAR、
+//   p167 CLEAR；n1_v=DIFF 100/104（gap=-4）残差 = 4.4 CSE `index+0x460`→%esi 跨
+//   call 保活 + disp 0x10 折成索引 +2（ORIG 4.1 每处独立 lea、disp 不折）
+//   ⇒ 维持 N82附/N4 封顶，未改动。
 #include "CUserCharacInfo/GetContinuousItemInfo.inc"
 {
     p->m_cooltimeCharacNo = p->m_characNo;

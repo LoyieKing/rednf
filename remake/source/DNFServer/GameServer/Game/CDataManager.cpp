@@ -2424,11 +2424,11 @@ pvp_done:
     if (!InitRDARScriptStringManager("n_String.lst", (const char*)0,
                                      (std::vector<ErrorLog>*)0))
     {
-        cMyTrace("bool CDataManager::init()", 0x1972, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1972, 9, true, true)(
             "\t- InitRDARScriptStringManager Fail");
         return 0;
     }
-    cMyTrace("bool CDataManager::init()", 0x1975, 9, true, true)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1975, 9, true, true)(
         "\t- InitRDARScriptStringManager Success");
 
     // [+0x0176] InitMapEquipmentAniScript()。
@@ -2441,19 +2441,19 @@ pvp_done:
     // else{…} 形式，站点顺序才是 0x1982 → 0x1986 → 0x1989（报告 +0x0195 je）。
     if (!sync_script::GetInstanceSyncScript()->LoadItemInfoMasterScript("Etc/ItemTypeMaster.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1982, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1982, 9, true, true)(
             "\t- Failed to load < ITEM INFO MASTER SCRIPT >");
     }
     else
     {
         if (!sync_script::GetInstanceSyncScript()->truncate_item_info_master_table())
         {
-            cMyTrace("bool CDataManager::init()", 0x1986, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1986, 9, true, true)(
                 "\t- Failed to < TRUNCATE ITEM INFO MASTER TABLE >");
         }
         if (!sync_script::GetInstanceSyncScript()->insert_item_info_master_to_db())
         {
-            cMyTrace("bool CDataManager::init()", 0x1989, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1989, 9, true, true)(
                 "\t- Failed to < INSERT ITEM INFO MASTER TO DB >");
         }
     }
@@ -2462,19 +2462,19 @@ pvp_done:
     // 同上：失败 TRACE fall-through 在前（报告 +0x02b9 je）。
     if (!importOldEquipmentStatInfo(""))
     {
-        cMyTrace("bool CDataManager::init()", 0x198f, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x198f, 9, true, true)(
             "\t- Failed to import < OldEquipmentStatInfo.dat >");
     }
     else
     {
         if (!sync_script::GetInstanceSyncScript()->truncate_old_equip_info_table())
         {
-            cMyTrace("bool CDataManager::init()", 0x1993, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1993, 9, true, true)(
                 "\t- Failed to < TRUNCATE OLD EQUIP INFO TABLE >");
         }
         if (!sync_script::GetInstanceSyncScript()->insert_old_equip_info_to_db())
         {
-            cMyTrace("bool CDataManager::init()", 0x1996, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1996, 9, true, true)(
                 "\t- Failed to < INSERT OLD EQUIP INFO TO DB >");
         }
     }
@@ -2485,7 +2485,7 @@ pvp_done:
     if (!importServerParameterScript(&m_serverParameter,
                                      "Etc/ServerParameter.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a35, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a35, 9, true, true)(
             "\t- importServerParameterScript Fail");
         return 0;
     }
@@ -2501,7 +2501,7 @@ pvp_done:
     if (!importInGameAdvertisementEtcScript(&m_inGameAd,
                                             "Etc/IngameAdvertisementParameter.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a4a, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a4a, 9, true, true)(
             "\t- importInGameAdvertisementEtcScript Fail");
         return 0;
     }
@@ -2510,7 +2510,7 @@ pvp_done:
     if (!importSeriaRoomDecoEvent(&m_seriaRoomDeco,
                                   "Event/SeriaRoomDecoEvent.evt"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a53, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a53, 9, true, true)(
             "\t- SeriaRoomDecoEventScript Fail!");
         return 0;
     }
@@ -2518,7 +2518,7 @@ pvp_done:
     // GrowthWeapon.evt（fail "GrownEquipmentScript Fail!"）。
     if (!importGrowthEquipmentScript(&m_growthWeapon, "Event/GrowthWeapon.evt"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a5b, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a5b, 9, true, true)(
             "\t- GrownEquipmentScript Fail!");
         return 0;
     }
@@ -2527,7 +2527,7 @@ pvp_done:
     if (!importCharacterCreateGiftScript(&m_createChrac,
                                          "Event/CreateCharacterGift.evt"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a63, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a63, 9, true, true)(
             "\t- CharacterCreateGiftScript Fail!");
         return 0;
     }
@@ -2535,7 +2535,7 @@ pvp_done:
     // JobFatigue.evt。
     if (!importUseJobFatigueGiftScript(&m_useJobFatigue, "Event/JobFatigue.evt"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a6b, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a6b, 9, true, true)(
             "\t- UseJobFatigueGiftScript Fail!");
         return 0;
     }
@@ -2544,7 +2544,7 @@ pvp_done:
     if (!importCharacterCreateCreatureGiftScript(
             &m_createCreatureGift, "Event/CreateCharacterGiftCreature.evt"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a73, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a73, 9, true, true)(
             "\t- CharacterCreateCreatureGiftScript Fail!");
         return 0;
     }
@@ -2553,7 +2553,7 @@ pvp_done:
     if (!importSeriaRoomAnimationDecoEvent(&m_seriaAniDeco,
                                            "Event/SeriaRoomDecoAnimation.evt"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1a7b, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a7b, 9, true, true)(
             "\t- SeriaRoomAnimationDecoEventScript Fail!");
         return 0;
     }
@@ -2561,7 +2561,7 @@ pvp_done:
     // EventReward/reward.evt（返回 0=成功）。
     if (m_eventReward.importRewardTable("Event/EventReward/", "reward.evt") != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1a83, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a83, 9, true, true)(
             "\t- JumpingCharacterEventScript Fail!");
         return 0;
     }
@@ -2582,7 +2582,7 @@ pvp_done:
     G_CDataManager()->m_serverParameter.m_antibotVersion =
         ver[0] * 10000000 + ver[1] * 100000 + ver[2] * 10000 + ver[3] * 100 +
         ver[4];
-    cMyTrace("bool CDataManager::init()", 0x1aa7, 9, true, true)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1aa7, 9, true, true)(
         "\t- Server version for antibot : %d",
         G_CDataManager()->m_serverParameter.m_antibotVersion);
 
@@ -2590,7 +2590,7 @@ pvp_done:
     if (!importImageCommunicationInfo("Etc/ImageCommunication.etc",
                                       &m_imageCommData))
     {
-        cMyTrace("bool CDataManager::init()", 0x1aad, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1aad, 9, true, true)(
             "\t- Import ImageCommunicationInfo Failed\n");
         return 0;
     }
@@ -2598,7 +2598,7 @@ pvp_done:
     // CheckTraningFirstGive 为假 → TRACE 0x1ab7 后 return 0。
     if (!G_CDataManager()->m_serverParameter.CheckTraningFirstGive())
     {
-        cMyTrace("bool CDataManager::init()", 0x1ab7, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ab7, 9, true, true)(
             "\t- [training first give] error");
         return 0;
     }
@@ -2606,7 +2606,7 @@ pvp_done:
     // expertjob.lst（失败 TRACE 0x1abf）。
     if (!initExpertJobScript((char*)"Character/", (char*)"expertjob.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1abf, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1abf, 9, true, true)(
             "\t- Load expertjob.lst fail");
         return 0;
     }
@@ -2615,7 +2615,7 @@ pvp_done:
     m_regeneration.m_expertJobList = new CExpertJobList;
     if (!m_regeneration.m_expertJobList->init())
     {
-        cMyTrace("bool CDataManager::init()", 0x1ac5, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ac5, 9, true, true)(
             "\t- Load expertjob fail");
         return 0;
     }
@@ -2635,7 +2635,7 @@ pvp_done:
     errDT = 0;
     if ((errDT = importDeathTowerScript("Etc/DeathTower.etc", m_deathTower)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1ad4, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ad4, 9, true, true)(
             "\t- importDeathTowerScript Fail(%d)", errDT);
         return 0;
     }
@@ -2643,7 +2643,7 @@ pvp_done:
     // RankSystemInfo.etc。
     if (!importRankSystemScript("Etc/RankSystemInfo.etc", &m_rankSystem))
     {
-        cMyTrace("bool CDataManager::init()", 0x1ada, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ada, 9, true, true)(
             "\t- importRankSystemScript Fail");
         return 0;
     }
@@ -2652,7 +2652,7 @@ pvp_done:
     err = 0;
     if ((err = importBloodDungeonScript("Etc/BloodClearReward.etc", m_bloodDungeon)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1ae1, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ae1, 9, true, true)(
             "\t- importBloodDungeonScript Fail(%d)", err);
         return 0;
     }
@@ -2661,7 +2661,7 @@ pvp_done:
     err = 0;
     if ((err = importHellPartyScript( "Etc/HellParty.etc", *reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t()))) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1ae8, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ae8, 9, true, true)(
             "\t- importHellPartyScript Fail(%d)", err);
         return 0;
     }
@@ -2670,7 +2670,7 @@ pvp_done:
     err = 0;
     if ((err = importCharacLinkSystemScript("Etc/LinkSystem/CharacLinkSystem.etc", m_characLink)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1af3, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1af3, 9, true, true)(
             "\t- importCharacLinkSystemScript Fail(%d)", err);
         return 0;
     }
@@ -2679,7 +2679,7 @@ pvp_done:
     m_altarConfig.m_strikerScript = StrikerScript::getInsance();
     if (!m_altarConfig.m_strikerScript->importScript("Etc/LinkSystem/striker.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1afb, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1afb, 9, true, true)(
             "\t- importStrikerScript Fail");
         return 0;
     }
@@ -2689,7 +2689,7 @@ pvp_done:
     if (!m_altarConfig.m_characManageScript->importScript(
             "Etc/LinkSystem/CharacterManage.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1b02, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b02, 9, true, true)(
             "\t- importCharacterManageScript Fail");
         return 0;
     }
@@ -2699,21 +2699,21 @@ pvp_done:
     if (!m_choiceItem.m_blueMarbleScriptMgr->initTileList(
             "Event/BlueMarble/", "BlueMarbleTile.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1b14, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b14, 9, true, true)(
             "\t- BlueMarble initTileList Fail\n");
         return 0;
     }
     if (!m_choiceItem.m_blueMarbleScriptMgr->initMapList(
             "Event/BlueMarble/", "BlueMarbleMap.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1b1a, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b1a, 9, true, true)(
             "\t- BlueMarble initMapList Fail\n");
         return 0;
     }
     if (!m_choiceItem.m_blueMarbleScriptMgr->initBlueMarbleInfo(
             "Event/BlueMarble/", "BlueMarble.blu"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1b20, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b20, 9, true, true)(
             "\t- BlueMarble initBlueMarbleInfo Fail\n");
         return 0;
     }
@@ -2723,7 +2723,7 @@ pvp_done:
     err = 0;
     if ((err = importQuestShopScript("Etc/questshop.etc", m_questShop)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1b4f, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b4f, 9, true, true)(
             "\t- importQuestShopScript Fail(%d)", err);
         return 0;
     }
@@ -2732,20 +2732,20 @@ pvp_done:
     // 后两步 fail 均 TRACE "Load IndependentDrop.lst fail" 0x1b56/0x1b5c）。
     if (!initIndependentDropScript((char*)"Etc/", (char*)"IndependentDrop.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1b56, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b56, 9, true, true)(
             "\t- Load IndependentDrop.lst fail");
         return 0;
     }
     if (!m_independentDrop.load_independent_drop_list())
     {
-        cMyTrace("bool CDataManager::init()", 0x1b5c, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b5c, 9, true, true)(
             "\t- Load IndependentDrop.lst fail");
         return 0;
     }
     err = 0;
     if ((err = m_independentDrop.ImportIndependentDrop("Etc/Independent_Drop.etc")) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1b63, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b63, 9, true, true)(
             "\t- importIndependent_DropScript Fail(%d)", err);
         return 0;
     }
@@ -2755,14 +2755,14 @@ pvp_done:
     err = 0;
     if ((err = ImportSeriaBlessingScript("Event/SeriaBlessing.evt", m_seriaBlessing)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1b83, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b83, 9, true, true)(
             "\t- ImportSeriaBlessingScript Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportLevelUpRewardItemScript("Event/LevelUpRewardItem.evt", m_levelUpReward)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1b8a, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1b8a, 9, true, true)(
             "\t- ImportLevelUpRewardItemScript Fail(%d)", err);
         return 0;
     }
@@ -2778,28 +2778,28 @@ pvp_done:
     err = 0;
     if ((err = ImportNewAccountLeventUpToJobScript("Event/NewAccountLevelUpToJob.evt", m_newAccountLevelUp)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1ba7, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ba7, 9, true, true)(
             "\t- NewAccountLevelUpToJob StackableReward Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportReturnUserRewardScript("Event/ReturnUserReward.evt", m_returnUserReward)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1bb0, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1bb0, 9, true, true)(
             "\t- ReturnUserReward Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportBingoScript("Event/BingoEvent.evt", m_bingo)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1bbb, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1bbb, 9, true, true)(
             "\t- ImportBingoScript Fail(%d)", err);
         return 0;
     }
     err = 0;
     if ((err = ImportBroadCastItemScript("Etc/BroadCastItem.etc", m_broadCastItem)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1bcf, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1bcf, 9, true, true)(
             "\t- ImportBroadCastItemScript Fail(%d)", err);
         return 0;
     }
@@ -2807,7 +2807,7 @@ pvp_done:
     // SecurityReward（bool 语义）。
     if (!ImportSecurityReward(&m_securityReward))
     {
-        cMyTrace("bool CDataManager::init()", 0x1bd7, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1bd7, 9, true, true)(
             "\t- ImportSecurityReward Fail");
         return 0;
     }
@@ -2816,7 +2816,7 @@ pvp_done:
     err = 0;
     if ((err = ImportItemMakingSkill("Etc/ItemMakingSkill.etc", m_itemMakingSkill)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1be0, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1be0, 9, true, true)(
             "\t- importItemMakingSkillScript Fail(%d)", err);
         return 0;
     }
@@ -2825,7 +2825,7 @@ pvp_done:
     if (!importUltimateDungeonList("Etc/UltimateDungeonList.etc",
                                    m_ultimateDungeonList))
     {
-        cMyTrace("bool CDataManager::init()", 0x1be8, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1be8, 9, true, true)(
             "\t- import UltimateDungeonList Script Fail(%d)");
         return 0;
     }
@@ -2840,25 +2840,25 @@ pvp_done:
     // 归入结构性差异，不强凑。
     if (!sync_script::GetInstanceSyncScript()->truncate_mapping_equip_info_table())
     {
-        cMyTrace("bool CDataManager::init()", 0x1c06, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1c06, 9, true, true)(
             "\t- Fail truncate_mapping_equip_info_table");
         return 0;
     }
     if (!importExperienceItemMapInfo(m_mapA928, false))
     {
-        cMyTrace("bool CDataManager::init()", 0x1c0c, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1c0c, 9, true, true)(
             "\t- Equipment Script mapping table load fail");
         return 0;
     }
     if (!importExperienceItemMapInfo(m_mapA940, true))
     {
-        cMyTrace("bool CDataManager::init()", 0x1c12, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1c12, 9, true, true)(
             "\t- Equipment Script mapping table load fail");
         return 0;
     }
     if (!sync_script::GetInstanceSyncScript()->insert_mapping_equip_info_to_db(m_mapA940))
     {
-        cMyTrace("bool CDataManager::init()", 0x1c18, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1c18, 9, true, true)(
             "\t- Fail insert_mapping_equip_info_table");
         return 0;
     }
@@ -2867,7 +2867,7 @@ pvp_done:
     err = 0;
     if ((err = importVillageAttackedScript("Etc/VillageAttacked.etc", m_villageAttacked)) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1c20, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1c20, 9, true, true)(
             "\t- importVillageAttackedScript Fail(%d)", err);
         return 0;
     }
@@ -2879,7 +2879,7 @@ pvp_done:
     err = 0;
     if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript( "Etc/Chn_ActionPointSystem.etc", *GetActionPointEtcParameter(false))) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1c3a, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1c3a, 9, true, true)(
             "\t- importActionPointSystemEtcScript Chn_ActionPointSystem.etc Fail(%d)",
             err);
         return 0;
@@ -2887,7 +2887,7 @@ pvp_done:
     err = 0;
     if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript( "Etc/Chn_ActionPointSystem_GM.etc", *GetActionPointEtcParameter(true))) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1c41, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1c41, 9, true, true)(
             "\t- importActionPointSystemEtcScript Chn_ActionPointSystemGM.etc Fail(%d)",
             err);
         return 0;
@@ -2958,7 +2958,7 @@ pvp_done:
     if (!importPVPChannelList((char*)"Etc/pvpChannelList.etc",
                               &m_liveServerInfo, 0))
     {
-        cMyTrace("bool CDataManager::init()", 0x1cd5, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1cd5, 9, true, true)(
             "\t- importPVPChannelList Fail()");
         return 0;
     }
@@ -2966,31 +2966,31 @@ pvp_done:
     // Guild/Power/SecretShop/AccountCargo/TitleBook 参数链。
     if (!importGuildParameterScript(&m_guildParameter, "Etc/Guild.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1ce2, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ce2, 9, true, true)(
             "\t- importGuildParameterScript Fail");
         return 0;
     }
     if (!importPowerParameterScript(&m_powerParameter, "Etc/Power.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1ce9, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ce9, 9, true, true)(
             "\t- importPowerParameterScript Fail");
         return 0;
     }
     if (!importSecretShopScript(&m_secretShop, "Etc/SecretShop.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d0f, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d0f, 9, true, true)(
             "\t- importSecretShopScript Fail");
         return 0;
     }
     if (!importAccountCargoScript(&m_accountCargo, "Etc/AccountCargo.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d16, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d16, 9, true, true)(
             "\t- importAccountCargoScript Fail");
         return 0;
     }
     if (!importTitleBookEtcScript("Etc/TitleBook.etc", &m_titleBook))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d1e, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d1e, 9, true, true)(
             "\t- importTitleBookEtcScript Fail");
         return 0;
     }
@@ -2999,13 +2999,13 @@ pvp_done:
     if (!initEventCharacterScript((char*)"Event/EventCharacter/",
                                   (char*)"EventCharacter.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d38, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d38, 9, true, true)(
             "\t- Load EventCharacter.lst fail");
         return 0;
     }
     if (!m_eventCharacter.load_event_character_list())
     {
-        cMyTrace("bool CDataManager::init()", 0x1d3e, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d3e, 9, true, true)(
             "\t- Load EventCharacter.lst fail");
         return 0;
     }
@@ -3014,14 +3014,14 @@ pvp_done:
     if (!importQuestParameterScript(&m_questParameter,
                                     "n_Quest/questParameter.etc"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d57, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d57, 9, true, true)(
             "\t- importQuestParameterScript Fail");
         return 0;
     }
     if (!importTrainingQuestScript(&m_trainingQuest,
                                    "n_Quest/TrainingQuest.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d61, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d61, 9, true, true)(
             "\t- importTrainingQuestScript Fail");
         return 0;
     }
@@ -3031,7 +3031,7 @@ pvp_done:
             G_CEnvironment()->m_serverEnvir.m_serverGroup, G_CEnvironment()->m_serverEnvir.m_channelNo))
     {
         SetCollectDungeonStatistic(true);
-        cMyTrace("bool CDataManager::init()", 0x1d84, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d84, 9, true, true)(
             "\t- Collect Dungeon Data Statistic start!");
     }
 
@@ -3041,13 +3041,13 @@ pvp_done:
     // 名字过滤两件套。
     if (!importSlangName((char*)"Etc/slangname.etc", &m_slangName))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d8b, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d8b, 9, true, true)(
             "\t- slangname.etc file load failed");
         return 0;
     }
     if (!importInvalidName((char*)"Etc/invalidName.etc", &m_invalidChar))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d90, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d90, 9, true, true)(
             "\t- invalidName.etc file load failed");
         return 0;
     }
@@ -3059,7 +3059,7 @@ pvp_done:
     if (!importFairPVPEquipment((char*)"Etc/FairPVPEquipment.etc",
                                 &m_stackableMap))
     {
-        cMyTrace("bool CDataManager::init()", 0x1d99, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d99, 9, true, true)(
             "\t- FairPVPEquipment.etc file load failed");
         return 0;
     }
@@ -3068,13 +3068,13 @@ pvp_done:
     if (!importGrowthPower((char*)"Etc/GrowthPowerRewardBuff.etc",
                            &m_growthPower))
     {
-        cMyTrace("bool CDataManager::init()", 0x1da1, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1da1, 9, true, true)(
             "\t- GrowthPowerRewardBuff.etc file load failed");
         return 0;
     }
     if (!importBoosterGage((char*)"Etc/BoosterGage.etc", &m_boosterGage))
     {
-        cMyTrace("bool CDataManager::init()", 0x1dac, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1dac, 9, true, true)(
             "\t- BoosterGage.etc file load failed");
         return 0;
     }
@@ -3082,14 +3082,14 @@ pvp_done:
     // AICharacter。
     if (!initAICharacterScript("AICharacter/", "AICharacter.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1db9, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1db9, 9, true, true)(
             "\t- Load AICharacter.lst fail");
         return 0;
     }
     m_aiCharacterList = new CAICharacterList;
     if (!m_aiCharacterList->init())
     {
-        cMyTrace("bool CDataManager::init()", 0x1dbf, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1dbf, 9, true, true)(
             "\t- Load AI Character fail");
         return 0;
     }
@@ -3097,7 +3097,7 @@ pvp_done:
     // Light Server 提示（log-only TRACE 0x1dc5 区）。
     if (m_serverParameter.CheckLightServer(G_CEnvironment()->m_serverEnvir.m_serverGroup))
     {
-        cMyTrace("bool CDataManager::init()", 0x1dc5, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1dc5, 9, true, true)(
             "\t- Light Server Mode start!");
     }
 
@@ -3111,7 +3111,7 @@ pvp_done:
     if ((errPrem = WongWork::CUserPremium::LoadPremiumInfo(
              "Etc/PremiumList_New.etc")) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x1e0f, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e0f, 9, true, true)(
             "\t- LoadPremiumInfo Fail(Line: %d)", errPrem);
         return 0;
     }
@@ -3124,7 +3124,7 @@ pvp_done:
     {
         if (!ImportWarAreaCounter(&m_warAreaCounter))
         {
-            cMyTrace("bool CDataManager::init()", 0x1e18, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1e18, 9, true, true)(
                 "\t- WarArea.etc file load failed");
             return 0;
         }
@@ -3135,26 +3135,26 @@ pvp_done:
     if (!InitCharacterScript("Character/", "Character.lst", "ExpTable.tbl",
                              (const char*)0))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e23, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e23, 9, true, true)(
             "\t- Load Character.lst fail");
         return 0;
     }
     if (!InitMonsterScript("Monster/", "Monster.lst",
                            "MonsterApcDifficultyBonus.tbl"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e28, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e28, 9, true, true)(
             "\t- Load Monster.lst fail");
         return 0;
     }
     if (!InitPassiveObjectScript("PassiveObject/", "PassiveObject.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e2d, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e2d, 9, true, true)(
             "\t- Load PassiveObject.lst fail");
         return 0;
     }
     if (!InitEquipmentScript("equipment/", "equipment.lst", "pricetable.tbl"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e33, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e33, 9, true, true)(
             "\t- Load equipment.lst fail");
         return 0;
     }
@@ -3166,13 +3166,13 @@ pvp_done:
     }
     if (!InitMapScript("Map/", "Map.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e48, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e48, 9, true, true)(
             "\t- Load Map.lst fail\n");
         return 0;
     }
     if (!InitDungeonScript((char*)"Dungeon/", (char*)"Dungeon.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e4d, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e4d, 9, true, true)(
             "\t- Load Dungeon.lst fail\n");
         return 0;
     }
@@ -3187,13 +3187,13 @@ pvp_done:
     // Quest/Skill。
     if (!initQuestScript("n_Quest/", "Quest.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e5c, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e5c, 9, true, true)(
             "\t- Load Quest.lst fail\n");
         return 0;
     }
     if (!InitSkillScript("Skill/", "SkillList.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e61, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e61, 9, true, true)(
             "\t- Load SkillList.lst fail\n");
         return 0;
     }
@@ -3202,13 +3202,13 @@ pvp_done:
     m_itemShop = new CItemShop;
     if (!initItemShopScript((char*)"ItemShop/", (char*)"ItemShop.lst"))
     {
-        cMyTrace("bool CDataManager::init()", 0x1e68, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e68, 9, true, true)(
             "\t- Load ItemShop.lst fail\n");
         return 0;
     }
     if (!m_itemShop->loadItemShopFiles())
     {
-        cMyTrace("bool CDataManager::init()", 0x1e6d, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e6d, 9, true, true)(
             "\t- Load ItemShop file fail\n");
         return 0;
     }
@@ -3222,13 +3222,13 @@ pvp_done:
     m_pvpMissionSystem = new PvP_MissionSystem;
     if (!m_pvpMissionSystem->Load_list())
     {
-        cMyTrace("bool CDataManager::init()", 0x1e79, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e79, 9, true, true)(
             "\t- Mission Script file fail\n");
         return 0;
     }
     if (!m_pvpMissionSystem->Load_EtcParameter())
     {
-        cMyTrace("bool CDataManager::init()", 0x1e7e, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e7e, 9, true, true)(
             "\t- Mission Parameter Script file fail\n");
         return 0;
     }
@@ -3242,20 +3242,20 @@ pvp_done:
 
     // Money Limit per Level（fail 仅 TRACE 0x1eb7 继续）。
     {
-        cMyTrace("bool CDataManager::init()", 0x1eb4, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1eb4, 9, true, false)(
             "\t- Loading Money Limit per Level ");
         if (!importGoldLimitByLevel(
                 reinterpret_cast<unsigned int*>(m_moneyLimit)))
         {
-            cMyTrace("bool CDataManager::init()", 0x1eb7, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1eb7, 9, true, true)(
                 "\t- Loading Money Limit per Level Fail");
         }
     }
 
     // Compound Item（bindsphere.etc；失败 TRACE 0x1ebf 后 ret0）。
-    cMyTrace("bool CDataManager::init()", 0x1eb9, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1eb9, 9, false, true)("Success");
     {
-        cMyTrace("bool CDataManager::init()", 0x1ebb, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ebb, 9, true, false)(
             "\t- Loading Compound Item ");
         // ORIG +0x2f6a..+0x2f95：new 结果直写全局后再读回作 this，
         // 不留具名局部（不留额外栈槽）。
@@ -3265,16 +3265,16 @@ pvp_done:
                  GlobalData::s_pCompoundBindCube)
                  ->LoadScript("Etc/", "bindsphere.etc")) != 0)
         {
-            cMyTrace("bool CDataManager::init()", 0x1ebf, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1ebf, 9, true, true)(
                 "\t- Fail load Compound Item Bind Cube Script File");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x1ec2, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ec2, 9, false, true)("Success");
     }
 
     // ARAD Event Upgrade Jar（失败 TRACE 0x1ec9 ret0）。
     {
-        cMyTrace("bool CDataManager::init()", 0x1ec5, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ec5, 9, true, false)(
             "\t- Loading ARAD - Event Upgrade Jar ");
         // ORIG +0x30b4..+0x30df：`test %eax,%eax; sete %al` ⇒ 判定为
         // `== 0`（LoadScript 返回真=成功），非 `!= 0`。
@@ -3282,16 +3282,16 @@ pvp_done:
         if (GlobalData::s_pEvent_UpGrade_Jar->LoadScript(
                 "", "Etc/EventUpgradeJar.etc") == 0)
         {
-            cMyTrace("bool CDataManager::init()", 0x1ec9, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1ec9, 9, true, true)(
                 "\t- Fail load Event.Upgrad.Jar Script File");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x1ecc, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ecc, 9, false, true)("Success");
     }
 
     // Compound Avatar（nothrow new(0x88)；失败 ret0）。
     {
-        cMyTrace("bool CDataManager::init()", 0x1ed9, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ed9, 9, true, false)(
             "\t- Loading Compound Avatar ");
         // ORIG +0x321a..+0x3241：同样先写全局再读回。
         // [b28d-orig-nullfree] ORIG 报告 idx 2493-2503 无判空短路：写全局→读回→
@@ -3303,11 +3303,11 @@ pvp_done:
                   GlobalData::s_pCompoundAvatar)
                   ->LoadScript("Etc/", "CompoundAvatar.etc")))
         {
-            cMyTrace("bool CDataManager::init()", 0x1ee2, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1ee2, 9, true, true)(
                 "\t- Loading Compound Avatar Fail\n");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x1ee5, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ee5, 9, false, true)("Success");
     }
 
     // VendingMachine.lst（无条件）。
@@ -3326,7 +3326,7 @@ pvp_done:
 
     // Dungeons：new CDungeonList(0x14) + dimension 区清零 + load_list。
     {
-        cMyTrace("bool CDataManager::init()", 0x1ef3, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ef3, 9, true, false)(
             "\t- Loading Dungeons ");
         m_dungeonList = new CDungeonList;
         memset(m_dimensionInout, 0, 6);
@@ -3334,7 +3334,7 @@ pvp_done:
         memset(m_limitInoutCount, 0, 3);
         if (!m_dungeonList->load_list())
         {
-            cMyTrace("bool CDataManager::init()", 0x1f05, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1f05, 9, true, true)(
                 "\t- Loading Dungeons Fail");
             return 0;
         }
@@ -3342,8 +3342,8 @@ pvp_done:
 
     // Tower Of Despair（失败 TRACE 0x1f0f 后 ret0）。
     {
-        cMyTrace("bool CDataManager::init()", 0x1f08, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x1f0b, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f08, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f0b, 9, true, false)(
             "\t- Loading Tower Of Despair System ");
         // ORIG +0x355d..+0x3588：写全局→读回→`!= 0` 判定。
         GlobalData::s_pTowerOfDespairMgr = new TowerOfDespairMgr;
@@ -3351,32 +3351,32 @@ pvp_done:
                  GlobalData::s_pTowerOfDespairMgr)
                  ->LoadScript("Etc/", "TowerOfDespair.etc")) != 0)
         {
-            cMyTrace("bool CDataManager::init()", 0x1f0f, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1f0f, 9, true, true)(
                 "\t- Fail load TowerOfDespair System Script");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x1f12, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f12, 9, false, true)("Success");
     }
 
     // Chatting Emoticon：new(0x48) + lst + Load_list。
     {
-        cMyTrace("bool CDataManager::init()", 0x1f16, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f16, 9, true, false)(
             "\t- Loading Chatting Emoticon ");
         m_emoticonList = new CChattingEmoticonList;
         if (!initChattingEmoticonScriptList((char*)"ChatEmoticon/",
                                             (char*)"ChatEmoticon.lst"))
         {
-            cMyTrace("bool CDataManager::init()", 0x1f1b, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1f1b, 9, true, true)(
                 "\t- Emoticon List file error");
             return 0;
         }
         if (!m_emoticonList->Load_list())
         {
-            cMyTrace("bool CDataManager::init()", 0x1f20, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1f20, 9, true, true)(
                 "\t- Emoticon Script file fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x1f23, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f23, 9, false, true)("Success");
     }
 
     // PvP 地图基础数据 + Maps。
@@ -3385,71 +3385,71 @@ pvp_done:
     std::vector<PVPMAP_DATA> pvpMaps;
     if (!loadPvpMapBasicDataScript("Etc/pvpmapbasicdata.etc", &pvpMaps))
     {
-        cMyTrace("bool CDataManager::init()", 0x1f29, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f29, 9, true, true)(
             "Load Etc/pvpmapbasicdata.etc fail");
         return 0;
     }
-    cMyTrace("bool CDataManager::init()", 0x1f2d, 9, true, false)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f2d, 9, true, false)(
         "\t- Loading Maps ");
     m_mapList = new CMapList;
     if (!load_map_files(pvpMaps))
     {
-        cMyTrace("bool CDataManager::init()", 0x1f33, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f33, 9, true, true)(
             "\t- Loading Maps Fail");
         return 0;
     }
 
     // Monsters。
-    cMyTrace("bool CDataManager::init()", 0x1f36, 9, false, true)("Success");
-    cMyTrace("bool CDataManager::init()", 0x1f38, 9, true, false)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f36, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f38, 9, true, false)(
         "\t- Loading Monsters ");
     m_monsterManager = new CMonsterManager;
     if (!m_monsterManager->load_monsters())
     {
-        cMyTrace("bool CDataManager::init()", 0x1f3e, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f3e, 9, true, true)(
             "\t- Loading Monsters Fail");
         return 0;
     }
 
     // IndependentDrop 缓存清理（无条件）+ Skills。
-    cMyTrace("bool CDataManager::init()", 0x1f41, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f41, 9, false, true)("Success");
     m_independentDrop.clear();
     {
-        cMyTrace("bool CDataManager::init()", 0x1f47, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f47, 9, true, false)(
             "\t- Loading Skills ");
         m_skillList = new CSkillList;
         if (!m_skillList->init())
         {
-            cMyTrace("bool CDataManager::init()", 0x1f4d, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1f4d, 9, true, true)(
                 "\t- Loading Skills Fail");
             return 0;
         }
     }
 
     // Creature Damage + ActiveStatus（SDCActiveStatusSyncServer 栈局部）。
-    cMyTrace("bool CDataManager::init()", 0x1f50, 9, false, true)("Success");
-    cMyTrace("bool CDataManager::init()", 0x1f52, 9, true, false)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f50, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f52, 9, true, false)(
         "\t- Loading Creatrue Damage ");
     if (!prepareServerDelayCheckDamage())
     {
-        cMyTrace("bool CDataManager::init()", 0x1f55, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f55, 9, true, true)(
             "\t- Loading Creatrue Damage Fail");
         return 0;
     }
-    cMyTrace("bool CDataManager::init()", 0x1f58, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f58, 9, false, true)("Success");
 
     // activeStatus 同样是函数体作用域对象（ORIG 清理梯 +0x6e32 段；槽
     // -0xf35 仅 1 字节 ⇒ 空类）。
     SDCActiveStatusSyncServer activeStatus;
-    cMyTrace("bool CDataManager::init()", 0x1f5c, 9, true, false)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f5c, 9, true, false)(
         "\t- Loading ActiveStatus Damage ");
     if (!activeStatus.loadActiveStatusScript())
     {
-        cMyTrace("bool CDataManager::init()", 0x1f5f, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f5f, 9, true, true)(
             "\t- Loading ActiveStatus Damage Fail");
         return 0;
     }
-    cMyTrace("bool CDataManager::init()", 0x1f62, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f62, 9, false, true)("Success");
 
     // ItemGroupName.tbl（返回非 0 = 失败 ret0）+ Items。
     // —— 以下局部按 ORIG 槽序声明（-0xf54 数组 → -0xf58/-0xf5c/-0xf60 三个
@@ -3465,28 +3465,28 @@ pvp_done:
         return 0;
     }
     {
-        cMyTrace("bool CDataManager::init()", 0x1f69, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f69, 9, true, false)(
             "\t- Loading Items ");
         m_itemList = new CItemList;
         if (!m_itemList->init())
         {
-            cMyTrace("bool CDataManager::init()", 0x1f6f, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1f6f, 9, true, true)(
                 "\t- Loading items Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x1f72, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f72, 9, false, true)("Success");
     }
 
     // Avatar Roulette（栈局部 roulette → import → new Server → Init →
     // InitAddCharacSkill，失败 LogManager ret0）。
     // roulette 为函数体作用域对象（ORIG 清理梯顶段 +0x6e0a），不套嵌套块。
-    cMyTrace("bool CDataManager::init()", 0x1f8a, 9, true, false)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1f8a, 9, true, false)(
         "\t- Loading Avatar Roulette ");
     AvatarRoulette roulette;
     if (!importAvatarRouletteList((char*)"Etc/avatar_roulette_jar.etc",
                                   roulette))
     {
-        cMyTrace("bool CDataManager::init()", 0x1f90, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f90, 9, true, true)(
             "\t- Loading Avatar Roulette Fail");
         return 0;
     }
@@ -3498,7 +3498,7 @@ pvp_done:
     if (!(reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
               ->Init(&roulette)))
     {
-        cMyTrace("bool CDataManager::init()", 0x1f9a, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f9a, 9, true, true)(
             "\t- Initalizing Avatar Roulette Fail");
         return 0;
     }
@@ -3506,11 +3506,14 @@ pvp_done:
               ->InitAddCharacSkill()))
     {
         LogManager::logFormat(
-            1, "data_manager.cpp", "int CDataManager::init()", 0x1fa1,
+            // [P8S4 2026-09-11] §6.5 真错：手写串写成 `int CDataManager::init()`，
+            // ORIG 该站点实参 = prett 符号（串 `bool CDataManager::init()`，size 0x1a
+            // @0x08c343cb）⇒ 运行期日志函数名文本错误，改回 __PRETTY_FUNCTION__。
+            1, "data_manager.cpp", __PRETTY_FUNCTION__, 0x1fa1,
             "[AVATAR ROULETTE] initalizing(InitAddCharacSkill) failed.");
         return 0;
     }
-    cMyTrace("bool CDataManager::init()", 0x1fa6, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1fa6, 9, false, true)("Success");
 
     // RandomOption 七文件循环（任一 err!=0 → TRACE ret0）。
     // ORIG +0x3254..+0x3261：err 先置 0，再 7 条字符串指针存入局部数组
@@ -3523,7 +3526,7 @@ pvp_done:
     randomOptionFiles[4] = "Etc/RandomOption/PartSelection.etc";
     randomOptionFiles[5] = "Etc/RandomOption/RandomizedOptionOverall1.etc";
     randomOptionFiles[6] = "Etc/RandomOption/RandomizedOptionOverall2.etc";
-    cMyTrace("bool CDataManager::init()", 0x1fb6, 9, true, false)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1fb6, 9, true, false)(
         "\t- Loading RandomOption ");
     // [P310] ORIG 循环尾检 = `mov -S,%eax; cmp $0x6,%eax; setbe; test; jne`
     //（idx 3308-3313）——局部须 int + 显式 (unsigned int) 比较才发两段寄存器形
@@ -3532,30 +3535,30 @@ pvp_done:
     {
         if ((errRO = importRandomOptionScript(m_randomOption, randomOptionFiles[i])) != 0)
         {
-            cMyTrace("bool CDataManager::init()", 0x1fbb, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1fbb, 9, true, true)(
                 "\t- Fail load RandomOption Script File name(%s), "
                 "error_line(%d)\n", randomOptionFiles[i], errRO);
             return 0;
         }
     }
-    cMyTrace("bool CDataManager::init()", 0x1fbf, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1fbf, 9, false, true)("Success");
 
     // initRandomOptionItem + random_option_ref DB 同步。
     if (!initRandomOptionItem())
     {
-        cMyTrace("bool CDataManager::init()", 0x1fc3, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fc3, 9, true, true)(
             "Fail load initRandomOptionItem");
         return 0;
     }
     if (!sync_script::GetInstanceSyncScript()->truncate_random_option_ref())
     {
-        cMyTrace("bool CDataManager::init()", 0x1fc9, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fc9, 9, true, true)(
             "\t- Fail truncate_random_option_ref");
         return 0;
     }
     if (!sync_script::GetInstanceSyncScript()->insert_random_option_ref())
     {
-        cMyTrace("bool CDataManager::init()", 0x1fcf, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fcf, 9, true, true)(
             "\t- Fail truncate_random_option_ref");
         return 0;
     }
@@ -3567,58 +3570,58 @@ pvp_done:
     // WorldMapList + Quests + Characters + Disjoints。
     if (!m_worldMapList.load_list())
     {
-        cMyTrace("bool CDataManager::init()", 0x1fe1, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fe1, 9, true, true)(
             "\t- Loading World Map List Fail");
         return 0;
     }
     {
-        cMyTrace("bool CDataManager::init()", 0x1fe5, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fe5, 9, true, false)(
             "\t- Loading Quests ");
         m_questList = new QuestList;
         if (!m_questList->load_list())
         {
-            cMyTrace("bool CDataManager::init()", 0x1fe9, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1fe9, 9, true, true)(
                 "\t- Loading Quests Fail");
             return 0;
         }
     }
     {
-        cMyTrace("bool CDataManager::init()", 0x1fec, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x1fee, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fec, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fee, 9, true, false)(
             "\t- Loading Characters ");
         m_characList = new CCharacList;
         if (!m_characList->init())
         {
-            cMyTrace("bool CDataManager::init()", 0x1ff2, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1ff2, 9, true, true)(
                 "\t- Loading Characters Fail");
             return 0;
         }
     }
     {
-        cMyTrace("bool CDataManager::init()", 0x1ff5, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x1ff7, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ff5, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ff7, 9, true, false)(
             "\t- Loading Disjoints ");
         m_disJoint = new DisJoint;
         if (!m_disJoint->LoadDisJoint())
         {
-            cMyTrace("bool CDataManager::init()", 0x1ffb, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1ffb, 9, true, true)(
                 "\t- Loading Disjoints Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x1ffe, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ffe, 9, false, true)("Success");
     }
 
     // Advance Altar：StageMapList::loadList。
     {
-        cMyTrace("bool CDataManager::init()", 0x2001, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2001, 9, true, false)(
             "\t- Loading Advance Altar ");
         if (!m_stageMapList.loadList())
         {
-            cMyTrace("bool CDataManager::init()", 0x2004, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2004, 9, true, true)(
                 "\t- Loading Advance Altar Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2007, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2007, 9, false, true)("Success");
     }
 
     // ItemGeneratorMgr / AutoMarket。
@@ -3628,7 +3631,7 @@ pvp_done:
     }
     if (!m_itemGeneratorMgr->initialize())
     {
-        cMyTrace("bool CDataManager::init()", 0x2012, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2012, 9, true, true)(
             "\t- Loading Item Generator Manager Fail\n");
         return 0;
     }
@@ -3639,7 +3642,7 @@ pvp_done:
     }
     if ((errRO = m_autoMarket->LoadScript("Etc/ItemDropInfo_Control.etc")) != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x201a, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x201a, 9, true, true)(
             "\t- LoadScript() error Etc/ItemDropInfo_Control.etc line(%d)",
             errRO);
         return 0;
@@ -3647,7 +3650,7 @@ pvp_done:
 
     // LevelExp / MobReward / PvpGrade / RewardSP。
     {
-        cMyTrace("bool CDataManager::init()", 0x2022, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2022, 9, true, false)(
             "\t- Init Level Exp ");
         // ORIG +0x4b8f..+0x4b99：`call set_level_exp / xor $1 / test %al / jmp
         // <success>`——出厂二进制此处被单字节改写（0x0835cecb 机器码 `eb 56`，
@@ -3656,36 +3659,36 @@ pvp_done:
         // 写法）；与 ORIG 仅剩 je↔jmp 一条指令之差，见交付说明。
         if (!set_level_exp())
         {
-        cMyTrace("bool CDataManager::init()", 0x2025, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2025, 9, true, true)(
             "\t- Init Level Exp Fail");
         return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2028, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x202a, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2028, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x202a, 9, true, false)(
             "\t- Init Mob Reward ");
         // 同上：ORIG 0x0835cfcb 机器码 `eb 56`（应为 `74 56` je），失败块被改写
         // 屏蔽；文案沿用 ORIG 的复制粘贴痕迹 “Init Level Exp Fail”（+0x4cd1）。
         if (!set_mob_reward())
         {
-        cMyTrace("bool CDataManager::init()", 0x202d, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x202d, 9, true, true)(
             "\t- Init Level Exp Fail");
         return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2030, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x2032, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2030, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2032, 9, true, false)(
             "\t- Init PVP Grade ");
         if (!set_pvp_grade())
         {
-            cMyTrace("bool CDataManager::init()", 0x2035, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2035, 9, true, true)(
                 "\t- Init PVP Grade Fail\n");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2038, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x203a, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2038, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x203a, 9, true, false)(
             "\t- Init Reward SP ");
         if (!set_reward_sp())
         {
-            cMyTrace("bool CDataManager::init()", 0x203d, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x203d, 9, true, true)(
                 "\t- Init Reward SP Fail\n");
             return 0;
         }
@@ -3693,17 +3696,17 @@ pvp_done:
 
     // Channel 数据/脚本。
     {
-        cMyTrace("bool CDataManager::init()", 0x2040, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x2044, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2040, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2044, 9, true, false)(
             "\t- Init Get Channel Data(channel_info.etc) ");
         if (!GlobalData::s_channel_proxy->SendCheckChannelScript())
         {
-            cMyTrace("bool CDataManager::init()", 0x2047, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2047, 9, true, true)(
                 "\t- Init Get Channel Data(channel_info.etc) Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x204a, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x204e, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x204a, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x204e, 9, true, false)(
             "\t- Init Channel Script ");
         // [P248 档①/P292] ORIG 调用点（报告 idx 3963-3966）：`call 88dc008
         // <importChannelScript>; xor $0x1,%eax; test %al,%al; je` = bool 取反形。
@@ -3713,7 +3716,7 @@ pvp_done:
         // 透传形态不变）。
         if (!importChannelScript(&m_channelScript))
         {
-            cMyTrace("bool CDataManager::init()", 0x2058, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2058, 9, true, true)(
                 "\t- Init Channel Script Fail");
             return 0;
         }
@@ -3721,9 +3724,9 @@ pvp_done:
 
     // ItemUpgrade / Separate / 3rdChronicle / Amplifier / Reseal。
     {
-        cMyTrace("bool CDataManager::init()", 0x205b, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x205b, 9, false, true)("Success");
         m_itemUpgrade = new WongWork::CItemUpgrade;
-        cMyTrace("bool CDataManager::init()", 0x205e, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x205e, 9, true, false)(
             "\t- Init Item Upgrade Info ");
         // [P248 档①/P292] ORIG idx 4023-4035：`mov 0x20(this),%eax; (%eax)+0x04
         // 取虚槽1; call *%edx; xor $0x1,%eax; test %al` = bool 取反形。虚槽目标
@@ -3731,21 +3734,21 @@ pvp_done:
         // （无 movzbl ⇒ 整链同型 bool）；声明+定义已同步 bool 化。
         if (!m_itemUpgrade->LoadUpgradeScript("Etc/Upgrade.etc"))
         {
-            cMyTrace("bool CDataManager::init()", 0x2061, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2061, 9, true, true)(
                 "\t- Init Item Upgrade Info Fail\n");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2064, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2064, 9, false, true)("Success");
         m_itemUpgradeSeparate = new WongWork::CItemUpgrade_Separate;
         if (!m_itemUpgradeSeparate->LoadUpgradeScript("Etc/Upgrade_Separate.etc"))
         {
-            cMyTrace("bool CDataManager::init()", 0x206a, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x206a, 9, true, true)(
                 "\t- Item Upgrade Separate Fail");
             return 0;
         }
         if (!m_itemUpgrade->Load3rdChronicleUpgradeScript("Etc/chronicle.etc"))
         {
-            cMyTrace("bool CDataManager::init()", 0x2072, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2072, 9, true, true)(
                 "\t- Loading 3rd Chronice Upgrade Script Fail");
             return 0;
         }
@@ -3755,129 +3758,129 @@ pvp_done:
 
     // Reseal / UnlimitChallenge / LevelRewardTable / LimitItemUsage。
     {
-        cMyTrace("bool CDataManager::init()", 0x2084, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2084, 9, true, false)(
             "\t- Init Reseal table ");
         if (!importResealTable("Etc/Reseal.etc", &m_resealTable))
         {
-            cMyTrace("bool CDataManager::init()", 0x208c, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x208c, 9, true, true)(
                 "\t- Init Reseal table Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x208f, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x2092, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x208f, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2092, 9, true, false)(
             "\t- Init Unlimit Challenge Info ");
         if (!importUnlimitChallengeScript("Etc/UnlimitChallenge.etc",
                                           &m_unlimitChallenge))
         {
-            cMyTrace("bool CDataManager::init()", 0x2095, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2095, 9, true, true)(
                 "\t- Init Unlimit Challenge Info Fail");
             return 0;
         }
         m_levelRewardTableMgr = CLevelRewardTableMgr::GetInstance();
         m_levelRewardTableMgr->SetChallengeInfo(m_unlimitChallenge);
-        cMyTrace("bool CDataManager::init()", 0x209e, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x209e, 9, false, true)("Success");
         if (!importLimitItemUsageInfo(
                 (char*)"Etc/Chn_Server_LimititemUsageinfo.etc",
                 &m_limitItemUsage))
         {
-            cMyTrace("bool CDataManager::init()", 0x20a5, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x20a5, 9, true, true)(
                 "\t- importLimitItemUsageInfo Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x20a8, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x20a8, 9, true, true)(
             "\t- Import Limit Item Usage Info Success");
     }
 
     // DB Log Item。
     {
-        cMyTrace("bool CDataManager::init()", 0x20b7, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x20b7, 9, true, true)(
             "\t- Import DB Log Item - ");
         if (!importDBLogItem((char*)"Etc/Chn_DBLogItem.etc", &m_dbLogItems))
         {
-            cMyTrace("bool CDataManager::init()", 0x20be, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x20be, 9, true, true)(
                 "\t- Import DB Log Item  Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x20c1, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x20c1, 9, true, true)(
             "\t- Import DB Log Item Success");
     }
 
     // Condition Event 两件套。
     {
-        cMyTrace("bool CDataManager::init()", 0x20db, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x20db, 9, true, false)(
             "\t- Import Condition Event Info ");
         if (!importConditionEventScript("Event/ConditionEvent.evt",
                                         &m_conditionEvent))
         {
-            cMyTrace("bool CDataManager::init()", 0x20e2, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x20e2, 9, true, true)(
                 "\t- Import Condition Event Info Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x20e5, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x2102, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x20e5, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2102, 9, true, false)(
             "\t- Import Condition Event Script Dungeon ");
         if (!importConditionEventChkDungeonScript(
                 "Event/ConditionEventChkDungeon.evt", &m_conditionDungeon))
         {
-            cMyTrace("bool CDataManager::init()", 0x2109, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2109, 9, true, true)(
                 "\t- Import Condition Event Script Dungeon Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x210c, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x210c, 9, false, true)("Success");
     }
 
     // NPCRelation / EmotionTags / EquipGrade。
     {
-        cMyTrace("bool CDataManager::init()", 0x2111, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2111, 9, true, false)(
             "\t- Import NPC Relation Event Info Success");
         if (!importNPCRelationEventScript("Event/NPCRelationEvent.evt",
                                           &m_npcRelation))
         {
-            cMyTrace("bool CDataManager::init()", 0x2118, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2118, 9, true, true)(
                 "\t- Import NPC Relation Event Info Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x211b, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x211e, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x211b, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x211e, 9, true, false)(
             "\t- Import Emotion Type Tags Info ");
         if (!importEmotionTypeTagsScript("Etc/EmotionExpressionData.etc",
                                          &m_emotionTags))
         {
-            cMyTrace("bool CDataManager::init()", 0x2121, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2121, 9, true, true)(
                 "\t- Import Emotion Type Tags Info Fail\n");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2124, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x2126, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2124, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2126, 9, true, false)(
             "\t- Import Equipment Grade Sample Info ");
         if (!importEquipmentGradeSampleInfo("Etc/EquipmentGradeSample.etc",
                                             &m_equipGrade))
         {
-            cMyTrace("bool CDataManager::init()", 0x2129, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2129, 9, true, true)(
                 "\t- Import Equipment Grade Sample Info Fail\n");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x212c, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x212c, 9, false, true)("Success");
     }
 
     // Creature 脚本两步。
     {
-        cMyTrace("bool CDataManager::init()", 0x215c, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x215c, 9, true, false)(
             "\t- Import Creature Script");
         if (!initCreatureScript("Creature/", "Creature.lst", "ExpTable.tbl"))
         {
-            cMyTrace("bool CDataManager::init()", 0x215f, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x215f, 9, true, true)(
                 "\t- Import Creature Creature.lst fail");
             return 0;
         }
         if (!user_creature::GetInstanceCreatureScriptMgr()
                   ->LoadCreatureScriptFile())
         {
-            cMyTrace("bool CDataManager::init()", 0x2165, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2165, 9, true, true)(
                 "\t- Import Creature Script Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2168, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2168, 9, false, true)("Success");
     }
 
     // PvP single playable map（静态，无条件）+ NPC Script。
@@ -3885,16 +3888,16 @@ pvp_done:
     m_npcScriptList = new CNPCScriptList;
     m_npcDynamicInfo = new CNPCDynamicInfoManager;
     {
-        cMyTrace("bool CDataManager::init()", 0x217a, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x217a, 9, true, false)(
             "\t- Import Npc Script ");
         if (m_npcScriptList->initScript((char*)"Npc/", (char*)"Npc.lst",
                                         (char*)"common.dat") != 0)
         {
-            cMyTrace("bool CDataManager::init()", 0x217d, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x217d, 9, true, true)(
                 "\t- Import Npc.lst Fail\n");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2180, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2180, 9, false, true)("Success");
     }
 
     // ItemLimitEditionMgr（m_npcRelation.m_itemLimitEditionMgr）+ MCAP init。
@@ -3904,16 +3907,16 @@ pvp_done:
     // Equipment Part Set：trancate + import + g_equipmentPartSetMap_ 双层回灌。
     sync_script::GetInstanceSyncScript()->trancate_item_parts_set();
     {
-        cMyTrace("bool CDataManager::init()", 0x21ac, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x21ac, 9, true, false)(
             "\t- Import Equipment Part Set Info ");
         if (!importEquipmentPartSetInfo("Etc/EquipmentPartSet.etc",
                                         static_cast<ENUM_MODULE_TYPE>(3)))
         {
-            cMyTrace("bool CDataManager::init()", 0x21af, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x21af, 9, true, true)(
                 "\t- Import Equipment Part Set Info Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x21b3, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x21b3, 9, false, true)("Success");
 
         // 迭代器在 for-init 内声明并直接初始化（ORIG `begin` 的 sret 目标即
         // 迭代器槽 -0xf58/-0xf5c/-0xf60，无「临时+拷贝」⇒ 必须是声明初始化）。
@@ -3962,37 +3965,37 @@ pvp_done:
 
     // FairPvPStat + PvP SkillTree 四步 + initFairPVPSkillPoint。
     {
-        cMyTrace("bool CDataManager::init()", 0x21ca, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x21ca, 9, true, false)(
             "\t- Import FairPvPStat ");
         if (!importPairPvPStatScript(m_fairPvPStat, "Etc/FairPvPStat.etc"))
         {
-            cMyTrace("bool CDataManager::init()", 0x21cd, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x21cd, 9, true, true)(
                 "\t- Fail load FairPvPStat Script File");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x21d1, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x21d1, 9, false, true)("Success");
         if (!initPvPSkillTreeScript((char*)"Etc/", (char*)"PvPSkillTree.lst"))
         {
-            cMyTrace("bool CDataManager::init()", 0x21d7, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x21d7, 9, true, true)(
                 "\t- Load PvPSkillTree.lst fail");
             return 0;
         }
         if (!m_pvpSkillTree.load_pvp_skill_tree_list())
         {
-            cMyTrace("bool CDataManager::init()", 0x21dd, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x21dd, 9, true, true)(
                 "\t- Load load_pvp_skill_tree_list fail");
             return 0;
         }
         if (!m_pvpSkillTree.importPairPvPSkillPointScript(
                 "Etc/PvPSkillPoint.etc"))
         {
-            cMyTrace("bool CDataManager::init()", 0x21e3, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x21e3, 9, true, true)(
                 "\t- Load PairPvPSkillPointScript fail");
             return 0;
         }
         if (!initFairPVPSkillPoint())
         {
-            cMyTrace("bool CDataManager::init()", 0x21eb, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x21eb, 9, true, true)(
                 "\t- initFairPVPSkillPoint fail");
             return 0;
         }
@@ -4001,7 +4004,7 @@ pvp_done:
     // Ingame Event：new(0x5c) CEventScriptMng → m_eventScriptMng；导入 + init。
     m_liveServerInfo.m_eventScriptMng = new EventClassify::CEventScriptMng;
     {
-        cMyTrace("bool CDataManager::init()", 0x221d, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x221d, 9, true, false)(
             "\t- Loading Ingame Event Script List ");
         // [b28d-orig-form] ORIG 三站点各自独立 `mov 0xb504(%eax)` 重读成员
         // （报告 idx 5059/5093-5099），无局部指针缓存 ⇒ 表达式直接写成员路径。
@@ -4009,11 +4012,11 @@ pvp_done:
                 static_cast<InGameEventInfoList*>(m_liveServerInfo.m_eventScriptMng),
                 "Event/InGameEventList.evt"))
         {
-            cMyTrace("bool CDataManager::init()", 0x2224, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2224, 9, true, true)(
                 "\t- Fail load ingame_event_script_list");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2228, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2228, 9, false, true)("Success");
         if (!m_liveServerInfo.m_eventScriptMng->initScriptlist(
                 *m_liveServerInfo.m_eventScriptMng))
         {
@@ -4023,49 +4026,49 @@ pvp_done:
 
     // Event Avatar List / Event Etc。
     {
-        cMyTrace("bool CDataManager::init()", 0x2231, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2231, 9, true, false)(
             "\t- Loading Event Avatar List ");
         if (!importEventAvatarListScript(&m_eventAvatarList,
                                          "Event/EventAvatarList.evt"))
         {
-            cMyTrace("bool CDataManager::init()", 0x223d, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x223d, 9, true, true)(
                 "\t- Fail Loading Event Avatar List");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2240, 9, false, true)("Success");
-        cMyTrace("bool CDataManager::init()", 0x2244, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2240, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2244, 9, true, false)(
             "\t- Loading Event Etc Info ");
         if (!importEventEtcScript(&m_eventEtc, "Event/EventEtc.evt"))
         {
-            cMyTrace("bool CDataManager::init()", 0x224e, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x224e, 9, true, true)(
                 "\t- Fail Loading Event Etc Info");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2252, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2252, 9, false, true)("Success");
     }
 
     // AvatarColorVariation。
     if (!AvatarVariation::importAvatarColorVariation(&m_avatarColor))
     {
-        cMyTrace("bool CDataManager::init()", 0x227b, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x227b, 9, true, true)(
             "\t- Loading importAvatarColorVariation  Fail");
         return 0;
     }
 
     // Mercenary System（ORIG 报告 idx 5231-5239：errMerc 复位(-0x2c) → 独立
     // store → `cmpl $0; je` **两段形**（无 setne，旧「单表达式」判断有误））。
-    cMyTrace("bool CDataManager::init()", 0x229b, 9, true, false)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x229b, 9, true, false)(
         "\t- Loading Mercenary System ");
     errMerc = 0;
     errMerc = importMercenarySystemEtcScript("Etc/mercenary.etc",
                                              &m_mercenarySystem);
     if (errMerc != 0)
     {
-        cMyTrace("bool CDataManager::init()", 0x22a0, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x22a0, 9, true, true)(
             "\t- Loading Mercenary System Fail - %d line \n", errMerc);
         return 0;
     }
-    cMyTrace("bool CDataManager::init()", 0x22a3, 9, false, true)("Success");
+    cMyTrace(__PRETTY_FUNCTION__, 0x22a3, 9, false, true)("Success");
 
     NeedMaterialDataManager::getInstance();
 
@@ -4073,14 +4076,14 @@ pvp_done:
     if (!importPcBangEquipmentRendar("Etc/PcBangRentalService.etc",
                                      &m_pcBangRentar))
     {
-        cMyTrace("bool CDataManager::init()", 0x2304, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2304, 9, true, true)(
             "\t- PcBangRentalService Fail!\n");
         return 0;
     }
     if (!importDimensionActivationData("Event/DimensionActivationEvent.evt",
                                        &m_dimensionAct))
     {
-        cMyTrace("bool CDataManager::init()", 0x230b, 9, true, true)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x230b, 9, true, true)(
             "\t- DimensionActivationEvent Fail!\n");
         return 0;
     }
@@ -4096,15 +4099,15 @@ pvp_done:
 
     // Delete Invalid Item Script（最后一步）。
     {
-        cMyTrace("bool CDataManager::init()", 0x2331, 9, true, false)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x2331, 9, true, false)(
             "\t- Load Delete Invalid Item Script");
         if (!m_deleteInvalidItem.loadScript())
         {
-            cMyTrace("bool CDataManager::init()", 0x2334, 9, true, true)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2334, 9, true, true)(
                 "\t- Load Delete Invalid Item Script Fail");
             return 0;
         }
-        cMyTrace("bool CDataManager::init()", 0x2337, 9, false, true)("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x2337, 9, false, true)("Success");
     }
 
     return 1;

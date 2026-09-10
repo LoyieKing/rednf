@@ -67,6 +67,10 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
     if (blockSize >= 0) {
         cipher->IMethod::Pad(inData, srcLen, NULL);
     }
+    // [P6AuditOldN-S1 2026-09-11 负结论] 试显式基类限定调用 `cipher->IMethod::Encrypt(...)`
+    //   （目标 ORIG 0x08184b5b 段 vptr→%edx / 实参走 %eax）⇒ 实测 our 89→**85**
+    //   （gap 0→**+4**，且 ORIG 该段实为 `mov (%eax),%eax; add $0xc,%eax; mov (%eax),%edx`
+    //   vtable+0xc 槽形）⇒ 反劣，已回滚，维持 NEAR（残余 = 4.4 实参装载寄存器选择）。
     int result = cipher->Encrypt(inData, enc, paddedLen);
     if (result != 0x6fffffff) {
         LogManager::logFormat(
@@ -142,6 +146,10 @@ unsigned int inet_a2n(const char* addrText)
 std::string inet_n2a(struct in_addr addr)
 {
     // ORIG：16B 块清零后 inet_ntoa→strncpy(buf,..,0x10)；null → 空串（`std::string("")`）。
+    // [P6AuditOldN-S1 2026-09-11 负结论 P339/槽复用] 试「把 tmp 包进块作用域提前结束
+    //   生命期」以复现 ORIG tmp@-0x1c 与 inaddr@-0x18 的槽重叠 ⇒ 实测 85/85 gap 0
+    //   不变、槽改判到 tmp@-0x30/inaddr@-0x10/buf@-0x20 仍不成对（4.4 不复用同作用域
+    //   兄弟块槽）⇒ 已回滚，维持 N82 槽族封顶。
     char tmp[0x10];
     std::memset(tmp, 0, 0x10);
     // ORIG 0x08197a9b / 0x08197afd：**两次独立** inet_ntoa（第一次结果仅判空、无具名指针槽），
@@ -186,7 +194,7 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
     if (blockSize >= 0) {
         cipher->IMethod::Pad(inData, srcLen, NULL);
     }
-    int result = cipher->Encrypt(inData, enc, paddedLen);
+    int result = cipher->Encrypt(inData, enc, paddedLen);   // P6AuditOldN-S1 试形负结论同 AC 版
     if (result != 0x6fffffff) {
         LogManager::logFormat(
             1, "localjapan/Arad_OS.cpp", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,

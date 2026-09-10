@@ -67,7 +67,11 @@ ByteBuffer& ByteBuffer::operator<<(const wchar_t* value)
     // 调 wcslen ⇒ 原码无 len 局部，字节数就地计算。
     size_t bytes = wcslen(value) * 2;
     if (bytes > (size_t)std::numeric_limits<unsigned short>::max())
-        throw std::invalid_argument("string too long");
+        // [P6AuditOldN.P6S2 2026-09-11 · §6.5 串审计] ORIG .rodata @0x08b6bc00
+        //   逐字节 = "string length too long: must shorter than max(unsigned short)"
+        //   （我方旧串 "string too long" 为其前缀截断）⇒ 运行期可见文本，按 ORIG 还原。
+        throw std::invalid_argument(
+            "string length too long: must shorter than max(unsigned short)");
     if (static_cast<unsigned int>(length() + bytes) <= m_capacity)
     {
         *this << static_cast<unsigned short>(bytes);

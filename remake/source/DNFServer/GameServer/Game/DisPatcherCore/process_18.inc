@@ -13,7 +13,11 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return LineFunc(0xb8e, __PRETTY_FUNCTION__, out.m_4, user->get_acc_id());
     }
 
-    if (exercise_mode(user, msg, param))
+    // [P5-DPC 2026-09-11] P183：ORIG 0x081c1e7x 传的是**已缓存**的 param 指针槽
+    // （`mov -0x3c(%ebp),%eax; mov %eax,0xc(%esp)`，-0x3c = 头部 store 的
+    // stDeleteItemParam 引用槽），我方旧形直接 `mov 0x14(%ebp),%eax` 重取实参
+    // （diff `replace orig[39:40]`）。改传别名 `out`（同对象，零语义差）。
+    if (exercise_mode(user, msg, out))
     {
         return 0;
     }
@@ -24,13 +28,21 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     const MSG_DELETE_ITEM& req = *reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);
 
     INVEN_TYPE invenKind = (INVEN_TYPE)6;
-    if ((signed char)req.m_itemSpace == 1)
+    // [P5-DPC 2026-09-11] P251/P261 真 switch 轴：ORIG 0x081c1e97..0x081c1ec4 为 -O0
+    // switch 决策树（`movl $0x6,-0x50`；`mov -0x34,%eax; movzbl 0xd(%eax),%eax;
+    // movsbl %al,%eax`；`cmp $0x1,%eax; je L1` / `cmp $0x3,%eax; je L3` / `jmp Lend`，
+    // 各 case 落 `movl $K,-0x50; jmp Lend`），我方旧 if/else-if 令 4.4 出
+    // `cmp $0x1,%al; jne` 字节比较（diff `replace orig[58:63]`）⇒ 改真 switch。
+    switch (static_cast<int>(static_cast<signed char>(req.m_itemSpace)))
     {
+    case 1:
         invenKind = (INVEN_TYPE)2;
-    }
-    else if ((signed char)req.m_itemSpace == 3)
-    {
+        break;
+    case 3:
         invenKind = (INVEN_TYPE)0;
+        break;
+    default:
+        break;
     }
     if (invenKind == (INVEN_TYPE)2)
     {

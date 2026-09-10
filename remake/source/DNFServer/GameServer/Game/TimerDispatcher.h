@@ -17,7 +17,7 @@ namespace QuickParty { class CQuickParty; }
 class TimerSig
 {
 public:
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3) = 0;
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3) = 0;
     // ORIG 无 TimerSig 独立符号（各 Timer 类 vtable/D1 自含基类析构内联）——
     // 基类析构 inline 避免产生 key function 弱符号（与 ORIG nm 一致）。
     virtual ~TimerSig() {}
@@ -27,7 +27,7 @@ class TimerCheckConn : public TimerSig
 {
 public:
     TimerCheckConn() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckConn() throw();
 
 private:
@@ -38,7 +38,7 @@ class TimerDBUpdate : public TimerSig
 {
 public:
     TimerDBUpdate() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerDBUpdate() throw();
 
 private:
@@ -49,7 +49,7 @@ class TimerStamina : public TimerSig
 {
 public:
     TimerStamina() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStamina() throw();
 
 private:
@@ -64,6 +64,10 @@ private:
 class TimerPvpRankRes
 {
 public:
+    // [P7HeaderAxis 2026-09-11] 保持 int/unsigned int：ORIG **无**本类的
+    // __PRETTY_FUNCTION__ 符号（nm -S df_game_r 只有 T 0x08633be8 函数体）
+    // ⇒ 无拼写证据；且本类不继承 TimerSig（不参与覆盖体系），
+    // 当前 codegen 为 AE 31=31，改动无收益、有回归风险。
     int dispatch_sig(int p1, int p2, unsigned int p3);
 };
 
@@ -71,7 +75,7 @@ class TimerMapLoading : public TimerSig
 {
 public:
     TimerMapLoading() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerMapLoading() throw();
 
 private:
@@ -82,7 +86,7 @@ class TimerSetResult : public TimerSig
 {
 public:
     TimerSetResult() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerSetResult() throw();
 
 private:
@@ -93,7 +97,7 @@ class TimerDungeonClear : public TimerSig
 {
 public:
     TimerDungeonClear() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerDungeonClear() throw();
 
 private:
@@ -104,7 +108,7 @@ class TimerDungeonFail : public TimerSig
 {
 public:
     TimerDungeonFail() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerDungeonFail() throw();
 
 private:
@@ -115,7 +119,7 @@ class TimerPartyWalkOutLackUser : public TimerSig
 {
 public:
     TimerPartyWalkOutLackUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPartyWalkOutLackUser() throw();
 
 private:
@@ -126,7 +130,7 @@ class TimerPVPWalkOutLackUser : public TimerSig
 {
 public:
     TimerPVPWalkOutLackUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPVPWalkOutLackUser() throw();
 
 private:
@@ -137,7 +141,7 @@ class TimerFatigueReset : public TimerSig
 {
 public:
     TimerFatigueReset() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerFatigueReset() throw();
     bool RegistNextTimer();     // ORIG 0x08633a04：调用点 0x086339d4 传 this ⇒ 非 static；
                                 // 返回 byte 物化 mov %al,-0x9 ⇒ bool
@@ -151,7 +155,7 @@ class TimerAvatarExpire : public TimerSig
 {
 public:
     TimerAvatarExpire() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerAvatarExpire() throw();
     bool RegistTimer(CUser* user);                // ORIG 0x08632b32 非静态（this 未用），单出口 return true
     int CheckExpiredAvatar(CUser* user);          // ORIG T 0x08632a82 非静态（user=0xc(%ebp)）
@@ -164,7 +168,7 @@ class TimerStatisticsLog : public TimerSig
 {
 public:
     TimerStatisticsLog() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStatisticsLog() throw();
     bool RegistNextTimer();     // ORIG 调用点 0x08633f08 段尾传 this（mov 0x8(%ebp)）⇒ 非 static
 
@@ -176,7 +180,7 @@ class TimerCardSelect : public TimerSig
 {
 public:
     TimerCardSelect() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCardSelect() throw();
 
 private:
@@ -187,7 +191,7 @@ class TimerClearDungeonReward : public TimerSig
 {
 public:
     TimerClearDungeonReward() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerClearDungeonReward() throw();
 
 private:
@@ -198,7 +202,7 @@ class TimerClearDungeonScoreScoll : public TimerSig
 {
 public:
     TimerClearDungeonScoreScoll() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerClearDungeonScoreScoll() throw();
 
 private:
@@ -209,7 +213,7 @@ class TimerClearDungeonCardSelectRight : public TimerSig
 {
 public:
     TimerClearDungeonCardSelectRight() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerClearDungeonCardSelectRight() throw();
 
 private:
@@ -220,7 +224,7 @@ class TimerPremiumServiceOver : public TimerSig
 {
 public:
     TimerPremiumServiceOver() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPremiumServiceOver() throw();
 
 private:
@@ -231,7 +235,7 @@ class TimerPremiumServiceUpdate : public TimerSig
 {
 public:
     TimerPremiumServiceUpdate() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPremiumServiceUpdate() throw();
 
 private:
@@ -242,7 +246,7 @@ class TimerPremiumServiceStart : public TimerSig
 {
 public:
     TimerPremiumServiceStart() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPremiumServiceStart() throw();
 
 private:
@@ -253,7 +257,7 @@ class TimerCheckPaidPCRoomTerm : public TimerSig
 {
 public:
     TimerCheckPaidPCRoomTerm() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckPaidPCRoomTerm() throw();
 
 private:
@@ -264,7 +268,7 @@ class TimerEPLPReturnVillage : public TimerSig
 {
 public:
     TimerEPLPReturnVillage() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerEPLPReturnVillage() throw();
 
 private:
@@ -275,7 +279,7 @@ class TimerEPLPCommandWait : public TimerSig
 {
 public:
     TimerEPLPCommandWait() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerEPLPCommandWait() throw();
 
 private:
@@ -286,7 +290,7 @@ class TimerWarRoomWaitCount : public TimerSig
 {
 public:
     TimerWarRoomWaitCount() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerWarRoomWaitCount() throw();
 
 private:
@@ -297,7 +301,7 @@ class TimerWarRoomReadyLockCount : public TimerSig
 {
 public:
     TimerWarRoomReadyLockCount() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerWarRoomReadyLockCount() throw();
 
 private:
@@ -308,7 +312,7 @@ class TimerWarRoomBattlePauseCount : public TimerSig
 {
 public:
     TimerWarRoomBattlePauseCount() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerWarRoomBattlePauseCount() throw();
 
 private:
@@ -319,7 +323,7 @@ class TimerWarRoomResultCount : public TimerSig
 {
 public:
     TimerWarRoomResultCount() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerWarRoomResultCount() throw();
 
 private:
@@ -330,7 +334,7 @@ class TImerWarRoomTimeBomb : public TimerSig
 {
 public:
     TImerWarRoomTimeBomb() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TImerWarRoomTimeBomb() throw();
 
 private:
@@ -341,7 +345,7 @@ class TimerWarRoomCheckFail : public TimerSig
 {
 public:
     TimerWarRoomCheckFail() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerWarRoomCheckFail() throw();
 
 private:
@@ -352,7 +356,7 @@ class TimerWarRoomChangeHost : public TimerSig
 {
 public:
     TimerWarRoomChangeHost() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerWarRoomChangeHost() throw();
 
 private:
@@ -363,7 +367,7 @@ class TimerBloodSmallRoundRegister : public TimerSig
 {
 public:
     TimerBloodSmallRoundRegister() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodSmallRoundRegister() throw();
 
 private:
@@ -374,7 +378,7 @@ class TimerBloodPhaseRegister0 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister0() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister0() throw();
 
 private:
@@ -385,7 +389,7 @@ class TimerBloodPhaseRegister1 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister1() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister1() throw();
 
 private:
@@ -396,7 +400,7 @@ class TimerBloodPhaseRegister2 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister2() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister2() throw();
 
 private:
@@ -407,7 +411,7 @@ class TimerBloodPhaseRegister3 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister3() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister3() throw();
 
 private:
@@ -418,7 +422,7 @@ class TimerBloodPhaseRegister4 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister4() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister4() throw();
 
 private:
@@ -429,7 +433,7 @@ class TimerBloodPhaseRegister5 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister5() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister5() throw();
 
 private:
@@ -440,7 +444,7 @@ class TimerBloodPhaseRegister6 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister6() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister6() throw();
 
 private:
@@ -451,7 +455,7 @@ class TimerBloodPhaseRegister7 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister7() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister7() throw();
 
 private:
@@ -462,7 +466,7 @@ class TimerBloodPhaseRegister8 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister8() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister8() throw();
 
 private:
@@ -473,7 +477,7 @@ class TimerBloodPhaseRegister9 : public TimerSig
 {
 public:
     TimerBloodPhaseRegister9() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodPhaseRegister9() throw();
 
 private:
@@ -484,7 +488,7 @@ class TimerBloodCrazyMonster : public TimerSig
 {
 public:
     TimerBloodCrazyMonster() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodCrazyMonster() throw();
 
 private:
@@ -495,7 +499,7 @@ class TimerBloodDungeonClearReward : public TimerSig
 {
 public:
     TimerBloodDungeonClearReward() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBloodDungeonClearReward() throw();
 
 private:
@@ -506,7 +510,7 @@ class TimerUltimateNextRoundStart : public TimerSig
 {
 public:
     TimerUltimateNextRoundStart() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerUltimateNextRoundStart() throw();
 
 private:
@@ -517,7 +521,7 @@ class TimerEventChristmas : public TimerSig
 {
 public:
     TimerEventChristmas() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerEventChristmas() throw();
 
 private:
@@ -528,7 +532,7 @@ class TimerStatisticsDetailChannelInfo : public TimerSig
 {
 public:
     TimerStatisticsDetailChannelInfo() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStatisticsDetailChannelInfo() throw();
     bool RegistNextTimer();   // ORIG 0x08635782（Ev 非 static；调用点传 this）；
                               // SIGFIX：ORIG 串 "bool TimerStatisticsDetailChannelInfo::RegistNextTimer()"
@@ -541,7 +545,7 @@ class TimerStatisticLevel : public TimerSig
 {
 public:
     TimerStatisticLevel() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStatisticLevel() throw();
     static int CalcNextTime();               // ORIG T 0x863591a（定义在 GameMain.cpp）
     static int m_nTimeTable[5];               // ORIG D 0x93ace24 {1,10,14,17,21}
@@ -554,7 +558,7 @@ class TimerScheduleOneHour : public TimerSig
 {
 public:
     TimerScheduleOneHour() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerScheduleOneHour() throw();
 
 private:
@@ -565,7 +569,7 @@ class TimerSaveLogGamechannel : public TimerSig
 {
 public:
     TimerSaveLogGamechannel() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerSaveLogGamechannel() throw();
 
 private:
@@ -576,7 +580,7 @@ class TimerQueryCounter : public TimerSig
 {
 public:
     TimerQueryCounter() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerQueryCounter() throw();
     int RegistNextTimer();      // ORIG 0x08635bdc：调用点传 this（mov 0x8(%ebp)）⇒ 非 static
 
@@ -588,7 +592,7 @@ class TimerNatType : public TimerSig
 {
 public:
     TimerNatType() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerNatType() throw();
     int RegistNextTimer();   // ORIG 0x08635c5a（Ev 非 static；dispatch_sig 传 this）
 
@@ -600,7 +604,7 @@ class TimerNatTypeUser : public TimerSig
 {
 public:
     TimerNatTypeUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerNatTypeUser() throw();
     int RegistNextTimer();
 
@@ -612,7 +616,7 @@ class TimerCheckMailTimeOut : public TimerSig
 {
 public:
     TimerCheckMailTimeOut() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckMailTimeOut() throw();
 
 private:
@@ -623,7 +627,7 @@ class TimerCreature : public TimerSig
 {
 public:
     TimerCreature() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCreature() throw();
 
 private:
@@ -634,7 +638,7 @@ class TimerForbidChat : public TimerSig
 {
 public:
     TimerForbidChat() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerForbidChat() throw();
 
 private:
@@ -645,7 +649,7 @@ class TimerForbidMove : public TimerSig
 {
 public:
     TimerForbidMove() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerForbidMove() throw();
 
 private:
@@ -656,7 +660,7 @@ class TimerScheduleFiveMinPerUser : public TimerSig
 {
 public:
     TimerScheduleFiveMinPerUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerScheduleFiveMinPerUser() throw();
 
 private:
@@ -667,7 +671,7 @@ class TimerScheduleTenMinPerUser : public TimerSig
 {
 public:
     TimerScheduleTenMinPerUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerScheduleTenMinPerUser() throw();
 
 private:
@@ -678,7 +682,7 @@ class TimerQueueSizeLog : public TimerSig
 {
 public:
     TimerQueueSizeLog() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerQueueSizeLog() throw();
     bool RegistNextTimer();   // ORIG 调用点 0x08636322 传 this（0x8(%ebp)）⇒ 非 static
 
@@ -690,7 +694,7 @@ class TimerScheduleGuildWarEnd : public TimerSig
 {
 public:
     TimerScheduleGuildWarEnd() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerScheduleGuildWarEnd() throw();
 
 private:
@@ -701,7 +705,7 @@ class TimerSetPlayResult : public TimerSig
 {
 public:
     TimerSetPlayResult() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerSetPlayResult() throw();
 
 private:
@@ -712,7 +716,7 @@ class TimerStartRelayBattle : public TimerSig
 {
 public:
     TimerStartRelayBattle() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStartRelayBattle() throw();
 
 private:
@@ -723,7 +727,7 @@ class TimerBossDieTimeout : public TimerSig
 {
 public:
     TimerBossDieTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerBossDieTimeout() throw();
 
 private:
@@ -734,7 +738,7 @@ class TimerEventCoinRefill : public TimerSig
 {
 public:
     TimerEventCoinRefill() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerEventCoinRefill() throw();
 
 private:
@@ -745,7 +749,7 @@ class TimerPvPDieUserRevive0 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive0() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive0() throw();
 
 private:
@@ -756,7 +760,7 @@ class TimerPvPDieUserRevive1 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive1() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive1() throw();
 
 private:
@@ -767,7 +771,7 @@ class TimerPvPDieUserRevive2 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive2() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive2() throw();
 
 private:
@@ -778,7 +782,7 @@ class TimerPvPDieUserRevive3 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive3() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive3() throw();
 
 private:
@@ -789,7 +793,7 @@ class TimerPvPDieUserRevive4 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive4() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive4() throw();
 
 private:
@@ -800,7 +804,7 @@ class TimerPvPDieUserRevive5 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive5() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive5() throw();
 
 private:
@@ -811,7 +815,7 @@ class TimerPvPDieUserRevive6 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive6() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive6() throw();
 
 private:
@@ -822,7 +826,7 @@ class TimerPvPDieUserRevive7 : public TimerSig
 {
 public:
     TimerPvPDieUserRevive7() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerPvPDieUserRevive7() throw();
 
 private:
@@ -833,7 +837,7 @@ class TimerDungeonDataStatistic : public TimerSig
 {
 public:
     TimerDungeonDataStatistic() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerDungeonDataStatistic() throw();
     bool RegistNextTimer();        // ORIG T 0x08636856：调用点 0x08636805 传 this ⇒
                                    // 非 static；`mov %al,-0x9` byte 物化 ⇒ bool
@@ -846,7 +850,7 @@ class TimerNotResponseUserTimeout : public TimerSig
 {
 public:
     TimerNotResponseUserTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerNotResponseUserTimeout() throw();
 
 private:
@@ -857,7 +861,7 @@ class TimerLightServerNotice : public TimerSig
 {
 public:
     TimerLightServerNotice() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerLightServerNotice() throw();
     bool RegistNextTimer(int count);   // ORIG T 0x08636c14（恒返 1，al；读 0xc(%ebp)
                                        // 为参 ⇒ this@0x8 非 static 成员）
@@ -870,7 +874,7 @@ class TimerInsertUserPlayTime : public TimerSig
 {
 public:
     TimerInsertUserPlayTime() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerInsertUserPlayTime() throw();
     bool RegistNextTimer();            // ORIG T 0x08636d44；调用点 0x08636d23 传 this ⇒ 非 static
 
@@ -882,7 +886,7 @@ class TimerCheckForcedDisconnect : public TimerSig
 {
 public:
     TimerCheckForcedDisconnect() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckForcedDisconnect() throw();
     bool RegistNextTimer(CUser* user);   // ORIG 0x08636f26：体内取 0xc(%ebp)=user ⇒ 带 this 成员
 
@@ -894,7 +898,7 @@ class TimerCheckPvPRoomUser : public TimerSig
 {
 public:
     TimerCheckPvPRoomUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckPvPRoomUser() throw();
 
 private:
@@ -905,7 +909,7 @@ class TimerCheckRecvPvpEndResult : public TimerSig
 {
 public:
     TimerCheckRecvPvpEndResult() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckRecvPvpEndResult() throw();
 
 private:
@@ -916,7 +920,7 @@ class TimerCheckHumanCertifyTimeout : public TimerSig
 {
 public:
     TimerCheckHumanCertifyTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckHumanCertifyTimeout() throw();
 
 private:
@@ -927,7 +931,7 @@ class TimerUpdateItemGenerateStatistics : public TimerSig
 {
 public:
     TimerUpdateItemGenerateStatistics() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerUpdateItemGenerateStatistics() throw();
     // ORIG T 0x08637318 _ZN33TimerUpdateItemGenerateStatistics15registNextTimerEl
     // （CItemGeneratorMgr::initialize 尾部按当前秒注册下一次统计定时器；定义待定时器域批次）
@@ -941,7 +945,7 @@ class TimerUpdatePvPGrade : public TimerSig
 {
 public:
     TimerUpdatePvPGrade() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerUpdatePvPGrade() throw();
     static void registNextTimer(long sec);   // ORIG T 0x86373f2（参数为 long）
 
@@ -953,7 +957,7 @@ class TimerDetectDisconnect : public TimerSig
 {
 public:
     TimerDetectDisconnect() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerDetectDisconnect() throw();
     static void registNextTimer();   // ORIG T 0x86374e0
 
@@ -965,7 +969,7 @@ class TimerCompleteLoadAssaultTimeout : public TimerSig
 {
 public:
     TimerCompleteLoadAssaultTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCompleteLoadAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -977,7 +981,7 @@ class TimerConnectP2PAssaultTimeout : public TimerSig
 {
 public:
     TimerConnectP2PAssaultTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerConnectP2PAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -989,7 +993,7 @@ class TimerEndAssault : public TimerSig
 {
 public:
     TimerEndAssault() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerEndAssault() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -1001,7 +1005,7 @@ class TimerCloseAssault : public TimerSig
 {
 public:
     TimerCloseAssault() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCloseAssault() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -1013,7 +1017,7 @@ class TimerCompleteLoadAfterAssaultTimeout : public TimerSig
 {
 public:
     TimerCompleteLoadAfterAssaultTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCompleteLoadAfterAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -1025,7 +1029,7 @@ class TimerConnectP2PAfterAssaultTimeout : public TimerSig
 {
 public:
     TimerConnectP2PAfterAssaultTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerConnectP2PAfterAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -1037,7 +1041,7 @@ class TimerDeathTower : public TimerSig
 {
 public:
     TimerDeathTower() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerDeathTower() throw();
 
 private:
@@ -1048,7 +1052,7 @@ class TimerDeathTowerTopRankerReload : public TimerSig
 {
 public:
     TimerDeathTowerTopRankerReload() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerDeathTowerTopRankerReload() throw();
     static void registNextTimer(long ms);    // ORIG T 0x8637854
 
@@ -1060,7 +1064,7 @@ class TimerScheduleTenSecond : public TimerSig
 {
 public:
     TimerScheduleTenSecond() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerScheduleTenSecond() throw();
     static void registNextTimer(unsigned int sec);  // ORIG T 0x8637a62
 
@@ -1072,7 +1076,7 @@ class TimerFinishItemEffect : public TimerSig
 {
 public:
     TimerFinishItemEffect() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerFinishItemEffect() throw();
 
 private:
@@ -1084,7 +1088,7 @@ class TimerStartMatching : public TimerSig
 {
 public:
     TimerStartMatching() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStartMatching() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -1096,7 +1100,7 @@ class TimerGlobalEffectItemBegin : public TimerSig
 {
 public:
     TimerGlobalEffectItemBegin() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerGlobalEffectItemBegin() throw();
     static void registTimer(unsigned int type, unsigned int beginSec);   // ORIG T 0x8637e78
 
@@ -1108,7 +1112,7 @@ class TimerGlobalEffectItemTimeout : public TimerSig
 {
 public:
     TimerGlobalEffectItemTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerGlobalEffectItemTimeout() throw();
     static void registTimer(unsigned int type, unsigned int timeoutSec);  // ORIG T 0x8637ef6
 
@@ -1120,7 +1124,7 @@ class TimerVendingMachineItemNotify : public TimerSig
 {
 public:
     TimerVendingMachineItemNotify() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerVendingMachineItemNotify() throw();
     static void registTimer(int uid, unsigned long delayMs, unsigned int type, unsigned int param);  // ORIG T 0x8638074
 
@@ -1132,7 +1136,7 @@ class TimerConnectMonitorServer : public TimerSig
 {
 public:
     TimerConnectMonitorServer() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerConnectMonitorServer() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
@@ -1144,7 +1148,7 @@ class TimerAssaultSuperPowerState : public TimerSig
 {
 public:
     TimerAssaultSuperPowerState() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerAssaultSuperPowerState() throw();
 
 private:
@@ -1155,7 +1159,7 @@ class TimerNPCMoodChange : public TimerSig
 {
 public:
     TimerNPCMoodChange() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerNPCMoodChange() throw();
     // ORIG T 0x086381ec _ZN18TimerNPCMoodChange15registNextTimerEl：
     // 纯 ret（空实现）；CNPCScriptList::initScript 末尾以参数 0 调用。
@@ -1169,7 +1173,7 @@ class TimerElevatorDungeon : public TimerSig
 {
 public:
     TimerElevatorDungeon() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerElevatorDungeon() throw();
 
 private:
@@ -1180,7 +1184,7 @@ class TimerRefreshPowerWarProcessInfo : public TimerSig
 {
 public:
     TimerRefreshPowerWarProcessInfo() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerRefreshPowerWarProcessInfo() throw();
     static void registNextTimer(long sec);
 
@@ -1195,7 +1199,7 @@ public:
     // （C1 0x086321d6 唯一 _ZdlPv/_Unwind_Resume 处，ctor 含 2 个 vector 成员）⇒ 本类
     // ctor **不加** throw()（其余 146 类 ctor 均 throw() 消 landing）。
     TimerGeneratePowerUp();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerGeneratePowerUp() throw();
 
     void generatePowerUp(std::vector<CUser*>& users, int count);
@@ -1211,7 +1215,7 @@ class TimerGeneratePowerUpNotiTime : public TimerSig
 {
 public:
     TimerGeneratePowerUpNotiTime() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerGeneratePowerUpNotiTime() throw();
     static void registNextTimer(long sec);  // ORIG T 0x0863847e，无 this
     void send_noti_time(int sec);           // ORIG T 0x086384c2，thiscall
@@ -1223,7 +1227,7 @@ class TimerCheckPowerWarAbuser : public TimerSig
 {
 public:
     TimerCheckPowerWarAbuser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerCheckPowerWarAbuser() throw();
     static void registNextTimer(long sec);
 
@@ -1235,7 +1239,7 @@ class TimerSetPunishUser : public TimerSig
 {
 public:
     TimerSetPunishUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerSetPunishUser() throw();
 
 private:
@@ -1246,7 +1250,7 @@ class TimerSetTradePunishUser : public TimerSig
 {
 public:
     TimerSetTradePunishUser() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerSetTradePunishUser() throw();
 
 private:
@@ -1257,7 +1261,7 @@ class TimerRevivalCharac : public TimerSig
 {
 public:
     TimerRevivalCharac() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerRevivalCharac() throw();
 
 private:
@@ -1268,7 +1272,7 @@ class TimerRequestExit : public TimerSig
 {
 public:
     TimerRequestExit() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerRequestExit() throw();
 
 private:
@@ -1279,7 +1283,7 @@ class TimerVillageMonsterUpdateRate : public TimerSig
 {
 public:
     TimerVillageMonsterUpdateRate() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerVillageMonsterUpdateRate() throw();
 
 private:
@@ -1290,7 +1294,7 @@ class TimerVillageMonsterRegen : public TimerSig
 {
 public:
     TimerVillageMonsterRegen() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerVillageMonsterRegen() throw();
 
 private:
@@ -1301,7 +1305,7 @@ class TimerStartVillageAttacked : public TimerSig
 {
 public:
     TimerStartVillageAttacked() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStartVillageAttacked() throw();
 
 private:
@@ -1312,7 +1316,7 @@ class TimerVillageAttackedPlayTimeout : public TimerSig
 {
 public:
     TimerVillageAttackedPlayTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerVillageAttackedPlayTimeout() throw();
 
 private:
@@ -1323,7 +1327,7 @@ class TimerItemUnlockWaiting : public TimerSig
 {
 public:
     TimerItemUnlockWaiting() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerItemUnlockWaiting() throw();
 
 private:
@@ -1334,7 +1338,7 @@ class TimerUpdateCompoundEmblemStatics : public TimerSig
 {
 public:
     TimerUpdateCompoundEmblemStatics() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerUpdateCompoundEmblemStatics() throw();
     static int registNextTimer();  // ORIG T 0x0863939a，eax=1
 
@@ -1346,7 +1350,7 @@ class TimerStartExpEventAfterVillageAttack : public TimerSig
 {
 public:
     TimerStartExpEventAfterVillageAttack() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerStartExpEventAfterVillageAttack() throw();
 
 private:
@@ -1357,7 +1361,7 @@ class Timer_Security_NonClient_CheckResponse : public TimerSig
 {
 public:
     Timer_Security_NonClient_CheckResponse() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_Security_NonClient_CheckResponse() throw();
 
 private:
@@ -1368,7 +1372,7 @@ class Timer_Midnight : public TimerSig
 {
 public:
     Timer_Midnight() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_Midnight() throw();
     static bool RegistNextTimer();
 
@@ -1380,7 +1384,7 @@ class TimerEndPowerWarVictoriousReward : public TimerSig
 {
 public:
     TimerEndPowerWarVictoriousReward() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~TimerEndPowerWarVictoriousReward() throw();
 
 private:
@@ -1391,7 +1395,7 @@ class Timer_TenMinuteSchedule : public TimerSig
 {
 public:
     Timer_TenMinuteSchedule() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_TenMinuteSchedule() throw();
     static bool RegistNextTimer(int type);
 
@@ -1403,7 +1407,7 @@ class Timer_UpdateOnlinePreliminaryTeam : public TimerSig
 {
 public:
     Timer_UpdateOnlinePreliminaryTeam() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_UpdateOnlinePreliminaryTeam() throw();
     static bool RegistNextTimer(int team);
 
@@ -1415,7 +1419,7 @@ class Timer_SecretShopStatistic : public TimerSig
 {
 public:
     Timer_SecretShopStatistic() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_SecretShopStatistic() throw();
     static void RegistNextTimer();           // ORIG T 0x86397ee
 
@@ -1427,7 +1431,7 @@ class Timer_DailySchedule : public TimerSig
 {
 public:
     Timer_DailySchedule() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_DailySchedule() throw();
     static void RegistNextTimer();           // ORIG T 0x812c940
 
@@ -1439,7 +1443,7 @@ class Timer_ConnectP2PPvPTimeout : public TimerSig
 {
 public:
     Timer_ConnectP2PPvPTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_ConnectP2PPvPTimeout() throw();
 
 private:
@@ -1450,7 +1454,7 @@ class Timer_RoutingItemWait : public TimerSig
 {
 public:
     Timer_RoutingItemWait() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_RoutingItemWait() throw();
 
 private:
@@ -1461,7 +1465,7 @@ class Timer_PcRoomAuthRetry : public TimerSig
 {
 public:
     Timer_PcRoomAuthRetry() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_PcRoomAuthRetry() throw();
     static void registNextTimer(long sec, int p1, int p2, unsigned int p3);
 
@@ -1473,7 +1477,7 @@ class Timer_DungeonInoutOpenTime : public TimerSig
 {
 public:
     Timer_DungeonInoutOpenTime() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_DungeonInoutOpenTime() throw();
     static int RegistNextTimer();            // ORIG T 0x8639b20（定义在 GameMain.cpp）；
                                              // 尾部 0x8639e00 `mov $0x1,%eax` ⇒ 返回 int
@@ -1487,7 +1491,7 @@ class Timer_DungeonInoutCloseTime : public TimerSig
 {
 public:
     Timer_DungeonInoutCloseTime() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_DungeonInoutCloseTime() throw();
 
 private:
@@ -1498,7 +1502,7 @@ class Timer_FairPvPRematch : public TimerSig
 {
 public:
     Timer_FairPvPRematch() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_FairPvPRematch() throw();
 
 private:
@@ -1509,7 +1513,7 @@ class Timer_ReturnUserTimeout : public TimerSig
 {
 public:
     Timer_ReturnUserTimeout() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_ReturnUserTimeout() throw();
     static void registNextTimer(int p1, int p2, unsigned int p3);
 
@@ -1521,7 +1525,7 @@ class Timer_HadesHeartBeat : public TimerSig
 {
 public:
     Timer_HadesHeartBeat() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_HadesHeartBeat() throw();
     static void registNextTimer();
 
@@ -1533,7 +1537,7 @@ class Timer_TOD_Send_ClearReward : public TimerSig
 {
 public:
     Timer_TOD_Send_ClearReward() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_TOD_Send_ClearReward() throw();
 
 private:
@@ -1544,7 +1548,7 @@ class Timer_OneADayItemShop : public TimerSig
 {
 public:
     Timer_OneADayItemShop() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_OneADayItemShop() throw();
     static void RegistNextTimer();           // ORIG T 0x863a93c
 
@@ -1556,7 +1560,7 @@ class Timer_Schedule_MidNight : public TimerSig
 {
 public:
     Timer_Schedule_MidNight() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_Schedule_MidNight() throw();
     static void RegistNextTimer();
 
@@ -1568,7 +1572,7 @@ class Timer_Send_Ontime_Reward : public TimerSig
 {
 public:
     Timer_Send_Ontime_Reward() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_Send_Ontime_Reward() throw();
     static void RegistNextTimer();
 
@@ -1580,7 +1584,7 @@ class Timer_EventManagement : public TimerSig
 {
 public:
     Timer_EventManagement() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_EventManagement() throw();
     static void RegistNextTimer(int intervalMs);  // ORIG T 0x863abd4
 
@@ -1592,7 +1596,7 @@ class Timer_QuickPartyWaitingPartyMatching : public TimerSig
 {
 public:
     Timer_QuickPartyWaitingPartyMatching() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_QuickPartyWaitingPartyMatching() throw();
     bool cancel_quick_party(QuickParty::CQuickParty* qp);  // ORIG T 0x863ad96
 
@@ -1604,7 +1608,7 @@ class Timer_QuickPartyWaitingStartGame : public TimerSig
 {
 public:
     Timer_QuickPartyWaitingStartGame() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_QuickPartyWaitingStartGame() throw();
 
 private:
@@ -1615,7 +1619,7 @@ class Timer_AssaultGhostTimer : public TimerSig
 {
 public:
     Timer_AssaultGhostTimer() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_AssaultGhostTimer() throw();
     static void RegisterNextTimer(CUser* user, int p2, unsigned int p3);
 
@@ -1627,7 +1631,7 @@ class Timer_GenerateCaptchaData : public TimerSig
 {
 public:
     Timer_GenerateCaptchaData() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_GenerateCaptchaData() throw();
     static void RegistNextTimer(int sec);    // ORIG T 0x863b2ba
 
@@ -1639,7 +1643,7 @@ class Timer_TournamentDugeonClearStateNotiReward : public TimerSig
 {
 public:
     Timer_TournamentDugeonClearStateNotiReward() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_TournamentDugeonClearStateNotiReward() throw();
 
 private:
@@ -1650,7 +1654,7 @@ class Timer_TournametDungeonClearStateSelect : public TimerSig
 {
 public:
     Timer_TournametDungeonClearStateSelect() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_TournametDungeonClearStateSelect() throw();
 
 private:
@@ -1661,7 +1665,7 @@ class Timer_TowerOnTime : public TimerSig
 {
 public:
     Timer_TowerOnTime() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_TowerOnTime() throw();
 
 private:
@@ -1672,7 +1676,7 @@ class Timer_NoticeEmergencyPatchMessage : public TimerSig
 {
 public:
     Timer_NoticeEmergencyPatchMessage() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_NoticeEmergencyPatchMessage() throw();
     static void RegistNextTimer();
 
@@ -1686,7 +1690,7 @@ class Timer_DungeonStatisticEntrance_Hour : public TimerSig
 {
 public:
     Timer_DungeonStatisticEntrance_Hour() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_DungeonStatisticEntrance_Hour() throw();
     static void RegistNextTimer();        // ORIG T 0x863b9fa
 
@@ -1698,7 +1702,7 @@ class Timer_RefreshServerState : public TimerSig
 {
 public:
     Timer_RefreshServerState() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_RefreshServerState() throw();
 
 private:
@@ -1709,7 +1713,7 @@ class Timer_StayTimeEvent : public TimerSig
 {
 public:
     Timer_StayTimeEvent() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_StayTimeEvent() throw();
 
 private:
@@ -1720,7 +1724,7 @@ class Timer_CreateDnfDbLoad : public TimerSig
 {
 public:
     Timer_CreateDnfDbLoad() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_CreateDnfDbLoad() throw();
 
 private:
@@ -1731,7 +1735,7 @@ class Timer_CheckAuctionReady : public TimerSig
 {
 public:
     Timer_CheckAuctionReady();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_CheckAuctionReady();
     static void RegistNextTimer();
 };
@@ -1742,7 +1746,7 @@ class Timer_MainTick : public TimerSig
 {
 public:
     Timer_MainTick() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_MainTick() throw();
 static void RegistNextTimerGage();  // ORIG T 0x812f7b8（定义在 GameMain.cpp）
     static const unsigned int kMainTickMs;  // ORIG R 0x8b6c5e4
@@ -1755,7 +1759,7 @@ class Timer_StageControl : public TimerSig
 {
 public:
     Timer_StageControl() throw();
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    virtual bool dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3);
     virtual ~Timer_StageControl() throw();
 
     // ORIG T 0x812f850 / 0x812f89c / 0x812f8ec / 0x0812f956（无 this 静态）。
@@ -1783,7 +1787,11 @@ public:
     TimerDispatcher();
     ~TimerDispatcher();
     TimerSig* get_dispatcher(int msg);                     // ORIG T 0x86329f6
-    int dispatch(TimerEntry& entry);                       // ORIG T 0x8632a18
+    // [P7HeaderAxis 2026-09-11] 返回类型 bool：ORIG 0x08632a18 尾 `add;pop;pop;ret`
+    // 直返 `call *%ebx` 的结果、**无** `movzbl %al,%eax` 提升 ⇒ 与 dispatch_sig
+    // 同宽（整族 bool，prett 直证见各 Timer*::dispatch_sig）。调用点（GlobalData.cpp:2415）
+    // 丢弃返回值 ⇒ 零影响。
+    bool dispatch(TimerEntry& entry);                      // ORIG T 0x8632a18
 
 private:
     // 注册表：下标即分发码；ORIG 构造按槽位直接写入。

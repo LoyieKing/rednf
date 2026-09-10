@@ -415,6 +415,17 @@
     // [N 封顶] 残差：4.4 三元产 `cmovle`（ORIG 为 jle 分支），P230① -march=i486
     // 可消 cmov 族但本波不改路由 ⇒ 待 Main 统一路由变更后复测；另帧 0x20 vs
     // ORIG 0x38 属 N82 槽分区。78/77。
+    // [P6S3 round6 · 路由杠杆实测（证据留给 Main）] ① 同源码整 TU 叠
+    //  `-march=i486 -mtune=generic` 后：本件 78/77 DIFF → **NEAR 78/79**（cmov 归零，
+    //  出 ORIG 形 `add $0x1,%eax; jle`），TU 四数 near 0→2 / diff 2→0（零回退）；
+    //  残差仅剩帧 0x38 vs 0x20 + 槽 -0x10/-0xc/-0x1c vs -0x8/-0x4/-0x14（N82 槽分区）。
+    //  ② **per-function 不用改路由也能落地**：探针 /tmp/p6/sc/p2.cpp 实证
+    //  `__attribute__((target("arch=i486")))` 挂在**声明**上（.h 侧）即可让本函数出
+    //  ORIG 形（`addl $1,%eax; jle`，无 cmov）；挂在定义上被 4.4.7 C++ 拒
+    //  （「attributes are not allowed on a function-definition」）；`#pragma GCC
+    //  push_options/target("arch=i486")` 在 4.4.7 对本函数**无效**（探针 p4.cpp 仍 cmov）。
+    //  ⇒ 若 .h 侧愿加该声明属性（P7HeaderAxis/P6AuditOldN 域），本件与 can_learn 可
+    //  直接取 i486 形；否则需整 TU 路由。两者都属头/路由轴，本泳道不再动。
     maxLevel = ((level - m_levelLimit) + 1 < maxLevel)
                    ? (level - m_levelLimit) + 1
                    : maxLevel;

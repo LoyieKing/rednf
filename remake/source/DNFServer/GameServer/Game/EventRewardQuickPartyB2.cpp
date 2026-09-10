@@ -138,9 +138,15 @@
     // 具名 hit+result+break(111)、break+守卫返回 i>12(111)；三元/`==0`/
     // 具名 bool 已由 b28d 判词覆盖（恒 109）。残 -3 为 4.4 的 landing pad
     // 分组（我方 12+12 条 pad + 2 条跳过 jmp vs ORIG 9+14 条）——跨版本结构。
+    // [P6S6 2026-09-11] 追加钥匙：`register bool same;`（ORIG 0x08ac35a4
+    //   `test %bl,%bl` 直证 same 常驻 callee-saved 字节寄存器）。实测
+    //   our_insns 99 不变、gap −3 不变，但 difflib 差异块 14→**12**（消去
+    //   `cmpb $0x0,-0x9(%ebp)` 槽物化与 %bl 往返两项）⇒ 按 codegen 轴
+    //   「四数不劣 + ndiff 严格改善」保留。
+    //   剩余 12 块 = 4.4 landing pad 分组 + string 对象槽深（跨版本结构）。
     for (int i = 0; i <= 12; ++i)
     {
-        bool same;
+        register bool same;
         {
             std::string expected(getString((ContentsType::T)i));
             std::string current(name);
@@ -225,6 +231,13 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
 // EH 边界 jmp+nop（P223/N121 族）、循环内 if(!ok)break 的 je+jmp vs 4.1 jne
 // （N122 族）、while 条件块物理位置差（difflib 对齐）。语义与 ORIG 逐块一致。
 // 依赖：LevelDataRandomReward::m_field0 int→RandomBuffType（.h 改动，R2 已广播）。
+// [P6S6 2026-09-11 追加钥匙] 主循环 `while (true) { if (!ScanType(token,true))
+//   break; … }` 改为 `for (; ScanType(token,true); ) { … }`（等价重构，取消 break
+//   出口）⇒ 4.4 少发 1 条跳转：ours 742 → **741**（ORIG 740，gap −2→**−1**），
+//   四数不变。另一形 `while(true)+goto main_scan_failed` 实测回退到 742 ⇒ 不采用。
+//   剩余 3 块：①`xor $0x1,%eax; test; jne` vs 我方 `jmp`（首测块物理位置差）；
+//   ②内层 `if (!ok) break;` 的 `jne` vs `je+jmp`（N122 族）；③缺进循环前的
+//   前置 `jmp`（4.1 的 while-rotate 形，4.4 恒直落）⇒ 跨版本封顶。
 #include "EventRewardQuickPartyB2/importQuickPartyScript.inc"
 {
     if (!loadRDARScriptFile("", path))
@@ -242,11 +255,8 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
 
     int id;
 
-    while (true)
+    for (; ScanType(token, true); )                   // P6S6: 主扫描失败 → false
     {
-        if (!ScanType(token, true))
-            break;                                    // 主扫描失败 → false
-
     re_lookup:
         static std::map<const char*, int, less_TCHAR> s_lookup;
         static SpinLock s_initLock;

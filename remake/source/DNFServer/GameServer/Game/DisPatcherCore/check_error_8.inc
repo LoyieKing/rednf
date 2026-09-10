@@ -72,6 +72,10 @@ unsigned int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, Param
         }
         G_GameWorld()->EnableMove(user->getCurCharacName());
     }
+    // [P5-DPC 2026-09-11] ORIG 0x081ca119 `movl $0x0,-0x14(%ebp)`（紧随 EnableMove 的
+    // call、且在 CheckInParty 调用序列之前）⇒ 原码此处把 party 指针槽重新置 0（P183
+    // 赋值轴）。旧形缺该 store（diff `delete orig[120:121] ours[120:120]`）。
+    pCVar5 = 0;
     // [DPC_CheckErr·H5核账 2026-09-11] 试形（裸调用替换 `!= false`）实测
     // ours_insns 230→231 劣化，按 codegen 轴纪律回滚，留 N。
     // [DPC-SigSmall 2026-09-11] 短路轴（SetPVPMapIndex 同族手法）：ORIG

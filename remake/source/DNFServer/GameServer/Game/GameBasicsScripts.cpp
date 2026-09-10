@@ -70,6 +70,11 @@ namespace APSystem
 // ============================================================================
 // PvPSkillTreeParameterScript 查询（ORIG 0x08a5e178 / 0x08a5dd62, 符号 T）
 // 最小实现保证符号 T + 可链接；完整脚本解析逻辑待细化。
+// [P6S5 2026-09-11 本波复核] getPvPSkillPoint 131/131（gap +0，NEAR 残差 = 4.1/4.4
+//   寄存器角色，非结构）；本 TU 的 `_ZNSt20__uninitialized_copyILb0EE…` DIFF 残余与
+//   ILb0/ILb1 头轴同源（`APSystemTypes.h:48` 的显式 `~_TodayRewardItem();`），但
+//   P3/P7/P6 三方实测：我方无 `new_allocator<_TodayRewardItem>::destroy` 实例 ⇒ 删
+//   `~T()` 会丢 D1/D2（ORIG 有）⇒ **维持现状（不改 .h）**，已上报。
 // ============================================================================
 #include "GameBasicsScripts/getPvPSkillPoint.inc"
     int job, int firstGrow, int secondGrow, int grade, bool flag) const

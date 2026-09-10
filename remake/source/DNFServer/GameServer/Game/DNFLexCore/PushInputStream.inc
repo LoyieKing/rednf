@@ -1,1 +1,2 @@
 bool DNFLex::PushInputStream(const char* dir, const char* filename, stream_data_t* s)
+// [P8S2 2026-09-11] 新口径复核 n1_v=AE（reloc 归一）；旧判词 NEAR 系 objdump 无 -r 的假残差

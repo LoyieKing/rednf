@@ -202,6 +202,12 @@
                     return &const_cast<Quest*>(quest)->m_rewardItems;  // [lea +0xec]
                 }
             }
+            // [P8S4 2026-09-11 负结论] ORIG 0x0866ea7f `jne 0x866ea2e`(回边) 之后紧跟
+            // 0x0866ea81 `jmp 0x0866ea84`（跳过 0x0866ea83 nop 岛）再落函数尾
+            // `mov 0x8(%ebp),%eax; add $0xc4,%eax`（0x0866ea84..8a）。4.4 把循环出口
+            // 与函数尾合并为直落 ⇒ 恒缺 1 条。已试 P341 显式 `goto questRewardTail`
+            // 尾标签（/tmp/r5/p8 复编）：4.4 仍折成直落，112=110 不变（无改善，
+            // 已回滚）。判 N 类（4.1 nop 岛 + jmp 布局）封顶。
         }
     }
     return &const_cast<Quest*>(quest)->m_titleReward;  // [lea +0xc4]

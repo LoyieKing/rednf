@@ -355,7 +355,7 @@ check:
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Script_Loader.cpp",
-            "virtual int Arad_Mileage_Data::parsing(char*)",
+            __PRETTY_FUNCTION__,
             0x197, "[ERROR] invalid mileage default value. (%f)", m_defaultPercent);
         return 0x198;
     }
@@ -384,7 +384,7 @@ check:
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_Script_Loader.cpp",
-                "virtual int Arad_Mileage_Data::parsing(char*)",
+                __PRETTY_FUNCTION__,
                 0x1b0, "[ERROR] already exist item index (IPG:%d, percent:%d)",
                 ipg, percent);
             return 0x1b1;
@@ -447,7 +447,7 @@ check:
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_Script_Loader.cpp",
-                "virtual int Arad_OnePlusCardEvent_ItemList::parsing(char*)",
+                __PRETTY_FUNCTION__,
                 0x1ea,
                 "[ERROR] already exist data id OnePlusCardEvent(id:%d, item:%u)",
                 (int)webId, (unsigned int)itemIndex);
@@ -468,7 +468,7 @@ check:
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_Script_Loader.cpp",
-                "virtual int Arad_OnePlusCardEvent_ItemList::parsing(char*)",
+                __PRETTY_FUNCTION__,
                 0x1fe,
                 "[ERROR] already exist limited map index (map:%u)",
                 map);
@@ -541,7 +541,7 @@ check:
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_Script_Loader.cpp",
-                "virtual int Arad_VillageAttackRewardItem::parsing(char*)",
+                __PRETTY_FUNCTION__,
                 0x244,
                 "[ERROR] Already exist data. (point:%d, item:%u, count:%d)",
                 out.winPoint, out.itemIndex, out.itemCount);

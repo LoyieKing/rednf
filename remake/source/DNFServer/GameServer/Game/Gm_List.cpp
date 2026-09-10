@@ -144,6 +144,16 @@
 //   NumberToString 结果 %ebx(ORIG)/%esi(4.4) ⇒ 判 N104（EH 尾块相对序，ORIG 正常
 //   路径尾块在后/4.4 就地内联）+ N7（callee-saved 角色）封顶。
 //   p167 调用点差集：仅 Packet_Sync_GM_List C1↔C2 同址别名（P93 良性）。
+// [P1 round5 二轮复核] 残余 8 块（ours=251 / orig=246）全部属三类**无源码旋钮**族：
+//   ① 4.4 EH 状态寄存器 `mov $0x0,%esi` / `mov $0x1,%esi`（各 2 处；ORIG 无此发射）；
+//   ② N7 callee-saved 角色：ORIG `mov %eax,%ebx; … mov %ebx,0x8(%esp)`（两处 cMyTrace/
+//      NumberToString 结果保活）vs 我方恒 `%esi`；
+//   ③ EH cleanup 岛相对序（N104）：ORIG 0x08299xxx 段 `movzbl -0x11(%ebp),%ebx; jmp <epilogue>`
+//      位于 fall-through，4.4 把它就地内联到 `mov $0x1,%esi` 之后。
+//   ⇒ P5 旋钮①「守卫包裹形」**不适用**（它改的是条件分支落点，而这里是 EH region 结构 +
+//   寄存器角色）；P5 旋钮②（真 switch，本件无 switch 链）与③（类型轴，本件无 lea/sub 歧义）同不适用。
+//   按纪律「禁对仓库文件做临时改动+稍后恢复」未做实机 A/B；如需强证可用 /tmp 源码副本 +
+//   `-I<Game 目录>` 复编。**维持 N104+N7 封顶**（A28 round5 的 8 条优化已全部在位）。
 #include "Gm_List/LoadGmListFromDb.inc"
 {
     // [P212 全头部声明] ORIG 序言 4 条初始化

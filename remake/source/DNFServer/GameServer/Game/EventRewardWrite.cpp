@@ -115,6 +115,9 @@ struct EventRewardCheckerPos
     //  4.4 恒折 `(1u<<x)&0x27` → `(0x27>>x)&1`（shr $cl + and $1）+ 多发 `mov %eax,%ebx`；
     //  实测：操作数序交换 75、`(int)`cast 75、有符号 `1<<x`（sar）75、嵌套 if 75、
     //  P226 语句表达式 80（语句内变量落 -0xc 槽 + setne 岛）⇒ 均不可消，74/75 封顶。
+    // [P8S5 2026-09-11 负结论] 掩码 cast 破位折叠**无效**：`(unsigned long)1 << attachType`
+    // & 0x27 实测与 `1u` 逐条同形（blocks 8、our 75 不变 ⇒ 4.4 仍折 `shr %cl; and $1`）
+    // ⇒ 已回滚。封顶维持 74/75（ORIG 0x080f0da7 `mov $1,%edx; shl %cl,%ebx` 形不可造）。
     if (attachType < 6 && ((1u << attachType) & 0x27))
     {
         inven.m_field0 = 0;

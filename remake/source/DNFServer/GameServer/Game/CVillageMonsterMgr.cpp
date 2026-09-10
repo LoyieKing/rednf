@@ -677,6 +677,12 @@ DONE:
 //   形 B（具名 `V* v = (V*)p;` 后 `v->m = call();`）= `call; mov -0xc(%ebp),%eax;
 //   mov %edx,0xc50(%eax)`（RHS-first，与 ORIG 同形）；形 A（逐句 cast）= `call` 前
 //   `mov 0x8(%ebp),%ebx`（旧码形）。改后槽集/帧不变（仍是 -0x14 一个 4B 局部）。
+// [P6S5 2026-09-11 本波负结论] 末句 `((CParty*)party)->send_to_party(packet)` 的
+//   4 行残差 = 「实参求值序」（ORIG 先 `lea -0x34(%ebp),%eax; mov %eax,0x4(%esp)`
+//   求第 2 参，再 `mov -0x14(%ebp),%eax` 装 this；我方相反）。本波探针：
+//   加具名 `CParty* partyObj = (CParty*)party; partyObj->send_to_party(packet);`
+//   ⇒ 读数**劣化** 136→138（gap +0→−2）且槽漂移（-0x1a→-0x1e）⇒ 已回滚。
+//   4.1 先实参 / 4.4 先 this 属寄存器分配族，源形不可造。
 #include "CVillageMonsterMgr/OnFightVillageMonster_2.inc"
 {
     Zone findZone(user->getCurCharacVill(),

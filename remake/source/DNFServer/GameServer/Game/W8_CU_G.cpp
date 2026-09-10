@@ -184,9 +184,11 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
     //（仅形参一次性截断 spill 槽，无 notifyType 复制槽）；0x867f7be 前右起求值
     // type(%esi)→NumberToString(%ebx)→ctor，idStr 无槽（P0）。尾部改形参本身
     // 0x867fb20 `movw $0xa,-0x6c(%ebp)`（ORIG 直接改 spill 槽）。
-    cMyTrace("void CUser::setHackUser(unsigned int, unsigned int, "
-             "unsigned int, unsigned int, short unsigned int, unsigned int)",
-             0x7e55, 0)(
+    // [P8S5 2026-09-11] P139 prett 缺口修复：ORIG 0x0867f78b 段实参 = $0x8cf27a0
+    // = _ZZN5CUser11setHackUserEjjjjtjE19__PRETTY_FUNCTION__（.rodata 实测串与本处
+    // 手写串逐字节相同：`short unsigned int` 系 GCC canonical 打印，源码写
+    // `unsigned short` 亦然）⇒ 改用 __PRETTY_FUNCTION__ 还原符号形态。
+    cMyTrace(__PRETTY_FUNCTION__, 0x7e55, 0)(
         "m_id : %s, SetHackUser : %d(%d)\t  %d(%d)   ApplyFlag = %d\n",
         NumberToString(get_acc_id(), 0), p1, p2, p3, p4,
         static_cast<unsigned int>(type));
@@ -778,7 +780,12 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
 // 的 `je +0x522` 分离）+ 两条死局部常量 `movl $0x55,-0x20; movl $0x50,-0x1c`。
 // 66/66 调用点全等（p167 CLEAR）。ORIG 0x0866a3fe。
 #include "W8_CU_G/gain_exp_sp.inc"
-                        eExpAddReason reason, int param, bool flag)
+                        // [P8S5 2026-09-11] P139 prett size 不等修复：ORIG 串
+                        // `bool CUser::gain_exp_sp(int, int&, int&, eExpAddReason, int, bool)`
+                        // (nm 0x43@0x08cf2e20)；我方类作用域内写 `eExpAddReason` 会打印
+                        // `CUser::eExpAddReason`(0x74) ⇒ 改全局限定 `::eExpAddReason`
+                        //（CUser.h:2338 类内 typedef ::eExpAddReason；同类型，mangled 不变）。
+                        ::eExpAddReason reason, int param, bool flag)
 {
     // 环境 work-mode==2（G_CEnvironment()+0x1a8 具名化见 CEnvironment.h:m_field1a8）
     // 时，49 级以上角色不入经验。

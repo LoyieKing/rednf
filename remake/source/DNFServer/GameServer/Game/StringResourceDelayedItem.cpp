@@ -54,22 +54,25 @@
 // ORIG @0x08ad538a：get 命中 → m_cacheStr = *out；未命中 →
 //   CharString::format("getStr(%d) == none", m_id)（0x8e32c4c）赋 m_cacheStr；
 //   最后 m_pCache = m_cacheStr.c_str()。
-// [b28d-24] DIFF 残25: P167 MISSING CharString D1Ev + _Unwind_Resume×1——4.4 拒绝 4.1 非平凡 union 成员抑制默认构造形；raw-buffer 引用形下显式 dtor 被折叠。ORIG 0x08ad538a
+// [P2-S4 2026-09-11 已翻] 原 raw-buffer + 引用 + 显式 dtor 形（68 条，DIFF gap=-10）里
+//   `CharString& msg = *reinterpret_cast<CharString*>(msgRaw);` 的**引用槽**（-0xc）
+//   使 4.4 在 get 前多发 `lea -0x18(%ebp),%eax; mov %eax,-0xc(%ebp); lea -0x14(%ebp),%eax`
+//   且 else 路径多一次整体赋值搬运。ORIG 0x08ad538a 实测：out 单槽 -0x10，
+//   0x08ad53d7 `call CharString::format` 的 sret 直指匿名临时 -0xc（无独立 C1）、
+//   0x08ad53ef `aSER` 拷贝赋值、0x08ad5417 尾 D1 仅在 else 路径 —— 即源形就是
+//   **直接 `m_cacheStr = CharString::format(...)`**。改回该形后 58/59，verdict=AE gap=-1，
+//   TU diff 归零（D1Ev/_Unwind_Resume 亦随 format 内部 EH 正常发射）。
 #include "StringResourceDelayedItem/makeCacheStr.inc"
 {
     CharString const* out;
-    // ORIG 0x08ad538a：-0xc 槽**无 C1**、format 直调、aSER、尾显式 D1（两分支汇合后
-    // 统一析构）⇒ ORIG 源形=union 包裹抑制默认构造（4.1.2 扩展允许非平凡 union 成员，
-    // 4.4.7 硬拒——本仓实测）。忠实复刻=raw-buffer 引用形：零新符号、发射形逐条同 ORIG
-    // （format 内部 placement C1 完成初始化，显式 D1 释放；无未初始化读）。
-    unsigned long msgRaw[(sizeof(CharString) + sizeof(unsigned long) - 1) / sizeof(unsigned long)];
-    CharString& msg = *reinterpret_cast<CharString*>(msgRaw);
     if (get(&out)) {
         m_cacheStr = *out;
     } else {
-        msg = CharString::format("getStr(%d) == none", m_id);
-        m_cacheStr = msg;
-        msg.~CharString();   // ORIG 显式 D1 仅在 else 路径（0x8ad5400←0x3f4；hit 路径 0x3bd 直落 c_str）
+        // ORIG 0x08ad53d7 `call format` 的 sret 目标 = 匿名临时 -0xc（format 内
+        // placement C1 完成构造）→ 0x08ad53ef `aSER` 拷贝赋值 → 0x08ad5417 尾 D1
+        // （仅 else 路径；hit 路径 0x08ad53bd 直落 c_str）。即源形就是**直接赋值
+        // format 返回值**，4.4 同样以匿名临时承载返回值。
+        m_cacheStr = CharString::format("getStr(%d) == none", m_id);
     }
     m_pCache = m_cacheStr.c_str();
 }

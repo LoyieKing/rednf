@@ -29,6 +29,13 @@
 // ORIG 调用方（objdump xref）：DisPatcher_FinishLoad::check_state(0x82654a6)、
 // 0x81c2bd4、0x81c4b5b、0x81feef2、0x8232256、0x82324c0。
 // [b28d-D9] N18a：P231 裸 register 消槽成功（20/20）；残 2 条 = 4.1 冗余 mov $1,%edx; mov %edx,%ebx 不可造（ORIG 0x081466f0 sz 0x00000031）
+// [P6S5 2026-09-11 本波复核] 20/20 NEAR 维持；残差直证 = ORIG 0x081466f0
+//   `mov $0x1,%edx; mov %edx,%ebx`（4.1 常量先落 %edx 再中转入 %ebx）+ 我方 4.4
+//   `mov $0x1,%ebx; mov 0x8(%ebp),%eax`（参数重载）⇒ 净条数相同（20），N7/N18a 族，不可造。
+//   ⚠ 头轴线索（上报，未改 .h）：`CBossTowerFunc::GetItem`（本 TU，原 AE 89/89）的
+//   ORIG prett 串 = "static **bool** Global::CBossTowerFunc::GetItem(CUser*, int, bool, char)"
+//   （strall 实读 O-only），我方 = "static **char** …" ⇒ 返回类型拼写差；
+//   因声明在 `BossTowerFunc.h:61`（子代理禁改 .h）⇒ 只上报 P6AuditOldN/P7HeaderAxis。
 #include "BossTowerFunc/Get_State_Check.inc"
 {
     // b28c-L8 复测（N6 位折叠判据）：ORIG 0x081466f0 保 `mov $0x1,%edx;

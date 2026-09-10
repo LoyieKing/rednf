@@ -220,6 +220,13 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
 }
 
 // ---- _checkValiedPassword(pwd, clientHash, cipher)  ORIG 0x08602bd0
+// [P6S5 2026-09-11 本波落地 · P139 prett 轴] ORIG 0x08602bd0 引用
+// `_ZZN8WongWork10CSimpleSSO20_checkValiedPasswordEPcPKcR9CRijndaelE19__PRETTY_FUNCTION__`
+// （0x8cdd180 size 0x50 = "bool WongWork::CSimpleSSO::_checkValiedPassword(char*,
+// const char*, CRijndael&)"）；旧译两处 LogManager::logFormat 第 3 参用**手写串**
+// （逐字节相同）⇒ 我方不发 prett 符号。改成 `__PRETTY_FUNCTION__` 后 `nm` 实测符号
+// 与 ORIG **同名同 size 0x50**，件读数 123/123（gap +0）不变、TU 四数 4/15/1/2/1
+// **不变** ⇒ 保留（纯符号/串轴，零 codegen）。
 #include "WongWorkSSO_A/_checkValiedPassword.inc"
                                                 CRijndael& cipher)
 {
@@ -301,7 +308,7 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
         // 而非空串。
         LogManager::logFormat(
             1, "SimpleSSO.cpp",
-            "bool WongWork::CSimpleSSO::_checkValiedPassword(char*, const char*, CRijndael&)",
+            __PRETTY_FUNCTION__,
             0xe7,
             "_checkValiedPassword() exception server(%s), client(%s)", hexBuf,
             clientHash);
@@ -317,7 +324,7 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
     }
     LogManager::logFormat(
         1, "SimpleSSO.cpp",
-        "bool WongWork::CSimpleSSO::_checkValiedPassword(char*, const char*, CRijndael&)",
+        __PRETTY_FUNCTION__,
         0xee,
         "_checkValiedPassword() diff password server(%s), client(%s)", hexBuf,
         clientHash);

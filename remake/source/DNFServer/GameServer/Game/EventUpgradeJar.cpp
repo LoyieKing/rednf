@@ -84,6 +84,8 @@
         // register 存储类提示、声明在循环体内（无 asm 绑定，P0 合规）。残余
         // `cmp %eax,%ebx` vs `cmp %ebx,%eax` 操作数序属 N18b。
         register int midx = materialIdx;
+        // [P6AuditOldN-S1 2026-09-11 负结论] P196 交换左右操作数实测无效：
+        //   `cmp %ebx,%eax` 不变（4.4 规范化，N18b）⇒ 已回滚。
         if (midx == (int)m_materialIndices[i])
         {
             // [b28d-solo-EventUpgradeJar] P157/P183：ORIG 0x080f4c13/0x080f4c3e 两次
@@ -155,6 +157,10 @@
     // `cmp %eax,%ebx` vs `cmp %ebx,%eax` 操作数序（N18b 4.4 恒折）。
     // [b28d-solo-EventUpgradeJar] P212/N98：ORIG 槽序 i=-0xc（浅）/base=-0x28（深），
     // 全头部声明「先声明深」——base 先声明、i 后声明即复现（块内声明 4.4 反向）。
+    // [P6AuditOldN-S1 2026-09-11 负结论 P339③] 试声明序反转（i 先 / base 后）复现
+    //   ORIG 槽序（i=-0xc 浅 / base=-0x28 深）：base 归位 -0x28 但 i 被挤到 -0x10
+    //   ⇒ triage blocks **3→8**（差异面扩大，N18b `cmp %eax,%ebx` 仍在）⇒ 回滚，
+    //   维持原形（base 先声明、i=-0xc 对齐；仅 base 槽差属 N82/N95 浮点槽族）。
     float base;
     int i;
 

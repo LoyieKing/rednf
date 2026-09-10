@@ -369,7 +369,10 @@ public:
     bool checkValidUser(int idx);   // ORIG W 0x08145868（转发 _checkValidUser；定义 CParty.cpp:1902）
     bool CheckQuestConnection(int questIdx, ENUM_MAZE_QUEST_TYPE type);   // ORIG T 0x085b6478（定义 PartyClosureC2.cpp）
     void enumPartyMember(bool (*fn)(CUser*));   // ORIG W 0x0814253c（成员遍历回调；定义 PartyClosureC2.cpp）
-    int change_manager_for_quick_party();   // ORIG 0x859b404：清 manager 槽位后
+    // [P7HeaderAxis 2026-09-11] 返回类型 bool：ORIG prett 直证（size 0x2e）
+    // `bool CParty::change_manager_for_quick_party()`；mangled `_ZN6CParty30change_manager_for_quick_partyEv`
+    // 不含返回类型 ⇒ 零 ABI。定义侧同步见 CPartyOnlyOrig/change_manager_for_quick_party.inc（P6AuditOldN）。
+    bool change_manager_for_quick_party();  // ORIG 0x859b404：清 manager 槽位后
                                             //   改选首个有效成员为 host/manager
     int delete_party_for_quick_party(CUser* user,
                                      std::list<CUser*>& list);   // ORIG 0x859b52c
@@ -608,7 +611,11 @@ public:
 
     // ---- 锦标赛 / TOD ----
     bool OnTODRewardTimer(TIMER_MESSAGE msg);   // ORIG 0x85ba906；调用点 0x0863a901 xor $0x1 ⇒ bool（GData 同步定义体）
-    int OnTimeoutBossDie(int a, unsigned int b);   // ORIG 0x85aa5d4 返回 0/1
+    // [P7HeaderAxis 2026-09-11] 返回类型 bool + 第 2 参 typedef：ORIG prett 直证
+    // `bool CParty::OnTimeoutBossDie(int, memberIdentificationNumber_t)`（我方原串
+    // `int CParty::OnTimeoutBossDie(int, unsigned int)`）；mangled `_ZN6CParty16OnTimeoutBossDieEij`
+    // 不含返回类型 ⇒ 零 ABI。定义侧同步见 CPartyDepsD2/OnTimeoutBossDie.inc（P6AuditOldN 落地）。
+    bool OnTimeoutBossDie(int a, memberIdentificationNumber_t b);   // ORIG 0x85aa5d4 返回 0/1
     int _Send_TOD_APCInfo(int a);   // ORIG 恒返回 eax=1（0x85bac26）
     int _Send_TOD_ClearReward();   // ORIG 恒返回 eax=1（0x85bac00）
     int GetDungeonIndex_isTOD(int& a, int& b);   // ORIG 返回错误码（0x85bacc0）

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "Inven_Item.h"
+#include "GameTypes.h"   // IntPairVector（P7 类型轴：extraction 第 3 参拼写；三个派生类头经本头传递可见）
 
 class CUser;
 class CMTRand;
@@ -27,8 +28,12 @@ public:
     virtual ~CExtraction();
 
     // ---- 虚函数（声明序 = ORIG vtable 槽序） ----
+    // [P7HeaderAxis 2026-09-11] 第 3 参拼写 IntPairVector（ORIG prett 直证 ×3：
+    // `virtual bool expert_extraction::CAlchemistExtraction::extraction(CUser*, short int, IntPairVector&)`、
+    // CEnchanter/CDollController 同形，size 0x64/0x64/0x69；mangled `…EP5CUsersRSt6vectorISt4pairIiiESaIS5_EE`
+    // 展开为 St6vectorISt4pairIiiESaIS5_EE ⇒ 同底层类型、零 ABI）。定义侧见 ExpertExtraction TU（P6AuditOldN）。
     virtual bool extraction(CUser* user, short param,
-                            std::vector<std::pair<int, int> >& needItems) = 0;
+                            IntPairVector& needItems) = 0;
     virtual int check_error(CUser* user, char a, short b, short c);
     virtual bool inven_process(CUser* user, short param,
                                std::vector<std::pair<int, int> >& needItems,

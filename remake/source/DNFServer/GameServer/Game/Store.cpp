@@ -89,7 +89,10 @@
         {
             // ORIG 0x08618b89：ctor 前先读 item.m_addInfo 入 %ebx 跨 ctor 保活
             // ⇒ 全表达式临时链（P227）。
-            cMyTrace("int Store::user_buy_item(CUser*, int, int)", 0x3d, 5)
+            // [P2S6 2026-09-11 P139] ORIG 0x8ce2180 size=0x2b 的 prett 串与手写串
+            //   逐字节相同（pstr.py 实测）⇒ 换回 __PRETTY_FUNCTION__（发射
+            //   _ZZN5Store13user_buy_itemEP5CUseriiE19__PRETTY_FUNCTION__，零语义差）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x3d, 5)
                 ("Store::user_buy_item,  ITEM #%d, %d", item.m_addInfo, count);
         }
         item.m_fieldb = 0;
@@ -410,7 +413,9 @@ Store* G_Store()
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)1, slot, count, eItemDelReason_0, true))   // 消息 0 → type 1
         {
-            cMyTrace("int Store::user_sell_item(CUser*, char, short int, short int)", 0x136, 5)
+            // [P2S6 2026-09-11 P139] ORIG 0x8ce2140 size=0x3e（串=手写串逐字节同）
+            //   ⇒ 五处 cMyTrace 全部换回 __PRETTY_FUNCTION__。
+            cMyTrace(__PRETTY_FUNCTION__, 0x136, 5)
                 ("Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
                  user->getCurCharacNo(), slot, count);
             return 0x11;
@@ -419,7 +424,7 @@ Store* G_Store()
     case 2:
         if (!user->getCurCharacCargoW()->delete_item(slot, count, eItemDelReason_0))
         {
-            cMyTrace("int Store::user_sell_item(CUser*, char, short int, short int)", 0x141, 5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x141, 5)
                 ("Store::user_sell_item, delete_item failed 2, User ch=%d , %d %d",
                  user->getCurCharacNo(), slot, count);
             return 0x11;
@@ -429,7 +434,7 @@ Store* G_Store()
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)0, slot, 1, eItemDelReason_0, true))   // 消息 3 → type 0
         {
-            cMyTrace("int Store::user_sell_item(CUser*, char, short int, short int)", 0x14d, 5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x14d, 5)
                 ("Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
                  user->getCurCharacNo(), slot);
             return 0x11;
@@ -440,7 +445,7 @@ Store* G_Store()
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)3, slot, count, eItemDelReason_0, true))   // 消息 7 → type 3
         {
-            cMyTrace("int Store::user_sell_item(CUser*, char, short int, short int)", 0x167, 5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x167, 5)
                 ("Store::user_sell_item, delete_item failed 4, User ch=%d , %d %d",
                  user->getCurCharacNo(), slot, count);
             return 0x11;
@@ -454,7 +459,7 @@ Store* G_Store()
     {
         // ORIG 0x08619a23：get_money() 结果直接留 %edi（无槽往返）⇒ 无具名局部（P0），
         // 内联为 trace 最右实参（右→左求值序）。
-        cMyTrace("int Store::user_sell_item(CUser*, char, short int, short int)", 0x172, 4)
+        cMyTrace(__PRETTY_FUNCTION__, 0x172, 4)
             ("User(%s) Charac(%s) gain money(%d) by selling item(%d), old money is %d.",
              NumberToString(user->get_acc_id(), 0),
              user->getCurCharacName(), outCount, price,
@@ -541,6 +546,26 @@ extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndura
 // 残余（p167 CLEAR 114=114 硬证据下）：帧 0x22c vs 0x1bc + 全帧槽号平移（N82/N95），
 // rate 实参 4.1 flds/fstps 栈往返 vs 4.4 mov（N85），迭代器 operator* 返回值两段拷贝
 // 与寄存器角色互换（N7/N18a）。gap = -24/1067（2.2%）。
+// [P2S6 2026-09-11 本波] 逐件实测（改前 n1_v 1075/1091 gap=-16、fdiff blocks=204/
+//   不等长 44/net O−N=−12）→ 改后 fdiff **blocks=175、ours=1067 = orig=1067（净 0）**、
+//   n1_v 1075/1067 gap=+8（差值为 ORIG 尾部 nop/对齐）。四数 25/50/0/2 全程不变。
+//   落地旋钮（全部「ORIG 有没有那个槽」判据）：
+//   ① tower 链去具名（两处）：ORIG 0x0861a3f8+0x0711 / 0x0861ac7f+0x0f93 只 tower 落槽
+//      （-0x40 / -0x20），getCDungeonMGr(0x08234612)/getDungeon(0x082345f0)/
+//      get_index(0x080fdcf0) 三次调用全内联；notTower 形 = `cmp $0x2af8,%eax; sete %al;
+//      test %al,%al; je L; movb $0x0,-0x41(%ebp); jmp; L: movb $0x1,-0x41(%ebp)`
+//      ⇒ 源码写三元 `(idx==11000) ? false : true`（我方 4.4.7 生成 setne+直存，属版本差）。
+//   ② hasAmp/upgrade 去具名（三处）：ORIG 0x0861a282+0x0596 `call Inven_Item::GetUpgrade;
+//      movzbl %al,%ebx`（直留 %ebx）+ hasAmp 留 %esi ⇒ 两实参内联进
+//      getUpgradeItemRepairCostRate(item.GetUpgrade(), item.m_amp.hasAbility())。
+//   ③ maxEnd 去具名（三处）：ORIG 0x0861a2ba 无 maxEnd 槽，耐久在实参处现取。
+//   负结论：把 `int cost` 内联成 `totalCost += getEquipmentRepairPrice(...)`（ORIG
+//   0x0861a8xx 形为 `call; add %eax,-0x58(%ebp)`）实测**劣化**：不等长块 31→57、
+//   net O−N 0→+4 ⇒ 已回滚（保留具名 cost）。
+//   剩余差异性质：全帧槽号平移（我方 Inven_Item 基址 -0x1a8 vs ORIG -0x168，帧 0x20c
+//   vs 0x1bc）；rate 的 4.1 `flds/fstps` vs 4.4 `mov`（N85）；bool 物化 `sete+分支`
+//   vs 4.4 `setne`（notTower/needRepair）；`ok` 的 %esi 保活 vs 我方槽 —— 皆 4.1/4.4
+//   前/后端行为差，源码层不可造。
 #include "Store/repair_equip.inc"
                         unsigned short& outEndurance)
 {
@@ -603,11 +628,15 @@ extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndura
         // 同一栈槽（ORIG local_5c，非新局部）。
         int growthGrade = pEquip->getGrowthGrade(user->get_charac_level());
         int growthCost = pEquip->getGrowthRepairCost(user->get_charac_level());
-        bool hasAmp = item.m_amp.hasAbility();
-        unsigned char upgrade = item.GetUpgrade();
-        float rate = G_CDataManager()->getUpgradeItemRepairCostRate(upgrade, hasAmp);
-        int maxEnd = pEquip->get_endurance();
-        totalCost = getEquipmentRepairPrice(growthCost, item.m_fieldb, maxEnd,
+        // [P2S6 2026-09-11 N82 去槽] ORIG 0x0861a282 +0x0596..+0x05a7：
+        //   `call Inven_Item::GetUpgrade; movzbl %al,%ebx`（结果直留 %ebx，**无 upgrade
+        //   槽**）；hasAmp 更早求值留 %esi（**无 hasAmp 槽**）；再 `call G_CDataManager`
+        //   ⇒ 右→左求值序 (arg3 hasAmp, arg2 upgrade, arg1 manager) ⇒ 两实参均内联。
+        float rate = G_CDataManager()->getUpgradeItemRepairCostRate(
+            item.GetUpgrade(), item.m_amp.hasAbility());
+        // [P2S6 2026-09-11 N82 去槽] ORIG 0x0861a2ba 附近无 maxEnd 槽：耐久在实参处
+        //   现取（`movzwl` 序列），源码为内联调用。
+        totalCost = getEquipmentRepairPrice(growthCost, item.m_fieldb, pEquip->get_endurance(),
                                              growthGrade, false, rate);
 
         if (count != 0xffff && (item2.m_addInfo == 0x1f77 || item2.m_addInfo == 0x201f))
@@ -632,14 +661,15 @@ extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndura
             WongWork::CDeathTower* tower = user->getDeathTower();
             if (tower)
             {
-                WongWork::CDeathTower::CDungeonMgr* mgr = tower->getCDungeonMGr();
-                CDungeon* dun = mgr->getDungeon();
-                int idx = dun->get_index();
-                // ORIG 0x08619xxx：`cmp $0x2af8; sete; test; je; movb $0; jmp; movb $1`
-                // ⇒ bool 初值 true + 条件置 false（P158）。
-                bool notTower = true;
-                if (idx == 11000)
-                    notTower = false;
+                // [P2S6 2026-09-11 N82 去多余具名槽] ORIG 0x0861a3f8 +0x0711..+0x0747：
+                //   仅 tower 落槽 -0x40；getCDungeonMGr(0x08234612)/getDungeon(0x082345f0)/
+                //   get_index(0x080fdcf0) 三次调用**全内联**（无 mgr/dun/idx 槽，我方原
+                //   各留 4 字节槽 ⇒ 帧 +0x60、每处多 mov 往返）。
+                //   notTower(-0x41) 形 = `cmp $0x2af8,%eax; sete %al; test %al,%al; je L;
+                //   movb $0x0,-0x41(%ebp); jmp; L: movb $0x1,-0x41(%ebp)` ⇒ 源码是三元
+                //   `(idx==11000) ? false : true`（**非** if(缺 else) 形）。
+                bool notTower =
+                    tower->getCDungeonMGr()->getDungeon()->get_index() == 11000 ? false : true;
                 int lvl = user->get_charac_level();
                 GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
                     (DEATHTOWER_VALUE_STATISTIC_FIELD)9, (char)notTower, (char)lvl, totalCost);
@@ -687,11 +717,16 @@ extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndura
                     // ORIG 每处 get_charac_level() 独立重调（P157 逐次重读）。
                     int growthGrade = pEquip->getGrowthGrade(user->get_charac_level());
                     int growthCost = pEquip->getGrowthRepairCost(user->get_charac_level());
-                    bool hasAmp = item.m_amp.hasAbility();
-                    unsigned char upgrade = item.GetUpgrade();
-                    float rate = G_CDataManager()->getUpgradeItemRepairCostRate(upgrade, hasAmp);
-                    int maxEnd = pEquip->get_endurance();
-                    int cost = getEquipmentRepairPrice(growthCost, item.m_fieldb, maxEnd,
+                    // [P2S6 2026-09-11 N82 去槽] 同单件分支：ORIG +0x0bb6 前
+                    //   `movzbl %al,%ebx`（GetUpgrade 直留寄存器）+ hasAmp 留 %esi。
+                    float rate = G_CDataManager()->getUpgradeItemRepairCostRate(
+                        item.GetUpgrade(), item.m_amp.hasAbility());
+                    // [P2S6 2026-09-11 负结论] 试过把 `int cost` 内联成
+                    //   `totalCost += getEquipmentRepairPrice(...)`（ORIG 0x0861a8xx 是
+                    //   `call; add %eax,-0x58(%ebp)`）⇒ 实测**劣化**：blocks 175→174 但
+                    //   不等长块 31→57、net O−N 0→+4（我方少 4 条）；4.4 对 `+=` 形会
+                    //   额外折叠。保留具名 cost（与 fdiff net=0 的最优态一致）。
+                    int cost = getEquipmentRepairPrice(growthCost, item.m_fieldb, pEquip->get_endurance(),
                                                         growthGrade, false, rate);
                     totalCost += cost;
 
@@ -720,13 +755,12 @@ extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndura
                 {
                     int growthGrade = pEquip->getGrowthGrade(user->get_charac_level());
                     int growthCost = pEquip->getGrowthRepairCost(user->get_charac_level());
-                    bool hasAmp = item.m_amp.hasAbility();
-                    unsigned char upgrade = item.GetUpgrade();
-                    float rate = G_CDataManager()->getUpgradeItemRepairCostRate(upgrade, hasAmp);
-                    int maxEnd = pEquip->get_endurance();
-                    int cost = getEquipmentRepairPrice(growthCost, item.m_fieldb, maxEnd,
+                    // [P2S6 2026-09-11 N82 去槽] 同单件分支（ORIG +0x0e40 前同形）。
+                    float rate = G_CDataManager()->getUpgradeItemRepairCostRate(
+                        item.GetUpgrade(), item.m_amp.hasAbility());
+                    int cost = getEquipmentRepairPrice(growthCost, item.m_fieldb, pEquip->get_endurance(),
                                                         growthGrade, false, rate);
-                    totalCost += cost;
+                    totalCost += cost;   // 见第一循环注：`+=` 内联形被实测否证（net +4）。
 
                     bool needRepair = true;
                     if (pEquip->get_endurance() == 0)
@@ -750,12 +784,10 @@ extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndura
                 WongWork::CDeathTower* tower = user->getDeathTower();
                 if (tower)
                 {
-                    WongWork::CDeathTower::CDungeonMgr* mgr = tower->getCDungeonMGr();
-                    CDungeon* dun = mgr->getDungeon();
-                    int idx = dun->get_index();
-                    bool notTower = true;
-                    if (idx == 11000)
-                        notTower = false;
+                    // [P2S6 2026-09-11 N82] 同单件分支：ORIG 0x0861ac7f +0x0f93..+0x0fd2
+                    //   仅 tower 落槽 -0x20，三次调用全内联 + 三元 notTower。
+                    bool notTower =
+                        tower->getCDungeonMGr()->getDungeon()->get_index() == 11000 ? false : true;
                     int lvl = user->get_charac_level();
                     GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
                         (DEATHTOWER_VALUE_STATISTIC_FIELD)9, (char)notTower, (char)lvl, totalCost);

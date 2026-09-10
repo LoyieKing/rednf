@@ -509,11 +509,28 @@ case "$(basename "$src" .cpp)" in
                 # near=1/diff=5 ⇒ 零回归。
                 exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/STMonsterScript.cpp | *Game/STEquipmentScript.cpp | \
-            *Game/STMapScript.cpp | *Game/OnlyOrigBatch14.cpp | \
+            *Game/STMapScript.cpp | \
             *Game/NPCScript.cpp | *Game/GameScriptEnumHelpers.cpp | *Game/EventScriptsCompleteB2.cpp | \
             *Game/W8LT_PassiveObjectScript.cpp | *Game/InitScriptProducers_6.cpp | *Game/sync_script.cpp | \
             *Game/EquipmentParameterInfo.cpp | *Game/DispLinkA2.cpp | *Game/CAuction.cpp)
                 exec "$C6446R" "$@" ;;
+            *Game/OnlyOrigBatch14.cpp)
+                # [Main·2026-09-11 round5 第十批] 从上面共享 446 分支拆出，叠
+                #   `-march=i486 -mtune=generic`（N85 x87 lowering 族解药，同
+                #   `STStackableScript`/`CUser`/`CreatureScript` 先例）。
+                #   申请与举证由 P1Free284to303 完成，Main 复测后落地：
+                #     非 weak 件 `_Z29exportCharacterEtcStatsScriptP8_IO_FILEP17CharacterEtcStats`
+                #     （ORIG 0x08a100f3 size 0x1b1）DIFF 119/118 gap=+1 → **AE 119=119 gap=0**
+                #     （命中 ORIG 的 `fld [eax+edx*4+0xc]; fldz; fucompp; fnstsw %ax; sahf; jne; jp`）。
+                #   TU 四数（真实构建口径 = C6446R + 本旗标）：396/800/1/11/197 →
+                #     396/801/1/10/197（**ae +1 / diff −1，零劣化**）。
+                #   ⚠ 前置读数纠错：曾有一份「带臂 396/786/1/24（13 个 weak 劣化）」的测量，
+                #     那是在 **默认 C6/4.4.7 基线上叠 i486** 所致，与真实构建口径
+                #     （已在 C6446R 之上）不同 ⇒ 正确口径下**无 weak 劣化**。
+                #   旁证零回归：同批 C6446R 路由的 `LogManager` / `InitScriptProducers_8`
+                #     加臂后逐项零变化 ⇒ 收益仅本 TU 这 1 件。
+                #   ⚠ `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/STStackableScript.cpp)
                 # [Main·检查点302] 从上面共享 446 分支拆出，叠 `-march=i486 -mtune=generic`
                 #   （N85 x87 lowering 族解药；同 CUser.cpp 第 384 行 / WStringInst 先例）。

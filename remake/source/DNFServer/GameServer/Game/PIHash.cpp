@@ -89,11 +89,16 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
     unsigned int h;
     DoSuperFastHash(data, len, h);
     unsigned char* p = reinterpret_cast<unsigned char*>(&h);
-    // [SweepPIHash] 残余 N18b（1 条）：ORIG `movzbl -0x1c(%ebp),%eax; xor %edx,%eax`
-    // （seed 装载后异或）vs 4.4 恒折 `xor -0x1c(%ebp),%al`（8 位内存 xor）；
-    // 分组括号/具名 seed/cast 六形探针均同折（b28d-L1 m1..m9 已录）。
+    // [P1T5 修法 x2 · 保留] ORIG（0x0808c9a0+）尾部：27 `xor %eax,%edx`（p[3] 异或
+    // 进累积 edx）→ 28 `movzbl -0x1c(%ebp),%eax` → 29 `xor %edx,%eax` → 30 `xor $0x53,%eax`。
+    // 基线左结合式 4.4 在 27 出 `xor %edx,%eax` + 28 `xor -0x1c(%ebp),%al`（8 位内存 xor）
+    // ⇒ 2 差异块。改 `p[3] ^ seed` 先结合后 4.4 在 27 换向、且仍折 8 位 seed xor ⇒
+    // 差异块 2→1（ours 39 / ORIG 40 不变）。负结论：右结合全括号 x1=42（更差）；
+    // `(seed ^ 0x53)` 成组 x3 与基线同（2 块）；`static_cast<unsigned int>`/`(unsigned short)`
+    // /具名 seed/`&0xff` 等六形探针（b28d-L1 m1..m9 + 本波 andprobe.cpp）均折 8 位内存 xor
+    // ⇒ 残余 1 条为 4.4 结果窄化优化（ORIG 4.1 无），封顶。
     unsigned char v = static_cast<unsigned char>(
-        p[0] ^ p[1] ^ p[2] ^ p[3] ^ seed ^ 0x53);
+        p[0] ^ p[1] ^ p[2] ^ (p[3] ^ seed) ^ 0x53);
     return static_cast<unsigned char>((v & 0xf) ^ ((v & 0xf0) >> 4));
 }
 
@@ -112,6 +117,9 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 //   残余 N：尾部 `if(tmp==2/3/1)` 链 4.4 恒 `cmpl $K,mem; jne`×3（6 条）vs ORIG
 //   `mov tmp,%eax; cmp $2,%eax; je; cmp $3,%eax; je; cmp $1,%eax; jne`（4.1 装载一次，
 //   7 条）；switch 形 4.4 产 mov+cmp/je×3+jmp（8 条，多 1 条 default jmp）⇒ 两形均不闭合。
+//   [P1T5 probe sw1] 已实测真 switch：ours 140（ORIG 139）、444/446 后端同 140 ⇒ 非后端差异，
+//   是 4.4 decision-tree 布局不做末 case fall-through（末位恒 `je`+`jmp default`，ORIG 用 `jne`），
+//   源码不可翻，回滚。
 #include "PIHash/DoSuperFastHash_2.inc"
 {
     hash = 0;
@@ -134,6 +142,10 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
         data += 4;
         rem += rem >> 11;
     }
+    // [P1T5 probe sw1 · 回滚] switch 形实测 ours=140（ORIG 139，更差 1 条）：
+    // 4.4 产 `mov tmp,%eax; cmp $2/je; cmp $3/je; cmp $1/je; jmp Lend`（8 条），
+    // 比 ORIG 的 7 条（末位改 jne 的 fall-through 布局）多一条 default jmp；
+    // 444/446 后端同形（各 140）⇒ 4.4 系布局不做末 case fall-through，源码无解。
     if (tmp == 2)
     {
         rem += ((unsigned int)(unsigned char)data[1] << 8) +
@@ -284,24 +296,22 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 //      first(-0x15,char)、index(-0x14,short)、bNonClient(-0x11,bool)、
 //      hash(-0x10,uint)、pCksum(-0xc,uint*)——旧版把 body/bodyLen/pCksum
 //      内联进调用（少 3 个槽、帧 0x38 vs 0x44）；
-//   ② bNonClient 用 if/else 物化（ORIG `mov $1,%eax;jmp`/`mov $0,%eax` 分支形，
-//      `bool b = (a && b)` 4.4 亦产此形，保留）；
+//   ② bNonClient 用**单表达式 `bool b = (a && b)`** 物化（[P1T5 已翻 AE]）：
+//      ORIG 0x082751fd 起 `mov $1,%eax; jmp; mov $0,%eax; mov %al,-0x11(%ebp)`
+//      = 单一 store 点的 store_flag 形；旧 if/else 形 4.4 产 `movb $1,-0x11`×2
+//      （探针 t1/t2/t3 即该形，故误判封顶）；改单表达式后 4.4 逐条同形 ⇒ 51/51 AE。
 //   ③ receiver 走链式 `user->GetPISenderManager()->MakeHashForSending(...)`
 //      （ORIG 无 sender 具名局部，GetPISenderManager 结果直接作 this）。
-// 残余 N（1 条）：bNonClient 分支赋值 ORIG 4.1 产 `mov $1,%eax; jmp; mov $0,%eax;
-// mov %al,-0x11`（物化到 eax 再存字节），4.4 恒 `movb $1,-0x11`/`movb $0,-0x11`
-// （探针 t1/t2/t3 三形均 movb）⇒ 跨版本 bool 常量物化封顶。
+// ⇒ 本件已无残余（n1_v AE 51/51）。
 #include "PIHash/_NS_PI_2ND_SendHash_SC.inc"
 {
     unsigned int bodyLen = len - 0xf;
     unsigned char* body = reinterpret_cast<unsigned char*>(data + 0xf);
     char first = data[0];
     short index = _NS_PI_2ND_GetPacketIndex(data);
-    bool bNonClient;
-    if (first == '\0' && index == 1)
-        bNonClient = true;
-    else
-        bNonClient = false;
+    // [P1T5 probe s1] 试单表达式形（ORIG 24-26 = mov $1,%eax / jmp / mov $0,%eax
+    // + 单一 store 点 ⇒ 疑为 4.1 对 `bool b = cond;` 的 store_flag 形）。
+    bool bNonClient = (first == '\0' && index == 1);
 
     unsigned int hash =
         reinterpret_cast<PISenderManager*>(user->GetPISenderManager())
@@ -315,11 +325,18 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 // +0x23 ip 相关 dword、+0x27 ip[0x10]、+0x37 前段、+0x43 后段（'.' 拆分）。
 // [b28d-L1] N103 封顶（工具链头/库差异）：ORIG 0x08655327 调 `_ZSt7strrchrPci`（libstdc++ C++ 重载，需 __CORRECT_ISO_CPP_STRING_H_PROTO）；本工具链 cstring 把 std::strrchr 映射为 ::strrchr（P167 MISSING×1/EXTRA×1）。源码不可控，语义等价。
 // [SweepPIHash] 尾部 4 个 nop+jmp 岛已按 P223 多岛形（4 条独立 goto + 尾标签串）
-// 复现（旧 4 条早返只产 3 岛）。残余：①N102 m_ipBuf/m_pcRoomIp 读 ORIG 恒
+// 复现（旧 4 条早返只产 3 岛）。
+// [P1T5 修法 u1 · 已落] ORIG 0x08655375/0x0865538e（前缀/后缀长度比较）是
+// `cmpl $0xc,-0x10(%ebp)`/`cmpl $0x4,-0xc(%ebp)` + `ja`（mem 直比），旧码把
+// prefixLen/suffixLen 声明为 int 且每处 `static_cast<unsigned int>` ⇒ 4.4 产
+// `mov -0x10(%ebp),%eax; cmp $0xc,%eax`（多 1 条载入 ×2，且整体错位）。改
+// 局部本身为 `unsigned int`（赋值处 cast 同步）+ 去比较处 cast ⇒ 两处转直比，
+// fdiff blocks 9→3、ours 111→109（ORIG 110），逐槽偏移同时对齐。
+// 残余：①N102 m_ipBuf/m_pcRoomIp 读 ORIG 恒
 // `mov base,%eax; add $0x27/$0x8e418,%eax; movzbl (%eax)` 两步，4.4 折单条 disp
 // （七源形探针全折）；②N103 std::strrchr 重载；③`m_ipDword`(unsigned) ←
 // `m_field24`(int) 异型 ⇒ 4.4 多 1 条 `mov %eax,%edx` 中转（P265；字段类型改动属
-// P321-S2 共享头旋钮，未落）。
+// P321-S2 共享头旋钮；[P1T5 probe c1] 显式 `static_cast<unsigned int>` 同形，已回滚）。
 #include "PIHash/SetUserManagerToolIP.inc"
 {
     if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
@@ -340,25 +357,30 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
     // 均 jmp 出口 a7）⇒ 按 P223 多岛形写 4 条独立 goto + 尾标签串（标签序=守卫序）。
     // 变量先声明（无初始化）以合法跨越 goto（P223 BM8）。
     char* dot;
-    int prefixLen;
-    int suffixLen;
+    // [P1T5 probe u1] ORIG 67/77 直接 `cmpl $0xc,-0x10`/`cmpl $0x4,-0xc` + ja
+    // （mem 直比无载入）⇒ 试局部本身为 unsigned（无符号比较 + 无 cast 中转）。
+    unsigned int prefixLen;
+    unsigned int suffixLen;
     if (std::strlen(sig->m_ipBuf) > 0x10)
         goto tool_ip_end1;
     // 以最后一个 '.' 把 a.b.c.d 拆为前缀(+0x37)/后缀(+0x43)。
     dot = std::strrchr(sig->m_ipBuf, '.');
     if (dot == 0)
         goto tool_ip_end2;
-    prefixLen = static_cast<int>(dot - sig->m_ipBuf);
-    if (static_cast<unsigned int>(prefixLen) > 0xc)
+    prefixLen = static_cast<unsigned int>(dot - sig->m_ipBuf);
+    if (prefixLen > 0xc)
         goto tool_ip_end3;
     // [b23S3C] P48：后缀起点用 ipBuf+prefixLen+1 表达式（ORIG 两使用点各自
     // `mov 0xc;lea 0x27;mov -0x10;add$1;lea(,%eax,1)` 重取 5 条；dot+1 缓存形
     // 少 3 条/处，非 ORIG 表达式）。
-    suffixLen = static_cast<int>(std::strlen(sig->m_ipBuf + prefixLen + 1));
-    if (static_cast<unsigned int>(suffixLen) > 4)
+    suffixLen = static_cast<unsigned int>(std::strlen(sig->m_ipBuf + prefixLen + 1));
+    if (suffixLen > 4)
         goto tool_ip_end4;
     std::strncpy(sig->m_ipPrefix, sig->m_ipBuf, prefixLen);
     std::strncpy(sig->m_ipSuffix, sig->m_ipBuf + prefixLen + 1, suffixLen);
+    // [P1T5 probe c1 · 回滚] 显式 `static_cast<unsigned int>` 与隐式转换同形
+    // （4.4 仍产 `mov %eax,%edx` 中转），ORIG 101 直入 edx 属 m_field24(int) →
+    // m_ipDword(unsigned) 异型（P265/P321-S2 共享头旋钮），源码不可翻。
     sig->m_ipDword = user->m_mcap.m_field24;  // +0x8e414
 tool_ip_end1:;
 tool_ip_end2:;

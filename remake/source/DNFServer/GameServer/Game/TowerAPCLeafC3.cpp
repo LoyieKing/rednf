@@ -181,6 +181,10 @@
     // 未如预期互换且 end() 发射点提前）⇒ 回滚。残留 = 两个迭代器槽互换：
     // ORIG it=-0x34/endIt=-0x30（4.1 先声明深），我方 it=-0x30/endIt=-0x34
     //（4.4 先声明浅，与本件实测一致）⇒ P339 方向相反、无可造形，判 N(P75 槽序)。
+    // [P6AuditOldN-S1 2026-09-11 负结论] P339 第三形「声明序 endIt→it + 赋值分离」实测
+    // 反劣：our 90→95（gap 0→−5），多出 endIt 默认构造 call + 追加拷贝
+    //（`lea -0x30; call it-ctor` ⇒ `mov -0x3c,%eax; mov %eax,-0x30`）。
+    // 4.1/4.4 槽方向相反在此件无源码可造形（带初始化器反转亦为负例，前波已证）⇒ 封 N。
     std::map<TOD_Layer, SendingAPC_Info>::iterator it;
     std::map<TOD_Layer, SendingAPC_Info>::iterator endIt = m_APCInfoMap.end();
     it = m_APCInfoMap.find(layer);

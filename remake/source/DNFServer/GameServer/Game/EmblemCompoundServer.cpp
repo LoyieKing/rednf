@@ -441,7 +441,9 @@ namespace SCRIPT
     // test %al; jne`（4.1 对 short<0 的符号位提取 lowering）；4.4 对 `< 0` 恒
     // `cmpw $0; jns`，对 (unsigned short)~x>>15 形恒提升 32 位（movzwl+sar，实测
     // 6 条 vs ORIG 5 条）⇒ 跨版本 lowering 封顶，保持自然语义。
-    if (insertSlot < 0)
+    // [P6AuditOldN-S1 2026-09-11 试验] ORIG +0x3e4 `movzwl; not; shr $0xf,%ax;
+    //   test %al; jne`（16 位）⇒ 试 `(unsigned short)x >> 15` 形（= x<0，语义等价）。
+    if (((unsigned short)insertSlot) >> 15)
     {
         const char* title =
             g_scriptStringManager_.findString(4, "game_server_msg_122", (bool*)0);

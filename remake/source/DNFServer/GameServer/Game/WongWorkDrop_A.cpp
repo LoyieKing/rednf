@@ -349,6 +349,11 @@ struct StRefCtx2
 //   partyPos   = ref+0x38 组队档位（-1 后作加成列下标）
 //   context3c  = *(int*)&ref[0x3c]（人数上下文，clip [0,100]）
 //   dropRate   = ref.m_dropRate（×value/100）
+// [P6AuditOldN.P6S2 2026-09-11 · 本波复核] n1_v DIFF 670/652 gap=+18（blocks=114）。
+//   ORIG 0x08535ed2：`sub $0x24c,%esp; mov %eax,-0x21c(%ebp)` vs 我方
+//   `sub $0x25c,%esp; mov %eax,-0x22c(%ebp)`（帧差 0x10 + 槽平移 0x10）。
+//   新钥匙判定：P339（非单槽序问题）/P0 删具名局部（缺 +0x10 槽的对应证据）/
+//   类型轴三式（无掩码/cast 形）均不适用；未落地，维持 N（未决）。
 #include "WongWorkDrop_A/_generateRandomItem.inc"
                                        unsigned char dungeonLv,
                                        unsigned char difficulty,

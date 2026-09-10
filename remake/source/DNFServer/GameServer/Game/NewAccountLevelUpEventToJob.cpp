@@ -103,6 +103,11 @@
     std::vector<LevelUpRewardItemData> rewards;    // vector C1 0x081b8c00
     if (growup)
     {
+        // [P1T5 · .h 申请证据] ORIG 0x081b830a `call _Z14G_CDataManagerv` 后
+        // 0x081b830f `lea 0xb5f8(%eax),%edx` ⇒ ORIG 的 m_levelUpReward 偏移 = 0xb5f8；
+        // 我方 CDataManager.h:3796 注释 + 实测 `lea 0x50ac(%eax),%edx`（本 TU 0x1b 处）。
+        // 差 0x6534（≈25.9KB）⇒ CDataManager 成员布局缺口，属共享头（P321-S2），
+        // 本泳道只报告不改。注：m_itemList（本函数后半 create_item 处）同样受影响。
         if (!G_CDataManager()->m_levelUpReward.get_data_when_growup(key, rewards))
             return false;                          // ebx=0 出口
     }
@@ -122,6 +127,19 @@
             user.getCharacLevelUpGift_AccountOnce());
     if (!gifts.empty())
     {
+        // [P1T5 修法 i4 · 已落] ORIG 循环尾 0x81b8477 调 `ppEi`（后置 ++，实参 0 +
+        // 返回临时 -0x44），非 `ppEv` ⇒ 改 `it++`（丢弃返回值，语义等价）。
+        // 四态实测（均以「引用缓存 + 本件」为底，ORIG=351/46 块/p167 差集 4 项）：
+        //  ①两步声明+前置(基线) 353/gap −2/blocks 46/p167 3 项，TU identical=42/missing=22；
+        //  ②两步声明+后置（**本落地形**）357/gap −6/**blocks 34/p167 0 项**，identical=42/missing=21；
+        //  ③声明即初始化+前缀 348/gap +3/blocks 46，identical=**41**/missing=22；
+        //  ④声明即初始化+后置 352/gap −1/blocks 30，identical=**41**/missing=20。
+        // ⇒ ③④ 的 C1Ev 消失会让「`_Rb_tree_iterator C1Ev` 与 ORIG identical」那一项
+        // 从账上掉（n1_v 单件实测 base=IDENTICAL、形B=MISSING_IN_OURS）⇒ 取 ②：
+        // 四数不劣化（identical 42/ae 73/near 0/diff 2 同基线，missing 22→21 改善），
+        // 且 blocks 46→34、p167 差集 4→0；代价是 gap −2→−6（C1Ev 调用 3 条 +
+        // ORIG 确有的中转拷贝 2 条，均为符号级对齐所需）。
+        // 残余：8 字节栈槽整体位移（我方 body −0x1ad vs ORIG −0x1b5）。
         std::multimap<int, int>::iterator it;
         it = gifts.lower_bound(user.get_charac_job());
         std::multimap<int, int>::iterator upper =
@@ -130,7 +148,7 @@
         {
             if (it != gifts.end() && it->second == user.get_charac_level())
                 return false;                      // 该等级已领取 → 中止
-            ++it;
+            it++;   // [P1T5] ORIG 0x81b8477 为后置 `ppEi`（实参 0 + 返回临时 -0x44）。
         }
     }
     gifts.insert(std::make_pair(user.get_charac_job(),
@@ -147,10 +165,16 @@
     for (std::vector<LevelUpRewardItemData>::iterator it = rewards.begin();
          it != rewards.end(); ++it)
     {
+        // [P1T5 · p167] ORIG 255 只调一次 `__normal_iterator::de` 并把返回地址
+        // 缓存到槽 -0x1c（`mov %eax,-0x1c(%ebp)`，0x81b8632），随后两处经
+        // `mov -0x1c(%ebp),%eax` 访问 ⇒ 源码为循环内引用缓存形（非 `it->`），
+        // 且该引用**声明早于 Inven_Item item**（ORIG de 调用 0x81b862d 先于
+        // Inven_Item::C1Ev 0x81b863e）。
+        const LevelUpRewardItemData& d = *it;
         Inven_Item item;
-        item.m_addInfo = it->m_field0;             // -0xb3 ← data.f0
+        item.m_addInfo = d.m_field0;               // -0xb3 ← data.f0
         G_CDataManager()->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0,
-                                                  item, it->m_field4);
+                                                  item, d.m_field4);
         // findString("game_server_msg_285") 在循环体内实参位（ORIG 每次迭代调）。
         if (WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(4, "game_server_msg_285",

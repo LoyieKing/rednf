@@ -302,17 +302,23 @@ __attribute__((weak)) void Arad_STStackableScript::AradStClear()
         // [b28d-solo-STStackableScript] N93/P212 封顶：ORIG 槽序（4.1 块内先声明
         // 深）it(-0x38) > dst_end(-0x30) > found(-0x2c)；4.4 块内先声明浅
         // （dst_end -0x34 / found -0x38，方向相反）。三种改写实测：
-        // ①三迭代器提函数头：+3 C1Ev call、帧 +0x10（P50 反例）；
-        // ②found/dst_end 提 for 前：+2 C1Ev call、帧 +0x10（ndiff 24 但引入
+        //   ①三迭代器提函数头：+3 C1Ev call、帧 +0x10（P50 反例）；
+        //   ②found/dst_end 提 for 前：+2 C1Ev call、帧 +0x10（ndiff 24 但引入
         //   EXTRA 调用）；③循环体内声明（本形）：orig=643 our=643、无额外 call、
         //   残差仅槽号，ndiff 44 NEAR ⇒ 取 ③，p167 无缺口。
+        // [P2S3STSkillStack 2026-09-11] NEAR→AE 落地：③ 的残差 12 块全是块内
+        // 4 槽轮换（ORIG -0x38/-0x34/-0x30/-0x2c ↔ 我方 -0x30/-0x2c/-0x38/-0x34，
+        // 即同样的槽集、不同的「变量↔槽」映射）。合并 dst_end/found 两个具名
+        // 迭代器为单表达式 `find(...) != end()`（求值序仍是 end→find，语义等价）
+        // ⇒ 槽集与映射同时归一：verdict=AE 643/643、fdiff blocks=0。
+        // 负结论（勿再试）：仅把 `it` 声明提到 for 之前（同一块内）读数零变化
+        // （n1_v 仍 NEAR 644，槽序不变）—— 说明驱动槽向的是 dst_end/found 这对
+        // 内联临时，而非 for-init 里的 it。
         for (std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator it =
                  other.m_module4bc.begin();
              it != other.m_module4bc.end(); ++it)
         {
-            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator dst_end = m_module4bc.end();
-            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator found = m_module4bc.find(it->first);
-            if (found != dst_end)
+            if (m_module4bc.find(it->first) != m_module4bc.end())
             {
                 std::pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*> src_pair;
                 src_pair.first = it->first;
@@ -346,6 +352,12 @@ __attribute__((weak)) void Arad_STStackableScript::AradStClear()
 // STBuff/STSummonMonster/STSummonApc 三个平凡区用 memcpy（ORIG call memcpy@plt）。
 // [b28d-solo-STStackableScript] DIFF→N-ptrfold 封顶（621 vs 627：6 处
 // self 守卫 4.4 折成 `this != &other` 且 memcpy 实参重算地址；p167 CLEAR 43=43）。
+// [P2S3STSkillStack 2026-09-11] 复核「ORIG 是否真无 self 守卫」：**ORIG 确有守卫**，
+// 形式为成员级地址比较 `mov 0x8(%ebp),%eax; add $0x2b0,%eax; mov 0xc(%ebp),%edx;
+// add $0x2b0,%edx; cmp %edx,%eax; je <T>`（即源码 `if (&m_x != &other.m_x)`），
+// 不是整对象 `this != &other` 检查。⇒ 守卫必须保留：删掉源码 if 会连 6 处 `je`
+// 一起丢（变成我方缺 6 条 + ORIG 有），只会更劣；我方现有 `cmp 0xc(%ebp),%eax; je`
+// 系 4.4 把「同偏移取址比较」折成整对象比较（每处 +1 条 = gap −6），属 N-ptrfold。
 __attribute__((weak)) STStackableScript& STStackableScript::operator=(const STStackableScript& other)
 {
     STItemScript::operator=(other);
@@ -900,6 +912,20 @@ static bool GetExpertJobValueCompoundRate(STItemScript* item)
     //   gcc4.4.7 对 if(!__inited){insert} else {work;break} + case 贯穿生成的
     //   块布局（check:xor/test/je → insert 块 → jmp 下叶 → work 块）与 ORIG
     //   逐条同形（探针验证，见 docs/asm_translation_patterns 新范式提报）。
+    // [P2S3STSkillStack 2026-09-11] 本件复核（线索证伪 + 帧差定位，未再改码）：
+    // ① 父泳道「缺 4 个 _ZL* static helper call」= 假阳性：`.o` 内同 section 的
+    //    static 自调用无 reloc 条目（p167 只读重定位表）⇒ objdump/nm 实证我方
+    //    GetItemCategory / GetExpertJobTypeList / GetExpertJobValueMaterialVariation
+    //    / GetExpertJobValueCompoundRate 四个 call 全在，且本函数 call 总数
+    //    1174 = ORIG 1174（逐条同数）；p167fix.py 对本件 CLEAR。
+    // ② 栈差 0x60 定位（-g DWARF fbreg，实测 156 个局部/形参）：不是某个多余具名
+    //    局部，而是深区逐段膨胀——line/token -0x1444→-0x147C(+0x38)、item(2505)
+    //    +0x50、grp(3370) +0x68、key/val/eqType/avatar(3818..4414) +0x6c；ORIG 深区
+    //    lea 目标 85 个（-0x1440..-0x1650）vs 我方 DWARF 深区约 92 个
+    //    （-0x147C..-0x16B4）；vzero ORIG 深区 -0x144c、我方落浅区 -0x100（4.4 槽
+    //    复用）⇒ 归 N82/N89（4.1/4.4 槽复用 + libstdc++ 全内联），非可删具名局部。
+    // ③ 负结论（勿再试）：`vzero` 加 volatile 求其落回深区 ⇒ 我方 10233→10234
+    //    （gap −36→−37）劣化，已回滚；ORIG 无该 volatile 读写。
     while (ScanType(line, true))
     {
         if (line == "[name]")

@@ -180,6 +180,19 @@
 // [b28d-28] DIFF | ORIG 0x081d3d38 | P167 MISSING 3×deEv/3×ppEv + 3×pair ctor
 // 变体 + getCurCharacInvenRefR（迭代器重载 + 取值路径缺口）+ N82 帧
 // （0xcac0 vs 0xcaf0）；未闭合缺口。
+// [P6S5 2026-09-11 本波处理]
+//  ① **已落地（判据⑦ 接收者错）**：ORIG 0x081d409b `call 81803ca
+//     <_ZNK15CUserCharacInfo21getCurCharacInvenRefREv>` 与 0x80da27e 的
+//     `getCurCharacInvenREv` **不同地址（非同址别名）** ⇒ setCopy 源用 RefR 重载；
+//     改后 p167fix 该 TU 的 `process` 段 **getCurCharacInven* 条目全 CLEAR**，
+//     TU 四数 46/90/0/2/35 **不变**（零 codegen 影响）。
+//  ② **负结论·回滚（codegen 轴）**：三条材料 push_back 若改 `std::make_pair(...)`
+//     → 显式 `std::pair<int,int>(...)`（模板实参逐条对齐 ORIG：0x081d3fa3
+//     `pair<unsigned&,int&>` / 0x081d3fde `pair<unsigned long&,int>`（`lea
+//     -0x136(%ebp),%eax; add $0x2,%eax` + `movl $0x1,-0x70(%ebp)`）/ 0x081d4012
+//     `pair<int&,int&>`），则 p167 的 3×pair-ctor UNRESOLVED + 2×make_pair EXTRA
+//     虽消，但 TU 四数 ae 90→**87**（丢 3 个原先 AE 的 make_pair 实例符号）且
+//     process 自身 gap −7→**+3**（ndiff 115→134）⇒ 按「四数不得劣化」回滚。
 #include "Dispatcher_UseLimitCube_impl/process.inc"
 {
     if (user->get_state() != 3)
@@ -254,7 +267,10 @@
         CInventory tempInv;
         InventoryMemory tempMem;
         tempInv.SetInventoryMemory(&tempMem);
-        tempInv.setCopy(*user->getCurCharacInvenR());
+        // [P6S5 · 判据⑦ 接收者] ORIG 0x081d409b `call 81803ca
+        // <_ZNK15CUserCharacInfo21getCurCharacInvenRefREv>`（**与 0x80da27e 的
+        // getCurCharacInvenR 非别名、不同地址**）⇒ 本处（setCopy 源）原码用 RefR 重载。
+        tempInv.setCopy(*user->getCurCharacInvenRefR());
         if (tempInv.tryDeleteEventItems(materials) == 0)
         {
             st.m_4 = 0x11;

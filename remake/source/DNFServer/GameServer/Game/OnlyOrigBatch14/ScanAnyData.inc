@@ -67,11 +67,17 @@ bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
         {
             break;
         }
-        // [L13-b14 复核·N122 复证] ORIG 0x88bdd7x 段 `cmpb $0x0,-0x2c(%ebp); je`
-        // （内存直测 2 条）；我方 `if (!x)` 产 movzbl+xor$1+test+je（4 条）。
-        // 本波实测 `== 0` 形与 `!x` **逐条同形**（xor 物化不变）⇒ 维持 N122 封顶，
-        // 回滚试验形（语义等价，不留无收益改写）。
-        if (!ignoreUnknown)
+        // [L13-b14 复核·N122 复证] ORIG 0x88bdd51 段 `cmpb $0x0,-0x2c(%ebp); je`
+        // （内存直测 2 条）；`if (!x)` 产 movzbl+xor$1+test+je（4 条）。
+        // [P1T1 本波语义轴修复] ORIG 分支极性直证：0x88bdd55 `je 0x88bdb73`
+        // （0x88bdb73 = 循环头 nop）；-0x2c 即第 4 形参 ignoreUnknown（0x88bdb5e
+        // `mov 0x14(%ebp),%eax` → 0x88bdb61 `mov %al,-0x2c(%ebp)`）。
+        // je 条件 ZF=1 = flag==0 ⇒ **flag==0 跳过 log、flag!=0 才 log** ⇒ 原码是
+        // `if (ignoreUnknown) { log }`。旧译文 `if (!ignoreUnknown)` 为**反向行为**
+        // （ignoreUnknown 为假时报错，为真时静默）⇒ 真语义缺口，本波翻正。
+        // 附带 codegen 收益：4.4 对 `if (x)` 直测 bool 参数槽产 `cmpb $0x0,<槽>;
+        // je <跳过>`（探针 /tmp/p1/probe_small.cpp），与 ORIG 逐条同形。
+        if (ignoreUnknown)
         {
             LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x746,
                                   "ERROR! %s - TYPE mismatch. %s:%d, token = '%s'",

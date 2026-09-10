@@ -170,7 +170,12 @@ STScriptFileList g_PvpMissionScriptFileList;
         else if (token == "[target character]")
         {
             if (!ScanStr(&sub))
-                return true;                     // ORIG 扫描失败→正常收尾
+                // [P2S1PvPQuest 2026-09-11] ORIG 0x8a5b76f 是**全函数唯一**的
+                //   `mov $0x1,%ebx`（`mov $1,%ebx` 计数 =1，尾 +0xb47）⇒ 所有
+                //   `return true` 共享同一出口；旧文每个 return true 各发射一份
+                //   （我方 `je L; mov $0x1,%ebx; jmp epi` = 3 条 vs ORIG `jne +0xb47`
+                //   = 1 条，x2 处 ⇒ 正是本件 gap −2）。改共享尾标签 goto。
+                goto l_end_true;                 // ORIG 扫描失败→正常收尾
             if (!checkValiedJobName(sub.c_str()))
             {
                 printf("parsing error : %s\n", sub.c_str());
@@ -236,7 +241,7 @@ STScriptFileList g_PvpMissionScriptFileList;
         {
             // ---- [condition] 子段 ----
             if (!ScanStr(&sub))
-                return true;                 // ORIG 扫描失败→正常收尾
+                goto l_end_true;             // ORIG 扫描失败→正常收尾（共享唯一出口）
 
             if (sub == "[winning count]")         { script->m_field34 = 0x0; _ReadThreeInt(script); }
             else if (sub == "[winning streak]")   { script->m_field34 = 0x1; _ReadThreeInt(script); }
@@ -280,8 +285,14 @@ STScriptFileList g_PvpMissionScriptFileList;
                         key.m_job = (char)getCharacterJob(sub.c_str());
                         key.m_growType = (short)ScanInt((bool*)0);
                         int n = ScanInt((bool*)0);
-                        std::pair<int, int> fill;
-                        data.m_rewardList.resize(n, fill);
+                        // [P2S1PvPQuest 2026-09-11] ORIG 0x8a5b2f3 `call
+                        //   _ZNSt4pairIiiEC1Ev`（默认构造临时）紧接 0x8a5b316
+                        //   `call _ZNSt6vectorISt4pairIiiESaIS1_EE6resizeEjS1_`
+                        //   （4.4 的 resize 第二参**按值**）= `resize(n)` 单参形
+                        //   （默认实参 value_type()），无具名 fill 局部 ⇒ 我方
+                        //   旧文具名 fill 多占 8B 槽/帧。填充值随即被下方 for
+                        //   逐元素覆盖，语义等价。
+                        data.m_rewardList.resize(n);
                         for (int i = 0; i < n; ++i)
                         {
                             data.m_rewardList[i].first = ScanInt((bool*)0);
@@ -309,6 +320,7 @@ STScriptFileList g_PvpMissionScriptFileList;
             }
         }
     }
+l_end_true:
     return true;
 }
 
@@ -343,7 +355,13 @@ STScriptFileList g_PvpMissionScriptFileList;
                 unsigned int idx = (unsigned int)ScanInt(&ok);
                 if (!ok)
                     return false;
-                param.m_dailyIndices.push_back(idx);      // +0x00
+                // [P2S1PvPQuest 2026-09-11 P167] ORIG 0x8a5b8ba-0x8a5b8cd：
+                //   `mov -0x38(%ebp),%eax; mov %eax,-0x28(%ebp); lea -0x28,%edx;
+                //    ...; call push_backEOj`（**右值版**）⇒ 实参是 prvalue（先构造
+                //   临时 -0x28 再传址）；写 `push_back(idx)` 是左值 ⇒ 选
+                //   `push_backERKj`（EXTRA）+ 少 2 条指令 + 浅端槽整体错位 4B。
+                //   cast 到同型作 prvalue（值不变，零语义差）。
+                param.m_dailyIndices.push_back((unsigned int)idx);   // +0x00
             }
         }
         else if ("[casual daily mission]" == token)
@@ -604,6 +622,16 @@ STScriptFileList g_PvpMissionScriptFileList;
 {
     if (rank >= m_baseMissionExp.size())
     {
+        // [P2S1PvPQuest 2026-09-11 P139 负结论·已回滚] ORIG 引用 prett 符号
+        //   `_ZZNK17PvP_MissionSystem25get_BaseMissionExp_byRankEtE19__PRETTY_FUNCTION__`
+        //   @0x8cc3b00，size **0x54**，串 = "unsigned int PvP_MissionSystem::
+        //   get_BaseMissionExp_byRank(short unsigned int) const"。
+        //   改 `__PRETTY_FUNCTION__` 实测发射 size **0x4b**（差 9B，恰 = 返回类型
+        //   "int " (4) vs "unsigned int " (13) 之差；形参 `unsigned short` 的 prett
+        //   打印同 ORIG 的 "short unsigned int"）。⇒ 逐字节需把返回类型改成
+        //   `unsigned int`，但声明在 CDataManager.h:2733 `int ...` 且**禁改 .h**
+        //   ⇒ 不可达，回滚为手写字面串（内容与 ORIG 串逐字节相同，仅符号形态缺）。
+        //   注：手写串是 ORIG 串的**真内容**，非猜测。
         cMyTrace(
             "unsigned int PvP_MissionSystem::get_BaseMissionExp_byRank(short unsigned int) const",
             0x162, 5)
@@ -619,7 +647,14 @@ STScriptFileList g_PvpMissionScriptFileList;
     // ORIG 0x85e26dc 逐指令转写：三段——①dailyMissionIndices→map 查 mission
     // 推 {kind,idx}；②按 m_dailyMissionList 加权随机补 m_field30 个；③bitset
     // 校验 kind 范围/重复，越界或重复打印 cMyTrace 并清空 out。
-    out.clear();
+    // [P2S1PvPQuest 2026-09-11 P167 语义轴] ORIG 全函数仅 **2 次**
+    //   `_ZNSt6vectorISt4pairIjjESaIS1_EE5clearEv` 调用（0x85e2c2e / 0x85e2db2，
+    //   即两个越界/重复分支内），**入口无 clear** ⇒ 旧文开头的 `out.clear();`
+    //   是多余调用（EXTRA clearEv ×1）且改变语义（ORIG 是向传入 vector 追加）。
+    //   [P2S1PvPQuest 2026-09-11 P167 负结论·已回滚] ORIG 0x85e26f5 入口确有
+    //   `call _ZNSt17_Rb_tree_iteratorISt4pairIKiP8CMissionEEC1Ev`（默认构造，
+    //   槽 -0xd0），但改"函数头默认构造 + 循环内赋值"实测 480→487（我方 +7 条），
+    //   劣于循环内直接初始化（480→485）⇒ 不可达（4.4 对该形多发指令）。
     for (std::vector<unsigned int>::size_type i = 0;
          i < m_dailyMissionIndices.size(); ++i)
     {
@@ -659,9 +694,19 @@ STScriptFileList g_PvpMissionScriptFileList;
                     m_missionMap.find(static_cast<int>(missionIdx));
                 // [R26D] P167：ORIG 该点用 `==`（`_ZNK...eqERKS5_` ×1 差集）⇒
                 // 写取反式而非 `!=`（ne 版是 EXTRA）。
+                // [P2S1PvPQuest 2026-09-11 P167 负结论·已回滚] ORIG 0x85e2956 只调
+                //   1 次 `ptEv`（`mov 0x4(%eax),%eax; mov %eax,-0x28(%ebp)` 后
+                //   `cmpl $0x0,-0x28(%ebp); je +0x2fb`），但改"拆两级嵌套 if
+                //   （m = mi->second; if (m != 0)）"实测 486→**476**（比 ORIG 480
+                //   少 7 条，劣化）⇒ 回滚为 `&& mi->second != 0` 单链形
+                //   （代价 = 多 1 次 ptEv call，实测优于拆分形）。
                 if (!(mi == m_missionMap.end()) && mi->second != 0)
                 {
-                    CMission* m = (*mi).second;
+                    // [P2S1PvPQuest 2026-09-11 P167] ORIG 0x85e2792/0x85e2956 用
+                    //   `_ZNKSt17_Rb_tree_iteratorISt4pairIKiP8CMissionEEptEv`
+                    //   （operator->），旧文 `(*mi).second` 发射 `deEv`（EXTRA）
+                    //   ⇒ 改 arrow 形（同语义）。
+                    CMission* m = mi->second;
                     out.push_back(std::make_pair(
                         m->GetMissionKind(),
                         m->GetMissionIndex()));
@@ -673,8 +718,15 @@ STScriptFileList g_PvpMissionScriptFileList;
         }
         if (weight <= 0)
         {
-            cMyTrace("void PvP_MissionSystem::get_New_DailyMission", 0x123, 5)
-                ("InvalidMaxDice %d", weight);
+            // [P2S1PvPQuest 2026-09-11] P139：ORIG 该处引用 prett 符号
+            //   `_ZZN17PvP_MissionSystem20get_New_DailyMissionERSt6vectorISt4pairIjjESaIS2_EEE19__PRETTY_FUNCTION__`
+            //   @0x8cc3b60（size 0x9b，pstr.py 实测串 = 含完整 STL 实参的签名），
+            //   旧文手写短串（43B）⇒ 缺 prett 符号。改 `__PRETTY_FUNCTION__` 发射同串。
+            // [P2S1PvPQuest 2026-09-11] 格式串真缺口修复：ORIG 0x85e2a9b 实参
+            //   `$0x8cc2b0c` = "[@missionSystem] InvalidMaxDice %d"（17B），旧文缺
+            //   `[@missionSystem] ` 前缀（ORIG 0x8cc2b1d 的裸串是**别的引用者**的）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x123, 5)
+                ("[@missionSystem] InvalidMaxDice %d", weight);
         }
     }
     std::bitset<32> dailyKind(0);
@@ -694,7 +746,7 @@ STScriptFileList g_PvpMissionScriptFileList;
                 sprintf(buf, "<K:%d, I:%d>", out[m].first, out[m].second);
                 s += buf;
             }
-            cMyTrace("void PvP_MissionSystem::get_New_DailyMission", 0x139, 5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x139, 5)
                 ("[@missionSystem] OverKind: <Invalid mission kind : %d> "
                  "<mission index : %d> <Created DailyMission Size : %d> "
                  "<List : %s >",
@@ -711,7 +763,7 @@ STScriptFileList g_PvpMissionScriptFileList;
                 sprintf(buf, "<K:%d, I:%d>", out[m].first, out[m].second);
                 s += buf;
             }
-            cMyTrace("void PvP_MissionSystem::get_New_DailyMission", 0x14d, 5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x14d, 5)
                 ("[@missionSystem] OverlappedKind: <Invalid mission kind : %d> "
                  "<mission index : %d> <Created DailyMission Size : %d> "
                  "<List : %s >",

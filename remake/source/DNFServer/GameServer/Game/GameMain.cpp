@@ -167,7 +167,13 @@ using GlobalData::s_systemTime_;  // ORIG 0x0941f714（CSystemTime 全局实例�
     }
 }
 
-// GetConfigFileString(map<string,string>&, const char*)  _Z19GetConfigFileStringRSt3mapISsSsSt4lessISsESaISt4pairIKSsSsEEEPKc
+// GetConfigFileString(tag_name_value_map_t&, const char*)  _Z19GetConfigFileStringRSt3mapISsSsSt4lessISsESaISt4pairIKSsSsEEEPKc
+// [P7HeaderAxis 2026-09-11] P139 prett 修正：ORIG prett @0x08c1b180 size 0x3e 实读
+//   `char* GetConfigFileString(tag_name_value_map_t&, const char*)`；我方原 size 0x1d0
+//   （签名直写 map 展开 + 返回 const char*）。两处拼写改为 ORIG 形式：① 参数写 typedef
+//   名（typedef 定义见 GameTypes.h，底层类型由 mangled 第二参
+//   `RSt3mapISsSsSt4lessISsESaISt4pairIKSsSsEEE` 唯一确定）；② 返回类型 `const char*`
+//   → `char*`（返回类型不入 mangled ⇒ 零 ABI，全库无其它声明/调用点）。cast 不产指令。
 // ORIG 0x0829d7b3：conf.find(key) 命中且 value 非空 → 返回 value.c_str()；
 // 未命中/空值 → logFormat(1,"App.cpp","char* GetConfigFileString(...)",0x1fc7,
 // "%s tag error", key) 后返回 ""。
@@ -175,8 +181,8 @@ using GlobalData::s_systemTime_;  // ORIG 0x0941f714（CSystemTime 全局实例�
 // [b28d-solo-GameMain] AE/IDENTICAL | 92=92 | p167 24/24 CLEAR | 修法：find(key)
 // 隐式临时 string（ORIG find 后立即 `call string::~string` + EH 链覆盖 find）+
 // P225 while 形复现 `test %eax,%eax; setne %al; test %al,%al; je` 物化。
-const char* GetConfigFileString(
-    std::map<std::string, std::string>& conf, const char* key)
+char* GetConfigFileString(
+    tag_name_value_map_t& conf, const char* key)
 {
     // ORIG 0x0829d7da：find 的实参是 `const char*` 隐式转换的**临时** string
     // （-0x14 匿名槽 + -0xd allocator），find 返回后立即 `call string::~string`
@@ -189,13 +195,13 @@ const char* GetConfigFileString(
     {
         while (it->second.length() != 0)
         {
-            return it->second.c_str();
+            return const_cast<char*>(it->second.c_str());
         }
     }
     LogManager::logFormat(1, "App.cpp",
                           __PRETTY_FUNCTION__,
                           0x1fc7, "%s tag error", key);
-    return "";
+    return const_cast<char*>("");
 }
 
 class CodePage
@@ -1137,6 +1143,18 @@ STScriptFileList g_npcScriptFileList;
     int cnt300 = 0;         // -0x1c
     (void)lim30; (void)lim10; (void)dead3; (void)lim20; (void)dead8; (void)lim300;
 
+    // [N3 2026-09-11 P139] ORIG 发射局部静态
+    //   `_ZZ8MainLoopvE19__PRETTY_FUNCTION__` @0x08c1b058（size 0x10 = "bool MainLoop()"）
+    //   但函数体内 **0 引用**（objdump [0x0829fa2b,0x829fd30] 搜 0x8c1b058 命中 0）⇒ 死引用，
+    //   只补符号不产生任何指令（N8W8LT 四形探针实证 `sizeof` 形零指令且发射串）。
+    // [N3Free171to190·GameMain 修正 2026-09-11] `(void)sizeof(...)` 形**不发射**该符号：
+    //   sizeof 是编译期常量，静态数组未被 ODR-use ⇒ 我方 .o 仍缺
+    //   `_ZZ8MainLoopvE19__PRETTY_FUNCTION__`（P8 的 prett2.py 对本 TU 报「缺口 1」即此）。
+    //   实测有效形 = 不可达 `if (0)` 内 ODR-use：发射同名同 size(0x10) 符号且**零指令、零槽**
+    //   （MainLoop 保持 AE 190=190，TU 四数 62/212/3/3 不变）。对照 `if (0) { cMyTrace(…)(…); }`
+    //   会为临时对象占槽 ⇒ 帧 0x60→0x70、MainLoop AE→NEAR（已实测否决）。
+    if (0) { (void)__PRETTY_FUNCTION__; }
+
     while (!GlobalData::s_server_stop)
     {
         if (cnt30 == 30)
@@ -1435,7 +1453,10 @@ STScriptFileList g_npcScriptFileList;
     char buf[30];
     std::memset(buf, 0, sizeof(buf));
     std::sprintf(buf, "./pid/%s.pid", G_CEnvironment()->get_file_name());
-    std::printf("???%s\n", buf);
+    // [P6S4 2026-09-11 §6.5 串审计] ORIG 0x0829e857 `movl $0x8c18209,(%esp)` ⇒ ORIG 串
+    // 实际字节 `????%s\n`（**四个** ?，见 ORIG .rodata 0x8c18209 dump）—— 原写
+    // `???%s\n`（少一个 ?，运行期可见）已按字节改正。
+    std::printf("????%s\n", buf);
     if (std::remove(buf) == -1)
     {
         std::printf("FAIL TO DELETE PID FILE ERROR: %s\n",
@@ -1519,8 +1540,12 @@ STScriptFileList g_npcScriptFileList;
 #include "GameMain/daemon_init.inc"
 #include "GameMain/rdar_init.inc"
 {
-    static char s_rdarDir[] = "./rdar";  // ORIG 字符串 0x8c18171 内容「推断」
-    make_dir(s_rdarDir);
+    // [P6S4 2026-09-11 §6.5 串审计] ORIG 0x0829e5c5 `movl $0x8c18171,(%esp)` ⇒ ORIG 串
+    // 实际字节 `./pid`（.rodata 0x8c18171 后紧跟 `pid/%s.pid`，与 rdar_terminate 的
+    // `./pid/%s.pid` 同前缀）—— 原写 `./rdar`（注释标「推断」）为错值；且 ORIG 该串在
+    // **.rodata**（`movl $<rodata addr>,(%esp)` 直传）⇒ 字面量直传 make_dir（原 static
+    // 可写数组令串落 .data，strall 报 O-only）。
+    make_dir((char*)"./pid");
     daemon_init(argv);
 }
 

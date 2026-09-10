@@ -276,6 +276,9 @@ namespace game_master
 // [补] ⑥4.4.6 后端（c6-g++-446r）与 4.4.7 逐条同形 ⇒ 非 P230 N7 敏感族，换路由无解；
 // ⑦声明/赋值分离（register int a; a=…）声明序两向均不改分配（探针 /tmp/probe_guild2.cpp
 // execA/execB/execC：A=B=edi/esi/ebx，无 register 全落栈）。
+// [P1 round5] ⑧交换 guildKey/characNo 的**求值序**（characNo 先、guildKey 后）实测
+//   **不翻**且更差：寄存器角色仍 characNo=%ebx/guildKey=%esi（4.4 分配序与该序无关），
+//   反而把 `movl $<A>,0x4(%esp)`（eFundType_GM）提前 ⇒ NEAR→DIFF，已回滚。
 // 全 register 形 40=40，仅两处寄存器名差，语义等价（SendAddGuildFund 实参序/符号一致）。
 // ORIG 报告：docs/class_func_reports/game_master__CSetGuildFund/execute.md。
 #include "GmCmds_F/execute_5.inc"

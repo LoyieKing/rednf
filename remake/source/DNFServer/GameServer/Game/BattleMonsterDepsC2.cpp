@@ -568,8 +568,7 @@ apc_end:
         {
             LogManager::logFormat(
                 1, "battle_field.cpp",
-                "void CBattle_Field::add_monster_additional_champion("
-                "std::vector<int, std::allocator<int> >&, int)",
+                __PRETTY_FUNCTION__,
                 0x6bf, "Box Monster is Champion! id(%d)", picked);
         }
     }
@@ -1213,7 +1212,7 @@ L_gridMazeNull:;
 // ORIG 0x08308214：候选图收集（终点/起点任务/hell/普通四路分支）。
 // [b28d-D9] P225/P197④：ORIG test+sete 物化岛；4.4 直跳（ORIG 0x08308214 sz 0x000004bd）
 #include "BattleMonsterDepsC2/get_candidator_map.inc"
-                                      int& mapId, std::vector<int>& candidator,
+                                      int& mapId, INT_VECTOR& candidator,
                                       int x, int y, int dir)
 {
     if (dungeon == NULL || gs == NULL)
@@ -1255,8 +1254,7 @@ L_gridMazeNull:;
         {
             LogManager::logFormat(
                 1, "battle_field.cpp",
-                "int CBattle_Field::get_candidator_map(const CDungeon*, "
-                "const GridScript*, int&, INT_VECTOR&, int, int, int)", 0x12bb,
+                __PRETTY_FUNCTION__, 0x12bb,
                 "[CBattle_Field::MoveMap] Error(quest_stage_map_==-1) Dungeon[%d] "
                 "Pos(%d,%d), candidator(%d), gs->mapIndex(%d), [Map Kind : %s], "
                 "gs->layeredMapIndex(%d)\n",
@@ -1305,17 +1303,13 @@ L_gridMazeNull:;
                         G_CDataManager()->find_map(gs->m_mapCandidates[i]));
                     LogManager::logFormat(
                         1, "battle_field.cpp",
-                        "int CBattle_Field::get_candidator_map(const CDungeon*, "
-                        "const GridScript*, int&, INT_VECTOR&, int, int, int)",
-                        0x12e4,
+                        __PRETTY_FUNCTION__, 0x12e4,
                         "[CBattle_Field::MoveMap] Error(< map_candidator.size()==0) "
                         "Dungeon[%d] Pos(%d,%d), (Direction: %d) \n",
                         m_dungeonIndex, m_curX, m_curY, dir);
                     LogManager::logFormat(
                         1, "battle_field.cpp",
-                        "int CBattle_Field::get_candidator_map(const CDungeon*, "
-                        "const GridScript*, int&, INT_VECTOR&, int, int, int)",
-                        0x12e5,
+                        __PRETTY_FUNCTION__, 0x12e5,
                         "[CBattle_Field::MoveMap] Error(< map_candidator.size()==0) "
                         "gs->mapIndexes_[%d]=%d \n",
                         // [S6 2026-09-11] 残差 N：ORIG 0x08308668 `mov (%eax),%eax;
@@ -1337,7 +1331,7 @@ L_gridMazeNull:;
 // je` ⇒ `candidator.size() != 0`（empty() 生 xor $1 两段）；get_rand_int 结果具名存 -0x1c
 // （ORIG 有槽往返）；logFormat 内联 GetMapInfoFromPos（具名 info 使调用提前，破坏右起求值序）。
 #include "BattleMonsterDepsC2/set_map_id.inc"
-                              std::vector<int>& candidator)
+                              INT_VECTOR& candidator)
 {
     if (gs == NULL)
         return 0x15;

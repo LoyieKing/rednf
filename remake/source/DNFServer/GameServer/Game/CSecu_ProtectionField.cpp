@@ -144,7 +144,11 @@ enum SECURITY_PROTCTION_TYPE
         {
             // [b28c-30] ORIG 0x082882b9 段：mov -0x28(%ebp),%edx（i 先载寄存器）
             // + cmp %eax,%edx ⇒ 原码左操作数是数组元素（tableA[j] == i）。
-            if (tableA[j] == i)
+            // [P6AuditOldN-S1 2026-09-11 **落地**：左操作数改 `(unsigned int)i ==` 形]
+            //  ⇒ 4.4 复现 ORIG 0x082882b9 `mov -0x28(%ebp),%edx`（i 先物化）+
+            //  `cmp %eax,%edx`。本件 NEAR(152/152 两处寄存器角色差) → **AE**
+            //  （152/153，reloc 归一后逐条全等；+1 为尾部对齐）。gap 0→−1 属 AE 口径。
+            if ((unsigned int)i == tableA[j])
                 values[i] = ExceptionProtectionType(values[i], (SECURITY_PROTCTION_TYPE)0,
                     (SECURITY_PROTCTION_TYPE)0, (SECURITY_PROTCTION_TYPE)0,
                     (SECURITY_PROTCTION_TYPE)0, (SECURITY_PROTCTION_TYPE)0x10,
@@ -166,7 +170,8 @@ enum SECURITY_PROTCTION_TYPE
     {
         for (j = 0; j < lenB; ++j)
         {
-            if (tableB[j] == i)   // [b28c-30] 同 tableA：ORIG 寄存器比较方向
+            // [P6AuditOldN-S1 2026-09-11 同 tableA：`(unsigned int)i ==` 形 ⇒ AE 收口]
+            if ((unsigned int)i == tableB[j])
                 values[i] = ExceptionProtectionType(values[i], (SECURITY_PROTCTION_TYPE)1,
                     (SECURITY_PROTCTION_TYPE)2, (SECURITY_PROTCTION_TYPE)4,
                     (SECURITY_PROTCTION_TYPE)8, (SECURITY_PROTCTION_TYPE)0x10,

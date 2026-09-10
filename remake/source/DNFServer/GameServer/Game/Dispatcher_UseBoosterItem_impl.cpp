@@ -146,8 +146,13 @@ extern int LineFunc(int line, const char* func, int errNo, unsigned int mid);
 
     // ORIG 0x08208e10：无判空，GetInvenSlot 的 sret 直接落 invItem（-0xe1）；
     // 其后所有 itemId 使用点都是成员直读（-0xdf），无具名 itemId 局部（P0）。
+    // [P6S4 2026-09-11 语义轴修复] ORIG 0x08208e2c `movl $0x1,0x8(%esp)`（第 1 显式
+    // 实参=INVEN_TYPE=**1**），我方原写 `INVEN_TYPE_INVEN`（本 TU 解析为 0，头定义
+    // CInventory.h:57 等 4 处 `INVEN_TYPE_INVEN = 0`）⇒ 传参错位。全库 ORIG 实证同值：
+    // Dispatchers.cpp:4723/5003/7319、CDungeon.cpp:692、CPartyOnlyOrig.cpp:884、
+    // Dispatcher_UseLimitCube_impl.cpp:199 均写 `1`/`(INVEN_TYPE)1`；改值不改类型。
     Inven_Item invItem =
-        user->getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, (int)slot);
+        user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (int)slot);
 
     CStackableItem* stackable =
         static_cast<CStackableItem*>(G_CDataManager()->find_item((int)invItem.m_addInfo));
@@ -265,8 +270,10 @@ extern int LineFunc(int line, const char* func, int errNo, unsigned int mid);
             if (stackable->IsDeletableItem())
             {
                 // ORIG CInventory::delete_item(invW, 1, slot, 1, eItemDelReason_3, 1)
+                // [P6S4 2026-09-11] ORIG 0x08209479 `movl $0x1,0x4(%esp)`（type=1，同
+                // GetInvenSlot 的 INVEN_TYPE 值轴）。
                 if (!user->getCurCharacInvenW()->delete_item(
-                        INVEN_TYPE_INVEN, (int)slot, 1, eItemDelReason_3, true))
+                        (INVEN_TYPE)1, (int)slot, 1, eItemDelReason_3, true))
                     return LineFunc(0xa4d3, __PRETTY_FUNCTION__, 0, 0);
             }
             user->_processContinuousItem(invItem.m_addInfo, stackable);
@@ -308,8 +315,9 @@ extern int LineFunc(int line, const char* func, int errNo, unsigned int mid);
 
                 // ---- 结果包（header 0xa3）----
                 // ORIG 0x082096d3：同一 invItem 重新赋值（sret 临时 -0x168 → 复制回 -0xe1）。
+                // [P6S4 2026-09-11] ORIG 0x082096dd `movl $0x1,0x8(%esp)`（type=1）。
                 invItem = const_cast<CInventory*>(user->getCurCharacInvenR())
-                              ->GetInvenSlot(INVEN_TYPE_INVEN, (int)slot);
+                              ->GetInvenSlot((INVEN_TYPE)1, (int)slot);
 
                 PacketGuard pg;
                 pg.put_header(1, 0xa3);

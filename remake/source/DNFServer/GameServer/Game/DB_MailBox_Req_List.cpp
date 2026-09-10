@@ -267,6 +267,11 @@ enum
         // 24→24、jcc 相对偏移反 +7 字节）⇒ 回滚维持原 `if`；ORIG 0x0841d1fc
         // `cmpl $0xffffffff,-0x10(%ebp); setne %al; test %al,%al; je +0x159`
         // 属 P197④ 槽比 setcc 物化（4.4 恒直跳）⇒ N，附地址。
+        // [P6S6 2026-09-11 负结论·回滚] 为诱导 ORIG 0x0841d1fc 的 `setne %al;
+        //   test %al,%al; je` 物化，本波试 `for (; mailIdx != -1; ) {…break;}`
+        //   首测形：ours 109→**113**（ORIG 111，多 2 条 jmp）、块内新增
+        //   `jmp;jmp` 岛 ⇒ 劣化回滚；连同早先的 `!(mailIdx == -1)` 反相形一并否证
+        //   （物化 setne 属 4.1 专有 lowering，4.4 恒直跳）⇒ 维持 N。
         if (mailIdx != -1)
         {
             // [round5-A29] 同 IsContainedLetter：改权威头具名嵌套视图（ORIG

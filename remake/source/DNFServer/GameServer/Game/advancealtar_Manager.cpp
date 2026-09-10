@@ -60,11 +60,11 @@ static const bool kSkillSlotNoLock[6] = { false, false, false, false, true, true
 {
     if (user == 0)
     {
-        return 3;
+        return (ENUM_ERROR)3;
     }
     if (diff < 0 || diff > 2)
     {
-        return 8;
+        return (ENUM_ERROR)8;
     }
 
     // ORIG +0x2f `movb $0x0,-0x11(%ebp)`：难度合法后、取 control 前，原码有一枚
@@ -79,20 +79,20 @@ static const bool kSkillSlotNoLock[6] = { false, false, false, false, true, true
             __PRETTY_FUNCTION__,
             0x6ab, 5);
         trace("StaticPool Defence DungeonNULL");
-        return 3;
+        return (ENUM_ERROR)3;
     }
 
     const int err = control->selectStage(user, stageId, diff);
     if (err != 0)
     {
         control->destroy();
-        return err;
+        return (ENUM_ERROR)err;
     }
     // ORIG +0xbf..：`call getIndex; cwtl; mov %eax,0x4(%esp); mov user,%eax;
     // mov %eax,(%esp); call CUser::setAdvanceAltarIndex(short)`。getIndex 返回 short，
     // cwtl 符号扩展入参槽，故必须走真实 setter（直写字段生 `mov %dx,disp` 异形）。
     user->setAdvanceAltarIndex(control->getIndex());
-    return 0;
+    return (ENUM_ERROR)0;
 }
 
 // ----------------------------------------------------------------------------

@@ -606,8 +606,8 @@ namespace EventClassify
 // 重定位的显示形（ORIG `$0x8b4c2c0/$0x8b4d400/$0x8b4c264` 串地址 vs 我方节内偏移
 // `$0x2f/$0x240/$0xe8`）⇒ 实为等价，工具 NEAR 为伪差（P264/.o 口径）。
 #include "W8_EventClassifyB/deleteUsedMaterialItem.inc"
-    CUser* user, std::vector<std::pair<int, int> >& materials,
-    std::vector<std::pair<int, int> >& returnItems)
+    CUser* user, IntPairVector& materials,
+    IntPairVector& returnItems)
 {
     size_t i = 0;
     while (materials.size() > i)

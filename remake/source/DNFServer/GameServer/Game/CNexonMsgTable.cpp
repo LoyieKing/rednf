@@ -84,6 +84,12 @@ CNexonMsgTable g_nexonMsgTable;   // ORIG B @0x0945b8e4
     // 落 %ebx（`cmpl $27,%ebx`）非内存槽。⇒ 权威口径 70/70 gap+0，唯一残差 =
     // 尾测 `mov -0xc(%ebp),%eax; cmp $0x1b,%eax` 合并形（4.4 恒折单条
     // `cmpl $0x1b,-0xc(%ebp)`），编译器 lowering 不可造 ⇒ 封 N。
+    // [P6S6 2026-09-11 复核·仍 N] 再补两形实测（ORIG 0x085800a3 尾测
+    //   `mov -0xc(%ebp),%eax; cmp $0x1b,%eax; setbe %al`）：
+    //   · `i != 0x1c` → N `cmpl $0x1c,-0xc(%ebp); setne %al`（69/70，blocks=1）
+    //   · `i <= 0x1b` → N `cmpl $0x1b,-0xc(%ebp)`（69/70，blocks=1，无 setcc）
+    //   四形（</<=/!=/do-while）均在「eax 预装载」处缺 1 条，4.4 恒 mem 直比
+    //   ⇒ 确为 4.1↔4.4 后端 lowering 差，源码不可择 ⇒ 维持 N。
     for (unsigned int i = 0; i < 0x1c; ++i)
         m_messages.insert(std::make_pair(msgs[i].key, msgs[i].str));
 }

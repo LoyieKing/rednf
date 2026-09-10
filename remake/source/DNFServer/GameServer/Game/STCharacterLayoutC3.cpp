@@ -18,6 +18,12 @@
 // 语义/构造集齐，byte 层封顶。
 // [b28d-51] 判词 N（ORIG 0x08368348，N82/N91 族）：vector/string 成员构造 +
 // EH cleanup 残段跨版本差；语义/构造集齐，byte 层封顶。
+// [P2S5] 负结论（ORIG 0x08368348，848 条）：与本 TU diag 仅差 1 条 —— EH landing
+// pad 内 ORIG 为 `mov %edi,%eax; mov %esi,%edx;` ▸ `mov %edx,%esi; mov %eax,%edi;`
+// 连续 fall-through（0x08368bxx 段），我方多一条 `jmp <下一 LP>`（n1_v 残差
+// insert orig[821]，our 849）。试旋钮「内层作用域包裹 Clear()」无效（849→849，
+// 同一位置同一 jmp）⇒ 该 jmp 属 GCC 4.4 对多个 landing pad 的分块/前驱判定，
+// 源码层不可控（函数体语义/构造集齐，仅差此 1 条 EH 序）⇒ 封 N。
 #include "STCharacterLayoutC3/STCharacterScript.inc"
 {
     Clear();

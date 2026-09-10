@@ -1,1 +1,2 @@
 bool CObjectBringUp::sendBringUpReward(CUser* user,
+// [P8S2 2026-09-11 负结论·P139] ORIG prett=0x5a `bool EventClassify::CObjectBringUp::sendBringUpReward(CUser*, IntVector&, unsigned char&)`（0x08b4d2c0）VS 我方 0x77 展开形 `std::vector<int, std::allocator<int> >&`：修法=定义处第 2 参改 `IntVector&`，但全库无 `IntVector` typedef（GameTypes.h 只有 `INT_VECTOR`；ARAD_Database.h:31 的 IntVector 不在本 TU 可见域）⇒ 需 P7 在 GameTypes.h 补 `typedef std::vector<int> IntVector;` 后同法落地；本泳道不自行新增 typedef（父泳道硬性约束）。

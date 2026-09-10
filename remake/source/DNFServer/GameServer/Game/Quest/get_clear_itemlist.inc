@@ -1,1 +1,1 @@
-std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
+IntPairVector Quest::get_clear_itemlist(

@@ -426,6 +426,11 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
 //   三者均产 `mov (%eax),%eax; mov %eax,%edx`（= ORIG），h1/h6（两侧同型）产单段。
 //   ⇒ .h 建议（他泳道落）：STMapScript::m_c(+0x00c) 或 CMap::m_8(+0x08) 之一
 //   改枚举/unsigned；本件整体残差（槽整体深 4 + 迭代器槽组）属 N82/N95 槽族。
+// [P6AuditOldN.P6S2 2026-09-11 · 本波复核] n1_v DIFF 527/527 gap=0（blocks=49，全为
+//   4.1 两段搬运/槽平移：ORIG 0x0834e18a `mov 0xc(%eax),%eax; mov %eax,%edx` vs 我方
+//   `mov 0xc(%eax),%edx`；ORIG `lea -0x240(%ebp)` vs 我方 `lea -0x244(%ebp)`）。
+//   新钥匙判定：P339 声明序（无入口可定序）/P0 删具名局部（无多余槽证据）/类型轴三式
+//   （纯装载形态）均不适用；未落地，维持 N。
 #include "CMap/set_map.inc"
 {
     m_4 = script.m_index;

@@ -217,6 +217,16 @@ class CUser;
 //   （差即 N85 段）、p167 CLEAR 7/7 ⇒ 语义完成。
 #include "PvpUserTable/GetTeamVsTeamPoint.inc"
 {
+    // [P2S1PvPQuest 2026-09-11 P339 命中] ORIG 的 `dbl` 槽在**最深端**
+    //   （0x085d4eee `fstpl -0x48(%ebp)`，全函数最深局部）：声明前移到函数头后
+    //   残差块 26→**7**（帧 0x70 不变、其余槽已全对齐）；若声明在 if 之前
+    //   （0x085d4eeX 之后）实测块数反升到 17，if 块内声明则全槽表深 8（26 块）
+    //   ⇒ 函数头是本 TU 下唯一与 ORIG 相合的声明位置。赋值语句仍在 if 体内。
+    //   残余 7 块（N82·不可达已封顶）：ORIG `dbl`-0x48 / `tr`-0x38 vs 我方
+    //   `dbl`-0x30 / `tr`-0x40 = 两者**相对深度互换**（各差 0x10）+ 帧
+    //   0x60 vs 0x70（0x10B）。三种声明位置已扫（26/17/**7** 块，单调改善），
+    //   声明序方向"越早越深"已到函数头尽头 ⇒ 余量为 gcc 内部 slot 分配。
+    double dbl;
     int count1 = GetTeamUserCount(team1);
     int count2 = GetTeamUserCount(team2);
     if (count1 == 0 || count2 == 0)
@@ -248,9 +258,15 @@ class CUser;
     }
 
     float ratioSum = m_teamPoint[team1] + m_teamPoint[team2];
-    if (ratioSum == 0.0f)
+    // [P2S1PvPQuest 2026-09-11] 判据库「bool 化」旋钮：ORIG 0x085d4edc 起
+    //   `setne %al; setp %dl; or %edx,%eax; xor $0x1,%eax; test %al,%al; je`
+    //   = 比较物化为 bool（`!(a != b)` 形），而非 `jne/jp` 直接分支；
+    //   /tmp/p2s1/zb.cc 六形探针（4.4.7 -m32 -O0 -march=i486）只有
+    //   `!(ratioSum != 0.0f)` 逐条命中该形（f2 的 sete/setnp/and 不同）。
+    //   IEEE 语义等价（NaN: `==` 假、`!(NaN!=0)` 亦假）。
+    if (!(ratioSum != 0.0f))
     {
-        double dbl = ratioSum;
+        dbl = ratioSum;
         // [G5 2026-09-10 P227 试验·无效已回滚] ORIG 0x085d4eee 的 `fstpl -0x48`（dbl 具名
         //   double 落槽）在 cMyTrace ctor 之前，理论上为全表达式临时链；改链式形实测
         //   四数不变、槽表逐值不变（我方 -0x10..-0x4c vs ORIG -0xc..-0x48）⇒ 回滚。

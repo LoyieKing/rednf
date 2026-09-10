@@ -45,6 +45,7 @@
            static_cast<long long>(itemIndex);
 }
 
+
 // ORIG getType @0x081572ea：返回 key 高 32 位的高 16 位（= key>>48，符号扩展位型扩展）。
 #include "CAdvanceAltarLog/getType.inc"
 {
@@ -151,13 +152,14 @@
     // （`movzwl 0x12(%eax),%edx; add -0x44(%ebp),%dx; mov %dx,0x12(%eax)`，写回同一
     // %eax）；展开式 `it->second.f = (ushort)(it->second.f + d)` 使 `it->second` 出现
     // 两次 ⇒ 4.4 每语句 2 次 op->（共 4 call）⇒ 必须用复合赋值（本波 -8 条）。
-    if (it != m_layers.end())
+    // [P6AuditOldN-S1 2026-09-11] p167fix 真 call 差集：ORIG 调 `_Rb_tree_iterator::
+    //   operator==(const&)`（我方为 `!=`）⇒ 源码比较式应为 `==`；同时装配块成为
+    //   then（fall-through 在前），命中累加落尾部标签。
+    //   **落地读数**：our 113→**112**（gap −2→−1），blocks 4→2；TU 四数
+    //   68/107/0/2 逐项不变（不劣化）。call 差集 `ne`→`eq` 已消。残余 = 4.4 对
+    //   `&m_layers[key]` 结果的 callee-saved 保存（ORIG 4.1 恒保 %eax 无槽）。
+    if (it == m_layers.end())
     {
-        it->second.m_useCount += static_cast<unsigned short>(useCountDelta);
-        it->second.m_useStar += static_cast<unsigned short>(useStarDelta);
-        return;
-    }
-
     STAdvanceAltarLayerStatData data;                   // 栈装配（ORIG local_30 区）
     // ORIG 0x08156d60：装配只经 STAdvanceAltarLayerStatDataC1 清零
     // （movw@0/movl@4/movw@8/movw@a/movw@c，+0x2 空洞与 +0xe pad 不写），
@@ -183,6 +185,11 @@
     register STAdvanceAltarLayerStatData* slot = &m_layers[key];
     if (slot != &data)
         std::memcpy(slot, &data, 0xe);
+    return;
+    }
+
+    it->second.m_useCount += static_cast<unsigned short>(useCountDelta);
+    it->second.m_useStar += static_cast<unsigned short>(useStarDelta);
 }
 
 // ----------------------------------------------------------------------------

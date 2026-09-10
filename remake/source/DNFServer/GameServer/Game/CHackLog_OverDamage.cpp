@@ -68,6 +68,12 @@ const int LEVEL_SECTION_TABLE[89] = {
     //   `-march=i486 -mtune=generic` ⇒ 四数 identical=3 ae=5 diff=1（仅工具
     //   假缺口 static_init），即本件 DIFF→AE；现路由 identical=3 ae=4 diff=2。
     //   ⇒ 需父泳道在 dnf_game_cxx.sh 加该 TU 分支（已上报 Main/N6Free231to250）。
+    // [P6AuditOldN.P6S2 2026-09-11 · 假 DIFF 回收] 路由落地后复编实测：
+    //   n1_v = **AE 152/152 gap=0**（旧判词 DIFF 152/152）；TU 四数
+    //   identical=3 ae=5 near=0 diff=1 missing=0（diff 仅
+    //   `_Z41__static_initialization_and_destruction_0ii` 假阳性实例）。
+    //   本波新钥匙（P339 声明序/P341 goto 尾/真 switch/类型轴三式/守卫包裹）
+    //   对本件（浮点 lowering 轴）均不适用 ⇒ 维持 AE。
     if (user != 0
         && user->GetParty() != 0
         && static_cast<CParty*>(user->GetParty())->m_battleField.m_pDungeon != 0

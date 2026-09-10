@@ -158,7 +158,13 @@ extern int LineFunc(int, const char*, int, unsigned int);
                         0, 0);
 
     // 第一条记录：每条 { unsigned long itemIdx; unsigned char cnt }（ORIG 栈数组，上限 0x23）。
+    // [P6S6 2026-09-11] ORIG 0x080d5xxx 寻址 `mov -0x40(%ebp),%edx; shl $0x2,%eax;
+    //   add %edx,%eax; add $0x10,%eax; lea (%ecx,%eax,1); add $0x4` ⇒ 元素
+    //   **stride = 5**（4i+i+0x10+4）、起点 buf+0x14；我方非 packed ⇒ stride 8 ⇒
+    //   帧 0x4cc vs ORIG 0x26c。补 `pack(1)` 实测。
+#pragma pack(push, 1)
     struct RawEntry1 { unsigned long itemIdx; unsigned char cnt; };
+#pragma pack(pop)
     RawEntry1 rec1[0x24];
     for (int i = 0; i < entryCnt1; ++i) {
         if (!packet.get_item_idx(rec1[i].itemIdx))

@@ -233,6 +233,14 @@
             // 未路由 -march=i486）；ORIG 的 `mov $0x3,%eax; mov %eax,-0x10(%ebp)`
             // 共享 store 属 N76/N97 跨版本形 ⇒ N 成立。
             // 语义等价（diff>0 已保证非负）。
+            // [P6S6 2026-09-11 复核·仍 N] 本波按 ORIG 0x080ca14f
+            //   `mov -0x10(%ebp),%eax; cmp $0x3,%eax; jle 0x080ca15c; mov $0x3,%eax;
+            //    (0x080ca15c) mov %eax,-0x10(%ebp)`（load + 共享 store）反推试三目：
+            //   `diff = diff > 3 ? 3 : diff;` 实测得 4.4 if-conversion 形
+            //   `cmpl $0x3,-0x10(%ebp); cmovle -0x10(%ebp),%eax`（182/183，且删 jle 岛）；
+            //   `if/else diff=diff` 自赋值被前端消去 → 回到 181/183 直比直存原形。
+            //   ⇒ 4.4 -O0 对 clamp 走 cmov/mem 直比两条路，均非 4.1 的 load+共享 store，
+            //     源码不可择 ⇒ 维持 N。
             if (diff > 3)
             {
                 diff = 3;

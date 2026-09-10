@@ -81,8 +81,14 @@ struct BfkcBlueMarbleScriptView
             static_cast<int>(mob.m_hellPartyGroupOrder));
     if (it == mapInfo.m_hellPartyGroup.end())
     {
+        // [P6S5 2026-09-11 本波落地 · P139 prett 轴] ORIG 引用
+        // `_ZZN13CBattle_Field28KillHellPartyGroupMonsterCntER7MapInfoR11map_monsterRbE19__PRETTY_FUNCTION__`
+        // @0x8c233a0 size 0x50；旧译用 TU 级手写串 `s_bfkc_pretty_kill_hell`（逐字节相同）
+        // ⇒ 我方缺 prett 符号。改 `__PRETTY_FUNCTION__` 后 nm 实测符号名/size 与 ORIG 全等，
+        // 本件（原 identical）保持 identical；⚠ 遗留：TU 级定义 `s_bfkc_pretty_kill_hell[]`
+        // （0x…… 行 45）现为死数据但仍发射 ⇒ 需父泳道按「TU 级实体」权限删除。
         LogManager::logFormat(
-            1, "battle_field.cpp", s_bfkc_pretty_kill_hell, 0x1dd9,
+            1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1dd9,
             "HELLPARTY_LOG : HELLPARTY GROUP INDEX (%d), MAP INDEX (%d) : "
             "KILL HELL GROUP ERROR!!\n",
             static_cast<int>(mob.m_hellPartyGroupOrder), mapInfo.m_mapIndex);
@@ -169,7 +175,7 @@ struct BfkcBlueMarbleScriptView
         if (curRound < 0 || prevRound < 0)
         {
             LogManager::logFormat(
-                1, "battle_field.cpp", s_bfkc_pretty_check_blood, 0xd59,
+                1, "battle_field.cpp", __PRETTY_FUNCTION__, 0xd59,
                 "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ROUND!!\n",
                 static_cast<int>(smallRound));
             return;

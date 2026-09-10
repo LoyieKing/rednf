@@ -8,7 +8,9 @@ void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
     if (msg == 0)
     {
         // b28d-lane6 试形：P221 全表达式临时链（翻块内对象槽方向）。
-        cMyTrace("static void DBUpdatePcroomDailyReward::makeRequest(CUser*)",
+        // [P2S5] P139：ORIG 0x8b78e00 = _ZZ…E19__PRETTY_FUNCTION__（size 0x3b，
+        // 串与手写逐字节同）⇒ 用 __PRETTY_FUNCTION__ 发射同名 prett 符号。
+        cMyTrace(__PRETTY_FUNCTION__,
                  0x32b, 0)("[Taiwan, Pcroom] msg is null");
     }
     else

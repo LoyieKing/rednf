@@ -138,6 +138,10 @@ SkillLevelFeature& SkillLevelFeature::operator=(const SkillLevelFeature& other)
 // 残差 1 处：+0x110 m_dw110[i] 清零 ORIG `add $0x44,%edx; movl $0,(%eax,%edx,4)`
 // vs 4.4 `add $0x40,%edx; movl $0,0x10(%eax,%edx,4)`（成员偏移折入索引 vs disp 折叠）
 // ⇒ N4/N102 封顶（P30 定论：4.4 不可造 add+零 disp 形；语义等价）。
+// [P2S3STSkillStack 2026-09-11] 复查：换成 union 另一视图 `m_i108[i + 2] = 0`
+// （同址 0x108+8=0x110）⇒ 反产 `lea 0x2(%eax),%edx; add $0x40,%edx;
+// movl $0,0x8(%eax,%edx,4)`，我方 307→308 条、verdict NEAR→DIFF、
+// 四数 near=1→0 / diff=4→5 **劣化**，已回滚（负结论，勿再试）。
 // 其余 hunk 差异均为 .o 重定位显示（call 目标/rodata 地址），链接后归 AE。
 #include "STSkillScript/Clear.inc"
 {

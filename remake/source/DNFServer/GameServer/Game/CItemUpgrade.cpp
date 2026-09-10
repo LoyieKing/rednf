@@ -750,7 +750,9 @@ check_level:
             //   再 ctor（movl x3 + lea + call C1），最后 `mov %ebx,0xc(%esp)`；
             //   两语句具名形恒 ctor 先 ⇒ 必须写全表达式临时链。
             cMyTrace(__PRETTY_FUNCTION__, 0x77e, 5)(
-                "3RD_CHRONICLE_LOG : ENCHANT SYSTEM _ProcPenalty() ERROR!! ERROR CODE(%d)!! CHARAC NO(%u)\n",
+                // [P8S4 2026-09-11] §6.5 真错：ORIG 串（0x0854a75e 站点实参）尾部
+                // 无 `\n`，原重建多一个换行 ⇒ 运行期日志文本不一致，删除。
+                "3RD_CHRONICLE_LOG : ENCHANT SYSTEM _ProcPenalty() ERROR!! ERROR CODE(%d)!! CHARAC NO(%u)",
                 penalty, user->getCurCharacNo());
             return (ENUM_ERROR)penalty;
         }
@@ -767,7 +769,8 @@ check_level:
         {
             // [P227] 同上：ORIG 0x0854a80f 先 getCurCharacNo→%ebx 跨 ctor 保活。
             cMyTrace(__PRETTY_FUNCTION__, 0x786, 5)(
-                "3RD_CHRONICLE_LOG : ENCHANT SYSTEM ProcUpgrade_3rdChronicle() ERROR!! CHARAC NO(%u)\n",
+                // [P8S4 2026-09-11] §6.5 真错：ORIG 串（0x0854a80f 站点实参）尾部无 `\n`。
+                "3RD_CHRONICLE_LOG : ENCHANT SYSTEM ProcUpgrade_3rdChronicle() ERROR!! CHARAC NO(%u)",
                 user->getCurCharacNo());
             return (ENUM_ERROR)1;
         }

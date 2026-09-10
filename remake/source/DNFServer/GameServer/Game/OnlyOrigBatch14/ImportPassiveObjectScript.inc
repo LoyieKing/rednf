@@ -59,6 +59,12 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
     // string 临时槽物化（N76/N82 槽号系）；②0x227e 族「子表 switch
     // 注册 + 体外 if(id) 执行」等价重排（语义同、cmp 形每位 ±2）。
     // 语义已逐块核对完成（子表 26 tag 字段解析修复前从未执行）。
+    // [P1T1 本波复核·帧槽差直证] ORIG 序言 `sub $0xddc,%esp` vs 我方 `sub $0xefc,%esp`
+    // （+0x120 / 288B）；ORIG 0x8a2c4xx 段另有 3 个死局部初始化
+    // （`movl $0x0,-0xbec; mov $0x0,%eax; mov %eax,-0xbf0; movb $0x0,-0x8e`，P171）；
+    // 主体处 ORIG 反复复用**同一** -0xbec 临时槽，4.4 给每个块分配独立槽
+    // （-0xbf0/-0xbf4/-0xbf8/…/-0xc15，fdiff 逐块可见）⇒ 帧基差 = 4.1/4.4 栈槽复用
+    // 策略差（N82/N126 族），无源形旋钮；补死局部只会反向增大 |gap| ⇒ 维持封顶。
     if (!loadRDARScriptFile(g_szPassiveObjectScriptBaseDirectory, path))
     {
         return false;

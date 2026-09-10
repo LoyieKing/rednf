@@ -227,6 +227,13 @@ namespace expert_job
 //   ④ 索引化地址计算书写序（imul/add）与 EH 状态机编码差。
 //      [b290 更正] 前半可攻（B 项具名指针形，已修）；后半（%esi 状态机）保留为 N128。
 // ============================================================================
+// [P6AuditOldN.P6S2 2026-09-11 · 本波复核] n1_v DIFF 2235/2231 gap=+4（blocks=356）。
+//   ORIG 0x0896b0e4：`sub $0x3c0,%esp` vs 我方 `sub $0x3d0,%esp`（帧差 0x10）；
+//   首块 ORIG 多 `lea -0x228(%ebp),%eax; mov %eax,(%esp); call <T>`，其后全为槽轮换
+//   （-0x228/-0x22d/-0x248/-0x260 组 ↔ 我方 -0x22c/-0x231/-0x24c/-0x264 组）。
+//   p167fix 修正口径后残差为 std 模板族（__copy_move_backward/vector<stMonsterCardBindResult>），
+//   非源码缺口。新钥匙判定：P339（356 块级轮换非单槽可定序）/P0/P183（无具名剩余）/
+//   类型轴（无 callee 类型分歧）均不适用；未落地，维持 N（未决）。
 #include "CExpertJobList/ImportExpertJobScript.inc"
 {
     // b28d-solo [P16/P292：ORIG 0x0896b102 `xor $1; test %al,%al; je` bool 形早返；局部集合照抄

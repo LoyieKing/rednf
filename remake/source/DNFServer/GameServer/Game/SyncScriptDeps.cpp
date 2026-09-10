@@ -537,17 +537,29 @@ namespace advancealtar
 // （/tmp/swtest 最小探针实测），if-链形又退化为 mem 直比 `cmpl $N,0x10(%ebp)`
 // （ORIG 为单 `mov 0x10,%eax` + 三连寄存器比较 = switch lowering 特征）⇒
 // 两形各有不可替代半，封底 9 行。
+// [P2S2STQuest 2026-09-11 prett 负结论] ORIG 在此函数引用
+// `_ZZN12advancealtar10SyncScript18getItemValueStirng...E19__PRETTY_FUNCTION__`
+// （size 0x96），我方用手写串（内容与 ORIG **逐字节相同**，pstr.py 核实）⇒ 仅缺
+// 符号载体。**不可换 `__PRETTY_FUNCTION__`**：ORIG 串末参为 `std::tstring&`
+// （std 内 typedef），本仓库只有**全局** `typedef std::string tstring`（PackSet.h:32）
+// ⇒ 4.4 会打印 `std::string&`（现拼写）或 `tstring&`（若改拼写），两者都不等于 ORIG
+// 串（探针 /tmp/p2/probe_ts.cpp 实测：全局 typedef 打印**不带** `std::` 限定）
+// ⇒ 依 P8 prett 边界 1「宁可不换」，保留手写串。
 #include "SyncScriptDeps/getItemValueStirng.inc"
                                     AdvanceAltarShopType::T type, std::string& out)
 {
     const std::vector<BuyUpgradeData>* vec = 0;
     // ORIG 0x08134145..0x08134177 形：单次 `mov 0x10(%ebp),%eax` + cmp1/cmp2/
     // test 三连（4.4 **switch** lowering 特征；if-链会退化成 mem 操作数直比）。
+    // [P2S2STQuest 2026-09-11] 叶子落点由 case **书写顺序**决定（/tmp/p2 探针实测）：
+    // 首 case=T_0 ⇒ 末环 `test %eax,%eax; jne <default>` + case0 代码 fallthrough
+    // （ORIG 0x08134172/0x08134174 形）；首 case=T_1（旧）⇒ `je L0; jmp <default>` 多 1 条。
+    // 实测 verdict DIFF(gap -1) → **AE(gap +0)**，TU 四数 diff 1→0（无劣化）。
     switch (type)
     {
+    case AdvanceAltarShopType::T_0: vec = &data.m_vecT0; break;
     case AdvanceAltarShopType::T_1: vec = &data.m_vecT1; break;
     case AdvanceAltarShopType::T_2: vec = &data.m_vecT2; break;
-    case AdvanceAltarShopType::T_0: vec = &data.m_vecT0; break;
     default: return false;
     }
     const int total = (int)vec->size();

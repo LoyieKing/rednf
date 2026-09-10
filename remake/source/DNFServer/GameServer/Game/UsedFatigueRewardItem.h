@@ -32,7 +32,14 @@ public:
     {
     public:
         Data();    // ORIG W C1/C2 @0x081a40a0（清零）
-        ~Data();   // ORIG W D1/D2 @0x081a6bf4（空体）
+        // [P3Wave4 2026-09-11] 此处原写 `~Data();`（过度重建，已删）：ORIG 的 Data 是
+        // **隐式 trivial 析构**。直证：ORIG `_ZSt8_Destroy<Data*>` @0x081a7c69 body
+        // `call 81a8452 <_ZNSt12_Destroy_auxILb1EE9__destroyIPN…DataEEEvT_S5_>`，
+        // ORIG 符号表**只有 ILb1、无 ILb0**（我方因显式析构走 ILb0）；成员全 POD
+        // （short/short/char[0xff]/char[0x10]/int）⇒ 隐式析构 trivial。
+        // ORIG 仍有 `Data::~Data` W D1/D2 @0x081a6bf4（5 字节空体）—— 那是本 TU
+        // `new_allocator<Data>::destroy` 里显式 `p->~Data()` 的 odr-use 发射，不是
+        // 用户定义析构；删声明后该符号仍应存在（复编已核）。
 
         short m_begin;       // +0x00 实证 movw 清零 / find movzwl 比较
         short m_end;         // +0x02 实证 movw 清零 / find movzwl 0x2

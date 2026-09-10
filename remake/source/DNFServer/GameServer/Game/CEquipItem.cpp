@@ -163,6 +163,10 @@ public:
 //   且 ORIG `je 085138dd`（return 0 出口）证明两条件为短路结构 ⇒ 源码必是两次成员读、
 //   4.1 在 RTL 层 CSE 掉第二次载入，4.4 `-O0` 无该 pass。本 TU 现状 = 内联形（36 条），
 //   第二次载入在 0x...8b5 位置（我方 `mov 0x8(%ebp),%eax; mov 0x234(%eax),%eax`）。
+// [P6S4 2026-09-11 头轴备忘] 本 TU .o 有 `_ZNSt12_Destroy_auxILb0EE9__destroyIP24
+//   STAvatarAbilityVariationEE…`，ORIG 仅 ILb1 同参 ⇒ 我方 EquipmentParameterInfo.h:118
+//   多写 `~STAvatarAbilityVariation() {}`；影响面 9 TU，已上报 P7HeaderAxis 统一裁决。
+//   本件残余与该 ILb0/ILb1 轴相关，定义侧不动。
 #include "CEquipItem/checkItemUpgradePossible.inc"
 {
     if (IsImpossibleUpgrade())
@@ -175,6 +179,12 @@ public:
     //   [b28e 试形记录] P226 语句表达式形（`({unsigned int t=(unsigned)m_itemType;
     //   t<0x16 && ((1<<t)&0x3ff400U)!=0;})`）fresh 实测 **41 条**（t 落槽 →
     //   `mov %eax,-slot` + 两次回读，比内联形 36 更劣）⇒ 回退，维持内联形。
+    // [P6S4 2026-09-11 负结论·掩码轴实测] 试掩码侧 `(unsigned long)` cast 破
+    // 4.4 的 `(1<<s)&C → (C>>s)&1` fold（同 CUserStatC 落地形）：复编读数
+    // blocks=1 / ours=36 orig=34 **不变**，残差仍只有 `mov 0x8(%ebp),%eax;
+    // mov 0x234(%eax),%eax` 第二次成员载入（N18a 跨版本 CSE，非 fold）⇒ 本件
+    // 掩码段与 ORIG（`mov $1,%edx; shl %cl,%ebx; and $0x3ff400,%eax`）本就同形，
+    // cast 属多余 ⇒ 回滚。
     if ((unsigned int)m_itemType < 0x16 &&
         ((1 << (unsigned int)m_itemType) & 0x3ff400U) != 0)
     {

@@ -657,7 +657,13 @@ struct stPvPTempTable_t
     int m_pvpGrade;        // +0x04（SQL 列 1）
     int m_pvpPoint;        // +0x08（SQL 列 2）
     int m_lastPlay;        // +0x0c（SQL 列 3）
-    ~stPvPTempTable_t();   // ORIG D1/D2 0x08458e92（空体）
+    // [P5·2026-09-11] 显式 `~stPvPTempTable_t();` 已删（P3 的 UsedFatigueRewardItem::Data
+    //   同源修法）：ORIG `_ZSt22__copy_move_backward_a…` 走 **ILb1**（`movb $0x1,-0x9(%ebp)`
+    //   + `call __copy_move_backwardILb1ELb1E`）⇒ ORIG 该类型是隐式 trivial 析构；全 ELF 内
+    //   `call 0x08458e92 <~stPvPTempTable_t>` 唯一 1 处落在 `new_allocator<…>::destroy`
+    //   （0x08458e98）体内 = `p->~T()` 的 odr-use ⇒ D1/D2 符号仍由该路径发射（复编后 nm 已验）。
+    //   判据：`_Destroy_aux<ILb0/ILb1>` 分支选择 + 全 ELF `~T` 调用点分布（「D1 符号存在」
+    //   推不出「用户定义析构」）。
 };
 
 namespace OS_API
@@ -3843,7 +3849,17 @@ struct DB_SaveSkillCharacView
                   sig->m_characNo, sig->m_serverGroup);
     if (db->exec(true) != 1)
         return 0;
-    if (db->get_n_rows() == 0)
+    // [P5S2W8LT r1] P196/P222 极性+块序：ORIG 0x0843ce05 `test %eax,%eax;
+    //   setne %al; test %al,%al; je 0x0843ce3d`（正极性：有行 = fall-through，
+    //   无行块在跳转目标 0x843ce3d），且 flag=0x12/return 0 块属**有行**分支
+    //   （ORIG 0x843ce66 区 `movl $0x12,(%eax); …; mov $0x0,%ebx; jmp epilogue`）
+    //   ⇒ 原 `if (get_n_rows() == 0) {无行}` 包裹形产 sete + 反向块序。
+    if (db->get_n_rows() != 0)
+    {
+        reply->m_flag = 0x12;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 0;
+    }
     {
         db->set_query("seLect guild_id,guild_name,master_name,lev,member_count from guild_info where server_id=%d and expire_flag=0 and guild_name='%s'",
                       sig->m_serverGroup, sig->m_guildName);
@@ -3901,9 +3917,6 @@ struct DB_SaveSkillCharacView
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
-    reply->m_flag = 0x12;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    return 0;
 }
 
 // ORIG 0x84177da：GetOutBuffer<SIG_LOAD_SKILL> → SaveSkill 全绿返 1
@@ -4518,6 +4531,10 @@ struct DB_UpdateLogoutSigView
     // [r3 负结论] 尾部 `return false;` 改显式 `else { return false; }` 包裹（P222）
     // 实测**零变化**（62/63、ndiff 3、ORIG-only{test:1}/OURS-only{jmp:1,mov:1} 全同）
     // ⇒ 回滚，维持 N93附 封顶。
+    // [P5S2W8LT r2 负结论·已回滚] v1 正极性正文形实测**劣化**：blocks 1→4
+    // （新增两处 `jne/je` 镜像 + 尾块仍 `jmp/mov$0`）、ours 63→62 但差异块
+    // 反增 ⇒ 维持原负极性形，N93附 封顶（ORIG 0x084184d9 `test %al,%al;
+    // je +0xe5` 的 ver 值由 4.1 choose 汇聚，4.4 不可复现）。
     if (!(db->exec(true) == 1 && db->getAffectedRowCount() != 0))
     {
         db->set_query("inSert into login_common(m_id,member_bonus_fatigue,update_time) values(%s,%d,unix_timestamp(now()))",
@@ -5215,10 +5232,8 @@ struct DB_UpdateLogoutSigView
     return true;
 }
 
-// stPvPTempTable_t 析构强定义（类外显式声明使 D1/D2 由本 TU 发出；
-// ORIG 体为 5 字节空 ret @0x08458e92）
-#include "W8LT_DBTask/dtor_stPvPTempTable_t.inc"
-{}
+// [P5·2026-09-11] stPvPTempTable_t 的析构强定义（`#include "…/dtor_stPvPTempTable_t.inc"` +
+//   空体块）已删 —— 与 P3 的 UsedFatigueRewardItem::Data 同源修法，理由见结构体处注释。
 
 static_assert(sizeof(DBTask) == 4 + 852 * 4,     // = 0xd54
               "DBTask layout drift (m_curQueueIdx@+0x00 + dispatchers[852]@+0x04)");
@@ -7305,10 +7320,16 @@ struct EventCommon
 //   vs 4.4 直写栈（N18a）⇒ 封顶。
 #include "W8LT_DBTask/dispatch_39.inc"
 {
-    char buf[0x6001];
     int qid = 0;
     int len = 0;
-    memset(buf, 0, 0x6001);
+    // [P5S2W8LT r1] P312 数组初始化器：ORIG 0x08425b17 序列
+    //   `movl $0x0,-0x10; movl $0x0,-0x14; lea -0x601d(%ebp),%eax;
+    //    mov $0x6001,%edx; mov %edx,0x8(%esp); movl $0x0,0x4(%esp);
+    //    mov %eax,(%esp); call memset@plt`
+    // ⇒ 槽序 qid(-0x10)/len(-0x14)/buf(-0x601d) 由「声明序 qid,len,buf」决定，
+    //   且 memset 由数组初始化器展开（4.4 对该形态恒走 `mov $imm,%edx` 中转；
+    //   显式 memset(buf,0,0x6001) 恒直写立即数 ⇒ 差 1 条）。
+    char buf[0x6001] = { '\0' };
     *stream >> len;
     stream->get_binary(buf, len);
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
@@ -7748,12 +7769,13 @@ static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
         _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
         return 1;
     }
-    if (db->get_n_rows() == 0)
+    // [P5S2W8LT r2] ORIG 0x08426a2f `test %eax,%eax; setne %al; je 0x08426cb6`：
+    // 第 3 次 get_n_rows 检查是**正极性**（正文 fall-through），且
+    // `_sendResult(0x15)` 块被本检查与 deleteFlag!=0 共用（块位 0x08426cb6 落在
+    // 函数后部；第 2 次检查的 sete/0x084269cb 块保持原样）⇒ 原两次同形早退
+    // 使此处产 sete 且块位错。
+    if (db->get_n_rows() != 0)
     {
-        _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
-        return 1;
-    }
-
     // [G4W8LTDBTask 2026-09-10 负结论] 试删 7 处零初始化（P328⑤ 形）：
     // our 258→251（gap |+4|→|−3|）但 ndiff 47→53 劣化 ⇒ 已回滚。
     int deleteFlag = 0;
@@ -7762,11 +7784,8 @@ static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
         _sendResult(2, slot, 0, 0, 0, 0, 0, 0, 0);
         return 1;
     }
-    if (deleteFlag != 0)
+    if (deleteFlag == 0)
     {
-        _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
-        return 1;
-    }
 
     unsigned int mId = 0;
     int characNo = 0;
@@ -7791,6 +7810,17 @@ static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
     int giftCnt = _getGiftRecvCount(mId);
     _sendResult(0, slot, (const char*)sig, characNo, job, lev, growType, sex,
                 giftCnt);
+    return 1;
+    }
+    // [P5·2026-09-11] deleteFlag != 0 路径：ORIG 0x08426b2f 是**独立**的
+    //   `_sendResult(0x15,…)` 块（其后 `jmp 08426d0d` 直落 epilogue），与函数尾
+    //   0x08426d03 的 15 块**不共享** —— 批2 的共享尾块令我方少 1 个 call 点
+    //   （p167fix 报 MISSING 1，ORIG 6 处 call vs 我方 5 处）。按 ORIG 拆回独立块：
+    //   执行期两条路径仍各调 1 次（无「少发包」），仅恢复 call 点布局。
+    _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
+    return 1;
+    }
+    _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
     return 1;
 }
 
@@ -14139,7 +14169,13 @@ static_assert(sizeof(DB_ResponseTimeSigView) == 0x7d8,
         stream->GetOutBuffer<SIG_INSERT_RESPONSE_TIME>();
     int i;                          // -0x1c（ORIG 0843fcc6 movl $0x0,-0x1c）
     std::string values;             // -0x28
-    char monthBuf[10] = { '\0' };   // -0x32（ORIG int/int/short 三段清零）
+    // [P5S2W8LT r1+r3] ORIG 的 monthBuf(-0x32) 清零**不在声明处**：0x0843fc6b 起
+    // 只对 rowBuf(-0x163) 发 rep stos，monthBuf 的
+    // `movl $0,-0x32; movl $0,-0x2e; movw $0,-0x2a` 三条发在 0x0843fdfd-0x0843fe0b
+    // （**循环结束后、occTime=baseSec 之前**）。声明处初始化器会把它们提前到
+    // values ctor 之后 ⇒ 与 ORIG 双错位（r1 删初始化器后 fdiff 显示 ORIG-only 3 条）；
+    // 故裸声明 + 循环后显式 memset 复现发码位。
+    char monthBuf[10];              // -0x32（ORIG 无初始化器）
     time_t occTime;                 // -0x38
     struct tm tmBuf;                // -0x64
     char rowBuf[0xff] = { '\0' };   // -0x163（ORIG 255 字节带对齐分支 rep stos）
@@ -14160,6 +14196,7 @@ static_assert(sizeof(DB_ResponseTimeSigView) == 0x7d8,
         values += rowBuf;
         ++i;
     }
+    memset(monthBuf, 0, 0xa);   // ORIG 0x0843fdfd-0x0843fe0b
     occTime = (time_t)((DB_ResponseTimeSigView*)sig)->m_baseSec;
     localtime_r(&occTime, &tmBuf);
     strftime(monthBuf, 10, "%Y%m", &tmBuf);
@@ -20520,13 +20557,14 @@ struct DB_AutoPunishBlackIpView
     mailBuf.m_field1e = sig->m_field28;
     mailBuf.m_field26 = 0;
     mailBuf.m_field57 = sig->m_field1a2;
-    if (sig->m_titleLen != 0)
+    // [P5S2W8LT r1] 补 && 短路首项：ORIG 0x0842738a `mov -0x18(%ebp),%eax;
+    //   add $0xa2,%eax; test %eax,%eax; je +0x104`（数组名退化指针真值测试，
+    //   恒真但 4.1 照发）→ 0x08427396 才测 m_titleLen；原缺首项 ⇒ 少 4 条。
+    if (sig->m_title != 0 && sig->m_titleLen != 0)
     {
         mailBuf.m_field59 = sig->m_titleLen;
         strncpy(mailBuf.m_title, sig->m_title, sig->m_titleLen);
     }
-    mailBuf.m_field2a = 0;
-    mailBuf.m_field33 = 0;
     try
     {
         if (sig->m_type == 0)
@@ -20537,8 +20575,15 @@ struct DB_AutoPunishBlackIpView
             unsigned int identity = WongWork::DBCommon::GetIdentity(db);
             if (identity == 0)
                 throw (int)0x6874;
+            // [P5S2W8LT r1] P212/P309 物化序：ORIG 0x08427470/0x08427552
+            //   `movb $0x0,-0x16a`（=mailBuf+0x2a）在各附件分支**内部**首条，
+            //   0x08427494/0x08427573 的 `movb $0x0,-0x161`（=+0x33）在
+            //   m_field34 之后、m_identity 之前——原两行提到 try 之前共用
+            //   ⇒ 少 2 条 store 且块序错。
+            mailBuf.m_field2a = 0;
             mailBuf.m_field2b = sig->m_field30;
             mailBuf.m_field34 = (unsigned short)sig->m_field35;
+            mailBuf.m_field33 = 0;
             mailBuf.m_identity = identity;
             mailBuf.m_field36 = sig->m_field54;
             mailBuf.m_field56 = 1;
@@ -20551,8 +20596,10 @@ struct DB_AutoPunishBlackIpView
             unsigned int identity = WongWork::DBCommon::GetIdentity(db);
             if (identity == 0)
                 throw (int)0x6886;
+            mailBuf.m_field2a = 0;   // ORIG 0x08427552
             mailBuf.m_field2b = sig->m_field34;
             mailBuf.m_field34 = sig->m_field40;
+            mailBuf.m_field33 = 0;   // ORIG 0x08427573
             mailBuf.m_identity = identity;
             mailBuf.m_field58 = 1;
         }

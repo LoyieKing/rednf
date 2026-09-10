@@ -95,8 +95,7 @@ namespace ARAD
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_EventPeriodDataManager.cpp",
-                "void ARAD::Arad_EventPeriodDataManager::addUserRewardData(CUser*, "
-                "arad::SigLoadRewardEventItem&)",
+                __PRETTY_FUNCTION__,
                 0xe3,
                 "[FnReward] already reward item. (mid:%u, charac:%u, event:%d)",
                 user->get_acc_id(), user->get_charac_no(-1), sig.m_eventCodes[i]);

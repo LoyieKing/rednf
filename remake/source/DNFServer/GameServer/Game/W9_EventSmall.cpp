@@ -98,14 +98,17 @@
 #include "W9_EventSmall/StartEvent_2.inc"
 {
     SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x11, 0);
+    // [N3 2026-09-11 §6.5 真错] ORIG prett 实读 = "virtual void CFatigueBuffEvent::StartEvent()"
+    //   （0x08b51820 size 0x2d，GCC 对虚函数加 virtual 前缀）；旧形 __FUNCTION__ 只展开裸
+    //   函数名 "StartEvent" ⇒ 运行期日志文本不同（verdict 恒不变不可见）⇒ 改 __PRETTY_FUNCTION__。
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x11, 0);
     trace("CFatigueBuffEvent Event Start!");
 }
 
 #include "W9_EventSmall/EndEvent_1.inc"
 {
     SetEventFlag(false);
-    cMyTrace trace(__FUNCTION__, 0x1b, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1b, 0);
     trace("CFatigueBuffEvent Event End!");
 }
 
@@ -123,14 +126,14 @@
 #include "W9_EventSmall/StartEvent_4.inc"
 {
     SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x12, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x12, 0);
     trace("CWeekendBonusEvent Event Start!");
 }
 
 #include "W9_EventSmall/EndEvent_2.inc"
 {
     SetEventFlag(false);
-    cMyTrace trace(__FUNCTION__, 0x1c, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1c, 0);
     trace("CWeekendBonusEvent Event End!");
 }
 
@@ -202,6 +205,10 @@
     //   "CharacBloodDungeon.cpp" 与 ORIG 0x8c26d80 字节一致）、§6.5.1 不适用
     //   （无 EUC-KR 字面量）；槽位与 ORIG 全等（sig -0xc、guard -0x14）⇒ 非 P339/
     //   P331 域，属 4.4 赋值 lowering（N18b 族）⇒ 封顶。
+    // [P6S6 2026-09-11 复核·仍 N] 本波再删 `(int)` cast 实测：`.o` 反汇编
+    //   仍是 `mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`（113 vs 112，
+    //   blocks=1）⇒ 4.4 恒「地址入 %eax、值入 %edx」，ORIG 4.1 形
+    //   `mov -0xc(%ebp),%edx; mov %eax,(%edx)`（值留 %eax 直存）源码不可择 ⇒ 维持 N。
     sig->m_characNo = (int)pUser->getCurCharacNo();
     sig->m_point = m_point;                      // this+0x08 → sig+0x04
     sig->m_weeklyEnterCount = m_weeklyEnterCount;

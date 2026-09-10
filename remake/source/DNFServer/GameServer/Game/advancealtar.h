@@ -385,7 +385,12 @@ class Manager
 public:
     Manager();    // ORIG T/W 0x08130902：空体（定义 advancealtar_Manager.cpp）
     ~Manager();   // ORIG T/W 0x08130908：空体（同上）
-    static int selectStage(CUser* user, int stageId, StageDifficulty::T diff);  // ORIG T 0x0813090e
+    // [P8S4 2026-09-11] P139 类型轴：ORIG prett 串 =
+    // "static ENUM_ERROR advancealtar::Manager::selectStage(CUser*, int, advancealtar::StageDifficulty::T)"
+    // （0x100/0x08af... 见 prett6），我方原为 `static int`（0x93）⇒ 返回类型 int→ENUM_ERROR。
+    // 返回类型不入 mangled（_ZN12advancealtar7Manager11selectStageEP5CUseriNS_15StageDifficulty1TE 不变），
+    // 且调用点 DisPatcherCore/process_16.inc:237 本就写 `(ENUM_ERROR)...` ⇒ 零 ABI/语义收敛。
+    static ENUM_ERROR selectStage(CUser* user, int stageId, StageDifficulty::T diff);  // ORIG T 0x0813090e
     static void procErrorSelectStage(CUser* user, ENUM_ERROR err);              // ORIG T 0x081309f0
     static bool finishLoad(CUser* user);  // ORIG T 0x08130eb2；调用方 `test %al,%al; je`（int 返回必 32 位判）
     static void dieCharac(CUser* user);                                         // ORIG T 0x08130ab2（DisP_GroupG 调用）

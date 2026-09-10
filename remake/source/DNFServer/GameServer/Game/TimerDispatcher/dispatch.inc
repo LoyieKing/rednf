@@ -1,1 +1,1 @@
-int TimerDispatcher::dispatch(TimerEntry& entry)
+bool TimerDispatcher::dispatch(TimerEntry& entry)

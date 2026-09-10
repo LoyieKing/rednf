@@ -63,17 +63,29 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     int optionMap = 0x24;                        // 默认：无对应禁项
-    if (requestType == 1)
-        optionMap = 0x1f;
-    else if (requestType < 2)
+    // [P5-DPC 2026-09-11] P251/P261 真 switch 轴：ORIG 0x081ef007..0x081ef04c 为 -O0
+    // switch 决策树（`movzbl -0x41; movsbl %al,%eax`；`cmp $0x1,%eax; je <0x1f>`；
+    // `cmp $0x1,%eax; jg <hi>`；`test %eax,%eax; je <6>`；`jmp <end>`；
+    // hi: `cmp $0x2,%eax; je <7>`；`cmp $0x3,%eax; je <8>`；`jmp <end>`；
+    // 各 case 落 `movl $K,-0x34(%ebp); jmp <end>`）⇒ 原码是 case 0/1/2/3 的 switch；
+    // 我方旧 if/else-if（含 `< 2` 分段）令 4.4 出 `cmp $0x2,%al` 字节比较链。
+    switch (requestType)
     {
-        if (requestType == 0)
-            optionMap = 6;
-    }
-    else if (requestType == 2)
+    case 0:
+        optionMap = 6;
+        break;
+    case 1:
+        optionMap = 0x1f;
+        break;
+    case 2:
         optionMap = 7;
-    else if (requestType == 3)
+        break;
+    case 3:
         optionMap = 8;
+        break;
+    default:
+        break;
+    }
     if (optionMap != 0x24 &&
         target->GetGameOptionRef()->get_etc_option(
             static_cast<ENUM_OPTION_ETC>(optionMap)) != 0)

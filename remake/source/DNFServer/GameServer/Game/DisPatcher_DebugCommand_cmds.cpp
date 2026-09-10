@@ -75,11 +75,12 @@ struct stBuySkillInfo
 // [P139 本波] 13 个函数的 pretty 串改用 `__PRETTY_FUNCTION__`（在函数内展开，发射
 // `_ZZN23DisPatcher_DebugCommand…E19__PRETTY_FUNCTION__` 局部静态符号，与 ORIG 同名
 // 同 size，见各报告 `movl $&_ZZ…__PRETTY_FUNCTION__,0x4(%esp)`）。删除原手写数组。
-// 唯一例外 _debugCommandAddItem：ORIG prett =
-//   "bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser*, itemIndexOnlyServer_t, int)"
-// 而 typedef `itemIndexOnlyServer_t`（InterDispatcher.h:2481）本 TU 不可见；父泳道裁决
-// （2026-09-11）不授权新增 include（收益仅 1 个 local 数据符号 0x57，不及改 TU 级
-// include 集的 codegen 风险）⇒ 保留手写串守日志文本契约，该符号缺口登记豁免。
+// [P8S2 2026-09-11 收口] 原「唯一例外 _debugCommandAddItem」已解除：P7 把
+//   `typedef unsigned long itemIndexOnlyServer_t;` 落在 GameTypes.h:52（本 TU 已 include），
+//   故定义处参数拼写改用 typedef 名 + 使用点改 __PRETTY_FUNCTION__ ⇒ 发射
+//   `_ZZN23DisPatcher_DebugCommand20_debugCommandAddItemEP5CUsermiE19__PRETTY_FUNCTION__`
+//   size=0x57，与 ORIG 0x08cb8280 串逐字节一致（dumpstr 实证）。下方数组因此**不再被引用**
+//   （4.4 -O0 仍发射到 .rodata）；删除属 TU 级实体改动（本泳道无写权）⇒ 保留待 Main 清理。
 static const char g_dbgCmdPrettyAddItem[] =
     "bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser*, itemIndexOnlyServer_t, int)";
 
@@ -238,7 +239,7 @@ ok:
 // NEAR（P230 补）。已修：slot>=0 正向包裹翻尾块序（P222）、outSpace 删预清（P171）、
 // getCurSec 双调内联实参、`&&` 拆嵌套 if（P225 推广）。P167 CLEAR 16/16。
 #include "DisPatcher_DebugCommand_cmds/_debugCommandAddItem.inc"
-                                                   unsigned long itemIdxOnlyServer,
+                                                   itemIndexOnlyServer_t itemIdxOnlyServer,
                                                    int count)
 {
     if (!user->isGMUser())                      // +0x08
@@ -279,7 +280,11 @@ ok:
     // ORIG +0x10a `js <尾 mov$0 块>`：成功条件正向包裹，失败块后置（P222/P59）。
     if (slot >= 0)
     {
-        cMyTrace(g_dbgCmdPrettyAddItem, 0xf4, 0)("%s:'%s' GM Mode Add Item(%d).",
+        // [P8S2 2026-09-11] P139 修复：ORIG prett 直证 `itemIndexOnlyServer_t`
+        // （typedef 已由 P7 落在 GameTypes.h:52）⇒ 参数拼写改用 typedef 名 +
+        // 此处改 __PRETTY_FUNCTION__，发射与 ORIG 同名同 size（0x57）的
+        // `_ZZN23DisPatcher_DebugCommand20_debugCommandAddItemEP5CUsermiE19__PRETTY_FUNCTION__`。
+        cMyTrace(__PRETTY_FUNCTION__, 0xf4, 0)("%s:'%s' GM Mode Add Item(%d).",
             NumberToString(user->get_acc_id(), 0), user->getCurCharacName(), slot);
         user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
                                  outSpace, slot);   // +0x19f SendUpdateItemList(1,space,slot)

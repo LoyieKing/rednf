@@ -464,6 +464,12 @@ struct SIG_BOOSTER_GAGE_DATA
     //    lea/mov/call D1 + mov esi→eax/ebx→edx + call _Unwind_Resume」各一份，
     //    逐条同构；ORIG 尾 +0x127 另有 1 条对齐 `nop`（净 80=80）。
     //    ORIG `jmp +0x113`（尾岛）/ pad 居中；我方 fall-through 尾块 / pad 置尾。
+    // [P6S3 round6 · 第三轮复核 · 维持 N104] 按父泳道要求只复核不重投：n1_v 读数
+    // DIFF orig=81 our=81 gap=+0（旧判词 81/80）；逐块比对仍为「两块内容逐条同构、
+    // 仅 EH 段物理顺序差」——ORIG 0x080dd43f `jmp +0x113` 跳尾岛、landing pad 居中，
+    // 我方正常路径 fall-through 到 guard D1 尾块、pad 置尾。四数（identical/ae/
+    // near/diff）无变化。本波新钥匙（P339 声明序 / P341 共享尾 / §6.5 串）对本件
+    // 无作用面（无具名局部轴、无串缺口）⇒ N104 结论维持，不再重投入。
     // ② 语义轴全核：串 `"BoosterGage.cpp"` + 行 `0x193` 与源码逐字一致（我方 .o
     //    .rodata 偏移 0x90 处 `\0BoosterGage.cpp\0` 直证）；`SIG_BOOSTER_GAGE_DATA`
     //    写入 = ORIG 0x080dd3ff `call get_acc_id; mov %eax,(%edx)` 落 **+0**

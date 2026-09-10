@@ -1,1 +1,1 @@
-int TimerStartExpEventAfterVillageAttack::dispatch_sig(int p1, int p2, unsigned int p3)
+bool TimerStartExpEventAfterVillageAttack::dispatch_sig(int p1, int p2, memberIdentificationNumber_t p3)

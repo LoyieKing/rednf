@@ -22,7 +22,10 @@ int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
     //    P339 不适用（源码本已全头部声明，且差非均匀平移而是「帧 +16 + 基准 +4」
     //    交叠；函数含 Inven_Item×3 / vector×2 / PacketGuard 等非 POD，按 P339 禁提）；
     //    P331 非纯倒置（伴随 16B 结构差）。⇒ 判语义完成、byte 层 N82/N104 封顶。
-    static const char SELF[] = "virtual int Dispatcher_CompoundEmblem::dispatch_sig(CUser*, PacketBuf&)";
+    // [P8S4 2026-09-11] P139：ORIG 侧存在 prett 符号
+    // _ZZN25Dispatcher_CompoundEmblem12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__
+    // （size=72，串内容 = "virtual int Dispatcher_CompoundEmblem::dispatch_sig(CUser*, PacketBuf&)"）；
+    // 原手写 SELF[] 不产生该符号 ⇒ 改回 __PRETTY_FUNCTION__（字节内容同，零语义）。
 
     if (user->get_state() != 3)
         return 0;
@@ -33,13 +36,13 @@ int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
     unsigned short slotB;
 
     if (!packet.get_item_idx(itemIdxA))
-        return LineFunc(0xda8f, SELF, 0, 0);
+        return LineFunc(0xda8f, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_short(slotA))
-        return LineFunc(0xda90, SELF, 0, 0);
+        return LineFunc(0xda90, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_item_idx(itemIdxB))
-        return LineFunc(0xda91, SELF, 0, 0);
+        return LineFunc(0xda91, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_short(slotB))
-        return LineFunc(0xda92, SELF, 0, 0);
+        return LineFunc(0xda92, __PRETTY_FUNCTION__, 0, 0);
 
     Inven_Item invA;
     Inven_Item invB;

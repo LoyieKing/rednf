@@ -341,7 +341,10 @@ namespace WongWork
 //   ③PRETTY 改 `__PRETTY_FUNCTION__`（ORIG `movl $sym,0x4(%esp)` 单条，P139）。
 #include "WongWorkMiscB_A/_getAdditionalDisjointItem.inc"
     unsigned int up, const CItem* itemScript,
-    std::vector<std::pair<int, int> >& items,
+    IntPairVector& items,          // [P3 2026-09-11 P139] ORIG prett 实串用 typedef
+                                   // 名（`... const CItem*, IntPairVector&, ...`，
+                                   // 0x82 字节）⇒ 拼写改 typedef（mangled/ABI 不变，
+                                   // 仅 __PRETTY_FUNCTION__ 串由 0xbc→0x82 与 ORIG 同）。
     const upgrade_table_t& table, bool flag)
 {
     (void)itemScript;

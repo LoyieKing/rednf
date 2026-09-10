@@ -141,7 +141,7 @@ namespace QuickParty
     // Size()→%esi、Remain() 结果直接相减（无 registeredCnt/occupiedCnt 具名槽）；
     // 具名局部使 4.4 落 -0x10/-0xc 两槽并多 4 条 mov，改临时链后复现。
     // ORIG fmt @0x8bf5380（GBK，objdump -s .rodata 实证逐字节一致）
-    cMyTrace("void QuickParty::CQuickParty::destroy()", 0x32, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x32, 0)(
         "QUICK_PARTY_LOG : QUICK \xc6\xc4\xc6\xbc\xc7\xd8\xc1\xa6 \xb5\xcb\xb4\xcf\xb4\xd9. QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>, \xb5\xee\xb7\xcf QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>",
         G_CGameManager()->m_quickPartyPool.Size() -
             static_cast<int>(G_CGameManager()->m_quickPartyPool.Remain()),

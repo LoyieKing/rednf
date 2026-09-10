@@ -163,6 +163,9 @@ end:
     //  （本处无 const 转换、ORIG 侧无三级槽）；③全头部声明（P212 同序律）需默认构造
     //  `_Rb_tree_iterator()` 产生 2 条 `movl $0x0` ⇒ 226→228 条，条数反劣，不采纳。
     // 保持 NEAR（226=226，P167 25=25 CLEAR），语义等价。
+    // [P8S4 2026-09-11] P139：ORIG 侧有 prett 符号
+    // _ZZN20AvatarRechargeServer25CheckConditionUseRechargeEP5CUserPN4arad24SigAradUseAvatarRechargeEE19__PRETTY_FUNCTION__
+    // （size=94，串内容与原手写串逐字节同）；原手写字面串不产生该符号 ⇒ 改用 __PRETTY_FUNCTION__。
     std::map<int, int>::iterator itEnd = m_emblemRechargeStoneMap.end();
     std::map<int, int>::iterator it = m_emblemRechargeStoneMap.find(stone->m_addInfo);
     if (it == itEnd)
@@ -170,8 +173,7 @@ end:
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x11);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarRechargeServer::CheckConditionUseRecharge(CUser*, "
-            "arad::SigAradUseAvatarRecharge*)",
+            __PRETTY_FUNCTION__,
             0xad,
             "USE AVATAR RECHANGE : [item_id:%d] isn't RechargeStone [charac_no:%d]",
             stone->m_addInfo, user->getCurCharacNo());
@@ -216,8 +218,7 @@ end:
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0xd8);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarRechargeServer::CheckConditionUseRecharge(CUser*, "
-            "arad::SigAradUseAvatarRecharge*)",
+            __PRETTY_FUNCTION__,
             0xcd,
             "USE AVATAR RECHANGE : already max endurance [ui_id:%d] [charac_no:%d]",
             avatar->m_addInfo2, user->getCurCharacNo());

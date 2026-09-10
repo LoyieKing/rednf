@@ -19,10 +19,17 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
     if (!packet.get_short(cmd) || (packet.at(1) & 0xff) == cmd)
     {
         unsigned char bVar3 = packet.at(1);
-        if (bVar3 > 0x20)
+        // [P5-DPC 2026-09-11] P251/P261 真 switch 轴：ORIG 0x081ee148..0x081ee16b 为 -O0
+        // switch 决策树（`movzbl %al,%eax`；`cmp $0x21,%eax; jl <default>`；
+        // `cmp $0x22,%eax; jle <case21_22>`；`cmp $0x23,%eax; je`；`cmp $0x24,%eax; je`；
+        // `jmp <default>`）⇒ 原码是 case 0x21/0x22（共享块）/0x23/0x24 的 switch；
+        // 我方旧 `if (bVar3 > 0x20) { if (bVar3 < 0x23) … else if … }` 产不出该树
+        // （diff `insert orig[38:38] ours[38:53]` + `replace orig[44:90] ours[59:65]`）。
+        switch (bVar3)
         {
-            if (bVar3 < 0x23)
-            {
+        case 0x21:
+        case 0x22:
+        {
                 short local_28;
                 if (packet.get_short(local_28) != true)
                 {
@@ -46,8 +53,9 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                 }
                 user->quest_action(static_cast<int>(packet.at(1) & 0xff), static_cast<int>(local_28), 0, 0);
             }
-            else if (bVar3 == 0x23)
-            {
+            break;
+        case 0x23:
+        {
                 if (user->get_state() == 5)
                 {
                     CParty* local_20 = static_cast<CParty*>(user->GetParty());
@@ -97,8 +105,9 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                 user->quest_action(static_cast<int>(packet.at(1) & 0xff), static_cast<int>(local_4c),
                                    static_cast<int>(local_4a), static_cast<int>(local_49[0]));
             }
-            else if (bVar3 == 0x24)
-            {
+            break;
+        case 0x24:
+        {
                 short local_3b;
                 if (packet.get_short(local_3b) != true)
                 {
@@ -130,6 +139,9 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                     user->setGmQuestFlag(false);
                 }
             }
+            break;
+        default:
+            break;
         }
     }
     else

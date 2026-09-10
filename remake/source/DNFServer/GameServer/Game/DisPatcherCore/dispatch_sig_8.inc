@@ -95,15 +95,26 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     unusedGuard = 6;                    // ORIG -0x38 死存储
-    if (invenType == 1)
+    // [P5-DPC 2026-09-11] P251/P261 真 switch 轴：ORIG 0x081f315e..0x081f31cc 为 -O0
+    // 决策树（`movl $0x6,-0x38`；`movzbl -0x45,%eax; movsbl %al,%eax`；
+    // `cmp $0x1,%eax; je <case1>`；`cmp $0x3,%eax; je <case3>`；`jmp <0x4c0>`）——
+    // case1 直接 `SendCmdErrorPacket(0x18,0x17); return 0`；case3 内再
+    // `movzwl -0x44; cmp $0x9,%ax; jg <0x4c0>` 后同样错误返回。我方旧 if/else-if
+    // 令 4.4 出 `movzbl; cmp $0x1,%al; jne` 字节比较链（diff at orig[226:228]）。
+    switch (invenType)
     {
+    case 1:
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x18, 0x17);
         return 0;
-    }
-    if (invenType == 3 && slot <= 9)
-    {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x18, 0x17);
-        return 0;
+    case 3:
+        if (slot <= 9)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x18, 0x17);
+            return 0;
+        }
+        break;
+    default:
+        break;
     }
 
     if (user->get_state() == 5)

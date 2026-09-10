@@ -169,23 +169,32 @@
         }
         else if (line == "[player max]")
         {
-            m_playerMax = ScanInt((bool*)0);
+            // [P6AuditOldN.P6S2 2026-09-11 · 类型轴⑦] p167fix 同点对：ORIG
+            //   MISSING `_Z7ScanIntPi`×6 / 我方 EXTRA `_Z7ScanIntPb`×6。按 ORIG
+            //   调用序逐点对齐（ORIG 的 `_Z7ScanIntPb` 全函数仅 3 处 =
+            //   m_dungeonDifficulty/m_superArmorTime/m_equipmentUpgradeMax，
+            //   其余 6 处含本文 5 连发 + [buff max value] 均为 `_Z7ScanIntPi`）。
+            //   ORIG 0x088d5a9a 形：`mov 0x8(%ebp),%eax; mov %eax,(%esp);
+            //   call ScanIntPi; jmp` = 传 `&m_playerMax`（offset 0 ⇒ 直接 this）
+            //   并**丢弃返回值** ⇒ 原码是传址调用而非赋值形（我方旧形传 null +
+            //   存返回值，多 movzbl 且 miss Pi）。
+            ScanInt(&m_playerMax);
         }
         else if (line == "[enter level]")
         {
-            m_enterLevel = ScanInt((bool*)0);
+            ScanInt(&m_enterLevel);
         }
         else if (line == "[enter max level]")
         {
-            m_enterMaxLevel = ScanInt((bool*)0);
+            ScanInt(&m_enterMaxLevel);
         }
         else if (line == "[enter count]")
         {
-            m_enterCount = ScanInt((bool*)0);
+            ScanInt(&m_enterCount);
         }
         else if (line == "[die count]")
         {
-            m_dieCount = ScanInt((bool*)0);
+            ScanInt(&m_dieCount);
         }
         else if (line == "[dice value]")
         {
@@ -235,7 +244,7 @@
         }
         else if (line == "[buff max value]")
         {
-            m_buffMaxValue = ScanInt((bool*)0);
+            ScanInt(&m_buffMaxValue);
         }
         else if (line == "[gold base]")
         {

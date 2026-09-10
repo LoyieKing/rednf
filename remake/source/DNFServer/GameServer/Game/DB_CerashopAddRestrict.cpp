@@ -227,10 +227,18 @@ public:
         SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* sig =
             guard.operator->()->GetInBuffer<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE>();
         *(int*)sig = nRows;               // +0x00 count
+        // [P6S6 2026-09-11 复核·仍 N] 试 `((int*)sig)[1] = 0;`（期望 disp 折叠
+        //   `movl $0x0,0x4(%eax)`）实测我方仍 `add $0x4,%eax; movl $0x0,(%eax)`，
+        //   读数恒 358/354 ⇒ 4.4 对 int* 索引 cast 不折叠（N82 族）⇒ 回滚原形。
         *(int*)((char*)sig + 4) = 0;      // +0x04 type = account
         for (int i = 0; i < nRows; ++i) {
             if (!db->fetch())
                 return false;
+            // [P6S6 2026-09-11 负结论·回滚] ORIG 0x080e1c48 段为 `col++` 形
+            //   （`mov -0x18,%eax; addl $0x1,-0x18` ×3 直证），但本波实测
+            //   `int col = 0; get_int(col++, …)` 反而劣化：ours 358→**366**、
+            //   difflib 块 22→25（4.4 对后置自增实参多 8 条）⇒ 回滚维持常量形
+            //   （语义等价：两侧都传 0/1/2 列号）。
             int col = 1;   // -0x18 列号推进（0 基）
             if (!db->get_int(0, *(unsigned int*)((char*)sig + 8 + i * 0xc)))
                 return false;

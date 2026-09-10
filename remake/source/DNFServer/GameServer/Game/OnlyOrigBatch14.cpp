@@ -108,6 +108,15 @@ struct STActiveStatus
 // 前 6 条逐条一致；唯一残差 = 4.1 的「写回参数槽 + 重读」2 条（4.4 对 register 形参
 // 恒不写回，探针 ROR2/ROR12 复证）。mangled/ABI 零变化（register 不入符号）。
 // 属 4.1/4.4 rotate lowering 跨版本差异 ⇒ 采用最接近 ORIG 的 register 形封顶。
+// [P1T1 本波复核] 另测引用形（/tmp/p1/probe_small.cpp ROL_ref：`unsigned int& r =
+// value;` ⇒ 4.4 产 `lea 0x8(%ebp),%eax` + 引用槽往返 + `rol %edx,%cl`，13 insn，
+// 比 register 形更劣）⇒ 无新源形可复现 ORIG 的「写回参数槽 + 重读」，维持封顶。
+// [P1T1 本波穷举·续] /tmp/p1/probe_rol2.cpp+probe_rol3.cpp 九形：volatile 重读
+// （`*(volatile u32*)&value`）⇒ 13 insn（多 push %ebx，rol 落 %ebx）；`asm("" : "+m")`
+// ⇒ 12 insn（同上）；`asm("" : "+a")`（register/非 register）⇒ 7~8 insn（无写回）
+// 或非 register 时 `rol [ebp+0x8],%cl` 内存形 + 冗余 `mov [ebp+0x8],%eax`（8 insn，
+// 与 ORIG 的寄存器 rol+写回+重读**都**不同）。ORIG 0x080c3dc0 的 10 条形
+// （`rol %eax,%cl; mov %eax,0x8(%ebp); mov 0x8(%ebp),%eax`）为 4.1 独有 lowering。
 static unsigned int ROL(register unsigned int value, int count)
 {
     value = (value << count) | (value >> (32 - count));
@@ -122,6 +131,8 @@ static unsigned int ROL(register unsigned int value, int count)
 // `return value=expr`/局部中转/掩码/交换操作数）无一复现寄存器形；b14 增测
 // register 形参（/tmp/b14_ror.cpp ROR2）⇒ 寄存器 ror 复现，仍缺写回+重读 2 条。
 // 与 ROL 同判词。
+// [P1T1 本波复核] 同 ROL：引用形亦劣（13 insn）；ORIG 0x0809c42d 的
+// `mov %eax,0x8(%ebp); mov 0x8(%ebp),%eax`（写回+重读）在 4.4 恒被折掉 ⇒ 维持封顶。
 static unsigned int ROR(register unsigned int value, int count)
 {
     value = (value >> count) | (value << (32 - count));
@@ -321,6 +332,9 @@ STScriptFileList g_stMapScriptFileList;
 // `mov staticSeed,%edx; add %edx,%eax`（LHS-first + add）。P211 负例（static
 // 存储期变量复合赋值装载序不可翻，b28c C28L24 三救均败）+ add/lea 跨版本；
 // 其余 49 条与 ORIG 全等。
+// [P1T1 本波复核] 残差复核 = 仅 NULL 分支 3 条（ORIG 0x0808bc8f `mov %eax,%edx;
+// mov staticSeed,%eax; lea (%edx,%eax,1),%eax` vs 我方 `mov staticSeed,%edx;
+// add %edx,%eax`）；维持 P211 static 装载序 + add/lea 跨版本封顶。
 unsigned int Rand_r(unsigned int* seed)
 {
     static unsigned int staticSeed = 0;  // ORIG _ZZ6Rand_rPjE10staticSeed 0x0936e480

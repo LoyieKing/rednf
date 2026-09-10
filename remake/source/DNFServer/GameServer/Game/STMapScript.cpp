@@ -1224,8 +1224,12 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                             pending = sym;
                         else
                         {
-                            std::pair<int, int> objPair(pending, sym);  // 直接构造（P81）
-                            script->m_recoveryObjects.push_back(objPair);
+                            // [P6S3 round6 · p167fix 真 call 差集线索] ORIG 调用点为目标
+                            // _ZNSt6vectorISt4pairIiiESaIS1_EE9push_backEOS1_（pair&& 重载），
+                            // 我方原具名局部 objPair 走 const&（EXTRA）。改传临时实参
+                            // （语义等价：值同 (pending, sym)）以命中 && 重载。
+                            script->m_recoveryObjects.push_back(
+                                std::pair<int, int>(pending, sym));
                             pending = -1;
                         }
                         pos += 2;

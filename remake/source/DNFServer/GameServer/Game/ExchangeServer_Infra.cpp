@@ -350,7 +350,11 @@ template bool CSessionManager<CSession, PacketGuard, CEpoll>
         // 实参装载 0x8/0xc/0x10 = 1000 / remain / map.size()（非我方旧推断的
         // "map size/pool remain/max" 且顺序相反）。
         // 且 ORIG 先算完两个实参再构造 tr（P37/P227 全表达式临时链）。
-        cMyTrace("exchange_server::CCacheCharacterMgr::FreeCharacter", 0x4e, 0)(
+        // [P6AuditOldN 2026-09-11 §6.5 真修] 旧手写串只到函数名（缺参数表），ORIG prett 实读
+        // （0x08c78398 邻域符号 `_ZZN15exchange_server18CCacheCharacterMgr13FreeCharacterEP20CACHE_CHARACTER_TYPEE19__PRETTY_FUNCTION__`
+        // size 0x4f）= "void exchange_server::CCacheCharacterMgr::FreeCharacter(CACHE_CHARACTER_TYPE*)"。
+        // 本仓类/命名空间与参数拼写一致 ⇒ `__PRETTY_FUNCTION__` 展开逐字节相同，同时补 prett 符号。
+        cMyTrace(__PRETTY_FUNCTION__, 0x4e, 0)(
             "FreeCharacter() error (%d,%d,%d)",
             1000, m_pool.Remain(), static_cast<int>(m_map.size()));
     }

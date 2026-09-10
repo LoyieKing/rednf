@@ -58,6 +58,11 @@ bool importUniqueRewardForAllUsers(
             // （跳过 "[/package]" 检查直接回循环头；语义等价：token=="[group]"
             // 时 "[/package]" 恒 false）。4.4 对无 continue 的形让 dtor 块
             // 直落 "[/package]" 比较块，少这条 jmp。
+            // [P1T1 本波复核] 残余唯一块 = 该 jmp：ORIG 0x890002d `jmp 0x8900044`
+            // 跨过 0x890002f 起的 jobs 异常清理 pad（4.1 把 pad 排在语句落点后）；
+            // 4.4 把该 pad 排到函数尾部 ⇒ 我方 continue 处直落
+            // `lea -0x20(%ebp),%eax; call ~vector<vector>`（18c2，无前置 jmp）。
+            // 删 continue 更劣（fall-through 进 "[/package]" 比较块）⇒ N82 pad 排布族封顶。
             continue;
         }
         if (token == "[/package]")

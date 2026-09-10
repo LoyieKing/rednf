@@ -11,9 +11,28 @@ int Dispatcher_CompoundEmblem::_selectJewelTypeIndex(
     for (unsigned int i = 0; i < count; ++i)
     {
         if (sockets[i] != 0)
-            getAvatarEmblemTypeIdxForCompountEmblem(sockets[i], socketCounts, total);
+        {
+            // [P8S4 2026-09-11] P184/GmCmds_A 实证形：ORIG 0x08220abf 段
+            // `mov %eax,-0x18(%ebp); cmpl $<A>,-0x18(%ebp); jmp <T>`（存返回值 +
+            // 无分支消费者死比较 + 直落 i++）。空 switch 令 4.4 保留纯比较。
+            int ret = getAvatarEmblemTypeIdxForCompountEmblem(sockets[i],
+                                                              socketCounts, total);
+            // [P8S4 2026-09-11 负结论] 试 `if (ret==-1){}else{}` 双空块求 ORIG 的
+            // `jmp <T>`（0x08220ac1，跳过 0x08220ac2 nop 岛）：4.4 反把整个比较
+            // 一并 DCE（92 条，gap 1→2 反劣）⇒ 回退空 switch 形。
+            switch (ret == -1)
+            {
+            }
+        }
     }
-    if (total != 0)
+    // [P8S4 2026-09-11] 试早期 return 布局：ORIG 0x08220b1c 段为
+    // `mov -0x50(%ebp),%eax; test %eax,%eax; jne <循环体>; mov $<A>,%eax;
+    // jmp <函数尾>` ⇒ 原码应为 `if (total == 0) return -1;` 早退 + 正文直落。
+    // 原重建写 `if (total != 0) { 正文 } return -1;`，4.4 折成 `je <尾>` 单条。
+    if (total == 0)
+    {
+        return -1;
+    }
     {
         for (int j = 0; j < 5; ++j)
         {

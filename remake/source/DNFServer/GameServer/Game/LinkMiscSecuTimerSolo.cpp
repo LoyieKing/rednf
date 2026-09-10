@@ -90,6 +90,11 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
 //      ⇒ ScriptExtras **103/190/0/9 → 103/191/0/8**（ae +1、diff −1、identical 不减）。
 // 其余语义（含 pack/PackSet 双分支、full 默认构造+substr 临时 operator= 链）与
 // ORIG 切片逐条对位。
+// [P1T3LinkMiscSecuTimerSolo 2026-09-11 复核] n1_v 181/181 gap 0（唯一残差 =
+// `call _Z14UseScriptPackv` vs ORIG `movzbl _ZL16s_bUseScriptPack,%eax`；p167 记
+// EXTRA 1 `_Z13UseScriptPackv`）。三形净账与前人结论一致 ⇒ 维持 N（P189 封顶）：
+// 本 TU 另立 static 副本会与 ScriptExtras.cpp 的写点（InitRDARScript）分叉
+// （语义轴禁止），extern 桥因内部链接符号不可见 + P189 禁用，objcopy 越权 ⇒ 无源改路径。
 // ===========================================================================
 #include "LinkMiscSecuTimerSolo/findFileWithServerToken.inc"
 {
@@ -229,19 +234,26 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
                                       tag->c_str());
             }
         }
-        else if (g_moduleNameTag[moduleId][0] == "[pvp]")
+        // ORIG 8a9780c..8a9782a：`call eq("[pvp]");test;je 8a97823;cmpl $9,type;
+        // je 8a9781c;cmpl $5,type;jne 8a97823;8a9781c: mov $1,%eax;jmp 8a97828;
+        // 8a97823: mov $0,%eax;8a97828: test %al,%al;je 8a9783a(else ScanType 段)`
+        // ⇒ 源码是**单条** `if (tag=="[pvp]" && (type==9||type==5)) subId=4;`：
+        // 整个 && 链在 4.1 里统一物化 bool 到 %al（**零栈槽**），且「pvp 命中但
+        // type∉{9,5}」与「tag≠pvp」共用同一假出口 = **直接落 else(ScanType) 段**。
+        // 原实现（嵌套 if + 具名 bool）双重错：a) 语义轴 —— pvp 命中而 type∉{9,5}
+        // 时被 else-if 截住、**不执行 ScanType/foundSub 路径**（ORIG 会走 else）；
+        // b) 4.4 对具名 bool 恒落槽 `mov %al,-0xf;cmpb $0,-0xf`（+1 条 ⇒ DIFF）。
+        // 4.4 三形实测（探针 /tmp/p1/probe_bool3.cpp、probe_bool2.cpp）：
+        // ①&& 链尾纯比较（本形）= ORIG 逐条同（`call;test;je;cmpl $9;je;cmpl $5;
+        //   jne;mov $1,%eax;jmp;mov $0,%eax;test %al,%al;je`，零槽）；
+        // ②嵌套 if + 具名 bool = +1 槽存取；③`register bool` = 改用 %ebx
+        //   （push/mov/pop +3）；④裸 `if (type==9||type==5)` = 4.4 折成
+        //   `cmpl $9;je;cmpl $5;jne`（208 条，gap −5）；⑤语句表达式/条件声明/
+        //   `?:`/`==true`/`==false`/`|` 各族均折或改用 setcc。
+        else if (g_moduleNameTag[moduleId][0] == "[pvp]" &&
+                 (type == 9 || type == 5))
         {
-            // ORIG 8a97810..8a9782a：`cmpl $9;je;cmpl $5;jne;mov $1,%eax;jmp;
-            // mov $0,%eax;test %al,%al;je` —— 4.1 -O0 对 `||` 条件先**物化 bool 到
-            // %al 再测试**（无栈槽，P0 ⇒ 原码无具名局部）。4.4 两形实测：
-            // ①具名 bool（本形）恒落槽 `mov %al,-0xf;cmpb $0,-0xf`（214 条，gap +1）；
-            // ②P226 语句表达式 `({type==9||type==5;})` 被前端整折为
-            //   `cmpl $9;je;cmpl $5;jne`（208 条，gap −5，无物化段）。
-            // 无第三形可复现 4.1 的「物化但零槽」（P0：非 call 结果的纯比较在 4.4
-            // -O0 恒折直跳）⇒ N（跨版本 if 条件 bool 物化；与 setcc-fold 同族）。
-            bool hit = (type == 9 || type == 5);
-            if (hit)
-                subId = 4;
+            subId = 4;
         }
         else
         {
@@ -465,8 +477,11 @@ public:
     unsigned long long a, unsigned long long b, unsigned long long c,
     unsigned long long d, int e, int f, int g)
 {
+        // 串轴（strall 实证）：ORIG T 0x08433d70 属 **DBThread.cpp** 域，其
+        // Acquire 首参为 "DBThread.cpp"（strall O-only "DBThread.cpp" ⇔ 我方原
+        // "../RDARScript.cpp"）；改为 ORIG 原串，零指令影响。
         CStreamGuard guard(
-            GlobalData::s_stream_pool->Acquire("../RDARScript.cpp", 0x7c79), true);
+            GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7c79), true);
         guard.operator*()->operator<<(0x15b);
         guard.operator*()->operator<<(-1);
         SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL* sig =
@@ -518,6 +533,17 @@ public:
 // 实测 **252**（多 shift/槽化）⇒ 已回退记 N；帧差 0x10（0xac vs 0x9c）与槽号整体
 // 偏移属 N82/N126（版本首槽基址常数）。语义（base 唯一 64 位局部/三处内联 utodf/
 // 整数 diff 减法/clamp/channel==1 上报参数）与 ORIG 逐条一致。
+// [P1T3LinkMiscSecuTimerSolo 2026-09-11 本轮实测定稿] 248/246 → **247/246**
+// （gap −2 → −1，blocks 33 不变）：删 trace 第 3 实参的
+// `static_cast<int>(optGoldHi)` 冗余 cast（`%d` 实参位模式同 ⇒ 语义零变）。
+// ORIG 82f88a3/82f88a7 为 `mov %ebx,0x10(%esp); mov %esi,0x14(%esp)` 直装
+// callee-saved；原 cast 形在 4.4 多一条 `mov %edi,%eax; mov %eax,0x14(%esp)`
+// 中转（RHS-first 转换）⇒ 去 cast 后逐条对位。
+// 剩余 +1 = trace 段 msg 双字段基址重装：ORIG 82f8865-82f886b 单次
+// `mov 0xc(%ebp),%eax; mov 0x8(%eax),%ebx; mov 0xc(%eax),%esi`，我方 4.4 对两个
+// 32 位视图读各发一次 `mov 0xc(%ebp),%eax`。`register unsigned long long` 拆字、
+// 64 位具名局部均再劣（落 8B 槽 + 存/读对）⇒ N18a/N7 封顶；其余 32 块为帧 +0x10
+// 与槽号整体偏移（4.1 0x9c vs 4.4 0xac）⇒ N82/N126，非源码可调。
 // ===========================================================================
 // ===========================================================================
 // Inter_MonitorServerEventStart::SendEventNotiPacket  ORIG T 0x084cf2de
@@ -594,7 +620,7 @@ public:
     trace("LoadDatabase() %qd %u %d %d %d",
           base,
           optGoldLo,
-          static_cast<int>(optGoldHi),
+          optGoldHi,
           field00Now, equipNow, durNow);
 
     long long diff = base - msg->m_view.m_optimumGold;

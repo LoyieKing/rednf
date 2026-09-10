@@ -215,7 +215,7 @@ struct NetFlagView
 
     try
     {
-        memmove(m_recv, m_recvBuf, parsingLength);
+        p8_memmove_eh(m_recv, m_recvBuf, (unsigned int)parsingLength);
         m_recvOffset = parsingLength;
         m_recvBuf = m_recv + parsingLength;
     }

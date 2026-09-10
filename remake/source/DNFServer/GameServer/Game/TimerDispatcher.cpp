@@ -1851,7 +1851,11 @@ __attribute__((weak)) TimerCheckMailTimeOut::~TimerCheckMailTimeOut() throw() {}
     // → `test %al,%al; je` 前跳；result=1 在 PacketGuard dtor(0x08635e64) 之前。
     // [b28d-solo-TimerDispatcher] P231 纯 register：ORIG result 驻 %ebx 跨全部 call
     // 无栈槽；P0：ORIG 无 bad 槽 ⇒ 条件内联（旧具名 bool 生 mov %al,-0x11; cmpb）。
-    register int result;
+    // [P7HeaderAxis 2026-09-11] bool 化：ORIG 整族 dispatch_sig 返回 bool（prett 直证
+    // `virtual bool X::dispatch_sig(int, int, memberIdentificationNumber_t)`）；ORIG
+    // 0x08635d4d/0x08635e5f `mov $0x0/$0x1,%ebx` 产 result、0x08635e8c `mov %ebx,%eax`
+    // 直返、**无** test/setne 物化 ⇒ result 本体即 bool。
+    register bool result;
     CUser* user = G_CGameManager()->getUser(p1, 7);   // ORIG 第二实参为常量 7
     if (user == 0) {
         result = 0;
@@ -2298,7 +2302,8 @@ __attribute__((weak)) TimerDungeonDataStatistic::~TimerDungeonDataStatistic() th
     // ORIG 0x0863674a-0x08636757：Acquire 免槽直落 ctor；guard 全程作用域
     // （dtor 在 updateDataIntoDB/Regist 之后，catch @0fc）；写流走显式
     // operator*() 代理链；GetInBuffer 经 operator->()（ORIG 0x086367a2 ptEv call）
-    register int ret;   // [b28d-solo] 共享尾 %ebx（ORIG 单出口）
+    // [P7HeaderAxis 2026-09-11] bool 化（ORIG 整族 dispatch_sig 返回 bool）：ORIG 尾 `mov %ebx,%eax` 直返、无 test/setne。
+    register bool ret;   // [b28d-solo] 共享尾 %ebx（ORIG 单出口）
     {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0xb1a), true);
     guard.operator*()->operator<<((int)0xaf);
@@ -2421,7 +2426,8 @@ __attribute__((weak)) TimerLightServerNotice::~TimerLightServerNotice() throw() 
     // {byte 0, short 0, byte 0, int len, str} 广播 → RegistNextTimer(idx)。
     // P183 地址重物化铁律：ORIG 每个站点重发 `call G_CDataManager; add $0xa4,%eax`
     // （08636a8d/08636b1f/08636b58），禁 `std::vector<...>& notices = ...` 引用缓存。
-    register int ret;
+    // [P7HeaderAxis 2026-09-11] bool 化（ORIG 整族 dispatch_sig 返回 bool）：ORIG 尾 `mov %ebx,%eax` 直返、无 test/setne。
+    register bool ret;
     if (p2 < 0 ||
         static_cast<unsigned int>(p2) >=
             G_CDataManager()->m_serverParameter.m_light3c.size())
@@ -2530,7 +2536,8 @@ __attribute__((weak)) TimerCheckForcedDisconnect::~TimerCheckForcedDisconnect() 
 {
     // ORIG 0x08636e06：结果驻留 %ebx；四段 else-if 链（jne 岛 mov$0/%1）；
     // RegistNextTimer 为成员调用（+0xca mov 0x8(%ebp)=this；+0xd5 bool 落 -0x9）。
-    register int result;
+    // [P7HeaderAxis 2026-09-11] bool 化（ORIG 整族 dispatch_sig 返回 bool）：ORIG 尾 `mov %ebx,%eax` 直返、无 test/setne。
+    register bool result;
     CUser* user = G_CGameManager()->getUser(p1, 0x2);
     if (user == 0)
     {
@@ -3170,7 +3177,8 @@ __attribute__((weak)) TimerVendingMachineItemNotify::~TimerVendingMachineItemNot
     // false 块 mov $0 紧跟 cmp（无提前初始化）。
     // 4.4 布局：`if (user == 0)` 写守卫（jne 跳过 inline mov$0 岛）复现 ORIG；
     // `if (user != 0)` 则 je 跳后置岛。
-    register int result;
+    // [P7HeaderAxis 2026-09-11] bool 化（ORIG 整族 dispatch_sig 返回 bool）：ORIG 尾 `mov %ebx,%eax` 直返、无 test/setne。
+    register bool result;
     if (user == 0)
     {
         result = 0;
@@ -3606,7 +3614,9 @@ __attribute__((weak)) TimerRevivalCharac::~TimerRevivalCharac() throw() {}
     // PacketGuard 于 else 块内构造+dtor（0x08638f39 call D1）后 result=1。
     // 技巧2：result 驻 %ebx（ORIG 0x08638ea5 `mov $0x0,%ebx`×3 / 0x08638f61
     // `mov %ebx,%eax` 单出口），PacketGuard 回 -0x18、帧 0x20。
-    register int result;   // [b28d-30] 纯 register 存储建议（P231/P248：值跨 call 保活、4.4 不自升格、ORIG 目标 %ebx）
+    // [P7HeaderAxis 2026-09-11] bool 化（ORIG 整族 dispatch_sig 返回 bool）：ORIG 尾
+    // `mov %ebx,%eax` 直返、无 test/setne。
+    register bool result;   // [b28d-30] 纯 register 存储建议（P231/P248：值跨 call 保活、4.4 不自升格、ORIG 目标 %ebx）
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
     if (user == 0) {
         result = 0;
@@ -3670,7 +3680,7 @@ __attribute__((weak)) TimerVillageMonsterRegen::~TimerVillageMonsterRegen() thro
 
 // ORIG 0x8639042：村战开启定时器（报告 TimerStartVillageAttacked/dispatch_sig.md）。
 #include "TimerDispatcher/dispatch_sig_112.inc"
-                                            unsigned int /*p3*/)
+                                            memberIdentificationNumber_t /*p3*/)
 {
     GlobalData::s_villageMonsterMgr->OnStartVillageAttacked();
     return 1;
@@ -4756,7 +4766,7 @@ __attribute__((weak)) Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyP
 // 显式 memset 调用在 4.4 恒为 call）⇒ 改数组零初始化形。残差（push edi/帧差/槽平移）
 // 为 N82/P210 族。
 #include "TimerDispatcher/dispatch_sig_143.inc"
-                                                    unsigned int /*p3*/)
+                                                    memberIdentificationNumber_t /*p3*/)
 {
     PacketGuard packet;
     packet.put_header(0, 0xc);

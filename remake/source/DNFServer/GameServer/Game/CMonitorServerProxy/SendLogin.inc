@@ -1,1 +1,1 @@
-void CMonitorServerProxy::SendLogin(int channel, unsigned int dbid, int serverNo,
+void CMonitorServerProxy::SendLogin(int channel, memberIdentificationNumber_t dbid, int serverNo,

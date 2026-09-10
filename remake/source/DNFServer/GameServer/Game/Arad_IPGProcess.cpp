@@ -55,6 +55,13 @@
                                          unsigned int accId, int a10, char buyFlag)
 {
     (void)a3;  // ORIG p3 在两分支均未使用（ebp 0x14 无读取）
+    // [P6AuditOldN 2026-09-11 复核·维持 NEAR] 本件已试新钥匙：①P339 声明序（本处 len 置于
+    // 函数头 = 声明序最前，我方槽 -0x24 为三个局部中最深 ⇒ 声明序已与 ORIG 同向）；
+    // ②「声明即初始化」变体（`int len = (int)strlen(msg);` 移入 if 块）⇒ 实测把 **slot**
+    // 从 -0x1c 推深到 -0x24（diff 由 len 单处变为 slot 单处，仍 NEAR）⇒ 已回滚。
+    // 残差定性（ORIG 0x0819c2b4 直读）：ORIG 局部区自 -0x38 起（len 最深），我方自 -0x24 起
+    // ⇒ ORIG 在 [-0x38,-0x24) 另有 0x14 字节被占（20B，无对应 store 指令 ⇒ 非我方漏建模的
+    // 具名局部，属 4.4 内部命名临时），无源码旋钮 ⇒ N 封顶。
     int len;   // ORIG -0x38（形参 spill 区之后）⇒ 头部声明（4.1 先声明深）
 
     if (buyFlag == 1)
@@ -191,7 +198,7 @@
 // outType -0x18 / outValue -0x1c / special -0x1d / msg -0xc / slot -0x10，
 // strlen 结果 %ebx 跨 getCurCharacNo 保活。
 #include "Arad_IPGProcess/CashShopModeVendingItem.inc"
-    CUser* user, unsigned long itemIdx, unsigned short stack, int count,
+    CUser* user, itemIndexOnlyServer_t itemIdx, unsigned short stack, int count,
     long seq, std::vector<Inven_Item>& out,
     WongWork::CCeraShop::stCeraShopItemParam_t& param, int& restrictOut,
     int characNo, char buyFlag)

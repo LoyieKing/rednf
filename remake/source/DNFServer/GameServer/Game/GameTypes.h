@@ -14,6 +14,54 @@
 #include <map>
 #include <new>
 #include <queue>
+#include <string>
+#include <vector>
+
+// [P7HeaderAxis 2026-09-11] ORIG 直证（df_game_r）：
+//   prett 串 @0x08c1b180 size 0x3e 实读
+//     `char* GetConfigFileString(tag_name_value_map_t&, const char*)`
+//   同函数 mangled `_Z19GetConfigFileStringRSt3mapISsSsSt4lessISsESaISt4pairIKSsSsEEEPKc`
+//   第二参展开为 std::map<std::string, std::string>& ⇒ 本 typedef 底层类型唯一确定
+//   （typedef 名不可伪装：prett 按源码拼写打印，mangled 按底层类型展开，两者同时吻合）。
+typedef std::map<std::string, std::string> tag_name_value_map_t;
+
+// [P7HeaderAxis 2026-09-11] ORIG 直证（df_game_r prett 串，共 15+ 处）：
+//   `virtual bool TimerCheckConn::dispatch_sig(int, int, memberIdentificationNumber_t)`
+//   @ORIG prett size 0x52；同函数 mangled `_ZN14TimerCheckConn12dispatch_sigEiij`
+//   第 3 参展开为 `unsigned int`（j）⇒ 本 typedef 底层类型唯一确定。
+//   全库既有 12+ 处 TU 局部同型定义（`typedef unsigned int memberIdentificationNumber_t;`）
+//   与本定义类型相同，重复 typedef 合法；此处集中定义供各 TU 签名拼写复用。
+typedef unsigned int memberIdentificationNumber_t;
+
+// [P7HeaderAxis 2026-09-11] ORIG 全局作用域 typedef 补全（prett 串直证；全库此前缺失
+// ⇒ 各 TU 只能把手写串或展开类型写进 __PRETTY_FUNCTION__，与 ORIG 不符）。
+// 底层类型均由同函数 mangled 唯一确定（mangled 不含 typedef 名，只含底层类型）。
+//   IntPairVector   : `void makeRewardItemInfo(const INT_VECTOR&, IntPairVector&)`
+//                     @ORIG prett ×6（Quest/CUser::_ProcCompoundCore/expert_extraction×3/
+//                     EventClassify::CExchangeRandomItemReward/WongWork::CItemUpgrade），
+//                     mangled 展开 `St6vectorISt4pairIiiESaIS2_EE`
+//   INT_VECTOR      : `int CBattle_Field::set_map_id(const GridScript*, int&, INT_VECTOR&)`，`St6vectorIiSaIiEE`
+//   StrVector       : `int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser*, PacketBuf&, StrVector&)`，`St6vectorISsSaISsEE`
+//   itemIndexOnlyServer_t : `void Arad_IPGProcess::CashShopModeVendingItem(CUser*, itemIndexOnlyServer_t, ...)`，`m`=unsigned long
+//                     （InterDispatcher.h:2481 有同型定义；本处集中后对不含该头的 TU 亦可见，重复 typedef 合法）
+//   RequestItemCountType : `bool CUser::_ProcCompoundCore(..., RequestItemCountType, ...)`，`t`=unsigned short
+//   NCHAR           : `int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)`，`Pc`=char*
+typedef std::vector<std::pair<int, int> > IntPairVector;
+typedef std::vector<int> INT_VECTOR;
+typedef std::vector<std::string> StrVector;
+typedef unsigned long itemIndexOnlyServer_t;
+typedef unsigned short RequestItemCountType;
+typedef char NCHAR;
+// [P7HeaderAxis 2026-09-11] 另 3 个 ORIG 全局 typedef（P139 prett 直证；全库此前无定义，
+// 各 TU 只能用手写串）：
+//   itemindex_t  : `bool ARAD::FnRewardLethe::operator()(int, itemindex_t, short int, arad_uint32)`
+//                  （ARAD::FnRewardLethe / FnRewardInterface 两处；mangled `…clEimsjE` 中 m=unsigned long）
+//   itemIndex_t  : `random_option::CRandomOptionItemHandle::change_option(itemIndex_t, ENUM_RARITY, …)`
+//                  等 5 处（UserMiscLink TU 实证，P8S1 探针确认宏按定义处拼写展开）
+//   arad_uint32  : 同上 ARAD prett，mangled `j`=unsigned int
+typedef unsigned long itemindex_t;
+typedef unsigned long itemIndex_t;
+typedef unsigned int arad_uint32;
 
 // Uncopyable：空基类（ORIG 0x8ad38a2，C1/D1 为空但非内联）
 class Uncopyable

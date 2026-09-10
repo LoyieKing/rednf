@@ -57,10 +57,14 @@ struct SIG_CSR_WRITEVIEW
 
 #include "MouseRegisterEJ/makeRequest.inc"
 {
-    // ORIG T 0x0843741e：Acquire(__PRETTY_FUNCTION__,0x8389) → <<0x195 <<param2
+    // ORIG T 0x0843741e：Acquire(__FILE__,0x8389) → <<0x195 <<param2
     // → GetInBuffer<SIG_RESTING_USER_RESTRICT> 写 uid@+0 → put DB_Q。
+    // [P1T4 #284-303 串审计/strall] ORIG 0x08437433 `movl $0x8c36714,0x4(%esp)`
+    // = "DBThread.cpp"（该函数在 ORIG 中定义于 DBThread.cpp ⇒ 宏为 __FILE__；
+    // 0x0844441d 同址同串）⇒ 本处须写字面串（我方文件名不同，__FILE__ 会错）。
+    // 旧 __PRETTY_FUNCTION__ 使本件 O-only["DBThread.cpp"] / N-only[prett] 各 1 条。
     CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0x8389), true);
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8389), true);
     **guard << 0x195;
     **guard << param2;
     SIG_RESTING_USER_RESTRICT* sig =
@@ -71,10 +75,12 @@ struct SIG_CSR_WRITEVIEW
 
 #include "MouseRegisterEJ/makeRequest_1.inc"
 {
-    // ORIG T 0x08444408：Acquire(__PRETTY_FUNCTION__,0xab34) → <<0x2ab <<param1
+    // ORIG T 0x08444408：Acquire(__FILE__,0xab34) → <<0x2ab <<param1
     // → GetInBuffer 写 uid@+0 param3@+4 → put DB_Q。
+    // [P1T4 #284-303] ORIG 0x0844441d `movl $0x8c36714,0x4(%esp)` = "DBThread.cpp"
+    // （与上一件同址）⇒ 字面串形式，理由同上。
     CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0xab34), true);
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xab34), true);
     **guard << 0x2ab;
     **guard << param1;
     SIG_CHECK_USER_SECU_REWARD* sig =
@@ -148,6 +154,10 @@ char* encryptAES_(CRijndael* method, char* src, char* dst)
     }
     len = padded * 2 + 1;
     DNFFLib::Binary2Hex(encBuf, static_cast<int>(padded), dst);
+    // [P1T4 #284-303 负结论·残差①] ORIG 0x0846c4d7 `mov -0x18(%ebp),%eax;
+    // add 0x10(%ebp),%eax; movb $0x0,(%eax)`（内存操作数直加）；我方 4.4 恒
+    // `mov -0x18(%ebp),%eax; mov 0x10(%ebp),%edx; lea (%edx,%eax,1),%eax`（+1 条）。
+    // 已试下标形 `dst[len]='\0'` → 与指针加法形逐字节相同，无变化（非源形问题）。
     *(dst + len) = '\0';
     return dst;
 }
@@ -232,6 +242,10 @@ private:
     // leave，跨版本块排布 N 族）。[b28 BM8 复验] P222 两形互试：
     // `if(exec) return false; return true;` 反劣 79 insn（mov$0/mov$1 双岛），
     // 维持 `return !exec()`（75，ndiff 3 封顶，N93附 族）。
+    // [P1T4 #284-303 试验②：反极性等价重写 `if(A&&B) return false; …; return !E;`
+    // 实测反劣 —— 判断段由「call exec; test; jne/jne」变「call; test %al,%al; je」，
+    // ORIG 0x084232db `xor $0x1,%eax`（`!exec` 归一）被 4.4 挪到调用点后，与
+    // 0x0842328b 的汇聚 `mov $0,%eax` 不再同形，ndiff 由 3 升到 ≥4；已回滚。]
     if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
     {
         grade->set_query(

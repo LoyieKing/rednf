@@ -526,8 +526,7 @@ namespace WongWork
         // [L5Free49to60 P221 试形] ORIG 该 cMyTrace 对象占浅槽 -0x34..-0x24（4.1
         // 互斥块后声明占浅），4.4 具名对象恒占低槽 -0x44（与 itemParams 互换）
         // ⇒ 改全表达式临时链复现 ORIG 槽方向（P37/P221）。
-        cMyTrace("bool WongWork::CBossTower::checkStartGameCondition("
-                 "unsigned char&, bool)", 0xdb, 5)("boss Tower dungeon is not open");
+        cMyTrace(__PRETTY_FUNCTION__, 0xdb, 5)("boss Tower dungeon is not open");
         PacketGuard packet;
         packet.clear();              // ORIG 0x0814309a（本分支 C1 后显式 clear）
         packet.put_header(1, 0x10);
@@ -550,8 +549,7 @@ namespace WongWork
             {
                 // P227 全表达式临时链：ORIG 0x081431e9..+0x209 在 ctor call 前
                 // 右起求值 varargs（charac_level→%ebx、min_level→%esi 跨 ctor 保活）。
-                cMyTrace("bool WongWork::CBossTower::checkStartGameCondition("
-                         "unsigned char&, bool)", 0xf0, 5)(
+                cMyTrace(__PRETTY_FUNCTION__, 0xf0, 5)(
                     "dungeon level check charac_level : %d, dungeon_min_level : %d",
                     member->get_charac_level(), m_dungeon->get_min_level());
                 PacketGuard packet;

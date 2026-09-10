@@ -1,1 +1,1 @@
-int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
+bool CParty::OnTimeoutBossDie(int monsterId, memberIdentificationNumber_t characNo)

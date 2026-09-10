@@ -105,7 +105,10 @@ namespace
 // 语义等价：同一 TU 单例互斥，初值同为全零。
 pthread_mutex_t& get_atomic_mutex()
 {
-    static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+    // [P6S6 2026-09-11 试形] 父泳道点名（p167fix MISSING __cxa_guard_acquire/
+    //   release/__stack_chk_fail）：ORIG 侧为 4.1 的**动态**局部静态初始化
+    //   （24B 临时清零 + 拷贝 + guard）。试值初始化形是否触发 4.4 的 guard。
+    static pthread_mutex_t m = pthread_mutex_t();
     return m;
 }
 }  // namespace

@@ -754,6 +754,12 @@ send_result:
 // （P112/N82 跨版本槽分配平移）；语义/callsite 完整。
 #include "DB_CreateCharac/CreateNewCharac.inc"
 {
+    // [P6AuditOldN-S1 P232/P0 钥匙 · 2026-09-11] ORIG 0x08401dcc 槽映射：
+    //   db@-0xc（`mov %eax,-0xc`）、ok@-0xd（`mov %al,-0xd; movzbl -0xd` 尾字节）
+    //   ⇒ 具名 bool ok 与 db 同 4B 块、且 ok 在低字节 = 声明序 ok→db
+    //   （同本 TU CreateEquip 已 AE 先例）。原形 `bool ok = db->exec(true)` 在
+    //   函数尾 ⇒ 4.4 给 db 深槽（-0x10）、ok 浅槽（-0x9），与 ORIG 相反。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
 
@@ -764,6 +770,10 @@ send_result:
         sig->m_resultCode = 2;
         return false;
     }
+    // [P6AuditOldN-S1 P339 声明序=槽序] ORIG 槽：connIdx@-0x24（浅）、liveCount@-0x28
+    // （深）⇒ 声明序 connIdx 先、liveCount 后（4.4 先声明取浅槽）；`movl $0x2,-0x24`
+    // 的发射位置仍在 _checkCharacName 前（ORIG 同序）⇒ 声明与赋值分离。
+    ENUM_DB_HANDLE_IDX connIdx;
     int liveCount = 0;
     if (!db->fetch() || !db->get_int(0, liveCount) || liveCount >= 0x24)
     {
@@ -778,7 +788,7 @@ send_result:
     // G_CEnvironment; lea 0x68(%eax),%edx` + `call operator[]` + `add $0x42,%eax`
     // 全内联链式，**无** connMap/connInfo 具名缓存（我方原多两处 -0x10/-0xc 槽往返）。
     // 仅 connIdx 是 ORIG 实有的具名局部（-0x24 槽）。
-    ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;       // 栈上局部初始值 2
+    connIdx = DB_HANDLE_2;                          // 栈上局部初始值 2
     if (!_checkCharacName(db, G_CEnvironment()->m_dbConnInfo[connIdx].m_db, sig))
     {
         return false;
@@ -831,7 +841,7 @@ send_result:
     MakeInsertCharacInfo(db, sig, escapedName);
     // [P0 直证] ORIG index202 段为 `call <T>; mov %al,-0xd(%ebp); movzbl -0xd(%ebp),%eax;
     // xor $0x1,%eax`（具名 bool 局部槽往返 + 我方缺的 ext_movzbl）⇒ 补具名 ok。
-    bool ok = db->exec(true);
+    ok = db->exec(true);
     if (!ok)
     {
         // P227 全表达式临时链：ORIG NumberToString 于 ctor 前求值入 %ebx。

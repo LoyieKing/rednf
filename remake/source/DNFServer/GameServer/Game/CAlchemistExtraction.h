@@ -23,7 +23,7 @@ public:
     virtual ~CAlchemistExtraction();
 
     virtual bool extraction(CUser* user, short param,
-                            std::vector<std::pair<int, int> >& needItems);
+                            IntPairVector& needItems);
     virtual int check_error(CUser* user, char a, short b, short c);
     virtual int get_extraction_count(Inven_Item item);
     virtual int _check_error(CUser* user, short a, short b);

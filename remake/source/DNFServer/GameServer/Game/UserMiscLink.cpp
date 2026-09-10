@@ -771,12 +771,9 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
-            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
-            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
-            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
-            "bool random_option::CRandomOptionItemHandle::change_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
+            // [P8S1 2026-09-11 P139 落地] `itemIndex_t` 已在 GameTypes.h，定义处拼写
+            //   同步（change_option.inc）⇒ 换回宏（展开串 = ORIG prett size 0x78 逐字节同）。
+            __PRETTY_FUNCTION__,
             0x356, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
             (int)itemIdx, (int)(unsigned char)rarity, level, group,
             (int)optType, err);
@@ -790,12 +787,8 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
-            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
-            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
-            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
-            "bool random_option::CRandomOptionItemHandle::change_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
+            // [P8S1 2026-09-11 P139 落地] 同上（宏展开 = ORIG prett 串）。
+            __PRETTY_FUNCTION__,
             0x35d, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
             (int)(unsigned char)rarity, group, grade, level,
             (int)optType, outGroup, err);
@@ -809,7 +802,14 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     // （P167 判据）、setne 物化岛（P225 while 形）、union 字节键、GetRandomOption 逐点重取（P157）。
     // [L4b 2026-09-11 本轮] ①P183 去 seedRoll 具名局部（444→442）；
     // ②P243 `slot == i` 书写序（cmp 操作数序，ndiff −4）；
-    // ③§6.5 串盲区真差异修复：5 处 __PRETTY_FUNCTION__ 改为手写 ORIG 实串
+    // [P8S1 2026-09-11 P139 落地] ORIG prett 符号
+    //   `_ZZN13random_option23CRandomOptionItemHandle13change_optionEm11ENUM_RARITYiiiiP12RandomOptionE19__PRETTY_FUNCTION__`
+    //   （size 0x78 @0x08cd0f00，ORIG 体内 REF：`85f33e6: movl $0x8cd0f00,0x8(%esp)`）已复现：
+    //   P7HeaderAxis 在 GameTypes.h 加 `typedef unsigned long itemIndex_t;`，本处定义首参
+    //   拼写同步（change_option.inc）+ 5 处手写串换回宏（探针实证：宏按**定义处**拼写展开，
+    //   .h 声明写 unsigned long 不影响）。验收：prett2 缺口 0、prett size 120=120、
+    //   四数 118/118/1/3/29 与改前逐项相同。
+    // ③§6.5 串盲区真差异修复（旧形·已由 P8S1 换回宏，见上）
     //   `bool random_option::CRandomOptionItemHandle::change_option(itemIndex_t, ENUM_RARITY,
     //   int, int, int, int, RandomOption*)`（旧形展开为 `long unsigned int`，运行期日志文本不符）；
     // ④dwRaw 键按 `*reinterpret_cast<short*>(&dwRaw)` 直取（去 `movzwl+mov %ax,%临时`
@@ -838,12 +838,8 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
-            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
-            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
-            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
-            "bool random_option::CRandomOptionItemHandle::change_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
+            // [P8S1 2026-09-11 P139 落地] 同上（宏展开 = ORIG prett 串）。
+            __PRETTY_FUNCTION__,
             0x369, "different_weight_ (%d,%d) ",
             (int)(unsigned char)rarity, (int)optType);
         return false;
@@ -857,12 +853,8 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
-            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
-            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
-            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
-            "bool random_option::CRandomOptionItemHandle::change_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
+            // [P8S1 2026-09-11 P139 落地] 同上（宏展开 = ORIG prett 串）。
+            __PRETTY_FUNCTION__,
             0x371, "option_group_ (%d) ", outGroup);
         return false;
     }
@@ -933,12 +925,8 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            // [L4b §6.5 串盲区] ORIG .rodata 实串用 `itemIndex_t`（typedef）；
-            // 源码参数类型写 `unsigned long` 时 __PRETTY_FUNCTION__ 展开为
-            // `long unsigned int`，运行期日志文本不符 ⇒ 按同族惯例（RandomRentalA2
-            // 各处 We choose/give_option 同法）手写逐字等于 ORIG 的串文本。
-            "bool random_option::CRandomOptionItemHandle::change_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, int, RandomOption*)",
+            // [P8S1 2026-09-11 P139 落地] 同上（宏展开 = ORIG prett 串）。
+            __PRETTY_FUNCTION__,
             0x390, "_option_group.size() %d, %d ", sel,
             (unsigned int)groupVec.size());
         return false;

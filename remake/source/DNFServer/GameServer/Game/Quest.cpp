@@ -49,6 +49,14 @@
 #include "GlobalData.h"
 #include "LogManager.h"
 
+// [P2S1PvPQuest 2026-09-11 P139] ORIG prett 串直证（df_game_r）：
+//   `void makeRewardItemInfo(const INT_VECTOR&, RewardItemInfoVector&)` @0x8c346e0
+//   size 0x42 ⇒ 第二参拼写 = RewardItemInfoVector（GameTypes.h 未收录其名，此处新增；
+//   底层 std::vector<RewardItemInfo>，mangled `...RS_I14RewardItemInfoSaIS4_EE` 唯一确定）。
+//   IntPairVector/INT_VECTOR 已由 GameTypes.h（经 CUser.h/CDataManager.h）可见。
+//   ⚠ 只新增本行 typedef，不改任何既有 TU 级实体/include 顺序。
+typedef std::vector<RewardItemInfo> RewardItemInfoVector;
+
 // ============================================================================
 // 其它 TU 提供的符号（ORIG 真实符号）
 // ============================================================================
@@ -62,7 +70,7 @@
 // b28d-20 AE：it++ 后置 + cMyTrace 全表达式临时链（83=83，槽位对齐；
 // 残差仅 .o 重定位立即数）。
 #include "Quest/makeRewardItemInfo.inc"
-                        std::vector<RewardItemInfo>& out)
+                        RewardItemInfoVector& out)
 {
     RewardItemInfo item;
     std::vector<int>::const_iterator it = src.begin();
@@ -89,7 +97,7 @@
 // 与 RewardItemInfo 版同 TU 相邻（0x83520c8/0x8352203），ORIG T 强符号，无调用点（导出）。
 // b28d-20 AE：同上形（it++ + 全表达式临时链），83=83 槽位对齐。
 #include "Quest/makeRewardItemInfo_1.inc"
-                        std::vector<std::pair<int, int> >& out)
+                        IntPairVector& out)
 {
     std::pair<int, int> p;
     std::vector<int>::const_iterator it = src.begin();

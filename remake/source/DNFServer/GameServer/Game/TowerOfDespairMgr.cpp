@@ -77,9 +77,15 @@
     // 二次复核 @0x85ff1aa：ORIG 求值序 = C1Ev(it) → end()（具名槽 -0x2e804）→
     // find() → it=结果（-0x2e808）⇒ 必须有具名 end 局部（P28 双旋钮之「命名 it
     // 固定 find 先求值」的反向：此处 end 先于 find）。
-    // b28d-49 判词：NEAR 封顶（N93 槽方向/求值序绑定）——4.4 把先声明的 it 放浅槽
-    // -0x2e804、end 放深槽 -0x2e808（ORIG 相反）；交换声明序可对槽但求值序反
-    //（end→C1Ev→find vs ORIG C1Ev→end→find），两旋钮互斥。P167 CLEAR。@0x85fed2e
+    // [P3Wave4 2026-09-11 9 形实测·已回滚 B 形] 本波试「mapEnd 先声明带初始化 +
+    // it 后声明」形（槽序与 ORIG 全对：end -0x2e804 / it -0x2e808，111=111，
+    // 行级 diff 10→6 行），但 **verdict 由 NEAR 退化为 DIFF**（C1Ev(it) 位置从
+    // end() 之前挪到之后，mnemonic 序错位）⇒ 触犯 rule4，已回滚回 A 形（NEAR）。
+    // ORIG 0x085fed39 = C1Ev(it) 在 end() 之前且 it 占深槽 -0x2e808，而 4.4 声明序
+    // 与槽序强绑定（先声明=浅槽）⇒ 「C1Ev 在前」与「it 占深槽」两旋钮互斥（N93）。
+    // 其它形读数（本次实测）：匿名 end() 临时 117 条/30 行；引用绑定 113 条/42、46 行；
+    // end 先声明后赋值 116 条/15 行；it 初始化形 106 条/9 行 —— 均劣于 A 形 NEAR。
+    // b28d-49 判词：NEAR 封顶（N93 槽方向/求值序绑定）。P167 CLEAR。@0x85fed2e
     std::map<TOD_Layer, SendingAPC_Info>::iterator it;
     std::map<TOD_Layer, SendingAPC_Info>::iterator mapEnd = m_APCInfoMap.end();
     it = m_APCInfoMap.find(layer);

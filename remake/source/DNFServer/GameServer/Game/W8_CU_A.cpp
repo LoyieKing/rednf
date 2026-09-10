@@ -108,16 +108,23 @@ extern CInGameAdvertisementManager* InGameADManagerInstance();
     //   与 ORIG 条数全等。残余形态：ORIG 为 `mov 0xc(%ebp),%eax` 一次载入 + 边界
     //   cmp/jcc + 3× `sub imm; cmp` 复用；4.4 恒 `cmpl $imm,0xc(%ebp)` 槽直比
     //   （N18b，槽直比不可消除）⇒ 判词 N18b 保留，读数为 gap 0。
-    //   6 段区间并集（与前述嵌套式逐段等价，未改动判定集合）：
-    //   [0x1bc6,0x1bf5] [0x1c15,0x1c19] [0x1d4c,0x1d56]
-    //   [0x1dca,0x1dcf] [0x1e44,0x1e5c] [0x1eba,0x1ebb]
-    //   ORIG 0x08673342 为 range-check 树 + 共享 mov $1/$0 尾块（31 条）。
-    return (itemIdx >= 0x1bc6u && itemIdx <= 0x1bf5u) ||
-           (itemIdx >= 0x1c15u && itemIdx <= 0x1c19u) ||
-           (itemIdx >= 0x1d4cu && itemIdx <= 0x1d56u) ||
-           (itemIdx >= 0x1dcau && itemIdx <= 0x1dcfu) ||
-           (itemIdx >= 0x1e44u && itemIdx <= 0x1e5cu) ||
-           (itemIdx >= 0x1ebau && itemIdx <= 0x1ebbu);
+    // [P8S3 2026-09-11 真 switch 落地·推翻 N18b 封顶] 真 switch（P261）实证：
+    //   ORIG 0x08673342 的 range-check 树 = GCC 对 `case A ... B:` 的生成
+    //   （`cmp $0x1d56,%eax; ja` / `sub $0x1c15,%eax; cmp $0x4,%eax; ja` +
+    //   共享 0x8673394 `mov $1` / 0x867339b `mov $0` 尾块）。改真 switch 后
+    //   件级 verdict=AE（31/31，gap 0）、TU diff 5→4 / ae 71→72。
+    switch (itemIdx)
+    {
+    case 0x1bc6u ... 0x1bf5u:
+    case 0x1c15u ... 0x1c19u:
+    case 0x1d4cu ... 0x1d56u:
+    case 0x1dcau ... 0x1dcfu:
+    case 0x1e44u ... 0x1e5cu:
+    case 0x1ebau ... 0x1ebbu:
+        return true;
+    default:
+        return false;
+    }
 }
 
 

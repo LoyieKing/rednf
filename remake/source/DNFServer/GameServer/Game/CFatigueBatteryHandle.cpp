@@ -112,6 +112,10 @@ public:
     //   lowering，源码层不可复现（N1）。
     if (level - 1 > static_cast<int>(m_endLevel10) || level <= 0)
         return 0;
+    // [P6S6 2026-09-11 复核·仍 N] 补试 unsigned 索引形（`level - 1u + 8u`，
+    //   历史 19 形未含）实测仍折叠 `lea 0x7(%eax),%edx`（19/20，blocks=2）
+    //   ⇒ 与 ORIG 0x084a84dd 的 `lea -0x1(%eax),%edx` + 0x084a84e3 `add $0x8,%edx`
+    //   两步形不可复现 ⇒ 维持 N1（4.1 不折叠 (i−1)+8，4.4 折叠属跨版本 lowering）。
     return m_limitTable[level - 1 + 8];
 }
 

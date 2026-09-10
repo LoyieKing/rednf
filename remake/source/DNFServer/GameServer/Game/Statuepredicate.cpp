@@ -40,6 +40,12 @@
 //   同族差：ORIG 0x08a6c197 载入 eax 一次并复用供 3 次 store（4.1 的 dest 缓存形），
 //   我方每字段重读 0x8(%ebp)（4.4 恒重读）⇒ 该 2 条亦跨编译器寄存器分配差（N18a 族）。
 //   语义等价（空基类 ctor 零副作用）。判定：不可翻，封 N。
+// [P2-S4 2026-09-11 五次复核·N 维持] 依指派核查 call 目标：ORIG 0x08a6c192 `call
+//   0x8a6c180` = `_ZNSt14unary_functionI22pieceQuestRewardStatusbEC1Ev`，该目标体
+//   `push %ebp; mov %esp,%ebp; pop %ebp; ret`（0x8a6c180..0x8a6c184，共 5 字节，空函数）。
+//   我方 TU 侧 nm 无同名符号（4.4 视空类无用户 ctor 为 trivial，恒省 call 与 `sub $0x18`
+//   帧；初始化列表已显式写 `std::unary_function<...>()` 仍被省略）。要发该 call 只能把
+//   基类改成非平凡 ⇒ 改类语义（禁）或改 .h（禁）。维持不可达：ORIG 15 / 我方 14。
 #include "Statuepredicate/Statuepredicate.inc"
     : std::unary_function<pieceQuestRewardStatus, bool>(),
       m_appendageType(status.m_appendageType),

@@ -577,6 +577,11 @@ SHUFFLE_DONE:;
     // AE 残差 51/62 块为纯槽漂移（schedule 实测）、唯一“真差”是 reloc 显示。
     // ⇒ 本函数剩余残差按 **N82/N126 封账**（P332：Δ槽数非单调、4.1/4.4 首槽
     // 常数差 -0x4/-0xc 不可修）；状态机形已入库 **P333**（含指纹与 p167 漏检因）。
+// [P2S2STQuest 2026-09-11 复核] 当前实测槽位：qd0=-0x3dc/qd1=-0x40c（比 ORIG 深 4）、
+// line=-0x30c/sub=-0x310/value=-0x314/ok=-0x315（比 ORIG 浅 20）、frame 0x46c（两侧
+// 相同）；ORIG 锚 line=-0x320/sub=-0x324/value=-0x328/ok=-0x329/qd0=-0x3d8/qd1=-0x408。
+// ⇒ 「qd0→line」段我方多占 24B、「line→entry」段少占 24B，属帧分配律错位（非某个
+// 块内新具名局部，已按 §具名局部判据排除）⇒ 本轮未动，封账维持。
     if (!loadRDARScriptFile(g_questScriptBaseDirectory, path))
     {
         return 0;
@@ -2204,6 +2209,17 @@ SHUFFLE_DONE:;
     // ORIG 8aadb2b：TownAreaScript 在循环**外**构造（-0x54），[area] 段内只
     // `call clear`（8aadc82）后复用同一对象。
     TownAreaScript area;
+    // [P2S2STQuest 2026-09-11 负结论] 试形 `while (ScanType(...))` 已回滚：4.4 把
+    // while 的条件块放在**循环体之后**（我方 head 处 ScanType 段消失、整体 -1 条），
+    // 与 ORIG「条件在 head（08aadb33）+ 各 continue 直跳 head（10 条 `jmp 08aadb33`）」
+    // 不符。旧有 for(;;) 形 head 正确，仅多一个 continue 中继块（我方 0x69d1）。
+    // [P2S2STQuest 2026-09-11 负结论·残余 1 条] 我方 0x69d1 是 8 条 continue 的公共
+    // 中继块（`jmp 0x6577`）；ORIG 全部 continue 直跳 head（10 条 `jmp 08aadb33`，无
+    // 中继块）。探针 /tmp/p2/probe4.cpp（同构 for(;;)+`if(!ScanType)break`+10 个
+    // `if(...){...;continue;}`）**逐条复现我方形态**（9 条中继 + 末条直跳 .L14），
+    // 二分支版 /tmp/p2/probe2.cpp(v1) 才是 ORIG 形态；probe2.cpp(v2) 的 `goto next`、
+    // probe3.cpp(v7)/probe5.cpp(v14) 的 else-return 变体均**无法**消除中继 ⇒ 4.4 对
+    // 多分支 for(;;) 的 continue-label 合并启发式，源码层不可控（P223 族）。
     for (;;)
     {
         if (!ScanType(line, true))
@@ -2258,7 +2274,10 @@ SHUFFLE_DONE:;
                 while (flag)
                 {
                     int i = 0;
-                    do
+                    // [P2S2STQuest 2026-09-11] ORIG 8aadcec `jmp 08aadd30` = 首轮先跳
+                    // 条件检查 ⇒ 原码是 while（do/while 无此 jmp，我方旧形多 -1 条）。
+                    // 外层 while (flag) 保证进入时 flag 为真 ⇒ 与 do/while 行为等价。
+                    while (i <= 3 && flag)
                     {
                         if (i == 0)
                             r.m_00 = value;
@@ -2270,7 +2289,7 @@ SHUFFLE_DONE:;
                             r.m_0c = value;
                         value = ScanInt(&flag);         // 8aadd1e
                         ++i;
-                    } while (i <= 3 && flag);           // 8aadd30
+                    }                                    // 8aadd30
                     area.m_rects.push_back(r);           // 8aadd4e
                 }
                 ScanStr(&sub);                      // ORIG 8aadd6f ScanStr
@@ -2297,8 +2316,9 @@ SHUFFLE_DONE:;
                 area.m_areaType = 5;
             else if (sub == "[safe zone against b]")
                 area.m_areaType = 6;
-            else
-                area.m_areaType = 0;
+            // [P2S2STQuest 2026-09-11] ORIG 无末位 else：8aade90 `je 08aade99` 直接把
+            // [safe zone against b] 不匹配的路径送到共同后继（无 `jmp`+`movl $0x0,-0x4c`
+            // 两条）；未匹配标签时 m_areaType 保持 area.clear() 后的值。
             // ORIG 8aade99..8aadec7：循环 ScanInt 直到 flag 失败，全部 push
             for (;;)
             {
@@ -2312,12 +2332,15 @@ SHUFFLE_DONE:;
         }
         if (line == "[limit level]")
         {
-            int level = ScanInt(&flag);
+            // [P2S2STQuest 2026-09-11] ORIG 8aadf15 `mov %eax,-0x18(%ebp)` = 外层 value
+            // 槽（非块内新局部）；块内 `int level` 会另占浅槽并把全部槽位压低 8、
+            // 帧 0x60→0x70（§P212 同族）。
+            value = ScanInt(&flag);
             // ORIG 8aadf18：`test; je <return false 块（在后）>` ⇒ if/else 正极性
             // （早返形 4.4 恒把 return false 块前置，P59/P222）。
             if (flag)
             {
-                script->m_3c = level;
+                script->m_3c = value;
             }
             else
             {
@@ -2327,10 +2350,11 @@ SHUFFLE_DONE:;
         }
         if (line == "[need quest]")
         {
-            int quest = ScanInt(&flag);
+            // ORIG 8aadf5b `mov %eax,-0x18(%ebp)` ⇒ 同为外层 value 槽复用。
+            value = ScanInt(&flag);
             if (flag)
             {
-                script->m_40 = quest;
+                script->m_40 = value;
             }
             else
             {
@@ -2365,6 +2389,11 @@ SHUFFLE_DONE:;
 // 0x8aaf5b5，后者是 0x8aaf7df `jne` 的落点）被 4.4 jump-thread 合并为 1 组，
 // 0x8aaf685 中继同被合并 ⇒ P223 族封顶（无合法 C++ 源形可分裂）。
 // 四数 458/917/0/12 不回退；p167 无 ORIG-only 游戏域 callee。
+// [P2S2STQuest 2026-09-11 复核] 本轮实测 verdict=DIFF orig_insns=257 our_insns=255
+// gap=+2，4 处残差全为 jmp 中继/对齐（ORIG 0x8aaf5b5 中继块被 0x8aaf7df `jne` 引用、
+// 0x8aaf680/0x8aaf685 双 `jmp`、我方 +0x2cb/+0x2ee 侧各多一条）⇒ 与 importTownScript
+// 残余块同族（4.4 continue-label 布局启发式，本轮已被 /tmp/p2/probe4.cpp 定性）
+// ⇒ 封顶维持，无源码层旋钮。
 #include "STQuestScript/importTrainingQuestScript.inc"
 {
     if (!loadRDARScriptFile("", path))

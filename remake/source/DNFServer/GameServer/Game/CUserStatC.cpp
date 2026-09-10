@@ -243,6 +243,11 @@
             else
             {
                 // ORIG：删除失败仍返回 0
+                // [P6S4 2026-09-11 P139 prett 审计·结论] 本函数 6 处手写 prett 串经
+                // pstr.py 比对 = 与 ORIG 串**逐字节相同**（含 P7 新入的 typedef 拼写
+                // `itemIndexOnlyServer_t`；ORIG `_ZZ…E19__PRETTY_FUNCTION__` size 0x6c）⇒
+                // 只记结论；不换 `__PRETTY_FUNCTION__`（本 TU 宏会按当前签名拼写生成，
+                // 与手写串无收益且引入符号名/内容再验证成本）。
                 cMyTrace trace("int CUser::exchange_interspace(int, int, "
                                "itemIndexOnlyServer_t, int, int, int, "
                                "itemIndexOnlyServer_t, int*)",
@@ -622,7 +627,15 @@
     case 4:
     {
         // 允许目的域位掩码 {0,1,3,7}
-        if ((unsigned int)toSpace > 7u || ((1u << toSpace) & 0x8bu) == 0)
+        // [P6S4 2026-09-11 落地·掩码轴] ORIG 0x086619xx 段（idx1435/1437）为**未 fold**
+        // 的 `mov $0x1,%edx; shl %cl,%ebx` + `and $0x8b,%eax`（4.1 原形）；4.4 对
+        // `(1u << s) & C` 恒 fold 成 `mov $C,%edx; shr %cl,%ebx` + `and $0x1,%eax`
+        // （`(C>>s)&1`，§3.7 记载一致）。修法 = 掩码侧加 `(unsigned long)` cast
+        // （`(1u<<s) & (unsigned long)C`）**破 fold** ⇒ 复现 shl+and 原形。
+        // 读数：blocks 275→**272**（ours/orig 2638/2638 不变；四数 0/3/0/2/1 不劣）。
+        // （先试的 `(0x8bu >> s) & 1u` 等价形无效 —— 4.4 仍发 shr 形，已回滚。）
+        if ((unsigned int)toSpace > 7u ||
+            ((1u << toSpace) & (unsigned long)0x8bu) == 0)
             return 1;
 
         CTradeSpace* trade = G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);

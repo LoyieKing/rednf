@@ -21,14 +21,15 @@ bool LoadServiceRestrictPolicy::dispatch(int code, int uid, Stream* stream)
             int v1 = 0;
             int v2 = 0;
             char c = 0;
-            ++idx;
-            if (db->get_int(idx, v1) != 1)
+            // [P2S5] ORIG 0x0815aa1e/0x0815aa6e/0x0815aab6 三处实参为**后置**自增：
+            // `mov -0x10(%ebp),%eax; addl $0x1,-0x10(%ebp); …; mov %eax,0x4(%esp)`
+            // （加载旧值→内存自增→压旧值；4.4 实参左→右求值）。列索引 0-based
+            // （MySQL::is_valid_col 允许 col>=0），故 ORIG 逐列传 0/1/2 ⇒ 用 idx++。
+            if (db->get_int(idx++, v1) != 1)
                 throw "category";
-            ++idx;
-            if (db->get_int(idx, v2) != 1)
+            if (db->get_int(idx++, v2) != 1)
                 throw "restrict";
-            ++idx;
-            if (db->get_char(idx, c) != 1)
+            if (db->get_char(idx++, c) != 1)
                 throw "values";
             if (sig.m_restrictValue == 0 || sig.m_restrictValue == v1)
             {

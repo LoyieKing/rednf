@@ -115,7 +115,17 @@ struct STAvatarAbilityVariation
         m_field8 = 0;
         m_skill.clear();
     }
-    ~STAvatarAbilityVariation() {}                   // ORIG 0x089d2af0（空）
+    // [P7HeaderAxis 2026-09-11 **负结论·保留本声明**] ILb1 轴试点已 A/B 实测并回滚：
+    //   收益：删本声明后 `_ZSt8_Destroy<T*>` 由 `_Destroy_auxILb0` → `ILb1`（与 ORIG 同形）。
+    //   代价（决定性）：**我方无 `_ZN9__gnu_cxx13new_allocatorI24STAvatarAbilityVariationE7destroyEPS1_`
+    //   实例**（ORIG 有 @0x089d2af6），即缺 `p->~T()` 的 odr-use 链 ⇒ 删声明后本 TU **不再发射
+    //   `~STAvatarAbilityVariation` D1/D2/D5**（A/B 符号差实测），而 ORIG 有 `089d2af0 W` D1/D2
+    //   ⇒ 全局 missing_in_game 净增；同版本 CEquipItem 实测 identical 191→**190**、ae 375→**374**。
+    //   判据升级（P3Free324to334 在 APSystem::_TodayRewardItem 同构否证）：**删 `~T()` 前必须实测
+    //   「D1/D2 是否仍由 odr-use 发射」（我方需已存在 `new_allocator<T>::destroy` 实例）**，
+    //   不能只看 ILb1 收益。真缺口线索 = 我方缺该 destroy/construct 实例的发射链。
+    //   恢复方法：显式声明空体析构（本行），使 T 非平凡 ⇒ ILb0 且 D1/D2 由 `_ZSt8_Destroy` 路径发射。
+    ~STAvatarAbilityVariation() {}                   // ORIG 0x089d2af0（空；W = 我方须自行发射）
 };
 
 class EquipmentParameterInfo
@@ -160,11 +170,14 @@ public:
 
     struct EquipmentAuraAppendageData
     {
-        // ORIG W 0x089d2cf2（D2 同址）：空体用户析构（6 字节 push/mov/pop/ret）。
+        // [P7HeaderAxis 2026-09-11 **负结论·保留本声明**] 与 STAvatarAbilityVariation 同批
+        // A/B 实测回滚：删声明可让 `_Destroy_aux` ILb0→ILb1（与 ORIG 同），但我方**缺**
+        // `new_allocator<EquipmentAuraAppendageData>::destroy` 的 odr-use 链 ⇒ D1/D2（ORIG
+        // 0x089d2cf2 W 有）会丢失 ⇒ 净负。判据：**删 `~T()` 前须实测 D1/D2 仍由 odr-use 发射**。
+        ~EquipmentAuraAppendageData() {}   // ORIG 0x089d2cf2（空体）
         // sizeof = 0x14（5×int）：ORIG push_back 0x089c6e76 `lea 0x14(%eax),%edx`
         // （end = begin + 元素尺寸 0x14）。[ice appendage] 写 {0,i1,i2,i3}（第 5 个
         // int ORIG 不写，push_back 仍拷 0x14），[curse appendage] 写满 5 个（type=1）。
-        ~EquipmentAuraAppendageData() {}
         int m_field0;    // +0x00 类型：[ice appendage]=0 / [curse appendage]=1
         int m_field4;    // +0x04 第 1 个 ScanInt
         int m_field8;    // +0x08 第 2 个 ScanInt

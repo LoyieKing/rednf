@@ -1,1 +1,1 @@
-void makeRewardItemInfo(const std::vector<int>& src,
+void makeRewardItemInfo(const INT_VECTOR& src,

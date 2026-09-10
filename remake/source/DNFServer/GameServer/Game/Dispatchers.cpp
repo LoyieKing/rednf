@@ -670,6 +670,17 @@ struct ResGetAchievementReward
 };
 }  // namespace altar_pkt
 
+// [P4 负结论·2026-09-11 实测回滚] 此处三件（getUserStageControl / procStagePause /
+//   characDataSummonSlotUnit）在 ORIG 中**无同名符号**（nm -S --defined-only df_game_r
+//   0 命中），我方 .o 内也**零调用者**（objdump -dr 引用计数 0）—— 表面是死代码。
+//   但**净删除有害**：实测删除后 TU 四数 identical 1009→999、ae 2548→2541（合计
+//   −17），missing 仅 812→807（−5）⇒ 合计分 −17 净损。原因：三件中
+//   characDataSummonSlotUnit 是 19 个 `std::map<unsigned char, advancealtar::_SlotItem>`
+//   模板实例（find/end/_Rb_tree*/_Select1st/_Rb_tree_iterator 等）在本 .o 的**唯一实例
+//   化者**；df_game_r 是链接后整库，这 19 个实例在 ORIG 中由别 TU 提供并与我方逐条相同
+//   ⇒ 它们原本贡献 identical/AE。删除源码 = 我方 .o 不再发射这些 ORIG 有的符号，
+//   identical/AE 直接蒸发。**保留死代码反而更接近 ORIG 的符号形态**。
+//   结论：三件**保留不改**（编译产物符号集是判据的一部分，不是"多余符号"）。
 namespace
 {
 // ORIG CUser::getAdvanceAltar()：返回用户当前 advancealtar StageControl。
@@ -3413,17 +3424,19 @@ struct GmCmdArgs
 // ORIG 0x08264574（报告 Dispatcher_MotionHack/read.md）[随行依赖]：
 // get_byte(msg+0xd) / get_int(msg+0xe) / get_int(msg+0x12)。
 // b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x08264574 orig/ours=51/51
+// [P4-p167 符号性] ORIG callee 直证: get_byte(unsigned char&) / get_int(unsigned int&) x2
+//   （p167 差集: MISSING _ZN9PacketBuf7get_intERj x2 + _ZN9PacketBuf8get_byteERh x1）
 #include "Dispatchers/read_28.inc"
 {
-    if (!packet.get_byte(*reinterpret_cast<char*>((char*)&msg + 0xd)))
+    if (!packet.get_byte(*reinterpret_cast<unsigned char*>((char*)&msg + 0xd)))
     {
         return LineFunc(0x414, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<int*>((char*)&msg + 0xe)))
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>((char*)&msg + 0xe)))
     {
         return LineFunc(0x416, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<int*>((char*)&msg + 0x12)))
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>((char*)&msg + 0x12)))
     {
         return LineFunc(0x418, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -3551,6 +3564,9 @@ struct GmCmdArgs
         }
 
         // ORIG 用 vector::at（先 size 校验；p167 ORIG-only at ×2）。
+        // [P4 负结论 2026-09-11 实测回滚] 按 P4ConstIterFamily 建议删缓存、两处直用 at()
+        //   实测：ours 465→469 条（gap −4→0 改善）但 **fdiff blocks 49→61 劣化** ⇒ 按
+        //   「ndiff 优先」判据回滚，维持单次 at + 引用缓存形。
         const STStackablePackageData& data = grp->at(selIdx);
         Inven_Item newItem;
         newItem.m_addInfo = data.m_field0;
@@ -4076,24 +4092,27 @@ struct GmCmdArgs
     // ORIG 0x0825fb6e `test; je FAIL`(a==0) + 0x0825fb78 `test; jne LOG`(b!=0)：混合极性。
     // 试过 goto 双守卫形（P223）⇒ 4.4 多发 1 条 jmp（ours 77）；本形（正极性 && + BODY 内
     // return）为 76=76，仅余第二条条件极性/FAIL 岛位置差 [N 类块序]。
-    if (m->m_logCounts[1] != 0 && m->m_logCounts[2] != 0)  // msg+0x15 / +0x19
+    // [P4-P4OrderFix 2026-09-11] 改「否定短路 + 早退 return」：ORIG 为 `test; je FAIL`
+    //   (a==0) + `test; jne BODY`(b!=0)，FAIL 岛（`mov $0,%eax; jmp END`）居中、BODY
+    //   远端、共享 END。探针 t30 逐条复现该拓扑。语义等价（短路序同、恒返回 0）。
+    if (m->m_logCounts[1] == 0 || m->m_logCounts[2] == 0)  // msg+0x15 / +0x19
     {
-        LogManager::logFormat(
-            1, "PacketDispatcher_Impl_2.cpp",
-            __PRETTY_FUNCTION__,
-            0x9d0,
-            "Delay check, mode:%d, value:%d, %d, %d, %d, %d, %d, m_id:%s",
-            m->m_field0d,                                   // msg+0xd
-            m->m_logCounts[0],                              // msg+0x11（ORIG 单段直载，无转换中转）
-            m->m_logCounts[1],                              // msg+0x15
-            m->m_logCounts[2],                              // msg+0x19
-            m->m_logCounts[3],                              // msg+0x1d
-            m->m_logCounts[4],                              // msg+0x21
-            m->m_logCounts[3] - m->m_logCounts[2],
-            NumberToString(accId, 0));
-        return 0;                                           // ORIG 0x0825fc27 BODY 尾 mov $0,%eax
+        return 0;
     }
-    return 0;
+    LogManager::logFormat(
+        1, "PacketDispatcher_Impl_2.cpp",
+        __PRETTY_FUNCTION__,
+        0x9d0,
+        "Delay check, mode:%d, value:%d, %d, %d, %d, %d, %d, m_id:%s",
+        m->m_field0d,                                   // msg+0xd
+        m->m_logCounts[0],                              // msg+0x11（ORIG 单段直载，无转换中转）
+        m->m_logCounts[1],                              // msg+0x15
+        m->m_logCounts[2],                              // msg+0x19
+        m->m_logCounts[3],                              // msg+0x1d
+        m->m_logCounts[4],                              // msg+0x21
+        m->m_logCounts[3] - m->m_logCounts[2],
+        NumberToString(accId, 0));
+    return 0;                                               // ORIG 0x0825fc27 BODY 尾 mov $0,%eax
 }
 // b28d-solo-Dispatchers verdict=NEAR(routed) [S206 收敛 DIFF→NEAR] ORIG 0x0825fabc
 //   [P0/P211/P205] 已修：删 msg 指针局部（形参槽直用）、first 去预清零、+0xd 改具名
@@ -4281,8 +4300,11 @@ struct GmCmdArgs
     // ORIG 0x082008bc..0x08200957：-0x14=0x80（随后被 get_int 覆盖）、-0x18=0（dead）、
     // -0x99..-0x19 的 0x81 字节 dead 缓冲（内联对齐剥离慢路）。ORIG 无独立 memset(req+0x28)：
     // ctor 0x0822dcea 已 memset(this+0x28,0,0x81)，此处旧码的 memset 是 EXTRA（p167）。
-    unsigned int strLen = 0x80;                      // ORIG -0x14
-    int deadLen0 = 0;                                // ORIG -0x18（dead）
+    // [P4 负结论 2026-09-11 实测回滚] 交换 strLen/deadLen0 声明序**不改变槽位分配**
+    //   （复编后仍为 0x80→-0x14、0→-0x10，blocks 稳定 1）：本件槽序不受声明序控制 ⇒ 封顶。
+    //   注：ORIG 实测 strLen 落 -0x10、deadLen0 落 -0x14（本注释旧值 -0x14/-0x18 有误）。
+    unsigned int strLen = 0x80;                      // ORIG -0x10（4.4 落 -0x14，封顶）
+    int deadLen0 = 0;                                // ORIG -0x14（dead）
     char deadBuf[0x81] = {0};                        // ORIG -0x99..-0x19（dead）
     (void)deadLen0;
     (void)deadBuf;
@@ -4600,6 +4622,12 @@ struct GmCmdArgs
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082044b0 orig/ours=101/99 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN23Dispatcher_CodeCheckSum12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN23Dispatcher_CodeCheckSum12disp
+// [P4-p167 符号性] ORIG callee 直证 _ZSt6strstrPcPKc（C++ 链接的 std::strstr 重载）：
+//   4.4.6 头集被 __CORRECT_ISO_CPP_STRING_H_PROTO 屏蔽该 inline 重载（cstring:117），
+//   源码侧写 std::strstr 只会解析到 C 符号 strstr。故以 asm 标签别名引用同一符号
+//   （定义由 game target 的 LinuxService.cpp 以 weak out-of-line 提供；已 AE 10/10）。
+//   探针实测：块内写 extern "C++" 会被 4.4 判 `expected unqualified-id`，须置文件作用域。
+extern "C++" char* dnf_std_strstr(char*, const char*) __asm__("_ZSt6strstrPcPKc");
 #include "Dispatchers/dispatch_sig_31.inc"
 {
     // ORIG 0x82044b0 (101 insn)：读 int + 0x20 字节校验块 → checkCodeChecksum；
@@ -4644,7 +4672,7 @@ struct GmCmdArgs
         // [b28d-solo-Dispatchers] P225/P295：ORIG 0x082045d9 `call strstr;
         //   test %eax,%eax; sete %al; test %al,%al; je`（4.1 sete 物化）⇒
         //   `while (expr == 0) { body; break; }` 复现（裸 if 被 4.4 折 `jne` 直跳）。
-        while (std::strstr(path, ".exe.bak") == 0)                 // strstr 命中保持 2
+        while (dnf_std_strstr(path, ".exe.bak") == 0)              // strstr 命中保持 2
         {
             failKind = 3;
             break;
@@ -5472,6 +5500,8 @@ public:
 }
 // ORIG 0x082643b2（报告 Dispatcher_ScanBotByDll/read.md）[随行依赖]。
 // b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x082643b2 orig/ours=51/51
+// [P4-p167 符号性] ORIG callee 直证: get_short(unsigned short&)
+//   （p167: MISSING _ZN9PacketBuf9get_shortERt / EXTRA …ERs）
 #include "Dispatchers/read_55.inc"
 {
     // ORIG 0x：裸偏移内联（无指针槽，帧 0x18）。
@@ -5483,7 +5513,7 @@ public:
     {
         return LineFunc(0x3db, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>((char*)&msg + 0x12)))
+    if (!packet.get_short(*reinterpret_cast<unsigned short*>((char*)&msg + 0x12)))
     {
         return LineFunc(0x3e0, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -7572,7 +7602,11 @@ public:
         PCK_AUCTION_ASK_OWNER_IS_VIP_GP pck;
         char* const body = reinterpret_cast<char*>(&pck);
         *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
-        memcpy(body + 0x16, auctionId, 8);
+        // [P4-p167] ORIG 为两次 4 字节直存（无 memcpy 调用；p167: EXTRA memcpy 1）。
+        *reinterpret_cast<unsigned int*>(body + 0x16) =
+            *reinterpret_cast<const unsigned int*>(auctionId);
+        *reinterpret_cast<unsigned int*>(body + 0x1a) =
+            *reinterpret_cast<const unsigned int*>(auctionId + 4);
         *reinterpret_cast<int*>(body + 0x1e) = user->getCurCharacNo();
         // [G1-Dispatchers] ORIG 该处为 `call getCurCharacR; strncpy(dst,(char*)(%eax+4),0xd)`
         // ⇒ 原码直取 `_Charac_info::m_name`（+0x04），不经 getCurCharacName 的
@@ -7838,7 +7872,11 @@ public:
     //   ④ `call G_GameWorld; mov %eax,(%esp); call IsIntegratedPvPBaseChannel;
     //      test %al,%al; je` ⇒ world 与 isPvP 均无槽（链式内联）；
     //   ⑤ 仅 serverGroup（-0x10）与 &msg（-0xc）占槽。
-    int serverGroup;
+    // [P4-P4NearFix 2026-09-11 语义轴修正] 原具名 `int serverGroup;` 占 -0x10 并把 sig
+    //   挤到 -0x2c（帧 0x48）；ORIG 帧 0x38、sig 在 -0x28，而 -0x10 恰为 sig+0x18
+    //   （SIG_CHECK_JOIN_GUILD::m_serverId，SigTypes_A.h:674 union）⇒ ORIG **没有**独立
+    //   serverGroup 局部，那 4 字节就是包字段本身。原写法把值写进死槽 = 发出去的包
+    //   m_serverId 恒为 0（memset 后未改）——既与 ORIG codegen 不符，也是真语义偏差。
     MSG_BASE* pMsg = &msg;
     (void)param;
     if (user->get_state() != 3)
@@ -7852,13 +7890,13 @@ public:
     memset(&sig, 0, 0x1c);
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        serverGroup = user->GetServerGroup();
+        sig.m_serverId = (int)user->GetServerGroup();
     }
     else
     {
         // [FL1] 具名权威成员（CEnvironment.h：m_serverEnvir.m_serverGroup @+0x378）
         // ⇒ 4.4 折单条 `mov 0x378(%eax),%eax`（裸 char* +0x378 恒发 add+mov 两条）。
-        serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+        sig.m_serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
     strncpy(reinterpret_cast<char*>(&sig),
             reinterpret_cast<char*>(pMsg) + 0x11, 0x16);
@@ -8929,6 +8967,8 @@ LBODY:
 #include "Dispatchers/dispatch_sig_59.inc"
 {
     // ORIG 0x08202cda（docs/class_func_reports/Dispatcher_CompleteDisplay/dispatch_sig.md）
+    // [P4 负结论 2026-09-11 实测回滚] 把 nameStr 改为「首用处拷贝构造」实测 ours 423→438 条
+    //   （⇒ gap −7→−8 劣化，栈槽/临时链被打乱）⇒ 保留入口声明 + 赋值形。
     std::string nameStr;                      // local_44
     private_store::ISeller* seller = 0;       // local_3c
     private_store::PrivateStoreItem item;     // local_bc
@@ -11034,7 +11074,9 @@ L_late:;
 #include "Dispatchers/read_128.inc"
 {
     // ORIG（帧 $0x18）：无指针物化槽 ⇒ 内联表达式（同 DonateGuildFund 口径）。
-    if (!packet.get_byte(reinterpret_cast<MSG_GUILD_BOARD*>(&msg)->m_b2))  // +0xb2
+    // [P4-p167 符号性] ORIG callee 直证 get_byte(char&)；m_b2 声明为 unsigned char
+    //   （PacketTypes.h:668），故调用点加 reinterpret_cast<char&>，寻址仍 base+0xb2。
+    if (!packet.get_byte(reinterpret_cast<char&>(reinterpret_cast<MSG_GUILD_BOARD*>(&msg)->m_b2)))  // +0xb2
     {
         return LineFunc(0x30aa, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -11647,7 +11689,9 @@ L_late:;
     // 反产 -0x10 存取对）。
     MSG_SAVE_GAME_OPTION_1* m =
         reinterpret_cast<MSG_SAVE_GAME_OPTION_1*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(m) + 0xd)) ||
+    // [P4-p167 符号性] ORIG callee 直证 get_int(unsigned int&)（m_optionSize 本就
+    //   声明为 unsigned int，PacketTypes.h:1308）——只换 cast 目标类型，地址算式不变。
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(m) + 0xd)) ||
         m->m_optionSize >= 0x49)
         return LineFunc(0x2860, __PRETTY_FUNCTION__, 0, 0);
     // ORIG 0x081ceaef：len 先经 %edx 保护（`mov %eax,%edx`），buf 计算覆写
@@ -11739,7 +11783,8 @@ L_late:;
     // get_int 实参 add $0xd、len typed 单级回读 `mov 0xd(%eax)`。
     MSG_SAVE_GAME_OPTION_2* m =
         reinterpret_cast<MSG_SAVE_GAME_OPTION_2*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(m) + 0xd)) ||
+    // [P4-p167 符号性] 同 SaveGameOption_1：ORIG callee = get_int(unsigned int&)。
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(m) + 0xd)) ||
         m->m_optionSize >= 0xbd)
         return LineFunc(0x28bc, __PRETTY_FUNCTION__, 0, 0);
     // [b28d-solo-Dispatchers] P0：ORIG 无 lv/pbuf 槽（`mov 0xd(%eax),%eax;
@@ -12087,6 +12132,10 @@ L_late:;
             int m_pad0;     // +0x00（ParamBase vptr）
             int m_4;        // +0x04 check_error 结果直存
         };
+        // [P4 负结论 2026-09-11 实测回滚 V1] 「裸指针 + 常量偏移」形实测**劣化**：
+        //   复编后 ours 63→65（gap 0→−2，多 2 条），blocks 仍 2 ⇒ 4.4 仍提前物化基址并
+        //   额外发 lea；既有 12112-12114 负结论（`(char*)pp + 0x4` 被缓存成
+        //   `lea 0x4(%eax),%ebx`）在本件再次证实。维持「视图成员」形（blocks=2，N7 封顶）。
         reinterpret_cast<ChwrParamView*>(pp)->m_4 =
             room->HostChangeWarRoom(
                 user,
@@ -12974,7 +13023,9 @@ L_late:;
     if (!packet.get_str(message.m_name, 0x1e, nameLen)) {
         return LineFunc(0x9da4, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_byte(message.m_grade)) {
+    // [P4-p167 符号性] ORIG callee 直证 get_byte(char&)；m_grade 声明为
+    //   unsigned char（Packet_Monitor_Set_Sub_Guild_Master.h:16，+0x30），只加引用 cast。
+    if (!packet.get_byte(reinterpret_cast<char&>(message.m_grade))) {
         return LineFunc(0x9da7, __PRETTY_FUNCTION__, 0, 0);
     }
     if (message.m_grade == 0x01) {
@@ -15367,7 +15418,9 @@ L_late:;
             0, 0);
     }
     GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
-        ->SendGuildMasterDelegate((unsigned int)user->get_charac_guildkey(),
+        // [P4-p167] ORIG 复用守卫处缓存值（guildKey，见本函数上方 15351 行），
+        //   只有 1 次 get_charac_guildkey 调用（p167: EXTRA 1）。
+        ->SendGuildMasterDelegate(guildKey,
                                   (unsigned int)user->get_charac_no(-1),
                                   masterNameLen, masterName);
     return 0;
@@ -15823,7 +15876,9 @@ L_late:;
 {
     // ORIG 0x081cfb28：short@0xe → short@0x10 → char@0x12
     MSG_REQUEST_DISJOINT_ITEM& m = reinterpret_cast<MSG_REQUEST_DISJOINT_ITEM&>(msg);
-    if (!packet.get_short(m.m_field0e))
+    // [P4-p167 符号性] ORIG callee 直证 get_short(short&)；m_field0e 声明为
+    //   unsigned short（PacketTypes.h:1216，process 侧需 movzwl），故此处只加引用 cast。
+    if (!packet.get_short(reinterpret_cast<short&>(m.m_field0e)))
         return LineFunc(0x29ed, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_short(m.m_field10))
         return LineFunc(0x29f0, __PRETTY_FUNCTION__, 0, 0);
@@ -15934,7 +15989,9 @@ L_late:;
         unsigned int m_len;      // +0x0d
     };
     SaveCharacOptView* m = reinterpret_cast<SaveCharacOptView*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(m) + 0xd)) ||
+    // [P4-p167 符号性] ORIG callee 直证 get_int(unsigned int&)（视图 m_len 已是
+    //   unsigned int @+0x0d）——只换 cast 目标类型。
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(m) + 0xd)) ||
         m->m_len >= 0x201)
         return LineFunc(0x2829, __PRETTY_FUNCTION__, 0, 0);
     // [b28d-solo-Dispatchers] P0：ORIG 无 lv/pbuf 槽 ⇒ 删具名局部改内联实参
@@ -18726,8 +18783,9 @@ LPROCESS:
     MsgMercenaryCompetition& req = reinterpret_cast<MsgMercenaryCompetition&>(msg);
     // [P139 2026-09-11] 手写串改 __PRETTY_FUNCTION__（同 GuildCargoPushItem::read）。
     // ORIG 单条 `add $0x10`：m_pad(成员+0xd)+3 会被 4.4 拆成两步 add；直接对基址加常数。
-    // 成员视图（自然对齐、非 packed，可绑 int&）：经 req 绑定回读 -0xc + 单 add $0x10。
-    struct LenView { char m_head[0x10]; int m_len; };
+    // 成员视图（自然对齐、非 packed，可绑 unsigned int&）：经 req 绑定回读 -0xc + 单 add $0x10。
+    // [P4-p167 符号性] ORIG callee 直证 get_int(unsigned int&) ⇒ 字段改 unsigned int。
+    struct LenView { char m_head[0x10]; unsigned int m_len; };
     if (!packet.get_int(((LenView*)&req)->m_len))                              // msg+0x10
         return LineFunc(0x4eda, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_byte(reinterpret_cast<char&>(req.m_pad[7])))              // msg+0x14
@@ -19186,7 +19244,9 @@ struct MercenaryCompetitionResultView
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
             "PacketDispatcher_Impl_1.cpp", 0x31d9), true);      // CStreamGuard C1 0x080c8c26（P134 内联 Acquire）
         **guard << (int)0x144;                                   // operator<<(int) 0x080c8c56
-        **guard << (unsigned int)user->GetUID();                 // operator<<(unsigned int) 0x080e2292
+        // [P4-p167 符号性] ORIG 第 11 个 call = operator<<(int)：GetUID 返回
+        //   unsigned int（CUser.h:3088，共享声明不动），故调用点显式转 (int)。
+        **guard << (int)user->GetUID();                          // operator<<(int) 0x080e2292
         **guard << (unsigned int)user->get_acc_id();             // 同上
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);  // MsgQueueMgr::put 0x08570fde
     }
@@ -20884,6 +20944,9 @@ LOUT:
         int cond = 0;
         if (mgr->CheckUserCondition(user, (int)msgIdx, cond))
         {
+            // [P4 负结论 2026-09-11 实测回滚] 去 (int) cast 的扰动**无效**：复编后
+            //   blocks 仍 5、164/164 不变（判据要求 5→3）⇒ 4.4 的实参载入序不受该 cast
+            //   控制。恢复显式 (int)（与 get_byte 的 unsigned char 提升逐位等价）。
             if (mgr->IsChangableMessage((int)msgIdx, curSec))
             {
                 guard.put_byte(1);
@@ -21626,6 +21689,10 @@ LOUT:
         info->make_item(item);
         if (item.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
         {
+            // [P4 负结论 2026-09-11 实测回滚] `oit->at(sel)` 使 `_ZNK9__gnu_cxx17__normal_iteratorIPK
+            //   St6vectorI22STStackablePackageDataSaIS2_EES1_IS4_SaIS4_EEEdeEv` 不再发射，而该符号
+            //   **ORIG 有**（0x083947b2 W, size 0xa）⇒ TU identical −1（1009→1008），EXTRA 收益
+            //   不足以抵偿 ⇒ 维持 `(*oit)[sel]` 形。
             item.m_addInfo2 = (*oit)[sel].m_field4;
         }
         items.push_back(item);
@@ -22930,7 +22997,8 @@ LOUT:
         int m_field00;             // +0x00
         int m_field04;             // +0x04
         char m_pad08[8];           // +0x08..+0x0f
-        unsigned short m_field10;  // +0x10
+        unsigned short m_field10;  // +0x10（[P4 负结论 2026-09-11 实测回滚] 改 short 后该件
+                                   //   ours 118→121 条 ⇒ gap −1→+2 劣化，虽有符号轴动机仍回滚）
         unsigned short m_field12;  // +0x12
     };
     struct GwpEnvView { char m_pad[0x378]; int m_group; };
@@ -24083,6 +24151,9 @@ typedef char sdc_view_size_check[(sizeof(SDCDamageSyncView) == 0x29) ? 1 : -1];
         //   旧码 `ev != 0 && ev->IsEventing(...)` 是**发明防御**（ORIG 不判空，语义轴）。
         if (GlobalData::s_event_manager->GetRepeatEvent(0x67)->IsEventing((CUser*)0))
         {
+            // [P4 负结论 2026-09-11 实测回滚] 删 `ev2 != 0` 判空（改链式单表达式）实测
+            //   ours 48→44 条 ⇒ gap +1→+5 **劣化**（ORIG 49 条侧等价物不止这一处判空）
+            //   ⇒ 保留具名 ev2 + 判空形。
             CEventBase* ev2 = GlobalData::s_event_manager->GetRepeatEvent(0x67);
             if (ev2 != 0)
             {
@@ -25717,7 +25788,7 @@ namespace
 //   首差: push   %ebx | sub    $0x74,%esp | movl   $0x0,-0x20(%ebp)
 #include "Dispatchers/_bind_process.inc"
     ENUM_MONSTER_CARD_BIND_TYPE type, ENUM_RARITY rarity,
-    std::vector<std::pair<int, int> >& results)
+    IntPairVector& results)   // [P4-P139] 拼写对齐 ORIG prett 串（typedef 见 GameTypes.h:49）
 {
     STExpertJobScript* script = static_cast<STExpertJobScript*>(
         G_CDataManager()->GetExpertJobScript(1));
@@ -25740,11 +25811,10 @@ namespace
     // ORIG：table.size() 各次独立调用（不缓存 entryCount）
     if (table.size() == 0)
     {
-        cMyTrace trace(
-            "bool Dispatcher_MonstercardBind::_bind_process("
-            "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
-            "ENUM_RARITY, IntPairVector&)",
-            0x44b1, 5);
+        // [P4-P139] 手写串 → __PRETTY_FUNCTION__：ORIG prett 直证
+        //   _ZZN26Dispatcher_MonstercardBind13_bind_processENS_27ENUM_MONSTER_CARD_BIND_TYPEE11ENUM_RARITYRSt6vectorISt4pairIiiESaIS4_EEE19__PRETTY_FUNCTION__
+        //   @0x8bd25e0 size=0x85，串与手写串逐字节相同；换后符号形态与 ORIG 一致。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x44b1, 5);
         trace("MonstercardBind Error : size(%d)", (int)table.size());
         return false;
     }
@@ -25764,22 +25834,14 @@ namespace
         }
         if (results.empty())
         {
-            cMyTrace trace(
-                "bool Dispatcher_MonstercardBind::_bind_process("
-                "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
-                "ENUM_RARITY, IntPairVector&)",
-                0x44ca, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x44ca, 5);
             trace("Dispatcher_MonstercardBind::_bind_process ERROR : result "
                   "is empty");
             return false;
         }
         return true;
     }
-    cMyTrace trace(
-        "bool Dispatcher_MonstercardBind::_bind_process("
-        "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
-        "ENUM_RARITY, IntPairVector&)",
-        0x44b6, 5);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x44b6, 5);
     trace("MonstercardBind Error : size(%d), sum(%d)", (int)table.size(),
           total);
     return false;
@@ -27866,9 +27928,13 @@ struct ScrMsgView
     packet.put_int(4);
     {
         // pair.first 低 16 位 + 2 字节零填充（local_6c/local_6a）
+        // [P4-p167] ORIG 该处只 1 次 operator[]（0x81e6f19 段：`call operator[];
+        //   mov (%eax),%eax; mov %ax,-0x68(%ebp); movw $0x0,-0x66(%ebp)`）；原式两次
+        //   dye.m_vec4[0] 解引用 ⇒ 多 1 次 operator[]（p167: EXTRA 1）。
+        const int dyeColor = dye.m_vec4[0].first;
         const unsigned char raw[4] = {
-            static_cast<unsigned char>(dye.m_vec4[0].first & 0xff),
-            static_cast<unsigned char>((dye.m_vec4[0].first >> 8) & 0xff),
+            static_cast<unsigned char>(dyeColor & 0xff),
+            static_cast<unsigned char>((dyeColor >> 8) & 0xff),
             0, 0 };
         packet.put_binary(reinterpret_cast<const char*>(raw), 4);
     }
@@ -28477,7 +28543,10 @@ namespace expert_extraction
     // [L7DispG1 负结论] 试把 i 提到 for 外先声明（欲得 ORIG 槽序 i=-0xc/count=-0x18）：
     //   实测槽序被整体打乱（idx 落 -0x10、i 落 -0xc、count 落 -0x18 但 idx/i 的
     //   post-inc 形错位），残余反而增多 ⇒ 回滚。4.4 的 local 槽序不可由声明序单向控制。
-    const unsigned int count = (unsigned int)(p.m_list.size() / 3);
+    // [P4-P4OrderFix 2026-09-11] count 改 int：ORIG 尾测先载 i 再 cmp count（`setl`），
+    //   unsigned count 令 4.4 先载 count 并反转成 `setg`。除法仍在 unsigned 域完成
+    //   （size()/3 ≤ 2^32/3 < 2^31 ⇒ (int) 不溢出），探针实证魔数与槽位均不变。
+    const int count = (int)(p.m_list.size() / 3);
     guard.put_byte((int)count);
     // [G1Frest 2026-09-10] ORIG 0x081d97ab `mov -0x1c(%ebp),%eax; add $0xc,%eax;
     //   mov %eax,-0x14(%ebp)` ⇒ p.m_list 的**具名引用/指针局部** -0x14（P0 槽往返）；
@@ -28485,7 +28554,7 @@ namespace expert_extraction
     //   我方旧码每次重算 `p+0xc`（帧少 4B、槽号整体上移）。绑定点在 put_byte(count) 之后。
     std::vector<int>& list = p.m_list;
     unsigned int idx = 0;                       // -0x10
-    for (int i = 0; i < (int)count; ++i)        // -0xc（setl 有符号序）
+    for (int i = 0; i < count; ++i)             // -0xc（setl 有符号序）
     {
         guard.put_short(list[idx++]);
         guard.put_int(list[idx++]);
@@ -29837,11 +29906,13 @@ namespace expert_extraction
 
 // ==== Dispatcher_SoloTeleport::read (ORIG 0x081e1b9c) ====
 // b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081e1b9c orig/ours=117/117
+// [P4-p167 符号性] ORIG callee 序直证: get_int(unsigned int&)  [m_30]
+//   → get_int(int&)  [m_34]（p167: MISSING _ZN9PacketBuf7get_intERj / EXTRA …ERi）
 #include "Dispatchers/read_330.inc"
 {
     MSG_SOLO_TELEPORT& req = reinterpret_cast<MSG_SOLO_TELEPORT&>(msg);
     // ORIG 0x081e1b9c：get_int 直收 `mov -0xc,%eax; add $0x30,%eax` 现址（无 temp+回写）。
-    if (!packet.get_int(reinterpret_cast<int&>(req.m_30)))
+    if (!packet.get_int(reinterpret_cast<unsigned int&>(req.m_30)))
     {
         return LineFunc(0x5778,
                         __PRETTY_FUNCTION__,

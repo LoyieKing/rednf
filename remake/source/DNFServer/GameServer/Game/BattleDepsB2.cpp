@@ -466,8 +466,14 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
                 idx = (int)(::rand() % (m_gridMaze->m_vec20.size() - 1));
                 if (prevIdx <= idx)
                     idx += 1;
-                m_dummyMapPos.push_back(
-                    std::pair<int, int>(m_gridMaze->m_vec20[idx]));
+                // [P8S3 2026-09-11] ORIG 0x82ffd7b 该 push_back 走 const& 重载
+                //   （0x830fa70），实参为左值：`m_vec20[idx]` 的值先入临时槽 -0xe4
+                //   （0x82ffd59/0x82ffd5f 两条 mov），再 `lea -0xe4` 传引用。
+                //   显式临时形是右值 ⇒ 选 && 重载（0x80dd606，p167 EXTRA×1）。
+                //   改具名局部即复现 ORIG：const& 回位、p167 差集项归零，
+                //   件级 1101/1103 gap=-2 与 TU 四数（142/244/near1/diff3）均不变。
+                std::pair<int, int> dummyPos(m_gridMaze->m_vec20[idx]);
+                m_dummyMapPos.push_back(dummyPos);
                 prevIdx = idx;
             }
         }

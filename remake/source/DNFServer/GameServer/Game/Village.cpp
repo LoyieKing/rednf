@@ -133,6 +133,13 @@
         //   raw[0] 两处各自重算）⇒ 按闸门回滚，保留具名局部。
         int count = m_areaCount;
         int total = count + 600;
+        // [P6S6 2026-09-11 负结论·回滚] p167 线索「ORIG 本件 MISSING `Area::~Area`
+        //   x3 + `_ZdaPv` x3、EXTRA `_ZnwjPv` x3」提示 ORIG 用标准 `new Area[n]`，
+        //   故本波实测把 placement-new 循环改为 `m_pAreas = new Area[total];`：
+        //   读数**劣化** —— ours 526→**531**（ORIG 529），difflib 块 68→69，|gap| 3→2
+        //   反号（+2）⇒ 4.4 的 new[] EH/cookie 框架比 ORIG 多 5 条，按闸门回滚。
+        //   ORIG 那 3 组 `~Area`/`_ZdaPv` 调用点应属 4.1 对 new[] 的 EH 清理器形，
+        //   4.4 走 `_ZnwjPv`+`_ZdlPvS_`（placement 族）⇒ 属跨版本发射差，非语义缺口。
         int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
         raw[0] = total;
         Area* pArea = (Area*)(raw + 1);
@@ -180,12 +187,14 @@
     TownAreaScript temp;
     bool bSuccess = false;
 
-    std::map<int, TownAreaScript>::iterator it = script.m_areas.begin();
-    for (;;)
+    // [P6S6 2026-09-11] ORIG 循环头 = `_ZNKSt17_Rb_tree_iterator…ne`（!= 条件）
+    //   + `ppEi`（后置 ++）⇒ 改为真 for 条件形（it != end(); it++）。
+    //   实测：TU 四数 ae 55→**56**、missing_in_game 19→**18**（p167fix 的
+    //   `…_Rb_tree_iterator…ne`/`ppEi` 两条 MISSING + `eq`/`ppEv` 两条 EXTRA
+    //   全 CLEAR）；set_village 自身 gap −3→+1（ours 526→530，ORIG 529）。
+    for (std::map<int, TownAreaScript>::iterator it = script.m_areas.begin();
+         it != script.m_areas.end(); it++)
     {
-        if (it == script.m_areas.end())
-            break;
-
         {
             TownAreaScript copy(it->second);
             temp = copy;
@@ -253,7 +262,6 @@
                 goto cleanup;
         }
 
-        ++it;
     }
     result = true;
 

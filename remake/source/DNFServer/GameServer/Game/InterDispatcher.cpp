@@ -11022,7 +11022,12 @@ struct Inter_AuctionResultRegistCancelPktViewI
             PacketGuard packet;
             packet.put_header(1, 0xbd);
             packet.put_byte(1);
-            packet.put_binary(data + 4, len - 4);        // 余包原样转发
+            // [P5·2026-09-11] 类型轴：ORIG 084d76e5 `sub $0x4,%eax`（就地），我方 4.4 对
+            //   `len - 4`(int) 产 `lea -0x4(%eax),%edx`+寄存器交换（唯一残差）。改
+            //   `(int)(len - 4u)` 走 unsigned 减法路径 ⇒ 探针 /tmp/P5/lea2.cpp v8 得
+            //   `mov 0x14(%ebp),%eax; sub $0x4,%eax; mov 0x10(%ebp),%edx; add $0x4,%edx`
+            //   与 ORIG 逐字节同形。守卫 `(unsigned)len > 3` 已保证 len≥4 ⇒ 等义。
+            packet.put_binary(data + 4, (int)(len - 4u)); // 余包原样转发
             packet.finalize(true);
             user->Send(packet);
         }
@@ -11066,7 +11071,9 @@ struct Inter_AuctionResultRegistCancelPktViewI
             PacketGuard packet;
             packet.put_header(1, 0xbf);
             packet.put_byte(1);
-            packet.put_binary(data + 4, len - 4);        // 余包原样转发
+            // [P5·2026-09-11] 同 #M2（ORIG 084d7782 同形 `sub $0x4,%eax`）：
+            //   `(int)(len - 4u)` ⇒ unsigned 减法路径（探针 lea2.cpp v8）。
+            packet.put_binary(data + 4, (int)(len - 4u)); // 余包原样转发
             packet.finalize(true);
             user->Send(packet);
         }
@@ -11110,7 +11117,9 @@ struct Inter_AuctionResultRegistCancelPktViewI
             PacketGuard packet;
             packet.put_header(1, 0xc0);
             packet.put_byte(1);
-            packet.put_binary(data + 4, len - 4);        // 余包原样转发
+            // [P5·2026-09-11] 同 #M2（ORIG 084d7918 同形 `sub $0x4,%eax`）：
+            //   `(int)(len - 4u)` ⇒ unsigned 减法路径（探针 lea2.cpp v8）。
+            packet.put_binary(data + 4, (int)(len - 4u)); // 余包原样转发
             packet.finalize(true);
             user->Send(packet);
         }
@@ -11146,11 +11155,19 @@ struct Inter_AuctionResultRegistCancelPktViewI
     packet.put_byte(sig->m_result);
     if (sig->m_result == 1)
     {   // 点数拍卖服
-        GlobalData::s_cera_auction_proxy->SetRunning((char)sig->m_flag);
+        // [P5·2026-09-11] ORIG 084d7b1d `movzbl 0x4(%eax),%eax; movzbl %al,%edx;
+        //   mov %edx,0x4(%esp)`（**无 test/setne 规范化**）；`(char)m_flag` ⇒
+        //   unsigned char→char→bool 双转换令 4.4 多 `test %al,%al; setne %al`（2 条）。
+        //   按 bool 直读（值域 0/1，ORIG 与本形都只传低字节 ⇒ 行为同）⇒ 探针
+        //   /tmp/P5/bconv.cpp f2 实证逐条 = ORIG 形（无规范化）。
+        GlobalData::s_cera_auction_proxy->SetRunning(
+            *reinterpret_cast<bool*>(&sig->m_flag));
     }
     else
     {   // 金币拍卖服
-        GlobalData::s_auction_proxy->SetRunning((char)sig->m_flag);
+        // 同上（ORIG 084d7b3a 同形）。
+        GlobalData::s_auction_proxy->SetRunning(
+            *reinterpret_cast<bool*>(&sig->m_flag));
     }
 
     // ORIG 084d7b59 +0x091 `movzbl 0x4(%eax),%eax; test %al,%al; je +0xaa`（跳到 $0 块）
@@ -15203,10 +15220,20 @@ struct Inter_VillageAttackedRewardPktView
 
     const int local_14 =
         GlobalData::s_villageMonsterMgr->GetRewardType();   // ORIG _ZN16village_attacked18CVillageMonsterMgr13GetRewardTypeEv
-    if (local_14 == 1)
+    // [P5·2026-09-11] P251/P261 真 switch：ORIG 084e072x `mov -0x10(%ebp),%eax; cmp $0x1,%eax;
+    //   je …; cmp $0x2,%eax; je …; jmp …`（**单次加载 + 寄存器 cmp 链**）；if/else-if 令 4.4
+    //   产 `cmpl $0x1,-0x10(%ebp); jne …`（内存比较、逐次重读，无加载）。探针
+    //   /tmp/P5/sw.cpp 四形实测：f3（本 switch 形）逐条产 `mov -0xc(%ebp),%eax; cmp $0x1,%eax;
+    //   je; cmp $0x2,%eax; je; jmp` = ORIG 同形（f1/f2/f4 均产内存比较形）。
+    switch (local_14)
+    {
+    case 1:
         local_26[0] = '\0';
-    else if (local_14 == 2)
+        break;
+    case 2:
         local_26[0] = '\x01';
+        break;
+    }
     local_26[1] = 2;
     packet.put_binary(local_26, 10);
     packet.finalize(true);
@@ -15562,27 +15589,30 @@ struct Inter_PvPBuddyConnListPktView
     // [b28c-30] N22 封顶：ORIG 0x084e1709 `cmp %eax,%ebx`（ebx = 局部字段值）vs
     // 4.4 `cmp %ebx,%eax`（call 结果在 %eax）；cmp 两向不可翻（dst=局部 vs
     // dst=call 结果）。
-    Inter_PvPBuddyConnListPktView* pPkt = reinterpret_cast<Inter_PvPBuddyConnListPktView*>(data);
+    // [P5·2026-09-11] N4a（/tmp/P5/n4/RESULT.md d2 实证）：**指针型局部槽 → int 型局部槽**。
+    //   指针槽（+ 逐处 reinterpret_cast<int>(pPkt)）令 4.4 把 `(i*0x29 + 0x10) + base + 6`
+    //   合成 `lea 0x10(%eax),%edx; mov -0x10(%ebp),%eax; lea (%edx,%eax,1),%eax`（唯一残差
+    //   block）；改 int 槽后逐步复现 ORIG 084e17a2 `add $0x10,%eax; add -0x10(%ebp),%eax;
+    //   add $0x6,%eax` 三段就地 add（槽位不变；比较段/put_header/put_int/循环尾全同）。
+    //   字段访问统一经 reinterpret_cast<V*>(base) 读，与旧形逐指令同码。
+    int base = reinterpret_cast<int>(data);
     if (user->get_state() <= 2)
         return 0;
 
     // ORIG 一步 `mov 0xa(%eax),%ebx` 直落 callee-saved（具名槽会顶深 pPkt，技巧2）。
     register int charIdMsg =                           // recv charId @ msg+0xa
-        pPkt->m_a;
+        reinterpret_cast<Inter_PvPBuddyConnListPktView*>(base)->m_a;
     if (charIdMsg != user->getCurCharacNo())
         return 0;
 
     // ORIG：m_12 每处独立 reload（无 count 槽；put_int + 循环界各一次）。
     PacketGuard packet;
     packet.put_header(0, 0x10f);
-    packet.put_int((int)pPkt->m_12);
-    for (int i = 0; i < (int)pPkt->m_12; ++i)
-        // 求值序 = ORIG：i 项先算（eax），再 add $0x10 / add pPkt 槽 / add $0x6
-        // （pPkt 置于两常量之间阻折叠，4.4 恒发三段 add；旧形 pPkt 先置产 ecx 提前载+lea）。
-        // 形探针实测：指针形/收窄括号形 ndiff 反劣（8→12/>12）⇒ 保留原「pPkt 置两常量之间」形
-        //（ndiff 8，残 = 4.4 lea 合成 vs ORIG 三段 add，P30/N4 封顶）。
-        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10 +
-                                                  reinterpret_cast<int>(pPkt) + 6),
+    packet.put_int((int)reinterpret_cast<Inter_PvPBuddyConnListPktView*>(base)->m_12);
+    for (int i = 0; i < (int)reinterpret_cast<Inter_PvPBuddyConnListPktView*>(base)->m_12; ++i)
+        // 求值序 = ORIG：i 项先算（eax），再 add $0x10 / add base 槽 / add $0x6
+        // （base 置于两常量之间阻折叠 ⇒ 三段就地 add，N4a）。
+        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10 + base + 6),
                           0x29);
     packet.finalize(true);
     user->Send(packet);
@@ -16480,8 +16510,18 @@ struct Inter_ReqGameServerInfoPktView
 #include "InterDispatcher/dispatch_sig_248.inc"
 {
     Inter_ReqGameServerInfoPktView* pPkt = reinterpret_cast<Inter_ReqGameServerInfoPktView*>(data);
+    // [P5·2026-09-11] P59/P222 守卫包裹形：ORIG 084e2bb8 `sete %al; test %al,%al;
+    //   jne 084e2de0 <尾 return 0>`。早退形令 4.4 产 `je <正文>; mov $0x0,%eax; jmp <尾>`
+    //   （多 2 条）；goto 共享尾标签形则多 `jmp`+`nop`（各试过，均劣）。
+    //   探针 /tmp/P5/guard.cpp 四形实测：v3 `if (cond==7) { } else { 正文 } return 0;`
+    //   逐条产 `cmp $0x7; sete %al; test %al,%al; jne <尾>` = ORIG 同形（v1/v2 产 setne+je，
+    //   v4 早退产 je+jmp）。正文逐字未改，缩进保持原样（便于与报告逐句对照）。
     if (G_GameWorld()->GetChannelType() == 7)
-        return 0;
+    {
+        // 通道类型 7：直落函数尾 return 0（ORIG 同）
+    }
+    else
+    {
 
     // §P0：ORIG 对 m_a/m_b 全程重读（084e2bd6/084e2ce9 两次 m_a；084e2c32 内联 m_b），无槽往返；
     //   proxy 亦无具名局部（GetServerProxy 结果直接在 %eax 作 this）⇒ 链式调用。
@@ -16539,6 +16579,7 @@ struct Inter_ReqGameServerInfoPktView
             break;
         }
     }
+    }   // if (GetChannelType()==7) { } else { … }  包裹形（P59/P222）
     return 0;
 }
 

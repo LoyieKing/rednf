@@ -94,7 +94,9 @@ namespace cash {
     if (m_socket == INVALID_SOCKET)
     {
         int err = errno;
-        printf("Could not create a TCP socket : %d\n", err);
+        // [P6AuditOldN.P6S2 2026-09-11 · §6.5 串审计] ORIG .rodata @0x08b6caac
+        //   逐字节 = "Could not create a TDP socket : %d\n"（TDP 为 ORIG 原拼写）。
+        printf("Could not create a TDP socket : %d\n", err);
         return false;
     }
     setOptLinger(false);
@@ -124,7 +126,9 @@ namespace cash {
     }
     if (nonBlock)
         setOptNonBlock();
-    printf("TCP Port binding success, port = %d\n", static_cast<int>(port));
+    // [P6AuditOldN.P6S2 2026-09-11 · §6.5 串审计] ORIG .rodata @0x08b6cad0 逐字节
+    //   = "succeeded in binding TCP socket port #%d\n"。
+    printf("succeeded in binding TCP socket port #%d\n", static_cast<int>(port));
     return true;
 }
 

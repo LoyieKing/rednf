@@ -590,6 +590,9 @@ namespace WongWork {
         // [A/B 轴复查 2026-09-10，**已试后回退**] ORIG 0846204f `cmp -0x20(%ebp),%eax; seta %al`
         //   为 mem 直比；改把 roll 写在比较右侧（`expr <= roll`）实测**无效** —— 4.4 仍先
         //   载 roll 入寄存器（形态 setae/setb 不变、our 357→359 劣化 +2）⇒ 按 N18b/P197④ 封顶。
+        // [P6AuditOldN-S1 2026-09-11 负结论 P196 反形] 试 `!(X > roll)`（语义等价的
+        //   严格反形，目标 ORIG 0x0846204f `cmp -0x20(%ebp),%eax; seta %al`）⇒ 实测
+        //   our 357→**358**（gap −10→−11，反劣 +1）⇒ 已回滚，维持 N18b/P197④ 封顶。
         if ((unsigned int)roll >= (unsigned int)(
                 G_CDataManager()->m_deathTower.m_rewardItemProb[0] * (int)param5))
         {

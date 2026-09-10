@@ -17,9 +17,23 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // msg 视图具名局部在两级 errNo 检查之后初始化（ORIG 参数槽 -0x24 先、msg 槽
     // -0x20 后）。函数头声明多 1 条 store 且槽基下移（我方帧 0x60 vs ORIG 0x50）。
     MSG_GET_ITEM& req = *reinterpret_cast<MSG_GET_ITEM*>(&msg);
-    if (req.m_17 != 1)
+    // [P5-DPC 2026-09-11 · 旋钮④ bool 形参/成员规范化] ORIG 0x081c3648 为
+    // `movzbl 0x17(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（bool 成员取反形）；
+    // PacketTypes.h:590 的 `unsigned char m_17` 下我方 `!= 1` 只出 `cmp $0x1,%al`
+    // （diff `replace O: xor $0x1,%eax; test %al,%al` ↔ `N: cmp $0x1,%al`）。
+    // 不改头：函数内同布局视图把该字节按 **bool** 读（探针 /tmp/P5/probe_bool2.cpp f1
+    // 实测 `movzbl 0x17(%eax),%eax; xor $0x1,%eax; test %al,%al; je` 与 ORIG 逐条同形，
+    // 且 disp 折叠）。语义与 ORIG 一致：字节 != 1 时计 hack。
     {
-        user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x3bb, 1, 0, 0);
+        struct GetItemFlagView
+        {
+            unsigned char m_pad[0x17];
+            bool m_flag;
+        };
+        if (!reinterpret_cast<const GetItemFlagView*>(&req)->m_flag)
+        {
+            user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x3bb, 1, 0, 0);
+        }
     }
     if (req.m_15 % 7 != 0)
     {
