@@ -95,6 +95,9 @@ struct StRefCtx2
 // [round4 L3CUser 复核 2026-09-10] ae_insn 残差仅 2 处：①`movl $&_ZL14gUnicodeBuffer
 //   +0xe174,0x8(%esp)` 我方为 .o 未解析重定位（AE/N132 等价）；②尾 2×`jmp+nop`
 //   为我方多出（ORIG 无岛）⇒ N121 维持，指令数 123/127 与判词一致。
+// [A28 round5 复核 2026-09-10] 重跑 clean 口径：orig=123 / ours=125，残差仍仅尾部
+//   2×`jmp`（ORIG `jne <T>; leave; ret` 直落 ⇒ 无岛）⇒ N121（4.4 epilogue-threading
+//   尾岛不可消）维持封顶；p167 调用点 CLEAR。
 void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
                                     stGenerateResult_t& result)
 {
@@ -322,6 +325,9 @@ void CMonsterDrop::setDropRatio(float ratio)
 // [round4 L3CUser 复核 2026-09-10] 帧 0x24c vs 我方 0x25c（+0x10）、槽号
 //   -0x21c/-0x1fc/-0x204/-0x208 vs -0x22c/-0x20c/-0x214/-0x218 恒定平移 ⇒
 //   判据⑪ B-FRAME（整帧平移）⇒ N126/N82，声明重排无效；gap -19 为此族固有。
+// [A28 round5 复核 2026-09-10] 重跑 p167：CLEAR 50=50（仅 Inven_Item C1↔C2 同址
+//   别名，P93 良性）；orig 665 / ours 646（raw 670/652）；帧 0x24c vs 0x25c。
+//   ⇒ 维持 N78（altTable `rep stos` 对齐剥离慢路）+ N82/N126（整帧 +0x10）封顶。
 // 参数（自 wrapper）【推断命名】：
 //   type       = ref+0x34 怪物等级档
 //   role       = ref+0x35（signed char；==3 走首领金币路径）

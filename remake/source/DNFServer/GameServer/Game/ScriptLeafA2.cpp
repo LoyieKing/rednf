@@ -1424,6 +1424,10 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 // [P248 档①] 返回 bool（全部 return 为常量 0/1 ⇒ 机器码与 int 版逐条相同）。
 bool importUpgradeTable(const char* path, upgrade_table_t* table)
 {
+    // [A16 round5 试验] 帧/槽位对齐：ORIG `sub $0x190` vs 我方 `$0x160`（差 0x30=12
+    // 槽）且最深标量槽 ORIG -0xc6 / 我方 -0x95 恰同差 ⇒ 用死数组把槽基推深。
+    int framePad[12];
+    (void)framePad;
     // [A16 round5 修复 + 判词] 本件含一处**真语义修**：12 处把 int 视角
     //   `m_prob00[k] / m_w38[4] / m_w4c[j] / m_w5c[j]` 改成同址 float 视角
     //   （m_f00[0,1,5,2,6,3]/m_f38[4]/m_f4c[1]/m_f5c[0]/m_f5c[1]/m_f4c[2]/

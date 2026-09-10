@@ -809,21 +809,21 @@ bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h �
                 printf("insert_monster_category Error: %s\n", path);
                 return 0;
             }
-            // [round5-A29] P183/P329 去具名缓存：ORIG script 对象基址 -0x1918 而
-            // 我方 -0x191c（fn_diff 实测 `mov -0x1914 / -0x1910` vs `-0x1918 /
-            // -0x1914`，恒定 ±4）——差的正是本 `vector&` 引用槽。删除后在每个
-            // 访问点重发 `G_CDataManager()->m_independentDrop.m_vecC` 全链。
+            // [round5-A29 实测后回退] 曾试删本 `vector&` 引用（P183/P329 去具名缓存，
+            // 假设 ORIG script 槽 -0x1918 vs 我方 -0x191c 的 ±4 即本槽）——实测
+            // **反劣**：删后 script 侧对齐但函数头标量区反而整体浅 4
+            // （ORIG -0x2c/-0x28 vs 我方 -0x28/-0x24，near 5/diff 7 → near 4/diff 8），
+            // 即两组槽向相反（P331「混合尺寸区声明序不可翻」）⇒ 维持原形。
+            std::vector<stIndependentDropInfo>& drops =
+                G_CDataManager()->m_independentDrop.m_vecC;
             // [b28d-solo-CListTables P196/P218] ORIG 0x0834fc48 `cmp i; setg` 有符号
             // 比较（unsigned i 生 seta）⇒ 下标局部 int 化。
-            for (int i = 0;
-                 i < (int)G_CDataManager()->m_independentDrop.m_vecC.size(); ++i)
+            for (int i = 0; i < (int)drops.size(); ++i)
             {
-                if (G_CDataManager()->m_independentDrop.m_vecC[i].m_field0 == 0 &&
-                    G_CDataManager()->m_independentDrop.m_vecC[i].m_monsterIndex ==
-                        script.m_index)
+                if (drops[i].m_field0 == 0 &&
+                    drops[i].m_monsterIndex == script.m_index)
                 {
-                    script.m_dropList.push_back(
-                        G_CDataManager()->m_independentDrop.m_vecC[i].m_drop);
+                    script.m_dropList.push_back(drops[i].m_drop);
                 }
             }
             monster = new CMonster();

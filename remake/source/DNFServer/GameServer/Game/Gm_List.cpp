@@ -119,6 +119,19 @@ void WongWork::CGMAccounts::clearGmList()
 // ORIG 0x0829996c：查询 "seLect m_id, level from gm_manifest"；失败 trace 返回；
 // 成功先 clearGmList，逐行 fetch 取 m_id/level 并 LoadGmList，累计 m_id 日志串；
 // 若 get_channel_no()==1 再 SendGMList_To_UpperServer(0) 同步监视服务器。
+// [A28 round5 定稿] 本轮修复（ORIG 0x0829996c 逐段对齐）：
+//   ① 返回类型 bool（三处 `mov $0x0,%ebx; jmp` + 尾 `movzbl -0x11(%ebp),%ebx`）；
+//   ② P212 全头部声明（ORIG 序言四条 `movb/movl $0x0,-0x11/-0x10/-0x74/-0x78`）；
+//   ③ 删 accounts 具名指针（P0：ORIG `mov &s_pGMAccounts_,%eax; mov %eax,(%esp)`）；
+//   ④ fetch 结果丢弃 + 同一 ok 复用（P102；ORIG 无 `!fetch()||` 短路段）；
+//   ⑤ P221/P227 五处 cMyTrace 改全表达式临时链（具名对象 4.4 复用同槽致帧浅 0x30，
+//      同族 CGM_Manager::LoadGmListFromDb 0x08299530 实证）；
+//   ⑥ idLog.append 提到 GM M_ID trace 之前（ORIG 0x08299af1 段 < 0x08299bd2）；
+//   ⑦ 删旧 `ok = true;`（ORIG 无该 store）；⑧ 发送用 GlobalData::gmList（非隐式 this）。
+//   残余 gap=5：三处 `mov $0x0/$0x1,%esi`（4.4 EH 状态寄存器，ORIG 无）+ 两处
+//   NumberToString 结果 %ebx(ORIG)/%esi(4.4) ⇒ 判 N104（EH 尾块相对序，ORIG 正常
+//   路径尾块在后/4.4 就地内联）+ N7（callee-saved 角色）封顶。
+//   p167 调用点差集：仅 Packet_Sync_GM_List C1↔C2 同址别名（P93 良性）。
 bool Gm_List::LoadGmListFromDb()
 {
     // [P212 全头部声明] ORIG 序言 4 条初始化

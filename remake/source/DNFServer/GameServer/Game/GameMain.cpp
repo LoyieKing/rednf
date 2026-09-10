@@ -1610,6 +1610,18 @@ void CShutdowManager::SendShutdownSignal()
 // ORIG 全等**）+ P244 op 声明/赋值分离提前（槽 -0x14→-0x18）；残差仅 op 槽
 // -0x18 vs ORIG -0x1c（4.4 紧凑分配 vs 4.1 在 -0x18/-0x14 预留两槽，未使用标量
 // 4.4 不占槽 ⇒ N98 不可翻；再补 int dead 反使帧 0x444 劣化，已回退）。
+// [A18 本波] **263=263（gap 0）、ndiff 2**（旧 gap -13）。三修：
+//  ①散布 `return 0;` 代 `goto L_RET0`（P325 反向）：4.4 对共享标签恒发
+//    单一尾块（jmp 3acd），改散布 return 后逐点 `mov $0,%eax; jmp <epilogue>`，
+//    与 ORIG 0x0829ea6a..0x0829ee6e 十八处就地 mov+jmp 全等；
+//  ②stop/suspend 两分支保留 `goto L_RET0_TAIL;`（函数尾标签 + fall-through）：
+//    ORIG 唯此两点共享 +0x41b 中继块（`jmp 0829ee75`），其余点就地 ⇒ 混合形；
+//  ③`total = (int)((unsigned)total + (unsigned)strlen(...))` 双 cast 链
+//    （P211/P274 异型化）：复现 ORIG `mov -0x14,%edx; add %edx,%eax;
+//    mov %eax,-0x14` 读-加-写三段（裸 `total + strlen` 4.4 恒折 `add %eax,-0x14`）。
+// 残差 = **N111**：ORIG 0x0829eb6f `test %al,%al; jmp 0829eb87` 为无入口死块
+// （FAIL 段 0x0829eb71..0x0829eb82 永不可达、Ghidra C 亦无该分支），4.4 恒
+// 条件化（我方 `je`，语义正确且可达）⇒ 合法 C++ 不可造，1 条指令差封顶。
 bool check_argv(int argc, char** argv)
 {
     // P244：op 提前声明（赋值仍在使用点）。

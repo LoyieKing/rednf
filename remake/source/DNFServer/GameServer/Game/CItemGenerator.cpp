@@ -189,15 +189,23 @@ int CItemGenerator::getGeneratorType()
 //     importGenuineUpgradeTable("Etc/Upgrade_Separate.etc", t) 失败返回 0
 //     （static 保留，与 ORIG 一致：失败仅本次返回 0）。
 // ============================================================================
-// [b28d-54 N] ORIG 0x0891229d：`new GenuineDamageUpgradeTable()` 后的 value-init
-//   清零 ORIG 内联 rep stos（0x188 字节）vs 4.4 call memset（N77/N78）+ 指针缓存
-//   ebx/esi 寄存器化（N2）；语义等价（构造+清零序列一致）。
+// [本波·N77/N78 封顶] ORIG 0x0891229d（51 insns）的 value-init 清零是 4.1
+//   内联 `rep stos`（5 条：mov $0/%eax、mov $0x62/%edx、%/edi、%/ecx、rep stos）；
+//   4.4 对 `new T()` 依 CWG434 不发射清零、对 memset 恒发 call（探针族 /tmp 全败）
+//   ⇒ 结构不可复现。本波把实现压到最接近且语义忠实的形态：
+//     operator new → memset(0x188) → placement 构造 → import
+//   （原先额外一层 `void* mem` 具名局部 + placement-new 的 4.4 EH 段已删）。
+//   实测该件 51/52 条：残差 = rep stos 5 条 vs memset 4 条（3 准备 + call）+ 4.4
+//   对 placement-new 的 landing 段；语义逐位等价（同一清零区间 + 同一 ctor）。
 GenuineDamageUpgradeTable* getGenuineUpgradeTable()
 {
     static GenuineDamageUpgradeTable* genuineDamageUpgradeTable = 0;
     if (genuineDamageUpgradeTable == 0)
     {
-        genuineDamageUpgradeTable = new GenuineDamageUpgradeTable();
+        genuineDamageUpgradeTable =
+            (GenuineDamageUpgradeTable*)operator new(0x188);
+        memset(genuineDamageUpgradeTable, 0, 0x188);
+        new (genuineDamageUpgradeTable) GenuineDamageUpgradeTable();
         if (!importGenuineUpgradeTable("Etc/Upgrade_Separate.etc",
                                        genuineDamageUpgradeTable))
             return 0;

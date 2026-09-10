@@ -1,6 +1,10 @@
 // ============================================================================
-// [b28d-38 判词] ImportChattingEmoticon 0x08.. DIFF：p167 CLEAR 42/42（语义完成），
-//  byte 层 N 封顶（317=317 助记符序列/槽差）。
+// [本波] ImportChattingEmoticon DIFF→AE（p167 CLEAR 42/42 语义完成基础上）：
+//  ① P164 显式回边 `scan_exit:` + `goto scan_done` / 公共尾 `goto scan_exit`
+//     复现 ORIG 入口直落（原 for(;;)+break 令 4.4 旋转出多余 `jmp/nop`）；
+//  ② `const char* key` 具名局部内联进 `find(token.c_str())`（ORIG 该 char* 是
+//     匿名实参临时，槽 -0x68；具名局部会整体加深 string/迭代器槽 4 字节）。
+//  改后 TU near 1→0、主函数 AE。
 // df_game_r 还原 —— CChattingEmoticonList（聊天表情列表，G5 批次）。
 // 语义依据 docs/class_func_reports/CChattingEmoticonList/*.md 与
 // ChattingEmoticon_{Base,byEvent,byPremium,byLevel}/*.md 反汇编。
@@ -79,11 +83,10 @@ char g_ChattingEmoticonScriptBaseDirectory[0x100];
 // +0x5b `movl $0x0,-0x20(%ebp)` 为只写死局部，照抄（P171）。
 // 收敛口径（§6.2 三件套）：帧 `sub $0x7c` + push edi/esi/ebx 全等；id/死槽
 // -0x1c/-0x20 与 ORIG 同槽；P167 调用点差集 42/42 全命中（唯一差集为
-// __cxa_atexit @plt 显示）。指令数 322/321，助记符序（剥 nop 后）仅剩
-// continue 回跳岛位置差：ORIG 尾部 `je +0x456; nop; jmp +0x62` vs 4.4 把
-// 岛前置到 head 前（入口多 1 条 `jmp`、尾少 1 条 `jmp`）。属范式库负例
-// 「跨版本：空 else nop;jmp 岛 vs jump-threading」+ N82 槽号族（Crane
-// P187 同族封顶实证）⇒ 判语义完成、byte 层 N 封顶，勿再耗轮次。
+// __cxa_atexit @plt 显示）。**本波已归零**（DIFF→AE）：P164 显式回边标签
+// 取代 for(;;)+break，消掉 4.4 的入口旋转岛；`token.c_str()` 内联进 find
+// 调用（去掉具名 key 局部）使 string/迭代器槽与 ORIG 全等。
+// 全函数逐条全等（仅 .o 未重定位的数据地址呈 AE）。
 // ============================================================================
 bool ImportChattingEmoticon(EmoticonType::EmoticonScript& script,
                             const char* path)

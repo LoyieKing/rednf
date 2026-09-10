@@ -152,6 +152,15 @@ void CSkillChanger::_addSFPRelatedItem(int* a, int* b, int itemIdx, int count)
 // va 打包区依次：int& spA,int& spB,int& sfpA,int& sfpB,this,user。
 // 查任务；仅限 m_fieldB8 == 0 或 25（一般/重复类任务）统计其奖励物品；
 // SP 书（0x407/0x40e 与表格项）与 SFP 书（0x4b4/0x4b5）分别累计。恒返回 true。
+// [A28 round5 定稿] 本轮修：rewards 预清两句式（ORIG 0x0860a781
+//   `movl $0x0,-0x14(%ebp)` 后才 call，P198①）。
+//   残余判 N107+N82（gap -2，p167 调用点一致）：
+//   ① N107：ORIG 六组 `mov 0xc(%ebp),%eax; lea 0x4(%eax),%edx; mov %edx,0xc(%ebp)`
+//      （2 条）vs 4.4 恒 `addl $0x4,0xc(%ebp)`（1 条）。本轮实测四形全产 addl：
+//      `args += 4` / `args = args + 4` / `args = &args[4]` /
+//      `(char*)((int)args+4)`（该形多 1 条重载）/ `(char*)((int**)args+1)`。
+//   ② N82：迭代器槽 it/end ORIG -0x34/-0x38 vs 4.4 -0x3c/-0x34（具名 it 形、
+//      for-init 直构形两种均实测同槽）。
 // ============================================================================
 bool CSkillChanger::_fnEnumQuestClear(unsigned int questIdx, char* args)
 {

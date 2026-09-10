@@ -1,4 +1,15 @@
 // df_game_r Game/ WongWork::CItemUpgrade 实现。
+// [2026-09-10 round5 复核（A25TailBatch3）] 本 TU 三件全部维持 N（p167 三件皆 CALLSITE CLEAR）：
+//   · _CheckCondition 325/323：仅 2 处索引寻址形差 —— ORIG 08546603/0x08546635
+//     `mov %eax,%edx; …; add $0x104,%edx; mov 0xc(%eax,%edx,4)`（两步）vs 4.4
+//     `lea 0x104(%eax),%edx`（一条折叠）⇒ P30/N4 结构性伪影（P311 二维指针视角已实测反劣
+//     323→329）；另 float 局部槽 -0x74/-0x70（ORIG）vs -0x14/-0x10 + Inven_Item 临时槽
+//     ∓8 = N95/N126 帧族（判据⑪ MIXED）。
+//   · ProcUpgrade(MSG_ENCHANT) 437/437：p167 CLEAR 41/41；残余 = 帧 0x1ac/0x19c 与槽号平移
+//     （N82/N95）+ 位域读 2 处多 `movzbl %al,%eax`（P168a③）+ cMyTrace 实参寄存器角色
+//     `%ebx`↔`%eax`（N7）+ 数据地址伪差（N132）。
+//   · _ProcPenalty 359/359：p167 CLEAR 54/54；残余 = 3 处 `lea` 与前邻指令的次序互换
+//     （N7/N18a 装载序）+ 字符串地址伪差（N124/N132）。
 #include "CUser.h"
 #include "CDataManager.h"
 #include "CItem.h"

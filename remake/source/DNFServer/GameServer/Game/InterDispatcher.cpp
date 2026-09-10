@@ -12995,15 +12995,15 @@ int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         // ORIG 循环 `mov -0x14(%ebp),%edx` 基址取自具名槽（非 0x10(%ebp) 形参槽）⇒
         // 元素访问经同一具名 base（pPkt）而非形参，避免第二指针槽（P89/P0）。
-        // ORIG `mov -0xc(%ebp),%eax; mov -0x14(%ebp),%edx; imul $0x35,...`（先装 i 后装
-        // base）⇒ 索引写在指针运算左（i + base），base-first 形恒反序（P218 同族）。
+        // 残：ORIG `mov -0xc(%ebp),%eax; mov -0x14(%ebp),%edx; imul; lea`（先 i 后 base）
+        // vs 4.4 恒 base-first（`i + ptr` 形实测同 base-first）⇒ P218/P30 装载序封顶。
         if (reinterpret_cast<const Inter_NoticeGuildCargoTail*>(
-                (i + reinterpret_cast<const Inter_NoticeGuildCargoEntry*>(pPkt))
+                (reinterpret_cast<const Inter_NoticeGuildCargoEntry*>(pPkt) + i)
                     ->m_body.m_bytes)->m_3 != 0)
         {
             packet.put_short((short)i);              // ORIG `cwtl`（源码 (short) 截断）
             packet.put_binary(
-                (i + reinterpret_cast<const Inter_NoticeGuildCargoEntry*>(pPkt))
+                (reinterpret_cast<const Inter_NoticeGuildCargoEntry*>(pPkt) + i)
                     ->m_body.m_bytes + 2, 0x35);
             ++putCount;
         }

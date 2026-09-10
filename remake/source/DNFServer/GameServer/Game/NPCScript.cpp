@@ -1168,6 +1168,11 @@ unsigned short CNPCScript::giveGiftItem(unsigned int mood, CItem const* item, un
     // （ORIG 浅→深：gn2 -0x10 / key2 -0x18 / gn1 -0x20 / key1 -0x28 /
     // give -0x2a / it -0x30）⇒ 块内局部全部提至函数头、声明序按 ORIG 槽浅→深；
     // key 用声明+赋值分离以保持 ORIG 执行序 give=0 → it 构造 → get_index。
+    // [round5 复测] 两声明序实测均 NEAR（N82附：4.1 按生命周期**穿插** vs 4.4
+    // 分区/首次使用）：序A（本形 gn2/key2/gn1/key）⇒ key -0x28 ✓ / gn1 -0x18 /
+    // key2 -0x24 / gn2 -0x14；序B（key/gn1/key2/gn2）⇒ key -0x1c / gn1 -0x20 ✓ /
+    // key2 -0x24 / gn2 -0x28。ORIG 相邻槽距恒 8（-0x28→-0x20→-0x18→-0x10）=
+    // 块内迭代器/临时对象穿插所致，非源码声明序可择 ⇒ 回退序 A。
     unsigned long groupName2;
     unsigned long key2;
     unsigned long groupName1;

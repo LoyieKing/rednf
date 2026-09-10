@@ -141,11 +141,11 @@ float getDamageInflictCreature(STComputeDamageVariable* v)
 {
     if (v->m_char1B5 == 0)
         return 0.0f;
-    float dmg = v->m_field000;
+    float base = v->m_field000;
     int lv = static_cast<int>(v->m_d1AA);   // fldcw 截断模式
-    dmg = dmg * getDamageRateCreature(
-                      static_cast<int>(static_cast<signed char>(v->m_char1B7)),
-                      static_cast<int>(static_cast<signed char>(v->m_char1B8)), lv);
+    float dmg = getDamageRateCreature(
+                    static_cast<int>(static_cast<signed char>(v->m_char1B7)),
+                    static_cast<int>(static_cast<signed char>(v->m_char1B8)), lv) * base;
     dmg = dmg * v->m_f02B;
     dmg = dmg * getCreatureDamageRateFromModule(
                      static_cast<ENUM_MODULE_TYPE>(static_cast<signed char>(v->m_objTypeByte)));

@@ -1078,11 +1078,6 @@ int CInventory::GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE ty
     switch (invenType)
     {
     case 0:
-    // [b28d-round5 P163] ORIG 0x084fb68a..0x084fb69a 为 `cmp $0x6,%eax; ja <ret count>`
-    // + `.rodata` 跳表（7 项，0..6）⇒ 原码显式覆盖 0..6。补未列 case 4/5（与 0/6 同体）
-    // 使 4.4 放弃 bitmask/比较链、发出与 ORIG 同宽的表。
-    case 4:
-    case 5:
     case 6:
         LogManager::logFormat(
             1, "inventory.cpp",
@@ -3957,6 +3952,9 @@ int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& ite
     // 独立 it++（type==0 分支 ppEi sret -0x20；循环尾 sret -0x1c）+ 函数级具名
     // it(-0x30)/entry(-0x38, C1Ev @0x085056e5)；本形实测 158/154 且 **TU 四数
     // 395→393 回退**（4.4 对 pair 默认构造省略 C1Ev call ⇒ 净少 4 条）⇒ 回滚保持 for 形。
+    // [b28d-round5 复攻失败记录②] 只把 pair 提到循环外（保留 for、保留循环内 pair 构造
+    // 位置改动）实测 158/148（我方少 10 条）+ 该 TU 合计回退 ⇒ 已回滚，维持循环内
+    // 双参构造形（ORIG 的 pair::C1Ev 在入口是 4.1 形，4.4 对 trivial pair 不发该 call）。
     for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
          it++)
     {

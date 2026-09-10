@@ -42,6 +42,32 @@ bool IS_PVP_CHANNEL(int channelType);
 // advancealtar_misc.cpp.o 的 0x43 副本（该 TU 走 446 路由头集，dtor 无 landing），
 // 属弱符号多副本链接选择差异（P93/N89 类），非本 TU 源码可修。
 
+// [A16 round5 复核] 本 TU 9 件非 identical 全数复核（fresh check_tu_routed 19:17 +
+//   p167 调用点差集）：**9 件全部 CALLSITE CLEAR**（差集仅 C1/C2·D1/D2 同址别名
+//   P93 伪差）⇒ 语义缺口 0，残差全为跨版本 codegen 形态。逐件判词（均附 ORIG 地址）：
+//   · importAchievementRewardParameter 0x0889afb0（gap -12）/ importAdvanceAltarShop
+//     Parameter 0x088a10cc（gap -6）：N82 帧/槽分区（§6.2 三件套口径）。
+//   · AddRewardItemInfo 0x0890cfda（gap -2）：N107 —— ORIG 0x0890d04f
+//     `lea (%ecx,%eax,1),%eax; 0x0890d052 lea 0xc(%eax),%edx; mov val,(%edx)`，
+//     我方 `lea (%ecx,%eax,1),%edx; mov val,0xc(%edx)`（4.4 恒折 disp；下标形与
+//     指针算术形两写法实测同形，判词原文见函数头）。
+//   · GetRewardItem 0x0890d326（gap +14）：N107/N7 —— ORIG 单条 scaled
+//     `mov 0xc(%eax,%ecx,1),%eax`，我方 `lea(%ecx,%eax,1); add $0xc` ×2 + 多
+//     push %esi 与 3-pop epilogue（寄存器角色族，P333 边界外的地址形成差）。
+//   · reseal_table_t::get_reseal_cost 0x08900b02（gap +3）：P209 附（unsigned 比较
+//     恒载寄存器；S1 一次性旋钮已用 —— idx 改 unsigned 实测劣化并回滚）+ N18a
+//     （`mov %eax,%ecx` 单段 regmove 不可造）。
+//   · _getIntegratedPvPItemAttr 0x084fc541（gap +3）：P9 —— callee GetReSealCount
+//     返回 uchar ⇒ 4.4 调用点恒插 `movzbl %al,%eax` ×2（ORIG 无）；改共享头返回
+//     类型须连动 Inven_Item.cpp body 与全调用点，保留。
+//   · isBoundaryExpValue 0x0849f420（NEAR，gap +1）：N22/N18b —— ORIG
+//     `cmp %eax,%ebx`（dst=局部 e）vs 4.4 `cmp %ebx,%eax`（dst=字段/call 侧）；
+//     交换源码操作数实测同形、P248 三档试尽；尾 nop 属 §6.1 对齐豁免。
+//   · getRewardStatus 0x08a6be66（NEAR，gap +1）：N126/N95 —— 全帧槽号恒浅 0xc
+//     （版本首槽基址常数，P332「永封部分」）+ 1 nop 豁免。
+//   · getPvPSkillPointNext 0x08a5df0e（gap -1）：N93/N112 —— 槽号整体平移 4
+//     （jcc 30/30 无极性反写）。
+
 // ============================================================================
 // 脚本 POD 生命周期（ORIG 语义，见 docs/class_func_reports 与 ORIG 反汇编）。
 // 各 ctor 构造 STL 容器成员（必要时调 clear()），dtor 逆序析构。

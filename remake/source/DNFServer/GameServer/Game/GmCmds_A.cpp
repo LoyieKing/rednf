@@ -824,9 +824,13 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
 
     // 徽章映射表：ORIG = G_CDataManager() + 0xc + (0x208 + grade*6 + jewelType)*4
     // （P0：无 grade 具名槽，get_grade 内联进下标表达式；P291 具名数组视角）。
+    // [round5-GmCmds_A] 判据⑩/帧对齐：ORIG 帧 0x70 与 p1/p2/count/jewelType
+    // 槽（-0x28/-0x24/-0x20/-0x1c）要求本处存在一个具名 grade 槽（去掉后帧塌
+    // 0x60 且全组浅移 4）；get_grade 实参用 p1（ORIG 0x084af155 `mov -0x28(%ebp)`)
+    int grade = p1->get_grade();
     int emblemId =
         reinterpret_cast<const CBoosterEmblemIdTableView*>(G_CDataManager())
-            ->m_ids[p1->get_grade() * 6 + jewelType + 0x208];
+            ->m_ids[grade * 6 + jewelType + 0x208];
 
     CStackableItem const* emblem =
         static_cast<CStackableItem const*>(G_CDataManager()->find_item(emblemId));
@@ -908,7 +912,11 @@ int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
             // `cmpl $0xffffffff,-0x18`（then 为空块，4.1 仍发射）⇒ 照抄死比较。
             int ret = getAvatarEmblemTypeIdxForCompountEmblem(sockets[i], counts,
                                                               total);
-            if (ret == -1)
+            // [round5-GmCmdsA] 配方㉓（Main 2026-09-10，A14 实证）：ORIG 0x084af44c
+            // `cmpl $0xffffffff,-0x18; jmp +1; nop` 是**无分支消费者的死比较**，
+            // 4.4 前端对 `if(ret==-1){}`/`ret==-1;`/while-break 等 17 形恒 DCE
+            // 或产 sete/test ⇒ 旧判 N99/P184。改**空 switch** 即产纯比较后直落。
+            switch (ret == -1)
             {
             }
         }

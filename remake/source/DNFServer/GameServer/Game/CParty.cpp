@@ -5033,9 +5033,9 @@ void CParty::TournamentDungeonClear(bool flag)
     }
     // ORIG：两句式 if/else 各一次 SaveCoin（两个独立 call 岛），非三元表达式。
     if (flag)
-            SaveCoin((eCoinSubReason)1);
-        else
-            SaveCoin((eCoinSubReason)2);
+        SaveCoin((eCoinSubReason)1);
+    else
+        SaveCoin((eCoinSubReason)2);
         PacketGuard packet;
     for (int slot = 0; slot < 4; ++slot)                // -0x18
     {

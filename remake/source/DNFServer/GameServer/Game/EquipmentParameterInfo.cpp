@@ -5840,6 +5840,22 @@ done:
 // 生即为未定义 vararg 用法）；此处以可读 double 直出（数值舍入差异记录于报告）。
 // avatar 能力标签表与 importEquipmentParameterInfo 内一致（AVTVARIATION_TAG_NAME）。
 // [b28d-solo-EquipmentParameterInfo] 修 it++（P28）/std::min<int>；残差 avatar 段 string 形 + empty 结构 ⇒ N。
+// [A18 本波] ndiff **500→360**（ORIG 1506 / OURS 1468）。四修 + 真语义修正 ×1：
+//  ①**删多余判空**（P171 照抄）：ORIG 头部无 `if(!file||!info)`，直接
+//     `mov 0xc(%ebp),%eax; mov 0x4(%eax),%eax; test; je` 判 info->m_field4；
+//  ②**真语义修正**（ORIG 0x089add6d..0x089ade75 常量序实证）[active status] 名称段：
+//     ORIG 链序 = 0..0xa, **0x11**, 0xb, 0xc, 0xd, 0xe（armor break@0x11、
+//     bleeding@0xb、haste@0xc、bless@0xd、element@0xe；无 0xf/0x10）——
+//     旧实现 armor break@0xb、bleeding..element 顺移一格（11..15）整体错位；
+//     并改 **else-if 链**（ORIG 每条 fwrite 后 `jmp 0x89ade9d` 共享尾）；
+//  ③**删具名 t 缓存**（P157/P183）：ORIG 每链 `mov 0x144(%eax),%eax; test/cmp $K`
+//     字段直读（我方旧形 `mov %eax,-0x24; cmpl $K,-0x24`）；
+//  ④separate-rate 段 x87 形（P243/P252/N85）：`fabs((double))` + 比较写 **`>`**
+//     （`fabsf(sa-1.0f) > eps*fabsf(sa)`）⇒ 复现 ORIG 先算左值存 double 槽
+//     `fstpl` + 后算 `epsilon()*fabs(sa)` 的求值序与 `fsubrp` 装载序；
+//     残余 = **N85** x87 比较 lowering（ORIG `fucompp/fnstsw/test $5/sete/xor`
+//     vs 4.4 `fucomip/fstp/seta`）+ 帧 0x180/0x170、槽平移 8（N95/N115 族）
+//     + skill-levelup 迭代器三槽（ORIG 单槽 -0x3c，N86/P50 族）。
 void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
 {
     // [A18 本波] 删多余判空（P171 照抄 ORIG）：ORIG 0x89ad 头部无 file/info 判空，

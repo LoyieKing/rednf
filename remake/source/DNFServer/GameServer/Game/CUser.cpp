@@ -13175,10 +13175,13 @@ void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
         remainSec = m_mercenaryMgr.m_characs[i].m_field2c
                     - GlobalData::s_systemTime_.getCurSec();
 
-        // 2026-09-10（P265 档③）：ORIG 0x0868e7b5 段该实参为 `mov (%eax),%eax;
-        //   mov %eax,%edx`（字段先入 %eax 再中转 %edx）= int 字段经**异型**实参转换
-        //   ⇒ 实参位显式 cast 触发同形中转（我方原形单段 `mov (%eax),%edx`）。
-        packet.put_int((unsigned int)m_mercenaryMgr.m_characs[i].m_characNo);
+        // 2026-09-10（P265 档③ 实测无效，已回退）：ORIG 0x0868e7b5 段该实参为
+        //   `mov (%eax),%eax; mov %eax,%edx`（int 字段经异型转换的两段中转），
+        //   实参位显式 `(unsigned int)` cast 实测**不产**该中转（仍单段 `mov (%eax),%edx`）
+        //   ⇒ 该中转来自字段真型（enum）而非实参 cast；字段在共享头 SigTypes_C.h
+        //   CHARAC_LOAD_MERCENARY::m_characNo（全仓多消费点）⇒ 按 S2 不自行改，
+        //   记 N（P254 字段 enum 化旋钮待 Main 全链评估）。
+        packet.put_int(m_mercenaryMgr.m_characs[i].m_characNo);
 
         if (&m_mercenaryMgr.m_characs[i].m_name[0] == 0)
             nameLen = 0;

@@ -195,7 +195,21 @@ StageMapScript::~StageMapScript()
 // four integers until the first failed ScanInt, then appends the current
 // district; [slot type] consumes five-integer records and only inserts a new
 // key; and [/area] appends the area without appending the pending district.
-// [b28d-24] DIFF 残279: P167 EXTRA push_back×3/StageData D1×2/ne×1（解析分支结构差异），待按 P165/P166 收敛。ORIG 0x088a9f28
+// [本波收敛] ORIG 0x088a9f28 / 457 insns；本波 475→459（纯指令差 2 条）：
+//   ① P160-P162 槽复用：全部 ScanInt 结果写 ORIG 同一槽 -0xc（单具名 int），
+//      13 个 v0..v4 独立局部曾使帧深 0x38（帧 0xd0→0xa0 与 ORIG 全等）；
+//   ② P164 显式回边：`scan_next:` 标签 + `goto finish`/`goto scan_next`
+//      复现 ORIG「入口直落 + 双 jmp/nop 岛」（ORIG +0x50/+0x53）;
+//   ③ P222 正向包裹：`if (token == "[area]") {...}` 消掉 4.4 的 `xor $1` 物化；
+//   ④ 去 finalizeAfterArea 具名 bool（ORIG 用 ebx 寄存器）⇒ 槽再上移 4；
+//   ⑤ StageData 用户空析构删除（P12：ORIG D1/D2 为空体 W，且 importStageMapScript
+//      全程不调用它）⇒ [stage] 失败路径的 dtor 调用消失，missing 86→82；
+//   ⑥ operator[] 结果用 `register SlotType&` 绑定（非 register 会落槽 +6 条）。
+// 残差 2 条（N 封顶，均有 ORIG 指令形证据）：
+//   · 0x088aa2e7 段 ORIG `mov SLOT,%edx; mov %edx,(%eax)` vs 4.4 把引用绑进
+//     %ebx 并多 1 条 `mov %eax,%ebx`（引用/间接基址寄存器分配差，N7 族）；
+//   · 0x088aa46c 岛区 4.4 多 1 条 `jmp`（多目标共享 continue 岛布局，
+//     负例「空 else nop;jmp 岛 vs jump-threading」族）。
 bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
 {
     if (!loadRDARScriptFile(g_stageMapScriptBaseDirectory, path))
@@ -328,13 +342,13 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
                             if (area.m_slots.find(slot.m_field0) ==
                                 area.m_slots.end())
                             {
-                                stagemap::SlotType* dst =
-                                    &area.m_slots[slot.m_field0];
-                                dst->m_field0 = slot.m_field0;
-                                dst->m_field4 = slot.m_field4;
-                                dst->m_field8 = slot.m_field8;
-                                dst->m_fieldC = slot.m_fieldC;
-                                dst->m_field10 = slot.m_field10;
+                                register stagemap::SlotType& dst =
+                                    area.m_slots[slot.m_field0];
+                                dst.m_field0 = slot.m_field0;
+                                dst.m_field4 = slot.m_field4;
+                                dst.m_field8 = slot.m_field8;
+                                dst.m_fieldC = slot.m_fieldC;
+                                dst.m_field10 = slot.m_field10;
                             }
                         }
                         continue;

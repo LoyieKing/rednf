@@ -71,6 +71,12 @@ void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)
 // p->put_byte(idx, 计数) 收尾。party 形参 ORIG 未使用（保留签名）。
 // 成员偏移按 CRidable.h：pair.second 起 +4 → m_x@+4/m_y@+8/m_field0c@+0xc/
 // m_field10@+0x10/m_field14@+0x14/m_field18@+0x18/m_state@+0x1c。
+// [A28 round5 定稿] 本轮修：①`begin()` 提到 counter 之前（ORIG 0x082fe9d1..de
+//   先 begin → counter(-0x1c) → idx(-0x28) → put_byte）；②`p->put_byte(counter)`
+//   （ORIG `mov -0x1c(%ebp),%edx` 读槽变量，非立即数 0）。
+//   残余 1 条：ORIG `mov 0x18(%eax),%eax; mov %eax,%edi` vs 4.4 折单段
+//   `mov 0x18(%eax),%edi`（%edi 直落）⇒ N18a（4.4 单段直落不可造；P254 enum 化
+//   需改 CDungeon.h 的 RidableObject（多 TU 共享）且无 ORIG enum 证据，不改）。
 void CRidable::CheckAppearRidableObject(CParty*, int a, int b, PacketGuard* p)
 {
     // ORIG 0x082fe9d1 段序（P28/P50「先声明后赋值」）：begin() 最先

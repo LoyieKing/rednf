@@ -1385,7 +1385,11 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
         }
         else if (tag == "[hell monster]")
         {
-            script->m_isHellMonster = (ScanInt((bool*)0) != 0);
+            // ORIG 0x088cbfc3/0x088cbfc6：结果先落具名 int 槽（-0x10）再
+            // `cmpl $0x0,-0x10(%ebp); setne %dl` ⇒ 原码有具名局部（P0 槽往返律）；
+            // 直接 `(ScanInt(...) != 0)` 会被 4.4 折成 `test %eax,%eax`（少 mov+cmp）。
+            const int v = ScanInt((bool*)0);
+            script->m_isHellMonster = (v != 0);
         }
         else if (tag == "[animation job]")
         {
