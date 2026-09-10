@@ -67,6 +67,9 @@
 //     je body`（4.1 while 旋转 + bool 取反物化）vs 我方 `test; jne`（4.4 正极性收回跳）」
 //     + 各段寄存器/槽重载（movzbl-mem 62:45、movzbl-global 31:20、call 29:26；立即数
 //     多重集 $1 差 30；je -13 / jne +16）。属 P164/P283 旋转 + P292 物化族 ⇒ N。
+//     [A/B 已试·不收敛] 探针 /tmp/lane22/p4.cpp r3（goto 尾标签环，6 形中唯一出 `je`）
+//     代入 [dungeon] 段实测：xor1 91→92 仅 +1，4.4 多入口 `jmp L_cond`+`nop`、body/cond
+//     物理序仍相反（6173→6175）⇒ 已回滚，判 N 成立。
 //   ⑤C1ERKS_ 0x0837e698（988/994）：我方函数尾多 6 条 epilogue（ORIG 以 _Unwind_Resume
 //     收尾）＝ N104（EH 尾块相对序）+ N90（ORIG 43 条准备段 vs 我方 7）⇒ N。
 //   ⑥STL 实例 15 件（__uninitialized_copy ×12 / _M_insert_aux / __copy_move_backward /
@@ -1138,18 +1141,12 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[dungeon]")                             // 0x089dd56d
         {
             script->m_list4.clear();
-            // [lane22 A/B] ORIG 0x89dd57f：4.1 while 旋转 + bool 取反物化
-            // （`movzbl ok; xor $1; test; je body` + body 尾 jmp 回 cond）。
-            // 探针 /tmp/lane22/p4.cpp r3 实测：仅「goto 尾标签环」能出该 `je` 形态。
-            goto L_dungeon_cond;
-        L_dungeon_body:
-            script->m_list4.push_back(okInt);
-        L_dungeon_cond:
-            okInt = ScanInt(&ok);
-            if (!ok)
-                goto L_dungeon_exit;
-            goto L_dungeon_body;
-        L_dungeon_exit:
+            // [lane22 A/B 已回滚] ORIG 0x89dd57f 为 4.1 while 旋转 + bool 取反物化
+            // （`movzbl ok; xor $1; test; je body`）。goto 尾标签环（探针 p4.cpp r3，
+            // 唯一能出 `je` 的形）在真实上下文实测**不收敛**：4.4 多入口 `jmp L_cond`
+            // + `nop` 且 body/cond 物理序仍相反（3673→3675，xor1 91→92）⇒ 回滚。
+            while (okInt = ScanInt(&ok), ok == true)
+                script->m_list4.push_back(okInt);
             continue;
         }
         if (tok == "[type]")                                // 0x089dd5d7

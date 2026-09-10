@@ -615,10 +615,13 @@ static bool GetExpertJobValueCompoundRate(STItemScript* item);
 
 static bool GetItemCategory(STItemScript* item)
 {
+    // [Lane41] P212：块内局部提至函数头、块内仅赋值；声明序按 ORIG 槽深序
+    // （state -0x78 深于 token -0x74）⇒ state 先声明。
+    STItemScript::ENUM_ITEM_CATEGORY state;
     std::string token;
     while (ScanStr(&token))
     {
-        int state = 0;
+        state = STItemScript::ITEM_CATEGORY_0;
         // [sweep-STStackableScript] P333/P177（ORIG 0x089bfdc5 逐条实证）：
         // 三件套 + retry 标签同落循环体：ORIG retry 回跳目标 0x89bfde8 = 三件套
         // guard 检查段首条（`mov $&__lookup,%eax`）⇒ 标签必须在 static 声明
@@ -670,10 +673,9 @@ static bool GetItemCategory(STItemScript* item)
             __inited = true;
             goto retry;
         }
-        if (state != 0)
+        if (state != STItemScript::ITEM_CATEGORY_0)
         {
-            item->m_set11c.insert(
-                static_cast<STItemScript::ENUM_ITEM_CATEGORY>(state));
+            item->m_set11c.insert(state);
         }
     }
     return true;
@@ -775,13 +777,18 @@ static bool GetExpertJobTypeList(STItemScript* item)
 }
 
 // ORIG t 0x089bfc2f：-100.0 哨兵（0x8e1a574）视为未设置。
+// [Lane41] 判据⑥：ORIG 0x89bfc69 `fucompp; fnstsw %ax; test $0x5,%ah; sete %al;
+// test %al,%al; je` = 「有序且 ST0(-100.0) >= ST1(v)」⇒ 源码为 `v <= -100.0f`，
+// 不是 `==`（v < -100.0 时 ORIG 也 return false，真语义差异）。
+// 该 lowering 需本 TU 路由补 `-march=i486 -mtune=generic`（探针 11 形态实证：
+// 仅 i486 组产生 ORIG 逐条形；默认旗标产 fucomip/setae）——需求已报 Main。
 static bool GetExpertJobValueMaterialVariation(STItemScript* item)
 {
     if (item == 0)
         return false;
     bool ok = true;
     item->m_expertJob.m_field18 = ScanFloat(&ok);
-    if (item->m_expertJob.m_field18 == -100.0f)
+    if (item->m_expertJob.m_field18 <= -100.0f)
         return false;
     return ok;
 }

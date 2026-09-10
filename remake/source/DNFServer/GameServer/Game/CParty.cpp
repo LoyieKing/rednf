@@ -4870,7 +4870,11 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
         {
             // 不清奖励槽
         }
-        else if (reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenR()
+        // b28d-solo-CParty2（p167）：ORIG 0x85b43aa `call getCurCharacInvenW`（**非 const** 版，
+        // 体内先 `call enableSaveInven` 再返回 inven 指针）⇒ 本处必须用 W 版（R 版无
+        // enableSaveInven 副作用 = 真语义缺口）。上方 tryInsertItemIntoInventory 处
+        // ORIG 0x85b4273 确为 R 版，保持不动。
+        else if (reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()
                      ->check_empty_count(Inven_Item::ITEM_TYPE_EQUIP, 2) == 1)
         {
             // 空位充足，不清

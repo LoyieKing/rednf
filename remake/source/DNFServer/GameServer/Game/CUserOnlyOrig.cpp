@@ -7727,9 +7727,13 @@ void CUser::UpdateCurrentCharacRentalInfo(
         {
             // [b28d-PoolCUOO2 修法] ORIG 命中 DeletedRentItem const deEv（operator*），
             // 非 ptEv ⇒ `(*del).` 形（p167 EXTRA ptEv 清零）。
+            // [Lane39 判据①/P0] ORIG 0x08676ecc `mov %eax,-0xc(%ebp)`+回读 = 具名
+            // deref 局部（P183：4.4 对引用/指针局部恒落槽并每句重载）；内联
+            // `(*del).m_itemId` 会省掉该槽 ⇒ 全帧槽号浅移 4（ORIG 142 vs 我们 139）。
+            const InstanceRentalSystem::DeletedRentItem& delItem = *del;
             std::vector<InstanceRentalSystem::RentalInfo>::iterator found =
                 std::find_if(list.begin(), list.end(),
-                             FindRentalInfoByItemIndex((*del).m_itemId));
+                             FindRentalInfoByItemIndex(delItem.m_itemId));
             if (found != list.end())
                 list.erase(found);
         }

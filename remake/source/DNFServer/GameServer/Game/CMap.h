@@ -532,7 +532,10 @@ public:
     int insert_item(int idx, int level, int prob, int cond);
     bool checkFitInPathObject(int x, int y) const;
     int box_item_index(std::list<std::pair<int, int> > itemList) const;
-    int CheckEntrance(int flag) const;
+    // [b28d-Lane27] 类型旋钮 int→bool（Main 批准）：ORIG get_candidator_map 0x083082f9/
+    //   0x08308544 调用点 `call; test %al,%al; je`（2 条、无 setne ⇒ bool，P292）。
+    //   返回类型不入 mangled；返回寄存器 ABI 相同 ⇒ 布局/mangled 零变化。
+    bool CheckEntrance(int flag) const;
 
     int get_index() const { return m_4; }
     int get_map_type() const { return m_8; }

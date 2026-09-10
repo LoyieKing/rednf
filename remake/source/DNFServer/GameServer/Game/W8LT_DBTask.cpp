@@ -4064,14 +4064,9 @@ bool DB_SaveSkill::SendResult(int userIdx, int slot, SIG_LOAD_SKILL* sig)
 // LoadTicket 0x841968a / SendResult 0x8419770。
 // ---------------------------------------------------------------------------
 
-// +0x000 实为 charac_no（village_ticket.charac_no；SIG_LOAD_TICKET 该段声明
-// 为 m_pad0[4]，此处视图具名）。
-#pragma pack(push, 1)
-struct DB_LoadTicketCharacView
-{
-    unsigned int m_characNo;   // +0x000（village_ticket.charac_no）
-};
-#pragma pack(pop)
+// [Lane31W8LTDBTaskView] +0x000 已由 Lane38 字段化至 SigTypes_C.h
+// SIG_LOAD_TICKET（匿名 union `unsigned int m_characNo`@+0x000，static_assert
+// offsetof==0），本地 DB_LoadTicketCharacView 视图删除，改用权威直访问。
 
 // ORIG 0x84195dc：基类 dispatch 放行后 GetOutBuffer<SIG_LOAD_TICKET>；
 // LoadTicket 失败置 m_field4=1（结果标志），再 SendResult，全绿返 1。
@@ -4102,7 +4097,7 @@ bool DB_LoadTicket::LoadTicket(SIG_LOAD_TICKET* sig)
     MySQL* db;
     db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx, E_SERVER_GROUP_NONE);
     db->set_query("seLect village from village_ticket where charac_no=%u",
-                  ((DB_LoadTicketCharacView*)sig)->m_characNo);
+                  sig->m_characNo);
     ok = db->exec(true);
     if (!ok)
         return 0;

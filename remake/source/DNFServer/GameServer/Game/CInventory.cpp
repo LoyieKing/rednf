@@ -4830,14 +4830,15 @@ void CInventory::ExpiredAvatarItem(PacketGuard* packet)
     }
 }
 
-int CInventory::CalBlankSlot(int* out,
-                             const std::vector<std::pair<int, int> >& items) const
+void CInventory::CalBlankSlot(int* out,
+                              const std::vector<std::pair<int, int> >& items) const
 {
-    // b28d-solo-CInventory：312/326，分支/帧残差 ⇒ N82 封顶。
-    // b28d-37 [N82 封顶，ORIG 0x850?]：分支/帧残差（312/326）。
+    // b28d-36 [P159+P223]：ORIG 0x08508536 尾部 `nop; leave; ret`（无 mov$0）⇒ 返回 void；
+    // 首守卫 ORIG 形 `sete %al; test; jne TAIL` + body 尾 `jmp`/TAIL `nop` ⇒
+    // `if (items.size()==0) goto END;`（goto 尾标签产正向 jne；原地 return 产反向 je+eax 岛）。
     if (items.size() == 0)
     {
-        return 0;
+        goto CBLANKSLOT_END;
     }
     // [实测回滚] ORIG 0x8508536 为 entry=std::pair(*it)（deEv+aSEOS0_）+ 三处 ppEi，
     // 但 4.4 复现形 349 insns（原 326，ORIG 312）且 TU ae -1 ⇒ 维持原形（记 N）。
@@ -4964,20 +4965,30 @@ int CInventory::CalBlankSlot(int* out,
             }
         }
     }
-    return 0;
+    // [P223] ORIG TAIL：body 尾 jmp 跳过 nop 到 leave;ret（ORIG 0x08508914 → 0x08508917）。
+CBLANKSLOT_END:;
 }
 
-int CInventory::CalNeedSlot(int* out,
-                            const std::vector<std::pair<int, int> >& items) const
+void CInventory::CalNeedSlot(int* out,
+                             const std::vector<std::pair<int, int> >& items) const
 {
-    // b28d-solo-CInventory：238/239，帧/槽残差 ⇒ N82 封顶。
-    // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（238/239）。
+    // b28d-36 [P159+P223]：ORIG 0x0850891a 尾部 `nop; leave; ret`（无 mov$0）⇒ 返回 void；
+    // 首守卫同 CalBlankSlot：ORIG `sete; test; jne TAIL` + body 尾 jmp ⇒ goto 尾标签形。
     if (items.size() == 0)
     {
-        return 0;
+        goto CNEEDSLOT_END;
     }
     // ORIG（0x0850891a）：begin 具名量 + pair 默认构造 cur、循环头 found=false、
     // cur = 临时 pair 右值赋值（范式 P-358）、it++ 后置自增 ×3。
+    // [P223/BM8] 4.4 拒 goto 跨同层非平凡局部声明（crosses initialization）⇒ 主体包入
+    // 内层复合块、尾标签置块外（跳出不进入作用域，合法）。
+    {
+    // [P212] ORIG 0x0850891a：start/end/i 在循环外声明（start -0x44 / end -0x48 / i -0x14
+    // 各仅一份，两处 StartEndPos 与两处 for 复用）⇒ 提升为块级声明、循环内仅赋值
+    // （消除两对 start/end 的重复槽：帧 0x68→0x58 对齐 ORIG）。
+    int start;
+    int end;
+    int i;
     typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
     Iterator it = items.begin();
     std::pair<int, int> cur;
@@ -5010,10 +5021,8 @@ int CInventory::CalNeedSlot(int* out,
             }
             else
             {
-                int start;
-                int end;
                 StartEndPos((Inven_Item::ITEM_TYPE)type, start, end);
-                for (int i = start; i <= end; i++)
+                for (i = start; i <= end; i++)
                 {
                     if (m_pCreatureSlot[i].m_addInfo == itemIdx)
                     {
@@ -5038,10 +5047,8 @@ int CInventory::CalNeedSlot(int* out,
             }
             else
             {
-                int start;
-                int end;
                 StartEndPos((Inven_Item::ITEM_TYPE)type, start, end);
-                for (int i = start; i <= end; i++)
+                for (i = start; i <= end; i++)
                 {
                     if (m_pEquipSlot[i].m_addInfo == itemIdx)
                     {
@@ -5068,7 +5075,9 @@ int CInventory::CalNeedSlot(int* out,
         }
         it++;
     }
-    return 0;
+    }
+    // [P223] ORIG TAIL：body 尾 jmp 跳过 nop 到 leave;ret。
+CNEEDSLOT_END:;
 }
 // [N82 封顶] batch-10 新立项：差集 15=15 归零（while+it++ 后置×4、pair 临时&& 赋值、
 // 循环头 found 初始化、winPoint !(>=) setge 形、i<=8/i<=0x19 setle 界）。gap 43→7。

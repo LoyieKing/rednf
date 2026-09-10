@@ -120,6 +120,14 @@
 //         GetRentItemInfo(111/117) / DeleteAllRentalItem(119/124) /
 //         CHumanCertifier::init(64/76) / RecvPacket(171/176) / SendCheckChannelScript
 //         (289/291) / generateImage(685/682) / STL 3 件（N130）。
+//  · [C 类实测记录 · 2026-09-10] ① `log`×2：P248补四「register 声明序旋钮」实测
+//    **反劣**（pData 提前 ⇒ 角色未转正，两件 NEAR→DIFF：TU near 11→9、diff 38→40）
+//    ⇒ 已回滚（回滚后 899/1791/11/38 逐位复原），判词改为「4.4 callee-saved 归属
+//    在多 register 局部场景**不随声明序轮转**」；其帧差 0x4c vs 0x3c（缺 0x10）与
+//    槽位差并存，属 N7+N82 双族，勿再试。
+//    ② `proc_addFatigue`：残差 = 具名 `lower`@-0x14 与 `std::max` 匿名常量临时
+//    @-0x1c 的深浅互换（ORIG 临时更深）。该对跨「具名标量区 / 匿名临时区」两区
+//    ⇒ P212 明示临时区不可翻（前批三形实测已反劣）⇒ 维持 N98/N212 封顶。
 // ============================================================================
 // ============================================================================
 // [b28d-solo-GlobalData 泳道判词] 清单 /tmp/b28d_tu/GlobalData.tsv（44 件）。
@@ -8011,6 +8019,10 @@ void RentalMachinePcRoom::log(CUser& user, int itemId)
     // [b28d-solo-GlobalData] P231/P248：ORIG 0x082707c0 三个值跨 CMyFileLog ctor
     // 保活于 callee-saved（esi=charNo/ebx=accId/edi=m_data）⇒ 纯 register 提示
     // （非 asm 绑定，P0 合规）；缺 register 时 4.4 落栈槽（-0x10/-0xc）。
+    // [Lane7GlobalData · P248补四 声明序旋钮——**已实测回滚**] pData 提首位后
+    // register 角色未转正，反把本件由 NEAR 打成 DIFF（TU：near 11→9、diff 38→40）
+    // ⇒ 恢复原声明序（charNo/accId/pData）。判词：4.4 的 callee-saved 归属不随
+    // 声明序轮转（与 P248补四 的「位置」结论在**多 register 局部**场景不适用）。
     register const int charNo = user.get_charac_no(-1);
     register const unsigned int accId = user.get_acc_id();
     register char* const pData = m_impl->m_data;
@@ -8040,6 +8052,8 @@ void RentalMachineDimension::log(CUser& user, int itemId)
     const int serverEnv = (int)serverInfo;
     // [b24ab] ORIG 将 charNo/accId/m_data 缓存在 callee-saved（esi/ebx/edi）跨
     // CMyFileLog 构造存活 ⇒ register 强占（P197②形）
+    // [Lane7GlobalData · P248补四 声明序旋钮——**已实测回滚**] 同 PcRoom 版：
+    // 提前 pData 反使本件 NEAR→DIFF ⇒ 恢复原声明序。
     register const int charNo = user.get_charac_no(-1);
     register const unsigned int accId = user.get_acc_id();
     register char* const pData = m_impl->m_data;

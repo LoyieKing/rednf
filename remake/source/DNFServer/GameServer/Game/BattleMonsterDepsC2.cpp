@@ -194,7 +194,11 @@ bool CBattle_Field::get_monster_list(std::list<_mapMonster>& mobList)
 void CBattle_Field::add_monster_list_bossroom_condition(std::list<_mapMonster>& mobList,
                                                         int x, int y)
 {
-    if (m_pDungeon == NULL || m_pMap == NULL)
+    // [b28d-Lane27] ORIG 0x083013f5/0x08301406 两条独立 `je`（各带岛）+ 0x0830141e
+    // `jne <epilogue>`（直跳）⇒ 拆三条独立守卫。
+    if (m_pDungeon == NULL)
+        return;
+    if (m_pMap == NULL)
         return;
     if (m_pDungeon->m_bossRoom90c.m_0 != 1)
         return;
@@ -1235,9 +1239,11 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
 {
     if (dungeon == NULL || gs == NULL)
         return 0x17;
-    if (mapId != -1)
-        return 0;
-
+    // [b28d-Lane27] ORIG 0x08308238 段 `cmp $0xffffffff,%eax; jne 0x083086c4`（直跳尾部
+    // `mov $0,%eax`）⇒ 写「`if (mapId == -1) { 主体 }` + 尾部共享 `return 0`」；负向早退形
+    // 4.4 会把 `return 0` 就地内联（`je 主体; mov $0; jmp`，+3 条）。主体缩进从简。
+    if (mapId == -1)
+    {
     if (m_endX == x && m_endY == y)                                       // +0xc/+0x10
     {
         if (gs->m_secondCandidates.size() == 0)                           // gs+0x10
@@ -1246,9 +1252,12 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
         }
         else
         {
-            for (size_t i = 0; i < gs->m_secondCandidates.size(); ++i)
+            // [b28d-Lane27] ORIG 槽位：map=-0x2c / i=-0x28（map **先声明**更深）⇒ 把
+            // map 提到 for 之前声明（P212/P331 同尺寸标量声明序）。
+            CMap* map = NULL;
+            for (unsigned int i = 0; i < gs->m_secondCandidates.size(); ++i)
             {
-                CMap* map = static_cast<CMap*>(
+                map = static_cast<CMap*>(
                     G_CDataManager()->find_map(gs->m_secondCandidates[i]));
                 if (map == NULL)
                     return 0x17;
@@ -1291,9 +1300,11 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
         }
         else
         {
-            for (size_t i = 0; i < gs->m_mapCandidates.size(); ++i)
+            // [b28d-Lane27] ORIG 槽位：map=-0x24 / i=-0x20（map 先声明更深）。
+            CMap* map = NULL;
+            for (unsigned int i = 0; i < gs->m_mapCandidates.size(); ++i)
             {
-                CMap* map = static_cast<CMap*>(
+                map = static_cast<CMap*>(
                     G_CDataManager()->find_map(gs->m_mapCandidates[i]));
                 if (map == NULL)
                     return 0x17;
@@ -1325,6 +1336,7 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
                 }
             }
         }
+    }
     }
     return 0;
 }

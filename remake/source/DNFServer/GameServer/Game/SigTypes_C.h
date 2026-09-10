@@ -1018,13 +1018,22 @@ static_assert(sizeof(SIG_LOAD_SKILL) == 0x414, "SIG_LOAD_SKILL ABI drift");
 #pragma pack(push, 1)
 struct SIG_LOAD_TICKET
 {
-    char     m_pad0[0x4];     // +0x000
+    union
+    {
+        char         m_pad0[0x4];   // +0x000
+        unsigned int m_characNo;    // +0x000（RequestDBTicket 报告 ORIG 0x081c73a6：
+                                    //   memset 后 `call get_charac_no; mov %eax,%edx;
+                                    //   mov -0xc(%ebp),%eax; mov %edx,(%eax)`——
+                                    //   缓冲首字即 charac_no；W8LT_DBTask.cpp
+                                    //   DB_LoadTicketCharacView 为同偏移同义视图）
+    };
     int      m_field4;        // +0x004（GetTicket 先清零）
     int      m_count;         // +0x008
     int      m_tickets[100];  // +0x00c
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_LOAD_TICKET) == 0x19c, "SIG_LOAD_TICKET ABI drift");
+static_assert(offsetof(SIG_LOAD_TICKET, m_characNo) == 0x000, "SIG_LOAD_TICKET m_characNo offset drift");
 static_assert(offsetof(SIG_LOAD_TICKET, m_field4) == 0x004, "SIG_LOAD_TICKET m_field4 offset drift");
 static_assert(offsetof(SIG_LOAD_TICKET, m_count) == 0x008, "SIG_LOAD_TICKET m_count offset drift");
 static_assert(offsetof(SIG_LOAD_TICKET, m_tickets) == 0x00c, "SIG_LOAD_TICKET m_tickets offset drift");

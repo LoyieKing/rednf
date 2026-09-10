@@ -371,11 +371,24 @@ struct EventRewardItemInfo
         m_field0 = 0; m_field4 = 0; m_short8 = 0;
         m_growTypes.clear();
     }
-    int m_field0;                // +0x00
+    // [Lane7GlobalData · Main 批准 2026-09-10 · N18a 旋钮（探针 /tmp/l7/probe5.cpp tG）]
+    // m_field0 改 `unsigned int`：ORIG pc_room::ProcessEquipItem 0x082714d2/0x082714d4 与
+    // ProcessInsertItem 0x08271673/0x08271675 均为两段装载 `mov (%eax),%eax;
+    // mov %eax,%ebx`（字段 unsigned + 消费方 `find_item(int)` 异型 → 4.4 插转换中转）；
+    // 同型 int 字段时 4.4 恒折单段 `mov (%eax),%ebx`。局部 cast 变体 7 形
+    // （probe5 tC/tF/tH/tI、probe9 tY/tZ/tW）实测均仍折单段 ⇒ 唯字段侧有效。
+    // 布局零变化：i386 下 int/unsigned int 同宽同对齐 ⇒ sizeof 0x18 与各 offsetof 不变
+    // （下方 static_assert 逐条锁定）。
+    unsigned int m_field0;       // +0x00
     int m_field4;                // +0x04
     short m_short8;              // +0x08
     std::vector<int> m_growTypes;  // +0x0c
 };
+static_assert(sizeof(EventRewardItemInfo) == 0x18, "EventRewardItemInfo size drift");
+static_assert(offsetof(EventRewardItemInfo, m_field0) == 0x00, "EventRewardItemInfo field0 drift");
+static_assert(offsetof(EventRewardItemInfo, m_field4) == 0x04, "EventRewardItemInfo field4 drift");
+static_assert(offsetof(EventRewardItemInfo, m_short8) == 0x08, "EventRewardItemInfo short8 drift");
+static_assert(offsetof(EventRewardItemInfo, m_growTypes) == 0x0c, "EventRewardItemInfo growTypes drift");
 
 #ifndef GAME_SITEMGENREF_DEFINED
 #define GAME_SITEMGENREF_DEFINED

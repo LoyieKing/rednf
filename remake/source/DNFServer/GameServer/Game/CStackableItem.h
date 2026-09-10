@@ -548,4 +548,14 @@ public:
     std::set<int> m_set3d8;               // +0x3d8
 };
 
+// [b28d-solo-CStackableItem] 容器尺寸/偏移佐证（ORIG sizeof 0x3f0；set_item 对
+// +0x365 子对象做 `mov %cx,0x365(%eax)` 2 字节直存 ⇒ m_avatar365 奇偏移与
+// m_set368@0x368 是 union 双视角后必须保持的锚点）。
+static_assert(sizeof(CStackableItem) == 0x3f0,
+              "CStackableItem ABI drift (ORIG size 0x3f0)");
+static_assert(__builtin_offsetof(CStackableItem, m_avatar365) == 0x365,
+              "CStackableItem m_avatar365 offset drift (ORIG mov %cx,0x365)");
+static_assert(__builtin_offsetof(CStackableItem, m_set368) == 0x368,
+              "CStackableItem m_set368 offset drift");
+
 #endif  // GAME_CSTACKABLEITEM_H_

@@ -879,10 +879,15 @@ int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
     {
-        std::string local_38("Arad_EventPeriodDataManager");
+        // [Lane38 2026-09-10] P0/P219：ORIG 0x081edc9x 段无具名 string 局部——
+        // 字面量直接喂按值形参（ORIG 全函数仅 1 次 `_ZNSsC2EPKcRKSaIcE` 构造、
+        // **无** `_ZNSsC1ERKSs`；P167 实测我方 EXTRA `_ZNSsC1ERKSs` +1、
+        // `_ZNSsC1EPKcRKSaIcE`/`_ZNSaIcEC1Ev` 为 C2 变体别名）。原「具名局部 +
+        // 按值传参」多出 1 次拷贝构造与整段临时副本码。
         ARAD::Arad_DataManager* this_01 = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
         ARAD::Arad_EventPeriodDataManager* this_02 =
-            static_cast<ARAD::Arad_EventPeriodDataManager*>(this_01->findGameScript(local_38));
+            static_cast<ARAD::Arad_EventPeriodDataManager*>(
+                this_01->findGameScript("Arad_EventPeriodDataManager"));
         this_02->delUserRewardData(user);
     }
     if (user->get_state() != 0)
@@ -1483,10 +1488,9 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
 // （报告 RequestDBTicket.md）：opcode 0xb / uid → DisableCharacInfo(4) →
 // 有效最后登录角色时追加 channelNo/characNo → SIG_LOAD_TICKET(0x19c 清零，
 // +0=get_charac_no(msg.m_slot)) → 有效登录 put Q5 否则 Q2。
-// SIG 缓冲首字视图（RequestDB* 系 sig 头写入用；ORIG `mov -0xc(%ebp),%eax;
-// mov %edx,(%eax)` 双钉 store 的同型字段载体，偏移 0 无对齐差）。
+// SIG 缓冲首字 = charac_no（SigTypes_C.h SIG_LOAD_TICKET::m_characNo 权威字段；
+// 视图 cast 已按 P0「无具名局部」律删除：ORIG 该 store 为右值内联直写）。
 // [b28d-29] N93附/P222：同 RequestDBSkill 尾块布局差（4.4 就地 epilogue vs 4.1 jmp 尾岛）  (ORIG 0x081c727c insn 120->119)
-struct SigWord { unsigned int m_w; };
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 55（ORIG 120 / ours 123），残差=P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg)
 {
@@ -1505,11 +1509,11 @@ int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg
     }
     SIG_LOAD_TICKET* sig = guard->GetInBuffer<SIG_LOAD_TICKET>();
     memset(sig, 0, sizeof(SIG_LOAD_TICKET));
-    // ORIG 081c6e5x：同 RequestDBSkill 双钉+ebx 缓存形。
-    unsigned int vNo = static_cast<unsigned int>(
+    // ORIG 081c73a6/081c73ab（报告 RequestDBTicket.md）：`call get_charac_no;
+    // mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`——无 vNo 局部、
+    // 无视图指针，get_charac_no 右值经 %edx 直落 sig 首字（P0 双向对应律）。
+    sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
-    SigWord* dst = reinterpret_cast<SigWord*>(sig);
-    dst->m_w = vNo;
     int res;
     if (user->IsValidLastLoginCharac())
     {
@@ -1777,11 +1781,11 @@ int DisPatcher_SelectCharac::RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg)
     }
     SIG_LOAD_SKILL* sig = guard->GetInBuffer<SIG_LOAD_SKILL>();
     memset(sig, 0, sizeof(SIG_LOAD_SKILL));
-    // ORIG 081c7037 +0x12f：store 双钉（value→%edx、sig 槽 reload→%eax，技45）。
-    unsigned int vNo = static_cast<unsigned int>(
+    // ORIG 081c7032/081c7037（报告 RequestDBSkill.md）：`call get_charac_no;
+    // mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`——值经 %edx 中转、
+    // sig 槽 reload 后直落首字（SigTypes_C.h m_characNo 权威字段，无局部视图）。
+    sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
-    SigWord* dst = reinterpret_cast<SigWord*>(sig);
-    dst->m_w = vNo;                                    // ORIG `mov %edx,(%eax)`
     int res;                      // ORIG +0x161 `mov $0x1,%ebx`
     if (user->IsValidLastLoginCharac())
     {
@@ -12134,7 +12138,38 @@ int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (local_e == 1)
+    // [Lane38 2026-09-10] 判据①/⑧ 块布局：ORIG 0x0821ac7c 分派为 **switch 比较链**
+    // `movzwl -0xa(%ebp),%eax; movzwl %ax,%eax; cmp $1,%eax; je +0x193;
+    //  cmp $2,%eax; je +0x2d3; test %eax,%eax; jne +0x3aa`（fall-through = case 0，
+    // default 在 case2 之后）；if-else 链的 4.4 O0 形是就近 `jne` + 各块 fall-through
+    // （我方旧形态 jcc 目标差 −106/+134/+133）。双 `movzwl` 提升亦为 switch 表达式
+    // int 提升直证（if 比较为 `cmp $1,%ax` 16 位）。语义等价改写。
+    switch (local_e)
+    {
+    case 0:
+    {
+        Packet_Party_Result_Statistic local_1d;
+        unsigned short tmp_succTry; unsigned short tmp_totalTry;   // packed 字段不可绑引用，经临时读取
+        if (packet.get_short(tmp_succTry) != true)
+        {
+            return LineFunc(0xce1d,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        }
+        if (packet.get_short(tmp_totalTry) != true)
+        {
+            return LineFunc(0xce1e,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        }
+        local_1d.m_successPartyTry = tmp_succTry;
+        local_1d.m_totalPartyTry = static_cast<unsigned short>(tmp_totalTry + tmp_succTry);
+        ENUM_SERVER_GROUP uVar2 = user->GetServerGroup();
+        CStatisticServerProxy* pCVar3 = GlobalData::s_statistic_proxy_mgr->GetServerProxy(uVar2);
+        pCVar3->SendPacket(reinterpret_cast<char*>(&local_1d), 0xe);
+        break;
+    }
+    case 1:
     {
         unsigned short local_26 = 0;
         unsigned short local_24 = 0;
@@ -12168,8 +12203,9 @@ int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
             }
             fairPvpPingStat(user, local_26, local_24);
         }
+        break;
     }
-    else if (local_e == 2)
+    case 2:
     {
         Packet_Abnormal_Exit_Statistic local_30;
         unsigned short tmp_succClear; unsigned short tmp_totalClear;   // packed 字段不可绑引用，经临时读取
@@ -12190,34 +12226,13 @@ int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
         ENUM_SERVER_GROUP uVar2 = user->GetServerGroup();
         CStatisticServerProxy* pCVar3 = GlobalData::s_statistic_proxy_mgr->GetServerProxy(uVar2);
         pCVar3->SendPacket(reinterpret_cast<char*>(&local_30), 0xe);
+        break;
     }
-    else
-    {
-        if (local_e != 0)
-        {
-            return LineFunc(0xce76,
-                            __PRETTY_FUNCTION__,
-                            0, 0);
-        }
-        Packet_Party_Result_Statistic local_1d;
-        unsigned short tmp_succTry; unsigned short tmp_totalTry;   // packed 字段不可绑引用，经临时读取
-        if (packet.get_short(tmp_succTry) != true)
-        {
-            return LineFunc(0xce1d,
-                            __PRETTY_FUNCTION__,
-                            0, 0);
-        }
-        if (packet.get_short(tmp_totalTry) != true)
-        {
-            return LineFunc(0xce1e,
-                            __PRETTY_FUNCTION__,
-                            0, 0);
-        }
-        local_1d.m_successPartyTry = tmp_succTry;
-        local_1d.m_totalPartyTry = static_cast<unsigned short>(tmp_totalTry + tmp_succTry);
-        ENUM_SERVER_GROUP uVar2 = user->GetServerGroup();
-        CStatisticServerProxy* pCVar3 = GlobalData::s_statistic_proxy_mgr->GetServerProxy(uVar2);
-        pCVar3->SendPacket(reinterpret_cast<char*>(&local_1d), 0xe);
+    default:
+        // ORIG 0x0821af8a（+0x3aa，case2 块之后）：非 0/1/2 值 → LineFunc(0xce76)。
+        return LineFunc(0xce76,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     }
     return 0;
 }

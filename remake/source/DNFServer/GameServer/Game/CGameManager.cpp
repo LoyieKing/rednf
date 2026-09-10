@@ -115,8 +115,9 @@ extern CDoubleConnCheckServerProxy* s_double_check_proxy;
 extern WongWork::CLogGameChannel* s_pLogGameChannel;
 TimerQueue* s_timerQueue_;  // ORIG 全局（GlobalData::s_timerQueue_），原 GameStubs.cpp 定义迁移
 }
-CSchoolMgr g_schoolMgr;           // ORIG 全局对象（nm -S BSS size 0x58），原 GameStubs.cpp 定义迁移
-CGuildAgitManager g_guildAgitMgr;   // ORIG 全局对象（nm -S BSS size 0x58；0x0943e0e0），原 GameStubs.cpp 定义迁移
+// [SweepLeagueMatch4·判据㉔] g_schoolMgr / g_guildAgitMgr 定义已按 ORIG 归属迁出本 TU
+// → CLeagueMatch.cpp（ORIG MatchingSystem.cpp static_init @0x085685a0 的构造点
+// 0x085685e2 / 0x08568612 实证；本文件下方 extern 声明与各头内 extern 继续生效）。
 namespace GlobalData
 {
 extern TimerQueue* s_timerQueue_;
@@ -601,9 +602,10 @@ CUser* CGameManager::createUser()
     check_user_var(user);
     int idx = GetIdx(user);
     user->SetSlotIDX((short)idx);
-    // b28d-laneCGM 候选（P231/P87，一次性旋钮协议 S1）：ORIG 0x082943bf `mov -0x20(%ebp),%edi`
-    //   在 CSwitchLog ctor 前把 err 载入 callee-saved 并跨 ctor 保活；4.4 裸形恒槽重读。
-    register int err = m_userPool.GetLastErrorCode();
+    // b28d-laneCGM S1 实测（2026-09-10）：`register int err` 反劣（ndiff 36→48、gap +2→+1）
+    //   ⇒ 回滚裸形；ORIG 的 `mov -0x20(%ebp),%edi` 属 4.1/4.4 寄存器分配差（N7），
+    //   不满足 P248 裸 register 四条件，封顶。
+    int err = m_userPool.GetLastErrorCode();
     if (err != 0)
     {
         // ORIG 0x082943a8/0x082943bd：GetUID/NumberToString 结果入 %esi/%ebx 跨 ctor

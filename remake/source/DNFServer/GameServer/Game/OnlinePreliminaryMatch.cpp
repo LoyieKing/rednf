@@ -12,7 +12,10 @@
 // 本 TU 独占符号（含 README 漏列补充项）：
 //   global class TeamInfoSecond 5 方法、PlayerInfoSecond::reset(0x8568850)、
 //   CEloRating::calc(W 0x844dca1)、
-//   PvPGlobalEnvironmentVariable::{school_match_elo_k_, school_match_elo_k2_}、
+//   （PvPGlobalEnvironmentVariable 五个静态成员定义已按 ORIG 归属迁出本 TU
+//    → CLeagueMatch.cpp，见该文件 [SweepLeagueMatch4] 判词：ORIG GI 键名
+//    `_GLOBAL__I__ZN28PvPGlobalEnvironmentVariable25school_match_daily_point_E`
+//    @0x08568636 与 .data 0x093abb60..0x093abb73 实证）
 //   COnlinePreliminary::_GetTeam(ENUM_SEAT_STATE)（README 漏列，
 //   OnLeaveRoom/OnReward 调用点实证）。
 // ===========================================================================
@@ -38,14 +41,6 @@
 #include "GameTypes.h"               // cMyTrace
 #include "RDARScriptStringManager.h" // g_scriptStringManager_/findString
 #include "Inven_Item.h"
-
-/* ORIG D 0x093abb60 / 0x093abb64 / 0x093abb68（.data 初值 1/2/5；
- * 消费点 DB_UpdatePvPResult::dispatch @0x0843097e，OrigDBPvPResult20） */
-int PvPGlobalEnvironmentVariable::school_match_daily_point_ = 1;
-int PvPGlobalEnvironmentVariable::school_match_daily_point_weekends_ = 2;
-int PvPGlobalEnvironmentVariable::school_match_fight_count_for_gain_point_ = 5;
-int PvPGlobalEnvironmentVariable::school_match_elo_k_ = 3;
-int PvPGlobalEnvironmentVariable::school_match_elo_k2_ = 3;
 
 // ---------------------------------------------------------------------------
 // PlayerInfoSecond —— ORIG W 0x8568850

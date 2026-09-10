@@ -653,10 +653,13 @@ public:
     // 调用方 WongWorkMiscB_A.cpp 按 err != 0 → 携码退出消费，非布尔）。
     int CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
                                     stEquipConditionForChronicle& cond) const;
-    int CalNeedSlot(int* out,
-                    const std::vector<std::pair<int, int> >& items) const;
-    int CalBlankSlot(int* out,
+    // [b28d-36 / P159] ORIG 0x0850891a / 0x08508536 尾部均 `nop; leave; ret`，无 `mov $0x0,%eax`；
+    // Ghidra C 两函数均为 void；全仓调用点（UserQuest.cpp:370、CUserOnlyOrig.cpp:12585/12588）均
+    // 为语句调用（无返回值使用）⇒ 返回类型 int→void（不入 mangled、零 ABI/布局变化）。
+    void CalNeedSlot(int* out,
                      const std::vector<std::pair<int, int> >& items) const;
+    void CalBlankSlot(int* out,
+                      const std::vector<std::pair<int, int> >& items) const;
     // ORIG _ZNK10CInventory12CalBlankSlotEiRKSt6vectorISt4pairIiiESaIS3_EE T 0x08508536
     int check_vilmark_dungeon_item_exist(int itemIdx) const;
     void ShowAllExistItemsForErrorCheck() const;

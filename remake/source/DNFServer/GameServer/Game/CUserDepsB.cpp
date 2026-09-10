@@ -43,11 +43,22 @@
 //     **删 register** 后 4.4 自然分配 job→%ecx / lv→%edx / this→%eax，两件各
 //     11=11 **IDENTICAL**（ORIG 0x086976f6 / 0x08697712）⇒ TU diff 5→3。
 //     ⇒ 补 P248「裸 register」反例：二维下标 `m[j][l]` 形参加 register 恒退化。
-//   * processLevelUpEventReward  N107（`lea 0x79700(%eax),%edx` vs add，探针 14
-//     形全产 add）；UpdateEventInfo N7/P75（uid/characNo 装载时刻）；
-//     eventDeliveryBuyItem N7（两实参 callee-saved 角色互换）；
-//     _processLevelReward N95（局部槽基差 4，帧/深槽全等）。四件复验封顶。
-//   p167 七符号全 CLEAR；无 .h 改动；无子子代理。
+//   * processLevelUpEventReward  [L29] DIFF→AE：真因是**实参求值序**（旧 union +
+//     reinterpret_cast<MSG_MAILBOX_SEND*>(history.raw) 的 cast 令 4.4 先物化
+//     实参再 add 算 this）；改 MSG_MAILBOX_SEND 真类型局部 + `&history` 直传即
+//     复现 ORIG 的 this-first+lea（旧判 N107 取址 lea-vs-add **作废**）。
+//   * eventDeliveryBuyItem       [L29] NEAR→AE：裸 `register` 具名 serverGroup
+//     复现 ORIG callee-saved 角色（旧判 N7 封顶**作废**）。
+//   * _processLevelReward        [L29] 维持 **N121**：尾部 return 中继岛 7 vs 4
+//     （4.4 恒为每个 return 生桩；4.1.2 -m32 对同构骨架 0 桩）⇒ 跨版本 CFG 出口
+//     块分配差，穷举 7 形 + 4 组旗标不可翻。帧/槽/指令数全等，语义等价。
+//   * UpdateEventInfo            [L29] 维持 **N7/P75**：uid/characNo 装载寄存器
+//     （ORIG characNo→%eax、我们 →%edx）；register/unsigned 两形实测均打成 DIFF。
+//   * _Z41__static_initialization_and_destruction_0ii  [L29] **N123 撞名假象**：
+//     本 TU GI 与 ORIG 0x0869376b 副本逐条同构（compare_tu 按名索引取到他 TU 的
+//     0x0807ee76 副本）⇒ 结构性噪音，verdict 豁免。
+//   L29 收口四数：identical=74 ae=107 near=1 diff=2（p167 七符号全 CLEAR）；
+//   无 .h 改动（仅本 TU 顶部补 `#include "PacketTypes.h"`）；无子子代理。
 // ============================================================================
 
 #include <string.h>
@@ -230,8 +241,13 @@ void CUser::eventDeliveryBuyItem(int deliveryType, const Inven_Item& item)
     // [S191 本轮复验] p167 CLEAR（6/6）；42=42 仅两处 `mov %eax,%esi/%ebx` 与
     // 对应压栈寄存器互换（P248② 反例族）。试形：cast/具名中间量/求值序均不可翻
     // ⇒ N7 封顶（助记符序列全等，仅 callee-saved 角色）。ORIG 0x0866463c。
+    // [L29 2026-09-09 翻正 NEAR→AE] 旧判「N7 封顶」**作废**：给 serverGroup 补
+    // **裸 `register` 具名局部**（无 asm 绑定，P0 合规）即复现 ORIG 的 callee-saved
+    // 角色（serverGroup→%esi、characNo→%ebx；旧直内联形 4.4 恒 %ebx/%esi 互换）。
+    // 边界：同法在 UpdateEventInfo（uid/characNo 加 register 或改 unsigned）实测
+    // 均**打成 DIFF** ⇒ register 旋钮按件实测，非普遍解。ORIG 0x0866463c。
     BuyItemDeliveryMsg msg;                        // lea -0x20(%ebp) ctor
-    register int serverGroup = GetServerGroupToPvP();   // [L29 实验] N7 旋钮
+    register int serverGroup = GetServerGroupToPvP();   // P231 裸 register（翻正件）
     msg.setBaseData(2, get_acc_id(), getCurCharacNo(),
                     serverGroup);                  // W 0x086978ec
     msg.m_deliveryType = deliveryType;             // -0x10(%ebp) → +0x10
@@ -263,6 +279,17 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
     // epilogue，我方 7 个 return 全部经 nop+jmp 中继；jcc 目标逐位比对仅此
     // 一处差异）⇒ N121/P63 epilogue-threading 布局差封顶。p167 CLEAR
     // （20/20，仅 C1/C2 同址别名噪音）。ORIG 0x0868745e。
+    // [L29 2026-09-09 复验加固] 判据①（l6x_branch 全 TU 逐位）在本函数命中
+    // 3 处 REAL：ORIG `je/js 0x86876be`(epilogue) 直达 vs OUR `je/js <桩 nop>`
+    // （#20 table==0 / #43 levelIdx<0 / #45 jobIdx<0），其余 10 处为桩数差
+    // 引起的 index 位移（SHIFT，非真差）。穷举实测（探针 /tmp/l29_p4.cpp，
+    // 4.4.6 后端）：平铺 3 早退=3 桩、goto 统一出口=3 桩、空 then/else=2 桩、
+    // 嵌套正向包裹=0 桩；`&&` 合并/goto 标签串/-fthread-jumps/-fcrossjumping/
+    // -fno-align-jumps 四组旗标均 7 桩不变。嵌套化改写实测**掉 xor 物化**
+    // （ORIG #12/#27 `xor $1,%eax` 被折成 `je`）⇒ 极性反，非原码结构（Ghidra
+    // 的 `&&` 只是相邻 if 的显示合并），已回滚。4.1.2（toolchains/c5root -m32）
+    // 对同构骨架产 0 桩 ⇒ 桩数=4.1/4.4 CFG 出口块分配差，源形不可择 ⇒ 维持
+    // N121 封顶（语义等价，仅尾部中继岛条数）。
     CLevelRewardTableMgr* mgr = CLevelRewardTableMgr::GetInstance();
     CLevelRewardTable* table = 0;                  // local_28 初值 0
     if (!mgr->IsOn())   // P292 档①：IsOn 已按调用点 xor 形改 bool 返回（P9 直返形
@@ -424,10 +451,17 @@ void CUser::processLevelUpEventReward(bool growupFlag)
     // -0x1c 槽）+ `G_CDataManager()->m_itemList` 成员直读（原 getItemList() 多 1 call）；
     // ④[本轮] P0 四值实参内联（serverGroup/bodyLen/characNo/mailTitle 原各占 4 槽，
     // 致全帧 +0x10；ORIG 走 %esi/%edi/%ebx/%eax 无槽）⇒ 帧 0x2fc 与 ORIG 全等；
-    // ⑤[本轮] history 写入用 packed 内层 struct 视图复现常量 disp 直存
-    // （`mov %eax,-0x289(%ebp)`；裸 `*(int*)(history+0x39)` 恒 lea+add）。
-    // 残差唯一：`lea 0x79700(%eax),%edx`(ORIG) vs `add $0x79700,%edx`(4.4) ——
-    // N107（成员常量偏移取址，6 形探针全产 add）⇒ 封顶。ORIG 0x08663cc0。
+    // ⑤history 写入：权威类型 MSG_MAILBOX_SEND 局部（POD，sizeof 0x145）复现
+    // 常量 disp 直存。
+    // [L29 2026-09-09 翻正 DIFF→AE] 旧判「N107 成员取址 lea-vs-add 封顶」**作废**：
+    // 真因是**实参求值序**——旧形 union + `reinterpret_cast<MSG_MAILBOX_SEND*>(
+    // history.raw)` 的 cast 令 4.4 先物化实参（`lea -0x2c2(%ebp),%eax`）再以
+    // `add $0x79700,%edx` 算 this；改真实类型局部 + `&history` 直传（无 cast、
+    // 类型精确匹配形参）后 4.4 与 ORIG 同为 `mov 0x8(%ebp),%eax;
+    // lea 0x79700(%eax),%edx`（this-first + lea）。探针 /tmp/l29_p3.cpp m6
+    // （无 cast）=ORIG 形 / m10（含 cast）=旧形 逐条对照。配套：TU 顶部
+    // `#include "PacketTypes.h"`（完整类型；m_name11@+0x11/m_itemId39@+0x39/
+    // m_extra3d@+0x3d 经权威头核对）。ORIG 0x08663cc0。
     CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x5d);
     if (event->IsEventing(0) != true)              // vtable+0x34（槽 13）==1 继续
         return;
@@ -785,6 +819,11 @@ void LevelupSupportEventManger::UpdateEventInfo(CUser* user)
     // uid 后载；4.4 先保活 uid 于 %eax、characNo 走 %edx）。[S191 本轮复验]
     // 删 cast / uid 局部改 int 两形实测：前者无变化、后者把 NEAR 打成 DIFF
     // （movzwl %ax,%edx→%eax 破坏助记符序列）⇒ 维持 unsigned + 直传，N7/P75 封顶。
+    // [L29 2026-09-09 复验] 判据① 全 TU 逐位：本函数**无** jcc/jmp 目标差；
+    // 残差仅 makeRequest 压栈前 characNo 的载入寄存器（ORIG `mov -0x14(%ebp),%eax`
+    // 后 `mov %eax,0x4(%esp)`；我们 `mov -0x14(%ebp),%edx` 后 `mov %edx,0x4(%esp)`），
+    // 参数序/槽位/指令数全同。再试两形：`register int characNo`（免槽，NEAR→DIFF）、
+    // `unsigned int characNo`（NEAR→DIFF）⇒ 两旋钮皆不可用，维持 N7 封顶。
     // ORIG 0x081471c6。
     int level = user->get_charac_level();
     // P214① 正极性包裹：复现 ORIG 0x081471ec 的短路物化岛（test/jne L_pass →

@@ -229,6 +229,44 @@
 //     反汇编缓存按地址去重丢名 ⇒ P93 伪差，0 真缺口。
 //   · 四数（不回退）：identical=43 ae=61 near=1 diff=18 missing_in_game=17。
 //   · 真语义 bug：本轮 0 新增；本 TU 剩余真缺口 = 0。
+//
+// [SweepLeagueMatch4·判据⑪ P327 GI 键名 + 判据⑫ static_init + 判据㉔ 跨 TU 定义迁移]
+// （Main 批准 ①②③ 成对执行；属主状态：CGameManager.cpp=Lane17 已收口 idle、
+//   OnlinePreliminaryMatch.cpp 无属主 ⇒ R1 例外成立。）
+//   · ORIG 证据链：
+//     ① GI 键名 `_GLOBAL__I__ZN28PvPGlobalEnvironmentVariable25school_match_daily_point_E`
+//        @0x08568636（size 0x1c），`orig_tu_names.tsv:354` 标注归属 MatchingSystem.cpp
+//        （= 本 TU；与本 TU 全部日志串 "MatchingSystem.cpp" 互证）⇒ P327 规则：
+//        该 TU 内第一个「强符号·外部链接·本 TU 定义」实体即 school_match_daily_point_。
+//     ② ORIG static_init @0x085685a0（size **0x96**）构造序（objdump -d 实证）：
+//        `_ZStL8__ioinit`@0x943e172（call 0x85685c0）→ `g_schoolMgr`@0x943e080
+//        （call 0x85685e2 = `_ZN10CSchoolMgrC1Ev`@0x0856f206）→ `g_guildAgitMgr`
+//        @0x943e0e0（call 0x8568612 = `_ZN17CGuildAgitManagerC1Ev`@0x0856f2c6），
+//        每个对象后接 __cxa_atexit。
+//     ③ 全仓 `call 856f206` / `call 856f2c6` 各仅 1 处 = 上述两点 ⇒ 两全局对象
+//        在 ORIG 中**只**于本 TU 构造（定义在本 TU），CGameManager TU 侧为零。
+//     ④ 5 个静态成员 ORIG .data 0x093abb60..0x093abb73 连续，`objdump -s -j .data`
+//        初值读实 1/2/5/3/3。
+//   · 本轮改动（成对，否则重复定义）：
+//     ① 本文件：include CSchoolMgr.h / CGuildAgitManager.h；新增 5 个静态成员定义
+//        （置于 `pWaitingRoomList_` **之前** ⇒ 复现 GI 键名）+ `CSchoolMgr g_schoolMgr;`
+//        `CGuildAgitManager g_guildAgitMgr;`（声明序 = ORIG 构造序）。
+//     ② OnlinePreliminaryMatch.cpp：删 5 行静态成员定义 + 归属注释更正。
+//     ③ CGameManager.cpp：删 2 行全局对象定义（其下方 extern 声明与各头 extern 继续生效）。
+//   · 实测（check_tu_routed.sh fresh .o / 链接后 df_game_r）：
+//     · 本 TU：identical **43→44**（+1）、missing_in_game **17→16**（−1）、
+//       GI 键名 = `_GLOBAL__I__ZN28PvPGlobalEnvironmentVariable25school_match_daily_point_E`
+//       （size 0x1c，与 ORIG 同名同尺寸）、static_init size **0x40 → 0x96**（= ORIG 精确相等）。
+//     · CGameManager.o：static_init 0x40（两对象构造已按 ORIG 归属迁出；ORIG 侧该 TU
+//       无这两个 ctor 调用——证据①③），diff=16/missing=722 为其固有基线（函数体四数不受
+//       数据定义归属影响）。
+//     · OnlinePreliminaryMatch.o：identical=44 ae=69 near=0 diff=1 missing=16（GI 键名
+//       随之改为 `_ZN14TeamInfoSecond5resetEv`）。
+//     · 全量 `cmake --build build/game -j$(nproc)`：**`[100%] Built target game`**
+//       （df_game_r 28,685,860B，连续两次成功）；链接级 `nm` 核：GI 唯一、
+//       `g_schoolMgr`(0x58)/`g_guildAgitMgr`(0x58) 单一定义、无重复定义/未定义引用。
+//   · 回滚判据：若后续 lane 复编发现本迁移引入回退，改回 ②③ 两处定义即恢复原状
+//     （① 为纯增量，删除即可）。
 // ============================================================================
 
 #include "CLeagueMatch.h"
@@ -255,12 +293,39 @@
 #include "RDARScriptStringManager.h"
 #include "TimerDispatcher.h"            // TimerStartMatching
 #include "CInventory.h"                 // OS_API::snprintf
+// [SweepLeagueMatch4·判据⑪/㉔] ORIG MatchingSystem.cpp 归属：本 TU 定义
+// g_schoolMgr / g_guildAgitMgr（static_init 构造点实证；定义由 CGameManager.cpp 迁入）。
+#include "CSchoolMgr.h"                 // g_schoolMgr（ORIG B 0x0943e080 / C1 0x0856f206）
+#include "CGuildAgitManager.h"          // g_guildAgitMgr（ORIG B 0x0943e0e0 / C1 0x0856f2c6）
 
 // GetGap 排位增量表：ORIG 各 TU 本地 _ZL13g_RankingIncr（16 字节，
 // df_game_r nm 显示 15 份内容一致）＝ {1.0f, 1.0f, 1.0f, 1.0f}。
 // [SweepLeagueMatch2·P204③] 文件级 static（非匿名 namespace）：后者产
 // `_ZN12_GLOBAL__N_1L13g_RankingIncrE`，与 ORIG `_ZL13g_RankingIncr` 不符。
 static const float g_RankingIncr[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+// [SweepLeagueMatch4·判据⑪ P327 GI 键名 + 判据㉔ 跨 TU 定义迁移]
+// ORIG 本 TU（orig_tu_names.tsv:354 标注 MatchingSystem.cpp）的 GI 键名 =
+// `_GLOBAL__I__ZN28PvPGlobalEnvironmentVariable25school_match_daily_point_E`
+// @0x08568636（size 0x1c）⇒ 该 TU 内**第一个**「强符号·外部链接·本 TU 定义」
+// 实体即 school_match_daily_point_。ORIG .data 0x093abb60..0x093abb73 连续
+// 五成员，初值读实 1/2/5/3/3（objdump -s -j .data 实证）。
+// 迁移前这 5 个定义在 OnlinePreliminaryMatch.cpp，本 TU GI 键名误为
+// `_GLOBAL__I__ZN12CLeagueMatch17pWaitingRoomList_E`（ORIG 无 ⇒ 计入 missing）。
+// 顺序铁律：本组必须置于 pWaitingRoomList_ **之前**（P327：仅定义行序决定键名）。
+int PvPGlobalEnvironmentVariable::school_match_daily_point_ = 1;
+int PvPGlobalEnvironmentVariable::school_match_daily_point_weekends_ = 2;
+int PvPGlobalEnvironmentVariable::school_match_fight_count_for_gain_point_ = 5;
+int PvPGlobalEnvironmentVariable::school_match_elo_k_ = 3;
+int PvPGlobalEnvironmentVariable::school_match_elo_k2_ = 3;
+
+// [SweepLeagueMatch4] ORIG static_init @0x085685a0（size 0x96）构造序实证：
+//   `_ZStL8__ioinit`(0x943e172, call 0x85685c0) →
+//   `g_schoolMgr`(0x943e080, call 0x85685e2 = CSchoolMgr::C1 0x0856f206) →
+//   `g_guildAgitMgr`(0x943e0e0, call 0x8568612 = CGuildAgitManager::C1 0x0856f2c6)，
+// 各带 __cxa_atexit。两对象定义由 CGameManager.cpp 迁回本 TU（声明序 = 构造序）。
+CSchoolMgr g_schoolMgr;
+CGuildAgitManager g_guildAgitMgr;
 
 CLeagueMatchRoomList* CLeagueMatch::pWaitingRoomList_ = 0;   // B 0x0943e064
 int CLeagueMatch::nWaitingRoomListRefCount_ = 0;             // B 0x0943e068

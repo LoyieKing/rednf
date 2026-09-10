@@ -3163,12 +3163,11 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
         int i = GlobalData::s_guild_proxy_mgr->GetStartIndex();
         goto L_cond_g;
     L_body_g:
-        {
-            CGuildServerProxy* proxy =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)i);
-            proxy->InitTcp();
-            i = GlobalData::s_guild_proxy_mgr->GetNextIndex(index);
-        }
+        // ORIG 084c8e09/084c8e0e：GetServerProxy 结果直落 (%esp) 调 InitTcp，
+        // 无具名 proxy 槽（旧具名形多出 -0x14 临时槽 +2 insn）。
+        GlobalData::s_guild_proxy_mgr
+            ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
+        i = GlobalData::s_guild_proxy_mgr->GetNextIndex(index);
     L_cond_g:
         if (i < GlobalData::s_guild_proxy_mgr->GetEndIndex())
             goto L_body_g;
@@ -3181,12 +3180,9 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
         int i = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
         goto L_cond_m;
     L_body_m:
-        {
-            CMonitorServerProxy* proxy =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)i);
-            proxy->InitTcp();
-            i = GlobalData::s_monitor_proxy_mgr->GetNextIndex(index);
-        }
+        GlobalData::s_monitor_proxy_mgr
+            ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
+        i = GlobalData::s_monitor_proxy_mgr->GetNextIndex(index);
     L_cond_m:
         if (i < GlobalData::s_monitor_proxy_mgr->GetEndIndex())
             goto L_body_m;
@@ -12596,24 +12592,34 @@ struct Inter_SetFactoryHubUserPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=63（ORIG 0x84dcfec）：N18a 单段 regmove+P30/N4 add-vs-lea。
 int Inter_SetFactoryHubUser::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_SetFactoryHubUserPktView* pPkt = reinterpret_cast<Inter_SetFactoryHubUserPktView*>(data);
-    if (user == 0)
-        return 0;
-    if (pPkt->m_2d == 0)
+    // ORIG 084dcff4..084dd070：单出口（尾 `mov $0x0,%eax` 共享）⇒ 源形为
+    // `if (user != 0) { ... } return 0;`（非 early-return：后者产 jne+内联 return 两段）。
+    if (user != 0)
     {
-        char name[29];
-        strncpy(name, pPkt->m_f, 0x1d);
-        DB_Find_Factory_Hub_User::makeRequest(
-            user->GetUID(), name,
-            pPkt->m_2e);
-        return 0;
+        // ORIG 084dcffe/084dd001：pPkt 槽在 user 非空门之后物化（-0xc）。
+        Inter_SetFactoryHubUserPktView* pPkt = reinterpret_cast<Inter_SetFactoryHubUserPktView*>(data);
+        // ORIG 084dd00d `je +0x86`：je 目标=DB 支（084dd072 strncpy/makeRequest），
+        // 落空侧=hack 支（084dd00f SetETC/addServerHackCnt）⇒ 源形 then=hack、else=DB。
+        if (pPkt->m_2d != 0)
+        {
+            // ORIG 084dd032 `mov %eax,%esi`（SetETC 结果跨 getHackAnalyzer 调用保活，
+            // 无栈槽 ⇒ 具名局部须 register，否则占 -0xc 并把 pPkt 挤到 -0x10）。
+            register int etc = user->SetETC((short)pPkt->m_2e,
+                                            pPkt->m_30);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user,
+                (WongWork::ENUM_HACKTYPE)(unsigned int)pPkt->m_2e,
+                1, (unsigned int)etc, 0);
+        }
+        else
+        {
+            char name[29];
+            strncpy(name, pPkt->m_f, 0x1d);
+            DB_Find_Factory_Hub_User::makeRequest(
+                user->GetUID(), name,
+                pPkt->m_2e);
+        }
     }
-    const int etc = user->SetETC((short)pPkt->m_2e,
-                                 pPkt->m_30);
-    user->getHackAnalyzer()->addServerHackCnt(
-        user,
-        (WongWork::ENUM_HACKTYPE)(unsigned int)pPkt->m_2e,
-        1, (unsigned int)etc, 0);
     return 0;
 }
 
@@ -12663,17 +12669,20 @@ struct Inter_Set_CleanPad_PointPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=45（ORIG 0x84dd12e）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_Set_CleanPad_Point::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_Set_CleanPad_PointPktView* pPkt = reinterpret_cast<Inter_Set_CleanPad_PointPktView*>(data);
-    if (user == 0)
-        return 0;
-    user->m_mcap.setPoint(pPkt->m_e);
-    const unsigned short point = user->m_mcap.getPoint();
-    const unsigned short msgPoint =
-        pPkt->m_e;
-    cMyTrace(__PRETTY_FUNCTION__,
-        0x4886, 0)("CLEANPAD_POINT_CONTROL / m_id : %s , Point : %d (getPorint : %d)",
-          NumberToString(user->get_acc_id(), 0),
-          (unsigned int)msgPoint, (unsigned int)point);
+    // ORIG 084dd137/084dd13b：`cmpl; je +0xb3`（⇒ 单出口 `if (user != 0) { ... } return 0;`）。
+    if (user != 0)
+    {
+        // ORIG 084dd141：pPkt 槽在 user 非空门之后物化（084dd144 mov %eax,-0x1c）。
+        Inter_Set_CleanPad_PointPktView* pPkt = reinterpret_cast<Inter_Set_CleanPad_PointPktView*>(data);
+        user->m_mcap.setPoint(pPkt->m_e);
+        // ORIG 084dd171/084dd17b：getPoint 与 pPkt->m_e 无栈槽，分别以 %esi/%edi 跨
+        // NumberToString 保活（P227 全表达式临时链）⇒ 实参直接内联，勿建具名局部。
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x4886, 0)("CLEANPAD_POINT_CONTROL / m_id : %s , Point : %d (getPorint : %d)",
+              NumberToString(user->get_acc_id(), 0),
+              (unsigned int)pPkt->m_e,
+              (unsigned int)user->m_mcap.getPoint());
+    }
     return 0;
 }
 
@@ -18034,18 +18043,21 @@ int Inter_NpcLimitBuyItemInfo::checkError(CUser* user, LimitNpcBuyItemInfo* info
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfo/dispatch_sig.md 全文转写。
 // LimitNpcBuyItemUpdate NEEDS_DECL（PacketHeader(0x27dd,0x1a) 派生，见 meta）。
 #pragma pack(push, 1)
-// Inter_NpcLimitBuyItemInfoPktView —— Inter_NpcLimitBuyItemInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
-//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+// Inter_NpcLimitBuyItemInfoPktView —— Inter_NpcLimitBuyItemInfo::dispatch_sig 包视图（偏移/命名与
+//   Monitor/LimitNpcBuyItem.h 权威类 LimitNpcBuyItemInfo 逐字段一致；该头不在本 TU 的 -I 路径内，
+//   故本 TU 以同布局镜像视图承载，字段表见下方逐项 ORIG 证据）。
+//   ORIG 084e65a2 逐访问：+0x0a `mov 0xa(%eax),%ebx`（getUser 第1参）/+0x12 `mov 0x12(%eax)`/03
+//   +0x16 `mov 0x16(%eax)`/+0x1a `mov 0x1a(%eax)`/+0x22 `mov 0x22(%eax); test`（全字判 + movzbl %al 传参）。
 struct Inter_NpcLimitBuyItemInfoPktView
 {
     char m_pad0[0xa];  // +0x0..未消费
-    int m_a;                        // +0x0a
-    char m_pade[0x4];  // +0xe..未消费
-    unsigned int m_12;              // +0x12
-    unsigned int m_16;              // +0x16
-    unsigned int m_1a;              // +0x1a
-    char m_pad1e[0x4];  // +0x1e..未消费
-    int m_22;                       // +0x22
+    unsigned int m_itemIdReq;       // +0x0a（权类同名）
+    unsigned int m_dbid;            // +0x0e（本函数未消费）
+    unsigned int m_charNo;          // +0x12
+    unsigned int m_itemId;          // +0x16
+    unsigned int m_count;           // +0x1a
+    unsigned int m_pad1e;           // +0x1e（本函数未消费）
+    int m_errorNo;                  // +0x22
 };
 #pragma pack(pop)
 
@@ -18053,23 +18065,24 @@ struct Inter_NpcLimitBuyItemInfoPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=189（ORIG 0x84e65a2）：N82/P112 帧槽平移+P30/N4 add-vs-lea+P264 .o 重定位/立即数。
 int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_NpcLimitBuyItemInfoPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoPktView*>(data);
     reset();                                           // ORIG 0x084e6e1a（已实现）
 
-    LimitNpcBuyItemInfo* msg =                         // -0xc（LimitNpcBuyItemInfo*）
-        reinterpret_cast<LimitNpcBuyItemInfo*>(data);
+    // ORIG 单指针局部（-0xc）：包视图与 checkError 实参共用同一槽；声明在 reset() 之后
+    // （084e65b8 才 `mov %eax,-0xc(%ebp)`）。
+    Inter_NpcLimitBuyItemInfoPktView* msg =
+        reinterpret_cast<Inter_NpcLimitBuyItemInfoPktView*>(data);
     LimitNpcBuyItemUpdate update;                      // -0x2e（0x1a 包）
 
     CUser* target =                                    // +0xc
         G_CGameManager()->getUser(
-            pPkt->m_a, 10);
+            msg->m_itemIdReq, 10);
 
     if (target == 0)
     {   // 用户不在线：按本类缓存字段回 monitor（ORIG GetServerGroup(NULL) 原样保留）
-        update.m_error = 3;
-        update.m_characNo = pPkt->m_16;  // +0x0a
-        update.m_itemIdx  = pPkt->m_12;  // +0x0e
-        update.m_count    = pPkt->m_1a;  // +0x12
+        update.m_errorNo     = 3;             // +0x16（084e65f1 movl $0x3,-0x18）
+        update.m_itemId      = msg->m_itemId; // +0x0a（084e6604）
+        update.m_charNo      = msg->m_charNo; // +0x0e（084e6601）
+        update.m_cancelCount = msg->m_count;  // +0x12（084e660a）
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
             ->GetServerProxy(user->GetServerGroup());
         proxy->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
@@ -18078,19 +18091,20 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 
     // ORIG 084e6654/084e665e：0x22 按 32 位读（mov 0x22(%eax)），
     // test 判全字；实参仅取低字节（movzbl %al）传 SendCmdErrorPacket。
-    if (pPkt->m_22 != 0)   // 请求自带错误码
+    if (msg->m_errorNo != 0)   // 请求自带错误码
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1d1,
-                                 (unsigned char)pPkt->m_22);
+                                 (unsigned char)msg->m_errorNo);
         return 0;
     }
 
-    const int err = checkError(user, msg);             // -0x18（ORIG 返回 int）
+    const int err = checkError(
+        user, reinterpret_cast<LimitNpcBuyItemInfo*>(msg));   // -0x18（ORIG 返回 int）
     if (err != 0)
     {
-        update.m_error    = m_error;                   // +0x04
-        update.m_characNo = (unsigned int)user->get_charac_no(-1);
-        update.m_itemIdx  = pPkt->m_1a;
+        update.m_itemId      = m_error;                // +0x0a（084e66af this+0x4）
+        update.m_charNo      = (unsigned int)user->get_charac_no(-1);  // +0x0e
+        update.m_cancelCount = msg->m_count;           // +0x12（084e66ce）
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
             ->GetServerProxy(user->GetServerGroup());
         proxy->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
@@ -18141,9 +18155,10 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
         (INVEN_TYPE)1, m_param2, m_needItem.first,
         (eItemDelReason)0x1a, true);
 
-    update.m_error    = 0;
-    update.m_characNo = (unsigned int)user->get_charac_no(-1);
-    update.m_itemIdx  = pPkt->m_1a;
+    update.m_errorNo     = 0;                          // +0x16（084e6a48）
+    update.m_itemId      = m_error;                    // +0x0a（084e6a52 this+0x4）
+    update.m_charNo      = (unsigned int)user->get_charac_no(-1);  // +0x0e（084e6a6b）
+    update.m_cancelCount = msg->m_count;               // +0x12（084e6a71）
     {
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
             ->GetServerProxy(user->GetServerGroup());
