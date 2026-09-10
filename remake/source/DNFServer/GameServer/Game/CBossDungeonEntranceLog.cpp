@@ -31,33 +31,40 @@ void CBossDungeonEntranceLog::IncrementBossStageStart(CUser& user,
     //     （P0/P183：ORIG 无 key 槽，直传 &k）。
     // 残余（gap +2）：ORIG 两处 4.1 冗余 `and $0xf,%eax`（call 结果先窄化再中转，
     //   4.4 恒 1 条）⇒ N18a/P292 跨版本族封顶。
-    // ---- key 打包（ORIG +0x009..+0x070：逐字节写 -0x40..-0x3d）----
-    union KeyBytes {
+    // [E04 2026-09-10 解 N] key 是「32 位容器 + 4 位位域」双视角（ORIG 两处
+    //   `and $0xf,%eax` 冗余截断 = 位域赋值的值截断 + 赋值截断；byte0..2 为普通
+    //   uchar 成员），union 版使 `k.key = 0` 复现单条 `movl $0x0,-0x40(%ebp)`。
+    union KeyBits {
         unsigned int key;
-        unsigned char byte[4];
+        struct {
+            unsigned char m_field0;
+            unsigned char m_level;
+            unsigned char m_growType;
+            unsigned char m_job : 4;
+            unsigned char m_channel : 4;
+        };
     };
-    KeyBytes k;
-    k.key = 0;                                       // ORIG movl $0x0,-0x40
-    k.byte[0] = a;                                   // ORIG movzbl -0x5c → -0x40
-    k.byte[1] = (unsigned char)user.get_charac_level();        // → -0x3f
-    k.byte[2] = (unsigned char)user.getCurCharacGrowType();    // → -0x3e
-    // ORIG：byte3 = (byte3 & ~0xf) | (job & 0xf)；再 | ((b & 0xf) << 4)
-    k.byte[3] = (unsigned char)(((unsigned int)user.get_charac_job() & 0xf) |
-                                (k.byte[3] & 0xf0));
-    k.byte[3] = (unsigned char)((((unsigned int)b & 0xf) << 4) | ((unsigned int)k.byte[3] & 0xf));
+    KeyBits k;
+    k.key = 0;                                                // ORIG movl $0x0,-0x40
+    k.m_field0 = a;                                           // ORIG movzbl -0x5c → -0x40
+    k.m_level = (unsigned char)user.get_charac_level();       // → -0x3f
+    k.m_growType = (unsigned char)user.getCurCharacGrowType();// → -0x3e
+    k.m_job = (unsigned char)user.get_charac_job();
+    k.m_channel = b;
 
     std::map<unsigned int, STBossDungeonTowerLog>::iterator it = m_logMap.find(k.key);
-    if (it != m_logMap.end())
-    {
-        it->second.stageStartCount += 1;      // ORIG ++*(int*)(pair+4)
-    }
-    else
+    // ORIG 布局：未命中块 fall-through、命中块在尾部（`call eq; test %al; je <命中>`）
+    //   ⇒ 条件取反写 `if (it == end) { insert } else { ++ }`。
+    if (it == m_logMap.end())
     {
         STBossDungeonTowerLog entry;           // ORIG memset(local,0,0x10)
         std::memset(&entry, 0, sizeof(entry));
         entry.stageStartCount = 1;             // ORIG *(int*)local = 1
-        m_logMap.insert(
-            std::make_pair(k.key, entry));       // ORIG make_pair<uint&,ST&> + insert(RKS5_)
+        m_logMap.insert(std::make_pair(k.key, entry));
+    }
+    else
+    {
+        it->second.stageStartCount += 1;      // ORIG ++*(int*)(pair+4)
     }
 }
 

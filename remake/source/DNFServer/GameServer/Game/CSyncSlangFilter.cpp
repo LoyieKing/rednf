@@ -4,6 +4,11 @@
 #include <string.h>
 #include <ext/hash_map>
 
+// [T2b-GI · P338/P327] 补 <iostream> 引入 file-scope 动态初始化 __ioinit，恢复本 TU
+// `_GLOBAL__I_` 发射；键名目标 `_ZN16CSyncSlangFilter8instanceE`（ORIG 0x862e8df）。
+// 零语义改动。
+#include <iostream>
+
 #include "DBMgr.h"
 #include "GameTypes.h"
 #include "GlobalData.h"
@@ -28,6 +33,11 @@ private:
     __gnu_cxx::hash_map<unsigned int, SlangNode*> children_;
     bool end_;
 };
+
+// [T2b-GI · P327] 定义前移：ORIG 该 TU 首个强外部实体 = 类静态成员 instance
+// （GI 键名 `_GLOBAL__I__ZN16CSyncSlangFilter8instanceE`，ORIG 0x862e8df）。
+// 零初始化对象（非动态初始化）⇒ 移动不改变构造序。
+CSyncSlangFilter* CSyncSlangFilter::instance = 0;
 
 SlangNode::SlangNode()
 {
@@ -88,8 +98,6 @@ CSyncSlangFilter::IMPL::~IMPL()
         root = 0;
     }
 }
-
-CSyncSlangFilter* CSyncSlangFilter::instance = 0;
 
 CSyncSlangFilter::CSyncSlangFilter()
     : impl_(new IMPL())

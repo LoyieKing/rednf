@@ -63,7 +63,12 @@ struct StrikerSkillDataUp
 // ---- TagSkillPenalty（readSkillPenalty 行；栈对象 0x10）----
 struct TagSkillPenalty
 {
-    TagSkillPenalty() { clear(); }  // ORIG C1/C2 T 0x08a9d768：仅调 clear()
+    // [GI 调序 T1a] ORIG C1/C2 为**外联** T 0x08a9d768（仅 call clear，体 0x13）。
+    // 头内 inline 只发 W 弱副本 ⇒ 按 P327「类内 inline ctor 不参与键名」，
+    // 宿主 TU 的 GI 键名永远无法对齐 `_GLOBAL__I__ZN15TagSkillPenaltyC2Ev`（ORIG 0x08a9eced）；
+    // 4.4-O0 不内联本调用（我方原 W 副本实测同为 0x13）。故改声明，定义落
+    // StrikerWorldDropB2.cpp（= ORIG 该 CU 的对应 TU）。sizeof/偏移/mangled 零变化。
+    TagSkillPenalty();  // ORIG T 0x08a9d768（定义 StrikerWorldDropB2.cpp）
     void clear()                    // ORIG T 0x08a9d77c：+0=0、+4=0、+8 字节 0、+0xc=0
     {
         m_skillIdx = 0;

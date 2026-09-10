@@ -3911,6 +3911,13 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
         // 每失败点显式 cont=false 才复现 4 处 `mov $0x0,%ebx`；ok 判定为负极性。
         // cont 用 bool + 纯 register（P231 合规存储类提示）：4.4 实测
         // `test %bl,%bl; jne <循环头>; jmp <出口>`（int 形 539 反劣，bool 形 537 最优）。
+        // [E06 2026-09-10 形穷举] 唯一残差 = do-while 条件块跨版本布局：
+        // ORIG `test %ebx,%ebx; je <出口>; jmp <循环头>`（4.1 32 位测试+旋转反向）；
+        // 4.4 族实测：①bool+register+do-while = 本条基线（533=533，仅 test %bl/je→jne
+        // 两行差）；②int+register+do-while 或 while(cont!=0) = 535（多 setne %al;test %al
+        // 四段物化）；③int+for(;;)+`if(!cont) goto 尾标签` = 538（goto 被物化）；
+        // ④bool+for(;;)+`if(!cont) break;` = 540。⇒ N121/P283 族：4.4 对 do-while 回边
+        // 恒发 `jne 循环头; jmp 出口`，4.1 的 `je 出口; jmp 循环头` 无源码旋钮。
         register bool cont;
         do
         {

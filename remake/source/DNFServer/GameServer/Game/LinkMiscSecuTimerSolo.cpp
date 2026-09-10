@@ -76,7 +76,13 @@ extern char g_szScriptFileBaseDirectory[0x104];
 // 于 ScriptExtras.cpp）；跨 TU 经其真实访问器 UseScriptPack（ORIG T 0x088bb7cf）。
 extern char UseScriptPack();  // [b28d-lane16 DELEGATED:AUTHORIZED-BY-MAIN] 与
                               // ScriptExtras.cpp 定义同步（P9 直返字节；调用点
-                              // 跨 TU 访问 ORIG TU-local static，P189 豁免）
+                              // 跨 TU 访问 ORIG TU-local static，P189 豁免）。
+                              // [b28e 双侧 bool 实测·已回退] 定义侧 char→bool 使
+                              // UseScriptPack 本体由 AE 落 DIFF（多 test/setne），
+                              // ScriptExtras 合计 293→292；本 TU 调用点仍 DIFF
+                              // （ORIG 是 TU-local 直读 movzbl vs 我方跨 TU call）
+                              // ⇒ 净负，两侧同步回 char（P292 跨 TU 版边界：
+                              // 定义侧本体为 ORIG 直返字节形时以本体 identical 优先）。
 extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定义）
 
 // ===========================================================================

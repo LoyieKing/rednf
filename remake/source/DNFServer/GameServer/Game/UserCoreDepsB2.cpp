@@ -103,6 +103,47 @@ void Secu_HackLogCheck::Init(CUser* user)
 // 槽与其 `mov %al,-slot; cmpb $0,-slot` 往返）⇒ ndiff 91→46，-0x29/-0x20/-0x24
 // 标量槽与 ORIG 逐位复齐；余 46=N78 结构展开 10 行 + 双 0x52 缓冲槽向（见函数
 // 体内实测回退记录）+ idxPos -0x80/-0x30 随动，封顶。
+// ---------------------------------------------------------------------------
+// [D01 · P142 派生判据 · Main 批准闸3 A/B] `_Additioal_info` 为 pack(1)
+// （alignof=1）⇒ 其 0x52 块整体赋值在 4.4 下只能发 1 字节 peel
+// （`and $0x1,%ecx`）；ORIG 为 **2 字节 peel**（`mov $0x52,%ebx; and $0x2,%ecx;
+// … rep movsl`，ORIG 0x086908ce 段直证）⇒ 原类型 alignof ≥ 2。
+// 「改头 alignof 1→2」已判**结构性不可行**（Main 登记）：CUserPremium 无 pack
+// 外层于 +0x8bd/+0x90f（奇数偏移）内嵌该类型，插 1B padding 会连锁改
+// m_pad961/m_returnItemMap/m_mailBox 偏移（闸1 嵌入点清单 7 点）。
+// 本视图只用于**块拷贝点**：同字段序/同宽 POD + pack(2)（alignof=2、布局与
+// _Additioal_info 逐字段等价、sizeof 0x52），使 4.4 复现 2 字节 peel；
+// 纯 0x52 块搬移、无指针/引用成员 ⇒ 无别名/生命周期风险。
+#pragma pack(push, 2)
+struct AddInfoMove2
+{
+    int            m_field00;      // +0x00
+    int            m_field04;      // +0x04
+    unsigned short m_field08;      // +0x08
+    unsigned short m_field0a;      // +0x0a
+    unsigned short m_field0c;      // +0x0c
+    unsigned short m_field0e;      // +0x0e
+    unsigned short m_field10[4];   // +0x10..+0x17（union 8B 视图同宽）
+    unsigned short m_field18[17];  // +0x18..+0x39（union 0x22B 视图同宽）
+    int            m_field3a;      // +0x3a（2 对齐、非 4 对齐）
+    unsigned short m_field3e;      // +0x3e
+    unsigned short m_field40;      // +0x40
+    int            m_field42;      // +0x42（2 对齐）
+    unsigned short m_field46;      // +0x46
+    unsigned short m_field48;      // +0x48
+    unsigned short m_field4a;      // +0x4a
+    unsigned short m_field4c;      // +0x4c
+    int            m_field4e;      // +0x4e（2 对齐）→ 共 0x52
+};
+#pragma pack(pop)
+typedef char AddInfoMove2_size_0x52[(sizeof(AddInfoMove2) == 0x52) ? 1 : -1];
+typedef char AddInfoMove2_align_2[(__alignof__(AddInfoMove2) == 2) ? 1 : -1];
+typedef char AddInfoMove2_off_10[(__builtin_offsetof(AddInfoMove2, m_field10) == 0x10) ? 1 : -1];
+typedef char AddInfoMove2_off_18[(__builtin_offsetof(AddInfoMove2, m_field18) == 0x18) ? 1 : -1];
+typedef char AddInfoMove2_off_3a[(__builtin_offsetof(AddInfoMove2, m_field3a) == 0x3a) ? 1 : -1];
+typedef char AddInfoMove2_off_42[(__builtin_offsetof(AddInfoMove2, m_field42) == 0x42) ? 1 : -1];
+typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) == 0x4e) ? 1 : -1];
+
 bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 {
     if (getCurCharacR() == 0)
@@ -133,8 +174,10 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
     char infoBuf[0x52];
     if (IsHavePremiumAdvantage())
     {
-        *(_Additioal_info*)infoBuf =                             // ORIG 结构块搬移 0x52
-            *(const _Additioal_info*)getTagCharacAddInfoR();
+        // [D01 闸3 A/B] 块搬移改用 pack(2) POD 镜像（布局逐字段等价、sizeof 0x52）
+        // ⇒ 复现 ORIG 2 字节 peel（原 _Additioal_info 为 pack(1) ⇒ 1 字节 peel）。
+        *(AddInfoMove2*)infoBuf =
+            *(const AddInfoMove2*)getTagCharacAddInfoR();
         _Additioal_info additional = m_premium.GetAdditionalInfo();  // sret @-0x7b
         *(_Additioal_info*)infoBuf += additional;                // ORIG 0x08693cea
         packet.put_int(0x52);

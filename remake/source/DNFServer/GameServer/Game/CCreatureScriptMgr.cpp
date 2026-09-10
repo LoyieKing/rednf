@@ -7,8 +7,22 @@
 #include <stdio.h>
 #include <string.h>
 
+// [T2b-GI · P338/P327] 补 <iostream> 引入 file-scope 动态初始化 __ioinit，恢复本 TU
+// `__static_initialization_and_destruction_0`/`_GLOBAL__I_` 发射；键名目标
+// `_ZN13user_creature28GetInstanceCreatureScriptMgrEv`（ORIG 0x833df33）。零语义改动。
+#include <iostream>
+
 namespace user_creature
 {
+
+// [T2b-GI · P327] 定义前移：本函数是 ORIG 该 TU 首个强外部符号 ⇒ GI 键名来源
+// （`_GLOBAL__I__ZN13user_creature28GetInstanceCreatureScriptMgrEv`，ORIG 0x833df33）。
+// 只移函数定义、不动带动态初始化的对象 ⇒ 构造序零变化。ORIG 原址 0x8336bd0。
+CCreatureScriptMgr* GetInstanceCreatureScriptMgr()
+{
+    static CCreatureScriptMgr instance;
+    return &instance;
+}
 
 // ORIG CCreatureScriptMgr::CCreatureScriptMgr @ 0x833cb60：两个 map 默认构造。
 CCreatureScriptMgr::CCreatureScriptMgr()
@@ -227,13 +241,6 @@ bool CCreatureScriptMgr::RegisterCreatureIdAndItemId(int creatureId, int itemId)
     }
     m_creatureIdToItemId.insert(std::make_pair(creatureId, itemId));
     return true;
-}
-
-// ORIG GetInstanceCreatureScriptMgr @ 0x8336bd0（构造即用单例）。
-CCreatureScriptMgr* GetInstanceCreatureScriptMgr()
-{
-    static CCreatureScriptMgr instance;
-    return &instance;
 }
 
 }  // namespace user_creature

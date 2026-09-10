@@ -162,6 +162,33 @@ public:
 // 本文件为可粘贴草稿；签名与 ORIG mangled 一致。被调方若属本批直接调用；外域依赖照常书写。
 
 
+// cSecuUserAction —— ORIG 0x086978ba C1(空体) / 0x0827b3f4 Init(+0 清零，**T 强符号**)。
+// [A06 2026-09-10 P327 T1 调序] 本类定义与 `Init` 的**外联定义**前移至本 TU 首个强符号
+// 之前：ORIG 的 GI 键名 = `_GLOBAL__I__ZN15cSecuUserAction4InitEv`（ORIG nm 0x0827b45d
+// `t 0x1c`），而 P327 要求该键名取自「TU 内第一个强符号·外部链接·本 TU 定义」的实体 ⇒
+// `cSecuUserAction::Init` 必须是**外联强符号**（ORIG 侧即 `T 0x0827b3f4 size 0xe`）。
+// 旧形把 Init 写成类内 inline（发 W 弱符号）⇒ 不参与 GI 取名，键名错落到
+// `_GLOBAL__I__ZN5CUser23_CalcItemVectorMultiplyERSt6vectorISt4pairIiiESaIS2_EEi`（仅 NEW）。
+// 纪律：只移动**函数定义**，不移动任何带动态初始化的对象（P327）。
+class cSecuUserAction
+{
+public:
+    cSecuUserAction() {}                        // ORIG W 0x086978ba：空体（保持类内 inline）
+    void Init();                                // ORIG T 0x0827b3f4：+0x00 = 0（外联，见下）
+    // ORIG T 0x0827b402：return m_state == 1（cmp $0x1; setne 反相）。
+    bool IsSecurityStateOff();
+
+private:
+    int m_state;   // +0x00（IsSecurityStateOff ==1 判定）
+};
+
+// ORIG T 0x0827b3f4 size 0xe：`mov 0x8(%ebp),%eax; movl $0x0,(%eax); ret`。
+// 置为本 TU 第一个强符号（GI 键名载体）。
+void cSecuUserAction::Init()
+{
+    m_state = 0;
+}
+
 // ---------------------------------------------------------------------------
 // 1) CUser::_CalcItemVectorMultiply(vector<pair<int,int>>&, int)
 //    报告：docs/class_func_reports/CUser/_CalcItemVectorMultiply.md
@@ -8681,20 +8708,9 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
 #include "CPremiumLetheManager.h" // CPremiumLetheManager 完整类型（increase_status lethe 链）
 
 unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_datev
-// cSecuUserAction —— ORIG 0x086978ba C1(空体)/0x0827b3f4 Init(+0 清零)。
+// cSecuUserAction 类定义 + `Init` 外联定义已**前移至本 TU 文件头**（P327 T1 调序，
+// 使 GI 键名 = `_GLOBAL__I__ZN15cSecuUserAction4InitEv` 与 ORIG 一致，见文件头注释）。
 // ORIG 侧仅 sizeof=4 的状态对象；InitOnAccept 0x086493c8 +0x4a1 处 new。
-// 唯一声明点暂落本 TU（建议后续由 secu 域批次收敛到独立头）。
-class cSecuUserAction
-{
-public:
-    cSecuUserAction() {}                        // ORIG W 0x086978ba：空体
-    void Init() { m_state = 0; }                // ORIG T 0x0827b3f4：+0x00 = 0
-    // ORIG T 0x0827b402：return m_state == 1（cmp $0x1; setne 反相）。
-    bool IsSecurityStateOff();
-
-private:
-    int m_state;   // +0x00（IsSecurityStateOff ==1 判定）
-};
 
 // ORIG T 0x0827b402（外联定义发射 T 符号）。
 bool cSecuUserAction::IsSecurityStateOff()

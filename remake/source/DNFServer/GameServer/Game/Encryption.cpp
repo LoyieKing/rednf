@@ -4,6 +4,7 @@
 #include "Encryption.h"
 
 #include <cstring>
+#include <iostream>   // std::ios_base::Init __ioinit（ORIG GI 键名 _ZN10Encryption7XorSeedE 的前提，P338）
 
 #include "EncryptTool.h"   // EncryptTool（m_rijndael@+0x204）
 #include "CRijndael.h"     // CRijndael::Decrypt
@@ -16,8 +17,12 @@
 // CRC-32
 // ============================================================================
 
-unsigned int Encryption::crc_table[256];
+// [P327 GI 键名] ORIG 本 TU `_GLOBAL__I_` 键名 = _ZN10Encryption7XorSeedE ⇒
+// XorSeed 须为本 TU 首个强符号（此前 crc_table 在它之前 ⇒ 键名错为
+// _ZN10Encryption9crc_tableE）。三者均 BSS/常量初始化（非动态初始化对象），
+// 前置定义只改 GI 选名，符号集合与构造序零变化。
 unsigned int Encryption::XorSeed = 0;
+unsigned int Encryption::crc_table[256];
 unsigned int Encryption::ShiftSeed = 0;
 
 // [b28d-solo-Encryption] P254 扩展：ORIG 对 data[i] 发

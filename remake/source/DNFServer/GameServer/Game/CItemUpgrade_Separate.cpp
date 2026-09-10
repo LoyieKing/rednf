@@ -557,7 +557,10 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     int cond = 0;
     cond = _CheckCondition(user, item, citem, matItem, *table,
                            user->get_charac_level());
-    if (cond != 0)
+    // [round5-C05 2026-09-10] P225：ORIG 0x0811e8de `cmpl $0x0,-0x28; setne %al;
+    // test %al,%al; je` 是 4.1 的「bool 物化后条件分支」；4.4 对 `if (cond != 0)`
+    // 恒折直跳（`je`，少 2 条）⇒ 改 while+break 形逐条复现。
+    while (cond != 0)
     {
         return cond;
     }

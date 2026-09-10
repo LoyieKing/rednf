@@ -322,7 +322,8 @@ void randomSetChampionFeature(int seed, int& count, std::vector<int>& temp,
 
         // [试形记录] `register int f` 实测与无 register 逐字节相同（P307 提示对本形
         // 零效）⇒ 维持普通具名局部；cmp 形态差归 P209/N18b 封顶（见函数头判词）。
-        const int f = CHAMPION_FEATURE_LIST[rand() % 28];
+        // [D07 试形2 · C05 F2 族] 局部类型改 long（i386 仍 32 位、语义等价）探装载形式。
+        const long f = CHAMPION_FEATURE_LIST[rand() % 28];
         if (f > 0x30007)
             goto BIG;
         if (f >= 0x30004)
@@ -416,6 +417,11 @@ void upgradeAbilityByBossFeature(ActiveStaticInfo* /*info*/)
 // [L14 round2 修] P251/P286 switch 化：if/else-if → `switch(elem){case 0..3 合并; case 4;}`
 // ⇒ 复现 ORIG `mov 0x8(%ebp),%eax; test; js; cmp $3; jle; cmp $4; je` 寄存器比较链，
 // gap **−6→0**（229/229）、差异块 5→2、strict 33→21（无回退）。余槽整块浅 4 ⇒ N126。
+// [D07 round5 收口] AE 达成（229/229，verdict DIFF→AE）：补第二枚具名局部
+// `const int newValue`（ORIG 0x088b7cf2 `fistpl -0xc(%ebp)` 独立结果槽 + 0x088b7cf8
+// `mov -0xc(%ebp),%edx` 写回；旧写把 ROUND 结果复用 -0x4c 临时槽 ⇒ 12×float 数组
+// 基址浅 4（-0x40→-0x3c）且初始化块整体错位）。补 `oldValue`+`newValue` 两槽后
+// 数组基址与 ORIG 对齐、ROUND 段逐条全等（P0 槽-局部双向律）。
 void upgradeAbilityByChampionFeature(int elem, int roleType,
                                      std::vector<int>* features,
                                      ActiveStaticInfo* info)

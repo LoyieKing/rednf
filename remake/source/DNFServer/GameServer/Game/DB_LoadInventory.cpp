@@ -249,8 +249,10 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
     char equipBuf[0x37a] = {0};
     char invenBuf[0x473e] = {0};
     char creatureBuf[0x1d36] = {0};
-    // ORIG 标量区（4.1 先声明浅）：creatureLen -0x148 / equipLen -0x14c /
+    // ORIG 标量区（4.4 先声明深，故 ok 最先声明占最深 -0x31；4.1 的 len 组
+    // creatureLen -0x148 / equipLen -0x14c /
     // invenLen -0x150；binLen 副本 -0x30/-0x2c/-0x28 成对初始化（P171）。
+    bool ok;                            // ORIG -0x31（所有 db 检查共用槽）
     unsigned int creatureLen = 0x1d36;  // ORIG -0x148
     unsigned int equipLen = 0x37a;      // ORIG -0x14c（解压 in/out 容量）
     unsigned int invenLen = 0x473e;     // ORIG -0x150
@@ -261,7 +263,6 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
     unsigned int invenBinLen = invenLen;      // ORIG -0x30
     unsigned int equipBinLen = equipLen;      // ORIG -0x2c
     unsigned int creatureBinLen = creatureLen;// ORIG -0x28
-    bool ok;                            // ORIG -0x31（所有 db 检查共用槽）
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
@@ -365,15 +366,17 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 
     try
     {
-        if (equipLen < equipBinLen)
+        // [D04] ORIG 三处 `cmp %eax,B; jbe`（B=binLen, L=len；B−L 折叠方向）——
+        // 写 `B > L` 正向式复现 ORIG mem-dst cmp（`L < B` 反向式产 `cmp B,%eax; jae`）。
+        if (equipBinLen > equipLen)
         {
             throw static_cast<unsigned int>(0x255a);
         }
-        if (invenLen < invenBinLen)
+        if (invenBinLen > invenLen)
         {
             throw static_cast<unsigned int>(0x255c);
         }
-        if (creatureLen < creatureBinLen)
+        if (creatureBinLen > creatureLen)
         {
             throw static_cast<unsigned int>(0x2563);
         }

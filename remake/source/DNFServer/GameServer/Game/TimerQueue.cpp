@@ -4,6 +4,7 @@
 #include "CEnvironment.h"
 
 #include <stdio.h>
+#include <iostream>   // std::ios_base::Init __ioinit（ORIG GI 键名 _ZN10TimerQueue11InsertTimerER10TimerEntry 的前提，P338）
 #include <string>
 
 // 全局时钟对象属于 GlobalData（ORIG BSS 0x941f714），真实定义在其它 TU。

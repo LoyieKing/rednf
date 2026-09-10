@@ -8,6 +8,26 @@
 //   advancealtar::DB_Update::makeRequest                         ORIG T 0x0813eb38
 //   APSystem::CDBAndExchangeServerProc::GetActionPointFromMemory ORIG T 0x08121616（纯空函数）
 //   （追加段清单见文件尾注释块）
+// ----------------------------------------------------------------------------
+// [b28d-D03 本波 判词]（fresh `check_tu_routed.sh`：identical=83 ae=148（合计 231）
+//   near=0 diff=6 = _Z41__static_initialization…（N123 豁免）+ 下列 5 件；
+//   p167 调用点差集对三件实跑：ORIG calls == OUR calls（31/31、26/26、48/48），
+//   MISSING/EXTRA 仅为 C1↔C2、D1↔D2 同址别名伪差（P93）⇒ 语义无缺口）
+//   · getFromMemory 0x0813394c —— 32/31：唯一残差 = P211 档③ store 装载序
+//     （ORIG `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,(%eax)` RHS-first + edx 中转；
+//     我方 LHS-first 直存）。字段侧/callee 侧两旋钮历轮已试（判词见函数体）⇒ 封 N76 族。
+//   · requestLoadFromDBAndES 0x08133784 —— 123/122：同 P211 store 序 1 条 + EH 段
+//     `_Unwind_Resume` 我方缺失（CStreamGuard dtor 的 cleanup 合并差异，P216/P93 别名）；
+//     p167 26/26 且仅 C1/C2、D1/D2 别名差 ⇒ 语义等价封顶。
+//   · DB_StatisticAdvanceAltar::dispatch 0x081412b2 —— 312/308：p167 31/31（仅 cMyTrace
+//     C1↔C2 别名差）；gap −4 = 跨版本 EH 域形态（sprintf/__cxa_allocate_exception/throw 段
+//     的常量地址伪代码化 + 我方少 4 条 cleanup 装载）⇒ N104（EH 尾块相对序）封顶。
+//   · DB_Update::update 0x0813ec5e —— 468/469：宽度直方图差 ext_movzwl orig=4/our=6
+//     （我方多 2 条 16 位零扩展）+ 帧 0xdc vs 0xbc（我方紧凑 0x20）；p167 48/48 仅
+//     std::string C1/C2、D1/D2 别名差 ⇒ N82（帧/槽）+ P19/N87 形态封顶。
+//   · DB_Load::SendResult 0x0813ea46 —— 66/71：ORIG 0x0813ea54 `cmpb $0x0,-0x1c(%ebp);
+//     je`（bool 形参截断槽直比）vs 4.4 `movzbl; xor $1; test; je` ⇒ N122（4.4 bool 取反
+//     恒 xor；h1..h5 五探针全败）+ N93附（尾块 `mov $1,%ebx` 物化位置）封顶。
 #include <cstring>
 #include "CUser.h"
 #include "GlobalData.h"

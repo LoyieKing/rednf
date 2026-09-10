@@ -3,7 +3,8 @@
 //   +0x50 char[4]x5、+0x64 int[4]、+0x74 Inven_Item[4][2]（0x3d 每项）、
 //   +0x25c Inven_Item[4][2]、+0x444 Inven_Item[4][2]、+0x62c stEventClearData[12]（0x8 每项）、
 //   +0x68c int、+0x690 GameResultType[4]（0x50 每项）、+0x7d0 int[4]、
-//   +0x7e0 float m_hellPartyValueTotal、+0x7e4 char[4]、+0x7e8 int[4]。
+//   +0x7e0 float m_hellPartyValueTotal、+0x7e4 bool[4]（E05 落：P248档②，
+//   元素同 1 字节、sizeof/偏移不变）、+0x7e8 int[4]。
 #ifndef GAME_BATTLEDATA_H_
 #define GAME_BATTLEDATA_H_
 
@@ -117,7 +118,13 @@ public:
     GameResultType m_gameResults[4];  // +0x690（0x50 每项）
     int m_arr7d0[4];     // +0x7d0
     float m_hellPartyValueTotal;      // +0x7e0
-    char m_arr7e4[4];    // +0x7e4
+    // [E05 2026-09-10 R2 广播] P248 档②/P292 字段 bool 判据：ORIG
+    // CParty::finish_loading 0x085b15e0 对 +0xb10（本成员）恒
+    // `movzbl 0xb10(%edx,%eax,1); xor $0x1,%eax; test %al,%al; je`
+    // ⇒ 元素类型是 bool（char 恒缺 xor，产 test/jne）。元素 1 字节、
+    // sizeof/偏移/mangled 零变化（消费点：BattleData.cpp:92 写 0、
+    // CPartyDepsB2.cpp finish_loading）。
+    bool m_arr7e4[4];    // +0x7e4
     int m_arr7e8[4];     // +0x7e8
 };
 

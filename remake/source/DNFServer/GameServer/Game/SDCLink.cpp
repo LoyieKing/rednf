@@ -18,6 +18,17 @@
 
 #include <algorithm>
 
+// [T2 · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化（__ioinit）⇒ 本 TU 发射
+// `_GLOBAL__I_g_maxTotalDefenseRate`（ORIG 0x08096a10，GI 体 sub $0x18=ioinit 形）。
+// zero 语义/布局改动；g_maxTotalDefenseRate 的定义随之前移为本 TU 首个强外部符号。
+#include <iostream>
+
+// [T2·P327] 定义前移为本 TU 首个「强符号·外部链接·本 TU 定义」实体 ⇒ GI 键名取裸名
+// `g_maxTotalDefenseRate`（ORIG 0x08096a10）。float 常量初始化 = 静态初始化，不参与
+// 动态构造序 ⇒ 移动零语义风险（P327 仅禁移「带动态初始化」的对象）。
+// ORIG D 0x0936e4a8（.data 0a d7 23 3c = 0.01f）；原定义位于文末，逻辑不变。
+float g_maxTotalDefenseRate = 0.01f;
+
 // ---- 本 TU 外部符号（ORIG 已有/由其它批次提供；不得重复定义） ----
 // [b28d-lane15 R3 跨 TU 迁定义，Main 批准 2026-09-08] _SDC::isObjectType
 // T 0x080950e8 的**定义**自 W9_SDCCommon.cpp 迁入本 TU：ORIG 中它与 SDCLink 族
@@ -86,10 +97,18 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 //   d3 = vec[3]*sum + vec[2]
 //   d4 = (vec[4]/d3 + 1) * d1
 //   d6 = vec[3]*sum + vec[5]
-// [b28d-lane15 判词·N（N85 x87 整数↔浮点链）] ORIG 0x080955e1 对每个 int 乘积走
-// `imul → mov 槽 → fildl → fldl → faddp` 的 x87 长链（帧 0x78）；4.4 折叠为
-// imul+内存直算（帧 0x68、98 vs 108）。N85/P252 探针族已证源形不可择（具名 double
-// 局部会改槽布局）。fildl 截断语义一致 ⇒ 封顶。
+// [b28d-lane15 判词·N（N85 x87 整数↔浮点链）] → [C03CryptoInit68 修·2026-09-10]
+// 按 P167 调用点差集修两处真差（本件原 `8×operator[]` vs ORIG `8×at()`，
+// 及 int 乘积折 fildl）：
+//  ① 全部改 `g_creature_damage_vector_.at(i)`（P175；ORIG 8 处 R_386_PC32 全为
+//     `_ZNSt6vectorIiSaIiEE2atEj`）；
+//  ② `(double)at(i) * (double)sum`（勿写 `(double)(at(i)*sum)`）⇒ 复现 ORIG
+//     `fildl at; fildl sum; fmulp` 双 fildl；
+//  ③ 加法的**先求值项**写在左侧（ORIG 恒先算 at(0)+c / at(2) / at(5) 并落槽），
+//     即 `(at(0)+c) + at(1)*sum` 形（浮点加法可交换，P243 族）。
+// 残余（跨版本族）：4.4 对内存操作数折叠 `faddl/fmull/fdivl mem`（ORIG 分步
+// fldl+faddp，N85③）；double 临时槽 4.4 复用而 4.1 每步新槽（帧 0x68 vs 0x78，N82）。
+// 语义等价，按 §6 记 N 封顶。
 float getDamageRateCreature(int a, int b, int c)
 {
     if (a > 0x32)
@@ -139,10 +158,15 @@ float getCreatureDamageRateFromIndex(int index)
 // _Z24getDamageInflictCreatureP23STComputeDamageVariable @0x08095508 (0xd9)：
 // m_char1B5 门控；dmg=m_field000*(rate(m_char1B7,m_char1B8,(int)m_d1AA))*m_f02B
 // *FromModule(m_objTypeByte)；objTypeByte==9 再 *FromIndex(m_char1B9)。
-// [b28d-lane15 判词·N（N85）] ORIG 对 float 纯拷贝发 `flds (%eax); fstps -0x24`
-// 往返（4.4 恒 `mov (%eax),%eax; mov %eax,槽` 直搬，N85①），乘法为
-// `flds; fmuls mem; fstps` 三步 vs 4.4 `flds; fmulp; fstps` 折叠（N85③）；
-// 由此槽组 -0x24/-0x20/-0xc vs -0x10/-0xc 整体平移。语义等价，封顶。
+// [b28d-lane15 判词·N（N85）] → [C03CryptoInit68 修·2026-09-10] 两处已翻正：
+//  ① 乘法书写序（P243 变体）：写 `rate(...) * base` ⇒ 4.4 发
+//     `call; fmuls -0x14(%ebp); fstps -0xc(%ebp)`，**累加器槽 -0xc 与 ORIG 一致**
+//     （旧 `base * rate()` 产 flds+fmulp 三条且累加器落 -0x10）。
+//  ② 具名 float 副本（P252/P0）：ORIG `flds (%eax); fstps -0x24` 是具名局部
+//     ⇒ 补 `float base = v->m_field000;` 并把 dmg 拆为独立变量后，gap 65→**64=ORIG**。
+// 残余（跨版本族，语义等价）：ORIG x87 拷贝 `flds/fstps` vs 4.4 `mov/mov`（N85①）；
+// base/lv 槽位比 ORIG 浅 0x10（N126 版本首槽基址常数 + N82 槽复用，实测非声明序可翻）；
+// `mov -0x20(%ebp),%ecx` 装载时刻（P75）。按 §6 记 N 封顶。
 float getDamageInflictCreature(STComputeDamageVariable* v)
 {
     if (v->m_char1B5 == 0)
@@ -284,6 +308,12 @@ float getDamageInflict(STComputeDamageVariable* v, void* defender)
 // [b28d-lane15 判词·N（N85①/N82 槽组平移）] 残差为 float 中转槽 -0x24 vs -0x20 的
 // 整体浅移 4（ORIG flds/fstps 往返占槽，4.4 mov 直搬省槽），指令序列/长度逐条一致
 // （152 vs 151）；常量/全局引用行为 .o 重定位伪差。封顶。
+// [C03CryptoInit68 复测·2026-09-10] 已试把 ORIG 的两个具名常量局部补回
+// （`float zero=0.0f; dr=std::max(zero,dr);` 与 `float one=1.0f;`，含 max 实参序
+// `max(denom,one)`）：dr 槽由 -0x20 变 **-0x18（更远）**，整帧上移 4 ⇒ 反劣，已回退。
+// ⇒ 本件槽差不可由具名局部翻正，维持 N85①+N82 封顶。（另：`_ZSt3maxIfERKT_S2_S2_`
+// 的 ORIG 形 `fucompp/fnstsw/test $0x45/sete` 需 TU 级 `-march=i486 -mtune=generic`，
+// 已按五要素上报 Main；实测该旗标下本 TU ae 20→21、diff 7→6。）
 // ============================================================================
 void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
                            STComputeDamageVariable* v, void* defender)
@@ -432,6 +462,12 @@ bool checkIsCriticalSDC(STComputeDamageVariable* v, float* dmg, unsigned int* ra
 // （`mov -0x8,%eax; mov -0x8,%edx; mov (%edx),%edx`），4.4 复用 eax 作值寄存器
 // 再重载 cur（多 1 条 mov，68 vs 67）。`*cur=*cur^key`/`*cur^=key`/下标形三形同产，
 // 具名中间量会引入 ORIG 不存在的槽 ⇒ 封顶。
+// [C03CryptoInit68 复测·2026-09-10] 追加四形实测（探针 /tmp/rmw/p.cpp fA..fJ，4.4.7）：
+//   `*cur=*cur^key`/`cur[0]^=key`/`key^*cur`/`cur[0]` 拆分读 均与 `^=` 同产（6 条）；
+//   `register unsigned int* cur` ⇒ cur 免槽进 %ebx + `push %ebx` 破帧（反劣，已回退）；
+//   `volatile unsigned int* cur` / `unsigned int v=*cur` 拆分 ⇒ 槽化更差（反劣）；
+//   key 改 int 形 ⇒ `mov (%eax),%edx` 值落 edx（接近 ORIG）但多一条 key 装载（6 条）。
+//   ⇒ 4.4 恒 CSE 指针地址（ORIG 4.1 双读），源形不可择：N18a/N76 族封顶。
 // ============================================================================
 struct stBVHackInfo_t
 {
@@ -483,5 +519,5 @@ extern "C" const float BLEEDING_DAMAGE_IN_ACTION_RATE = 0.75f;
 
 // ============================================================================
 // 9) g_maxTotalDefenseRate  D 0x0936e4a8（.data 0a d7 23 3c = 0.01f）
+//    定义已前移至文件头（见 [T2·P327] 注释），符号与初值不变。
 // ============================================================================
-float g_maxTotalDefenseRate = 0.01f;

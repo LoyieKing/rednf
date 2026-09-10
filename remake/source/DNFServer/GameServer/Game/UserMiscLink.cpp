@@ -460,6 +460,8 @@ bool HeroMissionEvent::rewardMission(CUser* user,
     // 残差=①4.4 槽分配方向（characNo 占 -0x24 而 ORIG -0x18，连带 value/it/end 各浅 4；
     // P212 全头部声明实测 181 条反劣、P50 先声明后赋值无效）⇒ N82/N98 槽序；
     // ②N7 间接 call 目标 %eax(4.4.7) vs %edx(4.1)。
+    // [D04 实测] P190 `double framePad; (void)&framePad;` 撑帧：帧 0x44→0x54 但槽位反劣
+    // （-0x24/-0x18/-0x14 更远离 ORIG 的 -0x20/-0x1c/-0x18）⇒ 已回滚；维持 N82/N98 判词。
     // ORIG 0x0816748e 判活为虚调用 IsEventing(0)
     // （vptr+0x34 = CEventBase::IsEventing），非直读 m_isEventing 字段。
     if (!IsEventing(0))
@@ -725,10 +727,11 @@ bool CRandomOptionItemHandle::change_option(unsigned long itemIdx, ENUM_RARITY r
 
 
     unsigned char optType = 0;
-    // [L31 round2 实测回滚 · 判据⑫/P198①] ORIG 0x085f3365 对 err 有预清（`int err = 0;`
-    // 两句式），但实测把 err/i/pick/sel 四处预清全补后 clean 差异 **406→416 行**（反劣；
-    // clr_l 计数虽由 3→6 匹配 ORIG 的 5，但槽位连锁错位加剧）⇒ 四处全部回滚。
-    int err = _get_option_type(itemIdx, rarity, level, group, optType);
+    // [L31 round2] 四处预清全补反劣（406→416）⇒ 回滚。本轮只补 **err 单处**（P198① 最小集）：
+    // ORIG 0x085f3352 `movl $0x0,-0x1c(%ebp)`（optType 预清后紧邻）⇒ 原码 `int err = 0;`
+    // 后接赋值两句式（i/pick/sel 无预清证据）。
+    int err = 0;
+    err = _get_option_type(itemIdx, rarity, level, group, optType);
     // [b28d-solo-UserMiscLink] P225：ORIG 0x085f33a1 为 `cmpl $0; setne %al; test %al,%al;
     // je`（bool 物化岛）⇒ while 形复现（4.4 裸 if 恒直跳）。
     while (err != 0)

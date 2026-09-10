@@ -1,16 +1,15 @@
 #include <cstring>
+// [T2-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit（ORIG 实有符号），
+// 使本 TU 发射 _GLOBAL__I_（键名见下 ClearData 前移注释）。
+#include <iostream>
 #include "CDataManager.h"
 #include "GamePODTypes.h"
 
 namespace APSystem
 {
-// ORIG C1 0x0889484a：仅按序构造 6 个容器成员，不调用 ClearData。
-CActionPointEtcParameter::CActionPointEtcParameter()
-{
-}
-
-CActionPointEtcParameter::~CActionPointEtcParameter() {}
-
+// [T1-GI · P327] ClearData 前移为本 TU 首个强外部符号 ⇒ GI 键名
+// `_GLOBAL__I__ZN8APSystem24CActionPointEtcParameter9ClearDataEv`（ORIG 0x08895652，
+// ORIG CU localchina_RDARScriptActionPointSystem.cpp）。仅移函数定义，零语义/布局改动。
 void CActionPointEtcParameter::ClearData()
 {
     m_actionPoints.clear();
@@ -20,6 +19,13 @@ void CActionPointEtcParameter::ClearData()
     m_medalRewards.clear();
     m_todayRewards.clear();
 }
+
+// ORIG C1 0x0889484a：仅按序构造 6 个容器成员，不调用 ClearData。
+CActionPointEtcParameter::CActionPointEtcParameter()
+{
+}
+
+CActionPointEtcParameter::~CActionPointEtcParameter() {}
 
 bool APSystem::CActionPointEtcParameter::IsValidTodayRewardItem(
     _SIG_LOAD_ACTION_POINT::_TodayRewardItem item)

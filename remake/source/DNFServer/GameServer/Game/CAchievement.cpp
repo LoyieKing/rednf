@@ -616,8 +616,11 @@ void CAchievement::adjust()
         // ORIG 0x0828ca5x：getCurCharacQuestR() 结果 `add $0x4,%eax` 后直接调
         // WongWork::CQuestClear::isClearedQuest（bool 返回 ⇒ 调用点 test/je 无
         // setne；UserQuest::isClearQuest 包装是另一符号，p167 会记 MISSING）。
+        // ORIG 0x0828ca5b：`mov -0x20(%ebp),%ebx` 在 receiver call **之前**物化
+        // 并跨 call 保活（P52 callee-saved 独占形）；实参用语句表达式包住
+        // （P226）令 4.4 亦升格 %ebx 跨 getCurCharacQuestR call 保活。
         if (((WongWork::CQuestClear*)((unsigned int)m_user->getCurCharacQuestR() + 4))
-                ->isClearedQuest(questIdx))
+                ->isClearedQuest(({ questIdx; })))
         {
             // [真 bug 修复] ORIG 0x0828ca18 压栈的是 -0x18(%ebp)=m_achievementIdx
             // （stAdjust +0x08），不是 isClearedQuest 用的 -0x20(%ebp)=m_questIdx

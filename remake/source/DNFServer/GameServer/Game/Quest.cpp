@@ -100,16 +100,17 @@ void makeRewardItemInfo(const std::vector<int>& src,
 int get_rand_int(int range);
 
 // stQuestTriggerState_t::setTrigger（ORIG W 0x836dce0：9 位触发值打包）
-// b28d-solo-Quest 判词 N18a 封顶：ORIG 0x0836dce0 每字段在 `and $0x1ff,%dx`
-// 后额外发 `mov %edx,%ecx; and $0x1ff,%cx`（对 (a&0x1ff) 的寄存器副本再截断
-// 一次），4.4 恒折单次 and。本轮穷举：原形/显式嵌套 `(short)((short)(a &
-// 0x1ff) | …)` 38/41、无 cast 赋值截断形 38/41、`|=` 复合赋值形 32/41（更劣）
-// ⇒ 4.4 无源码形态产出该冗余截断（gap=3 全为 ORIG-only and）。
+// [E04 2026-09-10] 旧 b28d-solo-Quest 判词「N18a 封顶：4.4 无源码形态产出该冗余
+// 截断」作废 —— 真因是字段为「16 位容器 9 位位域」（QuestTriggerState.h 位域建模）。
+// 位域直赋 `m_triggerN = x;` 在 4.4.7 下逐条复现 ORIG：值截断 `mov %eax,%edx;
+// and $0x1ff,%dx` → 读容器 `movzwl 旧; and $0xfe00,%dx` → or → `mov %dx,容器`；
+// ORIG 的 `mov %edx,%ecx; and $0x1ff,%cx` 冗余截断由位域赋值自身产生。
+// 探针 /tmp/qts/b.cpp setTrigger 41=41 逐条一致（改前 41/62，gap +21）。
 void stQuestTriggerState_t::setTrigger(short a, short b, short c)
 {
-    m_trigger0 = (short)((short)(a & 0x1ff) | (m_trigger0 & 0xfe00));
-    m_trigger1 = (short)((short)(b & 0x1ff) | (m_trigger1 & 0xfe00));
-    m_trigger2 = (short)((short)(c & 0x1ff) | (m_trigger2 & 0xfe00));
+    m_trigger0 = a;
+    m_trigger1 = b;
+    m_trigger2 = c;
 }
 
 // ============================================================================

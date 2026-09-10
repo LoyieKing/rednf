@@ -241,6 +241,14 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
         }
         if (token == "[independent drop]")
         {
+            // [b28d-C08 widthscan 判据⑫ clr_l 5 vs 4] ORIG 0x0897c415 在本分支入口清
+            // `movl $0x0,-0x44(%ebp)`，其后 0x0897c767（flag==1 `itemId=ScanInt`）与
+            // 0x0897c8a9（flag==2 `itemId=m_list04[p].first`）**复用同一槽** ⇒ 原码
+            // itemId 是分支级具名 int（非各 while 内声明）；
+            // 0x0897c7b9/0x0897c8ec 两处 `lea -0x44(%ebp),%eax` 即引用 pair 构造的
+            // 左值实参（P81 `pair<int,int>(int&,int&)`，p167 MISSING
+            // `_ZNSt4pairIiiEC2IRiS2_EEOT_OT0_` ×2）。
+            int itemId = 0;
             for (;;)
             {
                 stIndependentDropInfo info;
@@ -313,7 +321,7 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                     {
                         while (true)
                         {
-                            int itemId = ScanInt(&ok);
+                            itemId = ScanInt(&ok);
                             if (!ok)
                             {
                                 break;
@@ -352,7 +360,7 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                                      p < (int)m_vec0[e].m_list04.size();
                                      ++p)
                                 {
-                                    int itemId =
+                                    itemId =
                                         m_vec0[e].m_list04[p].first;
                                     int rate =
                                         m_vec0[e].m_list04[p].second;
@@ -401,6 +409,13 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
 //   （重复 grade/键 → 失败）。[static basic skill] 段要求键已存在，明细对追加
 //   到既有 value.m_vec0c 并同样更新 m_map30。
 // b28d-solo-DomainMiscDeps: DIFF 残余（p167 CLEAR 116/116；N104 EH 尾块序）
+// [b28d-C08 widthscan 补记 · 未修] clr_l orig=2 our=1，两处 ORIG 清零均未复现：
+//   ①0x08a5d0e8 `movl $0x0,-0x10(%ebp)` —— 在 [skill] 段 `PvPSkillTreeValue value`
+//     构造(0x08a5d0e3 后半)之后、pair 构造(0x08a5d0f8)之前，**全函数仅此一次写、
+//     零读** ⇒ 原码在 [skill] 分支入口有一个未使用的具名 int（P232/P171 死局部照抄）。
+//   ②0x08a5d7d2 `movl $0x0,-0xc(%ebp)` —— [static basic skill] 段入口清零，随后
+//     0x08a5d856/0x08a5d920 两次写入、0x08a5d9b4 一次读取 ⇒ 具名 int 变量（非死值）。
+//   补此两处预计 +2 条（现 gap 777 vs 774，我方偏少 3）且会移动槽序，需 fresh 联判。
 bool PvPSkillTreeParameterScript::importPvPSkillTreeParameterScript(
     const char* path)
 {

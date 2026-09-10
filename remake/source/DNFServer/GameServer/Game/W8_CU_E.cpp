@@ -183,8 +183,11 @@ int CUser::customizingSkillCommand(STSkillCommandData& data)
     }
     else
     {
-        // ORIG make_pair<short&,ST&>(local_26,param_1) → pair<key,拷贝>
-        cmds->insert(std::make_pair(key, data));
+        // ORIG 0x086550?? make_pair 实参为 **data.m_command 左值**（mangled
+        // `_ZSt9make_pairIRsR18STSkillCommandDataE` = make_pair<short&, T&>；
+        // arg1 直接传 data 指针 = &data.m_command，因 m_command 偏移 0）
+        // ⇒ 须写成员表达式而非具名 int key 局部（后者产 pair<int&,T&> 另一实例）。
+        cmds->insert(std::make_pair(data.m_command, data));
     }
     enableSaveSkill();
     return true;
@@ -307,20 +310,12 @@ bool CUser::st_monstorkill::Check(unsigned int nowTick, unsigned short nx,
                                   unsigned short ny, unsigned short xLim,
                                   unsigned short yLim, unsigned int windowLimit)
 {
-    // b28d-35: DIFF→N82/N7（帧/槽 + 寄存器分配；W 弱符号 0x1cd）。ORIG @0x0823049c。
+    // ORIG 块布局（82304cc `ja 823060e` / 82305f3 `jge 8230607` / 8230605 `jl 823065e`）：
+    // 超窗 reset 块落在**函数尾部**（823060e..823065a，紧接尾 `mov $0x0,%eax`），
+    // 且 `return true` 块（8230607 `mov $0x1,%eax; jmp epilogue`）夹在主体与 reset
+    // 块之间 ⇒ 原码用 **goto 尾标签**（P283/P223 形），非「早返块内联 + 尾部 return」。
     if ((unsigned int)(nowTick - m_lastTick) > windowLimit)   // ORIG 82304cc: cmp/ja 无符号超窗
-    {
-        // 超窗重置检测框
-        m_deltaX = 0;
-        m_deltaY = 0;
-        m_count = 0;
-        m_lastTick = nowTick;
-        m_minX = nx;
-        m_minY = ny;
-        m_maxX = nx;
-        m_maxY = ny;
-        return false;
-    }
+        goto L_reset;
 
     ++m_count;                                            // ORIG 82304dd: (+0xc)+1
 
@@ -339,11 +334,22 @@ bool CUser::st_monstorkill::Check(unsigned int nowTick, unsigned short nx,
     m_deltaX = (short)std::abs((int)(short)m_deltaX);     // 82305b9: cwtl/sar31/xor/sub 绝对化回写
     m_deltaY = (short)std::abs((int)(short)m_deltaY);     // 82305c9
 
-    if ((int)(short)m_deltaX >= (int)xLim)                // 82305e6..93: jge → true
+    if ((int)(short)m_deltaX >= (int)xLim)                // 82305e6..f3: jge → true 块
         return true;
-    if ((int)(short)m_deltaY < (int)yLim)                 // 82305ff..05: jl → false
+    if ((int)(short)m_deltaY < (int)yLim)                 // 82305ff..05: jl → false 块
         return false;
     return true;
+L_reset:
+    // 超窗重置检测框（823060e..823065a，fall-through 到尾 mov $0x0）
+    m_deltaX = 0;
+    m_deltaY = 0;
+    m_count = 0;
+    m_lastTick = nowTick;
+    m_minX = nx;
+    m_minY = ny;
+    m_maxX = nx;
+    m_maxY = ny;
+    return false;                                         // 823065e: mov $0x0,%eax
 }
 
 // ---------------------------------------------------------------------------

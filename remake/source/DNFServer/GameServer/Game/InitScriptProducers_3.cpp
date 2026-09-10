@@ -981,7 +981,9 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
         static bool __inited = false;   // ORIG !__inited 用 xor eax,1 → bool
 
         // ORIG 重派发是一个内层循环：continue 回到 +0x82（__lookup guard）。
-        for (;;)
+        // [2026-09-10 D06] 内层循环用 goto 形（P164/P283）：`for (;;)` 会让 4.4 在
+        // 循环头前多插一条入口 `jmp`（实测 241b `jmp 241e`），goto 形则顺序流入 guard。
+    titlebook_retry:;                       // ORIG +0x82（__lookup guard 头）
         {
             int id;
             if (__inited)
@@ -1190,10 +1192,14 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
             {
                 __init_lock.leave();
                 __inited = true;
-                continue;                        // 以当前令牌重新派发
+                goto titlebook_retry;            // 以当前令牌重新派发（ORIG `jmp +0x82`）
             }
-            break;
+            // [2026-09-10 D06] ORIG 0x08aa8ae3 `jmp 08aa8171 <+0x61>`：已初始化路径
+            // **一跳直落外层循环头**；写 `break`（跳出内层）会多出一条内层出口 jmp
+            // （4.4 把内层出口与外层回边分成两条，实测 ours 643 vs orig 642 = +1）。
+            goto titlebook_next_token;
         }
+    titlebook_next_token:;
     }
 
     return true;

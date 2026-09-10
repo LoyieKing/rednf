@@ -121,13 +121,11 @@ void CParty::die_user(CUser* user)
     }
     else
     {
-        // X2 形（判据①-③：ORIG 0x085a794a `movzbl 0x380(%edx,%eax,1); xor $1,%eax;
-        // test %al,%al; je big` 有 je 消费者）；块布局按 ORIG：live 非零（arr==0）
-        // fall 走 0x12 区、je 后跳到 big 区（技巧 17 fall-through 块在前）——
-        // `if(!live){big}else{0x12}` 写法 4.4 反产 jne+fall=big 极性镜像。
-        unsigned char live = m_battleData.m_arr54[slot];
-        live ^= 1;
-        if (live)                       // +0x380[slot]==0 → 0x12 回执
+        // P248 档②/P292：ORIG 0x085a794a `movzbl 0x380(%edx,%eax,1); xor $1,%eax;
+        // test %al,%al; je big` = **bool 字段取反三件套** ⇒ 裸 `if (!field)` 正形
+        // （字段 m_arr54 已是 bool[4]；旧 `unsigned char live=…; live^=1; if(live)`
+        // 两语句形落栈化三段 movb/xorb/cmpb 并顶浅整帧 4B）。
+        if (!m_battleData.m_arr54[slot])   // +0x380[slot]==0 → 0x12 回执
         {
             packet.put_byte(0x12);
             packet.finalize(true);
@@ -177,19 +175,16 @@ void CParty::finish_loading(CUser* user)
         if (m_battleData.m_arr50[i] != 0)
             return;
         m_battleData.m_arr50[i] = 1;
-        // ORIG 0x085b15e0 域：`movzbl 0xb10(%edx,%eax,1); xor $0x1,%eax; test; je`
-        // 具名 m_arr7e4 消裸偏移后 scale 单段 ✓；裸 `!field` 4.4 产 test;jne 缺
-        // xor ⇒ X2 判据③有消费者，N96 清绑后为具名 uchar 局部 + `^=1` 自然形。
-        unsigned char fv = m_battleData.m_arr7e4[i];
-        fv ^= 1;
-        // 【三次改写】ORIG 0x85b170a 域为平铺 continue 链：xor;test;je 循环尾 →
-        // call;test;je 循环尾 → movb 直落 addl（无 jmp/nop 汇聚中继）。
-        // 嵌套 if 形 4.4 产双 jmp+nop 中继（P63）；平铺 continue 形逐条同构。
-        if (!fv)
-            continue;
-        if (!OnStartMapFinishLoading(user))
-            continue;
-        m_battleData.m_arr7e4[i] = 1;
+        // P248 档②/P292：ORIG 0x085b15e0 域为 `movzbl 0xb10(%edx,%eax,1);
+        // xor $0x1,%eax; test %al,%al; je <循环尾>`（bool 字段取反三件套）
+        // ⇒ 字段 bool 化（BattleData.h 已同步）+ 裸 `if (!field){...}` 正形
+        // （内层 `if (call)` 的 `call; test; je 循环尾` 与 ORIG 0x85b170a 段一致）。
+        // 旧形 `unsigned char fv = ...; fv ^= 1; if(!fv) continue;` 在 4.4 下
+        // 落栈槽三段（movb/xorb/cmpb）且 continue 链多 jmp+nop 中继。
+        // 4.4 对嵌套 if 在 body 尾插 `jmp <循环尾>; nop` 中继（ORIG 无）；
+        // 改 `&&` 短路单语句消除该中继（两条件各自的 je 都落循环尾）。
+        if (!m_battleData.m_arr7e4[i] && OnStartMapFinishLoading(user))
+            m_battleData.m_arr7e4[i] = 1;
     }
 
     // ORIG 两次独立 this+0xb24 计算（GetDungeon / IsFirstEnterDungeon），

@@ -172,15 +172,19 @@ namespace GlobalData
 extern CServerProxyMgr<CGuildServerProxy>* s_guild_proxy_mgr;
 extern CDoubleConnCheckServerProxy* s_double_check_proxy;
 extern WongWork::CLogGameChannel* s_pLogGameChannel;
-TimerQueue* s_timerQueue_;  // ORIG 全局（GlobalData::s_timerQueue_），原 GameStubs.cpp 定义迁移
 }
 // [SweepLeagueMatch4·判据㉔] g_schoolMgr / g_guildAgitMgr 定义已按 ORIG 归属迁出本 TU
 // → CLeagueMatch.cpp（ORIG MatchingSystem.cpp static_init @0x085685a0 的构造点
 // 0x085685e2 / 0x08568612 实证；本文件下方 extern 声明与各头内 extern 继续生效）。
-namespace GlobalData
-{
-extern TimerQueue* s_timerQueue_;
-}
+// [A12-2026-09-10 · 铁律1 消 only-NEW「KEY_ABSENT」] 原发明符号
+// `GlobalData::s_timerQueue_`（**ORIG nm 0 命中**）及其本文件冗余 extern 已删。
+// ORIG 真形 = `GlobalInstance<TimerQueue>::m_p`（V 4B @0x93facc4）+
+// inst/inst_ptr/create/destroy（W），由 TimerQueue.cpp 的 `G_TimerQueue()`
+// （ORIG W 0x080f647c → `_ZN14GlobalInstanceI10TimerQueueE8inst_ptrEv`）实例化发射；
+// 我方二进体现已含同名 `_ZN14GlobalInstanceI10TimerQueueE3m_pE`（4B, unique）
+// ⇒ 无需任何本地替身。全仓 grep 实测该符号**仅本文件定义 + 本块 extern、零消费点**
+// ⇒ 删除零语义影响（同时消去派生的 `_GLOBAL__I__ZN10GlobalData13s_timerQueue_E`
+// 键名，GI 键名回退到本 TU 首个强符号=与 ORIG 同规则的候选）。
 
 
 char* NumberToString(unsigned int value, int radix);

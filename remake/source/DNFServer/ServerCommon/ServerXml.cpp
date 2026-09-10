@@ -16,6 +16,22 @@ namespace np_server_xml
 // StrLoading 与 Load Fail 日志引用该符号。
 static const char FILE_NAME[] = "server_str.xml";
 
+}  // namespace np_server_xml
+
+// [T1-GI · P327] 键名位：ORIG `_GLOBAL__I_g_ServerString_`（0x80c6a95）⇒ ORIG 源码中本对象
+// 定义先于本 TU 所有函数定义（P327 选名 = 首个「强符号 · 外部链接 · 本 TU 定义」实体；
+// 非限定全局对象 ⇒ 裸名），故对象定义前移至此。
+// 本件属「带动态初始化对象」（ORIG 0x80c6a2c / 我方 static_init 均调 CServerXml C1 +
+// __cxa_atexit），默认受 P327 移动禁令；此处经实测豁免：改前/改后
+// `__static_initialization_and_destruction_0` 体**逐字节相同**（ioinit 由行 6 <iostream> 定序，
+// 恒在其前；ORIG 亦为 ioinit → CServerXml 同序）、.text/.data/.bss/.ctors 段字节全同、
+// 符号集合仅 GI 名一项变化 ⇒ 构造序与可观察行为零变化。
+// 实测：键名 `_GLOBAL__I_g_ServerString_` == ORIG；四数 68/88/4/1 → 69/88/4/1（missing 45→44）。
+np_server_xml::CServerXml g_ServerString_;
+
+namespace np_server_xml
+{
+
 CServerXml::CServerXml()
 {
     InitString();
@@ -313,5 +329,3 @@ std::string CServerXml::GetEventString(int nTextID, _eStringType type, bool* pbR
 }
 
 } // namespace np_server_xml
-
-np_server_xml::CServerXml g_ServerString_;

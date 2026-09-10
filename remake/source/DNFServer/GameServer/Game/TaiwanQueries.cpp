@@ -87,20 +87,28 @@ bool COpensslRSA::Init() throw()
 // ORIG T 0x0816c28a：path 空 → false；BIO_new(BIO_s_file()) →
 // BIO_ctrl(bio,0x6c,3,(GetAppFolder()+path).c_str())（BIO_C_SET_FILENAME）→
 // PEM_read_bio_RSA_PUBKEY(bio,0,0,0) 存 m_rsa → BIO_free_all → key 非空真。
-// b28d-36 判词（N104+P78，ORIG 0x0816c28a）：块内容逐条对齐，仅两处跨版本差：
+// b28d-36 判词（ORIG 0x0816c28a）已被 b28d-solo-D02 推翻并修真：
+// **IDENTICAL（83=83，difflines=0）** —— 修法 = 把 full/rel 两 string 收进内层
+// 作用域（析构点=BIO_ctrl 之后、PEM 之前，与 ORIG 0x0816c31d/0x0816c345 一致）
+// ⇒ 后续 return 语句脱离 EH region，4.4 不再用 %ebx 汇聚返回值、unwind 块位置
+// 同时归位（原判词的 N104 EH 尾块序 + P78 返回寄存器两处残差一次性消失）。
+// 原判词保留备查：
 // ①EH 尾块相对序——ORIG 正常路径尾块居最末、unwind 块居中（0x816c308..0x816c345），
 // 4.4 把同一段 epilogue 就地内联、unwind 压最末，difflib 放大成 ~24 行 rotate；
 // ②返回汇聚寄存器——ORIG 各 return 直接 `mov $0/1,%eax`（0x816c298/0x816c38c/0x816c393），
 // 4.4 因 return 前需析构 full/rel 两个 string 而用 %ebx 汇聚、尾 `mov %ebx,%eax`。
-// 语义等价（三 return 与 ORIG 同控制流），封顶。
 bool COpensslRSA::Init(const char* path) throw()
 {
     if (path == 0)
         return false;
     void* bio = BIO_new(BIO_s_file());
-    std::string full = GetAppFolder();
-    std::string rel(full + path);
-    BIO_ctrl(bio, 0x6c, 3, const_cast<char*>(rel.c_str()));
+    // [b28d-solo-D02] ORIG 0x0816c31d/0x0816c345 在 BIO_ctrl 之后、PEM 之前析构
+    // 两个 string（正常路径）⇒ 原码把两 string 收在**内层作用域**（析构点即块尾）。
+    {
+        std::string full = GetAppFolder();
+        std::string rel(full + path);
+        BIO_ctrl(bio, 0x6c, 3, const_cast<char*>(rel.c_str()));
+    }
     m_rsa = PEM_read_bio_RSA_PUBKEY(bio, 0, 0, 0);
     BIO_free_all(bio);
     if (m_rsa == 0)
@@ -117,8 +125,9 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
     int pos = 0;
     // [b28d-solo-D02] ORIG 0x0816c552..0x0816c567 为 MIN_EXPR 展开形（三目
     // `(len - pos > rsa_size) ? rsa_size : (len - pos)` + i486 后端 ⇒ 寄存器比较 +
-    // jle + 单条 store）。本 TU 若无 `-march=i486` 路由，4.4 对该三目发 cmovle
-    // （探针实测量 +10 条）；A/B 见 /tmp/ab_TaiwanQueries.compile.log。
+    // jle + 单条 store）。Main 已按 D02 A/B 落表本 TU `-march=i486 -mtune=generic`
+    // 路由（缺该旗标时 4.4 对同一三目发 cmovle，探针实测多 10 条）；
+    // A/B 证据见 /tmp/ab_TaiwanQueries.compile.log。**verdict=AE（137≈归一）**。
     int chunk = (len - pos > rsa_size) ? rsa_size : (len - pos);
     while (chunk > 0)
     {
@@ -241,6 +250,14 @@ void AuthGarenaToken::init()
 
 // ORIG T 0x081730d6：param==""（operator== 成立）走默认公钥，否则指定路径；
 // 返回对应 Init 的布尔结果。
+// [b28d-solo-D02] verdict=DIFF（96 vs 91，N95/N104 族封顶）。本轮已修：
+// ①arg 去判空三目（P171 照抄：ORIG 0x08173115 直接压 path 形参）；
+// ②empty/arg 的 allocator 临时形与 ORIG 同构（0x8b83f20 空串字面量）。
+// 残差 = 两 string 与 allocator 临时槽的**绝对槽位**（ORIG empty -0x18 /
+// alloc -0x11 / arg -0x10 / alloc -0x9；我方 empty -0x10 / arg -0x14，方向相反）
+// 与 unwind 清理链块序（ORIG -0x10→-0x9→-0x18→-0x11）——即 4.1「先声明深」
+// vs 4.4「先声明浅」的槽序（P309/N95）+ EH 块排列（N104）。交换声明序会反转
+// 构造指令序（ORIG 先构造 empty），两形互斥；探针三形不可兼得 ⇒ 封顶。
 bool AuthGarenaToken::init(const char* path)
 {
     // ORIG 81730d6：arg==empty（0x8b83f20）走带参 Init(path)，
@@ -254,6 +271,17 @@ bool AuthGarenaToken::init(const char* path)
 }
 
 // ORIG T 0x081731f2
+// [b28d-solo-D02] verdict=DIFF（227 vs 229，N95/N104 族封顶）。本轮已修：
+// ①两处 `size()?&v[0]:0` 三目删（P171 直取，ORIG 0x08173334/0x08173423）；
+// ②日志参数去 `&0xffff`/`&0xff` 冗余掩码（ORIG movzbl/movzwl 已零扩展）；
+// ③两处 cMyTrace 改全表达式临时链（P221：失败 trace 槽 -0x64→-0x4c）；
+// ④getUname/getUid 改实参内联（P0：ORIG 无槽、值留 %edi/%esi 跨 ctor）；
+// ⑤token 具名局部照抄（ORIG 0x08173244 `mov %eax,-0x20`）。
+// 残差 = ①标量槽区分配序（ORIG ok -0x19/token -0x20/gold -0x74/gca -0x70/
+// stamp -0x6c 与我方相反 ⇒ 4.1 先声明深 vs 4.4 先声明浅，N95/N126）；
+// ②帧 0x8c vs 0x80 + %edi push 缺失（4.4 不把 uname 升格 callee-saved；
+// 全表达式形已是 P226/P227 上限）；③EH 清理链块序（N104）。
+// p167 仅 C1/C2、D1/D2 构造/析构变体差（clean 归一口径 CLEAR）⇒ 非缺段。
 int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
 {
     if (token == 0)
@@ -310,8 +338,9 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     unsigned int stamp = out.getTimeStamp();
 
     // [b28d-solo-D02] P221：同上（ORIG 0x081734da 该 trace 占 -0x30 浅槽）。
-    // 另：ORIG 0x081734a8/0x081734b5 的 getUname/getUid 结果**无槽**（留 %edi/%esi
-    // 跨 ctor 保活）⇒ 原码这两个值是实参内联表达式（P0），不具名。
+    // 另：ORIG 0x081734a8/0x081734b5 的 getUname/getUid 无槽（留 %edi/%esi 跨 ctor
+    // 保活）⇒ 原码这两值是实参内联表达式（P0）。裸 register 具名形实测同形
+    // （227=227，无改善，已回退）。
     cMyTrace(__FUNCTION__, 0x99, 0)(
         "[Taiwan, Auth] Success!! Uid:%u, UserName:%s, Timestamp:%u, "
         "GcaType:%u, GoldMemberType:%u, Mobile:%u",

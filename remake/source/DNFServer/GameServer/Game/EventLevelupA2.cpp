@@ -43,6 +43,11 @@
 #include "InGameEventScripts.h"        // Action_SendMail/Condition_LevelUp/各脚本类
 #include "LevelupSupportEventManger.h" // LevelupSupport(2nd)EventManger 及脚本解析器
 
+// [T2-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit（ORIG 实有符号），
+// 使本 TU 发射 _GLOBAL__I_（ORIG CU global_LevelupSupport.cpp 的键名
+// `_ZN25LevelupSupportEventMangerC2Ev` = 本 TU 首个强外部符号）。零语义/布局改动。
+#include <iostream>
+
 // ============ LevelupSupportEventManger C1/D1（报告转写） ============
 // 报告：Singleton 空 base → ScriptInterface base → 写 vptr →
 // LevelupSupportSciprt(+0x04) → map<int,int>(+0x1c) → vector<EventInfo>(+0x34)。

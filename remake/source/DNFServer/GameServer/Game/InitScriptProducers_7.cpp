@@ -912,6 +912,16 @@ done:
 //  （p167 MISSING make_pair/pair C1 OS_ 变体，P61/P192）。
 //  残余：p167 仅 EXTRA `stStatusLevelInfoD1Ev` ×2 —— P71 用户空析构跨版本
 //  trivial 判定差（CDataManager.h 共享头，不改）；槽/临时分配 N82。
+// [b28f-SweepDeps 复核] 主循环 `while (ScanType(token,true))`：ORIG 0x0890fa9d
+//  为**头置条件**（`movl $0x1,0x4(%esp); call ScanType; xor $0x1,%eax; test;
+//  jne exit`，入口 0x0890fa9a `jmp +2` 跳过对齐 nop），4.4 恒旋转为底部条件
+//  （entry `jmp <尾条件>`）。P292/P283 形（for(;;)+`if(!ScanType) break;`）实测
+//  **反劣**：our 370→372、gap −27→−29（diff 行 525→517 不改变 verdict）⇒ 已回退，
+//  按 P164 环旋转（4.4 固有）封顶。同族 importPcBangEquipmentRendar 内层
+//  items 循环已记「三形穷举不可同时保 xor$1 与头置」。
+// [b28f-SweepDeps 线索] 另 2 处 EXTRA `stStatusLevelInfoD1Ev` 可试 P334 trivial
+//  镜像视图（本 TU anonymous namespace 同字段序 POD 镜像 + 容器实参位
+//  reinterpret_cast<const stStatusLevelInfo*>），未实测（超本波预算）。
 int importQuestShopScript(const char* path, stQuestShop& out)
 {
     if (!loadRDARScriptFile("", path))

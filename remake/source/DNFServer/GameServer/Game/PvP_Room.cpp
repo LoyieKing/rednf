@@ -3525,7 +3525,11 @@ int PvP_Room::time_out(int* seats)
             }
             unsigned int local_38 = 0;
             int local_34 = 0x7fffffff;
-            for (unsigned int local_2c = 1; (int)local_2c < 5; local_2c = local_2c + 1)
+            // [L10b C05-F2（P209 反向可用形，b28d 本波翻案）] 循环变量原为
+            // `unsigned int` ⇒ 4.4 对尾测恒先载寄存器（`mov -N(%ebp),%eax; cmp $K,%eax;
+            // setle`，多 1 条）；ORIG 0x085d9df3/0x085d9d.. 为内存直比
+            // `cmpl $0x4,-0x28(%ebp); setle %al` ⇒ 局部声明 **int** 即复现。
+            for (int local_2c = 1; local_2c < 5; local_2c = local_2c + 1)
             {
                 if ((0 < local_84[local_2c + 5]) && (local_84[local_2c] < local_34))
                 {

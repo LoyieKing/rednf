@@ -383,6 +383,8 @@ int CDisjointer::OnUpgradeDisjointMachine(CUser* user)
     // b28d-solo（P222 正向包裹）：ORIG 把 it==end 的 0x13 错误块放在 0xe 块
     // **之后**（0x085d38ee vs 0x085d38e4）；实测 else-if 链劣化（identical
     // 20→19），正向包裹为最优形（残差仅块序，见函数头判词）。
+    // [2026-09-10 复测] 显式 `else { return 0x13; }` 形实测无效（仍 202/201，
+    // 4.4 把 else 出口排到函数尾 landing pad 之后）⇒ 块序属 N93附/N121 族。
     if (it != GetEtcScript()->m_levelMap.end())
     {
         // ORIG 0x085d38c9 先取 it->second（movzwl+movswl→%ebx）再调

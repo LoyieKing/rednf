@@ -301,7 +301,10 @@ public:
     void startUltimateRound();                                // 083064de
     unsigned char IsAssignNPCByPotion();                               // 0822cee2
     static bool IsEnableHellDungeon();                               // 0830ed07（b28d-Main: P292 更正版，5 调用点 `call; test %al,%al; je` 无 setne ⇒ bool）
-    char IsFirstEnterDungeon();                               // 08307656
+    // [E05 R2] P292 勘误/P321 T3：ORIG 定义 0x08307656 体 `movzbl 0x5c(%eax),%eax; ret`
+    // （无 setne），消费端 CParty::finish_loading 0x085b16dc `call; test %al,%al; je`
+    // （bool 直判无 setne）⇒ 返回 bool + 字段 bool（`return m_boolField` 不产 setne）。
+    bool IsFirstEnterDungeon();                               // 08307656
     unsigned char IsVisitedCurrentMap();                               // 085bf2e8
     bool SetDamagedPacketCnt(int uid);                        // 08308f4e
     int check_movemap_range(int x, int y);                    // 08307b2a
@@ -424,7 +427,7 @@ public:
     int m_field18;                         // +0x18（原 m_pos[1].second）
     std::pair<int, int> m_curPos[4];       // +0x1c（原 m_pos[2..5]，seat 当前位置）
     std::pair<int, int> m_lastPos[4];      // +0x3c（原 m_pos[6..9]，seat 上次位置）
-    char m_firstEnterDungeon;              // +0x5c
+    bool m_firstEnterDungeon;              // +0x5c（[E05 R2] P321 T3：bool，同上）
     char m_pad5d[3];                       // +0x5d
     int m_curX;                            // +0x60
     int m_curY;                            // +0x64

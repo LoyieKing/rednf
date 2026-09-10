@@ -185,6 +185,33 @@ struct EquipParamInfo
 //   @0x0861ca1b，GI 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert`）。
 //   定义已迁至 CFieldLengthChecker.cpp；本 TU 仅经权威头引用（U 引用）。
 
+// ============================================================================
+// [T1 #2 / P327 GI 键名对齐] 定义前移：ORIG 期望本 TU 的 `_GLOBAL__I_` 键名为
+//   `_ZN14ExtreamDungeon19BindTable_PredicateERKNS_15OUTPUT_ITEM_STRES2_`
+//   （ORIG 地址 0x0832dfa2，其 CU = Compound_ExtreamDun_Item.cpp）。
+//   P327：键名 = 本 TU 内**第一个「强符号 · 外部链接 · 本 TU 定义」**的 file-scope
+//   实体（外联函数取 mangled）。原定义位于下方 namespace ExtreamDungeon 块中
+//   （文件后部），使键名落到 `sync_script::GetInstanceSyncScript`（= only_new）。
+//   依 P327「只移函数定义、禁移带动态初始化的对象」把本**函数**定义前移到首个
+//   强符号位（include 区之后、`namespace sync_script` 之前）；函数体逐字未改。
+//   验证：`nm /tmp/tu_CItemList.o | grep -o '_GLOBAL__I_.*'` == ORIG 期望键名 +
+//   `check_tu_routed.sh` 四数零回退（693/1357/6/14）。
+// ============================================================================
+namespace ExtreamDungeon
+{
+
+bool BindTable_Predicate(                                           // ORIG T 0x832c3cc
+    const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b)
+{
+    if (a.m_usableLevel == b.m_usableLevel)
+    {
+        return a.m_index < b.m_index;
+    }
+    return a.m_usableLevel < b.m_usableLevel;
+}
+
+}  // namespace ExtreamDungeon
+
 // ===================== 外部依赖（其它 TU 提供，仅声明） =====================
 
 namespace sync_script
@@ -2953,16 +2980,6 @@ int CCompound_ExtreamDun_Item::_exception_Rare(                     // ORIG T 0x
         }
     }
     return found;
-}
-
-bool BindTable_Predicate(                                           // ORIG T 0x832c3cc
-    const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b)
-{
-    if (a.m_usableLevel == b.m_usableLevel)
-    {
-        return a.m_index < b.m_index;
-    }
-    return a.m_usableLevel < b.m_usableLevel;
 }
 
 // [b28d-20] _FindSelectItem（ORIG 0x832d15e，109/115，nd 85）：残差 = 帧

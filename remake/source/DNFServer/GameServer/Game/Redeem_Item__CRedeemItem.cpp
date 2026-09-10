@@ -78,14 +78,19 @@ bool CRedeemItem::isAddableFilter(const Inven_Item& item)
 // pop_front，push_back，返回 1。
 int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
 {
-    // [b28d-46 判词·N/N84+P83] ORIG 0x085f71a8：72 vs 51；ORIG 对 0x3c 字节
-    // 载荷逐字段/结构搬移展开，我方 memcpy 生成 call（N84/P83 块搬移形态差）；
-    // 载荷长度与字段序已逐条对应（语义等价）⇒ 封顶。
+    // [b28d-46 判词·N/N84 翻正] ORIG 0x085f71a8 对载荷为**整体结构赋值**形：
+    // 0x085f7202..0x085f7261 逐 dword（15 条 `mov off(%eax),%edx; mov %edx,-N(%ebp)`）
+    // + 尾 `movzbl 0x3c(%eax); mov %al,-0x10(%ebp)` ⇒ 源写 `info.m_item = item;`
+    // （N84：结构体直接赋值，禁 memcpy ⇒ 4.4 亦按块搬移发射，不再 `call memcpy`）。
     Inven_Item_Expand_RedeemInfo info;
-    std::memcpy(&info.m_item, &item, 0x3c);
-    reinterpret_cast<unsigned char*>(&info.m_item)[0x3c] =
-        *((const unsigned char*)&item + 0x3c);
-    info.m_count40 = param3 ? (param2 + THROW_FEE) : BUY_FEE;
+    info.m_item = item;
+    // ORIG 0x085f7266..0x085f727f：then 臂 `add $0x3e8,%eax; mov %eax,-0xc(%ebp);
+    // jmp`、else 臂 `movl $0x3e8,-0xc(%ebp)` 直落 —— 两臂各自 store ⇒ if/else 形
+    //（P47：三目会生单 store + 常量入 eax 的异形）。
+    if (param3)
+        info.m_count40 = param2 + THROW_FEE;
+    else
+        info.m_count40 = BUY_FEE;
     alter();
     if (m_redeemList.size() > 0x14)
         m_redeemList.pop_front();
@@ -97,17 +102,19 @@ int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
 // rep movsl 0x11，结构整体赋值即内联该复制）。
 void CRedeemItem::getData(char* pData) const
 {
-    // [b28d-L28 round2 翻正] 旧判词「N82+P83 封顶」作废：ORIG 0x085f78d4 起对目标缓冲
-    // **每次重载形参**（`mov -0x10(%ebp),%edx; mov %eax,0x4(%edx)`，
-    // `mov -0x10(%ebp),%edx` 在每处写点重现）——我方 `char* dst = pData;` 具名局部
-    // 使 4.4 缓存到 %ebx（`lea 0x4(%eax),%ebx` 一次 + `mov %eax,(%ebx)`），
-    // 属 P183「禁指针缓存」⇒ 删缓存、逐点用形参表达式。
+    // [b28d-L28 round2 + P0 复核] ORIG 0x085f78bc 入口即在 begin() **之前**
+    // `mov 0xc(%ebp),%eax; mov %eax,-0x20(%ebp)`（形参→具名局部 pData 副本），
+    // 之后每处写点都 `mov -0x20(%ebp),%edx` 重载 ⇒ 原码**有**具名 `char* dst`
+    // 局部（P0 槽往返律；旧「删缓存」判词作废）。循环计数 ORIG 尾测为
+    // `mov -0x1c(%ebp),%eax; cmp $0x14,%eax; ja`（两段 + 无符号）⇒ i 为 unsigned
+    //（P310）。
+    char* volatile dst = pData;
     std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
         m_redeemList.begin();
-    *(int*)(pData + 4) = (int)m_redeemList.size();
+    ((int*)dst)[1] = (int)m_redeemList.size();
     int i = 0;
-    for (; i <= 0x14 && it != m_redeemList.end(); ++it, ++i)
-        *(Inven_Item_Expand_RedeemInfo*)(pData + i * 0x44 + 8) = *it;
+    for (; (unsigned int)i <= 0x14 && it != m_redeemList.end(); ++it, ++i)
+        *(Inven_Item_Expand_RedeemInfo*)(dst + i * 0x44 + 8) = *it;
 }
 
 
@@ -117,8 +124,11 @@ void CRedeemItem::getData(char* pData) const
 // finalize + Send 并返回 1。
 int CRedeemItem::Send_RedeemList(CUser* user)
 {
-    // [b28d-46 判词·N/N82] ORIG 0x085f73ee：180 vs 188；帧 0x30 vs 0x38 与
-    // 迭代器/槽号平移（N82）⇒ 封顶。
+    // [b28d-46 判词·N/N82 翻正] ORIG 0x085f73ee 全程**无 Inven_Item 局部副本**：
+    // 循环首 `call _ZNKSt14_List_iterator...ptEv; mov %eax,-0xc(%ebp)` 后逐处
+    // `mov -0xc(%ebp),%eax; mov 0x2(%eax),%eax`（具名 entry 指针 + 每处重载，
+    // P0/P167 `it->` 形）⇒ 删 memcpy/局部对象即消 `call memcpy` 与 0x3d 字节
+    // 栈副本（帧 0x80→ORIG 0x30）。
     PacketGuard packet;
     packet.put_header(0, 0x121);
     packet.put_byte((int)m_redeemList.size());
@@ -128,33 +138,28 @@ int CRedeemItem::Send_RedeemList(CUser* user)
              m_redeemList.begin();
          count < MAX_COUNT && it != m_redeemList.end(); ++it, ++count)
     {
-        const Inven_Item_Expand_RedeemInfo& entry = *it;
+        // ORIG 0x085f7452 单次 ptEv 后存具名指针 -0xc；其后每处字段访问
+        // 都从该槽重载（禁缓存到 callee-saved）。
+        Inven_Item_Expand_RedeemInfo* entry = it.operator->();
 
-        // Inven_Item_Expand_RedeemInfo 前 0x3c 字节即 Inven_Item 镜像
-        // （AddRedeemList 拷贝实证），按字段口径逐项写出。
-        Inven_Item item;
-        std::memcpy(&item, &entry.m_item, 0x3c);
-        unsigned char lastByte = reinterpret_cast<const unsigned char*>(&entry.m_item)[0x3c];
-
-        packet.put_int(entry.m_count40);                    // +0x40 兑换计数
-        packet.put_int(item.m_addInfo);                     // +0x02 物品 idx
-        packet.put_int(item.m_addInfo2);                    // +0x07 数量/强化值
-        packet.put_byte((int)item.GetItemAttr());           // 属性字节
-        packet.put_short((int)item.m_fieldb);               // +0x0b 耐久
-        (void)lastByte;
-        packet.put_byte((int)(unsigned char)item.m_field0); // +0x00 绑定标记
+        packet.put_int(entry->m_count40);                    // +0x40 兑换计数
+        packet.put_int(entry->m_item.m_addInfo);             // +0x02 物品 idx
+        packet.put_int(entry->m_item.m_addInfo2);            // +0x07 数量/强化值
+        packet.put_byte((int)entry->m_item.GetItemAttr());   // 属性字节
+        packet.put_short((int)entry->m_item.m_fieldb);       // +0x0b 耐久
+        packet.put_byte((int)(unsigned char)entry->m_item.m_field0); // +0x00 绑定标记
 
         if (!G_GameWorld()->IsEnchantRevisionChannel())
-            packet.put_int(item.m_fieldd);                  // +0x0d 强化信息
+            packet.put_int(entry->m_item.m_fieldd);          // +0x0d 强化信息
         else
             packet.put_int(0);
 
-        packet.put_byte((int)item.m_amp.getAbilityType() & 0xff);
-        packet.put_short((int)item.m_amp.getAbilityValue() & 0xffff);
+        packet.put_byte((int)entry->m_item.m_amp.getAbilityType() & 0xff);
+        packet.put_short((int)entry->m_item.m_amp.getAbilityValue() & 0xffff);
 
         WongWork::CItemUpgrade* upgrade = G_CDataManager()->m_itemUpgrade;
-        upgrade->make3rdChroniclePacket(user, item, &packet);
-        packet.put_packet(item);
+        upgrade->make3rdChroniclePacket(user, entry->m_item, &packet);
+        packet.put_packet(entry->m_item);
     }
 
     packet.finalize(true);

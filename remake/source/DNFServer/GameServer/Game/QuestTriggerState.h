@@ -32,7 +32,10 @@
 //   ⇒ 原码是 (v & (0x1ff<<9)) >> 9 形；subTriggerState v==0 对 +0x00 的 4 字节自减
 //   （`mov (%eax),%eax; lea -1(%eax),%edx; mov %edx,(%eax)`）⇒ 需 m_low32 视图。
 // 双编译器探针 /tmp/qts/b.cpp（4.4.7）与 ORIG 逐条一致；4.1.2 同形（/tmp/qts/p2_41.s m8）。
-// sizeof 8 / 偏移 0,2,4,6 / 对齐 2 与 short 版逐值不变；7 个符号 mangled 全不变。
+// sizeof 8 / 偏移 0,2,4,6 与 short 版逐值不变；对齐由 short 版的 2 变 4（union 含
+// int m_low32），与 ORIG 一致 —— 证据：Quest.cpp 的局部对象 `stQuestTriggerState_t state`
+// 在 ORIG 需 `__attribute__((aligned(4)))` 才落同一槽（4.4 short 版按自然对齐 2 落 -0x4a），
+// 即 ORIG 类型对齐 = 4；7 个符号 mangled 全不变。
 // operator= 返回类型引用→void：返回类型不入 mangled（`aSERKi`），ORIG 0x086ad56c 尾部
 // `pop %ebp; ret` 无 eax 装载（void 形）；全部调用点为语句式（UserQuest.cpp `state = m_trigger[i];`）。
 #define ST_QUEST_TRIGGER_STATE_WEAK __attribute__((weak))
@@ -64,6 +67,12 @@ struct stQuestTriggerState_t
 
 static_assert(sizeof(stQuestTriggerState_t) == 8,
               "stQuestTriggerState_t ABI layout drift");
+static_assert(__builtin_offsetof(stQuestTriggerState_t, m_low32) == 0,
+              "stQuestTriggerState_t m_low32 offset drift (+0x00)");
+static_assert(__builtin_offsetof(stQuestTriggerState_t, m_trigger3) == 6,
+              "stQuestTriggerState_t m_trigger3 offset drift (+0x06)");
+static_assert(__alignof__(stQuestTriggerState_t) == 4,
+              "stQuestTriggerState_t alignment drift");
 
 #undef ST_QUEST_TRIGGER_STATE_WEAK
 

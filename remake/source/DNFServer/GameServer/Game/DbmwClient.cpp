@@ -5,6 +5,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <iostream>   // std::ios_base::Init __ioinit（ORIG GI 键名 _ZN10DbmwClientC2Ev 的前提，P338）
 #include "GameTypes.h"     // cMyTrace
 #include "LogManager.h"
 

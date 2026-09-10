@@ -13,10 +13,11 @@
 //                          LoadScript T 0x08333ea6
 // importCompoundAvatarTable(T 0x08903ea7) 仅声明——定义归脚本导入域批次。
 // ============================================================================
-// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
-// `_GLOBAL__I__ZN8WongWork15CCompoundAvatarC2Ev`（ORIG 0x8334202）；本 TU 前面的
-// STAncientRareAvatarCube/tagCompoundAvatar*/tagCompoundAvatarTable 定义均为 W 弱符号，
-// 不参与键名（P327），WongWork::CCompoundAvatar C1 即首个强符号。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射。
+// [T1-GI · P327] 键名 `_GLOBAL__I__ZN8WongWork15CCompoundAvatarC2Ev`（ORIG 0x8334202）：
+// 4.4 实测首强符号 = STAncientRareAvatarCube C1（**类外定义 ⇒ 强符号 T**，非弱；
+// 其 W 仅出现于编译器的 copy/D1 生成件）⇒ WongWork::CCompoundAvatar C1 定义必须
+// 前移到它之前，见下方「键名位」块。
 #include <iostream>
 
 #include "CCompoundAvatar.h"
@@ -24,6 +25,28 @@
 
 #include <ctime>
 #include <cstring>
+
+// ==================== WongWork::CCompoundAvatar（键名位 · P327）====================
+// ORIG 0x08331d74：11×tagCompoundAvatarTable 构造（成员数组自动）→
+// CMTRand(new 0x9c8)(time(0)) 存 +0x84 → 100 次 randInt(10000) 热身。
+// 槽残差：ORIG seed=-0x24/range=-0x20 vs 4.4 call 临时恒浅槽对调（P212 全头部
+// 声明试形反劣 8→10，具名 seed 亦不落深槽）——与 CItemUpgrade_Separate::C1
+// b26 判词同型，N82 族封顶。
+namespace WongWork
+{
+CCompoundAvatar::CCompoundAvatar()
+{
+    // b28d-45 复测：P212 全头部声明（seed/range/i 按 ORIG 槽深序）槽序不变且
+    // 判级 NEAR→DIFF，确认 N82/N98 槽序封顶（ORIG 0x08331deb seed=-0x24 /
+    // 0x08331e35 range=-0x20 不可翻）。
+    m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
+    for (int i = 0; i < 100; ++i)
+    {
+        unsigned long range = 10000;
+        m_rand->randInt(range);
+    }
+}
+}  // namespace WongWork
 
 // ============================ STAncientRareAvatarCube ============================
 
@@ -92,24 +115,6 @@ tagCompoundAvatarTable::getCompoundAvatarInfo(int idx) const
 
 namespace WongWork
 {
-
-// ORIG 0x08331d74：11×tagCompoundAvatarTable 构造（成员数组自动）→
-// CMTRand(new 0x9c8)(time(0)) 存 +0x84 → 100 次 randInt(10000) 热身。
-// 槽残差：ORIG seed=-0x24/range=-0x20 vs 4.4 call 临时恒浅槽对调（P212 全头部
-// 声明试形反劣 8→10，具名 seed 亦不落深槽）——与 CItemUpgrade_Separate::C1
-// b26 判词同型，N82 族封顶。
-CCompoundAvatar::CCompoundAvatar()
-{
-    // b28d-45 复测：P212 全头部声明（seed/range/i 按 ORIG 槽深序）槽序不变且
-    // 判级 NEAR→DIFF，确认 N82/N98 槽序封顶（ORIG 0x08331deb seed=-0x24 /
-    // 0x08331e35 range=-0x20 不可翻）。
-    m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
-    for (int i = 0; i < 100; ++i)
-    {
-        unsigned long range = 10000;
-        m_rand->randInt(range);
-    }
-}
 
 // ORIG 0x08331ea2：delete m_rand 并置空；11 张表逆序析构（编译器生成）。
 CCompoundAvatar::~CCompoundAvatar()

@@ -25,6 +25,28 @@
 // 解析/迭代一轮」模式。本 TU 无 goto；2 处 continue（sendBringUpReward）与 2 处
 // break（CExchange::verifyMaterialItemByRule、SendCreateEmblemStatistic）均编译为
 // 正常前向跳转/回边，与 ORIG 一致。
+// ----------------------------------------------------------------------------
+// [b28d-D03 本波 判词]（fresh `check_tu_routed.sh`：identical=87 ae=148（合计 235）
+//   near=1 diff=3；shift 探针对 5 件全跑）
+//   · verifyMaterialItemByRule 0x0810fe1a —— 95/94：shift **PURE SHIFT c=0**（帧 0x24、
+//     槽直方图全等）；唯一残差 = ORIG 比我们多 1 条孤立 `nop`（中段对齐产物，N112：
+//     4.4 循环出口 nop 填充旗标无效、compare 口径已剥离尾部对齐 nop）⇒ 封 N112。
+//   · deleteUsedMaterialItem 0x0810eede —— 223/223：shift PURE SHIFT c=0；残差 = 同内容
+//     指令块相对序（difflib 重排），属 N104/EH 尾块相对序族 ⇒ 封顶。
+//   · SendCreateEmblemStatistic 0x0810f742 —— 99/99（**NEAR**）：shift PURE SHIFT c=0；
+//     残差 = 索引折形 `lea 0x8(%ebx),%edx; mov %eax,-0x4c(%ebp,%edx,4)` vs
+//     `lea 0x4(%ebx),%edx; mov %eax,-0x3c(%ebp,%edx,4)`（算术等价：-0x4c+4*(ebx+8) ≡
+//     -0x3c+4*(ebx+4)）⇒ P30/N4「add-vs-lea/scaled 索引」封顶；另 2 处数据符号立即数
+//     （N132 AE 口径）。
+//   · sendBringUpReward 0x0810fe90 —— 331/335：shift MIXED，帧 0x60 vs 0x70（我方多 4 槽，
+//     push 数相同）；残差三类（历轮已锁定）：a) 帧/槽 = N82/N115；b) varargs 求值序
+//     ORIG 右起（m_itemIdx→getCurCharacNo→get_acc_id）vs 4.4 恒左起（P75/P87，P226
+//     语句表达式实测无效）；c) std::copy/back_inserter 内联块序（+1 jmp 同目标）。
+//     p167 58/58 CLEAR。
+//   · process_update_ingame_history 0x0810c82e —— 98/102：shift **PURE SHIFT c=0**；
+//     残差 = 4 处 sret 调用点的寄存器角色（ORIG `lea -0xNN(%ebp),%edx; mov %eax,0x4(%esp)`
+//     vs 4.4 `mov %eax,%edx; lea …,%eax`）⇒ N7（sret 地址/返回值寄存器角色互换，
+//     4.4.7 后端固有，P230 判据）封顶。
 
 #include <cstring>
 #include <utility>

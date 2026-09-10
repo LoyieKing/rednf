@@ -620,12 +620,19 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
     cMyTrace(__PRETTY_FUNCTION__, 0xfad, 0)(
         "win side(%d), win pp(%d, %d), lose pp(%d, %d), winAliveCnt(%d)",
         static_cast<int>(static_cast<unsigned char>(pkt.m_powerSide)), winCnt,
+        // [E02·R5 实验已回退] 删 (int) cast 实测反劣（our 329→331，+2 条）：
+        //   ORIG `movzbl -0x3d,%eax; movzbl %al,%edi` 的提升直入形由**显式**
+        //   窄化 cast 链复现（与 C28L0 的「vararg 冗余 cast 反劣」方向相反，
+        //   因本处 cast 是 uchar→int 提升必需形，非冗余）。
         static_cast<int>(winPoint), loseCnt,
         static_cast<int>(losePoint), winAliveCnt);
 
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE);
-    proxy->SendPowerWarPoint(pkt);
+    // [E02·R5 修·P0/P52/P134] 删具名 proxy 局部：ORIG 0x82ed2xx 段为
+    //   `call GetServerProxy; lea -0x69(%ebp),%edx; mov %edx,0x4(%esp);
+    //    mov %eax,(%esp); call SendPowerWarPoint`（结果 %eax 直通 receiver，
+    //   无槽往返）。我方具名局部多 `mov %eax,-0x20(%ebp)` + 回读一对。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE)
+        ->SendPowerWarPoint(pkt);
 
     GlobalData::s_power_manager->IncreaePowerWarPointInChannel(
         pkt.m_powerSide, static_cast<int>(winPoint));

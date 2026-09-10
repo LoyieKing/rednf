@@ -55,6 +55,30 @@
 //   ProcStage::isEndStage 0x0812e2c6 —— P248② 字段 bool 化后 ORIG sete 物化不可复现
 //   ProcStage::sendClearStage 0x0812e6de —— N86（迭代器/容器 copy-elision 槽差）
 //   ProcSummonObjectMs::debugLog 0x0812d804 —— N89（vector/map 迭代器外链 + trace 变参）
+// ----------------------------------------------------------------------------
+// [b28d-D03 本波 判词]（fresh `check_tu_routed.sh`：identical=226 ae=435（合计 661）
+//   near=0 diff=6 = _Z41__static_initialization…（N123 豁免）+ 下列 5 件）
+//   · makeCurrentPhaseSummonObject 0x0812eba8 —— 本波三改：①`int spawnMs = m_field10;
+//     spawnMs += it->m_firstDelayMs;` 拆两句（ORIG 0x812f054 段 `mov→槽; add %eax,槽`
+//     两步，合并写被 4.4 折 lea）②`int create = 1/0`（widthscan：ORIG 全函数 clr_b=0/
+//     cmp_b=0 ⇒ 原码 int 非 bool；旧 bool 形产 `movb $1` + `cmpb $0`）③补
+//     `so->m_deadFlag = 0;`（ORIG 0x812f020 `movb $0x0,0xc(%eax)` 照抄，P171）。
+//     残差 = N82/N86（帧 0xac vs ORIG 0xb0 + 槽组平移 + 我方多 push %edi：总栈两侧同为
+//     0xb8）+ N7；`tl/assigns` 具名局部两形历轮实测劣（156→201/474）勿再试。
+//   · sendMailRewardItem 0x0812f47a —— shift 探针：**MIXED**，唯一残差 = title/itemBase
+//     槽基 1 字节（OURS -0x15b/-0x3bd vs ORIG -0x15c/-0x3be）。本波补试 `char[1]` 与
+//     `char = 0` 两种 1 字节前置死局部均无效/反劣（后者整槽组漂移）⇒ 维持 P312 framePad[1]
+//     现状，判 N95（槽基 gap 1B，4.4 分配器不可控）。
+//   · summonObjectAndSendPacket 0x0812d658 —— shift：MIXED，OURS-only[-0x48,-0x20,-0x14]
+//     vs ORIG-only[-0x44,-0x1c]（两组各深 4 + 我方净多 1 槽）；帧两侧同为 0x50。
+//     N95 封顶（历轮 P223/P48 修复已使 NDIFF 119→23）。
+//   · dungeonClearInfo 0x08133bd4 —— shift：**PURE SHIFT c=0**（帧 0x15c 两侧一致、槽直方
+//     图全等）；唯一残差 = 1 条 N18a（ORIG `mov (%eax),%eax; mov %eax,%ebx` = CharacData::
+//     m_field0 读两段 vs 4.4 单段 `mov (%eax),%ebx`）。P254 路径（字段 enum 化）需新造
+//     enum 类型且写入端在 advancealtar_StageControl.cpp（非本泳道）⇒ 不动，封 N18a。
+//   · clearStageAndReward 0x0812e3f6 —— shift：PURE SHIFT c=0（帧 0x6c 一致）；残差 =
+//     N7（esi/ebx/edi 角色互换）+ 4.4 对 `(A||B) && !C` 的 setcc 汇合块序与 4.1 相反
+//     （P214①/P225 边界）；P226 条件向语句表达式已把 NDIFF 19→14。
 // ============================================================================
 // b28d-solo-ProcStage 收口判词（16 件清单；verdict 只认 check_tu_routed.sh + p167）
 //   本泳道收口读数：identical=226 ae=435（合计 661）near=0 diff=6

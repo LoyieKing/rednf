@@ -106,11 +106,12 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
     std::string sub;
     std::string text;
 
-    for (;;)
+    // [R26D] 尾置条件形（与 importPvpMissionParameterScript 的 ORIG 形相反）：
+    // ORIG 0x8a5ac9c 入口 `jmp +0xb26` 直落函数尾的条件块（+0xb26 `test %al,%al;
+    // jne +0x79` 成功回体、失败 +0xb47 `mov $1,%ebx` 返回 true）；写成
+    // `for(;;)+if(!ScanType) return true` 会被 4.4 生成头置条件（我方旧形 +0x7d）。
+    while (ScanType(token, true))
     {
-        if (!ScanType(token, true))
-            return true;
-
         if (token == "[rank range]")
         {
             script->m_grade.first = ScanInt((bool*)0);    // +0x10
@@ -159,7 +160,10 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
                 script->m_field28.push_back(idx);       // +0x28
             }
         }
-        else if (token != "[condition]")
+        // [R26D] P167 一击命中：ORIG 调 `_ZSteqIcSt11char_traitsIcESaIcEEbRKSb
+        // IT_T0_T1_EPKS3_`（string==字面量）而旧文写 `token != "[condition]"`
+        // 生成 `_ZStne...`（MISSING eq -1 / EXTRA ne +1）。取反写回 eq 形。
+        else if (!(token == "[condition]"))
         {
             if (token == "[prev mission]")
                 script->m_prevMissionIndex = ScanInt((bool*)0);   // +0x04
@@ -276,6 +280,7 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
             }
         }
     }
+    return true;
 }
 
 // ============================================================================
@@ -292,8 +297,13 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
 
     std::string token;
     bool ok = false;
-    while (ScanType(token, true))
+    // [R26D] 头置条件形（P283/P164 反向）：ORIG 0x8a5b847 入口 `jmp +0x4a` 后
+    // 循环头即 ScanType（`xor $1;test;jne +0x266` 失败跳尾部出口），
+    // `while(ScanType(...))` 会被 4.4 旋转成尾置条件（我方旧形循环头在 +0x239）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if ("[frequent daily mission]" == token)
         {
             int count = ScanInt(&ok);

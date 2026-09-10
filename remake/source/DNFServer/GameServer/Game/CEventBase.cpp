@@ -8,14 +8,11 @@
 //   SetEventFlag 0x080c84e2（写 +0x08）/ IsEventing 0x080c84fa（读 +0x08）
 //   changeCharacName/dailyresetData/deliveryStart/deliveryEnd/delivery 空。
 #include "CGuildServerProxy.h"
+#include <iostream>   // std::ios_base::Init __ioinit（ORIG GI 键名 _ZN10CEventBaseC2Ev 的前提，P338）
 
-// ORIG 0x0810af10：两个 ushort 均置 0xffff。
-stADDINFO::stADDINFO()
-{
-    m_info0 = 0xffff;
-    m_info1 = 0xffff;
-}
-
+// [P327 GI 键名] ORIG 本 TU `_GLOBAL__I_` 键名 = _ZN10CEventBaseC2Ev ⇒ CEventBase
+// ctor 定义须为本 TU 首个强符号（此前 stADDINFO::stADDINFO 定义在前 ⇒ 键名错为
+// _GLOBAL__I__ZN9stADDINFOC2Ev）。纯前置函数定义，符号集合/构造序零变化。
 // [b28d-30] 复核 NEAR：ORIG 帧 0x18 vs 4.4 0x14（P190 附注：带 call 帧 sub 恒 16k+4
 // 量化，0x18 非量化值不可凑；dead int×4=0x14、+double 跳 0x24）⇒ N82/P190 封顶。
 CEventBase::CEventBase()
@@ -29,6 +26,13 @@ CEventBase::CEventBase()
     // 他 TU 外联（P210 同 TU 继承律不适用）。唯一真差 = sub 立即数 1 行，N82/P182 族。
     int d1, d2, d3, d4;
     m_isEventing = false;
+}
+
+// ORIG 0x0810af10：两个 ushort 均置 0xffff。
+stADDINFO::stADDINFO()
+{
+    m_info0 = 0xffff;
+    m_info1 = 0xffff;
 }
 
 CEventBase::~CEventBase()

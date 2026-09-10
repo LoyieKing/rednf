@@ -17,6 +17,7 @@
 #include "StringTypes.h"
 
 #include <ctype.h>    // tolower/toupper/isspace
+#include <iostream>   // std::ios_base::Init __ioinit（ORIG GI 键名 _Z20readStringFromBufferPciRS_ 的前提，P338/N123）
 #include <string.h>   // memcpy / strlen
 #include <string>
 #include <wchar.h>    // towlower/towupper

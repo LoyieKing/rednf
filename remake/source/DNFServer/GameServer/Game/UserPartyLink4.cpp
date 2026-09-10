@@ -154,13 +154,12 @@ void CUser::deleteGuildExpBook()
 
     deleteSpecificItem(requestItems, deletedItems);
 
-    // P0/N96 清绑（历史 register asm("eax") 绑定全域禁用）：ORIG T 0x0867e898
-    // 对 `send_itemspace()`(返 int) 结果走 `xor $0x1,%eax; test %al,%al` 寄存器
-    // 形；4.4 任何合法表达式（^1/!=1/uchar cast 五探针 p11/p12）恒折叠
-    // `cmp $0x1,%eax; setne %al; test` 三段，单段 xor 顶寄存器形不可造
-    // （P168a④ 绑定赋值中转并入 N18a 反向判词）。清绑致 NEAR4→DIFF 回退，
-    // 按 N96+P168a④ 落判词封顶。
-    if (send_itemspace((int)ENUM_ITEMSPACE_0) ^ 1)
+    // P248 档① 定论（P168a X1 不成立）：ORIG 0x0867e930 `call send_itemspace;
+    // xor $0x1,%eax; test %al,%al; je` 的唯一复现形 = **callee 返回 bool +
+    // 调用点裸 `if (!f())`**（P292 表：bool 返回的 `!f()` 直产 xor/test/je）。
+    // 本仓 send_itemspace 早已 bool 化（CUser.h:3007 / CUser.cpp:8255），旧写
+    // `^ 1` 恒被 4.4 折成 `cmp $1; setne; test` 三段 ⇒ 是配套漏改，非 N 封顶。
+    if (!send_itemspace((int)ENUM_ITEMSPACE_0))
     {
         LogManager::logFormat(
             1, "user.cpp", __PRETTY_FUNCTION__, 0x7c57,
@@ -168,7 +167,7 @@ void CUser::deleteGuildExpBook()
             NumberToString(get_acc_id(), 0));
         return;
     }
-    if (send_itemspace(2) ^ 1)  // ENUM_ITEMSPACE_CARGO（同形判词）
+    if (!send_itemspace(2))  // ENUM_ITEMSPACE_CARGO（P248 档① 同形）
     {
         LogManager::logFormat(
             1, "user.cpp", __PRETTY_FUNCTION__, 0x7c5c,
@@ -267,7 +266,11 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     packet.put_byte(drop.m_item.m_amp.getAbilityType());
     packet.put_short(drop.m_item.m_amp.getAbilityValue());
     packet.put_packet(drop.m_item);
-    packet.put_byte(drop.m_count == 0 ? 1 : 0);
+    // ORIG 0x085a7703..0x085a7717：`movzbl; test %al,%al; je L; mov $0x0,%eax;
+    // jmp E; L: mov $0x1,%eax; E:` —— 4.1 直测无 `xor $1` 归一。写 `x==0 ? 1 : 0`
+    // 时 4.4 具 XOR 归一（等价变换为 `x!=0 ? 0 : 1`）⇒ 改按**反极性**直接写
+    // `x ? 0 : 1` 复现直测形（语义等值：m_count!=0→0、==0→1）。
+    packet.put_byte(drop.m_count ? 0 : 1);
     packet.finalize(true);
     send_to_party(packet);
     return 0;                                          // ORIG 0x085a774b `mov $0x0,%ebx`

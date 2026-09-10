@@ -706,8 +706,16 @@ int importDeathTowerScript(const char* path, stDeathTower_t& out)
 // CLEAR（33=33）；[reward exp weight] 改 `++i` 先于 ok 检查。残差 N112（nop ×）
 // + P211 store 序 + 槽（271 vs 264）⇒ N 封顶。
 // [SweepInitProd9 本轮] fresh 读数：origN 263 / ourN 265（gap −2），jcc 36=36、
-// 目标块差异 7 段（全部为 ORIG nop 中继岛/块首落点差，jcc 方向与数量逐位一致）
-// ⇒ N112/P211 封顶，无控制流真反。
+// 目标块差异 7 段（全部为 ORIG nop 中继岛/块首落点差，jcc 方向与数量逐位一致）。
+// [C03CryptoInit68 修·2026-09-10] 按 P0/配方⑦ 删 4 处「ORIG 无槽」具名 int 局部：
+//  `[exp standard monster cnt]` 与 `[reward item prob]` 三次 ScanInt 的结果在 ORIG
+//  均为 `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,0xN(%eax)` **直存**
+//  （0x089090e4/0x0890912e/0x08909164/0x0890919a），无 v/v1/v2/v3 槽 ⇒ 全部内联。
+//  读数：ourN 265→**264**、本次报告 origN 271（新 r_sdc4 口径），jcc 目标偏移与 ORIG
+//  逐位对齐（`je +0x45`/`+0x162` 等全等）；帧由 0x70 回到 0x60 邻域。
+// 残余（跨版本族）：ORIG 直存的 RHS-first 中转（`mov %eax,%edx`）vs 我方 LHS-first
+// 直存（P211/P76：字段与 ScanInt 返回同型 ⇒ 4.4 恒 LHS-first，源侧不可择）；
+// 以及 3 处 ORIG `nop; jmp` 中继岛（N112/P223）⇒ 记 N 封顶。
 int importBloodDungeonScript(const char* path, stBloodDungeon_t& out)
 {
     bool ok = false;
@@ -1447,6 +1455,16 @@ loop_exit:
 // 0890de2a `jmp 0890de2d` 被 4.4 jump-thread，P223 尾标签法在此跨非平凡
 // 局部声明不可用）+ 8 段目标块序差（块首 string-ctor 块 vs memset 块）+ 槽整体
 // 深 4（result 槽，ORIG 用 ebx）⇒ N82/N95/P223 封顶。
+// [C03CryptoInit68 修·2026-09-10] 上条「槽整体深 4」的真因已定位并翻正（P0/P244/
+// P231 三配方联用，ourN 199→203、ORIG 204）：
+//  ① `register bool result;`（裸 register，非 asm 绑定，P231/P307 合法）⇒ result
+//     免槽进 **%ebx**，token/str/ok/deadA 槽位与 ORIG 逐值一致（-0x20/-0x24/-0x25/-0x14）；
+//  ② result **不带初值**、两处 ScanType 失败改 `goto eof`、`eof: result = true;`
+//     ⇒ `mov $0x1,%ebx` 落在循环之后（ORIG 0x0890de2d），prologue 无多余 `movb $1,槽`；
+//  ③ `int deadA` 声明下移到两个 string 之后（ORIG 0890dbfc 在 SsC1Ev×2 之后）。
+// 残余（唯一）：尾部 EH 清理块相对序 —— ORIG 0x0890de49 处一条 `jmp +0x28f` 领起
+// cleanup 链，我方该跳与后续块序互换（N104「EH 尾块相对序」族，difflib 放大为 4 行）。
+// 语义等价，按 N104/P223 封顶（本件已由 DIFF 降为「仅尾块序」）。
 bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
 {
     // ORIG T 0x0890dbba（204 条；单出口 ebx 形——4.1 把所有失败/EOF 路径 merge
@@ -2127,6 +2145,10 @@ bool importDimensionActivationData(const char* path,
 // `mov slot,%eax; cmp $1; sete %al`（无分支），4.4 恒折 `cmpl $1,slot; jne;
 // mov $1; jmp; …`（每处 +1 jne +1 jmp）⇒ 属 P197④/setcc-fold 负例（4.1 槽比
 // sete 不可复现，探针族已证），非语义差；其余 2 段为块首落点差。语义等价。
+// [C03CryptoInit68 复测·2026-09-10] 已试 `data.m_10 = static_cast<char>(v == 1);`
+// 三处同改 ⇒ 产物与 `(v==1)?1:0` **逐条相同**（仍分支形）⇒ 维持 N197④ 封顶。
+// p167 复核：本件 MISSING/EXTRA 全为 C1↔C2 同址别名伪差（`_ZNSsC2Ev` vs `_ZNSsC1Ev`、
+// stOneEmotionData C1/C2），无真语义缺口（P93）。
 bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
 {
     if (!loadRDARScriptFile("", path))

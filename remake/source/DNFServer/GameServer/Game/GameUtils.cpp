@@ -8,9 +8,31 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <iostream>   // std::ios_base::Init __ioinit（ORIG GI 键名 _Z22CheckDailyScheduleTimeill 的前提，P338）
 #include <sys/time.h>
 #include <sys/select.h>
 #include <time.h>
+
+// ---- CheckDailyScheduleTime（每日调度时间检查，ORIG _Z22CheckDailyScheduleTimeill）----
+// [P327 GI 键名] ORIG 本 TU `_GLOBAL__I_` 键名 = _Z22CheckDailyScheduleTimeill ⇒ 该
+// 函数定义须为本 TU 首个强符号（此前 trim 定义在前 ⇒ 键名错为 _GLOBAL__I__Z4trimPc）。
+// 纯前置定义顺序（函数体/符号集合/构造序零变化）。
+// ORIG：localtime_r 拆 lCurTime，复制 tm 后置 nScheduleTime:00:00，mktime；
+// 若原时刻小时 < nScheduleTime 则回退一天；返回 lLastPlayTime <= 该时刻。
+bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime)
+{
+    time_t cur = lCurTime;
+    struct tm tmv;
+    localtime_r(&cur, &tmv);
+    struct tm t2 = tmv;
+    t2.tm_hour = nScheduleTime;
+    t2.tm_min = 0;
+    t2.tm_sec = 0;
+    time_t t = mktime(&t2);
+    if (tmv.tm_hour < nScheduleTime)
+        t -= 86400;
+    return lLastPlayTime <= t;
+}
 
 // ---- trim（CEnvironment::parse 用，ORIG 全局函数 _Z4trimPc @0x0829f0ef；返回入参）----
 // ORIG 语义：跳过 0x01..0x20 的 ASCII 控制字符（保留 >=0x80 高位字节），
@@ -144,24 +166,6 @@ void cMyTrace::operator()(const char* fmt, ...)
             break;
         }
     }
-}
-
-// ---- CheckDailyScheduleTime（每日调度时间检查，ORIG _Z22CheckDailyScheduleTimeill）----
-// ORIG：localtime_r 拆 lCurTime，复制 tm 后置 nScheduleTime:00:00，mktime；
-// 若原时刻小时 < nScheduleTime 则回退一天；返回 lLastPlayTime <= 该时刻。
-bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime)
-{
-    time_t cur = lCurTime;
-    struct tm tmv;
-    localtime_r(&cur, &tmv);
-    struct tm t2 = tmv;
-    t2.tm_hour = nScheduleTime;
-    t2.tm_min = 0;
-    t2.tm_sec = 0;
-    time_t t = mktime(&t2);
-    if (tmv.tm_hour < nScheduleTime)
-        t -= 86400;
-    return lLastPlayTime <= t;
 }
 
 // ============================================================================

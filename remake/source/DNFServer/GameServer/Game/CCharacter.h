@@ -11,6 +11,7 @@
 #define DNF_GAME_CCHARACTER_H_
 
 #include <string.h>
+#include <stddef.h>
 #include <utility>
 #include <vector>
 
@@ -50,6 +51,12 @@ struct _Additioal_info
     unsigned short m_field0c;      // +0x0c
     unsigned short m_field0e;      // +0x0e
     union { unsigned short m_field10[4];   // +0x10..+0x16（add/subtract 循环 i=0..3）
+                   short            m_field10s[4]; // +0x10..+0x16 signed 同址视角
+                   // （[2026-09-10 D06] P321-T1 直证：ORIG _CalcSwordman 0x0831f?
+                   //  `shl $0x3,%eax; mov %eax,%edx`、_CalcFighter `sub $0x134,%ax;
+                   //  mov %eax,%edx` = signed short 窄化形；unsigned 视角恒产
+                   //  `lea`，探针 /tmp/d06/p14.cpp g0..g4 对照。同宽 8B，sizeof
+                   // 0x52 与全部偏移零变化。）
                    char            m_elementResist[8]; // +0x10 element_resist（get_binary 8）
     };
     union { unsigned short m_field18[17];  // +0x18..+0x38（循环 j=0..16）
@@ -79,6 +86,11 @@ struct _Additioal_info
 
 // 布局自检（C++98）：锁死 0x52 ABI——嵌入 CCharacter[7]/CUser +0x90f/SPremiumInfo +0xc8。
 typedef char _Additioal_info_size_0x52[(sizeof(_Additioal_info) == 0x52) ? 1 : -1];
+// [2026-09-10 D06] union 基址锁：signed 视角 m_field10s 与 m_field10/m_elementResist 同址 +0x10。
+typedef char _Additioal_info_off_m_field10s_0x10[
+    (offsetof(_Additioal_info, m_field10s) == 0x10) ? 1 : -1];
+typedef char _Additioal_info_off_m_elementResist_0x10[
+    (offsetof(_Additioal_info, m_elementResist) == 0x10) ? 1 : -1];
 
 // ORIG STSecondGrowTypeInfoC1 W 0x8373934 / D1 W 0x8376324：
 //   2 个 _Additioal_info（0xa4）+ 2 个 vector（+0xa4/+0xb0，dtor 界 +0xbc）

@@ -13,6 +13,10 @@
 #include <utility>
 #include "TimerQueue.h"
 
+// [GI 调序 P327] CDisconnectDetecter 类声明须在 _IsTimeout 定义前可见，
+// 故把该头 include 提前到 TU 顶部（原位置在 namespace 块之前）。
+#include "CDisconnectDetecter.h"
+
 TimerQueue* G_TimerQueue();  // ORIG W 0x80f647c
 
 // ---------------------------------------------------------------------------
@@ -51,6 +55,21 @@ public:
     static void registNextTimer();  // ORIG T 0x086374e0
 };
 
+// [GI 调序 P327] `_IsTimeout` 定义前移为本 TU 首个强符号 ⇒
+// `_GLOBAL__I__ZN19disconnect_detecter19CDisconnectDetecter10_IsTimeoutEi`（ORIG 0x0847260d，
+// 符号本体 ORIG T 0x084721f4）。只移函数定义，不动任何带动态初始化的对象。
+namespace disconnect_detecter
+{
+bool CDisconnectDetecter::_IsTimeout(int time)
+{
+    if (GlobalData::s_systemTime_.getCurSec() - time > 30)
+    {
+        return true;
+    }
+    return false;
+}
+}  // namespace disconnect_detecter
+
 // ---- TimerDetectDisconnect::registNextTimer @ 0x086374e0 ----
 // 断线检测器定时器：10 秒后触发 dispatch_sig(0x6d)，若 DoDetectingDisconnect
 // 仍检测到断线用户则再次登记（自续期），见 TimerDetectDisconnect 报告。
@@ -63,8 +82,6 @@ void TimerDetectDisconnect::registNextTimer()
 }
 
 // cMyTrace 由 TimerQueue.h 间接引入的 GameTypes.h 声明（实现属独立 TU）。
-
-#include "CDisconnectDetecter.h"
 
 namespace disconnect_detecter
 {
@@ -182,19 +199,6 @@ bool CDisconnectDetecter::DoDetectingDisconnect()
 void CDisconnectDetecter::OnDisconnect(CUser* user)
 {
     user->OnDisconnect();
-}
-
-// [GI-ioinit L21 PENDING] 键名符号 _IsTimeout（ORIG 0x0847260d）需前移为本 TU 首强符号，
-// 但 CDisconnectDetecter 的类声明来自文件后段的 `#include "CDisconnectDetecter.h"`
-//（约第 76 行），单独前移该定义不可编译（已实测 COMPILE FAILED）⇒ 需先把该 include
-// 提前到本区之前；本轮保留 include（GI 已恢复发射）、键名待办。
-bool CDisconnectDetecter::_IsTimeout(int time)
-{
-    if (GlobalData::s_systemTime_.getCurSec() - time > 30)
-    {
-        return true;
-    }
-    return false;
 }
 
 CUser* CDisconnectDetecter::_GetUser(int uid, int uniqueId)
