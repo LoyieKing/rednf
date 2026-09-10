@@ -375,24 +375,25 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
         if (lowerStage == 0)
         {
             lowerStage = stage;
+            // [判据①] ORIG 0x0846939f..0x084693c4：do-while 尾测 = `subl $1; cmpl $1;
+            // jbe 假岛; call empty; test; je 假岛; mov$1/mov$0; test; jne 回边` ⇒
+            // 原码是 while(cond) 而非 break（break 形生 xor$1 + 反极性回边，见旧读数）。
             do
             {
                 lowerStage = lowerStage - 1;
-                if (lowerStage < 2 ||
-                    !m_rankMap[towerIdx][lowerStage].empty())
-                    break;
-            } while (true);
+            } while (lowerStage >= 2 &&
+                     m_rankMap[towerIdx][lowerStage].empty());
         }
         if (upperStage == 0)
         {
             upperStage = stage;
+            // [判据①] ORIG 0x0846941f..0x08469447：`addl $1; cmpl $0xc7; ja 假岛;
+            // call empty; test; je 假岛; …; jne 回边` ⇒ 同一 while(cond) 形。
             do
             {
                 upperStage = upperStage + 1;
-                if (upperStage >= kRankStageCount ||
-                    !m_rankMap[towerIdx][upperStage].empty())
-                    break;
-            } while (true);
+            } while (upperStage < kRankStageCount &&
+                     m_rankMap[towerIdx][upperStage].empty());
         }
 
         // 下界层无纪录（或已下探至 <2 仍空）或上界层无纪录（或已上探至 200 仍空）→ -1。
@@ -740,15 +741,16 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         pkt.put_header(0, 0xfe);
         pkt.finalize(true);
         m_party->send_to_party(pkt);
+        // [判据①] ORIG 0x08467375 `jmp 08467b14`（函数 epilogue）⇒ 原码 then 分支末尾 return；
+        // 旧的 if/else 共享后续代码使 then 落点变成 0x084673dd（curStage 计算），语义偏离。
+        return;
     }
-    else
-    {
-        setTowerState((ENUM_TOWER_STATE)3);
 
-        G_TimerQueue()->InsertTimer(
-            (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x4b, 1,
-            _genTimerKey((TIMER_MESSAGE)0x4b), 0x4b);
-    }
+    setTowerState((ENUM_TOWER_STATE)3);
+
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x4b, 1,
+        _genTimerKey((TIMER_MESSAGE)0x4b), 0x4b);
 
     curStage = m_stage.getCurrentStage();
     if (isLast)
@@ -1501,63 +1503,77 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
             isFromMap = a5;
         if (item.m_count != 0 && citem->isEpicRoutingItem())
             isFromMap = a5;
-        if (isFromMap && citem->check_item_routing())
+        // [判据①] ORIG 0x08466d7a（`cmpb $0,-0x25; je 尾`）与 0x08466d86（`call
+        // check_item_routing; test %al,%al; je 尾`）为两条独立守卫、各自单条 je 直跳
+        // 共享尾出口；4.4 对合成 `&&` 生 mov$1/mov$0 物化岛、对早退生 `jne next;
+        // jmp epilogue` 双跳 ⇒ 用正向嵌套 if 复现两条单 je。
+        if (isFromMap)
         {
-            result = NULL;
-            int routedTurn = m_playData.getLastRoutedTurn() + 1;
-            if (slot <= routedTurn)
+            if (citem->check_item_routing())
             {
-                routedTurn = 0;
-            }
-            int local_24 = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                CUser* member = m_party->get_user(i);
-                if (!(member != 0 && m_party->checkValidUser(i)))
-                    continue;
-                if (!m_playData.isMemberAlive(i))
-                    continue;
-
-                CInventory* invenR = (CInventory*)member->getCurCharacInvenR();
-                int ins = invenR->tryInsertItemIntoInventory(item.m_item);
-                if (ins != -1)
+                result = NULL;
+                int routedTurn = m_playData.getLastRoutedTurn() + 1;
+                // [判据①] ORIG 0x08466d9a `mov -0x24(%ebp),%eax; cmp 0x14(%ebp),%eax;
+                // jl`（routedTurn 为被减数）⇒ 原码写 `routedTurn >= slot`；旧形
+                // `slot <= routedTurn` 在 4.4 生反方向 cmp（jg）且 jcc 落点/助记符不同。
+                if (routedTurn >= slot)
                 {
+                    routedTurn = 0;
+                }
+                int local_24 = 0;
+                for (int i = 0; i < 4; ++i)
+                {
+                    // [判据①] ORIG 循环体首 `movl $0x0,-0x14` ⇒ member 两段式
+                    // （声明=0 + 独立赋值语句，P197③）。
+                    CUser* member = 0;
+                    member = m_party->get_user(i);
+                    if (!(member != 0 && m_party->checkValidUser(i)))
+                        continue;
+                    if (!m_playData.isMemberAlive(i))
+                        continue;
+
+                    CInventory* invenR = (CInventory*)member->getCurCharacInvenR();
+                    // [判据①] ORIG 0x08466e9c `cmp $0xffffffff,%eax; sete %al; test
+                    // %al,%al; jne 循环尾`：ins 无具名槽（P0 直比 + sete 物化）⇒ continue。
+                    if (invenR->tryInsertItemIntoInventory(item.m_item) == -1)
+                        continue;
+
                     countBuf[i] += 1;
                     if (local_24 == routedTurn)
                     {
                         countBuf[i] += '(';
                         m_playData.setLastRoutedTurn(local_24);
                     }
-                    bool bAdd = false;
-                    if (!citem->is_stackable() && citem->GetItemType() == 10)
-                    {
-                        bAdd = citem->check_job_type(member->get_charac_job());
-                    }
-                    if (bAdd)
+                    // [判据①] ORIG 0x08466ee1..0x08466f8d：is_stackable/get_item_type/
+                    // check_job_type 三守卫各 je 同一 mov$0 岛，无 bAdd 具名槽 ⇒ 原码是
+                    // if(&&) 直包（探针复现同一 mov$1/mov$0/test/je 形态）。
+                    if (!citem->is_stackable() && citem->GetItemType() == 10 &&
+                        citem->check_job_type(member->get_charac_job()))
                     {
                         countBuf[i] += 0x1e;
                     }
                     countBuf[i] += get_rand_int(100 - countBuf[i]);
                     local_24 += 1;
                 }
-            }
-            char maxC = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                CUser* member = m_party->get_user(i);
-                if (!(member != 0 && m_party->checkValidUser(i)))
-                    continue;
-                if (!m_playData.isMemberAlive(i))
-                    continue;
+                char maxC = 0;
+                for (int i = 0; i < 4; ++i)
+                {
+                    CUser* member = 0;
+                    member = m_party->get_user(i);
+                    if (!(member != 0 && m_party->checkValidUser(i)))
+                        continue;
+                    if (!m_playData.isMemberAlive(i))
+                        continue;
 
-                if (maxC < countBuf[i])
-                {
-                    maxC = countBuf[i];
-                    result = member;
-                }
-                else if (countBuf[i] == maxC && countBuf[i] > 0)
-                {
-                    countBuf[i] -= 1;
+                    if (maxC < countBuf[i])
+                    {
+                        maxC = countBuf[i];
+                        result = member;
+                    }
+                    else if (countBuf[i] == maxC && countBuf[i] > 0)
+                    {
+                        countBuf[i] -= 1;
+                    }
                 }
             }
         }
@@ -2270,34 +2286,37 @@ int CDeathTower::handleMoveMap()
         }
 
         // ORIG 0x08465d97..0x08465db2：getEndStage 结果直接作实参（无槽，P0）
-        if (!m_stage.moveNextStage(m_dungeonMgr.getEndStage()))
+        // [判据①] ORIG 0x08465dd0 `test %al,%al; je 0x08465fb4`（无 xor、失败块在后）
+        // ⇒ 原码是 `if (moveNextStage(...)) { 成功 } else { 失败 }`；守卫否定式（旧形）
+        // 在 4.4 生 `xor $1; test; je <成功路径>`，失败块被提前且落点错。
+        if (m_stage.moveNextStage(m_dungeonMgr.getEndStage()))
         {
+            CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
+            if (!map)
+            {
+                throw 0x15;
+            }
+
+            m_stage.reset();
+            if (!m_stage.consistMap(m_dungeonMgr, map, this))
+            {
+                throw 1;
+            }
+
             CPacketHandler packet;
-            packet.makeCommonError((ENUM_CMDPACKET)0x30, (ENUM_ERROR)0x16);
+            packet.put_header(0, 0x8f);
+            m_stage.makeStagePacket(packet);
+            packet.finalize(true);
             m_party->send_to_party(packet);
-            return 0;
-        }
 
-        CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
-        if (!map)
-        {
-            throw 0x15;
-        }
-
-        m_stage.reset();
-        if (!m_stage.consistMap(m_dungeonMgr, map, this))
-        {
-            throw 1;
+            _checkMemberReady();
+            return 1;
         }
 
         CPacketHandler packet;
-        packet.put_header(0, 0x8f);
-        m_stage.makeStagePacket(packet);
-        packet.finalize(true);
+        packet.makeCommonError((ENUM_CMDPACKET)0x30, (ENUM_ERROR)0x16);
         m_party->send_to_party(packet);
-
-        _checkMemberReady();
-        return 1;
+        return 0;
     }
     catch (int e)
     {
@@ -2353,6 +2372,11 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
     }
     else
     {
+        // [判据①] ORIG 0x0846425e（else 分支首条指令）`movl $0x0,-0x4c(%ebp)` 即
+        // nameBuf 预清，早于 find_item/itemType（跳转落点 0x08464265 直证）；
+        // ipgNo 在 genIPGNo 前无任何清零（P171 照抄原码，勿加 ={0}）。
+        char ipgNo[0x18];
+        int nameBuf = 0;              // ORIG -0x4c：_pickupItem/appendPickupItem 的 char*
         CItem* citem = G_CDataManager()->find_item(item.m_item.m_addInfo);
         if (!citem)
         {
@@ -2382,10 +2406,6 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
             }
         }
 
-        // ORIG 0x0846425e 仅清零 -0x4c（nameBuf 4B）；ipgNo（-0x64 起 0x18B）
-        // 在 genIPGNo 前无任何清零（P171 照抄原码，勿加 ={0}）。
-        char ipgNo[0x18];
-        int nameBuf = 0;              // ORIG -0x4c：_pickupItem/appendPickupItem 的 char*
         CUser* targetUser = _pickupItem(
             user, (char*)&nameBuf, memberCnt, item, a3, a4, citem);
         if (!targetUser)
@@ -2717,7 +2737,10 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
         mob.m_mobId = mobIdx;
 
         // ORIG 0x8460dc5：flag04==0 → 直用 m_field08 低字节；
-        // 否则全宽 int 加法后截断 uchar：0→1，>200→200，1..200 原样
+        // 否则全宽 int 加法后截断 uchar：0→1，>200→200，1..200 原样。
+        // [试过无效 · 勿再试] 删 lv 中间变量直写 mob.m_level（想复现 ORIG 的
+        // `mov %al,-0xf40` 字节 clamp）：4.4 生 movzbl+int 槽形，ndiff 800→854 劣化
+        // ⇒ 已回滚；残余归 N82/N115 帧槽族。
         if (src.m_flag04 != 0)
         {
             unsigned int lv = (unsigned char)(dungeonMgr.getStandardLevel() +
