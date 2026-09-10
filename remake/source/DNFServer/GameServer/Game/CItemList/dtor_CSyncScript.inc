@@ -1,0 +1,9 @@
+CSyncScript::~CSyncScript()
+{
+    m_vec1.clear();
+    m_vec2.clear();
+    m_itemTypeMap.clear();
+    m_weaponMap.clear();
+    m_armorMap.clear();
+    m_map64.clear();
+    m_map7c.clear();

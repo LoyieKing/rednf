@@ -1,0 +1,1 @@
+WongWork::CAutoPunishRuleBlackIPMgr::CAutoPunishRuleBlackIPMgr() {}

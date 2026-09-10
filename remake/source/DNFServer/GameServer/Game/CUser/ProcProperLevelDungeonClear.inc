@@ -1,0 +1,3 @@
+void CUser::ProcProperLevelDungeonClear()
+{
+    GiveMeBoxReward();

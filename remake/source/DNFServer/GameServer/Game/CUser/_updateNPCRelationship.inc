@@ -1,0 +1,2 @@
+void CUser::_updateNPCRelationship()
+{

@@ -1,0 +1,2 @@
+IChecksum::~IChecksum()
+{

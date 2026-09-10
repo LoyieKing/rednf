@@ -1,0 +1,3 @@
+ServerParameterScript::ServerParameterScript()
+{
+    clear();

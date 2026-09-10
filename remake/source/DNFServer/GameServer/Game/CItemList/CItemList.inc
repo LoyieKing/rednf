@@ -1,0 +1,2 @@
+CItemList::CItemList()
+{

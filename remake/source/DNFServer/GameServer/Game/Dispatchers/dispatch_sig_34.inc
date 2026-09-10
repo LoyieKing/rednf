@@ -1,0 +1,129 @@
+int Dispatcher_HumanCertify::dispatch_sig(CUser* user, PacketBuf& packet)
+{
+    // ORIG 0x082064d6: state > 2 才放行
+    if (user->get_state() <= 2)
+    {
+        return LineFunc(0xa007, __PRETTY_FUNCTION__, 0, 0);
+    }
+
+    // +0x04c: M-CAP 点数过高时概率踢线
+    unsigned int capPoint = user->m_mcap.getPoint();
+    if (capPoint > 0x251b)
+    {
+        int randVal = get_rand_int(100);
+        if (randVal <= 10)
+        {
+            unsigned int capPoint2 = user->m_mcap.getPoint();
+            user->m_historyLog.RequestCleanPad(capPoint2, '\x02');
+            user->DisConnSig(static_cast<DISCONN_SIG>(0x35), true, 0);
+        }
+    }
+
+    // +0x0c5: 读认证号（1..10）
+    int certifyNo = 0;
+    int certStep = 10;
+    unsigned short answer[5];
+    answer[0] = 0; answer[1] = 0; answer[2] = 0; answer[3] = 0; answer[4] = 0;
+    if (!(packet.get_int(certifyNo)) || certifyNo > 10)
+    {
+        return LineFunc(0xa023, __PRETTY_FUNCTION__, 0, 0);
+    }
+
+    // +0x156: 读 10 字节答案
+    if (!packet.get_binary(reinterpret_cast<char*>(answer), 10))
+    {
+        return LineFunc(0xa024, __PRETTY_FUNCTION__, 0, 0);
+    }
+
+    char certValid = 1;
+    unsigned short verifyData = 0;
+    if (!packet.get_short(verifyData))
+    {
+        return LineFunc(0xa02f, __PRETTY_FUNCTION__, 0, 0);
+    }
+
+    // +0x21d: 读认证类型
+    unsigned char certifyType = 0;
+    if (!packet.get_byte(certifyType))
+    {
+        return LineFunc(0xa032, __PRETTY_FUNCTION__, 0, 0);
+    }
+
+    if (certifyType == 2)
+    {
+        // +0x233: 类型 2 = 已通过 → 落实状态
+        user->setHumanCertified(true);
+        user->SendMail(false);
+        user->resetCleanpadFailCnt();
+        user->resetHumanCertifyData();
+    }
+    else
+    {
+        // +0x27a: 校验答案
+        if (!user->checkHumanCertify(certifyNo, answer))
+        {
+            // +0x295: 失败 → 记日志、标记无效
+            unsigned int capPoint3 = user->m_mcap.getPoint();
+            user->m_historyLog.RequestCleanPad(capPoint3, '\x02');
+            certValid = 0;
+            // +0x2c1: 未达失败上限
+            if (!user->isCleanPadVerifyLimit())
+            {
+                if (certifyType == 1)
+                {
+                    // 邮件认证重发
+                    if (user->reqSendMailCertify() != 1)
+                    {
+                        user->SendMail(true);
+                    }
+                }
+                else
+                {
+                    // +0x36c: 地图清除认证
+                    user->setHumanCertified(true);
+                    user->reqHumanCertify4ClearMap(false);
+                }
+            }
+            else if (certifyType == 1)
+            {
+                user->SendMail(false);
+                user->resetHumanCertifyData();
+                user->resetCleanpadFailCnt();
+            }
+            else
+            {
+                user->DisConnSig(static_cast<DISCONN_SIG>(0x1f), true, 0);
+            }
+        }
+        else
+        {
+            // +0x28f: 通过 → 记日志、短时重放检测
+            if (certifyType == 1)
+            {
+                user->SendMail(true);
+            }
+            user->resetCleanpadFailCnt();
+            unsigned int capPoint4 = user->m_mcap.getPoint();
+            user->m_historyLog.RequestCleanPad(capPoint4, '\x01');
+            unsigned int nowTick = GlobalData::s_systemTime_.getCurTickCount();
+            if (static_cast<unsigned int>(nowTick - user->m_mcap.m_capchaReqTick) < 2000)
+            {
+                WongWork::CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
+                hackAnalyzer->addServerHackCnt(user, static_cast<WongWork::ENUM_HACKTYPE>(0x341), 1, 0, 0);
+            }
+        }
+    }
+
+    // +0x44a: 验证数据异常 → hack 计数
+    if (user->VerifyCleanPadVeriData(static_cast<unsigned int>(verifyData)))
+    {
+        WongWork::CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
+        hackAnalyzer->addServerHackCnt(user, static_cast<WongWork::ENUM_HACKTYPE>(0x337), 1, 0, 0);
+    }
+
+    // +0x48d: 认证有效则清数据
+    if (certValid != 0)
+    {
+        user->resetHumanCertifyData();
+    }
+    return 0;

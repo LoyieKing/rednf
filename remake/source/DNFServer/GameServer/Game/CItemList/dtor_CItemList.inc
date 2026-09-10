@@ -1,0 +1,3 @@
+CItemList::~CItemList()
+{
+    destroy();

@@ -1,0 +1,3 @@
+Character::Character()
+{
+    Reset();

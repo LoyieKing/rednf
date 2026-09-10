@@ -1,0 +1,1 @@
+int DisPatcher_Compound::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232a9c W _ZN19DisPatcher_Compound7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081eaa5c)（compound_item 与结果回包）

@@ -1,0 +1,2 @@
+CInventory::~CInventory()
+{

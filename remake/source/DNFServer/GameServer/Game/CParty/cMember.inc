@@ -1,0 +1,3 @@
+CParty::cMember::cMember()
+{
+    Init();

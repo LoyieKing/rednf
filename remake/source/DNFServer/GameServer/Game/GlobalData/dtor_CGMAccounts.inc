@@ -1,0 +1,2 @@
+WongWork::CGMAccounts::~CGMAccounts()
+{

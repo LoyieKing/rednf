@@ -1,0 +1,3 @@
+DBTask::DBTask()
+{
+    RegistDispatcher();

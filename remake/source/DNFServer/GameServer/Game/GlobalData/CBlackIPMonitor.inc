@@ -1,0 +1,2 @@
+WongWork::CBlackIPMonitor::CBlackIPMonitor()
+{

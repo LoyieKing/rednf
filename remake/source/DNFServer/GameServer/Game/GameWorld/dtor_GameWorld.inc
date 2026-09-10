@@ -1,0 +1,3 @@
+GameWorld::~GameWorld()
+{
+    destroy();

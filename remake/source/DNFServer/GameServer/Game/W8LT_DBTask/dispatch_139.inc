@@ -1,0 +1,21 @@
+bool DB_ReqItemUpgradeLog::dispatch(int userIdx, int slot, Stream* stream)
+{
+    // 声明序 db,a,b,c,d,str,e 与 ORIG 栈槽对应（-0xc/-0x10/-0x14/-0x18/
+    // -0x1c/-0x39/-0x3a；gcc O0 先声明→高地址）。
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
+                                                  E_SERVER_GROUP_NONE);
+    unsigned int a = 0;
+    unsigned int b = 0;
+    unsigned int c = 0;
+    unsigned int d = 0;
+    char str[29];
+    bool e = true;
+    *stream >> a;
+    *stream >> b;
+    *stream >> c;
+    *stream >> d;
+    *stream >> e;
+    *stream >> str;
+    db->set_query("inSert into log_item_develop(occ_time,it_no,server_id,charac_no,charac_name,develop,sucess_flag) values(now(),%d,%d,%d,'%s',%d,%d)",
+                  b, a, c, str, d, (unsigned int)e);
+    db->exec(true);

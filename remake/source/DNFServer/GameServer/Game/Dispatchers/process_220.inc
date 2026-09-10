@@ -1,0 +1,40 @@
+int Dispatcher_PvpMissionComboClear::process(CUser* user, MSG_BASE& msg, ParamBase& param)
+{
+    // ORIG 0x081d5a5e
+    if (user->getCurCharacR() == 0)
+    {
+        return LineFunc(0x3958,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
+    }
+
+    unsigned char comboIdx = *(unsigned char*)((char*)&msg + 0xd);
+    if (comboIdx <= 8)   // ORIG cmp $0x8; jbe
+    {
+        // ORIG 实参序：第1参 = msg+0xe（byte→int），第2参 = msg+0xd（byte→short）
+        user->Update_ComboMission(
+            (int)*(unsigned char*)((char*)&msg + 0xe),
+            (short)(unsigned char)comboIdx);
+        return 0;
+    }
+
+    // [Lane1Dispatchers 2026-09-10] N78/P214③ 复测：`= {0}` 在 4.4 -O0 对 256B 常量
+    //   零初始化**内联** rep stos（probe /tmp/l1/probe1.cpp cSimple 逐条实证），
+    //   旧「发 .rodata 复制模板/缺符号」判词作废 ⇒ 恢复 ORIG 内联形。
+    char logBuf[256] = {0};
+    OS_API::snprintf(logBuf, 0x100,
+                     "[@missionSystem] invalid Combo Mission index:%d",
+                     (unsigned int)comboIdx);
+    cMyTrace trace(
+        __PRETTY_FUNCTION__,
+        0x3963, 5);
+    trace(logBuf);
+
+    if (user->isGMUser())
+    {
+        user->SendNotiPacketMessage(logBuf, (ENUM_MESSAGE_TYPE)0);
+        return 0;
+    }
+    return LineFunc(0x396a,
+                    __PRETTY_FUNCTION__,
+                    0, user->get_acc_id());

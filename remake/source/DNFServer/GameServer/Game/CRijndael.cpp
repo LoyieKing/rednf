@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CRijndael/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r CRijndael（G7 AES/Rijndael 底层）还原（2026-08-16）。
 // 算法正确即可：完整 Rijndael（Nb=4/6/8，Nk=4/6/8），ECB/CBC/CFB 三种模式，
 // 接口与 docs/class_func_reports/CRijndael.md 一致。
@@ -13,88 +23,16 @@
 // IMethod 扩展方法（G7 分组密码模式基类；ORIG @0x80b42d2 区）
 // ============================================================================
 
-void IMethod::Xor(char* buff, const char* chain)
-{
-    for (int i = 0; i < m_blockSize; ++i)
-    {
-        buff[i] = (char)((unsigned char)buff[i] ^ (unsigned char)chain[i]);
-    }
+#include "CRijndael/Xor.inc"
 }
 
-int IMethod::SetMode(int iMode)
-{
-    // ORIG 0x080b436e..0x080b43a7 逐指令：`movzbl +0x4; xor $1; test; je` ⇒
-    // 判 m_bInit（未初始化 0x70000005）；`cmpl $0 js / cmpl $2 jle` ⇒
-    // `iMode < 0 || iMode > 2` 短路双检（0x70000003）；ok 路径 `mov %edx,
-    // 0x10(%eax)` 写 m_mode 后返 0x6fffffff。
-    if (!m_bInit)
-        return 0x70000005;
-    if (iMode < 0 || iMode > 2)
-        return 0x70000003;
-    m_mode = iMode;
-    return 0x6fffffff;
+#include "CRijndael/SetMode.inc"
 }
 
-int IMethod::GetBlockSize(unsigned int* outError)
-{
-    // ORIG _ZN7IMethod12GetBlockSizeEPj @0x080b4416（0x2f）
-    if (!m_bInit)
-    {
-        if (outError != NULL)
-        {
-            *outError = 0x70000005;
-        }
-        return 0;
-    }
-    return m_blockSize;
+#include "CRijndael/GetBlockSize.inc"
 }
 
-int IMethod::Pad(char* data, int len, unsigned int* outError)
-{
-    // ORIG _ZN7IMethod3PadEPciPj @0x080b44a6（0xf7）
-    if (!m_bInit)
-    {
-        if (outError != NULL)
-        {
-            *outError = 0x70000005;
-        }
-        return 0;
-    }
-
-    int rem = len % m_blockSize;
-    if (rem == 0)
-    {
-        return len;
-    }
-
-    const int pad = m_blockSize - rem;
-    char* end = data + len;
-
-    switch (m_padding)
-    {
-    case 0:
-        for (int i = 0; i < pad; ++i)
-        {
-            *(end++) = (char)0x00;
-        }
-        break;
-    case 1:
-        for (int i = 0; i < pad; ++i)
-        {
-            *(end++) = (char)0x20;
-        }
-        break;
-    case 2:
-        for (int i = 0; i < pad; ++i)
-        {
-            *(end++) = (char)pad;
-        }
-        break;
-    default:
-        break;
-    }
-
-    return len + pad;
+#include "CRijndael/Pad.inc"
 }
 
 // ============================================================================
@@ -194,403 +132,53 @@ inline unsigned int SubWord(unsigned int w)
 const char CRijndael::sm_chain0[0x10] = {0, 0, 0, 0, 0, 0, 0, 0,
                                          0, 0, 0, 0, 0, 0, 0, 0};
 
-CRijndael::CRijndael()
-{
-    // [B24D判词 N] 语义正确：基类 IMethod 构造 + m_bInit/m_blockSize/m_keyLength/
-    //   m_mode/m_padding 初始化 + 多段 memset(m_key...m_temp3) + m_rounds=0。
-    //   P167 差集 ORIG IMethodC1(完整构造) vs 我方 IMethodC2(基类构造)——C1/C2
-    //   mangling 差异，基类构造逻辑相同，非语义缺口。diff=lowering。
-    m_bInit = false;
-    m_blockSize = 0x10;
-    m_keyLength = 0;
-    m_mode = 0;
-    m_padding = 0;
-    std::memset(m_key, 0, sizeof(m_key));
-    std::memset(m_w, 0, sizeof(m_w));
-    std::memset(m_wd, 0, sizeof(m_wd));
-    std::memset(m_block, 0, sizeof(m_block));
-    std::memset(m_chain, 0, sizeof(m_chain));
-    std::memset(m_temp, 0, sizeof(m_temp));
-    std::memset(m_temp2, 0, sizeof(m_temp2));
-    std::memset(m_temp3, 0, sizeof(m_temp3));
-    m_rounds = 0;
+#include "CRijndael/CRijndael.inc"
 }
 
-CRijndael::~CRijndael()
-{
+#include "CRijndael/dtor_CRijndael.inc"
 }
 
-int CRijndael::Initialize(const char* key, int keyLen, const char* chain,
-                          int chainLen, int blockSize, int mode, int padding)
-{
-    if (key == 0)
-        return 0x70000001;
-    if (keyLen < 1)
-        return 0x70000002;
-    if (chainLen != 0x10 && chainLen != 0x18 && chainLen != 0x20)
-        return 0x70000009;
-    if (blockSize != 0x10 && blockSize != 0x18 && blockSize != 0x20)
-        return 0x70000006;
-    if (mode < 0 || mode > 2)
-        return 0x70000003;
-    if (padding < 0 || padding > 2)
-        return 0x70000004;
-
-    m_mode = mode;
-    m_padding = padding;
-
-    // key 循环填充到 chainLen 字节（ORIG local_58）
-    unsigned char cycled[0x20];
-    int src = 0;
-    for (int i = 0; i < chainLen; ++i)
-    {
-        cycled[i] = (unsigned char)key[src];
-        src = (src + 1) % keyLen;
-    }
-
-    m_blockSize = blockSize;
-    std::memcpy(m_block, chain, blockSize);
-    std::memcpy(m_chain, m_block, blockSize);
-    m_keyLength = chainLen;
-    std::memcpy(m_key, cycled, m_keyLength);
-
-    int nk = m_keyLength / 4;
-    int nb = m_blockSize / 4;
-    if (nk == 4)
-        m_rounds = (nb == 4) ? 10 : (nb == 6) ? 12 : 14;
-    else if (nk == 6)
-        m_rounds = (nb == 8) ? 14 : 12;
-    else
-        m_rounds = 14;
-
-    KeyExpansion();
-    m_bInit = true;
-    return 0x6fffffff;
+#include "CRijndael/Initialize.inc"
 }
 
-void CRijndael::KeyExpansion()
-{
-    int nk = m_keyLength / 4;
-    int nb = m_blockSize / 4;
-    int nr = (int)m_rounds;
-    int total = nb * (nr + 1);
-
-    for (int i = 0; i < nk; ++i)
-    {
-        m_w[i] = ((unsigned int)m_key[i * 4] << 24) |
-                 ((unsigned int)m_key[i * 4 + 1] << 16) |
-                 ((unsigned int)m_key[i * 4 + 2] << 8) |
-                 (unsigned int)m_key[i * 4 + 3];
-    }
-
-    for (int i = nk; i < total; ++i)
-    {
-        unsigned int temp = m_w[i - 1];
-        if (i % nk == 0)
-        {
-            temp = SubWord(RotWord(temp)) ^ (unsigned int)kRcon[i / nk - 1] << 24;
-        }
-        else if (nk > 6 && i % nk == 4)
-        {
-            temp = SubWord(temp);
-        }
-        m_w[i] = m_w[i - nk] ^ temp;
-    }
+#include "CRijndael/KeyExpansion.inc"
 }
 
-void CRijndael::AddRoundKey(unsigned char state[4][8], int round)
-{
-    int nb = m_blockSize / 4;
-    for (int c = 0; c < nb; ++c)
-    {
-        unsigned int w = m_w[round * nb + c];
-        state[0][c] = (unsigned char)(state[0][c] ^ ((w >> 24) & 0xff));
-        state[1][c] = (unsigned char)(state[1][c] ^ ((w >> 16) & 0xff));
-        state[2][c] = (unsigned char)(state[2][c] ^ ((w >> 8) & 0xff));
-        state[3][c] = (unsigned char)(state[3][c] ^ (w & 0xff));
-    }
+#include "CRijndael/AddRoundKey.inc"
 }
 
-void CRijndael::InvAddRoundKey(unsigned char state[4][8], int round)
-{
-    AddRoundKey(state, round);
+#include "CRijndael/InvAddRoundKey.inc"
 }
 
-void CRijndael::EncryptCore(const unsigned char* in, unsigned char* out)
-{
-    int nb = m_blockSize / 4;
-    int nr = (int)m_rounds;
-    const int* sh = kShifts[(nb - 4) / 2];
-    unsigned char state[4][8];
-
-    for (int c = 0; c < nb; ++c)
-        for (int r = 0; r < 4; ++r)
-            state[r][c] = in[r + c * 4];
-
-    AddRoundKey(state, 0);
-
-    for (int round = 1; round < nr; ++round)
-    {
-        // SubBytes
-        for (int c = 0; c < nb; ++c)
-            for (int r = 0; r < 4; ++r)
-                state[r][c] = kSBox[state[r][c]];
-
-        // ShiftRows（行 r 左移 sh[r-1]）
-        for (int r = 1; r < 4; ++r)
-        {
-            unsigned char tmp[8];
-            int s = sh[r - 1];
-            for (int c = 0; c < nb; ++c)
-                tmp[c] = state[r][(c + s) % nb];
-            for (int c = 0; c < nb; ++c)
-                state[r][c] = tmp[c];
-        }
-
-        // MixColumns
-        for (int c = 0; c < nb; ++c)
-        {
-            unsigned char a0 = state[0][c], a1 = state[1][c];
-            unsigned char a2 = state[2][c], a3 = state[3][c];
-            state[0][c] = (unsigned char)(GfMul(a0, 2) ^ GfMul(a1, 3) ^ a2 ^ a3);
-            state[1][c] = (unsigned char)(a0 ^ GfMul(a1, 2) ^ GfMul(a2, 3) ^ a3);
-            state[2][c] = (unsigned char)(a0 ^ a1 ^ GfMul(a2, 2) ^ GfMul(a3, 3));
-            state[3][c] = (unsigned char)(GfMul(a0, 3) ^ a1 ^ a2 ^ GfMul(a3, 2));
-        }
-
-        AddRoundKey(state, round);
-    }
-
-    // 最后一轮
-    for (int c = 0; c < nb; ++c)
-        for (int r = 0; r < 4; ++r)
-            state[r][c] = kSBox[state[r][c]];
-    for (int r = 1; r < 4; ++r)
-    {
-        unsigned char tmp[8];
-        int s = sh[r - 1];
-        for (int c = 0; c < nb; ++c)
-            tmp[c] = state[r][(c + s) % nb];
-        for (int c = 0; c < nb; ++c)
-            state[r][c] = tmp[c];
-    }
-    AddRoundKey(state, nr);
-
-    for (int c = 0; c < nb; ++c)
-        for (int r = 0; r < 4; ++r)
-            out[r + c * 4] = state[r][c];
+#include "CRijndael/EncryptCore.inc"
 }
 
-void CRijndael::DecryptCore(const unsigned char* in, unsigned char* out)
-{
-    int nb = m_blockSize / 4;
-    int nr = (int)m_rounds;
-    const int* sh = kShifts[(nb - 4) / 2];
-    unsigned char state[4][8];
-
-    for (int c = 0; c < nb; ++c)
-        for (int r = 0; r < 4; ++r)
-            state[r][c] = in[r + c * 4];
-
-    InvAddRoundKey(state, nr);
-
-    for (int round = nr - 1; round >= 1; --round)
-    {
-        // InvShiftRows（行 r 右移 sh[r-1]）
-        for (int r = 1; r < 4; ++r)
-        {
-            unsigned char tmp[8];
-            int s = sh[r - 1];
-            for (int c = 0; c < nb; ++c)
-                tmp[c] = state[r][(c - s + nb) % nb];
-            for (int c = 0; c < nb; ++c)
-                state[r][c] = tmp[c];
-        }
-
-        // InvSubBytes
-        for (int c = 0; c < nb; ++c)
-            for (int r = 0; r < 4; ++r)
-                state[r][c] = kSBoxInv[state[r][c]];
-
-        InvAddRoundKey(state, round);
-
-        // InvMixColumns
-        for (int c = 0; c < nb; ++c)
-        {
-            unsigned char a0 = state[0][c], a1 = state[1][c];
-            unsigned char a2 = state[2][c], a3 = state[3][c];
-            state[0][c] = (unsigned char)(GfMul(a0, 14) ^ GfMul(a1, 11) ^ GfMul(a2, 13) ^ GfMul(a3, 9));
-            state[1][c] = (unsigned char)(GfMul(a0, 9) ^ GfMul(a1, 14) ^ GfMul(a2, 11) ^ GfMul(a3, 13));
-            state[2][c] = (unsigned char)(GfMul(a0, 13) ^ GfMul(a1, 9) ^ GfMul(a2, 14) ^ GfMul(a3, 11));
-            state[3][c] = (unsigned char)(GfMul(a0, 11) ^ GfMul(a1, 13) ^ GfMul(a2, 9) ^ GfMul(a3, 14));
-        }
-    }
-
-    // 最后一轮
-    for (int r = 1; r < 4; ++r)
-    {
-        unsigned char tmp[8];
-        int s = sh[r - 1];
-        for (int c = 0; c < nb; ++c)
-            tmp[c] = state[r][(c - s + nb) % nb];
-        for (int c = 0; c < nb; ++c)
-            state[r][c] = tmp[c];
-    }
-    for (int c = 0; c < nb; ++c)
-        for (int r = 0; r < 4; ++r)
-            state[r][c] = kSBoxInv[state[r][c]];
-    InvAddRoundKey(state, 0);
-
-    for (int c = 0; c < nb; ++c)
-        for (int r = 0; r < 4; ++r)
-            out[r + c * 4] = state[r][c];
+#include "CRijndael/DecryptCore.inc"
 }
 
-int CRijndael::EncryptBlock(const char* in, char* out)
-{
-    if (!m_bInit)
-        return 0x70000005;
-    if (m_blockSize == 0x10)
-        return DefEncryptBlock(in, out);
-    EncryptCore((const unsigned char*)in, (unsigned char*)out);
-    return 0x6fffffff;
+#include "CRijndael/EncryptBlock.inc"
 }
 
-int CRijndael::DecryptBlock(const char* in, char* out)
-{
-    if (!m_bInit)
-        return 0x70000005;
-    if (m_blockSize == 0x10)
-        return DefDecryptBlock(in, out);
-    DecryptCore((const unsigned char*)in, (unsigned char*)out);
-    return 0x6fffffff;
+#include "CRijndael/DecryptBlock.inc"
 }
 
-int CRijndael::DefEncryptBlock(const char* in, char* out)
-{
-    if (!m_bInit)
-        return 0x70000005;
-    EncryptCore((const unsigned char*)in, (unsigned char*)out);
-    return 0x6fffffff;
+#include "CRijndael/DefEncryptBlock.inc"
 }
 
-int CRijndael::DefDecryptBlock(const char* in, char* out)
-{
-    if (!m_bInit)
-        return 0x70000005;
-    DecryptCore((const unsigned char*)in, (unsigned char*)out);
-    return 0x6fffffff;
+#include "CRijndael/DefDecryptBlock.inc"
 }
 
-int CRijndael::Encrypt(const char* szIn, char* szOut, size_t iLength)
-{
-    if (!m_bInit)
-        return 0x70000005;
-    if (iLength == 0 || iLength % (size_t)m_blockSize != 0)
-        return 0x7000000a;
-
-    int blocks = (int)(iLength / m_blockSize);
-    if (m_mode == 1)   // CBC
-    {
-        for (int i = 0; i < blocks; ++i)
-        {
-            IMethod::Xor((char*)m_chain, szIn);
-            EncryptBlock((const char*)m_chain, szOut);
-            std::memcpy(m_chain, szOut, m_blockSize);
-            szIn += m_blockSize;
-            szOut += m_blockSize;
-        }
-    }
-    else if (m_mode == 2)   // CFB
-    {
-        for (int i = 0; i < blocks; ++i)
-        {
-            EncryptBlock((const char*)m_chain, szOut);
-            IMethod::Xor(szOut, szIn);
-            std::memcpy(m_chain, szOut, m_blockSize);
-            szIn += m_blockSize;
-            szOut += m_blockSize;
-        }
-    }
-    else   // ECB
-    {
-        for (int i = 0; i < blocks; ++i)
-        {
-            EncryptBlock(szIn, szOut);
-            szIn += m_blockSize;
-            szOut += m_blockSize;
-        }
-    }
-    return 0x6fffffff;
+#include "CRijndael/Encrypt.inc"
 }
 
-int CRijndael::Decrypt(const char* szIn, char* szOut, size_t iLength)
-{
-    if (!m_bInit)
-        return 0x70000005;
-    if (iLength == 0 || iLength % (size_t)m_blockSize != 0)
-        return 0x7000000a;
-
-    int blocks = (int)(iLength / m_blockSize);
-    if (m_mode == 1)   // CBC
-    {
-        for (int i = 0; i < blocks; ++i)
-        {
-            DecryptBlock(szIn, szOut);
-            IMethod::Xor(szOut, (const char*)m_chain);
-            std::memcpy(m_chain, szIn, m_blockSize);
-            szIn += m_blockSize;
-            szOut += m_blockSize;
-        }
-    }
-    else if (m_mode == 2)   // CFB
-    {
-        for (int i = 0; i < blocks; ++i)
-        {
-            EncryptBlock((const char*)m_chain, szOut);
-            IMethod::Xor(szOut, szIn);
-            std::memcpy(m_chain, szIn, m_blockSize);
-            szIn += m_blockSize;
-            szOut += m_blockSize;
-        }
-    }
-    else   // ECB
-    {
-        for (int i = 0; i < blocks; ++i)
-        {
-            DecryptBlock(szIn, szOut);
-            szIn += m_blockSize;
-            szOut += m_blockSize;
-        }
-    }
-    return 0x6fffffff;
+#include "CRijndael/Decrypt.inc"
 }
 
 // ORIG _ZN9CRijndael10ResetChainEv T @0x080b6a54：
 //   !m_bInit → 0x70000005；否则 chain0(+0x3dc) → chain(+0x3fc) 按块长复制，
 //   成功返 0x6fffffff。
-int CRijndael::ResetChain()
-{
-    if (!m_bInit)
-    {
-        return 0x70000005;
-    }
-    std::memcpy(m_chain, m_block, m_blockSize);
-    return 0x6fffffff;
+#include "CRijndael/ResetChain.inc"
 }
 
-void CRijndael::Signature(char* szSignature)
-{
-    // ORIG：SHA-256("RIJDAEL" + key + sprintf("%d%d%d%d", bs, kl, mode, pad))
-    char buf[0x40];
-    std::memset(buf, 0, sizeof(buf));
-    std::strcat(buf, "RIJDAEL");
-    int len = (int)std::strlen(buf);
-    std::memcpy(buf + len, m_key, m_keyLength);
-    std::sprintf(buf + len + m_keyLength, "%d%d%d%d",
-                 m_blockSize, m_keyLength, m_mode, m_padding);
-
-    nsl::CSHA sha;
-    sha.AddData(buf, (int)std::strlen(buf));
-    sha.FinalDigest(szSignature);
+#include "CRijndael/Signature.inc"
 }

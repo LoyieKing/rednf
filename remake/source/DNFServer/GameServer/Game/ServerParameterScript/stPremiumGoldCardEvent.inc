@@ -1,0 +1,2 @@
+ServerParameterScript::stPremiumGoldCardEvent::stPremiumGoldCardEvent()
+{

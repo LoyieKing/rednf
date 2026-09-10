@@ -1,0 +1,1 @@
+int DisPatcher_RentAvatar::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232d86 W _ZN21DisPatcher_RentAvatar7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081ee59c)（租期/价格计算与 IPG 记录）

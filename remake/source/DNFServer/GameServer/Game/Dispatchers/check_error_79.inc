@@ -1,0 +1,85 @@
+int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
+{
+    AocMsgView& m = *reinterpret_cast<AocMsgView*>(&msg);
+    if (user == 0)
+        return -1;
+    if (user->get_state() <= 2)
+        return -1;
+
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(user,
+                                                            (SECURITY_PROTCTION)0x2a);
+    if (secuErr != 0)
+        return secuErr;
+
+    const CInventory* invR = user->getCurCharacInvenR();
+    Inven_Item consumeSlot = invR->GetInvenSlot(INVEN_TYPE_EQUIP, m.m_consumeSlot);
+    if (consumeSlot.m_addInfo != m.m_consumeItemIdx)
+        return 0x11;
+    if (consumeSlot.m_addInfo2 <= 0)
+        return 0x16;
+
+    CStackableItem* consume =
+        static_cast<CStackableItem*>(G_CDataManager()->find_item(consumeSlot.m_addInfo));
+    if (consume == 0)
+        return 0x11;
+    if (!consume->is_stackable())
+        return 0x11;
+    if (!consume->IsAvatarOptionChangeItem())
+        return 0x11;
+
+    Inven_Item avatarSlot = invR->GetInvenSlot(INVEN_TYPE_AVATAR, m.m_avatarSlot);
+    if (avatarSlot.m_addInfo != m.m_equipItemIdx)
+        return 0x11;
+
+    CItem* equip = G_CDataManager()->find_item(m.m_equipItemIdx);
+    if (equip == 0)
+        return 0x11;
+    if (equip->is_stackable())  // 目标必须是非堆叠装备（ORIG 判断取反）
+        return 0x11;
+    if (!equip->IsAvatarItem())  // ORIG vtable+0x10 无参虚调用（IsAvatarItem 槽）
+        return 0x11;
+    if (user->CheckItemLock(INVEN_TYPE_AVATAR, m.m_avatarSlot))
+        return 0xd5;
+
+    // 消耗品尾部三字节选项条件区：+0x365 job、+0x366 type、+0x367 grade
+    // （AvatarOptionChangeType 3 字节视图：低 ushort = job/type，高字节 = grade）
+    // [Lane1Dispatchers 2026-09-10 · Main「视图 cast 反模式」修法] 原
+    //   `*reinterpret_cast<const unsigned short*>(&consume->m_avatar365.m_field0)`
+    //   取址 cast 在 4.4 恒产 `lea 0x365(%eax),%edx; movzwl (%edx)`；改用
+    //   Lane34 已落盘的 union 16 位视角 `m_jobType16`（同址零布局）⇒ 单条 disp 读。
+    const unsigned short tail365 = consume->m_avatar365.m_jobType16;
+    const signed char optJob = (signed char)(tail365 & 0xff);
+    const signed char optType = (signed char)((tail365 >> 8) & 0xff);
+    const signed char optGrade = (signed char)consume->m_avatar365.m_field2;
+
+    if (consume->m_set368.empty())
+    {
+        if ((equip->check_job_type((char)optJob) != 1) && optJob != 0xb)
+            return 0xfe;
+        if (equip->GetItemType() != (int)optType && optType != 0x1a)
+            return 0xfd;
+        if (equip->get_grade() != (int)optGrade && optGrade != 0)
+            return 0xfc;
+    }
+    else
+    {
+        // ORIG 调 const set::find（_ZNKSt3setIiSt4lessIiESaIiEE4findERKi）→ 经 const 引用。
+        const std::set<int>& set368 = consume->m_set368;
+        if (set368.find(avatarSlot.m_addInfo) == set368.end())
+        {
+            return 0xff;
+        }
+    }
+
+    // ORIG m_set380 同样走 const find。
+    const std::set<int>& set380 = consume->m_set380;
+    if (!set380.empty() &&
+        set380.find((int)(signed char)m.m_option) != set380.end())
+    {
+        return 0xfb;
+    }
+
+    if (!static_cast<const CEquipItem*>(equip)->IsAvatarOptionValid(m.m_option))
+        return 0xfa;
+
+    return 0;

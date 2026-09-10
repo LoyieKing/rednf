@@ -1,0 +1,1 @@
+int DisPatcher_Cera::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082334ae W _ZN15DisPatcher_Cera7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081fd360)（IPGHelper 校验 + LoadMileage）

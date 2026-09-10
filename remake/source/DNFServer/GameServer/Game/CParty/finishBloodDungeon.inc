@@ -1,0 +1,3 @@
+void CParty::finishBloodDungeon()
+{
+    ReturnToVillage();

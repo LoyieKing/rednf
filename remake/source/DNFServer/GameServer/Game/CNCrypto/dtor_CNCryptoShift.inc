@@ -1,0 +1,2 @@
+CNCryptoShift::~CNCryptoShift()
+{

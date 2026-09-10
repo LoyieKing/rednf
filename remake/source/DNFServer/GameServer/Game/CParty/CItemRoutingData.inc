@@ -1,0 +1,3 @@
+CParty::CItemRoutingData::CItemRoutingData()
+{
+    Reset();
