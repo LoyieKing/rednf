@@ -121,6 +121,11 @@
     // N93/N98 封顶：「先声明后赋值」形引入迭代器 C1Ev 默认构造 call + 临时槽拷贝
     // （72 insn，P50/N86），已实测回退；声明序再换会翻构造序（call 块序）反劣。
     FindOneByLv pred(lv);                                   // ORIG 构造序第 1（+0x13）
+    // [M2S1·P331 复核] 把三者**全倒置**（it/itEnd/pred）能把槽号对齐 ORIG
+    //   （4.4 先声明浅：it→-0x10、itEnd→-0x14、pred→-0x18，恰为 ORIG begin/end/pred），
+    //   但 4.4 槽分配与求值序绑定 ⇒ call 块序会由 ORIG 的 pred→end→begin
+    //   （0x08693ae9 pred、0x08693afb end、0x08693b10 begin）翻成 begin→end→pred：
+    //   槽序与块序不可兼得 ⇒ N 封顶（与 L27-r3 实测同结论）。
     // [L27-r3·判据⑩ 已实测] 声明序翻转（it 先 / itEnd 后）对本件**无效**：两槽仍互换
     //   （ORIG itEnd=-0x18/it=-0x10 vs 我方恒反）且 call 块序受影响 ⇒ 维持原声明序、判 N。
     std::map<int, Value>::iterator itEnd = m_map0.end();    // ORIG 构造序第 2（+0x25）

@@ -650,9 +650,6 @@ done:;
 // ORIG 0x080d9c12
 #include "BlueMarble/checkBlueMarbleUserConfirm.inc"
 {
-    int userBlueMarbleIndex;
-    UserSpace::T moveSpace;
-    int userState;
     int i;
     if (user != 0)
     {
@@ -665,13 +662,18 @@ done:;
         {
             if (m_users[i].getUser() == user)
             {
-                userBlueMarbleIndex = (int)(short)m_users[i].getUser()->getBlueMarbleIndex();
+                // [M3S4 本轮实测-3形 · 138=138 与 ORIG 等长] 三标量声明位置三形
+                // （函数头 / 外层 if 块 buf 之前 / 最内层 if 块使用处）产物**逐行相同**
+                // ⇒ GCC -O0 槽分配与块层级无关；ORIG 槽分区（-0x434/-0x430/-0x42c
+                // 三标量在 buf -0x424 **之下**，log -0x24、i -0x1c）不可复现
+                // ⇒ N82附 封顶（四数 AE 化不可达）；本形使 our 139→138。
+                int userBlueMarbleIndex = (int)(short)m_users[i].getUser()->getBlueMarbleIndex();
                 // ORIG 0x080d9cd3 `mov %eax,%edi` / 0x080d9d58 `mov %eax,%esi` /
                 // 0x080d9d8f `mov %eax,%ebx`：三值跨后续 call 保活于 callee-saved
                 // 且无栈槽（P231/P248 三条件齐备）⇒ 纯 register 提示（非 asm 绑定）。
                 register int memoryPoolIndex = getMemoryPoolIndex();
-                moveSpace = m_users[i].getUser()->getMoveSpace();
-                userState = m_users[i].getUser()->get_state();
+                UserSpace::T moveSpace = m_users[i].getUser()->getMoveSpace();
+                int userState = m_users[i].getUser()->get_state();
                 register int characNo = m_users[i].getUser()->get_charac_no(-1);
                 register char* m_id = NumberToString(m_users[i].getUser()->get_acc_id(), 0);
                 CMyFileLog log(__PRETTY_FUNCTION__,
@@ -1205,6 +1207,10 @@ DONE3:
         // ORIG 0x080d819e `mov %eax,%ebx` / 0x080d81b6 `mov %eax,%esi`：
         // serverGroup/len 跨后续调用保活于 callee-saved 且无栈槽
         // （P231/P248 三条件齐备）⇒ 纯 register 提示。
+        // [M3S4 实测-3形 · 177=177 NEAR 封顶] 残差仅 %ebx/%esi 角色互换（ORIG
+        // serverGroup→%ebx、len→%esi；我方反向）：①len 内联实参（只留 serverGroup
+        // register）同互换；②连同旧判词的声明序交换/声明赋值分离共 3 形 ⇒ 4.4
+        // callee-saved 分配序差，无源码形可翻。
         register ENUM_SERVER_GROUP serverGroup =
             m_users[seat].getUser()->GetServerGroup();
         register size_t len = strlen(local_12e);

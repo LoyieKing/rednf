@@ -1026,11 +1026,11 @@ L_inc:;
         //   是两段独立取反 guard（`xor $1; test %al,%al; jne`）+ 各自 continue 中继
         //   （+0x6fa nop/jmp、+0x6fd nop，均落到 +0x6fe `addl $1`）。`a && b` 在 4.4
         //   -O0 被物化为汇合 bool（`mov $1/$0,%eax; test; je`，探针 t1 实证）⇒ 拆回
-        //   两段 guard。第一段 ORIG 的 xor 形要求 m_update 为 bool；现字段为
-        //   unsigned char（advancealtar.h:246），此处按「非 1 即跳」的等价语义书写，
-        //   残余 1 条（cmpb $1 vs xor+test）为字段类型轴，.h 侧建议已随报（uchar→bool，
-        //   1B/偏移 0x517/mangled 零影响）。
-        if (db.m_update != 1)
+        //   两段 guard。第一段 ORIG 的 xor 形要求 m_update 为 bool —— 字段已改 bool
+        //   （advancealtar.h:246，证据即 ORIG 0x0813ecb6 `movzbl 0x517; xor $1;
+        //   test %al,%al; jne`），故此处按 `!` 书写以生同形；bool 值域 0/1（写点
+        //   全为 0/1）⇒ 与旧「非 1 即跳」逐值等价。
+        if (!db.m_update)
             continue;
         if (!isValidRidableId(db.m_ridable.m_ridableId))
             continue;

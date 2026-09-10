@@ -112,6 +112,12 @@ char WongWork::CWebEvent::m_strEventName[10][0x12] = {
 {
     // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（P75 实参装载序 + P30）；105→19]
     // ORIG 0x085fe2e2：帧 0x220。
+    // [M2FreeNext15A · 2026-09-11 复核] gap=−1（ORIG 100 / our 101）：多的一条是
+    // Encrypt 段 `mov -0x10(%ebp),%ecx` 中转（ORIG 复用 %edx 直压 0xc(%esp)）；
+    // 本波试过「删 (size_t)paddedLength 冗余 cast」（P41 变体）⇒ our 101 不变、
+    // TU 四数 62/140/0/4 逐值不变 ⇒ 维持 P75 装载时刻封顶。
+    // 其余差异：Pad/Binary2Hex 实参装载序（ORIG 先物化本地数组 lea 保活）、
+    // `out[length]` 结尾 add-vs-lea（N4）——均为 N 族。
     // **真语义 bug 修正**：旧 `memset(plain,0,0x40)` 少清 0xc0 字节——ORIG 两处
     // `mov $0x40,%edx; …; rep stos` 的 0x40 是 **dword 计数**（0x40×4=0x100 字节，
     // P116/P253）⇒ 必须 `char plain[0x100] = {0}`（P214③ 复现 rep stos）。
@@ -289,6 +295,12 @@ struct CSecurityCardAnswerView
     // ORIG W 0x085fdf6a (size 0xbb)。问题四元组 @0x3c..0x3f；答案表基址 this+8，
     // 第一问索引 = question[1]*10 + question[0]，第二问 = question[3]*10 +
     // question[2]；表值与答案均经 movsbl/zbl 后整数值比较。
+    // [M2FreeNext15A · 2026-09-11 复核] our 66 = orig 66，残余两处：
+    // ①ORIG `add %eax,%edx`（索引累加到 edx）vs 4.4 `lea (%edx,%eax,1),%eax`；
+    // ②我方多 `mov 0x8(%ebp),%ecx`（视图 base 先载，P235）而 ORIG 在 add 后
+    // 重新 `mov 0x8(%ebp),%eax` 作 base。P235 正解需在权威类 CSecurityCard
+    // （CUser.h:1185）+0x08 处具名化答案表成员（现为 TU 局部视图 cast）⇒
+    // 属共享头改动，未自行落地，见交付 NEEDS-HEADER。
     if (m_question3c[0] == 0 && m_question3c[1] == 0 &&
         m_question3c[2] == 0 && m_question3c[3] == 0)
     {
@@ -535,6 +547,14 @@ char WongWork::CWebEvent::m_strEventIPGCode[10 * 0xb] =
     //     多发 `mov %al,-N; cmpb $0,-N` 两步）；
     //   ④`return codeStr == 0;` 改早返回 `return 1/0`（复现 ORIG 两臂 `mov $1/%ebx`
     //     常量岛，消 sete+movzbl 归一化）。
+    // [M2FreeNext15A · 2026-09-11 复核] 已按新范式重核：p167 差集仍 CLEAR
+    // （MISSING/EXTRA 全为 C1/C2·D1/D2 同址别名，P93 良性）；槽集合差 = 我方
+    // 浅区多 0x20、深区整体下移（vptr 临时槽 ORIG -0xec → 我方 -0x10c），帧
+    // ORIG 0x13c / our 0x15c；char countStr/uniqueNoBuf/agencyName 未对齐槽
+    // （-0x55/-0xbc/-0xf9…）说明我方在浅区多占 3 字节对象且数组清零形为逐字节。
+    // P339（全头部声明）不宜套用：数组 `= {0}` 提头会提前发射清零（改可观察
+    // 行为/指令序），非 POD 对象（guard/Inven_Item/vector/paramObj）禁提（P331）。
+    // ⇒ 维持 N82/N89/N93附 封顶。
     // ORIG T 0x086c121e (size 0x6f1)：
     if (itemId == 1)
     {

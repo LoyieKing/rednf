@@ -60,6 +60,14 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
     // -0x20；4.4 恒 lea 先 → 0x18 后，P75 跨版本实参调度序不可定向）+
     // 尾 mov$1 中继缺失（if 形无中继，early-return 形反生 XOR 前缀——两形
     // 探针均不匹配 ORIG 组合）。语义/调用链/其余指令全等。
+    // [M1S5 2026-09-11 本波复核] report 文本口径 DIFF 的残余**全部是 .o 未重定位
+    //   显示形**：`call 4b <+0x37>` ↔ ORIG `call 86031f6 <getGameStartTimeEjRlS1_…>`
+    //   、`mov 0x0,%eax` ↔ ORIG `mov 0x941f75c,%eax`（GlobalData::s_GM_Manager）、
+    //   `movl $0x3a0/$0x0,0x4(%esp)` ↔ ORIG `$0x8bb6780/$0x8bb5b40`（两串经
+    //   .o/.rodata 逐字节核对 = `bool WongWork::CSimpleSSO::checkValidPassword_Jpn
+    //   (unsigned int, const char*, const char*, WongWork::CSimpleSSO::stOutputData_t&)`
+    //   与 `[!]GM User Check Password Sucess=> m_id(%d)`，全等）。TU 口径不在
+    //   非 identical 列表（identical/AE 已闭合）⇒ 零改动。
     if (GlobalData::s_GM_Manager->IsGm(mId))
     {
         if (strncmp(a, b, 0x84) == 0)
@@ -320,6 +328,16 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
     //    -0x4c..-0x3c，帧 0x6c vs 0x7c（随槽基差）。
     // ② idStr/reportCnt/getCurSec#1 的 callee-saved 角色互换（ORIG ebx/edi/esi vs
     //    我方 edi/esi/ebx；N7/N82附）。语义/调用链/字段列/实参序全等。
+    // [M1S5 2026-09-11 新钥匙回扫 ⇒ 未推翻] ①P339 变体实测：把 `char tableName[0x14]`
+    //   声明提到 4 个标量之前 ⇒ **零变化**（帧 0x6c、tableName 仍 -0x40、标量仍
+    //   -0x2c/-0x28/-0x20/-0x1c；ndiff 84 逐字不变）⇒ 证实 4.4 恒将局部数组置于
+    //   槽区最深处（与历史探针 mA/mB/mC/mH 一致），分区不可翻（P339 失效域②）；
+    //   ②§6.6.2 P216 不适用（本件无 EH 段）；③§6.5 串盲区复核：SQL 串
+    //   `upDate %s set expire_time=%d,…where m_id=%s`（ORIG 0x086029e3 内联 /
+    //   我方 .rodata+0x2a4）与 `member_login`（ORIG 0x8cdc264 / 我方 +0x2c）
+    //   逐字节全等；④尾部判定段逐条同形：`or %edx,%eax; test %eax,%eax; sete %al;
+    //   test %al,%al; je; mov $0x0,%eax; jmp; mov $0x1,%eax`（ORIG
+    //   0x08602a2b..0x08602a3d）⇒ 89=89、NEAR 维持。
     unsigned int tutorialSkipable;
     double rating;
     unsigned int dungeonGainGold;

@@ -653,8 +653,22 @@ namespace pvp_assault
     // 旧判词 N111「死块不可造」被 P337 推翻：恒 0 **volatile** 守卫的
     // 读取不可省略，块体与 ORIG 7 个调用点强制发射（`if(0)`/goto 才会 DCE）。
     // 死块运行期不可达（与 ORIG 入口 jmp 等价），活动路径语义零变化。
-    // 现读数：133 vs 134（gap −1）、p167 19 vs 19（余差仅 PacketGuard/cMyTrace
-    // C1↔C2/D1↔D2 别名对）、帧 0x90 vs ORIG 0x80（N82 槽阶梯残余）。
+    //   现读数：133 vs 134（gap −1）、p167 19 vs 19（余差仅 PacketGuard/cMyTrace
+    //   C1↔C2/D1↔D2 别名对）、帧 0x90 vs ORIG 0x80（N82 槽阶梯残余）。
+    // [M2S4 2026-09-11] 我方有效 132 条（+1 条 ret 后填充 nop，§6.1 豁免不计）vs
+    //   ORIG 133 ⇒ 净 −1；p167 19/19（余 C1↔C2/D1↔D2 同址别名）。本波两处：
+    //   ① `const bool deadMissing = (slot == -1); if (deadMissing)` → `if (slot == -1)`
+    //      （S1 去具名）。注：ORIG 0x085a0784 `cmpl $-1; sete %al; test %al,%al; je`
+    //      是 4.1 独有形（bool 值留 %al 不落槽）；4.4 实测只有两极：`cmpl;jne`（2 条）
+    //      与具名 `sete;mov %al,-N;cmpb;je`（5 条），无 4 条形（探针 /tmp/m2s4_sete.cpp
+    //      A–G 七形全测）⇒ 该 2 条形差封 N。
+    //   ② trace 改单语句 `cMyTrace(...)(...)`（P329：ORIG ctor 在 getCurCharacNo 之后）。
+    //   残余（封 N，4.1 独有的不可达码预取，买不回那 −1）：ORIG 0x085a0765/85a0768
+    //   `mov 0xc(%ebp),%eax; mov (%eax),%ebx` + 0x085a0775/779 死实参
+    //   `mov %ebx,0x4(%esp); mov %eax,(%esp)`（入口 jmp 前，%eax/%ebx 延续给死块首句
+    //   0x085a0781 `mov %eax,-0xc(%ebp)`）；4.4 对具名 `inv` 必落槽，无法表达跨守卫的
+    //   寄存器延续 ⇒ 该 4 条为我方不可造段（去掉具名会多一次 getCurCharacInvenR 调用，
+    //   p167 会 EXTRA，禁止）。帧 0x90 vs 0x80 由 inv/守卫槽引起。
     int slot = 0;                                         // ORIG -0xc（+0x008 movl）
     const CInventory* inv = user->getCurCharacInvenR();   // ORIG +0x1a（返回值仅死块用）
 
@@ -663,8 +677,10 @@ namespace pvp_assault
     {
         // ORIG +0x2b：+0x1a 返回值直存 slot 槽再与 -1 比较（按指令转写）
         slot = (int)reinterpret_cast<size_t>(inv);
-        const bool deadMissing = (slot == -1);                    // ORIG +0x2e
-        if (deadMissing)
+        // [M2S4] ORIG +0x2e..+0x35 是 `cmpl $-1; sete %al; test %al,%al; je`：
+        // 具名 bool 会让 4.4 多 emit `mov %al,-0x9; cmpb $0x0,-0x9`（+2 条）⇒
+        // 直接写相等判断。
+        if (slot == -1)                                           // ORIG +0x2e
             return 0x11;
         const Inven_Item deadItem =
             user->getCurCharacInvenR()->GetInvenSlot(1, slot);    // ORIG +0x43..+0x6c
@@ -673,9 +689,12 @@ namespace pvp_assault
         if (!user->getCurCharacInvenW()->delete_item(             // ORIG +0x86..+0xc2
                 (INVEN_TYPE)1, slot, item.m_itemCount, (eItemDelReason)0xe, true))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xdfa, 5);        // ORIG +0xdc..+0xfa
-            trace("CParty::isEventDungeon, delete_item failed , User ch=%d , %d %d",
-                  user->getCurCharacNo(), slot, item.m_itemCount); // ORIG +0xff..+0x11c
+            // [P329] ORIG +0xdc 序列为「实参求值(characNo→%ebx) → cMyTrace ctor →
+            //   operator()」单语句形（ctor 在 getCurCharacNo 之后）；两语句写法让
+            //   4.4 把 ctor 提前到实参求值之前（整段物理序反）。
+            cMyTrace(__PRETTY_FUNCTION__, 0xdfa, 5)(
+                "CParty::isEventDungeon, delete_item failed , User ch=%d , %d %d",
+                user->getCurCharacNo(), slot, item.m_itemCount); // ORIG +0xff..+0x11c
             return 0x11;
         }
     }
@@ -711,6 +730,31 @@ namespace pvp_assault
     //   C1↔C2/D1↔D2 别名对）、帧 0x2cc 与 ORIG 一致（msg 槽 -0x1b5 vs ORIG
     //   -0x1a9 属 N82 槽阶梯残余）；_do_after_dungeon_start 返回 int→bool 需
     //   CDungeon.h:665/849 + CDungeon.cpp:584/664 跨 TU 同步（已上报 Main）。
+    // [M2S4 2026-09-11] 687（ORIG 686）。本波：具名 `const int level` 内联回
+    //   GetPriceAverage 实参位（P0/P329：ORIG 0x085a0115 `mov %eax,%ebx` 跨
+    //   G_CDataManager 保活、无槽）⇒ 687→686；trace 两处改单语句 `cMyTrace(...)(...)`
+    //   （P329，ORIG 0x085a01xx/8xx 段 ctor 在 getCurCharacNo 之后；改后该两段与 ORIG
+    //   逐条同序，代价 +1 条，净 687）。
+    //   残余差异族（封 N，逐块记录）：
+    //   ① ORIG `cmpl $-1; sete %al; test %al,%al; je`（0x085a0655/6bb/6ff 三处
+    //      deadMissing）——4.1 独有 4 条形，4.4 无对应写法（探针 /tmp/m2s4_sete.cpp）；
+    //   ② P337 恒 0 volatile 守卫（0x085a042c 段）：ORIG 入口为单条 `jmp 085a04c3`，
+    //      我方 4 条（movb/movzbl/test/je）——4.4 会 DCE `if(0)`/goto，守卫是必要代价；
+    //   ③ EH 布局：ORIG 正常路径 dtor（0x085a0194..19a）在 handler（0x085a01a1..1b7）
+    //      之前，4.4 恒把正常 dtor 排在 handler 之后（条数同，顺序反）；
+    //   另有已修两处块布局（P222，本波实证）：
+    //   ④ 村庄复仇/必需道具两段物理序：ORIG 0x085a0585..91 `test %al,%al; je 085a06e1`
+    //      ⇒ then（村庄复仇）后置在 0x085a06e1..0742、else（必需道具段）前置；
+    //      原「`if (flag==0) {…}` + 后续必需道具」让 4.4 产 then 前置（`jne` 跳过），
+    //      两段 61 条整体颠倒 ⇒ 改写 `if (flag != 0) {必需道具段} else {村庄复仇}` 后
+    //      与 ORIG 逐条同序（该段尾部 idx 646..686 已逐条对齐）。
+    //   ⑤ `revengeCount == 0 || m_maxRevengeCount < revengeCount` 短路落点：
+    //      ORIG 0x085a0701 `je 085a072a` / 0x085a0710 `jb 085a072a` 共落**后置**失败块
+    //      ⇒ 取反写成 `if (revengeCount != 0 && max >= revengeCount) {成功} else {失败}`
+    //      后同构。两处 ④⑤ 使非槽差异块 19→9（其中 3 块为 .rodata 重定位文本假差异）。
+    //   净 +1 条来自 ①（每处 deadMissing 比 ORIG 多 1 条，×2）+ ②（守卫比 ORIG 多 3）
+    //   被 EH 布局族抵消后的残差；已按 §6.4 取证确认无法在不引入语义/调用差集退化的
+    //   前提下精确配平（试过并回滚：`if (slot == -1)` 全函数 687→681，离 ORIG 更远）。
     // 虚表槽0：CDungeon::_do_after_dungeon_start(user)
     if (!dungeon->_do_after_dungeon_start(user))
         return 0xad;
@@ -766,9 +810,12 @@ namespace pvp_assault
             ->GetEnterCount();
         const int lottePoint = G_CDataManager()
                                    ->m_serverParameter.GetLottePoint(enterCount);
-        const int level = user->get_charac_level();
+        // [P0/P329] ORIG 0x085a0115 `mov %eax,%ebx`（get_charac_level 结果经 %ebx
+        // 跨 G_CDataManager 调用保活，无具名槽）⇒ 原码把实参内联在调用位；
+        // 具名 level 让 4.4 多 store/load 各一条（gap +1 的一个来源）。
         const int avgPrice =
-            G_CDataManager()->m_serverParameter.GetPriceAverage(level);
+            G_CDataManager()->m_serverParameter.GetPriceAverage(
+                user->get_charac_level());
         reinterpret_cast<CCharacBloodDungeon*>(const_cast<CExpandEquipslot*>(
             user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1)))
             ->IncEnterCount();
@@ -788,9 +835,11 @@ namespace pvp_assault
         const int dimIdx = (signed char)dungeon->get_dimension_possible() - 1;
         // P311：具名成员数组 m_demensionInout[dimIdx] 复现单条
         // `movzbl 0xeb9(%eax,%edx,1)`（裸偏移恒 add 链）。
-        const signed char ticketLeft =
-            (signed char)user->getCurCharacR()->m_demensionInout[dimIdx];
-        if (ticketLeft < 1 && m_battleField.m_bloodState != 1 && !user->isGMUser())
+        // [M2S4/P0] ORIG 0x085a0216/0x085a0218 `test %al,%al; jg`（无槽）⇒ 原码把
+        // 该元素读内联在条件位；具名 ticketLeft 让 4.4 多 emit
+        // `mov %al,-0x21; cmpb $0x0,-0x21`（+1 条，gap +1 的最后来源）。
+        if ((signed char)user->getCurCharacR()->m_demensionInout[dimIdx] < 1 &&
+            m_battleField.m_bloodState != 1 && !user->isGMUser())
             return 0xad;
         if (m_battleField.m_bloodState != 1)
         {
@@ -826,6 +875,11 @@ namespace pvp_assault
             {
                 slot = user->getCurCharacInvenR()->check_vilmark_dungeon_item_exist(
                     dungeon->m_entryRequiredItem.m_itemIdx);      // ORIG +0x660..+0x67b
+                // [M2S4 负结论] ORIG +0x683 `cmpl $-1; sete %al; test %al,%al; je`
+                // 为 4.1 独有形（bool 值留 %al 不落槽）。试过 `if (slot == -1)`：
+                // 4.4 恒产 `cmpl;jne`（2 条，比 ORIG 少 2）且整函数 687→681（−5，
+                // 离 ORIG 686 更远、非槽差异块数 9→9 不变）⇒ 回滚保留具名 bool
+                // （5 条形，多 1 条）。判据见 §6.4：our>ORIG 才走消指令方向。
                 const bool deadMissing = (slot == -1);            // ORIG +0x683
                 if (deadMissing)
                     return 0x11;
@@ -834,7 +888,7 @@ namespace pvp_assault
             {
                 slot = user->getCurCharacInvenR()->check_item_exist(
                     dungeon->m_entryRequiredItem.m_itemIdx);      // ORIG +0x698..+0x6b3
-                const bool deadMissing = (slot == -1);            // ORIG +0x6bb
+                const bool deadMissing = (slot == -1);            // ORIG +0x6bb（同上）
                 if (deadMissing)
                     return 0x11;
             }
@@ -846,10 +900,12 @@ namespace pvp_assault
                     (INVEN_TYPE)1, slot, dungeon->m_entryRequiredItem.m_itemCount,
                     (eItemDelReason)0xe, true))
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0xd66, 5);     // ORIG +0x762..+0x796
-                trace("CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
-                      user->getCurCharacNo(), slot,
-                      dungeon->m_entryRequiredItem.m_itemCount);   // ORIG +0x79b..+0x7b8
+                // [P329] 同 checkndelete_item：ORIG +0x762 段是单语句形（ctor 在
+                //   getCurCharacNo 之后，见 0x085a01xx `mov %eax,%ebx` 中转）。
+                cMyTrace(__PRETTY_FUNCTION__, 0xd66, 5)(
+                    "CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
+                    user->getCurCharacNo(), slot,
+                    dungeon->m_entryRequiredItem.m_itemCount);   // ORIG +0x79b..+0x7b8
                 return 0x11;
             }
         }
@@ -862,58 +918,73 @@ namespace pvp_assault
         user->Send(packet);
     }
 
-    // ---- 村庄复仇 / 定时事件副本必需道具（ORIG 否定式早返 + 共享尾） ----
-    if (dungeon->m_entryRestrictFlag == 0)
+    // ---- 村庄复仇 / 定时事件副本必需道具 ----
+    // [M2S4/P222] ORIG 0x085a0585..0x8591 `movzbl 0x85c(%eax),%eax; test %al,%al;
+    //   je 085a06e1` —— then（村庄复仇）块**物理后置**在 0x085a06e1..0742，else
+    //   （必需道具段 0x085a0597..06dc）前置，尾 `mov $0x0,%ebx` 共享出口。
+    //   等价重写为 `if (flag != 0) {必需道具段} else {村庄复仇}` ⇒ 4.4 的
+    //   if/else 布局（A 前置 / B 后置 + `je <B>`）与 ORIG 逐条同构；
+    //   原「then 前置」写法（`jne` 跳过）使两段物理序整体颠倒 61 条。
+    if (dungeon->m_entryRestrictFlag != 0)
+    {
+        if (!dungeon->IsOpenScheduleDungeon())
+            return 0x15;
+        if (user == 0)
+            return 0;
+        if (dungeon->m_entryRequiredItem2.m_itemIdx == -1 &&
+            dungeon->m_entryRequiredItem.m_itemIdx == -1)
+            return 0;
+        if (dungeon->m_entryRequiredItem2.m_itemIdx != -1 &&
+            dungeon->m_entryRequiredItem2.m_enableFlag != 1)
+            return 0;
+        if (dungeon->m_entryRequiredItem.m_itemIdx != -1 &&
+            dungeon->m_entryRequiredItem.m_enableFlag != 1)
+            return 0;
+
+        // ORIG +0x93f..+0x9e3：req2 命中且 check 返回 0 时立即 SetInvitation 并
+        // 提前返回；否则顺序进入 req1 检查（非 if/else 互斥）。
+        int resultCode = 0x11;
+        if (dungeon->m_entryRequiredItem2.m_itemIdx != -1)
+        {
+            resultCode = do_after_dungeon_start_checkndelete_item(
+                dungeon->m_entryRequiredItem2, user);
+            if (resultCode == 0)
+            {
+                user->SetDeleteEventDungeonInvitation(true);
+                return resultCode;
+            }
+        }
+        if (dungeon->m_entryRequiredItem.m_itemIdx != -1)
+        {
+            resultCode = do_after_dungeon_start_checkndelete_item(
+                dungeon->m_entryRequiredItem, user);
+            if (resultCode == 0)
+                user->SetDeleteEventDungeonInvitation(true);
+        }
+        return resultCode;
+    }
+    else
     {
         if (dungeon->m_villageAttackEventFlag != 0)
         {
             const unsigned char revengeCount = user->GetCurRevengeDungeonCount();
-            if (revengeCount == 0 ||
-                (unsigned char)dungeon->m_maxRevengeCount < revengeCount)
+            // [M2S4/P222] ORIG 0x085a0701 `je 085a072a` 与 0x085a0710
+            //   `jb 085a072a` 两条跳转共落**后置**失败块（0x085a072a），
+            //   fall-through 为成功块 ⇒ 条件取反写成 if/else（成功前置/失败后置）。
+            if (revengeCount != 0 &&
+                (unsigned char)dungeon->m_maxRevengeCount >= revengeCount)
+            {
+                user->DecreaseRevengeDungeonTicket();
+                user->VillageAttack_DBUpdate();
+            }
+            else
             {
                 user->SetCurRevengeDungeonCount(0);
                 return 0x11;
             }
-            user->DecreaseRevengeDungeonTicket();
-            user->VillageAttack_DBUpdate();
         }
         return 0;
     }
-    if (!dungeon->IsOpenScheduleDungeon())
-        return 0x15;
-    if (user == 0)
-        return 0;
-    if (dungeon->m_entryRequiredItem2.m_itemIdx == -1 &&
-        dungeon->m_entryRequiredItem.m_itemIdx == -1)
-        return 0;
-    if (dungeon->m_entryRequiredItem2.m_itemIdx != -1 &&
-        dungeon->m_entryRequiredItem2.m_enableFlag != 1)
-        return 0;
-    if (dungeon->m_entryRequiredItem.m_itemIdx != -1 &&
-        dungeon->m_entryRequiredItem.m_enableFlag != 1)
-        return 0;
-
-    // ORIG +0x93f..+0x9e3：req2 命中且 check 返回 0 时立即 SetInvitation 并
-    // 提前返回；否则顺序进入 req1 检查（非 if/else 互斥）。
-    int resultCode = 0x11;
-    if (dungeon->m_entryRequiredItem2.m_itemIdx != -1)
-    {
-        resultCode = do_after_dungeon_start_checkndelete_item(
-            dungeon->m_entryRequiredItem2, user);
-        if (resultCode == 0)
-        {
-            user->SetDeleteEventDungeonInvitation(true);
-            return resultCode;
-        }
-    }
-    if (dungeon->m_entryRequiredItem.m_itemIdx != -1)
-    {
-        resultCode = do_after_dungeon_start_checkndelete_item(
-            dungeon->m_entryRequiredItem, user);
-        if (resultCode == 0)
-            user->SetDeleteEventDungeonInvitation(true);
-    }
-    return resultCode;
 }
 
 // ===========================================================================

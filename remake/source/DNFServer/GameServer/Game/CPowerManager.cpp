@@ -110,6 +110,11 @@ struct PowerWarStatueView
     // [b28d-solo] P0：ORIG 两个槽往返（源 -0x1c / 结果 -0xc）⇒ 原码有两个具名
     // 局部（4.4 对匿名转换临时会复用源槽）。
     int ghostTime = G_CDataManager()->m_powerParameter.m_ghostTime;
+    // [b28d-solo 新钥匙试·已回滚] 「3×int 取址填充」置于 ghostTime 与 n 之间：
+    // our 18→18 但帧 0x28→0x38、源槽仍 -0x10、cw 落 -0x2a/-0x2c ⇒ verdict NEAR→DIFF
+    // （劣化）。证实 4.4 把「仅取址未读写」局部一律沉到帧底（P182 加强），
+    // 不参与声明序分配 ⇒ P339/P331 声明序旋钮在本件不适用（ORIG -0x1c/-0x1e/-0x20
+    // 属 4.1 不复用临时槽预留区，ORIG 0x08480e92）。
     int n = (int)((float)ghostTime * f);
     double framePad;
     (void)&framePad;
@@ -419,6 +424,12 @@ struct PowerWarStatueView
 // 归约形；探针 /tmp/probe2d{,2}.cpp 八形——一维/二维[3][1]/`*(arr+i)`/
 // `(&arr[0])[i]`/指针局部/unsigned 索引/int 数组下标——4.4 恒 shl，源形不可择）。
 // P167 CLEAR 7/7。
+// [b28d-solo 2026-09-11 本波新钥匙复扫] P291（具名 Entry 数组成员视图产 scaled
+// 索引）/P235（匿名 union 双视角）针对的是「scaled 索引被折成 shl+add」；本件
+// 两侧指令数全等（352=352，gap 0），残差只是 `x*4` 的 lea(4.1) vs shl(4.4) 选择
+// ⇒ 属 multiply expansion 版本形，非视图/索引轴。P290（int→unsigned 升格）无对应
+// callee-saved 跨 receiver 形；P339/P331（声明序）本件无「整体平移/槽映射互换」残差
+// ⇒ 维持 N4/N86b 封顶，零改动。
 #include "CPowerManager/SetPowerWarUserStatueInfo.inc"
 {
     // ORIG 0x0847ed4e：按 characNo（info+0x00）匹配条目，拷贝雕像字段并置 flag，

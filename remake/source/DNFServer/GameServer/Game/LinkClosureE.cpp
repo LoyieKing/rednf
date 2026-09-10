@@ -126,6 +126,11 @@ public:
 
     {
         // ORIG 0x08145f4c..0x08145fb9：结构体拷贝（对齐剥离 + rep movsl + 尾字节）
+        // [M2S2 2026-09-11 复测] N18a 第 5 形实测（新钥匙「类型化下标取址」
+        //   `&m_characList->m_characs[job]`，替代下方 char* 手工算术）：实地编译
+        //   300 条不变（gap 仍 +1），形变为 `imul→%eax; lea (%edx,%eax,1),%eax;
+        //   mov %eax,%edx`（中转仍在，且 imul 目标转为 %eax）⇒ 零收益，已回滚。
+        //   与 D08 探针 /tmp/addr_probe.cpp g1 读数一致，N18a 维持。
         _Additioal_info base = *reinterpret_cast<const _Additioal_info*>(
             reinterpret_cast<const char*>(G_CDataManager()->m_characList) +
             job * 0x7dc);

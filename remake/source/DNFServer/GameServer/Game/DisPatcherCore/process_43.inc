@@ -116,9 +116,15 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
             if (dungeon == 0 || outIdx == -1)
             {
+                // [M8BigTURest 2026-09-11 04:22 语义修复·§6.5 串盲区] 原稿描述串写成
+                // 短形 `"find_dungeon(%d) fail"`；ORIG `.rodata` 实字节为完整一条
+                // `"DisPatcher_GetItem::dispatch_sig G_CDataManager()->find_dungeon(%d) fail"`
+                // （`strings -a ORIG` 直证；我方 .o 独有短串 = 发明串，AE 口径不可见）。
+                // 该串进日志/GM 回显 ⇒ 按 ORIG 原字节改回。
                 LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
                                       __PRETTY_FUNCTION__, 0xf14,
-                                      "find_dungeon(%d) fail", dungeonIdx);
+                                      "DisPatcher_GetItem::dispatch_sig G_CDataManager()->find_dungeon(%d) fail",
+                                      dungeonIdx);
             }
             else if (dungeon->m_entryRestrictFlag != 0 &&
                      (req.m_10 == 2 || req.m_10 == 3 || req.m_10 == 4) &&

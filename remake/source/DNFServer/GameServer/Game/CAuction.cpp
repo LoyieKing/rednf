@@ -2629,6 +2629,17 @@ struct GAPassThruView {               // case 0x2718..0x271b 转发
 // ⇒ 改 m_src[i+7]（GAPriceSrcView 扩 m_src[10] 容纳 ORIG 越界读，P171）。
 // 残差：N82 槽号 + P246（case5/case0xb/case0xe 块拷贝 dest 缓存 %ecx 不可复现）
 // + N86b（imul 合并 ×3）+ __PRETTY_FUNCTION__ 伪差。
+// [M3FreeNext15B.M3S6AucAvBattle 2026-09-11] 本波复验（旧判词：N82/N86b/P246）：
+// ①§6.5 串审计：`strings` 逐串比对 ORIG vs our .o —— 签名串
+//   `static bool CDispatchServerPacket::dispatchAuctionPacket(char*)` 与
+//   "DispatchServerPacket.cpp"、"AUCTION REGIST SERVER ID DUPLICATE"/"UNHANDLED ERROR"
+//   及三处 "resize failed." 与 default 的 "[AUCTION PACKET ERROR] not exist packet id (%d)"
+//   全部两侧逐字节一致（无手写签名串/无发明文本；非 ASCII：无 ⇒ §6.5.1 不适用）。
+// ②p167（/tmp/tu_CAuction.o fresh）：ORIG calls=259 / OUR calls=259，差集仅
+//   `CStreamGuard` 的 C1↔C2（-14/+14）与 D1↔D2（-28/+28）——同体 ABI 别名
+//   （4.1 发 C2/D2 名、4.4 发 C1/D1 名，链接期同址），非真缺/多调用。
+// ③gap：ORIG 1338 / OUR 1345，残差仍为 N82 槽号 + P246 块拷贝 + N86b imul 合并
+//   （本波未再攻槽号，判词维持）。
 #include "CAuction/dispatchAuctionPacket.inc"
 {
     unsigned int packetId = (int)((nsl::PACKET_HEADER*)data)->getPacketID();
@@ -2980,6 +2991,13 @@ struct GAPassThruView {               // case 0x2718..0x271b 转发
 // m_pad4[6]/m_padE[1] 校正；put_binary 首实参 data→v（ORIG -0x20(%ebp) 局部实证）。
 // 残差：N82 槽号 + P246（case5/case0xb/case0xe 块拷贝）+ N86b（imul 合并 ×3）
 // + __PRETTY_FUNCTION__ 伪差。
+// [M3FreeNext15B.M3S6AucAvBattle 2026-09-11] 本波复验（旧判词：N82/N86b/P246）：
+// ①§6.5 串审计：签名串 `static bool CDispatchServerPacket::dispatchPointPacket(char*)`
+//   与 "DispatchServerPacket.cpp"、各 resize failed. / strncpy / strcpy 文本两侧逐字节
+//   一致（无手写签名串、无发明文本；无非 ASCII ⇒ §6.5.1 不适用）。
+// ②p167：ORIG calls=309 / OUR calls=309，差集仅 CStreamGuard C1↔C2（-18/+18）与
+//   D1↔D2（-36/+36）同体 ABI 别名 ⇒ 非真缺/多调用。
+// ③gap：ORIG 1614 / OUR 1617，残差维持 N82 槽号 + P246 + N86b（本波未再攻槽号）。
 #include "CAuction/dispatchPointPacket.inc"
 {
     unsigned int packetId = (int)((nsl::PACKET_HEADER*)data)->getPacketID();

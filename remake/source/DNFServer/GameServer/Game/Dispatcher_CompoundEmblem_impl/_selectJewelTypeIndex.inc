@@ -17,6 +17,10 @@ int Dispatcher_CompoundEmblem::_selectJewelTypeIndex(
     {
         for (int j = 0; j < 5; ++j)
         {
+            // [M1S3EmblemLink 2026-09-11 负结论] 乘法操作数交换（商 × 数组元素）
+            //   实测：权重段确与 ORIG 0x08220b3f `mov %eax,%edx` 形态一致，但 4.4
+            //   因 edx 被占而不再需要 ebx 保活 ⇒ push/pop %ebx 消失，总指令数
+            //   90→88（ORIG 94），gap 4→6 反劣 ⇒ 回滚。
             int weight = socketCounts[j] * (int)(10000 / total);
             accums[j]  = weight + cumulative;
             cumulative += weight;

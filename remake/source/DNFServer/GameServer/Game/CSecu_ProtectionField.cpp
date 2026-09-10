@@ -130,7 +130,9 @@ enum SECURITY_PROTCTION_TYPE
     for (i = 0; i < 0x47; ++i)
         values[i] = 0x1ff;
 
-    int tableA[37] = {
+    // [M5 2026-09-11] P248 档③ 试验：table 元素改 unsigned int（与 int i 异型）
+    // 以期复现 ORIG `mov -0x28,%edx; mov tableA[j],%eax; cmp %eax,%edx` 寄存器比较形。
+    unsigned int tableA[37] = {
         0x01, 0x02, 0x03, 0x04, 0x05, 0x0c, 0x0d, 0x0e, 0x11, 0x12,
         0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
         0x22, 0x24, 0x1f, 0x27, 0x25, 0x26, 0x2c, 0x2d, 0x2f, 0x37,
@@ -155,7 +157,7 @@ enum SECURITY_PROTCTION_TYPE
     for (i = 0; i < 0x47; ++i)
         values[i] = 0x1ff;
 
-    int tableB[29] = {
+    unsigned int tableB[29] = {
         0x01, 0x02, 0x03, 0x04, 0x05, 0x0c, 0x0d, 0x0e, 0x11, 0x14,
         0x16, 0x17, 0x18, 0x1d, 0x22, 0x24, 0x2c, 0x2d, 0x1f, 0x20,
         0x2f, 0x41, 0x42, 0x43, 0x38, 0x39, 0x3a, 0x3b, 0x0b };
@@ -353,6 +355,8 @@ enum SECURITY_PROTCTION_TYPE
     // b28d-L3: DIFF/P209 — ORIG 0x082887d0 对 `mov -0x18(%ebp),%eax; cmp $0x2,%eax; jg`（rarity 局部装寄存器）
     if (item == 0 || user == 0)
         return 1;
+    // [M5 2026-09-11] P209/P310 试验：rarity 改 unsigned int 后 4.4 仍折
+    // `cmpl $0x2,-0x18(%ebp)`（无增益，ndiff 79 不变）⇒ 回滚 int。
     int rarity = 0;
     if (item != 0 && item->get_rarity() > 1)
         rarity = item->get_rarity();
@@ -369,7 +373,8 @@ enum SECURITY_PROTCTION_TYPE
     int result;
     if (rarity < 3 &&
         (item->get_rarity() != 2 || item->IsRandomOption()) &&
-        itemRef->GetUpgrade() < 0xb)
+        itemRef->GetUpgrade() < 0xb)   // [M5 2026-09-11] `<=0xa` 试形 4.4 仍产 `ja`
+                                       // （规范化），与 ORIG 的 `jbe` 极性不可择 ⇒ 保持 `<0xb`
     {
         accountErr = CheckAccountType(user, protType);
         if (accountErr != 0)

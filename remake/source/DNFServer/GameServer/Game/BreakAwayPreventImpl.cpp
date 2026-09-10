@@ -104,6 +104,11 @@ namespace break_away_prevent
 
     STBreakAwayRewards rewards;   // ORIG STBreakAwayRewards ctor 清零
     // ORIG -0x28 死局部：keyIndex 写后未读（0x0831c918 mov 0xc(%ebp) → 槽）。
+    // [M3S5 2026-09-11 · P339 提头试形⇒否] 把 keyIndexKeep 提为**函数头第一个声明**
+    //   （期望按「头内先声明更深」落到 ORIG 的 -0x28）⇒ 实测 selectReward
+    //   NEAR(143)→**DIFF**（TU 四数 near 1→0、diff 2→3）⇒ 已回滚。残余：ORIG 槽序
+    //   li(-0x3c)/rewards(-0x38)/keyIndex(-0x28)/it(-0x24)….pList(-0x18)/point(-0x14)，
+    //   我方对应各深 4~7（keyIndex 反向浅 0x14 但提头无效）⇒ 判 N82/N95 槽阶梯封顶。
     int keyIndexKeep = keyIndex;
     (void)keyIndexKeep;
     for (std::list<STRewardData>::iterator li = pList->begin();
@@ -137,6 +142,18 @@ namespace break_away_prevent
 // ---- updateUvList（ORIG 0x0831cb56）----------------------------------------
 #include "BreakAwayPreventImpl/updateUvList.inc"
 {
+    // [M3S5 2026-09-11 · N104 EH pad 封顶 + §6.5 串核对通过]
+    //   ORIG 204 / 我方 201（我方少 3 ⇒ 方向=找 ORIG 独有段）。逐段对齐后差异
+    //   全在 landing pad 结构：ORIG 有 4 个 pad（0x0831cca6 / 0x0831ccc8 /
+    //   0x0831ccdd / 0x0831ce08），其中 0x0831ccdd 是「-0x15 allocator dtor +
+    //   _Unwind_Resume」合并块，被前两个 pad 以 `jmp` 复用；我方 3 个 pad、
+    //   Unwind 内联在各 pad 尾 ⇒ 少 3 条（4.1 pad 不复用的布局产物，源码不可控）。
+    //   语义轴已核（§6.5/.1）：logFormat 实参 = (1, "BreakAwayPreventSystem.cpp",
+    //   __PRETTY_FUNCTION__, 0x11c, "BREAK_AWAY : UV_INFO SIZE ERROR!! M_ID(%s)",
+    //   NumberToString(login->m_accId, 0)) 与 ORIG 0x0831cd5b..0x0831cd9f 逐项一致；
+    //   .rodata 字节比对命中（M_ID 串 @0xbdc300、prett 串 @0xbdcf60 与我方 .o
+    //   +0x000/+0x240 逐字节相同；本 TU 无 EUC-KR 字面量，enc_kr_scan 0 命中）
+    //   ⇒ 无语义缺口，判 N。
     int days =
         static_cast<int>(getDiffConnectDay(login->m_breakAwayLastUpdateTime));
     if (days < 0)

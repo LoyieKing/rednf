@@ -1,4 +1,7 @@
-unsigned int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
+// [DPCB 2026-09-11] 签名轴（§6.5 串盲区直证）：ORIG .rodata 串为
+// `int DisPatcher_DeleteCharac::check_error(CUser*, MSG_BASE&)`（strings df_game_r 命中）。
+// 我方原 `unsigned int` ⇒ __PRETTY_FUNCTION__ 契约不一致。返回类型不入 mangled。
+int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
 
 {
     if (user->get_state() != 2)

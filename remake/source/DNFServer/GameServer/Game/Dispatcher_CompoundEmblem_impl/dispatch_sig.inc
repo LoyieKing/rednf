@@ -5,6 +5,23 @@ int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
     // 字段直读；原误用 get_add_info +0x07）；③ isEnableAvatarSocketAction 单调用
     // +具名槽（P0）。callsite 差集 158 vs 156；残 = N82 槽平移 + EH _Unwind_Resume
     // + make_pair 实参类型旋钮（受 CStackableItem.h 共享头限制）。ORIG 0x08220bb2。
+    // [M1S3EmblemLink 2026-09-11 复核 · N82/N104 封顶]
+    //  · p167 调用点差集（ORIG 158 / OUR 156）：MISSING/EXTRA 全部是构造/析构
+    //    C1↔C2、D1↔D2 别名对（weak/COMDAT 发射差，非语义缺口，见
+    //    Inven_ItemC1/C2、PacketGuardC1/C2、vector<pair>D1/D2 等）；唯一实质项
+    //    `_Unwind_Resume` ORIG 3 处（0x082218a5 / 0x08221dc2 等）vs OUR 2 处
+    //    ⇒ EH cleanup 块数差（N104），非语义。
+    //  · 帧：ORIG `sub $0x1e0` vs OUR `sub $0x1f0`（深 16）。最深 sret 缓冲
+    //    （Inven_Item 20B）：ORIG -0x198（0x08220e34/0x08220f9f/0x08221651/
+    //    0x08221745 四处 `lea -0x198(%ebp),%edx`）vs OUR -0x1a8；标量基准差 4
+    //    （itemIdxA：ORIG `lea -0x5c` @0x08220bdc vs OUR -0x60）。
+    //  · 已试/已核新钥匙：§6.5 串盲区（"game_server_msg_122"/"game_server_msg_123"
+    //    与 `__PRETTY_FUNCTION__` 串 `virtual int Dispatcher_CompoundEmblem::
+    //    dispatch_sig(CUser*, PacketBuf&)` 字节一致）；§6.5.1 不适用（函数内
+    //    无 EUC-KR 字面量）；§6.6.2 不适用（我方未多 LP，反而少 1 处 resume）；
+    //    P339 不适用（源码本已全头部声明，且差非均匀平移而是「帧 +16 + 基准 +4」
+    //    交叠；函数含 Inven_Item×3 / vector×2 / PacketGuard 等非 POD，按 P339 禁提）；
+    //    P331 非纯倒置（伴随 16B 结构差）。⇒ 判语义完成、byte 层 N82/N104 封顶。
     static const char SELF[] = "virtual int Dispatcher_CompoundEmblem::dispatch_sig(CUser*, PacketBuf&)";
 
     if (user->get_state() != 3)

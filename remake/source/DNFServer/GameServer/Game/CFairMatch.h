@@ -93,7 +93,8 @@ public:
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room, int a, int b);  // 0x8562fbc
     virtual int OnRegisterMatch(CUser* user, PvP_Room* room); // 0x8563bba（ORIG 返 1）
     virtual int OnUnregisterMatch(CUser* user, PvP_Room* room);  // 0x85663cc6?（ORIG 返 1）
-    virtual int OnMatchRoom(PvP_Room* room, int a);          // 0x8564150（ORIG 返 1）
+    // [类型轴] ORIG prett 0x08ca3800 = "virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)"
+    virtual bool OnMatchRoom(PvP_Room* room, int a);         // 0x8564150（ORIG 返 1）
     virtual void OnStartFight();                               // 0x8564952
     virtual void OnEndFight(PvP_Room* room);                  // 0x8565048
     virtual int OnWalkOut(PvP_Room* room, int a);            // 0x8564fb2（ORIG 返 1）
@@ -153,7 +154,8 @@ public:
     void _PullOutRoom(CUser* user, PvP_Room* room, int seat); // 0x85633ce
     int  _PutInRoom(CUser* user, PvP_Room* room, bool observer);  // 0x85634bc
     PvP_Room* _ReturnTeam(PvP_Room* room, int team, CUser* user); // ORIG T 0x08564dea（返回自建房指针）
-    int    _PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM team);  // ORIG T 0x08565d86（恒返 1）
+    // [类型轴] ORIG prett 0x08ca36c0 = "bool fair_pvp::CFairMatch::_PullOutRoomTeam(PvP_Room*, ENUM_SCHOOL_MATCH_TEAM)"
+    bool   _PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM team);  // ORIG T 0x08565d86（恒返 1）
     void _MoveRoom(PvP_Room* from, PvP_Room* to, bool flag);  // 0x8563d32
 
 private:

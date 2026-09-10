@@ -72,35 +72,16 @@ struct stBuySkillInfo
 // 本 TU 四桥全清。
 // ---------------------------------------------------------------------------
 
-// __PRETTY_FUNCTION__ / 日志字面串（照抄各报告原文）。
-static const char g_dbgCmdPrettyOn[] =
-    "bool DisPatcher_DebugCommand::_debugCommandOn(CUser*, MSG_DEBUG_COMMAND&)";
-static const char g_dbgCmdPrettyOff[] =
-    "bool DisPatcher_DebugCommand::_debugCommandOff(CUser*, MSG_DEBUG_COMMAND&)";
-static const char g_dbgCmdPrettyClearSkill[] =
-    "bool DisPatcher_DebugCommand::_debugCommandClearSkill(CUser*, MSG_DEBUG_COMMAND&)";
-static const char g_dbgCmdPrettySetSkill[] =
-    "bool DisPatcher_DebugCommand::_debugCommandSetSkill(CUser*, int, int)";
-static const char g_dbgCmdPrettyMasterNewSkill[] =
-    "bool DisPatcher_DebugCommand::_debugCommandMasterNewSkill(CUser*, int, int)";
+// [P139 本波] 13 个函数的 pretty 串改用 `__PRETTY_FUNCTION__`（在函数内展开，发射
+// `_ZZN23DisPatcher_DebugCommand…E19__PRETTY_FUNCTION__` 局部静态符号，与 ORIG 同名
+// 同 size，见各报告 `movl $&_ZZ…__PRETTY_FUNCTION__,0x4(%esp)`）。删除原手写数组。
+// 唯一例外 _debugCommandAddItem：ORIG prett =
+//   "bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser*, itemIndexOnlyServer_t, int)"
+// 而 typedef `itemIndexOnlyServer_t`（InterDispatcher.h:2481）本 TU 不可见；父泳道裁决
+// （2026-09-11）不授权新增 include（收益仅 1 个 local 数据符号 0x57，不及改 TU 级
+// include 集的 codegen 风险）⇒ 保留手写串守日志文本契约，该符号缺口登记豁免。
 static const char g_dbgCmdPrettyAddItem[] =
     "bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser*, itemIndexOnlyServer_t, int)";
-static const char g_dbgCmdPrettySetGrowType[] =
-    "bool DisPatcher_DebugCommand::_debugCommandSetGrowType(CUser*, int, int)";
-static const char g_dbgCmdPrettyLevelUpDown[] =
-    "bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser*, int)";
-static const char g_dbgCmdPrettyGuildLevelUp[] =
-    "bool DisPatcher_DebugCommand::_debugCommandGuildLevelUp(CUser*)";
-static const char g_dbgCmdPrettyAddAvatar[] =
-    "bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser*, MSG_DEBUG_COMMAND&)";
-static const char g_dbgCmdPrettyInvisible[] =
-    "bool DisPatcher_DebugCommand::_debugCommandInvisible(CUser*, MSG_DEBUG_COMMAND&)";
-static const char g_dbgCmdPrettyVisible[] =
-    "bool DisPatcher_DebugCommand::_debugCommandVisible(CUser*, MSG_DEBUG_COMMAND&)";
-static const char g_dbgCmdPrettyClearInven[] =
-    "bool DisPatcher_DebugCommand::_debugCommandClearInven(CUser*, MSG_DEBUG_COMMAND&)";
-static const char g_dbgCmdPrettyClearAvtInven[] =
-    "bool DisPatcher_DebugCommand::_debugCommandClearAvtInven(CUser*, MSG_DEBUG_COMMAND&)";
 
 // GM trace 通用形态：NumberToString(accId) + 角色名 两个固定前置实参。
 // P227 全表达式临时链：ORIG 在 cMyTrace ctor 前右起求 varargs 并以 callee-saved
@@ -121,7 +102,7 @@ static const char g_dbgCmdPrettyClearAvtInven[] =
 #include "DisPatcher_DebugCommand_cmds/_debugCommandOn.inc"
                                               MSG_DEBUG_COMMAND& /*msg*/)
 {
-    DBG_TRACE(g_dbgCmdPrettyOn, 0x10, "%s:'%s' GM Mode ON.");   // +0x2b
+    DBG_TRACE(__PRETTY_FUNCTION__, 0x10, "%s:'%s' GM Mode ON.");   // +0x2b
     user->SetGameMasterMode(true);              // +0x7e SetGameMasterMode(1)
 
     // ORIG `test %eax,%eax; setne %al; test %al,%al; je <尾 mov $0>` ⇒ 非零才进主流程
@@ -159,7 +140,7 @@ static const char g_dbgCmdPrettyClearAvtInven[] =
     // P168a①：ORIG `call isGMUser; xor $1; test %al; je <成功块>` ⇒ bool callee 裸形。
     if (!user->isGMUser())
         return false;
-    DBG_TRACE(g_dbgCmdPrettyOff, 0x41, "%s:'%s' GM Mode OFF.");
+    DBG_TRACE(__PRETTY_FUNCTION__, 0x41, "%s:'%s' GM Mode OFF.");
     user->SetGameMasterMode(false);             // +0x94 SetGameMasterMode(0)
     return true;
 }
@@ -176,14 +157,18 @@ static const char g_dbgCmdPrettyClearAvtInven[] =
 {
     if (!user->isGMUser())                      // +0x08（P168a① 裸形）
         return false;
-    DBG_TRACE(g_dbgCmdPrettyClearSkill, 0x8a, "%s:'%s' GM Mode Clear Skill.");
-    if (user->ClearSkills())                    // +0x92 ClearSkills；==0 → ret 0
+    DBG_TRACE(__PRETTY_FUNCTION__, 0x8a, "%s:'%s' GM Mode Clear Skill.");
+    // 尾块序实测三形（本波）：①goto 尾标签形=布局与 ORIG 全同、仅多 1 条 ok 标签前
+    // 对齐 nop（§6.1 nop 豁免 ⇒ TU 口径仍 identical）；②早返形 66 条但失败块前移且
+    // 多 `xor $0x1`；③if/else 双 return 形 65 条但失败块落尾、成功块前移 ⇒ 均劣。
+    // 保留①（ORIG 0x0858eaa4 失败块 / 0x0858eaab 成功块 后置布局）。
+    if (user->ClearSkills())                    // +0x92 ClearSkills
     {
         user->send_skill_info();                // +0xa1
         if (user->get_state() == 5)             // +0xb1 state==5
             user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
                                  static_cast<ENUM_NOTIPACKET>(2), 1);
-        goto ok;                                // P223：成功体尾 jmp 岛 + 失败块前
+        goto ok;                                // 成功体尾 jmp（ORIG 0x0858eaa2）
     }
     return false;                               // +0xe0 失败块（mov$0）
 ok:
@@ -203,9 +188,12 @@ ok:
         return false;
     // ORIG `call SetSkillLevel; test %al,%al; je <尾 mov $0>` ⇒ 正向包裹 + callee bool
     // （P248 档①：int callee 的一切调用点写法恒产 sete 四段）。
+    // 同 ClearSkill：三形实测（goto 尾标签 / 早返 / if-else 双 return = 74 / 74 / 73
+    // 条）中仅 goto 形与 ORIG 0x0858ebb8（失败块）/0x0858ebbf（成功块）布局全同，
+    // 仅多 1 条 ok 标签前对齐 nop（§6.1 豁免）。
     if (user->SetSkillLevel(skillIdx, level))   // +0x38
     {
-        cMyTrace(g_dbgCmdPrettySetSkill, 0xa2, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0xa2, 0)(
             "%s:'%s' GM Mode Set Skill(%d) Level(%d).",
             NumberToString(user->get_acc_id(), 0), user->getCurCharacName(),
             skillIdx, level);
@@ -213,11 +201,11 @@ ok:
         if (user->get_state() == 5)             // +0xd1
             user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
                                  static_cast<ENUM_NOTIPACKET>(2), 1);
-        goto ok;                                // P223：成功体尾 jmp 岛 + 失败块前
+        goto ok;                                // 成功体尾 jmp（ORIG 0x0858ebb6）
     }
-    return false;
+    return false;                               // +0x100 失败块（mov$0）
 ok:
-    return true;
+    return true;                                // +0x107 成功块（mov$1）
 }
 
 // ===========================================================================
@@ -235,7 +223,7 @@ ok:
     info.m_skillIdx = (char)skillIdx;           // +0x28 mov al
     info.m_count = (char)level;                 // +0x31 mov al
     user->master_new_skill(info, false);        // +0x49 master_new_skill(info,0)
-    cMyTrace(g_dbgCmdPrettyMasterNewSkill, 0xbd, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0xbd, 0)(
         "%s:'%s' GM Mode Set Skill(%d) Level(%d).",
         NumberToString(user->get_acc_id(), 0), user->getCurCharacName(),
         skillIdx, level);
@@ -310,7 +298,7 @@ ok:
 {
     if (!user->isGMUser())
         return false;
-    DBG_TRACE(g_dbgCmdPrettySetGrowType, 0x133, "%s:'%s' GM Mode Grow Type.");
+    DBG_TRACE(__PRETTY_FUNCTION__, 0x133, "%s:'%s' GM Mode Grow Type.");
 
     int firstGrow = 0;                          // -0x10
     int secondGrow = 0;                         // -0xc
@@ -366,7 +354,7 @@ ok:
 {
     if (!user->isGMUser())
         return false;
-    DBG_TRACE(g_dbgCmdPrettyLevelUpDown, 0x1ce, "%s:'%s' GM Mode Level Up.");
+    DBG_TRACE(__PRETTY_FUNCTION__, 0x1ce, "%s:'%s' GM Mode Level Up.");
 
     if (delta * delta >= 2)                     // +0x93 imul/jle：仅 |delta|<=1 通过
         return false;
@@ -422,6 +410,9 @@ ok:
 // STGuildProxy 段 ecx/edx；4.4.7 与 4.4.6 后端均 edi/ebx/esi + edx/eax
 // （非路由可解；callee 侧 cast 旋钮双向试过零变化）。已修：链式 receiver 双处
 // （P52）+ proxyInfo.m_agitFlag=0 补写 + GuildDbInfoView 具名偏移（消 add→disp）。
+// [本波更新] P226 语句表达式包 SendGuildLevelup 三实参 ⇒ 主线寄存器角色**已对齐
+// ORIG**（edi/esi/ebx，操作数级 ndiff 33→29）；残余仅 STGuildProxy 段 ecx/edx（ORIG）
+// vs edx/eax（我方，4.4 双临时分配族）——该段包语句表达式实测零变化 ⇒ 判 N7 封顶。
 // P167 callsite CLEAR 15/15。
 #include "DisPatcher_DebugCommand_cmds/_debugCommandGuildLevelUp.inc"
 {
@@ -431,7 +422,7 @@ ok:
     if (user->get_charac_guildkey() == 0)       // +0x25 guildkey==0
     {
         // P227：ORIG 先求 getCurCharacNo（%ebx）再 ctor ⇒ 全表达式临时链。
-        cMyTrace(g_dbgCmdPrettyGuildLevelUp, 0x20a, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x20a, 0)(
             "GM is not Guild Member!( %d )", user->getCurCharacNo());
         return false;
     }
@@ -440,9 +431,9 @@ ok:
     // 具名 proxy 局部反致落槽 + 实参寄存器角色漂移。
     GlobalData::s_guild_proxy_mgr->GetServerProxy(
         static_cast<ENUM_SERVER_GROUP>(0))                      // +0xc1 GetServerProxy(...,0)
-        ->SendGuildLevelup(user->GetUID(),
-                           user->getCurCharacNo(),
-                           user->get_charac_guildkey(), 0);  // +0xdd
+        ->SendGuildLevelup(({ user->GetUID(); }),
+                           ({ user->getCurCharacNo(); }),
+                           ({ user->get_charac_guildkey(); }), 0);  // +0xdd
 
     char* dbInfo = reinterpret_cast<char*>(user->GetGuildDBInfo());  // +0xe2（raw DB blob，
                                                                      // 沿用仓库裸读先例）
@@ -496,7 +487,7 @@ ok:
     {
         int slot = 0;                                           // ORIG +0x13a movl $0,-0x1c
         // P227：ORIG 先求 usablePeriod(%ebx)/periodKind(%esi) 再 ctor。
-        cMyTrace(g_dbgCmdPrettyAddAvatar, 0x231, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x231, 0)(
             "[DEBUG_COMMAND_ADD_AVATAR] Param.Sub.AddAvatar.period : %d, "
             "item->getUsablePeriod() : %d",
             (unsigned int)(unsigned char)msg.payload.avatar.periodKind,
@@ -644,7 +635,7 @@ ok:
     // P227 全表达式临时链：ORIG @0x0859065x 在 cMyTrace ctor 前右起求 varargs
     // 并以 %ebx 跨 ctor 保活；具名 name 局部（旧 register 缓存形）+ 具名 trace
     // 对象反使 packet 槽平移（b28c-lane12）。
-    cMyTrace(g_dbgCmdPrettyInvisible, 0x5c, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x5c, 0)(
         "GM(%s) is invisible \n", user->getCurCharacName());
     return true;
 }
@@ -675,7 +666,7 @@ ok:
     // ORIG area→%ebx、vill→%esi 均无槽 ⇒ 内联实参（P0/P183）；name 同（%ebx）。
     G_GameWorld()->send_to_area((int)(char)user->getCurCharacVill(),
                                 user->get_area(false), packet); // +0x18e send_to_area
-    cMyTrace(g_dbgCmdPrettyVisible, 0x83, 0)("GM(%s) is visible \n",
+    cMyTrace(__PRETTY_FUNCTION__, 0x83, 0)("GM(%s) is visible \n",
         const_cast<char*>(user->getCurCharacName()));
     return true;
 }
@@ -789,7 +780,7 @@ ok:
     {
         LogManager::logFormat(
             1, "DisPatcher_DebugCommand_First.h",
-            g_dbgCmdPrettyClearInven, 0x3af,
+            __PRETTY_FUNCTION__, 0x3af,
             "DisPatcher_DebugCommand::_debugCommandClearInven, pUser(%s)->"
             "send_itemspace( ENUM_ITEMSPACE_INVENTORY ) return FAILED",
             NumberToString(user->get_acc_id(), 0));
@@ -822,7 +813,7 @@ ok:
             {
                 LogManager::logFormat(
                     1, "DisPatcher_DebugCommand_First.h",
-                    g_dbgCmdPrettyClearAvtInven, 0x40c,
+                    __PRETTY_FUNCTION__, 0x40c,
                     "DisPatcher_DebugCommand::_debugCommandClearAvtInven, pUser(%s)->"
                     "getCurCharacInvenW()->delete_item return FAILED",
                     NumberToString(user->get_acc_id(), 0));
@@ -836,7 +827,7 @@ ok:
     {
         LogManager::logFormat(
             1, "DisPatcher_DebugCommand_First.h",
-            g_dbgCmdPrettyClearAvtInven, 0x417,
+            __PRETTY_FUNCTION__, 0x417,
             "DisPatcher_DebugCommand::_debugCommandClearAvtInven, pUser(%s)->"
             "send_itemspace( ENUM_ITEMSPACE_AVATAR ) return FAILED",
             NumberToString(user->get_acc_id(), 0));

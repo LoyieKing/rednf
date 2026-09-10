@@ -1,1 +1,1 @@
-void CCirculationStatistic::InsertCirculationStatistic()
+bool CCirculationStatistic::InsertCirculationStatistic()

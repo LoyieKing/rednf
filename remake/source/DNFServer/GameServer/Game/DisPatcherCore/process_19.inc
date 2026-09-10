@@ -40,7 +40,11 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
     // ORIG 无 outSlot/ret 初始化写（ret 槽由 call 返回值直写 `mov %eax,-0x1c`）。
     int outSlot;
-    int ret;
+    // [DPCB 实验 2026-09-11] RHS 求值序旋钮：ORIG 0x081c5b46 为
+    // `mov -0x1c(%ebp),%edx; mov -0x20(%ebp),%eax; mov %edx,0x4(%eax)`（RHS 先载
+    // %edx、LHS 基址后载 %eax），4.4 对「同型 VAR_DECL → int 成员」发 LHS-first。
+    // 试「ret 声明为 unsigned」引入 int←unsigned CONVERT 逼出 RHS-first。
+    unsigned int ret;
     // ORIG +0x0ad：uchar 装载 + 字节立即数 `cmp $0x3,%al` 直判（无 sext）。
     if ((req->m_toSpace == 3 || req->m_toSpace == 0x12) &&
         req->m_toPos > 9 && req->m_toPos < 0x16)

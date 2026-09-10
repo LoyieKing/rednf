@@ -86,6 +86,13 @@ struct StRefCtx2
 //   （CWorldDrop 的岛来自 4.4 自身 epilogue-threading，非早返平铺产物）⇒ 已回退为
 //   `return;` 形，N121 维持。C05①② 对本 TU 其余件亦无命中（残差无 `cmp mem` 类、
 //   无「失败出口落函数尾」布局差）。
+// [M1S5 2026-09-11 **推翻 N121**] 钥匙 =「**空 then + else 包块**」：把两处早返
+//   `if (cond) return;` 改写为 `if (cond) { } else { ...余下全部... }`，函数收敛为
+//   单出口 ⇒ our 127→123=ORIG，尾岛 2×`jmp+nop` 全消，尾部与 ORIG
+//   0x0853854c..0x0853855b `setg/test/jne; leave; ret` 逐条同形；本件 DIFF→AE
+//   （TU ae 87→88、合计 138→139、diff 2→1）。中间读数：只包第一处时 127→125
+//   （每处早返各贡献 1 个 `jmp+nop` 岛）；continue/while/break 三形 0 变化
+//   （125/38 逐字不变）⇒ 岛源是 4.4 对早返出口的 epilogue-threading，包裹后消失。
 #include "WongWorkDrop_A/generateRandomItem.inc"
                                     stGenerateResult_t& result)
 {
@@ -98,31 +105,37 @@ struct StRefCtx2
     int roll = m_random.generateNumber(0, 100000);     // CGenerateRandomNumber(this+8)
 
     if (ctx->m_level > 199)                            // ORIG movzbl cmp $0xc7 ja
-        return;
-
-    WorldDropInfo* slot = 0;                           // ORIG 预清 movl $0,-0x18
-    if (ctx->m_type == 1)                              // warArea 分支
-        slot = &m_warAreaDrop[ctx->m_level];
-    else
-        slot = &m_worldDrop[ctx->m_level];
-    // threshold = first × dropRate / 100（ORIG imul 0x51eb851f 魔数除法）
-    int threshold = (slot->m_first * ref.m_dropRate) / 100;
-    if (roll > threshold)                              // jg 退出
-        return;
-
-    roll = m_random.generateNumber(1, slot->m_total);  // 复用 roll 槽
-    int acc = 0;                                       // local_14
-    for (int i = 0; static_cast<int>(slot->m_chunks.size()) > i; ++i)
     {
-        acc += slot->m_chunks[i].m_rate;               // 元素+0x04 权重
-        if (roll < acc)
+    }
+    else
+    {
+        WorldDropInfo* slot = 0;                       // ORIG 预清 movl $0,-0x18
+        if (ctx->m_type == 1)                          // warArea 分支
+            slot = &m_warAreaDrop[ctx->m_level];
+        else
+            slot = &m_worldDrop[ctx->m_level];
+        // threshold = first × dropRate / 100（ORIG imul 0x51eb851f 魔数除法）
+        int threshold = (slot->m_first * ref.m_dropRate) / 100;
+        if (roll > threshold)                          // jg 退出
         {
-            Inven_Item inv;                            // 元素+0x00 idx
-            inv.m_addInfo = slot->m_chunks[i].m_itemIdx;
-            G_CDataManager()->m_itemList->create_item(
-                static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
-            result.m_dropItems.push_back(inv);
-            return;
+        }
+        else
+        {
+            roll = m_random.generateNumber(1, slot->m_total);  // 复用 roll 槽
+            int acc = 0;                               // local_14
+            for (int i = 0; static_cast<int>(slot->m_chunks.size()) > i; ++i)
+            {
+                acc += slot->m_chunks[i].m_rate;       // 元素+0x04 权重
+                if (roll < acc)
+                {
+                    Inven_Item inv;                    // 元素+0x00 idx
+                    inv.m_addInfo = slot->m_chunks[i].m_itemIdx;
+                    G_CDataManager()->m_itemList->create_item(
+                        static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
+                    result.m_dropItems.push_back(inv);
+                    return;
+                }
+            }
         }
     }
 }
@@ -316,6 +329,18 @@ struct StRefCtx2
 // [A28 round5 复核 2026-09-10] 重跑 p167：CLEAR 50=50（仅 Inven_Item C1↔C2 同址
 //   别名，P93 良性）；orig 665 / ours 646（raw 670/652）；帧 0x24c vs 0x25c。
 //   ⇒ 维持 N78（altTable `rep stos` 对齐剥离慢路）+ N82/N126（整帧 +0x10）封顶。
+// [M1S5 2026-09-11 新钥匙逐条回扫 ⇒ 未推翻]
+//   ①p167 复跑 CLEAN：ORIG calls=50 / OUR calls=50，唯一差集 = `Inven_ItemC2Ev`×2
+//     vs `C1Ev`×2（同址别名 P93，本函数两处 `Inven_Item x;` 完整对象构造）；
+//   ②§6.6.2 P216 不适用：两侧 `_Unwind_Resume`/`_ZdlPv`/`__cxa_begin_catch`
+//     计数全为 0；③ORIG 独有段仅 1 处 `rep stos`（altTable 清零慢路，N78；
+//     P312 形 `char buf[256]={0}` 已于 round5 实测反劣 +34 并回滚 ⇒ 维持）；
+//   ④P339 不适用：槽集合非「槽映射互换」而是**混合区块平移** —— 深区
+//     ORIG 0x1fc/0x200/0x204/0x208/0x20c/0x20e/0x210/0x214/0x218/0x21c vs
+//     我方 0x20c/0x210/0x214/0x218/0x21c/0x21e/0x220/0x224/0x228/0x22c（+0x10），
+//     而 buf/-0x1eb.. 区 +0xc、浅区 0x28/0x2c↔0x20/0x24 与 0xb0↔0xbc 各自独立
+//     （+0x8/-0xc）⇒ 根因是块内聚合(Inven_Item/char[256]/int[6])与标量的
+//     4.4 分区规则，属 P339 失效域②；gap −19 = N78(rep stos) + 帧差固有。
 // 参数（自 wrapper）【推断命名】：
 //   type       = ref+0x34 怪物等级档
 //   role       = ref+0x35（signed char；==3 走首领金币路径）

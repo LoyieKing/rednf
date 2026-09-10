@@ -65,6 +65,10 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
             // `movzbl 0xd(%eax),%edx`）是 4.4 复用基址寄存器 %eax 作 tmp 后的
             // 单条 regmove 中转（判据库 N18a：无源码写法可造 ORIG 的目标寄存器选择）
             // ⇒ N 封顶，勿再改 .h。
+            // [DPCB 2026-09-11 负结论] 两级显式转换 `(unsigned char)(unsigned int)`
+            // 实测产物逐字节不变（仍 `movzbl 0xd(%eax),%eax; mov %eax,%edx`）⇒
+            // 两侧已同为 unsigned char（PacketTypes.h:711/2245），多出的 mov 是 4.4
+            // 复用基址寄存器 %eax 作 tmp 的中转，非值转换，源码形不可造（N18a）。
             out.m_8 = req.m_itemSpace;
             for (int i = 0; i < (int)(signed char)req.m_count; ++i)
             {

@@ -185,6 +185,9 @@ template <size_t N>
 // 残余 2 条（N 封顶）：`begin()/end()` 调用点 ORIG this-first（`mov -0xc,%edx` 先）
 // vs 4.4.6 恒 sret-first（`lea -0x1c,%eax` 先）——P75 跨版本实参装载时刻；已穷举
 // 5 形（初始化式/(*p)./引用接收/逗号声明/直接初始化括号）全部 sret-first。
+// [M1S5 2026-09-11 第 6 形试证·P307 `register vector*` receiver] our 73→72、
+// ndiff 46→101 ⇒ 劣化回滚；P339 不适用（槽序已与 ORIG 全等：-0x14/-0x10/-0xc/
+// -0xc..-0x20）、§6.6.2 P216 不适用（两侧均无 _ZdlPv/_Unwind_Resume 差）⇒ N 维持。
 #include "GiveGrowCreatureEvent/CheckEventInfo.inc"
 {
     int job = user.get_charac_job();
@@ -215,6 +218,11 @@ template <size_t N>
 // 修法①（真语义 bug）：ORIG 0x081b6fb9 第二查表实参为 infinityIdx（-0x18），
 // 原码误传 creatureItemId ⇒ 已改正。修法②（P0/P183）：删 mine 具名指针局部
 // （结果直传 push_back）⇒ 全槽回移 4、135=135 逐条全等。
+// [M1S5 2026-09-11 语义轴复核] ORIG 字段 disp 全等：m_minLevel(+4)/m_maxLevel(+8)
+// < / >（0x081b6c5e 双 cmp+cc 落点体）、(*kt).m_job(+8)==jt->first(+0)、
+// (*kt).m_name(+0xc) strlen/put_str(Pci,0xc(%esp)=len)；§6.5 串盲区无字面量；
+// P216 不适用（EH 尾块 `mov %edx,%ebx; mov %eax,%esi; ... _Unwind_Resume` 两侧同形）。
+// 本波无新落地，维持 N（our 214 vs ORIG 215：差 1 为 4.4 对齐 nop 位置）。
 #include "GiveGrowCreatureEvent/processEvent.inc"
 {
     // ORIG：链式直调（无具名中间局部，P0 右值内联）；G_CDataManager() 每用
@@ -280,6 +288,11 @@ template <size_t N>
 // 4.4.6 后端）穷举 8 形：uint/int/size_t/ushort 下标、`(*p)[i]`/`p->operator[](i)`/
 // 显式 cast/局部引用 receiver 全部 idx-first ⇒ 源形不可择，记 N（P75 跨版本实参装载
 // 时刻，T5：装载序非类型旋钮）。
+// [M1S5 2026-09-11 第 9 形试证·P307 `register vector*` receiver] our 130→123、
+// ndiff 96→151 ⇒ 劣化回滚；P339 不适用（槽序已全等 -0x14/-0xd/-0xc/-0x1c/-0x18）；
+// 语义轴复核：命中条件三段 disp 全等（m_serverGroup+0/m_characNo+4/m_name+0xc）、
+// sigInfo 打包 +0/+4/+8/+0xc 与 strncpy len 0x1d 全等；§6.5.1 enc_kr_scan 全库
+// mismatch=0（本 TU 无非 ASCII 字面量）⇒ N 维持。
 #include "GiveGrowCreatureEvent/changeCharacName.inc"
     CUser* user, int key, char* old_, int new_)     // 0x081b717a
 {

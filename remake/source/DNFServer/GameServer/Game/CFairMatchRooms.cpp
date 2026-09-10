@@ -787,10 +787,10 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 {
     if (m_matchNotifyId != notifyId) {
         cMyTrace(__PRETTY_FUNCTION__, 0xc8b, 0)("OnMatchRoom timeout");
-        return 0;
+        return false;
     }
     if (m_field04 != 1)
-        return 0;
+        return false;
 
     // P3：ORIG `call; cmp $0x1,%al; sete`（字节比较、无 movzbl）⇒ 实参收窄。
     room->setReamtchable(static_cast<unsigned char>(GetPlayCountPerOneTeam()) == 1);
@@ -806,7 +806,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
     if (!pWaitingRoomList_->Match(this, &other)) {   // 等待表 vtable[+0x08]=Match
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     // [b28f-SweepCFairMatch 负结论] P212 声明提前（裸声明头置 + 原位赋值）
@@ -828,7 +828,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
                        0xcb1, 0, 0)("pvp@log 1 opposite match(%x), %s ",
                                    other, GetUserName(other, nameBuf));
         }
-        return 0;
+        return false;
     }
 
     if (room->get_index() == movable->get_index()) {
@@ -845,7 +845,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
                        0xcbc, 0, 0)("pvp@log 2 opposite match(%x), %s ",
                                    other, GetUserName(other, nameBuf));
         }
-        return 0;
+        return false;
     }
 
     // 正式配成：沿其它匹配单元的 next-match 链把对方队伍搬进来。
@@ -858,7 +858,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
         if (_CheckMovableRoom(other, room, &moveTarget) == 0) {
             m_field04 = 2;
             _SendMatchStatePacket(1, 1);
-            return 0;
+            return false;
         }
         // ORIG receiver 是 this（`mov 0x8(%ebp),%eax; mov (%eax),%eax; add $0x84;
         // ... call *%edx`），非 other；GetPlayCountPerOneTeam 按 uchar 截断后比。
@@ -902,7 +902,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
         pkt.finalize(true);
         m_teams[t].SendToTeam(pkt);
     }
-    return 1;
+    return true;
 }
 
 // ===================================================================== //
@@ -1015,7 +1015,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
             }
         }
     }
-    return 1;
+    return true;
 }
 
 // OnWalkOut ORIG T 0x8564fb2 报告 OnWalkOut.md。ORIG 返回 1。

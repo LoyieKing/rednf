@@ -18,6 +18,14 @@ class stMonsterInfo_t;
 // forward decls (推断: parameter types)
 class CUser;
 
+// SIGFIX: ORIG __PRETTY_FUNCTION__ 串直证（二进制两条符号，size 逐值吻合）：
+//   _ZZN16CKillMonsterInfo18ConvertStructToMapE...E19__PRETTY_FUNCTION__ @0x08c9ec80 size 0x5b
+//     = "bool CKillMonsterInfo::ConvertStructToMap(stMonsterInfo_t*, size_t, killMonsterMap&, bool)"
+//   _ZZN16CKillMonsterInfo19RegisterMonsterKillE...E19__PRETTY_FUNCTION__ @0x08c9ec20 size 0x5f
+//     = "bool CKillMonsterInfo::RegisterMonsterKill(killMonsterMap&, unsigned int, unsigned char, bool)"
+// typedef 不入 mangled（底层类型不变）⇒ 零 ABI 影响；形参必须按此拼写才能复现 prett 串。
+typedef std::map<unsigned int, unsigned char> killMonsterMap;
+
 class CKillMonsterInfo : public charac_expand::CData
 {
 public:
@@ -31,11 +39,9 @@ public:
     bool CheckMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > > const&, unsigned int, unsigned char);
     bool RegisterBossKill(unsigned int, unsigned char);
     bool RegisterNamedKill(unsigned int, unsigned char);
-    // SIGFIX:CKillMonsterInfo::ConvertStructToMap — ORIG __PRETTY_FUNCTION__ 串
-    // "bool CKillMonsterInfo::ConvertStructToMap(stMonsterInfo_t*, size_t, killMonsterMap&, bool)"
-    bool ConvertStructToMap(stMonsterInfo_t*, unsigned int, std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, bool);
+    bool ConvertStructToMap(stMonsterInfo_t*, size_t, killMonsterMap&, bool);
     bool RegisterAPCBossKill(unsigned int, unsigned char);
-    bool RegisterMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, unsigned int, unsigned char, bool);
+    bool RegisterMonsterKill(killMonsterMap&, unsigned int, unsigned char, bool);
     int GetDungeonDifficultyFlag(unsigned char);
     virtual void _reset();
     virtual bool loadData(CUser*, char*);

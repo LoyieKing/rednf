@@ -72,8 +72,14 @@
         // shl $4; add this; add $8; mov (%eax),%eax; cmp j,%eax; setg`），无 count
         // 缓存局部；原 `const int count` 缓存多发一段循环外计算并多占一个槽
         // （全帧槽深 +4）。表达式内联进 for 条件即复现。
-        for (int j = 0; j < *reinterpret_cast<const int*>(
-                 reinterpret_cast<const char*>(&m_additional[0]) + i * 0x10); ++j)
+        // [M5F_CtorDB 2026-09-11] 唯一残差（ORIG 78 / 我方 77）= 循环尾基址装载：
+        // ORIG `mov -0x10,%edx; mov 0x8(%ebp),%eax; add $0x5c,%edx; shl $4,%edx;
+        // add %edx,%eax`（**索引先落 %edx、this 后落 %eax 再 add**），我方 4.4 折成
+        // `mov i,%eax; …; add 0x8(%ebp),%eax`（内存操作数直加，少 1 条 mov）。
+        // 本轮换「成员访问形」试造 ORIG 的装载序：m_additional[i].m_count 走
+        // 索引强度削减 `(i+0x5c)<<4 + 8`，与 ORIG 的 add $0x5c/shl $4 逐条同源；
+        // 语义等价、布局/mangled 零变化。若读数仍 77 ⇒ 归 N7（寄存器角色，4.1 独有）。
+        for (int j = 0; j < m_additional[i].m_count; ++j)
         {
             m_resultVecs[i].push_back(m_additional[i].m_items[j]);
         }
@@ -350,6 +356,18 @@ CharacManageScript* CharacManageScript::instance_ = 0;    // _ZN18CharacManageSc
     // ORIG 0x088e0968：RDAR 装载失败 ret0；分节扫描 [point bonus]/
     // [manage level point]/[manage level max]/[exp bonus]/[gold bonus]/
     // [manage basic explain]/[manage option]/默认 ContentsOptionRevision 行。
+    // [M5F_CtorDB 2026-09-11] our<ORIG（342/329）⇒ 只找「ORIG 有我方无」段；
+    // seq-align 差集**完全解析**为 13 条（无一条语义指令）：
+    //   ① 4 处 `movzbl ok; xor $0x1,%eax; test %al,%al; je`（4.1 对 `if(!ok)` 先
+    //      取反再物化；4.4 直产 `test; jne`）⇒ 每处差 2 条 = 8；
+    //   ② 4 条 `nop`（4.1 循环对齐伪指令，落点见 0x088e0a9f/0x088e0c8a/0x088e0d1e/
+    //      0x088e0d6f，全部不可达）⇒ 4；
+    //   ③ 1 条 while 布局差（4.1 条件在头 + 回边 jmp +0x46，4.4 条件在尾 + `jmp +0x414`）。
+    // 新钥匙逐条试过：P333（局部 static 双检锁表）不适用——本件无 .bss 取址/guard；
+    // P337 死块——上述 nop 岛**不可达但无指令**（纯对齐），补 nop 无意义；
+    // P283/P164 循环落点——`while (ScanType(token,true))` 4.4 恒尾测，改 for 同码。
+    // 调用点差集 CLEAR 47=47（父泳道复核）；串/变参序（ERROR [%s][%s], path, token）
+    // 与 ORIG 一致（§6.5 已核）。⇒ N 封顶（4.1 xor 物化 + 对齐 nop），语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return false;

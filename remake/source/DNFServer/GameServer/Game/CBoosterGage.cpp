@@ -274,6 +274,16 @@ struct SIG_BOOSTER_GAGE_DATA
 // 帧两侧同为 0xa0。已试尽无旋钮：声明序交换（4.4 按首次使用序，N98 无效）、
 // int[1] 数组化、struct 包裹、内层块收窄 invenItem 作用域、死局部 char[1]
 // （仅把 nSlot 推深 4B 且破坏帧）。ORIG 0x080dcbd6。
+// [M4FreeNext15C.M4S1 round5 复扫] 新钥匙 P339（全头部声明 + 声明序按 ORIG 槽深→浅）
+// 已试并**回滚**：把 `Inven_Item invenItem;` 提到函数头 ⇒ Inven_Item 有非平凡
+// ctor，报 118→153 条（+35：多 ctor/额外帧）、NEAR→DIFF、p167 亦劣 ⇒ 立即回滚
+// （读数复原 118/118、near=1）。另核：ORIG 与本件的 nLoop@-0x14 / i@-0x10 /
+// tNow@-0xc 三槽**完全一致**，仅 nSlot 与 invenItem 两槽互换分区，非 P331
+// 「恒定常数额平移」形（两处差值 0x40 与 4 不同向）⇒ 维持 N82 封顶。
+// 语义轴复核：`G_CDataManager()->m_boosterGage.m_cMultiboxCount`（movzbl 0x877e）、
+// `eReason=0x16` 写回形参槽 0x30(%ebp)、CInventory::AddAvatarItem 十实参序
+// （-1/0/0/pAgency/eReason/0/0）、GetRemainDate(invenItem.m_addInfo2,tNow)、
+// push_back(make_pair(nSlot, GetItemSpace)) 逐字与 ORIG 相同；本件无字符串/日志。
 #include "CBoosterGage/AddAvatarItem.inc"
                                 bool bIsFirst, CUser* pUser, const Inven_Item& item,
                                 int nCount, bool bFlag, char cType, char cParam,
@@ -448,6 +458,18 @@ struct SIG_BOOSTER_GAGE_DATA
     // （guard D1 析构置于 +0x113 共享尾）且异常段在中间；4.4 正常路径
     // fall-through 到 guard D1、异常段置尾（负例表「EH 双份 dtor epilogue vs
     // merge」）。语义等价，无源码解。
+    // [M4FreeNext15C.M4S1 round5 逐块复核 · 判 N104（父泳道要求）]
+    // ① 块内容逐条全等、仅物理顺序差：两侧同为「正常尾块 = lea -0x14/mov/call
+    //    CStreamGuardD1 + mov %ebx,%eax + epilogue」与「landing pad = mov edx/esi +
+    //    lea/mov/call D1 + mov esi→eax/ebx→edx + call _Unwind_Resume」各一份，
+    //    逐条同构；ORIG 尾 +0x127 另有 1 条对齐 `nop`（净 80=80）。
+    //    ORIG `jmp +0x113`（尾岛）/ pad 居中；我方 fall-through 尾块 / pad 置尾。
+    // ② 语义轴全核：串 `"BoosterGage.cpp"` + 行 `0x193` 与源码逐字一致（我方 .o
+    //    .rodata 偏移 0x90 处 `\0BoosterGage.cpp\0` 直证）；`SIG_BOOSTER_GAGE_DATA`
+    //    写入 = ORIG 0x080dd3ff `call get_acc_id; mov %eax,(%edx)` 落 **+0**
+    //    + 0x080dd40c `mov 0x8(%eax),%edx; mov %edx,0x4(%eax)` 落 **+4**（= this+8
+    //    m_dwTotalGage），我方逐条相同；memset 8B、`<<0x2d8`、`<<GetUID()`、
+    //    `MsgQueueMgr::put(DB_Q=2, guard)` 亦逐字一致 ⇒ 无语义残留。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("BoosterGage.cpp", 0x193), true);
     **guard << 0x2d8;

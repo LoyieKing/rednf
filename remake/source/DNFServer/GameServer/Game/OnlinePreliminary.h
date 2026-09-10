@@ -262,7 +262,8 @@ public:
     virtual void OnJoinRoom(CUser* user);
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room, int a, int b);
     virtual int OnRegisterMatch(CUser* user, PvP_Room* room);     // ORIG 返 1
-    virtual int OnMatchRoom(PvP_Room* room, int a);               // ORIG 返 1
+    // [类型轴] IMatch 族同刻（ORIG prett virtual bool，见 CFairMatch @0x08ca3800）
+    virtual bool OnMatchRoom(PvP_Room* room, int a);              // ORIG 返 1
     virtual void OnStartFight();
     virtual void OnEndFight(PvP_Room* room);
     virtual int OnWalkOut(PvP_Room* room, int a);                 // ORIG 返 1

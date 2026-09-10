@@ -68,6 +68,8 @@ SeriaRoomAniDecoEvent::~SeriaRoomAniDecoEvent() {}      // D1/D2 0x0827b4ac
 // `GetServerGroupToPvP()`↔`strlen()` 的 callee-saved 角色互换——ORIG 4.1 分配序
 // esi(serverGroup)→edi(strlen)→ebx(characNo)，4.4.6 为 edi→esi→ebx（N109：裸 register
 // 与 asm 绑定两形均不翻；两值均无槽往返，P0 禁具名缓存，且 T5 禁为装载序改类型）。
+// [M2S6 2026-09-11 复核] 148=148，残余仍仅 N109（esi/edi 互换）+ AE；§6.5 串核：
+// game_server_msg_290（我方 .rodata 0xc5 ≡ ORIG 0x8c0647d）、_289（0xd9 ≡ 0x8c06491）逐字节同。
 #include "SeriaRoomAniDecoEvent/SendAniDecoItem.inc"
 
 #include "SeriaRoomAniDecoEvent/SendEventInfo.inc"
@@ -87,6 +89,8 @@ SeriaRoomAniDecoEvent::~SeriaRoomAniDecoEvent() {}      // D1/D2 0x0827b4ac
 // 同族）：ReqDBSendNewSystemMail 实参中 `GetServerGroupToPvP()`↔`strlen()` 的
 // callee-saved 角色互换——ORIG 4.1 esi→edi→ebx，4.4.6 edi→esi→ebx（N109；本 TU
 // 已路由 4.4.6 后端，P230 亦不翻；两值无槽往返，P0 禁具名缓存）。
+// [M2S6 2026-09-11 复核] 102=102，残余仍仅 N109 + AE；§6.5 串核：
+// game_server_msg_291（我方 .rodata 0xed ≡ ORIG 0x8c064a5）、_289（0xd9 ≡ 0x8c06491）逐字节同。
 #include "SeriaRoomAniDecoEvent/processEvent.inc"
 
 #include "SeriaRoomAniDecoEvent/makeRequest.inc"

@@ -87,6 +87,12 @@
 // [b28d-27] DIFF N80：ORIG 0x08470ad6；ORIG 在 cMyTrace ctor call 之前右起求
 // varargs 并跨 call 保活 callee-saved（%edi/%esi），4.4 恒 ctor 后求（具名/临时/
 // register 三探针不可翻，N80 实证 0x0847196d）⇒ 封顶。p167 CLEAR（9/9）。
+// [M5 2026-09-11 复核] 追加两探针均无效（保持封顶）：
+//  ① `({ ret; })` 语句表达式实参 ⇒ ret 仍留槽、仍只 push %esi/%ebx（ndiff 34 不变）；
+//  ② 函数尾 dead `char pad[0x10]` 撑帧（0x50→0x60）⇒ 槽号未对齐（ORIG 0x5c 系
+//     4.1 outgoing 边界，4.4 恒 16k 量化，N115）且 ndiff 34 不变。
+//  另 ORIG `mov -0x1c(%ebp),%esi`（ret 提前保活）vs 我方 `mov -0xc(%ebp),%eax`
+//  属 4.1 对纯 load 型 vararg 也提前物化、4.4 只提前有 call 的实参 ⇒ N80 本质。
 #include "CMonitorServerProxy/InitTcp.inc"
 {
     if (m_udpPort == 0)
@@ -418,7 +424,8 @@
     // 残差（N18a 族，probe 实证）：ORIG 4.1 `lea -0x27(%ebp),%eax;
     // lea 0xd(%eax),%edx` 两段 lea 直落 %edx + name 经 %eax；4.4 恒折
     // `lea+add` 且实参装载寄存器互换。register asm(edx) 绑定 ndiff 6→7、
-    // asm(eax) 6→8，均比直写差 ⇒ 保持源形，记 N。
+    // asm(eax) 6→8，均比直写差；`&pkt.m_name[0]` 与 `pkt.m_name` 同形（lea+add 后置）
+    // ⇒ 保持源形，记 N。
     strncpy(pkt.m_name, name, 0x10);
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }

@@ -33,11 +33,17 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
 #include "W8_CU_E/findSkillCommandData.inc"
 {
     // b28d-35: DIFF→N82（帧/槽）。ORIG @0x08654b94 size 0x2d6。
-    // [轴 B 自校·记 N] axisB_points.tsv 两行（0x8654d47 / 0x8654d4d）经地址自校确为
-    //   **真分叉**：ORIG `cmpl $0x5,-0x10(%ebp); jg`、`cmpl $0x0,-0x10(%ebp); jg`
-    //   （有符号序），我方同点为 `cmpl $0x5,-0x1c(%ebp); ja`、`…; jne`（无符号序）。
-    //   但改循环变量符号性实测 **209→211（+2 劣化，E05 已复现并回滚）**——与具名
-    //   局部 `key` 的 movzbl 链寄存器分配冲突 ⇒ 按「不劣才留」判 N，源码维持原形。
+    // [M3S1 2026-09-11 本波总读数] 209 → **199 = ORIG 199（gap 0，ORIG-only/OURS-only 皆空）**。
+    //   四旋钮：①两处循环上界 `hit->second.m_count`→**out**.m_count（P0，ORIG 8654c72 实证）；
+    //   ②`m_key0` 裸下标 → union `m_keyBytes[i]` 数组视图 + 重读 out（P291/P0，消 4 步 lea）；
+    //   ③未定制分支 `size_t n` → **int n** 且条件 `n > 5 || n <= 0`（P196/P290，ORIG jg/setl 有符号）；
+    //   ④`int job` 具名局部删 → `getSkillList(get_charac_job())` 右值直传（P0，ORIG %ebx 保活无槽）。
+    //   残余 ndiff=102 全为**槽位映射**（我方 cmds=-0x28/迭代器=-0x38/-0x34 vs ORIG -0x24/-0x54/-0x50）：
+    //   迭代器/类对象槽受 P331 约束不可按 P339 提头；**帧同为 `sub $0x74`**（逐值相同）
+    //   ⇒ 判 N82/N93 族（方向已无 gap，槽位映射不可控）。
+    // [旧判词作废] axisB_points.tsv 的 0x8654d47/0x8654d4d 真分叉（ORIG `jg` 有符号 vs
+    //   我方 `ja` 无符号）**本波已由 `int n` + `n > 5 || n <= 0` 修掉**（旧记录「改符号性
+    //   209→211 劣化」是在 `unsigned char key` 具名局部仍在时测得；删 key 局部后该冲突消失）。
     // 命令表 getter（CUserCharacInfo +0x1254 区容器）：std::map<int,STSkillCommandData>*
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
@@ -50,25 +56,34 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
     {
         out.m_command = hit->second.m_command;
         out.m_count   = hit->second.m_count;
-        for (int i = 0; i < (signed char)hit->second.m_count; ++i)
+        // [M3S1 本波实测·P0] ORIG 8654c72 上界为 `mov 0x10(%ebp),%eax;
+        //   movzbl 0x2(%eax),%eax; movsbl %al,%eax; cmp -0x20(%ebp),%eax; setg`
+        //   ⇒ 读 **out**.m_count（第二形参），不是 hit->second.m_count
+        //   （后者要多一次 ptEv 调用 + lea，我方原多 1 条）。
+        for (int i = 0; i < (signed char)out.m_count; ++i)
         {
-            // [P291 本函数回退：裸下标 `(&x.m_key0)[i]` 保留（m_keyBytes 视图
-            //   在本函数 4 处访问点会被 4.4 拆成三步 lea，209→212）]
-            // 实测（20:04）：同三参重载的「删 key 局部 + 重读 out」形在本函数
-            // **劣化 209→214**（裸下标重读要重发 4 步 lea 链，与 m_keyBytes 视图
-            // 的 3 步不同）⇒ 保持 key 具名局部。
-            unsigned char key = (&hit->second.m_key0)[i];
-            (&out.m_key0)[i]  = key;
-            if (key == 7)
-                (&out.m_key0)[i] = 8;
+            // [旧判词作废] 曾记「m_keyBytes 视图 209→212 / 删 key 局部 209→214」而保留
+            //   裸下标；本波复核：当时劣化来自**同处仍读 hit->second.m_count**（多一次
+            //   ptEv+lea）与 `size_t` 无符号序的叠加，非视图本身。
+            // [M3S1 本波实测·P291/P0] ORIG 8654c37..8654c69 逐条为
+            //   `movzbl 0x7(%eax,%edx,1)`（单条 disp+scaled 读 hit->second.m_keyBytes[i]）
+            //   → `mov %dl,0x3(%eax,%ebx,1)`（单条写 out.m_keyBytes[i]）
+            //   → 重读 `movzbl 0x3(%edx,%eax,1)` 与 7 比较，全程无 key 槽
+            // ⇒ 用 union 数组视图 + 重读目标表达式；裸下标 `(&x.m_key0)[i]` 4.4 会发 lea 链。
+            out.m_keyBytes[i] = hit->second.m_keyBytes[i];
+            if (out.m_keyBytes[i] == 7)
+                out.m_keyBytes[i] = 8;
         }
         return true;
     }
 
     // 未定制：取当前职业技能列表（ORIG G_CDataManager()+0x10 → CSkillList 实例指针）
-    int job = get_charac_job();
+    // [M3S1 本波实测·P0] ORIG 8654c96 `call get_charac_job; mov %eax,%ebx; call
+    //   G_CDataManager; … mov %ebx,0x4(%esp)` —— job 值无槽往返（%ebx 保活）⇒ 原码
+    //   是**表达式右值直传**（4.4 对 `receiver->f(arg)` 先求 arg 再求 receiver，与
+    //   ORIG 同序）；具名 `int job` 局部多出 `mov %eax,-0xN` + `mov -0xN,%edx`（+1 条）。
     __gnu_cxx::hash_map<int, CSkill*>* list =
-        G_CDataManager()->m_skillList->getSkillList(job);
+        G_CDataManager()->m_skillList->getSkillList(get_charac_job());
     if (list == 0)
         return false;
 
@@ -81,34 +96,44 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
         return false;
     }
 
+    // [M3S1 本波实测·P0] ORIG 8654d1a/8654d26 为**两次** ptEv：`mov 0x4(%eax),%eax;
+    //   mov %eax,-0x18` （skill）与 `mov (%eax),%eax; mov %eax,-0x14`（key）⇒ 原码有
+    //   具名 key（int）；我方原用 `sit->first` 表达式在三处使用 ⇒ 多两次 ptEv（-3 条）。
     CSkill* skill = sit->second;          // node.first=键（与 skillId 相同）、second=CSkill*
-    size_t n = skill->m_keyCommandList.size();
-    if (!(n < 6) || n == 0)
+    int key = sit->first;
+    // [M3S1 本波实测·P196/P290] ORIG 8654d43..8654d4d 为 `cmpl $0x5,-0x10(%ebp);
+    //   jg 8654d4f` + `cmpl $0x0,-0x10(%ebp); jg 8654da3`（**有符号**），循环底
+    //   8654e19 `cmp -0x10(%ebp),%eax; setl`（有符号）⇒ n 是 int，条件写
+    //   `n > 5 || n <= 0`（`!(n<6)` 在 size_t 下产 `ja`，且 `n >= 6` 产 jge 而非 jg）。
+    int n = (int)skill->m_keyCommandList.size();
+    if (n > 5 || n <= 0)
     {
         if (n != 0)
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x2102, 5);
             trace("SKILL_COMMAND_LOG : ABNOMAL COMMAND CNT!! (%d) (%d)",
-                  (int)sit->first, (int)n);
+                  key, (int)n);
         }
         return false;
     }
 
-    out.m_command = (unsigned short)sit->first;
+    out.m_command = (unsigned short)key;      // ORIG 8654da3 从 -0x14 槽读
     out.m_count   = (unsigned char)n;
     // [轴 B 实测·本函数不适用] ORIG 0x08654e19 虽为 `cmp -0x10(%ebp),%eax; setl`
     // 有符号序（P196 前置通过），但本函数改 `int i; i < (int)n` 实测
     // **209→211 劣化**（`unsigned char key` 具名局部的 `movzbl` 链与 int 循环
     // 的寄存器分配冲突）⇒ 回退 `size_t`；残差归 N82/N93（槽向 + getSkillCommand
     // 具名缓存不可去），已按 P196/S1「一次旋钮、无改善即回滚」留痕。
-    for (size_t i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i)
     {
-        // ORIG 读第 i 个 STKeyCommandUnit.m_ids[0] 低字节作命令键位
-        int v = skill->m_keyCommandList[i].m_ids[0];
-        (&out.m_key0)[i] = (unsigned char)v;
-        if ((unsigned char)v == 7)
-            (&out.m_key0)[i] = 8;
+        // [M3S1 本波实测·P291/P0] ORIG 8654dc2..8654e21 同族：单条 scaled 读
+        //   `mov (%eax),%eax`（vector<int>::operator[] 结果直传，无 v 槽）→ 单条写
+        //   out.m_keyBytes[i] → 重读 out.m_keyBytes[i] 与 7 比较 ⇒ 删 `int v` 具名局部，
+        //   表达式右值直传 + 数组视图。
+        out.m_keyBytes[i] = (unsigned char)skill->m_keyCommandList[i].m_ids[0];
+        if (out.m_keyBytes[i] == 7)
+            out.m_keyBytes[i] = 8;
     }
     return true;
 }
@@ -159,6 +184,10 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
 #include "W8_CU_E/customizingSkillCommand.inc"
 {
     // b28d-35: DIFF→N82/N7（帧 0x54 vs 0x58；寄存器分配差）。ORIG @0x08654f74。
+    // [M3S1 2026-09-11 复核·登记勿动] show_func_diff：orig=114 our=114 **gap=0 ndiff=0**
+    //   （逐指令全等；含 ORIG 0x0865502b/0x08655040 的 operator-> 双取、0x086550a3
+    //   `make_pair<short&, T&>` 左值 data.m_command 实参形、0x086550b8 pair 转换 ctor）
+    //   ⇒ 本件已是 ORIG 形，P212/P309/P339 均无可转之旋钮。
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
             const_cast<char*>(getSkillCommand()));
@@ -335,11 +364,20 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
     m_deltaX = (short)std::abs((int)(short)m_deltaX);     // 82305b9: cwtl/sar31/xor/sub 绝对化回写
     m_deltaY = (short)std::abs((int)(short)m_deltaY);     // 82305c9
 
-    if ((int)(short)m_deltaX >= (int)xLim)                // 82305e6..f3: jge → true 块
+    // ORIG 82305f3 `jge 8230607`（true 出口被 A 真与 B 假双到达）+ 8230605 `jl 823065e`
+    // （false 出口在 reset 块**之后**，即 `jl` 直跳末尾 mov $0）⇒ 源形是
+    // `if (A || B) return true; else goto L_false;`（短路 `||`；B 为 yLim 侧的 `>=`）。
+    // [M3S1 实测] 拆成两个 `if (x) goto` 派 4.4.7 在标签处插 nop+jmp（162）；合并 `||` 后
+    //   `jge L_true`/`jl L_false` 与 ORIG 逐条同构（f14 探针 /tmp/m3s1/）。
+    if (((int)(short)m_deltaX >= (int)xLim)               // 82305e6..f3: jge → true 块
+        || ((int)(short)m_deltaY >= (int)yLim))           // 82305ff..05: jl → false 块
+    {
         return true;
-    if ((int)(short)m_deltaY < (int)yLim)                 // 82305ff..05: jl → false 块
-        return false;
-    return true;
+    }
+    else
+    {
+        goto L_false;
+    }
 L_reset:
     // 超窗重置检测框（823060e..823065a，fall-through 到尾 mov $0x0）
     m_deltaX = 0;
@@ -350,6 +388,7 @@ L_reset:
     m_minY = ny;
     m_maxX = nx;
     m_maxY = ny;
+L_false:
     return false;                                         // 823065e: mov $0x0,%eax
 }
 

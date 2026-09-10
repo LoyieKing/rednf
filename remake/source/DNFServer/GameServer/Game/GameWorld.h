@@ -125,11 +125,23 @@ public:
         bool operator<(const PvP_Key& rhs) const
             { return m_a < rhs.m_a || (m_a == rhs.m_a && m_b < rhs.m_b); }
     };
-    struct PvP_Room  // 8 字节 value（find 命中时 value+0/+4 各自自增，incPvPRoomResult 0x0860c6b4..0x0860c6ce）
+    // [Main·2026-09-11 **布局真 bug 修复**] value 实为 **16 字节**，前 8 字节是 `PvP_Key` 整体。
+    // 我方原定义为 8B（`m_roomCount`@+0x00 / `m_resultSum`@+0x04）⇒ 任何经本头读取该 value
+    // 的消费点都会**取错偏移**（读 +0x00 得到 keyA 而非计数），属语义轴字段错位族。
+    // ORIG 直证（三处，M8BigTURest.M8DBB 采集）：
+    //   ① pair 拷贝构造 0x08610d34 逐 **4 个 dword** 拷贝（= 16B value，非 8B）；
+    //   ② incPvPRoomResult 0x0860c6b4 / 0x0860c6c3 自增点分别读写 **+0x8 / +0xc**；
+    //   ③ DB_StatPVPPlay2::dispatch 0x0841bba9 / 0x0841bbaf 读 **+0xc / +0x8**。
+    // 同 TU-local 同构定义见 `StatisticsPvP.cpp:44-51`（该 TU 不 include 本头，故两者独立）。
+    // `std::map` 节点定长由 key/value 类型决定，`sizeof(StatisticsPvP)==0x30` 不受影响（assert 保留）。
+    struct PvP_Room  // 16 字节 value（前 8B = PvP_Key，后 8B = 两个累加计数器）
     {
-        int m_roomCount;    // +0x00
-        int m_resultSum;    // +0x04（+= param_3）
+        PvP_Key m_key;      // +0x00（ORIG：读-读-写-写 8 字节块拷贝，P246）
+        int m_roomCount;    // +0x08（ORIG 0x0860c6b4 自增 +1）
+        int m_resultSum;    // +0x0c（ORIG 0x0860c6c3 += param_3）
     };
+    // 布局锁：16B 值 + 头内既有 `sizeof(StatisticsPvP)==0x30` 断言共同钉死
+    static_assert(sizeof(PvP_Room) == 0x10, "StatisticsPvP::PvP_Room size (ORIG 16)");
     Mutex m_mutex;                                      // +0x00
     std::map<PvP_Key, PvP_Room> m_roomResults;          // +0x18
 };

@@ -47,41 +47,43 @@ namespace pvp_assault
 // [b28d-L8] N82 | 块序 + 槽平移（ORIG 0x08xxxxxx）
 #include "BossTowerDepsC2/ForcedMove.inc"
 {
-    if (m_user == 0)
+    // [M3S5 2026-09-11 · P222 落地] ORIG 0x082e567c 头部 `je +0x210` 直跳
+    //   epilogue；早退形（`if (m_user == 0) return;`）我方多 2 条（`212: nop` +
+    //   send_to_area 后的 `jmp 205`，our 160 > orig 158）；改「if (m_user != 0)
+    //   正向包裹」后 our **158 = orig 158（gap 0）**、TU 四数零劣化 ⇒ 按 §6.4 保留。
+    if (m_user != 0)
     {
-        return;
-    }
+        // ORIG：%al 标志直传（无内存 bool 中转）。先比村庄（movsbl 后有符号
+        // 比较），不等即走 move_area；相等再比 get_area(false)，均等才原地
+        // set_position。短路结果无槽物化 ⇒ P226 语句表达式（旧具名 int
+        // needMove 落槽致帧/指令膨胀）。ORIG 0x082e567c。
+        if (({ static_cast<int>(static_cast<signed char>(m_user->getCurCharacVill())) !=
+                m_destVill ||
+              m_user->get_area(false) != m_destArea; }))
+        {
+            G_GameWorld()->move_area(m_user, m_destVill, m_destArea, m_x, m_y,
+                                     m_dir, false, 0, 0, 0);
+        }
+        else
+        {
+            m_user->set_position(static_cast<unsigned short>(m_x),
+                                 static_cast<unsigned short>(m_y),
+                                 static_cast<char>(m_dir));
+        }
 
-    // ORIG：%al 标志直传（无内存 bool 中转）。先比村庄（movsbl 后有符号
-    // 比较），不等即走 move_area；相等再比 get_area(false)，均等才原地
-    // set_position。短路结果无槽物化 ⇒ P226 语句表达式（旧具名 int
-    // needMove 落槽致帧/指令膨胀）。ORIG 0x082e567c。
-    if (({ static_cast<int>(static_cast<signed char>(m_user->getCurCharacVill())) !=
-            m_destVill ||
-          m_user->get_area(false) != m_destArea; }))
-    {
-        G_GameWorld()->move_area(m_user, m_destVill, m_destArea, m_x, m_y,
-                                 m_dir, false, 0, 0, 0);
-    }
-    else
-    {
-        m_user->set_position(static_cast<unsigned short>(m_x),
-                             static_cast<unsigned short>(m_y),
-                             static_cast<char>(m_dir));
-    }
+        PacketGuard packet;
+        packet.put_header(0, 0x8a);
+        packet.put_short(
+            static_cast<int>(static_cast<unsigned short>(m_user->get_unique_id())));
+        packet.put_short(m_x);
+        packet.put_short(m_y);
+        packet.put_byte(m_dir);
+        packet.finalize(true);
 
-    PacketGuard packet;
-    packet.put_header(0, 0x8a);
-    packet.put_short(
-        static_cast<int>(static_cast<unsigned short>(m_user->get_unique_id())));
-    packet.put_short(m_x);
-    packet.put_short(m_y);
-    packet.put_byte(m_dir);
-    packet.finalize(true);
-
-    if (m_destVill != 0 || m_destArea != 0)
-    {
-        G_GameWorld()->send_to_area(m_destVill, m_destArea, packet);
+        if (m_destVill != 0 || m_destArea != 0)
+        {
+            G_GameWorld()->send_to_area(m_destVill, m_destArea, packet);
+        }
     }
 }
 
@@ -207,24 +209,37 @@ namespace pvp_assault
             return 0xf5;
         }
 
-        // ORIG：cmp %eax,%edx 后 **jge 直跳**（无 setl 物化）⇒ 用 goto 形
-        //（早退 return 会被 4.4 物化成 setl;test;je）。ORIG 直接
-        // `mov -0x4a(%ebp),%edx`（sret+0x7 内联读）⇒ 字段直访问，getter 会多发 call。
-        if (user->getCurCharacInvenR()->GetInvenSlot(1, slot).m_addInfo2 >=
-            dungeon->m_entryRequiredItem.m_itemCount)
-            goto L_slot_ok;
-        return 0x11;
-    L_slot_ok:;   // [Main 中断恢复] 标签后必须有语句（原为 `L_slot_ok:` 紧跟 `}` ⇒ 语法错）
+        // [M3S5 2026-09-11 · P0 具名对象推翻旧判词] ORIG 0x08644214 直接
+        //   `mov -0x4a(%ebp),%edx`（sret 目标 -0x51 的对象字段 +0x7）后
+        //   `cmp %eax,%edx; jge +0x13d` —— **直跳**（无 setcc 物化）。
+        //   4.4 对「调用返回的**临时对象**成员」参与比较恒物化 `setl;test;je`
+        //   （/tmp/p_m3s5.cc 探针 f2：setl;test;je），而对**具名对象**字段比较
+        //   直出 `jge`（探针 f8：call;mov -0x14(%ebp),%edx;cmp;jge，无额外槽）。
+        //   ⇒ 原码是具名 Inven_Item 接收 GetInvenSlot 结果（sret 直写该对象，
+        //   故 ORIG 无拷贝构造调用）。
+        Inven_Item slotItem = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
+        if (slotItem.m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
+        {
+            return 0x11;
+        }
     }
 
     CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0)
+    // [M3S5 2026-09-11 · P222/P59 块序·落地] ORIG 0x0864423d `je 0864425b`（party==0
+    //   → `mov $0x15` 块）、0x08644262 `mov $0x0` 是**最后一块且 fall-through 到出口**；
+    //   早退形（`if (party == 0) return 0x15;`）生成相反块序 ⇒ 改「if (party != 0)
+    //   {…} else { return 0x15; } return 0;」后 CheckEnterable **DIFF → AE**
+    //   （112 = 112；TU 四数 ae 4→5、diff 3→2、near 1→0）。
+    if (party != 0)
+    {
+        if (party->get_member_count() > 1)
+        {
+            return 0xab;
+        }
+    }
+    else
     {
         return 0x15;
-    }
-    if (party->get_member_count() > 1)
-    {
-        return 0xab;
     }
     return 0;
 }

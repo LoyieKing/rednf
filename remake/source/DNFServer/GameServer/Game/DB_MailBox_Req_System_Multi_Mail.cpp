@@ -37,35 +37,12 @@ unsigned int GetIdentity(MySQL* db);   // _ZN8WongWork8DBCommon11GetIdentityEP5M
 // 元素内 amp 双视图（stAmplifyOption_t 0xe 字节与 guid blob 复用同一 0x14
 // 字节区；_InsertPostal 报告 `lea 0x7(%eax)`（getValues）/`add $0xb`（blob0））。
 #pragma pack(push, 1)
-union SigPostalItem130Amp
-{
-    stAmplifyOption_t m_amp;   // +0x07（0x137，0xe 字节）
-    struct
-    {
-        char m_ampHead[0x4];   // +0x07
-        char m_guidBlob[0x10]; // +0x0b（blob_to_str(0) 源，10 字节）
-    } m_g;
-};
-
-// 附件元素视图（stride 0x3d，元素基址 = sig + 0x126）。ORIG 基址换算（报告
-// _InsertPostal 0x0844372e 逐指令）：view A 基 = 元素-0x06（`add $0x120`）；
-// view B 基 = 元素+0x0a（`add $0x130`）；seperate `add $0x150; add $0x9` =
-// 元素+0x33；Inven_Item 方法 this = 元素基址（`add $0x120; add $0x6` = 元素
-// +0x00）；seal `add $0x126` 单段 = 元素+0x00。
-struct SigPostalItem
-{
-    unsigned char m_sealFlag;         // +0x00（sig 0x126）
-    char m_pad01;                     // +0x01
-    int m_itemId;                     // +0x02（sig 0x128 = view A +0x08）
-    char m_pad06;                     // +0x06
-    int m_addInfo;                    // +0x07（sig 0x12d = view A +0x0d）
-    unsigned short m_endurance;       // +0x0b（sig 0x131 = view A +0x11）
-    int m_extendInfo;                 // +0x0d（sig 0x133 = view A +0x13）
-    SigPostalItem130Amp m_ag;         // +0x11（sig 0x137 = view B +0x07）
-    char m_randomBlob[0xe];           // +0x25（sig 0x14b = view B +0x1b）
-    unsigned char m_seperateUpgrade;  // +0x33（sig 0x159 = view B +0x29）
-    char m_rest[0x3d - 0x34];         // +0x34..0x3d
-};
+// [M5 2026-09-11 · Main 批准] SigPostalItem130Amp / SigPostalItem 已上移至
+// SigTypes_D.h（共享头具名化，pack(1)；原 TU-local 定义删除避免重复定义）。
+// ORIG 基址换算（报告 _InsertPostal 0x0844372e 逐指令）：view A 基 = 元素-0x06
+// （`add $0x120`）；view B 基 = 元素+0x0a（`add $0x130`）；seperate
+// `add $0x150; add $0x9` = 元素+0x33；Inven_Item 方法 this = 元素基址；seal
+// `add $0x126` 单段 = 元素+0x00。
 
 // SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL 字段镜像（pack(1)，sizeof 0x3a9；偏移对照
 // dispatch/_InsertLetter/_InsertPostal 报告逐指令 + ReqDBSendNewSystemMultiMail）。
@@ -128,30 +105,44 @@ struct SigMailboxSendReplyView
 //   （`mov 0x11e(%eax),%eax; … mov 0x122(%eax),%edx`，0x084436b0/0x084436a7）
 //   确证 0x11e=收件人、0x122=发件人（与 _InsertPostal 的 postal 列互证）；
 //   视图字段已按此改名，值序不变 ⇒ 本件汇编零变化。
+// [M5E round6 复核 · 语义轴 + 装载序，105/105，唯余 2 条 .h 轴]
+//  · 语义复验（逐条对 ORIG 实参槽）：charac_no←+0x11e、send_charac_no←+0x122、
+//    send_charac_name←escape(+0x1e)、letter_text←escape(+0x00)、reg_date←+0x3a1、
+//    stat←+0x3a5；`xor $1,%eax; test %al,%al; je` @0x08443702 = ORIG 的
+//    `if (!db->exec(true)) return 0;`，尾 `+0x39d ← GetIdentity(db)` + `mov $1,%eax`
+//    ⇒ 无字段错位、无极性错。
+//  · 残余唯一 2 条：我方 +0x137 `mov 0x10(%ebp),%ebx`（在 call **前**）vs ORIG
+//    +0x13a `mov 0x10(%ebp),%edx`（在 call **后**）。根因 = LHS 基址 tree 形：
+//    逐句 `((SigSystemMultiMailView*)sigRaw)->m_letterId = ...` 的 NOP_EXPR 被 4.4
+//    在 RHS 之前物化（探针 /tmp/m5e_lhs_probe.cpp：形 A 逐句 cast ⇒ call 前
+//    `mov 0x8(%ebp),%ebx`；形 B 具名视图局部 ⇒ call 后 `mov -0xc(%ebp),%eax`，
+//    即 ORIG 形）。但具名局部自身 +2 条（存+载）⇒ 净劣 106/105，不采纳。
+//    真解 = .h（SigTypes_D.h 的 SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL 仅
+//    m_data[0x3a9] pad、无具名成员；ORIG 该形参类型自带 +0x39d 成员 ⇒ 基址为
+//    普通 decl，4.4 直接 RHS-first）。.h 落地后本件 105/105 逐条相同。
 // ============================================================================
 #include "DB_MailBox_Req_System_Multi_Mail/_InsertLetter.inc"
     MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
 {
     char titleBuf[0x1ff] = { 0 };
     db->escape_string(titleBuf,
-                      ((SigSystemMultiMailView*)sigRaw)->m_sendCharacName);
+                      sigRaw->m_sendCharacName);   // [M5] SigTypes_D 具名化后直访
 
     char nameBuf[0x3d] = { 0 };
-    db->escape_string(nameBuf, ((SigSystemMultiMailView*)sigRaw)->m_letterText);
+    db->escape_string(nameBuf, sigRaw->m_letterText);
 
     db->set_query(
         "inSert into letter(charac_no,send_charac_no,send_charac_name,letter_text,reg_date,stat) values(%d,%d,'%s','%s',from_unixtime(%d),%d)",
-        ((SigSystemMultiMailView*)sigRaw)->m_recvCharacNo,
-        ((SigSystemMultiMailView*)sigRaw)->m_sendCharacNo, nameBuf, titleBuf,
-        ((SigSystemMultiMailView*)sigRaw)->m_occTime,
-        (int)((SigSystemMultiMailView*)sigRaw)->m_stat);
+        sigRaw->m_recvCharacNo,
+        sigRaw->m_sendCharacNo, nameBuf, titleBuf,
+        sigRaw->m_occTime,
+        (int)sigRaw->m_stat);
 
     if (!db->exec(true))
     {
         return 0;
     }
-    ((SigSystemMultiMailView*)sigRaw)->m_letterId =
-        (int)WongWork::DBCommon::GetIdentity(db);
+    sigRaw->m_letterId = WongWork::DBCommon::GetIdentity(db);
     return 1;
 }
 
@@ -171,6 +162,20 @@ struct SigMailboxSendReplyView
 //   （`mov -0x1c(%ebp),%eax; … add 0x10(%ebp),%eax`），6 处同形；已试 union→
 //   纯数组视图、`(m_item+i)->` 指针算术两形均不可翻（后者反多 1 条 lea）
 //   ⇒ P30/N102/N4 族封顶。调用点差集仅 P93 别名（string/cMyTrace C1↔C2、D1↔D2 同址）。
+// [M5E round6 复核 · 269/276，定位到 11 处同根因（.h 轴）]
+//  · 语义复验（逐条对 ORIG 实参槽）：sprintf 的 0x8/0xc/0x10/0x14(%esp) =
+//    occTime(+0x3a1)/+0x122/+0x11e/item+0x126，12 个局部 -0x470…-0x43c 逐个同序；
+//    尾部 `xor $1; test; je` + cMyTrace(…,5,0xa5b5) + `mov $0x0/%ebx` 与
+//    `mov $0x1,%ebx` ⇒ 无字段错位、无极性错。
+//  · 计数差 7 条 = 4 处「ORIG 4 条 `mov i,%eax; imul $0x3d,%eax,%eax;
+//    add $0x130,%eax; add 0x10(%ebp),%eax` vs 我方 5 条 base-first」（+4）+
+//    3 处我方多 1 条 `mov 0x10(%ebp),%edx`（+3，ORIG 直接用实参槽作 add 的内存
+//    操作数）+ 4 处 1:1 换位（0）。同 _InsertLetter 同根因：ORIG 的形参类型自带
+//    成员（基址=实参槽内存操作数），我方逐句 cast 使基址先进寄存器。
+//  · 探针 /tmp/m5e_loop_probe.cpp：形 B（具名视图局部）与形 C（形参即视图）同为
+//    index-first 装载序，但**同为 5 条**（具名局部不省条数，反而 +2 条存/载）
+//    ⇒ 本 TU 内无法闭合；.h（SigTypes_D.h 具名成员）落地后本件并同 _InsertLetter
+//    一起归零。P30/N102/N4 判词维持（新增 .h 轴归因）。
 // ============================================================================
 #include "DB_MailBox_Req_System_Multi_Mail/_InsertPostal.inc"
     MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
@@ -180,45 +185,45 @@ struct SigMailboxSendReplyView
 
     str.clear();
 
-    for (i = 0; i < ((SigSystemMultiMailView*)sigRaw)->m_count; ++i)
+    for (i = 0; i < sigRaw->m_count; ++i)
     {
         if (i != 0)
         {
-            ((SigSystemMultiMailView*)sigRaw)->m_gold = 0;
+            sigRaw->m_gold = 0;
         }
 
         unsigned char ampType = 0;
         unsigned short ampValue = 0;
-        ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_ag.m_amp.getValues(
+        sigRaw->m_item[i].m_ag.m_amp.getValues(
             ampType, ampValue);
 
         char buf[0x400] = { 0 };
 
         sprintf(buf,
             "(from_unixtime(%d),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d,%d,%d,%d,'%s','%s',%d,%d)",
-            ((SigSystemMultiMailView*)sigRaw)->m_occTime,
-            ((SigSystemMultiMailView*)sigRaw)->m_sendCharacNo,
-            ((SigSystemMultiMailView*)sigRaw)->m_recvCharacNo,
-            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_sealFlag,
-            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_itemId,
-            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_addInfo,
-            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_endurance,
-            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->GetItemAttr(),
+            sigRaw->m_occTime,
+            sigRaw->m_sendCharacNo,
+            sigRaw->m_recvCharacNo,
+            sigRaw->m_item[i].m_sealFlag,
+            sigRaw->m_item[i].m_itemId,
+            sigRaw->m_item[i].m_addInfo,
+            sigRaw->m_item[i].m_endurance,
+            ((Inven_Item*)&sigRaw->m_item[i])->GetItemAttr(),
             ampType, ampValue,
-            ((SigSystemMultiMailView*)sigRaw)->m_gold, (const char*)sigRaw,
-            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->IsCreatureItemType(),
-            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->isAvatarItemType(),
-            ((SigSystemMultiMailView*)sigRaw)->m_letterId,
-            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_extendInfo,
+            sigRaw->m_gold, (const char*)sigRaw,
+            ((Inven_Item*)&sigRaw->m_item[i])->IsCreatureItemType(),
+            ((Inven_Item*)&sigRaw->m_item[i])->isAvatarItemType(),
+            sigRaw->m_letterId,
+            sigRaw->m_item[i].m_extendInfo,
             db->blob_to_str(0,
-                (void*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_ag.m_g.m_guidBlob[0], 10),
+                (void*)&sigRaw->m_item[i].m_ag.m_g.m_guidBlob[0], 10),
             db->blob_to_str(1,
-                (void*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_randomBlob[0], 0xe),
-            ((UpgradeSeparateInfo*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_seperateUpgrade)->GetUpgradeSeparate(),
-            ((SigSystemMultiMailView*)sigRaw)->m_unlimitFlag);
+                (void*)&sigRaw->m_item[i].m_randomBlob[0], 0xe),
+            ((UpgradeSeparateInfo*)&sigRaw->m_item[i].m_seperateUpgrade)->GetUpgradeSeparate(),
+            sigRaw->m_unlimitFlag);
         str.append(buf);
 
-        if (i < ((SigSystemMultiMailView*)sigRaw)->m_count - 1)
+        if (i < sigRaw->m_count - 1)
         {
             str.append(",");
         }

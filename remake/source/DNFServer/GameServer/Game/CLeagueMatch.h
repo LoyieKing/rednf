@@ -101,7 +101,8 @@ public:
     virtual void OnJoinRoom(CUser* user);                       // 0x0855d198
     virtual void OnLeaveRoom(CUser*, PvP_Room*, int, int);      // 0x0855d1c0
     virtual int OnRegisterMatch(CUser*, PvP_Room*);             // 0x0855db58（ORIG 返 1）
-    virtual int OnMatchRoom(PvP_Room*, int authValue);         // 0x0855dc64（ORIG 返 1）
+    // [类型轴] ORIG prett 0x08ca3ae0 = "virtual bool CLeagueMatch::OnMatchRoom(PvP_Room*, int)"
+    virtual bool OnMatchRoom(PvP_Room*, int authValue);        // 0x0855dc64（ORIG 返 1）
     virtual void OnStartFight();                                // 0x0855e21c
     virtual void OnEndFight(PvP_Room* room);                   // 0x0855e55a
     virtual int OnWalkOut(PvP_Room* room, int seat);           // 0x0855e4c4（ORIG 返 1）

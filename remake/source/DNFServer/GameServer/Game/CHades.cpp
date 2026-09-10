@@ -148,6 +148,12 @@ namespace XNuclear
     // 条件直写 if（探针 fA setne %bl → fC setne %al）。register int cached 为
     // P231 纯存储类提示（非 asm 绑定），保 callee-saved 免槽跨 call 保活。
     register int cached = m_connSec;
+    // [M4FreeNext15C.M4S1 round5 复验 · 维持 N22] ORIG 0x084b9732 `cmp %eax,%ebx`
+    // （dst = 缓存局部 %ebx、src = call 结果 %eax，即后求值者不作 dst）。
+    // 旧探针用成员访问形（`GP()->m_connSec`）；本轮改用**实调用**并交换源码
+    // 操作数序（`cached != …GetHadesSocketConnSec()`）实编 —— 读数不变：
+    // 仍 `cmp %ebx,%eax`（ndiff=2 ↔ 改前同值）⇒ 4.4 恒按“后求值者为 dst”生成，
+    // 源码不可控，回滚原形。N22「4.4 恒把 call 结果当 dst」维持。
     if (GlobalData::s_hades_proxy->GetHadesSocketConnSec() != cached)
     {
         Send_Login();
@@ -205,6 +211,15 @@ namespace XNuclear
     // 引用/嵌套成员八形探针全折 disp，唯裸偏移出 add 而 §4.3 禁）。
     // 两处 nop 岛（+0x84/+0x87）已由下方双否定 goto + L1/L2 尾空标签串复现
     // （P223/BM8），strncpy 源实参的数组退化 `add` 形亦已同构。
+    // [M4FreeNext15C.M4S1 round5 复验 · 判 N4/N102 封顶（父泳道定性）]
+    // ORIG 0x084b97aa `mov 0x20(%eax),%eax` / 0x084b97ad `add $0x8e418,%eax` /
+    // 0x084b97b2 `movzbl (%eax),%eax`（两步 add 展开）；我方
+    // `movzbl 0x8e418(%eax),%eax` 单条 disp。本轮新探针同旗标实编：
+    //   g1 `arr[0]`、g2 `*arr`、g4 `*&arr[0]` ⇒ 全 fold 成 disp（同我方）；
+    //   g3 具名指针局部 ⇒ 出 add 但附 `mov %eax,-0x4(%ebp)` 栈物化（ORIG 无）；
+    //   g5 裸 `register` 指针 ⇒ 出 `lea 0x8e400(%eax),%ebx` + `push %ebx`（ORIG 无 push、用 add）。
+    // ⇒ 无合法源形可复现「裸 add + 直 deref、无栈无 push」；0x8e418 属
+    //   CNetwork<4096,450000> 内部缓冲偏移（非本 TU 布局），P311 数组视图不适用。
     m_user->m_network.GetPeerIP2(out, 4);
     // [b28c-16] P223/BM8 尾标签串：ORIG `jne +0x84(nop)/je +0x87(nop)/体尾
     // jmp +0x88` 三岛 ⇒ 两否定 goto + L1/L2 空标签串（4.4 对嵌套 if 恒

@@ -122,12 +122,26 @@ struct NetFlagView
 // 残差 N104/EH：4.4 对 try 内仅 nothrow memmove 的 EH 边整体消除（探针
 // /tmp/d68probe/eh.o、eh2.o 三形实证：无 __cxa_begin_catch/_Unwind_Resume），
 // 4.1 保留 ⇒ p167 的 5 项 EH MISSING 属跨版本结构性不可清。
+// [M1S5 2026-09-11 本波两项，ndiff 195→188] ①**类型轴**：ORIG 0x08490090/0x08490093
+// `mov %eax,-0x20(%ebp); mov %edx,-0x1c(%ebp)` 后 0x08490099..0x084900a2 两次
+// **直传**（`mov %eax,0x4(%ecx); mov %edx,0x8(%ecx)`，无移位指令）⇒ `tick` 为
+// **无符号**（有符号 `tick>>32` 必产 `sar $0x1f,%edx`，实证我方旧形含该条）
+// ⇒ 改 `unsigned long long tick`；②P339 声明序：ORIG 槽 深→浅 =
+// parsingLength(-0x24)/tick(-0x20,-0x1c)/packetSize(-0x14)/moved(-0xc)
+// ⇒ 把 tick 提到 packetSize 之前（我方旧序 parsingLength/packetSize/moved/tick
+// 使 tick 落最浅 -0x10/-0xc）。our 161→160。
+// 残余（判 N，逐条 ORIG 证据）：③`lea (%edx,%eax,1)`(0x08490085) vs 4.4 `add`
+//   满负荷位移形（P75 跨版本）；④0x08490219 `jle 尾块`(共享 `mov $1,%ebx` 出口
+//   0x08490300) vs 4.4 `jg + mov $1,%eax; jmp`（P325 反向）；⑤do-while 尾
+//   0x0849020c `jg` vs 4.4 `setg %al; test %al,%al; jne`（条件物化差）；
+//   ⑥`(unsigned int)(tick>>32)` 4.4 产 `mov %edx,%eax; xor %edx,%edx; mov %eax,%edx`
+//   三连规范形（4.1 无）；⑦N104 EH 段（上述）。
 #include "ExchangeServer_Session/Parsing.inc"
 {
     int parsingLength;
+    unsigned long long tick;
     unsigned int packetSize;
     int moved;
-    long long tick;
     char header[HEADER_SIZE];
 
     parsingLength = (int)m_recvOffset + recvLen;
@@ -266,14 +280,23 @@ struct NetFlagView
 // ---------------------------------------------------------------------------
 // OnAccept — ORIG 0x849045e size 0x174
 // ---------------------------------------------------------------------------
-// [b28d-D33 N7/N109 封顶] ORIG 0x0849045e：94=94 条；push esi/ebx 顺序 + 帧
-// 0x70 vs 0x84（callee-saved 角色 + 16k+4 量化）。p167 CLEAR 13=13，语义等价。
+// [b28d-D33 N7/N109 封顶] ORIG 0x0849045e。p167 CLEAR 13=13。
+// [M1S5 2026-09-11 **推翻 D33 旧判词**] 两处新钥匙使本件 DIFF→AE：
+// ①P0/P329：删 `port`/`ip` 两个具名局部（ORIG -0x10/-0x12 无此二槽、值走
+//   callee-saved %esi/%ebx）⇒ 内联进 cMyTrace 实参，帧 0x84→0x70=ORIG、
+//   addr/addrlen/cMyTrace 槽全部归位（-0x50/-0x54/-0x40/-0x30/-0x20）；
+// ②P307：`register socklen_t* plen = &addrlen;` 使取址实参提前物化 —— 复现
+//   ORIG 0x0849046d `lea -0x54(%ebp),%esi`（函数头、GetSocket 前）+ 调用点
+//   `mov %esi,0x8(%esp)`（4.4 裸形恒延迟到调用点用 %edx 中转）。
+// 读数：our_insns 94=94（持平）；TU 四数 ae 13→14、合计 16→17、near 0→1。
+// 残余：无（唯一差异为 .o 未重定位的 call/数据地址显示形）。
 #include "ExchangeServer_Session/OnAccept.inc"
 {
     sockaddr_in addr;                         // -0x50(%ebp)，len@-0x54
     socklen_t addrlen = 0x10;
+    register socklen_t* plen = &addrlen;      // P307：取址实参提前物化
 
-    int fd = accept(GetSocket(), (sockaddr*)&addr, &addrlen);
+    int fd = accept(GetSocket(), (sockaddr*)&addr, plen);
     if (fd < 0)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x1f7, 0)("Accept Socket[%d] Error(%s)",
@@ -281,11 +304,9 @@ struct NetFlagView
         return 0;                             // mov $0,%eax
     }
 
-    unsigned short port = ntohs(addr.sin_port);
-    char* ip = inet_ntoa(addr.sin_addr);
     cMyTrace(__PRETTY_FUNCTION__, 0x1fa, 0)(
         "Accepted other game server ip(%s), port(%d), sock(%d)",
-        ip, (int)port, fd);
+        inet_ntoa(addr.sin_addr), (int)ntohs(addr.sin_port), fd);
 
     // vtable+8 AllocSession()
     CSession* session = (CSession*)ES()->AllocSession();
@@ -383,12 +404,16 @@ struct NetFlagView
 // N96 全域禁用；P248 不得恢复）。报告缺失（docs/class_func_reports 无
 // exchange_server 目录；同名 CDBConnector/Connect.md 经签名核对为撞名错配，
 // 仅用 ORIG 二进制切片，§3.2 兜底并标注）。ORIG 0x849084c
-// `cmpl $0x0,-0x10(%ebp); setne %al; test %al,%al; je`——failed 值全程在 %al、
-// 无栈槽 ⇒ 按 P0 双推律原码无该具名局部，还原为 `if (ok != 0)` 表达式直判。
-// 残差 = N96+N18a 封顶（4.4 对槽比零恒折直跳，不物化 setCC）。
-// 读数：清绑前 [identical=3 ae=14 合计17 near=0 diff=3]，本函数 verdict=DIFF
-//       orig57/our57；清绑后 [identical=3 ae=13 合计16 near=0 diff=4]，
-//       verdict=DIFF orig57/our55（缺 setne+test 两条）。
+// `cmpl $0x0,-0x10(%ebp); setne %al; test %al,%al; je`——failed 值全程在寄存器、
+// 无栈槽 ⇒ 原码为裸 register 局部（当时的 `if (ok != 0)` 直判是过度删除）。
+// [M1S5 2026-09-11 **修正 N96 清绑过度删除**] 裸 `register`（**无 asm 绑定**）是
+// 合法存储类提示（P231；docs/asm_translation_patterns.md 该条登记本文件即此形），
+// N96/P0 禁的是 `register T x asm("reg")` 显式绑定。恢复
+// `register bool failed = (ok != 0); if (failed)` 后复现 ORIG 0x849084c 形
+// `cmpl $0x0,-0x10(%ebp); setne %al; test %al,%al; je`（4.4 分配 %bl 而非 4.1 的
+// %al，寄存器角色差、助记符序列全等）。
+// 读数：清绑过度 [ae=13 合计16 near=0 diff=4，orig57/our55，缺 setne+test 两条]
+//       → 本波 [near=1 diff=3，orig57/our57]；本函数 DIFF→NEAR。
 // ---------------------------------------------------------------------------
 #include "ExchangeServer_Session/Connect.inc"
 {
@@ -399,9 +424,11 @@ struct NetFlagView
 
     // [N96 清绑] 原 `register bool failed asm("eax")` 已删（P0/N96 全域禁绑）。
     // ORIG 0x849084c `cmpl $0x0,-0x10(%ebp); setne %al; test %al,%al; je` ——
-    // failed 值全程在 %al、无栈槽 ⇒ 按 P0 双推律原码无该具名局部，还原为
-    // `if (ok != 0)` 表达式直判（残差见函数头判词）。
-    if (ok != 0)
+    // failed 值全程在寄存器、无栈槽 ⇒ 原码为**裸 register 存储类提示**
+    // （P231：禁的是 `register T x asm("reg")` 绑定，裸 register 合法且 -O0
+    // 仍参与分配决策；本形即 docs 中登记的 ExchangeServer_Session 计数族）。
+    register bool failed = (ok != 0);
+    if (failed)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x24b, 0)(
             "CreateConnectionSocket failed - %s", strerror(errno));

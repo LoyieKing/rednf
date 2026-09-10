@@ -995,10 +995,10 @@ RET0:
          * 第 1 参用 __PRETTY_FUNCTION__（P139：ORIG 符号
          * _ZZ...OnMatchRoom...E19__PRETTY_FUNCTION__，手写串不生成该局部符号）。 */
         cMyTrace(__PRETTY_FUNCTION__, 0x7a6, 0)("OnMatchRoom timeout");
-        return 0;
+        return false;
     }
     if (m_field04 != 1)
-        return 0;
+        return false;
 
     /* [b28d-solo-OnlinePreliminaryMatch·P212 全头部声明] ORIG @08561555-0x79
      * 三条初始化 `movl $0,-0x1c/-0x18/-0x70`（oppUser/oppRoom/opponent 均在
@@ -1011,7 +1011,7 @@ RET0:
     {
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     oppUser = opponent->GetUser(0);                       /* vt+0x10 */
@@ -1021,7 +1021,7 @@ RET0:
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x7c1);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     oppRoom = (PvP_Room*)oppUser->GetPVPRoom();                      /* T 0x865518e */
@@ -1031,7 +1031,7 @@ RET0:
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x7ca);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
     /* [b28d-solo-OnlinePreliminaryMatch] ORIG `movzbl %al,%eax` 形 ⇒
      * `(unsigned char)` 强转（`& 0xff` 恒产 and $0xff）。
@@ -1044,7 +1044,7 @@ RET0:
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x7d2);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
     /* [b28d-solo-OnlinePreliminaryMatch] ORIG `movzbl %al,%eax` 形 ⇒
      * `(unsigned char)` 强转（`& 0xff` 恒产 and $0xff）。 */
@@ -1057,7 +1057,7 @@ RET0:
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x7da);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     _BackupRoomInfo(oppRoom);
@@ -1105,7 +1105,7 @@ RET0:
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)5, room->get_index(),
                                 (TIMER_MESSAGE)0x3b, 0xb4,
                                 (int)room->gen_timer_key((TIMER_MESSAGE)0x3b), 0);
-    return 1;
+    return true;
 }
 
 /* ORIG T 0x08561a52 */

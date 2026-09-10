@@ -243,7 +243,11 @@ struct _AdvanceAltarDbData
     // _RewardC1Ev（步长 0x5）⇒ 元素数 0x1e，非 0x1d。0x481 + 30*0x5 = 0x517，
     // 故 m_update 紧随其后（无 pad 区），块尾即结构尾 0x518。
     _Reward m_rewards[0x1e];         // +0x481（30，尾 0x517）
-    unsigned char m_update;          // +0x517
+    // [类型轴 2026-09-11] ORIG 0x0813ecb6 `movzbl 0x517(%eax),%eax; xor $1,%eax;
+    //   test %al,%al; jne`（bool 取反形；uchar 恒 `cmpb $1`）⇒ 字段为 bool。
+    //   #pragma pack(push,1) 内 1B/对齐 1 ⇒ sizeof 0x518、offsetof(m_update)==0x517、
+    //   sizeof(_CharacAdvanceAltarDbData)==0x51c 与下列全部 static_assert 均不变。
+    bool m_update;                   // +0x517
 };                                   // sizeof 0x518
 #pragma pack(pop)
 
@@ -323,7 +327,10 @@ public:
     std::map<unsigned char,_Slot> m_slots1;  // +0x84
     std::map<unsigned char,_Slot> m_slots2;  // +0x9c
     std::map<int,_Reward> m_rewards;         // +0xb4
-    unsigned char m_update;                  // +0xcc
+    // [类型轴 2026-09-11] 与 _AdvanceAltarDbData::m_update 同型：ORIG get()
+    //   @0x088996e4 形为 `movzbl 0xcc(%eax),%edx; mov %dl,0x517(%eax)`（源读+直存，
+    //   无 bool 规范化 `test/setne`）⇒ 两侧同为 bool；uchar 侧会使 get() 多 2 条。
+    bool m_update;                           // +0xcc
 };                                           // sizeof 0xd0
 
 class DB_Update : public ::DBDispatcher

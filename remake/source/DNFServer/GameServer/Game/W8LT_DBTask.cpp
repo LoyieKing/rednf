@@ -1285,6 +1285,9 @@ char const* get_skill_table_name(bool use2nd);
         // mov 0xe(%eax)`（gap 1→0、ndiff 5→4、差集归零）。残余 = 装载序/常量
         // 结合顺序（N18a）。反例已记：改 `&sig->m_tryEntries[idx][0]` 反劣
         // （174→175、add:3/lea:1）。
+        // [M8DBB 2026-09-11 负结论] 常量前置形 `sig + 0x20 + idx*10` 实测
+        // **零变化**（174/175、diff blocks 17 全同，仅 `mov 0xc(%ebp),%ecx`
+        // 与 `add $0x20` 的发射序不变）⇒ 回滚。残余归 N18a 结合序封顶。
         reinterpret_cast<const DB_TryNatSection*>(
             reinterpret_cast<const char*>(
                 sig) + idx * 10 + 0x20)->m_f,
@@ -4462,6 +4465,8 @@ struct DB_UpdateLogoutSigView
     // [H4 2026-09-11 复核] 实测把 serverId 提到 r 之前**槽号完全不变**
     //（r 仍 -0xd / serverId 仍 -0x14）⇒ 4.4 按尺寸分组+首次使用序分配、
     // 声明序不可翻（N98/P331 混合尺寸区）⇒ 回滚保原序，判 N82 槽号封顶。
+    // [M8DBA r5] 追加一试：`volatile bool r;`（补 volatile 促其提前分配）
+    // 读数 58/58 NEAR 不变、槽仍 r@-0xd / serverId@-0x14 ⇒ 无效，回滚。
     bool r;
     volatile int serverId = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -7927,6 +7932,16 @@ struct DB_UpdatePvPResultSlotView      // 每队槽（stride 0x38）
 #pragma pack(pop)
 
 // [SweepW8LT b28d] DIFF：gap=-21（N82 槽差 + N7/N18a 寄存器分配）；ORIG 0843097e
+// [M8DBA r5] gap −22 → +3：ORIG 1033 / our 1055 → 1036。
+//   手法：badges/dailyBadges 共 12 处访问改「整型索引先行指针形」
+//   `((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].x`
+//   —— ORIG 直证（0x0843155b / 0x0843173f 区，如
+//   `mov -0x1c(%ebp),%ecx; mov -0x20(%ebp),%edx; mov -0x34(%ebp),%ebx;
+//    mov %edx,%eax; add %eax,%eax; add %edx,%eax; mov %ecx,%edx; shl $0x3,%edx;
+//    lea 0x0(,%edx,8),%ecx; sub %edx,%ecx; add %ecx,%eax; lea (%ebx,%eax,1),%eax;
+//    add $0x1d,%eax; movzbl (%eax),%eax`）：ORIG 是「3r+56p 整型和先行 + 加基址」，
+//   我方旧形是 `(buf + p*0x38) + r*3` 分段（每处多 `mov %ecx,%ebx; sub; mov %ebx,%eax`
+//   2 条，extra 计数实证 19 处）。12 处 × 2 = 24 条已消。
 #include "W8LT_DBTask/dispatch_47.inc"
 {
     // 局部类 school_info（ORIG W C1 0x0843091e；9 字段全清零）
@@ -8087,30 +8102,35 @@ struct DB_UpdatePvPResultSlotView      // 每队槽（stride 0x38）
         for (p = 0; p <= 1; ++p)
         {
             // P183 地址重物化铁律：ORIG 每处 badge/dailyBadge 字段访问都从
-            // buf + 两下标（r×3 / p×0x38）重算完整地址链（11 条/处）；缓存
-            // 具名 slotv 指针每处省 5 条 ⇒ 缺口 -54。全表达式展开。
-            if (((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_red != 0 ||
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_blue != 0)
-                ++((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_green;
+            // buf + 两下标（r×3 / p×0x38）重算完整地址链（13 条/处）。
+            // [M8DBA r5] 关键：ORIG 先把「3r + 56p」按整型求和再 + buf
+            // （0x0843155b 区 `mov %ecx,%edx; shl $0x3,%edx; lea (,%edx,8),%ecx;
+            //  sub %edx,%ecx; add %ecx,%eax; lea (%ebx,%eax,1),%eax`），
+            // 故此处写 `buf + (r * 3 + p * 0x38)` 再取 `m_badges[0]`；
+            // 旧形 `(buf + p * 0x38)->m_badges[r]` 每处多 2 条搬移
+            // （`mov %ecx,%ebx; sub %eax,%ebx; mov %ebx,%eax`，extra 计数实证）。
+            if (((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_red != 0 ||
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_blue != 0)
+                ++((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_green;
             // P227：同上（ORIG NumberToString 在 ctor 之前 ⇒ 临时链形）。
             cMyTrace(__PRETTY_FUNCTION__, 0x7881, 0)(
                 "BADGE_COUNT m_id(%s) badge green(%d), red(%d), blue(%d), daily badge green(%d), red(%d), blue(%d)",
                 NumberToString(((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_ids[r], 0),
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_green,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_red,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_blue,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_green,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_red,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_blue);
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_blue,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_dailyBadges[0].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_dailyBadges[0].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_dailyBadges[0].m_blue);
             db->set_query(
                 "upDate school_member set contribute=contribute+%d, last_play_time=NOW(), green_badge=green_badge+%d, red_badge=red_badge+%d, blue_badge=blue_badge+%d, daily_green_badge=%d, daily_red_badge=%d, daily_blue_badge=%d  where m_id=%s and school_id=%d",
                 rows[p].m_fightCntCur,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_green,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_red,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_badges[r].m_blue,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_green,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_red,
-                ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_dailyBadges[r].m_blue,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_badges[0].m_blue,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_dailyBadges[0].m_green,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_dailyBadges[0].m_red,
+                ((DB_UpdatePvPResultSlotView*)(buf + (r * 3 + p * 0x38)))->m_dailyBadges[0].m_blue,
                 NumberToString(((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_ids[r], 0),
                 ((DB_UpdatePvPResultSlotView*)(buf + p * 0x38))->m_schoolIds[r]);
             if (!db->exec(true))
@@ -11042,6 +11062,32 @@ char* getList2inQuery(const std::vector<int>& list, char* out)
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 0841ba96
 // [L4-r1] 2 处 cMyTrace 改 P227 全表达式临时链 ⇒ **DIFF→NEAR**（ndiff 112→12）；
 //   余 12 行 = 迭代器槽阶梯/寄存器角色（N7/N86 族）。
+// [M8DBB 2026-09-11 语义轴·字段错位修正（父泳道 M8BigTURest 裁决：先落 TU-local 视图，
+// 共享头 GameWorld.h 的 StatisticsPvP::PvP_Room 修正待 Main 统一调度）]
+// ORIG 的 PvP_Room = **16 字节**，三条直证：
+//  ① pair 拷贝构造 _ZNSt4pairIKN13StatisticsPvP7PvP_KeyENS0_8PvP_RoomEEC1IRS1_RS3_EEOT_OT0_
+//     @0x08610d61-0x08610d75 从 second 逐 4 个 dword 拷到 pair+0x08/+0x0c/+0x10/+0x14；
+//  ② StatisticsPvP::incPvPRoomResult @0x0860c6b4 `mov 0x8(%eax),%eax`（+1 自增）与
+//     0x0860c6c3 `mov 0xc(%eax),%eax`（+= param）⇒ roomCount@+0x08、resultSum@+0x0c；
+//  ③ 本函数 ORIG 0x0841bbaf `mov 0x8(%eax),%eax`（occ_count）、0x0841bba9
+//     `mov 0xc(%eax),%edx`（no_participants）—— 真偏移 +0x8/+0xc。
+// [Main·2026-09-11] `GameWorld.h` 的 `StatisticsPvP::PvP_Room` 原为 8 字节版
+// （m_roomCount@+0x00/m_resultSum@+0x04）⇒ 实参取错 +8 字节。**该头已按 ORIG 修为
+// 16 字节版**（`PvP_Key m_key` +0x00 / `m_roomCount` +0x08 / `m_resultSum` +0x0c，
+// 附 `static_assert(sizeof(PvP_Room)==0x10)`；直证见 GameWorld.h 注释）。
+// **本视图保留不撤**：使用点的 `&(*it).second` 形是 **P167 硬要求**（ORIG 用
+// `operator*`(deEv)×2），视图让该表达式保持「取址 + 逐字段读」的 ORIG 码形；
+// 改成 `(*it).second.m_x` 会使 4.4 改发 `ptEv`，破坏已达成的 AE。
+// ⇒ 本视图现为**码形保真镜像**（偏移与修头后的真类型逐值相同），不再承担偏移修正职责。
+#pragma pack(push, 1)
+struct DB_StatPVPPlay2RoomView
+{
+    int m_keyA;        // +0x00（ORIG 头部 8 字节 = PvP_Key 整体）
+    int m_keyB;        // +0x04
+    int m_roomCount;   // +0x08（ORIG 0x0860c6b4 自增 +1）
+    int m_resultSum;   // +0x0c（ORIG 0x0860c6c3 += param_3）
+};
+#pragma pack(pop)
 #include "W8LT_DBTask/dispatch_95.inc"
 {
     // P157/P183：ORIG 三处独立 `G_GameWorld()->getStatisticsPvP()`（p167 差集
@@ -11065,7 +11111,9 @@ char* getList2inQuery(const std::vector<int>& list, char* out)
         // P167：ORIG 用 `operator*`（deEv）×2，我方 `it->` 选中 ptEv ×2 ⇒
         // 写 `(*it).first/second`。
         const StatisticsPvP::PvP_Key& key = (*it).first;
-        const StatisticsPvP::PvP_Room& room = (*it).second;
+        // [M8DBB] 真偏移视图（ORIG 16B，见上）；`&(*it).second` 仍走 deEv+8。
+        const DB_StatPVPPlay2RoomView& room =
+            *(const DB_StatPVPPlay2RoomView*)&(*it).second;
         db->set_query(
             "inSert into pvp_status(occ_date,room_number,play_type,no_participants,occ_count) values(cast(now() as date),%d,%d,%d,%d)",
             key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);
@@ -16444,7 +16492,17 @@ struct DB_PvPResultSchoolView
     unsigned char m_count;   // +0x0f（外层循环上界）
     char m_pad1[0x18];       // +0x10..+0x27
     int m_schoolId[2][0xe];  // +0x28（行 j，列 i，stride 0x38=14*4）
-    unsigned int m_mId[2][0xe]; // +0x38（行 j，列 i，stride 0x38）
+};
+// [M8DBB 2026-09-11 语义轴·布局修正（父泳道 M8BigTURest 批准）]
+// ORIG 0x084317b2 直证：schoolId 行内 +0x00（0x08431817 `add $0x8,%eax` ⇒
+// 4*(14j+i+8)+8 = sig+0x28+56j+4i），mId 行内 **+0x10**（0x08431835
+// `add $0xc,%eax` ⇒ 4*(14j+i+12)+8 = sig+0x38+56j+4i）。原写法把 mId 声明为
+// schoolId 之后的独立 `[2][0xe]` 数组 ⇒ 实际基址 0x98（4.4 译出 `add $0x24`）
+// ⇒ **读错列**（语义 bug）。拆成两个同起点的 14-int 行视图，行 stride 0x38。
+struct DB_PvPResultMIdView
+{
+    char m_pad[0x38];            // +0x00..+0x37
+    unsigned int m_mId[2][0xe];  // +0x38（行 j，列 i，stride 0x38）
 };
 #pragma pack(pop)
 
@@ -16468,7 +16526,7 @@ struct DB_PvPResultSchoolView
         {
             db->set_query(
                 "upDate school_member set last_play_time=NOW()  where m_id=%s and school_id=%d",
-                NumberToString(((DB_PvPResultSchoolView*)sig)->m_mId[j][i], 0),
+                NumberToString(((DB_PvPResultMIdView*)sig)->m_mId[j][i], 0),
                 ((DB_PvPResultSchoolView*)sig)->m_schoolId[j][i]);
             if (db->exec(true) != 1)
                 return 0;
@@ -18091,13 +18149,13 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
         NumberToString(sig->m_mId, 0));
     if (!(db->exec(true) && db->getAffectedRowCount() != 0))
     {
-        unsigned int slotEffect = sig->m_slotEffect;
-        unsigned int slotLimit = sig->m_slotLimit;
-        const char* idStr = NumberToString(sig->m_mId, 0);
-        // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
+        // [M8DBB 2026-09-11 试] P329 具名实参中介内联回实参位（ORIG 0x084421b9
+        // `mov %eax,%ebx` / 0x084421c2 `movzbl %al,%edi` / 0x084421cc `movzbl
+        // %al,%esi` = 三实参跨 ctor 保活在 callee-saved ⇒ 无具名槽）。
         cMyTrace(__PRETTY_FUNCTION__, 0xa1f5, 5)(
             "upDate charac_view set slot_effect_count(%u), charac_slot_limit(%u) failed at m_id(%u)",
-            slotEffect, slotLimit, idStr);
+            (unsigned int)sig->m_slotEffect, (unsigned int)sig->m_slotLimit,
+            NumberToString(sig->m_mId, 0));
         return 0;
     }
     return 1;

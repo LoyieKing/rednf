@@ -145,6 +145,11 @@ const int kBuyEntryStride = 0x1cf;   // MSG 条目区步长（ProcessBuyRequest 
 // P223 负条件 goto 尾空标签复现 4.1 if-join 岛（`call ProcessError; jmp; nop`）。
 // 残余唯一 1 条：logFormat 0x177 实参 4.4 恒插 `mov %eax,%edx` 中转
 // （int 形参/const char* cast 两形实测不消）⇒ 语义等价，byte 层 N 封顶。
+// [M2FreeNext15A · 2026-09-11] 符号轴修复：logFormat 第 3 实参原为手写签名字符串，
+// 已改回 __PRETTY_FUNCTION__（P139，§6.5 盲区）。直证：ORIG 0x08c26c00 存在具名局部
+// 静态符号 `_ZZN8WongWork9CCeraShop16_ProcessIPGErrorEP5CUserPNS_3IPG8SIPGDataES5_hijiicE19__PRETTY_FUNCTION__`
+// （size 0x99=153）；复编后我方 .o 发射同名同 size 符号、.rodata 逐字节相同
+// ⇒ 消除该「仅ORIG」签名串符号（AE 归一化看不见，四数不变：TU 61/119/0/4 前后逐值相等）。
 #include "W6_CeraShopDeps/_ProcessIPGError.inc"
                                  IPG::SIPGData* resData, unsigned char errCodeA,
                                  int errCodeB, unsigned int productNo, int subCode,
@@ -182,9 +187,7 @@ const int kBuyEntryStride = 0x1cf;   // MSG 条目区步长（ProcessBuyRequest 
         else
         {
             LogManager::logFormat(
-                1, "CeraShop.cpp",
-                "void WongWork::CCeraShop::_ProcessIPGError(CUser*, WongWork::IPG::SIPGData*, "
-                "WongWork::IPG::SIPGData*, unsigned char, int, unsigned int, int, int, char)",
+                1, "CeraShop.cpp", __PRETTY_FUNCTION__,
                 0xb47, "IPG ERROR (Goods No: %d)(%s)",
                 static_cast<int>(productNo), BufAt(resData, 0x177));
         }

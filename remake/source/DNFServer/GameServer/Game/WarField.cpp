@@ -162,6 +162,12 @@ using WongWork::CItemGenerator;
 // 值汇聚 %ebx→%eax、并复现 ORIG「D1 后 mov $1,%eax」。残差全为槽序：ORIG it/end=-0x35c/-0x358
 // （深槽）、mob=-0x354；4.4 聚合优先占低槽 ⇒ mob=-0x35c、it/end=-0x10/-0xc。属 N82附
 // （4.4 聚合优先占低槽/标量分区 vs 4.1 生命周期穿插），无合法源形可择。@0x086b9578
+// [M3S1 2026-09-11 复核·判 N 维持] 本波试 P339 变体：把 `iterator it` 声明移入
+//   mob 同块（`{ it; find; ...; map_monster mob; }`）⇒ 槽图不变（仍 it/end=-0x10/-0xc、
+//   mob=-0x35c；ORIG it/end=-0x35c/-0x358、mob=-0x354），show_func_diff ndiff 20 不变。
+//   直证 ORIG 086b960b `add $0x4,%eax` 后 mob ctor 落 -0x354、find/end 临时落 -0x35c/-0x358
+//   ⇒ 4.1 按生命周期把 8 字节迭代器区放在 844 字节聚合**之下**，4.4 恒把块内聚合放最低槽
+//   ⇒ 归 N82附硬分区（P339 失效域①：竞争方是块内聚合）。已回滚。
 #include "WarField/GetFieldMob.inc"
 {
     std::map<int, map_monster>::iterator it;
@@ -280,8 +286,27 @@ using WongWork::CItemGenerator;
 // 残差：ORIG 5 条死比较（m_stageIdx vs m_warRoomData.m_50，无消费者；4.4 tree-DCE 删除，
 // `(void)(cond)`/具名 bool/空 if 三形实测均被删或反多 setl+store ⇒ N99 族）+ 标量区槽差 0xc
 // （N82附，帧同为 0xb40）。@0x086b8a38
+// [M3S1 2026-09-11 §6.5/§6.5.1 语义轴落地] 4 处发明串已换回 ORIG 实字节（EUC-KR 转义）：
+//   trace 0x53  = "WarField::ConsistMap, 이미 몬스터가 존재합니다."（ORIG .rodata 0x08cf85a0）
+//   logFmt 0x65 = "WARROOM::SpawnMonster : 몬스터타입확률의 총합이 0입니다"
+//   logFmt 0x9f = "WARROOM::SpawnMonster : 타입(%d)의 몬스터리스트 확률의 총합이 0입니다"
+//   logFmt 0xd0 = "WARROOM::SpawnMonster : 스폰위치확률의 총합이 0입니다"
+//   四数 66/88/1/3 不变（地址归一，语义轴不改 verdict）。
+// [待 .h·只报告] ORIG prett 0x08cf9400 = `void WarField::ConsistMap(void*, const CDungeon*,
+//   const CMap*, byte, int)`，我方为 `unsigned char` ⇒ 定义签名改 `byte` 即逐字节匹配，
+//   但 `byte` typedef 在本 TU 可见集中不存在（试验编译失败）⇒ 需在共享头补
+//   `typedef unsigned char byte;`（或在 WarField.h 内定义），落地后本 TU 复编即可。
+// [判 N] 唯一残余结构差 = ORIG 5 条死比较（086b8b19 段 `mov 0x8(%ebp),%eax;
+//   mov 0xf4(%eax),%edx; mov 0x10(%ebp),%eax; mov 0x744(%eax),%eax; cmp %eax,%edx`，
+//   结果丢弃）⇒ P337 形（`volatile bool` 守卫）会引入 ≥4 条守卫 + 该 5 条 ⇒ 我方
+//   536→541 净劣化（gap 0 → −5），按「gap 严格改善」闸门不予落地。
+// [M3S1 · 父泳道授权 TU-local 手法] `__PRETTY_FUNCTION__` 打印的是**定义处**形参拼写
+//   ⇒ 本 TU 内补 `typedef unsigned char byte;`（Game 域原先无 byte，不 shadow 任何东西），
+//   定义签名写 `byte a` 即复现 ORIG 串（.rodata 0x08cf9400 = "...const CMap*, byte, int)"），
+//   声明侧 WarField.h 保持 `unsigned char`（底层类型/mangled/sizeof/布局全不变）。
+typedef unsigned char byte;
 #include "WarField/ConsistMap.inc"
-                          unsigned char a, int playerCount)
+                          byte a, int playerCount)
 {
     if (playerCount == 0)
     {
@@ -307,7 +332,10 @@ using WongWork::CItemGenerator;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x53, 5);
-        trace("WarField::ConsistMap Clear");
+        // [M3S1 §6.5/§6.5.1 语义轴] ORIG .rodata 0x08cf85a0 实字节 =
+        //   "WarField::ConsistMap, " + EUC-KR（"이미 몬스터가 존재합니다."）
+        //   原重建串为英文发明文本 ⇒ 换回 ORIG 字节（源码保持 UTF-8，用 \x 转义）。
+        trace("WarField::ConsistMap, \xc0\xcc\xb9\xcc \xb8\xf3\xbd\xba\xc5\xcd\xb0\xa1 \xc1\xb8\xc0\xe7\xc7\xd5\xb4\xcf\xb4\xd9.");
         m_mapInfo.Clear();
     }
     while (monsterCount > 9)
@@ -324,7 +352,7 @@ using WongWork::CItemGenerator;
             LogManager::logFormat(
                 1, "WarField.cpp",
                 __PRETTY_FUNCTION__,
-                0x65, "WARROOM totalProb is 0");
+                0x65, "WARROOM::SpawnMonster : \xb8\xf3\xbd\xba\xc5\xcd\xc5\xb8\xc0\xd4\xc8\xae\xb7\xfc\xc0\xc7 \xc3\xd1\xc7\xd5\xc0\xcc 0\xc0\xd4\xb4\xcf\xb4\xd9");
             return;
         }
         int randProb = get_rand_int(totalProb);
@@ -365,7 +393,7 @@ using WongWork::CItemGenerator;
             LogManager::logFormat(
                 1, "WarField.cpp",
                 __PRETTY_FUNCTION__,
-                0x9f, "WARROOM totalWeight is 0, type %d", type);
+                0x9f, "WARROOM::SpawnMonster : \xc5\xb8\xc0\xd4(%d)\xc0\xc7 \xb8\xf3\xbd\xba\xc5\xcd\xb8\xae\xbd\xba\xc6\xae \xc8\xae\xb7\xfc\xc0\xc7 \xc3\xd1\xc7\xd5\xc0\xcc 0\xc0\xd4\xb4\xcf\xb4\xd9", type);
             return;
         }
         randProb = get_rand_int(totalWeight);
@@ -401,7 +429,7 @@ using WongWork::CItemGenerator;
             LogManager::logFormat(
                 1, "WarField.cpp",
                 __PRETTY_FUNCTION__,
-                0xd0, "WARROOM rivalTotal is 0");
+                0xd0, "WARROOM::SpawnMonster : \xbd\xba\xc6\xf9\xc0\xa7\xc4\xa1\xc8\xae\xb7\xfc\xc0\xc7 \xc3\xd1\xc7\xd5\xc0\xcc 0\xc0\xd4\xb4\xcf\xb4\xd9");
             return;
         }
         randProb = get_rand_int(rivalTotal);
@@ -470,6 +498,12 @@ using WongWork::CItemGenerator;
 // 帧同为 0x1bc ⇒ N82 槽分配）；list 迭代器 end() 布局（ORIG 循环外预求值+jmp cond，4.4 旋转到
 // 体尾 ⇒ N86/P164）；m_field11 逐字节取址 add $0x11（需 map_monster 匿名 union 字节视图，跨泳道 .h）；
 // 2 处寄存器名（%edx vs %eax ⇒ N7 族）+ 尾部对齐 nop（§6.1 豁免）。@0x086b9672
+// [M3S1 2026-09-11 落地·P183/P0] `refData.m_field39/m_field3d` 由 `*((char*)&m_field11±)`
+//   改为 map_monster 匿名 union 字节视图 `m_field11b.m_field11b1/b0` ⇒ 消掉
+//   `add $0x11; add $0x1; movzbl` 三条链，复现 ORIG 单条 `movzbl 0x12(%eax)`。
+//   读数 606→**603**（gap −1 → +2）、OURS-only 清空（原 {'add':3}），四数 66/88/1/3 不劣。
+//   残余：ORIG-only={'mov':2}（086b98xx 区 ORIG 每使用点重装 `mov -0x34(%ebp),%eax`，
+//   我方因字节视图后 %eax 复用少 1-2 条）⇒ 方向为「我方少」，消指令旋钮不适用，判 N86/N7 族。
 #include "WarField/HandleMonsterKill.inc"
                                  CUser* user, const CDungeon* dungeon)
 {
@@ -531,7 +565,10 @@ using WongWork::CItemGenerator;
     refData.m_rateSlot = fieldMob->m_level;              // movb +0x36
     refData.m_pad37 = 0;                                 // movb +0x37
     refData.m_field38 = 1;                               // movb +0x38（int 槽低字节）
-    refData.m_field39 = *((char*)&fieldMob->m_field11 + 1);  // movb +0x39（mob +0x12）
+    // [M3S1 本波实测·P183/P0] ORIG 086b98xx 为单条 `movzbl 0x12(%eax)`（disp 折叠）
+    //   ⇒ 用 map_monster 匿名 union 的 `m_field11b1` 字节视图（unsigned char），
+    //   原 `*((char*)&m_field11 + 1)` 产 `add $0x11; add $0x1; movzbl`（我方多 1 条 add）。
+    refData.m_field39 = fieldMob->m_field11b.m_field11b1;    // movb +0x39（mob +0x12）
     refData.m_field3c = moneyRatio;                      // movl +0x3c..0x3f
     refData.m_field40_byte = 1;                          // movb +0x40（指针槽低字节）
     refData.m_field41 = 0;                               // movb +0x41
@@ -543,7 +580,7 @@ using WongWork::CItemGenerator;
     // 第二段（specific）：+0x38 movl、+0x3c/0x3d/0x35/0x36/0x3e/0x40/0x41/0x43/0x44 movb
     refData.m_rankBonusIndex = fieldMob->m_mobIndex;     // movl +0x38
     refData.m_field3c_byte = fieldMob->m_roleType;       // movb +0x3c
-    refData.m_field3d = *(char*)&fieldMob->m_field11;    // movb +0x3d（mob +0x11）
+    refData.m_field3d = fieldMob->m_field11b.m_field11b0;  // movb +0x3d（mob +0x11）
     refData.m_rateSlot = 0;                              // movb +0x36
     refData.m_field3e_byte = 1;                          // movb +0x3e
     refData.m_field35 = fieldMob->m_level;               // movb +0x35

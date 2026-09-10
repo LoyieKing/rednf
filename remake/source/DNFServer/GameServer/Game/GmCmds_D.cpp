@@ -190,6 +190,11 @@ const char kItemList[] = "\xbe\xc6\xc0\xcc\xc5\xdb \xb8\xae\xbd\xba\xc6\xae\n";
 // 4.4 统一用 %eax（1 条 mov 位置差，P75/N7 跨版本寄存器分配，封顶）。
 // p167：49=49 CLEAR（b28c-R26 复验；MISSING C2/D2 与 EXTRA C1/D1 为同址别名伪差，
 //   P93，ORIG 0x0858dd4c/0x0858de80 同址）。
+// [round5-GmCmds_D 复核] 306=306、p167 49=49（MISSING/EXTRA 仍仅 C1/C2、D1/D2
+//   同址别名）⇒ 无缺口；残余 = AddItem 实参装载段 1 条 `mov -0x28(%ebp),%eax`
+//   的位置差（P75/N7 跨版本寄存器分配）。新钥匙逐条核过：P339/P331 要求「恒定
+//   常数额外平移或槽映射互换」，本件槽图同形无平移 ⇒ 不适用；P226/P231/P248 在
+//   纯槽装载实参上实测无效（bm3/p13 与 CCreateDisjointStoreCmd 同结论）⇒ 封顶。
 #include "GmCmds_D/execute.inc"
 {
     struct InfoBuf { char m_b[0xff]; };                      // -0x157（ORIG char info[0xff]）
@@ -456,6 +461,11 @@ namespace {
 // hash_map/set/list/vector 迭代器 cv+后置增量、P183 去缓存、P49 宏化访问器均归位）。
 // [b28c-R26 复验] p167 98=98 CLEAR（MISSING/EXTRA 仅 C1/C2、D1/D2 同址别名）；
 //   gap 616/617 复核不变。
+// [round5-GmCmds_D 复核] 617 vs 616（gap +1）、p167 98=98（同上别名）⇒ 无缺口。
+//   残余 = N82 槽序 + memset 第 3 实参 `mov $0x17318,%edx; mov %edx,0x8(%esp)` 的
+//   4.1 常量中转（ORIG 0x084b0bfc 段；与我方少 1 条，与 CUpgradeCardDebug 同现象，
+//   P68 `memset((char*)p,0,N)` 两形均实测无效）。P339/P331 复核：两侧槽直方图同形、
+//   整体平移（非槽映射互换）⇒ 声明序不可翻，byte 层封顶（§6.2 三件套验收）。
 #include "GmCmds_D/execute_6.inc"
 {
     CUser* user = GetUser();
@@ -872,6 +882,11 @@ namespace {
                 // p = *pit;` 可得 p167 CLEAR（29=29 实测），但**不再发射*** ORIG 实有
                 // 的 `_ZNK9__gnu_cxx17__normal_iteratorIPKSt4pairIiiE...EptEv` 弱符号
                 // 0x08193912 ⇒ TU identical 95→94（净负，实测）。故维持 `->` 形。
+                // [round5-GmCmds_D 负结论·复测确认] pair 值拷贝形
+                // `const std::pair<int,int> p = *pit;` 实测：指令数 261→255（=ORIG
+                // 255，p167 CLEAR 29=29），但 **TU 四数 identical 95→94、合计
+                // 253→252**（ptEv 弱符号实例不再发射 ⇒ ORIG 实有而本 TU 缺失的
+                // 条目 −1）⇒ 按「四数不劣化」闸门**回滚**，维持 `pit->` 双 ptEv 形。
                 const int itemId = pit->first;
                 const int acc = pit->second;
                 CItem* item = G_CDataManager()->find_item(itemId);

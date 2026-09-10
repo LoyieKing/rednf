@@ -1,11 +1,12 @@
 unsigned int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {
-    if (user->get_state() == 3 || user->get_state() == 0xb)
-    {
-        // state 合法，继续
-    }
-    else
+    // [DPCB 实验 2026-09-11] 条件极性轴：ORIG 0x081c9f7e/0x081c9f81 `cmp $0x3,%eax;
+    // je 0x081c9f9a`（=false 块）+ 0x081c9f8e `cmp $0xb,%eax; je 0x081c9f9a` 两跳同指
+    // **false** 岛、fall 出 `mov $0x1,%eax`（0x081c9f93）⇒ 原码是德摩根形
+    // `state != 3 && state != 0xb` 的物化，而非 `== 3 || == 0xb`（我方旧形给真岛，
+    // 两处 jcc 极性反转）。
+    if (user->get_state() != 3 && user->get_state() != 0xb)
     {
         return 0x7fffffff;
     }
@@ -111,6 +112,10 @@ unsigned int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, Param
                 // `movl $0x0,-0x14(%ebp)` 预清虽可复现（ORIG-only 的 movl 项消失），
                 // 但本件实测 our 226→227、ndiff 10→11 **劣化**（新预清使槽序列错位）
                 // ⇒ 按纪律回滚为单句式（ORIG-only 保留 movl 项）。
+                // [DPCB 2026-09-11 重试·负结论] 头部极性轴已修（ndiff 10→6）后在新
+                // 基线上重试 ORIG-only `movl $0x0,-0x14(%ebp)`：拆两语句后 our 226→228
+                // 且我方在 -0x10 多出同形 store、原 -0x14 项仍缺，ndiff 6→7 **劣化**
+                // ⇒ 回滚为单句式。ORIG 该项属 4.1 声明槽物化序（N 类）。
                 int iVar3b = G_GameWorld()->GetWorldMapIndex(user);
                 if (0 < iVar3b)
                 {

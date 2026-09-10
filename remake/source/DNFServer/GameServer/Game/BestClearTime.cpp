@@ -177,13 +177,17 @@ struct SIG_BEST_CLEAR_TIME_VIEW
     {
         if (i > 0x3e7)
             return;
+        // [M3S4 实测-4形 · 76=74+2 封顶] key 直赋 13 条（lea+add+store）vs ORIG
+        // 11 条（索引折叠 `mov %ecx,0x8(%eax,%edx,1)`）：①显式 `(char*)data+i*0x18+8`
+        // 同 13；②`(char*)data+(8+i*0x18)` 同 13（树序不变产物）；③4 字节聚合拷贝
+        // （局部 KeyCell）更劣（提前物化地址 + 多 1 mov）⇒ 跨版本 codegen 差
+        // （ORIG 4.1 索引折叠 vs 4.4 标量 store 恒 lea+add）不可翻。
+        // 本函数最大改善：删 `const SIG& d = it->second` 具名引用 + 5 条逐字段赋值
+        // ⇒ 单条 `m_data = it->second` 聚合拷贝（113→76，m_data 段与 ORIG 逐条恒等）。
         data->m_entries[i].m_key = it->first;
-        const SIG_BEST_CLEAR_TIME_DIFFICULTY& d = it->second;
-        data->m_entries[i].m_data.m_time[0] = d.m_time[0];
-        data->m_entries[i].m_data.m_time[1] = d.m_time[1];
-        data->m_entries[i].m_data.m_time[2] = d.m_time[2];
-        data->m_entries[i].m_data.m_time[3] = d.m_time[3];
-        data->m_entries[i].m_data.m_time[4] = d.m_time[4];
+        // ORIG 0x080c88a7-0x080c88d2：第二次 operator-> 后**连读源 5 个 int**
+        // 直写目标 +0xc..+0x1c（无具名引用槽）⇒ 整体结构体赋值形。
+        data->m_entries[i].m_data = it->second;
         ++it;
         ++i;
     }
@@ -217,6 +221,11 @@ struct SIG_BEST_CLEAR_TIME_VIEW
     getData(reinterpret_cast<char*>(sig));
     // ORIG store 为 RHS-first + eax 中转（`mov %eax,%edx; mov -0xc(%ebp),%eax;
     // mov %edx,(%eax)`）⇒ 目标字段与 RHS 异型（P211 档③）⇒ unsigned 视角。
+    // [M3S4 实测-2形 · 87=88-1 封顶] ①unsigned 视角（本形）与 ②具名成员
+    // `sig->m_field0 = pUser->get_charac_no(-1)`（SigTypes_A.h:489 int 字段）读数
+    // 与产物逐行相同 ⇒ 残差 1 条在 ORIG 独有的槽重载 `mov -0xc(%ebp),%eax;
+    // mov %edx,(%eax)`：4.4 改用 callee-saved %ebx 保活（call 前 `mov -0xc(%ebp),
+    // %ebx`，call 后 `mov %eax,(%ebx)`）⇒ 跨版本 regalloc 差，无源码形可翻。
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig)) =
         pUser->get_charac_no(-1);   // sig->characNo @+0
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

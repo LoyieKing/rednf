@@ -357,6 +357,14 @@ namespace WongWork {
 //      begin/end + 循环后 ==」形、opts 下标不再命名局部（gap 156 → 5）；
 //   ③ 残余 5 insn 为 4.1 的 `cmp $imm; sete; test` 布尔物化岛与统一出口
 //      jmp/nop 布局（N3/N76/setcc-fold 族）⇒ 判**语义完成、byte 层封顶**。
+// 【b28e-M1S2 本波复核】读数 orig 611 / ours 609（残余 2，较旧记录 5 已再降）。
+//   逐 hunk 定位残余：① `call __normal_iterator::operator->` 后 ORIG 2 条
+//   （`mov (%eax),%eax; mov %eax,%edx`）被 4.4 copy-prop 折成 1 条
+//   `mov (%eax),%edx`；② 同族另一处（共 2 条）。二者皆 4.4 折叠产物。
+//   新钥匙逐条核过：P339/P331（本件差 2 条、非「整体平移/槽互换」⇒ 不属该域）、
+//   P226/P231（CI_* 宏属 TU 级实体禁改；18 处间接虚调用指令数已对齐，仅
+//   ORIG 函数指针→%edx / 4.4→%eax 的 N7 寄存器差）、P216/§6.6.2（无 landing 差）
+//   ⇒ 判 N7+copy-prop 封顶，无语义缺口（p167 CLEAR 52/52 direct + 10/10 indirect）。
 // 物化口径（P183/P167 实证）：ORIG 对每个判据都重发完整取数链 ——
 //   getCurCharacInvenR ×7（0x08332c27/0c6a/0cad/0cee + 日期段 0x0723/0x0752/0x0781/0x07ab）
 //   GetAvatarItemMgrR ×3、get_grade ×6、get_charac_job ×2、
@@ -599,37 +607,41 @@ namespace WongWork {
 //         （不缓存 mgr）；c) AddAvatarItem 走重取的 getCurCharacInvenW。
 //   ③ 余 18 为 N82 帧号重排下的块序对齐伪影（difflib 显示 -46/-32/-5 与总量
 //      -18 自相矛盾，而调用点差集已归零）⇒ 判语义完成、byte 层封顶。
+// 【b28e-M1S2 本波】落地「外层条件取反 + A/B 块互换」（德摩根等价，见体内注释）：
+//   ORIG 0x08332f4x/0x08332f5x 的**正条件双 je** 与 then-物理在后布局已逐条对齐
+//   （`movzbl 0xd6(%eax),%eax; test %al,%al; je <then>` + `movzbl 0xe8(%eax),%eax;
+//   cmp $0x4,%al; je <then>`，两跳同落 +0x334），旧形的 `xor $0x1` 反条件与多余
+//   m_type 重载消失。读数 orig 653 / ours 635→**638**（gap 18→15，TU 四数
+//   32/50/1/3/8 逐值不变）。剩余 15 = 帧 0xcc/0xc0 + 槽整体平移（ORIG
+//   -0x54/-0x50/-0x4c/-0x48 vs 我方 -0x4c/-0x48/-0x44/-0x40）+ ORIG 独有
+//   callee-saved %edi + N7 间接调用寄存器 + `const int r` 栈缓存（P0 形态：
+//   ORIG 用 `mov %eax,%ecx` 直传无槽；但删具名局部使 gap 18→更负 ⇒ 按闸门不落地）
+//   ⇒ N82/N7 封顶。
 #include "CompoundDeathLCB/_ProcCompoundCore.inc"
-                                       tagCompoundAvatarTable* table)
+                                       stCompoundAvatarTable* table)
 {
-    // 【b28d-solo-CompoundDeathLCB 判词】DIFF 封顶（§6.2）：ORIG 653 / ours 636、
-    // p167 CLEAR(61/61)、无缺失调用。残余 = 块序/极性（`if (m_fieldD6==0 ||
-    // m_type==4)` ORIG then 在后、4.4 在前）+ 间接虚调用 N7 + 帧 0xcc vs 0xc0
-    //（ORIG 多 callee-saved %edi）+ 权重抽样段物理展开差异（N82/N164 族）。
+    // 【b28d-solo-CompoundDeathLCB 判词】DIFF 封顶（§6.2）：ORIG 653 / ours 638、
+    // p167 CLEAR(61/61)、无缺失调用。极性/块序已在 b28e 修正（外层条件取反 +
+    // A/B 互换）；残余 = 槽整体平移（ORIG 深 8：-0x54/-0x50/-0x4c/-0x48 vs
+    // 我方 -0x4c/-0x48/-0x44/-0x40）+ 帧 0xcc vs 0xc0（ORIG 多 callee-saved
+    // %edi）+ 间接虚调用 N7 + 权重抽样段 `const int r` 栈缓存（N82/N7 族）。
     CInventory* inv = user->getCurCharacInvenW();
     const tagCompoundAvatar* rec =
         table->getCompoundAvatarInfo(info.m_field04);
     const int subType = CI_SubType(info.m_scriptA);
     int resultIdx = 0;                                         // -0x48
 
-    if (info.m_fieldD6 == 0 || info.m_type == 4)
-    {
-        if (info.m_type == 4)
-        {
-            const int r = get_rand_int(
-                rec->m_cube.m_field0c[subType]);               // +0x218 权重计数
-            resultIdx = getItemIndex(rec->m_cube.m_vecs[subType], r);  // +0x240
-        }
-        else
-        {
-            resultIdx = info.m_fieldD0;                        // 直接选定结果
-        }
-    }
-    else
+    // [b28e-CompoundDeathLCB] ORIG 0x08332f4x/0x08332f5x 判据为**正条件双 je**
+    // （`movzbl 0xd6(%eax),%eax; test %al,%al; je <then>` +
+    //  `movzbl 0xe8(%eax),%eax; cmp $0x4,%al; je <then>`，两跳同落 +0x334 的
+    //  then 块 —— then 物理在**后**）。旧形（then 在前 + 4.4 `xor $0x1` 反条件）
+    // 另多发一次 m_type 重载与重排。改写为德摩根等价：条件取反 + A/B 块互换
+    //（语义不变，仅改块物理序）。
+    if (info.m_fieldD6 != 0 && info.m_type != 4)
     {
         // 输出权重池空则失败。
         if (rec->m_b[subType] == 0 || rec->m_optsA[subType].empty())
-            return 1;
+            return static_cast<ENUM_ERROR>(1);
 
         int weight = 0;                                        // -0x38
         if (info.m_scriptA->get_grade() == 1 &&
@@ -685,6 +697,19 @@ namespace WongWork {
             }
         }
     }
+    else
+    {
+        if (info.m_type == 4)
+        {
+            const int r = get_rand_int(
+                rec->m_cube.m_field0c[subType]);               // +0x218 权重计数
+            resultIdx = getItemIndex(rec->m_cube.m_vecs[subType], r);  // +0x240
+        }
+        else
+        {
+            resultIdx = info.m_fieldD0;                        // 直接选定结果
+        }
+    }
 
     if (resultIdx == 0)
     {
@@ -697,7 +722,7 @@ namespace WongWork {
         // ---- 成功路径：删两件材料 ----
         CItem* item = G_CDataManager()->find_item(resultIdx);
         if (!item->IsCreatureItem())          // ORIG vtable+0x10（IsCreatureItem）
-            return 1;
+            return static_cast<ENUM_ERROR>(1);
         // ORIG 0x083330ec：槽位由目标 item 的 avatar option size 随机重选，
         // 且 >0x63(99) 时清零（覆盖客户端传入 slot）。
         info.m_slot = static_cast<unsigned short>(get_rand_int(
@@ -724,7 +749,7 @@ namespace WongWork {
                     static_cast<eMoneySubReason>(0x12),
                     static_cast<eItemDelReason>(0x12), false);
                 if (deleted != static_cast<int>(rec->m_tailA.size()))
-                    return 0x16;
+                    return static_cast<ENUM_ERROR>(0x16);
             }
             else if (info.m_type == 1)
             {
@@ -733,7 +758,7 @@ namespace WongWork {
                     static_cast<eMoneySubReason>(0x12),
                     static_cast<eItemDelReason>(0x12), false);
                 if (deleted != static_cast<int>(rec->m_tailB.size()))
-                    return 0x16;
+                    return static_cast<ENUM_ERROR>(0x16);
             }
             else if (info.m_type == 3)
             {
@@ -742,7 +767,7 @@ namespace WongWork {
                     static_cast<eMoneySubReason>(0x12),
                     static_cast<eItemDelReason>(0x12), false);
                 if (deleted != static_cast<int>(rec->m_tailC.size()))
-                    return 0x16;
+                    return static_cast<ENUM_ERROR>(0x16);
             }
             else if (info.m_type == 4)
             {
@@ -750,8 +775,10 @@ namespace WongWork {
                     rec->m_cube.m_vec, info.m_results, bFoundAll,
                     static_cast<eMoneySubReason>(0x12),
                     static_cast<eItemDelReason>(0x12), false);
+                // ORIG 怪癖保留：type4 分支的 size 比较对象是 tailC(+0x2d0)
+                //（ORIG 0x083332b7 读 +0x2d0 实证；不得改为 m_cube 或 m_tailD）。
                 if (deleted != static_cast<int>(rec->m_tailC.size()))
-                    return 0x16;
+                    return static_cast<ENUM_ERROR>(0x16);
             }
 
             const int curSec = GlobalData::s_systemTime_.getCurSec();
@@ -801,17 +828,30 @@ namespace WongWork {
                                    0));
             if (static_cast<short>(info.m_resultSlot) == -1)
             {
-                cMyTrace trace(
-                    "ENUM_ERROR WongWork::CCompoundAvatar::_ProcCompoundCore(CUser*, "
-                    "WongWork::CCompoundAvatar::stCompoundAvatarInfo&, "
-                    "stCompoundAvatarTable*)",
-                    0x361, 5);
-                trace("[%s][%d] AddAvatarItem Fail",
-                      "ENUM_ERROR WongWork::CCompoundAvatar::_ProcCompoundCore(CUser*, "
-                      "WongWork::CCompoundAvatar::stCompoundAvatarInfo&, "
-                      "stCompoundAvatarTable*)",
-                      0x361);
-                return 0x11;
+                // [b28e-M1S2 本波·§6.5/P139 盲区] ORIG 0x08333842/0x0833384a 两处
+                // 函数名实参是**符号**（`movl $&_ZZN8WongWork15CCompoundAvatar17_
+                // ProcCompoundCoreEP5CUserRNS0_15tagCompoundInfoEP22tagCompoundAvatar
+                // TableE19__PRETTY_FUNCTION__,0x8(%esp)`），即 `__PRETTY_FUNCTION__`
+                // 的函数局部静态（@0x08c2c540，**size 0x8a = 138B**）。ORIG 该串经
+                // `objdump -s -j .rodata` 逐字节实录：
+                //   `ENUM_ERROR WongWork::CCompoundAvatar::_ProcCompoundCore(CUser*,
+                //    WongWork::CCompoundAvatar::stCompoundAvatarInfo&, stCompoundAvatarTable*)`
+                // 依据（探针 /tmp/probe4.s，4.4.7 + 本仓旗标）：GCC 的 `__PRETTY_FUNCTION__`
+                // 展开 = `<返回类型> <全限定函数>(<参数>)`；**嵌套** typedef 用全限定名
+                // （`WongWork::CCompoundAvatar::stCompoundAvatarInfo&`），**全局** typedef
+                // 用裸名 ⇒ ORIG 第 3 参 `stCompoundAvatarTable*` 是全局作用域 typedef。
+                // [M1Free76to90 2026-09-11 已落地] 头改（返回类型 `ENUM_ERROR` + 类内
+                // typedef `stCompoundAvatarInfo`）后本处改回 `__PRETTY_FUNCTION__`（P139），
+                // 发射 ORIG 同名局部静态；本 TU 实测 **size 0x8b**。
+                // 【残余 1 字符】我方第 3 参拼写 `tagCompoundAvatarTable*`（22 字符）vs
+                // ORIG `stCompoundAvatarTable*`（21）⇒ 还需**全局** typedef
+                // `typedef tagCompoundAvatarTable stCompoundAvatarTable;`（放类内或
+                // `namespace WongWork` 内都会带限定 ⇒ 不符）。已将该头改动**再报**父泳道。
+                // 当前串除该 1 字符外与 ORIG 逐字节相同。
+                // mangled 不含返回类型/typedef ⇒ 该头改动零 ABI 影响。
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x361, 5);
+                trace("[%s][%d] AddAvatarItem Fail", __PRETTY_FUNCTION__, 0x361);
+                return static_cast<ENUM_ERROR>(0x11);
             }
             DB_UpdateAvatarHistory::makeRequest(
                 static_cast<unsigned int>(user->getCurCharacNo()),
@@ -819,11 +859,11 @@ namespace WongWork {
             DB_UpdateAvatarHistory::makeRequest(
                 static_cast<unsigned int>(user->getCurCharacNo()),
                 static_cast<int>(info.m_materialB.m_addInfo2), ipgNoBuf);
-            return 0;
+            return ENUM_ERROR_NONE;
         }
-        return 0x16;                                           // delete_item 失败
+        return static_cast<ENUM_ERROR>(0x16);                  // delete_item 失败
     }
-    return 1;                                                  // 结果不可实例化
+    return static_cast<ENUM_ERROR>(1);                         // 结果不可实例化
 }
 
 // =========================== _SendDisjointAvatarStatistic ===================
@@ -835,6 +875,12 @@ namespace WongWork {
 //   ①两组分级复用同一 gradeIdx 槽（P160，两个独立局部会各占一槽 +4 帧）；
 //   ②proxy 具名局部改单语句链式调用（P52，消槽且 &packet 升格 ebx）。
 //   残余 = CI_SubType 虚调用目标寄存器 N7 ×2（4.4.7 恒 %eax / ORIG %edx）。
+// 【b28e-M1S2 本波复核】复测 orig 79 / ours 79（NEAR 不变；帧 push %ebx +
+//   sub $0x54、`movl $0x2,-0x32`、`movb $0x0,-0x26/-0x19` 槽号全等）。
+//   语义轴：本件无字符串字面量（无 §6.5/§6.5.1 盲区）；B 组 CI_SubType 亦读
+//   scriptA（ORIG 0x08333f8e 用 -0x14(%ebp)）已一致。唯一残余 = N7 ×2
+//   （ORIG `mov (%eax),%edx; mov -0x14(%ebp),%eax; mov %eax,(%esp); call *%edx`
+//    / 我方 `mov (%eax),%eax; mov -0x14(%ebp),%edx; mov %edx,(%esp); call *%eax`）。
 #include "CompoundDeathLCB/_SendDisjointAvatarStatistic.inc"
 {
     Packet_Avater_Disjoint_Statistic packet;

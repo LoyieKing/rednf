@@ -181,6 +181,11 @@ unsigned char CPremiumLetheManager::NOT_USE_LETHE_STATE = 0;
     return true;
 }
 
+// [b28d-solo 2026-09-11] ORIG 0x085c40aa | 101 / our 102（gap −1）。全条比对仅 1 条差：
+// ORIG 0x085c41d1..0x085c41dc `call PacketGuard::~PacketGuard; jmp <epilogue>` 之后无填充，
+// 我方同点多 1 条 jmp 后 `nop`（对齐填充；属 P6.1 nop 豁免族，但工具只剥 ret/call 之后者）。
+// 条件段 `call isAffectedPremium; xor $1; test %al,%al; jne`（bool 消费侧）两侧全等；
+// 无声明序/槽映射残差（P339/P331 不适用）⇒ N 封顶，源码零改动。
 #include "CPremiumLetheManager/_resetSkill.inc"
 {
     unsigned char flag;
@@ -217,10 +222,19 @@ FAIL_TRACE:
     }
 }
 
-// [b28d-lane15 判词·N（N82 帧槽复用 + P5 虚槽族）] ORIG 0x085c421e（TSV ndiff=330，
-// orig 327/new 346）。首段 `mov user; mov (%eax),%eax; add $0x34,%eax; mov (%eax),%edx;
-// call *%edx` = P5 虚槽直调 getCurCharacSkillW；残差主体为大函数帧/槽复用策略差
-// （N82）与 P210 帧继承。本 TU 级 diff 已仅剩本件 + __static_init。语义完成，封顶。
+// [b28d-solo 2026-09-11] ORIG 0x085c421e | 328 / our 327（gap −1；本轮 340→327，−13 条）。
+// ① 语义轴真修 2 处：kind2/kind3 映射 —— ORIG 0x085c427c / 0x085c45e4 直证
+//    `movl $0x0; cmp $0xffffffff,%eax; je →1; test %eax,%eax; jne →2`（Ghidra 同判
+//    `(kind == -1) || (kind == 0) ? 1 : 2`），原码误作 `-1 → 0` ⇒ givePvPSkillTree /
+//    SkillInitialize 的第三实参在 kind==SKILL_TREE_NONE 时错值（运行行为可见）。
+// ② 消指令（P0/P329/P183）：PvP 分支 5 个实参局部全内联（ORIG `mov 0x14(%eax),%edi`
+//    + grade→%esi / second→-0x110 / first→%edi / job→%ebx / script 直传）、B 分支
+//    ch/second/first/expertJob/level/skillIdx/vector 全内联、`+0x14` 具名化为
+//    m_characList（disp 折叠）、主循环补回 ORIG 两级具名拷贝（a/b，+4 条）、
+//    got 消费侧配对 bool（P248/A06）。
+// 残余 1 条 = ORIG `movzbl; xor $1; test; jne`（4 条）vs our `cmpb $1; jne`（2 条）的
+// bool 条件发射差。已试并回滚：`if (!got) goto SkipGiveSkill;` 负条件形 ⇒ our 331、
+// 帧 0x12c→0x13c（反劣）；`if (got == 1)` 为 4.4 直产形 ⇒ 封顶。
 #include "CPremiumLetheManager/InitSkill.inc"
                                      ENUM_SKILL_TREE_KIND kind)
 {
@@ -231,21 +245,23 @@ FAIL_TRACE:
     ((SkillSlot*)user->getCurCharacSkillW())->set_parent(user);
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
-        int kind2;                       // ORIG：kind==NONE(-1)→0、kind==1(0)→1、其余→2
-        if (kind == SKILL_TREE_1)
+        // ORIG 0x085c427c：`movl $0x0,-0x28(%ebp); cmp $0xffffffff,%eax; je →1`;
+        // `test %eax,%eax; jne →2` ⇒ `kind==NONE(-1) || kind==1(0)` → 1，其余 → 2
+        // （Ghidra 同判：`(param_4 == -1) || (param_4 == 0) ? 1 : 2`）。
+        int kind2 = 0;
+        if (kind == SKILL_TREE_NONE || kind == SKILL_TREE_1)
             kind2 = 1;
-        else if (kind == SKILL_TREE_NONE)
-            kind2 = 0;
         else
             kind2 = 2;
         user->givePvPSkillTree(0, true, kind2);
-        int grade = user->get_pvp_grade();
-        int second = (signed char)user->getCurCharSecondGrowType();
-        int first = (signed char)user->getCurCharFirstGrowType();
-        int job = user->get_charac_job();
-        PvPSkillTreeParameterScript* script =
-            &G_CDataManager()->m_pvpSkillTree;
-        int point = script->getPvPSkillPoint(job, first, second, grade, false);
+        // [b28d-solo] P0/P329：ORIG 0x085c42cf..0x085c432b 五处实参表达式全内联、
+        // 右→左求值并各自保活（grade→%esi / second→-0x110 槽 / first→%edi /
+        // job→%ebx / script→`G_CDataManager()+0xa800` 直传），无任何具名局部。
+        int point = G_CDataManager()->m_pvpSkillTree.getPvPSkillPoint(
+            user->get_charac_job(),
+            (signed char)user->getCurCharFirstGrowType(),
+            (signed char)user->getCurCharSecondGrowType(),
+            user->get_pvp_grade(), false);
         ((SkillSlot*)user->getCurCharacSkillW())->set_remain_sp_at_index(point, kind);
         if (flag)
         {
@@ -273,44 +289,64 @@ FAIL_TRACE:
         }
         std::vector<std::pair<int, int> > vec;
         std::pair<int, int> p;
-        char second = user->getCurCharSecondGrowType();
-        char first = user->getCurCharFirstGrowType();
-        CCharacter* ch = (CCharacter*)(
-            *(int*)((char*)G_CDataManager() + 0x14) +
-            user->get_charac_job() * 0x7dc);
-        char got = ch->get_give_skill(first, second, vec, 0);
+        // [b28d-solo] P0/P329：ORIG 0x085c442f..0x085c4481 三个实参全内联——
+        // second→%esi、first→%ebx、receiver base 由 `G_CDataManager()+0x14`
+        // 载入 %edi 后 `imul $0x7dc` + `lea` 直传（无 ch/second/first 具名槽）。
+        // [b28d-solo] ① 裸偏移 `+0x14` 具名化为 `m_characList`（ORIG 0x085c4459
+        // `mov 0x14(%eax),%edi` 单条 disp 折叠；裸偏移写法 4.4 多一条 `add $0x14`）；
+        // ② 消费侧与 D06 已 bool 化的 `CCharacter::get_give_skill` 配对（P248/A06
+        // 净账必配对律）：`bool got` 直存 1 字节槽（ORIG `mov %al,-0x31(%ebp)`）。
+        // 注：CCharacList 在 CDataManager.h 仅前向声明（不完全类型不可取下标），
+        // 故按 `job*0x7dc` 步长做指针算术（等价 `&m_characList->m_characs[job]`）。
+        bool got = ((CCharacter*)((char*)G_CDataManager()->m_characList +
+                                  user->get_charac_job() * 0x7dc))
+                       ->get_give_skill(
+                           (signed char)user->getCurCharFirstGrowType(),
+                           (signed char)user->getCurCharSecondGrowType(), vec, 0);
+        // ORIG 0x085c4486..0x085c4492：`movzbl -0x31(%ebp),%eax; xor $0x1,%eax;
+        // test %al,%al; jne <vec dtor>` = bool 消费侧（P292/P174）的负极性条件。
+        // [已试·回滚] `if (!got) goto SkipGiveSkill;` 负条件直跳：our 327→331
+        // （帧 0x12c→0x13c，+6 EH/布局条），劣化 ⇒ 保留 4.4 直产 `cmpb $1; jne`。
         if (got == 1)
         {
             int i;
             for (i = 0; i < (int)vec.size(); ++i)
             {
                 p = vec[i];
+                // ORIG 0x085c44b8..0x085c44c7：`p`(-0x70/-0x6c) 之后另有两次
+                // 具名 int 落槽（-0x3c/-0x38）再从槽装载实参 ⇒ 源码为两个具名
+                // int 局部（4.4 若直传 p.first 会省掉这级拷贝，少 4 条）。
+                int a = p.first;
+                int b = p.second;
                 ((SkillSlot*)user->getCurCharacSkillW())->growtype_skill(
-                    user->get_charac_job(), p.first, p.second, kind);
+                    user->get_charac_job(), a, b, kind);
             }
-            int expertJob = user->GetCurCharacExpertJobType();
-            void* script = G_CDataManager()->GetExpertJobScript(expertJob);
+            // [b28d-solo] P0/P329：ORIG 0x085c451c..0x085c45d0 中 expertJob/level/
+            // skillIdx/vector 指针全为内联右值（expertJob→%ebx、level→%esi、
+            // skillIdx→%edi、vector 每处重发 `script+0xc`，无具名槽）；
+            // 仅 `script` 具名（ORIG -0x30）。实参右→左求值序亦逐条对应。
+            void* script = G_CDataManager()->GetExpertJobScript(
+                user->GetCurCharacExpertJobType());
             if (script != 0)
             {
-                std::vector<std::pair<int, int> >* expertVec =
-                    (std::vector<std::pair<int, int> >*)((char*)script + 0xc);
                 unsigned int i2;
-                for (i2 = 0; i2 < expertVec->size(); ++i2)
+                for (i2 = 0;
+                     i2 < ((std::vector<std::pair<int, int> >*)((char*)script + 0xc))->size();
+                     ++i2)
                 {
-                    int level =
-                        user->GetCurExpertJobLevel(
-                            user->GetCurCharacExpertJobExp());
-                    int skillIdx = (*expertVec)[i2].first;
                     ((SkillSlot*)user->getCurCharacSkillW())->growtype_skill(
-                        user->get_charac_job(), skillIdx, level, kind);
+                        user->get_charac_job(),
+                        (*(std::vector<std::pair<int, int> >*)((char*)script + 0xc))[i2].first,
+                        user->GetCurExpertJobLevel(
+                            user->GetCurCharacExpertJobExp()),
+                        kind);
                 }
             }
             WongWork::CSkillChanger changer;
-            int kind3;                  // ORIG：同 kind2（NONE→0、1→1、其余→2）
-            if (kind == SKILL_TREE_1)
+            // ORIG 0x085c45e4：与 kind2 同形（`-0x2c` 槽）⇒ NONE(-1)/1(0) → 1，其余 → 2。
+            int kind3 = 0;
+            if (kind == SKILL_TREE_NONE || kind == SKILL_TREE_1)
                 kind3 = 1;
-            else if (kind == SKILL_TREE_NONE)
-                kind3 = 0;
             else
                 kind3 = 2;
             changer.SkillInitialize(user, kind3, false);
@@ -377,6 +413,13 @@ FAIL_TRACE:
     SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* result =
         guard->GetInBuffer<SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD>();
     result->m_accID = user->get_acc_id();
+    // [b28d-solo 负结论] ORIG 0x085c48f4 `mov -0xc(%ebp),%edx; mov %eax,0x4(%edx)`
+    // （2 条形）⇒ ORIG 的 m_characNo 与 `getCurCharacNo()`（unsigned int）同型；
+    // 头内声明为 int（SigTypes_E.h:959）时 4.4 恒插 `mov %eax,%edx` 值搬运
+    // （our 128，gap −1，残余仅此 1 条）。已试并回滚：本 TU 内
+    // `*reinterpret_cast<unsigned int*>(&result->m_characNo) = …` ⇒ our 129
+    // （更差）；源侧 static_cast<int> 同族无效（P211，Arad_AvatarRoulette.cpp:88-91
+    // 实证字段改 unsigned int 后逐条全等）⇒ 需改头，已上报父泳道。
     result->m_characNo = user->getCurCharacNo();
     if (state == USE_LETHE_STATE || state == SKILL_CONFIRM_STATE ||
         INIT_LETHE_SKILL != 0)

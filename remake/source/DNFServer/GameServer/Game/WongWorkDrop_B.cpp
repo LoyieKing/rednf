@@ -131,6 +131,8 @@ struct stGenerateRefCtx_t
     int luckRoll = m_random.generateNumber(1, 1000000);
     int basisRow = static_cast<int>(static_cast<signed char>(ref.m_field42_byte));
     // GetItemRarity(&m_rarityBasis[basisRow], luckRoll, dropType=2)
+    // [N] P248 类型旋钮试（rarity 由 int 改 ENUM_RARITY）⇒ 读数不变（157/156），
+    // 4.4 对同宽枚举与 int 发射一致；回滚。
     int rarity =
         reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)->GetItemRarity(
             &m_rarityBasis[basisRow][0], luckRoll, 2);
@@ -153,6 +155,10 @@ struct stGenerateRefCtx_t
         static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
     // 实参内联（右→左求值：size→get_grade→get_rarity→m_field1，ORIG esi/ebx 缓存）
     reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
+        // [M3S2WinDrop=N] 试 `(int)(unsigned char)inv.m_field1` 复现 ORIG 0x0853591e 的
+        // 二次 `movzbl %al,%eax`：读数不变（157/156）—— 4.4 把二次扩展折进首条，
+        // 仍 `movzbl S(%ebp),%edx; movzbl %dl,%edx`。残余 1 条 = ORIG `mov %eax,%edx`
+        // （载入用 %eax、旧值挪 %edx）vs 4.4 载入用 %edx，属寄存器分配 N。
         ->UseLuckPoint(inv.m_field1, item->get_rarity(), item->get_grade(),
                        static_cast<int>(result.m_dropItems.size()));
     result.m_dropItems.push_back(inv);
@@ -243,6 +249,16 @@ struct stGenerateRefCtx_t
     // 残差 N 封顶：①帧/全槽号平移 0x10（0x21c vs 0x22c，N82/N93 类）；
     // ②x87 比较 lowering——ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp
     //   （N85；P230 提示 -march=i486 可消，属路由变更，已上报 Main）。
+    // [M3S2WinDrop 2026-09-11] 本波落地 2 项（370→365，gap +6→+1；四数不变）：
+    //   ① UseLuckPoint 三实参改**全内联**（去具名 grade/itemRarity 槽）——ORIG 由
+    //      `call get_grade; mov %eax,%esi` / `call get_rarity; mov %eax,%ebx` 用
+    //      callee-saved 保活 ⇒ -3 条；
+    //   ② 去 probAcc 具名（乘法直接写在 cast 内）——ORIG 0x085369b3 由 x87 栈上值
+    //      直接 `fnstcw/fldcw/fistpl`，无 float 槽往返 ⇒ -2 条。
+    // 残余（判 N，编译器差异）：③ `t.v[2+i]` 我方多 1 条 `add $0x2,%eax`（ORIG
+    //   `mov -0x5c(%ebp,%eax,4)` 直接以 eax=i 索引，4.4 不折叠常量基址）；
+    //   ④ 后半段实参缓冲 ORIG 用 ebx/ecx/edx 而 4.4 用槽 + esi/edi（同条数）；
+    //   ⑤ x87 比较 lowering（N85）；⑥ `jl` vs 4.4 `jg`（等价反向）。
     int probIdx = _getGenItemProbIdx(static_cast<int>(dungeonLv));
     if (probIdx < 0)
         return;
@@ -277,12 +293,13 @@ struct stGenerateRefCtx_t
         // prob = trunc( v[2+i] × factor × dungeonBonus[i][difficulty](0xf8)
         //             × monsterTypeBonus[i][role](0x15c)
         //             × partyBonus[i][ppIndex](0xa8) ) —— ORIG 乘法顺序
-        float probAcc = static_cast<float>(t.v[2 + i]) *
-                        factor *
-                        m_dungeonBonus[i][difficulty] *
-                        m_monsterTypeBonus[i][static_cast<int>(role)] *
-                        m_partyBonus[i][partyPos];
-        int probValue = static_cast<int>(probAcc);   // fldcw truncate ≡ (int)
+        // [M3S2WinDrop] 去 probAcc 具名：ORIG 0x085369b3 由 x87 栈上值直接 `fnstcw/
+        // fldcw/fistpl`（无 float 槽往返）；具名 float 会让 4.4 多 `fstps S; flds S` 2 条。
+        int probValue = static_cast<int>(
+            static_cast<float>(t.v[2 + i]) * factor *
+            m_dungeonBonus[i][difficulty] *
+            m_monsterTypeBonus[i][static_cast<int>(role)] *
+            m_partyBonus[i][partyPos]);              // fldcw truncate ≡ (int)
         int dropValue = probValue * dropRate / 100;  // 魔数除法 = signed /100
 
         int randValue = m_random.generateNumber(0, 10000);
@@ -335,10 +352,11 @@ struct stGenerateRefCtx_t
         inv.m_addInfo = itemIdx;                       // ORIG 写对象首 +0x02
         G_CDataManager()->m_itemList->create_item(
             static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
-        int grade = item->get_grade();
-        int itemRarity = item->get_rarity();
+        // [M3S2WinDrop] ORIG 0x08536b?? 三实参均内联：`call get_grade; mov %eax,%esi`
+        // / `call get_rarity; mov %eax,%ebx`（callee-saved 保活，无具名槽）。
         reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
-            ->UseLuckPoint(static_cast<int>(inv.m_field1), itemRarity, grade,
+            ->UseLuckPoint(static_cast<int>(inv.m_field1), item->get_rarity(),
+                           item->get_grade(),
                            static_cast<int>(result.m_dropItems.size()));
         result.m_dropItems.push_back(inv);
         done = true;                                  // movb $1,(p10)
@@ -412,6 +430,13 @@ typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map
 // ---- generateUpgrade — ORIG T 0x08533676 ----------------------------------
 #include "WongWorkDrop_B/generateUpgrade.inc"
 {
+    // [M3FreeNext15B 复验·回滚] ItemFarmingData.h 拷贝 ctor 加 `throw()` 的 **A/B 实测**
+    // （父泳道 P340 真基线反演：字面量反转重编取 base .o，base/after 在该符号区间
+    // **逐指令完全相同** —— insns 233=233、`_Unwind_Resume` **1=1**）⇒ 本 LP **并非**
+    // 源自拷贝 ctor 的具/不可见，而是**本函数内具名局部 `entry` 的 dtor cleanup**
+    // （函数体内其余调用可抛）；ORIG 无 LP 属 4.1 侧判定差，4.4 -O0 无合法源码解。
+    // ⇒ throw() 按闸门（无 gap/ndiff 改善）已回滚，.h 恢复原状；旧 EH 普查判读更正。
+    // @ORIG 0x08533676
     CDataManager* dm = G_CDataManager();
     FarmingMap* farming = reinterpret_cast<FarmingMap*>(
         reinterpret_cast<char*>(dm) + 0x528);
@@ -503,12 +528,20 @@ typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map
         lastIter = m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end();
         lastIter--;
         unsigned long maxKey = lastIter->first;
-        unsigned long roll = static_cast<unsigned long>(
-            m_rand->randInt(maxKey));
+        // [M3S2WinDrop] ORIG 0x08535105 拷贝槽对（-0x24 → -0x40）：`mov (%eax),%eax;
+        // mov %eax,-0x24; mov -0x24,%eax; mov %eax,-0x40`，第二个 ulong 局部取地址
+        // 传给 randInt（引用参数）。
+        unsigned long maxKeyRef = maxKey;
+        // [M3S2WinDrop] ORIG 0x08535179 `lea -0x4c,%ecx; mov %ecx,0x8(%esp)`（直接传
+        // roll 槽地址给 lower_bound）⇒ roll 类型 = map key_type（unsigned int），
+        // 用 unsigned long 会多出一次截断临时（`mov S,%eax; mov %eax,S`）。
+        unsigned int roll = m_rand->randInt(maxKeyRef);
         // ORIG 在 randInt 之后才 `movl $0xffffffff,-0x20`（result 槽）。
         result = -1;
-        std::map<unsigned int, int>::iterator lb =
-            m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].lower_bound(roll);
+        // [M3S2WinDrop] ORIG 0x0853518c 后置拷贝：lower_bound 返回先落临时槽(-0x5c)，
+        // 再 `mov -0x5c,%eax; mov %eax,-0x48` ⇒ 先声明后赋值（非初始化式）。
+        std::map<unsigned int, int>::iterator lb;
+        lb = m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].lower_bound(roll);
         if (lb == m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end())
             lb--;
         result = lb->second;

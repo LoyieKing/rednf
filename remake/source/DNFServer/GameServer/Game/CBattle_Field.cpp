@@ -421,6 +421,12 @@ struct CDataManager_UltimateArr_proxy
     // 残余不可消：4.4 对 char 形参恒 spill（`mov %al,-0x4`，ORIG 4.1 直读
     // `movzbl 0xc(%ebp),%edx`）+ cmov（P230：需 -march=i486，本波不改路由表）
     // + N7 store 寄存器对调 ⇒ N97/P230 封顶。
+    // [M3FreeNext15B.M3S6AucAvBattle 2026-09-11] 本波再证（ORIG 0x0830ed1e，
+    // 兜底反汇编 12 条：movzbl 0xc(%ebp),%edx / cmp $4,%edx / jbe / push $4;pop %edx /
+    // nop / mov %edx,0x1a0(%eax)）：探针 /tmp/p_setdd/{probe,probe2}.cpp 共 26 形
+    // （含新形 ②`(diff & 0xff)` 32 位比较域=14 条、`*(unsigned char*)&diff`=18 条、
+    // int 域比较 16 条、<= 反向 16 条）实测最短仍 14 条 ⇒ 14 为 4.4 形下限，
+    // 封顶维持。
     m_dungeonDiff =
         (unsigned char)((unsigned char)diff > 4 ? 4 : (unsigned char)diff);
 }
@@ -516,6 +522,20 @@ struct CDataManager_UltimateArr_proxy
 // 4.4 聚合对象优先低槽（map_monster 临时 -0x35c）+标量分区（it/end -0x10/-0xc）
 // vs 4.1 生命周期穿插（-0x354/-0x35c/-0x358）；P190 double framePad 仅 ±4
 // 无法位移 0x34c（ORIG 0x0830a708）。
+// [M3FreeNext15B.M3S6AucAvBattle 2026-09-11] 新钥匙复验（逐条）：
+// ①本波实测槽表（我方 /tmp/tu_CBattle_Field.o fresh）：it=-0x10、end=-0xc、
+//   tmp=[-0x35c,-0x10)（0x34c 字节）、find sret 临时=-0x36c；ORIG：it=-0x35c、
+//   end=-0x358、tmp=[-0x354,-0x8)、find=-0x36c ⇒ **find 临时双方恒等**，差额是
+//   「具名 it/end 与 tmp 的浅/深端归属相反」（非整体平移；旧「平移 0x34c」表述
+//   由此精确化）。
+// ②P339（全头部声明+深→浅序）对 tmp **不可用**：map_monster 为非 POD 类对象，
+//   P331/P339 明文禁提前（ctor 发射点必须不动）。
+// ③实测「tmp 去掉内层块作用域改函数级」（零指令代价形，析构点仍早于 return true）
+//   ⇒ our 仍 72 但 verdict 由 NEAR 变 DIFF（TU 四数 near 1→0 / diff 3→4，劣化）
+//   ⇒ 已 apply_patch 回滚。P326 不适用（本件无迭代器对/循环）。
+// ④唯一能让 4.4 把 it/end 顶到深端的形是「tmp 先分配」（即函数头默认构造 + 块内
+//   赋值），代价为多一条默认 ctor call（72→73+）并破坏与 ORIG 的 ctor 序列一致，
+//   净负 ⇒ 不试。结论：N95/N82附 仍成立，N 封顶。
 #include "CBattle_Field/GetFieldMob.inc"
 {
     std::map<int, map_monster>::iterator it;

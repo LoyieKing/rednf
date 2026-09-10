@@ -156,6 +156,12 @@ static int parseStringLine(char* line, int* key, char** value)
 // P212 全头部声明实测劣化 165→205）+ r 槽比较 4.4 恒 mem-cmpl（N18b，unsigned 化无效）+
 // EH 少 1×_Unwind_Resume（N104 块合并）；163/165，p167 MISSING 1×_Unwind_Resume，语义完成
 // | ORIG 0x08ad4ac2]
+// [M2S5StringRaw 2026-09-11 复核] 3 处返回物化 `mov $0/$1,%eax`(ORIG) vs
+// `mov $0/$1,%ebx` + 尾 `mov %ebx,%eax`(4.4)：探针 /tmp/probeD|E（auto_ptr 活跃
+// 作用域内 return，带/不带显式块）实测 4.4 恒提前物化到 callee-saved %ebx ⇒
+// N93 后端族（非局部作用域问题，源形不可翻）；P216/P339 不适用。
+// 残余另有 N18b（r 槽 mem-cmpl vs ORIG 寄存器比较）与 N104（少 1 _Unwind_Resume）。
+// 163/165 维持，p167 MISSING 1×_Unwind_Resume。
 #include "StringResource/loadFromString.inc"
 {
     m_strings.clear();
@@ -264,6 +270,10 @@ static int parseStringLine(char* line, int* key, char** value)
 // vs 4.4 lea/test/cmovs（N97）+ 标量槽基深 4（ORIG origSize -0x2c 起，4.4 -0x30 起，
 // 帧同 0x60；未使用局部 pad 反致整体再深 4）+ XOR 循环地址重算（P205/P183）；
 // 361/363 gap −2，p167 CLEAR 42=42，语义完成 | ORIG 0x08ad4e04]
+// [M2S5StringRaw 2026-09-11 复核] gap −2 = N97（(size+3)/4*4 的 ORIG `sar/shr/lea`
+// 有符号 lowering vs 4.4 `lea/test/cmovs`）+ N18a（XOR 循环 ORIG `shl $2,%eax;
+// add <D>(%ebp),%eax` vs 4.4 `lea (%eax,%edx,1)` 地址折叠），均 4.4 指令选择，
+// P329/P231/P226 无对应源形可翻 ⇒ 封顶维持。
 #include "StringResource/loadFromBinary.inc"
 {
     CharString content;                              // -0x48
@@ -336,6 +346,10 @@ static int parseStringLine(char* line, int* key, char** value)
 // （error→0xc, fileSize→0x8, buf→0x4, this→0x0）、4.4 左→右先取 buf 入 %eax、arg2/3 走 %edx；
 // A(int fileSize)/B(具名 binData)/C((int)cast)/D(B+C) 四变体实测均劣（具名形多 2 条且槽漂）
 // | ORIG 0x08ad4ce4]
+// [M2S5StringRaw 2026-09-11 复核] 尾部 loadFromBinary 3 行装载序（ORIG 右→左全
+// %eax 串联；4.4 arg0 预载 %eax、arg2/arg3 走 %edx）：本波追加新钥匙探针
+// /tmp/probeF1（现行形）/F2（P226 语句表达式 `({ ... })`）实测两形逐条相同
+// ⇒ N80 封顶维持（旧 5 形见 /tmp/p26_lf*.cpp）。
 #include "StringResource/loadFromFile.inc"
 {
     FILE* fp = fopen(path, "rb");
@@ -428,6 +442,10 @@ static const char* STRING_FILE = 0;
 // [b28d-solo-StringResource N(N82/N93): 槽位分配差（wideCount ORIG -0x24 vs 4.4 -0x1c、
 // c ORIG -0x11 vs 4.4 -0xa；帧同 0x30，i 同 -0x18）+ 返回物化 %eax/%ebx；
 // 161/162 gap −1，p167 CLEAR 8=8，语义完成 | ORIG 0x08adf893]
+// [M2S5StringRaw 2026-09-11 复核] gap −1 的两条真因已定位并修复（见函数体内两处
+// [M2S5StringRaw] 注释）：① 第二循环复用 i 令 4.4 压缩槽基；② tmp 未用显式块
+// 令 4.4 把返回 1 提前物化到 %ebx。探针 /tmp/probeC2（4.4.7 默认路由）实测
+// 161=ORIG 且 /tmp/seqcmp.py 归一化序列逐条全同（旧形 162）。
 #include "StringResource/convertFromUtf8.inc"
 {
     int wideCount = 0;                        // -0x24
@@ -465,38 +483,48 @@ static const char* STRING_FILE = 0;
 
     WideStringData* data = WideStringData::createTerminated(wideCount);
     wchar_t* dst = data->getBuffer();
-    i = 0;
-    while (i < srcLength)
+    // [M2S5StringRaw 2026-09-11] ORIG -0x10：第二循环是**独立具名局部**（i 槽
+    // -0x18 不再被重置复用）。旧形 `i = 0` 令 4.4 复用 -0x18 槽并把整段槽基
+    // 压缩 4（wideCount -0x1c vs ORIG -0x24…）。探针 /tmp/probeC1 亦证。
+    int j = 0;
+    while (j < srcLength)
     {
-        const unsigned char b = (unsigned char)src[i];
+        const unsigned char b = (unsigned char)src[j];
         // 同上：ASCII 首块 + js 直跳多字节区；合成段间用加法（ORIG add
         // %eax,%edx，4.1 对无重叠位 or 发射 add；4.4 的 | 直出 or）。
         if ((char)b >= 0)
         {
             *dst++ = (wchar_t)b;
-            i += 1;
+            j += 1;
         }
         else
         {
-            if (b <= 0xdf && i + 1 < srcLength)
+            if (b <= 0xdf && j + 1 < srcLength)
     {
                 *dst++ = (wchar_t)(((b & 0x1f) << 6) +
-                                   ((int)src[i + 1] & 0x3f));
-            i += 2;
+                                   ((int)src[j + 1] & 0x3f));
+            j += 2;
         }
-            else if (b <= 0xef && i + 2 < srcLength)
+            else if (b <= 0xef && j + 2 < srcLength)
         {
                 *dst++ = (wchar_t)((unsigned short)(b << 12) +
-                                   (((int)src[i + 1] & 0x3f) << 6) +
-                                   ((int)src[i + 2] & 0x3f));
-            i += 3;
+                                   (((int)src[j + 1] & 0x3f) << 6) +
+                                   ((int)src[j + 2] & 0x3f));
+            j += 3;
         }
         else
                 return false;
         }
     }
-    WideString tmp(data);
-    *out = tmp;
+    // [M2S5StringRaw 2026-09-11] ORIG 0x08adfa5c `jmp 0x8adfa79`（tmp 析构块）
+    // ⇒ tmp 的作用域先于 return 结束（显式块）：4.4 因此不再把返回 1 提前
+    // 物化到 callee-saved %ebx（旧形多 `mov $1,%ebx` + 尾 `mov %ebx,%eax`）。
+    // 探针 /tmp/probeC2/Game/StringResource.cpp 实测 161=ORIG 且归一化序列
+    // 逐条全同（/tmp/seqcmp.py）。
+    {
+        WideString tmp(data);
+        *out = tmp;
+    }
     return true;
 }
 

@@ -201,7 +201,7 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
         groupTrace("CheckLoginServerGroup user_id(%s), server_group(%d)",
                    authBuf.m_userId, (int)login->m_channelRestrictField);
         if ((unsigned short)login->m_channelRestrictField <= 0xa &&
-            ((1 << login->m_channelRestrictField) & 0x580) != 0)
+            ((1 << login->m_channelRestrictField) & (unsigned long)0x580) != 0)
             return LineFunc(0x69a2, __PRETTY_FUNCTION__, 0, 0);
     }
     else

@@ -185,6 +185,13 @@ namespace sync_script
     // ORIG 0x08626f7a：76=76，唯一残差 = sprintf 前两个 vararg 先装 %ecx/%edx、
     // job 后读 %eax，再统一压栈；4.4 恒边求边压（cast/裸形实测同形，ndiff 恒 5，
     // 全为标签+装载序）。语义等价。
+    // [S3/M3FreeNext15B 2026-09-11] **报告缺失**（report=NO）⇒ §3.2 兜底：
+    //   `nm -S --defined-only` 实测 ORIG @0x08626f7a size 0xec（236B）
+    //   + `objdump -d --start-address=0x08626f7a --stop-address=0x08627066`
+    //   全 76 条逐条对齐（本波）。p167 调用点差集 CLEAR（4=4：empty /
+    //   operator+=(", '") / operator+=(num) / sprintf）。§6.5 串审计 CLEAR
+    //   （2 kinds/2 refs：`%d,%d,%d`@0x8ce2dee、";"@0x8ce2df7，逐字节相等）。
+    //   ⇒ 维持 P75 登记，不再试形。
     // b28d-35：同 clEf——`={0}` 复现 4.1 内联三段清零（P214③/P253）。
     char num[0xff] = {0};
     // b28d-35：ORIG 0x08626f7a 为 then-first if/else（`cmp $0xb; jne <else>;
@@ -518,6 +525,15 @@ namespace sync_script
     // job -0xc + line/str/name 三 string 槽全等）。唯一残差 =
     // SWEAPONTYPE 键构造处 ORIG `mov -0x18(%ebp),%eax` 而 4.4 取 %edx（1 条
     // 寄存器名分配差）与 ORIG 尾对齐 nop（§6.1 豁免）。语义等价。
+    // [S3/M3FreeNext15B 2026-09-11 复扫] ①§6.5 串审计 CLEAR（两侧 literal 多重集
+    //   全等：8 kinds/8 refs，`[master type]`/`[type addition]`/`[reverse desc]`/
+    //   `[material type]`/`[weapon type]`/`[armor type]`/`[item type]`/空串）；
+    //   ②P248② 类型旋钮实测**反劣**：`unsigned int subType` ⇒ 086252dc 段 4.4
+    //   多发一条 `mov -0x18(%ebp),%edx`（实参装载序被打乱）⇒ 已回滚；
+    //   ③P285 无落点：ORIG 体尾 0x08625695 `nop` 是 4.1 对齐 nop（§6.1 豁免），
+    //   非 `jmp+尾岛` 结构（我方尾 18c3 mov/../18ce ret 与 ORIG 逐条对齐，446=446）。
+    //   ⇒ 维持 N7/N18a：唯一残差 = SWEAPONTYPE 键构造处 ORIG 0x086252dc
+    //   `mov -0x18(%ebp),%eax` vs 4.4 `%edx`（1 条寄存器名分配差）。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -696,6 +712,16 @@ namespace sync_script
     //   挂起）+ for_each 临时物化 1-2 处。归 N82（4.1 不按 lifetime 复用 vs 4.4 复用）
     //   + N78（memset 0xb000 展开形）。逐块人工比对：Ghidra C 段与重建代码逐句对应，
     //   无缺失分支/字段/调用。
+    // [S3/M3FreeNext15B 2026-09-11 复扫] 语义轴（本波新钥匙）：§6.5 串审计 CLEAR
+    //   —— 两侧 literal 多重集全等（ORIG 8 kinds/62 refs = 我方 8/62）：SQL 串
+    //   `inSert into skill_info(...) values(%s)` @ORIG 0x8ce3eb4 与我方 .rodata+0x39c
+    //   **逐字节相等**（jobs/列序/占位符全同）；`Error!!! %s->%s [%s][%s][%d]`
+    //   @0x8ce2f4d = 我方 +0x2f5；`__PRETTY_FUNCTION__` @0x8ce5700 = 我方 +0x10c0；
+    //   分隔串 `, '`/`', '`/`;`/`'`/`,` 全部命中。cMyTrace 两处变参序
+    //   （script→database→m_str4/m_str8→PRETTY→0x7ff/0x807）与 ORIG 逐条一致；
+    //   §6.5.1 编码扫描（enc_kr_scan.py）全域 0 处不匹配。codegen：p167 仍 CLEAR
+    //   （258=258）；Main 已批复**挂起**（浅槽临时区整体 +0x1c 牵动 0xb000 缓冲基址
+    //   29 处，整帧重排风险>收益）⇒ 本波**不动 codegen**，现场读数 1400/1391。
     if (m_field0 != 1)
     {
         return true;

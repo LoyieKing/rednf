@@ -99,8 +99,19 @@
 //    槽位互换——4.1 按声明序先声明深，4.4 按首次使用序先使用浅；it 的 find 必
 //    先于 ins 的 insert，声明序翻转无效（N98），块内提头部需 ins 默认构造 ⇒
 //    多 pair C1Ev call + 8 字节拷贝（违反 P215/发明符号禁令）⇒ 结构性封顶。
+// [L6S5 P326 推翻 N93/N98] 旧判词根因是我方把 insert 的 pair<it,bool> 结果
+//   **具名化**（`ins` 占最深槽 -0x34，把 ORIG 的 it 挤到 -0x2c）。ORIG 实为
+//   「it 具名 + end()/insert() 右值临时」：去掉具名 `ins`、把
+//   `kills.insert(...).second` 内联进条件后，三匿名槽回归 ORIG 序
+//   （find -0x34 / end -0x30 / insert -0x2c，bool 读 -0x28）⇒ 已 **IDENTICAL**。
+// [L6S5 P139 + §6.5 签名轴] 父泳道在 CKillMonsterInfo.h 落 `typedef std::map<
+//   unsigned int, unsigned char> killMonsterMap`（ORIG prett 串直证）后，定义签名
+//   改 `killMonsterMap&`（+ size_t），两处 logFormat 用回 `__PRETTY_FUNCTION__`
+//   ⇒ .o 生成 ORIG 实有的
+//   `_ZZN16CKillMonsterInfo19RegisterMonsterKill…__PRETTY_FUNCTION__`（size 0x5f，
+//   与 ORIG @0x08c9ec20 逐字节一致）。
 #include "CKillMonsterInfo_chain/RegisterMonsterKill.inc"
-    std::map<unsigned int, unsigned char>& kills,
+    killMonsterMap& kills,
     unsigned int mobIdx, unsigned char diff, bool isAPC)
 {
     if (diff > 4)
@@ -146,16 +157,16 @@
         // [b28d-solo-CKillMonsterInfo_chain] ORIG 两成功路径共享尾 `mov $1,%eax`
         // （记录分支 `call alter; jmp +0x1bd`，插入成功分支 fall-through）⇒
         // 尾部单一 return true，分支内不得各自 return。
-        std::pair<std::map<unsigned int, unsigned char>::iterator, bool> ins =
-            kills.insert(std::make_pair(
-                mobIdx,
-                static_cast<unsigned char>(GetDungeonDifficultyFlag(diff))));
-        if (!ins.second)
+        // [L6S5 P326/P183] ORIG 0854d24c：insert 的 pair<it,bool> 结果**无具名局部**
+        //   （ORIG 具名槽仅 it=-0x34，end 临时 -0x30，insert 临时 -0x2c / bool 读
+        //   -0x28）；旧版具名 `ins` 占最深槽并把 it 挤到 -0x2c ⇒ 三槽整体错位。
+        if (!kills.insert(std::make_pair(
+                 mobIdx,
+                 static_cast<unsigned char>(GetDungeonDifficultyFlag(diff)))).second)
         {
             LogManager::logFormat(
                 1, "KillMonsterInfo.cpp",
-                "bool CKillMonsterInfo::RegisterMonsterKill(killMonsterMap&, "
-                "unsigned int, unsigned char, bool)",
+                __PRETTY_FUNCTION__,
                 199, "KillMonsterInfo::RegisterMonsterKill Fail(%u, %u)",
                 mobIdx, static_cast<unsigned int>(diff));
             return false;
@@ -279,9 +290,14 @@ void* GetInstanceHellPartyItemStatistic()
 // 助记符/槽位逐条全等（check_tu_routed 路由口径），P167 CLEAR。清单旧标
 // NEAR ndiff=9 系 .o 重定位地址显示差（P264：字符串/函数地址未解析），
 // 非助记符差异；TU 口径归 AE。
+// [L6S5 P139 + §6.5 串盲区] 旧版 logFormat 用 `__PRETTY_FUNCTION__` 展开成
+//   "…(stMonsterInfo_t*, unsigned int, std::map<…>&, bool)"（0xd1 字节），
+//   与 ORIG @0x08c9ec80 size **0x5b** 的 "…(stMonsterInfo_t*, size_t,
+//   killMonsterMap&, bool)" 不符（日志契约不一致）。父泳道在 .h 加 typedef +
+//   `size_t` 拼写后，此处改回宏 ⇒ 生成同名局部静态符号且两串逐字节 = ORIG。
 #include "CKillMonsterInfo_chain/ConvertStructToMap.inc"
-    stMonsterInfo_t* pInfo, unsigned int count,
-    std::map<unsigned int, unsigned char>& outMap, bool bAPC)
+    stMonsterInfo_t* pInfo, size_t count,
+    killMonsterMap& outMap, bool bAPC)
 {
     unsigned int mobIdx;
     unsigned char diff;
@@ -298,8 +314,14 @@ void* GetInstanceHellPartyItemStatistic()
             pMon = G_CDataManager()->find_monster(mobIdx);
             if (pMon == 0)
             {
+                // [L6S5 §6.5 + P139] ORIG 0854cb42 的 __PRETTY_FUNCTION__ 串
+                //   （@0x08c9ec80 size 0x5b）= "bool CKillMonsterInfo::
+                //   ConvertStructToMap(stMonsterInfo_t*, size_t, killMonsterMap&,
+                //   bool)"。typedef/`size_t` 形参拼写由 CKillMonsterInfo.h 提供
+                //   ⇒ 宏展开逐字节匹配（旧展开式 0xd1 系 unsigned int + 展开 map）。
                 LogManager::logFormat(
-                    1, "KillMonsterInfo.cpp", __PRETTY_FUNCTION__, 0x25,
+                    1, "KillMonsterInfo.cpp",
+                    __PRETTY_FUNCTION__, 0x25,
                     "ConvertStrToMap ERROR : mobIdx is not valid(%u)", mobIdx);
                 continue;
             }
@@ -310,7 +332,8 @@ void* GetInstanceHellPartyItemStatistic()
             if (pAI == 0)
             {
                 LogManager::logFormat(
-                    1, "KillMonsterInfo.cpp", __PRETTY_FUNCTION__, 0x2e,
+                    1, "KillMonsterInfo.cpp",
+                    __PRETTY_FUNCTION__, 0x2e,
                     "ConvertStrToMap ERROR : mobIdx is not valid(%u)", mobIdx);
                 continue;
             }

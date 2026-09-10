@@ -487,10 +487,11 @@ public:
     int CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
                                    bool flag2);         // ORIG 返回错误码 0xab~0xad/1（0x0859f1ce）
     int CheckEnterVillageAttackRevenge(CDungeon const* dungeon);
-    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7d4b 尾 `movzbl 0x1865(%eax),%ebx;
-    // ...; mov %ebx,%eax; ret`（无 setne 归一化，P9）⇒ 返回类型 int 非 bool；
+    // [M5 2026-09-11 改判 bool，推翻 b28d 旧 P9 判词] ORIG 0x085a7d4b 尾
+    // `movzbl 0x1865(%eax),%ebx; ...; mov %ebx,%eax; ret`；按 P321/P292（生产端无
+    // 归一化不能排除 bool）+ 探针（bool 成员+bool 返回 ⇒ 4.4 单条直落）⇒ bool。
     // mangled 不变，调用点 CParty.cpp:3197 `if (!call())` 语义不变。
-    unsigned char CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
+    bool CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
     bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
     // b28d-solo-CPartyOnlyOrig：ORIG checkLimitUsedCoinCondition 0x085be6xx 调用点
     // `call; xor $0x1,%eax; test %al,%al; je`（P292/P168a）⇒ bool 返回。
@@ -566,8 +567,8 @@ public:
     void MemberRegisterKillMonster(map_monster& monster, unsigned char flag);
     int OnFightVillageMonster(CUser* user, int monsterIdx);   // ORIG 返回 0/1/0x15（0x85b9596）
     int OnFinishVillageMonsterFighting(CUser* user, bool flag);   // ORIG 返回 0/3（0x85b99ac）
-    int kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
-                     MSG_MONSTER_DIE const& dieInfo, int* param);  // ORIG 返回 0/1
+    bool kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
+                      MSG_MONSTER_DIE const& dieInfo, int* param);  // ORIG prett 串直证 bool（0x08cbb900）
     void kill_blood_monster(CUser* user, int monsterIdx, unsigned short* param);
     bool BloodHandleDieUser(CUser* user);   // b28d-53 P159：ORIG 尾 mov$1/错误路径 mov$0 ⇒ bool
     void beginBloodClearProcess(bool flag);

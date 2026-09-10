@@ -99,18 +99,19 @@ namespace
 // CParty::SendSecretShopItemList —— ORIG T 0x085b9ecc（SendSecretShopItemList.md）。
 // pos = GetUserPosition(user)；0<=pos<4 时经 GlobalData::s_secret_shop 把
 // this+0x2a8+pos*0x1c（= m_secretShopInfo[pos]）处的 SALE_INFO vector 发给 user。
+// [M5A_DispLink] ORIG 0x085b9f0b `lea 0x8(%eax),%edx`（单条 lea 取字段地址）vs 旧 cast
+//   取址形恒产 `add $0x8,%eax; mov %eax,%edx`（OURS 多 1 条 = 29）。改直接写具名成员
+//   链 `m_info[pos].m_retailer.m_sales`（类型即 std::vector<SALE_INFO>，无需 cast）。
 // ============================================================================
 #include "CPartyLink2/SendSecretShopItemList.inc"
 {
     int pos = GetUserPosition(user);
     // ORIG 0x085b9ef3 地址链 `pos*0x1c → lea 0x2a0 → add this → lea 0x8` 实证
-    // vector 落在 m_secretShopInfo[pos] 起始；取具名数组元素地址可复现
-    // `add 0x8(%ebp),%eax`（cast 取址形恒产 mov this,%ecx 中转，CParty.h:761 注释同证）。
+    // vector = m_info[pos].m_retailer.m_sales（SECRET_SHOP_INFO +0x00）。
     if (pos >= 0 && pos < 4)
     {
         GlobalData::s_secret_shop->SendSecretShopItemList(
-            user, *reinterpret_cast<std::vector<secretshop::SALE_INFO>*>(
-                      &this->m_secretShop.m_info[pos]));
+            user, this->m_secretShop.m_info[pos].m_retailer.m_sales);
     }
 }
 
@@ -125,6 +126,11 @@ namespace
 //   金卡掉落上限：G_CDataManager()->m_serverParameter.m_4968（dm+0x49d0），
 //     当前地图 m_f0（CMap+0xf0）非 0 则覆盖；命中上限时 m_field48 不增。
 //   维度判定：dungeon+0x89e / +0x89f（Cheat 维度标志）与 party short +0xc4c。
+// [M5A_DispLink] 语义修复（ORIG 0x085a35e0 `mov -0x2c(%ebp),%eax; mov %eax,-0x468(%ebp)`）：
+//   set_random_reward 前源码有 `expResult.m_value00 = exp` —— RewardData_Result.m_value00
+//   是 **in-out 输入**（KillMonsterExp::process T 0x0826d198 读初值
+//   `result.m_value00 = (int)((float)result.m_value00 * rate)`），缺此句则 buff 命中时
+//   exp 被乘成 0（真语义 bug）。补齐后 OURS 1279+2 = 1281 = ORIG。
 // ============================================================================
 #include "CPartyLink2/kill_monster.inc"
                          MSG_MONSTER_DIE const& dieInfo, int* param)
@@ -202,7 +208,7 @@ namespace
                 user->getHackAnalyzer()->addServerHackCnt(
                     user, (WongWork::ENUM_HACKTYPE)0xcf, 1, 0, 0);
         }
-        return 0;
+        return false;
     }
 
     if (param != 0)
@@ -409,6 +415,8 @@ namespace
         // ---- 随机 buff（经验类） ----
         QuickParty::RewardData_Param expParam(this);
         QuickParty::RewardData_Result expResult;
+        // ORIG 0x085a35e0：result.m_value00 为 in-out（process 读初值乘 rate）。
+        expResult.m_value00 = (int)exp;
         set_random_reward(QuickParty::RANDOM_BUFF_INCREASE_EXP, expParam, expResult);
         exp = (unsigned int)expResult.m_value00;
 
@@ -514,5 +522,5 @@ namespace
     {
         ClearDungeon();
     }
-    return 1;
+    return true;
 }

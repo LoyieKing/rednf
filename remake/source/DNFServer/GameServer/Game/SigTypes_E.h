@@ -955,7 +955,10 @@ struct SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD
     // 2 条形（无符号转换节点）；CUser::get_acc_id() 返回 unsigned int（CUser.h:2911）。
     // 声明为 int 时 4.4.7 会插入值搬运使 store 变 3 条（实测见 b23 O_MiscC idx8）。
     unsigned int m_accID;            // +0x00
-    int m_characNo;                  // +0x04
+    // unsigned int：ORIG 0x085c48f4 存 characNo 为 `mov -0xc(%ebp),%edx; mov %eax,0x4(%edx)`
+    // 2 条形（无符号转换节点）；声明 int 时 4.4.7 插值搬运使 store 变 3 条
+    // （[M1Free76to90 2026-09-11] CPremiumLetheManager::_update our 128→127=ORIG；同 m_accID 因）。
+    unsigned int m_characNo;         // +0x04
     char m_pad08[4];                 // +0x08
     unsigned char m_state;           // +0x0c
     char m_skills[0x198];            // +0x0d

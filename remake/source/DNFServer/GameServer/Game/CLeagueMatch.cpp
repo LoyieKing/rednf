@@ -465,10 +465,10 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
         // -0x3c/-0x2c（由深到浅），具名声明形 4.4 反向（-0x38→-0x78）⇒ 改
         // 「构造即调用」全表达式临时链翻槽方向。
         cMyTrace(__PRETTY_FUNCTION__, 0x295, 0)("OnMatchRoom timeout");
-        return 0;
+        return false;
     }
     if (m_state != 1)
-        return 0;
+        return false;
 
     // [b28d-solo-CLeagueMatch] P198③：ORIG 0x0855dca0/dca7/dcb4 三处预清
     // （Ghidra C：leader=0; theirRoom=0; opponent=0 在 Match 调用前）
@@ -480,7 +480,7 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
     if (opponent == 0) {
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     leader = opponent->GetUser(0);
@@ -489,7 +489,7 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x2b0);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     theirRoom = reinterpret_cast<PvP_Room*>(leader->GetPVPRoom());
@@ -498,7 +498,7 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x2b9);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     // [b28d-solo-CLeagueMatch] 真语义 bug 修正（Ghidra C `get_player_count(param_1)`
@@ -509,7 +509,7 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x2c2);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     bool badSize =
@@ -523,7 +523,7 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x2ca);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return 0;
+        return false;
     }
 
     _BackupRoomInfo(theirRoom);
@@ -549,7 +549,7 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
     pWaitingRoomList_->DelRoom(this);                   // IRoomList vtable+0x04
     m_state = 4;
     _SendMatchStatePacket(2, 2);
-    return 1;
+    return true;
 }
 
 #include "CLeagueMatch/OnStartFight.inc"

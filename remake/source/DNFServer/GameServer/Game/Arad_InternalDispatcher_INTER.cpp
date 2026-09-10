@@ -10,6 +10,15 @@
 //   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
+
+// [M3S4 2026-09-11 · §6.5 串盲区 · 父泳道 M3FreeNext15B 批准] 文件作用域（全局命名空间）typedef：
+//   ORIG prett `_ZZN…sendHelperBox…__PRETTY_FUNCTION__` @0x08ba2e40 size 0x5b =
+//   "bool ARAD::DISPATCHER::Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser*, byte, byte)"。
+// GCC `__PRETTY_FUNCTION__` 取**定义处**拼写并保留 typedef 名（探针 /tmp/m3s4_probe_prett.cpp 实证），
+//   但置于 namespace 内会打印限定名 `ARAD::DISPATCHER::byte`（本 TU 实测）⇒ 必须全局作用域。
+//   底层类型/mangled/sizeof/偏移/布局全不变（同 WarField.cpp:307 先例）。
+typedef unsigned char byte;
+
 #include "Arad_InternalDispatcher.h"
 
 #include <time.h>
@@ -278,8 +287,8 @@ namespace DISPATCHER
 // AradJumping_Script 取奖励物品后 create_item 并 ReqDBSendNewSystemMail 投递。
 // ----------------------------------------------------------------------------
 #include "Arad_InternalDispatcher_INTER/sendHelperBox.inc"
-                                                     unsigned char ticketType,
-                                                     unsigned char growValue)
+                                                     byte ticketType,
+                                                     byte growValue)
 {
     // [b28d-solo-Arad_InternalDispatcher_INTER 判词] NEAR→封 N7/P78（ORIG 0x0819973e）：146=146 条、帧 0x1b8 全等、
     // 槽基 item@-0x6e/body@-0x16e/title@-0x31/rewardIndex@-0x1c 全等；唯一残差 =
@@ -322,6 +331,21 @@ namespace DISPATCHER
     {
         // [b28d-solo] ORIG 0x081998c2..0x08199909 右起求值：get_charac_job→%esi、
         // ticketType→%edi、get_charac_no→%ebx、get_acc_id→%eax 内联实参保活。
+        // [M3S4 实测-3形 · 146=146 NEAR 封顶] 残差仅 callee-saved 角色互换（ORIG
+        // job→%esi/ticketType→%edi，我方恒 job→%edi/ticketType→%esi）：①单 register
+        // 变量（ticketType 内联实参）同互换；②两 register 声明序反转（ticket 先）
+        // 反而 NEAR→DIFF（%esi 落到 ticketType 载入、job 变 %edi 且槽序错位）；
+        // ③连同旧判词的内联实参/裸 register 两序/去 cast 共 6 形 ⇒ 4.4 callee-saved
+        // 分配序差，无源码形可翻。
+        // [M3S4 §6.5 串盲区 · 真契约差，待 .h 全局 typedef 落地] ORIG prett
+        // _ZZN…sendHelperBox…__PRETTY_FUNCTION__ @0x08ba2e40 size 0x5b =
+        // "bool ARAD::DISPATCHER::Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser*, byte, byte)"；
+        // 我方发射 "(CUser*, unsigned char, unsigned char)"（+22 字节）。探针实证
+        // （/tmp/m3s4_probe_prett.cpp）：GCC 取**定义处**拼写且保留 typedef 名（声明写
+        // unsigned char、定义写 byte ⇒ 打印 byte）；但 namespace 内 typedef 会打成
+        // 限定名 `ARAD::DISPATCHER::byte`（本 TU 实测）⇒ 必须在**全局**作用域提供
+        // `typedef unsigned char byte;`（.h 待办；定义侧两行形参改 byte 即复现，
+        // mangled/sizeof/布局不变，1 次复编）。
         register unsigned int jobArg = (unsigned int)user->get_charac_job();
         register unsigned int ticketArg = (unsigned int)ticketType;
         LogManager::logFormat
@@ -665,16 +689,21 @@ out:
     int avatarUid = 0;                                      // -0x20
     if ((unsigned char)picked.m_zoneType == 3)
         avatarUid = 0;                                      // ORIG 重写同值，保留指令序
-    // ORIG 0x08198d46 存 32 位到 -0x6c（4.1 对 short 局部用 32 位槽）；4.4 对
-    // unsigned short 局部恒 16 位 store + movzwl 回读（多 1 条，P77 跨版本封顶）。
-    unsigned short levelParam =                             // -0x6c
-        (unsigned short)(signed char)picked.m_pad9;
-
+    // [M3S4 落地 · DIFF→AE，320=320] ORIG 0x08198d3d-0x08198d46 `movzbl -0x4b; cbtw;
+    // movzwl %ax,%eax; mov %eax,-0x6c` = 32 位槽直存、无 16 位中继槽。旧形
+    // `unsigned short levelParam` 在 4.4 下多一个 -0x1e 16 位中继槽（`mov %ax,-0x1e;
+    // movzwl -0x1e,%eax; mov %eax,-0x6c`）⇒ 全帧槽基 +4（buf/sig/now/broken/picked/
+    // packet 全体下移 4，decBand/avatarUid -0x21/-0x20→-0x25/-0x24）。
+    // 实测：①`unsigned int` 32 位承载（`(unsigned short)` 截断）⇒ 323（-0x20 中继槽）；
+    // ②删具名变量、把 `(unsigned short)(signed char)picked.m_pad9` **内联进实参位**
+    // ⇒ 320，槽集合与 ORIG 全等（-0x1c/-0x20/-0x21/-0x28/-0x2c/-0x44/-0x48..-0x4c/
+    // -0x50/-0x54/-0x60/-0x6c/-0x70），TU 四数 diff 2→1、ae 20→21。
     // ORIG 0x08198d57 先装实参到 %edi/%esi/%ebx 再 call getCurCharacInvenW（无槽）。
     int slot = user->getCurCharacInvenW()->AddAvatarItem(
         picked.m_itemId, avatarUid, false,
         (char)picked.m_optionOrSkillIdx, (char)decBand,
-        dateKey, (eAvatarItemAddReason)0x15, false, levelParam);
+        dateKey, (eAvatarItemAddReason)0x15, false,
+        (unsigned short)(signed char)picked.m_pad9);
 
     if (slot == -1)
     {

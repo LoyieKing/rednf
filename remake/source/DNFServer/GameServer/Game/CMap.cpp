@@ -415,6 +415,17 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
 //   mov %eax,%edx` 两段（P254/P265 信号 ⇒ ORIG 侧字段与 RHS 异型），我方单段
 //   `mov 0xc(%eax),%edx` ⇒ 需 STMapScript::m_c 或 CMap::m_8 之一 enum 化才能翻，
 //   二者均在 .h（只报告，未改）；③ SPOBJ 条件链已按 P223 改为独立守卫+尾岛。
+// [M4S2 R2 三件套复核 · 未动码] ① §6.5 串：set_map 体内无 cMyTrace/日志串
+//   （ORIG 0x0834e18a..0x0834e9a1 段无 .rodata 字面量引用）⇒ 无串盲区；
+//   ② §6.5.1 编码：enc_kr_scan 全库 total mismatch = 0；
+//   ③ P167 调用点：ORIG 67 = OUR 67 **CLEAR**，仅 STAssignMonster 与
+//   __normal_iterator 的 C1/C2、D1/D2 变体名差（全库共性）；
+//   ④ 字段偏移：逐条一致，唯一指令数差仍是①的 `m_8 = script.m_c`（P211/P248
+//   档③ 异型转换中转）。探针 /tmp/m4s2_probe/pr_field{,2}.cpp 直证该两段形来源：
+//   f2 `t->m8=(int)*(E*)&s->c`、h3 `v->m8=(E)s->c`、h5 `u->m8=s->c`(u.m8 unsigned)
+//   三者均产 `mov (%eax),%eax; mov %eax,%edx`（= ORIG），h1/h6（两侧同型）产单段。
+//   ⇒ .h 建议（他泳道落）：STMapScript::m_c(+0x00c) 或 CMap::m_8(+0x08) 之一
+//   改枚举/unsigned；本件整体残差（槽整体深 4 + 迭代器槽组）属 N82/N95 槽族。
 #include "CMap/set_map.inc"
 {
     m_4 = script.m_index;

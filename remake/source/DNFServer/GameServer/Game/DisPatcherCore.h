@@ -58,7 +58,9 @@ class DisPatcher_SelectCharac : public IPacketDispatcher<MSG_CHARAC_SELECT, stSe
 public:
     DisPatcher_SelectCharac() {}
     virtual ~DisPatcher_SelectCharac();
-    unsigned int check_error(CUser* user, MSG_BASE& msg);
+    // [M8BigTURest/M8DPB 2026-09-11 签名轴] ORIG .rodata 直证
+    // `int DisPatcher_SelectCharac::check_error(CUser*, MSG_BASE&)`（本仓原写 unsigned int）。
+    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -86,7 +88,9 @@ class DisPatcher_CreateCharac : public IPacketDispatcher<MSG_CREATE_CHARACTER, s
 public:
     DisPatcher_CreateCharac() {}
     virtual ~DisPatcher_CreateCharac();
-    unsigned int check_error(CUser* user, MSG_BASE& msg);
+    // [M8DPB 2026-09-11] 签名轴：ORIG .rodata 串 `int DisPatcher_CreateCharac::check_error(CUser*, MSG_BASE&)`
+    // （strings df_game_r 命中，无 unsigned）⇒ 返回类型改 int（不入 mangled，零布局影响）。
+    int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -99,7 +103,9 @@ class DisPatcher_DeleteCharac : public IPacketDispatcher<MSG_DELETE_CHARACTER, s
 public:
     DisPatcher_DeleteCharac() {}
     virtual ~DisPatcher_DeleteCharac();
-    unsigned int check_error(CUser* user, MSG_BASE& msg);
+    // [M8DPB 2026-09-11] 签名轴：ORIG .rodata `int DisPatcher_DeleteCharac::check_error(CUser*, MSG_BASE&)`
+    // ⇒ int（不入 mangled，零布局影响）。
+    int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);

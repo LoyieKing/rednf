@@ -43,11 +43,11 @@
 #include "PvP_GuildWar_Log/PvP_GuildWar_Log.inc"
     : m_startTime(0)
 {
-    // [b28d-23 N 封顶] ORIG 0x085dda4b `sub $0x10`（0xc 局部 + 4 outgoing）。
-    // P232 补 char[0xc] 后 4.4 发 `sub $0x14`（实测）：4.4 带 call 帧恒 16k+4
-    // 量化（P190 附注 b28 BL11：0x4/0x14/0x24…），ORIG 的 0x10 非量化值不可达；
-    // 保留 0xc 死局部取最近帧（差 4），语义等价（framePad 不读写）。
-    char framePad[0xc];
+    // b28d-M2S3（推翻旧 N 判词）：ORIG 0x085dda4b 为 `sub $0x10`。
+    // 帧-死局部穷举（4.4.7 / 446 / 444 三后端读数一致）：空体 ⇒ `sub $0x4`；
+    // char[4] / [8] / [0xc] ⇒ 恒 `sub $0x14`。⇒ 0x10 不可达（4.4 帧只有
+    // 0x4/0x14 两档）⇒ 保留最小死局部取最近帧（差 4B，N82 帧量化族）。
+    char framePad[4];
     (void)framePad;
 }
 
@@ -70,41 +70,42 @@
 
 // ORIG _ZN16PvP_GuildWar_Log14InsertPvPGuildEji 0x085ddd80：
 //   for(i=0;i<=7;++i){ key==0→跳到插入；key==guildKey→累加返回 1 } 未命中返回 0。
-// [b28d-23 N·P223] 岛形/块序（108/109）⇒ N。ORIG 0x085ddd80
+// [b28d-23 N·P223 → b28d-M2S3 推翻] ORIG 0x085ddd80：goto 岛形 → 自然
+// for + if/else 直落后复测 108/108、归一化零差异（identical）。
 #include "PvP_GuildWar_Log/InsertPvPGuild.inc"
 {
     // [b28c-L18] 真语义 bug 修复：ORIG 0x085dddcc `cmp 0xc(%ebp),%eax; jne <++i 块>`
     // 实证 key 既非 0 亦非 guildKey 时**继续扫描下一槽**；旧源 mismatch 直落
     // found 插入块（首个非命中槽即被覆盖，槽 1..7 永不可达）。
-    // 块布局照 ORIG（P164 岛标签法）：入口 jmp 尾条件块；body/insert 物理前置、
-    // `addl/cmpl/setle/test/jne` 回边块 + `mov $0` 直落 epilogue。
-    int i = 0;
-    goto cond;
-body:
-    if (m_guilds[i].m_guildKey == 0)
-        goto found;
-    if (m_guilds[i].m_guildKey == guildKey)
+    // b28d-M2S3（P164/P223 重试，推翻旧 N 判词）：ORIG 0x085ddd80 物理块序 =
+    // body(+0x13) → insert 块(+0xb3) → ++i 块(+0x110) → 尾条件(+0x114)。
+    // 旧 goto 岛形把 ++i 块插在 insert 之前，且入口 `jmp` 后多 1 条 label
+    // 对齐 nop（109 vs ORIG 108）。自然 for + if/else 直落成 ORIG 块序。
+    for (int i = 0; i <= 7; ++i)
     {
-        m_guilds[i].m_point += point;
-        ++m_guilds[i].m_count;
-        return 1;
+        if (m_guilds[i].m_guildKey != 0)
+        {
+            if (m_guilds[i].m_guildKey == guildKey)
+            {
+                m_guilds[i].m_point += point;
+                ++m_guilds[i].m_count;
+                return 1;
+            }
+        }
+        else
+        {
+            m_guilds[i].m_guildKey = guildKey;
+            m_guilds[i].m_point = point;
+            m_guilds[i].m_count = 1;
+            ++m_guildCnt;
+            return 1;
+        }
     }
-    ++i;
-    goto insertblk;
-found:
-    m_guilds[i].m_guildKey = guildKey;
-    m_guilds[i].m_point = point;
-    m_guilds[i].m_count = 1;
-    ++m_guildCnt;
-    return 1;
-insertblk:
-cond:
-    if (i <= 7)
-        goto body;
     return 0;
 }
 
-// [b28d-23 N·N82] 192/191 ⇒ N。ORIG 0x085ddad0
+// [b28d-23 N·N82 → b28d-M2S3 复测] ORIG 0x085ddad0：192/192，归一化后仅 8 处
+// 「参数压栈立即数」差（.o 未链接值 vs ORIG .rodata 地址的显示差）⇒ identical 级。
 #include "PvP_GuildWar_Log/WriteGuildWarPvPLog.inc"
 {
     // [L14 round3] N78 突破口（P214③/P253）：ORIG 0x085ddad0 两处清零是**内联
@@ -119,10 +120,13 @@ cond:
     {
         if (users[i] != 0)
         {
-            int point = users[i]->get_guildwar_point_per_pvpplay();
-            unsigned int guildKey =
-                ((CUserCharacInfo*)users[i])->get_charac_guildkey();
-            InsertPvPGuild(guildKey, point);
+            // b28d-M2S3（P0/P183）：ORIG 0x085ddb0b `call get_guildwar_point_
+            // per_pvpplay; mov %eax,%ebx`（无 point 具名槽）+ 0x085ddb20
+            // `call get_charac_guildkey`（无 guildKey 槽）；两具名局部多余。
+            // cdecl 实参右→左求值 ⇒ ORIG 先算第 2 参 point 存 %ebx。
+            InsertPvPGuild(
+                ((CUserCharacInfo*)users[i])->get_charac_guildkey(),
+                users[i]->get_guildwar_point_per_pvpplay());
         }
     }
     char logBuf[2048] = { '\0' };
@@ -130,34 +134,11 @@ cond:
             roomIdx, (int)mode,
             GlobalData::s_systemTime_.getCurSec() - m_startTime,
             (unsigned char)m_guildCnt);
-    if ((unsigned char)m_guildCnt < 9)
-    {
-        for (int j = 0; j < (unsigned char)m_guildCnt; ++j)
-        {
-            if (m_guilds[j].m_guildKey != 0)
-            {
-                sprintf(logBuf, "%s->\t\tG_Key:%d\tPoint:%d\tM_Cnt:%d\n", logBuf,
-                        m_guilds[j].m_guildKey, m_guilds[j].m_point,
-                        (unsigned char)m_guilds[j].m_count);
-            }
-        }
-        char logPath[256] = { '\0' };
-        sprintf(logPath, "./log/%s/GuildWarResult",
-                G_CEnvironment()->get_file_name());
-        CMyFileLog fileLog(
-            "void PvP_GuildWar_Log::WriteGuildWarPvPLog(int, char, CUser**)",
-            0x12dc);
-        fileLog(logPath, "%s", logBuf);
-        Clear();
-        for (k = 0; k < 8; ++k)
-        {
-            if (users[k] != 0)
-            {
-                users[k]->set_guildwar_point_per_pvpplay(0);
-            }
-        }
-    }
-    else
+    // b28d-M2S3（P222/P164 块序）：ORIG 0x085ddbae `cmp $0x8,%al; jbe <then 块
+    // +0x126>` ⇒ else(logFormat) 块**物理前置**、尾部 `jmp <epilogue>`（0x085ddbf1）
+    // ⇒ 源码是早返回形（`>= 9` 打印后 return），then 块被跳到后面。
+    // 旧源 `if (< 9) {...} else {...}` 令 then 直落、else 跳后（我方 `ja`）。
+    if ((unsigned char)m_guildCnt >= 9)
     {
         LogManager::logFormat(
             1, "pvp.cpp",
@@ -165,5 +146,33 @@ cond:
             0x12cc,
             "PvP_GuildWar_Log::WriteGuildWarPvPLog() m_guildCnt(%d) > MAX_PVP_PLAYER(8) ",
             (unsigned char)m_guildCnt);
+        return;
+    }
+    // b28d-M2S3：ORIG 槽序 i(-0x24)/j(-0x20)/k(-0x1c) 连续 ⇒ j 用函数头
+    // 已声明的外层 j（旧源 for 内再声明遮蔽，令 j 槽落到 k 之后）。
+    for (j = 0; j < (unsigned char)m_guildCnt; ++j)
+    {
+        if (m_guilds[j].m_guildKey != 0)
+        {
+            sprintf(logBuf, "%s->\t\tG_Key:%d\tPoint:%d\tM_Cnt:%d\n", logBuf,
+                    m_guilds[j].m_guildKey, m_guilds[j].m_point,
+                    (unsigned char)m_guilds[j].m_count);
+        }
+    }
+    char logPath[256] = { '\0' };
+    sprintf(logPath, "./log/%s/GuildWarResult",
+            G_CEnvironment()->get_file_name());
+    // b28d-M2S3（P139/§6.5）：ORIG 0x085ddcf6 实参 =
+    // `&_ZZN16PvP_GuildWar_Log19WriteGuildWarPvPLogEicPP5CUserE19__
+    // PRETTY_FUNCTION__` 具名局部静态数组，非手写串。
+    CMyFileLog fileLog(__PRETTY_FUNCTION__, 0x12dc);
+    fileLog(logPath, "%s", logBuf);
+    Clear();
+    for (k = 0; k < 8; ++k)
+    {
+        if (users[k] != 0)
+        {
+            users[k]->set_guildwar_point_per_pvpplay(0);
+        }
     }
 }

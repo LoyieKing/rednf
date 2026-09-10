@@ -240,6 +240,17 @@ enum
                                int count,
                                std::vector<SIG_LETTER_INFO>& vecOld)
 {
+    // [M5F_CtorDB 2026-09-11] 新范式回扫（旧判词 N-88/P197④）—— 逐条试过：
+    // · P333（首建/查表双检锁状态机）：本件无函数局部 static 表、无 SpinLock/flag，
+    //   不适用（ORIG 反汇编 0x0841d16d..d2ef 无 `.bss` 取址 + guard 分支）。
+    // · P283/P164（循环落点、goto 底条件）：唯一残差 2 条在 `mailIdx != -1`，
+    //   ORIG 0x0841d1fc `cmpl $0xffffffff,-0x10(%ebp); setne %al; test %al,%al;
+    //   je +0x159`；4.4 对槽比恒直跳 `je`（P197④）。P225 `while(…!= -1){…break;}`
+    //   上一轮已实测无收益（jcc 相对偏移反 +7B）；`bool f=(mailIdx!=-1); if(f)`
+    //   会在 4.4 引入槽 store/load + `cmpb`，与 ORIG 的 %al 直物化形**不等价于**
+    //   任何源形 ⇒ 不落地（避免拿 3 条换 4 条）。
+    // · P337（不可达死块）：ORIG 该区间无独立死块（jcc 落点全可达，逐条核过）。
+    // 判定：N 封顶（4.1 槽比 setcc 物化，4.4 无对应后端路径），语义等价。
     std::sort(vecNew.begin(), vecNew.end(), CompareLetterIndex);
     // ORIG 0x0841d1c2 `mov count,%edx; sub %edx,%eax` + 尾测 `cmp start,%eax;
     // seta` ⇒ start 为 unsigned（int 形恒折 `sub mem,%eax` + setg，探针
@@ -403,40 +414,37 @@ union MailExtSource
         if (!db->fetch())
             return 0;
 
-
+        // [M5F_CtorDB] P329/P183：ORIG 0x0841d795..0x0841d900 六次 get_* 直接把
+        // **结构缓冲字段地址**当实参（`lea -0x1a3(%ebp),%eax; add $0xNN,%eax;
+        // mov %eax,0x8(%esp)`），无具名中间量、更无回写段。原写法 4 个具名局部
+        // 接收再逐条 SIG 回写 ⇒ 多 3×movl+movw 清零、4×(lea+mov) 回写与缓冲
+        // 中转（我方 546 vs ORIG 513 的主体）。表达式内联回实参位即复现。
         SIG_LETTER_INFO infoRaw;
-        unsigned int letterId = 0;
-        int sendCharacNo = 0;
-        int regDate = 0;
-        short stat = 0;
         memset(&infoRaw, 0, 0x12b);
 
-        if (!db->get_uint(0, letterId)) return 0;
-        if (!db->get_int(1, sendCharacNo)) return 0;
+        if (!db->get_uint(0, SIG_U32(&infoRaw, 0x00))) return 0;
+        if (!db->get_int(1, SIG_I32(&infoRaw, 0x04))) return 0;
         if (!db->get_str(2, SIG_PTR(&infoRaw, 0x08), 0x1d)) return 0;
         if (!db->get_str(3, SIG_PTR(&infoRaw, 0x25), 0x100)) return 0;
-        if (!db->get_int(4, regDate)) return 0;
-        if (!db->get_short(5, stat)) return 0;
-
-
-        SIG_U32(&infoRaw, 0x00) = letterId;
-        SIG_I32(&infoRaw, 0x04) = sendCharacNo;
-        SIG_I32(&infoRaw, 0x125) = regDate;
-        *(short*)SIG_PTR(&infoRaw, 0x129) = stat;
+        if (!db->get_int(4, SIG_I32(&infoRaw, 0x125))) return 0;
+        if (!db->get_short(5, *(short*)SIG_PTR(&infoRaw, 0x129))) return 0;
 
         // ORIG 0x0841d900 `movzwl -0x7a(%ebp),%eax; cwtl; cmp $0x1,%eax; jl`
-        // vs 4.4 `test %ax,%ax` / `cmp $0x2,%ax`（16 位直比）——`(int)stat`
-        // 显式提升实测无效（cwtl 仍 0，指令数不变）⇒ N 封顶。
-        if (stat > 0)
+        // vs 4.4 16 位直比（`test %ax,%ax` / `cmp $0x2,%ax`）。stat 不再落独立
+        // 栈槽：三处比较各直读缓冲 +0x129（`movzwl -0xNN(%ebp)`），(int) 提升
+        // 触发 cwtl 方向；具名 short 局部会是 store/load 中转而非 ORIG 形。
+        if ((int)*(short*)SIG_PTR(&infoRaw, 0x129) > 0)
         {
-            if (stat < 3)
+            if ((int)*(short*)SIG_PTR(&infoRaw, 0x129) < 3)
             {
-                if (!IsContainedLetter(out, (int)letterId))
-                    vec[1].push_back(infoRaw);
-                else
+                // ORIG 0x0841d916：`call IsContainedLetter; test %al,%al;
+                // je <vec[1]>` —— 正向 if（al!=0 落 vec[0]），无 `xor $0x1`。
+                if (IsContainedLetter(out, SIG_I32(&infoRaw, 0x00)))
                     vec[0].push_back(infoRaw);
+                else
+                    vec[1].push_back(infoRaw);
             }
-            else if (stat == 3)
+            else if ((int)*(short*)SIG_PTR(&infoRaw, 0x129) == 3)
             {
                 vec[2].push_back(infoRaw);
             }
@@ -450,8 +458,11 @@ union MailExtSource
         ArrangeMailAndLetterIndex(out, vec[1], n, vec[0]);
         if (out->m_box.m_count != 0)
         {
+            // ORIG 0x0841d9f5 `lea -0x1(%eax),%edx; mov this,%eax;
+            // imul $0x61,%edx,%edx; mov (%edx,%eax,1),%edx` —— 具名 postal 数组
+            // 视图访问（SIG_U32 指针算术版会多发一条 `lea` 把地址落 eax）。
             out->m_box.m_maxPostalId =
-                SIG_U32(out, (out->m_box.m_count - 1) * 0x61);
+                (unsigned int)out->m_box.m_postals[out->m_box.m_count - 1].m_postalId;
         }
     }
 
@@ -488,9 +499,11 @@ union MailExtSource
     }
 
     SIG_I32(out, SIG_OFF_LETTER_NEW) = groupSize[1];
-    int remain = out->m_box.m_remain +
-                 std::max(adjust - SIG_I32(out, SIG_OFF_LETTER_ADD), 0);
-    out->m_box.m_remain = remain;
+    // ORIG 0x0841dc0c：`mov 0x798(%eax),%ebx; … call _ZSt3maxIiERKT_S2_S2_;
+    // mov (%eax),%eax; lea (%ebx,%eax,1),%edx; mov %edx,0x798(%eax)` —— 无具名
+    // remain 中转（我方原多一条 store+load）。
+    out->m_box.m_remain = out->m_box.m_remain +
+                          std::max(adjust - SIG_I32(out, SIG_OFF_LETTER_ADD), 0);
     SIG_I32(out, SIG_OFF_LETTER_COUNT) = outIdx;
     return 1;
 }
@@ -567,6 +580,22 @@ union MailExtSource
 // 残余为 N82/N95 帧-槽号族；语义完成、byte 层 N 封顶。
 #include "DB_MailBox_Req_List/dispatch.inc"
 {
+    // [M5F_CtorDB 2026-09-11] 巨件（ORIG 1193 / 我方 1246，our>ORIG ⇒ 消指令方向）
+    // 本轮 §6.2 三件套复核：①p167 调用点差集仍 CLEAR；②帧已对齐（两侧
+    // `sub $0x463c`）；③槽号直方图同形但**整体深 4**（我方 -0x3c/-0x40/-0x44 对
+    // ORIG -0x38/-0x3c/-0x40，48/74 槽平移后计数全等）⇒ P332「版本首槽基址常数」
+    // 族（4.1 首槽 -0x4 / 4.4 首槽 -0xc），非源形可控。
+    // 残差形状集合（shape 归一二重集差，净 +53）：`mov M,%R` 7 / `add $I,%R` 6 /
+    // `imul $0x61` 4 / `lea (%R,%R,1),%R` 4 / `movl $0,-0xNN` 4 —— 前三项 =
+    // ORIG 在寄存器内连发地址链（`imul/lea` 每字段重算、复用 %edx），4.4 每字段
+    // 多一次槽 reload（P183 反向不可补，N128 单向性）；末项 4 条为本轮定点删除。
+    // 本轮删（均有 ORIG 无前置清零直证）：u13b / u13（首次写入即 get_* 输出槽）、
+    // regDate / expireDate（同）；uiId 移出 ui 循环到块头（ORIG 0x0841ec66
+    // `movl $0,-0x150` 位于 getList2inQuery 之前，循环内声明会每轮多一条 movl）。
+    // 试过无改善：`unsigned int mi` 前置（已与 ORIG 同）、第二循环 for↔while 互换
+    // （4.4 两形同码）、postal 视图基址局部（P183 反向 ⇒ N128 禁）。
+    // 判定：语义完成（p167 CLEAR、字符串/字段写入多重集一致），codegen 残差
+    // N82/N95/N126 封顶（4.1 独有寄存器地址链复用）。
     static const int handleIdx = 3;
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
         return 0;
@@ -678,7 +707,9 @@ union MailExtSource
             // addl $1,-0x24; ...call get_*(eax,..)` ⇒ 原码是 idx 初值 0xd 的
             // **后置自增实参**（我方旧形用常量 13 + 前置 ++idx，每处少 2 条）。
             int idx = 0xd;
-            unsigned int u13 = 0;
+            // [M5F_CtorDB] ORIG 0x0841e3c1 该局部无前置清零（首次写入 = get_uint
+            // 输出槽）⇒ 裸声明（`= 0` 多发一条 movl）。
+            unsigned int u13;
             unsigned long u14 = 0;
             int b16 = 0;
             int s17 = 0;
@@ -806,7 +837,9 @@ union MailExtSource
     {
         if (!db->fetch())
             return 0;
-        unsigned int u13b = 0;
+        // [M5F_CtorDB] P171：ORIG 0x0841e9b6 该局部（u13b）**无前置清零**
+        // （首次写入即 get_uint 输出槽），`= 0` 会多发一条 `movl $0x0,-0xNN`。
+        unsigned int u13b;
         if (db->get_uint(13, u13b) && u13b != 0)
         {
             std::map<unsigned int, int>::iterator it = extraMap.find(u13b);
@@ -867,6 +900,12 @@ union MailExtSource
         // getList2inQuery 之前、ui 循环**之外** ⇒ 原码声明在块头（循环内声明
         // 会把整段清零搬进循环体，与 ORIG 顺序不符）。
         char agency[0x19] = { 0 };
+        // [M5F_CtorDB] ORIG 0x0841ec66 `movl $0x0,-0x150(%ebp)` 紧接 agency
+        // 清零之后、getList2inQuery **之前** ⇒ uiId 是**块头**具名局部（只清一次）；
+        // 循环内声明会变成每轮一条 `movl $0x0,-0xNN`。regDate/expireDate 在 ORIG
+        // 无前置清零（首次写入即 get_uint 输出槽）⇒ 裸声明。
+        int uiId = 0;
+        unsigned int regDate, expireDate;
         getList2inQuery(avataList, sql2);
         db->set_query(
             "seLect ui_id,unix_timestamp(reg_date),unix_timestamp(expire_date),ipg_agency_no,jewel_socket from user_items where charac_no=%d and ui_id %s",
@@ -885,10 +924,8 @@ union MailExtSource
             // +0x0c reg_date / +0x10 agency / +0x29 jewel**（0x0841ee1a/ee35/ee50/
             // ee61 实证）；旧 MailUserItemView 缺前导 4 字节 pad ⇒ ui_id/reg_date/
             // agency/jewel 全部低移 4 字节。改用权威头 SIG_MAILBOX_USER_ITEM 视图。
-            int uiId = 0;
             if (!db->get_int(0, uiId))
                 return 0;
-            unsigned int regDate = 0, expireDate = 0;
             if (!db->get_uint(1, regDate))
                 return 0;
             if (!db->get_uint(2, expireDate))

@@ -361,11 +361,19 @@ TOD_Layer TOD_Layer::operator+(int n) const
             // *it 值经 ebx 直传 check_item_exist，无 itemId 具名局部。
             slot = m_member[local_14].m_pUser->getCurCharacInvenR()
                        ->check_item_exist(*it);
-            if (slot != -1)
+            // [b28d-round5] ORIG 0x085a8153 `cmpl $0xffffffff,-0x14(%ebp);
+            // setne %al; test %al,%al; je 085a8259`（槽比物化，4 条）。4.4 的
+            // `if (slot != -1)` 直形恒折 `cmpl; je`（少 setne/test 两条；探针
+            // /tmp/probe_party/p.cpp f1 vs f2 实证）；`while (slot != -1) {
+            // body; goto OUT; }` 形逐条复现物化，且 goto 保住 ORIG 的分离跳靶
+            // （je→slot==-1 块 0x085a8259；then 尾 jmp→0x085a826a）。
+            while (slot != -1)
             {
-                CInventory* invW = m_member[local_14].m_pUser->getCurCharacInvenW();
-                if (!invW->delete_item((INVEN_TYPE)1, slot, needCount,
-                                       (eItemDelReason)0x17, true))
+                // [b28d-round5] 去具名 invW：ORIG 0x085a817c call 返回后 %eax
+                // 直落 delete_item 的 this 实参位（0x085a81a7 `mov %eax,(%esp)`），
+                // 具名指针多 1 条槽写 + 1 条槽重装（P0 槽-局部律，-2 条）。
+                if (!m_member[local_14].m_pUser->getCurCharacInvenW()->delete_item(
+                        (INVEN_TYPE)1, slot, needCount, (eItemDelReason)0x17, true))
                 {
                     // [b28d-solo-CPartyDepsA2] ORIG 0x085a81d5：getCurCharacNo
                     // 在 cMyTrace ctor **之前**求值并入 %ebx 跨 ctor 保活 ⇒
@@ -381,12 +389,11 @@ TOD_Layer TOD_Layer::operator+(int n) const
                     m_member[local_14].m_pUser->SendUpdateItem(
                         (CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, slot);
                 }
+                goto sealDoorItemContinue;
             }
-            else
-            {
-                m_battleField.m_sealDoorItemsOk = 0;
-                return false;
-            }
+            m_battleField.m_sealDoorItemsOk = 0;
+            return false;
+        sealDoorItemContinue:
             ++it;
         }
     }
@@ -399,8 +406,20 @@ TOD_Layer TOD_Layer::operator+(int n) const
 // CheckHaveHellPartyPassItem —— ORIG T 0x085a7b8a（报告 CParty/CheckHaveHellPartyPassItem.md）
 // [b28d-solo-CPartyDepsA2 判词·AE] 负极性短路单 return `!A || B`（P214①/P258）
 // + 成功分支正向 if（P59/P222）+ callee CheckDestroyConditionSealDoor 返回 bool
-// （P292 2 条形）+ m_sealDoorFlag unsigned char + 本函数返回 unsigned char
-// （P9 movzbl 直返；.h 三处已 R2 广播，CParty.cpp 定义已由 Main 代落同步）。
+// （P292 2 条形）+ m_sealDoorFlag bool + 本函数返回 bool
+// （P9 movzbl 直返；.h:493 已由父泳道 R2 落 bool，本 TU .inc 同步）。
+// [b28d-round5 残余 1 条 · .h 类型轴已裁决落地] ORIG 0x085a7d48 段
+// `mov 0x8(%ebp),%eax; movzbl 0x1865(%eax),%ebx`（单条直入返回值寄存器 %ebx）；
+// 我方 4.4.7 恒经 %eax 中转（多 1 条 `mov %eax,%ebx`）。探针 /tmp/probe_party/
+// s.cpp（带 EH 局部对象）四形实证：h4 bool 成员+bool 返回 ⇒ 单条；h1 bool 成员+
+// unsigned char 返回 ⇒ 两条；h2 unsigned char 成员+uchar 返回 ⇒ 单条；h5
+// `return p->f != 0` ⇒ 两条。⇒ 正解是本函数**返回类型 bool**：
+// CParty.h:493 `unsigned char CheckHaveHellPartyPassItem(CDungeon const*,
+// ENUM_DUNGEON_TYPE)` → `bool`（父泳道已落地；本 TU 定义侧同步）。成员侧保持 bool 不动
+// （BattleDungeonMapA2.cpp:82 ④ 以 ORIG `movzbl;xor $1;test;je` 取反形直证
+// m_sealDoorFlag 是 bool，改 unsigned char 会回退该 TU ⇒ 冲突项，仅返回类型可动）。
+// 返回类型不入 mangled；调用点 dungeon_start 为 `if (CheckHaveHellPartyPassItem
+// (dungeon, type))`，bool/uchar 的 movzbl+test 形态相同（零回退预期）。
 // ============================================================================
 #include "CPartyDepsA2/CheckHaveHellPartyPassItem.inc"
                                                 ENUM_DUNGEON_TYPE type)

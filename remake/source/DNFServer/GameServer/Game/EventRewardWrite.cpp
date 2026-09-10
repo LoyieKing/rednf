@@ -108,6 +108,13 @@ struct EventRewardCheckerPos
     }
     reinterpret_cast<unsigned char&>(inven.m_field0) = data.m_seal;
     register unsigned int attachType = item->GetAttachType();  // ORIG 单次调用（寄存器化）
+    // 负结论（4.4 位折叠族，N 类；本波五变体实测，75 为封顶最优）：
+    //  ORIG 0x080f0da7–0x080f0dc3 = `call; cmp $5,%eax; ja` + `mov $1,%edx; mov %edx,%ebx;
+    //  mov %eax,%ecx; shl %cl,%ebx; mov %ebx,%eax; and $0x27,%eax; test %eax,%eax`
+    //  （attachType 直用 %eax，无具名寄存器副本）。
+    //  4.4 恒折 `(1u<<x)&0x27` → `(0x27>>x)&1`（shr $cl + and $1）+ 多发 `mov %eax,%ebx`；
+    //  实测：操作数序交换 75、`(int)`cast 75、有符号 `1<<x`（sar）75、嵌套 if 75、
+    //  P226 语句表达式 80（语句内变量落 -0xc 槽 + setne 岛）⇒ 均不可消，74/75 封顶。
     if (attachType < 6 && ((1u << attachType) & 0x27))
     {
         inven.m_field0 = 0;
@@ -119,6 +126,9 @@ struct EventRewardCheckerPos
     // ORIG 0x80f0d6e：虚调用 vptr+0x4c = vtable+0x54 = vt[21] IsRandomOption
     // （vptr 指向 vtable+8；勿与 vt[19] IsPossibleKiriProtection 混淆）
     // ORIG +0x91..+0xaf：短路物化岛（mov $1/jmp/mov $0 汇聚 + test）⇒ P226 语句表达式形。
+    // ORIG +0x98 `movzbl 0x2(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（取反物化）；
+    // 实测 4.4 对 `== 0` 与 `!m_roi` 均产 `test %al,%al; jne` 直跳（无 xor）⇒ 二者
+    // codegen 全同（75 条），保留 `== 0`。
     if (({ item->IsRandomOption() && data.m_roi == 0; }))  // +0x02 字节
     {
         this->unsealRandomOption(item, inven);
@@ -143,6 +153,13 @@ struct EventRewardCheckerPos
     register int group = item->getItemGroupName();
     register int lvl = item->getUsableLevel();
     register int rarity = item->get_rarity();
+    // 负结论（4.4 实参 temp 分配族，N 类；三次实测均劣于本形）：
+    //  ORIG +0x57..+0x71 四值保活 edi/esi/ebx/edx（0x080f0e97/0x0ea4/0x0eb1/0x0ebe），
+    //  +0x8b `mov &g_randomOptionHandle,%eax; mov %eax,-0x2c` ⇒ -0x2c 专存 handle，
+    //  +0x71 `mov -0x1c(%ebp),%eax; mov %eax,0x18(%esp)` pOption 实参段直读。
+    //  全内联 4 getter（指针形/引用形 0x080f0e7c–0x0f31）与「三局部+末位内联」
+    //  均产 80 条：4.4 必为第 7 实参 pOption 另发 temp（-0x2c 存 pOption、handle 退
+    //  -0x3c），恒多 2 条 mov ⇒ 不可由源码形态消除，78=78 为本件封顶。
     if (!GlobalData::g_randomOptionHandle->give_option(
             (unsigned long)inven.m_addInfo,
             (ENUM_RARITY)rarity, lvl, group, period, pOption))
@@ -268,13 +285,20 @@ struct EventRewardCheckerPos
         const int itemIdx = vit->m_itemIdx;
         Inven_Item inven;
         CItem* citem = G_CDataManager()->find_item(itemIdx);
-        int serverGroup = 0;
+        // [本波] serverGroup 声明为 ENUM_SERVER_GROUP（而非 int + 实参位 cast）：
+        // ORIG 0x080f0c8c `mov -0x20(%ebp),%edx; mov %edx,0x1c(%esp)` 直读槽、实参位
+        // 无额外临时 ⇒ 261→259 条（=ORIG）。残余 1 条：我方 4.4 在 0x080f0c39 之后多发
+        // `mov -0x1c(%ebp),%edi`（expDate 提前保活），而 ORIG 0x080f0c93 是实参段直读
+        // `mov -0x1c(%ebp),%edx`——属 4.4 实参保活族；`({ expDate; })` 包裹与去 const
+        // 两变体实测零变化（均 259）。
+        ENUM_SERVER_GROUP serverGroup = static_cast<ENUM_SERVER_GROUP>(0);
                 // ORIG +0x159..+0x185：IsIntegratedPvPBaseChannel 先测，test %al 无取反；
         // 真分支（集成 PvP）取 user.GetServerGroup，假分支取 G_CEnvironment+0x378。
         if (G_GameWorld()->IsIntegratedPvPBaseChannel())
-                        serverGroup = static_cast<int>(user.GetServerGroup());
+                        serverGroup = static_cast<ENUM_SERVER_GROUP>(user.GetServerGroup());
         else
-            serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+            serverGroup = static_cast<ENUM_SERVER_GROUP>(
+                G_CEnvironment()->m_serverEnvir.m_serverGroup);
         if (citem != 0)
         {
             inven.m_addInfo = itemIdx;              // item+0x02
@@ -296,7 +320,7 @@ struct EventRewardCheckerPos
                 WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                     g_scriptStringManager_.findString(4, title, 0), inven, 0,
                     ({ user.getCurCharacNo(); }), buf, ({ (int)strlen(buf); }),
-                    expDate, static_cast<ENUM_SERVER_GROUP>(serverGroup), 0, 1);
+                    expDate, serverGroup, 0, 1);
             }
         }
     }

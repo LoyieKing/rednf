@@ -443,6 +443,15 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
     // 结果：p167 calls 44/44，MISSING/EXTRA 仅 C1↔C2、D1↔D2 别名对（豁免）；
     // gap 91 → -29（我方多 29 条 = 4.4 槽基/寻址形态差 N82/N95，非语义缺口）；
     // TU identical 106→111 / ae 239→242 / near 1 / diff 3（无回退）。
+    // [M3S2WinDrop 2026-09-11] 本波落地 3 项（547→553，orig 551；LCS ratio 0.8015→0.8134）：
+    //   ① 循环前死数组 `long skipDirs[2] = {2,6}`（ORIG 0x08573c88 `movl $0x2,-0x44` +
+    //      `movl $0x6,-0x40`，其后比较仍用立即数 ⇒ 死 store）⇒ +2 条；
+    //   ② 去具名 `bool hasImport` ⇒ 短路直接内联在 `if` 条件（ORIG 0x08573cfe `mov $1,%eax;
+    //      jmp; mov $0,%eax; test; je` 寄存器物化，无 bool 槽）+ `int unusedFlag = 1;`
+    //      （ORIG local_40 `movl $0x1,-0x3c`）⇒ 净 +4 条、形状与 ORIG 对齐（去 movb×2/cmpb）。
+    // 残余 2 条（判 N）：ORIG 的 `opt[(d+12)*2]` 走 scale-8 寻址（`mov 0x4(%eax,%edx,8),%eax`，
+    //   0x08573a0e 等 4 处）而 4.4 用 `add %eax,%eax; lea 0x1(%eax),%edx; mov (%eax,%edx,4)`
+    //   链（+2 条/处，另有 `addl $0x28,S` 的游标形差），属索引强度削减差异。
     if (m_image == 0)
     {
         return false;
@@ -460,10 +469,14 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
         unsigned short m_numberOfSections;                   // +0x02
     };
     unsigned char* img = m_image;                            // -0x68
+    // [N] 试把 `sig` 声明前移到 `p` 之前（P339 期望六槽 img/sig/p/pe/fileHdr/opt
+    // 对齐）：读数不变（551/553），4.4 让 sig 与 p **共用槽**（-0x70）——活跃性
+    // 槽复用，声明序无法控制；判 N。
+    unsigned int sig;                                        // -0x64 PE 签名
     unsigned char* p = img;                                  // -0x60 节表游标
     PeImageDosHeader* pe = reinterpret_cast<PeImageDosHeader*>(p); // -0x5c
     p = img + pe->m_lfanew;                                  // e_lfanew
-    unsigned int sig = *reinterpret_cast<unsigned int*>(p);  // -0x64 PE 签名
+    sig = *reinterpret_cast<unsigned int*>(p);
     (void)sig;
     p += 4;
     PeCoffFileHeader* fileHdr = reinterpret_cast<PeCoffFileHeader*>(p); // -0x58 COFF 头
@@ -523,6 +536,10 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
             IntervalSet workSet;
             Interval base(sh[3], rawLen);
             workSet.AddInterval(base);
+                // [M3S2WinDrop] ORIG 0x08573c88 循环前死 store `movl $0x2,-0x44(%ebp)` +
+                // `movl $0x6,-0x40(%ebp)`（其后比较仍用立即数 ⇒ 死数组；P171 照抄）。
+                long skipDirs[2] = {2, 6};
+                (void)skipDirs;
                 for (long d = 0; d < static_cast<long>(opt[0x17]); ++d)
                 {
                     if (IsOverlappedInterval(
@@ -534,13 +551,13 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
                         workSet.MinusInterval(dir);
                     }
                 }
-                bool hasImport = false;
-                if (opt[0x17] >= 2)
-                {
-                    hasImport =
-                        IsOverlappedInterval(sh[3], sh[2], opt[0x1a], opt[0x1b]) != 0;
-                }
-                if (hasImport)
+                // [M3S2WinDrop] ORIG 0x08573cfe-0x08573d02：短路**直接内联在 if 条件**
+                // （`mov $0x1,%eax; jmp; mov $0x0,%eax; test %al,%al; je <far>` 寄存器
+                // 物化，无具名 bool 槽）；具名 bool 会生成 `movb $0/movb $1/cmpb` 三槽操作。
+                int unusedFlag = 1;                          // ORIG local_40 `movl $0x1,-0x3c`
+                (void)unusedFlag;
+                if (opt[0x17] >= 2 &&
+                    IsOverlappedInterval(sh[3], sh[2], opt[0x1a], opt[0x1b]) != 0)
                 {
                     unsigned char* desc = img + opt[0x1a];
                     for (int e = 0;
@@ -655,6 +672,18 @@ L_empty:;
     // const_iterator C1Ev、Interval C1Ev ×2 ⇒ 两个 Interval 死局部（P232 帧律 +
     // Interval 有用户默认构造 W@0x08575e58）。守卫为短路物化形
     // `call size; test; je <mov$1>; call sections.size; test; jne <mov$0>` ⇒ 合并 ||。
+    // [M3S2WinDrop 2026-09-11] 本波落地 3 项（150→155，gap 14→9；四数 112/242/near2/diff3 不变）：
+    //   ① 两处迭代器改「先声明后赋值」（ORIG 0x08574243/0x0857427f begin() 经临时槽后
+    //      `mov -0x4c,%eax; mov %eax,-0x24/-0x20`）+4 条 mov；`++` 移到体尾；
+    //   ② 新增未初始化 `bool matched`（ORIG 0x08574337 独有 `movb $0x1,-0xd`，
+    //      无初始化 store、从未被读）+1 条。
+    //   残余 9 条 = 4.4 指令/寄存器选择，判 N：③ ORIG 匹配体用 `%ecx/%ebx/%esi`
+    //      中转算 `s1+(start-s0)`（0x0857430c..0x1430 八条）vs 4.4 `sub mem,%edx;
+    //      add mem,%edx`（2 条）；④ 因用 callee-saved ⇒ ORIG 有 push %esi/%ebx +
+    //      epilogue `lea S(%esp); add $0x0,%esp; pop %ebx/%esi/%ebp`（6 条）vs 4.4 `leave`；
+    //      ⑤ ORIG 四字段读取共用 `%eax=sec`、载入目标 `%edx`（0x085742ac），4.4 逐语句
+    //      用 `%eax` 载入致 3 条 sec reload（试过逗号表达式单语句：读数不变，N）；
+    //      ⑥ 首条件 ORIG `mov s0,%edx; cmp %eax,%edx; ja`（0x085742c6）vs 我方 `cmp mem; jb`（等价）。
     // 极性判读（0x08574225）：sections.size()!=0 ⇒ jne +0x6a(mov $0=bad false)，
     // 即坏条件为 `intervals.size()==0 || sections.size()==0`（**==**，勿写 !=）。
     std::vector<WindowsExeConstantSection*>::iterator sit0;  // ORIG 头部两枚迭代器
@@ -663,23 +692,34 @@ L_empty:;
     Interval range1;
     (void)range0;
     (void)range1;
+    // [M3S2WinDrop] ORIG 头内连续 4 个 uint 槽（-0x38/-0x34/-0x30/-0x2c，P339）⇒
+    // src 四字段槽提到函数头（深→浅 = s0,s1,s2,s3；赋值仍在循环体内）。
+    unsigned long s0, s1, s2, s3;
+    // [M3S2WinDrop] ORIG -0xd 槽：匹配体尾 `movb $0x1,-0xd(%ebp)`（0x08574337，
+    // 无初始化 store、从未被读）⇒ 未初始化 bool 局部 + 命中置位。
+    bool matched;
     m_commonSections.clear();
     if (intervals.m_intervals.size() == 0 || m_sections.size() == 0)
     {
         return false;
     }
-    for (std::vector<Interval>::const_iterator it = intervals.m_intervals.begin();
-         it != intervals.m_intervals.end(); ++it)
+    // [M3S2WinDrop] ORIG 0x08574243/0x0857427f：两处迭代器均为**先声明后赋值**
+    // （begin() 经临时槽 -0x4c 后 `mov -0x4c,%eax; mov %eax,-0x24/-0x20`，各 +2 条 mov），
+    // 非 for 初始化式直构；`++` 位于循环体尾（ORIG +0x1b4/+0x177）。
+    it0 = intervals.m_intervals.begin();
+    while (it0 != intervals.m_intervals.end())
     {
-        Interval range = *it;                                // local_40/3c = start/size
-        for (std::vector<WindowsExeConstantSection*>::iterator sit = m_sections.begin();
-             sit != m_sections.end(); ++sit)
+        Interval range = *it0;                               // local_40/3c = start/size
+        sit0 = m_sections.begin();
+        while (sit0 != m_sections.end())
         {
-            WindowsExeConstantSection* sec = *sit;           // local_18
-            unsigned long s0 = sec->start;                   // local_38
-            unsigned long s1 = sec->fileOffset;              // local_34
-            unsigned long s2 = sec->size;                    // local_30
-            unsigned long s3 = sec->flag;                    // local_2c
+            WindowsExeConstantSection* sec = *sit0;          // local_18
+            s0 = sec->start;                                 // local_38
+            s1 = sec->fileOffset;                            // local_34
+            s2 = sec->size;                                  // local_30
+            s3 = sec->flag;                                  // local_2c
+            // [N] 逗号表达式（单语句连续赋值）试过：读数不变（154），4.4 仍逐条
+            // reload sec 指针（`mov S(%ebp),%eax`），不采用 ORIG 的 %edx 载入形。
             if ((s0 <= (unsigned long)range.m_start) &&
                 ((unsigned long)range.m_start < s0 + s2))
             {
@@ -689,9 +729,12 @@ L_empty:;
                 item->flag       = s3;
                 item->fileOffset = s1 + ((unsigned long)range.m_start - s0);
                 m_commonSections.push_back(item);
+                matched = true;                              // ORIG movb $1,-0xd
                 break;                                       // 首个匹配即止
             }
+            ++sit0;
         }
+        ++it0;
     }
     // ORIG 尾部 `call size; mov %eax,-0xc(%ebp)`（P171 死写入照抄：4.4 对裸
     // `m_commonSections.size();` 会 DCE，须经具名局部保留 store）。
@@ -1014,7 +1057,16 @@ template <class T>
     // [b28d-solo-WindowsPackFiles] ORIG 头部 3 枚独立 C1Ev（+0x8..+0x36）：
     // iterator<WindowsExeFile>@-0x3c、iterator<WindowsExeConstantSection>@-0x40、
     // vector<IntervalSet*>@-0x4c ⇒ 迭代器**先声明后赋值**（P50，for 内直构会消 C1Ev）。
+    // [M3S2WinDrop 2026-09-11] 本波落地 2 项（277→279，gap 0；verdict DIFF→**NEAR**，
+    // TU 四数 diff 4→3 / near 1→2，identical 112 / ae 242 不变）：
+    //   ① 第二循环复用 it0（ORIG 0x085749a8 begin() 经 -0x8c 临时后 `mov -0x8c,%eax;
+    //      mov %eax,-0x3c` = 先声明后赋值；for 初始化式会原地直构、少 2 条 mov）；
+    //   ② 尾部两句交换为 `m_curOffset` 先、`m_curSectionIndex = 0` 后（ORIG 0x08574a3c
+    //      `mov %edx,0x120(%eax)` 先于 `movl $0x0,0x11c(%eax)`）。
+    // 余差仅槽基/寄存器（LCS 槽号归一后 ratio=1.0000）。
     // vector<IntervalSet*>::C1Ev 为 ORIG-only out-of-line 模板实例（N89），保留声明。
+    // [N] P331 声明序反转（unusedVec/sit0/it0）试过：读数不变（279/279）、严格差异行
+    // 仍 115/279 ⇒ 4.4 槽分配不随声明序 ⇒ 回滚。
     std::vector<WindowsExeFile*>::iterator it0;
     std::vector<WindowsExeConstantSection*>::iterator sit0;
     std::vector<IntervalSet*> unusedVec;
@@ -1060,14 +1112,20 @@ template <class T>
     }
     this->IntervalSet::operator=(*pCur);                     // IntervalSet::operator=
     Sort();
-    for (std::vector<WindowsExeFile*>::iterator it = m_exeFiles.begin();
-         it != m_exeFiles.end(); ++it)
+    // [M3S2WinDrop] ORIG 0x085749a8 第二循环**复用 it0 槽(-0x3c)**：begin() 经临时槽
+    // (local_8c) 后 `mov -0x8c,%eax; mov %eax,-0x3c`（先声明后赋值形，+2 条 mov），
+    // 非 for 初始化式直构（4.4 会原地构造、0 拷贝）。
+    it0 = m_exeFiles.begin();
+    while (it0 != m_exeFiles.end())
     {
-        WindowsExeFile* exe = *it;
+        WindowsExeFile* exe = *it0;
         exe->MakeCommonWindowsExeConstantSections(*this);
+        ++it0;
     }
-    m_curSectionIndex = 0;                                   // this+0x11c
+    // [M3S2WinDrop] ORIG 0x08574a3c 顺序直证：先 `mov %edx,0x120(%eax)`（m_curOffset）
+    // 后 `mov 0x8(%ebp),%eax; movl $0x0,0x11c(%eax)`（m_curSectionIndex=0）。
     m_curOffset = m_intervals[0].m_start;                    // operator[](this,0) 首字
+    m_curSectionIndex = 0;                                   // this+0x11c
     return true;
 }
 

@@ -17,6 +17,18 @@
 //     234:199 大 gap（std 模板/槽复用）。
 //   RewardTutorial 0x086475d8 DIFF139 N82/N93：帧 0x60/0x50 + vector<int> 槽向。
 //   drop_item_gm 0x085a73a6 DIFF245 N82/N89：257:255 CheckInTrade 早退岛 + 槽序。
+// 【b28e-M1S2 本波复核】两件复测读数与末次一致：
+//   · deleteGuildExpBook 117/117（NEAR）：唯一残差 = make_pair((ENUM)0,0x4b0) 的
+//     转换临时槽互换（ORIG 0x0867e8b6 `movl $0x0,-0x10` / 0x0867e8bd
+//     `movl $0x4b0,-0xc` vs 我方 `movl $0x4b0,-0x10` / `movl $0x0,-0xc`），
+//     其余全部 call 目标逐条同符号（仅显示地址）。P331/P339 核过：右值转换临时
+//     （混合生命周期）⇒ 明文不可翻 ⇒ N98 封顶。语义轴：logFormat 三串与 ORIG
+//     0x8cefd1c / 0x8cf28c0 / 0x8cee1dd / 0x8cefd74 一致（已核）。
+//   · drop_item_gm 257/257（AE）：残差 = 4.4 令 `if(id!=0){…}` 的初始化段与拷贝段
+//     相邻 ⇒ `je/jne/jg` 落点重合（我方 0xbf）而 ORIG 分开（0x1a9 / 0xc3）；
+//     两落点代码逐字节相同（`movb $0x0,-0xc8(%ebp)`）⇒ 语义等价、CFG 布局差、
+//     源级不可造 ⇒ N 登记。字段/调用点与 Ghidra C 逐项核对一致（0x15 次 dword
+//     拷贝、drop_item(0xb24)、put_* 序列、map_item 三态输出）。
 
 #include <string.h>
 

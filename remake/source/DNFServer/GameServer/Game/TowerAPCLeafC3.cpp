@@ -45,6 +45,15 @@
 }
 
 // [b28d-32 N(P75): 1 条装载序/寄存器差（202/201） | ORIG 0x085fe906]
+// 【b28e-M1S2 本波复核】202/201。P331 核过：残差为**多段不同常数**平移
+//   （strlen 结果槽 ORIG -0x20 vs 我方 -0x28（差 8）；6 个 int 局部组
+//   ORIG -0x50..-0x3c vs 我方 -0x24..-0x10（差 0x2c））⇒ 非「恒定平移」⇒ 封 N。
+//   %edi 保活差：ORIG `lea 0x4(%eax),%edi`（this+4 跨 cMyTrace 调用存活）vs
+//   我方 %esi；帧 0x7c vs 0x70（= ORIG 多 push %edi + 槽深差）。
+//   语义轴：cMyTrace 格式串 `@TOD : setting layer:%d, name:%s, lv:%d, job:%d,
+//   grow_type:%d, guild_name:%s, pvp_grade:%d, creature_name:%s, creature_id:%d`
+//   与 ORIG 0x8cd6904 逐字节一致（objdump -s 核对），9 个实参装载段
+//   （0x28..0x10(%esp)）与 ORIG 逐条对应。
 #include "TowerAPCLeafC3/Set_APC_Info.inc"
 {
     // b21 verdict=DIFF（N 残余）：202/201（gap=1）。调用点全等（clear/put_header/put_byte×/
@@ -159,22 +168,30 @@
 {
     // ORIG 形态：默认构造 it → end() 先求值 → find 赋值 → operator!= 判断；
     // 日志三参为内联 getter 表达式（右到左求值，寄存器临时跨 noop 构造存活）。
+    // [b28e-M1S2] 反转声明序（endIt 先）实测 verdict NEAR→DIFF（90/90 不变，槽映射
+    // 未如预期互换且 end() 发射点提前）⇒ 回滚。残留 = 两个迭代器槽互换：
+    // ORIG it=-0x34/endIt=-0x30（4.1 先声明深），我方 it=-0x30/endIt=-0x34
+    //（4.4 先声明浅，与本件实测一致）⇒ P339 方向相反、无可造形，判 N(P75 槽序)。
     std::map<TOD_Layer, SendingAPC_Info>::iterator it;
     std::map<TOD_Layer, SendingAPC_Info>::iterator endIt = m_APCInfoMap.end();
     it = m_APCInfoMap.find(layer);
     if (it != endIt)
     {
         it->second.Send_APC_Info(layer, user);
-        cMyTraceNoop noop;
-        noop("TOD:sending [%d] toUser, layer [%d] : clone : [%d]",
-             user->getCurCharacNo(),
-             layer.GetLayer(),
-             it->second.get_user_charac_no());
+        // [b28e-M1S2] ORIG 0x085ff2xx：noop 的 ctor 在三个 getter 求值**之后**
+        // （`call get_user_charac_no; mov %eax,%esi; call GetLayer; movzwl %ax,%edi;
+        //  call getCurCharacNo; mov %eax,%ebx; lea -0x29(%ebp),%eax;
+        //  call cMyTraceNoop::C1Ev`）⇒ 源码为**临时对象直接调用**形（this 实参
+        // 最后求值），非具名 `cMyTraceNoop noop; noop(...)`（4.4 会在声明处提前
+        // 构造 ctor）。同因改写 else 支的 cMyTrace。
+        cMyTraceNoop()("TOD:sending [%d] toUser, layer [%d] : clone : [%d]",
+                       user->getCurCharacNo(),
+                       layer.GetLayer(),
+                       it->second.get_user_charac_no());
     }
     else
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xa1, 5);
-        trace("TOD:invalid layer %d", (unsigned int)(layer.GetLayer() & 0xffff));
+        cMyTrace(__PRETTY_FUNCTION__, 0xa1, 5)(
+            "TOD:invalid layer %d", (unsigned int)(layer.GetLayer() & 0xffff));
     }
 }

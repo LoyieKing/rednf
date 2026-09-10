@@ -375,6 +375,16 @@ namespace WongWork {
 //   本轮修：删 channelNo/dungeonIdx 具名局部（P0，值经 %ebx/%esi 跨 call 保活直传）、
 //   G_CEnvironment 两处调用改复用 env。残余 = 我方 308 vs ORIG 291（帧 0x178 vs 0x130：
 //   具名 float 局部槽基差，N82/N95 族；mn_cmp 残差全为「+mov|+mov」槽往返对）⇒ N 封顶。
+// [M1S3EmblemLink 2026-09-11] **推翻「复用 env」旧修**（p167 复测 MISSING
+//   `_Z14G_CEnvironmentv` -1；Ghidra ORIG 亦两次 `G_CEnvironment()`：一次供
+//   `get_channel_no`、一次供 `*(env+0x378)`）⇒ 恢复两处直调，p167 归零 36/36（仅
+//   C1/C2 别名对）。另落 2 处 P0：① 删 `limitFlag` 具名槽（ORIG `call
+//   limitOfStackableItemInTower; test %al,%al; je`）② 删 `logWeight` 具名槽
+//   （ORIG 0x084626xx `flds 0xc(%eax,%edx,4)` 直取后 `fstpl 0x20(%esp)`）。
+//   读数 308→305（gap 14，ORIG 291）。试删 `expInOut`（照 Ghidra `&local_20`）
+//   ⇒ 305→306 反劣，已回滚（负结论见函数体）。
+//   残余：帧 0x160 vs ORIG 0x130（我方对象/float 槽分配差，N82 族；ORIG 对象
+//   bonus 在 -0x68/clearParam -0xc8、floats -0x8c..-0xc0，我方补偿性换位）⇒ 封顶。
 // ORIG 0x08462538
 #include "WongWorkDeathTower_A/generateRewardExp.inc"
                                                unsigned int baseExp, CParty* party,
@@ -383,8 +393,9 @@ namespace WongWork {
     CUser* user = party->get_user(memberIdx);
     unsigned int reward = 0;
 
-    const char limitFlag = dungeonMgr.getDungeon()->limitOfStackableItemInTower();
-    if (limitFlag != '\0')
+    // [M1S3EmblemLink 2026-09-11 P0] ORIG 无 limitFlag 具名槽（`call
+    //   limitOfStackableItemInTower; test %al,%al; je`，0x084625xx）⇒ 内联。
+    if (dungeonMgr.getDungeon()->limitOfStackableItemInTower() != '\0')
     {
         // ORIG 两分支重复代码：32 位乘积先物化、G_CDataManager 后取（求值序照 ORIG）
         reward = (unsigned int)(long long)((float)(long long)(stage * baseExp) *
@@ -399,11 +410,13 @@ namespace WongWork {
 
     if (1100000 < reward)
     {
-        const float logWeight =
-            G_CDataManager()->m_deathTower.m_rewardExpWeight[stage];
+        // [M1S3EmblemLink 2026-09-11 P0] ORIG 无 logWeight 具名槽：0x084626xx 处
+        //   `flds 0xc(%eax,%edx,4)` 直接内存取（G_CDataManager 后取），其前仅
+        //   `mov -0x1c(%ebp),%eax`（reward）⇒ 权重表达式内联进实参。
         LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x2ff,
             "BLOOD_LOG : EROOR DEATHTOWER REWARD EXP(%u), LAST STAGE(%d), BASE EXP(%u), EXP WEIGHT(%f)\n",
-            reward, stage, baseExp, (double)logWeight);
+            reward, stage, baseExp,
+            (double)G_CDataManager()->m_deathTower.m_rewardExpWeight[stage]);
     }
 
     stClearRewardExpParameter_t clearParam;   // 栈构造（ORIG ctor 0x0814a8b8）
@@ -440,14 +453,14 @@ namespace WongWork {
     // get_server_group() 访问器替代裸偏移）
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
-    CEnvironment* env = G_CEnvironment();
-    // [P0] ORIG 084627xx：channelNo/dungeonIdx **无具名局部**（值经 %ebx/%esi
-    //   跨 call 保活直传 getBonusRate 的第 2/3 实参），且 G_CEnvironment 全函数
-    //   只调一次（旧重建两处调用 + 两个具名槽 ⇒ 帧 0x178 vs ORIG 0x130）。
+    // [M1S3EmblemLink 2026-09-11 p167 真缺口修正] ORIG `_Z14G_CEnvironmentv`
+    //   调用 **2 次**（p167 差集 MISSING -1；Ghidra 亦作两次 `G_CEnvironment()`
+    //   分别供 `get_channel_no` 与 `*(env+0x378)`）⇒ 旧「复用 env 单调用」形
+    //   为误修，恢复两处直调；ORIG 无具名 CEnvironment* 槽。
     const float channelRate =
         channelScript->getBonusRate(
-            (unsigned char)env->m_serverEnvir.m_serverGroup,
-            (unsigned int)env->get_channel_no(),
+            (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+            (unsigned int)G_CEnvironment()->get_channel_no(),
             (unsigned int)dungeonMgr.getDungeon()->get_index());
 
     float premiumAdvantageRate = 0.0f;
@@ -460,6 +473,9 @@ namespace WongWork {
     const float manageBonus = party->CalcurateManageBonus((ManageBonusType::T)0, user, reward);
 
     // 结算基础通关经验（exp 以引用进出）
+    // [M1S3EmblemLink 2026-09-11 负结论] 试删 expInOut（改传 reward 自身，照
+    //   Ghidra `&local_20`）⇒ 305→306 反劣（4.4 对「返回值与 in/out 同变量」
+    //   多发一条槽往返）⇒ 回滚，保留具名 expInOut。
     unsigned int expInOut = reward;
     reward = party->getClearRewardBonusExp(user, expInOut, clearParam, bonus);
 
@@ -524,6 +540,12 @@ namespace WongWork {
 //      / 08462489 `mov %eax,%edi`，经 `084624a7 mov %ebx,0xc(%esp)` 直传 varargs）⇒ 与 C07
 //      （ORIG 用槽则写具名 int 局部）方向**相反**：此处必须内联（已按此改）。C05③ 闸门
 //      （岛差 ≥2）与 C05① 多层尾块均不适用（各早退为共享 epilogue，ORIG 同形）。
+// [M1S3EmblemLink 2026-09-11 试后回滚] 删独立 `::CLuckPoint luck;`（改传
+//   `&result.m_luckPoint`，照 ORIG 0x08462019 `lea -0x88(%ebp),%eax; add $0xc,%eax`）
+//   ⇒ 本函数 357→343（ORIG 347）、p167 47/47 归零，**但 TU 四数劣化**
+//   （identical 16→7、ae 47→29、missing 24→12：该 odr-use 是 ~CLuckPoint 与
+//   vector<CUser*>/map<int,…> 共 27 个 COMDAT 符号的唯一发射源）⇒ 按闸门回滚，
+//   负结论见函数体 `::CLuckPoint luck;` 处注释。
 //   ORIG 0x08461fc0
 #include "WongWorkDeathTower_A/generateRewardItem.inc"
                                                 const CDungeonMgr& dungeonMgr,
@@ -538,7 +560,17 @@ namespace WongWork {
         stGenerateRefData_t ref;
         stGenerateResult_t result;
 
-        ::CLuckPoint luck;                  // sizeof 0x24（ORIG -0x88..-0x64 区；全局 CLuckPoint）
+        // [M1S3EmblemLink 2026-09-11 负结论 · p167 与 TU 四数冲突实测]
+        //   ORIG 0x08462019 `lea -0x88(%ebp),%eax; add $0xc,%eax; mov %eax,
+        //   0x4(%esp); … call CParty::GetLuckPoint(CLuckPoint*, bool)` 传的是
+        //   result 成员 m_luckPoint(+0x0c)，且 ORIG 无独立 CLuckPoint 局部；
+        //   改 `&result.m_luckPoint` 后本函数 357→343、p167 47/47 归零（真对齐），
+        //   **但 TU 四数劣化**：identical 16→7 / ae 47→29 / missing 24→12 ——
+        //   因 `::CLuckPoint luck;` 是本 TU 内联销毁 CLuckPoint 的唯一 odr-use，
+        //   它消失后 ~CLuckPoint 及 std::vector<CUser*>、std::map<int,…> 的
+        //   27 个 COMDAT 符号不再发射（而 ORIG 本 TU 含这些符号）。
+        //   按「四数不得劣化」闸门回滚；保留 `::CLuckPoint luck;` 直证形。
+        ::CLuckPoint luck;   // sizeof 0x24；ORIG 隐式 ~CLuckPoint COMDAT 依赖此 odr-use
         if (party != 0)
             party->GetLuckPoint(&luck, false);
 

@@ -36,7 +36,19 @@ int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     sig->m_accId = user->get_acc_id();
     sig->m_slot = req.m_slot;
     strncpy(sig->m_name, req.m_name, 0x1e);
-    sig->m_field23 = static_cast<unsigned char>(req.m_name[0x1d]);
+    // [DPCB 2026-09-11] 同型视图轴：源 `char req.m_name[0x1d]`(+0x2f) 与目标
+    // `unsigned char sig->m_field23` **异型** ⇒ 4.4 插值转换临时
+    // （`movzbl 0x2f(%eax),%eax; mov %eax,%edx`），ORIG 单条
+    // `mov -0x24(%ebp),%eax; movzbl 0x2f(%eax),%edx`。改 pack(1) 同址视图读成
+    // unsigned char（同型 ⇒ 无转换临时），偏移/位型不变。
+    #pragma pack(push, 1)
+    struct CreateCharacReqView {
+        char m_head[0x2f];
+        unsigned char m_byte2f;      // +0x2f ≡ m_name[0x1d]
+    };
+    #pragma pack(pop)
+    sig->m_field23 =
+        reinterpret_cast<const CreateCharacReqView*>(&req)->m_byte2f;
     if (sig->m_field23 != 0 && user->getUserEventCharacterFlag() != 0)
     {
         out.m_errNo = 0x14;                       // 活动角色创建位占用

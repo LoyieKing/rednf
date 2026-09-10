@@ -90,19 +90,28 @@ static_assert(sizeof(CAvatarItemMgr) == 0x84, "CAvatarItemMgr ABI size changed")
     // 穷举不可翻 ⇒ N93/N82附 槽向封顶。p167 CLEAR 25/25。
     // [b28d-38] P167：ORIG 用 _Rb_tree_const_iterator（转换构造×4/op->×3/op++×2/
     // op!=×2）⇒ 两侧均先转 const_iterator（混合比较会生成 operator!=<PK,P> 变体）。
-    std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
+    // [M3FreeNext15B.M3S6AucAvBattle] 槽阶梯对齐：ORIG 分配序 = endIt1(-0x1c) →
+    // it1(-0x24) → endIt2(-0x20) → it2(-0x28)（082f9ae4 逐 lea 实录）。4.4 按
+    // 构造序浅→深单调分配，故把**循环迭代器声明进内层块**（it 内层/it2 内层、
+    // endIt/endIt2 外层）⇒ 4.4 块内槽重开使 it1/it2 落 -0x24/-0x28，四点全中
+    // （探针 /tmp/p_iter2/q1.cpp 77=77 与 TU 实测一致）。
     std::map<int, Avatar_Item*>::const_iterator endIt = m_registeredItems.end();
-    for (; it != endIt; ++it)
     {
-        // ORIG 无 null 检查、无 item 具名局部（每点重发 operator->）。
-        it->second->init();
-        m_AvatarItemPool.Free(it->second);
+        std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
+        for (; it != endIt; ++it)
+        {
+            // ORIG 无 null 检查、无 item 具名局部（每点重发 operator->）。
+            it->second->init();
+            m_AvatarItemPool.Free(it->second);
+        }
     }
-    std::map<int, Avatar_Item*>::const_iterator it2 = m_waitAssignItems.begin();
     std::map<int, Avatar_Item*>::const_iterator endIt2 = m_waitAssignItems.end();
-    for (; it2 != endIt2; ++it2)
     {
-        m_AvatarItemPool.Free(it2->second);
+        std::map<int, Avatar_Item*>::const_iterator it2 = m_waitAssignItems.begin();
+        for (; it2 != endIt2; ++it2)
+        {
+            m_AvatarItemPool.Free(it2->second);
+        }
     }
     m_registeredItems.clear();
     m_waitAssignItems.clear();
@@ -124,10 +133,18 @@ static_assert(sizeof(CAvatarItemMgr) == 0x84, "CAvatarItemMgr ABI size changed")
     // 会被消除；探针 /tmp/slotprobe5.cpp 帧对齐实证）。残余 counter 槽 -0x4 vs
     // ORIG -0xc 为 4.1 单标量首槽策略差（探针 slotprobe6/7/8x/90/91 全败），
     // N82 族封顶不追。
-    char framePad[0x10];
-    (void)framePad;
     // [b28 复验] P190 double 撑槽与 P31 dead int 占槽两形均不把 counter 顶至
     // ORIG -0xc（4.4 标量首槽恒 -0x4，声明序/double 对齐/占位写全败）——N82 封顶。
+    // [M3FreeNext15B.M3S6AucAvBattle 2026-09-11] 本波按 P339 全头部声明复验：
+    // 4.4 函数头声明恒「先声明深」⇒ 全头部「8B 撑槽(深) → counter(中) → 8B 撑槽(浅)」
+    // 可把 counter 顶到 -0xc 且帧仍 0x28（两个 double 取址保槽，i386 下 double 仅 4B 对齐）。
+    // 实测：counter 仍恒落 -0x4 且帧仍 0x28（*两个 double 确占 16B*，但 4.4 标量/聚合
+    // 分区为「标量恒自浅端、聚合自深端」⇒ 声明序对标量无杠杆）⇒ 该形亦败，见下。
+    // 其余新钥匙排除：P331 无「常数额整体平移」（差仅 counter 一槽）；P326 不适用
+    // （无迭代器对/无双端转换）；§6.6.2 不适用（本件无 landing pad，ORIG 亦无）。
+    // 结论：N95/N82 槽基策略封顶仍成立（本波新增 2 形读数全记录，无一命中）。
+    char framePad[0x10];
+    (void)framePad;
     if (m_tempKeyCounter == 0x7fffffff)
         m_tempKeyCounter = 0;
     m_tempKeyCounter++;

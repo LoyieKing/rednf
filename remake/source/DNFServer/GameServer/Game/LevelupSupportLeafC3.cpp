@@ -45,6 +45,12 @@ typedef char lvl_2nd_sciprt_size_assert[sizeof(LevelupSupport2ndScript) == 0x24 
 // [b28d-N82] fresh 复验 110/114：残差 = 迭代器三槽阶梯（ORIG -0x3c/-0x40/-0x44
 // 深→浅，4.4 -0x18/-0x2c/-0x44）与 4.4 缺 push %ebx（callee-saved 需求差）
 // —— P28/N82 槽方向族；块序/调用点全等，语义等价。
+// [M2S1] 旧判词仅剩两处真旋钮（ORIG 有、我方无）：① ORIG 0x08146ede/0x08146ef6
+// 在循环外各一次 begin→-0x3c / end→-0x40（我方旧形把 end() 留在条件里每次迭代
+// 重算，多 1 call+2 条 / 槽 -0x2c）⇒ 提升为具名 endIt；② ORIG 0x08146f30
+// `_ZNSt4pairIKiiEC1IRS0_iEEOT_OT0_`（第二模板参 `i`=int&& 右值）证明原码为
+// `value_type(it->first, stepIndex++)` 单次构造，我方旧形 make_pair 中间临时 +
+// 转换 ctor（-0x18/-0x20 两槽两 call）⇒ 直接 value_type + 后置++。
 // ============================================================================
 #include "LevelupSupportLeafC3/Load.inc"
 {
@@ -53,21 +59,38 @@ typedef char lvl_2nd_sciprt_size_assert[sizeof(LevelupSupport2ndScript) == 0x24 
 
     m_script.m_stepItems.clear();
     if (!m_script.loadScript())
-        return false;
-
-    m_stepIndexMap.clear();
-    m_events.clear();
-
-    int stepIndex = 0;   // ORIG -0xc 循环外计数器
-    for (std::map<int, std::vector<LevelupSupportSciprt::ItemInfo>*>::iterator it =
-             m_script.m_stepItems.begin();
-         it != m_script.m_stepItems.end(); it++)
+        goto load_false;
     {
-        m_stepIndexMap.insert(std::make_pair(it->first, stepIndex));
-        ++stepIndex;
-        // ORIG：*pair.first（int 键）截断 ushort 作为达标等级门槛，state=0 默认未领。
-        m_events.push_back(EventInfo(static_cast<unsigned short>(it->first), 0));
+        m_stepIndexMap.clear();
+        m_events.clear();
+
+        // ORIG 0x08146ed4 begin→-0x3c 先、0x08146ef6 end→-0x40 后；4.4 按声明序浅→深
+        // ⇒ it 先声明（浅）、endIt 后（深），与 ORIG 槽序一致。
+        std::map<int, std::vector<LevelupSupportSciprt::ItemInfo>*>::iterator it =
+            m_script.m_stepItems.begin();
+        std::map<int, std::vector<LevelupSupportSciprt::ItemInfo>*>::iterator endIt =
+            m_script.m_stepItems.end();   // 循环外单次求值（非每次迭代重算）
+        // [M2FreeNext15A] ORIG 0x08146f9b `movl $0x0,-0xc` 发在 end() 调用**之后** ⇒
+        // 原码 stepIndex 的初始化位点晚于两个迭代器（P328⑥ 同族）。
+        int stepIndex = 0;   // ORIG -0xc 循环外计数器
+        for (; it != endIt; it++)
+        {
+            // ORIG 0x08146f30 单次 value_type ctor（第二实参 int&& = 后置++临时）
+            m_stepIndexMap.insert(std::map<int, int>::value_type(it->first, stepIndex++));
+            // ORIG：*pair.first（int 键）截断 ushort 作为达标等级门槛，state=0 默认未领。
+            m_events.push_back(EventInfo(static_cast<unsigned short>(it->first), 0));
+        }
     }
+    // [M2FreeNext15A · 2026-09-11 · 落地] ORIG 尾部布局（0x08146fc7 jmp +0x194 跳过
+    // false 块 → 0x08146fc9 false 块 → 0x08146fd0 true 块）⇒ 用 goto 串（否定早退
+    // goto load_false + 出口 goto load_true，P223/P325 族）复现；配 P328⑥ 把
+    // `int stepIndex=0` 的初始化位点下移到两个迭代器声明之后（ORIG 0x08146f9b）。
+    // 核账：show_func_diff orig=110 our=110 **gap=0**、ndiff 7→**2**（唯一残差 =
+    // `je <T>` vs `jne <T>` 极性，语义等价，属 P222 对偶）；S1 反演版为 ndiff 7/gap +1。
+    goto load_true;
+load_false:
+    return false;
+load_true:
     return true;
 }
 
@@ -147,8 +170,13 @@ const std::vector<LevelupSupportEventManger::EventInfo>&
     int curLevel = 0;                // ORIG -0x4c 当前 [level]
     std::vector<ItemInfo> rewards;   // ORIG -0x58 当前 [step] 奖励暂存
 
-    while (ScanType(token, true))
+    // [M2S1] ORIG 条件在循环**顶部**且带 `xor $1`（0x08ab51b3..0x08ab51bd：
+    // call; xor $1; test %al; jne +0x28a）⇒ 原码是 `for (;;) { if (!ScanType(...)) break; }`；
+    // 旧 `while (ScanType(...))` 在 4.4 下条件挪到尾部且无 xor（探针 /tmp/probe_brk.o g4 vs g5）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[step]")
         {
             if (!ScanType(token, true))
@@ -180,7 +208,10 @@ const std::vector<LevelupSupportEventManger::EventInfo>&
                 }
                 std::vector<ItemInfo>* levelItems = new std::vector<ItemInfo>();
                 levelItems->swap(rewards);   // swap 后 rewards 复位空，供下一 [step] 复用
-                m_stepItems.insert(std::make_pair(curLevel, levelItems));
+                // [M2S1] ORIG 0x08ab53b0/0x08ab5c22：只构造一次 value_type
+                // （pair ctor IRiRS6_E → insert），无 make_pair 中间临时
+                // + 转换 ctor（我方旧形多 1 call + 一个 8B 槽 /tmp/m2probe_pair.o f1 vs f2）。
+                m_stepItems.insert(std::map<int, std::vector<ItemInfo>*>::value_type(curLevel, levelItems));
             }
         }
     }
@@ -227,8 +258,12 @@ const std::vector<LevelupSupportEventManger::EventInfo>&
     int curLevel = 0;                // ORIG -0x4c
     std::vector<ItemInfo> rewards;   // ORIG -0x58
 
-    while (ScanType(token, true))
+    // [M2S1] 同 LevelupSupportSciprt::loadScript：ORIG 0x08ab5679..0x08ab5683
+    // `call; xor $1; test %al; jne`（顶部条件）⇒ `for(;;) + if(!ScanType(...)) break;`。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[job type]")
         {
             std::string jobName;   // ORIG -0x5c 作用域临时
@@ -265,7 +300,9 @@ const std::vector<LevelupSupportEventManger::EventInfo>&
                 }
                 std::vector<ItemInfo>* levelItems = new std::vector<ItemInfo>();
                 levelItems->swap(rewards);
-                m_stepItems.insert(std::make_pair(curLevel, levelItems));
+                // [M2S1] 同 LevelupSupportSciprt::loadScript：ORIG 0x08ab5xxx 单次
+                // value_type ctor（IRiRS6_E ↗）→ insert，去掉 make_pair 中间临时。
+                m_stepItems.insert(std::map<int, std::vector<ItemInfo>*>::value_type(curLevel, levelItems));
             }
         }
         else if (token == "[mail title]")

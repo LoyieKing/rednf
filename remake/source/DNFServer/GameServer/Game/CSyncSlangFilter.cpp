@@ -231,7 +231,7 @@ CSyncSlangFilter* CSyncSlangFilter::instance = 0;
     return out;
 }
 
-// [b28d-solo-CSyncSlangFilter] N：P75/N-G —— snprintf 首参 buf 装载时刻跨版本差（4.1 在 c_str 后立即 lea→%edx 并跨 varargs 保活，4.4 末位 lea→%eax）；(char*)buf 与逗号形实测同（&buf[0] 历史结论亦同）；ORIG 0x0862e72a。
+// [b28d-solo-CSyncSlangFilter] N：P75/N-G —— snprintf 首参 buf 装载时刻跨版本差（4.1 在 c_str 后立即 lea→%edx 并跨 varargs 保活，4.4 末位 lea→%eax）；(char*)buf 与逗号形实测同（&buf[0] 历史结论亦同）；ORIG 0x0862e72a。指令形直证：ORIG 0x0862e79c `lea -0x12d(%ebp),%edx` 紧随 0x0862e797 的 c_str call、先于 0x0862e7a6 `movl $"%s",0x8(%esp)`，保活到 0x0862e7b6 `mov %edx,(%esp)`。本波复核（我方 .o 与 ORIG 同口径逐条计数）两方均 113、仅此 2 行错位（N-G 六形穷举不可翻）。
 #include "CSyncSlangFilter/AddSlang.inc"
 {
     char buf[0x101] = {0};
@@ -256,7 +256,10 @@ CSyncSlangFilter* CSyncSlangFilter::instance = 0;
     node->SetEndNode(true);
 }
 
-// [b28d-solo-CSyncSlangFilter] N：P75/N-G —— 同 AddSlang（snprintf 首参装载时刻跨版本差）；ORIG 0x0862e276。
+// [b28d-solo-CSyncSlangFilter] N：P75/N-G —— 同 AddSlang（snprintf 首参 buf 装载时刻跨版本差）。
+// 指令形直证：ORIG 0x0862e2e8 `lea -0x125(%ebp),%edx` 紧随 0x0862e2e3 的 c_str call、先于
+// 0x0862e2f2 `movl $"%s",0x8(%esp)`，保活到 0x0862e302 `mov %edx,(%esp)`；4.4 恒末位 lea→%eax。
+// 本波复核（我方 .o 与 ORIG 同口径逐条计数）两方均 102、仅此 2 行错位（N-G 六形穷举不可翻，勿再赌）。ORIG 0x0862e276。
 #include "CSyncSlangFilter/AddSlangName.inc"
 {
     char buf[0x101] = {0};

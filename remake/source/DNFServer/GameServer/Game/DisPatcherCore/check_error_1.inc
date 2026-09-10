@@ -1,4 +1,8 @@
-unsigned int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
+// [DPCB 2026-09-11] 签名轴（§6.5 串盲区直证）：ORIG .rodata 串为
+// `int DisPatcher_CreateCharac::check_error(CUser*, MSG_BASE&)`
+// （strings df_game_r 命中，无 `unsigned` 前缀）；我方原写 `unsigned int` ⇒
+// __PRETTY_FUNCTION__ 日志契约不一致（cMyTrace/LineFunc 实参）。返回类型不入 mangled。
+int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
 
 {
     // ORIG 0x081c0830 T（报告 DisPatcher_CreateCharac/check_error.md 全文转写）。

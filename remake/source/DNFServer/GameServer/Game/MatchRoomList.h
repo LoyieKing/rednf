@@ -55,8 +55,11 @@ public:
     { (void)user; (void)room; return 1; }                       // +0x30
     virtual int OnUnregisterMatch(CUser* user, PvP_Room* room)
     { (void)user; (void)room; return 1; }                       // +0x34
-    virtual int OnMatchRoom(PvP_Room* room, int a)
-    { (void)room; (void)a; return 1; }                          // +0x38
+    // [类型轴 2026-09-11] ORIG prett 串 `virtual bool fair_pvp::CFairMatch::OnMatchRoom(...)`
+    //   （0x08ca3800）/ CLeagueMatch 同（0x08ca3ae0）⇒ 基类亦 bool；返回类型不入
+    //   mangled，vtable 槽不变，唯一调用点 TimerDispatcher.cpp:3124 不消费返回值。
+    virtual bool OnMatchRoom(PvP_Room* room, int a)
+    { (void)room; (void)a; return true; }                       // +0x38
     virtual void OnStartFight() {}                              // +0x3c
     virtual void OnEndFight(PvP_Room* room) { (void)room; }     // +0x40
     virtual int OnWalkOut(PvP_Room* room, int a)

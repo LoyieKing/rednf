@@ -58,6 +58,9 @@ extern CDataManager* G_CDataManager();
 {
     // [b28e 帧对齐] ORIG 帧 `sub $0x68`（4.1 对 x87 段多预留 0x10）；无此局部时
     // 我方 0x58（帧差 0x10）。按 P232 补未使用局部后帧 **0x68 = ORIG**。
+    // [b2c 试形 A·回滚] `double diff;` 提到 framePad 之前（P339 声明序 ⇒ 最深槽）
+    // 实测读数不变（diff 仍 -0x38、floor 临时仍 -0x50、near=1）⇒ 4.4 具名 double
+    // 槽与声明序无关，按纪律回滚。
     char framePad[0x10];
     (void)framePad;
     double diff;                                    // ORIG：声明在函数头（深槽 -0x50）
@@ -154,6 +157,12 @@ public:
 // （36 条），register 局部形（P231 合法）改出 `mov %eax,%ebx; cmp %ebx; ja; mov %ebx,%eax`
 // 两条中转（同 36 条，掩码段寄存器分配差异）。两形实测（/tmp/p1/t.cpp f_inline/f_reg、
 // t2.cpp g1..g7、t3.cpp h1..h6、4.4.6 后端同形）均差 2 条 ⇒ 跨版本 CSE 结构性封顶。
+// [b2c 复核·维持 N18a] 父泳道建议的 P251 `switch (m_field234)` 形**不适用**：ORIG
+//   0x085138c0..0x085138d4 是 `mov $1,%edx; shl %cl,%ebx; and $0x3ff400,%eax; test` 的
+//   **位测试**语义（掩码 0x3ff400 的 7 个命中值写成 case 会发 7 条 cmp/je 比较链 = 必劣），
+//   且 ORIG `je 085138dd`（return 0 出口）证明两条件为短路结构 ⇒ 源码必是两次成员读、
+//   4.1 在 RTL 层 CSE 掉第二次载入，4.4 `-O0` 无该 pass。本 TU 现状 = 内联形（36 条），
+//   第二次载入在 0x...8b5 位置（我方 `mov 0x8(%ebp),%eax; mov 0x234(%eax),%eax`）。
 #include "CEquipItem/checkItemUpgradePossible.inc"
 {
     if (IsImpossibleUpgrade())
@@ -313,6 +322,14 @@ public:
 //      CSE 差异，封顶（探针 /tmp/p1/t.cpp f_inline/f_reg）。
 //   ② G_CEnvironment 段（0x08510ba3 段）ORIG 值先入 %eax、&item+0x15 入 %edx；4.4 恒
 //      互换（助记符序列全等仅寄存器角色互换 = N7；本 TU 已路由 4.4.6 后端仍存）。
+// [b2c 复核·维持 N18a/N7] 槽归一化后全函数**仅剩 2 组**残差（其余逐条全等）：
+//   ① ORIG#158 插入 2 条：我方位掩码段（ORIG 0x08510b88 `cmp $0x19` 前）多发
+//      `mov 0x8(%ebp),%eax; mov 0x234(%eax),%eax`（第二次成员载入，同 checkItemUpgrade
+//       Possible 的 4.1 RTL-CSE vs 4.4 -O0 差异 = N18a）；
+//   ② ORIG#167 起 5 条：ORIG `mov 0x198(%eax),%eax; mov 0xc(%ebp),%edx; add $0x15,%edx;
+//      mov %eax,0x8(%esp); mov %edx,0x4(%esp)`（m_gcNo→%eax、&item+0x15→%edx）vs 我方
+//      %eax/%edx 角色互换（纯寄存器分配 = N7，源码形不可控；P211/P248 类型旋钮对
+//      该段不适用：实参是 env 成员与地址常量 +0x15）。
 #include "CEquipItem/make_item.inc"
 {
     if (IsAvatarItem())

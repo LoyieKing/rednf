@@ -37,13 +37,20 @@
 #include "W9_EventSmall/makeRequest.inc"
 {
     // ORIG T 0x08433ada _ZN34DB_LoadAutoMarketConditionsControl11makeRequestEb
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7c43);
-    CStreamGuard guard(stream, true);
+    // [M1S3EmblemLink 2026-09-11 P0] ORIG 0x08433b00 `call Acquire` 结果留在 %eax，
+    //   紧接 `movl $0x1,0x8(%esp); mov %eax,0x4(%esp); lea -0x10(%ebp),%eax; …
+    //   call CStreamGuard::CStreamGuard(Stream*, bool)` —— 无 `Stream*` 具名槽
+    //   （我方原多 -0xc 槽 + 2 条槽往返）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7c43), true);
     guard.operator*()->operator<<(0x15a);
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(flag);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return true;
+    // [M1S3EmblemLink 2026-09-11 P0] ORIG 0x08433b89 正常路径 `jmp 0x08433ba6`
+    //   直接进 epilogue（`lea -0x10; call CStreamGuard::~CStreamGuard; add $0x30;
+    //   pop ebx/esi/ebp; ret`），**无** `mov $0x1,%ebx` / `mov %ebx,%eax` 返回值
+    //   物化 ⇒ ORIG 源码无 return 语句（返回寄存器内容未定义）。删发明 `return true;`。
 }
 
 // ============================ 事件基类模板 ============================
@@ -188,6 +195,13 @@
     memset(sig, 0, sizeof(SIG_BLOOD_DUNGEON));   // ORIG memset 0x28
     // [P211 档③ 试形记录（已回滚）] 删 `(int)` cast 试同型化（ORIG 0x0832a3e7 为
     //   LHS-first 直存）实测 DIFF 数不变（3 件）⇒ 判 N18b/装载序族，保持直证形。
+    // [M1S3EmblemLink 2026-09-11 复核封顶] 唯一残余 = 1 条：ORIG 0x0832a3e7
+    //   `mov -0xc(%ebp),%edx; mov %eax,(%edx)`（RHS 留 %eax，指针装 %edx 后直存）
+    //   vs 4.4 `mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`（多一条
+    //   值搬运）⇒ 我方 113 vs ORIG 112。§6.5 串已核（.o 内
+    //   "CharacBloodDungeon.cpp" 与 ORIG 0x8c26d80 字节一致）、§6.5.1 不适用
+    //   （无 EUC-KR 字面量）；槽位与 ORIG 全等（sig -0xc、guard -0x14）⇒ 非 P339/
+    //   P331 域，属 4.4 赋值 lowering（N18b 族）⇒ 封顶。
     sig->m_characNo = (int)pUser->getCurCharacNo();
     sig->m_point = m_point;                      // this+0x08 → sig+0x04
     sig->m_weeklyEnterCount = m_weeklyEnterCount;

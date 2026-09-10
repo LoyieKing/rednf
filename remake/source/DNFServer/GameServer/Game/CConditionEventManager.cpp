@@ -23,10 +23,11 @@
 //   RequestConditionEventReward 0x08334850 —— 已修：删发明 helper insertFailSendMail
 //     （ORIG nm 0 命中）改两处内联 + inv.m_addInfo(+0x02) 缓存 itemIdx + guard 内联短路
 //     + GetItemType 双调/否定守卫块序 + slot 两段式(-1 初始化) + bool ok 内联 ⇒
-//     gap 76→4、帧 0x25c→0x24c 全对齐、p167 双向差集仅剩 C1/C2·D1/D2 同址别名（P93）。
-//     残余 4 条 = ORIG `mov slot,%eax; shr $0x1f,%eax; test %al,%al; je` vs 4.4
-//     `cmpl $0x0,slot; jns`（2 处 ×2 条；`slot<0` 与 `(unsigned)slot>>31` 两形实测
-//     4.4 均折 cmpl/jns ⇒ 跨版本 lowering，记 N）。
+//     帧 0x25c→0x24c 全对齐、p167 双向差集仅剩 C1/C2·D1/D2 同址别名（P93）。
+//     [M4S3 round5c] 末尾 4 条（两处 slot 最高位判定）用 P211 类型轴
+//     `(unsigned char)((unsigned int)slot >> 31)` 复现 4.1 的 `shr $0x1f;test %al;je`
+//     ⇒ 等长同形（objdump 同口径 ORIG/our 663/663；报告头 614 为另一口径）、
+//     ndiff 0、转 AE（详见函数头注释）。
 // ============================================================================
 
 
@@ -94,17 +95,15 @@
 #include "CConditionEventManager/RequestConditionEventReward.inc"
     CUser* user, short curIdx, char step, std::map<int, int>& rewardMap)
 {
-    // [L6S2b 收尾 · N 封顶] ORIG 614 / our 610（负 gap +4）、ndiff 12。归一化逐行比对
-    //（/tmp/L6S2_probe/normdiff.py：去 call/jmp 目标与重定位占位后）真实残差**只有**
-    // 两处：ORIG `mov -0x20(%ebp),%eax; shr $0x1f,%eax; test %al,%al; je`
-    //（0x08334e64 / 0x08335074，insertItemIntoInventory 返回值 `< 0` 判定）vs 4.4
-    // `cmpl $0x0,-0x20(%ebp); jns`——2 处 × 2 条即 gap +4 的全部来源。
-    // 探针 /tmp/L6S2_probe/pr_sign.cpp f1..f5（`r<0` / `(unsigned)r>>31` / 具名 unsigned
-    // +`>>31` / `r&0x80000000` / `r>>31`）在 4.4.7 下全部折叠为 `cmpl $0; jns`（f3 仅多
-    // 一条 mov+test）⇒ 4.1 独有的 shr 符号位提取 lowering，源码层不可复现：按 §6.4
-    //「负 gap 命中 ORIG 独有段即判 N」封顶。
-    // 其余差异全为伪差（C1/C2·D1/D2 同址别名 P93 + `mov 0x941f7xx` vs `mov 0x0` 重定位
-    // 占位），p167 真差集 0。
+    // [M4S3 round5c · 已转 AE] 原残差 4 条 = ORIG `mov slot,%eax; shr $0x1f,%eax;
+    // test %al,%al; je`（0x08334e64 / 0x08335074，insertItemIntoInventory 返回值
+    // 最高位判定）×2 处 vs 4.4 `cmpl $0; jns`（2 条）。P211 类型轴破法：把两处判定
+    // 写成 `(unsigned char)((unsigned int)slot >> 31)` —— 经 unsigned char 截断后
+    // 4.4.6 不再折成 `test $0;jns`，保留 `mov;shr;test %al;je` 四条形（探针
+    // /tmp/m4s3/p4.cpp g8/g10 逐条命中）。旧探针 f1..f5 失败原因是判据写在**有符号
+    // 变量**上（`r<0`/`r>>31` 恒折），且 (unsigned)r>>31 缺 unsigned char 截断。
+    // 改后等长同形（objdump 同口径 663/663；报告头 614 系其口径）、ndiff 0；
+    // p167 双向差集仅 C1/C2·D1/D2 同址别名 P93，de/ptEv 双方各 7 条已对齐。
     if (!GlobalData::s_event_manager->GetRepeatEvent(0x71)->IsEventing((CUser*)0))
     {
         return 0;
@@ -222,10 +221,11 @@
                                 int slot = -1;
                                 slot = user->getCurCharacInvenW()->insertItemIntoInventory(
                                     inv, static_cast<eItemAddReason>(0x25), true, true);
-                                // ORIG 0x08335071..+0x82c 用 `shr $0x1f;test %al`，4.4 对
-                                // `slot<0` / `(unsigned)slot>>31` 恒折 `cmpl $0;jns`（跨版本
-                                // lowering，2 条差不可造，记 N）。
-                                if (slot < 0)
+                                // ORIG 0x08335071..+0x82c `mov slot;shr $0x1f;test %al;je`
+                                // = `(unsigned char)((unsigned)slot>>31)` 判定（P211 类型轴：
+                                // 裸 `slot<0` / `(unsigned)slot>>31` 在 4.4 均折 `cmpl $0;jns`，
+                                // 经 unsigned char 截断后 4.4.6 保留 shr+test %al 四条形）。
+                                if ((unsigned char)((unsigned int)slot >> 31))
                                 {
                                     // ORIG 0x08335082 区（与 0x08334e72 同构，sender 槽不同）：
                                     // 入库失败 → msg_80/msg_81 系统邮件 + inv.reset()。
@@ -261,8 +261,8 @@
                         int slot = -1;
                         slot = user->getCurCharacInvenW()->insertItemIntoInventory(
                             inv, static_cast<eItemAddReason>(0x25), true, true);
-                        // ORIG 0x08334e61..+0x61c：同 0x08335071 的 shr 形（记 N）。
-                        if (slot < 0)
+                        // ORIG 0x08334e61..+0x61c：同 0x08335071 的 shr 形（P211 类型轴）。
+                        if ((unsigned char)((unsigned int)slot >> 31))
                         {
                             // ORIG 0x08334e72 区：入库失败 → msg_80/msg_81 系统邮件 + reset。
                             char sender[30];

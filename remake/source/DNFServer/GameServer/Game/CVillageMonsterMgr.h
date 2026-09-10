@@ -12,13 +12,17 @@
 class CUser;
 class PacketGuard;
 
-// ORIG 反汇编关联：STAttackedMonster 0x20 字节（OnCreate 0x86b3bd4 读
-// +0x00 u16/+0x04/+0x08/+0x14/+0x18；GetAttackedMonster 0x86b3aea 按 +0x10 int
-// 与目标索引比较）。
+// ORIG 反汇编关联：STAttackedMonster（OnCreate 0x86b3bd4 读
+// +0x00 u32/+0x04/+0x08/+0x14/+0x18；GetAttackedMonster 0x86b3aea 按 +0x10 int
+// 与目标索引比较）。我方 sizeof=0x1c，偏移 0x00/0x04/0x08/0x0c/0x10/0x14/0x18。
 struct STAttackedMonster
 {
-    unsigned short m_id;       // +0x00（OnCreate 取作怪物 zone id）
-    char m_pad02[2];           // +0x02
+    // [M5 2026-09-11 · Main 批准] ORIG 0x086b3bd4 +0x0a3 / +0x1dc 两处为 4 字节
+    // 装载 `mov (%eax),%eax`（我方原 `movzwl (%eax),%eax` 另 +1 条 `movzwl %ax,%eax`）
+    // ⇒ m_id 是 4 字节整型；`m_pad02[2]` 是我方臆造的 2 字节填充。
+    // 布局证据（/tmp 探针，真实旗标）：sizeof 0x1c、offsetof 0x00/0x04/0x08/0x0c/
+    // 0x10/0x14/0x18 前后逐值不变。
+    unsigned int m_id;         // +0x00（OnCreate 取作怪物 zone id）
     int m_field04;             // +0x04（初始 x）
     int m_field08;             // +0x08（初始 y）
     int m_field0c;             // +0x0c

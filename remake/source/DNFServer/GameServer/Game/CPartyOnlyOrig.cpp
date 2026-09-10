@@ -811,6 +811,18 @@ struct CPartyRecvFlagView
 // 修法已落：`!= 1` 取反形复现 ORIG `xor $1; test; je`（P194；CheckEnterEventDungeon
 // 返回 bool）；Main 代落 RequiredItem::m_enableFlag char→bool 后
 // `!m_enableFlag` 段与 ORIG xor 形对齐。
+// [b28d-round5 残余 N 复核 · 新钥匙逐条试过，均不可复现]
+//  · 目标：ORIG 0x0859e93b `mov -0xc(%ebp),%ebx` 后，slots[i] 的写 0x0859e972
+//    `mov %eax,-0x1c(%ebp,%ebx,4)` 与读回 0x0859e976
+//    `mov -0x1c(%ebp,%ebx,4),%eax` **双用 %ebx**（我方读回处重载
+//    `mov -0xc(%ebp),%eax`，+1 条 = N7/N18a 寄存器分配族）。
+//  · P226 逗号/语句表达式（`while (slots[i]=f(), slots[i]==-1)`、`(…, slots[i])==-1`）
+//    ⇒ 索引仍重载且跳向翻成 jne（探针 /tmp/probe_party/v.cpp g1/g5）——更差。
+//  · 合并形 `while ((slots[i] = f()) == -1)` ⇒ 索引复用与 ORIG 同形、长度对齐，
+//    但 4.4 折 `jne <return 岛>`（ORIG 4.1 为 `je`，fall-through = return 岛）
+//    且 return 岛被移到循环尾 ⇒ 指令序与 ORIG 错开（探针 u.cpp f3 vs f4）——不采纳。
+//  · 非合并形 `while (slots[i] == -1)` 是唯一保 `je` 同向 + 全序对齐的形（探针
+//    u.cpp f4），残差恒为 1 条索引重载。⇒ 维持现形，N 封顶。
 #include "CPartyOnlyOrig/CheckEnterAncientDungeon.inc"
 {
     Inven_Item items[4];
@@ -1284,10 +1296,10 @@ struct CPartyRecvFlagView
 {
     PacketGuard packet;
     packet.put_header(0, 0x15b);
-    // b28d-solo-CPartyOnlyOrig：具名成员（ORIG +0x32c disp 直读；裸
-    // `*(int*)&m_battleData` 产 `add $0x32c; mov (%eax)` 两条）。ORIG 另有
-    // `mov 0x330(%eax),%edx` 冗余装载（4.1 产物，N18a 封顶）。
-    packet.put_int(m_battleData.m_field0);   // ORIG *(int*)(this+0x32c)
+    // b28d-solo：ORIG +0x2e/+0x31 为 `mov 0x330(%eax),%edx; mov 0x32c(%eax),%eax`
+    // ——BattleData.h P180 u64 别名（m_clearPlayedTime）的**64 位整体装载后取低
+    // 32 位**（与 SetPlayResult 0x085b2457 同形），非单 int 直读；单读少 1 条。
+    packet.put_int(static_cast<int>(m_battleData.m_clearPlayedTime));
     // b28d-solo-CPartyOnlyOrig：ORIG +0x67 `mov %eax,-0x14` 指针落槽（P0 槽
     // 往返 ⇒ 原码有具名指针局部，此前留 edx 无槽）⇒ 补具名 userState；
     // +0x77 getLastEnterLayer 用 sret 匿名临时 -0x16 后直接 GetLayer
@@ -1298,10 +1310,14 @@ struct CPartyRecvFlagView
     packet.put_short(static_cast<unsigned short>(
         userState->getLastEnterLayer().GetLayer()));
     packet.put_byte(10);   // ORIG +0x09c 固定 byte 10
-    // [P171/P184 死块照抄] ORIG +0x0af..+0x0bf：一次 size() 调用 + `cmp $0x9,%eax`
-    // （无分支消费者）。探针 /tmp/probe_hnq/t.cpp h8 实证：空 if 体被 4.4 前端删除
-    // 但比较与调用保留，逐条同形（`> 9` 无符号比较）。
-    if (reinterpret_cast<CBattle_Field*>(&m_battleData)
+    // [P171/P184 死块照抄] ORIG +0x0af..+0x0bf：`add $0x17a8,%eax` + 一次 size()
+    // 调用 + `cmp $0x9,%eax`（无分支消费者）。探针 /tmp/probe_hnq/t.cpp h8 实证：
+    // 空 if 体被 4.4 前端删除但比较与调用保留，逐条同形（`> 9` 无符号比较）。
+    // ⚠ b28d-solo 语义修正：基址必须是 m_battleField（CParty+0xb24，+0xc84
+    // → 0x17a8 = ORIG disp）。旧轮写 `&m_battleData`（+0x32c）产
+    // `add $0x32c; add $0xc84` 两条且**读到错地址 0xfb0**（越出 BattleData
+    // 0x7f8 尾），既多 1 条指令又与 ORIG 语义不符。
+    if (reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->m_todReward.m_todMap.size() > 9)
     {
     }

@@ -97,6 +97,19 @@ public:
     // ok 块直落，无 goto 的 jmp/nop 中继）。探针 /tmp/p_fat1.cpp getD 19 条与
     // ORIG 逐条同序（jg fail / jg body），残 1 条 = 4.4 常量折叠
     // `(level-1)+8`→`lea 0x7(%eax)`（ORIG `lea -0x1`+`add $0x8` 两步）。
+    // [M4S3 round5c 追加试形，全部不闭合 ⇒ 维持 N1]
+    //   直证（本件无 docs/class_func_reports 报告，证据取自 ORIG 二进制 nm+objdump）：
+    //   ORIG 0x084a84dd `lea -0x1(%eax),%edx` → 0x084a84e0 `mov 0x8(%ebp),%eax`
+    //   → 0x084a84e3 `add $0x8,%edx` → 0x084a84e6 `movzwl 0x2(%eax,%edx,2),%eax`；
+    //   我方 `lea 0x7(%eax),%edx` + `movzwl 0x2(%eax,%edx,2),%eax`（19 条）。
+    //   /tmp/m4s3/p9.cpp b1/b3/b4（`(&m_lt[i-1])[8]` / `(m_lt)[i-1+8]` / `m_lt[i+7]`，
+    //   视图偏移 0x18）⇒ 4.4 仍折第一步为 `lea 0x7`，仅把第二级 8 挪进索引并让
+    //   disp 吸收 −0x10（`add $0x8` 后接 `movzwl 0x8(...)`），非 ORIG 的
+    //   `lea -0x1`+`add $0x8`+`disp 0x2`；p10.cpp c1/c2（真实 m_field2 偏移 +0x02）
+    //   ⇒ disp 吸收失败，4.4 直接合成 `lea 0x7` 单步（19 条）；b2/c3 指针算术形
+    //   ⇒ add/add/lea 四段；p11.cpp c4/c5（`const int kOff` / enum 常量）⇒ 前端
+    //   常量传播后同样折 `lea 0x7`。⇒ 4.1 不折叠 `(i-1)+8`、4.4 折叠属跨版本
+    //   lowering，源码层不可复现（N1）。
     if (level - 1 > static_cast<int>(m_endLevel10) || level <= 0)
         return 0;
     return m_limitTable[level - 1 + 8];
@@ -141,6 +154,13 @@ public:
     int quotient = (charge * level) /
                    static_cast<int>(static_cast<unsigned int>(sp.m_fatigueTable5c0.m_chargeDivisor8));
 
+    // [M4S3 round5c] ORIG 0x084a8064..+0x6a 为 64 位读（`mov -0x28,%eax;
+    // mov -0x24,%edx; mov %eax,-0xc`，高位读后弃用）——本轮新试：`volatile long long`
+    // 直声明（P211 限定轴）⇒ 4.4 为 volatile 槽另配临时，fistpll 写临时再整 8 字节
+    // 拷入（-0x38→-0x20/-0x1c）后复读，45→49 条（劣化，回滚）；`*(volatile long long*)&t`
+    // 与 volatile 指针形 ⇒ 5 条拷贝链（探针 /tmp/m4s3/p5.cpp h1、p7.cpp h6/h8）；
+    // union/struct 8 字节拷贝形 ⇒ 2 load+2 store（f5/f10）；`(unsigned long long)` 形
+    // ⇒ xor %ah 等 4 条（p8 k1）。均不闭合 ⇒ 维持 N82/N112 封顶（跨版本截断读）。
     long long truncated = static_cast<long long>(
         static_cast<long double>(quotient) *
         (static_cast<long double>(specialCnt) *

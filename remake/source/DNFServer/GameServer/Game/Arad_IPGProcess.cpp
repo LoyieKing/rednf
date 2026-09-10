@@ -42,6 +42,13 @@
 // ③`int len` 头部声明得 -0x24，ORIG 为 -0x38（4.1 外层标量与形参 spill 区 -0x2c..-0x34
 // 连续分配 vs 4.4 具名区 -0x1c..-0x24 分区分配）⇒ N82/N93 槽分配族封顶；
 // size_t 化实测反劣（NEAR→DIFF）。
+// [S3/M3FreeNext15B 2026-09-11 复扫] ①§6.5 串审计 CLEAR（1 kinds/1 refs：
+//   game_server_msg_104 @我方 .rodata+0）；②P339 试验：`const char* msg;` 提函数头
+//   （全头部声明、ORIG 槽深序 len>msg）⇒ 复编后四数 12/28/2/1 与槽分布**逐值不变**
+//   （-0x1c×3 / -0x20×3 / -0x24×2 / -0x2c×4 / -0x30×4 / -0x34×2）⇒ 已回滚；
+//   ③P331 不成立（头部标量仅 len 一项，相对槽序与 ORIG 同向，非倒置）。
+//   ⇒ 维持 N82/N93：ORIG len 属形参 spill 相邻深区 -0x38（4.1 函数级标量区），
+//   4.4 具名区自 -0x1c 起（msg -0x1c / slot -0x20 / len -0x24），两侧帧同为 0x5c。
 #include "Arad_IPGProcess/CashShopModeAvatar.inc"
                                          int a3, int a4, char c1, char c2,
                                          char const* str, int& out,
@@ -367,6 +374,13 @@
 // 链式（P52）、characNo 实参内联（P0）、case 3 两 getter 内联（%ebx 跨 call 保活）。
 // 残差：len 槽 ORIG -0x98（4.1 与形参 spill 区 -0x8c..-0x94 连续分配）vs 4.4 具名区
 // -0x30，连带 localItem(-0x7d→-0x81)/items/outCodeA/outCodeB 四处平移 4 ⇒ N82/N93 封顶。
+// [S3/M3FreeNext15B 2026-09-11 复扫] ①§6.5 串审计 CLEAR（2 kinds/2 refs：
+//   game_server_msg_104 @我方 .rodata+0、mileage item @+0x4d，与 ORIG 0x08ce.. 逐字节
+//   相等）；②P331 试验：`int len;` 由函数头后移至 `int subGroup` 之后 ⇒ 指令数
+//   318 不变（四数不变）但槽引用计数由 -0x24:4/-0x28:7/-0x2c:4 变为 2/4/7
+//   （ORIG 基准为 4/7/4）⇒ 与 ORIG 更远，已回滚；③P339 方向不成立（ORIG 槽深序
+//   len>localItem>items>outCodeB>outCodeA>goods>item>subGroup 与源码执行序冲突，
+//   重排会改变 G_CDataManager 查询/构造序）。⇒ 维持 N82/N93。
 #include "Arad_IPGProcess/BuyMileageItem.inc"
                                         unsigned short stack, int count, long seq,
                                         int param7, char c1, char c2, int price,

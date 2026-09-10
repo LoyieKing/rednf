@@ -257,6 +257,12 @@ namespace { struct IntSlotView { void* m_vptr; void* m_parser; int m_slot; }; }
 //      （lsEi 0x080c8c56），unsigned 实参选 lsEj 0x080e2292 = 重载选错。
 //   修复后 p167 CLEAR（48=48；残余 C1/C2、D1/D2 为 P93 同址别名伪差）。
 //   残余 DIFF = 槽/帧序跨版本差（N82）：ORIG guard -0x3c/vector -0x30/it -0x24 一族。
+// [round5-GmCmds_G 复核] 旧 N82 判词被**部分推翻**：
+//   ④ P0 双向律：ORIG 0x084ac060 `call StreamPool::Acquire` 后结果**直留 %eax**
+//      压 0x4(%esp) 给 CStreamGuard ctor（全程无 stream 栈槽）⇒ 原码把 Acquire
+//      内联在 ctor 实参位；删具名 `Stream* stream` 局部后 243→241 条（gap −1→+1）。
+//   残余 = 循环/局部槽整体平移（我方 guard -0x40/vector -0x34/it -0x38 一族 vs
+//   ORIG -0x3c/-0x30/-0x24，含 4.4 首槽常数与 N98 使用序）⇒ 源级不可翻。
 #include "GmCmds_G/execute_6.inc"
 {
     CUser* user = GetUser();
@@ -281,9 +287,11 @@ namespace { struct IntSlotView { void* m_vptr; void* m_parser; int m_slot; }; }
         if (g_SPremiumInfo[it->m_type].m_useTargetServer == 1)
             serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
 
-        Stream* stream =
-            GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0x989);
-        CStreamGuard guard(stream, true);
+        // P0 双向律：ORIG 0x084ac060 `call Acquire` 结果仍留 %eax 直压
+        // 0x4(%esp) 给 CStreamGuard ctor（全程无 stream 栈槽往返）⇒ 原码把
+        // Acquire 内联在 ctor 实参位；具名 Stream* 局部会多 store+load。
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0x989), true);
         // ORIG operator<< 重载序：int / uint / uint / int / long / long /
         // int / uint（0x54 头 + uid + accId + type + curSec + nextSec +
         // flag + serverCode）。
@@ -422,8 +430,21 @@ namespace game_master
 //      mov $0x17318,%edx; mov %edx,0x8(%esp)` 的 edx 中转形 —— 实测无效
 //      （4.4 仍 `movl $imm,0x8(%esp)`）⇒ 并入「待解：memset 首参 edx 中转」
 //      （与 CAchievementReport::execute 同现象）封顶。
-//   残余 = N126 版本首槽基址常数：我方全帧浅 8（user -0x34 vs ORIG -0x3c；
-//   deadLarge `lea -0x17b6a` vs ORIG -0x17b72；msg -0x452 vs -0x45a）⇒ 整帧平移不可消。
+// [round5-GmCmds_G 复核] 旧 N126「整帧平移 8 不可消」判词被**部分推翻**：
+//   ④ §6.5.1 编码修复（语义轴）：sprintf 格式串 ORIG 0x08c8035c 实字节为
+//      EUC-KR 50 字节，原源码误写 UTF-8 63 字节（ORIG 无此串）⇒ 已改字节转义。
+//   ⑤ P0 双向律：ORIG 0x084b1d41 `mov -0x38(%ebp),%eax; mov %eax,-0x28(%ebp)`
+//      后三次 stackable 调用点全 `mov -0x28(%ebp),%eax` ⇒ 原码有具名
+//      `CStackableItem* stackable`（-0x28 槽）；补上后 229→231 条。
+//   ⑥ 类型轴：Amplify 分支局部 ORIG 0x084b1d9d `movsbl %al,%eax; mov %eax,-0x20`
+//      + `cmpl $0x0/$0x64,-0x20` 直证 4 字节 int（Reinforce 分支仍 1 字节 char，
+//      ORIG `mov %al,-0x21` + `cmpb`）⇒ 改 int 后 231→232 条。
+//   残余 = ① N98 槽序（4.4 按首次使用序：我方 stackable 落 -0x2c，深于
+//   success/failure(-0x28/-0x24)；ORIG 4.1 按声明序把它排在二者之后）；
+//   ② 首槽常数收窄到 4 字节（user -0x38 vs ORIG -0x3c，原为 8）；
+//   ③ memset 第 3 实参 edx 中转 1 条（ORIG 0x084b1c44 `mov $0x17318,%edx;
+//   mov %edx,0x8(%esp)`，4.1 独有；P68 `memset((char*)p,0,N)` 两形实测无效）
+//   ⇒ 三项均源级不可翻，orig/ours=233/232（gap +1），p167 CLEAR。
 #include "GmCmds_G/execute_11.inc"
 {
     CUser* user = GetUser();
@@ -469,19 +490,26 @@ namespace game_master
         break;
     }
 
-    if (static_cast<CStackableItem*>(item)->IsReinforceTicket())
+    // P0 双向律：ORIG 0x084b1d41 `mov -0x38(%ebp),%eax; mov %eax,-0x28(%ebp)`
+    // （switch 之后、首次 stackable 调用之前）起，后续三次调用点全部
+    // `mov -0x28(%ebp),%eax` ⇒ 原码具名 CStackableItem* 局部（-0x28 槽），
+    // 非内联 static_cast 右值。
+    CStackableItem* stackable = static_cast<CStackableItem*>(item);
+
+    if (stackable->IsReinforceTicket())
     {
-        signed char value =
-            (signed char)static_cast<CStackableItem*>(item)->GetReinforceRate();
+        signed char value = (signed char)stackable->GetReinforceRate();
         if (value < 0 || value > 100)
             rate = 0;
         else
             rate = (int)value;
     }
-    else if (static_cast<CStackableItem*>(item)->IsAmplifyReinforceTicket())
+    else if (stackable->IsAmplifyReinforceTicket())
     {
-        signed char value =
-            (signed char)static_cast<CStackableItem*>(item)->GetAmplifyReinforceRate();
+        // 类型轴直证：ORIG 0x084b1d9d `movsbl %al,%eax; mov %eax,-0x20(%ebp)` +
+        // 0x084b1da3/0x084b1da9 `cmpl $0x0/$0x64,-0x20(%ebp)` ⇒ 本分支局部是
+        // 4 字节 int（非 Reinforce 分支的 1 字节 char，后者 ORIG 用 cmpb）。
+        int value = (signed char)stackable->GetAmplifyReinforceRate();
         if (value < 0 || value > 100)
             rate = 0;
         else
@@ -498,8 +526,14 @@ namespace game_master
             ++failure;
     }
 
+    // [round5-GmCmds_G 语义修复 · §6.5.1 编码盲区] ORIG 0x08c8035c 起的实字节是
+    // EUC-KR（`\xbe\xc6\xc0\xcc\xc5\xdb:%s(%d) \xbc\xba\xb0\xf8\xc8\xae\xb7\xfc:%d`
+    // `  (%d\xb9\xf8 \xbc\xba\xb0\xf8, %d\xb9\xf8 \xbd\xc7\xc6\xd0)\n`，共 50 字节，
+    // 已逐字节命中 ORIG），而原源码误写 UTF-8（63 字节，ORIG 无此串）⇒ 运行期
+    // GM 聊天回显乱码。改字节转义使发射字节 == ORIG；源码文件保持 UTF-8。
     sprintf(msg,
-            "아이템:%s(%d) 성공확률:%d  (%d번 성공, %d번 실패)\n",
+            "\xbe\xc6\xc0\xcc\xc5\xdb:%s(%d) \xbc\xba\xb0\xf8\xc8\xae\xb7\xfc:%d"
+            "  (%d\xb9\xf8 \xbc\xba\xb0\xf8, %d\xb9\xf8 \xbd\xc7\xc6\xd0)\n",
             item->GetItemName(), item->get_index(), rate, success, failure);
     SendChatMsg(GetUser(), msg);
 }
@@ -525,6 +559,17 @@ namespace game_master
 //      4.4 对 `if(a&&b)` 恒 jump-thread 消岛。
 //   ③ 循环 5 ORIG 判空 `cmpl $0,-0x24(%ebp); je` 位于条件块；我方把
 //      `i<0x38 && p!=0` 物化为 `jg` + `mov $1/$0` 岛（P223 岛数恒=条件数或 0）。
+// [round5-GmCmds_G 复核] orig/ours=214/214（gap 0）。旧判词③被**推翻**：
+//   ④ 循环 5 ORIG 0x084b2862 `movl $0x0,-0xc; jmp 084b28af`（i 先初始化、跳至
+//      前测）+ 0x084b286b 循环体**首句** `cmpl $0x0,-0x24(%ebp); je <循环后>`
+//      ⇒ 原码是 `for(i=0;i<=0x37;++i){ if(!accSlot) break; ... }`（guard 在体内
+//      首句），非 `while(i<0x38 && p)`。改 for+break 后 `jg`+`mov $1/$0` 岛消失，
+//      215→214 条。⇒ 该残差属**源形错**，不是 P223 编译器差。
+//   残余 = ① 循环 1/2/3/4 的 4.1 负向 bool 物化（ORIG `test; sete/setne %al;
+//      test %al,%al; jne` 4 条 vs 我方 `je/jne` 1 条，ORIG 反而多 3 条/处）；
+//      ② 我方 `|=` 恒双地址计算（4.4 -O0 固有，探针 /tmp/probe_or.cpp test2/test3
+//      实证：复合赋值 lvalue 求值两次，4.1 单次）——两类方向相反互相抵消；
+//      ③ N98 槽序（我方 i 槽 -0x1c vs ORIG -0x20 一族）。p167 CLEAR(15=15)。
 #include "GmCmds_G/execute_12.inc"
 {
     CUser* user = GetUser();
@@ -569,15 +614,20 @@ namespace game_master
 
     // ---- 账号货物（GetSlotRef(0)，0x38 槽；引用为空则跳过）----
     Inven_Item* accSlot = user->GetAccountCargo()->GetSlotRef(0);
-    int i = 0;
-    while (i < 0x38 && accSlot != 0)
+    // ORIG 0x084b2862 `movl $0x0,-0xc; jmp 084b28af`（i 先初始化、跳至前测）+
+    // 0x084b286b 循环体首句 `cmpl $0x0,-0x24(%ebp); je <循环后>` ⇒ 原码形为
+    // `for (i=0; i<=0x37; ++i) { if (accSlot == 0) break; ... }`（guard 在体内
+    // 首句），而非 `while (i<0x38 && accSlot != 0)`（后者 4.4 把 && 物化成
+    // jg + mov $1/$0 岛）。
+    for (int i = 0; i < 0x38; ++i)
     {
+        if (accSlot == 0)
+            break;
         if (accSlot[i].m_addInfo != 0 &&
             accSlot[i].m_field1 == 1)               // ITEM_TYPE_EQUIP
         {
             accSlot[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
         }
-        ++i;
     }
 
     DB_TestTradeRestrict::makeRequest((unsigned int)user->getCurCharacNo());

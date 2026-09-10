@@ -637,11 +637,63 @@ struct SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK
     unsigned char m_data[0x1a4];
 };
 
+#pragma pack(push, 1)
+// [M5 2026-09-11 · Main 批准具名化配套] 附件元素（stride 0x3d）与 amp 双视图，
+// 由 DB_MailBox_Req_System_Multi_Mail.cpp 的原 TU-local 定义上移（纯 POD，零符号发射）。
+union SigPostalItem130Amp
+{
+    stAmplifyOption_t m_amp;   // +0x07（0x137，0xe 字节）
+    struct
+    {
+        char m_ampHead[0x4];   // +0x07
+        char m_guidBlob[0x10]; // +0x0b（blob_to_str(0) 源，10 字节）
+    } m_g;
+};
+struct SigPostalItem
+{
+    unsigned char m_sealFlag;         // +0x00（sig 0x126）
+    char m_pad01;                     // +0x01
+    int m_itemId;                     // +0x02（sig 0x128 = view A +0x08）
+    char m_pad06;                     // +0x06
+    int m_addInfo;                    // +0x07（sig 0x12d = view A +0x0d）
+    unsigned short m_endurance;       // +0x0b（sig 0x131 = view A +0x11）
+    int m_extendInfo;                 // +0x0d（sig 0x133 = view A +0x13）
+    SigPostalItem130Amp m_ag;         // +0x11（sig 0x137 = view B +0x07）
+    char m_randomBlob[0xe];           // +0x25（sig 0x14b = view B +0x1b）
+    unsigned char m_seperateUpgrade;  // +0x33（sig 0x159 = view B +0x29）
+    char m_rest[0x3d - 0x34];         // +0x34..0x3d
+};
 struct SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL
 {
-    // ORIG 尺寸 0x3a9（ReqDBSendNewSystemMultiMail memset 证据）
-    unsigned char m_data[0x3a9];
+    // [M5 2026-09-11 · Main 批准具名化] ORIG 尺寸 0x3a9（ReqDBSendNewSystemMultiMail
+    // memset 证据）；偏移对照 dispatch/_InsertLetter/_InsertPostal 报告逐指令
+    // （原为 m_data[0x3a9] pad；具名后 _InsertLetter 的 +0x39d 基址为普通 decl、
+    // 4.4 直接 RHS-first，见 /tmp 记录）。pack(1) 保证 sizeof/offset 逐值不变。
+    char m_letterText[0x1e];       // +0x00 邮件正文（_InsertLetter escape 源）
+    char m_sendCharacName[0x100];  // +0x1e 发送者名（_InsertLetter escape 源）
+    int m_recvCharacNo;            // +0x11e
+    int m_sendCharacNo;            // +0x122
+    SigPostalItem m_item[10];      // +0x126 附件元素区（stride 0x3d）
+    unsigned int m_count;          // +0x388 附件数量（_InsertPostal 循环上界）
+    int m_gold;                    // +0x38c
+    unsigned int m_duration;       // +0x390 时段数（dispatch 折算到期）
+    unsigned char m_unlimitFlag;   // +0x394
+    unsigned int m_serverGroup;    // +0x395 ENUM_SERVER_GROUP
+    unsigned char m_pad399[4];     // +0x399..0x39c（无访问证据）
+    unsigned int m_letterId;       // +0x39d DB 回填 letter_id（GetIdentity 返 unsigned
+                                   // ⇒ 同型化以复现 ORIG LHS-first 直存，P211 档③）
+    int m_occTime;                 // +0x3a1 到期时间（dispatch 写入）
+    unsigned int m_stat;           // +0x3a5 letter.stat
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL) == 0x3a9,
+              "SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL size drift");
+static_assert(offsetof(SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL, m_recvCharacNo) == 0x11e,
+              "SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL recv offset drift");
+static_assert(offsetof(SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL, m_item) == 0x126,
+              "SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL item zone drift");
+static_assert(offsetof(SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL, m_stat) == 0x3a5,
+              "SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL stat offset drift");
 
 struct SIG_MERCENARY_DB_DATA
 {

@@ -34,6 +34,7 @@
 #include "PacketGuard.h"
 #include "GameWorld.h"          // GameWorld::send_to_area / G_GameWorld
 #include "CVillageMonsterMgr.h" // village_attacked 域唯一权威头
+#include "PacketHeader.h"       // [M2S4] Packet_VillageMonsterFightResult 基类（ORIG ctor 证据）
 
 // ============================================================================
 // 外部符号（真实头声明；不再使用 asm 标签）
@@ -46,10 +47,16 @@ TimerQueue* G_TimerQueue();
 // _ZN32Packet_VillageMonsterFightResultC1Ev（W 0x086b4b84，无 namespace 前缀）；
 // 原定义位于 namespace village_attacked 内 ⇒ 发明 _ZN16village_attacked32…C1/C2。
 // 构造/字段语义逐字不变。
-struct Packet_VillageMonsterFightResult
+// [M2S4 2026-09-11] 语义轴修：ORIG 0x086b4b8d/0x086b4b95/0x086b4b9d 三次压栈
+//   $0x1772(0x4(%esp))/0x2b(0x8(%esp))/this(0) + call _ZN12PacketHeaderC1Ett
+//   ⇒ 原码是 **PacketHeader 基类构造**（id=0x1772, size=0x2b，与 PacketHeader.h
+//   及 shared/packet/include/Packet_VillageMonsterFightResult.h 权威形态一致）。
+//   旧「手工 m_header0/m_header2 + 不做基类构造」既缺 3 movl+call+帧差（gap 5），
+//   又让线格式包 ID/size 恒为未初始化值（语义缺口）。
+struct Packet_VillageMonsterFightResult : public PacketHeader
 {
     Packet_VillageMonsterFightResult()   // ORIG W 0x86b4b84；P223 双成员索引对形
-        : m_flag(0)
+        : PacketHeader(0x1772, 0x2b), m_flag(0)
     {
         for (int i = 0; i <= 3; ++i)
         {
@@ -57,9 +64,6 @@ struct Packet_VillageMonsterFightResult
             m_characNos[i] = 0;
         }
     }
-    unsigned short m_header0;   // +0x00
-    unsigned short m_header2;   // +0x02
-    char m_pad4[6];             // +0x04
     unsigned int m_uids[4];     // +0x0a
     unsigned int m_characNos[4];// +0x1a
     unsigned char m_flag;       // +0x2a
@@ -82,13 +86,22 @@ namespace village_attacked
 // [round2-L30 复核·N82/P200] 残余：ORIG `sub $0x38` 无 callee-saved vs 我方
 //   `push %esi; push %ebx; sub $0x30`（我方多 2 push，跨 find 保活 c/d）+ 槽整体浅 4
 //   （ORIG -0x18/-0x12/-0x10 vs 我方 -0x14/-0xe/-0xc）⇒ N82 帧/槽分区族；ORIG 0x086b4964。
+// [M2S4 2026-09-11 推翻旧 N82 判词] 56/56（ORIG 56，逐条同形含 `sub $0x38`/`leave`；
+//   p167 6/6，余 Zone C1↔C2 同址别名）。真因=链式 `it->second.OnKillVillageMonster(...)`
+//   让 4.4 把 c/d 提前装 callee-saved（2 push + lea/add 收尾）；ORIG 0x086b49f5/49f8
+//   `add $0x4,%eax; mov %eax,-0xc(%ebp)` 直证具名 area 局部 → 补 `CVillageMonsterArea*
+//   area = &it->second;` 即归零（P0 槽-局部双向对应律）。
 #include "VillageMonster_helpers/OnKillVillageMonster.inc"
 {
     Zone zone((unsigned char)a, (unsigned char)b);
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(zone);
     if (it == m_areas.end())
         return 0x15;
-    return it->second.OnKillVillageMonster(0, c, d);
+    // [P0] ORIG 0x086b49f5/0x086b49f8 `add $0x4,%eax; mov %eax,-0xc(%ebp)` —— 具名
+    // area 局部有真槽 ⇒ 原码有该局部；写成链式调用会让 4.4 把 c/d 提前装入
+    // callee-saved（多 push %esi/%ebx + lea/add 收尾，our 60 vs ORIG 56）。
+    CVillageMonsterArea* area = &it->second;
+    return area->OnKillVillageMonster(0, c, d);
 }
 
 // ============================================================================
@@ -208,6 +221,14 @@ namespace village_attacked
 //   OnEvent()&&flag→IncVillageAttackCount + m_flag=flag + SendTcpPacket 0x2b + PacketGuard
 //   0xf9 发送。差异=ORIG 用 ctor W 0x86b4b84 一次性 memset 全结构，我方显式
 //   memset(m_pad4)+双循环清0（多 ~27 条），纯 lowering 表示差异，语义等价。
+// [M2S4 2026-09-11 本波归零] 114/114（ORIG 114，逐条同形；p167 19/19，余 C1↔C2/
+//   D1↔D2 同址别名对）。两处真因：
+//   ① 具名 `CMonitorServerProxy* monitorProxy` 缓存（P0/P183）——ORIG 0x086b33e4/
+//      0x86b33f0 结果经 %eax 直传实参位，无槽；删除后整帧槽归位（-0x4b/-0x41/-0x21）。
+//   ② 第二个早退 `if (party == 0) return;` → 改正向包裹 `if (party != 0) {...}`：
+//      ORIG 0x086b3334 `je 086b3498`（party==0 直落 epilogue）+ 0x086b331c `je
+//      086b3497`（user==0 落 nop 垫）；否定早返形让 4.4 多 emit `nop;jmp` 尾垫
+//      （探针 /tmp/m2s4_tail.cpp：fA 4 条尾垫 vs fB 2 条尾垫）。
 // ============================================================================
 // [round2-L30 复核·N/B24D] 残余 3 条 + 整帧平移 4：ORIG ctor W 0x86b4b84 一次性 memset
 //   全结构 vs 我方显式清零 lowering（语义等价）；ORIG 0x086b330a。
@@ -216,36 +237,43 @@ namespace village_attacked
     if (user == 0)
         return;
     CParty* party = (CParty*)user->GetParty();
-    if (party == 0)
-        return;
-
-    Packet_VillageMonsterFightResult pkt;
-    // ORIG ctor 0x86b4b84：PacketHeader(0x1772,0x2b) + m_flag=0 + m_keys[8] 清零。
-
-    for (int i = 0; i <= 3; ++i)
+    // [P222/尾岛] ORIG 0x086b3334 `je 086b3498`（party==0 直落 epilogue）+
+    //   0x086b331c `je 086b3497`（user==0 落 nop 垫）—— 第二个早退须写
+    //   **正向包裹**：否定早返形 `if (party == 0) return;` 让 4.4 多 emit
+    //   `nop;jmp`（探针 /tmp/m2s4_tail.cpp fA 4 条尾垫 vs fB 2 条尾垫，
+    //   116 vs ORIG 114 的最后 2 条即此）。
+    if (party != 0)
     {
-        CUser* member = party->get_user(i);
-        if (member != 0)
+        Packet_VillageMonsterFightResult pkt;
+        // ORIG ctor 0x86b4b84：PacketHeader(0x1772,0x2b) + m_flag=0 + m_keys[8] 清零。
+
+        for (int i = 0; i <= 3; ++i)
         {
-            pkt.m_uids[i] = member->GetUID();
-            pkt.m_characNos[i] = member->get_charac_no(-1);
-            if (GlobalData::s_villageMonsterMgr->OnEvent())
-                if (flag)
-                member->IncVillageAttackCount();
+            CUser* member = party->get_user(i);
+            if (member != 0)
+            {
+                pkt.m_uids[i] = member->GetUID();
+                pkt.m_characNos[i] = member->get_charac_no(-1);
+                if (GlobalData::s_villageMonsterMgr->OnEvent())
+                    if (flag)
+                    member->IncVillageAttackCount();
+            }
         }
+        pkt.m_flag = flag;
+
+        // [P0/P183] ORIG 0x086b33e4..0x086b33ff：proxy 结果经 %eax 直传实参位，
+        // 无具名局部槽 ⇒ 不得具名缓存（曾多 `mov %eax,-0x14` + `mov -0x14,%eax` 2 条
+        // 并使整帧槽平移 4）。
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->SendTcpPacket((char*)&pkt, 0x2b);
+
+        PacketGuard pg;
+        pg.clear();
+        pg.put_header(0, 0xf9);
+        pg.put_byte(flag);
+        pg.finalize(true);
+        party->send_to_party(pg);
     }
-    pkt.m_flag = flag;
-
-    CMonitorServerProxy* monitorProxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    monitorProxy->SendTcpPacket((char*)&pkt, 0x2b);
-
-    PacketGuard pg;
-    pg.clear();
-    pg.put_header(0, 0xf9);
-    pg.put_byte(flag);
-    pg.finalize(true);
-    party->send_to_party(pg);
 }
 
 // ============================================================================
@@ -279,6 +307,14 @@ namespace village_attacked
 //   count -0x10 vs 我方 -0x1c/-0x20/-0xc，间距全等；帧同为 sub $0x30）⇒ 判据⑪ (b)
 //   类，声明重排无效（ORIG 0x086b37fa）。已修：占位字节改传具名 count（ORIG
 //   0x086b3814 `mov -0x10(%ebp),%eax; mov %eax,0x4(%esp)`，非立即数 0）。
+// [M2S4 2026-09-11 推翻旧 N126 判词] 108/108（ORIG 108，逐条同形；p167 18/18，
+//   余 PacketGuard C1↔C2/D1↔D2 同址别名）。真因两处：
+//   ① 缺具名 `CVillageMonster* monster = &it->second;`（P0：ORIG 0x086b387c/387f
+//      `add $0x4,%eax; mov %eax,-0xc(%ebp)` + 0x086b3889 load 直证有真槽；链式写法
+//      4.4 直传 `lea 0x4(%eax),%edx` 少 store/load 两条，且整帧平移 4）。
+//   ② ORIG 0x086b3894..0x86b38a2 是 4.1 if-join 岛（`xor $1; test %al; jne <nop 岛>`
+//      + 体尾 `jmp` + `nop`）⇒ 4.4 复现形=负条件 goto 尾空标签（探针 /tmp/m2s4_island.cpp
+//      fC 实测同形；`if (!x) continue;` 恒无岛）。
 #include "VillageMonster_helpers/SendVillageMonsterList.inc"
 {
     PacketGuard packet;
@@ -289,12 +325,21 @@ namespace village_attacked
     // ORIG 0x086b37ff：占位字节传的是**具名 count 变量**（0x81 `mov -0x10(%ebp),%eax;
     //   mov %eax,0x4(%esp)`），非立即数 0 ⇒ 源形 `put_byte(count)`（此时 count==0）。
     packet.put_byte(count);
+    // [P0] ORIG 0x086b387c/0x086b387f `add $0x4,%eax; mov %eax,-0xc(%ebp)` +
+    //   0x086b3889 `mov -0xc(%ebp),%eax` —— monster 具名局部有真槽（链式写法 4.4
+    //   直传 `lea 0x4(%eax),%edx`，少 store/load 两条）。
+    // [P223] ORIG 0x086b3894..0x086b38a2 = 4.1 if-join 岛（`xor $1; test %al; jne
+    //   <nop 岛>` + 体尾 `jmp` + `nop`）⇒ 4.4 复现形为负条件 goto 尾空标签
+    //   （探针 /tmp/m2s4_island.cpp fC 实测同形；`if (!x) continue;` 恒无岛）。
     for (std::map<unsigned short, CVillageMonster>::iterator it =
              m_monsters.begin();
          it != m_monsters.end(); ++it)
     {
-        if (it->second.MakeVillageMonsterListPacket(packet))
-            ++count;
+        CVillageMonster* monster = &it->second;
+        if (!monster->MakeVillageMonsterListPacket(packet))
+            goto next_monster;
+        ++count;
+    next_monster:;
     }
     packet.put_byte(countIdx, count);
     packet.finalize(true);

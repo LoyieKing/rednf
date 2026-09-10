@@ -25,7 +25,7 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
     const bool isGhost = (bool)(unsigned char)user->IsCurCharacGhost();
     bool bypassGate = !isGhost ||
                       ((unsigned char)msgType < 9 &&
-                       (((1u << (msgType & 0x1f)) & 0x144u) != 0));
+                       (((1u << msgType) & (unsigned long)0x144u) != 0));
     if (!bypassGate)
         return 0;
 

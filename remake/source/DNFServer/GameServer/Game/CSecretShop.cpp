@@ -145,12 +145,20 @@
         {
             for (;;)
             {
-                stLevelSection section;
-                section.m_levelIdx = ScanInt(&flag);
+                // [M5D_SecretShop] ORIG 0x08a81ecd/fef/f0b：三次 ScanInt 分别落
+                // **三个独立标量槽** -0x26c/-0x268/-0x264，随后 0x08a81f10-
+                // 0x08a81f2e 三组 `mov -0xNNN,%eax; mov %eax,-0x22N` 才拷入
+                // set::insert 实参对象 -0x224..-0x218（ORIG 独有段，旧形直写
+                // 字段导致我方此处少 6 条）⇒ 原码为「3 个具名 int + 逐字段赋值」。
+                int levelIdx = ScanInt(&flag);
                 if (!flag)
                     break;
-                section.m_minLev = ScanInt((bool*)0);
-                section.m_maxLev = ScanInt((bool*)0);
+                int minLev = ScanInt((bool*)0);
+                int maxLev = ScanInt((bool*)0);
+                stLevelSection section;
+                section.m_levelIdx = levelIdx;
+                section.m_minLev = minLev;
+                section.m_maxLev = maxLev;
                 pScript->m_levelSections.insert(section);
             }
         }
@@ -158,19 +166,22 @@
         {
             for (;;)
             {
-                int key = ScanInt(&flag);
+                // [M5D_SecretShop] ORIG 0x08a81f8a/fae/fc0：三次 ScanInt 结果落
+                // -0x278/-0x274/-0x270 **连续**槽（= npc 对象本体），随后
+                // 0x08a82007 pair<int&,stDungeonNpc&> 两实参**同址** -0x278
+                // ⇒ 原码直写对象字段（P329：无 key/npcIdx/rate 具名中转）。
+                // 旧形（int key/npcIdx/rate + 拷贝）在 0x08a81f? 处多 6 条
+                // load/store（我方 -0x294/-0x290/-0x28c 目标槽 + -0x27c 源槽）。
+                stDungeonNpc npc;
+                npc.m_field0 = ScanInt(&flag);
                 if (!flag)
                     break;
-                int npcIdx = ScanInt((bool*)0);
-                int rate = ScanInt((bool*)0);
+                npc.m_npcIdx = ScanInt((bool*)0);
+                npc.m_rate = ScanInt((bool*)0);
                 for (int i = 0; i < 4; ++i)
                     ScanInt((bool*)0);
-                stDungeonNpc npc;
-                npc.m_field0 = key;
-                npc.m_npcIdx = npcIdx;
-                npc.m_rate = rate;
                 pScript->m_levelNpcMap.insert(
-                    std::pair<int, stDungeonNpc>(key, npc));
+                    std::pair<int, stDungeonNpc>(npc.m_field0, npc));
             }
             pScript->verifyNpc(pScript->m_levelNpcMap);
         }
@@ -190,17 +201,22 @@
                     ds.m_maxCount = ScanInt((bool*)0);     // +0x04
                     for (;;)
                     {
-                        int itemIdx = ScanInt(&flag);
+                        // [M5D_SecretShop] ORIG 0x08a8211c：带 flag 的 ScanInt 直落
+                        // sale 对象首字段槽 -0x290（m_rule 见 0x08a82145
+                        // `mov %al,-0x28c` = 对象内 +4），0x08a82193/0x08a8219d
+                        // pair<int&,stSaleInfo&> 两实参**同址** -0x290 ⇒ 直写对象 +
+                        // pair(sale.m_itemIdx, sale)（P329：删 itemIdx 具名中转，
+                        // 旧形多 2 条 load/store）。
+                        stSaleInfo sale;
+                        sale.m_itemIdx = ScanInt(&flag);
                         if (!flag)
                             break;
-                        stSaleInfo sale;
-                        sale.m_itemIdx = itemIdx;
                         sale.m_rule = (char)ScanInt((bool*)0);
                         sale.m_price = ScanInt((bool*)0);
                         sale.m_materialCount = ScanInt((bool*)0);
                         sale.m_limit = ScanInt((bool*)0);
                         sale.m_rate = ScanInt((bool*)0);
-                        ds.m_sales.insert(std::pair<int, stSaleInfo>(itemIdx, sale));
+                        ds.m_sales.insert(std::pair<int, stSaleInfo>(sale.m_itemIdx, sale));
                     }
                     sales.m_dungeonSales.insert(
                         std::pair<int, stDungeonSales>(ds.m_field0, ds));
@@ -212,17 +228,18 @@
                     ds.m_maxCount = ScanInt((bool*)0);
                     for (;;)
                     {
-                        int itemIdx = ScanInt(&flag);
+                        // [M5D_SecretShop] ORIG 0x08a82339：同 [dungeon] 形（sale 槽
+                        // -0x2a8，0x08a823ab/0x08a823b5 pair 两实参同址 -0x2a8）。
+                        stSaleInfo sale;
+                        sale.m_itemIdx = ScanInt(&flag);
                         if (!flag)
                             break;
-                        stSaleInfo sale;
-                        sale.m_itemIdx = itemIdx;
                         sale.m_rule = (char)ScanInt((bool*)0);
                         sale.m_price = ScanInt((bool*)0);
                         sale.m_materialCount = ScanInt((bool*)0);
                         sale.m_limit = ScanInt((bool*)0);
                         sale.m_rate = ScanInt((bool*)0);
-                        ds.m_sales.insert(std::pair<int, stSaleInfo>(itemIdx, sale));
+                        ds.m_sales.insert(std::pair<int, stSaleInfo>(sale.m_itemIdx, sale));
                     }
                     sales.m_eventSales.insert(
                         std::pair<int, stDungeonSales>(ds.m_field0, ds));
@@ -243,18 +260,19 @@
             pScript->m_eventDungeonSales.m_maxCount = ScanInt((bool*)0);  // +0x64
             for (;;)
             {
-                int itemIdx = ScanInt(&flag);
+                // [M5D_SecretShop] ORIG 0x08a8264b：带 flag ScanInt 直落 sale 槽
+                // -0x2c0（0x08a826bf/0x08a826c9 pair 两实参同址 -0x2c0）。
+                stSaleInfo sale;
+                sale.m_itemIdx = ScanInt(&flag);
                 if (!flag)
                     break;
-                stSaleInfo sale;
-                sale.m_itemIdx = itemIdx;
                 sale.m_rule = (char)ScanInt((bool*)0);
                 sale.m_price = ScanInt((bool*)0);
                 sale.m_materialCount = ScanInt((bool*)0);
                 sale.m_limit = ScanInt((bool*)0);
                 sale.m_rate = ScanInt((bool*)0);
                 pScript->m_eventDungeonSales.m_sales.insert(
-                    std::pair<int, stSaleInfo>(itemIdx, sale));
+                    std::pair<int, stSaleInfo>(sale.m_itemIdx, sale));
             }
         }
         else if (token == "[price random]")
@@ -771,10 +789,15 @@ bool BUY_INFO::operator==(int itemIdx)
     //    （右值版）⇒ 实参右值化。
     // 判词·N（本轮复核）：p167 CLEAR（56=56，仅 C1/C2、D1/D2 别名伪差）；
     // gap -2（304 vs 306）= 4.4 对 make_pair<int,int>(int&&,int&&) 的 xvalue
-    // 实参 materialize 读值临时（ORIG 0x08a81e8b 直传 &(*lt).m_itemIdx）；已把
+    // 实参 materialize 读值临时（ORIG 0x085fae79-0x085fae9e：
+    // `movl $0x1,-0x20` 后 `call (*lt).m_itemIdx; mov %eax,%edx; lea -0x20,%ecx;
+    // mov %ecx,0x8(%esp); mov %edx,0x4(%esp); call make_pair` = **直传
+    // &(*lt).m_itemIdx，无读值临时**，即 4.1 对 xvalue 绑定右值引用不物化）；已把
     // `(int)` cast 改 P234 形 `static_cast<int&&>`（符号与 ORIG 一致，仍 +2 条
-    // ⇒ 跨版本 codegen 封顶）。尾部 setcc-fold（ORIG `setb;test;jne` vs 4.4
-    // 直跳+常量岛，P197④ 镜像负例）与 N82/N89 失真并存；语义完成。
+    // ⇒ 跨版本 codegen 封顶）。[M5D 本轮直方图直证] 全函数助记符差仅 lea +1 与
+    // mov +1（4.4 物化 xvalue 所需的「取临时地址 lea」+「存值 mov」各一条），
+    // 无其它净差。尾部 setcc-fold（ORIG `setb;test;jne` vs 4.4 直跳+常量岛，
+    // P197④ 镜像负例）与 N82/N89 失真并存；语义完成（串/数值/求值序已核）。
     // ORIG 0x85fad20：统计工具 —— 对 CDataManager 地下城表中每个地下城，
     // 以 dungeonIdx=0x3ea(1002)、level=get_index()、price=get_standard_level()
     // 抽取 10000 次 LotteryItems，统计各商品出现次数，并把百分比写入
@@ -986,6 +1009,11 @@ bool BUY_INFO::operator==(int itemIdx)
             CopyItem(sale, it->second);
             out.push_back(sale);
         }
+        // [M5D_SecretShop] ORIG 0x08a82dff `mov $0x1,%eax; jmp 08a82f68`（+0x224 为
+        // 函数出口 leave/ret 前）+ else 结束后 0x08a82f63 另一处 `mov $0x1,%eax`
+        // ⇒ 原码 if 分支**自带 return 1**（独立返回值物化），旧形与我方都是共享
+        // 函数尾单块 ⇒ 少 1 条（P0 槽往返律的反例：4.1 不共享返回块）。
+        return 1;
     }
     else {
         // 按权重随机抽取，直到填满 m_maxCount 或商品重复
@@ -1004,15 +1032,16 @@ bool BUY_INFO::operator==(int itemIdx)
                  it != sales.m_sales.end(); ++it) {
                 acc += (unsigned int)it->second.m_rate;
                 if (randVal < acc) {
-                    // [b28d-solo-CSecretShop] ORIG 0x08a82eb4 `call IsExistItem;
-                    // test %al,%al; jne <break 落点>`（bool callee 直判、无 xor）。
-                    // 4.4 对 `!f()`/`f()==0` 恒插 `xor $1`（P168a②/N122 实测）⇒
-                    // 用正向条件 goto 复现 ORIG 的 `test;jne` 直分支形。
+                    // [M5D_SecretShop] ORIG 0x08a82eb4 `call IsExistItem; test %al,%al;
+                    // jne 08a82f34`（跳 +0x1f0 = break 落点前的 nop 岛），CopyItem/
+                    // push_back 段尾 0x08a82ef3 `jmp 08a82f35`（+0x1f1 同一落点）
+                    // ⇒ 原码是**两条 break**（`if (f()) break; ...; break;`）。
+                    // 旧形（正向 !=0 goto skip_copy）在 4.4 下生成 `je 标签; nop;
+                    // jmp` 三条（+0x177 落点自带 nop），比 ORIG 多 2 条。
                     if (IsExistItem(out, it->second.m_itemIdx) != 0)
-                        goto skip_copy;
+                        break;
                     CopyItem(sale, it->second);
                     out.push_back(sale);
-skip_copy:
                     break;
                 }
             }

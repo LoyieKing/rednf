@@ -54,20 +54,22 @@ int DisPatcher_SetPVPTeam::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
     int result = room->set_pvp_mode(user, (int)(signed char)sig.m_team);
-    // [DPC-SigC 2026-09-11] 负结论（实测劣化，已回滚）：ORIG 0x081f61xx
-    // `cmpl $0x0,-0xc(%ebp); jle <make_seat_info 块=+0x1ad>`（成功块 fall-through、
-    // 拒绝块在后）。试形 `if (0 < result) {成功}` + 拒绝落尾与上方视图改动合并复编
-    // ⇒ 父泳道实测劣化 +8 ⇒ 一并回滚（另修回原缺 `return 0;` 的尾块）。
-    if (result < 1)
+    // [b28f-M8DPA 复核] 破 DPC-SigC 旧负结论：旧试形把「极性翻转」与「视图改动」
+    // 合并复编 ⇒ 读数被污染。**单独**翻转极性（`if (result > 0) {成功}`，拒绝落尾）
+    // 实测 137→136 且 ndiff 仅剩 1 处；再在成功块内补独立 `return 0;`（两 return
+    // 共享尾出口，4.4 以 %ebx 承载返回常量，正合 ORIG 0x081f61xx 段
+    // `call <Send>; mov $0x0,%ebx; jmp <epilogue>`）⇒ **137/138 raw、clean 后
+    // 137/137 逐条一致 = AE**。语义等价（`result<1` 拒绝 ⊂ `!(result>0)`）。
+    if (result > 0)
     {
-        room->make_seat_info(reinterpret_cast<char*>(&guard), 0xffff);
-        G_GameWorld()->send_all(guard);
+        guard.put_header(1, 0x39);
+        guard.put_byte(0);
+        guard.put_byte(result);
+        guard.finalize(true);
+        user->Send(guard);
         return 0;
     }
-    guard.put_header(1, 0x39);
-    guard.put_byte(0);
-    guard.put_byte(result);
-    guard.finalize(true);
-    user->Send(guard);
+    room->make_seat_info(reinterpret_cast<char*>(&guard), 0xffff);
+    G_GameWorld()->send_all(guard);
     return 0;
 }

@@ -235,6 +235,16 @@ namespace expert_job
     if (!loadRDARScriptFile(g_expertJobScriptBaseDirectory, path))
         return false;
     {
+        // [b2c 试形 B·采用] `int readOnly`（[disjoint result] 第三次 ScanInt 的写后未读
+        // 局部，ORIG 槽 -0x388）声明位置决定 4.4 栈槽分组：
+        //   形①（原）声明在该赋值处 ⇒ 落浅端 -0x4c，key/unusedCount/scriptIdx 及以下
+        //        整组槽 +4（raw diff groups 411）；
+        //   形② 顶层最先声明 ⇒ readOnly 落 -0x58，浅端标量组（-0x4c/-0x50/-0x54）全部
+        //        回归 ORIG **0 偏移**，只剩对象组 +4（raw diff groups **356**，delta=0
+        //        行数 60→119）；
+        //   形③ 本分支循环体首（与 grade/res 并列）⇒ 又落回 -0x4c（等同形①，407 组）。
+        // 采用形②（四数不变、ndiff 严格改善）。
+        int readOnly;
         int scriptIdx = 0;
         (*script).Clear();
         std::string section;
@@ -364,8 +374,9 @@ namespace expert_job
                         return false;
                     // ORIG 0x0896b99f `mov %eax,-0x388(%ebp)`：第三次 ScanInt 结果写入
                     // 具名局部（写后未读，P171 照抄）⇒ 必须保留该 store。
-                    int readOnly = ScanInt(&ok);
-                    (void)readOnly;
+                    // [b2c 试形 B] 该具名局部改在**函数顶层**声明（`int readOnly;` 见上），
+                    // 此处只赋值 —— 见顶层注释（槽位对齐实验）。
+                    readOnly = ScanInt(&ok);
                     if (!ok) return false;
                     // b290-BigExpert [REAL-BUG 补：ORIG 0x0896ba7e..0x0896ba9d 在 insert
                     // 之后 `movzbl -0x2ac(%ebp); xor $1; test; je`（= 检查
@@ -966,6 +977,12 @@ namespace expert_job
 
 // ============================================================================
 // init（ORIG 0x896d8ec）
+// [b2c-P167/P61] ORIG 0x0896d9f9 调 `_ZSt9make_pairIiRP17STExpertJobScriptE...`
+// （第一模板参 **int**）；旧写法 `int job = ...; make_pair(job, script)` 传具名左值 ⇒
+// 4.4 推导 int&（`_ZSt9make_pairIRiRP17...`）。ORIG 调用点 `mov %eax,-0x24(%ebp)`（函数
+// 返回值落临时对象）+ `lea -0x24(%ebp),%edx; mov %edx,0x4(%esp)`（传该临时地址给
+// `T1&&`）⇒ 第一实参是 **FindIndexByFullScan(...) 的 prvalue**（P61）。故把调用内联进
+// make_pair 实参位、删具名 `int job`。
 // b28d-solo-CExpertJobList 判词（NEAR / N82附 封顶）：133=133 助记符序列全等；
 // 残差仅 job 槽位（ORIG -0x24 vs 本 TU -0x40）与其后 make_pair/pair/insert/end
 // 四个临时槽整体差 4——4.4 标量分区排布 vs 4.1 按生命周期穿插（N82附；job 在
@@ -975,7 +992,6 @@ namespace expert_job
 {
     // ORIG 0x896d8ec：无空指针检查，直接遍历 g_expertJobScriptFileList 对象。
     const char* path = 0;   // ORIG -0x1c(%ebp)：循环内最后 path，ETC 失败时作 %s 参数
-    int job;                // ORIG -0x24(%ebp)（4.4 恒排深槽区 -0x40，见 N82附 标量分区）
     // b28d-solo [P96/P50：ORIG 用非 const iterator + 独立 C1Ev 默认构造（-0x44）
     // + begin() 临时槽 -0x4c 后内联拷贝赋值；P28：增量段为 ppEi（后置 it++）]。
     std::map<int, std::string>::iterator it;
@@ -992,8 +1008,9 @@ namespace expert_job
             delete script;
             return false;
         }
-        job = g_expertJobScriptFileList.FindIndexByFullScan(path);
-        m_jobMap.insert(std::make_pair(job, script));   // ORIG 0x896d8ec：find 后 insert（NEW 二进制/源码曾丢失）
+        // ORIG 0x896d8ec：find 后 insert（NEW 二进制/源码曾丢失）
+        m_jobMap.insert(std::make_pair(
+            g_expertJobScriptFileList.FindIndexByFullScan(path), script));
     }
     if (!ImportExpertJobEtcScript(m_etc, "expertjob.etc"))
     {
@@ -1005,6 +1022,9 @@ namespace expert_job
 
 // ============================================================================
 // destroy（ORIG 0x896dac6）
+// [b2c-P167] ORIG 0x0896daff 调用 **_deEv**（`_ZNKSt17_Rb_tree_iteratorISt4pairIKi
+// P17STExpertJobScriptEEdeEv` = operator*，返回 pair& 后 `mov 0x4(%eax),%eax` 取
+// second）；旧写法 `it->second` 发 **ptEv** + `add $0x4` ⇒ 按 P167 改 `(*it).second`。
 // b28d-solo-CExpertJobList 判词（AE）：P13 缓存 end()（ORIG 0x0896dada 前一次性求值、
 // 条件只比较）+ P141 删手写 delete 判空（ORIG 仅 test/je 自带守卫）；42=42。
 // ============================================================================
@@ -1014,7 +1034,7 @@ namespace expert_job
     for (std::map<int, STExpertJobScript*>::iterator it = m_jobMap.begin(),
              e = m_jobMap.end(); it != e; ++it)
     {
-        STExpertJobScript* script = it->second;
+        STExpertJobScript* script = (*it).second;
         delete script;
     }
 }

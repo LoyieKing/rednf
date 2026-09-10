@@ -220,6 +220,12 @@ struct SelectQuestParamDataView
 #include "UserQuest/get_quest_info.inc"
 {
     // b28d-40: N82 封顶——帧/槽平移（-0x54 vs -0x50 等），语义闭合。ORIG 0x086abba8。
+    // 【b28e-M1S2 本波复核】136/136；残差逐 hunk 归类 = 实参装载序（ORIG 先装接收者
+    //   %eax→(%esp) 后装 %edx→0x4(%esp)；4.4 反之）+ 寄存器中转选择（我方多
+    //   `mov -0x10(%ebp),%eax; mov %eax,0x4(%esp)` vs ORIG `mov -0x10(%ebp),%edx;
+    //   mov %edx,0x4(%esp)`）+ 数据地址重定位（0x941f7f4 = CTimeGate 单例，AE 盲区）。
+    //   P329 核过：本件无中间具名局部（全内联表达式）⇒ 无该旋钮可用；P331 核过：
+    //   -0x54 vs -0x50 为 4B 单段平移但该区含 std::list 类对象 ⇒ 明文不可翻 ⇒ N82。
     stSelectQuestParam selectParam(m_user);
 
     InterfacePacketBuf* pb = reinterpret_cast<InterfacePacketBuf*>(buf);
@@ -300,6 +306,12 @@ struct SelectQuestParamDataView
 {
     // b28d-40: N82 封顶——帧 0xcc vs 0xc0 + 字符串地址重定位/槽平移，语义闭合。
     // ORIG 0x086abf38。
+    // 【b28e-M1S2 本波复核】403/404（我方多 1）。P331 核过：quest（ORIG -0x3c / 我方
+    // -0x30）与循环 i（ORIG -0x34 / 我方 -0x28）槽序**同向**（非倒置）⇒ 不属
+    // P331 可翻域；平移恒 0xc = ORIG 独有 `push %edi`（帧 0xcc vs 0xc0）⇒ N82/N7。
+    // P339 明文禁把非 POD（stSelectQuestParam / vector）提前 ⇒ 不适用。
+    // 语义轴：logFormat/cMyTrace 串与 ORIG 0x8cf3a14 / 0x8cf47a0 / 0x8cf3a21 /
+    // 0x8cf3a64 一致（已核）。
     if (m_user == 0)
     {
         LogManager::logFormat(1, "user_quest.cpp",

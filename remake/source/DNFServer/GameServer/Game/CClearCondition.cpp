@@ -65,9 +65,17 @@
     {
         DungeonClearCondition* d = &*itd;
         int* v = &*itv;
-        // [实测回退] 操作数序交换（(int)type == d->m_0）零效（d=10 不变，反引入
-        // `mov -0x10(%ebp),%eax` 新装载）⇒ 维持原序；残余为 N82 块排布族。
-        if (d->m_0 == (int)type && d->m_4 == idx)
+        // [M4S2 · P211 类型档旋钮] ORIG 0x082ff06b 三条形
+        //   `mov -0x10(%ebp),%eax; mov (%eax),%eax; cmp 0xc(%ebp),%eax`
+        //   ⇒ 字段侧是**同型 enum 左值**（op1 形参留内存直比）。我方 m_0 声明为
+        //   int ⇒ `int == enum` 需转换 ⇒ 反产 `mov (%eax),%edx; mov 0xc(%ebp),%eax;
+        //   cmp %eax,%edx`（+1 条）。实测：删 (int)/换序均零效；probe
+        //   /tmp/m4s2_probe/pr_cmp{,2}.cpp 中 f2（字段 enum）与 f7/f8（同址 enum
+        //   视图）产 ORIG 逐条形，f7/f8 不引入额外槽。
+        //   ⇒ 本处按 P211 以同址 enum 视图取值；**建议 .h 侧把
+        //     DungeonClearCondition::m_0 声明为 ENUM_DUNGEON_CLEAR_CONDITION_TYPE**
+        //     （属他泳道写域，仅上报）。
+        if (*(ENUM_DUNGEON_CLEAR_CONDITION_TYPE*)d == type && d->m_4 == idx)
         {
             // [L6S2b · P222/P194 块序翻正] ORIG 为 `cmp %eax,%edx; jg <自增块>`
             // + 失败块 fall-through（0x082ff08d/08f/094：`jg +0xcb` → `mov $0x0,
@@ -85,11 +93,20 @@
         ++itd;
         ++itv;
     }
-    if (m_flag > m_count)
+    // [M4S2 · P222 镜像] ORIG 0x082ff116..0x082ff121 形为
+    //   `cmp %eax,%edx; jg +0x153; mov $0x1,%eax; jmp +0x158; +0x153: mov $0x0,%eax`
+    //   ⇒ then 块 = return 1（fall-through）、else 块 = return 0（越过 jmp 落点）。
+    //   旧译 `if (m_flag > m_count) return false; return true;` 反产
+    //   `jle +0x155; mov $0x0; jmp; +0x155: mov $0x1`（镜像 + 多 1 条 jmp），
+    //   改为 if/else 正条件形后与 ORIG 逐条一致。
+    if (m_flag <= m_count)
+    {
+        return true;
+    }
+    else
     {
         return false;
     }
-    return true;
 }
 
 // [b28d-51] 判词 N（ORIG 0x082fef12，N82/N86 族）：vector 迭代器/临时槽
@@ -114,7 +131,14 @@
             // [L6S2b · P167 调用点判据] p167 在基线 .o 上给出 MISSING
             // `_ZNK9__gnu_cxx17__normal_iteratorIP21DungeonClearCondition...EdeEv`(−1) +
             // EXTRA `...ptEv`(+1) ⇒ ORIG 用 `*it`（deEv），旧译 `it->m_8` 走 ptEv。
-            m_flag += (*it).m_8;
+            // [M4S2 · P183 具名指针物化] ORIG 0x082fef6e..f79 先 `call deEv` 并把
+            //   结果落槽 -0xc，随后 `add %eax,%edx` 双语句形（op0=this->m_flag 先
+            //   加载进 edx、op1=p->m_8 后加载）；旧译单语句 `m_flag += (*it).m_8`
+            //   使 op1 内含 call ⇒ 编译器把 m_flag 提升进 callee-saved %ebx 跨 call
+            //   保活（多 push/pop、帧 0x24+ebx、`lea (%ebx,%eax,1)`）⇒ 具名指针
+            //   两语句形消去该跨 call 保活。
+            DungeonClearCondition* pCond = &*it;
+            m_flag += pCond->m_8;
             m_vec.push_back(0);
             ++it;
         }

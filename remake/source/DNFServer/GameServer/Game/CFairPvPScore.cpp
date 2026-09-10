@@ -148,6 +148,12 @@ bool JobKey::operator<(const JobKey& rhs) const
 // ② 迭代器为 for 外初始化式（begin() 直构 sret，无 C1Ev）；
 // ③ 条目基址 (idx+2)*0x10 每点重发（P183 禁指针缓存，旧版 entry 具名局部多一槽）；
 // ④ it-> 三次 ptEv（084a6764），第三段 `it->second` 整体结构赋值（一次 ptEv）。
+// [L6S5 P211 试形·回滚] 尾部 m_dailyPlayCount 异型 store：改
+//   `*(unsigned int*)&sig->m_dailyPlayCount = m_dailyPlayCount;`（同型别名）产
+//   `add $0x67c,%eax; mov 0x8(%ebp),%edx; mov 0x50(%edx),%edx; mov %edx,(%eax)`（4 条），
+//   与 ORIG 084a57c4 的 4 条（`mov 0x8(%ebp),%eax; mov 0x50(%eax),%edx;
+//   mov -0x10(%ebp),%eax; mov %edx,0x67c(%eax)`）**形态不同**且总数不变（183/184）
+//   ⇒ 回滚（本条属 N7/N4，源码不可控）。
 #include "CFairPvPScore/getData.inc"
 {
     SIG_FAIR_PVP_SCORE* sig = reinterpret_cast<SIG_FAIR_PVP_SCORE*>(pData);
@@ -189,6 +195,10 @@ bool JobKey::operator<(const JobKey& rhs) const
     sig->m_field20 = m_field44;
     sig->m_winStreak = m_winStreak;
     sig->m_bestWinStreak = m_bestWinStreak;
+    // [L6S5 试形·回滚] P211 类型轴：`*(unsigned int*)&sig->m_dailyPlayCount = ...`
+    //   产 4 条（`add $0x67c,%eax; ...; mov %edx,(%eax)`），与 ORIG 084a57c4
+    //   的 4 条（`mov 0x8(%ebp),%eax; mov 0x50(%eax),%edx; mov -0x10(%ebp),%eax;
+    //   mov %edx,0x67c(%eax)`）**形态不同**且总数不变（183/184）⇒ 回滚。
     sig->m_dailyPlayCount = m_dailyPlayCount;
     sig->m_lastPlayTime = m_field54;   // unsigned→int 异型：ORIG 084a57d3 两段中转
     sig->m_giveItem = m_giveItem;
@@ -414,6 +424,19 @@ bool JobKey::operator<(const JobKey& rhs) const
 //   ⑪单 Inven_Item + 单组缓冲复用两封（ORIG 084a51ec 单对象）、字段序
 //     addInfo→find_item→addInfo2→make_item（ORIG 084a52a8/52de）。
 // 残余 N 归因：N82/N95 帧·槽全帧平移（0x50）、N4/P30 寻址折叠、N7 寄存器分配。
+// [L6S5 round] 867 → **857**（ORIG 848/849；gap −19 → **−9**；帧 0x27c → 0x24c，
+//   槽平移 0x38 → 0x08）：
+//   ① P329：两处 `const char* title/msg = findString(...)` 具名中转删掉、表达式就地
+//      内联进 strncpy 实参位（ORIG `call findString; mov %eax,0x4(%esp)` 实证）⇒ −8 条；
+//   ② P183：8 个 `const int bonus*` 各占 4B 具名槽（-0x28..-0x48）⇒ 删名内联 ⇒ −16 条；
+//   ③ 形态复原：total 改回 ORIG 的**逐项 += 累加**（`movl $0x0,-0x24` 起步，序列
+//      2*A0 → (A1+A2) → 3*B0 → (B1+B2) → bonusA×4 → sumB → bonusB×4 →
+//      **2*A0 → 2*B0（尾部两项）**）⇒ +14 条，但块 65 差 −15 → −1、帧再降。
+//      数值逐项核对 = 与旧单表达式**等价**（尾部 2*A0/2*B0 即旧式开头两项的位移），
+//      无语义差。
+//   残余 −9（15 块，幅 ±1~3）：块 0/6 的 N4/P30 常量拆分（我方 `(idx+3)*0x10+4` vs
+//      ORIG `(idx+2)*0x10+0x14`）、块 44-49 EH/析构尾块序（净 −1）、块 68 失败返回
+//      多 `mov $0x0,%esi`（N104 族）、块 18/20/79/93 寄存器角色（N7）。
 // ORIG 0x84a48f8。
 #include "CFairPvPScore/loadData.inc"
 {
@@ -569,24 +592,31 @@ bool JobKey::operator<(const JobKey& rhs) const
     // 上次结算时间早于维护点 → 按累计成绩补发两封结算邮件
     if (m_field54 != 0 && m_field54 <= 0x4ddd89efu)
     {
+        // [L6S5 P183 + 形态复原] ORIG 084a4fxx..084a51xx：total 为**逐项 += 累加**
+        //   （`movl $0x0,-0x24` 起步；每项 `mov -0x24,%eax; lea (%edx,%eax,1),%eax;
+        //   mov %eax,-0x24`）。ORIG 累加序列（行号=块内序）：
+        //   2*A0 → (A1+A2) → 3*B0 → (B1+B2) → bonusSumA50/60 → bonusA15/90
+        //   → sumB → bonusSumB50/60 → bonusB15/90 → **2*A0 → 2*B0（尾部两项）**。
+        //   旧版写成含 8 项的单一表达式（寄存器累加，更省）⇒ 与 ORIG 形态背离且
+        //   无法对齐 -0x24/-0x20 槽（帧差主体）；数值等价（尾部 2*A0/2*B0 即旧式
+        //   开头两项的位移）。8 个 bonus 项不用具名槽（ORIG 直接 `add %eax,-0x24`）。
+        int total = 0;
+        total += m_modeStats[0][0] * 2;
+        total += m_modeStats[0][1] + m_modeStats[0][2];
+        total += m_modeStats[1][0] * 3;
+        total += m_modeStats[1][1] + m_modeStats[1][2];
         const int sumA = m_modeStats[0][0] + m_modeStats[0][1] + m_modeStats[0][2];
-        const int bonusSumA50 = (sumA >= 10 && sumA <= 0x31) ? 10 : 0;
-        const int bonusSumA60 = (sumA > 0x31) ? 60 : 0;
-        const int bonusA15 = (m_modeStats[0][0] >= 10 && m_modeStats[0][0] <= 0x31) ? 15 : 0;
-        const int bonusA90 = (m_modeStats[0][0] > 0x31) ? 90 : 0;
+        total += (sumA >= 10 && sumA <= 0x31) ? 10 : 0;
+        total += (sumA > 0x31) ? 60 : 0;
+        total += (m_modeStats[0][0] >= 10 && m_modeStats[0][0] <= 0x31) ? 15 : 0;
+        total += (m_modeStats[0][0] > 0x31) ? 90 : 0;
         const int sumB = m_modeStats[1][0] + m_modeStats[1][1] + m_modeStats[1][2];
-        const int bonusSumB50 = (sumB >= 10 && sumB <= 0x31) ? 10 : 0;
-        const int bonusSumB60 = (sumB > 0x31) ? 60 : 0;
-        const int bonusB15 = (m_modeStats[1][0] >= 10 && m_modeStats[1][0] <= 0x31) ? 15 : 0;
-        const int bonusB90 = (m_modeStats[1][0] > 0x31) ? 90 : 0;
-
-        const int total = m_modeStats[1][0] * 2 + m_modeStats[0][0] * 2 +
-                          m_modeStats[1][1] +
-                          m_modeStats[1][2] + m_modeStats[1][0] * 3 + m_modeStats[0][1] +
-                          m_modeStats[0][2] +
-                          m_modeStats[0][0] * 2 + bonusSumA50 + bonusSumA60 + bonusA15 +
-                          bonusA90 + bonusSumB50 + bonusSumB60 + bonusB15 +
-                          bonusB90;
+        total += (sumB >= 10 && sumB <= 0x31) ? 10 : 0;
+        total += (sumB > 0x31) ? 60 : 0;
+        total += (m_modeStats[1][0] >= 10 && m_modeStats[1][0] <= 0x31) ? 15 : 0;
+        total += (m_modeStats[1][0] > 0x31) ? 90 : 0;
+        total += m_modeStats[0][0] * 2;
+        total += m_modeStats[1][0] * 2;
 
         // ORIG 084a51ec..084a54cd：单个 Inven_Item + 单组缓冲复用两封；
         // 缓冲为数组零初始化（4.1 内联 rep stos/慢路；旧版 memset 调用多 4 次）；
@@ -602,12 +632,14 @@ bool JobKey::operator<(const JobKey& rhs) const
 
         def->make_item(item);
         {
-            const char* title = g_scriptStringManager_.findString(
-                4, "game_server_msg_171", 0);
-            strncpy(titleBuf, title, 0x14);
-            const char* msg = g_scriptStringManager_.findString(
-                4, "game_server_msg_177", 0);
-            strncpy(msgBuf, msg, 0xff);
+            // [L6S5 P329] ORIG 084a51xx：findString 结果**直接**入 0x4(%esp) 喂
+            //   strncpy（无具名 `title`/`msg` 中转槽）。
+            strncpy(titleBuf,
+                    g_scriptStringManager_.findString(
+                        4, "game_server_msg_171", 0), 0x14);
+            strncpy(msgBuf,
+                    g_scriptStringManager_.findString(
+                        4, "game_server_msg_177", 0), 0xff);
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 titleBuf, item, 0,
                 (unsigned int)pUser->getCurCharacNo(), msgBuf,
@@ -623,12 +655,13 @@ bool JobKey::operator<(const JobKey& rhs) const
 
         def2->make_item(item);
         {
-            const char* title = g_scriptStringManager_.findString(
-                4, "game_server_msg_171", 0);
-            strncpy(titleBuf, title, 0x14);
-            const char* msg = g_scriptStringManager_.findString(
-                4, "game_server_msg_178", 0);
-            strncpy(msgBuf, msg, 0xff);        // [b28d-solo] 旧版漏此调用（p167 MISSING strncpy）
+            // [L6S5 P329] 同上：第二封（178）同样内联。
+            strncpy(titleBuf,
+                    g_scriptStringManager_.findString(
+                        4, "game_server_msg_171", 0), 0x14);
+            strncpy(msgBuf,
+                    g_scriptStringManager_.findString(
+                        4, "game_server_msg_178", 0), 0xff);  // [b28d-solo] 旧版漏此调用（p167 MISSING strncpy）
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 titleBuf, item, 0,
                 (unsigned int)pUser->getCurCharacNo(), msgBuf,

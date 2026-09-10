@@ -362,7 +362,11 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
         return true;
     }
 
-    do
+    // [M2S1] ORIG 0x08647ee1/0x08647ee9：尾条件为 `cmpl $0xc,-0x3c; jg +0x10a`
+    // （直接回跳循环头，无 setcc 物化）+ 入口 `jmp +0x10b` ⇒ 原码是
+    // `for (;;) { ...; if (!(remain > 0xc)) break; }`；旧 do-while/while 形在
+    // 4.4.7 恒产 `setg %al; test %al,%al`（探针 /tmp/m2probe_dw.o g1/g2 vs g3）。
+    for (;;)
     {
         if (m_network.m_recvOffset != 0)
             m_network.m_recvBuf -= m_network.m_recvOffset;
@@ -441,7 +445,10 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
                 }
             }
 
-            const int streamLen = hdr.m_size + 8;
+            // [M2S1] ORIG 0x08647d05 `mov -0x2c(%ebp),%eax; add $0x8,%eax`
+            // = 用前面已解出的 32 位 size 局部（-0x2c），不是重读 16 位 m_size
+            // （旧形多一条 movzwl，P0 槽-局部对应）。
+            const int streamLen = static_cast<int>(size) + 8;
             CStreamGuard guard(true);
             // 每个分支各自 Set（ORIG 3 处 Set 调用点，P48）。
             if (streamLen <= 0xfff)
@@ -469,7 +476,9 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
             m_network.m_recvBuf = m_network.m_recv;
             break;
         }
-    } while (remain > 0xc);
+        if (!(remain > 0xc))
+            break;
+    }
 
     m_network.m_bBufOffsetTrace = 0;
 
@@ -609,6 +618,10 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
 // `mov -0x30(%ebp),%eax; mov %eax,%ebx`（4.1 冗余 regmove 跨 G_CDataManager call
 // 保活）。4.4 恒折单段 `mov -0x30(%ebp),%ebx`，语句表达式 / unsigned cast 两旋钮
 // 实测均无效 ⇒ 按 N18a（反向亦不可造）封顶；调用点差集与语义已对齐。
+// [M2S1] p167 复核 ORIG 0x08692140：19/19 调用数相同，差集仅
+// LevelUpRewardItemTableKey/LevelUpRewardItemData/Inven_Item 的 **C1↔C2**
+// （ORIG 4.1 局部对象 ctor 走 base 版 C2、dtor 走 D2；4.4 恒 C1/D1，同一地址别名，
+// 4.4.7 对 local 对象无 C2 选择旋钮）⇒ 工具层编译版本差，封顶。
 #include "W7_UserOnlyC/GiveEquipItemsReturnUser.inc"
 {
     // P0/P48：ORIG growType/level/growType2/job 均无槽（%ebx/%eax 直传）⇒ 内联实参；

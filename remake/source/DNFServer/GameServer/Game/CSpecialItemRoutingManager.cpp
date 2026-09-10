@@ -31,6 +31,9 @@
 // [b28d-64 判词汇总 · 泳道64] 本 TU 1 件：StartRouting 0x0860a9d4
 //   102/102 N封顶（P251 候补：ORIG `cmp $0x5,%eax; cmp $0xc,%eax` 寄存器直比 +
 //   两 nop 岛 vs 我方具名 state 落槽 -0x14 无岛；语义等价 ⇒ N82/N7）。
+// [M5A_DispLink] 102/104：ORIG 0x0860aa25 `mov %eax,%ebx`（item idx 驻留跨 call）+
+//   0x0860aa36 `mov %eax,-0xc(%ebp); cmpl $0x0,-0xc(%ebp)`（具名 CItem* 槽直比）⇒ 旧形
+//   （具名 dataMgr + 返回值直接 `== 0`）多 2 条（sete 链 + 求值顺序倒置）；改链式调用。
 
 // ORIG 0x0860a9d4 _ZN26CSpecialItemRoutingManager12StartRoutingEP5CUserR10Inven_Itemj
 // get_state∉{5,0xc}→1；GetParty()==0→1；find_item(item idx)==0→1；
@@ -56,8 +59,13 @@
     if (party == 0)
         return 1;
 
-    CDataManager* dataMgr = G_CDataManager();
-    if (dataMgr->find_item(item.m_addInfo) == 0)
+    // ORIG 0x0860aa1d-0x0860aa36：`mov 0x10(%ebp),%eax; mov 0x2(%eax),%eax; mov %eax,%ebx;
+    //   call G_CDataManager; mov %ebx,0x4(%esp); mov %eax,(%esp); call find_item;
+    //   mov %eax,-0xc(%ebp); cmpl $0x0,-0xc(%ebp); jne` ⇒ 源码为链式
+    //   `G_CDataManager()->find_item(item.m_addInfo)`（实参先求值、this 后求值），
+    //   结果落具名 CItem* 槽 -0xc。
+    CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
+    if (pItem == 0)
         return 1;
 
     if (party->IsRoutingState())

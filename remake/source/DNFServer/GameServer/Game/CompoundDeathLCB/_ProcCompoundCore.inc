@@ -1,1 +1,1 @@
-int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
+ENUM_ERROR CCompoundAvatar::_ProcCompoundCore(CUser* user, stCompoundAvatarInfo& info,

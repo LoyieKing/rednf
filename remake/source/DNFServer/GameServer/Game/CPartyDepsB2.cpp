@@ -176,12 +176,21 @@
 // `movzbl 0xb10(%edx,%eax,1); xor $1,%eax; test %al,%al; je`（寄存器物化）⇒
 // 自然形不可达，残差 = N96+N18a 封顶（P168a④ 补充）。
 // 读数：清绑前 our_insns=96；清绑后 our_insns=97 / orig=86（TU 口径前后均 DIFF）。
+// [M1Free76to90 2026-09-11] 落地（DIFF→AE）：把首条 `if(...!=user) continue;` 改写为
+// 「空 then + else 包块」（P223 判据反向应用：4.4 对 `if(c){}else{body}` 恒 jump-thread，
+// 不为 continue 另开落点）。原 `continue` 使 4.4 在 inc 前多发 `nop` 岛（.o 3c5: nop）
+// + body 尾 `jmp 3c6`（跳过该 nop）= +2 条（88 vs ORIG 86）。改后 our 86 = ORIG 86，
+// 结构逐条同形：`jne +0x88(inc)` / `je +0x88` ×2 / body 尾 fall-through。
+// 反例留痕：`if(!call) continue;` 内层形反劣到 91；`goto next_member;` 尾标签仍产 nop 岛（88）。
 #include "CPartyDepsB2/finish_loading.inc"
 {
     for (int i = 0; i <= 3; ++i)                        // -0xc
     {
         if (m_member[i].m_pUser != user)
-            continue;
+        {
+        }
+        else
+        {
         // ORIG 0x85b161b: movzbl 0x37c; test; jne +0x126（nop;leave）——
         // 直落函数出口，是 return 非 continue（continue 应跳 +0x88 addl）。
         if (m_battleData.m_arr50[i] != 0)
@@ -200,6 +209,7 @@
         {
             if (OnStartMapFinishLoading(user))
                 m_battleData.m_arr7e4[i] = 1;
+        }
         }
     }
 
@@ -551,6 +561,12 @@ DONE:
 // 参数：user=放弃者 a2=允许惩罚 a3=按成功结算 a4=强制整队分支。
 // ============================================================================
 // [b28d-30] 复核 DIFF：巨件残差（N82/N89 族），ORIG 0x085b2baa。
+// [M1Free76to90 2026-09-11 复核] ①语义轴已核：`__PRETTY_FUNCTION__` 局部静态符号两侧同
+// 名同 size(0x33)；`enc_kr_scan` 0 命中；p167 仅 C1/C2·D1/D2 同址别名（P93 伪差集）
+// + `+1 memset`（memberNames 清零：已试 `={'\\0'}`/`={0}` 两形，4.4 反劣 697→700，判 N78）。
+// ②槽表实测（ORIG vs 我方）：PacketGuard -0x4c vs -0x68、bool 组 -0x15c/-0x160 vs
+// -0x16c/-0x170（系统性深 0x10~0x1c）⇒ P339 需连类对象块位一起重排，成本高收益不确定，
+// 维持 N82/N89 封顶。697/672，gap −25。
 #include "CPartyDepsB2/giveup_game.inc"
 {
     CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
@@ -670,6 +686,9 @@ AFTER_STATISTICS:
         if (!a3)
             set_charac_live(user, (ENUM_USER_DUNGEON_STATE)0);
 
+        // [M1Free76to90 2026-09-11] p167 EXTRA `+1 memset`：ORIG 此点无 memset call
+        // （其 .text 仅 1 处 rep stos，非本数组）。已试 `={'\\0'}` 与 `={0}` 两形，
+        // 4.4 均反劣 697→700（rep stos 前置 mov 序列 +3）⇒ 维持 memset，判 N78 封顶。
         char memberNames[0x100];                        // -0x14c
         memset(memberNames, 0, sizeof(memberNames));
         _getMemberNames(memberNames);

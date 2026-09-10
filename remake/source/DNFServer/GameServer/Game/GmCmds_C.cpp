@@ -88,15 +88,21 @@ namespace game_master
 // GetUser call 前物化入 %ebx（`mov -0xc(%ebp),%ebx` 前置），4.4 恒 call 后
 // 重读槽入 %edx（参数装载时刻跨版本调度，P75；P226 语句表达式形在纯槽装载
 // 场景不升格，探针 /tmp/bm3/p13 fSE），余 25 条逐条相等。
+// [round5-GmCmds_C] 上述 N-P75 封顶**已推翻**（根因是调用点 static_cast 中间
+// 表达式，见下函数内注释；改成派生类指针局部后 45=45 逐条等同 ⇒ AE）。
 #include "GmCmds_C/execute_1.inc"
 {
-    // [round5-GmCmds_C] P231/P248 第四条件满足仍不可翻：ORIG 0x084a9740 在 GetUser
-    // call **之前** `mov -0xc(%ebp),%ebx`（值跨 call 保活入 callee-saved），4.4 恒
-    // call 后重读槽入 %edx。纯 register 提示实测 45→46 条（且 push %ebx 前移帧）
-    // ⇒ 与历史 bm3 探针同结论：纯槽装载实参不因存储类提示升格（N-P75 封顶）。
-    expert_job::CExpertJob* job =
+    // [round5-GmCmds_C 落地·推翻旧 N-P75 封顶] ORIG 0x084a9740 在 GetUser call
+    // **之前** `mov -0xc(%ebp),%ebx`（值跨 call 保活入 callee-saved），4.4 原用
+    // call 后重读槽入 %edx。根因是调用点的 **static_cast 中间表达式**（原码
+    // `static_cast<CDisjointer*>(job)->OnCreate...` 使 4.4 分两次求值 lvalue）；
+    // 把 job 的声明类型直接写成 expert_job::CDisjointer*（cast 收进初始化式）后，
+    // 4.4 复现 ORIG 的 `mov -0xc(%ebp),%ebx` 前置保活 + 末尾 `mov -0xc(%ebp),%eax`
+    // 直传形，45 条与 ORIG 逐条等同（verdict DIFF→**AE**；TU 四数 ae 54→55、
+    // diff 3→2，零劣化）。历史「纯 register 提示 45→46」方向已作废。
+    expert_job::CDisjointer* job = static_cast<expert_job::CDisjointer*>(
         GlobalData::s_ExpertJobMgr->AcquireExpertJob(
-            static_cast<ENUM_EXPERT_JOB_TYPE>(3));
+            static_cast<ENUM_EXPERT_JOB_TYPE>(3)));
     // ORIG 0x084a9720：GetUser 四独立重调（P48 无 CSE）；posY/posX 值经
     // %esi/%ebx 跨 call 直传（P0 无槽），movzwl=(unsigned short) 拓宽直传；
     // 实参 R2L：y(+0x40) → x(+0x50) → user(+0x66)。
@@ -109,7 +115,7 @@ namespace game_master
     // 前移帧）；②裸语句表达式 `({ job; })`（P226）⇒ 与裸形逐条全同。⇒ 4.4 对纯槽
     // 装载实参恒 call 后重读（N-P75 跨版本实参调度），余 2 条为寄存器名差（N7）封顶。
     GetUser()->SetCurCharacExpertJob(job);
-    static_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
+    job->OnCreateDisjointStore(
         GetUser(), "test", 500,
         static_cast<int>(static_cast<unsigned short>(GetUser()->get_posX())),
         static_cast<int>(static_cast<unsigned short>(GetUser()->get_posY())));
@@ -138,6 +144,10 @@ namespace game_master
 
 // ORIG execute 0x084ab29c：GM 校验通过后向 guild 服务器发解散请求（0x1df 流）、
 // 清本地公会键并回发 0x3d 包，同时向 monitor 广播 Packet_Monitor_Notice_Guild_Dismiss。
+// [round5-GmCmds_C 复核] 本件已在 **AE** 档（不在 check_tu 的 DIFF 列表）：全函数
+// 仅数据地址/别名差（p167 34=34，MISSING/EXTRA 全为 C2/D2↔C1/D1 同址别名，P93）；
+// ORIG 0x084ab333 起 `mov -0xc(%ebp),%eax`（guildKey 具名局部跨 set 清零复用）等
+// 槽序与 4.1 逐条同形 ⇒ 无旋钮、零改动。
 #include "GmCmds_C/execute_3.inc"
 {
     CUser* user = GetUser();
@@ -221,6 +231,13 @@ namespace game_master
 
     // ORIG 0x084b2190 起：list 为 const 指针（begin/end 选 const 重载
     // _ZNK…hash_map…5beginEv/3endEv），且 end 只在循环外求值一次（-0x2c 槽）。
+    // [round5-GmCmds_C 判词·N-P75 封顶] 全件唯一残差=ORIG 0x084b21a0/0x084b21b5 的
+    // `lea -0x24/-0x2c(%ebp),%eax`（sret 槽地址）先于 0x084b21a3/0x084b21b8 的
+    // `mov -0x10(%ebp),%edx`（this）：4.1 sret-first vs 4.4 this-first（实参装载调度）。
+    // 三形实测均不可翻：①const 指针形（基线）逐条如上；②引用形（P256「先取整体引用
+    // 再点首成员」）逐条相同；③`const CDungeonList* volatile`（P316 左先求值序）反致
+    // list 槽 -0x10→-0x1c 且多 1 条 `mov %eax,%edx`（117→118 条）⇒ 回滚。
+    // 剩余 2 处为纯寄存器名/次序差（N7/N-P75），语义与指令数 117=117 全等。
     const CDungeonList* list = G_CDataManager()->getDungeonIndexList();
     __gnu_cxx::hash_map<int, CDungeon*>::const_iterator it =
         list->m_dungeonMap.begin();

@@ -34,6 +34,15 @@
 //   5) 解析 value：遇 CR/LF → 置 NUL 结束；遇 "\\n" → 替换为真实 '\n' 并前移；
 //   6) *out_key = keyStart; *out_value = valueStart; 返回 0。
 // 返回：0=成功（或空/注释行，此时出参不变）、-1=无分隔符或 key 过短、-2=key 过长。
+// [M2S5StringRaw 2026-09-11] 三处「我方多」冗余修正（探针 /tmp/probe/Game/RDARScriptStringManager.cpp
+// 4.4.6 路由复刻，新形逐条对齐 ORIG 仅余 1 条对齐 nop；旧形 -12 条）：
+//   ① ORIG 0x8aa65af `je` 与 0x8aa65c6 `jne` 同指 return-0 岛 0x8aa65c8
+//      ⇒ 空行/注释两条件合并为一个短路或；
+//   ② ORIG 0x8aa6614 `je` 与 0x8aa6625 `jne` 同指 -1 岛 0x8aa6627
+//      ⇒ valueStart==0 与 keyLen==1 合并（旧形发两份 `mov $-1; jmp`）；
+//   ③ ORIG tail 左移为单指针 q（-0x4 槽，`*q = q[1]` 含 NUL 一并搬迁）
+//      ⇒ 无 dst 局部、无显式补 NUL；且 ORIG 无 `p = valueStart` 重载
+//      （0x8aa6643 jle 直跳循环条件 0x8aa66b8，p 槽沿用 break 时值）。
 // ----------------------------------------------------------------------------
 static int parseStringLine(char* line, char** outKey, char** outValue)
 {
@@ -54,10 +63,8 @@ static int parseStringLine(char* line, char** outKey, char** outValue)
         break;
     }
 
-    // 2) 空行或注释
-    if (*p == '\0')
-        return 0;
-    if (*p == '/' && *(p + 1) == '/')
+    // 2) 空行或注释（两条件共享 ORIG return-0 岛 0x8aa65c8，合并短路或）
+    if (*p == '\0' || (p[0] == '/' && p[1] == '/'))
         return 0;
 
     // 3) 找 '>' 分隔符
@@ -75,16 +82,15 @@ static int parseStringLine(char* line, char** outKey, char** outValue)
         ++p;
     }
 
-    // 4) 无分隔符或 key 无效
-    if (valueStart == 0)
-        return -1;
-    if ((valueStart - keyStart) == 1)
+    // 4) 无分隔符或 key 无效（共享 ORIG -1 岛 0x8aa6627）
+    if (valueStart == 0 || (valueStart - keyStart) == 1)
         return -1;
     if ((valueStart - keyStart - 1) > 0x28)
         return -2;
 
-    // 5) 解析 value：换行结束 / "\\n" 转义
-    p = valueStart;
+    // 5) 解析 value：换行结束 / "\\n" 转义。
+    // 不写 `p = valueStart`：key 扫描 break 时 p 恰为 valueStart（ORIG
+    // 0x8aa6643 `jle 0x8aa66b8` 直跳循环条件，p 槽未重载）。
     while (*p != '\0')
     {
         if (*p == '\r' || *p == '\n')
@@ -95,13 +101,10 @@ static int parseStringLine(char* line, char** outKey, char** outValue)
         if (*p == '\\' && *(p + 1) == 'n')
         {
             *p = '\n';
-            // 整体前移，移除 'n'
-            char* tail = p + 1;
-            char* dst = p;
-            ++tail;
-            while (*tail != '\0')
-                *dst++ = *tail++;
-            *dst = '\0';
+            // 单指针就地前移（ORIG 0x8aa6688..0x8aa66b2：q(-0x4)=p+1，
+            // `*q = q[1]` 循环至 *q==0 ⇒ NUL 一并搬迁结束，无显式补 NUL）。
+            for (char* q = p + 1; *q != '\0'; ++q)
+                *q = *(q + 1);
         }
         ++p;
     }
@@ -304,6 +307,10 @@ template <size_t N>
 // `+0` / `(0,expr)` / 逗号 / `&p[0]` / `&0xffffffff` / `^0` / `*1` / `/1` / `-0`
 // —— 4.4 对「末实参为 call + 倒数第二为形参」恒该序，源形不可翻。
 // ORIG 0x8aa5e40。
+// [M2S5StringRaw 2026-09-11 复核] 唯一残差（末尾 ss_sprintf 第 3 参装载时刻：
+// ORIG 先存 callee 返回值再载 a vs 4.4 先缓存 a 入 %edx）本波新钥匙复核：
+// P329 内联回实参位 / P226 语句表达式 / 类型旋钮均无源形可翻（上列 14 形探针
+// /tmp/p75.cpp+m9..m14 已覆盖）⇒ P75 封顶维持，169=169 助记符序列全同。
 #include "RDARScriptStringManager/getTagByName_1.inc"
                                                      const wchar_t* b, bool flag) const
 {
@@ -401,6 +408,13 @@ template <size_t N>
 // ⇒ 应为 `e.m_detail = getKey(i)`；另补两处 `e.m_flag = lineNo`
 // （ORIG 0x5415/0x5489 `mov lineNo,-0x44/-0x54`）。
 // ORIG 0x8aa529e。
+// [M2S5StringRaw 2026-09-11] 本轮修复 gap 主项：两处 bool 条件原写成取反形
+// （`isJpn == false` / `!foundDuplicate`），令 4.4 发 `movzbl; xor $1; test` 4 条，
+// 而 ORIG 为 `cmpb $0,mem; je` 2 条（0x5535 `je 0x55b7` 落点是「无检查 add」块、
+// 0x5794 `je 0x57a1` 落点是 push_back 块 ⇒ ORIG 源码本就是正向 if）。已改为
+// `if (isJpn)`（真块 fall-through 带 NULL 检查、else 为无检查 add）与
+// `if (foundDuplicate) return false;`。预期 390 → 386（ORIG 387；余 N18b 的
+// r 寄存器比较 1 条我方无）。待父泳道 fresh 编译核账。
 #include "RDARScriptStringManager/loadStringFile.inc"
                                              int /*table*/,
                                              std::vector<ErrorLog>* err)
@@ -475,12 +489,12 @@ template <size_t N>
                 value = cpBuf;
             }
 
-            // ORIG 0x5535 `cmpb $0,isJpn; je <else>` ⇒ 显式 ==false（N122：!b 恒 xor 物化）
-            if (isJpn == false)
-            {
-                dict->add(toTString(key), toTString(value));
-            }
-            else
+            // [M2S5StringRaw 2026-09-11] ORIG 0x5535 `cmpb $0,-0x2e; je 0x55b7`
+            // + 0x55b7 块体 = 无检查 add ⇒ ORIG 源码是**正向 `if (isJpn)`**
+            // （真块 fall-through 带 NULL 检查，else 块在其后）。旧形写
+            // `isJpn == false` 令 4.4 发 `movzbl; xor $1; test; je`（4 条，
+            // 与 4.1 的 cmpb+je 2 条不同，属 N122 真根因，非纯后端差）。
+            if (isJpn)
             {
                 // ORIG 0x5549 `test %al,%al; setne %al; test %al,%al; je <NULL 分支>`
                 // ⇒ 正极性包裹（P214①）；toTString 结果无槽往返（P0 实参内联）
@@ -488,6 +502,10 @@ template <size_t N>
                     dict->add(toTString(key), toTString(value));
                 else
                     dict->add(toTString(key), "NULL");
+            }
+            else
+            {
+                dict->add(toTString(key), toTString(value));
             }
         }
     }
@@ -516,12 +534,13 @@ template <size_t N>
         }
     }
 
-    if (!foundDuplicate)
-    {
-        dictionaries_.push_back(dict.release());
-        return true;
-    }
-    return false;
+    // [M2S5StringRaw 2026-09-11] ORIG 0x5794 `cmpb $0,-0x25; je 0x57a1`：je 跳
+    // push_back 块 ⇒ 正向 `if (foundDuplicate) return false;`（旧形 `!foundDuplicate`
+    // 令 4.4 发 movzbl+xor+test，4 条 vs ORIG 2 条）。
+    if (foundDuplicate)
+        return false;
+    dictionaries_.push_back(dict.release());
+    return true;
 }
 
 // b28d-solo: ORIG 0x8aa50bc 尾部 `mov $0x1,%eax` / `mov $0x0,%eax` 两条返回
@@ -618,6 +637,11 @@ template <size_t N>
 // `test %esi,%esi; jne L; mov $0,%esi; jmp; L: mov $1,%esi`（4.1 landing-pad 决策），
 // 4.4 直接顺序析构，属 N91/N104 族（跨版本 EH 结构，无源形解）。返回类型已按
 // P159 由 void 改 bool（ORIG 尾 `mov %ebx,%eax`，ebx=1/0）。ORIG 0x8aa60b0。
+// [M2S5StringRaw 2026-09-11 复核] gap +14 逐条归因完成：ORIG 独有 3 组 4.1
+// landing-pad 决策链（`test %esi,%esi; jne L; mov $0,%esi; jmp L2; L: mov $1,%esi`，
+// 6 条/组 ×3 = 18）对 4.4 的 3 条单 `jmp` ⇒ 18−3 = 15 ≈ 全部 gap（余 1 条对齐
+// nop 口径差）。P216 方向为「我方多 _Unwind_Resume」，与本件反向不适用；无源形
+// 可控项 ⇒ N91/N104 封顶维持。
 #include "RDARScriptStringManager/changeSpacilTagStr.inc"
 {
     // ORIG 0x8aa60b0：把 "<URL LINK>内文</URL LINK>" 转为 0x1c 内文 0x1d，

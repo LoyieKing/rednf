@@ -1,4 +1,6 @@
-unsigned int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
+// [M8BigTURest/M8DPB 2026-09-11 签名轴] ORIG .rodata 直证
+// `int DisPatcher_SelectCharac::check_error(CUser*, MSG_BASE&)`（原写 unsigned int）。
+int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
 
 {
     if (user->get_state() != 2)

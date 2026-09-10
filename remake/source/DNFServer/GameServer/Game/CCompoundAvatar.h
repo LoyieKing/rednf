@@ -118,6 +118,12 @@ struct tagCompoundAvatarTable
 static_assert(sizeof(tagCompoundAvatarTable) == 0xc,
               "tagCompoundAvatarTable size drift");
 
+// [M1Free76to90 2026-09-11 · M1S2 申报] ORIG prett 串（0x08c2c540，`objdump -s` 实字节）
+// 第三参数拼写作 `stCompoundAvatarTable*`，而 mangled 仍为真名 `...P22tagCompoundAvatarTable`
+// ⇒ 原码在 prett 拼写处以 typedef 名书写（typedef 不入 mangling）。补齐后方能逐字节复现
+// `_ZZ...__PRETTY_FUNCTION__`（size 0x8a）。
+typedef tagCompoundAvatarTable stCompoundAvatarTable;
+
 // ORIG T 0x08903ea7（另有 Core 变体 T 0x089031d2）：声明先行，定义待脚本导入域批次。
 int importCompoundAvatarTable(const char* dir, const char* path,
                               tagCompoundAvatarTable* table);
@@ -187,6 +193,13 @@ public:
     // mov %ebx,%eax` ⇒ 返回 1（P159 判据；返回类型不入 mangled，零 ABI 影响）。
     int _SendResult(CUser* user, const tagCompoundInfo& info);
 
+    // [M1Free76to90 2026-09-11 · M1S2 申报] ORIG prett 串直证（0x08c2c540 size 0x8a）：
+    // `ENUM_ERROR WongWork::CCompoundAvatar::_ProcCompoundCore(CUser*,
+    //  WongWork::CCompoundAvatar::stCompoundAvatarInfo&, stCompoundAvatarTable*)`
+    // ⇒ 类内 typedef（GCC prett 展开按声明拼写的 typedef 名、嵌套类型全限定）+ 返回类型
+    // ENUM_ERROR。返回类型与 typedef 均不入 mangled ⇒ 符号/sizeof/偏移零影响。
+    typedef tagCompoundInfo stCompoundAvatarInfo;
+
     // ---- ProcCompound 直接依赖（声明先行；定义归后续批次）----
     tagCompoundInfo _MakeCompoundInfo(const CUser* user,
                                       const MSG_COMPOUND_AVATAR* msg) const;  // T 0x08331efe
@@ -195,8 +208,8 @@ public:
     // （定义 CompoundDeathLCB.cpp）：snprintf(buf,0x14,"C%02d%02d%02d%02d%010d",
     //   G_CEnvironment()+0x1b0,(year+1900)%2000,mon+1,mday,characNo)。
     char* _generateIPGNo(const CUser* user, long curSec, char* buf) const;
-    int _ProcCompoundCore(CUser* user, tagCompoundInfo& info,
-                          tagCompoundAvatarTable* table);                     // T 0x08332ee8
+    ENUM_ERROR _ProcCompoundCore(CUser* user, stCompoundAvatarInfo& info,
+                                 stCompoundAvatarTable* table);              // T 0x08332ee8
     void _SendDisjointAvatarStatistic(tagCompoundInfo& info);                 // T 0x08333ecc
 
     // ---- 布局（ORIG ctor 汇编实证）----

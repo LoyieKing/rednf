@@ -428,6 +428,15 @@
 // ============================================================================
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N111 封顶（ORIG 0x08161384 无条件 jmp 后
 // 0x5a..0x263 发邮件主体为无入口死块，4.4 恒 DCE；可达 tail 已逐条对齐，p167 3 MISSING 全在死块）
+// [M2S6 2026-09-11 复核] ①ORIG 0x08161389 处 1 字节 0x00 使 objdump 顺序解码错位 ⇒ 报告
+// orig_insns=166 含 13 条假指令（真实 158；被覆盖段实为 0x0816138a..a2 的
+// lea/mov/call vector-pair-ctor + 两 movl）⇒ 工具口径 gap 恒含 +8 假差。
+// ②恒 0 volatile bool 守卫实现 our=162 = 真实+4（movb 初始化 1 + movzbl/test/je 3）；
+// 探针 /tmp/m2s6_probe3.o 三形实测：`if (A && 0)` 4.4 整体折叠连体删（f）、volatile 局部
+// （f3，=现状 9 条）、`if (A && msg==0)` 复用已验非空事实（f，7 条）——均无 ORIG 的
+// 「test; jmp + 保留体」单跳转形（4.1 -O0 发射不可达体、4.4 需 2 分支守卫）⇒ N111 维持。
+// ③p167 余项全为 C1/C2·D1/D2 别名族（ORIG nm 同址：Inven_ItemC1≡C2@0x080cb854、
+// vector<pair>D1≡D2@0x081349ea、pair C1≡C2@0x081627d4），非语义缺口。
 #include "TaiwanInternalDispatcher/dispatch_sig_1.inc"
 {
     Msg* msg = reinterpret_cast<Msg*>(buf);
@@ -570,6 +579,9 @@ struct SigLoadServiceRestrictPolicy
 // ReqDBSendNewSystemMail(…, 0xe, group, false, false) 发系统邮件，返回 0。
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N7+N18a 反向封顶（虚调 make_item 目标 %eax vs
 // ORIG %edx；kRewardItem_ 装载单段 vs ORIG 两段；p167 16/16 CLEAR、gap 0）
+// [M2S6 2026-09-11 复核] p167 余项 = C1/C2 别名族（ORIG Inven_ItemC1≡C2@0x080cb854、
+// cMyTraceC1≡C2@0x0854f718）⇒ 非缺口；kRewardItem_ 装载经探针 /tmp/m2s6_probe2.o 证 4.4 对
+// 静态成员地址恒单段直达 callee-saved（4.1 走 %eax 中转两段），N18a 维持；语义逐条核 ✓。
 #include "TaiwanInternalDispatcher/dispatch_sig_3.inc"
 {
     char* msg = buf;
@@ -608,6 +620,8 @@ struct SigLoadServiceRestrictPolicy
 // 同 InterCheckStayTimeEvent 模式：event 0xa5、道具 EventGiveMeBox::kRewardItem_、
 // 脚本串 tw_givemebox2_title/tw_givemebox2_mail；buf==0 → 日志(0x1dc) 返回 0x1dd。
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N7+N18a 反向封顶（同 StayTime 形因；p167 16/16 CLEAR）
+// [M2S6 2026-09-11 复核] 同 StayTime：p167 余项 = C1/C2 别名族（非缺口）；装载形 N18a 维持
+// （探针 /tmp/m2s6_probe2.o）；语义（event 0xa5 / tw_givemebox2_* / 行号 0x1dc·0x1e6 / 返回 0x1dd）逐条核 ✓。
 #include "TaiwanInternalDispatcher/dispatch_sig_4.inc"
 {
     char* msg = buf;

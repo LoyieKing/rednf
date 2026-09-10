@@ -110,14 +110,16 @@ InGameEventInfo& InGameEventInfo::operator=(const InGameEventInfo& o)
 // end→find，指令序整体错位；③先声明后赋值引入 ORIG 不存在的
 // _Rb_tree_iterator::C1Ev（nm 实证）⇒ 槽方向与调用序不可同时满足，封顶。
 // p167 CLEAR（6/6），语义闭合。
+// [L6S5 P326 推翻 N93] 旧判词前提是「end 具名（endIt）」——ORIG 实为 it 具名 +
+//   end() 右值临时**内联进 operator!= 实参位**。去掉第二个具名迭代器后：
+//   find 目标槽 -0x10 / end 临时槽 -0xc、调用序 find→end 与 ORIG 逐条全等
+//   ⇒ 已 **IDENTICAL**（TU 读数 near 2→1、identical+ae 363→364）。
 #include "CEventScriptMng/getEventScript.inc"
                                                            const std::string& name)
 {
     std::map<std::string, InGameEventScript*>::iterator it =
         m_scripts.find(name);
-    std::map<std::string, InGameEventScript*>::iterator endIt =
-        m_scripts.end();
-    if (it != endIt)
+    if (it != m_scripts.end())
         return it->second;
 
     return insertEventScript(name, importInGameEventScript(id, name));
@@ -288,6 +290,11 @@ namespace EventClassify
 // 后端也未复现 ORIG 的寄存器角色（N7 族，源码无解；446 路由本身是该族最优
 // 后端，保留不改）。p167 CLEAR（239 口径逐函数：6=6，仅 D1/D2 同址别名），
 // 语义闭合。
+// [L6S5 复核] 读数不变（65/65 NEAR；p167 6=6，仅 C2/D2 同址别名）。本波新钥匙
+//   逐条评估（未落地者附理由）：P231 裸 register ✗（ORIG 该实体**有**具名槽
+//   -0xc，加 register 会去槽）；P248 类型三档 ✗（已按 ORIG：bitset<32> 按值 =
+//   单 dword 0x14(%ebp)、user 0x10(%ebp)）；P226 语句表达式 ✗（必然引入 ORIG
+//   不存在的临时槽 ⇒ 结构性劣化）；P326 ✗（本函数无迭代器对）。⇒ 维持 N7。
 #include "CEventScriptMng/process_account_first_login.inc"
     int key, CUser* user, std::bitset<32u> flags)
 {

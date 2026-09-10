@@ -318,6 +318,10 @@
         it++;   // [b28d-solo-DispLinkA1 P28] ORIG 调 operator++(int)（sret -0x1c）
     }
     // [b28d-solo-DispLinkA1 P196/P218] ORIG 为负条件（setne/jne）。
+    // [M1S3EmblemLink 2026-09-11 负结论] 操作数交换（size() != count）实测无效：
+    //   ORIG 0x08218b3c 形为 `mov -0x18(%ebp),%ebx; …; call size; cmp %eax,%ebx`
+    //   （102 条），4.4 两序均产 `call size; cmp -0x18(%ebp),%eax`（101 条）⇒
+    //   N18b 编译器比较装载序，非操作数序可解。回滚。
     if (count != (int)results.size())
         return;
     packet.m_count = count;
@@ -392,6 +396,10 @@
         // [b28d-solo-DispLinkA1 P231] ORIG 无 dj 栈槽（`mov 0x1c(%eax),%esi`
         // 单段落 callee-saved）⇒ 纯 register 存储类提示（非 asm 绑定，P0 合规）。
         register DisJoint* const dj = G_CDataManager()->m_disJoint;
+        // [M1S3EmblemLink 2026-09-11 负结论] 表视图基址改写试过
+        //   `(int*)dj + 1` + 索引 +0x34/+0x110，实测 190 不变（ORIG 0x082187d3
+        //   `add $0x34,%eax; mov 0x4(%esi,%eax,4),%eax` 单条 folded disp，
+        //   4.4 恒 `add $0x35; shl $2; lea (%ebx,%eax,1); mov (%eax)`）⇒ 回滚。
         materialIdx = reinterpret_cast<int*>(dj)
             [pItem->get_grade() * 5 + (int)job * 0x14 + jewelTypeIndex + 0x35];
     }

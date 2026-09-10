@@ -23,10 +23,20 @@ int DisPatcher_RepairEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param
     if (out.m_errNo == 0)
     {
         out.m_8 = req.m_0d;                    // movzbl 0xd(%eax) -> mov %dl,0x8
-        // [G5-DisPatcherCore] 尝试去掉 (unsigned short) cast：ORIG `movzwl 0xe(%eax),%edx`
-        // 单步 vs 我方 `movzwl …,%eax; mov %eax,%edx` 两段；实测两种写法产物全同
-        // ⇒ 属 N18a（单段 regmove 4.4 恒折/反向不可造），维持原 cast 形并封顶。
-        out.m_a = (unsigned short)req.m_0e;    // movzwl 0xe(%eax) -> mov %dx,0xa（原位型回显）
+        // [DPCB 实验 2026-09-11] 同型视图轴（M5 CheckHaveHellPartyPassItem 同族直证）：
+        // 源字段 `short m_0e` 与目标 `unsigned short m_a` **异型**时 4.4 为值转换插一个
+        // 中间临时（`movzwl …,%eax; mov %eax,%edx`），ORIG 0x081c60xx 为单步
+        // `movzwl 0xe(%eax),%edx`。改用 pack(1) 同址视图把源读成 unsigned short（同型
+        // ⇒ 无转换临时），位型/偏移不变。
+        #pragma pack(push, 1)
+        struct RepairEquipReqView {
+            char m_head[0xe];
+            unsigned short m_0e;   // +0x0e 原位型
+        };
+        #pragma pack(pop)
+        // 取址走 `req`（ORIG 用其槽 -0x20），非形参 `msg`（0x10(%ebp)）：
+        // ORIG `mov -0x20(%ebp),%eax; movzwl 0xe(%eax),%edx`。
+        out.m_a = reinterpret_cast<const RepairEquipReqView*>(&req)->m_0e;
     }
     return 0;
 }
