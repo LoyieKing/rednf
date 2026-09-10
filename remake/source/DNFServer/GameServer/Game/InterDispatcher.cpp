@@ -540,16 +540,12 @@ bool InterDispatcher::dispatch(int code, int userId, char* data, int len)
         if (user != 0)
         {
             user->DisConnSig((DISCONN_SIG)2, true, result + 0xf4240);
-            cMyTrace trace(
-                __PRETTY_FUNCTION__, 0x632, 0);
-            trace("discon interdispatcher return false: %d line(%d)(m_id: %s)",
+            cMyTrace(__PRETTY_FUNCTION__, 0x632, 0)("discon interdispatcher return false: %d line(%d)(m_id: %s)",
                   code, result, NumberToString(user->get_acc_id(), 0));
         }
         else
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__, 0x636, 0);
-            trace("discon interdispatcher return false: %d line(%d)(m_id: 0)",
+            cMyTrace(__PRETTY_FUNCTION__, 0x636, 0)("discon interdispatcher return false: %d line(%d)(m_id: 0)",
                   code, result);
         }
     }
@@ -564,6 +560,10 @@ Inter_Disconnect::~Inter_Disconnect() {}
 // 报告 docs/class_func_reports/Inter_Disconnect/dispatch_sig.md 全文转写。
 // [b28d-lane2] verdict=DIFF ndiff=176（ORIG 0x084beb3c）：寄存器中转(N18a/N7)+混合残差；gap-4。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=52（ORIG 0x84beb3c）：N18a 单段 regmove+N82/P112 帧槽平移。
+// [lane2 2026-09-10] verdict=DIFF→AE：真 bug 修复 —— ① private_store vtable 槽错位（旧 `->Enter(user)`
+//   走槽+1=0x85caa8a；ORIG 084beb3c 段内为槽+0=`CPrivateStoreMgr::Exit` 0x85ca994，nm T 直证）改 `->Exit(user)`；
+//   ② SendMemberPayTax 后两实参（is_connect_upper_member/getCurCharacNo）由具名局部改内联实参
+//   （ORIG %esi/%ebx 跨 GetServerGroup/GetServerProxy 保活，P52/P200）；③ assaultMgr 去具名局部。
 int Inter_Disconnect::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -598,21 +598,22 @@ int Inter_Disconnect::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         const int payMoney = user->get_member_pay_tex_money_to_upper();
         const int payFatigue = user->get_member_pay_tex_fatigue_to_upper();
-        const unsigned int characNo = user->getCurCharacNo();
-        const bool isUpper = user->is_connect_upper_member() != 0;
-        CMonitorServerProxy* proxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                user->GetServerGroup());
-        proxy->SendMemberPayTax(isUpper, characNo, payMoney, payFatigue);
+        // ORIG 084bf3xx：characNo→%ebx / isUpper→%esi 跨 GetServerGroup/GetServerProxy
+        //   保活（无栈槽）⇒ 后两实参内联到调用点（P52/P200）；receiver 链不设具名局部。
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->SendMemberPayTax(user->is_connect_upper_member() != 0,
+                               user->getCurCharacNo(), payMoney, payFatigue);
         if (0 < payMoney)
             user->set_member_pay_tex_money_to_upper(0);
         if (0 < payFatigue)
             user->set_member_pay_tex_fatigue_to_upper(0);
     }
 
-    private_store::GetInstancePrivateStoreMgr()->Enter(user);   // ORIG CPrivateStoreMgr vtable 槽+0（IUserPos::Enter 0x85caa8a）
-    pvp_assault::CAssaultMgr* assaultMgr = pvp_assault::GetInstanceAssaultMgr();
-    assaultMgr->OnLeaveAssaultPlace(user, true);
+    // 真 bug 修正（P193/NM 实证）：ORIG 084bf4xx 调用 vtable 槽+0 = CPrivateStoreMgr::Exit
+    //   （ORIG 0x85ca994 nm T `_ZN13private_store16CPrivateStoreMgr4ExitEP5CUser`）；
+    //   旧写 Enter 走槽+1（0x85caa8a）多一条 `add $0x4,%edx`。
+    private_store::GetInstancePrivateStoreMgr()->Exit(user);
+    pvp_assault::GetInstanceAssaultMgr()->OnLeaveAssaultPlace(user, true);
     GlobalData::s_ExpertJobMgr->OnLeaveUser(user);              // expert_job::CExpertJobMgr（ORIG T 0x0849e214）
     GlobalData::s_onlinePreliminaryTeamMgr->OnLeaveUser(user);  // online_preliminary（ORIG T 0x08588ae8）
 
@@ -645,12 +646,19 @@ struct Inter_SessionClosePktView
 
 // [b28d-lane2] verdict=DIFF ndiff=59（ORIG 0x084c7af0）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+3。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=51（ORIG 0x84c7af0）：P264 .o 重定位/立即数。
+// [lane2 2026-09-10] verdict=DIFF→AE（identical=135/ae=1348→1352）：三处源形修复 ——
+//   ① accId 去具名（P0/P48 两处各自重读 pPkt->m_0）；② P59 guard 极性（if(target==0)return 0;
+//   + 块内 return 0）复现 ORIG `jne <then>`+`mov $0,%ebx;jmp <共享尾>`；③ P227 全表达式临时链。
 int Inter_SessionClose::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SessionClosePktView* pPkt = reinterpret_cast<Inter_SessionClosePktView*>(data);
-    const unsigned int accId = pPkt->m_0;
-    CUser* target = G_CGameManager()->GetUserByAccId(accId);
-    if (target != 0)
+    // §P0/P48：ORIG 084c7b01 `mov (%eax),%ebx` 直传（accId 无栈槽），084c7b98 第二处
+    //   独立重读 pPkt->m_0 ⇒ 不设具名 accId，两处各写表达式。
+    CUser* target = G_CGameManager()->GetUserByAccId(pPkt->m_0);
+    // P59 guard 极性：ORIG 084c7b1b `jne <if 体>` + 084c7b1d `mov $0,%ebx; jmp <共享尾>`
+    //   ⇒ 写 `if (target == 0) return 0;`（fail 块直落 jcc），then 体（guard 块）后置。
+    if (target == 0)
+        return 0;
     {
         PacketGuard packet;
         packet.put_header(1, 1);
@@ -658,12 +666,14 @@ int Inter_SessionClose::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         packet.put_byte(0x12);
         packet.finalize(true);
         target->Send(packet);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x2004, 0);
-        trace("강제 종료요청 ACCID: %s", NumberToString(accId, 0));
+        // P227：ORIG 084c7bad NumberToString 结果留 %ebx 跨 ctor（084c7bcd）⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x2004, 0)(
+            "강제 종료요청 ACCID: %s", NumberToString(pPkt->m_0, 0));
         target->DisConnSig((DISCONN_SIG)0xf, true, 0);
+        // 块内 return：ORIG 084c7c0c `mov $0x0,%ebx` + dtor 后 `jmp <共享尾>`
+        //   （探针 /tmp/probe_eh3.cpp f12 命中同形）。
+        return 0;
     }
-    return 0;
 }
 
 #include "W6_HackPunishDeps.h"     // WongWork::CAutoPunishRuleBlackIPMgr::isBlackIP
@@ -759,8 +769,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.put_byte(6);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace trace(g_interLoginInfoSig, 0x1b0a, 0);
-            trace("pInfo->err_code == SIG_LOGIN_DATA::E_CANTFIND");
+            cMyTrace(g_interLoginInfoSig, 0x1b0a, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_CANTFIND");
             user->DisConnSig(DISCONN_SIG(0xb), true, 0);
             return 0;
         }
@@ -780,8 +789,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.put_byte(pInfo->m_loginErrDetail);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace trace(g_interLoginInfoSig, 0x1b67, 0);
-            trace("pInfo->err_code == SIG_LOGIN_DATA::PUNISH_REASON");
+            cMyTrace(g_interLoginInfoSig, 0x1b67, 0)("pInfo->err_code == SIG_LOGIN_DATA::PUNISH_REASON");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -792,8 +800,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.put_int(pInfo->m_punishInfos[pInfo->m_punishInfoCount].m_endTime);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace trace(g_interLoginInfoSig, 0x1b77, 0);
-            trace("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH");
+            cMyTrace(g_interLoginInfoSig, 0x1b77, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -804,8 +811,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.put_byte(pInfo->m_passPadFailCnt);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace trace(g_interLoginInfoSig, 0x1ba0, 0);
-            trace("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE");
+            cMyTrace(g_interLoginInfoSig, 0x1ba0, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -815,8 +821,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.put_byte(0x49);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace trace(g_interLoginInfoSig, 0x1baa, 0);
-            trace("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE_DENY");
+            cMyTrace(g_interLoginInfoSig, 0x1baa, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE_DENY");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -826,8 +831,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.put_byte(0xa6);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace trace(g_interLoginInfoSig, 0x1bb4, 0);
-            trace("pInfo->err_code == SIG_LOGIN_DATA::E_PASSPAD_WRONG_VERSION");
+            cMyTrace(g_interLoginInfoSig, 0x1bb4, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_PASSPAD_WRONG_VERSION");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -848,15 +852,13 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.put_byte(1);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace trace(g_interLoginInfoSig, 0x1bf2, 0);
-            trace("[Inter_LoginInfo::dispatch_sig] Abnormal LoginError: "
+            cMyTrace(g_interLoginInfoSig, 0x1bf2, 0)("[Inter_LoginInfo::dispatch_sig] Abnormal LoginError: "
                   "SIG_LOGIN_DATA::ERROR_OK(%d)", pInfo->m_errCode);
             user->DisConnSig(DISCONN_SIG(0xe), true, 0);
             return 0;
         }
 
-        cMyTrace loginTrace(g_interLoginInfoSig, 0x1bf6, 0);
-        loginTrace("[USER LOGIN] DB ID : %s (UID: %d)(SlotIDX: %d)(IncreID: %d)"
+        cMyTrace(g_interLoginInfoSig, 0x1bf6, 0)("[USER LOGIN] DB ID : %s (UID: %d)(SlotIDX: %d)(IncreID: %d)"
                    "(SocketID: %d)\n",
                    NumberToString(pInfo->m_accId, 0),
                    user->GetUID(), user->GetSlotIDX(), user->GetIncreID(),
@@ -1142,8 +1144,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
                 DB_PassPadUpdateFailCnt::makeRequest(user->get_acc_id(),
                                               static_cast<unsigned int>(user->getPad()->getFailCnt()),
                                               const_cast<char*>(user->getWebAddress()));
-                cMyTrace resetTrace(g_interLoginInfoSig, 0x1df5, 0);
-                resetTrace("GOBLIN PAD RESET OK!!!");
+                cMyTrace(g_interLoginInfoSig, 0x1df5, 0)("GOBLIN PAD RESET OK!!!");
             }
             user->getPad()->setPassword(pInfo->m_passPadPassword);
             // ORIG:每次使用重新调用 getHades()。
@@ -1166,8 +1167,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             pInfo->m_onlinePrelimServerGroup));
         user->setOnlinePreliminaryPlayType(pInfo->m_onlinePrelimPlayType);
         {
-            cMyTrace opTrace(g_interLoginInfoSig, 0x1e33, 0);
-            opTrace("OnlinePreliminary m_id(%s), play_type(%d)",
+            cMyTrace(g_interLoginInfoSig, 0x1e33, 0)("OnlinePreliminary m_id(%s), play_type(%d)",
                     NumberToString(pInfo->m_accId, 0),
                     pInfo->m_onlinePrelimPlayType);
         }
@@ -1668,14 +1668,18 @@ int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     user->DeleteCharac(pPkt->m_4);
     packet.put_byte(1);
-    if (pPkt->m_eventCharacFlag == 0)
-    {
-        packet.put_byte(0);
-    }
-    else
+    // 块序：ORIG 084bfa67 `test %al; je <else 块>` + then（setFlag+put_byte(1)）直落
+    //   ⇒ 正极性 `if (flag != 0) {then} else {else}`（P59/P214① 反写）。
+    // [lane2 2026-09-10] 原 `if (flag == 0) {…} else {…}` 产 4.4 反向块序
+    //   （jne <then> + else 直落）；极性反写后 jcc 目标下标与 ORIG 逐位一致。
+    if (pPkt->m_eventCharacFlag != 0)
     {
         user->setUserEventCharacterFlag(0);
         packet.put_byte(1);
+    }
+    else
+    {
+        packet.put_byte(0);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -1725,6 +1729,9 @@ struct Inter_LoadCharacPktView
 // 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
 // [b28d-lane2] verdict=DIFF ndiff=578（ORIG 0x084c3398）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-16。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=394（ORIG 0x84c3398）：N22 cmp 操作数方向+P226 具名 bool/char 落槽+N101 imul/lea 折叠。
+// [lane2 2026-09-10] 真 bug 修复：`*(unsigned char*)(&user->m_characList[slotIdx]) = pPkt->m_68a;`
+//   （写偏移 0）→ `user->m_characList[slotIdx].m_field14b7`（CUser.h:719 权威成员 +0x14b7；
+//   ORIG 084c364e `mov %dl,0x14b7(%eax)` 单条 disp 直证）。
 int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadCharacPktView* pPkt = reinterpret_cast<Inter_LoadCharacPktView*>(data);
@@ -1773,10 +1780,9 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
             !user->setTagCharacInfo(tagIdx, tagCharacNo,
                                     reinterpret_cast<TAG_CHARAC_DATA*>(data + 0x68b)))
             return 0x141f;
-        // +0x14b7 strikerSkillIndex（_Charac_info 无此具名成员，沿 CUserOnlyOrig.cpp:5180 先例）
-        *(unsigned char*)(&user->m_characList[slotIdx]) =
-            pPkt->m_68a;
-        // 修正：写实际目标地址 +0x14b7
+        // +0x14b7 strikerSkillIndex（_Charac_info::m_field14b7，CUser.h:719 权威成员；
+        //   ORIG 084c364e `mov %dl,0x14b7(%eax)` 单条 disp 直证）。
+        user->m_characList[slotIdx].m_field14b7 = pPkt->m_68a;
     }
     user->SelectCharac(slotIdx, tagIdx);
 
@@ -1784,9 +1790,7 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     user->decideLinkCharacSlotIndexes((char)slotIdx, characCount);
     if (!user->checkCharacLinkType((char)slotIdx, user->get_charac_count()))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x1430, 5);
-        trace("LINK_LOG : ABNOMAL LINK CHARAC!! m_id (%s), slot_index(%d)",
+        cMyTrace(__PRETTY_FUNCTION__, 0x1430, 5)("LINK_LOG : ABNOMAL LINK CHARAC!! m_id (%s), slot_index(%d)",
               NumberToString((unsigned int)user->get_acc_id(), 0), slotIdx);
         return 0x1431;
     }
@@ -1823,9 +1827,7 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (!G_GameWorld()->InsertUserToIDMap(data + 0x10,
                                           (unsigned int)user->get_acc_id()))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x1464, 5);
-        trace("Insert into IDMap Failed %s [%s]",
+        cMyTrace(__PRETTY_FUNCTION__, 0x1464, 5)("Insert into IDMap Failed %s [%s]",
               data + 0x10,
               NumberToString((unsigned int)user->get_acc_id(), 0));
     }
@@ -1919,10 +1921,8 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
             if (days > 0)
             {
                 user->DecreasePowerWarPoint((short)((short)perDayPoint * (short)days));
-                cMyTrace trace(
-                    __PRETTY_FUNCTION__,
-                    0x14e4, 0);
-                trace("POWERWAR POINT DECREASE : user:%d, last_play_tme:%d, "
+                cMyTrace(__PRETTY_FUNCTION__,
+                    0x14e4, 0)("POWERWAR POINT DECREASE : user:%d, last_play_tme:%d, "
                       "current_time:%d, Unconnected Days:%d, Per Day Point : %d, "
                       "Decrease powerwar point:%d",
                       *reinterpret_cast<const int*>(
@@ -2723,13 +2723,14 @@ Inter_MonitorLoginOK::~Inter_MonitorLoginOK() {}
 // G_TimerQueue()->InsertTimer(0,GetUID,0x8c,60,get_unique_id,0xffffffff)。
 // [b28d-lane2] verdict=DIFF ndiff=15（ORIG 0x08274bc5）：混合残差；gap+1。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=17（ORIG 0x8274bc5）：P30/N4 add-vs-lea。
-void _NS_NonClient_Request(CUser* user)
 // [b28c-L23 N(块序/jump threading) 残余 16 行] 唯一结构差 = PacketGuard 正常出口
 // 块的位置：ORIG @0x08274c... 在 `call InsertTimer` 之后发 `jmp <统一尾>`，把
 // `~PacketGuard / add $0x30 / pop×3 / ret` 留在**异常清理块之后**（4.1 为 EH
 // landing pad 生成共享尾），4.4 因正常路径唯一而就地展开析构、把 EH 块推到函数尾
 // ⇒ 同指令同序、块位置互换（68/69 条数差 1 源于 4.1 的额外 jmp）。压参序、
-// rand/put_header/put_int/Send/InsertTimer 调用体逐条对齐。
+// [复原] 该块序可用「guard 包进内层作用域块 + 块为函数体末语句」复现（/tmp/probe_eh.cpp
+//   f4 探针：4.4 -O0 对 `{ G g; … }` 块尾同样发 `jmp L; <unwind>; L: ~G + epilogue`）。
+void _NS_NonClient_Request(CUser* user)
 {
     const int randInt = rand();
     PacketGuard packet;
@@ -2741,6 +2742,9 @@ void _NS_NonClient_Request(CUser* user)
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, (int)user->GetUID(),
                                 (TIMER_MESSAGE)0x8c, 60,
                                 (unsigned short)user->get_unique_id(), 0xffffffff);
+    // [实测 2026-09-10] ORIG 的 `jmp <共享尾>`（同指令同序、仅块位互换）在本函数未能用
+    // 裸 return / 块+return / goto 尾标签复现（探针 f6/f9 在小函数命中、本函数恒就地展开）
+    // ⇒ 维持 N104 记法，待后续与同类件统一复算。
 }
 
 // ORIG T DB_LoadDnfHackLog::makeRequest(int,uint) @0x084224ce（本 TU 唯一 owner；
@@ -2810,17 +2814,13 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (G_GameWorld()->GetChannelType() == 8 &&
         characNoMsg == 0 && channelNoMsg == 0)
     {   // 战场频道异常空载追踪
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x2075, 0);
-        trace("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
+        cMyTrace(__PRETTY_FUNCTION__, 0x2075, 0)("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
               NumberToString(pPkt->m_e, 0),
               (int)characNoMsg, (int)channelNoMsg);
         return 0x2076;
     }
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__, 0x207a, 0);
-    trace("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
+    cMyTrace(__PRETTY_FUNCTION__, 0x207a, 0)("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
           NumberToString(pPkt->m_e, 0),
           (int)characNoMsg, (int)channelNoMsg);
 
@@ -2836,9 +2836,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->Send(packet);
         user->DisConnSig((DISCONN_SIG)0xc, true, 0);
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__, 0x2088, 0);
-            trace("info.err_code == SIG_LOGIN_DATA::ERROR_ALREADY");
+            cMyTrace(__PRETTY_FUNCTION__, 0x2088, 0)("info.err_code == SIG_LOGIN_DATA::ERROR_ALREADY");
         }
         return 0;
     case '\x03':                                       // 封停账号断开
@@ -2848,18 +2846,14 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->Send(packet);
         user->DisConnSig((DISCONN_SIG)0x15, true, 0);
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__, 0x2095, 0);
-            trace("info.err_code == SIG_LOGIN_DATA::ERROR_ALREADY");
+            cMyTrace(__PRETTY_FUNCTION__, 0x2095, 0)("info.err_code == SIG_LOGIN_DATA::ERROR_ALREADY");
         }
         return 0;
     case '\x01':                                       // 正常登录分支
         break;
     default:
-        cMyTrace unknown(
-            __PRETTY_FUNCTION__,
-            0x2209, 5);
-        unknown("[%s][%d]",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x2209, 5)("[%s][%d]",
                 __PRETTY_FUNCTION__,
                 0x2209);
         return 0x220d;
@@ -2927,10 +2921,8 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         (void)clientIp;
         if (antibotRet < 0)
         {
-            cMyTrace t(
-                __PRETTY_FUNCTION__,
-                0x211b, 0);
-            t("AddClient ProcessSequence : %d, qq_id : %s, ClientVersion : %d, return : %d",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x211b, 0)("AddClient ProcessSequence : %d, qq_id : %s, ClientVersion : %d, return : %d",
               G_CEnvironment()->getProcessSequence(),   // P48 独立求值
               NumberToString((unsigned int)user->get_acc_id(), 0),
               user->getClientVersion(), antibotRet);
@@ -2946,10 +2938,8 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
                    user->getClientVersion());
         if (p2pRet == -1)
         {
-            cMyTrace t(
-                __PRETTY_FUNCTION__,
-                0x212c, 0);
-            t("P2PAddClient ProcessSequence : %d, qq_id : %s, ClientVersion : %d, return : -1",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x212c, 0)("P2PAddClient ProcessSequence : %d, qq_id : %s, ClientVersion : %d, return : -1",
               G_CEnvironment()->getProcessSequence(),   // P48 独立求值
               NumberToString((unsigned int)user->get_acc_id(), 0),
               user->getClientVersion(), p2pRet);
@@ -3071,12 +3061,16 @@ struct Inter_MonitorUserGetoutPktView
 
 // [b28d-lane2] verdict=DIFF ndiff=51（ORIG 0x084c8b0c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+2。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=44（ORIG 0x84c8b0c）：混合残差（寄存器分配/槽序：N7/N18a/N82/P112）。
+// [lane2 2026-09-10] verdict=DIFF→AE：与 Inter_SessionClose 同三形（P0 去 accId/P59 guard 极性/P227 临时链）。
 int Inter_MonitorUserGetout::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorUserGetoutPktView* pPkt = reinterpret_cast<Inter_MonitorUserGetoutPktView*>(data);
-    const unsigned int accId = pPkt->m_a;
-    CUser* target = G_CGameManager()->GetUserByAccId(accId);
-    if (target != 0)
+    // §P0/P48：ORIG 084c8b1d `mov 0xa(%eax),%ebx` 直传（无 accId 槽）、084c8bd8 第二处
+    //   独立重读 pPkt->m_a ⇒ 两处各写表达式，不设具名局部。
+    CUser* target = G_CGameManager()->GetUserByAccId(pPkt->m_a);
+    // P59 guard 极性：ORIG 084c8b38 `jne <if 体>` + 084c8b3a `mov $0,%ebx; jmp <共享尾>`。
+    if (target == 0)
+        return 0;
     {
         PacketGuard packet;
         packet.put_header(1, 1);
@@ -3085,11 +3079,11 @@ int Inter_MonitorUserGetout::dispatch_sig(CUser* /*user*/, char* data, int /*len
         packet.finalize(true);
         target->Send(packet);
         target->DisConnSig((DISCONN_SIG)0xf, true, 0);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x226c, 0);
-        trace("강제 종료요청 ACCID: %d", accId);
+        // P227：ORIG 084c8bdb m_a 重读后留 %ebx 跨 ctor（084c8bfc）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x226c, 0)(
+            "강제 종료요청 ACCID: %d", pPkt->m_a);
+        return 0;
     }
-    return 0;
 }
 
 Inter_WebNoticeIngameAdvertisement::~Inter_WebNoticeIngameAdvertisement() {}
@@ -3134,10 +3128,8 @@ int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, i
         InGameADManagerInstance()->InsertADExposeInfo(
             cond[count]);
     }
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x2290, 0);
-    trace("In Game Advertisement condition Reload OK, count(%d)", count);
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x2290, 0)("In Game Advertisement condition Reload OK, count(%d)", count);
     return 0;
 }
 
@@ -3482,10 +3474,8 @@ int Inter_MonitorEventItemUpdate::dispatch_sig(CUser* /*user*/, char* data, int 
     register unsigned int v0e = pPkt->m_e;
     register unsigned int v12 = pPkt->m_12;
     register char* mid = NumberToString(pPkt->m_a, 0);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x2bff, 0);
-    trace("[%s][%d],이벤트 유저 DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: %d]\n",
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x2bff, 0)("[%s][%d],이벤트 유저 DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: %d]\n",
           __PRETTY_FUNCTION__,
           0x2bff,
           mid,
@@ -3539,17 +3529,13 @@ int Inter_MonitorServerEventStart::dispatch_sig(CUser* /*user*/, char* data, int
                                     (int)pPkt->m_10,
                                     (int)pPkt->m_e,
                                     (unsigned int)pPkt->m_a);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x2c48, 0);
-        trace("X-Mas Event Start");
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x2c48, 0)("X-Mas Event Start");
     }
     else
     {
-        cMyTrace unknown(
-            __PRETTY_FUNCTION__,
-            0x2c4b, 5);
-        unknown("Unknown ServerEvent (%d)", pPkt->m_a);
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x2c4b, 5)("Unknown ServerEvent (%d)", pPkt->m_a);
     }
     return 0;
 }
@@ -3733,10 +3719,8 @@ int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, in
         return 0;
     }
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x244f, 0);
-    trace("[GUILD MARK CHANGE] Send to client. (channel:%d, character:%u, guildkey:%u)",
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x244f, 0)("[GUILD MARK CHANGE] Send to client. (channel:%d, character:%u, guildkey:%u)",
           pPkt->m_a,
           pPkt->m_e,
           pPkt->m_12);
@@ -3784,10 +3768,8 @@ int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /
         return 0;
     }
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x242d, 0);
-    trace("Guild Create Right Init! Char id : %d, Master Id : %d",
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x242d, 0)("Guild Create Right Init! Char id : %d, Master Id : %d",
           user->get_charac_no(-1),
           reinterpret_cast<STGuildDBInfoPacketView*>(user->GetGuildDBInfo())->m_masterNo);
 
@@ -4885,8 +4867,9 @@ int Inter_GuildNoticeGuildMessage::dispatch_sig(CUser* user, char* data, int /*l
     // ORIG +0x2f 一步 `mov 0xe(%eax),%ebx` ⇒ register 局部（普通局部会先落 -0xc 再比较）。
     register int charIdMsg =                           // recv charId @ msg+0xe
         pPkt->m_e;
-    // ORIG `cmp %eax,%ebx`（ebx=charIdMsg 为 dst）⇒ register 变量作左操作数、
-    // 且不套 cast（cast 会让 gcc 把 call 结果当左操作数）。
+    // ORIG `cmp %eax,%ebx`（ebx=charIdMsg 为 dst、%eax=call 结果为 src）。
+    // [实测 2026-09-10] 4.4 对 `charIdMsg != call()` 恒产 `cmp %ebx,%eax`；交换书写序为
+    //   `call() != charIdMsg` 亦不变（N22 族）；保留 register 局部形。
     if (charIdMsg != user->get_charac_no(-1))
         return 0;
 
@@ -5955,9 +5938,7 @@ int Inter_TriggerEventEnd::dispatch_sig(CUser* /*user*/, char* data, int /*len*/
     Inter_TriggerEventEndPktView* pPkt = reinterpret_cast<Inter_TriggerEventEndPktView*>(data);
     // ORIG 0x084ce656：字段读入 %ebx 跨 cMyTrace ctor 缓存（block-scope register）。
     register unsigned int evCode = pPkt->m_a;
-    cMyTrace trace(
-        __PRETTY_FUNCTION__, 0x2a96, 0);
-    trace("Inter_TriggerEventEnd::dispatch_sig\tevent code(%d), parameter(%d)",
+    cMyTrace(__PRETTY_FUNCTION__, 0x2a96, 0)("Inter_TriggerEventEnd::dispatch_sig\tevent code(%d), parameter(%d)",
           evCode);
     if (GlobalData::s_event_manager != 0)
     {
@@ -5994,10 +5975,8 @@ int Inter_MailBox_Req_List::dispatch_sig(CUser* user, char* data, int /*len*/)
     // 少 2 行失真，取直读形）。
     if (recv->m_mailLoadCount != mailBox->getMailLoadCount())
     {   // 重复装载追踪
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x2ca9, 5);
-        trace("Postal loaded twice. %s(%d)(%d->%d)",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x2ca9, 5)("Postal loaded twice. %s(%d)(%d->%d)",
               NumberToString(user->get_acc_id(), 0),
               user->getCurCharacNo(),
               mailBox->getMailLoadCount(),
@@ -6382,10 +6361,8 @@ int Inter_LastMsgResponse::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*l
     register unsigned int responseCnt =
         GetInstanceShutdowManager()->GetLastMsgResponseCount();
     register unsigned int msgCnt = GetInstanceShutdowManager()->GetLastMsgCount();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x2eb2, 0);
-    trace("last msg (%d) response(%d)\n", msgCnt, responseCnt);
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x2eb2, 0)("last msg (%d) response(%d)\n", msgCnt, responseCnt);
     // ORIG +0x7e 第 4 次 call 结果复用 %ebx，+0x8d cmp %eax,%ebx; setle %al; test; je（bool 物化）
     if ((int)GetInstanceShutdowManager()->GetLastMsgCount() <=
         (int)GetInstanceShutdowManager()->GetLastMsgResponseCount())
@@ -6556,9 +6533,7 @@ struct Inter_MonitorForbidChatPktView
 int Inter_MonitorForbidChat::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorForbidChatPktView* pPkt = reinterpret_cast<Inter_MonitorForbidChatPktView*>(data);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__, 0x2e96, 0);
-    trace("Inter_MonitorForbidChat::dispatch_sig recv\n");
+    cMyTrace(__PRETTY_FUNCTION__, 0x2e96, 0)("Inter_MonitorForbidChat::dispatch_sig recv\n");
 
     const size_t nameLen = pPkt->m_e;
     char name[30];                                              // ORIG call memset 清零
@@ -6570,9 +6545,7 @@ int Inter_MonitorForbidChat::dispatch_sig(CUser* /*user*/, char* data, int /*len
         G_GameWorld()->InsertUserToIDMap(name, 0);
         const int secs = pPkt->m_a;
         G_GameWorld()->DisableChat(name, secs);
-        cMyTrace done(
-            __PRETTY_FUNCTION__, 0x2ea2, 0);
-        done("Inter_MonitorForbidChat::dispatch_sig %s for %d secs\n", name, secs);
+        cMyTrace(__PRETTY_FUNCTION__, 0x2ea2, 0)("Inter_MonitorForbidChat::dispatch_sig %s for %d secs\n", name, secs);
     }
     return 0;
 }
@@ -8110,25 +8083,39 @@ Inter_MonitorDeathTowerRanking::~Inter_MonitorDeathTowerRanking() {}
 // ORIG 0x084d3290 T dispatch_sig —— 死亡之塔排行登记。
 // 报告 docs/class_func_reports/Inter_MonitorDeathTowerRanking/dispatch_sig.md 全文转写。
 // [b28d-lane2] verdict=DIFF ndiff=59（ORIG 0x084d3290）：槽序/帧差(N82/P212/P221)+混合残差；gap+12。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=78（ORIG 0x84d3290）：N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=78（ORIG 0x84d3290）：N82/P112 帧槽平移+P30/N4 add-vs-lex。
+// [lane2 2026-09-10] 裸偏移指针算术 → 视图数组成员（`pPkt->m_ranks[i*4+j+4]`）复现
+//   ORIG 084d32c3 `add $0x4,%edx; mov 0x2(%eax,%edx,4)`；补包基址具名局部（ORIG -0x24）。
+//   残余 = 索引计算寄存器分配/label 顺序（gap -6，N18a/LRA 族）。
+#pragma pack(push, 1)
+// Inter_MonitorDeathTowerRankingPktView —— 排行表（ORIG 084d32c3 `add $0x4,%edx;
+//   mov 0x2(%eax,%edx,4)` ⇒ base=msg、数组元素 @+0x02、索引 (i*4+j+4) 单条 scaled）。
+struct Inter_MonitorDeathTowerRankingPktView
+{
+    char m_pad0[0x2];
+    unsigned int m_ranks[20];
+};
+#pragma pack(pop)
+
 int Inter_MonitorDeathTowerRanking::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // ORIG 084d3331/084d3320：循环界 `cmp $0x4/%eax; setbe` ⇒ 原码 unsigned `<=` 形。
     // ORIG 084d32c6/084d32e0：条件与 registRanking 第 3 实参各自重物化取值（value 无槽，
     //   留 %edi 跨 getCurCharacNo call）⇒ §P0 内联，不设具名 value。
+    // ORIG 084d3299 `mov 0x10(%ebp),%eax; mov %eax,-0x24` ⇒ 包基址具名局部。
+    Inter_MonitorDeathTowerRankingPktView* pPkt =
+        reinterpret_cast<Inter_MonitorDeathTowerRankingPktView*>(data);
     for (unsigned int i = 0; i <= 4; ++i)
     {
         for (unsigned int j = 0; j <= 3; ++j)
         {
-            if (*reinterpret_cast<unsigned int*>(
-                    data + 2 + (i * 4 + j + 4) * 4) != 0)
+            if (pPkt->m_ranks[i * 4 + j + 4] != 0)
             {
                 static_cast<WongWork::CDeathTowerRanking*>(
                     WongWork::CDeathTowerRanking::getRankTable(j + 1))
                     ->registRanking(
                         i, user->getCurCharacNo(),
-                        *reinterpret_cast<unsigned int*>(
-                            data + 2 + (i * 4 + j + 4) * 4));
+                        pPkt->m_ranks[i * 4 + j + 4]);
             }
         }
     }
@@ -8756,10 +8743,8 @@ int Inter_AutoPunishRuleBlackIP::dispatch_sig(CUser* /*user*/, char* data, int /
 
     const unsigned short totalCount =                 // msg+0x0
         (unsigned short)pPkt->m_0;
-    cMyTrace startTrace(
-        __PRETTY_FUNCTION__,
-        0x3561, 0);
-    startTrace("Black IP Load Start (TotalCount: %d)", (int)totalCount);
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x3561, 0)("Black IP Load Start (TotalCount: %d)", (int)totalCount);
 
     for (unsigned int i = 0; i < totalCount; ++i)     // cmp; seta
     {
@@ -8787,18 +8772,14 @@ int Inter_AutoPunishRuleBlackIP::dispatch_sig(CUser* /*user*/, char* data, int /
         }
         const unsigned char maxIp =
             *reinterpret_cast<unsigned char*>(data + i * 8 + 9);
-        cMyTrace loadTrace(
-            __PRETTY_FUNCTION__,
-            0x356e, 0);
-        loadTrace("Black IP Load (StartIP:%s -> %d)", ipStr, (int)maxIp);
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x356e, 0)("Black IP Load (StartIP:%s -> %d)", ipStr, (int)maxIp);
     }
 
     const int finalCount =
         GlobalData::g_autoPunishRuleBlackIPMgr->getBlackIPCount();
-    cMyTrace endTrace(
-        __PRETTY_FUNCTION__,
-        0x3570, 0);
-    endTrace("Black IP Load End (TotalCount: %d)", finalCount);
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x3570, 0)("Black IP Load End (TotalCount: %d)", finalCount);
     return 0;
 }
 
@@ -8870,10 +8851,8 @@ int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int 
             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_16);
     }
 
-    cMyTrace end(
-        __PRETTY_FUNCTION__,
-        0x3599, 0);
-    end("HackType Load End");
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x3599, 0)("HackType Load End");
     return 0;
 }
 
@@ -9314,10 +9293,8 @@ Inter_LoadCleanPadPointReq::~Inter_LoadCleanPadPointReq() {}
 int Inter_LoadCleanPadPointReq::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
     DB_LoadCleanPadPoint::makeRequest();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x371d, 0);
-    trace("Get CleanPad point Request");
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x371d, 0)("Get CleanPad point Request");
     return 0;
 }
 
@@ -9417,10 +9394,8 @@ int Inter_AuctionResultAskPrice::dispatch_sig(CUser* user, char* data, int /*len
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x377c, 0);
-            trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskPrice",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x377c, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskPrice",
                   user->getCurCharacNo());
             break;
         }
@@ -9528,10 +9503,8 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                "virtual int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser*, char*, int)",
-                0x37a3, 0);
-            trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskRegistedItemNum",
+            cMyTrace("virtual int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser*, char*, int)",
+                0x37a3, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskRegistedItemNum",
                   user->getCurCharacNo());
             break;
         }
@@ -9917,10 +9890,8 @@ int Inter_AuctionResultRegist::dispatch_sig(CUser* user, char* data, int /*len*/
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3ab4, 0);
-            trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultRegist",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3ab4, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultRegist",
                   user->getCurCharacNo());
             break;
         }
@@ -9987,10 +9958,8 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
         {
             if (g_auctionResultGmList[i] == static_cast<int>(user->getCurCharacNo()))
             {
-                cMyTrace trace(
-                    __PRETTY_FUNCTION__,
-                    0x3c12, 0);
-                trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultBidding",
+                cMyTrace(__PRETTY_FUNCTION__,
+                    0x3c12, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultBidding",
                       static_cast<int>(user->getCurCharacNo()));
                 break;
             }
@@ -10186,10 +10155,8 @@ int Inter_AuctionResultRegistCancel::dispatch_sig(CUser* user, char* data, int /
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3c88, 0);
-            trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultRegistCancel",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3c88, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultRegistCancel",
                   user->getCurCharacNo());
             break;
         }
@@ -10231,10 +10198,8 @@ int Inter_AuctionResultItemList::dispatch_sig(CUser* user, char* data, int len)
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3cab, 0);
-            trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultItemList",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3cab, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultItemList",
                   user->getCurCharacNo());
             break;
         }
@@ -10271,10 +10236,8 @@ int Inter_AuctionResultMyRegistedItems::dispatch_sig(CUser* user, char* data, in
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3ced, 0);
-            trace("Trace Auction Delay, %s(%d)",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3ced, 0)("Trace Auction Delay, %s(%d)",
                   "ACK AuctionResultMyRegistedItems", user->getCurCharacNo());
             break;
         }
@@ -10311,10 +10274,8 @@ int Inter_AuctionResultMyBidding::dispatch_sig(CUser* user, char* data, int len)
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3d31, 0);
-            trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultMyBidding",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3d31, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultMyBidding",
                   user->getCurCharacNo());
             break;
         }
@@ -10382,10 +10343,8 @@ int Inter_AuctionNotifyAuctionService::dispatch_sig(CUser* /*user*/, char* data,
     else
         serverName = "Point";
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x3dea, 0);
-    trace("%s server %s! SEND SIG_AUCTION_NOTIFY_AUCTION_SERVICE TO ALL USERS",
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x3dea, 0)("%s server %s! SEND SIG_AUCTION_NOTIFY_AUCTION_SERVICE TO ALL USERS",
           serverName, state);
     return 0;
 }
@@ -10444,10 +10403,8 @@ int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int 
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3e12, 0);
-            trace("Trace Auction Delay, %s(%d)",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3e12, 0)("Trace Auction Delay, %s(%d)",
                   "ACK AuctionResultBuyItemApiece",
                   user->getCurCharacNo());
             break;
@@ -10792,9 +10749,7 @@ Inter_BlackIPMonitorReq::~Inter_BlackIPMonitorReq() {}
 int Inter_BlackIPMonitorReq::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
     DB_BlackIPMonitor::makeRequest();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__, 0x3f28, 0);
-    trace("Get BlackIPMonitor Request");
+    cMyTrace(__PRETTY_FUNCTION__, 0x3f28, 0)("Get BlackIPMonitor Request");
     return 0;
 }
 
@@ -10870,10 +10825,8 @@ Inter_BlackIPMonitorPartLoadReq::~Inter_BlackIPMonitorPartLoadReq() {}
 int Inter_BlackIPMonitorPartLoadReq::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
     DB_BlackIPMonitorPartLoad::makeRequest();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x3f63, 0);
-    trace("Get BlackIPMonitor Request Part Load");
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x3f63, 0)("Get BlackIPMonitor Request Part Load");
     return 0;
 }
 
@@ -10962,10 +10915,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         if (pPkt->m_0 != 0)        // sig+0x0 characNo
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3f8f, 0);
-            trace("ONE_DAY_LETHE : INTER_USE_LETHE, char(%s)",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3f8f, 0)("ONE_DAY_LETHE : INTER_USE_LETHE, char(%s)",
                   user->getCurCharacName());
 
             if (pPkt->m_19e == -1 ||
@@ -11019,10 +10970,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         if (pPkt->m_0 != 0)
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x3fbd, 0);
-            trace("ONE_DAY_LETHE : INTER_CONFIRM_SKILL_STATE, char(%s)",
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x3fbd, 0)("ONE_DAY_LETHE : INTER_CONFIRM_SKILL_STATE, char(%s)",
                   user->getCurCharacName());
 
             WongWork::CHandlePremium::handleRemoveOneDayLethePremium(user);
@@ -11443,10 +11392,8 @@ int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/
     }
     else
     {
-        cMyTrace unknown(
-            __PRETTY_FUNCTION__,
-            0x42a6, 0);
-        unknown("SERVER_MESSAGE : NOT EXIST SHARE TYPE");
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x42a6, 0)("SERVER_MESSAGE : NOT EXIST SHARE TYPE");
     }
     return 0;
 }
@@ -11508,10 +11455,8 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
                 const_cast<char*>(data + 0x47),
                 pPkt->m_5b);
         }
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x42be, 0);
-        trace("SERVER_MESSAGE : Recv ServerMessage from monitor server(source_channel:%d, kind:%d, index:%d, msg_len:%d, msg:%s, name_len:%d, name:%s, time:%d",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x42be, 0)("SERVER_MESSAGE : Recv ServerMessage from monitor server(source_channel:%d, kind:%d, index:%d, msg_len:%d, msg:%s, name_len:%d, name:%s, time:%d",
               (unsigned int)pPkt->m_a,
               (unsigned int)pPkt->m_b,
               (unsigned int)pPkt->m_c,
@@ -11829,48 +11774,42 @@ struct Inter_MonitorPunishUserReqPktView
     char m_pad0[0xa];  // +0x0..未消费
     signed char m_a;                // +0x0a
     unsigned short m_b;             // +0x0b
+    unsigned int m_accIds[1];       // +0x0d（ORIG 084db31c `mov 0xd(%eax,%edx,4)` scaled 直证）
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=81（ORIG 0x084db294）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+7。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=111（ORIG 0x84db294）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [lane2 2026-09-10] verdict=DIFF→AE：① m_accIds[1] 视图数组（ORIG 084db31c `mov 0xd(%eax,%edx,4)` scaled）；
+//   ② P227 两处 cMyTrace 全表达式临时链；③ P191 双初始化（ORIG 084db303/084db30a 两条 count 清零）；
+//   ④ P223 空 then 占位岛（ORIG 084db323 `jbe <nop>`）用负条件 goto 复现。
 int Inter_MonitorPunishUserReq::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorPunishUserReqPktView* pPkt = reinterpret_cast<Inter_MonitorPunishUserReqPktView*>(data);
-    char* recv = data;                                 // -0x14(%ebp) 缓存消息指针
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x43bc, 0);
-    // §P0：ORIG 084db2a5/084db3ea 两次独立重读 m_b、084db2af/084db2f7 两次独立重读 m_a
-    //   （值留 %esi/%ebx 无槽）⇒ 不设具名 userCount/flag 缓存。
-    trace("Monitor Punish User / m_flag = %d / user_count", (int)pPkt->m_a,
-          (unsigned int)pPkt->m_b);
+    // P227：ORIG 084db2a5/084db2af 在 ctor 前求出 m_b→%esi / m_a→%ebx 并跨 ctor 保活
+    //   ⇒ 全表达式临时链（禁具名 trace 局部 + 二次语句；值不进栈槽）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x43bc, 0)(
+        "Monitor Punish User / m_flag = %d / user_count", (int)pPkt->m_a,
+        (unsigned int)pPkt->m_b);
 
     if (pPkt->m_a == 0)
     {
         int i = 0;
-        while (i < (int)pPkt->m_b)                     // cmp/setg 带符号
+        for (i = 0; i < (int)pPkt->m_b; i = i + 1)     // P191 双初始化：ORIG 084db303/084db30a 两条清零
         {
-            // §P0：ORIG 084db31c/084db32f/084db352/084db393 四处各自重读 accId（无槽）。
-            if (*reinterpret_cast<unsigned int*>(recv + 0xd + i * 4) > 0x63)
+            // P223：ORIG 084db323 `jbe <nop 岛>` ⇒ 空 then 占位岛用负条件 goto 复现。
+            if (pPkt->m_accIds[i] <= 0x63)
+                goto next_acc;
+            if (G_CGameManager()->isConnectUserByAccId(pPkt->m_accIds[i]) != '\0')
             {
-                if (G_CGameManager()->isConnectUserByAccId(
-                        *reinterpret_cast<unsigned int*>(recv + 0xd + i * 4)) != '\0')
-                {
-                    CUser* target = G_CGameManager()->GetUserByAccId(
-                        *reinterpret_cast<unsigned int*>(recv + 0xd + i * 4));
-                    target->DisConnSig((DISCONN_SIG)0x2c, true, 0);
-                    // ORIG：NumberToString 先求值再构造 cMyTrace
-                    char* str = NumberToString(
-                        *reinterpret_cast<unsigned int*>(recv + 0xd + i * 4), 0);
-                    cMyTrace kick(
-                        __PRETTY_FUNCTION__,
-                        0x43d4, 0);
-                    kick("System Kick User : %s", str);
-                }
+                CUser* target = G_CGameManager()->GetUserByAccId(pPkt->m_accIds[i]);
+                target->DisConnSig((DISCONN_SIG)0x2c, true, 0);
+                // P227：ORIG 084db3a7 把 NumberToString 结果留 %ebx 跨 ctor ⇒ 临时链内联。
+                cMyTrace(__PRETTY_FUNCTION__, 0x43d4, 0)(
+                    "System Kick User : %s", NumberToString(pPkt->m_accIds[i], 0));
             }
-            i = i + 1;                                 // addl $0x1,mem 形态
+        next_acc:;
         }
     }
     return 0;
@@ -12112,10 +12051,8 @@ int Inter_ItemLimitEdition_Sell_End::dispatch_sig(CUser* /*user*/, char* data, i
         const unsigned int ipg =
             *reinterpret_cast<unsigned int*>(recv + 0x12 + i * 4);
         G_CDataManager()->getItemLimitEditionMgr()->removeItem(ipg);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x465a, 0);
-        trace("ipg: %d", ipg);
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x465a, 0)("ipg: %d", ipg);
         packet.put_int(*reinterpret_cast<int*>(recv + 0x12 + i * 4));
         i = i + 1;                                     // addl $0x1,mem 形态
     }
@@ -12584,10 +12521,8 @@ Inter_ReloadPowerWarRanker::~Inter_ReloadPowerWarRanker() {}
 // 报告 docs/class_func_reports/Inter_ReloadPowerWarRanker/dispatch_sig.md 全文转写。
 int Inter_ReloadPowerWarRanker::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x482b, 0);
-    trace("Receive Packet_Request_Reload_Power_War_Ranker");
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x482b, 0)("Receive Packet_Request_Reload_Power_War_Ranker");
     GlobalData::s_power_manager->ClearMVPInfo();
     GlobalData::s_power_manager->LoadRankerInfo();
     return 0;
@@ -12721,10 +12656,8 @@ int Inter_Set_CleanPad_Point::dispatch_sig(CUser* user, char* data, int /*len*/)
     const unsigned short point = user->m_mcap.getPoint();
     const unsigned short msgPoint =
         pPkt->m_e;
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x4886, 0);
-    trace("CLEANPAD_POINT_CONTROL / m_id : %s , Point : %d (getPorint : %d)",
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x4886, 0)("CLEANPAD_POINT_CONTROL / m_id : %s , Point : %d (getPorint : %d)",
           NumberToString(user->get_acc_id(), 0),
           (unsigned int)msgPoint, (unsigned int)point);
     return 0;
@@ -13335,10 +13268,8 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
     CItem* ci = dm->find_item(pPkt->m_17);
     if (ci == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x4a6e, 0);
-        trace("ERROR OCCURRED! GUILD CARGO POP ITEM - fail find item(%d), User(%d)",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x4a6e, 0)("ERROR OCCURRED! GUILD CARGO POP ITEM - fail find item(%d), User(%d)",
               pPkt->m_17, user->getCurCharacNo());
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfc, 0xc5);
         return 0;
@@ -14066,10 +13997,8 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
             user->SetVillageAttackedReward(true);
             _send_reward_item(user, (unsigned long)rewardData.itemIndex,
                               rewardData.itemCount, rewardData.winPoint);
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x4d7b, 0);
-            trace("VillageAttacked Reward WinPoint Item Index. "
+            cMyTrace(__PRETTY_FUNCTION__,
+                0x4d7b, 0)("VillageAttacked Reward WinPoint Item Index. "
                   "[charac:%u][win:%d][item:%u][count:%d]",
                   user->get_charac_no(-1), rewardData.winPoint,
                   rewardData.itemIndex, rewardData.itemCount);
@@ -14095,10 +14024,8 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
                     _send_reward_item(user, (unsigned long)fields[i],
                                       fields[2 + i],
                                       pPkt->m_12);
-                    cMyTrace trace(
-                        __PRETTY_FUNCTION__,
-                        0x4d8c, 0);
-                    trace("VillageAttacked Reward Ranker Item Index. "
+                    cMyTrace(__PRETTY_FUNCTION__,
+                        0x4d8c, 0)("VillageAttacked Reward Ranker Item Index. "
                           "[charac:%u][rank:%d][item:%u][count:%d]",
                           user->get_charac_no(-1),
                           pPkt->m_12,
@@ -14324,21 +14251,15 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     if (pPkt->m_e == 0)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->reset();
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x4f5e, 0);
-        trace("[ARS_INFO] Reset");
+        cMyTrace(__PRETTY_FUNCTION__, 0x4f5e, 0)("[ARS_INFO] Reset");
     }
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__, 0x4f64, 0);
-    trace("[ARS_INFO] Cnt : %d, State : %d",
+    cMyTrace(__PRETTY_FUNCTION__, 0x4f64, 0)("[ARS_INFO] Cnt : %d, State : %d",
           (int)pPkt->m_a, (int)(signed char)pPkt->m_e);
 
     if ((int)pPkt->m_a > 100)
     {
-        cMyTrace over(
-            __PRETTY_FUNCTION__, 0x4f6b, 0);
-        over("[ARS_INFO] Cnt OverFlag(100)");
+        cMyTrace(__PRETTY_FUNCTION__, 0x4f6b, 0)("[ARS_INFO] Cnt OverFlag(100)");
         return 0;
     }
 
@@ -14349,9 +14270,7 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
             GlobalData::g_autoPunishRuleHackTypeMgr->setTotalTrade(
                 (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
                 (unsigned long long)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19);
-            cMyTrace t(
-                __PRETTY_FUNCTION__, 0x4f82, 0);
-            t("[ARS_INFO] TotalGold: %llu, TotalCount: %d",
+            cMyTrace(__PRETTY_FUNCTION__, 0x4f82, 0)("[ARS_INFO] TotalGold: %llu, TotalCount: %d",
               (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19,
               (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11);
         }
@@ -14365,9 +14284,7 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
                 (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_17,
                 (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_18,
                 (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19);
-            cMyTrace t(
-                __PRETTY_FUNCTION__, 0x4f8e, 0);
-            t("[ARS_INFO] MainType : %d (%d), SubType : %d(%d), ApplyFlag %d, IpCnt : %d",
+            cMyTrace(__PRETTY_FUNCTION__, 0x4f8e, 0)("[ARS_INFO] MainType : %d (%d), SubType : %d(%d), ApplyFlag %d, IpCnt : %d",
               (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_f,
               (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
               (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_13,
@@ -16398,10 +16315,8 @@ int Inter_TOD_ReturnToMonitor_APCSettingComplete::dispatch_sig(
     // ORIG +0x11：值先落 -0xc(%ebp)（普通 const 局部），再 `mov -0xc(%ebp),%ebx` 取别名
     // 跨 cMyTrace ctor 缓存 ⇒ 两级写法（register 别名；后续 GetServerProxy 仍读 -0xc 原槽）。
     register int tracedGroup = group;
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x61f7, 5);
-    trace("TOD Random Select Complete. send->monitor group(%d)", tracedGroup);
+    cMyTrace(__PRETTY_FUNCTION__,
+        0x61f7, 5)("TOD Random Select Complete. send->monitor group(%d)", tracedGroup);
     Packet_TOD_DoRandomSelect packet;
     // ORIG 0x084e4df2/df7：this 先载 eax、group 后载 edx（enum 同型直传）。
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
@@ -17233,10 +17148,8 @@ int Inter_CeraShopPurchaseCount::dispatch_sig(CUser* user, char* data, int /*len
     Inter_CeraShopPurchaseCountPktView* pPkt = reinterpret_cast<Inter_CeraShopPurchaseCountPktView*>(data);
     if (pPkt == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x6a96, 5);
-        trace("[PURCAHSE BONUS] internal data is null.");
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x6a96, 5)("[PURCAHSE BONUS] internal data is null.");
         return 0x6a97;
     }
     GlobalData::s_pItemVendingMachine->ProcessPurcahseBonusItem(
@@ -17302,9 +17215,7 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
     Inter_OwnerisVIPMsgWinView* pWin_msg = reinterpret_cast<Inter_OwnerisVIPMsgWinView*>(msg);
     if (msg == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x6aa6, 5);
-        trace("[Check point auction error] internal data is null.");
+        cMyTrace(__PRETTY_FUNCTION__, 0x6aa6, 5)("[Check point auction error] internal data is null.");
         return 0x6aa7;
     }
 
@@ -17467,10 +17378,8 @@ int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             titleBuf, item, 0, (unsigned int)user->getCurCharacNo(), msgBuf,
             strlen(msgBuf), 0, (ENUM_SERVER_GROUP)user->GetServerGroup(), true, false);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x69c0, 0);
-        trace("[collect items]reward: m_id(), charac_no(), reward()",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x69c0, 0)("[collect items]reward: m_id(), charac_no(), reward()",
               (int)user->get_acc_id(), (int)user->getCurCharacNo(),
               (int)item.m_addInfo);
     }
@@ -17853,10 +17762,8 @@ int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
     Inter_CheckAddFriendPktView* pPkt = reinterpret_cast<Inter_CheckAddFriendPktView*>(data);
     if (user == 0 || data == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x6d7b, 5);
-        trace("[%s] pUser or p is null.",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x6d7b, 5)("[%s] pUser or p is null.",
               __PRETTY_FUNCTION__);
         return 0x6d7c;
     }
@@ -17864,10 +17771,8 @@ int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
     char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
     if (recv == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x6d82, 5);
-        trace("[%s] internal data is null.",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x6d82, 5)("[%s] internal data is null.",
               __PRETTY_FUNCTION__);
         return 0x6d83;
     }
@@ -17912,20 +17817,16 @@ int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int
     Inter_LoadCerashopAddRestrictTypePktView* pPkt = reinterpret_cast<Inter_LoadCerashopAddRestrictTypePktView*>(data);
     if (user == 0 || data == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x200, 5);
-        trace("[%s] pUser or p is null.",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x200, 5)("[%s] pUser or p is null.",
               __PRETTY_FUNCTION__);
         return 0x201;
     }
 
     if (data == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x207, 5);
-        trace("[%s] internal data is null.",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x207, 5)("[%s] internal data is null.",
               __PRETTY_FUNCTION__);
         return 0x208;
     }
@@ -17966,10 +17867,8 @@ int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*l
     Inter_LoadEventLevelupSupportPktView* pPkt = reinterpret_cast<Inter_LoadEventLevelupSupportPktView*>(data);
     if (user == 0 || data == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x6dee, 5);
-        trace("[%s] pUser or p is null.",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x6dee, 5)("[%s] pUser or p is null.",
               __PRETTY_FUNCTION__);
         return 0x6def;
     }
@@ -18037,10 +17936,8 @@ int Inter_SelectAllowProxyUser::dispatch_sig(CUser* user, char* data, int /*len*
 {
     if (user == 0 || data == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x6e1e, 5);
-        trace("[%s] pUser or p is null.",
+        cMyTrace(__PRETTY_FUNCTION__,
+            0x6e1e, 5)("[%s] pUser or p is null.",
               __PRETTY_FUNCTION__);
         return 0x6e1f;
     }
