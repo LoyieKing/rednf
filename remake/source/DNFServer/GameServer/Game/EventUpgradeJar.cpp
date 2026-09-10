@@ -333,11 +333,19 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
     // 0x08968841/0x08968857 实证）；第一个 string（-0x6c）全程未被读取 ⇒ 声明序
     // unusedToken 在前、token 在后。id/recipeIndex 在函数头初始化（0x0896881a
     // `movl $0,-0x78`、0x08968821 `movl $0,-0x2c`），循环内 id 再显式重置。
+    // [round5 复测] N95 反推：ORIG 全帧槽号比我方**统一深 4**（token -0x6c vs
+    // -0x68、ok -0x71 vs -0x6d、id -0x78 vs -0x74、npc -0x80 vs -0x7c），而两侧
+    // `sub` 同为 $0x90 ⇒ 差在槽基（4.1 槽基可顶到 ebp / 4.4 恒留 gap），非帧长。
+    // 按 P232（4.4-O0 对未使用局部照样占栈）补 4B 死局部试把槽基整体下移 4。
+    int slotBasePad;
     std::string unusedToken;   // ORIG 第一 string 局部（0x08968806 C1Ev / -0x6c，未读）
     std::string token;         // ORIG 第二 string 局部（0x08968811 C1Ev / -0x70）
     (void)unusedToken;
     bool ok = false;
     unsigned int id = 0;       // ORIG -0x78
+    // [round5 反例] 同法在标量区（id 与 recipeIndex 之间）再补 4B pad 实测**反效**：
+    // 深区被推深 4（ok -0x71→-0x75、id -0x78→-0x7c 偏离 ORIG），而 recipeIndex
+    // 仍留 -0x28（不动）⇒ 4.4 的标量槽序非声明序可移，已回退（P212/N98 族）。
     int recipeIndex = 0;       // ORIG -0x2c
     // [P212] 全头部声明：ORIG 卡槽 cardIdx/boosterIdx 深于 pairCount/i
     // （-0x28/-0x24 vs -0x20/-0x1c）；块内声明在 4.4 下先声明浅 ⇒ 反序。
@@ -431,8 +439,15 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
             // 第二个值丢弃、第三个为 rate；首值失败仅回主循环（break），
             // 后两值失败 return false。无 -1 终止检查。
             int groupIdx;
-            while ((groupIdx = ScanInt(&ok), ok == true))
+            // [round5 复测] ORIG 0x08968b9x 形为 `movzbl ok; xor $0x1,%eax; test
+            // %al,%al; je <body>` + fall-through `nop; jmp 主循环头`（bool 取反
+            // 物化 + je 直落 body）；`ok == true` 写法在 4.4 恒产 `test; jne body`
+            // **无 xor 段**（P168a②/P292 档①）⇒ 改 `if (!ok) break;` 裸取反形。
+            for (;;)
             {
+                groupIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
                 ScanInt(&ok);                 // 丢弃（ORIG 0x08968ba5 结果不入字段）
                 if (!ok)
                     return false;

@@ -1068,11 +1068,18 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
             if (monster.m_roleType == 5)
             {
                 // ORIG 0x08464f2c：+0x5198 = CDataManager::m_deathTower.m_apcExpWeight
+                // [N85/N97 封顶·实测回退] ORIG 0x08464f06..0x08464f4b：`fildll -0x550;
+                // fstps -0x56c; call; flds 0x5198(%eax); fmuls -0x56c; … fistpl`
+                // （右操作数先求值 + float 中介槽 + 32 位 fistpl）；P252 具名 float
+                // 局部两形实测：our 1043→1046、帧 +0x10（-0x150→-0x164）⇒ 反劣回退。
+                // 4.4 对 `(unsigned int)(float*float)` 恒 fistpll（64 位）且左操作数先
+                // 求值 ⇒ 与 4.1 fistpl/右先 属跨版本 x87 lowering 差（N85 邻族）。
                 mobExp = (unsigned int)(G_CDataManager()->m_deathTower.m_apcExpWeight *
                                         (float)mobExp);
             }
 
             // ORIG 0x08464f80：+0x5e1c = m_deathTower.m_monsterExpWeight（无条件）
+            // 同族（ORIG -0x568 槽 + fistpl，同上封顶）。
             mobExp = (unsigned int)(G_CDataManager()->m_deathTower.m_monsterExpWeight *
                                     (float)mobExp);
 
@@ -1573,7 +1580,10 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
                     }
                     else if (countBuf[i] == maxC && countBuf[i] > 0)
                     {
-                        countBuf[i] -= 1;
+                        // [判据①] ORIG 0x08467087 段单次地址物化
+                        //（`mov -0x10; add countBuf; movzbl (%eax),%edx; sub $1,%edx;
+                        // mov %dl,(%eax)`）；`-= 1` 双地址物化（+2 条）⇒ 用后置递减。
+                        countBuf[i]--;
                     }
                 }
             }
@@ -1905,12 +1915,12 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
     {
         if (dungeonType == (ENUM_DUNGEON_TYPE)1)
         {
-            throw 8;
+            throw (ENUM_ERROR)8;
         }
         m_dungeonMgr.reset();
         if ((int)!m_dungeonMgr.initDungeonMgr(dungeonIdx))  // ORIG 0x84639f5 xor$1 值形
         {
-            throw 0x16;
+            throw (ENUM_ERROR)0x16;
         }
         int cond = 0;
         cond = _checkStartGameCondition(checkFlag);
@@ -1920,7 +1930,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
         // （P225 CVillageAttacked/CDropItem 实证；register/P226 两形实测劣）。
         while (cond != 0)
         {
-            throw cond;
+            throw (ENUM_ERROR)cond;
             break;
         }
         m_stage.reset();
@@ -1928,11 +1938,11 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
         CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
         if (map == 0)
         {
-            throw 0x15;
+            throw (ENUM_ERROR)0x15;
         }
         if ((int)!m_stage.consistMap(m_dungeonMgr, map, this))  // ORIG 0x8463b11 xor$1
         {
-            throw 1;
+            throw (ENUM_ERROR)1;
         }
         m_playData.reset();
         m_playData.makeStartMemberInfo(m_party);
@@ -1948,7 +1958,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
             int minLevel = m_dungeonMgr.getDungeon()->get_min_level();
             if ((bool)(user->get_charac_level() < minLevel))  // ORIG 0x8463bf4 cmp+setl+test
             {
-                throw 0xe;
+                throw (ENUM_ERROR)0xe;
             }
             user->set_state((ch_state)10);
             m_playData.setMemberAlive(i, true);
@@ -1998,9 +2008,13 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
         setTowerState((ENUM_TOWER_STATE)2);
         _onStartDeathTower();
     }
-    catch (int e)  // ORIG 0x8463e91：type selector cmp $0x1 → begin_catch；e 槽 -0xc
+    // [P6/P229] ORIG 抛掷点 0x08463aXX 段 `movl $&_ZTI10ENUM_ERROR,0x4(%esp)`（0x8b75f40
+    // = typeinfo for ENUM_ERROR，nm 实证）⇒ 原码是 ENUM_ERROR 抛掷 + 按值 catch；
+    // 旧 `catch (int e)` 生成 _ZTIi（.o 重定位实证）为真差异。
+    // 比较用 (int)e 规避 -fstrict-enums（P305）对窄枚举值域的折叠。
+    catch (ENUM_ERROR e)  // ORIG 0x8463e91：type selector cmp $0x1 → begin_catch；e 槽 -0xc
     {
-        if (e == 0x11)  // ORIG 0x8463eab：0x11 分支 PacketGuard@-0x3c 带 checkFlag
+        if ((int)e == 0x11)  // ORIG 0x8463eab：0x11 分支 PacketGuard@-0x3c 带 checkFlag
         {
             PacketGuard g;
             g.put_header(1, 0x10);
@@ -2015,7 +2029,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
             PacketGuard g;
             g.put_header(1, 0x10);
             g.put_byte(0);
-            g.put_byte(e);
+            g.put_byte((int)e);
             g.finalize(true);
             m_party->send_to_party(g);
         }
@@ -2294,13 +2308,15 @@ int CDeathTower::handleMoveMap()
             CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
             if (!map)
             {
-                throw 0x15;
+                // [P6] ORIG 0x08465e04 `movl $&_ZTI10ENUM_ERROR,0x4(%esp)`（0x8b75f40
+                // = typeinfo for ENUM_ERROR，nm 实证）⇒ 抛的是 ENUM_ERROR 而非 int。
+                throw (ENUM_ERROR)0x15;
             }
 
             m_stage.reset();
             if (!m_stage.consistMap(m_dungeonMgr, map, this))
             {
-                throw 1;
+                throw (ENUM_ERROR)1;
             }
 
             CPacketHandler packet;
@@ -2318,7 +2334,7 @@ int CDeathTower::handleMoveMap()
         m_party->send_to_party(packet);
         return 0;
     }
-    catch (int e)
+    catch (ENUM_ERROR e)
     {
         // ORIG：catch 后广播 makeCommonError(0x30, e)
         CPacketHandler packet;

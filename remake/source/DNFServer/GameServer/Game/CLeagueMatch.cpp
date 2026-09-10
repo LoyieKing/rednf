@@ -340,6 +340,16 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 
 // [b28c-21] P210 定义顺序：ORIG TeamInfo::reset `sub $0x28` 保守帧；4.4 对
 // 已见定义的 PlayerInfo::reset 精确继承 $0x14 ⇒ 本定义前置于 callee 之前。
+// [A11-round5 复核] N125 证据加强（本 TU 12 件的同一残差族）：本轮以 8 源形探针
+// （`&arr[i]` 索引 / `(char*)t + i*0x1c` 指针算术 / 具名 int 中间量 / 二维下标 /
+// unsigned 索引 / 数组退化 + 标量偏移）在 4.4.6 逐形复编（/tmp/r5/probeD.cpp f1..f8），
+// 恒产 `shl $0x2,%eax; lea 0x0(,%eax,8),%edx; sub %eax,%edx`，**无一**产 ORIG 的
+// `lea 0x0(,%eax,4),%edx; lea 0x0(,%edx,8),%eax; sub %edx,%eax`（TeamInfo::size
+// 0x0855cd42、GetUser 0x0855e5f4、GetGap 0x0855e1f9、CheckMatchable 0x0855fa2a、
+// OnLeaveRoom 0x0855d2xx、_RegisterWaitingRoom 0x0855d94b 等族）⇒ N125 结构性豁免。
+// 追加 4 形（probeD2.cpp f9..f13：成员数组元素取址直传 out-of-line callee / `arr+i`
+// 指针加法 / `arr[i].field` 字段访问 / `reinterpret_cast<Ent*>((char*)t+i*0x1c)` 偏移链）
+// 仍恒 `shl $0x2` ⇒ 12 源形全败，后继勿再试。
 // [b28d-solo-CLeagueMatch] DIFF 19/20·N-STRIDE（S180 定稿）：stride 0x1c 的 i*4
 // ORIG 用 lea(,%eax,4)、4.4 恒 shl $2（探针 /tmp/b28d_cm/probe_stride.cpp 11 形 +
 // probe2.cpp 7 索引类型 + 4.4.6 后端 + 8 旗标全败）⇒ 4.4 多 1 条 mov %edx,%eax

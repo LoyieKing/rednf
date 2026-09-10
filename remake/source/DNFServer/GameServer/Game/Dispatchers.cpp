@@ -4341,13 +4341,6 @@ Dispatcher_BossDieCheck::~Dispatcher_BossDieCheck() {}
 int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stBossDieCheckParam& out = static_cast<stBossDieCheckParam&>(param);
-    MSG_BOSS_DIE_CHECK& req = reinterpret_cast<MSG_BOSS_DIE_CHECK&>(msg);
-    char* pReq = reinterpret_cast<char*>(&req);
-    unsigned short& bossSeq =
-        *reinterpret_cast<unsigned short*>(pReq + 0x10);   // +0x10 word
-    short& unkKind =
-        *reinterpret_cast<short*>(pReq + 0xe);             // +0x0e word
-
     out.m_4 = check_error(user, msg, param);
     if (out.m_4 > 0)
     {
@@ -4360,6 +4353,9 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
                         out.m_4, user->get_acc_id());
     }
 
+    // [round5 A01] P0/P183：ORIG 仅 -0x24(out 引用)/-0x20(msg 指针) 两槽，无 req/bossSeq/
+    //   unkKind 引用别名（各占指针槽 ⇒ 帧 0x4c→0x6c）；msg 指针在**首用点**才声明。
+    char* pReq = reinterpret_cast<char*>(&msg);            // -0x20
     if (user->getCurCharacSkillCheckSum() !=
         *reinterpret_cast<int*>(pReq + 0x14))              // +0x14 int
     {
@@ -4369,32 +4365,32 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
 
     CParty* party =
         G_CGameManager()->GetParty((int)(short)user->GetPartyIndex());
-    CBattle_Field* field = &party->m_battleField;           // party+0xc3c = BF+0x118
-    std::vector<int>::iterator it = std::find(field->m_apcList.begin(),
-                                              field->m_apcList.end(),
-                                              bossSeq);
-    if (it != field->m_apcList.end())
+    // party+0xc3c = CBattle_Field 起始（m_battleField 偏移 0）；每次重发 `lea 0xc3c`（P183）。
+    std::vector<int>::iterator it = std::find(party->m_battleField.m_apcList.begin(),
+                                              party->m_battleField.m_apcList.end(),
+                                              *reinterpret_cast<unsigned short*>(pReq + 0x10));
+    if (it != party->m_battleField.m_apcList.end())
     {
-        field->m_apcList.erase(it);
-        out.m_a = (short)bossSeq;
+        party->m_battleField.m_apcList.erase(it);
+        out.m_a = (short)*reinterpret_cast<unsigned short*>(pReq + 0x10);
     }
     else
     {
         out.m_4 = 0x15;
     }
 
-    if ((int)field->m_apcList.size() == 0)                 // party+0xc48 = BF+0x124
+    if ((int)party->m_battleField.m_apcList.size() == 0)   // party+0xc48 = BF+0x124
     {
-        field->m_apcAllKilledSec = GlobalData::s_systemTime_.getCurSec();
+        party->m_battleField.m_apcAllKilledSec = GlobalData::s_systemTime_.getCurSec();
         int characNo = user->get_charac_no(-1);
         G_TimerQueue()->InsertTimerInMilisecond(
             (TimerEntry::OBJ_TYPE)1, party->GetPartyIndex(),
             (TIMER_MESSAGE)0x64, (long long)1000,
-            field->m_apcAllKilledSec, (unsigned int)characNo);
+            party->m_battleField.m_apcAllKilledSec, (unsigned int)characNo);
         out.m_8 = 1;
     }
 
-    if (unkKind == -1)
+    if (*reinterpret_cast<unsigned short*>(pReq + 0xe) == 0xffff)   // movzwl 直证
     {
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0xcb, 1, 0, 0);
@@ -6354,21 +6350,32 @@ int Dispatcher_JoinGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& par
 {
     (void)msg;
     (void)param;
-    if (user->get_state() == 3 && user->get_charac_guildkey() == 0)
+    // [round5 A01] ORIG 0x081d53aa/0x081d53c6 双**负极性**独立 guard
+    //   （`cmp $3; setne; test; je body; mov$0; jmp exit`）⇒ 禁止合并成 `A==3 && B==0` 正极性块。
+    if (user->get_state() != 3)
     {
-        int serverGroup;
-        if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-        {
-            serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
-        }
-        else
-        {
-            serverGroup = (int)user->GetServerGroup();
-        }
-        unsigned int characNo = (unsigned int)user->getCurCharacNo();
-        unsigned int uid = user->GetUID();
-        DB_JoinGuildInfo::makeRequest((int)uid, (ENUM_SERVER_GROUP)serverGroup, characNo);
+        return 0;
     }
+    if (user->get_charac_guildkey() != 0)
+    {
+        return 0;
+    }
+    int serverGroup;
+    // ORIG 0x081d53e5 `je +0x5f`：then=GetServerGroup（fall-through），else=env（跳远侧）。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+    {
+        serverGroup = (int)user->GetServerGroup();
+    }
+    else
+    {
+        serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+    }
+    // [round5 A01] P0/P183：ORIG 0x081d540b/0x081d5418 结果分别在 %ebx/%eax，
+    //   无具名槽（我方旧码 characNo/uid 各占 4B ⇒ 帧 0x24→0x28）。实参右到左：
+    //   a2=GetUID(最先求值) → a1=serverGroup → a0=GetUID 形参顺序见下。
+    DB_JoinGuildInfo::makeRequest((int)user->GetUID(),
+                                  (ENUM_SERVER_GROUP)serverGroup,
+                                  (unsigned int)user->getCurCharacNo());
     return 0;
 }
 int Dispatcher_JoinGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -8480,14 +8487,25 @@ Dispatcher_CancelJoinGuild::~Dispatcher_CancelJoinGuild() {}
 //   首差: push   %esi | push   %ebx | sub    $0x20,%esp
 int Dispatcher_CancelJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    (void)msg;
-    if (user->get_state() == 3 && user->get_charac_guildkey() == 0)
+    (void)param;
+    // [round5 A01] ORIG 0x081d4fe2/0x081d4ffd 双负极性 guard（setne 物化 + je body）。
+    if (user->get_state() != 3)
     {
-        unsigned int characNo = (unsigned int)user->getCurCharacNo();
-        unsigned int reqIdx = *(unsigned int*)((char*)&param + 0xd);
-        DB_CancelJoinGuild::makeRequest((int)user->GetUID(), reqIdx, characNo);
-        user->SendCmdOkPacket((ENUM_CMDPACKET)0x15e);
+        return 0;
     }
+    if (user->get_charac_guildkey() != 0)
+    {
+        return 0;
+    }
+    // [round5 A01] **真 bug**：ORIG 0x081d4ff0 读的是 `0x10(%ebp)`(msg)+0xd，
+    //   本 TU read() 也写 msg+0xd；旧码读 param+0xd 属错对象。
+    //   P311/P235：具名成员视图（MSG_CANCEL_JOIN_GUILD::m_characNo@+0xd）才出 ORIG 的
+    //   单条 `mov 0xd(%eax),%esi`；裸 `*(uint*)(p+0xd)` 恒折 `add $0xd`+`mov (%eax)`。
+    MSG_CANCEL_JOIN_GUILD& req = reinterpret_cast<MSG_CANCEL_JOIN_GUILD&>(msg);   // -0xc
+    DB_CancelJoinGuild::makeRequest((int)user->GetUID(),
+                                    req.m_characNo,
+                                    (unsigned int)user->getCurCharacNo());
+    user->SendCmdOkPacket((ENUM_CMDPACKET)0x15e);
     return 0;
 }
 int Dispatcher_CancelJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
@@ -8963,50 +8981,50 @@ Dispatcher_DonateGuildFund::~Dispatcher_DonateGuildFund() {}
 //   首差: push   %edi | push   %esi | sub    $0x3c,%esp
 int Dispatcher_DonateGuildFund::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    if (user->get_state() > 2)
+    (void)param;
+    // [round5 A01] ORIG 0x081d4979：msg 引用(-0x20)是**函数第一句**；随后 0x081d498d
+    //   `setle`(=state<=2 则 `mov$0;jmp exit`) ⇒ 负极性 guard，禁止写成 `if(state>2){…}`。
+    MSG_DONATE_GUILD_FUND& donateMsg =
+        reinterpret_cast<MSG_DONATE_GUILD_FUND&>(msg);
+    if (user->get_state() <= 2)
     {
-        int secu = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0xa);
-        if (secu != 0)
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b,
-                                     (unsigned char)(secu & 0xff));
-            return 0;
-        }
-        if (user->get_charac_guildkey() != 0)
-        {
-            MSG_DONATE_GUILD_FUND& donateMsg =
-                reinterpret_cast<MSG_DONATE_GUILD_FUND&>(msg);
-            if (user->getCurCharacMoney() < donateMsg.m_donateMoney)
-            {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, 0xa);
-            }
-            else if (user->IsAddableGuildFund(donateMsg.m_donateMoney) == 1)
-            {
-                if (user->getCurCharacInvenW()->use_money(
-                        donateMsg.m_donateMoney, (eMoneySubReason)0x2a, true) == 1)
-                {
-                    unsigned int characNo =
-                        (unsigned int)user->get_charac_no(-1);
-                    unsigned int guildKey =
-                        (unsigned int)user->get_charac_guildkey();
-                    ENUM_SERVER_GROUP group = user->GetServerGroup();
-                    CGuildServerProxy* proxy =
-                        GlobalData::s_guild_proxy_mgr->GetServerProxy(group);
-                    proxy->SendAddGuildFund(
-                        characNo, guildKey, donateMsg.m_donateMoney,
-                        (Packet_Add_Guild_Fund::eFundType)1);
-                }
-                else
-                {
-                    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, 0xa);
-                }
-            }
-            else
-            {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, 0x5f);
-            }
-        }
+        return 0;
     }
+    int secu = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0xa);
+    if (secu != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b,
+                                 (unsigned char)(secu & 0xff));
+        return 0;
+    }
+    // ORIG 0x081d49f7 `test %eax; sete` ⇒ guildkey==0 则 return 0（负极性）。
+    if (user->get_charac_guildkey() == 0)
+    {
+        return 0;
+    }
+    if (user->getCurCharacMoney() < donateMsg.m_donateMoney)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, 0xa);
+        return 0;
+    }
+    if (!(user->IsAddableGuildFund(donateMsg.m_donateMoney) == 1))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, 0x5f);
+        return 0;
+    }
+    if (!(user->getCurCharacInvenW()->use_money(
+              donateMsg.m_donateMoney, (eMoneySubReason)0x2a, true) == 1))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, 0xa);
+        return 0;
+    }
+    // ORIG 0x081d4b23：四实参右到左（donateMoney→guildKey→characNo→receiver 链），
+    //   全程无具名局部（无对应槽）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendAddGuildFund((unsigned int)user->get_charac_no(-1),
+                           (unsigned int)user->get_charac_guildkey(),
+                           donateMsg.m_donateMoney,
+                           (Packet_Add_Guild_Fund::eFundType)1);
     return 0;
 }
 int Dispatcher_DonateGuildFund::read(PacketBuf& packet, MSG_BASE& msg)
@@ -10644,14 +10662,22 @@ int Dispatcher_RefreshGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& 
 {
     (void)msg;
     (void)param;
-    if (user->get_state() > 2 && user->get_charac_guildkey() != 0)
+    // [round5 A01] ORIG 0x081d4899 `setle`(=state<=2 则 return 0) + 0x081d48b7 `sete`
+    //   （guildkey==0 则 return 0）：两条负极性独立 guard。
+    if (user->get_state() <= 2)
     {
-        unsigned int guildkey = (unsigned int)user->get_charac_guildkey();
-        unsigned int characNo = (unsigned int)user->get_charac_no(-1);
-        CGuildServerProxy* proxy =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-        proxy->SendRefreshGuildInfo(characNo, guildkey);
+        return 0;
     }
+    if (user->get_charac_guildkey() == 0)
+    {
+        return 0;
+    }
+    // [round5 A01] P0/P183：ORIG 0x081d4904..0x081d490f 三结果全在寄存器
+    //   （%ebx guildkey / %esi characNo / receiver 链最后求值），无具名槽
+    //   （旧码三局部 ⇒ 帧 0x10→0x28）。实参右到左：a1=guildkey 先求值。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendRefreshGuildInfo((unsigned int)user->get_charac_no(-1),
+                               (unsigned int)user->get_charac_guildkey());
     return 0;
 }
 int Dispatcher_RefreshGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -18764,12 +18790,12 @@ int Dispatcher_DeathTowerStageCommand::dispatch_sig(CUser* user, PacketBuf& pack
     CParty* local_14;                    // -0x10
     int local_c;                         // -0xc：循环索引
     char cVar3;
-    int iVar4;
     bool bVar2;
     unsigned int uVar9;
 
-    iVar4 = user->get_state();
-    if (iVar4 != 10)
+    // [round5 A01] P0：ORIG 0x08208ab1 `cmp $0xa,%eax` 直比 call 结果（无槽）
+    //   ⇒ 删具名 int iVar4（4.1 物化形 setne/test/je 由内联表达式直接复现）。
+    if (user->get_state() != 10)
     {
         return 0;
     }

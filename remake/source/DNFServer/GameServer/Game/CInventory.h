@@ -491,7 +491,10 @@ class CValueStatistic
 public:
     struct stValueStatistic
     {
-        int m_values[0x47][0x1e];  // +0x00 [level][field]（0x47×0x1e int）
+        // [A24TailBatch2] P211 档③：ORIG AddValueStatistic 0x0860d7f8/0x0860d822 插入路径
+        // store 为 LHS-first（地址先算完才 `mov 0x14(%ebp),%eax` 读值）⇒ 字段须与 RHS
+        // 形参 `unsigned int value` 同型（异型时 4.4 恒 RHS-first）。同宽/同布局/零 mangled 影响。
+        unsigned int m_values[0x47][0x1e];  // +0x00 [level][field]（0x47×0x1e uint）
         void reset();
     };
     bool AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user, unsigned int value);
@@ -499,6 +502,10 @@ public:
 private:
     std::map<ENUM_SERVER_GROUP, stValueStatistic> m_data;
 };
+
+// [A24TailBatch2] 布局锁（m_values int→unsigned 同宽改型后复核）
+static_assert(sizeof(CValueStatistic::stValueStatistic) == 0x2148, "stValueStatistic size");
+static_assert(offsetof(CValueStatistic::stValueStatistic, m_values) == 0x00, "off m_values");
 
 #include "PacketGuard.h"  // 权威 PacketGuard（§7 单声明点；本地最小版与
                           // Game/PacketGuard.h 冲突导致重定义）
@@ -570,7 +577,18 @@ void write_log_use_money(eMoneySubReason reason, int amount, CUser* user);
 char* NumberToString(unsigned int value, int radix);
 bool isGainedGoldFromDungeonReason(eMoneyAddReason reason);
 extern int _CompareSlot(const void* a, const void* b);
-extern int _S_CHARAC_JOB_MASTARY[];
+// [B01 铁律1] ORIG 真形 = TU-local file-scope static 表（`_ZL21_S_CHARAC_JOB_MASTARY`，
+// r 段 220B = 55×int；ORIG 共 489 份同形副本，成因即本头被多 TU include ⇒ 每 TU 一份）。
+// 原 `extern int _S_CHARAC_JOB_MASTARY[]`（+ IsEquipable.cpp:14 的 D 768B 定义）为
+// **发明符号 + 尺寸不符**（768 vs 220）。值取 ORIG .rodata 0x8e2e560 段 55 项（逐项 dump），
+// 索引语义同 checkEquipmentState @0x0850cfbe/0x0850cfe6（a*5+b、a*5，a<9,b<5）。
+// 非类成员数据 ⇒ sizeof/成员偏移/mangled 零影响；唯一消费点 CInventory.cpp:3960/3965。
+static const int _S_CHARAC_JOB_MASTARY[55] = {
+    3, 2, 0, 3, 4, 2, 0, 2, 3, 2, 1, 1, 3, 0, 1,
+    0, 0, 0, 1, 1, 3, 4, 2, 0, 3, 1, 1, 3, 0, 1,
+    1, 1, 2, 1, 1, 2, 0, 2, 3, 2, 0, 0, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
 int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);  // ORIG 返回 int（INVEN_TYPE），非 const char*
 int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);   // ORIG W 0x080f7845（switch 映射；定义 CTitleBook.cpp）
 // ORIG T 0x0865f1e1 _Z17_checkItemMovablePK5CUser14ENUM_ITEMSPACEimS2_im：
@@ -583,9 +601,10 @@ class CInventory
 {
 public:
     CInventory();
-    CInventory(const CInventory& other);
     ~CInventory();
-    CInventory& operator=(const CInventory& other);
+    // [b28d-round5 N84/P147] 拷贝构造/赋值的用户声明已删（A24 删 C1ERKS_、A09 删 aSERKS_）
+    // ⇒ 由编译器发 ORIG 的 W 隐式合成版（0x0869d73c rep movsl 0x632B），发射点 =
+    // CInventory.cpp 的 TU 级 force 使用点（__attribute__((used))）。
 
     void reset();
     void setCopy(const CInventory& other);

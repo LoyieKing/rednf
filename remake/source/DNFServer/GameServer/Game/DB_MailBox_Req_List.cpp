@@ -87,50 +87,27 @@ bool CompareLetterIndex(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b);
 int  FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId);
 bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 
-// ---- postal 区扫描视图（pack(1)，ORIG stride 0x61） ----
-// [b28d-solo-DB_MailBox_Req_List] 视图必须落**文件作用域**：4.4.7 对函数内局部
-// 结构体先载基址（`mov 0x8(%ebp),%edx; mov -0x4(%ebp),%eax`），文件作用域才复现
-// ORIG 4.1 的「下标先、基址后」装载序（探针 /tmp/p1/q.cpp f1 vs r.cpp g1）。
-#pragma pack(push, 1)
-struct LetterPostalEntry
-{
-    unsigned char m_pad[0xc];
-    int m_letterId;
-    unsigned char m_tail[0x61 - 0x10];
-};
-struct LetterListView
-{
-    unsigned char m_pad[0x50];
-    LetterPostalEntry m_postals[0x12];
-};
-struct LetterCountView
-{
-    unsigned char m_pad[0x794];
-    int m_count;
-};
-#pragma pack(pop)
-
+// [round5-A29] 原本 TU 的 pack(1) cast 视图（LetterPostalEntry/LetterListView/
+//   LetterCountView）已全部删除：postal 区三处取值统一改走 **权威头
+//   SIG_MAILBOX_LIST::m_box.m_postals[i].m_tail.m_occ**（参数类型自身成员，
+//   P235；ORIG 「下标先、基址后」+ `imul $0x61; lea; add $0x50` 装载序复现），
+//   不再有 cast 视图 ⇒ 无死代码、无第二套偏移定义。
 // ============================================================================
 // IsContainedLetter —— ORIG 0x0841ccb6：postal 区（stride 0x61）扫 +0x5c
 //   letter_id 是否含目标。
 bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
-// [b28d-solo-DB_MailBox_Req_List] verdict=DIFF（26 vs 25），N 封顶两项：
-// ①@0x0841ccd4 ORIG 两段物化 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax;
-//   cmp %eax,%edx` vs 4.4 单段 `cmp 0xc(%ebp),%eax` ⇒ N18b（成员 vs 形参比较
-//   恒折，volatile 形可出两段但多 sete/test 三段，探针 /tmp/p2/vm.cpp p2）；
-// ②循环体首装载序 ORIG「下标先、基址后」vs 4.4「基址先」——视图已落**文件作用域**
-//   （局部 struct 亦为 base 先，探针 /tmp/p2/r.cpp g1），但实参类型 SIG_MAILBOX_LIST*
-//   到视图类型的 cast 仍触发 base 先（w.cpp h1 vs h2 对照；索引先仅在本型视图/局部
-//   基址指针形出现，后者多 2 条）⇒ P30/P235 结构性伪影。
-// 遍历区间与命中语义与 ORIG 全等；p167 不适用（无 call）。
+// [round5-A29 破 N] 旧判词 N18b + P30/P235「cast 视图 base 先」两项一并作废：
+//   正解 = **权威头 SIG_MAILBOX_LIST 具名嵌套视图**（参数类型自身成员 ⇒ 4.4 出
+//   「下标先、基址后」+ `imul $0x61; lea; add $0x50`）+ **字段在左**的比较
+//   （m_tail.m_occ.m_letterId 为 unsigned int、形参与 int 异型 ⇒ P274 两段装载
+//   `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax; cmp %eax,%edx`）。
+//   同族首证：CMailBoxHelper.cpp `isUnlimitMail` 0x0855254c 用同一配方 DIFF→AE
+//   （SigTypes_D.h 的 m_box.m_postals[i].m_tail.m_occ.* 视图，b28d 已广播落地）。
+//   ORIG 0x0841ccb6 逐条同形；p167 不适用（无 call）。
 {
-    for (int i = 0; i < ((LetterCountView*)list)->m_count; ++i)
+    for (int i = 0; i < list->m_box.m_count; ++i)
     {
-        // b28c-l23：ORIG @0x0841ccd4 为 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax;
-        // cmp %eax,%edx` ⇒ **letterId 是左操作数**（条目值先物化 %edx，形参后载 %eax），
-        // 我方把条目写在左侧使 4.4 折成 `cmp MEM,reg` 单段（N18b 镜像，少 1 条）。
-        // 循环体首两条 ORIG 为 `mov -0x4(i),%eax; mov 0x8(list),%edx`（下标先于基址）。
-        if (letterId == ((LetterListView*)list)->m_postals[i].m_letterId)
+        if (list->m_box.m_postals[i].m_tail.m_occ.m_letterId == letterId)
             return 1;
     }
     return 0;
@@ -195,15 +172,16 @@ bool CompareLetterIndex(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b)
 // ============================================================================
 int FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId)
 {
-    // [b28d-solo-DB_MailBox_Req_List] verdict=NEAR（check_tu_routed，56=56，仅剩
-    // 「下标先/基址先」装载序差，P30/P235 结构性伪影；助记符序列全等）。
-    // 修法：ORIG 0x0841d080 逐条复现：两循环各自
-    // **for 内声明** i/v（ORIG 槽 -0x10/-0xc 与 -0x8/-0x4 两套独立槽，同一声明
-    // 复用会并槽）、命中写 ret 后 break（ORIG 尾 `mov ret,%eax; leave; ret` 单出口）。
+    // [b28d-solo-DB_MailBox_Req_List] 两循环各自 **for 内声明** i/v（ORIG 槽
+    // -0x10/-0xc 与 -0x8/-0x4 两套独立槽，同一声明复用会并槽）、命中写 ret 后
+    // break（ORIG 尾 `mov ret,%eax; leave; ret` 单出口）。
+    // [round5-A29] postal 取值改**权威头具名嵌套视图**（同 IsContainedLetter 依据，
+    // ORIG 0x0841d080 `mov -0x10(i),%eax; mov 0x8(list),%edx; imul $0x61; lea;
+    // add $0x50; mov 0xc(%eax)`「下标先、基址后」形）。
     int maxIdx = 0;
-    for (int i = 0; i < ((LetterCountView*)list)->m_count; ++i)
+    for (int i = 0; i < list->m_box.m_count; ++i)
     {
-        int v = ((LetterListView*)list)->m_postals[i].m_letterId;
+        int v = (int)list->m_box.m_postals[i].m_tail.m_occ.m_letterId;
         // ORIG 0x0841d0ae `mov v,%eax; cmp letterId,%eax; jle` ⇒ 写法取
         // `v > letterId`（4.4 对 `letterId < v` 恒折 `mov letterId,%eax;
         // cmp v,%eax; jge`，jcc 方向相反，探针 /tmp/p2/cmp.cpp c1/c2）。
@@ -213,9 +191,9 @@ int FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId)
     int ret = -1;
     if (maxIdx != 0)
     {
-        for (int i = 0; i < ((LetterCountView*)list)->m_count; ++i)
+        for (int i = 0; i < list->m_box.m_count; ++i)
         {
-            int v = ((LetterListView*)list)->m_postals[i].m_letterId;
+            int v = (int)list->m_box.m_postals[i].m_tail.m_occ.m_letterId;
             if (v == maxIdx)
             {
                 ret = i;
@@ -288,7 +266,10 @@ bool ArrangeMailAndLetterIndex(SIG_MAILBOX_LIST* list,
         // 属 P197④ 槽比 setcc 物化（4.4 恒直跳）⇒ N，附地址。
         if (mailIdx != -1)
         {
-            int letterIdx = ((LetterListView*)list)->m_postals[mailIdx].m_letterId;
+            // [round5-A29] 同 IsContainedLetter：改权威头具名嵌套视图（ORIG
+            // 0x0841d234 段 `imul $0x61; lea; add $0x50; mov 0xc(%eax)`）。
+            int letterIdx =
+                (int)list->m_box.m_postals[mailIdx].m_tail.m_occ.m_letterId;
             // 拆两条独立 if：ORIG 0x0841d234/0x0841d23e 两处直跳统一失败出口；
             // 合并 && 在 4.4 生 mov$1/jmp/mov$0/test 物化岛（P225 推广反向应用）。
             if (RemoveMailByLatestLetter(list, mailIdx))

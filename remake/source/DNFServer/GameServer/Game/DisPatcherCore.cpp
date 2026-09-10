@@ -846,6 +846,11 @@ int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
    // 4×dword 常量清零（16 字节数组）⇒ 原码是 `char x[0x10] = {0};`；逐字节 16×movb
     // 是早期 hack 写法，多 12 条指令且与 ORIG 形态不符。
     char local_48[16] = {0};
+    // [b28e-L5] P167 真缺口补修：ORIG 0x081ed96c `mov 0xc(%ebp),%eax; lea 0xe0(%eax),%edx`
+    // + 0x081ed987 `call _ZN8CNetworkILi4096ELi450000EE10GetPeerIP2EPci`（len 0x10）
+    // —— 原实现漏调用；该缓冲尾段（0x081edd84/0x081eddbd）作为
+    // DB_SecuServiceUpdateValidityTime::makeRequest 的第 4 实参（len 8 / 0x10）。
+    user->m_network.GetPeerIP2(local_48, 0x10);
     unsigned char local_49 = 0;
     if (packet.get_byte(local_49) != true)
     {
@@ -5105,6 +5110,11 @@ unsigned int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     }
     char needLock = 0;
+    // [b28e-L5] P212/P331 实测不可翻（已回退）：ORIG bool 局部占深槽 -0x4e
+    // （0x081c57ec `movb $0x1,-0x4e`；0x081c5803 `lea -0x4e,%edx` 传址），而 4.4
+    // 无论块内声明（-0x11）或提至函数头（仍 -0x11，且多一条 ORIG 无的
+    // `movb $0x0,-0x11` 预清）都不可复现 ⇒ 归 4.1/4.4 块作用域槽分配差（P212 限定
+    // 「混合尺寸区声明序不可控」），保持原形。
     // ORIG 0x081c57cf 决策树：cmp $0x5/jg、cmp $0x4/jge、cmp $0x3/je、cmp $0xe/jne
     // ⇒ 原码是 switch(寄存器直比，无槽，P251/P261)，叶块物理序 4/5/0xe 先、3 后。
     switch ((int)(char)req.m_toSpace)
@@ -13008,6 +13018,11 @@ MSG_ADD_SOCKET_TO_AVATAR::MSG_ADD_SOCKET_TO_AVATAR()
 int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     MSG_ADD_SOCKET_TO_AVATAR msg;
+    // [b28e-L5] P171/P232 死写入照抄：ORIG 0x0821a428 在 ctor 之后发
+    // `movl $0x0,-0x28(%ebp)`（= msg 槽尾 -0x3d+0x15 之后的 4B 局部，全函数
+    // **0 个读取点**，objdump 全区间仅 1 处 -0x28(%ebp) 写）⇒ 原码有未读标量局部。
+    int unusedZero = 0;   // 死写入
+    (void)unusedZero;
     if (!packet.get_short(msg.m_slotA))
         return LineFunc(0xcd60,
                         __PRETTY_FUNCTION__,

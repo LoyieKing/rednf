@@ -1186,6 +1186,10 @@ int main(int argc, char** argv)
 
     // 删除 pid 文件：sprintf("./pid/%s.pid", G_CEnvironment()->get_file_name())
     // 后 remove；失败打印 "FAIL TO DELETE PID FILE ERROR: %s\n" + strerror(errno)。
+    // [A18 本波实测] 把 pidFile 声明提前到 cMyTrace 块之前无效（ndiff 18→18、
+    // 槽位 0x3f/0x10/0x21 不变）⇒ 4.4 按块/使用序分配聚合槽，声明序不可翻
+    // （N93/N82附 族：ORIG [pidFile 0x1e, trace 0x3c, inited 0x4f] vs 我方
+    // [trace 0x10, pidFile 0x21, inited 0x3f]）。
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x25e6, 0);
         trace("GAME SERVER SHUTDOWN COMPLETE\n");
@@ -1611,25 +1615,25 @@ bool check_argv(int argc, char** argv)
     // P244：op 提前声明（赋值仍在使用点）。
     const char* op;
     if (argc <= 2)
-        goto L_RET0;
+        return 0;
 
     G_CEnvironment()->set_file_name(argv[1]);
     if (argc == 4)
         G_CDataManager()->SetScriptPacks(argv[3]);
 
     if (!G_CEnvironment()->load())
-        goto L_RET0;
+        return 0;
     G_CEnvironment()->adjust_base_script_directory();
 
     if (*G_CEnvironment()->get_exchange_server_ip() == '\0')
     {
         std::puts("Exchange Server IP load FAIL, please check cfg file");
-        goto L_RET0;
+        return 0;
     }
     if (G_CEnvironment()->get_exchange_server_port() == 0)
     {
         std::puts("Exchange Server PORT load FAIL, please check cfg file");
-        goto L_RET0;
+        return 0;
     }
 
     // server_shells_key 校验（env+0x318 缓冲区，ORIG 原样裸偏移）
@@ -1647,7 +1651,7 @@ bool check_argv(int argc, char** argv)
     if (!keyOk)
     {
         std::puts("[!] Server key Check FAIL");
-        goto L_RET0;
+        return 0;
     }
     std::puts("[!] Server key Check OK");
 
@@ -1659,13 +1663,13 @@ bool check_argv(int argc, char** argv)
         {
             std::printf("There is not %s config_file\n",
                         G_CEnvironment()->get_file_name());
-            goto L_RET0;
+            return 0;
         }
         if (check_pid_file())
         {
             std::printf("Process(%s) is already operated.\n",
                         G_CEnvironment()->get_channel_name());
-            goto L_RET0;
+            return 0;
         }
         rdar_init(argv);
         if (std::strcmp(op, "start") == 0)
@@ -1682,12 +1686,15 @@ bool check_argv(int argc, char** argv)
     if (std::strcmp(op, "stop") == 0)
     {
         GetInstanceShutdowManager()->SendShutdownSignal();
-        goto L_RET0;
+        // ORIG 0x0829ed0b：stop/suspend 两分支共享 +0x41b 中继块
+        // （`mov $0x0,%eax` + fall-through epilogue）——与其它失败点的就地
+        // `mov $0,%eax; jmp` 不同 ⇒ 仅此两点用 goto 到函数尾标签。
+        goto L_RET0_TAIL;
     }
     if (std::strcmp(op, "suspend") == 0)
     {
         send_suspend_signal();
-        goto L_RET0;
+        goto L_RET0_TAIL;
     }
     if (std::strcmp(op, "test") == 0)
     {
@@ -1705,7 +1712,8 @@ bool check_argv(int argc, char** argv)
             std::strcat(buf, argv[i]);
             // ORIG 0x0829ede0：`mov -0x14,%edx; add %edx,%eax; mov %eax,-0x14`
             // 读-加-写三段（`+=` 在 4.4 恒折 `add %eax,-N(%ebp)` 两段）。
-            total = total + static_cast<int>(std::strlen(argv[i]));
+            total = static_cast<int>(static_cast<unsigned int>(total) +
+                                     static_cast<unsigned int>(std::strlen(argv[i])));
             std::strcat(buf, " ");
             ++total;
         }
@@ -1714,16 +1722,17 @@ bool check_argv(int argc, char** argv)
         ret = send_chat_msg(buf, total);
         if (ret < 0)
             std::puts("[ERROR]Fail to Send Notice Message");
-        goto L_RET0;
+        return 0;
     }
     if (std::strcmp(op, "info") == 0)
     {
         printGameServerInfo(false);
-        goto L_RET0;
+        return 0;
     }
     // ORIG 0x0829ee75：全部 return 0 路径共享函数尾 `mov $0x0,%eax` 块
     // （P325 多 return 共享尾出口）。
-L_RET0:
+    return 0;
+L_RET0_TAIL:
     return 0;
 }
 

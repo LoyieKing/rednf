@@ -3957,6 +3957,12 @@ bool CUser::SetGameMasterMode(bool flag)
         //   另：ORIG 尾恒 `mov $0x1,%eax` ⇒ 真实返回 bool（CUser.h 冻结，待 Main 代落）。
         // ORIG 0x086796dc 有 `call getCurCharacNo` 但结果**不落槽**（P0 表达式直用）；
         // 具名 characNo 反致帧 +0x10（sub 0x34→0x44、槽 -0x1c→-0x2c）。
+        // b28d-solo-CUser 三试（报告双段复核 + Ghidra local_10）：ORIG 0x08679712
+        //   `mov %eax,-0xc(%ebp)` 确认是 getCurCharacNo 结果的具名槽（Ghidra local_10
+        //   赋后全程未读 = P171 死写）；但补具名 `int characNo` 两句式实测帧
+        //   0x34→0x44、`pkt` -0x16→-0x1a、bool spill -0x1c→-0x2c，nd 1→7 反劣
+        //   （4.4 具名标量触发 outgoing 保守撑帧，同 P210/P332(b)）⇒ 回退，
+        //   该 -0xc 死槽属跨版本帧策略差，维持 N 封顶。
         (void)getCurCharacNo();
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup())
             ->SendTcpPacket((char*)&pkt, 0xe);
@@ -7647,7 +7653,10 @@ void CUser::deleteDailyStackableItem(std::vector<std::pair<int, int> >& list,
         CItem* ci = G_CDataManager()->find_item(item.m_addInfo);
         if (ci == 0 || !ci->is_stackable())
             continue;
-        if (*(const char*)((const char*)ci + 0x3c5) <= 0)   // 推断：日删标记
+        // 2026-09-10（§4.3 去裸偏移）：+0x3c5 日删标记改用具名字段访问
+        //   （CStackableItem.h:543 `char m_char3c5`）。ORIG 该点 `movzbl 0x3c5(%eax),%eax`
+        //   单条 disp 折叠；原裸偏移形 4.4 恒展成 `add $0x3c5; movzbl (%eax)` 两条。
+        if (((CStackableItem*)ci)->m_char3c5 <= 0)
             continue;
         enableSaveInven();
         inven->delete_item((INVEN_TYPE)1, slot, item.m_addInfo2,
@@ -7678,13 +7687,18 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
     private_store::CPrivateStore* store = 0;
     store = (private_store::CPrivateStore*)
         private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(this);
-    if (store != 0)
+    // 2026-09-10（P225 物化复现）：ORIG 0x0867dbc8 段为
+    //   `cmpl $0x0,-0x28(%ebp); setne %al; test %al,%al; je <跳过>`（4.1 bool 物化），
+    //   4.4 对裸 `if (store != 0)` 恒折直跳 je（无 setcc）⇒ 改 while+break 形
+    //   （P225 实证：唯一复现 setne;test;je 的源形）。
+    while (store != 0)
     {
         // 真成员调用（b22 消解旧 §4.5 例外）：ISeller 槽 +0x04
         // RemovePrivateStore(bool)，CPrivateStoreMgr.h:54/217 权威声明
         // （ORIG T 0x85c5fd0，vtable @0x8cbeb60 实证），编译器自动出
         // vtbl[1] 间接调用，与原手写槽取法同形。
         store->RemovePrivateStore(false);
+        break;
     }
 
     _deleteSpecificItemInven((INVEN_TYPE)0, list, out, 10, 0x15);
@@ -11882,9 +11896,11 @@ bool CUser::HasCurCharacRentalItem(int type) const
     std::map<unsigned int,
         std::vector<InstanceRentalSystem::RentalInfo> >::const_iterator inner =
         outer->second.find(*(const unsigned int*)cur);
-    if (inner == (*outer).second.end())
+    // p167（2026-09-10）：EXTRA `_ZNKSt23_Rb_tree_const_iteratorI...EdeEv` ×1 而 ORIG 0
+    //   ⇒ 原码写 `outer->` 非 `(*outer).`（P167 的 it-> 与 (*it) 判据）。
+    if (inner == outer->second.end())
         return false;
-    return !(*inner).second.empty();
+    return !inner->second.empty();
 }
 
 // ORIG W 0x08230172 sz0x3b：guildkey!=0 且当前角色==m_guildDB+0x17（master）。

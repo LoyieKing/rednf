@@ -443,12 +443,22 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
             fprintf(file, "`%s`\n", *it->c_str());
         fwrite("[/string data]\n", 1, 0xf, file);
     }
-    if (script->m_i94 == 1)
+    // [b28d-round5] ORIG 0x08a2aa80-0x08a2aa9x：`mov 0x94(%eax),%eax; cmp $0x1,%eax;
+    // je; cmp $0x2,%eax; je; test %eax,%eax; je`（**一次载入 + 多路寄存器比较**，
+    // P251「值无槽往返 + 多路相等比较 ⇒ 原码是 switch」）⇒ if-else 链（每支重载成员）
+    // 改为 switch（顺序 1/2/0 照 ORIG 块序，P324）。
+    switch (script->m_i94)
+    {
+    case 1:
         fwrite("[quest type] `[must be destroyed]`\n", 1, 0x23, file);
-    else if (script->m_i94 == 2)
+        break;
+    case 2:
         fwrite("[quest type] `[chaos object]`\n", 1, 0x1e, file);
-    else if (script->m_i94 == 0)
+        break;
+    case 0:
         fwrite("[quest type] `[none]`\n", 1, 0x16, file);
+        break;
+    }
     if (script->m_i98 > 0)
         fprintf(file, "[hp max] %d\n", script->m_i98);
     if (script->m_b59 != 0)
@@ -486,11 +496,18 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
             if (script->m_destroy.m_flag04 == 1)
                 fwrite("`[destroy action]` `[object create after destroy]`\n",
                        1, 0x33, file);
-            if (script->m_destroy.m_i40 == 0)
+            // [b28d-round5] ORIG 0x08a2ad0a-0x08a2ad40：`mov 0x118(%eax),%eax;
+            // test %eax,%eax; je; cmp $0x1,%eax`（一次载入 + 比较链，P251）⇒ switch。
+            switch (script->m_destroy.m_i40)
+            {
+            case 0:
                 fwrite("`[on attack]` `[only destroy]`\n", 1, 0x1f, file);
-            else if (script->m_destroy.m_i40 == 1)
+                break;
+            case 1:
                 fwrite("`[on attack]` `[object create after destroy]`\n",
                        1, 0x2e, file);
+                break;
+            }
             if (!script->m_destroy.m_ints08.empty())
             {
                 fprintf(file, "`[add object index]`\n%d\n",
@@ -609,14 +626,24 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     {
         fwrite("[homing]\n", 1, 9, file);
         fwrite("\t[homing use] 1\n", 1, 0x10, file);
-        if (script->m_ia0 == 2)
+        // [b28d-round5] ORIG 0x08a2b594-0x08a2b633：`mov 0xa0(%eax),%eax; cmp $0x2,%eax;
+        // je; cmp $0x3,%eax; je; cmp $0x1,%eax; je`（一次载入 + 多路寄存器比较，
+        // P251）⇒ if-else 链改 switch（case 序 2/3/1 + default 照 ORIG 块序）。
+        switch (script->m_ia0)
+        {
+        case 2:
             fprintf(file, "\t[homing follow] `[MONSTER]` %d\n", script->m_ia4);
-        else if (script->m_ia0 == 3)
+            break;
+        case 3:
             fprintf(file, "\t[homing follow] `[CHARACTER]` %d\n", script->m_ia4);
-        else if (script->m_ia0 == 1)
+            break;
+        case 1:
             fwrite("\t[homing follow] `[ENEMY]`\n", 1, 0x1b, file);
-        else
+            break;
+        default:
             fwrite("\t[homing follow] `[ME]`\n", 1, 0x18, file);
+            break;
+        }
         if (script->m_fa8 != 0.0f || script->m_fac != 0.0f)
             fprintf(file, "\t[homing velocity] %f %f\n", script->m_fa8, script->m_fac);
         // ORIG 0x08a2b696：int 字段经 fildl 浮点比较（原码显式转浮点）⇒ 照抄。

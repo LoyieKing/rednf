@@ -25,6 +25,15 @@
 #include "StreamPool.h"    // GlobalData::s_stream_pool->Acquire（LoadRewardEventItem/LoadServerState）
 #include "MsgQueueMgr.h"   // MsgQueueMgr::DISPATCH_Q / put（LoadRewardEventItem/LoadServerState）
 
+// [A31-GI · P327] Arad_InternalDispatcher::C1 前移为本 TU 首个强外部符号 ⇒ GI 键名
+// `_GLOBAL__I__ZN4ARAD10DISPATCHER23Arad_InternalDispatcherC2Ev`（ORIG 0x819a31a）。
+// 零语义/机器码变化，仅发射序。
+ARAD::DISPATCHER::Arad_InternalDispatcher::Arad_InternalDispatcher()
+{
+    // ORIG 0x081984d4：map C1 后跟一次显式 map::clear。
+    m_dispatchers.clear();
+}
+
 // ---------------------------------------------------------------------------
 // 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 最前，使 `_GLOBAL__I_` 名等于
 // ORIG 的 `_ZN4ARAD10DISPATCHER23Arad_DatabaseDispatcherC2Ev`
@@ -169,13 +178,8 @@ void Arad_DatabaseDispatcher::DeleteDispatcher::operator()(
 
 // ============================================================================
 // Arad_InternalDispatcher —— 容器（与 Database 同构；ORIG 0x081984d4 起）
+// （C1 定义已按 P327 前移至 TU 首 [A31-GI] 段）
 // ============================================================================
-Arad_InternalDispatcher::Arad_InternalDispatcher()
-{
-    // ORIG 0x081984d4：map C1 后跟一次显式 map::clear。
-    m_dispatchers.clear();
-}
-
 Arad_InternalDispatcher::~Arad_InternalDispatcher()
 {
     std::for_each(m_dispatchers.begin(), m_dispatchers.end(), DeleteDispatcher());

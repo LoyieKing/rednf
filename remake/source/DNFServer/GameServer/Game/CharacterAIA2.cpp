@@ -1,9 +1,19 @@
 // ============================================================================
 // CharacterAIA2.cpp —— 角色/AI 脚本依赖恢复（CharacterAIA2 批次独占 TU）。
-// ---- b28d-61 判词汇解（本 TU 3 件非 identical，全 N 封顶）----
-// STAIInfoScript::destroy 0x08a38xxx（P167 CLEAR；N89 迭代器 lowering）、
-// importAIInfoScript 0x0895xxxx（P167 MISSING+EXTRA，N89 STL 内联）、
-// importAICharacterCommonScript 0x0896xxxx（P167 CLEAR 320/320；N89 大函数）。
+// ---- round5 判词汇解（本 TU 2 件非 identical，均 4.1/4.4 codegen 族）----
+// STAIInfoScript::destroy 0x0836753a：**round5 已修**（去具名 `elem`，改
+//   `if (m_patterns[p][i] != 0) delete m_patterns[p][i];` ⇒ 3 次 ix() 直读 +
+//   `mov (%eax),%ebx` callee-saved 保活）⇒ 86/86 指令数全等、DIFF 列表移除；
+//   旧 b28d-L16「去具名反劣 90→102」判词系试验形偏差（下标写多一次），作废。
+// importAIInfoScript 0x08a390db：round5 补 tok/isType 函数头声明（复现入口
+//   `call _ZNSsC1Ev; movb $0x0,-0x21` 的槽图基线）+ byLevel 块序交换；剩 13 条
+//   属 4.1 `movzbl/xor $1/test/je` bool 物化族（N122：4.4 恒 cmpb 直比）⇒
+//   §6.2 判语义完成、byte 层 N 封顶（p167 差集仅 C1↔C2 / D1↔D2 同址别名对）。
+// importAICharacterCommonScript 0x088c9ccc：round5 把 [on attack]/[on key] 两段改
+//   `switch (ScanFloatStr(fv, tok))`（P251）并删多余 `float fv = 0.0f`（ORIG 全
+//   函数无该初始化写）⇒ our_insns 2111→2107（gap −6→−2）；余 2 条 + 帧 352 vs
+//   304 = ORIG 函数级共享 int 中转槽（-0xa4 族，4.1 槽复用策略）⇒ N82/N95 封顶，
+//   §6.2 三件套：callsite 320/320 CLEAR + gap −2 + 槽位集逐段核。
 //
 // 本 TU 提供的 ORIG df_game_r 真实符号（nm 核验）：
 //   STAICharacterCommonScript C1 T 0x088c8a78 / clear T 0x088c9592 /
@@ -527,16 +537,7 @@ void STAIInfoScript::destroy()
         for (int i = 0; i < (int)m_patterns[p].size(); ++i)
         {
             if (m_patterns[p][i] != 0)
-            {
-                // [L16 本轮] 去具名试验（写成两次 `m_patterns[p][i]` 内联）实测**反劣**：
-                // 4.4 O0 对两次下标各发一次 ix() 装载 ⇒ ourN 90→102（ORIG 86，gap −4→−16）。
-                // ORIG 0x0836753a 的 `mov (%eax),%ebx; test %ebx,%ebx; je` 是 4.1 把
-                // 具名 `std::string* elem` 保在 callee-saved %ebx ⇒ 属 N128/P183
-                // 「4.4 指针局部恒落栈槽」族，不可源级复现。维持原具名形并封 N。
-                std::string* elem = m_patterns[p][i];
-                if (elem != 0)
-                    delete elem;
-            }
+                delete m_patterns[p][i];   // ORIG 0x083675a1 第 2 次 ix() 直读实参
             m_patterns[p][i] = 0;
         }
         m_patterns[p].clear();
@@ -661,14 +662,23 @@ void STAICharacterCommonScript::clear()
 // ============================================================================
 // importAIInfoScript —— ORIG T 0x08a390db
 // 报告 _lt_global_gt_/importAIInfoScript.md 完整转写。
-// 调用点差集：MISS=0（EXTRA 仅 _Unwind_Resume×2，EH landing pad 版本数差）。
-// 残余 gap14 全部为 4.1 xor$1/test 岛 + jmp 岛（N 类跨版本 jump-threading 豁免项）
+// 调用点差集：MISS=0；EXTRA 仅 _Unwind_Resume×2（EH landing pad 版本差）+
+// C1↔C2 / D1↔D2 同址别名对（P93 伪差）。
+// [round5] tok/isType 提升到函数头（复现 ORIG 入口 C1 + `movb $0,-0x21` 槽图基线）
+// + byLevel 分支块序交换（ORIG 直落块 = !byLevel / makeAIFullPath）⇒ our 461→462。
+// 残余 13 条 = 4.1 `movzbl 槽/xor $1/test %al,%al/je` bool 物化族（N122：4.4 对
+// bool 局部恒 cmpb $0 直比，源形不可造）与 `while (ScanStr(&s))` 落槽形
 // ⇒ 判语义完成、byte 层 N 封顶（§6.2 同口径）。
 // ============================================================================
 bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel);
 
 bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
 {
+    // ORIG 0x08a390e7 段：入口（byLevel spill 之后）即 `call _ZNSsC1Ev` 构造 tok，
+    // 紧随 `movb $0x0,-0x21` 置 isType —— 两个局部**声明在函数头**（P0：槽图基线；
+    // isType@-0x21 / tok@-0x44 为其后全部局部的分配基准）。放分支内会整体浅移。
+    std::string tok;
+    bool isType = false;
     if (*tag == "[think term]")
     {
         info->m_thinkTerm = ScanInt((bool*)0);
@@ -682,8 +692,6 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
     if (*tag == "[ai pattern]")
     {
         int bucket = 0;
-        bool isType = false;
-        std::string tok;
         while (ScanTypeOrStr(isType, tok, true))
         {
             if (isType)
@@ -698,10 +706,12 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
             }
             else
             {
-                if (byLevel)
-                    tok = info->m_dir + tok;   // ORIG: operator+ 后赋回
-                else
+                // ORIG 0x08a39280：直落块是 !byLevel（makeAIFullPath），byLevel
+                // 块在跳转目标处（`movzbl;xor $1;test;je` 布局）⇒ 块序交换。
+                if (!byLevel)
                     makeAIFullPath(info->m_dir, tok);
+                else
+                    tok = info->m_dir + tok;   // ORIG: operator+ 后赋回
                 std::string* name = new std::string(tok);   // ORIG operator new(4) + string copy
                 info->m_patterns[bucket].push_back(name);
             }
@@ -788,8 +798,10 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
 // importAICharacterCommonScript —— ORIG T 0x088c9ccc
 // 报告 _lt_global_gt_/importAICharacterCommonScript.md 完整转写。
 // §6.2 超大函数（2105 insns）验收：调用点差集 320/320 全命中（MISS/EXTRA=0）；
-// gap 186→-5，残余为 N82 帧槽错位（ORIG 0x130 vs NEW 0x160，P182 不强凑）与
-// 4.1/4.4 jump-threading 岛差异 ⇒ 判语义完成、byte 层 N 封顶。
+// gap 186 → −5 → **−2**（round5：两处 `switch(ScanFloatStr)` + 删 fv 初值）；
+// 残余为 N82 帧槽错位（ORIG 0x130 vs NEW 0x160，P182 不强凑）与 ORIG 的共享
+// int 中转槽（-0xa4 族；4.1 不按 lifetime 复用，我方按分支各自声明）⇒
+// 判语义完成、byte 层 N 封顶。
 // 返回 bool：文件加载失败 / [rarity] 解析失败或=6 / [pvp win point] 逆序 /
 //   [drop avatar item] 任一扫描失败 / [animation job] 失败 /
 //   兜底 importAIInfoScript 失败 → false；ScanType 终结 → true。
@@ -1054,12 +1066,17 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                 if (tok == "[on attack]")
                 {
                     // ORIG 0x088cad83..0x088caeed：独立块（与 [on key] 不共享代码）。
-                    float fv = 0.0f;
-                    const int kind = ScanFloatStr(fv, tok);
-                    if (kind == 0)
-                        slot = (int)fv;
-                    else if (kind == 1)
+                    // ORIG 0x088cad8d 只 lea 取址、全函数无 fv 初始化写 ⇒ 原码无初值
+                    // （P0/P171：不写即不写，`= 0.0f` 反生 `mov $0,%eax;mov %eax,槽`）。
+                    float fv;
+                    // P251：返回值无栈槽往返 + 多路相等比较 ⇒ 原码是 switch
+                    // （ORIG 0x088cad9b `test %eax,%eax;je` + `cmp $0x1,%eax;je` + `jmp`）。
+                    switch (ScanFloatStr(fv, tok))
                     {
+                    case 0:
+                        slot = (int)fv;
+                        break;
+                    case 1:
                         for (std::size_t i = 0; i < script->m_keyFiles.size(); ++i)
                         {
                             if (script->m_keyFiles[i] == tok)
@@ -1068,6 +1085,7 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                                 break;
                             }
                         }
+                        break;
                     }
                     if (script->m_onAttackSpeech.size() < (std::size_t)slot + 1)
                         script->m_onAttackSpeech.resize((std::size_t)slot + 1, APCSpeech());
@@ -1075,12 +1093,14 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                 }
                 else if (tok == "[on key]")
                 {
-                    float fv = 0.0f;
-                    const int kind = ScanFloatStr(fv, tok);
-                    if (kind == 0)
-                        slot = (int)fv;
-                    else if (kind == 1)
+                    // 同 [on attack]：无初值 + switch（ORIG 0x088caf1a/0x088caf28）。
+                    float fv;
+                    switch (ScanFloatStr(fv, tok))
                     {
+                    case 0:
+                        slot = (int)fv;
+                        break;
+                    case 1:
                         for (std::size_t i = 0; i < script->m_keyFiles.size(); ++i)
                         {
                             if (script->m_keyFiles[i] == tok)
@@ -1089,6 +1109,7 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                                 break;
                             }
                         }
+                        break;
                     }
                     if (script->m_onKeySpeech.size() < (std::size_t)slot + 1)
                         script->m_onKeySpeech.resize((std::size_t)slot + 1, APCSpeech());

@@ -435,15 +435,17 @@ bool CQuestShop::loadData(CUser* user, char* data)
     m_piece = static_cast<int>(p->m_main.m_questPiece); // 0xa6→(+0x44)
     for (int i = 0; i <= 0x4c; ++i)
     {
-        // [L11·round3 实测回滚] 具名 view 局部（`const QuestShopStatusView* st =
-        // reinterpret_cast<...>(p);`）实测 ndiff 7→27、TU ae 150→148 劣化 ⇒ 保持
-        // cast 内联形（ORIG「i 先、base 后」装载序属 N/A 寄存器指派族）。
-        if (reinterpret_cast<const QuestShopStatusView*>(p)->m_statusCounts[i] == 0)       // movzwl + test ax / je
+        // ORIG 0x085efa8d：`mov -0x28(%ebp),%edx; mov -0xc(%ebp),%eax;
+        // movzwl 0xc(%eax,%edx,2),%eax`（**i 先、base mem 直用**）——只有完整类型
+        // 具名成员访问能出此序；整指针 reinterpret_cast 视图恒使 4.4 先载 base
+        // （P235）。元素左值按 make_pair 实例 `IRiRt` 要求转 `unsigned short&`。
+        if (p->m_main.m_statusCountsU[i] == 0)          // movzwl + test ax / je
             continue;
         // ORIG make_pair<IRiRt>(i, m_statusCounts[i]) 左值 + pair 移动 + insert
-        m_buyingStatus.insert(std::make_pair(i, reinterpret_cast<QuestShopStatusView*>(p)->m_statusCounts[i]));
+        m_buyingStatus.insert(
+            std::make_pair(i, p->m_main.m_statusCountsU[i]));
     }
-    if (p->m_tagFlag != 0)                          // movzbl 0x154(%eax)
+    if (block->m_tagFlag != 0)                      // movzbl 0x154(%eax)（ORIG 用 -0x10=block）
     {
         p = reinterpret_cast<SigQuestShopLoadBlock*>(
             &block->m_tag);   // ORIG SetTag 实参从 block(-0x10) 算 +0xaa 经 -0xc 中转
@@ -507,37 +509,36 @@ void CQuestShop::getData(char* out) const
     // ORIG 0x85ef868：end() 只在循环前调一次（-0x1c），cond 段仅 operator!=；
     // 且调用序 end→begin（085ef8e1 end / 085ef8f9 begin）。判定时重读 it->first
     // （第三次 ptEv，O0 无 CSE）。
-    const std::map<unsigned char, short>::const_iterator itEnd =
+    std::map<unsigned char, short>::const_iterator itEnd =
         m_buyingStatus.end();                        // -0x1c
-    for (std::map<unsigned char, short>::const_iterator it =
-             m_buyingStatus.begin();                 // -0x20
-         it != itEnd; ++it)
+    std::map<unsigned char, short>::const_iterator it =
+        m_buyingStatus.begin();                      // -0x20
+    for (; it != itEnd; ++it)
     {
         const unsigned char key = it->first;        // -0xf
         const unsigned short value = static_cast<unsigned short>(it->second);
         if (it->first > 0x4c)                       // seta → skip 写入
             continue;
-        reinterpret_cast<QuestShopStatusView*>(view)->m_statusCounts[key] = value;
+        // ORIG 0x85ef93e：`movzbl -0xf,%edx; movzwl -0xe,%ecx; mov -0x14(%ebp),%eax;
+        // mov %cx,0xc(%eax,%edx,2)`（值先、base 后）⇒ 必须走**完整类型具名成员**
+        // 直访问（P235：reinterpret_cast 视图形使 4.4 恒 base 先载）。
+        view->m_main.m_statusCounts[key] = value;
     }
     view = reinterpret_cast<SIG_QUEST_SHOP_DATA*>(
         &((SIG_QUEST_SHOP_DATA*)p)->m_tag);     // +0x0aa 段（ORIG 复用 -0x14）
-    // ORIG 0x85ef97d/0x85ef99b：end() 先（临时 -0x2c→-0x20）、begin() 后
-    // （临时 -0x2c→-0x1c），cond 段仅 operator!=。
-    // [2026-09-10 判词·N86] 残余 gap=4 全部为 4.1「按值返回迭代器恒临时槽+拷贝」
-    // 两段形（本函数两处 end()/begin() 各 +2 条 `mov 临时→具名`），4.4 直构进目标槽
-    // （copy elision，无源码解）。`*&` 形实测无效（仍 133 条，/tmp/tu_CQuestShop.o）；
-    // it/tagEnd 槽址差（-0x24/-0x28 vs ORIG -0x20/-0x1c）属 N82/P112 槽分配族。
-    const std::map<unsigned char, short>::const_iterator tagEnd =
-        m_tagBuyingStatus.end();                     // -0x20
-    for (std::map<unsigned char, short>::const_iterator it =
-             m_tagBuyingStatus.begin();              // -0x1c
-         it != tagEnd; ++it)
+    // ORIG 0x85ef97d/0x85ef99b：第二循环**复用**同一对迭代器变量（begin 返回临时
+    // -0x2c → `mov 临时,%eax; mov %eax,-0x20`；end 临时 -0x2c → -0x1c），即源形为
+    // 「函数级声明 + 循环前**赋值**」（P50 复活：ORIG 有独立 sret 临时槽 + 拷贝两段形；
+    // 此前写成循环内新声明 ⇒ 4.4 直构省略临时，gap=-4）。
+    it = m_tagBuyingStatus.begin();                  // -0x20（sret 临时 -0x2c 后拷贝）
+    itEnd = m_tagBuyingStatus.end();                 // -0x1c（同上）
+    for (; it != itEnd; ++it)
     {
         const unsigned char key = it->first;        // -0xb
         const unsigned short value = static_cast<unsigned short>(it->second);
         if (it->first > 0x4c)
             continue;
-        reinterpret_cast<QuestShopStatusView*>(view)->m_statusCounts[key] = value;
+        view->m_main.m_statusCounts[key] = value;
     }
 }
 

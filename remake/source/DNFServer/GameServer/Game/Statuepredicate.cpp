@@ -20,6 +20,14 @@
 // [b28d-lane15] 复核维持 N：ORIG 15 insn / 我方 13（TSV ndiff=11）；唯一残差即
 // unary_function::C1 call（ORIG 0x08a6c192）与随之的 sub $0x18 帧（4.4 恒省）。
 // 三成员 mov 与 ORIG 同址同序（+0x0/+0x4/+0x8）。封顶。
+// [A24TailBatch2 2026-09-10 四次复核·N 维持] 二次 nm 双侧核对：
+//   ORIG `08a6c180 00000005 W _ZNSt14unary_functionI22pieceQuestRewardStatusbEC1Ev`
+//   （另有同址 C2）；我方 /tmp/tu_Statuepredicate.o **无该符号** ⇒ 4.4 判
+//   std::unary_function（libstdc++ 空类、无用户 ctor）trivial，C1 恒省 call + 无帧
+//   （P71/P215 边界：要复现需改库头使其非平凡=禁改，或造非平凡基类=改语义）。
+//   同族差：ORIG 0x08a6c197 载入 eax 一次并复用供 3 次 store（4.1 的 dest 缓存形），
+//   我方每字段重读 0x8(%ebp)（4.4 恒重读）⇒ 该 2 条亦跨编译器寄存器分配差（N18a 族）。
+//   语义等价（空基类 ctor 零副作用）。判定：不可翻，封 N。
 Statuepredicate::Statuepredicate(pieceQuestRewardStatus status)
     : std::unary_function<pieceQuestRewardStatus, bool>(),
       m_appendageType(status.m_appendageType),

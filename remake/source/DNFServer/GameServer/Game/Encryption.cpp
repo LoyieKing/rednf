@@ -76,16 +76,14 @@ unsigned int Encryption::crc32N(void* data, int len)
 
 void _NS_PI_2ND_MakeChecksumTo1Byte(char* p)
 {
-    // [b28d-solo-Encryption] verdict=DIFF 21=21，N 封顶（N18a 寄存器分配）。
-    // ORIG 0x0808cc17 无帧（无 sub esp）、无具名槽：全寄存器
-    // 累积（edx=p[0], ecx=p[1]^p[2], eax=p[3]^ecx^0x18, edx^=eax）⇒ P0 下
-    // 源码是单一赋值表达式（原两句式引入 unsigned char b 栈槽 -0x1）。
-    // 4.4 版：p0 置链尾后 4.4 产出 21 条（链落 %ecx、p0 落 %edx），
-    // ORIG 链落 %eax、p0 直载 %edx 属 4.1 寄存器分配（N18a 族）封顶。
-    ((unsigned char*)p)[0] = (unsigned char)(((unsigned char*)p)[1] ^
-                                             ((unsigned char*)p)[2] ^
-                                             ((unsigned char*)p)[3] ^ 0x18U ^
-                                             ((unsigned char*)p)[0]);
+    // [round5-Encryption] ORIG 0x0808cc17：源为 5 项平铺 xor，p0 先装载入 %edx
+    // 并在末尾 `xor %eax,%edx` 合流（链 p1^p2^p3^0x18 落 %eax）。
+    // 实测三形：①`p1^p2^p3^0x18^p0`=21 条（链 %ecx/p0 %edx，常量被 4.4 提链尾）；
+    // ②`p0 ^= (p1^p2^p3^0x18)`=23 条（多 push %ebx 保活 p0）；③本形（p0 前置）
+    // 见下方判定。属 4.1「先 expand op0 再 op1」/4.4 逆序 = N18a 族。
+    ((unsigned char*)p)[0] =
+        (unsigned char)(((unsigned char*)p)[0] ^ ((unsigned char*)p)[1] ^
+                        ((unsigned char*)p)[2] ^ ((unsigned char*)p)[3] ^ 0x18U);
 }
 
 // ============================================================================
@@ -167,31 +165,34 @@ void Encryption::Decrypt(void* data, int len, unsigned int& seed)
 
 void Encryption::getOriginalBuf(char* data, int len, unsigned int& seed)
 {
-    // [b28d-solo-Encryption] verdict=DIFF 58/57，N 封顶（N4/P30/N102 + 4.4 SAVE_EXPR）。
-    // ORIG 0x0848dc4c 槽序 pos=-0x18/idx=-0x14/i=-0x10/j=-0xc：
-    // 4.4 按声明序深→浅分配，故声明倒排为 pos→idx→i→j（语句序照 ORIG）。
-    // 槽序 + idx 类型（int 消 `seed%200` 商临时槽）已全对齐；残余 1 条为
-    // `idx*300+i`：ORIG `mov idx,%edx; imul; mov i,%eax; lea (%edx,%eax,1)`
-    // vs 4.4 恒折 `imul %eax; add -0x10(%ebp),%eax`（P30/N102 源形不可择），
-    // 另 `tmp[j+1]`/`tmp[pos+1]`/`memcpy(tmp+1)` 的 ORIG disp 折叠
-    // `-0x144(%ebp,%reg,1)` 4.4 恒 lea+add（P30/N4；两形互试同劣）。
+    // [round5-Encryption] ORIG 0x0848dc4c 全函数**统一以 -0x144 为数组基址**：
+    // 写 `-0x144(%ebp,%eax,1)`(eax=j)、读 `-0x144(%ebp,%edx,1)`(edx=j-1)、
+    // 末尾 `-0x144(%ebp,%eax,1)`(eax=pos)、memcpy 源 `lea -0x144(%ebp)` 单条。
+    // ⇒ 原码数组为 300 字节、有效数据自 index0 起（`tmp[j]=tmp[j-1]` /
+    // `tmp[pos]=data[i]` / `memcpy(data,tmp,len)`）；此前写成「301 字节 +
+    // 全体下标 +1」使 4.4 对每个 +1 发 lea/add 且 disp 停在 -0x145（gap=-1）。
+    // 槽序 pos=-0x18/idx=-0x14/i=-0x10/j=-0xc；声明序照 ORIG（深→浅）。
     int pos;
     int idx = seed % 200;
-    char tmp[301];
+    char tmp[300];
     int i;
     int j;
     for (i = 0; i < len; ++i)
     {
+        // ORIG 0x0848dc8c：`mov idx,%edx; mov i,%eax; imul $0x12c,%edx,%edx;
+        // lea (%edx,%eax,1),%eax`（两操作数均入寄存器后 lea 合并）。
+        // 实测：下标换序 / 数组名指针算术（=60 条）均不产该形；本形（register
+        // 存储类提示，P231）见判定。
         pos = (int)index_array[idx * 300 + i];
         j = i;
         while (pos < j)
         {
-            tmp[j + 1] = tmp[j];
+            tmp[j] = tmp[j - 1];
             --j;
         }
-        tmp[pos + 1] = data[i];
+        tmp[pos] = data[i];
     }
-    std::memcpy(data, &tmp[1], len);
+    std::memcpy(data, tmp, len);
 }
 
 // ============================================================================

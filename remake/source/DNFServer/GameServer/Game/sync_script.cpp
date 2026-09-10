@@ -113,11 +113,15 @@ const char* GetAttackElementString(int element)
 namespace sync_script
 {
 
-// ---- CListTables.cpp / CDungeonList.cpp 引用的全局表（原 GameStubs.cpp 桩） ----
-std::map<int, std::string> g_dungeonInfoTable;    // ORIG 0x94f6ea0
-std::map<int, std::string> g_monsterInfoTable;    // ORIG 0x94ff260
-std::map<int, std::string> g_questInfoTable;      // ORIG 0x9500480
-std::map<int, std::string> g_skillInfoTable[11];  // ORIG 0x9500820
+// [B01 铁律1] 原此处 4 个 `g_*InfoTable` 为**发明符号**（ORIG nm 无此名）+ 与前缀
+// `_ZN11sync_script18g_dungeonInfoTableE` 形 GI 键名一并删除。ORIG 真名与定义点：
+//   g_stDungeonScriptFileList        B 0x94f6ea0 (0x18)  → InitScriptProducers_4.cpp:156
+//   g_stMonsterScriptFileList        B 0x94ff260 (0x18)  → InitScriptProducers_4.cpp:499
+//   g_questScriptFileList            B 0x9500480 (0x18)  → InitScriptProducers_4.cpp:157
+//   g_staSkillScriptFileList[11]     B 0x9500820 (0x108) → InitScriptProducers_4.cpp:185
+// 全仓消费点（CListTables.cpp:56-59/460/778/1082/1710、GameMain.cpp:1826-1828、
+// STDungeonScript.cpp:23、STMonsterScript.cpp:46、STQuestScript.cpp:63、STSkillScript.cpp:34）
+// 早已按真名引用，本 4 名 0 引用（841 .o 的 `nm -u` 扫描零命中）⇒ 删定义零链接影响。
 
 // ---- CStringMaker 实现（ORIG 各符号均为 W 内联；唯一定义发射点） ----
 

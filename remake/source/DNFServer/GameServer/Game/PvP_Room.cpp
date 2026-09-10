@@ -158,6 +158,10 @@ bool PvpResultRecvFlag::IsRecv(int flag) const
 // 116 vs 130 → 116 vs 119。残余 3 条：P211（m_matching int 字段 + call 返回值
 // (int) 强转 ⇒ RHS-first，ORIG LHS-first 直存）+ N121 中继 jmp ×2；P167 CLEAR、
 // 语义全等。
+// [L10b 2026-09-10] P211 残差**已解**：`CMatchingSystem::GetMatchingSystem` 返回类型
+// void*→int（PvPTypes.h/MatchingSystem.cpp 同步，mangled 不变）⇒ 调用点复现 ORIG
+// 0x085d610a/0x085d610d `mov 0x8(%ebp),%edx; mov %eax,0x6e4(%edx)` LHS-first 直存，
+// 本件 119→118（ORIG 116）。残余 = N104 尾块相对序 + N121 中继 jmp ×2。
 PvP_Room::PvP_Room()
 {
     int local_14 = 0;
@@ -167,7 +171,9 @@ PvP_Room::PvP_Room()
         P_SEATS(local_10) = 0;
     }
     m_pMatchingSystem = new CMatchingSystem;
-    m_matching = (int)m_pMatchingSystem->GetMatchingSystem(ENUM_PVP_MATCHING_TYPE_0);
+    // [L10b P211 档③] GetMatchingSystem 返回类型已 int 化 ⇒ 删冗余 (int) cast，
+    // 复现 ORIG 0x085d610d `mov %eax,0x6e4(%edx)` LHS-first 直存。
+    m_matching = m_pMatchingSystem->GetMatchingSystem(ENUM_PVP_MATCHING_TYPE_0);
     m_field61c = 0;
 }
 
@@ -1035,6 +1041,16 @@ bool PvP_Room::check_winner()
     // `local_6c[T(i)+3] += 1` 在 4.4 仍产双求值（`lea 0x3(,%eax)` + 重算 `add $0x3`
     // 两段，ORIG 0x085d9799 单 %eax scaled 复用）⇒ 4.1 -O0 表达式树 CSE 不存在于
     // 4.4，具名局部会引入 ORIG 无的索引槽（反劣）。N18a/N76 判词维持，ndiff 171。
+    // [L10b 2026-09-10] 三处改善（289→282，ORIG 277）：
+    //  ① **P311 成员数组视图**：`int local_6c[6]` + 下标 `[T+3]` 改
+    //     `struct PvPWinCountView { int m_win[3]; int m_teamWin[3]; }` 成员数组访问 ⇒
+    //     复现 ORIG 单条 scaled disp `mov -0x5c/-0x68(%ebp,%eax,4)`（旧形 4.4 恒拆
+    //     `lea 0x3(%eax)` + 重算 add，-2 条）；清零/第二循环读取同址等价。
+    //  ② **P231 裸 register**：mode5 段 `register int uVar2 = get_pvp_team_cnt();`
+    //     ⇒ 复现 ORIG 0x085d99ab `call; mov %eax,%ebx` 跨 cMyTrace ctor/op() 保活；
+    //  ③ P0 内联实参：第二次 `get_pvp_team_cnt()` 不再落槽（ORIG 0x085d99fb 直压）。
+    //  残余 = 4.1 表达式 CSE（每处 += 重算索引 4 条，两处 8 条，N18a/N76）+ bool
+    //  物化（checkGameOver* 已 bool 化，P292 档①；余 single/team 各 1 段）。
     if (m_fieldC0 != 0)
     {
         return 0;
@@ -1042,24 +1058,31 @@ bool PvP_Room::check_winner()
     if ((m_pvpBattleMode == 2) || (m_pvpBattleMode == 3))
     {
         lock();
-        int local_6c[6];
-        local_6c[3] = 0;
-        local_6c[4] = 0;
-        local_6c[5] = 0;
-        local_6c[0] = 0;
-        local_6c[1] = 0;
-        local_6c[2] = 0;
+        // [L10b] P311 成员数组视图：ORIG 0x085d9799/0x085d97c7 为单条
+        // `mov -0x5c/-0x68(%ebp,%eax,4),%edx; add $1; mov %edx,...`（scaled disp 且
+        // **索引不含 +3**）⇒ 原码是 `{int m_win[3]; int m_teamWin[3];}` 视图对象的
+        // 成员数组访问（m_win@-0x68 组、m_teamWin@-0x5c 组）。旧 `int local_6c[6]` +
+        // 下标 `[T+3]` 使 4.4 恒拆 `lea 0x3(%eax)` + 重算 `add $0x3` 两段。
+        struct PvPWinCountView
+        {
+            int m_win[3];        // local_6c[0..2]（ORIG -0x68 组；第二循环读取）
+            int m_teamWin[3];    // local_6c[3..5]（ORIG -0x5c 组）
+        };
+        PvPWinCountView local_6c;
+        local_6c.m_teamWin[0] = 0;
+        local_6c.m_teamWin[1] = 0;
+        local_6c.m_teamWin[2] = 0;
+        local_6c.m_win[0] = 0;
+        local_6c.m_win[1] = 0;
+        local_6c.m_win[2] = 0;
         for (int local_2c = 0; local_2c < 8; local_2c = local_2c + 1)
         {
             if ((P_TEAMWIN(local_2c) != 0) && (P_TEAMWIN(local_2c) < 0xfe))
             {
-                // [b28d-t3-PoolBigThree] 求值次数形：`a[x]=a[x]+1` 双侧下标 = 二次求值
-                // （4.4 输出双段 lea 0x3 + add 0x3 共 12 条）；ORIG 0x085d9799 单次
-                // 求值后 `mov -0x5c(,%eax,4); add; mov` 6 条 ⇒ 改 += 单求值形。
-                local_6c[P_TEAMWIN(local_2c) + 3] += 1;
+                local_6c.m_teamWin[P_TEAMWIN(local_2c)] += 1;
                 if (P_WIN(local_2c) != 0)
                 {
-                    local_6c[P_TEAMWIN(local_2c)] += 1;
+                    local_6c.m_win[P_TEAMWIN(local_2c)] += 1;
                 }
             }
         }
@@ -1067,7 +1090,7 @@ bool PvP_Room::check_winner()
         unsigned int local_30 = 0;
         for (int local_28 = 1; (int)local_28 < 3; local_28 = local_28 + 1)
         {
-            if (0 < local_6c[local_28])
+            if (0 < local_6c.m_win[local_28])
             {
                 local_34 = local_34 + 1;
                 local_30 = local_28;
@@ -1106,7 +1129,9 @@ bool PvP_Room::check_winner()
         }
         cMyTrace local_54(__PRETTY_FUNCTION__, 0xa3c, 0);
         local_54("PvP_Room::check_winner single : %d", local_20);
-        if (m_deathMatch.checkGameOverForSinglePlay(local_20) != 0)
+        // [L10b P292 档①] callee 已 bool 化 ⇒ 裸形（`if (f())`）直产 ORIG
+        // 0x085d9950 `test %al,%al; je`；`!= 0` 会多一条比较。
+        if (m_deathMatch.checkGameOverForSinglePlay(local_20))
         {
             m_deathMatch.checkWinnerForSinglePlay(m_users, m_winCheck, m_userTable);
             return 1;
@@ -1114,11 +1139,13 @@ bool PvP_Room::check_winner()
     }
     else if (m_pvpBattleMode == 5)
     {
-        int uVar2 = get_pvp_team_cnt();
+        // [L10b] P231 裸 register：ORIG 0x085d99ab `call get_pvp_team_cnt; mov %eax,%ebx`
+        // 跨 cMyTrace ctor/op() 保活于 callee-saved %ebx，且 0x085d99fb 的第二次
+        // 调用结果**不落槽**直压实参（P0）⇒ 首值留 callee-saved + 次值内联实参。
+        register int uVar2 = get_pvp_team_cnt();
         cMyTrace local_44(__PRETTY_FUNCTION__, 0xa46, 0);
         local_44("PvP_Room::check_winner team  : %d", uVar2);
-        int iVar3 = get_pvp_team_cnt();
-        if (m_deathMatch.checkGameOverForTeamPlay(m_users, iVar3, m_teamWin) != 0)
+        if (m_deathMatch.checkGameOverForTeamPlay(m_users, get_pvp_team_cnt(), m_teamWin))
         {
             m_deathMatch.checkWinnerForTeamPlay(m_users, m_winCheck, m_teamWin, m_userTable);
             return 1;
@@ -1179,7 +1206,8 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
     {
         return 0x13;
     }
-    m_matching = (int)m_pMatchingSystem->GetMatchingSystem((ENUM_PVP_MATCHING_TYPE)GetMatchingType());
+    // [L10b P211 档③] 同上：返回 int，无 cast。
+    m_matching = m_pMatchingSystem->GetMatchingSystem((ENUM_PVP_MATCHING_TYPE)GetMatchingType());
     // [b28d-solo-PvP_Room] 真语义 bug（实参取错对象）：ORIG 0x085d6908 调用点
     // `lea -0x40(%ebp),%edx; mov %edx,0x4(%esp)`（=&local_44 短整局部）+
     // `lea 0x28(%ebp),%edx; mov %edx,0x8(%esp)`（=&mode 第 8 形参）⇒ 原码传
@@ -2015,6 +2043,12 @@ int PvP_Room::make_room_info(char* buf)
     //     DIFF 双回归（ae 130→128、near 7→8、diff 18→19）⇒ 净负，已回退；
     //  ③ 原形（unsigned，直传）= 单段。
     //  ⇒ 记 N（跨版本字段-实参两段中转；字段类型旋钮须全消费段联判，已测并回退）。
+    // [L10b 复核 2026-09-10] 再实测**字段 enum 化**（`PVP_BATTLE_MODE m_pvpBattleMode`
+    // + 全部赋值点 cast）：TU 四数 34/131/6/18 逐值不变、本件仍 139（ORIG 140）⇒
+    // 4.4 对 enum 字段 load 与 int/unsigned 同形。探针 /tmp/probe_p265b.cpp 九形
+    // （int/unsigned/enum 字段 × int/enum 形参 × 有无 (E) cast）**全部**单段
+    // `mov (%eax),%eax; mov %eax,(%esp)`（4.4.7）⇒ ORIG 的 `mov %eax,%edx` 属 4.1
+    // 保守 regmove（N18a 族，反向亦不可造），已封顶。
     local_ec->put_byte(m_pvpBattleMode);
     for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
     {
@@ -3589,6 +3623,10 @@ int PvP_Room::time_out(int* seats)
 // BODY`（P226 尾测形）；旧 while 形把出口块放循环头并**复制 epilogue**
 // （`add $0x140;pop×4;ret` 岛），与 ORIG 尾部单份 fall-through 错位 ~49 行。
 // 残余 675 = N82 帧/槽组整体平移 + 布尔物化岛，判词沿用 b28d-7/solo。
+// [L10b 2026-09-10] P225 推广：mode4 段 `bVar15 = (integrated && eventing && !observer)`
+// 的 `&&` 形在 4.4 产 bool 常量岛（mov$1/jmp/mov$0/jmp/mov$0/cmpb/je，+4 条）⇒ 拆
+// 嵌套 if（bVar15=false + 两级 if）后 1091→1085（ORIG 1045）。残余 = N82 帧 0x140 vs
+// 0xfc（+0x44，17 个具名局部）+ 槽组整体平移 + 布尔物化。
 void PvP_Room::pvp_reward()   // [b28c-16 SIGFIX] ORIG 串 void
 {
     int local_dc[8];
@@ -3640,14 +3678,16 @@ void PvP_Room::pvp_reward()   // [b28c-16 SIGFIX] ORIG 串 void
                 // [b28d-solo-PvP_Room] P0：ORIG 0x085da882 的 GetRepeatEvent 返回值
                 // 全程在 %eax（无槽往返，`mov %eax,(%esp)` 直传 this）⇒ 原码是内联
                 // 表达式，无 `CEventBase* ev` 具名局部（旧形多 6 条槽中转）。
-                if (GlobalData::s_event_manager->GetRepeatEvent(0x38)->IsEventing((CUser*)0) != 0 &&
-                    IsPvpObserver(local_5c) == 0)
+                // [L10b P225 推广] `&&` 双条件在 4.4 恒折成 bool 常量岛
+                // （mov$1/jmp/mov$0/jmp/mov$0/cmpb/je 共 +4 条）；ORIG 每条件各发
+                // `test; setne; test; je` / `movzbl; xor$1; test; je` 段 ⇒ 拆嵌套 if。
+                bVar15 = false;
+                if (GlobalData::s_event_manager->GetRepeatEvent(0x38)->IsEventing((CUser*)0) != 0)
                 {
-                    bVar15 = true;
-                }
-                else
-                {
-                    bVar15 = false;
+                    if (IsPvpObserver(local_5c) == 0)
+                    {
+                        bVar15 = true;
+                    }
                 }
             }
             else

@@ -398,10 +398,12 @@ bool AvatarRouletteServer::InitAddCharacSkill()
                         for (int idx = 0; idx < count; ++idx)
                         {
                             LevelUpSkill skill;
-                            STAvatarAbilityVariation& var = eq.m_param1c0.m_avatar264[idx];
-                            skill.m_job = var.m_skill.m_job;        // 元素 +0xc（内层 map 键，ORIG 0x0817f55d find 用 +0）
-                            skill.m_field4 = var.m_skill.m_field4;  // 元素 +0x10
-                            skill.m_field8 = var.m_skill.m_field8;  // 元素 +0x14
+                            // [判据⑦/P0] ORIG 0x0817f531 只发**一次** operator[]
+                            // （0x0818084a）后连读 +0xc/+0x10/+0x14 落在 skill 三槽
+                            // ⇒ 原码是子对象**整体赋值**（隐式 operator= 逐字段 3 mov），
+                            // 非逐字段引用形：具名引用 `var` 会多占槽并每字段重载 eax
+                            // （旧形：-0x4 槽 + `mov -0xc,%eax` 三连）。
+                            skill = eq.m_param1c0.m_avatar264[idx].m_skill;
                             // ORIG：先取 end() 再 find(job)（0x0817f548/0x0817f577），
                             // find==end 时先插入空 vector，再 push_back。
                             std::map<int, std::vector<LevelUpSkill> >::iterator itEnd =
@@ -487,7 +489,9 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
 
     // [b28e-L21 已试无效] ORIG 0x0817fcab `mov 0x4(%eax),%esi` 单段直读 vs 我方
     // `mov 0x4(%eax),%eax; mov %eax,%esi` 两段；去 (int) cast 实测无变化 ⇒ 同封顶。
-    CItem* item = G_CDataManager()->find_item(static_cast<int>(picked.m_itemId));
+    // [T1 直证] m_itemId 已 int 化（DataManagerInitDepends.h）⇒ 形参同型直传，
+    // 复现 ORIG 0x0817fcab 单条 `mov 0x4(%eax),%esi`。
+    CItem* item = G_CDataManager()->find_item(picked.m_itemId);
     if (item == 0)
         return false;
     if (!item->IsAvatarItem())                                  // vtable+0x10==1 才继续
@@ -510,16 +514,18 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
         // p167：ORIG 用**非 const** `_Rb_tree_iterator`（operator==/operator-> 非 const
         // 实例）+ `operator[]` 二次取值（find 判存在 + operator[] 取 map，P123），
         // 旧 const_iterator 多转换构造 ×2 + const 版比较。
-        std::map<unsigned long,
-                 std::map<int, std::vector<LevelUpSkill> > >::iterator it =
-            m_addCharacSkillMap.find(static_cast<unsigned long>(picked.m_itemId));
-        if (it == m_addCharacSkillMap.end())
+        // [P293] ORIG 0x0817fd43 先 `end()`（sret -0x48）后 `find(key)`（sret -0x44）
+        // + `operator==` ⇒ 原码是**单表达式**比较形；具名 it 形 4.4 恒 find 先/end 后。
+        if (m_addCharacSkillMap.find(
+                static_cast<unsigned long>(picked.m_itemId)) ==
+            m_addCharacSkillMap.end())
             return false;
 
         std::map<int, std::vector<LevelUpSkill> > skillMap =
             m_addCharacSkillMap[static_cast<unsigned long>(picked.m_itemId)];
-        std::map<int, std::vector<LevelUpSkill> >::iterator sit = skillMap.find(grade);
-        if (sit == skillMap.end())
+        // [P293] 同族：ORIG 0x0817fdfb `end()` 先于 `find(grade)`（grade 为同型形参
+        // ⇒ 直接传址 `lea 0x10(%ebp)`，无 key 临时）。
+        if (skillMap.find(grade) == skillMap.end())
             return false;
 
         std::vector<LevelUpSkill> skillVec = skillMap[grade];

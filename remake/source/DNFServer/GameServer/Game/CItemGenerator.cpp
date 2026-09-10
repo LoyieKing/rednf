@@ -197,9 +197,7 @@ GenuineDamageUpgradeTable* getGenuineUpgradeTable()
     static GenuineDamageUpgradeTable* genuineDamageUpgradeTable = 0;
     if (genuineDamageUpgradeTable == 0)
     {
-        void* mem = operator new(0x188);
-        memset(mem, 0, 0x188);
-        genuineDamageUpgradeTable = new (mem) GenuineDamageUpgradeTable();
+        genuineDamageUpgradeTable = new GenuineDamageUpgradeTable();
         if (!importGenuineUpgradeTable("Etc/Upgrade_Separate.etc",
                                        genuineDamageUpgradeTable))
             return 0;

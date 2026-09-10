@@ -432,23 +432,8 @@ void CUser::CalculateExpertJobMaterials(
     }
 }
 
-// ---------------------------------------------------------------------------
-// b28d-66 弱符号发射点（P147/P149）：
-// ORIG 本 TU 符号集含 vector<int>::begin()/end()（非 const）、iterator::base()、
-// iterator→const_iterator 转换构造、pair-iterator 前置 operator++()——这些是基线
-// 实现（非 const begin/end 路径 + 前置 ++）顺带发射的弱实例；改正为 ORIG 形
-// （const 版 begin/end、后置 ppEi）后不再发射。此处显式发射以维持符号集，
-// 对上述三个函数的机器码零影响。
-// ---------------------------------------------------------------------------
-static void __attribute__((used)) _forceLinkClosureAWeakSymbols(
-    std::vector<int>* v, std::vector<std::pair<int, int> >* p)
-{
-    std::vector<int>::iterator it = v->begin();             // begin()（非 const）
-    std::vector<int>::iterator itEnd = v->end();            // end()（非 const）
-    itEnd.base();                                           // base() const
-    std::vector<int>::const_iterator ci = it;               // 转换构造 C1IPiE
-    (void)ci;
-    ++itEnd;                                                // 前置 operator++()
-    std::vector<std::pair<int, int> >::iterator pi = p->begin();
-    ++pi;                                                   // pair 迭代器前置 operator++()
-}
+// [B01 铁律1 / Main 批准] 原 `_forceLinkClosureAWeakSymbols`（static + used）为**发明符号**
+// （ORIG `_ZL29_forceLinkClosureA…` 不存在），其目的（P147 强制发射 7 个弱模板实例）已由
+// 其它 TU 自然发射覆盖（本机 nm 普查 841 个 .o）：`_ZNK…normal_iteratorIPi…4baseEv` 116 个、
+// `…IPKi…C1ERKS2_` 82 个、`…C1IPiE`(enable_if 转换构造) 16 个、`pair 迭代器 ppEv` 16 个、
+// `vector<int>::begin/end` 116/116、`vector<pair<int,int>>::begin` 98 个 ⇒ 删定义不丢符号。

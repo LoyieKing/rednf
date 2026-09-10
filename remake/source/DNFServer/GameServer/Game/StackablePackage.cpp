@@ -5,12 +5,21 @@
 #include "CDataManager.h"
 #include "CItem.h"
 
+// [A31-GI · P338/P327] 补 <iostream> 恢复 __ioinit；setupEventProcessors 前移为本 TU
+// 首个强外部符号 ⇒ GI 键名
+// `_GLOBAL__I__ZN16StackablePackage19EventProcessManager20setupEventProcessorsEv`（ORIG 0x8281bde）。
+#include <iostream>
+
 namespace StackablePackage
 {
 struct EventProcessManager::EventProcessManagerImpl
 {
     std::map<EVENT_TYPE, std::map<int, EventProcessor*> > processors;
 };
+
+void EventProcessManager::setupEventProcessors()
+{
+}
 
 EventProcessManager::EventProcessManager()
     : m_impl(new EventProcessManagerImpl)
@@ -21,10 +30,6 @@ EventProcessManager::EventProcessManager()
 EventProcessManager::~EventProcessManager()
 {
     destroy();
-}
-
-void EventProcessManager::setupEventProcessors()
-{
 }
 
 // ORIG 0x08281a2a (0x70)：无 null 检查。GetEventId 先求值存 -0x10，

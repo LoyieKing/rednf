@@ -116,7 +116,9 @@ void CDeathMatchBattleMgr::InsertTimerKilledUserForRevive(int roomIdx, int a)
 }
 
 // ==== ORIG 085df012 ====
-int CDeathMatchBattleMgr::checkGameOverForSinglePlay(int mode)
+// [L10b P292 档①] int→bool（头同步）：ORIG PvP_Room::check_winner 0x085d9950
+// `test %al,%al; je` 无 setne。
+bool CDeathMatchBattleMgr::checkGameOverForSinglePlay(int mode)
 {
     if (mode == 0)
         return 1;

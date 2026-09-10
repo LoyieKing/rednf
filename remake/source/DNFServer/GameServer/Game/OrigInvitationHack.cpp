@@ -14,14 +14,14 @@
 
 #include "CHackLog_InvitationPaperSellToNPC.h"
 
+// [A31-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit；IsInvitationPaper
+// 前移为本 TU 首个强外部符号 ⇒ GI 键名
+// `_GLOBAL__I__ZN33CHackLog_InvitationPaperSellToNPC17IsInvitationPaperEi`（ORIG 0x828675e）。
+// 零语义/布局改动。
+#include <iostream>
+
 // ORIG _ZL19INVITATION_PAPER_NO @0x08c101c0（.rodata，7 x int）
 const int INVITATION_PAPER_NO[7] = { 0xc8d, 0xc8e, 0xc8f, 0xc93, 0xcb8, 0xcd0, 0xcd2 };
-
-// ORIG 0x08286714：恒返 0x322
-int CHackLog_InvitationPaperSellToNPC::GetHackType()
-{
-    return 0x322;
-}
 
 // ORIG 0x082866d0：i 0..6 遍历 INVITATION_PAPER_NO，命中返 1，否则返 0
 bool CHackLog_InvitationPaperSellToNPC::IsInvitationPaper(int itemNo)  // [b28d-Main 代落·S328 P292/P315 档①] 返回 int→bool（与 CHackLog_InvitationPaperSellToNPC.h:13 同步；ORIG 0x08619c43 调用点 `call;test %al,%al;je` 无 setne）
@@ -38,3 +38,10 @@ bool CHackLog_InvitationPaperSellToNPC::IsInvitationPaper(int itemNo)  // [b28d-
     }
     return false;
 }
+
+// ORIG 0x08286714：恒返 0x322
+int CHackLog_InvitationPaperSellToNPC::GetHackType()
+{
+    return 0x322;
+}
+

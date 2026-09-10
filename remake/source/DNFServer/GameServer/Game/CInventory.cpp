@@ -446,81 +446,35 @@ CInventory::CInventory()
 CInventory::~CInventory()
 {
 }
-// [b28d-Main·检查点16 S425] m_creatureMgr 改**成员初始化列表**（P147）：
-//   隐式拷贝构造的语义本就是成员拷贝构造；改后 `_ZN13user_creature12CCreatureMgrC1ERKS0_`
-//   由本 TU 发射（ORIG 该 W 符号的天然发射点），S425 可删其 TU 级 force 使用点。
-CInventory::CInventory(const CInventory& other)
-    : m_creatureMgr(other.m_creatureMgr), m_avatarItemMgr(other.m_avatarItemMgr)
+// [b28d-round5 N84/P147 **翻正**，取代旧「N84 封顶」判词]
+// ORIG `_ZN10CInventoryC1ERKS_` 为 **W 隐式合成**（0x0869d6xx 邻域，rep movsl 0x18c
+// dwords + word 的整块拷贝，无用户逻辑）⇒ 用户声明的显式定义必产生 T 版逐字段体
+// （157/178 DIFF，gap 21）。b28d-37 探针 /tmp/probe_inv.o 已实证**隐式版与 ORIG AE**，
+// 旧判词「全仓无 U 引用 ⇒ 无发射点」只说明删声明后不会自然发射，解法即 N84 成功案例
+// （QuestScript::C1ERKS_ 849→0）：**删用户声明 + TU 级 force 使用点**。
+// CInventory.h 的 `CInventory(const CInventory&)` 声明已由 A24 同批删除（R2 协调）。
+// 隐式版语义 = 成员拷贝构造（m_creatureMgr/m_avatarItemMgr 逐个 C1ERKS_ + 其余标量/
+// 数组块拷贝），与原显式体逐字段等价。
+namespace
 {
-    // b28d-solo-CInventory：157/196，N84 封顶（ORIG 隐式 rep movsl 块拷贝；全仓无 U 引用不可删显式定义）。
-    // b28d-37 [N84 封顶，ORIG 0x869??]：同 aSERKS_——C1ERKS_ 为 W 隐式拷贝但全仓无 U 引用（无发射点），回退显式定义封顶。157/196。
-    m_pParent = other.m_pParent;
-    m_money = other.m_money;
-    m_coin = other.m_coin;
-    m_payCoin = other.m_payCoin;
-    m_eventCoin = other.m_eventCoin;
-    m_field14 = other.m_field14;
-    m_inventoryCapacity = other.m_inventoryCapacity;
-    for (int i = 25; i >= 0; i--)
-    {
-        m_invenItem[i] = other.m_invenItem[i];
-    }
-    m_pEquipSlot = other.m_pEquipSlot;
-    m_pAvatarSlot = other.m_pAvatarSlot;
-    m_avatarCoin = other.m_avatarCoin;
-    for (int i = 0; i < 10; i++)
-    {
-        m_clearAvatar[i] = other.m_clearAvatar[i];
-    }
-    for (int i = 0; i < 12; i++)
-    {
-        m_avatarVisible[i] = other.m_avatarVisible[i];
-    }
-    m_pCreatureSlot = other.m_pCreatureSlot;
+// force 使用点：仅用于让 4.4 在 -O0 发射隐式 `CInventory::C1ERKS_`（W）与
+// `CCreatureMgr::C1ERKS_`/`CAvatarItemMgr::C1ERKS_` 等成员拷贝构造（ORIG 同名 W 符号）。
+// 无调用点亦会发射（__attribute__((used)) 保证不被 DCE），不改变任何既有函数体。
+__attribute__((used)) void force_emit_CInventory_copy_ops(const CInventory& src, CInventory& dst)
+{
+    CInventory tmp(src);   // 发射隐式 CInventory::C1ERKS_（W）
+    dst = src;             // 发射隐式 CInventory::aSERKS_（W）
+    (void)tmp;
 }
+}  // namespace
 
-CInventory& CInventory::operator=(const CInventory& other)
-{
-    // b28d-solo-CInventory：116/116，N84 封顶（ORIG rep movsl 隐式拷贝，全仓无 U 引用不可删显式定义）。
-    // b28d-37 [N84 封顶，ORIG 0x869d73c]：ORIG aSERKS_ 为 W 隐式合成（rep movsl 0x18c dwords + word）；隐式版与 ORIG AE 但全仓 `nm -u` 无 U 引用（_Charac_info 以 blob 建模、外部走 setCopy）⇒ 无发射点，回退显式定义封顶。116/116。
-    m_pParent = other.m_pParent;
-    m_money = other.m_money;
-    m_coin = other.m_coin;
-    m_payCoin = other.m_payCoin;
-    m_eventCoin = other.m_eventCoin;
-    m_field14 = other.m_field14;
-    m_inventoryCapacity = other.m_inventoryCapacity;
-    // ORIG 0x869d7a3..0x869d7b5：rep movsl 0x18c dwords + 2 字节 = 0x632 字节，
-    // 完整复制 m_invenItem[26]（26×0x3d = 0x632）。旧注释 0x18c 误引
-    // GetInvenData（0x84fbfc8）站点，此处必须整数组复制。
-    // [N归因] ORIG 0x632 整体复制被其编译器展开为 rep movsl+word（无 call），
-    // c6root 4.4.7 -O0 下 memcpy 常量参数恒展开为 call memcpy，源层无法复现
-    // 该 rep 形态；语义等价（0x630 dword 块 + 2 字节尾）。
-    // [hc N 记] +0x630 处 2 字节尾 = m_invenItem[26] 连续 POD blob（0x632 字节）
-    // 的块拷贝延续（跨 item[25].m_reserved.m_field4 高字节 + m_field8，无单一名
-    // ORIG 字段可锚），属 §4.3「数据区/数组 blob 拷贝」例外，非具名成员访问；
-    // 字段化需臆造 2 字节字段（违 §4.1/§4.3 getter 名权威）或改 rep 拆解致倒退，
-    // 故保留块拷贝原语形态，记 N。orig/our insns 116=116（verdict 未倒退）。
-    memcpy(m_invenItem, other.m_invenItem, 0x630);
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(m_invenItem) + 0x630) =
-        *reinterpret_cast<const unsigned short*>(
-            reinterpret_cast<const char*>(other.m_invenItem) + 0x630);
-    m_pEquipSlot = other.m_pEquipSlot;
-    m_pAvatarSlot = other.m_pAvatarSlot;
-    m_avatarCoin = other.m_avatarCoin;
-    for (int i = 0; i < 10; i++)
-    {
-        m_clearAvatar[i] = other.m_clearAvatar[i];
-    }
-    for (int i = 0; i < 12; i++)
-    {
-        m_avatarVisible[i] = other.m_avatarVisible[i];
-    }
-    m_pCreatureSlot = other.m_pCreatureSlot;
-    m_creatureMgr = other.m_creatureMgr;
-    m_avatarItemMgr = other.m_avatarItemMgr;
-    return *this;
-}
+// [b28d-round5 N84/P147 **翻正**，取代旧「N84 封顶」判词]
+// ORIG `_ZN10CInventoryaSERKS_` = W 隐式合成（0x0869d73c：rep movsl 0x18c dwords + word
+// = 0x632B 整块），无用户逻辑；我方旧显式体是 T 版逐字段（116/116 但装载/块拷贝形不同）。
+// 与 C1ERKS_ 同批处理：删用户声明（CInventory.h，R2 广播 + Main 批准）+ 删本显式定义，
+// 由 TU 级 force 使用点（上）发射隐式 W 版（b28d-37 探针 /tmp/probe_inv.o 实证与 ORIG AE）。
+// 语义 = 成员逐个赋值（POD 数组块拷贝 + m_creatureMgr/m_avatarItemMgr 的 aSERKS_），
+// 与旧逐字段体完全等价；A32 独立核查全仓无 CInventory 对象级赋值使用点。
 
 void CInventory::reset()
 {
@@ -1683,8 +1637,6 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     // [判据⑩ 实测回退] 「带初值者深」（limit 提到 money 之前）在本件**无效**
     // （-0x3c 仍 2/2、-0x28 反由 4→2）⇒ 维持原声明序，槽差记 N82附/N126 族。
     int money;
-    register int level;
-    register const char* accName;
     int limit = 0x7fffffff;
     int oldMoney;
     unsigned int gained;
@@ -1692,9 +1644,12 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
 
     if (m_pParent != 0)
     {
-        accName = m_pParent->get_acc_name();
-        level = ((CUserCharacInfo*)m_pParent)->get_charac_level();
-        limit = G_CDataManager()->GetMoneyLimitPerLevel(level, accName);
+        // [b28d-round5 复攻，ORIG 0x084ff2bb..0x084ff2ee 直证] ORIG 无 level/accName
+        // 具名槽：`call get_acc_name; mov %eax,%esi` / `call get_charac_level;
+        // mov %eax,%ebx`（callee-saved 跨 G_CDataManager 保活）+ `call G_CDataManager`
+        // 三段后直接 GetMoneyLimitPerLevel ⇐ 与 use_money 同形（P0：无槽 ⇒ 内联实参）。
+        limit = G_CDataManager()->GetMoneyLimitPerLevel(
+            ((CUserCharacInfo*)m_pParent)->get_charac_level(), m_pParent->get_acc_name());
     }
     oldMoney = m_money;
     if (limit - amount < m_money)
@@ -3993,6 +3948,10 @@ int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& ite
     // （_ZNSt6vectorISt4pairIiiESaIS1_EE9push_backERKS1_）⇒ it++ + 具名 pair 局部。
     // [实测] 进一步改 while+两处 it+++entry.first 赋值可使 p167 CLEAR（仅 C1/C2 别名），
     // 但 TU 四数 identical+ae 392→390（ae 263→261）⇒ 按「四数不回退」保留本形。
+    // [b28d-round5 复攻失败记录，ORIG 0x085056ca 直证] ORIG 为 while 尾条件 + 两处
+    // 独立 it++（type==0 分支 ppEi sret -0x20；循环尾 sret -0x1c）+ 函数级具名
+    // it(-0x30)/entry(-0x38, C1Ev @0x085056e5)；本形实测 158/154 且 **TU 四数
+    // 395→393 回退**（4.4 对 pair 默认构造省略 C1Ev call ⇒ 净少 4 条）⇒ 回滚保持 for 形。
     for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
          it++)
     {
@@ -5804,6 +5763,19 @@ int finishItemChecksum(int* sum, int money, int coin, int a, int b)
 // @0x08509e78：m_pParent 为空返回 0；否则经 DB_Q 投递 SIG_AVATAR_INSERT（0x31 头 +
 // UID），set(槽位+10/到期/标志/agency/hidden) + setJewelSocket + sig+0x4f 写 expansion
 // 前 4 字节，MsgQueueMgr::put(DB_Q)。
+namespace
+{
+// stAvatarExpansionInfo_t（GamePODTypes.h，short m_color[2]）的头 4 字节 int 视角：
+// ORIG 0x08509fbf 为单条 movl 读（`mov (%edx),%edx`）⇒ 原码按 4 字节整体读；
+// 直写 `*(const int*)&expansion` 时 4.4 走 RHS-first，本 union 具名视角给 LHS-first。
+union ExpansionHeadV
+{
+    short m_color[2];
+    int m_head;
+};
+static_assert(sizeof(ExpansionHeadV) == 4, "ExpansionHeadV == stAvatarExpansionInfo_t");
+}  // namespace
+
 bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
                                  const stAvatarEmblemInfo_t& emblem,
                                  const char* agency, unsigned long hidden,
@@ -5817,13 +5789,19 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
     **guard << 0x31;
     **guard << (int)m_pParent->GetUID();
     SIG_AVATAR_INSERT* sig = guard->GetInBuffer<SIG_AVATAR_INSERT>();
-    unsigned int avatarUid = m_pAvatarSlot[slot].m_addInfo;
-    int characNo = m_pParent->get_charac_no(-1);
-    sig->set(characNo, avatarUid, slot + 10, expireDate, b, c, agency, 0, hidden);
+    // [b28d-round5 P0/P52 复攻，ORIG 0x08509f2b..0x08509f7c 直证] ORIG 无 avatarUid/
+    // characNo 具名槽：`movsbl -0x30(%ebp),%edi`(c)/`movzbl -0x2c(%ebp),%esi`(b) 跨
+    // get_charac_no 保活、avatarUid 保活 %ebx、characNo 由 eax 直压 0x4(%esp)
+    // ⇒ 原码是单条语句 + 内联实参（P0：无槽往返 ⇒ 无具名局部）。
+    sig->set(m_pParent->get_charac_no(-1), m_pAvatarSlot[slot].m_addInfo, slot + 10,
+             expireDate, b, c, agency, 0, hidden);
     sig->setJewelSocket(emblem);
-    // ORIG 0x8509fbf：mov (%edx),%edx; mov %edx,0x4f(%eax) —— 单条 movl 把
-    // expansion 前 4 字节（m_color[0..1]）写入 m_expansion(+0x4f)。
-    sig->m_expansion = *reinterpret_cast<const int*>(&expansion);
+    // ORIG 0x8509fbf：`mov -0x1c(%ebp),%eax`(sig 先) → `mov 0x28(%ebp),%edx;
+    // mov (%edx),%edx` → `mov %edx,0x4f(%eax)`（LHS-first 单条 movl）。
+    // [b28d-round5 P235] 直写 `*(const int*)&expansion` 时 4.4 走 RHS-first
+    // （base 先载）⇒ 改用匿名 union 具名视角（m_head 与 m_color[2] 同址同宽），
+    // 得 ORIG 的 LHS-first 序。sizeof/偏移/mangled 零影响（纯 TU 局部视图）。
+    sig->m_expansion = reinterpret_cast<const ExpansionHeadV&>(expansion).m_head;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
 }

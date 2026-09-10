@@ -394,6 +394,9 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
     GROW_SKIP:;
     }
 
+    // [A06 2026-09-10 P226 扩展 试行记录·已回退] ORIG 0x086640c5 段 env/now 无槽 + 短路岛
+    // `mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je` ⇒ 试语句表达式形实测**反劣**
+    // （205→210 条：4.4 对语句表达式岛在多条件链上产两处岛/多 5 条）⇒ 回退。
     bool gmTimeActive = false;
     {
         CEnvironment* env = G_CEnvironment();
@@ -412,16 +415,17 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
             gift, 150000, getCurCharacNo(), msg, strlen(msg), 0, GetServerGroup(), 0, 0);
     }
 
+    // [A06 2026-09-10 P226 扩展 试行记录·已回退] ORIG 0x0866414d 段同形（无槽短路岛）；
+    // 两条语句表达式同批实测净 +5 条（含本段）⇒ 一起回退。
     bool premiumOn =
         (isAffectedPremium((ENUM_PREMIUM_TYPE)0x10) == true) &&
         (GlobalData::s_systemTime_.getCurSec() <= 0x46e1bbd0u);
     if (premiumOn && reason != (eChangeGrowTypeReason)0x1 && secondGrew == 0)
     {
-        // ORIG：const 引用读 accessor（getCurCharacInvenR + GetInvenRef 均为 const
-        // 重载）——const 重载甄别。
-        const CInventory* inven = getCurCharacInvenR();
-        const Inven_Item& ref = *inven->GetInvenRef(0, 0xb);
-        if ((ref.m_addInfo - 0x65d6u) < 5u)
+        // ORIG 0x08664185：`call getCurCharacInvenR; … call GetInvenRef(0,0xb);
+        // mov 0x2(%eax),%eax; sub $0x65d6,%eax; cmp $0x4,%eax` —— 两 accessor 结果
+        // **均无具名槽**（inven/ref 旧形各多一对 store/load，P0 判据⑦）⇒ 内联链式。
+        if ((getCurCharacInvenR()->GetInvenRef(0, 0xb)->m_addInfo - 0x65d6u) < 5u)
         {
             char msg[256];
             strncpy(msg, g_scriptStringManager_.findString(4, "game_server_msg_07", 0), 0xff);
@@ -6061,8 +6065,10 @@ unsigned int CUser::SaveInventoryOnly()
     }
     if (G_GameWorld()->GetChannelType() == 7) return 0;
 
-    Stream* s = GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1888);
-    CStreamGuard guard(s, true);
+    // [A06 2026-09-10 P259] ORIG 0x086501c8 段 `call Acquire; mov %eax,0x4(%esp)`（结果
+    // 直落 guard ctor 实参、无 stream 具名槽）；旧形多一对 `mov %eax,-0x10; mov -0x10,%eax`
+    // 并顶浅后续全部槽（gap 2）。
+    CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1888), true);
     guard.operator*()->operator<<(0x23);           // ORIG 0x086501c8：deEv→lsEi 链
     guard.operator*()->operator<<((int)GetUID());  // ORIG 同型
     SIG_SAVE_INVENTORY* inv = (SIG_SAVE_INVENTORY*)
@@ -7505,6 +7511,9 @@ int CUser::update_record(GameResultType& result)
     // `pair<Ki,GRT>::C1IiRS1_EEOT_OT0_` + insert(const value_type&)，块尾作用域
     // 自动 D1（+EH cleanup D1 共 ×2）⇒ 删 make_pair/records 缓存形。
     int ret = 0;
+    // [A06 2026-09-10 P309/P212 试行记录] ORIG 槽向 it(-0x7c 深)/key(-0x78)/end(-0x74)，
+    // 4.4 实测 it(-0x28)/key(-0x24)/end(-0x20) ⇒ 方向相反；把 key 拆「裸声明 + 赋值」
+    // 令声明序翻转（key→it）**实测无效**（4.4 按首次使用序分配，N98 成立）⇒ 已回退。
     std::map<int, GameResultType>::iterator it;          // 默认构造（C1Ev）
     int key = result.GetUniqueKey();
     it = getBattleRecordRefW()->find(key);
@@ -7642,8 +7651,10 @@ void CUser::UpdateCharacLinkBonus(unsigned int exp, unsigned int gold,
     // P0：ORIG 头 `mov 0x18(%ebp),%eax; mov %eax,-0xc(%ebp)`——bonusState 拷入
     // 具名局部槽，末次 operator<< 从槽重读（0x14/0x10 形参直读不受影响）
     unsigned int bs = static_cast<unsigned int>(bonusState);
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c11);
-    CStreamGuard guard(stream, true);
+    // [A06 2026-09-10 P259] ORIG 0x0865240c 无 stream 具名槽：`call Acquire` 结果
+    // %eax 直落 guard ctor 实参（O11 `call`; O13 `mov %eax,0x4(%esp)`），-0xc 槽归 bs。
+    // 旧具名 `Stream* stream` 多一对 store/load 并顶浅全部槽（gap 3）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c11), true);
     // ORIG：guard.operator*()->operator<< 六处显式代理链；GetUID 传 int（选
     // operator<<(int)，否则误落 unsigned 重载——const 甄别）。
     guard.operator*()->operator<<((int)0x14c);
@@ -10211,6 +10222,12 @@ void CUser::set_ingame_event_history(SIG_INGAME_EVENT_HISTORY* sig)
     // `idx*3; shl 2; add sig` 链直读 int 字段 ⇒ 局部具名视图 + 逐字段表达式
     // （P0 无 view 指针槽；ORIG 直接 `add 0xc(%ebp),%eax`）。
     struct IngameEventRecord { int m_key; int m_v1; int m_v2; };
+    // [A06 2026-09-10 P319 第二形 试行记录·已回退] ORIG 每处寻址尾为 `add 0xc(%ebp),%eax`
+    // （整数加法、形参作内存操作数，O13/O22/O37/O44/O51）。实测 `(unsigned int)sig + i*0xc`
+    // 回 cast 形在 4.4 产 **3 条**（`mov %eax,%edx; mov 0xc(%ebp),%eax; lea (%edx,%eax,1),%eax`）
+    // 反劣于原下标形的 2 条（`mov 0xc(%ebp),%ecx; lea (%ecx,%eax,1)`）⇒ 回退，记 N18a 族
+    // （4.1 `add mem,%eax` 单条不可造）。
+    // 视图元素仍具名（§4.3 合规）。
     // ORIG 0x0868d714 尾测 `cmpl $0x1d,-0xc; setle %al; test %al,%al; jne`
     // = 有符号 `i <= 0x1d`（P2/P51）；`i < 0x1e` 在 4.4 生 jcc 直跳无 setle。
     for (int i = 0; i <= 0x1d; ++i)

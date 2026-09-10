@@ -27,6 +27,33 @@
 #include "TimerQueue.h"          // G_TimerQueue / InsertTimerInMilisecond
 #include "GameRand.h"           // get_rand_int
 
+#include "DataManagerInitDepends.h"   // stHellParty_t（get_hellparty_script_values 返回值）
+
+// [b28d-round5-CBattle_Field_missing] 复现 ORIG 脚本源的「基址 + 常数索引」两步寻址（P30）：
+// ORIG 三段源装载为 `add $0x4,%edx; flds 0x8(%eax,%edx,4)` / `add $0x8,%edx; flds 0x8(...)` /
+// `add $0xc,%edx; flds 0xc(...)`（基址 +0x8/+0x8/+0xc 的 float 数组视角，索引 i+4/i+8/i+0xc）；
+// 具名成员直访问 `m_levelDiffRates[i]` 只能折单 disp（disp 0x18 + 索引 i），指令数不同 ⇒
+// 以只读视图表达同一内存的数组视角（sizeof/偏移零影响，TU 局部匿名类型，不发射符号）。
+namespace
+{
+// stHellParty_t 的 +0x08 起 float 数组视角（0x8 + (i+4)*4 == m_levelDiffRates[i]，
+// 0x8 + (i+8)*4 == m_difficultyRates[i]）。
+struct stHellPartyRateSrcView8
+{
+    int m_maxBaseValue;                 // +0x00
+    int m_minBaseValue;                 // +0x04
+    float m_rates[0x24];                // +0x08（覆盖 +0x08..+0x97）
+};
+// stHellParty_t 的 +0x0c 起 float 数组视角（0xc + (i+0xc)*4 == m_partyRates[i]）。
+struct stHellPartyRateSrcViewC
+{
+    int m_maxBaseValue;                 // +0x00
+    int m_minBaseValue;                 // +0x04
+    int m_baseValue;                    // +0x08
+    float m_rates[0x23];                // +0x0c（覆盖 +0x0c..+0x97）
+};
+}
+
 // ================= CBattle_Field::CBattle_Field() — ORIG 0x082a44fe =================
 //
 // 子对象（pair[2..9]、map/vector/Mutex/CRidable/CClearCondition/嵌套奖励等）
@@ -214,44 +241,46 @@ void CBattle_Field::reset_field()
 // 从 CDataManager 的 hellparty 脚本值（float 数组）拷贝各组比例；分母 10000.0f。
 void CBattle_Field::reset_hell_party_value()
 {
-    // [b28d-solo-CBattle_Field_missing 判词 · N107/N94] ORIG 0x0830a57c：残余为
-    // 成员常量偏移取址（`flds 0x10(%eax)` vs 4.4 `add $0x10,%eax; flds (%eax)`，
-    // N107 六形探针全产 add）+ 数组元素 `0x8(%eax,%edx,4)` vs 4.4 shl+add
-    // （N94 scaled-index 拆分约束）；语义等价。
+    // [b28d-round5-CBattle_Field_missing 翻正 · 判据②+P30/P311] ORIG 0x0830a57c：
+    // ①固定比例字段为**权威 stHellParty_t 具名字段 disp 直读**
+    //   （`mov 0x4(%eax),%edx` / `flds 0x10(%eax)` vs 旧稿 add 形，N107 五处翻正）；
+    // ②三个循环为「基址 + 常数索引」两步形（源 `add $0x4,%edx; flds 0x8(%eax,%edx,4)`、
+    //   目标 `lea 0x7c(%ebx),%edx; fstps 0x10(%eax,%edx,4)`）⇒ 用 TU 局部数组视角
+    //   表达（具名成员直访问只能折单 disp）。
     // ORIG（reset_hell_party_value.md 0x0830a583..0x0830a6f7）P48 no-CSE：
     // 每个字段/数组元素各自 fresh G_CDataManager()->get_hellparty_script_values()，
     // 共 9 对 G_CDataManager/get_hellparty_script_values 调用（6 固定 + 3 循环整组）。
-    // 前三个字段为整数 mov 拷贝 dword（script[0]/[+4]/[+0xc]），字段是 int；
-    // 以 reinterpret 位拷贝保持 mov 语义（float→int 转换会引入 flds/fistp）。
+    // 前三个字段为整数 dword 拷贝（script[0]/[+4]/[+0xc] = m_maxBaseValue/m_minBaseValue/
+    // m_baseRisingValue），与 m_hellPartyRatioN 同为 int ⇒ 直赋即 mov。
 
     // —— 固定比例字段 ——
-    m_hellPartyRatio0 = reinterpret_cast<const int*>(
-        G_CDataManager()->get_hellparty_script_values())[0];   // +0x1e8
-    m_hellPartyRatio1 = reinterpret_cast<const int*>(
-        G_CDataManager()->get_hellparty_script_values())[1];   // +0x1ec
-    m_hellPartyRatio3 = reinterpret_cast<const int*>(
-        G_CDataManager()->get_hellparty_script_values())[3];   // +0x1f4
-    m_hellPartyRatio4 = static_cast<const float*>(
-        G_CDataManager()->get_hellparty_script_values())[4] / 10000.0f;  // +0x1f8
-    m_hellPartyRatio5 = static_cast<const float*>(
-        G_CDataManager()->get_hellparty_script_values())[5] / 10000.0f;  // +0x1fc
-    m_hellPartyScriptRate = static_cast<const float*>(
-        G_CDataManager()->get_hellparty_script_values())[19] / 10000.0f; // +0x234
+    m_hellPartyRatio0 = static_cast<stHellParty_t*>(
+        G_CDataManager()->get_hellparty_script_values())->m_maxBaseValue;    // +0x1e8
+    m_hellPartyRatio1 = static_cast<stHellParty_t*>(
+        G_CDataManager()->get_hellparty_script_values())->m_minBaseValue;    // +0x1ec
+    m_hellPartyRatio3 = static_cast<stHellParty_t*>(
+        G_CDataManager()->get_hellparty_script_values())->m_baseRisingValue; // +0x1f4
+    m_hellPartyRatio4 = static_cast<stHellParty_t*>(
+        G_CDataManager()->get_hellparty_script_values())->m_subBaseRates / 10000.0f;     // +0x1f8
+    m_hellPartyRatio5 = static_cast<stHellParty_t*>(
+        G_CDataManager()->get_hellparty_script_values())->m_passSubBaseRates / 10000.0f; // +0x1fc
+    m_hellPartyScriptRate = static_cast<stHellParty_t*>(
+        G_CDataManager()->get_hellparty_script_values())->m_ancientDungeonAddRate / 10000.0f; // +0x234
 
-    // —— m_hellPartyDungeonRate[4]（+0x200）= script[6..9]/10000 ——
+    // —— m_hellPartyDungeonRate[4]（+0x200）= m_levelDiffRates[i]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyDungeonRate[i] = static_cast<const float*>(
-            G_CDataManager()->get_hellparty_script_values())[6 + i] / 10000.0f;
+        m_hellPartyDungeonRate[i] = static_cast<stHellPartyRateSrcView8*>(
+            G_CDataManager()->get_hellparty_script_values())->m_rates[i + 4] / 10000.0f;
 
-    // —— m_hellPartyMapRate[5]（+0x210）= script[10..14]/10000 ——
+    // —— m_hellPartyMapRate[5]（+0x210）= m_difficultyRates[i]/10000 ——
     for (int i = 0; i < 5; ++i)
-        m_hellPartyMapRate[i] = static_cast<const float*>(
-            G_CDataManager()->get_hellparty_script_values())[10 + i] / 10000.0f;
+        m_hellPartyMapRate[i] = static_cast<stHellPartyRateSrcView8*>(
+            G_CDataManager()->get_hellparty_script_values())->m_rates[i + 8] / 10000.0f;
 
-    // —— m_hellPartyItemRate[4]（+0x224）= script[15..18]/10000 ——
+    // —— m_hellPartyItemRate[4]（+0x224）= m_partyRates[i]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyItemRate[i] = static_cast<const float*>(
-            G_CDataManager()->get_hellparty_script_values())[15 + i] / 10000.0f;
+        m_hellPartyItemRate[i] = static_cast<stHellPartyRateSrcViewC*>(
+            G_CDataManager()->get_hellparty_script_values())->m_rates[i + 0xc] / 10000.0f;
 }
 // ============================================================================
 // == 血轮（Blood Dungeon）链 —— ORIG 报告逐指令转写（2026-08-25 批次）      ==
@@ -690,6 +719,10 @@ int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
         m_bloodSpawnCnt[i] = smallRound;
         m_bloodSpawnTime[i] = 0;
         key = (int)m_party->gen_timer_key((TIMER_MESSAGE)(0x17 + i));
+        // [b28d-round5 实测] ORIG 0x083054b3-0x083054b9 `mov -0x20(%ebp),%eax;
+        // add $0x17,%eax; mov %eax,-0x30(%ebp)` 是第 4 实参的具名物化槽，但本工具链
+        // 引入具名 int（头声明或块内声明两形实测）恒把余槽整体加深 0x10（0x4c→0x5c，
+        // 键槽 -0x2c vs ORIG -0x34）⇒ 反劣，回退为内联实参（残余仅 key 槽 -0x28 vs -0x34）。
         G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
                                                 m_party->GetPartyIndex(),
                                                 (TIMER_MESSAGE)(0x17 + i),

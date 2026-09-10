@@ -1378,6 +1378,15 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
     // `__gnu_cxx::operator==<pair const*, vector<pair>>` EXTRA（迭代器比较形，
     // P96/P220 非 const iterator + 正极性 `!=` 待核）。
     // 残余为跨版本槽/寄存器族。
+    // [round5-A17 2026-09-10] 两处**真实调用点差**已修（fresh 复验）：
+    //   ① `eit` 段原写「预求值 eend + `==`」⇒ p167 EXTRA `__gnu_cxx::eq<const pair*,
+    //      vector>`（ORIG 为混合 `ne<const pair*, pair*>`）⇒ 改回
+    //      `while (eit != …end())`（end() 走非 const ⇒ iterator，与 const_iterator 混合）；
+    //   ② 函数头 `CCharacter* character = …get_charac_job()…` 具名缓存 + 两分支内二次
+    //      调用使 `get_charac_job` 比 ORIG **多 1 次**（p167 EXTRA）⇒ 删具名 cache、
+    //      两分支 receiver 内联。
+    // 读数：552/528 → **520 vs 535（gap=-15）**、ndiff 728→619；p167 calls 77=77
+    // CLEAR（余 C1↔C2/D1↔D2 同址别名，nm 实证 ORIG 0x081349d6 / 0x081349ea）。
     int expertJobLevel = 0;
     int expertSkillCount = 0;
     int expertScript = 0;
@@ -1388,9 +1397,6 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
         expertJobLevel = m_parent->GetCurExpertJobLevel(exp);
     }
     CDataManager* dm = G_CDataManager();
-    CCharacter* character =
-        (CCharacter*)((char*)dm->m_characList +
-                      ((CUserCharacInfo*)m_parent)->get_charac_job() * 0x7dc);
     std::vector<std::pair<int, int> > giveList(
         *(std::vector<std::pair<int, int> >*)((char*)dm->m_characList +
                                               ((CUserCharacInfo*)m_parent)
@@ -1406,24 +1412,24 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
         secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
         firstGrow = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
         dm = G_CDataManager();
-        character = (CCharacter*)((char*)dm->m_characList +
-                                  ((CUserCharacInfo*)m_parent)
-                                      ->get_charac_job() *
-                                      0x7dc);
-        result = character->get_give_skill((int)firstGrow, (int)secondGrow,
-                                           learnList, 1);
+        result = ((CCharacter*)((char*)dm->m_characList +
+                                ((CUserCharacInfo*)m_parent)
+                                    ->get_charac_job() *
+                                    0x7dc))
+                     ->get_give_skill((int)firstGrow, (int)secondGrow,
+                                      learnList, 1);
     }
     else
     {
         secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
         firstGrow = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
         dm = G_CDataManager();
-        character = (CCharacter*)((char*)dm->m_characList +
-                                  ((CUserCharacInfo*)m_parent)
-                                      ->get_charac_job() *
-                                      0x7dc);
-        result = character->get_give_skill((int)firstGrow, (int)secondGrow,
-                                           learnList, 0);
+        result = ((CCharacter*)((char*)dm->m_characList +
+                                ((CUserCharacInfo*)m_parent)
+                                    ->get_charac_job() *
+                                    0x7dc))
+                     ->get_give_skill((int)firstGrow, (int)secondGrow,
+                                      learnList, 0);
     }
     if (result == 1)
     {
@@ -1527,16 +1533,11 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
                         (*(std::vector<std::pair<int, int> >*)
                              ((char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
                             .begin();
-                    while (true)
+                    while (eit !=
+                           (*(std::vector<std::pair<int, int> >*)
+                                ((char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
+                               .end())
                     {
-                        std::vector<std::pair<int, int> >::const_iterator eend =
-                            (*(std::vector<std::pair<int, int> >*)
-                                 ((char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
-                                .end();
-                        if (eit == eend)
-                        {
-                            break;
-                        }
                         if (eit->first == (unsigned char)buf[i].m_index)
                         {
                             if (buf[i].m_level == expertJobLevel)
@@ -2047,6 +2048,12 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
     // 中转。调用点 `(short)` 收窄后该段逐条归位（ndiff 15 → 15，内容置换：残余
     // 转为其后两处实参装载序 + `movzbl %al,%edx` 寄存器选择）。根治需 CSkill.h:102
     // int→short 并同步 CSkill.cpp 定义（跨 TU，未落）。
+    // [round5-A17 2026-09-10] 上述「根治需 CSkill.h int→short」**已证伪**：
+    // ORIG 本体 `_ZNK6CSkill21get_guildSkillNeedGSPEi` @0x083500f2 尾部为
+    // `mov (%eax),%eax; leave; ret`（32 位单段读、无 movzwl 截断）⇒ callee 确为 int，
+    // 改 short 会使本体反落 DIFF。本段 `mov 0x2c(%ebp),%edx; mov %ax,(%edx)` 与
+    // 4.4 `mov %eax,%edx; mov 0x2c(%ebp),%eax; mov %dx,(%eax)` 之差属 P211
+    // 异型 store（short& 目标 + int RHS）跨版本寄存器族 ⇒ N 封顶，勿再改 CSkill。
     needGSP = (short)skill->get_guildSkillNeedGSP(learnCnt);
     if (needGSP < 0 || availableGSP < needGSP)
     {
@@ -2672,21 +2679,19 @@ bool SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
             if (expertScript != 0)
             {
                 found = false;
-                // [round1-L19 2026-09-09] P323/P96：oracle 视图须为 **const**
-                // vector —— 非 const 视图使 `.begin()` 返回 iterator 而变量声明为
-                // const_iterator ⇒ 4.4 生成混合实例 `__gnu_cxx::ne<const pair*,
-                // pair*, vector>`（p167 EXTRA +1）；const 视图后两侧同型 const
-                // ⇒ `ne<const pair*, vector>` 与 ORIG 一致。
+                // [round5-A17 2026-09-10] 推翻 [round1-L19]「oracle 视图须为 const」
+                // 判词：fresh .o 的 p167 证明 ORIG 侧共 **3 处** 转换构造
+                // `__normal_iterator<const pair*>::C2<pair*>`（本循环 begin 一处、
+                // giveList 循环 begin/end 各一处）⇒ `.begin()` 必走**非 const**
+                // 重载（`_ZNSt6vectorISt4pairIiiESaIS1_EE5beginEv`）才能产生；
+                // const 视图反而多发 `_ZNKSt6vector…5beginEv/…5endEv`（p167 EXTRA）
+                // 并把比较退化成 const/const ⇒ 维持非 const 成员直访问。
                 std::vector<std::pair<int, int> >::const_iterator eit =
-                    ((const std::vector<std::pair<int, int> >*)&
-                     reinterpret_cast<STExpertJobScript*>(expertScript)
-                         ->m_growSkillVec)
-                        ->begin();
+                    reinterpret_cast<STExpertJobScript*>(expertScript)
+                        ->m_growSkillVec.begin();
                 while (eit !=
-                       ((const std::vector<std::pair<int, int> >*)&
-                        reinterpret_cast<STExpertJobScript*>(expertScript)
-                            ->m_growSkillVec)
-                           ->end())
+                       reinterpret_cast<STExpertJobScript*>(expertScript)
+                           ->m_growSkillVec.end())
                 {
                     if (eit->first == (unsigned char)buf[i].m_index)
                     {
@@ -2765,7 +2770,9 @@ bool SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
                     giveLevel = 0;
                     std::vector<std::pair<int, int> >::const_iterator git =
                         giveList.begin();
-                    while (git != giveList.end())
+                    std::vector<std::pair<int, int> >::const_iterator gitEnd =
+                        giveList.end();
+                    while (git != gitEnd)
                     {
                         if (git->first == (unsigned char)buf[i].m_index)
                         {

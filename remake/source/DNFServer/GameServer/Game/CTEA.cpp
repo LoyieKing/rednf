@@ -4,6 +4,13 @@
 #include "ChecksumAlgo.h"   // CSHA（ORIG 全局类，AddData/FinalDigest）
 #include "CEnvironment.h"
 
+// [A31-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit；sm_chain0 定义
+// 前移为本 TU 首个强外部符号 ⇒ GI 键名 `_GLOBAL__I__ZN4CTEA9sm_chain0E`。
+// （另一 gap 键名 `_ZN7IMethodC2Ev` 属 ORIG 它的 TU ⇒ 本方同 TU 合并互斥，不可同时对齐。）
+#include <iostream>
+
+const char CTEA::sm_chain0[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
 // ---- IMethod 抽象基类（G7 加密模式基类，算法正确即可）----
 IMethod::IMethod()
     : m_bInit(false), m_blockSize(8), m_keyLength(0), m_mode(0), m_padding(0)
@@ -249,4 +256,3 @@ int CTEA::Initialize(const char* key, int keyLen, const char* otherKey,
 }
 
 
-const char CTEA::sm_chain0[8] = {0, 0, 0, 0, 0, 0, 0, 0};

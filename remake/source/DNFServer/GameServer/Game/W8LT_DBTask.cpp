@@ -209,7 +209,54 @@
 // 107. DB_LoadPowerWarStatueInfo::GetAvatarInfo             ORIG 0x8434d36  DIFF  N82 帧-槽差封顶
 // 108. DB_UpdateCreatureItem::dispatch                      ORIG 0x84203e8  DIFF  gap 14→2：P102 具名 int ok 局部×11（movzbl+mov+cmpl+jne）
 // 109. DB_TOD_Reset_UserAPC::GetAPCUserInfo                 ORIG 0x8440548  DIFF  N82 帧-槽差封顶
-// 110. DB_UpdatePvPResult::dispatch                         ORIG 0x843097e  DIFF  §6.2 三件套（callsite CLEAR）；N82 帧-槽差封顶
+//  110. DB_UpdatePvPResult::dispatch                         ORIG 0x843097e  DIFF  §6.2 三件套（callsite CLEAR）；N82 帧-槽差封顶
+// [A04-r5 波次] check_tu_routed: identical=141 ae=1743 near=9 diff=67（COMPILE OK）。
+//  本波 74 件残余清单逐件复核；改动 3 件（1 件归零、2 件残差大降）：
+//    ① DB_LoadDimension::dispatch —— **DIFF → AE（归零）**。修法两处：
+//       (a) `bool bVar1` 局部消除 + P226/P316 语句表达式 `if (({ exec()!=1 || fetch()!=1; }))`
+//           —— ORIG 0x08431f60-0x08431f8c 为零槽短路物化（`xor $1; test; jne L_true` +
+//           `mov $1/jmp/mov $0` 常量岛 + `test %al,%al; je <get_byte 段>`，值只走 %eax）；
+//           具名 bool 形在 4.4 恒落 `movb $0,-0x25` + `cmpb $0,-0x25`（实测劣化）。
+//       (b) P133：6 个 get_byte 的 `||` 链拆成 6 条独立早退
+//           （ORIG 0x0843204e 起每处 `call; xor $1; test; je <next>; mov $0,%ebx; jmp <epi>`）。
+//    ② DB_BlackIPMonitor::dispatch —— gap 6→5、ndiff 33→32。P191 双初始化：
+//       ORIG 0x08432b7b 与 0x08432b8d **两次** `movl $0x0,-0x18(%ebp)`，循环为 for 布局
+//       （init→jmp cond@0x08432e57→body→increment@0x08432e53）⇒ 源须 `unsigned int row=0;`
+//       **加** `for (row = 0; …; ++row)`（判据⑫ clr_l orig=4/our=3 对应此处）。
+//       残余 5 条 = 4 个字段站点的地址形：ORIG `add %edx,%edx; add $1,%edx; shl $4,%edx`
+//       （= (2*row+1)*16，0x08432be2 起 5 站点）vs 4.4 `shl $5,%edx` + `add $0x10,%eax`。
+//    ③ DB_UpdateCreatureItem::dispatch —— our 600→595、ndiff 217→202。P248 档①：
+//       ORIG 5 处检查为**内联 bool 直判** `call; xor $0x1,%eax; test %al,%al; je`
+//       （0x084209d5 get_str / 0x08420a4d+ get_ushort(5) / get_int(6)(7)(8)），
+//       另 6 处（0x08420790 exec / 0x08420813 fetch / 0x084208a5 get_int(0) /
+//       0x0842093d get_ulong(1) / get_int(3) / get_int(4)）才是 `movzbl %al,%eax;
+//       mov %eax,-0x1c; cmpl $0,-0x1c; jne`（ok 槽形）⇒ 把这 5 处 `ok = f(); if(!ok)`
+//       改为 `if (!f())`，2 处内联形与 ORIG 逐条对齐（每处省 1 条）。
+//  本波判 N/维持封顶（附 ORIG 指令形证据，勿再烧）：
+//    · _ZSt22__copy_move_backward_aILb1EP16stPvPTempTable_t… —— 唯余
+//      `movb $0x1,-0x9` vs 4.4 `movb $0x0,-0x9`（STL 头内 `__last` 初值形；头不可改）⇒ N89。
+//    · _ZN9__gnu_cxx13new_allocatorI16stPvPTempTable_tE7destroyEPS1_ —— 唯余
+//      `sub $0x18` vs 4.4 `sub $0x4`（libstdc++ 头内联体帧策略）⇒ N89/N115。
+//    · DB_ForbidUserToPlay::dispatch（ndiff 1）—— 唯余 4.4 label-stub
+//      `jmp <下一指令>; nop`（ORIG 0x08421b55-0x08421b64 后 SIMPLE_SQL 直接 fall-through，
+//      无岛）；V1/V2 两形已穷举（前波记录）⇒ N-JMP。
+//    · DB_UpdateLogout::UpdateLogout（NEAR）—— 唯余 serverId 槽 -0x14 vs ORIG -0x10
+//      + bool r -0xd vs -0x11（混合尺寸标量区，P331 不可控）⇒ N82/P112。
+//    · DB_UpdateLogout::dispatch —— ORIG 0x08418a9? `je; mov $0,%ebx; jmp; mov $1,%ebx`
+//      分支岛 vs 4.4 `sete %al; movzbl %al,%edi`（同一 `x?0:1` 语义）⇒ setcc-fold/N3。
+//    · DB_UpdateOntimeLastRecvIdx::dispatch（ndiff 6）—— 唯余除法中间商落槽：
+//      ORIG `mul $0xcccccccd; shr $0x3,%edx`（商留 %edx 原地）vs 4.4 多
+//      `mov %edx,%eax; shr $0x3,%eax; mov %eax,-0xc; mov -0xc,%edx`（4 条）⇒ N87 除法族。
+//    · CLocalGlobal_DB_STATICS_BOSSTOWER::dispatch —— ORIG 用**字节视图**
+//      （`movzbl -0x47(%ebp),%eax; movzbl %al,%eax` ×18）而我们写 `(key>>8)&0xff`
+//      ⇒ 4.4 恒 `mov;shr;and`（or/and 折形）：需 union 字节视角 + 逐点实参零扩展，
+//      属判据②改写，涉及 5 站点×2（trace+insert）；本波未做，留判据②条。
+//    · DB_StatPVPPlay2::dispatch —— **疑似真 bug**：ORIG 读 `PvP_Room` 的 +0x8/+0xc
+//      （0x0841bb?? `mov 0x8(%eax),%ebx; mov 0xc(%eax),%ecx`），而 GameWorld.h 的
+//      `StatisticsPvP::PvP_Room` 现为 8 字节（m_roomCount@+0/m_resultSum@+4）⇒ 读错偏移 8。
+//      另一消费侧 StatisticsPvP.cpp 的同名类型已按 16 字节建模（ORIG sizeof 16）
+//      ⇒ 需 R2 广播后改共享头 GameWorld.h（加 `PvP_Key m_key` 前缀，保 sizeof 16），
+//      本波未落（跨泳道头，留 Main 裁决）。
 // ============================================================================
 #include "W8LT_DBTask.h"
 #include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）
@@ -10482,8 +10529,11 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        ok = db->get_str(2, out->m_name, 0xd);
-        if (!ok)
+        // [A04-r5] ORIG 0x084209d5-0x084209df 为 `call get_str; xor $0x1,%eax;
+        // test %al,%al; je`（**内联 bool 直判**，不经 ok 槽）⇒ 后 4 个检查
+        // （get_str/get_ushort/get_int(6)/(7)/(8)）必须内联，与 0x08420790 等
+        // 前 6 处 `movzbl %al,%eax; mov %eax,-0x1c; cmpl $0,-0x1c; jne`（ok 槽形）区分。
+        if (!db->get_str(2, out->m_name, 0xd))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5756, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(2) ERROR charac_no=%u",
@@ -10509,8 +10559,7 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        ok = db->get_ushort(5, iv->m_endurance);
-        if (!ok)
+        if (!db->get_ushort(5, iv->m_endurance))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x576d, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_ushort(5) ERROR charac_no=%u",
@@ -10519,8 +10568,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         }
         int creatureType = 0;
-        ok = db->get_int(6, creatureType);
-        if (!ok)
+        // ORIG 0x08420b8e：`call get_int; xor $0x1,%eax; test %al,%al; je`（内联）。
+        if (!db->get_int(6, creatureType))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5775, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(6) ERROR charac_no=%u",
@@ -10530,8 +10579,7 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
         }
         out->m_flag50 = (unsigned char)creatureType;
         int noCharge = 0;
-        ok = db->get_int(7, noCharge);
-        if (!ok)
+        if (!db->get_int(7, noCharge))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x577e, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(7) ERROR charac_no=%u",
@@ -10540,8 +10588,7 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         }
         out->m_keepRight = (unsigned char)noCharge;
-        ok = db->get_int(8, out->m_days);
-        if (!ok)
+        if (!db->get_int(8, out->m_days))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5794, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(9) ERROR charac_no=%u",
@@ -11066,18 +11113,18 @@ bool DB_LoadDimension::dispatch(int userIdx, int slot, Stream* stream)
     // [L4-r2 宽度旋钮已实测回退] widthscan clr_b/cmp_b = orig 0 / our 2 曾疑为
     // 「我方偏窄」，改 `int bVar1` 后 gap/四数不变而 ndiff 107→**109 反劣** ⇒
     // 该 byte 形非局部宽度问题（归 P292/N82 槽分区，见 Main 判据⑫ 反误判条）。
-    bool bVar1;
     MySQL* db =
         GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     SIG_LOAD_DIMENSION* sig = stream->GetOutBuffer<SIG_LOAD_DIMENSION>();
     db->set_query(
         "seLect dungeon1, dungeon2, dungeon3, dungeon4, dungeon5, dungeon6 from charac_dimension_inout where charac_no=%u",
         sig->m_field00);
-    if (db->exec(true) == 1 && db->fetch() == 1)
-        bVar1 = false;
-    else
-        bVar1 = true;
-    if (bVar1)
+    // [A04-r5] ORIG 0x08431f60-0x08431f8c：`call exec; xor $0x1,%eax; test %al,%al;
+    // jne L_true` + `call fetch; xor $0x1; test; je L_false` + 常量岛
+    // （mov $1/jmp/mov $0）汇聚 + `test %al,%al; je <get_byte 段>` ⇒ **零槽短路
+    // 物化**（值只走 %eax，无 -0x25 槽）⇒ 原码无具名 bool 局部（P0），按 P226/P316
+    // 用语句表达式包住整个条件（具名 bool 形 4.4 会落 `movb $0,-0x25` + `cmpb`）。
+    if (({ db->exec(true) != 1 || db->fetch() != 1; }))
     {
         db->set_query(
             "inSert into charac_dimension_inout(charac_no,dungeon1,dungeon2,dungeon3,dungeon4,dungeon5,dungeon6) values(%u,%d,%d,%d,%d,%d,%d)",
@@ -11093,22 +11140,27 @@ bool DB_LoadDimension::dispatch(int userIdx, int slot, Stream* stream)
     }
     else
     {
-        if (db->get_byte(0, sig->m_dimensionInout[0]) != 1 ||
-            db->get_byte(1, sig->m_dimensionInout[1]) != 1 ||
-            db->get_byte(2, sig->m_dimensionInout[2]) != 1 ||
-            db->get_byte(3, sig->m_dimensionInout[3]) != 1 ||
-            db->get_byte(4, sig->m_dimensionInout[4]) != 1 ||
-            db->get_byte(5, sig->m_dimensionInout[5]) != 1)
+        // [A04-r5] ORIG 0x0843204e 起 6 个 get_byte 各发独立
+        // `call; xor $0x1; test %al,%al; je <下一个>; mov $0x0,%ebx; jmp <epilogue>`
+        // （每个失败出口独立早退）⇒ 必须拆成 6 条独立 `if (...!=1) return 0;`
+        // （P133：合并 `||` 链在 4.4 折成单条 jne 汇聚，少 5 组早退岛）。
+        if (db->get_byte(0, sig->m_dimensionInout[0]) != 1)
+            return 0;
+        if (db->get_byte(1, sig->m_dimensionInout[1]) != 1)
+            return 0;
+        if (db->get_byte(2, sig->m_dimensionInout[2]) != 1)
+            return 0;
+        if (db->get_byte(3, sig->m_dimensionInout[3]) != 1)
+            return 0;
+        if (db->get_byte(4, sig->m_dimensionInout[4]) != 1)
+            return 0;
+        if (db->get_byte(5, sig->m_dimensionInout[5]) != 1)
             return 0;
     }
     db->set_query(
         "seLect dungeon1 from charac_blood_inout where charac_no=%u",
         sig->m_field00);
-    if (db->exec(true) == 1 && db->fetch() == 1)
-        bVar1 = false;
-    else
-        bVar1 = true;
-    if (bVar1)
+    if (({ db->exec(true) != 1 || db->fetch() != 1; }))
     {
         db->set_query(
             "inSert into charac_blood_inout(charac_no,dungeon1) values(%u,%d)",
@@ -11759,7 +11811,10 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
     // 折成 `cmpb $0x0,-0xd; jne`，少 2 条）。
     bool flag = false;           // -0x0d 首包标志
     char buf[0xc80];             // -0xcb4 行缓冲（100 × 0x20）
-    while (db->get_n_rows() > row)
+    // [A04-r5] 判据⑫ clr_l orig=4/our=3：ORIG 0x08432b7b 与 0x08432b8d **两次**
+    // `movl $0x0,-0x18(%ebp)`（row 声明初始化 + for init；P191 双初始化形），
+    // 循环为 for 布局（init→jmp cond→body→increment@0x08432e53→cond@0x08432e57）。
+    for (row = 0; db->get_n_rows() > row; ++row)
     {
         if (!db->fetch())
             return 0;
@@ -11807,7 +11862,6 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             buffered = 0;
         }
-        ++row;
     }
     return 1;
 }

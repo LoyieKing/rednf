@@ -5,7 +5,21 @@
 #include "GameTypes.h"             // cMyTrace
 #include "LogManager.h"            // LogManager::logFormat
 
+// [A31-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit，使本 TU 发射
+// `_GLOBAL__I__ZN15CConditionEvent10StartEventEv`（ORIG 0x8184a1a）；StartEvent() 定义
+// 随之前移为本 TU 首个强外部符号（= GI 键名来源）。零语义/布局改动。
+#include <iostream>
+
 // ---------------------------------------------------------------------------
+// ORIG 0x081848bc：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__,0xd,0)
+// ("[ConditionEvent] Start!")。
+void CConditionEvent::StartEvent()
+{
+    SetEventFlag(true);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0xd, 0);
+    tr("[ConditionEvent] Start!");
+}
+
 // ORIG 0x08184970：仅基类构造 + vptr 置位（无自有成员初始化）。
 CConditionEvent::CConditionEvent()
 {
@@ -19,15 +33,6 @@ CConditionEvent::~CConditionEvent()
 }
 
 // ---------------------------------------------------------------------------
-// ORIG 0x081848bc：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__,0xd,0)
-// ("[ConditionEvent] Start!")。
-void CConditionEvent::StartEvent()
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0xd, 0);
-    tr("[ConditionEvent] Start!");
-}
-
 // ---------------------------------------------------------------------------
 // ORIG 0x0818490e：thunk——经 vtable slot 2（StartEvent()）虚调用。
 void CConditionEvent::StartEvent(Word_Param param)

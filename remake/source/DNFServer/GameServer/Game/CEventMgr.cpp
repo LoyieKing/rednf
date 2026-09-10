@@ -11,16 +11,13 @@
 
 #include "GlobalData.h" // GlobalData::s_systemTime_（CSystemTime::getCurSec 0x080cbc9e）
 
-// ---- ORIG @0x086b1d86 _Z7in_timeP2tmS0_ ------------------------------------
-// t1 = mktime(begin); t2 = mktime(end); now = time(NULL);
-// return now >= t1 && now < t2;
-bool in_time(struct tm* begin, struct tm* end)
-{
-    time_t t1 = mktime(begin);
-    time_t t2 = mktime(end);
-    time_t now = time(NULL);
-    return (now >= t1 && now < t2);
-}
+// [A31-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit，使本 TU 发射
+// `_GLOBAL__I__ZN8WongWork9CEventMgr11_IsEventingEiiiiiiiiNS0_10EVENT_TYPEE`（ORIG 0x848f1e4）；
+// _IsEventing 定义随之前移为本 TU 首个强外部符号（= GI 键名来源）。
+// in_time 仅给前置声明（纯 extern 声明不参与键名，P327）。零语义/布局改动。
+#include <iostream>
+
+bool in_time(struct tm* begin, struct tm* end);   // 前置声明（P327 不参与 GI 键名）
 
 namespace WongWork
 {
@@ -70,6 +67,22 @@ bool CEventMgr::_IsEventing(int startYear, int startMon, int startDay, int start
     }
     return false;
 }
+
+} // namespace WongWork（_IsEventing 前移段结束）
+
+// ---- ORIG @0x086b1d86 _Z7in_timeP2tmS0_ ------------------------------------
+// t1 = mktime(begin); t2 = mktime(end); now = time(NULL);
+// return now >= t1 && now < t2;
+bool in_time(struct tm* begin, struct tm* end)
+{
+    time_t t1 = mktime(begin);
+    time_t t2 = mktime(end);
+    time_t now = time(NULL);
+    return (now >= t1 && now < t2);
+}
+
+namespace WongWork
+{
 
 // ---- ORIG @0x0848f078 ------------------------------------------------------
 // GetPremiumServiceBonus: _IsEventing(2006,1,2,0, 2006,1,11,0, EVENT_PLAIN) ? 7 : 0

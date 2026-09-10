@@ -859,7 +859,10 @@ int CMission_within::Update(MissionInfo& info,
     // （short 提升两段），4.4 恒折 `movzwl; add` 无 cwtl。探针 /tmp/l35_probe_short.cpp
     // f1..f6 六形（(int)/(short)/(unsigned short)/复合/op= 等）全部无 cwtl ⇒ 跨版本
     // zext/sext 折叠，源形不可造。语义等价（仅低 16 位存回，负值结果一致）。
-    info.m_count = (short)((int)info.m_count * 2);
+    // [2026-09-10 复核] 改把 (short) cast 放在**乘法内侧**（旧形 cast 在外，4.4 视
+    //   `(int)ushort` 为免指令 ⇒ 缺 cwtl）；`(short)info.m_count * 2` 才是 ORIG 的
+    //   「读 ushort + 符号扩展 + 乘 2」三段源形。
+    info.m_count = (short)((short)info.m_count * 2);
     info.m_count = (short)(info.m_count +
                            ((param.m_victory & 1) ? 1 : 0));
     ++info.m_streak;
@@ -1141,25 +1144,30 @@ int CMission_combo_clear::_Reward(CUser& user) const
     std::map<combo_script_key, combo_script_data>::const_iterator it =
         m_comboMap.find(key);
     // b28d-50：ORIG 0x085e43xx 实参序 (%esp)=end、0x4(%esp)=it（同 _isAcceptCondition，
-    // P74补②/P220 反序）——`end() == it` 复现。
-    if (m_comboMap.end() == it) return 1;
-
-    std::vector<std::pair<int, int> > items;
-    items.push_back(it->second.m_bonus);
-
-    std::vector<int> outSlots;
-    // b28d-50：ORIG 预清 `movl $0x0,-0xc(%ebp)` 在 call 前（P198①两句式）。
-    int ret = 0;
-    ret = ((CInventory*)user.getCurCharacInvenW())
-              ->insert_event_items(items, outSlots,
-                                   (eMoneyAddReason)0x1e,
-                                   (eItemAddReason)0x33, true,
-                                   "game_server_msg_173",
-                                   "game_server_msg_174");
-    if ((ret > 0) && (outSlots.size() > 2))
+    // P74补②/P220 反序）。
+    // [2026-09-10 P292 正极性包裹] ORIG 0x085e41af `test %al,%al; je 085e42e1`
+    //   —— je 落**函数尾部共享块** `mov $0x1,%eax`（+0x1ad），cond 真走 body 直落
+    //   ⇒ 源码是 `if (it != end) { body } return 1;`；早返回形 `if (end == it)
+    //   return 1;` 会就地物化 `mov $0x1,%ebx; jmp`（我方 127 vs ORIG 125 两段差）。
+    if (it != m_comboMap.end())
     {
-        user.SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0,
-                            outSlots[0]);
+        std::vector<std::pair<int, int> > items;
+        items.push_back(it->second.m_bonus);
+
+        std::vector<int> outSlots;
+        // b28d-50：ORIG 预清 `movl $0x0,-0xc(%ebp)` 在 call 前（P198①两句式）。
+        int ret = 0;
+        ret = ((CInventory*)user.getCurCharacInvenW())
+                  ->insert_event_items(items, outSlots,
+                                       (eMoneyAddReason)0x1e,
+                                       (eItemAddReason)0x33, true,
+                                       "game_server_msg_173",
+                                       "game_server_msg_174");
+        if ((ret > 0) && (outSlots.size() > 2))
+        {
+            user.SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0,
+                                outSlots[0]);
+        }
     }
     return 1;
 }

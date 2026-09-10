@@ -103,7 +103,8 @@ bool ImportChattingEmoticon(EmoticonType::EmoticonScript& script,
     {
         if (!ScanType(token, true))    // +0x62（xor$1 物化）
         {
-            break;                     // +0x45c：mov $1,%ebx → dtor 岛 → true
+        scan_exit:                     // [P164] 回边落点：入口直落、出口共享
+            goto scan_done;            // +0x45c：mov $1,%ebx → dtor 岛 → true
         }
 
     redo_lookup:                       // +0x80：两条重派发边（+0x23c/+0x451）落点
@@ -114,8 +115,7 @@ bool ImportChattingEmoticon(EmoticonType::EmoticonScript& script,
         int id;                        // ORIG -0x1c
         if (__inited)
         {
-            const char* key = token.c_str();                           // -0x68
-            LookupMap::const_iterator it = __lookup.find(key);         // -0x6c→-0x78
+            LookupMap::const_iterator it = __lookup.find(token.c_str());  // -0x68 临时
             id = (it != __lookup.end()) ? it->second : -1;             // -0x60/-0x64
         }
         else
@@ -183,7 +183,9 @@ bool ImportChattingEmoticon(EmoticonType::EmoticonScript& script,
             __inited = true;                       // +0x44e   后为 je;jmp 形）
             goto redo_lookup;                      // +0x451 → guard 重派发
         }
+        goto scan_exit;                // [P164] 公共尾正常回边（ORIG +0x456）
     }
+scan_done:
     return true;                                   // +0x4ac ebx=1
 }
 

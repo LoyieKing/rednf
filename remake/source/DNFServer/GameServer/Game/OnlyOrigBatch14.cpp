@@ -580,11 +580,19 @@ void ScanChampionFeatures(int count, STAICharacterMapArrangeData& data)
 //  ②ORIG 全程只用一个 -0xc 变量（v 兼作 ScanInt 中转槽；Ghidra local_10 贯穿）
 //    ⇒ 删除原 v2 具名中转。
 // 声明序按 4.4「后声明更深」排：info@-0x20 / s@-0x24 已与 ORIG 一致。
-// 残差（N 封顶）：①标量区槽基 4 字节差（我方 ok1/unusedFlag/ok2/v = -0xb/-0x9/-0xa/-0x10
-//   对 ORIG -0xf/-0xe/-0xd/-0xc；N82/N126 版本首槽基址常数；前置 dead pad 实测
-//   ndiff 44→66 反劣，已回退）；②`s == token` 真块物理位置镜像（ORIG `jne <true岛>`
-//   真块在远处、false 紧随；P47 块排布，`!=`/显式 else 两形均 44 行无更优）。
-// p167 CLEAR（13=13）。ndiff 44 属 N127 对齐坍缩（实际助记符差仅 1 条 je↔jne）。
+// [b14 本波·DIFF→NEAR] `s == token` 真块位置镜像已翻正（旧判词②作废）：
+//   ORIG 形 `test %al,%al; jne <真岛 +0x164>` + fall-through `mov $0x0,%ebx`
+//   （false 紧随），if-return/`!=` 两形在 4.4 恒把真块前置 ⇒ 改 **goto 尾标签**
+//   形（`if (s == token) goto scan_reward_true; return false;` + 函数尾
+//   `scan_reward_true: return true;`），4.4 jump-threading 折成 ORIG 的
+//   `jne <真岛>`；现 124=124 助记符逐条全等、全部分支偏移一致
+//   （+0x76/+0x164/+0x187 三处与 ORIG 逐位相同）⇒ **NEAR**（ae 800→799、
+//   diff 13→12、near 0→1）。
+// 残余（NEAR，N 封顶）：标量区槽基 4 字节差（我方 ok1/unusedFlag/ok2/v =
+//   -0xa/-0x9/-0xb/-0x10 对 ORIG -0xf/-0xe/-0xd/-0xc；ORIG 侧 int v 浅于
+//   bool 组、4.4 侧 int 恒最深 = N82附/N126 版本分区常数；前置 dead pad 实测
+//   ndiff 44→66 反劣、v 提前声明致 info/s 下移 4，均已回退）。
+// p167 CLEAR（13=13）。
 bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
 {
     // ok2 无初始化式（ScanTypeOrInt 写入后即读）；ORIG 预清仅两条
@@ -605,14 +613,14 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
         v = ScanTypeOrInt(ok1, s, ok2, 1);
         if (ok1)
         {
-            // [L13-b14 判据 P47/P222 试验·回滚] ORIG 形 `test %al,%al; jne <岛>` +
-            // fall-through `mov $0x0,%ebx`（false 紧接）。实测：`!=` 形（本形）得
-            // `je <T>` + false 紧接 = **逐条最优**（ae 800 / 123=123）；`==` 正向
-            // if-return 形仍产 `je` 且把 true 块前置（ae 799，净 −1）⇒ 回滚本形。
-            // 残余 = 块序极性（P47 跨版本）+ bool/v 槽基（N82/N126）⇒ N 封顶。
-            if (s != token)
-                return false;
-            return true;
+            // [b14 本波 P325/P223 试验] ORIG 形 `test %al,%al; jne <真岛>` +
+            // fall-through `mov $0x0,%ebx`（false 紧随；真岛在函数后部 +0x164）。
+            // if-return / `!=` 两形实测均把 true 块前置（N93附 跨版本块序反差）
+            // ⇒ 改 goto 尾标签形，让 4.4 走 `je <跳过>; jmp <尾标签>` 并由
+            // jump-threading 折成 ORIG 的 `jne <真岛>`。
+            if (s == token)
+                goto scan_reward_true;
+            return false;
         }
         if (!ok2)
             return false;
@@ -646,6 +654,8 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
         info.m_count = v;
         out.push_back(info);
     }
+scan_reward_true:
+    return true;
 }
 
 // ORIG T 0x08a0fff6 _Z30exportCharacterGiveSkillScriptP8_IO_FILEPSt6vectorISt4pairIiiESaIS3_EE。

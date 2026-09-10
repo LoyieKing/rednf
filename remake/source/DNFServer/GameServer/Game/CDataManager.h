@@ -3521,6 +3521,10 @@ struct CDataManagerRewardSpView
     char m_pad8[8];                 // 表名义基址锚点：ORIG 访问 disp 0x8
     unsigned int m_sp8[0x3702];     // 下标 0x36a2+level ⇒ this+8+(0x36a2+level)*4
                                     // = this+0xDA90+level*4（0x36a2+0x60=0x3702）
+    // [round5-A26 回滚] 曾试同址 int 视角 `m_sp8i[0x3702]`（配方⑲/P211 档③，
+    // 预期翻第二循环 RHS-first+中转）——实测该视角形与 unsigned 原形**逐条全同**
+    // （仍 66 条、无 `mov %eax,%edx` 中转）⇒ 4.4 视同宽整型转换为无操作，
+    // 无收益即回滚，保持最小改动。
 };
 
 class CDataManager

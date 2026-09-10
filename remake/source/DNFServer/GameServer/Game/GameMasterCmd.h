@@ -922,11 +922,19 @@ public:
     virtual void execute();                          // ORIG T 0x084b3ad4
 
     std::string m_str0;                              // +0x08
-    int m_amount;                                    // +0x0c（ORIG parse 0x084b3acb 写、
-                                                     //  execute 0x084b3b11/0x084b3b8c 读；
-                                                     //  C1 new $0x10 @0x082a8a28 块实证；
-                                                     //  parse 尾 this先入edx 直存形 ⇒ 与 int 版
-                                                     //  StringToNumber 同型直赋（P211/探针 g1））
+    // +0x0c（C1 new $0x10 @0x082a8a28 块实证）。两端 ORIG 证据符号性相反 ⇒
+    // 匿名 union 双视角（P235/P246，同址同宽，sizeof/偏移/mangled 零影响）：
+    //   · parse 0x084b3ac8 `mov 0x8(%ebp),%edx; mov %eax,0xc(%edx)` = LHS-first
+    //     直存 ⇒ 字段与 RHS（StringToNumber→int）**同型** ⇒ int 视角；
+    //   · execute 0x084b3b11/0x084b3b8c `mov 0xc(%eax),%edx` 单段直落 ⇒ callee
+    //     形参 `unsigned int`（nm 0x080ffca4 IPGInput）**同型** ⇒ unsigned 视角
+    //     （探针 /tmp/pr5/q.cpp：int 视角恒多发 `mov (%edx),%edx; mov %edx,%ecx`）。
+    // 单一类型无法同时满足两端（P248 反例族），故双视角并存。
+    union
+    {
+        int m_amount;            // parse 写入视角
+        unsigned int m_amountU;  // execute 读出视角（传 IPGInput/IPGInputPoint）
+    };
 };
 class CMobileRestrictCommand : public CCommand
 {

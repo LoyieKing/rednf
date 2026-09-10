@@ -424,7 +424,11 @@ public:
     {
         PickedAvatarInfo();                          // ORIG W 0x0819a336
         int m_pad0;                 // +0x00【推断：ORIG 未见读写】
-        unsigned int m_itemId;      // +0x04
+        // [A19·T1 直证] ORIG 0x0817fcab / 0x08198d46 均为 `mov 0x4(%eax),%esi`
+        // **单段直落** callee-saved（形参与 CDataManager::find_item(int)、
+        // CInventory::AddAvatarItem(int,...) 同型）；unsigned int 版在两侧调用点
+        // 各多 1 条 `mov %eax,%esi` 转换中转。
+        int m_itemId;               // +0x04
         char m_optionOrSkillIdx;    // +0x08
         char m_pad9;                // +0x09
         char m_zoneType;            // +0x0a
@@ -446,6 +450,14 @@ public:
     AvatarRoulette* m_pRoulette;   // +0x018
     int m_totalCount;              // +0x01c
 };  // sizeof 0x20
+// [A19 实测] PickedAvatarInfo 6 个成员合计 0xc 字节（4+4+1+1+1+1，4 对齐 ⇒
+// sizeof 0xc）。ORIG dispatch_sig 里该栈对象占 ebp-0x54..ebp-0x49，紧邻的
+// `now` 落在 ebp-0x48（Arad_InternalDispatcher_INTER.cpp:642 段实证）⇒ 0xc 自洽，
+// 旧注释「ebp-0x45」把下一个变量算进来了。
+static_assert(sizeof(AvatarRouletteServer::PickedAvatarInfo) == 0xc,
+              "PickedAvatarInfo ABI drift");
+static_assert(offsetof(AvatarRouletteServer::PickedAvatarInfo, m_itemId) == 0x04,
+              "PickedAvatarInfo::m_itemId offset drift");
 
 // ORIG SDCActiveStatusSyncCommon：Server 基类（ctor W 0x08234870 / dtor W
 // 0x08234876，均空体 ret）。定义：CtorProducers_2.cpp。

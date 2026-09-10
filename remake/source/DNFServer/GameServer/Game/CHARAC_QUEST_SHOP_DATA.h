@@ -73,6 +73,12 @@ struct CHARAC_QUEST_SHOP_DATA
         // missing 67→62 ⇒ **净负**，已回滚。SetTag 本体在基线即为 identical/ae，
         // 非 near（worklist 的 NEAR 标记为旧读数）。
         short m_statusCounts[0x4d];               // 同区计数视角（b28d-36 试：异型化翻 store 序）
+        // [round5-A26] 同址 ushort 视角（Main 配方⑲ / P235）：CQuestShop::loadData
+        // ORIG 0x085efa9d 段取址形 `mov i,%eax; add %eax,%eax; add -0xc(%ebp),%eax;
+        // lea 0xc(%eax),%edx` 且 make_pair 实例 `IRiRt`（非 const **unsigned short**
+        // 左值）——整指针 reinterpret_cast 视图与元素 cast 两形实测均劣化（P235：
+        // cast 视图形恒使 4.4 先载 base）。union 视角只增成员名，零符号/零布局影响。
+        unsigned short m_statusCountsU[0x4d];
     };
     unsigned int   m_questPiece;             // +0x0a6
 };

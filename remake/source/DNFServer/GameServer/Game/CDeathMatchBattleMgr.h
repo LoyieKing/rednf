@@ -22,7 +22,9 @@ public:
     int getDeathCount(int userIdx);
     int getMaxKillCount();
     int getRanking(CUser** users, int* out) const;
-    int checkGameOverForSinglePlay(int mode);
+    // [L10b P292 档①] 返回 bool：ORIG check_winner 0x085d994b call 后
+    // 0x085d9950 `test %al,%al` + 0x085d9952 `je`（无 setne）⇒ callee bool。
+    bool checkGameOverForSinglePlay(int mode);
     void checkWinnerForSinglePlay(CUser** users, bool* win, PvpUserTable& table);
     // SIGFIX b28c-L29：ORIG __PRETTY_FUNCTION__ 串为 bool（返回类型不入 mangled）。
     bool checkGameOverForTeamPlay(CUser** users, int teamCnt, unsigned char* teamWin);

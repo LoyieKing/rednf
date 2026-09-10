@@ -774,11 +774,17 @@ bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h �
         CMonster* monster = 0;
         // [b28d-solo-CListTables] ORIG：主循环 map 迭代器先 C1Ev 后 begin() 赋值
         // （P50）+ 尾后置 it++（ppEi，P28）。
+        // [round5-A29] 未使用的 list<int>::iterator 必须与 map 迭代器**同批声明**
+        // （在 begin() 赋值之前）：ORIG 0x0834fa?? 段构造序为
+        //   `lea -0x38; call _Rb_tree_iterator::C1Ev` → `lea -0x3c; call
+        //   _List_iteratorIiEC1Ev` → `map::begin` 回填 -0x38
+        // 旧序（begin 后声明）令 4.4 把 C1Ev 排到 begin 之后（判据⑩/声明序、
+        // P28 声明序即槽序 -0x38/-0x3c 逐值对齐）。
         std::map<int, std::string>::iterator it;
-        it = g_stMonsterScriptFileList.begin();
         // [b28d-solo-CListTables] ORIG 有一处未使用的 list<int>::iterator C1Ev
         // （p167 MISSING 1；P171/P232 死局部照抄）。声明序按判据⑩（后声明者深）。
         std::list<int>::iterator unusedIt;
+        it = g_stMonsterScriptFileList.begin();
         while (it != g_stMonsterScriptFileList.end())
         {
             path = (char*)it->second.c_str();

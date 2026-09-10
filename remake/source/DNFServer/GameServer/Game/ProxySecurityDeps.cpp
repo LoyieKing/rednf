@@ -10,7 +10,10 @@
 // [b28d-N7 复验] fresh 58=58：ORIG 0x081f4416 `mov %ebx,%esi`（sret 指针提前入
 // callee-saved，跨 2 次 call 保活）vs 4.4 在 call 后 `mov %ebx,%eax` 重载 ⇒
 // 寄存器角色互换（P52/N7 族）。p167 调用点差集仅 C1↔C2/D1↔D2 同址别名对（P93，
-// 非缺口）。语义逐条全等，N 封顶；P230 补：该族在 4.4.6 后端可翻（本 TU 未路由）。
+// 非缺口）。语义逐条全等，N 封顶。
+// [round5 路由实测] 本 TU 不在任何路由表；447 / 仅 446 后端 / 446 后端+446 头集
+// 三态编译读数**全同**（identical=0 ae=4 near=0 diff=2）⇒ P230 补的「4.4.6 可翻」
+// 在本 TU 不成立，路由变更零收益（勿再派单试路由）。
 std::string cutIPdclass(const char* ip)
 {
     std::string s(ip);                            // ORIG _ZNSsC1EPKcRKSaIcE
@@ -60,16 +63,20 @@ bool checkDenyIP(const char* innerIp, const char* peerIp)
 //     MakeChecksumFromMemory(buf, len+4, digest, 0x20)；==0x6fffffff → ok=true；
 //   for i in 0..31: sprintf(out+i*2, "%02X", digest[i])；
 //   DestroyCryptoChecksum(&ck); delete[] buf; return ok。
-// [b28d-N7 复验 + 本轮四修] ORIG 113 vs our 109：
+// [b28d-N7 复验 + round5 五修] ORIG 113 vs our 110：
 //   本轮按报告逐段对齐后已修：①buf 清零改 `new[]`+显式 memset（ORIG 0x0808cccd
 //   为 call memset，非 value-init 内联循环）；②digest 改 `= {0}` 内联 word 循环
 //   （ORIG 0x0808cd11..0x0808cd34 `and $0xfffffffc` 循环，非 memset call）；
 //   ③补 3 条原码死写入 int（0x20/0x41/0x4，全函数无读取点，P171 照抄）——
 //   补齐后 ok/-0x1d、3×int/-0x1c..-0x11、salt/-0x21..-0x1e 与 ORIG 逐槽全等；
 //   ④循环尾测改 `(unsigned int)i < 0x20` 复现 `mov slot;cmp;setbe`（P310）。
-//   剩余残差 = N7 族：ORIG 虚函数指针提前入 %esi（push/pop esi + 帧 0x60）且
+//   ⑤[round5] 补 `int i = 0;` + `for (i = 0; …)` 双初始化：ORIG 0x0808cd87/
+//   0x0808cd8e 连发**两条** `movl $0x0,-0xc(%ebp)`（P191 配套）⇒ our 109→110。
+//   剩余 3 条 = N7 族：ORIG 虚函数指针提前入 %esi（push/pop esi + 帧 0x60）且
 //   `len+4` 走 mov+add，4.4.7 恒 `call *%eax` + lea 折叠（帧 0x64）——间接 call 目标
-//   寄存器角色差（P230 补：4.4.6 后端可翻；本 TU 未路由）。p167 CALLSITE CLEAR。
+//   寄存器角色差。**round5 路由实测：447 / 仅 446 后端 / 446 后端+446 头集 三态
+//   逐函数读数全同（diff=2）⇒ 路由变更无收益（P230 补的「4.4.6 可翻」本 TU 不成立）。**
+//   p167 CALLSITE CLEAR。
 bool getSha256UsingSalt(const unsigned char* src, int len, char* out)
 {
     if (src == 0)
@@ -113,7 +120,10 @@ bool getSha256UsingSalt(const unsigned char* src, int len, char* out)
     // ORIG 0x0808cdc2..0x0808cdcb：尾测为**两段寄存器形**
     // （`mov -0xc(%ebp),%eax; cmp $0x1f,%eax; setbe %al`）⇒ 下标局部 int +
     // 显式无符号比较（P310：4.4 对 unsigned 局部恒折槽直比 ⇒ 不改局部类型）。
-    for (int i = 0; (unsigned int)i < 0x20; ++i)
+    // ORIG 0x0808cd87/0x0808cd8e 连发**两条** `movl $0x0,-0xc(%ebp)`（idx 0x119/0x124）
+    // ⇒ 原码是「`int i = 0;` + `for (i = 0; …)`」双初始化形（P191 配套）。
+    int i = 0;
+    for (i = 0; (unsigned int)i < 0x20; ++i)
         sprintf(out + i * 2, "%02X", digest[i]);
 
     DestroyCryptoChecksum(checksum);

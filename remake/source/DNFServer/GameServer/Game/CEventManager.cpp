@@ -256,41 +256,46 @@ bool filterEvent(int type)
             // P251/P286：ORIG 0x5d 段是**寄存器**比较决策树（`mov 0x8(%ebp),%eax;
             // cmp $0x39,%eax; jg …`，首键 0x39 = 8 键索引中点）⇒ 原码为
             // switch(type)；if 链在 4.4 恒退化为内存直比 `cmpl $imm,0x8(%ebp)`。
+            // P325/P223：ORIG 各 case 命中后走 `nop; jmp +0xc6` 岛并共享函数尾
+            // `mov $0x0,%eax`（+0xc6）⇒ break 到 switch 外再 goto 尾标签。
             switch (type)
             {
             case 0xb:
             case 0x36: case 0x37: case 0x38: case 0x39:
             case 0x3d: case 0x3e:
             case 0x5c:
-                return 0;   // 全 case 共享同一 body ⇒ 单个 TRUE 岛（ORIG +0x80）
+                break;
+            default:
+                return 1;
             }
-            return 1;
+            goto L_false;
         }
         else if ((bit & 0x4000U) != 0)
         {
             switch (type)
             {
             case 0xb:
+                goto L_false;
             case 0x39:
+                goto L_false;
             case 0x3d: case 0x3e:
-                break;
+                goto L_false;
             default:
                 return 1;
             }
-            return 0;
         }
         else if ((bit & 0x600U) != 0)
         {
             switch (type)
             {
             case 9:
-                break;
+                goto L_false;
             default:
                 return 1;
             }
-            return 0;
         }
     }
+L_false:
     return 0;
 }
 // ORIG 0x08115de2 实证（push_back 4/2/2 字节 store + 迭代 deEv 读 +0/+4/+6）：
@@ -470,7 +475,7 @@ bool CEventManager::TriggerEventEnd(int idx)
 // §6.2 巨件核销：P167 153/153 [0缺0多]；gap 927→927；残差归因 N 类
 // （4.1 bool 取反物化 xor$1/test/je+块序 fall-else 在前 vs 4.4 test%al+jne，
 // 详见 docs/asm_translation_patterns.md 负例表；try/catch joiner 与槽位一致）。
-bool CEventManager::InitEventManager()
+int CEventManager::InitEventManager()
 {
     // b28d-solo-CEventManager: [N82/N80 封顶] §6.2 三件套已验——①gap=0（927=927）；
     // ②P167 调用点差集 153/153 CLEAR（0 缺 0 多）；③残差=全帧槽号平移 + cMyTrace
@@ -479,6 +484,8 @@ bool CEventManager::InitEventManager()
     // 的 `xor $0x1/test/je` bool 物化 + __cxa_begin/end_catch 块相对序，N104/P292；
     // ①`if(call())return true;return false;` 形 gap=0 但缺 xor 段，②否定形 928 条
     // 且 catch 块序反劣，取 ①）。双后端：4.4.7 DIFF / 4.4.6 后端 DIFF（后端免疫）。
+    // [round5] 汇聚变量：裸 register 声明（无初值 ⇒ 零发射；ORIG 头部无 ebx 初始化）。
+    register int result;
     try
     {
         m_events[1]  = new CUnlimitFatigueEvent;
@@ -531,25 +538,23 @@ bool CEventManager::InitEventManager()
         m_events[159] = new CEventStayTime;
         m_events[160] = new CEventCreateDnf;
         m_events[165] = new EventGiveMeBox;
+        // [round5 复测] ORIG 0x08115945..0x08115997 实证：if 检查在 **try 体内**
+        // 末尾（`call LoadEventFromDB; xor $0x1,%eax; test %al,%al; je <mov $1
+        // 块>; mov $0x0,%ebx; jmp 0xbab; <mov $0x1,%ebx>`），catch 体同写
+        // `mov $0x0,%ebx` 并 fall-through 到 0xbab `mov %ebx,%eax` ⇒ 汇聚变量是
+        // **register int**（两臂/尾块均 32 位 `mov $imm,%ebx`，非 bool 的 movb、
+        // 也无槽）。前轮 `bool ok` 具名形（923 条）正是踩在「bool 局部必占槽」
+        // （P158/§4.0）上，改用裸 register 声明即消槽。
+        if (!LoadEventFromDB())
+            result = 0;
+        else
+            result = 1;
     }
     catch (...)
     {
-        return false;
+        result = 0;
     }
-    // ORIG @0x08115950：`call; xor $0x1,%eax; test %al,%al; je <mov $1 块>;
-    // mov $0,%ebx; jmp end; <mov $1>`（4.1 对 bool callee 的 xor 物化 + je 到
-    // ret1 块）。本轮实测三形：①正向 `if(call()) return true;` = 927=927 gap0、
-    // 无 xor 段（4.4 直测 jne）；②`if(!call()) return false;` 与 ③`== false`
-    // 同形 = 928 条（有 xor 段但 4.4 恒 jne 到 ret0 块 + 多 1 条 jmp，反劣）。
-    // 取 ① 保 gap=0；xor 段与 je 极性属 N93附（尾部双 return 块发射序）+
-    // N104（EH 尾块相对序）跨版本封顶。
-    // [round3 复测] `bool ok = (LoadEventFromDB() != 0); return ok;`（P158 汇聚
-    // 变量形）实测 **923 条**（4.4 恒槽化物化 `mov %al,-0x19; movzbl`），比 ORIG
-    // 的寄存器物化 `xor $1; test; je; mov $0/%1,%ebx`（927 条）少 4 条且更远 ⇒
-    // 按 P168a③/P292（bool 死物化）回退取直分支形（gap=0）。
-    if (LoadEventFromDB())
-        return true;
-    return false;
+    return result;
 }
 
 bool CEventManager::LoadEventFromDB()

@@ -2158,8 +2158,10 @@ void CParty::ReturnToVillage()
         // （旧码漏此两句 —— 真缺口）。
         packet.put_byte(0);
         packet.put_short(get_member_count());
-        // ORIG rep stos 0x40（P214③：={0} 出内联 rep stos，memset 退化 call）。
-        char names[0x40] = {0};
+        // ORIG 0x085acacd `mov $0x40,%edx; rep stos` = 64 dword = **0x100 字节**
+        // （P214③/P116：rep stos 立即数是 dword 次数不是字节长度）⇒ 缓冲 char[0x100]，
+        // 且 -0x138+0x100 = -0x38 恰接 PacketGuard 槽。
+        char names[0x100] = {0};
         _getMemberNames(names);
         for (int i = 0; i <= 3; ++i)
         {
@@ -2167,10 +2169,16 @@ void CParty::ReturnToVillage()
             {
                 if (m_battleField.m_pDungeon != 0)
                 {
-                    int pt = m_battleField.m_bloodState;
-                    int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
-                    const char* dn = m_battleField.m_pDungeon->GetDungeonName();
-                    m_member[i].m_pUser->m_historyLog.LeaveDungeon(dn, diff, names, pt);
+                    // [2026-09-10 真 bug 修正] ORIG 0x085acb5x 的 receiver 是
+                    // `mov 0x8(%ebp),%edx; mov 0x74(%edx),%edx; add $0x79700,%edx`
+                    // = **this+0x74 = m_manager**（CParty.h:732），不是
+                    // m_member[i].m_pUser（0x78+i*0x18）。且三实参按 cdecl 右→左
+                    // 求值并用 %edi/%esi/%ebx 跨调用保活（P329/P52 单语句形）。
+                    m_manager->m_historyLog.LeaveDungeon(
+                        m_battleField.m_pDungeon->GetDungeonName(),
+                        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
+                        _getMemberNames(names),
+                        m_battleField.m_bloodState);
                 }
                 if (m_battleField.m_pDungeon != 0)
                 {
@@ -2212,12 +2220,13 @@ void CParty::ReturnToVillage()
     {
         if (m_battleField.m_pDungeon != 0)
         {
-            char names2[0x40] = {0};   // ORIG rep stos 0x40（+0x32b）
-            int pt = m_battleField.m_bloodState;
-            char* n = _getMemberNames(names2);
-            int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
-            const char* dn = m_battleField.m_pDungeon->GetDungeonName();
-            m_manager->m_historyLog.LeaveDungeon(dn, diff, n, pt);
+            char names2[0x100] = {0};   // ORIG rep stos 0x40 dword = 0x100 字节（+0x32b）
+            // 同首分支：cdecl 右→左求值 + 寄存器保活（P329/P52 单语句形）。
+            m_manager->m_historyLog.LeaveDungeon(
+                m_battleField.m_pDungeon->GetDungeonName(),
+                reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
+                _getMemberNames(names2),
+                m_battleField.m_bloodState);
             bool b;
             if (!IsSinglePlay() || !m_manager->isDungeonClearHackCheck())
             {
@@ -2485,9 +2494,12 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
             continue;
         if (dungeon->get_index() == 0x5dc)
         {
-            param[i] = m_member[i].m_pUser->getCurCharacInvenR()
-                ->check_vilmark_dungeon_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
-            if (param[i] == -1)
+            // P15/P38：ORIG 0x859e63b 先把 &param[i] 算入 %ebx，store 后立即
+            // `mov (%ebx),%eax` 回读 ⇒ 赋值嵌入条件（SAVE_EXPR 地址复用），
+            // 拆两句会重算地址三次。
+            if ((param[i] = m_member[i].m_pUser->getCurCharacInvenR()
+                     ->check_vilmark_dungeon_item_exist(
+                         dungeon->m_entryRequiredItem.m_itemIdx)) == -1)
             {
                 flag = (unsigned char)i;
                 return 0;
@@ -2495,20 +2507,18 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
         }
         else
         {
-            param[i] = m_member[i].m_pUser->getCurCharacInvenR()
-                ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
-            if (param[i] == -1)
+            if ((param[i] = m_member[i].m_pUser->getCurCharacInvenR()
+                     ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx)) == -1)
             {
                 flag = (unsigned char)i;
                 return 0;
             }
         }
-        // b28d-solo-CParty：ORIG 0x859e748 `mov %eax,(%ebx); … mov (%ebx),%eax`
-        // = 4.1 复用 &items[i]（%ebx）；4.4 对 items[i] 两次访问重物化地址 ⇒
-        // 用具名引用复现（P183 反向：此处 ORIG 缓存）。
-        Inven_Item& item = items[i];
-        item = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(1, param[i]);
-        if (item.m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
+        // ORIG 0x859e700/0x859e7b3：赋值目标 &items[i] 与随后的 m_addInfo2 读取
+        // 各自独立重物化（imul $0x3d）⇒ 无具名引用槽（P183/P0 表达式直写）。
+        items[i] =
+            m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(1, param[i]);
+        if (items[i].m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
         {
             flag = (unsigned char)i;
             return 0;
@@ -2797,19 +2807,26 @@ unsigned int CParty::getClearRewardBonusExp(CUser* user, unsigned int& exp,
     {
         effectExp =
             (unsigned int)(long long)((double)(long long)exp * param.m_globalEffectRate);
-        int type = bonus.m_bestType;
-        if (type > 0 && type < 3)
+        // P251/P279：ORIG 0x85ad6xx 为 `mov 0x8(%eax),%eax; cmp $0x1,%eax; jl;
+        // cmp $0x2,%eax; jle; cmp $0x3,%eax; je; jmp` 顺序比较链（4.1 switch
+        // lowering）且字段值不落槽 ⇒ 源形是 switch，不是 if-else 链（if 链在
+        // 4.4 恒折 `cmpl $0,-0xNN(%ebp)` 并占具名槽）。
+        switch (bonus.m_bestType)
         {
+        case 1:
+        case 2:
             if (bonus.m_selectedBonusExp < effectExp)
             {
                 bonus.m_selectedBonusExp = effectExp;
                 bonus.m_bestType = 4;
             }
-        }
-        else if (type != 3)
-        {
+            break;
+        case 3:
+            break;
+        default:
             bonus.m_selectedBonusExp = effectExp;
             bonus.m_bestType = 4;
+            break;
         }
     }
 
@@ -2892,7 +2909,10 @@ int CParty::GetPartyType()
     // 为两段（P254/P211 档③）：局部与 callee 返回类型异型 ⇒ 4.4 才发 eax→edx
     // 中转而非 mem 直比。guildKey 声明 unsigned int。
     // N18b 封顶：int 化实测同形（cmp mem,%eax 恒折）⇒ 恢复直证形态。
-    unsigned int guildKey = 0;
+    // [2026-09-10 复测] 局部与 callee 返回（CUserCharacInfo::get_charac_guildkey 为
+    // int）**同型**时按 P211 档③ 应出 ORIG 的 LHS-first 两段
+    // `mov -0x1c(%ebp),%edx; cmp %edx,%eax`（实测重跑）。
+    int guildKey = 0;
     bool sameGuild = false;
     int onlineCnt = 0;
     int validCnt = 0;
@@ -4988,14 +5008,18 @@ L_next:;
 void CParty::TournamentDungeonClear(bool flag)
 {
     // b28d-49 判词：N 封顶（N82 帧/槽）。P167 CLEAR。@0x85bd236
-    if (m_battleField.m_pDungeon == 0)                                 // +0xcac
+    // ORIG 0x085bd24x：`mov 0xcac(%eax),%eax; mov %eax,-0x1c(%ebp);
+    // cmpl $0x0,-0x1c(%ebp); jne` + 后续 `mov -0x1c(%ebp),%eax` 复用 ⇒ 原码有
+    // 具名 CDungeon* 局部（P0 槽往返），非表达式直读。
+    CDungeon* dungeon = m_battleField.m_pDungeon;                      // +0xcac
+    if (dungeon == 0)
     {
         LogManager::logFormat(
             1, "party.cpp", __PRETTY_FUNCTION__, 0x45bc,
             "Tournament Dungeon is NULL");
         return;
     }
-    if (m_battleField.m_pDungeon->isTournamentDungeon() != 1)
+    if (dungeon->isTournamentDungeon() != 1)
     {
         // P0：ORIG 085bd3aa 对 get_dungeon_index 重新 add $0xb24（不缓存 bf 指针）。
         LogManager::logFormat(
@@ -5748,9 +5772,12 @@ void CParty::dungeon_clear()
     SaveCoin((eCoinSubReason)1);
     // P183：ORIG 对 bd 每个使用点重取址（无引用缓存槽）⇒ 宏直用。
 #define bd (m_battleData)
-    PacketGuard packet;
-    int memberCount = get_member_count();               // -0x20
-    int goldCardCount = 0;                              // -0x24
+    // [P331/P212 重排声明序] ORIG 序言 `movl $0x0,-0x20(%ebp)` 出现在
+    // `lea -0x2c(%ebp); call PacketGuard::C1Ev` **之前** ⇒ 该 0 初始化变量
+    // （goldCardCount）声明先于 PacketGuard；memberCount 赋值在 ctor 之后（-0x1c）。
+    int goldCardCount = 0;                              // ORIG -0x20（ctor 前）
+    PacketGuard packet;                                 // ORIG -0x2c
+    int memberCount = get_member_count();               // ORIG -0x1c
     for (int slot = 0; slot <= 3; ++slot)               // -0x18
     {
         if (slot > 3)
@@ -6081,7 +6108,15 @@ void CParty::onBloodClear(bool flag, int param)
         // ⇒ 属无符号除法求值固有差（N92 族），保持真型/直证形。
         // 试形记录（已回滚）：int 具名局部（P66 形）与 unsigned 同产 scratch 副本
         //   `mov %eax,-0xc; mov -0xc,%eax; mov %eax,-0x2c`（我方帧 0x40 vs ORIG 0x30）。
-        unsigned int playTime = GetMapPlayingTime();
+        // [2026-09-10 试形] ORIG 0x085b7cc4 `mov $<A>,%edx` 在 `mov -0x1c(%ebp),%eax`
+        // **之前**且无 scratch 副本；4.4 无符号除法 lowering 额外 materialize 被除数
+        // （`mov -0xc,%eax; mov %eax,-0x2c`）= 帧 0x40 vs ORIG 0x30。裸 register 存储类
+        // 提示（P231/P307，非 asm 绑定、P0 合规）改变分配偏好。
+        // [2026-09-10 试形②] volatile 版实测**劣化**（90 条/帧 0x40，多出 -0xc↔-0x1c
+        // 双槽与 -0x2c scratch）⇒ 回退 register 版（88 条 = ORIG 条数、帧 0x20）。
+        // 余差 = ORIG 槽读形（`mov %eax,-0x1c; …; mov -0x1c(%ebp),%eax; mul`）vs
+        // 4.4 寄存器保活形 ⇒ N82/N126 帧族封顶（delta 4/2 条）。
+        register unsigned int playTime = GetMapPlayingTime();
         m_member[param].m_pUser->m_historyLog.MapClear(
             // b28d-solo-CParty：ORIG 085b7cd8 `movzwl 0x183e(%eax)` 单条 disp ⇒
             // 走 CParty.h 的 m_resultView 具名视角（P235），不再对 pad 取址 cast。

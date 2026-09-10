@@ -8,15 +8,12 @@
 #include "InterfacePacketBuf.h"
 #include <algorithm>   // std::max<int>(int const&, int const&) ORIG 808e218
 
-// ORIG _ZL21_S_CHARAC_JOB_MASTARY（file-local static）：checkEquipmentState 按
-// (a*5+b)（a<9,b<5 → 最大 44）与 a*0x14（a<9 → 最大 160）索引，需 ≥161 项；
-// 此处为全局定义（CInventory.h extern int[]），尺寸取 0xC0。
-int _S_CHARAC_JOB_MASTARY[0xC0] = {
-    3,2,0,3,4, 2,0,2,3,2, 1,1,3,0,1,
-    0,0,0,1,1, 3,4,2,0,3, 1,1,3,0,1,
-    1,1,2,1,1, 2,0,2,3,2, 0,0,1,0,0,
-    0,0,0,0,0, 0,0,0,0,0,0,0
-};
+// [B01 铁律1] 原 `int _S_CHARAC_JOB_MASTARY[0xC0]`（外部链接 D 768B）为发明符号：
+// ORIG `nm -S --defined-only` 无裸名，真形是 489 份 TU-local `_ZL21_S_CHARAC_JOB_MASTARY`
+// （r 220B = 55×int，如 0x8ae5b60 / 0x8b126e0 …），成因即 CInventory.h 内 file-scope
+// static 被多 TU include。本 TU 的 IsEquipable()（ORIG 0x085003be）全程不引用该表
+// （索引点 checkEquipmentState 在 ORIG 同 TU 0x0850cfbe/0x0850cfe6，我方落 CInventory.cpp）
+// ⇒ 此处删除；TU-local 副本由 CInventory.h:580 的静态定义在引用者 CInventory.cpp 发射。
 
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x085003be。
 int IsEquipable(CUser* user, const CItem* item, int slot)

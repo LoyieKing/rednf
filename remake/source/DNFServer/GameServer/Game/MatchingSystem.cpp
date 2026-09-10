@@ -46,7 +46,9 @@ CMatchingSystem::~CMatchingSystem()
             delete m_systems[i];
 }
 
-void* CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type)
+// [L10b P211 档③] 返回类型 void*→int（PvPTypes.h 同步）：与消费方 int 字段同型 ⇒
+// 调用点 store 复现 ORIG 的 LHS-first 直存（PvP_Room::C1 0x085d610a 实证）。
+int CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type)
 {
     // ORIG 0x085dfba0：type>5 返回 0（`ja` 直通直返 eax=0）；否则跳表逐 case 内查
     // 空槽并懒构造缓存于 m_systems[type]，共同出口 `mov (this+idx*4),%eax; mov -0x1c`
@@ -57,7 +59,7 @@ void* CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type)
     //   `movl $0x0,(%eax)` value-init 预清，4.4 对该 trivial 用户 ctor 类不发（ctor 直设
     //   vptr）。源形不可复现（probe 实证 4.4 恒不预零）。父子母各 case new+ctor+槽位
     //   写回、返回统一走 m_systems[type]，语义闭合，封 N。
-    void* result = 0;
+    int result = 0;
     switch (type)
     {
     case 0:
@@ -81,6 +83,6 @@ void* CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type)
     default:
         return 0;
     }
-    result = m_systems[type];
+    result = (int)m_systems[type];
     return result;
 }

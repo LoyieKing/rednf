@@ -229,6 +229,9 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
     register const int pc = room->get_player_count();
     // b28d-196/211：ORIG `cmp %eax,%ebx; setge %al; test %al,%al; je`（ebx=pc
     // 为左操作数）⇒ 试 P225 X3 形（while+单 return 复现 4.1 的 setcc 四段物化）。
+    // [b28d-solo-CFairMatchRooms-2] S1 一次性旋钮实测**无效**（反向书写 `X <= pc`
+    //   与 `pc >= X` 产物逐条相同：4.4 恒规范化成 `cmp %ebx,%eax; setle`）⇒
+    //   属 P196 折痕（同语义不同 compare 方向），判 N，已恢复直证形态。
     while (pc >= static_cast<int>(
                static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2) {
         return 4;

@@ -757,24 +757,22 @@ int CmmChannelProxy::RecvPacket()
     int nread;
     {
         unsigned int i;         // ORIG i(-0x20) 比 pBits(-0x1c) 远 → 先声明
-        unsigned long* pBits = reinterpret_cast<unsigned long*>(&readfds);
+        // [SweepGD 2026-09-10] 旧判词 N125 作废：ORIG 0x0810648f `mov -0x20,%edx;
+        // mov -0x1c,%eax; movl $0,(%eax,%edx,4)` 的 scaled 直存由**具名数组成员
+        // 视角**复现 —— `fd_set* fds = &readfds; __FDS_BITS(fds)[i]`（P291/P288）；
+        // 用 `unsigned long* pBits = (unsigned long*)&readfds` 时 4.4 恒折 `shl $2; add`。
+        fd_set* fds = &readfds;
         for (i = 0; i <= 31u; ++i)
         {
-            // （寻址模式残余差：ORIG 0x0810648f `mov -0x20,%edx; mov -0x1c,%eax;
-            // movl $0,(%eax,%edx,4)` scaled 直存；4.4 O0 恒折 shl+add 指针算术，
-            // register asm 钉基址/索引均无法回退 ⇒ 记 N 类。）
-            pBits[i] = 0UL;
+            __FDS_BITS(fds)[i] = 0;
         }
     }
-    // ORIG 0x081064b8：FD_SET 无符号 `shr $5`/`and $0x1f` 位图形，不留 us 槽。
-    // ORIG 0x081064b8：`mov 0x18,%eax; shr $0x5,%eax; mov %eax,%edx;
-    // mov -0xdc(%ebp,%eax,4),%ebx … mov %eax,-0xdc(%ebp,%edx,4)` —— 位索引
-    // 单份计算（%eax）后复制到 %edx 供尾 store。4.4 默认重算两份 ⇒
-    unsigned long ix =
-        static_cast<unsigned long>(m_sock) >> 5;  // b28 P0 清绑定（N96）
-    // [b28 判词 N96+N18a/P179] ORIG 单次 scratch（shr 结果 %eax 直用+mov %eax,%edx
-    // 复制、无槽往返）需绑定形；绑定禁用后具名局部=槽往返、内联=双份重算
-    // （探针 /tmp/l12p8.cpp f/g 两形均不合），N 封顶。
+    // ORIG 0x081064b8：FD_SET 无符号 `shr $5`/`and $0x1f` 位图形
+    // （`mov 0x18,%eax; shr $0x5,%eax; mov %eax,%edx; mov -0xdc(%ebp,%eax,4),%ebx`）。
+    // [SweepGD 2026-09-10 实测] 具名 `unsigned long ix`（175 条）优于内联表达式
+    // （176 条：4.4 重算两份 shr 各带一次 this 重读）；两形均非 ORIG 单份
+    // `%eax`+`mov %eax,%edx` 复制形 ⇒ 取条数较优的具名形，余 4 条记 N18a/N96。
+    unsigned long ix = static_cast<unsigned long>(m_sock) >> 5;
     readfds.fds_bits[ix] |= (1UL << (static_cast<unsigned long>(m_sock) & 31));
     ret = select(m_sock + 1, &readfds, 0, 0, &tv);
     if (ret <= 0)
@@ -2535,9 +2533,30 @@ AcceptThread::AcceptThread()
 // 三元链逐处重调（P157 禁 mon/s 缓存）+ 状态缓存消除（P48 独立调用）+
 // 第二次 IsIntegratedPvPBaseChannel 守卫包裹 auction/cera 段（ORIG 0x0857edb5
 // `xor $1; test; je 循环尾`——真语义缺口，整合 PvP 频道时跳过两段）。
-// 余 gap=+256/ndiff=1570 = 4.4 对 FD_ZERO/FD_SET 宏展开与帧槽布局差（N82/N89 族） | ORIG 0x0857d95a
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（无调用缺口）；our 1830 vs orig 1574 = N82 帧/槽
-// 复用策略 + N89 libstdc++ 全内联（ORIG out-of-line 实例）⇒ 语义完成，byte 层 N 封顶。
+// [SweepGD 2026-09-10] gap **256→18**（our 1830→1593，ORIG 1575）四修（按序）：
+//   ① **FD_ZERO 手写旧宏形**：ORIG +0x0f5/+0x123 为逐元素循环（`lea fd; mov %eax,-0x50;
+//      movl $0,-0x54; jmp; loop: mov -0x54,%edx; mov -0x50,%eax; movl $0,(%eax,%edx,4);
+//      addl $1,-0x54; cmpl $0x1f,-0x54; setbe` = 具名 fd_set* + unsigned 计数两槽），
+//      新头集宏恒 `rep stos` 无形 ⇒ 手写 `fd_set* fds=&readfds; __FDS_BITS(fds)[fi]=0;`
+//      （`fd_set*` 成员数组成员视角产 ORIG 的 scaled `(%eax,%edx,4)`；用 `int*` 版多
+//      `shl $2; add` 两条/处 —— P291/P288 具名数组成员视角）。
+//   ② **FD_SET/FD_ISSET 实参 (unsigned) cast**（26 处）：ORIG 为 `shr $0x5` + `and $0x1f`
+//      无符号形，我方 int 实参产有符号除 cmovs 修正链（`sar $0x1f; shr $0x1b; add; sar $0x5`
+//      与 `% 32` 五条）⇒ 改 unsigned 后逐条同形（P230/N125 反向）。
+//   ③ **外层循环重构**：ORIG +0x1a32 尾条件块 `movzbl s_server_stop; xor $0x1; test;
+//      jne body`（函数头 `jmp +0x1a32`）⇒ 原 `while(true){if(s_server_stop)return;}` 改
+//      `while (!GlobalData::s_server_stop)` 布尔字段裸条件，函数头 4 个 `jmp+nop` 中继岛
+//      + 1 条头部多余跳转全部消失（P168a①/P292）。
+//   ④ **函数头清零 12→5 条**：ORIG 0x0857d966 起仅 5 条 `movl $0,-N`（soError+lastReconnect×4）
+//      ⇒ socket×5/proxyCount/ret 的 `= 0` 删除（-O0 裸声明零指令，P328⑤）。
+// 残余 **+18 条**（判词族，勿再耗轮次）：
+//   · 帧槽整体浅 8（我方 fd_set@-0x180 vs ORIG @-0x188，`sub` 两侧同 0x21c）⇒ **N126/N95**
+//     版本首槽基址常数（P332 永封；l8 归一后 485 行差几乎全为槽号伪差，助记符级 NDIFF 仅 55）。
+//   · 4 处 `cmp $0xffffffff; setne %al; test %al,%al; je`（ORIG +0x1c5/+0x2?? 段）vs 我方
+//     `cmp; je` —— **setcc-fold 跨版本比较折叠**（P-B/setcc-fold 族；我方反而少 2 条/处，
+//     且同族另 4 处我方多 5 条 choose 岛 `test;je;mov$1;jmp;mov$0`）。
+//   · 尾部 1 处 `jmp+nop` 岛（N121 epilogue-threading）。
+// p167 CLEAR（无调用缺口）；语义完成，byte 层 N 封顶。 | ORIG 0x0857d95a
 void MonitorTcpThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2546,26 +2565,29 @@ void MonitorTcpThread::dispatch(void* arg)
     socklen_t soLen[4];
     struct timeval timeout;
     int soError = 0;
-    int ret = 0;
+    // [SweepGD] ORIG 0x0857d966..0x0857d989 函数头只有 **5 条** `movl $0,-N`
+    // （soError + lastReconnect×4），其余标量为**无初值裸声明**（-O0 裸声明零指令，
+    // P328⑤）⇒ 去掉 socket/proxyCount/ret 的 `= 0`（我方原多 7 条清零）。
+    int ret;
     int lastReconnectPcroom = 0;
     int lastReconnectCommunity = 0;
     int lastReconnectAuction = 0;
     int lastReconnectCera = 0;
-    int pcroomSocket = 0;
-    int communitySocket = 0;
-    int auctionSocket = 0;
-    int ceraSocket = 0;
-    int hadesSocket = 0;
-    int proxyCount = 0;
+    int pcroomSocket;
+    int communitySocket;
+    int auctionSocket;
+    int ceraSocket;
+    int hadesSocket;
+    int proxyCount;
 
-    while (true)
+    // [SweepGD] ORIG +0x1a32 尾条件块 `movzbl s_server_stop; xor $0x1; test %al;
+    // jne <body>`（函数头 `jmp +0x1a32`）⇒ 原码是 `while (!s_server_stop)` 布尔字段
+    // 裸条件（P168a①/P292），而非 `while(true){ if(stop) return; }`（后者头部多 4 个
+    // jmp+nop 中继岛）。
+    while (!GlobalData::s_server_stop)
     {
         do
         {
-            if (GlobalData::s_server_stop)
-            {
-                return;
-            }
             OS_API::Sleep(1);
             pcroomSocket =
                 GlobalData::s_pcroom_proxy->GetTcpHandler()->get_socket();
@@ -2578,8 +2600,23 @@ void MonitorTcpThread::dispatch(void* arg)
             hadesSocket =
                 GlobalData::s_hades_proxy->GetTcpHandler()->get_socket();
 
-            FD_ZERO(&readfds);
-            FD_ZERO(&writefds);
+            // [SweepGD 2026-09-10] ORIG 0x0857da21/0x0857da4f 的 FD_ZERO 展开 = 旧
+            // glibc 逐元素循环（`lea fd; mov %eax,-0x50; movl $0,-0x54; …;
+            // movl $0,(%eax,%edx,4); addl $1; cmpl $0x1f,-0x54; setbe`）——fd_set*
+            // 具名局部 + unsigned 计数局部两槽；新头集宏走 `rep stos` 完全无形
+            // ⇒ 手写等价形（同 UdpThread::dispatch 先例）。
+            {
+                unsigned int fi;
+                fd_set* fds = &readfds;
+                for (fi = 0; fi <= 0x1f; ++fi)
+                    __FDS_BITS(fds)[fi] = 0;
+            }
+            {
+                unsigned int fi;
+                fd_set* fds = &writefds;
+                for (fi = 0; fi <= 0x1f; ++fi)
+                    __FDS_BITS(fds)[fi] = 0;
+            }
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
             int maxfd = 0;
@@ -2595,12 +2632,12 @@ void MonitorTcpThread::dispatch(void* arg)
                         ->GetTcpHandler()
                         ->get_socket() != -1)
                 {
-                    FD_SET(GlobalData::s_monitor_proxy_mgr
+                    FD_SET((unsigned)GlobalData::s_monitor_proxy_mgr
                                ->GetServerProxyArrayAt(i)
                                ->GetTcpHandler()
                                ->get_socket(),
                            &readfds);
-                    FD_SET(GlobalData::s_monitor_proxy_mgr
+                    FD_SET((unsigned)GlobalData::s_monitor_proxy_mgr
                                ->GetServerProxyArrayAt(i)
                                ->GetTcpHandler()
                                ->get_socket(),
@@ -2615,12 +2652,12 @@ void MonitorTcpThread::dispatch(void* arg)
                         ->GetTcpHandler()
                         ->get_socket() != -1)
                 {
-                    FD_SET(GlobalData::s_guild_proxy_mgr
+                    FD_SET((unsigned)GlobalData::s_guild_proxy_mgr
                                ->GetServerProxyArrayAt(i)
                                ->GetTcpHandler()
                                ->get_socket(),
                            &readfds);
-                    FD_SET(GlobalData::s_guild_proxy_mgr
+                    FD_SET((unsigned)GlobalData::s_guild_proxy_mgr
                                ->GetServerProxyArrayAt(i)
                                ->GetTcpHandler()
                                ->get_socket(),
@@ -2634,32 +2671,34 @@ void MonitorTcpThread::dispatch(void* arg)
             }
             if (pcroomSocket != -1)
             {
-                FD_SET(pcroomSocket, &readfds);
-                FD_SET(pcroomSocket, &writefds);
+                // [SweepGD] ORIG 0x0857dc34 段 `shr $0x5` / `and $0x1f`（无符号）⇒
+                // 宏实参 (unsigned) cast（同 AcceptThread::dispatch 先例）消有符号除链。
+                FD_SET((unsigned)pcroomSocket, &readfds);
+                FD_SET((unsigned)pcroomSocket, &writefds);
                 maxfd = std::max(maxfd, pcroomSocket);
             }
             if (communitySocket != -1)
             {
-                FD_SET(communitySocket, &readfds);
-                FD_SET(communitySocket, &writefds);
+                FD_SET((unsigned)communitySocket, &readfds);
+                FD_SET((unsigned)communitySocket, &writefds);
                 maxfd = std::max(maxfd, communitySocket);
             }
             if (auctionSocket != -1)
             {
-                FD_SET(auctionSocket, &readfds);
-                FD_SET(auctionSocket, &writefds);
+                FD_SET((unsigned)auctionSocket, &readfds);
+                FD_SET((unsigned)auctionSocket, &writefds);
                 maxfd = std::max(maxfd, auctionSocket);
             }
             if (ceraSocket != -1)
             {
-                FD_SET(ceraSocket, &readfds);
-                FD_SET(ceraSocket, &writefds);
+                FD_SET((unsigned)ceraSocket, &readfds);
+                FD_SET((unsigned)ceraSocket, &writefds);
                 maxfd = std::max(maxfd, ceraSocket);
             }
             if (hadesSocket != -1)
             {
-                FD_SET(hadesSocket, &readfds);
-                FD_SET(hadesSocket, &writefds);
+                FD_SET((unsigned)hadesSocket, &readfds);
+                FD_SET((unsigned)hadesSocket, &writefds);
                 maxfd = std::max(maxfd, hadesSocket);
             }
             maxfd += 1;
@@ -2676,13 +2715,14 @@ void MonitorTcpThread::dispatch(void* arg)
             if (GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
                         ->get_socket() != -1 &&
-                FD_ISSET(GlobalData::s_monitor_proxy_mgr
+                FD_ISSET((unsigned)GlobalData::s_monitor_proxy_mgr
                              ->GetServerProxyArrayAt(i)
                              ->GetTcpHandler()
                              ->get_socket(),
                          &readfds))
             {
                 // b28c-l23 SIGFIX 消费点：OnTcpRecv 已 bool 化（lane28/lane12），
+                // [SweepGD] 实参 (unsigned) cast：ORIG `shr $0x5`/`and $0x1f` 无符号形。
                 // bool callee ⇒ 裸形（P168a①：ORIG `call; xor$1; testb; je`）。
                 if (!GlobalData::s_monitor_proxy_mgr
                          ->GetServerProxyArrayAt(i)
@@ -2705,7 +2745,7 @@ void MonitorTcpThread::dispatch(void* arg)
             if (GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
                         ->get_socket() != -1 &&
-                FD_ISSET(GlobalData::s_monitor_proxy_mgr
+                FD_ISSET((unsigned)GlobalData::s_monitor_proxy_mgr
                              ->GetServerProxyArrayAt(i)
                              ->GetTcpHandler()
                              ->get_socket(),
@@ -2734,7 +2774,7 @@ void MonitorTcpThread::dispatch(void* arg)
             if (GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
                         ->get_socket() != -1 &&
-                FD_ISSET(GlobalData::s_guild_proxy_mgr
+                FD_ISSET((unsigned)GlobalData::s_guild_proxy_mgr
                              ->GetServerProxyArrayAt(i)
                              ->GetTcpHandler()
                              ->get_socket(),
@@ -2762,7 +2802,7 @@ void MonitorTcpThread::dispatch(void* arg)
             if (GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i)
                         ->GetTcpHandler()
                         ->get_socket() != -1 &&
-                FD_ISSET(GlobalData::s_guild_proxy_mgr
+                FD_ISSET((unsigned)GlobalData::s_guild_proxy_mgr
                              ->GetServerProxyArrayAt(i)
                              ->GetTcpHandler()
                              ->get_socket(),
@@ -2794,7 +2834,7 @@ void MonitorTcpThread::dispatch(void* arg)
         if (hadesSocket != -1 &&
             GlobalData::s_hades_proxy->GetSocketState() ==
                 ENUM_SOCKET_STATE_CONNECTED &&
-            FD_ISSET(hadesSocket, &readfds))
+            FD_ISSET((unsigned)hadesSocket, &readfds))
         {
             if (!GlobalData::s_hades_proxy->OnTcpRecv())
             {
@@ -2803,7 +2843,7 @@ void MonitorTcpThread::dispatch(void* arg)
                     "HADES::OnTcpRecv == false!!!");
             }
         }
-        if (hadesSocket != -1 && FD_ISSET(hadesSocket, &writefds))
+        if (hadesSocket != -1 && FD_ISSET((unsigned)hadesSocket, &writefds))
         {
             int sendRet = GlobalData::s_hades_proxy->OnTcpSend();
             if (sendRet < 0)
@@ -2818,7 +2858,7 @@ void MonitorTcpThread::dispatch(void* arg)
         if (pcroomSocket != -1 &&
             GlobalData::s_pcroom_proxy->GetSocketState() ==
                 ENUM_SOCKET_STATE_CONNECTED &&
-            FD_ISSET(pcroomSocket, &readfds))
+            FD_ISSET((unsigned)pcroomSocket, &readfds))
         {
             if (!GlobalData::s_pcroom_proxy->OnTcpRecv())
             {
@@ -2829,7 +2869,7 @@ void MonitorTcpThread::dispatch(void* arg)
                     "PCROOM::OnTcpRecv == false!!!");
             }
         }
-        if (pcroomSocket != -1 && FD_ISSET(pcroomSocket, &writefds))
+        if (pcroomSocket != -1 && FD_ISSET((unsigned)pcroomSocket, &writefds))
         {
             if (GlobalData::s_pcroom_proxy->GetSocketState() ==
                 ENUM_SOCKET_STATE_CONNECTING)
@@ -2889,7 +2929,7 @@ void MonitorTcpThread::dispatch(void* arg)
             if (communitySocket != -1 &&
                 GlobalData::s_community_proxy->GetSocketState() ==
                     ENUM_SOCKET_STATE_CONNECTED &&
-                FD_ISSET(communitySocket, &readfds))
+                FD_ISSET((unsigned)communitySocket, &readfds))
             {
                 if (!GlobalData::s_community_proxy->OnTcpRecv())
                 {
@@ -2899,7 +2939,7 @@ void MonitorTcpThread::dispatch(void* arg)
                 }
             }
             if (communitySocket != -1 &&
-                FD_ISSET(communitySocket, &writefds))
+                FD_ISSET((unsigned)communitySocket, &writefds))
             {
                 if (GlobalData::s_community_proxy->GetSocketState() ==
                     ENUM_SOCKET_STATE_CONNECTING)
@@ -2956,7 +2996,7 @@ void MonitorTcpThread::dispatch(void* arg)
         if (auctionSocket != -1 &&
             GlobalData::s_auction_proxy->GetSocketState() ==
                 ENUM_SOCKET_STATE_CONNECTED &&
-            FD_ISSET(auctionSocket, &readfds))
+            FD_ISSET((unsigned)auctionSocket, &readfds))
         {
             if (!GlobalData::s_auction_proxy->OnTcpRecv())
             {
@@ -2965,7 +3005,7 @@ void MonitorTcpThread::dispatch(void* arg)
                     "AUCTION - OnTcpRecv == false!!!");
             }
         }
-        if (auctionSocket != -1 && FD_ISSET(auctionSocket, &writefds))
+        if (auctionSocket != -1 && FD_ISSET((unsigned)auctionSocket, &writefds))
         {
             if (GlobalData::s_auction_proxy->GetSocketState() ==
                 ENUM_SOCKET_STATE_CONNECTING)
@@ -3025,7 +3065,7 @@ void MonitorTcpThread::dispatch(void* arg)
         if (ceraSocket != -1 &&
             GlobalData::s_cera_auction_proxy->GetSocketState() ==
                 ENUM_SOCKET_STATE_CONNECTED &&
-            FD_ISSET(ceraSocket, &readfds))
+            FD_ISSET((unsigned)ceraSocket, &readfds))
         {
             if (!GlobalData::s_cera_auction_proxy->OnTcpRecv())
             {
@@ -3034,7 +3074,7 @@ void MonitorTcpThread::dispatch(void* arg)
                     "Cera AUCTION - OnTcpRecv == false!!!");
             }
         }
-        if (ceraSocket != -1 && FD_ISSET(ceraSocket, &writefds))
+        if (ceraSocket != -1 && FD_ISSET((unsigned)ceraSocket, &writefds))
         {
             if (GlobalData::s_cera_auction_proxy->GetSocketState() ==
                 ENUM_SOCKET_STATE_CONNECTING)

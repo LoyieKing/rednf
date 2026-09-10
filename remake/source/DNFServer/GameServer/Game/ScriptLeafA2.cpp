@@ -1188,12 +1188,18 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
         {
         case 0:         // 首轮哨兵（与 [/reward] 共体）
         case 0x8f:      // [/reward]
-            if (__inited)
+            // [本波试验] ORIG 0x080ef6b8 段为 `movzbl __inited; xor $1; test %al;
+            // je <业务>`（P168a/N122：4.4 对 `!` 形才产 xor）；改写为否定形
+            // 「then=insert 落 fall-through、else=业务 在跳转目标」，语义不变。
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type("[/reward]", 0x8f));
+            }
+            else
             {
                 return 1;
             }
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[/reward]", 0x8f));
             // fallthrough
         case 0x93:      // [job type]
             if (__inited)
@@ -1435,33 +1441,33 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
                 for (;;)
                 {
                     upgrade_info_t info;
-                    info.m_prob00[0] =
+                    info.m_f00[0] =
                         static_cast<float>(ScanInt(&ok));
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_prob00[1] = ScanFloat(&ok);
+                    info.m_f00[1] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_prob00[5] = ScanFloat(&ok);
+                    info.m_f00[5] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_prob00[2] = ScanFloat(&ok);
+                    info.m_f00[2] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_prob00[6] = ScanFloat(&ok);
+                    info.m_f00[6] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_prob00[3] = ScanFloat(&ok);
+                    info.m_f00[3] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
@@ -1473,34 +1479,34 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
                     info.m_prob20[2] = ScanInt(&ok);
                     info.m_recipeItem = ScanInt(&ok);
                     info.m_meterialCount = 0;
-                    info.m_w38[4] =
+                    info.m_f38[4] =
                         static_cast<float>(ScanInt(&ok));
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_w5c[0] = 0.0f;
-                    info.m_w4c[1] = ScanFloat(&ok);
+                    info.m_f5c[0] = 0.0f;
+                    info.m_f4c[1] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_w5c[1] = ScanFloat(&ok);
+                    info.m_f5c[1] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_w4c[2] = ScanFloat(&ok);
+                    info.m_f4c[2] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_w5c[2] = ScanFloat(&ok);
+                    info.m_f5c[2] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    info.m_w4c[3] = ScanFloat(&ok);
+                    info.m_f4c[3] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;

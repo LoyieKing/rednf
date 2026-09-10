@@ -7,8 +7,22 @@
 #include "CItem.h"
 #include "NeedMaterialDataManager.h"
 
+// [A31-GI · P338/P327] 补 <iostream> 恢复 __ioinit；GetNeedMaterial() 前移为本 TU
+// 首个强外部符号 ⇒ GI 键名 `_GLOBAL__I__ZNK5CItem15GetNeedMaterialEv`（ORIG 0x85139cb）。
+#include <iostream>
+
 // ===================== 报告函数（CItem.md） =====================
 
+// ORIG 0x085139cb
+CItem* CItem::GetNeedMaterial() const
+{
+    CItem* p = NeedMaterialDataManager::getInstance()->getNeedMaterial(this);
+    if (*(int*)p != -1)
+    {
+        return p;
+    }
+    return (CItem*)&m_pair24;
+}
 
 CItem::CItem() {}
 
@@ -23,16 +37,6 @@ bool _isPackageItem(const CItem* item)
         item->GetItemType() == 0x10)
         return true;
     return false;
-}
-
-CItem* CItem::GetNeedMaterial() const
-{
-    CItem* p = NeedMaterialDataManager::getInstance()->getNeedMaterial(this);
-    if (*(int*)p != -1)
-    {
-        return p;
-    }
-    return (CItem*)&m_pair24;
 }
 
 bool CItem::checkItemUpgradePossible() const

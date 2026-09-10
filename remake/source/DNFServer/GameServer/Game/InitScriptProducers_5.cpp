@@ -99,9 +99,12 @@ extern STScriptFileList g_ChattingEmoticonScriptFileList;    // B 0x094f6cc0  CC
 
 // ---- 本 TU 提供定义的 ORIG 全局（nm 真实存在；此前 source 无任何定义，
 //      已与 Ctor_Group1 协调归属）----
+// [A31-GI · P327] g_eventCharacterScriptBaseDirectory 声明前移为本 TU 首个强外部符号
+// ⇒ GI 键名 `_GLOBAL__I_g_eventCharacterScriptBaseDirectory`（ORIG 0x895b874）。
+// 纯 POD char[0x100]（零动态初始化）⇒ 移动定义不改变任何构造序。
+char g_eventCharacterScriptBaseDirectory[0x100];     // B 0x094f73c0 (initEventCharacterScript)
 char g_aiCharacterScriptBaseDirectory[0x100];        // B 0x094f6920 (initAICharacterScript)
 STScriptFileList g_aiCharacterScriptFileList;        // B 0x094f6a20 (0x18)
-char g_eventCharacterScriptBaseDirectory[0x100];     // B 0x094f73c0 (initEventCharacterScript)
 STScriptFileList g_eventCharacterScriptFileList;     // B 0x094f74c0 (0x18)
 char g_pvpSkillTreeScriptBaseDirectory[0x100];       // B 0x09500240 (initPvPSkillTreeScript)
 STScriptFileList g_pvpSkillTreeScriptFileList;       // B 0x09500340 (0x18)

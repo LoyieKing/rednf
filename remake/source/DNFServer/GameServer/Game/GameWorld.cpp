@@ -414,6 +414,11 @@ void GameWorld::UpdateChannelUser()
 // （ORIG 0x086cb4d1 %eax 直传，无 stream 槽）；⑤0x086cb5e2 `jne <body>; jmp <exit>`
 // 极性：反转条件 + 显式 `return` 出口（4.4 对 `if(cit!=last) goto LOOP3;` 恒产
 // `je exit; jmp body`）。余 N82/N115 槽组平移 8（it -0x78 vs -0x80）封顶；p167 CLEAR 49=49。
+// [A11-round5 复核] P326 适用性判定**不成立**：P326 前提为「ORIG 比较调点是非 const
+// `_Rb_tree_iterator::operator==` 且存在 const 转换临时三级槽」；本件 ORIG 调点
+// 0x086cb5e2 段为 `_ZNKSt17_Rb_tree_iteratorISt4pairIKiiEEneERKS3_`（const 成员、两级
+// 槽 it/cit=-0x78 + last=-0x80），无转换临时可落；p167 的 MISSING `ne` / EXTRA `eq`
+// 即源码比较方向差，改 `!=` 已实测回退（见下 COND3 判词）⇒ 维持 N82/N115 封顶。
 void GameWorld::updateDetailChannelServiceInfo()
 {
     std::map<int, int> countMap;
@@ -635,6 +640,14 @@ int GameWorld::GetChannelType() const
 // [b28d-solo-GameWorld] 本轮 30+ 形穷举（register one=1u<<ct / one<<=ct / one 预清 /
 // 字段 unsigned / 冗余 cast / while+break / for(;;) / 语句表达式 / 逗号 / const register /
 // unsigned long ct / 双条件合并 / 提前 return）实测 4.4.6 恒将 ct 落 %ebx 或触发 N6 折叠 @0x080f131e
+// [A11-round5 复核] 本族 5 件（IsIntegratedPvPBaseChannel @0x080f131e / IsPVPChannel
+// @0x081424e8 / IsFreePvPChannel @0x081a0ab2 / IsWinPointPvPChannel @0x085dfa92 /
+// IsSameTeamChannelJoin @0x082343c8）本轮以 8 源形探针（register ct+one / one 先声明 /
+// 声明后赋值 / 表达式直读 / 内联移位 / uchar ct / const register / one 前置求值）在
+// 4.4.6、4.4.7、4.4.4 三后端逐形复编（探针 /tmp/r5/probeC.cpp h1..h8）：ORIG 4.1 把 ct
+// 留 %eax（0x082343cf `mov 0x20(%eax),%eax` → cmp → `mov %eax,%ecx`），4.4 三后端恒
+// 落 %ebx，唯一净差 = `mov %eax,%ebx`(cmp 前) + `mov %ebx,%eax`(shl 前) 两条中转；
+// 表达式直读形触发 N6 位折叠（shr/and $1）反劣。⇒ N96/N7 封顶，后继勿再试源形。
 // [b28d-solo-GameWorld] _ZNK9GameWorld26IsIntegratedPvPBaseChannelEv verdict=DIFF ndiff=2
 // N96/N7 封顶：ORIG 4.1 register ct 留 %eax（0x080f1322 装载一次供 cmp/shl 复用），
 // 4.4.6 恒落 %ebx（多 mov %eax,%ebx + mov %ebx,%eax）；表达式直读形触发 N6 折叠
@@ -915,6 +928,9 @@ int GameWorld::GetIDUserInIDMap(const char* name)
 // 失败分支 cMyTrace 实参 getCurCharacVill 在 ctor 前求值存 %ebx（ORIG 0x086c5185）；
 // ③**真语义 bug 修正**：私商分支虚调用改真实虚成员调用（见上方 b28d-sweep 判词）。
 // 余 N82：槽组平移（slotnorm 零残差）。p167 46/46（C1/C2 别名对）。
+// [A11-round5 复核] P190 撑帧反证：本件 ORIG userIt=-0x50 vs 我方 -0x48（我方浅 8）
+// ⇒ 实测 2 个取址 double framePad 撑帧 +8：verdict NEAR 271/271 → **DIFF**（near 4→3 /
+// diff 12→13）已回退 ⇒ 残差非帧尺寸差，系 4.1/4.4 槽基与槽组方向差（N82/N126 族）。
 // 既有修法（保留）：P50 复活
 // （ORIG 0x086c4ea0/0x086c4f5b iterator C1Ev 先声明后赋值）+ P61/P236 具名 key
 // （ORIG uniqueId=-0x4a/accId=-0x44/-0x28）+ P192 value_type 直构 +

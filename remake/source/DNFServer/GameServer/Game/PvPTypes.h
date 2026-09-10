@@ -255,7 +255,10 @@ public:
     // 无 EH cleanup（p167 EXTRA _ZdlPv×1）；体仅置 6 个指针为 0，不可能抛出。
     CMatchingSystem() throw();
     ~CMatchingSystem();
-    void* GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type);
+    // [L10b P211 档③] 返回类型 int（与 PvP_Room::m_matching int 字段同型 ⇒ 调用点
+    // LHS-first 直存）：ORIG PvP_Room::C1 0x085d610a/0x085d610d 实证；mangled 不含
+    // 返回类型 ⇒ 符号名不变。
+    int GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type);
 private:
     IMatch* m_systems[6];   // +0x00（0x18）
 };

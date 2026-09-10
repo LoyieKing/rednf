@@ -92,6 +92,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>   // [A18 本波] fabsf（ORIG export separate-rate 段 x87 fabs 内联形）
 #include <limits>   // ORIG export @0x89adeab 尾区：numeric_limits<float>::epsilon() 调用两处
 #include <algorithm>  // ORIG export 0x089ae30a：std::min<int>（_ZSt3minIiERKT_S2_S2_）
 
@@ -5841,10 +5842,8 @@ done:
 // [b28d-solo-EquipmentParameterInfo] 修 it++（P28）/std::min<int>；残差 avatar 段 string 形 + empty 结构 ⇒ N。
 void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
 {
-    if (!file || !info)
-    {
-        return;
-    }
+    // [A18 本波] 删多余判空（P171 照抄 ORIG）：ORIG 0x89ad 头部无 file/info 判空，
+    // 直接 `mov 0xc(%ebp),%eax; mov 0x4(%eax),%eax; test; je`（判 info->m_field4）。
     // 状态名表（无括号标签，索引 = 状态类型 0..0x11；15/16 无名占位空串）
     static const char* const kActStatNoBox[18] = {
         "slow", "freeze", "poison", "stun", "curse", "blind", "lightning",
@@ -5900,15 +5899,16 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
 
     // [separate rate]（+0x390/+0x394 float）：与 1.0 的偏差超过 epsilon 才输出
     {
-        float sa = info->m_separateRate[0];
-        float sb = info->m_separateRate[1];
-        float da = sa - 1.0f;
-        float db = sb - 1.0f;
-        // ORIG @0x89ad...：两条件各调一次 numeric_limits<float>::epsilon()
-        if ((std::numeric_limits<float>::epsilon() * (sa < 0.0f ? -sa : sa) < (da < 0.0f ? -da : da)) ||
-            (std::numeric_limits<float>::epsilon() * (sb < 0.0f ? -sb : sb) < (db < 0.0f ? -db : db)))
+        // [A18 本波] 删具名 sa/sb + 改真 fabs：ORIG @0x89ad 段为
+        // `flds 0x390(%eax); fld1; fsubrp; fabs; fstpl -0x160` + `flds 0x390;
+        // fabs; fmulp`（字段内存直取、无槽中转、fabs 为 x87 指令）；三元
+        // `(x<0?-x:x)` 在 4.4 恒生 fchs+fucomip+条件分支（N85 伪形）。
+        if ((fabs(info->m_separateRate[0] - 1.0f) >
+             std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[0])) ||
+            (fabs(info->m_separateRate[1] - 1.0f) >
+             std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[1])))
             fprintf(file, "[separate rate] %+f %+f\n",
-                    (double)sa, (double)sb);
+                    (double)info->m_separateRate[0], (double)info->m_separateRate[1]);
     }
 
     if (info->m_physicalAbsoluteDamage != 0)   fprintf(file, "[physical absolute damage] %+d\n", info->m_physicalAbsoluteDamage);

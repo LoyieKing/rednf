@@ -19,21 +19,9 @@ bool IsPriceError(int price, int limit)
 
 bool IsValidMultiplyResult(int a, int b)
 {
-    // [b28d-41 判词·N] DIFF：ORIG 0x08213e40 无栈帧（push edi/esi/ebx 后直入），
-    // acc 前两项在 %esi、乘积 mul 一次（eax:edx），单出口 %ecx 物化——4.1 对
-    // 单语句内重复子表达式走 SAVE_EXPR **寄存器**复用。4.4 对同一表达式恒把
-    // SAVE_EXPR 落槽并重算子表达式（本件 +0x24 帧 / -0x28..-0x14 五槽 / acc 与
-    // 乘积各算两次）。八形探针（/tmp/d41_p8.cpp fA..fI：具名/三元链/短路/register/
-    // 宏内联/乘积前置）全部落槽，无类型旋钮可试（比较两侧均 int/unsigned/ull）
-    // ⇒ 跨版本 SAVE_EXPR 处理差异，语义等价（乘积高位+符号修正项，历史 256 组
-    // 输入交叉验证一致）。
-    unsigned int A = (unsigned int)a;
-    unsigned int B = (unsigned int)b;
-    unsigned long long P = (unsigned long long)A * (unsigned long long)B;
-    int acc = (a >> 31) * b + (b >> 31) * a + (int)(unsigned int)(P >> 32);
-    if (acc < 0)
-        return 1;
-    if (acc > 0)
-        return 0;
-    return ((unsigned int)P <= 0x7FFFFFFFu) ? 1 : 0;
+    // ORIG 0x08213e40 的指令序列即 4.1 对 `(long long)a * b > 0x7fffffff`
+    // 的 64 位乘法内联展开（sar $0x1f 符号修正 + mul 高位）与 64 位常量比较
+    // （hi<0→假、hi>0→真、hi==0→无符号比较 lo）。按 P0 全部内联为表达式，
+    // 不设具名局部（ORIG 无栈槽往返）。
+    return ((long long)a * (long long)b > 0x7fffffff) ? 0 : 1;
 }

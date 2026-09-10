@@ -9,6 +9,16 @@
 // 反汇编命令：objdump -d /home/wangyilei/下载/df_game_r
 // 地址与符号见各方法注释。
 
+// ORIG 0x08285e14
+//   _ZN24CHackLog_InvalidAreaMove14checkSeriaRoomEii
+//   直接返回 IsSeriaRoom(a, b) 的结果（eax 保留）。
+// [A31-GI · P327] 前移为本 TU 首个强外部符号 ⇒ GI 键名
+// `_GLOBAL__I__ZN24CHackLog_InvalidAreaMove14checkSeriaRoomEii`（ORIG 0x828619a）。
+bool CHackLog_InvalidAreaMove::checkSeriaRoom(int a, int b)
+{
+    return IsSeriaRoom(a, b);
+}
+
 // ORIG 0x086d272c
 //   _ZN24CHackLog_InvalidAreaMove11GetHackTypeEv
 //   86d272c: mov $0x1f5,%eax
@@ -98,13 +108,6 @@ bool CHackLog_InvalidAreaMove::IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b
            (IsGuildAgit(a) && IsSeriaRoom(c, d));
 }
 
-// ORIG 0x08285e14
-//   _ZN24CHackLog_InvalidAreaMove14checkSeriaRoomEii
-//   直接返回 IsSeriaRoom(a, b) 的结果（eax 保留）。
-bool CHackLog_InvalidAreaMove::checkSeriaRoom(int a, int b)
-{
-    return IsSeriaRoom(a, b);
-}
 
 // ORIG 0x08285e2e
 //   _ZN24CHackLog_InvalidAreaMove20IsInvalidMovableAreaEiiii

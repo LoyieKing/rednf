@@ -228,7 +228,15 @@ struct upgrade_info_t
     int m_recipeItem;       // +0x2c（材料 item idx / 强化商品）
     int m_meterialCount;    // +0x30（材料数量）
     int m_discountBase;     // +0x34（折扣基数；updateUpgradeTable... 亦写 +0x2c/+0x30）
-    int m_w38[5];           // +0x38..+0x48（ORIG C1 循环 ③ 清五字）
+    // [b28d-ScriptLeafA2] +0x38..+0x48 加 float 视角：importUpgradeTable 的 ORIG
+    // 段对该区用 `fildl … fstps`（ORIG fildl 2 / fstps 20 vs 我方 fistpl 12 +
+    // fnstcw 12 + fldcw 24）⇒ 原码按 float 存储；int 视角写 `(float)ScanInt()`
+    // 会被 4.4 折成 fnstcw/movzwl/fldcw×2/fistpl/mov 六条往返（P238 同族）。
+    // 布局零影响：union 双视角同址同宽，sizeof 0x6c 与既有断言不变。
+    union {
+        int m_w38[5];       // +0x38..+0x48（ORIG C1 循环 ③ 清五字）
+        float m_f38[5];     // +0x38 同区 float 视角（importUpgradeTable +0x48）
+    };
     union {
         int m_w4c[4];       // +0x4c..+0x58（循环 ④ 组一）
         float m_f4c[4];     // +0x4c 同区 float 视角（get_upgrade_info 0x13..0x16）
@@ -239,6 +247,7 @@ struct upgrade_info_t
     };
 };
 static_assert(sizeof(upgrade_info_t) == 0x6c, "upgrade_info_t size drift");
+static_assert(offsetof(upgrade_info_t, m_w38) == 0x38, "info +0x38");
 static_assert(offsetof(upgrade_info_t, m_recipeItem) == 0x2c, "info +0x2c");
 static_assert(offsetof(upgrade_info_t, m_w4c) == 0x4c, "info +0x4c");
 static_assert(offsetof(upgrade_info_t, m_w5c) == 0x5c, "info +0x5c");

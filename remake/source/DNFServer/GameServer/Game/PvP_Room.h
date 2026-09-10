@@ -231,7 +231,9 @@ private:
     CDeathMatchBattleMgr m_deathMatch;  // +0x69c
     CMatchingSystem* m_pMatchingSystem; // +0x6e0
 public: // m_matching 由 DisPatcher_EndPvPResult（ORIG 0x081f88ae，DisPatcherCore.cpp）跨 TU
-        // vtable+0x80 槽直调消费；PvP_Room.cpp 同款 (int)GetMatchingSystem 存储口径，类型不变
+        // vtable+0x80 槽直调消费；PvP_Room.cpp 存储口径 = CMatchingSystem::GetMatchingSystem
+        // 的返回类型（[L10b] 该函数已由 void* 改 int，与本字段同型 ⇒ ORIG LHS-first 直存）。
+        // 32 位下 int ≡ IMatch*（同 4 字节、不入 mangled、`mov %eax,0x6e4(%edx)` 同形）。
     int m_matching;                     // +0x6e4
 };
 

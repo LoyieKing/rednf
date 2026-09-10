@@ -5,6 +5,7 @@
 // advancealtar::_CharacAdvanceAltarDbData 权威定义在 advancealtar.h（0x51c）
 #include "advancealtar.h"
 
+#include <cstddef>   // offsetof（条目视角布局断言）
 #include <cstring>   // memset（arad::SigLoadRewardEventItem::set）
 
 namespace private_store {
@@ -14,15 +15,58 @@ namespace private_store {
 // LoadPrivateStoreResponse 判 +0x430==1）。
 // 条目以字节数组镜像（PrivateStoreItem 权威类型在 CPrivateStoreMgr.h，
 // 不引入其头以控制 MoreTypes.h 依赖链；访问处按一致字节布局转型）。
+// [L14] P235 条目数组视角：MakeNotipacketPrivateStoreInfo 0x85cc5bc 段 ORIG 用
+// `mov i; imul $0x4c; lea (sig,i); add $0x48` 与 `mov 0xa/0xf/0x13/0x15(%edx,%eax,1)`
+// 形（字段 disp 折入），而裸字节数组 `m_items[(i)*0x4c]` + cast 恒先物化 base
+// （多 1 条 `add $8`）。下面给条目区补一个**具名类型数组视角**（纯 POD、无成员
+// 函数 ⇒ 零符号发射），字段偏移按 ORIG 同段实证：+0x02/+0x07/+0x0b/+0x0d/+0x40。
+// [L14] 条目字段的「异型视角」：ORIG 0x85cc5bc 段对 0x0a/0x15 两处发
+// `mov disp(%edx,%eax,1),%eax; mov %eax,%edx`（4.1 对 **enum 字段**保留
+// eax→edx 两段装载，P254），而 int 字段 4.4 恒折单段 ⇒ 视角字段声明为
+// 枚举（仅影响本视角读，布局/mangled 零影响）。
+enum SIG_PRIVATE_STORE_ItemField
+{
+    SIG_PRIVATE_STORE_ITEMFIELD_ZERO = 0
+};
+
+struct SIG_PRIVATE_STORE_Item
+{
+    unsigned char m_pad00[0x02];   // +0x00（PrivateStoreItem 头）
+    SIG_PRIVATE_STORE_ItemField m_addInfo;   // +0x02（Inven_Item +0x02 物品索引，enum 视角）
+    unsigned char m_pad06[0x01];   // +0x06
+    int m_addInfo2;                // +0x07（Inven_Item +0x07，ORIG 单段直落 ⇒ 保持 int）
+    unsigned short m_fieldb;       // +0x0b（Inven_Item +0x0b 耐久）
+    SIG_PRIVATE_STORE_ItemField m_fieldd;    // +0x0d（Inven_Item +0x0d，enum 视角）
+    unsigned char m_pad11[0x2f];   // +0x11..+0x3f（m_item/m_amp 主体）
+    int m_field40;                 // +0x40（PrivateStoreItem 售价）
+    unsigned char m_pad44[0x08];   // +0x44..+0x4b（条目尾）
+} __attribute__((packed));
+
 struct SIG_PRIVATE_STORE
 {
     int m_characNo;                     // +0x000
     unsigned char m_field04;            // +0x004
     char m_pad05[3];
-    unsigned char m_items[14 * 0x4c];   // +0x008..+0x42f
+    union
+    {
+        unsigned char m_items[14 * 0x4c];        // +0x008..+0x42f 字节镜像（DB blob）
+        SIG_PRIVATE_STORE_Item m_storeItems[14]; // +0x008 类型化条目视角（P235）
+    };
     int m_dollCreated;                  // +0x430
 };                                      // sizeof == 0x434
 
+typedef char SIG_PRIVATE_STORE_Item_size_check[(sizeof(SIG_PRIVATE_STORE_Item) == 0x4c) ? 1 : -1];
+typedef char SIG_PRIVATE_STORE_Item_off_check[
+    (offsetof(SIG_PRIVATE_STORE_Item, m_addInfo) == 0x02 &&
+     offsetof(SIG_PRIVATE_STORE_Item, m_addInfo2) == 0x07 &&
+     offsetof(SIG_PRIVATE_STORE_Item, m_fieldb) == 0x0b &&
+     offsetof(SIG_PRIVATE_STORE_Item, m_fieldd) == 0x0d &&
+     offsetof(SIG_PRIVATE_STORE_Item, m_field40) == 0x40) ? 1 : -1];
+typedef char SIG_PRIVATE_STORE_off_check[
+    (offsetof(SIG_PRIVATE_STORE, m_characNo) == 0x000 &&
+     offsetof(SIG_PRIVATE_STORE, m_field04) == 0x004 &&
+     offsetof(SIG_PRIVATE_STORE, m_items) == 0x008 &&
+     offsetof(SIG_PRIVATE_STORE, m_dollCreated) == 0x430) ? 1 : -1];
 typedef char SIG_PRIVATE_STORE_size_check[(sizeof(SIG_PRIVATE_STORE) == 0x434) ? 1 : -1];
 }
 

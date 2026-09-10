@@ -10,12 +10,24 @@
 #include "CEnvironment.h"
 #include <string.h>
 
+// [A31-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit；GetLogTargetDB
+// 定义前移为本 TU 首个强外部符号 ⇒ GI 键名
+// `_GLOBAL__I__ZN8WongWork15CLogGameChannel14GetLogTargetDBEv`（ORIG 0x8550763）。
+#include <iostream>
+
 // df_game_r 还原 —— WongWork::CLogGameChannel（LogGameChannel 定时落库）。
 // 参照 docs/class_func_reports/WongWork__CLogGameChannel/ 反汇编逐函数实现。
 // 布局见 CLogGameChannel.h（ctor 0x082a71c4：+0/+4/+8 清零，+0xc period=10）。
 
 namespace WongWork
 {
+
+// ORIG 0x085503c4
+MySQL* CLogGameChannel::GetLogTargetDB()
+{
+    return GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
+                                             E_SERVER_GROUP_NONE);
+}
 
 // ORIG 0x082a71c4 W
 CLogGameChannel::CLogGameChannel()
@@ -61,14 +73,7 @@ void CLogGameChannel::ResetInOutUser()
     m_outUser = 0;
 }
 
-// ORIG 0x085503c4
-MySQL* CLogGameChannel::GetLogTargetDB()
-{
-    return GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
-                                             E_SERVER_GROUP_NONE);
-}
-
-// ORIG 0x08550456
+// ORIG 0x085503ea
 void CLogGameChannel::ReqSaveLog()
 {
     CStreamGuard guard(

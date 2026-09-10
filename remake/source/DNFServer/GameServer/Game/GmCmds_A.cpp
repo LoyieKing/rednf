@@ -62,6 +62,8 @@
 #include "CCompoundAvatar.h"      // WongWork::CCompoundAvatar::ProcTest（桥清零）
 #include "CGuildServerProxy.h"    // CEventManager::GetRepeatEvent（桥清零，权威头）
 #include "CGameManager.h"         // CGameManager::GetParty / G_CGameManager（桥清零）
+#include "TaiwanCash.h"           // WongWork::IPG::CIPGHelper 虚接口
+                                  // （CBillingRechargeCommand::execute 真虚调用）
 
 #include "DNFFunctionLib.h"
 
@@ -776,6 +778,20 @@ void CBoosterTest::getRandomboxResult(CItem const* item,
 // ⇒ `while (jewelType == -1) { return false; }`，P295/P225）后 orig/ours=219/219。
 // 残余：全帧槽序差 8（sockets -0x48 vs -0x40，4.1 先声明深 vs 4.4 分区分配，N82）
 // + 跳表 `mov 0xc(%ebx,%eax,4)` vs shl+lea（N4）+ 虚调用 receiver 寄存器角色（N7）。
+//
+// [round5-GmCmdsA] P291/P311 具名数组成员视图：ORIG 0x084af148 先 `call G_CDataManager`
+// 入 %ebx（无槽），0x084af155 才 `call get_grade`，随后
+// `add $0x208,%eax; mov 0xc(%ebx,%eax,4),%eax` —— 即「%ebx = 管理器基址、disp=0xc、
+// 索引寄存器已含 +0x208」的 scaled 索引形。旧源码 `int grade = item->get_grade();`
+// 具名槽 + `(char*)mgr + (grade*6+jewelType)*4 + 0x82c` 裸算术 ⇒ 4.4 折成
+// `shl $2; lea (%ecx,%eax,1)` 且 get_grade 先于 G_CDataManager 求值（差 2 条）。
+// 改用视图后：基址先求值、索引常量入寄存器、scaled disp 折叠，与 ORIG 逐条一致。
+struct CBoosterEmblemIdTableView
+{
+    char m_pad00[0x0c];       // +0x00（ORIG 索引基址 = G_CDataManager() + 0xc）
+    int  m_ids[0x1000];       // +0x0c（ORIG 恒 `mov 0xc(%ebx,%eax,4)`）
+};
+
 bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
                                            std::map<int, int>& result)
 {
@@ -798,10 +814,11 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
         return false;
     }
 
-    int grade = item->get_grade();
-    // 徽章映射表：CDataManager + (grade*6+jewelType)*4 + 0x82c（Ghidra C 口径）。
-    int emblemId = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(G_CDataManager()) + (grade * 6 + jewelType) * 4 + 0x82c);
+    // 徽章映射表：ORIG = G_CDataManager() + 0xc + (0x208 + grade*6 + jewelType)*4
+    // （P0：无 grade 具名槽，get_grade 内联进下标表达式；P291 具名数组视角）。
+    int emblemId =
+        reinterpret_cast<const CBoosterEmblemIdTableView*>(G_CDataManager())
+            ->m_ids[p1->get_grade() * 6 + jewelType + 0x208];
 
     CStackableItem const* emblem =
         static_cast<CStackableItem const*>(G_CDataManager()->find_item(emblemId));
@@ -1311,6 +1328,8 @@ void CBillingRechargeCommand::parse()
     if (m_parser != 0)
     {
         m_str0 = m_parser->m_extra[1];
+        // [round5-GmCmdsA] 写侧用 union 的 int 视角（与 RHS(int) 同型 ⇒ 4.4 复现
+        // ORIG 0x084b3ac8 的 LHS-first 直存；unsigned 视角会使 4.4 翻成 RHS-first）。
         m_amount = StringToNumber(m_parser->m_extra[2].c_str());
         return;                                    // ORIG 尾 `jmp;leave;ret`（4.1 显式 return 形）
     }
@@ -1326,30 +1345,28 @@ void CBillingRechargeCommand::parse()
 // 目标寄存器 ORIG %ecx vs 4.4.7 %eax / 4.4.6 %edx（P230 实测），语义完成封顶。
 // [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%ecx; … call *%ecx` / `call *%edx`
 //   vs 4.4.7 全 %eax；槽/条数两侧全等，仅寄存器角色（residual 6 行）。
+// [round5-GmCmdsA] verdict=IDENTICAL：旧形为 §4.3 禁的裸指针 cast
+//   `(*reinterpret_cast<void***>(p))[n]` —— 4.4 对 `void*`→函数指针的转换恒多发
+//   `mov (%eax),%eax; mov %eax,%ecx` 两段（N18a 反向）。改用 TaiwanCash.h 权威虚接口
+//   真成员调用（P5 虚槽直调形，Slot1=IPGInput/3=IPGInputPoint/11=IPGQuery）后
+//   4.4 直发 ORIG 的 `mov (%eax),%eax; add $0x4,%eax; mov (%eax),%ecx` 单段链，
+//   orig/ours=67/67 逐条全等（零新增符号）。
 void CBillingRechargeCommand::execute()
 {
     CUser* user = GetUser();
-    // b26 NEAR 封顶:三处虚调用 vtable 项寄存器 ORIG %ecx vs 4.4 %eax(N7),
-    // 连锁实参/数据寄存器名互换,余逐条相等。
     // ORIG（P157 逐点重取形）：每个调用表达式独立重读 s_pIPGHelper → 取 vptr →
-    // add 槽 → deref fn，随后再读一次 helper 作首实参；禁 vtable 缓存局部
+    // add 槽 → deref fn，随后再读一次 helper 作 this；禁 vtable 缓存局部
     //（缓存少发 ORIG 的逐点 fetch 行且引入额外栈槽）。
     if (m_str0 == "cera")
     {
-        reinterpret_cast<void (*)(void*, CUser*, int, int, char const*, char const*,
-                                  char const*, int, int, int)>(
-            (*reinterpret_cast<void***>(GlobalData::s_pIPGHelper))[1])(
-            GlobalData::s_pIPGHelper, user, 5, m_amount, "", "", "GM", 0, 0, 0);
+        // 读侧用 union 的 unsigned 视角（与 callee 形参 unsigned int 同型 ⇒ 单段直落）。
+        GlobalData::s_pIPGHelper->IPGInput(user, 5, m_amountU, "", "", "GM", 0, 0, 0);
     }
     else if (m_str0 == "point")
     {
-        reinterpret_cast<void (*)(void*, CUser*, int, int, int, int)>(
-            (*reinterpret_cast<void***>(GlobalData::s_pIPGHelper))[3])(
-            GlobalData::s_pIPGHelper, user, m_amount, 4, 0, 0);
+        GlobalData::s_pIPGHelper->IPGInputPoint(user, m_amountU, 4, 0, 0);
     }
-    reinterpret_cast<void (*)(void*, CUser*)>(
-        (*reinterpret_cast<void***>(GlobalData::s_pIPGHelper))[11])(
-        GlobalData::s_pIPGHelper, user);
+    GlobalData::s_pIPGHelper->IPGQuery(user);
 }
 
 } // namespace game_master

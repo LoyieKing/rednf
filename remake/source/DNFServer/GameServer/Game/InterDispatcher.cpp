@@ -68,6 +68,12 @@
 // ORIG 各 TU 一份 _ZL26GUILD_ADDRESS_DOUBLE_CHECK（r 0x2）：公会地址重复检查通过标志。
 static const int GUILD_ADDRESS_DOUBLE_CHECK = 4;
 
+// P254 视图字段枚型（本 TU）：ORIG 0x084d2fa6 / 0x084ca02f / 0x084ca1xx / 0x084c9798 等段
+// 对包视图 4 字节字段发 `mov disp(%eax),%eax; mov %eax,%edx`（4.1 对枚举字段保留 eax→edx
+// 中转）；同址字段声明为 int 时 4.4 恒折单段 `mov disp(%eax),%edx`（每处 -1 条 ⇒ DIFF）。
+// 枚举类型不入 mangled、不改布局、不发射符号（P254 三例实证）。
+enum ENUM_VIEW_FIELD { ENUM_VIEW_FIELD_0 = 0 };
+
 // dispatch 主体依赖（均为 ORIG 真实符号；权威声明处 include）
 #include "CUser.h"             // CUser::DisConnSig / get_acc_id / DISCONN_SIG
 #include "CGameManager.h"      // G_CGameManager()->getUser(int,int)
@@ -589,6 +595,9 @@ bool InterDispatcher::dispatch(int code, int userId, char* data, int len)
             cMyTrace(__PRETTY_FUNCTION__, 0x636, 0)("discon interdispatcher return false: %d line(%d)(m_id: 0)",
                   code, result);
         }
+        // ORIG 0x84beb29/0x84beb30：if 体内与函数尾各一枚 `mov $0x1,%eax`（早退型带
+        //   `jmp 0x84beb35` 跳过尾块；尾块直落 epilogue）⇒ 两支 return true 照抄（P171）。
+        return true;
     }
     return true;
 }
@@ -3203,18 +3212,17 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
         // [b28d-solo-InterDispatcher] CServerProxyMgr<CGuildServerProxy>::GetStartIndex
         // verdict=AE ndiff=0（ORIG 0x084c8dd0 段）：本波已归零（AE）。
         int i = GlobalData::s_guild_proxy_mgr->GetStartIndex();
-        goto L_cond_g;
-    L_body_g:
-        // ORIG 084c8e09/084c8e0e：GetServerProxy 结果直落 (%esp) 调 InitTcp，
-        // 无具名 proxy 槽（旧具名形多出 -0x14 临时槽 +2 insn）。
-        GlobalData::s_guild_proxy_mgr
-            ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
-        i = GlobalData::s_guild_proxy_mgr->GetNextIndex(index);
-    L_cond_g:
-        // ORIG 084c8e3a `mov -0x18(%ebp),%edx; cmp %edx,%eax; setg`：条件测的是
-        // index（GetNextIndex 引用更新者，取址 ⇒ 载入寄存器），非 i。
-        if (GlobalData::s_guild_proxy_mgr->GetEndIndex() > index)
-            goto L_body_g;
+        // ORIG 084c8e3a `mov -0x18(%ebp),%edx; cmp %edx,%eax; setg`：条件测 index
+        //（GetNextIndex 引用更新者，取址 ⇒ 载入寄存器），非 i。while 形复现
+        // ORIG 084c8e44 `jne <body 后向>` + 084c8e46 `jmp <跳过 else 分支链>`。
+        while (GlobalData::s_guild_proxy_mgr->GetEndIndex() > index)
+        {
+            // ORIG 084c8e09/084c8e0e：GetServerProxy 结果直落 (%esp) 调 InitTcp，
+            // 无具名 proxy 槽（旧具名形多出 -0x14 临时槽 +2 insn）。
+            GlobalData::s_guild_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
+            i = GlobalData::s_guild_proxy_mgr->GetNextIndex(index);
+        }
     }
     else if (pPkt->m_a == '\xc9')
     {
@@ -3222,14 +3230,12 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
         // [b28d-solo-InterDispatcher] CServerProxyMgr<CMonitorServerProxy>::GetStartIndex
         // verdict=AE ndiff=0（ORIG 0x084c8dd0 段）：本波已归零（AE）。
         int i = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
-        goto L_cond_m;
-    L_body_m:
-        GlobalData::s_monitor_proxy_mgr
-            ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
-        i = GlobalData::s_monitor_proxy_mgr->GetNextIndex(index);
-    L_cond_m:
-        if (GlobalData::s_monitor_proxy_mgr->GetEndIndex() > index)
-            goto L_body_m;
+        while (GlobalData::s_monitor_proxy_mgr->GetEndIndex() > index)
+        {
+            GlobalData::s_monitor_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)i)->InitTcp();
+            i = GlobalData::s_monitor_proxy_mgr->GetNextIndex(index);
+        }
     }
     return 0;
 }
@@ -3734,7 +3740,7 @@ struct Inter_MonitorNoticeGuildMarkChangePktView
 {
     char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
-    int m_e;                  // +0x0e
+    ENUM_VIEW_FIELD m_e;      // +0x0e（P254 枚型：ORIG 0x084ca1xx 保留 eax→edx 中转）
     unsigned int m_12;        // +0x12
 };
 #pragma pack(pop)
@@ -3743,9 +3749,12 @@ struct Inter_MonitorNoticeGuildMarkChangePktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=57（ORIG 0x84ca1e6）：N22 cmp 操作数方向+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeGuildMarkChangePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildMarkChangePktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
+
+    // ORIG 0x084ca1xx：包基址在 state 门之后物化（`jmp` 之后的
+    //   `mov 0x10(%ebp),%eax; mov %eax,-0x1c(%ebp)`），声明位置照抄（P0）。
+    Inter_MonitorNoticeGuildMarkChangePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildMarkChangePktView*>(data);
 
 
     if (user->get_charac_no(-1) != pPkt->m_e)
@@ -3783,7 +3792,7 @@ Inter_MonitorNoticeGuildDismiss::~Inter_MonitorNoticeGuildDismiss() {}
 struct Inter_MonitorNoticeGuildDismissPktView
 {
     char m_pad0[0xe];  // +0x0..未消费
-    int m_e;                        // +0x0e
+    ENUM_VIEW_FIELD m_e;            // +0x0e（P254 枚型：ORIG 0x084ca02f 保留 eax→edx 中转）
 };
 #pragma pack(pop)
 
@@ -5884,12 +5893,12 @@ Inter_AvatarChangeStat::~Inter_AvatarChangeStat() {}
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
 struct Inter_AvatarChangeStatPktView
 {
-    int m_0;                  // +0x00
+    ENUM_VIEW_FIELD m_0;      // +0x00（P254 枚型：ORIG 0x084cf7xx 三处保留 eax→edx 中转）
     char m_pad4[0x4];  // 未消费
     unsigned char m_8;        // +0x08
     char m_pad9[0x1];  // 未消费
-    int m_a;                  // +0x0a
-    int m_e;                  // +0x0e
+    ENUM_VIEW_FIELD m_a;      // +0x0a
+    ENUM_VIEW_FIELD m_e;      // +0x0e
 };
 #pragma pack(pop)
 
@@ -5998,8 +6007,10 @@ int Inter_MailBox_Req_List::dispatch_sig(CUser* user, char* data, int /*len*/)
     SIG_MAILBOX_LIST* recv =
         reinterpret_cast<SIG_MAILBOX_LIST*>(data);     // -0x20(%ebp) 缓存消息指针
 
-    // ORIG 0x084cf845 `mov 0x3332(%eax),%ebx`：具名字段单段 disp（§4.3）。
-    if (recv->m_curCharacNo != user->getCurCharacNo())
+    // ORIG 0x084cf845 `mov 0x3332(%eax),%ebx`：具名字段单段 disp（§4.3），值跨
+    // getCurCharacNo 调用保活于 %ebx 且无栈槽 ⇒ 裸 register 局部（P248 四条件全满足）。
+    register int characNo = recv->m_curCharacNo;
+    if (characNo != user->getCurCharacNo())
         return 0x2ca0;                                 // 角色号不匹配
 
     WongWork::CMailBox* mailBox = (WongWork::CMailBox*)user->GetMailBox();  // CUser.h 冻结：GetMailBox 返回 void*
@@ -7927,7 +7938,7 @@ Inter_ReplyGuildInviteToCaller::~Inter_ReplyGuildInviteToCaller() {}
 struct Inter_ReplyGuildInviteToCallerPktView
 {
     char m_pad0[0xa];  // 未消费
-    int m_a;                  // +0x0a
+    ENUM_VIEW_FIELD m_a;      // +0x0a（P254 枚型：ORIG 0x084d2fa6 保留 eax→edx 中转）
     char m_pade[0x4];  // 未消费
     int m_12;                 // +0x12
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -7943,7 +7954,7 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
 
     Inter_ReplyGuildInviteToCallerPktView* pPkt = reinterpret_cast<Inter_ReplyGuildInviteToCallerPktView*>(data);
     // ORIG 0x084d2f**：m_a/m_12 各处独立 reload（P48 无 CSE，无具名槽）。
-    if (user->get_charac_no(-1) != pPkt->m_a)
+    if (pPkt->m_a != user->get_charac_no(-1))
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -8177,7 +8188,7 @@ struct Inter_ReplyGuildSecedePktView
     char m_pad0[0xa];  // 未消费
     unsigned int m_a;         // +0x0a
     short m_e;                // +0x0e
-    int m_10;                 // +0x10
+    ENUM_VIEW_FIELD m_10;     // +0x10（P254 枚型：ORIG 0x084c9798 保留 eax→edx 中转）
     char m_pad14[0x4];  // 未消费
     int m_18;                 // +0x18
     signed char m_1c;         // +0x1c
@@ -12443,12 +12454,37 @@ Inter_SetIPCount::~Inter_SetIPCount() {}
 #pragma pack(push, 1)
 // Inter_SetIPCountPktView —— Inter_SetIPCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+// 元素内 +0x4 的子结构（相对包体 +0x10）必须具名：ORIG 0x084dcb5e 段对子结构成员发
+//   `lea (%ecx,%eax,1); add $0x10,%eax; mov 0xc(%eax)`（子结构基址 + 成员 disp 两步），
+//   而元素内标量成员（+0xc/+0xe）走 `movzwl 0xc(%eax,%ecx,1)` 折叠 disp——两者共存
+//   证明原码是「具名子结构成员」而非裸偏移（裸偏移 4.4 恒折 add $0x1c + mov (%eax)）。
+struct Inter_SetIPCountSub
+{
+    char m_ip[0xc];             // 相对包体 +0x10（setIPCounterData 第 3 参 char* 原文）
+    unsigned int m_counter;     // 相对包体 +0x1c（第 4 参）
+};
+// m_counter 的等址尾视图：ORIG 第 4 参走「子结构地址 +0x10」→「成员 disp +0xc」两步
+//   （0x084dcb58 `lea (%ecx,%eax,1); add $0x10,%eax; mov 0xc(%eax)`），4.4 对直接成员访问
+//   恒折单条 `mov 0x1c(%eax,%ecx,1)`。经「m_ip 数组名 + 尾视图成员」访问可复现两步形。
+struct Inter_SetIPCountSubTail
+{
+    char m_pad[0xc];            // 与 m_ip 同址
+    unsigned int m_counter;     // 相对包体 +0x1c
+};
+struct Inter_SetIPCountEntry
+{
+    unsigned short m_c;         // 相对包体 +0x0c + i*0x14
+    unsigned short m_e;         // 相对包体 +0x0e + i*0x14
+    Inter_SetIPCountSub m_sub;  // 相对包体 +0x10 + i*0x14
+};
 struct Inter_SetIPCountPktView
 {
     char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
     unsigned char m_b;              // +0x0b
+    Inter_SetIPCountEntry m_entries[1];  // +0x0c 起，元素 stride 0x14
 };
+static_assert(sizeof(Inter_SetIPCountEntry) == 0x14, "SetIPCountEntry stride");
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=68（ORIG 0x084dcb18）：寄存器中转(N18a/N7)+混合残差；gap-2。
@@ -12463,10 +12499,10 @@ int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     for (int i = 0; i < (int)(unsigned char)pPkt->m_b; ++i)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->setIPCounterData(
-            (unsigned int)*reinterpret_cast<unsigned short*>(data + i * 0x14 + 0xc),
-            (unsigned int)*reinterpret_cast<unsigned short*>(data + i * 0x14 + 0xe),
-            data + i * 0x14 + 0x10,
-            *reinterpret_cast<unsigned int*>(data + i * 0x14 + 0x1c));
+            (unsigned int)pPkt->m_entries[i].m_c,
+            (unsigned int)pPkt->m_entries[i].m_e,
+            pPkt->m_entries[i].m_sub.m_ip,
+            reinterpret_cast<Inter_SetIPCountSubTail*>(pPkt->m_entries[i].m_sub.m_ip)->m_counter);
     }
     return 0;
 }
@@ -12477,12 +12513,33 @@ Inter_SetFullIPCount::~Inter_SetFullIPCount() {}
 #pragma pack(push, 1)
 // Inter_SetFullIPCountPktView —— Inter_SetFullIPCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+// 与 SetIPCount 同族：元素 stride 0x18、数组基址 +0xc；子结构（元素内 +0x4 ⇒ 相对包体 +0x10）
+//   必须具名（ORIG 0x084dcc2f `add $0x10,%eax; mov 0x10(%eax)` 两步），元素内标量走折叠 disp。
+struct Inter_SetFullIPCountSub
+{
+    char m_ip[0x10];            // 相对包体 +0x10（setFullIPCounterData 第 3 参 char* 原文）
+    unsigned int m_counter;     // 相对包体 +0x20（第 4 参）
+};
+// m_counter 等址尾视图（同上 SetIPCountSubTail 依据）。
+struct Inter_SetFullIPCountSubTail
+{
+    char m_pad[0x10];           // 与 m_ip 同址
+    unsigned int m_counter;     // 相对包体 +0x20
+};
+struct Inter_SetFullIPCountEntry
+{
+    unsigned short m_c;         // 相对包体 +0x0c + i*0x18
+    unsigned short m_e;         // 相对包体 +0x0e + i*0x18
+    Inter_SetFullIPCountSub m_sub;  // 相对包体 +0x10 + i*0x18
+};
 struct Inter_SetFullIPCountPktView
 {
     char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
     unsigned char m_b;              // +0x0b
+    Inter_SetFullIPCountEntry m_entries[1];  // +0x0c 起，元素 stride 0x18
 };
+static_assert(sizeof(Inter_SetFullIPCountEntry) == 0x18, "SetFullIPCountEntry stride");
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=71（ORIG 0x084dcbea）：寄存器中转(N18a/N7)+混合残差；gap-2。
@@ -12496,10 +12553,10 @@ int Inter_SetFullIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     for (int i = 0; i < (int)(unsigned char)pPkt->m_b; ++i)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->setFullIPCounterData(
-            (unsigned int)*reinterpret_cast<unsigned short*>(data + i * 0x18 + 0xc),
-            (unsigned int)*reinterpret_cast<unsigned short*>(data + i * 0x18 + 0xe),
-            data + i * 0x18 + 0x10,
-            *reinterpret_cast<unsigned int*>(data + i * 0x18 + 0x20));
+            (unsigned int)pPkt->m_entries[i].m_c,
+            (unsigned int)pPkt->m_entries[i].m_e,
+            pPkt->m_entries[i].m_sub.m_ip,
+            reinterpret_cast<Inter_SetFullIPCountSubTail*>(pPkt->m_entries[i].m_sub.m_ip)->m_counter);
     }
     return 0;
 }
@@ -12629,7 +12686,7 @@ struct Inter_SetFactoryHubUserPktView
     char m_pad10[0x1d];  // 未消费
     unsigned char m_2d;       // +0x2d
     unsigned short m_2e;      // +0x2e
-    int m_30;                 // +0x30
+    ENUM_VIEW_FIELD m_30;     // +0x30（P254 枚型：ORIG 0x084dd012 保留 eax→edx 中转）
 };
 #pragma pack(pop)
 
@@ -12649,12 +12706,14 @@ int Inter_SetFactoryHubUser::dispatch_sig(CUser* user, char* data, int /*len*/)
         {
             // ORIG 084dd032 `mov %eax,%esi`（SetETC 结果跨 getHackAnalyzer 调用保活，
             // 无栈槽 ⇒ 具名局部须 register，否则占 -0xc 并把 pPkt 挤到 -0x10）。
-            register int etc = user->SetETC((short)pPkt->m_2e,
-                                            pPkt->m_30);
+            // ORIG 0x084dd032 `mov %eax,%esi` 单段直落（SetETC 返回 int → unsigned 形参无转换）；
+            // 声明 int 时 4.4 恒多 `mov %eax,%ebx; mov %ebx,%esi`（P41 变体：实参冗余 cast）。
+            register unsigned int etc = user->SetETC((short)pPkt->m_2e,
+                                                      (int)pPkt->m_30);
             user->getHackAnalyzer()->addServerHackCnt(
                 user,
                 (WongWork::ENUM_HACKTYPE)(unsigned int)pPkt->m_2e,
-                1, (unsigned int)etc, 0);
+                1, etc, 0);
         }
         else
         {
@@ -14510,8 +14569,8 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     for (int i = 0; i < (int)pPkt->m_12; ++i)
         // 求值序 = ORIG：i 项先算（eax），再 add $0x10 / add pPkt 槽 / add $0x6
         // （pPkt 置于两常量之间阻折叠，4.4 恒发三段 add；旧形 pPkt 先置产 ecx 提前载+lea）。
-        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10 +
-                                                  reinterpret_cast<int>(pPkt) + 6),
+        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10) +
+                              reinterpret_cast<int>(pPkt) + 6,
                           0x29);
     packet.finalize(true);
     user->Send(packet);
@@ -15487,15 +15546,23 @@ int Inter_MonitorRegistGameServerAck::dispatch_sig(CUser* /*user*/, char* data, 
             (unsigned int)(unsigned char)pPkt->m_a);
         GetInstanceShutdowManager()->SendShutdownSignal();
     }
-    else if (pPkt->m_a == '\0')
+    else
     {
-        cMyTrace(__PRETTY_FUNCTION__, 0x5312, 9, true, true)(
-            "[!] Monitor Server Connected");
-    }
-    else if (pPkt->m_a == '\x01')
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0x5317, 9, true, true)(
-            "[!] Guild Server Connected");
+        // [b28d-r5] ORIG 0x084e2e40 段 `movzbl 0xa(%eax),%eax; movzbl %al,%eax;
+        //   test %eax,%eax; je <then0>; cmp $0x1,%eax; je <then1>` = 值只读一次、
+        //   int 提升后比较链（P251/P261：无栈槽 + cmp 链 ⇒ 源形是 switch，if-else 链
+        //   恒退化为逐次重读 + 8 位 test/jne）。
+        switch ((int)(unsigned char)pPkt->m_a)
+        {
+        case 0:
+            cMyTrace(__PRETTY_FUNCTION__, 0x5312, 9, true, true)(
+                "[!] Monitor Server Connected");
+            break;
+        case 1:
+            cMyTrace(__PRETTY_FUNCTION__, 0x5317, 9, true, true)(
+                "[!] Guild Server Connected");
+            break;
+        }
     }
     return 0;
 }

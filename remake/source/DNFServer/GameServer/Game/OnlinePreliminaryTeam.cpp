@@ -32,6 +32,13 @@
 // （COnlinePreliminaryTeam::C2）之前；类声明在权威头 OnlinePreliminary.h，
 // 故以全限定名在 includes 之后直接定义，不必回到命名空间块内。
 // ============================================================================
+// [A31-GI · P327] Team::C1 前移为本 TU 首个强外部符号 ⇒ GI 键名
+// `_GLOBAL__I__ZN18online_preliminary22COnlinePreliminaryTeamC2Ev`（ORIG 0x8588d0d）。
+// ORIG T 0x08587eb8 C1：仅构造 +0x24 的 map（其余字段不初始化）。
+online_preliminary::COnlinePreliminaryTeam::COnlinePreliminaryTeam()
+{
+}
+
 online_preliminary::COnlinePreliminaryMember::COnlinePreliminaryMember()
 {
 }
@@ -42,11 +49,6 @@ namespace online_preliminary
 // ============================================================================
 // CharacterInServer
 // ============================================================================
-
-// ORIG T 0x08587eb8 C1：仅构造 +0x24 的 map（其余字段不初始化）。
-COnlinePreliminaryTeam::COnlinePreliminaryTeam()
-{
-}
 
 // ORIG W 0x08588d7e? no——0x085868d4 _ZNK18online_preliminary17CharacterInServerltERKS0_
 // 报告 docs/class_func_reports/online_preliminary__COnlinePreliminaryMember/

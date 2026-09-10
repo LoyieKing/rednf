@@ -13,6 +13,11 @@
 
 #include <cstdio>
 
+// [A31-GI · P338/P327] 补 <iostream> 恢复 file-scope 动态初始化 __ioinit，使本 TU 发射
+// `_GLOBAL__I__ZN9LogWriterC2Ev`（ORIG 0x8ad3fb7）；LogWriter::C1/C2 定义已是本 TU 首个
+// 强外部符号（见下 [b28c-35] 段）。零语义/布局改动。
+#include <iostream>
+
 // [b28c-35] P210②：ORIG nm 实证 LogWriter::C1/C2 @0x08ad3990 与 LwConsole::C1
 // @0x08ad39e2 同 TU 且定义在先 ⇒ 4.4 精确继承 outgoing 帧 `sub $0x4`；仅声明时
 // 保守 `sub $0x18`。故 LogWriter::C1 的 out-of-line 空体定义从 LogManager.cpp

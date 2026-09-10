@@ -492,15 +492,20 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
             party->GetLuckPoint(&luck, false);
 
         const int roll = get_rand_int(1000);
-        const unsigned int boundHigh = (unsigned int)(
-            G_CDataManager()->m_deathTower.m_rewardItemProb[0] * (int)param5);
-        if ((roll > (int)boundHigh || boundHigh - (unsigned int)roll == 0))
+        // ORIG 0846204b..0x097：`imul 0x1c(%ebp),%eax; cmp -0x20(%ebp),%eax;
+        //   seta %al; test %al,%al; je <受控体>` —— 比较为 **unsigned**
+        //   （prob0*param5 <= roll ⇒ 受控），且 boundHigh **不落槽**（P0：原码把
+        //   表达式内联进条件，只调一次 G_CDataManager）。旧重建用 signed
+        //   `(int)boundHigh` + 具名槽 + 二段比较（jl/jne），符号性与槽皆不符。
+        if ((unsigned int)roll >= (unsigned int)(
+                G_CDataManager()->m_deathTower.m_rewardItemProb[0] * (int)param5))
         {
-            // ---- 受控特定掉落分支（ORIG +0x2df：vtable+0x0c specific）----
-            if ((unsigned int)roll <= (unsigned int)(
-                    G_CDataManager()->m_deathTower.m_rewardItemProb[1] * (int)param5) &&
-                (unsigned int)(G_CDataManager()->m_deathTower.m_rewardItemProb[1] *
-                               (int)param5) - (unsigned int)roll != 0)
+            // ---- 受控分支（ORIG +0x2df：vtable+0x08 random）----
+            // ORIG 084622a4..0x2b6：prob1 只求值一次（`imul; cmp; seta; je`），
+            //   条件 = prob1*param5 > roll（unsigned）⇒ 写单比较（旧重建写
+            //   `<= && - != 0` 两次求值，多一次 G_CDataManager）。
+            if ((unsigned int)roll < (unsigned int)(
+                    G_CDataManager()->m_deathTower.m_rewardItemProb[1] * (int)param5))
             {
                 // ref 上下文区（ORIG 084622bc..328：movb/movb/movl/movl/movl）
                 ref.m_field35 = 0;
@@ -512,16 +517,24 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                 CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
                 CItemGenerator* gen = genMgr->getGenerator(
                     (WongWork::CItemGeneratorMgr::eGenerateType_t)2);
-                gen->generateSpecificItem(ref, result);        // 虚槽 +0x0c
+                // [P282 真 bug 修] ORIG 08462311 `mov (%eax),%edx; add $0x8,%edx;
+                //   mov (%edx),%ecx; call *%ecx` ⇒ 本分支（roll>=boundHigh、ref
+                //   0x3f800000）走 **vtable+0x08**；ORIG _ZTV @0x08c9a788
+                //   word[4]=0x0853a400=generateRandomItem ⇒ 原码本分支调
+                //   generateRandomItem（旧重建调 generateSpecificItem=+0x0c，相反）。
+                gen->generateRandomItem(ref, result);
 
                 const bool dropEmpty = result.m_dropItems.empty();
                 if (!dropEmpty)
                 {
                     Inven_Item& dst = m_rewards[memberIdx].m_items[i];
-                    dst.setCopy(result.m_dropItems.front());
+                    // [P167] ORIG `call begin(); call operator*`（迭代器槽
+                    //   local_30/local_2c）⇒ 源写 `*v.begin()`，非 v.front()。
+                    dst.setCopy(*result.m_dropItems.begin());
 
-                    Inven_Item probe;                          // ORIG buf(-0xf5)：整块复核
-                    probe.setCopy(result.m_dropItems.front());
+                    // ORIG 084623b5..0x485：operator* 结果 15×dword+1byte 块拷贝
+                    //   到 -0xf5（Inven_Item 0x3d 字节平凡拷贝）⇒ 源是拷贝构造。
+                    Inven_Item probe(*result.m_dropItems.begin());
                     CItemList* itemList = G_CDataManager()->m_itemList;   // [b28d-Main] dm+0xc 直读
                     CItem* found = itemList->find_item(probe.m_addInfo);
                     if (found != 0)
@@ -552,28 +565,34 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
             CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
             CItemGenerator* gen = genMgr->getGenerator(
                 (WongWork::CItemGeneratorMgr::eGenerateType_t)2);
-            gen->generateRandomItem(ref, randomResult);        // 虚槽 +0x08
+            // [P282 真 bug 修] ORIG 08462131 `mov (%eax),%edx; add $0xc,%edx;
+            //   call *%ecx` ⇒ 本分支（roll<boundHigh、ref 0x10001 组）走
+            //   **vtable+0x0c** = generateSpecificItem（_ZTV word[5]=0x0853a406）。
+            gen->generateSpecificItem(ref, randomResult);
 
-            if (!randomResult.m_dropItems.empty())
+            // [P171] ORIG 本分支无 empty 守卫（08462df..0x4fa 直接 begin+解引用）；
+            //   empty 检查只在受控分支（ORIG 08462338）出现。
+            if (party != 0)
             {
-                if (party != 0)
-                {
-                    // QuickParty 奖励登记（基础奖励类型 0xb：道具奖励槽）
-                    QuickParty::RewardData_Param rp(party);
-                    rp.m_param4 = dungeonMgr.getDungeon()->get_index();
-                    QuickParty::RewardData_Result rs;
-                    rs.clear();
-                    rs.m_value00 = randomResult.m_dropItems.front().m_addInfo2;
-                    party->set_basic_reward((QuickParty::BasicRewardType)0xb, rp, rs);
-                    randomResult.m_dropItems.front().m_addInfo2 = rs.m_value00;
-                }
-                Inven_Item& dst = m_rewards[memberIdx].m_items[i];
-                dst.setCopy(randomResult.m_dropItems.front());
-                const int addInfo = dst.get_add_info();
-                // ORIG：fildl addInfo/flds m_rewardGoldWeight/fmuls/fistpl（默认控制字就近舍入）
-                dst.set_add_info((int)((float)addInfo *
-                                       G_CDataManager()->m_deathTower.m_rewardGoldWeight));
+                // QuickParty 奖励登记（基础奖励类型 0xb：道具奖励槽）
+                // [P167] ORIG 只调一次 begin（迭代器槽 local_38）却解引用两次
+                //   ⇒ 源有具名迭代器复用；`(*it).m_...` 形（deEv，非 ptEv）。
+                // [P171] ORIG 无 RewardData_Result::clear 调用。
+                std::vector<Inven_Item>::iterator it =
+                    randomResult.m_dropItems.begin();
+                QuickParty::RewardData_Param rp(party);
+                rp.m_param4 = dungeonMgr.getDungeon()->get_index();
+                QuickParty::RewardData_Result rs;
+                rs.m_value00 = (*it).m_addInfo2;
+                party->set_basic_reward((QuickParty::BasicRewardType)0xb, rp, rs);
+                (*it).m_addInfo2 = rs.m_value00;
             }
+            Inven_Item& dst = m_rewards[memberIdx].m_items[i];
+            dst.setCopy(*randomResult.m_dropItems.begin());
+            const int addInfo = dst.get_add_info();
+            // ORIG：fildl addInfo/flds m_rewardGoldWeight/fmuls/fistpl（默认控制字就近舍入）
+            dst.set_add_info((int)((float)addInfo *
+                                   G_CDataManager()->m_deathTower.m_rewardGoldWeight));
         }
     }
 }

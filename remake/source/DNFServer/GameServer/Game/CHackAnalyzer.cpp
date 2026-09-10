@@ -355,6 +355,9 @@ int CHackAnalyzer::analyzeHackReport(CUser* user, PacketBuf* pkt)
 //     numMs@-0x20 ✓ 但死局部恒落 numMs **深侧**（-0x28）⇒ CW 被推至 -0x2a/-0x2c、
 //     帧 0x48（4 形实测同结论；V3 置于 numMs 前反使 numMs 回 -0x18）。
 //   4.4 未使用标量「按最深可用处分配」，源码不可控其浅侧落位 ⇒ N 封顶（帧/助记符全等）。
+//   [round5 复核] fresh compare_tu 口径 55/55 NEAR（.o 报告 DIFF 系 N124 假报）；
+//   槽图 ORIG numMs@-0x20 / CW@-0x22,CW2@-0x24 vs 我方 numMs@-0x18 / CW@-0x1a,-0x1c
+//   —— 4.4 把 x87 工作槽紧贴「最深槽对象」的分配策略不可源级翻转 ⇒ 维持 N82。
 void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
 {
     // ORIG 0x080f7cca（_analyzeSpeedHack.md）：ratio=(int)(100.0f*ms/elapsed)；
@@ -717,6 +720,8 @@ bool Secu_AccountHacking::isAvatar(unsigned int itemIdx)
 //   恒 msg 先；f4 具名视图指针、f5 具名元素指针可得 i 先但多发函数头 store（ORIG 无）；
 //   f8/f14 裸指针加法得 i 先但改用 add-mem 且少 lea/或改常量拆法 ⇒ 形不符。
 //   ⇒ 4.4 对「形参基址 + 下标」恒 base-first 调度，属跨版本装载序，N 封顶（指令数全等）。
+//   [round5 复核] fresh 108/108（compare_tu NEAR）；唯一残差仍为该两条 load 序
+//   （ORIG 0x08278c69 i 先 / 我方 msg 先），八形穷举后维持 N75/N18a 封顶。
 void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* msg)
 {
     // §4.3 裸偏移清零 —— 载荷具名视图（本 TU 私有，不动冻结头）：

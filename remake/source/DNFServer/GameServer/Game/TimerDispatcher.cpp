@@ -170,6 +170,36 @@ public:
 //  · P227 族复核：16 件 cMyTrace 均已为**全表达式临时链**且 push 数与 ORIG 全等
 //    （push 计数脚本 /tmp 比对：仅 StaticPool/createUser 类非本 TU cMyTrace 件不等）
 //    ⇒ 非 P227 缺口。
+// [A12-2026-09-10 · 本轮 16 件复核（判据①⑩⑪⑫ + 5 项实测）] 结论：16 件全 N 封顶，
+// 零净改动（TU 四数 identical=60/ae=700/near=4/diff=13 改前=改后）。
+//  · 判据⑪（/tmp/shift.py，必读 .o）：8 件 PURE SHIFT c=0x0（帧两侧全等、无槽平移）
+//    —— ScheduleGuildWarEnd/CheckConn/FinishItemEffect/DDS.RegistNextTimer/
+//    SDCI.RegistNextTimer/UCE.registNextTimer/TimerStamina/TimerDBUpdate；
+//    TimerStatisticsLog 亦无平移（差异纯在标量 vs 对象分区的槽深，见③）。
+//  · 判据⑫（/tmp/widthscan.py）：仅 DDICloseTime 报 cmp_l our=2/orig=1 —— 回 ORIG
+//    同下标核形 = `mov slot,%eax; test %eax,%eax`（两段寄存器比较）vs 我方
+//    `cmpl $0,slot` 单段 ⇒ 判据⑫明示的 N18b 反误判族，非类型宽度问题（不改类型）。
+//  · ① D/E/F 三件（`%0x1e` 强度归约 lea↔add）**新增探针实证**：/tmp/a12/probe1.cpp
+//    f0..f8（九形：单表达式/显式两乘积/移位拆形/unsigned/`*3*10`/裸 2x）在 4.4.7 下
+//    恒产 `add %eax,%eax` 或 `imull $-30`，**无任何源形可出 4.1 的
+//    `lea (%eax,%eax,1),%edx; mov %edx,%eax`** ⇒ N86b/N1 封顶（旧六形探针结论加固）。
+//  · ② Timer_Send_Ontime_Reward（N93附）**实测翻案失败**：正极性双 goto + 标签后置
+//    （`if(!=0) goto L_regist; goto L_join;` + L_regist/L_join 置 else 块之后）实测
+//    54 条 —— 4.4 仍反转成 `je <join>` 且 call 后插 `jmp <join>; nop`（把标签块划为
+//    独立块），比裸 if 的 52 条多 2 ⇒ 已回滚。ORIG 假路径 `jmp +0xb5(join)` 为 4.1
+//    共享出口 mov 合并产物，4.4 恒发 per-return mov ⇒ P325 族不可达。
+//  · ③ TimerStatisticsLog（N82附）**实测翻案失败**：三 getter 结果改 POD 聚合
+//    （struct{int a,b,c;}）试探分区，实测仍落 -0x28/-0x24/-0x20（ORIG -0x44/-0x40/
+//    -0x3c）、guard/trace 槽不变 ⇒ POD 聚合不改 4.4 分区（聚合对象优先低槽规律仅对
+//    非平凡对象成立）⇒ 已回滚，维持 N82附。
+//  · ④ TimerCheckHumanCertifyTimeout（N22/N7）**实测证明 cast 语义必需**：删调用点
+//    `(unsigned int)` cast 后实测落**有符号** `setg`（p2 形参实为 int，非 unsigned；
+//    106→104 insns，语义改变）⇒ 已回滚。ORIG `cmp %edx,%eax; seta` 的 call 结果留
+//    %eax 属寄存器角色差，一次性旋钮已用尽（P248 赌输封顶）。
+//  · ⑤ 语义核对：本 TU 全 777 函数 jcc/jmp 目标下标逐位比对（/tmp/td_jcc.py）后续
+//    轮无新增可修项；p167 调用点差集 16 件全 CLEAR（残差仅 C1↔C2/D1↔D2 同址别名 P93）
+//    ⇒ 无语义缺口、无真 bug。
+// ===========================================================================
 // ===========================================================================
 // ======== 基类 ========
 
@@ -913,6 +943,9 @@ int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // P212 全头部声明：ORIG 三 getter 结果落深槽 -0x44/-0x40/-0x3c、trace -0x2c、
     // guard -0x34；4.4 块内声明按首次使用序落浅槽 ⇒ 提至函数头复现块级槽序。
+    // [A12-2026-09-10 实验·失败] 三 getter 结果改 POD 聚合（一个对象）试探
+    // 4.4「对象优先占深槽」分区规律：实测槽位不变（仍 -0x28/-0x24/-0x20，
+    // ORIG -0x44/-0x40/-0x3c）⇒ POD 聚合不改分区，已回滚。
     int cacheLoadFailOverflowCount;
     int cacheLoadFailCount;
     int cacheLoadOverflowCount;
@@ -2594,6 +2627,10 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     // [TD4 2026-09-10 判据①/P248 档③实测] 交换操作数书写序为 `(unsigned)p2 < key`
     // ⇒ 4.4 反劣（push %ebx + `cmp %eax,%ebx; setb`，帧 0x38→0x34、insns 106→107）；
     // ORIG `cmp %edx,%eax; seta`（call 结果留 %eax）属 N22/N7 寄存器角色差，回滚原形。
+    // [A12-2026-09-10 实验·失败] 删调用点 (unsigned int) cast 实测：p2 形参为 **int**
+    // （非 unsigned）⇒ 裸 `getKey() > p2` 落有符号 `setg`（语义改变，106→104 insns）
+    // ⇒ cast 为语义必需，非冗余；已回滚。ORIG `cmp %edx,%eax; seta` 的 call 结果留
+    // %eax 属 N22/N7 寄存器角色差（P248 一次性旋钮，赌输封顶）。
     if ((unsigned int)user->getHumanCertifyTimerKey() > (unsigned int)p2)
     {
         return 1;
@@ -4320,6 +4357,13 @@ int Timer_Send_Ontime_Reward::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int 
         // 双 goto 复现形实测：`if(==0)goto L_done; goto L_regist;` 结构对齐（je 目标
         // 同为 body）但 4.4 反极性成 `sete;je` + L_regist 前 nop，差异 2 条 > 裸 if 的
         // 1 条（je↔jne，多重集仅此一处）⇒ 回滚保留裸 if（N93附/P223 镜像封顶）。
+        // [A12-2026-09-10 翻案实测·失败] 正极性 `!=0` 双 goto + 标签后置
+        // （`if(!=0) goto L_regist; goto L_join;` + `L_regist: RegistNextTimer();`
+        // `L_join: return 1;`）实测 4.4 产物 54 条：条件跳仍反转成 `je <join>`、
+        // 且 call 后多插 `jmp <join>; nop`（4.4 把标签块划为独立块）⇒ 比裸 if 的
+        // 52 条多 2 条，已回滚。4.4 的 return-合并/块布局与 4.1 不同（ORIG 假路径
+        // `jmp <+0xb5 join>` 为 4.1 共享出口 mov 合并产物，4.4 恒发 per-return mov）
+        // ⇒ 维持 N93附/P223 封顶。
         if (ev->get_ontime_reward_user_count() != 0)
         {
             RegistNextTimer();

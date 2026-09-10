@@ -1208,9 +1208,28 @@ CF_ISLAND:
     }
 }
 
+// [b28d-solo-WarRoom-5] ORIG 086bbed0/086bbfaa 的 6 字节清零是 `movl $0`+`movw $0`
+//   （宽写），且 local_4c[i+6] 的访问是**单条** `-0x42(%ebp,%eax,1)`（无 `add $6`）
+//   ⇒ 该 12 字节区是「2×6 字节块」双视角（P235/P246/P311 成员数组视图）：
+//   数组视角 m_b 供 i 索引，标量视角 m_z 供宽清零。sizeof/偏移与旧
+//   `char local_4c[12]` 逐位相同（静态断言锁）。
+namespace
+{
+struct WrBlock6
+{
+    union
+    {
+        char m_b[6];
+        struct { int m_l; short m_s; } __attribute__((packed)) m_z;
+    };
+} __attribute__((packed));
+}
+static_assert(sizeof(WrBlock6) == 6, "WrBlock6 must stay 6 bytes");
+
 void WarRoom::CalcGuildFP()
 {
-    // [b28d-solo-WarRoom-4] ORIG 0x086bbea6：**165 orig / 164 our（gap +1，原 168/-3）**。
+    // [b28d-solo-WarRoom-5] ORIG 0x086bbea6：**158 orig / 156 our（gap +2，全部为
+    //   P223/N121 岛族）**。本轮第③修后：原 164（多 13 条）⇒ 156。
     //   本轮修两处（探针 /tmp/wr4/a.cpp）：
     //   ① 数组槽序翻正：ORIG local_4c[12]@-0x48..-0x3d（深）+ local_40[6]@-0x3c..-0x25；
     //      4.4 给**带初始化列表的数组**优先深槽 ⇒ 交换声明序（local_40 先、local_4c 后）
@@ -1218,15 +1237,20 @@ void WarRoom::CalcGuildFP()
     //   ② 商只算一次：ORIG 086bc043 `mov %eax,-0x14(%ebp)` 存 local_18、086bc075
     //      循环内 `mov -0x14(%ebp),%edx` 复用（Ghidra 把复用显示成第二次除法=假象）
     //      ⇒ 源码 `m_slotFp[local_10] = local_18;`，消去重复 idiv（-5 条）。
-    //   残余（N 族，均附 ORIG 指令形）：
-    //   · 12 字节字节清零合并：ORIG `movl $0,-0x42; movw $0,-0x3e` / `-0x48/-0x44`
-    //     （086bbed0/086bbfaa），4.4 恒 6×movb（探针 /tmp/wr4/s.cpp g1/g2）⇒ N78/N202 族。
-    //   · local_4c[i+6] 的 disp 折叠：ORIG `movb $1,-0x42(%ebp,%eax,1)`，4.4 恒
-    //     `add $0x6,%eax` + `-0x48(%ebp,%eax,1)` ⇒ N94 族（改 struct 视图亦为 add 形）。
-    //   · ORIG 循环尾 nop 中继岛（086bbf20/086bc023/086bc07f 等 6 处 jmp+nop），4.4 恒
-    //     jump-thread ⇒ P223 单源负例。语义正确（p167 CLEAR 2/2 调用点）⇒ N 封顶。
+    //   ③ [本轮] 12 字节区改 `WrBlock6 local_4c[2]` 双视角（定义见上）：ORIG 的宽清零
+    //      `movl $0`+`movw $0`（086bbed0/086bbfaa）与 `-0x42(%ebp,%eax,1)` 单条 scaled
+    //      索引（086bbf43/086bbf38 等 3 处）**同时复现**（P235 双视角 + P311 成员数组
+    //      视图）；此前 12×movb + 3 处 `add $6` 全部消去（-13 条）。
+    //      配套：第一处（086bbf48 `jmp +0xa5`）与第二处（086bc01d/086bc020 双 jmp、
+    //      086bbfe5 守卫）用 P223 goto 尾标签串复现 ⇒ **8 个岛中 6 个归位**。
+    //   残余（P223 边界 N，附本轮 5 次实测矩阵）：第三处 ORIG `je +0x1d8(nop)` +
+    //      086bc07c `jmp +0x1d9` 为「1 直落 + 1 岛」混合形、第四处 ORIG 为 3 jmp；
+    //      4.4 岛数恒 = 条件数或 0 —— 双 goto 形（R1）产 2/2、正向 if 形（R3）产 0/2、
+    //      continue 形（R2）同 2/2，均给不出 ORIG 的 1/3 分布（同 P223 边界 RemoveFPItem
+    //      0x0850a314 判例，探针 l2_probe9 四式全败）。seq/槽/帧全等、p167 CLEAR 2/2
+    //      ⇒ N 封顶。
     int local_40[6] = {0};
-    char local_4c[12];
+    WrBlock6 local_4c[2];
     int local_28;
     int local_24;
     int local_20;
@@ -1234,12 +1258,8 @@ void WarRoom::CalcGuildFP()
     int local_18;
     int local_14;
     int local_10;
-    local_4c[6] = 0;
-    local_4c[7] = 0;
-    local_4c[8] = 0;
-    local_4c[9] = 0;
-    local_4c[10] = 0;
-    local_4c[11] = 0;
+    local_4c[1].m_z.m_l = 0;
+    local_4c[1].m_z.m_s = 0;
     for (local_28 = 0; local_28 <= 5; ++local_28)
     {
         if (m_slots[local_28] != 0)
@@ -1248,49 +1268,73 @@ void WarRoom::CalcGuildFP()
                 (m_slotsUser[local_28])->GetFinishPointTotal();
             local_40[local_28] =
                 (m_slotsUser[local_28])->get_charac_guildkey();
-            if (local_40[local_28] == 0)
-                local_4c[local_28 + 6] = 1;
+            if (local_40[local_28] != 0)
+                goto L_28_JOIN;
+            local_4c[1].m_b[local_28] = 1;
+L_28_JOIN:
+            ;
         }
     }
     for (local_24 = 0; local_24 <= 5; ++local_24)
     {
-        if ((m_slots[local_24] != 0) && (local_4c[local_24 + 6] == 0))
+        // [b28d-solo-WarRoom-5] ORIG 086bbf75 je→+0x1ea(岛1)、086bbf85 jne→+0x1ed
+        //   (岛2)、086bc08e jmp→+0x1f1 ⇒ 两守卫两岛 + body 尾 goto（P223 多岛形）。
+        if (m_slots[local_24] == 0)
+            continue;
+        if (local_4c[1].m_b[local_24] != 0)
+            continue;
         {
             local_20 = m_slotFp[local_24];
             local_1c = 1;
-            local_4c[local_24 + 6] = 1;
-            local_4c[0] = 0;
-            local_4c[1] = 0;
-            local_4c[2] = 0;
-            local_4c[3] = 0;
-            local_4c[4] = 0;
-            local_4c[5] = 0;
-            local_4c[local_24] = 1;
+            local_4c[1].m_b[local_24] = 1;
+            local_4c[0].m_z.m_l = 0;
+            local_4c[0].m_z.m_s = 0;
+            local_4c[0].m_b[local_24] = 1;
             for (local_14 = local_24 + 1; local_14 <= 5; ++local_14)
             {
-                if ((m_slots[local_14] != 0) && (local_4c[local_14 + 6] == 0) &&
-                    (local_40[local_24] == local_40[local_14]))
+                // [b28d-solo-WarRoom-5] ORIG 086bbfd9/086bbfe5/086bbff7 三守卫各带岛
+                //   （P223 多岛定界）：守卫1 落独立岛 +0x179（nop;jmp JOIN），守卫2/3
+                //   落 +0x17c/+0x17d；改写为负条件 goto + 标签串复现。
+                if (m_slots[local_14] == 0)
+                    goto L_14_ISLAND1;
+                if (local_4c[1].m_b[local_14] != 0)
+                    goto L_14_JOIN;
+                if (local_40[local_24] == local_40[local_14])
                 {
                     local_20 += m_slotFp[local_14];
                     local_1c += 1;
-                    local_4c[local_14 + 6] = 1;
-                    local_4c[local_14] = 1;
+                    local_4c[1].m_b[local_14] = 1;
+                    local_4c[0].m_b[local_14] = 1;
                 }
+                goto L_14_JOIN;
+L_14_ISLAND1:
+                goto L_14_JOIN;
+L_14_JOIN:
+                ;
             }
             if (local_1c > 1)
             {
                 local_18 = local_20 / local_1c;
                 for (local_10 = 0; local_10 <= 5; ++local_10)
                 {
-                    if ((m_slots[local_10] != 0) && (local_4c[local_10] != 0))
-                        // [b28d-solo-WarRoom-4] ORIG 086bc043 商只算一次存 local_18
-                        //   （-0x14 槽），086bc075 循环内 `mov -0x14(%ebp),%edx` 复用
-                        //   ⇒ 原码写具名 local_18，非重复 `local_20/local_1c`（Ghidra
-                        //   反编译把复用显示成第二次除法，属假象）。
+                    // [b28d-solo-WarRoom-5] ORIG 086bc05e je→+0x1d8(nop 岛)、
+                    //   086bc06a je→+0x1d9(incr)、086bc07c jmp→+0x1d9 ⇒ goto 尾标签串
+                    //   （P223 定案形，与 SendGuildFP 同族）。
+                    if (m_slots[local_10] == 0)
+                        goto L_10_NOP;
+                    if (local_4c[0].m_b[local_10] != 0)
+                    {
                         m_slotFp[local_10] = local_18;
+                        goto L_10_END;
+                    }
+                L_10_NOP:
+                    ;
+                L_10_END:
+                    ;
                 }
             }
         }
+        continue;
     }
 }
 

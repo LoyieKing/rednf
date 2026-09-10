@@ -1551,6 +1551,12 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
         areaNo = user->get_area(false);
         area = village->getArea(areaNo);
         // [b28d-solo] ORIG 0x85c5251 `cmp -0x18,0; sete al; test; jne 继续`。
+        // [L14] 本轮实测三形：(a) 原 4×if/return 形 —— 173/165（gap+8，近端岛）；
+        // (b) `bool ok` + 单表达式短路（Ghidra 同形）—— 168/165，**多占 -0x20 ok 槽
+        // 使全帧槽号平移 4**（ORIG 无 ok 槽：失败/成功直落 `mov $0/%1,%ebx`）；
+        // (c) P222 正向包裹 + 死块置于 return 之后 —— 151/165（4.4 前端对 return
+        // 后不可达代码做 DCE，死块整段消失 ⇒ 更差）。⇒ 维持 (a)，残差为
+        // 4.1 fail 岛远端化 + ebx 缓存 vs 4.4 逐次重载（N82/N7 封顶）。
         while (area == 0)
             return false;
 
@@ -1559,7 +1565,7 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
         // [DualStore] ORIG 0x085c5274..0x085c529e 的 `getArea call failed (area no:%d)`
         // cMyTrace 块在 ORIG 侧无任何跳转入口（0x85c526e `jmp 0x85c531a` 直接跳过），
         // 但其 P167 调用点确实存在（新版 p167 MISSING cMyTrace::operator() ×1）。
-        // 按 ORIG 形复现该块：上方 while 已拦 area==0 ⇒ 此条件恒假，运行时行为不变。
+        // 按 ORIG 形复现该块（上方 while 已拦 area==0 ⇒ 此条件恒假，运行时行为不变）。
         if (area == 0)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x24c, 5)("getArea call failed (area no:%d)", areaNo);
@@ -2644,10 +2650,13 @@ void CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, unsigned short s
     CUser* sellerUser = 0;
     // ORIG：参数直落（mov %ax,-0x1c 单槽），无具名中转。
     sellerUser = G_GameWorld()->find_from_world(sellerIndex);
-    // ORIG +0x2d 死 cmpl $0x0,-0xc(%ebp)（无 jcc）：4.1 对 `if(p==0){}` 生成
-    // cmp+je、jump-opt 删掉目标即下一条的 je 只留 cmp；4.4 前端把空条件整块
-    // DCE。实测 if(p==0){} / while(p==0)break;（后者多 sete+test 两条）均不可
-    // 复现 ⇒ N 封顶（N99 死代码 DCE 族）。
+    // [L14] ORIG +0x2d `cmpl $0x0,-0xc(%ebp)`（无 jcc）= 4.1 对空 then 保留
+    // 比较、jump-opt 删掉「目标即下一条」的 je；4.4 前端把空条件整块 DCE。
+    // 唯一可复现形 = 空 switch（探针 /tmp/prc/p3.cpp fU：`switch(p==0){}` 产
+    // `cmpl $0x0,-0xc(%ebp)` 后直落，零分支/零 setcc）；`if(p==0){}`、
+    // `while(p==0)break;`（多 sete+test 两条）、`if(p==0){asm("")}`（多 jne）
+    // 均不可。语义等价（无 case/无副作用）。
+    switch (sellerUser == 0) { }
     GetStoreBuyer(out, user, sellerUser);
 }
 
@@ -2739,12 +2748,13 @@ void CPrivateStoreMgr::LoadPrivateStore(CUser* user)
 // [b28d-solo-CPrivateStoreMgr] P311 成员数组视图：ORIG 0x085cc5bc 每条条目访问
 // 发 `mov i; imul $0x4c; add sig; add $8`（索引先算，4 条）；字节数组 + cast
 // 形 4.4 恒基址先算（6 条）。用具名数组成员视图替代裸字节 cast。
-// [L14] P235：改用权威头 SIG_PRIVATE_STORE 的**成员数组**（m_items 字节镜像）做
-// 地址计算，再 cast 到 PrivateStoreItem*：视图 cast 形（reinterpret_cast<View*>(sig)
-// ->m_items[i]）4.4 恒 base-first（多 1 条 mov/lea）；成员数组取址复现 ORIG 的
-// `mov i; imul $0x4c; add sig; add $8`（index-first）3 条形。
-#define PS_ITEM(i) \
-    (*reinterpret_cast<PrivateStoreItem*>(&sig->m_items[(i) * 0x4c]))
+// [L14] P235：改用权威头 SIG_PRIVATE_STORE 的**具名类型数组视角** m_storeItems[]
+// （MoreTypes.h 匿名 union 双视角，POD packed，sizeof 0x4c 断言）：字段读走
+// `sig->m_storeItems[i].m_addInfo` ⇒ 4.4 折 scaled disp（ORIG 0x85cc5bc 段
+// `mov 0xa/0xf/0x13/0x15(%edx,%eax,1)`）；裸字节数组 + cast 形恒先物化 base
+// （多 1 条 `add $8`）。需真实类型（方法调用/引用实参）处用 PS_REAL。
+#define PS_ITEM(i) (sig->m_storeItems[(i)])
+#define PS_REAL(i) (*reinterpret_cast<PrivateStoreItem*>(&sig->m_storeItems[(i)]))
 __attribute__((weak)) int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig)
 {
     clear();
@@ -2760,18 +2770,20 @@ __attribute__((weak)) int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_
     int count = 0;
     for (i = 0; i <= 0xd; ++i)
     {
-        if (PS_ITEM(i).GetState() == 3)
+        if (PS_REAL(i).GetState() == 3)
         {
             put_short(i);
-            put_int(PS_ITEM(i).m_field40);           // 售价（条目 +0x40）
-            put_int(PS_ITEM(i).m_item.m_addInfo);    // 物品索引（Inven_Item +0x02）
-            put_int(PS_ITEM(i).m_item.m_addInfo2);   // Inven_Item +0x07
-            put_byte((int)PS_ITEM(i).m_item.GetItemAttr());
-            put_short((int)PS_ITEM(i).m_item.m_fieldb);   // 耐久（Inven_Item +0x0b）
-            put_int(PS_ITEM(i).m_item.m_fieldd);          // Inven_Item +0x0d
-            put_byte((int)PS_ITEM(i).m_item.m_amp.getAbilityType());
-            put_short((int)PS_ITEM(i).m_item.m_amp.getAbilityValue());
-            put_packet(PS_ITEM(i).m_item);
+            put_int(PS_ITEM(i).m_field40);            // 售价（条目 +0x40）
+            put_int(PS_ITEM(i).m_addInfo);            // 物品索引（条目 +0x02）
+            put_int(PS_ITEM(i).m_addInfo2);           // 条目 +0x07
+            put_byte((int)PS_REAL(i).m_item.GetItemAttr());
+            put_short((int)PS_ITEM(i).m_fieldb);      // 耐久（条目 +0x0b）
+            put_int((int)PS_ITEM(i).m_fieldd);        // 条目 +0x0d
+            put_byte((int)PS_REAL(i).m_item.m_amp.getAbilityType());
+            put_short((int)PS_REAL(i).m_item.m_amp.getAbilityValue());
+            // [L14] ORIG 该实参为 `imul; add sig; lea 0x8(%eax),%edx`（元素取址）；
+            // cast 到 Inven_Item* 直取元素首地址（m_item 在 PrivateStoreItem +0）。
+            put_packet(*reinterpret_cast<Inven_Item const*>(&sig->m_storeItems[i]));
             ++count;
         }
     }

@@ -179,7 +179,8 @@ public:
     void dailyresetData();                                 // 0x0811630e
     bool LoadEventFromDB();                                // 0x081159b6
     bool TriggerEventEnd(int idx);                         // 0x08115d60（ORIG 调用点 test %al/je 直折；P9/P22）
-    bool InitEventManager();                               // 0x08114dcc
+    int InitEventManager();                                // 0x08114dcc（ORIG 尾 mov $0/%1,%ebx
+                                                           // + mov %ebx,%eax 无归一化 ⇒ int）
     void MakeNotiEventInfo(PacketGuard& packet, CUser* user); // 0x08115de2
     bool TriggerEventStart(int idx, Word_Param param);     // 0x08115cc6（ORIG 调用点 test %al/je 直折；P9/P22）
     void BroadcastEventInfo();                             // 0x08116108
@@ -205,7 +206,10 @@ class Gm_List
 public:
     Gm_List();                            // 0x08299912 T（独立 TU）
     ~Gm_List();                           // 0x8299948（编译器生成形态）
-    void LoadGmListFromDb();              // 0x0829996c T
+    // ORIG 0x0829996c 本体：三处失败路径 `mov $0x0,%ebx; jmp`、成功尾
+    // `movzbl -0x11(%ebp),%ebx` + `mov %ebx,%eax; ret` ⇒ 返回 ok(bool)。
+    // 返回类型不入 mangled（_ZN7Gm_List16LoadGmListFromDbEv 不变），ABI 零变。
+    bool LoadGmListFromDb();              // 0x0829996c T
     void SendGMList_To_UpperServer(int param);  // 0x08299d54
 private:
     MySQL* m_db;   // +0x00（ORIG 存 DBMgr::GetDBHandle(6,0) 句柄）
