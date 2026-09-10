@@ -13,6 +13,14 @@
 // ===================== 数据表占位构造（ORIG 0x82aa510 / 0x89000ca） =====================
 
 // ORIG 0x0822aea6：+0x00 m_amount / +0x04 m_value 均清 0。
+// ----------------------------------------------------------------------------
+// [b28d-E03 2026-09-10 本波复核] 四数 92/193/2/2 不变（4 件均封顶，无源码旋钮）：
+//   · upgrade_table_t::C1 200=200 DIFF：PURE SHIFT c=0（槽直方图全等）⇒ 残差 = 装载序
+//     + P30 常量拆分（ORIG `mov idx,%edx; mov this,%eax; lea 0x1c(%edx),%ecx` + disp 0x4
+//     vs 我方 `mov idx,%eax; lea 0x1a(%eax),%ecx; mov this,%eax` + disp 0xc，**同址等价**）。
+//   · _generateOption 帧 72 vs 56（MIXED）：N82 具名 float 槽序（三形穷举不可达）。
+//   · getInvestMaterialInfo 60=60 NEAR：PURE SHIFT c=0（寄存器/装载序）。
+//   · get_upgrade_info 371=371 DIFF：PURE SHIFT c=0。
 stInvestAmplifyOption_t::stInvestAmplifyOption_t()
 {
     m_amount = 0;

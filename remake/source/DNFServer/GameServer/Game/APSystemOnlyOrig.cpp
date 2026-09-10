@@ -1087,36 +1087,38 @@ bool CActionPointManager::GetTodayRewardAndSendMail(
             break;
         }
     }
-    if (entry == 0)
+    // [round5-C05 2026-09-10] 尾 fail 块嵌套形（本波配方①）：ORIG 0x0812220b/0x08122242
+    // 两处 `cmpl $0x0,…; je 0812237a <+0x276>`（同一尾部 `mov $0,%eax` 块）⇒ 双层嵌套
+    // + 尾部单一 `return false;`；平铺 return 恒被 4.4 折成 `jne <cont>; mov $0; jmp`。
+    if (entry != 0)
     {
-        return false;
+        m_flag00 = 1;   // LAB 入口 *this = 1（find_item 之前）
+
+        CItem* itemDef = G_CDataManager()->find_item(entry->m_rewardItemIdx);
+        Inven_Item item;
+        if (itemDef != 0)
+        {
+            itemDef->make_item(item);
+            // ORIG：count ushort 先零扩展，再完整写入 packed Inven_Item +0x07。
+            item.m_addInfo2 = static_cast<int>(entry->m_count);
+            item.m_addInfo = entry->m_rewardItemIdx;
+
+            const char* title =
+                g_scriptStringManager_.findString(4, "chn_game_server_msg_82", 0);
+            char titleBuf[30];
+            strncpy(titleBuf, title, 0x1d);
+            const char* msg =
+                g_scriptStringManager_.findString(4, "chn_game_server_msg_83", 0);
+            char msgBuf[256];
+            strncpy(msgBuf, msg, 0xff);
+
+            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                titleBuf, item, 0, user.get_charac_no(-1), msgBuf, strlen(msgBuf),
+                8, user.GetServerGroup(), false, false);
+            return true;
+        }
     }
-    m_flag00 = 1;   // LAB 入口 *this = 1（find_item 之前）
-
-    CItem* itemDef = G_CDataManager()->find_item(entry->m_rewardItemIdx);
-    Inven_Item item;
-    if (itemDef == 0)
-    {
-        return false;
-    }
-    itemDef->make_item(item);
-    // ORIG：count ushort 先零扩展，再完整写入 packed Inven_Item +0x07。
-    item.m_addInfo2 = static_cast<int>(entry->m_count);
-    item.m_addInfo = entry->m_rewardItemIdx;
-
-    const char* title =
-        g_scriptStringManager_.findString(4, "chn_game_server_msg_82", 0);
-    char titleBuf[30];
-    strncpy(titleBuf, title, 0x1d);
-    const char* msg =
-        g_scriptStringManager_.findString(4, "chn_game_server_msg_83", 0);
-    char msgBuf[256];
-    strncpy(msgBuf, msg, 0xff);
-
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        titleBuf, item, 0, user.get_charac_no(-1), msgBuf, strlen(msgBuf),
-        8, user.GetServerGroup(), false, false);
-    return true;
+    return false;
 }
 
 // ============================================================================
@@ -1152,7 +1154,7 @@ bool Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
             break;
         }
     }
-    // [round5-C05 2026-09-10] 尾 fail 块嵌套形（本波配方①）：ORIG 0x0812504c/0x0812507a
+    // [round5-C05 2026-09-10] 尾 fail 块嵌套形（本波配方①）：ORIG 0x08124fc3/0x08124ff4
     // 两处 `cmpl $0x0,…; je <函数尾部独立 mov $0,%eax 块>`；平铺 return 恒被 4.4 折成
     // `jne <cont>; mov $0; jmp`（每处 +2）。两个检查共享同一尾块 ⇒ 双层嵌套 + 尾部
     // 单一 `return false;`。（探针 /tmp/tail_probe.cpp fA/fB。）

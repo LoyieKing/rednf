@@ -33,6 +33,7 @@ class CWorldMap;
 class CItemLimitEditionMgr;
 class Quest;
 class CMTRand;   // 全局 MT19937（PvP_deps.h/CMTRand.cpp 定义）
+struct stHellParty_t;   // get_hellparty_script_values 返回类型（DataManagerInitDepends.h 完整定义）
 
 namespace secretshop
 {
@@ -3627,7 +3628,10 @@ public:
     int get_useJobFatigueMatchGift(char job, int a, int b);
     void get_useJobFatigueMatchGiftMsg(int job, std::string& msg1, std::string& msg2);
     void get_createCharacterGift(int idx, createChracScript::rewardInfoList& out) const;
-    void* get_hellparty_script_values();
+    // [b28d-E03 2026-09-10] 返回类型 void*→stHellParty_t*（mangled 不含返回类型）：
+    //   ORIG CBattle_Field::GetHellPartyEventType 0x082ffb06 形 = 探针 /tmp/probe_hp2.cpp
+    //   fB（stHellParty_t* 形，13 条）；void* 形多 1 条 `mov %eax,%edx` 中转（fA=14 条）。
+    stHellParty_t* get_hellparty_script_values();
     std::vector<stVendingMachine_t>* getVendingMachineTable() const;
     void* get_hellparty_groupOrder_map(int idx);
 

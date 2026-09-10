@@ -2036,6 +2036,10 @@ void CGameManager::WarRoomCountAdjustByChannelInfo()
     // b28d-solo-CGameManager 判词：N85①+N82 封顶——ORIG `flds 0x8(%eax,%edx,4);
     // fstps -0x34`（具名 float 经 x87 栈槽往返）vs 4.4 `mov mem,%eax; mov %eax,-0x10`
     // 直搬（P252/N85① 跨版本）；另 ORIG push edi/esi/ebx 缓存 a/b/dmW（P52），4.4 槽化。
+    // [A12-2026-09-10 · C07 新形复查·实测零效果已回滚] 该处具名局部由
+    // `unsigned int` 改 `int`（S1 一次性旋钮）后 TU 四数 729/1894/0/16 **逐值不变**
+    // ⇒ 不命中 C07 形（本例升格点消费者是「被调方按值实参」而非「跨 call 复用」，
+    // 与 Main ③ 的 A14 反例边界一致）⇒ 维持 N7/N82 判词。
     unsigned int channelNo = G_CEnvironment()->get_channel_no();
     channel_info_t* info = script->getChannelInfo(
         (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup, channelNo);

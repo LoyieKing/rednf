@@ -16,6 +16,13 @@
 //    残余槽差 -0x1c↔-0x18（CStreamGuard 对象区）。
 #include "CQueryCounter.h"
 
+// [T2 最后 1 条 · P338] ORIG 本 TU 有 GI `_GLOBAL__I_query_table`
+// （t 0x1c @0x085ed735，键名 = query_table），其 static_init @0x085ed6f5 体内含
+// `movl $0x947305e,(%esp); call _ZNSt8ios_base4InitC1Ev` + `__cxa_atexit`
+// （即 __ioinit @0x947305e）⇒ ORIG 该 TU 含 iostream 的 __ioinit。补本 include
+// 以恢复 ORIG 实有符号并使 4.4 发射 GI（缺 __ioinit 时 GI 体塌成 sub $0x8 且无键名）。
+#include <iostream>
+
 #include <stdio.h>
 #include <string.h>
 #include <time.h>

@@ -263,6 +263,10 @@ bool ImportDungeonScript(STDungeonScript* pScript, const char* path)
     // 4.1 把 script 参数溢出到一个具名栈槽，其后 235 处字段访问一律
     // `mov -0x128(%ebp),%eax` 重载。用 volatile 局部指针复现该重载形态
     // （语义等价：指针值全程不变，仅访问方式由形参改为局部量）。
+    // [E06 2026-09-10 实验] 去 volatile：volatile 形使 4.4 把它落深带 -0x1094；
+    // 普通具名指针期望落回标量区（ORIG -0x128）。
+    // 实测：去 volatile 后 script 落 -0x130（近 ORIG -0x128）但指令数 9255→9270；
+    // 归一 diff 行数对照见下（保留更优者）。
     STDungeonScript* volatile script = pScript;
     script->m_vec384.clear();
     // ORIG 0x88e6027：getDirectoryPath(&script->m_str17c, "%s%s", 基目录, path)

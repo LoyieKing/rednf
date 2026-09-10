@@ -155,7 +155,10 @@ bool DbmwClient::ReceiveRegistAck()
         return false;
     }
 
-    const int expected = 0x12;
+    // 2026-09-10（C05② 反向旋钮）：ORIG 0x0812087b 为 `mov -0x30(%ebp),%eax;
+    //   cmp -0x2c(%ebp),%eax; je`（具名槽读 + mem 直比），我方 `const int` 被
+    //   4.4 常量传播成 `cmpl $0x12,-0x2c(%ebp)` ⇒ 去 const 恢复槽读。
+    int expected = 0x12;
     int got = ReadData(m_recvBuf, expected);
     if (got == expected)
     {
@@ -359,7 +362,8 @@ int DbmwClient::DoReceive()
         return 0;
     }
 
-    const int headerLen = 0x12;
+    // 同上（ORIG 0x08120f3b/0x0812108a 两处 `mov -0x3c; cmp -0x38; je`）。
+    int headerLen = 0x12;
     int got = ReadData(m_recvBuf, headerLen);
     if (got != headerLen)
     {

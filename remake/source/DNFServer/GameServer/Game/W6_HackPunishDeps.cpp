@@ -371,6 +371,13 @@ bool CAutoPunishRuleHackTypeMgr::_checkApplyFlag(
     // int)cnt` 4.4 恒载 cnt 入寄存器而 ORIG mem 直比（P209）。**jcc 逐位交叉
     // 验证：37/37 MATCH**（控制流与 ORIG 等价，残差纯为寄存器分配/装载序，
     // 属 P75/N7 跨版本结构性差异）。ORIG 0x0869550c。
+    // [F2a-C05② 复测·不适用] 件级 F2 旋钮（具名局部 unsigned→int 求比较内存直比）
+    //   逐条核对报告 5 处 ORIG `cmp -0xNN(%ebp),%eax`：其中 3 处（`setl` 族，
+    //   ORIG 0x869550c+0x?? 的 cnt 循环尾测）我方已为同形 mem 直比（仅槽号差）；
+    //   其余 2 处 = `m_value4 > (unsigned int)cnt`（ORIG `cmp -0x10/-0xc(%ebp),%eax;
+    //   jbe`）——mem 操作数 cnt 是**跨调用返回值**（_findIPCount 结果局部），
+    //   且 jcc 为**无符号序 jbe**（P196 红线：局部改 int 即翻有符号序，属真语义
+    //   bug 家族）⇒ 禁改，维持 P209/N18b 封顶。无改动、无回滚。
     if (info.m_value3 == 1 || info.m_value3 == 5)
     {
         outInfo.CopyStruct(info);

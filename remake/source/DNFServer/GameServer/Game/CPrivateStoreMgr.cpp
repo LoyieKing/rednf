@@ -2301,6 +2301,10 @@ int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
         {
             WongWork::CAvatarItemMgr* sellerMgr =
                 m_pSeller->getCurCharacInvenW()->GetAvatarItemMgrW();
+            // [L14/C07 试形（已回滚）] 具名 int 局部复现「字段读升格 callee-saved」
+            // （ORIG `mov 0x7(%eax),%ebx` 跨两 call 保活）实测 **385→387 劣化**
+            // （4.4 对具名局部落槽 +2）⇒ 本件非 C07 命中形（其 CDisjointer 件机理
+            // 不同），维持 N18a/N82 封顶。
             WongWork::Avatar_Item* erased = sellerMgr->EraseAvatarItem((int)item.m_addInfo2);
             if (erased == 0)
                 return -1;

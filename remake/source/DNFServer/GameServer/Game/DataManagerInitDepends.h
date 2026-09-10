@@ -428,7 +428,7 @@ public:
         // **单段直落** callee-saved（形参与 CDataManager::find_item(int)、
         // CInventory::AddAvatarItem(int,...) 同型）；unsigned int 版在两侧调用点
         // 各多 1 条 `mov %eax,%esi` 转换中转。
-        int m_itemId;               // +0x04
+        unsigned int m_itemId;      // +0x04（A19 A/B 临时基线态：净账核算中）
         char m_optionOrSkillIdx;    // +0x08
         char m_pad9;                // +0x09
         char m_zoneType;            // +0x0a

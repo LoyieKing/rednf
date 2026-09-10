@@ -2863,11 +2863,11 @@ bool CUser::CheckFatigue()
 // b28d-lane5 N封顶: N97/P230 cmov; N82/P112 槽号分配 | ORIG 0x0864f7fe | _ZN5CUser20gainCurCharacFatigueEi
 void CUser::gainCurCharacFatigue(int value)
 {
-    // C05②「test 零比较子型」（Main 细化口径 + A12 反例）：ORIG 0x0864f81x 段对该局部
-    //   发 `mov -0x18(%ebp),%eax; test %eax,%eax`（载寄存器两段），我方 unsigned 局部
-    //   被 4.4 折 `cmpl $0x0,-0x18(%ebp)`（mem 直比）⇒ 按 S1 试 int（值域 0..0xffff
-    //   由 `& 0xffff` 保证，改型无值域风险）。
-    int maxPrefatigue = 0;
+    // C05② 实测（2026-09-10）：`maxPrefatigue` unsigned→int 一次旋钮实测 nd 44→43
+    //   （ours 76 vs ORIG 73），未翻 ORIG 的 `mov -0x18(%ebp),%eax; test %eax,%eax`
+    //   段落，且该局部**被后续复用**（std::min<int> 实参）⇒ 不符 Main/D01 限定
+    //   「未被后续复用、非跨调用返回值、4.4 尚未折叠」⇒ **已回退**，维持 N97/P230+N18b。
+    unsigned int maxPrefatigue = 0;
     if (m_premium.GetAdvantageFatigueRate() != 0)
         maxPrefatigue = getCurCharacMaxPremiumFatigue() & 0xffff;
 

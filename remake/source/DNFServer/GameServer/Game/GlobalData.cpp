@@ -4685,6 +4685,13 @@ void ItemVendingMachine::_GetItemString(const CCeraShopGoods* goods, char* buf,
 // （0x08176a7f/0x08176a9b/0x0817804f/0x081780fb）。改 `*reinterpret_cast<..*>` 直写 +
 // `= {0}` value-init 后：OUR calls 139→128 = ORIG 128，MISSING 全清（仅剩 C1↔C2/D1↔D2
 // 入口别名差），our_insns 1585→1614。残余 = N82/N89 槽位/STL。
+// [F2a-C05② 复测·不适用] 件级 F2 旋钮（具名局部 unsigned→int 求比较内存直比）
+//   逐条核对报告 14 处「ORIG 有 `cmp -0xNN(%ebp),%eax` 而我方无」的点：mem 操作数
+//   绝大多数为 **call 返回值局部**（-0x6c/-0x74/-0x88 等 = getXxx() 结果槽，如
+//   0x081775xx `call; cmp -0x6c(%ebp),%eax; setl`）⇒ C05② 边界外；其余为我方
+//   上下文错位（difflib 在大函数上坍缩，ORIG 0x081773xx 段 ↔ 我方不同槽段，
+//   属 N82/N126 全帧槽号错位）⇒ 无一处命中「两个具名局部比较」形，维持 N82 封顶。
+//   无改动、无回滚（该件当前 gap −6，前述 5 处 SigTypes_E.h union 视角修复已落）。
 bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
     if (user == 0)

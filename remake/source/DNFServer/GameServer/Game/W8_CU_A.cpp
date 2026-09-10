@@ -88,6 +88,10 @@ bool CUser::IsOldLotteryItem(unsigned int itemIdx)
     //   ORIG 实为**两段寄存器比较**（`mov 0xc(%ebp),%eax; cmp $0x1d56,%eax; ja`，
     //   形参一次载入 %eax 全程复用；我方 4.4 退化为 `cmpl $imm,0xc(%ebp)` 槽直比）
     //   ⇒ 判 N18b，非类型宽度问题（不改类型）。
+    // [E04 2026-09-10 实验·回退] 失败出口合并为单一尾标签（P325 变体）：实测
+    //   36 条（较原 37 少 1）但生成 `nop; jmp` 中继岛、形参仍未入寄存器 ⇒ 仍 DIFF
+    //   且远离 ORIG 31 条，已回退。ORIG 的 tail-merge 共享出口（0x52/0x59）+
+    //   形参一次载入 %eax 属 4.1 前端产物，4.4 不可复现 ⇒ N18b 维持。
     if (itemIdx < 0x1d57u) {
         if (itemIdx < 0x1d4cu) {
             if (itemIdx < 0x1bc6u) {
@@ -255,6 +259,15 @@ int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialV
 // ===========================================================================
 // [round2-L30 复核·N95/N82] shift.py: frame ORIG=780 OURS=780，MIXED（相对序差，含 8-dword
 //   结构拷贝展开位）⇒ 大件未改造，判 N；ORIG 0x086733a2（0x15c6）。
+// [E04 2026-09-10 复核] p167 200/200 CLEAR（差集全为 C1/C2·D1/D2 同址别名 P93）⇒ 无真缺口；
+//   gap +15 维持 N82/N95 槽序族。
+// [F2a-C05② 复测·不适用] 件级 F2 旋钮逐条核对报告 5 处 ORIG `cmp -0xNN(%ebp),%eax`：
+//   ① ORIG 0x086735... `cmp -0x40(%ebp),%eax; jle`（(prev+delta) vs 局部）我方对应点
+//      已是同形 mem 直比（`cmp -0x4c(%ebp),%eax; setg`，仅槽号整体差 0xc，属 N82）；
+//   ② `cmp -0x44(%ebp),%eax`（ORIG 0x086736xx）与 `cmp -0x30(%ebp),%eax; seta`
+//      （ORIG 0x08673xx）的 mem 操作数是 **call 返回值局部**（gain_money / get_rand_int
+//      的结果槽）⇒ C05② 边界（跨调用返回值不适用），且后者为无符号序 seta；
+//   ③ 无一处属「两个具名局部比较」命中形 ⇒ 维持 N82 封顶，无改动、无回滚。
 int CUser::lottery_item(int slot)
 {
     // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。
@@ -600,6 +613,9 @@ int CUser::lottery_item(int slot)
 // ===========================================================================
 // [round2-L30 复核·N126] 残余=整帧槽号常数平移 0x10（ORIG -0x14d… vs 我方 -0x15d…；帧
 //   0x25c vs 0x24c）⇒ 判据⑪ (b) 类，声明重排无效；ORIG 0x08674968（0x115d）。
+// [E04 2026-09-10 复核] p167 141/141 CLEAR（差集仅 C1/C2·D1/D2 别名）；另比较点
+//   ORIG `mov -0x14b(%ebp),%eax; cmp $0x2061,%eax` vs 我方 `cmpl $0x2061,-0x58(%ebp)`
+//   = N18b 比较形族（形参/局部 mem 直比）。N126+N18b 维持。
 int CUser::multibox_lottery_item(int boxSlot, int keySlot)
 {
     // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。
@@ -879,6 +895,8 @@ void CInGameAdvertisementManager::CheckFailMultiBoxLottery(
     //   cmpl $0x2,-0xc`）。
     // 残余 N 封顶：① Inven_Item 拷贝尾 4.1 用 word（`movzwl 0x3c; mov %ax`，
     //   越界读 +0x3d，同 CParty.cpp:5915 已证 ORIG 遗留）vs 4.4 byte ⇒ N78；
+    //   [E04 2026-09-10 复核] p167 16/16 CLEAR（差集仅 PacketGuard C1/D1↔C2/D2 别名）
+    //   ⇒ 无真缺口，gap +1 维持 N78+N95。
     //   ② it/guard 槽序反向（4.1 guard -0x28/it -0x1c，4.4 it -0x28/guard
     //   -0x24）⇒ N95 槽序族（4.4 按首次使用序分配，it 先于 guard 使用）。
     //   本轮已用循环体内 `char slotPad1[1]` 把 item 槽基从 -0x65 顶到 ORIG 的

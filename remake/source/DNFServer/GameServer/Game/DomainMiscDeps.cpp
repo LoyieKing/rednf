@@ -356,9 +356,12 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                                 {
                                     continue;
                                 }
-                                for (int p = 0;
-                                     p < (int)m_vec0[e].m_list04.size();
-                                     ++p)
+                                // [b28d-C08 C05④ 试形] ORIG 0x0897c964 `cmp -0x14(%ebp),%eax;
+                                // setg %al; test %al,%al; jne <回边>` = 4.1 对 **while** 条件
+                                // 的 setcc 物化（P25：while ⇒ 前置 jmp cond + 尾部
+                                // cmpl/setle/test/jne）；for 形在 4.4 恒折直跳（无 setcc）。
+                                int p = 0;
+                                while (p < (int)m_vec0[e].m_list04.size())
                                 {
                                     itemId =
                                         m_vec0[e].m_list04[p].first;
@@ -369,6 +372,7 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                                         std::pair<int, int>(
                                             itemId,
                                             info.m_drop.m_rate[9]));
+                                    ++p;
                                 }
                                 found = true;
                                 break;             // ORIG 命中后跳出线性搜索

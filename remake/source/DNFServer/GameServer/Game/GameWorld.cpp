@@ -4645,6 +4645,11 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
     {
         if (IsForbiddenChat(from->getCurCharacName()))
         {
+            // [A11-round5 C07/N18b 负例 · 实测已回退] ORIG 0x086c9a4c 段为
+            // `call GetLeftTimeOfForbiddenChat; mov %eax,-0x50(%ebp); cmpl $0x0,-0x50(%ebp); je`；
+            // P198① 两句式试点（声明/赋值分开）实测 our_insns 仍 1253（4.4 恒折寄存器直判、
+            // 槽不回收）⇒ 判 N18b：该值仅单点消费，**不满足 C07「跨 call 后仍被本函数复用」
+            // 前提**（Main 转发 A14 反例同界），勿再试两句式/具名局部形。
             unsigned int left = GetLeftTimeOfForbiddenChat(from->getCurCharacName());
             if (left == 0)
             {

@@ -82,7 +82,10 @@ public:
     int GetUpSkillType() const;            // ORIG W 0x08545fcc _ZNK5CItem13GetUpSkillTypeEv：返回 +0xf0
    DyeInfo* GetDyeInfo() const;           // ORIG W 0x822c86e _ZNK5CItem10GetDyeInfoEv：返回 &m_dyeInfo9c（this+0x9c）
    bool hasCategory(STItemScript::ENUM_ITEM_CATEGORY category) const;  // ORIG W 0x822c97a：m_set128 查询
-   unsigned char IsBanRedeemItem() const; // ORIG W 0x85f7be0 _ZNK5CItem15IsBanRedeemItemEv：返回 +0x144
+  // [2026-09-10 E01 落 · Main 批准] 返回类型 uchar→bool：ORIG 消费端
+  // 0x085f77f4 `call; test %al,%al; je`（无 setne 归一，P248 档①/P292）⇒ bool。
+  // 返回类型不入 mangled、sizeof/偏移零影响（无 ABI 变化）。
+  bool IsBanRedeemItem() const; // ORIG W 0x85f7be0 _ZNK5CItem15IsBanRedeemItemEv：返回 +0x144
     // ---- W7-BigThree 批（increase_status 链用；W 内联，定义落 CUserOnlyOrig.cpp）----
     int GetUsablePvPRank() const;          // ORIG W 0x086946c4 _ZNK5CItem16GetUsablePvPRankEv：返回 +0xec
     int GetIncreaseStatusType() const;     // ORIG W 0x086946b6 _ZNK5CItem21GetIncreaseStatusTypeEv：返回 +0x8c
@@ -208,7 +211,11 @@ public:
         m_additionalExp120;               // +0x120（0x8 字节）
     std::set<STItemScript::ENUM_ITEM_CATEGORY> m_set128;      // +0x128..0x140
     unsigned long m_parentBoosterItemId;  // +0x140（派生类 set/get_parent_booster_item_id）
-    char m_char144;                       // +0x144
+    // [2026-09-10 E01 落 · A31 独立复核] 字段真型 = bool（1 字节同宽、偏移/sizeof/
+    // mangled 零变化）：依据 ORIG 定义 0x085f7be0（0xf）`movzbl 0x144(%eax),%eax; ret`
+    // **无归一化** + 调用点 0x085f77f4 `test %al,%al; je` **无 setne** ⇒ 字段本身
+    // 即 bool（char 字段 + bool 返回会被 4.4 插 `test; setne`，与 ORIG 不符）。
+    bool m_char144;                       // +0x144
 };
 
 // [b28d-solo-CStackableItem] union 双视角零布局佐证（ORIG 证据：CItem 构造 0x85152d4 族
@@ -221,6 +228,8 @@ static_assert(__builtin_offsetof(CItem, m_boolD0) == 0xd0,
               "CItem m_boolD0 offset drift (IsUse2ndUpgradeTableRecipe 0x0869475e movzbl 0xd0)");
 static_assert(__builtin_offsetof(CItem, m_charD0) == 0xd0,
               "CItem m_charD0 offset drift (set_item 0x0850e26e mov %dl,0xd0)");
+static_assert(__builtin_offsetof(CItem, m_char144) == 0x144,
+              "CItem m_char144 offset drift (IsBanRedeemItem 0x085f7be0 movzbl 0x144)");
 static_assert(__builtin_offsetof(CItem, m_floatFC) == 0xfc,
               "CItem m_floatFC offset drift (set_item 0x0850e2e3 mov %edx,0xfc)");
 static_assert(__builtin_offsetof(CItem, m_intFC) == 0xfc,

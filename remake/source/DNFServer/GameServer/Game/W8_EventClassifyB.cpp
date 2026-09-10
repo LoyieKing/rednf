@@ -197,6 +197,12 @@ bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
 // 未修（头依赖，已上报 Main）：CUserCharacInfo::getBringUpRewardFlag 返回 uchar
 //   ⇒ 调用点多 `setne; test` 2 条（ORIG 0x08110d76 体无 setne、调用点
 //   `call; test %al,%al; jne` ⇒ P292 判 bool）。
+//   [d03-C05④ 分诊] 属**归因 1（callee 返回类型旋钮）**：`nm` 符号名不含返回类型 ⇒
+//   低成本旋钮族。但按 Main 的净账红线需「两侧同核」：定义侧 `movzbl 字段; ret` 若字段仍
+//   为 char 会被 4.4 插归一化（E01 IsBanRedeemItem identical −1 教训），首选 P248 档②
+//   把 `m_bringUpRewardFlag` 同步 bool 化。本波未动：该件残差主体是帧差 0x10 + varargs
+//   求值序 + std::copy 块序，单消这 2 条 setne **不改变 verdict**（仍 DIFF），净 identical
+//   账不可保 ⇒ 暂缓，留待该字段的写入端（`setBringUpRewardFlag`）一并同批核账。
 bool CObjectBringUp::sendBringUpReward(CUser* user,
                                        std::vector<int>& rewardVec,
                                        unsigned char& flag)

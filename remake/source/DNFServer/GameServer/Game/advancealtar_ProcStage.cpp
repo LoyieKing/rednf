@@ -76,6 +76,10 @@
 //     图全等）；唯一残差 = 1 条 N18a（ORIG `mov (%eax),%eax; mov %eax,%ebx` = CharacData::
 //     m_field0 读两段 vs 4.4 单段 `mov (%eax),%ebx`）。P254 路径（字段 enum 化）需新造
 //     enum 类型且写入端在 advancealtar_StageControl.cpp（非本泳道）⇒ 不动，封 N18a。
+//     [C05②/C07 试形负例，本波实测] 曾试「字段读改具名 int 局部」（`const int characField0 =
+//     control.getCharacData()->m_field0;`）⇒ **反劣**：帧 0x15c→0x150、丢 `push %esi`、
+//     槽组整体漂移（-0x12c→-0x11c 等），verdict 仍 DIFF ⇒ 已回滚（该字段读在 ORIG 是
+//     寄存器级升格、无槽，具名局部强制落槽）。每件一次旋钮已用，维持 N18a。
 //   · clearStageAndReward 0x0812e3f6 —— shift：PURE SHIFT c=0（帧 0x6c 一致）；残差 =
 //     N7（esi/ebx/edi 角色互换）+ 4.4 对 `(A||B) && !C` 的 setcc 汇合块序与 4.1 相反
 //     （P214①/P225 边界）；P226 条件向语句表达式已把 NDIFF 19→14。

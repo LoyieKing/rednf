@@ -282,17 +282,17 @@ void CBattle_Field::reset_hell_party_value()
 
     // —— m_hellPartyDungeonRate[4]（+0x200）= m_levelDiffRates[i]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyDungeonRate[i] = static_cast<stHellPartyRateSrcView8*>(
+        m_hellPartyDungeonRate[i] = reinterpret_cast<stHellPartyRateSrcView8*>(
             G_CDataManager()->get_hellparty_script_values())->m_rates[i + 4] / 10000.0f;
 
     // —— m_hellPartyMapRate[5]（+0x210）= m_difficultyRates[i]/10000 ——
     for (int i = 0; i < 5; ++i)
-        m_hellPartyMapRate[i] = static_cast<stHellPartyRateSrcView8*>(
+        m_hellPartyMapRate[i] = reinterpret_cast<stHellPartyRateSrcView8*>(
             G_CDataManager()->get_hellparty_script_values())->m_rates[i + 8] / 10000.0f;
 
     // —— m_hellPartyItemRate[4]（+0x224）= m_partyRates[i]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyItemRate[i] = static_cast<stHellPartyRateSrcViewC*>(
+        m_hellPartyItemRate[i] = reinterpret_cast<stHellPartyRateSrcViewC*>(
             G_CDataManager()->get_hellparty_script_values())->m_rates[i + 0xc] / 10000.0f;
 }
 // ============================================================================
@@ -727,10 +727,12 @@ int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
     // （0x083054b3-0x083054b9，跨 GetPartyIndex 保活，P0）；引入具名 int（头声明 +
     // 块内声明两形）实测恒把余槽整体加深 0x10（帧 0x4c→0x5c、键槽 -0x2c）⇒ 反劣，
     // 已回退。两件合计 NEAR(ndiff=4) 封顶（N82/N126 槽族）。
-    // [round5 实验] P309：4.4 对函数头声明按「先声明浅」分配 ⇒ key 后置一次，
-    // 试复现 ORIG 的 key 深槽（-0x34，4.1「先声明深」）。
-    int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
+    // [round5 实验记录·第四形] key 声明后置（cnt 在前）实测：key 得 -0x24（方向对）
+    // 但 cnt 被挤到 -0x28（原 -0x24 才对）⇒ 仅两槽互换、ndiff 4→16 反劣，已回滚。
+    // 与 msg 形（整体加深 0x10）、while 无关；ORIG 六槽表（-0x34/-0x30/-0x2c/-0x24/
+    // -0x20/-0x1c）在 4.4 五槽分配下不可同时满足 ⇒ N82/N126 封顶。
     int key;                                  // ORIG key（-0x34）
+    int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
     if (cnt < 0 || 10 < cnt)
         return -1;
     if (cnt == 0)

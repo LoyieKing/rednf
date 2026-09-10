@@ -4024,10 +4024,12 @@ static bool importAllSkillItem(EquipmentParameterInfo* info)
     // 路径（head3>0x46 / head4>0x46 / head3>head4）共享的 `mov $0,%ebx; jmp`，与函数末
     // return 0 同出口。正向包裹形（`if(h3<=h4){…}` 嵌套）4.4 反产 `jg`+独立 mov 块
     // （389 vs 391，更差）；早返形 391=391 仅余该共享块落点差 ⇒ N 封顶（N121/P63 族）。
-    // [A18 本波 试形·C05 范式① 实测**不适用**本件] 提前 return 形
-    // （`if(h3>=0x47||h4>=0x47) return 0;`）劣化 ndiff 2→4：ORIG 0x089bf1f5 的
-    // `ja` 与 head3 失败块**共享**（两条 `ja` 同落点），4.4 对提前 return 恒产
-    // `jbe <跳过>; mov $0,%ebx; jmp` 独立块拆散共享 ⇒ 已回退为下方包裹形。
+    // [A18 本波 三形实测定稿] ①包裹形（本形）ndiff=**2**；②提前 return 形
+    // （`if(h3>=0x47||h4>=0x47) return 0;`）劣化 **4**（ORIG 0x089bf1f5 两条 `ja`
+    // 共享同一失败块，4.4 恒拆 `jbe`+独立块）；③C05① 多层嵌套形
+    // （`if(a){ if(b){ … return 1; } } return 0;`）与包裹形**逐条等价、ndiff 仍 2**。
+    // 残差 = 成功块后多发 1 个 `mov $0,%ebx; jmp` 外块（ORIG 该 return 0 落点与他块
+    // 共享/后置，4.4 无法逐点控制）⇒ N121/P63 族封顶，gap 恒 +2。
     if ((unsigned)sp.m_head3 < 0x47 && (unsigned)sp.m_head4 < 0x47)
     {
         if (sp.m_head3 > sp.m_head4) return 0;

@@ -399,7 +399,7 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
     int dead30 = 0;                // ORIG -0x30 `movl $0`（dead 局部，P31/P232）
     bool done = false;
 
-    for (;;)
+    while (true)
     {
         while (true)
         {

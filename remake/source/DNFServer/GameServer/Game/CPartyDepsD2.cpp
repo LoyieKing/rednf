@@ -2133,7 +2133,10 @@ void CParty::ClearDungeon()
     memberCount = get_member_count();
     if (memberCount == 1)
     {
-        const float* hellValues = static_cast<const float*>(
+        // [b28f-CTS] E03 把 get_hellparty_script_values() 返回类型 void*→
+        //   stHellParty_t*（P211 callee 返回类型旋钮）⇒ 到 const float* 的
+        //   static_cast 不再合法，改 reinterpret_cast（语义/codegen 不变）。
+        const float* hellValues = reinterpret_cast<const float*>(
             G_CDataManager()->get_hellparty_script_values());
         bd(this).SetHellPartyValueTotal((int)*(int*)((char*)hellValues + 8));
     }

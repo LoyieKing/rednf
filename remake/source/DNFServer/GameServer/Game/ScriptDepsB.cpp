@@ -478,6 +478,15 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
 //  ③ RGBA 打包用 `(unsigned char)` 逐字节 cast（movzbl），`& 0xffu` 会退化成 and。
 //  收口读数：raw 448=448、norm 444=444、p167 55/55 CLEAR；仅余 RGBA 首两操作数
 //  寄存器角色（4.1 累加器留 %eax vs 4.4 留 %edx，P321-T5 寄存器角色 ⇒ N）。
+//  [E06 2026-09-10 复测] 归一 diff 已收敛到单点：RGBA 打包段
+//    ORIG `movzbl %dl,%edx; shl $0x8,%edx; or %edx,%eax`（累加器 %eax）
+//    4.4  `movzbl %dl,%edx; shl $0x8,%edx; or %eax,%edx`（累加器 %edx）。
+//  探针穷举 15 形（/tmp/e06_rgba/probe.cpp v1..v6 + probe2.cpp v7..v15：
+//  原形/具名 unsigned/交换前两项/去 unsigned 提升/右结合/`&0xff` 掩码形/
+//  三具名 int/uchar 局部/unsigned long 提升）**全部产 `or %eax,%edx`**；
+//  `-fdump-tree-gimple` 证实 GIMPLE 树序未交换（`D = r | (g<<8)`），差异在
+//  expand 阶段的可交换操作数 dst 选择 ⇒ 判 N86b（同一算术多 codegen 定论）+
+//  P321-T5（寄存器角色不改类型/源码），**无源码旋钮**（探针路径见上）。
 bool importGenuineUpgradeTable(const char* path,
                               GenuineDamageUpgradeTable* table)
 {

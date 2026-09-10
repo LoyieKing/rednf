@@ -261,6 +261,10 @@ void AvatarConvertServer::StatisticsEmblemCreate(
     i = 0;
     while (it != endIt)
     {
+        // [b28d-E03 2026-09-10 试形回退] ORIG 0x0819327b `mov -0x14(%ebp),%ebx;
+        //   call G_CDataManager; mov %ebx,0x4(%esp)`（实参先升格 callee-saved）；
+        //   4.4 恒 receiver 先、实参后载 %edx。P231 纯 register 提示实测**无效**
+        //   （112 条与基线同、TU 四数不变）⇒ 随判词①封顶（P75/N82附 装载时刻）。
         const int itemId = it->first;
         const int addInfo = it->second;
         it++;                                    // 语句位后置：4.4 保留 ppEi（探针实证）

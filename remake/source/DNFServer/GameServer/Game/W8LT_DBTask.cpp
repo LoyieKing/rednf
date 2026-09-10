@@ -280,6 +280,15 @@
 //   A32 候选表（/tmp/r5/c05_f3_candidates.tsv）中本 TU 两件 DB_UpdatePvPResult（同目标 3/3）与
 //   DB_ReqBlackCount（4/4）均为「同目标 原≈我」族 ⇒ 按 Main 分诊规则（A28 边界：多为 4.4
 //   epilogue-threading / rel8 跳板，源码不可控）**先封顶**，勿再烧。
+// [A04-r5d C05② 复查（test 零比较子型）] 工具扫描（ORIG `mov -N(%ebp),%reg; test %reg,%reg`
+//   两段形 vs 我方 `cmpl $0x0,-N(%ebp)` 折形）⇒ 本 TU **无任何**「ORIG 有载寄存器两段零比较而
+//   我方缺」的件（全部非 identical 函数 delta=0）⇒ C05② 本 TU 无可施项，无需类型旋钮试错。
+// [A04-r5e C05④ 分诊（含净账红线）] DB_ReqQueryCharacInfo::dispatch —— ORIG 0x08426cb6 段为
+//   `call; test %eax,%eax; **setne** %al; test %al,%al; je`，我方同点 `**sete**`（极性反）。
+//   按 Main 硬性判定顺序：该 setcc 的源是**同 TU 内 MySQL::* 调用结果 + 表达式物化**（非跨 TU
+//   callee 返回类型旋钮族）⇒ 归因 2；但「极性反 = 真 bug」须按 P196 核**跳转目标体是否互换**
+//   （两侧 je 落点体若相同则仅 fold 方向差，若互换则是真语义反）——该项本轮未完成取证，
+//   留作下轮首查（不用 ae 换 identical，遵守 Main 净账红线）。
 // ============================================================================
 #include "W8LT_DBTask.h"
 #include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）
@@ -16603,7 +16612,7 @@ bool DB_UpdatePvPLastPlayTime::dispatch(int /*userIdx*/, int /*slot*/,
     Packet_PvPResult* sig = stream->GetOutBuffer<Packet_PvPResult>();
     DB_PvPResultSchoolView* v =
         reinterpret_cast<DB_PvPResultSchoolView*>(sig);
-    for (int i = 0; (unsigned char)v->m_count > (unsigned char)i; ++i)
+    for (int i = 0; (unsigned char)v->m_count > i; ++i)
     {
         for (int j = 0; j <= 1; ++j)
         {

@@ -4465,7 +4465,10 @@ static bool GetItemCategory(STItemScript* item)
     // 被 4.4 折成 `cmpl $0,slot; je`（P209/N18b 跨版本折叠，无源码解）。
     // [P28/P212 全头部声明 2026-09-10] ORIG 的 state 占深槽 -0x78（与 token -0x74
     // 同区），声明在函数级；循环体首只做 `state = 0`（ORIG 0x089bfde1）。
-    unsigned int state;
+    // [E06 2026-09-10 实验·翻案失败] state 标量形恒落浅区 -0x20、POD 聚合包装版
+    // 254（劣 1 条且槽未回深区）、unsigned 形 253 与 int 形同值 ⇒ 按 P321-S1
+    // （赌输恢复直证形）恢复 int，N82附/N93（4.4 聚合优先低槽+标量分区）封顶。
+    int state;
     std::string token;
     int v;                      // switch 判别值（ORIG -0x1c）
     while (ScanStr(&token))

@@ -760,6 +760,12 @@ bool CMonsterManager::insert_monster(int level, CMonster* monster)
 // [round1-L29 2026-09-10 部分修复] 判据⑩：`unusedIt` 移到 it 声明之后（后声明者深）⇒
 //   -0x38(5)/-0x3c(1) 与 ORIG 逐值对齐。剩 `script` 基址 -0x1918 vs ORIG -0x1910（±8）+ 1 条 gap
 //   ⇒ N126/N82 族；script 声明前移试验反劣（ndiff 15→22，已回退）。
+// [round5-A29 修复 + C05① 边界复核，2026-09-10] 已按 **P325 共享尾出口**把 `path==0` 的
+//   `return 1;` 改 `goto ret_true;` 并与循环后 `return 1` 共享尾标签 ⇒ 复现 ORIG
+//   `je <共享 ret-true 块>`（旧形 4.4 内联 `mov $1,%ebx; jmp` +2 条），**DIFF→NEAR**
+//   （norm 214=214）。C05①「双层嵌套」仅当 ORIG **两个检查共享同一尾块**时才需要；本件
+//   fail 块各自独立（truncate 失败 → `puts`+return 0；循环内两处 printf+return 0 各属
+//   独立块）⇒ 单尾标签足够，**不套两层**。D08 闸门：我方岛数−ORIG 岛数 = 0 < 2 ⇒ 不试。
 bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h 声明同步（ORIG caller xor $1 形）
 {
     // [b28d-solo-CListTables P168a] ORIG 0x0834fa8e `call; xor $1; test %al,%al;

@@ -159,9 +159,7 @@ void generateCatchMonsterItem(const std::vector<CatchItemInfo>& items,
         const float rate =
             *reinterpret_cast<const float*>(&entry.m_field8);
 
-        if (entry.m_field4 == 0)                            // [0x8349fa7 test/je]
-            continue;
-        if (rate == 0.0f)                                   // [0x8349fb2 fucompp: je NaN 续行]
+        if (entry.m_field4 == 0 || rate == 0.0f)            // [0x8349fa7/0x8349fb2 同目标守卫]
             continue;
 
         const int r = get_rand_int(0x64);                   // [0x8349fc2 $0x64]

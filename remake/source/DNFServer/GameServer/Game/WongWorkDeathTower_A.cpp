@@ -508,6 +508,10 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
 //   残余 = C1/C2·D1/D2 变体（P93 同址伪差：0814ab06 C2==C1、0814ab4c D2==D1）
 //      + setcc 物化（ORIG seta×2/test×2，4.4 恒直跳，P197④ 族，等价 −4 条）+ ref 末
 //      两 short 经 lea+add（stGenerateRefData_t 字段建模 +4）+ 杂项 ⇒ N 封顶。
+//   ⑤ [C05 边界留痕] 本件 grade/rarity 在 ORIG 为**寄存器保活**（0846247c `mov %eax,%ebx`
+//      / 08462489 `mov %eax,%edi`，经 `084624a7 mov %ebx,0xc(%esp)` 直传 varargs）⇒ 与 C07
+//      （ORIG 用槽则写具名 int 局部）方向**相反**：此处必须内联（已按此改）。C05③ 闸门
+//      （岛差 ≥2）与 C05① 多层尾块均不适用（各早退为共享 epilogue，ORIG 同形）。
 //   ORIG 0x08461fc0
 void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                                                 const CDungeonMgr& dungeonMgr,

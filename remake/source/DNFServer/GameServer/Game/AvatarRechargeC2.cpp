@@ -56,21 +56,22 @@ bool AvatarRechargeServer::CalcDurabilityDetail(CUser* user, int equipSlot,
     else
         rate = static_cast<short>(m_enduranceReduceRate);
 
-    // ORIG：前两守卫 `jle/je +0x122` 与第三守卫 `setl;je +0x122` 同落
-    // 尾部 `mov $1,%eax`（P325 共享尾出口）⇒ 两守卫 goto 尾标签 + 正极性包裹。
-    if (rate <= 0)
-        goto L_true;
-    if (item->m_fieldSplit.m_avatarEndur == 0)
-        goto L_true;
-
-    // 第三守卫也写成 goto 形（三源同落尾标签 + body 直落），消 body 尾 jmp 岛。
-    if (!(get_rand_int(1000) < rate))
-        goto L_true;
-
-    item->m_fieldSplit.m_avatarEndur -= 1;
-    mgr->UpdateEndurance(item->m_addInfo2, item->m_fieldSplit.m_avatarEndur);
-    rates.push_back(equipSlot);
-L_true:
+    // ORIG：三守卫 `jle/je/setl-je` 三条 jcc 同落 +0x122 尾 `mov $1,%eax`，零岛。
+    // [C05③] 独立 `if(cond) goto L;` 形在 4.4 下每条产 `jump+nop` 岛（+6）；
+    // 合并 `||` 实测净零（物化抵消）。改正向嵌套：4.4 把 fail 路径 jump-thread 到
+    // 共享尾出口，无岛（P223 定案①：正向嵌套恒被 thread 成 0 岛）。求值序同 ORIG。
+    if (rate > 0)
+    {
+        if (item->m_fieldSplit.m_avatarEndur != 0)
+        {
+            if (get_rand_int(1000) < rate)
+            {
+                item->m_fieldSplit.m_avatarEndur -= 1;
+                mgr->UpdateEndurance(item->m_addInfo2, item->m_fieldSplit.m_avatarEndur);
+                rates.push_back(equipSlot);
+            }
+        }
+    }
     return true;
 }
 

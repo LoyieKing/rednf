@@ -1230,9 +1230,11 @@ std::vector<stVendingMachine_t>* CDataManager::getVendingMachineTable() const
 // 原 TU 内发明的 const 重载已删除（调用点走非 const 版本）。
 
 
-void* CDataManager::get_hellparty_script_values()
+// [b28d-E03 2026-09-10] 返回类型改 stHellParty_t*（见头注释）：函数体仍为单条 mov，
+// 仅头/定义签名同步；消费点 static_cast<stHellParty_t*>(…) 为恒等转换、codegen 不变。
+stHellParty_t* CDataManager::get_hellparty_script_values()
 {
-    return Get_instance_stHellParty_t();
+    return reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t());
 }
 
 // ORIG 0x08365fc0：sub $0x90120,%esp 后直接 leave/ret —— 保留等价栈帧。

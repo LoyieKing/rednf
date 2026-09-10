@@ -788,22 +788,17 @@ bool CParty::HasNoQuestGoWithApcInParty(Quest const* quest)
     {
         if (_checkValidUser(i))
         {
-            // b28d-solo-CPartyOnlyOrig：ORIG 0x4f `je body` + 0x73 `jne
-            // continue` 为 4.1 `||` 直跳；4.4 对 `==5 || ==10` 第二条件后
-            // 恒物化 `mov $1/$0; test` 岛（探针 f1..f6 六形全败）⇒ 保留正向
-            // `||`（首跳 je 落点已与 ORIG 对齐），残余物化岛归 N（跨版本
-            // `||` lowering）。
-            if (m_member[i].m_pUser->get_state() == 5 ||
-                m_member[i].m_pUser->get_state() == 10)
+            // C05③ 试形：ORIG 0x73/0xa8/0xb3/0xc0 四条失败 jcc 汇同一 false
+            // 出口（0x666b `mov $0,%eax`）= 4.1 单条短路链的 lowering
+            // （0x41 `je body` 为 `||` 首条件直跳）。原两层 if 写法令 4.4 逐层
+            // 各物化一次（多 `mov $1; jmp; mov $0; test; je` 5 条）。
+            if ((m_member[i].m_pUser->get_state() == 5 ||
+                 m_member[i].m_pUser->get_state() == 10) &&
+                m_member[i].m_pUser->getCurCharacQuestR()
+                    ->IsDoingQuest(quest->m_index) &&
+                quest->m_triggerType == 3 && quest->m_triggerSubType == 0)
             {
-                register int qIdx = quest->m_index;
-                // ORIG 0x95 后直接压参（无 userQuest 局部槽）⇒ 内联调用链。
-                if (m_member[i].m_pUser->getCurCharacQuestR()
-                        ->IsDoingQuest(qIdx) &&
-                    quest->m_triggerType == 3 && quest->m_triggerSubType == 0)
-                {
-                    return false;
-                }
+                return false;
             }
         }
     }

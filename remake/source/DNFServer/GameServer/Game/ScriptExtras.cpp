@@ -142,14 +142,19 @@ int Arad_ScriptLoader::open(const char* path)
 // ---- ORIG RDARScript.cpp 域全局/静态（nm：g_szScriptFileBaseDirectory B
 // 0x949b180；_ZL16s_bUseScriptPack d 0x93f4d24）----
 char g_szScriptFileBaseDirectory[0x104];  // ORIG B 0x949b180
-static char s_bUseScriptPack = 0;         // ORIG d _ZL16s_bUseScriptPack 0x93f4d24
+// [b28e P248 档② 字段同型化] char→bool：ORIG 访问器本体 `movzbl 0x93f4d24,%eax;
+// pop %ebp; ret`（纯直返、无 bool 归一化）在「bool 返回 + char 字段」下 4.4 会插
+// `test %al,%al; setne %al`（本体 AE→DIFF）；把**源字段一并 bool 化**（P248 档②/
+// P300）后返回表达式本身已是 bool ⇒ 直返形两全（本体 identical 保持 + 消费点
+// `call; xor $1; test %al; je` 与 ORIG 同形、gap 归零）。
+static bool s_bUseScriptPack = false;     // ORIG d _ZL16s_bUseScriptPack 0x93f4d24
 
 // ORIG T 0x088bb7cf：`movzbl 0x93f4d24,%eax; pop %ebp; ret` 直返字节。
 // [b28d-lane16] 返回类型 bool→char（P9：直返无 setne/test 规范化；bool 返回
 // 使 4.4 多 `test %al,%al; setne %al` 两条 ⇒ 本件 DIFF）。调用点
 // LinkMiscSecuTimerSolo.cpp 的 extern 声明需同步为 char（该点跨 TU 访问
 // ORIG TU-local static，受 P189 豁免）。
-char UseScriptPack()
+bool UseScriptPack()
 {
     return s_bUseScriptPack;
 }

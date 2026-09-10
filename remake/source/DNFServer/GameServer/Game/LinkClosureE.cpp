@@ -80,6 +80,10 @@ public:
 //   `CWorldDrop::generateRandomItem` / `CPrivateStore::IsAreaNearEntranceDungeon` 类岛根因
 //   是 4.4 epilogue-threading / rel8 跳板（拉长后造跳板 +1 jmp）⇒ 源码不可控，命中即按
 //   A28 封顶。判据：先数 ORIG 各 `je/jne` 的**落点是否为同一址**；同址才试合并。
+//   **试前闸门（Main/C05 量化）**：仅当「我方岛数 − ORIG 岛数 ≥ 2」才试 —— 本件 7−0=7
+//   远过闸门（正例）；差 1 岛的多为 4.4 rel8 跳板/epilogue-threading。同 TU 反例：
+//   `add_monster_list_bossroom_condition` 三守卫同目标合并**零收益**（176/ORIG 173）；
+//   正例参照 `CBattle_Field::choose_random_bossmap_from_dummymaps` 尾部岛 5→3 ⇒ DIFF→AE 236=236。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)
@@ -517,6 +521,14 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
 //   ORIG %edx / 我方 %eax（N7，P230：4.4.6 后端可修，路由归 Main）；②0x081a3387
 //   `mov -0x1c(%ebp),%eax; mov %eax,%ebx`（find_item 实参装载两段）vs 我方
 //   `mov -0x1c(%ebp),%ebx`（4.4 直落 callee-saved）⇒ N18a。两处均封顶。
+//   [D08 2026-09-10 补] C07 形（字段读改具名 int 局部）在本件**不适用**：写成
+//   `int itemIndex = info.m_item.m_fieldC; find_item(itemIndex);` 后 4.4 折叠为
+//   93 条（原 94，ORIG 95）⇒ gap −1→−2 反劣，已回滚。C07 的「升格保活」只在
+//   ORIG 侧具名局部值为 4.4 未折叠的字段 load 时成立，本件字段在栈上且 4.4 直落
+//   callee-saved ⇒ 不具名仍最优。
+//   [Main 边界并入] 同因 A14 `CPrivateStore::BuyItem` 实测 +2 劣化 ⇒ C07 完整前提 =
+//   字段读被升格 callee-saved **且该值在 call 之后仍被本函数复用**；本件该值仅作
+//   find_item 的**被调方按值实参**（call 后不复用）⇒ 属禁套面。
 int Arad_GiftItem_Set::send_mail(CUser* user, int p2, int p3, int p4, int giftIdx)
 {
     Data* data = find(giftIdx, p4, p3);

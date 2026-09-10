@@ -10692,6 +10692,12 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
             }
         }
     }
+    // [A06 2026-09-10 C07 新命中形 试行记录·已回退] ORIG 0x086902xx 条件为寄存器直比
+    // （O100-102 `mov 0x4020(%eax),%eax; test %eax,%eax; jne <else>`），else 支**二次读字段**
+    // 并入 %ebx 跨 receiver call 保活（O110-111 `mov 0x4020(%eax),%ebx` → O115 传参）。
+    // 按 C07 删具名局部（改内联两次读）实测：123/129→123/**130**（+1 条）、delta 40→34；
+    // 新序列 else 支仍 `mov 0x4020(%eax),%eax` **未升格 %ebx** ⇒ 4.4 不产该升格
+    // （命中 Main 转发的 C07③ 边界：消费者为 receiver call 后的按值实参时不适用）⇒ 回退。
     int capacity = static_cast<int>(data->m_cargoCapacity);  // +0x4020
     if (capacity == 0) {
         getTagCharacCargoW()->SetCapacity(8);

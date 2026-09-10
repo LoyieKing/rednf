@@ -221,6 +221,7 @@ __attribute__((weak)) void CSkillTreeParam::SendSkillPointReturnInfo()
 //   `lea 0x29fd/0x2b97(%eax),%edx`（数组退化取址）vs 4.4 `add $K,%eax; mov %eax,%edx`
 //   = N107（P214① 数组名算术形亦试，4.4 恒 add）；②第 145 行处多 1 条 `jmp`（N121
 //   epilogue 尾岛）⇒ 双封顶。全部调用点 p167 CLEAR(87/87)。
+// [round5-A20 D08 试前闸门] 岛差同样 = 1（< 2）⇒ 归 4.4 relay 族，不试合并。
 __attribute__((weak)) int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
 {
     // [Lane17 I 判词] ORIG 0x084ef4a6：p167 CLEAR（87/87）；判据⑪ 直方图逐值全等
@@ -633,6 +634,9 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
 //   唯一残差=我方 switch 尾多 1 条 `jmp`（.o 内 1272: nop; 1273: jmp 1276; 1275: nop
 //   —— default 岛），ORIG 单 nop 直落 epilogue ⇒ 4.4 自身 epilogue-threading 尾岛
 //   （N121，四形实测不可消）。
+// [round5-A20 D08 试前闸门] **我方岛数 − ORIG 岛数 = 1**（< 闸门阈值 2）⇒ 按
+//   C05③ 闸门归「4.4 rel8 跳板/epilogue-threading」族（同 A28/A06 反例），
+//   不做多守卫合并试验（无 ≥2 岛差即无「守卫相邻同目标」可赚）。
 void Inter_LoadEtc::verifyCharacVillage(CUser* user)
 {
     // [b28d-solo-Inter_LoadEtc_impl] verdict=N 102/101（fresh）：vill int 槽（movsbl→-0x14）、

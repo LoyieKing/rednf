@@ -328,6 +328,10 @@ void StageControl::onEplpReturnVillage()
 //   第三岛直落；body 尾 jmp join 同形）。唯一残差 = 4.4 语句级重载形参多一条
 //   `mov 0xc(%ebp),%eax` + 第三比较 `cmpl $3,mem` vs ORIG `cmp $3,%eax`（P85 跨语句
 //   %eax 保活；P0 禁具名局部/绑定形）。语义逐值等价。N 封顶（P85 族）。
+// [round5-A29 · D08/C05③ 闸门复核，2026-09-10] ORIG 三守卫落 +0x44/+0x47/+0x4a（**三址
+//   互异**：+0x44/+0x47 为 `nop;jmp leave` 岛、+0x4a 为直落 `nop`）⇒ 不属「多守卫**同
+//   目标**」族；且我方岛数（3）− ORIG 岛数（3）= 0 < 2，未达 Main 的「差≥2 才试」闸门
+//   ⇒ **不套用 D08 合并 `||`**（同 TU 内 `_IsInArea` 0x82f0298 才是该钥匙的正向实例）。
 // [round1-L29 2026-09-10 复核] 判据① CLEAR；P286 单 case switch 已实测（27→28 条反劣，已回退）。
 //   残差同 onEplp（P85 族）⇒ N（ORIG 0x081305f6）。
 void StageControl::onClearReward(StageEndType::T endType)

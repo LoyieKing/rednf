@@ -74,15 +74,13 @@ extern std::vector<std::string> g_szScriptFilePriorityBaseDirectory;
 extern char g_szScriptFileBaseDirectory[0x104];
 // s_bUseScriptPack 为 ORIG RDARScript.cpp TU-local static（d 0x93f4d24，重建定义
 // 于 ScriptExtras.cpp）；跨 TU 经其真实访问器 UseScriptPack（ORIG T 0x088bb7cf）。
-extern char UseScriptPack();  // [b28d-lane16 DELEGATED:AUTHORIZED-BY-MAIN] 与
-                              // ScriptExtras.cpp 定义同步（P9 直返字节；调用点
-                              // 跨 TU 访问 ORIG TU-local static，P189 豁免）。
-                              // [b28e 双侧 bool 实测·已回退] 定义侧 char→bool 使
-                              // UseScriptPack 本体由 AE 落 DIFF（多 test/setne），
-                              // ScriptExtras 合计 293→292；本 TU 调用点仍 DIFF
-                              // （ORIG 是 TU-local 直读 movzbl vs 我方跨 TU call）
-                              // ⇒ 净负，两侧同步回 char（P292 跨 TU 版边界：
-                              // 定义侧本体为 ORIG 直返字节形时以本体 identical 优先）。
+extern bool UseScriptPack();  // [b28e P248 档② 两全形] 与 ScriptExtras.cpp 同步：
+                              // 定义侧 `static bool s_bUseScriptPack` + `bool` 返回
+                              // ⇒ 本体 `movzbl mem; ret` 直返（无归一化、identical 保持）；
+                              // 本 TU 调用点 `call; xor $1; test %al; je` = ORIG 同形。
+                              // [历史] 仅改返回类型（字段仍 char）会令本体插 test/setne
+                              // （ScriptExtras 合计 293→292）⇒ 已按 P248 档② 字段同型化
+                              // 消解；调用点仍差 1 条 call vs TU-local movzbl（P189 封顶）。
 extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定义）
 
 // ===========================================================================

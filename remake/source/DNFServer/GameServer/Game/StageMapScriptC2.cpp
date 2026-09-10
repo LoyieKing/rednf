@@ -218,6 +218,10 @@ StageMapScript::~StageMapScript()
 //     共 7 条 vs ORIG 6 条直跳 `jmp 088a9f7e`；属编译器跳转合并布局（P223 管的是
 //     「早返 return 各发 jmp+nop 中继岛」，形不同，已实测非其族）；
 //   · 另一条 `mov %eax,%ebx` 为间接基址寄存器分配差（N7/N18a 族）。
+//   · D08/C05③ **试前闸门**（Main 定：我方岛数 − ORIG 岛数 ≥ 2 才试合并）：本件
+//     岛数 **3 vs 3 相同**（0x088aa46c/46f/472 ↔ 我方 960/968/96b），差 = 0 ⇒
+//     按闸门**不试**；实测反例族（A06 `_onChangeGrowType` 合并 `||` 反劣 +4、
+//     A28 `generateRandomItem` 改 `goto end` 无效）亦支持判 A28 epilogue-threading。
 bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
 {
     if (!loadRDARScriptFile(g_stageMapScriptBaseDirectory, path))

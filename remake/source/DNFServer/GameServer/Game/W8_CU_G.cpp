@@ -655,14 +655,19 @@ bool CUser::VerifyPresentAvengerTitle()
     }
 
     Inven_Item item;
-    int itemIdx = 0x28d3af;         // [b28d-C08 已按 C05② 边界实测] ORIG 0x868b7b0/7ba
+    int itemIdx = 0x28d3af;         // [b28d-C08 · C05② 旋钮**两态已试毕**，勿再烧] ORIG
+                                    // 0x868b7b0/7ba
                                     // 为 `mov -0x8c(%ebp),%eax; test %eax,%eax; je` +
                                     // `cmp $0xffffffff,%eax`（寄存器比较），曾按 P209/
                                     // P218 档② 改 unsigned 期望翻正；fresh 实测 int/
-                                    // unsigned **两态同形**（widthscan cmp_l 恒 our=2，
-                                    // 4.4 对「常量 vs 具名局部」恒折 `cmpl $-0x1c(%ebp)`
-                                    // 内存直比，与 A01 check_error 实证一致）⇒ 归
-                                    // **N18b 常量比较子型**，回退 int 保持最小改动。
+                                    // unsigned **两态同形**（widthscan cmp_l 恒 our=2）
+                                    // —— 本件是「test 零比较 + cmp $imm 常量比较」双比较点，
+                                    // itemIdx 在零比较点后仍被复用（日志 `itemidx(%u)`，
+                                    // ORIG 0x868b9ae `mov -0x8c(%ebp),%edi`）⇒ 按 A12 口径
+                                    // 属「⚠ 可试一次」，但**已试尽**：4.4 恒折
+                                    // `cmpl $0x0/-0x1c(%ebp)` 内存直比（同 A01 check_error、
+                                    // D01 loadFromString 负例）⇒ **N18b 常量比较子型**
+                                    // 封顶，回退 int 保持最小改动。
                                     // ORIG 0x868b77c 独立栈槽 -0x8c（非 Inven_Item
                                     // 成员——0x868b77c 与 item@-0x8e 尺寸不重叠实证；
                                     // ChronicleRandomOptionInfo 亦无 +1 偏移 int 成员）

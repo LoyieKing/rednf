@@ -1,5 +1,13 @@
 // ============================================================================
 // BattleDepsB2.cpp — CBattle_Field / CRidable 剩余链接方法（独占 TU，宿主登记 CMake）。
+// ----------------------------------------------------------------------------
+// [b28d-E03 2026-09-10 本波] GetHellPartyEventType **13=13 归零**（DIFF→AE）：
+//   `CDataManager::get_hellparty_script_values()` 返回类型 void*→stHellParty_t*
+//   （P211 callee 返回类型旋钮，返回类型不入 mangled ⇒ 零 ABI；探针
+//   /tmp/probe_hp2.cpp：void* 形 fA=14 条含 `mov %eax,%edx`，stHellParty_t* 形
+//   fB=13 条 = ORIG 0x082ffb06 逐条形）。其余三件封顶证据见各函数头注释；
+//   SetGridPath 另附 F2a C05② 复测（7 处 `cmp mem,reg` 全为 mem 直比、jl↔jg 属
+//   折向非符号性翻转、idx/prevIdx 已均 int ⇒ 无旋钮，N82/N98 维持）。
 //
 // 恢复符号（ORIG nm 全部实证，df_game_r）：
 //   _ZN13CBattle_Field23CheckHellPartyConditionEv        T 0x082ff988

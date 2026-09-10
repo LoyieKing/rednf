@@ -77,6 +77,13 @@ void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)
 //   残余 1 条：ORIG `mov 0x18(%eax),%eax; mov %eax,%edi` vs 4.4 折单段
 //   `mov 0x18(%eax),%edi`（%edi 直落）⇒ N18a（4.4 单段直落不可造；P254 enum 化
 //   需改 CDungeon.h 的 RidableObject（多 TU 共享）且无 ORIG enum 证据，不改）。
+//   [A28 round5 · C07 命中形实测 2026-09-10 19:48] 按 Main 转发的「字段读升格
+//   callee-saved ⇒ 写具名 int 局部」试一次旋钮：**反劣**（帧 0x3c→0x40、丢
+//   `push %edi`、迭代器槽 -0x24→-0x18 整体平移）⇒ 已回滚，N18a 维持（一次旋钮
+//   纪律：无改善即回滚封顶）。
+//   与 A14 `CPrivateStore::BuyItem` 反例同构：本件的字段读消费者是**被调方的按值
+//   实参**（SendSpawnRidableObject 第 5 参），非「call 后仍被本函数复用」⇒ 具名
+//   局部必然落槽 +2，符合 C07 命中形的否定边界。
 void CRidable::CheckAppearRidableObject(CParty*, int a, int b, PacketGuard* p)
 {
     // ORIG 0x082fe9d1 段序（P28/P50「先声明后赋值」）：begin() 最先
