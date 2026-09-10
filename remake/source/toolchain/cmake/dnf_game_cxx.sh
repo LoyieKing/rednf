@@ -665,6 +665,11 @@ case "$(basename "$src" .cpp)" in
                 # （**Δidentical +9 / Δdiff −9**）。
                 # ⚠ 与其它旗标臂同规矩：**全局核账定稿**。
                 exec "$C6444R" "$@" ;;
+            # [Main·2026-09-10 round5 TU 拆分] 拆分出的逐函数 .cpp 必须继承**原 TU 的
+            # 全部编译特性**（此处 = 上面的 444 后端臂）。新增拆分目录时在此同步登记，
+            # 否则新文件会落到 `*)` 默认 4.4.7 路由 ⇒ 该文件所有函数 verdict 劣化。
+            *Game/CTournamentDungeonReward/*.cpp)
+                exec "$C6444R" "$@" ;;
 
             *)
                 exec "$C6" "$@" ;;

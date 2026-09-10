@@ -554,6 +554,9 @@ dnf_service(game
         ${SVC_DIR}/StatisticsToObserveCrash.cpp
         ${SVC_DIR}/TournamentMonster.cpp
         ${SVC_DIR}/CTournamentDungeonReward.cpp
+        # [Main·2026-09-10 round5 TU 拆分] CTournamentDungeonReward 逐函数一 .cpp
+        # （原 TU 保留承载 GI 键 `_GLOBAL__I__ZN20TournamentRewardType5ClearEv` 的函数组）。
+        ${SVC_DIR}/CTournamentDungeonReward/MakeSelectPacket.cpp
         ${SVC_DIR}/UserQuest.cpp
         ${SVC_DIR}/Village.cpp
         ${SVC_DIR}/VillageMonster_helpers.cpp
@@ -921,6 +924,11 @@ dnf_service(game
         # ORIG 的 libstdc++ wstring-inst.o 为 Red Hat 32 位默认 -march=i486 -mtune=generic 构建；
         # gnu++0x 头补出 initializer_list 族 7 符号（4.4 头），三者齐备后整 TU 与 ORIG 零差。
         "${SVC_DIR}/WStringInst.cpp|-O2 -std=gnu++0x -march=i486 -mtune=generic"
+        # [Main·2026-09-10 round5 TU 拆分] 拆分到子目录的 .cpp 无法再靠「与头同目录」
+        # 解析 `#include "X.h"`（Game/ 不在 INCLUDES 里）⇒ 补 `-iquote${SVC_DIR}`。
+        # 用 `-iquote` 而非 `-I`：只影响引号包含、且位于 -I 之前但排在「当前文件目录」
+        # 之后，不改动尖括号包含/系统头解析 ⇒ 对其它文件零影响。
+        "${SVC_DIR}/CTournamentDungeonReward/MakeSelectPacket.cpp|-iquote${SVC_DIR}"
     LIBS
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
