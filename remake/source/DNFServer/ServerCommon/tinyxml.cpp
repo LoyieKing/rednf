@@ -744,10 +744,13 @@ int TiXmlElement::QueryDoubleAttribute( const std::string& name, double* dval ) 
 
 void TiXmlElement::SetAttribute( const char * name, int val )
 {	
-	TiXmlAttribute* attrib = attributeSet.FindOrCreate( name );
-	if ( attrib ) {
-		attrib->SetIntValue( val );
+	TiXmlAttribute* node = attributeSet.Find( name );
+	if ( !node ) {
+		node = new TiXmlAttribute();
+		attributeSet.Add( node );
+		node->SetName( name );
 	}
+	node->SetIntValue( val );
 }
 
 
@@ -764,10 +767,13 @@ void TiXmlElement::SetAttribute( const std::string& name, int val )
 
 void TiXmlElement::SetDoubleAttribute( const char * name, double val )
 {	
-	TiXmlAttribute* attrib = attributeSet.FindOrCreate( name );
-	if ( attrib ) {
-		attrib->SetDoubleValue( val );
+	TiXmlAttribute* node = attributeSet.Find( name );
+	if ( !node ) {
+		node = new TiXmlAttribute();
+		attributeSet.Add( node );
+		node->SetName( name );
 	}
+	node->SetDoubleValue( val );
 }
 
 
@@ -784,10 +790,13 @@ void TiXmlElement::SetDoubleAttribute( const std::string& name, double val )
 
 void TiXmlElement::SetAttribute( const char * cname, const char * cvalue )
 {
-	TiXmlAttribute* attrib = attributeSet.FindOrCreate( cname );
-	if ( attrib ) {
-		attrib->SetValue( cvalue );
+	TiXmlAttribute* node = attributeSet.Find( cname );
+	if ( !node ) {
+		node = new TiXmlAttribute();
+		attributeSet.Add( node );
+		node->SetName( cname );
 	}
+	node->SetValue( cvalue );
 }
 
 

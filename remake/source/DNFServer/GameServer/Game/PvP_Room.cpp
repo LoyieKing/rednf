@@ -2102,7 +2102,12 @@ GRADE_BODY:
     {
         LogManager::logFormat(1, "pvp.cpp",
                               __PRETTY_FUNCTION__,
-                              0x1210, "PvP Room(%d) is empty!!!", get_index());
+                              // [H8-PvP 2026-09-11 · S3 语义轴] ORIG 0x085dd570
+                              // `movl $0x8cc12fc,0x10(%esp)`（.rodata 逐字节：
+                              // b9 e6 be f8 be ee c1 ae be df c7 cf b4 c2 b5 a5 20
+                              // be c8 be f8 be ee c1 fc 20 49 44 5b 25 64 5d 00）
+                              // ⇒ 原串为韩文 + " ID[%d]"；旧 ASCII 串是发明文本。
+                              0x1210, "\xb9\xe6\xbe\xf8\xbe\xee\xc1\xae\xbe\xdf\xc7\xcf\xb4\xc2\xb5\xa5 \xbe\xc8\xbe\xf8\xbe\xee\xc1\xfc ID[%d]", get_index());
     }
     if (local_10 == 0)
     {
@@ -2156,11 +2161,17 @@ GRADE_BODY:
     }
     PacketGuard local_20;
     int local_14 = 0;
+    // [H8-PvP 2026-09-11 · P292/P248 档① 实测中性，已回滚] ORIG 0x085dd0ae
+    // `call check_authority; xor $0x1,%eax; test %al,%al; je <fail>` 看似 `!= 1`
+    // 形，但 4.4 对 `== 0` 与 `!= 1`（callee 声明已是 bool）产**逐条相同**代码：
+    // 本件 252=252、ndiff 106/106 逐值不变 ⇒ 非源码可控（N95 槽基差族）。
     if (check_authority(user, seat) == 0)
     {
         local_14 = 8;
         goto LAB_085dd357;
     }
+    // 同上（第二处同测中性，已回滚）；CheckSeat vptr 偏移 +0x74 已核
+    // MatchRoomList.h:86 `virtual bool CheckSeat(int) ... // +0x74` ⇒ 无偏移 bug。
     if (((IMatch*)m_matching)->CheckSeat((int)state) == 0)
     {
         local_14 = 8;
@@ -2193,7 +2204,10 @@ GRADE_BODY:
     {
         LogManager::logFormat(1, "pvp.cpp",
                               __PRETTY_FUNCTION__,
-                              0x11be, "PvP Room(%d) is empty!!!", get_index());
+                              // [H8-PvP 2026-09-11 · S2 语义轴] 同 S3：ORIG 0x085dd227
+                              // `movl $0x8cc12fc,0x10(%esp)`（与 WalkOut 共用同一
+                              // .rodata 串）⇒ 换成韩文 + " ID[%d]"。
+                              0x11be, "\xb9\xe6\xbe\xf8\xbe\xee\xc1\xae\xbe\xdf\xc7\xcf\xb4\xc2\xb5\xa5 \xbe\xc8\xbe\xf8\xbe\xee\xc1\xfc ID[%d]", get_index());
     }
     if (local_14 == 0)
     {
@@ -2949,7 +2963,12 @@ LAB_085dd357:
     if (m_userTable.IsValidTeam(local_10) != 1)
     {
         cMyTrace local_20(__PRETTY_FUNCTION__, 0x10f8, 5);
-        local_20("Invalid Team(%d)", local_10);
+        // [H8-PvP 2026-09-11 · S1 语义轴] ORIG 0x085dcb8c `movl $0x8cc125c,0x4(%esp)`
+        // （.rodata 逐字节：50 56 50 b7 ce c1 f7 bf c0 b7 f9 20 50 76 50 5f 52 6f 6f
+        // 6d 3a 3a 47 69 76 65 4f 75 74 65 72 50 65 6e 61 6c 74 79 20 74 65 61 6d
+        // 20 69 6e 64 65 78 20 25 64 00）⇒ "PVP"+韩文+" PvP_Room::GiveOuterPenalty
+        // team index %d"；旧 "Invalid Team(%d)" 是发明文本。
+        local_20("PVP\xb7\xce\xc1\xf7\xbf\xc0\xb7\xf9 PvP_Room::GiveOuterPenalty team index %d", local_10);
         goto LAB_085dcd66;
     }
     // [SweepPvPRoom] P226 扩展（旧「外层 if + 内层语句表达式」判词作废）：ORIG
@@ -3696,6 +3715,10 @@ SKIP_RANK_SEAT:
         // （ORIG 0x085da69f/0x085da723 单条 scaled disp）；编译后 ndiff 仍 58、
         // 指令 136=136 逐条不变 ⇒ 4.4 对偏移 0x10 的成员数组同样拆两段，
         // 维持 `int[8]` + 常量下标形（N4/P30 封顶）。
+        // [H8-PvP 2026-09-11 · P331 实测中性，已回滚] ORIG 初始化序为
+        // dead→c1(-0x28)→c2(-0x24)→数组 8 槽→循环变量，旧形源码序是数组→c1→c2；
+        // 把 c1/c2 声明提到数组前重编后 ndiff 逐值不变（81/81、135=135）⇒ 4.4 槽
+        // 分配不随该声明序翻转（N82 封顶再证）。
         int local_54[8];
         local_54[4] = 0;
         local_54[5] = 0;
@@ -4525,9 +4548,13 @@ LAB_085d91da:
                 // [b28d-solo-PvP_Room] P0：ORIG 0x085da882 的 GetRepeatEvent 返回值
                 // 全程在 %eax（无槽往返，`mov %eax,(%esp)` 直传 this）⇒ 原码是内联
                 // 表达式，无 `CEventBase* ev` 具名局部（旧形多 6 条槽中转）。
-                // [L10b P225 推广] `&&` 双条件在 4.4 恒折成 bool 常量岛
-                // （mov$1/jmp/mov$0/jmp/mov$0/cmpb/je 共 +4 条）；ORIG 每条件各发
-                // `test; setne; test; je` / `movzbl; xor$1; test; je` 段 ⇒ 拆嵌套 if。
+                // [H8-PvP 2026-09-11 复测·N] ORIG 0x85daa1f / 0x85daa4c / 0x85daa65
+                // 三个 je 同落 +0x1ec（`mov $0,%eax`），全真 `mov $1,%eax; jmp
+                // +0x1f1` ⇒ 原码确为**单条** `bVar15 = A && B && C;`（三条件平等短路、
+                // 无槽）。但 4.4 同址产同形后**额外**落槽 store/load
+                // （`mov %al,-0x85(%ebp); cmpb $0x0,-0x85(%ebp)` vs ORIG 裸
+                // `test %al,%al`）⇒ 本件读数逐值不变（1085 / jcc 99）⇒ 跨版本
+                // bool 寄存器化差异（4.1 无槽 / 4.4 必给槽），净 0，保留嵌套 if 原形。
                 bVar15 = false;
                 if (GlobalData::s_event_manager->GetRepeatEvent(0x38)->IsEventing((CUser*)0) != 0)
                 {
@@ -4585,14 +4612,15 @@ LAB_085d91da:
             local_48->Update_Win_event(*local_58, local_b0, local_b1);
             if (local_b1 != false)
             {
-                const PvpResultType* r = local_58->getPVPResultRefR();
-                int local_44 =
-                    GlobalData::s_ref_pvp_grade->GetPvpGrade(r->m_expPoint);
-                r = local_58->getPVPResultRefR();
-                if (r->m_pvpGrade < local_44)
+                // [H8-PvP 2026-09-11 · P0/P48] ORIG 0x85dac1e..0x85dac45 两处
+                // getPVPResultRefR 的返回值均 %eax 直用（`mov 0x8(%eax),%edx` /
+                // `mov 0x14(%eax),%eax`，无槽往返）⇒ 原码内联两处调用，无 `r` 具名
+                // 指针；写回同样直用 getPVPResultRefW 的 %eax（无 `w` 槽）。
+                int local_44 = GlobalData::s_ref_pvp_grade->GetPvpGrade(
+                    local_58->getPVPResultRefR()->m_expPoint);
+                if (local_58->getPVPResultRefR()->m_pvpGrade < local_44)
                 {
-                    PvpResultType* w = local_58->getPVPResultRefW();
-                    w->m_pvpGrade = local_44;
+                    local_58->getPVPResultRefW()->m_pvpGrade = local_44;
                 }
             }
             local_58->send_MissionList();
@@ -4669,8 +4697,10 @@ LAB_085d91da:
             local_94.put_byte((int)local_65);
             if (G_GameWorld()->GetChannelType() == 0xf)
             {
-                void* fair = local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7);
-                local_94.put_int(((fair_pvp::CFairPvPScore*)fair)->GetLastTrainingSealCount());
+                // [H8-PvP 2026-09-11 · P0] ORIG 0x85daf6e 段 `call GetCharacExpandData;
+                // mov %eax,(%esp); call CFairPvPScore::GetLastTrainingSealCount` ——
+                // 返回值 %eax 直作下一调用 receiver（无槽）⇒ 原码内联，无 `fair` 具名指针。
+                local_94.put_int(((fair_pvp::CFairPvPScore*)local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7))->GetLastTrainingSealCount());
             }
             else if (G_GameWorld()->GetChannelType() == 0x10)
             {
@@ -4709,8 +4739,10 @@ LAB_085d91da:
                                      local_58->get_pvp_result_oldexp_point(),
                                      local_38);
             }
-            int sVar4 = local_58->has_within_Mission();
-            if (sVar4 == 0)
+            // [H8-PvP 2026-09-11 · P0] ORIG 0x85db11f `call has_within_Mission; test
+            // %ax,%ax; sete %al; test %al,%al; je` —— 16 位返回值直用（**无 sVar4 槽**）
+            // ⇒ 原码内联调用（callee 声明 short，见 CUser.h:2694）。
+            if (local_58->has_within_Mission() == 0)
             {
                 local_58->acceptable_within_mission();
             }
@@ -4761,18 +4793,19 @@ LAB_085d91da:
             local_94.put_byte((int)local_66);
             if (G_GameWorld()->GetChannelType() == 0xf)
             {
-                void* fair = local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7);
-                local_94.put_short(((fair_pvp::CFairPvPScore*)fair)->GetLastTrainingSealBonusCount());
-                fair = local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7);
-                local_94.put_short(((fair_pvp::CFairPvPScore*)fair)->GetRemainBonusCount());
+                // [H8-PvP 2026-09-11 · P48/P0] ORIG 0x85db2e0 段两次
+                // GetCharacExpandData(7) 均 `mov %eax,(%esp)` 直传（无 `fair` 槽）⇒
+                // 原码两处内联重调。
+                local_94.put_short(((fair_pvp::CFairPvPScore*)local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7))->GetLastTrainingSealBonusCount());
+                local_94.put_short(((fair_pvp::CFairPvPScore*)local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7))->GetRemainBonusCount());
             }
             else if (G_GameWorld()->GetChannelType() == 0x10)
             {
                 local_94.put_short(0);
                 local_94.put_short(0);
             }
-            sVar4 = local_58->has_within_Mission();
-            local_94.put_byte(sVar4 != 0);
+            // [H8-PvP 2026-09-11 · P0/P48] ORIG 0x85db4f4 同形（第二调用点，无槽）。
+            local_94.put_byte(local_58->has_within_Mission() != 0);
             unsigned char local_49 = 0xff;
             if (m_pvpBattleMode == 3)
             {
@@ -4781,8 +4814,10 @@ LAB_085d91da:
             local_94.put_byte((int)local_49);
             local_94.finalize(true);
             local_58->Send(local_94);
-            int mode = get_pvp_battle_mode();
-            if (((mode == 4) || (get_pvp_battle_mode() == 5)) && (local_84 != 0))
+            // [H8-PvP 2026-09-11 · P48/P0] ORIG 0x85db58c 段 `call get_pvp_battle_mode;
+            // cmp $0x4,%eax; je …; call get_pvp_battle_mode; cmp $0x5,%eax; jne …`
+            // —— 两次独立调用、返回值 %eax 直用（**无 `mode` 槽**）⇒ 原码两处内联重调。
+            if (((get_pvp_battle_mode() == 4) || (get_pvp_battle_mode() == 5)) && (local_84 != 0))
             {
                 int local_b8 = 0;
                 int local_bc = 0;
@@ -4792,30 +4827,35 @@ LAB_085d91da:
                     local_58->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
                 }
             }
-            long long lVar13 = GlobalData::s_systemTime_.getCurSec();
-            local_58->getHackAnalyzer()->setLastMonsterDeadTime(lVar13);
-            CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x37);
-            if (ev->IsEventing((CUser*)0) != 0)
+            // [H8-PvP 2026-09-11 · P0] ORIG 0x85db6a0 段 `call getCurSec; mov %eax,%ebx;
+            // … call getHackAnalyzer; mov %ebx,0x4(%esp)` —— 结果以 callee-saved %ebx
+            // 跨调用保活（**无槽**）⇒ 原码内联，无 `lVar13` 具名量。
+            local_58->getHackAnalyzer()->setLastMonsterDeadTime(
+                GlobalData::s_systemTime_.getCurSec());
+            // [H8-PvP 2026-09-11 · P0/P52] ORIG 0x85db6a8 段 GetRepeatEvent(0x37) 的
+            // 返回值全程 %eax（`mov (%eax),%edx; add $0x34,%edx; …; mov %eax,(%esp);
+            // call *%edx`，无槽往返）⇒ 原码内联，无 `CEventBase* ev` 具名局部；
+            // `live` 同（GetCharacExpandData 返回值 %eax 直用）。
+            if (GlobalData::s_event_manager->GetRepeatEvent(0x37)->IsEventing((CUser*)0) != 0)
             {
-                CPvPLiveEventData* live = (CPvPLiveEventData*)local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)3);
-                live->IncreasePlayCount(local_58);
+                ((CPvPLiveEventData*)local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)3))
+                    ->IncreasePlayCount(local_58);
             }
-            const PvpResultType* r2 = local_58->getPVPResultRefR();
-            int local_24 =
-                GlobalData::s_ref_pvp_grade->GetPvpGrade(r2->m_expPoint);
-            if ((local_24 < 1) ||
-                (local_58->getPVPResultRefR()->m_pvpGrade == local_24))
+            // [H8-PvP 2026-09-11] ORIG 0x85db6cd `mov 0x8(%eax),%edx` 直接消费
+            // getPVPResultRefR 的返回值（%eax 无槽往返）⇒ 原码内联，无 `r2` 具名指针。
+            int local_24 = GlobalData::s_ref_pvp_grade->GetPvpGrade(
+                local_58->getPVPResultRefR()->m_expPoint);
+            // [H8-PvP 2026-09-11] ORIG 0x85db6c8/0x85db6db 双条件（`jle`=local_24<1、
+            // `je`=grade==local_24）同落 +0xe62（`mov $0,%eax`），全假落 +0xe5b
+            // （`mov $1,%eax`）后 `test %al,%al; je` —— 即**无 bVar15 具名槽**（旧形
+            // `bVar15=false/true + if(bVar15)` 在 4.4 恒落 -0x85 槽 store/load）。
+            if ((local_24 >= 1) &&
+                (local_58->getPVPResultRefR()->m_pvpGrade != local_24))
             {
-                bVar15 = false;
-            }
-            else
-            {
-                bVar15 = true;
-            }
-            if (bVar15)
-            {
-                PvpResultType* w2 = local_58->getPVPResultRefW();
-                w2->m_pvpGrade = local_24;
+                // [H8-PvP 2026-09-11] ORIG 0x85db6f3 `call getPVPResultRefW; mov
+                // -0x20(%ebp),%edx; mov %edx,0x14(%eax)` —— 返回值 %eax 直用 ⇒ 无
+                // `w2` 具名指针槽（旧形多一次 store/reload）。
+                local_58->getPVPResultRefW()->m_pvpGrade = local_24;
                 CMissionList_Charac* mission = (CMissionList_Charac*)local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
                 mission->MakeMissionList_forOldUser(*local_58);
                 G_GameWorld()->send_AllBasicInfo(local_58);

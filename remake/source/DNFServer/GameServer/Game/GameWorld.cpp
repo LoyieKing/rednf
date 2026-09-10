@@ -530,6 +530,14 @@ COND3:
     // EXTRA eq）⇒ 源形本应是 `cit != last`；但 `!=`/while 两形会让 4.4 把 ne 的
     // 比较临时槽放 -0x78（ORIG -0x7c）并使助记符序列错位，TU 四数 near 5→4 /
     // diff 14→15 回退 ⇒ 按「四数不回退」保留 `== last`（NEAR 309/309）。
+    // [H8B 2026-09-11 复核确认·终判] ORIG 0x086cb5e2 段调 `_ZNKSt17_Rb_tree_iterator
+    // ISt4pairIKiiEEneERKS3_`（const ne，两级槽 it/cit=-0x78 + last=-0x80）⇒ 源形
+    // 本应 `cit != last`；但实测两形（`!=` / `while(cit!=last)`）4.4 恒把 ne 比较
+    // 临时槽放 -0x78（ORIG -0x7c）并错位助记符序，TU 四数 near 5→4 / diff 14→15
+    // 回退 ⇒ 维持 `== last` + 显式 return 出口，N82/N115 槽组平移封顶。
+    // [H8B 2026-09-11 本轮实测] 308/308（等长）+ p167 calls 49/49：MISSING
+    // `_ZNKSt17_Rb_tree_iteratorISt4pairIKiiEEneERKS3_` / EXTRA `eq`（即上方极性差，
+    // 唯一非别名差）+ 其余 C1/C2·D1/D2 同址别名 ⇒ 无未解释差。
     // 旧注：ORIG 0x086cb5e2 `jne <body>; jmp <exit>` ⇒ 反转条件 + 显式 return 出口
     // （4.4 对 `if (cit != last) goto LOOP3;` 恒产 `je exit; jmp body`）。
     if (cit == last)
@@ -964,6 +972,11 @@ COND3:
 // **真 try/catch 补缺**（ORIG 0x086c50fb `__cxa_begin_catch` + 0x086c510a
 // `strerror(errno)` + 0x086c513a logFormat 0x52d + 0x086c5144 `__cxa_end_catch`，
 // 原先缺失 ⇒ p167 MISSING）+ 具名 size/maxUser（-0x10/-0xc）。
+// [H8B 2026-09-11 复核·终判] 271/271 等长 + p167 46/46（仅 C1/C2 别名）⇒ 无真缺口；
+// 残差 = 槽基差 8（ORIG 0x086c4ea0/0x086c4f5b userIt -0x50 vs 我方 -0x48；iterator C1Ev
+// 先于 get_unique_id/get_acc_id 的顺序已对齐）。A11-round5 已实测 P190 撑帧 +8（2×double
+// framePad）使 verdict NEAR→DIFF（near 4→3/diff 12→13）回退 ⇒ 残差非帧尺寸差，系 4.1/4.4
+// 槽基与槽组方向差；P331/P212 声明序对整体槽基平移无效（N126 已证）⇒ N82/N126 封顶。
 #include "GameWorld/reach_game_world.inc"
 {
     if (user == NULL)
@@ -1085,6 +1098,14 @@ COND3:
 // 补缺**（ORIG 0x086c568f `__cxa_begin_catch` + 0x086c569e `strerror(errno)` +
 // 0x086c56ce logFormat 0x5a7 "[EXCEPTION Leave GameWorld] - code = %s" +
 // 0x086c56d8 `__cxa_end_catch`；原实现缺 try ⇒ p167 MISSING）。
+// [H8B 2026-09-11 复核·终判] 298/294（少 4）+ p167 54/54（仅 PacketGuard C1/C2·D1/D2 与
+// Rb_tree_iterator C1Ev/C2Ev 别名）⇒ 无真缺口。3 hunk：①槽组平移（PacketGuard -0x34 vs
+// -0x38、find 结果/it -0x24/-0x20 vs -0x2c/-0x24、两个 key -0x1a/-0x3c vs -0x1e/-0x1c）；
+// ②get_area 结果 ORIG 0x086c53xx `mov %eax,%esi`（保 %esi 供 check_valid_area 第 2 实参）
+// vs 我方 %ebx（N7）；③EH 尾块：ORIG 0x086c5676 / 0x086c5681 两处各自 `lea -0x38;
+// mov %eax,(%esp); call PacketGuard::D1Ev`，我方共享一处 `mov %eax,(%esp)`（P325 共享尾出口）
+// ⇒ 少 2 条 lea + 相对块序差。try/catch 段逐条同形（__cxa_begin_catch/__errno_location/
+// strerror/logFormat/__cxa_end_catch 全有）⇒ 判 N7/N82/N104。
 #include "GameWorld/leave_game_world.inc"
 {
     if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()))
@@ -1259,7 +1280,12 @@ COND:
         LogManager::logFormat(
             1, "world.cpp",
             __PRETTY_FUNCTION__,
-            0x4f2, "session_list.find() fail accid(%s)",
+            // [H8B 2026-09-11 G1 真语义差修复] ORIG 0x086c4d84 `movl $0x8cfb6c0,0x10(%esp)`；
+            // .rodata 0x8cfb6c0 逐字节 = `send_buddy_conn_list() : find_session fail - ` +
+            // \xbe\xf8\xb4\xc2 + ` ` + \xbc\xbc\xbc\xc7 + ` ` + \xbf\xe4\xc3\xbb + ` ACCID : %s`。
+            // 旧形误抄了 reach_game_world(0x51d) 的文案（该处 ORIG 0x8cfb778 确为
+            // "session_list.find() fail accid(%s)"，已核无需改）。
+            0x4f2, "send_buddy_conn_list() : find_session fail - \xbe\xf8\xb4\xc2 \xbc\xbc\xbc\xc7 \xbf\xe4\xc3\xbb ACCID : %s",
             NumberToString(accId, 0));
         break;
     }
@@ -1269,7 +1295,10 @@ COND:
         LogManager::logFormat(
             1, "world.cpp",
             __PRETTY_FUNCTION__,
-            0x4f5, "m_UserInWorld.find() fail uid(%d)", session);
+            // [H8B 2026-09-11 G2 真语义差修复] ORIG 0x086c4dda `movl $0x8cfb708,0x10(%esp)`；
+            // .rodata 0x8cfb708 = `find_from_world fail - ` + \xbe\xf8\xb4\xc2 + ` Unique ` +
+            // \xbf\xe4\xc3\xbb + ` unique :  %d`（%d 前**两**空格，逐字节 20 20 25 64）。
+            0x4f5, "find_from_world fail - \xbe\xf8\xb4\xc2 Unique \xbf\xe4\xc3\xbb unique :  %d", session);
         break;
     }
     return user;
@@ -1396,6 +1425,9 @@ COND:
 // —— ORIG 0x086cd52f `test %al; jne <LOOP2>; jmp <exit>`，旧 goto 形 4.4 恒产
 // `je exit; jmp body`（极性反）；for 形逐条复现（含每轮 end 调用位置）。
 // 余 N112（4.4 循环出口对齐 nop，TU 旗标不可改）；p167 CLEAR 30=30。
+// [H8B 2026-09-11 复核·终判] 173/174（我方多 1）+ p167 30/30 CLEAR ⇒ 无真缺口；唯一差 =
+// 4.4 循环出口对齐 nop（N112，TU 旗标不可改）。第一循环 goto 尾条件 + `++it`、第二循环 for 形
+// 既有修法保留；natType 槽四形（块内/头 natMap 前/后/it 后）已实测均不合 ORIG -0x28（N82/N93）。
 #include "GameWorld/UpdateNatTypeUser.inc"
 {
     // [b28d-solo-GameWorld] P232：ORIG 槽基比我们深 4（ORIG natMap=-0x44/guard=-0x54，
@@ -1893,6 +1925,13 @@ COND:
 // -0x5c → 拷贝进 it(-0x4c) ⇒ 先声明后赋值）+ P197③ info 预清（0x086c842f
 // `movl $0x0,-0x10`）+ P283 goto 尾条件 + P171 照抄 error 分支 `jmp COND`
 // （跳过 ++it，原码即如此）。
+// [H8B 2026-09-11 复核·终判] 172/173（我方多 1）+ p167 28/28（仅 cMyTrace C1/C2 ×2、
+// PacketGuard C1/C2·D1/D2、iterator C1Ev 等同址别名）⇒ 无真缺口；diff 4 hunk 净 +1。
+// 残余即判词 4 处（实参装载 ORIG 0x086c84xx `lea → %eax` 直压 0x4(%esp) vs 4.4 %edx 中转；
+// cMyTrace 槽 -0x34/-0x24 vs 我方 -0x38/-0x28；`m_UserInWorld.end()` sret 临时 ORIG -0x38
+// vs 我方 -0x18）已实测两形不翻：显式 `iterator(end())` 拷贝临时（ndiff 10→10）、操作数交换
+// `end() != it`（10→11）⇒ N（P75/N82 匿名临时区）封顶。[H8B 本轮实测] 172/173 + p167
+// calls 28/28 仅别名，与上述一致。
 #include "GameWorld/send_AllBasicInfo.inc"
 {
     PacketGuard packet;
@@ -3713,6 +3752,17 @@ public:
 // 残余 N83/N91/N82 封顶：p167 EXTRA _ZnwjPv/_ZdlPvS_（4.1 placement-new 内联 vs
 // 4.4 extern call，N83）+ _Unwind_Resume×2/_ZNSsD1Ev×2（EH landing 差异，N91）+
 // 帧 0x7c vs 0x8c 槽组平移（N82）。
+// [H8B 2026-09-11 复核·终判] 322/305（gap 17）+ p167 66/66（仅 C1/C2·D1/D2 与
+// AradServerStateMessage C1/C2 别名）⇒ 无真缺口。全函数仅 2 hunk：①帧：ORIG 0x086cc3ec
+// `push %ebp; mov; push %edi; push %esi; push %ebx; sub $0x7c` vs 我方 0x70 且无 push %edi；
+// ②浅槽组整平移 0x10（ORIG user -0x20/badge -0x46/trace -0x3c/allocator -0x25/string -0x2c
+// vs 我方 -0x10/-0x36/-0x2c/-0x15/-0x1c）：ORIG 0x086cc72a `call getCurSec; mov %eax,%edi`
+// （%edi 跨 findGameScript/D1Ev 保活）、bApplied 物化岛 0x086cc750 `test %al; je;
+// mov $0x1,%eax; jmp; mov $0x0,%eax; mov %eax,%edi`、4.1 try 内 string 析构标志
+// 0x086cc74f `mov $0x0,%esi` / 0x086cc73a `mov $0x1,%esi` + 条件 `_ZNSsD1Ev`——4.4 恒 %ebx
+// + EH landing pad。试过：register bool（302→302 零效）、帧 pad 2×double（0x70 对齐；4 个
+// 过头 0x80）、badge 聚合初始化 `= {0}`（已落地 0x086cc40a 4+2 字节形）⇒ 判
+// N7（%edi/%ebx）/N82（槽组）/N126（首槽）/N104（EH 尾块相对序）封顶。
 #include "GameWorld/ResetAllFatigue.inc"
 {
     // [L11·round1 判词更新] 帧 0x70 vs ORIG 0x7c 实测复核：4.4 带 call 帧恒 16k+4 量化
@@ -3811,6 +3861,10 @@ public:
             // ORIG 0x086cc750-0x086cc760 `test %al; je; mov $1,%eax; jmp; mov $0,%eax;
             // mov %eax,%edi` ⇒ bApplied 为 callee-saved 寄存器 bool（跨 string D1 保活，
             // 无槽）。P248 裸 register 三条件全满足（P231/P307）。
+            // [H8B 2026-09-11 实验·P248 档③·负结论] register bool → register int 实测：
+            // 322/305 与行级 diff 465 行逐值不变（4.4 对 bool/int register 同折叠
+            // `mov %eax,%ebx`，ORIG 0x086cc750 的 `test %al,%al; je; mov $0x1,%eax; jmp;
+            // mov $0x0,%eax; mov %eax,%edi` 物化岛不可造）⇒ 类型档无效，已回滚 bool 形。
             register bool bApplied = false;
             if (isFirst)
             {
@@ -4147,6 +4201,18 @@ END:;
             // 的 C++11 ABI 别名 C5/D5，ORIG 全库仅 2 个同类符号）⇒ 违反「仅NEW 不得
             // 上升」+ 禁发明符号纪律 ⇒ 回退等价替代（localtime_r+strftime 同值语义：
             // %Y-%m-%d / %H:%M:%S）。判词 N-DEP 维持，本函数余寄存器/槽差（N82附）。
+            // [H8B 2026-09-11 复核·终判] 语义等价确认（同值语义）：我方
+            // `strftime "%Y-%m-%d"` ≡ ORIG `to_iso_extended_string(date)`（RFC3339
+            // extended "YYYY-MM-DD"）、我方 `strftime "%H:%M:%S"` ≡ ORIG
+            // `to_simple_string(time_duration)`（24h "HH:MM:SS"；ORIG 时间源为
+            // second_clock::local_time() 秒精度 ⇒ 无毫秒小数段）；两串以 `"%s %s"`
+            // 顺序（date 在前）写入快照，与 ORIG 调用链 0x086d1565(second_clock::
+            // local_time) → 0x080cde16(date) → 0x080ce4bc(time_of_day) →
+            // 0x086d28b5(to_simple_string) → 0x086d288c(to_iso_extended_string) 的
+            // 结果槽 -0x80/-0x7c 装载序一致。真 boost 形实测 TU missing_in_game
+            // +87（82 个 C++11 ABI 别名 C5/D5）⇒ 违反「仅NEW 不得上升」⇒ 维持 N-DEP。
+            // asm 桥路线（extern 声明 5 个 ORIG W 符号）经父泳道 2026-09-11 明确否决
+            // （§4.5 禁 `extern "C" asm` 桥 + 引用 C5/D5 有链接期未定义风险）。
             time_t now = GlobalData::s_systemTime_.getCurSec();
             struct tm local;
             localtime_r(&now, &local);
@@ -4532,6 +4598,14 @@ END:;
 //   ② 声明/赋值分离（`int state; … state = user->get_state();`）。
 // ⇒ 本件 4.4 按**首次使用序**分配：`char path[256]={0}` 的 rep stos 是最早使用点 ⇒
 // 占最深槽，标量只能在浅区；ORIG 4.1 按类型分组（标量浅/聚合深）相反 ⇒ 判 N（P112/N98）。
+// [H8B 2026-09-11 复核·终判] 75/75 等长 + p167 仅 CMyFileLog C1/C2 别名 ⇒ 无真缺口。
+// diff 唯一非别名差 = 槽位排布：ORIG path(-0x120，0x086c96a6 `rep stos` 0x40 dwords) 与
+// state/pvpIdx(-0x134/-0x130，0x086c96c6/c6d) 相对 **buf 更深**；我方 path -0x128、
+// state/pvpIdx -0x20/-0x1c（buf **更浅**）+ 第 2 实参装载 ORIG 0x086c96f9
+// `mov -0x130(%ebp),%ecx` vs 我方 %eax 复用。P331 两向已尽：当前源码即「buf 声明在前、
+// 标量在后」（父建议方向），反方向（标量声明前置）b28d-solo 实测槽位逐值不变（4.4 恒按
+// 首次使用序，N98）；且 get_state 调用序受 ORIG 反证约束（0x086c96b5 在 sprintf 之后）
+// 不可提前 ⇒ N82/N126/N98 封顶。
 #include "GameWorld/WriteLogChatMsg.inc"
 {
     // [b28d-solo-GameWorld] _ZN9GameWorld15WriteLogChatMsgEP5CUsercPc：ORIG 0x086c964d
@@ -4647,6 +4721,12 @@ END:;
 // strlen×1；EXTRA make_packet_chat_msg×1 / send_to_area×1 / G_CGameManager×2 /
 // PacketGuardC1/D1×3 / basic_string D1×1（ORIG 部分 case 走 G_GameWorld()-> 自由函数
 // receiver 形 = P34/P277 族 + 分支调用点归位，巨件未逐 case 收敛，语义待三件套复验）。
+// [H8B 2026-09-11 复核·终判] 1255/1253（少 2）+ p167 calls 219/220：差集**全为同址别名对**
+// （_ZNSsD2Ev -6 / _ZNSsD1Ev +7、PacketGuard C2/D2 -9 与 C1/D1 +9、cMyTrace C2/C1 -2/+2、
+// Packet_Monitor_* C2/C1 -4/+4）⇒ 无真缺口。17 hunk 净 -2：大块错位（ORIG `-0x9c` 包体槽组
+// vs 我方 `-0x8c`）系槽组平移使行级 diff 失配；净差 = N87（`and $0x1f` 掩码）/N89（STL 内联
+// 串槽）/N91（EH landing 块数）⇒ 封顶。case 0xd/0xf 两次独立 strlen 与 case 3/0x22
+// fallthrough 既有真修保留。
 #include "GameWorld/send_chat_msg.inc"
                               unsigned int characNo, char* msg, int len, char* nick,
                               int nickLen, ENUM_NOTIPACKET notify)
@@ -5016,6 +5096,11 @@ END:;
 // p167 调用点差集（/tmp/tu_GameWorld.o）：MISSING G_GameWorld×3 / getCurCharacName×1 /
 // strlen×1；EXTRA G_CGameManager×2 / basic_string D1×1（同 P34/P277 族 receiver 形 +
 // 巨件分支调用点未逐 case 收敛，语义待三件套复验）。
+// [H8B 2026-09-11 复核·终判] 1321/1322（我方多 1）+ p167 calls 198/199：同族别名对
+// （_ZNSsD2Ev -6 / _ZNSsD1Ev +7、PacketGuard C2/D2 与 C1/D1、Packet_*_Hyper_Link C2/C1、
+// cMyTrace C2/C1）⇒ 无真缺口。残差 N82（帧 0xa5c vs 0x35c 大帧槽组）/N6（位折叠）/N89。
+// [A11-round5] case 0xb/0xc/0xe/0x23 的 unsigned 正极性早退（ORIG `cmp $0x12c; seta;
+// jne <case 尾>`）既有真修保留（diff 2079→2075）。
 #include "GameWorld/send_chat_msg_hyper_link.inc"
                                         MSG_ITEM_HYPER_LINK_MESSAGE& msg,
                                         ENUM_NOTIPACKET notify)
@@ -5385,7 +5470,10 @@ END:;
         return;
     }
     // P197② register 缓存 accId 见下；数据代理经 GlobalData 真符号（不裸地址）。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("GameWorld.cpp", 0x1e),
+    // [H8B 2026-09-11 G3 真语义差修复] ORIG 0x0863c05f `movl $0x8ce6c24,0x4(%esp)` + 0x0863c06a
+    // `call StreamPool::Acquire`；0x8ce6c24 = "localtaiwan/Event/EventStayTimeCharacter.h"。
+    // StreamPool 以 name 为池键 ⇒ 旧 "GameWorld.cpp" 会与他人共用池、破坏 ORIG 缓冲隔离（行为差）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("localtaiwan/Event/EventStayTimeCharacter.h", 0x1e),
                        true);
     Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(5), user->GetUID());
     Taiwan::SigStayTimeEvent* evt =
@@ -5398,7 +5486,10 @@ END:;
         // b28d-lane11：历史 asm("ebx") 绑定按 P0/N96 清除；改 P227 全表达式临时链
         // （P221 同族）——实参在 ctor 前求值并以 %ebx 跨 ctor 保活，且 trace 不占
         // 具名槽，翻正 guard(-0x28)/trace(-0x20) 槽序。
-        cMyTrace(__PRETTY_FUNCTION__, 0x24, 0)("%d", (unsigned int)user->get_acc_id());
+        // [H8B 2026-09-11 G4 真语义差修复] ORIG 0x0863c0fc `movl $0x8ce6c50,0x4(%esp)`；
+        // 0x8ce6c50 = "[Taiwan, Event] GoGoFighter try reward mid. (%u)"（实参 %ebx=get_acc_id
+        // 直压 0x8(%esp)，与本侧 (unsigned int) cast 一致，仅换格式串）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x24, 0)("[Taiwan, Event] GoGoFighter try reward mid. (%u)", (unsigned int)user->get_acc_id());
         evt->init();
         evt->set(user->get_acc_id());
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);

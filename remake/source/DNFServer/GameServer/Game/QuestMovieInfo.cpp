@@ -39,8 +39,15 @@
             return 0;
         if (token != "[movie play]")
             continue;
+        // [laneC] ORIG 0x08917569：pair 先默认构造（C1Ev，槽 -0x40/-0x3c），其后
+        // QuestMovieInfo C1Ev（-0x48）⇒ 声明序 key 先 / info 后。
+        // ORIG 0x0891756e+0x08917575（初始）与该分支 0x089175c3+0x089175ca 均为
+        // 逐成员 `movl $0xffffffff,-0x40; movl $0x3,-0x3c`；原 `key(-1,NONE)` 与
+        // `key = std::make_pair(...)` 会多发 pair 转换/赋值调用（P135 反向）。
+        std::pair<int, ENUM_QUEST_MOVIE_EVENT> key;
+        key.first = -1;
+        key.second = QUEST_MOVIE_EVENT_NONE;
         QuestMovieInfo info;
-        std::pair<int, ENUM_QUEST_MOVIE_EVENT> key(-1, QUEST_MOVIE_EVENT_NONE);
         for (;;)
         {
             if (!ScanType(token, true))
@@ -48,7 +55,8 @@
             if (token == "[/movie play]")
             {
                 info.clear();
-                key = std::make_pair(-1, QUEST_MOVIE_EVENT_NONE);
+                key.first = -1;
+                key.second = QUEST_MOVIE_EVENT_NONE;
             }
             else if (token == "[quest index]")
             {

@@ -1475,7 +1475,8 @@ public:
     Timer_DungeonInoutOpenTime() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~Timer_DungeonInoutOpenTime() throw();
-    static void RegistNextTimer();           // ORIG T 0x8639b20（定义在 GameMain.cpp）
+    static int RegistNextTimer();            // ORIG T 0x8639b20（定义在 GameMain.cpp）；
+                                             // 尾部 0x8639e00 `mov $0x1,%eax` ⇒ 返回 int
     static bool checkDungeonInoutTime(int day);  // ORIG T 0x8639a12
 
 private:

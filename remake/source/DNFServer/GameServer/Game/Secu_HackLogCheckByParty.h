@@ -50,23 +50,24 @@ struct SecKillMonsterInfo
 {
     SecKillMonsterInfo() : m_monsterId(0), m_count(0), m_sumValue1(0),
                            m_sumValue2(0), m_hackCntE6(0), m_hackCntE7(0) {}
-    // N76 族封顶（方向相反判例）：成员 store 4.1 LHS 地址先载 vs 4.4 RHS 值
-    // 先载；探针 /tmp/l22p/ctor_probe*.cpp 4 形（初始化列表/体赋值/显式
-    // this->/cast）4.4 全部值先载，不可翻（ndiff 8）。
-    // [b28d-24] N封顶 N76（范式库 P211 已定性）：字段 int/形参 unsigned 本已异型
-    // 仍 RHS 先载，ctor_probe 4 形不可翻。ORIG 0x08279d30（W）。
+    // [P248 档③ 重试 · 依据 ORIG 0x08279d30] ORIG 为 LHS-first
+    //   （`mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,(%eax)` ×4）；
+    //   旧判词把「字段 int / 形参 unsigned 异型」当封顶，但 P248 要求在**字段侧**
+    //   同型化（int→unsigned 与实参同型）后 4.4 才翻 LHS-first ⇒ 本波同型 + 删 cast。
+    //   4×4B 同宽 ⇒ sizeof 0x18 / 全偏移 / mangled 零变化（static_assert 锁）。
     SecKillMonsterInfo(unsigned int monsterId, unsigned int count,
                        unsigned int v1, unsigned int v2)
-        : m_monsterId(monsterId), m_count((int)count), m_sumValue1((int)v1),
-          m_sumValue2((int)v2), m_hackCntE6(0), m_hackCntE7(0) {}
+        : m_monsterId(monsterId), m_count(count), m_sumValue1(v1),
+          m_sumValue2(v2), m_hackCntE6(0), m_hackCntE7(0) {}
 
-    int m_monsterId;     // +0x00
-    int m_count;         // +0x04 击杀次数
-    int m_sumValue1;     // +0x08 耗时类累计
-    int m_sumValue2;     // +0x0c 经验类累计
+    unsigned int m_monsterId;     // +0x00（P248 档③：与 ctor 形参同型）
+    unsigned int m_count;         // +0x04 击杀次数
+    unsigned int m_sumValue1;     // +0x08 耗时类累计
+    unsigned int m_sumValue2;     // +0x0c 经验类累计
     int m_hackCntE6;     // +0x10 已上报 0xe6 次数
     int m_hackCntE7;     // +0x14 已上报 0xe7 次数
 };
+static_assert(sizeof(SecKillMonsterInfo) == 0x18, "SecKillMonsterInfo ABI drift");
 // ---- Secu_DungeonAverageCheck（0x10；ctor/dtor/方法由 ORIG/桩提供）----
 class Secu_DungeonAverageCheck
 {

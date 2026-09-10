@@ -1037,6 +1037,9 @@ L_quick_party_flag:;
     if (it == m_pvpRoomMap.end())
         return 0;
     // b28d-solo 实验（P231/P307/P87）：ORIG 用 edi/esi/ebx 跨 CSwitchLog ctor 保活。
+    // [b29x] ORIG 0x08295284/0x0829529e 是**两次独立** `cmpl $0x0,0x10(%ebp)`（name 与
+    //   accName 各一枚三目），故保持两个独立三目（合并 if/else 会少一次 cmpl）；
+    //   空串分支 ORIG `mov $0x8c161de,%esi/%ebx` 单条 vs 4.4 经 %eax 中转属 N7。
     register int roomIdx = it->second->get_index();
     register const char* name = user == 0 ? "" : user->getCurCharacName();
     register const char* accName = user == 0 ? "" : user->get_acc_name();
@@ -1173,10 +1176,12 @@ L_quick_party_flag:;
                 goto it_inc;
             // ORIG 0x082a3257..0x082a3293（Ghidra C 逐字）：
             //   false = (quick && IsExistPassword()) || !IsQuickJoinablePVPRoom(user)
-            // 本形与原德摩根形 `(quick==0||!pw)&&joinable` 在 4.4 产物**逐条相同**
-            // （`movzbl -0x2c; xor $1; test; jne`，quick 进 && 首项即被物化）；
-            // ORIG 的 `cmpb $0,-0x2c; je` 内存直比属 4.1 bool 形参消费形
-            // ⇒ N122 封顶（两形实测同，保留与 ORIG Ghidra 一致的写法）。
+            // [b29x 实测] 首项两形**读数完全相同**（69/71/gap−2/ndiff4）：德摩根
+            //   `!quick` 与正比较 `quick == 0` 在 4.4 下均产 `movzbl -0x2c(%ebp),%eax;
+            //   xor $0x1,%eax; test %al,%al; jne`（4 条）——ORIG 的
+            //   `cmpb $0x0,-0x2c(%ebp); je`(2 条) 是 4.1 bool 内存直比形，
+            //   4.4 对 bool 局部比较恒先零扩展再取反（N122/P168a② 封顶）。
+            //   按父泳道指示回滚为与 Ghidra C 一致的原写法。
             if (!((quick && room->IsExistPassword()) ||
                   !room->IsQuickJoinablePVPRoom(user)))
                 return room;
@@ -2063,18 +2068,23 @@ end:
             // 在乘法表达式里（ORIG 无 dmR 槽：0x8298a0a `call G_CDataManager` 结果
             // 直接 `mov -0x1c(%ebp),%edx; add $0x21ec,%edx; mov 0x4(%eax,%edx,4),%eax`
             // ——P0/P183 表达式直传）。
-            // [TD4 2026-09-10 复核] ORIG 0x082989a1..0x082989b7 内层头把 dmW/b/a 载入
-            // %esi/%ebx/%edi 跨调用保活；本波实测三处纯 register 提示（P231/P307）
-            // 反劣（74→79、帧 0x3c→0x4c：register 变量仍各占槽 + 多 mov 中转）⇒ 回滚，
-            // 维持表达式形，按 N7/N82 记录（ORIG 的 callee-saved 独占属 4.1 分配产物）。
-            CDataManager* dmW = (CDataManager*)G_CDataManager();
-            float f = info->m_gridPercent[a];  // ORIG *(float*)(info+8+(a+4)*4)
-            // 写表：dmW+8+(b*10+a+0x223c)*4 = m_warRoomCount[b][a]（ORIG 0x082989f2..
-            // 0x08298a02 单条 scaled store；reinterpret_cast<int*>(arr)[...] 指针索引
-            // 恒折 add+shl+lea —— 探针 f1 vs f2/f3）。
-            dmW->m_warAreaCounter.m_warRoomCount[b][a] =
-                (int)(((CDataManager*)G_CDataManager())
-                          ->m_warAreaCounter.m_counterTable[b] * f);
+            // [b29x P52/P183/P243 复检] ORIG 0x082989a1..0x082989f2 的**求值序**：
+            //   ①`call G_CDataManager → mov %eax,%esi`（LHS receiver, callee-saved 独占）
+            //   ②`mov b→%ebx / mov a→%edi`（LHS 索引）
+            //   ③`flds 0x8(%eax,%edx,4); fstps -0x34`（RHS 左操作数 f 先求值并跨下一次
+            //     call 存槽）
+            //   ④`call G_CDataManager → fildl -0x2c; fmuls -0x34`（RHS 右操作数 X 后求值）
+            // ⇒ 原码是**链式 LHS receiver + RHS 写 `f * X`**（不是 `X * f`：后者 4.1 会
+            // 先求 X ⇒ call 在 flds 之前，与 ORIG 相反；P243 x87 书写序判据）。
+            // 我方旧形（具名 dmW + 具名 f + `X * f`）读数 74/74/31：dmW 落 -0x10 槽 +
+            //   尾部 reload ⇒ 帧 0x40 vs ORIG 0x3c。本次按上式重写。
+            // 写表：G_CDataManager()+8+(b*10+a+0x223c)*4 = m_warRoomCount[b][a]
+            // （ORIG 0x082989f2..0x08298a02 单条 scaled store）。
+            ((CDataManager*)G_CDataManager())
+                ->m_warAreaCounter.m_warRoomCount[b][a] =
+                (int)(info->m_gridPercent[a] *
+                      ((CDataManager*)G_CDataManager())
+                          ->m_warAreaCounter.m_counterTable[b]);
         }
     }
 }

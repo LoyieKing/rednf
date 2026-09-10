@@ -692,32 +692,37 @@ STAIInfoScript& STAIInfoScript::operator=(const STAIInfoScript& other)
             info->m_targetingBonus[i] = ScanInt((bool*)0);
             if (i == 20)
             {
-                std::string s;
-                // ORIG 0x08a3940e：`call ScanStr; mov %al,-0xa5(%ebp)`（-0xa5 = 函数级
-                // `ok`）+ `movzbl; xor $1; test; jne <exit>` ⇒ 原码把 ScanStr 结果写回
-                // **复用**的函数级 ok（P0 槽往返；直写 `while (ScanStr(&s))` 被 4.4
-                // 折成裸 `test %al,%al; je`，少 mov+取反）。
-                ok = ScanStr(&s);
-                // [C05④ 步骤 2 实测·取反形回退] `while (true) { if (!ok) break; … }` 亦试过：
-                // our 473→**478**（gap 2→−3，劣 5 条；A17 探针的 `if(!r)` 取反形在此
-                // body 下不成立）⇒ 保留 `while (ok)` 具名形（gap=2，本件最优）。
-                while (ok)
+                // [laneC] ORIG 单站点循环（0x08a393f8..0x08a39468）：
+                //   0x328 `lea -0x50; call string::C1Ev`（每轮重新构造 s）
+                //   0x32e `call ScanStr`（**唯一**站点）→ 0x333 `mov %al,-0x21(%ebp)`（写
+                //   函数级 ok 槽）→ 0x336 `movzbl -0x21; xor $1; test %al,%al; jne <退出>`
+                //   → body（0x341..0x388）→ 0x38d `jmp 0x328` 回跳。
+                // 原 `ok=ScanStr(&s); while(ok){…; ok=ScanStr(&s);}` 每段 2 个 ScanStr
+                // 站点 ⇒ p167 `EXTRA +2 _Z7ScanStrPSs`（§6.2 判据②真缺口方向）；
+                // for(;;)+头 ScanStr+`if(!ok)break` 复现单站点与 ORIG 回跳边界。
+                for (;;)
                 {
+                    std::string s;
+                    ok = ScanStr(&s);
+                    if (!ok)
+                        break;
                     // ORIG 0x08a39463：实参右值 → push_back(int&&)。
                     info->m_targetingBonusStr[i].push_back(
                         stringToInt(s.c_str(), ACTIVEOBJECT_STATE_STRING, -1));
-                    ok = ScanStr(&s);
                 }
             }
             else if (i == 21)
             {
-                std::string s;
-                ok = ScanStr(&s);                    // 同上（ORIG 0x08a394a9）
-                while (ok)
+                // [laneC] 同上（ORIG 0x08a39493 `lea -0x54; call C1Ev` → 0x3c9
+                // `call ScanStr` 唯一站点 → 0x3ce `mov %al,-0x21` → 0x3da jne 退出）。
+                for (;;)
                 {
-                    info->m_targetingBonusStr[i].push_back(
-                        stringToInt(s.c_str(), ACTIVESTATUS_ATTACK_TAG, 0x13));
+                    std::string s;
                     ok = ScanStr(&s);
+                    if (!ok)
+                        break;
+                    info->m_targetingBonusStr[i].push_back(
+                        stringToInt(s.c_str(), ACTIVEOBJECT_STATE_STRING, 0x13));
                 }
             }
         }

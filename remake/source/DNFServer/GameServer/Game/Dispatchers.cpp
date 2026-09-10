@@ -916,9 +916,9 @@ inline char* resBytes(CMDPacketStruct::STBaseResponse& r) { return reinterpret_c
     pRes->m_nErrorCode = check_error(user, req);
     if (pRes->m_nErrorCode != 0)
         return 0;
-    CDataManager* dm = G_CDataManager();                   // ORIG call G_CDataManager
+    // ORIG 0x0813fc9c `call G_CDataManager; add $0x631c,%eax`：无具名 dm 槽（P183 直内联）。
     std::vector<advancealtar::BuyUpgradeData>* vec =
-        dm->m_altarShop.getBuyUpgradeDataVec(
+        G_CDataManager()->m_altarShop.getBuyUpgradeDataVec(
             pReq->m_nBuyIndex,
             static_cast<AdvanceAltarShopType::T>(pReq->m_nShopType));
     if (vec == 0)                                          // [objdump 0x813fcbf] err=3
@@ -954,15 +954,16 @@ inline char* resBytes(CMDPacketStruct::STBaseResponse& r) { return reinterpret_c
         totalCost += fd->m_value;                          // [objdump 0x813fdca] add +4(int)
     }
     int rewardIdx = 0;
-    int rc = user->m_advanceAltar.buyItem(                 // ORIG T 0x081319ae
+    // ORIG 0x0813fe5b：buyItem 返回值**直写** pRes->m_nErrorCode（无 rc 具名槽，P183），
+    // 随后 0x0813fe6a 从字段读回比较（P92）。
+    pRes->m_nErrorCode = user->m_advanceAltar.buyItem(     // ORIG T 0x081319ae
         static_cast<AdvanceAltarShopType::T>(pReq->m_nShopType),
         pReq->m_nLevel,
         (short)pReq->m_wFrom,
         (short)pReq->m_wTo,
         totalCost, rewardIdx);
-    pRes->m_nErrorCode = rc;
     pRes->m_nTotalCost = rewardIdx;
-    if (rc == 0)
+    if (pRes->m_nErrorCode == 0)
     {
         HistoryLog::starSub(*user, static_cast<SubStarType::T>(0), totalCost);  // ORIG T 0x08133db0
     }
@@ -1807,8 +1808,9 @@ inline char* resBytes(CMDPacketStruct::STBaseResponse& r) { return reinterpret_c
         }
         return 0;
     }
-    LineFunc(0xa7c1, __PRETTY_FUNCTION__, 0, 0);
-    return 0;
+    // ORIG 0x0820b54d `call LineFunc` + 0x0820b552 `jmp 0x0820b7fa`（尾声）：%eax 直通
+    // 返回，ORIG 全程无 `mov $0x0,%eax` ⇒ 原 `LineFunc(...); return 0;` 丢弃返回值（判据⑪）。
+    return LineFunc(0xa7c1, __PRETTY_FUNCTION__, 0, 0);
 }
 #include "Dispatchers/process_10.inc"
 #include "Dispatchers/read_12.inc"
@@ -1925,7 +1927,11 @@ struct BingoCheckView { char m_pad[4]; char m_b4; bool m_b5; unsigned char m_b6;
 //   首差: sub    $0x38,%esp | mov    0x10(%ebp),%eax | mov    %eax,-0x14(%ebp)
 #include "Dispatchers/process_13.inc"
 {
-    stBingoQuiz& out = static_cast<stBingoQuiz&>(param);
+    // ORIG 0x0825e9be `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)`（msg 具名引用槽，
+    // 声明序先于 param 槽 -0x10）⇒ P0 补具名引用；0x0825ea81 `mov -0x14(%ebp),%eax;
+    // mov 0xd(%eax),%eax` 直读 +0xd 具名字段（原 `(char*)&msg + 0xd` 产 add+mov 两条）。
+    MSG_BINGO_QUIZ& req = static_cast<MSG_BINGO_QUIZ&>(msg);        // -0x14
+    stBingoQuiz& out = static_cast<stBingoQuiz&>(param);            // -0x10
     out.m_result = check_error(user, msg);
     if (out.m_result >= 1)
     {
@@ -1949,8 +1955,7 @@ struct BingoCheckView { char m_pad[4]; char m_b4; bool m_b5; unsigned char m_b6;
     }
     else
     {
-        out.m_result =
-            event->reqBingoQuizMark(*user, *(int*)((char*)&msg + 0xd));
+        out.m_result = event->reqBingoQuizMark(*user, req.m_0d);
     }
     out.m_bingoData =
         *reinterpret_cast<int*>(user->getBingoData());
@@ -2214,10 +2219,14 @@ LPASS:;
     unsigned char outBuf[0xaf0];
     unsigned short outLen = 0xaf0;
     typedef int (*DecryptFn)(void*, int, void*, unsigned short, unsigned char*, unsigned short*);
-    void* checker = GlobalData::s_antibotChecker_;
-    DecryptFn fn = *reinterpret_cast<DecryptFn*>(*reinterpret_cast<void***>(checker) + (0x2c / 4));
-    int ret = fn(checker, user->getAntibotKey(), nestedPacket,
-                 (unsigned short)(binarySize & 0xffff), outBuf, &outLen);
+    // ORIG 0x0820b3cd-0x0820b3d7 `mov sym,%eax; mov (%eax),%eax; add $0x2c,%eax;
+    // mov (%eax),%esi`（fn 直落 callee-saved，**无**具名槽）+ 0x0820b411 `mov sym,%eax`
+    // 作 this 实参（P48 每用点重取）⇒ 删 checker(-0x1c)/fn(-0x18) 两具名局部，表达式内联。
+    int ret = reinterpret_cast<DecryptFn>(
+                  reinterpret_cast<char*>(
+                      *reinterpret_cast<void**>(GlobalData::s_antibotChecker_)) +
+                  0x2c)(GlobalData::s_antibotChecker_, user->getAntibotKey(), nestedPacket,
+                        (unsigned short)(binarySize & 0xffff), outBuf, &outLen);
     if (ret != 0)
     {
         int key = user->getAntibotKey();
@@ -2245,33 +2254,25 @@ LPASS:;
 //   首差: jle    08227887 <+0x25> | jne    0822788e <+0x2c> | mov    $0x1,%eax
 #include "Dispatchers/dispatch_sig_14.inc"
 {
-    bool gate;
     char rematchFlag;
     PvP_Room* room;
     // ORIG 段直证：`cmp $0x2; jle true; call getCurCharacR; test; jne true;
     // mov $0x0,%eax; jmp done; true: mov $0x1,%eax; done: test %al,%al; je body`
-    // ⇒ 单一 bool 表达式（`state<=2 || getCurCharacR()!=0`），4.1 物化岛；
-    // 原 if/else 双赋值形退化为 setg/setne 两条 setcc（+3 insn）。
-    gate = user->get_state() <= 2 || user->getCurCharacR() != 0;
-    if (gate)
+    // ORIG 08227885 `jne +0x2c`（!=0 → mov $0x0 → gate=false）⇒ getCurCharacR()==0
+    // 才是 gate=true 早退；P59/P222 极性：`state<=2 || getCurCharacR()==0`。
+    // ORIG 在 %al 上直 test（无具名 gate 槽）⇒ P0/P183 去具名局部（+1→0）。
+    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
         return 0;
     rematchFlag = 0;
     if (!packet.get_byte(rematchFlag))
-    {
-        LineFunc(0xe3af,
-                 __PRETTY_FUNCTION__,
-                 0, 0);
-        return 0;
-    }
+        return LineFunc(0xe3af, __PRETTY_FUNCTION__, 0, 0);
     room = (PvP_Room*)user->GetPVPRoom();
-    if (room == 0)
-        return 0;
-    if (room->m_matching == 0)
-        return 0;
-    // 真实虚调用：IMatch::OnAskRematch 在镜像声明序落 +0x68（MatchRoomList.h:78），
+    // 正向包裹（ORIG 082278f6/08227903 两处各自 `je 尾部 return 0`，非早退复制）：
+    // 真实虚调用 IMatch::OnAskRematch 在镜像声明序落 +0x68（MatchRoomList.h:78），
     // 与 ORIG 0x68 槽一致（§8.5 删函数指针桥→真实虚调）。ORIG 段直证 m_matching
     // 两处各自 `mov -0xc(%ebp),%eax; mov 0x6e4(%eax),%eax`（无 matched 槽）⇒ P48 重读。
-    ((IMatch*)room->m_matching)->OnAskRematch(user, (int)rematchFlag);
+    if (room != 0 && room->m_matching != 0)
+        ((IMatch*)room->m_matching)->OnAskRematch(user, (int)rematchFlag);
     return 0;
 }
 #include "Dispatchers/process_17.inc"
@@ -2310,12 +2311,14 @@ LPASS:;
         info.m_values[2] != 0.0 || info.m_values[3] != 0.0 ||
         info.m_values[4] != 0.0)
     {
-        char* idStr = NumberToString(user->get_acc_id(), 0);
+        // ORIG 0x0820773c `call NumberToString` → 0x0820777d `mov %eax,0x14(%esp)`：结果
+        // 全程驻 %eax（无具名槽 store/load），六个 double 先物化入临时区（实参求值右→左）
+        // ⇒ 删 idStr 具名局部（P0/P183）。
         LogManager::logFormat(
             1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0xa228,
             "(m_id: %s)(%5f)(%5f)(%5f)(%5f)(%5f)(%5f)",
-            idStr, info.m_values[5], info.m_values[4], info.m_values[3],
-            info.m_values[2], info.m_values[1], info.m_values[0]);
+            NumberToString(user->get_acc_id(), 0), info.m_values[5], info.m_values[4],
+            info.m_values[3], info.m_values[2], info.m_values[1], info.m_values[0]);
     }
 
     if (info.m_values[1] >= 50.0 &&
@@ -2564,12 +2567,14 @@ LPASS:;
                         __PRETTY_FUNCTION__,
                         out.m_result, 0);
     }
-    SkillSlot* skillW =
-        reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-    skillW->setComboSkillInfo((ENUM_SKILL_TREE_KIND)(char)req.m_pad0d,
-                              req.m_comboMap);
-    skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-    skillW->verifyComboSkillTree((ENUM_SKILL_TREE_KIND)(char)req.m_pad0d);
+    // ORIG 0x0825f385 `call getCurCharacSkillW` → 0x0825f39b `call setComboSkillInfo`
+    // （结果 %eax 直作 this，0x0825f3b0/0x0825f3bc 第二处同形）：**无**具名槽
+    // ⇒ 删 skillW 具名缓存（原 -0xc 每处一对 store/load）⇒ P0/P183。
+    reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+        ->setComboSkillInfo((ENUM_SKILL_TREE_KIND)(char)req.m_pad0d,
+                            req.m_comboMap);
+    reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+        ->verifyComboSkillTree((ENUM_SKILL_TREE_KIND)(char)req.m_pad0d);
     return 0;
 }
 // 读 MSG_COMBO_SKILL：m_pad0d 树种类、树数量(≤6)、每树 {kind, 技能数(≤6),
@@ -3438,7 +3443,9 @@ struct GmCmdArgs
 #include "Dispatchers/dispatch_sig_21.inc"
 {
     // ORIG 0x0822997a：公平 PvP 装备包领取（PacketDispatcher_Impl_1.cpp）。
-    if (user == 0 || user->get_state() != 3 || user->getCurCharacR() == 0)
+    // ORIG 0x08229986 首检直落 `mov 0xc(%ebp),%eax; mov %eax,(%esp); call get_state`，
+    // 全函数 0 处 `cmpl $0x0,0xc(%ebp)`（判据①：`user == 0` 为发明校验，入口多两条）⇒ 删。
+    if (user->get_state() != 3 || user->getCurCharacR() == 0)
         return 0;
 
     if (G_GameWorld()->GetChannelType() != 0xf &&
@@ -5170,9 +5177,10 @@ public:
     WongWork::CMailBox* mailBox = (WongWork::CMailBox*)user->GetMailBox();
     if (mailBox->GetNotLoadedMailCount() != 0)
     {
-        int recvSize = mailBox->GetRecvSize();
-        int loadedCount = mailBox->GetLoadedLetterCount();
-        if (recvSize + loadedCount <= 0x13)   // ORIG lea (ebx+eax); cmp $0x13; setle
+        // ORIG 0x081cc23c `call GetRecvSize` → 0x081cc241 `mov %eax,%ebx`（无槽）与
+        // 0x081cc249 `call GetLoadedLetterCount` → 0x081cc24e `lea (%ebx,%eax,1),%eax`
+        // ⇒ 删 recvSize/loadedCount 两具名 int（各一对 store/load，帧 +8）⇒ P0/P183。
+        if (mailBox->GetRecvSize() + mailBox->GetLoadedLetterCount() <= 0x13)
         {
             WongWork::CMailBoxHelper::ReqDBLoadMail(user,
                                                     (unsigned int)user->getCurCharacNo());
@@ -5795,7 +5803,8 @@ public:
     // ORIG 0x08200448（docs/class_func_reports/Dispatcher_CallGuildInfo/dispatch_sig.md）
     // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG +0xdd 段为内联 rep stos
     //   （rep-stos 计 0/1，`memset` 在 4.4 退化为 call）⇒ 聚合初始化。
-    unsigned char count = 0;                  // local_21
+    // ORIG 全函数无任何 `movb $0x0,<slot>`（P328⑤：初值 store 不存在）⇒ 去 `= 0`。
+    unsigned char count;                      // local_21
     int i;                                    // local_20
 
     // +0x00：state<3 或 charac 空 → 早退
@@ -5900,10 +5909,9 @@ public:
             throw static_cast<ENUM_ERROR>(3);
         }
         // 同上配方：ORIG 0x081d1ebe 为 `xor $1,%eax; test %al,%al` 单段。
-        unsigned char emBad =
-            (unsigned char)isVaildEmotionValue((short)out.m_4);
-        emBad ^= 1;
-        if (emBad)
+        // 0x081d1c0d `call isVaildEmotionValue` → 0x081d1c12 `xor $0x1,%eax` →
+        // 0x081d1c15 `test %al,%al`（无 `mov %al,-0xd` 槽往返）⇒ 删具名 emBad。
+        if ((char)(isVaildEmotionValue((short)out.m_4) ^ 1) != 0)
         {
             throw static_cast<ENUM_ERROR>(1);
         }
@@ -6840,10 +6848,12 @@ public:
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    ENUM_SERVER_GROUP group = user->GetServerGroup();
-    CStatisticServerProxy* proxy =
-        (*GlobalData::s_statistic_proxy_mgr).GetServerProxy(group);
-    proxy->SendPacket((char*)&pkt, 0xd);
+    // [DispA2 P0/P183] ORIG 0x0821e55a/0x0821e567/0x0821e574：GetServerGroup 的回值
+    //   直入 GetServerProxy 的 0x4(%esp)；GetServerProxy 回值直作 SendPacket 的 receiver；
+    //   ORIG 无 group(-0x10)/proxy(-0xc) 具名槽（旧帧 0x38 vs ORIG 0x24 的主因）。
+    (*GlobalData::s_statistic_proxy_mgr)
+        .GetServerProxy(user->GetServerGroup())
+        ->SendPacket((char*)&pkt, 0xd);
     return 0;
 }
 #include "Dispatchers/process_70.inc"
@@ -6994,18 +7004,21 @@ public:
     {
         return 0x13;
     }
-    char firstGrow = user->m_characList[(char)m.m_0d].m_field26;   // +0x26（movsbl）
+    // [DispA2 P0] ORIG 0x081e4239/0x081e426f/0x081e429b 均为 `movsbl` 后
+    //   `mov %eax,-0x24/-0x20/-0x1c(%ebp)`（**4 字节槽**）⇒ 原码是 int 具名局部；
+    //   旧码 char/short/unsigned char 令三槽各缩 3/2/3 字节（帧 0x34 vs ORIG 0x3c）。
+    int firstGrow = user->m_characList[(char)m.m_0d].m_field26;   // +0x26（movsbl）
     // ORIG 0x081e4262 `movzbl 0x29; shl $4; sar $4,%al; movsbl` = 4 位有符号位域提取
     // （低 4 位符号扩展）；旧写法 (char)raw 直接往返会丢符号（真语义 bug）。
-    short secondGrow = (short)((signed char)(
+    int secondGrow = (int)((signed char)(
         (unsigned char)user->m_characList[(char)m.m_0d].m_field29.m_growthType << 4) >> 4);
-    unsigned char deadField1239 =
+    int deadField1239 =
         user->m_characList[(char)m.m_0d].m_field1239;           // +0x1239（ORIG 读取后未使用）
     (void)deadField1239;
-    unsigned char skillIdx = m.m_0e;
-    // ORIG 0x081e42b4 直接内联 G_CDataManager()->m_altarConfig.m_strikerScript（无局部槽）。
+    // ORIG 0x081e42a1..0x081e42ae：skillIdx 无槽（`movzbl 0xe; movzbl %al,%edi` 直入实参），
+    //   firstGrow/secondGrow 到实参处才 `movswl` 截断 ⇒ 第三参直接内联。
     if (!G_CDataManager()->m_altarConfig.m_strikerScript->checkSkillIndex(
-            firstGrow, secondGrow, (int)skillIdx))
+            (short)firstGrow, (short)secondGrow, (int)m.m_0e))
     {
         return 0x15;
     }
@@ -7035,9 +7048,11 @@ public:
     //   `_ZNSt6vectorI12_Charac_infoSaIS0_EEixEj` ×3 即此项）；旧码 entry 引用缓存 ⇒ 删。
     if (user->m_characList[sel].m_field14BC == 0)               // +0x14bc（ORIG movzbl 判 0）
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire(
-            "PacketDispatcher_Impl_1.cpp", 0x5ba6);
-        CStreamGuard guard(stream, true);
+        // [DispA2 P0/P183] ORIG 0x081e3f3f..0x081e3f6e：Acquire 回值直接进
+        //   CStreamGuard ctor 的 0x4(%esp)（无 stream 具名槽）。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                               "PacketDispatcher_Impl_1.cpp", 0x5ba6),
+                           true);
         **guard << 0x2fe;
         **guard << (int)user->GetUID();   // ORIG 0x081e3f89 调 lsEi（非 lsEj）
         SIG_REQUEST_TAG_CHARAC_INFO* sig = guard->GetInBuffer<SIG_REQUEST_TAG_CHARAC_INFO>();
@@ -7055,10 +7070,10 @@ public:
         m.m_0e);
     user->m_characterView.enableSaveCharacView();               // +0x796f4
     user->setTagCharac(&user->m_characList[sel]);
-    CInventory* inven = user->getTagCharacInvenR();
-    inven->set_parent(user);
-    SkillSlot* skill = user->getTagCharacSkillR();
-    skill->set_parent(user);
+    // [DispA2 P0/P183] ORIG 0x081e3efb/0x081e3f06 与 0x081e3f15/0x081e3f20：
+    //   getTagCharacInvenR/getTagCharacSkillR 回值直作 set_parent 的 receiver。
+    user->getTagCharacInvenR()->set_parent(user);
+    user->getTagCharacSkillR()->set_parent(user);
     user->SendTagCharacInfo();
     return 0;
 }
@@ -7223,19 +7238,22 @@ public:
     CInventory* invW = user->getCurCharacInvenW();
     int delRet = invW->delete_item((INVEN_TYPE)1, *(short*)(pMsg + 0x0e), 1,
                                    (eItemDelReason)3, true);
-    if (delRet == 0)
+    // [DispA2 语义修复·极性] ORIG 0x081e74cb `xor $0x1,%eax; test %al,%al;
+    //   je 081e752d`：delete_item 返回 1（成功）才跳 OK 分支 0x081e752d，
+    //   返回 0 落 0x081e74d2 错误分支（SetCharacViewState(0)+SendCmdErrorPacket(0x1fe,0x11)
+    //   +LineFunc(0x632e)）。旧码 `if (delRet == 0)` 进 OK 分支 ⇒ 条件极性相反。
+    if (!delRet)
     {
-        user->SendCmdOkPacket((ENUM_CMDPACKET)0x1fe);
-        user->ReturnToSelectCharacList(true);
-        user->UpdateCharacView();
-        return 0;
+        user->SetCharacViewState(0);
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1fe, 0x11);
+        return LineFunc(0x632e,
+                        __PRETTY_FUNCTION__,
+                        0, user->get_acc_id());
     }
-
-    user->SetCharacViewState(0);
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1fe, 0x11);
-    return LineFunc(0x632e,
-                    __PRETTY_FUNCTION__,
-                    0, user->get_acc_id());
+    user->SendCmdOkPacket((ENUM_CMDPACKET)0x1fe);
+    user->ReturnToSelectCharacList(true);
+    user->UpdateCharacView();
+    return 0;
 }
 #include "Dispatchers/read_77.inc"
 {
@@ -7445,9 +7463,12 @@ public:
 
     if (4999 < price)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp",
-                                                            0xc678);
-        CStreamGuard guard(stream, true);
+        // [DispA2 P0/P183] ORIG 0x0821586b `call StreamPool::Acquire` 后紧接
+        //   `movl $0x1,0x8(%esp); mov %eax,0x4(%esp)`（回值直入 CStreamGuard ctor），
+        //   无 stream 具名槽。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                               "PacketDispatcher_Impl_1.cpp", 0xc678),
+                           true);
         **guard << 0x309;
         **guard << (int)user->GetUID();
         SIG_AUCTION_MONEY_SUB* sig = guard->GetInBuffer<SIG_AUCTION_MONEY_SUB>();
@@ -7556,8 +7577,11 @@ public:
         return 0;
     }
     // 异步分支：经 DB_Q 流转发给后台购买处理
-    Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x9187);
-    CStreamGuard guard(stream, true);
+    // [DispA2 P0/P183] ORIG 0x081fe98a `call StreamPool::Acquire` 后紧接
+    //   `movl $0x1,0x8(%esp); mov %eax,0x4(%esp)`（回值直入 ctor），无 stream 具名槽。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "PacketDispatcher_Impl_1.cpp", 0x9187),
+                       true);
     **guard << 0x1fa;                                  // << int
     **guard << (int)user->GetUID();                    // asm 调 << int
     **guard << user->get_acc_id();                     // << unsigned int
@@ -7603,10 +7627,12 @@ public:
     }
     if (out.m_4 < 0)
     {
-        LineFunc(0x225b,
-                 __PRETTY_FUNCTION__,
-                 out.m_4, (unsigned int)user->get_acc_id());
-        return 0;
+        // [DispA2 语义修复·返回值直通] ORIG 0x081cbe16 `call LineFunc(0x225b)`
+        //   后紧接 0x081cbe1b `jmp 081cbe7d <+0xdb>`（尾 epilogue），**无**
+        //   `mov $0x0,%eax` ⇒ 原码是 `return LineFunc(...)`；旧码丢弃回值恒返 0。
+        return LineFunc(0x225b,
+                        __PRETTY_FUNCTION__,
+                        out.m_4, (unsigned int)user->get_acc_id());
     }
 
     // ORIG 0x0822ba76 ctor；pkt+0x0a = GetUID(0x080c8c96)；
@@ -8103,8 +8129,11 @@ LBODY:
             }
         }
     }
-    CStatisticServerProxy* proxy = GlobalData::s_statistic_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendPacket(reinterpret_cast<char*>(base), 0x14c);
+    // [DispA2 P0/P183] ORIG 段 `call <CServerProxyMgr<CStatisticServerProxy>::GetServerProxy>`
+    //   之后紧接 `movl $0x14c,0x8(%esp); mov %ebx,0x4(%esp); mov %eax,(%esp)`——回值
+    //   直作 SendPacket 的 receiver，无 proxy(-0x14) 具名槽。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(base), 0x14c);
     return 0;
 }
 #undef base
@@ -8200,9 +8229,10 @@ LBODY:
            (unsigned int)pkt.m_relayOverPing100, (unsigned int)pkt.m_relayOverPing200,
            (unsigned int)pkt.m_relayOverPing300, (unsigned int)pkt.m_relayOverPing400);
 
-    CStatisticServerProxy* proxy = GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-        (ENUM_SERVER_GROUP)0);                                  // ORIG GetServerProxy(mgr,0)
-    proxy->SendPacket((char*)&pkt, 0x3f);                       // CStatisticServerProxy::SendPacket 0x08472044
+    // [DispA2 P0/P183] ORIG 0x081e2ecd `call GetServerProxy` 回值在 0x081e2ede 直接
+    //   `mov %eax,(%esp)` 作 SendPacket receiver，无 proxy(-0x1c) 具名槽。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket((char*)&pkt, 0x3f);                        // CStatisticServerProxy::SendPacket 0x08472044
     return 0;
 }
 
@@ -8344,9 +8374,10 @@ LBODY:
     *(unsigned char*)((char*)&channelInfo + 0x16) = 9;
     *(unsigned int*)((char*)&channelInfo + 0x12) = (unsigned int)user->GetSchoolNo();
     *(unsigned short*)((char*)&channelInfo + 0x02) = 0x18;
-    CMonitorServerProxy* proxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendTcpPacket((char*)&channelInfo, 0x18);
+    // [DispA2 P0/P183] ORIG 0x08217a8b..0x08217ab9：GetServerProxy 回值直作
+    //   SendTcpPacket 的 receiver（%eax 直入 (%esp)），无 proxy 具名槽。
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendTcpPacket((char*)&channelInfo, 0x18);
     return 0;
 }
 #include "Dispatchers/process_87.inc"
@@ -9897,8 +9928,10 @@ LBODY:
     int iVar3 = user->get_state();
     if (iVar3 <= 2 || user->getCurCharacR() == 0)
     {
-        LineFunc(0x947f, __PRETTY_FUNCTION__, 0, 0);
-        return 0;
+        // [DispA2 语义修复·返回值直通] ORIG 0x08200247 `call LineFunc(0x947f)`
+        //   后紧接 0x0820024c `jmp 08200440 <+0x250>`（尾 epilogue），**无**
+        //   `mov $0x0,%eax` ⇒ 原码是 `return LineFunc(...)`。
+        return LineFunc(0x947f, __PRETTY_FUNCTION__, 0, 0);
     }
     cVar2 = (char)((ServiceRestrictManager*)ARAD::Singleton<ServiceRestrictManager>::Get())
                 ->isRestricted(user, (RestrictCategory::Enum)1, 0x1d);
@@ -10018,10 +10051,12 @@ LBODY:
         return 0;
     if (out.m_result < 0)
     {
-        LineFunc(0x2744,
-                 __PRETTY_FUNCTION__,
-                 out.m_result, user->get_acc_id());
-        return 0;
+        // [DispA2 语义修复·返回值直通] ORIG 0x081ce26c `call LineFunc(0x2744)`
+        //   后紧接 0x081ce271 `jmp 081ce2b8 <+0xbc>`（tail=leave），**无**
+        //   `mov $0x0,%eax` ⇒ 原码是 `return LineFunc(...)`。
+        return LineFunc(0x2744,
+                        __PRETTY_FUNCTION__,
+                        out.m_result, user->get_acc_id());
     }
     mailIdx = reinterpret_cast<MSG_CHANGE_LETTER_STAT&>(msg).m_mailIdx;   // +0xd
     letterStat = (int)reinterpret_cast<MSG_CHANGE_LETTER_STAT&>(msg).m_letterStat;  // +0x11 short
@@ -10495,16 +10530,35 @@ LBODY:
 //   首差: mov    %eax,-0x10(%ebp) | cmpl   $0x0,-0x10(%ebp) | je     08120321 <+0x78>
 #include "Dispatchers/CheckTradeLimitItemCountToMove.inc"
 {
+    // [laneE1 2026-09-11] 语义修复（ORIG 直证，两处极性反）：
+    //   ① 0x081202e8 `xor $1,%eax; test %al,%al; jne` ⇒ 原码是
+    //      `if (!proto->is_stackable())`（旧译写成 `if (proto->is_stackable())`）；
+    //   ② 0x08120312 `test %al,%al; sete %al; test %al,%al; je` ⇒ 原码是
+    //      `GetTradeLimitCount() == 0` 时置 ok=false（旧译写成 `!= 0`）。
+    //   结构：ORIG = 三守卫各带 nop 中继岛（0x08120321/0x08120324/0x08120327）+
+    //   第四守卫直落共享尾 0x08120328；P223/BM8 复现形 = 独立 goto + 尾标签串
+    //   （标签序=守卫序，含初始化声明包入内层复合块以合法跨越）。
+    //   旧译的四条 `return ok;` 使每出口多一条 `movzbl (%eax),%eax`；ORIG 全函数
+    //   不读 ok（P159：Ghidra 亦为 void）。返回类型随 Inven_Item.h:348 保持 bool，
+    //   全部调用点均为语句调用 ⇒ 语义等价，仅余尾部单次读回。
+    //   第二指针槽 -0xc：ORIG 0x081202ed/0x081202f0 `mov -0x10(%ebp),%eax;
+    //   mov %eax,-0xc(%ebp)` ⇒ 原码有第二个具名指针（-0x10=proto、-0xc=该副本）。
     ok = true;
     CItem* proto = G_CDataManager()->find_item(item.m_addInfo);
     if (proto == 0)
-        return ok;
-    if (proto->is_stackable())
-        return ok;
-    if (proto->GetAttachType() != 7)
-        return ok;
-    if (item.GetTradeLimitCount() != 0)
-        ok = false;
+        goto L_early;
+    if (!proto->is_stackable())
+        goto L_mid;
+    {
+        CItem* pItem = proto;
+        if (pItem->GetAttachType() != 7)
+            goto L_late;
+        if (item.GetTradeLimitCount() == 0)
+            ok = false;
+    }
+L_early:;
+L_mid:;
+L_late:;
     return ok;
 }
 
@@ -11043,10 +11097,9 @@ L_late:;
     }
     if (out.m_4 < 0)
     {
-        LineFunc(0x2717,
-                 __PRETTY_FUNCTION__,
-                 out.m_4, (unsigned int)user->get_acc_id());
-        return 0;
+        return LineFunc(0x2717,
+                        __PRETTY_FUNCTION__,
+                        out.m_4, (unsigned int)user->get_acc_id());
     }
 
     // ORIG 0x0822bbb2 ctor；pkt+0x0a = get_acc_id(0x080da36e)；
@@ -11749,9 +11802,9 @@ L_late:;
     room = mgr->GetWarRoom(roomIdx);
     if (room == 0)
     {
-        LineFunc(0x41a7,
-                 __PRETTY_FUNCTION__,
-                 0, user->get_acc_id());
+        return LineFunc(0x41a7,
+                        __PRETTY_FUNCTION__,
+                        0, user->get_acc_id());
     }
     else
     {
@@ -12113,10 +12166,9 @@ L_late:;
     }
     if (out.m_4 < 0)
     {
-        LineFunc(0x2d8f,
-                 __PRETTY_FUNCTION__,
-                 out.m_4, 0);
-        return 0;
+        return LineFunc(0x2d8f,
+                        __PRETTY_FUNCTION__,
+                        out.m_4, 0);
     }
 
     MSG_GUILD_CARGO_POP_ITEM& req = reinterpret_cast<MSG_GUILD_CARGO_POP_ITEM&>(msg);
@@ -12662,8 +12714,7 @@ L_late:;
     int iVar3 = user->get_state();
     if (!(iVar3 == 3 && user->getCurCharacR() != 0))
     {
-        LineFunc(0xdc7c, __PRETTY_FUNCTION__, 0, 0);
-        return 0;
+        return LineFunc(0xdc7c, __PRETTY_FUNCTION__, 0, 0);
     }
     if (user->get_charac_guildkey() == 0)
     {
@@ -13449,21 +13500,20 @@ L_late:;
     //   +0x1c msg+0x1c（-0x12）、+0x1d msg+0x1d（-0x11）。
     //   原 +0x6/+0xa/+0xb/+0xc/+0x10/+0x12/+0x14/+0x16/+0x18/+0x19 全部少 4（整块错位），
     //   且 int@msg+0x10 与两个 byte 的语句顺序照 ORIG（+0x10 → +0x0f → +0x0e）。
-    char* p = reinterpret_cast<char*>(&pkt);
-    *reinterpret_cast<int*>(p + 0x0a) = user->get_acc_id();
-    *reinterpret_cast<int*>(p + 0x10) = *reinterpret_cast<const int*>(m + 0x10);
-    p[0x0f] = m[0xe];
-    p[0x0e] = m[0xd];
-    *reinterpret_cast<unsigned short*>(p + 0x14) =
-        *reinterpret_cast<const unsigned short*>(m + 0x14);
-    *reinterpret_cast<unsigned short*>(p + 0x16) =
-        *reinterpret_cast<const unsigned short*>(m + 0x16);
-    *reinterpret_cast<unsigned short*>(p + 0x1a) =
-        *reinterpret_cast<const unsigned short*>(m + 0x1a);
-    *reinterpret_cast<unsigned short*>(p + 0x18) =
-        *reinterpret_cast<const unsigned short*>(m + 0x18);
-    p[0x1c] = m[0x1c];
-    p[0x1d] = m[0x1d];
+    // [DispA3 2026-09-11] P161/P183：ORIG 0x081e26e8..0x081e2745 每字段为单条**直接寻址**
+    //   store（`mov %eax,-0x24(%ebp)` / `mov %al,-0x1f(%ebp)` / `mov %ax,-0x1a(%ebp)`，
+    //   无 lea、无 `char* p` 指针槽）⇒ 原码是 packed 结构**具名成员**直存；裸 char* 取址
+    //   生 lea+间接写（我方 110 insn vs ORIG 78）。
+    pkt.m_accId = (unsigned int)user->get_acc_id();                   // +0x0a
+    pkt.m_cpuClock = *reinterpret_cast<const int*>(m + 0x10);         // +0x10
+    pkt.m_cpuNum = (unsigned char)m[0x0e];                            // +0x0f（ORIG 源 msg+0xe）
+    pkt.m_cpuVendor = (unsigned char)m[0x0d];                         // +0x0e（ORIG 源 msg+0xd）
+    pkt.m_ram = *reinterpret_cast<const unsigned short*>(m + 0x14);   // +0x14
+    pkt.m_videoVendor = *reinterpret_cast<const unsigned short*>(m + 0x16);  // +0x16
+    pkt.m_videoRam = *reinterpret_cast<const unsigned short*>(m + 0x1a);     // +0x1a
+    pkt.m_videoDevice = *reinterpret_cast<const unsigned short*>(m + 0x18);  // +0x18
+    pkt.m_os = (unsigned char)m[0x1c];                                // +0x1c
+    pkt.m_osBit = (unsigned char)m[0x1d];                             // +0x1d
     CStatisticServerProxy* proxy =
         GlobalData::s_statistic_proxy_mgr->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(0));
     proxy->SendPacket(reinterpret_cast<char*>(&pkt), 0x1e);
@@ -13737,10 +13787,9 @@ L_late:;
     }
     if (out.m_4 < 0)
     {
-        LineFunc(0x2dff,
-                 __PRETTY_FUNCTION__,
-                 out.m_4, 0);
-        return 0;
+        return LineFunc(0x2dff,
+                        __PRETTY_FUNCTION__,
+                        out.m_4, 0);
     }
 
     MSG_GUILD_CARGO_MOVE_ITEM& req = reinterpret_cast<MSG_GUILD_CARGO_MOVE_ITEM&>(msg);
@@ -14011,8 +14060,7 @@ L_late:;
     iVar3 = user->get_state();
     if ((iVar3 <= 2) || (user->getCurCharacR() == 0))
     {
-        LineFunc(0xa29f, __PRETTY_FUNCTION__, 0, 0);
-        return 0;
+        return LineFunc(0xa29f, __PRETTY_FUNCTION__, 0, 0);
     }
     local_14 = user->get_charac_guildkey();
     if (local_14 == 0)
@@ -14050,8 +14098,7 @@ L_late:;
             }
             else
             {
-                LineFunc(0xa2b8, __PRETTY_FUNCTION__, 0, 0);
-                return 0;
+                return LineFunc(0xa2b8, __PRETTY_FUNCTION__, 0, 0);
             }
         }
         local_10 = (unsigned int)GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0xd);
@@ -14074,8 +14121,7 @@ L_late:;
     }
     else
     {
-        LineFunc(0xa2b3, __PRETTY_FUNCTION__, 0, 0);
-        return 0;
+        return LineFunc(0xa2b3, __PRETTY_FUNCTION__, 0, 0);
     }
     return 0;
 }
@@ -14579,9 +14625,9 @@ L_late:;
     //   if/else 单一尾 return 结构（旧形每支各自 `return 0` 使 4.4 就地物化 +2 条）。
     if (user->get_state() <= 1)
     {
-        LineFunc(0xa199,
-                 __PRETTY_FUNCTION__,
-                 0, 0);
+        return LineFunc(0xa199,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     }
     else
     {
@@ -14596,9 +14642,9 @@ L_late:;
             //   （无 mgr 具名指针槽；我方具名使 room 槽从 -0xc 下移到 -0x10）。
             if (!pvp_assault::GetInstanceAssaultMgr()->OnCompleteLoad(user))
             {
-                LineFunc(0xa1a8,
-                         __PRETTY_FUNCTION__,
-                         0, 0);
+                return LineFunc(0xa1a8,
+                                __PRETTY_FUNCTION__,
+                                0, 0);
             }
         }
     }
@@ -15164,8 +15210,11 @@ L_late:;
 {
     if (slot != 0xffff)
     {
-    CInventory* inven = (CInventory*)(const CInventory*)user->getCurCharacInvenR();
-        Inven_Item scroll = inven->GetInvenSlot(1, (int)slot);
+        // ORIG 0x0822969a `movzwl -0x6c(%ebp),%ebx` + 直 call getCurCharacInvenR：
+        // 无 inven 具名缓存槽（P183/P37 去缓存）。
+        Inven_Item scroll =
+            ((CInventory*)(const CInventory*)user->getCurCharacInvenR())
+                ->GetInvenSlot(1, (int)slot);
         CItem* proto =
             G_CDataManager()->find_item(*(const int*)&scroll.m_addInfo);
         if (proto == 0)
@@ -15557,10 +15606,12 @@ L_late:;
     }
     if (p.m_4 < 0)
     {
-        LineFunc(0x2fdc,
-                 __PRETTY_FUNCTION__,
-                 p.m_4, 0);
-        return 0;
+        // ORIG 0x081d2928 `call LineFunc` → 0x081d292d `jmp 081d298c`（函数尾，eax 即
+        // LineFunc 返回值直通；同函数其它早退才有 `mov $0x0,%eax`）⇒ 原语义是
+        // `return LineFunc(...)`，写成语句+return 0 会吞掉非 0 断言码（判据库⑪）。
+        return LineFunc(0x2fdc,
+                        __PRETTY_FUNCTION__,
+                        p.m_4, 0);
     }
 
     void* shopData = user->GetSecretShopData();
@@ -16108,8 +16159,11 @@ L_late:;
     }
 
     // ORIG GetWarRoomIndex → movswl（short）→ CGameManager::GetWarRoom(int)
-    short warRoomIndex = user->GetWarRoomIndex();
-    WarRoom* warRoom = G_CGameManager()->GetWarRoom((int)warRoomIndex);
+    // ORIG 0x081d5d00 `movswl %ax,%ebx`（call GetWarRoomIndex 之后直接符号扩展入 %ebx，
+    // 跨 G_CGameManager() call 保活，随即 0x081d5d08 `mov %ebx,0x4(%esp)`）：全文无
+    // `mov %ax,-0x12(%ebp)` 槽写入 ⇒ 原码无具名 short 局部，值是右值直传（P0/P183）；
+    // 我方 `short warRoomIndex` 的多余槽写入/回读即此差异来源。
+    WarRoom* warRoom = G_CGameManager()->GetWarRoom((int)user->GetWarRoomIndex());
     if (warRoom == 0)
     {
         return LineFunc(0x3999,
@@ -17608,13 +17662,16 @@ LPROCESS:
                         0, 0);
     }
 
-    unsigned char comboIdx = *(unsigned char*)((char*)&msg + 0xd);
-    if (comboIdx <= 8)   // ORIG cmp $0x8; jbe
+    // ORIG 0x081d5aa9 `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)`：msg 具名引用槽；
+    // 0x081d5aac / 0x081d5ad1 / 0x081d5b95 三处均 `mov -0xc(%ebp),%eax; movzbl 0xd(%eax),%eax`
+    // 折 disp 重读，全文无 `mov %al,-0x9(%ebp)` 槽写入 ⇒ 原码无 comboIdx 具名局部（P0）。
+    MSG_BASE& mref = msg;
+    if (*(unsigned char*)((char*)&mref + 0xd) <= 8)   // ORIG cmp $0x8; jbe
     {
         // ORIG 实参序：第1参 = msg+0xe（byte→int），第2参 = msg+0xd（byte→short）
         user->Update_ComboMission(
-            (int)*(unsigned char*)((char*)&msg + 0xe),
-            (short)(unsigned char)comboIdx);
+            (int)*(unsigned char*)((char*)&mref + 0xe),
+            (short)*(unsigned char*)((char*)&mref + 0xd));
         return 0;
     }
 
@@ -17624,7 +17681,7 @@ LPROCESS:
     char logBuf[256] = {0};
     OS_API::snprintf(logBuf, 0x100,
                      "[@missionSystem] invalid Combo Mission index:%d",
-                     (unsigned int)comboIdx);
+                     (unsigned int)*(unsigned char*)((char*)&mref + 0xd));
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x3963, 5);
@@ -18189,26 +18246,33 @@ LPROCESS:
     if (user->get_state() != 3)
         return -1;
 
-    unsigned int targetNo = *reinterpret_cast<unsigned int*>(req.m_pad + 3);   // msg+0x10
-    const char b0x15 = static_cast<char>(req.m_pad[8]);                        // msg+0x15
-    const char b0x14 = static_cast<char>(req.m_pad[7]);                        // msg+0x14
-
-    if (user->GetParty() != 0 && user->getCurCharacNo() == static_cast<int>(targetNo))
+    // [A4 P0] ORIG 0x081ddd61/0x081ddd84/0x081ddd98/0x081dddb8/0x081dddc7/0x081dddd4/
+    //   0x081ddde1..0x081dddf5 每处均 `mov -0x10(%ebp),%eax; mov 0x10/0x14/0x15(%eax),%..`
+    //   从 req 引用槽直读并**重读**（P48 无 CSE），全文无 targetNo/b0x15/b0x14 槽写入
+    //   （我方 -0x18/-0x12/-0x11）⇒ 原码无这三个具名局部。
+    if (user->GetParty() != 0 &&
+        user->getCurCharacNo() ==
+            static_cast<int>(*reinterpret_cast<unsigned int*>(req.m_pad + 3)))
     {
         *reinterpret_cast<char*>(reinterpret_cast<char*>(&result) + 0x04) = 0; // param+4 = 0
         return -1;
     }
 
-    char* pResult = reinterpret_cast<char*>(&result);
     // ORIG: Competition_Mercenary_Charac(user, msg+0x10, (char)msg+0x15, (char)msg+0x14)
     const int ret = user->Competition_Mercenary_Charac(
-        targetNo, b0x15, b0x14);
-    pResult[0x04] = static_cast<char>(ret & 0xff);   // ORIG mov %al,0x4(%edx)
-    *reinterpret_cast<int*>(pResult + 0x08) = static_cast<int>(targetNo);
-    pResult[0x0c] = b0x15;
-    pResult[0x0d] = b0x14;
+        *reinterpret_cast<unsigned int*>(req.m_pad + 3),
+        static_cast<char>(req.m_pad[8]),
+        static_cast<char>(req.m_pad[7]));
+    reinterpret_cast<char*>(&result)[0x04] = static_cast<char>(ret & 0xff);
+    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&result) + 0x08) =
+        *reinterpret_cast<unsigned int*>(req.m_pad + 3);
+    reinterpret_cast<char*>(&result)[0x0c] = req.m_pad[8];
+    reinterpret_cast<char*>(&result)[0x0d] = req.m_pad[7];
     // ORIG: cUserHistoryLog::MercenaryCompetition(user->m_historyLog, targetNo, b0x15, b0x14)
-    user->m_historyLog.MercenaryCompetition(targetNo, b0x15, b0x14);
+    user->m_historyLog.MercenaryCompetition(
+        *reinterpret_cast<unsigned int*>(req.m_pad + 3),
+        static_cast<char>(req.m_pad[8]),
+        static_cast<char>(req.m_pad[7]));
     return 0;
 }
 
@@ -18351,7 +18415,10 @@ LPROCESS:
     //   uid@0x12, characNo@0x16, itemIdx@0x1a, flag@0x1e。
     static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
 
-    unsigned char payType = 0;
+    // ORIG 0x0821394a `lea -0x2d(%ebp),%eax; mov %eax,0x4(%esp)`：直接取址给
+    //   PacketBuf::get_byte(unsigned char&)，其前**无** `movb $0x0,-0x2d(%ebp)`
+    //   （我方 -0x25 槽多一条零初始化）⇒ 原码无 `= 0`（P328⑤）。
+    unsigned char payType;
     if (packet.get_byte(payType) != 1)
         return LineFunc(0xc1e5, __PRETTY_FUNCTION__, 0, 0);
     if (payType > 1)
@@ -19034,7 +19101,6 @@ struct DTChkView {
     WongWork::CDeathTower* local_18;     // -0x14
     CParty* local_14;                    // -0x10
     int local_c;                         // -0xc：循环索引
-    char cVar3;
     bool bVar2;
     unsigned int uVar9;
 
@@ -19044,16 +19110,19 @@ struct DTChkView {
     {
         return 0;
     }
-    cVar3 = packet.get_byte(local_19);
-    if ((char)(cVar3 ^ 1) != 0)
+    // [A4 P0] ORIG 0x08208ad2 `call get_byte(unsigned char&)` → 0x08208ad7
+    //   `xor $0x1,%eax; test %al,%al; je 08208b07`：返回值全程在 %al，全文无
+    //   `mov %al,-0x32(%ebp)` 槽写入 ⇒ 原码无 cVar3 具名局部；我方 cVar3 槽为多余。
+    if (!packet.get_byte(local_19))
     {
         return LineFunc(0xa3f2, __PRETTY_FUNCTION__, 0, 0);
     }
     local_18 = user->getDeathTower();
     if (local_18 != 0)
     {
-        cVar3 = (char)local_18->handleStageCommand(user, local_19);
-        if (cVar3 != 1)
+        // ORIG 0x08208b37 `call handleStageCommand` → 0x08208b3c `xor $0x1,%eax; test %al,%al;
+        //   je 08208b6c`（同形，无槽）。
+        if (!local_18->handleStageCommand(user, local_19))
         {
             return LineFunc(0xa3f9, __PRETTY_FUNCTION__, 0, 0);
         }
@@ -19064,18 +19133,21 @@ struct DTChkView {
             pCVar6->onFinishStage();
             for (local_c = 0; local_c <= 3; ++local_c)   // setle：<=3 继续
             {
-                cVar3 = packet.get_short(local_22[local_c]);
-                if ((char)(cVar3 ^ 1) != 0)
+                // ORIG 0x08208bc3 `call get_short(unsigned short&)` → 0x08208bc8
+                //   `xor $0x1,%eax; test %al,%al; je 08208bf8`（无槽）。
+                if (!packet.get_short(local_22[local_c]))
                 {
                     return LineFunc(0xa405, __PRETTY_FUNCTION__, 0, 0);
                 }
-                cVar3 = (char)local_14->checkValidUser(local_c);
-                if (cVar3 != 0)
+                // ORIG 0x08208c05 `call checkValidUser` → 0x08208c0a `test %al,%al;
+                //   je 08208d20`（直接用返回值，无槽）。
+                if (local_14->checkValidUser(local_c) != 0)
                 {
                     if (local_22[local_c] == 0)
                     {
-                        cVar3 = (char)local_14->IsSinglePlay();
-                        bVar2 = (cVar3 != 0);
+                        // [H1 补 A4 遗漏] cVar3 具名已由 A4 删（ORIG 无该槽），
+                        // 此处保留同形表达式直赋 bool。
+                        bVar2 = ((char)local_14->IsSinglePlay() != 0);
                     }
                     else
                     {
@@ -19145,12 +19217,16 @@ struct DTChkView {
         return 0;
 
     // +0x034: 读 flag1（paused 字段）/ flag2（resume 全体标志）
-    char flag1 = 0;
+    // ORIG 0x08216df3 / 0x08216e35 直接 `lea -0x19(%ebp)/-0x1a(%ebp),%eax` 取址后
+    //   get_byte(char&)，两处之前均无 `movb $0x0,-0x19/-0x1a(%ebp)`（我方 -0x21/-0x22
+    //   各多一条零初始化）⇒ 原码是**未初始化**的 char 局部：get_byte 失败即 return，
+    //   成功路径必已赋值，故删 `= 0`（P328⑤ 去预清）。
+    char flag1;
     if (!packet.get_byte(flag1))
     {
         return LineFunc(0xc886, __PRETTY_FUNCTION__, 0, 0);
     }
-    char flag2 = 0;
+    char flag2;
     if (!packet.get_byte(flag2))
     {
         return LineFunc(0xc88b, __PRETTY_FUNCTION__, 0, 0);
@@ -19284,10 +19360,11 @@ LBODY:
     }
     if (err < 0)
     {
-        LineFunc(0x5d83,
-                 __PRETTY_FUNCTION__,
-                 err, 0);
-        return 0;
+        // ORIG 0x081e4e5f `call LineFunc` → 0x081e4e64 `jmp 081e4ebf`（函数尾），
+        // 无 `mov $0x0,%eax` ⇒ 返回值为 LineFunc 结果直通（err>0 臂才是 `mov $0x0,%eax`）。
+        return LineFunc(0x5d83,
+                        __PRETTY_FUNCTION__,
+                        err, 0);
     }
 
     // ORIG 字段读取顺序：+0x11 uint → +0x10 char(movsbl) → +0xe short(movswl)
@@ -19416,17 +19493,20 @@ LBODY:
 #include "Dispatchers/process_245.inc"
 {
     MSG_REQUEST_CHARAC_SKILL_INFO& mref = reinterpret_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
-    int err = check_error(user, msg);
-    *(int*)((char*)&param + 4) = err;
-    if (err > 0)
+    // ORIG 0x081e3a07 `mov -0x18(%ebp),%edx; mov %eax,0x4(%edx)`：check_error 结果**直存**
+    //   param+4（全文无 err 槽写入）；0x081e3a0d / 0x081e3a21 / 0x081e3a2b 三处均
+    //   `mov -0x18(%ebp),%eax; mov 0x4(%eax),%eax` 重读 param+4（含 0x081e3a31 LineFunc
+    //   第 3 实参）⇒ 原码无具名 err（P0）；我方 -0x14 err 槽为纯多余。
+    *(int*)((char*)&param + 4) = check_error(user, msg);
+    if (*(int*)((char*)&param + 4) > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (*(int*)((char*)&param + 4) < 0)
     {
         return LineFunc(0x5b32,
                         __PRETTY_FUNCTION__,
-                        err, 0);
+                        *(int*)((char*)&param + 4), 0);
     }
     // ORIG 0x081e3a78/0x081e3aa8/0x081e3ade/0x081e3ba9：四次独立 vector::operator[]
     // （P183 去引用缓存；characIdx 每次从 msg+0xd 重读，P0 表达式直读）。
@@ -19687,9 +19767,9 @@ LOUT:
     int result = 0;                        // ORIG 0x081d0012：调用前 -0xc 预清零
     result = expert_job::CDisjointer::OnUpgradeDisjointMachine(user);
     // ORIG 0x081cffd5 区：`cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`
-    //   —— 源码为 `if (result != 0)`，ORIG 无 bool/rv/dst2 具名槽
-    //   （我方三个具名量使帧 0x38 vs ORIG 0x28，多 10 条指令）。
-    if (result != 0)
+    //   —— bool 归一岛且 ORIG 无 bool/rv/dst2 具名槽；4.4 对 `result != 0` 直跳
+    //   `cmpl; je`（缺 setne/test 两条）⇒ 用显式 bool 转换补回归一岛。
+    if ((bool)result)
     {
         // ORIG: mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax; mov %edx,0x4(%eax)
         out.m_4 = result;
@@ -20032,9 +20112,10 @@ LOUT:
     }
     int able = 0;                                    // ORIG：调用前 -0xc 预清零
     able = user->IsAbleItemUnlockCancel(slot, itemIdx);
-    bool nz;                      // ORIG: cmp $0,-0xc; setne %al; test %al,%al; je
-    nz = (able != 0);
-    if (nz)                                          // 技巧22：bool 物化不折叠
+    // ORIG 0x082232d8：`cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`
+    //   —— bool 归一岛、**无具名 bool 槽**（我方原 `bool nz` 落 -0x9(%ebp)，
+    //   多出 `mov %al,-0x9; cmpb $0x0,-0x9` 两条 + 1 字节槽）。
+    if ((bool)able)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x111, (unsigned char)able);
         return 0;
@@ -20061,11 +20142,11 @@ LOUT:
     //      ⇒ LineFunc 为语句，尾 `return 0`（我方原写 return LineFunc ⇒ 多 -0x9 gap）。
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xd14e, 5);
-        trace("PCROOM : Dispatcher_RequestPCRoomPlayerList => User State : %d, m_id : %s",
-              user->get_state(), NumberToString(user->get_acc_id(), 0));
+        // ORIG 0x0821d850 段：NumberToString(%ebx) → get_state(%esi) 先求值保活，
+        //   cMyTrace ctor 在其后才 call ⇒ 全表达式临时链，非两段式具名 trace。
+        cMyTrace(__PRETTY_FUNCTION__, 0xd14e, 5)(
+            "PCROOM : Dispatcher_RequestPCRoomPlayerList => User State : %d, m_id : %s",
+            user->get_state(), NumberToString(user->get_acc_id(), 0));
         LineFunc(0xd14f,
                  __PRETTY_FUNCTION__,
                  0, 0);
@@ -20089,18 +20170,12 @@ LOUT:
         return 0;
     }
 
-    // hasPreventString || hasSpecialCharacterExceptSpace → invalid（ORIG 两链 jne/je 合流）
-    bool invalid;
-    if (!G_CDataManager()->hasPreventString((const char*)((char*)&msg + 0xd)) &&
-        !G_CDataManager()->hasSpecialCharacterExceptSpace((const char*)((char*)&msg + 0xd)))
-    {
-        invalid = false;
-    }
-    else
-    {
-        invalid = true;
-    }
-    if (invalid)
+    // ORIG 0x081d323b 段：`test %al,%al; jne <true 岛>`（hasPreventString 为真即短路）、
+    //   非真再测 hasSpecialCharacterExceptSpace `je <false>` —— 正向 `||` 短路合流，
+    //   无德摩根 `xor $1`、无具名 bool 槽（我方原 `!a && !b` + `bool invalid`
+    //   ⇒ 多 2 条 xor + 3 条 movb/cmpb，-0x25 槽为本方发明）。
+    if (G_CDataManager()->hasPreventString((const char*)((char*)&msg + 0xd)) ||
+        G_CDataManager()->hasSpecialCharacterExceptSpace((const char*)((char*)&msg + 0xd)))
     {
         *(int*)((char*)&param + 4) = 1;
         return 0;
@@ -20261,13 +20336,13 @@ LOUT:
     // ORIG 0x0821df6a（PacketDispatcher_Impl_1.cpp 0xd236 区）
     if (user->get_state() != 3)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xd236, 0);
         // [G1Csig · P0 槽律] ORIG 直证：`mov %eax,%ebx`（NumberToString 结果）、
         // `mov %eax,%esi`（get_state 结果）—— 两者均**寄存器保活、无栈槽**；我方原写
-        // idStr/state 具名占 2 槽（帧 0x40→0x50，余槽整体下移）⇒ 去具名改内联实参。
-        trace("ServerMessage : Dispatcher_CheckEnableServerMessage => User State : %d, m_id : %s",
-              user->get_state(), NumberToString(user->get_acc_id(), 0));
+        // idStr/state 具名占 2 槽（帧 0x40→0x50，余槽整体下移）⇒ 去具名改内联实参；
+        // 且 ORIG ctor 在实参求值之后 ⇒ 全表达式临时链（P227），非两段式具名 trace。
+        cMyTrace(__PRETTY_FUNCTION__, 0xd236, 0)(
+            "ServerMessage : Dispatcher_CheckEnableServerMessage => User State : %d, m_id : %s",
+            user->get_state(), NumberToString(user->get_acc_id(), 0));
         return LineFunc(0xd237,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -20780,11 +20855,10 @@ LOUT:
     //   ③ trace 第 3 参数直传 get_state()；④ LineFunc 为语句 + 尾 `return 0`（P325）。
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xd186, 5);
-        trace("PCROOM : Dispatcher_RequestPCRoomPlayerCount => User State : %d, m_id : %s",
-              user->get_state(), NumberToString(user->get_acc_id(), 0));
+        // 同 dispatch_sig_152.inc：ORIG ctor 在实参求值之后（P227 全表达式临时链）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xd186, 5)(
+            "PCROOM : Dispatcher_RequestPCRoomPlayerCount => User State : %d, m_id : %s",
+            user->get_state(), NumberToString(user->get_acc_id(), 0));
         LineFunc(0xd187,
                  __PRETTY_FUNCTION__,
                  0, 0);
@@ -20929,13 +21003,15 @@ LOUT:
     //   level 落 %ebx，随后 `call G_CDataManager; add $0x8710,%eax` 取 &m_growthPower，
     //   `cmp %eax,%esi; setge` ⇒ **无 level/low/reward 具名局部**
     //   （旧码 -0x14/-0x10/-0x9 三槽为发明；P0/P183 全表达式化）。
-    if (static_cast<int>(user->get_growth_power_reward()) <
+    // 极性：ORIG 0x081db5f1 `setge %al; test %al,%al; je <返回 0 岛>` —— 正向 `>=`
+    //   先测、真分支落 `mov $0xffffffff`；改用 `>=` 正向使两块布局与 ORIG 一致。
+    if (static_cast<int>(user->get_growth_power_reward()) >=
         G_CDataManager()->m_growthPower.get_break_away_section_low_level(
             user->get_charac_level()))
     {
-        return 0;
+        return -1;
     }
-    return -1;
+    return 0;
 }
 
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081db60c orig/ours=410/389 ndiff-blocks=55
@@ -22446,12 +22522,10 @@ LOUT:
     MSG_QUICK_CHAT& msg = *reinterpret_cast<MSG_QUICK_CHAT*>(&msgBase);
     CGameOption* gameOption = user->GetGameOptionRef();
     gameOption->SetQuickChatOption(msg.m_quick, (unsigned int)msg.m_11);
-    bool save = false;
+    // ORIG 0x081cf1fc 段：`test %al,%al; je <跳过>` ×2 后 `mov $0x1,%eax`/`mov $0x0,%eax`
+    //   寄存器物化岛，随后 `test %al,%al; je <尾部 return 0>` —— **无 bool 具名槽**
+    //   （我方原 `bool save` 落 -0x11 槽：多 movb $0x0/movb $0x1/cmpb $0x0 三条）。
     if (msg.isLastMessage() && gameOption->isChanged_QuickChatData())
-    {
-        save = true;
-    }
-    if (save)
     {
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x291b), true);
         guard.operator*()->operator<<(0x239);
@@ -24427,9 +24501,11 @@ struct AocParamView
     }
     if (out.m_4 < 0)
     {
-        // ORIG 0x81e634a：LineFunc 后跳公共 mov$0 出口（结果丢弃）。
-        LineFunc(0x611f, __PRETTY_FUNCTION__, out.m_4, 0);
-        return 0;
+        // [DispA6 语义缺口] ORIG 0x081e634a `call LineFunc; jmp 0x081e68bd`：目标
+        //   0x081e68bd 是**纯 epilogue**（add $0x4bc,%esp; pop×4; ret，无 mov
+        //   $0x0,%eax），而 err>0 分支（0x081e6315）自带 `mov $0x0,%eax` ⇒ 原码是
+        //   `return LineFunc(...)`（返回值直通）；旧码额外发一条 mov $0x0,%eax。
+        return LineFunc(0x611f, __PRETTY_FUNCTION__, out.m_4, 0);
     }
     // ORIG 0x81e6357：msg 死绑定（-0x2c）在两个 m_4 检查之后（P31/范式13 时机）。
     MSG_BLUE_MARBLE_CONFIRM_INFO& req =
@@ -24945,6 +25021,11 @@ namespace
     CUser* user, short slot, ENUM_RARITY rarity,
     std::vector<std::pair<int, int> >& results)
 {
+    // [负结论 2026-09-11 H1Dispatchers] 试过 P183/P37 去 invenR 缓存（内联
+    //   `const_cast<CInventory*>(user->getCurCharacInvenR())->GetInvenSlot(1, slot)`）：
+    //   实测 ORIG 95 / ours 95→93（gap 0→2 **劣化**）⇒ 已回滚，保留具名 invenR。
+    //   ORIG 0x081d84a0 区 `movswl -0x6c(%ebp),%ebx`（slot 提升保活）+ invenR 具名槽，
+    //   4.1 内联后反而把 slot 落栈 ⇒ 不闭合（N-P197④ 封顶）。
     CInventory* invenR = const_cast<CInventory*>(user->getCurCharacInvenR());
     Inven_Item inven = invenR->GetInvenSlot(1, slot);
     CItem* card = G_CDataManager()->find_item(inven.m_addInfo);
@@ -25772,16 +25853,15 @@ namespace pc_room
     {
         return;
     }
-    int growType = static_cast<int>(user->getCurCharFirstGrowType());   // W 0x08110c94
-    int job = user->get_charac_job();                                    // W 0x080fdf20
-
-    // ORIG 0x081e58c3: rewardData->getRewardGiveItems(selectionIdx, job, growType)，
+    // ORIG 0x081e5892(W 0x08110c94)/0x081e58a0(W 0x080fdf20)/0x081e58aa：growType→%edi、
+    // job→%ebx 跨 receiver call 保活（callee-saved，**无**具名槽）；ORIG 0x081e58c3 调
+    // rewardData->getRewardGiveItems(selectionIdx, job, growType)（P183 全表达式内联），
     // 非空则逐项组装 RentInElem 入 input.m_elems（m_type=1 GiveList 标记）
-    DimensionActivationRewardData* rewardData =
-        reinterpret_cast<DimensionActivationRewardData*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x4b34);
     std::vector<EventRewardItemInfo>* items =
-        rewardData->getRewardGiveItems(selectionIdx, job, growType);
+        reinterpret_cast<DimensionActivationRewardData*>(
+            reinterpret_cast<char*>(G_CDataManager()) + 0x4b34)
+            ->getRewardGiveItems(selectionIdx, user->get_charac_job(),
+                                 static_cast<int>(user->getCurCharFirstGrowType()));
     if (items != 0)
     {
         for (int i = 0; i < static_cast<int>(items->size()); ++i)
@@ -26464,7 +26544,13 @@ struct ScrMsgView
 
     // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG 内联 rep stos（rep-stos 计 0/1），
     //   `memset` 在 4.4 恒退化为 call ⇒ 聚合初始化。
-    unsigned char decrypted[0x400] = {0};
+    // [DispA6 缓冲尺寸修正 0x400→0x1000] ORIG 0x0826281c `lea -0x1064(%ebp),%ebx;
+    //   mov $0x400,%edx; mov %edx,%ecx; rep stos %eax,%es:(%edi)` —— rep stos 计数
+    //   单位是 **dword**（`stos %eax`），0x400 dword = 0x1000 字节清零；数组基址
+    //   -0x1064、帧 0x108c ⇒ 占 -0x1064..-0x64 = 0x1000 字节。付给 Cipher::Decrypt
+    //   的第 5 实参是 &decryptedLen(-0x50，初值 0x1000) 即输出容量（0x082628b1
+    //   `lea -0x50(%ebp),%edx`）⇒ 旧码 0x400 缓冲会被写越界（栈溢出）。
+    unsigned char decrypted[0x1000] = {0};
     int decryptedLen = 0x1000;
 
     // ORIG 0x0826283f..0x082629ee：嵌套 if（card 先判，else-if 才判 pad），
@@ -26710,15 +26796,19 @@ struct ScrMsgView
         return 0x17;
     }
 
-    short slot = req.m_0d;                               // +0x0d 槽位
+    // [DispA6 P0] ORIG 无 slot 槽（0825e3f4 `movzwl 0xd(%eax),%eax; movswl
+    //   %ax,%ebx` 直传 GetInvenSlot）也无 itemIdx 槽（0825e424 `mov -0x4f(%ebp),
+    //   %eax; mov %eax,%ebx` 从 item 临时直读 +0x02 入 find_item）⇒ 两具名局部
+    //   内联（帧 0x80→0x70，msg 槽 -0x1c→-0x14 归位）。
     // ORIG 0x0825e3xx：GetInvenSlot 用 getCurCharacInvenR、try_use_item 用
     // getCurCharacInvenRefR（两不同 accessor，不缓存为一处）。
     Inven_Item item = reinterpret_cast<const CInventory*>(
                           user->getCurCharacInvenR())
-                          ->GetInvenSlot(1, static_cast<int>(slot));
-    unsigned int itemIdx = static_cast<unsigned int>(item.m_addInfo);   // +0x02
+                          ->GetInvenSlot(
+                              1, static_cast<int>(static_cast<short>(req.m_0d)));
 
-    CItem* itemDef = G_CDataManager()->find_item(static_cast<int>(itemIdx));
+    CItem* itemDef =
+        G_CDataManager()->find_item(static_cast<int>(item.m_addInfo));
     if (itemDef == 0)
     {
         return 0x11;
@@ -26730,14 +26820,15 @@ struct ScrMsgView
     {
         return 0x17;
     }
-    if (user->CheckCoolTimeItem(static_cast<unsigned long>(itemIdx)))
+    if (user->CheckCoolTimeItem(static_cast<unsigned long>(item.m_addInfo)))
     {
         return 0x13;
     }
     int ret = reinterpret_cast<const CInventory*>(
                   user->getCurCharacInvenRefR())
-                  ->try_use_item(static_cast<int>(slot), 1,
-                                 static_cast<int>(static_cast<char>(req.m_0f)));
+                  ->try_use_item(
+                      static_cast<int>(static_cast<short>(req.m_0d)), 1,
+                      static_cast<int>(static_cast<char>(req.m_0f)));
     if (ret != 0)
     {
         return ret;
@@ -26795,58 +26886,73 @@ struct ScrMsgView
 #include "Dispatchers/process_321.inc"
 {
     // stStackableActionUse pad 未字段化 —— ORIG 报告实证偏移视图：
-    char* pbase = reinterpret_cast<char*>(&param);
-    int& err = *reinterpret_cast<int*>(pbase + 0x4);              // +0x04 错误码
-    short& echoSlot = *reinterpret_cast<short*>(pbase + 0x8);     // +0x08 回显槽位
-    char& echoType = *reinterpret_cast<char*>(pbase + 0xa);       // +0x0a 回显类型
+    // [DispA6 P0] ORIG 0x0825e12c 只把 param 地址落**一个**具名引用槽 -0x10
+    //   （访问形 `mov -0x10(%ebp),%edx; mov %eax,0x4(%edx)` 单级 disp）；旧码
+    //   err/echoSlot/echoType 三个独立引用局部（-0x24/-0x20/-0x1c）ORIG 无
+    //   （帧 +0xc）⇒ 合并为单一视图引用，三字段仍具名 +0x4/+0x8/+0xa。
+    struct StkParamView
+    {
+        char m_pad00[0x4];
+        int m_4;             // +0x04 错误码
+        short m_8;           // +0x08 回显槽位
+        char m_a;            // +0x0a 回显类型
+        char m_pad0b[0x35];  // 余量（ParamBase 视图总长 0x40）
+    };
+    StkParamView& out = reinterpret_cast<StkParamView&>(param);
 
     MSG_STACKABLE_ACTION_USE& req = reinterpret_cast<MSG_STACKABLE_ACTION_USE&>(msg);
 
-    err = check_error(user, msg);
-    echoType = static_cast<char>(req.m_0f);
-    echoSlot = req.m_0d;
+    out.m_4 = check_error(user, msg);
+    out.m_a = static_cast<char>(req.m_0f);
+    out.m_8 = req.m_0d;
 
-    if (err > 0)
+    if (out.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (out.m_4 < 0)
     {
         LogManager::logFormat(
             1, "PacketDispatcher_Impl_2.cpp",
             __PRETTY_FUNCTION__,
-            0x11f, "Dispatcher Check_Error No(%d)", err);
+            0x11f, "Dispatcher Check_Error No(%d)", out.m_4);
         return LineFunc(288,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
 
-    CInventory* inven = const_cast<CInventory*>(user->getCurCharacInvenR());
-    Inven_Item item = inven->GetInvenSlot(1, static_cast<int>(req.m_0d));
-    unsigned int itemIdx = static_cast<unsigned int>(item.m_addInfo);
-    CStackableItem* itemDef =
-        static_cast<CStackableItem*>(G_CDataManager()->find_item(static_cast<int>(itemIdx)));
+    // [DispA6 P0] ORIG 无 inven 槽（0825e1f3 `call getCurCharacInvenR;
+    //   mov %eax,0x4(%esp)` 结果直传 GetInvenSlot）也无 itemIdx 槽（0825e21c
+    //   `mov -0x5f(%ebp),%eax; mov %eax,%ebx` 从 item 临时直读 +0x02 入
+    //   find_item）⇒ 两具名局部内联。
+    Inven_Item item =
+        const_cast<CInventory*>(user->getCurCharacInvenR())
+            ->GetInvenSlot(1, static_cast<int>(req.m_0d));
+    CStackableItem* itemDef = static_cast<CStackableItem*>(
+        G_CDataManager()->find_item(static_cast<int>(item.m_addInfo)));
     if (itemDef == 0)
     {
-        err = 0x11;
+        out.m_4 = 0x11;
         return 0;
     }
 
     StackableAction::input_param inputs;   // 前 8 字节未初始化（ORIG 忠实形态）
     inputs.m_user = user;                  // +0x08
     inputs.m_item = itemDef;               // +0x0c
-    err = GlobalData::g_Actions->check((int)(char)req.m_14, inputs);
-    if (err == 0)
+    out.m_4 = GlobalData::g_Actions->check((int)(char)req.m_14, inputs);
+    if (out.m_4 == 0)
     {
-        err = GlobalData::g_Actions->run((int)(char)req.m_14, inputs);
+        out.m_4 = GlobalData::g_Actions->run((int)(char)req.m_14, inputs);
     }
-    if (err == 0)
+    if (out.m_4 == 0)
     {
-        err = user->getCurCharacInvenW()->use_item(
+        out.m_4 = user->getCurCharacInvenW()->use_item(
             (int)req.m_0d, 1, (int)(char)req.m_0f);
-        if (err == 0)
+        if (out.m_4 == 0)
         {
-            user->_processContinuousItem(itemIdx, itemDef);
+            // ORIG 0x0825e30d `mov -0x5f(%ebp),%eax` 每使用点重读 item+0x02。
+            user->_processContinuousItem(
+                static_cast<unsigned int>(item.m_addInfo), itemDef);
         }
     }
     return 0;
@@ -27714,18 +27820,20 @@ namespace expert_extraction
     // ORIG +0x008：param+8 = *(int*)(msg+0xd)（先于 check_error 回填请求当日序号）
     *reinterpret_cast<int*>(pres + 8) = req.m_0d;
 
-    int err = check_error(user, msg);
-    *reinterpret_cast<int*>(pres + 4) = err;
-    if (err > 0)
+    // [DispA6 P0] ORIG 0x081db033 `mov -0x2c(%ebp),%edx; mov %eax,0x4(%edx)` +
+    //   0x081db039 `mov -0x2c(%ebp),%eax; mov 0x4(%eax),%eax` 重读 ⇒ check_error
+    //   结果直存 param+4 后重读，无 err 具名槽（旧码 -0x30 为发明）。
+    *reinterpret_cast<int*>(pres + 4) = check_error(user, msg);
+    if (*reinterpret_cast<int*>(pres + 4) > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (*reinterpret_cast<int*>(pres + 4) < 0)
     {
         return LineFunc(
             0x49c5,
             __PRETTY_FUNCTION__,
-            err, 0);
+            *reinterpret_cast<int*>(pres + 4), 0);
     }
 
     // ORIG：每个使用点重取 G_CDataManager()->get_event_script_mng()（P48 无 CSE）。
@@ -28798,11 +28906,12 @@ namespace expert_extraction
         data.m_command = *reinterpret_cast<unsigned short*>(m + i * 8 + 0xe);
         data.m_count   = (unsigned char)m[i * 8 + 0x10];
 
-        const int job = user->get_charac_job();   // CUserCharacInfo::get_charac_job
-        // ORIG 走 const 重载 _ZNK12CDataManager10find_skillEii @0x0835fda2,
-        // 实参=(job, 命令ID);经 const 指针调用以匹配 _ZNK 符号。
-        const CDataManager* dm = G_CDataManager();
-        CSkill* skill = dm->find_skill(job, (int)(short)data.m_command);
+        // [DispA6 P0] ORIG 0x081d2bb8 `call get_charac_job; mov %eax,%ebx`、
+        //   0x081d2bc5 `call G_CDataManager; mov %eax,(%esp)` —— job/dm 结果均
+        //   **直传**无具名槽（旧码 -0x1c/-0x18 两槽为发明）；ORIG 走 const 重载
+        //   _ZNK12CDataManager10find_skillEii @0x0835fda2（经非 const 指针调用）。
+        CSkill* skill = G_CDataManager()->find_skill(
+            user->get_charac_job(), (int)(short)data.m_command);
         if (skill == 0)
         {
             res.m_4 = 0xfc;
@@ -28814,30 +28923,36 @@ namespace expert_extraction
             break;
         }
 
-        const char keyCount = (char)data.m_count;
-        if (keyCount > 5 || keyCount < 1)
+        // [DispA6 P0] ORIG 无 keyCount 具名槽：0x081d2c13 `movzbl -0x2a(%ebp),%eax;
+        //   cmp $0x5,%al` 每使用点从 data.m_count 重读（-0x2a = data+2）。
+        if ((char)data.m_count > 5 || (char)data.m_count < 1)
         {
             res.m_4 = 0xfb;
             break;
         }
 
         unsigned char keys[8];   // ORIG 帧 -0x29 起的命令键缓存(keyCount<=5 已证)
-        bool keyRangeError = false;
-        for (int j = 0; j < (int)keyCount; ++j)
+        // [DispA6 P0] ORIG 无 keyRangeError 具名槽（该标记从未被读取）：
+        //   0x081d2c71 置 0xfa 后直接 `jmp 0x081d2c92`（末位键检查段）。
+        for (int j = 0; j < (int)(char)data.m_count; ++j)
         {
             keys[j] = (unsigned char)m[i * 8 + j + 0x11];
             if ((char)keys[j] < 0 || (char)keys[j] > 8)
             {
                 res.m_4 = 0xfa;
-                keyRangeError = true;
                 break;   // ORIG:跳出内层后仍无条件执行末位键检查序列
             }
         }
 
-        // 末位键检查:keys[keyCount-1] ∉ {0,1,2,3,7} 才放行(ORIG 0x081d2c92..0x081d2cfd)
-        const unsigned char lastKey = keys[(int)keyCount - 1];
-        if (lastKey == 0 || lastKey == 1 || lastKey == 2 ||
-            lastKey == 3 || lastKey == 7)
+        // 末位键检查:keys[(char)m_count-1] ∉ {0,1,2,3,7} 才放行
+        //   (ORIG 0x081d2c92..0x081d2cfd 每比较点重算 `movzbl -0x2a(%ebp),%eax;
+        //    movsbl %al,%eax; sub $0x1,%eax; movzbl -0x29(%ebp,%eax,1),%eax`
+        //    ⇒ 无 lastKey 具名槽，P0/P48)
+        if ((char)keys[(int)(char)data.m_count - 1] == 0 ||
+            (char)keys[(int)(char)data.m_count - 1] == 1 ||
+            (char)keys[(int)(char)data.m_count - 1] == 2 ||
+            (char)keys[(int)(char)data.m_count - 1] == 3 ||
+            (char)keys[(int)(char)data.m_count - 1] == 7)
         {
             res.m_4 = 0xfa;
             break;
@@ -29204,18 +29319,29 @@ namespace expert_extraction
 {
     MsgTournamentRewardSelect& req = static_cast<MsgTournamentRewardSelect&>(msg);
     // stTournamentRewardSelect 字段（现 m_pad[0x40] 占位）：+0x04 int errNo
-    int err = check_error(user, msg);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = err;
-    if (err > 0)
+    // [DispA6 P0] ORIG 0x081e00f8 序言 `mov 0x14(%ebp),%eax; mov %eax,-0x1c(%ebp)`
+    //   ⇒ param 具名引用槽 -0x1c，各写点 `mov -0x1c(%ebp),%eax; movl $…,0x4(%eax)`
+    //   单级 disp；check_error 结果直存 param+4 后重读（0x081e0117/0x081e0120
+    //   `mov -0x1c(%ebp),%edx; mov %eax,0x4(%edx)`）⇒ 无 err 具名槽（旧码 -0x1c
+    //   为发明，且旧码每点 `add $0x4` 重算 &param 亦与 ORIG 单级 disp 不符）。
+    struct TrsParamView
+    {
+        char m_pad00[0x4];
+        int m_4;             // +0x04 errNo
+        char m_pad08[0x38];  // 余量（ParamBase 视图总长 0x40）
+    };
+    TrsParamView& out = reinterpret_cast<TrsParamView&>(param);
+    out.m_4 = check_error(user, msg);
+    if (out.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (out.m_4 < 0)
     {
         return LineFunc(
             0x5315,
             __PRETTY_FUNCTION__,
-            err, 0);
+            out.m_4, 0);
     }
 
     CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
@@ -29233,20 +29359,25 @@ namespace expert_extraction
     CTournamentDungeonReward& reward =
         reinterpret_cast<CBattle_Field*>(&party->m_battleField)->m_tournamentReward;   // +0x17bc
     // 全员已选卡 → 0x7fffffff（isCardSelectComplete 第二参=卡组类型 2）
-    if (reward.isCardSelectComplete(
-            (ENUM_TOURNAMENT_REWARD_CARD_TYPE)2, members))
+    // [DispA6] ORIG 0x081e0203 `mov %al,-0xa(%ebp); movzbl -0xa(%ebp),%eax;
+    //   xor $0x1,%eax; test %al,%al; je` ⇒ 原码有具名 bool 且判 `!complete`
+    //   （旧码直接 `if (reward.isCardSelectComplete(...))` 只出 test %al,%al）。
+    const bool complete = reward.isCardSelectComplete(
+        (ENUM_TOURNAMENT_REWARD_CARD_TYPE)2, members);
+    if (!complete)
     {
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = 0x7fffffff;
+        out.m_4 = 0x7fffffff;
         return 0;
     }
 
     // msg+0xd/msg+0xe 为 signed byte 读入（movsbl）
-    const unsigned int slotNo = party->GetMemberSlotNo(user);
+    // [DispA6 P0] ORIG 0x081e0232 `call GetMemberSlotNo; mov %eax,0x4(%esp)` —— 槽号
+    //   结果**直传** SelectCard，无 slotNo 具名槽（旧码 -0x10 为发明）。
     const bool selected = reward.SelectCard(
-        (int)slotNo, (char)req.m_0d, (char)req.m_0e);
+        party->GetMemberSlotNo(user), (char)req.m_0d, (char)req.m_0e);
     if (!selected)
     {
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = 0x7fffffff;
+        out.m_4 = 0x7fffffff;
     }
     return 0;
 }
@@ -29545,6 +29676,13 @@ extern float g_maxTotalDefenseRate;        // D 0x0936e4a8，文件值 0.01f
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG  orig/ours=38/63 ndiff-blocks=3
 //   帧差 sub $18 vs $2c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x18,%esp | mov    0x8(%ebp),%eax | leave
+// [负结论 2026-09-11 H1Dispatchers] 63→38 不可闭合：我方 `::new (this) PacketHeader(0x1b66,0x15f)`
+//   桥生成 `call _ZnwjPv` + null 检查 + `call _ZN12PacketHeaderC1Ett` + EH 清理
+//   （`_ZdlPvS_`/`_Unwind_Resume`）共 +25 条；ORIG 0x0822c202 只 `call _ZN12PacketHeaderC1Ett`
+//   直构（无 operator new/无 EH），因 ORIG 源码是**基类初始化列表**（PacketHeader 为基类）。
+//   我方视图 struct 无法继承 PacketHeader（m_pad0[6] 与 m_connNo@+0x06 重叠，
+//   继承会把 m_uid@+0x06 推到 +0x0a，破坏 16396 消费点）⇒ 需改共享头
+//   shared/packet/include/PacketHeader.h 的 ctor 声明加 `throw()` 才能消 EH（跨 TU 影响，本波不做）。
 #include "Dispatchers/Packet_Mannerless_User_Accusation.inc"
 {
     // [b28c-34] P0 清绑：原 `register void* self asm("eax") = this;` 已删（N96）；

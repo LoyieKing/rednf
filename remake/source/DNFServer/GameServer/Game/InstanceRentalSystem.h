@@ -34,6 +34,13 @@ public:
         unsigned char m_flag0;      // +0x00（ProcessEquip 写 3 / ProcessInsert 写 0）
         unsigned char m_pad1;       // +0x01
         unsigned short m_slot;      // +0x02（插入/装备槽位）
+        // [H7PartyGlobal 2026-09-11 · P254 档③ 试形**已回滚**（依据被推翻 + CUser TU 劣化）]
+        // 旧判据「ORIG 两段装载 ⇒ enum 字段」不成立：0x08271874 `mov 0x4(%eax),%eax;
+        // mov %eax,%ebx` 的第二段是**跨 receiver 调用的 callee-saved 保活搬移**（目标
+        // %ebx、紧接 `call getCurCharacInvenR`），非类型中转；同一二进制同字段在
+        // `FindRentalInfoByItemIndex::operator()` @0x08697d3a 为**单段直载**
+        // `mov 0x4(%eax),%edx`（CoBatchC/D objdump 直证）。enum 化实测亦未改变该点
+        // （ndiff 仍 2），且 CUser.cpp 实测 identical −1 / diff +1 ⇒ 维持 int。
         int m_itemIndex;            // +0x04 租借物品索引
         unsigned char m_field8;     // +0x08
         unsigned char m_field9;     // +0x09
@@ -41,6 +48,11 @@ public:
         unsigned char m_fieldB;     // +0x0b
         int m_rentItemId;           // +0x0c（ctor 置 -1）
     };  // sizeof 0x10
+    // [H7PartyGlobal 2026-09-11 · Main 要求] 布局锁：字段与 sizeof 均按 ORIG 实证锁定，
+    // 将来任何再动本结构体（含 P254 类类型旋钮）都会被编译立即拦住。零运行期成本。
+    static_assert(sizeof(RentalInfo) == 0x10, "RentalInfo sizeof drift");
+    static_assert(__builtin_offsetof(RentalInfo, m_itemIndex) == 0x04,
+                  "RentalInfo::m_itemIndex offset drift");
 
     struct DeletedRentItem
     {

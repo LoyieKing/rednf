@@ -619,7 +619,11 @@ struct CharacDataView { char m_pad[0x00e0]; CharacSlotView m_slots[0x24]; };
         // 【Lane26 对照实验】`while (db->get_n_rows() == 1) { body; goto link_end; }`
         // 可复现 ORIG 的 sete/je 物化（推翻旧「sete 侧不可翻」判词，P225 形有效），
         // 但 body 尾 `jmp exit` 被 4.4 jump-threading 恒消（N121；break/goto/return
-        // 三形实测同），代价 = 少 1 条指令 + 9 处 jcc delta 位移。按判据①取本形。
+        // 三形实测同），代价 = 少 1 条指令 + 9 处 jcc delta 位移。
+        // [b28d-h9 P226 条件向实验·已回滚] 曾试 `if (!({ (n_rows() == 1); }))` 语句
+        // 表达式翻 ORIG 的 `sete/je` 侧，实测读数**完全不变**（110/110/ndiff2）⇒
+        // P226 在本点位无效，回滚。残余 2 行 = P196 折痕（`sete/je` vs `setne/jne`
+        // 同落点体），按 P168a② 封顶。
         if (!(db->get_n_rows() == 1))
         {
             goto link_end;
@@ -1341,6 +1345,8 @@ link_end:
             unsigned int characNo;
             unsigned int serverId;
             unsigned int midFromDb;
+            // [回滚记录 b28d-h9] 曾按 P0 去槽删 `bool ok` 改四条独立 continue，
+            // 实测 ndiff 510→584 劣化（b28d-h9 批次1）⇒ 回滚维持 bool 链形。
             bool ok = dbAccount->get_uint(0, midFromDb);          // m_id（分库键）
             info.m_userDBIdx = (int)midFromDb;
             if (ok) ok = dbAccount->get_uint(1, characNo);
@@ -1364,6 +1370,7 @@ link_end:
             }
             else if (G_GameWorld()->GetChannelType() == 0xe)
             {
+                // [回滚记录 b28d-h9] 同 ok：去 bool 槽改内联实测劣化 ⇒ 回滚。
                 bool pass =
                     (it->m_eventId == 0xa02a &&
                      online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() == 1) ||
@@ -1468,6 +1475,7 @@ link_end:
                         return;
                     }
 
+                    // [回滚记录 b28d-h9] 同 ok/pass：去 bool 槽改内联实测劣化 ⇒ 回滚。
                     bool skip =
                         (G_GameWorld()->GetChannelType() == 7 && (preType == 0x16 || preType == 0x1b)) ||
                         (G_GameWorld()->GetChannelType() == 0xe && (preType == 0x16 || preType == 0x1b));
@@ -2575,6 +2583,12 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
     MySQL* dbItems = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, E_SERVER_GROUP_NONE);
 
     int outIdx = 0;
+    // [P0/P212 去槽·ORIG 直证] ORIG 0x08415670/0x08415677 `movl $0x0,-0x54(%ebp);
+    // movl $0x0,-0x58(%ebp)` 在函数入口（for 之前）清零 ⇒ gotSlot/itemId 原码是
+    // **函数头声明**（非循环体内声明），槽 -0x54/-0x58；旧循环内声明令两槽下沉到
+    // -0x28/-0x24 并整体撑大帧。
+    int gotSlot = 0;
+    int itemId = 0;
     for (int i = 0;
          i < sig->m_characCount && i < 0x24; ++i)
     {
@@ -2614,34 +2628,34 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
                 continue;
             }
             int nRows = dbItems->get_n_rows();
-            int itemId = 0;
             if (nRows == 8)
             {
                 for (int expectSlot = 0; expectSlot < nRows; ++expectSlot)
                 {
                     if (!dbItems->fetch())
                     {
-                        cMyTrace trace(__PRETTY_FUNCTION__,
-                                       0x3ea2, 5);
-                        trace("DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u", 0x3ea2,
-                              *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
+                        // [P227] ORIG：charac_no 在 cMyTrace ctor 前求值并跨 ctor 保活
+                        // %ebx（`... mov (%eax),%ebx; ... ctor(-0x50); mov %ebx,0xc(%esp)`）
+                        // ⇒ 单表达式临时链（两语句形把 C1 提到取值之前）。
+                        cMyTrace(__PRETTY_FUNCTION__, 0x3ea2, 5)(
+                            "DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u",
+                            0x3ea2, *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
                         break;
                     }
-                    int gotSlot = 0;
                     if (!dbItems->get_int(0, gotSlot))
                     {
-                        cMyTrace trace(__PRETTY_FUNCTION__,
-                                       0x3ea8, 5);
-                        trace("DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u", 0x3ea8,
-                              *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
+                        // [P227] 同上（ORIG ctor 槽 -0x40，charac_no 跨 ctor 保活 %ebx）。
+                        cMyTrace(__PRETTY_FUNCTION__, 0x3ea8, 5)(
+                            "DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u",
+                            0x3ea8, *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
                         return 0;
                     }
                     if (!dbItems->get_int(1, itemId))
                     {
-                        cMyTrace trace(__PRETTY_FUNCTION__,
-                                       0x3eae, 5);
-                        trace("DB_Login::GetMercenarySystemInfo %d ERROR charac_no=%u", 0x3eae,
-                              *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
+                        // [P227] 同上（ORIG ctor 槽 -0x30）。
+                        cMyTrace(__PRETTY_FUNCTION__, 0x3eae, 5)(
+                            "DB_Login::GetMercenarySystemInfo %d ERROR charac_no=%u",
+                            0x3eae, *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
                         return 0;
                     }
                     if (gotSlot != expectSlot)
@@ -2955,7 +2969,17 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
     // bool 槽 -0xd；get_int/get_byte 直接写 sig 字段（无 reward/board 局部）；
     // trace 传递增后的 col（P198①/P227）。
     int col = 0;
-    ok = db->get_int(col++, reinterpret_cast<int&>(sig->m_bingoEventId));   // +0x413c
+    // [N107 破法·实验] ORIG 0x08448d84 `lea 0x413c(%eax),%edx` 与同函数 +0x4138
+    // （`sig->m_bingoWinFlag`，char 成员直传）的 `lea 0x4138(%eax),%edx` **同形**；
+    // 4.4 对 +0x4138 亦发 lea（diff 该处零残差），唯对 `reinterpret_cast<int&>(…)`
+    // 恒 `add+mov` ⇒ 差异真因是 **cast 路径**而非成员取址本身。改用等宽 int 视图
+    // 成员直传（函数内局部视图：零符号发射、sizeof/偏移/mangled 零影响）。
+    struct BingoEventIdView
+    {
+        unsigned char m_pad[0x413c];
+        int           m_eventId;
+    };
+    ok = db->get_int(col++, reinterpret_cast<BingoEventIdView*>(sig)->m_eventId);  // +0x413c
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0xb723, 5)(
@@ -3030,6 +3054,12 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
 // `sub 0x98`）致全帧槽号偏移；p167 CLEAR 44/44。
 #include "DB_Login/getBreakAwayMemberData.inc"
 {
+    // [帧撑实验 b28d-h9] ORIG 栈消耗 0x88（push esi + push ebx + sub 0x80）vs 我方
+    // 0x94（push ebx + sub 0x90）⇒ 全帧槽号比 ORIG **浅 8 字节**（我方 lea
+    // -0x53/-0x34/-0x24/-0x1c vs ORIG -0x5b/-0x3c/-0x2c/-0x18）。按 P232
+    // 「4.4 -O0 对未读写局部照占栈」补 8 字节未用局部，试将槽基对齐 ORIG。
+    char framePad[8];
+    (void)framePad;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect accrue_cera, play_info, last_reward_time, first_reward_time, luck_point, last_update_time, add_info, second_reward_time, quest_time from churn_member_info where m_id=%s",
@@ -3060,9 +3090,12 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
                                   "BREAK_AWAY : churn_member_info DB INSERT FAIL!!");
             return 0;
         }
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x308f, 0);
-        trace("BREAK_AWAY : churn_member_info MEMBER INSERT!! M_ID(%s)",
-              NumberToString(sig->m_accId, 0));
+        // [P227] 单表达式临时链：ORIG 0x08410389 `call NumberToString; mov %eax,%ebx;
+        // ... cMyTraceC1(-0x3c) ...; mov %ebx,0x8(%esp)`（varargs 在 ctor 前右起求值并
+        // 跨 ctor 保活 %ebx）；两语句形会把 C1 提到 NumberToString 求值之前。
+        cMyTrace(__PRETTY_FUNCTION__, 0x308f, 0)(
+            "BREAK_AWAY : churn_member_info MEMBER INSERT!! M_ID(%s)",
+            NumberToString(sig->m_accId, 0));
 
         // STBreakAwayMemberData::clear（ORIG W 0x844d584；rec = +0x3f18 起 0x41 字节）
         reinterpret_cast<STBreakAwayMemberData*>(&sig->m_breakAwayAccureCera)->clear();
@@ -3072,15 +3105,20 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
 
     if (!db->fetch())
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x309a, 5);
-        trace("BREAK_AWAY : churn_member_info NO MEMBER USER!! M_ID(%s)",
-              NumberToString(sig->m_accId, 0));
+        // [P227] 同上：ORIG 0x0841042a `call NumberToString; mov %eax,%ebx;
+        // cMyTraceC1(-0x2c); mov %ebx,0x8(%esp)`。
+        cMyTrace(__PRETTY_FUNCTION__, 0x309a, 5)(
+            "BREAK_AWAY : churn_member_info NO MEMBER USER!! M_ID(%s)",
+            NumberToString(sig->m_accId, 0));
         return 0;
     }
 
     if (!db->get_int(0, sig->m_breakAwayAccureCera)) return 0;                   // accrue_cera
     if (!db->get_str(1, reinterpret_cast<char*>(sig->m_breakAwayPlayInfo), 0x1f)) return 0;  // play_info
-    if (sig->m_breakAwayPlayInfo[0] == '\0')
+    // [SGBC 实验 b28d-h9] ORIG 0x084104e0 为 `mov 0xc(%ebp),%eax; add $0x3f1c,%eax;
+    // movzbl (%eax),%eax`（指针算术 + 解引用，3 条）；成员数组直访问 `m_...Info[0]`
+    // 被 4.4 折成 disp 单读（2 条）⇒ 改用 SGBC(sig,0x3f1c)[0] 的指针形复现 add。
+    if (SGBC(sig, 0x3f1c)[0] == '\0')
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0x30ab,
@@ -3100,8 +3138,13 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
     if (sig->m_breakAwayLastRewardTime != 0)
     {
         long prev = getPrevScheduleTime(0, (long)sig->m_breakAwayLastRewardTime);
-        int curSec = GlobalData::s_systemTime_.getCurSec();
-        unsigned int days = (unsigned int)((curSec - prev) / 0x15180);
+        // [P0 去槽·ORIG 直证] ORIG 0x084106c8 `mov %eax,%ecx; sub -0x10(%ebp),%ecx`
+        // （getCurSec 返回值直入 %ecx、无具名槽）⇒ curSec 不是原码局部，内联回表达式。
+        // [回滚记录 b28d-h9] 曾试把 days/zero 声明上提函数头（ORIG 槽在浅区
+        // -0x1c/-0x18，我方在深区 -0x60/-0x64），实测 ndiff 8→20 劣化 ⇒ 回滚，
+        // 维持块内声明（4.4 槽分配序不可控，N82/N98 族）。
+        unsigned int days =
+            (unsigned int)((GlobalData::s_systemTime_.getCurSec() - prev) / 0x15180);
         unsigned int zero = 0;
         unsigned int maxDays = std::max<unsigned int>(zero, days);   // ORIG call _ZSt3maxIjERKT_S2_S2_
         if (maxDays != 0 && sig->m_breakAwayLuckPoint != 0)
@@ -3110,8 +3153,9 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
             db->set_query("upDate churn_member_info set luck_point=%d where m_id=%s",
                           sig->m_breakAwayLuckPoint,
                           NumberToString(sig->m_accId, 0));
-            bool updOk = db->exec(true);
-            if (!(updOk && db->getAffectedRowCount() != 0))
+            // [P0 去槽·ORIG 直证] ORIG 0x0841089f 段 `call exec; xor $1; test; jne`
+            // （无 `mov %al,-0x15` 槽往返）⇒ updOk 不是原码局部，短路条件内联。
+            if (!(db->exec(true) && db->getAffectedRowCount() != 0))
             {
                 LogManager::logFormat(1, "DBThread.cpp",
                                       __PRETTY_FUNCTION__,
@@ -3124,14 +3168,11 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
     // quest_time!=0 且已过期且命中奖励时点 → add_info=-1 / quest_time=0 回写
     if (sig->m_breakAwayQuestTime != 0)
     {
-        // [C05② 实测回退·ORIG 符号性直证] ORIG 该比较为 `mov 0x3f4c(%eax),%ebx;
-        // cmp %eax,%ebx; jae` —— **jae=无符号** ⇒ 原码局部必为 unsigned（改 int 实测
-        // 生 `jge` 有符号，语义对负值分叉，属真偏差）。4.4 对 unsigned 具名局部恒折
-        // `cmp -0x10(%ebp),%eax` 内存直比 vs 4.1 寄存器直比 ⇒ 跨版本差（N18b/P209
-        // 族）封顶，维持 unsigned。
-        unsigned int questTime = sig->m_breakAwayQuestTime;
-        unsigned int nowSec = GlobalData::s_systemTime_.getCurSec();
-        if (questTime < nowSec &&
+        // [P0 去槽·ORIG 直证] ORIG 0x084107f4 `mov 0x3f4c(%eax),%ebx`（**成员直读入
+        // callee-saved**，非槽读）+ 0x08410801 `call getCurSec` + 0x08410806
+        // `cmp %eax,%ebx; jae`（无符号）⇒ 原码为成员表达式与返回值直比；
+        // questTime/nowSec 两个具名局部均非原码（各多一槽并撑大帧）。
+        if (sig->m_breakAwayQuestTime < GlobalData::s_systemTime_.getCurSec() &&
             (sig->m_breakAwayLastRewardTime == sig->m_breakAwayRewardBoundA ||
              sig->m_breakAwayLastRewardTime == sig->m_breakAwayRewardBoundB))
         {
@@ -3140,8 +3181,8 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
             db->set_query("upDate churn_member_info set add_info=%d, quest_time=0 where m_id=%u",
                           sig->m_breakAwayDungeonClearCnt,
                           sig->m_accId);
-            bool updOk = db->exec(true);
-            if (!(updOk && db->getAffectedRowCount() != 0))
+            // [P0 去槽·ORIG 直证] 同 luck_point 段：ORIG 0x0841089f 段无 bool 槽。
+            if (!(db->exec(true) && db->getAffectedRowCount() != 0))
             {
                 LogManager::logFormat(1, "DBThread.cpp",
                                       __PRETTY_FUNCTION__,

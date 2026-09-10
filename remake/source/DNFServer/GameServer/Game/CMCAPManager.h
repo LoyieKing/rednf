@@ -44,6 +44,8 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     char m_pad20[4];         // +0x20..0x23
     int m_field24;           // +0x24（0x8e414 登录时间戳槽：DisPatcher_Login::dispatch_sig
                              //   ORIG 写 getCurSec；SetUserManagerToolIP 读——登录 IP 关联时间）
+                             // [P321-S2 已试·零收益回滚] 字段 int→unsigned 同型化对 PIHash.cpp
+                             //   四数无影响（identical=11 ae=16 near=1 diff=6 改前=改后）⇒ 保留 int。
     char m_pcRoomIp[16];     // +0x28（0x8e418 PC房 IP 字符串；CHades::GetIP @0x84b9774 回退源实证）
     char m_pad38[4];                 // +0x38..0x3b（保持）
     unsigned int m_sellTimeChkBaseSec; // +0x3c（0x8e42c；CUser::SellItemTimeChecker

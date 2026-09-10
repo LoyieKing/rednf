@@ -1,1 +1,1 @@
-void Timer_DungeonInoutOpenTime::RegistNextTimer()
+int Timer_DungeonInoutOpenTime::RegistNextTimer()

@@ -1089,6 +1089,15 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
 {
     // b28d-solo-CInventory：113/129，type switch 被 4.4 折 bitmask（ORIG 用跳表 jmp *%eax）+ push %ebx 差 ⇒ N18a/N82 封顶。
     // b28d-37 [N18a/N82 封顶，ORIG 0x84f?]：push %ebx 差 + 帧/槽残差（113/129）。
+    // [H8InvenPvPWorld 2026-09-11 · N 判词定版] 父泳道读出 ORIG .rodata 0x8c93af8
+    // 起 11 项跳表（case0→0x84fb6db / case1→0x84fb6dd / case2→0x84fb6df 累加体 /
+    // case3→0x84fb717 / case4→0x84fb71b / case5..9→0x84fb71d logFormat 错误块 /
+    // case10→0x84fb719），与本案 `case 0,1,3,4,10` 空 break + `case 2` 循环 +
+    // default=logFormat(0x493) **语义完全一致**；ORIG 0x084fb68a `cmp $0x6;ja` 为
+    // 外层跳表、内层 0x084fb6cd `cmp $0xa;ja` + `mov &data#2177f246(,%eax,4)` 为
+    // 内层跳表。我方 4.4 对该 case 集合恒选位测试（`mov $0x1;shl %cl;and mask`，
+    // jcc 8→10 的 +2 由此而来）+ push %ebx 保存 ⇒ 判 **N6/N18a 封顶**，
+    // 语义无缺口，不再耗轮次。
     int count = 0;
     // [FL7GlobalData 2026-09-10 · P324 叶块物理序=书写序] ORIG 0x084f? 跳表后的
     // 首个叶块是 case 1（`movl $0x0,-0x1c; movl $0x0,-0x20`），而 `logFormat(0x4c3)`
@@ -3277,7 +3286,6 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
     // [b28d-tu-CInventory] P329：删具名引用 `buf`（4.4 为其发 -0x24 槽 +
     //   prologue store/load，ORIG 0x084fc6bc 全部 98 处 this 装载直读形参槽
     //   `mov 0x14(%ebp),%eax`）⇒ 调用点改内联 cast 形（ast_edit 98 处）。
-    GameWorld* world;
     // 本方法为 const；ORIG 0x084fc6bc 对 expansion/expInfo 走 put_binary(const
     // char*,int)（PKc 重载），故指针常量化（同 4B 槽，仅换 call 目标，零扰动）。
     const char* expansion;
@@ -3334,11 +3342,17 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
         {
             ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_addInfo);
             ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_addInfo2);
+            // [H8InvenPvPWorld 2026-09-11 · 负结论 N18b] 试把实参常量化改回形参
+            // `invenType`（追 ORIG 0x084fca56 的 `mov 0xc(%ebp),%eax` 两段形）⇒
+            // 本件 1073/1073 → 1073/**1075**、fndiff 244/244 → 346/348 双劣化
+            // （4.4 形参形连带改变后续装载序）⇒ 回滚保留常数形。
             ((InterfacePacketBuf&)packet).put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], INVEN_TYPE_EQUIP, slot));
             ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_fieldb);
             ((InterfacePacketBuf&)packet).put_byte(m_pEquipSlot[slot].m_field0);
-            world = G_GameWorld();
-            if (world->IsEnchantRevisionChannel())
+            // [H8InvenPvPWorld 2026-09-11 · P0] ORIG 0x084fca7f-0x084fca87 无槽：
+            // `call G_GameWorld; mov %eax,(%esp); call IsEnchantRevisionChannel`
+            // （我方曾有 -0x20 store/load 对 ×4）⇒ 删具名 world 全表达式展开。
+            if (G_GameWorld()->IsEnchantRevisionChannel())
                 ((InterfacePacketBuf&)packet).put_int(0);
             else
                 ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_fieldd);
@@ -3366,8 +3380,7 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
         ((InterfacePacketBuf&)packet).put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], INVEN_TYPE_EQUIP, slot));
         ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_fieldb);
         ((InterfacePacketBuf&)packet).put_byte(m_pEquipSlot[slot].m_field0);
-        world = G_GameWorld();
-        if (world->IsEnchantRevisionChannel())
+        if (G_GameWorld()->IsEnchantRevisionChannel())
             ((InterfacePacketBuf&)packet).put_int(0);
         else
             ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_fieldd);
@@ -3461,8 +3474,7 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
         ((InterfacePacketBuf&)packet).put_short(slot);
         ((InterfacePacketBuf&)packet).put_int(m_invenItem[slot].m_addInfo);
         ((InterfacePacketBuf&)packet).put_int(m_invenItem[slot].m_addInfo2);
-        world = G_GameWorld();
-        if (world->IsIntegratedPvPBaseChannel() &&
+        if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
             G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
         {
             unsigned char attr = 0;
@@ -3478,8 +3490,7 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
         }
         ((InterfacePacketBuf&)packet).put_short(m_invenItem[slot].m_fieldb);
         ((InterfacePacketBuf&)packet).put_byte(m_invenItem[slot].m_field0);
-        world = G_GameWorld();
-        if (world->IsEnchantRevisionChannel())
+        if (G_GameWorld()->IsEnchantRevisionChannel())
             ((InterfacePacketBuf&)packet).put_int(0);
         else
             ((InterfacePacketBuf&)packet).put_int(m_invenItem[slot].m_fieldd);
@@ -3993,13 +4004,18 @@ l_ces_skip2:;
     // [b28d-round5 复攻失败记录②] 只把 pair 提到循环外（保留 for、保留循环内 pair 构造
     // 位置改动）实测 158/148（我方少 10 条）+ 该 TU 合计回退 ⇒ 已回滚，维持循环内
     // 双参构造形（ORIG 的 pair::C1Ev 在入口是 4.1 形，4.4 对 trivial pair 不发该 call）。
-    for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
-         it++)
+    // [H8InvenPvPWorld 2026-09-11 · P28/P315] ORIG 0x085056ca 有**两处**独立
+    // `__normal_iterator::operator++(int)`（ppEi）调用点（type==0 分支 + 循环尾），
+    // 我方 for 形只剩循环尾 1 处（p167 MISSING ppEi）⇒ 还原 ORIG 的 while 形 +
+    // 两处后置 it++。
+    std::vector<std::pair<int, int> >::const_iterator it = items.begin();
+    while (it != items.end())
     {
         int itemIdx = it->first;
         int type = GetItemType(itemIdx);
         if (type == 0)
         {
+            it++;
             continue;
         }
         // [判据⑫ 直证 clr_l orig=0 our=2] ORIG 无 start/end 清零（无 `movl $0x0,-N(%ebp)`）
@@ -4038,9 +4054,14 @@ l_ces_skip2:;
         }
         if (it->second > 0)
         {
+            // [H8InvenPvPWorld 2026-09-11 · 负结论 N] 试「默认构造 + 逐字段赋值」
+            // （追 ORIG 的 `_ZNSt4pairIiiEC1Ev`）⇒ 本函数 158/166→158/154 与
+            // fndiff 102→72 双改善，但 **TU 四数回退**（identical 129→128、
+            // ae 270→269）⇒ 按「四数不劣」闸门回滚，维持双参构造形。
             std::pair<int, int> newItem(itemIdx, need);
             out.push_back(newItem);
         }
+        it++;
     }
     return out.size();
 }
@@ -6450,8 +6471,11 @@ static_assert(sizeof(EmblemBlobV) == 0x1e, "EmblemBlobV == stAvatarEmblemInfo_t 
     //   （store+load 2 行），但内联形的**装载行序**与 ORIG 逐点对齐，
     //   净收益为正；具名形装载序反置 ⇒ 不恢复。
     // P0：ORIG 全程 94 次 -0x34(%ebp) 重载 ⇒ 原码有具名 buf 局部（非形参直读）。
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
-    if (buf == 0)
+    // [H8InvenPvPWorld 2026-09-11 · P0] 空检查 ORIG 用**形参直读** `cmpl $0x0,0xc(%ebp)`
+    // （无 out→槽拷贝）；buf 槽 -0x34 的 store 落在 listCount if/else 链**之后**
+    // ⇒ 原码 `if (out == 0) return 0;` 在前、具名 buf 声明在链后（我方原形把拷贝
+    // 提前到序言，多 store+load 2 条）。
+    if (out == 0)
     {
         return 0;
     }
@@ -6460,18 +6484,25 @@ static_assert(sizeof(EmblemBlobV) == 0x1e, "EmblemBlobV == stAvatarEmblemInfo_t 
     int listCount = 0;
     int count = 0;
     int countIdx = 0;
-    if (!flag)
+    // [H8InvenPvPWorld 2026-09-11 · P59/P222] ORIG +0x1e 段为**正向** flag 判定：
+    // `cmpb $0x0,-0x5c(%ebp); je <else>`（我方原 `if(!flag)` 产
+    // `movzbl; xor $1; test %al; je` 4 条）⇒ 改写为正 `if (flag){...}else{...}`。
+    if (flag)
     {
-        listCount = 0xc;
-    }
-    else if ((int)equipSlot == 0)
-    {
-        listCount = 0x1a;
+        if ((int)equipSlot == 0)
+        {
+            listCount = 0x1a;
+        }
+        else
+        {
+            listCount = 0xc;
+        }
     }
     else
     {
         listCount = 0xc;
     }
+    InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
     countIdx = buf->get_index();
     buf->put_byte(count);
     int nowTick = OS_API::GetDateTimeTick();
@@ -6497,7 +6528,11 @@ static_assert(sizeof(EmblemBlobV) == 0x1e, "EmblemBlobV == stAvatarEmblemInfo_t 
             continue;
         }
         ++count;
-        if (!flag)
+        // [H8InvenPvPWorld 2026-09-11 · P9/P222] ORIG +0x2xx 为 `cmpb $0x0,flag;
+        // je <else>`（2 条）；`!flag`（bool 取反）在 4.4 产
+        // `movzbl; xor $0x1; test %al; je`（4 条）⇒ 改 `flag == 0` 等价形直接
+        // 落 cmpb（同 listCount 处的 `if (flag)` 正向形）。
+        if (flag == 0)
         {
             buf->put_byte(slotNo);
             if ((int)userInfo == 2 && GetClearAvatar(slotNo) != 0)
@@ -6619,13 +6654,16 @@ static_assert(sizeof(EmblemBlobV) == 0x1e, "EmblemBlobV == stAvatarEmblemInfo_t 
             buf->put_short((int)slots[i].m_fieldb);
         }
         buf->put_int(GetClearAvatar(slotNo));
-        if (!G_GameWorld()->IsEnchantRevisionChannel())
+        // [H8InvenPvPWorld 2026-09-11 · P59/P222] ORIG 0x84fe884 正向
+        // `test %al,%al; je <else>`，then=put_int(0)、else=put_int(fieldd)；
+        // 我方原 `if(!X)` 多 `xor $0x1,%eax` 且块序倒置（详见 MakeItemList 同位）。
+        if (G_GameWorld()->IsEnchantRevisionChannel())
         {
-            buf->put_int(slots[i].m_fieldd);
+            buf->put_int(0);
         }
         else
         {
-            buf->put_int(0);
+            buf->put_int(slots[i].m_fieldd);
         }
         if (flag)
         {
@@ -7329,7 +7367,6 @@ finish_value_statistic:
     }
 
     // [b28d-tu-CInventory] P329 试验：暂删具名 buf（测 ORIG -0x34 槽形）。
-    GameWorld* world;
     // P0：ORIG 在 cMyTrace 报错块之后 `mov 0x10(%ebp),%eax; mov %eax,-0x34(%ebp)`，
     // 全程 85 次 `mov -0x34(%ebp),%eax` 重载 ⇒ 原码有具名 out 局部（非形参直读）。
     InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
@@ -7399,11 +7436,16 @@ finish_value_statistic:
                 buf->put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], invenType, slot));
                 buf->put_short(m_pEquipSlot[slot].m_fieldb);
                 buf->put_byte(m_pEquipSlot[slot].m_field0);
-                world = G_GameWorld();
-                if (!world->IsEnchantRevisionChannel())
-                    buf->put_int(m_pEquipSlot[slot].m_fieldd);
-                else
+                // [H8InvenPvPWorld 2026-09-11 · P0] ORIG 0x84fdc3f-0x84fdc47 无槽：
+                // `call G_GameWorld; mov %eax,(%esp); call IsEnchantRevisionChannel`
+                // （我方曾有 world 具名 -0x44 store/load 对）⇒ 全表达式展开。
+                // [H8InvenPvPWorld 2026-09-11 · P59/P222] ORIG 0x84fdc4c 是**正向**
+                // `test %al,%al; je <else>`，then=put_int(0)、else=put_int(fieldd)；
+                // 我方原 `if(!X)` 取反形多 `xor $0x1,%eax` 且块序倒置。
+                if (G_GameWorld()->IsEnchantRevisionChannel())
                     buf->put_int(0);
+                else
+                    buf->put_int(m_pEquipSlot[slot].m_fieldd);
                 buf->put_byte((unsigned char)m_pEquipSlot[slot].m_amp.getAbilityType() & 0xff);
                 buf->put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
                 G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(

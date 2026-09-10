@@ -112,6 +112,10 @@ unsigned int inet_a2n(const char* addrText)
 //   ②原形（分段 memset + 具名 text 缓存）⇒ 58 条 / 27 行。
 //   ⇒ 4.4 对 0x20 数组 `={0}` 不产 4×movl 分段形（clr_l 恒 orig=4 our=0），属跨版本初始化器展开差，
 //   与 P312/P202 反向（那两族的 ORIG 是 rep stos 慢路）；回滚保留原形。
+// [laneE1 2026-09-11 复测 · 零收益回滚] 按 P183/P329 删 `const char* text = inet_ntoa(addr);`
+//   具名缓存 + 补 `in_addr a = addr;` 副本与第二次独立 call（ORIG 0x08197a76/0x08197b02）
+//   后，本 TU 四数**逐值不变**（identical=1 ae=6 (7) near=0 diff=5 missing=0，改前=改后）
+//   ⇒ 按「codegen 轴须严格改善」判据回滚，保留旧形。buf 清零形维持旧实证（`={0}` 反劣）。
 std::string inet_n2a(struct in_addr addr)
 {
     // ORIG：buf[0x20] 清零后 inet_ntoa→strncpy(buf,..,0x10)；null → 空串。

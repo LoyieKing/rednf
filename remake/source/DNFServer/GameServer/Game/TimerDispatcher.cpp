@@ -2642,11 +2642,12 @@ __attribute__((weak)) TimerCheckHumanCertifyTimeout::~TimerCheckHumanCertifyTime
     // [TD4 2026-09-10 判据①/P248 档③实测] 交换操作数书写序为 `(unsigned)p2 < key`
     // ⇒ 4.4 反劣（push %ebx + `cmp %eax,%ebx; setb`，帧 0x38→0x34、insns 106→107）；
     // ORIG `cmp %edx,%eax; seta`（call 结果留 %eax）属 N22/N7 寄存器角色差，回滚原形。
-    // [A12-2026-09-10 实验·失败] 删调用点 (unsigned int) cast 实测：p2 形参为 **int**
-    // （非 unsigned）⇒ 裸 `getKey() > p2` 落有符号 `setg`（语义改变，106→104 insns）
-    // ⇒ cast 为语义必需，非冗余；已回滚。ORIG `cmp %edx,%eax; seta` 的 call 结果留
-    // %eax 属 N22/N7 寄存器角色差（P248 一次性旋钮，赌输封顶）。
-    if ((unsigned int)user->getHumanCertifyTimerKey() > (unsigned int)p2)
+    // [TD-2026-09-11] H3CUser 已按 Main 核准把 `CUser::getHumanCertifyTimerKey()` 返回类型
+    // int→unsigned（CUser.h:3405 + CUser/getHumanCertifyTimerKey.inc:1）⇒ 删左侧冗余 cast，
+    // 落成探针 /tmp/td_p2.cpp f7 精确形（ORIG 086371cd `mov 0x10(%ebp),%edx; cmp %edx,%eax;
+    // seta` = 2 条形）。p2 形参为 int ⇒ 右侧 cast 必须保留（A12 实验：裸 `key() > p2`
+    // 落有符号 setg，语义改变 106→104 insns）。左侧 cast 变冗余也是 P41 变体诱因。
+    if (user->getHumanCertifyTimerKey() > (unsigned int)p2)
     {
         return 1;
     }
@@ -3006,42 +3007,47 @@ __attribute__((weak)) TimerFinishItemEffect::~TimerFinishItemEffect() throw() {}
     // （ORIG 对 m_itemIdx/m_expireTime 每次重发 `(*items)[i]`，无 entry 引用缓存）。
     for (unsigned int i = 0; i < static_cast<unsigned int>(items->size()); ++i)
     {
-        if ((*items)[i].m_itemIdx != p2)       // 未命中该项：i++ 继续
-            continue;
-
-        PacketGuard packet;              // ORIG try 区 0x8637bb1..0x8637cfd
-        packet.put_header(0, 0xae);
-        packet.put_byte(1);
-        packet.put_int(p2);
-        packet.put_int(0);
-        packet.finalize(true);
-
-        if ((*items)[i].m_expireTime <= curSec)
+        // [TD-2026-09-11 判据/探针] ORIG 08637b7e `mov (%eax),%edx; mov 0x10(%ebp),%eax;
+        // cmp %eax,%edx; sete %al; test; je <i++ 尾部>` = `if (idx == p2) { body }`
+        // **正向包裹**原形（Ghidra C 同形：`if (*piVar4 == param_2) {…}`）。旧码
+        // `if (idx != p2) continue;` 产 `setne; jne` + 单段内存直比（ndiff 5 行）。
+        // 探针 /tmp/td_p4.cpp：a1(`!=` 早返)⇒setne/jne；a2(`==` 正向包裹)⇒sete/je。
+        if ((*items)[i].m_itemIdx == p2)
         {
-            // 已到期：立即结算并返回 Send 结果（ORIG esi=0 直通尾部返回 ebx）。
+            PacketGuard packet;              // ORIG try 区 0x8637bb1..0x8637cfd
+            packet.put_header(0, 0xae);
+            packet.put_byte(1);
+            packet.put_int(p2);
+            packet.put_int(0);
+            packet.finalize(true);
+
+            if ((*items)[i].m_expireTime <= curSec)
+            {
+                // 已到期：立即结算并返回 Send 结果（ORIG esi=0 直通尾部返回 ebx）。
+                _processSepecialEffectContinuousItem(user, p2);
+                return user->Send(packet);
+            }
+
+            const unsigned int remain = (*items)[i].m_expireTime - curSec;
+            if (!((remain < 6u) && (0x3cu < remain)))
+            {
+                // ORIG +0x1d2 重排程：OBJ_TYPE 0 / key=GetUID / msg 0x76 / delay=remain / p2 / characNo
+                // [SweepTimerDispatcher2] P329/P0：ORIG 无 uid/characNo 具名槽——characNo 先求值
+                // 驻 %edi、uid 驻 %esi（实参右→左求值），我方具名局部使全帧槽深 +8（-0x2c→-0x34）。
+                // 改内联实参后槽序应回 ORIG 形。
+                G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0,
+                                            static_cast<int>(user->GetUID()),
+                                            (TIMER_MESSAGE)0x76,
+                                            static_cast<int>(remain),
+                                            p2,
+                                            static_cast<unsigned int>(user->getCurCharacNo()));
+                continue;                    // esi=1 → 回到 i++ 尾部继续遍历
+            }
+
+            // ORIG +0x227 死分支（remain<6 且 >60 同时成立，恒不可达，按汇编原样保留）。
             _processSepecialEffectContinuousItem(user, p2);
             return user->Send(packet);
         }
-
-        const unsigned int remain = (*items)[i].m_expireTime - curSec;
-        if (!((remain < 6u) && (0x3cu < remain)))
-        {
-            // ORIG +0x1d2 重排程：OBJ_TYPE 0 / key=GetUID / msg 0x76 / delay=remain / p2 / characNo
-            // [SweepTimerDispatcher2] P329/P0：ORIG 无 uid/characNo 具名槽——characNo 先求值
-            // 驻 %edi、uid 驻 %esi（实参右→左求值），我方具名局部使全帧槽深 +8（-0x2c→-0x34）。
-            // 改内联实参后槽序应回 ORIG 形。
-            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0,
-                                        static_cast<int>(user->GetUID()),
-                                        (TIMER_MESSAGE)0x76,
-                                        static_cast<int>(remain),
-                                        p2,
-                                        static_cast<unsigned int>(user->getCurCharacNo()));
-            continue;                    // esi=1 → 回到 i++ 尾部继续遍历
-        }
-
-        // ORIG +0x227 死分支（remain<6 且 >60 同时成立，恒不可达，按汇编原样保留）。
-        _processSepecialEffectContinuousItem(user, p2);
-        return user->Send(packet);
     }
     return 1;                            // ORIG 遍历结束 ebx=1
 }
@@ -3475,7 +3481,11 @@ __attribute__((weak)) TimerGeneratePowerUpNotiTime::~TimerGeneratePowerUpNotiTim
                 // ORIG 08638455 `addl $0x1,-0x14(%ebp)`（内存自增）⇒ ++period 语句。
                 ++period;
                 GlobalData::s_power_manager->SetPowerUpTimerPeriod(period);
-                if (cnt <= period)
+                // [TD-2026-09-11] ORIG 08638439 `mov -0x14(%ebp),%eax; cmp -0x1c(%ebp),%eax;
+                // jl` ⇒ 原码书写序 = `period >= cnt`（左操作数 period 留 %eax、右 cnt 内存直比，
+                // 取反跳走 jl）；旧码 `cnt <= period` 产 `mov cnt; cmp period; jg`（3 行差）。
+                // 探针 /tmp/td_p1.cpp loc/loc2 实证两形各有唯一产物。
+                if (period >= cnt)
                 {
                     // ORIG 0863846a `movl $0x0,-0x14(%ebp)`（period=0 写后未读照抄，P171）。
                     period = 0;

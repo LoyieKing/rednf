@@ -193,6 +193,8 @@ typedef std::map<const char*, int, less_TCHAR> EnumLookupMap;
 // [b28d-lane16 DIFF→AE] ORIG 08892b0d：p167 CLEAR；本轮把 guard 回跳的 `continue`
 // 改 `goto retry`（标签置于 static 三件套之后、`if (__inited)` 之前）⇒ 复现 ORIG
 // 0x088944e5 `jmp +0xc` 直跳，消 4.4 的 2 条 jmp 中转跳板（P164 循环旋转族）。
+// [laneC 复核] 逐条归一化比对 1383=1381：残差仅 2 条**中段对齐 nop**（§6.1 豁免）；
+// p167 调用点全等（含 56 条 insert/惰性注册链）⇒ 维持 AE 判词。
 #include "GameScriptEnumHelpers/getChangeStatusType.inc"
 {
     for (;;)
@@ -552,6 +554,8 @@ typedef std::map<const char*, int, less_TCHAR> EnumLookupMap;
 // case 写 result 并 break 返回角色 0..55，未命中保持入口初值 -1。
 // ---------------------------------------------------------------------------
 // [b28d-lane16 DIFF→AE] ORIG 089fecee：`goto retry` 直跳形消 4.4 jmp 中转跳板后 AE（同 getModuleType 修法；旧「ours 1364 → 1475，残差 = lock 区
+// [laneC 复核] 逐条归一化比对 1476=1474：残差仅 2 条**中段对齐 nop**（§6.1 豁免）；
+// p167 调用点全等 ⇒ 维持 AE 判词。
 #include "GameScriptEnumHelpers/getNpcRoleByString.inc"
 {
     int result = -1;                        // ORIG 089fecfa movl $0xffffffff,-0x20(%ebp)
@@ -890,6 +894,9 @@ typedef std::map<const char*, int, less_TCHAR> EnumLookupMap;
 // ---------------------------------------------------------------------------
 // [b28d-lane16 DIFF→AE] ORIG 088c0bfc：p167 CLEAR；本轮 `continue`→`goto retry` 直跳形
 // 复现 ORIG 0x088c141a `jmp +0xc`，消 2 条 jmp 跳板（P164 循环旋转族）⇒ AE。
+// [laneC 复核 逐条归一化比对] 467(ORIG) vs 465(OURS)：唯一差异 = 两处**中段对齐 nop**
+// （ORIG +0x106 段 `_Unwind_Resume` 之后 1 条、函数尾 1 条；§6.1 口径视为 identical）。
+// 其余逐条同形（symbol/立即数经 .o 重定位归一后全等）；p167 调用点全等。
 #include "GameScriptEnumHelpers/getModuleType.inc"
 {
     // ORIG _Z13getModuleTypePKc @ 0x88c0bfc（报告 _lt_global_gt_/getModuleType.md

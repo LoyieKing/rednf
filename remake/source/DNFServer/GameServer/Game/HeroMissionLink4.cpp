@@ -191,17 +191,20 @@
 // ORIG 循环内 __gnu_cxxne 判续 + 循环后 __gnu_cxxeq 判 ==end 双实例化，
 // 对应普通 for 迭代器循环。
 // ---------------------------------------------------------------------------
-// [b28d-D33 P28/N86 封顶] ORIG 0x08332e4e：56 vs 50 条；p167 差集 = vector::end
-// EXTRA（P13 缓存 end 形）+ 迭代器槽（N86）。语义等价。
+// [laneC] ORIG 0x08332e4e：头部 begin→-0xc / end→-0x10 各一次，循环条件与循环后
+// 比较复用缓存的 end 槽（P13 end 迭代器缓存；ORIG 仅 1 处 `call vector::end`，
+// 0x8332e61 begin / 0x8332e76 end；我方原形两处 `items.end()` 发 2 次 call ⇒
+// p167 EXTRA vector::end）。改为具名 itEnd 缓存后与 ORIG 调用点集一致。
 #include "HeroMissionLink4/getItemIndex_1.inc"
 {
     std::vector<std::pair<int, int> >::const_iterator it = items.begin();
-    for (; it != items.end(); ++it)
+    std::vector<std::pair<int, int> >::const_iterator itEnd = items.end();
+    for (; it != itEnd; ++it)
     {
         if (it->second > rand)
             break;
     }
-    if (it == items.end())
+    if (it == itEnd)
         return 0;
     return it->first;
 }

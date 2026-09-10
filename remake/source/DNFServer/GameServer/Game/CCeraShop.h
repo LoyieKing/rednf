@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <cstring>
+#include <cstddef>        // offsetof（STSpecailItem_Param 布局静态断言）
 
 #include "Inven_Item.h"   // gift 族按值传 Inven_Item，需完整类型
 
@@ -216,12 +217,18 @@ struct STSpecailItem_Param
     void* m_ceraParam;       // +0x10
     int m_count;             // +0x14
     long m_time;             // +0x18
-    unsigned char m_flag;    // +0x1c
+    bool m_flag;             // +0x1c（ORIG 0x0827cd60 movzbl 传 bool 形参无 setcc 归一化）
     unsigned char m_char1d;  // +0x1d
     unsigned char m_char1e;  // +0x1e
     unsigned char m_char1f;  // +0x1f
     int m_extra;             // +0x20
 };
+
+// uchar→bool 同为 1 字节：sizeof/全部成员偏移与 mangled 不变（仅消费侧 codegen 变化）。
+// STSpecailItem_Param 有用户 ctor（非 POD）⇒ 用 __builtin_offsetof 避免 -Winvalid-offsetof。
+static_assert(sizeof(STSpecailItem_Param) == 0x24, "sizeof STSpecailItem_Param");
+static_assert(__builtin_offsetof(STSpecailItem_Param, m_flag) == 0x1c, "off m_flag");
+static_assert(__builtin_offsetof(STSpecailItem_Param, m_extra) == 0x20, "off m_extra");
 
 // ORIG _ZN20STSpecailItem_ResultC1Ev (W 0x08234f36)：仅清零首 4 字节。
 struct STSpecailItem_Result

@@ -321,10 +321,12 @@ struct SaveCrazyLevelupPayloadView
         static_cast<WongWork::CCeraShop::stCeraShopItemParam_t*>(param.m_ceraParam);
     int count = param.m_count;
     long time = param.m_time;
-    // [L14] ORIG 0x0827cd3d `mov 0x18(%eax),%eax; mov %al,-0x1b(%ebp)`（直存字节、
-    // 无 test/setne 归一化）⇒ 原码该局部是 **unsigned char**（bool 局部会发 setne）。
-    // 传参处 ORIG 0x0827cdxx `movzbl -0x1b(%ebp),%ebx` 与 uchar 直传一致。
-    unsigned char flag = param.m_flag;
+    // [L14+/H9 批次3] ORIG 0x0827cd3d `movzbl 0x1c(%eax),%eax; mov %al,-0x1b(%ebp)`
+    // （直存字节）+ 0x0827cd60 `movzbl -0x1b(%ebp),%ebx`（传 bool 形参，**无**
+    // `cmpb $0; setne` 归一化）。uchar 局部在 4.4 下传 bool 形参必插 setne
+    // （实测 +3 条），只有 bool←bool 直存 + bool 直传才复现 ORIG ⇒ 局部改 bool
+    // （P292/T3；字段侧 m_flag 已由 H9 批次2 改 bool，sizeof/偏移不变）。
+    bool flag = param.m_flag;
     char c1 = static_cast<char>(param.m_char1d);
     char c2 = static_cast<char>(param.m_char1e);
     m_owner->_processBoosterSelect(user, itemIdx, count, result.m_value, time,
@@ -459,6 +461,8 @@ struct SaveCrazyLevelupPayloadView
         // 保留（不劣化且收敛）；余 1 槽待后续定位。
         // [G10 实验·P231/P52] ORIG 浅区槽比本形少 1（我方多 0x40）⇒ subItem 跨
         // set_parent_booster_item_id 虚调保活，试纯 register（P0 合规、非 asm 绑定）。
+        // [H9MgrItemLoginCera.CCeraShop 回滚] 本轮删 register 实测 ndiff 68→107
+        // 反劣（-0x1c 槽虽与 ORIG 同形，但三字段装载挤槽更重）⇒ 复原 register。
         register CItem* subItem = G_CDataManager()->find_item((int)it->m_itemIdx);
         // ORIG vtable+0x60 = CStackableItem::set_parent_booster_item_id(unsigned long)
         if (subItem != 0)
@@ -470,6 +474,9 @@ struct SaveCrazyLevelupPayloadView
             subItem->set_parent_booster_item_id(0);
     }
 
+    // [H9MgrItemLoginCera.CCeraShop 回滚·批次4] 虽 ORIG 0x0827cc68 写回 count 槽
+    // -0x2c，但实测写回形使本件 ndiff 68→188 反劣（该件循环/寄存器压力另有主导，
+    // 与 _processBoosterSelect 的可翻情形不同）⇒ 复原独立 restrictCode 局部。
     int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
     if (restrictCode != 0)
     {
@@ -678,13 +685,16 @@ struct SaveCrazyLevelupPayloadView
     }
 
     // 收尾：GetRestrictCode → SetRestrictedGoods/SaveFeaturedIdx → SaveInventory。
-    int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
-    if (restrictCode != 0)
+    // P0/P171（与 _processBoosterSelect/respond_special_item_booster 同型）：ORIG
+    // 0x0827c9xx `local_40`（= param.m_count 的具名槽）被 GetRestrictCode 返回值
+    // 覆写（Ghidra C `local_40 = CItemList::GetRestrictCode(...)`）⇒ 写回 count。
+    count = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
+    if (count != 0)
     {
-        if (!user->IsRestrictedGoods(restrictCode))
+        if (!user->IsRestrictedGoods(count))
         {
-            user->SetRestrictedGoods(restrictCode);
-            m_owner->SaveFeaturedIdx(user, restrictCode, static_cast<int>(time), 0);
+            user->SetRestrictedGoods(count);
+            m_owner->SaveFeaturedIdx(user, count, static_cast<int>(time), 0);
         }
     }
     user->SaveInventory();
@@ -724,9 +734,10 @@ struct SaveCrazyLevelupPayloadView
     // 与 ORIG -0x44/-0x40... 之差收敛到 8 = P332 版本首槽常数）。
     unsigned long itemIdx = param.m_itemIdx;
     int count = param.m_count;
-    // ORIG 0x0827d414：`movzbl 0x1c(%eax),%eax; mov %al,-0x35` —— flag 是**字节槽**
-    // （后续 9 处 `movb $0x1,-0x35`、1 处 `movzbl -0x35,%eax`）⇒ 原码为 unsigned char。
-    unsigned char flag = param.m_flag;          // -0x35
+    // ORIG 0x0827d414：`movzbl 0x1c(%eax),%eax; mov %al,-0x35`（字节槽，9 处
+    // `movb $0x1,-0x35`、1 处 `movzbl -0x35,%eax`）+ 传 cal_end_time 第 6 形参
+    // （bool）时零扩展直传无 setcc ⇒ 按 P292/T3 payload 侧 bool（m_flag 已 bool 化）。
+    bool flag = param.m_flag;                   // -0x35
     // ORIG 槽：timeVal@-0x34（SaveFeaturedIdx 用，case 0xd 不改）、timeA@-0x30（base）、
     // start@-0xa0（cal_end_time 的 start 出参，初值 timeA，0827d430）、end@-0xa8。
     long timeVal = param.m_time;                // -0x34
@@ -751,6 +762,8 @@ struct SaveCrazyLevelupPayloadView
     unsigned int flag2 =
         (unsigned int)(unsigned char)it->second.m_c5;  // 次字节
     int item = it->second.m_value8;             // 限制物品 idx
+    // [H9MgrItemLoginCera.CCeraShop 回滚] `(bool)param.m_char1f` 实测 codegen 与
+    // `!= 0` 完全相同（672/695/ndiff 396 逐值不变）⇒ 复原原形减噪。
     int resultVal = premium_helper_function::cal_premium_term(
         term, param.m_char1f != 0, param.m_extra);
 
@@ -940,7 +953,7 @@ struct SaveCrazyLevelupPayloadView
 
     long end = 0;
     premium_helper_function::cal_end_time(user, start, end, timeA, ptype,
-                                          flag != 0, resultVal);
+                                          flag, resultVal);
     premium_helper_function::send_db(user, ptype, start, end, count);
     WongWork::CHandlePremium::handleSetUserPremium(user, (ENUM_PREMIUM_TYPE)ptype,
                                                    start, end, count, true);
@@ -1156,6 +1169,8 @@ namespace WongWork
         // [G10 实验·P231/P52] ORIG 0x0832400x 无 citem 栈槽（浅区 store 集
         // ORIG-only 0x14/0x57；我方 0x20/0x24/0x28 三槽）⇒ 值以 callee-saved
         // 跨 IsAvatarItem 虚调保活。纯 register（非 asm 绑定，P0 合规）试形。
+        // [H9MgrItemLoginCera.CCeraShop 回滚] 本轮删 register 实测 ndiff 318→421
+        // 反劣（读 -0x18 具名槽虽与 ORIG 同形，但连带帧/槽体系劣化）⇒ 复原。
         register CItem* citem = G_CDataManager()->find_item((int)itemIdx);
         if (citem == 0)
             return 0;
@@ -1175,6 +1190,7 @@ namespace WongWork
             // [G10 实验·P0/P183/P157] ORIG 浅区 store 集只多 1 槽（0x14），我方多
             // 3 槽（0x20/0x24/0x28 = sel 指针 / selItem 引用 / slotCount）⇒ 三点全
             // 内联为单表达式（ORIG 每点重算 getAvatarTypeSelect()/at()，无 CSE）。
+            // [H9MgrItemLoginCera.CCeraShop 回滚] 具名 selField10 实测 ndiff 反劣 ⇒ 复原内联。
             if (c != 4 &&
                 ((const std::vector<stAvatarTypeSelect_t>*)
                      (((CEquipItem*)citem)->getAvatarTypeSelect()))->at(e).m_field10 != 0)
@@ -1762,9 +1778,9 @@ L_true:
                 {
                     // 实测：帧 0xcc→0xbc（=ORIG）；报告 diff 207/205→200/199；
                     // our 326→325（ORIG 324）；TU 四数不变 ⇒ 保留。
-                    // [G10 实验·P231/P52] ORIG 浅区槽比我方少 4（我方多 0x38/0x5c/
-                    // 0x60/0x64）；item 跨 is_stackable 虚调保活 ⇒ 试纯 register（P0 合规）。
-                    register CItem* item = G_CDataManager()->find_item(goodsList[n]->GetItemIdx());
+                    // P0：ORIG 0x08323be1 `mov %eax,-0x24(%ebp)` 后回读 0x08323be9
+                    // ⇒ 具名槽往返（4.4 的 register 提示会令其免槽，与本处 ORIG 相悖）。
+                    CItem* item = G_CDataManager()->find_item(goodsList[n]->GetItemIdx());
                     // ORIG 0x08323be9 无判空（P140/P171：不补边界防御）。
                     if (!item->is_stackable())
                         return false;
@@ -1790,10 +1806,12 @@ L_true:
                 // ORIG 0x8323cf4：以 std::max/std::min 实调钳制
                 // min(1, max(count, count-1))（special 商品出现即回 1，
                 // 不参与限购超额判定；两算法调用点照抄）。
+                // P0/P261：ORIG 0x08323ca8 `call std::max` 的返回引用经 %eax 直传
+                // （无具名 mx 槽）；0x08323cad `movl $0x1,-0x3c(%ebp)` 是 std::min
+                // 第一实参（const int&）的**常量临时**，非具名 one（0x08323cc5
+                // `mov (%eax),%eax; mov %eax,-0xa4(…,4)` 直落）⇒ 两具名局部删除。
                 int dec = typeCount[type] - 1;
-                int mx = std::max(typeCount[type], dec);
-                int one = 1;
-                typeCount[type] = std::min(one, mx);
+                typeCount[type] = std::min(1, std::max(typeCount[type], dec));
             }
         }
     }
@@ -1811,33 +1829,38 @@ L_true:
     {
         if (goodsList[i] == 0)
             continue;
-        if (goodsList[i]->isStackBuyable())
+        // ORIG 0x08323d4e..0x08323d95：`call isStackBuyable; xor $1; test; jne <真>`
+        // + GetRestrictCode 后 `test; je <假>` ⇒ 真值条件为
+        // `!isStackBuyable() || GetRestrictCode(...) != 0`（P258/P292 短路物化，
+        // 无 bool 具名槽）。原 `A && B` 嵌套形语义不同（不可叠/无 restrictCode 的
+        // 商品被漏计），属真语义偏差，按 ORIG 直证修正。
+        if (!goodsList[i]->isStackBuyable() ||
+            G_CDataManager()->m_itemList->GetRestrictCode(
+                goodsList[i]->GetItemIdx()) != 0)
         {
-            int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(
-                goodsList[i]->GetItemIdx());
-            if (restrictCode != 0)
+            // 按商品指针找到已有计数并自增；ORIG 以循环后 it==end() 判缺
+            // （operator== 调用点，无 bool 标志；begin/end 各一次、判缺复用
+            // 迭代器无 end 重发）。
+            std::vector<GoodsCount>::iterator itBeg = counts.begin();
+            std::vector<GoodsCount>::iterator itEnd = counts.end();
+            for (; itBeg != itEnd; ++itBeg)
             {
-                // 按商品指针找到已有计数并自增；ORIG 以循环后 it==end() 判缺
-                // （operator== 调用点，无 bool 标志；begin/end 各一次、判缺复用
-                // 迭代器无 end 重发）。
-                std::vector<GoodsCount>::iterator itBeg = counts.begin();
-                std::vector<GoodsCount>::iterator itEnd = counts.end();
-                for (; itBeg != itEnd; ++itBeg)
+                if (itBeg->first == goodsList[i])
                 {
-                    if (itBeg->first == goodsList[i])
-                    {
-                        ++(itBeg->second);
-                        break;
-                    }
+                    ++(itBeg->second);
+                    break;
                 }
-                if (itBeg == itEnd)
-                    counts.push_back(GoodsCount(goodsList[i], 1));
             }
+            if (itBeg == itEnd)
+                counts.push_back(GoodsCount(goodsList[i], 1));
         }
     }
 
-    for (std::vector<GoodsCount>::iterator it = counts.begin();
-         it != counts.end(); ++it)
+    // P13：ORIG 0x08323e83/0x08323e98 循环外一次构造 begin/end 两具名迭代器
+    // （-0x5c/-0x60），条件段只调 operator!=。
+    for (std::vector<GoodsCount>::iterator it = counts.begin(),
+             itEnd = counts.end();
+         it != itEnd; ++it)
     {
         if (it->second > 1)
             return false;
@@ -2301,9 +2324,12 @@ end:
 
         items.clear();
 
+        // P13：ORIG 0x08327a13/0x08327a28 循环外一次构造 begin/end 两具名迭代器
+        // （-0x44/-0x48），条件段只调 operator!=（0x08327ae2）。
         for (std::vector<stStackableBoosterItemInfo_t>::iterator b =
-                 boosterList.begin();
-             b != boosterList.end(); ++b)
+                 boosterList.begin(),
+             bEnd = boosterList.end();
+             b != bEnd; ++b)
         {
             // ORIG 实参顺序：itemIdx(+0), addInfo(+0x8), avatarLevel(+0xe),
             // avatarType(+0xd), items, param, +0xa(flag)
@@ -2312,15 +2338,20 @@ end:
                                    b->m_byteA);
         }
 
-        int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
+        // P0/P171：ORIG 0x08327b13 `mov %eax,0x14(%ebp)`（写回**第 4 形参 count
+        // 的槽**）后 0x08327b16 `cmpl $0x0,0x14(%ebp)`，其后 IsRestrictedGoods /
+        // SetRestrictedGoods / SaveFeaturedIdx 三处均自 0x14(%ebp) 回读（形参槽
+        // 复用，非新局部）⇒ 照抄写回 count；我方新建 restrictCode 局部会多 1 槽
+        // 并使整块槽链位移。
+        count = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
         // b28d-solo(P225 推广)：`&&` 被 4.4 折成 bool 物化岛（mov $1/jmp/mov $0/
         // test/je，+4 条）；ORIG 两条件各发独立 je 直跳 ⇒ 拆嵌套 if 逐条复现。
-        if (restrictCode != 0)
+        if (count != 0)
         {
-            if (!user->IsRestrictedGoods(restrictCode))
+            if (!user->IsRestrictedGoods(count))
             {
-                user->SetRestrictedGoods(restrictCode);
-                SaveFeaturedIdx(user, restrictCode, (int)curSec, 0);
+                user->SetRestrictedGoods(count);
+                SaveFeaturedIdx(user, count, (int)curSec, 0);
             }
         }
         user->SaveInventory();

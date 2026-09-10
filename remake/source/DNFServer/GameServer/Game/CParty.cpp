@@ -1329,7 +1329,14 @@ typedef std::vector<MapInfo> MapInfoVec;
     // ORIG 0x085ac59c：两次 call memset（0xf4 / 0x10）；`={0}` 会被 4.4 内联成 movl。
     memset(items, 0, 0xf4);
     memset(param, 0, 0x10);
-    if (CheckEnterAncientDungeon(m_battleField.m_pDungeon, flag, items, param) == 1)
+    // [A2 2026-09-11 P59 + P248 档①] ORIG 0x085ac711 `call; xor $0x1,%eax; test %al,%al;
+    // je <body>`，fail 块（mov $2,%ebx; jmp）直落其前；callee 已声明 bool
+    // （CParty.h:478）⇒ 取反物化 xor + 前置早退。旧 `== 1` 形产 `test %al,%al; je` 且
+    // fail 块落函数尾（实测缺 1 条 xor、与 ORIG 块序相反）。
+    if (!CheckEnterAncientDungeon(m_battleField.m_pDungeon, flag, items, param))
+    {
+        return 2;
+    }
     {
         // [2026-09-10 试形 P261/P279] ORIG 无右值槽、以 `cmp $0xab,%eax` 链直比 call 结果
         // （0x085ac59c 段两处）⇒ 原码为 `switch(call())` 而非 if 链（if 链恒带具名槽）。
@@ -1405,7 +1412,6 @@ typedef std::vector<MapInfo> MapInfoVec;
         }
         return 9;
     }
-    return 2;
 // ---------------------------------------------------------------------------
 // [G7 判词·口径伪影，勿据此回滚] 本件 codegen 收敛（286→267 条，ORIG 269）使本段长度
 // 0x3fe→0x3bd（奇偶翻转），导致紧随其后的自由函数 `_Z33getHellPartyEntranceItemNeedCounti`
@@ -2156,61 +2162,61 @@ typedef std::vector<MapInfo> MapInfoVec;
     {
         if (_checkValidUser(i) != 1)
             continue;
-        if (m_battleData.m_arr54[i] == 0)
-            continue;
-        cntE = 0;
-        Inven_Item item1 =
-            m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x13);
-        Inven_Item item2 =
-            m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x12);
-        Inven_Item item3 =
-            m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x11);
-        // [G7-sub] ORIG 0x085b923c / 0x085b9289 / 0x085b92d3：
-        //   `mov -0xe1(%ebp),%eax; mov %eax,-0x14(%ebp)`（sret 缓冲 +2 字段 → 具名
-        //   int -0x14），-0x10（item2）、-0xc（item3）同形 ⇒ 原码有 3 个具名 int
-        //   （P0：有槽往返即有局部）。此后 9 处比较 ORIG 全是 `cmpl $imm,-0x14(%ebp)`
-        //   内存直比；旧码直读 sret 缓冲字段 ⇒ 每处多 1 条 load（我方 217 vs 210），
-        //   且帧小 0xc（0xe8 vs ORIG 0xf8）。
-        int add1 = item1.m_addInfo;
-        int add2 = item2.m_addInfo;
-        int add3 = item3.m_addInfo;
-        if (add1 > 0x5e7f && add1 <= 0x5e87)
+        // [P296] 正向 if 包裹（ORIG 0x085b91ee `movzbl; test %al,%al; je <loop 底>` 无
+        // xor$1 物化）：原码第二守卫是正向块，非第二个 continue。
+        if (m_battleData.m_arr54[i] != 0)
         {
-            cntB++;
-            cntE++;
-        }
-        else if (add1 == 0x5e7f)
-        {
-            cntA++;
-        }
-        else if (add1 == 0x5ed9)
-        {
-            cntB++;
-            cntE++;
-        }
-        if (add2 > 0x5692 && add2 <= 0x569a)
-        {
-            cntC++;
-            cntE++;
-        }
-        else if (add1 == 0x5ed9)
-        {
-            cntC++;
-            cntE++;
-        }
-        if (add3 > 0x4eca && add3 <= 0x4ed2)
-        {
-            cntD++;
-            cntE++;
-        }
-        else if (add1 == 0x5ed9)
-        {
-            cntD++;
-            cntE++;
-        }
-        if (cntE == 3)
-        {
-            flagF = 1;
+            cntE = 0;
+            // [G7-sub] ORIG 0x085b923c / 0x085b9289 / 0x085b92d3：
+            //   `mov -0xe1(%ebp),%eax; mov %eax,-0x14(%ebp)`（sret 缓冲 +2 字段 → 具名
+            //   int -0x14），-0x10（item2）、-0xc（item3）同形 ⇒ 原码有 3 个具名 int
+            //   （P0：有槽往返即有局部）。此后 9 处比较 ORIG 全是 `cmpl $imm,-0x14(%ebp)`
+            //   内存直比；旧码直读 sret 缓冲字段 ⇒ 每处多 1 条 load（我方 217 vs 210），
+            //   且帧小 0xc（0xe8 vs ORIG 0xf8）。
+            unsigned int add1 =
+                m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x13).m_addInfo;
+            unsigned int add2 =
+                m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x12).m_addInfo;
+            unsigned int add3 =
+                m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0x11).m_addInfo;
+            if (add1 > 0x5e7f && add1 <= 0x5e87)
+            {
+                cntB++;
+                cntE++;
+            }
+            else if (add1 == 0x5e7f)
+            {
+                cntA++;
+            }
+            else if (add1 == 0x5ed9)
+            {
+                cntB++;
+                cntE++;
+            }
+            if (add2 > 0x5692 && add2 <= 0x569a)
+            {
+                cntC++;
+                cntE++;
+            }
+            else if (add1 == 0x5ed9)
+            {
+                cntC++;
+                cntE++;
+            }
+            if (add3 > 0x4eca && add3 <= 0x4ed2)
+            {
+                cntD++;
+                cntE++;
+            }
+            else if (add1 == 0x5ed9)
+            {
+                cntD++;
+                cntE++;
+            }
+            if (cntE == 3)
+            {
+                flagF = 1;
+            }
         }
     }
     if (cntA != 0)
@@ -2260,35 +2266,25 @@ typedef std::vector<MapInfo> MapInfoVec;
                 reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
                 _getMemberNames(names2),
                 m_battleField.m_bloodState);
-            bool b;
-            if (!IsSinglePlay() || !m_manager->isDungeonClearHackCheck())
+            // [P0/P329] ORIG 0x085acb2x：两 bool callee 各 `test %al,%al; je`（短路直跳，
+            // 无 bool 槽）；receiver 实参 m_manager 经 %ebx 保活（无名局部）。
+            if (IsSinglePlay() && m_manager->isDungeonClearHackCheck())
             {
-                b = false;
-            }
-            else
-            {
-                b = true;
-            }
-            if (b)
-            {
-                CUser* mgr = m_manager;
                 m_manager->getHackAnalyzer()->addServerHackCnt(
-                    mgr, (WongWork::ENUM_HACKTYPE)0x19c, 1, 0, 0);
+                    m_manager, (WongWork::ENUM_HACKTYPE)0x19c, 1, 0, 0);
             }
         }
-        CUser* mgr2 = m_manager;
-        G_GameWorld()->out_from_dungeon(mgr2);
+        // [P0] ORIG 0x085acc3x：m_manager 经 %ebx 直传（无 mgr2 槽）。
+        G_GameWorld()->out_from_dungeon(m_manager);
         packet.put_byte(0);
         packet.put_short(1);
-        short partyIdx = m_manager->GetPartyIndex();
-        int userState = m_manager->get_state();
-        unsigned int accId = m_manager->get_acc_id();
-        char* accIdStr = NumberToString(accId, 0);
-        // ORIG 0x085acc59 具名 cMyTrace（C1，无 placement new/delete/EH landing）。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x2714, 0);
-        trace(
+        // [P227] ORIG 0x085acc2x：accIdStr/userState/partyIdx 三实参在 cMyTrace ctor 前
+        // 右→左求值、结果留 %ebx/%esi/%edi 跨 ctor 保活（无具名槽；%edi 由 movswl 得）；
+        // ctor 为全表达式临时链（无具名 trace 对象，P221 同族）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x2714, 0)(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
-            accIdStr, userState, (int)partyIdx);
+            NumberToString(m_manager->get_acc_id(), 0), m_manager->get_state(),
+            (int)m_manager->GetPartyIndex());
         m_manager->SetPartyIndex(-1);
         if (m_manager->getMoveSpace() != (UserSpace::T)1)
         {
@@ -2297,14 +2293,16 @@ typedef std::vector<MapInfo> MapInfoVec;
         m_manager->make_basic_info((char*)&packet, 0);
         destroy();
         packet.finalize(true);
-        CUser* gm = getManager();
-        if (gm->getMoveSpace() == (UserSpace::T)1)
+        // [P0] ORIG 0x085acfxx：getManager() 结果直传（无 gm 槽）。
+        // [P222/P137] ORIG 0x085acd0a `cmp $0x1; setne %al; test; je <send_to_party>`
+        // ⇒ 原码条件写成 != 1（真臂 send_all 直落、else 臂 send_to_party 居后）。
+        if (getManager()->getMoveSpace() != (UserSpace::T)1)
         {
-            send_to_party(packet);
+            G_GameWorld()->send_all(packet, m_manager);
         }
         else
         {
-            G_GameWorld()->send_all(packet);
+            send_to_party(packet);
         }
     }
     else
@@ -2339,20 +2337,11 @@ typedef std::vector<MapInfo> MapInfoVec;
                 }
                 if (m_battleField.m_pDungeon != 0)
                 {
-                    bool b;
-                    if (!IsSinglePlay() || !m_manager->isDungeonClearHackCheck())
+                    // [P0/P329] 同首分支：短路直跳，无 bool/mgr 槽。
+                    if (IsSinglePlay() && m_manager->isDungeonClearHackCheck())
                     {
-                        b = false;
-                    }
-                    else
-                    {
-                        b = true;
-                    }
-                    if (b)
-                    {
-                        CUser* mgr = m_manager;
                         m_manager->getHackAnalyzer()->addServerHackCnt(
-                            mgr, (WongWork::ENUM_HACKTYPE)0x19c, 1, 0, 0);
+                            m_manager, (WongWork::ENUM_HACKTYPE)0x19c, 1, 0, 0);
                     }
                 }
                 CUser* u = m_member[i].m_pUser;
@@ -2405,16 +2394,8 @@ typedef std::vector<MapInfo> MapInfoVec;
         int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
         const char* dname = m_battleField.m_pDungeon->GetDungeonName();
         user->m_historyLog.LeaveDungeon(dname, diff, memberNames, partyType);
-        bool b;
-        if (!IsSinglePlay() || !user->isDungeonClearHackCheck())
-        {
-            b = false;
-        }
-        else
-        {
-            b = true;
-        }
-        if (b)
+        // [P0/P329] 同 ReturnToVillage：短路直跳，无 bool 槽（ORIG 两 test 直判）。
+        if (IsSinglePlay() && user->isDungeonClearHackCheck())
         {
             user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x19c, 1, 0, 0);
         }
@@ -2434,16 +2415,12 @@ typedef std::vector<MapInfo> MapInfoVec;
     int count = get_member_count();
     if (count < 2)
     {
-        short partyIdx = user->GetPartyIndex();
-        int userState = user->get_state();
-        unsigned int accId = user->get_acc_id();
-        char* accIdStr = NumberToString(accId, 0);
-        // [P227/N83] ORIG 无 placement-new（p167 EXTRA _ZnwjPv/_ZdlPvS_/_Unwind_Resume
-        //   即旧码 `new (log) cMyTrace(…)` 残留）⇒ 改真实具名对象（lea 取址构造 + op()）。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x5b8, 0);
-        trace(
+        // [P227/N83] ORIG 无 placement-new 且三实参在 ctor 前右→左求值、跨 ctor 保活
+        //（无具名槽）⇒ 全表达式临时链（无具名 trace 对象）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x5b8, 0)(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
-            accIdStr, userState, (int)partyIdx);
+            NumberToString(user->get_acc_id(), 0), user->get_state(),
+            (int)user->GetPartyIndex());
         if (count < 1)
         {
             int cState = (char)m_state;
@@ -2630,18 +2607,25 @@ typedef std::vector<MapInfo> MapInfoVec;
 #include "CParty/UseAncientDungeonItems.inc"
 {
     // b28d-49 判词：N 封顶（N82 帧/槽）。P167 CLEAR。@0x859eac2
-    if (m_battleField.m_bloodState != 1 && dungeon->m_entryRequiredItem.m_enableFlag != 0)
+    // [P16/P133] ORIG 0x0859eadx：`cmp $0x1,%eax; jne <body>; mov $1,%eax; jmp <end>`
+    // = 第一条守卫独立早退（非 && 合并）；第二条守卫落尾共享 `return 1`。
+    if (m_battleField.m_bloodState == 1)
+        return 1;
+    if (dungeon->m_entryRequiredItem.m_enableFlag != 0)
     {
         for (int i = 0; i <= 3; ++i)
         {
             if (_checkValidUser(i) != 1)
                 continue;
-            int itemIdx = dungeon->m_entryRequiredItem.m_itemCount;
-            int slot = param[i];
-            // [2026-09-10 试形 P0/P183] ORIG 无 inv/r 槽（`mov 0x7f8(%eax),%esi` 寄存器
-            // 直传、返回值直比）⇒ 内联为单语句。
+            // [2026-09-10 + 本轮 P0/P183] ORIG 0x0859eb4x 实参装载段：
+            //   `mov 0xc(%ebp),%eax; mov 0x7f8(%eax),%esi`（itemCount→%esi）
+            //   `mov -0x20(%ebp),%eax; shl $2; add 0x14(%ebp),%eax; mov (%eax),%ebx`
+            //   （slot = param[i] → %ebx）——**两者均无栈槽**，跨 receiver call 保活
+            //   ⇒ 删除 itemIdx/slot 具名局部，实参写字面表达式。
             if ((char)m_member[i].m_pUser->getCurCharacInvenW()->delete_item(
-                    (INVEN_TYPE)1, slot, itemIdx, (eItemDelReason)0xe, true) != 1)
+                    (INVEN_TYPE)1, param[i],
+                    dungeon->m_entryRequiredItem.m_itemCount,
+                    (eItemDelReason)0xe, true) != 1)
             {
                 // [P227 全表达式临时链] ORIG 0x0859eb84..0x0859ebf6：ctor 前右起求 varargs
                 //   并跨 call 保活（dungeon+0x7f8→%edi、param[i]→%esi、characNo→%ebx），
@@ -2649,8 +2633,8 @@ typedef std::vector<MapInfo> MapInfoVec;
                 //   少 push %edi（帧 0x5c vs 0x60）。
                 cMyTrace(__PRETTY_FUNCTION__, 0xa60, 5)(
                     "CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
-                    dungeon->m_entryRequiredItem.m_itemCount, param[i],
-                    m_member[i].m_pUser->getCurCharacNo());
+                    m_member[i].m_pUser->getCurCharacNo(),
+                    param[i], dungeon->m_entryRequiredItem.m_itemCount);
                 return 0;
             }
             PacketGuard packet;
@@ -3048,7 +3032,7 @@ typedef std::vector<MapInfo> MapInfoVec;
             // [SweepCParty2] 试形记录：交换比较操作数（callee 结果居左）实测仍产
             // `cmp -0x1c(%ebp),%eax` 折叠（.o 0x6743 实证）⇒ 与 int 化同为无效旋钮，
             // N18b 封顶（ORIG 0x85b637d 两段 `mov -0x1c(%ebp),%edx; cmp %edx,%eax`）。
-            else if (guildKey != m_member[i].m_pUser->get_charac_guildkey())
+            else if (m_member[i].m_pUser->get_charac_guildkey() != (int)guildKey)
             {
                 sameGuild = false;
             }
@@ -4674,9 +4658,11 @@ typedef std::vector<MapInfo> MapInfoVec;
     {
         if (slot == 0)
         {
-            // [G7-sub] P0 槽律 + 语义修正（ORIG 直证）：ORIG 085a6ce8 `call Singleton::Get`
-            // 结果**无栈槽**（直进 (%esp)），我方原具名 srm 落 -0x1c；且实参装载序
-            // 085a6cf0 `movl $0x2,0xc(%esp)` / 085a6cf7 `movl $0x1,0x8(%esp)`
+            // [G7-sub] P0 槽律 + 语义修正（ORIG 直证）：ORIG 085a6bff
+            // `call ARAD::Singleton<ServiceRestrictManager>::Get` 结果**无栈槽**
+            // （直进 (%esp)），我方原具名 srm 落 -0x1c；且实参装载序
+            // 085a6c04 `movl $0x2,0xc(%esp)` / 085a6c0c `movl $0x1,0x8(%esp)`
+            // （G7 父泳道按 nm+反汇编复核修正原引址 085a6cf0/085a6cf7）
             // ⇒ 第3参=1、第4参=2（**`isRestricted(user, (RestrictCategory::Enum)1, 2)`**），
             // 我方原写 (Enum)2, 1 为**实参颠倒**（值语义不同）⇒ 一并修正。
             if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
@@ -5439,8 +5425,9 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
                                        (unsigned short)monsterIdx,
                                        (int)dieInfo.m_killValue2))
         {
-            WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
-            hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0xc9, 1, 0, 0);
+            // [P0] ORIG 0x085b5abx：getHackAnalyzer 结果直传（无 hack 槽）。
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (WongWork::ENUM_HACKTYPE)0xc9, 1, 0, 0);
         }
     }
 
@@ -5460,6 +5447,9 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
             if (checkValidUser(i))
             {
                 CUser* member = get_user(i);
+                // ORIG 0x085b5c07 `call GetParty; mov %eax,-0x10(%ebp)` + 0x085b5c30/3a
+                // 两处 `mov -0x10/-0x14(%ebp),%eax; mov 0xcac(%eax),%eax` ⇒ memberParty/
+                // userParty **各只调一次**并落槽（-0x14 userParty / -0x10 memberParty）。
                 void* memberParty = member->GetParty();
                 void* userParty = user->GetParty();
                 if (memberParty != 0 && userParty != 0 && member != 0)
@@ -5467,9 +5457,9 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
                     // ORIG OnKilledMonster.md 085b5c30/085b5c3d `mov 0xcac(%eax)` =
                     // CParty::m_battleField.m_pDungeon
                     CDungeon* mpDungeon =
-                        reinterpret_cast<CParty*>((memberParty))->m_battleField.m_pDungeon;
+                        reinterpret_cast<CParty*>(memberParty)->m_battleField.m_pDungeon;
                     CDungeon* upDungeon =
-                        reinterpret_cast<CParty*>((userParty))->m_battleField.m_pDungeon;
+                        reinterpret_cast<CParty*>(userParty)->m_battleField.m_pDungeon;
                     if (mpDungeon == 0 || upDungeon == 0)
                     {
                         if (member == user)
@@ -5531,8 +5521,9 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
             level = 1;
         if (level != 0)
         {
-            WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
-            hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x86, level, 0, 0);
+            // [P0] ORIG 0x085b5e9x：getHackAnalyzer 结果直传（无 hack 槽）。
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (WongWork::ENUM_HACKTYPE)0x86, level, 0, 0);
         }
     }
     if (bf.check_grid_clear())
@@ -5556,8 +5547,12 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
     int ret = 0;                                        // -0x30
     ret = GlobalData::s_villageMonsterMgr->OnFightVillageMonster(
         user, (unsigned short)param);
-    if (ret != 0)
+    // [P225] ORIG 0x085b95b5 `cmpl $0x0,-0x30; setne %al; test %al,%al; je`：
+    // 4.1 bool 物化形，4.4 复现形唯一为 while(cond){return;}（probe /tmp/probe_setne.cpp t3）。
+    while (ret != 0)
+    {
         return ret;
+    }
     game_start(user);
     int dungIdx = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
     int diff = 0;                                       // -0x28
@@ -6054,11 +6049,11 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
                         (VALUE_STATISTIC_FIELD)5, user, (unsigned int)price);
                 }
                 put += _putItemIntoUser(user, &g2[0], packet);
-                CEventBase* ev40 =
-                    GlobalData::s_event_manager->GetRepeatEvent(0x40);
-                bool giveGold = ev40->IsEventing(0) || IsReturnUserParty() ||
-                                IsEventCharacParty();
-                if (giveGold && !IsPremiumGoldCardParty())
+                // [P0/P329] ORIG 0x085abaxx：GetRepeatEvent→IsEventing 结果直测
+                //（短路链物化，无 ev40/giveGold 具名槽）。
+                if ((GlobalData::s_event_manager->GetRepeatEvent(0x40)->IsEventing(0) ||
+                     IsReturnUserParty() || IsEventCharacParty()) &&
+                    !IsPremiumGoldCardParty())
                     put += _putItemIntoUser(user, &g2[0], packet);
                 ++goldCardCount;
             }
@@ -6351,14 +6346,13 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
         // 双槽与 -0x2c scratch）⇒ 回退 register 版（88 条 = ORIG 条数、帧 0x20）。
         // 余差 = ORIG 槽读形（`mov %eax,-0x1c; …; mov -0x1c(%ebp),%eax; mul`）vs
         // 4.4 寄存器保活形 ⇒ N82/N126 帧族封顶（delta 4/2 条）。
-        register unsigned int playTime = GetMapPlayingTime();
         m_member[param].m_pUser->m_historyLog.MapClear(
             // b28d-solo-CParty：ORIG 085b7cd8 `movzwl 0x183e(%eax)` 单条 disp ⇒
             // 走 CParty.h 的 m_resultView 具名视角（P235），不再对 pad 取址 cast。
             m_gameResultSet.m_field4a,
             // 试形记录（已回滚）：`/1000`（int 常量）与 `/1000U` 同产 scratch 副本
             //   `mov %eax,-0xc; mov -0xc,%eax; mov %eax,-0x2c; …mul`（+2）⇒ 判 N92 族。
-            playTime / 1000U, 0);
+            GetMapPlayingTime() / 1000, 0);
         // ORIG 085b7d1f `movzbl 0x89f(%eax)` = CDungeon::m_bloodDungeonType
         //（unsigned char 宽度修正：原 *(char*) 为 movsbl 异形）
         if (m_battleField.m_pDungeon->m_bloodDungeonType == 1)   // 血图进度

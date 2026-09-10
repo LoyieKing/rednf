@@ -1404,9 +1404,13 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     int expertScript = 0;
     if (((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType() != 0)
     {
-        int exp =
-            ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobExp();
-        expertJobLevel = m_parent->GetCurExpertJobLevel(exp);
+        // [H10-SkillSlot 2026-09-11] 判据 P0/P183：删具名 `exp` 槽。
+        // ORIG 0x0860562b..0x08605641 段 = `call GetCurCharacExpertJobExp;
+        // mov 0x8(%ebp),%edx; mov (%edx),%edx; mov %eax,0x4(%esp);
+        // mov %edx,(%esp); call CUser::GetCurExpertJobLevel; mov %eax,-0x44`
+        // （无 store/load 往返、帧内无对应槽）⇒ 原码实参内联。
+        expertJobLevel = m_parent->GetCurExpertJobLevel(
+            ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobExp());
     }
     // [g11-slot 2026-09-10] P0/P183 去具名缓存（直证）：ORIG 4 处使用点均为
     // `call G_CDataManager; mov 0x14(%eax),%ebx/%edi`（0x08605644/0x08605649、
@@ -1422,29 +1426,36 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     //   定义侧已 char→bool ⇒ 本处 result 同步 bool（ORIG 0x086056xx 为
     //   `mov %al,-0x35; movzbl -0x35; xor $1; test; je` = bool 负极性物化）。
     bool result = true;
-    char secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
-    char firstGrow = 0;
-    if (secondGrow == 0)
+    // [H10-SkillSlot 2026-09-11] 判据 P0/P183：删具名 char `secondGrow`/`firstGrow`
+    // 槽。ORIG 0x086056a8/0x086056b8（then）、0x0860570a/0x0860571a（else）、
+    // 0x08605940/0x08605950（pvp）、0x08605a14/0x08605a24（IsStealable）全为
+    // `movsbl %al,%esi/%ebx/%edi/%eax` 寄存器直传，帧内无 char 槽；我方 4.4 对
+    // 具名 char 局部发 `mov %al,-0x46; movsbl -0x46` 往返 ⇒ 使用点内联。
+    if (((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType() == 0)
     {
-        secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
-        firstGrow = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
         result = ((CCharacter*)((char*)G_CDataManager()->m_characList +
                                 ((CUserCharacInfo*)m_parent)
                                     ->get_charac_job() *
                                     0x7dc))
-                     ->get_give_skill((int)firstGrow, (int)secondGrow,
-                                      learnList, 1);
+                     ->get_give_skill(
+                         (int)((CUserCharacInfo*)m_parent)
+                             ->getCurCharFirstGrowType(),
+                         (int)((CUserCharacInfo*)m_parent)
+                             ->getCurCharSecondGrowType(),
+                         learnList, 1);
     }
     else
     {
-        secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
-        firstGrow = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
         result = ((CCharacter*)((char*)G_CDataManager()->m_characList +
                                 ((CUserCharacInfo*)m_parent)
                                     ->get_charac_job() *
                                     0x7dc))
-                     ->get_give_skill((int)firstGrow, (int)secondGrow,
-                                      learnList, 0);
+                     ->get_give_skill(
+                         (int)((CUserCharacInfo*)m_parent)
+                             ->getCurCharFirstGrowType(),
+                         (int)((CUserCharacInfo*)m_parent)
+                             ->getCurCharSecondGrowType(),
+                         learnList, 0);
     }
     // 2026-09-10 试形留痕（A17 极性直证 + 我方实测）：按 ORIG 0x0860575d
     //   `movzbl -0x35; xor $1; test; je <主体>` 改早退形（`if (!result) return;`
@@ -1481,14 +1492,14 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         if (world->IsPvPSkilTreeChannel() != 0)
         {
             giveList.clear();
-            secondGrow =
-                ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
-            char firstGrow =
-                ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
-            int job = ((CUserCharacInfo*)m_parent)->get_charac_job();
             (&G_CDataManager()->m_pvpSkillTree)
-                ->getGiveSkill(job, (int)firstGrow, (int)secondGrow,
-                               giveList);
+                ->getGiveSkill(
+                    ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                    (int)((CUserCharacInfo*)m_parent)
+                        ->getCurCharFirstGrowType(),
+                    (int)((CUserCharacInfo*)m_parent)
+                        ->getCurCharSecondGrowType(),
+                    giveList);
         }
         for (int i = 0; i < 204; ++i)
         {
@@ -1505,11 +1516,11 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
                 bool isSteal = false;
                 int charLevel =
                     ((CUserCharacInfo*)m_parent)->get_charac_level();
-                secondGrow =
-                    ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
-                firstGrow =
-                    ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
-                if (skill->IsStealable((int)firstGrow, (int)secondGrow) != 0)
+                if (skill->IsStealable(
+                        (int)((CUserCharacInfo*)m_parent)
+                            ->getCurCharFirstGrowType(),
+                        (int)((CUserCharacInfo*)m_parent)
+                            ->getCurCharSecondGrowType()) != 0)
                 {
                     isSteal = true;
                     charLevel = charLevel - skill->GetStealLevelPenalty();
@@ -1792,6 +1803,11 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         return -2;
     }
     std::list<_pre_skill>::const_iterator it;
+    // H10回滚 2026-09-11：删具名引用 `preSkillList` 使用点直写 ⇒ ours 458→467
+    // （gap 6→−3，劣）+ missing_in_game 36→39（新 emit `_List_iterator::C2`/
+    // `_List_const_iterator::C2(iterator const&)` 等 3 个 C2 别名）⇒ 复原。
+    // 指令形证据：ORIG 0x08603d?? `mov -0x30(%ebp),%eax; lea 0x18(%eax),%edx`
+    //（引用槽 -0xc 在 ORIG 侧同样存在，帧 0x74 差来自别处）。
     const std::list<_pre_skill>& preSkillList = skill->m_preSkillList;
     it = preSkillList.begin();
     while (it != preSkillList.end())
@@ -1876,7 +1892,12 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         return -4;
     }
     int slot = get_skillslot_no(m_tempSkillSlot, skillIdx, group, true);
-    int curLevel;
+    // [H10-SkillSlot 2026-09-11] 判据 P0（槽/初始化直证）：ORIG 0x086074ee
+    // `movl $0x0,-0x1c(%ebp)` 位于 `cmpl $0xffffffff,-0x24(%ebp)` **之前**
+    // （无条件），且 0x0860752e 又有一处 `movl $0x0,-0x1c(%ebp)`（then 分支）
+    // ⇒ 原码为 `int curLevel = 0;` + then 内重复 `curLevel = 0;`。我方缺无条件
+    // 初始化（0x0 立即数计数 14 vs 12）。同 master_new_skill 的已对齐形。
+    int curLevel = 0;
     int targetLevel;
     if (slot == -1)
     {
@@ -2361,6 +2382,15 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         result = 7;
         return -5;
     }
+    // [H10-复核 2026-09-11 · 回滚 H10-SkillSlot 的「守卫早退」改动]
+    // 复核结论：①语义**等价**——旧形在 `A != 0 && grade < 0` 时跳过主体后
+    // 落到函数尾的 `result = 7; return -3;`（见本函数末尾两行），与新增守卫
+    // 路径行为相同，故旧判词「丢失 result/早退」不成立；②codegen **劣化**——
+    // ORIG 0x08607974..0x086079aa 正是「两条件各跳主体 + fail 块」形
+    // (`test %al,%al; je 主体` / `setge %al; test %al,%al; jne 主体` /
+    //  `mov 0x24(%ebp),%eax; movl $0x7,(%eax); mov $0xfffffffd,%ebx`），
+    // 与旧形 `A == 0 || grade >= 0` 同构；改后 our_insns 352→347
+    // (ORIG 357，gap +5→+10) 反而背离 ORIG ⇒ 复原旧形。
     if (G_GameWorld()->IsPvPSkilTreeChannel() == 0 ||
         ((CUserCharacInfo*)m_parent)->get_pvp_grade() >= 0)
     {
@@ -2641,7 +2671,11 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     {
         return 0;
     }
-    char result = 0;
+    // [H10-SkillSlot 2026-09-11] 类型轴（ORIG 直证）：函数返回 bool（SkillSlot.h:318），
+    // ORIG 尾部 0x08605d?? 为 `movzbl -0x51(%ebp),%eax`（**无** char→bool 归一化）
+    // ⇒ 原码局部是 bool；我方 `char result` 触发返回归一化
+    // `cmpb $0x0,-0x65(%ebp); setne %al`（imm 0x0 计数 32 vs 34）。
+    bool result = false;
     _Mastered_skill* buf = get_skillslot_buf(kind);
     int* remainSFP = 0;
     if (kind == 0)

@@ -13618,7 +13618,7 @@ struct Inter_NoticeGuildCargoTail
         {
             packet.put_short((short)i);              // ORIG `cwtl`（源码 (short) 截断）
             packet.put_binary(
-                (reinterpret_cast<const Inter_NoticeGuildCargoEntry*>(pPkt) + i)
+                (reinterpret_cast<Inter_NoticeGuildCargoEntry*>(pPkt) + i)
                     ->m_body.m_bytes + 2, 0x35);
             ++putCount;
         }
@@ -18715,11 +18715,10 @@ struct Inter_LoadEventLevelupSupportPktView
 
     for (int local_24 = 0; local_24 < *local_2c; ++local_24)
     {
-        LevelupSupportEventManger::EventInfo& info =
-            user->m_levelupEvents[local_24];
-        if (info.m_level == (short)local_2c[local_24 + 1])
+        if (user->m_levelupEvents[local_24].m_level ==
+            (short)local_2c[local_24 + 1])
         {
-            info.m_state =
+            user->m_levelupEvents[local_24].m_state =
                 *reinterpret_cast<unsigned short*>(
                     reinterpret_cast<char*>(local_2c) + local_24 * 4 + 6);
         }
@@ -18808,15 +18807,23 @@ struct Inter_LoadEventLevelupSupportPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=64（ORIG 0x84e6acc）：N22 cmp 操作数方向+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 #include "InterDispatcher/checkError.inc"
 {
+    // ORIG 084e6ae1/084e6b22 单条 `mov 0x12(%eax),%eax` / `mov 0x16(%eax),%edx`（disp 折叠，
+    //   无 add 两步）⇒ 偏移访问须经具型视图成员（局部类型不发射符号）。
+    struct InfoView
+    {
+        char m_pad0[0x12];
+        int m_charNo;   // +0x12
+        int m_itemId;   // +0x16
+    };
     if (user == 0)
         return 3;
     if (user->get_state() <= 2)
         return 3;
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(info) + 0x12))
+        reinterpret_cast<InfoView*>(info)->m_charNo)
         return 3;
 
-    m_error = *reinterpret_cast<int*>(reinterpret_cast<char*>(info) + 0x16);
+    m_error = reinterpret_cast<InfoView*>(info)->m_itemId;
     if (m_error == 0)
         return 0x11;
 

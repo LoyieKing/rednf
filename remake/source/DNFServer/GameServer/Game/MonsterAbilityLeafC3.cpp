@@ -849,7 +849,11 @@ extern std::vector<DungeonPartyBalance> DUNGEON_PARTY_BALANCE_TABLE;
     for (std::vector<DungeonPartyBalance>::size_type i = 0;
          i < DUNGEON_PARTY_BALANCE_TABLE.size(); ++i)
     {
-        const DungeonPartyBalance& bal = DUNGEON_PARTY_BALANCE_TABLE[i];
+        // [laneE1 2026-09-11 P167 重载选错修复] ORIG 该点 call 目标是
+        //   `_ZNSt6vectorI19DungeonPartyBalanceSaIS0_EE2atEj`（at(unsigned)），
+        //   我方为 `…EEixEj`（operator[]）⇒ 源形须为 `.at(i)`（P175：ORIG 走
+        //   size()+at() 索引形）。越界语义随 ORIG 恢复（at 抛 out_of_range）。
+        const DungeonPartyBalance& bal = DUNGEON_PARTY_BALANCE_TABLE.at(i);
         if (static_cast<float>(level) < bal.m_a)
             continue;
         if (static_cast<float>(level) != bal.m_b)

@@ -53,7 +53,10 @@ extern std::map<std::string, int> g_mapKeyNameIndexTable;
 // [b28d-solo-OnlyOrigBatch12] AE：去 fail/ok 具名 bool 槽（P0：ORIG 短路链物化
 // 直接落 al）+ 失败块 `if(data)` 与中/成功块裸 delete（ORIG 2/1 test 形，P141）；
 // 72/72 逐条同构，clean 0 残差。ORIG 0x088bb4b4
-static int loadStringTable()
+// [b28e laneB P248 档①] 返回类型 int→bool：ORIG 调用点 0x088bb781 之后为
+// `xor $0x1,%eax; test %al,%al; je`（3 条、无 `test %eax,%eax`）⇒ callee 必为 bool；
+// int callee 的 `!f()` 在 4.4 恒产 `test %eax,%eax; sete %al`（P292/P168a 定论）。
+static bool loadStringTable()
 {
     unsigned char* data = 0;
     unsigned int size = 0;
@@ -66,17 +69,17 @@ static int loadStringTable()
             delete[] data;
         LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x15a,
                               "[compile] can't find string table bin file.");
-        return 0;
+        return false;
     }
     if (!g_dnfLex.setStringTableFromBuffer(data, static_cast<int>(size)))
     {
         delete[] data;
         LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x161,
                               "[compile] failed to import string table.");
-        return 0;
+        return false;
     }
     delete[] data;
-    return 1;
+    return true;
 }
 
 // ORIG T 0x088c1558 _ZL23importKeyNameIndexTablev（static）。
@@ -212,7 +215,18 @@ std::vector<std::string> g_szScriptFilePriorityBaseDirectory;
 //   3) 置 s_bUseScriptPack=compiled；param_3 非空时强制 pack 模式并以其为包名；
 //   4) pack 模式下 PackSet 打开并装载字符串表，结果写入 param_4（推断：ORIG 的
 //      loadStringTable/importKeyNameIndexTable 为 ORIG TU 内 static，未单独还原）。
-// [b28d-lane16 DIFF] ORIG 088bb5d2：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28e laneB 本轮修 4 处，均有 ORIG 直证；旧 b28d-lane16「跨版本寄存器·槽位残差 N」作废]
+//   ①P303 `__builtin_strcat(g_sz,"\\")`（ORIG 0x088bb676..0x088bb6a0 八条内建链；
+//     旧形 `memcpy(base+len,"\\",2)` 只有 6 条且无 strlen/add/双 mov 中转）；
+//   ②`int len` + `if (len <= 0)`（ORIG 0x088bb644 `cmpl $0x0,-0x10; jg` 有符号直证；
+//     旧 `unsigned` 形产 `jne`）；
+//   ③`s_bUseScriptPack = compiled ? 1 : 0;` 补**第一次**写（ORIG 0x088bb6a5 与
+//     0x088bb6fb 两处同形 `movzbl -0x1c(%ebp),%eax; mov %al,&s_bUseScriptPack`，
+//     旧源码只有第二处）；
+//   ④`loadStringTable()` 返回 int→bool（ORIG 调用点 0x088bb781 `call; xor $0x1,%eax;
+//     test %al,%al; je` 三条形；int callee 的 `!f()` 在 4.4 恒产 `test %eax,%eax;
+//     sete %al` 四条，P292/P168a/P248 档①）。
+// 预期：ours 131→135 与 ORIG 135 对齐（gap +4→0）。可整块回滚（本块 4 处均为独立语句）。
 #include "ScriptExtras/InitRDARScript.inc"
 {
     g_dnfLex.SetHandler(&isDbcsLead, &LexerOutput, &LexerError,
@@ -220,15 +234,25 @@ std::vector<std::string> g_szScriptFilePriorityBaseDirectory;
 
     std::strncpy(g_szScriptFileBaseDirectory, dir,
                  sizeof(g_szScriptFileBaseDirectory));
-    unsigned int len = static_cast<unsigned int>(
-        std::strlen(g_szScriptFileBaseDirectory));
-    if (len == 0)
+    // [b28e laneB P321-T2 直证] ORIG 0x088bb644 `cmpl $0x0,-0x10(%ebp); jg` 是**有符号**
+    // 比较 ⇒ 原码 `int len`（unsigned 会生 ja/jbe 或 jne 直比，旧形即 `jne`）且判据是
+    // `if (len <= 0) return false;`（4.1 生 `jg <跳过 return 块>` 正形）。
+    int len = (int)std::strlen(g_szScriptFileBaseDirectory);
+    if (len <= 0)
         return false;
     if (g_szScriptFileBaseDirectory[len - 1] != '\\' &&
         g_szScriptFileBaseDirectory[len - 1] != '/')
     {
-        std::memcpy(g_szScriptFileBaseDirectory + len, "\\", 2);
+        // [b28e laneB P303] ORIG 0x088bb676..0x088bb6a0 八条内建展开（`movl $2,0x8;
+        // movl $str,0x4; movl $base,(%esp); call strlen; add $base,%eax; mov %eax,(%esp);
+        // mov (%esp),%eax; mov %eax,(%esp); call memcpy`）⇒ 源形必为 __builtin_strcat；
+        // 手写 memcpy(base+len,"\\",2) 恒 DIFF（旧判词「P209e19/P75 跨版本 N」作废）。
+        __builtin_strcat(g_szScriptFileBaseDirectory, "\\");
     }
+    // [b28e laneB P171 照抄] ORIG 0x088bb6a5/0x088bb6fb **两处**同形写
+    // （`movzbl -0x1c(%ebp),%eax; mov %al,&s_bUseScriptPack`）：第一处在分隔符块之后、
+    // packName 构造之前，第二处在 packName 之后 ⇒ 原码确有两句赋值，照抄。
+    s_bUseScriptPack = compiled ? 1 : 0;
 
     std::string packName = "Script.pvf";
     s_bUseScriptPack = compiled ? 1 : 0;

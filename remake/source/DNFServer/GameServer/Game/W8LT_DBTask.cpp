@@ -4450,7 +4450,10 @@ struct DB_UpdateLogoutSigView
     // [b28d-solo-4] P316 volatile 旋钮：ORIG 4.1 先装载 serverId（-0x10→%edx）
     // 再算 m_gcNo（→%ecx）；4.4 右→左恒反序。volatile 声明强制该读先行。
     // [L4-r1 判据⑩] 槽序反转律：ORIG 声明序 = bool r → int serverId → ptr db
-    //（槽 r@-0x11 / serverId@-0x10 / db@-0xc）⇒ r 必须声明在 serverId 之前。
+    //（槽 r@-0x11 / serverId@-0x10 / db@-0xc）。
+    // [H4 2026-09-11 复核] 实测把 serverId 提到 r 之前**槽号完全不变**
+    //（r 仍 -0xd / serverId 仍 -0x14）⇒ 4.4 按尺寸分组+首次使用序分配、
+    // 声明序不可翻（N98/P331 混合尺寸区）⇒ 回滚保原序，判 N82 槽号封顶。
     bool r;
     volatile int serverId = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -12008,6 +12011,15 @@ struct DB_SecuRewardOutView
     // ORIG 六个 map 迭代器在函数顶部声明（帧 -0xb8..-0xa4，Ghidra
     // local_bc..local_a8），循环内再赋值 begin/end。P50 初始化式改法实测
     // 劣化（383→488 行）⇒ 维持先声明后赋值（C1Ev 差集 +6 记 N）。
+    // [H4 2026-09-11 复核·负结论] ORIG 0x0841abc6 槽 -0xa4/-0xa8（0x0841ad4a/
+    // 0x0841ad6f）、-0xac/-0xb0（0x0841aee7/0x0841aea1）、-0xb4/-0xb8 确为顶部
+    // 具名迭代器，但 ORIG 区间内**无** `_Rb_tree_iterator<int,int>::C1Ev` call
+    // （4.1 把空 ctor 内联为 0 条）；4.4 对顶部声明必发 6×5=30 条
+    // （clean 401 vs orig 371 ⇒ DIFF）。改「各循环前原位初始化」后 371=371、
+    // 仅余槽号差（4.4 复用 -0x70/-0x74 一对，ORIG 六槽独立 ⇒ N82），但本 TU
+    // 因此不再发射 W 符号 `_ZNSt17_Rb_tree_iteratorISt4pairIKiiEEC1Ev`/`C2Ev`
+    // （ORIG 0x080fa898 W 0xe 有）⇒ TU 账 identical −1 / near +1 /
+    // missing(our-only) −1，触「identical 不得下降」闸门 ⇒ 回滚留 N。
     std::map<int, int>::iterator it;
     std::map<int, int>::iterator end;
     std::map<int, int>::iterator it2;
@@ -12874,9 +12886,11 @@ struct DB_AutoMarketConditionView
                                                   E_SERVER_GROUP_NONE);
     bool flag = false;
     *stream >> flag;
+    // [H4 2026-09-11 B 组取证] ORIG 0x0843361d `movl $0x0,-0x14(%ebp)`（nRows=0）
+    // 位于 0x08433624 `memset(&sig,0,0x6c)` **之前** ⇒ nRows 声明须前置到 memset 前。
+    int nRows = 0;
     DB_AutoMarketConditionView sig;
     memset(&sig, 0, 0x6c);
-    int nRows = 0;
     db->set_query(
         "seLect optimum_gold_supply, over_gold from auto_market_condition_ctrl limit 1");
     if (db->exec(true) != 1)
@@ -12928,7 +12942,9 @@ struct DB_AutoMarketConditionView
                 guard.operator->()->GetInBuffer<SIG_AUTO_MARKET_CONDITIONS_CONTROL>();
             memcpy(outSig, &sig, 0x6c);
             // [Lane31W8LTDBTaskView] 权威头具名视角直写（去 cast；ORIG 写 +0x68）。
-            outSig->m_view.m_flag = flag ? 1 : 0;
+            // [H4 2026-09-11 B 组取证] ORIG 0x08433a7a `movzbl -0x29(%ebp),%edx;
+            // mov -0x10(%ebp),%eax; mov %dl,0x68(%eax)` ⇒ flag **直存**（无三元归一）。
+            outSig->m_view.m_flag = flag;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             return 1;
         }
@@ -15829,10 +15845,13 @@ static_assert(sizeof(DB_BoosterGageView) == 8,
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
     SIG_VALUE_STATISTIC* sig = stream->GetOutBuffer<SIG_VALUE_STATISTIC>();
-    int channelNo = G_CEnvironment()->get_channel_no();
+    // [H4 2026-09-11 D 组取证] ORIG 0x08429587 无 channelNo 具名槽（`call
+    // G_CEnvironment; mov %eax,(%esp); call get_channel_no; mov %eax,0x8(%esp)`
+    // ——值直落出参槽且**最后**求值，P329 实参位内联）；另 ORIG 只传 27 个 sig
+    // 字段（装载偏移 +0x68→+0x00 ⇒ m_stats[0..26]），我方多传 m_stats[27]（+0x6c）。
     db->set_query(
         "inSert into log_value_stat(channel_no,occ_time ,level,uv,drop_gold,drop_item,result_card_gold,result_card_item,gold_card_item,store_item_buy,jar_item,disjoint_create,upgrade_faild_forced_disjoint,quest_reward,deathtower_card_gold,deathtower_card_item,consume_store_item_buy,consume_upgrade_attempt,consume_upgrade_faild,consume_stamina_recovery,consume_quest_consume,consume_auction_commision,consume_item_disjoint,consume_item_repair,consume_item_use,consume_item_drop,consume_gold_drop,consume_gold_card_price) values(%d,from_unixtime(%d),%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u)",
-        channelNo, sig->m_stats[0],
+        G_CEnvironment()->get_channel_no(), sig->m_stats[0],
         sig->m_stats[1], sig->m_stats[2],
         sig->m_stats[3], sig->m_stats[4],
         sig->m_stats[5], sig->m_stats[6],
@@ -15845,8 +15864,7 @@ static_assert(sizeof(DB_BoosterGageView) == 8,
         sig->m_stats[19], sig->m_stats[20],
         sig->m_stats[21], sig->m_stats[22],
         sig->m_stats[23], sig->m_stats[24],
-        sig->m_stats[25], sig->m_stats[26],
-        sig->m_stats[27]);
+        sig->m_stats[25], sig->m_stats[26]);
     if (!db->exec(true))
         return 0;
     return 1;
@@ -16225,14 +16243,18 @@ struct DB_PassPadUpdateFailCntView
         db->set_query(
             "seLect mousepass from member_mousepass where m_id=%s",
             NumberToString(PSIG->m_mId, 0));
-        bool rowOk;
-        if (db->exec(true) != 1 || db->get_n_rows() == 0 || db->fetch() != 1)
-            rowOk = false;
-        else
-            rowOk = true;
-        if (!rowOk)
+        // [H4 2026-09-11] ORIG 0x08423c92..0x08423cc8 实证：bool 值**不落栈槽** ——
+        // `xor $1,%eax; test %al,%al; jne <fail>` + `test %eax,%eax; je <fail>` +
+        // `xor $1,%eax; test %al,%al; je <succ>` 短路链，`fail: mov $1,%eax` /
+        // `succ: mov $0,%eax` 汇聚后 `test %al,%al; je` 直判 ⇒ 原码**无具名 bool
+        // 局部**（P0 槽-局部双向对应律），直接判复合条件（旧「true 初值 + 置 false
+        // + 正判」形多 4 movb + 2 movzbl 槽往返）。
+        if (!(db->exec(true) == 1 && db->get_n_rows() != 0 && db->fetch() == 1))
             return 0;
-        char mousepass[0x24] = { 0 };   // -0x48
+        // [H4 2026-09-11] ORIG 0x08423cd4 直接 `lea -0x48(%ebp),%eax; …call get_str`
+        // —— **无**预清（原码 `char mousepass[0x24];`，P171/P328⑤ 不加多余初始化；
+        // 失败路径已 return 0，无未初始化读取）。
+        char mousepass[0x24];           // -0x48
         if (db->get_str(0, mousepass, 0x24) != 1)
             return 0;
         char ym[10] = { 0 };            // -0x1e（strftime "%Y%m"）
@@ -16250,12 +16272,9 @@ struct DB_PassPadUpdateFailCntView
     dbGrade->set_query(
         "upDate member_security_grade set goblin_fail_cnt=%d where m_id=%s",
         PSIG->m_failCnt, NumberToString(PSIG->m_mId, 0));
-    bool upOk;
-    if (dbGrade->exec(true) != 1 || dbGrade->getAffectedRowCount() == 0)
-        upOk = false;
-    else
-        upOk = true;
-    if (!upOk)
+    // [H4 2026-09-11] 同上（P0）：ORIG 下部 bool 同走 `mov $1/$0,%eax` 寄存器物化
+    // ⇒ 无具名局部，直接判复合条件。
+    if (!(dbGrade->exec(true) == 1 && dbGrade->getAffectedRowCount() != 0))
     {
         dbGrade->set_query(
             "inSert into member_security_grade(m_id, goblin_fail_cnt) values(%s, %d)",
@@ -17601,6 +17620,10 @@ static_assert(sizeof(DB_AutoPunishedSecondUserSetView) == 0x18,
 #include "W8LT_DBTask/dispatch_226.inc"
                                              Stream* stream)
 {
+    // [H4 2026-09-11] P171 死存储照抄：ORIG 0x0843a46a `movb $0x0,-0x19(%ebp)`
+    // 位于函数首条（该槽全函数只写不读）⇒ 原码函数头遗留的 bool 声明预清。
+    bool deadFlag = false;
+    (void)deadFlag;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
     DB_AutoPunishedSecondUserReqView* req =
@@ -18222,6 +18245,9 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
         if (!db->fetch())
             throw 1;
         // P171/P328⑤：ORIG 无预清（两值随后由 get_uint 写入）。
+        // [H4 2026-09-11 复核] ORIG 0x0842c43e/0x0842c445 虽有 `movl $0x0,
+        // -0x1c/-0x20(%ebp)`，但给本两值加 `= 0` 实测**反劣**（ours 272→274、
+        // 差异行 93→188）⇒ 那两条清零属其它语义（非本两值声明初始化）⇒ 维持无预清。
         unsigned int reIssueCnt;
         unsigned int lastIssueTime;
         db->get_uint(0, reIssueCnt);
@@ -18232,6 +18258,8 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
         if (strncmp(sig->m_phone, phone, 0x29) != 0)
             throw 0x7d;
 
+        // [H4 2026-09-11 复核] 试删 `time_t cur` 副本（改用 &curSec 直传）实测**反劣**
+        // （ours 272→270、差异行 93→211）⇒ 维持 `time_t cur` 具名副本（4.4 槽分配联动）。
         int curSec = GlobalData::s_systemTime_.getCurSec();
         time_t last = (time_t)lastIssueTime;
         time_t cur = (time_t)curSec;
@@ -18250,9 +18278,17 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
             reIssueCnt = 0;
         }
 
+        // [H4 2026-09-11 语义轴·照抄] ORIG 0x0842c5ed..0x0842c60f 实证实参序为
+        //   `lea 0x2b(%ecx),%esi; lea 0x4(%ecx),%ebx; add $0x25,%ecx` →
+        //   `mov %ecx,0x8(%esp)`（第1个 %s=cert_key）/ `mov %ebx,0xc(%esp)`
+        //   （server_key）/ `mov %esi,0x10(%esp)`（card）
+        // ⇒ ORIG 传 (+0x25, +0x4, +0x2b)，即 m_card/m_certKey/m_serverKey 的次序
+        //（与列名字面语义错位，Ghidra C 亦为 `local_1c+0x25, local_1c+4,
+        //  local_1c+0x2b`）——按 P171 原码行为照抄原则复现，勿"按语义纠正"。
+        // 同函数 `_sendResult(slot, sig+0x52, sig+0x4, sig+0x2b, 0)` 保持不变。
         db->set_query(
             "upDate member_security_card set cert_key='%s',server_key='%s',card='%s',fail_cnt=0,cancel_cnt=0,re_issue_cnt=%d,last_issue_time=now(),validity_time=0,apply_flag=1,cert_flag=0,cert_cnt=0 where m_id=%s",
-            sig->m_certKey, sig->m_serverKey, sig->m_card, reIssueCnt,
+            sig->m_card, sig->m_certKey, sig->m_serverKey, reIssueCnt,
             NumberToString(sig->m_mId, 0));
         db->exec(true);
         _sendResult(slot, sig->m_serial, sig->m_certKey, sig->m_serverKey,
@@ -20049,7 +20085,13 @@ struct DB_AutoPunishBlackIpView
     // ORIG 0x0842f586 `mov $0xed,%ebx` + 对齐剥离慢路（P312/P202①）。
     static const int compressedBufferSize = 0xed;  // ORIG _ZZ…DB_LoadCharacHotKeyOption…E20compressedBufferSize
     char buf[0xed] = { '\0' };
-    if (!db->get_binary(0, buf, compressedBufferSize))
+    // [H4 2026-09-11 D 组取证] ORIG 0x0842f600 `mov %al,-0x1d(%ebp)` +
+    // 0x0842f603 `movzbl -0x1d(%ebp),%eax` + `xor $1; test; je` ⇒ 原码此处**有**
+    // 具名 bool 局部（P0/P102 同局部失败出口）；我方内联 `!call()` 少 2 条且全帧浅 4B。
+    // （同函数 exec/fetch/uncompress_zip 三处 ORIG 无槽：0x0842f428/0x0842f523/
+    //   0x0842f6b1 均直 `xor $1;test;je`，勿一并加局部。）
+    bool bRet = db->get_binary(0, buf, compressedBufferSize);
+    if (!bRet)
     {
         // ORIG 0x0842f60e-0x0842f664：cMyTrace(0x7489,5) + NumberToString。
         cMyTrace(__PRETTY_FUNCTION__, 0x7489, 5)(

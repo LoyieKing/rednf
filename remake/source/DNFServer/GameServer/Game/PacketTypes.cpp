@@ -30,10 +30,12 @@ static const std::string base64_chars =
                    std::string& out)
 {
     int i = 0;
+    int j = 0;                       // ORIG 0x0807ea3b `movl $0,-0xc`（函数级 j=0）
     unsigned char b3[3];
-    while (len != 0)
+    // ORIG 0x0807eafd..0x0807eb0a：`cmpl $0,0xc(%ebp); setne %al; subl $0x1,0xc(%ebp);
+    // test %al,%al; jne <body>` ⇒ 原码是 `while (len-- != 0)`（形参自减，退出后为 -1）。
+    while (len-- != 0)
     {
-        --len;
         b3[i] = *data;
         ++i;
         ++data;
@@ -44,23 +46,30 @@ static const std::string base64_chars =
             b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
             b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
             b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
-            for (int k = 0; k < 4; ++k)
-                out += base64_chars[b4[k]];
+            // ORIG 0x0807eaae：清零/自增均作用于 -0x10(i) ⇒ 循环变量复用 i。
+            for (i = 0; i < 4; ++i)
+                out += base64_chars[b4[i]];
             i = 0;
         }
     }
     if (i > 0)
     {
-        for (int k = i; k < 3; ++k)
-            b3[k] = 0;
+        // ORIG 0x0807eb1a..0x0807eb37：`mov i,%eax; mov %eax,-0xc(j)` + j<=2 计数
+        // ⇒ 原码用函数级 j 作循环变量（非块内新变量）。
+        for (j = i; j < 3; ++j)
+            b3[j] = 0;
         unsigned char b4[4];
         b4[0] = static_cast<unsigned char>(b3[0] >> 2);
         b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
         b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
         b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
-        for (int k = 0; k < i + 1; ++k)
-            out += base64_chars[b4[k]];
-        for (int k = i + 1; k < 4; ++k)
+        // ORIG 0x0807ebbe：`mov i,%eax; add $0x1,%eax; cmp j,%eax; setg` ⇒ j < i+1
+        for (j = 0; j < i + 1; ++j)
+            out += base64_chars[b4[j]];
+        // ORIG 0x0807ebe3：`cmpl $0x2,-0x10(i); setle %al; addl $0x1,-0x10;
+        // test %al,%al; jne <body>`（比较先于自增）⇒ 原码 `while (i++ <= 2)`；
+        // 自增后 i 出函数即被修改为 4（照抄原码行为，P171）。
+        while (i++ <= 2)
             out += '=';
     }
 }
@@ -950,6 +959,10 @@ static bool is_base64(unsigned char c)
     int in_len = static_cast<int>(in.size());
     int i = 0;
     int in_ = 0;
+    // ORIG 0x0807ec17 `movl $0x0,-0xc(%ebp)`（第三枚函数级 int 清零）：原码遗留
+    // 死变量（P171 照抄；4.4 对带初始化的未使用局部照样发 store，P232）。
+    int j = 0;
+    (void)j;
     unsigned char c4[4];
     unsigned char c3[3];
     while (in_len-- != 0)
@@ -975,16 +988,18 @@ static bool is_base64(unsigned char c)
     }
     if (i != 0)
     {
-        int j;
-        for (j = i; j <= 3; j++)
-            c4[j] = 0;
-        for (j = 0; j < 4; j++)
-            c4[j] = static_cast<unsigned char>(
-                base64_chars.find(static_cast<char>(c4[j]), 0));
+        // ORIG 0x0807ed93..0x0807ee6f：三处尾循环的计数均落在 -0x10(in_) 槽
+        // （`mov -0x14,%eax; mov %eax,-0x10` = in_=i 起、`addl $1,-0x10` 自增）
+        // ⇒ 原码复用函数级 in_ 作循环变量，非块内新声明。
+        for (in_ = i; in_ <= 3; in_++)
+            c4[in_] = 0;
+        for (in_ = 0; in_ < 4; in_++)
+            c4[in_] = static_cast<unsigned char>(
+                base64_chars.find(static_cast<char>(c4[in_]), 0));
         c3[0] = static_cast<unsigned char>((c4[0] << 2) + ((c4[1] & 0x30) >> 4));
         c3[1] = static_cast<unsigned char>((c4[1] << 4) + ((c4[2] & 0x3c) >> 2));
         c3[2] = static_cast<unsigned char>((c4[2] << 6) + c4[3]);
-        for (j = 0; j < i - 1; j++)
-            out.push_back(c3[j]);
+        for (in_ = 0; in_ < i - 1; in_++)
+            out.push_back(c3[in_]);
     }
 }

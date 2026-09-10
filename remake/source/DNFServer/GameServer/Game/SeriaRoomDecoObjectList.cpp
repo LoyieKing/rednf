@@ -64,6 +64,10 @@
     {
         if (token == "[event object list]")
         {
+            // [laneE1 的 if 改动已由父泳道复核否证并回滚] ORIG 0x0895eacb `jmp 0895e833`
+            //   回跳 = 循环体头 ⇒ 原码确为 `while (ScanType(token, true))`（每轮重调用），
+            //   info(-0x78)/key(-0x7c) 构造在**循环体内**每轮执行（0x0895e850/0895e85b）。
+            //   改成 if 后本 TU identical 44→43 劣化 ⇒ 回滚（ORIG 证据：0x0895eacb 回跳）。
             while (ScanType(token, true))
             {
                 seriaDecoObjectInfo info;

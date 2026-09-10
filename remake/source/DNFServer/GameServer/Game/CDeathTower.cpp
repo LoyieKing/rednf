@@ -306,7 +306,10 @@ POS:
     // （0x08469203 区 `mov,sar,xor,sub`）后 `mov %eax,-0x20` 存 absDiff。
     unsigned int stageSpan = 0;        // ORIG -0x28（跨层段 max 结果落此）
     unsigned int keySpan = 0;          // ORIG -0x24（兼「已插值」哨兵）
-    int absDiff = 0;                   // ORIG -0x20（32 位 abs 结果）
+    // [H10 CDeathTowerTU] 类型轴：ORIG 0x084691b3..0x084691c7 读 -0x20 后
+    // `mov $0x0,%edx; mov %edx,-0x12c; fildll`（零扩展 32→64）⇒ absDiff 为
+    // unsigned（有符号会 cltd/sar）；4.4 int 形发 fildl。
+    unsigned int absDiff = 0;          // ORIG -0x20（32 位 abs 结果）
     unsigned int result = 0xffffffff;  // ORIG -0x1c
     RankMap::const_iterator nxt;       // ORIG -0x80（prologue 首个 C1Ev）
     RankMap::const_iterator ref;       // ORIG -0x84（末次返回的基准迭代器）
@@ -344,11 +347,16 @@ POS:
             keySpan = nxt->first - ref->first;
             // [b28d-D13] p167 差集：ORIG 调 std::max<unsigned>×4 ⇒ 4 处 max 源形。
             keySpan = std::max(keySpan, 1u);
-            int valDiff = (int)nxt->second - (int)ref->second;
-            absDiff = valDiff < 0 ? -valDiff : valDiff;
+            // [H10 CDeathTowerTU 试形 C] ORIG 0x084691a1..0x084691b0：差值在 %ecx
+            // 寄存器（`mov %ebx,%ecx; sub %eax,%ecx`）**无具名槽**，随即可 `mov
+            // %ecx,%eax; mov %eax,%edx; sar $0x1f,%edx; xor %edx,%eax; sub %edx,%eax`
+            // 算术 abs ⇒ 源形是 abs(expr) 内联（非具名 valDiff + ?:）。
+            absDiff = (unsigned int)__builtin_abs((int)nxt->second - (int)ref->second);
             float slope = (float)((long double)absDiff / (long double)keySpan);
             // [b28d-D13] 删发明 helper roundHalfEven（p167 EXTRA×2）；ORIG
             // 0x0846921c 形 = fildll+fmuls+fistpll（P176）⇒ 直接 (long long) 转换。
+            // [H10 CDeathTowerTU 试过·已回滚] scaled 乘序交换（`slope * X`）实测
+            // our 620、并多出 fstpt/fldt 的 long double 往返 ⇒ 回退 `X * slope`。
             long long scaled =
                 (long long)((long double)(playTime - ref->first) * slope);
             unsigned int r = (unsigned int)scaled;
@@ -421,8 +429,9 @@ POS:
 
         stageSpan = upperStage - lowerStage;
         stageSpan = std::max(stageSpan, 1u);
-        int valDiff = (int)nxt->second - (int)ref->second;
-        absDiff = valDiff < 0 ? -valDiff : valDiff;
+        // [H10 CDeathTowerTU 试形 C] 同族：ORIG 0x084695d0 区差值亦在寄存器（无槽）
+        // + 算术 abs（0x084695dc sar/xor/sub）⇒ 同 abs(expr) 内联形。
+        absDiff = (unsigned int)__builtin_abs((int)nxt->second - (int)ref->second);
         float slope = (float)((long double)absDiff / (long double)stageSpan);
         long long scaled =
             (long long)((long double)(upperStage - stage) * slope);
@@ -1087,14 +1096,20 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
                 // 局部两形实测：our 1043→1046、帧 +0x10（-0x150→-0x164）⇒ 反劣回退。
                 // 4.4 对 `(unsigned int)(float*float)` 恒 fistpll（64 位）且左操作数先
                 // 求值 ⇒ 与 4.1 fistpl/右先 属跨版本 x87 lowering 差（N85 邻族）。
-                mobExp = (unsigned int)(G_CDataManager()->m_deathTower.m_apcExpWeight *
-                                        (float)mobExp);
+                // [H10 CDeathTowerTU 试形 A] 类型轴：ORIG 0x08464ef5..0x08464f06
+                // `mov $0x0,%edx; mov %eax,-0x550; mov %edx,-0x54c; fildll -0x550`
+                // ⇒ 源为 32→64 位**零扩展**后 fildll（即 (float)(unsigned long long)），
+                // 目标 0x08464f3f `fistpl -0x548`（32 位有符号）⇒ 结果类型 int 而非 unsigned。
+                mobExp = (int)((float)(unsigned long long)mobExp *
+                               G_CDataManager()->m_deathTower.m_apcExpWeight);
             }
 
             // ORIG 0x08464f80：+0x5e1c = m_deathTower.m_monsterExpWeight（无条件）
             // 同族（ORIG -0x568 槽 + fistpl，同上封顶）。
-            mobExp = (unsigned int)(G_CDataManager()->m_deathTower.m_monsterExpWeight *
-                                    (float)mobExp);
+            // [H10 CDeathTowerTU 试形 A] 同族：ORIG 0x08464f6e `fildll -0x550`（64 位
+            // 零扩展源）+ 0x08464fa7 `fistpl -0x548`（32 位目标）⇒ 同 (float)(u64) 源。
+            mobExp = (int)((float)(unsigned long long)mobExp *
+                           G_CDataManager()->m_deathTower.m_monsterExpWeight);
 
             // ORIG 0x08465000：STGainedEachExpData(m_exp=mobExp) 后
             // sumGainedEachExp 取回
@@ -1756,7 +1771,14 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
         {
             return false;
         }
-        int attachType = citem->GetAttachType();
+        // [H10 CDeathTowerTU] 类型轴（P290）：ORIG 0x0846674f `cmp $0x5,%eax; ja
+        // 0846677c`（ja = 无符号上界）⇒ switch 控制表达式为无符号；4.4 有符号
+        // int 形发 jg/jl 决策树，unsigned 形发 ja 上界比较。
+        // [H10 CDeathTowerTU 试过·已回滚] 补 case 0/4 使 0..5 全覆盖促跳表 ⇒ 4.4 转
+        // 位测试树（our 494→500、ndiff 11→19 劣化）；ORIG 0x08466754 的 6 项跳表
+        // `mov &data#(.rodata)(,%eax,4); jmp *%eax` 属 4.1 switch lowering（P320
+        // 代际差，4.4 门限更高）⇒ 维持 4-case+default 决策树。
+        unsigned int attachType = (unsigned int)citem->GetAttachType();
         switch (attachType)
         {
         case 1:
@@ -1791,20 +1813,29 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
         item.m_count = false;
         item.m_item.m_field1 = invenItem.m_field1;
         item.m_item.m_addInfo = invenItem.m_addInfo;
-        item.m_item.m_fieldb = invenItem.m_fieldb;
+        // [H10 CDeathTowerTU] 写序轴（P331）：ORIG 0x084667f1 `mov -0x48(%ebp),%edx;
+        // mov 0x1c(%ebp),%eax; mov %edx,0x1d(%eax)` 为 4B 写 map_item+0x1d
+        // = m_item.m_fieldd（+0x0d，unsigned 4B），非旧注释所标 m_fieldb；
+        // m_fieldb(+0x0b, 2B, ORIG 0x08466878 movzwl -0x4a→%dx,+0x1b) 在 SetItemAttr 之后。
+        item.m_item.m_fieldd = invenItem.m_fieldd;
         // [B24D-CDeathTower 语句序还原] ORIG 0x084667d8..0x0846688a 实测写序：
-        //   +0x00(m_count) → +0x11(m_field1) → +0x12(m_addInfo) → +0x1d(m_fieldb)
+        //   +0x00(m_count) → +0x11(m_field1) → +0x12(m_addInfo) → +0x1d(m_fieldd,4B)
         //   → guid 组 +0x25/+0x29/+0x2d（单条结构赋值，共享一次基址装载）
         //   → +0x21(m_amp0Head，独立重载，0x08466811 `mov 0x1c(%ebp),%eax;
         //     mov -0x44(%ebp),%edx; mov %edx,0x21(%eax)`）
         //   → isEquipable 检查/set_add_info/SetItemAttr
-        //   → +0x1b(m_fieldd, 0x08466878) → +0x10(m_field0, 0x08466883)。
+        //   → +0x1b(m_fieldb,2B, 0x08466878) → +0x10(m_field0, 0x08466883)。
         // 原实现把 m_amp 当整体 14B 复制（4 写共享一次基址装载 ⇒ 少一次 0x1c
         // 重载）、并把 fieldd/field0 提前到 SetItemAttr 之前 ⇒ 两个 hunk 错位。
         // 按 P247 拆 guid 视图 + 4B 头部视图（与 ORIG 逐条对齐）。
         item.m_item.m_amp.m_guid = invenItem.m_amp.m_guid;
         item.m_item.m_amp.m_amp0Head = invenItem.m_amp.m_amp0Head;
-        if (invenItem.isEquipableItemType())
+        // [H10 CDeathTowerTU] 语义轴：ORIG 0x08466825 `xor $1,%eax; test %al,%al;
+        // je 08466843` ⇒ isEquipable==1 时跳 0x08466843 调 set_add_info(
+        // `mov -0x4e(%ebp)` = invenItem+0x07 = m_addInfo2)；fall-through（==0）
+        // 0x0846682c 调 set_add_info(`mov 0x18(%ebp)` = count)。旧实现两分支
+        // 实参互反（==1→count），已按 ORIG 反转 + 取负极性（P222）。
+        if (!invenItem.isEquipableItemType())
         {
             item.m_item.set_add_info(count);
         }
@@ -1813,7 +1844,7 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
             item.m_item.set_add_info(invenItem.m_addInfo2);
         }
         item.m_item.SetItemAttr(invenItem.GetItemAttr());
-        item.m_item.m_fieldd = invenItem.m_fieldd;
+        item.m_item.m_fieldb = invenItem.m_fieldb;
         item.m_item.m_field0 = invenItem.m_field0;
         G_Store()->GetSellItemPrice(invenItem, citem, (short)count, false, sellPrice);
     }
@@ -2010,6 +2041,8 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
         m_party->SetSelectedEPLPCmd(-1);
         // ORIG 0x08463ce9：party 内嵌 BF（+0xb24）getRandomBuffDungeonType(0) 结果
         // 免槽直入 call arg（范式37）。
+        // [H10 CDeathTowerTU 试形 B·已回滚] 具名 buffType 中转实测 ndiff 9→236
+        // （帧 +0x10、多 2 mov）⇒ 非 ORIG 形；维持免槽直入（范式37）。
         m_party->choose_random_buff((QuickParty::RandomBuffDungeon)
             m_party->m_battleField.getRandomBuffDungeonType(0));
 

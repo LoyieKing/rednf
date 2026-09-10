@@ -3402,7 +3402,7 @@ public:
     void SetUserDetailInfo(char* a, char* b, char* c);
     unsigned char GetTutorialSkipable();
     void SetTutorialSkipable(unsigned char flag);
-    int getHumanCertifyTimerKey();
+    unsigned int getHumanCertifyTimerKey();   // 2026-09-11 H3CUser（Main 核准）：ORIG 0x086371cd 调用点 `mov 0x10(%ebp),%edx; cmp %edx,%eax; seta`（无符号比较 2 条形）⇒ unsigned 返回；返回类型不进 mangled
     void setHumanCertifyErrorCnt(int cnt);
     bool isSendMailCertified();  // b28d-Main(P292)：ORIG 0x086371a4 调用点 `call; test %al,%al; je` ⇒ bool（字段 m_field8e3ed 已 bool，体直透）
     void setRestingUserRestrict(bool flag);

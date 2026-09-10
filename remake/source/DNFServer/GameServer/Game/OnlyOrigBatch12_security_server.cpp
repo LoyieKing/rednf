@@ -71,7 +71,8 @@
 
 static unsigned int ROL(unsigned int v, int bits)
 {
-    // ORIG _ZL3ROLji @0x080b46??：`mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx;
+    // ORIG _ZL3ROLji @0x0809c418（range 0x0809c418..0x0809c42c，10 条）：
+    // `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx;
     // mov %edx,%ecx; rol %cl,%eax; mov %eax,0x8(%ebp); mov 0x8(%ebp),%eax`
     // = 结果写回形参槽再读回 ⇒ 原码 `v = ...; return v;`（P0 槽往返 ⇒ 有具名
     // 左值回写）；直接 `return (v<<bits)|(v>>(32-bits))` 使 4.4 用 %ebx 缓存

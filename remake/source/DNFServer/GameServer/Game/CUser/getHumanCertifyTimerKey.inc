@@ -1,1 +1,1 @@
-int CUser::getHumanCertifyTimerKey()
+unsigned int CUser::getHumanCertifyTimerKey()

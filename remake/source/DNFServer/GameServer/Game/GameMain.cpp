@@ -386,10 +386,15 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
     const int curMin = p->tm_min;
     // P183：ORIG 无 table 引用缓存——begin/end 各自独立调 G_CDataManager()
     // （p167 差集 MISSING 1×G_CDataManager 即此）。
-    std::map<int, STDungeonInoutTime>::iterator it =
+    // [H10回滚 0x08639b9a `it = begin()` 先声明后赋值：4.4 追加 iterator 默认
+    // 构造 call（+3 条，215/213）且临时槽跑到 -0x5c，形态更差 ⇒ 不用默认构造形。]
+    // ORIG 0x08639b9a `mov -0x28(%ebp),%eax; mov %eax,-0x30(%ebp)`：begin 结果落
+    // 具名临时槽再拷贝进 it（3 槽 -0x28/-0x2c/-0x30）⇒ 用具名 b + 拷贝构造。
+    std::map<int, STDungeonInoutTime>::iterator b =
         G_CDataManager()->m_serverParameter.m_dungeonInoutc8.begin();
     std::map<int, STDungeonInoutTime>::iterator e =
         G_CDataManager()->m_serverParameter.m_dungeonInoutc8.end();
+    std::map<int, STDungeonInoutTime>::iterator it = b;
     for (; it != e; ++it)
     {
         int key = it->first;   // ORIG -0x10 槽（循环头一次性读取）
@@ -408,12 +413,15 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
         }
         else
         {
-            const bool beforeStart =
-                it->second.m_startHour >= curHour ||
-                (it->second.m_endHour >= curHour &&
-                 (it->second.m_startMin > curMin ||
-                  (it->second.m_startMin <= curMin && it->second.m_endMin < curMin)));
-            if (beforeStart)
+            // P0/P183：ORIG 0x08639cac `test %al,%al; je`（无 bool 具名槽）
+            // —— 条件全表达式直用，禁 `const bool beforeStart = ...` 中间量。
+            // ORIG 0x08639c52/0x08639c65/0x08639c78/0x08639c8b/0x08639c9e 五检
+            // 依次读 startHour(0x4)/endHour(0x8)/startMin(0xc)/endHour(0x8)/
+            // endMin(0x10) ⇒ 三段 OR（各段独立短路，第二段 endHour 复检；非嵌套
+            // ——嵌套形令 startMin 复检、endHour 只检一次，字段序不符）。
+            if (it->second.m_startHour >= curHour ||
+                (it->second.m_endHour >= curHour && it->second.m_startMin > curMin) ||
+                (it->second.m_endHour >= curHour && it->second.m_endMin < curMin))
             {
                 // ORIG 0x08639cc5/0x08639cf3：`cmp curHour; setg %al; test; je`
                 // —— 条件写作 startHour > curHour（P225 物化方向）。
@@ -432,7 +440,10 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
                 p->tm_hour = it->second.m_startHour;
                 p->tm_min = it->second.m_startMin;
                 p->tm_sec = 0;
-                next = mktime(p) + 0x15180;  // +86400：明天同一开放点
+                // ORIG 0x08639d7a/0x08639d7d `mov %eax,-0x1c; addl $0x15180,-0x1c`
+                // （先落槽再原地加，非 `add` 后存）⇒ 拆两条语句。
+                next = mktime(p);
+                next += 0x15180;  // +86400：明天同一开放点
             }
         }
         int delay = static_cast<int>(next) - static_cast<int>(now);
@@ -444,6 +455,9 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
                                     (TIMER_MESSAGE)0x93, delay, 0,
                                     (unsigned int)key);
     }
+    // ORIG 0x08639e00 `mov $0x1,%eax`（Ghidra `return 1`）—— 返回类型由 H9 在
+    // TimerDispatcher.h 改 `static int`（本 .inc 定义端已同步）。
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -493,10 +507,12 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
     {
         // 0x68：每条 light server notice 一条 0 秒定时器，param2=序号。
         // ORIG 读 CDataManager+0xa4 vector<stLightServerNotice_t> —「推断」布局。
-        std::vector<stLightServerNotice_t>* notices =
-            reinterpret_cast<std::vector<stLightServerNotice_t>*>(
-                reinterpret_cast<char*>(G_CDataManager()) + 0xa4);
-        for (unsigned int i = 0; i < notices->size(); ++i)
+        // P183：ORIG 0x82a0798/0x82a07a1 每轮迭代重新 `call G_CDataManager;
+        // add $0xa4`（无地址具名缓存槽 -0x1c）⇒ 全表达式置于循环条件。
+        for (unsigned int i = 0;
+             i < reinterpret_cast<std::vector<stLightServerNotice_t>*>(
+                     reinterpret_cast<char*>(G_CDataManager()) + 0xa4)->size();
+             ++i)
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
                                         (TIMER_MESSAGE)0x68, 0, (int)i, 0);
     }
@@ -509,25 +525,23 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
     if (!G_GameWorld()->IsPVPChannel())
         Timer_DungeonInoutOpenTime::RegistNextTimer();
 
-    // 0x8e：delay = (channel_no % 10)^2 * ... ORIG：((c%10)*16 - (c%10))*... 见下
-    {
-        int c = G_CEnvironment()->get_channel_no();
-        int m = c % 10;
-        // ORIG 转写：eax=(m<<2)=4m；delay=(4m<<4)-4m=60m。
-        int delay = 60 * m;
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                    (TIMER_MESSAGE)0x8e, delay, 0, 0);
-    }
+    // 0x8e：ORIG 0x82a0814 起 `call get_channel_no` → ÷10 商（魔数 0x66666667
+    // + `sar $0x2`）→ `shl $2; add; add` = ×10 再 `sub` 取余 ⇒ 源形 `c % 10`；
+    // c/取余全程寄存器，仅 delay 落 -0x10 槽（P0/P183：禁 c、m 具名槽）。
+    int delay = 60 * (G_CEnvironment()->get_channel_no() % 10);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
+                                (TIMER_MESSAGE)0x8e, delay, 0, 0);
 
     // 0x9a：固定 0 秒（ORIG 0x82a08af，0x8e 之后注册）
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x9a, 0, 0, 0);
 
-    // ORIG 0x82a08cf：尾部 checkContinus + loadServerState（全局 0x941f7f0）
-    if (GlobalData::s_serverStateManager_ != 0)
-    {
-        GlobalData::s_serverStateManager_->checkContinus();
-        GlobalData::s_serverStateManager_->loadServerState();
-    }
+    // ORIG 0x82a08cf..0x82a08f3：尾部 checkContinus + loadServerState（全局
+    // 0x941f7f0）。ORIG 逐次 `mov 0x941f7f0,%eax; mov %eax,(%esp); call`，**无**
+    // test/je 判空（指令形双向直证）⇒ 删我方发明的 `!= 0` 防御（语义轴①）。
+    GlobalData::s_serverStateManager_->checkContinus();
+    GlobalData::s_serverStateManager_->loadServerState();
+    // ORIG 0x82a08f6 `mov $0x1,%eax`（Ghidra `return 1`）⇒ 返回 int。
+    return 1;
 }
 
 
@@ -785,6 +799,9 @@ STScriptFileList g_npcScriptFileList;
     // ORIG：GetChannelType()==7 跳过全部；IsIntegratedPvPBaseChannel() 时
     // 遍历 m_serverGroupMap（config 键 *ip_of_* / *port_of_*）每组建 proxy；
     // 否则固定 getter 单组。
+    // [H10回滚 0x82a13bc：`!(x == 7)` 极性包裹实测 4.4 仍生 `setne %al; je`
+    //  （sete 计数 0/1 不变，1239/1225 不变）⇒ GCC 4.4 不做 `!` 的 cc 反转，
+    //  该 sete/jne 形（P59/P222）在本后端封顶。]
     if (G_GameWorld()->GetChannelType() != 7)
     {
         if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -972,7 +989,16 @@ STScriptFileList g_npcScriptFileList;
         long curSec = static_cast<long>(s_systemTime_.getCurSec());
         CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x3a);
         if (ev && ev->IsEventing(0) && curSec > 0x4cbe3f0f)
-            GlobalData::s_event_manager->TriggerEventStart(0x3a, Word_Param());
+        {
+            // ORIG 0x82a1da7/0x82a1db0 两条 `movw $0x0,-0x2cc(%ebp)`（对象落栈
+            // 槽逐字段清零）+ 0x82a1dbe `mov -0x2cc(%ebp),%edx`（4 字节读传参）
+            // ⇒ 具名 Word_Param 逐字段置 0；禁 `Word_Param()` 值临时（4.4 落
+            // esi 并生 `mov %esi,%eax; and $0xffff,%eax; mov %eax,%esi` 提升链）。
+            Word_Param wp;
+            wp.m_duration = 0;
+            wp.m_field2 = 0;
+            GlobalData::s_event_manager->TriggerEventStart(0x3a, wp);
+        }
     }
     // 公会信息装载。[b28d-solo-GameMain] 真语义 bug 修 ×2（ORIG 0x82a1dd8..0x82a1ea6）：
     // ①-0x2c0 是**独立计数器**（GetNextIndex(int&) 引用出参，初值 0，cond `m_count
@@ -2022,13 +2048,8 @@ namespace user_creature {
     int eggRemain = user_creature::GetCreatureEggPoolRemainSize();   // -0x20
     int eggSize = user_creature::GetCreatureEggPoolSize();           // -0x1c
 
-    int tradeSize = G_CGameManager()->m_tradeSpacePool.Size();       // ebx
-    int pvpSize = G_CGameManager()->m_pvpRoomPool.Size();            // esi
-    int deathTowerSize = G_CGameManager()->m_deathTowerPool.Size();  // -0xa4
-    int warRoomSize = G_CGameManager()->m_warRoomPool.Size();        // -0xa0
-    int partySize = G_CGameManager()->m_partyPool.Size();            // -0x9c
-    int userSize = G_CGameManager()->m_userPool.Size();              // -0x98
-    int userSize2 = G_CGameManager()->m_userPool.Size();             // -0x94
+    // P183：ORIG 这 7 个 Size() 无具名槽（`mov %eax,%ebx` / `mov %eax,%esi` /
+    // -0xa4..-0x94），系 trace 实参从右到左求值的表达式临时 ⇒ 直用实参表达式。
 
     {
         cMyTrace trace("void ProcessServerStatusLog()", 0x5c, 0);    // -0x7c
@@ -2046,10 +2067,13 @@ namespace user_creature {
             bigSize, bigRemain, status.m_field04, status.m_field00,
             avatarSize, avatarRemain, creatureSize, creatureRemain,
             eggSize, eggRemain,
-            userUsed, userSize2, userCount, userSize,
-            partyUsed, partySize, warRoomUsed, warRoomSize,
-            deathTowerUsed, deathTowerSize, pvpUsed, pvpSize,
-            tradeUsed, tradeSize);
+            userUsed, G_CGameManager()->m_userPool.Size(), userCount,
+            G_CGameManager()->m_userPool.Size(),
+            partyUsed, G_CGameManager()->m_partyPool.Size(),
+            warRoomUsed, G_CGameManager()->m_warRoomPool.Size(),
+            deathTowerUsed, G_CGameManager()->m_deathTowerPool.Size(),
+            pvpUsed, G_CGameManager()->m_pvpRoomPool.Size(),
+            tradeUsed, G_CGameManager()->m_tradeSpacePool.Size());
     }
 
     if (userCount < partyUsed)

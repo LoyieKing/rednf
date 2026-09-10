@@ -57,25 +57,23 @@ int Manager::gmTimeSpeed_ = 1;
 
 // ---- GetUserName（ORIG T 0x08563ff7 报告缺失，0x159 字节 objdump 转写）---
 // 对 team 3/2/1/0 各两次调用 match->GetUser(team)（虚槽+0x10，P48 双 call），
-// 命中取 user->get_acc_name()，否则回退 "127.0.0.1"；最后
-// sprintf(out, "%s,%s,%s,%s", t0, t1, t2, t3) 且返回 out。
-// [b28d-7 N7/N82] ORIG 0x08563ff7：push %edi/%esi/%ebx + 帧 $0x2c，4.4 无 push + 帧 $0x38；间接 call 目标 %edx vs %eax（N7，446h46 下仍未翻）⇒ 封顶。
+// 命中取 user->get_acc_name()，否则回退空串（ORIG 四个 false 臂同用
+// 0x8ca21e0 = ""，紧邻的 "127.0.0.1"@0x8ca21e1 属别处常量，objdump -s 实证）；
+// 最后 sprintf(out, "%s,%s,%s,%s", t0, t1, t2, t3) 且返回 out。
+// [b28d-7 N7/N82] ORIG 0x08563ff7：间接 call 目标 %edx vs %eax（N7，446h46 下仍未翻）⇒ 封顶。
+// [LaneA 落地 · P0/P183 删具名局部] ORIG 0x08563ff7 四个回退值（false 臂 `mov $"",%reg`）
+// 全程落 callee-saved 寄存器 edi/esi/ebx/eax、**无槽往返** ⇒ 原码无具名局部：四条
+// `?:` 表达式内联在 sprintf 实参位。发射序 team3→team2→team1→team0 正是 cdecl
+// 实参右→左求值序（末实参 n3 先算 ⇒ 跨最多调用保活 ⇒ 占 edi），与 ORIG 逐块一致。
+// 旧形（4 个具名局部）多 4 槽 + 帧 0x38（ORIG push edi/esi/ebx + 帧 0x2c）。
 char* GetUserName(IMatch* match, char* out)
 {
-    const char* n3 = match->GetUser(3) != 0
-                         ? match->GetUser(3)->get_acc_name()
-                         : "";                     // [edi 槽]
-    const char* n2 = match->GetUser(2) != 0
-                         ? match->GetUser(2)->get_acc_name()
-                         : "";                     // [esi 槽]
-    const char* n1 = match->GetUser(1) != 0
-                         ? match->GetUser(1)->get_acc_name()
-                         : "";                     // [ebx 槽]
-    const char* n0 = match->GetUser(0) != 0
-                         ? match->GetUser(0)->get_acc_name()
-                         : "";                     // [eax 槽]
-    sprintf(out, "%s,%s,%s,%s", n0, n1, n2, n3);
-                                                            // [0x8564132 fmt @0x8ca23b5]
+    sprintf(out, "%s,%s,%s,%s",
+            match->GetUser(0) != 0 ? match->GetUser(0)->get_acc_name() : "",
+            match->GetUser(1) != 0 ? match->GetUser(1)->get_acc_name() : "",
+            match->GetUser(2) != 0 ? match->GetUser(2)->get_acc_name() : "",
+            match->GetUser(3) != 0 ? match->GetUser(3)->get_acc_name() : "");
+    // [0x8564132 fmt @0x8ca23b5 "%s,%s,%s,%s"；空串 @0x8ca21e0]
     return out;
 }
 

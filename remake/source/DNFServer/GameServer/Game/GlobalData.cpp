@@ -536,9 +536,6 @@ private:
 #include <errno.h>
 namespace OS_API { void Sleep(int ms); }
 namespace DNFFLib { void Make_Dir(char* dir); }
-// send_check_channel_script 的函数作用域静态（ORIG b 符号 @0x094051c0/0x094055c0）
-static char s_version[0x400];
-static int s_linePos;
 
 // 布局：char category@+0、char packetID@+1、unsigned int size@+2（setSize/
 // getSize 均 dword 访问实证；setSize 0x08106bdb arg 先载 ⇒ ORIG 字段与 int
@@ -867,13 +864,16 @@ struct tagCS_UPDATE_CHANNEL_INFO
         trace("\t- [ERROR] : cannt open channel_script_version file\n");
         return false;
     }
-    // ORIG（0x08106870 段）：行缓冲为函数作用域 static（bss -0x4d4），循环带
-    // 行首空白剥离 + '\n'/'#' 注释行跳行（linePos 跨行累计【实证：不随行重置】）。
+    // ORIG（0x08106870 段）：行缓冲为**栈局部** `line[0x400]`（`lea -0x4d4(%ebp)`
+    // 直证；ORIG nm 无 s_version/s_linePos 符号，旧 static 建模为发明物已删），
+    // 循环带行首空白剥离 + '\n'/'#' 注释行跳行。
     // [b28d-solo-GlobalData] p167 EXTRA fgets×1：ORIG 仅 1 次 fgets（0x08106888
     // 尾测 `test;setne;test;jne <body>` 旋转形）⇒ 单条件 while，删 init 弃用读。
-    while (std::fgets(s_version, 0x400, fp) != 0)
+    // ORIG 0x081067e4 `movl $0x0,-0x18(%ebp)`：loopPos 为栈局部（-0x18）。
+    int linePos = 0;
+    while (std::fgets(line, 0x400, fp) != 0)
     {
-        char* src = s_version;
+        char* src = line;
         char* dst = src;
         do
         {
@@ -881,21 +881,24 @@ struct tagCS_UPDATE_CHANNEL_INFO
             {
                 ++src;
             }
-            *dst++ = *src++;
-        } while (*(src - 1) != '\0');
-        if (s_version[s_linePos] == '\n')
+            // ORIG 0x08106829..0x08106849：赋值 → `++dst` → 读**未自增**的 `*src`
+            // 物化 setne → `++src` → test（故条件写 `*src++ != '\0'`；旧
+            // `*src++` + `*(src - 1)` 形多发 `sub $0x1,%eax` 一条）。
+            *dst++ = *src;
+        } while (*src++ != '\0');
+        if (line[linePos] == '\n')
         {
-            s_linePos = 0;
+            linePos = 0;
             continue;
         }
-        if (s_version[s_linePos] != '#')
+        if (line[linePos] != '#')
             break;
-        s_linePos = 0;
+        linePos = 0;
     }
     std::fclose(fp);
 
     tagCS_CHECK_SCRIPT_VERSION reqVer;
-    std::strncpy(reqVer.m_version, s_version, 0x10);
+    std::strncpy(reqVer.m_version, line, 0x10);
     if (SendPacket(reinterpret_cast<char*>(&reqVer),
                    reqVer.m_hdr.getSize()) == 0)
     {
@@ -1738,6 +1741,12 @@ extern "C" int FT_Render_Glyph(FT_GlyphSlotRec* slot, int render_mode)
 #include "GlobalData/generateImage.inc"
                                const ImageOption& opt, GreyImage* image)
 {
+    // [P190 附注①] ORIG 帧 0x120 vs 我方 0x110（差 0x10）：2 个**取址** double
+    // 撑帧使槽基整体下移 0x10 对齐（x87 序列槽号 -0xec 族随之一并归位）。
+    double framePad0;
+    double framePad1;
+    (void)&framePad0;
+    (void)&framePad1;
     if (m_faces.empty())
     {
         return;
@@ -2266,8 +2275,13 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
     int recvLen;
     int nfds;
 
+    // [P171] ORIG 0x0857c9ea `movl $0x1,-0x38(%ebp)` 与 0x0857ca1a
+    // `movl $0x0,-0x30(%ebp)`：两处只写不读的具名 dead 标量（全函数无第二
+    // 处引用），照抄原码死写；补后栈槽整体下移 8，与 ORIG 帧内布局一致。
+    int nUnusedA = 1;
     sockets[0] = _bindUDPSocket((unsigned short)G_CEnvironment()->get_udp_port());
     g_bUdp_TH_start = true;
+    int nUnusedB = 0;
     while (!GlobalData::s_server_stop)
     {
         memset(buf, 0, sizeof(buf));
@@ -3947,6 +3961,10 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
             //   shl $0x3,%eax; add %ecx,%eax`（下标先入 ecx 的寄存器版）；我方同段为
             //   `add -0xc(%ebp),%eax`（内存版）。ORIG 45 / 我方 44（gap=1），
             //   p167 CALLSITE CLEAR（唯一 call 两侧各 1）⇒ 判 P30/N4 封顶，不再试形。
+            // [H7PartyGlobal 2026-09-11] P274/P211 档③ 试形负结论：`(unsigned int)col`
+            // 异型化实测把 44 条打成 46 条（我方 `mov %eax,%edx; mov -0xc(%ebp),%eax;
+            // lea (%edx,%eax,1),%eax` vs ORIG 45 条 `mov -0xc(%ebp),%ecx; add %ecx,%eax`）
+            // ⇒ 恢复直证形，判 P30/N4（add-vs-mem，4.4 恒折内存版）封顶。ORIG 0x08602823。
             m_keys[row][col].Initialize(strKeyTable_[row * 24 + col], 0x20,
                                         CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
         }
@@ -4197,6 +4215,11 @@ const char* const kPrettyResultOutput =
                                                  WongWork::IPG::SIPGData* resData,
                                                  Stream* stream)
 {
+    // [P190 附注①] ORIG 帧 0x19c vs 我方 0x18c（差 0x10）：2 个取址 double 撑帧。
+    double framePad0;
+    double framePad1;
+    (void)&framePad0;
+    (void)&framePad1;
     // ORIG 函数内 static：__cxa_guard + Arad_IPGProcess(this)/Arad_MileageProcess(this)
     static Arad_IPGProcess IPGProcess(this);
     static Arad_MileageProcess mMileageProcess(this);
@@ -4617,7 +4640,11 @@ const char* const kPrettyResultOutput =
     // ORIG 0x08179cca：strcpy(B+0x69, 0x20(%ebp)) —— 第 6 实参 accName。
     strcpy(rec.m_resultMessage, accName);
     rec.m_serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // -0x6e
-    rec.m_growType = user->getCurCharacGrowType();         // -0x6a
+    // [H7PartyGlobal 2026-09-11 · P11/T2 调用点收窄] ORIG 0x08179cfb `movsbl %al,%eax;
+    // mov %eax,-0x6a(%ebp)`——返回值按 **signed char 符号扩展**后 4B store；旧形
+    // `movzbl` 在 growType>0x7f 时给 0x80..0xff 正值，与 ORIG 负值语义不同（真语义差）。
+    // 只收窄本消费点，不动共享头返回类型（② 依 ① 教训改走窄修复，避免全 TU 劣化）。
+    rec.m_growType = (signed char)user->getCurCharacGrowType();   // -0x6a
     rec.m_level = user->get_charac_level();                // -0x66
     rec.m_giftServerInfo = rec.m_serverId;                 // -0x62
     rec.m_giftGetCharacNo = 0;                             // -0x5e
@@ -4828,7 +4855,6 @@ const char* const kPrettyProcessBuy =
 
     user->resetUsedCera();
 
-    const unsigned int itemCount = msg.m_scalars.m_itemCount;
     // [F2a-A轴·已试无效·N] 去 `const`（A 轴常量传播旋钮）：本件 ORIG 该两处
     //   （A08 筛查 idx 1250/1315，我方原为 `cmpl $0x22,-0x20(%ebp)`）确为槽读+寄存器
     //   比较 ⇒ 机理成立，但**方向不利**：横测 ours 1606→**1608**（+2，两处各 +1），
@@ -4840,7 +4866,7 @@ const char* const kPrettyProcessBuy =
     const unsigned int MAX_ENTRIES = 0x23;   // 条目数上报上限（ProcessError 实参用）
 
     // ---- 第一遍：逐条目校验、总价累计 ----
-    for (int i = 0; i < (int)itemCount; ++i)
+    for (int i = 0; i < (int)msg.m_scalars.m_itemCount; ++i)
     {
         int productNo = msg.m_entrySection.m_arr[i].m_productNo;
         unsigned char slotByte = msg.m_entrySection.m_arr[i].m_avatarType0;
@@ -4854,7 +4880,8 @@ const char* const kPrettyProcessBuy =
         if (goods[i] == 0)
         {
             m_ceraShop.ProcessError(user, 0x15, groupIdx,
-                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1,
+                                    msg.m_scalars.m_itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
             // ORIG 0x08176b95/0x08176bbb：每个校验失败分支 ProcessError + goods[i]=0
@@ -4869,7 +4896,8 @@ const char* const kPrettyProcessBuy =
         if (!_CheckEnableGiftCondition(goods[i], user, (char)msg.m_scalars.m_buyFlag))
         {
             m_ceraShop.ProcessError(user, 8, groupIdx,
-                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1,
+                                    msg.m_scalars.m_itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x2b4, 0);   // ORIG 0x08176ca2/0x08176cc8
@@ -4881,7 +4909,8 @@ const char* const kPrettyProcessBuy =
         if (!CerashopAddRestrict::Manager::IsBuyableRestrictItem(user, productNo, 1, i))
         {
             m_ceraShop.ProcessError(user, 0x71, groupIdx,
-                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1,
+                                    msg.m_scalars.m_itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x2bb, 0);   // ORIG 0x08176d9f
@@ -4892,7 +4921,8 @@ const char* const kPrettyProcessBuy =
         if (!_CheckEnableItemCondition(goods[i], related[i], pairs))
         {
             m_ceraShop.ProcessError(user, 0x11, groupIdx,
-                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1,
+                                    msg.m_scalars.m_itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x2c2, 0);   // ORIG 0x08176e9f
@@ -4903,7 +4933,8 @@ const char* const kPrettyProcessBuy =
         if (!_CheckEnableStateCondition(goods[i], user))
         {
             m_ceraShop.ProcessError(user, 7, groupIdx,
-                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1,
+                                    msg.m_scalars.m_itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x2c8, 0);   // ORIG 0x08176f89
@@ -4919,7 +4950,8 @@ const char* const kPrettyProcessBuy =
         {
             m_ceraShop.ProcessError(user, (unsigned short)buyingCode, groupIdx,
                                     msg.m_entrySection.m_arr[i].m_productNo,
-                                    i + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
+                                    i + 1, msg.m_scalars.m_itemCount,
+                                    (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x2d6, 0);   // ORIG 0x08177105
             tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2d6);
@@ -4936,7 +4968,7 @@ const char* const kPrettyProcessBuy =
             {
                 m_ceraShop.ProcessError(user, 0x17, groupIdx,
                                         msg.m_entrySection.m_arr[i].m_productNo,
-                                        i + 1, itemCount,
+                                        i + 1, msg.m_scalars.m_itemCount,
                                         (char)msg.m_scalars.m_buyFlag);
                 goods[i] = 0;
                 cMyTrace tr(__PRETTY_FUNCTION__, 0x2ec, 0);   // ORIG 0x08177234
@@ -4958,7 +4990,8 @@ const char* const kPrettyProcessBuy =
         if (msg.m_scalars.m_buytype == 1 && goods[i]->isCeraPointDisallowance_())
         {
             m_ceraShop.ProcessError(user, 0x138b, groupIdx,
-                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1,
+                                    msg.m_scalars.m_itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x305, 0);   // ORIG 0x0817738f
@@ -5019,7 +5052,7 @@ const char* const kPrettyProcessBuy =
     int curMileage = user->GetMileage();
     int curSec = GlobalData::s_systemTime_.getCurSec();
 
-    for (unsigned int j = 0; j < itemCount; ++j)
+    for (unsigned int j = 0; j < (unsigned int)msg.m_scalars.m_itemCount; ++j)
     {
         if (goods[j] == 0)
             continue;
@@ -5036,7 +5069,8 @@ const char* const kPrettyProcessBuy =
             {
                 m_ceraShop.ProcessError(user, 0x17, groupIdx,
                                         msg.m_entrySection.m_arr[j].m_productNo,
-                                        j + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
+                                        j + 1, msg.m_scalars.m_itemCount,
+                                        (char)msg.m_scalars.m_buyFlag);
                 goods[j] = 0;
                 cMyTrace tr(__PRETTY_FUNCTION__, 0x37b, 0);   // ORIG 0x081777d6
                 tr("[%s][%d]", __PRETTY_FUNCTION__, 0x37b);
@@ -5116,7 +5150,8 @@ const char* const kPrettyProcessBuy =
                 "Error Goods No : %d", msg.m_entrySection.m_arr[j].m_productNo);
             m_ceraShop.ProcessError(user, (unsigned short)perErr, groupIdx,
                                     msg.m_entrySection.m_arr[j].m_productNo,
-                                    j + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
+                                    j + 1, msg.m_scalars.m_itemCount,
+                                    (char)msg.m_scalars.m_buyFlag);
             goods[j] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x3bb, 0);   // ORIG 0x08177bf4
             tr("[%s][%d]", __PRETTY_FUNCTION__, 0x3bb);
@@ -5148,7 +5183,7 @@ const char* const kPrettyProcessBuy =
             req->m_avatarType1 = msg.m_entrySection.m_arr[j].m_avatarType1;
             req->m_avatarField = (unsigned int)avatarField;
             req->m_featuredIdx = goods[j]->GetFeaturedIdx();
-            req->m_itemCount = itemCount;
+            req->m_itemCount = msg.m_scalars.m_itemCount;
             req->m_seq = j + 1;
             req->m_curSec = curSec;
             req->m_buyFlag = msg.m_scalars.m_buyFlag;
@@ -5278,7 +5313,8 @@ const char* const kPrettyProcessBuy =
         {
             m_ceraShop.ProcessError(user, 0x14, groupIdx,
                                     msg.m_entrySection.m_arr[j].m_productNo,
-                                    j + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
+                                    j + 1, msg.m_scalars.m_itemCount,
+                                    (char)msg.m_scalars.m_buyFlag);
             goods[j] = 0;
             cMyTrace tr(__PRETTY_FUNCTION__, 0x3c1, 0);   // ORIG 0x08177cdc/0x08177d02
             tr("[%s][%d]", __PRETTY_FUNCTION__, 0x3c1);
@@ -5542,6 +5578,9 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 
     // [DualMisc] ORIG 0x080eca6c：列索引是递增变量（`mov -0x1c,%eax; addl $1,-0x1c`
     // ×5，i 声明在 info 之前），非字面常量 ⇒ 改 i++。
+    // [H7PartyGlobal 2026-09-11] P331 声明序旋钮负结论：把「写后未读」的 group 副本
+    // （ORIG 0x080ecc9b 落最深槽 -0x64）前移到 i 之前 ⇒ 4.4 反把本件由 NEAR 打成 DIFF
+    // （TU：near 11→10、diff 37→38），已回滚。⇒ 槽向旋钮在此无效，维持 N82/N126 封顶。
     int i = 0;
     STDBConnInfo info;
     if (!db->get_str(i++, info.m_db, 0x1f))
@@ -8306,6 +8345,8 @@ EventRewardSection* GetRewardSection(int idx, register int type)
         return;
     }
 
+    bool isEquip = false;
+    int slot = 0;
     for (std::vector<InstanceRentalSystem::RentalInfo>::iterator it =
              rentalList.begin();
          it != rentalList.end(); ++it)
@@ -8321,8 +8362,6 @@ EventRewardSection* GetRewardSection(int idx, register int type)
         // （`mov -0xc(%ebp),%eax; mov 0x4(%eax),%eax`）；旧码逐点写 `(*it).m_itemIndex`
         // ⇒ p167 我方 +1 `deEv`（多一次迭代器解引用）。P0：ORIG 有槽往返必须有具名局部。
         InstanceRentalSystem::RentalInfo& info = *it;
-        int slot = 0;
-        bool isEquip = false;
         if (!const_cast<CInventory*>(user.getCurCharacInvenR())
                  ->CheckExistItemInInventoryOrEquipment(
                      info.m_itemIndex, slot, isEquip))

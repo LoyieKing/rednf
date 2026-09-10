@@ -1,1 +1,1 @@
-void RegistServerSchedule()
+int RegistServerSchedule()

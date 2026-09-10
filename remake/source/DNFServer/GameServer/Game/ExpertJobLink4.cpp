@@ -1007,7 +1007,10 @@ std::vector<int>* GetPredictDisjointItems(CUser* user, CItem* item,
     int perType[11] = {0};
     int emptySlots[11] = {0};
 
-    std::vector<int>* predicted =
+    // [P96/P270] ORIG 三处下标调用均为 const 版 `_ZNKSt6vectorIiSaIiEEixEj`
+    // （0x081f906a / 0x081f908b / 0x081f90cb）⇒ 原码持 const 指针
+    // （size() 仅有 const 版，故不产生 cv 线索）。
+    const std::vector<int>* predicted =
         GetPredictDisjointItems(user, item, invenItem, disjointer);
 
     for (unsigned int i = 0; i < predicted->size(); ++i)

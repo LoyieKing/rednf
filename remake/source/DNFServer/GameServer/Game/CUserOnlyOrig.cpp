@@ -236,6 +236,10 @@ private:
 // N115 outgoing 预留）+ setcc 物化 ⇒ N82/N115 封顶。
 #include "CUserOnlyOrig/_CheckCompoundSkill.inc"
 {
+    // [H6 2026-09-11 负结论·已回滚] 试两旋钮（A：`__PRETTY_FUNCTION__` 替静态 PRETTY 字面量；
+    // B：两处具名 `bool ok` 内联进 if）：A+B 同批 133→**131**、仅 A 133→**132**（ORIG 135）
+    // ⇒ 两者均使 gap 变大（我们本就比 ORIG 少 2 条）⇒ 全部回滚。本件方向待重定：ORIG 多的
+    // 2 条更可能在 `mov %eax,%ebx; xor $1` 寄存器保活与 0x0867104e 段，而非这两个槽。
     static const char* PRETTY =
         "bool CUser::_CheckCompoundSkill(const CStackableItem*, bool)";
 
@@ -264,6 +268,13 @@ private:
         {
             return expert_job::CExpertJob::IsLearnRecipe(this, item);  // ==1 → true
         }
+        // [H6 2026-09-11 第三试负结论·已回滚] 加裸 `register`（欲复现 ORIG 独有段
+        // `call getCurCharacNo; mov %eax,%ebx` + `mov %ebx,0x8(%esp)` 的跨 cMyTrace ctor
+        // %ebx 保活）：our 133→**132**（gap +2→+3，更远）⇒ 回滚。**本件三旋钮全部否**
+        // （__PRETTY_FUNCTION__ ✗ / bool ok 内联 ✗ / register 保活 ✗），残余 ORIG 独有段
+        // 集中在 0x08670fba `mov %eax,%ebx; xor $1,%ebx`、0x0867103c-0x08671064 双出口、
+        // trace 块 `mov %eax,%ebx` 保活 ⇒ 4.1 独有寄存器保活族（N 类），4.4 不可复现；
+        // 语义已完整（p167 CLEAR）⇒ 本件维持封顶，勿再按"消槽/内联/保活"方向重试。
         unsigned int characNo = getCurCharacNo();
         // [FL5 2026-09-10 负结论·已回滚] P37/P227 链在本件 ndiff 152→152 中性 ⇒ 维持具名形。
         cMyTrace trace(PRETTY, 0x5c68, 0);
@@ -484,11 +495,17 @@ private:
             strncpy(msg, g_scriptStringManager_.findString(4, "game_server_msg_07", 0), 0xff);
             Inven_Item gift;
             gift.m_addInfo = 0x43d;
-            ((char*)&gift)[0] = 2;                          // m_type=2（Inven_Item+0x00 byte）【推断字段序，见 fields_A】
-            // +0x14 count 写点：ORIG gift count 由 create_item 内部填【报告核对项】
-            
-            gift.m_addInfo = 0;
-            gift.ResetItemAttr();
+            // [H6 2026-09-11 语义轴·真字段错位/覆盖] ORIG 0x08664333/3d/44/4e 四处写：
+            //   +0x02 m_addInfo  = 0x43d（0x08664333 `movl $0x43d,-0x90(%ebp)`）
+            //   +0x01 m_field1   = 2    （0x0866433d `movb $0x2,-0x91(%ebp)`）
+            //   +0x07 m_addInfo2 = 0x14 （0x08664344 `movl $0x14,-0x8b(%ebp)`）
+            //   +0x0b m_fieldb   = 0    （0x0866434e `movw $0x0,-0x87(%ebp)`）
+            // 旧形 `((char*)&gift)[0] = 2` 写错到 +0x00（m_field0），随后 `gift.m_addInfo = 0;`
+            // **覆盖**刚写入的 0x43d ⇒ 邮件礼物 itemId 归零（真 bug，行为可见）。
+            gift.m_field1 = 2;
+            gift.m_addInfo2 = 0x14;
+            gift.m_fieldb = 0;
+            gift.ResetItemAttr();                           // ORIG 0x08664360
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(4, "game_server_msg_08", 0),
                 gift, 0, getCurCharacNo(), msg, strlen(msg), 0, GetServerGroup(), 0, 0);
@@ -832,6 +849,9 @@ private:
     if (!(oldFatigue != 0 && total != 0 && oldFatigue < 0x9du))
         return;
 
+    // [H6 2026-09-11 负结论·已回滚] 试 `int itemId = 0; int addCount = 0;` 前移到头部
+    // （欲复现 ORIG 0x086594c8/cf 的 `movl $0x0,-0x24/-0x20(%ebp)` 与 4.4 先声明深槽序）：
+    // our 234→**236**（gap -6→-8）劣化 ⇒ 回滚。声明序与零写在 4.4 下与 ORIG 槽图不同向。
     static const float DIV_DAY = 30.0f;  // ORIG .rodata DAY 常量（0x08cf3960 处值 30.0，已验证）
     int dayA = (int)(oldFatigue / DIV_DAY);
     int dayB = (int)(total / DIV_DAY);
@@ -1527,6 +1547,10 @@ INSERT_OK:
     CItem* locked = G_CDataManager()->find_item(lockHost.m_addInfo);
     if (opener == 0 || locked == 0)
         return 0x11;
+    // [H6 2026-09-11 负结论·已回滚] 试把四个独立早返并成单一复合条件
+    // `if (!A || B || !C || D) return 0x11;`（欲复现 ORIG 0x08676128 的共享物化岛
+    // `mov $0x1,%eax; jmp` / `mov $0x0,%eax` / test / `mov $0x11,%eax`）：4.4 直接产 jcc
+    // 短路（不物化 bool 岛）⇒ our 148→**144**（gap 0→+4，我们反而少 4 条）劣化 ⇒ 回滚。
     if (!opener->is_stackable())
         return 0x11;
     if (opener->GetItemType() /*virt+0x0c*/ != 0x1a)
@@ -1549,7 +1573,10 @@ INSERT_OK:
 
     int slots = 2;
     if (doubleMode)
-        slots = (int)G_CDataManager()->m_boosterGage.m_cMultiboxCount * 2;  // +0x877e = m_boosterGage.m_cMultiboxCount(+0x0e)
+        // [H6 2026-09-11 负结论·已回滚] 试 `* 2` → `* slots`（欲复现 ORIG 0x086761ad/b0
+        // `mov -0x10(%ebp),%edx; imul %edx,%eax` 的具名乘数）：4.4 产 `imul` 后**多 1 条**
+        // （our 148→149）⇒ 劣化回滚。语义两者等价（调用点 slots==2）。
+        slots = (int)G_CDataManager()->m_boosterGage.m_cMultiboxCount * 2;  // +0x877e = m_cMultiboxCount(+0x0e)
     int err = check_multibox_error(slots);
     return err == 0 ? 0 : err;
 }
@@ -2421,6 +2448,12 @@ INSERT_OK:
     // 视角 4.4 产 RHS-first（`mov src,%eax; mov 0x11(%eax),%edx; mov dst,%eax; …`）。
     dst.m_amp.m_amp0Head = src.m_amp.m_amp0Head;
     dst.m_fieldd = src.m_fieldd;                  // +0xd int
+    // [H6 2026-09-11 负结论·已回滚] 试加具名 `int fieldd = dst.m_fieldd;` 欲复现 ORIG
+    // 0x08671f3b 的 `mov 0xd(%eax),%eax; mov %eax,-0x1c(%ebp)`（m_fieldd→槽、&0x1f→%edi）：
+    // 4.4 虽给了 -0x1c 槽，但把 fieldd **提到全部实参求值之前**（语句序）⇒ 变参寄存器/槽
+    // 整体重排：帧 0x4c→**0x5c**（+0x10）、96→96 条，劣化 ⇒ 回滚。
+    // 结论维持前轮 N7：ORIG 的 -0x1c 是 4.1 变参**溢出临时槽**（同一实参在 4.4 留 %edi），
+    // 跨版本变参溢出策略差，源码层不可控。
     LogHistory("Compound+,%u,%d,%d,%d,%d,%d,%d,%d,",
                *(unsigned int*)&dst.m_addInfo,               // +2 uint
                (unsigned)dst.GetUpgrade() & 0xff,
@@ -8316,8 +8349,9 @@ struct UpdateDimensionInoutSigView
 #include "CUserOnlyOrig/UseLimitItem.inc"
 {
     unsigned char ok = 1;
-    for (std::vector<LimitItemUsage>::iterator it = m_limitItemUsage.begin();
-         it != m_limitItemUsage.end(); it++)   // ORIG 命中 operator++(int)（P28）
+    std::vector<LimitItemUsage>::iterator it = m_limitItemUsage.begin();
+    std::vector<LimitItemUsage>::iterator end = m_limitItemUsage.end();
+    for (; it != end; it++)   // ORIG 命中 operator++(int)（P28）
     {
         // [L6 判据①/P222 极性重核] ORIG 0x08688ae6 段 `mov 0x15(%eax),%eax;
         // cmp 0xc(%ebp),%eax; sete %al; test %al,%al; je` ⇒ 原码是**正极性**守卫
@@ -8352,9 +8386,16 @@ struct UpdateDimensionInoutSigView
             DB_UpdateLimitItemUsage::makeRequest(get_charac_no(-1),
                 (signed char)it->m_field10,
                 itemIdx, it->m_field19, it->m_fieldc);
-            return 1;
+            // ORIG 0x08688c1d/0x08688c23：出口不写 %eax 而写 `movb $0x1/$0x0,-0x19(%ebp)`
+            // 后 `jmp 尾部`（尾部 `movzbl -0x19,%eax`）⇒ 原码是**赋值 ok + break 出循环**，
+            // 非 `return 1/0`（后者产 `mov $1,%eax` 直接返回，跳过 ok 槽）。
+            ok = 1;
         }
-        return 0;
+        else
+        {
+            ok = 0;
+        }
+        break;
         }
     }
     return ok;
@@ -8881,6 +8922,9 @@ struct UpdateDimensionInoutSigView
     }
 
     WongWork::CSkillChanger changer;
+    // [H6 2026-09-11 负结论·已回滚] 试 `int mode = 0; if (...) mode = 1; else mode = 2;`
+    // 具名槽（欲复现 ORIG 0x0866bfa9 dead init + 0x0866bfbf/c8 两具名 store）：
+    // our 244→**246**（gap -3→-5）劣化 ⇒ 回滚；4.4 对该 if/else 赋值仍产直传形。
     changer.SkillInitialize(this, ((int)kind == -1 || (int)kind == 0) ? 1 : 2, false);
 }
 
@@ -8939,10 +8983,18 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
     m_gameOption.m_breakAwayQuestTime = 0;             // +0x703b4
     m_gameOption.m_breakAwayRewardOrder = ENUM_BREAK_AWAY_REWARD_ORDER_0;  // +0x703b8（movl $0 宽写）
 
-    m_multiboxLotteryFailCnt = 0;                      // +0x703bc
-    m_breakAway.clear();                               // STBreakAwayRewards::clear W 0x0831d454
-    m_breakAwayRewardData = 0;                         // +0x703c0（movb；setBreakAwayRewardData ORIG 0x0831d50c）
-    m_usedBreakAwayLuckPoint = 0;                      // +0x703c1
+    // [H6 2026-09-11 语义轴·缺写 + 语句序] ORIG 0x08649492..0x086494d7 的写序：
+    //   +0x703c0=0(movb) → +0x703c1=0(movb) → clear(+0x703c4 call) → +0x703bc=0(movl)
+    //   → +0x703d8=0、+0x703d9=0、+0x703da=**0xff**（STBreakAwayRewards::m_field14/15/16）。
+    // 旧形顺序反（failCnt 在 clear 前）且**完全缺** +0x703d8/9/a 三处写 ⇒ 断线奖励结构体
+    // 尾三字节残留上次会话的值（真 bug）。
+    m_breakAwayRewardData = 0;                         // +0x703c0（ORIG 0x08649492 movb；setter 0x0831d50c）
+    m_usedBreakAwayLuckPoint = 0;                      // +0x703c1（ORIG 0x0864949c movb）
+    m_breakAway.clear();                               // +0x703c4（STBreakAwayRewards::clear W 0x0831d454）
+    m_multiboxLotteryFailCnt = 0;                      // +0x703bc（ORIG 0x086494b6 movl，clear 之后）
+    m_breakAway.m_field14 = 0;                         // +0x703d8（ORIG 0x086494c3 movb $0x0）
+    m_breakAway.m_field15 = 0;                         // +0x703d9（ORIG 0x086494cd movb $0x0）
+    reinterpret_cast<char*>(&m_breakAway.m_field16)[0] = (char)0xff;  // +0x703da（ORIG 0x086494d7 movb $0xff；bool 直赋会折成 1）
 
     memset(m_skillCommands, 0, sizeof(m_skillCommands));  // ORIG memset(this+0x703db,0,200)
                                                           // （50×STCommand pack(1)=200B）
@@ -11004,23 +11056,51 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
 #include "CUserOnlyOrig/SetLimitInfo.inc"
 {
     if (info != 0) {
+        // [H6 2026-09-11 语义轴·真字段错位修正] ORIG 0x086888f8 对 `info` 的读点（绝对偏移，
+        // i*0x10 已含）：itemId @ +0x0c（0x08688985/0x08688995 `add $0xc,%eax; mov (%eax),%ebx`，
+        // 与 it->m_a 比较）、写 usage.m_field19 的源 @ +0x10（0x086889e3 `add $0x10,%eax`）、
+        // SetCreateTime 实参 @ +0x08（0x086889f6 `add $0x8,%eax`）。
+        // SigTypes_E.h 的 `m_pad4[8]` + `m_entries@+0xc` + Entry{field0@0,field4@4,ct@8,itemId@0xc}
+        // 使我们的对应读点落在 +0x18/+0x0c/+0x14 ⇒ 三处字段整体错位（运行时读错限购数据）。
+        // 头修正属跨文件广播项，本轮只报告；此处按 ORIG 绝对偏移用局部视图读取（等价映射：
+        // 元素基址 info+0x8、步长 0x10、createTime@元素+0 / itemId@+4 / field0@+8）。
+        struct LimitInfoEntryView {
+            long m_createTime;   // 元素+0x00 ⇒ 绝对 +0x08（ORIG 0x086889f6）
+            int  m_itemId;       // 元素+0x04 ⇒ 绝对 +0x0c（ORIG 0x08688985）
+            int  m_field0;       // 元素+0x08 ⇒ 绝对 +0x10（ORIG 0x086889e3）
+            int  m_field4;       // 元素+0x0c（ORIG 未读）
+        };
+        struct LimitInfoView {
+            int m_count;                     // +0x00（ORIG 0x08688a2c 循环条件读）
+            int m_pad4;                      // +0x04
+            LimitInfoEntryView m_entries[1]; // +0x08 起，步长 0x10
+        };
+        // [H6 2026-09-11 P183 修正] 视图指针**不具名缓存**：ORIG 每处重读形参
+        // `mov 0xc(%ebp),%eax`；具名 `LimitInfoView* lim` 会占 -0x18 槽并每次回读
+        // （实测 +16 条、多 push %esi）⇒ 用宏展开，零槽。
+#define CUOO_LIM (reinterpret_cast<LimitInfoView*>(info))
         m_limitItemUsage.clear();
         stLimitItemUsageInfoEx* usageInfo = G_CDataManager()->GetLimitItemUsageInfo();
         std::vector<stLimitItemUsageInfo::LimitInfo>::iterator it =
             usageInfo->m_info0.m_list.begin();
+        // [H6 2026-09-11 单旋钮·P13/P28 缓存 end] ORIG 0x0868894b 段 end() 仅一次落 -0x20 槽，
+        // 循环条件只调 `operator!=`（0x08688ac4 `lea -0x20; lea -0x1c(=%it); call ne`）⇒ 源码
+        // 有具名 end 迭代器。旧形每轮 `call end()` 落 -0x1c 临时槽 ⇒ it/end 槽位整体对调。
+        std::vector<stLimitItemUsageInfo::LimitInfo>::iterator end =
+            usageInfo->m_info0.m_list.end();
         // [FL5 2026-09-10 P28/P167] ORIG 增量段调 `__normal_iterator<...>::ppEi`（后置，
         // 带独立 sret 临时槽；p167 直证：ORIG 有 ppEi、我方旧 `++it` 产 ppEv 差集 1）。
-        for (; it != usageInfo->m_info0.m_list.end(); it++) {
+        for (; it != end; it++) {
             LimitItemUsage usage;
             bool matched = false;
-            for (int i = 0; i < info->m_count; ++i) {
-                if (info->m_entries[i].m_itemId == it->m_a) {
+            for (int i = 0; i < CUOO_LIM->m_count; ++i) {
+                if (CUOO_LIM->m_entries[i].m_itemId == it->m_a) {
                     usage.m_field10 = it->m_kind;
                     usage.m_field11 = it->m_b;  // +0x11
                     usage.m_field15 = it->m_a;
-                    usage.m_field19 = info->m_entries[i].m_field0;
+                    usage.m_field19 = CUOO_LIM->m_entries[i].m_field0;
                     reinterpret_cast<CommonTime*>(&usage)
-                        ->SetCreateTime(info->m_entries[i].m_createTime);
+                        ->SetCreateTime(CUOO_LIM->m_entries[i].m_createTime);
                     m_limitItemUsage.push_back(usage);
                     matched = true;
                     break;
@@ -11037,6 +11117,7 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         }
     }
 }
+#undef CUOO_LIM
 
 // ---------------------------------------------------------------------------
 // CUser::SelectCharac(int idx, int tagIdx) T 0x0864cd92 sz0x3cd
@@ -11153,7 +11234,15 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         SendMultiMail(certified);
         return;
     }
-    if (certified) {
+    // [H6 2026-09-11 单旋钮·否定分支在前] ORIG 0x08689f3a `movzbl certified; xor $0x1,%eax;
+    // test %al,%al; je <主体>` ⇒ 原码是**非 certified 块在前**（失败块直落 + 主体落 je 目标）；
+    // 旧 `if (certified) {主体} 尾部失败` 令 4.4 产 `cmpb $0; je <失败>`（块序相反）。
+    // 改 `if (!certified) {失败} else {主体}`：主体缩进不变、指令块序与 ORIG 一致。
+    if (!certified) {
+        SendCmdErrorPacket((ENUM_CMDPACKET)0x61, 0x87);
+        memset(m_pad8e101, 0, 0x145);
+    }
+    else {
         MSG_CHECK_MAIL_RECEIVER check;
         check.set<MSG_CHECK_MAIL_RECEIVER::ENUM_MAILBOX_CHECKTYPE_0>(
             *reinterpret_cast<MSG_MAILBOX_SEND*>(m_pad8e101));
@@ -11171,14 +11260,11 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
                 reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_itemId39);  // +0x39
             CItem* item = G_CDataManager()->find_item(itemId);
             if (item != 0) {
-                bool skip;
-                if (item->IsAvatarItem() || item->get_rarity() > 1) {
-                    skip = false;
-                }
-                else {
-                    skip = true;
-                }
-                if (skip) {
+                // [H6 2026-09-11 单旋钮·短路条件复原] ORIG 0x08689f7x 段为 `call *%edx
+                // (IsAvatarItem); xor $0x1,%eax; test %al,%al; je <false 岛>` + `call
+                // get_rarity; cmp $0x1,%eax; jg <同一 false 岛>` ⇒ 原码是短路合条件
+                // `!IsAvatarItem() && get_rarity() <= 1`；旧具名 `skip` 另占槽并产无 xor 形。
+                if (!item->IsAvatarItem() && item->get_rarity() <= 1) {
                     fatigueGift = true;
                 }
             }
@@ -11219,8 +11305,6 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         memset(m_pad8e101, 0, 0x145);                      // 清 MSG_MAILBOX_SEND 载荷
         return;
     }
-    SendCmdErrorPacket((ENUM_CMDPACKET)0x61, 0x87);
-    memset(m_pad8e101, 0, 0x145);
 }
 
 // ---------------------------------------------------------------------------
@@ -11556,8 +11640,12 @@ public:
         m_characList[slot].m_additioalInfo,
         static_cast<unsigned int>(m_characList[slot].m_characNo),
         static_cast<int>(m_characList[slot].m_field26), static_cast<int>(m_characList[slot].m_level),
-        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29.m_growthType << 4) >> 4),
-        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29.m_growthType * 2) >> 5));
+        // [H6 2026-09-11 单旋钮·位域窄化复现] ORIG 0x0864b192 `shl $0x4,%eax; sar $0x4,%al;
+        // movsbl` = m_sub（bit0-3，signed char:4）；0x0864b16b `add %eax,%eax; sar $0x5,%al;
+        // movsbl` = m_grow（bit4-6，signed char:3）。旧的 32 位移位手写形值等价但 4.4 产
+        // 32 位 `sar`；STGrowthType.h 已有该位域视角 ⇒ 直读位域成员。
+        static_cast<int>(m_characList[slot].m_field29.m_sub),
+        static_cast<int>(m_characList[slot].m_field29.m_grow));
     m_characList[slot].m_field33 = src->m_field2c;
     m_characList[slot].m_field35 = src->m_field2e;
     m_characList[slot].m_field37 = src->m_field30;
@@ -11851,55 +11939,65 @@ public:
     // `m_pad8e101 + 0x145` 内联形发**两条** add（0x8e101 + 0x145 不折）⇒ 129→138 反劣；
     // 4.4 保持具名 `char* block` 缓存形最优（P183 的 4.4 反例）。正解需 `this+0x8e246`
     // 折成单 add 的具名成员，属头改动 ⇒ 只报告。
-    char* block = m_pad8e101 + 0x145;                        // +0x8e246
+    // [H6 2026-09-11 单旋钮·P183 4.4 正解] ORIG 0x0868a2dc 段每处各自重算块基址
+    // `mov 0x8(%ebp),%eax; add $0x8e246,%eax`（**单常量 add**，无 block 具名槽）。前轮两试
+    // 均败在取址形：`m_pad8e101 + 0x145` 被 4.4 拆成两条 add（$0x8e101 + $0x145）。本次改
+    // `(char*)this + 绝对常量`：this 直接加常量，4.4 前端折成单条 add（形同 ORIG）。
+#define CUOO_MM(k) (reinterpret_cast<char*>(this) + (k))
     // [DualCUOO 2026-09-09 双判据 gap] ORIG 0x0868a2e6 先 `mov 0xc(%ebp),%eax;
     // mov %al,-0x3fac(%ebp)`（bool 规范化溢出槽）再 `movzbl -0x3fac; xor $1; test;
     // je 0868a33d`，且 0868a2fd 的 SendCmdErrorPacket(0x13c,0x87)+memset 是**if 分支**
     // ⇒ 源码是 `if (!certified) {…} else {主体}`，分支体顺序按 ORIG 交换（行为等价）。
     if (!certified) {
         SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x87);
-        memset(block, 0, 0x1a6);
+        memset(CUOO_MM(0x8e246), 0, 0x1a6);
     }
     else {
         MSG_CHECK_MAIL_RECEIVER check;
         check.set<MSG_CHECK_MAIL_RECEIVER::ENUM_MAILBOX_CHECKTYPE_2>(
-            *reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(block));
-        int rc = WongWork::CMailBoxHelper::ReqDBCheckReceiver(this, block + 0x11, &check);
-        if (rc == 0) {
+            *reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(CUOO_MM(0x8e246)));
+        int rc = WongWork::CMailBoxHelper::ReqDBCheckReceiver(this, CUOO_MM(0x8e257), &check);
+        // [H6 2026-09-11 单旋钮·否定分支在前的块序] ORIG 0x0868a3a4 段 = `je <循环头>` +
+        // **直落**失败块（SendCmdErrorPacket 后 `jmp <尾 memset>`），循环紧随其后 ⇒ 原码是
+        // `if (rc != 0) { error } else { 循环 }`（与 `if (!certified)` 同一否定优先风格）。
+        // 旧 `if (rc == 0) {循环} else {error}` 令 4.4 产 `jne <循环后失败块>` + 循环尾多一跳。
+        if (rc != 0) {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, static_cast<unsigned char>(rc));
+        }
+        else {
             bool fatigueGift = false;
             // [DualCUOO 2026-09-09 双判据 gap] ORIG 0x0868a474 循环条件每轮重读
             // `movzbl 0x8e279(%eax),%eax`（= block[0x33]，无 count 缓存）；
             // 且 0x0868a3cd / 0x0868a442 两次重算 `mov 0xd(%eax),%eax`（itemId 无缓存，P183）。
-            for (int i = 0; i < static_cast<int>(static_cast<unsigned char>(block[0x33])); ++i) {
+            // [H6 2026-09-11 单旋钮·具名成员数组下标] ORIG 0x0868a471 `movzbl 0x8e279(%eax),%eax`
+            // / 0x0868a45x `mov 0x8e275(%eax),%eax` 都是**单条 disp 装载**（基址+常量由后端折）；
+            // `(char*)this + K` 形只能产 `add $K,%eax; mov (%eax)` 两条。改走具名数组成员
+            // `m_pad8e101[0x178]`（char[0x2ec] @+0x8e101 ⇒ +0x8e279）与 `&m_pad8e101[0x174]`
+            // （⇒ +0x8e275）即复现单 disp。
+            for (int i = 0; i < static_cast<int>(static_cast<unsigned char>(m_pad8e101[0x178])); ++i) {
+                // [H6 2026-09-11 单旋钮·短路条件复原] ORIG 0x0868a3f8 段为 `call IsAvatarItem;
+                // xor $1,%eax; test %al,%al; je <false 岛 0x868a41c>` 后接 `call get_rarity;
+                // cmp $1,%eax; jg <同一 false 岛>`，false 岛产 `mov $0x0,%eax` 再 `test; je`
+                // ⇒ 原码是**短路合条件** `if (!IsAvatarItem() && get_rarity() <= 1)`。
+                // 旧三层 if/else 赋 `skip` 产 4.4 无 xor 形 + 额外 skip 槽（-0x15）。
                 CItem* item = G_CDataManager()->find_item(
-                    *reinterpret_cast<int*>(block + 0x37 + i * 0xb));
+                    *reinterpret_cast<int*>(CUOO_MM(0x8e27d + i * 0xb)));
                 if (item != 0) {
-                    bool skip;
-                    if (item->IsAvatarItem()) {
-                        skip = false;
-                    }
-                    else if (item->get_rarity() > 1) {
-                        skip = false;
-                    }
-                    else {
-                        skip = true;
-                    }
-                    if (skip) {
+                    if (!item->IsAvatarItem() && item->get_rarity() <= 1) {
                         fatigueGift = true;
                     }
                 }
-                if (*reinterpret_cast<int*>(block + 0x37 + i * 0xb) == 0) {
+                if (*reinterpret_cast<int*>(CUOO_MM(0x8e27d + i * 0xb)) == 0) {
                     fatigueGift = true;
                 }
-                IncrementTradeGold(reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(block)->m_gold2f,  // +0x2f
+                IncrementTradeGold(
+                                   *reinterpret_cast<int*>(&m_pad8e101[0x174]),  // +0x8e275 = gold@+0x2f
                                    static_cast<int>(fatigueGift));
             }
         }
-        else {
-            SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, static_cast<unsigned char>(rc));
-        }
-        memset(block, 0, 0x1a6);
+        memset(CUOO_MM(0x8e246), 0, 0x1a6);
     }
+#undef CUOO_MM
 }
 
 // ---------------------------------------------------------------------------
@@ -12219,7 +12317,10 @@ public:
                     while (ui != updates.end())
                     {
                         const int spId = *ui; ++ui;
-                        const int cntS = *ui; ++ui;
+                        // [H6 2026-09-11 单旋钮·类型轴] ORIG 该件 `mov %ax,-0x1c(%ebp)` +
+                        // `movswl -0x1c(%ebp),%eax`（16 位具名槽 + 符号扩展为 SendUpdateItem 实参）
+                        // ⇒ 原码是 **short** 局部（数量按 16 位截断）。旧 `const int cntS` 给 32 位槽。
+                        const short cntS = static_cast<short>(*ui); ++ui;
                         SendUpdateItem((eSendTarget)1, (ENUM_ITEMSPACE)spId, cntS);
                         ++ui;                                   // 第三元素只读丢弃
                     }
@@ -12309,11 +12410,15 @@ public:
         if ((now - m_postChecksumData.m_field48) <= 0x3e8)      // 0x79644 近期已请求
         {
             ++m_postChecksumData.m_field4c;                     // 0x79648
-            if (1 < m_postChecksumData.m_field4c)
+            // [H6 2026-09-11 单旋钮·符号性] ORIG 0x0866e01d `cmp $0x1,%eax; jbe 0x0866e0cf`
+            // = **无符号**比较；4.4 对 int 字段产 `jle`（有符号）⇒ 显式 unsigned 视角复现
+            // （计数字段，语义等价区间内的负数不可达）。
+            if (1 < static_cast<unsigned int>(m_postChecksumData.m_field4c))
             {
-                WongWork::CHackAnalyzer* ha = getHackAnalyzer();
-                ha->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x192,
-                                     1, 0, 0);
+                // [H6 2026-09-11 单旋钮·P0 去具名] ORIG 0x0866e029 把 getHackAnalyzer() 结果
+                // 直接落 (%esp) 调 addServerHackCnt（**无** ha 具名槽），旧形多一对 store/load。
+                getHackAnalyzer()->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x192,
+                                                    1, 0, 0);
                 packet.put_byte(0);
                 packet.put_byte(1);
                 packet.finalize(true);
@@ -12341,10 +12446,9 @@ public:
         {
             std::list<int> mailQuestIds;
             stSelectQuestParam selParam(this);
-            const bool hasMailQ = getCurCharacQuestR()
-                                      ->get_mail_quest_info(mailQuestIds,
-                                                            selParam);
-            if (hasMailQ)
+            // [H6 2026-09-11 单旋钮·P0 去具名 bool] ORIG 0x0866e166 `test %al,%al; je
+            // 0x0866e220` 直判返回值（**无** hasMailQ 槽）；旧形多 `mov %al,-0x11; cmpb $0x0,-0x11`。
+            if (getCurCharacQuestR()->get_mail_quest_info(mailQuestIds, selParam))
             {
                 // [b28d-solo-CUserOnlyOrig P96/P270] p167：MISSING `_List_iterator<int>`
                 // 族 + EXTRA `_List_const_iterator` 转换构造 ⇒ 非 const iterator。
