@@ -655,6 +655,16 @@ case "$(basename "$src" .cpp)" in
                 # .o 口径合计：Δident **+14** / Δnear **−18** / Δdiff 0（非 identical 净 −17）。
                 # ⚠ 与 x87 臂同规矩：**全局核账定稿**（weak/COMDAT 重复发射会高估）。
                 exec "$C6" -B"${ROOT}/cc1plus446bin/" "$@" ;;
+            *Game/CTournamentDungeonReward.cpp)
+                # [Main·2026-09-10 round5] **444 后端杠杆**（`dnf_c6444r_gxx.sh` =
+                # 4.4.7 驱动 + `-B cc1plus444bin/`，ORIG `.comment` 主体编译器候选）。
+                # 此前**从未在任何分支使用**。对 diff 最大的 30 个 TU 逐个 A/B：
+                # 本件是唯一命中，其余 29 个零变化。
+                # 实测 .o 口径：identical 49 / ae 0 / near 0 / diff 11 →
+                #                identical **58** / ae 0 / near 0 / diff **2**
+                # （**Δidentical +9 / Δdiff −9**）。
+                # ⚠ 与其它旗标臂同规矩：**全局核账定稿**。
+                exec "$C6444R" "$@" ;;
 
             *)
                 exec "$C6" "$@" ;;
