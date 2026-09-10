@@ -664,6 +664,17 @@ struct STAdvanceAltarLayerStatData
 
 // ORIG 布局（ItemVendingMachine::ProcessBuyRequestEx @0x081769f6 逐字节读序；
 // Inter_ItemLimitEdition_Reply/dispatch_sig @0x84dc365 同布读写），sizeof = 0x27c。
+
+// [Lane7GlobalData R2 2026-09-10 · Main「视图 cast 反模式」修法 / P235 双视角]
+// 子项/选项数组的具名视角：既有 2D 字节视图**保留**（既有消费点零破坏），
+// 新增匿名 union 数组视角供具名字段直访问 —— 消除 `*reinterpret_cast<T*>(&m_x[k][0])=v`
+// 造成的 add/shl 折叠（4.4 对 cast 形折不 scaled），复现 ORIG
+// `mov %edx,0x8(%eax,%ecx,8)` / `mov %dl,0xc(%eax,%ecx,8)` scaled 直存。
+// 依据：ORIG _makeSendMailData/ProcessBuyRequestEx 0x08177edf / 0x08177f0d；
+// 探针 /tmp/l7/probe7.cpp f1(opaque cast 形) vs f2(具名数组成员形=ORIG 形)。
+struct stCeraShopIPGRequestSubItem { int m_itemIdx; unsigned char m_value; char m_pad3[3]; };  // 8B
+struct stCeraShopIPGRequestOptItem { unsigned long m_itemUid; unsigned short m_a; unsigned short m_b; };  // 8B
+
 struct stCeraShopIPGRequest_t
 {
     unsigned int  m_productNo;       // +0x00（条目 product_no）
@@ -692,16 +703,27 @@ struct stCeraShopIPGRequest_t
     // +0x48 子项数组：每项 8 字节 { int idx; unsigned char val; 3 填充 }，步长 8，
     // 下标 0..subCount-1，落在 (local_24+8)*8 位置（即 0x48 + local_24*8）。
     // subCount 最大 0x23（下标 0x22），末项 +0xc 止于 0x15c < 0x160。
-    unsigned char m_subEntries[0x23][8];   // +0x48
+    union
+    {
+        unsigned char m_subEntries[0x23][8];              // +0x48 既有 2D 字节视图（兼容消费点）
+        stCeraShopIPGRequestSubItem m_subItems[0x23];     // 具名视角（同址同尺寸，R2 2026-09-10）
+    };
     unsigned char m_optCount;              // +0x160（选项数 ≤ 0x23）
     unsigned char m_pad161[3];             // +0x161
     // +0x164 选项数组：每项 8 字节 { unsigned long itemIdx; unsigned short a;
     // unsigned short b; }，步长 8，基址 (0x2c+local_20)*8 = 0x160 + local_20*8；
     // 实际 2 字节字段写 +0x8/+0xa（即 0x168+local_20*8 / 0x16a+local_20*8）。
     // 选项数最大 0x23（下标 0x22），末项 +0xa 止于 0x27a < 0x280。
-    unsigned char m_optEntries[0x23][8];   // +0x164
+    union
+    {
+        unsigned char m_optEntries[0x23][8];              // +0x164 既有 2D 字节视图（兼容消费点）
+        stCeraShopIPGRequestOptItem m_optItems[0x23];     // 具名视角（同址同尺寸，R2 2026-09-10）
+    };
 };
 static_assert(sizeof(stCeraShopIPGRequest_t) == 0x27c, "stCeraShopIPGRequest_t ABI drift");
+// [Lane7GlobalData R2 · Main 批准 2026-09-10] 新增具名视角的元素步长锁定（8B）：
+static_assert(sizeof(stCeraShopIPGRequestSubItem) == 8, "sub item stride drift");
+static_assert(sizeof(stCeraShopIPGRequestOptItem) == 8, "opt item stride drift");
 static_assert(offsetof(stCeraShopIPGRequest_t, m_productNo) == 0x000, "stCeraShopIPGRequest_t productNo offset drift");
 static_assert(offsetof(stCeraShopIPGRequest_t, m_itemIdx) == 0x008, "stCeraShopIPGRequest_t itemIdx offset drift");
 static_assert(offsetof(stCeraShopIPGRequest_t, m_stackCount) == 0x00c, "stCeraShopIPGRequest_t stackCount offset drift");

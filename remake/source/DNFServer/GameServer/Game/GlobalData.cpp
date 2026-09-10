@@ -4101,9 +4101,24 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
         CEventBase* bonusEvent = GlobalData::s_event_manager->GetRepeatEvent(0x11);
         if (bonusEvent->IsEventing(0))
         {
-            bonusEvent = GlobalData::s_event_manager->GetRepeatEvent(0x11);
-            int bonusRate = static_cast<CCeraShopBonusItemEvent*>(bonusEvent)->getBonusRate();
-            if (get_rand_int(1000) <= bonusRate)
+            // [Main 判据②/① 回扫 · P0/P134/P226] ORIG 0x081796xx 段：
+            //   `call GetRepeatEvent; mov %eax,(%esp); call getBonusRate;
+            //    mov %eax,%ebx; movl $0x3e8,(%esp); call get_rand_int;
+            //    cmp %eax,%ebx; setge %al`
+            // ⇒ GetRepeatEvent 结果**直作 receiver**（无具名指针槽往返），
+            //    getBonusRate 结果升格 %ebx 跨 get_rand_int call 保活 ⇒ 原码是
+            //    **单条嵌套实参表达式**（RHS 先求值 = 链），且比较写作
+            //    `get_rand_int(1000) <= <链>`。旧具名 `bonusEvent`(二次赋值)+
+            //    `bonusRate` 使 4.4 落 -0x24/-0x20 两槽、并把比较反序折成
+            //    `cmp -0x20(%ebp),%eax; setle`（语义等价但形态/寄存器全异）。
+            // [Main 判据②/① 回扫] 操作数书写序=求值序：ORIG 先求 **链**
+            // （→%ebx）后求 get_rand_int（→%eax），比较为 `cmp %eax,%ebx; setge`
+            // ⇒ 源码写 `链 >= get_rand_int(1000)`（链在左）。反过来写
+            // （get_rand_int 在左）4.4 先求 get_rand_int，得 `cmp %eax,%ebx;
+            // setle`（语义等价、形态/寄存器/指令序全异）。
+            if (static_cast<CCeraShopBonusItemEvent*>(
+                    GlobalData::s_event_manager->GetRepeatEvent(0x11))->getBonusRate() >=
+                get_rand_int(1000))
             {
                 unsigned int usedCera = user->getUsedCera();
                 G_CDataManager()->m_itemList->getCeraShopBonusItem((int)usedCera,
@@ -4761,9 +4776,15 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
                 // ORIG 0x08177ed6/0x08177f04：两处各自重算源地址直读直存
                 // （`mov 0xe(%eax),%edx; mov %edx,0x8(..)` / `movzbl 0x42(%eax);
                 //  mov %dl,0xc(..)`），无 memcpy call、无源字段缓存（P183/P329）。
-                *reinterpret_cast<int*>(&req->m_subEntries[k][0]) =
+                // [Main「视图 cast 反模式」修法 · R2 批准 · 探针 /tmp/l7/probe7.cpp]
+                // 具名数组视角直访问：ORIG 0x08177edf `mov %edx,0x8(%eax,%ecx,8)` /
+                // 0x08177f0d `mov %dl,0xc(%eax,%ecx,8)`（stride 8 scaled 直存）；
+                // 旧 `*reinterpret_cast<int*>(&m_subEntries[k][0])=` 形被 4.4 折成
+                // add+shl 再普通 store（probe7 f1）⇒ 改 SigTypes_E.h 的 union 具名
+                // 视角 m_subItems（probe7 f2 = ORIG 形）。布局/sizeof/mangled 不变。
+                req->m_subItems[k].m_itemIdx =
                     msg.m_entrySection.m_arr[j].m_subEntries[k].m_itemIdx;
-                req->m_subEntries[k][4] =
+                req->m_subItems[k].m_value =
                     msg.m_entrySection.m_arr[j].m_subEntries[k].m_value;
             }
             req->m_optCount = msg.m_entrySection.m_arr[j].m_optCount;
@@ -4776,11 +4797,13 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
                 // ORIG 0x08177f87/0x08177fb4/0x08177fe3：三次独立重算源地址直读直存
                 // （`mov 0xe(%eax),%edx; mov %edx,0x4(%eax,%ecx,8)` 形），
                 // 无 memcpy call、无 srcOpt/itemIdx/a/b 具名缓存（P183/P329）。
-                *reinterpret_cast<unsigned long*>(&req->m_optEntries[k][0]) =
+                // 同上：ORIG 0x08177f87/0x08177fb4/0x08177fe3 三处 scaled 直存
+                // （`mov …,0x4/0x8/0xa(%eax,%ecx,8)`）⇒ 用 m_optItems 具名视角。
+                req->m_optItems[k].m_itemUid =
                     msg.m_entrySection.m_arr[j].m_optEntries[k].m_itemUid;
-                *reinterpret_cast<unsigned short*>(&req->m_optEntries[k][4]) =
+                req->m_optItems[k].m_a =
                     msg.m_entrySection.m_arr[j].m_optEntries[k].m_a;
-                *reinterpret_cast<unsigned short*>(&req->m_optEntries[k][6]) =
+                req->m_optItems[k].m_b =
                     msg.m_entrySection.m_arr[j].m_optEntries[k].m_b;
             }
 
