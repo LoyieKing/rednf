@@ -1089,9 +1089,15 @@ bool CUser::alonePlay_Mode()
     // （探针 /tmp/short_probe.cpp f1/f2/f5 三形全融、f3 int 中转产额外槽 -0xc）。
     // 旧源码 `int v = etc;` 多一槽使 opt 落 -0x14、short 落 -0xe（ORIG -0x10/-0xa）
     // 且多 2 条指令；删 int 槽后槽位/帧对齐，仅余 cmpw-vs-movswl 单条跨版本差（N 封顶）。
-    if (etc == 1)
+    // [Lane6 2026-09-10 P286 一试] `if (etc == 1)` 在 4.4 恒融 `cmpw $1,mem`（short 槽），
+    // 单 case switch 令 4.4 发「载入 + 寄存器比较」（ORIG 0x0868dca5 `movswl -0xa(%ebp),%eax;
+    // cmp $0x1,%eax`）——语义与 if 等价。
+    switch (etc) {
+    case 1:
         return true;
-    return false;
+    default:
+        return false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1127,11 +1133,15 @@ bool CUser::alonePlay_Mode(const MSG_REQ_TO_PEER& req)
         return false;
     }
     // ORIG 0x0868dd01 `movswl -0xa(%ebp),%eax; cmp $1,%eax`（4.1 32 位化）；
-    // 4.4 对 short 槽恒融 cmpw（/tmp/short_probe.cpp f1/f2/f5 实证）⇒ N 封顶，
     // 删具名 v 槽后 opt/etc 槽位与 ORIG 一致（-0x10/-0xa）。
-    if (etc == 1)
+    // [Lane6 2026-09-10 P286 二试] 同 21 号：`if (etc == 1)` 4.4 恒融 `cmpw $1,mem`，
+    // 单 case switch 复现「载入 + 寄存器比较」（21 号实证 DIFF→AE）。
+    switch (etc) {
+    case 1:
         return true;
-    return false;
+    default:
+        return false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -7163,6 +7173,12 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
 // [b28d-22 N82] ORIG 0x08654924：p167=M0/E3:_ZNKSt17_Rb_tree_iteratorISt4pairIKi18STSkillCommandDataEEneERKS4_;_ZSt9make_pairIRiR18STSkillCommandDataESt4pairINSt17__decay_and_stripIT_E6__typeENS4_IT0_E6__typeEEOS5_OS8_;_ZNSt4pairIKi18STSkillCommandDataEC1IiS1_EEOS_IT_T0_E，gap=26；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08654924：N82/N89 封顶——map/pair 模板实例差集
 // （p167 M0/E3，gap 26）。
+// [Lane6 2026-09-10 P172/P183 一试] 删具名指针 `e` 改宏展开表达式直取 → 实测**反劣**
+// （200→233 vs ORIG 172）：4.4 对 `reinterpret_cast<uchar*>(&m_skillCommands[i])[k]`
+// 恒展开完整 add 链（N4/N102 族；ORIG 的 `movzbl 0xb(%eax,%edx,4)` 单条 scaled 不可
+// 复现）⇒ 已回滚为具名指针。memcpy 长度保留 ORIG 具名槽形（-0x18）。
+// 附：`int size=0xc8` 局部试形亦反劣（200→204：4.4 每处回读槽 +store/load 各 1，
+// 而立即数形零开销；ORIG 的「常量→槽→回读」两跳不可复现）⇒ 一并回滚为立即数。
 void CUser::setSkillCommandData(char* data)
 {
     memcpy(&m_skillCommands[0], data, 200);
@@ -10047,15 +10063,16 @@ void CUser::ValidateStrikerInfo()
             else if (!G_CDataManager()->m_altarConfig.m_strikerScript
                           ->checkSkillIndex(
                               m_characList[linkedIdx].m_field26,   // +0x26 firstGrow
-                              // [b28d-22 修法] ORIG 0x08690ce6 `movzbl 0x29(%eax),%eax;
-                              // shl $0x4,%eax; sar $0x4,%al; movsbl %al,%esi`（8 位 sar）
-                              // ⇒ 单层外层 cast（内层 cast 多一条 movsbl）。
-                              // [b28d-solo-CUserOnlyOrig N/P11] ORIG 首条 movzbl + `sar
-                              // $0x4,%al`（8 位）为 4.1 位域提取形；显式 uchar 中转实测
-                              // 反多一条 `movzbl %al,%eax`（5 条 vs ORIG 4 条）⇒ 回退裸形
-                              // （4 条，仅 movsbl/sar 宽度差）封顶。
+                              // [Lane6 2026-09-10 真语义 bug 修复] ORIG 0x08690ce6
+                              // `movzbl 0x29(%eax),%eax; shl $0x4,%eax; sar $0x4,%al;
+                              // movsbl %al,%esi` = **低 4 位符号扩展**（(char)(f<<4)>>4；
+                              // f=0x9A ⇒ -6）。旧译文 `(char)((f<<4)>>4)` 在 4.4 下被折成
+                              // `movsbl f; shl$4; sar$4`（恒等）⇒ 返回**完整 f**（-102），
+                              // 与 ORIG 语义不同 ⇒ 内层 cast 才正确（与 setCharacInfoDetail
+                              // 同址段形一致）。
                               static_cast<char>(
-                                  (m_characList[linkedIdx].m_field29 << 4) >> 4),
+                                  static_cast<signed char>(
+                                      m_characList[linkedIdx].m_field29 << 4) >> 4),
                               static_cast<int>(
                                   static_cast<unsigned char>(m_characList[i].m_field14b7))))
             {
