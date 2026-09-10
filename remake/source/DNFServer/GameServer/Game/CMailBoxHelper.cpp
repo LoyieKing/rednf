@@ -53,6 +53,36 @@
 //    （除③）；元素偏移 0x61/0x50/0x5b/0x5c、0x47/0x7a4/+0x25/+0x43、
 //    0x25/0xd30/+4/+8/+0xc、0x12b/0x101c+0x25 逐项与 ORIG 一致。
 //  四数 141/300/2/14 → 141/303/2/11（CMailBox.cpp 98/149/0/4 不回退）。
+// [2026-09-09 五轮波 Lane20CMailBoxHelper] 判据①（全 TU jcc/jmp 目标下标逐位，
+//  562 共有符号 0 不匹配）后按 gap' 降序逐件修，本波净修复 5 件 DIFF→AE：
+//  ①SIG_AVATAR_INSERT::set（44=44）：根因=视图 cast 于赋值点
+//    （`reinterpret_cast<AvatarInsertV*>(this)->m_fieldN = x`）⇒ 4.4 走 LHS-first
+//    且折掉窄化中转（P235 同族；探针 /tmp/probe_cmh/p1.cpp viaView vs direct）。
+//    改 SigTypes_A.h 具名字段直访问，并把 m_characNo/m_a7 int→unsigned
+//    （P211 档③；ORIG 0x0850d3da/3dd RHS-first、0x850d436 LHS-first 直证）。
+//  ②_makeSendMailData（131=131）：SIG_MAILBOX_SEND_NEW_MAIL 由 opaque
+//    m_data[0x168] 字段化（SigTypes_D.h；sizeof 0x168/各偏移/mangled 零变化，
+//    static_assert 佐证）+ 字段类型对齐（m_senderCharacNo/m_addInfo/m_fieldd
+//    unsigned、m_isCreature bool、m_serverGroup ENUM_SERVER_GROUP）⇒ 赋值点 cast
+//    消失；lens 改两独立标量复现 `lea -0xa(%ebp)`（P30，探针 p4.cpp f1/f2）。
+//  ③_DoSendNewMail（118=118）：msg 声明为 SIG_MAILBOX_SEND_NEW_MAIL*（真类型）
+//    ⇒ 实参无 cast ⇒ ORIG 0x08555a25 `call GetServerGroup; mov -0xc(%ebp),%edx;
+//    mov %eax,0x15f(%edx)` 复现（原 %ebx/%edx 提前保活消失）。
+//  ④ReqDBRemoveMail（90=90）：SIG_MAILBOX_DEL_MAIL 增 m_words[0x16] 数组视角
+//    （P235）⇒ ORIG 0x0855681c RHS-first + scaled 直存 `mov %ecx,(%eax,%edx,4)`
+//    复现（探针 p5.cpp r5）。
+//  ⑤CheckMailTimeout（189=189）：box->m_loadedLetterCount（权威成员 +0x80；
+//    friend 原已存在）直增 ⇒ ORIG 0x08555098 `mov 0x80(%eax),%eax;
+//    lea 0x1(%eax),%edx; mov -0x18(%ebp),%eax; mov %edx,0x80(%eax)` 复现
+//    （探针 p6.cpp q1 vs q3/q9）。
+//  剩余 DIFF 6 = GI 撞名伪差（N123）+ deque _M_push_back_aux（C++11 右值
+//    push_back(T&&)，N130 语言级）+ _DoGetPackage / _DoGetPackageItem /
+//    SetMailBoxInfo / ReqDBSendNewMail(MSG)（残差为 N82附 聚合临时深槽 +
+//    N122 bool 反相物化 + N93 双向临时槽族；逐段核对无参数/字段/虚槽语义差）；
+//  NEAR 2 = _DoGetPackageCoin（N93 make_pair 临时槽双向）+ SetPeriodCheckTimer
+//    （N82/P112 深区槽整体浅 4；P326 右值临时形实测无效）。
+//  四数 141/303/2/11 → 141/308/2/6；消费 TU（CMailBox.cpp/CInventory/W8LT_DBTask/
+//    SigTypes/DB_MailBox_Req_Send/Arad_Dispatcher/Arad_ItemBonus）复编零回退。
 
 #include "CMailBoxHelper.h"   // 本类权威叶子头（不再经 CGameManager.h）
 #include "SigTypes.h"
@@ -192,17 +222,6 @@ struct MailBoxListV
 static_assert(sizeof(MailBoxListV) == 0x338a, "MailBoxListV ABI drift");
 static_assert(sizeof(MailBoxListV::Entry) == 0x61, "MailBoxListV::Entry ABI drift");
 static_assert(sizeof(MailBoxListV::AvatarEntry) == 0x47, "MailBoxListV::AvatarEntry ABI drift");
-
-// SIG_MAILBOX_DEL_MAIL：+0 count / +4*i idx 表 / +0x54 type，总 0x58。
-#pragma pack(push, 1)
-struct MailBoxDelMailV
-{
-    unsigned int m_count;            // +0x00
-    unsigned int m_mailIdx[0x14];    // +0x04
-    unsigned int m_type;             // +0x54
-};                                   // sizeof 0x58
-#pragma pack(pop)
-static_assert(sizeof(MailBoxDelMailV) == 0x58, "MailBoxDelMailV ABI drift");
 
 // SIG_MAILBOX_SEND_NEW_MAIL（_makeSendMailData 0x8555756 逐字段证据），总 0x168。
 #pragma pack(push, 1)
@@ -414,25 +433,6 @@ struct MailBoxLoadReqV
 #pragma pack(pop)
 // （InvenItemRawV / MailInputV 已删：SetMailBoxInfo 改用 &item+disp 直写
 //  amp/random 区 + 权威头 stAddNewMailInput 具名字段，两视图无剩余消费方。）
-// SIG_AVATAR_INSERT 布局视图（set 0x850d3c8 逐字段证据；SigTypes_A.h 为
-// m_data[0x53] 占位）。
-#pragma pack(push, 1)
-struct AvatarInsertV
-{
-    unsigned int m_field0;     // +0x00（P211 档③：与 int 形参符号性异型 ⇒ RHS-first）
-    unsigned int m_field4;     // +0x04
-    unsigned char m_field8;    // +0x08
-    unsigned char m_field9;    // +0x09（c）
-    int m_fielda;              // +0x0a（expire）
-    unsigned char m_fielde;    // +0x0e（bSet）
-    char m_agency[0x18];       // +0x0f
-    char m_pad27[0x28 - 0x27];
-    int m_field28;             // +0x28
-    unsigned char m_field2c;   // +0x2c
-};
-#pragma pack(pop)
-static_assert(offsetof(AvatarInsertV, m_field28) == 0x28, "AvatarInsertV m_field28 drift");
-
 } // namespace
 // ---- ORIG 全局 T 符号（本 TU 提供定义） ----
 
@@ -717,21 +717,18 @@ void CMailBoxHelper::ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, b
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x8ce), true);
     guard.operator*()->operator<<(0x81);
     guard.operator*()->operator<<((int)user->GetUID());
-    MailBoxDelMailV* v =
-        reinterpret_cast<MailBoxDelMailV*>(guard->GetInBuffer<SIG_MAILBOX_DEL_MAIL>());
-    v->m_count = mailIdx[0];
-    // ORIG 0855681c 循环：dst 基址 = 消息首（int 下标含 +0 count 槽），i 从 1。
-    // [b27 DL3R 判词 N 封顶] 90:92：循环体内 ORIG 4.1 发 scaled 直存
-    // `mov %ecx,(%eax,%edx,4)` 且 RHS 值先物化 ecx；4.4 恒 LHS 地址先（N76）+
-    // shl/lea 折单步（N81 探针复测：dst[i]=src[i]、*(dst+i)、char*+i*4 三形
-    // 均产 mov %edx,(%eax)，scaled 不可造）。其余 88 行全等（含 EH 段）。
-    // P311/P288：具名数组成员视图（元素首 = 消息首，m_arr[i] 覆盖 v+4i）⇒
-    // 4.4 生 ORIG 的 scaled 直存 `mov %ecx,(%eax,%edx,4)`；裸指针下标
-    // `((unsigned int*)v)[i]` 恒折 shl+lea（N81）。
-    struct DelMailArrV { unsigned int m_arr[0x15]; };
+    // [2026-09-09 Lane20 修，旧 N76/N81 判词作废] 原实现经本地 MailBoxDelMailV
+    // 视图 cast 访问 ⇒ 4.4 恒 base-first（P235），与 ORIG 0x0855681c
+    // `mov -0xc(%ebp),%edx; mov -0xc(%ebp),%eax; shl $2,%eax; add 0xc(%ebp),%eax;
+    // mov (%eax),%ecx; mov -0x10(%ebp),%eax; mov %ecx,(%eax,%edx,4)`
+    // （RHS-first + scaled 直存）不符。改用权威头 SIG_MAILBOX_DEL_MAIL 的
+    // m_words[0x16] 数组视角（P235 完整类型数组成员，探针 /tmp/probe_cmh/p5.cpp
+    // r5 同形；索引 = 自消息首起的 dword 号，[0]=count、[0x15]=type）。
+    SIG_MAILBOX_DEL_MAIL* v = guard->GetInBuffer<SIG_MAILBOX_DEL_MAIL>();
+    v->m_words[0] = mailIdx[0];
     for (unsigned int i = 1; i <= mailIdx[0]; ++i)
-        reinterpret_cast<DelMailArrV*>(v)->m_arr[i] = *(mailIdx + i);
-    v->m_type = a ? 2u : 1u;
+        v->m_words[i] = *(mailIdx + i);
+    v->m_type = a ? 2 : 1;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -756,7 +753,9 @@ void CMailBoxHelper::SetPeriodCheckTimer(CUser* user)
     deadline = deadline + nowSec;
     long minPeriod = deadline;
     MailMap::iterator it = mail_map(box).begin();
-    MailMap::const_iterator endIt = mail_map(box).end();
+    // 与 ORIG 槽阶梯（0x855242x：it@-0x3c / end() 临时@-0x34 / 转换 ctor @-0x40）
+    // 对齐（P326 右值临时形）。
+    MailMap::const_iterator endIt = MailMap::const_iterator(mail_map(box).end());
     for (; it != endIt; ++it)
     {
         // [本波 2026-09-09，isUnlimit 全链 bool 化后翻正] ORIG 0x08552486 条件为
@@ -812,8 +811,13 @@ unsigned int CMailBoxHelper::CheckMailTimeout(CUser* user, PacketGuard* packet)
                 {
                     // P248 裸 register 第四条件不满足（无跨 call 保活）⇒ 删；
                     // P0：ORIG 0x08555098 值无槽往返（eax 直承）⇒ 内联表达式。
-                    reinterpret_cast<CMailBoxView*>(box)->m_letterKeepCount =
-                        reinterpret_cast<CMailBoxView*>(box)->m_letterKeepCount + 1;
+                    // [2026-09-09 Lane20] ORIG 0x08555098 形 `mov 0x80(%eax),%eax;
+                    // lea 0x1(%eax),%edx; mov -0x18(%ebp),%eax;
+                    // mov %edx,0x80(%eax)` 需**完整类型成员**访问（CMailBoxHelper
+                    // 已是 CMailBox 的 friend）⇒ 用权威成员 m_loadedLetterCount
+                    // （+0x80）；本地 CMailBoxView cast 形使 4.4 产 base-first +
+                    // `add $1`（探针 /tmp/probe_cmh/p6.cpp q1 vs q3/q9）。
+                    box->m_loadedLetterCount += 1;
                 }
             }
             mail->ResetPackage();
@@ -952,11 +956,14 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
             // 0x08527ac 的 MakePacket+count++）。语义 = 缺包表列出的信件才重发。
             // 必须保持 `operator==` 调用形（写 `!=` 会被 4.4 改调 `operator!=`，
             // 符号与 ORIG 不符）；否定式 `!(a == b)` 才产 ORIG 的 `test;jne`。
-            if (!(lackSet.find(it->second->GetLetterId()) == lackSet.end()))
-            {
-                it->second->MakePacket(&packet, nowSec, user);
-                count = count + 1;
-            }
+            // [2026-09-09 Lane20] ORIG 0x08552775 形为 `call operator==;
+            // test %al,%al; jne <循环增量>`（正极性直测，无 xor）⇒ 写
+            // `if (相等) continue;`（P168a：callee bool + 正极性 continue）。
+            // 旧 `if (!(...))` 形多一条 `xor $0x1` 且 je 极性相反。
+            if (lackSet.find(it->second->GetLetterId()) == lackSet.end())
+                continue;
+            it->second->MakePacket(&packet, nowSec, user);
+            count = count + 1;
         }
     }
 
@@ -1256,8 +1263,11 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
             if (!IsCeraPointItem((unsigned long)(unsigned int)
                                      mail->GetPackageItem().m_addInfo))
             {
-                Secu_GoldControl* gold = user->GetGoldControl();
-                gold->SetMailCharName(mail->GetSenderName());
+                // [2026-09-09 Lane20] P52：ORIG 0x085547a1 段实参先物化 %ebx
+                // （`call GetSenderName; mov %eax,%ebx`）再求 receiver
+                // （`call GetGoldControl`）⇒ 单语句链式表达式；具名 gold 局部
+                // 会反序（先算 receiver 存槽，实参经槽中转）。
+                user->GetGoldControl()->SetMailCharName(mail->GetSenderName());
                 user->getCurCharacInvenW()->gain_money((int)money,
                                                        (eMoneyAddReason)0xe, true, 0);
             }
@@ -1687,7 +1697,11 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
     // 每字段经宏直读参数槽，同 ORIG `mov 0x8(%ebp),%eax` 形态。
     // [b28d-solo-CMailBoxHelper] register 提示试验（/tmp/probe_reg.cpp g 形）：
     // 全 register 版 108 insn（少 ORIG 23 条，ORIG 仅段内 CSE 缓存），已回退。
-#define MAIL_MSG ((MailBoxSendNewMailV*)(msg))
+    // [2026-09-09 Lane20] SIG_MAILBOX_SEND_NEW_MAIL 已在 SigTypes_D.h 字段化
+    // （§8.3，sizeof 0x168/偏移/mangled 不变）⇒ 直接用形参具名类型访问，
+    // 消掉赋值点的视图 cast（cast 会使 4.4 提前把 msg 装 callee-saved 保活：
+    // ORIG 0x085557xx 各点均为 `call; mov 0x8(%ebp),%edx; mov %eax,disp(%edx)`）。
+#define MAIL_MSG msg
 #define MAIL_IT  (&item)
     std::strncpy(MAIL_MSG->m_senderName, pSender, 0x1d);
     MAIL_MSG->m_amount = nAmount;
@@ -1717,12 +1731,17 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
     std::memset(MAIL_MSG->m_title, 0, 0x100);
     if (pTitle != 0 && nTitleLen != 0)
     {
-        unsigned short lens[2];
-        lens[0] = (unsigned short)nTitleLen;
-        lens[1] = 0xff;
-        // ORIG 0x085558b3：第一实参 = &lens[1]、第二 = &lens[0]（cdecl 压栈序）
-        // ⇒ 源码为 min(lens[1], lens[0])（P18 实参序；min 交换律语义等价）。
-        MAIL_MSG->m_titleLen = std::min(lens[1], lens[0]);
+        // [2026-09-09 Lane20] ORIG 0x085558b3：`&lens[1]` 直接 `lea
+        // -0xa(%ebp),%eax` 单条、`&lens[0]` 为 `lea -0xc(%ebp)`；数组成员
+        // 取址在 4.4 恒折 `lea base; add $2` 两步（探针 /tmp/probe_cmh/p4.cpp
+        // f1 vs f2）⇒ 改**两个独立标量**（4.4 对独立标量取址单条 disp）。槽位
+        // 对齐 ORIG（lens[1]@-0xa 浅 / lens[0]@-0xc 深）⇒ 先声明 lens1；
+        // 赋值语句序保持 lens0 先（ORIG `mov %ax,-0xc` 先于 `movw $0xff,-0xa`）。
+        unsigned short lens1;
+        unsigned short lens0;
+        lens0 = (unsigned short)nTitleLen;
+        lens1 = 0xff;
+        MAIL_MSG->m_titleLen = std::min(lens1, lens0);
         std::strncpy(MAIL_MSG->m_title, pTitle, MAIL_MSG->m_titleLen);
     }
     MAIL_MSG->m_nB = nB;
@@ -1732,10 +1751,12 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
 #undef MAIL_IT
 }
 
-// [b28d-L8] N76 | store 装载序 4.1 RHS-first vs 4.4 LHS-first；P248 档①(int cast)/档③(字段 int/unsigned) 实测无效（ORIG 0x08555a9x call GetServerGroup 后载 msg）
-// [b28d-solo-CMailBoxHelper] DIFF/N76 封顶：msg 地址跨 call 先载 %ebx；字段
-// unsigned/int/ENUM_SERVER_GROUP 三形 + P248 档① 实测均 LHS-first（ORIG RHS-first）；
-// P226 语句表达式包 RHS 反劣（多 lea 0x15f(%eax),%ebx，118→119）。
+// [2026-09-09 Lane20 修] 原判词 N76 封顶作废：真因是 msg 局部经视图 cast 访问
+// （`reinterpret_cast<MailBoxSendNewMailV*>(msg)->f = x` 与实参 cast），4.4 因此
+// 提前把 msg 值装 callee-saved 跨 call 保活；改用 SigTypes_D.h 字段化后的
+// `SIG_MAILBOX_SEND_NEW_MAIL*`（ORIG 真类型）直接成员访问 + 无 cast 传参，
+// 即复现 ORIG 0x08555a25 段 `call GetServerGroup; mov -0xc(%ebp),%edx;
+// mov %eax,0x15f(%edx)`（P235 同族）。
 int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
                                    unsigned int nDestCharacNo, unsigned int nAmount,
                                    bool bA, const char* pTitle, int nTitleLen,
@@ -1751,11 +1772,9 @@ int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
     _makeSendMailData(msg, user->getCurCharacName(), user->getCurCharacNo(),
                       item, nDestCharacNo, nAmount, pTitle, nTitleLen, 0,
                       nType);
-    // ORIG 两步形：call GetServerGroup 后 mov -0xc(%ebp),%edx 中转 store；
-    // 4.4 同两步恒 ebx 缓存（sret 前已物化），N18a 族不可翻（穷举含
-    // 逗号表达式单式）。
-    reinterpret_cast<MailBoxSendNewMailV*>(msg)->m_serverGroup =
-        user->GetServerGroup();
+    // ORIG 0x08555a25 两步形：`call GetServerGroup; mov -0xc(%ebp),%edx;
+    // mov %eax,0x15f(%edx)`（RHS-first，无 callee-saved 缓存）。
+    msg->m_serverGroup = user->GetServerGroup();
     if (!bA)
     {
         reinterpret_cast<CMailBoxView*>(user->GetMailBox())->m_streamList.push_back(guard.Get()); // +0x58
@@ -2295,36 +2314,22 @@ int CMailBoxHelper::ReqChangeLetterStat(CUser* user, int mailIdx, int state)
 void SIG_AVATAR_INSERT::set(int a1, unsigned int a2, int a3, int expire, bool bSet,
                             char c, const char* agency, int a7, unsigned long a8)
 {
-    // [b28d-L8] N82/P211 | 已去具名视图局部（P0/P183，ORIG 0x0850d3c8 每次
-    // 重载 this）；残余 = store 装载序 ORIG 值先(this 后载) vs 4.4 this 先，
-    // [b28d-solo-CMailBoxHelper] N 封顶（N76+窄化 regmove 折，ORIG 0x0850d3c8）：
-    // ①m_field0 ← a1：ORIG RHS-first（`mov 0xc(%ebp),%edx; mov 0x8(%ebp),%eax`），
-    //   4.4 恒 LHS-first；字段 unsigned/int/enum 三档与 (unsigned)cast 实测均不变
-    //   （4 字节 signed↔unsigned 转换无指令 ⇒ 4.4 视同型，N76）。
-    // ②m_field8 ← a3(int)、m_field2c ← a8(ulong)：ORIG 保留窄化中转
-    //   `mov 0x14(%ebp),%eax; mov %eax,%edx; mov %dl,...`，4.4 恒折
-    //   `mov 0x14(%ebp),%edx; mov %dl,...`（显式 (unsigned char) cast 实测无效）。
-    // 其余 40 条全等（含 bSet/c 的截断 spill 槽 -0xc/-0x10）。44→42 insn。
-    // [本波 2026-09-09 真 bug 修复] 原实现把第 8/9 参写反（+0x28←a7、+0x2c←a8）。
-    // ORIG 0x850d436 直证 +0x28←0x2c(%ebp)=a8、+0x2c←0x28(%ebp)=a7（窄化中转
-    // `mov %eax,%edx`）；调用点 CInventory::_SaveAvatarItem 0x08509f69/0x08509f6d
-    // 压 a8=hidden、a7=0 交叉验证（原实现 hidden 落 +0x2c、0 落 +0x28，DB 侧
-    // 0x83ffe0e 读 +0x28/+0x2a 得错值）。修后语义正确；残余仅装载序 + 窄化中转
-    // 缺失（N76/N18a，44 vs 42 insn 不变）。
-    reinterpret_cast<AvatarInsertV*>(this)->m_field0 = a1;
-    reinterpret_cast<AvatarInsertV*>(this)->m_field4 = a2;
-    reinterpret_cast<AvatarInsertV*>(this)->m_field8 = (unsigned char)a3;
-    reinterpret_cast<AvatarInsertV*>(this)->m_fielda = expire;
-    reinterpret_cast<AvatarInsertV*>(this)->m_fielde = bSet;   // P136 bool 直存
-    reinterpret_cast<AvatarInsertV*>(this)->m_field9 = c;   // +0x09 = c
+    // [2026-09-09 本波] 46→44 insn 归因修正：旧实现经本地 AvatarInsertV
+    // 视图 cast 访问（`reinterpret_cast<V*>(this)->m_fieldN = x`），4.4 对此
+    // 恒 base(this) 先载 = LHS-first 且折掉窄化中转，故残留 2 条
+    // `mov %eax,%edx`（旧判词归 N76/N18a 属误判）。ORIG 0x0850d3c8/0x850d436
+    // 是**完整类型成员直访问**形（value-first + `mov %eax,%edx` 窄化中转），
+    // 探针 /tmp/probe_cmh/p1.cpp（viaView vs direct）实证两形差异 ⇒ 改用
+    // 权威头 SigTypes_A.h 的具名字段直访问，逐条复现 ORIG（P235 同族）。
+    // 语义同前波真 bug 修复：+0x28←a8(第 9 参)、+0x2c←a7(第 8 参低字节)。
+    m_characNo = a1;
+    m_itId = a2;
+    m_slot = (unsigned char)a3;
+    m_period = expire;
+    m_obtainFrom = bSet;    // P136 bool 直存（unsigned char 字段）
+    m_abilityNo = c;
     if (agency != 0)
-        std::strncpy(reinterpret_cast<AvatarInsertV*>(this)->m_agency, agency, 0x18);
-    // [真 bug 修复 2026-09-09] ORIG 0x850d436：`mov 0x2c(%ebp),%edx; mov %edx,
-    // 0x28(%eax)` ⇒ +0x28 ← 第 9 参 a8（ulong，32 位截断无指令）；
-    // `mov 0x28(%ebp),%eax; mov %eax,%edx; mov %dl,0x2c(%eax)` ⇒ +0x2c ← 第 8 参
-    // a7（int→uchar 窄化中转）。原实现把两参写反（CInventory::_SaveAvatarItem
-    // 调用点 0x08509f69/0x08509f6d 实证 a8=hidden、a7=0 ⇒ 原实现 hidden 落
-    // +0x2c、0 落 +0x28，DB 侧 0x83ffe0e 读 +0x28/+0x2a 得错值）。
-    reinterpret_cast<AvatarInsertV*>(this)->m_field28 = (int)a8;
-    reinterpret_cast<AvatarInsertV*>(this)->m_field2c = (unsigned char)a7;
+        std::strncpy(m_agency, agency, 0x18);
+    m_a7 = (int)a8;
+    m_a8 = (unsigned char)a7;
 }

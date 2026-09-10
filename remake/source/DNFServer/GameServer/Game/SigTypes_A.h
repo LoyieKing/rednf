@@ -388,7 +388,8 @@ struct SIG_AVATAR_COLOR_CHANGE
 #pragma pack(push, 1)
 struct SIG_AVATAR_INSERT
 {
-    int m_characNo;               // +0x00（_SaveAvatarItem 传 get_charac_no(-1)）
+    unsigned int m_characNo;      // +0x00（_SaveAvatarItem 传 get_charac_no(-1)；
+                                  //  P211 档③ unsigned 化 ⇒ ORIG RHS-first 0x0850d3da）
     unsigned int m_itId;          // +0x04（DB 侧读 it_id）
     unsigned char m_slot;         // +0x08（槽位+10 低 8 位）
     unsigned char m_abilityNo;    // +0x09（set 形参 c；DB 侧 ability_no）
@@ -397,8 +398,9 @@ struct SIG_AVATAR_INSERT
     char m_agency[0x18];          // +0x0f（strncpy 0x18；DB ipg_agency_no）
     char m_pad27;                 // +0x27（agency 尾 NUL 槽，set  strncpy 到 +0x26
                                   //      为止；ORIG a7 movl 在 +0x28）
-    int m_a7;                     // +0x28（set 单 movl；DB 分读 +0x28 hidden_option /
-                                  //      +0x2a emblem_endurance 两 word）
+    unsigned int m_a7;            // +0x28（set 单 movl；DB 分读 +0x28 hidden_option /
+                                  //      +0x2a emblem_endurance 两 word；P211 档③
+                                  //      与 a8(unsigned long) 同型 ⇒ LHS-first 0x850d436）
     unsigned char m_a8;           // +0x2c（set 形参 a8 低字节；DB stat）
     stAvatarEmblemInfo_t m_jewelSocket;  // +0x2d..0x4a（setJewelSocket 块拷 emblem）
     int m_identity;               // +0x4b（_SendResult 0x84001fe 写 GetIdentity(db)）

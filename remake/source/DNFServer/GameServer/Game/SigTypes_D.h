@@ -10,6 +10,8 @@
 #include "CHARAC_QUEST_SHOP_DATA.h"  // CHARAC_QUEST_SHOP_DATA（SIG_QUEST_SHOP_DATA 双实例元素）
 #include "TODLayer.h"    // TOD_Layer（SIG_REQUEST_TOD_USER_STATE m_todayLayer 成员构造）
 #include "Redeem_Item__CRedeemItem.h"  // Redeem_Item::Inven_Item_Expand_RedeemInfo（0x44）
+#include "Inven_Item.h"   // RandomOption（SIG_MAILBOX_SEND_NEW_MAIL +0x47 真类型）
+#include "CEnvironment.h" // ENUM_SERVER_GROUP（SIG_MAILBOX_SEND_NEW_MAIL +0x15f 真型）
 
 #pragma pack(push, 1)
 // ============================================================================
@@ -335,14 +337,20 @@ struct SIG_MAILBOX_DEL_MAIL
     union
     {
         unsigned char m_data[0x58];
+        // [2026-09-09 Lane20] 数组视角（P235）：ReqDBRemoveMail 0x0855681c 的
+        // scaled 直存 `mov %ecx,(%eax,%edx,4)`（索引 = 从消息首起算的 dword 号）
+        // 需完整类型数组成员访问；经 cast 视图恒 base-first 且折 shl/lea。
+        unsigned int   m_words[0x16];  // [0]=count、[1..0x14]=postal idx、[0x15]=type
         struct
         {
             unsigned int   m_count;       // +0x00 邮件条数（getList2inQuery list[0]）
-            unsigned int   m_postalIds[20]; // +0x04..+0x53 postal idx 表（20×4）
+            unsigned int   m_postalIds[20]; // +0x04..0x53 postal idx 表（20×4）
             int            m_type;        // +0x54 SQL delete_flag 实参值
         };
     };
 };
+static_assert(offsetof(SIG_MAILBOX_DEL_MAIL, m_words) == 0x00,
+              "SIG_MAILBOX_DEL_MAIL words view offset drift");
 static_assert(sizeof(SIG_MAILBOX_DEL_MAIL) == 0x58, "SIG_MAILBOX_DEL_MAIL ABI drift");
 static_assert(offsetof(SIG_MAILBOX_DEL_MAIL, m_postalIds) == 0x04,
               "SIG_MAILBOX_DEL_MAIL postalIds offset drift");
@@ -467,11 +475,54 @@ static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_unlimit) == 0x5b,
 static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_letterId) == 0x5c,
               "SIG_MAILBOX_POSTAL occ letterId offset drift");
 
+// [2026-09-09 Lane20] 字段化（§8.3）：原 opaque m_data[0x168] → 具名字段。
+// 证据 = ORIG CMailBoxHelper::_makeSendMailData 0x08555756 / _DoSendNewMail
+// 0x08555916 逐偏移写入（与 CMailBoxHelper.cpp 原 MailBoxSendNewMailV 视图
+// 完全一致，逐字段偏移已由该视图 static_assert 核过）。sizeof 0x168 与全部
+// 偏移零变化；改字段化的原因是视图 cast 使 4.4 在赋值点/实参处提前把 msg 装
+// callee-saved 跨 call 保活（P235 同族），直访问即复现 ORIG 形。
+// +0x3a guid / +0x47 random 两区保留字节数组：消费侧以 stAmplifyGuidView /
+// RandomOption 视图整体赋值（结构块拷贝语义，P247/P263）。
+#pragma pack(push, 1)
 struct SIG_MAILBOX_SEND_NEW_MAIL
 {
-    // ORIG 尺寸 0x168（_makeSendMailData/_DoSendNewMail memset 证据），字段见 CMailBoxHelper.cpp
-    unsigned char m_data[0x168];
+    char m_senderName[0x1d];         // +0x00（strncpy 0x1d）
+    char m_pad1d;                    // +0x1d
+    unsigned int m_senderCharacNo;   // +0x1e（P211 异型化：ORIG 0x0855576x RHS-first）
+    unsigned int m_amount;           // +0x22
+    unsigned int m_destCharacNo;     // +0x26
+    unsigned char m_itemField0;      // +0x2a
+    unsigned int m_addInfo;          // +0x2b（与 Inven_Item::m_addInfo unsigned 同型直存）
+    int m_addInfo2;                  // +0x2f
+    unsigned char m_itemAttr;        // +0x33
+    unsigned short m_fieldb;         // +0x34
+    unsigned int m_fieldd;           // +0x36（与 Inven_Item::m_fieldd unsigned 同型直存）
+    stAmplifyGuidView m_guid;        // +0x3a..0x43（amp guid，_makeSendMailData 结构赋值）
+    unsigned char m_ampType;         // +0x44
+    unsigned short m_ampIdx;         // +0x45
+    RandomOption m_rand;             // +0x47..0x54（_makeSendMailData 结构赋值）
+    unsigned char m_upgradeSep;      // +0x55
+    unsigned char m_isAvatarSend;    // +0x56（m_field1==8）
+    unsigned char m_cashShopFlag;    // +0x57（CashShop 置 1）
+    bool m_isCreature;               // +0x58（IsCreatureItemType 返 bool，P136/P292）
+    unsigned short m_titleLen;       // +0x59
+    char m_title[0x100];             // +0x5b
+    unsigned int m_nB;               // +0x15b
+    ENUM_SERVER_GROUP m_serverGroup; // +0x15f（GetServerGroup 返回值同型直存，P211）
+    int m_nType;                     // +0x163
+    unsigned char m_flag;            // +0x167
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_MAILBOX_SEND_NEW_MAIL) == 0x168,
+              "SIG_MAILBOX_SEND_NEW_MAIL ORIG size drift");
+static_assert(offsetof(SIG_MAILBOX_SEND_NEW_MAIL, m_guid) == 0x3a,
+              "SIG_MAILBOX_SEND_NEW_MAIL guid offset drift");
+static_assert(offsetof(SIG_MAILBOX_SEND_NEW_MAIL, m_rand) == 0x47,
+              "SIG_MAILBOX_SEND_NEW_MAIL rand offset drift");
+static_assert(offsetof(SIG_MAILBOX_SEND_NEW_MAIL, m_serverGroup) == 0x15f,
+              "SIG_MAILBOX_SEND_NEW_MAIL serverGroup offset drift");
+static_assert(offsetof(SIG_MAILBOX_SEND_NEW_MAIL, m_title) == 0x5b,
+              "SIG_MAILBOX_SEND_NEW_MAIL title offset drift");
 
 struct SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK
 {
