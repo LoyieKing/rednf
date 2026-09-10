@@ -113,7 +113,9 @@ public:
     // （bool 字段直返同形）；调用点 0x08298134 `call; xor $1,%eax; test %al,%al; je`
     // ⇒ bool。c6 探针：uchar 字段→bool 返回多 testb/setne，字段+返回须同时 bool 化。
     bool IsInsertTimerRecvPvpRank();
-    int is_closeable_seat_state();
+    // [Lane10] P292/T3：ORIG 调用点 0x085d9690 段 `call; test %al,%al; je`（无 setcc）
+    // ⇒ 返回 bool。mangled 不含非模板返回类型 ⇒ 符号名/ABI 零变化。
+    bool is_closeable_seat_state();
     bool IsAllMoreThanGrade(int grade);
     bool is_last_win(int seat);
     bool IsPvpObserver(int seat);

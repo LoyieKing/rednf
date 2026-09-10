@@ -294,21 +294,17 @@ static_assert(sizeof(TAG_CHARAC_INVEN_DATA) == 0x4024, "TAG_CHARAC_INVEN_DATA AB
 // RequestDBETC @0x81c7602 在 SIG_LOAD_ETC +0x10 调用的组合 tag 区：
 // 覆盖 tagSkillSlot[0x198] + tagSkillCombo[0x198] = 0x330 字节
 //（ORIG W 0x822edf4 _ZN19TAG_CHARAC_ETC_DATA5clearEv = memset(this,0,0x330)）。
-// ORIG C1 0x0848f7dc：外层 2 轮 × 内层 _Mastered_skill[0xcb]（步长 2，0x196）+
-// 行尾 2 字节空隙（行步长 0x198）后调 clear()。
+// ORIG C1 0x0848f7dc：外层 2 轮 × 内层初值 0xcb（=204 元素，步长 2）的嵌套构造
+// 循环、行步长 0x198，之后调 clear()。
 #pragma pack(push, 1)
 struct TAG_CHARAC_ETC_DATA
 {
-    // 平铺双数组（CU20C 判例）：嵌套 Row 使 4.4 发射 Row::Row() 包装调用，
-    // ORIG C1 0x0848f7dc 是外层 2 轮 × 内层 _Mastered_skill ctor[0xcb] 直调；
-    // 平铺后 4.4 O0 同样逐元素内联 ctor 循环，P167 对齐。sizeof 0x330 不变。
-    // 残余（Main 定）：ORIG 双环共享**一个** ctor call-site（外环步进 0x198），
-    // 4.4 对两平铺成员各发一条循环=+1 EXTRA 静态调用点（N82 级代码生成形差；
-    // 单数组 408 元素形又丢外层嵌套结构，两难取平铺：消 Row::Row() 发明符号优先）。
-    _Mastered_skill m_skillSlot[0xcb];   // +0x000（0x196）
-    char m_padSlot[2];                   // +0x196
-    _Mastered_skill m_skillCombo[0xcb];  // +0x198（0x196）
-    char m_padCombo[2];                  // +0x32e
+    // [Lane6 2026-09-10] 真实二维数组成员（ORIG 0x0848f7dc 的嵌套构造循环 = 编译器对
+    // `T m[2][204]` 的隐式生成：外层 2 轮、内层初值 0xcb 即 204 元素、行步长 0x198）。
+    // 旧「平铺 [0xcb]+pad[2] ×2」既少构造 1 个元素/行（真语义 bug），又使 4.4 发两个
+    // 独立循环（+1 静态 call-site）。探针 /tmp/l6probe/p1.cpp 实证 4.4.7 二维形逐条同形。
+    // 行 0 = 旧 m_skillSlot（+0x000），行 1 = 旧 m_skillCombo（+0x198）；sizeof 0x330 不变。
+    _Mastered_skill m_skills[2][204];    // +0x000..0x32f
 
     TAG_CHARAC_ETC_DATA() { clear(); }   // ORIG C1 0x0848f7dc
     void clear();              // ORIG W 0x822edf4

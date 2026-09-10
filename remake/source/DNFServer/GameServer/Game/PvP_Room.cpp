@@ -589,7 +589,7 @@ int PvP_Room::get_player_count()
 // [b28d-solo-PvP_Room] P210 定义前置：caller 置于 callee(IsPvpObserver) 定义之前 ⇒ 4.4
 // 保守 outgoing（帧 $0x28、槽基 -0x14/-0x10/-0xc），与 ORIG 0x085d7743 逐条一致；
 // 旧 P190 双取址 double pads 形只撑帧不改槽基（槽仍 -0xc 起）已废。
-int PvP_Room::is_closeable_seat_state()
+bool PvP_Room::is_closeable_seat_state()
 {
     int local_18 = 0;
     int local_14 = 0;
@@ -1245,17 +1245,22 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
 // 帧 $0x9c/$0xac；p167 call 差集空（dual_rank miss=0 extra=0）⇒ N82/N82附 封顶。
 int PvP_Room::join_room(CUser* user, int& seat, bool flag)
 {
-    int local_48 = get_waiter_count();
     int local_7c[3];
-    PacketGuard local_64;
-    PacketGuard local_70;
     {
-        CSwitchLog local_58(__PRETTY_FUNCTION__, 0x4a8, 0, 0);   // ORIG _ZZ…__PRETTY_FUNCTION__ 同文（P139）
+        // ORIG _ZZ…__PRETTY_FUNCTION__ 同文（P139）
         // [b28d-solo-PvP_Room] ORIG 0x085d6cf2：flag 以 `movzbl -0x7c(%ebp),%eax;
         // mov %eax,-0x88(%ebp)` 直扩（bool→int 转换），`flag ? 1 : 0` 会多 mov$1/$0
         // 物化岛 ⇒ 改 (int)flag。
-        local_58("pvp@log %s,%s,room(%d),%d,%d,%d", user->get_acc_name(),
-                 user->getCurCharacName(), m_index, m_pvpBattleMode, (int)flag, local_48);
+        // [Lane10] P227/P37 全表达式临时链：ORIG 0x085d6d0a..0x085d6d47 在 CSwitchLog
+        // ctor(0x085d6d6f) **之前**右起求全部 varargs 并以 callee-saved 跨 ctor 保活
+        // （get_waiter_count→%edi、get_acc_name→%esi、getCurCharacName→%ebx；成员经
+        // -0x88/-0x84/-0x80 槽）。具名对象两语句形把 ctor 提到求值之前 ⇒ 改临时链。
+        // 末实参内联（ORIG 该值无槽往返 = P0 无具名局部）；第二次 get_waiter_count
+        // （0x085d6e9c）才落 -0x44。
+        CSwitchLog(__PRETTY_FUNCTION__, 0x4a8, 0, 0)(
+            "pvp@log %s,%s,room(%d),%d,%d,%d", user->get_acc_name(),
+            user->getCurCharacName(), m_index, m_pvpBattleMode, (int)flag,
+            get_waiter_count());
     }
     // [b28d-t3-PoolBigThree] ORIG 0x085d6dae..6de0 实测：`call GetChannelType; cmp
     // $0xf; je <true岛>; call GetChannelType; cmp $0x10; jne <false岛>; mov $1,%eax;
@@ -1265,16 +1270,21 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
     if ((G_GameWorld()->GetChannelType() == 0xf) ||
         (G_GameWorld()->GetChannelType() == 0x10))
     {
-        int iVar9 = G_CDataManager()->GetMaxGradePvPChannel();
-        int iVar10 = user->get_pvp_grade();
-        if (iVar9 < iVar10)
+        // [Lane10] P0 双向判读 + 真语义修复（判据⑦族/比较操作数）：
+        // ORIG 0x085d6def `mov %eax,%ebx`（GetMaxGradePvPChannel 结果，无槽往返
+        // ⇒ 原码无具名局部）+ 0x085d6dfc `cmp %eax,%ebx; setl %al; test %al,%al;
+        // je` ⇒ 内联比较表达式。
+        // ORIG 0x085d6e2a `mov %eax,%esi`（GetGiveItem 结果，跨 2 个 call 保活、
+        // 无槽）+ 0x085d6e4d `cmp %eax,%esi; setle` ⇒ 第二处比较的**左操作数是
+        // GetGiveItem()**，非第一处的 GetMaxGradePvPChannel。旧重建写
+        // `iVar9 <= iVar11`（iVar11 已被 get_pvp_item_give 覆盖）与 ORIG 语义
+        // 不符（真 bug；Ghidra C 行 792/797 复用 iVar9=GetGiveItem 互证）。
+        if (G_CDataManager()->GetMaxGradePvPChannel() < user->get_pvp_grade())
         {
             return 0xd;
         }
-        int iVar11 = (int)((fair_pvp::CFairPvPScore*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7))->GetGiveItem();
-        iVar10 = user->get_pvp_grade();
-        iVar11 = G_CDataManager()->m_serverParameter.get_pvp_item_give(iVar10);
-        if (iVar9 <= iVar11)
+        if (((int)((fair_pvp::CFairPvPScore*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7))->GetGiveItem())
+            <= G_CDataManager()->m_serverParameter.get_pvp_item_give(user->get_pvp_grade()))
         {
             return 7;
         }
@@ -1287,7 +1297,12 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
     {
         return 0x13;
     }
-    local_48 = get_waiter_count();
+    // [Lane10] P226/P232 声明时机：ORIG 0x085d6ea1 才把第二次 get_waiter_count 写入
+    // -0x44 槽，PacketGuard(-0x60/-0x6c) 构造紧随其后（0x085d6eaa/0x085d6eb5）；
+    // 旧形把两 PacketGuard 声明在函数头 ⇒ ctor 提前发射到 CSwitchLog 之前。
+    int local_48 = get_waiter_count();
+    PacketGuard local_64;
+    PacketGuard local_70;
     local_64.put_header(0, 2);
     local_70.put_header(0, 0xb);
     local_64.put_byte(1);
@@ -1311,7 +1326,10 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
             // ⇒ 源形正极性 `!= 0`（旧 `== 0` 形 4.4 产 sete、且 setne 差集 +1）。
             if (P_SEATS(local_3c)->getCurCharacR() != 0)
             {
-                local_70.put_byte(*(unsigned char*)((const char*)P_SEATS(local_3c)->getCurCharacR() + 0x75));
+                // [Lane10] N4/P30 反向：ORIG 0x085d70xx `movzbl 0x75(%eax),%eax` 单条
+                // disp 折叠；旧 `*(unsigned char*)((const char*)p + 0x75)` 恒产
+                // `add $0x75,%eax; movzbl (%eax),%eax` 两条（4.4 对指针算术恒折 add）。
+                local_70.put_byte((unsigned char)((const char*)P_SEATS(local_3c)->getCurCharacR())[0x75]);
             }
             else
             {
@@ -1802,18 +1820,13 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
         }
         else if (m_seats[7] == user)
         {
-            if (P_SEATS(seat) == 0)
-            {
-                if (is_closeable_seat_state() == 0)
-                {
-                    return 0x13;
-                }
-                // [SweepPvPRoom] P97：ORIG 0x085d78b2 `mov 0x14(%ebp),%eax;
-                // mov %eax,0x8(%esp)` ⇒ 第二实参是形参 state，非硬编码 0xfe。
-                change_team(seat, (int)state);
-                a = true;
-            }
-            else
+            // [Lane10] P292/T3（callee bool 化）+ P272/P257 块序：ORIG 0x085d9690
+            // `mov (%eax,%edx,4),%eax; test %eax,%eax; je <then 块>`（==0 时跳到
+            // **then 块**，then 物理居函数后段、else 体直落）⇒ 源码须「交换两体 +
+            // 取反条件」。旧形 `if (==0) { then } else { else体 }` 产 `jne <else>`
+            // （极性反）。then 内 `call is_closeable_seat_state; test %al,%al; je
+            // <后段>`（无 setcc ⇒ callee bool，调用点正极性）。
+            if (P_SEATS(seat) != 0)
             {
                 P_SEATS(seat)->SetPvpIndex(-1);
                 if (P_SEATS(seat) == m_seats[7])
@@ -1837,6 +1850,20 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
                 {
                     a = true;
                     b = true;
+                }
+            }
+            else
+            {
+                if (is_closeable_seat_state())
+                {
+                    // [SweepPvPRoom] P97：ORIG 0x085d78b2 `mov 0x14(%ebp),%eax;
+                    // mov %eax,0x8(%esp)` ⇒ 第二实参是形参 state，非硬编码 0xfe。
+                    change_team(seat, (int)state);
+                    a = true;
+                }
+                else
+                {
+                    return 0x13;
                 }
             }
         }
@@ -2234,6 +2261,12 @@ int PvP_Room::change_manager_to_winner()
     {
         return 1;
     }
+    // [Lane10] N108 封顶（本件）：ORIG 0x085d7e9f(seat==0) 落 +0xed(循环增量)、
+    // 0x085d7eb8(is_last_win!=true) 落 +0xec(nop) —— 双守卫分落两个相邻但不同的
+    // landing。本轮实测四形均恒多 1 条中继 jmp（4.4 jump-thread 共享出口）：
+    // ① 双 goto 同一标签（for）；② while + 两独立尾标签（NOP 在前/INC 在后）；
+    // ③ continue + goto 单标签；④ 空 then + else 嵌套。语义全等（两落点都到
+    // addl），P167 CLEAR ⇒ 按 N108 记封顶，恢复最简形。
     for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
     {
         if (P_SEATS(local_10) == 0)
@@ -2801,6 +2834,9 @@ int PvP_Room::insert_timer_recv_pvp_end_result()
     // 经 -0x1c 槽 store/reload（P0 判据：槽往返 ⇒ 原码有具名局部/语句表达式临时）。
     // 语句表达式 `({ int idx = m_index; idx; })` 复现 key→%edi + m_index 落 -0x1c
     // 槽；残余仅 idx 槽写时机（4.1 延后到 timeout 求值后，4.4 提前到语句头）。
+    // [Lane10] 本轮再试 P226 纯语句表达式包 key（`({ gen_timer_key(...); })`）⇒
+    // 仍 spill 到 -0x2c 槽（45 条不变），与历史 5 形一致 ⇒ N7 角色互换封顶
+    // （ORIG 0x085dc258 `mov %eax,%edi` = 4.1 把首个 callee 结果留 callee-saved）。
     G_TimerQueue()->InsertTimerInMilisecond(
         (TimerEntry::OBJ_TYPE)1, ({ int idx = m_index; idx; }), (TIMER_MESSAGE)0x3d,
         ((IMatch*)m_matching)->GetEndPvPResultTimeout(),
@@ -3151,6 +3187,10 @@ void PvP_Room::start_pvp()   // [b28c-16 SIGFIX] ORIG 串 void
             m_deathMatch.OnStart();
         }
         m_battleStartSec = GlobalData::s_systemTime_.getCurSec();
+        // [Lane10] P248 ①-④ 实测：`register int local_14` 令 4.4 少占 1 槽
+        // （cMyTrace 槽 -0x44→-0x40）且 ndiff 24→109 反劣 ⇒ 回退，本件维持
+        // P75/N7 装载时刻封顶（ORIG 0x085d90c6 `mov -0x10(%ebp),%ebx` 跨
+        // GetInstanceCommonStatisticsMgr() call 保活 vs 4.4 call 后回读 %edx）。
         int local_14 = 0;
         switch (m_pvpBattleMode)
         {
@@ -3195,8 +3235,13 @@ void PvP_Room::start_pvp()   // [b28c-16 SIGFIX] ORIG 串 void
         // 表达式实参实测无效（具名变量读取不升格）⇒ 跨版本装载时刻差。
         GetInstanceCommonStatisticsMgr()->IncreaseQuantity(
             (CCommonStatisticsMgr::ENUM_STATISTIC_CONTAINER)1, local_14);
+        // [Lane10] P243/P66 求值序：ORIG 0x085d90f1..0x085d9110 先 call
+        // GetPVPMapCount（结果留 %eax）再重读 m_playMapNo 到 %edx（`cmp %edx,%eax;
+        // jle`，无 callee-saved 缓存）；旧形左操作数写成员使 4.4 把 m_playMapNo
+        // 升格 %ebx 跨 2 call 保活（`movswl %ax,%ebx` + `cmp %eax,%ebx; jge`）。
+        // 交换比较两侧即复现 ORIG 的装载序与 fold 方向。
         if ((m_playMapNo >= 0) &&
-            (m_playMapNo < G_CDataManager()->m_mapList->GetPVPMapCount()))
+            (G_CDataManager()->m_mapList->GetPVPMapCount() > (int)m_playMapNo))
         {
             GetInstanceCommonStatisticsMgr()->IncreaseQuantity((CCommonStatisticsMgr::ENUM_STATISTIC_CONTAINER)2, (int)m_playMapNo);
         }

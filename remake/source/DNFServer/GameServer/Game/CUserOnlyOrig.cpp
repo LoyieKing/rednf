@@ -7264,7 +7264,10 @@ void CUser::setSkillCommandData(char* data)
 // [b28d-22 N82] ORIG 0x08690098：p167=M0/E0:，gap=-23；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig AE] ORIG 0x08690098：P196 有符号界判 + P214① 正极性包裹
 // + P30 显式元素取址（strncpy src）三修归零（见函数内注释）。
-int CUser::setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* data)
+// [Lane3 spec 2026-09-10] 返回类型 int→bool（CUser.h:3753 已 bool 化）：ORIG 调用点
+// 0x084c360b `call; xor $0x1,%eax; test %al,%al; je`（P292/T3）。mangled 不含返回类型
+// ⇒ 符号名/ABI 零变化；定义随头（C++ 要求声明与定义返回类型一致）。
+bool CUser::setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* data)
 {
     // [b28d-solo-CUserOnlyOrig P196/P310/P214①] ORIG 0x086900c9 `cmp 0xc(%ebp),%eax;
     // jle L_false`（有符号 size<=idx，短路物化 `js L_false` 同一出口）⇒ 正极性
@@ -10539,10 +10542,10 @@ void CUser::SendRevengeDungeon()
     data.m_reserved = 0;                         // ORIG +0xb8
     PacketGuard packet;
     packet.put_header(0, 0x1ec);
-    // ORIG 0x08656ba1 `lea -0x22(%ebp),%eax` 先于 `movl $0xa,0x8(%esp)`——4.4 恒
-    // 立即数实参先生成；register 钉 %eax 强制 lea 先落（技巧28 变体）
-    char* dp = reinterpret_cast<char*>(&data);
-    packet.put_binary(dp, 10);   // ORIG E15InterfacePacketBuf10put_binaryEPci
+    // [Lane6 2026-09-10 P0] 删 `char* dp = (char*)&data;` 具名指针局部：ORIG 0x08656ba1
+    // 无 -0xc 槽（`lea -0x22(%ebp),%eax; movl $0xa,0x8(%esp); mov %eax,0x4(%esp)` 直落
+    // 实参）⇒ 原码是内联实参；具名缓存多 store+load 各 1 并把槽基顶深 4。
+    packet.put_binary(reinterpret_cast<char*>(&data), 10);   // ORIG E15InterfacePacketBuf10put_binaryEPci
     packet.finalize(true);
     Send(packet);
 }
@@ -10753,21 +10756,29 @@ int CUser::SelectCharac(int idx, int tagIdx)
             return 0;
         }
         if (getCurCharacR()->m_stamina < 100) {
+            // [Lane6 2026-09-10 真语义 bug 修复] ORIG 0x0864cf45..0x0864d02c 逐条：
+            // `limits[0]=600(0x258)`@-0x68 → curSec@-0x28 → lastTick@-0x24 → difftime→double@-0x20
+            // → `limits[1]=(int)elapsed`@-0x6c → `int zero=0`@-0x44 →
+            // `limits[1]=max(zero,min(limits[0],limits[1]))`（min 结果经 eax 直入 max 第 2 参、
+            // 终值存回 -0x6c）→ svals[0]@-0x40 = stamina + (limits[1]*100)/600、svals[1]=100@-0x3c
+            // → setCurCharacStamina(min(svals[1],svals[0]))。
+            // 旧译文：读**未初始化** limits[1]、漏 `limits[0]=600`、并把结果写回 limits[0]
+            // ⇒ 疲劳恢复量计算错误（真 bug）；且多出 minv/limits 缓存槽（cache-slot 扫描命中）。
             int limits[2];
+            limits[0] = 600;
             unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
             long lastTick = getCurCharacLastPlayTick();
             double elapsed = difftime(static_cast<time_t>(curSec),
                                       static_cast<time_t>(lastTick));
-            int minv = std::min(limits[1], limits[0]);
+            limits[1] = static_cast<int>(elapsed);
             int zero = 0;
-            minv = std::max(zero, minv);
-            limits[0] = minv;
+            limits[1] = std::max(zero, std::min(limits[0], limits[1]));
             int svals[2];
             svals[0] = static_cast<int>(getCurCharacR()->m_stamina)
-                       + (limits[0] * 100) / 600;
+                       + (limits[1] * 100) / 600;
             svals[1] = 100;
-            minv = std::min(svals[1], svals[0]);
-            setCurCharacStamina(static_cast<unsigned char>(minv));
+            setCurCharacStamina(
+                static_cast<unsigned char>(std::min(svals[1], svals[0])));
         }
         char growType = static_cast<char>(getCurCharacGrowType());
         int level = get_charac_level();
@@ -11504,8 +11515,10 @@ void _Charac_info::Reset()
 // money@+0x2f、count@+0x33、条目 stride 0xb@+0x37（itemId 首字段）。
 // ---------------------------------------------------------------------------
 // [b28d-22 N82] ORIG 0x0868a2dc：p167=CLEAR，gap=-9；语义完成、byte 层帧槽/物化族封顶。
-// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x0868a2dc：N82/N89 封顶——大帧差 + 模板内联族
-// （p167 CLEAR，gap -9）。
+// [Lane6 2026-09-10 P183 一试] 删 `char* block` 缓存实测**反劣**（140→149 vs ORIG 128）：
+// 4.4 对 `m_pad8e101 + 0x145` 恒发两段 `add $0x8e101,%eax; add $0x145,%eax`（N1 常量
+// 折叠跨版本差），且每次重算抬高循环区寄存器压力 ⇒ 循环体形态整体错位；已回滚为具名
+// 缓存（ORIG 单 add 无可择源形）。
 void CUser::SendMultiMail(bool certified)
 {
     char* block = m_pad8e101 + 0x145;                        // +0x8e246

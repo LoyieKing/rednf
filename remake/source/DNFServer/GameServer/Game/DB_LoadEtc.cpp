@@ -1564,7 +1564,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
             return false;
         }
         if (!get_compressed_blob_data(db, col++,
-                                      reinterpret_cast<char*>(&sig->m_tagEtc.m_skillCombo),
+                                      reinterpret_cast<char*>(sig->m_tagEtc.m_skills[1]),
                                       0x198, 2))
         {
             return false;

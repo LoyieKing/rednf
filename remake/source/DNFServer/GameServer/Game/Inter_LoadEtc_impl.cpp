@@ -1367,8 +1367,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             // [BigInterLoadEtc/P52] 三具名局部各多 2 条槽往返（ORIG 用 %esi/%ebx/%eax
             // 保活，无槽）⇒ 合并为单条链式表达式，让 4.4 复用 callee-saved 寄存器。
             reinterpret_cast<SkillSlot*>(user->getTagCharacSkillW())->set_skill_slot(
-                (char*)&sig->m_tagEtc.m_skillSlot,    // sig+0x10
-                (char*)&sig->m_tagEtc.m_skillCombo,   // sig+0x1a8
+                (char*)sig->m_tagEtc.m_skills[0],    // sig+0x10（行 0 = tagSkillSlot）
+                (char*)sig->m_tagEtc.m_skills[1],    // sig+0x1a8（行 1 = tagSkillCombo）
                 0x198);
             }
         }

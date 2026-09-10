@@ -152,6 +152,31 @@
 //     两处函数头，落表与否待 Main。
 // ============================================================================
 
+// ---------------------------------------------------------------------------
+// b28d-Lane3CUser 第四轮（2026-09-10）：判据① 全 TU jcc/jmp 目标下标逐位比对
+//   （106 件有目标差；对齐归一后无可确证"目标落点语义错位"，残差全由指令数差/
+//   块平移解释）+ 前 20 件修复。TU 四数 759/1593/4/105 → 759/1595/4/103（ae +2、
+//   diff −2、identical/near 持平）。
+//   归零 2 件：SaveInventory（P227 全表达式临时链 + P259 去 stream 具名槽；218=218）、
+//     _processCoolTimeItem（删冗余 (int) cast 得 `cmp mem,%eax`；82=82）。
+//   P259 批量（Acquire→CStreamGuard 内联实参）13 处，改善：UpdateData 1055→911、
+//     UpdateEffectItemInfo/UpdateCoolTimeItemInfo 68→16×2、ReCalcChattingEmoticon
+//     82→50、make_basic_info 3630→3618、DisConnSig 787→779、UpdateLogout 269→267；
+//     _SaveCharacData 为反例（ORIG 有 `mov %eax,-0x20` 具名槽）已回退。
+//   DIFF→NEAR：reqHumanCertify（删 len 具名局部，P0；ndiff 78→10，残余 put_binary
+//     len/ptr 寄存器角色 = N7/N18a）。
+//   其他：UpdateCoolTime/EffectItemInfo count 清零前置 + begin() 提前（P212/P50 复活），
+//     残余仅 `seta vs setbe`（跨版本 setcc 方向，N 封顶）；SetGameMasterMode characNo
+//     具名槽→`(void)` 表达式（帧 0x44→0x34 与 ORIG 齐，残余 N82 槽复用）；
+//     delete_ontime_reward_list 顺序 if 结构实测反劣 5→27 已回退。
+//   类型（Main 批准；mangled 不含非模板返回类型）：isHackUser unsigned char→bool
+//     （CUser.h:3219/CUser.cpp:4113；ORIG 0x081be54c 无 setcc）；setTagCharacInfo
+//     int→bool（CUser.h:3755，定义 CUserOnlyOrig.cpp:7270 由 Lane6 代落；ORIG
+//     0x084c360b `xor $1` 形）。消费 TU（CTradeSpace/DisPatcherCore/Dispatchers/
+//     InterDispatcher/CUserOnlyOrig）复编全部 rc=0。
+//   判据① 脚本 /tmp/j2/jcc2.py；逐件 diff 读数 /tmp/j2/（batch4/5、cooltime、si3 等）。
+// ============================================================================
+
 #include <string.h>
 #include <cstdarg>
 #include "TimeLog_.h"      // CUser::LogHistory（ORIG 0x0867c8d8 时间头）
@@ -3934,8 +3959,9 @@ bool CUser::SetGameMasterMode(bool flag)
         //   0x086796dc 把 `lea -0x16(%ebp),%ebx`（pkt 地址）跨 GetServerProxy 调用
         //   保活，group/proxy 均不落槽（链式直传）；characNo 为**死槽**（P171 照抄）。
         //   另：ORIG 尾恒 `mov $0x1,%eax` ⇒ 真实返回 bool（CUser.h 冻结，待 Main 代落）。
-        unsigned int characNo = getCurCharacNo();
-        (void)characNo;
+        // ORIG 0x086796dc 有 `call getCurCharacNo` 但结果**不落槽**（P0 表达式直用）；
+        // 具名 characNo 反致帧 +0x10（sub 0x34→0x44、槽 -0x1c→-0x2c）。
+        (void)getCurCharacNo();
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup())
             ->SendTcpPacket((char*)&pkt, 0xe);
     }
@@ -5666,7 +5692,7 @@ bool CUser::reqHumanCertify()
     pg.put_int(msg->m_size);
     // ORIG 0x867f366-0x867f376：len→%eax、ptr→%edx —— 无具名槽（P0：msg->m_size
     // 表达式直传；历史 register asm 钉法已按 P0/N96 清绑，改内联实参）。
-    pg.put_binary((const char*)msg->m_image, (int)msg->m_size);
+    pg.put_binary((const char*)msg->m_image, msg->m_size);
     pg.put_byte(m_mcap.getPoint() > 0x251b ? 1 : 0);
 
     unsigned short veriA = 0;
