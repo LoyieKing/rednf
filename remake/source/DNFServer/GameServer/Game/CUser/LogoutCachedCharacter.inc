@@ -1,1 +1,1 @@
-void CUser::LogoutCachedCharacter(unsigned char param)
+unsigned char CUser::LogoutCachedCharacter(unsigned char param)

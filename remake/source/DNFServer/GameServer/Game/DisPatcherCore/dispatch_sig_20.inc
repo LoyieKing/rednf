@@ -11,8 +11,24 @@ int DisPatcher_EnterPVP::dispatch_sig(CUser* user, PacketBuf& packet)
     // __attribute__((packed));` ⇒ 4.4 报 `不能将紧实的字段 m_idx 绑定到 short&`
     // （packed 非对齐成员不可作 get_short(short&) 实参；4.1 同样非法）⇒ 原码不是 packed
     // 成员引用，`-0x1b` 基址的构造形未解出。本件残差仅此 1 条（ours=151 / ORIG=152）。
-    short pvpIdx;
-    if (!packet.get_short(pvpIdx))
+    // [DPC-SigC 2026-09-11] P161/P311 msg 组件视图：ORIG 0x081ed6d0
+    // `lea -0x1b(%ebp),%eax; add $0xd,%eax`（两步取址 ⇒ 视图 base -0x1b、成员 @+0xd
+    // = -0xe，视图 sizeof 0xf），而**读取**处 0x081ed8xx 为单条 `movzwl -0xe(%ebp),%eax`。
+    // 我方原独立 `short pvpIdx` 只产单条 `lea -0xe(%ebp)`，全 16 差异块皆此型帧偏移差
+    // （ORIG 152 vs 我方 151）。用 pragma pack(1)（attribute 形 4.4 报错，G5 已实测；
+    // H5 同法落于 SetPVPMapIndex/IncreStatusSigView）：取址走「基址 + 0xd」绕过
+    // 「紧实字段不能绑定 short&」，读取走成员值语义（packed 成员读取合法）。
+    // 视图占 [-0x1b,-0xd] 后，flag(-0x1c)/seat(-0x20)/buf(-0x29..-0x21) 槽位随之下移对齐。
+#pragma pack(push, 1)
+    struct EnterPVPMsgView
+    {
+        char m_hdr[0xd];
+        short m_pvpIdx;
+    };
+#pragma pack(pop)
+    EnterPVPMsgView sig;
+    if (!packet.get_short(*reinterpret_cast<short*>(
+            reinterpret_cast<char*>(&sig) + 0xd)))
     {
         return LineFunc(0x6fc7, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -38,7 +54,7 @@ int DisPatcher_EnterPVP::dispatch_sig(CUser* user, PacketBuf& packet)
             return LineFunc(0x6fd7, __PRETTY_FUNCTION__, 0, 0);
         }
     }
-    PvP_Room* pvp = G_CGameManager()->GetPvp((int)pvpIdx, user, 0);
+    PvP_Room* pvp = G_CGameManager()->GetPvp((int)sig.m_pvpIdx, user, 0);
     if (pvp == 0)
     {
         PacketGuard guard;

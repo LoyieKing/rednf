@@ -172,7 +172,7 @@ template <size_t N>
     {
         LogManager::logFormat(
             0, "../RDARScriptStringManager.cpp", __FUNCTION__, 0x11c,
-            "오류 : 스트링 테이블 %d 는 범위를 벗어납니다. "
+            "\xbf\xc0\xb7\xf9 : \xbd\xba\xc6\xae\xb8\xb5 \xc5\xd7\xc0\xcc\xba\xed %d \xb4\xc2 \xb9\xfc\xc0\xa7\xb8\xa6 \xb9\xfe\xbe\xee\xb3\xb3\xb4\xcf\xb4\xd9. "
             "(index out of range reading string table %d)",
             table);
         ss_sprintf(errStr, "String table index out of range %d", table);

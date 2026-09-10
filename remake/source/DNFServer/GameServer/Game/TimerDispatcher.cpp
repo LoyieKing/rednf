@@ -1695,6 +1695,11 @@ __attribute__((weak)) TimerStatisticsDetailChannelInfo::~TimerStatisticsDetailCh
 // （探针 r1..r6 六形恒 add），分支语义等价。
 #include "TimerDispatcher/RegistNextTimer_1.inc"
 {
+    // [TimerDispatcher-4 2026-09-11] 同 DDStat/UCE：唯一真残差 = `%0x1e` 余数段
+    // ORIG `lea (%eax,%eax,1),%edx; mov %edx,%eax; shl $4,%eax; sub %edx,%eax`（4 条）
+    // vs 4.4 `add %eax,%eax; mov %eax,%edx; shl $4,%edx; sub %eax,%edx`（4 条）
+    // ⇒ N86b/N1（22 形探针无一命中，见 DDStat 判词）。p167：8=8，MISSING/EXTRA
+    // 仅 `cMyTrace C2Ev↔C1Ev` 同址别名（P93）⇒ 无缺口。
     const int curSec = GlobalData::s_systemTime_.getCurSec();
     tm timeInfo;
     // [b28c-27] ORIG 0x08635782：localtime_r 第一实参是 curSec 槽本身的地址
@@ -2323,6 +2328,13 @@ __attribute__((weak)) TimerDungeonDataStatistic::~TimerDungeonDataStatistic() th
 // lea↔add（探针 /tmp/td_probe5.cpp r1..r6 六形恒 add）⇒ N86b/N1；分支语义等价。
 #include "TimerDispatcher/RegistNextTimer_6.inc"
 {
+    // [TimerDispatcher-4 2026-09-11] N86b/N1 复证（22 形探针 /tmp/mod_probe{,2,3}.cpp）：
+    // 4.4 对 `x*0x1e` 独立展开同为 add 形（f17 `add %eax,%eax; mov %eax,%edx;
+    // shl $4,%edx; sub %eax,%edx`），与 `%0x1e` 余数段逐条同构 ⇒ ORIG 的
+    // `lea (%eax,%eax,1),%edx`（4.1 expand_mult 目标寄存器选择）不可由源码形诱导；
+    // 探针含显式 `X-(X/30)*30`(f3/f9/f15/imul 形)、手写分解 (2q<<4)-2q(f4/f8/f19)、
+    // 具名 q(f16/f20 reload)、语句表达式——唯一命中 lea 的 f8 需具名 q 落槽且整体多
+    // reload+add 反劣。p167：ORIG 6 calls = OURS 6 CLEAR ⇒ 无语义缺口，封底。
     // ORIG 0x086368xx：curSec 单 time_t 槽（免 int→long 拷贝）；localtime_r 返回
     // pt 落槽 -0x18，各字段经 `mov -0x18,%eax` 重读 + 指针 disp 读写（技巧37 反用：
     // 具名指针槽正是 ORIG 形）
@@ -3747,6 +3759,8 @@ __attribute__((weak)) TimerUpdateCompoundEmblemStatics::~TimerUpdateCompoundEmbl
 // （探针 r1..r6 六形恒 add），分支语义等价。
 #include "TimerDispatcher/registNextTimer_13.inc"
 {
+    // [TimerDispatcher-4 2026-09-11] 同 TimerDungeonDataStatistic：唯一真残差 =
+    // `%0x1e` 余数段 lea↔add（N86b/N1，22 形探针封底）；p167：6=6 CLEAR。
     const time_t now = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
     tm t;
     // [b28d-solo-TimerDispatcher] P43：ORIG 经 localtime_r 返回值指针访问
@@ -4735,7 +4749,10 @@ __attribute__((weak)) Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyP
     // 数组声明落在 put 段之后（旧形前置致缓冲/guard 槽序互换 + 帧差）。
     char local_43c[0x400] = {0};        // ORIG rep stos ecx=0x100（dword）→ 清 0x400 字节
     // P0：ORIG 无 notice 槽（`call GetNoticeMessage; mov %eax,0xc(%esp)` 直传）⇒ 内联。
-    sprintf(local_43c, "%d분뒤 서버점검이 있습니다. %s", m_remainingNotiCount,
+    // [Main 授权 2026-09-11 · §6.5 盲区] ORIG .rodata 该串实字节 = EUC-KR(cp949)
+    // （`%d` BA D0 B5 DA 20 BC AD B9 F6 C1 A1 B0 CB C0 CC 20 C0 D6 BD C0 B4 CF B4 D9 2E 20 `%s`），
+    // 原 UTF-8 字面量发射 3 字节/字 ⇒ 运行期乱码。改字节转义发射（源码文件仍 UTF-8）。
+    sprintf(local_43c, "\x25\x64\xba\xd0\xb5\xda\x20\xbc\xad\xb9\xf6\xc1\xa1\xb0\xcb\xc0\xcc\x20\xc0\xd6\xbd\xc0\xb4\xcf\xb4\xd9\x2e\x20\x25\x73", m_remainingNotiCount,
             GameserverDemonManagerInstance()->GetNoticeMessage());
     unsigned int len = strlen(local_43c);
     packet.put_int((int)len);

@@ -189,6 +189,54 @@
 //   判据① 脚本 /tmp/j2/jcc2.py；逐件 diff 读数 /tmp/j2/（batch4/5、cooltime、si3 等）。
 // ============================================================================
 
+// ---------------------------------------------------------------------------
+// b28d-J3CUser 第五轮（2026-09-11 01:00–01:45，H3 之后）：§6.5 日志盲区 + P139 +
+//   类型轴 + codegen 旋钮。TU 四数 808/1695/4/91（missing 588）→ **808/1697/4/89**
+//   （diff −2、ae +2、missing 零增，零劣化）。
+//   A. P139（手写签名字符串 → `__PRETTY_FUNCTION__`）×8：AntibotSend×2 /
+//      InsertOnTimeEventReward / prepareDisconnect / send_ontime_reward_start_notify×2 /
+//      CheckQuestMonster×2 ⇒ 本 TU 的 PF 符号 21→26；96 件逐件核
+//      `_ZZ<fn>E19__PRETTY_FUNCTION__` 存在性：**ORIG 有我方缺 = 0**（全对齐）。
+//   B. §6.5 日志文本契约（AE 盲区，以 ORIG `.rodata` 原字节为据）×3：
+//      WorkPerFiveMin / WorkPerTenMin 格式串（补 `CUser::` 前缀、删发明 `..`）；
+//      SetTradePunishType printf 前导空格（ORIG `" CUser::SetTradePunishType(%d) \n"`）。
+//      ours-only 串扫描（逐字节 vs ORIG 全库串集）已清零；余 1 项为
+//      `DB_LogBuyItem::makeRequest` 的 P110 typedef 名差异（ORIG `memberIdentificationNumber_t`），
+//      落地需 include InterSelectPcroomDailyReward.h（TU 级 include 风险）⇒ **不落地，记 N**。
+//   C. 类型轴（`.h` 改动均已 R2 广播）：
+//      · CheckQuestMonster bool→**void**（P174 串 `void CUser::CheckQuestMonster(...)`）；
+//      · LogoutCachedCharacter void→unsigned char + `return 1`（ORIG 0x0864cd85 `mov $0x1,%eax`）
+//        ⇒ **DIFF→AE** 156/156；
+//      · ChangeCharacSlot int→void（ORIG 全函数无 `mov $0,%eax`，P159）⇒ **DIFF→AE** 172/172；
+//      · CheckLoadRentalInfoFromExchange unsigned char→bool（J2 请求；ORIG 0x084c45cd
+//        `call; test %al,%al; je` 无 setne，P292 T3）。
+//   D. 语义真修（BUG-FIX）：
+//      · ResetCurCharac：补 2 处 ORIG 实写清零 `m_gmUserFlag`(+0x711d8) / `m_progLogout`(+0x711e4)
+//        （ORIG 0x08658793 / 0x086587c8 `movb $0x0`），并修 3 处书写序（0x8d004→0x8d002、
+//        m_field4c→m_field48）⇒ 原缺 2 条清零 = 真语义缺口；代价 238→242（ORIG 240，+2）。
+//      · giveLotteryCountItem：**字段错位真修** —— 旧形写 it+0/+4，ORIG 0x08691672/
+//        0x08691696 写 it+**0x02/0x07**（Inven_Item::m_addInfo/m_addInfo2）⇒ 事件币/邮件
+//        分支取值全错；同修 424→413。
+//      · AntibotSend：vtable 槽**多一层解引用**（`*(VerifyFn*)` → `(VerifyFn)`；ORIG
+//        0x086480e2 / 0x0864826a 各一次 load）⇒ 运行期跳飞的真 bug；341→340 = ORIG。
+//   E. codegen 旋钮（ORIG 直证 + 探针）：
+//      · ReCalcChattingEmoticon 136→**102**（ORIG 101）：等宽 align-4 局部视图替 pack(1)
+//        类型块拷贝 ⇒ 复现 ORIG 纯 `rep movsl` 8 条（H3 的 aligned-typedef 别名因仍以
+//        align-1 为基而失败；本形为 P311/P246 视图族正解）。
+//      · UpdateLogout 504→499（删 `(uchar)(f()?1:0)` 三目岛）、GetCurExpertJobLevel 95→93
+//        （嵌套 if + `return level-1`）、FatigueUp 626→621（拆 `&&` 消 setcc 岛）、
+//        get_skill_command_buf(const) 137→133（end() 外提 + 显式 break）、STGuildDBInfoOnly
+//        91→90（复用 memset 返回值寻址）。
+//   F. 负结论（实测已回退并留痕）：
+//      · SendPacket 的 `switch` 化实测 **66→24** 条（真实路由产跳表；lane1 探针读数不可
+//        迁移到本 TU）⇒ 恢复 if 链，维持 P45/P46 封顶；
+//      · ReturnToSelectCharacList 的 `register unsigned char` 320 形反劣 312→313 ⇒ 改内联
+//        实参（→311）；
+//      · CDataMgr 的 N83（4.4 不内联常量 memset + placement-new 必发 `_ZnwjPv`）、
+//        UpdateData / make_basic_info / set_grow_type 的 P332/N126 帧常数族：本轮复测无新旋钮。
+//   证据与逐件读数：/tmp/cuser_lane1..5.md、/tmp/cuser_p167.txt、/tmp/j3_final_diff.txt。
+// ---------------------------------------------------------------------------
+
 #include <string.h>
 #include <cstdarg>
 #include "TimeLog_.h"      // CUser::LogHistory（ORIG 0x0867c8d8 时间头）
@@ -464,7 +512,7 @@ extern void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user);
     //   短路物化**到 -0x2d（`mov $1/$0 + mov %al,-0x2d`），verify 仅在需求为真时调用。
     typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
     bool encReq = packet.isEncryptRequired() &&
-        (*(VerifyFn*)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
+        ((VerifyFn)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
             GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0;
     if (encReq)
     {
@@ -487,14 +535,14 @@ extern void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user);
         ((InterfacePacketBuf*)&guard)->put_header(0, 0x231);
         typedef int (*EncryptFn)(void*, int, char*, int, char*, int*);  // +0x28
         // 实参右→左求值：get_len→get_packet→getAntibotKey（P24/実参序）
-        int r = (*(EncryptFn*)((*(void***)GlobalData::s_antibotChecker_)[0x28 / 4]))(
+        int r = ((EncryptFn)((*(void***)GlobalData::s_antibotChecker_)[0x28 / 4]))(
             GlobalData::s_antibotChecker_, getAntibotKey(),
             packet.get_packet(0), packet.get_len(), buf, &outLen);
         if (r != 0)
         {
             // ORIG 0x08648323..0x0864838a：全表达式临时链，get_len/getAntibotKey
             //   在 cMyTrace C1 **之前**求值并跨构造保活（P87/P227；具名局部会槽化）。
-            cMyTrace("bool CUser::AntibotSend(PacketBuf&)", 0x807, 0)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x807, 0)(
                 "[RecvBufferForEncrypt] result : %d, PacketID : %d, "
                 "Key : %d, Length : %d", r, (int)packetId,
                 getAntibotKey(), packet.get_len());
@@ -526,7 +574,7 @@ extern void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user);
     if (sret < 0)
     {
         // ORIG 0x086484ec..0x08648539：getCurCharacName 在 C1 之前求值（%ebx 保活）
-        cMyTrace("bool CUser::AntibotSend(PacketBuf&)", 0x834, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x834, 0)(
             "User %s - send_packet() fail length(ID:%d,LEN:%d),",
             getCurCharacName(), (int)packetId, len);
         if (packetId != 199)
@@ -1138,18 +1186,20 @@ void Character::operator+=(const Character& other)
     }
     setCurCharac(0);
     setTagCharac(0);
-    m_tradeSpaceIdx = 0xffff;
     m_field8d004 = 0xffff;
+    m_tradeSpaceIdx = 0xffff;
     m_pvpRoomIdx = 0xffff;
     m_field8d008 = 0xffff;
     m_field8d00c = 0xffff;
     m_field8cfcc = (UserSpace::T)0;
+    m_gmUserFlag = 0;   // ORIG 0x08658793 movb $0x0,0x711d8（+0x711d8 直证）
     m_field6ef68 = 0;
     m_field6ef69 = 0xff;
     m_guildAgitDB.m_pad[2] = 0;
     m_playingDungeonIdx = 0xffffffff;
-    m_postChecksumData.m_field48 = 0;
+    m_progLogout = 0;   // ORIG 0x086587c8 movb $0x0,0x711e4（+0x711e4 直证）
     m_postChecksumData.m_field4c = 0;
+    m_postChecksumData.m_field48 = 0;
     if (m_premium.m_mailBox != 0)
         ((WongWork::CMailBox*)m_premium.m_mailBox)->Init();
     set_guildwar_point_per_pvpplay(0);
@@ -2254,9 +2304,12 @@ struct SigForbidUserToPlayBody
             (std::map<unsigned char, short>*)G_CDataManager()->GetExpertJobEtcScript();
         std::map<unsigned char, short>::iterator it =
             m->find((unsigned char)level);
-        if (it != m->end() && it->second <= get_charac_level())
-            return level;
-        level = level - 1;
+        if (it != m->end())
+        {
+            if (it->second <= get_charac_level())
+                return level;
+        }
+        return level - 1;
     }
     return level;
 }
@@ -3540,10 +3593,13 @@ public:
 // b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0867b8fe | _ZN5CUser10SendPacketENS_11eSendTargetER11PacketGuard
 #include "CUser/SendPacket.inc"
 {
-    // b28d-PoolCUser 复测（2026-09-09，P251 尝试）：ORIG 0x0867b8fe 为 4.1 决策树
-    //   「mov 0xc,%eax 单装载 + 寄存器复用 cmp$1 je / cmp$1 jg / test je / cmp$2 /
-    //   cmp$3」；4.4 写 switch 恒产跳表/合并体（our 68→22 指令，ndiff 54→58 反劣）
-    //   ⇒ 回退 if 链形，维持跨版本 switch lowering 封顶（P45/P46 族）。
+    // b28d-PoolCUser 复测（2026-09-09，P251 尝试）+ 2026-09-11 lane1 复测（**负结论**）：
+    //   ORIG 0x0867b8fe 为 4.1 决策树「mov 0xc,%eax 单装载 + 寄存器复用 cmp$1 je /
+    //   cmp$1 jg / test je / cmp$2 / cmp$3」；写 `switch` 时**真实路由**（dnf_game_cxx.sh
+    //   对本 TU 的 4.4.6/4.4.7 变体）恒产跳表合并体 —— 实测 66→**24** 条（劣化 42，
+    //   lane1 探针 /tmp/cuser_lane1_probe/sw.cpp 的「switch 复现」读数在本 TU 实编译
+    //   下不成立，探针环境不可迁移）⇒ 回退 if 链形，维持跨版本 switch lowering 封顶
+    //   （P45/P46 族）。
     if (target == (eSendTarget)1)
         Send(packet);
     else if (target < (eSendTarget)2)
@@ -5631,7 +5687,7 @@ void STBreakAwayRewards::operator=(const STBreakAwayRewards& other)
 // m_postChecksumData.m_tradePunishType |= type。
 #include "CUser/SetTradePunishType.inc"
 {
-    printf("CUser::SetTradePunishType(%d) \n", type);
+    printf(" CUser::SetTradePunishType(%d) \n", type);
     m_postChecksumData.m_tradePunishType =
         m_postChecksumData.m_tradePunishType | type;
 }
@@ -5926,8 +5982,8 @@ RET0:;
     {
         // ORIG 0x86531f4-：NumberToString 两 call 先执行、结果暂 %ebx，cMyTrace
         // 临时构造成其后（0x8653215 mov %eax,%ebx 证据）→ 临时链式（技巧 3）。
-        cMyTrace("CUser::WorkPerTenMin()", 0x1d71, 5)(
-            "WorkPerTenMin() m_id(%s) character - m_selected is null..",
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d71, 5)(
+            "CUser::WorkPerTenMin() m_id(%s) character - m_selected is null",
             NumberToString(get_acc_id(), 0));
         return;
     }
@@ -5956,8 +6012,8 @@ RET0:;
         // ORIG 0x08652f0c 段（P227 全表达式临时链）：NumberToString 结果先升格 %ebx
         //   跨 cMyTrace ctor 保活（`mov %eax,%ebx` 在 ctor 实参装载前排），
         //   两语句具名形会把 ctor 提到求值之前 ⇒ 必须临时链。
-        cMyTrace("CUser::WorkPerFiveMin()", 0x1d24, 5)(
-            "WorkPerFiveMin() m_id(%s) character - m_selected is null..",
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d24, 5)(
+            "CUser::WorkPerFiveMin() m_id(%s) character - m_selected is null",
             NumberToString(get_acc_id(), 0));
         return;
     }
@@ -6085,7 +6141,7 @@ RET0:;
     //   （其 store/load 另致帧 0x2dc→0x2ec、+0x10）。
     {
         CMyFileLog log(
-            "bool CUser::InsertOnTimeEventReward(unsigned int, unsigned int)",
+            __PRETTY_FUNCTION__,
             0x869f);
         log(logDir, "On Time Event:InsertOnTimeEventReward(%s, %u)",
             NumberToString(get_acc_id(), 0), get_charac_no(-1));
@@ -7257,6 +7313,9 @@ done:;
     delete_ontime_reward_list();          // ORIG T 0x0868c3bc
     // ORIG T 0x08166d38：ARAD::Singleton<HeroMissionEvent>::Get()->saveEventData(this, true)
     ARAD::Singleton<HeroMissionEvent>::Get()->saveEventData(this, true);
+    // ORIG 0x0864cd85 `mov $0x1,%eax`（call 之后、epilogue 之前）⇒ 原码显式 `return 1;`；
+    // 我方 void 形把 saveEventData 的 %al 当返回值直落 %eax（差 1 条 + 返回值不同）。
+    return 1;
 }
 
 // 0x08689a22：表情配置重算（ReCalcChattingEmoticon.md）。读 GameOption 表情配置 →
@@ -7282,13 +7341,20 @@ done:;
         guard.operator*()->operator<<((int)GetUID());
         char* sig = (char*)guard.operator->()->GetInBuffer<SIG_SAVE_CHATTING_EMOTICON>();
         *(unsigned int*)(sig + 0) = get_acc_id();
-        // sig 为线格式缓冲（§4.3 例外）：结构整体赋值复现 ORIG rep movsl。
-        // 2026-09-11（H3CUser，负结论 N）：ORIG 0x08689b2b 对 0x210 字节块走纯
-        //   `rep movsl`（无对齐剥离前导/尾部），我方 4.4 走字节级对齐慢路（多 26 条）。
-        //   试 `typedef ... AlignedEmoticonCfg __attribute__((aligned(4)))` 同型别名
-        //   抬高 MEM_ALIGN —— 实测 insns 135→**136 反劣**（别名未翻慢路、反而多 1 条）
-        //   ⇒ 回滚，按 N78 慢路封顶（对齐剥离变体不可复现）。
-        *(CChattingEmoticonConfig*)(sig + 4) = cfg;
+        // 2026-09-11（Lane2，等宽 align-4 视图 = N78 慢路解药）：ORIG 0x08689b2b 对
+        //   +4 的 0x210 字节块走**纯** `lea 0x4(%eax),%ebx; mov $0x84,%eax; mov %ebx,%edi;
+        //   mov %edx,%esi; mov %eax,%ecx; rep movsl`（8 条，无对齐剥离前导/尾部）。
+        //   我方 `*(CChattingEmoticonConfig*)(sig+4)` 因 CGameOption.h 的
+        //   `#pragma pack(push,1)`（CGameOption.h:129/144/166）使该类型 align=1
+        //   ⇒ 4.4 发「align 探测 + 剥离 1/2 字节 + rep movsl + 尾 2/1 字节」39 条慢路
+        //   （历史 H3「aligned typedef 别名」失败正因别名仍以 align-1 类型为基）。
+        //   等宽 align-4 局部视图后 4.4 逐条复现 ORIG 8 条（探针
+        //   /tmp/lane2/probe_align3.cpp g2）。视图为纯局部类型：零符号发射、零语义变更。
+        struct EmoticonCfgA4View
+        {
+            unsigned int m_dw[0x210 / 4];   // 0x210 字节，align 4
+        };
+        *(EmoticonCfgA4View*)(sig + 4) = *(const EmoticonCfgA4View*)&cfg;
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
 }
@@ -7745,7 +7811,7 @@ done:;
         char mac[0x41] = {0};
         memcpy(mac, m_network.get_mac_addr(), 0x41);
         strncpy(sig->m_mac, mac, 0x41);
-        sig->m_saveMemberBonusFlag = (unsigned char)(IsEnableSaveMemberBonusFatigue() ? 1 : 0);
+        sig->m_saveMemberBonusFlag = IsEnableSaveMemberBonusFatigue();
         DisableSaveMemberBonusFatigue();
         sig->m_memberBonusFatigue =
             (unsigned short)getAccountMemberBonusFatigue();
@@ -8041,7 +8107,7 @@ done:;
     //   jne +0x266`（跳函数尾）。⇒ 源码 `if (!(a < size && b < size)) return 0;`
     //   我方旧双层嵌套 if 产两段独立分支、无 bool 物化（ORIG 的两段短路口才落 $1/$0 岛）。
     if (!(a < m_characList.size() && b < m_characList.size()))
-        return 0;
+        return;
     if (a < b)
     {
         // b28d-solo-CUser p167：ORIG 0x08651b7a 的 `begin()+b+1` 是**两次**
@@ -8055,7 +8121,7 @@ done:;
         m_characList.erase(m_characList.begin() + a + 1);
     }
     m_characterView.enableSaveCharacView();
-    return 0;
+    return;
 }
 
 // ORIG 0x086973dc：设置联动角色断线标志（bool 字段 this-先直写 movb）。
@@ -8455,7 +8521,7 @@ struct CharacViewCacheView
 
     // b28d-lane5 复测（P227 全表达式临时链）：ORIG 0x08648a5x 在 cMyTrace ctor **之前**
     //   右起求 varargs 并以 %esi 跨 ctor 保活（`mov %eax,%esi` … `mov %esi,0xc(%esp)`）。
-    cMyTrace("void CUser::prepareDisconnect()", 0x8ed, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x8ed, 0)
         ("[Taiwan, Antibot] Delete client. (sequence:%d, mid:%u)",
          G_CEnvironment()->getProcessSequence(), (unsigned int)get_acc_id());
 
@@ -8520,7 +8586,7 @@ struct CharacViewCacheView
     }
     case 2:
     {
-        if ((unsigned char)(getCurCharacCargoR()->MakeItemList(&packet) ^ 1))
+        if (!getCurCharacCargoR()->MakeItemList(&packet))
             return 0;
         break;
     }
@@ -8564,7 +8630,7 @@ struct CharacViewCacheView
     COnTimeEvent* ev = (COnTimeEvent*)GlobalData::s_event_manager->GetRepeatEvent(0x33);
     if (ev == 0)
     {
-        cMyTrace("bool CUser::send_ontime_reward_start_notify()", 0xa7f7, 5)
+        cMyTrace(__PRETTY_FUNCTION__, 0xa7f7, 5)
             ("[ON_TIME_EVENT] send_ontime_reward_start_notify() error");
         return 0;
     }
@@ -8586,7 +8652,7 @@ struct CharacViewCacheView
     //  ④ ORIG +0x0fe..+0x138 顺序 = get_charac_no → get_acc_id → NumberToString →
     //     CMyFileLog ctor(-0x2c)，即实参先于 ctor 求值 ⇒ 源码是**全表达式临时链**
     //     `CMyFileLog(...)(...)`（P227/P37）；我方旧具名 log 在 sprintf 后立即构造。
-    CMyFileLog("bool CUser::send_ontime_reward_start_notify()", 0xa803)(
+    CMyFileLog(__PRETTY_FUNCTION__, 0xa803)(
         fileName, "On Time Event : On Charac Login(%s, %u)",
         NumberToString(get_acc_id(), 0), get_charac_no(-1));
     //  ② ORIG +0x17c `cmp %eax,%ebx; setg %al; test; je 0868c3ac`，而 +0x23c(0x0868c3ac)
@@ -8765,7 +8831,7 @@ struct CharacViewCacheView
         if (quest == 0)
         {
             LogManager::logFormat(1, "user.cpp",
-                "bool CUser::CheckQuestMonster(int, int, ENUM_QUEST_ENEMY_TYPE)",
+                __PRETTY_FUNCTION__,
                 0x54f7, "G_CDataManager()->find_quest(%d) fail",
                 questRef->m_quest[i]);
             continue;
@@ -8860,8 +8926,7 @@ struct CharacViewCacheView
             item.set_add_info(gained);
             if (gained > 999)
             {
-                cMyTrace("bool CUser::CheckQuestMonster(int, int, "
-                         "ENUM_QUEST_ENEMY_TYPE)", 0x5579, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x5579, 5)
                     ("CUser::CheckQuestMonster, mon_item.item.set_add_info , "
                      "ITEM #%d, %d , QUEST#%d",
                      itemIdx, gained, questRef->m_quest[i]);
@@ -9094,12 +9159,15 @@ struct CharacViewCacheView
     // ---- repeat 事件 0x29：角色日（job 匹配）----
     CEventBase* dayEvent =
         GlobalData::s_event_manager->GetRepeatEvent(0x29);
-    if (dayEvent != 0 && dayEvent->IsEventing((CUser*)0))
+    if (dayEvent != 0)
     {
-        if (get_charac_job() ==
-            static_cast<CCharacterDayEvent*>(dayEvent)->GetEventJob())
+        if (dayEvent->IsEventing((CUser*)0))
         {
-            _processCharacterDayEvent(prevFatigue, (unsigned int)v);
+            if (get_charac_job() ==
+                static_cast<CCharacterDayEvent*>(dayEvent)->GetEventJob())
+            {
+                _processCharacterDayEvent(prevFatigue, (unsigned int)v);
+            }
         }
     }
     // ---- repeat 事件 0x2b：疲劳 buff ----
@@ -11083,7 +11151,6 @@ HIT:
     , m_fieldB9(0)                  // +0xb9
 {
     memset(m_subMasterData, 0, 0x14);   // +0x2e
-    memset(m_guildName, 0, 0x17);       // +0x00
     // ② ORIG +0x47/+0x53：+0x1c 为 byte 位操作（`mov 0x8(%ebp),%eax;
     //    movzbl 0x1c(%eax),%edx; or $0x1,%edx; mov %dl,0x1c(%eax)` / `…and $0xfffffffd…`），
     //    只动低字节、不触碰 +0x1d。
@@ -11101,7 +11168,13 @@ HIT:
             unsigned char m_field1C;    // 低字节（ORIG 仅动此字节）
         };
     };
-    ((GuildAbilityByteView*)this)->m_field1C |= 1;
+    // 2026-09-11（Lane2，P311 附：复用 memset 返回值）：ORIG 0x08694061 `call memset`
+    //   之后 0x08694069 直接 `movzbl 0x1c(%eax),%edx` —— 复用 memset 返回值
+    //   （= m_guildName = this）寻址，**无** `mov 0x8(%ebp),%edx` 重载；我方分两句写
+    //   会多发 1 条重载。把 memset 内联进同一表达式即复现（探针
+    //   /tmp/lane2/probe_memsetret.cpp：f_a ⇒ `movzbl 0x1c(%edx),%edx`，
+    //   f_b ⇒ `movzbl 0x1c(%eax),%eax` = ORIG 形）。
+    ((GuildAbilityByteView*)memset(m_guildName, 0, 0x17))->m_field1C |= 1;
     ((GuildAbilityByteView*)this)->m_field1C &= ~2;
     memset(m_skills, 0, 0x50);          // +0x45
     memset(m_masterName, 0, 0x15);      // +0xa4
@@ -11746,10 +11819,16 @@ struct SIG_LI_CreatureTailView
     //   （begin/end/size，无 rec 缓存；我方缓存仅 1 次 ⇒ MISSING ×2），且序列化用
     //   结构整体赋值（rep movsl，报告实证）而非 memcpy call（我方 EXTRA memcpy ×1）
     //   ⇒ 去缓存 + `sig->m_records[index] = it->second;`（P83/P183）。
-    int index = 0;
-    for (std::map<int, GameResultType>::const_iterator it =
-             getBattleRecordRefR()->begin();
-         it != getBattleRecordRefR()->end() && index <= 99; ++it, ++index)
+    // b28d-lane5（probe_slots f1/f2）：ORIG end() **只调一次**（0x08677ecb 循环尾无 getter/end
+    //   构造）= 具名缓存；4.4 先声明更浅 ⇒ it(-0x20) 先声明、itEnd(-0x24) 后声明与 ORIG
+    //   0x08677dec/0x08677e09 槽址一致。index 裸声明 + for-init 赋值 ⇒ `movl $0,-0x1c` 落到
+    //   begin/end 之后（ORIG 0x08677e1b）；getBattleRecordRefR 仍调 3 次（begin/end/size）。
+    int index;
+    std::map<int, GameResultType>::const_iterator it =
+        getBattleRecordRefR()->begin();
+    std::map<int, GameResultType>::const_iterator itEnd =
+        getBattleRecordRefR()->end();
+    for (index = 0; it != itEnd && index <= 99; ++it, ++index)
     {
         sig->m_records[index] = it->second;
     }
@@ -11908,9 +11987,12 @@ struct SIG_LI_CreatureTailView
         reinterpret_cast<std::map<int, STSkillCommandData>*>(const_cast<char*>(getSkillCommand()));
     if (pMap == 0)
         return out;
+    // ORIG 0x08654768：`end()` 提到循环外（循环体内无 end() 调用），`idx > 0x31`
+    //   走循环尾 `jg`（= 显式 break 形，避免 `&&` 的 setne/test bool 物化，P133/P59）。
+    std::map<int, STSkillCommandData>::iterator it = pMap->begin();
+    std::map<int, STSkillCommandData>::iterator itEnd = pMap->end();
     int idx = 0;
-    for (std::map<int, STSkillCommandData>::iterator it = pMap->begin();
-         it != pMap->end() && idx <= 0x31; ++it, ++idx)
+    for (; it != itEnd; )
     {
         // b28d-solo-CUser p167：ORIG 0x0865459a/0x08654768 每字段各发一次
         //   `_Rb_tree_iterator::operator->()`（共 6 次，我方缓存引用 v 缺 6 次）⇒
@@ -11924,6 +12006,10 @@ struct SIG_LI_CreatureTailView
         cmd.m_key3    = it->second.m_key3;      // bits 23-25
         cmd.m_key4    = it->second.m_key4;      // bits 26-28
         out[idx] = cmd;
+        ++idx;
+        if (idx > 0x31)
+            break;
+        ++it;
     }
     return out;
 }
@@ -12873,34 +12959,40 @@ RCEND:
     for (int i = 0; i < (int)src.size(); )
     {
         Inven_Item it;                              // 默认构造后按 ORIG 填 8 字节
-        // 2026-09-10（FL2CUser p167）：ORIG 每个 pair 只调 **2 次** `vector<int>::operator[]`
-        //   （差集 EXTR `_ZNSt6vectorIiSaIiEEixEj` ×3 = 旧形对同一元素重复取 4 次）
-        //   ⇒ 原码把 pair 两字段各缓存进具名局部后复用。
-        int itemNo = src[i++];
-        int itemCnt = src[i++];
-        *(int*)((char*)&it + 0) = itemNo;
-        *(int*)((char*)&it + 4) = itemCnt;
+        // 2026-09-11（Lane2，字段错位轴修正 + P183 去具名局部）：ORIG 0x08691672/
+        //   0x08691696 把两次 `operator[]` 结果直接 store 到 -0x98/-0x93
+        //   （it 基址 -0x9a ⇒ **+0x02 / +0x07** = Inven_Item::m_addInfo@+0x02 /
+        //   m_addInfo2@+0x07，Inven_Item.h:269/280），无具名 int 中间量。
+        //   我方旧形写 it+0/+4 ⇒ (a) 两字段全错位（写到 m_field0 与 m_addInfo 高位，
+        //   读回的是 C1Ev 初值 ⇒ 事件币分支与邮件分支取值全错 = 真语义 bug）；
+        //   (b) 多占 itemNo/itemCnt 两槽（帧 0x20c vs ORIG 0x1fc）+ 4 条 store/load。
+        it.m_addInfo = (unsigned int)src[i++];
+        it.m_addInfo2 = src[i++];
         rewards.push_back(it);
 
-        if (*(int*)&it == 1 && itemCnt >= 0)        // 事件币分支
+        // ORIG 0x086916b1 `mov -0x98(%ebp),%eax; cmp $0x1,%eax; jne`
+        //   + 0x086916c0 `mov -0x93(%ebp),%eax; test %eax,%eax; js`。
+        if ((int)it.m_addInfo == 1 && it.m_addInfo2 >= 0)   // 事件币分支
         {
-            int amount = itemCnt;
             // ORIG 0x086916d4..0x08691715：GetEventCoin() **独立调用两次**
             //（Set 实参一次、EventCoinAdd 实参一次；O0 无 CSE，P48）——
             // 旧版缓存 now 局部少一次调用（p167 miss=2）。
+            // 实参直读 it.m_addInfo2（ORIG 0x086916e1 `mov -0x93(%ebp),%edx; lea (%eax,%edx,1),%ebx`）。
             getCurCharacInvenW()->SetEventCoin(
-                getCurCharacInvenR()->GetEventCoin() + (unsigned int)amount);
+                getCurCharacInvenR()->GetEventCoin() + (unsigned int)it.m_addInfo2);
             m_historyLog.EventCoinAdd(
-                getCurCharacInvenR()->GetEventCoin(), amount, (eCoinAddReason)2);
+                getCurCharacInvenR()->GetEventCoin(), it.m_addInfo2, (eCoinAddReason)2);
             SaveMoneyCoin();
             SendCoin();
             continue;
         }
 
         G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, it, itemCnt);
+            (ENUM_ITEM_CREATE_TYPE)2, it, it.m_addInfo2);
 
-        if (!((*(int*)&it != 0) || (it.get_add_info() != 0)))
+        // ORIG 0x08691782 `mov -0x98(%ebp),%eax; test; jne`（m_addInfo!=0 短路）
+        //   → 0x0869178c `lea -0x9a(%ebp),%eax; call get_add_info`。
+        if (!(it.m_addInfo != 0 || it.get_add_info() != 0))
             continue;
 
         int slot = getCurCharacInvenW()->insertItemIntoInventory(
@@ -13323,8 +13415,13 @@ RCEND:
         //   互换；试「头部裸声明 endIt 先声明（先声明深）+ 先赋值后 for」(P212/P309)
         //   实测反劣（missing_in_game 588→590，尾段多 island），已回滚 ⇒ 维持本形，
         //   残差 = it/end 两级槽互换（N93 边界，无三级转换临时 ⇒ P326 不适用）。
-        for (std::vector<ContinuousItemInfo>::const_iterator it = cool->begin();
-             it != cool->end(); ++it)
+        // b28d-lane5 翻案（probe_slots f1/f2，4.4.6 同路由）：仍缓存 end()，但具名序必须是
+        //   **it 先声明、itEnd 后声明**（4.4 先声明更浅 ⇒ it -0x10 / itEnd -0x14 = ORIG
+        //   0x0865e9c1/0x0865e9d6 槽址；前轮试的是 endIt 先声明 = 方向相反故反劣）。
+        //   本函数容器在循环内只读（无 erase）⇒ 缓存 end() 语义安全。
+        std::vector<ContinuousItemInfo>::const_iterator it = cool->begin();
+        std::vector<ContinuousItemInfo>::const_iterator itEnd = cool->end();
+        for (; it != itEnd; ++it)
         {
             // b28d-solo-CUser p167 修正：ORIG 0x0865e994 发 deEv（`(*it).`）非 ptEv。
             if ((unsigned long)(*it).m_itemIdx == itemIdx)
@@ -13883,10 +13980,10 @@ RCEND:
         int payMoney = get_member_pay_tex_money_to_upper();
         int payFatigue = get_member_pay_tex_fatigue_to_upper();
         unsigned int characNo = getCurCharacNo();
-        bool isUpper = is_connect_upper_member();
         CMonitorServerProxy* proxy =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup());
-        proxy->SendMemberPayTax(isUpper, characNo, payMoney, payFatigue);
+        proxy->SendMemberPayTax(is_connect_upper_member(), characNo, payMoney,
+                                payFatigue);
         if (payMoney > 0)
             set_member_pay_tex_money_to_upper(0);
         if (payFatigue > 0)

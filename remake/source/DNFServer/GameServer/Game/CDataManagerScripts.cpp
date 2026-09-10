@@ -1382,6 +1382,8 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item)
         idx = (int)m_vec.size() - 1;   // 取末元素
     // return m_vec[idx]*m_arr1[param_1] + param_3*m_arr2[param_1]
     // （ORIG imul 为 32 位模 2^32，此处用无符号累加再一次性转 int 保持位模式）
+    // [b28d-J10 复核] 交换第三项乘法操作数为 `param_3 * m_arr2[param_1]` 实测
+    // 劣化（our 71→73：40 字节新增中转 + 帧漂）⇒ 已回滚，维持 m_arr2 在前的形。
     return (int)(m_vec[idx] * (unsigned int)m_arr1[param_1]
                  + (unsigned int)m_arr2[param_1] * (unsigned int)param_3);
 }
@@ -1657,8 +1659,18 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item)
     stNPCRelationEventInfo* node = it->second;
     // g6 探针：`return T{a,b}`（列表初始化临时）令 4.4 走 NRVO 直写 sret，
     // 复现 ORIG 命中分支的 `mov %eax,(%ebx); mov %edx,0x4(%ebx)`。
-    return stNPCRewardItemInfo{node->m_favor[kind].m_rewardA,
-                               node->m_favor[kind].m_rewardB};
+    // [b28d-J10 复核] 单次访问形：ORIG 只发一组 kind*0x14 地址计算
+    // （0x0890d3b0..0x0890d3b7）后接两条 `mov 0x10(%eax,%ecx,1),%edx` /
+    // `mov 0xc(%eax,%ecx,1),%eax` 读 8 字节 ⇒ 原码为**一次** 8 字节结构读取
+    // （+0xc 起 m_rewardA/m_rewardB 与 stNPCRewardItemInfo 同布局）。
+    // 实测：旧的「两次 `m_favor[kind]` 表达式 + braced-init」形重算两组
+    // kind*0x14 乘法（68 insns）；引用绑定形 57、局部视图结构形 56（均劣化已回滚）
+    // ⇒ 保留本形 55 insns。残余 1 条 = 4.4 对 sret 的 8B POD 拷贝发 `call memcpy`
+    // （源址经 `add -0xc(%ebp),%eax; add $0xc,%eax` 两步），4.1 内联为
+    // `mov 0x10(%eax,%ecx,1),%edx; mov 0xc(%eax,%ecx,1),%eax` + 两次写 ⇒ N78/N84
+    // （4.1 内联小拷贝 vs 4.4 call）；证据 ORIG 0x0890d3ba..0x0890d3c4。
+    return *reinterpret_cast<const stNPCRewardItemInfo*>(
+        &node->m_favor[kind].m_rewardA);
 }
 
 // ---- advancealtar（StageTimeLineParameter D1 0x8899e88 /

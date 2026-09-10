@@ -730,7 +730,10 @@ struct Inter_SessionClosePktView
         target->Send(packet);
         // P227：ORIG 084c7bad NumberToString 结果留 %ebx 跨 ctor（084c7bcd）⇒ 全表达式临时链。
         cMyTrace(__PRETTY_FUNCTION__, 0x2004, 0)(
-            "강제 종료요청 ACCID: %s", NumberToString(pPkt->m_0, 0));
+            // [H2·2026-09-11] §6.5 语义轴：ORIG .rodata 实字节为 EUC-KR
+            //   （0x08ae5840 段 `\xb0\xad\xc1\xa6 \xc1\xbe\xb7\xe1\xbf\xe4\xc3\xbb ACCID: %s`），
+            //   旧源码写 UTF-8 韩文 ⇒ 发射字节不同（日志/客户端显示乱码）。改 \xNN 字节转义。
+            "\xb0\xad\xc1\xa6 \xc1\xbe\xb7\xe1\xbf\xe4\xc3\xbb ACCID: %s", NumberToString(pPkt->m_0, 0));
         target->DisConnSig((DISCONN_SIG)0xf, true, 0);
         // 块内 return：ORIG 084c7c0c `mov $0x0,%ebx` + dtor 后 `jmp <共享尾>`
         //   （探针 /tmp/probe_eh3.cpp f12 命中同形）。
@@ -3240,7 +3243,8 @@ struct Inter_MonitorUserGetoutPktView
         target->DisConnSig((DISCONN_SIG)0xf, true, 0);
         // P227：ORIG 084c8bdb m_a 重读后留 %ebx 跨 ctor（084c8bfc）。
         cMyTrace(__PRETTY_FUNCTION__, 0x226c, 0)(
-            "강제 종료요청 ACCID: %d", pPkt->m_a);
+            // [H2·2026-09-11] §6.5 语义轴：ORIG 实字节为 EUC-KR（同上，ACCID: %d 变体）。
+            "\xb0\xad\xc1\xa6 \xc1\xbe\xb7\xe1\xbf\xe4\xc3\xbb ACCID: %d", pPkt->m_a);
         return 0;
     }
 }
@@ -3627,7 +3631,9 @@ struct Inter_MonitorEventItemUpdatePktView
     register unsigned int v12 = pPkt->m_12;
     register char* mid = NumberToString(pPkt->m_a, 0);
     cMyTrace(__PRETTY_FUNCTION__,
-        0x2bff, 0)("[%s][%d],이벤트 유저 DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: %d]\n",
+        // [H2·2026-09-11] §6.5 语义轴：ORIG 实字节为 EUC-KR
+        //   （`\xc0\xcc\xba\xa5\xc6\xae \xc0\xaf\xc0\xfa DB ID : ...`），旧写 UTF-8 ⇒ 发射字节不同。
+        0x2bff, 0)("[%s][%d],\xc0\xcc\xba\xa5\xc6\xae \xc0\xaf\xc0\xfa DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: %d]\n",
           __PRETTY_FUNCTION__,
           0x2bff,
           mid,
@@ -6960,7 +6966,10 @@ struct Inter_MouseRegisterPktView
         {
             user->getPad()->setActivate(true);
             user->getPad()->setCertified(true);
-            user->getPad()->setPassword(data + 0x23);    // msg+0x23 密码
+            // [H2·2026-09-11 laneA] 槽来源修正：ORIG 084d083e/084d08d8 两处均
+            //   `mov -0xc(%ebp),%eax; lea 0x23(%eax),%ebx` —— 经 pPkt 具名槽取址；
+            //   旧写 `data + 0x23`（形参 0x10(%ebp)）多发参数槽装载 ⇒ NEAR(nd=4)。
+            user->getPad()->setPassword(reinterpret_cast<char*>(pPkt) + 0x23);    // msg+0x23 密码
             user->getPad()->setCancelCnt(pPkt->m_1b);
             user->getPad()->setFailCnt(pPkt->m_1f);
         }
@@ -6968,7 +6977,7 @@ struct Inter_MouseRegisterPktView
         {
             user->getPad()->setActivate(false);
             user->getPad()->setCertified(false);
-            user->getPad()->setPassword(data + 0x23);
+            user->getPad()->setPassword(reinterpret_cast<char*>(pPkt) + 0x23);   // [H2·laneA] 同上
         }
 
         PacketGuard packet;
@@ -7652,6 +7661,9 @@ struct Inter_SaveClientHackLogPktView
     // 比较点重新 call 入寄存器 iVar5），勿具名缓存复用。
     // P183：ORIG 084d1bce movl $0x64,-0x18(%ebp) 后 min 返回值经 mov (%eax),%eax
     //   直接进减法（无 penalty 落槽回读）⇒ 原码是单表达式，不设中间具名。
+    // [H2·2026-09-11 laneC P0 负结论·已回滚] ORIG 084d1bf4 `mov %eax,-0x1c(%ebp)` 复用 penalty
+    //   槽（084d1b35 同址）看似同一变量；实测删 `int rate` 合形后 nd 28→**40**（n 仍 137）
+    //   ⇒ 反向劣化（4.4 的 min 取址对 `penalty` 槽序另有约束）⇒ 回滚，判 N。
     int rate = 100 - std::min(100, penalty);
     int stdDropRate = target->getStdDropRate();      // local_20[2]
     rate = std::min(rate, stdDropRate);              // std::min(&local_20[0],&local_20[2])
@@ -7925,8 +7937,13 @@ struct Inter_ReportMannerlessPktView
     if (pPkt == 0)
         return 0;
 
+    // [H2·2026-09-11 laneC 语义轴②接收者错] ORIG 084d24c0 `movl $0x0,-0xc(%ebp)` ⇒ 初值常量 0；
+    //   084d24cb `cmpl $0x0,0xc(%ebp); je 084d24f1`（user==0 直接跳 `mov $0x0,%eax` ⇒
+    //   条件为假）+ 084d24ea `mov $0x1,%eax` 仅 'm_e != characNo' 落点 ⇒ 条件 = `user != 0 &&`；
+    //   084d2516 `mov 0xc(%ebp),%eax; mov %eax,-0xc(%ebp)` ⇒ **else 分支保留**（local_10 = user）。
+    //   旧写 `user == 0 || …` 使 user==0 时走 GetUserByAccId ⇒ 向**错误接收者**发包/写 DB（真缺陷）。
     CUser* local_10 = 0;
-    if (user == 0 ||
+    if (user != 0 &&
         pPkt->m_e != user->get_charac_no(-1))
     {
         local_10 = G_CGameManager()->GetUserByAccId(
@@ -9055,20 +9072,27 @@ struct Inter_SecurityCardActivatePktView
     Inter_SecurityCardActivatePktView* pPkt =
         reinterpret_cast<Inter_SecurityCardActivatePktView*>(data);
 
-    if (pPkt->m_a == '\0')
+    // [H2·2026-09-11 laneC P0] ORIG 084d3d8a `test %al,%al; je 084d3e50` ⇒ 错误包分支在
+    //   **函数尾部**（fall-through 是正例分支）；且 084d3e6b `mov $0x0,%eax` 在 ~PacketGuard
+    //   之后（域外）。旧写「提前 return 0 + PacketGuard 在 packet 作用域内」使 4.4 用
+    //   %ebx 跨清理（mov $0x0,%ebx + mov %ebx,%eax ⇒ n 81 vs ORIG 78）。
+    if (pPkt->m_a != '\0')
+    {
+        user->getSecurityCard()->setActivate(true);
+        user->getSecurityCard()->setCertFlag('\x01');
+
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0xa8);
+            packet.put_byte(1);
+            packet.finalize(true);
+            user->Send(packet);
+        }
+    }
+    else
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa8, 1);
-        return 0;
     }
-
-    user->getSecurityCard()->setActivate(true);
-    user->getSecurityCard()->setCertFlag('\x01');
-
-    PacketGuard packet;
-    packet.put_header(1, 0xa8);
-    packet.put_byte(1);
-    packet.finalize(true);
-    user->Send(packet);
     return 0;
 }
 
@@ -10768,12 +10792,17 @@ struct Inter_AuctionResultRegistCancelPktViewI
         }
     }
 
-    PacketGuard packet;
-    packet.put_header(1, 0xbd);
-    packet.put_byte(1);
-    packet.put_binary(data + 4, len - 4);            // 余包原样转发
-    packet.finalize(true);
-    user->Send(packet);
+    // [H2·2026-09-11 laneC P0] ORIG 084d774b `mov $0x0,%eax` 在 ~PacketGuard **之后**
+    //   （域外直接 eax）；旧写把 return 0 放在 packet 作用域内 ⇒ 4.4 用 %ebx 跨清理暂存
+    //   （mov $0x0,%ebx + mov %ebx,%eax，多 4 条，n 116 vs ORIG 112）⇒ 包独立作用域。
+    {
+        PacketGuard packet;
+        packet.put_header(1, 0xbd);
+        packet.put_byte(1);
+        packet.put_binary(data + 4, len - 4);            // 余包原样转发
+        packet.finalize(true);
+        user->Send(packet);
+    }
     return 0;
 }
 
@@ -10807,12 +10836,15 @@ struct Inter_AuctionResultRegistCancelPktViewI
         }
     }
 
-    PacketGuard packet;
-    packet.put_header(1, 0xbf);
-    packet.put_byte(1);
-    packet.put_binary(data + 4, len - 4);            // 余包原样转发
-    packet.finalize(true);
-    user->Send(packet);
+    // [H2·2026-09-11 laneC P0] 同 AuctionResultItemList（ORIG 084d7758 形）：return 0 置域外。
+    {
+        PacketGuard packet;
+        packet.put_header(1, 0xbf);
+        packet.put_byte(1);
+        packet.put_binary(data + 4, len - 4);            // 余包原样转发
+        packet.finalize(true);
+        user->Send(packet);
+    }
     return 0;
 }
 
@@ -10846,12 +10878,15 @@ struct Inter_AuctionResultRegistCancelPktViewI
         }
     }
 
-    PacketGuard packet;
-    packet.put_header(1, 0xc0);
-    packet.put_byte(1);
-    packet.put_binary(data + 4, len - 4);            // 余包原样转发
-    packet.finalize(true);
-    user->Send(packet);
+    // [H2·2026-09-11 laneC P0] 同 AuctionResultItemList（ORIG 084d78f4 形）：return 0 置域外。
+    {
+        PacketGuard packet;
+        packet.put_header(1, 0xc0);
+        packet.put_byte(1);
+        packet.put_binary(data + 4, len - 4);            // 余包原样转发
+        packet.finalize(true);
+        user->Send(packet);
+    }
     return 0;
 }
 
@@ -11293,13 +11328,13 @@ struct Inter_LoadDimensionInoutPktView
             *reinterpret_cast<unsigned char*>(data + 4 + i);
         // §P0：ORIG got 值留 %ebx 跨 G_CDataManager call 保活（无槽）⇒ 内联比较表达式。
         if (REC_BYTE(0xeb9 + i) !=
-            (char)G_CDataManager()->get_dimensionInout(i))
+            (unsigned char)G_CDataManager()->get_dimensionInout(i))   // [H2·laneD] ORIG `cmp %al,%bl`（8 位）⇒ 无符号
             changed = true;
     }
 
     REC_BYTE(0xec2) = pPkt->m_c;                       // +0xec2 m_ultimateInout[2]
     if (REC_BYTE(0xec2) !=
-        (char)G_CDataManager()->get_limit_inout_count(ENUM_BLOOD_TYPE_2))
+        (unsigned char)G_CDataManager()->get_limit_inout_count(ENUM_BLOOD_TYPE_2))   // [H2·laneD] 同上
         ultimateChanged = true;
     REC_BYTE(0xeb8) = 0;                               // +0xeb8 m_saveDemensionInout
     REC_BYTE(0xebf) = 0;                               // +0xebf m_saveBloodInout
@@ -11443,11 +11478,17 @@ struct Inter_BlackIPMonitorDeleteIPRecWinView
 //   ⇒ 原码基址用**具名 pPkt**（非裸 data 形参），且条目 +0x10 处是子结构（字段 +0x0e 相对子结构）。
 //   我方原写 `data + i * 0x14 + 0x1e`（扁平，`add $0xe; add data` 顺序相反，且多用形参而非 pPkt）。
 //   RecWinView 定义不在本件写域，故本件自带同布局子结构视图。
+// [H2·2026-09-11 laneD 语义轴修] 本 struct 原落在上一条 `#pragma pack(pop)` **之后** ⇒
+//   默认对齐把 m_val 由子结构 +0x0e 推到 +0x10；函数体按 +0x10 基址 cast ⇒ 实读条目 +0x20，
+//   而 ORIG 084d8859 `lea (%ecx,%eax,1),%eax; add $0x10,%eax; mov 0xe(%eax),%ecx` 读 **+0x1e**
+//   （真·错读 2 字节）⇒ 补 pack(1)（局部，仅包住该 struct）。
+#pragma pack(push, 1)
 struct Inter_BlackIPMonitorDeleteIPRecLeafView
 {
     char m_pad0[0xe];              // 子结构 +0x00..+0x0d
     unsigned int m_val;            // 子结构 +0x0e == 条目 +0x1e
 };
+#pragma pack(pop)
 
 #include "InterDispatcher/dispatch_sig_166.inc"
 {
@@ -12928,11 +12969,14 @@ struct Inter_ItemLimitEdition_ReplyPktView
         const unsigned short relatedCnt = rq.m_stackCount;   // +0x0c
         if (edition->getRelateditem() == 1)
         {
-            OS_API::snprintf(itemNameText, 0x62, "코인 %d개", (unsigned int)relatedCnt);
+            // [H2·2026-09-11] §6.5 语义轴：ORIG .rodata 实字节 `\xc4\xda\xc0\xce %d\xb0\xb3`（EUC-KR）；
+            //   旧写 UTF-8 韩文 ⇒ 玩家人名/物品名显示串发射字节不同。
+            OS_API::snprintf(itemNameText, 0x62, "\xc4\xda\xc0\xce %d\xb0\xb3", (unsigned int)relatedCnt);
         }
         else if (ci->is_stackable() && relatedCnt >= 2)
         {
-            OS_API::snprintf(itemNameText, 0x62, "%s %d개",
+            // [H2·2026-09-11] §6.5：ORIG 实字节 `%s %d\xb0\xb3`（EUC-KR）。
+            OS_API::snprintf(itemNameText, 0x62, "%s %d\xb0\xb3",
                              ci->GetItemName(), (unsigned int)relatedCnt);
         }
         else
@@ -13088,6 +13132,11 @@ static_assert(sizeof(Inter_SetIPCountEntry) == 0x14, "SetIPCountEntry stride");
             (unsigned int)pPkt->m_entries[i].m_c,
             (unsigned int)pPkt->m_entries[i].m_e,
             pPkt->m_entries[i].m_sub.m_ip,
+            // [H2·2026-09-11 laneA 形A 负结论·已回滚] ORIG 084dcb4b/084dcb58 走
+            //   `mov -0x20(%ebp),%ecx; lea (%ecx,%eax,1),%eax`（base 进寄存器）；本件的
+            //   4.4 恒折 `add -0x20(%ebp),%eax`（少 1 条，nd=3）。试过「显式 int 域加法 +
+            //   独立 +0x10 指针」形 ⇒ 反劣为 `mov %eax,%edx; mov -0x20(%ebp),%eax;
+            //   lea (%edx,%eax,1),%eax`（n 71→72、nd 3→5）⇒ 回滚，判 N（P30/N4 寄存器选择族）。
             reinterpret_cast<Inter_SetIPCountSubTail*>(pPkt->m_entries[i].m_sub.m_ip)->m_counter);
     }
     return 0;
@@ -13144,6 +13193,8 @@ static_assert(sizeof(Inter_SetFullIPCountEntry) == 0x18, "SetFullIPCountEntry st
             (unsigned int)pPkt->m_entries[i].m_c,
             (unsigned int)pPkt->m_entries[i].m_e,
             pPkt->m_entries[i].m_sub.m_ip,
+            // [H2·2026-09-11 laneA 形A 负结论·已回滚] 同 SetIPCount（ORIG 084dcc1d/084dcc29，
+            //   stride 0x18）：显式 int 域加法形反劣 n 71→72、nd 3→5 ⇒ 判 N。
             reinterpret_cast<Inter_SetFullIPCountSubTail*>(pPkt->m_entries[i].m_sub.m_ip)->m_counter);
     }
     return 0;
@@ -18641,7 +18692,8 @@ struct Inter_LoadCerashopAddRestrictTypePktView
 
     Inter_LoadCerashopAddRestrictTypePktView* pPkt = reinterpret_cast<Inter_LoadCerashopAddRestrictTypePktView*>(data);
 
-    if (data == 0)
+    // [H2·2026-09-11 laneD P0] ORIG 080e2164 `cmpl $0x0,-0x10(%ebp)` ⇒ 判空用局部 pPkt（非形参）。
+    if (pPkt == 0)
     {
         cMyTrace(__PRETTY_FUNCTION__,
             0x207, 5)("[%s] internal data is null.",
@@ -18650,18 +18702,20 @@ struct Inter_LoadCerashopAddRestrictTypePktView
     }
 
     CerashopAddRestrict::UserInfo& info = user->m_ceraUserInfo;
-    const int type = pPkt->m_4;
-    if (type == 0)
+    // [H2·2026-09-11 laneD P0] ORIG 080e21ba `mov 0x4(%eax),%eax; test`（无槽往返）与
+    //   080e2164 `cmpl $0x0,-0x10(%ebp)`（判空用局部 p）⇒ 删 `const int type` 具名中转，
+    //   第 3 实参经 pPkt 槽（非形参 data）。
+    if (pPkt->m_4 == 0)
     {
         CerashopAddRestrict::Manager::LoadProcess(
             info.m_field30, info.m_accountDaily,
-            reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(data));
+            reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(pPkt));
     }
-    else if (type == 1)
+    else if (pPkt->m_4 == 1)
     {
         CerashopAddRestrict::Manager::LoadProcess(
             info.m_field48, info.m_characDaily,
-            reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(data));
+            reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(pPkt));
     }
     CerashopAddRestrict::Manager::SendSyncPacket(user);
     return 0;
@@ -18809,12 +18863,18 @@ struct Inter_LoadEventLevelupSupportPktView
 {
     // ORIG 084e6ae1/084e6b22 单条 `mov 0x12(%eax),%eax` / `mov 0x16(%eax),%edx`（disp 折叠，
     //   无 add 两步）⇒ 偏移访问须经具型视图成员（局部类型不发射符号）。
+    // [H2·2026-09-11 laneD 语义轴修] 该局部 struct 未 pack ⇒ 默认对齐把 m_charNo/m_itemId
+    //   由声明的 +0x12/+0x16 推到 **+0x14/+0x18**（int 需 4B 对齐，m_pad0[0x12] 后插 2B pad），
+    //   而 ORIG 084e6ae1/084e6b22 读 `mov 0x12(%eax),%eax` / `mov 0x16(%eax),%edx`
+    //   ⇒ 真·错读 2 字节。补 pack(1)（仅包住该本地类型）。
+#pragma pack(push, 1)
     struct InfoView
     {
         char m_pad0[0x12];
         int m_charNo;   // +0x12
         int m_itemId;   // +0x16
     };
+#pragma pack(pop)
     if (user == 0)
         return 3;
     if (user->get_state() <= 2)

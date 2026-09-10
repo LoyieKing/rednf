@@ -6,6 +6,11 @@ int DisPatcher_SetPVPTeam::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     PacketGuard guard;
+    // [DPC-SigC 2026-09-11] 负结论（实测劣化，已回滚）：ORIG 0x081f6061
+    // `lea -0x1e(%ebp),%eax; add $0xd,%eax`（msg 视图 base -0x1e、成员 @+0xd = -0x11、
+    // sizeof 0xe），读取处 0x081f60xx 为单条 `movzbl -0x11(%ebp),%eax`；原独立 `char team`
+    // 使帧 0x30（ORIG 0x40）。试形 pack(1) 视图 + 「基址 + 0xd」取址 ⇒ 父泳道复编
+    // 实测 137→**145（劣化 +8）** ⇒ 回滚为独立 char（原 137/137 持平）。
     char team;
     if (!packet.get_byte(team))
     {
@@ -38,6 +43,10 @@ int DisPatcher_SetPVPTeam::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
     int result = room->set_pvp_mode(user, (int)(signed char)team);
+    // [DPC-SigC 2026-09-11] 负结论（实测劣化，已回滚）：ORIG 0x081f61xx
+    // `cmpl $0x0,-0xc(%ebp); jle <make_seat_info 块=+0x1ad>`（成功块 fall-through、
+    // 拒绝块在后）。试形 `if (0 < result) {成功}` + 拒绝落尾与上方视图改动合并复编
+    // ⇒ 父泳道实测劣化 +8 ⇒ 一并回滚（另修回原缺 `return 0;` 的尾块）。
     if (result < 1)
     {
         room->make_seat_info(reinterpret_cast<char*>(&guard), 0xffff);

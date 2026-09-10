@@ -2358,8 +2358,11 @@ typedef std::vector<MapInfo> MapInfoVec;
         }
         else
         {
-            // ORIG 0x085acf93 二参版 send_all(PacketGuard&, CUser*)（p167 MISS）。
-            G_GameWorld()->send_all(packet, m_manager);
+            // [2026-09-11 父泳道 ORIG 直证 085acf84..93] 本点 ORIG 为**单参版**
+            // `G_GameWorld(); lea -0x38(%ebp),%edx; mov %edx,0x4(%esp); mov %eax,(%esp);
+            // call _ZN9GameWorld8send_allER11PacketGuard`（多传第 2 参为转写错误；
+            // 二参版在 m_autoCreated 分支 0x85acd32，那处正确勿动）。
+            G_GameWorld()->send_all(packet);
         }
     }
     SetEPLPState(0);
@@ -5408,7 +5411,7 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
     // P183：ORIG 每个使用点各自 `mov 0x8(%ebp),%eax; add $0xb24,%eax` 重取址
     //（无引用缓存槽）；skip 布尔局部亦无槽 ⇒ 改短路表达式直用。
 #define bf (*reinterpret_cast<CBattle_Field*>(&m_battleField))
-    if (!bf.IsClearDungeon() && dieInfo.m_fieldA22 == 0 && user != 0)
+    if (!bf.IsClearDungeon() && dieInfo.m_fieldA22 == 0)
     {
         // 实参序按 ORIG 0x85b5a91..0x85b5ac4 取证：
         //   arg2 = (unsigned short)dieInfo->m_fieldF  [movzwl 0xf(%eax),%eax]
@@ -5419,15 +5422,23 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
         // ⇒ ORIG 语义 = 按"怪物序号"键控、把 killer uid 记入 m_monsterIndex；
         // 旧码把两实参互换（按 killer uid 键控）为转写错误，已正。
         // ORIG 085b5aa7 段 `call addMonsterDamage; cmp $0x2,%eax; setg %al`（无结果槽）
-        // ⇒ 结果直比，勿设具名 addCnt 局部（P0）。
-        if (2 < m_traceMobDieHack
-                    .addMonsterDamage((unsigned short)dieInfo.m_fieldF,
-                                       (unsigned short)monsterIdx,
-                                       (int)dieInfo.m_killValue2))
+        // ORIG 085b5ac9 `cmp $0x2,%eax; setg %al; test %al,%al; je`：4.1 bool 物化形，
+        // 4.4 复现钥匙 = `while(cond){…;break;}`（P225；裸 if/&& 恒产 jle 直跳）。
+        // ORIG 085b5ad3：param_1 != 0 的判空在 addMonsterDamage **之后**（独立守卫，
+        // 与 `je` 同落点 0x85b5b13）⇒ 未通过时不再调用 addMonsterDamage 之外的东西；
+        // 旧码把 `user != 0` 提前到首条件为语义错误（addMonsterDamage 有副作用）。
+        while (2 < m_traceMobDieHack
+                        .addMonsterDamage((unsigned short)dieInfo.m_fieldF,
+                                           (unsigned short)monsterIdx,
+                                           (int)dieInfo.m_killValue2))
         {
-            // [P0] ORIG 0x085b5abx：getHackAnalyzer 结果直传（无 hack 槽）。
-            user->getHackAnalyzer()->addServerHackCnt(
-                user, (WongWork::ENUM_HACKTYPE)0xc9, 1, 0, 0);
+            if (user != 0)
+            {
+                // [P0] ORIG 0x085b5abx：getHackAnalyzer 结果直传（无 hack 槽）。
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, (WongWork::ENUM_HACKTYPE)0xc9, 1, 0, 0);
+            }
+            break;
         }
     }
 
@@ -5438,15 +5449,19 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
 
     if (doCrossCheck && dieInfo.m_fieldA22 == 0 &&
         monster.m_roleType < 4 &&
-        (unsigned int)dieInfo.m_killValue2 <
-            (unsigned int)monster.m_active.getHpMax() &&      // +0x38 子对象
+        // ORIG 085b5b79..085b5b8b：先 call getHpMax（结果入 edx）再读 0xa1a，
+        // `cmp %eax,%edx; seta %al; test %al,%al; je` ⇒ 原码书写序 = hpMax > killValue2。
+        (unsigned int)monster.m_active.getHpMax() >           // +0x38 子对象
+            (unsigned int)dieInfo.m_killValue2 &&
         monsterIdx != 10 && monsterIdx != 0xc351 && monsterIdx != 0x40a)
     {
         for (int i = 0; i < 4; ++i)                     // -0x20
         {
-            if (checkValidUser(i))
-            {
-                CUser* member = get_user(i);
+            // ORIG 085b5bd3 `call checkValidUser; xor $0x1,%eax; test %al,%al; jne 085b5e1b`
+            // + 尾岛（0x3cf nop / 0x3d0 jmp）⇒ 原码是否定早退守卫（P59/P223），非正向 if。
+            if (!checkValidUser(i))
+                continue;
+            CUser* member = get_user(i);
                 // ORIG 0x085b5c07 `call GetParty; mov %eax,-0x10(%ebp)` + 0x085b5c30/3a
                 // 两处 `mov -0x10/-0x14(%ebp),%eax; mov 0xcac(%eax),%eax` ⇒ memberParty/
                 // userParty **各只调一次**并落槽（-0x14 userParty / -0x10 memberParty）。
@@ -5454,58 +5469,62 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
                 void* userParty = user->GetParty();
                 if (memberParty != 0 && userParty != 0 && member != 0)
                 {
-                    // ORIG OnKilledMonster.md 085b5c30/085b5c3d `mov 0xcac(%eax)` =
-                    // CParty::m_battleField.m_pDungeon
-                    CDungeon* mpDungeon =
-                        reinterpret_cast<CParty*>(memberParty)->m_battleField.m_pDungeon;
-                    CDungeon* upDungeon =
-                        reinterpret_cast<CParty*>(userParty)->m_battleField.m_pDungeon;
-                    if (mpDungeon == 0 || upDungeon == 0)
+                    // [P183] ORIG 085b5c30/0x3a 每次使用都重发 `mov -0x14/-0x10(%ebp),%eax;
+                    // mov 0xcac(%eax),%eax`（**无 mpDungeon/upDungeon 具名槽**）⇒ 表达式直用。
+                    if (reinterpret_cast<CParty*>(memberParty)->m_battleField.m_pDungeon == 0 ||
+                        reinterpret_cast<CParty*>(userParty)->m_battleField.m_pDungeon == 0)
                     {
-                        if (member == user)
-                            user->getHackAnalyzer()->addServerHackCnt(
-                                user, (WongWork::ENUM_HACKTYPE)0x70, 1, 0, 0);
-                        else
+                        // ORIG 085b5c51 `cmp 0xc(%ebp),%eax; je 085b5c92`：不相等直落 member 臂
+                        // ⇒ 原码 `if (member != user) {…0x71} else {…0x70}`（旧码臂序相反）。
+                        if (member != user)
+                        {
                             member->getHackAnalyzer()->addServerHackCnt(
                                 member, (WongWork::ENUM_HACKTYPE)0x71, 1, 0, 0);
+                        }
+                        else
+                        {
+                            user->getHackAnalyzer()->addServerHackCnt(
+                                user, (WongWork::ENUM_HACKTYPE)0x70, 1, 0, 0);
+                        }
                     }
                     else
                     {
-                        bool special = mpDungeon->get_index() == 0x2afe ||
-                                       upDungeon->get_index() == 0x2afe;
-                        if (special)
+                        // ORIG 085b5cd1..085b5d0d：两次 `call get_index; cmp $0x2afe` +
+                        // `mov $1/jmp/mov $0/test/je` 岛（**无 bool 具名槽**）⇒ 内联条件。
+                        if (reinterpret_cast<CParty*>(memberParty)->m_battleField.m_pDungeon->get_index() == 0x2afe ||
+                            reinterpret_cast<CParty*>(userParty)->m_battleField.m_pDungeon->get_index() == 0x2afe)
                         {
-                            if (member == user)
-                                user->getHackAnalyzer()->addServerHackCnt(
-                                    user, (WongWork::ENUM_HACKTYPE)0x70, 1, 2, 0);
-                            else
+                            // ORIG 085b5d15/085b5d1b：`cmp 0xc(%ebp),%eax; je 085b5d5c` 同理。
+                            if (member != user)
+                            {
                                 member->getHackAnalyzer()->addServerHackCnt(
                                     member, (WongWork::ENUM_HACKTYPE)0x71, 1, 2, 0);
+                            }
+                            else
+                            {
+                                user->getHackAnalyzer()->addServerHackCnt(
+                                    user, (WongWork::ENUM_HACKTYPE)0x70, 1, 2, 0);
+                            }
                         }
-                        else if (member == user)
-                        {
-                            user->getHackAnalyzer()->addServerHackCnt(
-                                user, (WongWork::ENUM_HACKTYPE)0x70, 1, 0, 0);
-                        }
-                        else
+                        else if (member != user)
                         {
                             member->getHackAnalyzer()->addServerHackCnt(
                                 member, (WongWork::ENUM_HACKTYPE)0x71, 1, 0, 0);
                         }
+                        else
+                        {
+                            user->getHackAnalyzer()->addServerHackCnt(
+                                user, (WongWork::ENUM_HACKTYPE)0x70, 1, 0, 0);
+                        }
                     }
                 }
-            }
         }
     }
 
-    bool instantCheck = false;
-    if (dieInfo.m_fieldA22 == 0 && monster.m_roleType < 4)
-    {
-        MapInfo* mapInfo = bf.GetCurrentMapInfo();
-        if (mapInfo->m_killChecker1.getUseSkillMaterialTime() == 0)
-            instantCheck = true;
-    }
-    if (instantCheck)
+    // ORIG 0x085b5e38..0x085b5e7c：三项短路条件直接物化在 %eax（`mov $1/jmp/mov $0/test/je` 岛），
+    // 无 instantCheck 布尔槽、无 mapInfo 具名局部 ⇒ 内联为单一 if 条件（P0/P214①）。
+    if (dieInfo.m_fieldA22 == 0 && monster.m_roleType < 4 &&
+        bf.GetCurrentMapInfo()->m_killChecker1.getUseSkillMaterialTime() == 0)
     {
         int level = 0;                                  // -0x10
         // P167（修正版）实证：ORIG 0x85b5e94/e4a/e58 三级判定各调一次 getHpMax
@@ -5519,7 +5538,8 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
         else if ((unsigned int)monster.m_active.getHpMax() * 2 <
                  (unsigned int)dieInfo.m_killValue2)
             level = 1;
-        if (level != 0)
+        // ORIG 085b5f1b `cmpl $0x0,-0xc(%ebp); jle`（有符号 <=0 跳走）⇒ 原码写 `0 < level`。
+        if (0 < level)
         {
             // [P0] ORIG 0x085b5e9x：getHackAnalyzer 结果直传（无 hack 槽）。
             user->getHackAnalyzer()->addServerHackCnt(
@@ -5528,6 +5548,18 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
     }
     if (bf.check_grid_clear())
         bf.onClearMap(true);
+    // [负结论 2026-09-11] ORIG 0x085b5f82/0x540 两出口均汇到 `mov $0x1,%eax`，暗示原码
+    // `return 1;`（非 void）；但权威头声明 void（P27：定义必须随头）⇒ 不可复现（差 1 条），
+    // 如需闭合须改 .h 返回类型（本泳道禁改头，仅报告）。
+    // [2026-09-11 推进] 语义修复 4 处：①`user != 0` 判空下移到 addMonsterDamage 之后
+    //（ORIG 085b5ad3 独立守卫；addMonsterDamage 有副作用，旧码提前判空会漏调用）；
+    // ②instantCheck 布尔槽改内联条件（ORIG 0x3ec 三项短路 eax 直传岛）；③臂序/极性改
+    // `member != user`（ORIG 085b5c51/085b5d15/085b5d9b `je <user臂>`）；④`0 < level`
+    //（ORIG 085b5f1b `jle`）。codegen：`while(cond){…break;}` 复现 setg 物化（P225）；
+    // 比较书写序 `hpMax > killValue2` 复现 ORIG 085b5b79 的 seta+装载序。
+    // 残 335/333：ORIG 085b5c8d..085b5e19 六臂各 `jmp 085b5e25` + 并行 nop 岛，4.4 恒
+    // jump-thread（continue 与 goto 尾标签两形各试一次，读数均 333 无变化 ⇒ 归 N(P223 边界)）；
+    // seta 段仍差 `seta/test/je`↔`jbe`（跨版本 setcc 物化，同上不可翻）。
 }
 #undef bf
 
@@ -7101,10 +7133,17 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
                                             stClearRewardExpParameter_t& param)
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS G_CDataManager（1 次，局部 dm 已存在但少一次重调）。@0x85adb00
+    // [2026-09-11 CPartyWriter] 两处落地（读数 431→431，净零但方向与 ORIG 形一致、四数不劣）：
+    // ①`int dungeonIndex` 具名槽删除、结果直传 find_dungeon 实参（ORIG 085adb1b..085adb2a 无槽）；
+    // ②`*reinterpret_cast<int*>(&param.m_pcRoomSameUserBonus)=` 改 float 位型直赋，复现 ORIG
+    // 085adf20 `mov %edx,0x34(%eax)` 单条 disp（旧码 `add $0x34,%eax; mov %edx,(%eax)` 两步，P238）。
+    // 残余 416/431：ORIG 085ae0xx 段 float 死局部两段初始化（`mov $0x0,%eax; mov %eax,-0x28`）
+    // 与 0x44/0x48 段写入次序（我方 p 段块序滑动）属 N82/N88 族，未再烧轮次。
     CDataManager* dm = G_CDataManager();                    // -0x38 local_3c
-    int dungeonIndex =
-        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
-    CDungeon* dungeon = dm->find_dungeon(dungeonIndex);     // -0x34 local_38
+    // [2026-09-11 P0] ORIG 085adb1b..085adb2a：get_dungeon_index 结果**无槽**，直进
+    // `0x4(%esp)` 作 find_dungeon 实参（旧码 `int dungeonIndex` 多 1 store+1 load）。
+    CDungeon* dungeon = dm->find_dungeon(
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());  // -0x34
     ServerParameterScript* spScript = &dm->m_serverParameter;  // -0x30 local_34（+0x68）
 
     if (dungeon == 0)
@@ -7231,7 +7270,10 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
     }
 
     // +0x41a..+0x429：网吧同号/回归用户奖励（dword 位型写入）
-    *reinterpret_cast<int*>(&param.m_pcRoomSameUserBonus) = pcRoomSameUserBonus;
+    // [2026-09-11 P238] ORIG 085adf20 `mov %edx,0x34(%eax)` 单条 disp 写（edx 中转）；
+    // 旧码 `*reinterpret_cast<int*>(&param.m_pcRoomSameUserBonus)=` 产 `add $0x34,%eax;
+    // mov %edx,(%eax)` 取址两步。改 float 位型直赋（4.4 对 float 纯搬恒 mov 直搬）。
+    param.m_pcRoomSameUserBonus = *reinterpret_cast<float*>(&pcRoomSameUserBonus);
     param.m_returnUserPartyBonus = returnUserBonus;
 
     // +0x42c..+0x474：事件角色队伍经验比例

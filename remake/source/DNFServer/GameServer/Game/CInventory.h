@@ -642,7 +642,9 @@ public:
     void ResetSlot(int invenType, int slot);
     void StartEndPos(Inven_Item::ITEM_TYPE type, int& start, int& end) const;
     void getStartEndPos(Inven_Item::ITEM_TYPE type, int& start, int& end) const;
-    int GetItemType(int itemIdx) const;
+    // 返回类型轴：ORIG 0x085018d2 prett=`Inven_Item::ITEM_TYPE CInventory::GetItemType(int) const`
+    // （ORIG 二进制 0x0872c4d740）；mangled `_ZNK10CInventory11GetItemTypeEi` 不含返回类型。
+    Inven_Item::ITEM_TYPE GetItemType(int itemIdx) const;
     int GetSlotItemType(int slot) const;
     Inven_Item::ITEM_TYPE GetItemSpace(int invenType, int slot) const;
     int get_empty_slot(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE type) const;
@@ -773,8 +775,11 @@ public:
     int GetExistCreatureSlot(Inven_Item& item) const;
     void WriteCreatureLog(INVEN_TYPE invenType, int a, int b, int c, int d,
                           eItemAddReason reason) const;
-    int RemoveKCItem();
-    static int RemoveKCItem(Inven_Item* a, Inven_Item* b);
+    // 返回类型轴：ORIG 0x0850a096 prett=`static void CInventory::RemoveKCItem(Inven_Item*, Inven_Item*)`
+    // （ORIG 二进制 0x0872c4d0c0）；带参版尾 `add $0x34,%esp; pop %ebx; pop %ebp; ret` 无 eax
+    // 赋值，无参版 0x850a298 亦 `leave; ret`（ORIG 无返回值语义）。全仓 4 处调用点均不取返回值。
+    void RemoveKCItem();
+    static void RemoveKCItem(Inven_Item* a, Inven_Item* b);
     int RemoveFPItem();
     static int RemoveFPItem(Inven_Item* a, Inven_Item* b);
     bool IsExistStackable(int itemIdx, Inven_Item::ITEM_TYPE type) const;

@@ -41,6 +41,38 @@
 //     虚槽 +0x4c = CItem::IsRandomOption 与 ORIG 0x08511xxx 一致。
 //   · _determine_level_bonus_index gap 1：register/语句表达式两形实测反劣
 //     （见函数头判词），N7/N82 封顶。
+// [b28d-tu-CItemList 2026-09-11 终轮复核] 11 件可攻件 fresh 复测：六项新旋钮实测
+//   全部零变化或反劣并已回滚（本 TU 源码净改动 0；四数 694/1358/6/14 不变）：
+//   · Load_Goods_File（0x085123da，386/387，nd 3）：ORIG 0x08512854
+//     `lea 0x14(%eax),%edx` vs 4.4 `add $0x14,%eax; mov %eax,%edx`（末求值实参的
+//     地址就地加）。探针 /tmp/probe_type.cpp（同一 4.4.6 路由后端）实证：字段为
+//     enum 或 unsigned long、`(T&)x` 或 `*(T*)&x` 四形**恒发 add** ⇒ 与字段类型
+//     及写法无关（改 CItemList.h 的 m_field14 类型亦无效），N4/P30 结构性伪影。
+//   · _determine_level_bonus_index（0x0832cc02，65/64）：ORIG `push %ebx` +
+//     循环体首 `mov -0xc(%ebp),%ebx` 跨 call 保活；`int idx` 实测 66 条（反劣）、
+//     `register` 形前轮已证免槽（帧 0x28→0x14）⇒ N7/N82（P290 反面已用尽）。
+//   · _AddItem（0x0832dd1c，78/79）/after_addItem（0x0832de18，101/103）/
+//     _FindSelectItem（0x0832d15e，109/111）：`m_bindItems[i][j]` 索引乘法链
+//     ORIG `mov -0x14,%edx; mov -0x10,%ecx`+`lea ...,%ecx` vs 4.4
+//     `mov -0x14,%ecx; mov -0x10,%eax`+`lea ...,%eax; mov %eax,%edx`（多 1 mov，
+//     即 gap 来源）；`unsigned int j` 实测零变化 ⇒ N86b（P291/P311 二维视图已是
+//     正形，P231 纯 register 不适用于有槽件）。
+//   · makeCompoundItem（0x0832ccc0，249/249）：ORIG `mov -0x24(%ebp),%eax;
+//     test %eax,%eax` vs 4.4 `cmpl $0x0,-0x24(%ebp)`（N18a）+ ORIG `mov;add mem`
+//     vs 4.4 `mov;mov;lea`；`inRarity > 0` 写法零变化、`register int inRarity`
+//     槽整体错位（-0x24→-0x28 全移，反劣）⇒ N18a/N7，长度虽相等但助记符序列
+//     不可齐（DIFF 保持）。
+//   · insert_item（0x0851129e，309/310）：4.4 把两分支共用的 `&value`(-0xe8) 的
+//     lea 提前到 call 前并缓存 %ebx（ORIG 0x08511598/0x08511614 两处均在用点
+//     `lea -0xe8(%ebp),%edx`）；`(BaseItemValue&)value` 引用 cast 同树零变化、
+//     末尾 goto 改 if/else 极性形零变化 ⇒ N95（4.4 栈槽地址 hoisting）+ N104 块布局。
+//   · insert_*_to_db（0x08620968 等）：disp 多重集逐点对比仅差 ORIG 独有的
+//     `0x400(%eax)`/`0xc00(%eax)`（`lea K(%eax)` 拆分，N4）；槽差是 4.1 浅区碎片
+//     位置不同（我方 string-home -0x58 vs ORIG -0x5c，out1/out2 =-0x60/-0x64 两侧
+//     一致）⇒ N82/N95，非声明序可翻（加死局部只会破坏已对齐的 out1/out2）。
+//   · 语义轴附带核对：本 TU 135 条字符串字面量**全部逐字节存在于 ORIG**（含 SQL/
+//     日志/PRETTY_FUNCTION 串）；EquipParamInfo/SITEMTYPE/SWEAPONTYPE/SARMORTYPE
+//     与 CSyncScript 成员偏移 = 注释 = ORIG disp（无 pack 缺失）⇒ 父项 CLEAR。
 
 #include "CItemList.h"
 #include "STEquipmentScript.h"   // EquipmentAniInfoScript / STEquipmentAniScript（insert ani 段真实类型）

@@ -36,7 +36,11 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
     // ORIG thunk：0x822fe4e=GetPartyIndex、0x80cc18e=G_CGameManager、0x8294f32=GetParty(int)
     CParty* partyByIdx = G_CGameManager()->GetParty(user->GetPartyIndex());
 
-    // ORIG 0x081c2b00 `test %al,%al; je`（**无 setcc 物化**）：原码为 `== 0` 直比较。
+    // [J5-ProcD 2026-09-11 核账] 本轮 3 处试形（①`!=0` 早返回 ②`>0` 替 `>=1`
+    // ③then 尾独立 `return 0`）**已实测劣化 + 全量回滚**：ours 123→**126（+2/+3）**，
+    // ORIG 119。ORIG 0x081c2b00 `test %al,%al; je +0xfc` 与 0x081c2b60 `jle +0x173`
+    // 的布局虽为直证，但 4.4 -O0 在本处三旋钮叠加后整体劣化 ⇒ **勿再试本组合**；
+    // 恢复旧形 `if (… == 0) { 主体 }`（记 N）。
     if (Global::CBossTowerFunc::DieCharacInDungeon(user) == 0)
     {
         if (user->get_state() == 0xd)
@@ -57,6 +61,10 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
         // `test %al,%al; jle` ⇒ 原码为 **`&&` 链** `party!=0 && dungeon!=0 &&
         // (signed char)type>=1`（任一假 → 跳 else），Blood 体为 fall-through；
         // 旧文 `||` 链 + 取反次序使 4.4 产 `jg <Blood>`（块布局相反）。
+        // [J5-ProcD 2026-09-11 核账] `> 0` 试形随本件一并回滚（整体 +2 劣化）：
+        // ORIG 0x081c2b60 `test %al,%al; jle +0x173` 为单向跳转直证，但 4.4 在本处
+        // 无论 `>= 1` 还是 `> 0` 都产 `mov $1/$0` 布尔物化 ⇒ 属 4.4/ORIG codegen 族，
+        // **勿再试**；恢复 `>= 1`。
         if (myParty != 0 &&
             (myDungeon = reinterpret_cast<CPartyDungeonView*>(myParty)->m_dungeon) != 0 &&
             static_cast<signed char>(myDungeon->m_bloodDungeonType) >= 1)

@@ -27,9 +27,20 @@ int DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
         return 1;
     }
+
     else
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
         return 1;
     }
 }
+
+// [DpcMisc-I1 2026-09-11 负结论] 本件 our 133 / ORIG 138（gap −5），唯一残差段 = 函数尾：
+// ORIG 0x081c7da8/0x081c7dad 与 0x081c7dd0 为 4.1 的「返回值寄存器 %esi + 已设置标志 %ebx」
+// 双寄存器形（分支1 `mov $0x1,%esi; mov $0x0,%ebx`，分支2 `mov $0x1,%ebx`，
+// 0x081c7df2 tail：`test %ebx,%ebx; je +1ea; mov $0x1,%esi; mov %esi,%eax`）；
+// 我方 .o（197xx）为 4.4.6 单寄存器形 `mov $0x1,%ebx` 两分支 + fall-through dtor +
+// `mov %ebx,%eax`（共少 5 条）。
+// 4.4.6 探针三形实测（if/else+`return 1;`、两分支各自 `return 1;`、混合）**均只产单寄存器
+// 形**，无一复现 ORIG 的 esi+ebx 延迟设置 ⇒ 4.1 时代码生成器特征（N），源码形不可择。
+// 头部/中段逐条已对齐（memset 常量、m_slot/m_0e 读取、TAG clear、双 put 分支均同形）。

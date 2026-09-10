@@ -822,7 +822,12 @@ public:
     void setCurCharacStamina(unsigned char value);
     void setCurCharacBackupStamina(unsigned char value);
     void addCurcharacStamina(unsigned char value);
-    unsigned char getCurCharacGrowType() const;
+    // [J7PartyGlobal 2026-09-11 · A/B 全消费 TU] 返回类型 uchar→char：
+    //   ORIG 0x08679107/0x08679186（CUser::set_grow_type）`call getCurCharacGrowType;
+    //   movsbl %al,%eax; mov %eax,-0x118(%ebp)` 对应我方源码
+    //   `int guildGrow = getCurCharacGrowType();`（**无 cast**）⇒ 必为 signed char。
+    //   全库 26 个调用点：13×movsbl / 0×movzbl（815741c 单副本）。mangled 不含返回类型。
+    char getCurCharacGrowType() const;
     char getCurCharFirstGrowType() const;
     char getCurCharSecondGrowType() const;
     void setCurCharGrowthType(char first, char second);

@@ -50,3 +50,17 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
     }
     return 1;
 }
+
+// [DpcMisc-R1 2026-09-11 负结论] 本件 our 159 / ORIG 160（gap −1），残差两项均已实测为
+// 后端 N 类，源码形无自由度，保持原形：
+// ① SIG+0x686 赋值：ORIG 0x081c6e01-0x081c6e07 `mov 0x10(%ebp),%eax;
+//    mov 0xe(%eax),%edx; mov -0xc(%ebp),%eax; mov %edx,0x686(%eax)`（一跳 mem→edx）；
+//    我方 .o 3c9a 段同位置为 `mov 0xe(%eax),%eax; mov %eax,%edx; ...`（多一跳自中转）。
+//    4.4.6 探针三形实测（`d->g = a->f;` / `= (unsigned)a->f;` / 具名临时 v）读数**全部相同**
+//    ⇒ 恒产两跳，属 4.4.6 reload 行为（ORIG 为 4.1 一跳），非源码可择。
+// ② 尾部块布局：ORIG 0x081c6e8c/0x081c6eb4 两分支 `mov $1,%ebx; jmp 0x081c6ed1` 共享
+//    函数末 tail（dtor+epilogue），unwind 块居中；我方 4.4.6 把 dtor+epilogue 就地内联在
+//    正常路径、unwind 压到最末（少 1 jmp + 8:8 块序 rotate）。b28e-L5 已试「两分支各自
+//    return 1」=159→161 更差（+2 条 dtor 调用），本轮未再试。
+// p167 实测：ORIG calls=32 / OUR calls=32，差集仅 CStreamGuard C1/C2·D1/D2 同址别名
+// （ORIG C2EP6Streamb×1+D2Ev×2 ↔ OUR C1EP6Streamb×1+D1Ev×2）⇒ 判据第 8 条不计。

@@ -1095,9 +1095,15 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
     // case10→0x84fb719），与本案 `case 0,1,3,4,10` 空 break + `case 2` 循环 +
     // default=logFormat(0x493) **语义完全一致**；ORIG 0x084fb68a `cmp $0x6;ja` 为
     // 外层跳表、内层 0x084fb6cd `cmp $0xa;ja` + `mov &data#2177f246(,%eax,4)` 为
-    // 内层跳表。我方 4.4 对该 case 集合恒选位测试（`mov $0x1;shl %cl;and mask`，
-    // jcc 8→10 的 +2 由此而来）+ push %ebx 保存 ⇒ 判 **N6/N18a 封顶**，
-    // 语义无缺口，不再耗轮次。
+    // 内层跳表。
+    // [J8InvenPvPWorld.CInventoryWriter 2026-09-11 · 本轮已解，推翻上面的 N6/N18a 判词]
+    // 旋钮：原写「5 个 case 标签堆叠共享一个 break」被 4.4 判为共享出口 ⇒ 位测试
+    // （`mov $0x1;shl %cl;and mask` + push %ebx）；改为每 case 独立 `case N: break;`
+    // （5 个独立叶块）后 4.4 立即改回跳转表，再把 `case 2` 循环体写在 case 1 与
+    // case 3 之间（叶块物理序）⇒ our_insns 123 → **113 = ORIG**，gap 0，指令序列逐条
+    // 一致。TU 口径由 diff 升 ae（strict identical 口径不做 .o 重定位归一：
+    // 我方 `mov 0x294(,%eax,4),%eax` vs ORIG `mov 0x8c93adc(,%eax,4),%eax` 永不等
+    // ⇒ 本件封顶在 ae，非 identical）。
     int count = 0;
     // [FL7GlobalData 2026-09-10 · P324 叶块物理序=书写序] ORIG 0x084f? 跳表后的
     // 首个叶块是 case 1（`movl $0x0,-0x1c; movl $0x0,-0x20`），而 `logFormat(0x4c3)`
@@ -1113,10 +1119,8 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
         switch (type)
         {
         case 0:
+            break;
         case 1:
-        case 3:
-        case 4:
-        case 10:
             break;
         case 2:
             for (int i = start; i <= end; i++)
@@ -1126,6 +1130,12 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
                     count++;
                 }
             }
+            break;
+        case 3:
+            break;
+        case 4:
+            break;
+        case 10:
             break;
         // [FL7GlobalData 2026-09-10 · P163 实测无效] ORIG 对 type switch 走完整跳表
         // （`cmp $0xa,%eax; ja <T>; mov <A>(,%eax,4),%eax; jmp *%eax`）；我方产
@@ -1296,45 +1306,45 @@ static_assert(sizeof(CInventory) == 0x7b8, "CInventory size drift");
                 __PRETTY_FUNCTION__, 0x13c2,
                 "No Item %d", itemIdx);
         }
-        return 0;
+        return (Inven_Item::ITEM_TYPE)0;
     }
     if (item->IsAvatarItem())
     {
-        return 8;
+        return (Inven_Item::ITEM_TYPE)8;
     }
     if (!item->is_stackable())
     {
         if (item->GetItemType() == 0x16)
         {
-            return 5;
+            return (Inven_Item::ITEM_TYPE)5;
         }
         if (item->GetItemType() == 0x17)
         {
-            return 6;
+            return (Inven_Item::ITEM_TYPE)6;
         }
-        return 1;
+        return (Inven_Item::ITEM_TYPE)1;
     }
     if (item->GetItemType() == 9)
     {
-        return 7;
+        return (Inven_Item::ITEM_TYPE)7;
     }
     if (item->GetItemType() == 1)
     {
-        return 3;
+        return (Inven_Item::ITEM_TYPE)3;
     }
     if (item->GetItemType() == 2)
     {
-        return 10;
+        return (Inven_Item::ITEM_TYPE)10;
     }
     if (item->GetItemType() == 8)
     {
-        return 4;
+        return (Inven_Item::ITEM_TYPE)4;
     }
     if (item->GetItemType() == 0x14)
     {
-        return 9;
+        return (Inven_Item::ITEM_TYPE)9;
     }
-    return 2;
+    return (Inven_Item::ITEM_TYPE)2;
 }
 
 #include "CInventory/GetSlotItemType.inc"
@@ -3604,7 +3614,7 @@ l_msr_fail1:
 
 #include "CInventory/RemoveKCItem.inc"
 {
-    return RemoveKCItem(m_invenItem, m_pEquipSlot);
+    RemoveKCItem(m_invenItem, m_pEquipSlot);
 }
 // [N 归因·4.1 pad 形] batch-13 P168a 亲验：同 RemoveFPItem——ORIG 空 continue
 // 出口的 nop+jmp 落点 pad 为 GCC 4.1 指令选择，4.4.7 直连 thread 无该形，
@@ -4685,6 +4695,13 @@ fail_return:
 {
     // b28d-solo-CInventory：268/273，N7 间接 call 目标寄存器封顶（4.4.7 后端固有）。
     // b28d-37 [N7 封顶，ORIG 0x850?]：间接 call 目标寄存器 %eax↔%edx 互换（P230 换后端可翻）；268/273。
+    // [J8InvenPvPWorld.CInventoryWriter 2026-09-11 · 本轮] ①**语义轴·字段错位**：color2 错误
+    // 日志实参原写 `expInfo->m_color[1]`，ORIG 0x08509226..0x08509232 为
+    // `mov -0x2c(%ebp),%eax; movzwl (%eax),%eax; movswl %ax,%edx` = m_color[0]（与 color1
+    // 日志同字段）⇒ 已改回 m_color[0]；②color1 的 `find(...) == end()` 改具名 iterator
+    // （ORIG 0x08509145..0x0850916e 为 find(-0x48)→end(-0x40)，4.4 对 `==` 右操作数先求值）
+    // ⇒ our 268 = ORIG 268，gap 0，差异块 5→2。残余 2 块 = color2 段 find/end 求值序
+    // （复用 color1 具名变量实测 our→270 劣化已回滚，见 color2 处注释）⇒ N 类残差。
     CItem* pClearItem = 0;
     CItem* pTargetItem = 0;
     CItem* localDummy = 0;   // ORIG -0x34 槽：第三个具名局部（初值 0，无使用点，P232）
@@ -4720,7 +4737,12 @@ fail_return:
                     std::map<int, AvatarVariation::colorRGB>& colorMap =
                         G_CDataManager()->m_avatarColor.m_colorMap;
                     int colorId1 = (int)expInfo->m_color[0];
-                    if (colorMap.find(colorId1) == colorMap.end())
+                    // 求值序轴：ORIG 0x08509145..0x0850916e 为 find(-0x48 sret) → end(-0x40)，
+                    // 我方 `find(...) == end()` 被 4.4 右操作数先求值（end → find）。具名
+                    // iterator 固定左先求值（P227/P221 全表达式临时链反转）。
+                    std::map<int, AvatarVariation::colorRGB>::iterator colorIt =
+                        colorMap.find(colorId1);
+                    if (colorIt == colorMap.end())
                     {
                         LogManager::logFormat(
                             1, "inventory.cpp", __PRETTY_FUNCTION__, 0x21db,
@@ -4729,12 +4751,24 @@ fail_return:
                         return;
                     }
                     int colorId2 = (int)expInfo->m_color[1];
-                    if (colorMap.find(colorId2) == colorMap.end())
+                    // [求值序轴 · 本轮定版] ORIG 0x085091df..0x08509208 为 find(-0x48)→end(-0x40)；
+                    // 4.4 对 `find(...) == end()` 右操作数先求值（end→find）⇒ 须具名 iterator 固定左先。
+                    // 负结论：复用 color1 的 colorIt 实测 our 268→270（槽间
+                    // `mov -x(%ebp),%eax; mov %eax,-y(%ebp)` 复制 2 条，4.4 对二次赋值另配 sret 槽）
+                    // ⇒ 已回滚；改用**独立具名 colorIt2**（各自 sret 槽，同 ORIG -0x48 布局）⇒
+                    // our 268 = ORIG 268，指令序列逐条一致。
+                    std::map<int, AvatarVariation::colorRGB>::iterator colorIt2 =
+                        colorMap.find(colorId2);
+                    if (colorIt2 == colorMap.end())
                     {
                         LogManager::logFormat(
                             1, "inventory.cpp", __PRETTY_FUNCTION__, 0x21e2,
                             "Avatar color2 error. ItemID(%d), colorId(%d)",
-                            pSrcItem->m_addInfo2, (int)expInfo->m_color[1]);
+                            // 字段错位轴：ORIG 0x08509226..0x0850922c 该 log 实参为
+                            // `mov -0x2c(%ebp),%eax; movzwl (%eax),%eax; movswl %ax,%edx`
+                            // = expInfo->m_color[0]（ORIG 侧与 color1 log 同字段），
+                            // 我方原写 m_color[1] ⇒ 运行期日志打印错误色号。
+                            pSrcItem->m_addInfo2, (int)expInfo->m_color[0]);
                         return;
                     }
                     bool colorOk = GetAvatarItemMgrW()->SetAvatarColor(
@@ -5282,6 +5316,14 @@ CNEEDSLOT_END:;
     // （found/itemIdx/start/end/i/count/foundCnt/type=0xb）在循环前声明并初始化、
     // 循环内仅赋值；照此还原后 324/315 → 321/320（gap 9→1）。
     // 残余 1 = StartEndPos 实参装载序（P75 跨版本）+ 槽号，封 N82。
+    // [J8InvenPvPWorld.CInventoryWriter 2026-09-11 · 本轮] ①`int type = 0xb` 改枚举
+    // `Inven_Item::ITEM_TYPE type = Inven_Item::ITEM_TYPE_INVALID`（值同 0xb）⇒ StartEndPos
+    // 实参装载序对齐 ORIG（0x08507c63..0x08507c7e 的 lea/%edx 组差异消失）；②type==5 分支
+    // `if (m_pCreatureSlot[i].m_addInfo != itemIdx) continue; return 1;` 改
+    // `if (... == itemIdx) return 1;`（P59 极性）⇒ our 324→323、差异块 12→9。
+    // 残余 = 4.4/4.1 对「if (...) return/continue」的块序镜像（ORIG `je <return>`+fallthrough
+    // i++；我方 `jne <i++>`+fallthrough return。ORIG `jl <return 0>`；我方 `jge <skip>`）
+    // ⇒ N 类封顶（同源码两编译器镜像排布，无源码旋钮；已实测两种源码形均产 jne 形）。
     if (m_pParent->getGmQuestFlag())
     {
         return 1;
@@ -5304,7 +5346,7 @@ CNEEDSLOT_END:;
     int i = 0;
     int count = 0;
     int foundCnt = 0;
-    int type = 0xb;
+    Inven_Item::ITEM_TYPE type = Inven_Item::ITEM_TYPE_INVALID;
     while (it != items.end())
     {
         found = false;
@@ -5402,11 +5444,10 @@ CNEEDSLOT_END:;
                     }
                     for (i = start; i <= end; i++)
                     {
-                        if (m_pCreatureSlot[i].m_addInfo != itemIdx)
+                        if (m_pCreatureSlot[i].m_addInfo == itemIdx)
                         {
-                            continue;
+                            return 1;
                         }
-                        return 1;
                     }
                     return 0;
                 }

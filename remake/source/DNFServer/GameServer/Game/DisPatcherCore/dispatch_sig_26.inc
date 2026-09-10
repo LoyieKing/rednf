@@ -5,8 +5,11 @@ int DisPatcher_SetPVPMapIndex::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    bool flag;
-    PacketGuard guard;
+    // [DPC-SigC 2026-09-11] P331 声明序反转（ndiff 139→93 落地）：ORIG 槽序（高→低地址）
+    // 为 sig(-0x1f..-0x11，两步取址 `lea -0x1f; add $0xd`)、guard(-0x2c..-0x21)、
+    // flag(-0x2d)，即声明序 sig,guard,flag；我方原声明序 flag,guard,sig 使 GCC 反向分配出
+    // sig(-0x2f..-0x22)、guard(-0x20..-0x15)、flag(-0x11)（LCS 约 20 块全为帧偏移差）。
+    // 父泳道复编实测 ndiff 139→93（指令数持平、verdict 不跨档）⇒ 落地。
     // [SigB] P161/P311 组件视图：ORIG 0x081f8634 `lea -0x1f(%ebp),%eax; add $0xd,%eax`
     // （两步取址＝pack(1) 消息视图成员）+ 0x081f8xxx `movzwl -0x12(%ebp),%eax` 重读
     // ⇒ 原码是 pack(1) 视图局部（base -0x1f、m_mapIdx@+0xd、sizeof 0xf），非裸 short。
@@ -22,6 +25,8 @@ int DisPatcher_SetPVPMapIndex::dispatch_sig(CUser* user, PacketBuf& packet)
     };
 #pragma pack(pop)
     SetPVPMapIndexMsgView sig;
+    PacketGuard guard;                       // ORIG -0x2c（声明序：sig,guard,flag）
+    bool flag;                               // ORIG -0x2d
     // [H5DisPatcher 兜底] 4.4 禁止对 packed 成员取址/绑定（`&sig.m_mapIdx` 与
     // `*reinterpret_cast<short*>(&sig.m_mapIdx)` 均报「不能将紧实的字段…绑定到
     // 'short int&'」）。改为「结构体基址 + 0xd 偏移」取址 ⇒ 仍复现 ORIG

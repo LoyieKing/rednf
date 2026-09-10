@@ -119,6 +119,11 @@ inline float readFloatFromBuffer(char*& offset)
     // `_ZNSs4_Rep10_M_destroyERKSaIcE` ×2（=①内联展开的可见后果，语义同）。
     // 试形：`~stream_t() __attribute__((noinline)) {}`（头内）⇒ D1Ev/deque D1Ev 两件
     // 转 DIFF（ae 25→23），已回退 ⇒ 内联决策差不可源码控，维持 N。
+    // [J10 复验 2026-09-11] p167：ORIG calls=5 我方 6 —— MISSING `stream_t::D2Ev`×1
+    // （ORIG 0x8ad0dea 处 `call <stream_t D1Ev>` 外联，我方 -O2 内联该隐式析构 ≈30 条/处）、
+    // EXTRA `_ZNSs4_Rep10_M_destroy`×2（内联展开的可见后果，语义同）；fresh 138 vs 177
+    // （gap −39 ≈ 2 处内联展开 vs 2 条 call）。残余=4.4.6 对可见隐式 dtor 的内联决策；
+    // ~stream_t 声明在 .h（本泳道禁改）且 noinline 试验已证系统性劣化 ⇒ 维持 N。
     if (streamStack_.empty())
         return false;
     if (!pop_all)
@@ -167,6 +172,10 @@ check_size:
     //   `_ZNSs4_Rep10_M_destroyERKSaIcE`×2）；②empty_file=false 的 store 落点
     //   （ORIG 在 `cmpw; je` 目标内，我们在 cmpw 后直落）；③offset_ 回写用
     //   edi vs ORIG 的 edx（寄存器分配）。语义全等 ⇒ N 封顶。
+    // [J10 复验 2026-09-11] p167：ORIG calls=13 我方 14 —— MISSING `stream_t::D2Ev`×1、
+    // `_ZNSsC2ERKSs`×2、`_ZNSsD2Ev`×1（C1/C2、D1/D2 同址别名伪差 P93）；EXTRA
+    // `_ZNSs4_Rep10_M_destroy`×2（内联展开）、`_ZNSsC1ERKSs`×2/`_ZNSsD1Ev`×1（同前别名）。
+    // fresh 177 vs 211（gap −34 ≈ 1 处 stream_t 析构内联展开）⇒ 源码不可控，维持 N。
     stream_t stream;
     stream.dir.assign(dir == 0 ? "" : dir,
                       dir == 0 ? static_cast<size_t>(0) : std::strlen(dir));
@@ -276,6 +285,12 @@ have:
 // 后仅 -0x9；`char framePad[0x10]` 被 -O2 DCE，无效）；②ORIG `mov %esi,%eax;
 // sub $0x14,%eax` 保留 esi=finish、我们直接在 esi 上减（N7 族 RA）；③主路径 epilogue
 // 落点。语义等价 ⇒ 残余 N 封顶。
+// [J10 复验 2026-09-11] E6 落地：改「两级三元 + 单一 return」后两处 ORIG NONE 构造点
+// （0x8ad0328 栈空 / 0x8ad0300 null 流，各自 allocator 槽 -0x9/-0xa）都出现，
+// p167 调用点 **7=7 CLEAR**（残余仅 C1/C2、D1/D2 同址别名伪差，P93）；指令数
+// 51→64（ORIG 62，gap −11→+2）。仍 DIFF：`sub $0x14,%esi` vs ORIG
+// `mov %esi,%eax; sub $0x14,%eax`、`add $0x4,%esi` CSE vs ORIG `sub $0x10,%esi` 分算、
+// 帧 0x28 vs 0x38 ⇒ 语义完成、byte 层 N（-O2 RA/调度）。
 #include "CompiledDNFLexCore/getStreamName.inc"
 {
     // [G11-LaneCompiledDNFLexCore 2026-09-10 试形·已回滚] 曾按 ORIG 0x8ad0290 的
@@ -284,17 +299,28 @@ have:
     // 去具名 node」⇒ fresh 读数 **81 条 vs 原 49 条（ORIG 60）严重劣化** ⇒ 回滚，
     // 维持 `bool none` + 三元合并原形（N108/deque 族：4.4 恒内联 deque 访问器）。
     stream_t* p = streamStack_.end()._M_cur;
-    bool none = true;
+    // [J10 E6 落地 2026-09-11] 拆成两个独立 NONE 构造点（ORIG 0x8ad0328 栈空 /
+    // 0x8ad0300 null 流各一，各自 sret 直构 C1EPKc），仍保持单一 return 以保 NRVO
+    // （P306 负例：混合 return 在 4.4.6 -O2 下禁用 NRVO）；p167 由 6→7 calls
+    // = ORIG 7（CLEAR，仅同址别名 C1/C2、D1/D2 伪差）。
+    bool stack_empty = true;
+    bool null_stream = false;
     if (p != streamStack_.begin()._M_cur)
     {
+        stack_empty = false;
         stream_t** node = streamStack_.end()._M_node;
         if (p == streamStack_.end()._M_first)
             p = *(node - 1) + STREAM_NODE_ELEMS;
         if (p - 1 != 0)
-            none = false;
+        {
+        }
+        else
+            null_stream = true;
     }
-    std::string result = none ? std::string("NONE") : std::string(p[-1].dir);
-    if (!none)
+    std::string result = stack_empty ? std::string("NONE")
+                        : null_stream ? std::string("NONE")
+                                      : std::string(p[-1].dir);
+    if (!stack_empty && !null_stream)
         result.append(p[-1].filename);
     return result;
 }
@@ -358,6 +384,10 @@ have:
     // diff 8 行恒定）：① 平铺独立守卫；② `__builtin_expect(tok==PAIR_INT,0)`
     // 与 `__builtin_expect(d<=1,0)`（P306 isEnd 法）；③ 正条件包裹 /
     // `d<=1 || tok==PAIR_INT` 合并短路。⇒ 块布局由后端 reorder 决定，N 封顶。
+    // [J10 复验 2026-09-11] E1/E5 两形（`expect(d<=1,0)` 与正向包裹
+    // `if (d>1){body; return …;} return false;`）fresh .o 与基线**逐字节相同**
+    // （33/33、ndiff 22 不动）；E4（三守卫合并 || 链）把检查序由 ORIG 的 4/0/1
+    // 变 0/1/4 反劣 ⇒ 全部回滚，维持 N（-O2 reorder 无源码解）。
     if (d <= 1)
         return false;
     if (tok == DNF_TOK_PAIR_INT)
@@ -381,6 +411,10 @@ have:
 // [b28d-solo 复验] 66 vs 61，ndiff 22。本波补测：overflow 的 memcpy 改用
 // `r_string->c_str()` 内联实参 / 具名 `int n=maxSize-1` 两形均不改装载序
 // （仍 size,src,dest；且局部 n 被 -O2 折叠）⇒ 维持 ORIG 形不可控的 P75 判词。
+// [J10 复验 2026-09-11] p167 **3=3 CLEAR**（0 MISSING/0 EXTRA）⇒ 调用面闭合；
+// fresh 68 vs 63（gap −5：ORIG overflow 独立 epilogue 6 条 vs 我方 tail-merge 的
+// `jmp` 1 条；ORIG fail 块在 `cmp $0x9; jne body` 中段 vs 我方尾块；overflow memcpy
+// 装载序 dst-first vs src-first，P75）。残余全为 -O2 块合并/调度 ⇒ 语义完成、byte 层 N。
 #include "CompiledDNFLexCore/getStr_1.inc"
 {
     int tok = lastToken_;
@@ -509,6 +543,13 @@ overflow:
     // [b28d-solo 复验] 199 vs 200，ndiff 112。p167 差集 **CLEAR**（ORIG 25 calls =
     // 我们 25 calls，0 MISSING / 0 EXTRA）⇒ 语义闭合，残余纯 -O2 RA/块调度
     // （①-④ 同判词），维持 N 封顶。
+    // [J10 复验 2026-09-11] p167 实测 ORIG 25 calls / 我方 24：MISSING `getToken`×1 系
+    // **同 section 内自递归 call 无 R_386_PC32 重定位**的统计伪差（我方尾块
+    // `call <getToken+0x9b>` 即递归点），MISSING `_ZNSsD2Ev`×3 / EXTRA `_ZNSsD1Ev`×3
+    // 为同址别名伪差（P93）⇒ 调用面实际 CLEAR。fresh 205 vs 211（gap −6）。语义逐块核对：
+    // EOF→`lastToken_=0`→Pop(false) 失败返回、成功尾递归；INCLUDE(11)→getStr→toTString→
+    // LoadStream→(new[]+istream::read)→toTString→PushInputStream→虚调用释放(sd.stream)→
+    // 尾递归；四条 sprintf/LexerError 错误路径全等 ⇒ 维持 N（-O2 RA/块调度）。
     stream_t* p = streamStack_.end()._M_cur;
     if (p != streamStack_.begin()._M_cur)
     {
@@ -621,6 +662,11 @@ recurse:
 // [b28d-solo 复验] gnu++0x 下 118 vs 111，ndiff 81（与 gnu++98 逐条相同）。
 // 帧 0x6c vs 0x5c（差 0x10，随 tmp 构造先后互换）。①②为 GCC 4.1/4.4 的调用重排与
 // libstdc++ deque::swap 内联形差异，源码不可控（成员先构造是 C++ 语义）⇒ 维持 N。
+// [J10 复验 2026-09-11] 注意 game_func_report 对 `_ZN14CompiledDNFLexC1Ev` 的 ORIG
+// 切片会取到 0x8ad0580（C1E）；权威地址以 nm 为准：C1Ev/C2Ev @**0x8ad07c0**
+// size 0x237。p167：ORIG calls=9 我方 6 —— MISSING `deque::D2Ev`×3 + `_Unwind_Resume`×2
+// （ORIG 3 个 EH landing 08ad0a??/08ad0b??/08ad0c?? 清理 tmp/stream_stack_），
+// EXTRA `deque::D1Ev`×2（D1/D2 同址别名伪差，P93）。属 4.1 保守 EH region 差异 ⇒ 维持 N。
 #include "CompiledDNFLexCore/CompiledDNFLex.inc"
     : offset_(0),
       lastToken_(0),
@@ -648,6 +694,10 @@ recurse:
 // vs 我们 112 条；成员初始化仅差 `stringManager_ = pStringManager`（0x10(%ebx) 直存
 // 两形一致），create(false) 一致。语义等价 ⇒ N 封顶。
 // [b28d-solo 复验] gnu++0x 下 119 vs 112，ndiff 81。与 C1Ev 同源差异，维持 N。
+// [J10 复验 2026-09-11] p167：ORIG calls=9（含 3 landing：08ad0787 无清理 / 08ad078f 清
+// stream_stack_ / 08ad07a4 清 tmp）我方 6（1 landing）—— 差集 `deque D2Ev`×3 +
+// `_Unwind_Resume`×2，EXTRA `deque D1Ev`×2（同址别名 P93）。正常路径两侧都在 memset 前
+// 析构 tmp（src 为块作用域），4.1 仅把 EH region 保守延长 ⇒ 源码不可控，维持 N。
 #include "CompiledDNFLexCore/CompiledDNFLex_1.inc"
     : offset_(0),
       lastToken_(0),

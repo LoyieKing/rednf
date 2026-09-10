@@ -40,6 +40,12 @@ int DisPatcher_IncreStatus::dispatch_sig(CUser* user, PacketBuf& packet)
         // 并 `movswl %ax,%ebx` 跨 ctor 保活 ⇒ 单语句链式）。
         cMyTrace(__PRETTY_FUNCTION__, 0x710f, 5)("__ USE QUEST ITEM __ %d",
                                                  (int)sig.m_val);
+        // [DPC-SigC 2026-09-11] ORIG 0x081edfe7 `mov $0x0,%ebx` + 0x081edfec
+        // `jmp 081ee007`（`mov %ebx,%eax` 前）：trace 段自带**独立**返回 0 物化。
+        // 我方原 fall-through 复用尾部唯一 `mov $0x0,%ebx`（0x12b57），少 1 条
+        // （LCS del ORIG[108:109]，our 122 vs ORIG 123）。补显式 return 复现该点；
+        // 语义等价（两路径本就返回 0）。预期 ours 122→123，差异块 1→0。
+        return 0;
     }
     else
     {

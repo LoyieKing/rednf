@@ -29,7 +29,23 @@ int DisPatcher_Lottery::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     }
     int result = user->lottery_item((int)idx);
-    if (result < 1)
+    // [DPC-SigC 2026-09-11] P324/P59 块序：ORIG 0x081e1e6x `cmpl $0x0,-0x10(%ebp);
+    // jle <拒绝块=+0x??>`（LCS O82）⇒ fall-through 是**成功**块（O83..O122 的
+    // PacketGuard/put_header(1,0x1d)/Send 序列），拒绝块在其后；我方原写
+    // `if (result < 1) {拒绝;return}` 使 fall-through 为拒绝块（N82..N118），
+    // 成功块被 `jg` 抛出（LCS insert OUR[119:160] 41 条）。改写为
+    // `if (0 < result) {成功;return}` + 拒绝路径落尾；对 int 语义等价。
+    // 预期 41+41 两条大块归零（仅剩 idx 两步取址 1 块），指令数不变 166。
+    if (0 < result)
+    {
+        PacketGuard guard;
+        guard.put_header(1, 0x1d);
+        guard.put_byte(0);
+        guard.put_byte(result);
+        guard.finalize(true);
+        user->Send(guard);
+        return 0;
+    }
     {
         if (user->getLastLotteryTime() != 0)
         {
@@ -47,11 +63,4 @@ int DisPatcher_Lottery::dispatch_sig(CUser* user, PacketBuf& packet)
         user->setLastLotteryTime(GlobalData::s_systemTime_.getCurSec());
         return 0;
     }
-    PacketGuard guard;
-    guard.put_header(1, 0x1d);
-    guard.put_byte(0);
-    guard.put_byte(result);
-    guard.finalize(true);
-    user->Send(guard);
-    return 0;
 }

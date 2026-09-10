@@ -26,6 +26,16 @@
 #include "CPowerManager.h"  // ENUM_POWER_SIDE_TYPE（IsPowerWarSafeZone 三参版签名，ORIG mangled _ZN9GameWorld18IsPowerWarSafeZoneEii20ENUM_POWER_SIDE_TYPE）
 #include "CPowerManager.h"  // ENUM_POWER_SIDE_TYPE（IsPowerWarSafeZone 三参版签名，ORIG mangled _ZN9GameWorld18IsPowerWarSafeZoneEii20ENUM_POWER_SIDE_TYPE）
 
+// [H8B 2026-09-11 父泳道授权] GetLeftTimeOfForbiddenChat 的 ORIG
+// `__PRETTY_FUNCTION__` 串 = `DWORD GameWorld::GetLeftTimeOfForbiddenChat(const char*)`
+// （ORIG .rodata 0x116176 附近唯一；4.4 的 prett **保留 typedef 名**）⇒ 声明/定义
+// 须写 `DWORD`。底层 = `unsigned long`（同 ServerLab/ServerLib/basic_header/stdafx.h:19，
+// 全仓 DWORD 仅此一种形态；重复同型 typedef 合法）。32 位下与 ORIG 同宽同 ABI：
+// mangled（返回类型不入 mangled）`_ZN9GameWorld26GetLeftTimeOfForbiddenChatEPKc` 不变、
+// 函数体内无 sizeof/布局依赖；3 处调用点（GameWorld.cpp:3358/4805、CUser.cpp:1815）
+// 均 `unsigned int left = ...`/`== 0` 消费，隐式截断恒合法。
+typedef unsigned long DWORD;
+
 class CUser;
 class CParty;
 class PacketGuard;
@@ -334,7 +344,7 @@ public:
     bool IsForbiddenMove(const char* name);
     unsigned int WhenIsTheEndOfForbiddenChat(const char* name);
     unsigned int WhenIsTheEndOfForbiddenMove(const char* name);
-    unsigned int GetLeftTimeOfForbiddenChat(const char* name);
+    DWORD GetLeftTimeOfForbiddenChat(const char* name);
     unsigned int GetLeftTimeOfForbiddenMove(const char* name);
 
     // ---- 每日重置 ----

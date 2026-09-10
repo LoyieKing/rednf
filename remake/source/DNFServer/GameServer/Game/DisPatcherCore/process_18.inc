@@ -118,9 +118,18 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         if (deleted > 0)
         {
             // 中途失败：先向客户端回滚已删条目，再发失败确认
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xc2a, 5);
-            trace("delete_item failed in the middle of deleting items. %d/%d",
-                  i, (int)(signed char)req.m_count);
+            // [J5-ProcD 2026-09-11 ndiff 698→692 落地] P328⑩：ORIG 段求值序直证——先算实参
+            // `mov -0x34(%ebp),%eax; movzbl 0xe(%eax),%eax; movsbl %al,%ebx`
+            // （(int)(signed char)req.m_count 入 callee-saved 保活），**再**
+            // `movl $0x5,0xc(%esp); movl $0xc2a,0x8(%esp); lea -0x4c(%ebp),%eax;
+            // call cMyTrace::cMyTrace`，最后 `mov %ebx,0xc(%esp)` 入栈
+            // ⇒ 原码是**单语句链式** `cMyTrace(...)(...)`（旧文两语句使 ctor 先于实参
+            // 求值，实参退回 eax/具名槽）。父泳道核账：指令数不变但 ndiff **698→692**
+            // （net −6）⇒ 保留本形。改前形：`cMyTrace trace(…); trace(…);`
+            // 改后形：`cMyTrace(…)(…);`。
+            cMyTrace(__PRETTY_FUNCTION__, 0xc2a, 5)(
+                "delete_item failed in the middle of deleting items. %d/%d",
+                i, (int)(signed char)req.m_count);
 
             PacketGuard ack;
             if (i > 1)

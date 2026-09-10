@@ -76,15 +76,23 @@ int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
         {
             pvpPingStat(user, local_26, local_24);
         }
+        // [DPC-SigC 2026-09-11] P324 叶块书写序：ORIG 0x0821ae9x 段为
+        // `movzbl local_f; cmp $0x2,%al; jne <LineFunc 块>`（即 then=fairPvpPingStat
+        // 走 fall-through，LineFunc(0xce44) 块位于其后，LCS O150 `jne` vs
+        // 我方 `je`+inline 块前置，双方各 6+1 条同量但块序相反）。原嵌套
+        // `if (local_f != 2) return LineFunc;` 使 then=LineFunc 前置。改为
+        // `else if (local_f == 2) fairPvpPingStat; else return LineFunc;` 复现
+        // ORIG 的 fall-through 方向。语义等价（三分支互斥）。预期 2 差异块→0，
+        // 指令数 228 不变。
+        else if (local_f == '\x02')
+        {
+            fairPvpPingStat(user, local_26, local_24);
+        }
         else
         {
-            if (local_f != '\x02')
-            {
-                return LineFunc(0xce44,
-                                __PRETTY_FUNCTION__,
-                                0, 0);
-            }
-            fairPvpPingStat(user, local_26, local_24);
+            return LineFunc(0xce44,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
         }
         break;
     }

@@ -22,11 +22,15 @@ user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatu
         return item;
     }
     // ORIG 0x833f5cd：ctor cMyTrace(__PRETTY_FUNCTION__@0x8c2eda0, 0x68, 5)；
-    // 0x833f5f0：operator()("%d]"@0x8c2d761, PF, 0x68)。
+    // 0x833f5f0：operator()(format@0x8c2d761, PF, 0x68)。
+    // [语义修复 2026-09-11] 0x8c2d761 的 .rodata 实字节 = "[%s][%d]"
+    //   （objdump -s 直证 5b 25 73 5d 5b 25 64 5d 00）；旧文 "%d]" 系地址错标
+    //   造成的**日志文本契约 bug**（§6.5：AE 归一化不比较 .rodata 内容 ⇒
+    //   verdict 不可见）⇒ 按 ORIG 直证改正。
     // [b28d-G11 回滚记录] 试过 P63/P214②「if/else 两分支 + 单一共享 return」
     // （ORIG 0x833f5cb `jmp 833f613` 直证）⇒ fresh 读数 ours 42→41、行级残差
     // 6→7 双双劣化 ⇒ 按 codegen 轴纪律回滚（gap 0→+1），维持早返形。
     cMyTrace trace(__PRETTY_FUNCTION__, 0x68, 5);
-    trace("%d]", __PRETTY_FUNCTION__, 0x68);
+    trace("[%s][%d]", __PRETTY_FUNCTION__, 0x68);
     return item;
 }

@@ -2854,7 +2854,7 @@ public:
     //   （m_updateOntime 本已 bool，字段/mangled 零影响）。
     bool is_update_ontime_last_recv_idx();
     void reset_update_ontime_last_recv_idx();
-    unsigned char CheckLoadRentalInfoFromExchange();   // ORIG movzbl 直返
+    bool CheckLoadRentalInfoFromExchange();   // ORIG 消费点 0x084c45cd `call; test %al,%al; je` 无 setne（P292 T3）
     unsigned char GetPuUser();
     void SetCeraPoint(unsigned int point);
     void SetDebugCommand(int cmd);
@@ -3046,11 +3046,11 @@ public:
     void DeleteCharac(unsigned int characNo);   // ORIG Ghidra: return; (void)
     void GiveItemsReturnUser();         // ORIG T 0x08692000
     void GiveEquipItemsReturnUser();    // ORIG T 0x08692140
-    int ChangeCharacSlot(unsigned int a, unsigned int b);
+    void ChangeCharacSlot(unsigned int a, unsigned int b);   // ORIG 0x08651bb9 单条跳尾、全函数无 mov $0,%eax（P159）
     bool checkSelectCharac(int slot);   // [b28d-Main·P292] int→bool（ORIG 调用点 0x081c6b50 `call; xor $0x1,%eax`）
     int getCharacSlotCountDefaultInfo();  // ORIG _ZN5CUser29getCharacSlotCountDefaultInfoEv W 0x0868b4fc
     void ReturnToSelectCharacList(bool param);
-    void LogoutCachedCharacter(unsigned char param);
+    unsigned char LogoutCachedCharacter(unsigned char param);   // ORIG 0x0864cd85 `mov $0x1,%eax`（尾显式 return 1）
     void SetCharacInfo(int slot, char* data);
     // [b28d-solo-DisPatcher_DebugCommand_cmds 代落 P248档①] int→bool：ORIG
     // 0x0858f496 `call SetCharacLevel; xor $1,%eax; test %al,%al; je`（!=1 物化，
@@ -3531,7 +3531,7 @@ public:
     void giveup_panalty();                                                     // 0x086786be
     void log_out();                                                            // 0x08658910
     void prepareDisconnect();                                                  // 0x086487ea
-    bool CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type);          // 0x0866cb04
+    void CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type);          // 0x0866cb04
     int CheckQuestMap(int dungeonIdx);                                          // ORIG T 0x0866cac6
     void FatigueUp(int v);                                                     // 0x08655c60
     void add_guild_pvp_result(int v);                                          // 0x0865c936

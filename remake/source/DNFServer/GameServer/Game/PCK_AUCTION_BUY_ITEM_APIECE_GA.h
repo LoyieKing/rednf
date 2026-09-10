@@ -15,7 +15,12 @@
 struct PCK_AUCTION_BUY_ITEM_APIECE_GA : public nsl::PACKET_HEADER
 {
     struct __attribute__((packed)) Body {
-        char m_pad0x12[0x14];   // payload +0x00..+0x13（绝对 +0x12..+0x25）
+        // [G5DsigE 2026-09-11] Body 视图具名化（偏移/总长逐点不变）：ORIG pck 基址
+        //   -0x56 处 +0x12/+0x16/+0x1e/+0x26 均 disp 直访 ⇒ uid/characNo/key 具名。
+        unsigned int m_uid;     // payload +0x00（绝对 +0x12）
+        int m_characNo;         // payload +0x04（绝对 +0x16）
+        char m_pad08[4];        // payload +0x08..+0x0b（绝对 +0x1a..+0x1d）
+        char m_key[8];          // payload +0x0c..+0x13（绝对 +0x1e..+0x25）
         char m_count[4];        // 绝对 +0x26 非对齐 int（ORIG add $0x26）
         char m_tail[4];         // 补齐 payload 总长 0x18
     };

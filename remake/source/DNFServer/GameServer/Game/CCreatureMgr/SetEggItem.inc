@@ -1,3 +1,10 @@
+// [2026-09-11 收口判词 · N111 死指令] ORIG 0x08336eae（58 条）vs 我方 57 条（gap +1）。
+//   ORIG 0x8336f0f `test %eax,%eax` 后紧跟无条件 `jmp 0x8336f55`（flags 无消费者）
+//   = 4.1 对「case 0 与 default 同 leaf」保留的合并比较残留；4.4 前端对该死比较恒 DCE。
+//   已试形（历史 + 本轮复查）：补 `case 0: break;`（4.4 视为与 default 同体直接折叠）、
+//   if-else 等价链（同样不产 test）⇒ 合法 C++ 不可造死指令 ⇒ N111 封顶，勿再耗轮次。
+//   p167 调用点差集 **CLEAR**（G_CDataManager/find_item/is_stackable/get_sub_type/
+//   get_rand_int/GetRandomItemIndex 计数全等）⇒ 语义无缺口。
 bool CCreatureItemConverter::SetEggItem(Inven_Item* item)
 {
     // ORIG 0x08336eae：入口无 null 检查（直 `mov 0x2(%eax),%eax`），删臆造判空。

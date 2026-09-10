@@ -1949,14 +1949,15 @@ struct BingoCheckView { char m_pad[4]; char m_b4; bool m_b5; unsigned char m_b6;
     // ORIG GetRepeatEvent(0x6a) → BingoEvent
     BingoEvent* event = reinterpret_cast<BingoEvent*>(
         GlobalData::s_event_manager->GetRepeatEvent(0x6a));
-    if (event == 0)
-    {
-        out.m_result = 0x13;
-    }
-    else
+    if (event != 0)
     {
         out.m_result = event->reqBingoQuizMark(*user, req.m_0d);
     }
+    else
+    {
+        out.m_result = 0x13;
+    }
+
     out.m_bingoData =
         *reinterpret_cast<int*>(user->getBingoData());
     return 0;
@@ -2555,8 +2556,8 @@ LPASS:;
 #include "Dispatchers/process_21.inc"
 {
     stComboSkill& out = static_cast<stComboSkill&>(param);
-    MSG_COMBO_SKILL& req = reinterpret_cast<MSG_COMBO_SKILL&>(msg);
     out.m_result = check_error(user, msg);
+
     if (out.m_result > 0)
     {
         return 0;
@@ -2570,7 +2571,9 @@ LPASS:;
     // ORIG 0x0825f385 `call getCurCharacSkillW` → 0x0825f39b `call setComboSkillInfo`
     // （结果 %eax 直作 this，0x0825f3b0/0x0825f3bc 第二处同形）：**无**具名槽
     // ⇒ 删 skillW 具名缓存（原 -0xc 每处一对 store/load）⇒ P0/P183。
+    MSG_COMBO_SKILL& req = reinterpret_cast<MSG_COMBO_SKILL&>(msg);
     reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+
         ->setComboSkillInfo((ENUM_SKILL_TREE_KIND)(char)req.m_pad0d,
                             req.m_comboMap);
     reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
@@ -3337,7 +3340,7 @@ struct GmCmdArgs
     // ORIG 0x081d0bcx：size(pkt+0x2)→%esi、&pkt→%ebx、proxy 直链（无具名槽，P0）。
     GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
         ->SendTcpPacket(reinterpret_cast<char*>(&pkt),
-                        (int)*(unsigned short*)((char*)&pkt + 2));
+                        (int)pkt.packetSize);
     user->m_historyLog.GuildCargo(static_cast<ENUM_GUILD_CARGO_HISTORY_REASON>(0),
                                   user->get_charac_guildkey());
     return 0;
@@ -3881,30 +3884,30 @@ struct GmCmdArgs
     unsigned char local_15;              // -0x11：isOpenAdvanceAltar
     WongWork::CBossTower* local_14;      // -0x10
     WongWork::CDeathTower* local_10;     // -0xc
-    PacketGuard local_40;                // -0x48：advancealtar 应答包（ORIG PacketGuard ctor 0x0858dd4c）
+
+
     char cVar2;
-    int iVar4;
-    int ret;
+
 
     if (!Global::CGlobalFunc::Get_State_Check((ch_state)user->get_state()))
     {
         return 0;
     }
-    cVar2 = packet.get_byte(local_26);
-    if ((char)(cVar2 ^ 1) != 0)          // cVar2!=1 → LineFunc 0x9238
+    if ((char)(packet.get_byte(local_26) ^ 1) != 0)          // cVar2!=1 → LineFunc 0x9238
     {
-        ret = LineFunc(0x9238, __PRETTY_FUNCTION__, 0, 0);
-        return ret;
+        return LineFunc(0x9238, __PRETTY_FUNCTION__, 0, 0);
     }
-    cVar2 = packet.get_byte(local_25);
-    if ((char)(cVar2 ^ 1) != 0)          // cVar2!=1 → LineFunc 0x9239
+
+    if ((char)(packet.get_byte(local_25) ^ 1) != 0)          // cVar2!=1 → LineFunc 0x9239
     {
-        ret = LineFunc(0x9239, __PRETTY_FUNCTION__, 0, 0);
-        return ret;
+        return LineFunc(0x9239, __PRETTY_FUNCTION__, 0, 0);
     }
-    iVar4 = user->get_state();
-    if (iVar4 == 0xd)                    // advancealtar 场景
+
+    if (user->get_state() == 0xd)                    // advancealtar 场景
     {
+        PacketGuard local_40;                // -0x48：advancealtar 应答包
+
+
         local_15 = (unsigned char)advancealtar::isOpenAdvanceAltar();
         local_40.put_header(1, 0x4b);
         local_40.put_byte((int)local_15);
@@ -3963,8 +3966,8 @@ struct GmCmdArgs
         }
         _SendEPLPError(local_24, local_25, 1);
     }
-    iVar4 = user->get_state();
-    if (iVar4 == 0xc)
+    if (user->get_state() == 0xc)
+
     {
         local_14 = user->getBossTower();
         if (local_14 == 0)
@@ -3974,14 +3977,13 @@ struct GmCmdArgs
         local_14->handleEPLPCommand((int)local_25);
         return 0;
     }
-    iVar4 = user->get_state();
-    if (iVar4 == 10)
+    if (user->get_state() == 10)
     {
         local_10 = user->getDeathTower();
         if (local_10 == 0)
         {
-            ret = LineFunc(0x92b9, __PRETTY_FUNCTION__, 0, 0);
-            return ret;
+            return LineFunc(0x92b9, __PRETTY_FUNCTION__, 0, 0);
+
         }
         local_10->handleSelectEPLPCommand(user, local_1c);
         return 0;
@@ -4404,9 +4406,9 @@ struct GmCmdArgs
 
     // [round5 A01] P0/P183：ORIG 仅 -0x24(out 引用)/-0x20(msg 指针) 两槽，无 req/bossSeq/
     //   unkKind 引用别名（各占指针槽 ⇒ 帧 0x4c→0x6c）；msg 指针在**首用点**才声明。
-    char* pReq = reinterpret_cast<char*>(&msg);            // -0x20
-    if (user->getCurCharacSkillCheckSum() !=
-        *reinterpret_cast<int*>(pReq + 0x14))              // +0x14 int
+    MSG_BOSS_DIE_CHECK& req = reinterpret_cast<MSG_BOSS_DIE_CHECK&>(msg);   // -0x20
+    if (user->getCurCharacSkillCheckSum() != req.m_skillCheckSum)
+
     {
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x25c, 1, 0, 0);
@@ -4417,11 +4419,13 @@ struct GmCmdArgs
     // party+0xc3c = CBattle_Field 起始（m_battleField 偏移 0）；每次重发 `lea 0xc3c`（P183）。
     std::vector<int>::iterator it = std::find(party->m_battleField.m_apcList.begin(),
                                               party->m_battleField.m_apcList.end(),
-                                              *reinterpret_cast<unsigned short*>(pReq + 0x10));
+                                              req.m_field10);
+
     if (it != party->m_battleField.m_apcList.end())
     {
         party->m_battleField.m_apcList.erase(it);
-        out.m_a = (short)*reinterpret_cast<unsigned short*>(pReq + 0x10);
+        out.m_a = (short)req.m_field10;
+
     }
     else
     {
@@ -4442,7 +4446,8 @@ struct GmCmdArgs
         out.m_8 = 1;
     }
 
-    if (*reinterpret_cast<unsigned short*>(pReq + 0xe) == 0xffff)   // movzwl 直证
+    if (req.m_field0e == 0xffff)   // movzwl 直证
+
     {
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0xcb, 1, 0, 0);
@@ -4949,8 +4954,8 @@ public:
         int randVal = get_rand_int(100);
         if (randVal <= 10)
         {
-            unsigned int capPoint2 = user->m_mcap.getPoint();
-            user->m_historyLog.RequestCleanPad(capPoint2, '\x02');
+            user->m_historyLog.RequestCleanPad(user->m_mcap.getPoint(), '\x02');
+
             user->DisConnSig(static_cast<DISCONN_SIG>(0x35), true, 0);
         }
     }
@@ -5189,7 +5194,8 @@ public:
         }
     }
     // ORIG：未发 DB 请求时再次调 GetNotLoadedMailCount 写 param+8
-    *(int*)((char*)&param + 8) = mailBox->GetNotLoadedMailCount();
+    out.m_8 = mailBox->GetNotLoadedMailCount();
+
     return 0;
 }
 #include "Dispatchers/read_52.inc"
@@ -5952,7 +5958,8 @@ public:
         guard.clear();
         guard.put_header(1, 0x102);
         guard.put_byte(1);
-        guard.put_short((int)*(short*)((char*)&p + 4));
+        guard.put_short(static_cast<int>(p.m_4));
+
         guard.finalize(true);
         user->Send(guard);
 
@@ -6365,8 +6372,9 @@ public:
     //   ⇒ 内联嵌套实参；实参右→左（slot 先、invenType 次、this 最后）与 ORIG 同序。
     const Inven_Item* item =
         user->getCurCharacInvenRefR()->GetInvenRef(
-            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(unsigned char)pMsg[0x0d]),
-            (int)*(short*)(pMsg + 0x0e));
+            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)
+                reinterpret_cast<const MSG_HATCH_CREATURE*>(pMsg)->m_itemSpace),
+            (int)reinterpret_cast<const MSG_HATCH_CREATURE*>(pMsg)->m_slotIdx);
     if (item == 0)
     {
         return LineFunc(0x2533,
@@ -6890,7 +6898,12 @@ public:
             // ORIG 段直证：`movb $0x1,-0x6c(%ebp)` / `movw $0x1,-0x4d(%ebp)` —— 常量下标
             // 折叠为 ebp 直接偏移（原 `*(T*)(buf+0xNN)` 形退化为 lea+add 两段）。
             msgBuf[0x0d] = 1;
-            *reinterpret_cast<unsigned short*>(&msgBuf[0x2c]) = 1;
+            struct __attribute__((packed)) MsgMakePvPRoomView
+            {
+                char m_pad0[0x2c];
+                unsigned short m_field2c;   // +0x2c
+            };
+            reinterpret_cast<MsgMakePvPRoomView*>(msgBuf)->m_field2c = 1;
             if (!MakePVPRoom(user, *reinterpret_cast<MSG_MAKE_PVP_ROOM*>(msgBuf),
                              (ENUM_CMDPACKET)0x65, (PVP_BATTLE_MODE)2))
             {
@@ -8369,16 +8382,27 @@ LBODY:
         return 0;
     }
     Packet_PvPChannelInfo channelInfo;
-    *(unsigned int*)((char*)&channelInfo + 0x0e) = user->GetUID();
-    *(unsigned int*)((char*)&channelInfo + 0x0a) = user->getCurCharacNo();
-    *(unsigned char*)((char*)&channelInfo + 0x16) = 9;
-    *(unsigned int*)((char*)&channelInfo + 0x12) = (unsigned int)user->GetSchoolNo();
-    *(unsigned short*)((char*)&channelInfo + 0x02) = 0x18;
+    // ORIG 0x08217a3x 段：五个字段写全部直折叠（`mov %eax,-0x17fe(%ebp)` / `movb $0x9,-0x17f6(%ebp)`），
+    //   size 取 PacketHeader::packetSize 具名成员（`movw $0x18,-0x180a; movzwl -0x180a,%eax`）。
+    struct __attribute__((packed)) PvPChannelInfoView
+    {
+        char m_head[0xa];          // +0x00 PacketHeader
+        unsigned int m_characNo;   // +0x0a
+        unsigned int m_uid;        // +0x0e
+        unsigned int m_schoolNo;   // +0x12
+        unsigned char m_field16;   // +0x16
+    };
+    reinterpret_cast<PvPChannelInfoView*>(&channelInfo)->m_uid = user->GetUID();
+    reinterpret_cast<PvPChannelInfoView*>(&channelInfo)->m_characNo = user->getCurCharacNo();
+    reinterpret_cast<PvPChannelInfoView*>(&channelInfo)->m_field16 = 9;
+    reinterpret_cast<PvPChannelInfoView*>(&channelInfo)->m_schoolNo = (unsigned int)user->GetSchoolNo();
+    channelInfo.packetSize = 0x18;
     // [DispA2 P0/P183] ORIG 0x08217a8b..0x08217ab9：GetServerProxy 回值直作
     //   SendTcpPacket 的 receiver（%eax 直入 (%esp)），无 proxy 具名槽。
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
-        ->SendTcpPacket((char*)&channelInfo, 0x18);
+        ->SendTcpPacket((char*)&channelInfo, channelInfo.packetSize);
     return 0;
+
 }
 #include "Dispatchers/process_87.inc"
 #include "Dispatchers/read_90.inc"
@@ -8469,12 +8493,15 @@ LBODY:
 
     // [G1Dproc 2026-09-10] ORIG 0x081cd1a8 `mov 0x10(%ebp),%eax; mov %eax,-0x1c(%ebp)`
     //   ⇒ msg 指针槽在**第二段**（LineFunc 早退之后）才初始化，声明须下移。
-    char* pMsg = (char*)&msg;
+    MSG_RENAME_CREATURE* pMsg = reinterpret_cast<MSG_RENAME_CREATURE*>(&msg);
 
     // 名字为默认占位名"이름없음"时清空为空串再改名。
-    if (strcmp(pMsg + 0x14, "\xec\x9d\xb4\xeb\xa6\x84\xec\x97\x86\xec\x9d\x8c") == 0)
+
+    if (strcmp(pMsg->m_name, "\xec\x9d\xb4\xeb\xa6\x84\xec\x97\x86\xec\x9d\x8c") == 0)
+
     {
-        memset(pMsg + 0x14, 0, 0xd);
+        memset(pMsg->m_name, 0, 0xd);
+
     }
 
     // [G1Dproc] ORIG 0x081cd1ce 起：slot→%esi（`movzbl 0xd; movsbl %al,%esi`）、
@@ -8483,9 +8510,10 @@ LBODY:
     //   ⇒ 删 4 个具名局部；实参右→左（slot 先、creatureIdx 次、name 最后）与 ORIG 同序。
     //   _ZN13user_creature12CCreatureMgr14RenameCreatureEPKcii @0x08339b6e
     user->getCurCharacInvenW()->GetCreatureMgrW()->RenameCreature(
-        pMsg + 0x14,
-        (int)*(short*)(pMsg + 0x0e),
-        (int)(signed char)pMsg[0x0d]);
+        pMsg->m_name,
+        (int)pMsg->m_field0e,
+        (int)pMsg->m_field0d);
+
 
     return 0;
 }
@@ -9653,7 +9681,8 @@ LBODY:
         // [G1-Dispatchers] ORIG 0x0825efxx 段重定位目标为 `_ZN9PacketBuf7get_intERj`
         // （unsigned int&），我方传 int& 选到 `…7get_intERi`（p167 MISS/EXTRA 各 1）。
         if (!packet.get_int(*reinterpret_cast<unsigned int*>(
-                reinterpret_cast<char*>(&req) + i * 4 + 0xd)))
+                (reinterpret_cast<char*>(&req) + i * 4) + 0xd)))
+
         {
             return LineFunc(0x2bb,
                             __PRETTY_FUNCTION__,
@@ -9897,7 +9926,7 @@ LBODY:
     //   packet+0x2 字段而非常量 0x16（原码传常量会少两条 movzwl）。
     GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
         ->SendTcpPacket(reinterpret_cast<char*>(&packet),
-                        (int)*(unsigned short*)((char*)&packet + 2));
+                        (int)packet.packetSize);
     return 0;
 }
 #include "Dispatchers/read_116.inc"
@@ -10184,7 +10213,8 @@ LBODY:
     CExpandEquipslot* expand =
         user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
     out.m_result = (unsigned char)(char)expand->EquipslotSwitch(
-        user, ((char*)&req)[0xf], ((char*)&req)[0xd], ((char*)&req)[0xe]);
+        user, (char)req.m_field0f, (char)req.m_field0d, (char)req.m_field0e);
+
     return 0;
 }
 // b28d-solo-Dispatchers verdict=AE(routed) [S206 翻正] ORIG 0x081d606e
@@ -10927,7 +10957,10 @@ L_late:;
                         0, 0);
     }
     cMyTraceNoop log;
-    log(" %s Lack votes slot %d as Lack.", user->getCurCharacName(), (int)seat);
+    // [J1Dispatchers 2026-09-11] §6.5 文本契约：ORIG .rodata 0x0b7a6ec =
+    //   "user %s Lack votes slot %d as Lack"（无前导空格、无结尾句点）——
+    //   旧形 " %s ... as Lack." 为发明文本，AE 口径不可见（P-6.5）。
+    log("user %s Lack votes slot %d as Lack", user->getCurCharacName(), (int)seat);
     // ORIG 0x0820..：[46] 段先用 `$0x8de8`（_!pPVPRoom）⇒ CheckInPvp() 为**真**/PVPRoom
     //   分支在前；我方旧形 `if (!CheckInPvp())` 令两支序列整体互换（ndiff 38）。
     if (user->CheckInPvp())
@@ -11813,6 +11846,7 @@ L_late:;
             *(reinterpret_cast<char*>(&msg) + 0xd),
             *reinterpret_cast<unsigned long*>(reinterpret_cast<char*>(&msg) + 0xe));
         *(reinterpret_cast<int*>(&param) + 1) = result;
+
     }
     return 0;
 }
@@ -12138,7 +12172,7 @@ L_late:;
     //   (&pkt)、GetServerGroup→GetServerProxy 直链（**无** proxy 具名槽，P0）。
     GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
         ->SendTcpPacket(reinterpret_cast<char*>(&pkt),
-                        (int)*(unsigned short*)((char*)&pkt + 2));
+                        (int)pkt.packetSize);
     user->m_historyLog.GuildCargoHistory(static_cast<ENUM_GUILD_CARGO_HISTORY_REASON>(3),
                                          user->get_charac_guildkey());
     return 0;
@@ -12705,7 +12739,8 @@ L_late:;
 #include "Dispatchers/dispatch_sig_93.inc"
 {
     char cVar2;
-    int local_2c;                        // -0x2c：getGuildCargoUpradeInfo 结果
+    STGuildStorageUpgradeInfo* local_2c;   // -0x2c：getGuildCargoUpradeInfo 结果
+
     unsigned int local_28;               // -0x28：info+8（扣减点数）
     int local_24;                        // -0x24：info+0xc（所需物品数量）
     unsigned int local_20;               // -0x20：info+4（所需 PowerWar 点数）
@@ -12735,15 +12770,17 @@ L_late:;
     }
     int iVar5 = user->GetGuildCargoCapacity();
     // GuildParameterScript::getGuildCargoUpradeInfo（CDataManager::m_guildParameter +0xa50c）
-    local_2c = (int)G_CDataManager()->m_guildParameter.getGuildCargoUpradeInfo(iVar5);
+    local_2c = G_CDataManager()->m_guildParameter.getGuildCargoUpradeInfo(iVar5);
+
     if (local_2c == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x10d, 1);
         return 0;
     }
-    local_28 = *(unsigned int*)(local_2c + 8);
-    local_24 = *(int*)(local_2c + 0xc);
-    local_20 = *(unsigned int*)(local_2c + 4);
+    local_28 = (unsigned int)local_2c->m_field8;
+    local_24 = local_2c->m_fieldC;
+    local_20 = (unsigned int)local_2c->m_field4;
+
     unsigned int local_2c_val = local_28;
     unsigned int uVar6 = (unsigned int)user->GetGuildPowerWarPoint();
     if (uVar6 < local_28)
@@ -12807,11 +12844,13 @@ L_late:;
     local_4ev.m_guildKey = user->get_charac_guildkey();
     local_4ev.m_charNo = user->getCurCharacNo();
     local_4ev.m_curCapacity = user->GetGuildCargoCapacity();
-    local_4ev.m_newCapacity = user->GetGuildCargoCapacity() + *(int*)(local_2c + 0x10);
-    local_4ev.m_field1a = *(unsigned int*)(local_2c + 4);
+    local_4ev.m_newCapacity = user->GetGuildCargoCapacity() + local_2c->m_field10;
+
+    local_4ev.m_field1a = (unsigned int)local_2c->m_field4;
+
     pCVar9 = GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
     pCVar9->SendTcpPacket((char*)&local_4ev,
-                          (unsigned int)*(unsigned short*)((char*)&local_4ev + 2));
+                          (unsigned int)local_4ev.packetSize);
     return 0;
 }
 #include "Dispatchers/process_154.inc"
@@ -12880,31 +12919,39 @@ L_late:;
     //   均为 `movzbl 0x8d252(%eax),%eax` + `cmp $0x4/%0x5,%al; **ja**`（零扩展读 + **无符号**序）
     //   ⇒ 该字节按 unsigned char 访问；旧码 `char&` 有符号 ⇒ 我方产 setl/jl（统计 u/s=1/3
     //   vs ORIG 4/0）。语义等价（`<5` ⇔ `<=4`、无符号/有符号在 0..5 值域同解）。
-    unsigned char& retryCnt =
-        reinterpret_cast<unsigned char&>(user->m_field5);          // +0x8d252（movzbl 直证）
-    if (retryCnt < 5)
+    // [G5DsigE] 去引用绑定：ORIG 0x0820b188/0x0820b196 均 `movzbl 0x8d252(%eax),%eax`
+    //   直读具名成员（引用绑定先物化地址 ⇒ 我方 add+槽往返 4 条/次）。类型视图用显式
+    //   unsigned char 转换（ORIG 零扩展读直证）。
+    if (static_cast<unsigned char>(user->m_field5) < 5)
     {
-        retryCnt = static_cast<unsigned char>(retryCnt + 1);
+        user->m_field5 = static_cast<char>(
+            static_cast<unsigned char>(user->m_field5) + 1);
     }
+
     unsigned int value = 0;                                                    // -0x14
     if (!packet.get_int(value))
     {
-        if (retryCnt < 6)
+        if (static_cast<unsigned char>(user->m_field5) < 6)
         {
             user->m_historyLog.AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)1,
-                                            0x25d, retryCnt, 0);
+                                            0x25d,
+                                            static_cast<unsigned char>(user->m_field5),
+                                            0);
         }
+
         return 0xa76a;
     }
     const int dummySeq = 0xd;                                                  // -0x10
     if (value > 0x567)
     {
-        if (retryCnt < 6)
+        if (static_cast<unsigned char>(user->m_field5) < 6)
         {
             user->m_historyLog.AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)2,
-                                            0x25d, retryCnt,
+                                            0x25d,
+                                            static_cast<unsigned char>(user->m_field5),
                                             static_cast<int>(value));
         }
+
         return LineFunc(
             0xa780,
             __PRETTY_FUNCTION__,
@@ -13391,13 +13438,17 @@ L_late:;
     if (packet.get_int(values[4]) != 1) return LineFunc(0x9d23, __PRETTY_FUNCTION__, 0, 0);
     if (packet.get_int(values[5]) != 1) return LineFunc(0x9d24, __PRETTY_FUNCTION__, 0, 0);
 
-    *(int*)((char*)user + 0x8e03c) = values[0];
-    *(int*)((char*)user + 0x8e044) = values[2];
-    *(int*)((char*)user + 0x8e048) = values[3];
-    *(int*)((char*)user + 0x8e040) = values[1];
-    *(int*)((char*)user + 0x8e04c) = values[4];
-    *(int*)((char*)user + 0x8e050) = values[5];
-    *(char*)((char*)user + 0x8e074) = 1;
+    // [G5DsigE] 裸偏移 → 具名成员（Character = CUser+0x8e034；IData 零大小，故
+    //   +0x8/0xc/0x10/0x14/0x18/0x1c = PlayInfo::m_f08/m_f0c/m_f10/m_f14/m_f18/m_f1c，
+    //   与 CParty.cpp:3674 的 `user+0x8e054 = m_f20` 直证一致）。
+    user->m_character.m_f08 = values[0];
+    user->m_character.m_f10 = values[2];
+    user->m_character.m_f14 = values[3];
+    user->m_character.m_f0c = values[1];
+    user->m_character.m_f18 = values[4];
+    user->m_character.m_f1c = values[5];
+    user->m_field8e074 = 1;
+
     return 0;
 }
 #include "Dispatchers/process_162.inc"
@@ -13479,7 +13530,8 @@ L_late:;
     // 逐字段拷 msg 值后经 statistic 代理 SendPacket(pkt, 0x1e)。
     // [G1Dproc 2026-09-10] ORIG 第一句即 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`
     //   ⇒ msg 指针槽的声明在 check_error 之前（槽序 -0x10=msg、-0xc=err）。
-    const char* m = reinterpret_cast<const char*>(&msg);
+    const MSG_COMPATIBILITY_INDEX* m =
+        reinterpret_cast<const MSG_COMPATIBILITY_INDEX*>(&msg);
     int err = check_error(user, msg, param);
     if (err > 0)
     {
@@ -13505,18 +13557,18 @@ L_late:;
     //   无 lea、无 `char* p` 指针槽）⇒ 原码是 packed 结构**具名成员**直存；裸 char* 取址
     //   生 lea+间接写（我方 110 insn vs ORIG 78）。
     pkt.m_accId = (unsigned int)user->get_acc_id();                   // +0x0a
-    pkt.m_cpuClock = *reinterpret_cast<const int*>(m + 0x10);         // +0x10
-    pkt.m_cpuNum = (unsigned char)m[0x0e];                            // +0x0f（ORIG 源 msg+0xe）
-    pkt.m_cpuVendor = (unsigned char)m[0x0d];                         // +0x0e（ORIG 源 msg+0xd）
-    pkt.m_ram = *reinterpret_cast<const unsigned short*>(m + 0x14);   // +0x14
-    pkt.m_videoVendor = *reinterpret_cast<const unsigned short*>(m + 0x16);  // +0x16
-    pkt.m_videoRam = *reinterpret_cast<const unsigned short*>(m + 0x1a);     // +0x1a
-    pkt.m_videoDevice = *reinterpret_cast<const unsigned short*>(m + 0x18);  // +0x18
-    pkt.m_os = (unsigned char)m[0x1c];                                // +0x1c
-    pkt.m_osBit = (unsigned char)m[0x1d];                             // +0x1d
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(0));
-    proxy->SendPacket(reinterpret_cast<char*>(&pkt), 0x1e);
+    pkt.m_cpuClock = m->m_10;                        // +0x10
+    pkt.m_cpuNum = (unsigned char)m->m_0e;           // +0x0f（ORIG 源 msg+0xe）
+    pkt.m_cpuVendor = (unsigned char)m->m_0d;        // +0x0e（ORIG 源 msg+0xd）
+    pkt.m_ram = m->m_14;                             // +0x14
+    pkt.m_videoVendor = m->m_16;                     // +0x16
+    pkt.m_videoRam = m->m_1a;                        // +0x1a
+    pkt.m_videoDevice = m->m_18;                     // +0x18
+    pkt.m_os = m->m_1c;                              // +0x1c
+    pkt.m_osBit = m->m_1d;                           // +0x1d
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(0))
+        ->SendPacket(reinterpret_cast<char*>(&pkt), 0x1e);
+
     return 0;
 }
 #include "Dispatchers/read_167.inc"
@@ -13940,7 +13992,7 @@ L_late:;
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
     proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt),
-                         (int)*(unsigned short*)((char*)&pkt + 2));
+                         (int)pkt.packetSize);
 
     user->m_historyLog.GuildCargoCheckPushItem(
         (ENUM_GUILD_CARGO_HISTORY_REASON)5,
@@ -14469,29 +14521,26 @@ L_late:;
     if (pay == 1)
     {
         PCK_AUCTION_REGIST_CANCEL_GP pck;
-        char* const body = reinterpret_cast<char*>(&pck);
-        // ORIG [64]/[67]：`mov %eax,-0x39(%ebp)` / `mov %eax,-0x35(%ebp)`
-        //   —— uid/characNo 具名 int 槽（我方可变体：直接 lea 链 ⇒ 帧 +0x10）。
-        unsigned int uid = user->GetUID();
-        int characNo = user->getCurCharacNo();
-        *reinterpret_cast<unsigned int*>(body + 0x12) = uid;
-        *reinterpret_cast<int*>(body + 0x16) = characNo;
-        if (packet.get_binary(body + 0x1a, 8) != 1)
+        // [G5DsigE] ORIG 0x08214cxx 直证 pck 基址 -0x4b：uid 落 -0x39=pck+0x12、
+        //   characNo 落 -0x35=pck+0x16（**无 body 指针槽、无 uid/characNo 局部**）。
+        //   m_data 起点 = PACKET_HEADER 0x12 ⇒ +0/+4/+8 即 +0x12/+0x16/+0x1a。
+        *reinterpret_cast<unsigned int*>(pck.m_data + 0x0) = user->GetUID();
+        *reinterpret_cast<int*>(pck.m_data + 0x4) = user->getCurCharacNo();
+        if (packet.get_binary(pck.m_data + 0x8, 8) != 1)
             return LineFunc(0xc4b1, __PRETTY_FUNCTION__, 0, 0);
+
         GlobalData::s_cera_auction_proxy->SendPacket(
             reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
     else
     {
         PCK_AUCTION_REGIST_CANCEL_GA pck;
-        char* const body = reinterpret_cast<char*>(&pck);
-        // ORIG [97]/[100]：同上（GA 支复用 -0x39/-0x35 槽）。
-        unsigned int uid = user->GetUID();
-        int characNo = user->getCurCharacNo();
-        *reinterpret_cast<unsigned int*>(body + 0x12) = uid;
-        *reinterpret_cast<int*>(body + 0x16) = characNo;
-        if (packet.get_binary(body + 0x1a, 8) != 1)
+        // [G5DsigE] 同 GP 支：直写包体成员（ORIG 复用 -0x39/-0x35 disp store）。
+        *reinterpret_cast<unsigned int*>(pck.m_data + 0x0) = user->GetUID();
+        *reinterpret_cast<int*>(pck.m_data + 0x4) = user->getCurCharacNo();
+        if (packet.get_binary(pck.m_data + 0x8, 8) != 1)
             return LineFunc(0xc4c4, __PRETTY_FUNCTION__, 0, 0);
+
         GlobalData::s_auction_proxy->SendPacket(
             reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
@@ -15254,7 +15303,10 @@ L_late:;
 #include "Dispatchers/dispatch_sig_116.inc"
 {
     // ORIG 0x08228e5e：随机选项解封（金币/卷轴双通道）。
-    if (user == 0 || user->get_state() < 3 || user->getCurCharacR() == 0)
+    // [G5DsigE·语义轴] ORIG 0x08228e5e 直证无 user 判空（首 6 条即 push/push/sub/mov/
+    //   mov/call，直接取 user->get_state()）；我方 `user == 0` 为发明校验，删除。
+    if (user->get_state() < 3 || user->getCurCharacR() == 0)
+
         return 0;
     if (user->CheckInTrade())
         return 0;
@@ -15623,7 +15675,8 @@ L_late:;
 
     // msg+0xd：购买开关字节（非 0 → true）。
     bool buy =
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(&msg) + 0xd) != 0;
+        reinterpret_cast<const MSG_SECRET_SHOP_OPEN_CLOSE*>(&msg)->m_openFlag != 0;
+
     int pos = user->GetUserPosInParty();
     reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(shopData)->SetBuying(pos, buy);
     return 0;
@@ -16263,10 +16316,10 @@ L_late:;
     // +0x045: ORIG [21]/[25] `mov %eax,-0x44(%ebp)` / `mov %eax,-0x40(%ebp)`
     //   —— 两个具名 int 暂存槽；直接用 lea 链写包体令 4.4 产 `lea 0x12(%eax),%ebx`
     //   三重 lea 且帧 0x60→0x70。
-    unsigned int uid = user->GetUID();
-    int characNo = user->getCurCharacNo();
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x12) = uid;
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&pck) + 0x16) = characNo;
+    // [G5DsigE] ORIG 直证 uid/characNo 落 pck 成员位（无独立具名槽）⇒ 具名成员直写。
+    pck.m_body.m_uid = user->GetUID();
+    pck.m_body.m_characNo = user->getCurCharacNo();
+
 
     int price = 0;
     if (!packet.get_int(price))
@@ -16279,18 +16332,18 @@ L_late:;
         return LineFunc(0xc502, __PRETTY_FUNCTION__, 0, 0);
     }
     // pck+0x1e = char[8] 竞拍键
-    if (!packet.get_binary(reinterpret_cast<char*>(&pck) + 0x1e, 8))
+    if (!packet.get_binary(pck.m_body.m_key, 8))
+
     {
         return LineFunc(0xc503, __PRETTY_FUNCTION__, 0, 0);
     }
 
     // +0x139: ORIG [72:76] `movl $0x0,-0x21/-0x1d/-0x19` + `movb $0x0,-0x15`
     //   —— 3×4B + 1×1B 立即数覆盖 13 字节；逐字节赋值被 4.4 折成 13 条 movb。
-    char itemKey[13];
-    *(unsigned int*)(itemKey + 0) = 0;
-    *(unsigned int*)(itemKey + 4) = 0;
-    *(unsigned int*)(itemKey + 8) = 0;
-    itemKey[12] = 0;
+    // [G5DsigE] ORIG 4 条 disp 立即数 store = 聚合零初始化（13B < rep-stos 阈值）；
+    //   裸指针 4 写被 4.4 展开成 lea+add+store 链（12 条）。
+    char itemKey[13] = {0};
+
     if (!packet.get_binary(itemKey, 13))
     {
         return LineFunc(0xc508, __PRETTY_FUNCTION__, 0, 0);
@@ -16324,7 +16377,8 @@ L_late:;
         **guard << static_cast<int>(user->GetUID());
         SIG_AUCTION_MONEY_SUB* sig = guard->GetInBuffer<SIG_AUCTION_MONEY_SUB>();
         memset(sig, 0, 0x28);
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 4) = price;
+        sig->m_arg04 = price;
+
         strncpy(reinterpret_cast<char*>(sig) + 8, itemKey, 13);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);
     }
@@ -17609,13 +17663,12 @@ LPROCESS:
         Packet_Monitor_Request_Charac_Info pkt;
         strncpy(reinterpret_cast<char*>(&pkt) + 0xa,
                 reinterpret_cast<char*>(&m) + 0xd,
-                *(int*)(reinterpret_cast<char*>(&m) + 0x2c));
-        *(int*)(reinterpret_cast<char*>(&pkt) + 0x1f) = user->getCurCharacNo();
+                m.m_2c);
+        pkt.m_field1f = user->getCurCharacNo();
 
-        ENUM_SERVER_GROUP group = user->GetServerGroup();
-        CMonitorServerProxy* proxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(group);
-        proxy->SendPacket(reinterpret_cast<char*>(&pkt), 0x23);
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->SendPacket(reinterpret_cast<char*>(&pkt), 0x23);
+
     }
     return 0;
 }
@@ -18080,13 +18133,20 @@ LPROCESS:
     }
     // [G1Frest 2026-09-10] ORIG 0x081ce7a9 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`
     //   ⇒ param 具名指针局部 -0x10（P0 槽往返，非内联 &param）。
-    ParamBase* p = &param;
+    struct ClientSpecParamView
+    {
+        char m_pad[4];
+        unsigned char m_type;   // +0x04
+    };
+    const ClientSpecParamView* p = reinterpret_cast<const ClientSpecParamView*>(&param);
+
     char* hwSpec = user->getClientHWSpec();                        // -0xc
     // ORIG 0x081ce7c0/0x081ce7d2：p[4] 两次独立重算（P48/P0）
     //   ⇒ 禁 specType/special 具名缓存（旧码 -0x21/-0x20 两槽为发明）。
     if (hwSpec[0] != 0 &&
-        *(unsigned char*)((char*)p + 4) != 1 &&
-        *(unsigned char*)((char*)p + 4) != 0x81)
+        p->m_type != 1 &&
+        p->m_type != 0x81)
+
     {
         return;
     }
@@ -18095,8 +18155,9 @@ LPROCESS:
     //   _ZnwjPv/_ZdlPvS_/_Unwind_Resume + push %edi + 帧 +0x1c（N83 我方侧形），
     //   而 ORIG 只有一条 call（4.1 前端内联 placement new）。
     Packet_Client_Spec_Statistic stat;
-    if (*(unsigned char*)((char*)p + 4) == 1 ||
-        *(unsigned char*)((char*)p + 4) == 0x81)
+    if (p->m_type == 1 ||
+        p->m_type == 0x81)
+
     {
         stat.m_type = 2;                                           // ORIG 0x081ce805 `movb $0x2,-0xc0c`
     }
@@ -18892,8 +18953,9 @@ LPROCESS:
         param.m_9 = static_cast<unsigned char>(user->getCharacSlotLimit());
         Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x429a);
         CStreamGuard guard(stream, true);
-        guard << 0x28a;
-        guard << -1;
+        (*guard)->operator<<(0x28a);
+        (*guard)->operator<<(-1);
+
         char* buf = reinterpret_cast<char*>(guard->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>());
         *reinterpret_cast<int*>(buf + 0) = static_cast<int>(user->get_acc_id());
         buf[4] = static_cast<char>(user->getSlotEffectCount());
@@ -19160,14 +19222,16 @@ struct DTChkView {
                         WongWork::CHackAnalyzer* pCVar8 = pCVar7->getHackAnalyzer();
                         pCVar8->addServerHackCnt(uVar5, (WongWork::ENUM_HACKTYPE)0xd5, 1, 0, 0);
                     }
-                    CUser* pCVar7b = local_14->get_user(local_c);
-                    WongWork::CDeathTower* iVar4b = pCVar7b->getDeathTower();
-                    reinterpret_cast<DTChkView*>(iVar4b)->m_killChecker.init();   // +0xb58
+                    // [G5DsigE] ORIG 0x08208cxx 链式：get_user→getDeathTower→add $0xb58 直传
+                    //   （`mov %eax,(%esp); call`），MapClear 亦 `call get_user; add $0x79700,%eax`。
+                    reinterpret_cast<DTChkView*>(
+                        local_14->get_user(local_c)->getDeathTower())
+                        ->m_killChecker.init();                        // +0xb58
                     WongWork::CDeathTower::CStage* pCVar6b = local_18->getCStage();
                     uVar9 = (unsigned int)pCVar6b->getStageClearTime();
                     unsigned short uVar1 = local_22[local_c];
-                    CUser* iVar4c = local_14->get_user(local_c);
-                    iVar4c->m_historyLog.MapClear(uVar1, (int)(uVar9 / 1000), 0);
+                    local_14->get_user(local_c)
+                        ->m_historyLog.MapClear(uVar1, (int)(uVar9 / 1000), 0);
                 }
             }
         }
@@ -19188,7 +19252,17 @@ struct DTChkView {
     (void)msg;
     unsigned int guildkey = (unsigned int)user->get_charac_guildkey();
     unsigned int characNo = (unsigned int)user->getCurCharacNo();
-    unsigned int textIdx = *(unsigned int*)((char*)&param + 0x89);
+    // [J1·pack 例检 2026-09-11] 原 struct 未 pack：char[0x89] 前导把 unsigned int
+    //   推到 +0x8c（4 对齐），而 ORIG 0x081d33a0 直证读 param+0x89（disp 0x89）
+    //   ⇒ 真错位 3 字节（AE 口径不可见）。加 packed 后偏移恢复 +0x89。
+    struct __attribute__((packed)) GuildBoardParamView
+    {
+        char m_pad[0x89];
+        unsigned int m_textIdx;   // +0x89
+    };
+    GuildBoardParamView& pv = reinterpret_cast<GuildBoardParamView&>(param);
+    unsigned int textIdx = pv.m_textIdx;
+
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
     proxy->SendGuildBoardDelete(textIdx, characNo, guildkey);
@@ -20362,7 +20436,19 @@ LOUT:
     if (mgr != 0)
     {
         int cond = 0;
-        if (!mgr->CheckUserCondition(user, (int)msgIdx, cond))
+        if (mgr->CheckUserCondition(user, (int)msgIdx, cond))
+        {
+            if (mgr->IsChangableMessage((int)msgIdx, curSec))
+            {
+                guard.put_byte(1);
+            }
+            else
+            {
+                guard.put_byte(0);
+                guard.put_byte(1);
+            }
+        }
+        else
         {
             guard.put_byte(0);
             if (cond != 0)
@@ -20374,16 +20460,8 @@ LOUT:
                 guard.put_byte(3);
             }
         }
-        else if (!mgr->IsChangableMessage((int)msgIdx, curSec))
-        {
-            guard.put_byte(0);
-            guard.put_byte(1);
-        }
-        else
-        {
-            guard.put_byte(1);
-        }
     }
+
     guard.put_byte((int)msgIdx);
     guard.finalize(true);
     user->Send(guard);
@@ -20859,11 +20937,12 @@ LOUT:
         cMyTrace(__PRETTY_FUNCTION__, 0xd186, 5)(
             "PCROOM : Dispatcher_RequestPCRoomPlayerCount => User State : %d, m_id : %s",
             user->get_state(), NumberToString(user->get_acc_id(), 0));
-        LineFunc(0xd187,
-                 __PRETTY_FUNCTION__,
-                 0, 0);
+        return LineFunc(0xd187,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     }
     return 0;
+
 }
 #include "Dispatchers/process_265.inc"
 #include "Dispatchers/read_268.inc"
@@ -21480,14 +21559,14 @@ LOUT:
     if (channel == 1)
     {
         PCK_AUCTION_MY_REGISTED_ITEM_INFO_GP pkt;          // -0x3b ctor 0x0822eb70
-        *(unsigned int*)((char*)&pkt + 0xe) = user->GetUID();        // local_2d
-        *(unsigned int*)((char*)&pkt + 0x12) = (unsigned int)user->getCurCharacNo();  // local_29
+        *(unsigned int*)((char*)&pkt + 0x12) = user->GetUID();       // local_29 (ORIG 0x08216a9c,+0x12)
+        *(unsigned int*)((char*)&pkt + 0x16) = (unsigned int)user->getCurCharacNo();  // local_25 (ORIG 0x08216aaa,+0x16)
         GlobalData::s_cera_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&pkt);
         return 0;
     }
     PCK_AUCTION_MY_REGISTED_ITEM_INFO_GA pkt;              // -0x55 ctor 0x0822e7ac
-    *(unsigned int*)((char*)&pkt + 0xe) = user->GetUID();            // local_47
-    *(unsigned int*)((char*)&pkt + 0x12) = (unsigned int)user->getCurCharacNo();    // local_43
+    *(unsigned int*)((char*)&pkt + 0x12) = user->GetUID();           // local_43 (ORIG 0x08216ae1,+0x12)
+    *(unsigned int*)((char*)&pkt + 0x16) = (unsigned int)user->getCurCharacNo();    // local_3f (ORIG 0x08216aef,+0x16)
     GlobalData::s_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&pkt);
     for (int i = 0; i < 5; i++)                            // gmList 0x093701d8
     {
@@ -21739,17 +21818,8 @@ LOUT:
                         0, 0);
     }
     PacketGuard guard;
-    if (*reinterpret_cast<unsigned char*>(&from) > 0x7f || 3 < (int)(char)from ||
-        (to != 3 && to != 1))
-    {
-        guard.put_header(1, 0x150);
-        guard.put_byte(0);
-        guard.put_byte((int)from);
-        guard.put_byte((int)(char)to);
-        guard.finalize(true);
-        user->Send(guard);
-    }
-    else
+    if ((signed char)from >= 0 && (int)(char)from <= 3 &&
+        (to == 3 || to == 1))
     {
         to = (char)(from + to) & 3;
         party->switchPostion((char)from, (char)to);
@@ -21762,6 +21832,16 @@ LOUT:
         guard.finalize(true);
         user->Send(guard);
     }
+    else
+    {
+        guard.put_header(1, 0x150);
+        guard.put_byte(0);
+        guard.put_byte((int)from);
+        guard.put_byte((int)(char)to);
+        guard.finalize(true);
+        user->Send(guard);
+    }
+
     return 0;
 }
 #include "Dispatchers/process_277.inc"
@@ -21895,7 +21975,8 @@ LOUT:
 #include "Dispatchers/process_280.inc"
 {
     stExchangeRandomItemReward& out = static_cast<stExchangeRandomItemReward&>(param);
-    if (user == 0 || user->get_state() != 3)
+    if ((bool)(user->get_state() != 3))
+
     {
         out.m_4 = 7;
         return 0;
@@ -23413,20 +23494,21 @@ typedef char sdc_view_size_check[(sizeof(SDCDamageSyncView) == 0x29) ? 1 : -1];
                                                              MSG_BASE& msg,
                                                              ParamBase& param)
 {
-    int err = check_error(user, msg);
-    static_cast<stGrowthCreature&>(param).m_4 = err;
-    if (err > 0)
+    stGrowthCreature& out = static_cast<stGrowthCreature&>(param);
+    out.m_4 = check_error(user, msg);
+    if (out.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (out.m_4 < 0)
     {
         return LineFunc(0x64e2,
                         __PRETTY_FUNCTION__,
-                        err, 0);
+                        out.m_4, 0);
     }
-    static_cast<stGrowthCreature&>(param).m_4 = process_event(user);
+    out.m_4 = process_event(user);
     return 0;
+
 }
 #include "Dispatchers/read_300.inc"
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e8768 orig/ours=49/58 ndiff-blocks=8
@@ -25188,7 +25270,8 @@ namespace
     {
         return 0x11;
     }
-    if (cardA->is_stackable())
+    // [J1·语义轴] 同卡 2/3（ORIG 0x081d8e88 族 xor $0x1 直证）
+    if (!cardA->is_stackable())
     {
         return 0x11;
     }
@@ -25213,7 +25296,8 @@ namespace
     {
         return 0x11;
     }
-    if (cardB->is_stackable())
+    // [J1·语义轴] ORIG 0x081d8e88 `xor $0x1,%eax; test %al,%al; je` ⇒ !is_stackable()
+    if (!cardB->is_stackable())
     {
         return 0x11;
     }
@@ -25229,7 +25313,8 @@ namespace
     {
         return 0x11;
     }
-    if (cardC->is_stackable())
+    // [J1·语义轴] 同卡 2（ORIG `xor $0x1` 直证）
+    if (!cardC->is_stackable())
     {
         return 0x11;
     }
@@ -25792,7 +25877,7 @@ namespace pc_room
 #include "Dispatchers/process_317.inc"
 {
     stRentItemParam& out = static_cast<stRentItemParam&>(param);
-    MSG_RENT_ITEM& req = reinterpret_cast<MSG_RENT_ITEM&>(msg);
+
 
     out.m_4 = check_error(user, msg);
     if (out.m_4 != 0)
@@ -25802,7 +25887,9 @@ namespace pc_room
 
     InstanceRentalSystem::RentInput input;               // ctor 清 vector/machineKey
     input.m_logFlag = 1;                                 // +0x10 log 开关（PcRoom 报告实证）
+    MSG_RENT_ITEM& req = reinterpret_cast<MSG_RENT_ITEM&>(msg);
     input.m_machineKey = static_cast<int>(static_cast<char>(req.m_0e));
+
     // ORIG 0x081e52c0：两读取为 `movzbl 0xf(%eax,%edx,2)` / `movzbl 0x10(%eax,%edx,2)`
     // —— 基址=msg(-0x10)、**缩放因子 2**、disp 0xf 与 0x10 ⇒ 原码是 msg+0xf 起的
     // 2 字节元素结构数组（uchar 对），非 `char[]` 的 `i*2`/`i*2+1` 下标形
@@ -25817,9 +25904,11 @@ namespace pc_room
     {
         InstanceRentalSystem::RentInElem elem;
         elem.m_sectionIdx =
-            reinterpret_cast<RentPairView*>(&msg)->m_pairs[i].m_sectionIdx;
+            reinterpret_cast<RentPairView*>(&req)->m_pairs[i].m_sectionIdx;
+
         elem.m_itemIdx =
-            reinterpret_cast<RentPairView*>(&msg)->m_pairs[i].m_itemIdx;
+            reinterpret_cast<RentPairView*>(&req)->m_pairs[i].m_itemIdx;
+
         input.m_elems.push_back(elem);
     }
 
@@ -27244,7 +27333,7 @@ struct ScrMsgView
 #include "Dispatchers/process_323.inc"
 {
     stTeleportParam& out = static_cast<stTeleportParam&>(param);
-    MSG_TELEPORT& req = reinterpret_cast<MSG_TELEPORT&>(msg);
+
 
     out.m_4 = check_error(user, msg, param);
     if (out.m_4 > 0)
@@ -27257,11 +27346,13 @@ struct ScrMsgView
                         __PRETTY_FUNCTION__,
                         out.m_4, user->get_acc_id());
     }
-    *reinterpret_cast<short*>(&out.m_gapA[0]) = req.m_field0e;
+    MSG_TELEPORT& req = reinterpret_cast<MSG_TELEPORT&>(msg);
+    out.m_10 = req.m_field14;
     *reinterpret_cast<unsigned int*>(&out.m_gapA[2]) =
         req.m_field10;
-    out.m_10 = req.m_field14;
+    out.m_8 = req.m_field0e;
     out.m_11 = req.m_field15;
+
     return 0;
 }
 
@@ -27815,25 +27906,38 @@ namespace expert_extraction
     //   +0x08 int  当日序号（= req.m_0d 回填，send 以 short 发出）
     //   +0x0c unsigned 打卡位图（setBit 后的 history.first 快照，send put_int）
     //   +0x10 int  今日时间值（get_today_time，send put_int）
-    char* pres = reinterpret_cast<char*>(&param);
+    struct stFatigueAttendanceParamView
+    {
+        int m_pad0;             // +0x00
+        int m_errNo;            // +0x04
+        int m_day;              // +0x08
+        unsigned int m_flags;   // +0x0c
+        int m_todayTime;        // +0x10
+    };
+    stFatigueAttendanceParamView& pres =
+        reinterpret_cast<stFatigueAttendanceParamView&>(param);
+
 
     // ORIG +0x008：param+8 = *(int*)(msg+0xd)（先于 check_error 回填请求当日序号）
-    *reinterpret_cast<int*>(pres + 8) = req.m_0d;
+    pres.m_day = req.m_0d;
 
     // [DispA6 P0] ORIG 0x081db033 `mov -0x2c(%ebp),%edx; mov %eax,0x4(%edx)` +
     //   0x081db039 `mov -0x2c(%ebp),%eax; mov 0x4(%eax),%eax` 重读 ⇒ check_error
     //   结果直存 param+4 后重读，无 err 具名槽（旧码 -0x30 为发明）。
-    *reinterpret_cast<int*>(pres + 4) = check_error(user, msg);
-    if (*reinterpret_cast<int*>(pres + 4) > 0)
+    pres.m_errNo = check_error(user, msg);
+    if (pres.m_errNo > 0)
+
     {
         return 0;
     }
-    if (*reinterpret_cast<int*>(pres + 4) < 0)
+    if (pres.m_errNo < 0)
+
     {
         return LineFunc(
             0x49c5,
             __PRETTY_FUNCTION__,
-            *reinterpret_cast<int*>(pres + 4), 0);
+            pres.m_errNo, 0);
+
     }
 
     // ORIG：每个使用点重取 G_CDataManager()->get_event_script_mng()（P48 无 CSE）。
@@ -27850,7 +27954,8 @@ namespace expert_extraction
     // 已打过当日卡（bit day-1 已置位）→ 0x12
     if (isSetBit_Uint(attendFlags, static_cast<int>(day) - 1))
     {
-        *reinterpret_cast<int*>(pres + 4) = 0x12;
+        pres.m_errNo = 0x12;
+
         return 0;
     }
 
@@ -27872,7 +27977,8 @@ namespace expert_extraction
     if (entity->get_event_start_time() > todayTime ||
         entity->get_event_end_time() < todayTime)
     {
-        *reinterpret_cast<int*>(pres + 4) = 7;
+        pres.m_errNo = 7;
+
         return 0;
     }
 
@@ -27881,7 +27987,8 @@ namespace expert_extraction
         static_cast<EventClassify::CAttendance*>(entity);
     if (attendance->get_fatigue_condition() < totalFatigue)
     {
-        *reinterpret_cast<int*>(pres + 4) = 0x16;
+        pres.m_errNo = 0x16;
+
         return 0;
     }
 
@@ -27889,10 +27996,12 @@ namespace expert_extraction
     setBit_Uint(attendFlags, true, static_cast<int>(day) - 1);
     user->set_ingame_event_history(recordType, attendFlags, 0);
 
-    *reinterpret_cast<unsigned int*>(pres + 0xc) = attendFlags;          // +0x24a
+    pres.m_flags = attendFlags;
+
     int nowTime = ((EventClassify::CEventScriptMng*)
         G_CDataManager()->get_event_script_mng())->get_today_time();
-    *reinterpret_cast<int*>(pres + 0x10) = nowTime;                      // +0x265
+    pres.m_todayTime = nowTime;
+
 
     int passDay = ((EventClassify::CEventScriptMng*)
         G_CDataManager()->get_event_script_mng())

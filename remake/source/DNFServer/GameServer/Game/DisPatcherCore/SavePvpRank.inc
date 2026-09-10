@@ -49,8 +49,18 @@ bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
     {
         return false;
     }
-    int seat = room->get_user_seat(user);
-    room->SetPVPResult(seat, msg.m_result);
+    // [DpcMisc-S1] P0/P183 删具名 seat：ORIG 0x081f080e `call get_user_seat` 后
+    // 结果**直落实参**（0x081f0817 `mov %eax,0x4(%esp)`，第三实参 &msg.m_result
+    // 由 0x081f0801 `lea 0xd(%eax),%ebx` 预装载），全函数无 seat 槽（room 槽
+    // = -0x14）；改前我方 `mov %eax,-0x14(%ebp)` + `mov -0x14(%ebp),%eax` 两条
+    // 具名槽往返，并令 score/playSec/room 槽整体下移 4B（-0x20/-0x1c/-0x18 vs
+    // ORIG -0x1c/-0x18/-0x14）。4.4.6 探针实测（具名 seat 4 条 vs 内联 2 条）
+    // ⇒ 预期 our −2（199→197 = ORIG），槽位全对齐。
+    // 注：update_pvp_rank 的 -0x1d 具名 bool 槽（ORIG 0x081f07c5）本件**不补**：
+    // 补则 +2 抵消本项；且 recv_pvp_rank_all 的 4 条归一岛须先由 PvP_Room.h
+    // `int → bool` 修掉（见交付报告 .h 项）才谈得上净改善。
+    // p167 实测：ORIG calls=16 / OUR calls=16，**CALLSITE CLEAR**。
+    room->SetPVPResult(room->get_user_seat(user), msg.m_result);
     if (!room->set_recv_pvp_rank_flag(user))
     {
         return false;

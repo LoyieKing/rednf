@@ -231,7 +231,7 @@ namespace
         CParty* party = static_cast<CParty*>(user->GetParty());
         if (party == 0)
         {
-            CBoosterTest::SendChatMsg(user, const_cast<char*>("Party가 없습니다"));
+            CBoosterTest::SendChatMsg(user, const_cast<char*>("Party\xb0\xa1 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9"));
         }
         else
         {
@@ -269,24 +269,24 @@ namespace
 {
     if (party == 0)
     {
-        return "Party가 없습니다";
+        return "Party\xb0\xa1 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9";
     }
     if (m_mode == 1)
     {
-        return "user가 지나간 맵을 저장합니다";
+        return "user\xb0\xa1 \xc1\xf6\xb3\xaa\xb0\xa3 \xb8\xca\xc0\xbb \xc0\xfa\xc0\xe5\xc7\xd5\xb4\xcf\xb4\xd9";
     }
     if (m_mode == 2)
     {
         if (10000 < static_cast<unsigned int>(m_count))
         {
-            return "passed map 통계는 0 ~ 10000번까지만 지원됩니다";
+            return "passed map \xc5\xeb\xb0\xe8\xb4\xc2 0 ~ 10000\xb9\xf8\xb1\xee\xc1\xf6\xb8\xb8 \xc1\xf6\xbf\xf8\xb5\xcb\xb4\xcf\xb4\xd9";
         }
     }
     else
     {
         if (100000 < static_cast<unsigned int>(m_count))
         {
-            return "0 ~ 100000번 통계까지만 지원됩니다";
+            return "0 ~ 100000\xb9\xf8 \xc5\xeb\xb0\xe8\xb1\xee\xc1\xf6\xb8\xb8 \xc1\xf6\xbf\xf8\xb5\xcb\xb4\xcf\xb4\xd9";
         }
     }
 
@@ -300,7 +300,7 @@ namespace
     }
     if (party->m_battleField.m_bloodState == 1)
     {
-        return "연습모드 입니다";
+        return "\xbf\xac\xbd\xc0\xb8\xf0\xb5\xe5 \xc0\xd4\xb4\xcf\xb4\xd9";
     }
     return 0;
 }
@@ -707,7 +707,7 @@ namespace
         // ORIG 无 used/addLen 具名局部（两次 strlen 结果 %ebx/%eax 直相加）。
         if (strlen(fileBuf) + strlen(line) > 89999)
         {
-            CBoosterTest::SendChatMsg(user, const_cast<char*>("결과 파일 이어붙힘"));
+            CBoosterTest::SendChatMsg(user, const_cast<char*>("\xb0\xe1\xb0\xfa \xc6\xc4\xc0\xcf \xc0\xcc\xbe\xee\xba\xd9\xc8\xfb"));
             return;
         }
         strcat(fileBuf, line);
@@ -746,14 +746,14 @@ namespace
         return;
     }
 
-    CBoosterTest::SendChatMsg(user, const_cast<char*>("Dungeon Monster Drop 결과체크를 시작합니다"));
+    CBoosterTest::SendChatMsg(user, const_cast<char*>("Dungeon Monster Drop \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb8\xa6 \xbd\xc3\xc0\xdb\xc7\xd5\xb4\xcf\xb4\xd9"));
 
     if (m_count == 0)
     {
         m_count = 10000;
     }
     char cnt[21];
-    sprintf(cnt, "%d번 통계입니다", m_count);
+    sprintf(cnt, "%d\xb9\xf8 \xc5\xeb\xb0\xe8\xc0\xd4\xb4\xcf\xb4\xd9", m_count);
     CBoosterTest::SendChatMsg(user, cnt);
 
     // ORIG +0x11f：落盘文件名缓冲进入循环前一次性清 255 字节
@@ -851,7 +851,7 @@ namespace
         CBoosterTest::printClient(user, true, "drop_grade_list.txt", out.c_str());
     }
 
-    CBoosterTest::SendChatMsg(user, const_cast<char*>("Dungeon Monster Drop 결과체크가 완료되었습니다"));
+    CBoosterTest::SendChatMsg(user, const_cast<char*>("Dungeon Monster Drop \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb0\xa1 \xbf\xcf\xb7\xe1\xb5\xc7\xbe\xfa\xbd\xc0\xb4\xcf\xb4\xd9"));
 }
 
 // ===========================================================================
@@ -1038,7 +1038,7 @@ namespace
 #include "GmCmds_E/checkCommandExecuteError_1.inc"
 {
     if (m_count > 0x186a0 || m_count < 0)
-        return "0 ~ 100000번 통계까지만 지원됩니다";
+        return "0 ~ 100000\xb9\xf8 \xc5\xeb\xb0\xe8\xb1\xee\xc1\xf6\xb8\xb8 \xc1\xf6\xbf\xf8\xb5\xcb\xb4\xcf\xb4\xd9";
     return 0;
 }
 
@@ -1177,13 +1177,13 @@ namespace
         m_count = 10000;
     }
     char cnt[21];
-    sprintf(cnt, "%d번 통계입니다", m_count);
+    sprintf(cnt, "%d\xb9\xf8 \xc5\xeb\xb0\xe8\xc0\xd4\xb4\xcf\xb4\xd9", m_count);
     CBoosterTest::SendChatMsg(user, cnt);
 
     std::map<int, int> stat;
     if (m_mode == 1)
     {
-        CBoosterTest::SendChatMsg(user, const_cast<char*>("vending machine 결과체크를 시작합니다"));
+        CBoosterTest::SendChatMsg(user, const_cast<char*>("vending machine \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb8\xa6 \xbd\xc3\xc0\xdb\xc7\xd5\xb4\xcf\xb4\xd9"));
         getVendingMachineItem(stat);
 
         // ORIG 4.1 清零展开计数 ebx=0xff ⇒ fname 实为 255 字节（起点 -0x153 非 4
@@ -1210,7 +1210,7 @@ namespace
             memset(fileBuf, 0, sizeof(fileBuf));
         }
 
-        CBoosterTest::SendChatMsg(user, const_cast<char*>("결과체크가 완료되었습니다"));
+        CBoosterTest::SendChatMsg(user, const_cast<char*>("\xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb0\xa1 \xbf\xcf\xb7\xe1\xb5\xc7\xbe\xfa\xbd\xc0\xb4\xcf\xb4\xd9"));
     }
 }
 

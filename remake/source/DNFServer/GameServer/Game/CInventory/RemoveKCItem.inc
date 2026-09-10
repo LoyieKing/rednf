@@ -1,1 +1,1 @@
-int CInventory::RemoveKCItem()
+void CInventory::RemoveKCItem()

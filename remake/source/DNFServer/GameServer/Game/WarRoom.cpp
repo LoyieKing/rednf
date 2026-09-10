@@ -970,7 +970,7 @@ TRES_NEXT:
                 if ((m_slotsUser[i])->GetFinishPointTotal() > 0)
                 {
                     cMyTrace(__PRETTY_FUNCTION__, 0x55b, 5)
-                        ("쟁역 FP누적됨 발생", (m_slotsUser[i])->GetFinishPointTotal());
+                        ("\xc0\xef\xbf\xaa FP\xb4\xa9\xc0\xfb\xb5\xca \xb9\xdf\xbb\xfd", (m_slotsUser[i])->GetFinishPointTotal());
                     (m_slotsUser[i])->InitFinishPoint();
                     goto FP_JOIN;
                 }
@@ -2889,7 +2889,7 @@ LOOP_TAIL:
             G_CGameManager()->CheckOutParty(user, false);
         }
     }
-    createRet = room->Create(user, (char*)"임시", 0x1770);
+    createRet = room->Create(user, (char*)"\xc0\xd3\xbd\xc3", 0x1770);
     if (createRet > 0)
     {
         pg.put_byte(0);

@@ -75,8 +75,18 @@ int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& p
         }
     }
     // ---- 余额校验：任一货币不足 → 10 ----
+    // [DPC_CheckErr] 轴 B 符号性（语义轴，按 ORIG cc 双向核）：ORIG 0x081be990-0x081be99b
+    // `mov 0x80(%edx),%edx; cmp %edx,%eax; jl 0x081bea41` —— **有符号** jl ⇒ 原码比较
+    // 两侧为 int（get_money() 返回 int，Ghidra 亦转写 `iVar10 < *(int*)(param+0x80)`）。
+    // `param.m_80` 在本 .h 声明为 unsigned int（+0x80 P211 需要），故必须显式
+    // `(int)param.m_80` 才能让 4.4 产 `jl`；原形 `(unsigned int)get_money() <
+    // (unsigned int)param.m_80` 产 `jb`（无符号）⇒ 负余额（money<0）时行为分叉。
+    // 同链其余货币（GetCera/GetWinPoint/GetFinishPoint/GetGuildPowerWarPoint）
+    // ORIG 均为 `jb`（0x081be9b7/0x081be9d3/0x081be9ed/0x081bea26）⇒ 那四处保留
+    // unsigned 形；GetUserPowerWarPoint 为 16 位有符号（0x081bea3c `cmp %dx,%ax; jge`）
+    // ⇒ 保留 (short) 形。
     bool insufficient =
-        ((unsigned int)user->getCurCharacInvenR()->get_money() < (unsigned int)param.m_80) ||
+        (user->getCurCharacInvenR()->get_money() < (int)param.m_80) ||
         ((unsigned int)user->GetCera() < (unsigned int)param.m_84) ||
         ((unsigned int)user->GetWinPoint() < (unsigned int)param.m_88) ||
         ((unsigned int)user->GetFinishPoint() < (unsigned int)param.m_8c) ||

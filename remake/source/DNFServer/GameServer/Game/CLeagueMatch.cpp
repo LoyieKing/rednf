@@ -102,6 +102,23 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // ORIG 用 lea(,%eax,4)、4.4 恒 shl $2（探针 /tmp/b28d_cm/probe_stride.cpp 11 形 +
 // probe2.cpp 7 索引类型 + 4.4.6 后端 + 8 旗标全败）⇒ 4.4 多 1 条 mov %edx,%eax
 // 中转；语义等价，结构性豁免。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局 · 全族统一证据/勿再烧轮次]
+// 本 TU 非 identical 16 件的残差已全量归因，两条结构性来源：
+//  (a) N-STRIDE（12 件）：ORIG `lea 0x0(,%eax,4),%edx`（×4 用 scale=4 的 lea）vs
+//      4.4 恒 `shl $0x2,%eax`（+1 条中转 mov）。
+//  (b) synth_mult copy 链（3 件：OnCompleteLoad/_SendMatchStatePacket/OnReward）：
+//      ORIG `mov %ecx,%eax; mov %eax,%ecx`（纯冗余，删去逐条等价）。
+//  本轮新增实证（全部失败）：`#pragma GCC target` 8 形（tune=i386/i486/pentium/
+//  pentiumpro · arch=i386/i486/pentiumpro · tune=generic）、`#pragma GCC optimize`
+//  3 形（strength-reduce / O1 / web）、cc1plus **4.4.6 后端** A/B（头集 4.4.6 +
+//  -march=i486，独立 /tmp/tu_CLeagueMatch_446.o，逐件读数与本 TU 全同）、以及
+//  70 源形探针（/tmp/probe_ocl{1,2,3}：数组/指针/char* 偏移链/sizeof/两层引用/
+//  具名中间量/register/unsigned·cast 索引/上界写法/加法序）⇒ 4.4.x 全系（含 O1）
+//  不产该两类形；ORIG 侧应为 4.1 系后端产物。
+//  **已试尽**：源码形/函数级 pragma/后端版本三维。**未试**：换 cc1plus 到 4.1/3.4
+//  变体（本 TU 当前路由 `$C6`+i486，属 dnf_game_cxx.sh 路由/Main 决策，禁改）。
+//  语义轴：16 件 p167 全绿（12 CLEAR + 4 件仅 C1/C2·D1/D2 同址别名），另修复
+//  OnCreateRoom 韩文日志串实字节（UTF-8→cp949，§6.5，ORIG 文件偏移 0xb7a2c8/0xc5a23c）。
 #include "CLeagueMatch/reset.inc"
 {
     for (int i = 0; i <= 3; ++i)
@@ -129,6 +146,11 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 
 // [b28d-solo-CLeagueMatch] DIFF 100/100·N-STRIDE：同 TeamInfo 族 stride 差异
 // （ORIG lea 链 vs 4.4 shl 链，逐访问点 4 条对 4 条），语义等价，结构性豁免。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局] 本轮两旋钮：①具名 `CUser* u` 缓存
+// m_players[i].m_user（P0 反向）⇒ our 100→81、ORIG-only/OURS-only 43→64 劣（ORIG
+// 每访问点重算 m_user，无缓存槽），已回滚；②循环上界 `i <= 3` → `i < 4` ⇒ 4.4 折叠
+// 同形（43/43 不变），已回滚。ORIG 0x0855c9c2..0x0855caf7 的 9 处 `lea 4/lea 8/sub`
+// 链 = N125 结构性（证据见 OnCompleteLoad 探针网络）【不可翻】。p167 4/4 CLEAR。
 #include "CLeagueMatch/refresh.inc"
 {
     for (int i = 0; i <= 3; ++i) {
@@ -423,6 +445,12 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // （+2 insn，槽次数反劣）⇒ 回滚保持 for 内声明。剩余槽差 2 枚：badSize 具名槽
 // （ORIG 无槽，纯寄存器物化，S217 试 P226 语句表达式亦反劣）+ leader/member 槽
 // 复用（ORIG 共用 -0x1c(9)，4.4 分开 -0x24(4)/-0x18(3)）⇒ N95+N82 封顶。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局] 本轮再补两旋钮（均**中性**⇒回滚）：
+// ① 循环内三处 `static_cast<int>(seat)` 去除（改为 unsigned→int 隐式转换）⇒
+//    278/278、ORIG-only/OURS-only=177/177 逐项不变（4.4 转换 pseudo 等价）；
+// ② `int theirTeam` → `unsigned int`（P290 局部 unsigned 升格）⇒ 同上完全不变。
+// 残差构成经 -dr 归因复核：N125（lea-vs-shl ×10）+ N95 槽基平移 + trace 立即数拆分
+// （P227 全表达式链已用）+ setg/test 物化，无语义缺口【可翻项已试尽】。
 #include "CLeagueMatch/OnMatchRoom.inc"
 {
     if (m_authValue != authValue) {
@@ -554,6 +582,13 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // [b28d-solo-CLeagueMatch] NEAR 33/33·N7（S180 复验）：虚调用目标
 // %ecx(ORIG 0x0855e4dc)↔%edx(4.4.7) + 实参装载序（P75）；33 条助记符逐条全等，
 // 语义等价。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局] 本件唯一可翻路径 = fn 落 %ecx（ORIG
+// 0x0855e4fc `mov (%eax),%ecx`）。本轮两旋钮：①`static_cast<IMatch*>(this)->OnLeaveRoom(...)`
+// 使 4.4 产 `mov (%eax),%ecx`（fn 对齐 ✓）但接收者提前载入 %eax ⇒ 实参全改 %edx，
+// 行差 6/6→9/9 **净劣**，已回滚；②cc1plus **4.4.6 后端** A/B（头集 4.4.6 + i486，
+// 独立 /tmp/tu_CLeagueMatch_446.o）逐件读数与本 TU 全同（44/63/1/16）⇒ 后端维度
+// 无解。根因 = i386 REG_ALLOC_ORDER 差（ORIG 首选 %ecx、4.4.7 首选 %edx），源码层
+// 不可控【已试尽】。p167 2/2 CLEAR。
 #include "CLeagueMatch/OnWalkOut.inc"
 {
     int team = room->get_team(seat);
@@ -598,6 +633,14 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // 复现 ORIG 单段零初始化。剩余 567 = N-STRIDE
 // （*4/*8/*16 的 shl-vs-lea，探针 10 形全败）+ 少量寄存器名/中转（N7/N18a）
 // + difflib 错位，语义完成。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局] 本轮两旋钮：①三处 `(&m_teamA)[t]`
+// →`m_teams[t]`（读取 GetDailyBadge 的 user 寻址）⇒ our 989→983、行差 394/387→
+// 346/333（改善）**但 gap 990-989=1→990-983=7 劣**（指令数硬指标）⇒ 按「四数不劣
+// + 不加距」回滚，保持 S180 取优形；②`int type;` → `int type = 0;`（P328⑤ 反向）
+// ⇒ our 990、行差 388（各 +1）劣，回滚。gap=+7 缺口的 ORIG-only 主体已逐形归因 =
+// 0x0855f0xx 段 synth_mult copy 链（`mov %ecx,%eax`×14 / `mov %eax,%ecx`×13 /
+// `lea (%edx,%eax,1),%eax`×17）+ N125（`lea (,%eax,4)`×8），同 OnCompleteLoad 探针
+// 网络结论【不可翻】。p167：45/45 调用点全等，MISSING/EXTRA 仅 C1/C2·D1/D2 同址别名对。
 #include "CLeagueMatch/OnReward.inc"
 {
     // [G9WorldTimerLeague 2026-09-10 复核] 成员 disp / 立即数多重集扫描
@@ -812,6 +855,18 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // [b28d-solo-CLeagueMatch] DIFF 97/95·ndiff 22·N-STRIDE（S217 新鲜 .o 复验）：
 // 残差 = i*0x1c 的 shl-vs-lea + 0x70 族乘法展开序差（ORIG 先 `shl $4`(t*16)
 // 再 `lea(,%x,8);sub`，4.4 先算 i*7 再 shl），逐条语义等价；p167 9/9 CLEAR。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局 · gap=+2 缺口定位] 本件 ORIG 唯一
+// ORIG-only 段 = 0x0855e2b7/0x0855e2b9 `mov %ecx,%eax; mov %eax,%ecx`（t 的纯
+// 冗余寄存器往返，删去后逐条等价）。4.4.7 探针穷举（/tmp/probe_ocl{1,2,3}：
+// 70 源形——数组/指针 deref/`*(TI*)((char*)p+off)`/sizeof/char* 偏移链/两层引用/
+// 具名中间量/register/unsigned·cast 索引/上界写法/加法序）恒产
+// `mov %edx,%eax; shl $0x4,%eax`（无往返）；追加 `#pragma GCC target`
+// (tune=i386/i486/pentium/pentiumpro · arch=i386/i486/pentiumpro · tune=generic)
+// 8 形 + `#pragma GCC optimize("strength-reduce"/"O1"/"web")` 3 形 + cc1plus
+// **4.4.6 后端** A/B（头集 4.4.6 + i486，独立 .o，逐件读数与本 TU 全同）亦全败
+// ⇒ 该 2 条为 ORIG 编译器（4.1 系）synth_mult 的 copy 链产物，4.4 不可翻【已试尽】。
+// p167 9/9 CLEAR：MISSING `PacketGuardC2Ev`×1/`D2Ev`×2 ≡ EXTRA `C1Ev/D1Ev`
+// （nm ORIG 实证同址别名 0x0858dd4c / 0x0858de80）⇒ 非语义缺口。
 #include "CLeagueMatch/OnCompleteLoad.inc"
 {
     PacketGuard pkt;
@@ -869,6 +924,11 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // 残差 12 处为 stride 0x1c 的 shl-vs-lea（N-STRIDE：4.1 `lea 4;lea 8;sub` vs
 // 4.4 `shl 2;lea 8;sub`，S180 探针 /tmp/b28d_cm/probe_stride.cpp 11 形 +
 // probe2.cpp 7 索引类型 + 4.4.6 后端 + 8 旗标全败）；p167 CLEAR（4/4）。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局] 本轮两旋钮：①`int i` → `unsigned int i`
+// （P290）⇒ ORIG-only/OURS-only 134→140 劣（6 处，循环比较由 setle 翻 setbe），已
+// 回滚；②本类 `m_teamA.m_players[i]` 三循环 → union 等宽视角 `m_teams[0]`（P235）
+// ⇒ 202/202、134/134 逐项全同（零差），已回滚保持历史形。语义轴已闭合（真边界 bug
+// `other<=10` 已修），残差纯 N125【不可翻】。
 #include "CLeagueMatch/CheckMatchable.inc"
 {
     // ORIG 汇编对 other 直接按对象前部偏移读其第一队 PlayerInfo 槽
@@ -994,10 +1054,18 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
         pkt.put_byte(err);
         pkt.finalize(true);
         user->Send(pkt);
+        // [J9MgrTimerCeraItemLogin.V1CLeagueMatch 2026-09-11 · §6.5 日志文本契约]
+        // ORIG 该串实字节（二进制文件偏移 0xb7a2c8 / 0xc5a23c 两份一致副本）为
+        // EUC-KR `create_room fail: PVP \xbd\xbd\xb7\xd4\xb9\xdd\xc8\xaf ID[%d]\n`
+        // （"슬롯반환" = U+C2AC U+B86F U+BC18 U+D658 的 cp949 编码，8 字节）。
+        // 源码原写 UTF-8（ec 8a ac eb a1 af eb b0 98 ed 99 98，12 字节）⇒ 发射
+        // 字节与 ORIG 不同、AE 归一化不可见（§6.5 盲区）⇒ 以 \xNN 转义复现
+        // ORIG 实字节（串内容变化，函数指令/codegen 不受影响）。
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
             __PRETTY_FUNCTION__, 0x1fe,
-            "create_room fail: PVP슬롯반환 ID[%d]\n", pvp->get_index());
+            "create_room fail: PVP\xbd\xbd\xb7\xd4\xb9\xdd\xc8\xaf ID[%d]\n",
+            pvp->get_index());
         G_CGameManager()->PutPvp(pvp);
         return 0;
     }
@@ -1182,6 +1250,10 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // [b28d-solo-CLeagueMatch] DIFF 95/93·ndiff 22·N-STRIDE（S217 新鲜 .o 复验）：
 // 残差 = i*0x1c 的 shl-vs-lea + 0x70 族乘法展开序差（同 OnCompleteLoad），
 // 语义等价；p167 8/8 CLEAR。
+// [J9MgrTimerCLeagueMatch.V1 2026-09-11 终局] gap=+2 缺口 = ORIG 0x0855e2b7 同族
+// `mov %ecx,%eax; mov %eax,%ecx` 冗余 copy 链（同一循环体两份各 ×2，共 2 条差），
+// 70 形/pragma target 8 形/pragma optimize 3 形/4.4.6 后端 A/B 全败（证据同
+// OnCompleteLoad）【不可翻】；p167 8/8 CLEAR（C1/C2·D1/D2 同址别名）。
 #include "CLeagueMatch/_SendMatchStatePacket.inc"
 {
     PacketGuard pkt;

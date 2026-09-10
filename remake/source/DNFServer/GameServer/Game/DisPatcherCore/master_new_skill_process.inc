@@ -2,6 +2,16 @@ void DisPatcher_BuySkill::master_new_skill_process(CUser* user, char treeKind,
 
                                                    buySkillInfo& info)
 {
+    // [DPC_CheckErr 负结论 2026-09-11] 本件 ORIG 239 / 我方 235（我方少 4，负 gap）。
+    // 逐槽核对后，ORIG 独有段全部是 4.1 的**实参物化临时槽**族，4.4 直接入栈不可造：
+    //  · 0x081bf9c1-0x081bf9c7 `mov 0x14(%ebp),%eax; add $0x8,%eax; mov %eax,-0x58(%ebp)`
+    //    （&info.m_8 先落 -0x58 槽，0x081bfa36 才从槽写入实参 0x20(%esp)）；
+    //  · 0x081bfa84/0x081bfa8a/0x081bfa92 把 needGold(-0x20)/needGSP(-0x22)/info.m_8
+    //    回读后**再存** -0x44/-0x40/-0x3c 三个新槽，SendBuyGuildSkill 实参再从槽读。
+    // 我方链式调用（P52/P183 已内联 guildLevel/job/skillR）4.4 直接 `lea`+`mov` 入栈，
+    // 无等价源码形；另 ORIG 0x081bf967/0x081bf975 `cmp $0xc7,%al`/`cmp $0xd0,%al` 为
+    // 8 位比较（源码 (unsigned char)info.m_0 判定），4.4 亦产 8 位比较，非差异源。
+    // ⇒ N 封顶（4.1 实参求值/物化策略），不做消指令（越改越远）。
     if ((unsigned int)info.m_0 >= 200 && (unsigned int)info.m_0 <= 208)
     {   // ---- 公会技能分支（ORIG +0x02b..+0x1ba；正区间判定使公会块内联、
         //      ja→非公会，与 ORIG 块排布一致）----

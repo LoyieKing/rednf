@@ -135,6 +135,13 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // b28d-solo-CFairMatchRooms 判词：N196——两处 `pc>=X`/`total>X` 被 4.4 折成反向
 // 比较（cmp %ebx,%eax; setle/setl vs ORIG cmp %eax,%ebx; setge/setg，同语义不同
 // compare 方向）；两向源码写法（`pc>=X` / `X<=pc`）实测同形 ⇒ 源形不可择。
+// [b28f-SweepCFairMatch 复核] 探针 /tmp/fm_p1.cpp f1..f6（while/for/if/负极性/
+// X*2 显式 cast/register 局部）**六形逐条同为 `cmp %ebx,%eax; setle`** ⇒ 4.4
+// 恒把 call 结果作左操作数，跨版本 compare 折叠（P196 折痕）封顶。
+// 语义轴核对：ORIG 跳表 @0x08ca235c 六项实测 = case0→0x8562b09（_CheckSameTeam/
+// _CheckObserver 链）、case1/4/5→0x8562b65（return 4）、case2 与越界→0x8562b6c
+// （return 4）、case3→0x8562b5e（return 0）——与本实现 case 0/3/1/4/5/2+default
+// 逐项一致；`pc >= X*2`（setge）/`total > X*2`（setg）差一亦一致。
 // 余 1 条跳表重定位伪差。call 差集 8=8 CLEAR。fresh ndiff=4（85=85）。
 #include "CFairMatchRooms/CheckJoinable.inc"
 {
@@ -687,7 +694,11 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
             __PRETTY_FUNCTION__, 0xba9,
-            "create_room fail: PVP슬롯반환 ID[%d]\n", room->get_index());
+            // [b28f-SweepCFairMatch] §6.5 日志文本契约（AE 盲区）：ORIG .rodata
+            // 0x08ca2244 实字节为 EUC-KR `bd bd b7 d4 b9 dd c8 af`（"슬롯반환"），
+            // 原 UTF-8 字面量发射字节不同（运行期日志乱码）⇒ 改 \xNN 转义。
+            "create_room fail: PVP\xbd\xbd\xb7\xd4\xb9\xdd\xc8\xaf ID[%d]\n",
+            room->get_index());
         G_CGameManager()->PutPvp(room);
         return 0;
     } else {
@@ -794,6 +805,9 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
         return 0;
     }
 
+    // [b28f-SweepCFairMatch 负结论] P212 声明提前（裸声明头置 + 原位赋值）
+    // 实测反劣：ndiff 169→241（movable 仍 -0x88、pkt 仍 -0x94，槽未回正）
+    // ⇒ 4.4 槽分区（聚合对象优先低槽）不可由标量声明序翻转，维持原形。
     PvP_Room* movable = 0;
     if (_CheckMovableRoom(other, room, &movable) == 0) {
         m_field04 = 2;
@@ -980,6 +994,12 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
                     room->OnSetPVPSeatState(u, seat,
                                             static_cast<ENUM_SEAT_STATE>(1),
                                             static_cast<ENUM_WALKOUT_TYPE>(2));
+                    // [b28f-SweepCFairMatch 负结论] ORIG 0x08565f73 在 call 后有
+                    // `jmp +0x1f0`（落点=循环增量块 ⇒ 语义上像 continue）。改
+                    // `continue` 实测反劣：4.4 把 while 条件下沉/回边重排，归一化
+                    // 差异 14→38 行且 `jmp +0x1f0` 仍未发射 ⇒ 恢复 `break`；
+                    // 该条为 4.1 `break` 冗余 jmp（落点=下一指令），4.4 恒
+                    // jump-thread（N121 族），封顶。
                     break;
                 }
             }
@@ -1002,6 +1022,10 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // fresh ndiff=5（33=33 NEAR）。
 #include "CFairMatchRooms/OnWalkOut.inc"
 {
+    // [b28f-SweepCFairMatch 负结论] P231 纯 register 试形（翻转 5 实参装载序）
+    // 实测反劣：our 33→35（多 `push %ebx` + 帧 0x38→0x34）、verdict NEAR→DIFF
+    // ⇒ 恢复原形。ORIG 先物化 team(-0x10)→%eax vs 4.4 先物化 userSeat(-0xc)→%eax
+    // 属跨版本实参装载调度（P75/N82附），禁绑定形（P0），封顶。
     const int team = room->get_team(seat);
     const int userSeat = room->get_user_seat(seat);
     OnLeaveRoom(reinterpret_cast<CUser*>(userSeat), room, team, seat);
@@ -1167,11 +1191,12 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
                         static_cast<PVP_BATTLE_MODE>(
                             static_cast<unsigned char>(GetPlayCountPerOneTeam())
                                 == 1 ? 2 : 3));
-                    // ORIG 0x8565904 `mov %eax,-0x44(%ebp)`：二次取 GetKillCount
-                    // 结果写入死局部（P171 死写入照抄；P232 未使用数组仍占槽）。
-                    int killCnt[1];
-                    killCnt[0] = room->m_relayMgr.GetKillCount(seat);
-                    (void)killCnt;
+                    // P322①：ORIG 0x08565909 `mov %eax,-0x44(%ebp)` 的槽址
+                    // = cond 槽基(-0x47) + 0x03 = cond.m_killCount ⇒ 原码是该成员
+                    // 赋值，非死局部（旧 P171/P232 误读使其恒为构造默认值 0，
+                    // 被调方收到错误的击杀计数）。m_killCount @+0x03 已由
+                    // CMission_kill::_canUpdate 0x085e3bd2 `mov 0x3(%eax)` 佐证。
+                    cond.m_killCount = room->m_relayMgr.GetKillCount(seat);
                     missionList->Update_GameOver_event(*user, cond);
                 }
                 GiveTrainingSeal(user, win != 0);
@@ -1464,15 +1489,21 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
         pkt.put_header(0, 0x13a);
         pkt.finalize(true);
         m_teams[myTeam].SendToTeam(pkt);
+        // [b28f-SweepCFairMatch 负结论] ORIG 值先载(%ecx)→算址(add $0x20)→store；
+        // 4.4 恒算址(lea 0x20(%eax),%edx)→值后载→store。试 RHS enum 异型化
+        // （P211 档③）实测零效（归一化差异 69 行不变）⇒ N107 反向族封顶，
+        // 已恢复直证形态。
         m_teams[myTeam].m_field04 = decision;     // asm 写 4 字节到 team+4
-        if (FM_TeamByte0(m_teams[other]) != 0) {
+        // [b28f-SweepCFairMatch 试形] 取址解引用 → 具名 bool 成员直访问
+        // （J1 实证：成员直访产 disp 折叠，取址链产 add）。
+        if (m_teams[other].m_field00) {
             m_teams[other].SendToTeam(pkt);
             room->setReamtchable(false);
         }
         room->revengeMission(false);
         break;
     case 2:                                   // 全队满编 → 提交重赛
-        *reinterpret_cast<unsigned char*>(&m_teams[myTeam]) = 1;   // 队头字节置可重赛标记
+        m_teams[myTeam].m_field00 = true;     // 队头字节置可重赛标记（具名 bool）
         // ORIG 0x08566795/0x0856679c：reject 为**无槽**寄存器物化（mov $1/mov $0
         // 岛 + test/je），非具名 bool 局部 ⇒ P226 语句表达式复现（禁具名变量）。
         if (({ !(m_teams[other].m_field04 == 2 &&
@@ -1483,7 +1514,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
             pkt.finalize(true);
             m_teams[myTeam].SendToTeam(pkt);
             m_teams[myTeam].m_field04 = 1;
-        } else if (FM_TeamByte0(m_teams[other]) != 0) {
+        } else if (m_teams[other].m_field00) {
             pkt.clear();
             pkt.put_header(0, 0x13a);
             pkt.finalize(true);

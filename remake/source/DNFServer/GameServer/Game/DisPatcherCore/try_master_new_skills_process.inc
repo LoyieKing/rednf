@@ -2,6 +2,12 @@ void DisPatcher_BuySkill::try_master_new_skills_process(CUser* user, char treeKi
 
                                                         buySkillInfo& info)
 {
+    // [DPC_CheckErr 负结论 2026-09-11] 本件 ORIG 84 / 我方 82（我方少 2，负 gap）。
+    // 逐段核对：ORIG 独有 = 0x081bfe4b 与 0x081bfedd 两条 `nop`（4.1 分支块对齐填充，
+    // 落点分别为 if/else 的显式空岛与尾块）+ 0x081bfe05/0x081bfe0f 的 `cmp $0xc7,%al`
+    // / `cmp $0xd0,%al` 8 位比较（4.4 同样产 8 位比较）。nop 填充由分支布局/对齐启发式
+    // 决定，无源码形可造 ⇒ N 封顶。判据链（treeKind==1 极性、GetCurCharacSkillTreeIndex
+    // 的 -1/0 双判）与 ORIG 0x081bfe17-0x081bfe49 已逐条对齐。
     if ((unsigned int)info.m_0 >= 200 && (unsigned int)info.m_0 <= 208)
     {   // 公会技能 [200,208]：直接返回（ORIG cmp $0xd0 jbe → 尾声）
         return;

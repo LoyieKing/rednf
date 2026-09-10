@@ -3377,12 +3377,12 @@ class DB_StatisticAdvanceAltar : public DBDispatcher { public: DB_StatisticAdvan
     if (uncompress_zip((char*)sig->m_cargo, outLen, buf,
                        static_cast<unsigned int>(binLen)) != 1)
         return 0;
-    if (outLen == 0 || outLen % 0xd58 == 0)
-    {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-        return 1;
-    }
-    return 0;
+    // [J4S1 P222] ORIG 0x0843b65c/0x0843b68c 双 `je <put 块>`、fallthrough = 失败块
+    // ⇒ 原码是否定早返（put 块后置），写成正向包裹会产反极性 `jne`。
+    if (outLen != 0 && outLen % 0xd58 != 0)
+        return 0;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
 }
 
 // ORIG 0x0843b7c2 sz 0x183：*stream >> m_id(uint) → GetOutBuffer<
@@ -3771,7 +3771,9 @@ struct DB_SaveSkillCharacView
         // ⇒ 真形 = **正极性无符号** `get_n_rows() > 0x31`（then=0x5f 块落 fall-through、
         // body 在跳转目标 0x843d05f）。原 `get_n_rows() < 0x32`（负极性 + signed）使 4.4
         // 产 `setle` 且块序反 ⇒ 按 ORIG 改正极性比较（ORIG 为无符号序 ⇒ P196 前置通过）。
-        if (db->get_n_rows() > 0x31)
+        // [J4S1 P2/P196] ORIG 0x0843d026 `cmp $0x31,%eax; seta %al`（无符号序）
+        // ⇒ 需显式无符号视图，否则 4.4 产 setg。
+        if ((unsigned int)db->get_n_rows() > 0x31u)
         {
             reply->m_flag = 0x5f;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -5001,15 +5003,6 @@ struct DB_UpdateLogoutSigView
         }
         GlobalData::s_small_stream_pool->Free(stream);        // ORIG 0x08290004
         break;
-    case 2:                                       // BigStreamPool
-        if (length > 0x3ffff)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x908, 5)(
-                "Big Stream Size over code(%d), size(%u)", signal,
-                static_cast<unsigned int>(length));
-        }
-        GlobalData::s_big_stream_pool->Free(stream);          // ORIG 0x08290304
-        break;
     case 0:                                       // StreamPool
         if (length > 0x3fff)
         {
@@ -5018,6 +5011,15 @@ struct DB_UpdateLogoutSigView
                 static_cast<unsigned int>(length));
         }
         GlobalData::s_stream_pool->Free(stream);              // ORIG 0x0828fb28
+        break;
+    case 2:                                       // BigStreamPool
+        if (length > 0x3ffff)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x908, 5)(
+                "Big Stream Size over code(%d), size(%u)", signal,
+                static_cast<unsigned int>(length));
+        }
+        GlobalData::s_big_stream_pool->Free(stream);          // ORIG 0x08290304
         break;
     }
     return true;
@@ -5280,8 +5282,10 @@ static_assert(sizeof(DBTask) == 4 + 852 * 4,     // = 0xd54
     sig->m_params[2] = param5;
     sig->m_params[3] = param6;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    int curSec = GlobalData::s_systemTime_.getCurSec();
-    DB_SaveFeaturedGoodsIdx::makeRequest(accId, 0, param2, curSec, param6);
+    // [J4S1 P329/P227] 删具名 curSec（ORIG 尾段 `call getCurSec; mov %eax,0xc(%esp)`
+    // 无槽）⇒ 内联进实参位。
+    DB_SaveFeaturedGoodsIdx::makeRequest(
+        accId, 0, param2, GlobalData::s_systemTime_.getCurSec(), param6);
 }
 
 // ORIG 0x08439dec sz 0x119（_ZN30DB_UpdateCompoundEmblemStatics11makeRequestEijjjjjjj）：
@@ -6364,10 +6368,9 @@ struct EventCommon
                               0x6191,
                               "db insert error prod_sale_entry_%s m_id: %d", quarter,
                               ((DB_BillingRecordSigView*)sig)->m_mId);
-        if (isNew)
-            buyType = 1;
-        else
-            buyType = 2;
+        // [J4S4-⑤ P0] ORIG 0x08424b92 段该实参**无槽**（`cmpb $0,-0x5c; je;
+        // mov $0x1,%ebx; jmp; mov $0x2,%ebx`）⇒ 第 2 次 buy_type 用右值三元，
+        // 不再写 buyType 具名局部（第 1 次 ORIG 仍有 -0xb4 槽，保留）。
         db->set_query(
             " insert into prod_sale_entry_073 ( agency_no, seal_flag, sale_time, price, slot_part_type, slot_part_code, ipg_no, bonus_ipg_no, m_id, user_id, server_id, charac_no, job, prize_flag, new_flag, result_code, result_message )  values( '%s', %d, now(), %d, %d, %d, %d, %d, %d, '%s', %d, %d, %d, %d, %d, %d, '%s' ) ",
             (char*)sig, ((DB_BillingRecordSigView*)sig)->m_sealFlag,
@@ -6381,7 +6384,7 @@ struct EventCommon
             ((DB_BillingRecordSigView*)sig)->m_serverId,
             ((DB_BillingRecordSigView*)sig)->m_characNo,
             ((DB_BillingRecordSigView*)sig)->m_job,
-            ((DB_BillingRecordSigView*)sig)->m_prizeFlag, buyType,
+            ((DB_BillingRecordSigView*)sig)->m_prizeFlag, (isNew ? 1 : 2),
             ((DB_BillingRecordSigView*)sig)->m_resultCode,
             ((DB_BillingRecordSigView*)sig)->m_resultMessage);
         if (!db->exec(true))
@@ -7747,9 +7750,14 @@ static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
     // 落 0x0844182a），4.4 对 `if(len==0){++idx;}else{…}` 恒产 `jne else` 反向布局。
     if (len != 0)
     {
+        // [J4S4-⑩a 回滚 2026-09-11] 删 col 改 `idx++` 实测反劣
+        // （ndiff 66→75、our 236→233、D −4→−7）⇒ 恢复具名 col。
         col = idx;
         ++idx;
-        if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_boss), 0x1d4c, 0))
+        // [J4S4-⑩b P0] ORIG 0x084417c8 `mov %al,-0x19(%ebp)` + `movzbl -0x19` ⇒
+        // 返回值经既有 bool ok 承接（我方原直判返回寄存器，少 2 条/处）。
+        ok = get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_boss), 0x1d4c, 0);
+        if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0xa087, 5)(
                 "DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
@@ -7769,7 +7777,8 @@ static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
     {
         col = idx;
         ++idx;
-        if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_named), 0x7530, 0))
+        ok = get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_named), 0x7530, 0);
+        if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0xa09b, 5)(
                 "DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
@@ -7789,7 +7798,8 @@ static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
     {
         col = idx;
         ++idx;
-        if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_apc), 0x1d4c, 0))
+        ok = get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_apc), 0x1d4c, 0);
+        if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0xa0af, 5)(
                 "DB_LoadKillMonsterInfo::LoadMonsterInfo uncompress_zip(%u) ERROR charac_no=%u",
@@ -11627,7 +11637,10 @@ struct DB_GeoRejectView
             if (!flag)
             {
                 flag = true;
-                sig->m_flag = 1;
+                // [J4S1 P73/P136] ORIG 0x08432deb `movb $1,-0xd` →
+                // 0x08432df2 `movzbl -0xd,%edx` → `mov %dl,0xc84` ⇒ 原码经
+                // bool 变量读回赋值（非直写常量）。
+                sig->m_flag = flag;
             }
             else
             {
@@ -12021,11 +12034,9 @@ struct DB_SecuRewardOutView
     // （ORIG 0x080fa898 W 0xe 有）⇒ TU 账 identical −1 / near +1 /
     // missing(our-only) −1，触「identical 不得下降」闸门 ⇒ 回滚留 N。
     std::map<int, int>::iterator it;
-    std::map<int, int>::iterator end;
-    std::map<int, int>::iterator it2;
-    std::map<int, int>::iterator end2;
-    std::map<int, int>::iterator it3;
-    std::map<int, int>::iterator end3;
+    // [J4S1 P212/P309 变体B] 仅 `it` 保留顶部默认构造（保住 ORIG 实有的 W 符号
+    // _ZNSt17_Rb_tree_iteratorISt4pairIKiiEEC1Ev @0x080fa898）；其余 5 个改原位
+    // 初始化，消 5×5=25 条 4.4 空 ctor call 序列（ORIG 4.1 已内联为 0 条）。
     struct tm* ptm = localtime_r(&cur, &tmVal);
     ptm->tm_sec = 0;
     time_t dayStart = mktime(ptm);
@@ -12052,8 +12063,9 @@ struct DB_SecuRewardOutView
     int down;
     it = G_GameWorld()->getStatisticsToObserveCrash()
              ->m_userLastCrashDungeonId.begin();
-    end = G_GameWorld()->getStatisticsToObserveCrash()
-              ->m_userLastCrashDungeonId.end();
+    std::map<int, int>::iterator end =
+        G_GameWorld()->getStatisticsToObserveCrash()
+            ->m_userLastCrashDungeonId.end();
     while (it != end)
     {
         // [b28d-solo] P167：ORIG 用 operator*（deEv）×6，我方 it-> 为 ptEv。
@@ -12088,10 +12100,12 @@ struct DB_SecuRewardOutView
                                                    E_SERVER_GROUP_NONE);
     int packet;
     int down2;
-    it2 = G_GameWorld()->getStatisticsToObserveCrash()
-              ->m_userLastCrashPacketId.begin();
-    end2 = G_GameWorld()->getStatisticsToObserveCrash()
-               ->m_userLastCrashPacketId.end();
+    std::map<int, int>::iterator it2 =
+        G_GameWorld()->getStatisticsToObserveCrash()
+            ->m_userLastCrashPacketId.begin();
+    std::map<int, int>::iterator end2 =
+        G_GameWorld()->getStatisticsToObserveCrash()
+            ->m_userLastCrashPacketId.end();
     while (it2 != end2)
     {
         packet = (*it2).first;
@@ -12122,10 +12136,12 @@ struct DB_SecuRewardOutView
                                                    E_SERVER_GROUP_NONE);
     int play;
     int down3;
-    it3 = G_GameWorld()->getStatisticsToObserveCrash()
-              ->m_userLastCrashPlayStatus.begin();
-    end3 = G_GameWorld()->getStatisticsToObserveCrash()
-               ->m_userLastCrashPlayStatus.end();
+    std::map<int, int>::iterator it3 =
+        G_GameWorld()->getStatisticsToObserveCrash()
+            ->m_userLastCrashPlayStatus.begin();
+    std::map<int, int>::iterator end3 =
+        G_GameWorld()->getStatisticsToObserveCrash()
+            ->m_userLastCrashPlayStatus.end();
     // ORIG 0x0841b0b0：`jmp <底部条件>` 纯 while 形（无顶部 == 检查；
     // 我方旧 do{ if(it3==end3)break; } 多 1 处 operator== 调用点，P167 EXTRA）。
     while (it3 != end3)
@@ -12668,20 +12684,21 @@ struct DB_LetterStatView
     // fall-through jmp，N-JMP 族）。
     // [b28d-solo-W8LT_DBTask] 去 else 花括号（裸 if 链）：4.4 不再为 else 块出口
     // 发 fall-through jmp，SIMPLE_SQL 直接跟随条件跳转（ORIG 形）。
-    if (!flag)
-        goto SIMPLE_SQL;
-    if (days != 0)
-        goto FULL_SQL;
-SIMPLE_SQL:
-    db->set_query(
-        "upDate charac_stat set forbidden_to_play=0, forbidden_due_to= 0 where charac_no = %d",
-        characNo);
-    goto AFTER_SQL;
-FULL_SQL:
-    db->set_query(
-        "upDate charac_stat set forbidden_to_play=1, forbidden_due_to = date_add(now(), interval %d day) where charac_no = %d",
-        days, characNo);
-AFTER_SQL:;
+    // [J4-r1] V3 直写 `if(!flag || days==0) A else B`（P214①/P258 德摩根族）：
+    // 目标是复现 ORIG 0x8421b5e `jne A` + 0x8421b64 `jne B` 后**直接落 A**
+    // （无 label-stub jmp/nop）。
+    if (!flag || days == 0)
+    {
+        db->set_query(
+            "upDate charac_stat set forbidden_to_play=0, forbidden_due_to= 0 where charac_no = %d",
+            characNo);
+    }
+    else
+    {
+        db->set_query(
+            "upDate charac_stat set forbidden_to_play=1, forbidden_due_to = date_add(now(), interval %d day) where charac_no = %d",
+            days, characNo);
+    }
     if (!db->exec(true))
         return 0;
     return 1;
@@ -13097,12 +13114,13 @@ struct DB_CharacViewHeaderView
                       0x14d0))
         return 0;
     // ORIG 0x08408…：`mov %eax,%ebx` mIdStr 直落 callee-saved %ebx（无槽）。
-    // [b28d-4 P0 清绑] 原 `register char* mIdStr asm("ebx")` 已删（N96 全域禁绑定）；
-    // 4.4 具名槽化后的装载差记 N18a。
-    char* mIdStr =
-        NumberToString(reinterpret_cast<DB_CharacViewHeaderView*>(sig)->m_mId, 0);
+    // [b28d-4 P0 清绑] 原 `register char* mIdStr asm("ebx")` 已删（N96 全域禁绑定）。
+    // [J4S1 P329/P227] 删具名 mIdStr（ORIG 无槽）⇒ 表达式内联回实参位，4.4 走
+    // callee-saved %ebx 保活（同函数第二块同形已实证）。
     db->set_query("upDate charac_view set info='%s' where m_id=%s",
-                  db->blob_to_str(0, buf, (int)zipLen), mIdStr);
+                  db->blob_to_str(0, buf, (int)zipLen),
+                  NumberToString(
+                      reinterpret_cast<DB_CharacViewHeaderView*>(sig)->m_mId, 0));
     if (db->exec(true) != 1 || db->getAffectedRowCount() == 0)
     {
         db->set_query("inSert into charac_view(m_id,info) values(%s,'%s')",
@@ -13714,8 +13732,10 @@ static_assert(sizeof(DB_BestClearTimeView) == 0x5dc8,
     *stream >> count;
     for (int i = 0; i < count; ++i)
     {
-        unsigned char occDay = 0;   // -0x59
-        short fatigue = 0;          // -0x5c
+        // [J4S3-12 P171 反向] ORIG 0x08444559 之后直接 lea 取址解包，无 movb/movw
+        // 预清（裸声明只占槽不发指令）⇒ 删初值。
+        unsigned char occDay;   // -0x59
+        short fatigue;          // -0x5c
         *stream >> occDay;
         *stream >> fatigue;
         // ORIG：显式 pair 构造（_ZNSt4pairIKhsEC1IRhRsEEOT_OT0_，非 make_pair）
@@ -13931,17 +13951,21 @@ static_assert(sizeof(DB_ResponseTimeSigView) == 0x7d8,
 // [b28d-4] DIFF：N82 槽号错位/多局部残差（4.1 不做 lifetime 槽复用）；ORIG 0843fc26
 #include "W8LT_DBTask/dispatch_151.inc"
 {
-    int i = 0;                      // -0x1c
-    SIG_INSERT_RESPONSE_TIME* sig;  // -0x20
-    MySQL* db;                      // -0x24
+    // [J4S2-① P212/P309/P198①] ORIG 取得/物化序 = db(-0x24) → sig(-0x20) → i(-0x1c)：
+    // 0x0843fc4f `mov %eax,-0x24`（db）→ 0x0843fc5d `mov %eax,-0x20`（sig）→
+    // 0x0843fcc6 `movl $0x0,-0x1c`（i，位于 values 构造与 rowBuf 清零之后）。
+    MySQL* db;                      // -0x24（ORIG 0843fc4f）
+    SIG_INSERT_RESPONSE_TIME* sig;  // -0x20（ORIG 0843fc5d）
+    int i;                          // -0x1c（ORIG 0843fcc6 movl $0x0,-0x1c）
     std::string values;             // -0x28
     char monthBuf[10] = { '\0' };   // -0x32（ORIG int/int/short 三段清零）
     time_t occTime;                 // -0x38
     struct tm tmBuf;                // -0x64
     char rowBuf[0xff] = { '\0' };   // -0x163（ORIG 255 字节带对齐分支 rep stos）
-    sig = stream->GetOutBuffer<SIG_INSERT_RESPONSE_TIME>();
     db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                            E_SERVER_GROUP_NONE);
+    sig = stream->GetOutBuffer<SIG_INSERT_RESPONSE_TIME>();
+    i = 0;
     while (i <= 99 && i < ((DB_ResponseTimeSigView*)sig)->m_count)
     {
         if (!values.empty())
@@ -15984,29 +16008,34 @@ static_assert(sizeof(DB_ItemMakingSkillView) == 0x1a,
     unsigned int loop = 0;
     *stream >> cnt;
     *stream >> loop;
-    if (cnt != 0)
+    // [J4-r2] 早返形（ORIG 0x0843471e `test %eax,%eax; jne <body>; mov $0x1,%eax;
+    // jmp <epilogue>` ⇒ 原码是 `if (cnt == 0) return 1;` 早返，then 块后置；
+    // 4.4 对被 if 包裹的 `if(cnt!=0){body}` 产反向 `je` + 内联 mov$1 块
+    // ⇒ 改早返复现 ORIG 块序/极性）。
+    // [FL3W8LT 2026-09-10 P329/P0] 具名 `channelNo` 已删：ORIG 无 channelNo 槽，
+    // `mov -0x14(%ebp),%ebx`（cnt）后直接 `call G_CEnvironment;
+    // call get_channel_no; mov %eax,0x??(%esp)` ⇒ 实参位内联（右侧 varargs
+    // 求值序保持），同时消掉我方多出的帧 0x48 vs 0x40。
+    if (cnt == 0)
+        return 1;
+    db->set_query(
+        "inSert into log_vending_stat(occ_date,channel_no,item_id,cnt) values(cast(now() as date),%d,%d,%d)",
+        G_CEnvironment()->get_channel_no(), 0, cnt);
+    db->exec(true);
+    for (unsigned int i = 0; i < loop; ++i)
     {
-        // [FL3W8LT 2026-09-10 P329/P0] 原具名 `channelNo`（两处赋值）已删：ORIG
-        // 0x08434718 无 channelNo 槽，`mov -0x14(%ebp),%ebx`（cnt）后直接
-        // `call G_CEnvironment; call get_channel_no; mov %eax,0x??(%esp)` ⇒ 实参位
-        // 内联（右侧 varargs 求值序保持），删具名同时消掉我方多出的帧 0x48 vs 0x40。
+        unsigned long itemId = 0;
+        unsigned int itemCnt = 0;
+        *stream >> itemId;
+        *stream >> itemCnt;
+        if (itemId == 0)
+            break;          // [J4-r2] ORIG 0x0843475a `test %eax,%eax; je <尾 mov$1>`
+                            // ⇒ 循环内失败与函数尾 `return 1` 共享出口；写 return 1
+                            // 会被 4.4 内联成 `mov $1; jmp` 岛（P214②共享尾）。
         db->set_query(
             "inSert into log_vending_stat(occ_date,channel_no,item_id,cnt) values(cast(now() as date),%d,%d,%d)",
-            G_CEnvironment()->get_channel_no(), 0, cnt);
+            G_CEnvironment()->get_channel_no(), itemId, itemCnt);
         db->exec(true);
-        for (unsigned int i = 0; i < loop; ++i)
-        {
-            unsigned long itemId = 0;
-            unsigned int itemCnt = 0;
-            *stream >> itemId;
-            *stream >> itemCnt;
-            if (itemId == 0)
-                return 1;
-            db->set_query(
-                "inSert into log_vending_stat(occ_date,channel_no,item_id,cnt) values(cast(now() as date),%d,%d,%d)",
-                G_CEnvironment()->get_channel_no(), itemId, itemCnt);
-            db->exec(true);
-        }
     }
     return 1;
 }
@@ -16147,6 +16176,8 @@ static_assert(sizeof(DB_ServerLoadStatView) == 0xa,
 #include "W8LT_DBTask/dispatch_196.inc"
                                       Stream* stream)
 {
+    // [J4S2-② 回滚 2026-09-11] GetOutBuffer/空检查提到 GetDBHandle 之前实测反劣
+    // （ndiff 81→87）⇒ 保持 db 先取。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
     SIG_LOAD_KILL_MONSTER_INFO* sig =
@@ -17677,10 +17708,11 @@ static_assert(sizeof(DB_AutoPunishedSecondUserSetView) == 0x18,
     // out+0x8=tradeGold 低 32（DB col1）、out+0xc=tradeGold 高 32、
     // out+0x10=tradeCnt+1。
     out->m_mId = req->m_punished;
-    out->m_goldLo = req->m_goldLo;
-    out->m_goldHi = req->m_goldHi;
-    out->m_tradeCnt = (unsigned int)(tradeGold & 0xffffffffULL);
-    out->m_pad0c = (unsigned int)(tradeGold >> 32);
+    // [J4S3-15 P246] ORIG 0x0843a715 一次 8 字节拷贝（`mov 0x8(%eax),%edx;
+    // mov 0x4(%eax),%eax; mov -0x10(%ebp),%ecx; mov %eax,(%ecx); mov %edx,0x4(%ecx)`）、
+    // 0x0843a723 一次 8 字节写 ⇒ 视图整体拷贝（out+0/+4 与 req goldLo/goldHi 同布局）。
+    *(unsigned long long*)&out->m_goldLo = *(unsigned long long*)&req->m_goldLo;
+    *(unsigned long long*)&out->m_tradeCnt = tradeGold;
     out->m_punished = tradeCnt + 1;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -19153,7 +19185,8 @@ struct DB_AutoPunishBlackIpView
         // ORIG 列映射：play_cnt=+0x0 / success_cnt=+0x4 / play_time=+0xc /
         // uniq_cnt=+0x8（UPDATE 与 INSERT 同口径）。
         // ORIG 0x0812825e：每个 key 先打一条 trace（行号 0x4f9）再 UPDATE。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x4f9, 0);
+        // [J4S4-⑱a] ORIG 0x081283a4 `movl $0x5,0xc(%esp)`（level 实参）⇒ 原码为 5。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x4f9, 5);
         trace("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
               key.m_key, (int)key.m_byte[0], (int)(key.m_byte[3] >> 4),
               (int)(key.m_byte[3] & 0xf),
@@ -19163,8 +19196,9 @@ struct DB_AutoPunishBlackIpView
             "upDate log_monstertower_layer_stat SET play_cnt = play_cnt + %u, success_cnt = success_cnt + %u, play_time = play_time + %u, uniq_cnt = uniq_cnt + %u WHERE occ_date = '%s' and key_id = %u",
             sig->stageStartCount, sig->stageEndCount, sig->playTimeSum,
             sig->pickUpItemCount, date, key.m_key);
-        bool needInsert = !db->exec(true) || db->getAffectedRowCount() == 0;
-        if (needInsert)
+        // [J4S3-23 P0] ORIG 0x081284ab `test %al,%al` 直判（无 -0x19 具名 bool 槽）
+        // ⇒ 删具名 needInsert，条件内联。
+        if (!db->exec(true) || db->getAffectedRowCount() == 0)
         {
             db->set_query(
                 "inSert into log_monstertower_layer_stat(occ_date, key_id, layer, monster_diff, charac_job, charac_grow, level, play_cnt, success_cnt, play_time, uniq_cnt) values('%s', %u, %u, %u, %u, %u, %u, %u, %u, %u, %u)",
@@ -20245,19 +20279,21 @@ struct DB_AutoPunishBlackIpView
             stream->GetOutBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>());
     char mailBuf[0x168];
     memset(mailBuf, 0, sizeof(mailBuf));
-    DB_MailSendDataView* buf = reinterpret_cast<DB_MailSendDataView*>(mailBuf);
-    strncpy(buf->m_sender, sig->m_sender, 0x1d);
-    buf->m_field22 = sig->m_field24;
-    buf->m_field1e = sig->m_field28;
-    buf->m_field26 = 0;
-    buf->m_field57 = sig->m_field1a2;
+    // [J4S4-⑮ P183/P0] ORIG 0x0842735b/…67/…6d/…81/…ac 对 mailBuf 字段是**单条
+    // ebp 偏移 store**（`mov %eax,-0x172(%ebp)` 等），无具名 buf 指针槽
+    // ⇒ 每次就地 cast。
+    strncpy(reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_sender, sig->m_sender, 0x1d);
+    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field22 = sig->m_field24;
+    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field1e = sig->m_field28;
+    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field26 = 0;
+    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field57 = sig->m_field1a2;
     if (sig->m_titleLen != 0)
     {
-        buf->m_field59 = sig->m_titleLen;
-        strncpy(buf->m_title, sig->m_title, sig->m_titleLen);
+        reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field59 = sig->m_titleLen;
+        strncpy(reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_title, sig->m_title, sig->m_titleLen);
     }
-    buf->m_field2a = 0;
-    buf->m_field33 = 0;
+    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field2a = 0;
+    reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field33 = 0;
     try
     {
         if (sig->m_type == 0)
@@ -20268,11 +20304,11 @@ struct DB_AutoPunishBlackIpView
             unsigned int identity = WongWork::DBCommon::GetIdentity(db);
             if (identity == 0)
                 throw (unsigned int)0x6874;
-            buf->m_field2b = sig->m_field30;
-            buf->m_field34 = (unsigned short)sig->m_field35;
-            buf->m_identity = identity;
-            buf->m_field36 = sig->m_field54;
-            buf->m_field56 = 1;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field2b = sig->m_field30;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field34 = (unsigned short)sig->m_field35;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_identity = identity;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field36 = sig->m_field54;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field56 = 1;
         }
         else if (sig->m_type == 1)
         {
@@ -20282,10 +20318,10 @@ struct DB_AutoPunishBlackIpView
             unsigned int identity = WongWork::DBCommon::GetIdentity(db);
             if (identity == 0)
                 throw (unsigned int)0x6886;
-            buf->m_field2b = sig->m_field34;
-            buf->m_field34 = sig->m_field40;
-            buf->m_identity = identity;
-            buf->m_field58 = 1;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field2b = sig->m_field34;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field34 = sig->m_field40;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_identity = identity;
+            reinterpret_cast<DB_MailSendDataView*>(mailBuf)->m_field58 = 1;
         }
         if (!DB_MailBox_Req_Send::insertMailData(
                 db, reinterpret_cast<const SIG_MAILBOX_SEND_NEW_MAIL*>(mailBuf)))

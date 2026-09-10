@@ -89,10 +89,16 @@ int DisPatcher_SelectCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     DB_GetDeathTowerBestRecord::makeRequest(
         user->GetUID(), user->get_charac_no(static_cast<char>(req.m_slot)));
 
-    const int curSec = GlobalData::s_systemTime_.getCurSec();
-    const int lastPlay = user->GetAccountLastPlayTime();
+    // [J5-ProcD 2026-09-11 ndiff 481→451 落地] P0/P183：ORIG 0x081c64xx 段
+    // `mov %eax,%esi`（第 3 实参 curSec）/ `mov %eax,%ebx`（第 2 实参 lastPlay）跨 call
+    // 用 callee-saved 保活、末尾 `mov %esi,0x8(%esp); mov %ebx,0x4(%esp)` —— **无具名槽**；
+    // 旧形两个 `const int` 具名局部使每值多 1 store+1 load（我方帧 0x1b4 vs ORIG 0x1a0）。
+    // 父泳道核账：指令数不变但 ndiff **481→451**（net −30）⇒ 保留本形。
+    // 改前形：`const int curSec = …; const int lastPlay = …; CheckDailyScheduleTime(…, lastPlay, curSec)`
+    // 改后形：三实参内联（cdecl 右→左求值序与 ORIG 保活序一致）。
     if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                               lastPlay, curSec))
+                               user->GetAccountLastPlayTime(),
+                               GlobalData::s_systemTime_.getCurSec()))
     {
         DB_GetUserRegdate::makeRequest(user->GetUID(), user->get_acc_id());
     }

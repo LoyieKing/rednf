@@ -227,7 +227,7 @@ namespace game_master
 
     // ORIG：256 字节栈缓冲 rep stos 清零后 sprintf 韩文通告。
     char buf[0x100] = {0};
-    sprintf(buf, "비밀상점 npc가 %d로 교체되었습니다", *shopData);
+    sprintf(buf, "\xba\xf1\xb9\xd0\xbb\xf3\xc1\xa1 npc\xb0\xa1 %d\xb7\xce \xb1\xb3\xc3\xbc\xb5\xc7\xbe\xfa\xbd\xc0\xb4\xcf\xb4\xd9", *shopData);
 
     cMyTrace(__PRETTY_FUNCTION__, 0x73f, 0)(
         "[SECRETSHOP] change npc(%s, %d)", user->getCurCharacName(), *shopData);

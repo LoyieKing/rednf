@@ -1390,6 +1390,9 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     // `__gnu_cxx::operator==<pair const*, vector<pair>>` EXTRA（迭代器比较形，
     // P96/P220 非 const iterator + 正极性 `!=` 待核）。
     // 残余为跨版本槽/寄存器族。
+    // [J10GameRest.J10SkillSlot 2026-09-11 复核] p167 calls 77 vs 77 CLEAR（仅
+    // C1/C2·D1/D2 别名）；523/519 差额集中在 3 处 m_characList regmove（N18a）与
+    // `movzbl; xor $1; test` vs `cmpb $0; je`（P168a③b）⇒ 维持 N82/N96 封顶。
     // [round5-A17 2026-09-10] 两处**真实调用点差**已修（fresh 复验）：
     //   ① `eit` 段原写「预求值 eend + `==`」⇒ p167 EXTRA `__gnu_cxx::eq<const pair*,
     //      vector>`（ORIG 为混合 `ne<const pair*, pair*>`）⇒ 改回
@@ -1615,6 +1618,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     // ORIG 4.1 物化 `movzbl; xor $1; test %al; je`，4.4 对 char 局部恒
     // `cmpb $1; jne`（bool 化则存储段多 setne，两段不可兼得，P168a④/N96）。
     // 语义等价（get_give_skill 返回 char 无归一化，ORIG 0x08348838 movzbl 直返）。
+    // [J10GameRest.J10SkillSlot 2026-09-11 复核] p167 calls 39 vs 39（仅 C1/C2 别名）；
+    // 231/233 的 2 条差额 = 上述 ① 的 4.4 regmove（N18a，`mov 0x14(%eax),%eax;
+    // mov %eax,%edx` 单段不可造），② 段本函数未复现（我们 231 vs 233 全落在 ① 两处）。
+    // 本轮无新增旋钮可落地 ⇒ 维持 N18a 封顶。
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
         out.clear();
@@ -1681,6 +1688,14 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     // `_List_const_iterator<_pre_skill>::operator==` EXTRA（同 try_master_new_skills，
     // 迭代器比较形待改 P7 形）。其余为跨版本槽/寄存器/求值序族（同族实证）。
     // 后续重开时优先：preSkill 循环改 `for(it=begin();it!=end();it++)`。
+    // [J10GameRest.J10SkillSlot 2026-09-11] 语义轴**落地**：ORIG 0x08603b97
+    // `je 0x08603bfd`（IsStealable==0 直跳 premium 段）证明
+    // `level += GetPremiumInfo()->getOverSkillLevel()`（0x08603bfd..0x08603c15
+    // `movzwl %ax,%eax; add %eax,0x10(%ebp)`）在 isSteal 分支**外**无条件执行；
+    // 旧形误置于 `if (IsStealable(...))` 内 ⇒ 非偷取路径 level 少加 overSkillLevel、
+    // can_learn 第 2 实参偏低。移出后我方 0x2e4a(sub) → 0x2e5a/0x2e62(GetPremiumInfo/
+    // getOverSkillLevel)+add 的顺序与 ORIG 一致（同址 je 目标 +0x190→+0x175）。
+    // 读数 464/458 gap=+6 与残差 28 均不变（语句移动不改指令数），无劣化。
     CSkill* skill = 0;
     skill = G_CDataManager()->find_skill(job, skillIdx);
     if (skill == 0)
@@ -1731,8 +1746,14 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         // 分支内、无具名槽；后续 can_learn 直读形参（0x08603ca0
         // `mov 0x10(%ebp),%eax`）。原具名 `unsigned short overLevel` 是
         // 我方多出的槽（我方 -0x1a store/load 往返，ORIG 全无）。
-        level = level + m_parent->GetPremiumInfo()->getOverSkillLevel();
     }
+    // [J10GameRest.J10SkillSlot 2026-09-11] 语义轴修正：ORIG 0x08603b97
+    // `je 0x08603bfd`（IsStealable==0 直接跳到 0x08603bfd = GetPremiumInfo 段）
+    // 证明本段在 isSteal 分支**外**、无条件执行（0x08603c12 `movzwl %ax,%eax` +
+    // 0x08603c15 `add %eax,0x10(%ebp)` 位于 sub GetStealLevelPenalty 之后且
+    // 早于 G_GameWorld 调用）。旧形放在 if 内 ⇒ 不偷技能时 level 少加
+    // overSkillLevel，can_learn 实参偏低 = 真语义偏差。
+    level = level + m_parent->GetPremiumInfo()->getOverSkillLevel();
     if (G_GameWorld()->IsPvPSkilTreeChannel() == 0)
     {
         if (skill->can_learn(level, firstGrow, secondGrow,
@@ -1924,8 +1945,13 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         // 分支内、无具名槽；后续 can_learn 直读形参（0x08607663
         // `mov 0x10(%ebp),%eax`）。原具名 `unsigned short overLevel` 是
         // 我方多出的槽（我方 -0x1a store/load 往返，ORIG 全无）。
-        level = level + m_parent->GetPremiumInfo()->getOverSkillLevel();
     }
+    // [J10GameRest.J10SkillSlot 2026-09-11] 语义轴修正（同 master_new_skill）：
+    // ORIG 0x0860755a `je 0x086075c0`（IsStealable==0 直跳 premium 段起点）
+    // ⇒ `level += GetPremiumInfo()->getOverSkillLevel()`（0x086075c0..0x086075d8
+    // `movzwl %ax,%eax; add %eax,0x10(%ebp)`）在 isSteal 分支**外**无条件执行；
+    // 旧形误置 if 内 ⇒ 非偷取路径 level 少加 overSkillLevel。
+    level = level + m_parent->GetPremiumInfo()->getOverSkillLevel();
     if (G_GameWorld()->IsPvPSkilTreeChannel() == 0)
     {
         if (skill->can_learn(level, firstGrow, secondGrow,
@@ -2028,6 +2054,9 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     // ② m_skills 两处 base(%ecx) 先于 i(%edx) 装载（ORIG 反之，P23/P75）；
     // ③ needGSP 存储 4.4 多 `mov %eax,%edx` 中转（ORIG 直接 `mov %ax,(%edx)`）。
     // 三者语义等价，属 4.1/4.4 寄存器分配族，无源码旋钮可择。
+    // [J10GameRest.J10SkillSlot 2026-09-11 复核] p167 calls 14 vs 14 CLEAR；206/207
+    // 唯一差额 = ③ GSP store 的 `mov %eax,%edx` 中转（`short& = int 返回` 异型 store，
+    // P211 档③判据：字段 short 与 RHS int 已异型，无同型化空间）⇒ 维持 N。
     // 真语义 bug 修正：ORIG 0x086039ac 的 GSP 检查用
     // 0x30(%ebp)（第 10 形参）；0x20(%ebp)（第 6 形参 money）全函数未被使用
     // ⇒ 原码参数序为 (…, guildInfo, money, needGold, learnCnt, needGSP,
@@ -2144,6 +2173,19 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     // ORIG 证据：asm 0x08606a4a（`test %al,%al; je 0x08606a78`）、
     // Ghidra C `local_50=CSkill::get_group; local_4c=get_skillslot_no(...)`、
     // p167 调用点差集 CLEAR。语义全等（実参/副作用序一致）⇒ N7/N82 封顶。
+    // [J10GameRest.J10SkillSlot 2026-09-11 第 2 轮] 块序轴**落地**：ORIG
+    // 0x08606de4 `call IsSpecialSkill; xor $1,%eax; test %al,%al; je 0x08606f5e`
+    // （je 落 SFP/TP 块）⇒ 原码 = `if(!IsSpecialSkill()){SP 块}else{SFP 块}`；
+    // 旧写 `== 1` 令 SFP 落 then、4.4 产 `test;je SP` 反序块。改后
+    // insns 549/548(gap+1) → **549/549(gap 0)**、帧 0xa0 一致、TU 三数不变。
+    // 残余（N 封顶）：① 守卫第二项 ORIG `cmp $0;setge;test;jne` vs 4.4
+    // `shr $0x1f;test;je`（P168a③b 跨版本 bool 物化）；② giveList 循环 ORIG
+    // 0x08606c07..c10 的两个 4B 拷贝槽 + `cmp mem,reg` 直读 vs 4.4 单 pair 槽。
+    // 负结论（试形留痕，均已回滚）：
+    //  ③ 删 tree-index 具名局部（内联两次 GetCurCharacSkillTreeIndex，P0/P48）
+    //     ⇒ 545(gap-4)/帧 0x90 劣化；
+    //  ④ giveList 循环补 `int giveIdx/giveLevel` 具名局部（对齐 ORIG 的两拷贝槽）
+    //     ⇒ 552(gap+3) 劣化（4.4 多 2 条局部 load；ORIG 是 cmp mem 直读）。
     result = 0x13;
     if (m_parent == 0)
     {
@@ -2173,6 +2215,8 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         }
     }
     {
+        // 2026-09-11 试形留痕（J10SkillSlot）：删本件 tree-index 具名局部（内联两次
+        // getter，P0/P48 形）⇒ insns 549→545（gap 0→-4）、帧 0xa0→0x90 ⇒ 劣化，已回滚。
         ENUM_SKILL_TREE_KIND kind =
             (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
                 ->GetCurCharacSkillTreeIndex();
@@ -2228,6 +2272,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         for (int i = 0; i < (int)giveList.size(); ++i)
         {
             pair = giveList[i];
+            // 2026-09-11 试形留痕（J10SkillSlot）：本循环按 ORIG 0x08606c07..0x08606c10
+            // 的两个 4B 拷贝槽（-0x38/-0x34）补 `int giveIdx/giveLevel` 具名局部
+            // ⇒ insns 549→552（gap 0→+3）劣化，已回滚（4.4 对局部比较多 2 条 load，
+            // ORIG 是 `cmp mem,reg` 直读槽）。
             if (buf[slot].m_index == pair.first)
             {
                 if (curLevel < pair.second)
@@ -2271,7 +2319,41 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
         {
             buf[slot].m_index = 0;
         }
-        if (skill->IsSpecialSkill() == 1)
+        // [J10GameRest.J10SkillSlot 2026-09-11] 块序轴：ORIG 0x08606de4
+        // `call IsSpecialSkill; xor $1,%eax; test %al,%al; je 0x08606f5e`（je 落
+        // SFP/TP 块），fall-through = SP 块 ⇒ 原码 = `if(!IsSpecialSkill()){SP}else{SFP}`
+        // （旧写 `== 1` 使 SFP 块落 then、4.4 产 `test;je SP` 反向块序）。
+        if (!skill->IsSpecialSkill())
+        {
+            int remain = get_remain_sp_at_index(
+                (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
+                    ->GetCurCharacSkillTreeIndex());
+            set_remain_sp_at_index(
+                remain + returnSP,
+                (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
+                    ->GetCurCharacSkillTreeIndex());
+            (&m_parent->m_historyLog)
+                ->SkillDel(
+                    ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                    ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
+                    skillIdx, refundCount, (eSkillDelReason)1);
+            (&m_parent->m_historyLog)
+                ->SPAdd(
+                    ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
+                    remain + returnSP, returnSP, (eSPAddReason)2);
+            if (0 < refundCount && 1000 < returnSP / refundCount)
+            {
+                LogManager::logFormat(
+                    1, "skill_slot.cpp",
+                    __PRETTY_FUNCTION__,
+                    0x921,
+                    "Wrong refund SP skill mId:%s char_no:%d rSkillIdx:%d rSp:%d rCount:%d",
+                    NumberToString(m_parent->get_acc_id(), 0),
+                    ((CUserCharacInfo*)m_parent)->getCurCharacNo(), skillIdx,
+                    returnSP, refundCount);
+            }
+        }
+        else
         {
             char kindChar = 0;
             if (((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex() ==
@@ -2304,36 +2386,6 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
                     __PRETTY_FUNCTION__,
                     0x93b,
                     "Wrong refund TP skill mId:%s char_no:%d rSkillIdx:%d rSp:%d rCount:%d",
-                    NumberToString(m_parent->get_acc_id(), 0),
-                    ((CUserCharacInfo*)m_parent)->getCurCharacNo(), skillIdx,
-                    returnSP, refundCount);
-            }
-        }
-        else
-        {
-            int remain = get_remain_sp_at_index(
-                (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-                    ->GetCurCharacSkillTreeIndex());
-            set_remain_sp_at_index(
-                remain + returnSP,
-                (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-                    ->GetCurCharacSkillTreeIndex());
-            (&m_parent->m_historyLog)
-                ->SkillDel(
-                    ((CUserCharacInfo*)m_parent)->get_charac_job(),
-                    ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
-                    skillIdx, refundCount, (eSkillDelReason)1);
-            (&m_parent->m_historyLog)
-                ->SPAdd(
-                    ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
-                    remain + returnSP, returnSP, (eSPAddReason)2);
-            if (0 < refundCount && 1000 < returnSP / refundCount)
-            {
-                LogManager::logFormat(
-                    1, "skill_slot.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x921,
-                    "Wrong refund SP skill mId:%s char_no:%d rSkillIdx:%d rSp:%d rCount:%d",
                     NumberToString(m_parent->get_acc_id(), 0),
                     ((CUserCharacInfo*)m_parent)->getCurCharacNo(), skillIdx,
                     returnSP, refundCount);
@@ -2490,13 +2542,18 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
             m_tempSkillSlot[slot].m_index = 0;
         }
         int* remain;
-        if (skill->IsSpecialSkill() == 1)
+        // [J10GameRest.J10SkillSlot 2026-09-11] 块序轴：ORIG 0x08607d13
+        // `call IsSpecialSkill; xor $1,%eax; test %al,%al; je 0x08607d3e`
+        // （0x08607d3e 段 = `call get_temp_remain_sfp`）⇒ fall-through 为
+        // `get_temp_remain_sp`，原码 = `if(!IsSpecialSkill()){SP}else{SFP}`；
+        // 旧写 `== 1` 令 SFP 落 then、4.4 产 `test;je SP` 反序块（同 refund_skill）。
+        if (!skill->IsSpecialSkill())
         {
-            remain = get_temp_remain_sfp();
+            remain = get_temp_remain_sp();
         }
         else
         {
-            remain = get_temp_remain_sp();
+            remain = get_temp_remain_sfp();
         }
         *remain = *remain + returnSP;
         result = 0;
@@ -2518,6 +2575,9 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     // ④ 具名 `cUserHistoryLog* historyLog=&…; historyLog->InitSkill(...)` 求值序
     //    翻正（this 最后装载）但 receiver 槽化 -0x1c + 槽位重排 ⇒ 59 vs 57 DIFF。
     // receiver 无槽往返（P0 ⇒ 原码无具名局部），4.4 无法在无槽下把 this 求值后置
+    // [J10GameRest.J10SkillSlot 2026-09-11 复核] p167 calls 4 vs 4 CLEAR；57/57 仅
+    // 压栈尾部两条（spKind↔receiver 装载序）寄存器角色差，前轮 5 形（含逗号接收者/
+    // 解引用/具名指针/取址）已穷举 ⇒ 维持 N7 封顶，无新增可落地项。
     // ⇒ 跨版本求值序结构性差，封 N7；语义等价（全部实参/副作用序一致）。
     // [round1-L19 2026-09-09] 第 ⑤ 形复测：`(&m_parent->m_historyLog)->InitSkill(...)`
     // 与链式形逐条同形（56=56、ndiff 12 不变）⇒ 维持 N7 封顶（4.4 恒先算 receiver
@@ -2665,6 +2725,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：p167 残差 1 处
     // `std::list<_pre_skill>::end()` EXTRA（循环外 end() 预求值形待核，P13）。
     // 残余为跨版本槽/寄存器/求值序族（大函数 ndiff 失真，见 N82；验收须走
+    // [J10GameRest.J10SkillSlot 2026-09-11 复核] p167 calls 69 vs 69 CLEAR（前轮
+    // `list::end()` EXTRA 已消）；剩余 = 帧 0xcc vs 0xdc、`lea 0x18(%eax)` vs 4.4
+    // `add $0x18,%eax`（N107 恒定 add 形）、m_characList regmove（N18a）、
+    // `setne` 物化岛（P168a③b）⇒ 无新旋钮，维持 N82 封顶。
     // §6.2 三件套）。
     if (m_parent == 0 ||
         ((CUserCharacInfo*)m_parent)->getCurCharacR() == 0)
@@ -3281,6 +3345,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     for (int i = 0; i < (int)giveVec.size(); ++i)
     {
         pair = giveVec[i];
+        // 2026-09-11 试形留痕（J10SkillSlot）：按 ORIG 0x086083bd..0x086083c6 的两个
+        // 4B 拷贝槽（-0x3c/-0x38）补 `int giveIdx/giveLevel` 具名局部 ⇒ insns
+        // 338(-2) → 342(+2)、残差 78 → 112 ⇒ 劣化，已回滚（4.4 从 pair 槽直读进
+        // callee-saved %esi/%ebx 跨 get_charac_job 保活，写具名槽反而多 4 条）。
         growtype_skill(m_parent->get_charac_job(), pair.first, pair.second,
                        kind);
     }

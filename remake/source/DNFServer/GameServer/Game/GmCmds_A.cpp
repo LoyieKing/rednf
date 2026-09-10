@@ -460,12 +460,12 @@ L3:;
     char fileName[0xff] = {0};
     char fileBuf[95000] = {0};
 
-    static char sMsgStart[] = "LOTTERY 아이템 결과체크를 시작합니다";
+    static char sMsgStart[] = "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb8\xa6 \xbd\xc3\xc0\xdb\xc7\xd5\xb4\xcf\xb4\xd9";
     CBoosterTest::SendChatMsg(user, sMsgStart);
 
     if (m_mode == -1)
     {
-        static char sNeedIdx[] = "아이템 인덱스를 입력하세요";
+        static char sNeedIdx[] = "\xbe\xc6\xc0\xcc\xc5\xdb \xc0\xce\xb5\xa6\xbd\xba\xb8\xa6 \xc0\xd4\xb7\xc2\xc7\xcf\xbc\xbc\xbf\xe4";
         CBoosterTest::SendChatMsg(user, sNeedIdx);
         return;
     }
@@ -473,14 +473,14 @@ L3:;
     CItem* item = G_CDataManager()->find_item(m_mode);
     if (item == 0)
     {
-        static char sNoItem[] = "존재하지 않는 아이템입니다";
+        static char sNoItem[] = "\xc1\xb8\xc0\xe7\xc7\xcf\xc1\xf6 \xbe\xca\xb4\xc2 \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xd4\xb4\xcf\xb4\xd9";
         CBoosterTest::SendChatMsg(user, sNoItem);
         return;
     }
 
     if (m_count > 1000000 || m_count < 0)
     {
-        static char sRange[] = "0 ~ 1000000번 통계까지만 지원됩니다";
+        static char sRange[] = "0 ~ 1000000\xb9\xf8 \xc5\xeb\xb0\xe8\xb1\xee\xc1\xf6\xb8\xb8 \xc1\xf6\xbf\xf8\xb5\xcb\xb4\xcf\xb4\xd9";
         CBoosterTest::SendChatMsg(user, sRange);
         return;
     }
@@ -490,7 +490,7 @@ L3:;
     }
 
     char countMsg[21];
-    sprintf(countMsg, "%d번 통계입니다", m_count);
+    sprintf(countMsg, "%d\xb9\xf8 \xc5\xeb\xb0\xe8\xc0\xd4\xb4\xcf\xb4\xd9", m_count);
     CBoosterTest::SendChatMsg(user, countMsg);
 
     bool goldLottery = this->is_gold_lottery_item(item->get_index());
@@ -527,13 +527,13 @@ L3:;
     case 0x14:
         if (!this->getCompoundEmblemResult(item, result))
         {
-            static char sNotEmblem[] = "엠블렘 합성 대상이 아닙니다.";
+            static char sNotEmblem[] = "\xbf\xa5\xba\xed\xb7\xbd \xc7\xd5\xbc\xba \xb4\xeb\xbb\xf3\xc0\xcc \xbe\xc6\xb4\xd5\xb4\xcf\xb4\xd9.";
             CBoosterTest::SendChatMsg(GetUser(), sNotEmblem);
         }
         break;
     default:
     {
-        static char sNotLottery[] = "LOTTERY 아이템이 아닙니다";
+        static char sNotLottery[] = "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xcc \xbe\xc6\xb4\xd5\xb4\xcf\xb4\xd9";
         CBoosterTest::SendChatMsg(GetUser(), sNotLottery);
         return;
     }
@@ -563,7 +563,7 @@ L3:;
         memset(fileBuf, 0, sizeof(fileBuf));
     }
 
-    static char sDone[] = "LOTTERY 아이템 결과체크가 완료되었습니다";
+    static char sDone[] = "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb0\xa1 \xbf\xcf\xb7\xe1\xb5\xc7\xbe\xfa\xbd\xc0\xb4\xcf\xb4\xd9";
     CBoosterTest::SendChatMsg(user, sDone);
 }
 
@@ -1034,7 +1034,7 @@ struct CBoosterEmblemIdTableView
 
         if (strlen(fileBuf) + strlen(line) > 89999)
         {
-            static char sAppend[] = "결과 파일 이어붙힘";
+            static char sAppend[] = "\xb0\xe1\xb0\xfa \xc6\xc4\xc0\xcf \xc0\xcc\xbe\xee\xba\xd9\xc8\xfb";
             SendChatMsg(user, sAppend);
             return;
         }
@@ -1070,7 +1070,7 @@ struct CBoosterEmblemIdTableView
 
         if (strlen(fileBuf) + strlen(line) > 89999)
         {
-            static char sAppend[] = "결과 파일 이어붙힘";
+            static char sAppend[] = "\xb0\xe1\xb0\xfa \xc6\xc4\xc0\xcf \xc0\xcc\xbe\xee\xba\xd9\xc8\xfb";
             SendChatMsg(user, sAppend);
             break;
         }

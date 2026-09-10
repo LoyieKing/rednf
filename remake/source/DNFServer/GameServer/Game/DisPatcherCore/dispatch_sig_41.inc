@@ -75,7 +75,12 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    unsigned char typeFlag = 0;                          // ORIG -0xad
+    // [DPC-SigC 2026-09-11] P328⑤ 去 `=0`：ORIG 全函数无 `movb $0x0,-0xad(%ebp)`
+    // （objdump 实证该槽仅出现 `lea -0xad(%ebp),%eax`@+0x10a 与
+    // `movzbl -0xad(%ebp),%eax`@+0x11a，无零初始化）；我方零初始化多 1 条
+    // （LCS insert OUR[266:267] `movb $0x0,-0xad(%ebp)`）。get_byte 失败路径
+    // 直接 return LineFunc，不读该值 ⇒ 语义不变。预期 ours 421→420。
+    unsigned char typeFlag;                              // ORIG -0xad（无初始化）
     if (!packet.get_byte(typeFlag))
         return LineFunc(0x9eff,
                         __PRETTY_FUNCTION__,

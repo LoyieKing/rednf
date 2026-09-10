@@ -36,6 +36,17 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
     // ORIG +0xe8 `test %al,%al; je +0x134`：inParty 体是 fall-through 块（技17/19），
     // `get_state()==3` 为 cmp+sete+test 物化（技9 直写 ==3 已实证产 sete）。
+    // [J5-ProcD 2026-09-11] ORIG 0x081ca3fd/+0x134 与 0x081ca4ea/+0x1ec 布局证据：
+    //  - inParty 真块尾 ORIG `jmp +0x1f1`（0x081ca42d）**无** `mov $0,%eax` ⇒ 原码无块内
+    //    `return 0;`（旧形 `{...; return 0;}` 多 1 条提前物化返回值）；
+    //  - `party == 0` 分支 ORIG 是 `je +0x1c0`（0x081ca446，正向跳到远端 logFormat 块），
+    //    hack/set_single_play/game_start 为 near fall-through 块、尾 `jmp +0x1ec`
+    //    （0x081ca4bc），logFormat 段后**直接落共享尾** 0x081ca4ea `mov $0,%eax`
+    //    ⇒ 原码是 `if (party != 0) {hack…} else {logFormat…}`（非 `party==0` 早返回，
+    //    旧形产 `jne` + 近端 logFormat + `mov $0,%eax; jmp` 多 2 条）。
+    // 改前形：`if (CheckInParty()) {…; return 0;} {p=GetParty(); if (p==0){log;return 0;} …}`
+    // 改后形：`if (CheckInParty()) {…} else {p=GetParty(); if (p!=0){…} else {log;}}` + 尾单一 return 0。
+    // 预期方向：负 gap（ours 133 → 131，ORIG 129）。
     if (user->CheckInParty())
     {
         if (user->get_state() == 3)
@@ -46,23 +57,25 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                 party->game_start(user);
             }
         }
-        return 0;
     }
+    else
     {
         party = G_CGameManager()->GetParty();
-        if (party == 0)
+        if (party != 0)
+        {
+            if (excludeAddHackCount(user))
+            {
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, (WongWork::ENUM_HACKTYPE)0x1f6, 1u, 0u, 0u);
+            }
+            party->set_single_play(user);
+            party->game_start(user);
+        }
+        else
         {
             LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0x1e99,
                                   "cant party memory : you must free party memory!!!");
-            return 0;
         }
-        if (excludeAddHackCount(user))
-        {
-            user->getHackAnalyzer()->addServerHackCnt(
-                user, (WongWork::ENUM_HACKTYPE)0x1f6, 1u, 0u, 0u);
-        }
-        party->set_single_play(user);
-        party->game_start(user);
     }
     return 0;
 }

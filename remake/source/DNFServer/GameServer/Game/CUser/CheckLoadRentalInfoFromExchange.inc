@@ -1,1 +1,1 @@
-unsigned char CUser::CheckLoadRentalInfoFromExchange()
+bool CUser::CheckLoadRentalInfoFromExchange()

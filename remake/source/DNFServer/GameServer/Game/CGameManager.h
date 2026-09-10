@@ -161,6 +161,9 @@ enum CREATURE_STATE
     CREATURE_STATE_2 = 2,   // 休眠态（Reset 初值）
     CREATURE_STATE_3 = 3    // 死亡/待复活态（SetState 复活分支）
 };
+// [2026-09-11 J10GameRest·父泳道] ABI 宽度锁（C++98 安全老式断言，不用 static_assert
+// 关键字以免 gnu++98 路由 TU 编译失败）：字段 CCreature::m_state(+0x3c) 用它，宽度恒 4B。
+typedef char CREATURE_STATE_must_be_4_bytes[sizeof(CREATURE_STATE) == 4 ? 1 : -1];
 
 class CStomach
 {
@@ -359,7 +362,11 @@ public:
     int m_level;                    // +0x2c（Reset=1；GainExp/isMaxLevel 比较）
     int m_exp;                      // +0x30（原 m_field30；CalculateExp/包序列化）
     CStomach m_stomach;             // +0x34
-    int m_state;                    // +0x3c（原 m_field3c；Reset=2；GetState/SetState）
+    CREATURE_STATE m_state;         // +0x3c（原 m_field3c；Reset=2；GetState/SetState）
+                                    // [2026-09-11 J10GameRest] ORIG 0x8337192
+                                    //   `mov 0x3c(%eax),%eax; cmp 0x10(%ebp),%eax`（mem 直比）
+                                    //   + 0x8337318 LHS-first store ⇒ 字段与 enum 形参同型；
+                                    //   宽度 4B ⇒ 布局/偏移/mangled 零变化（探针 /tmp/probe_enum.cpp）。
     bool m_saveFlag;                // +0x40（原 m_field40；SetState/GainExpCreature=1；IsSave，ORIG bool 直返）
     unsigned char m_pad41[3];       // +0x41
     CCreatureScript* m_script;     // +0x44（Reset=0）

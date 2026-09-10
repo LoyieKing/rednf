@@ -56,11 +56,14 @@ int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
         // （req.m_slot，signed char 语义两段扩展），非 sig+0x22。
         static_cast<int>(static_cast<char>(req.m_slot)) * 0x7dc;
     sig->m_field26 = *reinterpret_cast<const unsigned short*>(jobRec);
-    // [H5DisPatcher 2026-09-11 核账] DPC_Process 的 80B 结构体块拷贝试验
-    // （`struct JobDataBlob{...} = *(...)`，拟复现 ORIG 0x081c0641 的 rep movsl）
-    // 实测 ours 271→**276（+5）劣化**（4.4 -O0 把 80B 展开成 movl 序列而非 movmem）
-    // ⇒ 已回滚为原 `memcpy` 形（p167 的 EXTRA memcpy 记 N，留待后续用
-    // char[0x50] 显式视图或 -O0 MOVE_RATIO 之外的旋钮处理）。
+    // [J5-ProcD 2026-09-11 核账] ORIG 0x081c0641 `mov $0x14,%ecx; mov %eax,%edi;
+    // mov %edx,%esi; rep movsl`（=20 dword/80B 的 gcc **movmem 内联**，非 call memcpy）
+    // + 函数头 0x081c0301 `push %edi` 同证；p167 差集：我方多 1 个 `memcpy` 调用
+    // （ORIG calls=38 / 我方 39）。
+    // 两次试形均已实测劣化 + 回滚：①H5 `struct JobDataBlob{...} = *(...)`（具名 80B
+    // struct）271→276(+5)；②本轮**纯 dword 数组视图**（20×unsigned int）272→276(+4)
+    // —— 4.4 -O0 对 80B 一律走 by-pieces（movl 序列）而非 movmem，**勿再试结构体整体
+    // 赋值/prism 视图**；p167 的 EXTRA memcpy 记 N（需 movmem 之外的旋钮）。
     memcpy(sig->m_jobData, jobRec + 2, sizeof(sig->m_jobData));
     sig->m_field78 =
         (reinterpret_cast<const unsigned char*>(G_CDataManager()->m_characList) +

@@ -1,1 +1,1 @@
-unsigned char CUserCharacInfo::getCurCharacGrowType() const
+char CUserCharacInfo::getCurCharacGrowType() const

@@ -279,6 +279,12 @@ POS:
     // （N85 邻族）+ 帧平移 ⇒ N 封顶。
     // 候选新纪录（stage, playTime）。ORIG 0x08468de0：本类无 towerIdx 越界检查。
     // 调用方（rankTable 槽位）保证 towerIdx 在 [0,4]，与 ORIG 保持一致不加防御。
+    // [J10 2026-09-11 复核] orig 610 / our 612（gap −2）；p167 54/54 CLEAR（迭代器
+    // C1↔C2、stBestRecord_t C1↔C2 同址别名）。ORIG 0x084691b3 `mov -0x20(%ebp),%eax;
+    // mov $0x0,%edx; mov %edx,-0x12c; fildll`（absDiff 32→64 零扩展）vs 4.4.6 `fildl`
+    // + valDiff 装载槽往返（N18a/N85 邻族）；帧 0x164+1push vs ORIG 0x144+3push（N95/N115）。
+    // 试形（历史）：absDiff unsigned + branchless `(v^(v>>31))-(v>>31)` 实测 630 劣化已回滚
+    // ⇒ 维持现形（P248 S1 一次性旋钮已用尽）。
 
     stBestRecord_t newRec;
     newRec.m_stage = stage;
@@ -727,6 +733,13 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
 // + 2×min<unsigned>+1×min<int>（P211/P265）。ndiff 566→407，orig 608 / our 603；
 // 残余仅 4.4 帧 0xdc vs ORIG 0xcc 的槽号整体 -0x10 平移 + 实参跨 call 落槽 vs
 // ORIG callee-saved（N82/N95/N7 族）⇒ 语义完成、byte 层 N 封顶。
+// [J10 2026-09-11 复核] orig 610 / our 610（gap 0）；p167 103/103 CLEAR（差集全为
+// PacketGuard/CPacketHandler/QuickParty 的 C1↔C2、D1↔D2 同址别名，P93）。ORIG 帧
+// `sub $0xcc,%esp` + 槽基 -0x5c vs 4.4.6 `sub $0xdc` + -0x4c = 版本常数（N115/N126），
+// 另有 callee-saved 角色互换（%esi/%ebx/%edi，N7 后端族，本 TU 已走 446 后端）。
+// 试形（回滚）：isNewRecord 改三目 `(result==1)?1:0` 欲复现 ORIG 0x0846754f
+// `mov $0x1,%eax; jmp L; mov $0x0,%eax; L: mov %eax,-0x28(%ebp)` 的 %eax 物化，
+// 4.4.6 实测 610→**611**（+1 条，未转 AE）⇒ 劣化已回滚，维持 if/else 直存形。
 #include "CDeathTower/_beginTowerClearProcess.inc"
 {
     if (getTowerState() > 2)
@@ -802,6 +815,10 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
             // [b28d-SCT] P47/P73：ORIG 0x0846754f `cmpl $0x1,-0x28; jne L; mov $1;
             // jmp; L: mov $0` 分支物化；`isNewRecord = (result == 1)` 在 4.4 生
             // sete/movzbl（少 1 jne，jcc 47→46）。改写 if/else 赋值对齐 ORIG 形态。
+            // [J10 复核·回滚] ORIG 0x0846754f 段为 `mov $1,%eax; jmp L; mov $0,%eax;
+            // L: mov %eax,槽`（值经 %eax 物化后入槽），4.4.6 对 if/else 赋值生
+            // `movl $imm,槽` 直存。试三目 `(result==1)?1:0` 实测 610→**611**（+1 条，
+            // 未转 AE）⇒ 劣化已回滚（P248 S1 一次性旋钮；帧/寄存器族不变）。
             if (result == 1)
                 isNewRecord = 1;
             else
@@ -916,6 +933,9 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
 // 0x08464dXX `*(int*)(*(int*)this+0xcd8)!=1`）；去掉 dungeon 判空（P140/P171）。
 // 剩余 ndiff 596 = 4.4 帧 0x56c vs ORIG 0x53c 的槽号整体平移 + 实参跨 call 落槽
 // （N82/N95/N7 族）⇒ 语义完成、byte 层 N 封顶。
+// [J10 2026-09-11 复核] orig 1043 / our 1042（gap +1）；p167 149/149 CLEAR（差集全为
+// C1↔C2/D1↔D2 同址别名）。ORIG 帧 0x08464844 `sub $0x59c,%esp` vs 我方 0x5ac + 槽号
+// 平移（ORIG `lea -0xa4(%ebp),%eax` ×25 ↔ 我方 `lea -0xb0(%ebp),%eax` ×27，N82/N95/N115）。
 #include "CDeathTower/handleKillMonster.inc"
 {
     if (m_stage.getState() != 1)
@@ -1715,6 +1735,11 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
     // P167：41/41 CLEAR（Inven_Item C1/C2 同址别名 P93 伪差）。
     // ORIG T 0x0846638c（Ghidra 反编译语义逐条转写；参数槽：0x8=this,0xc=user,
     // 0x10=type,0x14=slot,0x18=count,0x1c=item&）
+    // [J10 2026-09-11 复核] orig 491 / our 496（gap −5）；p167 41/41 CLEAR。差异主体 =
+    // ORIG 0x0846674f `cmp $0x5,%eax; ja 0846677c` + 0x08466754 `mov &data(.rodata)(,%eax,4),
+    // %eax; jmp *%eax`（attachType 0..5 六项跳表）vs 4.4.6 对同 4-case+default 恒发
+    // 比较/位测试决策树（补 case 0/4 实测 our 494→500 更劣，历史 A/B）⇒ switch lowering
+    // 代际差（P320），源形不可择；其余残差仅 nop 填充（§6.1）与 .rodata 地址立即数（AE 归一）。
     Inven_Item invenItem;   // ORIG 调 _ZN10Inven_ItemC1Ev（0x80cb854）
 
     switch (type)
@@ -1971,6 +1996,13 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
     //   P167 调用点差集 81/81 CLEAR；diff=地址占位+EH typeinfo+个别 lowering。
     // ORIG 0x846398e：整体 try/catch(int)；checkFlag 槽 -0x21 于函数头清零
     // （0x846399c movb $0 早于首 if）；cond -0x20 先 `movl $0`（0x8463a28）再赋值。
+    // [J10 2026-09-11 复核] orig 441 / our 442（gap −1）；p167 81/81 CLEAR（全为
+    // PacketGuard/CPacketHandler 的 C1↔C2、D1↔D2 同址别名）。唯一残差 =
+    // choose_random_buff 调用点 ORIG 0x08463cfe `mov 0x8(%ebp),%edx; mov (%edx),%edx;
+    // mov %eax,0x4(%esp); mov %edx,(%esp)` vs 4.4.6 `mov %eax,%edx; mov 0x8(%ebp),%eax;
+    // mov (%eax),%eax; mov %edx,0x4(%esp); mov %eax,(%esp)`（+1 regmove）⇒ N7 后端族
+    // （本 TU 已走 446 后端，故判为 4.4.6↔4.1 寄存器角色差，非路由可解）；
+    // 其余 6 处 `movl $<A>` vs `movl $0x0,0x4(%esp)` = typeinfo 地址（.o 未解析，AE 等价）。
     unsigned char checkFlag = 0;
     (void)flag;
     try
@@ -2343,6 +2375,10 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
 // cleanup 出口（N104 EH 块合并/相对序族）。Main A/B 实测：CPacketHandler ctor/dtor
 // 加 throw() 对本函数零影响（两态均同计数），throw() 已回退 ⇒ N91/N104 封顶。
 // 语义/异常路由（catch(int) → makeCommonError(0x30,e)）与 ORIG 一致。
+// [J10 2026-09-11 复核] orig 252 / our 246（gap +6）；p167 49/45：MISSING 全为
+// CPacketHandler C2/D2 与 _Unwind_Resume（前两者=P93 同址别名；Unwind 为 tail-merge 代价）。
+// ORIG 四个 landing 各自收尾 `mov %eax,(%esp); call _Unwind_Resume`（0x08465d10/0x08465d92/
+// 0x08465f9d/0x08466016）vs 4.4.6 以 `jmp <cmp $0x1,%edx 共享段>` 合并 ⇒ N104 EH tail-merge 封顶。
 #include "CDeathTower/handleMoveMap.inc"
 {
     try
@@ -2418,6 +2454,10 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
 // [b28d-solo-CDeathTower] verdict=DIFF（orig 400 / our 418，NDIFF=145），P167 CLEAR（44/44）：残差 = 4.4 帧
 // 0x… 槽号整体平移 + _pickupItem/appendPickupItem 实参跨 call 落槽 vs ORIG
 // callee-saved（N82/N95/N7 族）。语义（金钱/物品/avatar 三路 + 统计）全等。
+// [J10 2026-09-11 复核] orig 400 / our 404（gap −4，前值 418）；p167 44/44 CLEAR
+// （CPacketHandler/map_item 的 C1↔C2、D1↔D2 同址别名）。ORIG 帧 sub $0x110 vs 我方
+// sub $0x120；槽基 ORIG memberCnt -0x1c / 形参截断 -0xbc vs 我方 -0x24 / -0xcc
+// ⇒ N126（4.1 首槽 -0x4 vs 4.4 -0xc）+ N115 outgoing 预留，源形不可择。
 #include "CDeathTower/handlePickupItem.inc"
 {
     map_item item;
@@ -2691,6 +2731,12 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
 // （非 const begin/end + _List_const_iterator 转换 C1×2）；specialItems 改 const 指针
 // （const at）；第四段循环条件改 m_party->m_battleField.m_bloodState!=1
 //（消 get_party_type EXTRA，ORIG 0x0846136d 实证）+ _mapItem src 具名局部（C1 符号）。
+// [J10 2026-09-11 复核] orig 920 / our 916（gap +4）；p167 134/134 CLEAR（EXTRA/MISSING
+// 逐一配对为 C1↔C2、D1↔D2 同址别名 P93；注：game_func_report 对本题曾切错符号
+// 0x085b5a4c（CParty::OnKilledMonster），本读数以 objdump 切片 0x08460634..0x084614eb 为权威）。
+// 差异 = 全帧槽号 −4 平移（ORIG 0x0846068b `lea -0xf50(%ebp),%eax` ↔ 我方 `lea -0xf54`，
+// N115/N126）+ m_field11 写形（ORIG 两条 movb 写 +0x11/+0x12 vs 我方 movzbl/shl/or/
+// mov %ax 五条；字节视图试形 922 劣化已回滚，历史）+ 三元/临时构造块序。
 #include "CDeathTower/consistMap.inc"
                                      CDeathTower* tower)
 {
@@ -2992,6 +3038,11 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
     return 1;
 }
 
+// [J10 2026-09-11 复核] orig 813 / our 818（gap −5）；p167 107/107 CLEAR（CPacketHandler
+// C1↔C2/D1↔D2 同址别名 + Inven_Item 别名）。差异 = 槽号 −4 平移：ORIG 0x0846318f
+// `mov -0x28(%ebp),%eax; imul $0x3d,%eax,%eax; add -0x24(%ebp),%eax` ↔ 我方
+// `add -0x28(%ebp),%eax`（同一 0x3d 步长二维访问，仅槽号差）+ 帧 0x14c vs 0x15c
+// ⇒ N82/N95/N115 族，源形不可择（msg 线性 cmp/jne 链与 6 路分发语义已全等）。
 #include "CDeathTower/onTimer.inc"
 {
     // [b28d-solo-CDeathTower] verdict=DIFF（orig 806 / our 787，P167 CLEAR 107/107）：

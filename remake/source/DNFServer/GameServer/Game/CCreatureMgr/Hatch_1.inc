@@ -1,3 +1,15 @@
+// [2026-09-11 收口判词 · N104 + P75/N-G] ORIG 0x08339fa0（range 0x8339fa0..0x833a459，
+//   326 条）；我方 325 条（gap +1）。p167 调用点差集：MISSING/EXTRA 全为 C1/C2·D1/D2
+//   同址别名（P93 豁免：CDBMsgSender/CPacketRespondent/cMyTrace 各 1~2 对），无真实缺口。
+//   残余两类（均结构性）：
+//   ① 正常路径尾部析构块布局（N104）：ORIG 成功路径 `mov $0x1,%ebx; jmp 0x833a41b`
+//      后置独立 cleanup 块 0x833a428（`lea -0x40(%ebp); call CDBMsgSenderD1Ev;
+//      jmp 0x833a443`），4.4 把同一段 epilogue 就地内联 ⇒ 恰少 1 条 jmp（= gap +1 全部）。
+//   ② 多实参装载序（P75/N-G 跨版本调度）：ORIG 0x833a0eb `mov -0x18(%ebp),%edx;
+//      mov -0x1c(%ebp),%eax; mov %edx,0x4(%esp); mov %eax,(%esp)`（先双载再压栈）
+//      vs 4.4 逐个 load-store；同族另有 SetItemId / SetExpireTime /
+//      RegisterCreatureItem 各 1 处方向互反。
+//   §6.2 三件套验收：call 多重集 CLEAR + gap ≤ 1 + 槽位集一致 ⇒ 语义完成、byte 层 N 封顶。
 bool user_creature::CCreatureMgr::Hatch(int addInfo)
 {
     // ORIG 0x8339fa4 `movl $0x0,-0x1c(%ebp)`：newItem 先预清再赋值

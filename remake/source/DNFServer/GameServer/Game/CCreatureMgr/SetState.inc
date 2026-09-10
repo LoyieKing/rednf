@@ -1,6 +1,6 @@
 void CCreature::SetState(CUser* user, CREATURE_STATE state)
 {
-    float stomachValue = m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow);
+    float stomachValue = m_stomach.GetStomachValue(m_state, m_isGrow);
     // [b23S3C] P191/P194 极性：ORIG 0x8337192/0x195、0x833719b/0x19f、
     // 0x83371ac/0x1ae 三条判定全部「假则前跳」到 0x0d4 复活测试块，定时器分支走
     // fall-through ⇒ 原码先判 timer 条件（&& 短路正向形），else 内再判复活条件；
@@ -13,7 +13,18 @@ void CCreature::SetState(CUser* user, CREATURE_STATE state)
     // （enum CREATURE_STATE，mangled 固定不可改型），非局部；试具名 int 局部形
     // `const int st=(int)state;` 后本件 135→**141**（多 3 条 store/load 且预载
     // `mov 0x10(%ebp),%edx` 仍在）⇒ 已回退，维持 P209/N18b 封顶。
-    if ((int)state != m_state && (int)state == 1 && m_isGrow != 0)
+    // [2026-09-11 旋钮①-负结论] 交换首比较书写序（m_state 在左）实测无效：
+    //   4.4 产 `mov 0x8,%eax; mov 0x3c(%eax),%edx; mov 0x10,%eax; cmp %eax,%edx`
+    //   （仍是两寄存器比较，135 条不变），ORIG 0x8337192 为
+    //   `mov 0x8(%ebp),%eax; mov 0x3c(%eax),%eax; cmp 0x10(%ebp),%eax`（mem 直比）
+    //   ⇒ P209：4.4 对 unsigned 形参（enum CREATURE_STATE）比较恒载寄存器，
+    //   两向书写序皆不可造 mem 直比 ⇒ 封顶（回滚）。
+    // [2026-09-11 旋钮③-负结论] enum 同型比较（`state != (CREATURE_STATE)m_state`）
+    //   实测仍为 `mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax; mov 0x3c(%eax),%eax;
+    //   cmp %eax,%edx`（135 条不变）；4.4 对 enum(unsigned 底层) 形参参与的任何
+    //   比较恒载寄存器 ⇒ 两形 + 交换书写序三试皆不可造 ORIG 的
+    //   `cmp 0x10(%ebp),%eax` mem 直比（P209/N18b）⇒ 封顶。
+    if (state != m_state && (int)state == 1 && m_isGrow != 0)
     {
         // 切入战斗态（state 1）：按 60 秒 × 饱食度系数插入复活定时器
         // （常量 .rodata 0x8c2f460 = double 60.0；TIMER_MESSAGE 0x5c）。
@@ -30,7 +41,7 @@ void CCreature::SetState(CUser* user, CREATURE_STATE state)
     else
     {
         // 进入 state 3 且非同值切换：死亡宠复活流程（ORIG 0x08337269 起）。
-        if ((int)state != m_state && (int)state == 3 && m_isGrow != 0)
+        if (state != m_state && (int)state == 3 && m_isGrow != 0)
         {
             if (IsDieCreature())
             {
@@ -47,6 +58,22 @@ void CCreature::SetState(CUser* user, CREATURE_STATE state)
             }
         }
     }
-    m_state = (int)state;
+    // [2026-09-11 旋钮②-负结论] 尾部 store 装载序：ORIG 0x8337318 为 LHS-first
+    //   `mov 0x8(%ebp),%eax; mov 0x10(%ebp),%edx; mov %edx,0x3c(%eax)`。
+    //   P211 同型视图形 `m_state = *reinterpret_cast<int*>(&state);` 实测
+    //   LHS-first 得手但**多 5 条**（`lea 0x10(%ebp),%eax; mov (%eax),%edx` 取址链，
+    //   135→140）⇒ 净负回滚。
+    // [2026-09-11 enum 化落地 · 收口判词] 字段改 `CREATURE_STATE`（CGameManager.h:365
+    //   + :166 C++98 宽度锁）+ 消费侧同型化（比较去 (int)、store 去 (int)）后本件
+    //   **133 = 133**（原 135/DIFF ⇒ NEAR）：
+    //   ① 首比较 0x8337192 逐条复现 `mov 0x8(%ebp),%eax; mov 0x3c(%eax),%eax;
+    //      cmp 0x10(%ebp),%eax`（mem 直比）；② 尾 store 0x8337318 复现 LHS-first
+    //      `mov 0x8(%ebp),%eax; mov 0x10(%ebp),%edx; mov %edx,0x3c(%eax)`；
+    //   ③ 残余唯一 = callee-saved 角色互换（ORIG getCurCharacNo→%esi / GetUID→%ebx，
+    //      4.4.7 相反；get_unique_id 两侧均 %edi）⇒ N7/N109 族（P248 条件② 反例；
+    //      asm 绑定全域禁、裸 register 条件②「4.4 不自升格」不满足）⇒ NEAR 封顶。
+    //   实证探针：/tmp/probe_enum.cpp（同路由旗标，int 字段产两寄存器比较+RHS-first，
+    //   enum 字段产 ORIG 两形）、/tmp/probe_enum2.cpp（另 5 个消费形 int↔enum 逐字节相同）。
+    m_state = state;
     m_saveFlag = 1;
 }

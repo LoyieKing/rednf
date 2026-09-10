@@ -205,7 +205,7 @@ extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic()
             // 0x5d5, "name(%d), 존재하지 않는 아이템 등급", field)
             LogManager::logFormat(
                 1, "Statistics.cpp", __PRETTY_FUNCTION__, 0x5d5,
-                "name(%d), 존재하지 않는 아이템 등급", field);
+                "name(%d), \xc1\xb8\xc0\xe7\xc7\xcf\xc1\xf6 \xbe\xca\xb4\xc2 \xbe\xc6\xc0\xcc\xc5\xdb \xb5\xee\xb1\xde", field);
             return false;
         }
     }

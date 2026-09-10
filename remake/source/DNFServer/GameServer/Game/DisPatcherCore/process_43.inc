@@ -45,14 +45,16 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                     GlobalData::s_systemTime_.getCurTickCount(),
                     req.m_1a, req.m_1c, 0x5dc) != 0 &&
                 // CUser+0x8e444/0x8e446 = 内嵌 m_mcap(+0x8e3f0) 的 +0x54/+0x56
-                // （CMCAPManager.h m_timeChkDiffA/m_timeChkDiffB）；ORIG 0x081c37b2
-                // `movzwl 0x8e444(%eax); cmp $0x1f4,%ax; jg`（0x081c37cd `jle`）=
-                // 2B 比较 + **有符号序**，与头内 short 声明一致 ⇒ 取 short 视图
-                // （轴 B 正向修复：旧 unsigned short 视图产 ja/jbe）。
-                (*reinterpret_cast<const short*>(
-                     &user->m_mcap.m_timeChkDiffA) > 0x1f4 ||
-                 *reinterpret_cast<const short*>(
-                     &user->m_mcap.m_timeChkDiffB) > 0x1f4))
+                // （CMCAPManager.h m_timeChkDiffA/m_timeChkDiffB，均 short）；ORIG
+                // 0x081c37b2 `movzwl 0x8e444(%eax); cmp $0x1f4,%ax; jg`（0x081c37cd
+                // `jle`）= 2B 比较 + **有符号序**，与头内 short 声明一致。
+                // [J5-ProcD 2026-09-11] J1Dispatchers 实证修法：裸偏移/reinterpret
+                // 视图产 `add $0x8e444,%eax; movzwl (%eax),%eax` 两条；**具名成员直接
+                // 访问**才产 ORIG 的单条 `movzwl 0x8e444(%eax),%eax`（disp 折叠）。
+                // 改前形：`*reinterpret_cast<const short*>(&user->m_mcap.m_timeChkDiffA)`
+                // 改后形：`user->m_mcap.m_timeChkDiffA`。预期方向：负 gap（每处 -1，共 -2）。
+                (user->m_mcap.m_timeChkDiffA > 0x1f4 ||
+                 user->m_mcap.m_timeChkDiffB > 0x1f4))
             {
                 user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x130, 1, 0, 0);
             }

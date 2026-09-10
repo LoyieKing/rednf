@@ -1,3 +1,13 @@
+// [2026-09-11 收口判词 · P75/N-G 实参装载调度] ORIG 0x08339420（189 条）= 我方 189 条；
+//   p167 仅 D1/D2 同址别名（P93 豁免）。残余 = 4 处调用点实参装载方向互反：
+//   ① 0x8339613 SetSlotNo：ORIG this-first `mov -0x10(%ebp),%eax; mov 0x1c(%ebp),%edx;
+//      mov %edx,0x4(%esp); mov %eax,(%esp)` vs 4.4 arg-first
+//      （`mov 0x1c,%eax; mov %eax,0x4(%esp); mov -0x10,%eax; …`）；
+//   ② 0x83395aa EquipCreatureItem：ORIG 逐个 load-store，4.4 多一次 `mov -0xc(%ebp),%edx`
+//      预载；③ 0x833962b 同 ①；④ 0x83395e1 同 ②。
+//   已试形：P277 具名派生指针/static_cast 同型（156→158 劣化，已回滚）；
+//   显式限定调用 `CCreature::SetNoCharge(p,b)` 非法（成员调用需对象，编译错）⇒
+//   判跨版本实参装载调度（P75/N-G），非源码可择 ⇒ NEAR 封顶（助记符序列全等）。
 bool CCreatureMgr::SwapCreature(Inven_Item* item1, int slot1, int type1,
                                 Inven_Item* item2, int slot2, int type2)
 {

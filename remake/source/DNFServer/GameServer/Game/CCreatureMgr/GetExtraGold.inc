@@ -1,3 +1,6 @@
+// [2026-09-11 收口复核 · AE] check_tu_routed 口径（nop padding 剥离）判 **AE**
+//   （TU 表无该件）；`game_func_report --no-compile` 报的 91 vs 92 是 .o 级重定位
+//   伪差 + 一条对齐 nop（N124/N112），非语义差，勿据其改码。
 int CCreatureMgr::GetExtraGold(int gold) const
 {
     if (m_equippedCreature == 0)

@@ -54,6 +54,11 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    // [J5-ProcD 2026-09-11 核账] P328⑩ 单语句链式试形**已实测劣化 + 回滚**：
+    // `cMyTrace(...)(...)` 使 ours 216→**219（+3）**。ORIG 0x081c12xx 段求值序虽为
+    // 「先算 3 实参入 callee-saved（%edi/%esi/%ebx）→ 再 call ctor → 最后压栈」，
+    // 但 4.4 -O0 对本处单语句链式反而多出 3 条（实参求值序旋钮不成立），
+    // **勿再试**；恢复两语句形（本地 216 = ORIG 216 已持平）。
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0xa6e, 0);

@@ -1,1 +1,1 @@
-unsigned int GameWorld::GetLeftTimeOfForbiddenChat(const char* name)
+DWORD GameWorld::GetLeftTimeOfForbiddenChat(const char* name)

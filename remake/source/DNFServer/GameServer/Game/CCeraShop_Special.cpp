@@ -214,6 +214,13 @@ struct SaveCrazyLevelupPayloadView
 // UpgradeCargo 后发包，否则 result.m_value = 0x12。
 // b28d-solo-CCeraShop_Special verdict=DIFF [N4] 55/57；余 2 处 lea(%eax,%edx,1) vs add+mov。
 // P167 CLEAR 9/9；P248 三档类型旋钮已试（字段/callee 返回类型/同异型）不可择 ⇒ N4/N18a 封顶。
+// [CCeraShop_Special 2026-09-11 本轮复核] 另试两形均无效（ndiff 4 不变）：
+// ① 删语句表达式（实参写直接表达式）、② `(int)` 内/外层 cast 到 int。
+// 根因已定位（报告项，需改 .h）：`CCargo::GetCapacity()` 声明返回 **unsigned int**
+// （CUserCharacInfo.h:262），而 `CCargo::isUpgradable(int)` 形参是 int ⇒ 实参
+// unsigned→int 有符号性转换，4.4 恒发 `add %edx,%eax; mov %eax,%ebx`；
+// ORIG 0x0827bee6 为 `lea (%eax,%edx,1),%ebx`（无转换直入）。三个后端
+// （4.4.4/4.4.6/4.4.7）同形 ⇒ 非版本差异；探针 /tmp/pc.cpp f_a（int+int）逐条复现 ORIG。
 #include "CCeraShop_Special/respond_special_item_cargo_abs.inc"
                                                         const STSpecailItem_Param& param,
                                                         STSpecailItem_Result& result)
@@ -463,6 +470,8 @@ struct SaveCrazyLevelupPayloadView
         // set_parent_booster_item_id 虚调保活，试纯 register（P0 合规、非 asm 绑定）。
         // [H9MgrItemLoginCera.CCeraShop 回滚] 本轮删 register 实测 ndiff 68→107
         // 反劣（-0x1c 槽虽与 ORIG 同形，但三字段装载挤槽更重）⇒ 复原 register。
+        // [CCeraShop_Special 2026-09-11 本轮重试] 再删实测 ndiff 80→90 反劣
+        // （our 203→205 与 ORIG 等长，但槽/寄存器体系劣化）⇒ 维持 register。
         register CItem* subItem = G_CDataManager()->find_item((int)it->m_itemIdx);
         // ORIG vtable+0x60 = CStackableItem::set_parent_booster_item_id(unsigned long)
         if (subItem != 0)
@@ -1141,6 +1150,18 @@ namespace WongWork
 // b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 566/561 ndiff 357→351；
 // P251/P286 switch(a) 复现无槽多路比较链（ORIG 0x0832482a `mov a,%eax; cmp; je`）；
 // P167 CLEAR 52/52；余帧 0xc4/0xd4 + 槽平移封 N82。
+// [CCeraShop_Special 2026-09-11 本轮 大改] ndiff 297→74（gap +7→+1，our 559→565）：
+// ORIG 的 category 归一化与 case 4/0xc/0xd 段全部是 **switch** 形（eax 承接 switch
+// 值 + 二分 case 树 + 集中叶块），旧的嵌套 if-else/`||` 链被逐段转写：
+//   ① category 段（ORIG 0x083240a1..0x083241d0，首比较 `cmp $0x349,%eax; ja` +
+//      `cmp $0x347,%eax; jae` 对合并节点 [0x347,0x349]；case 集合见下）→ switch(itemIdx)；
+//   ② case 4 容量表（ORIG 0x08324281..，`cmp $0x3e; jb` 的隐含 case 0x3d）→ switch(itemIdx)；
+//   ③ case 0xc 的 serverGroup（ORIG 0x08324386 `cmp $0xb; je`/`$0xc`/`$0x5` + 三独立
+//      返回块）→ switch(grp)；④ case 0xd 的 itemIdx 0x2897c8/0x2897c9 → switch(itemIdx)；
+//   ⑤ case 3 时间窗（ORIG 0x0832422e..0x08324259 布尔值物化 al + `test;je`）→ 语句
+//      表达式包住 `time >= start && time < end`；⑥ case 8 极性改 `<= ? 0 : 1` 的 if 形。
+// 负结论（勿重跑）：删 citem register（Nd 97）／`volatile citem`（91）／具名 field10
+// （193）／去 `grp` 具名（110）／case 0xb 改 if 形（gap +1→−4）—— 全部反劣已回滚。
 #include "CCeraShop_Special/_CheckBuyingCondition.inc"
                                      unsigned int b, unsigned short c, unsigned char d,
                                      unsigned short e)
@@ -1191,6 +1212,8 @@ namespace WongWork
             // 3 槽（0x20/0x24/0x28 = sel 指针 / selItem 引用 / slotCount）⇒ 三点全
             // 内联为单表达式（ORIG 每点重算 getAvatarTypeSelect()/at()，无 CSE）。
             // [H9MgrItemLoginCera.CCeraShop 回滚] 具名 selField10 实测 ndiff 反劣 ⇒ 复原内联。
+            // [CCeraShop_Special 2026-09-11 本轮重试] switch 化后仍反劣（165→193）
+            // ⇒ 维持内联形。
             if (c != 4 &&
                 ((const std::vector<stAvatarTypeSelect_t>*)
                      (((CEquipItem*)citem)->getAvatarTypeSelect()))->at(e).m_field10 != 0)
@@ -1198,73 +1221,83 @@ namespace WongWork
         }
     }
 
-    // 归一化 category（itemIdx 区间/特例映射，见报告汇编 0x0239..0x0241）。
-    if (itemIdx < 0x34a)
+    // 归一化 category（itemIdx 区间/特例映射）。
+    // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x083240a1..0x083241d0 是
+    // **switch(itemIdx) 的 case 树**，不是嵌套 if-else：
+    //   0x083240a1 `mov 0x14(%ebp),%eax` 单次载入后整链复用 eax；
+    //   0x083240a4 `cmp $0x349,%eax; ja` + 0x083240af `cmp $0x347,%eax; jae`
+    //     正对合并后的 case 节点 [0x347,0x349]（16 个节点中位）；
+    //   0x083240ba/bf、0x083240f9/fe、0x08324104 `sub $0x45`、0x08324137/3c
+    //     等全部为 case 节点区间判断；
+    //   尾部 0x08324193..0x083241c9 为集中 case 块 `movl $imm,-0x1c(%ebp); jmp`。
+    // 探针（4.4.7，/tmp/psw.cpp）以 case 集合复现出逐条同形的树 ⇒ 源形为
+    // switch。旧嵌套 if-else 链（gap +7 / ndiff 297）的寄存器复用、
+    // jcc 极性与共享 case 块差由此而来。
+    // case 集合按旧链语义逐条转写（0x2897c9 与 0x2897c8 同为 0xd；
+    // 0x28995d/0x28995e/0x2899ab 同为 0x10）。
+    switch (itemIdx)
     {
-        if (itemIdx > 0x346)
-            category = 0xb;
-        else if (itemIdx < 0x44)
-        {
-            if (itemIdx < 0x3f)
-            {
-                if (itemIdx == 0x33)
-                    category = 5;
-                else if (itemIdx < 0x34)
-                {
-                    if (itemIdx == 0x32)
-                        category = 4;
-                }
-                else if (itemIdx > 0x38)
-                    category = 4;
-            }
-            else
-                category = 6;
-        }
-        else if (itemIdx < 0xc1)
-        {
-            if (itemIdx < 0xbe)
-            {
-                if (itemIdx - 0x45 < 5)
-                    category = 6;
-            }
-            else
-                category = 0xb;
-        }
-        else if (itemIdx == 0x2e4 || itemIdx == 0x335)
-            category = 0xb;
-    }
-    else
-    {
-        if (itemIdx > 0x28978c)
-        {
-            if (itemIdx < 0x2897ca)
-            {
-                if (itemIdx < 0x2897c8)
-                {
-                    if (itemIdx == 0x28978f)
-                        category = 0xc;
-                }
-                else
-                    category = 0xd;
-            }
-            else if (itemIdx > 0x28995c &&
-                     (itemIdx < 0x28995f || itemIdx == 0x2899ab))
-                category = 0x10;
-        }
-        else
-        {
-            if (itemIdx > 0x28978a)
-                category = 4;
-            else if (itemIdx == 0x1ee2 || itemIdx == 0x3a0)
-                category = 0xb;
-            else if (itemIdx > 0x1ee3)
-            {
-                if (itemIdx == 0x2896cb)
-                    category = 0xb;
-                else if (itemIdx == 0x28978a)
-                    category = 5;
-            }
-        }
+    case 0x32:
+    case 0x39:
+    case 0x3a:
+    case 0x3b:
+    case 0x3c:
+    case 0x3d:
+    case 0x3e:
+    case 0x28978b:
+    case 0x28978c:
+        category = 4;
+        break;
+
+    case 0x33:
+    case 0x28978a:
+        category = 5;
+        break;
+
+    case 0x3f:
+    case 0x40:
+    case 0x41:
+    case 0x42:
+    case 0x43:
+    case 0x45:
+    case 0x46:
+    case 0x47:
+    case 0x48:
+    case 0x49:
+        category = 6;
+        break;
+
+    case 0x347:
+    case 0x348:
+    case 0x349:
+    case 0xbe:
+    case 0xbf:
+    case 0xc0:
+    case 0x2e4:
+    case 0x335:
+    case 0x1ee2:
+    case 0x3a0:
+    case 0x2896cb:
+        category = 0xb;
+        break;
+
+    case 0x28978f:
+        category = 0xc;
+        break;
+
+    case 0x2897c8:
+    case 0x2897c9:
+        category = 0xd;
+        break;
+
+    case 0x28995d:
+    case 0x28995e:
+    case 0x2899ab:
+        category = 0x10;
+        break;
+
+    default:
+        break;
     }
 
     if (category == 0)
@@ -1300,62 +1333,76 @@ namespace WongWork
         eventStartTime = 0x4589a450;
         eventEndTime = 0x45ae8e50;
         // ORIG 调用两次 getCurCharacCreateTime 后比较 [start,end) 窗口。
-        if (user->getCurCharacCreateTime() < eventStartTime)
-            break;
-        if (user->getCurCharacCreateTime() >= eventEndTime)
-            break;
-        return 1;
+        // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x0832422e..0x08324259 为
+        // 单一布尔值物化：`mov &eventStartTime,%edx; cmp %edx,%eax; jl L0` +
+        // `mov &eventEndTime,%edx; cmp %edx,%eax; jge L0` + `mov $1,%eax; jmp L1;
+        // L0: mov $0,%eax; L1: test %al,%al; je <break>` ⇒ 旧「两个独立 break」
+        // 形（setle/setg 各一发）应改写为语句表达式（值物化到 al 再 test）。
+        if (({ user->getCurCharacCreateTime() >= eventStartTime &&
+               user->getCurCharacCreateTime() < eventEndTime; }))
+            return 1;
+        break;
     }
 
     case 4:
     {
         // 仓库容量精确匹配（0x8323f86 汇编 case4 容量表）。
+        // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x08324281 起同样是
+        // switch(itemIdx) 的 case 树：`mov 0x14(%ebp),%eax` 后
+        // `cmp $0x3c; je` / `cmp $0x3c; ja` / `cmp $0x39; je` / `cmp $0x39; ja`
+        // / `cmp $0x32; je` / `cmp $0x3a; je` / `cmp $0x3b; je` / `cmp $0x3e; je`
+        // / `cmp $0x3e; jb`(0x3d) / `cmp $0x28978b; je` / `cmp $0x28978c; je`
+        // ⇒ 旧嵌套 if-else 链按 case 集合（0x3d 为隐含 case）转写。
         const int cap = user->getCurCharacCargoR()->GetCapacity();
-        if (itemIdx == 0x3c)
+        switch (itemIdx)
         {
+        case 0x32:
+            if (cap == 8)
+                return 1;
+            break;
+
+        case 0x39:
+            if (cap == 0x18)
+                return 1;
+            break;
+
+        case 0x3a:
+            if (cap == 0x28)
+                return 1;
+            break;
+
+        case 0x3b:
+            if (cap == 0x38)
+                return 1;
+            break;
+
+        case 0x3c:
             if (cap == 0x48)
                 return 1;
-        }
-        else if (itemIdx < 0x3d)
-        {
-            if (itemIdx == 0x39)
-            {
-                if (cap == 0x18)
-                    return 1;
-            }
-            else if (itemIdx < 0x3a)
-            {
-                if (itemIdx == 0x32 && cap == 8)
-                    return 1;
-            }
-            else if (itemIdx == 0x3a)
-            {
-                if (cap == 0x28)
-                    return 1;
-            }
-            else if (itemIdx == 0x3b && cap == 0x38)
-            {
-                return 1;
-            }
-        }
-        else if (itemIdx == 0x3e)
-        {
-            if (cap == 0x68)
-                return 1;
-        }
-        else if (itemIdx < 0x3e)
-        {
+            break;
+
+        case 0x3d:
             if (cap == 0x58)
                 return 1;
-        }
-        else if (itemIdx == 0x28978b)
-        {
+            break;
+
+        case 0x3e:
+            if (cap == 0x68)
+                return 1;
+            break;
+
+        case 0x28978b:
             if (cap == 0x78)
                 return 1;
-        }
-        else if (itemIdx == 0x28978c && cap == 0x88)
-        {
-            return 1;
+            break;
+
+        case 0x28978c:
+            if (cap == 0x88)
+                return 1;
+            break;
+
+        default:
+            break;
         }
         break;
     }
@@ -1367,6 +1414,9 @@ namespace WongWork
         // 调用点）、CargoR×1、check_item_exist×2；create_item 直访 m_itemList(+0xc)，
         // tryInsert 走 getCurCharacInvenR（const 视图，无 W 版）。
         // InvenR→check；失败侧再 CargoR→check（P48：结果存 bVar1，非缓存指针）。
+        // [CCeraShop_Special 2026-09-11 本轮重试] 去具名 bool（内联到 if）实测
+        // ndiff 89→125 反劣（虽然 ORIG 0x08324462/0x0832447d 为 `cmp;jne` 零槽形）
+        // ⇒ 维持具名 bool（连带寄存器/对齐体系）。
         bool invClear = (user->getCurCharacInvenR()->check_item_exist((int)itemIdx) == -1);
         if (invClear)
         {
@@ -1413,20 +1463,47 @@ namespace WongWork
     }
 
     case 8:
-        return user->get_charac_level() > 0xe ? 1 : 0;
+        // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x0832452f: `cmp $0xe,%eax;
+        // setle %al; test %al,%al; je <L1>; mov $0x0,%eax; jmp; L1: mov $0x1,%eax`
+        // ——三元 `?:` 在 4.4 只出反向 `setg`（无 setle/test 物化）；改 if/else
+        // 语句形。P59/P222 极性：条件按 `<=` 书写。
+        if (user->get_charac_level() <= 0xe)
+            return 0;
+        return 1;
 
     case 0xb:
+        // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x0832455c: `cmp $<A>,%eax;
+        // sete %al; test %al,%al; je <T>; mov $0x1,%eax`；实测 if 语句形把
+        // our 560→570（gap +1→−4）、ndiff 83→82（仅 −1）⇒ 回滚为三元
+        // （4.4 三元给 `sete %al; jmp`，条数少）。
         return user->GetCurCharacSkillTreeIndex() == -1 ? 1 : 0;
 
     case 0xc:
     {
         // ORIG 0x8323f86 case0xc：G_CEnvironment 两次（+0x1a8 serverType /
         // +0x378 serverGroup 各自取全局，P48 禁缓存）。
+        // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x08324386 起 serverGroup
+        // 的比较是 **switch(grp)**：`cmp $0xb,%eax; je` / `cmp $0xc,%eax; je`
+        // / `cmp $0x5,%eax; je` + 三个独立 `mov $0x0,%eax; jmp` 叶块
+        // （0x0832439c/0x083243a4/0x083243ac，块序 0xb→0xc→5 = 书写序）
+        // ⇒ 旧 `||` 链转写为 switch（每 case 独立 return 0）。
         if (G_CEnvironment()->m_serverEnvir.m_serverType == 2)
             return 0;
+        // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x08324386/0x0832438b 为
+        // `call; mov 0x378(%eax),%eax; cmp $0xb,%eax`（零槽）；但实测去具名
+        // grp（switch 直接求值）ndiff 74→110 反劣 ⇒ 保留具名槽。
         const int grp = G_CEnvironment()->m_serverEnvir.m_serverGroup;
-        if (grp == 0xb || grp == 0xc || grp == 5)
+        switch (grp)
+        {
+        case 0xb:
             return 0;
+        case 0xc:
+            return 0;
+        case 5:
+            return 0;
+        default:
+            break;
+        }
         if (user->getCharacSlotLimit() < 0x15)
             return 1;
         break;
@@ -1435,14 +1512,22 @@ namespace WongWork
     case 0xd:
     {
         const int cap = user->getCurCharacInvenR()->get_inventory_capacity();
-        if (itemIdx == 0x2897c8)
+        // [CCeraShop_Special 2026-09-11 本轮] ORIG 0x083245a1 起为
+        // **switch(itemIdx)**：`mov 0x14(%ebp),%eax` 后 `cmp $0x2897c8,%eax; je`
+        // / `cmp $0x2897c9,%eax; je` + 两个独立叶块（0x083245b5/0x083245c1）
+        // ⇒ 旧 if/else-if 链转写为 switch（case 体仍各自判 cap）。
+        switch (itemIdx)
         {
+        case 0x2897c8:
             if (cap == 0)
                 return 1;
-        }
-        else if (itemIdx == 0x2897c9 && cap == 8)
-        {
-            return 1;
+            break;
+        case 0x2897c9:
+            if (cap == 8)
+                return 1;
+            break;
+        default:
+            break;
         }
         break;
     }
@@ -1971,6 +2056,10 @@ __attribute__((weak)) bool CCeraShop::Is2010ChuseokPacket(unsigned int itemIdx)
 // b28d-D42 verdict=DIFF [N18a] ORIG 0x08327f10 orig/ours=103/105 ndiff=78。
 // xor/sete 物化方向与寄存器分配差；语义等价封顶。
 // b28d-solo-CCeraShop_Special verdict=NEAR [N7] 105/105 等长，仅 give_option 实参 edx/ecx 角色互换
+// [CCeraShop_Special 2026-09-11 本轮复核] 103/103 ndiff=4：唯一残差 = 第 1/第 2 实参
+// （invItem.m_addInfo ↔ get_rarity() 结果）在 edx/ecx 上互换（ORIG 0x08327f9b 区
+// `mov %eax,%edx` + `mov 0x2(%eax),%ecx`；我方 ecx/edx 对调）。试实参 `(int)` cast
+// 无变化 ⇒ N7 纯寄存器角色封顶（4.4 reg_alloc 顺序不可源级诱导）。
 #include "CCeraShop_Special/autoUnsealItem.inc"
 {
     // b28d-solo P223 多岛形：ORIG 两守卫各落独立 nop 岛（item==0 → nop;jmp；

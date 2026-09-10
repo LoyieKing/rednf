@@ -735,9 +735,11 @@ private:
                 {
                     // ORIG: rarity==5 || GetItemType()==0xb || recipe->GetNeedLevel()==0
                     //       → doMake=false；否则 true
+                    // [SubD D1 2026-09-11 负结论·已回滚] 内联 `!(rarity==5||type==0xb||needLv==0)`
+                    // 实测 **850→850 中性**（4.4 仍产槽形）⇒ 回滚；本件 gap -6 属 N82 族。
                     const bool doMake = !(script->get_rarity() == 5 ||
                                           script->GetItemType() == 0xb ||
-                                          recipe->GetNeedLevel() == 0);
+                                          script->GetNeedLevel() == 0);
                     if (doMake)
                     {
                         // GetCharacExpandData(10) 返回 CItemMakingSkill*（charac_expand::CData 派生）
@@ -1162,6 +1164,9 @@ private:
         // `(*guard) << x` / `guard->put_binary(...)` 形（直接 guard<< 省略 de() 调用）。
         guard.operator*()->operator<<(0x28);
         guard.operator*()->operator<<((int)GetUID());
+        // [CoBatchD 2026-09-11 负结论·已回滚] payload 声明前移（复现 ORIG 深→浅序
+        // payload(-0x24)<guard(-0x1c)<it(-0x14)）实测 **135→135 中性**（4.4 未按声明序
+        // 翻转槽位）⇒ 回滚；本件 gap -1 属 N82 槽分配族。
         struct { unsigned int characNo; int ticket; } payload;
         memset(&payload, 0, 8);
         payload.characNo = getCurCharacNo();
@@ -1273,6 +1278,9 @@ private:
         for (int i = 0; i < 4; ++i)
         {
             /* +0x10, +0x12, +0x14, +0x16（ORIG (i+8)*2 索引形态） */
+            // [CoBatchA 2026-09-11 负结论·已回滚] 交换加法操作数
+            // （`(short)(pr.second * 10 + ai.m_field10[i])`）实测 **129→129 中性**
+            // （`lea (%ebx,%eax,1)` 未复现）⇒ 维持 `+=`；残余为 N7/N18a 寄存器角色封顶。
             ai.m_field10[i] += (short)(pr.second * 10);
         }
         break;
@@ -1517,6 +1525,9 @@ private:
         }
         else
         {
+            // [CoBatchC 2026-09-11 负结论·已回滚] 补 ORIG-only 死存储
+            // （`movl $0xffffffff,-0x14(%ebp)` @0x0867673）实测 **349→351 反劣**
+            // （4.4 额外发 store + 未消掉我方多出的 2 条）⇒ 回滚；本件 gap -2 属 N82 族。
             r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
             if (r == -1)
             {
@@ -2341,7 +2352,9 @@ INSERT_OK:
     CItem* def = G_CDataManager()->find_item(item.getKey());
     if (def != NULL) {
         strcpy(buf, getCurCharacName());
-        sprintf(buf, "%s님이 +%d %s 조합에 성공 하였습니다.",
+        // [Main 授权·J2 编码修正 2026-09-11] ORIG .rodata 该串为 EUC-KR(cp949) 实字节；
+        // 源码 UTF-8 会发射不同字节（AE 归一化不看串内容 ⇒ verdict 恒不变）。改用字节转义。
+        sprintf(buf, "%s\xb4\xd4\xc0\xcc +%d %s \xc1\xb6\xc7\xd5\xbf\xa1 \xbc\xba\xb0\xf8 \xc7\xcf\xbf\xb4\xbd\xc0\xb4\xcf\xb4\xd9.",
                 getCurCharacName(), (unsigned)item.GetUpgrade() & 0xff, def->GetItemName());
         GlobalData::s_guild_proxy_mgr
             ->GetServerProxy((ENUM_SERVER_GROUP)GetServerGroup())
@@ -5430,8 +5443,10 @@ SKIP_INC:;
                ->find_quest(questId);
     if (q == 0) return 0x15;
 
-    bool gm = IsGameMasterMode();
-    if (!gm && !q->isRepeatableQuest()) {
+    // [SubD C1 2026-09-11] ORIG 0x0866eb56 `call IsGameMasterMode` → 0x0866eb5b
+    // `xor $0x1,%eax; test %al,%al; je 0866eba2` —— **无布尔槽**（gm 仅此一处使用）；
+    // 旧具名 `bool gm` 多 `mov %al,-0x19` + `movzbl -0x19` 两条。
+    if (!IsGameMasterMode() && !q->isRepeatableQuest()) {
         if (getCurCharacQuestR()->m_cleared.isClearedQuest(questId))
             return 0x16;
     }
@@ -5682,7 +5697,9 @@ SKIP_INC:;
                 Inven_Item chkItem =
                     getCurCharacInvenRefR()->GetInvenSlot(ampFlag, slotE0);
                 stAmplifyOption_t& amp = *&chkItem.m_amp;
-                ack.put_byte(amp.getAbilityType() & 0xff);
+                // [SubD C2 2026-09-11] ORIG 0x0866f989 无 `and $0xff,%eax`；
+                // `put_byte(int)` 内部按 (unsigned char) 截断 ⇒ 语义等价。
+                ack.put_byte(amp.getAbilityType());
                 ack.put_short(amp.getAbilityValue() & 0xffff);
                 if (addedDef == 0 || !addedDef->is_stackable())
                     ack.put_short(0);
@@ -5808,6 +5825,9 @@ SKIP_INC:;
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0x15) {                               // 副本次数++
         int dungeonId = q->m_fieldC0;
         ack.put_short(dungeonId);
+        // [CoBatchD 2026-09-11 负结论·已回滚] 补 ORIG 具名 int 槽（0x086707b4
+        // `movzbl %al,%eax` / 0x086707b7 `mov %eax,-0x30(%ebp)`）实测 **2153→2155 反劣**
+        // （4.4 额外发 movzbl+store 但未消掉别处差异）⇒ 回滚，维持直调。
         AddDungeonClear(dungeonId, 3);
         PacketGuard dp;
         dp.put_header(0, 5);
@@ -5828,7 +5848,7 @@ SKIP_INC:;
             if (curStat == 0 || curStat == 1)
                 SetCurExpEquipSlotStat(curStat + 2);
         }
-        ack.put_byte(GetCurExEquipSlotStat() & 0xff);
+        ack.put_byte(GetCurExEquipSlotStat());   // [SubD C2] ORIG 0x0866fba7 无 `and $0xff`
         ack.put_byte(slotMode);
     }
 
@@ -7248,7 +7268,11 @@ SKIP_INC:;
     cMyTrace(__PRETTY_FUNCTION__, 0x5fdb, 0)(
         "RECIPE LOG : out_item_id-%u, mat_up_val-%d, out_up_val-%d, mat_seal-%d",
         (unsigned)outItem.m_addInfo, (unsigned)(unsigned char)cond.m_tableIdx,
-        (unsigned)outUpgrade, (unsigned)(unsigned char)cond.m_flag6);
+        // [CoBatchD 2026-09-11 消临时槽] ORIG 0x086731aa `mov -0x1c(%ebp),%eax`（实参4
+        // 从栈变量槽直读、无 %edi 占用）+ 0x0867316f `movzbl 0x16(%ebp),%eax;
+        // movzbl %al,%edi`（实参5 占 %edi）；我方 `(unsigned)` 令 4.4 为实参4 分配 %edi、
+        // 实参5 落 -0x3c 临时槽（帧 0x8c vs ORIG 0x7c）。删 cast 令 int 原样传出。
+        outUpgrade, (unsigned)(unsigned char)cond.m_flag6);
 
     if (cond.m_amplifySelect == 0)                       // cond+2 非0 → amplify（ORIG 0x086731cc）
     {
@@ -7305,6 +7329,8 @@ SKIP_INC:;
     // 到 %ebx/%esi/%edi 跨 receiver call 保活；4.4 对 `int` 局部改走槽重读。
     // 改 unsigned（值域非负，语义等价；实参仍按隐式转换传 int 形参）。
     unsigned int sp1 = skill->m_remainSpTree1;              // +0x8
+    // [CoBatchB 2026-09-11 负结论·已回滚] `char* const bufA/bufB`（欲复现 ORIG
+    // 0x0864dc19-0x0864dc1f 的 %esi/%ebx 跨 call 保活）实测 **123→123 中性** ⇒ 回滚。
     char* bufA  = reinterpret_cast<char*>(&skill->m_skillSlotTree1[0]);   // +0xc
     int   size  = 0x198;   // ORIG 0x0864db3b movl $0x198,-0x2c（4.1 sizeof*SIZE 常量物化槽）
     unsigned int sp2 = skill->m_remainSpTree2;              // +0x1a4
@@ -8974,9 +9000,10 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
     m_tradeCount = 0;
 
     // game option 尾部区逐字节清零（ORIG 0x70390..0x703b8；CGameOption +0x62c..+0x657）。
-    m_gameOption.m_gmQuestFlag = 0;
-    m_gameOption.m_forceDropFlag = 0;
-    m_gameOption.m_playExpAdd = 0;                     // +0x703a4（movl 直接 dword 写）
+    // [SubA C2+C4 2026-09-11] ORIG 顶段序 = 0x703a4(movl) → 0x70390(movb) → 0x703a8…；
+    // 且 0x70391 在顶段**无写**（唯一位点在函数尾 0x08649a66）⇒ 删顶部该写、playExpAdd 提前。
+    m_gameOption.m_playExpAdd = 0;                     // +0x703a4（ORIG 0x0864943d movl）
+    m_gameOption.m_gmQuestFlag = 0;                    // +0x70390（ORIG 0x0864944a movb）
     m_gameOption.m_breakAwayDungeonClear = 0;          // +0x703a8（movb 单字节写）
     m_gameOption.m_breakAwayDungeonClearCnt = 0;       // +0x703ac
     m_gameOption.m_breakAwayAccureCera = 0;                             // +0x703b0（§8.3 字段化 m_pad64c→int）
@@ -9000,11 +9027,10 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
                                                           // （50×STCommand pack(1)=200B）
 
     m_premium.m_mailBox = (void*)WongWork::CMailBoxHelper::AssignMailBox();
-    if (m_premium.m_mailBox != 0)
-    {
-        // asm 直接以 *(this+0x71b98) 为 this 调 WongWork::CMailBox::Init()
-        ((WongWork::CMailBox*)m_premium.m_mailBox)->Init();
-    }
+    // [SubA C1 2026-09-11] ORIG 0x08649519..0x08649525 **无判空**（`mov 0x8(%ebp),%eax;
+    // mov 0x71b98(%eax),%eax; mov %eax,(%esp); call CMailBox::Init`）——AssignMailBox
+    // 返回值直接解引用；旧 `if (!= 0) {…}` 多 test/je + 二次装填 4 条。
+    ((WongWork::CMailBox*)m_premium.m_mailBox)->Init();
 
     PacketGuard packet;                                // -0x20
     {
@@ -9030,7 +9056,10 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
 
         packet.put_byte(G_CEnvironment()->m_serverEnvir.m_serverGroup);      // env+0x378
         packet.put_byte(G_CEnvironment()->m_serverEnvir.m_channelNo);        // env+0x1b0
-        packet.put_byte(G_CEnvironment()->m_serverEnvir.m_processSequence);  // env+0x1a8
+        // [SubA 语义修复 2026-09-11] ORIG 0x08649677 `mov 0x1a8(%eax),%eax` 读的是
+        // Server_Envir(+0x198) + 0x10 = **m_serverType**（CEnvironment.h:134）；
+        // m_processSequence 在 +0x14 ⇒ env+0x1ac。旧行字段名与偏移注释自相矛盾 ⇒ 发错字节。
+        packet.put_byte(G_CEnvironment()->m_serverEnvir.m_serverType);      // env+0x1a8
 
         packet.put_int(GlobalData::s_systemTime_.getCurSec());
 
@@ -9138,6 +9167,15 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
 // 成对后：2757→**2753** 条（gap −54→**−50**），源码零改动、identical 净账 0。
 // 另：本件 9 处 ORIG `setne` 经分诊（Main C05④ 四步）全为「call 结果 → 比较 → setne」
 // = **归因 1（callee 返回类型差）**，非前端折叠；相关 callee 非本 TU，未单侧动（spec 已报 Main）。
+// [CoBatchB 2026-09-11 thunk 岛结论] 本件 gap 主项 = 4.4 为「多 case 共享同一 goto 目标」
+// 的**每个 case** 各发 `jmp body; nop` 两指令 thunk，4.1 则把空 case 并入目标 BB 直发
+// `je body`（SubB 实测定量：我方 ≥38 个 thunk 对、ORIG 仅 5 个）。已落地 1 组
+// （`case 0x4b0/0x4b1/0x4b2/0x2920915c` 体移入 switch、标签贴体）实测 **2790→2787**；
+// 其余组（最大 = `case 3/0x1c/0x6d/0xa1/0xa2/0x394/0x3c0/0x3c3/0x4b6/0x4e5/0x28982c
+// → L0866607b` 11 case，预期 ≈ −9）需逐组同法搬体，未做。另 [SubB] 候选实证：
+// `spBefore/spAfter` 去初值 **−2 有效（已落地）**；default 段三处 `vtmp`→`&value` 直传
+// 与 `ok54` 去具名 **中性（已回滚）**。帧 0x20c vs ORIG 0x39c（N82/N126）与 9 处
+// `setne`（归因1，callee 非本 TU）仍为封顶项。
 #include "CUserOnlyOrig/increase_status.inc"
 {
     PacketGuard packet;
@@ -9249,8 +9287,33 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
     case 0x2a: case 0x28d14d: type = 0x15; value = 1; goto L08666990;  // 0x086665ed
     case 0x4df:  type = 0x13; value = 10; goto L08666990;         // 0x08666603
     case 0x1f16: type = 0x14; value = 0; goto L08666990;          // 0x08666619
+    // [SubB ③ 2026-09-11 thunk 岛实验] 4 个 case 的共享体直接贴 case（旧 `goto L0866662f`
+    // 令 4.4 为每个 case 各发 `jmp body; nop` = 8 条；ORIG 0x0866662f 处 4.1 把空 case
+    // 并入目标 BB、直接 `je body`）。
     case 0x4b0: case 0x4b1: case 0x4b2: case 0x2920915c:
-        goto L0866662f;                                           // 0x0866662f
+    {
+            if (!IsGuildMaster())
+        {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xdb, packet);
+            return;
+        }
+            STGuildDBInfoOnly* guildDB = (STGuildDBInfoOnly*)GetGuildDBInfo();
+            int needFund =
+                G_CDataManager()->m_guildParameter.getGuildLevelUpParam(guildDB->m_fundLevel + 1);
+            if (needFund == 0)
+        {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
+            return;
+        }
+            if ((unsigned int)needFund <= guildDB->m_fundExp)      // +0x29 无符号比较
+        {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
+            return;
+        }
+            type = 0x10;
+            value = G_CDataManager()->m_guildParameter.getGuildExpBook(guildDB->m_fundLevel + 1);
+        goto L08666990;
+    }
     default:
             goto L08666751;
     }
@@ -9278,6 +9341,7 @@ L08665c97:                                                        // 0x08665c97
 
 L08665d24:                                                        // 0x08665d24
     {
+        // [SubB ①-d′ 2026-09-11 二分测试·暂回滚] 直传 &value + 去 ok54 具名槽
         int valueTmp = (int)value;
         bool ok54 = (CalLevelUpItemState(type, valueTmp, 1, 0x54) == 1);
         value = (unsigned int)valueTmp;
@@ -9393,31 +9457,6 @@ L08666320:                                                        // 0x08666320
     }
         goto L08666990;
 
-L0866662f:                                                        // 0x0866662f
-    {
-            if (!IsGuildMaster())
-        {
-                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xdb, packet);
-            return;
-        }
-            STGuildDBInfoOnly* guildDB = (STGuildDBInfoOnly*)GetGuildDBInfo();
-            int needFund =
-                G_CDataManager()->m_guildParameter.getGuildLevelUpParam(guildDB->m_fundLevel + 1);
-            if (needFund == 0)
-        {
-                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
-            return;
-        }
-            if ((unsigned int)needFund <= guildDB->m_fundExp)      // +0x29 无符号比较
-        {
-                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
-            return;
-        }
-            type = 0x10;
-            value = G_CDataManager()->m_guildParameter.getGuildExpBook(guildDB->m_fundLevel + 1);
-        goto L08666990;
-    }
-
 L08666751:
     // 默认路径：查 CDataManager::m_field50cc 命中或 GetIncreaseStatus 描述。
     // ORIG:每次使用都重新调用 G_CDataManager()（无缓存，4 个静态站点）。
@@ -9448,6 +9487,7 @@ L08666751:
             }
             type = 1; value = 0;
             int vtmp = 0;
+            // [SubB ①-b 2026-09-11 二分测试·暂回滚]
             if (!itemA->GetIncreaseStatusIntData(0, vtmp))
             {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
@@ -9461,6 +9501,7 @@ L08666751:
             if ((itemB != 0) && (itemB->GetIncreaseStatusType() != 0) &&
                 (itemB->GetIncreaseStatusType() == 1))
             {
+                // [SubB ①-c 2026-09-11 二分测试·暂回滚]
                 int vtmp = 0;
                 itemB->GetIncreaseStatusIntData(0, vtmp);
                 value = (unsigned int)vtmp;
@@ -9536,8 +9577,10 @@ L08666990:
     {
         int bonusA = 0;                                      // -0xdc
         int bonusB = 0;                                      // -0xe0
-        int spBefore = 0;                                    // -0xe4
-        int spAfter = 0;                                     // -0xe8
+        // [SubB ①-a 2026-09-11] ORIG 0x08666e7b/0x08666e85 只初始化 -0xdc/-0xe0（2 条
+        // movl $0x0）；-0xe4/-0xe8 首现即 0x08666ee8/0x08666ef2 的 lea（纯出参，无初值）。
+        int spBefore;                                        // -0xe4
+        int spAfter;                                         // -0xe8
         if (get_charac_level() > 0x54) value = 0;
         if (itemIdx == (unsigned int)G_CDataManager()->m_growthCapsule.m_capsuleId)
             rewardExp(value, bonusA, bonusB, spBefore, spAfter, (::eExpAddReason)3, true);
@@ -10904,6 +10947,9 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     // 「先压常量后 lea」。改 `&data.m_type`（char*，元素首址同值）令 4.4 先物化基址。
     // 注：本函数因切分工具把函数体内**列 0 的 `#pragma pack`/`struct`** 误判为 TU 级
     // 边界，函数体尾部留在**聚合器**而 .inc 只有函数头 ⇒ 改动跨 .inc 与 .cpp 两处。
+    // [CoBatchB 2026-09-11 负结论·已回滚] `&data.m_type`（元素首址同值）实测 **97→97 中性**
+    // （4.4 仍先压常量）⇒ 回滚；ORIG 0x08656ba1 `lea` 先于 0x08656ba4 `movl $0xa` 属 P319
+    // 跨版本实参装载序，源码不可控。
     packet.put_binary(reinterpret_cast<char*>(&data), sizeof(data));   // ORIG E15InterfacePacketBuf10put_binaryEPci
     packet.finalize(true);
     Send(packet);
@@ -10945,13 +10991,17 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         ->SetClearAvatar(reinterpret_cast<unsigned long*>(data->m_clearAvatar));  // +0x3ff8
     for (int i = 0; i < *reinterpret_cast<int*>(data->m_pad1e43); ++i) {  // +0x1e43 count（未建模）
         int invenSlot = 0;
-        if (*reinterpret_cast<int*>(data->m_pad1e43 + 0x29 + i * 0x4b) != 0) {  // +0x1e6c（未建模）
+        // [CoBatchB 2026-09-11 常量拆分折叠] ORIG 0x086902e5 `add $0x1e60,%eax` +
+        // 0x086902ea `mov 0xc(%eax),%eax` ⇒ 原码常量分「0x1e60 基址 + +0xc 成员」两段；
+        // 我方 `m_pad1e43 + 0x29` 产两条 add（gap 123-127 = -4 ⇒ 消指令方向）。
+        if (*reinterpret_cast<int*>(reinterpret_cast<char*>(data) + 0x1e60 + i * 0x4b + 0xc) != 0) {
             invenSlot = GetItemIdByAddInfo(
                 &data->m_items2[0], 0x69,
-                *reinterpret_cast<int*>(data->m_pad1e43 + 0x29 + i * 0x4b));
+                *reinterpret_cast<int*>(reinterpret_cast<char*>(data) + 0x1e60 + i * 0x4b + 0xc));
             for (int j = 0; j < 10; ++j) {
                 if (data->m_items[j].m_addInfo2 ==
-                    *reinterpret_cast<int*>(data->m_pad1e43 + 4 + i * 0x4b)) {  // +0x1e47（未建模）
+                    // ORIG 0x0869034b `add $0x1e40,%eax` + 0x08690350 `mov 0x7(%eax)`（=+0x1e47）
+                    *reinterpret_cast<int*>(reinterpret_cast<char*>(data) + 0x1e40 + i * 0x4b + 0x7)) {
                     reinterpret_cast<CInventory*>(getTagCharacInvenW())
                         ->SetClearAvatar(j, invenSlot);
                 }
@@ -10988,12 +11038,21 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     unsigned int coin = sig->m_coin;
     unsigned int payCoin = sig->m_payCoin;
     unsigned int eventCoin = sig->m_eventCoin;
+    // [CoBatchB 2026-09-11 具名 size 槽] ORIG 0x0864d19a..0x0864d1c8：三个区各占相邻
+    // **一对**槽（-0x3c/-0x38、-0x34/-0x30、-0x2c/-0x28），调用点从槽回读 size
+    // （0x0864d340 `mov -0x38(%ebp),%edx; mov %edx,0xc(%esp)`）⇒ size 是具名 int 变量。
+    // 注：整块 {char*,int} 结构体形实测 **217→237 过头**（4 个 data 值被 4.4 判为跨调用
+    // 活跃 ⇒ 多 `push %esi` 保活 + 每次访问多一对 store/load）；故只把 size 具名化。
     char* inven1 = (char*)sig->m_invenType1;
+    int inven1Size = 0x4a58;
     char* inven2 = (char*)sig->m_invenType2;
+    int inven2Size = 0x1905;
     char* equipMirror = (char*)sig->m_equipMirror;
+    int equipMirrorSize = 0x53e;
     char* cargo = (char*)sig->m_cargo;
     int cargoCapacity = static_cast<int>(sig->m_cargoCapacity);
     char* inven3 = (char*)sig->m_invenType3;
+    int inven3Size = 0x39aa;                                   // ORIG 0x0864d…@-0x1c/-0x18
     if (getCurCharacR() == 0) {
         // [FL5 2026-09-10 负结论·已回滚] P37/P227 链在本件 ndiff 317→317 中性 ⇒ 维持具名形。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1271, 5);
@@ -11020,9 +11079,10 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     getCurCharacInvenW()->SetCoin(coin);
     getCurCharacInvenW()->SetPayCoin(payCoin);
     getCurCharacInvenW()->SetEventCoin(eventCoin);
-    getCurCharacInvenW()->SetInvenData(1, inven1, 0x4a58);
-    getCurCharacInvenW()->SetInvenData(2, inven2, 0x1905);
-    memcpy(reinterpret_cast<char*>(getCurCharacInvenW()) + 0x1c, equipMirror, 0x53e);
+    getCurCharacInvenW()->SetInvenData(1, inven1, inven1Size);
+    getCurCharacInvenW()->SetInvenData(2, inven2, inven2Size);
+    memcpy(reinterpret_cast<char*>(getCurCharacInvenW()) + 0x1c, equipMirror,
+           equipMirrorSize);
     memcpy(reinterpret_cast<char*>(getCurCharacInvenW()) + 0x55a, inven3 + 0x38b6, 0xf4);
     for (int i = 0x17; i < 0x1a; ++i) {
         // ORIG 0x0864d3f7 `lea 0xc(%eax),%ebx`：LoadArtifact 第三实参（元素指针）先物化
@@ -11030,7 +11090,7 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         getCurCharacInvenW()->GetCreatureMgrW()->LoadArtifact(i,
             reinterpret_cast<Inven_Item*>(reinterpret_cast<char*>(getCurCharacInvenW()) + i * 0x3d + 0x1c));
     }
-    getCurCharacInvenW()->SetInvenData(3, inven3, 0x39aa);
+    getCurCharacInvenW()->SetInvenData(3, inven3, inven3Size);
     if (cargoCapacity == 0) {
         getCurCharacCargoW()->SetCapacity(8);
     }
@@ -11144,12 +11204,12 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         setCurCharac(&m_characList[idx]);
         if ((tagIdx >= 0) && (static_cast<int>(m_characList.size()) > tagIdx)) {
             setTagCharac(&m_characList[tagIdx]);
-            const CInventory* tagInven =
-                reinterpret_cast<const CInventory*>(getTagCharacInvenR());
-            const_cast<CInventory*>(tagInven)->set_parent(this);
-            const SkillSlot* tagSkill =
-                reinterpret_cast<const SkillSlot*>(getTagCharacSkillR());
-            const_cast<SkillSlot*>(tagSkill)->set_parent(this);
+            // [SubC a-1 2026-09-11] ORIG 0x0864cea0-0x0864cec9 无指针中转槽（直用 %eax）；
+            // 我方两个具名 const 指针各占 -0x20/-0x1c（帧 sub $0xb4 vs ORIG $0x9c = 6 槽 0x18）。
+            const_cast<CInventory*>(
+                reinterpret_cast<const CInventory*>(getTagCharacInvenR()))->set_parent(this);
+            const_cast<SkillSlot*>(
+                reinterpret_cast<const SkillSlot*>(getTagCharacSkillR()))->set_parent(this);
         }
         if (getCurCharacR() == 0) {
             cMyTrace trace2(__PRETTY_FUNCTION__, 0x120c, 5);
@@ -11165,39 +11225,46 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
             // → setCurCharacStamina(min(svals[1],svals[0]))。
             // 旧译文：读**未初始化** limits[1]、漏 `limits[0]=600`、并把结果写回 limits[0]
             // ⇒ 疲劳恢复量计算错误（真 bug）；且多出 minv/limits 缓存槽（cache-slot 扫描命中）。
-            int limits[2];
-            limits[0] = 600;
+            // [SubC a-3 2026-09-11] ORIG 0x0864cf9d/0x0864cfa4/0x0864d006/0x0864d00d 四条取址
+            // 皆单条 lea；我方 `limits[2]/svals[2]` 的 `[1]` 元素被 4.4 拆成 `lea base; add $4`。
+            int limitMax = 600;
             unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
             long lastTick = getCurCharacLastPlayTick();
             double elapsed = difftime(static_cast<time_t>(curSec),
                                       static_cast<time_t>(lastTick));
-            limits[1] = static_cast<int>(elapsed);
+            int elapsedSec = static_cast<int>(elapsed);
             int zero = 0;
-            limits[1] = std::max(zero, std::min(limits[0], limits[1]));
-            int svals[2];
-            svals[0] = static_cast<int>(getCurCharacR()->m_stamina)
-                       + (limits[1] * 100) / 600;
-            svals[1] = 100;
-            setCurCharacStamina(
-                static_cast<unsigned char>(std::min(svals[1], svals[0])));
+            elapsedSec = std::max(zero, std::min(limitMax, elapsedSec));
+            int staminaNew = static_cast<int>(getCurCharacR()->m_stamina)
+                             + (elapsedSec * 100) / 600;
+            int staminaMax = 100;
+            setCurCharacStamina(static_cast<unsigned char>(
+                std::min(staminaMax, staminaNew)));
         }
         char growType = static_cast<char>(getCurCharacGrowType());
         int level = get_charac_level();
         int job = get_charac_job();
         const char* name = getCurCharacName();
-        HistoryLog::WriteSelectCh(*reinterpret_cast<FILE* const*>(&m_field796f8),
+        // [SubC a-4 2026-09-11] ORIG 0x0864d05f `mov 0x8(%ebp),%edx; mov 0x796f8(%edx),%edx`
+        // = 直读字段；`*reinterpret_cast<FILE* const*>(&m_field796f8)` 产 `add $0x796f8,%eax` 间接形。
+        HistoryLog::WriteSelectCh(reinterpret_cast<FILE*>(m_field796f8),
                                   name, job, level, static_cast<int>(growType));
-        const CInventory* curInven = getCurCharacInvenR();
-        const_cast<CInventory*>(curInven)->set_parent(this);
-        const SkillSlot* curSkill =
-            reinterpret_cast<const SkillSlot*>(getCurCharacSkillR());
-        const_cast<SkillSlot*>(curSkill)->set_parent(this);
-        UserQuest* quest = getCurCharacQuestR();
-        quest->set_parent(this);   // 声明已由 Main 代落 CUser.h（ORIG W _ZN10UserQuest10set_parentEP5CUser）
-        const CCargo* curCargo = getCurCharacCargoR();
-        const_cast<CCargo*>(curCargo)->set_parent(this);
-        job = get_charac_job();
-        G_GameWorld()->m_channelUserCount[job] += 1;
+        // [SubC a-1 2026-09-11] ORIG 0x0864d080-0x0864d0e3 同样无中转槽（4×2 条）。
+        const_cast<CInventory*>(getCurCharacInvenR())->set_parent(this);
+        const_cast<SkillSlot*>(
+            reinterpret_cast<const SkillSlot*>(getCurCharacSkillR()))->set_parent(this);
+        getCurCharacQuestR()->set_parent(this);   // 声明已由 Main 代落 CUser.h（ORIG W _ZN10UserQuest10set_parentEP5CUser）
+        const_cast<CCargo*>(getCurCharacCargoR())->set_parent(this);
+        // [SubC a-2 2026-09-11] ORIG 0x0864d0e8-0x0864d107：`call get_charac_job` 结果留 %eax
+        // 直用（无二次落槽 + 两次回读）；旧 `job = get_charac_job(); ...[job]` 多 store+load。
+        // 复核账（SubC 01:2x 用 01:21:35 产物）：本项**净消 1 条**（GW 段我方 11 vs ORIG 10，
+        // 多出 `mov %eax,%ecx`——4.4 需保活 job 原值，ORIG 就地复用 `%eax`）；
+        // a-1(12)+a-2(1)+a-3(2)+a-4(1)=16 ⇒ 281→265 精确吻合。
+        // 残差 3 条（封顶）：HistoryLog 段我方 28 vs ORIG 23（+5，4.1 用 %edi/%esi/%ebx 跨调用
+        // 保活）+ GW 段 +1 − 序言缺 push %edi/%esi（−2）；帧差 0x8 属 4.4 槽排布/outgoing。
+        // [新负结论·勿试] 把 HistoryLog 的 4 个具名参数内联成实参表达式会**方向反转**：
+        // 4.4 改发「每参数 call; mov %eax,0xN(%esp)」共 20 条 ⇒ 我方 257 < ORIG 262（gap 转正反劣）。
+        G_GameWorld()->m_channelUserCount[get_charac_job()] += 1;
         return 1;
     }
     cMyTrace trace3(__PRETTY_FUNCTION__, 0x1246, 5);
@@ -11285,7 +11352,7 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
             if (static_cast<unsigned int>(limit) <=
                 *reinterpret_cast<unsigned int*>(m_pad8e101 + 0x2e)) {   // +0x8e12f
                 // [A06 2026-09-10 P259] ORIG 0x08689f12 段同形。
-                CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0xa12b), true);
+                CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x703d), true);
                 guard.operator*()->operator<<(0x18a);
                 guard.operator*()->operator<<(static_cast<int>(GetUID()));
                 SIG_FIND_FACTORY_HUB* sig =
@@ -11356,8 +11423,14 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     // （显式 memcpy 恒 call）。ORIG 位置在 level/stamina 段之前。
     struct RecipeTable52 { char m_data[0x52]; };
     *(RecipeTable52*)(reinterpret_cast<char*>(&info) + 0x88) =
-        *(RecipeTable52*)(*reinterpret_cast<char**>(reinterpret_cast<char*>(G_CDataManager()) + 0x14)
-            + static_cast<char>(sig->m_slot) * 0x7dc);
+        // [CoBatchA 2026-09-11 具名成员·消 disp 链] ORIG 0x0864a209 `call G_CDataManager`
+        // → 0x0864a20e `mov 0x14(%eax),%ecx` 是**单条 disp**；手写
+        // `*(char**)((char*)G_CDataManager() + 0x14)` 在 4.4 产 `add $0x14,%eax;
+        // mov (%eax),%eax` 两条（gap 168-173 = -5 ⇒ 消指令方向）。
+        // CDataManager.h `CCharacList* m_characList;  // +0x14` 为权威成员，
+        // 本 TU 8882/9622/9709 行已有 `m_characList->m_characs[job]` 同形先例（ORIG 同形）。
+        *(RecipeTable52*)(reinterpret_cast<char*>(
+            &G_CDataManager()->m_characList->m_characs[static_cast<char>(sig->m_slot)]));
     info.m_level = 1;
     info.m_field2b = 0;
     info.m_field29.m_growthType = 0;
@@ -11413,7 +11486,11 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     else if (!itemDef->is_stackable()) {
         err = 0x17;
     }
-    if (err == 0 && expert_job::CAlchemist::CheckUsableStackableItem(this, itemDef) != 1) {
+    // [CoBatchD 2026-09-11 消 && 物化] ORIG 0x0865e160 `cmpl $0x0,-0x10(%ebp); jne
+    // 0865e27f` + 0x0865e17f `test %al,%al; je 0865e27f` —— 两个失败口**直跳同一目标**，
+    // 无 `mov $1/%eax` 汇合物化（4.4 对 `&&` 产 `mov $0x1,%eax; jmp / mov $0x0,%eax`）。
+    if (err == 0)
+    if (expert_job::CAlchemist::CheckUsableStackableItem(this, itemDef) != 1) {
         PacketGuard packet;
         packet.put_header(1, 0x2f);
         packet.put_byte(0);
@@ -11425,7 +11502,9 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
         Send(packet);
         return true;
     }
-    if (err == 0 && CheckCoolTimeItem(static_cast<unsigned long>(item.m_addInfo))) {
+    // 同上：ORIG 同段第二处 `&&` 亦为直跳形（0x0865e1xx 族）。
+    if (err == 0)
+    if (CheckCoolTimeItem(static_cast<unsigned long>(item.m_addInfo))) {
         PacketGuard packet;
         packet.put_header(1, 0x2f);
         packet.put_byte(0);
@@ -12542,6 +12621,9 @@ public:
         reinterpret_cast<CommonTime*>(info.m_delReqTime)
             ->SetCreateTime(*reinterpret_cast<long*>(rec + 0x88));
 
+        // [CoBatchA 2026-09-11 负结论·已回滚] 分支物化形（`if/else` 双赋）实测
+        // **316→318 反劣**（4.4 仍发 setcc 且多 2 条）；ORIG 0x08649eb3/0x08649eb9 的
+        // `jg; movb $0; jmp; movb $1` 属 4.1 条件物化族，4.4 不可复现 ⇒ 维持表达式形。
         const char expireFlag = (char)(curSec <
             *reinterpret_cast<int*>(rec + 0x90));
         info.m_fieldE66 = static_cast<unsigned char>(expireFlag);       // local_db3

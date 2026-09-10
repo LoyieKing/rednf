@@ -159,3 +159,14 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
     // ↔ 我方 `strrchr`。前者是 **weak/COMDAT** 的内联实例（判据库第 8 条：命中
     // weak/COMDAT 的差异**不计**），且两者行为等价 ⇒ 不改。
 }
+
+// [DpcMisc-P1 2026-09-11 负结论·残差已定量] 本件 our 257 / ORIG 252（差 5，全部是
+// 控制流尾部 jmp/nop，**零数据指令差**）：
+// · 助记符直方图（归一去地址/槽号后）显示除 `jmp`(ORIG 11/OUR 14) 与 `nop`(ORIG 2/OUR 4)
+//   外**所有类别计数全等**（含 call/mov/cmpl/je/movb/movl/fildll/fucompp 全等）。
+// · 结构化位置（dpc_diff n=6）：我方在 ORIG 0x08264f9c `jmp 08264f9f`（循环 else 块尾）处
+//   多发射一组 `jmp+nop`；在函数尾（ORIG 0x0826501x 直落 `add $0x94,%esp`）多发射 2 组
+//   `jmp+nop`。即 4.4.6 对「if/else 块尾」与「函数尾 if 块合并点」恒补跳转+对齐填充。
+// · 已试形与读数：early-return（`if (!multiBox) return;` + `if (!sameIp) return;`）实测
+//   ours 257→261 **更差**（H5 记录）；显式 `continue;` 无效（编译产物逐字节不变）。
+// ⇒ 残差属 4.4.6 后端块尾布局（N 类），源码形无自由度，保持原形。

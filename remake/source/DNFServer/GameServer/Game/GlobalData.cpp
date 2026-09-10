@@ -782,6 +782,10 @@ struct tagCS_UPDATE_CHANNEL_INFO
     // [SweepGD 2026-09-10 实测] 具名 `unsigned long ix`（175 条）优于内联表达式
     // （176 条：4.4 重算两份 shr 各带一次 this 重读）；两形均非 ORIG 单份
     // `%eax`+`mov %eax,%edx` 复制形 ⇒ 取条数较优的具名形，余 4 条记 N18a/N96。
+    // [GDataWriter 2026-09-11 负结论] ORIG 0x081064b8 段 FDELT 全程寄存器
+    // （`shr $0x5,%eax; mov %eax,%edx` 无槽往返）；具名 `ix`（174 条）与纯
+    // `register` 提示（174 条）**实测同读数**（register 零效），内联表达式 176 条
+    // ⇒ 取具名形，余 N18a/N96 封顶。
     unsigned long ix = static_cast<unsigned long>(m_sock) >> 5;
     readfds.fds_bits[ix] |= (1UL << (static_cast<unsigned long>(m_sock) & 31));
     ret = select(m_sock + 1, &readfds, 0, 0, &tv);
@@ -834,6 +838,12 @@ struct tagCS_UPDATE_CHANNEL_INFO
 // if 形恒折 `jne`）。余 +2 = fgets 行剥离循环的 continue 岛布局（ORIG
 // `jne <body>` 回边 vs 我方 `jne; jmp; nop`，P223 边界）+ 3 条装载序，
 // 无 jcc 语义差、p167 CLEAR（仅 C1/C2 别名）。
+// [GDataWriter 2026-09-11 · **语义修正 + 减少 4 条**] ORIG 0x0810684b..0x08106869 逐条：
+//   `mov -0x18(%ebp),%eax; movzbl -0x4d4(%ebp,%eax,1),%eax; cmp $0xa,%al; je <linePos=0>;
+//    …cmp $0x23,%al; jne 0x08106870`（0x08106870 = fgets **循环条件头**）
+// ⇒ 非注释行**不 break**（继续读下一行，line 保留末行）；旧写 `continue`+`break` 会在
+// 首个普通行提前退出 ⇒ version 内容真语义 bug（AE 归一化看不见）。已改为单一
+// `if (a=='\n'||a=='#') linePos=0;` ⇒ 实测 295→**291**（ORIG 289，gap +6→+2）。
 #include "GlobalData/SendCheckChannelScript.inc"
 {
     ConnectBridgeServer();
@@ -886,14 +896,16 @@ struct tagCS_UPDATE_CHANNEL_INFO
             // `*src++` + `*(src - 1)` 形多发 `sub $0x1,%eax` 一条）。
             *dst++ = *src;
         } while (*src++ != '\0');
-        if (line[linePos] == '\n')
+        // [GDataWriter 2026-09-11 · **语义修正**] ORIG 0x0810684b..0x08106869 逐条：
+        //   `mov -0x18,%eax; movzbl line(%ebp,%eax,1),%eax; cmp $0xa,%al; je <linePos=0>`
+        //   `… cmp $0x23,%al; jne 0x08106870`（0x08106870 = **fgets 循环条件头**）
+        // ⇒ 非注释/非换行行**不 break**、继续读下一行（line 保留最后一行的内容）。
+        // 旧写 `if(\n){…continue;} if(!='#') break;` 会在首个普通行提前退出 ⇒ 运行期
+        // version 内容/后续 strncpy 与 ORIG 不同（真语义 bug，AE 归一化看不见）。
+        if (line[linePos] == '\n' || line[linePos] == '#')
         {
             linePos = 0;
-            continue;
         }
-        if (line[linePos] != '#')
-            break;
-        linePos = 0;
     }
     std::fclose(fp);
 
@@ -2264,24 +2276,40 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
 //      已知 N125/N81（4.4 下标缩放恒折 shl）。
 //   ③ 尾 `nop`（§6.1 对齐豁免）。
 // p167 调用点差集 CLEAR（8/8）。结论：**封顶，无改动**（语义完成）。
+// [GDataWriter 2026-09-11 重开 · 槽位大幅对齐] 按 P212/P309「函数头声明序控标量槽」
+// 把 5 个标量前置声明（maxfd,nUnusedA,recvLen,nUnusedB,nfds）+ 聚合（buf/readfds/
+// timeout/sockets）后置，并补 P171 两个 dead 标量（nUnusedA=1/nUnusedB=0，赋值为独立
+// 语句）。实测槽位：nUnusedA -0x38✓ / nUnusedB -0x30✓ / recvLen -0x34✓ / nfds -0x2c✓ /
+// timeout -0x44✓ / maxfd -0x3c✓(对齐)；**余 sockets(-0x48)↔maxfd(-0x3c) 互换**（第 2 试
+// 把 sockets 提前声明 ⇒ timeval 反被顶到 -0x48，更劣，已回滚）= 4.4 聚合优先占低槽
+// （N82附）不可翻。读数 137/138 不变（余 1 条 = FD_ZERO scaled 直存，N125/N81）。
 #include "GlobalData/dispatch_1.inc"
 {
     (void)arg;
+    // [GDataWriter 2026-09-11] 槽位重排试验（P212/P309：函数头声明序控标量槽向）：
+    // ORIG 标量序（深→浅）= maxfd(-0x48) / nUnusedA(-0x38) / recvLen(-0x34) /
+    // nUnusedB(-0x30) / nfds(-0x2c)；旧声明序产出 sockets(-0x48)/maxfd(-0x3c) 互换。
+    // 标量全部前置声明（先声明者占深槽），聚合（buf/readfds/timeout/sockets）后置。
+    // [GDataWriter 2026-09-11 第 2 试负结论] 把数组 sockets 提到 maxfd 之前声明
+    // ⇒ timeval 反被顶到 -0x48（`movl $0x1,-0x48`），更劣。4.4 聚合优先占低槽
+    // （N82附）不可由声明序翻 ⇒ sockets(-0x48)↔maxfd(-0x3c) 互换封顶。
+    int maxfd;
+    int nUnusedA;
+    int recvLen;
+    int nUnusedB;
+    int nfds;
     char buf[0x1800];
     fd_set readfds;
-    int maxfd;
     struct timeval timeout;
     int sockets[1];
-    int recvLen;
-    int nfds;
 
     // [P171] ORIG 0x0857c9ea `movl $0x1,-0x38(%ebp)` 与 0x0857ca1a
     // `movl $0x0,-0x30(%ebp)`：两处只写不读的具名 dead 标量（全函数无第二
     // 处引用），照抄原码死写；补后栈槽整体下移 8，与 ORIG 帧内布局一致。
-    int nUnusedA = 1;
+    nUnusedA = 1;
     sockets[0] = _bindUDPSocket((unsigned short)G_CEnvironment()->get_udp_port());
     g_bUdp_TH_start = true;
-    int nUnusedB = 0;
+    nUnusedB = 0;
     while (!GlobalData::s_server_stop)
     {
         memset(buf, 0, sizeof(buf));
@@ -3605,7 +3633,11 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
         // 把 ret 载入 callee-saved（0x08471985 `mov -0x1c(%ebp),%esi`）跨 ctor 保活；
         // 按 P290 试 `unsigned int ret;` 后 ndiff 仍 22（push/pop edi 仍缺失、coder 后
         // 仍从槽重读）⇒ 维持 int，记 N80/N82 族。
-        int ret;
+        // [GDataWriter 2026-09-11] ORIG 0x08471985 `mov -0x1c(%ebp),%esi` = ret 在
+        // cMyTrace ctor **前**提升到 callee-saved（跨 ctor 保活）；ORIG 同时保活
+        // %ebx(strerror)/%edi(errno)/%esi(ret) 三值 ⇒ 4.4 缺 %edi 保留。试**纯
+        // register** 存储类提示（P231/P307，非 asm 绑定）令 ret 免槽+升格。
+        register int ret;
         // ORIG 0x0847196d..0x084719c5（临时链式实证）：4.1 在 cMyTrace ctor
         // call 之前先按右起序求 varargs 并全部落 callee-saved —— 0x0847197c
         // strerror(errno)→%ebx、0x08471983 errno→%edi、0x08471985 ret→%esi，
@@ -3965,6 +3997,8 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
             // 异型化实测把 44 条打成 46 条（我方 `mov %eax,%edx; mov -0xc(%ebp),%eax;
             // lea (%edx,%eax,1),%eax` vs ORIG 45 条 `mov -0xc(%ebp),%ecx; add %ecx,%eax`）
             // ⇒ 恢复直证形，判 P30/N4（add-vs-mem，4.4 恒折内存版）封顶。ORIG 0x08602823。
+            // [GDataWriter 2026-09-11 负结论] P214① `*(arr + K)` 指针算术形实测
+            // **44→48 条**（ORIG 45，反向劣化）⇒ 恢复下标形，维持 P30/N4 封顶。
             m_keys[row][col].Initialize(strKeyTable_[row * 24 + col], 0x20,
                                         CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
         }
@@ -4210,6 +4244,12 @@ const char* const kPrettyResultOutput =
 // 余量：静态局部 guard 的 EH（我方 `__cxa_guard_abort`×2 + `_Unwind_Resume`×2）属
 // N91（4.1 对函数内 static 的 guard 分支不发 EH landing），无源码解 ⇒ 封顶。
 // p167 现状：仅上述 2+2 EH 项 + C1/C2·D1/D2 同址别名（P93）⇒ CALLSITE CLEAR。
+// [GDataWriter 2026-09-11] 复跑 p167（/tmp/J7_p167_gd_full.txt:253）逐项定性：
+//   EXTRA = `__cxa_guard_abort`×2 + `_Unwind_Resume`×2（**纯 N91 版本差**：ORIG 同有
+//   `__cxa_guard_acquire/release`，仅无 abort/Resume）+ D1Ev 族（=ORIG D2Ev 同址别名 P93）；
+//   MISSING 全部为 C2 版本（C1/C2 同址别名 P93）或 `__normal_iterator<const Inven_Item*>
+//   ::C2<Inven_Item*>` 转换构造 / `pair<int,int>::C2<pair<ulong,uchar>&&>` move 转换
+//   —— 二者属 N89（4.1 发 out-of-line 静态模板实例、4.4 头内联）。无源码可行动项 ⇒ 维持封顶。
 #include "GlobalData/ProcessIPG_ResultOutput.inc"
                                                  WongWork::IPG::SIPGData* reqData,
                                                  WongWork::IPG::SIPGData* resData,
@@ -8622,6 +8662,13 @@ EventRewardSection* GetRewardSection(int idx, register int type)
 // （ORIG 每用点 `mov 0x10(%ebp); movzbl (%eax)` 重读）；③两段检查=js 正跳 ret 岛 +
 // `movsbl; cmp sz; jl pass` 真跳 pass、ret 块 fall-through ⇒ goto 形「ret 标签置于
 // 第二检查与 pass 之间」（4.1 布局，4.4 同形无中继 nop）；④inner 具名 @-0x10。
+// [GDataWriter 2026-09-11] 重开：旧 goto 早返形的失败块每处多 1 条 `jmp <ret岛>` ⇒
+// 117 条；改**正极性短路包裹**（`if (a >= 0 && a < sz0) {…}`，P214①/P59；ORIG
+// 0x0826f93c `jl <pass>` + fall-through 0x0826f93e `mov $0x0,%eax; jmp <leave>`
+// 为该形直证）⇒ **117→109 条**（ORIG 111，gap +6→+2）。
+// 残余 = 4.4 对两个 `return false` 做 tail-merge（单点 `mov $0` 块 + 成功路径
+// `jmp <leave>`）vs 4.1 每失败点就地 `mov $0,%eax; jmp <leave>` 且成功路径直落
+// —— §6.4 负 gap（our < ORIG）+ ORIG 独有段已定位 ⇒ N 封顶（跨版本块合并差）。
 #include "GlobalData/GetRentItemInfo_1.inc"
     CUser& user, const InstanceRentalSystem::RentInElem& inElem,
     EventRewardItemInfo& out)
@@ -8662,35 +8709,26 @@ EventRewardSection* GetRewardSection(int idx, register int type)
     }
 
     const int sz0 = (int)list->size();
-    if ((int)(signed char)inElem.m_sectionIdx < 0)
+    // [GDataWriter 2026-09-11 重开] ORIG 0x0826f926/0x0826f939 段：
+    // `movzbl (%eax); test %al,%al; js <ret0 岛>` + `movsbl; cmp -0x14(%ebp),%eax;
+    // jl <pass>` + fall-through 到 0x0826f93e `mov $0x0,%eax; jmp end` ⇒ 原码是
+    // **正极性短路包裹**（P214①/P59：负极性 goto 早返每处多 1 条 `jmp <ret 岛>`，
+    // 我方旧形实测 117 条 vs ORIG 111）。改为 `if (a >= 0 && a < sz) { … }`，
+    // 失败路径共享函数尾 return false。
+    if ((int)(signed char)inElem.m_sectionIdx >= 0 &&
+        (int)(signed char)inElem.m_sectionIdx < sz0)
     {
-        goto L_ret0;
-    }
-    if ((int)(signed char)inElem.m_sectionIdx < sz0)
-    {
-        goto L_pass0;
-    }
-L_ret0:
-    return false;
-L_pass0:
-    std::vector<EventRewardItemInfo>* inner =
-        &list->at((unsigned int)(int)(signed char)inElem.m_sectionIdx);
-    {
+        std::vector<EventRewardItemInfo>* inner =
+            &list->at((unsigned int)(int)(signed char)inElem.m_sectionIdx);
         const int sz1 = (int)inner->size();
-        if ((int)(signed char)inElem.m_itemIdx < 0)
+        if ((int)(signed char)inElem.m_itemIdx >= 0 &&
+            (int)(signed char)inElem.m_itemIdx < sz1)
         {
-            goto L_ret1;
+            out = (*inner)[(unsigned int)(int)(signed char)inElem.m_itemIdx];
+            return true;
         }
-        if ((int)(signed char)inElem.m_itemIdx < sz1)
-        {
-            goto L_pass1;
-        }
-    L_ret1:
-        return false;
-    L_pass1: ;
     }
-    out = (*inner)[(unsigned int)(int)(signed char)inElem.m_itemIdx];
-    return true;
+    return false;
 }
 
 // ---- PcRoom::checkAllRentalItemScript —— T 0x082708cc（同名报告全文转写）---

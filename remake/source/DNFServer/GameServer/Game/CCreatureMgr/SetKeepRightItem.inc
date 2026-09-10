@@ -14,6 +14,14 @@ bool CCreatureMgr::SetKeepRightItem(CUser* user, Inven_Item* item)
         {
             // [P277 试形失败] 具名派生指针 156→158 条 + 槽基 -0x28→-0x2c（多 4B 局部）
             // ⇒ 回滚；残余 = P75/N-G 跨版本实参装载序（ORIG `movl $0,0x4(%esp)` 先）。
+            // [2026-09-11 旋钮①-负结论] ORIG 0x833c07c 实参装载序 =
+            //   `movl $0x0,0x4(%esp); mov -0xc(%ebp),%eax; mov %eax,(%esp)`
+            //   （常量先压、this 后载）；我方成员调用形恒 this-first
+            //   `mov -0xc,%eax; movl $0,0x4(%esp); mov %eax,(%esp)`。
+            //   试「显式限定调用 `CCreature::SetNoCharge(p,false)`」⇒ 编译错
+            //   （C++ 限定调用仍需对象：no matching function for call to
+            //   SetNoCharge(CCreature*, bool)）；P201「成员调用=栈参 shim 同形」
+            //   亦排除该路 ⇒ 残余 = 4.1/4.4 实参装载序结构差（P75/N-G），封顶。
             reinterpret_cast<CCreature*>(creatureItem)->SetNoCharge(false);
             CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
             // P0/P183：ORIG 0x833c0xx `movzbl %al,%ebx` + `call GetUid` 均无槽往返

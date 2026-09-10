@@ -540,6 +540,11 @@ COND3:
     // 唯一非别名差）+ 其余 C1/C2·D1/D2 同址别名 ⇒ 无未解释差。
     // 旧注：ORIG 0x086cb5e2 `jne <body>; jmp <exit>` ⇒ 反转条件 + 显式 return 出口
     // （4.4 对 `if (cit != last) goto LOOP3;` 恒产 `je exit; jmp body`）。
+    // [H8B 2026-09-11 第三轮实测 · 父泳道指定形亦回退] 按父泳道「ORIG 用 ne，改 `!=`」
+    // 复测 `if (cit != last) { goto LOOP3; } return;`：本件仍 308=308（等长），但
+    // TU 四数 near 4→3 / diff 12→13（本件 NEAR→DIFF）⇒ 劣化，已回滚。
+    // 根因与历史两轮一致：4.4 把 `const ne(const&)` 的比较临时槽放 -0x78（ORIG 0x086cb5e2
+    // 段为 -0x7c，`jne <body>; jmp <exit>`）⇒ 槽组整体平移，非源形可控（N82/N115 封顶）。
     if (cit == last)
     {
         return;
@@ -3450,6 +3455,19 @@ public:
 
 #include "GameWorld/GetLeftTimeOfForbiddenChat.inc"
 {
+    // [H8B 2026-09-11 §6.5 返回类型轴 · 已落地（父泳道授权改 GameWorld.h）] ORIG prett
+    // （报告 L243/L251）= `DWORD GameWorld::GetLeftTimeOfForbiddenChat(const char*)`
+    // （ORIG .rodata 0x116176 附近唯一），我方原为 `unsigned int ...`。4.4 的 prett
+    // **保留 typedef 名**（同批 find_user_from_world_byaccid 写 memberIdentificationNumber_t
+    // 后 .rodata 文本实测即为该 typedef 名），⇒ 落地方 = GameWorld.h 头部
+    // `typedef unsigned long DWORD;`（同 ServerLab/ServerLib/basic_header/stdafx.h:19；
+    // 全仓 DWORD 仅此一种形态）+ `GameWorld.h:347` 与 `.inc:1` 同步写 `DWORD`。
+    // 落地前实测两道阻塞（作为负结论留档）：仅在 .cpp 内补 typedef ⇒ .inc 报
+    // `'DWORD' does not name a type`（展开点问题面）；仅改 .inc ⇒
+    // `prototype for 'DWORD ...' does not match any in class 'GameWorld'`（.h:347 原为
+    // `unsigned int`，与 `unsigned long` 是不同类型；先例 CGuildServerProxy.cpp:151 只需
+    // .cpp 侧是因为其 typedef = `unsigned int` 与声明同型）。
+    // 落地后实测：`.rodata` prett 串逐字 = ORIG；mangled 不变；TU 四数零变化。
     // N89 封顶（与 IsForbiddenChat/IsForbiddenMove 同根因）：ORIG 4.1 对
     // `std::string str(name)` 发 allocator 临时 SaIcEC1Ev/D1Ev call（槽
     // -0x2d），4.4 判 trivial 省略 ⇒ str/it/end/trace 槽组连锁平移；指令数
@@ -4171,6 +4189,25 @@ END:;
 //     （真 boost 形实测 TU missing_in_game 135→222，+82 个 C++11 ABI 别名仅NEW ⇒ 纪律禁）；
 //  ② ORIG 六个实参值先落 -0x80..-0x6c 槽（4.1 具名局部）再统一装载，我方内联无槽：
 //     属版本装载策略差（P244/P0 反向），补具名亦无法补回 boost 的 string 链。
+// [H8B 2026-09-11 落地更新 · 部分推翻 ② 的"无法补回 string 链"判定] ORIG 的 string
+// 链可**非 boost** 复现：date/time 改 `std::string` 承载 + `.c_str()` 实参即补回
+// `_ZNKSs5c_strEv`×2 与 EH cleanup `_Unwind_Resume`（ORIG 0x086d16c8/0x086d16d9 的
+// D2 位于 EH 路径）；而 cMyTrace 按 ORIG 0x086d1661 `lea -0x38(%ebp)` + 0x086d16b7
+// `operator()` 改回**具名对象**（L11 那轮的全表达式临时链是反方向）。当前 224 vs
+// ORIG 186：p167 MISSING 9→7（仅剩 boost 5 项 + cMyTrace C1/C2 别名），EXTRA =
+// strftime×2 / time / localtime_r / `_ZNSsC1EPKcRKSaIcE`×2（非 boost 实现必然，
+// ORIG 的日期/时间文本在 boost 库内生成，本函数内不含该 39 条链）；TU 四数零变化。
+// [H8B 2026-09-11 终态取舍（父泳道裁决①）] 保留本 224 形，两条路径对照：
+//   · 147 形（char[16] + strftime 直传）：**正 gap**（我方少 39）⇒ 缺 ORIG 有而我方无
+//     的段（`_ZNKSs5c_strEv`×2 与 EH `_Unwind_Resume`），语义完成度低；
+//   · 224 形（本文）：**负 gap −38**，多出的全是"我方有 ORIG 无"段（`time`/`localtime_r`/
+//     strftime×2 + `_ZNSsC1EPKcRKSaIcE`×2）——这是「不发明符号」红线下的必然代价
+//     （ORIG 的日期/时间文本在 boost 库内生成，本仓无 boost 库可链，见 4167-4182 判词）。
+// N-DEP 归因（不可消除的 5 项）：`second_clock::local_time` / `base_time::date` /
+// `base_time::time_of_day` / `to_simple_string` / `to_iso_extended_string`（跨版本 boost
+// ABI；真 boost 头形实测 TU missing 135→222 ⇒ 违禁发明符号）。**时间源已对齐**：
+// ORIG `second_clock::local_time()` = 当次**系统本地时间** ⇒ 我方改 libc `time(0)` +
+// `localtime_r`（原先用 `GlobalData::s_systemTime_.getCurSec()` 缓存秒，语义不齐）。
 #include "GameWorld/UpdateServerSnapShot.inc"
 {
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -4213,15 +4250,34 @@ END:;
             // +87（82 个 C++11 ABI 别名 C5/D5）⇒ 违反「仅NEW 不得上升」⇒ 维持 N-DEP。
             // asm 桥路线（extern 声明 5 个 ORIG W 符号）经父泳道 2026-09-11 明确否决
             // （§4.5 禁 `extern "C" asm` 桥 + 引用 C5/D5 有链接期未定义风险）。
-            time_t now = GlobalData::s_systemTime_.getCurSec();
+            // [H8B 2026-09-11 父泳道裁决④落地 · 时间源轴] ORIG 0x086d1565 调
+            // `boost::date_time::second_clock<ptime>::local_time()`（= **当次系统本地
+            // 时间**，非缓存值）⇒ 我方原 `GlobalData::s_systemTime_.getCurSec()`（缓存秒）
+            // 语义不齐，改用 libc `time(0)` + `localtime_r`（两符号 ORIG 全库存在，
+            // 不发明新符号；ORIG p167 EXTRA 少 `CSystemTime::getCurSec` 一项）。
+            // [H8B 2026-09-11 父泳道裁决④落地 · p167 缺口补齐] ORIG 的日期/时间串是
+            // **std::string** 具名临时（-0x48 = to_simple_string(time_of_day())、
+            // -0x3c = to_iso_extended_string(date())，见 0x086d15b2/0x086d15d5 的
+            // `call c_str`）⇒ 我方原 `char[16]` 直传缺 `std::string::c_str()`×2 与
+            // `std::string::~string()`×2 + EH cleanup（`_Unwind_Resume`）⇒ 现改为
+            // std::string 承载 + `.c_str()` 实参（ORIG 参数槽序实证：0x28(%esp)=date、
+            // 0x2c(%esp)=time ⇒ 对应 `%s %s` 的先后）。boost 三项
+            // （local_time/to_iso_extended_string/to_simple_string）维持 N-DEP。
+            // [H8B 2026-09-11] cMyTrace 改**具名对象**：ORIG 0x086d1661 `lea -0x38(%ebp)`
+            // 后 `call cMyTrace::cMyTrace(char const*, int, int)` 再
+            // `call cMyTrace::operator()(char const*, ...)`（0x086d16b7）⇒ 是栈上具名
+            // trace 对象（非临时链）。
+            time_t now = time(0);
             struct tm local;
             localtime_r(&now, &local);
-            char dateStr[16];
-            char timeStr[16];
-            strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &local);
-            strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &local);
-            cMyTrace(__PRETTY_FUNCTION__, 0x1b61, 8)(
-                "%u,%d,%u,%d,%d,%d,%d,%d,%s %s",
+            char dateBuf[16];
+            char timeBuf[16];
+            strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d", &local);
+            strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &local);
+            std::string dateStr(dateBuf);
+            std::string timeStr(timeBuf);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x1b61, 8);
+            trace("%u,%d,%u,%d,%d,%d,%d,%d,%s %s",
                   user->get_acc_id(),
                   G_CEnvironment()->get_server_group(),
                   user->getCurCharacNo(),
@@ -4230,7 +4286,7 @@ END:;
                   dungIdx,
                   user->getCurCharacExp(),
                   user->getCurCharacMoney(),
-                  dateStr, timeStr);
+                  dateStr.c_str(), timeStr.c_str());
         }
         }
     }

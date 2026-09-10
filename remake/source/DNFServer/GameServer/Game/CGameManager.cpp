@@ -1176,14 +1176,21 @@ L_quick_party_flag:;
                 goto it_inc;
             // ORIG 0x082a3257..0x082a3293（Ghidra C 逐字）：
             //   false = (quick && IsExistPassword()) || !IsQuickJoinablePVPRoom(user)
-            // [b29x 实测] 首项两形**读数完全相同**（69/71/gap−2/ndiff4）：德摩根
-            //   `!quick` 与正比较 `quick == 0` 在 4.4 下均产 `movzbl -0x2c(%ebp),%eax;
-            //   xor $0x1,%eax; test %al,%al; jne`（4 条）——ORIG 的
-            //   `cmpb $0x0,-0x2c(%ebp); je`(2 条) 是 4.1 bool 内存直比形，
-            //   4.4 对 bool 局部比较恒先零扩展再取反（N122/P168a② 封顶）。
-            //   按父泳道指示回滚为与 Ghidra C 一致的原写法。
+            // [b29x 实测] 德摩根 `!quick` 与正比较 `quick == 0` 两形读数相同（均 4 条
+            //   movzbl;xor;test;jne）——那是**负极性物化**所致。
+            // [J9-2026-09-11 · 真语义 bug 修复（P224 短路链极性判据）] ORIG 的 bool
+            //   物化段 0x082a327c..0x082a3293：`call IsQuickJoinablePVPRoom; test %al,%al;
+            //   je 082a328c(mov $0x0 岛)` —— **正极性**直测 ⇒ 第二项是
+            //   `room->IsQuickJoinablePVPRoom(user)`（无 `!`），我方旧形多一个 `!`
+            //   ⇒ 条件整体反转（可加入的房间被跳过、不可加入的被返回，运行行为相反）。
+            //   等价式：`if (!((quick && IsExistPassword()) || IsQuickJoinablePVPRoom(user)))
+            //   return room;`（ORIG 首项 0x082a3257 cmpb 直比亦为正极性 `quick`）。
+            // [三形读数（本波实测，语义等价）] 复合否定形 ndiff **7**（our 72；最优，采用）；
+            //   嵌套 `if (quick&&E) goto; if (C) return;` 形 ndiff 12（our 69）；
+            //   旧（错极性）复合形 ndiff 6 但语义反转 ⇒ 不可用。残差 = 4.4 短路 lowering
+            //   不发 4.1 的 bool 物化岛（mov $1/$0 + test/je）+ `!E` 的 xor 归一化 ⇒ N122/N3 封顶。
             if (!((quick && room->IsExistPassword()) ||
-                  !room->IsQuickJoinablePVPRoom(user)))
+                  room->IsQuickJoinablePVPRoom(user)))
                 return room;
         }
     it_inc:
@@ -2057,9 +2064,14 @@ end:
     // `unsigned int` 改 `int`（S1 一次性旋钮）后 TU 四数 729/1894/0/16 **逐值不变**
     // ⇒ 不命中 C07 形（本例升格点消费者是「被调方按值实参」而非「跨 call 复用」，
     // 与 Main ③ 的 A14 反例边界一致）⇒ 维持 N7/N82 判词。
-    unsigned int channelNo = G_CEnvironment()->get_channel_no();
+    // [J9-2026-09-11 · P0 槽-局部双向对应律] ORIG 0x08298961-0x08298966 为
+    // `call get_channel_no; mov %eax,%ebx`（值升格 callee-saved、**无槽往返**）⇒ 原码
+    // 无 channelNo 具名局部，值是 getChannelInfo 第 3 实参的**纯表达式**；我方旧形多
+    // `mov %eax,-0x28(%ebp)` + 尾部 `mov -0x28(%ebp),%edx; mov %edx,0x8(%esp)` 两条，
+    // 并把其后全部槽顶深 0x10（帧 0x4c vs ORIG 0x3c）。删具名局部后槽集/帧逐值归位。
     channel_info_t* info = script->getChannelInfo(
-        (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup, channelNo);
+        (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+        G_CEnvironment()->get_channel_no());
     for (int a = 0; a < 10; ++a)
     {
         for (int b = 0; b < 0x18; ++b)
@@ -2107,6 +2119,12 @@ end:
     // 语义：10 个 dword（40 字节）全清（旧注"仅清 10 字节"误，曾为真 bug）。
     int current[10] = {0};
     int total = 0;
+    // [J9-2026-09-11 · P212 提级实验：负结论，已回滚] 把 for-init `area` 提为函数体级
+    // 声明（`int area1; for (area1=0;…)`）以求复现 ORIG 深序（ORIG 0x082a277f
+    // `movl $0x0,-0x48`；我方 for-init 形落 -0x44）实测**反劣**：area1 落 -0x50、
+    // n 落 -0x40，ndiff 52→58、TU 四数 729/1896/1/13 逐值不变（NEAR 未翻正）
+    // ⇒ 4.4 对函数体级/for 级标量的槽分配不是『先声明深』单调（P212 在标量域不适用）
+    // ⇒ 该件槽组差维持 N82 封顶（P331 的『同尺寸标量区可反转』亦不命中本件）。
     for (int area = 0; area < 10; ++area)
     {
         int n = 0;
@@ -2125,7 +2143,12 @@ end:
             else
             {
                 if (room->GetState() != -1)
-                    current[area] = current[area] + 1;
+                    // [J9-2026-09-11] ORIG 0x082a2803-0x082a280d：`mov -0xcc(%ebp,%eax,4),%edx;
+                    // add $1,%edx; mov %edx,-0xcc(%ebp,%eax,4)`（索引**单次**载入 eax）。
+                    // `= current[area]+1` 在 4.4 恒二次载入索引（多 `mov -0x4c(%ebp),%edx`）；
+                    // 探针 /tmp/j9probe/Game/CGameManager.cpp f2/f3 实证 `current[area]++` 复现
+                    // 6 条形，与 ORIG 逐条一致（值丢弃 ⇒ 语义等价）。
+                    current[area]++;
             }
             n = n + 1;
         }
@@ -2243,7 +2266,10 @@ end:
             else
             {
                 if (room->GetState() != -1)
-                    current[area] = current[area] + 1;
+                    // [J9-2026-09-11] 同 WarRoomCountManage：ORIG 0x082a2cb5-0x082a2cbf 索引
+                    // 单次载入（`mov -0x48(%ebp),%eax; mov -0x8c(%ebp,%eax,4),%edx; add $1,%edx;
+                    // mov %edx,-0x8c(%ebp,%eax,4)`）；`++` 形复现（探针 f2/f3）。
+                    current[area]++;
             }
             n = n + 1;
         }

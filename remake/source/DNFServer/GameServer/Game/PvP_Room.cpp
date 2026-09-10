@@ -1569,7 +1569,10 @@ GRADE_BODY:
     {
         lock();
         int local_18 = 0;
-        int local_14 = 0;
+        // [J8PvPRoom 2026-09-11] P328：ORIG 0x085d9a91 只清 -0x14/-0xc（local_18/
+        // local_10），-0x10（local_14）**无清零指令**（ORIG 0x085d9abf 才首次写
+        // `mov %eax,-0x10(%ebp)`）⇒ 源码声明无初值，删 `= 0` 消一条 `movl $0x0`。
+        int local_14;
         for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
         {
             if ((P_WIN(local_10) != 0) && (P_TEAMS(local_10) != 4))
@@ -1809,6 +1812,11 @@ GRADE_BODY:
     local_70.finalize(true);
     lock();
     int local_44 = ((IMatch*)m_matching)->CheckJoinable(this, user);
+    // [J8PvPRoom 2026-09-11 · P136 负结论，已回滚] ORIG 0x085d7174 段为
+    // `mov %eax,-0x40(%ebp); cmpl $0x0,-0x40(%ebp); setne %al; test %al,%al; je`
+    // （4.1 显式 bool 物化）。具名 `bool local_joinFail = (local_44 != 0);` 形实测
+    // **反劣**：4.4 落槽 `movb/cmpb $0x0,-0x3d(%ebp)`，702/701→704（多 3 条），
+    // diff 行 390→416 ⇒ 回滚原直判形（跨版本 setne 物化差，N 类）。
     if (local_44 != 0)
     {
         unlock();
@@ -3719,15 +3727,22 @@ SKIP_RANK_SEAT:
         // dead→c1(-0x28)→c2(-0x24)→数组 8 槽→循环变量，旧形源码序是数组→c1→c2；
         // 把 c1/c2 声明提到数组前重编后 ndiff 逐值不变（81/81、135=135）⇒ 4.4 槽
         // 分配不随该声明序翻转（N82 封顶再证）。
-        int local_54[8];
-        local_54[4] = 0;
-        local_54[5] = 0;
-        local_54[6] = 0;
-        local_54[7] = 0;
-        local_54[0] = 0;
-        local_54[1] = 0;
-        local_54[2] = 0;
-        local_54[3] = 0;
+        // [J8PvPRoom 2026-09-11 · P311 第③形实测] 旧形 `int local_54[8]` + 下标
+        // `[i+4]` 使 4.4 恒产 `lea 0x4(%eax),%ebx` + scaled disp 两段（ORIG
+        // 0x085da69f 单条 `mov %eax,-0x40(%ebp,%ebx,4)`、读 0x085da723/0x085da72a
+        // `-0x40/-0x50(%ebp,%eax,4)`，索引**不含 +4**）。曾试 struct 成员数组视图
+        // 中性（4.4 对偏移 0x10 成员数组仍拆两段）；本形改**两个独立 4-int 栈数组**
+        // （t1 高址 @-0x40、t2 低址 @-0x50，与 ORIG 同布局），索引即 [i]。
+        int local_t1[4];
+        int local_t2[4];
+        local_t1[0] = 0;
+        local_t1[1] = 0;
+        local_t1[2] = 0;
+        local_t1[3] = 0;
+        local_t2[0] = 0;
+        local_t2[1] = 0;
+        local_t2[2] = 0;
+        local_t2[3] = 0;
         int local_2c = 0;
         int local_28 = 0;
         for (int local_24 = 0; local_24 < 8; local_24 = local_24 + 1)
@@ -3737,7 +3752,7 @@ SKIP_RANK_SEAT:
                 CUser* local_34 = P_SEATS(local_24);
                 if (local_34 != 0)
                 {
-                    local_54[local_2c + 4] = local_34->get_charac_guildkey();
+                    local_t1[local_2c] = local_34->get_charac_guildkey();
                     local_2c = local_2c + 1;
                 }
             }
@@ -3746,7 +3761,7 @@ SKIP_RANK_SEAT:
                 CUser* local_34 = P_SEATS(local_24);
                 if (local_34 != 0)
                 {
-                    local_54[local_28] = local_34->get_charac_guildkey();
+                    local_t2[local_28] = local_34->get_charac_guildkey();
                     local_28 = local_28 + 1;
                 }
             }
@@ -3759,7 +3774,7 @@ SKIP_RANK_SEAT:
         {
             for (int local_1c = 0; local_1c < local_28; local_1c = local_1c + 1)
             {
-                if (local_54[local_20 + 4] == local_54[local_1c])
+                if (local_t1[local_20] == local_t2[local_1c])
                 {
                     return 1;
                 }
@@ -4351,22 +4366,23 @@ LAB_085d91da:
             // `mov -0x80(%ebp,%eax,4)`（= base+0 段）；旧 `int local_84[10]` + 下标
             // `[T+5]` 令 4.4 拆 `lea 0x14(%eax)` + 重算两段（每处 +2 条）。
             // 视图：{m_cnt0[5] @+0, m_cnt5[5] @+0x14}，同址等价（sizeof 40）。
-            struct PvPTeamScoreView
-            {
-                int m_cnt0[5];    // local_84[0..4]
-                int m_cnt5[5];    // local_84[5..9]
-            };
-            PvPTeamScoreView local_84;
-            local_84.m_cnt5[0] = 0;
-            local_84.m_cnt5[1] = 0;
-            local_84.m_cnt5[2] = 0;
-            local_84.m_cnt5[3] = 0;
-            local_84.m_cnt5[4] = 0;
-            local_84.m_cnt0[0] = 0;
-            local_84.m_cnt0[1] = 0;
-            local_84.m_cnt0[2] = 0;
-            local_84.m_cnt0[3] = 0;
-            local_84.m_cnt0[4] = 0;
+            // [J8PvPRoom 2026-09-11 · P311 第③形实测（同 IsThereSameGuildMember 成功形）]
+            // 旧形 `int local_84[10]`+`[T+5]` 与 struct 成员数组视图（偏移 0x14）均令
+            // 4.4 拆 `lea 0x14(%eax)`+重算两段；本形改**两个独立 5-int 栈数组**
+            // （cnt5 先声明 ⇒ 高址 -0x6c、cnt0 ⇒ 低址 -0x80，与 ORIG 0x085d9da2
+            // 单条 `mov -0x6c/-0x80(%ebp,%eax,4),%edx` 同布局），索引即 [i]。
+            int local_cnt5[5];
+            int local_cnt0[5];
+            local_cnt5[0] = 0;
+            local_cnt5[1] = 0;
+            local_cnt5[2] = 0;
+            local_cnt5[3] = 0;
+            local_cnt5[4] = 0;
+            local_cnt0[0] = 0;
+            local_cnt0[1] = 0;
+            local_cnt0[2] = 0;
+            local_cnt0[3] = 0;
+            local_cnt0[4] = 0;
             for (int local_30 = 0; local_30 < 8; local_30 = local_30 + 1)
             {
                 if ((P_SEATS(local_30) != 0) && (P_TEAMWIN(local_30) != 0) &&
@@ -4378,8 +4394,8 @@ LAB_085d91da:
                     // [FL8PvPWorldLeague 2026-09-10] 实测前置 `++` 形即单求值：
                     // 本件 ndiff 99→**85**（u 370→366，gap 回 -1），TU 四数不劣化
                     // ⇒ 沿用 `++`。
-                    ++local_84.m_cnt5[P_TEAMWIN(local_30)];
-                    local_84.m_cnt0[P_TEAMWIN(local_30)] += seats[local_30];
+                    ++local_cnt5[P_TEAMWIN(local_30)];
+                    local_cnt0[P_TEAMWIN(local_30)] += seats[local_30];
                 }
             }
             unsigned int local_38 = 0;
@@ -4390,10 +4406,10 @@ LAB_085d91da:
             // `cmpl $0x4,-0x28(%ebp); setle %al` ⇒ 局部声明 **int** 即复现。
             for (int local_2c = 1; local_2c < 5; local_2c = local_2c + 1)
             {
-                if ((0 < local_84.m_cnt5[local_2c]) && (local_84.m_cnt0[local_2c] < local_34))
+                if ((0 < local_cnt5[local_2c]) && (local_cnt0[local_2c] < local_34))
                 {
                     local_38 = local_2c;
-                    local_34 = local_84.m_cnt0[local_2c];
+                    local_34 = local_cnt0[local_2c];
                 }
             }
             for (int local_28 = 0; local_28 < 8; local_28 = local_28 + 1)
@@ -4510,7 +4526,10 @@ LAB_085d91da:
         }
     }
     unsigned char local_66 = 1;
-    unsigned char local_65 = 0;
+    // [J8PvPRoom 2026-09-11] P328：ORIG 0x085da8b0 段只有 `movb $0x1,-0x62`（local_66）
+    // 与 `movl $0x0,-0x60`（local_64）两条清零，-0x61（local_65）**无初始化指令**
+    // （首次写为循环内 `mov %al,-0x61(%ebp)`）⇒ 源码声明无初值，删 `= 0`。
+    unsigned char local_65;
     for (int local_64 = 0; local_64 < 8; local_64 = local_64 + 1)
     {
         // [b28d-solo-PvP_Room] P225 推广：ORIG 0x085da882 两条件各为独立
@@ -4542,7 +4561,10 @@ LAB_085d91da:
                 P_SEATS(local_5c));
             local_58->add_pvp_play_info(
                 GlobalData::s_systemTime_.getCurSec() - m_battleStartSec, 1);
-            bool bVar15;
+            // [J8PvPRoom 2026-09-11 · P231 实测] 原 `bool bVar15;` 在 4.4 恒落 -0x55 槽
+            // （`movb $0x0/$0x1,-0x55` ×3 + `cmpb $0x0,-0x55` ×2，ORIG 0x085daa1f 段全程
+            // %eax 无槽）⇒ 试裸 register 提示消槽。
+            register bool bVar15;
             if (G_GameWorld()->IsIntegratedPvPBaseChannel() != 0)
             {
                 // [b28d-solo-PvP_Room] P0：ORIG 0x085da882 的 GetRepeatEvent 返回值

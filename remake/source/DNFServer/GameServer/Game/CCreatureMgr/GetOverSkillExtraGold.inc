@@ -1,3 +1,6 @@
+// [2026-09-11 收口复核 · AE] check_tu_routed 口径判 **AE**（TU 表无该件）；
+//   `game_func_report --no-compile` 报的 48 vs 49 = 函数尾一条 4.4 对齐 nop
+//   （±0x81 处，N112 类，compare_tu 已剥离）+ .o 重定位伪差，非语义差。
 int CCreatureMgr::GetOverSkillExtraGold(int gold) const
 {
     // ORIG 0x833c704：四步分断——creature==0/ItemId 不符/checkTime 假三条

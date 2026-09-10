@@ -229,3 +229,23 @@ int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
     }
     return 0;
 }
+
+// [DpcMisc-D1 2026-09-11 负结论·残差已定位但非单旋钮可修] 本件 our 818 / ORIG 811（+7）。
+// 助记符直方图（归一去地址/槽号/reloc 伪影后）：`add $IMM` ORIG 6 → OUR 12（多 6）、
+// `mov %R,-MEM` 9→13、`mov -MEM,%R` 55→58、`mov $IMM,-MEM` 14→10、`je` 24→20、
+// `jne` 6→9；`mov $IMM,OFF(%R)` 类差值（48/66）经核对为 .o reloc 未解析伪影
+// （ORIG `$"str"`+`$&sym` 12+6=18 条 ↔ OUR 18 条）**不计**。
+// 根因 = 帧/局部变量集合不同导致的连锁寻址差：
+// · 帧 ORIG `add $0x2bc,%esp` vs OUR `add $0x2dc,%esp`（+0x20）。
+// · 槽集比对（slots.py）无单一 delta 可对齐：only-ORIG {-53,-68,-112,-116,-120,-136,
+//   -140,-144,-184,-188,-242,-247,-249,-310,-615,-620}；only-OUR {-56,-65,-72,-76,-80,
+//   -96,-152,-168,-208,-262,-267,-269,-330,-635,-652} ⇒ 布局是分布式错位。
+// · foundItems 索引形：ORIG 0x081f96f6/0x081f970e/0x081f9748 `mov -0xb8(%ebp,%eax,4)`
+//   且 0x081f96f0 `add $0x4,%eax`（锚点 base=-0xb8 + 索引 i+4）；我方 `-0xd0(%ebp,%eax,4)`
+//   + `add $0x1,%eax`（索引 i+1）。两者在各自帧内**语义等价**（anchored base 不同），
+//   随帧布局连锁，非源码索引字面量错（源码 `foundItems[i+1]` 与 OUR 自洽）。
+// ⇒ 需先逐变量对齐局部（P28/P331 声明序=槽序）再谈索引锚点；本轮不盲改（改动会连带
+//   数十条寻址指令）。
+// p167 实测：ORIG calls=98 / OUR calls=98；差集**全部**为 C1/C2·D1/D2 同址别名
+// （MISSING C2 ×3 D2 ×2 ... ↔ EXTRA C1 ×3 D1 ×2 ...：Inven_Item/cMyTrace/PacketGuard/
+// DisJointResult）⇒ 判据库第 8 条不计，无语义缺失。

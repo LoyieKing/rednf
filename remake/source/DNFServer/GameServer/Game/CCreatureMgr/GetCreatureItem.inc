@@ -1,3 +1,16 @@
+// [2026-09-11 收口判词 · N7 + P331/N95 帧槽族] ORIG 0x0833b80c（154 条）；我方 159 条
+//   （本轮 **161→159**：两处元素地址链由 base-first 成员下标改 index-first 合并形
+//   `reinterpret_cast<char*>(sig) + (count*0x38 + 0x12880)`，逐条逼近 ORIG
+//   0x833b89d/0x833b8e7 的 `shl/lea/sub → lea 0x12880(%edx) → add 0xc(%ebp)`）。
+//   p167 调用点差集 CLEAR（仅 Inven_Item C1/C2 同址别名）。
+//   残余（均结构性）：
+//   ① N7 间接调用目标寄存器：ORIG `mov (%eax),%ebx; call *%ebx` vs 4.4.7
+//      `mov (%eax),%edx; call *%edx`（本 TU 路由 dnf_game_cxx.sh:441 = C6 4.4.7
+//      + -march=i486；非 4.4.6 后端 ⇒ 不可翻）；
+//   ② 帧 0x7c vs 0x70（+0xc）+ 全帧槽号整体平移 0x10（我方多 push %edi）：
+//      具名集 it/itEnd/count/item/it2 与 ORIG 同构且相对序一致，差额来自 4.4
+//      为地址链多发 callee-saved ⇒ P331「恒定平移」族中不可控侧（N82/N95）。
+//   §6.2 三件套：callsite CLEAR + gap −5 + 槽位集相对序一致 ⇒ 语义完成、byte 层 N 封顶。
 bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
 {
     memset(sig->m_creature, 0, sizeof(sig->m_creature));   // ORIG 0x1ed8
@@ -24,8 +37,14 @@ bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
         //   帧 0x70→0x7c ⇒ 本次按 ORIG 两处各自独立重算。
         item->SaveCreatureItem(
             &invenItem,
-            &reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-                sig->m_creature)[count],
+            // [2026-09-11 旋钮①] ORIG 0x833b89d..b8b2 的地址链为 **index-first**：
+            //   `mov -0x10,%eax; shl $0x3,%eax; lea 0x0(,%eax,8),%edx; sub %eax,%edx;
+            //    lea 0x12880(%edx),%eax; add 0xc(%ebp),%eax`
+            //   （先算 count*0x38，再 disp 折叠 +0x12880，最后 add base）。
+            //   旧形 `sig->m_creature[count]`（成员地址先算 base+0x12880 再 +索引）
+            //   使 4.4 产 base-first + %ebx 缓存（多 3 条/处 ×2）。
+            reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
+                reinterpret_cast<char*>(sig) + (count * 0x38 + 0x12880)),
             m_user);
         // ORIG 每轮两次 operator->（P167 差集：ptEv 少 1）——getExpireTime 经
         // 第二次 it->second 取，勿复用上面缓存的 item 指针。
@@ -33,8 +52,12 @@ bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
         //   两处重算链，与 ORIG 结构不符）；②本形（两处内联元素指针）=161 条；
         //   ③`count*0x38 + sig->m_creature` 交换操作数=165 条（4.4 仍 base-first
         //   且多 %esi 中转）⇒ 取②，结构对齐 ORIG（无缓存 + 两处独立重算）。
+        // 同旋钮①（第二处 store）：ORIG 0x833b8e7..900 亦为重算式
+        //   `mov 0xc(%ebp),%ebx; mov %esi(count),%eax; shl/lea/sub 链;
+        //    lea (%ebx,%edx,1),%eax; add $0x128a8,%eax; mov %ecx,(%eax)`
+        //   （+0x28 由 add 到元素基址 ⇒ 与旋钮①同形）。
         reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-            sig->m_creature)[count].m_expireTime =
+            reinterpret_cast<char*>(sig) + (count * 0x38 + 0x12880))->m_expireTime =
             it->second->getExpireTime();  // 条目 +0x28
         // P167：第一个 map 的 ORIG 增量段是前置 ppEv（第二个 map 才是 ppEi）。
         ++it;
