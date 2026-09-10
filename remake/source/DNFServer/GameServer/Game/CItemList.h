@@ -265,9 +265,24 @@ public:
     BaseItemKey(unsigned char rarity, unsigned char usableLevel,
                 unsigned short groupName);
 
-    unsigned char m_rarity;     // +0x00
-    unsigned char m_level;      // +0x01
-    unsigned short m_partType;  // +0x02
+    // [Lane13 2026-09-10 · Main 批准跨 TU] 匿名 union 双视角：具名字段
+    // （+0x00/+0x01/+0x02）与**小端 4 字节 int 键视图**同址。修「视图 cast
+    // 反模式」（Main 洞察，CMailBoxHelper 5 件实证）：原调用点
+    // `*(int*)&key` / `reinterpret_cast<const int&>(key)` 使 4.4 走 base-first
+    // 装载、与 ORIG 形态不符；改 `key.m_key` 直读具名视图成员。
+    // sizeof 仍 4、各偏移/mangled 零变化（4.4 实测 sizeof==4）。
+    // ORIG 键点：choose_item 0x085f1560 段 / RegenVer_choose_item 0x085f1802
+    // （m_baseItems60 以小端 int 打包键查找）。
+    union
+    {
+        struct
+        {
+            unsigned char m_rarity;     // +0x00
+            unsigned char m_level;      // +0x01
+            unsigned short m_partType;  // +0x02
+        };
+        int m_key;                      // 小端 4 字节键视图（+0x00）
+    };
 
     bool operator<(const BaseItemKey& o) const
     {

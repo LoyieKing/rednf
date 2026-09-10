@@ -44,11 +44,11 @@
 //     script+0x148 provider 对象为空 → handle 经 m_optionSet 的虚调用在脚本
 //     装载批次完成前不可用（运行期 blocked 于该批次）。
 //
-// [Lane13 2026-09-10 归零记录] 四数 identical 295 / ae 333 / near 1 / diff 8
+// [Lane13 2026-09-10 归零记录] 四数 identical 295 / ae 334 / near 1 / diff 7
 //   （diff 含 `_Z41__static_initialization_and_destruction_0ii` N123 撞名伪差）
 //   本轮 AE 归零件（原 DIFF/NEAR）：_Select_Part、_Calculate_RegenCost、
 //   reset_option、_get_option_quantity、_choose_option_group、
-//   RegenVer_get_option_quantity、_RandomLevel。
+//   RegenVer_get_option_quantity、_RandomLevel、RegenVer_choose_item。
 //   命中范式：① 具名 functor（CRandomList/CRandomListEx）→ 全表达式临时链
 //   （P278/P221：ORIG 把 functor 构到浅槽、get_value 直作 for_each 返回值 sret）；
 //   ② 迭代器比较写 `end() != it`（P74补：控实参装载序）；③ 具名 bound/常量局部
@@ -56,6 +56,14 @@
 //   ⑤ 共享头返回类型旋钮（P211/P292/P248档①）：CDataManager.h
 //   `RegenVer_get_option_quantity` int→unsigned、CItemGenerator.h
 //   `_random_application` int→bool。⑥ Main 已落 c6446r(446) 路由（N7 虚调寄存器角色）。
+//   ⑦ [Main 视图 cast 反模式] give_option / RegenVer_give_option 的
+//   `unsigned char* optB=(unsigned char*)opts` 字节视图写入 → 权威头具名字段
+//   `opts->m_fields[slotI].m_field{0,1,2}` / `opts->m_seed9.m_field`（紧凑 3 字节组
+//   视图，零布局变化）；l6 归一化差异 390→343 / 424→415、我方指令数更贴 ORIG。
+//   ⑧ [Main 批准跨 TU] `CItemList.h` BaseItemKey 加匿名 union 双视角 `int m_key`
+//   （sizeof 仍 4、偏移/mangled 零变化）⇒ choose_item / RegenVer_choose_item 的
+//   `*(int*)&key` / `reinterpret_cast<const int&>(key)` 改 `key.m_key`
+//   （RegenVer_choose_item 本件已 AE 归零）。
 // ============================================================================
 
 #include <sstream>
@@ -887,7 +895,7 @@ unsigned int CRandomOptionItemHandle::RegenVer_choose_item(
     // （find/end 各一），无 table/script 具名局部。
     std::map<int, std::map<int, BaseItemValue> >::const_iterator outer =
         reinterpret_cast<const RandomOptionScript*>(GetRandomOption())
-            ->m_baseItems60.find(reinterpret_cast<const int&>(key));
+            ->m_baseItems60.find(key.m_key);   // [Lane13] BaseItemKey 具名 int 键视图（去 cast 反模式）
 
     // [SweepRandomRental-2] ORIG 0x085f18fb 走 `ne` 正极性、0x085f1902
     // `je 085f1a03` 直落失败块（日志+返回 -1）⇒ 正向包裹 + 单一尾 return
@@ -1023,7 +1031,9 @@ bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
 
     int remaining = ogIt->second.m_fieldC;
     std::vector<OptionGroup> groupVec = ogIt->second.m_vec0;  // 值拷贝后 erase
-    unsigned char* const optB = reinterpret_cast<unsigned char*>(opts);
+    // [Lane13 视图 cast 反模式] 原 `unsigned char* optB = (unsigned char*)opts` +
+    // `optB[slotI*3+k] = (unsigned char)v` 使 4.4 折 LHS-first/窄化中转；改权威头
+    // 具名字段直访问（RandomOption::m_fields[i] 3 字节组，偏移零变化）。
 
     for (int slotI = 0; slotI < quantity && slotI <= 2; ++slotI)
     {
@@ -1038,7 +1048,7 @@ bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
         if (sel < groupVec.size())
         {
             OptionGroup og = groupVec[sel];
-            optB[slotI * 3] = (unsigned char)og.m_type0;  // 槽首字节=组类型
+            opts->m_fields[slotI].m_field0 = (unsigned char)og.m_type0;  // 槽首字节=组类型
             remaining -= og.m_weight4;
 
             // [b28d-solo-RandomRentalA2 P314/P50] ORIG 用默认构造迭代器 +
@@ -1047,19 +1057,20 @@ bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
             victim = groupVec.begin() + sel;
             groupVec.erase(victim);
 
-            optB[slotI * 3 + 1] =
+            opts->m_fields[slotI].m_field1 =
                 (unsigned char)_get_option_value(dwA, dwB);
-            optB[slotI * 3 + 2] =
+            opts->m_fields[slotI].m_field2 =
                 (unsigned char)_get_option_value(dwA, dwB);
         }
     }
 
     // seed 字节(+9)：低 2 位 = outGrade；高位 = 池[10](+0x61d0) 掷 0x40 后 <<2
-    unsigned char* optBytes = reinterpret_cast<unsigned char*>(opts);
-    optBytes[9] = (unsigned char)((optBytes[9] & 0xfc) | (outGrade & 3));
+    opts->m_seed9.m_field =
+        (unsigned char)((opts->m_seed9.m_field & 0xfc) | (outGrade & 3));
     unsigned long seedBound = MAX_RANDOM_SEED;
     int seedRoll = m_rand[10].randInt(seedBound);
-    optBytes[9] = (unsigned char)((optBytes[9] & 3) | ((seedRoll & 0x3f) << 2));
+    opts->m_seed9.m_field =
+        (unsigned char)((opts->m_seed9.m_field & 3) | ((seedRoll & 0x3f) << 2));
 
     return true;
 }
@@ -1175,7 +1186,7 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
 
     int remaining = ogIt->second.m_fieldC;
     std::vector<OptionGroup> groupVec = ogIt->second.m_vec0;
-    unsigned char* const optB = reinterpret_cast<unsigned char*>(opts);
+    // [Lane13 视图 cast 反模式] 同 give_option：字节视图 → 权威头具名字段直访问。
 
     for (int slotI = 0; slotI < quantity && slotI <= 2; ++slotI)
     {
@@ -1190,7 +1201,7 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
         if (sel < groupVec.size())
         {
             OptionGroup og = groupVec[sel];
-            optB[slotI * 3] = (unsigned char)og.m_type0;
+            opts->m_fields[slotI].m_field0 = (unsigned char)og.m_type0;
             remaining -= og.m_weight4;
 
             // [b28d-solo-RandomRentalA2 P314/P50] 同 give_option。
@@ -1210,16 +1221,17 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
                 v1 = (unsigned char)_get_option_value(dwA, dwB);
                 v2 = (unsigned char)_get_option_value(dwA, dwB);
             }
-            optB[slotI * 3 + 1] = v1;
-            optB[slotI * 3 + 2] = v2;
+            opts->m_fields[slotI].m_field1 = v1;
+            opts->m_fields[slotI].m_field2 = v2;
         }
     }
 
-    unsigned char* optBytes = reinterpret_cast<unsigned char*>(opts);
-    optBytes[9] = (unsigned char)((optBytes[9] & 0xfc) | (outGrade & 3));
+    opts->m_seed9.m_field =
+        (unsigned char)((opts->m_seed9.m_field & 0xfc) | (outGrade & 3));
     unsigned long seedBound = MAX_RANDOM_SEED;
     int seedRoll = m_rand[10].randInt(seedBound);
-    optBytes[9] = (unsigned char)((optBytes[9] & 3) | ((seedRoll & 0x3f) << 2));
+    opts->m_seed9.m_field =
+        (unsigned char)((opts->m_seed9.m_field & 3) | ((seedRoll & 0x3f) << 2));
 
     return true;
 }
@@ -1814,7 +1826,7 @@ unsigned int CRandomOptionItemHandle::choose_item(ENUM_RARITY& rarity,
             // [b28d-solo-RandomRentalA2] P0/P48：ORIG 2 处独立调 GetRandomOption。
             std::map<int, std::map<int, BaseItemValue> >::const_iterator it =
                 reinterpret_cast<const RandomOptionScript*>(GetRandomOption())
-                    ->m_baseItems60.find(*(int*)&key);
+                    ->m_baseItems60.find(key.m_key);   // [Lane13] 同上（去 *(int*)&key cast）
             // [b28d-solo-RandomRentalA2 P222] ORIG 走 `ne` 正极性（p167 MISSING
             // `const_iterator ne`，EXTRA `eq`）⇒ 正向包裹 + 末尾共享失败出口。
             if (it != reinterpret_cast<const RandomOptionScript*>(GetRandomOption())
