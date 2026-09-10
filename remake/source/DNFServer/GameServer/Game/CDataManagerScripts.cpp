@@ -45,8 +45,13 @@ bool IS_PVP_CHANNEL(int channelType);
 // [A16 round5 复核] 本 TU 9 件非 identical 全数复核（fresh check_tu_routed 19:17 +
 //   p167 调用点差集）：**9 件全部 CALLSITE CLEAR**（差集仅 C1/C2·D1/D2 同址别名
 //   P93 伪差）⇒ 语义缺口 0，残差全为跨版本 codegen 形态。逐件判词（均附 ORIG 地址）：
-//   · importAchievementRewardParameter 0x0889afb0（gap -12）/ importAdvanceAltarShop
-//     Parameter 0x088a10cc（gap -6）：N82 帧/槽分区（§6.2 三件套口径）。
+//   · importAchievementRewardParameter 0x0889afb0（gap -12）：N82 帧/槽分区（§6.2 三件套）。
+//   · importAdvanceAltarShopParameter 0x088a10cc（gap -6）：**本波已修 P196 符号性**
+//     —— 3 处下标循环 `for (size_t fi = 0; fi < v.size(); ++fi)`（`size_t` ⇒ 无符号
+//     比较 ⇒ `seta`）改为 `for (int fi = 0; fi < (int)v.size(); ++fi)`，复现 ORIG
+//     三处 `cmp -0x48/-0x18/-0xc(%ebp),%eax; setg %al`（**有符号**；ORIG 0x088a156f 段
+//     等）⇒ 实测 OUR setg ×3 = ORIG，`seta` 归零（P196：signed/unsigned 语义分叉）。
+//     残余 = 我方多 `sete`×3 / `setne`×1（ORIG 直跳形）+ N82 帧/槽分区（gap 不变）。
 //   · AddRewardItemInfo 0x0890cfda（gap -2）：N107 —— ORIG 0x0890d04f
 //     `lea (%ecx,%eax,1),%eax; 0x0890d052 lea 0xc(%eax),%edx; mov val,(%edx)`，
 //     我方 `lea (%ecx,%eax,1),%edx; mov val,0xc(%edx)`（4.4 恒折 disp；下标形与

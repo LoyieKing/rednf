@@ -15,8 +15,10 @@
 //   修死局部误读——两条 store 目标为 pack(1) 成员 @+0x0b/+0x07）；
 //   BitsetToStr(Ss) 51/51 AE、BitsetToStr(Ph) 44/44 AE（累加器 volatile 化复现
 //   4.1 读-加-写三段 + 槽位；Ph 另删 `int j=0` 前置多出的 j 初始化）；
-//   check_mission_kind 109/111 N121（尾部 4.4 epilogue-threading jmp+nop 岛，
-//   七形实测均不消）；Reset_DailyMission 132/133 N104、Update_ComboMission_Event
+//   check_mission_kind 109/109 **AE**（[F3b-C05③ 2026-09-10] 旧判 N121 作废：
+//   平铺 `if (m_index == 0) return;` 在 4.4 产一组 nop+jmp 中继岛；改正向包裹
+//   `if (m_index != 0) { … }` 后 fail 路径 jump-thread 直达共享尾出口）；
+//   Reset_DailyMission 132/133 N104、Update_ComboMission_Event
 //   150/149 N104（EH 正常尾块/unwind 块物理序互换 + 少 1 岛，指令集全等）。
 //   P0：本文件无 register asm 绑定；p167 七件全 CLEAR；TU COMPILE OK 0 错误。
 #include <bitset>

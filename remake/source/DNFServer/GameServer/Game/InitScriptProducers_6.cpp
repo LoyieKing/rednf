@@ -2152,12 +2152,18 @@ bool importDimensionActivationData(const char* path,
 // `mov slot,%eax; cmp $1; sete %al`（无分支），4.4 恒折 `cmpl $1,slot; jne;
 // mov $1; jmp; …`（每处 +1 jne +1 jmp）⇒ 属 P197④/setcc-fold 负例（4.1 槽比
 // sete 不可复现，探针族已证），非语义差；其余 2 段为块首落点差。语义等价。
-// [C03CryptoInit68 复测·2026-09-10] 已试 `data.m_10 = static_cast<char>(v == 1);`
-// 三处同改 ⇒ 产物与 `(v==1)?1:0` **逐条相同**（仍分支形）⇒ 维持 N197④ 封顶。
-// [C03 按 Main·A07 判别式定稿] ORIG 该点形为 `mov -0x20(%ebp),%eax; cmp $0x1,%eax;
-// sete %al`（**先落槽再比较、无 movzbl/movsbl 归一**）⇒ setcc 来自「槽值 vs 常量」
-// 的比较物化，属 **P197④ / N-88 族，与 callee 返回类型无关**；改调用点控制流恒劣化
-// （A07 两例 187→193 同族）⇒ 不再试控制流形、不动 callee（ScanInt 两侧声明一致）。
+// [C03CryptoInit68 修·2026-09-10（推翻 N197④ 判词）] 原 `data.m_1x = (v==1) ? 1 : 0`
+// 产**分支形**（`cmpl $1,slot; jne; mov $1; jmp; mov $0`）；ORIG 是
+// `mov -0x20(%ebp),%eax; cmp $0x1,%eax; sete %al; mov %al,-0x34(%ebp)`。
+// **钥匙 = 直接 bool→字节字段赋值**：`data.m_10 = (v == 1);`（不加三目、不加
+// static_cast）⇒ 4.4 逐条复现 ORIG 的 `cmp/sete/直存`，三处同改后
+// **ourN 248 → 239 = ORIG（gap −11 → 0）**。
+// （反例留痕：`static_cast<char>(v == 1)` 与三目同产分支形；`unsigned int v` 局部
+//  不改变内存直比；补 `int v4` 具名中转 ⇒ 239→241 且全槽整体深 4，已回退。）
+// 残余（跨版本族，语义等价）：① 比较形 —— ORIG `mov -0x20,%eax; cmp $1,%eax`
+// 载寄存器 vs 我方 `cmpl $1,-0xc` 内存直比（P209/P286 族，局部实参 int 不可择）；
+// ② 失败路径返回寄存器 %ebx(ORIG) vs %esi(我方)（N7/N18a 寄存器角色）；
+// ③ ORIG 0x0890dedf 一处 `jmp+nop` 岛（P223/N112）。
 // p167 复核：本件 MISSING/EXTRA 全为 C1↔C2 同址别名伪差（`_ZNSsC2Ev` vs `_ZNSsC1Ev`、
 // stOneEmotionData C1/C2），无真语义缺口（P93）。
 bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
@@ -2192,11 +2198,11 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
             out->m_tags.push_back(tag);
             data.m_0 = tag;
 
-            // ORIG 0x0eb `mov %eax,-0xc(%ebp)` + 0x103 `mov -0xc(%ebp),%eax; mov %eax,-0x40`
-            // ⇒ 具名局部中转后再存字段（P0：有槽往返 ⇒ 有具名局部）。
-            int v4 = ScanInt(&ok);
+            // [C03 实测] ORIG 0x0eb/0x103 的 `mov %eax,-0xc; mov -0xc,%eax; mov %eax,-0x40`
+            // 是 4.1 的具名中转；我方补 `int v4 = ScanInt(&ok); data.m_4 = v4;` 后
+            // ourN 239→241 且全槽整体深 4（新槽未复用 ORIG 的 -0xc）⇒ 反劣，已回退。
+            data.m_4 = ScanInt(&ok);
             if (!ok) { return false; }
-            data.m_4 = v4;
             if (!ScanStr(&data.m_8))
             {
                 return false;

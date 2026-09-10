@@ -49,15 +49,19 @@
 //     复现 ORIG 的 this-first+lea（旧判 N107 取址 lea-vs-add **作废**）。
 //   * eventDeliveryBuyItem       [L29] NEAR→AE：裸 `register` 具名 serverGroup
 //     复现 ORIG callee-saved 角色（旧判 N7 封顶**作废**）。
-//   * _processLevelReward        [L29] 维持 **N121**：尾部 return 中继岛 7 vs 4
-//     （4.4 恒为每个 return 生桩；4.1.2 -m32 对同构骨架 0 桩）⇒ 跨版本 CFG 出口
-//     块分配差，穷举 7 形 + 4 组旗标不可翻。帧/槽/指令数全等，语义等价。
+//   * _processLevelReward        [F3b-C05③ 2026-09-10] DIFF→**AE（164=164 逐条
+//     全等）**：旧判 N121 作废 —— 3 处残差（table==0 / levelIdx<0 / jobIdx<0）
+//     是平铺 `if (c) return;` 在 4.4 各产一组 nop+jmp 中继岛；改正向包裹
+//     （`if (table != 0) {…}` / `if (levelIdx >= 0 && jobIdx >= 0) {…}`）后
+//     4.4 把 fail 路径 jump-thread 直达共享尾出口（ours 175→164 = ORIG）。
 //   * UpdateEventInfo            [L29] 维持 **N7/P75**：uid/characNo 装载寄存器
 //     （ORIG characNo→%eax、我们 →%edx）；register/unsigned 两形实测均打成 DIFF。
 //   * _Z41__static_initialization_and_destruction_0ii  [L29] **N123 撞名假象**：
 //     本 TU GI 与 ORIG 0x0869376b 副本逐条同构（compare_tu 按名索引取到他 TU 的
 //     0x0807ee76 副本）⇒ 结构性噪音，verdict 豁免。
 //   L29 收口四数：identical=74 ae=107 near=1 diff=2（p167 七符号全 CLEAR）；
+//   [F3b-C05③ 2026-09-10] 现四数：identical=74 ae=108 near=1 diff=1
+//   （_processLevelReward AE；diff 仅剩 _Z41 撞名假象）；
 //   无 .h 改动（仅本 TU 顶部补 `#include "PacketTypes.h"`）；无子子代理。
 // ============================================================================
 
