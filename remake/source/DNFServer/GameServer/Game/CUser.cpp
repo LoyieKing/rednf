@@ -1866,9 +1866,9 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
                 pkt.put_int(0);
                 reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayFlag = 0;
                 reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayLeftSec = 0;
-                Stream* stream =
-                    GlobalData::s_stream_pool->Acquire("user.cpp", 0x344c);
-                CStreamGuard guard(stream, true);
+                // P259：ORIG 无 Stream* 具名槽（Acquire 结果 %eax 直传 C1）。
+                CStreamGuard guard(
+                    GlobalData::s_stream_pool->Acquire("user.cpp", 0x344c), true);
                 // ORIG 0x0865c4f9/0x0865c524/0x0865c53e：`*guard << v`（operator*
                 // 链产生 deEv）+ `guard->GetInBuffer`（ptEv 链），P103/P132。
                 (*guard)->operator<<(0x93);
@@ -4109,7 +4109,8 @@ void CUser::setHackUserFlag()
     m_379.m_field1 = 1;
 }
 
-unsigned char CUser::isHackUser() const
+// P292/T3：ORIG W 0x0822fd3c（0xf）；消费点 0x081be54c 无 setcc ⇒ 返回 bool。
+bool CUser::isHackUser() const
 {
     return m_379.m_field1;
 }
@@ -5663,10 +5664,9 @@ bool CUser::reqHumanCertify()
     pg.put_header(0, 0x7d);
     pg.put_byte(5);
     pg.put_int(msg->m_size);
-    // ORIG 0x867f366-0x867f376：len→%eax、ptr→%edx（技巧 28 register asm("eax") 钉住
-    // len 寄存器；ptr 计算被挤到 %edx）。
-    int len = msg->m_size;
-    pg.put_binary((const char*)msg->m_image, len);
+    // ORIG 0x867f366-0x867f376：len→%eax、ptr→%edx —— 无具名槽（P0：msg->m_size
+    // 表达式直传；历史 register asm 钉法已按 P0/N96 清绑，改内联实参）。
+    pg.put_binary((const char*)msg->m_image, (int)msg->m_size);
     pg.put_byte(m_mcap.getPoint() > 0x251b ? 1 : 0);
 
     unsigned short veriA = 0;
@@ -6522,8 +6522,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
                 NumberToString(get_acc_id(), 0), sock, err, strerror(err));
         }
         // ORIG +0x730：组流(<<1<<uid)（0x991）。
-        Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x991);
-        CStreamGuard guard(s, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x991), true);
         // b28d-CUser p167：ORIG 0x08649181/0x086491ac 显式调 CStreamGuard::operator*
         //   （deEv）再 operator<<（P132 链保留；原 `guard <<` 无 operator* call）。
         (*guard)->operator<<((int)1);
@@ -7051,8 +7050,7 @@ void CUser::ReCalcChattingEmoticon()
     if (!opt->SetEmoticonInfo(cfg))
         return;
 
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0xa076);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0xa076), true);
     // b28d-solo-CUser p167：ORIG 0x08689a22 用 `guard.operator*()->operator<<` ×2 +
     //   `guard.operator->()->GetInBuffer`（MISSING operator* ×2/operator-> ×1），
     //   且 cfg 用结构整体赋值（我方 memcpy EXTRA ×1，P83/P132）。
@@ -7190,8 +7188,7 @@ void CUser::UpdateData()
 
     if (isSaveSkill())
     {
-        Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1ded);
-        CStreamGuard guard(s, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1ded), true);
         guard.operator*()->operator<<((int)0x24);              // SIG_LOAD_SKILL
         guard.operator*()->operator<<((int)GetUID());
         SIG_LOAD_SKILL* sig = guard.operator->()->GetInBuffer<SIG_LOAD_SKILL>();
@@ -7228,8 +7225,7 @@ void CUser::UpdateData()
 
     if (isSavePvP())
     {
-        Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1e2c);
-        CStreamGuard guard(s, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1e2c), true);
         guard.operator*()->operator<<((int)0x25);              // SIG_SAVE_PVP
         guard.operator*()->operator<<((int)GetUID());
         SIG_SAVE_PVP* sig = guard.operator->()->GetInBuffer<SIG_SAVE_PVP>();
@@ -7243,8 +7239,7 @@ void CUser::UpdateData()
 
     if (isSaveDungeonClear())
     {
-        Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1e4e);
-        CStreamGuard guard(s, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1e4e), true);
         guard.operator*()->operator<<((int)0x27);              // SIG_SAVE_DUNGEON_CLEAR
         guard.operator*()->operator<<((int)GetUID());
         char* sig = (char*)guard.operator->()->GetInBuffer<SIG_SAVE_DUNGEON_CLEAR>();
@@ -7268,8 +7263,7 @@ void CUser::UpdateData()
 
     if (isSaveQuest())
     {
-        Stream* s = GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1e8c);
-        CStreamGuard guard(s, true);
+        CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1e8c), true);
         guard.operator*()->operator<<((int)0x29);              // SIG_UPDATE_QUEST
         guard.operator*()->operator<<((int)GetUID());
         SIG_UPDATE_QUEST* sig = guard.operator->()->GetInBuffer<SIG_UPDATE_QUEST>();
@@ -7316,8 +7310,7 @@ void CUser::UpdateData()
 
     if (isSaveInformNoticeFlag())
     {
-        Stream* s2 = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1f2b);
-        CStreamGuard guard(s2, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1f2b), true);
         guard.operator*()->operator<<((int)0x2f5);             // InformNoticeFlagData
         guard.operator*()->operator<<((int)-1);
         char* sig = (char*)guard.operator->()->GetInBuffer<InformNoticeFlagData>();
@@ -7353,8 +7346,7 @@ void CUser::UpdateData()
         (EventClassify::CEventScriptMng*)G_CDataManager()->get_event_script_mng();
     if (esm->is_eventing(0x19b) && getCurUseBringUpMaterialCount() != 0)
     {
-        Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1f73);
-        CStreamGuard guard(s, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1f73), true);
         guard.operator*()->operator<<((int)0x2ca);             // SIG_OBJECT_BRING_UP
         guard.operator*()->operator<<((int)-1);
         SIG_OBJECT_BRING_UP* sig = guard.operator->()->GetInBuffer<SIG_OBJECT_BRING_UP>();
@@ -7468,8 +7460,7 @@ void CUser::UpdateLogout(bool param)
 {
     UpdateCharacView();
 
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2260);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x2260), true);
     // b28d-CUser p167 真缺口：ORIG 0x086555e0/0x086555f1 显式调 CStreamGuard::operator*
     //   （deEv）×2、0x086555?? operator->（ptEv）×1 再 GetInBuffer（P132/P103）；
     //   直接 `guard <<` / `guard.GetInBuffer` 少 3 个调用点。
@@ -10557,10 +10548,12 @@ bool CUser::SaveInventory()   // b28c-L5 SIGFIX（P174）
 {
     if (isLocked4DataLoad())
     {
-        char* accIdStr = NumberToString(get_acc_id(), 0);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x181a, 5);
-        trace("Can not save character until loading done(m_id: %s, charac_no: %d",
-              accIdStr, getCurCharacNo());
+        // ORIG 0x0864fe69-0x0864fed1：getCurCharacNo→%esi、NumberToString(get_acc_id(),0)→%ebx
+        // 均在 cMyTrace ctor **之前**右→左求值并跨 ctor 保活（无 accIdStr 具名槽、无 -0xc 往返）
+        // ⇒ P227 全表达式临时链（历史具名 trace+accIdStr 致帧 0x40 与槽漂移）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x181a, 5)(
+            "Can not save character until loading done(m_id: %s, charac_no: %d",
+            NumberToString(get_acc_id(), 0), getCurCharacNo());
         return 0;
     }
     if (G_GameWorld()->GetChannelType() == 7)
@@ -10568,9 +10561,10 @@ bool CUser::SaveInventory()   // b28c-L5 SIGFIX（P174）
         return 0;
     }
 
-    Stream* stream =
-        GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1828);
-    CStreamGuard guard(stream, true);
+    // ORIG 0x0864ff11-0x0864ff2b：Acquire 结果 %eax 直传 C1（无 stream 具名槽，
+    // 槽号 -0x24 而非 -0x28）⇒ P0 内联实参，禁 Stream* 缓存。
+    CStreamGuard guard(
+        GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1828), true);
     // ORIG：每条 << 前 call operator*()，GetInBuffer 前 operator->()（P167 缺 3）。
     guard.operator*()->operator<<((int)0x23);          // SIG_SAVE_INVENTORY
     guard.operator*()->operator<<((int)GetUID());
@@ -11564,10 +11558,11 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     // tag 角色技能槽（+0x10/+0x1a8）
     if (getTagCharacR() != 0)
     {
-        // SIG_LOAD_ETC 新结构：tag 区为 TAG_CHARAC_ETC_DATA（2 行 × 0x198）。
+        // SIG_LOAD_ETC 新结构：tag 区为 TAG_CHARAC_ETC_DATA（2 行 × 0x198，
+        // Lane6 已将平铺对拆成真实二维数组 m_skills[2][204]，见 SigTypes_C.h:300）。
         ((SkillSlot*)getTagCharacSkillR())->get_skill_slot(
-            reinterpret_cast<char*>(sig->m_tagEtc.m_skillSlot),
-            reinterpret_cast<char*>(sig->m_tagEtc.m_skillCombo), 0x198);
+            reinterpret_cast<char*>(sig->m_tagEtc.m_skills[0]),
+            reinterpret_cast<char*>(sig->m_tagEtc.m_skills[1]), 0x198);
     }
 
     // ORIG 0x0867794c：expand type 0xa → mix+0xd6fc（0xd6fc - 0xc9c0）。
@@ -11622,6 +11617,8 @@ void CUser::_SaveCharacData()
         !IsSaveCharacManageInfo())
         return;
 
+    // 本件反例（_SaveCharacData）：ORIG 0x0864a5xx 有 `mov %eax,-0x20(%ebp)` +
+    // `mov -0x20(%ebp),%eax`（Acquire 结果**有**具名槽）⇒ 保留 Stream* 局部。
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x19c3);
     CStreamGuard guard(s, true);
     // b28d-CUser p167 真缺口：ORIG 显式调 CStreamGuard::operator*（deEv）×2 与
@@ -12210,6 +12207,7 @@ bool CUser::delete_ontime_reward_list()   // b28c-L5 SIGFIX（P174）
     //   DEL] [mov$0;jmp end] [TRACE 块 +0x4c] [DEL 块 +0x89 fall-through 尾]。
     //   IsEventing 真 → je 直达尾 DEL 块（return 1 fall 到 leave）；假 → 落 mov$0 岛。
     //   ⇒ 用 goto DEL 把 delete 块物理后置（P223 尾标签系）。
+    //   注：改顺序 if 结构（TRACE 内联 if 体）实测反劣 5→27 行，已回退。
     if (ev == 0)
         goto TRACE;
     if (!ev->IsEventing(0))
@@ -12600,7 +12598,9 @@ void CUser::_processCoolTimeItem(CStackableItem* item, unsigned int itemIdx,
     bool found = false;
     for (unsigned int i = 0; i < cool->size(); ++i)
     {
-        if ((*cool)[i].m_itemIdx == (int)itemIdx)
+        // ORIG 0x0865eb?? `mov (%eax),%eax; cmp 0x10(%ebp),%eax; sete` = mem 直比；
+        // 冗余 (int) cast 反致 4.4 `mov 0x10(%ebp),%eax; cmp %eax,%edx`（P162/P41 族）。
+        if ((*cool)[i].m_itemIdx == itemIdx)
         {
             // ORIG 0x0865eb83 `mov 0x4(%eax),%eax; mov %eax,-0xc` 缓存旧值再比
             //   （P0：具名局部，勿直写两次 operator[]）。
@@ -12751,8 +12751,7 @@ bool CUser::CheckCoolTimeItem(unsigned long itemIdx) const
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08658b2a | _ZN5CUser22UpdateCoolTimeItemInfoEj
 void CUser::UpdateCoolTimeItemInfo(unsigned int expireTime)
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2cb8);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x2cb8), true);
     guard.operator*()->operator<<((int)0x132);
     guard.operator*()->operator<<((int)GetUID());
     SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO* sig = guard.operator->()->GetInBuffer<
@@ -12761,15 +12760,20 @@ void CUser::UpdateCoolTimeItemInfo(unsigned int expireTime)
     //   CONTINUOUS_ITEM_INFO 局部（C1 清零）+ 迭代器循环 + 末尾 memcpy(&sig->m_info)
     //   （MISSING：operator-> ×5 / CONTINUOUS_ITEM_INFO::C1 / operator++(int) / end() /
     //   operator!= / memcpy；EXTRA：operator[] ×4 / memset / size / operator+）。
-    sig->m_characNo = (unsigned int)getCurCharacNo();
+    // ORIG：count 清零（-0x10）先于 getCurCharacNo 调用（语句序）。
     int count = 0;
+    sig->m_characNo = (unsigned int)getCurCharacNo();
     CONTINUOUS_ITEM_INFO local;
     std::vector<ContinuousItemInfo>* cool =
         GetCurCharacCoolTimeItemList();
-    if (cool->size() < 0x33)   // ORIG: 超过 0x32 条不发送
+    // ORIG：begin() 在 size() 检查**之前**求值（独立 sret 临时 -0x28）。
+    std::vector<ContinuousItemInfo>::iterator it = cool->begin();
+    // ORIG `cmp $0x32,%eax; seta %al; test %al,%al; je <body>`：4.4 对该比较恒产
+    // setbe（`size>0x32` 正写可产 seta 但 jcc 极性反为 jne；`0x32>=size` 仍 setbe；
+    // `!(size>0x32)` 亦 setbe）⇒ 跨版本 setcc 方向差异，P197④ 镜像族 N 封顶。
+    if (cool->size() < 0x33)   // 超过 0x32 条不发送
     {
-        for (std::vector<ContinuousItemInfo>::iterator it = cool->begin();
-             it != cool->end(); )
+        for (; it != cool->end(); )
         {
             if (it->m_expireTime < expireTime
                 || (unsigned int)it->m_itemIdx > 0x7ffffffe
@@ -12795,23 +12799,25 @@ void CUser::UpdateCoolTimeItemInfo(unsigned int expireTime)
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08658d90 | _ZN5CUser20UpdateEffectItemInfoEj
 void CUser::UpdateEffectItemInfo(unsigned int expireTime)
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2ceb);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x2ceb), true);
     guard.operator*()->operator<<((int)0x137);
     guard.operator*()->operator<<((int)GetUID());
     SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO* sig = guard.operator->()->GetInBuffer<
         SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO>();
     // b28d-solo-CUser p167 重写（ORIG 0x08658d90 实形，同 UpdateCoolTimeItemInfo）：
     //   无 memset(sig)；CONTINUOUS_ITEM_INFO 局部 + 迭代器循环 + 末尾 memcpy。
-    sig->m_characNo = (unsigned int)getCurCharacNo();
+    // ORIG：同 UpdateCoolTimeItemInfo（count 清零先于 getCurCharacNo）。
     int count = 0;
+    sig->m_characNo = (unsigned int)getCurCharacNo();
     CONTINUOUS_ITEM_INFO local;
     std::vector<ContinuousItemInfo>* effect =
         GetCurCharacEffectItemList();
-    if (effect->size() < 0x33)   // ORIG: 超过 0x32 条不发送
+    // ORIG：begin() 在 size() 检查**之前**求值（独立 sret 临时 -0x28）。
+    std::vector<ContinuousItemInfo>::iterator it = effect->begin();
+    // ORIG：同 UpdateCoolTimeItemInfo（seta vs 4.4 setbe，N 封顶）。
+    if (effect->size() < 0x33)   // 超过 0x32 条不发送
     {
-        for (std::vector<ContinuousItemInfo>::iterator it = effect->begin();
-             it != effect->end(); )
+        for (; it != effect->end(); )
         {
             if (it->m_expireTime < expireTime
                 || (unsigned int)it->m_itemIdx > 0x7ffffffe

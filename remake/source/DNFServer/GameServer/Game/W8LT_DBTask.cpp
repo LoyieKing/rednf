@@ -75,6 +75,30 @@
 //       致帧漂移，N82/N93）。
 //   P0：本文件无 `register asm("reg")` 绑定（grep 复核仅注释）；.h 改动：无（未改任何头）。
 //   全量表：/tmp/b28d_solo_W8LT_DBTask_result.tsv。
+// [Lane4W8LTDBTask 检查点] check_tu_routed: identical=141 ae=1739 near=9 diff=71
+//   （合计 1880；基线 identical=117 ae=1685 near=9 diff=87）。判据① 全 TU jcc/jmp
+//   目标下标逐位比对（/tmp/lane4_jmps.py）未见条件反转/回边落错，差异全为「指令数平移」
+//   或「弱镜像体非真实实现」两类。本轮 15 件 DIFF 归零（全 identical、gap=0）：
+//    ① 弱镜像族 14 件（本 TU 为发 vtable 的 W 空体镜像，真实 T 实现在别 TU）——
+//      把别 TU 的真实体逐字复写到本 TU 的类内 inline 定义（W 仍被强定义覆盖，行为不变），
+//      使 W 槽与 ORIG 的 T 体逐条一致：DB_TestTradeRestrict(28)/DB_InsertUnlimitSupportLog(46)/
+//      DB_InsertArchieveEventLog(42)/DB_Insert0712WinterEventCoupon(124)/DB_InsertCeraItemHistory(61)/
+//      DB_ReqSaveHackUserPunish(71)/DB_UpdateHappyBeanInfo(69)/DB_AccountHack_CheckMyAccount(164)/
+//      DB_EventGrowthWeaponReset(33)/DB_EventUpdateGrowthWeaponTimepiece(65)/DB_UpdateGiftCount(49)/
+//      DB_UpdateChuseokPackagePurchase(63)/DB_ReqChangeCharacName(185)/DB_UpdateCeraShopPurchaseCount(154)。
+//      （曾被试过的「只留声明」方案会使 _ZTV/_ZTI/_ZTS/D0/D1/D2/D5 同批消失 ⇒ ae 净减 2/类，已回滚。）
+//    ② DB_UpdateDeathTowerBestRecord::dispatch：`(unsigned int)sig->m_memberCount * 0x17u`
+//       ⇒ 复现 ORIG 两段 `imul $0x17,%eax,%eax; mov %eax,%edx`（165/165，P319 索引位异型化）。
+//    ③ DB_Find_Factory_Hub_User::dispatch：**P211 方向更正**——历史判词「异型化」写反，
+//       ORIG 尾段是**单段直落** ⇒ 应把 DB_FindFactoryHubUserNoConnView 的 m_mId/m_characNo/m_flag
+//       **同型化**（uint/int/ushort）⇒ 141/141（此前多 3 条 `mov %eax,%edx` 中转）。
+//    ④ DB_SavePvPMissionList::dispatch：`char zipBuf[0x198]={'\0'}` 声明移到
+//       GetDBHandle/GetOutBuffer 之后（ORIG 0x843f933 rep stos 在两调用后才发）⇒ ndiff 62→52，
+//       残余为数组基址整体差 4（-0x1ac vs -0x1b0，16B 对齐差，N 类）。
+//   本 TU 剩余真缺口 = 71（其中 3 件为弱镜像不可复写：DB_MouseRegister（别 TU 实现返回 int，
+//   与 DBDispatcher::dispatch 的 bool 冲突）/DB_ReqChangeCharacName 已做/MouseRegister 外
+//   D5 等伴生符号差 6 项为编译器产物）。
+//   P0：无 `register asm("reg")` 绑定；.h 改动：无。
 // ----------------------------------------------------------------------------
 //   1. DB_LoadDnfHackLog::dispatch                          ORIG 0x8422242  AE    P103 operator->
 //   2. DB_AuctionSubMoney::dispatch                         ORIG 0x8448530  AE    P167 `(unsigned int&)mId` 修 get_int(Rj) 重载差
@@ -1677,8 +1701,35 @@ class DB_ReqSaveHackUserPunish : public DBDispatcher
 {
 public:
     DB_ReqSaveHackUserPunish() {}   // ORIG C1 0x844e57a (sz 0x4: base ctor+vptr only)
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x08425374（T, sz 0x11f）真实体在本 TU
+    // 复写（与 DB_U3.cpp 版逐字一致），链接期仍由 DB_U3.cpp 强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        SIG_SAVE_HACK_USER_PUNISH* sig =
+            stream->GetOutBuffer<SIG_SAVE_HACK_USER_PUNISH>();
+        MySQL* db6 =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+        MySQL* db1 =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+        (void)db6;
+        db1->set_query(
+            "upDate member_punish_info set occ_time=now(), start_time=now(), "
+            "end_time='9999-12-31 23:59:59', punish_value=0, apply_flag=2 where "
+            "m_id=%s and punish_type=%d",
+            NumberToString(sig->m_accId, 0), 2);
+        if (!db1->exec(true) || db1->getAffectedRowCount() == 0)
+        {
+            db1->set_query(
+                "inSert into member_punish_info(m_id, punish_type, occ_time, "
+                "start_time, end_time, punish_value, apply_flag) values(%s, %d, "
+                "now(), now(), '9999-12-31 23:59:59', 0, 2)",
+                NumberToString(sig->m_accId, 0), 2);
+            if (!db1->exec(true))
+                return false;
+        }
+        return true;
+    }
     // ORIG T 0x08425494（定义归 DB_U3.cpp）
     static void makeRequest(unsigned int uid, unsigned int type, const char* ip);
 };
@@ -1689,8 +1740,32 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x084256b4
 };
 class DB_UpdateHappyBeanInfo : public DBDispatcher { public: DB_UpdateHappyBeanInfo() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x084258ee（T, sz 0x113）真实体在本 TU
+    // 复写（与 DB_U3.cpp 版逐字一致），链接期仍由 DB_U3.cpp 强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        MySQL* db =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+        unsigned int uid = 0;
+        unsigned int characNo = 0;
+        char name[0x1d];
+        *stream >> uid;
+        *stream >> characNo;
+        *stream >> name;
+        (void)characNo; (void)name;
+        db->set_query(
+            "upDate event_happybean_log set cnt=cnt+1 where occ_date=now() and m_id=%s",
+            NumberToString(uid, 0));
+        if (!db->exec(true) || db->getAffectedRowCount() == 0)
+        {
+            db->set_query(
+                "inSert into event_happybean_log(occ_date,m_id,cnt) values(now(),%s,1)",
+                NumberToString(uid, 0));
+            db->exec(true);
+        }
+        return 1;
+    }
 };   // ORIG C1 0x844e5b2 (sz 0x4: base ctor+vptr only)
 class DB_InsertQueryCounterDb : public DBDispatcher
 {
@@ -1721,8 +1796,57 @@ public:
                             int state);
 };
 class DB_ReqChangeCharacName : public DBDispatcher { public: DB_ReqChangeCharacName() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp。ORIG 0x084262ea（T, sz 0x2a5）真实体
+    // 在本 TU 复写（与 DB_LinkMisc4.cpp 版逐字一致），链接期仍由该强定义覆盖（行为不变）。
+    // 两非虚成员与 DB_ReqChangeCharacName.h 权威头一致（ORIG T 0x084266a4 / 0x084267c2）。
+    int _hasSameCharacName(MySQL* db, char const* table, char const* name);
+    void _sendResult(SIG_CHANGE_CHARAC_NAME* sig, int slot, int ret);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        if (!DBDispatcher::dispatch(userIdx, slot, stream))
+            return false;
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
+        SIG_CHANGE_CHARAC_NAME* sig = stream->GetOutBuffer<SIG_CHANGE_CHARAC_NAME>();
+        char name_buf[60] = { '\0' };   // 转义缓冲区（ORIG rep stos 清零 60 字节）
+        db->escape_string(name_buf, sig->m_name);
+        typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnMap;
+        ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;   // ORIG 栈上局部初始值 2
+        int ret = _hasSameCharacName(
+            db,
+            G_CEnvironment()->m_dbConnInfo[connIdx].m_db,
+            name_buf);
+        if (ret != 0)
+        {
+            _sendResult(sig, slot, ret);
+            return true;
+        }
+        db->set_query("upDate charac_info set charac_name='%s' where charac_no=%d and delete_flag=0",
+                      name_buf, sig->m_characNo);
+        if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+        {
+            _sendResult(sig, slot, 2);
+            return true;
+        }
+        MySQL* guildDb = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8, E_SERVER_GROUP_NONE);
+        struct ChangeCharacNameByteView
+        {
+            char m_pad[0x2c];
+            unsigned char m_serverId;
+        };
+        guildDb->set_query("seLect guild_id from guild_member where charac_no=%d and member_flag=1 "
+                           "and server_id=%d",
+                           sig->m_characNo,
+                           reinterpret_cast<ChangeCharacNameByteView*>(sig)->m_serverId);
+        sig->m_arg28 = 0;
+        if (!(guildDb->exec(true) && guildDb->fetch()))
+            sig->m_arg28 = 0;
+        if (guildDb->get_n_rows() == 0)
+            sig->m_arg28 = 0;
+        else if (!guildDb->get_uint(0, sig->m_arg28))
+            sig->m_arg28 = 0;
+        _sendResult(sig, slot, 0);
+        return true;
+    }
 };   // ORIG C1 0x844e63e (sz 0x4: base ctor+vptr only)
 class DB_ReqQueryCharacInfo : public DBDispatcher
 {
@@ -1787,8 +1911,27 @@ class DB_CountOfHumanCertify : public DBDispatcher { public: DB_CountOfHumanCert
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x084282a0
 };
 class DB_UpdateGiftCount : public DBDispatcher { public: DB_UpdateGiftCount() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_UpdateGiftCount.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_UpdateGiftCount.cpp。ORIG 0x08427112（T, sz 0xd9）
+    // 真实体在本 TU 复写（与该 TU 版逐字一致），链接期仍由该强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx;
+        (void)slot;
+        unsigned int mId = 0;
+        int giftCnt = 0;
+        stream->operator>>(mId);
+        stream->operator>>(giftCnt);
+        MySQL* handle = GlobalData::s_db_mgr->GetDBHandle(
+            static_cast<ENUM_DB_HANDLE_IDX>(6), static_cast<ENUM_SERVER_GROUP>(0));
+        char midBuf[20];
+        memset(midBuf, 0, sizeof(midBuf));
+        memcpy(midBuf, "member_login", 13);
+        handle->set_query(
+            "upDate member_login set last_gift_time=unix_timestamp(now()),gift_cnt=gift_cnt+%d where m_id=%s",
+            giftCnt, NumberToString(mId, 0));
+        handle->exec(true);
+        return true;
+    }
 };   // ORIG C1 0x844e756 (sz 0x4: base ctor+vptr only)
 class DB_UpdateMemberDoubtTrade : public DBDispatcher
 {
@@ -1964,13 +2107,105 @@ public:
     // ORIG T 0x084330d4（虚覆盖；定义本文件）
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
+// ---- DB_U3.cpp 派发族载荷视图（本 TU 复写弱镜像真实体所需；与 DB_U3.cpp 定义逐字一致）----
+struct DBU3UnlimitIn
+{
+    unsigned int m_accId;       // +0x00
+    int m_serverId;             // +0x04
+    int m_characNo;             // +0x08
+    char m_name[0x1d];          // +0x0c
+};
+struct DBU3AchieveIn
+{
+    unsigned int m_accId;                                     // +0x00
+    int m_characNo;                                           // +0x04
+    SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE m_type;       // +0x08
+};
+struct DBU3WinterCouponIn
+{
+    unsigned int m_accId;       // +0x00
+    unsigned int m_characNo;    // +0x04（dispatch 未用）
+    int m_count;                // +0x08
+};
+struct DBU3AccountHackIn
+{
+#pragma pack(push, 1)
+    unsigned int m_a;        // +0x00
+    unsigned int m_accId;    // +0x04
+    char m_name[0x1d];       // +0x08
+    unsigned int m_money;    // +0x25
+};
+struct DBU3AccountHackOut
+{
+    unsigned int m_a;        // +0x00
+    unsigned int m_money;    // +0x04
+    unsigned int m_id;       // +0x08
+};
+#pragma pack(pop)
 class DB_Insert0712WinterEventCoupon : public DBDispatcher { public: DB_Insert0712WinterEventCoupon() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x0842e45e（T, sz 0x1ea）真实体在本 TU
+    // 复写（与 DB_U3.cpp 版逐字一致），链接期仍由 DB_U3.cpp 强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)slot;
+        SIG_INSERT_0712_WINTER_EVENT_COUPON* sig =
+            stream->GetOutBuffer<SIG_INSERT_0712_WINTER_EVENT_COUPON>();
+        if (userIdx == 0x112)
+        {
+            MySQL* db =
+                GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+            db->set_query(
+                "upDate event_goldcard_info set coupon=coupon+%d where m_id=%s",
+                reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count,
+                NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0));
+            if (!db->exec(true) || db->getAffectedRowCount() == 0)
+            {
+                db->set_query(
+                    "inSert into event_goldcard_info(m_id,coupon) values(%s,%d)",
+                    NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0),
+                    reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count);
+                db->exec(true);
+            }
+        }
+        else
+        {
+            MySQL* db =
+                GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
+            db->set_query(
+                "upDate event_goldcard_log set cnt=cnt+%d where m_id=%s and occ_date=now()",
+                reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count,
+                NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0));
+            if (!db->exec(true) || db->getAffectedRowCount() == 0)
+            {
+                db->set_query(
+                    "inSert into event_goldcard_log(m_id,cnt,occ_date) values(%s,%d,now())",
+                    NumberToString(reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_accId, 0),
+                    reinterpret_cast<DBU3WinterCouponIn*>(sig)->m_count);
+                db->exec(true);
+            }
+        }
+        return true;
+    }
 };   // ORIG C1 0x844ead6 (sz 0x4: base ctor+vptr only)
 class DB_InsertArchieveEventLog : public DBDispatcher { public: DB_InsertArchieveEventLog() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x0842e7be（T, sz 0x97）真实体在本 TU
+    // 复写（与 DB_U3.cpp 版逐字一致），链接期仍由 DB_U3.cpp 强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        MySQL* db =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
+        SIG_INSERT_ACHIEVE_EVENT* sig =
+            stream->GetOutBuffer<SIG_INSERT_ACHIEVE_EVENT>();
+        db->set_query(
+            "inSert into log_charac_lev_log(occ_time,m_id,charac_no,achieve_type) "
+            "values(now(),%s,%d,%d)",
+            NumberToString(reinterpret_cast<DBU3AchieveIn*>(sig)->m_accId, 0),
+            reinterpret_cast<DBU3AchieveIn*>(sig)->m_characNo,
+            reinterpret_cast<DBU3AchieveIn*>(sig)->m_type);
+        db->exec(true);
+        return true;
+    }
 };   // ORIG C1 0x844eaf2 (sz 0x4: base ctor+vptr only)
 class DB_InsertDungeonExp : public DBDispatcher
 {
@@ -1985,8 +2220,25 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844bb70
 };
 class DB_InsertUnlimitSupportLog : public DBDispatcher { public: DB_InsertUnlimitSupportLog() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x0842eb2e（T, sz 0xa1）真实体在本 TU
+    // 复写（与 DB_U3.cpp 版逐字一致），链接期仍由 DB_U3.cpp 强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        MySQL* db =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+        SIG_INSERT_UNLIMIT_SUPPORT_LOG* sig =
+            stream->GetOutBuffer<SIG_INSERT_UNLIMIT_SUPPORT_LOG>();
+        db->set_query(
+            "inSert into event_unlimitsupport_lev(m_id,occ_time,server_id,charac_no,"
+            "charac_name) values(%s,now(),%d,%d,'%s')",
+            NumberToString(reinterpret_cast<DBU3UnlimitIn*>(sig)->m_accId, 0),
+            reinterpret_cast<DBU3UnlimitIn*>(sig)->m_serverId,
+            reinterpret_cast<DBU3UnlimitIn*>(sig)->m_characNo,
+            reinterpret_cast<DBU3UnlimitIn*>(sig)->m_name);
+        db->exec(true);
+        return true;
+    }
 };   // ORIG C1 0x844eb46 (sz 0x4: base ctor+vptr only)
 class DB_LoadCleanPadPoint : public DBDispatcher
 {
@@ -2340,8 +2592,42 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
 class DB_AccountHack_CheckMyAccount : public DBDispatcher { public: DB_AccountHack_CheckMyAccount() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x08439f06（T, sz 0x237）真实体在本 TU
+    // 复写（与 DB_U3.cpp 版逐字一致），链接期仍由 DB_U3.cpp 强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx;
+        SIG_CHECK_MY_ACCOUNT_IN_DB* sig =
+            stream->GetOutBuffer<SIG_CHECK_MY_ACCOUNT_IN_DB>();
+        unsigned int m_id = 0;
+        MySQL* db =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
+        char name[0x3b] = { '\0' };
+        db->escape_string(name, sig->m_name);   // +0x08
+        db->set_query(
+            "seLect m_id from charac_info where charac_name='%s' limit 1", name);
+        if (!db->exec(true))
+            return false;
+        if (!db->fetch())
+            return false;
+        if (!db->get_int(0, m_id))
+            return false;
+        if (reinterpret_cast<DBU3AccountHackIn*>(sig)->m_accId != m_id)
+        {
+            CStreamGuard guard(
+                GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8833), true);
+            guard.operator*()->operator<<(0x18c);          // SIG_CHECK_MY_ACCOUNT_OK
+            guard.operator*()->operator<<(slot);
+            DBU3AccountHackOut* out =
+                reinterpret_cast<DBU3AccountHackOut*>(
+                    guard.operator->()->GetInBuffer<SIG_CHECK_MY_ACCOUNT_OK>());
+            out->m_a = reinterpret_cast<DBU3AccountHackIn*>(sig)->m_a;          // +0x00
+            out->m_money = reinterpret_cast<DBU3AccountHackIn*>(sig)->m_money;  // +0x25
+            out->m_id = m_id;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        }
+        return true;
+    }
 };   // ORIG C1 0x844f1ba (sz 0x4: base ctor+vptr only)
 class DB_SecuServiceUpdateValidityTime : public DBDispatcher
 {
@@ -2513,8 +2799,33 @@ public:
     static void makeRequest(int userIdx, const char* name);
 };   // ORIG C1 0x844f4ae (sz 0x4: base ctor+vptr only)
 class DB_UpdateChuseokPackagePurchase : public DBDispatcher { public: DB_UpdateChuseokPackagePurchase() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_UpdateChuseokPackagePurchase.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_UpdateChuseokPackagePurchase.cpp。ORIG 0x0843c7bc
+    // （T, sz 0xfa）真实体在本 TU 复写（与该 TU 版逐字一致），链接期仍由强定义覆盖。
+    virtual bool dispatch(int userIdx, int slot, Stream* s)
+    {
+        (void)userIdx;
+        (void)slot;
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                      (ENUM_SERVER_GROUP)0);
+        unsigned int mId = 0;
+        *s >> mId;
+        db->set_query(
+            "upDate event_1009_package_count set purchase_cnt = purchase_cnt+1 "
+            "where m_id=%s",
+            NumberToString(mId, 0));
+        if (!db->exec(true))
+            return false;
+        if (db->getAffectedRowCount() == 0)
+        {
+            db->set_query(
+                "inSert into event_1009_package_count(m_id, purchase_cnt) "
+                "values(%s, %u)",
+                NumberToString(mId, 0), 1);
+            if (!db->exec(true))
+                return false;
+        }
+        return true;
+    }
 };   // ORIG C1 0x844f502 (sz 0x4: base ctor+vptr only)
 class DB_CheckJoinGuild : public DBDispatcher { public: DB_CheckJoinGuild() {} };   // ORIG C1 0x844f51e (sz 0x4: base ctor+vptr only)
 class DB_RequestJoinGuild : public DBDispatcher
@@ -2769,8 +3080,30 @@ public:
 // sz 0x4；makeRequest 0x08444d12 + dispatch 0x08444bea）。本地占位类删除避免 ODR 重复。
 // DB_UpdateAuraAvatarOption 权威声明在 GameBasicsScripts.h（含 makeRequest/dispatch）。
 class DB_InsertCeraItemHistory : public DBDispatcher { public: DB_InsertCeraItemHistory() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x08445032（T, sz 0xe7）真实体在本 TU
+    // 复写（与 DB_U3.cpp 版逐字一致），链接期仍由 DB_U3.cpp 强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        unsigned int senderCharacNo = 0;
+        unsigned int receiverCharacNo = 0;
+        int itemIdx = 0;
+        char flag = 0;
+        *stream >> itemIdx;
+        *stream >> senderCharacNo;
+        *stream >> receiverCharacNo;
+        *stream >> flag;
+        MySQL* db =
+            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, E_SERVER_GROUP_NONE);
+        db->set_query(
+            "inSert into user_items_change_history(ui_id,from_charac_no,to_charac_no,"
+            "occ_date,change_type) values(%u,%u,%u,now(),%u)",
+            itemIdx, senderCharacNo, receiverCharacNo, (int)flag);
+        if (!db->exec(true))
+            return false;
+        else
+            return true;
+    }
 };   // ORIG C1 0x844fa42 (sz 0x4: base ctor+vptr only)
 class DB_UpdateAvatarHistory : public DBDispatcher
 {
@@ -2845,8 +3178,56 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0812825e
 };   // ORIG C1 0x844fbca (sz 0x4: base ctor+vptr only)
 class DB_UpdateCeraShopPurchaseCount : public DBDispatcher { public: DB_UpdateCeraShopPurchaseCount() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_UpdateCeraShopPurchaseCount.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_UpdateCeraShopPurchaseCount.cpp。ORIG 0x0844b0cc
+    // （T, sz 0x24f）真实体在本 TU 复写（与 DB_UpdateCeraShopPurchaseCount.cpp 版逐字一致），
+    // 链接期仍由该强定义覆盖（行为不变）。helper 声明同该 TU 的类定义（ORIG T
+    // 0x0844b450/EjRt、0x0844b680/Ejt、0x0844b808/Ej）。
+    bool _selectPurchaseCount(unsigned int mId, unsigned short& out);
+    void _updatePurchaseCount(unsigned int mId, unsigned short count);
+    void _insertPurchaseCount(unsigned int mId);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx;
+        SIG_CERASHOP_PURCHASE_COUNT* sig =
+            stream->GetOutBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
+        if (sig == 0)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0xbbac, 5)(
+                "[PURCAHSE BONUS] ptrData is null.");
+            return false;
+        }
+        if (!_selectPurchaseCount(sig->m_id, sig->m_purchaseCnt))
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0xbbb2, 5)(
+                "[PURCAHSE BONUS] select query fail.");
+            return false;
+        }
+        if (sig->m_purchaseCnt == 0)
+        {
+            sig->m_purchaseCnt = 1;
+            _insertPurchaseCount(sig->m_id);
+        }
+        else
+        {
+            sig->m_purchaseCnt = sig->m_purchaseCnt + 1;
+            _updatePurchaseCount(sig->m_id, sig->m_purchaseCnt);
+        }
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xbbc1), true);
+        guard.operator*()->operator<<((int)0x2d9);   // ORIG operator*() → operator<<(int)
+        guard.operator*()->operator<<(slot);         // ORIG 0x10(%ebp) 第 3 形参
+        SIG_CERASHOP_PURCHASE_COUNT* replySig =
+            guard->GetInBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
+        if (replySig == 0)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0xbbc9, 5)(
+                "[PURCAHSE BONUS] ptrData is null");
+            return false;
+        }
+        *replySig = *sig;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return true;
+    }
 };   // ORIG C1 0x844fbe6 (sz 0x4: base ctor+vptr only)
 class DB_LoadPuUserCheck : public DBDispatcher
 {
@@ -2962,12 +3343,49 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844c3f0
 };   // ORIG C1 0x844fda6 (sz 0x4: base ctor+vptr only)
 class DB_EventUpdateGrowthWeaponTimepiece : public DBDispatcher { public: DB_EventUpdateGrowthWeaponTimepiece() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp。ORIG 0x084496f4（T, sz 0xf5）真实体在本
+    // TU 复写（与 DB_LinkMisc4.cpp 版逐字一致），链接期仍由该强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
+        unsigned int m_id = 0;
+        short timepiece = 0;
+        int infinityweapon_id = 0;
+        *stream >> m_id;
+        *stream >> timepiece;
+        *stream >> infinityweapon_id;
+        if (infinityweapon_id != 0)
+        {
+            db->set_query("upDate event_1207_growthweapon set  reward_occ_date = now(), "
+                          "timepiece = %d, infinityweapon_id = %d  where m_id = %u",
+                          (int)timepiece, infinityweapon_id, m_id);
+        }
+        else
+        {
+            db->set_query("upDate event_1207_growthweapon set  timepiece = %d, "
+                          "infinityweapon_id = %d  where m_id = %u",
+                          (int)timepiece, infinityweapon_id, m_id);
+        }
+        if (!db->exec(true))
+            return false;
+        return true;
+    }
 };   // ORIG C1 0x844fdc2 (sz 0x4: base ctor+vptr only)
 class DB_EventGrowthWeaponReset : public DBDispatcher { public: DB_EventGrowthWeaponReset() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp。ORIG 0x084498fe（T, sz 0x81）真实体在本
+    // TU 复写（与 DB_LinkMisc4.cpp 版逐字一致），链接期仍由该强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
+        unsigned int m_id = 0;
+        *stream >> m_id;
+        db->set_query("deLete from event_1207_growthweapon where m_id = %u", m_id);
+        if (!db->exec(true))
+            return false;
+        return true;
+    }
 };   // ORIG C1 0x844fdde (sz 0x4: base ctor+vptr only)
 class DB_EventAccountCharacterLevelUpOnceGift : public DBDispatcher
 {
@@ -2982,8 +3400,19 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG 0x08446944
 };
 class DB_TestTradeRestrict : public DBDispatcher { public: DB_TestTradeRestrict() {}
-    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp。ORIG 0x0844a0be（T, sz 0x73）
+    // 的真实体（同 DB_LinkMisc4.cpp 版）在此处复写，使本 TU 的 W 槽与 ORIG 逐条一致；
+    // 链接期仍由 DB_LinkMisc4.cpp 的强定义覆盖（行为不变）。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    {
+        (void)userIdx; (void)slot;
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, E_SERVER_GROUP_NONE);
+        unsigned int charac_no = 0;
+        *stream >> charac_no;
+        db->set_query("upDate user_items set trade_restrict = 1 where charac_no = %u", charac_no);
+        db->exec(true);
+        return true;
+    }
 };   // ORIG C1 0x844fe6a (sz 0x4: base ctor+vptr only)
 // DB_UpdateComboSkill —— 权威声明见 W8LT_DBTask.h（GoalAuditDB7 迁移；
 // dispatch 0x0844a8ea / setComboSkill 0x0844aa4c，定义见本 TU）。
@@ -13769,13 +14198,17 @@ bool DB_SavePvPMissionList::dispatch(int /*userIdx*/, int /*slot*/,
                                      Stream* stream)
 {
     static const int handleIdx = 3;
-    char zipBuf[0x198] = { '\0' };              // -0x1ac（ORIG rep stos 清零）
-    unsigned int zipLen = 0x198;                // -0x14
     MySQL* db;                                  // -0x10
     SIG_REQUEST_PVP_MISSION_LIST* sig;          // -0xc
     db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                            E_SERVER_GROUP_NONE);
     sig = stream->GetOutBuffer<SIG_REQUEST_PVP_MISSION_LIST>();
+    // [Lane4] 声明序按 ORIG 代码序：ORIG 0x843f8fa 的 rep stos（zipBuf 清零）位于
+    // GetDBHandle/GetOutBuffer 两调用**之后**、zipLen 初始化**之前**（实测 0x843f933
+    // 起 rep stos，0x843f949 才 movl $0x198,-0x14）。旧序把 zipBuf 提到函数首 ⇒
+    // 我方前面多整整一段 rep stos（gap −4/ndiff 62）。
+    char zipBuf[0x198] = { '\0' };              // -0x1ac（ORIG rep stos 清零）
+    unsigned int zipLen = 0x198;                // -0x14（ORIG rep stos 之后初始化）
     if (!compress_zip(zipBuf, zipLen, (const char*)sig, 0x14a))
         return 0;
     char* str = db->blob_to_str(0, zipBuf, (int)zipLen);
@@ -16245,9 +16678,12 @@ struct DB_FindFactoryHubUserView
 #pragma pack(push, 1)
 struct DB_FindFactoryHubUserNoConnView
 {
-    int m_mId;                 // +0x00（P211 异型化：与 unsigned mId 异型 ⇒ RHS-first）
-    unsigned int m_characNo;   // +0x04（与 int characNo 异型）
-    short m_flag;              // +0x08（与 ushort v->m_flag 异型）
+    // [Lane4 P211 复修] ORIG 尾段为**单段直落**（`mov -0x2c(%ebp),%edx; mov -0x10(%ebp),%eax;
+    // mov %edx,(%eax)`）= 字段与 RHS **同型** ⇒ 4.4 不插转换中转。此前把字段异型化
+    // （int/uint/short）反使 4.4 多 1 条 `mov %eax,%edx` 中转（实测 144 vs ORIG 141）。
+    unsigned int m_mId;        // +0x00（与 unsigned mId 同型）
+    int m_characNo;            // +0x04（与 int characNo 同型）
+    unsigned short m_flag;     // +0x08（与 ushort v->m_flag 同型）
 };
 #pragma pack(pop)
 
@@ -17081,7 +17517,7 @@ bool DB_UpdateDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stre
         "upDate charac_tower_record set member_info_%d='%s',stage_%d=%d,play_time_%d=%d,"
         "occ_time_%d=now() where charac_no=%d and tower_index=%d and stage_%d<=%d",
         sig->m_memberCount,
-        db->blob_to_str(0, sig->m_members, sig->m_memberCount * 0x17),
+        db->blob_to_str(0, sig->m_members, (unsigned int)sig->m_memberCount * 0x17u),
         sig->m_memberCount, sig->m_stage, sig->m_memberCount, sig->m_playTime,
         sig->m_memberCount, sig->m_accId, sig->m_towerIndex, sig->m_memberCount,
         sig->m_stage);
@@ -17095,7 +17531,7 @@ bool DB_UpdateDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stre
             "play_time_%d,occ_time_%d) values(%d,%d,'%s',%d,%d,now())",
             sig->m_memberCount, sig->m_memberCount, sig->m_memberCount,
             sig->m_memberCount, sig->m_accId, sig->m_towerIndex,
-            db->blob_to_str(0, sig->m_members, sig->m_memberCount * 0x17),
+            db->blob_to_str(0, sig->m_members, (unsigned int)sig->m_memberCount * 0x17u),
             sig->m_stage, sig->m_playTime);
         db->exec(true);
     }

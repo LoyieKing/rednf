@@ -3216,7 +3216,7 @@ public:
     Secu_AccountHacking* getAcccountHackInfo();
     void setHackUserTimer();
     void setHackUserFlag();
-    unsigned char isHackUser() const;
+    bool isHackUser() const;        // P292/T3 返回 bool：ORIG 消费点 0x081be54c `call; test %al,%al; je`（无 setcc）；mangled 不含非模板返回类型
     bool isHackUserTimer() const;   // ORIG bool（P22：调用侧 xor $1 取反实证；P32 bool 字段直返 movzbl）
     // ---- 阶段A语义对齐补声明（ORIG 符号 nm 核实；实现由 CUser.cpp/后续批次提供） ----
     bool CacheCharacterMemory();                    // 0x0864c85a T；串定 bool（b28c SIGFIX）
@@ -3750,7 +3750,9 @@ public:
         bool SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo);       // @0x0864db20(Ghidra undefined4→bool,setne 无规范化风险,调用侧 test %al)
         void setSkillCommandData(char* data);                               // @0x08654924
 
-        int  setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* data);   // @0x08690098
+        // P292/T3 返回 bool：ORIG 消费点 0x084c360b `call; xor $0x1,%eax; test %al,%al; je`
+        // （无 setcc）；mangled 不含非模板返回类型（定义侧 CUserOnlyOrig.cpp:7267 同步）。
+        bool setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* data);   // @0x08690098
         int  setTagCharacInven(TAG_CHARAC_INVEN_DATA* data);                // @0x08690226
         void SetTradePunishOverThirtyDays(bool flag);                       // @0x08689850
         void setUsedBreakAwayLuckPoint(bool flag);                          // @0x086971ee W(isUsedBreakAwayLuckPoint 头已有)
