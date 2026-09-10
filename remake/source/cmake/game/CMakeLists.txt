@@ -290,20 +290,6 @@ dnf_service(game
         ${SVC_DIR}/advancealtar_DB.cpp
         ${SVC_DIR}/DB_Login.cpp
         ${SVC_DIR}/CLeagueMatch.cpp
-        # [Main·2026-09-10 round5 TU 拆分] CLeagueMatch.cpp 拆出 15 个「一函数一 .cpp」
-        ${SVC_DIR}/CLeagueMatch/CLeagueMatch_ctor.cpp
-        ${SVC_DIR}/CLeagueMatch/CheckSeat.cpp
-        ${SVC_DIR}/CLeagueMatch/GetExtraWinPoint.cpp
-        ${SVC_DIR}/CLeagueMatch/GetSchoolNo.cpp
-        ${SVC_DIR}/CLeagueMatch/GetUser.cpp
-        ${SVC_DIR}/CLeagueMatch/GetUserList.cpp
-        ${SVC_DIR}/CLeagueMatch/OnDestroyRoom.cpp
-        ${SVC_DIR}/CLeagueMatch/OnStartFight.cpp
-        ${SVC_DIR}/CLeagueMatch/RequestMap.cpp
-        ${SVC_DIR}/CLeagueMatch/SetMatchAble.cpp
-        ${SVC_DIR}/CLeagueMatch/SetPlayCountPerOneTeam.cpp
-        ${SVC_DIR}/CLeagueMatch/_GetOppositeTeam.cpp
-        ${SVC_DIR}/CLeagueMatch/_getSameSchool.cpp
         ${SVC_DIR}/DB_LoadEtc.cpp
         ${SVC_DIR}/DB_LoadCharac.cpp
         ${SVC_DIR}/DB_LoadInventory.cpp
@@ -474,74 +460,6 @@ dnf_service(game
         ${SVC_DIR}/CCirculationStatistic.cpp
         ${SVC_DIR}/CSkill.cpp
         ${SVC_DIR}/SkillSlot.cpp
-        # [Main·2026-09-10 round5 TU 拆分] SkillSlot.cpp 拆出 67 个「一函数一 .cpp」
-        ${SVC_DIR}/SkillSlot/CSkillChanger_ApplyUserData.cpp
-        ${SVC_DIR}/SkillSlot/CSkillChanger_CountSkillBook.cpp
-        ${SVC_DIR}/SkillSlot/CSkillChanger_GetCurCharacTotalSP.cpp
-        ${SVC_DIR}/SkillSlot/CSkillChanger_GetQuestSkillPoint.cpp
-        ${SVC_DIR}/SkillSlot/CSkillChanger_SkillInitialize.cpp
-        ${SVC_DIR}/SkillSlot/CSkillChanger_ctor_dtor.cpp
-        ${SVC_DIR}/SkillSlot/CSkillChanger_staticData.cpp
-        ${SVC_DIR}/SkillSlot/FindSkill.cpp
-        ${SVC_DIR}/SkillSlot/FindSkill_kind.cpp
-        ${SVC_DIR}/SkillSlot/GetSkillTreeIndex.cpp
-        ${SVC_DIR}/SkillSlot/IsLoadStrikerSkill.cpp
-        ${SVC_DIR}/SkillSlot/SetLoadStrikerSkill.cpp
-        ${SVC_DIR}/SkillSlot/SkillSlotCopyForceUse.cpp
-        ${SVC_DIR}/SkillSlot/SkillSlot_dtor.cpp
-        ${SVC_DIR}/SkillSlot/_Mastered_skill_ctor.cpp
-        ${SVC_DIR}/SkillSlot/backupSkill.cpp
-        ${SVC_DIR}/SkillSlot/calcReturnSpSfpPerOneSkill.cpp
-        ${SVC_DIR}/SkillSlot/checkComboSkillInsertQuickSlot.cpp
-        ${SVC_DIR}/SkillSlot/checkMoveComboSkillSlot.cpp
-        ${SVC_DIR}/SkillSlot/check_skill_list.cpp
-        ${SVC_DIR}/SkillSlot/check_skill_mastered.cpp
-        ${SVC_DIR}/SkillSlot/check_skill_mastered_kind.cpp
-        ${SVC_DIR}/SkillSlot/checkskillSlotEmptyCount.cpp
-        ${SVC_DIR}/SkillSlot/clear_all_skills.cpp
-        ${SVC_DIR}/SkillSlot/clear_all_skills_both.cpp
-        ${SVC_DIR}/SkillSlot/clear_sfp_skills.cpp
-        ${SVC_DIR}/SkillSlot/debugCheckGrowTypeSkill.cpp
-        ${SVC_DIR}/SkillSlot/delete_skill.cpp
-        ${SVC_DIR}/SkillSlot/eraseDuplicationComboSKill.cpp
-        ${SVC_DIR}/SkillSlot/eraseDuplicationComboSKillTree.cpp
-        ${SVC_DIR}/SkillSlot/finishSkillChecksum.cpp
-        ${SVC_DIR}/SkillSlot/getComboSkillSendInfo.cpp
-        ${SVC_DIR}/SkillSlot/getSkillChecksum.cpp
-        ${SVC_DIR}/SkillSlot/getSkillSlotIndex.cpp
-        ${SVC_DIR}/SkillSlot/getSkillSpendSPOnSteal.cpp
-        ${SVC_DIR}/SkillSlot/get_cur_remain_sp.cpp
-        ${SVC_DIR}/SkillSlot/get_remain_sfp_at_index.cpp
-        ${SVC_DIR}/SkillSlot/get_remain_sp.cpp
-        ${SVC_DIR}/SkillSlot/get_remain_sp_at_index.cpp
-        ${SVC_DIR}/SkillSlot/get_skill_count.cpp
-        ${SVC_DIR}/SkillSlot/get_skill_index.cpp
-        ${SVC_DIR}/SkillSlot/get_skill_level.cpp
-        ${SVC_DIR}/SkillSlot/get_skill_slot.cpp
-        ${SVC_DIR}/SkillSlot/get_skill_slot_at_index.cpp
-        ${SVC_DIR}/SkillSlot/get_skillslot_buf.cpp
-        ${SVC_DIR}/SkillSlot/get_skillslot_group.cpp
-        ${SVC_DIR}/SkillSlot/get_skillslot_no.cpp
-        ${SVC_DIR}/SkillSlot/get_skillslot_no_buf.cpp
-        ${SVC_DIR}/SkillSlot/get_temp_remain_sfp.cpp
-        ${SVC_DIR}/SkillSlot/get_temp_remain_sp.cpp
-        ${SVC_DIR}/SkillSlot/get_temp_skill_slot.cpp
-        ${SVC_DIR}/SkillSlot/initialize_sfp_skill.cpp
-        ${SVC_DIR}/SkillSlot/insert_skill.cpp
-        ${SVC_DIR}/SkillSlot/insert_skill_with_slot_index.cpp
-        ${SVC_DIR}/SkillSlot/loadComboSkill.cpp
-        ${SVC_DIR}/SkillSlot/makeCheckSum.cpp
-        ${SVC_DIR}/SkillSlot/resetComboSkill.cpp
-        ${SVC_DIR}/SkillSlot/setComboSkillInfo.cpp
-        ${SVC_DIR}/SkillSlot/set_parent.cpp
-        ${SVC_DIR}/SkillSlot/set_remain_sfp_at_index.cpp
-        ${SVC_DIR}/SkillSlot/set_remain_sp.cpp
-        ${SVC_DIR}/SkillSlot/set_remain_sp_at_index.cpp
-        ${SVC_DIR}/SkillSlot/set_skill_slot_at_index.cpp
-        ${SVC_DIR}/SkillSlot/skill_move.cpp
-        ${SVC_DIR}/SkillSlot/stSPReturnInfo_t_ctor.cpp
-        ${SVC_DIR}/SkillSlot/verifyComboSkill.cpp
-        ${SVC_DIR}/SkillSlot/verifyComboSkillTree.cpp
         ${SVC_DIR}/CUserCharacInfo.cpp
         ${SVC_DIR}/ComboSkill.cpp
         ${SVC_DIR}/CExpandEquipslot.cpp
@@ -635,7 +553,9 @@ dnf_service(game
         ${SVC_DIR}/StatisticsShusiaService.cpp
         ${SVC_DIR}/StatisticsToObserveCrash.cpp
         ${SVC_DIR}/TournamentMonster.cpp
-        # [Main·2026-09-10 round5 TU 拆分] CTournamentDungeonReward.cpp 已拆为 10 个
+        # TU 拆分（① 部件包含式）：CTournamentDungeonReward.cpp 为聚合器，
+        # 每函数一个部件在 Game/CTournamentDungeonReward/*.inc（不参与编译）。
+        ${SVC_DIR}/CTournamentDungeonReward.cpp
         # 「一函数一 .cpp」（原 TU 只剩注释，从构建中移除）。分组依据 = 帧继承链
         # （P210②：callee 必须在同文件且定义序在 caller 之前）：
         #   TournamentRewardType_Clear.cpp = {Clear, ctor, ResetReward}（**承载 GI 键**
@@ -644,16 +564,6 @@ dnf_service(game
         #   _MakeRewardPacket.cpp    = {_MakeRewardPacket, MakeRewardPacket}
         #   isMemberSelectCard.cpp   = {isMemberSelectCard, _ForceSelectCard, ForceSelectCard}
         #   其余 6 个叶子函数各自独立成文件。
-        ${SVC_DIR}/CTournamentDungeonReward/TournamentRewardType_Clear.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/DecisionRewardType.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/_MakeRewardPacket.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/isMemberSelectCard.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/CTournamentDungeonReward_dtor.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/GetItemFromCard.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/SelectCard.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/SetRewardGold.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/isCardSelectComplete.cpp
-        ${SVC_DIR}/CTournamentDungeonReward/MakeSelectPacket.cpp
         ${SVC_DIR}/UserQuest.cpp
         ${SVC_DIR}/Village.cpp
         ${SVC_DIR}/VillageMonster_helpers.cpp
@@ -1021,101 +931,9 @@ dnf_service(game
         # ORIG 的 libstdc++ wstring-inst.o 为 Red Hat 32 位默认 -march=i486 -mtune=generic 构建；
         # gnu++0x 头补出 initializer_list 族 7 符号（4.4 头），三者齐备后整 TU 与 ORIG 零差。
         "${SVC_DIR}/WStringInst.cpp|-O2 -std=gnu++0x -march=i486 -mtune=generic"
-        # [Main·2026-09-10 round5 TU 拆分] 拆分到子目录的 .cpp 无法再靠「与头同目录」
         # 解析 `#include "X.h"`（Game/ 不在 INCLUDES 里）⇒ 补 `-iquote${SVC_DIR}`。
         # 用 `-iquote` 而非 `-I`：只影响引号包含、且位于 -I 之前但排在「当前文件目录」
         # 之后，不改动尖括号包含/系统头解析 ⇒ 对其它文件零影响。
-        "${SVC_DIR}/CTournamentDungeonReward/TournamentRewardType_Clear.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/DecisionRewardType.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/_MakeRewardPacket.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/isMemberSelectCard.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/CTournamentDungeonReward_dtor.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/GetItemFromCard.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/SelectCard.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/SetRewardGold.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/isCardSelectComplete.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CTournamentDungeonReward/MakeSelectPacket.cpp|-iquote${SVC_DIR}"
-        # [Main·2026-09-10 round5 TU 拆分] 上述 82 个拆分文件的 -iquote
-        "${SVC_DIR}/CLeagueMatch/CLeagueMatch_ctor.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/CheckSeat.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/GetExtraWinPoint.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/GetSchoolNo.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/GetUser.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/GetUserList.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/OnDestroyRoom.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/OnStartFight.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/RequestMap.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/SetMatchAble.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/SetPlayCountPerOneTeam.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/_GetOppositeTeam.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/CLeagueMatch/_getSameSchool.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/CSkillChanger_ApplyUserData.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/CSkillChanger_CountSkillBook.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/CSkillChanger_GetCurCharacTotalSP.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/CSkillChanger_GetQuestSkillPoint.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/CSkillChanger_SkillInitialize.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/CSkillChanger_ctor_dtor.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/CSkillChanger_staticData.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/FindSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/FindSkill_kind.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/GetSkillTreeIndex.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/IsLoadStrikerSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/SetLoadStrikerSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/SkillSlotCopyForceUse.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/SkillSlot_dtor.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/_Mastered_skill_ctor.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/backupSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/calcReturnSpSfpPerOneSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/checkComboSkillInsertQuickSlot.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/checkMoveComboSkillSlot.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/check_skill_list.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/check_skill_mastered.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/check_skill_mastered_kind.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/checkskillSlotEmptyCount.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/clear_all_skills.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/clear_all_skills_both.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/clear_sfp_skills.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/debugCheckGrowTypeSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/delete_skill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/eraseDuplicationComboSKill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/eraseDuplicationComboSKillTree.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/finishSkillChecksum.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/getComboSkillSendInfo.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/getSkillChecksum.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/getSkillSlotIndex.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/getSkillSpendSPOnSteal.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_cur_remain_sp.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_remain_sfp_at_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_remain_sp.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_remain_sp_at_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skill_count.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skill_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skill_level.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skill_slot.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skill_slot_at_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skillslot_buf.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skillslot_group.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skillslot_no.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_skillslot_no_buf.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_temp_remain_sfp.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_temp_remain_sp.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/get_temp_skill_slot.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/initialize_sfp_skill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/insert_skill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/insert_skill_with_slot_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/loadComboSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/makeCheckSum.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/resetComboSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/setComboSkillInfo.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/set_parent.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/set_remain_sfp_at_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/set_remain_sp.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/set_remain_sp_at_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/set_skill_slot_at_index.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/skill_move.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/stSPReturnInfo_t_ctor.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/verifyComboSkill.cpp|-iquote${SVC_DIR}"
-        "${SVC_DIR}/SkillSlot/verifyComboSkillTree.cpp|-iquote${SVC_DIR}"
     LIBS
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
