@@ -21180,8 +21180,12 @@ int Dispatcher_BloodRoundUiPrepareFinish::dispatch_sig(CUser* user, PacketBuf& p
     }
     CBattle_Field& field = *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
     MapInfo* mi = field.GetMapInfo();
+    // [Lane1Dispatchers 2026-09-10 · P292 字段版] ORIG 0x08222270 段为
+    //   `movzbl 0x1(%eax),%eax; xor $0x1,%eax; test %al,%al; je <skip>` ——
+    //   对 m_visited 的**布尔取反物化**（truthiness，无 cmp），非 `== 1` 数值比较。
+    //   字段随 Lane27 广播由 char→bool（WarField.h:183，同宽度零布局变化）。
     bool skip = (party->m_battleField.m_pDungeon->m_bloodDungeonType < 1) ||
-                (mi != 0 && mi->m_visited == 1);
+                (mi != 0 && mi->m_visited);
     if (!skip)
     {
         field.BloodSpawnTimerManager(false, false);
@@ -28976,7 +28980,12 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
     // 0x08095cb7: 防御方对象 0x11 且攻击元素无效 → 四元素取 max
     if (_SDC::isObjectType(v->m_defenderObjType, 0x11) && !isValidAttackInfoElement(v, 4))
     {
-        float best = 1.0f;                                     // -0x4c
+        // [Lane1Dispatchers 2026-09-10 · 真语义 bug] Ghidra C 该点 `local_50 = -1.0;`
+        //   + ORIG 0x08095d0d `mov $0xbf800000,%eax; mov %eax,-0x4c(%ebp)`（-1.0f）；
+        //   旧码写 `1.0f`（0x3f800000）⇒ 当四元素计算值全 < 1.0 时 best 保持 1.0
+        //   会把伤害抬到 1.0（真 bug）。比较方向 `if (x > best)` 与 ORIG
+        //   `if (local_50 < local_48) local_50 = local_48` 等价，一并核对无误。
+        float best = -1.0f;                                    // -0x4c
         for (int i = 0; i <= 3; ++i)                           // -0x48
         {
             if (v->m_elemEnable[i] == 0)
