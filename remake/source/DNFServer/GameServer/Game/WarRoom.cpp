@@ -13,12 +13,27 @@
 //     ReviveUserByCoin 0x086bf324（地址归一后全等）。
 //   near：SendGuildFP 0x086bc0b0（[SweepWarRoom] 本轮三循环岛形修复 271=271，
 //     gap 0，DIFF→NEAR；残余标量槽序 N82）、EnterWarRoom（N82附 聚合优先低槽）。
-//   diff 封顶（[SweepWarRoom] 本轮 gap 复核，dual_rank 候选 5→4、Σgap 39→7）：
-//     HandleMonsterKill 0x086be1fe（26→3，残余 4.4 强度归约 N86/N1）、
-//     HandleDieCharacer 0x086bd87e（2→1，残余版本槽基 4 N95/P332）、
-//     ImportWarRoomWPTable 0x08902543（gap 2，4.1 while 头部双入口岛 P283 N）、
-//     ReviveUserByCoin 0x086bf324（compare_tu AE；切片仅差 break 中继 nop P223 N）、
-//     CalcGuildFP·OnEnterState·ClearReward·HandleGetItem·HandleItemDrop（N82/N95 帧槽平移）。
+//   [b28d-solo-WarRoom-3 · 2026-09-10] 判据①全 TU jcc/jmp 目标下标逐位比对 +
+//   gap' 降序处理，本轮读数（orig→our，差=|gap|）：
+//     OnEnterState   515→515（gap 0，原 528/-13）
+//     ReviveUserByCoin 98→98（gap 0，P223 尾标签形复现 086bf3da nop 中继岛）
+//     HandleItemDrop 776→777（gap -1，原 781/-5；P325 共享 case 块）
+//     HandleGetItem  547→546（gap +1，原 551/-4；删 result 局部改早返回 +
+//       count 具名化 + randomOption 内联短路）
+//     HandleMonsterKill 445→442（gap 3，残余 4.4 lea/内存直加强度归约 N86/N1）
+//     CalcGuildFP 165→168（gap -3，N82/N98：两数组首次使用序 + 6×movb vs
+//       movl+movw 合并不可择）
+//     ImportWarRoomWPTable 128→126（gap 2，P283 双入口岛 4.4 恒 jump-thread）
+//     ClearReward 565→565 / SendGuildFP 271→271 / EnterWarRoom 279→279（gap 0，
+//       残余版本槽基/寄存器 N82/N95/N126）
+//   本轮修出的真 bug（判据⑩㊿/②/①）：
+//     · OnEnterState 086bbb6a/086bbbcd 字段偏移：m_ec/m_f4 → m_f4/m_fc
+//       （m_warRoomData+0xf4/+0xfc；原重建读错字段）；
+//     · OnEnterState 086bbce7 `setle` 边界：`penalty < fp` → `fp <= penalty`
+//       + else 直落（P194/P59 镜像；原写在 fp==penalty 时行为相反）；
+//     · HandleGetItem 086bee7b..086bee9d：具名 bool randomOption 多占槽 ⇒
+//       内联 `IsRandomOption() && !getCheckPickUpRandomOptionItem()`。
+//   残余全部为跨版本结构性 N（已在函数头逐一记证），无未判定真缺口。
 //   P0：全域无 register asm 绑定（唯一 register 为 P231 纯存储类提示）。
 // ---------------------------------------------------------------------------
 #include "CGameManager.h"        // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
@@ -933,13 +948,20 @@ FP_SLOT:
     }
 }
 
-// [§6.2 闭合 · b20] WarRoom::OnEnterState（ORIG 0x086bb71c，0x78aB）：
-//   P167 调用点差集 68/68 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
-//   符号 Counter 与 ORIG call 多重集全等）；ORIG insns 515 vs 新鲜 .o 528
-//   （gap -16，4.1 短序 → 4.4 长序的 N 类展开）。残余 byte 层属 N82 帧槽平移
-//   + N76/N18a store 装载步序 + GatherTimer/InsertTimer 链寄存器物化 + switch
-//   判定树分派形态；语义与 ORIG 一致（逐段注释见函数体）⇒ 判「语义完成、byte
-//   层 N 封顶」。
+// [b28d-solo-WarRoom-3] WarRoom::OnEnterState（ORIG 0x086bb71c）：528/-13 →
+//   **515/515（gap 0，帧 0x7c 与槽集 11 个逐值一致）**。本轮实际修正：
+//   ①case1 m_liveFlag 块序翻正（086bb89f je→else 块）；②hasGM 循环拆条件 +
+//   P223 负条件 goto 尾空标签复现 086bb920 nop 岛；③case1-5 GenTimerKey/ms 全部
+//   改内联实参（086bb966 %edi / 086bb9ce %ebx / 086bba40 / 086bbe56；P24/P52）；
+//   ④case3 count、case5 fp 内联（086bbb04 %ecx / 086bbcda %ebx）；⑤P324 叶块序
+//   = ORIG 的 case 0,1,2,**4,3**,5（086bba27 ReviveAll 先于 086bbab3）⇒ 源码照
+//   ORIG 块地址序重排；⑥**真 bug** 字段偏移 m_ec/m_f4 → m_f4/m_fc（086bbb6a
+//   +0x7e8、086bbbcd +0x7f0 = m_warRoomData+0xf4/+0xfc）；⑦**真 bug** 比较边界
+//   086bbce7 `setle`：fp<=penalty 走 DecreaseWarPoint(0)、否则 penalty（原写
+//   `penalty < fp` 在等号点反）；⑧case5 两循环 P223 尾标签复现 086bbd69/086bbe15
+//   body 尾 jmp+nop 岛。残余 = N104（086bbc08..086bbc30 EH 尾块与正常路径块相对
+//   序，4.4 恒就地内联）+ 1 条 m_fp→(const CMap*) cast 中转 + 4.4 跳表
+//   `shl$2;mov disp(%eax)`（N4/N125）⇒ N 封顶，P167 CLEAR。
 void WarRoom::OnEnterState()
 {
     // [b28d-solo-WarRoom] DIFF(415) | ORIG 0x086bb71c | 复核 b20 判词：P167
@@ -974,21 +996,31 @@ void WarRoom::OnEnterState()
         BattleReset();
         for (int i = 0; i <= 5; ++i)
         {
-            if (m_slots[i] == 0)
-                m_liveFlag[i] = 0;
-            else
+            // [b28d-solo-WarRoom-3] ORIG 086bb89f `je <else块(movb $0x0)>`：
+            // 正极性 then=置 1 先落（P222/P214① 块序）⇒ 源码写 != 0 分支。
+            if (m_slots[i] != 0)
                 m_liveFlag[i] = 1;
+            else
+                m_liveFlag[i] = 0;
         }
         if (GetWaiterCount() <= 2)
         {
             bool hasGM = false;
             for (int i = 0; i <= 5; ++i)
             {
-                if ((m_slots[i] != 0) && ((m_slotsUser[i])->isGMUser() != 0))
+                // [b28d-solo-WarRoom-3] ORIG 086bb8ff/086bb918 两处 `je` 直跳
+                // 循环增量（086bb920 nop 岛 / 086bb921 addl），无 mov $1/$0 归一岛
+                // ⇒ 拆嵌套 if（`&&` 在 4.4 会物化 bool 再 test）；外层失败出口
+                // 用负条件 goto 到循环体尾空标签复现 086bb920 nop 岛（P223）。
+                if (m_slots[i] == 0)
+                    goto GM_LOOP_NEXT;
+                if ((m_slotsUser[i])->isGMUser())
                 {
                     hasGM = true;
                     break;
                 }
+GM_LOOP_NEXT:
+                ;
             }
             if (!hasGM)
             {
@@ -996,20 +1028,31 @@ void WarRoom::OnEnterState()
                 return;
             }
         }
-        {
-            unsigned int key = GenTimerKey((TIMER_MESSAGE)0x41);
-            int ms = G_CDataManager()->m_warAreaCounter.m_readyCount;
-            G_TimerQueue()->InsertTimerInMilisecond(
-                (TimerEntry::OBJ_TYPE)3, m_index, (TIMER_MESSAGE)0x41, ms, key, 0);
-        }
+        // [b28d-solo-WarRoom-3] P24/P52：ORIG 086bb966 `call GenTimerKey; mov %eax,%edi`
+        // 为内联实参（值保 callee-saved 跨 G_CDataManager/G_TimerQueue），ms 亦为
+        // 表达式直传（086bb973 `mov 0x88a8(%eax),%eax; mov %eax,%ebx`）⇒ 禁具名局部。
+        G_TimerQueue()->InsertTimerInMilisecond(
+            (TimerEntry::OBJ_TYPE)3, m_index, (TIMER_MESSAGE)0x41,
+            G_CDataManager()->m_warAreaCounter.m_readyCount,
+            GenTimerKey((TIMER_MESSAGE)0x41), 0);
         break;
     case 2:
-        {
-            unsigned int key = GenTimerKey((TIMER_MESSAGE)0x42);
-            G_TimerQueue()->InsertTimerInMilisecond(
-                (TimerEntry::OBJ_TYPE)3, m_index, (TIMER_MESSAGE)0x42, 11000, key, 0);
-            m_curSpawnStep = 1;
-        }
+        // [b28d-solo-WarRoom-3] ORIG 086bb9ce `call GenTimerKey; mov %eax,%ebx` 内联实参。
+        G_TimerQueue()->InsertTimerInMilisecond(
+            (TimerEntry::OBJ_TYPE)3, m_index, (TIMER_MESSAGE)0x42, 11000,
+            GenTimerKey((TIMER_MESSAGE)0x42), 0);
+        m_curSpawnStep = 1;
+        break;
+    // [b28d-solo-WarRoom-3] P324：ORIG 叶块物理序 = case 0,1,2,**4,3**,5
+    //（086bba27=ReviveAll 块先于 086bbab3=m_flag10 块）⇒ case 书写序须照 ORIG
+    // 块地址序排列，故 case 4 段写在 case 3 段之前。
+    case 4:
+        ReviveAll();
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
+                                        (TIMER_MESSAGE)0x43, 10,
+                                        GenTimerKey((TIMER_MESSAGE)0x43), 0);
+        if (m_curSpawnStep != m_pDungeon->m_warRoomData.m_50)
+            m_curSpawnStep += 1;
         break;
     case 3:
         m_flag10 = 0;
@@ -1017,34 +1060,31 @@ void WarRoom::OnEnterState()
         {
             PacketGuard packet;
             packet.clear();
-            int count = GetWaiterCount();
+            // [b28d-solo-WarRoom-3] ORIG 086bbb04 `call GetWaiterCount; mov %eax,%ecx`
+            // 无槽往返 ⇒ 原码为内联实参（P0/P24），具名 count 会多占槽。
             m_field.ConsistMap(&packet, m_pDungeon, (const CMap*)m_fp,
                                (unsigned char)(((unsigned char)m_levelBand + 1) * 10),
-                               count);
+                               GetWaiterCount());
             SendToRoom(packet);
             for (int i = 0; i <= 5; ++i)
             {
                 if (m_slots[i] != 0)
                 {
+                    // [b28d-solo-WarRoom-3] 字段偏移真 bug 修正：ORIG 086bbb6a 为
+                    // `mov 0x7e8(%eax),%edx`（= m_warRoomData(+0x6f4) + 0xf4 = m_f4），
+                    // 原重建写 m_ec(+0xec) 读错字段。
                     (m_slotsUser[i])->FatigueUp(
-                        m_pDungeon->m_warRoomData.m_ec);
+                        m_pDungeon->m_warRoomData.m_f4);
                 }
             }
-            unsigned int key = GenTimerKey((TIMER_MESSAGE)0x45);
-            int ms = m_pDungeon->m_warRoomData.m_f4;
+            // [b28d-solo-WarRoom-3] ORIG 086bba40 `call GenTimerKey; mov %eax,%ebx`
+            // 与 m_fc/1000 均内联实参（P24）；ORIG 086bbbcd `mov 0x7f0(%eax),%ecx`
+            // = +0x6f4 + 0xfc = m_fc（原重建误写 m_f4）。
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
-                                            (TIMER_MESSAGE)0x45, ms / 1000, key, 0);
+                                            (TIMER_MESSAGE)0x45,
+                                            m_pDungeon->m_warRoomData.m_fc / 1000,
+                                            GenTimerKey((TIMER_MESSAGE)0x45), 0);
         }
-        break;
-    case 4:
-        ReviveAll();
-        {
-            unsigned int key = GenTimerKey((TIMER_MESSAGE)0x43);
-            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
-                                            (TIMER_MESSAGE)0x43, 10, key, 0);
-        }
-        if (m_curSpawnStep != m_pDungeon->m_warRoomData.m_50)
-            m_curSpawnStep += 1;
         break;
     case 5:
         if ((m_flag10 != 0) && (m_field.m_stageIdx ==
@@ -1055,38 +1095,56 @@ void WarRoom::OnEnterState()
             packet.put_byte(GetWaiterCount());
             for (int i = 0; i <= 5; ++i)
             {
-                if (m_slots[i] != 0)
+                // [b28d-solo-WarRoom-3] ORIG 086bbcbf `je 086bbd6b(nop 岛)` +
+                // body 尾 086bbd69 `jmp 086bbd6c(addl)` ⇒ 双源 goto 到尾空标签
+                // （P223 定案），单用 if 包裹会被 4.4 jump-thread 掉 nop 岛。
+                if (m_slots[i] == 0)
+                    goto SEND_LOOP_NEXT;
                 {
-                    int fp = (m_slotsUser[i])->GetFinishPointTotal();
-                    if (G_CDataManager()->m_warAreaCounter.m_wpPenalty < fp)
+                    // [b28d-solo-WarRoom-3] ORIG 086bbcda `call GetFinishPointTotal;
+                    // mov %eax,%ebx`（无槽）⇒ 内联实参（P0）。条件与块序照
+                    // 086bbce7 `cmp %eax,%ebx; setle %al; test; je 086bbd0f`：
+                    // setle 为假(fp>penalty)才跳 then 块 ⇒ 源码须写**否定条件**
+                    // 且 else 直落（086bbcf0 为 DecreaseWarPoint(0) 块、
+                    // 086bbd0f 为 penalty 块）—— P194/P59 镜像布局。
+                    if ((m_slotsUser[i])->GetFinishPointTotal() <=
+                        G_CDataManager()->m_warAreaCounter.m_wpPenalty)
+                    {
+                        (m_slotsUser[i])->DecreaseWarPoint(0);
+                    }
+                    else
                     {
                         (m_slotsUser[i])->DecreaseWarPoint(
                             G_CDataManager()->m_warAreaCounter.m_wpPenalty);
                     }
-                    else
-                    {
-                        (m_slotsUser[i])->DecreaseWarPoint(0);
-                    }
                     packet.put_byte(i);
                     packet.put_int((m_slotsUser[i])->GetFinishPointTotal());
                 }
+SEND_LOOP_NEXT:
+                ;
             }
             packet.finalize(true);
             SendToRoom(packet);
         }
         for (int i = 0; i <= 5; ++i)
         {
-            if ((m_slots[i] != 0) && ((m_slotsUser[i])->GetFinishPointTotal() == 0))
+            // [b28d-solo-WarRoom-3] ORIG 086bbde4 `je 086bbe17(nop 岛)` 与
+            // 086bbe02 `je 086bbe18(addl)` 落点不同 + body 尾 086bbe15 `jmp`
+            // ⇒ 负条件 goto 尾空标签（P223 定案形，同 hasGM 循环）。
+            if (m_slots[i] == 0)
+                goto SLOT_ISLAND;
+            if ((m_slotsUser[i])->GetFinishPointTotal() == 0)
                 m_slotData[i] = 6;
+SLOT_ISLAND:
+            ;
         }
         ClearReward();
         SendGuildFP();
         RemoveKC();
-        {
-            unsigned int key = GenTimerKey((TIMER_MESSAGE)0x44);
-            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
-                                            (TIMER_MESSAGE)0x44, 0x18, key, 0);
-        }
+        // [b28d-solo-WarRoom-3] ORIG 086bbe56 `call GenTimerKey; mov %eax,%ebx` 内联实参。
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
+                                        (TIMER_MESSAGE)0x44, 0x18,
+                                        GenTimerKey((TIMER_MESSAGE)0x44), 0);
         break;
     default:
         break;
@@ -1125,11 +1183,14 @@ CF_ISLAND:
 
 void WarRoom::CalcGuildFP()
 {
-    // [b28d-solo-WarRoom] DIFF(151) | ORIG 0x086bbea6 | N93/N98 槽序 + 字节清零合并：
-    //   ORIG local_4c[12]@-0x48..-0x3d（4.1 声明序深槽）而 4.4 按首次使用序把
-    //   local_40[6]@-0x48（初始化语句首用最早）；且 4.1 把连续 6 个 `x[i]=0`
-    //   合并为 movl+movw（0x086bbed0/0x086bbfaa），4.4 恒 6×movb（探针
-    //   /tmp/probe_zero.cpp f1 vs f2）。语义正确（P167 无缺口）。
+    // [b28d-solo-WarRoom-3] ORIG 0x086bbea6：165 orig / 168 our（gap -3）判 N。
+    //   ①槽序：ORIG local_4c[12]@-0x48..-0x3d（深）+ local_40[6]@-0x3c..-0x25；
+    //   4.4 按**首次使用序**把 local_40[6]@-0x48（声明式 `= {0}` 首用最早）⇒
+    //   两数组深浅互换。若把清零语句移到 local_4c 之后可翻槽序，但清零块顺序
+    //   与 ORIG（086bbed0 local_40 在前）相反 ⇒ 指令序反而更差（两难，P212/N98）。
+    //   ②6 个 `local_4c[i]=0`：4.1 合并为 `movl $0,-0x42; movw $0,-0x3e`
+    //   （086bbed0/086bbfaa），4.4 恒 6×movb（探针 /tmp/probe_zero.cpp f1/f2）。
+    //   语义正确（P167 无缺口）⇒ N 封顶。
     char local_4c[12];
     int local_40[6] = {0};
     int local_28;
@@ -1998,14 +2059,19 @@ WP_SLOT:
 
 int WarRoom::HandleGetItem(CUser* user, int idx)
 {
-    // [b28d-solo-WarRoom] DIFF(524) | ORIG 0x086bea2e | N95/N82 槽基差 8
-    //   （flag ORIG -0x2d vs 4.4 -0x35；4.4 局部槽基恒 ebp-8 起、4.1 可顶到
-    //   ebp）+ 全帧偏移平移。P167 CLEAR(91/91)；语义与 ORIG 一致。
+    // [b28d-solo-WarRoom-3] ORIG 0x086bea2e：551/-4 → **546/+1**。本轮修正：
+    //   ①删 `int result` 局部（ORIG 返回值走 %ebx 公共尾：086beaf0/086bef5f
+    //     `mov $0x0,%ebx`、086bf2ea `mov $0x1,%ebx`、086bf317 `mov %ebx,%eax`）
+    //     ⇒ 全部改直接 return（P0：ORIG 无 result 槽）；
+    //   ②`else if (GetWaiterCount() < 1)` → 具名 `int count` + 失败块直落
+    //     （ORIG 086beb05 `mov %eax,-0x24(%ebp); cmpl $0,-0x24; jg 主流程`）；
+    //   ③删具名 bool randomOption → 内联 `IsRandomOption() && !getCheck…`
+    //     （ORIG 086bee7b..086bee9d 常量岛 + `xor $1` ⇒ 无槽；P0/P214①）。
+    //   残余 +1（086bec31 段尾块序）+ 版本槽基 8（N95/P332）⇒ 封顶。
     char flag = 1;
     CUser* target = 0;
     map_item fieldItem;
     PacketGuard packet;
-    int result = 0;
     bool ok = m_field.GetFieldItem(idx, fieldItem) != 0;
     if (ok != 1)
     {
@@ -2014,18 +2080,25 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
         packet.put_byte(0x15);
         packet.finalize(true);
         user->Send(packet);
-        result = 0;
+        return 0;
     }
-    else if (GetWaiterCount() < 1)
+    else
     {
-        packet.put_header(1, 0x2e);
-        packet.put_byte(0);
-        packet.put_byte(0x15);
-        packet.finalize(true);
-        user->Send(packet);
-        result = 0;
-    }
-    else if (fieldItem.m_item.m_addInfo == 0)
+        // [b28d-solo-WarRoom-3] ORIG 086beb05 `mov %eax,-0x24(%ebp); cmpl $0x0,
+        //   -0x24(%ebp); jg 086beb7e` ⇒ 原码是具名 int count + 正极性 `> 0`
+        //   （失败块直落、主流程后置）；原重建写 `else if (GetWaiterCount() < 1)`
+        //   使 4.4 折成无槽 `test;setle;test;je`（P0/条件极性）。
+        int count = GetWaiterCount();
+        if (count <= 0)
+        {
+            packet.put_header(1, 0x2e);
+            packet.put_byte(0);
+            packet.put_byte(0x15);
+            packet.finalize(true);
+            user->Send(packet);
+            return 0;
+        }
+        if (fieldItem.m_item.m_addInfo == 0)
     {
         int money = fieldItem.m_item.get_add_info();
         packet.put_header(0, 0x5d);
@@ -2049,7 +2122,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
             packet.put_int(gained);
             packet.finalize(true);
             SendToRoom(packet);
-            result = 1;
+            return 1;
         }
         else
         {
@@ -2058,7 +2131,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
             packet.put_byte(check);
             packet.finalize(true);
             user->Send(packet);
-            result = 0;
+            return 0;
         }
     }
     else
@@ -2069,7 +2142,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
         {
             LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__,
                                   0x957, "G_CDataManager()->find_item(%d) fail", itemIdx);
-            result = 0;
+            return 0;
         }
         else
         {
@@ -2081,19 +2154,16 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                 packet.put_byte(0x16);
                 packet.finalize(true);
                 SendToRoom(packet);
-                result = 0;
+                return 0;
             }
             else
             {
-                bool randomOption = false;
-                if (item->IsRandomOption() != 0)
-                {
-                    if (user->getCheckPickUpRandomOptionItem() == 1)
-                        randomOption = false;
-                    else
-                        randomOption = true;
-                }
-                if (randomOption)
+                // [b28d-solo-WarRoom-3] ORIG 086bee7b..086bee9d 无 bool 槽：
+                //   `test %al,%al; je <mov $0>`（IsRandomOption 直判）+ 086bee8a
+                //   `xor $0x1,%eax; test %al,%al; je <mov $0>`（!getCheck…）+ 常量岛
+                //   + `test %al,%al; je 主流程` ⇒ 原码是内联短路 `if (A && !B)`
+                //   （P0/P214①），原重建的具名 bool randomOption 多占槽 -0x11。
+                if (item->IsRandomOption() && !user->getCheckPickUpRandomOptionItem())
                 {
                     user->setCheckPickUpRandomOptionItem(true);
                     DB_InsertRandomOptionItemInform::makeRequest(
@@ -2135,7 +2205,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                         packet.put_byte(4);
                         packet.finalize(true);
                         user->Send(packet);
-                        result = 0;
+                        return 0;
                     }
                     else
                     {
@@ -2147,7 +2217,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                         packet.put_short(added);
                         packet.finalize(true);
                         SendToRoom(packet);
-                        result = 1;
+                        return 1;
                     }
                 }
                 else
@@ -2162,20 +2232,21 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     // 再 user->Send(packet)（原实现漏 SendToRoom，语义缺口）。
                     SendToRoom(packet);
                     user->Send(packet);
-                    result = 0;
+                    return 0;
                 }
             }
         }
     }
-    return result;
+    }
+    return 1;
 }
 
-// [§6.2 闭合 · b20] WarRoom::HandleItemDrop（ORIG 0x086bf5fc，0xe07B）：
-//   P167 调用点差集 100/100 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
-//   符号 Counter 与 ORIG call 多重集全等）；ORIG insns 776 vs 新鲜 .o 781
-//   （gap -5）。残余 byte 层属 N82（4.1 不按 lifetime 复用栈槽 → 帧 -0x1ec
-//   槽号平移）与 N76/N18a store 装载步序、switch 判定树分派形态（语义与 ORIG
-//   一致，逐段注释见函数体）⇒ 判「语义完成、byte 层 N 封顶」，勿再耗轮次。
+// [b28d-solo-WarRoom-3] WarRoom::HandleItemDrop（ORIG 0x086bf5fc）：781/-5 →
+//   **777/-1**。本轮修正：switch(attach) 的 case 1/2/5 由「各发一块 return 0x17」
+//   改为共享 case 标签体 —— ORIG 086bfacd 只有**一个** `mov $0x17,%ebx; jmp`
+//   块（P325 共享出口），原实现多 2 块 4 条。残余 1 条 = 4.4 跳表索引
+//   `shl $2,%eax; mov 0x…(%eax),%eax` vs 4.1 `mov 0x8cf98b0(,%eax,4),%eax`
+//   （跳表 lowering，N4/N125）⇒ 封顶；P167 100/100 CLEAR。
 int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
 {
     // [b28d-solo-WarRoom] DIFF(504) | ORIG 0x086bf5fc | 复核 b20 判词：P167
@@ -2250,14 +2321,15 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         //   3→下方判定）。翻正旋钮：switch 表达式按 T2 无符号化 + 6 个 case 全
         //   独立书写 ⇒ 4.4 由判定树改发跳表（shl+mov 形态）。残余 = 4.4 跳表前
         //   多一条范围检查（跨版本固有），语义与 ORIG 一致。
+        // [b28d-solo-WarRoom-3] P325：ORIG 跳表后只有**一个** `mov $0x17,%ebx;
+        //   jmp 086c03f6` 块（086bfacd，case 1/2/5 共用一个标签体），原重建每
+        //   case 各发一块 ⇒ 多 2 块（4 条）。改成共享 case 标签复现单块形。
         switch (attach)
         {
         case 0:
             break;
         case 1:
-            return 0x17;
         case 2:
-            return 0x17;
         case 5:
             return 0x17;
         case 3:
@@ -2415,13 +2487,11 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
 
 int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
 {
-    // [SweepWarRoom] AE | ORIG 0x086bf324 | compare_tu 归一全等（TU ae 集合内）；
-    //   game_func_report 切片 97/98 仅差 ORIG 086bf3d8 break 中继 `jmp` 后的
-    //   086bf3da `nop`（4.1 循环 break 中继岛；本轮 break→goto LOOP_END 实测
-    //   4.4 仍 jump-thread 无 nop ⇒ P223 单源负例封顶）。
-    //   [SweepWarRoom-2] 再试同层双 continue 形（P223②）实测 our 97→100
-    //   （多 2 continue 的 jmp/nop 段，且 jcc 形态改 setne）⇒ 劣化回退，
-    //   维持 goto 单源形；jcc 目标下标与 ORIG 逐位一致（je→+0xb6 nop 落点）。
+    // [b28d-solo-WarRoom-3] ORIG 0x086bf324：97/98 → **98/98（gap 0）**，判据①
+    //   jcc 目标下标逐位全等。修法 = P223 定案形：外层失败改负条件
+    //   `if (m_slots[slot] == 0) goto REVIVE_NEXT;` + 循环体尾空标签
+    //   （ORIG 086bf38a `je 086bf3da(nop 岛)` 与 086bf3aa `je 086bf3db(addl)`
+    //   落点不同）⇒ 4.4 不再 jump-thread，nop 中继岛逐条复现。
     //   b25 已补 target==0 → 0x15 语义块。
     // ORIG 0x86bf33c：短路 && 条件直进 if（bool 局部会 spill cmpb）。
     if ((GetState() != 3) && (GetState() != 4))
@@ -2430,19 +2500,21 @@ int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
     int slot;
     for (slot = 0; slot <= 5; ++slot)
     {
-        if (m_slots[slot] != 0)
+        // [b28d-solo-WarRoom-3] P223 定案形：ORIG 086bf38a `je 086bf3da(nop 岛)`
+        // 与 086bf3aa `je 086bf3db(addl)` 落点不同 ⇒ 外层失败走**负条件 goto
+        // 到循环体尾空标签**（4.4 不再 jump-thread，逐条复现 nop 中继岛）。
+        if (m_slots[slot] == 0)
+            goto REVIVE_NEXT;
+        if ((m_slotsUser[slot])->get_unique_id() == uid)
         {
-            if ((m_slotsUser[slot])->get_unique_id() == uid)
-            {
-                if (m_liveFlag[slot] != 0)
-                    return 0x12;
-                target = m_slotsUser[slot];
-                // ORIG 086bf3d8 jmp→086bf3ea + 086bf3da nop（4.1 break 中继岛）。
-                // P223② 双 continue 形实测 +3 条（100/98）⇒ 回退；单源 break
-                // 中继 nop 归 P223 负例封顶。
-                goto LOOP_END;
-            }
+            if (m_liveFlag[slot] != 0)
+                return 0x12;
+            target = m_slotsUser[slot];
+            // ORIG 086bf3d8 jmp→086bf3ea（break 出口）。
+            goto LOOP_END;
         }
+REVIVE_NEXT:
+        ;
     }
 LOOP_END:
     ;
