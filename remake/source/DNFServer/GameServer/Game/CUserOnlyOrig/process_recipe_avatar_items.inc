@@ -138,6 +138,8 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
                 if (!invW2->delete_item(INVEN_TYPE_EQUIP, slot, delCount,
                                         (eItemDelReason)8, true)) {
                     // +0x5c9: trace（ORIG 字符串原样）
+                    // [FL5 2026-09-10 负结论·已回滚] P37/P227 全表达式链在本件
+                    // ndiff 1008→1012 反劣（ours 742→743）⇒ 维持两语句具名形；勿再试。
                     cMyTrace trace(
                         "int CUser::process_recipe_avatar_items(int, bool, "
                         "RequestItemCountType, int, const CStackableItem*)",

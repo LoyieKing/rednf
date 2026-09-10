@@ -18,7 +18,12 @@ unsigned char CUser::UseLimitItem(int itemIdx, bool sendNoti)
                                        // 命中 `__normal_iterator<LimitItemUsage*>::operator->()`
                                        // ×3、无 operator* ⇒ 字段一律经 `it->` 具名成员
                                        // （旧 `&*it + 0x11` 生 operator* 差集）。
-                                       (signed char)it->m_field11b[0],
+                                       // [FL5 2026-09-10 P162/类型轴] ORIG 0x08688b8d
+                                       // `mov 0x11(%eax),%eax; mov %eax,0x8(%esp)` = **4 字节
+                                       // 整字直传**（int 观），旧 `(signed char)m_field11b[0]`
+                                       // 产 movzbl+movsbl（1 字节读）⇒ 改 union 的 int 观
+                                       // `m_field11`（sizeof/偏移/符号集不变）。
+                                       it->m_field11,
                                        it->m_field19);
         if (it->useIt())
         {

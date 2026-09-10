@@ -17,11 +17,25 @@ bool CUser::HasCurCharacRentalItem(int type) const
         m_rentalInfo.find((unsigned int)type);
     if (outer == m_rentalInfo.end())
         return false;
+    // 2026-09-10（FL2CUser p167）：外层 `->` 亦只出现 **1 次**（EXTR 内层 ptEv 消除后
+    //   仍余外层 ptEv ×1）⇒ 原码先把 `outer->second` 绑成引用再复用，`end()` 亦走该引用。
+    const std::map<unsigned int,
+        std::vector<InstanceRentalSystem::RentalInfo> >& innerMap =
+        outer->second;
     std::map<unsigned int,
         std::vector<InstanceRentalSystem::RentalInfo> >::const_iterator inner =
-        outer->second.find(*(const unsigned int*)cur);
+        innerMap.find(*(const unsigned int*)cur);
+    // 负结论（2026-09-10 复测，外层引用缓存后重试）：ORIG 0x08677413..0x0867741b
+    //   的 `mov %eax,-0x20(%ebp); mov -0x20(%ebp),%eax` characNo 具名槽往返
+    //   **无法复现**——`const unsigned int characNo` 具名形实测 ndiff 13→16、
+    //   ours 79→82（4.4 直接内联该右值，不落槽）⇒ 回退，维持内联形。
+    //   （该 -0x20 死槽属跨版本槽分配差，N 封顶。）
     // p167（2026-09-10）：EXTRA `_ZNKSt23_Rb_tree_const_iteratorI...EdeEv` ×1 而 ORIG 0
     //   ⇒ 原码写 `outer->` 非 `(*outer).`（P167 的 it-> 与 (*it) 判据）。
-    if (inner == outer->second.end())
+    if (inner == innerMap.end())
         return false;
-    return !inner->second.empty();
+    // 2026-09-10（FL2CUser p167 迭代器形）：差集 = MISS `_ZNKSt23_Rb_tree_const_iteratorI
+    //   St4pairIKjSt6vectorIN20InstanceRentalSystem10RentalInfoESaIS4_EEEEdeEv` ×1 +
+    //   EXTR `…ptEv` ×1（内层）⇒ 原码对**内层**写 `(*inner).second`（de），对
+    //   **外层**仍 `outer->second`（其 2 个 ptEv 两侧相抵）。
+    return !(*inner).second.empty();

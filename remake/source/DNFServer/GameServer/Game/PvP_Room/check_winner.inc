@@ -58,10 +58,13 @@ bool PvP_Room::check_winner()
         {
             if ((P_TEAMWIN(local_2c) != 0) && (P_TEAMWIN(local_2c) < 0xfe))
             {
-                local_6c.m_teamWin[P_TEAMWIN(local_2c)] += 1;
+                // [FL8PvPWorldLeague 2026-09-10] `+= 1` → 前置 `++`：4.4 对
+                // `arr[成员读] += 1` 双求值下标（读/写各一次），`++arr[..]` 单求值
+                // （time_out 同族实证 ndiff 99→85）。
+                ++local_6c.m_teamWin[P_TEAMWIN(local_2c)];
                 if (P_WIN(local_2c) != 0)
                 {
-                    local_6c.m_win[P_TEAMWIN(local_2c)] += 1;
+                    ++local_6c.m_win[P_TEAMWIN(local_2c)];
                 }
             }
         }

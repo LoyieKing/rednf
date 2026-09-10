@@ -21,6 +21,7 @@ bool CUser::_CheckCompoundSkill(const CStackableItem* item, bool checkRecipe)
             return expert_job::CExpertJob::IsLearnRecipe(this, item);  // ==1 → true
         }
         unsigned int characNo = getCurCharacNo();
+        // [FL5 2026-09-10 负结论·已回滚] P37/P227 链在本件 ndiff 152→152 中性 ⇒ 维持具名形。
         cMyTrace trace(PRETTY, 0x5c68, 0);
         trace("EXPERT_JOB_ERROR : check_skill_list() charac_no(%d)", characNo);
         return false;

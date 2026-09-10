@@ -7,6 +7,10 @@ bool CPCRoomServerProxy::InitTcp()
     if (m_tcp.m_sock < 0)
     {
         // ORIG 0x08471xxx：ret 常规局部落 -0x1c 槽（cmp $0,-0x1c; setne 物化）。
+        // [FL7GlobalData 2026-09-10 · P290 实测否定] ORIG 在 cMyTrace ctor **之前**
+        // 把 ret 载入 callee-saved（0x08471985 `mov -0x1c(%ebp),%esi`）跨 ctor 保活；
+        // 按 P290 试 `unsigned int ret;` 后 ndiff 仍 22（push/pop edi 仍缺失、coder 后
+        // 仍从槽重读）⇒ 维持 int，记 N80/N82 族。
         int ret;
         // ORIG 0x0847196d..0x084719c5（临时链式实证）：4.1 在 cMyTrace ctor
         // call 之前先按右起序求 varargs 并全部落 callee-saved —— 0x0847197c

@@ -1,6 +1,8 @@
 int CUser::SelectCharac(int idx, int tagIdx)
 {
     if (getCurCharacR() != 0) {
+        // [FL5 2026-09-10 负结论·已回滚] 全表达式临时链（P37/P227）在本件 ndiff 278→278 中性
+        // （ours 280 不变）⇒ 不达标，维持两语句具名形；勿再试。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x11fb, 5);
         trace("CUser::SelectCharac m_selected is not null");
         return 0;

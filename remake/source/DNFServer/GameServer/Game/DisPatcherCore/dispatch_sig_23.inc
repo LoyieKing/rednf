@@ -4,6 +4,10 @@ int DisPatcher_DiePvP::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
+    // [FL4 负结论] P232 撑帧法对本件无效：补 `char pad[0x10]` 后 `sub` 立即数虽对齐
+    // 0x6c，但全部局部槽相对 ORIG 由「深 4」扩为「深 0x14」（ORIG PacketGuard -0x44 /
+    // 我方 -0x58），ndiff 30→28 仅来自帧行本身 ⇒ 判 N82（4.1 按生命周期穿插 vs 4.4
+    // 按首次使用分区的槽分配差），保持原帧。
     unsigned short targetIdx = 0xffff;
     if (!packet.get_short(targetIdx))
     {

@@ -83,10 +83,14 @@ void PvP_Room::start_pvp()   // [b28c-16 SIGFIX] ORIG 串 void
         }
         m_battleStartSec = GlobalData::s_systemTime_.getCurSec();
         // [Lane10] P248 ①-④ 实测：`register int local_14` 令 4.4 少占 1 槽
-        // （cMyTrace 槽 -0x44→-0x40）且 ndiff 24→109 反劣 ⇒ 回退，本件维持
-        // P75/N7 装载时刻封顶（ORIG 0x085d90c6 `mov -0x10(%ebp),%ebx` 跨
-        // GetInstanceCommonStatisticsMgr() call 保活 vs 4.4 call 后回读 %edx）。
-        int local_14 = 0;
+        // （cMyTrace 槽 -0x44→-0x40）且 ndiff 24→109 反劣 ⇒ 回退。
+        // [FL8PvPWorldLeague 2026-09-10] 旧「P75/N7 装载时刻封顶」判词**作废**：
+        // P290 生效 —— 局部 `int`→`unsigned int` 使实参升格 callee-saved，复现
+        // ORIG 0x085d90c6 `mov -0x10(%ebp),%ebx; call <receiver>; mov %ebx,0x8(%esp)`
+        // （跨 GetInstanceCommonStatisticsMgr() call 保活）。本件由 DIFF 翻 AE：
+        // TU 四数 identical=34 ae=131→**132** near=6 diff=18→**17**，单函数 AE-EQ
+        // （/tmp/glm_one.py 0 残差行）。
+        unsigned int local_14 = 0;
         switch (m_pvpBattleMode)
         {
         case 1:

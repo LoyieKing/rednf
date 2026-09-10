@@ -57,6 +57,9 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
                 goto skip_log_dungeon;
         }
         {
+            // [FL3W8LT 2026-09-10 A/B 回滚] 三处 trace3/4/5 试 P328⑩ 单语句临时链：
+            // gap 仍 −22（orig 374 / our 396）、TU 四数零变（plus 314→311 /
+            // minus 292→289 仅少 3 对语句行）⇒ 非本件残差来源，回滚保原两语句形。
             cMyTrace trace3(__PRETTY_FUNCTION__, 0x4d7d, 0);
             trace3("abnormal down user by dungeon : %d DUNGEON %d", dungeon,
                    down);

@@ -33,7 +33,11 @@ CUser::CUser()
     m_rentalFlag2 = 0;
     m_rentalInfo.clear();
     m_field8cfcc = (UserSpace::T)0;
-    m_postChecksumData.m_firstLogin = 0;   // 块内 +0x30
+    // 2026-09-10（FL2CUser 接收者/字段轴，ORIG 直证）：ORIG ctor 第 390 条为
+    //   `movb $0x0,0x7962c(%eax)`（块内 **+0x08** = m_tradePunishOverThirtyDays），
+    //   全函数**从不**写 0x79654（块内 +0x30 = m_firstLogin）⇒ 旧形「firstLogin=0」
+    //   是发明初始化（多写一条），且真正被 ORIG 清的是 tradePunishOverThirtyDays。
+    m_postChecksumData.m_tradePunishOverThirtyDays = 0;   // 块内 +0x08（0x7962c）
     m_advanceAltarIdx = 0xffff;
     m_field8eba8 = 0;
     m_field8ebac = 0;

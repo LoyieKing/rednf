@@ -141,9 +141,10 @@ sendResult:
             Send(packet);
             Inven_Item slotItem = const_cast<CInventory*>(getCurCharacInvenR())
                                       ->GetInvenSlot(1, slot);
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x38b5, 5);
-            trace("CUser::use_stackable\tError:%d\tSlot_no:%d\tItem_no:%d",
-                  err, static_cast<int>(slot), slotItem.m_addInfo);
+            // [FL5 2026-09-10 P37/P227] 全表达式临时链
+            cMyTrace(__PRETTY_FUNCTION__, 0x38b5, 5)(
+                "CUser::use_stackable\tError:%d\tSlot_no:%d\tItem_no:%d",
+                err, static_cast<int>(slot), slotItem.m_addInfo);
         }
         else {
             packet.put_byte(1);

@@ -1,9 +1,14 @@
 bool DB_LogBuyItem::dispatch(int userIdx, int slot, Stream* stream)
 {
-    // 声明序照 ORIG 栈槽（低→高）：buf(-0x5c) item_type(-0x50) item_count(-0x4c)
+    // 声明序照 ORIG 栈槽（深→浅）：buf(-0x5c) item_type(-0x50) item_count(-0x4c)
     // item_id(-0x48) charac_no(-0x44) m_id(-0x40) t(-0x3c) tm*(-0x28)
     // mktime(-0x24) hour_limit(-0x20) db(-0x1c)；cMyTrace(-0x38) 在
     // insert 失败块内具名构造。
+    // [FL3W8LT 2026-09-10 P331 负结论] 声明序整体反转（P331 形）实测**编译产物
+    // 逐字节不变**（our=186/diff 对数 91 均为同值）⇒ 本件槽序由 4.4「首次使用序」
+    // 决定（t 由 time() 首用 ⇒ 最深），声明序不可翻；ORIG 深区
+    // [buf,itemType,itemCount,itemId,characNo,m_id,t] 的 4.1 声明序倒置属
+    // N82附 族（槽序与语义完成度无关）。保持与 ORIG 一致的声明书写序。
     char buf[0xc];
     int itemType;
     unsigned int itemCount;
@@ -51,10 +56,15 @@ bool DB_LogBuyItem::dispatch(int userIdx, int slot, Stream* stream)
             buf, NumberToString(m_id, 0), characNo, itemId, itemCount, itemType);
         if (!db->exec(true))
         {
-            register char* midStr = NumberToString(m_id, 0);
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x566, 5);
-            trace("DB_LogBuyItem, exec ERROR m_id=%s charac_no=%u ItemID=%u Count=%u Type=%d",
-                  midStr, characNo, itemId, itemCount, itemType);
+            // P328⑩/P227：ORIG 0x8128847 段为**单语句全表达式临时链** ——
+            // 变参（右起）在 cMyTrace ctor 前求值并跨 ctor 保活
+            // （`mov -0x50,%eax; mov %eax,-0x70` itemType / `-0x4c→-0x6c` itemCount /
+            // itemId→%edi / characNo→%esi / NumberToString→%ebx，随后才
+            // `lea -0x38,%eax; call cMyTraceC1`）⇒ 具名 trace 两语句形把 ctor 提到
+            // 串求值之前，块序失配。
+            cMyTrace(__PRETTY_FUNCTION__, 0x566, 5)(
+                "DB_LogBuyItem, exec ERROR m_id=%s charac_no=%u ItemID=%u Count=%u Type=%d",
+                NumberToString(m_id, 0), characNo, itemId, itemCount, itemType);
             return 0;
         }
     }

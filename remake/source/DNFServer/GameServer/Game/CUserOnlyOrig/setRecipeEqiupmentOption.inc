@@ -1,6 +1,13 @@
+// [FL5 2026-09-10 真 bug：第 3/第 5 形参语义互换] ORIG 直证（调用点 _ProcCompoundCore
+// 0x08671626..0x08671659：esp+0x10=slotRef、esp+0x14=recipe、esp+0x18=script->GetItemType()）：
+//   本函数 **0x18(%ebp)=invenSpace(slotRef)**，**0x20(%ebp)=itemType(GetItemType())**；
+//   ORIG 0x08673323 `mov 0x18(%ebp),%eax` → update_item 的 slot；0x0867313f
+//   `cmpl $0xb,0x20(%ebp)` → 物品类型 0xb 时输出强化强制 0。
+// 旧定义（第 3 参名 matUpgrade / 第 5 参名 invenSpace）把两者用反：运行期 update_item 收到
+// 物品类型、0xb 比较收到槽号 ⇒ 语义真错。此处只改形参名（≡绑定位次），ABI/mangled 不变。
 void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
-                                     int matUpgrade, const CStackableItem* stackable,
-                                     int invenSpace)
+                                     int invenSpace, const CStackableItem* stackable,
+                                     int itemType)
 {
     // [P0/P162] ORIG 0x0867306e+0x9：`mov 0x2(%eax),%eax; mov %eax,%ebx; call
     // G_CDataManager; mov %ebx,0x4(%esp); ...` —— 4 字节直读直传、**无槽往返**
@@ -24,7 +31,15 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
             0x5fc4, "RECIPE ERROR : Not Equipment Item");
         return;
     }
-    if ((unsigned char)cond.m_upgrade > 0x1f)
+    // [FL5 2026-09-10 真 bug：字段选择错位 1B] 本函数 ORIG 读 **cond+1/+2/+3**
+    // （0x08673106 `movzbl 0x11(%ebp)` 判 >0x1f、0x086731cc `movzbl 0x12(%ebp)`
+    // 选分支、0x086731f2 `movzbl 0x13(%ebp)` 作 amp.assign 的 type），而
+    // CInventory.h 的具名槽 m_upgrade/m_tableIdx/m_amplifySelect 分别落在 +0/+1/+2
+    // ⇒ 按 ORIG 语义（+1=强化等级←GetUpgrade、+2=hasAmplify、+3=abilityType，
+    // 见 InventoryLCB.cpp CheckEquipmentItemCondition @0x08507f1a 写侧 +0=1/+1=GetUpgrade/
+    // +2 标志/+3=abilityType，AE 反证）本函数必须依次读 m_tableIdx/m_amplifySelect/m_pad3。
+    // 旧写法读 +0/+1/+2（错位），既语义错又使本件全程偏移差 1B。
+    if ((unsigned char)cond.m_tableIdx > 0x1f)
     {
         LogManager::logFormat(
             1, "user.cpp",
@@ -39,25 +54,29 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
     // 两处（O82-O84/O103-O105）显式 `movzbl` ⇒ 原码是
     // `int outUpgrade = (matUpgrade == 0xb) ? 0 : getCompoundUpgrade(...)`。
     // 旧 `unsigned char` 局部使 trace 实参多一次 movzbl 且分支形不同。
-    int outUpgrade = (matUpgrade == 0xb)
+    int outUpgrade = (itemType == 0xb)
         ? 0 : getCompoundUpgrade(stackable, cond);
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x5fdb, 0);
-    trace("RECIPE LOG : out_item_id-%u, mat_up_val-%d, out_up_val-%d, mat_seal-%d",
-          (unsigned)outItem.m_addInfo, (unsigned)(unsigned char)cond.m_upgrade,
-          (unsigned)outUpgrade, (unsigned)(unsigned char)cond.m_flag6);
+    // [FL5 2026-09-10 P37/P227 全表达式临时链] ORIG 0x0867316f..0x086731b5 在
+    // cMyTrace ctor **之前**把三个实参分别求值到 %edi/%esi/%ebx（callee-saved，
+    // 跨 ctor 保活）后再压 esp 槽；两语句形（具名 trace + trace(...)）会退化成
+    // ctor 后逐个求值（我方旧形：%ebx/%edx/%ecx 直接压，无 edi/esi push）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x5fdb, 0)(
+        "RECIPE LOG : out_item_id-%u, mat_up_val-%d, out_up_val-%d, mat_seal-%d",
+        (unsigned)outItem.m_addInfo, (unsigned)(unsigned char)cond.m_tableIdx,
+        (unsigned)outUpgrade, (unsigned)(unsigned char)cond.m_flag6);
 
-    if (cond.m_tableIdx == 0)                                                // cond+1 非0 → amplify
+    if (cond.m_amplifySelect == 0)                       // cond+2 非0 → amplify（ORIG 0x086731cc）
     {
         outItem.SetUpgrade(static_cast<unsigned char>(outUpgrade));
     }
     else
     {
-        stAmplifyOption_t& amp = outItem.m_amp;                              // Inven_Item+0x11
-        amp.assign(cond.m_amplifySelect, cond.m_field4);                     // type=cond+2, value=cond+4w
-        amp.identify();
+        // [FL5 2026-09-10 P183] ORIG 0x086731f9/0x0867320f 两处各自重算
+        // `mov 0xc(%ebp),%ecx|%eax; add $0x11,%ecx|%eax`（无具名 amp 引用槽）
+        // ⇒ 删 `stAmplifyOption_t& amp`，使用点直写 outItem.m_amp。
+        outItem.m_amp.assign(cond.m_pad3, cond.m_field4);   // type=cond+3（abilityType）, value=cond+4w
+        outItem.m_amp.identify();
         outItem.SetUpgrade(static_cast<unsigned char>(outUpgrade));
     }
 

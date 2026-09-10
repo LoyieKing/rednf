@@ -24,10 +24,15 @@ int CParty::checkInoutConditionDungeon()
     memset(param, 0, 0x10);
     if (CheckEnterAncientDungeon(m_battleField.m_pDungeon, flag, items, param) == 1)
     {
-        int r = CheckEnterDimensionDungeon(m_battleField.m_pDungeon);
-        if (r == 0xab || r == 0xad)
+        // [2026-09-10 试形 P261/P279] ORIG 无右值槽、以 `cmp $0xab,%eax` 链直比 call 结果
+        // （0x085ac59c 段两处）⇒ 原码为 `switch(call())` 而非 if 链（if 链恒带具名槽）。
+        switch (CheckEnterDimensionDungeon(m_battleField.m_pDungeon))
+        {
+        case 0xab:
+        case 0xad:
             return 4;
-        r = check_dungeon_start(m_battleField.m_pDungeon);
+        }
+        int r = check_dungeon_start(m_battleField.m_pDungeon);
         if (!(r != 10 && (r < 10 || 4 < r - 0xf3u)))
             return 7;
         if (CheckEnterVillageAttackRevenge(m_battleField.m_pDungeon) != 0)

@@ -48,24 +48,27 @@ int CParty::OnFightVillageMonster(CUser* user, int param)
             reinterpret_cast<CBattle_Field*>(&m_battleField)->MakePacket(0x1d, &packet);
             send_to_party(packet);
 
-            m_battleData.m_field20 = (int)GlobalData::s_systemTime_.getCurTickCount();
-            m_battleData.m_field24 = 0;
+            // ORIG 085b98xx `mov $0,%edx; mov this,%ecx; mov %eax,0x34c(%ecx);
+            // mov %edx,0x350(%ecx)` = 零扩展 64 位整体存（P246/P180 u64 别名），
+            // 非两条 int 赋值（后者两次重载 this 且无 edx 零扩展）。
+            m_battleData.m_clearEnterTime =
+                (unsigned long long)GlobalData::s_systemTime_.getCurTickCount();
             // ORIG 085b9874 段三组同址双 store（33c/340、344/348、358/35c）
             // ⇒ P206 8 字节 union 视角成对清零。
             m_battleData.m_baseTick = 0;                // +0x10/+0x14
             m_battleData.m_enterTick = 0;               // +0x18/+0x1c
             m_battleData.m_accTick = 0;                 // +0x2c/+0x30
-            m_battleData.m_field34 = m_battleData.m_field20;
-            m_battleData.m_field38 = m_battleData.m_field24;
+            m_battleData.m_moveTick = m_battleData.m_clearEnterTime;  // +0x34/+0x38
             set_state(2);
             SetEPLPState(1);
             send_loadingcheck_msg();
-            PacketGuard ack;
-            ack.clear();
-            ack.put_header(1, 0x10b);
-            ack.put_byte(1);
-            ack.finalize(true);
-            user->Send(ack);
+            // [2026-09-10 试形] ORIG p167: PacketGuard C2×2 / D2×1（仅 1 个析构点）
+            // vs 我方 C1×2 / D1×4 ⇒ 疑原码复用同一 packet 实例（无 ack 具名对象）。
+            packet.clear();
+            packet.put_header(1, 0x10b);
+            packet.put_byte(1);
+            packet.finalize(true);
+            user->Send(packet);
             return 0;
     }
     return 1;

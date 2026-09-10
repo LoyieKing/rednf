@@ -18,10 +18,14 @@ int Dispatcher_SecurityLog::read(PacketBuf& packet, MSG_BASE& msg)
     reinterpret_cast<SecurityLogView*>((char*)&msg)->m_first = first;
     for (int i = 0; i < 5; ++i)
     {
-        // [b28d-solo-S206] P205/P30：ORIG 加法序 `…shl $2; add %edx,%eax; add $1,%eax`
-        //   （+1 加在基址之后）⇒ 指针形 `msg + (i+4)*4 + 1`（左结合）已使 4.4 把
-        //   +1 折进索引侧、仅差 1 条 add 位置；整型加法形（探针 probe_add2 g/h）
-        //   实测更劣（+3 条 lea/mov 且寄存器角色反）⇒ 保留指针形，残差记 N（P205）。
+        // [FL1 2026-09-10 负结论] ORIG 0x0825fafa 加法序 =
+        //   `add $0x4,%edx; shl $0x2,%edx; add %edx,%eax; add $0x1,%eax`
+        //   （+1 加在「基址+缩放」之后）。三形实测：
+        //   ① `msg + (i+4)*4 + 1`                    → 41/41 NEAR（最优，现形）
+        //   ② `(char*)&((uint*)&msg)[i+4] + 1`       → 同 ①（+1 仍折索引侧）
+        //   ③ `(uint)((uint*)&msg)[i+4] + 1`（P319 整型加法）→ 42 条且
+        //      TU ae−1/diff+1（劣化，已回滚）
+        // ⇒ 4.4 恒把尾 +1 折进索引侧，属 P205 封顶（旧注释 probe_add2 同结论）。
         if (!packet.get_int(*reinterpret_cast<unsigned int*>(
                 (char*)&msg + (i + 4) * 4 + 1)))
             return 0x9a2;

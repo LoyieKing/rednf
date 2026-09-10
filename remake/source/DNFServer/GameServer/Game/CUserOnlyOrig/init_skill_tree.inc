@@ -25,6 +25,11 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
     std::pair<int,int> pr;
     char secondGrow = getCurCharSecondGrowType();
     char firstGrow = getCurCharFirstGrowType();
+    // [FL5 2026-09-10 负结论·已回滚] 本处 ORIG 0x0866bce8 段看似无 job 具名槽
+    // （`call get_charac_job; mov 0x14(%eax),%edi; call G_CDM; imul $0x7dc; lea (%edi,%eax,1)`），
+    // 但把 `int job` 内联为 `m_characs[get_charac_job()]`（P0 方向）实测 **ndiff 146→241 反劣**
+    // （our_insns 246 不变）⇒ 原码确为具名 job，ORIG 的 edi 承载是 4.1 分配差异（N7 族）。
+    // 维持具名形；勿再试内联。
     int job = get_charac_job();
     // ORIG：*(int*)(mgr+0x14)+job*0x7dc —— mgr->m_characList（CCharacList*）->m_characs[job]
     bool got = G_CDataManager()->m_characList->m_characs[job].

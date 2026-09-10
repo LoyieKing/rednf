@@ -30,8 +30,9 @@ bool check_url(const char* url)
         } else if ((unsigned char)*p != 0x5f) {
             // [N·块序] ORIG 0x082057d0 尾支 `cmp $0x5f; jne 拒绝; [fall] addl
             // i++`（4.1 fall-through 放行）；4.4 恒把拒绝块排为 fall-through、
-            // 产 `je <i++岛>`——本波补测显式 `continue` 形（`==0x5f` → continue）
-            // 仍产同形（ndiff 5 不变）⇒ 块排序不可控，记 N。语义两侧等价。
+            // 产 `je <i++岛>`——显式 `continue` 形与正向包裹形（`==0x5f` 真侧
+            // 空体 + else 落拒绝，FL1 2026-09-10 复测 0x08205800/0x08205808）
+            // 三形实测均产同形（54/53 与 ndiff 不变）⇒ 块排序不可控，记 N。
             return false;
         }
     }

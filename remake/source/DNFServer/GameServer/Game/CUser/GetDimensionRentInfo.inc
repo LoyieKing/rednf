@@ -11,10 +11,14 @@ int CUser::GetDimensionRentInfo(SIG_SAVE_DIMENSION_RENT_ITEM* sig)
         return 1;
 
     int index = 0;
-    for (std::vector<InstanceRentalSystem::RentalInfo>::iterator it = rentalList.begin();
+    // 2026-09-10（FL2CUser cv 轴，同 GetPcRoomRentInfo）：ORIG 0x08676bec p167 实形
+    //   为显式 `const_iterator it = rentalList.begin()`（MISS `C2IPS2_E` 转换构造；
+    //   EXTRA 侧非 const de/pp/ne 三条）⇒ 改 const_iterator + const 引用。
+    for (std::vector<InstanceRentalSystem::RentalInfo>::const_iterator it =
+             rentalList.begin();
          it != rentalList.end(); ++it)
     {
-        InstanceRentalSystem::RentalInfo& rental = *it;
+        const InstanceRentalSystem::RentalInfo& rental = *it;
         bool bInEquip = false;
         int slot = 0;
         const CInventory* inven = getCurCharacInvenR();

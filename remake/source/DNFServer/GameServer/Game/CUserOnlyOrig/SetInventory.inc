@@ -11,6 +11,7 @@ bool CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
     int cargoCapacity = static_cast<int>(sig->m_cargoCapacity);
     char* inven3 = (char*)sig->m_invenType3;
     if (getCurCharacR() == 0) {
+        // [FL5 2026-09-10 负结论·已回滚] P37/P227 链在本件 ndiff 317→317 中性 ⇒ 维持具名形。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1271, 5);
         trace("CUser::SetInventory m_selected is null");
         return 0;

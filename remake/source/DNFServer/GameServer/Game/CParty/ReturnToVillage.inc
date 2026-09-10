@@ -15,7 +15,9 @@ void CParty::ReturnToVillage()
         // （P214③/P116：rep stos 立即数是 dword 次数不是字节长度）⇒ 缓冲 char[0x100]，
         // 且 -0x138+0x100 = -0x38 恰接 PacketGuard 槽。
         char names[0x100] = {0};
-        _getMemberNames(names);
+        // [2026-09-10 真缺口修正] ORIG 本分支仅 0x085acafe 一次 `call _getMemberNames`
+        // （LeaveDungeon 实参求值点），此前无独立调用（p167 曾 EXTRA +1）⇒ 删除独立调用；
+        // names 仍由实参内联调用填充，语义等价。
         for (int i = 0; i <= 3; ++i)
         {
             if (_checkValidUser(i))

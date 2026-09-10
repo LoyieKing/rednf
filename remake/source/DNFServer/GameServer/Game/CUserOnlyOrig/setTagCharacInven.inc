@@ -1,6 +1,7 @@
 int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
 {
     if (getTagCharacR() == 0) {
+        // [FL5 2026-09-10 负结论·已回滚] P37/P227 链在本件 ndiff 87→87 中性 ⇒ 维持具名形。
         cMyTrace trace(__PRETTY_FUNCTION__, 0xb166, 5);
         trace("CUser::setTagCharacInven m_tag_selected is null");
         return 0;

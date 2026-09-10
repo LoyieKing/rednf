@@ -13,6 +13,10 @@ bool DB_SaveCharacterOption::dispatch(int userIdx, int slot, Stream* stream)
     // 4.4 左→右恒先算 ptr。len 加 volatile 声明强制其访问先行 ⇒ 助记符序列全等
     // （DIFF→NEAR，探针 h1 实证）；余 db/sig/len 三槽重排（-0x14/-0x10/-0x18 vs
     // ORIG -0x18/-0x14/-0x10）+ %eax/%edx 角色互换 = N82/N7 封顶。
+    // [FL3W8LT 2026-09-10 A/B 回滚] 去 volatile（试让 4.4 常规槽序给 len 最浅位）
+    // 实测 **NEAR→DIFF 退化**（TU near 10→9 / diff 66→67，plus=22/minus=22 同值）
+    // ⇒ volatile 是 P316 求值序的必要载体，槽序三槽重排归 N82/N7；探针
+    // /tmp/fl3w/ps.cpp f1/f2 已证 4.4 把 volatile 局部固定排最深槽（不可兼得）。
     volatile int len = 0x200;
     // [b28c-L19 清绑 P0/N96] 原 `register int lreg asm("eax"); lreg = len;` 已删，
     // 改实参直传 len（4.4 评估序差异记 N96）。

@@ -9,10 +9,10 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
                 continue;
             int itemIdx = dungeon->m_entryRequiredItem.m_itemCount;
             int slot = param[i];
-            CInventory* inv = m_member[i].m_pUser->getCurCharacInvenW();
-            char r = (char)inv->delete_item((INVEN_TYPE)1, slot, itemIdx,
-                                            (eItemDelReason)0xe, true);
-            if (r != 1)
+            // [2026-09-10 试形 P0/P183] ORIG 无 inv/r 槽（`mov 0x7f8(%eax),%esi` 寄存器
+            // 直传、返回值直比）⇒ 内联为单语句。
+            if ((char)m_member[i].m_pUser->getCurCharacInvenW()->delete_item(
+                    (INVEN_TYPE)1, slot, itemIdx, (eItemDelReason)0xe, true) != 1)
             {
                 // [P227 全表达式临时链] ORIG 0x0859eb84..0x0859ebf6：ctor 前右起求 varargs
                 //   并跨 call 保活（dungeon+0x7f8→%edi、param[i]→%esi、characNo→%ebx），

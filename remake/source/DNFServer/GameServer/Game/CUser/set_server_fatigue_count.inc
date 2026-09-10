@@ -1,4 +1,7 @@
-void CUser::set_server_fatigue_count(short v)
+// 2026-09-10（FL2CUser 类型轴）：ORIG 0x0868d32a 段 p167 实形 = value_type 构造
+//   `_ZNSt4pairIKhsEC2IRhRKsEE`（第二实参 **const short&**）；我方 `C1IRhRsEE`
+//   （非 const）⇒ 原码形参为顶层 const（顶层 cv 不进 mangled，声明侧不变）。
+void CUser::set_server_fatigue_count(const short v)
 {
     unsigned char todayDay =
         static_cast<EventClassify::CEventScriptMng*>(

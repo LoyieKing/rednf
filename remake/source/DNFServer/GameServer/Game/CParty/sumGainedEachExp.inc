@@ -37,16 +37,18 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
         user->set_charac_seria_buf_bonus_exp(seriaBonus);
         total += seriaBonus;
 
-        CEventBase* repeatEvent =
-            GlobalData::s_event_manager->GetRepeatEvent(0x57);
-        if (repeatEvent->IsEventing(static_cast<CUser*>(0)))
+        // [2026-09-10 P0/P183] ORIG 该点用 edx 直传 IsEventing（`add $0x34,%edx;
+        // mov (%edx),%edx`）且无 -0xc/-0x10 槽 ⇒ 原码为内联表达式，无 repeatEvent 具名局部。
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(
+                static_cast<CUser*>(0)))
         {
             // ORIG *(int*)(G_CDataManager()+0x520) == ServerParameterScript+0x4b8
             //   = stWeekendBouns.m_bonusExpPercent（importServerParameterScript.md
             //   0x8a8b95b "[weekend bonus exp]" mov %eax,0x4b8(%edx) 实证）。
-            int weekendPercent =
-                G_CDataManager()->m_serverParameter.m_weekendBouns4b4.m_bonusExpPercent;
-            user->setWeekendBonusExp(baseExp, weekendPercent);
+            // ORIG `mov 0x520(%eax),%edx` 直取（无 weekendPercent 槽）⇒ 实参内联。
+            user->setWeekendBonusExp(
+                baseExp,
+                G_CDataManager()->m_serverParameter.m_weekendBouns4b4.m_bonusExpPercent);
             weekendBonus = user->getWeekendBonusExp();
             total += weekendBonus;
         }

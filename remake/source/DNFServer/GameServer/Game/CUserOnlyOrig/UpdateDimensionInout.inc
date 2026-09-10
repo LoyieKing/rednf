@@ -20,9 +20,10 @@ void CUser::UpdateDimensionInout()
         if (abnormal)
         {
             reinterpret_cast<char*>(sig)[4 + i] = 0;
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x1bde, 0);
-            trace("DIMENSION DUNGEON INOUT_COUNT ABNORMAL USER!! CHARAC_NO(%d)",
-                  *reinterpret_cast<unsigned int*>(sig));
+            // [FL5 2026-09-10 P37/P227] 全表达式临时链
+            cMyTrace(__PRETTY_FUNCTION__, 0x1bde, 0)(
+                "DIMENSION DUNGEON INOUT_COUNT ABNORMAL USER!! CHARAC_NO(%d)",
+                *reinterpret_cast<unsigned int*>(sig));
         }
         else
         {

@@ -5,7 +5,9 @@ void CUser::SetLimitInfo(SIG_LIMIT_ITEM_INFO* info)
         stLimitItemUsageInfoEx* usageInfo = G_CDataManager()->GetLimitItemUsageInfo();
         std::vector<stLimitItemUsageInfo::LimitInfo>::iterator it =
             usageInfo->m_info0.m_list.begin();
-        for (; it != usageInfo->m_info0.m_list.end(); ++it) {
+        // [FL5 2026-09-10 P28/P167] ORIG 增量段调 `__normal_iterator<...>::ppEi`（后置，
+        // 带独立 sret 临时槽；p167 直证：ORIG 有 ppEi、我方旧 `++it` 产 ppEv 差集 1）。
+        for (; it != usageInfo->m_info0.m_list.end(); it++) {
             LimitItemUsage usage;
             bool matched = false;
             for (int i = 0; i < info->m_count; ++i) {

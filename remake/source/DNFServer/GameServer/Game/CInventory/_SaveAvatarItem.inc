@@ -31,6 +31,9 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
     // [b28d-round5 P235] 直写 `*(const int*)&expansion` 时 4.4 走 RHS-first
     // （base 先载）⇒ 改用匿名 union 具名视角（m_head 与 m_color[2] 同址同宽），
     // 得 ORIG 的 LHS-first 序。sizeof/偏移/mangled 零影响（纯 TU 局部视图）。
+    // [FL7GlobalData 2026-09-10 · 第 4 形实测] 取址解引用形
+    // `*reinterpret_cast<int*>(&sig->m_expansion) = …m_head;` 仍产 4.4 RHS-first
+    // ⇒ 与直写 cast / 匿名 union 视角 / 具名引用共**四形同产**，N76 族封顶确认。
     sig->m_expansion = reinterpret_cast<const ExpansionHeadV&>(expansion).m_head;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;

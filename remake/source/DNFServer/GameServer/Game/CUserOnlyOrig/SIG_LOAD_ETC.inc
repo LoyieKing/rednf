@@ -1,5 +1,14 @@
 SIG_LOAD_ETC::SIG_LOAD_ETC()
 {
+    // [FL5 2026-09-10 判 N：placement-new 建模上限，需头文件级重构才能消]
+    // ORIG 0x08491f86（C1/C2 同址 W，size 0x269=617）构造序列 = 对每个内嵌子对象
+    // `mov 0x8(%ebp),%eax; add $OFF,%eax; mov %eax,(%esp); call T::C1Ev`（21 处，无
+    // operator new）；我方因这些区间在 SigTypes_C.h 里是 pad/union 占位（非真实成员），
+    // 只能用 `new (this+OFF) T()` ⇒ p167 EXTRA `_ZnwjPv`×20 + `_ZdlPvS_`×6、
+    // our size 1270 vs ORIG 617。行为等价（placement operator new 是 no-op 返回指针），
+    // 属 codegen/建模差异。正解=把 +0x2308/+0x24a0/+0x29fd/... 各区改声明为**真实具名
+    // 成员**（进而由编译器自动构造），但那会连带撤掉这些区上现存的 char blob 视图
+    // （DB_LoadEtc/CUserCharacInfo 按偏移读写），须整族消费点同步改写 —— 交由 Main 裁决。
     new (reinterpret_cast<char*>(this) + 0x2308) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
     new (reinterpret_cast<char*>(this) + 0x24a0) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
     new (reinterpret_cast<char*>(this) + 0x29fd) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c

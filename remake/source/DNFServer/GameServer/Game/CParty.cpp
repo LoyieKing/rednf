@@ -991,8 +991,9 @@ typedef std::vector<MapInfo> MapInfoVec;
 
     choose_random_buff((QuickParty::RandomBuffDungeon)bf.getRandomBuffDungeonType(0));
 
-    char names[256];                                       // -0x1cc
-    memset(names, 0, sizeof(names));
+    // [2026-09-10 试形 P312/P78] ORIG 该点无 memset call（p167 EXTRA memset）⇒
+    // `={0}` 让 4.4 内联 rep stos（OnFightVillageMonster/leave_user 同族实证）。
+    char names[256] = {0};                                 // -0x1cc
     _getMemberNames(names);
 
     for (int i = 0; i <= 3; ++i)

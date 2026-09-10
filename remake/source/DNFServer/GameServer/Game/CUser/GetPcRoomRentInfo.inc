@@ -11,10 +11,16 @@ int CUser::GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig)
         return 1;
 
     int index = 0;
-    for (std::vector<InstanceRentalSystem::RentalInfo>::iterator it = rentalList.begin();
+    // 2026-09-10（FL2CUser cv 轴）：ORIG 0x086769ea p167 实形 = 迭代器**混合比较**
+    //   `_ZN9__gnu_cxxneIPKN...RentalInfoEPS2_St6vectorIS2_SaIS2_EEEEbRKNS_17__normal_iteratorIT_T1_EERKNS9_IT0_SB_EE`
+    //   （第一实参 const_iterator、第二实参 iterator = rentalList.end()）⇒ 原码
+    //   **显式 `const_iterator it = rentalList.begin()`**（MISS `C2IPS2_E` 即
+    //   iterator→const_iterator 的转换构造；EXTRA 侧非 const 的 de/pp/ne 三条消失）。
+    for (std::vector<InstanceRentalSystem::RentalInfo>::const_iterator it =
+             rentalList.begin();
          it != rentalList.end(); ++it)
     {
-        InstanceRentalSystem::RentalInfo& rental = *it;
+        const InstanceRentalSystem::RentalInfo& rental = *it;
         bool bInEquip = false;
         int slot = 0;
         const CInventory* inven = getCurCharacInvenR();

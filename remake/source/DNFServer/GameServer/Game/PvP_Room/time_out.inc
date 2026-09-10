@@ -67,7 +67,15 @@ int PvP_Room::time_out(int* seats)
         local_44 = PVP_DM_BATTLE_TIME[local_4c] / 1000;
         break;
     }
-    if (local_44 > local_48)
+    // [FL8PvPWorldLeague 2026-09-10] 源码形试点（语义等价改写）：ORIG 0x085d9be6 段为
+    // `mov -0x44(%ebp),%eax; mov -0x40(%ebp),%edx; mov %edx,%ecx; sub %eax,%ecx;
+    // mov %ecx,%eax; test %eax,%eax; jle`（**减法物化 + test**，非 cmp）⇒ 原码是
+    // 减法形。槽实况：-0x44=local_48(play_time)、-0x40=local_44(end_time)；
+    // ORIG 先载 local_48（右操作数）⇒ 4.1/4.4 均为「右操作数先载」，故源形须写
+    // `local_44 - local_48 > 0`（⇔ 原 `local_44 > local_48`，整型无溢出，严格等价），
+    // 4.4 即先载 -0x44 复现 ORIG 序。旧形 `local_44 > local_48` 被 4.4 折成
+    // `mov -0x40,%eax; cmp -0x44,%eax` 两段。
+    if (local_44 - local_48 > 0)
     {
         cMyTrace local_5c(__PRETTY_FUNCTION__, 0xa9a, 0);
         local_5c("PVP_TIMEOUT_CHECK end_time(%d), play_time(%d)", local_44, local_48);
@@ -118,9 +126,13 @@ int PvP_Room::time_out(int* seats)
                 if ((P_SEATS(local_30) != 0) && (P_TEAMWIN(local_30) != 0) &&
                     (P_TEAMWIN(local_30) < 0xfe))
                 {
-                    // [L10b] `+=` 单语句形：ORIG 0x085d9da2/0x085d9d.. 为单求值
-                    // （同一 %eax 索引 load/store 两次），`= X + k` 形令 4.4 重算索引。
-                    local_84.m_cnt5[P_TEAMWIN(local_30)] += 1;
+                    // [L10b] ORIG 0x085d9da2 为单求值（同一 %eax 索引 load/store
+                    // 两次），旧 `+= 1` 形令 4.4 对下标 P_TEAMWIN(local_30) 求值
+                    // **两次**（读/写各一次）。
+                    // [FL8PvPWorldLeague 2026-09-10] 实测前置 `++` 形即单求值：
+                    // 本件 ndiff 99→**85**（u 370→366，gap 回 -1），TU 四数不劣化
+                    // ⇒ 沿用 `++`。
+                    ++local_84.m_cnt5[P_TEAMWIN(local_30)];
                     local_84.m_cnt0[P_TEAMWIN(local_30)] += seats[local_30];
                 }
             }

@@ -54,10 +54,14 @@ void CUser::ReturnToSelectCharacList(bool param)
     ResetCharacExpandData();
 
     {
-        std::string name("Arad_EventPeriodDataManager");
         ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
+        // 2026-09-10（FL2CUser 类型轴，同 DisConnSig）：ORIG 0x08686fee 段 p167 差集
+        //   只有「我们多 1×`SsC2ERKSs` 拷贝构造 + 2×`SsD2Ev` + 1×`_Unwind_Resume`」，
+        //   而形参 `findGameScriptESs` 为按值 std::string ⇒ 原码直传字面量
+        //   （临时 elide 直达形参），无具名 name 局部（EH 清理块亦随之消失）。
         ARAD::Arad_EventPeriodDataManager* epdm =
-            (ARAD::Arad_EventPeriodDataManager*)adm->findGameScript(name);
+            (ARAD::Arad_EventPeriodDataManager*)adm->findGameScript(
+                "Arad_EventPeriodDataManager");
         epdm->delUserRewardData(this);
     }
 

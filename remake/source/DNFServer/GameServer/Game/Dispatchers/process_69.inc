@@ -25,6 +25,9 @@ int Dispatcher_JoinGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& par
     // [round5 A01] P0/P183：ORIG 0x081d540b/0x081d5418 结果分别在 %ebx/%eax，
     //   无具名槽（我方旧码 characNo/uid 各占 4B ⇒ 帧 0x24→0x28）。实参右到左：
     //   a2=GetUID(最先求值) → a1=serverGroup → a0=GetUID 形参顺序见下。
+    // [FL1 2026-09-10 负结论] P290 变体（首实参 `(unsigned int)`）实测无效：
+    //   仍 52/54、`push %esi` 保留 ⇒ ORIG %ebx vs 我方 %esi 属 N7 寄存器角色差
+    //   （帧 0x28 vs 0x24），封顶。
     DB_JoinGuildInfo::makeRequest((int)user->GetUID(),
                                   (ENUM_SERVER_GROUP)serverGroup,
                                   (unsigned int)user->getCurCharacNo());

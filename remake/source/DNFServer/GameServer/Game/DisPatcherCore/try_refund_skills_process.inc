@@ -11,8 +11,13 @@ void DisPatcher_BuySkill::try_refund_skills_process(CUser* user, char /*treeKind
     register int level = user->get_charac_level();           // ORIG ebx
     // ORIG `mov 0x14(%ebp),%eax; movzbl (%eax),%eax; movzbl %al,%edi`：info.m_0
     // 在 skillW 的 call 之前取值并跨该 call 保活于 %edi ⇒ 具名 register 局部。
+    // [FL4 负结论] P267 两段装载不可造：源侧改 `(unsigned char)(unsigned int)info.m_0`
+    // 实测 4.4 仍发单段 `movzbl (%eax),%edi`（ORIG 为两段 cs 32/33），帧 0x5c 不变
+    // ⇒ 归 N18a（4.1 冗余 regmove 折半不可造）族，维持单段 cast 原形。
     register unsigned char itemIdx = static_cast<unsigned char>(info.m_0);
-    SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
+    // [FL4] P0/P89：ORIG 0x...`call getCurCharacSkillW; mov %eax,%edx`（receiver 直落
+    // %edx，**无**具名指针槽）；旧形 `SkillSlot* skillW = ...` 占 -0x1c 槽 + 回读 2 条。
     info.m_4 =
-        skillW->try_refund_skill(itemIdx, level, job, firstGrow, secondGrow, addLevel,
-                                 refundCount);
+        ((SkillSlot*)(user->getCurCharacSkillW()))
+            ->try_refund_skill(itemIdx, level, job, firstGrow, secondGrow, addLevel,
+                               refundCount);

@@ -21,14 +21,15 @@ bool CUser::CalLevelUpItemState(char& state, int& needExp, int fromLevel, int to
             // [CUserOnlyOrig 2026-09-09 P139] ORIG 用局部静态符号
             // _ZZN5CUser19CalLevelUpItemStateERcRiiiE19__PRETTY_FUNCTION__（nm 实证 0x08cf2620）
             // ⇒ 必须传 __PRETTY_FUNCTION__，手写同内容字面量只生匿名 .rodata。
-            cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0d7, 0);
-            trace("Level_up_item:wrong value(%d) m_id(%s),charno(%u)", needExp,
-                  NumberToString(get_acc_id(), 0), getCurCharacNo());
+            // [FL5 2026-09-10 P37/P227 试行] 全表达式临时链（消 trace 具名槽）
+            cMyTrace((char*)__PRETTY_FUNCTION__, 0xa0d7, 0)(
+                "Level_up_item:wrong value(%d) m_id(%s),charno(%u)", needExp,
+                NumberToString(get_acc_id(), 0), getCurCharacNo());
             return false;
         }
-        cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0da, 0);
-        trace("Level_up_item:success value(%d) m_id(%s),charno(%u)", needExp,
-              NumberToString(get_acc_id(), 0), getCurCharacNo());
+        cMyTrace((char*)__PRETTY_FUNCTION__, 0xa0da, 0)(
+            "Level_up_item:success value(%d) m_id(%s),charno(%u)", needExp,
+            NumberToString(get_acc_id(), 0), getCurCharacNo());
         return true;
     }
     return false;

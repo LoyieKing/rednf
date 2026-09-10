@@ -20,7 +20,12 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
     {
         if (m_pAvatarSlot[i].m_addInfo == 0)
         {
-            int tick = OS_API::GetDateTimeTick();
+            // [FL7GlobalData 2026-09-10 · P290 **DIFF→AE（ndiff 18→0）**] ORIG 段把 tick
+            // 槽值**提前**载入（`mov -0x20(%ebp),%eax` 位于 `lea 0x734(%ecx)` 之前）并跨
+            // 接收者取址保活后入 0x8(%esp)；我方旧 int 形在装载段末尾才 `mov -0x20(%ebp),%eax`
+            // ⇒ 声明改 **unsigned int**（值域为 tick，语义等价）后 4.4 即升格提前装载。
+            // 实测：单件 208/208 gap=0 ndiff 0；TU 四数 ae 268→269、diff 17→16。
+            unsigned int tick = (unsigned int)OS_API::GetDateTimeTick();
             m_pAvatarSlot[i].m_addInfo = itemIdx;
             m_pAvatarSlot[i].m_addInfo2 = (int)m_avatarItemMgr.RegistNotAssignedAvatarItem(
                 avatarUid, tick, agency, e, emblem);

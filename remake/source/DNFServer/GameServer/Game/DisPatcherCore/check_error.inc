@@ -38,18 +38,12 @@ unsigned int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
         return 0xfffffffe;
     }
     std::string local_38(user->m_characList[static_cast<int>(sel.m_slot)].m_name);
-    bool bVar4;
+    // [FL4] P0/P198②：ORIG 0x081d0xxx 该 bool 无栈槽（`mov $0x1,%eax; jmp; mov $0x0,%eax;
+    // test %al,%al; je` 寄存器物化后直测）⇒ 原码是**单条 if（内联短路表达式）**，非
+    // 「bool 具名 + 二次 if」；旧形多发 `movb $0/$1,-0x21; cmpb $0,-0x21` 四条槽往返。
+    int uVar10;
     if (CSyncSlangFilter::GetInstance()->HasSlangName(local_38) == false &&
         CSyncSlangFilter::GetInstance()->HasSlang(local_38) == false)
-    {
-        bVar4 = false;
-    }
-    else
-    {
-        bVar4 = true;
-    }
-    int uVar10;
-    if (bVar4)
     {
         uVar10 = 0x9f;
     }

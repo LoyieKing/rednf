@@ -1,12 +1,15 @@
 bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
 {
-    int   sp1   = skill->m_remainSpTree1;                   // +0x8
+    // [FL5 2026-09-10 P290 试行] ORIG 0x0864dc19-0x0864dc1f 把 sp1/sp2/tail1 升格
+    // 到 %ebx/%esi/%edi 跨 receiver call 保活；4.4 对 `int` 局部改走槽重读。
+    // 改 unsigned（值域非负，语义等价；实参仍按隐式转换传 int 形参）。
+    unsigned int sp1 = skill->m_remainSpTree1;              // +0x8
     char* bufA  = reinterpret_cast<char*>(&skill->m_skillSlotTree1[0]);   // +0xc
     int   size  = 0x198;   // ORIG 0x0864db3b movl $0x198,-0x2c（4.1 sizeof*SIZE 常量物化槽）
-    int   sp2   = skill->m_remainSpTree2;                   // +0x1a4
+    unsigned int sp2 = skill->m_remainSpTree2;              // +0x1a4
     char* bufB  = reinterpret_cast<char*>(&skill->m_skillSlotTree2[0]);   // +0x1a8
-    int   tail1 = skill->m_remainSfpTree1;                  // +0x340
-    int   tail2 = skill->m_remainSfpTree2;                  // +0x344（ORIG 实参第 4 = sfp2）
+    unsigned int tail1 = skill->m_remainSfpTree1;           // +0x340
+    unsigned int tail2 = skill->m_remainSfpTree2;           // +0x344（ORIG 实参第 4 = sfp2）
 
     // ORIG 0x0864db71：恒假防御检查（4.1 保留代码）——`cmpl $0x198,-0x2c; je`，
     // 不匹配则 getCurCharacName 结果直落 0x14(%esp) 走 LogManager::logFormat 后返 0
@@ -19,20 +22,20 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
     }
     if (getCurCharacR() == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x13ad, 5);
-        trace("CUser::SetSkill User  m_selected is null");
+        // [FL5 2026-09-10 P37/P227] 全表达式临时链
+        cMyTrace(__PRETTY_FUNCTION__, 0x13ad, 5)("CUser::SetSkill User  m_selected is null");
         return false;
     }
 
     // asm 实参序:(sp1, sp2, tail1, tail2=[0x344])——ORIG 第 4 参为 0x344 字段
-    // [DualCUOO 2026-09-09] 实测链式调用（ORIG 形态）反而把 gap 从 6 拉到 10
-    // （槽序/寄存器分配连带），故保留具名槽形；余 6 条为 ORIG 把 sp1/sp2/tail1
-    // 常驻 ebx/esi/edi（0x0864dc19-0x0864dc1f 加载、0x0864dcec-0x0864dcee 弹出）。
-    SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
-    slot->set_remain_sp(sp1, sp2, tail1, tail2);
+    // [FL5 2026-09-10 P52/P200 重试] ORIG 0x0864dc19-0x0864dc1f 先把 sp1/sp2/tail1
+    // 装入 %ebx/%esi/%edi（callee-saved，跨 getCurCharacSkillW() receiver call 保活），
+    // 0x0864dcec 才 pop；DualCUOO 期「两语句 + 具名 slot」形把索引值压回栈槽。
+    // 按 P52 用**单条链式表达式**（receiver 调用内联进语句）复现 callee-saved 独占形；
+    // 若读数反劣（旧批测得 gap 6→10）则回退为具名形。
+    ((SkillSlot*)getCurCharacSkillW())->set_remain_sp(sp1, sp2, tail1, tail2);
 
-    slot = (SkillSlot*)getCurCharacSkillW();
-    slot->set_skill_slot(bufA, bufB, 0x198);
+    ((SkillSlot*)getCurCharacSkillW())->set_skill_slot(bufA, bufB, 0x198);
 
     setSkillCommandData(reinterpret_cast<char*>(&skill->m_commands[0]));  // +0x348
 

@@ -19,8 +19,9 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
     }
     if (m_battleField.m_pDungeon != 0)
     {
-        char names[0x100];
-        memset(names, 0, 0x100);
+        // [2026-09-10 试形 P312/P78] ORIG 该点无 memset call（p167 EXTRA memset）；
+        // `char[0x100] = {0}` 令 4.4 内联 rep stos（OnFightVillageMonster 同族实证）。
+        char names[0x100] = {0};
         int partyType = m_battleField.m_bloodState;
         char* memberNames = _getMemberNames(names);
         int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
