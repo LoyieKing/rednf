@@ -8376,9 +8376,26 @@ struct DB_MailBoxSendNewMailView
     int m_field28;             // +0x28
     char m_attach[0x4];        // +0x2c（SIG_AVATAR_INSERT / SIG_CREATURE_ITEM 起始）
     int m_field30;             // +0x30
-    int m_field34;             // +0x34
-    unsigned char m_field35;   // +0x35（avatar 用）
-    char m_pad36[0xa];         // +0x36..+0x3f
+    // [Main·2026-09-10 round5 真语义 bug 修复 · G4 上报]
+    // ORIG 0x0842738x 段实证：creature 分支 `mov 0x34(%eax),%eax`（**4 字节**@0x34）、
+    // avatar 分支 `movzbl 0x35(%eax),%eax`（**1 字节**@0x35）—— 两个视图**共享** 0x34 槽，
+    // 字节视图落在 4B 视图的第 2 字节。原先写成顺序两个字段（pack(1) 不重叠）⇒
+    // `m_field35` 实际落到 +0x38，其后全部字段整体 +3：
+    //   m_titleLen 读 +0xa3（应 +0xa0）⇒ 标题长度错、影响 strncpy 与 SQL 载荷；
+    //   m_field1a2 读 +0x1a5（应 +0x1a2）。
+    // 现用匿名 union 让 4B 视图（m_field34）与字节视图（m_field35 @ +0x35）正确重叠，
+    // 后续字段偏移随之回到 ORIG 值（m_pad38 起 +0x38，m_field40 @ +0x40 …）。
+    union                       // +0x34
+    {
+        int m_field34;         //   +0x34（4B，creature 分支用）
+        struct                 //   +0x34 起的字节视图（1 + 1 + 2 = 4B）
+        {
+            char m_pad34;              // +0x34
+            unsigned char m_field35;   // +0x35（avatar 分支用）
+            char m_pad36b[2];          // +0x36..+0x37
+        };
+    };
+    char m_pad38[0x8];         // +0x38..+0x3f
     unsigned short m_field40;  // +0x40（creature 用）
     char m_pad42[0x12];        // +0x42..+0x53
     int m_field54;             // +0x54
@@ -8408,6 +8425,22 @@ struct DB_MailSendDataView      // SIG_MAILBOX_SEND_NEW_MAIL（0x168）
     char m_title[0x10d];        // +0x5b
 };
 #pragma pack(pop)
+
+// [Main·2026-09-10 round5] 布局锁定（R2 精神）：上面两个载荷视图的**关键偏移**
+// 必须与 ORIG 的字段读取地址逐一对应，否则运行期读错字段（曾出过 m_field35
+// 顺序化导致其后全部字段 +3 的真 bug）。改动该结构体必须让这些断言继续成立。
+static_assert(offsetof(DB_MailBoxSendNewMailView, m_field34) == 0x34,
+              "m_field34 须在 +0x34（creature 分支 4B 读）");
+static_assert(offsetof(DB_MailBoxSendNewMailView, m_field35) == 0x35,
+              "m_field35 须在 +0x35（avatar 分支 1B 读，与 m_field34 共享槽）");
+static_assert(offsetof(DB_MailBoxSendNewMailView, m_field40) == 0x40, "m_field40 @ +0x40");
+static_assert(offsetof(DB_MailBoxSendNewMailView, m_titleLen) == 0xa0, "m_titleLen @ +0xa0");
+static_assert(offsetof(DB_MailBoxSendNewMailView, m_title) == 0xa2, "m_title @ +0xa2");
+static_assert(offsetof(DB_MailBoxSendNewMailView, m_field1a2) == 0x1a2, "m_field1a2 @ +0x1a2");
+// 末字段偏移 0x1a2（1B）⇒ sizeof 0x1a3。**不要**把它断言成信号长 0x1a4：
+// 视图只需覆盖被代码访问到的字段，尾部填充字节不影响字段地址。
+static_assert(sizeof(DB_MailBoxSendNewMailView) == 0x1a3, "视图 sizeof 须为 0x1a3");
+static_assert(offsetof(DB_MailSendDataView, m_title) == 0x5b, "DB_MailSendDataView::m_title @ +0x5b");
 
 // ---- SIG_SECURITY_CARD_UPDATE_FAIL_CNT（0x18）视图 ----
 #pragma pack(push, 1)
