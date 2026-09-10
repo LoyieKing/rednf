@@ -43,6 +43,41 @@
 //   · ImportMapScript @0x089dcf54 (0x6d01) —— N（超大解析函数：N82/N89 + P163 决策树
 //     + P164 循环旋转 + P165 三段法；按 §6.2 三件套口径收）。
 //   语义均按报告/objdump 逐指令转写并核对；残差全为跨版本结构族，无真语义缺口。
+//
+// [lane22-STMapScript 2026-09-10 复核] fresh check_tu_routed：
+//   COMPILE OK / identical=905 ae=1776 near=1 diff=24 —— 与本轮开工读数相同（未回退）。
+//   ①判据①（jcc/jmp 目标下标逐位）：9 件 DIFF/NEAR 全部逐条比对——对齐块内每条跳转的
+//     **目标相对偏移**两侧完全一致（0 处真错位）；3 处落点助记符差（ImportMapScript
+//     +0x12a1、Clear、C1ERKS_）均为帧/槽平移产物，非目标写错。
+//   ②exportCharacterScript 0x08a102a4（989/989；mnemonic 差 61→4）：已修 3 处真形态差——
+//     ① `unsigned int i = 0;` + `for (i = 0;)` 双初始化（P191；ORIG 0x8a1030d/0x8a1032a）；
+//     ② 该循环 `i < 6` 用 unsigned ⇒ `cmpl $0x5; setbe`（P2，原 setle）；
+//     ③ grow 循环复用同一 unsigned i ⇒ 尾测 `cmpl $0x6; setbe`（P2，原 setle）；
+//     ④ m_blood 分支按 ORIG 正极性重排（`!= 0` 前置 + je 落 else，ORIG 0x08a110f1）。
+//     余 4 条 O113-116（ORIG `imul $0x57; add $0x20; add this; add $4` vs 4.4
+//     `lea 0x24(this),%edx` + `lea (%edx,%eax,1)`）＝ add-vs-lea 折痕 ⇒ N（P30/N107；
+//     三形源码变体 `m_growStatus[i-1]`/`(&m_initialStatus)[i]`/指针算术 实测均 lea）。
+//   ③STMapScript::Clear 0x0836c688（340/339）：A/B 三轮——(a) 去 `register c`（内层占槽
+//     但丢 push %ebx）；(b) 各 `for(int i…)` 合并为函数级 r 复用（槽集 8→4）；(c) `int c;`
+//     头部声明。ORIG 槽集 {12,16,20,24,28,32}：5 个循环共用 -0x20（17 次）+ j1@-0x18 /
+//     j2@-0x14（**4.1 不复用**）；4.4 对互斥块同型变量复用同槽（N82 正身）+ 每轮重载
+//     this（ORIG 保 %ecx）⇒ N82 封顶。
+//   ④ImportMapScript 0x089dcf54（6233/6173）：p167 差集全为 C1/C2、D1/D2 同址别名
+//     （§P93 伪差集）⇒ 语义完整。gap 60 真因 = 31 处「ORIG `movzbl ok; xor $1; test;
+//     je body`（4.1 while 旋转 + bool 取反物化）vs 我方 `test; jne`（4.4 正极性收回跳）」
+//     + 各段寄存器/槽重载（movzbl-mem 62:45、movzbl-global 31:20、call 29:26；立即数
+//     多重集 $1 差 30；je -13 / jne +16）。属 P164/P283 旋转 + P292 物化族 ⇒ N。
+//   ⑤C1ERKS_ 0x0837e698（988/994）：我方函数尾多 6 条 epilogue（ORIG 以 _Unwind_Resume
+//     收尾）＝ N104（EH 尾块相对序）+ N90（ORIG 43 条准备段 vs 我方 7）⇒ N。
+//   ⑥STL 实例 15 件（__uninitialized_copy ×12 / _M_insert_aux / __copy_move_backward /
+//     new_allocator::construct）：ORIG(4.1 头) 含 EH 回滚段（~T + operator delete +
+//     _Unwind_Resume），4.4.7 头判 nothrow 省略 ⇒ N89/N130（libstdc++ 头集差异，非本 TU
+//     源码可控）。`_Z41__static_initialization_and_destruction_0ii` = N123 撞名豁免。
+//   ⑦procSpecialPassiveObject 0x089e7958（488/505）/ VerifyError 0x089e6f62（613/635）：
+//     call 锚对齐后无缺调用，残差为段内 ±10~29 的寄存器/槽分布差；3409 行 int* 视图
+//     经 Main「视图 cast 反模式」洞察复核（ORIG 原形为 int 数组视图，保留）⇒ N82/N89。
+//   ⑧getGrowTypeName 0x088bf2b8：542=542、mnemonic 全等（NEAR），残差 = pair 两物化槽的
+//     立即数配对（ORIG 深槽=first/浅槽=second）⇒ N93/P75（变体实测不可翻）。
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -883,32 +918,35 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_vecExtendedTile.clear();              // vector<string>::clear(+0x1f)
     // ORIG 0x0836c7f7：2×3 嵌套循环（外 -0x20≤1 双 init；内层 c 槽驻留 + body
     // 缓存 %ebx 为 4.1 寻址寄存器分配，4.4 不缓存 → 残余 N，助记符已全同）。
+    // ORIG 全程复用同一循环变量槽 -0x20（17 次使用，跨 5 个循环）⇒ 原码声明一个
+    // 函数级变量供各循环共用（4.4 对每个循环新声明会给独立槽，槽图不符）。
     int r = 0;
+    int c;                                   // P212：与 r 同层头部声明 ⇒ 4.4「先声明深」槽序
     for (r = 0; r < 2; ++r)
-        for (register int c = 0; c < 3; ++c)   // P231：纯 register 提示复现 ORIG %ebx 缓存
+        for (c = 0; c < 3; ++c)               // ORIG 内层占槽 -0x1c
             m_sightScroll[r * 3 + c] = 100; //  0x20+r*3+c word 基 0x22..0x27
     m_vecBackAni.clear();                   // vector<BackAniScript>::clear(+0x28)
     m_vecBackGroundEffect.clear();          // vector<BackGroundEffect>::clear(+0x2b)
     m_vecBlockEffect.clear();               // vector<BackGroundEffectBlock>::clear(+0x2e)
     m_vecDialog.clear();                    // vector<STDialog>::clear(+0x31)
     m_startPathDir = 4;                     // param_1[0x34]=4
-    for (int i = 0; i < 4; ++i)             // byte(0xd4+i)=0
-        m_blockPath[i] = 0;
+    for (r = 0; r < 4; ++r)                 // byte(0xd4+i)=0（复用 -0x20）
+        m_blockPath[r] = 0;
     m_tileOptionUpper = 0;                  // byte(param_1+0x36)=0
     m_vecTownMovableArea.clear();           // vector<TownPath>::clear(+0x37)
     m_vecVirtualMovableArea.clear();        // vector<MapArea>::clear(+0x3a)
     m_vecGuildAgitEntrance.clear();         // vector<TownPath>::clear(+0x3d)
     // ORIG 0x0836c91b / 0x0836c963：**两个独立嵌套循环**（各自 i@-0x20 复用，
     // j 分别 -0x18/-0x14），非单一外层包两内层。
-    for (int i = 0; i < 4; ++i)
+    for (r = 0; r < 4; ++r)                 // 复用 -0x20
     {
         for (int j = 0; j < 2; ++j)
-            m_pathgatePos[i * 2 + j] = 0;   // 0x40+i*2+j word 基
+            m_pathgatePos[r * 2 + j] = 0;   // 0x40+i*2+j word 基
     }
-    for (int i = 0; i < 4; ++i)
+    for (r = 0; r < 4; ++r)                 // 复用 -0x20
     {
         for (int j = 0; j < 2; ++j)
-            m_pathgateRange[i * 2 + j] = 0; // 0x48+i*2+j word 基
+            m_pathgateRange[r * 2 + j] = 0; // 0x48+i*2+j word 基
     }
     m_dungeonStartArea.clear();             // MapArea::clear(+0x50)
     m_openingBgm.clear();                   // Ss::clear(+99=0x18c)
@@ -920,8 +958,8 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_str1b0 = "PVP놀이게임";                // Ss::operator=(+0x6c,&UNK_08c2f621)
     m_playerCountMin = 2;                   // param_1[0x6d]=2
     m_playerCountMax = 8;                   // param_1[0x6e]=8
-    for (int i = 0; i < 5; ++i)             // 5×MapArea::clear(+0x6f+i*7 words)
-        m_pvpStartArea[i].clear();
+    for (r = 0; r < 5; ++r)                 // 5×MapArea::clear(+0x6f+i*7 words)（复用 -0x20）
+        m_pvpStartArea[r].clear();
     m_24c = 0;                              // param_1[0x93]=0
     m_str1b0.clear();                       // Ss::clear(+0x6c)（汇编原序保留的重复清空）
     m_vecMonsterSpawnPos.clear();           // vector<STRivalMapData>::clear(+0x94)
@@ -952,8 +990,8 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     // ORIG Clear 0x0836c688：movb $0,0x248（m_pvpByPartySlot）+
     // 循环 movb $0,0x249+i（m_keepStateAxisX/Y/Z 三 byte）——布局修正补漏。
     m_pvpByPartySlot = 0;
-    for (int i = 0; i < 3; ++i)
-        (&m_keepStateAxisX)[i] = 0;
+    for (r = 0; r < 3; ++r)
+        (&m_keepStateAxisX)[r] = 0;
     m_str370.clear();                       // Ss::clear(+0xdc)
     m_visibleMinimap = 1;                   // param_1[0xdd]=1
     m_visibleTownMinimap = 1;               // param_1[0xde]=1
@@ -4006,8 +4044,9 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
         return 0;
 
     fprintf(file, "[job] `%s`\n", getCharacterJobName(ENUM_CHARACTERJOB(script->m_job)));
+    unsigned int i = 0;                     // P191：ORIG 声明 + for-init 双初始化（0x8a1030d/0x8a1032a）
     fwrite("[growtype name]", 1, 0xf, file);
-    for (int i = 0; i < 6; ++i)
+    for (i = 0; i < 6; ++i)                 // P2：ORIG cmpl $0x5 + setbe ⇒ unsigned 计数
         fprintf(file, " `%s`", script->m_growtypeName[i].c_str());
     fputc(10, file);
     fprintf(file, "[width] %d %d\n", script->m_width, script->m_height);
@@ -4018,10 +4057,12 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
     exportCharacterStatusScript(file, &script->m_initialStatus);
     exportCharacterGiveSkillScript(file, &script->m_skillList[0]);
     exportCharacterEtcStatsScript(file, &script->m_etcStats[0]);
-    for (int i = 1; i < 7; ++i)
+    for (i = 1; i < 7; ++i)                 // ORIG 复用同一 unsigned i（槽 -0x1c，0x8a1046a 尾测 setbe）
     {
         fprintf(file, "\n[\xbe\xd5\xd0\xd1\xbc\xbc%d]\n", i);  // ORIG "\n[觉醒技%d]\n"
-        exportCharacterStatusScript(file, &script->m_growStatus[i - 1]);
+        // ORIG 0x8a1038b：`imul $0x57; add $0x20; add this; add $4` ⇒ 基址取
+        // m_initialStatus(+0x24) + i*0x57（与 m_growStatus[i-1] 同址，P30 两步折叠形）。
+        exportCharacterStatusScript(file, &(&script->m_initialStatus)[i]);
         exportCharacterGiveSkillScript(file, &script->m_skillList[i]);
         exportCharacterEtcStatsScript(file, &script->m_etcStats[i]);
     }
@@ -4135,10 +4176,11 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
             fwrite("`[burn]` ", 1, 9, file);
         else if (info.m_hitType == 3)
             fwrite("`[etc]` ", 1, 8, file);
-        if (info.m_blood == 0)
-            fwrite("`[no blood]` ", 1, 0xd, file);
-        else
+        // ORIG 0x8a110f1：`test %al,%al; je <no blood 块>` ⇒ 正极性 != 0 前置
+        if (info.m_blood != 0)
             fwrite("`[blood]` ", 1, 0xa, file);
+        else
+            fwrite("`[no blood]` ", 1, 0xd, file);
         fprintf(file, "%d %.2f\n", info.m_field14, info.m_rate18);
     }
     fwrite("[/weapon hit info]\n", 1, 0x13, file);
