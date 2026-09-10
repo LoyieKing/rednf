@@ -591,8 +591,9 @@ CUser* CGameManager::createUser()
     }
     if (user == 0)
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x8e3, 5);
-        tr("createUser Failed! need to restart!");
+        // b28d-laneCGM（P227 全表达式临时链）：ORIG 该处 op() 实参在 ctor 前求值/直落
+        //   寄存器（具名 tr 形多一次对象槽 + ctor 后读）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x8e3, 5)("createUser Failed! need to restart!");
         return 0;
     }
     unsigned int uid = user->GetUID();
@@ -846,8 +847,13 @@ bool CGameManager::CheckOutQuickParty(CParty* party, bool flag)
     // 复用 eax；4.4 恒补 `movzbl -0xc(%ebp),%eax`。ORIG `xor$1;test;jmp;nop` 的 test
     // 为 4.1 bool 归一 dead test（P225），4.4 不发。本波实测 `!call()` 与
     // `(bool)(call()^1)` 两形产物逐条相同（4.4.7），故保留 `!` 形。
-    if (party != 0)
-        return !G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0);
+    // b28d-laneCGM: P223 空 then 占位岛形——ORIG 0x0829840d `cmpl $0,0xc(%ebp); je
+    //   +0x46(nop 岛)`；体尾 0x08298440 `jmp +0x47` 跨过 nop 落 epilogue。裸
+    //   if/return 形被 4.4 jump-thread（无 jmp+nop，ndiff 2）。
+    if (party == 0)
+        goto L_quick_party_flag;
+    return !G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0);
+L_quick_party_flag:;
     return flag;
 }
 
@@ -912,7 +918,6 @@ PvP_Room* CGameManager::GetPvp()
     // find sret 槽组平移 → N82附。ORIG 0x0829507c。
     // b28d-solo-CGameManager 判词：N82附（帧 0x64+push ebx vs 0x68；room -0xc vs -0x10）。
     PvP_Room* room = m_pvpRoomPool.Acquire();
-    int roomIdx;
     if (room == 0)
         return 0;
     room->SetIDX(m_pvpRoomPool.GetIndex(room));
@@ -922,15 +927,17 @@ PvP_Room* CGameManager::GetPvp()
         std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(roomIndex);
     if (it == m_pvpRoomMap.end())
     {
-        roomIdx = room->get_index();
-        CSwitchLog(__PRETTY_FUNCTION__, 0xaa9, 0, 0)("pvp@log room(%d) new alloc", roomIdx);
+        // b28d-laneCGM（P87/P227）：ORIG 0x08295134 `call get_index; mov %eax,%ebx` 在
+        //   CSwitchLog ctor **前**预取（op() 实参用 %ebx）；具名 roomIdx 恒落槽。
+        CSwitchLog(__PRETTY_FUNCTION__, 0xaa9, 0, 0)(
+            "pvp@log room(%d) new alloc", room->get_index());
         m_pvpRoomMap[room->get_index()] = room;
         return room;
     }
     else
     {
-        roomIdx = room->get_index();
-        CSwitchLog(__PRETTY_FUNCTION__, 0xab2, 0, 0)("pvp@log room(%d) already alloc", roomIdx);
+        CSwitchLog(__PRETTY_FUNCTION__, 0xab2, 0, 0)(
+            "pvp@log room(%d) already alloc", room->get_index());
         return 0;
     }
 }
@@ -993,10 +1000,17 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
 {
     // b28d-lane12: N82 槽平移封顶（orig=210 our=210 gap=0；ndiff 270 全为槽号——
     // PacketGuard/CSwitchLog/leave_room 局部槽组）。ORIG 0x08297eaa。
-    // b28d-solo-CGameManager: ORIG 0x08297eb8 `call; xor $0x1,%eax; test %al; jne`
-    // ⇒ callee bool + 裸 `!`（P168a 定论：int callee 的调用点写法恒产 sete/栈化；
-    // CheckInPvp 已为 bool）。原 `== 1` 产 `test %al` 无 xor 段。
+    // b28d-laneCGM 真语义修正（判据①·条件极性）：ORIG 0x08297ec9 `jne 08298197`
+    // 落点 = +0x2ed（尾部 nop→epilogue），且报告 Ghidra C 为 `if (cVar2 == '\x01')`
+    // ⇒ ORIG 是 `CheckInPvp()` 为**真**时执行 body。旧形 `!user->CheckInPvp()`
+    // （我方 1fe0 `je 22be` 同样落尾部 ⇒ 假值进 body）方向相反——真 bug。
+    // ORIG 的 `xor $1; test; jne tail` 是 4.1 对 bool 取反的跳转形（保留 xor 段）。
+    // b28d-laneCGM：空 then + else 结构复现 ORIG 的 `xor $1,%eax; test %al,%al;
+    //   jne <tail>`（P223 变体 / 同 CheckOutTrade 形）；`if(f()){body}` 反向。
     if (!user->CheckInPvp())
+    {
+    }
+    else
     {
         PvP_Room* room = GetPvp((int)user->GetPvpIndex(), user, 0);
         if (room != 0)
@@ -1005,23 +1019,18 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
             bool outFlag = false;
             int ret = room->leave_room(user, outFlag);
             int outFlagInt = outFlag;
-            int battleMode = room->get_pvp_battle_mode();
-            int roomIdx = room->get_index();
-            const char* characName = user->getCurCharacName();
-            const char* accName = user->get_acc_name();
-            {
-                CSwitchLog log(__PRETTY_FUNCTION__, 0x11a1, 0, 0);
-                log("pvp@log %s,%s, room(%d),%d,%d",
-                    accName, characName, roomIdx, battleMode, outFlagInt);
-            }
-            if (ret < 0)
-            {
-                LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11bd,
-                                      "pvp@log room(%d) user(%s) leave fail",
-                                      room->get_index(),
-                                      NumberToString(user->get_acc_id(), 0));
-            }
-            else
+            // b28d-laneCGM（P227 全表达式临时链）：ORIG 0x08297f49..0x08297fc3 在
+            //   CSwitchLog ctor **之前**右→左求值 battleMode/roomIdx/characName/accName
+            //   并以 %edi/%esi/%ebx 跨 ctor 保活；具名局部恒落槽（我方旧形 -0x14/-0x10/-0xc）。
+            CSwitchLog(__PRETTY_FUNCTION__, 0x11a1, 0, 0)(
+                "pvp@log %s,%s, room(%d),%d,%d",
+                user->get_acc_name(), user->getCurCharacName(),
+                room->get_index(), room->get_pvp_battle_mode(), outFlagInt);
+            // b28d-laneCGM: 反转 if/else 使 4.4 物理块序与 ORIG 一致——ORIG
+            //   0x08297fcc `js +0x209` 且 >=0 块直落（+0x128），logFormat 块置后
+            //   （+0x209，尾直落 join）；4.4 对 `if(ret<0){A} else {B}` 恒产
+            //   `jns B; A; jmp join; B:`（A 前置）⇒ 改写为 `if(ret>=0){B} else {A}`。
+            if (ret >= 0)
             {
                 guard.clear();
                 room->make_seat_info((char*)&guard, ret);
@@ -1040,6 +1049,13 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
                     room->make_state_info((char*)&guard);
                     G_GameWorld()->send_all(guard);
                 }
+            }
+            else
+            {
+                LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11bd,
+                                      "pvp@log room(%d) user(%s) leave fail",
+                                      room->get_index(),
+                                      NumberToString(user->get_acc_id(), 0));
             }
             if (!flag && room->get_recv_pvp_rank_count() > 0)
             {
@@ -1984,8 +2000,9 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     // 4.1 内联 memset 用 %edi 却不保存——ABI 层跨版本差，无合法 C++ 表达）。
     // 本波 dm/dm2 具名删（P0/P183 内联 G_CDataManager）后 gap 0（311=311）、
     // diff 行 432→332；p167 CLEAR（42=42）。语义等价，字节层 N82 封顶。
-    cMyTrace tr0(__PRETTY_FUNCTION__, 0x306f, 0);
-    tr0("WarRoomCountManage Start");
+    // b28d-laneCGM（P227）：判词「gap 0 / diff 432→332」阶段的具名 tr0-tr3 逐点改
+    //   全表达式临时链（同 CheckOutPvp/insert_game_world 实测有效形）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x306f, 0)("WarRoomCountManage Start");
     // ORIG 0x082a2768 实证：`mov $0x0,%eax; mov $0xa,%edx; mov %ebx,%edi;
     // mov %edx,%ecx; rep stos` —— **零初始化声明** `int current[10] = {0};` 在
     // 4.4.6 下逐条复现该段（探针 /tmp/solo_probe4.cpp m4 与 ORIG 全等），
@@ -2027,8 +2044,8 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     {
         hourTable = hourIndex;
     }
-    cMyTrace tr1(__PRETTY_FUNCTION__, 0x3088, 0);
-    tr1("WarRoomCountManage currentHourIndex %d", hourTable);
+    cMyTrace(__PRETTY_FUNCTION__, 0x3088, 0)(
+        "WarRoomCountManage currentHourIndex %d", hourTable);
     PacketGuard guard;
     guard.put_header(0, 0x58);
     int index = guard.get_index();
@@ -2047,8 +2064,8 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         int diff = ((CDataManager*)G_CDataManager())
                        ->m_warAreaCounter.m_warRoomCount[hourTable][area] -
                    current[area];
-        cMyTrace tr2(__PRETTY_FUNCTION__, 0x3097, 0);
-        tr2("WarRoomCountManage diff(%d) currentWarRoomCount(lev%d)", diff, current[area]);
+        cMyTrace(__PRETTY_FUNCTION__, 0x3097, 0)(
+            "WarRoomCountManage diff(%d) currentWarRoomCount(lev%d)", diff, current[area]);
         if (diff < 0)
         {
             int need = diff < 0 ? -diff : diff;
@@ -2098,8 +2115,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         guard.finalize(true);
         G_GameWorld()->send_all(guard);
         PrintWarRoomList();
-        cMyTrace tr3(__PRETTY_FUNCTION__, 0x30cf, 0);
-        tr3("WarRoomCountManage end");
+        cMyTrace(__PRETTY_FUNCTION__, 0x30cf, 0)("WarRoomCountManage end");
     }
 }
 
@@ -2369,17 +2385,26 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
             }
         }
     }
-    if (!m_userByAccId.empty())
+    // b28d-laneCGM: P223 空 then 占位岛复现——ORIG 0x082962c3 `call empty; test %al;
+    //   jne +0x478(nop 岛)` + 循环退出段 `jmp +0x479`（跨过 nop 落 epilogue）。
+    //   写 `if (!empty) { body }` 时 4.4 jump-thread 掉 jmp+nop（15 分支 vs ORIG 16）。
+    if (m_userByAccId.empty())
+        goto L_user_by_acc_id_done;
     {
         int groupIdx = 0;
         int group = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
         while (groupIdx < GlobalData::s_monitor_proxy_mgr->GetEndIndex())
         {
-            CUser* lastUser = 0;
+            // b28d-laneCGM 真语义修正（ORIG 0x08296324 `mov %eax,-0x14(%ebp)` 在循环头
+            //   **无条件**执行 ⇒ 原码是该轮 `it->second` 的具名 user，不是"最后一个写入
+            //   成功者"）：我方旧形 `CUser* lastUser = 0;`（仅 if 体内更新）在末轮
+            //   user 不满足条件时把**上一轮**的 user 传给 SendUserInfoToUpperServer，
+            //   与 ORIG 传"末轮 user"不同；且 `= 0` 多一条 `movl $0x0,SLOT`（ORIG 裸声明）。
+            CUser* user;
             std::map<unsigned int, CUser*>::iterator it = m_userByAccId.begin();
             for (; it != m_userByAccId.end(); ++it)
             {
-                CUser* user = it->second;
+                user = it->second;
                 if (user->get_state() >= 2 &&
                     (int)(size_t)user->GetServerGroup() == group)
                 {
@@ -2396,12 +2421,14 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                     pkt.m_items[userCount].m_level = user->get_charac_level();
                     pkt.m_items[userCount].m_memberKey = user->get_charac_memberkey();
                     strcpy(pkt.m_items[userCount].m_name, user->getCurCharacName());
+                    // b28d-laneCGM 字段写序照 ORIG 0x08296497..0x0829651f：getSex →
+                    //   GetSsnString/memcpy(6) → GetPeerIP2/strcpy(ip)（原形把 ip 提前，
+                    //   fn_diff 归一化后仍差 20 条块序）。
+                    pkt.m_items[userCount].m_sex = user->getSex();
+                    memcpy(pkt.m_items[userCount].m_ssn, user->GetSsnString(), 6);
                     char ipBuf[16];
                     user->m_network.GetPeerIP2(ipBuf, 0x10);  // ORIG (CNetwork*)(user+0xe0)
                     strcpy(pkt.m_items[userCount].m_ip, ipBuf);
-                    pkt.m_items[userCount].m_sex = user->getSex();
-                    memcpy(pkt.m_items[userCount].m_ssn, user->GetSsnString(), 6);
-                    lastUser = user;
                     userCount = userCount + 1;
                     if (userCount > 0x4a)
                     {
@@ -2416,12 +2443,13 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
             {
                 pkt.packetSize = (unsigned short)(userCount * 0x4e + 0xc);
                 pkt.m_count = (unsigned char)userCount;
-                SendUserInfoToUpperServer(pkt, channelType, lastUser, (ENUM_SERVER_GROUP)group);
+                SendUserInfoToUpperServer(pkt, channelType, user, (ENUM_SERVER_GROUP)group);
                 userCount = 0;
             }
             group = GlobalData::s_monitor_proxy_mgr->GetNextIndex(groupIdx);
         }
     }
+L_user_by_acc_id_done:;
 }
 
 void CGameManager::send_userinfos_to_cutoff_server()
@@ -2539,11 +2567,12 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     // mov %eax,%ebx; call getLastDeleteTime; cmp %eax,%ebx; jge L_false; mov $1;
     // jmp; L_false: mov $0; test %al,%al; je` —— 短路链 bool 汇聚（无槽物化）；
     // 原 if/else-if/else 三态赋值恒产 `movb` 槽 + `cmpb $0` 直比。
-    bool bGuildPointDel =
-        curSec >= Inter_MonitorGuildPointDel::getLastDeleteTime() &&
+    // b28d-laneCGM（P0）：ORIG 0x08296dXX 该 bool 无槽往返（`mov $1; jmp; mov $0;
+    //   test %al,%al; je` 全在寄存器）⇒ 原码把短路链直接写进 if 条件，不是具名
+    //   局部（具名形多 `mov %al,SLOT; cmpb $0x0,SLOT`）。
+    if (curSec >= Inter_MonitorGuildPointDel::getLastDeleteTime() &&
         user->getCurCharacLastPlayTick() <
-            Inter_MonitorGuildPointDel::getLastDeleteTime();
-    if (bGuildPointDel)
+            Inter_MonitorGuildPointDel::getLastDeleteTime())
     {
         // P167：ORIG 调 make_pair<int,int>(int&&,int&&)（0x081b8d41）⇒ 实参为字面量
         // 右值；具名 a/b 左值会实例化 make_pair<int&,int&>（我们旧形 EXTRA）。
@@ -2562,10 +2591,11 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     int curSec2 = GlobalData::s_systemTime_.getCurSec();
     // P167：ORIG 调 getCurCharacR()（0x08120432）后直读 +0x7b = m_lastPlayTick，
     // 不调 getCurCharacLastPlayTick（旧形 EXTRA +1）。
-    long lastPlay = (long)user->getCurCharacR()->m_field7b;  // _Charac_info +0x7b（CharLastPlayTick）
-    CEnvironment* env = G_CEnvironment();
+    // b28d-laneCGM（P0/P183）：lastPlay/env 均只用一次且 ORIG 无槽往返
+    //   ⇒ 原码把 getter 表达式直接内联进实参位（具名形多 `mov REG,SLOT` 往返）。
     if (CheckDailyScheduleTime(
-            env->m_serverEnvir.m_fatigueTime, lastPlay, curSec2))  // ORIG env+0x37c
+            G_CEnvironment()->m_serverEnvir.m_fatigueTime,  // ORIG env+0x37c
+            (long)user->getCurCharacR()->m_field7b, curSec2))  // _Charac_info +0x7b（CharLastPlayTick）
     {
         std::vector<std::pair<int, int> > vecC;
         user->deleteDailyStackableItem(vecC, 3, 8);
@@ -2618,12 +2648,15 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     }
     if (G_GameWorld()->reach_game_world(user) != 1)
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0xfa2, 0);
-        tr("CGameManager::insert_game_world , !G_GameWorld()->reach_game_world( pUser ) , USER : %d(%s)",
-           user->get_unique_id() & 0xffff, NumberToString(user->get_acc_id(), 0));
+        // b28d-laneCGM（P227）：ORIG 两处 cMyTrace 均为全表达式临时链（实参在 ctor 前
+        //   求值），具名 tr/tr2 形使 op() 实参装载落在 ctor 之后（fn_diff 归一化后
+        //   仍差 6 条块序）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xfa2, 0)(
+            "CGameManager::insert_game_world , !G_GameWorld()->reach_game_world( pUser ) , USER : %d(%s)",
+            user->get_unique_id() & 0xffff, NumberToString(user->get_acc_id(), 0));
         user->SendCmdErrorPacket((ENUM_CMDPACKET)1, 4);
-        cMyTrace tr2(__PRETTY_FUNCTION__, 0xfab, 0);
-        tr2("from (%d) m_id[%s] uid[%d]", 1,
+        cMyTrace(__PRETTY_FUNCTION__, 0xfab, 0)(
+            "from (%d) m_id[%s] uid[%d]", 1,
             NumberToString(user->get_acc_id(), 0), user->get_unique_id() & 0xffff);
         return 0;
     }
@@ -2643,18 +2676,20 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     {
         if (user->getCurChannelEquipslotSwitch() == 0)
         {
-            char c = user->getCurExpandEquipslotSwitch();
-            char d = user->getCurChannelEquipslotSwitch();
-            expandSlot->EquipslotSwitch(user, 0, d, c);
+            // b28d-laneCGM（P0）：ORIG 该段两次 `movsbl REG,REG` 无槽往返 ⇒ 原码把
+            //   getter 直接内联进实参位（具名 char c/d 多 `mov %al,SLOT` 往返）。
+            expandSlot->EquipslotSwitch(
+                user, 0, user->getCurChannelEquipslotSwitch(),
+                user->getCurExpandEquipslotSwitch());
         }
     }
     else
     {
         if (user->getCurChannelEquipslotSwitch() == 1)
         {
-            char c = user->getCurExpandEquipslotSwitch();
-            char d = user->getCurChannelEquipslotSwitch();
-            expandSlot->EquipslotSwitch(user, 0, d, c);
+            expandSlot->EquipslotSwitch(
+                user, 0, user->getCurChannelEquipslotSwitch(),
+                user->getCurExpandEquipslotSwitch());
         }
     }
     // P167：ORIG 0x08297472/0x08297484 两处独立 GetChannelType 调用（无具名 channelType）。
