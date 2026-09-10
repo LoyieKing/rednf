@@ -203,16 +203,16 @@ void SpecialItemHandler::respond_special_item_cargo_abs(int type,
     // 从载荷直读入 %edx 与 capacity 相加后存 %ebx 跨 call 保活；user 逐点重读
     // `mov 0x10(%ebp),%eax; mov (%eax),%eax`（P48 无 CSE）。
     if (!CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->isUpgradable(
-            CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
-            CERA_PARAM_TYPED(param)->m_value))
+            ({ CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
+               CERA_PARAM_TYPED(param)->m_value; })))
     {
         result.m_value = 0x12;
     }
     else
     {
         CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoW()->UpgradeCargo(
-            CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
-            CERA_PARAM_TYPED(param)->m_value);
+            ({ CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
+               CERA_PARAM_TYPED(param)->m_value; }));
         m_owner->_sendCargoUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
     }
 }
@@ -715,32 +715,51 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     int resultVal = premium_helper_function::cal_premium_term(
         term, param.m_char1f != 0, param.m_extra);
 
-    int restrictItem = item;
-    int restrictIdx = itemIdx;
 
     switch (ptype)
     {
-    default:
-        // ORIG default：count==0 时按 itemIdx 现取 restrict code。
-        if (count == 0)
-{
-            count = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
-    }
+    case 8:
+        flag = 1;
         break;
+    case 0xf:
+        if (itemIdx == 200)
+            resultVal = 0x1e;
+        else if (itemIdx == 0xcb)
+            resultVal = 3;
+        else if (itemIdx == 0xcc)
+            resultVal = 7;
+        else if (itemIdx == 0xcd)
+            resultVal = 0xe;
+        if (user->getCurCharacInvenR()->GetCoin() < 3)
+        {
+            // ORIG 0x0827d5f2：三次 getter 结果经 %ebx 累加（无 coin/payCoin 具名槽）
+            // ⇒ 单表达式（P0/P157：每次重新取得 invenR）。
+            int sum = user->getCurCharacInvenR()->GetCoin() +
+                      user->getCurCharacInvenR()->GetPayCoin() +
+                      user->getCurCharacInvenR()->GetEventCoin();
+            int amt = 3;
+            if (100000 < sum + amt)
+                amt = 100000 - sum;
+            if (0 < amt)
+            {
+                user->getCurCharacInvenW()->UpdateDailyCoin(amt);
+                user->m_historyLog.CoinAdd(
+                    user->getCurCharacInvenR()->GetCoin(), amt,
+                    (eCoinAddReason)4);
+            }
+        }
+        break;
+    // ORIG 0x16/0x1b/0x1d 三 case 各含独立同形调用块（-O0 不合并，×3 静态点）。
     case 1:
     case 3:
         resultVal = WongWork::CEventMgr::GetPremiumServiceBonus() + resultVal + 1;
         break;
-    case 8:
-        flag = 1;
-        break;
     case 0xd:
     {
-        bool b = false;
-        if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xd) != 1 &&
-            user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xe) == 1)
-            b = true;
-        if (b)
+        // ORIG 0x0827d6ea：短路结果零槽物化（mov$1/jmp/mov$0/test;je，值只在 %eax）
+        // ⇒ P226 扩展：语句表达式包住整条条件（内不含具名变量）。
+        if (({ user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xd) != 1 &&
+                user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xe) == 1; }))
         {
             WongWork::SUserPremiumInfo* info = user->GetPremiumInfo()->GetPremiumInfo(0xe);
             if (info->m_type == 0xe)
@@ -760,52 +779,22 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             ptype = 0xd;
         }
         break;
-    case 0xf:
-        if (itemIdx == 200)
-            resultVal = 0x1e;
-        else if (itemIdx == 0xcb)
-            resultVal = 3;
-        else if (itemIdx == 0xcc)
-            resultVal = 7;
-        else if (itemIdx == 0xcd)
-            resultVal = 0xe;
-        if (user->getCurCharacInvenR()->GetCoin() < 3)
-        {
-            int coin = user->getCurCharacInvenR()->GetCoin();
-            int payCoin = user->getCurCharacInvenR()->GetPayCoin();
-            int eventCoin = user->getCurCharacInvenR()->GetEventCoin();
-            int sum = coin + payCoin + eventCoin;
-            int amt = 3;
-            if (100000 < sum + 3)
-                amt = 100000 - sum;
-            if (0 < amt)
-            {
-                user->getCurCharacInvenW()->UpdateDailyCoin(amt);
-                int c2 = user->getCurCharacInvenR()->GetCoin();
-                user->m_historyLog.CoinAdd(c2, amt, (eCoinAddReason)4);
-            }
-        }
-        break;
-    // ORIG 0x16/0x1b/0x1d 三 case 各含独立同形调用块（-O0 不合并，×3 静态点）。
     case 0x16:
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
         break;
     case 0x1b:
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
         break;
     case 0x1d:
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
         break;
     case 0x21:
     {
-        bool b = false;
         if (flag2 == 0 && count != 0 &&
-            user->IsRestrictedGoods(count) != 1)
-            b = true;
-        if (b)
+            !user->IsRestrictedGoods(count))
         {
             user->SetRestrictedGoods(count);
             int serverCode = 0;
@@ -813,13 +802,13 @@ void SpecialItemHandler::respond_special_item_premium(int type,
                 serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
             m_owner->SaveFeaturedIdx(user, count, (int)timeVal, serverCode);
         }
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
-        unsigned int characNo = (unsigned int)user->getCurCharacNo();
-        const char* charName = user->getCurCharacName();
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x3a5, 0);
-        trace("ONE_DAY_LETHE : BUY_RESTRICTED_PREMIUM, char(%s), char_no(%d)",
-              charName, characNo);
+        // ORIG 0x0827d8ac：varargs（no→%esi、name→%ebx）在 cMyTrace ctor 之前求值并跨
+        // ctor 保活 ⇒ P227 全表达式临时链（禁具名临时）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x3a5, 0)(
+            "ONE_DAY_LETHE : BUY_RESTRICTED_PREMIUM, char(%s), char_no(%d)",
+            user->getCurCharacName(), user->getCurCharacNo());
         // ORIG：lethe 判空用函数头 local_48 槽；SkillSave 两条各自重发
         // get_charac_job/getCurCharacSkillR（P48），技能块 = SkillR 视图 +0x46/
         // +0x1de（SkillSlot.h m_skillSlot/m_skillSlot2 权威偏移，直加数形态）。
@@ -846,52 +835,51 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     }
     case 0x4f:
     {
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3cb, 0);
-        trace("GROWTH_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
-              user->getCurCharacName(), user->getCurCharacNo());
+        cMyTrace(__PRETTY_FUNCTION__, 0x3cb, 0)(
+            "GROWTH_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
+            user->getCurCharacName(), user->getCurCharacNo());
         break;
     }
     case 0x53:
     {
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3d3, 0);
-        trace("EMOTICON_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
-              user->getCurCharacName(), user->getCurCharacNo());
+        cMyTrace(__PRETTY_FUNCTION__, 0x3d3, 0)(
+            "EMOTICON_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
+            user->getCurCharacName(), user->getCurCharacNo());
         if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x57) != 0)
             m_owner->_ClosePremium(user, 0x57);
         break;
     }
     case 0x57:
     {
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3db, 0);
-        trace("EMOTICON_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
-              user->getCurCharacName(), user->getCurCharacNo());
+        cMyTrace(__PRETTY_FUNCTION__, 0x3db, 0)(
+            "EMOTICON_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
+            user->getCurCharacName(), user->getCurCharacNo());
         if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x53) != 0)
             m_owner->_ClosePremium(user, 0x53);
         break;
     }
     case 0x5c:
     {
-        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3e5, 0);
-        trace("CUBE_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
-              user->getCurCharacName(), user->getCurCharacNo());
+        cMyTrace(__PRETTY_FUNCTION__, 0x3e5, 0)(
+            "CUBE_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
+            user->getCurCharacName(), user->getCurCharacNo());
         break;
     }
+    default:
+        // ORIG default：count==0 时按 itemIdx 现取 restrict code。
+        if (count == 0)
+{
+            count = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
+    }
+        break;
     }
 
     // ---- 公共收尾（switch 之后）----
@@ -904,7 +892,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
 
     bool needGain = false;
     if (g_SPremiumInfo[ptype].m_needDailyCheck == 0 ||
-        user->CheckFatigue() == 1)
+        !user->CheckFatigue())
         needGain = false;
     else
         needGain = true;
@@ -1122,29 +1110,21 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
         break;
     }
 
-    if (b != 1)
+    // 真 bug 修复（①判据 + 报告 Ghidra C 648 行）：ORIG `if (param_3 != 1)`
+    // 即持有**第 3 形参 itemIdx（ulong）**，旧码误用第 4 形参 b（uint）。
+    if (itemIdx != 1)
     {
         CItem* citem = G_CDataManager()->find_item((int)itemIdx);
         if (citem == 0)
             return 0;
         if (citem->IsAvatarItem())  // vtable +0x10（IsAvatarItem）
         {
-            bool inner;
-            if (e == 0)
-            {
-                inner = true;  // LAB_0832403b
-            }
-            else
-            {
-                const std::vector<stAvatarTypeSelect_t>* sel =
-                    (const std::vector<stAvatarTypeSelect_t>*)(
-                        ((CEquipItem*)citem)->getAvatarTypeSelect());
-                if (sel->size() <= e)
-                    inner = true;
-                else
-                    inner = false;
-            }
-            if (inner)
+            // ORIG 0x08324019：`e == 0 || getAvatarTypeSelect()->size() <= e` 短路，
+            // 结果零槽物化（mov$1/mov$0/test），且 e==0 时跳过后一调用
+            // ⇒ P226 语句表达式（含具名 bool 会落槽并多一对 store/load）。
+            if (({ e == 0 ||
+                   ((const std::vector<stAvatarTypeSelect_t>*)(((CEquipItem*)citem)
+                        ->getAvatarTypeSelect()))->size() <= e; }))
                 return 0;
             if (e != c)
                 return 0;
@@ -1706,28 +1686,43 @@ bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
     int type = 0;
     int value = 0;
     int n = 0;
-    for (; n < 0x23 && goodsList[n] != 0; ++n)
+    // ORIG 0x08323cd3/0x08323c09：循环条件仅 `n <= 0x22`（setle 有符号），
+    // `goodsList[n]==0` 是体首独立 break（0x08323b3d/0x08323b5e 各落 nop 岛）。
+    for (; n <= 0x22; ++n)
     {
-        for (int j = n + 1; j < 0x23 && goodsList[j] != 0; ++j)
+        if (goodsList[n] == 0)
+            break;
+        for (int j = n + 1; j <= 0x22; ++j)
         {
+            if (goodsList[j] == 0)
+                break;
             if (goodsList[n]->GetItemIdx() == goodsList[j]->GetItemIdx())
             {
-                int groupIdx = goodsList[n]->GetGroupIdx();
-                if (groupIdx == 3)
+                // ORIG 0x08323ba8：GetGroupIdx() 结果留 %eax 连比 3/7/0（无槽）
+                // ⇒ switch（P251：无槽多路相等判断原码是 switch）。
+                switch (goodsList[n]->GetGroupIdx())
+                {
+                case 3:
                 {
                     CItem* item = G_CDataManager()->find_item(goodsList[n]->GetItemIdx());
-                    if (item == 0 || !item->is_stackable())
+                    // ORIG 0x08323be9 无判空（P140/P171：不补边界防御）。
+                    if (!item->is_stackable())
                         return false;
+                    break;
                 }
-                else if (groupIdx == 7 || groupIdx == 0)
-                {
+                case 7:
+                case 0:
                     return false;
                 }
             }
         }
 
         bool specialFlag = false;
-        if (IsSpecialItem(goodsList[n]->GetItemIdx(), type, value, specialFlag))
+        // ORIG 0x08323c32：this 用全局 `GlobalData::s_pCeraShop`（内存装载），
+        // 非隐式 this（0x8(%ebp)）；`xor $1; test; jne` ⇒ 否定早退形。
+        if (!GlobalData::s_pCeraShop->IsSpecialItem(
+                goodsList[n]->GetItemIdx(), type, value, specialFlag))
+            continue;
         {
             ++typeCount[type];
             if (specialFlag)
