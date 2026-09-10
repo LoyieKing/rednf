@@ -252,21 +252,22 @@ int eventReward::sendPostalReward(CUser& user, rewardKey key, int count,
             citem->make_item(inven);                // vtable+0x8
             applyItemOption(inven, citem, *vit);
             char buf[256] = { '\0' };
-            const int lvl = user.get_charac_level();
+            // ORIG +0x243：`call get_charac_level; mov %eax,%ebx`（无槽，跨 findString 保活）
+            // ⇒ P226 语句表达式实参（值升格 callee-saved）。
             OS_API::snprintf(buf, 0xff,
-                             g_scriptStringManager_.findString(4, body, 0), lvl);
+                             g_scriptStringManager_.findString(4, body, 0),
+                             ({ user.get_charac_level(); }));
             // ORIG +0x2ab：读的是 inven.m_addInfo（-0x87 = inven+0x02），非 itemIdx 形参副本；
             // 且短路带 bool 物化岛（mov $1/jmp/mov $0 + test）⇒ P226 语句表达式。
             if (({ inven.m_addInfo != 0 && citem->is_stackable(); }))
             {
                 const int expDate = citem->getExpirationDate();
-                const size_t len = strlen(buf);
-                const unsigned int characNo = user.getCurCharacNo();
-                const char* titleStr = g_scriptStringManager_.findString(4, title, 0);
+                // ORIG +0x2c2..+0x2e6：strlen→%esi、getCurCharacNo→%ebx、title 串→%eax
+                // 均无栈槽 ⇒ 实参位内联 + P226 语句表达式升格。
                 WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                    titleStr, inven, 0, characNo, buf, static_cast<int>(len),
-                    static_cast<unsigned int>(expDate),
-                    static_cast<ENUM_SERVER_GROUP>(serverGroup), 0, 1);
+                    g_scriptStringManager_.findString(4, title, 0), inven, 0,
+                    ({ user.getCurCharacNo(); }), buf, ({ (int)strlen(buf); }),
+                    expDate, static_cast<ENUM_SERVER_GROUP>(serverGroup), 0, 1);
             }
         }
     }

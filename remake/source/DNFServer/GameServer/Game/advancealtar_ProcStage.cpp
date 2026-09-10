@@ -619,7 +619,10 @@ bool ProcStage::makeCurrentPhaseSummonObject()
         for (std::vector<_Action>::const_iterator it = define->m_actions.begin();
              it != define->m_actions.end(); it++)   // P28：ORIG 增量段 ppEi
         {
-            int spawnMs = m_field10 + it->m_firstDelayMs;
+            // ORIG 0x812f054 段：`mov m_field10→-0x18; …; add %eax,-0x18`（两步具名局部）
+            // ⇒ 拆两句（P0/P186：合并成一句被 4.4 折 lea）。
+            int spawnMs = m_field10;
+            spawnMs += it->m_firstDelayMs;
             while (spawnMs < phaseEnd)
             {
                 bool create = true;
@@ -631,7 +634,7 @@ bool ProcStage::makeCurrentPhaseSummonObject()
                     {
                         spawnCounts.insert(std::make_pair(key, 1));
                     }
-                    else if (found->second < static_cast<int>(it->m_flagValue))
+                    else if (found->second < it->m_flagValue)
                     {
                         ++found->second;
                     }

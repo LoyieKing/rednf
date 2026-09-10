@@ -1466,18 +1466,21 @@ bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
     // ORIG 槽浅→深（4.4 先声明占浅槽，P212/P331）：deadA(-0x14)→token(-0x20)
     // →str(-0x24)→ok(-0x25)；result 为 4.4 共享尾的替代物（ORIG 用 ebx 承载），
     // 声明在最后使其落最深槽、不挤占上述 ORIG 槽位。
-    int deadA = 0;
-    (void)deadA;
     std::string token;                 // ORIG -0x20
     std::string str;                   // ORIG -0x24
+    int deadA = 0;                     // ORIG -0x14（列于两 string 之后，ORIG 0890dbfc）
+    (void)deadA;
     bool ok = false;                   // ORIG -0x25
-    bool result = true;
+    // [C03 实测] ORIG 用 %ebx 承载返回值（无栈槽）：`mov $0x1,%ebx` 落在**循环之后**
+    // （0x0890de2d），prologue 无初始化 ⇒ 声明不带初值、EOF 处统一赋值（裸 register
+    // 提示合法，P231/P307；非 asm 绑定）。
+    register bool result;
 
     for (;;)
     {
         if (!ScanType(token, true))
         {
-            break;
+            goto eof;
         }
 
         if (token == "[dblog buyitem]")
@@ -1515,7 +1518,7 @@ bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
 
         if (!ScanType(token, true))
         {
-            break;
+            goto eof;
         }
 
         if (token == "[dblog getitem]")
@@ -1546,6 +1549,8 @@ bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
             }
         }
     }
+eof:
+    result = true;
 done:
     return result;
 }

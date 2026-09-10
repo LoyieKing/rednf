@@ -611,10 +611,14 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124910：size() 先于 99999 初始化
     // （Ghidra local_1c=size、local_18=99999）。
     std::size_t medalCount = medals.size();
-    unsigned int minAp = 99999;
+    // [round5-C05 2026-09-10] S1 一次性旋钮：ORIG 0x08124a5a `cmp -0x14(%ebp),%eax;
+    // setl` 为**内存直比**（无转换中转）⇒ RHS 是普通 int 局部（T1–T4 对 minAp
+    // 无直证：仅赋值/比较/实参）。unsigned 形 4.4 多一条 `mov -0x14(%ebp),%eax`
+    // 并把字段值挪到 %edx（167 vs 166 唯一残差）。
+    int minAp = 99999;
     for (unsigned int i = 0; i < medalCount; ++i)
     {
-        if (static_cast<int>(medals[i].m_field00) < static_cast<int>(minAp))
+        if (static_cast<int>(medals[i].m_field00) < minAp)
         {
             minAp = medals[i].m_field00;
         }
@@ -629,26 +633,29 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     }
     // P0：Ghidra C 具名局部 local_14 = get_n_rows()
     int nRows = db->get_n_rows();
-    if (nRows < 1)
+    // [round5-C05 2026-09-10] ORIG 0x08124aff `cmpl $0x0,-0x10; jle 08124b7f`
+    // ⇒ nRows 失败出口 = 函数尾部独立块（+0x26f `mov $0,%eax` 落 leave），
+    // 同 DB_LoadActionPoint::Select（探针 /tmp/tail_probe.cpp fA/fB）。
+    if (nRows >= 1)
     {
-        return false;
+        if (!db->fetch())
+        {
+            return false;
+        }
+        if (!db->get_str(0, sig.m_occDate, 0xb))
+        {
+            return false;
+        }
+        // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124b4d：`mov 0xc(%ebp),%eax;
+        // add $0x4,%eax` 直传 &sig.m_apSum（packed 字段经 char* 基址转写）。
+        if (!db->get_uint(1, *reinterpret_cast<unsigned int*>(
+                                 reinterpret_cast<char*>(&sig) + 4)))
+        {
+            return false;
+        }
+        return true;
     }
-    if (!db->fetch())
-    {
-        return false;
-    }
-    if (!db->get_str(0, sig.m_occDate, 0xb))
-    {
-        return false;
-    }
-    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124b4d：`mov 0xc(%ebp),%eax;
-    // add $0x4,%eax` 直传 &sig.m_apSum（packed 字段经 char* 基址转写）。
-    if (!db->get_uint(1, *reinterpret_cast<unsigned int*>(
-                             reinterpret_cast<char*>(&sig) + 4)))
-    {
-        return false;
-    }
-    return true;
+    return false;
 }
 
 // SendResult —— 报告全文转写。ORIG T 0x08124b8e。

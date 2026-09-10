@@ -126,8 +126,12 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
                 throw 3;
             }
         }
+        // [D04 P225] ORIG 0x0840a8c7/0x0840a963：`cmpl $0x0,err槽; setne %al;
+        // test %al,%al; je <继续>`（4.1 对 int 形参/局部槽比零的 bool 物化）——
+        // 4.4 对 `if (err != 0)` 恒折 `je` 直跳（少 2 条）。P225 复现形 =
+        // `while (err != 0) { body; }`（body 以 throw 结束 ⇒ 无回边/无 break jmp）。
         err = _getCharacInvenExpand(sig);
-        if (err != 0)
+        while (err != 0)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x2381, 5)
                 ("DB_LoadInventory::dispatch, _getCharacInvenExpand ERROR"
@@ -136,7 +140,7 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
         }
         err = GetItemLock(sig->m_characNo,
                           &sig->m_locks[0]);
-        if (err != 0)
+        while (err != 0)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x2395, 5)
                 ("DB_LoadInventory::dispatch, GetItemLock ERROR charac_no=%u,"

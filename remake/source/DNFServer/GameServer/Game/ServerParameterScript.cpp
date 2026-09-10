@@ -700,8 +700,9 @@ int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
     // ⇒ 原码无 end 缓存局部；旧源码 `const_iterator e=...end(); it!=e` 少两组
     // end/转换槽（帧 0x48 vs ORIG 0x58）且循环次数形态不同。② PvPPlayerKey 查表、
     // ③ insert 段与 ORIG 逐条同形（仅槽号随帧）。
-    std::map<int, int>::const_iterator it = m_map49c4.begin();
-    for (; it != m_map49c4.end(); ++it)
+    typedef std::map<int, int>::const_iterator MIt;
+    MIt it = m_map49c4.begin();
+    for (; it != MIt(m_map49c4.end()); ++it)
     {
         if (it->first >= c)
         {
@@ -709,7 +710,7 @@ int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
             break;
         }
     }
-    if (it == m_map49c4.end())
+    if (it == MIt(m_map49c4.end()))
     {
         --it;
         c = it->first;

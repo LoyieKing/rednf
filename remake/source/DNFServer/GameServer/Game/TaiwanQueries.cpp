@@ -115,8 +115,10 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
 {
     int rsa_size = RSA_size(m_rsa);
     int pos = 0;
-    // [b28d-solo-D02] ORIG 0x0816c552..0x0816c567 为三目展开形：条件分支共享
-    // 寄存器内的 `len - pos`，随后单条 `mov %eax,-0x20`（i486 无 cmov）。
+    // [b28d-solo-D02] ORIG 0x0816c552..0x0816c567 为 MIN_EXPR 展开形（三目
+    // `(len - pos > rsa_size) ? rsa_size : (len - pos)` + i486 后端 ⇒ 寄存器比较 +
+    // jle + 单条 store）。本 TU 若无 `-march=i486` 路由，4.4 对该三目发 cmovle
+    // （探针实测量 +10 条）；A/B 见 /tmp/ab_TaiwanQueries.compile.log。
     int chunk = (len - pos > rsa_size) ? rsa_size : (len - pos);
     while (chunk > 0)
     {
@@ -149,7 +151,7 @@ bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& o
     int rsa_size = RSA_size(m_rsa);
     int max_chunk = rsa_size - 0xc;
     int pos = 0;
-    // [b28d-solo-D02] 同 Decrypt：ORIG 0x0816c3cb..0x0816c3e0 三目展开形。
+    // [b28d-solo-D02] 同 Decrypt：ORIG 0x0816c3cb..0x0816c3e0 为 MIN_EXPR+i486 形。
     int chunk = (len - pos > max_chunk) ? max_chunk : (len - pos);
     while (chunk > 0)
     {
@@ -244,7 +246,8 @@ bool AuthGarenaToken::init(const char* path)
     // ORIG 81730d6：arg==empty（0x8b83f20）走带参 Init(path)，
     // 否则无参 Init()（= Init("publickey.pem"@0x8b81361)）。
     std::string empty("");
-    std::string arg(path == 0 ? "" : path);
+    // [b28d-solo-D02] ORIG 0x08173115 直接压 path 形参（无判空三目，P171）。
+    std::string arg(path);
     if (arg == empty)
         return openSSLRSA_.Init(path);
     return openSSLRSA_.Init();
@@ -260,8 +263,11 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
         return 0x7b;
     }
 
+    // [b28d-solo-D02] ORIG 0x08173244 把 token 复制到具名槽 -0x20（P0：有槽
+    // 往返 ⇒ 原码该值有具名局部），后续 string 构造从该槽读取。
+    const char* pToken = token;
     std::vector<unsigned char> encrypted;
-    base64_decode(std::string(token), encrypted);
+    base64_decode(std::string(pToken), encrypted);
     if (encrypted.size() == 0)
     {
         LogManager::logFormat(
@@ -270,8 +276,10 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
         return 0x84;
     }
     std::vector<unsigned char> decrypted;
+    // [b28d-solo-D02] ORIG 0x08173334..0x0817335d 直取 &encrypted[0]（无三目
+    // 判空 —— P171 照抄原码无防御形）。
     bool ok = openSSLRSA_.Decrypt(
-        reinterpret_cast<const char*>(encrypted.size() ? &encrypted[0] : 0),
+        reinterpret_cast<const char*>(&encrypted[0]),
         static_cast<int>(encrypted.size()), decrypted);
     if (!ok)
     {
@@ -292,8 +300,8 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     }
 
     memset(&out, 0, 0x68);
-    memcpy(&out, decrypted.size() ? &decrypted[0] : 0,
-           decrypted.size() - 1);
+    // [b28d-solo-D02] ORIG 0x08173423..0x08173452 同形：&decrypted[0] 直取。
+    memcpy(&out, &decrypted[0], decrypted.size() - 1);
 
     bool mobile = out.getMobileAuth();
     unsigned int gold = out.getGoldMemberType();
@@ -305,7 +313,7 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     cMyTrace trace(__FUNCTION__, 0x99, 0);
     trace("[Taiwan, Auth] Success!! Uid:%u, UserName:%s, Timestamp:%u, "
           "GcaType:%u, GoldMemberType:%u, Mobile:%u",
-          uid, uname, stamp, gca & 0xffff, gold & 0xff,
+          uid, uname, stamp, gca, gold,
           static_cast<unsigned int>(mobile));
     return 0;
 }

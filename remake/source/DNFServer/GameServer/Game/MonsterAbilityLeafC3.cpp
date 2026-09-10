@@ -320,6 +320,8 @@ void randomSetChampionFeature(int seed, int& count, std::vector<int>& temp,
         if (count <= 1)
             return;
 
+        // [试形记录] `register int f` 实测与无 register 逐字节相同（P307 提示对本形
+        // 零效）⇒ 维持普通具名局部；cmp 形态差归 P209/N18b 封顶（见函数头判词）。
         const int f = CHAMPION_FEATURE_LIST[rand() % 28];
         if (f > 0x30007)
             goto BIG;
@@ -758,7 +760,7 @@ void CRidable::SetRidableObject(RidableScript& script)
     int j;
     int i;
 
-    m_flag18 = *(unsigned char*)&script.m_4;   // P266：uchar 左值读单段 movzbl
+    m_flag18 = script.m_4;                     // ORIG 0x082fe707 movzbl 0x4(%eax),%edx
     m_count1c = script.m_0;
 
     // ORIG 0x082fe72f：`cmp %eax,%ebx; setge %al; test %al,%al; je <ELSE(0x14c)>`
@@ -783,7 +785,16 @@ void CRidable::SetRidableObject(RidableScript& script)
             std::random_shuffle(pool.begin(), pool.end());
             tmp = pool.back();
             pool.pop_back();
-            *(RidableObject*)&obj = tmp;
+            // ORIG 0x082fe8d3..0x082fe915 拷贝序（tmp@-0xdc → obj@-0xc4）：
+            // +0xc,+0x10,+0x00,+0x04,+0x08,+0x14（4.1 对 24B 结构赋值的分块展开，
+            // 直接写 `*(RidableObject*)&obj = tmp;` 4.4 恒按声明序 +0,+4,+8,+0xc,
+            // +0x10,+0x14 发射 ⇒ 逐字段按 ORIG 序书写复现）。
+            obj.m_field10 = tmp.m_field10;
+            obj.m_field14 = tmp.m_field14;
+            obj.m_x = tmp.m_x;
+            obj.m_y = tmp.m_y;
+            obj.m_field0c = tmp.m_field0c;
+            obj.m_field18 = tmp.m_field18;
             obj.m_state = 4;
             m_objects.insert(
                 std::pair<int, DungeonRidableObject>(obj.m_field0c, obj));
@@ -821,6 +832,11 @@ extern std::vector<DungeonPartyBalance> DUNGEON_PARTY_BALANCE_TABLE;
 // add+scaled 而非指针算术 shl 链，P311/P30）、job 截断、do-while 结构、表全局直接
 // 传址。残余：x87 比较 lowering（ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp，
 // N85 跨版本）+ 命中 return 的 epilogue 尾岛（N121）。语义等价封顶。
+// [D07 试形记录 2026-09-10] ①`-march=i486 -mtune=generic` 手工追加旗标重编本 TU：
+// party/rand/ridable 三件 verdict 逐字不变（我方仍 `fucomip %st(1),%st; fstp`）⇒
+// 本条 x87 比较 lowering 不受 march 控制，非 P230 补所指的 fnstsw 族，封 N85。
+// ②条件极性两形（`level < m_a` / `!(m_a <= level)`）实测同产 `fildl;flds;fucomip;
+// fstp;seta`；ORIG 的 `fxch;fucompp;fnstsw %ax;sahf;setae` 无源形可达。
 void upgradeAbilityByParty(int job, ActiveStaticInfo* info, int level)
 {
     if (info == 0)

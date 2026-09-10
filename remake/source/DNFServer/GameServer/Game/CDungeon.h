@@ -90,7 +90,10 @@ public:
     void clear();
 
     int m_0;                                // +0x00
-    char m_4;                               // +0x04
+    // [D07MonsterScriptLeaf · 广播已发] ORIG 0x082fe707 `movzbl 0x4(%eax),%edx` 零扩展
+    // 单段 ⇒ 真型 unsigned char（旧 char 使消费点写 `*(unsigned char*)&m_4` 多一条
+    // `add $0x4,%eax`）；宽度/偏移/sizeof/mangled 不变。
+    unsigned char m_4;                      // +0x04
     std::vector<RidableObject> m_objects;   // +0x08
 };
 

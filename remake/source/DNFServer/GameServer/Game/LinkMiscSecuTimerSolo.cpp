@@ -232,6 +232,14 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
         }
         else if (g_moduleNameTag[moduleId][0] == "[pvp]")
         {
+            // ORIG 8a97810..8a9782a：`cmpl $9;je;cmpl $5;jne;mov $1,%eax;jmp;
+            // mov $0,%eax;test %al,%al;je` —— 4.1 -O0 对 `||` 条件先**物化 bool 到
+            // %al 再测试**（无栈槽，P0 ⇒ 原码无具名局部）。4.4 两形实测：
+            // ①具名 bool（本形）恒落槽 `mov %al,-0xf;cmpb $0,-0xf`（214 条，gap +1）；
+            // ②P226 语句表达式 `({type==9||type==5;})` 被前端整折为
+            //   `cmpl $9;je;cmpl $5;jne`（208 条，gap −5，无物化段）。
+            // 无第三形可复现 4.1 的「物化但零槽」（P0：非 call 结果的纯比较在 4.4
+            // -O0 恒折直跳）⇒ N（跨版本 if 条件 bool 物化；与 setcc-fold 同族）。
             bool hit = (type == 9 || type == 5);
             if (hit)
                 subId = 4;
@@ -574,8 +582,7 @@ int CAutoMarketConditionsControl::LoadDatabase(
           static_cast<int>(optGoldHi),
           field00Now, equipNow, durNow);
 
-    long long diff = base -
-                     static_cast<long long>(msg->m_view.m_optimumGold);
+    long long diff = base - msg->m_view.m_optimumGold;
     if (diff < 0)
         diff = 0;
 

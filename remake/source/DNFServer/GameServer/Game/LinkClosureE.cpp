@@ -61,6 +61,13 @@ public:
 //   ⇒ N121 封顶。其余逐条全等：七守卫独立 `movzwl/mov + test + jne`、结构体拷贝
 //   （对齐剥离 + rep movsl + 尾 2/1 字节，替代 memcpy）、三 trace 槽 -0x58/-0x48/-0x38、
 //   12 个 vararg 全表达式（前 9 spill、末 3 落 %edi/%esi/%ebx）。
+// [D08 2026-09-10] 复核 gap 精确分解：14 条 = N121 七岛（每守卫 1 组 `jmp+nop`）；
+//   +1 条 = 基表源地址计算 —— ORIG 0x08145f5c 段 `mov 0x14(%eax),%ecx; mov job,%eax;
+//   imul $0x7dc,%eax,%edx; lea (%ecx,%edx,1),%edx` vs 我方 `mov 0x14(%eax),%eax;
+//   mov %eax,%edx; imul $0x7dc,%eax,%eax; add %eax,%edx`（4.4 多一条 eax→edx 中转）。
+//   探针 /tmp/addr_probe.cpp g0–g6（char* 算术 / 类型化下标 / uint 算术+回 cast /
+//   交换操作数 / u 后缀 七形）读数全同 g0；唯一省掉中转的 g2（具名基址指针）引入
+//   `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax` 槽往返 ⇒ 净 −1 条反劣。判 N18a。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)
@@ -187,10 +194,13 @@ CBuffGroup::CBuffGroup(CUser* user)
     m_user = user;
 }
 
-// [b28d-solo-LinkClosureE] DIFF 61/62（p167 CLEAR 5/5）：ORIG 的 bool 物化形已复现
-//   （`mov $1/%eax … mov $0/%eax; test %al`，|dx|/|dy| 全寄存器表达式），残余仅 4.4 把
-//   over 分配 %ebx（多 `mov %eax,%ebx` + `test %bl`）而 ORIG 用 %eax ⇒ N18a/N96
-//   「单段 regmove 不可造」封顶；bool/char/uchar/int 四型旋钮实测同读数。
+// [D08 2026-09-10] DIFF 61/62 → **AE 61/61**（TU 三数 ae 20→21、diff 5→4；p167
+//   CLEAR 5/5）。修法 = 配方⑦/P0：删「ORIG 无槽」的具名 `unsigned char over` 局部，
+//   整个短路条件（`abs(dx)>0x12c || abs(dy)>0x12c`）内联进 if。ORIG 0x08697d00 末尾为
+//   `mov $0x1/%eax; jmp; mov $0x0/%eax; test %al,%al; je`（bool 物化**直测**、全程无
+//   栈槽往返）⇒ 原码无该局部；具名局部使 4.4 发 `movb %al,-0x9(%ebp);
+//   cmpb $0x0,-0x9(%ebp)` 且帧 `sub $0x24` vs ORIG `sub $0x14`（多 0x10）。
+//   内联后逐条全等（帧 0x14 亦归位）。旧 N18a/N96 判词作废。
 char CBuffGroup::IsRight(CUser* user)
 {
     if (user->get_charac_level() > 0x45)
@@ -345,6 +355,11 @@ int CItemMakingSkill::GetItemMakingSkillLevel(const CStackableItem* item, CUser*
 //   （差 2 条中转）⇒ N86「同一算术多 codegen」封顶（`+=` / 显式 int 提升 / 去 cast
 //   三形实测同读数）。其余全等：守卫 `!(point>0 && point<=m_bonusExp && first>=point)`、
 //   trace 临时链（P227 令 vararg 在 ctor 前落 %esi/%ebx）、rbegin()->first 族。
+// [D08 2026-09-10] 复测加固（探针 /tmp/usk_probe.cpp f0–f7）：`+=`、显式赋值的
+//   ushort/int/uint 提升、交换操作数、双层 cast、int 回 cast 八形读数**全同** f0
+//   （`movzwl→%ecx; add %eax,%ecx`）；唯一异形 f3（交换+混型）产 `push %ebx` 且 point
+//   升格 %ebx，与 ORIG 无 ebx 保存相反 ⇒ 反劣。ORIG 两段中转（0x085457e7 / 0x085457ef
+//   各一条 `mov %eax,%ecx`）4.4 不可造 ⇒ N18a+N1 封顶。
 void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser* user)
 {
     const stItemMakingSkill* table =
@@ -494,6 +509,10 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
 //   info.m_fieldC 实参 p3→p2（ORIG 读 0x10(%ebp)）、find_item/日志源
 //   data->m_item → info.m_item.m_fieldC（ORIG 从栈槽重读）；m_item 字段写序
 //   m_fieldC/m_field8/m_field4/m_fieldA/m_itemAttr 与 Inven_Item 声明位置照 ORIG。
+// [D08 2026-09-10] 复核：残差恰 2 处、gap −1 —— ①0x081a33e5 间接 call 目标寄存器
+//   ORIG %edx / 我方 %eax（N7，P230：4.4.6 后端可修，路由归 Main）；②0x081a3387
+//   `mov -0x1c(%ebp),%eax; mov %eax,%ebx`（find_item 实参装载两段）vs 我方
+//   `mov -0x1c(%ebp),%ebx`（4.4 直落 callee-saved）⇒ N18a。两处均封顶。
 int Arad_GiftItem_Set::send_mail(CUser* user, int p2, int p3, int p4, int giftIdx)
 {
     Data* data = find(giftIdx, p4, p3);

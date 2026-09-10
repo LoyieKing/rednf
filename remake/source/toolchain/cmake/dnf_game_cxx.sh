@@ -577,6 +577,16 @@ case "$(basename "$src" .cpp)" in
                 # ndiff 36 → 12（余 clamp 段 setl 物化），TU 四数 60/694/near4/diff17 逐项不变、
                 # 其余 8 件读数不变 ⇒ 零回归。注意 -mtune=generic 必须同带（默认 tune 改调度）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
+            *Game/TaiwanQueries.cpp)
+                # [Main·2026-09-10 round5] 路由 A/B 实证（D02 上报 + 源码按 ORIG 三目形对齐）：
+                #   `COpensslRSA::Decrypt/Encrypt`（ORIG 0x0816c532 / 0x0816c3a2）的
+                #   `chunk=min(len-pos,rsa_size)` 为 MIN_EXPR+i486 形
+                #   （`mov -0x28,%edx; cmp %edx,%eax; jle +2; mov %edx,%eax; mov %eax,-0x20`，无 cmov、单 store）；
+                #   默认 4.4.7 把三目折成 `cmovle`。实测：默认 33/116(149)/0/6 →
+                #   同旗标 33/118(151)/0/4（**两件 DIFF→AE，净 −2 非identical**）；
+                #   149 个可比函数中仅该 2 件变化、**无任何 AE/NEAR 回退**（cmov 计数 4→0）。
+                #   同 SDCLink：`-mtune=generic` 必须同带。
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/SDCLink.cpp)
                 # [Main·2026-09-10 round5] 路由 A/B 实证（C03 上报 + Main 独立复编核验）：
                 #   `_ZSt3maxIfERKT_S2_S2_`（ORIG 0x08080609）为 4.1 x87 比较 lowering
@@ -586,6 +596,18 @@ case "$(basename "$src" .cpp)" in
                 #   （ae +1 / diff −1，其余 5 件 DIFF 读数不变，零回归）。
                 #   注意 `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
+            *Game/ServerParameterScript.cpp)
+                # [Main·2026-09-10 round5] 路由 A/B 实证（C04 上报 + Main 独立复编核验）：
+                #   x87 比较 lowering 族（ORIG `fucompp; fnstsw %ax; sahf` vs 4.4.7 `fucomip/fstp`）。
+                #   实测（同口径两次编译，仅差该旗标）：623/1125(1748)/near4/diff20 →
+                #   623/1126(1749)/near4/diff19（ae +1 / diff −1，净 −1）。
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
+            *Game/CStackableItem.cpp)
+                # [Main·2026-09-10 round5] 路由 A/B 实证（C04 上报 + Main 独立复编核验）：
+                #   N7 间接/寄存器角色族（ORIG 值进 %ecx 且保留 %edx=this 供第二读）。
+                #   实测：C6 436/884(1320)/near5/diff22 → C6446R 438/884(1322)/near3/diff22
+                #   （identical +2、near −2，净 −2 非identical）。
+                exec "$C6446R" "$@" ;;
             *)
                 exec "$C6" "$@" ;;
         esac ;;

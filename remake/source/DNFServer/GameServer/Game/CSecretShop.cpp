@@ -989,6 +989,8 @@ bool SecretShopScript::GetItems(CMTRand* rand,
         unsigned long seed = 0;      // -0x1c
         unsigned int randVal = 0;    // -0x14
         int guard = 0;
+        // [试形记录] 与 IF 分支同名局部改独立名（sale2/it2）实测逐字节相同 ⇒ 4.4 的
+        // 栈槽复用不随名字改变（N82：两分支对象各占独立槽不可复现，见函数头判词）。
         secretshop::SALE_INFO sale;
         for (; guard <= 0x2710 &&
                out.size() < (unsigned int)sales.m_maxCount; ++guard) {

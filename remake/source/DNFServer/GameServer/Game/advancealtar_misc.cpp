@@ -805,10 +805,15 @@ int StageTimeLineParameter::importPhase(TimeLine& timeLine)
 //   低槽（summary 最深、dit 次深），4.1 按生命周期穿插（dit -0x40、summary -0x3c）；
 //   其余槽（pit -0x2c/end -0x28/m_assigns.end -0x24/defines.end -0x20/ait ppEi -0x1c/
 //   pit ppEi -0x18/totalDuration -0x14/phaseIndex -0x10/assigns -0xc/ait -0x30）全等；
-//   4.4 多 push esi（后置 ++ sret 跨调用保活）。全头部声明法对非平凡 summary 不可用。
-//   p167：MISSING 0；EXTRA = `_PhaseSummary::~_PhaseSummary()`×2 + `_Unwind_Resume`×1
-//   —— ORIG(4.1) 对可见空 dtor 不发射调用、4.4 恒 call（P71 跨版本；ORIG 该 dtor
-//   符号 0x0889ebc0 存在，按 P12 不可删）。
+//   全头部声明法对非平凡 summary 不可用。
+//   [C07ExpertHeroAssault 2026-09-10 · P317 落地] 旧判词「EXTRA =
+//   `_PhaseSummary::~_PhaseSummary()`×2 + `_Unwind_Resume`×1，ORIG 该 dtor 符号
+//   0x0889ebc0 存在，按 P12 不可删」**已作废**：按 P317 删 `advancealtar.h` 的
+//   用户空析构后，`nm /tmp/tu_advancealtar_misc.o` 证 `~_PhaseSummary()` 仍为
+//   W ×2（使用点发射）⇒ 未丢符号。读数改前→改后：our_insns 155→**138**
+//   （ORIG 138，gap −17→**0**），verdict DIFF→**NEAR**（残余 = dit(-0x34) 与
+//   summary(-0x40) 槽互换 + 4.4 聚合对象优先占低槽 = N82附；无 push esi、无
+//   `_Unwind_Resume`、无 dtor call 残差）。p167：MISSING 0 / EXTRA 0。
 int StageTimeLineParameter::checkAndSetActionDefine(
     TimeLine& timeLine, const std::map<int, ActionDefine>& defines)
 {

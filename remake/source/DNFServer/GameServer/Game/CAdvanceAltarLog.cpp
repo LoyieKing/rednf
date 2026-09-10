@@ -89,21 +89,25 @@ void CAdvanceAltarLog::incrementEntranceData(unsigned int stageIndex,
     Guard<Mutex> guard(&m_mutex);
     std::map<unsigned int, STAdvanceAltarEntranceData>::iterator it =
         m_entrances.find(stageIndex);
-    if (it != m_entrances.end())
+    // [b28d-E03 2026-09-10] 块序对齐（ORIG 0x08156c95 `je +0xc1`：未命中装配块
+    //   fall-through 在前、命中累加块 jump 在后）⇒ 条件按 `it == end` 正极性书写，
+    //   装配块为 then、累加块为 else（P59/P222 双向布局）。
+    if (it == m_entrances.end())
+    {
+        STAdvanceAltarEntranceData data;                // 栈装配（ORIG local_28..）
+        data.m_stageIndex = stageIndex;
+        data.m_enterCount += enterDelta;
+        data.m_successCount += successDelta;
+        data.m_obtainStar += starDelta;
+        // ORIG operator[] 逐 uint 写回（data[0]=键重复，等价整结构赋值）。
+        m_entrances[stageIndex] = data;
+    }
+    else
     {
         it->second.m_enterCount += enterDelta;
         it->second.m_successCount += successDelta;
         it->second.m_obtainStar += starDelta;
-        return;
     }
-
-    STAdvanceAltarEntranceData data;                    // 栈装配（ORIG local_28..）
-    data.m_stageIndex = stageIndex;
-    data.m_enterCount += enterDelta;
-    data.m_successCount += successDelta;
-    data.m_obtainStar += starDelta;
-    // ORIG operator[] 逐 uint 写回（data[0]=键重复，等价整结构赋值）。
-    m_entrances[stageIndex] = data;
 }
 
 // ----------------------------------------------------------------------------
@@ -135,17 +139,22 @@ void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
     }
 
     STAdvanceAltarLayerStatData data;                   // 栈装配（ORIG local_30 区）
-    // ORIG 0x08156d60：装配前 STAdvanceAltarLayerStatDataC1 仅清 14 字节
-    // （movw@0/movl@4/movw@8/movw@a/movw@c，+0xe pad 不写）；新槽写入用
-    // memcpy 0xe，pad 保持垃圾。
-    std::memset(&data, 0, 0xe);
+    // ORIG 0x08156d60：装配只经 STAdvanceAltarLayerStatDataC1 清零
+    // （movw@0/movl@4/movw@8/movw@a/movw@c，+0x2 空洞与 +0xe pad 不写），
+    // **无 memset 调用**（0x08156d60..0x08156e51 区间仅 C1Ev + 逐字段装配）。
+    // [b28d-E03 2026-09-10] 字段真值修正：ORIG 0x08156e1d 把 a3 写 second+0x8
+    //   （= m_itemLevel，pair<long long,ST> second@+8）；原写 m_field2(+0x2) 是
+    //   真语义 bug（+0x2 洞 ORIG 全程不写，实证 0x8156e0f..0x8156e39 段）。
     data.m_itemType = itemType;
-    data.m_field2 = a3;
     data.m_itemIndex = itemIndex;
+    data.m_itemLevel = a3;
     data.m_useCount = static_cast<unsigned short>(data.m_useCount + useCountDelta);
     data.m_useStar = static_cast<unsigned short>(data.m_useStar + useStarDelta);
+    // ORIG 0x08156e52 段：operator[] 结果 %eax 直比 &data（无具名槽），
+    //   `cmp %edx,%eax; je <出口>` ⇒ 源形是「具名指针 + 非自拷贝守卫」。
     STAdvanceAltarLayerStatData* slot = &m_layers[key];
-    std::memcpy(slot, &data, 0xe);
+    if (slot != &data)
+        std::memcpy(slot, &data, 0xe);
 }
 
 // ----------------------------------------------------------------------------

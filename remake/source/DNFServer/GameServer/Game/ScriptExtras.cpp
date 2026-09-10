@@ -287,10 +287,15 @@ bool loadRDARNameFile(STNameList* list, const char* dir, const char* file)
         return false;
     list->Clear();
 
-    std::string name;
+    // [L3] P309 头内声明序按 ORIG 槽浅→深重排：ORIG dead(-0xc) 最浅、ok(-0x2d)、
+    // name(-0x34) 最深 ⇒ 4.4 头内「先声明浅」故 dead→ok→name。
     // [L10-2] 判据⑫ widthscan：ORIG `clr_b=0`（无带初始化器的 bool 局部）⇒
     // 按 P171 照抄去掉 `= false`；ok 由 ScanInt 写入后读取，语义等价。
     bool ok;
+    std::string name;
+    // [L3] ORIG 0x088bc0a9 `movl $0x1,-0xc(%ebp)`，全函数无读点 = 原码遗留的
+    // 死初始化具名 int 局部（P171/P232 照抄原则）；补回以复现 ORIG 槽图。
+    int deadFlag = 1;
     for (;;)
     {
         if (!ScanStr(&name))
@@ -322,18 +327,24 @@ bool addRDARScriptListFile(STScriptFileList* list, const char* dir, const char* 
     if (!loadRDARScriptFile(dir, file))
         return false;
 
-    std::string name;
+    // [L3] P309 头部声明律：ORIG name@-0x2c（深）/ idx@-0x24（浅）⇒ 4.4 头内声明
+    // 「先声明浅」⇒ idx 必须先声明（原循环内声明使 name 占浅槽、idx 占深槽，反向）。
+    int idx;
+    // [L3] 头内声明序 = ORIG 浅→深（idx -0x24 / ok -0x25 / name -0x2c）：
+    // 4.4 头内声明「先声明浅」，故 ok 必须在 name 之前。
     // [L10-2] 判据⑫：同 loadRDARNameFile（ORIG clr_b=0）⇒ 去初始化器。
     bool ok;
+    std::string name;
     for (;;)
     {
-        int idx = ScanInt(&ok);
+        idx = ScanInt(&ok);
         if (!ok)
             break;
         if (!ScanStr(&name))
             break;
-        bool isNew = (list->m_fileMap.find(idx) == list->m_fileMap.end());
-        if (isNew)
+        // [L3] P198② 镜像：ORIG `test %al,%al` 直测（无槽无 cmpb）⇒ 谓词整体内联
+        // 回 if 条件位（具名 bool isNew 使 4.4 落 `mov %al,-0x9; cmpb $0,-0x9`）。
+        if (list->m_fileMap.find(idx) == list->m_fileMap.end())
         {
             // [b28d-lane16 P192] ORIG 0x088bc2?? 直接构造 value_type（mangled
             // `C1IRiRSsEEOT_OT0_` = pair<const int,string>(int&,string&)）；

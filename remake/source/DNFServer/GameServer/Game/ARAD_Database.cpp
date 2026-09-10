@@ -289,6 +289,10 @@ int CREATE_QUERY::arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig)
 // b28d-solo-ARAD_Database verdict=DIFF(85/84)：P167 8/8 CLEAR；残余=memset 首参
 //   edx 中转（待解条目，字面量/&arr[0]/sizeof 均试过无效）+ compress_zip 实参
 //   装载序（同 create_equip）。语义闭合。
+// [round5 复验] P68 形 `memset((char*)zipBuf, 0, sizeof(zipBuf))`（dest 先入 %eax）
+//   实测 TU 四数零变化（63/130/0/6），dest 装载序未翻 ⇒ 维持 N 判词 | ORIG 0x0818b299
+//   `lea -0x4162(%ebp),%eax; mov $0x4152,%edx; mov %edx,0x8(%esp); movl $0x0,0x4(%esp);
+//   mov %eax,(%esp); call memset@plt`。
 int CREATE_QUERY::arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     static const unsigned int kInvenSrcLen = sourceInvenSize;   // ORIG 背包快照长度

@@ -98,17 +98,18 @@ bool CEpoll<CSession>::UnregisterSession(CSession* session)
 //             sendRet=OnSend()，<0 时 evOk=false。
 //   ERR|HUP(0x18)：OnError 失败 → Unregister+Disconnect。
 //   任一事件失败将 ok 置 false 并继续遍历（循环尾恒返回 true）。
-// [b28d-solo-ExchangeServer_Infra 判词·N（P168a③b 跨版本 bool ABI）] 唯一残差 =
-// OnConnect 后 ok 回读形（ORIG `movzbl -0x1d; test %al,%al` vs 4.4 恒折
-// `cmpb $0,-0x1d`，五形实测不可翻，详见函数体内注释）。170 vs 169 封顶。
+// [D08 2026-09-10] DIFF(170/169) → **NEAR 170=170**（助记符序列全等；TU 三数
+// diff 3→2、near 0→1）。修法 = `volatile bool ok`（P332 补②，探针 /tmp/ok_probe.cpp
+// f1/f2 对照）：4.4 对 volatile 局部在每使用点强制 `movzbl <slot>,%eax; test %al,%al`
+// （复现 ORIG 0x08495f76 装载+寄存器直测），普通 bool 恒折 `cmpb $0,<slot>`。
+// 残余仅 ok 槽号 -0x29 vs ORIG -0x1d（4.4 把 volatile 对象放最深 1 字节区；声明
+// 上提到函数首 / 裸声明后赋值两形实测无效，`volatile unsigned char` 与
+// `*(volatile bool*)&ok` 两形反劣）⇒ N82 附槽位封顶。旧「五形不可翻」判词作废。
 template <>
 bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
 {
-    // [b28c-6] 残差 1 处（ndiff 3）：OnConnect 后 ok 回读 ORIG 发
-    // `movzbl -0x1d,%eax; test %al,%al`，4.4 恒折 `cmpb $0,-0x1d`（P168a③b
-    // 跨版本 bool 归一化差）。P15 已修装载序（CSession* accepted）。
-    // [b28d-lane15] 复核维持 N：170 vs 169，唯一残差即上述 cmpb 折叠（4.4 恒折，
-    // 探针族 P168a③b 已定论）。封顶。
+    // [D08 2026-09-10] 本件已按上方函头判词落地：`volatile bool ok`（见下），
+    // OnConnect/OnError 两处回读复现 ORIG 装载+直测形，残差仅 ok 槽号 -0x29/-0x1d。
     // [b23S3C] P48 去缓存：errno 两比较点各重取（ORIG 两次 __errno_location
     // call、无 err 槽）；EINTR 分支不写 n=0（ORIG 保持负数走空循环）；events[i]
     // .events 掩码每用点重取（ORIG 无 mask 槽，8 条/用点×5）；无 evOk 中间局部
@@ -123,7 +124,7 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
             return false;
     }
 
-    bool ok = true;
+    volatile bool ok = true;
     for (int i = 0; i < n; ++i)
     {
         CSession* session = static_cast<CSession*>(events[i].data.ptr);

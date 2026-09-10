@@ -43,6 +43,15 @@ void CItemLimitEdition::updateCurSellNum(unsigned int count)
 
 // [b28d-51] 判词 N（ORIG 0x085130e8，N82/N86 族）：PacketGuard 引用形参 +
 // sret/临时槽方向差；语义/调用集齐，byte 层封顶。
+// [round5 已修 IDENTICAL/AE] 真因不是槽方向而是**字段类型**：ORIG 各 put_* 实参装载形
+//   两段 `mov mem,%eax; mov %eax,%edx`（与 put_int(int) 异型）vs 单段 `mov mem,%edx`
+//   （同型）。探针 /tmp/probe_ci3.cpp（int→int 单段；unsigned→int 两段；enum→int 两段；
+//   long→int 单段）+ /tmp/probe_ci4.cpp（unsigned int→unsigned long 单段、int→ulong 两段）
+//   定出：8 个字段实为 unsigned int（+0x00/+0x08/+0x10/+0x14/+0x20/+0x2c/+0x30/+0x48）、
+//   m_itemIdx 亦 unsigned（put_item_idx 实参单段）、m_avatarTypeSelect 为 signed char
+//   （ORIG `movzbl 0xc(%eax),%eax; movsbl %al,%edx`）。头已同步（P254 档③，sizeof/偏移不变）。
+//   同时把时间比较按 ORIG 书写方向改回 `m_sellEndTime <= getCurSec()`（ORIG 先载字段到 %ebx
+//   跨 call 保活、`cmp %eax,%ebx; setle`）。修后 144=144 AE，getIPGNO 返回类型同步 unsigned。
 // [L13-group6 P0/P183] ORIG 每个调用点 fresh 读 `0xc(%ebp)`（`mov 0xc(%ebp),%eax`
 // 直压实参），我方具名 `InterfacePacketBuf* buf` 占 -0xc 槽且每处 reload（帧
 // 0x24 vs ORIG 0x14）⇒ 删具名局部，以宏（P49 寻址助手用宏）逐点内联同一表达式。
@@ -204,8 +213,12 @@ void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
     // ORIG 0x084e975e：new CItemLimitEdition(info)，按 getIPGNO 查重，命中则删旧并 erase，
     // 再 insert（key = 二次调用 getIPGNO —— ORIG 0x84e9803 再次 call getIPGNO，
     // 结果落 -0xc 后作 make_pair 首参；复用首个 key 局部会少一次 call = 判据㉑ 缺调用）。
-    CItemLimitEdition* edition = new CItemLimitEdition(info);
-    unsigned int key = (unsigned int)edition->getIPGNO();
+    // [P212/P309 全头部声明] ORIG 槽序 edition=-0x38（深）/key=-0x34（浅）与 4.4 块内
+    // 首次使用序相反 ⇒ 两局部提至函数头按 ORIG 槽深序声明、块内仅赋值。
+    unsigned int key;
+    CItemLimitEdition* edition;
+    edition = new CItemLimitEdition(info);
+    key = edition->getIPGNO();
     __gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
                         __gnu_cxx::hash<unsigned int>, std::equal_to<unsigned int>,
                         std::allocator<CItemLimitEdition*> >::iterator it

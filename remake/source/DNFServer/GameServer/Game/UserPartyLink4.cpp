@@ -49,18 +49,16 @@ void CUser::RewardTutorial(unsigned int flag)
 {
     std::vector<int> outSlots;
 
-    // [本波实测·判 N] 两形均未翻正：(a) P183 内联 serverParameter（去具名指针）
-    //   ⇒ gap 8→10；(b) P232 `char[0x10]` dead 撑帧使 sub $0x50→$0x60（与 ORIG 帧
-    //   全等）但槽仍 -0x24 vs ORIG -0x2c（非整帧平移：outSlots/rewards 间距
-    //   0x10 vs ORIG 0x1c）⇒ 相对序不可控，恢复原形（ORIG 0x086475d8）。
-    ServerParameterScript* serverParameter = &G_CDataManager()->m_serverParameter;
+    // P0：ORIG 0x086475eb `call G_CDataManager; lea 0x68(%eax),%edx; mov %edx,(%esp)`
+    // 全程无槽往返 ⇒ 原码是内联表达式（无 serverParameter 具名局部）；
+    // 同理 0x08647615 getCurCharacInvenW 结果留 %eax 直传 insert_event_items，
+    // 源码须把 receiver 写成调用表达式（禁具名 inven 局部）。
     std::vector<std::pair<int, int> >* rewards =
-        serverParameter->GetEscaladeTutorialReward(flag);
+        G_CDataManager()->m_serverParameter.GetEscaladeTutorialReward(flag);
     if (rewards == 0)
         return;
 
-    CInventory* inven = getCurCharacInvenW();
-    int insertedCount = inven->insert_event_items(
+    int insertedCount = getCurCharacInvenW()->insert_event_items(
         *rewards, outSlots, (eMoneyAddReason)3, (eItemAddReason)8, true, "", "");
 
     PacketGuard packet;
@@ -70,16 +68,19 @@ void CUser::RewardTutorial(unsigned int flag)
     if (insertedCount > 0)
     {
 		// ORIG 循环每次消费 3 个 int（槽位三元组）：short/int/int；
-		// 迭代器步进语义与 ORIG 一致（it != end 判定，每轮 ++ 三次）。
+		// P28：ORIG 0x086476fb/0x08647734/0x0864776d 三处增量段恒调后置
+		// `__normal_iterator::operator++(int)`（ppEi：`movl $0x0,0x8(%esp)` dummy
+		// + sret 临时 -0x1c/-0x18/-0x14）⇒ 源形必须写 `it++`；`++it` 走 ppEv
+		// 免临时槽（每处少 4 条，gap -8 主因）。
 		std::vector<int>::iterator it = outSlots.begin();
 		while (it != outSlots.end())
 		{
 			packet.put_short(*it);
-			++it;
+			it++;
 			packet.put_int(*it);
-			++it;
+			it++;
 			packet.put_int(*it);
-			++it;
+			it++;
 		}
 	}
     packet.finalize(true);
@@ -113,7 +114,10 @@ void CUser::adjust_charac_stat()
 
     _Additioal_info* current =
         static_cast<_Additioal_info*>(getCurCharacAddInfoRefW());
-    memcpy(current, &calc, 0x52);  // sizeof(_Additioal_info)，ORIG 立即数 0x52
+    // P83/N84：ORIG 0x08664911..0x08664987 为 0x52 字节结构整体赋值的内联展开
+    // （对齐 peel 1B/2B + rep movsl + 尾 2B/1B，共 40 条、无 memcpy call）⇒
+    // 源码必须是结构整体赋值让 4.4 展开；写 memcpy 恒退化为 `call memcpy`（gap -35 根因）。
+    *current = calc;
 
     cMyTrace(__PRETTY_FUNCTION__, 0x44d7, 0)(
         "after adjust stat(%s(%d) : %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
@@ -191,6 +195,10 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     if (item == 0)
         return -1;                                     // ORIG 0x085a73e8 `mov $0xffffffff,%ebx`
 
+    // ORIG 0x085a73f2/0x085a7400：map_item ctor（-0xc8）**先于** Inven_Item ctor
+    // （-0x71）发射 ⇒ 原码 `map_item drop;` 声明在 `Inven_Item invenItem;` 之前
+    // （4.1 ctor 序 = 声明序；我方原把 drop 声明放在调用点处 ⇒ 多出 ctor 重排）。
+    map_item drop;
     Inven_Item invenItem;
     invenItem.m_addInfo = (int)itemIdx;
     item->make_item(invenItem);                        // vtable slot make_item
@@ -210,18 +218,22 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
         }
     }
 
-    map_item drop;                                     // ORIG ctor 081512cc
     drop.m_count = 0;                                  // byte +0x00 = 0
+    // ORIG 0x085a7470/0x085a747a：m_field1(+0x01)/m_addInfo(+0x02) 的拷贝发射在
+    // set_add_info 之前（`movzbl -0x70; mov %al,-0xb7` / `mov -0x6f; mov %eax,-0xb6`）
+    // ⇒ 原码这两条赋值写在 set_add_info(1) 之前；后移会整段错位。
+    drop.m_item.m_field1 = invenItem.m_field1;         // byte +0x11（ITEM_TYPE）
+    drop.m_item.m_addInfo = invenItem.m_addInfo;       // dword +0x12（item idx）
     drop.m_item.set_add_info(1);                       // 内嵌 item.add_info = 1
     drop.m_item.SetItemAttr(invenItem.GetItemAttr());  // +0x16 ← src GetItemAttr
     drop.m_item.m_fieldb = invenItem.m_fieldb;         // word +0x1b ← src endurance
+    // ORIG 0x085a74ca：m_field0(+0x00) 的拷贝夹在 m_fieldb 与 m_fieldd 之间
+    // （`movzbl -0x71; mov %al,-0xb8` 位于 0x0b/0x0d 两条之间）⇒ 语句序须如此。
+    drop.m_item.m_field0 = invenItem.m_field0;         // byte +0x10
     drop.m_item.m_fieldd = invenItem.m_fieldd;         // dword +0x1d ← src union
     drop.m_item.m_amp = invenItem.m_amp;               // +0x21..+0x2e 整体（14B POD）
     drop.m_item.m_random.m_random =                    // RandomOption 子块整体（14B）
         invenItem.m_random.m_random;
-    drop.m_item.m_field0 = invenItem.m_field0;         // byte +0x10
-    drop.m_item.m_field1 = invenItem.m_field1;         // byte +0x11（ITEM_TYPE）
-    drop.m_item.m_addInfo = invenItem.m_addInfo;       // dword +0x12（item idx）
     drop.m_item.m_upgradeSep.SetUpgradeSeparate(
         invenItem.m_upgradeSep.GetUpgradeSeparate());  // +0x43
 

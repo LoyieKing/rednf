@@ -519,7 +519,10 @@ struct _PhaseSummary
     // ORIG W C1/C2 @0x0889b954（memset 0xc）/ D1/D2 @0x0889ebc0（空体）。
     // 用户 ctor/dtor 使使用点发射对应弱符号。
     _PhaseSummary() { std::memset(this, 0, sizeof(*this)); }
-    ~_PhaseSummary() {}
+    // [C07ExpertHeroAssault/R2] 删用户空析构（P317/P71）：ORIG 4.1 对可见空 dtor
+    //   不在使用点发射 call（我方 4.4 恒 call ⇒ checkAndSetActionDefine 多 2 call +
+    //   EH landing + push esi）。ORIG D1/D2 W 0x0889ebc0 仍由使用点发射同名 W 符号
+    //   （P317 实证「删用户析构 ≠ 丢符号」）。sizeof(0xc)/偏移/mangled 零变化。
     // b28d-solo-advancealtar_misc：m_pad 拆具名字段（证据 ORIG
     //   checkAndSetActionDefine 0x0889a179/0x0889a182/0x0889a193 三连写
     //   summary+4=totalDuration、+0=phaseIndex、+8=phase.m_field4）。

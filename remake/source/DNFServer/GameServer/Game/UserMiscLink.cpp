@@ -173,6 +173,81 @@ bool CUser::IsAddableGuildFund(int amount)
 }
 
 // ===========================================================================
+// 3a) Redeem_Item::CRedeemItem 四方法 —— Redeem_Item 直接连带依赖
+//     （报告 Redeem_Item__CRedeemItem/{GetItemPrice,GetRedeemInfoR,RedeemItem,
+//      _CheckVaildIndex_N_GetIter}.md 全文转写）。
+// ===========================================================================
+namespace Redeem_Item
+{
+
+std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
+CRedeemItem::_CheckVaildIndex_N_GetIter(int idx) const
+{
+    // 越界（idx<0 / 空 / idx+1>size）→ end()；否则 begin()+idx。
+    // ORIG 0x085f7130：`call size` **先**、`mov idx,%edx; add $1,%edx` 后，
+    // `cmp %edx,%eax; jge`（有符号，eax=size）⇒ 条件写成 `(int)size < idx+1`
+    // 才能让 4.4 右操作数后置并出 jge（写 (size_t)(idx+1) > size 出无符号 jbe
+    // + 提前 esi 缓存，帧 0x20 vs ORIG 0x24）。
+    if (idx < 0 || m_redeemList.empty() ||
+        (int)m_redeemList.size() < idx + 1)
+    {
+        return m_redeemList.end();
+    }
+    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it = m_redeemList.begin();
+    std::advance(it, idx);
+    return it;
+}
+
+int CRedeemItem::GetItemPrice(int idx)
+{
+    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
+        _CheckVaildIndex_N_GetIter(idx);
+    // ORIG 0x085f73cd 调自由函数 _ZSteqI…RKSt14_List_iteratorIT_
+    // RKSt20_List_const_iteratorIS3_（iterator 在前、const_iterator 在后）⇒
+    // 源码必须写 `end() == it`；写 `it == end()` 走 const_iterator::eq 并多一次
+    // iterator→const_iterator 转换构造（+5 条）。
+    if (m_redeemList.end() == it)
+    {
+        return -1;
+    }
+    return it->m_count40;
+}
+
+Inven_Item_Expand_RedeemInfo CRedeemItem::GetRedeemInfoR(int idx) const
+{
+    Inven_Item_Expand_RedeemInfo out;   // ORIG ctor 清零副本
+    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
+        _CheckVaildIndex_N_GetIter(idx);
+    if (it != m_redeemList.end())
+    {
+        std::memmove(&out, &*it, 0x44);
+    }
+    return out;
+}
+
+Inven_Item_Expand_RedeemInfo CRedeemItem::RedeemItem(int idx)
+{
+    // [b28d-solo-UserMiscLink] AE：distance 复用 begin 结果（ORIG 0x085f72d8 只调一次
+    // begin，旧码二次 m_redeemList.begin() 多 1 槽/4 条）+ memcpy→memmove 对齐 ORIG 符号。
+    Inven_Item_Expand_RedeemInfo out;   // ORIG ctor 清零副本
+    alter();                            // charac_expand::CData::alter 置脏
+
+    // ORIG 以 const_iterator 定位 idx 后 advance 到非常量迭代器再 erase。
+    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator cit =
+        _CheckVaildIndex_N_GetIter(idx);
+    std::list<Inven_Item_Expand_RedeemInfo>::iterator it = m_redeemList.begin();
+    std::advance(it, std::distance<std::list<Inven_Item_Expand_RedeemInfo>::const_iterator>(
+                         it, cit));
+    if (it != m_redeemList.end())
+    {
+        std::memmove(&out, &*it, 0x44);
+        m_redeemList.erase(it);
+    }
+    return out;
+}
+
+}  // namespace Redeem_Item
+// ===========================================================================
 // 3) CUser::Redeem_Item(int) —— ORIG T 0x08646df2
 //    报告 CUser/Redeem_Item.md 全文转写。
 // [SIGFIX:CUser::Redeem_Item] ORIG __PRETTY_FUNCTION__ 串为 bool（Main 117 件
@@ -806,81 +881,6 @@ bool MSG_QUICK_CHAT::isLastMessage()
     return m_11 == 1;
 }
 
-// ===========================================================================
-// 3a) Redeem_Item::CRedeemItem 四方法 —— Redeem_Item 直接连带依赖
-//     （报告 Redeem_Item__CRedeemItem/{GetItemPrice,GetRedeemInfoR,RedeemItem,
-//      _CheckVaildIndex_N_GetIter}.md 全文转写）。
-// ===========================================================================
-namespace Redeem_Item
-{
-
-std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
-CRedeemItem::_CheckVaildIndex_N_GetIter(int idx) const
-{
-    // 越界（idx<0 / 空 / idx+1>size）→ end()；否则 begin()+idx。
-    // ORIG 0x085f7130：`call size` **先**、`mov idx,%edx; add $1,%edx` 后，
-    // `cmp %edx,%eax; jge`（有符号，eax=size）⇒ 条件写成 `(int)size < idx+1`
-    // 才能让 4.4 右操作数后置并出 jge（写 (size_t)(idx+1) > size 出无符号 jbe
-    // + 提前 esi 缓存，帧 0x20 vs ORIG 0x24）。
-    if (idx < 0 || m_redeemList.empty() ||
-        (int)m_redeemList.size() < idx + 1)
-    {
-        return m_redeemList.end();
-    }
-    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it = m_redeemList.begin();
-    std::advance(it, idx);
-    return it;
-}
-
-int CRedeemItem::GetItemPrice(int idx)
-{
-    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
-        _CheckVaildIndex_N_GetIter(idx);
-    // ORIG 0x085f73cd 调自由函数 _ZSteqI…RKSt14_List_iteratorIT_
-    // RKSt20_List_const_iteratorIS3_（iterator 在前、const_iterator 在后）⇒
-    // 源码必须写 `end() == it`；写 `it == end()` 走 const_iterator::eq 并多一次
-    // iterator→const_iterator 转换构造（+5 条）。
-    if (m_redeemList.end() == it)
-    {
-        return -1;
-    }
-    return it->m_count40;
-}
-
-Inven_Item_Expand_RedeemInfo CRedeemItem::GetRedeemInfoR(int idx) const
-{
-    Inven_Item_Expand_RedeemInfo out;   // ORIG ctor 清零副本
-    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
-        _CheckVaildIndex_N_GetIter(idx);
-    if (it != m_redeemList.end())
-    {
-        std::memmove(&out, &*it, 0x44);
-    }
-    return out;
-}
-
-Inven_Item_Expand_RedeemInfo CRedeemItem::RedeemItem(int idx)
-{
-    // [b28d-solo-UserMiscLink] AE：distance 复用 begin 结果（ORIG 0x085f72d8 只调一次
-    // begin，旧码二次 m_redeemList.begin() 多 1 槽/4 条）+ memcpy→memmove 对齐 ORIG 符号。
-    Inven_Item_Expand_RedeemInfo out;   // ORIG ctor 清零副本
-    alter();                            // charac_expand::CData::alter 置脏
-
-    // ORIG 以 const_iterator 定位 idx 后 advance 到非常量迭代器再 erase。
-    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator cit =
-        _CheckVaildIndex_N_GetIter(idx);
-    std::list<Inven_Item_Expand_RedeemInfo>::iterator it = m_redeemList.begin();
-    std::advance(it, std::distance<std::list<Inven_Item_Expand_RedeemInfo>::const_iterator>(
-                         it, cit));
-    if (it != m_redeemList.end())
-    {
-        std::memmove(&out, &*it, 0x44);
-        m_redeemList.erase(it);
-    }
-    return out;
-}
-
-}  // namespace Redeem_Item
 
 // P147 显式实例化：发射 ORIG W _ZN11CRandomListIjE9get_valueEv @0x085f49a0。
 template unsigned int CRandomList<unsigned int>::get_value();

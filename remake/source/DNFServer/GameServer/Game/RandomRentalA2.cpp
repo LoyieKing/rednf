@@ -791,6 +791,8 @@ int CRandomOptionItemHandle::_get_option_value(int minV, int maxV)
     // ⇒ 书写序「右式在前」（Lane17 已在 ROI::RegenVer_get_option_value 同族验证）。
     int span = (int)((float)(maxV - minV) * sel.m_scaleRange0);  // fistpl 截断（fnstcw 0xc）
     int base = (int)((float)minV * sel.m_scaleBase4);            // fistpl 截断
+    // [b28f-RR 实测回退] base 改 unsigned（P274 档③）无效：4.4 仍折 `add mem,%eax`
+    // 一条（ORIG 085f2c3d 为两段）⇒ 该段维持 N86b 封顶。
 
     // [Lane17 L1] ORIG 085f2c40 把最终结果写回 **-0x14 = 首段 r1 槽**
     // （085f2b34/085f2c42 两处同址）⇒ 原码用同一变量承载两段结果，
@@ -1655,6 +1657,8 @@ int RegenerationROI::RegenVer_get_option_value(int minV, int maxV)
     // ⇒ 书写序为「右式在前」。我方旧式 sel*… 使 4.4 先 flds sel（求值序反）。
     int span = (int)((float)(maxV - minV) * sel.m_scaleRange0);  // ORIG fldcw RC=11：截断
     int base = (int)((float)minV * sel.m_scaleBase4);
+    // [b28f-RR 实测回退] base 改 unsigned（P274 档③）无效：ORIG 085f8eb5 两段形
+    // 不可由源侧类型旋钮复现 ⇒ 该段维持 N86b 封顶。
 
     // [Lane17 L4] ORIG 无 bound2/r2 具名槽（085f8e9b `mov -0x14,%eax; mov %eax,-0x20`
     // 只是 `(unsigned long)span` 转换临时；085f8eb5 结果直接落 r 槽 -0x1c）。
@@ -1663,6 +1667,9 @@ int RegenerationROI::RegenVer_get_option_value(int minV, int maxV)
     // = 复用 r 槽的 store/reload 往返（原码有具名局部）⇒ 赋值回 r 再 return。
     r = base + (int)m_regeneratorPtr->randInt((unsigned long)span);
     return r;
+    // [b28f-RR 实测] r 改 unsigned（P310 方向）后比较段翻为 `cmp -0x1c(%ebp),%eax; jb`
+    // （ORIG 为 `mov -0x1c,%eax; cmp -0x18,%eax; ja`）—— 极性/方向双反，撤回首段
+    // `mov -0x1c,%eax` 反而丢失 ⇒ 维持 N86b 封顶。
 }
 
 // ---- Regenerate —— T 0x085f8646（Regenerate.md 全文转写）------------------
