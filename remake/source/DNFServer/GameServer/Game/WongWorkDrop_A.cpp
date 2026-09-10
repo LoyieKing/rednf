@@ -92,6 +92,9 @@ struct StRefCtx2
 // epilogue-threading 尾岛 2×`jmp+nop`（ORIG 无岛），break/goto 尾标签/return
 // 三形实测不消 ⇒ N121 封顶。已修：ctx 具名指针局部（-0x20）、prod/100 去负数
 // 特判、pick 复用 roll 槽、push 内联、int i + size() 有符号比较、slot 预清 0。
+// [round4 L3CUser 复核 2026-09-10] ae_insn 残差仅 2 处：①`movl $&_ZL14gUnicodeBuffer
+//   +0xe174,0x8(%esp)` 我方为 .o 未解析重定位（AE/N132 等价）；②尾 2×`jmp+nop`
+//   为我方多出（ORIG 无岛）⇒ N121 维持，指令数 123/127 与判词一致。
 void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
                                     stGenerateResult_t& result)
 {
@@ -316,6 +319,9 @@ void CMonsterDrop::setDropRatio(float ratio)
 // rep stos 对齐剥离慢路 vs 4.4 简单形）、N82（帧 0x24c vs 0x25c：ORIG buf
 // 与 goldItem 同址复用，全帧槽号 +0x10 平移）、N85（x87 fdivs/fucompp-fnsahf
 // vs fdivp/fucomip）。真语义 bug 修 6 处（见下）。
+// [round4 L3CUser 复核 2026-09-10] 帧 0x24c vs 我方 0x25c（+0x10）、槽号
+//   -0x21c/-0x1fc/-0x204/-0x208 vs -0x22c/-0x20c/-0x214/-0x218 恒定平移 ⇒
+//   判据⑪ B-FRAME（整帧平移）⇒ N126/N82，声明重排无效；gap -19 为此族固有。
 // 参数（自 wrapper）【推断命名】：
 //   type       = ref+0x34 怪物等级档
 //   role       = ref+0x35（signed char；==3 走首领金币路径）

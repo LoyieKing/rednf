@@ -7,6 +7,10 @@
 //   isKeyItem 0x08580584 T / giveGiftItem 0x085805a8 T /
 //   makeNotiPacketCurMood 0x08580624 T / getMood 0x08581910 W（头内联）
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN15CNPCDynamicInfo10changeMoodEb`（ORIG 0x858186e）。
+#include <iostream>
+
 
 #include "NPCDynamicInfo.h"
 

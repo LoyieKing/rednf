@@ -18,6 +18,12 @@
 // 事件进行中 GetMemberExpRewardRatio() 直返 +0xc（默认 10）。
 // StartEvent()/EndEvent 均重置 m_ratio = 10（ORIG movl $0xa,0xc）。
 // trace 采用 __FUNCTION__ 宏以对齐 ORIG _ZZN..E12__FUNCTION__ 符号。
+// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x81b2b01 `_ZN21CMemberExpRewardEventC2Ev`。
+CMemberExpRewardEvent::CMemberExpRewardEvent()
+{
+    m_ratio = 10;
+}
+
 // 报告反编译：SetEventFlag(true) → m_ratio=10 → trace。
 void CMemberExpRewardEvent::StartEvent()
 {
@@ -44,11 +50,6 @@ void CMemberExpRewardEvent::EndEvent()
 // ORIG 0x081b29ec：m_ratio = param.m_duration；trace 行号 29（带参）。
 // 实参 param.m_duration 在 ORIG 中于 trace ctor 前物化到 ebx（P37 链式）。
 // ORIG C1 0x081b291c：基类构造 + vptr + m_ratio(+0xc) 置 10。
-CMemberExpRewardEvent::CMemberExpRewardEvent()
-{
-    m_ratio = 10;
-}
-
 // ORIG D1 0x081b2942：用户空析构（编译器生成 vptr+基类析构 + delete 分支）。
 CMemberExpRewardEvent::~CMemberExpRewardEvent()
 {

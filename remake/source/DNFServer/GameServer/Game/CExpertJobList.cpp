@@ -985,10 +985,7 @@ CExpertJobList::CExpertJobList()
 bool CExpertJobList::init()
 {
     // ORIG 0x896d8ec：无空指针检查，直接遍历 g_expertJobScriptFileList 对象。
-    // [b28d-round1-L24] 判据⑩：先声明（无初值）后赋值 = 浅槽（shift：OURS-only
-    // [-0x38/-0x30/-0x28] vs ORIG [-0x34/-0x2c/-0x24]，我方恒深 4）。
-    const char* path;       // ORIG -0x1c(%ebp)：循环内最后 path，ETC 失败时作 %s 参数
-    path = 0;
+    const char* path = 0;   // ORIG -0x1c(%ebp)：循环内最后 path，ETC 失败时作 %s 参数
     int job;                // ORIG -0x24(%ebp)（4.4 恒排深槽区 -0x40，见 N82附 标量分区）
     // b28d-solo [P96/P50：ORIG 用非 const iterator + 独立 C1Ev 默认构造（-0x44）
     // + begin() 临时槽 -0x4c 后内联拷贝赋值；P28：增量段为 ppEi（后置 it++）]。

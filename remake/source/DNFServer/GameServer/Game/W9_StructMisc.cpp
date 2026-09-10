@@ -117,18 +117,21 @@ bool TOD_UserState::loadData(CUser* pUser, char* pData)
     _reset();
     SIG_REQUEST_TOD_USER_STATE& in =
         *reinterpret_cast<SIG_REQUEST_TOD_USER_STATE*>(pData);
-    m_data.m_characNo = in.m_characNo;               // ORIG *(this+8)=*(param_2)
-    m_data.m_firstEnterTime = in.m_firstEnterTime;
-    m_data.m_enterCount = in.m_enterCount;
-    m_data.m_todayLayer = in.m_todayLayer;
-    m_data.m_lastEnterLayer = in.m_lastEnterLayer;
-    m_data.m_lastEnterTime = in.m_lastEnterTime;
-    m_data.m_lastClearTime = in.m_lastClearTime;
+    // [L8 2026-09-10 判据⑫/P83] ORIG 0x08643522 段是**结构整体赋值**（一次
+    // `mov -0xc(%ebp),%edx` 后连发 6 条 `mov N(%edx),%ecx; mov %ecx,8+N(%eax)`，
+    // N=0,4,8,0xc,0x10,0x14）⇒ 原码 `m_data = in;`（m_data 类型即
+    // SIG_REQUEST_TOD_USER_STATE，sizeof 0x18，static_assert 已锁）。
+    // 旧逐字段赋值（7 条）多 2 个具名临时槽（我方 -0x10/-0x14 vs ORIG 仅 -0xc）
+    // 并多发 11 条指令（80 vs 69）。
+    m_data = in;
 
-    const long curSec = GlobalData::s_systemTime_.getCurSec();
-    const long lastPlayTick = pUser->getCurCharacLastPlayTick();
+    // [L8 2026-09-10 P0/P183] ORIG 0x0863545..0x086355a 段：curSec 结果升格 %esi、
+    // lastPlayTick 升格 %ebx（跨后续 call 保活）后直接 `mov %esi,0x8(%esp)` /
+    // `mov %ebx,0x4(%esp)` —— ORIG **无槽往返** ⇒ 原码无具名局部；我方两个
+    // `const long` 局部落 -0x10/-0xc 槽并多 4 条 load/store。
     if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                               lastPlayTick, curSec))
+                               pUser->getCurCharacLastPlayTick(),
+                               GlobalData::s_systemTime_.getCurSec()))
     {
         ResetDaily();
     }
@@ -157,9 +160,11 @@ bool TOD_UserState::_saveData(CUser* pUser)
         return true;
     }
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire("TOD_UserState.cpp",
-                                                        0x58);
-    CStreamGuard guard(stream, true);
+    // [L8 2026-09-10 P259] ORIG 0x086436xx：Acquire 返回值直接经 %eax 传 ctor
+    // （无 stream 具名局部）⇒ 我方 stream 槽（-0x14/-0x18）多 2 槽 + 4 条
+    // load/store，并使帧 0x30 vs ORIG 0x20。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("TOD_UserState.cpp", 0x58), true);
     // ORIG：`(*guard)->operator<<(x)`（operator* de()）与 `guard->GetInBuffer`
     // （operator-> pt()）标识调用形态，勿改为直接成员调用。
     (*guard)->operator<<(0x278);

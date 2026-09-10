@@ -95,8 +95,10 @@ cond:
 // [b28d-23 N·N82] 192/191 ⇒ N。ORIG 0x085ddad0
 void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users)
 {
-    char logBuf[2048];
-    char logPath[256];
+    // [L14 round3] N78 突破口（P214③/P253）：ORIG 0x085ddad0 两处清零是**内联
+    // `rep stos`**（0x85ddb5b 0x800 字节 / 0x85ddcbd 0x100 字节）而非 `call memset`；
+    // 4.4 对 `memset` 恒发 call（p167 EXTRA +2 memset）。改「声明处 `= {'\0'}`」
+    // 并把声明下移到原 memset 位置，令 4.4 在同一位置发常量 rep stos。
     int i;
     int j;
     int k;
@@ -111,7 +113,7 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
             InsertPvPGuild(guildKey, point);
         }
     }
-    memset(logBuf, 0, sizeof(logBuf));
+    char logBuf[2048] = { '\0' };
     sprintf(logBuf, "Room_Idx:%d\tPvP_Mode:%d\tElasp_Time:%d\tG_Cnt:%d\n",
             roomIdx, (int)mode,
             GlobalData::s_systemTime_.getCurSec() - m_startTime,
@@ -127,7 +129,7 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
                         (unsigned char)m_guilds[j].m_count);
             }
         }
-        memset(logPath, 0, sizeof(logPath));
+        char logPath[256] = { '\0' };
         sprintf(logPath, "./log/%s/GuildWarResult",
                 G_CEnvironment()->get_file_name());
         CMyFileLog fileLog(

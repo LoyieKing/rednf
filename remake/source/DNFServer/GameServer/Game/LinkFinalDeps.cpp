@@ -12,6 +12,10 @@
 // 注:ORIG 以 %gs 相对寻址取静态缓冲基址(i386 寻址技巧),重建直取同名数组;
 //   "int"/"void" 等非类返回类型不参与 mangled,void 选择与 ORIG 符号严格一致。
 
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN6OS_API5SleepEi`（ORIG 0x858c890）。
+#include <iostream>
+
 #include <cstdio>
 #include <unistd.h>
 

@@ -104,12 +104,19 @@ bool CBreakAwayPreventSystem::selectReward(int keyIndex, int point, CUser* user)
         m_rewardMap.find(m_keys[keyIndex]);
     if (it == m_rewardMap.end())
         return false;
-    if (point < 0)
+    // ORIG -0x18 具名 list 指针（0x0831c8f1 operator-> + add $4 落槽，P0 有槽）。
+    std::list<STRewardData>* pList = &it->second.m_list;
+    // ORIG -0x14 具名 point 副本（0x0831c8f7 mov 0x10(%ebp) → 槽，后续反复重读）。
+    int rewardPoint = point;
+    if (rewardPoint < 0)
         return false;
 
     STBreakAwayRewards rewards;   // ORIG STBreakAwayRewards ctor 清零
-    std::list<STRewardData>::iterator li;
-    for (li = it->second.m_list.begin(); li != it->second.m_list.end(); ++li)
+    // ORIG -0x28 死局部：keyIndex 写后未读（0x0831c918 mov 0xc(%ebp) → 槽）。
+    int keyIndexKeep = keyIndex;
+    (void)keyIndexKeep;
+    for (std::list<STRewardData>::iterator li = pList->begin();
+         li != pList->end(); ++li)
     {
         // ORIG 0x0831c938：每轮 operator-> 逐字段读 5 次（P157，无 entry 引用缓存）；
         // 读序 field0→field4→field8→fieldc→field10→point。
@@ -118,15 +125,16 @@ bool CBreakAwayPreventSystem::selectReward(int keyIndex, int point, CUser* user)
         rewards.m_rewardItemId   = li->m_field8;
         rewards.m_rewardAItemCnt = li->m_fieldc;
         rewards.m_luckPoint      = li->m_field10;
-        rewards.m_fieldc         = point;
-        if (point < minVal)
+        rewards.m_fieldc         = rewardPoint;
+        // ORIG 0x0831c992：先 `cmp minVal,p; jle 继续` + 失败直落 return 0（早退形）。
+        if (minVal > rewardPoint)
             return false;
-        if (minVal <= point && point <= maxVal)
+        if (minVal <= rewardPoint && maxVal >= rewardPoint)
         {
             rewards.m_rewardItemId   = li->m_field8;
             rewards.m_rewardAItemCnt = li->m_fieldc;
             rewards.m_luckPoint      = li->m_field10;
-            rewards.m_fieldc         = point;
+            rewards.m_fieldc         = rewardPoint;
             user->setBreakAwayRewards(rewards);
             return true;
         }
@@ -148,23 +156,36 @@ bool CBreakAwayPreventSystem::updateUvList(SIG_LOGIN_DATA const* login)
 
     if (days == 0)
     {
-        // last_update_time 非 0 且当日：直接镜像登录包 play_info，不落 DB 请求。
-        if (login->m_breakAwayLastUpdateTime != 0)
+        // ORIG 0x0831cbb2 `test/jne` 直落 lastPlayDays 块、镜像块后置（+0x75）
+        // ⇒ 原码 then/else 与直觉相反：then=当日计算、else=镜像返回。
+        if (login->m_breakAwayLastUpdateTime == 0)
         {
+            // ORIG 0x0831cbb4：if/else 两分支（非三目）。
+            if (lastPlayDays == 0)
+                days = 1;
+            else
+                days = lastPlayDays;
+        }
+        else
+        {
+            // last_update_time 非 0 且当日：直接镜像登录包 play_info，不落 DB 请求。
             memset(m_tail, 0, sizeof(m_tail));
             memcpy(m_tail, login->m_breakAwayPlayInfo, 0x1f);
             return true;
         }
-        // ORIG 0x0831cbb4：if/else 两分支（非三目）。
-        if (lastPlayDays == 0)
-            days = 1;
-        else
-            days = lastPlayDays;
     }
 
-    // ORIG 0x0831cc1a：days>0x1d 走 else 短分支；string 组装为 then；
-    // makeRequest 统一在尾部（0831ce32），失败路径 esi=0 经析构后返回 0。
-    if (days <= 0x1d)
+    // ORIG 0x0831cc1a：days>0x1d 走**前放置的 else 体**（0x0831cc20），string 组
+    // 装为 jle 目标的后置 then（0x0831cc59）；makeRequest 统一在尾部（0831ce32），
+    // 失败路径 esi=0 经析构后返回 0。
+    if (days > 0x1d)
+    {
+        // 断线 ≥30 天：名单全 '0'（0x30），尾位标记 '1'。
+        memset(m_tail, 0x30, sizeof(m_tail));
+        m_tail[0x1d] = 0x31;   // this+0x328：名单第 29 位（高位区间标记）
+        m_tail[0x1e] = '\0';   // this+0x329
+    }
+    else
     {
         std::string uvInfo(reinterpret_cast<const char*>(login->m_breakAwayPlayInfo));
         std::string uvMarked(uvInfo, days, 0x1e);
@@ -183,13 +204,6 @@ bool CBreakAwayPreventSystem::updateUvList(SIG_LOGIN_DATA const* login)
         }
         memset(m_tail, 0, sizeof(m_tail));
         strncpy(m_tail, uvMarked.c_str(), uvMarked.size());
-    }
-    else
-    {
-        // 断线 ≥30 天：名单全 '0'（0x30），尾位标记 '1'。
-        memset(m_tail, 0x30, sizeof(m_tail));
-        m_tail[0x1d] = 0x31;   // this+0x328：名单第 29 位（高位区间标记）
-        m_tail[0x1e] = '\0';   // this+0x329
     }
 
     DB_UpdateBreakAwayUvList::makeRequest(login->m_accId, m_tail);
@@ -252,7 +266,7 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     // ORIG 0x0831cf6e：三条件独立短路（无 questFieldsIdle/firstReward 具名局部）。
     if (login->m_breakAwayDungeonClearCnt == 0 &&
         login->m_breakAwayQuestTime != 0 &&
-        login->m_breakAwayRewardBoundB < login->m_breakAwayRewardBoundA)
+        login->m_breakAwayRewardBoundA > login->m_breakAwayRewardBoundB)
     {
         // ORIG 0x0831cfba/0x0831cfd0：日界两守卫各落**独立** nop 中继岛
         // （0831d158/0831d15b），非共享尾 —— 必须写成两条独立否定 goto

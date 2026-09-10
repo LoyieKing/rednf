@@ -9,6 +9,10 @@
 //   复用策略，N82 族，源形不可消除），已封顶勿再耗轮次。
 // ============================================================================
 
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN10StatisticsC2Ev`（ORIG 0x860ff82）。
+#include <iostream>
+
 #include <string.h>
 
 #include "Statistics.h"

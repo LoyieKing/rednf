@@ -737,19 +737,17 @@ bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
     sb << ", " << script->m_field0;
     sb << ", " << type;
     // 4)name 5)name2（转码后 escape；GetEscapeString 结果写入槽缓冲）
-    char* escName = SKILL_ESC_SLOT;
-    GetEscapeString(db, name, escName);
-    sb << ", '" << escName << "'";
-    char* escName2 = SKILL_ESC_SLOT;
-    GetEscapeString(db, name2, escName2);
-    sb << ", '" << escName2 << "'";
+    // [b28e] ORIG 0x086230ed 段形：`call GetEscapeString; mov %eax,%ebx;` 后紧跟
+    // `<< ", '"` → `<< %ebx` → `<< "'"` —— **直接用返回值**、全程寄存器保活，
+    // 无 escName 具名指针槽（P0/P183；具名槽令 4.4 多发 `mov %eax,-0x38(%ebp)` +
+    // 回读并把 `add %edx,%eax` 折成 `lea (%edx,%eax,1)`，帧 +0x20）。
+    sb << ", '" << GetEscapeString(db, name, SKILL_ESC_SLOT) << "'";
+    sb << ", '" << GetEscapeString(db, name2, SKILL_ESC_SLOT) << "'";
     // 6)basic_explain(+0x10 先于 +0xc) 7)skill_explain(+0xc)
-    char* escBasic = SKILL_ESC_SLOT;
-    GetEscapeString(db, script->m_str10.c_str(), escBasic);
-    sb << ", '" << escBasic << "'";
-    char* escSkillExplain = SKILL_ESC_SLOT;
-    GetEscapeString(db, script->m_strc.c_str(), escSkillExplain);
-    sb << ", '" << escSkillExplain << "'";
+    sb << ", '" << GetEscapeString(db, script->m_str10.c_str(), SKILL_ESC_SLOT)
+       << "'";
+    sb << ", '" << GetEscapeString(db, script->m_strc.c_str(), SKILL_ESC_SLOT)
+       << "'";
     // 8)m_vec18
     {
         // ORIG 站点形态：for_each 返回临时 + 实参临时同在一个 full-expression
@@ -820,16 +818,17 @@ bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
         sb << ", '" << std::for_each((int*)script->m_i108 + 2, (int*)script->m_i108 + 4, CStringMaker()).c_str() << "'";
     }
     // 22)icon：esc(str160[0]),arr168[0],esc(str160[1]),arr168[1]
-    char* icon1 = SKILL_ESC_SLOT;
-    GetEscapeString(db, script->m_str160[1].c_str(), icon1);
-    char* icon0 = SKILL_ESC_SLOT;
-    GetEscapeString(db, script->m_str160[0].c_str(), icon0);
-    sb << ", '" << icon0 << "," << script->m_arr168[0]
-       << "," << icon1 << "," << script->m_arr168[1] << "'";
-    // 23)command_key_explain：esc(m_str194)
-    char* escCommandKey = SKILL_ESC_SLOT;
-    GetEscapeString(db, script->m_str194.c_str(), escCommandKey);
-    sb << ", '" << escCommandKey << "'";
+    // [b28e] ORIG 0x08623f30/0x08623f78：**两次 GetEscapeString 都直用返回值**
+    // （先 %ebx=m_str160[1] 的结果、再 %esi=m_str160[0] 的结果，全无具名槽）；
+    // 链中位置为 icon0 第 3 位 / icon1 第 6 位，GCC 右→左求值恰好复现 ORIG 的
+    // 「先算 m_str160[1]、再 arr168[0]、再 m_str160[0]」调用序。
+    sb << ", '" << GetEscapeString(db, script->m_str160[0].c_str(), SKILL_ESC_SLOT)
+       << "," << script->m_arr168[0] << ","
+       << GetEscapeString(db, script->m_str160[1].c_str(), SKILL_ESC_SLOT)
+       << "," << script->m_arr168[1] << "'";
+    // 23)command_key_explain：esc(m_str194)（同 P183：返回值直用，无具名槽）
+    sb << ", '"
+       << GetEscapeString(db, script->m_str194.c_str(), SKILL_ESC_SLOT) << "'";
     // 24)skill_command_advantage：m_240,m_244
     sb << ", '" << script->m_240 << "," << script->m_244 << "'";
     // 25)static_data：m_vec198（lea 0x198@086240e4）

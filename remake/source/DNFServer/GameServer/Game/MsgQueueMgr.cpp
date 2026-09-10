@@ -1,4 +1,8 @@
 // df_game_r MsgQueueMgr 实现（ORIG 0x8570e40-0x8571257，AE 口径还原）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN11MsgQueueMgrC2Ev`（ORIG 0x8571298）；ctor 已是首强符号。
+#include <iostream>
+
 #include "MsgQueueMgr.h"
 
 MsgQueueMgr::MsgQueueMgr()

@@ -155,13 +155,22 @@ void CSkillChanger::_addSFPRelatedItem(int* a, int* b, int itemIdx, int count)
 // ============================================================================
 bool CSkillChanger::_fnEnumQuestClear(unsigned int questIdx, char* args)
 {
-    int** slots = reinterpret_cast<int**>(args);
-    int* spA = slots[0];
-    int* spB = slots[1];
-    int* sfpA = slots[2];
-    int* sfpB = slots[3];
-    CSkillChanger* self = reinterpret_cast<CSkillChanger*>(slots[4]);
-    CUser* user = reinterpret_cast<CUser*>(slots[5]);
+    // b28d-L3 复测（P0/P183）：ORIG 0x0860a6da 为**形参自增指针**形 —— 每个槽
+    //   `mov 0xc(%ebp),%eax; lea 0x4(%eax),%edx; mov %edx,0xc(%ebp); mov (%eax),%eax;
+    //    mov %eax,-0x30…(%ebp)`（6 连，偏移步进 4）⇒ 直接对 args 做 `+= 4` 步进，
+    //   不设 `slots` 中间层（旧形多一具名槽 -0x34 且读形为 `mov -0x34(%ebp),%eax;
+    //   add $0x4,%eax`）。
+    int* spA = *(int**)args;
+    args += 4;
+    int* spB = *(int**)args;
+    args += 4;
+    int* sfpA = *(int**)args;
+    args += 4;
+    int* sfpB = *(int**)args;
+    args += 4;
+    CSkillChanger* self = *reinterpret_cast<CSkillChanger**>(args);
+    args += 4;
+    CUser* user = *reinterpret_cast<CUser**>(args);
 
     Quest const* quest = G_CDataManager()->find_quest(static_cast<int>(questIdx));
     if (quest == 0)

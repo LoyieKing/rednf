@@ -6,6 +6,10 @@
 //   getGameStartTime 0x086031f6 / updateHumanCertify 0x08603226 /
 //   checkValidPassword_Jpn 0x081b25ec / stOutputData_t::ctor(W) 0x0818fb28。
 // 类权威声明：CSimpleSSO.h（原 GlobalData.cpp 局部类收敛）；ctor/dtor/init 属 GlobalData.cpp。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN8WongWork10CSimpleSSO22checkValidPassword_JpnEjPKcS2_RNS0_14stOutputData_tE`
+// （ORIG 0x81b26e8）。
+#include <iostream>
 
 #include "CSimpleSSO.h"
 #include "MySQL.h"

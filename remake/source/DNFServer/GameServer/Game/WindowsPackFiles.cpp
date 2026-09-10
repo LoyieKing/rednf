@@ -10,6 +10,10 @@
 // 只取其声明。
 // C++98 / 32 位 / O0；字段均为具名成员，无偏移宏。
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN11CObfuscatorC2Ev` / `_GLOBAL__I__Z14LoadClientFilePmPPvPKc`
+// （ORIG 0x8585f03 / 0x8575e3c，两者同属本 TU 的两个 ORIG CU 键名，取首强符号者）。
+#include <iostream>
 // [b28d-64 判词汇总 · 泳道64] 本 TU 10 件（明细 /tmp/b28d_lane_64_result.tsv）：
 //   LoadClientFile 66/66 AE；IsDifferentExeVersionRoughly 66/66 AE；
 //   ~WindowsDataFileFamily 77/77 AE；~WindowsExeFileFamily 94/94 AE；
@@ -33,6 +37,13 @@
 //   N 封顶 3：MakeCommonWindowsExeConstantSections（N95/N82，p167 CLEAR 20/20）、
 //     CompleteLoadingWindowsExeFiles（N95/N89，p167 CLEAR 37/37）、ReadPeHeader
 //     （P165 双份展开/N82/N89，p167 差集为等价改写形态）。
+//   [b29-R28 复核] 三件 p167 差集 = **P93 同址别名伪差**（本仓 nm 实证）：
+//     ORIG 同一地址多符号 —— IntervalSet::C1Ev=C2Ev=0x8575e9c、D1Ev=D2Ev=0x8575eb0；
+//     Interval::C1Ev=C2Ev=0x8575e58、C1Ell=C2Ell=0x8575e5e；
+//     vector<IntervalSet*>::D1Ev=D2Ev=0x8576832。objdump 在同址多符号时选名不同
+//     （C1 vs C2、D1 vs D2）⇒ MISSING/EXTRA 成对抵消，非语义缺口。
+//     残余 = N95 全帧槽号浅移（shift.py 三件均 MIXED：ORIG 96/256/156 vs
+//     我方 104/272/156）+ 4.4 聚合优先低槽分区（N82附）。语义等价。
 //   .h 改动 2（均已 R2 广播 + 消费点核对）：WindowsPackFiles.h m_curSectionIndex
 //     int→unsigned long（P211 档③）；CodeHackChecksum.h CodeHackCheckRangeEx
 //     匿名 union {m_start104/m_size108; CodeHackCheckRange m_range;}（P247）。

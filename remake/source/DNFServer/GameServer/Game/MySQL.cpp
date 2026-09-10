@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN5MySQLC2Ev`（ORIG 0x83f52ff）。
+#include <iostream>
+
 #include "LogManager.h"
 // df_game_r 还原 —— MySQL（D4 批次）
 // 参照 docs/class_func_reports/MySQL.md；源文件 DBMgr.cpp（ORIG 日志文件名）。

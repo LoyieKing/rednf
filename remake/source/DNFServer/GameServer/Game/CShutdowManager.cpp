@@ -33,18 +33,18 @@ unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
         return 1;
     }
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire("App.cpp", 0x324c);
         {
-            CStreamGuard guard(stream, true);
+            // [P259 直证] ORIG 无 stream 具名局部（`call Acquire; mov %eax,0x4(%esp)`
+            // eax 直传构造实参）⇒ 内联 Acquire 进 CStreamGuard 实参（两处）。
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire("App.cpp", 0x324c), true);
             (*guard)->operator<<(0x95);
             (*guard)->operator<<(-1);
             GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
         }
         ++m_field4;
 
-        stream = GlobalData::s_stream_pool->Acquire("App.cpp", 0x3257);
         {
-            CStreamGuard guard(stream, true);
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire("App.cpp", 0x3257), true);
             (*guard)->operator<<(0x96);
             (*guard)->operator<<(-1);
             GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)4, guard);
@@ -60,6 +60,9 @@ bool CShutdowManager::WaitUntilExitThread()
     // [b28d-27] P0/N96 清绑：ORIG 0x082a396e `movzbl (%eax),%eax; xor $1; test %al;
     // je <joins>` ⇒ 字段已 bool，裸 `if (!m_flag) { joins; return true; }` 即复现
     // （P248 档②；P214② 两个 return true 共享尾块）。
+    // [ORIG 0x082a396e 直证] 形为 `movzbl; xor $1; test %al; je <joins>;
+    // mov $0x1,%eax; jmp <end>; <joins>: …` ⇒ 原码是**否定守卫** `if (!m_flag)`
+    // 且 else 臂（return true）独立成岛 ⇒ 写显式 else（if-return 双臂不共享尾块）。
     if (!m_flag)
     {
     // ORIG 0x82a396e 逐条转写：按地址序 join 7 个线程全局（s_dispatch_thr →
@@ -83,7 +86,10 @@ bool CShutdowManager::WaitUntilExitThread()
     std::puts("net thread join");
     return true;
     }
-    return true;
+    else
+    {
+        return true;
+    }
 }
 
 CShutdowManager* GetInstanceShutdowManager()

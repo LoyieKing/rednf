@@ -377,6 +377,9 @@ bool CItemUpgrade::_GetUpgradeInfo(const Inven_Item* item,
 //   （无具名局部）。残余 = 4.4 对具名局部的槽化 vs ORIG 的 %ebx/%esi 寄存器
 //   保活（N82/N95 帧差 0xa4 vs 0x84）+ 常量折叠形差 ⇒ N 封顶。
 // ============================================================================
+// [round3-L29 2026-09-10 复核] 判据⑪ MIXED（OURS-only=[-101,-99,-40,-36] vs
+//   ORIG-only=[-116,-112,-93,-91]）⇒ 相对序差；观测 -0x20/-0x10(ORIG) vs -0x28/-0x18(我方)。
+//   本轮未及逐对重排（轮次预算）；grep 本注释可避免重复排查方向。
 int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
                                   const CItem* itemScript,
                                   const Inven_Item& ticket,
@@ -918,6 +921,9 @@ bool CItemUpgrade::ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equi
 //   ④outSlots 循环整段缺失的 make_item + collectCubeStatistics + GetSellItemPrice
 //   + AddValueStatistic(9) 逐物品统计已补。残余 = 帧/槽号与寄存器化 N 类 ⇒ N 封顶。
 // ============================================================================
+// [round3-L29 2026-09-10 复核] p167 CALLSITE CLEAR（54=54；差集仅 vector D1/D2、
+//   DisJointResult C1/C2、Inven_Item C2 同址别名 P93）。判据⑪ PURE SHIFT c=0
+//   （槽位直方图两侧逐值一致）⇒ 残余为块序/装载序，非槽与调用缺口。
 int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
                                const CItem* itemScript, unsigned short slot,
                                PacketGuard* packet)

@@ -234,7 +234,17 @@ void CTestDisjointCmd::execute()
 // ============================================================================
 
 // 收集全部生效 premium 项：逐项发 DB_Q(0x54) 流、解除并重挂效果、通知剩余时长。
-// [b28d-19] N：N82 —— 帧/槽序（大件 GM 命令）；ORIG 0x084abf4e。
+// [b28d-19 / b28c-R26 修复] verdict=DIFF(routed) [N82 残余] ORIG 0x084abf4e
+//   orig/ours=242/243。本轮修掉三处 p167 真缺口（修复前 OUR calls=39 / ORIG=48）：
+//   ① 8 处 `guard << x` → `guard.operator*()->operator<<(x)`：ORIG 每处先
+//      `call CStreamGuard::operator*`（0x080c8c46）再 `call CStreamGuard::operator<<`
+//      （0x080c8c56 / 0x080e2276 / 0x080e2292）⇒ P103/P132 链不可省（+8 call）。
+//   ② 循环内 GetPremiumInfo 具名局部 → 两次独立调用：ORIG 0x084abf93（判条件）
+//      与 0x084abfb0（push_back）各一次（P48：O0 无 CSE）。
+//   ③ serverCode `unsigned int` → `int`：ORIG 用 `CStreamGuard::operator<<(int)`
+//      （lsEi 0x080c8c56），unsigned 实参选 lsEj 0x080e2292 = 重载选错。
+//   修复后 p167 CLEAR（48=48；残余 C1/C2、D1/D2 为 P93 同址别名伪差）。
+//   残余 DIFF = 槽/帧序跨版本差（N82）：ORIG guard -0x3c/vector -0x30/it -0x24 一族。
 void CUserPremiumDelete::execute()
 {
     CUser* user = GetUser();
@@ -390,7 +400,18 @@ void CUpgradeCardDebug::SendChatMsg(CUser* user, char* msg)
 }
 
 // 万次蒙特卡洛统计强化券成功率并向 GM 回播聊天消息。
-// [b28d-19] N：N82 —— 槽序/帧（大件 GM 命令）；ORIG 0x084b1b96。
+// [b28d-19 / b28c-R26 复验] verdict=DIFF(routed) [N126 + 待解 memset-edx] ORIG 0x084b1b96
+//   orig/ours=233/229（gap +4）。本轮改动：
+//   ① 删具名 itemIdx 局部（P0/P183）：ORIG 0x084b1bba `mov 0x8(%eax),%ebx` 把
+//      m_slot 装 callee-saved 直传 find_item；具名局部会多占 -0x34 槽。
+//   ② 死缓冲声明序改为 dead1e → dead400（ORIG 物理序 0x084b1bf4(0x400) →
+//      0x084b1c3e(memset) → 0x084b1c5d(0x1e) → 0x084b1caf(0x400)）。
+//   ③ 试 `memset((char*)p,0,N)`（P68）复现 ORIG 0x084b1c3e `lea→%eax;
+//      mov $0x17318,%edx; mov %edx,0x8(%esp)` 的 edx 中转形 —— 实测无效
+//      （4.4 仍 `movl $imm,0x8(%esp)`）⇒ 并入「待解：memset 首参 edx 中转」
+//      （与 CAchievementReport::execute 同现象）封顶。
+//   残余 = N126 版本首槽基址常数：我方全帧浅 8（user -0x34 vs ORIG -0x3c；
+//   deadLarge `lea -0x17b6a` vs ORIG -0x17b72；msg -0x452 vs -0x45a）⇒ 整帧平移不可消。
 void CUpgradeCardDebug::execute()
 {
     CUser* user = GetUser();
@@ -410,11 +431,15 @@ void CUpgradeCardDebug::execute()
 
     // ORIG 入口对三块栈缓冲整块清零（0x400/0x1e/0x400 内联展开 +
     // 95000 大缓冲 memset call）；除 sprintf 目标外均为死存储。
+    // ORIG 物理顺序 0x084b1bf4(0x400) → 0x084b1c3e(memset) → 0x084b1c5d(0x1e)
+    // → 0x084b1caf(0x400) ⇒ dead400 必须声明在 dead1e 之后。
     char msg[1024] = { 0 };
     unsigned char deadLarge[95000];
-    memset(deadLarge, 0, sizeof(deadLarge));
-    unsigned short dead400[512] = { 0 };
+    // P68：ORIG 0x084b1c3e 先 `lea` 落 %eax、size 经 %edx 中转再压栈
+    // （`memset((char*)p,0,N)` 形）；裸 memset(p,0,N) 直接 movl 立即数。
+    memset((char*)deadLarge, 0, sizeof(deadLarge));
     unsigned char dead1e[30] = { 0 };
+    unsigned short dead400[512] = { 0 };
 
     int rate = 0;                                   // -0x34
     switch (item->get_index())
@@ -479,7 +504,15 @@ void CTestTradeRestrict::parse()
 // 对背包/仓库/账号货物全部在库且 flag==1 的道具槽打上 0x20 交易限制标志，
 // 最后按当前角色号发起 DB_TestTradeRestrict 请求。
 // 槽位记录步长 0x3d：+0x01 flag 字节、+0x02 itemIndex dword、+0x33 限制字节。
-// [b28d-19] N：N82 —— 槽序/帧（bool 物化 + 局部槽平移）；ORIG 0x084b2640。
+// [b28d-19 / b28c-R26 复验] verdict=DIFF(routed) [N82/P223 边界] ORIG 0x084b2640
+//   orig/ours=214/215（gap −1）。p167 CLEAR（15=15）。残差三处（均 4.1 独有形）：
+//   ① 循环 3 ORIG 0x084b27a9 `test %eax,%eax; sete %al; test %al,%al; jne <skip>`
+//      （"==0" 的 4.1 bool 物化）vs 我方 `je <skip>` 直跳（P225 只给出 "!=0" 的
+//      setne 形；负向 sete 形探针不可复现）。
+//   ② 循环 4 ORIG 每处 if-join 出 `jmp <tail>; nop` 双岛（P223 正例），
+//      4.4 对 `if(a&&b)` 恒 jump-thread 消岛。
+//   ③ 循环 5 ORIG 判空 `cmpl $0,-0x24(%ebp); je` 位于条件块；我方把
+//      `i<0x38 && p!=0` 物化为 `jg` + `mov $1/$0` 岛（P223 岛数恒=条件数或 0）。
 void CTestTradeRestrict::execute()
 {
     CUser* user = GetUser();

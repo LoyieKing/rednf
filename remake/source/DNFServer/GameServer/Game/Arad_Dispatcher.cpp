@@ -270,7 +270,14 @@ int Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch(CUser* user,
     return 0;
 }
 
-// [b28d-23 NEAR·N82] 残余 N82 寻址/寄存器（158/157）；裸 register ret 保留（P248 三条件：跨 call 保活+4.4 不自升+ORIG 用 %ebx）⇒ N。ORIG 0x0818eb0c
+// [b29-R28 复核 · N104/N121 封顶] ORIG 0x0818eb0c（158 条）：p167 = 纯 **P93 同址
+// 别名伪差**（MISSING `CStreamGuardD2Ev`×2 / `CStreamGuardC2EP6Streamb`×1 vs EXTRA
+// `D1Ev`×2 / `C1EP6Streamb`×1，同址多符号 objdump 选名差异）⇒ 调用点多集 CLEAN。
+// 指令差仅两处**块序**：①ORIG 正常路径尾 `guard.~D1()` 共享块在函数末（`jmp +0x254`），
+// 4.4 把该析构就地内联在成功路径（尾部只留 EH unwind 块）②ORIG `mov $0x0,%ebx`
+// 就地发射两次（0x0818ecf5/0x0818ed3e），4.4 cross-jump 合并为一份共享块。
+// 二者 = 4.4 block-merge/尾块相对序（N104/N121 族，逐条内容全等）⇒ N 封顶，语义等价。
+// 裸 register ret 保留（P248 三条件：跨 call 保活+4.4 不自升+ORIG 用 %ebx）。
 int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
                                                    Stream* stream)
 {

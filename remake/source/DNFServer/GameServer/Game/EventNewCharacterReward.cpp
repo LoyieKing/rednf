@@ -5,6 +5,10 @@
 //   StartEvent(Word_Param) 0x0816bb94 / EndEvent() 0x0816bc98 /
 //   isEventCharacter 0x0816bcea / eventExpRatio 0x0816bd06 /
 //   eventCharacterJob 0x0816bd22
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN23EventNewCharacterRewardC2Ev`（ORIG 0x816bd6d）；ctor 已是首强符号。
+#include <iostream>
+
 #include "EventNewCharacterReward.h"
 #include "GameTypes.h"   // cMyTrace
 

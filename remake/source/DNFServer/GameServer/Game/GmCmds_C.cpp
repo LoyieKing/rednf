@@ -147,7 +147,9 @@ void CDeleteGuild::execute()
     (*guard)->operator<<(0x1df);
     (*guard)->operator<<(user->GetUID());
     (*guard)->operator<<(user->getCurCharacNo());
-    (*guard)->operator<<(static_cast<unsigned int>(user->get_charac_guildkey()));
+    // [L11·round3] p167 直证：ORIG 该处为 `_ZN12CStreamGuardlsEi`（int 实参），
+    // 我方 `static_cast<unsigned int>` 发 `lsEj` ⇒ MISSING lsEi ×1 / EXTRA lsEj ×1。
+    (*guard)->operator<<(static_cast<int>(user->get_charac_guildkey()));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
     user->set_guild_create_right(0);

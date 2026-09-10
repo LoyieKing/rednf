@@ -2,6 +2,10 @@
 // 报告：docs/class_func_reports/EventGiveMeBox/ 全部 6 个方法（已完整阅读
 // EventGiveMeBox / ~EventGiveMeBox / ~EventGiveMeBox_081649fc /
 // StartEvent / StartEvent_08164a6c / EndEvent）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN14EventGiveMeBox12kRewardItem_E`（ORIG 0x8164b4f）；R 型数据符号为首强符号。
+#include <iostream>
+
 #include "EventGiveMeBox.h"
 
 #include "GameTypes.h"             // cMyTrace

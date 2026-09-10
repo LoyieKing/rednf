@@ -435,6 +435,9 @@ bool CQuestShop::loadData(CUser* user, char* data)
     m_piece = static_cast<int>(p->m_main.m_questPiece); // 0xa6→(+0x44)
     for (int i = 0; i <= 0x4c; ++i)
     {
+        // [L11·round3 实测回滚] 具名 view 局部（`const QuestShopStatusView* st =
+        // reinterpret_cast<...>(p);`）实测 ndiff 7→27、TU ae 150→148 劣化 ⇒ 保持
+        // cast 内联形（ORIG「i 先、base 后」装载序属 N/A 寄存器指派族）。
         if (reinterpret_cast<const QuestShopStatusView*>(p)->m_statusCounts[i] == 0)       // movzwl + test ax / je
             continue;
         // ORIG make_pair<IRiRt>(i, m_statusCounts[i]) 左值 + pair 移动 + insert
@@ -482,10 +485,7 @@ bool CQuestShop::_saveData(CUser* user)
          it != itEnd; ++it)
     {
         const unsigned char key = it->first;        // -0xb
-        // [L11·round3] 目标成员 `m_statusCounts` 已定稿为 unsigned short（ORIG SetTag
-        // 的 make_pair `IRiRt` 直证）⇒ 此处 value 保持 **short**（与目标异型，P211 档③）
-        // 以保留 ORIG 的 store 装载序（同型化会把 `mov -0x10(%ebp),%eax` 提前 1 条）。
-        const short value = static_cast<short>(it->second);
+        const unsigned short value = static_cast<unsigned short>(it->second);
         if (it->first > 0x4c)                       // cmp $0x4c seta → skip
             continue;
         view->m_main.m_statusCounts[key] = value;   // mov %cx,0xc(key*2)

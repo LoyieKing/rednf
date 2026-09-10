@@ -190,9 +190,9 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
                         std::make_pair(itemIdx, count));          // +0x44
                 }
             }
-            else if (token == "[reward skill]")
+            else if ("[reward skill]" == token)
                 script->m_rewardSkill = 1;                        // +0x5d
-            else if (token == "[reward sp]")
+            else if ("[reward sp]" == token)
                 script->m_rewardSp = 1;                           // +0x5e
             else if (token == "[difficulty_ratio]")
                 script->m_expRate = ScanFloat((bool*)0);          // +0x40
@@ -215,11 +215,11 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
             else if (sub == "[hereafter winning count]") { script->m_field34 = 0x5; _ReadThreeInt(script); }
             else if (sub == "[remain HP]")        { script->m_field34 = 0x6; _ReadThreeInt(script); }
             else if (sub == "[hereafter kill count]") { script->m_field34 = 0x8; _ReadThreeInt(script); }
-            else if (sub == "[within]")           { script->m_field34 = 0xb; _ReadFourInt(script); }
+            else if ("[within]" == sub)           { script->m_field34 = 0xb; _ReadFourInt(script); }
             else if (sub == "[remainS HP]")       { script->m_field34 = 0xc; _ReadThreeInt(script); }
-            else if (sub == "[move_channel]")     { script->m_field34 = 0xd; _ReadThreeInt(script); }
-            else if (sub == "[move_channel_total]") { script->m_field34 = 0xe; _ReadThreeInt(script); }
-            else if (sub == "[combo clear]")
+            else if ("[move_channel]" == sub)     { script->m_field34 = 0xd; _ReadThreeInt(script); }
+            else if ("[move_channel_total]" == sub) { script->m_field34 = 0xe; _ReadThreeInt(script); }
+            else if ("[combo clear]" == sub)
             {
                 script->m_field34 = 0xf;
                 std::string comboTok;
@@ -231,7 +231,7 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
                     combo_script_key key;    // ctor：job=0xb/growType=0
                     combo_script_data data;  // ctor
 
-                    if (comboTok == "[job]")
+                    if ("[job]" == comboTok)
                     {
                         if (!ScanStr(&sub))
                         {
@@ -258,7 +258,7 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
                         if (!ScanType(comboTok, true))
                             continue;        // ORIG esi=1 → 循环头再读一次
 
-                        if (comboTok == "[reward item]")
+                        if ("[reward item]" == comboTok)
                         {
                             // ORIG 读入两个 int 后未使用（忠实转写）。
                             (void)ScanInt((bool*)0);
@@ -294,7 +294,7 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
     bool ok = false;
     while (ScanType(token, true))
     {
-        if (token == "[frequent daily mission]")
+        if ("[frequent daily mission]" == token)
         {
             int count = ScanInt(&ok);
             if (!ok)
@@ -307,7 +307,7 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
                 param.m_dailyIndices.push_back(idx);      // +0x00
             }
         }
-        else if (token == "[casual daily mission]")
+        else if ("[casual daily mission]" == token)
         {
             param.m_field0c = ScanInt(&ok);               // +0x0c
             if (!ok)
@@ -316,17 +316,17 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
         {
                 int weight = ScanInt(&ok);
                 if (!ok)
-                goto next_token;                       // ORIG 0x8a5b942 je 越 944 nop/945 jmp 836（P223 goto 岛）
+                break;                                 // ORIG 0x8a5b944 nop / 945 jmp 836
+                                                       //（4.4 goto 形会复制一份条件头，实测 +6，故留 break）
                 int missionIdx = ScanInt(&ok);
                 if (!ok)
                     return false;
                 param.m_dailyList.push_back(
-                    std::make_pair((unsigned int)weight,
-                                   (unsigned int)missionIdx));   // +0x10
+                std::make_pair(weight, missionIdx));   // +0x10
                 param.m_field18 += weight;                      // +0x18
         }
     }
-        else if (token == "[mission reward exp table]")
+        else if ("[mission reward exp table]" == token)
             {
             param.m_baseExp.resize(0x1e);                 // +0x1c
             for (int i = 0; i < 0x1e; ++i)
@@ -338,7 +338,6 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
                     return false;
         }
     }
-    next_token:;                                      // ORIG 0x8a5b836 外层 while 条件头
 }
     return true;
 }

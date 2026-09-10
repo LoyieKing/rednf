@@ -210,19 +210,24 @@ int TowerOfDespairMgr::CheckEnterable(CUser* user, const CDungeon* dungeon)
             }
         }
 
-        const CInventory* inven = user->getCurCharacInvenR();
-        int slot = inven->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
+        // ORIG 无 inven 具名槽（两次独立 `getCurCharacInvenR()` 内联调用，
+        // P0/P48）⇒ 内联成员链。ORIG 也无 Inven_Item 具名对象（直接对
+        // GetInvenSlot 的匿名 sret 结果读 +0x7 = m_addInfo2）。
+        int slot = user->getCurCharacInvenR()->check_item_exist(
+            dungeon->m_entryRequiredItem.m_itemIdx);
         if (slot == -1)
         {
             return 0xf5;
         }
 
-        Inven_Item slotItem = inven->GetInvenSlot(1, slot);
-        // ORIG：cmp %eax,%edx 后 jge 直跳（无 setl 链）——用 !(a>=b) 形态。
-        if (!(slotItem.get_add_info() >= dungeon->m_entryRequiredItem.m_itemCount))
-        {
-            return 0x11;
-        }
+        // ORIG：cmp %eax,%edx 后 **jge 直跳**（无 setl 物化）⇒ 用 goto 形
+        //（早退 return 会被 4.4 物化成 setl;test;je）。ORIG 直接
+        // `mov -0x4a(%ebp),%edx`（sret+0x7 内联读）⇒ 字段直访问，getter 会多发 call。
+        if (user->getCurCharacInvenR()->GetInvenSlot(1, slot).m_addInfo2 >=
+            dungeon->m_entryRequiredItem.m_itemCount)
+            goto L_slot_ok;
+        return 0x11;
+    L_slot_ok:;   // [Main 中断恢复] 标签后必须有语句（原为 `L_slot_ok:` 紧跟 `}` ⇒ 语法错）
     }
 
     CParty* party = static_cast<CParty*>(user->GetParty());

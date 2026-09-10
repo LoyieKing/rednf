@@ -115,6 +115,15 @@ struct SIG_BEST_CLEAR_TIME_ENTRY
     SIG_BEST_CLEAR_TIME_DIFFICULTY m_data;  // +0x04（5 难度时间）
 };
 
+// 线格式整体视图：characNo@+0 / count@+4 / entries[1000]@+8（每条 0x18）。
+// 用结构体数组下标访问（ORIG 的 i*0x18 强度归约 + 成员 disp 折叠）。
+struct SIG_BEST_CLEAR_TIME_VIEW
+{
+    int m_characNo;                                 // +0x00
+    int m_count;                                    // +0x04
+    SIG_BEST_CLEAR_TIME_ENTRY m_entries[1000];      // +0x08
+};
+
 
 // ORIG 0x080c8776：虚调 _reset() 后按 count（≤1000）逐条
 // map::insert(value_type)（ORIG 为 make_pair 引用 → pair 拷贝 → insert 展开）。
@@ -122,19 +131,19 @@ bool BestClearTime::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
     _reset();
-    // ORIG 0x080c8776：data(-0x10)/i(-0xc) 具名；循环条件每轮重读 data+4
-    // （无 count 具名局部）；记录基址 data+i*0x18 每字段重算（无 entry 指针
-    // 缓存，P183）；make_pair 两实参为记录内 int&/SIG& 左值。
-    char* data = pData;
+    // ORIG 0x080c8776：data(-0x10)/i(-0xc) 具名；循环条件每轮重读 count
+    // （无 count 具名局部）；记录经结构体数组下标访问（ORIG 的 3i*8 强度
+    // 归约 + `lea 0x8/0xc(%eax)` 成员 disp）；make_pair 两实参为记录内
+    // int&/SIG& 左值。
+    SIG_BEST_CLEAR_TIME_VIEW* data =
+        reinterpret_cast<SIG_BEST_CLEAR_TIME_VIEW*>(pData);
     int i = 0;
-    while (i < *reinterpret_cast<int*>(data + 4) && i < 1000)
+    while (i < data->m_count && i < 1000)
     {
         // ORIG：make_pair<int&,SIG&>(记录.m_key, 记录.m_data) → pair<int,SIG>
         // 拷贝 → map::insert(value_type const&)（三段调用与 ORIG 展开一致）。
-        m_map.insert(std::make_pair(
-            *reinterpret_cast<int*>(data + i * 0x18 + 8),
-            *reinterpret_cast<SIG_BEST_CLEAR_TIME_DIFFICULTY*>(data + i * 0x18 +
-                                                               0xc)));
+        m_map.insert(std::make_pair(data->m_entries[i].m_key,
+                                    data->m_entries[i].m_data));
         ++i;
     }
     return true;
@@ -147,7 +156,8 @@ void BestClearTime::getData(char* pData) const
     // ORIG 0x080c883c 结构：data(-0x10)/i(-0xc) 具名 + begin 具名迭代器(-0x18)；
     // 循环体先 i>0x3e7 直接 return（不写 count）；逐字段重算 i*0x18（无 entry
     // 指针缓存，P183）；first 一次 ptEv、second 一次取值后连读 5 个 int。
-    char* data = pData;
+    SIG_BEST_CLEAR_TIME_VIEW* data =
+        reinterpret_cast<SIG_BEST_CLEAR_TIME_VIEW*>(pData);
     int i = 0;
     std::map<int, SIG_BEST_CLEAR_TIME_DIFFICULTY>::const_iterator it =
         m_map.begin();
@@ -155,17 +165,17 @@ void BestClearTime::getData(char* pData) const
     {
         if (i > 0x3e7)
             return;
-        *reinterpret_cast<int*>(data + i * 0x18 + 0x8) = it->first;
+        data->m_entries[i].m_key = it->first;
         const SIG_BEST_CLEAR_TIME_DIFFICULTY& d = it->second;
-        *reinterpret_cast<int*>(data + i * 0x18 + 0xc) = d.m_time[0];
-        *reinterpret_cast<int*>(data + i * 0x18 + 0x10) = d.m_time[1];
-        *reinterpret_cast<int*>(data + i * 0x18 + 0x14) = d.m_time[2];
-        *reinterpret_cast<int*>(data + i * 0x18 + 0x18) = d.m_time[3];
-        *reinterpret_cast<int*>(data + i * 0x18 + 0x1c) = d.m_time[4];
+        data->m_entries[i].m_data.m_time[0] = d.m_time[0];
+        data->m_entries[i].m_data.m_time[1] = d.m_time[1];
+        data->m_entries[i].m_data.m_time[2] = d.m_time[2];
+        data->m_entries[i].m_data.m_time[3] = d.m_time[3];
+        data->m_entries[i].m_data.m_time[4] = d.m_time[4];
         ++it;
         ++i;
     }
-    *reinterpret_cast<int*>(data + 4) = i;
+    data->m_count = i;
 }
 
 // ORIG 0x080c8616：BigStreamPool 序列化 → put DB_Q（QUEUE_IDX 2）。
@@ -193,7 +203,9 @@ bool BestClearTime::_saveData(CUser* pUser)
     memset(sig, 0, sizeof(SIG_BEST_CLEAR_TIME));
     // ORIG 虚调 vtable slot2 = getData(char*)。
     getData(reinterpret_cast<char*>(sig));
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(sig)) =
+    // ORIG store 为 RHS-first + eax 中转（`mov %eax,%edx; mov -0xc(%ebp),%eax;
+    // mov %edx,(%eax)`）⇒ 目标字段与 RHS 异型（P211 档③）⇒ unsigned 视角。
+    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig)) =
         pUser->get_charac_no(-1);   // sig->characNo @+0
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;

@@ -98,7 +98,11 @@ bool BlueMarbleScriptManager::initTileList(const char* dir, const char* list)
         // b28d-59/168a①：ORIG 失败分支直落（`xor $1; test; je <成功>`）⇒ 否定早返形。
         if (!tile->importScript(path.c_str()))
         {
-            delete tile;
+            // [b29 R20] ORIG 0x088d638d `cmpl $0x0,-0xc(%ebp); je`：4.1 的 delete 内联判空。
+            // 4.4 的 -fdelete-null-pointer-checks 对「来自 new 的非空指针」省略该判空
+            // ⇒ 用显式 if 复现（实测净 1 重判空，与 ORIG 同）。
+            if (tile != 0)
+                delete tile;
             tile = 0;
         }
         else
@@ -130,7 +134,10 @@ bool BlueMarbleScriptManager::initMapList(const char* dir, const char* list)
         // b28d-59/168a①：同 initTileList（否定早返形）。
         if (!map->importScript(path.c_str()))
         {
-            delete map;
+            // [b29 R20] ORIG 0x088d656c/0x088d6572 双判空（delete 判空 + dtor 判空）；
+            // 我方只有 dtor 判空 ⇒ 补外层 if（P141 反向使用，ORIG 确有该守卫）。
+            if (map != 0)
+                delete map;
             map = 0;
         }
         else

@@ -12,6 +12,12 @@
 //   +0x344 bool m_dan[8]            丹位标记（b28d-solo：P248 档② bool 化）
 // 大小合计 0x34c。
 // ============================================================================
+// [G5 2026-09-10 · L12 round3 复核] 2 件全核（p167 + 判据⑪）：
+//   · GetTeamVsTeamPoint：判据⑪ = (a) 相对序差（我方 -0x10..-0x4c ↔ ORIG -0xc..-0x48，
+//     浅端多 4B/深端多 4B）；P227 全表达式临时链试验（ORIG `fstpl -0x48` 在 ctor 前）
+//     实测四数与槽表逐值不变 ⇒ 回滚；残余 N85（fucompp/fnstsw/sahf ↔ 4.4 fucomip/fstp）
+//     + N82 槽组（帧 0x70↔0x60），p167 CLEAR 7/7 ⇒ 语义完成。
+//   · GetResult：判据⑪ = (b) 整帧平移（槽集合全等）⇒ N126 封顶，p167 仅别名差。
 
 #include <algorithm>
 #include <cstring>
@@ -247,6 +253,9 @@ bool PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
     if (ratioSum == 0.0f)
     {
         double dbl = ratioSum;
+        // [G5 2026-09-10 P227 试验·无效已回滚] ORIG 0x085d4eee 的 `fstpl -0x48`（dbl 具名
+        //   double 落槽）在 cMyTrace ctor 之前，理论上为全表达式临时链；改链式形实测
+        //   四数不变、槽表逐值不变（我方 -0x10..-0x4c vs ORIG -0xc..-0x48）⇒ 回滚。
         cMyTrace tr(__PRETTY_FUNCTION__, 0x162, 5);
         tr("[FPE][PvpUserTable::GetTeamVsTeamPoint] RatioSum: %f",
            dbl);

@@ -39,7 +39,11 @@ void CVillageObjectMgr::on_move_area(CUser* user)
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xca);
-    int countIdx = packet.get_index();
+    // [L14 round3 判据⑫] widthscan `clr_l orig=2 our=1`：ORIG 0x086b71da 有两个
+    // int 零初始化（-0x10 @0x86b72b4、-0xc @0x86b731b）⇒ countIdx 是「声明即 0 +
+    // 随后赋值」两句式（P198①），补上该初始化（深槽 -0x10 与 count 的 -0xc 同 ORIG）。
+    int countIdx = 0;
+    countIdx = packet.get_index();
     int count = 0;
     packet.put_byte(0);
     for (std::list<IObject*>::const_iterator obj = it->second.begin();

@@ -8,6 +8,10 @@
 //  - C1 用函数体逐句赋值（P29：初始化列表会缓存 this 到 ecx，ORIG 三次重读 0x8(%ebp)）。
 //  - 双参 encrypt/decryptUINT：ORIG 局部先 movl $0 清零再赋值（0x0808cf2a/0x0808cf6e）；
 //    u 以 int 声明、使用处 (unsigned int)u ^ shift，复现 ORIG xor 左先物化形态。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN16SimpleEncryptionC2Ev`（ORIG 0x808d043）；ctor 已是首强符号。
+#include <iostream>
+
 #include "SimpleEncryption.h"
 
 SimpleEncryption::SimpleEncryption()

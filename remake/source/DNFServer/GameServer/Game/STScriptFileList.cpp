@@ -76,7 +76,10 @@ bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
         return 0;
     list->Clear();                 // ORIG 0x088bbda8 call STScriptFileList::Clear（非内联 m_fileMap.clear）
 
-    bool ok = false;
+    // [round4-L19 2026-09-09] 判据⑫ widthscan 实测 `clr_b orig=0 our=1` ⇒
+    // ORIG 无该 bool 预清（ScanInt 为出参，总会写）⇒ 按 P171「ORIG 不写即删」
+    // 去掉 `= false`。
+    bool ok;
     std::string line;
     for (;;)
     {

@@ -10,6 +10,14 @@
 //   - _Action::_Action               0x0889b978 W（memset 0x14）
 //   - ActionDefine C1/D1/reset       0x08899c62/0x08899c82/0x08899c98 T
 // 逐函数对照 docs/class_func_reports/advancealtar__StageTimeLineParameter/
+// [G5 2026-09-10 · L12 round3 复核] 2 件全核（p167 + widthscan + 判据⑪）：
+//   · importStageTimeLineParameter：判据⑪ = (b) 整帧平移（79/79）⇒ N126 封顶，
+//     p167 MISSING=EXTRA=2（别名）。
+//   · importActionDefine（gap +11）：widthscan 报 `clr_l orig=0 our=10`
+//     （我方 9×`movl $0x0,-0x10`=state、1×`-0x14`=err）⇒ ORIG 的 err/state 由
+//     esi/ebx 寄存器承载（无槽）；本波 P231 纯 register（非 asm 绑定，P0 合规）
+//     实测 286→288 insns 反劣 ⇒ 回滚，判 N（槽/寄存器分配差）；p167 MISSING=EXTRA=8
+//     （别名）⇒ 无语义缺口。
 # include "CDataManager.h"    // advancealtar::StageTimeLineParameter/_SummonObject/
                               // _Action/ActionDefine 权威声明
 #include "DNFLexWrapper.h"    // loadRDARScriptFile/ScanType/ScanInt(bool*)/ScanStr
@@ -209,6 +217,10 @@ int StageTimeLineParameter::importActionDefine()
     {
         ActionDefine ad;                            // ctor：id=0 + vector 构造
         std::string tok;
+        // [G5 2026-09-10 widthscan 线索·实测反劣已回滚] `clr_l orig=0 our=10`
+        //   （我方 9×`movl $0x0,-0x10` = state、1×`-0x14` = err）；ORIG 注释的
+        //   esi/ebx 寄存器承载成立，但本波 P231 纯 register（非 asm 绑定，P0 合规）
+        //   实测 286→288 insns（反劣）⇒ 回滚，判 N（err/state 槽形为 4.1/4.4 分配差）。
         int err = 0;                                // esi：state==0 时的返回码
         int state;                                  // ebx：0=返 err / 1=返 0 / 2=续
 

@@ -9,6 +9,16 @@
 //     直写立即数不可复现（65:64，语义等价）。
 //   CMoveCharacCmd::execute 0x084a8d02 DIFF125 N82/N89：帧 0x50/0x60 +
 //     find_user_by_charac_name 结果具名局部槽化差。
+// [G5 2026-09-10 · L12 round3 复核] 2 件全核（p167 + widthscan + 判据⑪）：
+//   · **真缺口修复 1**：CMoveCharacCmd::execute —— p167 报 MISSING 4×
+//     `_ZN11game_master8CCommand7GetUserEv`（OUR calls 27 vs ORIG 31）；旧码
+//     `CUser* self = GetUser();` 把 5 个用点合并成 1 次调用（注释「无 self 命名槽」
+//     与代码不符）⇒ 按 P48/P183 删缓存、5 个用点逐点 fresh 重发 ⇒ **calls 31=31、
+//     p167 CLEAN**（残留仅 PacketGuard C1/D1 ↔ C2/D2 同址别名）。指令 161→172
+//     （补回 4 次调用及实参装载），残余为槽/形族（N82）。
+//   · CAchievementReport::execute：p167 MISSING=EXTRA=2（别名）；残余为
+//     `memset` 首参 %edx 中转（ORIG `mov $0x17318,%edx; mov %edx,0x8(%esp)`）——
+//     同 CQueryCounter 族，探针 /tmp/probe_memset.cpp 四形恒直写 ⇒ N 封顶（65:64）。
 #include "GameMasterCmd.h"
 #include "CUser.h"
 #include "CUserCharacInfo.h"
@@ -56,26 +66,27 @@ void CMoveCharacCmd::execute()
     unsigned int x = target->get_posX() & 0xffff;
     unsigned int y = target->get_posY() & 0xffff;
 
-    // ORIG(0x084a8dd4)：同 vill && 同 area → set_position，否则 move_area；
-    // GetUser()/G_GameWorld() 每用点 fresh（P48），无 self/needMove 命名槽。
     // ORIG(0x084a8dd4)：同 vill && 同 area → set_position，否则 move_area。
-    CUser* self = GetUser();
-    if (static_cast<int>(self->getCurCharacVill()) == vill &&
-        self->get_area(false) == area)
+    // [G5 2026-09-10 P167/P183 真缺口修复] 旧码 `CUser* self = GetUser();` 把 5 个用点
+    //   合并成 1 次调用；p167 实证 ORIG 调 `CCommand::GetUser()` **5 次**
+    //   （MISSING 4×，OUR calls 27 vs ORIG 31）⇒ 删具名缓存，逐用点 fresh 重发
+    //   （P48/P183：ORIG 在实参位直读、无 self 槽）。
+    if (static_cast<int>(GetUser()->getCurCharacVill()) == vill &&
+        GetUser()->get_area(false) == area)
     {
-        self->set_position(static_cast<unsigned short>(x),
-                           static_cast<unsigned short>(y), 0);
+        GetUser()->set_position(static_cast<unsigned short>(x),
+                                static_cast<unsigned short>(y), 0);
     }
     else
     {
-        G_GameWorld()->move_area(self, vill, area,
+        G_GameWorld()->move_area(GetUser(), vill, area,
                                  static_cast<int>(x), static_cast<int>(y),
                                  0, false, 0, 0, 0);
     }
 
     PacketGuard packet;
     packet.put_header(0, 0x8a);
-    packet.put_short(static_cast<int>(self->get_unique_id() & 0xffff));
+    packet.put_short(static_cast<int>(GetUser()->get_unique_id() & 0xffff));
     packet.put_short(static_cast<int>(x));
     packet.put_short(static_cast<int>(y));
     packet.put_byte(0);

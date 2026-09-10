@@ -3,6 +3,10 @@
 // 的 ## 汇编 与 ## 反编译 C 转写（报告地址见各函数头注释）：
 //   C1 0x0811ff60 / D1 0x0811ff7c / D0 0x0811ffac / StartEvent() 0x0811ffca /
 //   StartEvent(Word_Param) 0x0812001c / EndEvent() 0x0812006e
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN22LevelUpBefore70LvEventC2Ev`（ORIG 0x81200ff）；ctor 已是首强符号。
+#include <iostream>
+
 #include "LevelUpBefore70LvEvent.h"
 
 // ORIG C1 0x0811ff60：CEventBase::CEventBase() + vptr 设置，无自身字段。

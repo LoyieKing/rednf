@@ -178,7 +178,9 @@ int getObjectTypeToEnumValue(std::string& s)
 // else{enter 双检}：ours 1294 → 1383 == ORIG 1383（残余仅 .o relocation 显示，
 // relink 后按 AE 口径核销）。
 // ---------------------------------------------------------------------------
-// [b28d-lane16 DIFF] ORIG 08892b0d：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-lane16 DIFF→AE] ORIG 08892b0d：p167 CLEAR；本轮把 guard 回跳的 `continue`
+// 改 `goto retry`（标签置于 static 三件套之后、`if (__inited)` 之前）⇒ 复现 ORIG
+// 0x088944e5 `jmp +0xc` 直跳，消 4.4 的 2 条 jmp 中转跳板（P164 循环旋转族）。
 int getChangeStatusType(std::string& s)
 {
     for (;;)
@@ -187,6 +189,7 @@ int getChangeStatusType(std::string& s)
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
                 int idx;
+    retry:
         if (__inited)
         {
             EnumLookupMap::const_iterator it = __lookup.find(s.c_str());
@@ -198,7 +201,7 @@ int getChangeStatusType(std::string& s)
             if (__inited)
             {
                 __init_lock.leave();
-                continue;
+                goto retry;
             }
             idx = 0;
         }
@@ -516,7 +519,7 @@ int getChangeStatusType(std::string& s)
         {
             __init_lock.leave();
             __inited = true;
-            continue;                       // ORIG 088944e5 jmp +0xc 重派发
+            goto retry;                       // ORIG 088944e5 jmp +0xc 重派发
         }
         return 0x4d;                        // ORIG 088944eb mov $0x4d,%eax
     }
@@ -536,7 +539,7 @@ int getChangeStatusType(std::string& s)
 // 共 56 条，表尾释放锁、置 __inited 并跳回 guard 重新 find 派发；建表后命中
 // case 写 result 并 break 返回角色 0..55，未命中保持入口初值 -1。
 // ---------------------------------------------------------------------------
-// [b28d-lane16 DIFF] ORIG 089fecee：else{enter 双检}：ours 1364 → 1475（ORIG 1476；唯一实质残差 = lock 区
+// [b28d-lane16 DIFF→AE] ORIG 089fecee：`goto retry` 直跳形消 4.4 jmp 中转跳板后 AE（同 getModuleType 修法；旧「ours 1364 → 1475，残差 = lock 区
 int getNpcRoleByString(std::string name)
 {
     int result = -1;                        // ORIG 089fecfa movl $0xffffffff,-0x20(%ebp)
@@ -546,6 +549,7 @@ int getNpcRoleByString(std::string name)
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
                 int idx;
+    retry:
         if (__inited)
         {
             EnumLookupMap::const_iterator it = __lookup.find(name.c_str());
@@ -557,7 +561,7 @@ int getNpcRoleByString(std::string name)
             if (__inited)
             {
                 __init_lock.leave();
-                continue;
+                goto retry;
             }
             idx = 0;
         }
@@ -850,7 +854,7 @@ int getNpcRoleByString(std::string name)
         {
             __init_lock.leave();
             __inited = true;
-            continue;                       // ORIG 08a008f1 回 guard 重新 find 派发
+            goto retry;                       // ORIG 08a008f1 回 guard 重新 find 派发
         }
         return result;                      // ORIG 08a008f7 mov -0x20(%ebp),%eax
     }
@@ -872,7 +876,8 @@ int getNpcMoodFromString(const char* name)
 // scanModuleType — ORIG @ 0x88c0b9a。
 // { std::string s; ScanStr(&s); return getModuleType(s.c_str()); }
 // ---------------------------------------------------------------------------
-// [b28d-lane16 DIFF] ORIG 088c0bfc：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-lane16 DIFF→AE] ORIG 088c0bfc：p167 CLEAR；本轮 `continue`→`goto retry` 直跳形
+// 复现 ORIG 0x088c141a `jmp +0xc`，消 2 条 jmp 跳板（P164 循环旋转族）⇒ AE。
 int getModuleType(const char* name)
 {
     // ORIG _Z13getModuleTypePKc @ 0x88c0bfc（报告 _lt_global_gt_/getModuleType.md
@@ -891,6 +896,7 @@ int getModuleType(const char* name)
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
         int idx;
+    retry:
         if (__inited)
         {
             EnumLookupMap::const_iterator it = __lookup.find(name);
@@ -902,7 +908,7 @@ int getModuleType(const char* name)
             if (__inited)
             {
                 __init_lock.leave();
-                continue;                   // ORIG 0x088c0dd7 jmp +0xc（回 guard 重检）
+                goto retry;                 // ORIG 0x088c0dd7 jmp +0xc（回 guard 重检）
             }
             idx = 0;
         }
@@ -1007,13 +1013,13 @@ int getModuleType(const char* name)
         default:
             // [L16 本轮] 极性交换实测**反劣**：`if (__inited) return 17;` 使 4.4 丢
             // ORIG 的 `xor $1,%eax`（ndiff 2→8、gap −2→0）⇒ 维持负极性原形。
-            // 残差（2 条 jmp 跳板：ORIG 0x088c141a `jmp +0xc` 直跳 vs 4.4 经 4660 中转）
-            // = 块排放/跳板 N 族（P63 反向）。
+            // [本轮已修] 原 2 条 jmp 跳板（ORIG 0x088c141a `jmp +0xc` 直跳 vs 4.4 经中转）
+            // 由 `goto retry` 直跳形复现（标签在 static 三件套之后）⇒ AE。
             if (!__inited)
             {
                 __init_lock.leave();        // ORIG 0x088c140e
                 __inited = true;            // ORIG 0x088c1417 movb $0x1
-                continue;                   // ORIG 0x088c141a jmp +0xc
+                goto retry;                 // ORIG 0x088c141a jmp +0xc（直跳形）
             }
             return 17;                      // ORIG 0x088c1424 mov $0x11,%eax
         }

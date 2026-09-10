@@ -27,17 +27,22 @@ CCreatureScriptMgr::~CCreatureScriptMgr()
 // [b28d-30] 复核 DIFF：我方少 8 条（析构/clear 路径形差，N82/P12 族），ORIG 0x0833dxxx 见 report。
 void CCreatureScriptMgr::Destroy()
 {
-    if (m_scripts.empty())
-    {
+    // round1 R19：ORIG 0x0833d3c3 段 `call size; test %eax,%eax; sete %al;
+    // test %al,%al; jne`（P197④：`size() == 0` 才出 sete 物化，`empty()` 无）；
+    // cond 段每次重算 `end()`（无具名 end 槽，临时 -0x14）；增量段调 `ppEi`
+    // （P28：ORIG 后置 ⇒ 源写 `it++`）；循环体 p 有预清 `movl $0x0,-0xc` 与
+    // delete 后 `p = 0;`（P197③ 两句式）。
+    if (m_scripts.size() == 0)
         return;
-    }
     for (std::map<int, CCreatureScript*>::iterator it = m_scripts.begin();
-         it != m_scripts.end(); ++it)
+         it != m_scripts.end(); it++)
     {
-        CCreatureScript* p = it->second;
+        CCreatureScript* p = 0;
+        p = it->second;
         if (p != 0)
         {
             delete p;
+            p = 0;
         }
     }
     m_scripts.clear();
@@ -63,8 +68,11 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
         return false;
     }
 
-    for (std::map<int, std::string>::const_iterator it = g_creatureScriptFileList.m_fileMap.begin();
-         it != g_creatureScriptFileList.m_fileMap.end(); ++it)
+    // round1 R19（p167 差集定位）：ORIG 走**非 const** `_Rb_tree_iterator`
+    // （`ptEv`/`ne` 均为其 const 成员方法），我方 const_iterator 多发 2 条
+    // `const_iterator::C1ERK iterator` 转换构造（P96/P270）⇒ 改非 const。
+    for (std::map<int, std::string>::iterator it = g_creatureScriptFileList.m_fileMap.begin();
+         it != g_creatureScriptFileList.m_fileMap.end(); it++)
     {
         const char* path = it->second.c_str();
         if (path == 0)
@@ -82,16 +90,19 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
 
         if (sync_script::GetInstanceSyncScript()->IsEnable())
         {
-            if (!native.m_attackInfo.empty() && native.m_attackInfo[0][0] != 0)
+            // P197④：ORIG 用 `size()`（无 empty 调用）；P175：ORIG 走 `at()` 索引
+            // （`vector<string>::at` ×4）；`[0][0]` 的 string 下标在 ORIG 是
+            // `c_str()[0]`（p167：MISSING c_str ×2 / EXTRA string::operator[] ×2）。
+            if (native.m_attackInfo.size() != 0 && native.m_attackInfo.at(0).c_str()[0] != 0)
             {
                 sprintf(buf170, "%s%s", native.m_directory.c_str(),
-                        native.m_attackInfo[0].c_str());
+                        native.m_attackInfo.at(0).c_str());
                 if (ImportAttackInfoScript(&attackInfo, buf170, 0))
                 {
                     sprintf(buf270, "%d,%d,%f,%d",
                             native.m_skillType, native.m_skillMP,
                             (double)attackInfo.m_damage, attackInfo.m_attackType);
-                    if (attackInfo.m_elements.empty())
+                    if (attackInfo.m_elements.size() == 0)
                     {
                         sprintf(buf270 + strlen(buf270), ",%d", 4);
                     }
@@ -110,10 +121,10 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
                     sprintf(buf270, "%d,%d", native.m_skillType, native.m_skillMP);
                 }
             }
-            if (native.m_attackInfo.size() > 1 && native.m_attackInfo[1][0] != 0)
+            if (native.m_attackInfo.size() > 1 && native.m_attackInfo.at(1).c_str()[0] != 0)
             {
                 sprintf(buf170, "%s%s", native.m_directory.c_str(),
-                        native.m_attackInfo[1].c_str());
+                        native.m_attackInfo.at(1).c_str());
                 if (ImportAttackInfoScript(&attackInfo, buf170, 0))
                 {
                     // ORIG 0x0833d018：第二块（attackInfo[1]）用 over 组字段
@@ -121,7 +132,7 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
                     sprintf(buf370, "%d,%d,%f,%d",
                             native.m_overSkillType, native.m_overSkillMP,
                             (double)attackInfo.m_damage, attackInfo.m_attackType);
-                    if (attackInfo.m_elements.empty())
+                    if (attackInfo.m_elements.size() == 0)
                     {
                         sprintf(buf370 + strlen(buf370), ",%d", 4);
                     }
@@ -159,12 +170,11 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
 
         if (m_scripts.find(native.m_id) != m_scripts.end())
         {
-            cMyTrace trace(
-                "bool user_creature::CCreatureScriptMgr::LoadCreatureScriptFile()",
-                0xfbe, 5);
-            trace("[%s][%d]",
-                  "bool user_creature::CCreatureScriptMgr::LoadCreatureScriptFile()",
-                  0xfbe);
+            // P221：具名 trace 在 4.4 恒占深槽（ORIG 为浅槽）⇒ 构造即调用临时链。
+            cMyTrace("bool user_creature::CCreatureScriptMgr::LoadCreatureScriptFile()",
+                     0xfbe, 5)("[%s][%d]",
+                               "bool user_creature::CCreatureScriptMgr::LoadCreatureScriptFile()",
+                               0xfbe);
             return false;
         }
         m_scripts.insert(std::make_pair(native.m_id, script));
@@ -178,15 +188,19 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
 // ORIG 见 class_func_reports/user_creature__CCreatureScriptMgr/FindCreatureScript.md。
 CCreatureScript* CCreatureScriptMgr::FindCreatureScript(int creatureId)
 {
-    std::map<int, CCreatureScript*>::const_iterator it = m_scripts.find(creatureId);
+    // round1 R19：ORIG 0x0833d4a2 段为 **非 const** `find` sret 直构进 it 槽
+    // （-0x20）+ 内联 `end()`（-0x1c 临时）+ `_Rb_tree_iterator::eq` 单条比较；
+    // const_iterator 会多出 iterator→const_iterator 转换构造（+2 lea/call，
+    // P96/P270/P323）⇒ 改非 const iterator，`end()` 不落具名局部（L29 ①）。
+    std::map<int, CCreatureScript*>::iterator it = m_scripts.find(creatureId);
     if (it == m_scripts.end())
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xfe8, 5);
-        trace("[%s][%d]",
-              __PRETTY_FUNCTION__,
-              0xfe8);
+        // P221：ORIG 槽序 it(-0x20) < end(-0x1c) < trace(-0x18)（迭代器深、
+        // 具名 trace 浅）；4.4 具名对象恒反向（trace 深 -0x28）⇒ 改「构造即调用」
+        // 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0xfe8, 5)("[%s][%d]",
+                                                __PRETTY_FUNCTION__,
+                                                0xfe8);
         return 0;
     }
     return it->second;
@@ -204,12 +218,11 @@ bool CCreatureScriptMgr::RegisterCreatureIdAndItemId(int creatureId, int itemId)
     std::map<int, int>::iterator it = m_creatureIdToItemId.find(creatureId);
     if (it != m_creatureIdToItemId.end())
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xfff, 5);
-        trace("[%s][%d]",
-              __PRETTY_FUNCTION__,
-              0xfff);
+        // P221：ORIG 槽序 it(-0x38) < end(-0x34) < trace(-0x30)；4.4 具名 trace
+        // 恒深槽 ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0xfff, 5)("[%s][%d]",
+                                                __PRETTY_FUNCTION__,
+                                                0xfff);
         return false;
     }
     m_creatureIdToItemId.insert(std::make_pair(creatureId, itemId));

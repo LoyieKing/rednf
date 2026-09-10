@@ -66,6 +66,8 @@ bool CClearCondition::ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int
     {
         DungeonClearCondition* d = &*itd;
         int* v = &*itv;
+        // [实测回退] 操作数序交换（(int)type == d->m_0）零效（d=10 不变，反引入
+        // `mov -0x10(%ebp),%eax` 新装载）⇒ 维持原序；残余为 N82 块排布族。
         if (d->m_0 == (int)type && d->m_4 == idx)
         {
             if (d->m_8 > *v)

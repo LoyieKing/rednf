@@ -27,18 +27,26 @@ static const int UPDATE_PERIOD = 600;
 // [b28d-SymMsgCtr·检查点18手法] ORIG 无 _ZN15message_counter12_GLOBAL__N_113sig_*
 // 等局部符号（inline 在 -O0 仍发射 ⇒ 唯一可行手法是宏）。逐字保留副作用：每形参
 // 在展开体中仅出现一次（无双重求值），写序 = 原函数体语句序，无短路逻辑。
+// [R29-4] `+4` 字段改用数组下标形（`((int*)(s))[1]`）：ORIG 全部为单条
+// disp 折叠 `movl $0x0,0x4(%eax)` / `mov 0x4(%eax),%eax`（0x0856fc94/0x0856fdb0），
+// `(s)+4` 形在 4.4 恒多发 `add $0x4,%eax`（4 处调用 ⇒ +4 条）。
 #define sig_init_head(s, base) do { \
-    *reinterpret_cast<int*>((s)) = (base); \
-    *reinterpret_cast<int*>((s) + 4) = 0; } while (0)
-#define sig_entry_count(s) (*reinterpret_cast<const int*>((s) + 4))
-#define sig_bump_count(s) (++*reinterpret_cast<int*>((s) + 4))
-#define sig_write_entry(s, slot, id, count, bytesLow, bytesHigh, avgRounded) \
-    do { char* e = (s) + 8 + (slot) * 0x14; \
-    *reinterpret_cast<unsigned int*>(e + 0x00) = (id); \
-    *reinterpret_cast<int*>(e + 0x04) = (count); \
-    *reinterpret_cast<unsigned int*>(e + 0x08) = (bytesLow); \
-    *reinterpret_cast<unsigned int*>(e + 0x0c) = (bytesHigh); \
-    *reinterpret_cast<int*>(e + 0x10) = (avgRounded); } while (0)
+    reinterpret_cast<int*>((s))[0] = (base); \
+    reinterpret_cast<int*>((s))[1] = 0; } while (0)
+#define sig_entry_count(s) (reinterpret_cast<const int*>((s))[1])
+#define sig_bump_count(s) (++reinterpret_cast<int*>((s))[1])
+// [R29-3] ORIG WriteLog 0x0856fcb5 起：entry 4 个字段是 **4 条独立语句**
+// （每条各自 `mov -0x14(%ebp),%eax; mov 0x4(%eax),%ebx` 重读 sig->count ⇒ 4 次），
+// bytes 低/高为**一次 64 位写**（`mov 0x10(%eax),%edx; mov 0xc(%eax),%eax;
+// mov %eax,0x10(..); mov %edx,0x14(..)`）⇒ 拆 4 条 + 64 位视角。
+#define sig_write_entry_id(s, slot, v) \
+    (*reinterpret_cast<unsigned int*>((s) + 8 + (slot) * 0x14 + 0x00) = (v))
+#define sig_write_entry_count(s, slot, v) \
+    (*reinterpret_cast<int*>((s) + 8 + (slot) * 0x14 + 0x04) = (v))
+#define sig_write_entry_bytes(s, slot, v) \
+    (*reinterpret_cast<unsigned long long*>((s) + 8 + (slot) * 0x14 + 0x08) = (v))
+#define sig_write_entry_avg(s, slot, v) \
+    (*reinterpret_cast<int*>((s) + 8 + (slot) * 0x14 + 0x10) = (v))
 
 // ===================== MessageKey =====================
 
@@ -199,62 +207,64 @@ void CMessageCounter::WriteLog()
     if (m_map.empty())
         return;
 
-    StreamPool& pool = *GlobalData::s_stream_pool;
-    MsgQueueMgr& queueMgr = *GlobalData::s_msgq_mgr;
+    // [R29-3] 按 ORIG 0x0856fbb0 重写：删 3 个「ORIG 无槽」具名局部
+    // （`StreamPool& pool` / `MsgQueueMgr& queueMgr` / `Stream* stream`，P0/P183：
+    // ORIG 0x0856fbcb 直接 `mov 0x940bd6c,%eax` 作 this 即调 Acquire，无槽往返）；
+    // CStreamGuard 构造用 Acquire 内联实参（ORIG 0x0856fbe8：Acquire 结果直接
+    // `mov %eax,0x4(%esp)`）；`<<` 走 `(*guard)`（P132：ORIG `call CStreamGuard::deEv`
+    // 先于 `call CStreamGuard::lsEi`）；GetInBuffer 走 `guard->`（P103：ORIG
+    // `call CStreamGuard::ptEv` 先于 GetInBuffer）。baseSec 复用 nowSec 槽
+    // （ORIG -0x10 被 `sub 余数` 改写后即 baseSec）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MessageCounter.cpp", 99),
+                       false);
 
-    Stream* stream = pool.Acquire("MessageCounter.cpp", 99);
-    CStreamGuard guard(stream, false);
-
-    guard << 0x26c;
-    guard << -1;
+    (*guard)->operator<<(0x26c);
+    (*guard)->operator<<(-1);
 
     char* sig = reinterpret_cast<char*>(
-        guard.GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
+        guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
 
     int nowSec = GlobalData::s_systemTime_.getCurSec();
-    int baseSec = nowSec - nowSec % UPDATE_PERIOD;
-    sig_init_head(sig, baseSec);
+    int mod = nowSec % UPDATE_PERIOD;
+    nowSec = nowSec - mod;
+    sig_init_head(sig, nowSec);
 
     for (std::map<MessageKey, MessageValue>::iterator it = m_map.begin();
          it != m_map.end(); ++it)
     {
-        const MessageKey& key = it->first;
-        const MessageValue& value = it->second;
-        int slot = sig_entry_count(sig);
-
-        unsigned int idField =
-            (key.m_id == 0)
-                ? 0u
-                : (unsigned int)(key.m_id + m_idBias);
-
-        sig_write_entry(sig, slot,
-                        idField + (unsigned int)key.m_size,
-                        value.m_count,
-                        value.m_bytesLow, value.m_bytesHigh,
-                        (int)(value.m_avg + (value.m_avg >= 0 ? 0.5 : -0.5)));
+        // [R29-3] 删 `key`/`value`/`slot`/`idField` 四个具名局部：ORIG 每字段
+        // 各重读 sig->count（4 次）并逐次 `it->first`/`it->second`（ptEv）；
+        // avg 按 ORIG `fistpl`（RC=11 截断，无 ±0.5 调整）写 `(int)`。
+        sig_write_entry_id(sig, sig_entry_count(sig),
+                           ((it->first.m_id == 0)
+                                ? 0u
+                                : (unsigned int)(it->first.m_id + m_idBias)) +
+                               (unsigned int)it->first.m_size);
+        sig_write_entry_count(sig, sig_entry_count(sig), it->second.m_count);
+        sig_write_entry_bytes(sig, sig_entry_count(sig), it->second.m_bytes);
+        sig_write_entry_avg(sig, sig_entry_count(sig), (int)it->second.m_avg);
         sig_bump_count(sig);
 
         if (sig_entry_count(sig) == 100)
         {
-            queueMgr.put(MsgQueueMgr::LOGDB_Q, guard);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 
-            stream = pool.Acquire("MessageCounter.cpp", 0x7b);
-            guard.Set(stream);
-            guard << 0x26c;
-            guard << -1;
+            guard.Set(GlobalData::s_stream_pool->Acquire("MessageCounter.cpp", 0x7b));
+            (*guard)->operator<<(0x26c);
+            (*guard)->operator<<(-1);
             sig = reinterpret_cast<char*>(
-                guard.GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
-            sig_init_head(sig, baseSec);
+                guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
+            sig_init_head(sig, nowSec);
         }
     }
 
     if (sig_entry_count(sig) == 0)
     {
-        pool.Free(guard);
+        GlobalData::s_stream_pool->Free(guard);
     }
     else
     {
-        queueMgr.put(MsgQueueMgr::LOGDB_Q, guard);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     }
 
     m_map.clear();

@@ -323,6 +323,7 @@ case "$src" in
             *Game/AvatarConvertServer.cpp | \
             *Game/DB_LoadEtc.cpp | \
             *Game/GmCmds_A.cpp | \
+            *Game/Encryption.cpp | \
             *Game/DB_Login.cpp | \
             *Game/W9_EventSmall.cpp)
                 # b28d-S419：DB_LoadEtc 的间接 call 目标寄存器同族（ORIG 0x08405c9e

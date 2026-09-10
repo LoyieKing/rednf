@@ -120,6 +120,8 @@ namespace __atomic0
 // ②4.4 对 `int __e` 恒占栈槽（ORIG 留 %eax 直判 `test %eax,%eax; jne`）；
 // ③throw 块布局（ORIG jne 跳函数尾 vs 4.4 je 跳过块）。语义逐条等价
 // （锁保护 + 返回旧值；libpthread 存在时恒加锁，与 ORIG 的 gthr 判定一致）。
+// [b29-R28 复核] p167 **CALLSITE CLEAR**（ORIG 4 calls = 我方 4 calls）⇒ 无缺口；
+// 差额 2 条全为跨版本 codegen（4.1 尾调用/prologue 保存形）⇒ N 封顶。
 bool atomic_flag::test_and_set(memory_order) volatile
 {
     register volatile atomic_flag* self = this;
@@ -146,6 +148,10 @@ bool atomic_flag::test_and_set(memory_order) volatile
 // true/false 双路清零（ORIG 0x086d935b/0x086d936f 两处 movb $0）。残余同上
 // （prologue/epilogue、`int __e` 槽、4.1 unlock 尾调用 jmp vs 4.4 call+ret）。
 // 语义逐条等价。
+// [b29-R28 复核] p167：EXTRA `pthread_mutex_unlock`×1（ORIG 以 `jmp
+// pthread_mutex_unlock@plt` **尾调用**收尾，4.4 因 push 保存寄存器只能 call+ret，
+// ORIG 0x086d936a vs 我方尾部 `add $0x20; pop...; ret`）⇒ 跨版本 sibcall 差异，
+// 非语义缺口 ⇒ N 封顶。
 void atomic_flag::clear(memory_order) volatile
 {
     register volatile atomic_flag* self = this;
@@ -206,6 +212,10 @@ void forceCtorEmissions()
 // 成员析构布 EH landing pad（_Unwind_Resume）。libstdc++ 头实现差异不可改
 // （N89；`~stream_t() throw()` 探针实测不能消 landing pad）⇒ 语义等价封顶
 // （两 string 成员按声明逆序析构，与 ORIG 相同）。
+// [b29-R28 复核] p167：MISSING `_ZNSs4_Rep10_M_destroyERKSaIcE`×2（4.1 头内联
+// `_M_dispose` 后只剩 out-of-line `_M_destroy`）vs EXTRA `_ZNSsD1Ev`×3 +
+// `_Unwind_Resume`×1（4.4 头走 out-of-line `~basic_string` 且布 landing）
+// = **libstdc++ 头实现代际差异，头文件不可改** ⇒ N89 封顶。
     // [b29-SymForceBatch] ORIG 仅发 stream_t D1/D2（W 0x08ad1320），无 C1/C2
     // （默认 ctor 从未 ODR-use）⇒ new/delete 改显式析构调用：只触发 dtor
     // 发射，不再发明 ctor 符号。force 函数不被调用，无运行时行为。

@@ -329,8 +329,9 @@ void CRelayBattleMgr::ArrangeChangeSequence(std::vector<int>& seq, int team,
     }
 }
 
-// b28d-31: N 封顶（N96+N18a，复核 b28c-L18）——ORIG 0x085de18c；同上
-// `xor $0x1,%eax` 物化。
+// [b29 P248档② 实修] ORIG 0x085de83e 条件读形 `movzbl 0x7(%eax,%ecx,1),%eax;
+// xor $0x1,%eax; test %al,%al; je` ⇒ m_requestFight bool 化 + 裸 if(!f)。
+// 旧判词 N96+N18a（"寄存器物化无绑定不可达"）作废：fresh 改后 DIFF→AE（62=62）。
 void CRelayBattleMgr::ArrangeNoChangeSequence(std::vector<int>& seq, int team,
                                               int& outIdx)
 {
@@ -400,8 +401,13 @@ int CRelayBattleMgr::SendRequestFight(int seat)
     return 1;
 }
 
-// b28d-31: N 封顶（N98/N82）——ORIG 0x085dead6；PacketGuard 槽 -0x24 vs
-// -0x28、index -0x28 vs -0x1c（4.4 按首次使用序分配，声明序不可翻）。
+// [b29-R28 实修] ORIG 0x085dead6：150/150（gap=0）⇒ 本 TU 现 ae（near=0）。
+// 修法 = P171 形态复原：`guard.put_byte(0)` → `guard.put_byte(count)`，ORIG
+// 0x085deb71/0x085deb74 为「movl $0x0,-0x10(%ebp) → mov -0x10(%ebp),%eax →
+// mov %eax,0x4(%esp)」= 读 count 槽而非立即数 0（原写法少 1 条且形态错）。
+// 备注（非本件判定项）：OURS 槽 guard=-0x28/index=-0x1c vs ORIG guard=-0x24/
+// index=-0x28 系 4.4「聚合优先占低槽、标量分区」分区差（N82附）；删具名 index
+// 改内联实参已实测反劣（破坏 ORIG get_index 调用序 + 编译失败）⇒ 保留。
 int CRelayBattleMgr::TurnPlayer()
 {
     if (m_pRoom->IsEndPvpBattle())

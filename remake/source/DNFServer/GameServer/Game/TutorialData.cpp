@@ -1,5 +1,9 @@
 // TutorialData — df_game_r ORIG 转写（docs/class_func_reports/TutorialData/*）
 // 新 TU：需在 source/cmake/game/CMakeLists.txt 登记（宿主收口）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN12TutorialDataC2Ev`（ORIG 0x8ab97c5）。
+#include <iostream>
+
 #include "TutorialData.h"
 
 #include "GlobalScriptTutorial.h"   // GlobalScriptTutorial::getData（ORIG 同 TU 域 0x08ab5xxx-0x08ab9xxx；被调前置定义使 4.4 帧收窄为 sub $0x4，与 ORIG 0x08ab971e 一致）

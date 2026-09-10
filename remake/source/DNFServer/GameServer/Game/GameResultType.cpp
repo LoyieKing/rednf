@@ -4,6 +4,10 @@
 // 内嵌 4 x DungeonUserShotCount（+0x14，0x20；ctor 084b766a / reset 084b767e）。
 // ============================================================================
 
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN14GameResultTypeC2Ev`（ORIG 0x84b764d）。
+#include <iostream>
+
 #include <cstring>
 
 // ---- DungeonUserShotCount（8 字节：ushort + int，ctor 084b766a）----
@@ -16,17 +20,6 @@ public:
     unsigned short m_count;  // +0x00
     int m_field4;            // +0x04
 };
-
-DungeonUserShotCount::DungeonUserShotCount()
-{
-    reset();
-}
-
-void DungeonUserShotCount::reset()
-{
-    m_count = 0;
-    m_field4 = 0;
-}
 
 // ---- GameResultType（0x50） ----
 class GameResultType
@@ -70,6 +63,19 @@ GameResultType::GameResultType()
 
 GameResultType::~GameResultType()
 {
+}
+
+// [GI-ioinit L21] DungeonUserShotCount 两个定义后移，使 GameResultType ctor
+//（ORIG 键名 `_GLOBAL__I__ZN14GameResultTypeC2Ev` @0x84b764d）成为本 TU 首个强符号（P327）。
+DungeonUserShotCount::DungeonUserShotCount()
+{
+    reset();
+}
+
+void DungeonUserShotCount::reset()
+{
+    m_count = 0;
+    m_field4 = 0;
 }
 
 int GameResultType::Set(const GameResultType& other)

@@ -47,8 +47,9 @@ void CSwitchLog::operator()(const char* fmt, ...)
         va_start(ap, fmt);
         int len = strlen(buf);
         vsnprintf(buf + len, 0xfff - len, fmt, ap);
-        CLog* log = CLog::instance();
-        Guard<Mutex> g((Mutex*)((char*)log + m_level * 0x18));
+        // [L23-r4 P0/P183] ORIG 槽表无 log 具名槽（我方多 `mov %eax,-0x14(%ebp)`
+        //   使 buf 基址由 -0x1014 漂到 -0x1018）⇒ instance() 结果实参位直传。
+        Guard<Mutex> g((Mutex*)((char*)CLog::instance() + m_level * 0x18));
         switch (m_level) {
         case 0:
             CLog::instance()->logNotice(buf);

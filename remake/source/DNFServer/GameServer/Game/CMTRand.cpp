@@ -97,6 +97,8 @@ void CMTRand::initialize(unsigned long s)
 
 // [b28d-L14 N82/算法类] ORIG 0x080cbb90：MT19937 通用算法（§6 算法正确即豁免）；
 // ORIG 用寄存器指针遍历，4.4 槽化，gap 59 vs 83。
+// [round3-L29 2026-09-10 复核] 算法类（§6 豁免）。ORIG 59 条为**内联 twist + 寄存器指针遍历**
+//   （%ebx=this、%esi=kk=0xe3）；我方 81 条（register kk 后 83→81）⇒ N82 槽/寄存器族。
 void CMTRand::reload()
 {
     // [round3-L29] P231：ORIG 以 %esi 承载 kk（`mov $0xe3,%esi`），纯 register 复现。
@@ -171,6 +173,10 @@ unsigned long CMTRand::randInt(const unsigned long& range)
 
 // [b28d-L14 N82/算法类] ORIG 0x080d9f5c：init_by_array 通用算法（§6 豁免）；
 // ORIG 寄存器指针遍历形，4.4 槽化，gap 129 vs 104。
+// [round3-L29 2026-09-10 复核] 算法类（§6）。ORIG 0x080da0?? 用寄存器承载 i/j/k
+//   （`mov $0x1,%ebx; mov $0x0,%edi; mov %eax,%esi`）+ `cmp $0x270,%eax; jae` 分支形；
+//   已加纯 `register`（P231，非绑定）i/j/k：104→103 条（ORIG 129）；4.4 仍产 cmovae
+//   （`-march=i486 -mtune=generic` A/B 实测本 TU 计数不变 ⇒ 路由变更无收益，未上报改路由）。
 void CMTRand::seed(unsigned long* init_key, unsigned long key_length)
 {
     initialize(19650218UL);
@@ -244,6 +250,9 @@ void CMTRand::seed()
     seed(hash((long)time(0), (long)clock()));
 }
 
+// [round3-L29 2026-09-10 复核] 算法类（§6 豁免口径）。ORIG 0x080da1d6 为**全栈槽**形
+//   （hashA@-0x14/i@-0x8/p@-0x10 槽往返）；加 `register` 会反向变寄存器形（54 条 vs 原 50 条、
+//   ndiff 12→58）⇒ 已回退保持槽形。残差 = 两端槽/寄存器分配差（N82 族）。
 unsigned long CMTRand::hash(long a, long b)
 {
     static unsigned long differ = 0;

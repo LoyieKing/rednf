@@ -155,9 +155,12 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     SetItemId(item->m_addInfo);                    // *(int*)(item+2) 驱动脚本解析
     m_uid = info->m_uid;                           // → +0x0c
     m_slotNo = info->m_slotNo;                     // → +0x10
-    // enum 字段直接 cast 赋值使 4.4 movsbl 拆两段（+%eax 中转）；int& 视图同宽
-    // 直存复现 ORIG `movsbl %al,%edx; mov %edx,0x8(%eax)` 单段形。
-    reinterpret_cast<int&>(m_creatureItemType) = (int)(char)info->m_creatureItemType;  // movsbl
+    // round1 R19：ORIG 833862f 段 = `movzbl 0x24(%eax),%eax; movsbl %al,%edx;
+    // mov 0x8(%ebp),%eax; mov %edx,0x8(%eax)`（RHS 值先 + disp store）。
+    // int& 视图（同型）在 4.4 产 LHS 地址先物化（`add $0x8,%eax; mov %edx,(%eax)`）；
+    // 按 P211 档③ 用**异型 RHS**（signed char → enum 字段）触发转换中转翻装载序。
+    m_creatureItemType =
+        static_cast<CREATURE_ITME_TYPE>(static_cast<signed char>(info->m_creatureItemType));
     m_stomach.SetStomachValue((float)info->m_stomachValue);
     strncpy(m_name, info->m_name, 0xc);            // → +0x1c，12B（ORIG call strncpy PLT）
     // ORIG 8338657：`movzbl 0x4c(%eax),%eax; xor $0x1,%eax; test %al,%al; je`
@@ -479,12 +482,11 @@ bool user_creature::CDBMsgSender::EventEvoluteCreature(int uid, int itemIdx, int
     memset(buf, 0, 0x74);
     buf->m_hdr |= 0x248;
     buf->m_addInfo2 = uid;                            // +0x30（先写，ORIG 序）
-    // ORIG `mov %edx,0x8(%eax)` buf 基址 disp8 直存（具名视图，探针 bl8_probe6 f5）。
-    // [b28-BM7 判词] NEAR 2 = N76：ORIG 本 store 为 RHS-first 3 条形（先
-    // `mov 0x10(%ebp),%edx` 后载 this），相邻 +0x4c exp store 却 LHS-first；
-    // 同函数两向并存排除类型律——int/unsigned 字段×直赋×语句表达式 4 形探针
-    // 恒 LHS-first（/tmp/bm7/p2-p4.o），源码层不可复现。
-    reinterpret_cast<SigCreatureItemIdxView*>(buf)->m_itemIdx = itemIdx;  // +0x08
+    // ORIG 833fe39：`mov 0x10(%ebp),%edx; mov -0x10(%ebp),%eax; mov %edx,0x8(%eax)`
+    // = RHS-first 3 条形。旧判词按 N76 封顶，根因其实是**视图 cast + 同型字段**：
+    // P235 直取完整类型具名视角（`buf->m_itemView.m_itemIdx`）配合 P211 档③
+    // **异型化**（m_itemIdx 为 unsigned int，RHS 为 int 形参）即翻回 ORIG 序。
+    buf->m_itemView.m_itemIdx = itemIdx;              // +0x08
     buf->m_exp = exp;                                 // +0x4c（SigTypes 已具名 m_exp）
     CItem* item = G_CDataManager()->find_item(itemIdx);
     buf->m_days = item->getUsablePeriod();            // +0x54

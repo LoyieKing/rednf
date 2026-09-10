@@ -1,6 +1,10 @@
 // 迁移自 GameStubs.cpp NeedMaterialDataManager 桩（batch-6）。
 // getInstance / getNeedMaterial(CItem*) 语义按 ORIG 反汇编转写
 // （见 NeedMaterialDataManager.h 布局注释）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN23NeedMaterialDataManagerC2Ev`（ORIG 0x81b5c5d）；ctor 已是首强符号。
+#include <iostream>
+
 
 #include "NeedMaterialDataManager.h"
 #include "CItem.h"

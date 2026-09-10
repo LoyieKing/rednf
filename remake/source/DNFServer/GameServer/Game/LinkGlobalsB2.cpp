@@ -6,6 +6,11 @@
 //     ORIG T _ZN12advancealtar16isValidRidableIdENS_9RidableId1TE @ 0x08898ff0
 //     （原定义在未登记的 advancealtar.cpp，本批次迁出为唯一定义点。）
 // ============================================================================
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN12advancealtar16isValidRidableIdENS_9RidableId1TE`（ORIG 0x889b937）；
+// 该函数已是本 TU 首强符号。
+#include <iostream>
+
 
 #include "advancealtar.h"
 

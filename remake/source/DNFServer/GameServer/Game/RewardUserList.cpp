@@ -7,20 +7,13 @@
 //   delete_mark 0x081bb7bc：find 命中置 mark=1，返回 true
 // ============================================================================
 
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN15CRewardUserList6insertEjii`（ORIG 0x81bbf66）；insert 已前移为首强符号。
+#include <iostream>
+
 #include "RewardUserList.h"
 
-CRewardUserList::CRewardUserList()
-{
-    // map(+0x00) 与 deque(+0x18) 由成员默认构造（ORIG ctor 0x081bbfb6 显式构造二者）
-}
-
-RewardUserData::RewardUserData()
-{
-    a = 0;
-    b = 0;
-    mark = false;
-}
-
+// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x081bb690。
 bool CRewardUserList::insert(unsigned int key, int a, int b)
 {
     if (!is_exist(key)) {
@@ -33,6 +26,18 @@ bool CRewardUserList::insert(unsigned int key, int a, int b)
         return true;
     }
     return false;
+}
+
+CRewardUserList::CRewardUserList()
+{
+    // map(+0x00) 与 deque(+0x18) 由成员默认构造（ORIG ctor 0x081bbfb6 显式构造二者）
+}
+
+RewardUserData::RewardUserData()
+{
+    a = 0;
+    b = 0;
+    mark = false;
 }
 
 // ORIG 0x081bb73c：find→iterator 临时→const_iterator 拷贝→end→拷贝→

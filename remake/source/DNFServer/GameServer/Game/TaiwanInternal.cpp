@@ -1,3 +1,8 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN6Taiwan15internal_streamER12CStreamGuardN18TaiwanInternalPack1TEi`
+// （ORIG 0x8163a73）；internal_stream 已是首强符号。
+#include <iostream>
+
 #include "CStreamGuard.h"
 #include "MoreTypes.h"
 namespace Taiwan

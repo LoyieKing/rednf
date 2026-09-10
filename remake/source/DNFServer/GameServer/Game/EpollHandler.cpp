@@ -1,4 +1,9 @@
 // df_game_r EpollHandler 实现（ORIG 0x857c084-0x857c2e3，AE 口径还原）。
+// [GI-ioinit L21 · P338/P327] 补 <iostream>：本 TU 原为避免 __ioinit 而只声明
+// `std::cerr`，但 ORIG 该 TU 有 `_GLOBAL__I__ZN12EpollHandlerC2Ev`（0x857c324）
+// ⇒ 必须先恢复 __ioinit 动态初始化（ctor 已是首强符号）。
+#include <iostream>
+
 #include "EpollHandler.h"
 #include "CEnvironment.h"
 

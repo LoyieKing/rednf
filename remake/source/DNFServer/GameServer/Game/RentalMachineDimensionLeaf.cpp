@@ -1,3 +1,7 @@
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN22RentalMachineDimensionC2Ev`（ORIG 0x826f9fe）；ctor 已是首强符号。
+#include <iostream>
+
 // ============================================================================
 // RentalMachineDimensionLeaf.cpp — Rental 域叶片批次（独占 TU；CMake 由 Main 统一登记）
 //
@@ -88,6 +92,13 @@ private:
 //   mov 0x8(%ebp),%eax; add $0x104,%eax; mov %eax,(%esp); call setC1Ev
 //   mov 0x8(%ebp),%eax; movl $0x104,0x8(%esp); movl $0x0,0x4(%esp)
 //   mov %eax,(%esp); call memset@plt; leave; ret
+// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x0826eafc。
+RentalMachineDimension::RentalMachineDimension()
+    : m_impl(new RentalMachineDimensionImpl)
+{
+    initLoggingEnvironment();
+}
+
 // ----------------------------------------------------------------------------
 RentalMachineDimension::RentalMachineDimensionImpl::RentalMachineDimensionImpl()
 {
@@ -112,12 +123,6 @@ RentalMachineDimension::RentalMachineDimensionImpl::~RentalMachineDimensionImpl(
 //   call auto_ptr<Impl>C1EPS1_
 //   call initLoggingEnvironmentEv; ret（异常路径 _Unwind_Resume）
 // ----------------------------------------------------------------------------
-RentalMachineDimension::RentalMachineDimension()
-    : m_impl(new RentalMachineDimensionImpl)
-{
-    initLoggingEnvironment();
-}
-
 // ----------------------------------------------------------------------------
 // D1 —— ORIG T 0x0826eba2
 //   movl $vtable,(%eax); lea 0x4(%eax); call auto_ptr<Impl>D1Ev

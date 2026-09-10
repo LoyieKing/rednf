@@ -6241,6 +6241,14 @@ static int yy_flex_strlen (yyconst char * );
 //    0x0808eece/0x080936c9/0x080937b7 三处 reload）；③②的声明序提前=同②。
 //    ⇒ 取①（差异行最小、yy_bp 寄存器角色与 ORIG 一致），gap 不归零，N7 封顶。
 //  · N82：yy_c 槽位 -0x29(ORIG) vs -0x25(ours)，帧槽分配差（sub $0x3c 两侧同）。
+// [b28c-R26 复验] gap 实测 ORIG 3999 / OUR 4004（与判词一致，无回归）。
+//  p167 口径说明：本 TU 的 callee（yy_get_previous_state/yyensure_buffer_stack/
+//  yy_load_buffer_state/yy_try_NUL_trans/yy_get_next_buffer）**定义在同一 .o**，
+//  调用是段内相对 call（objdump 显示 `call <yylex+N>`，无 R_386_PC32）⇒ p167 的
+//  ORIG 侧 7 个 call 符号会显示为 MISSING，属工具口径伪差（本 TU 5 处调用均存在）。
+//  TU 四数 missing_in_game=4 = FlexLexer 弱符号**同址别名**（P93）：我方 nm 实测
+//  `_ZN9FlexLexerC1Ev/C2Ev`（同址，size 0xe）与 `D1Ev/D2Ev`（同址，size 0x25）
+//  与 ORIG 0x08094e56 / 0x08094e12 逐值一致 ⇒ 符号索引伪差，非实现缺口。
 //  · 表地址/跳转目标/&std::cin/&std::cout 立即数为 .o 重定位显示差（N124/AE 口径）。
 // 禁手改 DFA：算法/表驱动逻辑零缺口，如需再收敛改 slang_filter.l 重生成。
 YY_DECL

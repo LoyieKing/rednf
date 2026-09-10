@@ -30,6 +30,9 @@ static void setLogWriterWired()
 // ORIG CLog::CLog 0x0854e558：10 个 Mutex 子对象（m_mutexes）默认构造；
 // 链式清零 8 个 FILE* 句柄（+0xf0..+0x10f，含 +0x10c）；+0x250=0；
 // memset(m_logFile+0x258, 0, 0x100)；memset(m_initFile+0x110, 0, 0x100)；
+// [GI-ioinit L21] 键名符号前移（P327）：ORIG 0x82a3bd9（_ZN4CLog5this_E，B 型）。
+CLog* CLog::this_ = 0;  // ORIG _ZN4CLog5this_E B @0x0940bd60
+
 // setLogWriterWired()。
 CLog::CLog()
 {
@@ -78,8 +81,6 @@ CLog::~CLog()
         m_logFileSnap = 0;
     }
 }
-
-CLog* CLog::this_ = 0;  // ORIG _ZN4CLog5this_E B @0x0940bd60
 
 // ORIG 单例为全局指针 0x940bd60（new 构造 / destroyInstance delete）。
 // ORIG instance 0x0817dfec（0xa 字节）：直接返回全局指针（构造由 createInstance 完成）。

@@ -2,6 +2,10 @@
 // 逐指令依据：
 //   TOD_Layer::TOD_Layer            docs/class_func_reports/TOD_Layer/TOD_Layer.md
 //   TowerOfDespairMgr::SendAPCInfo  docs/class_func_reports/TowerOfDespairMgr/SendAPCInfo.md
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__ZN9TOD_LayerC2Et`（ORIG 0x85ff0dd）；TOD_Layer ctor 已是首强符号。
+#include <iostream>
+
 #include "TowerOfDespairMgr.h"
 #include <string.h>
 

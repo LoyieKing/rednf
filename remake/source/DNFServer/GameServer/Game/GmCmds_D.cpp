@@ -176,7 +176,8 @@ void CItemInfoCmd::parse()
 // ⑤ P223 负条件 goto 复现 `js <nop>; body; jmp join; nop; join:` 尾岛。
 // 残余：AddItem 实参装载段 ORIG 提前 `mov -0x28(%ebp),%eax` 并以 %edx 中转 &space/count，
 // 4.4 统一用 %eax（1 条 mov 位置差，P75/N7 跨版本寄存器分配，封顶）。
-// p167：49=49；MISSING C2/D2 与 EXTRA C1/D1 为同址别名伪差（P93，ORIG 0x0858dd4c/0x0858de80 同址）。
+// p167：49=49 CLEAR（b28c-R26 复验；MISSING C2/D2 与 EXTRA C1/D1 为同址别名伪差，
+//   P93，ORIG 0x0858dd4c/0x0858de80 同址）。
 void CItemInfoCmd::execute()
 {
     struct InfoBuf { char m_b[0xff]; };                      // -0x157（ORIG char info[0xff]）
@@ -441,6 +442,8 @@ void CIndependentDrop::parse()
 // 残余为 4.4 槽复用 vs 4.1 独立槽的全帧槽号错位（N82）+ `mov $imm,%edx` 常量中转
 // （N76/P238）等 20 个寄存器/块序伪影块，byte 层封顶（语义闭合：缓冲清零、
 // hash_map/set/list/vector 迭代器 cv+后置增量、P183 去缓存、P49 宏化访问器均归位）。
+// [b28c-R26 复验] p167 98=98 CLEAR（MISSING/EXTRA 仅 C1/C2、D1/D2 同址别名）；
+//   gap 616/617 复核不变。
 void CIndependentDrop::execute()
 {
     CUser* user = GetUser();
@@ -851,6 +854,12 @@ void CIndependentDrop::PrintItemDropList(
                 drop.m_pairList.end();
             for (; pit != pend; ++pit)
             {
+                // [b28c-R26 复验] 已知取舍：ORIG 0x084b1a68 用 `*pit`（deEv，0x08235bba）
+                // 且**不调** ptEv；写 `pit->first/pit->second` 会 p167 EXTRA ptEv ×2 /
+                // MISSING deEv ×1（实测 calls 29 vs 30）。改用 `const std::pair<int,int>
+                // p = *pit;` 可得 p167 CLEAR（29=29 实测），但**不再发射*** ORIG 实有
+                // 的 `_ZNK9__gnu_cxx17__normal_iteratorIPKSt4pairIiiE...EptEv` 弱符号
+                // 0x08193912 ⇒ TU identical 95→94（净负，实测）。故维持 `->` 形。
                 const int itemId = pit->first;
                 const int acc = pit->second;
                 CItem* item = G_CDataManager()->find_item(itemId);

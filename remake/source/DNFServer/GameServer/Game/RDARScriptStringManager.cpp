@@ -432,7 +432,6 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
 
     int lineNo = 0;
     char lineBuf[0x2928];
-    char cpBuf[4000];
     int r;
 
     while (!in->eof())
@@ -473,7 +472,10 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
         {
             if (isKor)
             {
-                std::memset(cpBuf, 0, sizeof(cpBuf));
+                // [b29-Lane21] N78/P214③：块内 `char cpBuf[4000] = { 0 };` 令 4.4 内联
+                // `lea; mov $0,%eax; mov $0x3e8,%edx; rep stos`（ORIG 0x0835… 形）；
+                // 原函数级声明 + memset 恒发 `call memset`（多 4 条）。
+                char cpBuf[4000] = { 0 };
                 std::strcpy(cpBuf, value);
                 CodePage::script2Database(value, cpBuf);
                 value = cpBuf;

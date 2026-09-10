@@ -2153,7 +2153,11 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
         packet.put_short(idx);
         packet.put_short(user->get_unique_id());
         std::map<int, map_item>::iterator iter;  // ORIG 显式 _Rb_tree_iterator C1Ev（置 0）
-        int check = m_field.CheckPickupItem(
+        // [b28d-L20r4 判据⑫/P198①] ORIG 0x086bebea `movl $0x0,-0x14(%ebp)` 在
+        //   CheckPickupItem 调用**之前** ⇒ 原码是预清两句式 `int check = 0;
+        //   check = …;`（Ghidra C：`local_24 = 0; local_24 = CheckPickupItem(…)`）。
+        int check = 0;
+        check = m_field.CheckPickupItem(
             idx, user->get_unique_id(), iter);
         if (check < 1)
         {
@@ -2225,11 +2229,16 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     user->Send(notice);
                 }
                 std::map<int, map_item>::iterator iter;  // ORIG 显式 _Rb_tree_iterator C1Ev（置 0）
-                int check = m_field.CheckPickupItem(
+                // [b28d-L20r4 同族] ORIG 0x086bf092 `movl $0x0,-0x1c(%ebp)` 预清。
+                int check = 0;
+                check = m_field.CheckPickupItem(
                     idx, user->get_unique_id(), iter);
                 if (check < 1)
                 {
-                    int added = -1;
+                    // [b28d-L20r4 判据⑫] ORIG 0x086bef8f `movl $0x0,-0x20(%ebp)` 预清
+                    //   （Ghidra C：`local_20 = 0;` 后 if/else 两臂各赋值 —— 两臂全覆盖，
+                    //   与旧写的 `= -1` 语义等价，但与 ORIG 槽/指令形一致）。
+                    int added = 0;
                     if (fieldItem.m_item.isAvatarItemType() == 0)
                     {
                         added = user->getCurCharacInvenW()->insertItemIntoInventory(

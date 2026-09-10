@@ -47,27 +47,30 @@ bool AvatarRechargeServer::CalcDurabilityDetail(CUser* user, int equipSlot,
     WongWork::CAvatarItemMgr* mgr =
         user->getCurCharacInvenW()->GetAvatarItemMgrW();
 
-    // 减免率：GM 开关命中取 GM 值低 16 位，否则取徽章耐久表值低 16 位（未命中 0）。
-    short rate;
-    if (m_bUseEnduranceReduceRate)
-        rate = static_cast<short>(m_enduranceReduceRate);
-    else
+    // 减免率：GM 开关命中取 GM 值低 16 位，否则取徽章耐久表值低 16 位。
+    // ORIG 有 `movw $0x0,-0xa` 预清（具名 short rate = 0）+ `xor $1` 反查
+    // 开关（!m_bUseEnduranceReduceRate 走 GetEmblemReduceRate 分支）。
+    short rate = 0;
+    if (!m_bUseEnduranceReduceRate)
         rate = static_cast<short>(mgr->GetEmblemReduceRate(item->m_addInfo2));
+    else
+        rate = static_cast<short>(m_enduranceReduceRate);
 
+    // ORIG：前两守卫 `jle/je +0x122` 与第三守卫 `setl;je +0x122` 同落
+    // 尾部 `mov $1,%eax`（P325 共享尾出口）⇒ 两守卫 goto 尾标签 + 正极性包裹。
     if (rate <= 0)
-        return true;
+        goto L_true;
     if (item->m_fieldSplit.m_avatarEndur == 0)
-        return true;
+        goto L_true;
 
-    // 掷点：get_rand_int(1000) 有符号比较 < rate 才递减。
-    int rolled = get_rand_int(1000);
-    if (rolled >= rate)
-        return true;
+    // 第三守卫也写成 goto 形（三源同落尾标签 + body 直落），消 body 尾 jmp 岛。
+    if (!(get_rand_int(1000) < rate))
+        goto L_true;
 
     item->m_fieldSplit.m_avatarEndur -= 1;
-    mgr->UpdateEndurance(item->m_addInfo2,
-                         item->m_fieldSplit.m_avatarEndur);
+    mgr->UpdateEndurance(item->m_addInfo2, item->m_fieldSplit.m_avatarEndur);
     rates.push_back(equipSlot);
+L_true:
     return true;
 }
 

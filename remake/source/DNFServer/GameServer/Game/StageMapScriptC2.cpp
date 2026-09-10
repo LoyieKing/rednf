@@ -238,7 +238,9 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
             continue;
         }
 
-        if (token != "[area]")
+        // [本波·P222] p167 EXTRA operator!=(string,char const*) / MISSING
+        // operator==×1 ⇒ ORIG 用 `==` 形式（我方原写 `!=` 选错重载）。
+        if (!(token == "[area]"))
             continue;
 
         // The first [area] integer is special: a failed scan selects the
@@ -347,37 +349,30 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
 
                             int v0 = ScanInt(&ok);
                             if (!ok)
-                            {
-                                area.m_vec20.push_back(district);
-                                break;
-                            }
+                                goto stage_rows_done;   // P276 共享调用点（ORIG 单处）
                             stage.m_field0 = v0;
 
                             int v1 = ScanInt(&ok);
                             if (!ok)
-                            {
-                                area.m_vec20.push_back(district);
-                                break;
-                            }
+                                goto stage_rows_done;
                             stage.m_field4 = v1;
 
                             int v2 = ScanInt(&ok);
                             if (!ok)
-                            {
-                                area.m_vec20.push_back(district);
-                                break;
-                            }
+                                goto stage_rows_done;
                             stage.m_field8 = v2;
 
                             int v3 = ScanInt(&ok);
                             if (!ok)
-                            {
-                                area.m_vec20.push_back(district);
-                                break;
-                            }
+                                goto stage_rows_done;
                             stage.m_fieldC = v3;
                             district.m_vec4.push_back(stage);
                         }
+                    stage_rows_done:
+                        // [本波·P276] p167 EXTRA push_back<DistrictData>×3 ⇒
+                        // ORIG 四条失败分支 **goto 汇入单一 push_back**
+                        // （原写四份独立调用点）。
+                        area.m_vec20.push_back(district);
                         continue;
                     }
 

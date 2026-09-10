@@ -173,17 +173,10 @@ FILE* HistoryLog::LogOpen(unsigned int chNo)
     }
 
 
-    char date[10];
-    date[0] = '\0';
-    date[1] = '\0';
-    date[2] = '\0';
-    date[3] = '\0';
-    date[4] = '\0';
-    date[5] = '\0';
-    date[6] = '\0';
-    date[7] = '\0';
-    date[8] = '\0';
-    date[9] = '\0';
+    // [b28d-round1-L24] P202①/P214③：ORIG 0x084b9b32 的清零是 `movl $0` ×2 +
+    // `movw $0`（widthscan：clr_l orig=2 our=0 / clr_w orig=1 our=0 / clr_b orig=0
+    // our=10）⇒ 原码是数组初始化式，非 10 条逐字节赋值。
+    char date[10] = { '\0' };
     get_str_date(date, 10, '\0');
 
     char dir[50] = { '\0' };

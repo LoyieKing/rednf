@@ -6873,7 +6873,6 @@ Dispatcher_SelectStriker::~Dispatcher_SelectStriker() {}
 //      SkillSlot.h/.cpp 同步，mangled/布局不变，Main 已批准）。
 int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
 {
-    const MSG_SELECT_STRIKER& m = reinterpret_cast<const MSG_SELECT_STRIKER&>(msg);
     if (user == 0)
     {
         return 0xffffffff;
@@ -6892,6 +6891,8 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0x39;
     }
+    // ORIG 0x081e40d7 `mov 0x10(%ebp),%eax; mov %eax,-0x2c(%ebp)`：msg 引用在**首次使用点**才落槽（判据⑩ 后声明者深）。
+    const MSG_SELECT_STRIKER& m = reinterpret_cast<const MSG_SELECT_STRIKER&>(msg);
     // ORIG 0x081e40f7..0x081e428c：sel 每次从 msg+0xd 重读（P183 去缓存），
     // m_characList[sel] 每次重发 vector::operator[]（共 7 次）。
     if ((char)m.m_0d == idx)

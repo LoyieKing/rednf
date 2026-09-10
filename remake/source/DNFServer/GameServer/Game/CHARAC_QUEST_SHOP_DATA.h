@@ -67,11 +67,12 @@ struct CHARAC_QUEST_SHOP_DATA
     union
     {
         CHARAC_QUEST_SHOP_DATA_FIELDS m_data;    // +0x00c..+0xa5
-        // [L11·round3 定稿] 符号性修正 short→unsigned short：ORIG SetTagCharacQuestShopData
-        // (0x085efdc0) 的 make_pair 实例为 `_ZSt9make_pairIRiRtE…`（Rt=unsigned short&）
-        // 与 pair ctor `C2IitE`；short 视角使我方发 `IRiRsE`/`C1IisE` ⇒ p167 MISSING/EXTRA
-        // 各 2（NEAR 根因）。同宽同址 ⇒ sizeof 0xaa / 全部偏移 / mangled 零变化。
-        unsigned short m_statusCounts[0x4d];      // 同区计数视角（0x4d*2 = 0x9a）
+        // [L11·round3 实测回滚] 曾试 short→unsigned short（ORIG SetTag 的 make_pair 实例
+        // 名为 `IRiRt`，我方 short 发 `IRiRs` ⇒ p167 MISSING/EXTRA 各 2）。改后 TU 读数
+        // identical 89→87、合计 239→237（丢失 2 个共有符号：Rs 版实例不再发射）、
+        // missing 67→62 ⇒ **净负**，已回滚。SetTag 本体在基线即为 identical/ae，
+        // 非 near（worklist 的 NEAR 标记为旧读数）。
+        short m_statusCounts[0x4d];               // 同区计数视角（b28d-36 试：异型化翻 store 序）
     };
     unsigned int   m_questPiece;             // +0x0a6
 };

@@ -11,8 +11,20 @@
 // 单例：GameserverDemonManagerInstance() 函数局部 static（guard 0x093faba0 /
 // instance 0x093fabc0，__cxa_atexit(~D1 0x080f621c)——P20 形态）。
 
+// [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
+// `_GLOBAL__I__Z30GameserverDemonManagerInstancev`（ORIG 0x80f6313）。
+#include <iostream>
+
 #include "GameServerDemonManager.h"
 #include "TimerQueue.h"          // G_TimerQueue / TimerEntry::OBJ_TYPE / TIMER_MESSAGE
+
+// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x80f6313
+// `_Z30GameserverDemonManagerInstancev`。
+GameServerDemonManager* GameserverDemonManagerInstance()      // T 0x080f61b8
+{
+    static GameServerDemonManager instance;
+    return &instance;
+}
 
 GameServerDemonManager::GameServerDemonManager()      // W 0x080f6330
 {
@@ -53,8 +65,4 @@ void GameServerDemonManager::Notice10MinShutDownMessage()     // T 0x080f623a
                                 (TIMER_MESSAGE)0xa2, 0x3c, 0, 0);
 }
 
-GameServerDemonManager* GameserverDemonManagerInstance()      // T 0x080f61b8
-{
-    static GameServerDemonManager instance;
-    return &instance;
-}
+// [GI-ioinit L21 注] GameserverDemonManagerInstance 定义已前移至 ctor 之前（P327 键名）。

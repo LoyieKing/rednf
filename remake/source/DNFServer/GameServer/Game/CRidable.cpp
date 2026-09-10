@@ -54,6 +54,8 @@ void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)
     for (std::map<int, DungeonRidableObject>::const_iterator it = m_objects.begin();
          it != m_objects.end(); ++it)
     {
+        // b28d-L3 复测（P83/P81，已回退）：`const DungeonRidableObject obj = it->second;`
+        //   整体拷贝形实测反劣（CRidable TU ae 61→60）⇒ 维持两具名 int 形。
         int x = it->second.m_x;
         int y = it->second.m_y;
         out.push_back(std::pair<int, int>(x, y));
@@ -67,6 +69,8 @@ void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)
 void CRidable::CheckAppearRidableObject(CParty*, int a, int b, PacketGuard* p)
 {
     // b28d-40: N82 封顶——对象槽 -0x24/-0x28 平移 + 帧差，语义闭合。ORIG 0x082fe9c8。
+    // b28d-L3 复测（P28，已回退）：把 `begin()` 提到 counter 之前实测**反劣**
+    //   （CRidable TU ae 61→60）⇒ 维持 for-init 直构形。
     int counter = 0;
     int idx = p->get_index();
     p->put_byte(0);

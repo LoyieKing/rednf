@@ -543,6 +543,10 @@ bool CEventManager::InitEventManager()
     // 同形 = 928 条（有 xor 段但 4.4 恒 jne 到 ret0 块 + 多 1 条 jmp，反劣）。
     // 取 ① 保 gap=0；xor 段与 je 极性属 N93附（尾部双 return 块发射序）+
     // N104（EH 尾块相对序）跨版本封顶。
+    // [round3 复测] `bool ok = (LoadEventFromDB() != 0); return ok;`（P158 汇聚
+    // 变量形）实测 **923 条**（4.4 恒槽化物化 `mov %al,-0x19; movzbl`），比 ORIG
+    // 的寄存器物化 `xor $1; test; je; mov $0/%1,%ebx`（927 条）少 4 条且更远 ⇒
+    // 按 P168a③/P292（bool 死物化）回退取直分支形（gap=0）。
     if (LoadEventFromDB())
         return true;
     return false;

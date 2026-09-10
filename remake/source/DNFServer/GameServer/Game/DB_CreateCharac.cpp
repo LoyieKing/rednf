@@ -762,11 +762,12 @@ bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
     // G_CEnvironment()->m_dbConnInfo[DB_HANDLE_2].m_db —— ORIG map::operator[]
     // 于 env+0x68、STDBConnInfo m_db 在 +0x42；[b28d-Main·检查点18] 改成员直读
     //（原 get_db_conn_info() accessor 会发射 only-NEW 弱符号）。
-    std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo>& connMap =
-        G_CEnvironment()->m_dbConnInfo;
+    // [P183/P329 去缓存·ORIG 直证] ORIG 为 `movl $0x2,-0x24(%ebp)` + `call
+    // G_CEnvironment; lea 0x68(%eax),%edx` + `call operator[]` + `add $0x42,%eax`
+    // 全内联链式，**无** connMap/connInfo 具名缓存（我方原多两处 -0x10/-0xc 槽往返）。
+    // 仅 connIdx 是 ORIG 实有的具名局部（-0x24 槽）。
     ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;       // 栈上局部初始值 2
-    STDBConnInfo& connInfo = connMap[connIdx];
-    if (!_checkCharacName(db, connInfo.m_db, sig))
+    if (!_checkCharacName(db, G_CEnvironment()->m_dbConnInfo[connIdx].m_db, sig))
     {
         return false;
     }
@@ -816,7 +817,10 @@ bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
     }
 
     MakeInsertCharacInfo(db, sig, escapedName);
-    if (!db->exec(true))
+    // [P0 直证] ORIG index202 段为 `call <T>; mov %al,-0xd(%ebp); movzbl -0xd(%ebp),%eax;
+    // xor $0x1,%eax`（具名 bool 局部槽往返 + 我方缺的 ext_movzbl）⇒ 补具名 ok。
+    bool ok = db->exec(true);
+    if (!ok)
     {
         // P227 全表达式临时链：ORIG NumberToString 于 ctor 前求值入 %ebx。
         cMyTrace(__PRETTY_FUNCTION__, 0x10e2, 5)(

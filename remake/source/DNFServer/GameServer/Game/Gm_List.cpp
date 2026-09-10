@@ -40,20 +40,22 @@ void Gm_List::SendGMList_To_UpperServer(int param)
         ++count;
         if (count == 0x14)
         {
-            packet.m_gmCount = 0x14;
+            // b28d-L3 复测（P34/P52）：ORIG 0x08299df4 `mov -0xc(%ebp),%eax;
+            //   mov %al,-0x81(%ebp)` ⇒ 原码用 count 变量（此时 ==0x14），非立即数。
+            packet.m_gmCount = static_cast<unsigned char>(count);
             if (param == 1)
             {
-                CGuildServerProxy* proxy =
-                    GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                        static_cast<ENUM_SERVER_GROUP>(serverGroup));
-                proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+                // ORIG 0x08299e03 段：proxy **无具名槽**（`call GetServerProxy;
+                //   mov %eax,(%esp)` 直传）⇒ 删具名局部、改单语句链式。
+                GlobalData::s_guild_proxy_mgr
+                    ->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(serverGroup))
+                    ->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
             }
             else if (param == 0)
             {
-                CMonitorServerProxy* proxy =
-                    GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                        static_cast<ENUM_SERVER_GROUP>(serverGroup));
-                proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+                GlobalData::s_monitor_proxy_mgr
+                    ->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(serverGroup))
+                    ->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
             }
             ++packet.m_pageNo;
             count = 0;
@@ -65,17 +67,15 @@ void Gm_List::SendGMList_To_UpperServer(int param)
         packet.m_gmCount = static_cast<unsigned char>(count);
         if (param == 1)
         {
-            CGuildServerProxy* proxy =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                    static_cast<ENUM_SERVER_GROUP>(serverGroup));
-            proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+            GlobalData::s_guild_proxy_mgr
+                ->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(serverGroup))
+                ->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
         }
         else if (param == 0)
         {
-            CMonitorServerProxy* proxy =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                    static_cast<ENUM_SERVER_GROUP>(serverGroup));
-            proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+            GlobalData::s_monitor_proxy_mgr
+                ->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(serverGroup))
+                ->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
         }
     }
 }

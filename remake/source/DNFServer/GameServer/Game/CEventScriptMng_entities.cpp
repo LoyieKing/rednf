@@ -284,7 +284,7 @@ bool CAttendance::is_eventing()
         //   「零槽短路物化」——4.4 对裸 `if (evt!=0 && evt->IsEventing(0))` 恒
         //   jump-thread 成两条件共落 fail 出口（少 5 条）。用语句表达式包住整个
         //   条件（内不含具名变量）复现 ORIG 物化岛。
-        if (({ evt && evt->IsEventing(0); }))
+        if (({ evt != 0 && evt->IsEventing(0); }))
             return true;
     }
     return false;

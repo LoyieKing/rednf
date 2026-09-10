@@ -935,6 +935,11 @@ void CharacAdvanceAltarManager::setDefaultSlot()
 // 234=234 条 + p167 CLEAR。残差 = 块级槽逆序（fee/feeMap/logType/delta，
 // N93/N98）+ return 2 块位置（ORIG 中间 +0x1c3 vs 我方函数尾，N93附 尾部双
 // return 块序）⇒ DIFF 封顶，语义等价。
+// [R22 2026-09-10 复测] 235=235，残差 13 行全为 feeMap/fee/logType 三变量槽位
+// **完全倒置**（ORIG logType@-0x18,feeMap@-0x10,fee@-0xc vs 我方 feeMap@-0x18,
+// fee@-0x10,logType@-0xc）；实测「裸声明前置（赋值留原位）」两形（logType 单独/
+// logType+fee 同时）4.4 产物**零变化** ⇒ 4.4 按首次使用序分配、混合区声明序不可翻
+// （P112/P331 限定），维持 N 封顶。
 unsigned int CharacAdvanceAltarManager::resetStar(CUser* user, CMDPacketStruct::ResetStarType::T type)
 {
     if (user == 0 || m_currentAdvanceAltarData == 0)

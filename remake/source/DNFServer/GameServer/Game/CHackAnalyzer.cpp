@@ -709,8 +709,14 @@ bool Secu_AccountHacking::isAvatar(unsigned int itemIdx)
     return false;
 }
 
-// b28d-solo-CHackAnalyzer: NEAR 封顶（P75/N76 跨版本装载序）——ORIG 0x08278b48；
-// 循环体 m_entries[i] 恒 base-first（六形实测），仅两 load 序差、指令数全等。
+// b28d-solo-CHackAnalyzer: N 封顶（P75 跨版本装载序，本轮七形复测）——ORIG 0x08278b48。
+//   唯一残差 = 循环体前两条 load：ORIG 0x08278c69 `mov -0xc(%ebp),%edx; mov 0x10(%ebp),%ecx`
+//   （i 先、msg 形参后）；我方 f1 恒 msg 先（`mov 0x10(%ebp),%ecx; mov -0xc(%ebp),%edx`），
+//   其余 8 条逐条全等（含 `lea (%ecx,%eax,1); add $0x30; mov 0xb(%eax)` 常量拆分）。
+//   本轮实测七形（探针 /tmp/hc_probe2.cpp）：f1 现状/f2 (unsigned)i/f3 解引用/f6 i*1/f11 双 cast
+//   恒 msg 先；f4 具名视图指针、f5 具名元素指针可得 i 先但多发函数头 store（ORIG 无）；
+//   f8/f14 裸指针加法得 i 先但改用 add-mem 且少 lea/或改常量拆法 ⇒ 形不符。
+//   ⇒ 4.4 对「形参基址 + 下标」恒 base-first 调度，属跨版本装载序，N 封顶（指令数全等）。
 void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* msg)
 {
     // §4.3 裸偏移清零 —— 载荷具名视图（本 TU 私有，不动冻结头）：

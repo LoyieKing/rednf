@@ -21,8 +21,11 @@ char* trim(char* s)
     // 与 4.4 槽序镜像（P212/N98 族）；语义等价。
     char buf[0x400];
     int len = strlen(s);
-    int start = 0;
+    // [L13-round3 判据⑩] ORIG 0x0829f0ef：i@-0x14(深)/start@-0x10(浅)，`start=i`
+    // 形为 `mov -0x14,%eax; mov %eax,-0x10`；我方槽互换（start@-0x14）。
+    // 试按「先声明者深」交换声明序以复现 ORIG 槽位（语义不变：两者均 =0 初始化）。
     int i = 0;
+    int start = 0;
     // ORIG do-while 形态：先存 start=i 再检查——跳出时 start 即第一个非空白
     // （我们原 while 先检后存，start 落最后一个空白——前导空白未被去除）。
     while (i < len)

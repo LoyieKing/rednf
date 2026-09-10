@@ -339,6 +339,10 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
     bool ok = false;
     unsigned int id = 0;       // ORIG -0x78
     int recipeIndex = 0;       // ORIG -0x2c
+    // [P212] 全头部声明：ORIG 卡槽 cardIdx/boosterIdx 深于 pairCount/i
+    // （-0x28/-0x24 vs -0x20/-0x1c）；块内声明在 4.4 下先声明浅 ⇒ 反序。
+    int cardIdx;               // ORIG 无初始化（无 movl $0）⇒ 裸声明
+    int boosterIdx;
     ST_Event_Upgrade_Jar_EventNPCs_Script npc;   // ORIG 函数级对象（0x08968828 C1，-0x80）
 
     for (;;)
@@ -381,8 +385,6 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
             int pairCount = (int)((unsigned int)(info->m_npcCount + 1U) * info->m_npcCount) >> 1;
             for (int i = 0; i < pairCount; ++i)
             {
-                int cardIdx;
-                int boosterIdx;
                 cardIdx = ScanInt(&ok);
                 if (!ok)
                     return false;
@@ -445,8 +447,9 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
         if ("[event upgrade table]" == token)
         {
             // ORIG 0x08968c35：ScanFloat(&ok) 直存 m_discountRate（fstps 序）。
-            float discount = ScanFloat(&ok);
-            info->m_discountRate = discount;
+            // [P0] ORIG 无 float 局部槽（`fstps 0x70(%eax)` 直存成员，无
+            // `mov -0xN(%ebp),%edx` 中转）⇒ 表达式内联，勿声明具名局部。
+            info->m_discountRate = ScanFloat(&ok);
             if (!ok)
                 return false;
             for (;;)

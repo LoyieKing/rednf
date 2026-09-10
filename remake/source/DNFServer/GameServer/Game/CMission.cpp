@@ -1128,6 +1128,10 @@ int CMission_combo_clear::getClearCondition() const
     return 0;
 }
 
+// [round3-L29 2026-09-10 复核] 我方 127 / ORIG 125（ndiff12）：difflib 显示我方多两段
+//   「mov $0x1,%ebx; jmp」/「mov $0x1,%ebx; lea; call」= 早返回 true 的物化 + 多 1 处 call；
+//   帧两侧相同（80=80）、判据⑪ PURE SHIFT c=0 ⇒ 非槽问题。疑似 `if(cond) return true;`
+//   与 ORIG fall-through 的语义重写（P292 正极性包裹候选）；本轮未及改。
 int CMission_combo_clear::_Reward(CUser& user) const
 {
     combo_script_key key;

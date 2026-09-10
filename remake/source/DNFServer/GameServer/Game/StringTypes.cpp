@@ -835,26 +835,26 @@ int CharString::tokenizeNewLine(const CharString& str,
 CharString CharString::join(const std::vector<CharString>& stringVector,
                             const CharString& separator)
 {
-    // [b28d-solo-StringTypes] verdict=N 封顶（跨版本循环 lowering，ORIG 0x08ad920e）：
-    // P167 调用点差集 CLEAR（26=26）——已按 ORIG 改写 `(*it)`/`it++`/`it != begin()`
-    // 与具名 `const CharString& token = *it;`（P28/P167，operator*/operator++(int)/
-    // begin/operator!= 全部对齐）。残差 gap=30 全为 4.1 对 bool 返回的
-    // `operator!=(it,end)` 循环条件物化：ORIG 每循环发
-    // `movb $0,-flag; …; xorb $1,-flag; cmpb; je` 的 runOnce 岛（Ghidra 记
-    // token_runOnce，0x08ad9268/0x08ad9348），4.4 恒直跳 `call; test %al; jne`；
-    // for/while/do-while 三源形实测同产物（164~166 vs 196）⇒ 语义等价、N 封顶。
+    // [R22 2026-09-10] DIFF(gap=-30) → NEAR 196=196（判据 P292/P168a + 探针
+    // /tmp/p_r22{,b,c,d}.cpp 定形）：ORIG 0x08ad9268/0x08ad9348 两遍扫描各带一个
+    // runOnce 守卫——`movb $0,-0x19` → 头部 `cmpb $0,-0x19; jne <跳过整个循环块>`
+    // → `&&` 右侧 `xorb $1,-0x19; cmpb $0,-0x19; je` → 体内 `while(runOnce){…;=false;}`。
+    // 4.4 复现三要素：① 变量必须是 **bool**（uchar 时 while 恒 setne 物化，bool 才
+    // `cmpb;jne` 直跳）；② 头部守卫写「`if (x) {} else { 整个循环块 }`」（反置空 then
+    // ⇒ `cmpb;jne` 直跳；写 `if (!x)` 触发 4.4 bool 取反 xor 物化 N122）；③ 条件写
+    // `(x = !x)`（产 ORIG 的 xorb 就地异或）。残余仅 1 字节局部/指针局部的槽位分配
+    // 序差（OURS -0x21/-0x15 vs ORIG -0x19/-0x11）⇒ P112/N82 族，指令数与助记符全等。
     if (stringVector.empty())
     {
         return CharString();
     }
-    bool token_runOnce;
     const char* separatorStrSrc = separator.c_str();
     int separatorStrLen = separator.length();
     int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
     // [R22] ORIG 0x08ad9268/0x08ad9348 两遍扫描各带一个 runOnce bool 守卫
     // （movb $0,-0x19 / -0x11 → 循环头 cmpb+jne 跳过 → 条件段 xorb $1 取反），
     // 内层 while(runOnce){...; runOnce=false;} 只跑一次。照抄该形状。
-    token_runOnce = false;
+    bool token_runOnce = false;
     if (token_runOnce)
     {
     }
@@ -879,8 +879,7 @@ CharString CharString::join(const std::vector<CharString>& stringVector,
     }
     CharStringData* newData = CharStringData::createTerminated(totalLength);
     char* newDataBuf = newData->getBuffer();
-    bool token_runOnce2;
-    token_runOnce2 = false;
+    bool token_runOnce2 = false;
     if (token_runOnce2)
     {
     }
@@ -1617,8 +1616,9 @@ int WideString::tokenizeNewLine(const WideString& str,
 WideString WideString::join(const std::vector<WideString>& stringVector,
                             const WideString& separator)
 {
-    // [b28d-solo-StringTypes] verdict=N 封顶（ORIG 0x08adc2f4）：同 CharString::join，
-    // P167 调用点差集 CLEAR；残差为 4.1 循环条件 bool 物化 lowering（gap≈30）。
+    // [R22 2026-09-10] DIFF(gap=-30) → NEAR 200=200：同 CharString::join 的 runOnce
+    // 守卫复现（ORIG 0x08adc34e/0x08adc42e）。残余为 1 字节局部槽位分配序差
+    // （P112/N82 族，指令数与助记符全等）。
     if (stringVector.empty())
     {
         return WideString();
@@ -1626,13 +1626,25 @@ WideString WideString::join(const std::vector<WideString>& stringVector,
     const wchar_t* separatorStrSrc = separator.c_str();
     int separatorStrLen = separator.length();
     int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    std::vector<WideString>::const_iterator it = stringVector.begin();
-    std::vector<WideString>::const_iterator itEnd = stringVector.end();
-    while (it != itEnd)
+    // [R22] 同 CharString::join（ORIG 0x08adc34e/0x08adc42e 两遍 runOnce 守卫）。
+    bool token_runOnce = false;
+    if (token_runOnce)
     {
-        const WideString& token = *it;
-        totalLength += token.length();
-        it++;
+    }
+    else
+    {
+        std::vector<WideString>::const_iterator it = stringVector.begin();
+        std::vector<WideString>::const_iterator itEnd = stringVector.end();
+        while (it != itEnd && (token_runOnce = !token_runOnce))
+        {
+            const WideString& token = *it;
+            while (token_runOnce)
+            {
+                totalLength += token.length();
+                token_runOnce = false;
+            }
+            it++;
+        }
     }
     if (totalLength == 0)
     {
@@ -1640,20 +1652,31 @@ WideString WideString::join(const std::vector<WideString>& stringVector,
     }
     WideStringData* newData = WideStringData::createTerminated(totalLength);
     wchar_t* newDataBuf = newData->getBuffer();
-    std::vector<WideString>::const_iterator it2 = stringVector.begin();
-    std::vector<WideString>::const_iterator itEnd2 = stringVector.end();
-    while (it2 != itEnd2)
+    bool token_runOnce2 = false;
+    if (token_runOnce2)
     {
-        if (separatorStrLen >= 1 && it2 != stringVector.begin())
+    }
+    else
+    {
+        std::vector<WideString>::const_iterator it2 = stringVector.begin();
+        std::vector<WideString>::const_iterator itEnd2 = stringVector.end();
+        while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
         {
-            memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
-            newDataBuf += separatorStrLen;
+            const WideString& token = *it2;
+            while (token_runOnce2)
+            {
+                if (separatorStrLen >= 1 && it2 != stringVector.begin())
+                {
+                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
+                    newDataBuf += separatorStrLen;
+                }
+                int tokenLength = token.length();
+                memcpy(newDataBuf, token.c_str(), tokenLength * sizeof(wchar_t));
+                newDataBuf += tokenLength;
+                token_runOnce2 = false;
+            }
+            it2++;
         }
-        const WideString& token = *it2;
-        int tokenLength = token.length();
-        memcpy(newDataBuf, token.c_str(), tokenLength * sizeof(wchar_t));
-        newDataBuf += tokenLength;
-        it2++;
     }
     return WideString(newData);
 }
