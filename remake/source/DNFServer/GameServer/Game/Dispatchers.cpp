@@ -5338,7 +5338,12 @@ int Dispatcher_ScanBotByDll::read(PacketBuf& packet, MSG_BASE& msg)
 int Dispatcher_ScanBotByDll::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     (void)param;
-    if (check_error(user, msg) != 0)
+    // [Lane1Dispatchers 2026-09-10] P0 槽往返：ORIG 0x0821e? 为 `call check_error;
+    //   mov %eax,-0x14(%ebp); cmpl $0x0,-0x14(%ebp); je`（具名 int 局部 + 内存比较）；
+    //   直接写 `if (check_error(...) != 0)` 在 4.4 产 `test %eax,%eax; setne %al;
+    //   test %al,%al; je`（+2 条且多 push %edi/帧 +0xc）。与同族 ScanBotByDrv 对齐。
+    int err = check_error(user, msg);
+    if (err != 0)
     {
         return 0;
     }
@@ -5735,7 +5740,9 @@ Dispatcher_CallGuildInfo::~Dispatcher_CallGuildInfo() {}
 int Dispatcher_CallGuildInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08200448（docs/class_func_reports/Dispatcher_CallGuildInfo/dispatch_sig.md）
-    unsigned int charIds[0x5f];               // local_1ac
+    // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG +0xdd 段为内联 rep stos
+    //   （rep-stos 计 0/1，`memset` 在 4.4 退化为 call）⇒ 聚合初始化。
+    unsigned int charIds[0x5f] = {0};         // local_1ac
     unsigned char count = 0;                  // local_21
     int i;                                    // local_20
     bool fail;                                // bVar1
@@ -5760,9 +5767,6 @@ int Dispatcher_CallGuildInfo::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0x94f0,
                         __PRETTY_FUNCTION__,
                         0, 0);
-
-    // +0xdd：清零 0x5f 个 uint
-    memset(charIds, 0, sizeof(charIds));
 
     // +0xfa：逐个读取；遇到 0 → 发送 0x4d 错误包
     for (i = 0; i < (int)(unsigned int)count; i = i + 1)
@@ -7885,7 +7889,9 @@ int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08223de0 [0x08223de0, 0x08224499]
     Packet_Stat_Lag_Statistics local_161;                    // ctor ORIG 0x0822c144（弱内联）
-    unsigned char* base = reinterpret_cast<unsigned char*>(&local_161);
+    // [Lane1Dispatchers 2026-09-10] P183：ORIG 无具名 base 指针局部（每处重发
+    //   `lea`，0x08223de0 段实证）⇒ 宏内联（零局部），函数尾 `#undef base`。
+#define base (reinterpret_cast<unsigned char*>(&local_161))
     unsigned char count = 0;                                 // -0x153 = base+0xa
     if (!packet.get_byte(count))
     {
@@ -8010,6 +8016,7 @@ int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
     proxy->SendPacket(reinterpret_cast<char*>(base), 0x14c);
     return 0;
 }
+#undef base
 int Dispatcher_Lag_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Lag_Statistics::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
@@ -11007,10 +11014,11 @@ int Dispatcher_SDC_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
     int capB = 500;                                     // -0x20（同上）
     unsigned long destLen = 500;                        // -0x34
     int srcLen = 500;                                   // -0x1c（循环内被长度覆盖）
-    char compBuf[500];                                  // -0x22c 压缩数据缓冲
-    long varBuf[125];                                   // -0x420 解压目标（500 字节，ORIG memset 清零而非 ctor）
-    memset(compBuf, 0, 0x1f4);
-    memset(varBuf, 0, 0x1f4);
+    // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG 0x081e9e84 段对两缓冲各发**内联**
+    //   rep stos（我方 `memset` 在 4.4 -O0 恒退化为 call，rep-stos 计 0/2）⇒ 改聚合
+    //   初始化 `= {0}`（4.4 对常量零初始化内联 rep stos，P214③ 实证）。
+    char compBuf[500] = {0};                            // -0x22c 压缩数据缓冲
+    long varBuf[125] = {0};                             // -0x420 解压目标（500 字节）
     STComputeDamageVariable* var =
         reinterpret_cast<STComputeDamageVariable*>(varBuf);   // -0x2c
     unsigned char loopIdx = 0;                          // -0x25
@@ -11993,7 +12001,11 @@ int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x0821efec [0x0821efec, 0x0821f611]
     Packet_Loading_Time_Report_Statistics local_824;   // ctor ORIG 0x0822c040（弱内联）
     // 布局无头文件证据，按 ORIG 裸偏移访问（对象栈帧 -0x820 起，payload 尺寸 0x806）。
-    unsigned char* base = reinterpret_cast<unsigned char*>(&local_824);
+    // [Lane1Dispatchers 2026-09-10] P183：ORIG **无**具名 base 指针局部——每处访问都
+    //   重发 `lea -0x820(%ebp),%eax`（ORIG 0x0821efec 段实证）；我方具名指针占 4B 槽
+    //   使整帧 +8、对象落 -0x828（ORIG -0x820）并连带全部槽号错位。改为宏内联
+    //   （等价全表达式展开、零具名局部），函数尾 `#undef base`。
+#define base (reinterpret_cast<unsigned char*>(&local_824))
     unsigned short idx = 0;                            // -0x16
     int i = 0;                                         // -0x14（循环计数）
     while (i <= 8)
@@ -12122,6 +12134,7 @@ int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
     proxy->SendPacket(reinterpret_cast<char*>(base), 0x806);
     return 0;
 }
+#undef base
 int Dispatcher_LoadingTimeReport::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_LoadingTimeReport::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
@@ -15546,14 +15559,17 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0xd1f4, __PRETTY_FUNCTION__, 0, 0);
     }
 
-    char content[30];   // -0x56，0x1e
+    // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG 0x0821dcd3-0x0821dd22 是
+    //   `memset(content,0,0x1e)` 的 4.1 **内联**对齐剥离慢路（起始 `and $0x2` =
+    //   地址 ≡2 mod 4，与 -0x56 相符）；我方 `memset` 在 4.4 -O0 恒退化为
+    //   `call memset`（多 3 条 + 丢 30 条形）。改聚合初始化 `= {0}` 即复现慢路。
+    char content[30] = {0};   // -0x56，0x1e
     // [b28d-solo-Dispatchers] 语义修正（Main 新判据②回边核对命中）：ORIG
     //   0x0821dcd3-0x0821dd22 是 `memset(content,0,0x1e)` 的 4.1 **内联慢路**展开
     //   （`lea -0x56(%ebp),%eax; mov $0x1e,%ebx; …and $2…; mov %edx,(%eax,%ecx,1);
     //   add $0x4,%ecx; cmp %esi,%ecx; jb`+尾 2/1 字节），即 ORIG **有**清零。
     //   第一波据 p167 EXTRA `memset`+1 误判「ORIG 无清零」而删除 ⇒ 丢失语义
     //   （get_str 短串时 strcmp 读未初始化尾部）⇒ 恢复 memset。
-    memset(content, 0, sizeof(content));
     if (packet.get_str(content, 0x1e, contentLen) != 1)
     {
         return LineFunc(0xd1f9, __PRETTY_FUNCTION__, 0, 0);
@@ -17348,11 +17364,10 @@ int Dispatcher_PvpMissionComboClear::process(CUser* user, MSG_BASE& msg, ParamBa
         return 0;
     }
 
-    // [b28d-solo-Dispatchers] ORIG 0x081d5a5e 段为内联 `rep stos`（0x40 dword =
-    //   0x100 字节）而 4.4 对 `= {0}` 形会发射 .rodata 复制模板符号（P60，missing +1
-    //   回退）⇒ 维持 memset 形，本项按 N78 封顶（p167 EXTRA `memset` +1 记 N）。
-    char logBuf[256];
-    memset(logBuf, 0, 0x100);
+    // [Lane1Dispatchers 2026-09-10] N78/P214③ 复测：`= {0}` 在 4.4 -O0 对 256B 常量
+    //   零初始化**内联** rep stos（probe /tmp/l1/probe1.cpp cSimple 逐条实证），
+    //   旧「发 .rodata 复制模板/缺符号」判词作废 ⇒ 恢复 ORIG 内联形。
+    char logBuf[256] = {0};
     OS_API::snprintf(logBuf, 0x100,
                      "[@missionSystem] invalid Combo Mission index:%d",
                      (unsigned int)comboIdx);
@@ -20419,8 +20434,7 @@ int Dispatcher_RequestOnTimeEventReward::dispatch_sig(CUser* user, PacketBuf& pa
     if (!event->IsEventing(0))   // 虚槽 +0x34（CEventBase::IsEventing）
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x120, 0x13);
-        char logBuf[256];
-        memset(logBuf, 0, 0x100);
+        char logBuf[256] = {0};
         sprintf(logBuf, "./log/%s/OnTimeEvent", G_CEnvironment()->get_file_name());
         unsigned int characNo = user->get_charac_no(-1);
         char* idStr = NumberToString(user->get_acc_id(), 0);
@@ -20434,8 +20448,9 @@ int Dispatcher_RequestOnTimeEventReward::dispatch_sig(CUser* user, PacketBuf& pa
     if (event->get_reward_state() != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x120, 0x13);
-        char logBuf[256];
-        memset(logBuf, 0, 0x100);
+        // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG 该 3 处各发内联 rep stos
+        //（我方 `memset` 退化为 call，rep-stos 0/3）⇒ 聚合初始化。
+        char logBuf[256] = {0};
         sprintf(logBuf, "./log/%s/OnTimeEvent", G_CEnvironment()->get_file_name());
         unsigned int characNo = user->get_charac_no(-1);
         char* idStr = NumberToString(user->get_acc_id(), 0);
@@ -20449,8 +20464,7 @@ int Dispatcher_RequestOnTimeEventReward::dispatch_sig(CUser* user, PacketBuf& pa
     if (user->get_ontime_last_recv_idx() == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x120, 2);
-        char logBuf[256];
-        memset(logBuf, 0, 0x100);
+        char logBuf[256] = {0};
         sprintf(logBuf, "./log/%s/OnTimeEvent", G_CEnvironment()->get_file_name());
         unsigned int characNo = user->get_charac_no(-1);
         char* idStr = NumberToString(user->get_acc_id(), 0);
@@ -22245,17 +22259,40 @@ Dispatcher_SDC_ActiveStatus_Damage_Check::~Dispatcher_SDC_ActiveStatus_Damage_Ch
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ea16e orig/ours=309/262 ndiff-blocks=42
 //   帧差 sub $47c vs $470 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x47c,%esp | movb   $0x0,-0x55(%ebp)
+// [Lane1Dispatchers 2026-09-10] 判据①/jcc 目标下标比对 + P312/P311 形态收敛（详细见函数头后注）：
+//   ④ 两缓冲前置 `char[1]` 数组死局部（P312 形态，probe1 cPad1 已证 4.4 可复现慢路）
+//      ——**本件失效**：本函数局部众多，4.4 把 1/3 字节 pad 归入标量区、大数组仍从
+//      4 对齐槽起（我方 -0x268/-0x45c vs ORIG -0x25d/-0x451），慢路未触发；
+//      pad 尺寸 1↔3 实测同读数 ⇒ 余 ~58 条按 N78/N82 封顶（4.1 分配器行为）。
+//   ⑤ `data` 改 pack(1) 视图指针 ⇒ `data+K`/`data[k]` 全部折成单条 disp 访存
+//      （旧 char* + 常量偏移在 4.4 恒发 add 两步，ORIG 单条 `mov 0x3(%eax),%eax`）；
+//   ⑥ 流血伤害缩放改直接 C cast（ORIG `fildl/flds/fmulp/fldcw/fistpl` 截断语义），
+//      删旧「四舍五入」辅助形（fldz/fucomip/setae 共 9 条 ORIG 无）。
 // [SweepDispatchers 2026-09-09] 真语义修复 + 形态收敛（262→269，ORIG 308；p167 双零）：
 //   ① **删循环内 `destLen = 500;`**——ORIG 0x081ea373 段无重置（uncompress 后 destLen 保持
 //      上次实际长度），旧码每轮重置改变第二次解压行为（真语义差）；
 //   ② 补 ORIG -0x3c/-0x38 两个 dead 500 初始化与 srcLen(-0x34) 具名槽；
 //   ③ 两缓冲改块内 `char src[500]={0}`（ORIG 为 4.1 内联对齐剥离慢路，我方 4.4 发简单
 //      rep stos；P312 pad 试形未把数组顶到非 4 对齐槽 ⇒ 余 39 条按 N78 封顶）。
+// pack(1) 视图：ORIG 对 -0x44 数据缓冲的 +0x03/+0x07/+0x25 非对齐访存为单条 disp；
+// sizeof 0x29（typedef 校验在下方）。字段宽度按 ORIG movzbl/movsbl 链定。
+struct SDCDamageSyncView
+{
+    unsigned char m_type;        // +0x00
+    unsigned char m_event;       // +0x01
+    unsigned char m_eventKind;   // +0x02
+    int           m_damage;      // +0x03（非对齐）
+    int           m_duration;    // +0x07（非对齐）
+    unsigned char m_pad[0x1a];   // +0x0b..+0x24
+    int           m_cnt;         // +0x25（非对齐）
+} __attribute__((packed));
+typedef char sdc_view_size_check[(sizeof(SDCDamageSyncView) == 0x29) ? 1 : -1];
+
 int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x081ea16e（docs/class_func_reports/Dispatcher_SDC_ActiveStatus_Damage_Check/dispatch_sig.md）
     unsigned char count = 0;                  // local_59 -0x55
-    char* data;                               // local_44/48
+    SDCDamageSyncView* data;                  // local_44/48
     unsigned long destLen;                    // local_5c -0x5c
     unsigned long srcLen;                     // local_34 -0x34
     int uncompreRet;                          // local_30 -0x30
@@ -22283,17 +22320,20 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
     int deadLen2 = 500;                       // ORIG -0x38（dead）
     destLen = 500;                            // ORIG -0x5c
     srcLen = 500;                             // ORIG -0x34
-    // P312：前置 1 字节死局部把大数组顶到非 4 对齐槽（ORIG src@-0x25d/dest@-0x451
-    // 均为非 4 对齐 ⇒ 4.1 发对齐剥离慢路）。
-    char alignPad1 = 0;
+    // P312（实测）：前置 1 字节**数组**死局部把大数组顶到非 4 对齐槽
+    // （ORIG src@-0x25d/dest@-0x451 均 ≡3 mod 4 ⇒ 4.1 发对齐剥离慢路；
+    //  probe /tmp/l1/probe1.cpp cPad1 形态 4.4 逐条复现 36 条形）。
+    char alignPad1[1];
     char src[500] = {0};                      // ORIG -0x25d（压缩数据）
-    char alignPad2 = 0;
+    char alignPad2[1];
     char dest[500] = {0};                     // ORIG -0x451（解压数据）
+    // P332：`(void)pad;` 哑引用**不占槽**（实测 4.4 忽略）⇒ 数组回落 4 对齐、
+    // 慢路消失；此处用真实写入让 1 字节数组占槽，把下游大数组顶到 ≡3 mod 4。
+    alignPad1[0] = 0;
+    alignPad2[0] = 0;
     (void)deadLen1;
     (void)deadLen2;
-    (void)alignPad1;
-    (void)alignPad2;
-    data = dest;
+    data = (SDCDamageSyncView*)dest;
 
     // +0x134：逐条目（byte 计数，setb 无符号比较）
     for (i = 0; i < count; i = (unsigned char)(i + 1))
@@ -22324,13 +22364,13 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
                             0, 0);
 
         // +0x263：客户端上报值
-        clientDamage = *(int*)(data + 3);
-        clientDuration = *(int*)(data + 7);
+        clientDamage = data->m_damage;
+        clientDuration = data->m_duration;
         svrDuration = 0;
         svrDamage = 0;
         SDCActiveStatusSyncServer syncServer;                         // ctor 0823487c
         syncServer.getActiveStatusDamageDurationForSDC(
-            (char)data[1], (int)(unsigned int)(unsigned char)data[2],
+            (char)data->m_event, (int)(unsigned int)(unsigned char)data->m_eventKind,
             &svrDuration, &svrDamage,
             (STSDCActiveStatusSyncDataSend*)data, 0);
         // +0x2d9：不匹配 → 黑客计数 + trace
@@ -22342,7 +22382,7 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
                     __PRETTY_FUNCTION__,
                     0x6b6d, 0);
                 trace("[TYPE : %d][EVENT : %d] [Svr] Damage : %d, Duration : %d, [Client] Damage : %d, Duration : %d",
-                      (int)(char)data[1], (int)(char)data[0],
+                      (int)(char)data->m_event, (int)(char)data->m_type,
                       svrDamage, svrDuration, clientDamage, clientDuration);
             }
         }
@@ -22350,19 +22390,19 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
         party = G_CGameManager()->GetParty((int)user->GetPartyIndex());
         if (party != 0)
         {
-            if (data[1] == 0xb)
+            if (data->m_event == 0xb)
             {
                 // +0x3de：流血事件 → 伤害按 ORIG 全局 BLEEDING_DAMAGE_IN_ACTION_RATE 缩放
-                float scaled = BLEEDING_DAMAGE_IN_ACTION_RATE * (float)clientDamage;
-                adjDamage = (int)(scaled + (scaled >= 0.0f ? 0.5f : -0.5f));   // ROUND（fistpl 舍入）
+                // ORIG 0x081ea558：fildl/flds/fmulp/fnstcw/fldcw(RC=trunc)/fistpl ⇒ 直接 C cast
+                adjDamage = (int)(BLEEDING_DAMAGE_IN_ACTION_RATE * (float)clientDamage);
             }
             else
             {
                 adjDamage = clientDamage;
             }
             CBattle_Field* battleField = &party->m_battleField;   // CParty +0xb24
-            battleField->SetDamagedPacketCnt(*(int*)(data + 0x25));
-            battleField->SetDamageValue(*(int*)(data + 0x25), adjDamage);
+            battleField->SetDamagedPacketCnt(data->m_cnt);
+            battleField->SetDamageValue(data->m_cnt, adjDamage);
         }
         // syncServer 析构（08234890）
     }
@@ -26053,8 +26093,9 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
     param.m_4 = 0;
     param.m_5 = 0;
 
-    unsigned char decrypted[0x400];
-    memset(decrypted, 0, sizeof(decrypted));
+    // [Lane1Dispatchers 2026-09-10] N78/P214③：ORIG 内联 rep stos（rep-stos 计 0/1），
+    //   `memset` 在 4.4 恒退化为 call ⇒ 聚合初始化。
+    unsigned char decrypted[0x400] = {0};
     int decryptedLen = 0x1000;
 
     // ORIG 0x0826283f..0x082629ee：嵌套 if（card 先判，else-if 才判 pad），
