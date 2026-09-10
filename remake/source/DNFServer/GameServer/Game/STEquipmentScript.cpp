@@ -16,6 +16,20 @@
 //   Position::Position               W 0x089c2c42
 //   effect::STEffect::clear          W 0x089c2c64
 // ============================================================================
+// [Lane23 2026-09-10 收口] 本轮 8 件 DIFF/NEAR → AE（四数 710/1439/2/7/464；
+//   基线 710/1431/3/14/464 ⇒ ae+8 / near−1 / diff−7，零回退）：
+//   EquipmentScriptSpecialMonsterDrop 176→172（共享 `return true`：if→else-if 链）；
+//   GetAuraAvatarOption 259→256、GetExpertJobTypeList 329→327（P333 static 三件套
+//   移入重查循环体 + P164 内层 for 替 goto + 独立 int v 判别值）；
+//   importArtifactInfo 450→448（find 内联 c_str 实参 + break 出循环 + 循环外 return）；
+//   importEffect 314→307（[/module]/[file name] 改落链尾，消 4.4 的 nop+jmp 反向块）；
+//   importCommand 259→254（while((token=getToken())!=0) 条件段单点取 token +
+//   name 内联为 find 实参）；
+//   GetExpertJobValueMaterialVariation 29→27（x87 比较写 `-100.0f >= field` 交换
+//   操作数方向，复现 4.1 `test $0x5,%ah; sete`）；
+//   setEquipmentAniScriptLay NEAR→AE（rbegin() 具名 reverse_iterator 复位深槽）。
+//   余 2 件游戏域：ImportEquipmentScript（帧 0x19fc vs 0x1a3c，N82 槽复用族）、
+//   GetItemCategory（state 占 4.1 深槽 -0x78 vs 4.4 浅槽 -0x20）。
 // [SweepSTEquip 2026-09-09 单文件泳道收口判词] 本轮 13 件逐件读数：
 //   ■ 真缺口修复 8 件（gap 降序）：
 //     setEquipmentAniScriptLay 44→2（find 传 key->c_str() 临时 string /
@@ -4132,9 +4146,8 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
             return false;
         }
         script->m_specialDrop.m_enable = ok;   // P136/P32：bool 字段直存（ORIG movzbl→mov %dl）
-        return true;
     }
-    if (str == "[difficulty for extra drop]")
+    else if (str == "[difficulty for extra drop]")
     {
         while (ScanStr(&token))
         {
@@ -4164,9 +4177,8 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
                        sizeof(script->m_specialDrop.m_difficulty));
             }
         }
-        return true;
     }
-    if (str == "[dungeon type for extra drop]")
+    else if (str == "[dungeon type for extra drop]")
     {
         while (ScanStr(&token))
         {
@@ -4188,7 +4200,6 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
                        sizeof(script->m_specialDrop.m_dungeonType));
             }
         }
-        return true;
     }
     return true;
 }
@@ -4215,9 +4226,11 @@ bool importArtifactInfo(STEquipmentScript::artifact_info& info,
         int id;
         if (__inited)
         {
-            const char* key = str.c_str();
+            // [P236 2026-09-10] ORIG 0x089bd0? 的 c_str 结果槽（-0x104）在 find 的
+            // sret 槽（-0x108）**之上**：原码是内联实参 `find(str.c_str())`
+            // （临时槽序 = key 浅 / sret 深），具名 key 局部反装槽序。
             std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(key);
+                __lookup.find(str.c_str());
             id = (it != __lookup.end()) ? it->second : -1;
         }
         else
@@ -4381,8 +4394,9 @@ bool importArtifactInfo(STEquipmentScript::artifact_info& info,
             __inited = true;
             continue;
         }
-        return true;
+        break;                                         // 已建表 → 退出并返回 true
     } while (true);
+    return true;
 }
 
 // ===================== Wave3Deps：脚本解析依赖组 =====================
@@ -4436,20 +4450,35 @@ static bool GetItemCategory(STItemScript* item)
     // [SweepSTEquipScript 2026-09-09] 三处 case 体极性反转（同 GetExpertJobTypeList）：
     // gap 5 → -1（254/255）。残差 1 条 = ORIG `mov slot,%eax; test %eax,%eax; je`
     // 被 4.4 折成 `cmpl $0,slot; je`（P209/N18b 跨版本折叠，无源码解）。
-    static std::map<const char*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-
+    // [P28/P212 全头部声明 2026-09-10] ORIG 的 state 占深槽 -0x78（与 token -0x74
+    // 同区），声明在函数级；循环体首只做 `state = 0`（ORIG 0x089bfde1）。
+    int state;
     std::string token;
+    int v;                      // switch 判别值（ORIG -0x1c）
     while (ScanStr(&token))
     {
-        int state = 0;
-    retry:
+        state = 0;
+        // [P164 真解 2026-09-10，Main 广播] `retry: … goto retry` 会令 4.4 在循环头
+        // 前插 entry jmp+nop；改为内层 `for (;;)`（guard 竞争 `continue`、重派发块
+        // `if(!__inited){…} else {break;} continue;`，continue 置于内层体末）。
+        for (;;)
+        {
+        // [P333 修正 2026-09-10] ORIG 的 static 三件套声明在**循环体内**（retry 锚
+        // 处）：guard 检查随 `goto retry` 逐轮重放（ORIG 0x089bfe62/0x089bfedc 的
+        // `mov $__lookup_guard`/`movzbl; test; jne` 位于 retry 锚 +0x023），
+        // 函数入口只有 token 构造 + `jmp 循环条件`（0x089bfdd1..0x089bfddc）。
+        // 旧形把三件套声明在函数头 ⇒ guard 段被提到函数入口（token 构造之前），
+        // 与 ORIG 顺序相反。声明位置不影响静态初始化语义（仍只初始化一次）。
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+        // [P333 修正 2026-09-10] ORIG 有两个 int：`state`（-0x78，case 体里写
+        // ITEM_CATEGORY_1/2/3）与 switch 判别值 `v`（-0x1c），两者同为函数级。
         if (__inited)
         {
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(token.c_str());
-            state = (it != __lookup.end()) ? it->second : -1;
+            v = (it != __lookup.end()) ? it->second : -1;
         }
         else
         {
@@ -4457,11 +4486,11 @@ static bool GetItemCategory(STItemScript* item)
             if (__inited)
             {
                 __init_lock.leave();
-                goto retry;                            // 自旋重试（P333）
+                continue;                              // 自旋重试（P333：重放 guard）
             }
-            state = 0;                                 // 建表哨兵
+            v = 0;                                     // 建表哨兵
         }
-        switch (state)
+        switch (v)
         {
         case 0:                                        // 与首 key 同体（P163）
         case 0x30ae:                                   // "monster card"
@@ -4506,7 +4535,12 @@ static bool GetItemCategory(STItemScript* item)
         {
             __init_lock.leave();
             __inited = true;
-            goto retry;                                // 建表后重查本 token
+        }
+        else
+        {
+            break;                                     // 已建表 → 退出内层重查循环
+        }
+        continue;                                      // 建表后重查本 token
         }
         if (state != 0)
         {
@@ -4533,10 +4567,6 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
     // 旧译文建表三连 insert 直线形，缺整棵 switch 与回跳 ⇒ gap 32。
     // [SweepSTEquipScript 2026-09-09] 三处 case 体极性反转（同 GetExpertJobTypeList）：
     // gap 5 → -1（258/259）。残差 1 条 = P209/N18b 零比较折叠（同上件）。
-    static std::map<const char*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-
     if (script == 0)
         return false;
 
@@ -4544,13 +4574,20 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
     std::string token;
     ScanStr(&token);
 
-    int state = 0;
-retry:
+    // [P164/P333 修正 2026-09-10] static 三件套移入重查循环体内（ORIG guard 段
+    // 0x089c0248/0x089c02c2 在 retry 锚 +0x033；`goto retry` 改内层 `for (;;)`
+    // 消 entry jmp+nop）；switch 判别值用独立无初始化 `int v`（ORIG -0x1c）。
+    for (;;)
+    {
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static bool __inited = false;
+    int v;
     if (__inited)
     {
         std::map<const char*, int, less_TCHAR>::const_iterator it =
             __lookup.find(token.c_str());
-        state = (it != __lookup.end()) ? it->second : -1;
+        v = (it != __lookup.end()) ? it->second : -1;
     }
     else
     {
@@ -4558,11 +4595,11 @@ retry:
         if (__inited)
         {
             __init_lock.leave();
-            goto retry;                            // 自旋重试（P333）
+            continue;                              // 自旋重试（P333：重放 guard）
         }
-        state = 0;                                 // 建表哨兵
+        v = 0;                                     // 建表哨兵
     }
-    switch (state)
+    switch (v)
     {
     case 0:                                        // 与首 key 同体（P163）
     case 0x30d0:                                   // "[party teleport]"
@@ -4612,7 +4649,12 @@ retry:
     {
         __init_lock.leave();
         __inited = true;
-        goto retry;                                // 建表后重查本 token
+    }
+    else
+    {
+        break;                                     // 已建表 → 退出内层重查循环
+    }
+    continue;                                      // 建表后重查本 token
     }
     return ok;
 }
@@ -4684,19 +4726,25 @@ bool importCommand(STKeyCommand* command)
     STKeyCommandUnit unit;
     command->m_vec0.clear();
 
-    int token = g_dnfLex.getToken();
-    while (token != 0)
+    // [2026-09-10] ORIG 0x088c1692..0x088c16a8 循环头直接 `jmp +0x315`，getToken
+    // 只在**条件段**（0x088c198f..0x088c19a7：`call getToken; mov %eax,-0x10;
+    // cmpl $0,-0x10; setne %al; test %al,%al; jne 循环体`）⇒ 源形是
+    // `while ((token = g_dnfLex.getToken()) != 0)`（P164/P225 四段物化），
+    // 不是「循环前取一次 + 循环尾再取」。旧形多发 3 条（循环前 getToken+store）。
+    int token;
+    while ((token = g_dnfLex.getToken()) != 0)
     {
         if (token == 5)
             break;
 
         if (token == 6)
         {
-            std::string name = toTString(g_dnfLex.getCustomData());
             // P96/P220：ORIG 用非 const iterator（p167 MISSING _Rb_tree_iterator::operator!=
             // / operator*，EXTRA const_iterator 转换构造 + const 版比较）。
+            // [2026-09-10] name 内联为实参临时（ORIG 0x088c16c1..0x088c16f1 的 string
+            // 构造/-0x20 槽紧贴 find 调用；具名局部使 4.4 把 string 排到深槽 -0x34）。
             std::map<std::string, int>::iterator it =
-                g_mapKeyNameIndexTable.find(name);
+                g_mapKeyNameIndexTable.find(toTString(g_dnfLex.getCustomData()));
             if (it != g_mapKeyNameIndexTable.end())
                 unit.m_ids.push_back((*it).second);   // P167：ORIG 实例化 operator* 非 operator->
         }
@@ -4738,7 +4786,6 @@ bool importCommand(STKeyCommand* command)
                 unit.clear();
             }
         }
-        token = g_dnfLex.getToken();
     }
 
     if (!unit.m_ids.empty())
@@ -4828,21 +4875,27 @@ bool importEffect(effect::STEffect& effect)
         {
             effect.m_10 = scanModuleType();
         }
-        else if (tag == "[/module]")
-        {
-            // ORIG 0x088c1de1 `jne 088c1a36`（→ 循环头 ScanType）：匹配后**继续循环**
-            // 而非退出（旧译文 break 会跳过后续所有标签）。
-            continue;
-        }
-        else if (tag == "[file name]")
-        {
-            ScanStr(&effect.m_str14);
-        }
         else
         {
-            // ORIG 0x088c1dfc `je 088c1e11`：未知标签（含 [file name] 不匹配）→
-            // 退出循环，走 0x404 的析构 + `mov $0x1,%ebx` 返回 true。
-            break;
+            // [2026-09-10] ORIG 0x088c1de1 `test %al,%al; jne <循环头>`：匹配
+            // "[/module]" → 回循环头（continue 语义），不匹配直落 [file name] 检查。
+            // 两条 continue 路径都写成**落到链尾**（无显式 continue）⇒ 复现
+            // ORIG 的「匹配→跳循环头 / 不匹配→直落」正条件布局（显式 continue
+            // 会被 4.4 编成 `je <跳过>; nop; jmp <循环头>`）。
+            if (tag == "[/module]")
+            {
+                // 空体：匹配后落到链尾（= continue）
+            }
+            else if (tag == "[file name]")
+            {
+                ScanStr(&effect.m_str14);
+            }
+            else
+            {
+                // ORIG 0x088c1dfc `je 088c1e11`：未知标签 → 退出循环（0x404 析构 +
+                // `mov $0x1,%ebx` 返回 true）。
+                break;
+            }
         }
     }
     return true;
@@ -4896,7 +4949,13 @@ void setEquipmentAniScriptLay(
             // 写成外层 `m_level5c.push_back(*rbegin())`（deEv）语义错（复制末子表
             // 而非把 ani 追加进末子表）——p167 MISSING ptEv / vector<AniScript>::
             // push_back，EXTRA deEv / vector<vector<>>::push_back。
-            info.m_level5c.rbegin()->push_back(*ani);
+            // [2026-09-10] ORIG 0x089c1dcd..0x089c1dea 把 rbegin() 的 sret 临时放在
+            // 深槽 -0x4c（与 it -0x48 / find sret -0x44 同区）；匿名临时被 4.4 放浅槽
+            // -0x3c 并把其余临时整体挤深 4（NEAR 的根因）⇒ 用**具名** reverse_iterator
+            // 让 4.4 按具名对象分组分配。
+            std::vector<std::vector<STEquipmentAniScript> >::reverse_iterator rit =
+                info.m_level5c.rbegin();
+            rit->push_back(*ani);
         }
     }
     else if (aniType == equipmentAniType::T_level)
@@ -5004,10 +5063,6 @@ static bool GetExpertJobTypeList(STItemScript* item)
         return false;
     item->m_expertJob.m_usable.clear();
 
-    static std::map<const char*, int, less_TCHAR> __lookup;  // 0x94fde48
-    static SpinLock __init_lock;                                  // 0x94fde60
-    static bool __inited = false;                            // 0x94fde64
-
     std::string token;
     bool scanning = true;
     while (scanning)
@@ -5018,12 +5073,21 @@ static bool GetExpertJobTypeList(STItemScript* item)
         if (!ScanStr(&token))
             break;
         int typeSel = 0;
-    retry:
+        // [P164/P333 修正 2026-09-10] 同 GetItemCategory：static 三件套移入重查
+        // 循环体内（ORIG guard 段 0x089bf72d/0x089bf7a7 在 retry 锚 +0x063），
+        // `goto retry` 改内层 `for (;;)`（消 4.4 entry jmp+nop）；switch 判别值
+        // 用独立无初始化 `int v`（ORIG -0x1c，业务值 typeSel 在 -0x20）。
+        for (;;)
+        {
+        static std::map<const char*, int, less_TCHAR> __lookup;  // 0x94fde48
+        static SpinLock __init_lock;                             // 0x94fde60
+        static bool __inited = false;                            // 0x94fde64
+        int v;
         if (__inited)
         {
             std::map<const char*, int, less_TCHAR>::const_iterator found =
                 __lookup.find(token.c_str());
-            typeSel = (found != __lookup.end()) ? found->second : -1;
+            v = (found != __lookup.end()) ? found->second : -1;
         }
         else
         {
@@ -5031,11 +5095,11 @@ static bool GetExpertJobTypeList(STItemScript* item)
             if (__inited)
             {
                 __init_lock.leave();
-                goto retry;                            // 自旋重试（P333）
+                continue;                              // 自旋重试（P333：重放 guard）
             }
-            typeSel = 0;                               // 建表哨兵
+            v = 0;                                     // 建表哨兵
         }
-        switch (typeSel)
+        switch (v)
         {
         case 0:                                        // 与首 key 同体（P163）
         case 0x303a:                                   // enchanter
@@ -5102,7 +5166,12 @@ static bool GetExpertJobTypeList(STItemScript* item)
         {
             __init_lock.leave();
             __inited = true;
-            goto retry;                                // 建表后重查本 token
+        }
+        else
+        {
+            break;                                     // 已建表 → 退出内层重查循环
+        }
+        continue;                                      // 建表后重查本 token
         }
 
         int level = 0;
@@ -5138,10 +5207,13 @@ bool GetExpertJobValueMaterialVariation(STItemScript* item)
     // 写 `if (== ) return false;` 4.4 恒产 `fxch; jne; jp` 直跳（探针
     // /tmp/b28d_s219/probe6.cpp d1 vs d2）；残余 `test $5,%ah` vs `sahf` + setnp/and
     // 属 N85 跨版本 x87 lowering。
-    while (item->m_expertJob.m_field18 == -100.0f)
-    {
+    // [2026-09-10] ORIG 0x089bfc63..0x089bfc7c：`fucompp; fnstsw %ax;
+    // test $0x5,%ah; sete %al; test %al,%al; je` ⇒ 4.1 把 `field <= -100.0f`
+    // 编成 st0(const) >= st1(field) 的 `C0|C2==0` 检查。写**交换操作数的 >=**
+    // （`-100.0f >= field`）令 4.4 走同一比较方向（写 `field <= -100.0f`
+    // 恒产 sahf/setnp/and 的 NaN 保护形，多 2 条）。
+    if (-100.0f >= item->m_expertJob.m_field18)
         return false;
-    }
     return ok;
 }
 
