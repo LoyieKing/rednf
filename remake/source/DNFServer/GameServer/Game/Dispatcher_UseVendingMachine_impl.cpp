@@ -552,7 +552,10 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
                     ->GetInvenSlot((INVEN_TYPE)1, pos);
             if (payItem.m_addInfo != info->m_payType)
                 throw (ENUM_ERROR)0x11;             // ORIG 0x0821cc59
-            if (payItem.m_fieldd < info->m_payAmount)
+            // [轴B] ORIG 0x0821cc6c 为有符号 `jge`（cmp %eax,%edx），而
+            // m_fieldd 为 unsigned、m_payAmount 为 int ⇒ 4.4 默认产无符号
+            // `jae`。按 ORIG 符号性显式转 int（P196：ORIG 该点有符号直证）。
+            if ((int)payItem.m_fieldd < info->m_payAmount)
                 throw (ENUM_ERROR)0x16;             // ORIG 0x0821cc95
             if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->delete_item(
                     (INVEN_TYPE)1, (int)pos, info->m_payAmount,

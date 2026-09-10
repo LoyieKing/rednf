@@ -920,6 +920,15 @@ int CActionPointEtcParameter::importActionPointSystemEtcScript(
     //   operator==（反向包裹，P222）。残余 EXTRA = _TodayRewardItem::~_TodayRewardItem
     //   ×2（4.4 对含非平凡析构局部恒布 EH 清理，ORIG 消除，N91 族）+ const_iterator
     //   operator->/operator[] const 各 1 计数差；语义等价。
+    // [轴 B 2026-09-10 · a_S->U 清单件 = **N（表内配对假阳性）**] 清单行
+    //   `orig_addr=0x08894bc1 setle` 与我方 `seta` 系按出现序号交叉配对。按地址自校：
+    //   ORIG 0x08894bc1 = `addl $0x1,-0x20(%ebp); cmpl $0x4,-0x20(%ebp); setle`
+    //   （days 循环尾测，有符号）↔ 我方 0x1d73 同构
+    //   `addl $0x1,-0x1c(%ebp); cmpl $0x4,-0x1c(%ebp); setle`（已一致）；
+    //   我方 seta（0x1b3c `… call size(); cmp -0x3c(%ebp),%eax; seta`）对应
+    //   ORIG 0x08895564 `addl $0x1,-0xc(%ebp); mov -0xc(%ebp),%eax;
+    //   cmp -0x10(%ebp),%eax; setb` —— 两侧同为**无符号序**（仅比较方向不同）⇒ 本就一致，
+    //   **禁改**（P196）。实测该件 794/811（gap −17）不变，未动一行源码。
     std::string token;
     bool ok = false;
 
@@ -1468,6 +1477,14 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
     //   + 槽号体系差（ORIG ok@-0xc6 vs 我方 -0x95）⇒ N82/N126 版本常数封顶；
     //   p167 仅别名伪差（C1/C2·D1/D2 同址，P93）+ _Unwind_Resume ×1（我方多一处
     //   EH landing）。语义等价（token 比较方向/表插入/错误路径均与 ORIG 对齐）。
+    // [轴 B 2026-09-10 · a_S->U 清单件 = **N（表内配对假阳性）**] 清单行
+    //   `orig_addr=0x08901016 setle` 与我方 `setbe` 系按出现序号交叉配对。按地址自校：
+    //   ORIG 0x08901016 = `addl $0x1,-0x74(%ebp); cmpl $0x4,-0x74(%ebp); setle`
+    //   （有符号；字段循环尾测）↔ 我方 0x390b 同构 setle（已一致）；
+    //   我方唯一 setbe（0x3895 `call vector<upgrade_info_t>::size(); cmp -0x58(%ebp),%eax;
+    //   setbe`）对应 ORIG 0x08901039 `call size(); cmp -0x7c(%ebp),%eax; jbe`
+    //   —— 两侧同为**无符号序**且上下文同构 ⇒ 本就一致，**禁改**（P196）。
+    //   实测该件 1119/1074（gap 45）不变，未动一行源码。
     if (!loadRDARScriptFile("", path))
     {
         return 0;

@@ -3685,6 +3685,15 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                      unsigned char& outUpgrade, bool& outStackable)
 {
     // b28d-49 判词：N 封顶（N82 帧/槽 + N84 rep movsl）。P167 CLEAR（264/264）。@0x85a3b98
+    // [轴 B 自校·实测] axisB_points.tsv 三行（0x85a41e7/0x85a4444/0x85a4ab8）逐点
+    // 按地址自校：①0x85a41e7 `cmpl $0x7a11f,-0xb8(%ebp); jle` 与我方
+    // `cmpl $0x7a11f,...; jle` 同为有符号 ⇒ 一致（表内假阳性）；②0x85a4444 位于
+    // ORIG 的 switch 决策树 `cmp $0x6802,%eax; je; cmp $0x6802; jg`（**有符号**），
+    // 我方 `switch (pet1.m_addInfo)` 的 m_addInfo 为 unsigned int ⇒ 4.4 折 `ja`
+    // ⇒ **真分叉**（同型第二处 switch 亦然）⇒ 两处改 `switch ((int)…)` 后复编
+    // 实测：`ja`→`jg`（3 个决策点全对齐 ORIG），diff 段 cc-fork 对 26→23、
+    // 四数 146/327/1/33 逐值不变，保留；③0x85a4ab8 `cmpl $0x3; setle` 循环尾
+    // 与我方 setle 一致 ⇒ 假阳性。
     char routingEligible = 1;                       // -0xe9
     CUser* winner = 0;                              // -0xe8
     int weights[4] = { 0, 0, 0, 0 };                // -0x234
@@ -4017,7 +4026,9 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 {
                     Inven_Item pet1 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 11);
                     int pct = 0;
-                    switch (pet1.m_addInfo)
+                    // [b28f-CTS 轴B] 同上前一块：ORIG 0x085a4f6a 区 `jg`（**有符号**序，
+                    //   `m_addInfo` 为 unsigned int）⇒ 显式 (int) 收窄复现 ORIG 的 jg 树。
+                    switch ((int)pet1.m_addInfo)
                     {
                     case 0x6603: case 0x66e5: case 0x6802: case 0x28e4a3: case 0x28e4a6:
                         pct = 3; break;
@@ -4405,6 +4416,9 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
 // 返回 0=成功；0xd=稀有度限制；0x11=删除/扣款失败；0x13=交易中；
 // 0x16=落物失败；0x17=禁止丢弃；0xd1=服务限制；-1=item 查表失败。
 // b28d-solo-CParty: N 封顶 —— N82 帧 + 槽；872 vs 863
+// [轴 B 自校 N] tsV 行 0x85a6994 系 **switch 跳表边界**（ORIG `cmp $0x5,%eax;
+// ja <跳表>`），我方该处 `cmp $0x5; jne`（4.4 决策树 lowering）⇒ 上下文不同构，
+// 非类型符号性点（与 A15 `_makeDropItem` 同类假阳性）。未改源码。
 int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
                       int count)
 {
@@ -5657,6 +5671,9 @@ void CParty::prepare_dungeon_clear()
 // 逐成员退场与惩罚、状态复位或解散；锦标赛路径改发奖励）。
 // ============================================================================
 // b28d-solo-CParty: N 封顶 —— N82 帧 0x6c/0x8c + P167 EXTRA new/delete landing（P90/P83）；463 vs 444
+// [轴 B 自校 N] tsV 两行（0x85b39c5/0x85b3be8）系**序号错配假阳性**：我方循环尾
+// 实为 `addl $1,-0x2c; cmpl $0x3,-0x2c; setle` = ORIG 的 setle（槽号 -0x2c vs
+// ORIG -0x28 致错配）。未改源码。
 void CParty::party_dungeon_fail()
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 EXTRA new/delete 2 项（P90/P83 landing 差）。@0x85b3670
@@ -7073,6 +7090,10 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
 void CParty::clear_reward(int param)
 {
     // b28d-49 判词：N 封顶（N82 帧/槽 + N89 STL 内联）。P167 CLEAR（327/327）。@0x85ae0d4
+    // [轴 B 自校·实测] axisB_points.tsv 行（0x85b090a `cmp -0x30(%ebp),%eax; setg`，
+    //   getClearRewardBonusExp 尾循环）按地址自校：我方同点为 `call vector::size;
+    //   cmp …,%eax; setg`（setg×3）⇒ **两侧同为有符号**，表内序号错配假阳性，
+    //   未改源码（另 ORIG `cmp $0x2; ja` 与我方 `setbe` 仅极性差异，符号性同为无符号）。
     CDataManager* dm = G_CDataManager();
     int dungIdx =
         reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();

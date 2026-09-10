@@ -168,9 +168,18 @@ int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
                     if (!ok) return 0x3e;
                     out->m_vec8.push_back(std::make_pair(lv, std::make_pair(gold, item)));
                     // [F2e-Singles2 轴B 2026-09-10] ORIG 089f7192 `movzwl 0x4(%eax),%edx;
-                    // movzwl -0x12c(%ebp),%eax; cmp %ax,%dx; **jle**`（16 位**有符号**）；
-                    // 旧文 `(unsigned short)lv` 使 4.4 折 `jbe`（无符号）⇒ 按 ORIG 改 signed。
-                    if (lv < (short)out->m_field4)
+                    // movzwl -0x12c(%ebp),%eax; cmp %ax,%dx; **jle**`（16 位**有符号**）vs
+                    // 我方 `jbe`（无符号）⇒ 真符号性分叉（lv<0 时分叉；P196 家族）。
+                    // 本轮试两形：① `(short)out->m_field4 > lv`、② `lv < (short)out->
+                    // m_field4` —— 两形均复现 `cmp %ax,%dx; jle` ✓，但 4.4 对
+                    // 16 位 signed 比较恒多一条中转 `movzwl 0x4(%eax),%eax; mov %eax,%edx`
+                    // （ORIG 4.1 直落 `movzwl 0x4(%eax),%edx`，N18a 反向）⇒ our 838→**839**
+                    // （+1）、diff 746→751（+5）。
+                    // [Main 裁决 2026-09-10] 为消除 **signed/unsigned 语义分叉保留**（语义
+                    // 对齐类不受 gap/ndiff 闸门约束）：`short lv` 可为负，signed 比较下
+                    // `lv<0` 恒写回、unsigned 下恒不写回 ⇒ 行为相反。代价 +1 条属 N18a
+                    // 反向（不可消除），该件本为 DIFF ⇒ 无 identical/verdict 回退风险。
+                    if ((short)out->m_field4 > lv)
                         out->m_field4 = (unsigned short)lv;
                     break;
                 }

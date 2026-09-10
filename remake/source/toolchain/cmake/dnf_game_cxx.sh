@@ -492,9 +492,12 @@ case "$(basename "$src" .cpp)" in
                 # 4.4.6 identical=130/ae=241/near=1/diff=4（doMatch/MultiMatch
                 # NEAR→AE，两后端 p167 均 5/6 CLEAR）⇒ 零回归。
                 # [Main·2026-09-10 round5] 再叠 `-march=i486 -mtune=generic`（x87 比较
-                # lowering 族，P230/S275 同族）：实测 identical=130/ae=241(371)/near=1/
-                # diff=4 → identical=131/ae=241(372)/near=1/diff=3（identical +1、
-                # diff −1，零回退）。`-mtune=generic` 必须同带。
+                # lowering 族，P230/S275 同族）。.o 口径实测 identical=130/ae=241(371)/
+                # near=1/diff=4 → identical=131/ae=241(372)/near=1/diff=3。
+                # ⚠ 但该唯一翻正件是 **weak/COMDAT 模板实例** `_ZNKSt4lessIfEclERKfS2_`
+                # （多 TU 重复发射、链接器只保留一份）⇒ **全局核账实测增量为 0**。
+                # 保留该旗标仅因「全局零回归」（与新增 6 TU 臂同批验证）；若日后需精简，
+                # 此臂可先删且无全局影响。`-mtune=generic` 必须同带。
                 exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             # ---- 脚本 Import/Export 族 + 相关：ORIG GameServer 为 GCC 4.4.6（DWARF producer 实证），
             # 切 4.4.6 后端使寄存器/栈槽分配逐操作数对齐，翻 NEAR→IDENTICAL。 ----
@@ -613,16 +616,25 @@ case "$(basename "$src" .cpp)" in
             *Game/CBattle_Field_kill_monster.cpp | \
             *Game/CPrivateStoreMgr.cpp | \
             *Game/CCreature.cpp)
-                # [Main·2026-09-10 round5] x87 比较 lowering 族路由 A/B（Main 独立复编核验：
-                #   同一 wrapper 下仅差 `-march=i486 -mtune=generic`，逐 TU 四数比对）：
-                #   PvpUserTable  16→18(id+ae) / diff 4→2
-                #   ScriptLeafA2  1732→1735    / diff 17→14
-                #   GmCmds_E      379→380      / diff 6→5
-                #   CBattle_Field_kill_monster 166→167 / diff 3→2
-                #   CPrivateStoreMgr identical 171→172 / diff 9→9
-                #   CCreature     21→22        / diff 2→1
-                #   ⇒ 合计 id+ae **+9** / diff **−9**，无任何 TU 回退。
-                #   `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
+                # [Main·2026-09-10 round5] x87 比较 lowering 族路由（P230/S275 同族）。
+                # 逐 TU .o 口径 A/B（同 wrapper 仅差 `-march=i486 -mtune=generic`）：
+                #   PvpUserTable 16→18 / diff 4→2、ScriptLeafA2 1732→1735 / diff 17→14、
+                #   GmCmds_E 379→380 / diff 6→5、CBattle_Field_kill_monster 166→167 / diff 3→2、
+                #   CPrivateStoreMgr identical 171→172、CCreature 21→22 / diff 2→1
+                #   ⇒ .o 口径合计 id+ae +9 / diff −9。
+                # ⚠ **口径警告（必读）**：该 +9 中 6 处是 **weak/COMDAT 模板实例**
+                #   （`_ZSt3minIfERKT_S2_S2_` / `_ZSt3maxIf…` / `_ZNKSt4lessIfEcl…` /
+                #    `_ZNSt18_Bit_iterator_base7_M_incrEi` / `_ZNSt8__detail…_M_need_rehash` /
+                #    `_ZNSt8__detail13__lower_bound…`）—— 这些符号在**多个 TU 重复发射**，
+                #    链接器只保留一份 ⇒ 改一个 TU 的编译旗标**不会**改变最终二进制里那份。
+                #   逐函数核对后的**真实全局**增益只有 TU 专属件：
+                #   `PvpUserTable::GetResult` (+1)、`user_creature::CStomach::IsSaveStomach` (+1)、
+                #   `private_store::CPrivateStore::VerifyPrivateStoreItem` thunk（ae→id, identical +1）。
+                # ⇒ **实测全局：identical 34123→34125（+2）、diff 1749→1747（−2）**，零回退。
+                # ⇒ **判据（写入模板）**：编译旗标 A/B **必须用全局核账（compare_game_full.py）
+                #   定稿**；per-TU 四数只作方向筛选，凡命中 weak/COMDAT（`St`/`__detail`/`_Bit_`
+                #   前缀或 nm 显示 `W`/`w`）的「翻正」一律**不计入预期**。
+                # `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
 
             *)

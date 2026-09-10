@@ -41,6 +41,11 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
 bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
 {
     // b28d-35: DIFF→N82（帧/槽）。ORIG @0x08654b94 size 0x2d6。
+    // [轴 B 自校·记 N] axisB_points.tsv 两行（0x8654d47 / 0x8654d4d）经地址自校确为
+    //   **真分叉**：ORIG `cmpl $0x5,-0x10(%ebp); jg`、`cmpl $0x0,-0x10(%ebp); jg`
+    //   （有符号序），我方同点为 `cmpl $0x5,-0x1c(%ebp); ja`、`…; jne`（无符号序）。
+    //   但改循环变量符号性实测 **209→211（+2 劣化，E05 已复现并回滚）**——与具名
+    //   局部 `key` 的 movzbl 链寄存器分配冲突 ⇒ 按「不劣才留」判 N，源码维持原形。
     // 命令表 getter（CUserCharacInfo +0x1254 区容器）：std::map<int,STSkillCommandData>*
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(

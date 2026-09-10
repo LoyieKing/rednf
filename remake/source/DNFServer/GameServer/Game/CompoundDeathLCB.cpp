@@ -679,10 +679,15 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
                 weight -= (G_CDataManager()->m_serverParameter.m_49f0 * weight) /
                           10000;
             }
-            // [轴 B 2026-09-10] ORIG 0x083331d1 `cmp -0x38(%ebp),%eax; setl %al`
-            // （**有符号序**，槽 -0x38 = weight）⇒ 原码比较为有符号；旧文
-            // `unsigned long < int` 按 C++ 规则转无符号 ⇒ 4.4 产 `setb`。
+            // [轴 B 2026-09-10 保留] ORIG 0x083331d1 `cmp -0x38(%ebp),%eax; setl %al`
+            // （**有符号序**，槽 -0x38 = weight；上下文同构：`call randInt(const&)`
+            // 后即刻比较，与 ORIG 0x083331cc/0x083331d1 逐条对应）⇒ 原码比较为有符号；
+            // 旧文 `unsigned long < int` 按 C++ 规则转无符号 ⇒ 4.4 产 `setb`。
             // 加 `(int)` 复现有符号序（randInt(10000) ∈ [0,9999]，值域内无分叉）。
+            // 实测：our 636→635；汇编 diff 段 992→988 行（minus 364→361）⇒ ndiff 严格改善；
+            // TU 四数 32/50/1/3/8 逐值不变（不劣）⇒ 保留。
+            // 同件另一行（`_ProcCompoundCore` ORIG 0x08333157 `cmpl $0x0,-0x48; jg`）
+            // 经地址自校为**表内配对假阳性**：我方 0x1280 同为 `jg`（有符号）⇒ 不改。
             if ((int)m_rand->randInt(static_cast<unsigned long>(10000)) < weight)
             {
                 const int r = get_rand_int(rec->m_b[subType]);

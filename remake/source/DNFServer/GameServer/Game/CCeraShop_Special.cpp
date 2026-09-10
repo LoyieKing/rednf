@@ -1232,6 +1232,13 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
         // `getCurCharacCreateTime()` 返回 long（CUserCharacInfo.h:846），
         // 与 `unsigned int` 比较按 C++ 规则转无符号 ⇒ 我方出 `setb/setae`。
         // 改 `int` 复现有符号序（常量 0x4589a450/0x45ae8e50 均为正，值不变）。
+        // [AxisB3 属主复核 2026-09-10 ⇒ **保留**] 地址自校验通过：
+        //   `nm -S --defined-only ORIG` 得本函数 [0x08323f86, +0x889)，清单
+        //   orig_addr 0x08324236/0x0832424b 均落在区间内；两侧上下文同构
+        //   （`mov &eventStartTime/%edx; cmp %edx,%eax; jl/jge` ↔ 我方
+        //   `mov 0x943bec8,%edx; cmp %edx,%eax; setl` —— 符号性已对齐）。
+        //   实测：our 585→583（gap −11→−9，向 ORIG 574 收敛）；TU 四数
+        //   176/319/3/11/104（identical/ae/near/diff/missing）逐值不变 ⇒ 不劣 ⇒ 保留。
         static int eventStartTime;
         static int eventEndTime;
         eventStartTime = 0x4589a450;

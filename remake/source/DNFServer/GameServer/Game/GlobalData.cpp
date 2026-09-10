@@ -4727,6 +4727,9 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
     //   比较 ⇒ 机理成立，但**方向不利**：横测 ours 1606→**1608**（+2，两处各 +1），
     //   ORIG 1600 ⇒ gap −6→**−8（劣化）**；本件我方指令数已多于 ORIG（N82 帧/槽膨胀），
     //   A 轴只会加深负 gap ⇒ 按「gap 严格减小」判据回滚，恢复 `const`。
+    // 两处循环上限防御删除后本常量已无使用点，**结构保留不删**（Main 裁决 N）：
+    //   ORIG 全函数无 `$0x22/$0x23` 只证「未参与比较」，不证「该局部不存在」；
+    //   且 ORIG 帧 0x75c > 我方 0x69c ⇒ 删 4 字节会令帧更偏离 ORIG（P0 判据=ORIG 有无该槽）。
     const unsigned int MAX_ENTRIES = 0x23;   // 条目数上报上限（ProcessError 实参用）
 
     // ---- 第一遍：逐条目校验、总价累计 ----
@@ -5057,9 +5060,12 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
             //   ⇒ 本函数 insns **1606→1600 = ORIG 1600（gap −6→0）**，该段四条形
             //   与 ORIG 逐条一致（cmp/setg/test/jne）；TU 四数
             //   899/1791/11/38 逐值不变（净 identical 未降）。
-            //   [待裁决] optCount 循环同族（ORIG 0x08178010/0x08178013 同形）删除后
-            //   预计 insns 1600→1594（gap 0→+6，我方将少于 ORIG），按「gap 严格减小」
-            //   判据未落地，留待其它残差收敛后重估（已上报 Main）。
+            //   **[语义轴：删除发明防御，不受 gap/ndiff 闸门约束]**（该件本为 DIFF、
+            //   无 identical 回退风险；口径见 Main 分流判据）。
+            //   [Main 裁决已落地] optCount 循环同族亦删（见下）；两点全删后
+            //   insns **1606→1596**（ORIG 1600，gap −6→**+4**）——差值系**删除我方
+            //   发明防御**所致（非劣化），Main 口径：「删除发明/多写代码以忠实 ORIG
+            //   不受 gap 闸门约束」（该件本为 DIFF，无 identical 回退风险）。
             for (int k = 0; k < (int)req->m_subCount; ++k)
             {
                 // 子项数组：entry+0x0e 起每项 5 字节 { int idx; uchar val; }
@@ -5078,7 +5084,16 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
                     msg.m_entrySection.m_arr[j].m_subEntries[k].m_value;
             }
             req->m_optCount = msg.m_entrySection.m_arr[j].m_optCount;
-            for (unsigned int k = 0; k < req->m_optCount && k < MAX_ENTRIES; ++k)
+            // [F2a-轴B+照抄 ORIG·Main 裁决落地] optCount 循环同族：ORIG
+            //   0x08178010/0x08178013 = `movzbl 0xed(%eax),%eax; movzbl %al,%eax;
+            //   cmp -0x1c(%ebp),%eax; setg %al; test %al,%al; jne <回边>`
+            //   （有符号序 + 单条比较；ORIG 全函数无 `$0x22/$0x23` 立即数）。
+            //   Main 裁决：删除我方发明防御不受 gap 闸门约束（结构忠实优先）⇒
+            //   `int k` + `(int)req->m_optCount` + 去 `&& k < MAX_ENTRIES`。
+            //   实测：删后 insns 1600→1596、该段现为 `cmp -0x1c(%ebp),%eax; setg %al;
+            //   test %al,%al; jne <回边>`（与 ORIG 逐条一致），全函数已无 `$0x22`；
+            //   TU 四数 899/1791/11/38 仍逐值不变。
+            for (int k = 0; k < (int)req->m_optCount; ++k)
             {
                 // 选项数组：entry+0xbe 起每项 8 字节 { ulong itemIdx; ushort a; ushort b; }
                 //（ORIG k 达 0x22 时读入邻条目尾，线格式遗留，数组越界读等价保留）

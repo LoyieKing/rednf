@@ -137,7 +137,11 @@ bool TOD_UserState::loadData(CUser* pUser, char* pData)
     }
     if (m_data.m_lastEnterLayer != 0)
     {
-        if (static_cast<unsigned int>(m_data.m_lastEnterTime) < 0x4e275df1u)
+        // [AxisB4 2026-09-10 轴B] ORIG 0x086435a3 `cmp $0x4e275df0,%eax; jg`
+        // 为**有符号**序（Ghidra C：`*(int*)(this+0x18) < 0x4e275df1`）；
+        // 旧文 `static_cast<unsigned int>(...) < 0x4e275df1u` 产 `ja` 属真语义分叉
+        // （m_lastEnterTime 为负时判据相反）。向 ORIG 对齐去掉 unsigned cast。
+        if (m_data.m_lastEnterTime < 0x4e275df1)
         {
             m_data.m_lastEnterLayer = 0;
         }

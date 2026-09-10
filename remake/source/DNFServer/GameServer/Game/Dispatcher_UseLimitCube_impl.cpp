@@ -299,6 +299,11 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
 
     // ---- 对已删除槽逐组 SendUpdateItem ----
+    // [轴B 回滚·N] 表内行 jg/setb(81d4433) 为**假阳性**：ORIG 该点是
+    // `cmpl $0x9,-0x20(%ebp); jg`（迭代器循环的计数上限），与我方此处的
+    // `size_t i + 2 < updateSlots.size()` 循环尾测**上下文不同构**。
+    // 试改 int 后符号性虽对齐（setb→setl），但 matched 144→144、
+    // gap −96 不变、TU 四数 131/0/3/34 不变 ⇒ 无收益，按判据回滚。
     for (size_t i = 0; i + 2 < updateSlots.size(); i += 3)
     {
         int slot = updateSlots[i + 1];
