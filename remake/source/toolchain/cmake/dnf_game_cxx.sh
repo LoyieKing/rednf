@@ -322,6 +322,7 @@ case "$src" in
             *Game/Inter_DispatcherAradOnly.cpp | \
             *Game/AvatarConvertServer.cpp | \
             *Game/DB_LoadEtc.cpp | \
+            *Game/DB_Login.cpp | \
             *Game/W9_EventSmall.cpp)
                 # b28d-S419：DB_LoadEtc 的间接 call 目标寄存器同族（ORIG 0x08405c9e
                 # `mov (%eax),%edx; mov -0x14(%ebp),%eax; call *%edx` vs 4.4.7 %eax）。
