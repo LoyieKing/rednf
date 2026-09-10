@@ -129,6 +129,24 @@ public:
 //    GeneratePowerUpNotiTime jl↔jg / Send_Ontime_Reward 镜像），无隐藏极性反写；
 //    GI 键名 `_GLOBAL__I__ZN19Timer_DailySchedule12dispatch_sigEiij` 保持对齐。
 // ===========================================================================
+// [TimerDispatcher-3 2026-09-10] 判据①（jcc/jmp 目标「函数内指令下标」逐位比对）：
+// 执行器 /tmp/td_jcc.py（AE 归一后两侧目标地址→下标，777 函数全扫）。11 件不匹配：
+// ① 真修复 1 件：TimerGeneratePowerUp::dispatch_sig —— ORIG clamp 段是三目形
+//    （`cmp;jg <保持臂>;[二次 size()];jmp <汇合>;保持臂: mov x→%eax;汇合: mov %eax→x`），
+//    旧 if-赋值形在 4.4 恒产 `setl;test;je` 物化（探针 /tmp/td_probe4.cpp g6/g7 逐条
+//    同构）⇒ 改三目后 DIFF→AE（TU 四数 ae 698→699、diff 14→13）。
+// ② N104 EH 尾块相对序 3 件：TimerScheduleGuildWarEnd（6×`jmp <case 共享 D1Ev 中继>`）/
+//    TimerCheckConn（1 条）/ TimerFinishItemEffect（i147 jmp 目标差 9）；目标逐条对应
+//    无极性反写 ⇒ 无语义缺口。Send_Ontime_Reward 双 goto 复现形实测 4.4 反极性
+//    `sete;je`+nop（差异 2 条 > 裸 if 的 1 条）⇒ 已回滚。
+// ③ N86b/N1 3 件：DDS/SDCI/UCE 的 `%0x1e` 强度归约 lea↔add（探针 /tmp/td_probe5.cpp
+//    r1..r6 六形恒 add）；④ N18b/N22 2 件：CloseTime `mov;test`↔`cmpl`（探针
+//    td_probe_cmp/td_probe2 十四形恒 cmpl）、CHCT call 结果 eax↔edx 中转；
+// ⑤ P196 折痕 1 件：GeneratePowerUpNotiTime jl↔jg 同目标；
+// ⑥ 静态初始化噪音 1 件：_Z41__static_initialization_and_destruction_0ii（N123 豁免）。
+// 剩余 18 件（diff 13，含 N123 豁免 1 件 + near 5）全部落 N 判词，每件判词区已附
+// 判据①读数（分支目标逐条对应/无语义缺口）。
+// ===========================================================================
 // ======== 基类 ========
 
 
@@ -385,6 +403,8 @@ __attribute__((weak)) TimerCheckConn::~TimerCheckConn() throw() {}
 // [TimerDispatcher-2 2026-09-09 复核] gap=1 = 1 条 ORIG-only jmp（EH 尾块相对序 N104）；
 // 另 esi↔ebx 角色互换（ORIG GetUID→esi / GetCheckConnInterval→ebx vs 4.4 反向）
 // ⇒ N7（N109 角色互换）⇒ 封顶。
+// [TimerDispatcher-3 2026-09-10 判据①] 14 条 jcc 目标逐条对应；位移差全部来自 ORIG
+// `jmp <跳过 catch 的共享 D1Ev 块>`（N104 EH 尾块相对序）与 ss 析构块位置，语义等价。
 int TimerCheckConn::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x8632bca：getUser(p1, 2)（increId 形参被 getUser 忽略，常量 2 为占位）。
@@ -458,6 +478,8 @@ __attribute__((weak)) TimerDBUpdate::~TimerDBUpdate() throw() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x8631f0c 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N7/N82附 封顶：callee-saved 角色轮换（ORIG
 // edi=characNo/esi=loginTick/ebx=UID；4.4 恒 esi/ebx/edi）+ 槽 -0x28↔-0x20。
+// [TimerDispatcher-3 2026-09-10 判据①] 分支目标序列全等；残差 = callee-saved 角色
+// edi/esi/ebx 轮换（N7）⇒ 无语义缺口。
 int TimerDBUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x8631f0c：getUser(p1, 3)（第二实参为常量 3，increId 占位）。
@@ -510,6 +532,8 @@ __attribute__((weak)) TimerStamina::~TimerStamina() throw() {}
 // GetCurCharacLuckPointUpdateTimeCount（ORIG 先求该 getter 入 %ebx）。
 // 残差 = 尾部三 getter callee-saved 角色轮换（ORIG edi/esi/ebx vs 4.4 esi/ebx/edi），
 // 实参压栈序相同 ⇒ N7。
+// [TimerDispatcher-3 2026-09-10 判据①] 分支目标序列全等；残差 = 尾部三 getter 结果
+// edi/esi/ebx 保活序互换（N7）⇒ 无语义缺口。
 int TimerStamina::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 4);   // ORIG 0x08633c90 第2参固定 4（p2 仅用于 loginTick 比对）
@@ -855,6 +879,9 @@ __attribute__((weak)) TimerStatisticsLog::~TimerStatisticsLog() throw() {}
 // %edi/%esi/%ebx 跨 cMyTrace ctor 保活（删槽）；②P212 前三 getter 局部提函数头。
 // 残差 = 前三槽 -0x44/-0x40/-0x3c vs -0x28..（4.1 声明序深槽 vs 4.4 首次使用序）
 // + cMyTrace varargs 求值序 ⇒ N80/N82。
+// [TimerDispatcher-3 2026-09-10 判据①] 分支目标序列全等；残差 = guard/trace 槽
+// (-0x34/-0x2c) 与三 getter 槽 (-0x44..-0x3c) 的区块排布互换（类对象 vs 标量混合区，
+// N82/N93）⇒ 无语义缺口。
 int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // P212 全头部声明：ORIG 三 getter 结果落深槽 -0x44/-0x40/-0x3c、trace -0x2c、
@@ -1592,6 +1619,8 @@ int TimerStatisticsDetailChannelInfo::dispatch_sig(int p1, int p2, unsigned int 
 // [TimerDispatcher-2 2026-09-09 复核] 残差 = `%0x1e` 强度归约模板（ORIG
 // `lea (%eax,%eax,1),%edx; mov %edx,%eax; shl $4,%eax; sub %edx,%eax` vs 4.4
 // `add %eax,%eax; mov %eax,%edx; shl $4,%edx; sub %eax,%edx`，N86b/N1）⇒ 封顶。
+// [TimerDispatcher-3 2026-09-10 判据①] 同族：唯一 jg 目标差 1 = 该 lea↔add 单条
+// （探针 r1..r6 六形恒 add），分支语义等价。
 bool TimerStatisticsDetailChannelInfo::RegistNextTimer()
 {
     const int curSec = GlobalData::s_systemTime_.getCurSec();
@@ -1775,6 +1804,8 @@ __attribute__((weak)) TimerCreature::~TimerCreature() throw() {}
 // [b28d-30] 复核 NEAR：died 槽 -0x11 vs -0xa（1 字节槽隙，N82/P190 族），ORIG 0x08635e96。
 // [b28d-solo-TimerDispatcher] NEAR 封顶 N98（4.4 按首次使用序分配槽）：ORIG died 槽
 // -0x11（两 byte 槽间 8B 隙）vs 4.4 -0xa；long long/volatile/double pad 三形实测反劣。
+// [TimerDispatcher-3 2026-09-10 判据①] 分支目标序列全等；唯一差 = died 槽 -0x11↔-0xa
+// （N98/N82 槽隙，无语义缺口）。
 int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08635e96：getUser 第二实参为常量 1（movl $0x1,0x8(%esp)）；
@@ -1958,6 +1989,9 @@ __attribute__((weak)) TimerScheduleGuildWarEnd::~TimerScheduleGuildWarEnd() thro
 // [TimerDispatcher-2 2026-09-09 复核] gap=6 全为 6 条 ORIG-only `jmp`（每 case 一条
 // 跳正常析构的中继；ORIG 正常路径 D1 落 catch 块之后、4.4 就地内联）⇒ N104 EH 尾块
 // 相对序；两侧指令多重集其余全等（ORIG-only={'jmp':6}，OURS-only=∅）⇒ 无语义缺口。
+// [TimerDispatcher-3 2026-09-10 判据①] 全 TU jcc/jmp 目标下标逐位核对：ORIG 23 条 vs
+// 我方 17 条；6 条缺口全是每 case 尾 `jmp <该 case 共享 D1Ev 中继>`（目标落在 catch
+// 之后），jne/je 目标逐条对应下一 case 比较与前置守卫 ⇒ 无极性反写、无语义缺口。
 // [fix] ORIG 全部 6 处 case 比较读 0x10(%ebp)=**p2**（Ghidra 标 param_3 不准，
 // 与本 TU TimerGlobalEffectItemBegin/Timeout 等同一模式）⇒ 旧码用 p3(0x14) 是参数用错。
 int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
@@ -2210,6 +2244,8 @@ int TimerDungeonDataStatistic::dispatch_sig(int p1, int p2, unsigned int p3)
 // lea+shl+sub 链 vs 4.4 add+shl+sub），源形不可择（74/74）。
 // [TimerDispatcher-2 2026-09-09 复核] 同上 N86b/N1（ORIG-only lea/mov vs OURS-only
 // add 各 1，余全等）⇒ 封顶，无语义缺口。
+// [TimerDispatcher-3 2026-09-10 判据①] 唯一 jg 目标差 1 = `%0x1e` 强度归约 2x 的
+// lea↔add（探针 /tmp/td_probe5.cpp r1..r6 六形恒 add）⇒ N86b/N1；分支语义等价。
 bool TimerDungeonDataStatistic::RegistNextTimer()
 {
     // ORIG 0x086368xx：curSec 单 time_t 槽（免 int→long 拷贝）；localtime_r 返回
@@ -2248,6 +2284,8 @@ __attribute__((weak)) TimerNotResponseUserTimeout::~TimerNotResponseUserTimeout(
 // push ebx/帧 0x44/user 槽 -0xc 全对齐、68/68。残差 = ipBuf 块级槽序（ORIG -0x30..-0x20
 // vs 4.4 -0x20..-0x10，N82/P212）+ 成员偏移取址 add-vs-lea（N107）；IsRecvEvent 需 bool
 //（CUser.h 冻结，已上报 Main）。
+// [TimerDispatcher-3 2026-09-10 判据①] 分支目标序列全等（无语义缺口）；唯一残留 =
+// `user+0xe0` 成员取址 lea↔add（N107 六形封顶）。
 int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 0xc);
@@ -2505,6 +2543,8 @@ __attribute__((weak)) TimerCheckHumanCertifyTimeout::~TimerCheckHumanCertifyTime
 // [b28d-30] 复核 DIFF：槽位差 8（N82/N93 族），ORIG 0x086369xx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82+P292 封顶：槽平移 -0xc↔-0x14 + 块序差；
 // isSendMailCertified 需 bool（CUser.h 冻结，已上报 Main）（105/113）。
+// [TimerDispatcher-3 2026-09-10 判据①] 15 条 jcc 目标逐条对应（整体 +1 位移由一条 mov
+// 中转引起）；唯一差 = call 结果 eax↔edx 中转（N22/N7；反形实测 116 insns 已回滚）。
 int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);
@@ -2850,6 +2890,9 @@ __attribute__((weak)) TimerFinishItemEffect::~TimerFinishItemEffect() throw() {}
 // 残余 = ①`!=` 物化 setne/jne vs ORIG sete/je（P196/N18b，已试否定式回滚）
 // ②`return user->Send(packet)` 的 movzbl（Send 返回 bool 的 4.4 扩展）
 // ③characNo/uid 的 edi/esi 角色互换（N7）。
+// [TimerDispatcher-3 2026-09-10 判据①] 22 条 jcc 目标核对：i63 `je/sete`↔`jne/setne`
+// 同目标（N18b 折痕，语义等价）；i147 `jmp` 目标差 9 = ORIG `mov $0x1,%esi` 中继块位置
+// 差（N104 EH 尾块序）；我方多出 `jmp <next>;nop` 属 4.4 epilogue-threading 岛（N121）。
 int TimerFinishItemEffect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 0x3);
@@ -3212,12 +3255,17 @@ int TimerGeneratePowerUp::dispatch_sig(int p1, int p2, unsigned int p3)
                                             (static_cast<double>(team1ChannelPoint) / team2ChannelPoint) *
                                             (team2Ratio + 1.0));
         G_GameWorld()->GetPowerUpDomain(m_team1Users, m_team2Users);
-        // [S1 已试并回滚] 反条件形（size<=teamXPowerUp）产 setle 与 setl 同为物化，
-        // ndiff 36 不变（P197④ 源形不可择）⇒ 维持原形。
-        if (team1PowerUp > static_cast<int>(m_team1Users.size()))
-            team1PowerUp = static_cast<int>(m_team1Users.size());
-        if (team2PowerUp > static_cast<int>(m_team2Users.size()))
-            team2PowerUp = static_cast<int>(m_team2Users.size());
+        // [TimerDispatcher-3 判据①] 旧 if-赋值形在 4.4 恒产 `setl;test;je` 物化
+        // （3 条），ORIG 是 `cmp; jg <保持臂>; [二次 size()]; jmp <汇合>;
+        // 保持臂: mov x→%eax; 汇合: mov %eax→x`（clamp 直跳 + 中继 jmp + 自赋值对，
+        // 探针 /tmp/td_probe4.cpp g6/g7 逐条同构）⇒ 原码为**三目赋值**。
+        // 语义等价（size>x 保持 x，否则取 size()），二次 size() 调用位置亦吻合。
+        team1PowerUp = (static_cast<int>(m_team1Users.size()) > team1PowerUp)
+                           ? team1PowerUp
+                           : static_cast<int>(m_team1Users.size());
+        team2PowerUp = (static_cast<int>(m_team2Users.size()) > team2PowerUp)
+                           ? team2PowerUp
+                           : static_cast<int>(m_team2Users.size());
         generatePowerUp(m_team1Users, team1PowerUp);
         generatePowerUp(m_team2Users, team2PowerUp);
         sendPowerUpInfo(team1PowerUp, team2PowerUp);
@@ -3595,6 +3643,8 @@ int TimerUpdateCompoundEmblemStatics::dispatch_sig(int p1, int p2, unsigned int 
 // lea+shl+sub vs add+shl+sub（源形不可择）⇒ N1。
 // [TimerDispatcher-2 2026-09-09 复核] 同 TimerDungeonDataStatistic::RegistNextTimer：
 // N86b/N1（ORIG-only lea/mov vs OURS-only add 各 1）⇒ 封顶，无语义缺口。
+// [TimerDispatcher-3 2026-09-10 判据①] 同族：唯一 jg 目标差 1 = lea↔add 单条
+// （探针 r1..r6 六形恒 add），分支语义等价。
 int TimerUpdateCompoundEmblemStatics::registNextTimer()
 {
     const time_t now = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
@@ -3893,6 +3943,8 @@ bool Timer_DungeonInoutOpenTime::checkDungeonInoutTime(int dungeonIdx)
 // `addl $0x15180,-0x1c(%ebp)` 内存自增）②"DELTA..." cMyTrace 改全表达式临时链
 // （P227 ⇒ curT 升格 %ebx 跨 ctor）⇒ ndiff 185→179；残余 = 全帧槽平移（ORIG 标量区
 // -0x78..-0x14 vs 4.4 -0x30..-0x10，帧同为 0xd4，N82/N95）+ dungeonIdx 实参升格序 N7。
+// [TimerDispatcher-3 2026-09-10 判据①] 分支目标序列全等；残差为 tm/map 对象区与标量区
+// 的槽排布（非恒定平移：tm -0xac↔-0xb0、map -0x78↔-0x3c）⇒ N82/N95，无语义缺口。
 int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     (void)p1; (void)p2;
@@ -3991,6 +4043,10 @@ __attribute__((weak)) Timer_DungeonInoutCloseTime::~Timer_DungeonInoutCloseTime(
 // **各自重发** `G_CDataManager()`+`lea 0x130`（无 dataMgr 局部缓存，P157/P183）；
 // P0：ORIG 0863a213 `mov 0x14(%ebp),%eax; mov %eax,-0x58(%ebp)` 全程读 -0x58
 // ⇒ 原码有 p3 的具名副本（dungeonIdx），旧码形参直读。
+// [TimerDispatcher-3 2026-09-10 判据①] 9 条 jcc 目标逐条对应（jns 位移 1 由单条指令差
+// 引起）；唯一多重集差 = ORIG `mov -0x58,%eax;test %eax,%eax` vs 我方
+// `cmpl $0x0,-0x58`（/tmp/td_probe_cmp.cpp 六形 + /tmp/td_probe2.cpp 八形恒 cmpl）
+// ⇒ N18b/N22 封顶，无语义缺口。
 int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     (void)p1; (void)p2;
@@ -4221,8 +4277,11 @@ int Timer_Send_Ontime_Reward::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int 
         // ORIG +0x58: process_send_reward_to_user()
         ev->process_send_reward_to_user();
         // ORIG +0x63: get_ontime_reward_user_count()
-        // [b28d-solo] ORIG +0x6d `jne +0xb0; jmp +0xb5`（call 块落函数最末、`mov $1`
-        // 共享尾）；goto 尾标签形实测 52→54 反劣（jump-thread + nop 岛），保留裸 if。
+        // [TimerDispatcher-3 判据①] ORIG 0863ab15 `jne [尾 body]` + 0863ab17
+        // `jmp [尾 return 1]`：真分支跳**函数尾部** body（else 块之后）、假分支 jmp 尾。
+        // 双 goto 复现形实测：`if(==0)goto L_done; goto L_regist;` 结构对齐（je 目标
+        // 同为 body）但 4.4 反极性成 `sete;je` + L_regist 前 nop，差异 2 条 > 裸 if 的
+        // 1 条（je↔jne，多重集仅此一处）⇒ 回滚保留裸 if（N93附/P223 镜像封顶）。
         if (ev->get_ontime_reward_user_count() != 0)
         {
             RegistNextTimer();
@@ -4719,6 +4778,7 @@ int Timer_CreateDnfDbLoad::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p
 // （**立即数**实参）先于 `mov -0xc(%ebp),%eax`（this）。P277 探针的实参是复杂
 // 表达式（引用解引用）才成立；具名派生指针形与点号形 `(*event).IsEventing(0)`
 // 实测均 this-first（本件实参为立即数 0）⇒ 装载序不可翻，判 N7/P75 封顶（69/69）。
+// [TimerDispatcher-3 2026-09-10 判据①] 全函数分支目标序列全等（无语义缺口）。
 void DBSelectCreateDnfEventInfo::makeRequest()
 {
     CEventCreateDnf* event =
