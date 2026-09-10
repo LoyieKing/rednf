@@ -84,34 +84,38 @@ public:
 
 private:
     // 头 0x48 字节（与 stItemLimitEditionItemInfo_t 一致）+ 0x48 curSellNum，总 0x4c。
-    int              m_ipgNo;                 // +0x00
-    int              m_itemIdx;               // +0x04
-    int              m_relatedItemCnt;        // +0x08
-    unsigned char    m_avatarTypeSelect;      // +0x0c
+    // [P254 档③ 类型直证] makeInfoPacket @0x085130e8 各 put_* 实参装载形态：
+    //   两段 `mov mem,%eax; mov %eax,%edx`（字段与 put_int(int) 异型）⇒ 本类字段如实为
+    //   unsigned int；单段 `mov mem,%edx`（同型 int）⇒ m_totalSellNum/+0x38..+0x44 保持 int。
+    //   探针 /tmp/probe_ci3.cpp：int→int 单段 / unsigned→int 两段 / enum→int 两段。
+    unsigned int     m_ipgNo;                 // +0x00
+    unsigned int     m_itemIdx;               // +0x04（put_item_idx(unsigned long) 单段 ⇒ 非 int）
+    unsigned int     m_relatedItemCnt;        // +0x08
+    char             m_avatarTypeSelect;      // +0x0c（ORIG `movzbl; movsbl %al` ⇒ signed char）
     char             m_pad0d[3];              // +0x0d
-    int              m_priceCera;             // +0x10
-    int              m_priceGold;             // +0x14
+    unsigned int     m_priceCera;             // +0x10
+    unsigned int     m_priceGold;             // +0x14
     int              m_pad18;                 // +0x18（初始销量，ctor 单独写入 +0x48）
     int              m_totalSellNum;          // +0x1c
-    int              m_featuredIdx;           // +0x20
+    unsigned int     m_featuredIdx;           // +0x20
     int              m_field24;               // +0x24
     int              m_sellEndTime;           // +0x28
-    int              m_field2c;               // +0x2c
-    int              m_condCharacJob;         // +0x30
+    unsigned int     m_field2c;               // +0x2c
+    unsigned int     m_condCharacJob;         // +0x30
     unsigned short   m_condCharacLevelBegin;  // +0x34
     unsigned short   m_condCharacLevelEnd;    // +0x36
     int              m_condAccCreateTimeBegin;   // +0x38
     int              m_condAccCreateTimeEnd;     // +0x3c
     int              m_condCharacCreateTimeBegin;  // +0x40
     int              m_condCharacCreateTimeEnd;    // +0x44
-    int              m_curSellNum;            // +0x48（curSellNum）
+    unsigned int     m_curSellNum;            // +0x48（curSellNum）
 };
 
 // P95 具名视图（updateCurSellNum 0x084e970e 先 this 后值 lowering）：仅表达布局。
 struct CItemLimitEditionView
 {
     char m_head[0x48];
-    int  m_curSellNum;
+    unsigned int m_curSellNum;
 };
 
 class CItemLimitEditionMgr

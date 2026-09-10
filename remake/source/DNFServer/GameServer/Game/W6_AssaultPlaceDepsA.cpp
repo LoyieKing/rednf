@@ -129,7 +129,7 @@ bool CAssaultPlace::_IsChangeDieState()
 // ---------------------------------------------------------------------------
 void CAssaultPlace::_SetReadyState()
 {
-    m_state = 2;
+    m_state = (ENUM_ASSAULT_STATE)2;
     for (int i = 0; i < 8; ++i) {
         if (m_assaulters[i].Empty())
             continue;
@@ -142,7 +142,7 @@ void CAssaultPlace::_SetReadyState()
 // ---------------------------------------------------------------------------
 void CAssaultPlace::DoConnectP2P()
 {
-    m_state = 3;
+    m_state = (ENUM_ASSAULT_STATE)3;
     for (int i = 0; i < 8; ++i) {
         if (m_assaulters[i].Empty())
             continue;
@@ -317,13 +317,13 @@ bool CAssaultPlace::StartAssault()
             GlobalData::s_power_manager->GetPowerWarLog()->IncStartFailureCount();
             GlobalData::s_power_manager->GetPowerWarLog()->IncP2PBadCountFailure();
         }
-        m_state = 7;
+        m_state = (ENUM_ASSAULT_STATE)7;
         CloseAssault();
         return false;
     }
 
     if (!_CheckPlayable()) {   // xor $1 后 test：!playable 分支
-        m_state = 6;
+        m_state = (ENUM_ASSAULT_STATE)6;
         if (m_parties[0].m_field00 != 0)
             ((CParty*)m_parties[0].m_field00)->SetAssaultState('\x06');
         if (m_parties[1].m_field00 != 0)
@@ -336,7 +336,7 @@ bool CAssaultPlace::StartAssault()
         return false;
     }
 
-    m_state = 4;
+    m_state = (ENUM_ASSAULT_STATE)4;
     for (int i = 0; i < 8; ++i) {
         // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082e96b7 `jne +0x1f6`（nop 岛）
         //   + 体尾 `jmp +0x1f7` ⇒ P223 双标签 goto 形。
@@ -490,7 +490,7 @@ void CAssaultPlace::TimeoutEndAssault()
     // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082ea119 `jne +0x17b`（落 epilogue）
     //   + 体尾直落 ⇒ 正向包裹（早返形使 4.4 多 `jmp <epilogue>; nop` 尾岛，N121）。
     if (m_state == 4) {
-        m_state = 5;
+        m_state = (ENUM_ASSAULT_STATE)5;
         if (m_parties[0].m_field00 != 0)
             ((CParty*)m_parties[0].m_field00)->SetAssaultState('\x05');
         if (m_parties[1].m_field00 != 0)

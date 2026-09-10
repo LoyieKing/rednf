@@ -320,7 +320,9 @@ void RewardItem(CUser* user, long begin, long end, long start3,
     found->make_item(item);
     item.set_add_info(nAddInfo);
 
-    char title[0x14];
+    // ORIG 深区顶部：title 起点 -0x29（= now -0x14 上方 0x15 字节，Ghidra
+    // local_2d[21]）⇒ 数组声明 char[0x15]；strncpy 长度仍 0x14（0x084bfc4f）。
+    char title[0x15];
     strncpy(title, g_scriptStringManager_.findString(4, titleStr, 0), 0x14);
     // ORIG 栈距 -0x166..-0x66 = 0x100 字节（Ghidra local_16a[256]），
     // strncpy 长度 0xff（0x084bfc89）。

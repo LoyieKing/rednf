@@ -2134,11 +2134,6 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
     {
         return -1;
     }
-    // [b28d-round5 判据⑩/P212 复攻] ORIG 槽序（0x085058da 段）：两个具名局部最深
-    // （itemAddInfo -0x44 / itemInfo -0x40）、循环变量 i 最浅（-0x1c）、trace -0x2c；
-    // 4.4 同 size 组「先声明更深」⇒ 提升到函数头最前，块内仅赋值。
-    int itemAddInfo;
-    int itemInfo;
     for (int i = 3; i <= 8; i++)
     {
         if (m_pEquipSlot[i].m_addInfo != item.m_addInfo)
@@ -2149,8 +2144,11 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
         {
             if (bLog && m_pParent != 0)
             {
-                itemAddInfo = item.m_addInfo;
-                itemInfo = item.get_add_info();
+                // [b28d-round5 复攻失败记录] 把这两个具名局部提升到函数头（P212 全头部声明）
+                // 实测槽集**零变化**（OURS-only=[-0x34,-0x24,-0x20] 原样）⇒ 已回滚；
+                // 残余槽序属 N82附（4.4 聚合优先低槽 + 标量分区）封顶。
+                int itemAddInfo = item.m_addInfo;
+                int itemInfo = item.get_add_info();
                 cMyTrace(__PRETTY_FUNCTION__,
                          0x157c, 4)
                     ("INVEN INT_MAX setting 1 : m_id(%s),charac_id(%d) inven(%d)+add(%d) item_id(%d)",

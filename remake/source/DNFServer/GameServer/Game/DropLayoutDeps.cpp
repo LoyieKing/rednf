@@ -842,6 +842,12 @@ int CClearReward::loadScript(char const* path)
     std::string section;
     std::string token;
     bool ok = false;
+    // [b28d-C08 clr_l/widthscan 判据⑫] ORIG 0x085392fa 在函数入口清 `-0x44(%ebp)`，
+    // 而 [item drop ref table] 0x08539893 / [gold card cost table] 0x0853994f 都是
+    // `mov %eax,-0x44(%ebp)`（ScanInt 结果复用同一槽）⇒ 原码是**函数头**具名
+    // `int idx = 0;`，两段各自赋值（非循环内声明）。旧形两处 `int idx = ScanInt(&ok);`
+    // 使 clr_l 少 1（8 vs 11）并整体抬高槽序。
+    int idx = 0;
     for (;;)
     {
         if (!ScanType(section, true))
@@ -853,9 +859,13 @@ int CClearReward::loadScript(char const* path)
                 return 0x951;
             for (int i = 0; i <= 5; ++i)
             {
-                // ORIG 0x853941f 段：清零在循环**内**每次执行（local_54/50/4c 三 dword）。
+                // ORIG 0x08539373/7a/81：循环内三次**独立** `movl $0x0,-0x50/-0x4c/-0x48(%ebp)`。
+                // 链式 `v[0]=v[1]=v[2]=0` 被 4.4 copy-prop 成 1 store + 2 copy（clr_l 8 vs 11）；
+                // 三条独立语句才还原三次清零（widthscan clr_l 判据⑫）。
                 stGenItemProb_t fill;
-                fill.v[0] = fill.v[1] = fill.v[2] = 0;
+                fill.v[0] = 0;
+                fill.v[1] = 0;
+                fill.v[2] = 0;
                 m_scriptProbs[i].resize(count, fill);
             }
         }
@@ -956,7 +966,7 @@ int CClearReward::loadScript(char const* path)
             m_range.m_range[0] = 0;
             for (int lvl = 1; lvl <= 200; ++lvl)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                     return 0x9bc;
                 unsigned char* entry =
@@ -974,7 +984,7 @@ int CClearReward::loadScript(char const* path)
             // 扫描失败静默结束本节（ORIG 跳回节分发）。
             for (;;)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                     break;
                 m_goldCardCost[idx] = ScanInt(&ok);

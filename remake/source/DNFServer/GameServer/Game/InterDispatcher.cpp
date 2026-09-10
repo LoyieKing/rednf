@@ -3740,7 +3740,7 @@ struct Inter_MonitorNoticeGuildMarkChangePktView
 {
     char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
-    ENUM_VIEW_FIELD m_e;      // +0x0e（P254 枚型：ORIG 0x084ca1xx 保留 eax→edx 中转）
+    int m_e;                  // +0x0e（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
     unsigned int m_12;        // +0x12
 };
 #pragma pack(pop)
@@ -3792,7 +3792,7 @@ Inter_MonitorNoticeGuildDismiss::~Inter_MonitorNoticeGuildDismiss() {}
 struct Inter_MonitorNoticeGuildDismissPktView
 {
     char m_pad0[0xe];  // +0x0..未消费
-    ENUM_VIEW_FIELD m_e;            // +0x0e（P254 枚型：ORIG 0x084ca02f 保留 eax→edx 中转）
+    int m_e;                        // +0x0e（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
 };
 #pragma pack(pop)
 
@@ -7944,7 +7944,7 @@ Inter_ReplyGuildInviteToCaller::~Inter_ReplyGuildInviteToCaller() {}
 struct Inter_ReplyGuildInviteToCallerPktView
 {
     char m_pad0[0xa];  // 未消费
-    ENUM_VIEW_FIELD m_a;      // +0x0a（P254 枚型：ORIG 0x084d2fa6 保留 eax→edx 中转）
+    int m_a;                  // +0x0a（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
     char m_pade[0x4];  // 未消费
     int m_12;                 // +0x12
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -8194,7 +8194,7 @@ struct Inter_ReplyGuildSecedePktView
     char m_pad0[0xa];  // 未消费
     unsigned int m_a;         // +0x0a
     short m_e;                // +0x0e
-    ENUM_VIEW_FIELD m_10;     // +0x10（P254 枚型：ORIG 0x084c9798 保留 eax→edx 中转）
+    int m_10;                 // +0x10（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
     char m_pad14[0x4];  // 未消费
     int m_18;                 // +0x18
     signed char m_1c;         // +0x1c
@@ -14602,8 +14602,10 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     for (int i = 0; i < (int)pPkt->m_12; ++i)
         // 求值序 = ORIG：i 项先算（eax），再 add $0x10 / add pPkt 槽 / add $0x6
         // （pPkt 置于两常量之间阻折叠，4.4 恒发三段 add；旧形 pPkt 先置产 ecx 提前载+lea）。
-        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10) +
-                              reinterpret_cast<int>(pPkt) + 6,
+        // 形探针实测：指针形/收窄括号形 ndiff 反劣（8→12/>12）⇒ 保留原「pPkt 置两常量之间」形
+        //（ndiff 8，残 = 4.4 lea 合成 vs ORIG 三段 add，P30/N4 封顶）。
+        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10 +
+                                                  reinterpret_cast<int>(pPkt) + 6),
                           0x29);
     packet.finalize(true);
     user->Send(packet);

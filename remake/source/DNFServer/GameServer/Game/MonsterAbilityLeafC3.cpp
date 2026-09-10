@@ -436,9 +436,12 @@ void upgradeAbilityByChampionFeature(int elem, int roleType,
     case 3:
     {
         const int oldValue = info->m_elemAttack[elem];
-        info->m_elemAttack[elem] = static_cast<int>(
+        // ORIG 0x088b7cbf..0x088b7d04：oldValue 与 ROUND 结果各占独立具名槽
+        // （Ghidra local_14@-0x10 / local_10@-0xc，写回用后者），P0 槽-局部双向律。
+        const int newValue = static_cast<int>(
             static_cast<float>(oldValue) +
             (150 - oldValue) * kElemRatio[roleType]);
+        info->m_elemAttack[elem] = newValue;
         break;
     }
     case 4:

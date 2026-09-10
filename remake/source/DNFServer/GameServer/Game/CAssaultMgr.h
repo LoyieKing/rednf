@@ -332,12 +332,20 @@ public:
     int m_field100;                 // +0x100（GetAssaulterCount 读）
     unsigned int m_field104;        // +0x104（ORIG SetAssaultPlaceId 0x82f068e 同型直落）
     int m_authenValue;              // +0x108（GetAuthenValue 读）
-    int m_state;                    // +0x10c（GetState）
+    // [C07ExpertHeroAssault/R2 批准] int→ENUM_ASSAULT_STATE（P254/P248档③）：ORIG
+    //   0x082ea099 `mov 0x10c(%eax),%eax; mov %eax,%ebx`（varargs 实参位）保留
+    //   eax→ebx 中转 ⇒ 字段本身即 enum（4.4 对 int 字段恒折单段）。sizeof/偏移/
+    //   mangled 零变化；赋值点显式 cast，比较点靠整型提升，逻辑不变。
+    ENUM_ASSAULT_STATE m_state;     // +0x10c（GetState）
     Point2d m_posBase;              // +0x110（ORIG ctor 调 Point2d::C1 于 this+0x110；
                                     //   Reset 以 Point2d(0,0) 写回；图标包 put_short 分量）
     Point2dRaw m_pos;               // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
     bool m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP 第2参 mangled b 直传 movzbl 实证）
-    int m_winTeam;                  // +0x124（CloseAssault 获胜队比较）
+    // [C07ExpertHeroAssault/R2 批准] int→ENUM_ASSAULT_TEAM（P254/P248档③）：ORIG
+    //   0x082eb564 `call GetTeam; mov 0x8(%ebp),%edx; mov 0x124(%edx),%edx;
+    //   cmp %edx,%eax` 比较段**无** eax→edx 中转 ⇒ 字段与 callee 返回（enum）同型。
+    //   sizeof/偏移/mangled 零变化（enum 底层 4 字节）；赋值点显式 cast，逻辑不变。
+    ENUM_ASSAULT_TEAM m_winTeam;    // +0x124（CloseAssault 获胜队比较）
     // [b28d-solo-W6_AssaultPlaceDepsA] char→bool：ORIG _ProcessChaos 0x082ebc25
     // `movzbl 0x128(%edx,%eax,1),%eax; xor $1,%eax; test %al,%al; je` = P248 档②
     // 字段 bool 化 + 裸 if(!field)；写点 _SeparateTeam 0x082e821a `setg %dl; mov %dl`

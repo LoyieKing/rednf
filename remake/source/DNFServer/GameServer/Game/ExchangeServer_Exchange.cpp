@@ -406,11 +406,14 @@ bool CExchangeServer::ReturnCacheCharacter(int a, int b, int c, int d,
             }
             else
             {
-                cMyTrace trace("bool exchange_server::CExchangeServer::"
-                               "ReturnCacheCharacter(int, int, int, int, bool, "
-                               "exchange_server::CSession*)", 0x1bf, 0);
-                trace("GetMemberPosition() invalid information  type(%d), "
-                      "idx(%d), channel_no(%d), charac_no(%d)", a, b, c, d);
+                // [b28e 本泳道] P221/P227 全表达式临时链：ORIG 0x84919ec/0x8491a3e
+                // 两处 trace 分别占 -0x30/-0x20（浅于 pCache -0x34）；具名对象形在
+                // 4.4 取反方向（-0x2c/-0x3c）⇒ 改构造即调用临时链。
+                cMyTrace("bool exchange_server::CExchangeServer::"
+                         "ReturnCacheCharacter(int, int, int, int, bool, "
+                         "exchange_server::CSession*)", 0x1bf, 0)(
+                    "GetMemberPosition() invalid information  type(%d), "
+                    "idx(%d), channel_no(%d), charac_no(%d)", a, b, c, d);
             }
             if (e)
             {
@@ -419,11 +422,11 @@ bool CExchangeServer::ReturnCacheCharacter(int a, int b, int c, int d,
         }
         else
         {
-            cMyTrace trace("bool exchange_server::CExchangeServer::"
-                           "ReturnCacheCharacter(int, int, int, int, bool, "
-                           "exchange_server::CSession*)", 0x1d6, 0);
-            trace("GetCacheCharacter() false  type(%d), idx(%d), "
-                  "channel_no(%d), charac_no(%d)", a, b, c, d);
+            cMyTrace("bool exchange_server::CExchangeServer::"
+                     "ReturnCacheCharacter(int, int, int, int, bool, "
+                     "exchange_server::CSession*)", 0x1d6, 0)(
+                "GetCacheCharacter() false  type(%d), idx(%d), "
+                "channel_no(%d), charac_no(%d)", a, b, c, d);
         }
     }
     return handled;

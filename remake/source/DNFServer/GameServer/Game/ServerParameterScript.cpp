@@ -255,11 +255,10 @@ bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
     for (; it != e; ++it)
     {
         p = *it;
-        if (p.first != serverGroup)
-        {
-            continue;
-        }
-        else if (p.second == channelNo)
+        // [b28d-solo-C04] 去 `continue`：`continue` 在 4.4 落成空块 nop 中继岛
+        // （目标 `nop` + `jmp`），ORIG 0x08a8c44d/0x08a8c455 两条 `jne` **同落**
+        // 循环尾 ppEv 块（0x08a8c45e）⇒ 原码是单一 `&&` 正极 if（短路假路即循环尾）。
+        if (p.first == serverGroup && p.second == channelNo)
         {
             return true;
         }
@@ -385,9 +384,13 @@ float ServerParameterScript::getAssaultPriceChaospointWeight(int chaosPoint)
     {
         return 1.0f;
     }
-    float weight = w.m_w0 + ((w.m_w1 - w.m_w0) /
-                             (float)(w.m_max - w.m_min)) *
-                                (float)(chaosPoint - w.m_min);
+    // [b28d-solo-C04] P0 槽往返：ORIG 0x08a8c786 `mov $0x3f800000,%eax;
+    // mov %eax,-0xc(%ebp)`（守卫**之后**、计算**之前**）⇒ 原码有具名 float 局部
+    // 带初值 `= 1.0f`，随后整式覆写。探针 /tmp/p1/probe7.cpp h1/h2 双形同产该对。
+    float weight = 1.0f;
+    weight = w.m_w0 + ((w.m_w1 - w.m_w0) /
+                       (float)(w.m_max - w.m_min)) *
+                          (float)(chaosPoint - w.m_min);
     if (weight < w.m_w0)
     {
         return w.m_w0;
@@ -605,15 +608,14 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
             //     c>=idx→false；否则 true。
             if (p->m_field4 != 0 || p->m_field8 != 0)
             {
-                if (p->m_field4 > idx)
-                {
-                    return true;
-                }
-                if (p->m_field8 >= idx)
-                {
-                    return false;
-                }
-                return true;
+                // [b28d-solo-C04] P47 命中：ORIG 0x08568b45..0x08568b67 为
+                // `cmp; jg <mov $1>; cmp; jge <mov $0>; <共享 mov $1 块>`（TRUE 块
+                // 由首条件与 fall-through **共用**）。if-return 双写法 4.4 恒就地
+                // 发射两个 mov $1（+2）；嵌套三目
+                // `a ? true : (b ? false : true)` 逐条复现 ORIG 共享形
+                // （探针 /tmp/p1/probe5.cpp g1 与 ORIG 段全等，g2/g3/g4 均劣）。
+                return (p->m_field4 > idx) ? true
+                                           : ((p->m_field8 >= idx) ? false : true);
             }
             return false;
         }

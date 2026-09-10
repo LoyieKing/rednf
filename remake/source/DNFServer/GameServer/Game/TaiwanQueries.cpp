@@ -115,13 +115,11 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
 {
     int rsa_size = RSA_size(m_rsa);
     int pos = 0;
-    while (true)
+    int chunk = len - pos;
+    if (chunk > rsa_size)
+        chunk = rsa_size;
+    while (chunk > 0)
     {
-        int chunk = len - pos;
-        if (chunk > rsa_size)
-            chunk = rsa_size;
-        if (!(chunk > 0))
-            break;
         std::vector<unsigned char> block;
         block.resize(static_cast<size_t>(rsa_size), 0);
         int written = RSA_public_decrypt(chunk,
@@ -137,6 +135,9 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
         // `normal_iterator::operator+` + 迭代器版 insert（p167 EXTRA/MISSING 差集）。
         out.insert(out.end(), &block[0], &block[0] + written);
         pos += chunk;
+        chunk = len - pos;
+        if (chunk > rsa_size)
+            chunk = rsa_size;
     }
     return true;
 }
@@ -150,13 +151,11 @@ bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& o
     int rsa_size = RSA_size(m_rsa);
     int max_chunk = rsa_size - 0xc;
     int pos = 0;
-    while (true)
+    int chunk = len - pos;
+    if (chunk > max_chunk)
+        chunk = max_chunk;
+    while (chunk > 0)
     {
-        int chunk = len - pos;
-        if (chunk > max_chunk)
-            chunk = max_chunk;
-        if (chunk < 1)
-            return true;
         std::vector<unsigned char> block;
         block.resize(static_cast<size_t>(rsa_size), 0);
         int written = RSA_private_encrypt(chunk,
@@ -169,6 +168,9 @@ bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& o
         // [L10-2] 同 Decrypt（ORIG 0x0816c47x 段同形：指针版 insert + 2×operator[]）。
         out.insert(out.end(), &block[0], &block[0] + written);
         pos += chunk;
+        chunk = len - pos;
+        if (chunk > max_chunk)
+            chunk = max_chunk;
     }
     return true;
 }

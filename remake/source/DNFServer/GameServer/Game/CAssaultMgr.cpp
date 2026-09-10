@@ -757,7 +757,7 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
                     ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
                 if (m_parties[1].m_field00 != 0)
                     ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
-                m_state = 7;
+                m_state = (ENUM_ASSAULT_STATE)7;
                 CloseAssault();
                 return;
             }
@@ -769,7 +769,7 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
                 ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
             if (m_parties[1].m_field00 != 0)
                 ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
-            m_state = 7;
+            m_state = (ENUM_ASSAULT_STATE)7;
             CloseAssault();
             return;
         }
@@ -824,7 +824,7 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
                 ((CParty*)m_parties[0].m_field00)->SetAssaultState(6);
             if (m_parties[1].m_field00 != 0)
                 ((CParty*)m_parties[1].m_field00)->SetAssaultState(6);
-            m_state = 6;
+            m_state = (ENUM_ASSAULT_STATE)6;
             EndAssault();
         }
     }
@@ -1373,7 +1373,7 @@ void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192
                 ->addServerHackCnt(m_assaulters[j].GetUser(),
                                    (WongWork::ENUM_HACKTYPE)0x32e, 1, 0, 0);
         }
-        m_state = 6;
+        m_state = (ENUM_ASSAULT_STATE)6;
         // [SweepCAssaultMgr 真语义修正] ORIG 082eb672 `cmp $0x4; jne 082eb76d`
         // （目标 = epilogue）与 Ghidra C（AbuseUser.md:154-171）同证：party
         // SetAssaultState(6)×2 与 TimeoutCloseAssault **在 `if (m_state == 4)`
@@ -1577,7 +1577,7 @@ void CAssaultPlace::TimeoutCloseAssault()
             ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
         if (m_parties[1].m_field00 != 0)
             ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
-        m_state = 7;
+        m_state = (ENUM_ASSAULT_STATE)7;
         CloseAssault();
     }
 }
@@ -1597,7 +1597,7 @@ void CAssaultPlace::Reset()
     m_field100 = 0;
     m_field104 = 0;
     m_authenValue = 0;
-    m_state = 0;
+    m_state = (ENUM_ASSAULT_STATE)0;
     // ORIG 0x82e6b5d：Point2d(0,0) 临时构造（C1Eii sret -0x14/-0x10）后
     // 两字拷入 0x110/0x114 ⇒ 临时对象赋值形。
     m_posBase = Point2d(0, 0);
@@ -1606,7 +1606,7 @@ void CAssaultPlace::Reset()
     // ORIG 0x82e6ba7：teamFlag 第二循环复用 i 槽。
     for (i = 0; i <= 1; ++i)
         m_teamFlag[i] = 0;
-    m_winTeam = 0;
+    m_winTeam = (ENUM_ASSAULT_TEAM)0;
     m_checkUser = 0;   // ORIG *(int*)(this+0x134)=0：该槽用户指针清零
     m_abuseSec = 0;
 }

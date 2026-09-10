@@ -1468,6 +1468,10 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         break;
                     }
+                    // [A16 round5 真语义修] 报告 0x08900d13 实证：本行在首字段
+                    // 检查之后即清 +0x10 = `mov $0x0,%eax; mov %eax,-0x154`（float
+                    // 视角两段形 ⇒ 0.0f），不是 [table] 段末尾的 int 单条 movl。
+                    info.m_f00[4] = 0.0f;
                     info.m_f00[1] = ScanFloat(&ok);
                     if (!ok)
                     {
@@ -1493,13 +1497,20 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         break;
                     }
-                    info.m_prob00[4] = 0;
-                    info.m_prob00[7] = ScanInt(&ok);
+                    // [A16 round5 真语义修] 报告 0x08900de1 `mov $0x0,%eax; mov
+                    // %eax,-0x148`（+0x1c = 0.0f 两段形）⇒ m_f00[7] 是常量 0，
+                    // **不消费** ScanInt。原写 `m_prob00[7] = ScanInt(&ok)` 使其后
+                    // 5 个整数整体错位一槽（m_prob20[2]/m_recipeItem 取值错、
+                    // m_meterialCount 恒 0）—— 真 bug。
+                    info.m_f00[7] = 0.0f;
                     info.m_prob20[0] = ScanInt(&ok);
                     info.m_prob20[1] = ScanInt(&ok);
                     info.m_prob20[2] = ScanInt(&ok);
                     info.m_recipeItem = ScanInt(&ok);
-                    info.m_meterialCount = 0;
+                    // 报告 0x08900e45 (→+0x30) 为第 5 个连续 ScanInt，0x08900e50
+                    // (→+0x34) 才是 `movl $0x0`（m_discountBase = 0，int 单条）。
+                    info.m_meterialCount = ScanInt(&ok);
+                    info.m_discountBase = 0;
                     info.m_f38[4] =
                         static_cast<float>(ScanInt(&ok));
                     if (!ok)

@@ -217,6 +217,10 @@ __attribute__((weak)) void CSkillTreeParam::SendSkillPointReturnInfo()
 //      对两树 growtype_skill(job, first, second, kind)；
 //   8) 专家职业脚本 m_growSkillVec（+0x0c）遍历：未掌握技能同样 growtype_skill。
 //      正常路径最终返回 0。
+// [round5-A20 复核] fresh .o 539/536：①ORIG 0x084ef4ae/0x084ef4f3 两处
+//   `lea 0x29fd/0x2b97(%eax),%edx`（数组退化取址）vs 4.4 `add $K,%eax; mov %eax,%edx`
+//   = N107（P214① 数组名算术形亦试，4.4 恒 add）；②第 145 行处多 1 条 `jmp`（N121
+//   epilogue 尾岛）⇒ 双封顶。全部调用点 p167 CLEAR(87/87)。
 __attribute__((weak)) int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
 {
     // [Lane17 I 判词] ORIG 0x084ef4a6：p167 CLEAR（87/87）；判据⑪ 直方图逐值全等
@@ -511,6 +515,10 @@ inline SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* asLetheResult(void* p)
 // Inter_LoadEtc 私有方法实现
 // ===========================================================================
 
+// [round5-A20 复核·N107/P23] fresh .o 40/42。残余=ORIG 0x084c2b0e/0x084c2b1a
+//   两处 `lea 0x4(%eax),%edx; mov %edx,0xc(%ebp)`（2 条/处）vs 4.4 `addl $0x4,0xc(%ebp)`
+//   （1 条/处）= N107 lea-vs-add 族（P319 整型加法+回 cast 形已试，4.4 恒 add）
+//   + put_short 实参装载序 ORIG 先入 %edx（P23/P75 跨版本）。语义等价，封顶。
 int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
 {
     // [b28d-solo-Inter_LoadEtc_impl] verdict=N 40/42：ctx 参数槽自增 ORIG 为
@@ -548,6 +556,10 @@ int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
     return 1;
 }
 
+// [round5-A20 复核] fresh .o 170/169。残余=①curCharging 槽 -0x28 vs ORIG -0x50
+//   （4.1 trace 前求值缓存落深区、4.4 落浅区，N82 分区）；②vararg %esi/%edi 角色互换
+//   （ORIG `mov %eax,%esi`/`mov 0x7b(%eax),%edi` vs 4.4 %edi/%esi，N7）
+//   ⇒ N82+N7 双封顶，语义完成。
 bool Inter_LoadEtc::SetFatigue(CUser* user)
 {
     // [Lane22-L17 L6] 判据⑩/P212：ORIG 槽 curCharging=**-0x50**（084c3221 实证，深于
@@ -617,6 +629,10 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
     return true;
 }
 
+// [round5-A20 复核·N121] fresh .o 102/101：判据⑪ 直方图逐值全等 {−0x9,−0x10,−0x14}；
+//   唯一残差=我方 switch 尾多 1 条 `jmp`（.o 内 1272: nop; 1273: jmp 1276; 1275: nop
+//   —— default 岛），ORIG 单 nop 直落 epilogue ⇒ 4.4 自身 epilogue-threading 尾岛
+//   （N121，四形实测不可消）。
 void Inter_LoadEtc::verifyCharacVillage(CUser* user)
 {
     // [b28d-solo-Inter_LoadEtc_impl] verdict=N 102/101（fresh）：vill int 槽（movsbl→-0x14）、
@@ -721,6 +737,9 @@ bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
     return true;
 }
 
+// [round5-A20 复核·N95] fresh .o 402/397：PacketGuard 槽 -0x3c vs ORIG -0x44（整帧局部
+//   槽基差 8）——4.1 大局部可顶到 ebp、4.4 恒从 ebp-8 起 ⇒ N95「局部槽基 gap 差」
+//   （double framePad 反致下移，P190/N95 实证）。语义完成。
 bool Inter_LoadEtc::SendResult(CUser* user)
 {
     // [Lane17 I 判词] ORIG 0x084eb2a7：p167 CLEAR（72/72）。判据⑪ 直方图显示
@@ -844,6 +863,10 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
     else
         user->setBreakAwayRewardData(false);   // ORIG test;setg;test;jne
 
+    // [round5-InterLoadEtc 实测回退] P231 register 形：实测 ORIG 0x084d90c4
+    // `movl $0x0,-0x30(%ebp)` / 0x084d90e1 `mov %eax,-0x30(%ebp)` **确有 itemId 槽**
+    // ⇒ register 提示会消槽（帧/指令数 251→250 劣化），已回退。残余实参装载序
+    // （ORIG 先物化 %ebx 再 call receiver）判 N75/N7 跨版本不可翻。
     int itemId = 0;
     int itemCnt = 0;
     itemId = user->getBreakAwayRewardItemId();
@@ -1078,6 +1101,12 @@ void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
     }
 }
 
+// [round5-A20 复核] fresh .o 251/247（gap +4）：3~4 处「字节读比较」双段形
+//   ORIG `movzbl 0x2b95(%eax),%edx; movzbl <A>,%eax; cmp %al,%dl`
+//   vs 我方 `movzbl 0x2b95(%eax),%eax; mov %eax,%edx; …`（多 eax→edx 中转）
+//   = N18a/N7（4.4 对 uchar 比较恒插中转）。**本轮新试 P266 形
+//   `*reinterpret_cast<unsigned char*>(sig->m_backupSkill + 0x198)`：实测劣化
+//   251→256（add $0x29fd + add $0x198 + movzbl 三段），已回退** ⇒ 封顶。
 int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
     // [Lane17 I 判词] ORIG 0x084e8c92：判据⑪ 直方图逐值全等 {−0xc,−0x10,−0x18}。
@@ -1154,6 +1183,8 @@ int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
     return false;
 }
 
+// [round5-A20 复核] 同 1 号（ORIG 0x084e8e1e 同构）：fresh .o 251/247；残余同为
+//   3~4 处 uchar 比较 eax→edx 中转（N18a/N7，P266 形实测劣化已回退）+ 槽深 N95。
 int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
     // [Lane17 I 判词] 同 1 号（ORIG 0x084e8e1e 同构）：判据⑪ 直方图逐值全等；
@@ -1282,6 +1313,11 @@ void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& use
     sig->m_isEnabled = 0;
 }
 
+// [round5-A20 复核·N82/P98] fresh .o 2324/2296（gap +28）、判据⑪ frame ORIG 0x15c vs
+//   我方 0x1bc（+0x60 = ~24 个 4B 槽）：ORIG 把 `data` 形参副本按需惰性落槽
+//   （`mov 0x10(%ebp),%eax; mov %eax,-0x60(%ebp)`），我方前移至 -0xc4 序言；
+//   另有 1 处 ORIG 无的 `lea -0xe4; mov (%esp); call` ⇒ 4.1/4.4 槽分区与重载选型差
+//   （N82 附/N98），语义完成、p167 CLEAR。
 int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // [BigInterLoadEtc 2026-09-09] ORIG 2296 / 我方 2325（gap +29，起点 +74）；

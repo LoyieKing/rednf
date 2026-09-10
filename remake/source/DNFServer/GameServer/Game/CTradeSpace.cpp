@@ -276,8 +276,16 @@ bool CTradeSpace::_IsTradable(const Inven_Item& item)   // [b28d-Main·P292] int
     //   发 ORIG `movzbl;xor $1;test;je tail`（P292）。
     //   ORIG `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax; cmp $0x5,%eax` 有槽往返
     //   ⇒ 原码是具名 t（P0）。
-    unsigned int t = ci->GetAttachType();
-    switch (t)
+    //   [b28f-CTS 复核] 三处旋钮：
+    //   ①局部改 int + `switch ((unsigned int)nType)` ⇒ 4.4 复现 ORIG
+    //     `mov -0xc(%ebp),%eax; cmp $0x5,%eax; ja`（P310：unsigned 局部恒折内存直比，
+    //     显式 unsigned cast 触发电寄存器装载）；
+    //   ②case 0 内嵌**空 switch** `switch (nType & 0x1) { }`（配方㉓）⇒ 复现 ORIG
+    //     第三组 bit test `and $0x1,%eax; test %eax,%eax; jmp tail`（4.4 对
+    //     `case 0: break;` 会把该测试整段合并掉，少 3 条）；
+    //   ③②带来的 eax 存活需求同时翻正第二组测试为 ORIG 的 `mov %eax,%edx; and $0x8,%edx`。
+    int nType = ci->GetAttachType();
+    switch ((unsigned int)nType)
     {
     case 1:
     case 2:
@@ -289,6 +297,7 @@ bool CTradeSpace::_IsTradable(const Inven_Item& item)   // [b28d-Main·P292] int
             return false;
         break;
     case 0:
+        switch (nType & 0x1) { }
         break;
     }
     return true;
@@ -319,6 +328,9 @@ int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
         idx = get_empty_itemslot(traderIdx);
         if (idx != -1) {
             register TradeSlot* dst = &m_slotsData[traderIdx][idx];
+            // N7：4.4 对 register 指针局部恒落 callee-saved %ebx ⇒ 地址链尾 +1 条
+            //   `mov %eax,%ebx`（ORIG 4.1 落 caller-saved %eax 直落）；两处各 +1
+            //   = gap +2。交换 cmp 操作数 / 删 register（退化栈槽 +2/处）均实测不翻。
             if (dst != &slot)
                 memcpy(dst, &slot, 0x46);
         }

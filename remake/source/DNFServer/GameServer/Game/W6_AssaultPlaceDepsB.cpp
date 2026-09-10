@@ -770,7 +770,7 @@ void CAssaultPlace::ChangeHp(CUser* user, int hp)
                 (reinterpret_cast<CParty*>(m_parties[0].m_field00))->SetAssaultState('\a');
             if ((reinterpret_cast<CParty*>(m_parties[1].m_field00)) != 0)
                 (reinterpret_cast<CParty*>(m_parties[1].m_field00))->SetAssaultState('\a');
-            m_state = 7;
+            m_state = (ENUM_ASSAULT_STATE)7;
             CloseAssault();
         }
     }
@@ -919,7 +919,7 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
             victim->resetStraightVictories();
     }
 
-    m_state = 5;
+    m_state = (ENUM_ASSAULT_STATE)5;
     // ORIG 直读 m_parties[i].m_field00（+0x12c/+0x130），无 Get() call
     if ((reinterpret_cast<CParty*>(m_parties[0].m_field00)) != 0)
         (reinterpret_cast<CParty*>(m_parties[0].m_field00))->SetAssaultState('\x05');
@@ -968,10 +968,10 @@ void CAssaultPlace::MakeTeam(CUser* user1, CUser* user2, int& outIdx)
     //   值升格 callee-saved；带具名 r 会槽化（多 mov+movzwl 两条）。
     if (({ user1->get_posX(); }) < user2->get_posX()) {
         _SeparateTeam(user1, user2);
-        m_winTeam = 0;                                          // +0x124
+        m_winTeam = (ENUM_ASSAULT_TEAM)0;                       // +0x124
     } else {
         _SeparateTeam(user2, user1);
-        m_winTeam = 1;                                          // +0x124
+        m_winTeam = (ENUM_ASSAULT_TEAM)1;                       // +0x124
     }
 
     m_authenValue = GlobalData::s_systemTime_.getCurSec();       // +0x108 = getCurSec
