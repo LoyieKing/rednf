@@ -370,9 +370,12 @@ void TeamInfo::reset()      // ORIG T 0x0855cb16
 // inline 定义（CLeagueMatch.h），由使用点发射 W；本 TU 因 TeamInfo 族调用仍发射
 // 该 W 副本。函数体逐条不变。
 
-// [b28d-lane6] AE（已修）：m_flag bool 化（P248 档②）+ `==` 正向包裹（P222）后
-// 第一/二段与 ORIG 0x0855c95a 全等；x87 比较段经 fresh 重编译后亦归一（34=34）。
-bool CompareRating(PlayerInfo const& a, PlayerInfo const& b)  // ORIG T 0x0855c952
+// [Main·2026-09-10 round5 拆分 · rule4 回退] CompareRating **移回原 TU**：
+//   拆到 CLeagueMatch/CompareRating.cpp 后 verdict AE→DIFF（34/34 → 34/33），
+//   触犯 rule4（拆分不得使任何函数 verdict 劣化）⇒ 按工规 §3/§5 回退。
+//   回退后恢复 AE。原拆分文件的头部注释保留在 git 历史与 CMake 注释中。
+// 判词：ORIG T 0x0855c952。
+bool CompareRating(PlayerInfo const& a, PlayerInfo const& b)
 {
     // b28d-lane6：m_flag bool 化（P248 档②）复现第一段 ORIG 0x0855c95a 双重 movzbl
     // + cmpl/jle；第二段改 `==` 正向包裹复现 `jne` 落 false 尾块（P222/P47）；
@@ -452,22 +455,11 @@ int TeamInfo::size() const       // ORIG T 0x0855cd26
 // 生命周期
 // ---------------------------------------------------------------------------
 
-// ORIG C1/C2 0x0855cd74：IMatch ctor → PVP_ROOM_INFO@+8 → 懒建 pWaitingRoomList_
-// （new 0x1c 置零后 C1 0x08568fb0）→ 引用计数自增。
-// [b22判词·N族] ORIG new(0x1c) 后、C1 call 前有 6 条 value-init 标量置零
-// （+0x00/08/0c/10/14/18），GCC4.1 语义；4.4 视 user-provided ctor 类免置零直调。
-// placement-new+try 实测反引入 operator new(void*,ptr) call + EH spill，C++98
-// 无法复现该置零序列，语义等价（残差 6 insns），按 N 族结案，勿再开轮。
-// [b28d-solo-CLeagueMatch] AE（TU 口径）：67=67 全等。原 N77 残差（new
-// PVP_ROOM_INFO 的 6 条 value-init 清零 +0x00/08/0c/10/14/18）随 PvPTypes.h
-// PVP_ROOM_INFO 保持「无用户 ctor」而恢复（P299：用户 ctor 抑制 value-init）；
-// EH 尾块序亦已归一。本件无需再改。
-CLeagueMatch::CLeagueMatch()
-{
-    if (pWaitingRoomList_ == 0)
-        pWaitingRoomList_ = new CLeagueMatchRoomList();
-    ++nWaitingRoomListRefCount_;
-}
+// [round5 TU 拆分] CLeagueMatch::CLeagueMatch 已移至
+// CLeagueMatch/CLeagueMatch_ctor.cpp（P210②：本 TU 内无 caller，callee 全为
+// 外部符号（CLeagueMatchRoomList::C1 / operator new）⇒ 无帧继承依赖；判词逐字不变）。
+// ⚠ ~CLeagueMatch 不拆：它是本类 key function（`_ZTV/_ZTI/_ZTS12CLeagueMatch`
+//   等 V 符号由本 TU 发射，nm 实证）⇒ 保原 TU 以维持 vtable/RTTI 归属不变。
 
 // ORIG D1 0x0855ce4c：引用计数递减，归零且单例仍在时 operator delete（不析构、
 // 不置空）；随后 PVP_ROOM_INFO / IMatch 析构由编译器生成。
@@ -506,40 +498,10 @@ float CLeagueMatch::GetGap(IMatch* other)     // ORIG T 0x0855e12a
     return gap;
 }
 
-// [b28d-solo-CLeagueMatch] DIFF 29/29·N-STRIDE：bool 化 + 裸 `if(!m_flag)` 的
-// xor 段已与 ORIG 0x0855e5e9 一致；残差为 stride 0x1c 的 shl-vs-lea，语义等价。
-CUser* CLeagueMatch::GetUser(unsigned int idx)   // ORIG T 0x0855e5e4
-{
-    if (idx > 3)
-        return 0;
-    // b28d-lane6：m_flag bool 化 + 裸 `if(!field)` ⇒ ORIG 0x0855e5e9 的
-    // `movzbl 0x18; xor $1; test %al,%al; je`（P248 档②，探针 /tmp/l6p/p6.cpp f2）。
-    if (!m_teamA.m_players[idx].m_flag)
-        return 0;
-    return m_teamA.m_players[idx].m_user;
-}
-
-void CLeagueMatch::GetUserList(void* out)     // ORIG T 0x0855e642（拷贝第一队 0x70 字节，P83 rep movsl）
-{
-    *reinterpret_cast<TeamInfo*>(out) = m_teamA;
-}
-
-void CLeagueMatch::RequestMap(short& mapNo, PVP_BATTLE_MODE& mode)  // ORIG T 0x0855d096
-{
-    mapNo = 3;
-    if ((int)mode != 6)
-        mode = static_cast<PVP_BATTLE_MODE>(nBattleMode_);
-}
-
-int CLeagueMatch::GetExtraWinPoint(int extra)   // ORIG T 0x0855d0bc
-{
-    // 活动期窗口（0x4911b4f0, 0x492429ef]，期内返回额外分否则 0。
-    // ORIG 两次调用 getCurSec（P48：O0 无 CSE，条件双臂各调一次）。
-    if (GlobalData::s_systemTime_.getCurSec() > static_cast<int>(0x4911b4f0) &&
-        GlobalData::s_systemTime_.getCurSec() <= static_cast<int>(0x492429ef))
-        return extra;
-    return 0;
-}
+// [round5 TU 拆分] GetUser / GetUserList / RequestMap / GetExtraWinPoint 已移至
+// CLeagueMatch/{GetUser,GetUserList,RequestMap,GetExtraWinPoint}.cpp
+// （四者均为叶子：不调用本 TU 内定义的函数，无 P210② 帧继承依赖；GetUser 仅被
+//  GetGap 经 IMatch vtable 间接调用）。
 
 int CLeagueMatch::OnCreateRoom(CUser* user)    // ORIG T 0x0855d104
 {
@@ -552,14 +514,9 @@ int CLeagueMatch::OnCreateRoom(CUser* user)    // ORIG T 0x0855d104
     return 0;
 }
 
-// 【N7 封顶】b26 lane19：虚调用 callee 寄存器 %ecx↔%eax 互换（ORIG
-// mov (%eax),%ecx+call *%ecx vs 4.4 mov (%eax),%eax+call *%eax，16 条逐条
-// 长度/助记符全等），临时/引用/限定名不可翻，语义同。
-void CLeagueMatch::OnDestroyRoom(CUser* /*user*/)   // ORIG T 0x0855d168
-{
-    m_state = 0;
-    pWaitingRoomList_->DelRoom(this);               // IRoomList vtable+0x04
-}
+// [round5 TU 拆分] CLeagueMatch::OnDestroyRoom 已移至
+// CLeagueMatch/OnDestroyRoom.cpp（P210②：叶子，唯一 callee 为 IRoomList 虚调用
+//  ⇒ 无帧继承依赖；N7 判词随函数移至新文件）。
 
 void CLeagueMatch::OnJoinRoom(CUser* user)      // ORIG T 0x0855d198
 {
@@ -769,10 +726,8 @@ int CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
     return 1;
 }
 
-void CLeagueMatch::OnStartFight()           // ORIG T 0x0855e21c
-{
-    m_state = 5;
-}
+// [round5 TU 拆分] CLeagueMatch::OnStartFight 已移至
+// CLeagueMatch/OnStartFight.cpp（P210②：纯叶子 ⇒ 无帧继承依赖）。
 
 // ORIG T 0x0855e55a
 // [b28d-solo-CLeagueMatch] DIFF 45/45·ndiff 2·N-P75（S217 新鲜 .o 复验）：
@@ -810,6 +765,9 @@ int CLeagueMatch::OnWalkOut(PvP_Room* room, int seat)
     return 1;
 }
 
+// [Main·2026-09-10 round5 拆分 · rule4 回退] CLeagueMatch::OnReady **移回原 TU**：
+//   拆到 CLeagueMatch/OnReady.cpp 后 verdict IDENT→AE，触犯 rule4 ⇒ 回退。
+//   回退后恢复 IDENT。函数体与判词逐字不变。
 // ORIG T 0x0855e52a。ORIG 返回 bool（!ready && state==4 → 0）。
 bool CLeagueMatch::OnReady(CUser* /*user*/, bool ready)
 {
@@ -1098,11 +1056,8 @@ int CLeagueMatch::CheckJoinable(PvP_Room* room, CUser* user)   // ORIG T 0x0855c
     }
 }
 
-bool CLeagueMatch::CheckSeat(int seat)       // ORIG T 0x0855d058（P292 bool）
-{
-    if (seat == 2) return 0;
-    return 1;
-}
+// [round5 TU 拆分] CLeagueMatch::CheckSeat 已移至 CLeagueMatch/CheckSeat.cpp
+// （P210②：纯叶子 ⇒ 无帧继承依赖）。
 
 // [b28d-solo-CLeagueMatch] DIFF 202/202·真语义 bug 已修 + N-STRIDE：①段位窗口边界
 // 取反真 bug（ORIG 0x0855fbc0..fbf3 `jg` 跳过 return 0 ⇒ return false 条件是
@@ -1177,28 +1132,13 @@ bool CLeagueMatch::CheckMatchable(IMatch* other)   // ORIG T 0x0855fa14
 // 非 IMatch 方法
 // ---------------------------------------------------------------------------
 
-void CLeagueMatch::SetMatchAble(bool able)      // ORIG T 0x0855d07e
-{
-    bMatchable_ = able;
-}
+// [round5 TU 拆分] SetMatchAble / SetPlayCountPerOneTeam 已移至
+// CLeagueMatch/{SetMatchAble,SetPlayCountPerOneTeam}.cpp
+// （P210②：两个 static 纯叶子 ⇒ 无帧继承依赖；静态成员定义仍在原 TU）。
 
-void CLeagueMatch::SetPlayCountPerOneTeam(unsigned int n)   // ORIG T 0x0855d070
-{
-    nPlayerCountPerOneTeam_ = static_cast<unsigned char>(n);
-}
-
-// ORIG 虚槽布局：GetSchoolNo 为派生新增第 37 槽（ORIG vtable +0x90），
-// GetIndentification 的覆盖体即经 vtable+0x90 虚调本函数。
-// [b28d-solo-CLeagueMatch] DIFF 32/32·N-STRIDE：残差全为 stride 0x1c 的
-// shl-vs-lea（2 访问点），语义等价，结构性豁免。
-int CLeagueMatch::GetSchoolNo()              // ORIG T 0x0855f9aa
-{
-    for (int i = 0; i <= 3; ++i) {
-        if (m_teamA.m_players[i].m_flag != 0)
-            return m_teamA.m_players[i].m_schoolNo;
-    }
-    return 0;
-}
+// [round5 TU 拆分] CLeagueMatch::GetSchoolNo 已移至 CLeagueMatch/GetSchoolNo.cpp
+// （P210②：叶子；唯一使用点是头内 inline GetIndentification 经 vtable+0x90
+//  间接调用 ⇒ 无帧继承依赖）。
 
 // [SweepCLeagueMatch-2·判据㉓] GetIndentification(0x08568834 W) / GetBattleMode
 // (0x084ed387 W) / SetBattleMode(0x082743a0 W) / GetPlayCountPerOneTeam
@@ -1436,37 +1376,11 @@ void CLeagueMatch::_SendMatchStatePacket(int state, int teams)   // ORIG T 0x085
     }
 }
 
-// [b28d-solo-CLeagueMatch] AE：TU 口径 identical/AE（25=25 全等；game_func_report
-// 单函数口径多 1 条循环对齐 nop，§6.1/N112 已在 TU 口径剥离）。
-bool CLeagueMatch::_getSameSchool(unsigned int* schools, int selfIdx,
-                                 int count, unsigned int schoolNo)  // ORIG T 0x0855e7a8
-{
-    for (int i = 0; i < count; ++i) {
-        if (i == selfIdx)
-            continue;
-        if (schools[i] == schoolNo)
-            return 1;
-    }
-    return 0;
-}
-
-int CLeagueMatch::_GetOppositeTeam(int team)  // ORIG T 0x0855e49e
-{
-    /* ORIG @0855e4a1 比较链 cmp $1,%eax;je/cmp $2;je/jmp def = 4.1 switch
-     * 下探形【技巧34，OnlinePreliminary 同法 IDENTICAL 已验】。ORIG default
-     * 块尾多一条 `mov 0xc(%ebp),%eax`(@0855e4be) 重载：4.4 沿 cfg 传播 eax
-     * 免载，probe(register 副本/asm("eax")+clobber)均不可逼出，N18a 类 */
-    switch (team)
-    {
-    case 1:
-        return 2;
-    case 2:
-        return 1;
-    default:
-        break;
-    }
-    return team;
-}
+// [round5 TU 拆分] _getSameSchool / _GetOppositeTeam 已移至
+// CLeagueMatch/{_getSameSchool,_GetOppositeTeam}.cpp
+// （P210②：两者均为纯叶子；_getSameSchool 的唯一 caller OnReward 定义序在其
+//  **之前**（ORIG 0x0855eb22 vs 0x0855e7a8），OnReward 编译时从未见过本定义
+//  ⇒ 拆走后 caller 帧不变；_GetOppositeTeam 在本 TU 内无 caller）。
 
 bool CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)  // ORIG T 0x0855cef8
 {

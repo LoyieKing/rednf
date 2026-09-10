@@ -100,6 +100,7 @@ case "$src" in
             *Game/CItemShop.cpp | \
             *Game/CItemUpgrade.cpp | \
             *Game/CKillMonsterInfo_chain.cpp | \
+            *Game/CLeagueMatch/*.cpp | \
             *Game/CLeagueMatch.cpp | \
             *Game/CListTables.cpp | \
             *Game/CLog.cpp | \
@@ -237,6 +238,7 @@ case "$src" in
             *Game/ServiceRestrictManager.cpp | \
             *Game/SkillShopGuideTextData.cpp | \
             *Game/SkillSlot.cpp | \
+            *Game/SkillSlot/*.cpp | \
             *Game/SlangFlexLexerEngine.cpp | \
             *Game/StScriptImporters.cpp | \
             *Game/StackablePackage.cpp | \
@@ -655,21 +657,29 @@ case "$(basename "$src" .cpp)" in
                 # .o 口径合计：Δident **+14** / Δnear **−18** / Δdiff 0（非 identical 净 −17）。
                 # ⚠ 与 x87 臂同规矩：**全局核账定稿**（weak/COMDAT 重复发射会高估）。
                 exec "$C6" -B"${ROOT}/cc1plus446bin/" "$@" ;;
-            *Game/CTournamentDungeonReward.cpp)
-                # [Main·2026-09-10 round5] **444 后端杠杆**（`dnf_c6444r_gxx.sh` =
-                # 4.4.7 驱动 + `-B cc1plus444bin/`，ORIG `.comment` 主体编译器候选）。
-                # 此前**从未在任何分支使用**。对 diff 最大的 30 个 TU 逐个 A/B：
-                # 本件是唯一命中，其余 29 个零变化。
-                # 实测 .o 口径：identical 49 / ae 0 / near 0 / diff 11 →
-                #                identical **58** / ae 0 / near 0 / diff **2**
-                # （**Δidentical +9 / Δdiff −9**）。
-                # ⚠ 与其它旗标臂同规矩：**全局核账定稿**。
-                exec "$C6444R" "$@" ;;
             # [Main·2026-09-10 round5 TU 拆分] 拆分出的逐函数 .cpp 必须继承**原 TU 的
-            # 全部编译特性**（此处 = 上面的 444 后端臂）。新增拆分目录时在此同步登记，
-            # 否则新文件会落到 `*)` 默认 4.4.7 路由 ⇒ 该文件所有函数 verdict 劣化。
+            # 全部编译特性**。新增拆分目录时在此同步登记，否则新文件会落到 `*)`
+            # 默认 4.4.7 路由 ⇒ 该文件所有函数 verdict 劣化。
+            # CTournamentDungeonReward：**444 后端杠杆**（`dnf_c6444r_gxx.sh` = 4.4.7
+            #   驱动 + `-B cc1plus444bin/`，ORIG `.comment` 主体编译器候选）。该杠杆
+            #   此前从未在任何分支使用；对 diff 最大的 30 个 TU 逐个 A/B 后**仅本件命中**
+            #   （其余 29 个零变化；扩展扫 78 TU 亦无新增收益）。实测 .o 口径
+            #   identical 49 / ae 0 / near 0 / diff 11 → identical **58** / ae 0 / diff **2**；
+            #   全局核账 identical 34141→**34150（+9）**、diff 1745→**1736（−9）**。
+            #   ⚠ 原 `*Game/CTournamentDungeonReward.cpp)` 臂已随该 TU 拆空一并移除。
             *Game/CTournamentDungeonReward/*.cpp)
                 exec "$C6444R" "$@" ;;
+            # [Main·2026-09-10 round5 TU 拆分] 拆分目录必须**逐项继承**原 TU 在三处的
+            # 全部匹配（否则 codegen 变 ⇒ rule4 劣化）：
+            #   ① 第一个 case（H46 头集 4.4.7→4.4.6 替换）—— 已在上方 H46 列表登记；
+            #   ② 第二个 case（`-B cc1plus446bin` 注入）；
+            #   ③ 本 dispatch case 的后端。
+            # CLeagueMatch：H46 ✓（上方） + 后端 4.4.6（与原 `*Game/CLeagueMatch.cpp)` 同）
+            *Game/CLeagueMatch/*.cpp)
+                exec "$C6446R" "$@" ;;
+            # SkillSlot：H46 ✓（上方） + 后端默认 4.4.7（与原 TU 同，显式写出便于审计）
+            *Game/SkillSlot/*.cpp)
+                exec "$C6" "$@" ;;
 
             *)
                 exec "$C6" "$@" ;;

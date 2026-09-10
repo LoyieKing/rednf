@@ -1,3 +1,18 @@
+// ============================================================================
+// [round5 TU 拆分 2026-09-10] 本 TU 逐函数拆分，实现散落 Game/SkillSlot/<函数名>.cpp。
+// 本文件保留**必须同 TU 且定义序不变**的函数组（见 local://split_spec.md §3–§4）：
+//   (a) 需要 CUser / GameWorld 完整类型的函数（拆出即必须 include GameWorld.h/CUser.h
+//       ⇒ 每个文件各发一份 std::ios_base::Init 静态初始化，多出 _GLOBAL__I_* 键）；
+//   (b) GI 键承载者 SkillSlot::set_skill_slot 必须仍是本 TU 第一个函数定义
+//       （基线键名 _GLOBAL__I__ZN9SkillSlot14set_skill_slotEPcS0_i 不变）；
+//   (c) addSkillOnCreateCharacter：其体内 `std::vector<std::pair<int,int>>` 按值拷贝构造
+//       触发的 weak 实例 __uninitialized_copy<...>（COMDAT）在本 TU 编译时取 39 条指令形
+//       （与基线 AE 一致）；单独成文件时同一实例取 56 条形 ⇒ 该函数留在本文件。
+// 搬走的每个函数在原位置留有 `// [拆分] → <文件>` 指引；下面两个局部视图结构体
+// （_Charac_info_nibble_field / STGuild*）仍被留在本文件的 SendSkillInfo 与
+// master_new_guild_skill 使用，故保留在文件作用域。
+// ============================================================================
+
 // df_game_r 玩家技能槽 SkillSlot 还原（G1 玩家域第一批）。
 // 逐函数对照 docs/class_func_reports/SkillSlot.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
@@ -149,934 +164,106 @@ void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
         }
     }
 }
-// ORIG 0x88923f1：skill>0x95→0；否则 (level+flag)*(skill*10)/10
-int getSkillChecksum(int skill, int level, int flag)
-{
-    if (skill > 0x95)
-    {
-        return 0;
-    }
-    int result = 0;
-    result = (level + flag) * (skill * 10) / 10;
-    return result;
-}
-// ORIG T 0x8892445
-// ORIG T 0x8892445（0x26 字节，objdump 转写：报告缺失）
-// if (sum == 0) return 0; *sum ^= key; return *sum;
-int finishSkillChecksum(int* sum, int key)
-{
-    if (sum == 0)
-    {
-        return 0;
-    }
-    *sum = *sum ^ key;
-    return *sum;
-}
-// ORIG T _Z22getSkillSpendSPOnStealii（0x8a9afa2，0x53 字节）：
-// f = penalty / 100.0f（.rodata 0x8e2a180 = 0x42c80000）；r = (int)(sp * f)
-// （fistpl，控制字 chop 截断向零）；返回 std::max(1, r)。
-int getSkillSpendSPOnSteal(int sp, int penalty)
-{
-    float f = (float)penalty / 100.0f;
-    int r = (int)((float)sp * f);
-    return std::max(1, r);
-}
 
-_Mastered_skill::_Mastered_skill()
-{
-    m_index = 0;
-    m_level = 0;
-}
+// [拆分] int getSkillChecksum → Game/SkillSlot/getSkillChecksum.cpp
 
-stSPReturnInfo_t::stSPReturnInfo_t(unsigned short skillIdx,
-                                   unsigned short levelDiff,
-                                   unsigned int returnSP,
-                                   unsigned int returnSFP)
-    : m_skillIdx(skillIdx), m_levelDiff(levelDiff), m_returnSP(returnSP),
-      m_returnSFP(returnSFP)
-{
-}
+// [拆分] int finishSkillChecksum → Game/SkillSlot/finishSkillChecksum.cpp
 
-// ==================== 构造 / 析构 / 拷贝（ORIG 0x08694d6a 族） ====================
+// [拆分] int getSkillSpendSPOnSteal → Game/SkillSlot/getSkillSpendSPOnSteal.cpp
 
-SkillSlot::SkillSlot()
-{
-    m_remainSP1 = 0;
-    m_isLoadStrikerSkill = 0;
-    memset(m_skillSlot, 0, sizeof(m_skillSlot));
-    m_remainSP2 = 0;
-    memset(m_skillSlot2, 0, sizeof(m_skillSlot2));
-    m_field10 = -1;
-    m_remainSFP1 = 0;
-    m_remainSFP2 = 0;
-    m_parent = 0;
-}
+// [拆分] _Mastered_skill::_Mastered_skill → Game/SkillSlot/_Mastered_skill_ctor.cpp
 
-SkillSlot::~SkillSlot()
-{
-}
+// [拆分] stSPReturnInfo_t::stSPReturnInfo_t → Game/SkillSlot/stSPReturnInfo_t_ctor.cpp
 
-// NOTE(主 agent 协调)：ORIG 的 SkillSlot 拷贝构造/赋值是编译器隐式生成
-// （weak 符号 0x86996f6/0x869d91e，逐字节 AE 已由影子验证确认）。显式定义
-// 已在 SkillSlot.cpp 删除；需同步从 SkillSlot.h 移除声明（L241/L243）并移除
-// m_pad9 成员（ORIG 该处为自然 padding，隐式拷贝不复制），方可最终 identical。
+// [拆分] SkillSlot::SkillSlot → Game/SkillSlot/_Mastered_skill_ctor.cpp
 
-void SkillSlot::set_parent(CUser* parent)
-{
-    m_parent = parent;
-}
+// [拆分] SkillSlot::~SkillSlot → Game/SkillSlot/SkillSlot_dtor.cpp
 
-void SkillSlot::set_remain_sp(int sp1, int sp2, int sfp1, int sfp2)
-{
-    m_remainSP1 = sp1;
-    m_remainSP2 = sp2;
-    m_remainSFP1 = sfp1;
-    m_remainSFP2 = sfp2;
-}
+// [拆分] void SkillSlot::set_parent → Game/SkillSlot/set_parent.cpp
 
-void SkillSlot::get_remain_sp(int* sp1, int* sp2, int* sfp1, int* sfp2) const
-{
-    *sp1 = m_remainSP1;
-    *sp2 = m_remainSP2;
-    *sfp1 = m_remainSFP1;
-    *sfp2 = m_remainSFP2;
-}
+// [拆分] void SkillSlot::set_remain_sp → Game/SkillSlot/set_remain_sp.cpp
 
-// ==================== 简单查询 ====================
+// [拆分] void SkillSlot::get_remain_sp → Game/SkillSlot/get_remain_sp.cpp
 
-// 【P210】FindSkill(kind) 定义前置：调用者须在 get_skillslot_buf 定义之前，
-// 否则 4.4 按 callee 帧精确继承 outgoing，0x28 保守大帧塌缩为 0x18。
-int SkillSlot::FindSkill(int skillIdx, ENUM_SKILL_TREE_KIND kind) const
-{
-    _Mastered_skill* buf = get_skillslot_buf(kind);
-    if (buf == 0)
-    {
-        return 0;
-    }
-    for (int i = 0; i < 204; ++i)
-    {
-        if (buf[i].m_index == skillIdx)
-        {
-            return buf[i].m_level;
-        }
-    }
-    return 0;
-}
+// [拆分] int SkillSlot::FindSkill → Game/SkillSlot/FindSkill_kind.cpp
 
-_Mastered_skill* SkillSlot::get_skillslot_buf(ENUM_SKILL_TREE_KIND kind) const
-{
-    if (kind == -1 || kind == 0)
-    {
-        return const_cast<_Mastered_skill*>(m_skillSlot);
-    }
-    if (kind == 1)
-    {
-        return const_cast<_Mastered_skill*>(m_skillSlot2);
-    }
-    return 0;
-}
+// [拆分] _Mastered_skill* SkillSlot::get_skillslot_buf → Game/SkillSlot/get_skillslot_buf.cpp
 
-int* SkillSlot::get_cur_remain_sp(ENUM_SKILL_TREE_KIND kind) const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    if (kind == -1 || kind == 0)
-    {
-        return const_cast<int*>(&m_remainSP1);
-    }
-    if (kind == 1)
-    {
-        return const_cast<int*>(&m_remainSP2);
-    }
-    if (kind == 2)
-    {
-        return const_cast<int*>(&m_remainSFP1);
-    }
-    if (kind == 3)
-    {
-        return const_cast<int*>(&m_remainSFP2);
-    }
-    return 0;
-}
+// [拆分] int* SkillSlot::get_cur_remain_sp → Game/SkillSlot/get_cur_remain_sp.cpp
 
-int* SkillSlot::get_temp_remain_sp()
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    return &m_tempRemainSP;
-}
+// [拆分] int* SkillSlot::get_temp_remain_sp → Game/SkillSlot/get_temp_remain_sp.cpp
 
-int* SkillSlot::get_temp_remain_sfp()
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    return &m_tempRemainSFP;
-}
+// [拆分] int* SkillSlot::get_temp_remain_sfp → Game/SkillSlot/get_temp_remain_sfp.cpp
 
-_Mastered_skill* SkillSlot::get_temp_skill_slot()
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    return m_tempSkillSlot;
-}
+// [拆分] _Mastered_skill* SkillSlot::get_temp_skill_slot → Game/SkillSlot/get_temp_skill_slot.cpp
 
-int SkillSlot::GetSkillTreeIndex() const
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    return ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex();
-}
+// [拆分] int SkillSlot::GetSkillTreeIndex → Game/SkillSlot/GetSkillTreeIndex.cpp
 
-bool SkillSlot::IsLoadStrikerSkill()
-{
-    return m_isLoadStrikerSkill;
-}
+// [拆分] bool SkillSlot::IsLoadStrikerSkill → Game/SkillSlot/IsLoadStrikerSkill.cpp
 
-void SkillSlot::SetLoadStrikerSkill(bool flag)
-{
-    m_isLoadStrikerSkill = (char)flag;
-}
+// [拆分] void SkillSlot::SetLoadStrikerSkill → Game/SkillSlot/SetLoadStrikerSkill.cpp
 
-char SkillSlot::IsEmptySkillTree(ENUM_SKILL_TREE_KIND kind) const
-{
-    _Mastered_skill* buf = get_skillslot_buf(kind);
-    if (buf == 0)
-    {
-        return 0;
-    }
-    char ret = 1;
-    for (int i = 0; i < 204; ++i)
-    {
-        if (buf[i].m_index)
-        {
-            ret = 0;
-            break;
-        }
-    }
-    return ret;
-}
+// [拆分] char SkillSlot::IsEmptySkillTree → Game/SkillSlot/get_skillslot_buf.cpp
 
-int SkillSlot::get_skill_count() const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex());
-    if (buf == 0)
-    {
-        return 0;
-    }
-    int count = 0;
-    for (int i = 0; i < 204; ++i)
-    {
-        if (buf[i].m_index)
-        {
-            count = count + 1;
-        }
-    }
-    return count;
-}
+// [拆分] int SkillSlot::get_skill_count → Game/SkillSlot/get_skill_count.cpp
 
-unsigned int SkillSlot::get_skill_index(int slot) const
-{
-    if (m_parent == 0)
-    {
-        return 0xffffffff;
-    }
-    if (((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex() == -1 ||
-        ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex() == 0)
-    {
-        return (unsigned char)m_skillSlot[slot].m_index;
-    }
-    return (unsigned char)m_skillSlot2[slot].m_index;
-}
+// [拆分] unsigned int SkillSlot::get_skill_index → Game/SkillSlot/get_skill_index.cpp
 
-int SkillSlot::get_skill_level(int slot) const
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    if (((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex() == -1 ||
-        ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex() == 0)
-    {
-        return m_skillSlot[slot].m_level;
-    }
-    return m_skillSlot2[slot].m_level;
-}
+// [拆分] int SkillSlot::get_skill_level → Game/SkillSlot/get_skill_level.cpp
 
-int SkillSlot::get_skillslot_group(int slot) const
-{
-    int group = 6;
-    if (slot < 6)
-    {
-        group = -1;
-    }
-    else if (slot < 0x36)
-    {
-        group = 0;
-    }
-    else if (slot < 0x66)
-    {
-        group = 1;
-    }
-    else if (slot < 0x96)
-    {
-        group = 2;
-    }
-    else if (slot < 0xc6)
-    {
-        group = 3;
-    }
-    else if (slot < 0xcc)
-    {
-        group = -1;
-    }
-    if (group == 2 && 0x89 < slot)
-    {
-        group = 4;
-    }
-    return group;
-}
+// [拆分] int SkillSlot::get_skillslot_group → Game/SkillSlot/get_skillslot_group.cpp
 
-int SkillSlot::getSkillSlotIndex(ENUM_SKILL_TREE_KIND kind, int slot) const
-{
-    if (kind > 1)
-    {
-        LogManager::logFormat(1, "skill_slot.cpp",
-                              __PRETTY_FUNCTION__,
-                              0xd1f, "SkillSlot::getSkillSlotIndex kind(%d) error",
-                              kind);
-        return 0xffffffff;
-    }
-    if (kind == -1 || kind == 0)
-    {
-        return (unsigned char)m_skillSlot[slot].m_index;
-    }
-    return (unsigned char)m_skillSlot2[slot].m_index;
-}
+// [拆分] int SkillSlot::getSkillSlotIndex → Game/SkillSlot/getSkillSlotIndex.cpp
 
-int SkillSlot::get_remain_sp_at_index(ENUM_SKILL_TREE_KIND kind) const
-{
-    if (kind == -1 || kind == 0)
-    {
-        return m_remainSP1;
-    }
-    if (kind == 1)
-    {
-        return m_remainSP2;
-    }
-    LogManager::logFormat(1, "skill_slot.cpp",
-                          __PRETTY_FUNCTION__,
-                          0x68, "Wrong Skill Tree Kind : %d", kind);
-    return 0;
-}
+// [拆分] int SkillSlot::get_remain_sp_at_index → Game/SkillSlot/get_remain_sp_at_index.cpp
 
-int SkillSlot::get_remain_sfp_at_index(ENUM_SKILL_TREE_KIND kind) const
-{
-    if (kind == 2)
-    {
-        return m_remainSFP1;
-    }
-    if (kind == 3)
-    {
-        return m_remainSFP2;
-    }
-    LogManager::logFormat(1, "skill_slot.cpp",
-                          __PRETTY_FUNCTION__,
-                          0x81, "Wrong Skill Tree Kind : %d", kind);
-    return 0;
-}
+// [拆分] int SkillSlot::get_remain_sfp_at_index → Game/SkillSlot/get_remain_sfp_at_index.cpp
 
-void SkillSlot::set_remain_sp_at_index(int value, ENUM_SKILL_TREE_KIND kind)
-{
-    if (kind == -1 || kind == 0)
-    {
-        m_remainSP1 = value;
-    }
-    else if (kind == 1)
-    {
-        m_remainSP2 = value;
-    }
-}
+// [拆分] void SkillSlot::set_remain_sp_at_index → Game/SkillSlot/set_remain_sp_at_index.cpp
 
-void SkillSlot::set_remain_sfp_at_index(int value, ENUM_SKILL_TREE_KIND kind)
-{
-    if (kind == 2)
-    {
-        m_remainSFP1 = value;
-    }
-    else if (kind == 3)
-    {
-        m_remainSFP2 = value;
-    }
-    else
-    {
-        LogManager::logFormat(1, "skill_slot.cpp",
-                              __PRETTY_FUNCTION__,
-                              0x75, "Wrong Skill Tree Kind : %d", kind);
-    }
-}
+// [拆分] void SkillSlot::set_remain_sfp_at_index → Game/SkillSlot/set_remain_sfp_at_index.cpp
 
-void SkillSlot::get_skill_slot(char* out1, char* out2, int size) const
-{
-    if (0x198 < (unsigned)size)
-    {
-        size = 0x198;
-    }
-    memcpy(out1, m_skillSlot, size);
-    memcpy(out2, m_skillSlot2, size);
-}
+// [拆分] void SkillSlot::get_skill_slot → Game/SkillSlot/get_skill_slot.cpp
 
-void SkillSlot::get_skill_slot_at_index(char* out, int size,
-                                        ENUM_SKILL_TREE_KIND kind) const
-{
-    if (0x198 < (unsigned)size)
-    {
-        size = 0x198;
-    }
-    if (kind == -1 || kind == 0)
-    {
-        memcpy(out, m_skillSlot, size);
-    }
-    else if (kind == 1)
-    {
-        memcpy(out, m_skillSlot2, size);
-    }
-}
+// [拆分] void SkillSlot::get_skill_slot_at_index → Game/SkillSlot/get_skill_slot_at_index.cpp
 
-void SkillSlot::set_skill_slot_at_index(char* in, int size,
-                                        ENUM_SKILL_TREE_KIND kind)
-{
-    if (0x198 < (unsigned)size)
-    {
-        size = 0x198;
-    }
-    switch (kind)
-    {
-    case -1:
-    case 0:
-        memcpy(m_skillSlot, in, size);
-        break;
-    case 1:
-        memcpy(m_skillSlot2, in, size);
-        break;
-    default:
-        break;
-    }
-}
+// [拆分] void SkillSlot::set_skill_slot_at_index → Game/SkillSlot/set_skill_slot_at_index.cpp
 
-int SkillSlot::FindSkill(int skillIdx) const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex());
-    if (buf == 0)
-    {
-        return 0;
-    }
-    for (int i = 0; i < 204; ++i)
-    {
-        if ((unsigned char)buf[i].m_index == skillIdx)
-        {
-            return (int)(char)m_skillSlot[i].m_level;
-        }
-    }
-    return 0;
-}
+// [拆分] int SkillSlot::FindSkill → Game/SkillSlot/FindSkill.cpp
 
-// [b28d-solo-SkillSlot] int→bool（头声明同步）：ORIG check_skill_list 调用点
-// 0x08604d2a `call; xor $0x1,%eax; test %al,%al; je` = P292/P248 档①。
-bool SkillSlot::check_skill_mastered(int skillIdx, int level, int group) const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex());
-    if (buf == 0)
-    {
-        return 0;
-    }
-    int slot = get_skillslot_no(
-        skillIdx, group,
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex(),
-        1);
-    if (slot < 0)
-    {
-        return 0;
-    }
-    if ((unsigned char)buf[slot].m_index == skillIdx &&
-        level <= buf[slot].m_level)
-    {
-        return 1;
-    }
-    return 0;
-}
+// [拆分] bool SkillSlot::check_skill_mastered → Game/SkillSlot/check_skill_mastered.cpp
 
-bool SkillSlot::check_skill_mastered(int skillIdx, int level, int group,
-                                    ENUM_SKILL_TREE_KIND kind) const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(kind);
-    if (buf == 0)
-    {
-        return 0;
-    }
-    int slot = get_skillslot_no(skillIdx, group, kind, 1);
-    if (slot < 0)
-    {
-        return 0;
-    }
-    if ((unsigned char)buf[slot].m_index == skillIdx &&
-        level <= buf[slot].m_level)
-    {
-        return 1;
-    }
-    return 0;
-}
+// [拆分] bool SkillSlot::check_skill_mastered → Game/SkillSlot/check_skill_mastered_kind.cpp
 
-int SkillSlot::get_skillslot_no(_Mastered_skill* buf, int skillIdx, int group,
-                                bool checkCombo) const
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    if (buf == 0)
-    {
-        return -1;
-    }
-    if (checkCombo)
-    {
-        for (int i = 0; i < 6; ++i)
-        {
-            if ((unsigned char)buf[i].m_index == skillIdx)
-            {
-                return i;
-            }
-        }
-    }
-    int start = 0;
-    int end = 0;
-    switch (group)
-    {
-    case 0:
-        start = 6;
-        end = 0x36;
-        break;
-    case 1:
-        start = 0x36;
-        end = 0x66;
-        break;
-    case 2:
-        start = 0x66;
-        end = 0x96;
-        break;
-    case 3:
-        start = 0x96;
-        end = 0xc6;
-        break;
-    default:
-        break;
-    }
-    for (int i = start; i < end; ++i)
-    {
-        if ((unsigned char)buf[i].m_index == skillIdx)
-        {
-            return i;
-        }
-    }
-    if (checkCombo)
-    {
-        for (int i = 0xc6; i < 0xcc; ++i)
-        {
-            if ((unsigned char)buf[i].m_index == skillIdx)
-            {
-                return i;
-            }
-        }
-    }
-    return -1;
-}
+// [拆分] int SkillSlot::get_skillslot_no → Game/SkillSlot/get_skillslot_no_buf.cpp
 
-/* b28d-36（P210 前置法）：本函数 ORIG 帧 0x24（callee get_skillslot_no 已见定义、
- * outgoing 精确继承）；callee 定义后置时 4.4 撑保守帧 0x38、slot 槽 -0xc vs
- * ORIG -0x4。把 get_skillslot_no(_Mastered_skill*,...) 定义前置到本函数之前即
- * 逐条复现（NEAR→AE）。代价：callee 自身 .o 层 IDENT→AE（本地跳转偏移巧合丢失，
- * clean 口径仍等价）。 */
-int SkillSlot::check_skill_mastered(_Mastered_skill* buf, int skillIdx,
-                                    int level, int group) const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    if (buf == 0)
-    {
-        return 0;
-    }
-    int slot = get_skillslot_no(buf, skillIdx, group, 1);
-    if (slot < 0)
-    {
-        return 0;
-    }
-    if ((unsigned char)buf[slot].m_index == skillIdx &&
-        level <= buf[slot].m_level)
-    {
-        return 1;
-    }
-    return 0;
-}
+// [拆分] int SkillSlot::check_skill_mastered → Game/SkillSlot/get_skillslot_no_buf.cpp
 
-int SkillSlot::get_skillslot_no(int skillIdx, int group,
-                                ENUM_SKILL_TREE_KIND kind,
-                                bool checkCombo) const
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(kind);
-    if (buf == 0)
-    {
-        return -1;
-    }
-    if (checkCombo && checkComboSkillInsertQuickSlot(skillIdx))
-    {
-        for (int i = 0; i < 6; ++i)
-        {
-            if (buf[i].m_index == skillIdx)
-            {
-                return i;
-            }
-        }
-        for (int i = 0xc6; i < 0xcc; ++i)
-        {
-            if (buf[i].m_index == skillIdx)
-            {
-                return i;
-            }
-        }
-    }
-    int start = 0;
-    int end = 0;
-    switch (group)
-    {
-    case 0:
-        start = 6;
-        end = 0x36;
-        break;
-    case 1:
-        start = 0x36;
-        end = 0x66;
-        break;
-    case 2:
-        start = 0x66;
-        end = 0x96;
-        break;
-    case 3:
-        start = 0x96;
-        end = 0xc6;
-        break;
-    default:
-        break;
-    }
-    for (int i = start; i < end; ++i)
-    {
-        if (buf[i].m_index == skillIdx)
-        {
-            return i;
-        }
-    }
-    return -1;
-}
+// [拆分] int SkillSlot::get_skillslot_no → Game/SkillSlot/get_skillslot_no.cpp
 
-bool SkillSlot::checkComboSkillInsertQuickSlot(int skillIdx) const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    if (((CUserCharacInfo*)m_parent)->get_charac_job() == 9 && skillIdx == 0)
-    {
-        return 0;
-    }
-    return 1;
-}
+// [拆分] bool SkillSlot::checkComboSkillInsertQuickSlot → Game/SkillSlot/checkComboSkillInsertQuickSlot.cpp
 
-bool SkillSlot::checkMoveComboSkillSlot(unsigned char slot1, unsigned char slot2)
-{
-    if (m_parent == 0)
-    {
-        return false;
-    }
-    if (((CUserCharacInfo*)m_parent)->get_charac_job() == 9 &&
-        (slot1 < 6 || slot2 < 6))
-    {
-        return false;
-    }
-    return true;
-}
+// [拆分] bool SkillSlot::checkMoveComboSkillSlot → Game/SkillSlot/checkMoveComboSkillSlot.cpp
 
-int SkillSlot::insert_skill(int skillIdx, int group, bool isActive,
-                            ENUM_SKILL_TREE_KIND kind, int level)
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(kind);
-    if (buf == 0)
-    {
-        return -1;
-    }
-    int slot = get_skillslot_no(0, group, kind, isActive);
-    if (slot != -1)
-    {
-        buf[slot].m_index = (unsigned char)skillIdx;
-        buf[slot].m_level = (char)level;
-    }
-    return slot;
-}
+// [拆分] int SkillSlot::insert_skill → Game/SkillSlot/insert_skill.cpp
 
-int SkillSlot::insert_skill(_Mastered_skill* buf, int skillIdx, int group,
-                            bool isActive, int level)
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    if (buf == 0)
-    {
-        return -1;
-    }
-    int slot = get_skillslot_no(buf, 0, group, isActive);
-    if (slot != -1)
-    {
-        buf[slot].m_index = (unsigned char)skillIdx;
-        buf[slot].m_level = (char)level;
-    }
-    return slot;
-}
+// [拆分] int SkillSlot::insert_skill → Game/SkillSlot/get_skillslot_no_buf.cpp
 
-int SkillSlot::insert_skill_with_slot_index(int slot, int skillIdx,
-                                            bool isActive, int level)
-{
-    if (slot < 0)
-    {
-        return -4;
-    }
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex());
-    if (buf == 0)
-    {
-        return -1;
-    }
-    buf[slot].m_index = (unsigned char)slot;
-    buf[slot].m_level = 1;
-    return slot;
-}
+// [拆分] int SkillSlot::insert_skill_with_slot_index → Game/SkillSlot/insert_skill_with_slot_index.cpp
 
-int SkillSlot::delete_skill(int skillIdx, int job,
-                            ENUM_SKILL_TREE_KIND kind)
-{
-    CSkill* skill = NULL;
-    skill = G_CDataManager()->find_skill(skillIdx, job);
-    if (skill == 0)
-    {
-        return -1;
-    }
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(kind);
-    if (buf == 0)
-    {
-        return -1;
-    }
-    for (int i = 0; i < 204; ++i)
-    {
-        if (buf[i].m_index == skill->m_index)
-        {
-            buf[i].m_index = 0;
-            buf[i].m_level = 0;
-            break;
-        }
-    }
-    return 0;
-}
+// [拆分] int SkillSlot::delete_skill → Game/SkillSlot/delete_skill.cpp
 
-int SkillSlot::clear_all_skills(ENUM_SKILL_TREE_KIND kind)
-{
-    _Mastered_skill* buf = get_skillslot_buf(kind);
-    int* remain = get_cur_remain_sp(kind);
-    if (buf == 0 || remain == 0)
-    {
-        return 0;
-    }
-    m_parent = 0;
-    *remain = 0;
-    memset(buf, 0, 0x198);
-    return 1;
-}
+// [拆分] int SkillSlot::clear_all_skills → Game/SkillSlot/clear_all_skills.cpp
 
-int SkillSlot::clear_all_skills_both()
-{
-    m_parent = 0;
-    m_remainSP1 = 0;
-    memset(m_skillSlot, 0, 0x198);
-    m_remainSP2 = 0;
-    memset(m_skillSlot2, 0, 0x198);
-    m_isLoadStrikerSkill = 0;
-    return 1;
-}
+// [拆分] int SkillSlot::clear_all_skills_both → Game/SkillSlot/clear_all_skills_both.cpp
 
-bool SkillSlot::clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind)
-{
-    CSkill* skill = NULL;
-    for (int i = 0; i < 204; ++i)
-    {
-        if (kind == -1 || kind == 0)
-        {
-            skill = G_CDataManager()->find_skill(job, m_skillSlot[i].m_index);
-            if (skill == 0)
-            {
-                continue;
-            }
-            if (skill->IsSpecialSkill())
-            {
-                m_skillSlot[i].m_index = 0;
-                m_skillSlot[i].m_level = 0;
-            }
-        }
-        else if (kind == 1)
-        {
-            skill = G_CDataManager()->find_skill(job, m_skillSlot2[i].m_index);
-            if (skill == 0)
-            {
-                continue;
-            }
-            if (skill->IsSpecialSkill())
-            {
-                m_skillSlot2[i].m_index = 0;
-                m_skillSlot2[i].m_level = 0;
-            }
-        }
-        else
-        {
-            LogManager::logFormat(
-                1, "skill_slot.cpp",
-                __PRETTY_FUNCTION__,
-                0x49c, "SkillSlot::clear_sfp_skills error %d", kind);
-        }
-    }
-    return 1;
-}
+// [拆分] bool SkillSlot::clear_sfp_skills → Game/SkillSlot/clear_sfp_skills.cpp
 
-bool SkillSlot::backupSkill(ENUM_SKILL_TREE_KIND kind)
-{
-    int backupSize = 0x198;
-    if (kind == -1 || kind == 0)
-    {
-        memcpy(m_tempSkillSlot, m_skillSlot, backupSize);
-        m_tempRemainSP = m_remainSP1;
-        m_tempRemainSFP = m_remainSFP1;
-        return 1;
-    }
-    if (kind == 1)
-    {
-        memcpy(m_tempSkillSlot, m_skillSlot2, backupSize);
-        m_tempRemainSP = m_remainSP2;
-        m_tempRemainSFP = m_remainSFP2;
-        return 1;
-    }
-    return 0;
-}
+// [拆分] bool SkillSlot::backupSkill → Game/SkillSlot/backupSkill.cpp
 
-void SkillSlot::initialize_sfp_skill()
-{
-    if (m_parent == 0)
-    {
-        return;
-    }
-    if (((CUserCharacInfo*)m_parent)->get_charac_level() <= 0x31)
-    {
-        return;
-    }
-    ((SkillSlot*)((CUserCharacInfo*)m_parent)->getCurCharacSkillW())
-        ->clear_sfp_skills(
-            (char)((CUserCharacInfo*)m_parent)->get_charac_job(),
-            (ENUM_SKILL_TREE_KIND)0);
-    ((SkillSlot*)((CUserCharacInfo*)m_parent)->getCurCharacSkillW())
-        ->clear_sfp_skills(
-            (char)((CUserCharacInfo*)m_parent)->get_charac_job(),
-            (ENUM_SKILL_TREE_KIND)1);
-    ((SkillSlot*)((CUserCharacInfo*)m_parent)->getCurCharacSkillW())
-        ->set_remain_sfp_at_index(
-            ((CUserCharacInfo*)m_parent)->get_charac_level() - 0x31,
-            (ENUM_SKILL_TREE_KIND)2);
-    ((SkillSlot*)((CUserCharacInfo*)m_parent)->getCurCharacSkillW())
-        ->set_remain_sfp_at_index(
-            ((CUserCharacInfo*)m_parent)->get_charac_level() - 0x31,
-            (ENUM_SKILL_TREE_KIND)3);
-}
+// [拆分] void SkillSlot::initialize_sfp_skill → Game/SkillSlot/initialize_sfp_skill.cpp
 
-int SkillSlot::makeCheckSum(int key) const
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex());
-    if (buf == 0)
-    {
-        return -1;
-    }
-    int sum = 0;
-    for (int i = 0; i < 204; ++i)
-    {
-        if (buf[i].m_index == 0)
-        {
-            continue;
-        }
-        sum = getSkillChecksum(i, (unsigned char)buf[i].m_index,
-                               buf[i].m_level) +
-              sum;
-    }
-    return finishSkillChecksum(&sum, key);
-}
+// [拆分] int SkillSlot::makeCheckSum → Game/SkillSlot/makeCheckSum.cpp
 
 int SkillSlot::growtype_skill(int job, int skillIdx, int level,
                               ENUM_SKILL_TREE_KIND kind)
@@ -1147,229 +334,11 @@ int SkillSlot::growtype_skill(int job, int skillIdx, int level,
     return slot;
 }
 
-int SkillSlot::skill_move(unsigned char slot1, unsigned char slot2, int job)
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    if (!checkMoveComboSkillSlot(slot1, slot2))
-    {
-        return 0x13;
-    }
-    _Mastered_skill* buf = get_skillslot_buf(
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex());
-    if (buf == 0)
-    {
-        return -1;
-    }
-    if (buf[slot1].m_index == 0 && buf[slot2].m_index == 0)
-    {
-        return 0x15;
-    }
-    CSkill* skill1 = G_CDataManager()->find_skill(job, buf[slot1].m_index);
-    CSkill* skill2 = G_CDataManager()->find_skill(job, buf[slot2].m_index);
-    if (skill1 == 0 && skill2 == 0)
-    {
-        return 1;
-    }
-    int group1 = get_skillslot_group(slot1);
-    while (group1 == 6)
-    {
-        return 1;
-    }
-    int group2 = get_skillslot_group(slot2);
-    while (group2 == 6)
-    {
-        return 1;
-    }
-    if (group1 == 4 || group2 == 4)
-    {
-        return 0x13;
-    }
-    bool canMove = false;
-    if (buf[slot1].m_index == 0 && buf[slot2].m_index != 0)
-    {
-        if (skill2 == 0)
-        {
-            canMove = false;
-        }
-        else if (group1 == -1)
-        {
-            if (skill2->is_active_skill())
-            {
-                canMove = true;
-            }
-        }
-        else
-        {
-            if (skill2->get_group() == group1)
-            {
-                canMove = true;
-            }
-        }
-    }
-    else if (buf[slot2].m_index == 0 && buf[slot1].m_index != 0)
-    {
-        if (skill1 == 0)
-        {
-            canMove = false;
-        }
-        else if (group2 == -1)
-        {
-            if (skill1->is_active_skill())
-            {
-                canMove = true;
-            }
-        }
-        else
-        {
-            if (skill1->get_group() == group2)
-            {
-                canMove = true;
-            }
-        }
-    }
-    else if (skill1 == 0 || skill2 == 0)
-    {
-        canMove = false;
-    }
-    else if (group1 == -1 && group2 == -1)
-    {
-        canMove = true;
-    }
-    else
-    {
-        if (group1 == -1 && skill1->get_group() == group2)
-        {
-            if (skill2->is_active_skill())
-            {
-                canMove = true;
-            }
-        }
-        else
-        {
-            if (skill2->get_group() == group1 && group2 == -1)
-            {
-                if (skill1->is_active_skill())
-                {
-                    canMove = true;
-                }
-            }
-            else
-            {
-                if (skill2->get_group() == group1 &&
-                    skill1->get_group() == group2)
-                {
-                    canMove = true;
-                }
-            }
-        }
-    }
-    if (!canMove)
-    {
-        return 0x13;
-    }
-    _Mastered_skill temp;
-    temp = buf[slot1];
-    buf[slot1] = buf[slot2];
-    buf[slot2] = temp;
-    return 0;
-}
+// [拆分] int SkillSlot::skill_move → Game/SkillSlot/skill_move.cpp
 
-bool SkillSlot::check_skill_list(
-    int job, std::vector<std::pair<int, int> > list, int level) const
-{
-    // [b28d-solo-SkillSlot] 修法（AE 107=107）：P292 早返 + P28 it++ + P135 右值赋值
-    // + P50 迭代器声明即初始化（`iterator it = list.begin();` 直构进 it 槽，
-    // 消除默认构造弱实例 C1Ev 与 begin sret 临时槽；帧 0x68→0x58）。
-    // ORIG 0x08604c02 形 = `size(); test; sete; test; je` 后 `mov $1; jmp`（空表早返）、
-    // 增量段 `ppEi`（后置 ++ 带 sret 临时 -0x1c）、`pair = pair&&`（aSEOS0_ 调用，
-    // 临时 pair -0x24/-0x20）、`call check_skill_mastered; xor $1,%eax; test; je`
-    // （callee 返回 bool，见头声明）。
-    if (list.size() == 0)
-    {
-        return 1;
-    }
-    CSkill* skill = 0;
-    std::vector<std::pair<int, int> >::iterator it = list.begin();
-    std::pair<int, int> pair;
-    for (; it != list.end(); it++)
-    {
-        pair = std::pair<int, int>(*it);
-        int skillIdx = pair.first;
-        int reqLevel = pair.second;
-        skill = G_CDataManager()->find_skill(job, skillIdx);
-        if (skill == 0)
-        {
-            LogManager::logFormat(
-                1, "skill_slot.cpp",
-                __PRETTY_FUNCTION__,
-                0x42b, "G_CDataManager()->find_skill( %d, %d )", job,
-                skillIdx);
-            return 0;
-        }
-        int group = skill->get_group();
-        reqLevel = reqLevel - level;
-        if (reqLevel < 1)
-        {
-            reqLevel = 1;
-        }
-        if (!check_skill_mastered(skillIdx, reqLevel, group))
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
+// [拆分] bool SkillSlot::check_skill_list → Game/SkillSlot/check_skill_list.cpp
 
-void SkillSlot::calcReturnSpSfpPerOneSkill(int& sp, int& sfp, int level,
-                                           const _Mastered_skill* buf,
-                                           int slot, const CSkill* skill,
-                                           bool isSteal) const
-{
-    int need = 0;
-    int fitness = 0;
-    for (int i = level + 1; buf[slot].m_level >= i; ++i)
-    {
-        fitness = skill->get_second_growtype_fitness(
-            (int)((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType(),
-            (int)((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType());
-        if (fitness == 0)
-        {
-            fitness = skill->get_fitness(
-                (int)((CUserCharacInfo*)m_parent)
-                    ->getCurCharFirstGrowType());
-        }
-        need = skill->get_need_sp_sfp_for_level(i - 1, i);
-        if (need < 0)
-        {
-            break;
-        }
-        if (0 < fitness)
-        {
-            need = ((100 - fitness) * need) / 100;
-        }
-        if (isSteal)
-        {
-            // b28d-36（P0）：ORIG 无 penalty 具名槽（0x086066xx 段 ebx/eax 直传）
-            need = getSkillSpendSPOnSteal(need, skill->GetStealSPPenalty());
-        }
-        if (need < 0)
-        {
-            return;
-        }
-        if (skill->IsSpecialSkill())
-        {
-            sfp = sfp + need;
-        }
-        else
-        {
-            sp = sp + need;
-        }
-    }
-}
+// [拆分] void SkillSlot::calcReturnSpSfpPerOneSkill → Game/SkillSlot/calcReturnSpSfpPerOneSkill.cpp
 
 void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
 {
@@ -2539,72 +1508,7 @@ void SkillSlot::SendSkillInfo(int characIdx, ENUM_SKILL_TREE_KIND kind)
     m_parent->Send(guard);
 }
 
-int SkillSlot::checkskillSlotEmptyCount(int& out)
-{
-    if (m_parent == 0)
-    {
-        return 0;
-    }
-    int total = 0;
-    int charLevel = ((CUserCharacInfo*)m_parent)->get_charac_level();
-    _Mastered_skill* buf = get_skillslot_buf(
-        (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex());
-    if (buf == 0)
-    {
-        return 0;
-    }
-    int emptyCount = 0;
-    for (int i = 0; i < 6; ++i)
-    {
-        if (buf[i].m_index == 0)
-        {
-            emptyCount = emptyCount + 1;
-        }
-    }
-    if (charLevel < 0x10)
-    {
-        emptyCount = emptyCount - 3;
-        out = 1;
-    }
-    else if (charLevel < 0x1f)
-    {
-        emptyCount = emptyCount - 1;
-        out = 2;
-    }
-    else
-    {
-        out = 3;
-    }
-    total = emptyCount;
-    if (0x2d >= charLevel)
-    {
-        return total;
-    }
-    emptyCount = 0;
-    for (int i = 0xc6; i < 0xcc; ++i)
-    {
-        if (buf[i].m_index == 0)
-        {
-            emptyCount = emptyCount + 1;
-        }
-    }
-    if (charLevel < 0x3d)
-    {
-        emptyCount = emptyCount - 3;
-        out = 4;
-    }
-    else
-    {
-        emptyCount = emptyCount - 2;
-        out = 5;
-    }
-    if (0 < emptyCount)
-    {
-        total = total + emptyCount;
-    }
-    return total;
-}
+// [拆分] int SkillSlot::checkskillSlotEmptyCount → Game/SkillSlot/checkskillSlotEmptyCount.cpp
 
 // ==== SkillSlot::checkOverLevelSkill @ 0x08605d2a（报告 docs/class_func_reports/SkillSlot/checkOverLevelSkill.md）====
 // 检查超等级技能：对每槽技能计算当前等级可达到的最大技能等级（含偷学/超限加成），
@@ -2850,53 +1754,7 @@ bool SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
     return result;
 }
 
-void SkillSlot::debugCheckGrowTypeSkill(int level, int job, int firstGrow,
-                                        int secondGrow)
-{
-    for (int i = 0; i <= 203; ++i)
-    {
-        if (m_skillSlot[i].m_index != 0)
-        {
-            CSkill* skill = NULL;
-            skill = G_CDataManager()->find_skill(job, m_skillSlot[i].m_index);
-            if (skill == 0)
-            {
-                LogManager::logFormat(
-                    1, "skill_slot.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x5a4, "G_CDataManager()->find_skill( %d, %d )", job,
-                    (unsigned char)m_skillSlot[i].m_index);
-                return;
-            }
-            if (!skill->can_learn(level, firstGrow, secondGrow,
-                                  (int)(char)m_skillSlot[i].m_level))
-            {
-                m_skillSlot[i].m_index = 0;
-                m_skillSlot[i].m_level = 0;
-            }
-        }
-        if (m_skillSlot2[i].m_index != 0)
-        {
-            CSkill* skill = NULL;
-            skill = G_CDataManager()->find_skill(job, m_skillSlot2[i].m_index);
-            if (skill == 0)
-            {
-                LogManager::logFormat(
-                    1, "skill_slot.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x5b7, "G_CDataManager()->find_skill( %d, %d )", job,
-                    (unsigned char)m_skillSlot2[i].m_index);
-                return;
-            }
-            if (!skill->can_learn(level, firstGrow, secondGrow,
-                                  (int)(char)m_skillSlot2[i].m_level))
-            {
-                m_skillSlot2[i].m_index = 0;
-                m_skillSlot2[i].m_level = 0;
-            }
-        }
-    }
-}
+// [拆分] void SkillSlot::debugCheckGrowTypeSkill → Game/SkillSlot/debugCheckGrowTypeSkill.cpp
 
 void SkillSlot::debugCommandResetSkill()
 {
@@ -2924,19 +1782,7 @@ void SkillSlot::debugCommandResetSkill()
     }
 }
 
-void SkillSlot::loadComboSkill(SIG_COMBO_SKILL* data)
-{
-    if (data == 0)
-    {
-        return;
-    }
-    if (!m_comboSkill.loadData(data))
-    {
-        LogManager::logFormat(
-            1, "skill_slot.cpp", __PRETTY_FUNCTION__,
-            0xc75, "SkillSlot::loadComboSkill error");
-    }
-}
+// [拆分] void SkillSlot::loadComboSkill → Game/SkillSlot/loadComboSkill.cpp
 
 void SkillSlot::getComboSkillSaveData(SIG_COMBO_SKILL* data) const
 {
@@ -2959,104 +1805,19 @@ void SkillSlot::getComboSkillSaveData(SIG_COMBO_SKILL* data) const
     }
 }
 
-void SkillSlot::getComboSkillSendInfo(PacketGuard& packet) const
-{
-    m_comboSkill.getComboSkillSendList(packet);
-}
+// [拆分] void SkillSlot::getComboSkillSendInfo → Game/SkillSlot/getComboSkillSendInfo.cpp
 
-void SkillSlot::setComboSkillInfo(ENUM_SKILL_TREE_KIND kind,
-                                  std::map<short, std::vector<int> >& map)
-{
-    if (kind != 0 && kind != 1)
-    {
-        LogManager::logFormat(
-            1, "skill_slot.cpp",
-            __PRETTY_FUNCTION__,
-            0xc92, "SkillSlot::setComboSkillInfo kind(%d) error", kind);
-    }
-    else
-    {
-        m_comboSkill.setComboSkill(kind, map);
-    }
-}
+// [拆分] void SkillSlot::setComboSkillInfo → Game/SkillSlot/setComboSkillInfo.cpp
 
-void SkillSlot::resetComboSkill(ENUM_SKILL_TREE_KIND kind)
-{
-    if (kind != -1 && kind != 0)
-    {
-        LogManager::logFormat(1, "skill_slot.cpp",
-                              __PRETTY_FUNCTION__,
-                              0xcab, "SkillSlot::resetComboSkill kind(%d) error",
-                              kind);
-    }
-    else
-    {
-        m_comboSkill.resetTree(kind);
-    }
-}
+// [拆分] void SkillSlot::resetComboSkill → Game/SkillSlot/resetComboSkill.cpp
 
-void SkillSlot::verifyComboSkill()
-{
-    verifyComboSkillTree((ENUM_SKILL_TREE_KIND)0);
-    verifyComboSkillTree((ENUM_SKILL_TREE_KIND)1);
-}
+// [拆分] void SkillSlot::verifyComboSkill → Game/SkillSlot/verifyComboSkill.cpp
 
-void SkillSlot::verifyComboSkillTree(ENUM_SKILL_TREE_KIND kind)
-{
-    if (kind != 0 && kind != 1)
-    {
-        LogManager::logFormat(
-            1, "skill_slot.cpp",
-            __PRETTY_FUNCTION__, 0xd33,
-            "SkillSlot::verifyComboSkillTree kind(%d) error", kind);
-    }
-    else
-    {
-        std::vector<std::pair<int, int> >* slotList =
-            (std::vector<std::pair<int, int> >*)(
-                (char*)G_CDataManager()->m_characList + 0x48fc);
-        for (int i = 0; i < 6; ++i)
-        {
-            if ((*slotList)[i].first == 0)
-            {
-                continue;
-            }
-            m_comboSkill.eraseDuplicationComboSKill(
-                kind, (*slotList)[i].first);
-        }
-    }
-}
+// [拆分] void SkillSlot::verifyComboSkillTree → Game/SkillSlot/verifyComboSkillTree.cpp
 
-void SkillSlot::eraseDuplicationComboSKill()
-{
-    eraseDuplicationComboSKillTree((ENUM_SKILL_TREE_KIND)0);
-    eraseDuplicationComboSKillTree((ENUM_SKILL_TREE_KIND)1);
-}
+// [拆分] void SkillSlot::eraseDuplicationComboSKill → Game/SkillSlot/eraseDuplicationComboSKill.cpp
 
-void SkillSlot::eraseDuplicationComboSKillTree(ENUM_SKILL_TREE_KIND kind)
-{
-    if (kind != 0 && kind != 1)
-    {
-        LogManager::logFormat(
-            1, "skill_slot.cpp",
-            __PRETTY_FUNCTION__,
-            0xd0b, "SkillSlot::eraseDuplicationComboSKillTree kind(%d) error",
-            kind);
-    }
-    else
-    {
-        int skillIdx = 0;
-        for (int i = 0xc6; i < 0xcc; ++i)
-        {
-            skillIdx = getSkillSlotIndex(kind, i);
-            if (skillIdx == 0)
-            {
-                continue;
-            }
-            m_comboSkill.eraseDuplicationComboSKill(kind, skillIdx);
-        }
-    }
-}
+// [拆分] void SkillSlot::eraseDuplicationComboSKillTree → Game/SkillSlot/eraseDuplicationComboSKillTree.cpp
 
 bool SkillSlot::moveComboSkillExtensionQuickSlot(int skillIdx, int level,
                                                 ENUM_SKILL_TREE_KIND kind)
@@ -3143,7 +1904,6 @@ void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind)
         }
     }
 }
-
 
 // ==== SkillSlot::InitSkill @ 0x08608120（报告 docs/class_func_reports/SkillSlot/InitSkill.md）====
 // PvP 树频道：givePvPSkillTree + 脚本点数 set_remain_sp_at_index(+日志)。
@@ -3260,16 +2020,12 @@ bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     return true;
 }
 
+// [拆分] CSkillChanger::g_nStatUpItemIdx / g_nElixerAbility → Game/SkillSlot/CSkillChanger_staticData.cpp
+
+// [拆分] CSkillChanger::CSkillChanger / ~CSkillChanger → Game/SkillSlot/CSkillChanger_ctor_dtor.cpp
+
 namespace WongWork
 {
-// ORIG D 0x093acdc0：{8,0x40f,0x410,0x411,0x412,0x413,0x414,0x415,0x416}（[0]=计数）
-int CSkillChanger::g_nStatUpItemIdx[9] = {8, 0x40f, 0x410, 0x411, 0x412, 0x413, 0x414, 0x415, 0x416};
-// ORIG D 0x093ace00：{8,4,6,5,7,2,3,8,9}（[0]=计数，其余为对应能力值）
-int CSkillChanger::g_nElixerAbility[9] = {8, 4, 6, 5, 7, 2, 3, 8, 9};
-
-CSkillChanger::CSkillChanger() {}
-CSkillChanger::~CSkillChanger() {}
-
 void CSkillChanger::_ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
 {
     // b28d-solo-SkillSlot 判词（AE 40=40）：修法 = 加法右操作数 `(int)` 收窄。
@@ -3291,7 +2047,10 @@ void CSkillChanger::_ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
                 kind);
     }
 }
+}
 
+namespace WongWork
+{
 void CSkillChanger::_ResetSFPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
 {
     if (user->get_charac_level() <= 0x31)
@@ -3308,7 +2067,10 @@ void CSkillChanger::_ResetSFPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
     ((SkillSlot*)user->getCurCharacSkillW())
         ->set_remain_sfp_at_index(newPoint, kind);
 }
+}
 
+namespace WongWork
+{
 // [b23S3C] ORIG 0x0860a34a 尾 `leave; ret` 无 mov $0,%eax ⇒ 返回 void；
 // getCurCharacInvenR/CargoR 结果 ORIG 直落 0x4(%esp) 实参槽（无 -off 往返）⇒ P48 去具名局部；
 // 第一段 ORIG 先 Inven_Item ctor(-0x4d) 再 sret 临时(-0xd8)+逐字段赋值 ⇒ 拆 ctor/赋值两句
@@ -3328,7 +2090,10 @@ void CSkillChanger::_GetUserItemCount(const CUser* user)
         _CountSkillBook(item);
     }
 }
+}
 
+namespace WongWork
+{
 // ORIG 0x0860a634：累加 GetSpAtLevelUp(1..charLevel)。
 int CSkillChanger::_GetBaseSkillPoint(const CUser* user) const
 {
@@ -3339,115 +2104,16 @@ int CSkillChanger::_GetBaseSkillPoint(const CUser* user) const
     }
     return sum;
 }
-
-// ORIG 0x0860a6d0：固定返回 0。
-int CSkillChanger::_GetQuestSkillPoint(const CUser* user)
-{
-    return 0;
 }
 
-// ORIG 0x0860a1e6：GetCurCharacTotalSP(CUser const*, bool)。
-int CSkillChanger::GetCurCharacTotalSP(const CUser* user, bool flag)
-{
-    m_state.m_initialized = flag;
-    memset(&m_state.m_sec0, 0, 0x24);
-    memset(&m_state.m_sec1, 0, 0x24);
-    memset(&m_state.m_sec2, 0, 0x24);
-    memset(&m_state.m_sec3, 0, 0x24);
-    m_state.m_sec0.m_kindState = 8;
-    m_state.m_sec1.m_kindState = 8;
-    m_state.m_sec2.m_kindState = 8;
-    m_state.m_sec3.m_kindState = 8;
-    m_state.m_reserved91 = 0;
-    int base = _GetBaseSkillPoint(user);
-    _GetUserItemCount(user);
-    int quest = _GetQuestSkillPoint(user);
-    return base + quest;
-}
+// [拆分] int CSkillChanger::_GetQuestSkillPoint → Game/SkillSlot/CSkillChanger_GetQuestSkillPoint.cpp
 
-// ORIG 0x0860a950 真实空实现（仅 push/mov/pop/ret，无逻辑）。
-void CSkillChanger::_ApplyUserData(CUser* /*user*/, ENUM_SKILL_TREE_KIND /*kind*/)
-{
-}
+// [拆分] int CSkillChanger::GetCurCharacTotalSP → Game/SkillSlot/CSkillChanger_GetCurCharacTotalSP.cpp
 
-void CSkillChanger::_CountSkillBook(Inven_Item& item)
-{
-    for (int i = 1; i <= g_nStatUpItemIdx[0]; i++)
-    {
-        if (item.m_addInfo == g_nStatUpItemIdx[i])
-        {
-            m_data.m_elixerCount[i] = item.m_addInfo2;
-            m_data.m_skillBookCount[i] = g_nElixerAbility[i];
-        }
-    }
-}
+// [拆分] void CSkillChanger::_ApplyUserData → Game/SkillSlot/CSkillChanger_ApplyUserData.cpp
 
-void CSkillChanger::SkillInitialize(CUser* user, int kind, bool flag)
-{
-    m_state.m_initialized = flag;
-    memset(&m_state.m_sec0, 0, 0x24);
-    memset(&m_state.m_sec1, 0, 0x24);
-    memset(&m_state.m_sec2, 0, 0x24);
-    memset(&m_state.m_sec3, 0, 0x24);
-    m_state.m_sec0.m_kindState = 8;
-    m_state.m_sec1.m_kindState = 8;
-    m_state.m_sec2.m_kindState = 8;
-    m_state.m_sec3.m_kindState = 8;
-    m_state.m_reserved91 = 0;
-    if (kind == 0)
-    {
-        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)0);
-        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)1);
-        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)2);
-        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)3);
-        _GetUserItemCount(user);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)1);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)2);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)3);
-    }
-    else if (kind == 1)
-    {
-        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)0);
-        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)2);
-        _GetUserItemCount(user);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)2);
-    }
-    else if (kind == 2)
-    {
-        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)1);
-        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)3);
-        _GetUserItemCount(user);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)1);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)3);
-    }
-    else if (kind == 3)
-    {
-        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)2);
-        _GetUserItemCount(user);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)2);
-    }
-    else if (kind == 4)
-    {
-        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)3);
-        _GetUserItemCount(user);
-        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)3);
-    }
-}
-}
+// [拆分] void CSkillChanger::_CountSkillBook → Game/SkillSlot/CSkillChanger_CountSkillBook.cpp
 
-// ---- SkillSlot 拷贝构造/赋值（ORIG W 弱符号：拷贝构造 0x086996f6 /
-// operator= 0x0869d91e，均为编译器隐式生成形态——标量逐字段 movzbl +
-// ComboSkill C1ERKS/aSERKS + 三组 _Mastered_skill[204] 逐元素循环 + 尾部标量）。
-// 本 TU 无值语义调用点，GCC -O0 不实例化隐式成员 → 匿名命名空间 odr-use
-// 强制生成两个弱符号，保证真实成员拷贝可用（P74：ORIG 弱拷贝优先隐式生成）。
-namespace
-{
-void SkillSlotCopyForceUse()
-{
-    SkillSlot a;
-    SkillSlot b(a);
-    a = b;
-}
-}
+// [拆分] void CSkillChanger::SkillInitialize → Game/SkillSlot/CSkillChanger_SkillInitialize.cpp
+
+// [拆分] void SkillSlotCopyForceUse → Game/SkillSlot/SkillSlotCopyForceUse.cpp
