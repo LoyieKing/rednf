@@ -215,6 +215,9 @@ void CAddItemPollutionCmd::parse()
 // 到 %edx，P75 跨版本，探针 p3/p4 五形不翻）。
 // [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%edx; mov -0x18(%ebp),%edx;
 //   0xc(%esp)…` vs 4.4.7 `%ecx/%edx` 角色互换（间接 call 目标寄存器族，P230 补）。
+// [round5-A20 复核·N126] fresh .o 184/184、判据⑪ PURE SHIFT c=0x0（frame 96=96、
+//   槽集全等）⇒ 残差纯为 N7 间接调用目标寄存器角色（含 investAmplifyOption 实参
+//   装载序，P75）⇒ 与 CAddItemByMail 同族封顶。
 void CAddItemPollutionCmd::execute()
 {
     if (m_itemIdx == -1)
@@ -321,6 +324,10 @@ void CAddItemByMail::parse()
 // [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%edx; lea -0x82(%ebp),%eax;
 //   mov %eax,0x4(%esp); mov -0x1c(%ebp),%eax; mov %eax,(%esp); call *%edx` vs 4.4.7 用 %eax 目标；
 //   另 `mov -0x28(%ebp),%ebx` 保活（ORIG）vs 4.4.7 直读（P226/N18a）。
+// [round5-A20 复核·N126] fresh .o 185/185、判据⑪ PURE SHIFT c=0x0（frame 428=428、
+//   槽集全等）⇒ 残差纯为 N7 间接调用 receiver 寄存器角色（ORIG `mov (%eax),%edx;
+//   …call *%edx` vs 4.4.7 全 %eax）+ `mov -0x28(%ebp),%ebx` 保活（P226/N18a）。
+//   P230 实测 4.4.6 后端亦不达 ⇒ 属路由域，封顶。
 void CAddItemByMail::execute()
 {
     CUser* user = GetUser();
@@ -659,6 +666,12 @@ void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
 // （P315/P234，ORIG 调 `make_pair<int,int>(int&&,int&&)` 且直接传 `lea lotto+7`）
 // 后 orig/ours=87/87；残余仅 4.4 对右值 cast 恒物化临时拷贝（2 条，探针 p16
 // f1/f2/f4 均拷贝，4.1 直接传原地址）⇒ N130/P75 封顶。
+// [round5-A20 复核] fresh .o 87/86（gap +1）唯一残差=make_pair 首实参：
+//   ORIG 0x084afaf0 `lea -0x6d(%ebp),%edx; add $0x7,%edx; mov %edx,0x4(%esp)`（把
+//   **字段本身的地址**作 int&& 绑定）vs 4.4.7 对 `static_cast<int&&>(lotto.m_addInfo2)`
+//   恒先物化 4B 临时（`mov -0x6a(%ebp),%eax; mov %eax,-0x10(%ebp); lea -0x10,%edx`）
+//   ⇒ 4.1 引用直接绑字段、4.4.7 绑临时（`std::move` 形会多发一次 out-of-line call，
+//   P234 禁）⇒ N18a/P75 封顶。
 void CBoosterTest::get_gold_lottery_result(CItem const* item,
                                            std::map<int, int>& result)
 {
@@ -892,6 +905,11 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
 // a1..a9（空 if/else 空/switch/while-break/do-while/goto 尾标签/嵌套/for-break）+
 // /tmp/pg/p4.cpp b1..b8（双 goto 同标签/else goto/双标签串/自赋值/(void)）共 17 形
 // 全部无 cmp/jmp/nop 输出 ⇒ 无源码解，P184 封顶。
+// [round5-A20 本轮新修·配方㉓] 空 `switch (ret == -1) { }` 复现 ORIG 0x084af44c 的
+//   死比较 `cmpl $0xffffffff,-0x18(%ebp)`（旧 `if(ret==-1){}` 被 4.4 前端整块 DCE，
+//   17 形探针全败）⇒ 92/93（gap -1，改前 91/93 gap -2）。残余仅 ORIG 0x084af450
+//   `jmp +1; nop` 空 then 中继岛（P184/P223 边界：该 jmp 为 4.1 空块占位产物，
+//   4.4 无对应发射点，`switch(ret){case -1:break;}` 形实测更劣 91）⇒ 封顶。
 int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
                                         unsigned short const* sockets) const
 {
@@ -1266,6 +1284,12 @@ void CBingoGmTest::resetData()
 // 对 if 恒内存比较+内存写（c1/c8/c10），unsigned 比较出 `mov slot,%eax; cmpl; jbe; movl`
 // 仍无回写（c4/d2），`+0`/cast/局部副本等 11 形均不产寄存器回写 ⇒ 后端 cmov 选择差异，
 // N18b/P321-T5 封顶（禁为装载序改类型）。
+// [round5-A20 复核·N18b] fresh .o 147/149（gap -2）唯一残差=clamp 段 5 vs 3 条：
+//   ORIG 0x084b37xx `mov -0x10(%ebp),%eax; cmp $0x3,%eax; jle; mov $0x3,%eax;
+//   mov %eax,-0x10(%ebp)`（寄存器比较+常量经 eax 统一回写）vs 4.4 `cmpl $0x3,-0x10;
+//   jle; movl $0x3,-0x10`（内存形）。判据⑪ PURE SHIFT c=0（frame 64=64、槽集全等）
+//   ⇒ 非槽问题；前轮 12 形探针 + 本轮复核结论一致：寄存器回写形仅 `-march=i486`
+//   （消 cmov/MIN_EXPR，P230①）可达，属路由域 ⇒ N18b/P321-T5 封顶。
 void CBingoGmTest::reqValue()
 {
     CUser* user = GetUser();

@@ -751,13 +751,22 @@ void CRidable::SetRidableObject(RidableScript& script)
     // ELSE 分支走基类隐式整体赋值（6 dword）。
     DungeonRidableObject obj;
     RidableObject tmp;
+    // ORIG 槽图：循环1 计数器 -0xc（浅）、循环2 计数器 -0x10（深）⇒ 头部声明序
+    // 实测 4.4 头部标量「后声明浅」：j 先声明确保 i 落浅槽 -0xc（P309 反向）；
+    // ELSE 分支的 `j = 0;` 在 pool 构造之前发射（ORIG 0x082fe81c `movl $0x0,
+    // -0x10(%ebp)` 先于 C1ERKS_ 0x082fe836）。
+    int j;
+    int i;
 
     m_flag18 = *(unsigned char*)&script.m_4;   // P266：uchar 左值读单段 movzbl
     m_count1c = script.m_0;
 
-    if (script.m_0 < static_cast<int>(script.m_objects.size()))
+    // ORIG 0x082fe72f：`cmp %eax,%ebx; setge %al; test %al,%al; je <ELSE(0x14c)>`
+    // ⇒ fall-through（m_0 >= size）走「顺序遍历 m_objects（上界 size）」，ELSE 走
+    // 「拷贝 pool 随机抽取（上界 m_0）」。旧写 `<` 把两分支对象来源互换（真语义 bug）。
+    if (script.m_0 >= static_cast<int>(script.m_objects.size()))
     {
-        for (int i = 0; i < static_cast<int>(script.m_objects.size()); ++i)
+        for (i = 0; i < static_cast<int>(script.m_objects.size()); ++i)
         {
             obj = script.m_objects[i];
             obj.m_state = 4;
@@ -767,8 +776,9 @@ void CRidable::SetRidableObject(RidableScript& script)
     }
     else
     {
+        j = 0;
         std::vector<RidableObject> pool(script.m_objects);
-        for (int i = 0; i < script.m_0; ++i)
+        for (; j < script.m_0; ++j)
         {
             std::random_shuffle(pool.begin(), pool.end());
             tmp = pool.back();

@@ -115,9 +115,9 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
 {
     int rsa_size = RSA_size(m_rsa);
     int pos = 0;
-    int chunk = len - pos;
-    if (chunk > rsa_size)
-        chunk = rsa_size;
+    // [b28d-solo-D02] ORIG 0x0816c552..0x0816c567 为三目展开形：条件分支共享
+    // 寄存器内的 `len - pos`，随后单条 `mov %eax,-0x20`（i486 无 cmov）。
+    int chunk = (len - pos > rsa_size) ? rsa_size : (len - pos);
     while (chunk > 0)
     {
         std::vector<unsigned char> block;
@@ -135,9 +135,7 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
         // `normal_iterator::operator+` + 迭代器版 insert（p167 EXTRA/MISSING 差集）。
         out.insert(out.end(), &block[0], &block[0] + written);
         pos += chunk;
-        chunk = len - pos;
-        if (chunk > rsa_size)
-            chunk = rsa_size;
+        chunk = (len - pos > rsa_size) ? rsa_size : (len - pos);
     }
     return true;
 }
@@ -151,9 +149,8 @@ bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& o
     int rsa_size = RSA_size(m_rsa);
     int max_chunk = rsa_size - 0xc;
     int pos = 0;
-    int chunk = len - pos;
-    if (chunk > max_chunk)
-        chunk = max_chunk;
+    // [b28d-solo-D02] 同 Decrypt：ORIG 0x0816c3cb..0x0816c3e0 三目展开形。
+    int chunk = (len - pos > max_chunk) ? max_chunk : (len - pos);
     while (chunk > 0)
     {
         std::vector<unsigned char> block;
@@ -168,9 +165,7 @@ bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& o
         // [L10-2] 同 Decrypt（ORIG 0x0816c47x 段同形：指针版 insert + 2×operator[]）。
         out.insert(out.end(), &block[0], &block[0] + written);
         pos += chunk;
-        chunk = len - pos;
-        if (chunk > max_chunk)
-            chunk = max_chunk;
+        chunk = (len - pos > max_chunk) ? max_chunk : (len - pos);
     }
     return true;
 }

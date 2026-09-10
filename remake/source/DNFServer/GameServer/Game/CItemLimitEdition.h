@@ -30,20 +30,22 @@ class PacketGuard;
 // 条目数据结构：前 0x48 字节语义与 CItemLimitEdition 头一致（ORIG ctor 复制 0x48）。
 struct stItemLimitEditionItemInfo_t
 {
-    int              m_ipgNo;                 // +0x00（getIPGNO）
-    int              m_itemIdx;               // +0x04（getRelateditem / put_item_idx）
-    int              m_relatedItemCnt;        // +0x08（getRelatedItemCnt）
-    unsigned char    m_avatarTypeSelect;      // +0x0c（getAvatarTypeSelect / put_byte）
+    // [P254 档③] 与 CItemLimitEdition 头 0x48 字节同型（ORIG ctor 0x084e9732 逐字段搬运
+    // 形态直证：+0x18 写入 this+0x48 为单段 `mov 0x18(%eax),%edx` ⇒ 两侧同型 ⇒ unsigned）。
+    unsigned int     m_ipgNo;                 // +0x00（getIPGNO）
+    unsigned int     m_itemIdx;               // +0x04（getRelateditem / put_item_idx）
+    unsigned int     m_relatedItemCnt;        // +0x08（getRelatedItemCnt）
+    char             m_avatarTypeSelect;      // +0x0c（getAvatarTypeSelect / put_byte）
     char             m_pad0d[3];              // +0x0d
-    int              m_priceCera;             // +0x10（getPriceCera）
-    int              m_priceGold;             // +0x14（getPriceGold）
-    int              m_initSellNum;           // +0x18（ctor 写入对象 +0x48 的初始销量）
+    unsigned int     m_priceCera;             // +0x10（getPriceCera）
+    unsigned int     m_priceGold;             // +0x14（getPriceGold）
+    unsigned int     m_initSellNum;           // +0x18（ctor 写入对象 +0x48 的初始销量）
     int              m_totalSellNum;          // +0x1c（getTotalSellNum / isSellComplete）
-    int              m_featuredIdx;           // +0x20（getFeaturedIdx）
+    unsigned int     m_featuredIdx;           // +0x20（getFeaturedIdx）
     int              m_field24;               // +0x24（0x48 复制段内未具名 getter）
     int              m_sellEndTime;           // +0x28（getSellEndTime，剩余时间计算源）
-    int              m_field2c;               // +0x2c（makeInfoPacket put_int）
-    int              m_condCharacJob;         // +0x30（getCondCharacJob / put_byte）
+    unsigned int     m_field2c;               // +0x2c（makeInfoPacket put_int）
+    unsigned int     m_condCharacJob;         // +0x30（getCondCharacJob / put_byte）
     unsigned short   m_condCharacLevelBegin;  // +0x34（getCondCharacLevelBegin / put_short）
     unsigned short   m_condCharacLevelEnd;    // +0x36（getCondCharacLevelEnd / put_short）
     int              m_condAccCreateTimeBegin;  // +0x38（getCondAccCreateTimeBegin）
@@ -62,7 +64,7 @@ public:
     void makeInfoPacket(PacketGuard& packet) const;                // ORIG 0x085130e8
 
     // ---- getters（ORIG nm -C，均为 const，返回类型按 objdump 指令形态）----
-    int getIPGNO() const;                       // 0x084e971c
+    unsigned int getIPGNO() const;              // 0x084e971c（ORIG 单段直返 ⇒ 与字段同型 unsigned）
     int getRelateditem() const;                 // 0x0817a090
     int getRelatedItemCnt() const;              // 0x0822ca98
     unsigned char getAvatarTypeSelect() const;  // 0x0822cab0

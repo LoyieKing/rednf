@@ -316,6 +316,9 @@ void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
         redConst += redConst;
 
     // 0x0809598c：dr = std::max(dr, 0.0f)
+    // [C03 实测] ORIG 该 max 的第一实参是具名 0.0f 局部（-0x20）、第二为 dr（-0x24），
+    //   但把 0.0f/1.0f 具名化后 4.4 全帧槽位反而上升 4（dr -0x20→-0x18，本件变差），
+    //   已回退；残差属 N85①+槽组族（见下）。
     dr = std::max(dr, 0.0f);
 
     // 0x080959ae..0x080959de：out0 = dr / max(1.0f, (float)lvl * redConst + dr)

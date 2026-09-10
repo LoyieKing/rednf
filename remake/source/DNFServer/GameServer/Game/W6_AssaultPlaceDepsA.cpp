@@ -443,6 +443,10 @@ LOOP_END:
         ;
     }
 
+    // [C07] N82附 封顶：aliveCounts 与块内 PacketGuard 槽深浅互换（ORIG counts
+    //   -0x24/-0x20 < packet -0x1c；OURS packet -0x24、counts -0x18/-0x14）。
+    //   P309 两形实测（头部声明+后置赋值 / 提到 i 之前）槽图均不变 ⇒ 4.4
+    //   「块内聚合优先占低槽」固定分区，不可翻。
     int aliveCounts[2] = { 0, 0 };
     // [b28d-62] P232：ORIG 0x082e9a71 有 dead bool 预清 `movb $0x0,-0x9`（后续
     //   无读取），缺失导致 i 槽 -0xc vs ORIG -0x10 全帧浅 4 ⇒ 按原样补声明。

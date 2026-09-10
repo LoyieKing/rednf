@@ -108,13 +108,15 @@ int eventReward::unsealRandomOption(const CItem* item, Inven_Item& inven)
         return 0;
     // ORIG 反汇编：第二次虚调用 vptr+0x50 = vtable 槽 20 = GetRandomOptionGrade
     //（CItem vtable @0x8c96da8：s19=IsRandomOption, s20=GetRandomOptionGrade）。
+    // ORIG +0x3c..+0x42：&inven.m_random(+0x25) 在首个 getter 之前物化到 -0x1c 槽 ⇒ 具名指针局部。
+    RandomOption* pOption = &inven.m_random.m_random;
     register int period = item->GetRandomOptionGrade();
     register int group = item->getItemGroupName();
     register int lvl = item->getUsableLevel();
     register int rarity = item->get_rarity();
     if (!GlobalData::g_randomOptionHandle->give_option(
             (unsigned long)inven.m_addInfo,
-            (ENUM_RARITY)rarity, lvl, group, period, &inven.m_random.m_random))
+            (ENUM_RARITY)rarity, lvl, group, period, pOption))
     {
         LogManager::logFormat(
             1, "eventReward.cpp",
@@ -253,7 +255,9 @@ int eventReward::sendPostalReward(CUser& user, rewardKey key, int count,
             const int lvl = user.get_charac_level();
             OS_API::snprintf(buf, 0xff,
                              g_scriptStringManager_.findString(4, body, 0), lvl);
-            if (itemIdx != 0 && citem->is_stackable())
+            // ORIG +0x2ab：读的是 inven.m_addInfo（-0x87 = inven+0x02），非 itemIdx 形参副本；
+            // 且短路带 bool 物化岛（mov $1/jmp/mov $0 + test）⇒ P226 语句表达式。
+            if (({ inven.m_addInfo != 0 && citem->is_stackable(); }))
             {
                 const int expDate = citem->getExpirationDate();
                 const size_t len = strlen(buf);

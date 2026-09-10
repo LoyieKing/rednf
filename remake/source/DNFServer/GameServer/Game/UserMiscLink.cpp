@@ -583,8 +583,13 @@ void LevelupSupportEventManger::InsertItem(CUser* user, int eventIdx, ENUM_ERROR
         // ORIG 0x081475ec：slot<0 跳后置 mail 块（`not/shr $0xf/test/je`），
         // slot>=0 直落 SendUpdateItem ⇒ 正极性 if/else 交换块序（P59/P222）。
         // ORIG 0x081475ec：`movzwl -0x12,%eax; not %eax; shr $0xf,%ax; test %al,%al; je`
-        // ⇒ 原码为 (unsigned short)(~slot) >> 15（非 cmpw/js 直比形）。
-        if ((unsigned char)((unsigned short)(~slot) >> 15) != 0)
+        // ⇒ 原码为 (~slot) >> 15 后按 unsigned short 取值（非 cmpw/js 直比形）。
+        // [D04 探针 /tmp/pm/probe2.cpp k1、probe3.cpp p1..p5] 只有
+        // `(unsigned short)((unsigned)(~slot) >> 15)` 产 4 条形 `movswl; not %eax;
+        // shr $0xf,%eax; test %ax,%ax`（其余五形恒插 `movzwl %ax,%eax` 窄化中转 = +1 条）。
+        // 残余 = 4.1 的 16 位窄化（`movzwl` 装载 / `shr %ax` / `test %al,%al`）vs 4.4 恒 32 位
+        // 提升（`movswl` / `shr %eax` / `test %ax,%ax`）⇒ 结构性 N（同 N206/整数提升族）。
+        if ((unsigned short)((unsigned)(~slot) >> 15) != 0)
         {
             user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, slot);
         }

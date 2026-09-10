@@ -390,6 +390,9 @@ bool CExchangeServer::ReturnCacheCharacter(int a, int b, int c, int d,
             // /tmp/probe_es p1-t2）；ORIG 0x8491963..0x849197f 为 && 结果物化岛
             // （mov$1/jmp/mov$0/test）且无槽 ⇒ P231 纯 register 存储类提示复现
             // （探针 p7-t47：岛形一致，仅 test 寄存器 %bl vs ORIG %al）。
+            // [b28e 本泳道复测] 去 register（plain bool）⇒ 4.4 落槽物化
+            // `mov %al,-0x9; cmpb $0,-0x9`（ORIG 为 `test %al,%al` 零槽）
+            // ⇒ 保留 register 形（不占槽、指令数同）。
             register bool valid = (pos != 0 && found);
             if (valid)
             {

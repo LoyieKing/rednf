@@ -841,13 +841,18 @@ int CClearReward::loadScript(char const* path)
         return 0x943;
     std::string section;
     std::string token;
-    bool ok = false;
+    // [b28d-C08] ORIG 语句序 = section 构造(0x085392ef) → idx 清零(0x085392fa) →
+    // ok 清零(0x08539301)：`idx` 声明**先于** `ok`。
     // [b28d-C08 clr_l/widthscan 判据⑫] ORIG 0x085392fa 在函数入口清 `-0x44(%ebp)`，
     // 而 [item drop ref table] 0x08539893 / [gold card cost table] 0x0853994f 都是
     // `mov %eax,-0x44(%ebp)`（ScanInt 结果复用同一槽）⇒ 原码是**函数头**具名
     // `int idx = 0;`，两段各自赋值（非循环内声明）。旧形两处 `int idx = ScanInt(&ok);`
     // 使 clr_l 少 1（8 vs 11）并整体抬高槽序。
     int idx = 0;
+    bool ok = false;
+    // [b28d-C08 试形] fill 提到函数头：4.4 对**块内** POD 恒分配最深槽（fill 落
+    // -0x58/-0x54/-0x50），ORIG(4.1) 把它排在 section(-0x54) 之后（-0x50/-0x4c/-0x48）。
+    stGenItemProb_t fill;
     for (;;)
     {
         if (!ScanType(section, true))
@@ -862,7 +867,6 @@ int CClearReward::loadScript(char const* path)
                 // ORIG 0x08539373/7a/81：循环内三次**独立** `movl $0x0,-0x50/-0x4c/-0x48(%ebp)`。
                 // 链式 `v[0]=v[1]=v[2]=0` 被 4.4 copy-prop 成 1 store + 2 copy（clr_l 8 vs 11）；
                 // 三条独立语句才还原三次清零（widthscan clr_l 判据⑫）。
-                stGenItemProb_t fill;
                 fill.v[0] = 0;
                 fill.v[1] = 0;
                 fill.v[2] = 0;
@@ -873,6 +877,7 @@ int CClearReward::loadScript(char const* path)
         {
             // ScanStr 选槽：default/event/event2/pcroom default/pcroom event/
             // pcroom bonus → 0..5；未知 → 0x969。扫描失败静默退出本节。
+            std::string token;
             for (;;)
             {
                 if (!ScanStr(&token))

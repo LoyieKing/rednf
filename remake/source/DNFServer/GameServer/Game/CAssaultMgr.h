@@ -6,6 +6,7 @@
 
 #include <map>
 #include <vector>
+#include <cstddef>   // offsetof（C07：CAssaultPlace 布局锁）
 
 #include "StaticPool.h"
 #include "GameEnums.h"   // ENUM_USERINFO（W6_AssaultPlaceA：_MakeUserInfo 签名）
@@ -540,6 +541,11 @@ public:
                                                          //   _GetNextAssaultPlaceId 0x82ed976 自增该字段）
     std::map<unsigned int, CAssaultPlace*> m_places;     // +0x08
 };
+// [C07ExpertHeroAssault/R2] 字段 enum 化（P254/P248档③）后的布局锁：两字段由 int
+//   改为 unscoped enum（底层 int）⇒ sizeof/全部偏移/mangled 必须零变化。
+static_assert(offsetof(CAssaultPlace, m_state) == 0x10c, "CAssaultPlace m_state offset drift");
+static_assert(offsetof(CAssaultPlace, m_winTeam) == 0x124, "CAssaultPlace m_winTeam offset drift");
+static_assert(sizeof(CAssaultPlace) == 0x140, "CAssaultPlace size drift");
 // =====================================================================
 // CAssaultPlaceFactory —— StaticPool 包装。
 // ORIG C1 0x82f0f96 / D1 0x82f0f82：成员即 StaticPool<CAssaultPlace,128>；

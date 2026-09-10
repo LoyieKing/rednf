@@ -577,6 +577,15 @@ case "$(basename "$src" .cpp)" in
                 # ndiff 36 → 12（余 clamp 段 setl 物化），TU 四数 60/694/near4/diff17 逐项不变、
                 # 其余 8 件读数不变 ⇒ 零回归。注意 -mtune=generic 必须同带（默认 tune 改调度）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
+            *Game/SDCLink.cpp)
+                # [Main·2026-09-10 round5] 路由 A/B 实证（C03 上报 + Main 独立复编核验）：
+                #   `_ZSt3maxIfERKT_S2_S2_`（ORIG 0x08080609）为 4.1 x87 比较 lowering
+                #   `fucompp; fnstsw %ax; test $0x45,%ah; sete %al`；默认 4.4.7 产
+                #   `fucomip %st(1),%st; fstp %st(0); seta %al`（N85 族）。
+                #   实测：默认 28/20(48)/near0/diff7 → 同旗标 28/21(49)/near0/diff6
+                #   （ae +1 / diff −1，其余 5 件 DIFF 读数不变，零回归）。
+                #   注意 `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *)
                 exec "$C6" "$@" ;;
         esac ;;

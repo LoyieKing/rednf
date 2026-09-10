@@ -614,8 +614,12 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
                 // 发射两个 mov $1（+2）；嵌套三目
                 // `a ? true : (b ? false : true)` 逐条复现 ORIG 共享形
                 // （探针 /tmp/p1/probe5.cpp g1 与 ORIG 段全等，g2/g3/g4 均劣）。
-                return (p->m_field4 > idx) ? true
-                                           : ((p->m_field8 >= idx) ? false : true);
+                // 零值守卫并入同一表达式（probe8 k2）实测**反劣**（62→70：bool
+                // 返回下 4.4 复制守卫链并多发 mov $0），已回退；残余 +2 为
+                // 4.4 不共享零值守卫的 `mov $0`（N93附 尾部块序）。
+                return (p->m_field4 > idx)
+                           ? true
+                           : ((p->m_field8 >= idx) ? false : true);
             }
             return false;
         }
