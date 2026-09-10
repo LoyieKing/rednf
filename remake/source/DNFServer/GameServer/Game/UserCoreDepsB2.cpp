@@ -132,6 +132,13 @@ typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) ==
 // 「infoBuf 移入 if 分支」无效（ndiff 37 不变），历史「additional 提升函数域」反劣 ⇒ N82；
 // ②循环内 base 地址计算：4.4 产 `mov -0x1c,%edx; lea (%edx,%eax,1)`（2 条）vs ORIG
 // `add -0x1c(%ebp),%eax`（1 条）⇒ N7/N-addr；③idxPos/count 槽差。语义等价。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=①prett2 缺口 0、strall 串差 0
+//   （仅 base64 假阳性）、p167 CLEAR；②444/446h 变体四数逐项相同（无路由旋钮）；
+//   ③本波复核 276/279 gap=-3、6 块：infoBuf/additional 槽向互换（ORIG -0xd2/-0x7b）
+//   ——4.4 对「函数级 vs 块内」对象的分配顺序与 4.1 相反（块内先分深槽），P183/P329
+//   声明位四形 + D01 pack(2) 镜像历史已试；另 `+1` 偏移 ORIG `movzbl 0x1(%eax)` vs
+//   4.4 `add $0x1,%eax; movzbl (%eax)`（N102/N4 寻址折叠族）⇒ 维持（新=DIFF
+//   276/279 gap=-3, blocks=6）。
 #include "UserCoreDepsB2/MakeTagCharacInfo.inc"
 {
     if (getCurCharacR() == 0)

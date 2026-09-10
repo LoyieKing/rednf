@@ -150,7 +150,17 @@ public:
 
 struct stCeraShopBonusItemInfo_t
 {
-    ~stCeraShopBonusItemInfo_t();    // ORIG W 0x089363da：空体
+    // [Q1P342ScanA 2026-09-11 杠杆A·P342 落地] **不声明析构** ⇒ 类型 trivial ⇒
+    //   `_Destroy_aux<true>`（与 ORIG 同形）。
+    //   直证：ORIG 只有 `_Destroy_auxILb1EE9__destroyIP25stCeraShopBonusItemInfo_t`
+    //   @0x085291cd 与 `…__normal_iteratorIP25stCeraShopBonusItemInfo_t…` @0x08952b5c，
+    //   **全 ELF 无 ILb0 版**；ORIG `_ZN25stCeraShopBonusItemInfo_tD1Ev/D2Ev`
+    //   @0x089363da（W，5B 空体），其**唯一** odr-use 点是紧邻的
+    //   `_ZN9__gnu_cxx13new_allocatorI25stCeraShopBonusItemInfo_tE7destroyEPS1_`
+    //   @0x089363e0 体内（全 ELF 无真实用户调用点）。
+    //   per-TU 决定性判据：`CCeraShopGoods.o` 持有该 `new_allocator<…>::destroy`
+    //   实例 ⇒ 删声明后 D1/D2 仍由它发射（实测迁出原 `W9_StructMisc` 的 `T` 定义，
+    //   改为 CCeraShopGoods 的 `W D1Ev/D2Ev`）。原显式定义已随之删除。
     unsigned int m_field0;           // +0x00
     unsigned short m_field4;         // +0x04
     unsigned int m_field8;           // +0x08

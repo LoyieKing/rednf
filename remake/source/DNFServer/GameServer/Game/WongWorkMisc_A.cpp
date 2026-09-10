@@ -49,6 +49,7 @@ namespace WongWork
 //   即声明位置在本件不改变 4.4 伪寄存器分配 ⇒ 无收益，按最小改动原则回滚为块内
 //   声明（本形 8 已试毕，勿重复）。ORIG 侧 0x0831e985 `mov -0x8(%ebp),%ecx` 与
 //   0x0831e99b `mov %eax,%ebx` 证明 ORIG 为 i→%ecx / 值→%ebx（N7+N18a 角色互换）。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7/N78）→ 试=指针衰减形 `*(out->m_field10+i)`（E1 实测更劣：写回退化 `mov %ax,(%ecx)`，已回滚）+ 前人 8 形（含 P339 声明上移、4.4.6 复测同形）⇒ 维持（case9 角色互换：ORIG 0x0831e985 `mov -0x8(%ebp),%ecx` / 0x0831e99b `mov %eax,%ebx`）。
 #include "WongWorkMisc_A/ApplyElixerItem.inc"
 {
     // [b27 封顶] 残差仅 case9 循环体寄存器角色（ORIG arr值→ebx/i基址重读→ecx，

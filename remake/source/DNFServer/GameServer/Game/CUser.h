@@ -565,8 +565,13 @@ struct _Charac_info
     unsigned short m_field33;         // +0x33 ← CHARAC_DATA+0x2c (u16)
     unsigned short m_field35;         // +0x35 max-fatigue（GetRepeatEvent 键2缩放/键0x57 附加）
     unsigned short m_field37;         // +0x37 ← CHARAC_DATA+0x30 (u16)
-    char m_delReqTime[0xc];           // +0x39..0x44（CheckDeleteCharacTime 比较区；byte 视图避免依赖 CommonTime sizeof）
-    char m_pad45[0x4d - 0x45];
+    // [P344 · CUserWorker 2026-09-11 · Main 批准] ORIG 隐式 `_ZN12_Charac_infoC1ERKS_`
+    //   （0x08699863）在该区是**单段 16B + 单段 4B int**：objdump 0x086998d0 段 4 组
+    //   4B mov（ecx×3 + edx 收尾）后才 reload 做 0x49 的单 int（源先 `mov 0xc(%ebp),%eax;
+    //   mov 0x49(%eax),%edx`）；旧 `char[0xc]+char[8]` 划分使 4.4 在 0x41 处提前释放
+    //   源指针 ⇒ 拷貝形不同。布局逐字节不变（CommonTime 视图只用前 0xc 字节）。
+    char m_delReqTime[0x10];          // +0x39..0x48（CommonTime 视图 +0x39，sizeof 0xc）
+    int  m_pad49;                     // +0x49..0x4c
     unsigned short m_field4d;         // +0x4d ← CHARAC_DATA+0xb3 (u16)
     unsigned short m_field4f;         // +0x4f ← CHARAC_DATA+0x32 (u16，FATIGUE BATTERY 主载体)
     int m_field51;                    // +0x51 ← CHARAC_DATA+0xb5 (int)
@@ -606,7 +611,14 @@ struct _Charac_info
     CCargo m_cargo;                   // +0xdaa..0xdbd（0x14；ORIG CCargo@+0xdaa）
     int m_guildId;                    // +0xdbe（GetGuildIdBeforeDeleteCharacter 读取）
     unsigned char m_fielddc2;         // +0xdc2 ← CHARAC_DATA[0x5a]
-    char m_padDC3[0xde9 - 0xdc3];     // +0xdc3..0xde8（Reset 无访问证据）
+    // [P344 · CUserWorker 2026-09-11 · Main 批准] ORIG 同函数 0x08699b3d..0x08699bd5 段的
+    //   拷贝单元划分（逐条 objdump）：short(0xdc3) 独立（movzwl+mov %dx）；0xdc5..0xddb
+    //   为**单段 0x17**（5×4B mov 用 ecx + `movzwl/mov %cx` + `movzbl/mov %dl` 收尾，
+    //   全程不 reload）；reload 后 0xddc..0xde8 为**单段 0xd**（3×4B ecx + movzbl/dl 收尾）。
+    //   旧 char[0x26] 单段使 4.4 在 0xdd5/0xde4 提前释放源指针 ⇒ 拷贝形短 12 条。
+    short m_fieldDC3;      // +0xdc3
+    char  m_padDC5[0x17];  // +0xdc5..0xddb
+    char  m_padDDC[0xd];   // +0xddc..0xde8
     int m_fieldDE9;                   // +0xde9 ← Reset movl $0（R+0x20a）
     short m_fieldDED;                 // +0xded ← Reset movw $0（R+0x217）
     int m_fieldDEF;                   // +0xdef ← Reset movl $0（R+0x223）
@@ -668,7 +680,11 @@ struct _Charac_info
     char m_fieldEB2;                  // +0xeb2 ← Reset movb $0（R+0x393）
     char m_padEB3;                    // +0xeb3（无证据）
     char m_fieldEB4;                  // +0xeb4 ← Reset movb $0（R+0x3a4）
-    char m_padEB5[2];                 // +0xeb5..0xeb6（无证据）
+    // [P344 · CUserWorker 2026-09-11 · Main 批准] ORIG 0x08699c9x：0xeb5/0xeb6 是两个
+    //   **独立 char**（各自 reload 后 movzbl+mov %dl），非 2 字节数组（char[2] 会生成
+    //   movzwl 合并单元）。
+    char m_padEB5;                    // +0xeb5
+    char m_padEB6;                    // +0xeb6
     char m_fieldEB7;                  // +0xeb7 ← Reset movb $0（R+0x3b1）
     char m_fieldEB8;                  // +0xeb8 ← Reset movb $0（R+0x39d）
     unsigned char m_demensionInout[6]; // +0xeb9 ← Reset memset(0,6)；CParty 0x0859f510 movzbl 零扩展=unsigned
@@ -816,6 +832,18 @@ static_assert(__builtin_offsetof(_Charac_info, m_wpBonusPointResult) == 0x129d, 
 static_assert(__builtin_offsetof(_Charac_info, m_expBonusPointResult) == 0x12a5, "ExpBonusPointResult @0x12a5");
 static_assert(__builtin_offsetof(_Charac_info, m_characterOption) == 0x12b7, "CharacterOption @0x12b7");
 static_assert(__builtin_offsetof(_Charac_info, m_aniDeco) == 0x14ca, "seriaRoom_AniDeco @0x14ca");
+// [P344 · CUserWorker 2026-09-11] 拷贝单元划分反推出的字段边界锁定（ORIG 隐式 C1ERKS_）。
+static_assert(__builtin_offsetof(_Charac_info, m_delReqTime) == 0x39, "m_delReqTime @0x39");
+static_assert(__builtin_offsetof(_Charac_info, m_pad49) == 0x49, "m_pad49 @0x49");
+static_assert(__builtin_offsetof(_Charac_info, m_field4d) == 0x4d, "m_field4d @0x4d");
+static_assert(__builtin_offsetof(_Charac_info, m_fielddc2) == 0xdc2, "m_fielddc2 @0xdc2");
+static_assert(__builtin_offsetof(_Charac_info, m_fieldDC3) == 0xdc3, "m_fieldDC3 @0xdc3");
+static_assert(__builtin_offsetof(_Charac_info, m_padDC5) == 0xdc5, "m_padDC5 @0xdc5");
+static_assert(__builtin_offsetof(_Charac_info, m_padDDC) == 0xddc, "m_padDDC @0xddc");
+static_assert(__builtin_offsetof(_Charac_info, m_fieldDE9) == 0xde9, "m_fieldDE9 @0xde9");
+static_assert(__builtin_offsetof(_Charac_info, m_padEB5) == 0xeb5, "m_padEB5 @0xeb5");
+static_assert(__builtin_offsetof(_Charac_info, m_padEB6) == 0xeb6, "m_padEB6 @0xeb6");
+static_assert(__builtin_offsetof(_Charac_info, m_fieldEB7) == 0xeb7, "m_fieldEB7 @0xeb7");
 
 
 // ---- 子对象最小类（尺寸按构造偏移推导；方法签名按 ORIG nm 核对） ----
@@ -826,7 +854,17 @@ static_assert(__builtin_offsetof(_Charac_info, m_aniDeco) == 0x14ca, "seriaRoom_
 struct LimitItemUsage
 {
     LimitItemUsage();   // ORIG W C1/C2 0x08695ef0
-    ~LimitItemUsage();  // ORIG W D1/D2/D0 0x086a6480
+    // [Q2P342ScanB 2026-09-11 杠杆A·P342 落地] **不声明析构** ⇒ 类型 trivial。
+    //   直证四条件：① 我方 CUserOnlyOrig.o 有 `_ZNSt12_Destroy_auxILb0EE9__destroyIP14LimitItemUsageEEvT_S4_`
+    //   而 ORIG 同参**只有 ILb1 版**；② ORIG **全 ELF 仅 1 处** `call ~LimitItemUsage`，
+    //   位于 `_ZN9__gnu_cxx13new_allocatorI14LimitItemUsageE7destroyEPS1_` 体内；
+    //   ③ 我方 `CUserOnlyOrig.cpp.o` **有** 该 `new_allocator<LimitItemUsage>::7destroy` 实例
+    //   ⇒ 删声明后隐式析构仍由该 odr-use 链发射（**且发射 TU 与 ORIG 一致**）；
+    //   ④ ORIG D1/D2/D0 0x086a6480 绑定为 **W**（弱）＝ 隐式析构 odr-use 发射的特征，
+    //   我方原为 W7_UserOnlyC.cpp 内的 **T**（强）⇒ 本改动同时修正绑定。
+    //   影子 A/B：CUser 808/1717/5/68/588→809/1717/5/68/586、
+    //   CUserOnlyOrig 495/975/1/44/285→497/975/1/44/284、W7_UserOnlyC 89/168/0/3/71→89/167/0/3/70
+    //   （全局 identical +3 / ae −2 / missing −3；`_ZSt8_DestroyI14LimitItemUsageEvPT_` 消失＝ORIG 无此符号）。
     char             m_pad0[0xc];  // +0x00
     int              m_fieldc;     // +0x0c
     unsigned char    m_field10;    // +0x10
@@ -1324,6 +1362,18 @@ public:
     Inven_Item m_items2[105];     // +0x4a58（0x69 项 = 0x1905）
     Inven_Item m_items3[242];     // +0x635d（0xf2 项 = 0x39aa）
     Inven_Item m_items4[152];     // +0x9d07（0x98 项 = 0x2438）
+    // [负结论 · CUserWorker 2026-09-11 · 实测已回滚] Q8OldNAgain.Q8S5 的 `m_tailC13f` 删除
+    //   （sizeof 0xC140→0xC13F；证据：ORIG reset 四段 memset 和 = 0xC13F / C1Ev 只构造
+    //   312/105/242/152 个 Inven_Item / CTradeSpace 相邻栈对象间隔 0xC13F）在 **CUser** TU
+    //   实测**劣化**：四数 809/1719/5/66 → **809/1712/12/66**（ae −7、near 5→12，多件
+    //   AE→NEAR）+ CUserOnlyOrig 497/977/1/42 → 497/976/2/42（ae −1、near +1）
+    //   （同轮 CUserCharacInfo 251/390/1/4 → 251/391/1/3 与 WongWorkMiscB_A 92/145/0/1
+    //   为改善）⇒ 按 Main「任一 TU 劣化即回滚」指令**恢复该成员与 0xc140 断言**。
+    //   推断：栈上/成员侧 `InventoryMemory` 的 sizeof 变化使 CUser 系列 TU 的帧/拷贝 lowering
+    //   偏离 ORIG（ORIG 侧 CUser+0x858d4 起点在两种 sizeof 下都自洽 ⇒ 该证据不足以定尺寸）。
+    //   [Main 2026-09-11 裁决] **全局净账为负**：CUser 家族 −8 ae（+7 near）vs `WongWorkMiscB_A`
+    //   +1 near ⇒ 不落地；Q8S5 的证据降级为「CUser 家族实测劣化」。判据 = 受影响 TU 全集的
+    //   四数净账，不是单 TU 读数。
     unsigned char m_tailC13f;     // +0xc13f（ctor/reset 均未覆盖，忠实未初始化）
 };                              // sizeof 0xc140
 
@@ -3194,9 +3244,13 @@ public:
     // ORIG 直调依赖，声明先行（定义由后续物品域批次补，勿在此重复实现）----
     int delete_item(char itemSpace, int position, unsigned long itemIdx,
                     int count, eItemDelReason reason);              // ORIG T 0x0866285c _ZN5CUser11delete_itemEcimi14eItemDelReason
-    int exchange_interspace(int fromSpace, int fromPos, unsigned long count,
+    // [Q3PrettSweepA 2026-09-11] 第 3/7 参拼写对齐 ORIG typedef（同底层 unsigned long，
+    // mangled `_ZN5CUser19exchange_interspaceEiimiiimPi` 不变）；ORIG prett 直证 =
+    // `int CUser::exchange_interspace(int, int, itemIndexOnlyServer_t, int, int, int,
+    // itemIndexOnlyServer_t, int*)` size 0x6c。typedef 见 GameTypes.h:60。
+    int exchange_interspace(int fromSpace, int fromPos, itemIndexOnlyServer_t count,
                             int toSpace, int toPos, int field1b,
-                            unsigned long itemIdx, int* outSlot);   // ORIG T 0x0865f7b0 _ZN5CUser19exchange_interspaceEiimiiimPi
+                            itemIndexOnlyServer_t itemIdx, int* outSlot);   // ORIG T 0x0865f7b0 _ZN5CUser19exchange_interspaceEiimiiimPi
     int exchange_interspace_expand(int fromSpace, int fromPos, unsigned long count,
                                    int toSpace, int toPos, int field1b,
                                    unsigned long itemIdx, int* outSlot,

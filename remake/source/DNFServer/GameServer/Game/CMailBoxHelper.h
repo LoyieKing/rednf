@@ -216,6 +216,12 @@ static_assert(sizeof(WongWork::CMailBox) == 0xa8, "CMailBox ABI drift (ORIG 0xa8
 class CMailBoxHelper
 {
 public:
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x9f（size 0x9f =
+    //   `static bool WongWork::CMailBoxHelper::_DoGetPackageItem(CUser*, const
+    //   WongWork::CMailBox::CMail*, WongWork::CMailBoxHelper::IntPairVector&, bool,
+    //   ENUM_ERROR&)`）⇒ ORIG 源侧该 typedef 是**类内**名（打印带类限定），
+    //   非全局 IntPairVector。底层类型与 GameTypes.h 的同名全局 typedef 相同。
+    typedef std::vector<std::pair<int, int> > IntPairVector;
     static StaticPool<CMailBox, 600> g_MailBoxPool;    // ORIG B 0x0943e000
     // ---- 生命周期 / 池 ----
     static CMailBox* AssignMailBox();                  // ORIG 0x08697838 (W)
@@ -241,7 +247,7 @@ public:
                                   std::vector<std::pair<int, int> >& out,
                                   bool bReset, ENUM_ERROR& err);
     static bool _DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
-                                  std::vector<std::pair<int, int> >& out,
+                                  IntPairVector& out,
                                   bool bReset, ENUM_ERROR& err);
     static bool _DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mail,
                                     std::vector<std::pair<int, int> >& out,

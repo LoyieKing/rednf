@@ -605,6 +605,11 @@ namespace ARAD
             // （ORIG 侧 ARAD_ITEM 为 namespace 形，无 `static` 前缀）；本仓以
             // class+static 重建 ⇒ __PRETTY_FUNCTION__ 展开多 7 字节 "static "。
             // 改手写字面量逐字节对齐（同 db_dispatch 既有实践；指令形/mangled 不变）。
+            // [P6AuditOldN 2026-09-11 · Main 修订] 本「手写照抄」**非最优解，仅当时的权宜**：
+            // 正解 = 把 `class ARAD_ITEM { public: static … };` 改回 `namespace ARAD_ITEM { … }`
+            // （mangled 逐字符不变、零布局/零 ABI，prett 便不再带 `static `），见 `ARAD_Database.h`
+            // 的 class+static→namespace 转换（检查点 345 实证：strings 归零 + prett OURS-only=0 +
+            // 四数逐值不变）。若后续统一转换，本处手写串应一并撤除改回 `__PRETTY_FUNCTION__`。
             1, kAradFuncFile,
             "bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)",
             0x187,

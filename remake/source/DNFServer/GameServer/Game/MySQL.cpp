@@ -446,16 +446,16 @@ public:
                     if (mysql_real_connect(m_dbHandle, m_host, m_user, m_passwd,
                                            m_db, m_port, 0, 0) == 0)
                     {
-                        LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x19a,
+                        LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x19a,
                                               "DB reconnection fail. err_no(%d)",
                                               mysql_errno(m_dbHandle));
                     }
                     else
                     {
-                        LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x19e,
+                        LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x19e,
                                               "DB Reconnect By Server Gone Error");
                     }
-                    LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x1a1,
+                    LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x1a1,
                                           "DB reconnection fail. %d (dbname : %s, ip : %s, port : %d, id : %s)",
                                           ping, m_db, m_host, m_port, m_user);
                 }
@@ -468,12 +468,12 @@ public:
             // `call mysql_errno(m_dbHandle)`（`lea 0x1c(%eax),%ebx` 先缓存 m_query，
             // call 后 %eax 压 0x14(%esp)），非读缓存字段 m_dbError（字段读仅用于
             // 紧随其后的 ==0x7d6 判定，ORIG 0x083f558f）。
-            LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x1af,
+            LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x1af,
                                   "DB error occured (%d) Query('%s')",
                                   mysql_errno(m_dbHandle), m_query);
             if (m_dbError == 0x7d6)
             {
-                cMyTrace("bool MySQL::exec_query()", 0x1b2, 5)(
+                cMyTrace(__PRETTY_FUNCTION__, 0x1b2, 5)(
                     "DB error occured Check Connection First, Must Be Not Connected!");
             }
         }

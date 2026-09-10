@@ -328,7 +328,10 @@ public:
     void getComboSkillSaveData(SIG_COMBO_SKILL* data) const;
     void getComboSkillSendInfo(PacketGuard& packet) const;
     void setComboSkillInfo(ENUM_SKILL_TREE_KIND kind,
-                           std::map<short, std::vector<int> >& map);
+                           ComboSkillMap& map);   // [Q6HeaderTypeAxis 2026-09-11 类型轴]
+    // ORIG prett = `void SkillSlot::setComboSkillInfo(ENUM_SKILL_TREE_KIND, ComboSkillMap&)`
+    // （Q8S2 strall 实读，裸名 ⇒ 全局 typedef，即本头 :87 的 ComboSkillMap；同类型、
+    // mangled 不变）。定义处 declarator 拼写决定 prett（实测）⇒ 同步改 .inc/.cpp。
     void resetComboSkill(ENUM_SKILL_TREE_KIND kind);
     void verifyComboSkill();
     void verifyComboSkillTree(ENUM_SKILL_TREE_KIND kind);

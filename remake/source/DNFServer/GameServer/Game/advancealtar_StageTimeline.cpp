@@ -112,6 +112,7 @@ typedef char assert_actdef_0x10[(sizeof(ActionDefine) == 0x10) ? 1 : -1];
 //     - 其它 token 跳过。
 // 返回 0 = 成功（init.md 口径非零=Fail），非 0 = 子段错误码。
 // ============================================================================
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N78/N82）→ 试=两 token 分支倒置（E2 实测：83/82 gap=+1 与四数 71/115/0/3/42 逐项不变 ⇒ 回滚）；前任显式 `continue;` 补 ORIG 第 3 回边块无效（82→82，4.4 合并 fall-through）⇒ 维持。
 #include "advancealtar_StageTimeline/importStageTimeLineParameter.inc"
 {
     // b28d-35: DIFF→N 封顶（N82 帧/槽 + N78 内联清零族）。ORIG @0x08899f26。
@@ -229,6 +230,7 @@ typedef char assert_actdef_0x10[(sizeof(ActionDefine) == 0x10) ? 1 : -1];
 //       插入 make_pair(ad.id, ad) 后外层继续。
 //     - 其它 token → printf "Type undefined" + 0x267。
 // ============================================================================
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=新口径 n1_v 275/274 gap=+1 blocks=8；`||` 链 bool 物化（我方 `mov $0x1,%eax; jmp; mov $0x0,%eax; test %al,%al` 岛）vs ORIG 三独立 cmp + 块序；P231 register×2（286→288）、S3Stage 去 err/state 具名（287 反劣 1）均回滚 ⇒ 维持（ORIG esi/ebx 为多 return 点返回临时，非源码变量）。
 #include "advancealtar_StageTimeline/importActionDefine.inc"
 {
     // b28d-35: DIFF→N82（帧/槽 + 表遍历形状）。ORIG @0x0889a56e。

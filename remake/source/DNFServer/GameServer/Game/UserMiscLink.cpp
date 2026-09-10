@@ -486,9 +486,19 @@ std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
     // [L4b 2026-09-11] 本轮把 characNo 前置到 value 之前：value 归位 -0x24（同 ORIG），
     // characNo 仍 -0x20（ORIG -0x18）、it/end 仍 -0x1c/-0x18（ORIG -0x20/-0x1c）；
     // 「characNo 最前 / value 前 / 分支内声明」三形实测 ndiff 30/30/40 ⇒ 取 30 形。
-    // 权威口径 NEAR 166/166、ndiff=30（助记符全同、仅槽号与一处寄存器选择差）⇒ N82/N98。
+    // [Q8 2026-09-11 旧N判词重扫·部分推翻] 追加试形④/⑥：characNo 声明再前移到
+    //   it(find) 之前 / 函数最开头 —— 两者同码，**ndiff 30→22**（166=166、gap 0、
+    //   四数 118/118/1/3/29 逐项不变）⇒ 改善保留（形⑥=函数最开头版）。
+    //   残余 3 块 = ①it/end 槽（ORIG -0x20/-0x1c vs 我方 -0x18/-0x14）与
+    //   ②characNo 槽（ORIG -0x18 vs 我方 -0x1c）—— characNo 与 it/end 深浅互换：
+    //   4.4 恒把 characNo 排在迭代器之前（更深），ORIG(4.1) 相反，声明序四档
+    //   （最前/it前/value前/分支内）实测均不能反转 ⇒ 后半维持 N82/N98；
+    //   ③varargs 装载的一处寄存器选择（ORIG edx/eax 序 vs 我方 ecx）。
+    // 权威口径 NEAR 166/166、ndiff=22（助记符全同）。
     // ORIG 0x0816748e 判活为虚调用 IsEventing(0)
     // （vptr+0x34 = CEventBase::IsEventing），非直读 m_isEventing 字段。
+    // [Q8 试形⑥] characNo 移到函数最开头（与「移到 find 之前」的形④同码，ndiff 22）。
+    unsigned int characNo;
     if (!IsEventing(0))
     {
         return false;
@@ -523,7 +533,7 @@ std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
     // 实测：①头部声明（rewarded/advance 之后）→ characNo -0x24、value -0x20（反）；
     // ②前置到 value 之前 → value 归位 -0x24、characNo -0x20（ndiff 30）；
     // ③分支内声明（P-L11c）→ ndiff 反劣 40 ⇒ 已回滚，保留②形。
-    unsigned int characNo;
+    // [Q8 2026-09-11 试形④] characNo 再前移到 it 声明之前（find 调用之前）。
     bool rewarded = false;
     bool advance = false;
     HeroMissionValue* value = 0;
@@ -699,6 +709,11 @@ std::vector<LevelupSupportSciprt::ItemInfo>*
         // 3 行窄化差。实测 `unsigned short slot` 形：判定侧载入变 movzwl（与 ORIG 配对），
         // 但传参侧退化为 movzwl（ORIG 为 movswl，0x08147534 附近）⇒ 差异仅换位（ndiff 仍 6）。
         // 同一变量不可两全（判定需零扩展、传参需符号扩展）⇒ N206 封顶。
+        // [Q8 2026-09-11 旧N判词重扫·维持] N206/N7：本波追加试形
+        //   `~(*(unsigned short*)&slot)`（HImode lvalue 读取以逼 ORIG 0x081475ec 的
+        //   `movzwl`）**劣化**：our 217→220（+3，取址重物化 + 类型双关打断窄化），
+        //   槽整体平移（-0x24→-0x20）⇒ 按闸门回滚。判定侧 movswl（4.4 恒 32 位提升）
+        //   vs ORIG `movzwl/not/shr %ax/test %al` 属 4.1 HImode 窄化（N206 族）⇒ 维持。
         if ((unsigned short)((unsigned)(~slot) >> 15) != 0)
         {
             user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, slot);
@@ -763,6 +778,14 @@ void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataMan
     // [L31 round2] 四处预清全补反劣（406→416）⇒ 回滚。本轮只补 **err 单处**（P198① 最小集）：
     // ORIG 0x085f3352 `movl $0x0,-0x1c(%ebp)`（optType 预清后紧邻）⇒ 原码 `int err = 0;`
     // 后接赋值两句式（i/pick/sel 无预清证据）。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N95）→ 试=①prett2 缺口 0（P139 已
+    //   落地）、strall 串差 0（仅 base64 假阳性）；②p167 CLEAR；③444 后端变体实测
+    //   432/440 gap=-8 **逐项相同**（本 TU 已路由 446 后端，无后端旋钮）；④残余
+    //   （权威 ndiff 424）全为 N82/N95 族：帧 0xe0/0xd0 与 optType(-0x53/-0x65)/err
+    //   (-0x20/-0x1c) 槽差、`remaining -= w` 的 4.1 %ebx 跨调用保活 5 条 vs 4.4
+    //   mem-sub 2 条、内层循环尾 break+回跳两条 jmp、sel<size 的 seta/setbe 极性；
+    //   无 P342/ILb 候选（本 TU 的 `_Destroy_aux` 实例仅 ILb1、与 ORIG 同）⇒ 维持
+    //   （新=DIFF 432/440 gap=-8, blocks=58）。
     int err = 0;
     err = _get_option_type(itemIdx, rarity, level, group, optType);
     // [b28d-solo-UserMiscLink] P225：ORIG 0x085f33a1 为 `cmpl $0; setne %al; test %al,%al;

@@ -458,7 +458,10 @@ public:
     CUser* createUser();
     short getNextUID();
     int GetIdx(CUser* user);
-    CUser* GetUserByAccId(unsigned int accId);
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett = `CUser* CGameManager::
+    //   GetUserByAccId(memberIdentificationNumber_t)`（我方实测串 0x32 vs ORIG 0x42）；
+    //   同底层 `j`，mangled/ABI 零变化。
+    CUser* GetUserByAccId(memberIdentificationNumber_t accId);
     CUser* getUserByUnique(short uniqueId);
     CUser* getUser(int slotId, int increId);
     void insertUserByAccID(CUser* user);

@@ -37,7 +37,15 @@
 //      即空体析构；vector<RecoveryInfo> 元素销毁触发）----
 
 // ---- stCeraShopBonusItemInfo_t（ORIG W 0x089363da：空体析构）----
-#include "W9_StructMisc/dtor_stCeraShopBonusItemInfo_t.inc"
+// [Q1P342ScanA 2026-09-11 杠杆A·P342 落地·删本 TU 唯一发射点] 本 TU 原在此发
+//   `T _ZN25stCeraShopBonusItemInfo_tD1Ev/D2Ev`。随 `CItemList.h` 删去
+//   `~stCeraShopBonusItemInfo_t();` 声明，类型转 **trivial**（`_Destroy_aux` ILb0→ILb1，
+//   与 ORIG 同形：`ILb1EE9__destroyIP25…` @0x085291cd / `…__normal_iteratorIP25…`
+//   @0x08952b5c，全 ELF 无 ILb0 版），D1/D2 改由 `CCeraShopGoods.o` 的
+//   `_ZN9__gnu_cxx13new_allocatorI25stCeraShopBonusItemInfo_tE7destroyEPS1_`
+//   （ORIG @0x089363e0，紧邻 D1 @0x089363da）路径继续发射。trivial 类型不可再显式定义
+//   析构 ⇒ 原 `W9_StructMisc/dtor_stCeraShopBonusItemInfo_t.inc` 已删除。
+//   全局并集核账（5 个相关 TU）：LOST 16 项**全部是 ORIG 没有的**多余符号，REAL GAPS = 0。
 
 // ---- STPacketLog（ORIG C1 0x08481100：构造 string@+0x10；
 //      D1 0x084810ea：析构 string@+0x10）----

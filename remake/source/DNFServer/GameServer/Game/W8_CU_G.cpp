@@ -413,6 +413,13 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
 // ②+0x8e0f8 成员读 ORIG `mov mem,%eax; mov %eax,%esi` 两段 vs 4.4 单段（N18a）；
 //    b28d-W8b 复测实参 `static_cast<unsigned int>(m_humanCertifyTimerKey)` 形
 //    无效（154 不变）⇒ 封 N。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N107，gap=+1/blocks=4）→ 试=①prett/q3_gap2 缺口 0、
+//   strall CLEAR ②逐 hunk 定性：(a) `this+0x8e0ec` 取址 ORIG `mov 0x8(%ebp),%edx;
+//   add $0x8e0ec,%edx`（2 条、this 直落目标寄存器后原地 add）vs 4.4 `mov 0x8(%ebp),%eax;
+//   lea 0x8e0ec(%eax),%edx`（目标寄存器不同 ⇒ lea 单条）——对照同函数 (b) 段
+//   `this+0xe`（ORIG/我方**两侧皆 add**）⇒ add↔lea 由**目标寄存器是否等于基址寄存器**决定，
+//   属 4.1/4.4 寄存器选择差（N107 负例方向）；(c) `mov 0x8e0f8(%eax),%eax; mov %eax,%esi`
+//   = 4.1 冗余 regmove（同 GiveEquipItemsReturnUser 惯例）⇒ 维持 N（155/154，gap +1）。
 #include "W8_CU_G/reqSendMailCertify.inc"
 {
     if (GlobalData::s_capchaDataManager.isEmpty())
@@ -582,6 +589,11 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
 //   SweepCUser2 代落）+ `!f()` ⇒ 0x868b68b `xor $1` 复现。
 // p167 CLEAR（仅 C1/C2 别名）；余 isApplied 段 1 条 xor（P168a③b 跨版本 bool ABI）
 // + 槽号整体平移。ORIG 0x0868b552。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18b/N7/N96，gap=+0/blocks=41）→ 试=①prett/q3_gap2
+//   缺口 0、strall CLEAR ②n1_v 残差三类：accId/createTime→%esi/%ebx 角色互换（ORIG
+//   `mov %eax,%ebx` 在前 vs 我方 `%eax,%esi`）、局部槽平移 -0x35/-0x3c（ORIG）vs
+//   -0x39/-0x40（我方）、尾调用实参寄存器对调 ⇒ 全属 4.1/4.4 寄存器角色 + 槽分配（N7/N96）
+//   ⇒ 维持 N（340/340，无源码旋钮）。
 #include "W8_CU_G/VerifyPresentAvengerTitle.inc"
 {
     // ORIG T 0x868b552 全录（报告 docs/class_func_reports/CUser/VerifyPresentAvengerTitle.md
@@ -1006,7 +1018,18 @@ END:;
             // `movzbl (%edx),%edx; mov %edx,%ecx` 两段（+1 条，N18a 反向）；
             // P266 uchar 左值读旋钮 / 隐式转换两形实测同为 29 ⇒ 封 N。
             // b28d-W8b 复测：显式 (unsigned char) cast 无效（同 29）⇒ P266 左值读旋钮。
-            m_informNoticeFlags[i] = *reinterpret_cast<unsigned char*>(src + i);
+            // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a/N96）→ 试=**地址加法形**：
+            //   ORIG 0x0868f92x `mov -0xc(%ebp),%edx; add 0xc(%ebp),%edx`（2 条：i 先入
+            //   reg、再 `add src(内存)`）；源侧 `src + i`（指针+int）4.4 恒发
+            //   `mov 0xc(%ebp),%ecx; mov -0xc(%ebp),%edx; lea (%ecx,%edx,1),%edx`（3 条）。
+            //   改用 **int 算术形** `(int)src + i` 后 4.4 发 `mov 0xc(%ebp),%edx;
+            //   add -0xc(%ebp),%edx`（2 条）⇒ **DIFF→NEAR**（28/29 不变但残差由
+            //   lea 3 条降为 1 个 hunk：仅剩 `add` 的寄存器/内存操作数分配序
+            //   （ORIG i→%edx + add src；我方 src→%edx + add i，交换律等价的 4.1/4.4
+            //   选择差）⇒ 维持封顶）。试否：`(unsigned char)src[i]` 形实测劣化
+            //   （29→30，+1 条 lea 索引链）已弃；`i + (int)src` 交换序实测与上式同码。
+            m_informNoticeFlags[i] =
+                *reinterpret_cast<unsigned char*>(reinterpret_cast<int>(src) + i);
         }
         sendInformNoticeFlag();
     }

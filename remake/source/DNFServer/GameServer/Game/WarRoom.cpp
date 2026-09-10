@@ -1001,6 +1001,11 @@ FP_SLOT:
 //   body 尾 jmp+nop 岛。残余 = N104（086bbc08..086bbc30 EH 尾块与正常路径块相对
 //   序，4.4 恒就地内联）+ 1 条 m_fp→(const CMap*) cast 中转 + 4.4 跳表
 //   `shl$2;mov disp(%eax)`（N4/N125）⇒ N 封顶，P167 CLEAR。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a/N76/N82/N104）→ 试=①cast 形
+//   `(const CMap*)m_fp` → `(const CMap*)(unsigned long)m_fp`（overlay 实测 diff
+//   hunk 逐条不变、515=515）②槽集合比对 12/12 全等（无多/少局部）⇒ 残余仅两处：
+//   086bbb6a 段 `mov 0x1d4(%eax),%edx` vs 4.4 `mov …%eax; mov %eax,%edx`（1 条中转）
+//   + EH 尾块 `lea -0x4c;call` 与正常路径 `jmp` 的相对块序（N104）⇒ 维持，无新旋钮。
 #include "WarRoom/OnEnterState.inc"
 {
     // [b28d-solo-WarRoom] DIFF(415) | ORIG 0x086bb71c | 复核 b20 判词：P167
@@ -1489,6 +1494,11 @@ L_24_TAIL:
 //   缺失该两段、仅剩 max(·,1) 比较 —— 奖励值语义真 bug 已修。残余
 //   byte 层属 N82 帧槽平移 + N76/N18a store 装载步序 + GetRepeatEvent 链寄存器
 //   物化；语义与 ORIG 一致（逐段注释见函数体）⇒ 判「语义完成、byte 层 N 封顶」。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a/N76/N82）→ 试=槽集合比对：
+//   ORIG 38 槽 / OURS 40 槽，逐槽配对后 maxRef[2] ORIG@-0x84/-0x88 vs OURS@-0x94/-0x98、
+//   double 暂存组 ORIG@-0xa4/-0xa8/-0xaa vs OURS@-0xb4/-0xb8/-0xba（我方整体深 0x10）；
+//   ORIG `lea -0x64(%ebp),%eax`（数组元素直 lea）vs 4.4 `lea -0x74; add $0x4`（下标式
+//   lea+add）与 float 组/结构体槽互置 ⇒ 4.4/4.1 槽分配器差，无源码可择项 ⇒ 维持 N82。
 __attribute__((target("arch=i486")))
 #include "WarRoom/ClearReward.inc"
 {
@@ -1998,6 +2008,11 @@ __attribute__((target("arch=i486")))
     //   残余 3 = 4.4 强度归约：gain_exp_sp 累加段 ORIG 11 条（mov/add 寄存器目标）
     //   vs 4.4 8 条（lea 合并 + mem-add）；探针 h1（全局）/h20（实参位）证 4.4 对
     //   局部/形参恒 lea+mem-add、源码不可择 ⇒ N86/N1 封顶。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N1/N86）→ 试=①槽集合比对 33/33 全等
+//   ②gain_exp_sp 5 项和改右结合括号（overlay）：our 443 不变、5 项和仍 7 条 vs ORIG 10 条
+//   （ORIG `mov A,%eax; mov %eax,%edx; add B,%edx; mov C,%eax; add %eax,%edx;…lea;
+//   mov %eax,%edx`；4.4 恒 `mov B,%eax; mov A,%edx; lea (%edx,%eax,1); add mem…` 前两项
+//   先 lea 合并）⇒ 括号实验已回滚，维持 N86/N1。
     map_monster monster;
     PacketGuard packet;
     int count = GetWaiterCount();
@@ -2185,6 +2200,10 @@ WP_SLOT:
     //   ③删具名 bool randomOption → 内联 `IsRandomOption() && !getCheck…`
     //     （ORIG 086bee7b..086bee9d 常量岛 + `xor $1` ⇒ 无槽；P0/P214①）。
     //   残余 +1（086bec31 段尾块序）+ 版本槽基 8（N95/P332）⇒ 封顶。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N95）→ 试=槽集合比对：ORIG 38 槽 / OURS 39 槽，
+    //   帧 ORIG 0x120 / OURS 0x110 但槽号非单调整移（`movb $1` -0x2d↔-0x31 深 4、
+    //   PacketGuard -0x4c↔-0x40 浅 0xc，0x086bea2e 头部）；我方另有 -0x78/-0x70/-0x6c/-0x74
+    //   一组 `mov %eax,X; mov X,%eax` 槽往返链（4.4 对具名局部恒写栈）⇒ 无源码可择项，维持 N95。
     char flag = 1;
     CUser* target = 0;
     map_item fieldItem;
@@ -2373,6 +2392,11 @@ WP_SLOT:
 //   块（P325 共享出口），原实现多 2 块 4 条。残余 1 条 = 4.4 跳表索引
 //   `shl $2,%eax; mov 0x…(%eax),%eax` vs 4.1 `mov 0x8cf98b0(,%eax,4),%eax`
 //   （跳表 lowering，N4/N125）⇒ 封顶；P167 100/100 CLEAR。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a/N76/N82）→ 试=槽集合比对 82/82 全等
+//   ⇒ 残余两处纯 lowering：①attach 跳表 4.4 `cmpl $0x5,-0x20(%ebp); ja; mov -0x20,%eax;
+//   shl $0x2; mov <A>(%eax),%eax; jmp *%eax` vs 4.1 `mov -0x20,%eax; cmp $0x5,%eax; ja;
+//   mov <A>(,%eax,4),%eax; jmp *%eax`（条数同为 5）②item 字段拷贝 store 序（-0xc4 与
+//   -0xc0/-0xb8 的相对位置）⇒ 维持 N18a/N76/N82。
 #include "WarRoom/HandleItemDrop.inc"
 {
     // [b28d-solo-WarRoom] DIFF(504) | ORIG 0x086bf5fc | 复核 b20 判词：P167

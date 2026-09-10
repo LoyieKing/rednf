@@ -432,6 +432,7 @@ ipg_error_done:;
 // 合计 our 1588→1579，gap −37→−28（n1_v 口径；clean 计数 −37→−23）。
 // 残余为实参装载序/JCC 极性（`cmpl $0x289830; jg` vs ORIG `cmp $0x289831;
 // jge`，P59 极性族）+ N82 槽号平移，指令数 1:1 ⇒ 封顶。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N78）→ 试=新口径 n1_v 1551/1579 gap=-28 blocks=245；残差=N78 三处 rep stos→memset 差（deadPad/priceStr/serialBuf 清零区，帧 0x40c vs 0x43c）+ N82 槽号/块排布 + JCC 极性（`cmp $0x289831;jge` vs 我方 `cmp $0x289830;jg`）⇒ 维持（§6.2 判语义完成，勿再耗轮次）。
 #include "W6_CeraShopDeps/ProcessBuyRequest.inc"
 {
     // [b28d-S278 P0/P227] ORIG 0x0832047a：NumberToString 结果落 %ebx 无栈槽、

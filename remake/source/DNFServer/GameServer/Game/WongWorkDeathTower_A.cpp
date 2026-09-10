@@ -389,6 +389,11 @@ namespace WongWork {
 //   ⇒ 305→306 反劣，已回滚（负结论见函数体）。
 //   残余：帧 0x160 vs ORIG 0x130（我方对象/float 槽分配差，N82 族；ORIG 对象
 //   bonus 在 -0x68/clearParam -0xc8、floats -0x8c..-0xc0，我方补偿性换位）⇒ 封顶。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N3）→ 试=①事件 0xf 块具名 ev 核对：
+//   ORIG 0x0846279f..0x084627a7 `mov %eax,-0x14(%ebp); mov -0x14(%ebp),%eax` **有**具名槽
+//   ⇒ ev 非多余（与 0x08462701/0x08462775 两处已内联块不同，勿混）②槽集合比对：
+//   ORIG 29 槽 / OURS 29 槽但排布互置（user/reward ORIG -0x18/-0x1c vs OURS -0x3c/-0x38；
+//   float 组 ORIG -0x9c..-0xbc vs OURS -0x14..-0x34；帧实测 0x130 vs 0x150）⇒ 维持 N3/N82。
 // ORIG 0x08462538
 #include "WongWorkDeathTower_A/generateRewardExp.inc"
                                                unsigned int baseExp, CParty* party,
@@ -553,6 +558,13 @@ namespace WongWork {
 //   （identical 16→7、ae 47→29、missing 24→12：该 odr-use 是 ~CLuckPoint 与
 //   vector<CUser*>/map<int,…> 共 27 个 COMDAT 符号的唯一发射源）⇒ 按闸门回滚，
 //   负结论见函数体 `::CLuckPoint luck;` 处注释。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18b）→ 试=P342 四步复核（判据终版）：
+//   ①分支号：本 TU 无 `_Destroy_aux<ILb0>` 反分支 ②ORIG 全 ELF：`CLuckPoint::CLuckPoint()`
+//   @0x08550884 **T**、`~CLuckPoint()` @0x085508ec **T** + `global constructors keyed to
+//   CLuckPoint::CLuckPoint()` @0x08550fad ⇒ ORIG 侧确有静态 odr-use 链 ③我方全库 1431 个
+//   .o 中**仅本 TU** 发射 `_ZN10CLuckPointD1Ev`(W)/D2(W) ⇒ 删即丢（与 M1S3 实测
+//   identical 16→7 / ae 47→29 一致）④p167 该 3 项 EXTRA 的代价 < 丢失 15 个匹配符号
+//   ⇒ 维持 N18b，`::CLuckPoint luck;` 必须保留（除非在别的 TU 重建 odr-use 链）。
 //   ORIG 0x08461fc0
 #include "WongWorkDeathTower_A/generateRewardItem.inc"
                                                 const CDungeonMgr& dungeonMgr,

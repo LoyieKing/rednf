@@ -54,6 +54,10 @@
 //   grow_type:%d, guild_name:%s, pvp_grade:%d, creature_name:%s, creature_id:%d`
 //   与 ORIG 0x8cd6904 逐字节一致（objdump -s 核对），9 个实参装载段
 //   （0x28..0x10(%esp)）与 ORIG 逐条对应。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N3,N82,N95）→ 试=本波 N3 两形已留痕（临时对象
+// 直呼 ⇒ 203/槽映射劣化；叠加 P339 仍 203）+ 本轮复核 202/201 同形（strlen 结果槽差 8、
+// 6×int trace 实参组差 0x2c、ORIG 多 `push %edi` 保活 this+4）+ strall CLEAR ⇒ 维持
+// （新=DIFF gap=+1, blocks=27）。
 #include "TowerAPCLeafC3/Set_APC_Info.inc"
 {
     // b21 verdict=DIFF（N 残余）：202/201（gap=1）。调用点全等（clear/put_header/put_byte×/

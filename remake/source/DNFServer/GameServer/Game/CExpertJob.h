@@ -20,6 +20,7 @@ enum ENUM_PEER_REQUEST_TYPE { ENUM_PEER_REQUEST_TYPE_0 = 0 };
 
 #include <string>
 #include <map>
+#include "GameTypes.h"   // [Q3PrettSweepA] IntPairVector（ORIG prett 拼写直证）
 
 // ---- OnlyOrig_CreatureJob/EJEnchanter 批：全局 POD（ORIG mangled 无 namespace
 //      包裹，P11stItemPos_t / P18MSG_STATIC_COMMAND；布局按使用点反汇编实证）----
@@ -143,7 +144,10 @@ public:
     CItem* FindMonsterCard(const std::vector<std::pair<int, int> >& materials);   // ORIG T 0x0849c612
     CItem* GetEnchantItem();                       // ORIG T 0x0849c6ca
     int IsExistMaterialOfRecipe();                 // ORIG T 0x0849c166
-    bool DelMaterialOfRecipe(CUser* user, const std::vector<std::pair<int, int> >& materials,
+    // [Q3PrettSweepA 2026-09-11] 拼写对齐 ORIG prett（同底层类型，mangled 不变）：
+    // `bool expert_job::ExpertJobMaterial::DelMaterialOfRecipe(CUser*, const IntPairVector&,
+    // int, PacketGuard*, bool&)` size 0x112。
+    bool DelMaterialOfRecipe(CUser* user, const IntPairVector& materials,
                              int slot, PacketGuard* packet, bool& changed);   // ORIG T 0x0849c204
     int UseMaterialOfRecipe(PacketGuard* packet);  // ORIG T 0x0849c536
 
@@ -452,7 +456,9 @@ void GetRecipeInputItems(CItem* recipe, std::vector<std::pair<int, int> >& input
 // `xor $1,%eax; test %al,%al; je`（无 setne）⇒ callee 单字节 bool 返回；
 // 返回类型不入 mangled，定义体 return 0/1 不变（ExpertJobOnlyMaterial.cpp 待属主同步）。
 bool IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs);
-bool DelMaterialOfRecipe(CUser* user, std::vector<std::pair<int, int> >& materials,
+// [Q3PrettSweepA 2026-09-11] 同底层，mangled 不变；ORIG prett =
+// `bool expert_job::DelMaterialOfRecipe(CUser*, IntPairVector&, int, PacketGuard*, bool&, int)` size 0x92。
+bool DelMaterialOfRecipe(CUser* user, IntPairVector& materials,
                          int slot, PacketGuard* packet, bool& changed,
                          int bodyCount);                                      // ORIG T 0x0849b957
 int UseMaterialOfRecipe(CUser* user, CItem* recipe, PacketGuard* packet,

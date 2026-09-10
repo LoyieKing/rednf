@@ -633,6 +633,12 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
 // LevelUpRewardItemTableKey/LevelUpRewardItemData/Inven_Item 的 **C1↔C2**
 // （ORIG 4.1 局部对象 ctor 走 base 版 C2、dtor 走 D2；4.4 恒 C1/D1，同一地址别名，
 // 4.4.7 对 local 对象无 C2 选择旋钮）⇒ 工具层编译版本差，封顶。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7，gap=+0/blocks=1）→ 试=①新口径 n1_v 复核
+//   （121/121，唯一残差 ORIG 0x086921f0 `mov -0x30(%ebp),%eax; mov %eax,%ebx` vs 我方
+//   折单条 `mov -0x30(%ebp),%ebx`）②prett/q3_gap2 缺口 0、strall 串 CLEAR
+//   ③同族直证：本 TU `reqSendMailCertify` 的 ORIG 0x0868f??? 段亦有同型
+//   `mov 0x8e0f8(%eax),%eax; mov %eax,%esi` ⇒ 属 **4.1 冗余 regmove 惯例**（值先落 %eax
+//   再转保活寄存器），4.4 恒直落目标寄存器 ⇒ 源码无对应形 ⇒ 维持 N7 封顶。
 #include "W7_UserOnlyC/GiveEquipItemsReturnUser.inc"
 {
     // P0/P48：ORIG growType/level/growType2/job 均无槽（%ebx/%eax 直传）⇒ 内联实参；
@@ -742,10 +748,10 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
     m_field19 = 0;
 }
 
-// ORIG D1/D2/D0 0x086a6480：空析构（ORIG 仅 ret）。
-#include "W7_UserOnlyC/dtor_LimitItemUsage.inc"
-{
-}
+// [Q2P342ScanB 2026-09-11 杠杆A·P342 落地] `~LimitItemUsage()` 用户空析构定义已删
+// （trivial 化）。ORIG D1/D2/D0 0x086a6480 为 **W**：由 `new_allocator<LimitItemUsage>::7destroy`
+// 的 `p->~T()` odr-use 发射 —— 我方该实例在 `CUserOnlyOrig.cpp.o`，故按 ORIG 的
+// odr-use 链在**同一 TU 集**发射（本 TU 不再定义 D1/D2）。详见 CUser.h `LimitItemUsage` 注。
 
 // ORIG W 0x08688fba，报告 LimitItemUsage/isAnotherDay.md。
 #include "W7_UserOnlyC/isAnotherDay.inc"

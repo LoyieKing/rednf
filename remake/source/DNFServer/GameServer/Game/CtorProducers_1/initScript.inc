@@ -1,1 +1,1 @@
-int CNPCScriptList::initScript(char* dir, char* list, char* common)
+int CNPCScriptList::initScript(NCHAR* dir, NCHAR* list, NCHAR* common)

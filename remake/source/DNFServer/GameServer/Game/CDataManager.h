@@ -383,10 +383,12 @@ struct stMonsterIndependentDrop_t
 {
     // ORIG sizeof 0x48（__copy_m 元素步长 $0x48 实证）；默认 ctor（0x897cbc4）
     // 仅构造 +0x30 的 vector<pair<int,int>>，其余 int 不初始化。
-    // b28c-L20: N90 — 隐式 C1ERKS_(W 0x08376bb2) / operator=(W 0x08376bc1) ndiff 20 封顶：
-    //   ORIG(4.1) 对大 dword 数组成员拷贝分块（+0x14/+0x24/+0x28/+0x2c 各块后重载
-    //   src/dst 基址，gap=6 条 mov）；4.4 恒单次连发 + %ecx 复用。数组元素跨块动态下标
-    //   （generateIndependentItem 0x834989a），拆成员即改语义 ⇒ 无源码解（batch-25c Lane6 定性）。
+    // [Q1P342ScanA 2026-09-11 P344 落地·推翻 batch-25c Lane6「无源码解」] 隐式
+    //   C1ERKS_(ORIG W 0x08376bb2) / operator=(ORIG W 0x08376bc1) 的分段由**成员声明
+    //   粒度**决定：ORIG 按 5/4/1/1 分块拷贝（每块后重载 src/dst 基址），我方原
+    //   `int m_rate[11]` 恒 11 连发（diff 58/52、59/53）。改按语义分组拆成员后
+    //   **逐条一致**（前批 S2CAICharList 探针已证；本次 5 TU 实测 ae +11 / diff −8）。
+    //   布局逐字节不变（sizeof 仍 0x48、各偏移不变，仅 pad 划分粒度变）。
     int m_itemIdx;   // +0x00（掉落 itemId；PrintItemDropList find_item）
     // +0x04..+0x2c：ORIG 全部访问均为 base(+0x04)+idx*4 动态下标，故建为单一
     // int 表（generateIndependentItem 0x834989a / independentItemRateControl
@@ -395,12 +397,28 @@ struct stMonsterIndependentDrop_t
     //   [5..8] 期望值标量（PrintItemDropList 打印 +0x18..+0x24）；
     //   [9]    单次生成数量上限（std::min 边界，+0x28）；
     //   [10]   主掉率（get_rand_int 上界；ResultToStr 非 0 判定，+0x2c）。
-    int m_rate[11];
+    int m_rate[5];                // +0x04 [0..4] 分档掉率（PrintItemDropList /10000%）
+    int m_expect[4];              // +0x18 [5..8] 期望值标量（Print +0x18..0x24）
+    int m_limit;                  // +0x28 [9]    单次生成数量上限（std::min 边界）
+    int m_mainRate;               // +0x2c [10]   主掉率（get_rand_int 上界 / ResultToStr 非 0）
     std::vector<std::pair<int, int> > m_pairList;  // +0x30（itemId 累积概率表）
     int m_rangeMin;              // +0x3c（范围过滤下界，与 refData 比较）
     int m_rangeMax;              // +0x40（范围过滤上界）
     int m_levelFilter;           // +0x44（>=0 时与 stGenerateRefData_t::m_field28 比对）
 };                               // sizeof 0x48
+// [Q1P342ScanA 2026-09-11 P344 布局锁] 拆成员只改**拷贝单元分段**，布局必须逐字节不变：
+static_assert(sizeof(stMonsterIndependentDrop_t) == 0x48,
+              "stMonsterIndependentDrop_t ABI drift (ORIG sizeof 0x48)");
+static_assert(offsetof(stMonsterIndependentDrop_t, m_rate) == 0x04,
+              "stMonsterIndependentDrop_t m_rate offset drift (expect 0x04)");
+static_assert(offsetof(stMonsterIndependentDrop_t, m_expect) == 0x18,
+              "stMonsterIndependentDrop_t m_expect offset drift (expect 0x18)");
+static_assert(offsetof(stMonsterIndependentDrop_t, m_limit) == 0x28,
+              "stMonsterIndependentDrop_t m_limit offset drift (expect 0x28)");
+static_assert(offsetof(stMonsterIndependentDrop_t, m_mainRate) == 0x2c,
+              "stMonsterIndependentDrop_t m_mainRate offset drift (expect 0x2c)");
+static_assert(offsetof(stMonsterIndependentDrop_t, m_pairList) == 0x30,
+              "stMonsterIndependentDrop_t m_pairList offset drift (expect 0x30)");
 // ORIG IndependentDropListInfo ctor 0x0897cbae（W）：int @+0x00 +
 // vector<pair<int,int>> @+0x04（sizeof 0x10）；[list] 段以 (itemId, 累积率) 填充。
 struct IndependentDropListInfo
@@ -815,7 +833,17 @@ struct stNPCCommonData_t
         // 使 4.4 恢复 dword 块拷贝（探针 /tmp/b28d_a2/probe_buff.cpp fB 实证），
         // sizeof(stOneBuff_t)=0xc 与全部偏移不变。
         unsigned char m_pad09[3];  // +0x09..+0x0b
-        ~stOneBuff_t();            // ORIG W 0x08a04b54
+        // [Q6HeaderTypeAxis 2026-09-11 P342·杠杆A] 删除用户空析构（trivial 化）：
+        //   ORIG 侧为 `__copy_move_backward<true,true,…>`(ILb1ELb1, memmove 特化) +
+        //   `_Destroy_aux<true>`；我方原 ILb1ELb0 loop + `_Destroy_aux<false>`。
+        //   D1/D2 不丢（overlay + 仓库复编双实测）：ScriptLeafA2.cpp:297 的
+        //   `std::vector<stOneBuff_t> buffs;` 与 :324 的栈上 `stOneBuff_t buff;` 构成
+        //   odr-use 链，本 TU 仍发射 D1/D2 并绑定 **W**（= ORIG W 0x08a04b54）；
+        //   `new_allocator<stOneBuff_t>::destroy` 实例（ORIG W 0x08a04b5a）亦在本 TU。
+        //   overlay 实测（cp -al 副本）：ScriptLeafA2 657/1078/1/14/326 →
+        //   659/1087/0/13/319（identical +2、near −1、diff −1、missing −7）；
+        //   发射 TU OrigMiscStrong21 3/3/0/0/1 → 2/3/0/0/0（D1/D2 定义迁至
+        //   ScriptLeafA2 的 W，与 ORIG odr-use 链一致）。
     };                             // sizeof 0xc
     // 用户提供默认构造：值初始化仅构造容器成员、不零初始化 POD 前缀。
     // （ORIG CNPCScriptList C1 0x8376262 无 rep stos 预清——隐式构造行为；
@@ -1962,7 +1990,14 @@ struct stStatusLevelInfo
         m_second = 0;
         m_first = m_second;
     }
-    ~stStatusLevelInfo() {}
+    // [Q1P342ScanA 2026-09-11 杠杆A·P342 落地] **不声明析构** ⇒ 类型 trivial ⇒
+    //   `_Destroy_aux<true>`（与 ORIG 同形）。
+    //   直证：ORIG 只有 `_ZNSt12_Destroy_auxILb1EE9__destroyIP17stStatusLevelInfo`
+    //   （**无 ILb0 版**），我方原发 ILb0 + `_ZSt8_DestroyI17stStatusLevelInfo`（ORIG 无）。
+    //   ORIG `_ZN17stStatusLevelInfoD1Ev/D2Ev` @0x08940782（W）系**隐式**析构由
+    //   odr-use 发射，非用户声明；删声明后两发射 TU（CQuestShop / InitScriptProducers_7）
+    //   的 W D1/D2 **实测仍在**（符号并集核账 LOST 项仅 ILb0 族，REAL GAPS = 0）。
+    //   读数：CQuestShop extra 67→64；InitScriptProducers_7 identical 521→522、extra 317→315。
     unsigned char m_first;   // +0x00（getNextLevel 返回；= 嵌套版 m_max）
     unsigned char m_second;  // +0x01（getMaxCount/getNextLevel 累计；= 嵌套版 m_min）
 };
@@ -2730,7 +2765,14 @@ public:
     void get_New_DailyMission(std::vector<std::pair<unsigned int, unsigned int> >& out);
     int get_WithinMissionIndex(int idx) const;
     std::list<CMission*>& get_kind_mission_list(unsigned int idx);
-    int get_BaseMissionExp_byRank(unsigned short rank) const;
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x08cc3b00 size 0x54 =
+    //   `unsigned int PvP_MissionSystem::get_BaseMissionExp_byRank(short unsigned int) const`
+    //   （pstr.py 实读；同址 0x085e2eb1 `movl $0x8cc3b00,0x4(%esp)` REF 直证）。
+    //   我方原 `int` ⇒ prett 串短 9B（"int " vs "unsigned int "）；且 ORIG 函数体
+    //   0x085e2ee2 越界判定 `cmp %eax,%ebx; setae`（无符号）+ 元素载体
+    //   `vector<unsigned int>::operator[]` 直返 `mov (%eax),%eax`（无截断）
+    //   ⇒ 返回类型为 unsigned int。返回类型不入 mangling，符号零变化。
+    unsigned int get_BaseMissionExp_byRank(unsigned short rank) const;
     int sort_list();   // b28d-61 [P159]：ORIG 0x085e20f0 尾 `mov $0x0,%eax` ⇒ int
 private:
     std::map<int, CMission*> m_missionMap;                        // +0x00
@@ -3333,7 +3375,11 @@ public:
     CNPCScriptList();
     ~CNPCScriptList();
     // ORIG _ZN14CNPCScriptList10initScriptEPcS0_S0_（init 调用，0=成功）
-    int initScript(char* dir, char* list, char* common);
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x08caa560 size 0x37 =
+    //   `int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)`（pstr 实读；
+    //   mangled `…EPcS0_S0_` 展开为 char* ⇒ 同类型）。我方原 `char*` ⇒ 我方
+    //   同名 prett 串 0x34（短 3B = 3×("NCHAR"→"char")）⇒ 对齐声明拼写。
+    int initScript(NCHAR* dir, NCHAR* list, NCHAR* common);
     // ORIG T 0x08581680：hash_map 命中返回 CNPCScript*，未命中返回 0。
     CNPCScript* find(unsigned int idx) const;
     int getMaxFavorValue() const;                       // W 0x8582364
@@ -3579,7 +3625,10 @@ public:
     int get_creature_level_exp(int level) const;
     int get_creature_exp_level(int exp) const;
     unsigned int GetSpAtLevelUp(int level) const;
-    unsigned int GetMoneyLimitPerLevel(int level, const char* serverGroup) const;
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x08c34300 size 0x42 =
+    //   `dword CDataManager::GetMoneyLimitPerLevel(int, const char*) const`
+    //   （我方原 `unsigned int` 拼写 ⇒ 串 0x49 ≠ 0x42）；同底层类型，mangled 不变。
+    dword GetMoneyLimitPerLevel(int level, const char* serverGroup) const;
     void get_mob_reward(int level, unsigned int& out) const;
     bool set_mob_reward();  // [b28d-Main·P321-T3] 同上
     float BaseExpPenalty(int levelA, int levelB);
@@ -3607,7 +3656,14 @@ public:
     int get_WithinMissionIndex(int idx) const;
     std::list<CMission*>* get_kind_mission_list(int idx) const;
     void get_New_DailyMission(std::vector<std::pair<unsigned int, unsigned int> >& out);
-    int get_BaseMissionExp_byRank(unsigned short rank) const;
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG 0x0835fb12 为**纯转发**（`call
+    //   PvP_MissionSystem::get_BaseMissionExp_byRank; leave; ret` 直返 eax），被转
+    //   发方返回类型 = unsigned int（prett 0x08cc3b00 size 0x54 直证）⇒ 本处同。
+    //   独立直证（调用点，CMission.cpp:139 已引）：ORIG 0x085e32f7 取返回后
+    //   `mov $0x0,%edx; mov %eax,-0x30(%ebp); mov %edx,-0x2c(%ebp); fildll`
+    //   = **零扩展** 64 位（int 恒 fildl / 或 sar $0x1f 符号扩展）⇒ 返回无符号。
+    //   返回类型不入 mangling，符号/sizeof 零变化；本处无 prett 符号可回收。
+    unsigned int get_BaseMissionExp_byRank(unsigned short rank) const;
     std::bitset<32> get_daily_mission_kind() const;
 
     // ---- 事件/道具 ----

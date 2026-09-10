@@ -276,6 +276,12 @@ EVENT_DONE:
 //      升格 %ebx 跨 call）——P52/N7；
 //   ⑤ 4.4 尾部多 2 条 jmp（if/else+外层块尾，ORIG 直落 epilogue）——N121 族。
 //   p167 CLEAR。ORIG 0x082ebb9c
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a/N7）→ 试=①prett2/修正判据缺口 0、
+//   strall 串差 0、p167 CLEAR；②446/446h 后端变体四数逐项相同；③本波复核 125/130
+//   gap=-5 的 5 组残差 = 实参装载序（`movl $0xa,0x4(%esp)` 常量先 vs 我方载参先）、
+//   make_basic_info 求值序、send_all 的 %ebx 提前升格、尾部 2 条 jmp —— 全属
+//   4.1↔4.4 求值序/寄存器分配（P75/P52/N121 族，历史已试 P226/P248 档②）⇒ 维持
+//   （新=DIFF 125/130 gap=-5, blocks=7）。
 #include "W6_AssaultPlaceDepsA/_ProcessChaos.inc"
 {
     if (victim < 0 || victim > 7)
@@ -476,6 +482,11 @@ LOOP_END:
     //   -0x24/-0x20 < packet -0x1c；OURS packet -0x24、counts -0x18/-0x14）。
     //   P309 两形实测（头部声明+后置赋值 / 提到 i 之前）槽图均不变 ⇒ 4.4
     //   「块内聚合优先占低槽」固定分区，不可翻。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N82附）→ 试=①prett2/修正判据缺口 0、
+//   strall 串差 0、p167 CLEAR；②446 后端与 446h 变体四数逐项相同（本 TU 未路由，
+//   两向变体均无增益）；③本波复核 88=88 纯槽号差（packet -0x24 vs ORIG -0x1c、
+//   aliveCounts -0x18/-0x14 vs ORIG -0x24/-0x20），P339 声明序两形已试不可翻 ⇒
+//   维持（新=NEAR 88/88 gap=0, blocks=9）。
     int aliveCounts[2] = { 0, 0 };
     // [b28d-62] P232：ORIG 0x082e9a71 有 dead bool 预清 `movb $0x0,-0x9`（后续
     //   无读取），缺失导致 i 槽 -0xc vs ORIG -0x10 全帧浅 4 ⇒ 按原样补声明。

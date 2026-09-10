@@ -69,6 +69,10 @@
 // TowerOfDespair_APC_Mgr::Set_APC_Info —— ORIG T 0x085fed2e [0x085fed2e,0x085feecf]
 // map find；命中→复用条目 set_data；未命中→构造局部 SendingAPC_Info + set_data
 // 后 make_pair/insert，随后析构局部（try 块内 set_data/insert 链）。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N93）→ 试=复核 111/111：两处 `lea` 目标槽互换
+// （ORIG 首执行的 `_Rb_tree_iterator::C1Ev`(0x85ff170) 作用 -0x2e808、2 实参 call(0x85ff17e
+// 系 map::find 段) 作用 -0x2e804；我方 -0x2e804/-0x2e808 相反）⇒ 声明序↔执行序互斥
+// （前轮 9 形已实测，B 形退化为 DIFF 已回滚）⇒ 维持（新=NEAR gap=0, blocks=5）。
 #include "TowerOfDespairMgr/Set_APC_Info.inc"
 {
     // b28d-49 @0x85fed2e：P167 差集定位 —— ORIG 有 iterator::C1Ev（默认构造）+

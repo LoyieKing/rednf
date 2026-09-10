@@ -284,6 +284,12 @@ extern CInGameAdvertisementManager* InGameADManagerInstance();
 //      （ORIG 0x08673xx）的 mem 操作数是 **call 返回值局部**（gain_money / get_rand_int
 //      的结果槽）⇒ C05② 边界（跨调用返回值不适用），且后者为无符号序 seta；
 //   ③ 无一处属「两个具名局部比较」命中形 ⇒ 维持 N82 封顶，无改动、无回滚。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N22/N82/N95，gap=-15/blocks=247）→ 试=①prett2/
+//   q3_gap2 缺口 0、strall 串 CLEAR（仅 base64 假阳性）②4.4.6 后端 overlay 复编对该 TU
+//   无益（同族先例：W7_LinkTailGrowth 446/447 四数逐项相同）③n1_v 首残差 = 帧内**类对象
+//   槽整体平移**（ORIG -0x5c/-0x139/-0x176/-0x2b8 vs 我方 -0x74/-0x151/-0x18e/…，帧同为
+//   `sub $0x30c`）⇒ 4.1/4.4 按首次使用序分配局部对象的槽策略差（N82/N95），非 P339 声明序
+//   可造（帧长已全等）⇒ 维持 N（1315/1330，gap −15 为版本槽策略）。
 #include "W8_CU_A/lottery_item.inc"
 {
     // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。
@@ -632,6 +638,11 @@ extern CInGameAdvertisementManager* InGameADManagerInstance();
 // [E04 2026-09-10 复核] p167 141/141 CLEAR（差集仅 C1/C2·D1/D2 别名）；另比较点
 //   ORIG `mov -0x14b(%ebp),%eax; cmp $0x2061,%eax` vs 我方 `cmpl $0x2061,-0x58(%ebp)`
 //   = N18b 比较形族（形参/局部 mem 直比）。N126+N18b 维持。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N95，gap=+19/blocks=228）→ 试=①prett/q3_gap2
+//   缺口 0 ②n1_v：**帧长不同**（ORIG `sub $0x25c` vs 我方 `sub $0x24c`）+ 具名对象拷贝块
+//   偏移整体平移（ORIG -0x218…-0x14d vs 我方 -0x15d…）⇒ 属 N115/N82 版本槽策略（4.4 块内
+//   对象按序压深、4.1 反之）③句法旋钮不可补帧长差（若补假槽会引入额外指令反劣）
+//   ⇒ 维持 N（1036/1017，gap +19）。
 #include "W8_CU_A/multibox_lottery_item.inc"
 {
     // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。
@@ -903,6 +914,13 @@ extern CInGameAdvertisementManager* InGameADManagerInstance();
 // 定义置于本 TU 末尾（曾试 P210 后置以翻 multibox 帧：实测帧 0x24c 不变，
 //   故非「已见定义 callee」成因；见 multibox_lottery_item 判词 N95）。
 // ---------------------------------------------------------------------------
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N78/N82/N95，gap=-2/blocks=13）→ 试=①prett/q3_gap2
+//   缺口 0、strall CLEAR、p167 16/16 CLEAR（E04 已证）②残余两块逐一定性：
+//   (a) `Inven_Item item = (*it).first;` 隐式拷贝尾单元宽度：ORIG 4.1 `movzwl 0x3c(%eax),%eax;
+//       mov %ax,-0x2a(%ebp)`（word、含 +0x3d 越界读遗留）vs 4.4 `movzbl …/%al`（byte）
+//       ⇒ 由 **Inven_Item 头布局最后成员宽度**决定（P344 拷贝单元分段轴），改须动共享头 ⇒ 越界；
+//   (b) it/guard 槽序反向（ORIG guard -0x28/it -0x1c vs 我方 it -0x28/guard -0x24）⇒ N95 槽序族。
+//   ⇒ 维持 N（147/149，gap −2）。
 #include "W8_CU_A/CheckFailMultiBoxLottery.inc"
     CUser* user,
     std::vector<std::pair<Inven_Item, bool> >& rewardList)

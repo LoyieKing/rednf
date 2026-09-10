@@ -487,7 +487,11 @@ static void setPolicyApplyValue(RestrictCategory::Enum category,
         {
             LogManager::logFormat(
                 1, "localtaiwan/System/ServiceRestrictManager.cpp",
-                "void setPolicyApplyValue(RestrictCategory::Enum, ServicePolicy&, std::string const&)",
+                // [Q7S3 §6.5] ORIG 0x0816d490 prett 串（0x8b82e00 实读）为
+                // "…ServicePolicy&, const std::string&"；旧手写串写成
+                // "std::string const&"（词序颠倒）⇒ 换宏取定义侧拼写
+                //（第 3 参声明本就是 const std::string&）。
+                __PRETTY_FUNCTION__,
                 0x22,
                 "[Taiwan, Restrict] Invalid server value. restrict:%d,%d,%d",
                 static_cast<int>(category), idx, v);

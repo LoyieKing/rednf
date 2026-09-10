@@ -1696,6 +1696,10 @@ __attribute__((weak)) TimerStatisticsDetailChannelInfo::~TimerStatisticsDetailCh
 // `add %eax,%eax; mov %eax,%edx; shl $4,%edx; sub %eax,%edx`，N86b/N1）⇒ 封顶。
 // [TimerDispatcher-3 2026-09-10 判据①] 同族：唯一 jg 目标差 1 = 该 lea↔add 单条
 // （探针 r1..r6 六形恒 add），分支语义等价。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=nd 多重集 85/85：唯一残差 = `x*0x1e`
+// 归约 4 条 `lea (%eax,%eax,1),%edx; mov %edx,%eax; shl $0x4,%eax; sub %edx,%eax`（ORIG）
+// vs `add %eax,%eax; mov %eax,%edx; shl $0x4,%edx; sub %eax,%edx`（我方）；前轮 22 形探针
+// （/tmp/mod_probe{,2,3}.cpp）封底 + prett/strall/p167 CLEAR ⇒ 维持（新=DIFF gap=0, blocks=2）。
 #include "TimerDispatcher/RegistNextTimer_1.inc"
 {
     // [TimerDispatcher-4 2026-09-11] 同 DDStat/UCE：唯一真残差 = `%0x1e` 余数段
@@ -2334,6 +2338,9 @@ __attribute__((weak)) TimerDungeonDataStatistic::~TimerDungeonDataStatistic() th
 // add 各 1，余全等）⇒ 封顶，无语义缺口。
 // [TimerDispatcher-3 2026-09-10 判据①] 唯一 jg 目标差 1 = `%0x1e` 强度归约 2x 的
 // lea↔add（探针 /tmp/td_probe5.cpp r1..r6 六形恒 add）⇒ N86b/N1；分支语义等价。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=nd 多重集 74/74：唯一残差同 SDCI 件
+// （`x*0x1e` 归约 lea↔add 4 条；22 形探针封底）+ prett/strall/p167 CLEAR ⇒ 维持
+// （新=DIFF gap=0, blocks=2）。
 #include "TimerDispatcher/RegistNextTimer_6.inc"
 {
     // [TimerDispatcher-4 2026-09-11] N86b/N1 复证（22 形探针 /tmp/mod_probe{,2,3}.cpp）：

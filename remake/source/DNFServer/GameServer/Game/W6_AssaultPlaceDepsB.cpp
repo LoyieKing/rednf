@@ -845,6 +845,13 @@ namespace pvp_assault
 // ⑥side/winnerType 改 int 槽（ORIG movsbl 物化后 dword 存）。残差归因
 // N82 帧槽（0xdc vs 0xcc）+ P63 jmp/nop 中继（详见
 // docs/asm_translation_patterns.md 负例表）。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=①prett2/修正判据缺口 0、
+//   strall 串差 0、p167 CLEAR(61=61)；②本 TU 已路由 4.4.6 全量（C6446R），本波
+//   反向实测 4.4.7 全量变体 **劣化**（6/40/0/5/12 → 6/39/1/5/12，ae−1/near+1）
+//   ⇒ 路由已最优、无反向旋钮；③本波复核 531/533 gap=-2：帧 0xcc vs 0xdc（我方大
+//   0x10）+ killerName 槽（ORIG -0x61 vs 我方 -0x45）+ `movl $0x0,-0x2c` 预清位置
+//   （ORIG 头部双预清 0x10 之外，三形历史实测以原位最优 ndiff 347）⇒ 维持
+//   （新=DIFF 531/533 gap=-2, blocks=58）。
 #include "W6_AssaultPlaceDepsB/DieUser.inc"
 {
     char killerName[0x15] = { 0 };               // ORIG 0x15 字节初始化清零展开（非 memset call）

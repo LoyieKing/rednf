@@ -14,6 +14,8 @@
 // 修改前先经 hub 通知相关子代理。
 // ============================================================================
 
+#include "GameTypes.h"   // [Q3PrettSweepA] memberIdentificationNumber_t（ORIG prett 拼写直证）
+
 class CCompoundEmblemStatistic
 {
 public:
@@ -32,6 +34,8 @@ CCompoundEmblemStatistic* getCompoundEmblemStatistic();
 
 int getAvatarEmblemTypeIdxForCompountEmblem(unsigned short type, int* counts, int& total);
 
-int LineFunc(int line, const char* func, int errNo, unsigned int mid);
+// [Q3PrettSweepA 2026-09-11] 第 4 参拼写对齐 ORIG prett（同底层，mangled `_Z8LineFunciPKcij` 不变）：
+// `int LineFunc(int, const char*, int, memberIdentificationNumber_t)` size 0x42。
+int LineFunc(int line, const char* func, int errNo, memberIdentificationNumber_t mid);
 
 #endif  // DNF_GAME_COMPOUNDEMBLEMDEPS_H_

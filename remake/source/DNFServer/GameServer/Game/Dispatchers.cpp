@@ -5403,6 +5403,12 @@ public:
     // ORIG 帧偏移：-0x37=pkt+0xa(UID@0x09a)、-0x33=pkt+0xe(characNo@0x0a8)、
     // 名区 memcpy dst=pkt+0x13(0x0bf)、len=*(msg+0x10)、src=msg+0x14。
     // [语义修复] 旧版写 +7/+0xa/+0xf 与 ORIG 不符（UID/characNo/名区整体错位）。
+    // [Q4DispatchBig 2026-09-11 负结论] 试「视图取址→引用形」
+    //   （`reinterpret_cast<SecedePktView&>(pkt).m_uid = ...`，两行同改）实测
+    //   仍产 `lea -0x41(%ebp),%ebx; mov %eax,0xa(%ebx)`、our 79 不变 ⇒ 4.4 对
+    //   「异类型 cast 视图」恒物化基址；ORIG 的 ebp 相对单级直存
+    //   （`mov %eax,-0x37(%ebp)`）只能来自**同类型直接成员访问**
+    //   （即 Packet_Monitor_Member_Secede 自身带 +0x0a int 字段）⇒ 属共享头话题。
     reinterpret_cast<SecedePktView*>(&pkt)->m_uid = user->GetUID();
     reinterpret_cast<SecedePktView*>(&pkt)->m_characNo = user->getCurCharacNo();
     std::memcpy(reinterpret_cast<char*>(&pkt) + 0x13,
@@ -6753,7 +6759,10 @@ public:
     packet.put_header(1, 0xa7);
     packet.put_byte(2);
     // [L7DispG2] P0：ORIG 无 padA 槽（getPad 结果直传）。
-    packet.put_byte(user->getPad()->getAdvideChangePwd() & 0xff);
+    // [Q4DispatchBig 2026-09-11] ORIG 该点 `movzbl %al,%eax`（截断形）⇒ 用
+    //   (unsigned char) cast 取代 `& 0xff`（4.4 对掩码产 `and $0xff,%eax`）。
+    packet.put_byte(static_cast<int>(
+        static_cast<unsigned char>(user->getPad()->getAdvideChangePwd())));
     packet.finalize(true);
     user->Send(packet);
 
@@ -8964,6 +8973,11 @@ LBODY:
 // [SweepDispatchers 2026-09-09] 重载选型真缺口修复：dollSlot 读取 ORIG 0x0820324c 调
 //   get_short(unsigned short&)（Rt），旧码 `(short&)dollSlot` 误选 Rs ⇒ p167 MISSING/EXTRA
 //   各 1；字段本型直传后该对清零（残余为 N89 STL 内联族 + C1/C2 别名）。
+// [Q4DispatchBig 2026-09-11 留痕] 本件在 call 轴上仍缺 1 条 `_ZNSsC1EPKcRKSaIcE`
+//   （ORIG 0x08202ea8 该函数内有该 call，属**函数级**真缺口）；因「首用处拷贝构造形」
+//   （`std::string nameStr(subject);` 下移到 +0x1af）实测 ours 424→438（gap −7→−8）
+//   劣化、栈槽/临时链被打乱，按 codegen 轴闸门保留「入口声明 + 赋值」现状。
+//   后续审计勿当新发现（p167 该件另 2 条 `_Unwind_Resume`/`_ZNSaIcED*Ev` 为伪符号族假缺口）。
 #include "Dispatchers/dispatch_sig_59.inc"
 {
     // ORIG 0x08202cda（docs/class_func_reports/Dispatcher_CompleteDisplay/dispatch_sig.md）
@@ -11286,13 +11300,14 @@ L_late:;
 
     // [b28d-solo-Dispatchers] ORIG local_7589 = 0x7531 字节快照（memcpy 直填，
     //   0x081df57c mov $0x7531 / 0x081df58c call memcpy；全函数**无** CQuestClear
-    //   构造调用）。ORIG 有 D1Ev ×2（0x081df71f 正常 + 0x081df739 EH），但
-    //   `_ZN8WongWork11CQuestClearD1Ev` 0x0822e4cc 为**空体**（push/mov/pop/ret）
-    //   ⇒ 缺该调用无观察行为差。实测真实对象形（`WongWork::CQuestClear cleared;`）
-    //   会额外发射 C1Ev call（ORIG 无）并使 missing 822→825（四数闸门）⇒ 保留
-    //   char 占位形，本项按 N/P64 建模豁免封顶。
-    char cleared[0x7531];
-    memcpy(cleared, &user->getCurCharacQuestR()->m_cleared, 0x7531);
+    //   构造调用）。ORIG 有 D1Ev ×2（0x081df71f 正常 + 0x081df739 EH）。
+    // [Q4DispatchBig 2026-09-11 · 缺对象型缺口修复] 旧探针试的是**默认构造形**
+    //   （`WongWork::CQuestClear cleared;`）⇒ 必发 C1Ev（ORIG 无）故回滚。
+    //   正解 = 旧注释漏看的**拷贝构造形**：`CQuestClear cleared(src)` 的隐式拷贝
+    //   构造内联为 memcpy（不发 C1Ev），而 ~CQuestClear(){} 非平凡 ⇒ 正常尾 + EH
+    //   各发 D1（正是 ORIG 的 0x081df71f/0x081df739）。同仓 UserQuest.cpp:930
+    //   已有同形成功范例；QuestClear.h 记 sizeof(CQuestClear)=0x7531（= ORIG memcpy 长度）。
+    WongWork::CQuestClear cleared(user->getCurCharacQuestR()->m_cleared);
 
     stSelectQuestParam selectParam(user);
     // ORIG：getQuestNPCList/allowable_questlist_as_npc 各自写完整表达式
@@ -11300,8 +11315,7 @@ L_late:;
     std::multimap<int, int>* npcList =
         G_CDataManager()->m_questList->getQuestNPCList(ENUM_QUEST_GRADE_8);
     G_CDataManager()->m_questList->allowable_questlist_as_npc(
-        selected_quest, *npcList, selectParam,
-        *reinterpret_cast<const WongWork::CQuestClear*>(cleared), true);
+        selected_quest, *npcList, selectParam, cleared, true);
 
     if (selected_quest.empty())
     {
@@ -15440,6 +15454,8 @@ L_late:;
     int local_18;                        // -0x14：*(int*)(pkt+0xd)
     int local_14;                        // -0x10：vector size（填充前）
     game_master::CCommand* local_c;      // -0xc：GetCommand 结果
+    // [Q4DispatchBig 2026-09-11 负结论] 试删未用 `char cVar1;`：四数与本件
+    //   (233/231, gap +2) **均不变** ⇒ 4.4 不给未使用自动变量分配槽，删之无收益 ⇒ 还原。
     char cVar1;
 
     local_1c = packet.get_packet(0);
@@ -15454,6 +15470,11 @@ L_late:;
     {
         local_19 = 0;
     }
+    // [Q4DispatchBig 2026-09-11 负结论] ORIG 该点 `movzbl -0x19(%ebp),%eax;
+    //   xor $0x1,%eax; test %al,%al; je`（4 条，4.1 char 提升链）。本波实测两形均劣：
+    //   ① `if (local_19 == 0)` ⇒ `cmpb $0x0; jne`（形态仍不符，gap +2 不变）；
+    //   ② `if (!local_19)` ⇒ 我方 our 231→**230**（gap +2→**+3** 劣化）且槽漂移
+    //   -0x1a/-0x19 → -0x1e/-0x1d。⇒ 回滚 `!= 1`（N 档：4.4 内存直比不可造 4.1 提升形）。
     if (local_19 != 1)
     {
         return 0;
@@ -21645,6 +21666,14 @@ LOUT:
     //   ::C1ERKS5_` 与 `::base()` 两个 identical 实例 —— 它们由本使用点发射），
     //   而本件 verdict 未升级（仍 DIFF）⇒ 净负，回滚为非 const `iterator`（P96 原形）。
     //   ORIG 那两个实例由 STL 方法链（push_back/_M_insert_aux/aSERKS_ → begin/end）ODR-use。
+    // [Q4DispatchBig 2026-09-11 负结论·复测回滚] 本件「it 改 const_iterator」与
+    //   「it const + at()」两种改法都实测劣化：
+    //   旋钮1（只改 it）TU identical 1011→1009、ae 2394→2392；
+    //   旋钮1+2（再叠 `oit->at(sel)`）identical 1011→1008 ⇒ 净负（本件仍 DIFF，
+    //   gap +15 不变）。机制：const 化后本使用点不再发射非 const
+    //   `__normal_iterator<PSt6vector<STStackablePackageData>*,...>::C1ERKS5_` 与
+    //   `::base()`（ORIG 有，0x0839xxxx 族）⇒ TU 少 2~3 个 identical 实例。
+    //   ⇒ 维持 P96 原形（非 const iterator + `(*oit)[sel]`）。
     std::map<int, std::vector<std::vector<STStackablePackageData> > >::iterator it =
         G_CDataManager()->m_growthPower.m_map18.find(key);
     if (it == G_CDataManager()->m_growthPower.m_map18.end())
@@ -21693,6 +21722,8 @@ LOUT:
             //   St6vectorI22STStackablePackageDataSaIS2_EES1_IS4_SaIS4_EEEdeEv` 不再发射，而该符号
             //   **ORIG 有**（0x083947b2 W, size 0xa）⇒ TU identical −1（1009→1008），EXTRA 收益
             //   不足以抵偿 ⇒ 维持 `(*oit)[sel]` 形。
+            // [Q4DispatchBig 2026-09-11 复测确认] 「it const + at」合并改法同样劣化
+            //   （identical 1011→1008、ae −2），负结论维持。
             item.m_addInfo2 = (*oit)[sel].m_field4;
         }
         items.push_back(item);
@@ -23028,9 +23059,14 @@ LOUT:
     }
     // [G3 2026-09-11] 去 signed cast：ORIG 0x081e8432 `movzwl 0x10(%eax),%ebx;
     //   call get_GrowthWeaponMaterialMax; cmp %ax,%bx; setge`（无 movswl）。
-    if (reinterpret_cast<GrowthWeaponEventView*>(
-            user->getGrowthWeaponEventdata())->m_field10 >=
-        G_CDataManager()->get_GrowthWeaponMaterialMax())
+    // [Q4DispatchBig 2026-09-11 · 语义轴修复] 实测我方该点 `setae`（unsigned 16 位）
+    //   vs ORIG `setge`（signed 16 位）⇒ 原「裸 ushort >= ushort」被 4.4 折成
+    //   unsigned 比较；≥0x8000 的材质计数两侧语义不同。ORIG 的 movzwl（零扩展）
+    //   说明成员仍是 unsigned short，只把**比较两侧**显式截为 signed short
+    //   （同 TU check_error_76 / ChangeInfinity 的 `(short)get_...()` 形已 AE 实证）。
+    if (static_cast<signed short>(reinterpret_cast<GrowthWeaponEventView*>(
+            user->getGrowthWeaponEventdata())->m_field10) >=
+        static_cast<signed short>(G_CDataManager()->get_GrowthWeaponMaterialMax()))
     {
         return 0x11;
     }
@@ -23901,6 +23937,11 @@ typedef char sdc_view_size_check[(sizeof(SDCDamageSyncView) == 0x29) ? 1 : -1];
         *reinterpret_cast<int*>(sig) = static_cast<int>(user->get_acc_id());
         // ORIG 0x81cf6a2：rep movsl 0x84 dword；4.4 对该类型结构体赋值退化为逐成员
         // 拷贝（+42 条），故保留 memcpy（N78 族，形态不可复现）。
+        // [Q4DispatchBig 2026-09-11 负结论·复测回滚] 照抄 CUser.cpp:7630 的等宽
+        //   align-4 局部视图范式（`*(EmoticonCfgA4View*)(sig+4) = *(const ...*)&config`）
+        //   实测本件 our 138→**143**（gap +1→−4）劣化、TU 四数不变 ⇒ 回退。
+        //   与 CUser 场景的差别：此处源 `config` 是 pack(1) 的局部量（align 1），
+        //   4.4 需先做对齐剥离，赚不到单级 rep movsl。
         memcpy(reinterpret_cast<char*>(sig) + 4, reinterpret_cast<const char*>(&config), 0x210);
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     }
@@ -25240,7 +25281,7 @@ struct AocParamView
     // ORIG 0x81e639a..0x81e6461：6 个日志参数每个日志点重取（P48 去缓存）。
     // 日志槽：initial 0x6127 / gm 0x6135 / user 0x6140 / same 0x614d / none 0x6158。
     CMyFileLog clientLog(
-        "virtual int Dispatcher_BlueMarbleConfirmInfo::process(CUser*, MSG_BASE&, ParamBase&)",
+        __PRETTY_FUNCTION__,
         0x6127);
     clientLog(path,
               "Client m_id(%s) charac_no(%u) userState(%d) userSpace(%d)"
@@ -25267,7 +25308,7 @@ struct AocParamView
             {
                 // ORIG 0x81e66dd..0x81e67a1：sameLog 各参数重取
                 CMyFileLog sameLog(
-                    "virtual int Dispatcher_BlueMarbleConfirmInfo::process(CUser*, MSG_BASE&, ParamBase&)",
+                    __PRETTY_FUNCTION__,
                     0x614d);
                 sameLog(path,
                         "OverLap User index same m_id(%s) charac_no(%u) userState(%d)"
@@ -25287,7 +25328,7 @@ struct AocParamView
             {
                 // ORIG 0x81e64fa..0x81e65a1：gmLog 各参数重取
                 CMyFileLog gmLog(
-                    "virtual int Dispatcher_BlueMarbleConfirmInfo::process(CUser*, MSG_BASE&, ParamBase&)",
+                    __PRETTY_FUNCTION__,
                     0x6135);
                 gmLog(path,
                       "OverLap User index different m_id(%s) charac_no(%u) userState(%d)"
@@ -25303,7 +25344,7 @@ struct AocParamView
             {
                 // ORIG 0x81e65d6..0x81e669d：userLog 各参数重取
                 CMyFileLog userLog(
-                    "virtual int Dispatcher_BlueMarbleConfirmInfo::process(CUser*, MSG_BASE&, ParamBase&)",
+                    __PRETTY_FUNCTION__,
                     0x6140);
                 userLog(path,
                         "OverLap User index different m_id(%s) charac_no(%u) userState(%d)"
@@ -25320,7 +25361,7 @@ struct AocParamView
     {
         // ORIG 0x81e67c0..0x81e688a：noneLog 各参数重取
         CMyFileLog noneLog(
-            "virtual int Dispatcher_BlueMarbleConfirmInfo::process(CUser*, MSG_BASE&, ParamBase&)",
+            __PRETTY_FUNCTION__,
             0x6158);
         noneLog(path,
                 "Not Exist User m_id(%s) charac_no(%u) userState(%d)"
@@ -25916,6 +25957,10 @@ namespace
     }
     {
         // +0x330：怪物卡绑定数据索引（CStackableItem::m_int330；ORIG mov 0x330(%eax),%eax）
+        // [Q4DispatchBig 2026-09-11 负结论·P183 重试回滚] 按 Q4TriageB 建议删具名
+        //   `bindInfoIdx`（直读表达式）实测 our 232→**231**（gap +3→**+4** 劣化）：
+        //   该点虽由 `mov %eax,-0xc; cmpl $imm,-0xc` 变 `cmp $imm,%eax`（对齐 ORIG
+        //   0x081d8de2），但删槽后本件别处少发 1 条 ⇒ 净负 ⇒ 保留具名量（旧判决有效）。
         const int bindInfoIdx =
             reinterpret_cast<const CStackableItem*>(cardA)->m_int330;
         if (bindInfoIdx == -1)

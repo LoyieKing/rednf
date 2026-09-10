@@ -90,12 +90,20 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
     if (typeFlag == 2)
     {
         // ORIG hasPreventPrefixCharacName(src, srcLen)（Ghidra 误抄参数，asm 实证）。
-        if (!G_CDataManager()->hasPreventPrefixCharacName(srcName, srcLen))
+        // [Q5BigTURest.DisPatcherCore 2026-09-11 极性轴·落地] ORIG 0x0820598x 段为
+        // `call; test %al,%al; je <失败块>` + **成功路 fall-through**
+        // （`movl $0x2,-0x1c`）⇒ 原码是正向 if/成功先；我方原 `if (!f()) { 失败; return; }`
+        // 令 4.4 产 `xor $0x1,%eax; test; je` + 失败块前置（本件 diff 块 4→3、
+        // xor 计数 +1→0；TU 四数零劣化）。残差=槽 -0x21/-0x22 与 %esi 保活（N7）。
+        if (G_CDataManager()->hasPreventPrefixCharacName(srcName, srcLen))
+        {
+            nameState = 2;
+        }
+        else
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x8a, 7);
             return 0;
         }
-        nameState = 2;
     }
     else
     {

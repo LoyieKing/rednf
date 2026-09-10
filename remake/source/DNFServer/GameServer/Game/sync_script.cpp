@@ -534,6 +534,12 @@ namespace sync_script
     //   非 `jmp+尾岛` 结构（我方尾 18c3 mov/../18ce ret 与 ORIG 逐条对齐，446=446）。
     //   ⇒ 维持 N7/N18a：唯一残差 = SWEAPONTYPE 键构造处 ORIG 0x086252dc
     //   `mov -0x18(%ebp),%eax` vs 4.4 `%edx`（1 条寄存器名分配差）。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N7/N18a/N98）→ 试=键构造形 A/B：
+    //   具名 `SWEAPONTYPE key(job, subType); m_weaponMap[key] = …`（overlay）⇒ **反劣**
+    //   （槽组整体浅移 8：-0x50→-0x48、-0x60/-0x64 新增，且多 1 枚 _ZNSsC1Ev ⇒ 已回滚）；
+    //   改写后 ORIG 侧形 0x086252dc 段仍为 `mov -0x18(%ebp),%eax; mov %eax,0x8(%esp);
+    //   mov -0xc(%ebp),%eax; mov %eax,0x4(%esp)`（4.1 纯右→左）vs 4.4 恒先 args[1] 到 %eax
+    //   再 args[0] 到 %edx ⇒ 前端求值序不可造 ⇒ 维持 NEAR（446/447，gap -1；尾 nop 豁免）。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -740,7 +746,17 @@ namespace sync_script
     char escapedBuf[0xb000];
     memset(escapedBuf, 0, sizeof(escapedBuf));
     int escCount = 0;
-    #define SKILL_ESC_SLOT (escapedBuf + escCount++ * 0x1000)
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N78/N82）→ 试=4 形地址改写 A/B：
+    //   原 `escapedBuf + escCount++ * 0x1000`（our 1391/gap +9）→
+    //   `(char*)escapedBuf + …`（回到 +9，无效）→ **`&escapedBuf[… * 0x1000]`**（下标形）
+    //   与 `&escapedBuf[… << 12]`（位移形）**均 our 1397 / gap +3**（等价，二者取一）；
+    //   每处地址计算：4.4 由 `mov i,%eax; shl $0xc,%eax; mov %eax,%edx; lea; add` 改为
+    //   `mov i,%eax; mov %eax,%edx; shl $0xc,%edx; lea; add`（末 3 处折 `lea (%eax,%edx,1)`）。
+    //   TU 四数 168/296/2/2/69 逐项不变（零劣化）⇒ 推翻 N78「地址计算形不可造」的部分。
+    //   残余 3 = ① ORIG `mov -0x20(%ebp),%edx; lea; shl %edx; add` 的寄存器直选
+    //   （4.4 恒先装 %eax 再转 %edx，同 OnEnterState 0x1d4 中转族）②尾块
+    //   `mov $0x0/%0x1,%ebx; jmp` 判定块序（4.4 直落）⇒ N82 维持。
+    #define SKILL_ESC_SLOT (&escapedBuf[escCount++ * 0x1000])
     char name[0x400] = {0};
     if (!CodePage::script2Database((char*)script->m_str4.c_str(), name))
     {

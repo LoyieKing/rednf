@@ -1,1 +1,1 @@
-char Global::CBossTowerFunc::GetItem(CUser* user, int item, bool flag, char type)
+bool Global::CBossTowerFunc::GetItem(CUser* user, int item, bool flag, char type)

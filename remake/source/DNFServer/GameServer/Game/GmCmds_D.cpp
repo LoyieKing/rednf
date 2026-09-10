@@ -779,7 +779,7 @@ namespace {
 // ORIG ResultToStr 0x084b165c：逐条拷贝 stMonsterIndependentDrop_t，
 // 按 copy+0x2c（m_rate[10] 主掉率）非 0 决定 PrintItemDropList 详细模式。
 // 【b28d-solo-GmCmds_D 判词 AE】p167 CLEAR（11=11）：循环前缓存 begin/end（P13）、
-// `else if (copy.m_rate[10] != 0)` 二次 test/je（P184 死块照抄）均按 ORIG 复现。
+// `else if (copy.m_mainRate != 0)` 二次 test/je（P184 死块照抄）均按 ORIG 复现。
 #include "GmCmds_D/ResultToStr.inc"
     const std::vector<stMonsterIndependentDrop_t>& drops, char* out)
 {
@@ -790,11 +790,11 @@ namespace {
     for (; it != last; ++it)
     {
         stMonsterIndependentDrop_t copy(*it);                // ORIG copy ctor 0x8376bb2
-        if (copy.m_rate[10] == 0)
+        if (copy.m_mainRate == 0)
         {
             PrintItemDropList(copy, out, false);
         }
-        else if (copy.m_rate[10] != 0)                      // ORIG 二次 test/je（P184）
+        else if (copy.m_mainRate != 0)                      // ORIG 二次 test/je（P184）
         {
             PrintItemDropList(copy, out, true);
         }
@@ -847,20 +847,20 @@ namespace {
                     static_cast<float>(drop.m_rate[i]) / 10000.0f));
         strcat(out, lineBuf);
 
-        sprintf(lineBuf, kTryCountFmt, drop.m_rate[5], drop.m_rate[6],
-                drop.m_rate[7], drop.m_rate[8]);
+        sprintf(lineBuf, kTryCountFmt, drop.m_expect[0], drop.m_expect[1],
+                drop.m_expect[2], drop.m_expect[3]);
         strcat(out, lineBuf);
 
         const float rate =
             static_cast<float>(drop.m_rate[i]) / 10000.0f;   // ORIG fstps -0x14
         sprintf(lineBuf, kTotalDropRateFmt,
-                static_cast<double>(static_cast<float>(drop.m_rate[5]) * rate),
-                static_cast<double>(static_cast<float>(drop.m_rate[6]) * rate),
-                static_cast<double>(static_cast<float>(drop.m_rate[7]) * rate),
-                static_cast<double>(static_cast<float>(drop.m_rate[8]) * rate));
+                static_cast<double>(static_cast<float>(drop.m_expect[0]) * rate),
+                static_cast<double>(static_cast<float>(drop.m_expect[1]) * rate),
+                static_cast<double>(static_cast<float>(drop.m_expect[2]) * rate),
+                static_cast<double>(static_cast<float>(drop.m_expect[3]) * rate));
         strcat(out, lineBuf);
 
-        sprintf(lineBuf, kTotalCountFmt, drop.m_rate[9]);
+        sprintf(lineBuf, kTotalCountFmt, drop.m_limit);
         strcat(out, lineBuf);
 
         if (detail)

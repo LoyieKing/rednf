@@ -1,1 +1,1 @@
-bool DB_UpdateCeraShopPurchaseCount::_selectPurchaseCount(unsigned int mId,
+bool DB_UpdateCeraShopPurchaseCount::_selectPurchaseCount(memberIdentificationNumber_t mId,

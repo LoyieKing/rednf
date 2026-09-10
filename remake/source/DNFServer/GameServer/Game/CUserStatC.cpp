@@ -140,7 +140,7 @@
 // ============================================================================
 #include "CUserStatC/exchange_interspace.inc"
                                int addInfo, int toSpace, int toSlot,
-                               unsigned long toItemIdx, int* outSlot)
+                               itemIndexOnlyServer_t toItemIdx, int* outSlot)
 {
     // b28d-solo-CUserStatC 判词：N 封顶（N82 帧/槽 + 4.1 shr $0x1f 符号位 lowering）。
     // P167 CLEAR（265/265）；gap 18/2637；真语义 bug 1 处已修。@0x865f7b0
@@ -248,9 +248,7 @@
                 // `itemIndexOnlyServer_t`；ORIG `_ZZ…E19__PRETTY_FUNCTION__` size 0x6c）⇒
                 // 只记结论；不换 `__PRETTY_FUNCTION__`（本 TU 宏会按当前签名拼写生成，
                 // 与手写串无收益且引入符号名/内容再验证成本）。
-                cMyTrace trace("int CUser::exchange_interspace(int, int, "
-                               "itemIndexOnlyServer_t, int, int, int, "
-                               "itemIndexOnlyServer_t, int*)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x3b21, 5);
                 trace("delete_item failed %d %d %d", getCurCharacNo(), fromSlot,
                       addInfo);
@@ -301,9 +299,7 @@
                 {
                     int characNo = getCurCharacNo();
                     char* accStr = NumberToString(get_acc_id(), 0);
-                    cMyTrace trace("int CUser::exchange_interspace(int, int, "
-                                   "itemIndexOnlyServer_t, int, int, int, "
-                                   "itemIndexOnlyServer_t, int*)",
+                    cMyTrace trace(__PRETTY_FUNCTION__,
                                    0x3b57, 5);
                     trace("(regist_item(): %d)(m_id: %s) (CharacNo: %d) "
                           "(from_slot: %d) (item_count: %d)",
@@ -422,9 +418,7 @@
                 if (*outSlot == -1)
                 {
                     char* accStr = NumberToString(get_acc_id(), 0);
-                    cMyTrace trace("int CUser::exchange_interspace(int, int, "
-                                   "itemIndexOnlyServer_t, int, int, int, "
-                                   "itemIndexOnlyServer_t, int*)",
+                    cMyTrace trace(__PRETTY_FUNCTION__,
                                    0x3be5, 5);
                     trace("insertItemIntoInventory failed %s %d %d %d", accStr,
                           getCurCharacNo(), copy.m_addInfo, addInfo);
@@ -432,9 +426,7 @@
             }
             else
             {
-                cMyTrace trace("int CUser::exchange_interspace(int, int, "
-                               "itemIndexOnlyServer_t, int, int, int, "
-                               "itemIndexOnlyServer_t, int*)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x3bea, 5);
                 trace("delete_item failed %d %d %d", getCurCharacNo(),
                       item.m_addInfo, addInfo);
@@ -872,9 +864,7 @@
                 if (*outSlot == -1)
                 {
                     char* accStr = NumberToString(get_acc_id(), 0);
-                    cMyTrace trace("int CUser::exchange_interspace(int, int, "
-                                   "itemIndexOnlyServer_t, int, int, int, "
-                                   "itemIndexOnlyServer_t, int*)",
+                    cMyTrace trace(__PRETTY_FUNCTION__,
                                    0x3ed3, 5);
                     trace("insertItemIntoInventory failed %s %d %d %d", accStr,
                           getCurCharacNo(), copy.m_addInfo, addInfo);
@@ -946,9 +936,7 @@
                 if (*outSlot == -1)
                 {
                     char* accStr = NumberToString(get_acc_id(), 0);
-                    cMyTrace trace("int CUser::exchange_interspace(int, int, "
-                                   "itemIndexOnlyServer_t, int, int, int, "
-                                   "itemIndexOnlyServer_t, int*)",
+                    cMyTrace trace(__PRETTY_FUNCTION__,
                                    0x3f17, 5);
                     trace("insertItemIntoInventory failed %s %d %d %d", accStr,
                           getCurCharacNo(), item.m_addInfo, addInfo);

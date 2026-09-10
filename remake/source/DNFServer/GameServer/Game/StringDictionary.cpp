@@ -81,14 +81,23 @@ static unsigned int getStringHashValue(const char* s)
     // 发两次 ~vector 析构 call，blocks 5→7 ⇒ 回滚。②ORIG 循环尾用 `ppEi`（后置，
     // 带返回临时槽 -0xc）⇒ 试 `it++`：76→80 条（4.4 postfix 临时 + EH 清理块多
     // 2 次析构 call）⇒ 回滚；③`it` 循环外声明 + `++it` 实测与原 for-init 形逐条
-    // 相同（76/blocks 5）⇒ 维持原形。以上三项均不可造，N93/N91 封顶维持。
-    for (std::vector<unsigned char*>::iterator it = blocks_.begin();
-         it != blocks_.end(); ++it)
+    // 相同（76/blocks 5）⇒ 维持原形。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N3/N91/N93）→ 试=①删尾部
+    // `entities_.clear(); blocks_.clear();`（ORIG 0x08ab22be 循环外仅两次成员自动
+    // 析构：0x08ab234d/0x08ab2361 `add $0x14` 的 `~vector<StringEntity>` 与
+    // 0x08ab2389 的 `~vector<uchar*>`；p167 EXTRA `vector<...>::clear()`×2 直证
+    // 我方多写 clear）②`++it`→`it++`（ORIG 0x08ab2320 调 `_ppEi`（后置，带返回
+    // 临时槽 -0xc 与 `movl $0x0,0x8(%esp)`））③end() 提升为具名 `last`（ORIG
+    // 0x08ab22ed 仅一次 end()，槽 -0x14，循环外）⇒ **推翻**：n1_v=AE（73=73 条,
+    // gap=0）；TU 四数 49/125/0/1/34 → 49/127/0/0/29（diff 1→0、missing −5）。
+    // 关键：P6S4 三项负结论均在**带 clear 行**的旧形上测得（尾部 EH 清理块含
+    // clear 临时）；删 clear 后同轴翻转 ⇒ 三项限制不适用于本形。
+    std::vector<unsigned char*>::iterator it = blocks_.begin();
+    std::vector<unsigned char*>::iterator last = blocks_.end();
+    for (; it != last; it++)
     {
         delete[] *it;
     }
-    entities_.clear();
-    blocks_.clear();
 }
 
 // ----------------------------------------------------------------------------

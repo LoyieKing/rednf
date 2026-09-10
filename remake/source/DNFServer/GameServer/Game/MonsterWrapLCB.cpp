@@ -128,6 +128,14 @@
                 item.m_addInfo = it->m_field0;              // ORIG 写 +0x02 视图
                 G_CDataManager()->m_itemList->create_item(
                     (ENUM_ITEM_CREATE_TYPE)1, item, 1);
+                // [Q7S5 2026-09-11 语义轴] ORIG 0x08349ec0（create_item 之后、
+                //   push_back 之前）：`ptEv; movzbl 0x8(%eax),%eax; movzbl %al,%eax;
+                //   mov %ax,-0x52(%ebp)` —— -0x52(%ebp) = &item(-0x5d)+0xb = Inven_Item
+                //   ::m_fieldb(endurance, ushort) ⇒ 原码此处把 elem.m_field8 写入
+                //   item 耐久字段；缺失 ⇒ 掉落头像物品 m_fieldb 保持 create_item 后
+                //   的 0，玩家可见耐久为空。p167 该处缺的 1 次 const_iterator::ptEv
+                //   亦由本行补回。
+                item.m_fieldb = it->m_field8;
                 out.push_back(item);
                 break;                                      // 不推进迭代器（ORIG jmp +0x170）
             }

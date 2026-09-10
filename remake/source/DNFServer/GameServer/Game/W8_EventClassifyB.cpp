@@ -226,7 +226,11 @@ namespace EventClassify
 //   b) 正常路径 CStreamGuard 析构块位置（N104）。p167 58/58 CLEAR（仅 C1/C2·D1/D2 别名）
 //   ⇒ 语义完成、byte 层 N 封顶。
 #include "W8_EventClassifyB/sendBringUpReward.inc"
-                                       std::vector<int>& rewardVec,
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（P8S2 负结论·P139 挂起）→ 试=GameTypes.h 已备
+//   `typedef std::vector<int> IntVector;`（Q6 落）⇒ 定义处第 2 参改 `IntVector&`（同底层，
+//   mangled/ABI 零变化），3 处 __PRETTY_FUNCTION__ 串随之由展开形 0x77 变 ORIG 逐字节同形。
+//   ⇒ 推翻 P8S2「需 P7 补 typedef」前置（已满足），落地。
+                                       IntVector& rewardVec,
                                        unsigned char& flag)
 {
     if (user == 0)
@@ -825,6 +829,13 @@ namespace EventClassify
 // 合法 C++ 无法把 union 基址移到 +0x2（PacketHeader 非平凡 ctor 不可作 union 成员）⇒ N94。
 // [b28d-W8EventB 复核] jcc 归一化 11/11 逐位一致；`call *` 虚槽 vptr+0xc
 // （`mov (%eax),%eax; add $0xc,%eax; mov (%eax),%edx`）两侧逐条全等。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N6/P30，gap=+0/blocks=1）→ 试=①prett/q3_gap2 缺口 0、
+//   strall CLEAR ②**槽视图旋钮实测**：值写点改 `m_slots[n+6]` 视图劣化（99→101，多
+//   `mov -0x10,%eax; lea 0x6(%eax),%ebx` 两条）⇒ 回退保持 `m_values[n]`；③残差定性：
+//   两侧最终地址全等（我方 `lea 0x4(%ebx),%edx; [%ebp+%edx*4-0x3c]` = ORIG
+//   `lea 0x8(%ebx),%edx; [%ebp+%edx*4-0x4c]` = ebp+4n-0x2c），仅**常量折叠拆分**不同
+//   （4.4 折 +1 元素入索引、基址 +8；4.1 折 +2 元素、基址 −8）⇒ 同源表达式跨版本折叠差
+//   ⇒ 维持 N（99/99，唯一 hunk）。
 #include "W8_EventClassifyB/SendCreateEmblemStatistic.inc"
     std::vector<std::pair<int, int> >& rewards)
 {

@@ -44,7 +44,10 @@ public:
     // 直返 bool 局部 ok ⇒ char 为 Ghidra 误读。mangled 不含返回类型，ABI 零变。
     bool LoadGmListFromDb();   // ORIG T 0x08299530
     void SetGmLevel(unsigned int accId, int level);   // ORIG T 0x0829932a
-    bool LoadGmDataFromDb(unsigned int accId);        // ORIG T 0x08299740
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett = `bool CGM_Manager::
+    //   LoadGmDataFromDb(memberIdentificationNumber_t)`（我方实测串 0x31 vs ORIG 0x41
+    //   = "unsigned int"→"memberIdentificationNumber_t" 之差）；同底层 `j`，mangled 不变。
+    bool LoadGmDataFromDb(memberIdentificationNumber_t accId);   // ORIG T 0x08299740
 
 private:
     // ORIG 布局：map<unsigned int,CGMRecord> +0x00（0x18 字节）、MySQL* +0x18、rwLock +0x1c。

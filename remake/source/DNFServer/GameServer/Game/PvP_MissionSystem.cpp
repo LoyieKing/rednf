@@ -622,23 +622,18 @@ l_end_true:
 {
     if (rank >= m_baseMissionExp.size())
     {
-        // [P2S1PvPQuest 2026-09-11 P139 负结论·已回滚] ORIG 引用 prett 符号
+        // [P2Free304to323 2026-09-11 落地] 返回类型负结论已被 Q6HeaderTypeAxis 的头轴
+        //   修复推翻：`CDataManager.h` 声明改 `unsigned int`（ORIG prett 直证
+        //   @0x8cc3b00 size **0x54**），本定义行同步 ⇒ `__PRETTY_FUNCTION__` 现发射
         //   `_ZZNK17PvP_MissionSystem25get_BaseMissionExp_byRankEtE19__PRETTY_FUNCTION__`
-        //   @0x8cc3b00，size **0x54**，串 = "unsigned int PvP_MissionSystem::
-        //   get_BaseMissionExp_byRank(short unsigned int) const"。
-        //   改 `__PRETTY_FUNCTION__` 实测发射 size **0x4b**（差 9B，恰 = 返回类型
-        //   "int " (4) vs "unsigned int " (13) 之差；形参 `unsigned short` 的 prett
-        //   打印同 ORIG 的 "short unsigned int"）。⇒ 逐字节需把返回类型改成
-        //   `unsigned int`，但声明在 CDataManager.h:2733 `int ...` 且**禁改 .h**
-        //   ⇒ 不可达，回滚为手写字面串（内容与 ORIG 串逐字节相同，仅符号形态缺）。
-        //   注：手写串是 ORIG 串的**真内容**，非猜测。
-        cMyTrace(
-            "unsigned int PvP_MissionSystem::get_BaseMissionExp_byRank(short unsigned int) const",
-            0x162, 5)
+        //   且串逐字节等于 ORIG（回收 P139 缺口与 missing_in_game）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x162, 5)
             ("[@missionSystem] <InvalidRank : %d>", rank);
         return 0;
     }
-    return static_cast<int>(m_baseMissionExp[rank]);
+    // ORIG 0x085e2ef8：`mov (%eax),%eax` 直传（成员为 vector<unsigned int>，
+    // 返回类型 unsigned int 已对齐 ⇒ 无需 cast）。
+    return m_baseMissionExp[rank];
 }
 
 #include "PvP_MissionSystem/get_New_DailyMission.inc"

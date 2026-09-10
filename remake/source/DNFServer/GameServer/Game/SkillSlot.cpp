@@ -1383,6 +1383,9 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     }
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a,N82,N96）→ 试=nd（523/519）：全帧槽浅 8 +
+// 2 处 m_characList `mov 0x14(%eax),%eax; mov %eax,%ebx`（N18a regmove）+ `movzbl; xor $1;
+// test`（P168a③b）⇒ 维持（新=DIFF gap=+4, blocks=73）。
 #include "SkillSlot/calcUsedSP.inc"
 {
     // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；523 vs 556，gap=+33）：
@@ -1597,6 +1600,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     }
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a,N96）→ 试=nd 231/233 唯一差 = 2×
+// `mov 0x14(%eax),%edx`（ORIG）vs `mov 0x14(%eax),%eax; mov %eax,%edx`（我方）；本轮新形
+// `(*(CCharacter**)((char*)G_CDataManager()+0x14))` 实测变 `add $0x14,%eax; mov (%eax),%edx`
+// 仍 2 条（未命中，已回滚）⇒ 维持（新=DIFF gap=-3, blocks=2）。
 #include "SkillSlot/get_give_skill.inc"
     int job, int firstGrow, int secondGrow,
     std::vector<std::pair<int, int> >& out)
@@ -1675,6 +1682,11 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     return 1;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a,N82）→ 试=prett 缺口实证：ORIG 串
+// `int SkillSlot::master_new_skill(int, int, int, int, int, int)`@0x8cde780 在 ORIG ELF
+// 全文件仅 1 次字节命中且**非指令引用**（孤立符号；函数体 0 引用）⇒ 非缺口非可落地项；
+// nd 多重集 464/458 含 12×`mov -0x34(%ebp),%eax` 重读（4.4 spill 族）+ 槽相位 ⇒ 维持
+// （新=DIFF gap=+5, blocks=56）。
 #include "SkillSlot/master_new_skill.inc"
                                 int firstGrow, int secondGrow, int addLevel)
 {
@@ -1886,6 +1898,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     return slot;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a,N82）→ 试=prett 缺口实证（ORIG 串
+// `int SkillSlot::try_master_new_skills(...)`@0x8cde540 无指令引用 = 孤立符号）+ nd
+// 339/334（12×`mov -0x30(%ebp),%eax` 重读）+ p167 calls CLEAR（preSkill 已是 `!=` 正极性）
+// ⇒ 维持（新=DIFF gap=+5, blocks=50）。
 #include "SkillSlot/try_master_new_skills.inc"
                                      int firstGrow, int secondGrow,
                                      int addLevel)
@@ -2038,6 +2054,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     return slot;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7）→ 试=nd 206/207 唯一差 = P211 异型 store
+// （short& ← int RHS）之 `mov %eax,%edx` 中转（ORIG `mov 0x2c(%ebp),%edx; mov %ax,(%edx)`）；
+// CSkill.h int→short 已证伪（ORIG 本体 0x083500f2 `mov (%eax),%eax; leave; ret`）⇒ 维持
+// （新=DIFF gap=-1, blocks=7）。
 #include "SkillSlot/master_new_guild_skill.inc"
                                       int secondGrow,
                                       const STGuildDBInfoOnly& guildInfo,
@@ -2153,6 +2173,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     return 0;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7,N82）→ 试=钥匙④守卫包裹形实测
+// `if (get_pvp_grade() >= 0) { } else { result = 7; return -3; }` ⇒ 551（基线 550，
+// 劣 +1；`shr $0x1f` 未变 setge）已回滚；nd 兜底 = 全帧槽相位 + setge/shr 跨版本 bool
+// 物化（P168a③b）⇒ 维持（新=DIFF gap=-1, blocks=52）。
 #include "SkillSlot/refund_skill.inc"
                             int secondGrow, int refundCount, int& result)
 {
@@ -2396,6 +2420,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     }
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=nd 355/356：SAVE_EXPR 提升（我方循环外
+// `add $0xc; mov %eax,-0x24` 缓存槽 vs ORIG 每次 `mov -0x34; lea 0xc` 重算 ⇒ 全帧浅 4）+
+// P342 实测：ORIG `__copy_move_backward<ILb1ELb0, stSPReturnInfo_t*>`@0x08609b82 与我方同
+// ⇒ 无 ILb 缺口 ⇒ 维持（新=DIFF gap=+4, blocks=46）。
 #include "SkillSlot/try_refund_skill.inc"
                                 int firstGrow, int secondGrow,
                                 int refundCount, int& result)
@@ -2563,6 +2591,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
     return -3;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7）→ 试=nd 多重集 56=56：6 项全为角色互换
+// （ORIG `mov -0x20(%ebp),%edx` + `mov 0x8(%ebp),%ecx; mov (%ecx),%ecx; add $0x79700,%ecx`
+// vs 我方 edx/eax 对调）、压栈尾两条互换（4.1 spKind 先于 receiver）⇒ 求值序族，
+// 前轮 5 形（逗号接收者/解引用/具名指针/取址/链式）已穷举 ⇒ 维持（新=DIFF gap=0, blocks=2）。
 #include "SkillSlot/InitSkillHistoryLog.inc"
 {
     // b28d-solo-SkillSlot 判词（N 封顶，N7/P75 族；ORIG 0x086085fa 尾段 0x08608675）：
@@ -2718,6 +2750,9 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
 // ==== SkillSlot::checkOverLevelSkill @ 0x08605d2a（报告 docs/class_func_reports/SkillSlot/checkOverLevelSkill.md）====
 // 检查超等级技能：对每槽技能计算当前等级可达到的最大技能等级（含偷学/超限加成），
 // 超出部分返回 SP/SFP 并写回；返回 1 表示有技能被降级/补发。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N107,N18a,N82）→ 试=nd（605/612）：循环基址/索引
+// 槽相位差 0x14（ORIG -0x38/-0x50 vs 我方 -0x4c/-0x64，各 14× 重读）+ `setne` 物化岛
+// ⇒ 槽相位族，无新旋钮 ⇒ 维持（新=DIFF gap=-5, blocks=120）。
 #include "SkillSlot/checkOverLevelSkill.inc"
                                     ENUM_SKILL_TREE_KIND kind, int level)
 {
@@ -3082,7 +3117,9 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
 }
 
 #include "SkillSlot/setComboSkillInfo.inc"
-                                  std::map<short, std::vector<int> >& map)
+                                  ComboSkillMap& map)   // [Q6HeaderTypeAxis] 定义处
+                                  // declarator 拼写决定 prett ⇒ ORIG
+                                  // `…(ENUM_SKILL_TREE_KIND, ComboSkillMap&)`（同类型）
 {
     if (kind != 0 && kind != 1)
     {
@@ -3266,6 +3303,10 @@ static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView")
 // PvP 树频道：givePvPSkillTree + 脚本点数 set_remain_sp_at_index(+日志)。
 // 普通树：建号技能补发 → get_give_skill 表 → growtype_skill 循环 →
 // ExpertJob 增益技循环 → CSkillChanger::SkillInitialize → 日志/发包。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N107,N82）→ 试=nd 多重集（340/338；差异全为
+// 槽相位 0x8 平移与 al/edi/esi/ebx 角色、receiver 无槽 `lea 0xa800(%eax)` vs ORIG
+// `add $0xa800,%eax`+槽读；P0/P339 前轮 5 形已穷举）+ prett/strall CLEAR ⇒ 维持
+// （新=DIFF gap=+1, blocks=32）。
 #include "SkillSlot/InitSkill.inc"
 {
     // [b28d-solo-SkillSlot] 判词（N82/P75/P168a 封顶，340 vs 338，p167 CLEAR 51=51）：

@@ -240,7 +240,7 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
 //   0x66 装载失败；0x7d..0xcf 各 ScanInt/校验失败；0xe1 [list] 段第二列失败；
 //   扫描自然结束返回 1。[independent drop] 段每条记录 16 个整数 +
 //   flag(0=直接入表,1=[list] 明细,2=[list] 合并既有列表)，累积主掉率写
-//   m_drop.m_rate[10]，(itemId,累积率) 入 m_drop.m_pairList 后整条入 m_vecC。
+//   m_drop.m_mainRate，(itemId,累积率) 入 m_drop.m_pairList 后整条入 m_vecC。
 //   [dungeon drop rate balance] 段每条 3 整数入 m_vec18。
 // b28d-solo-DomainMiscDeps: 真 BUG 已修（m_rate 索引错一格 + 补 1 ScanInt）；
 // DIFF 残余（p167 CLEAR 57/57；N82 槽基）
@@ -302,18 +302,18 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                 // 分点不同；换书写序 `i + 5` 实测零变化 ⇒ 4.1 独有寻址形，封顶。
                 for (int i = 0; i < 4; ++i)
                 {
-                    info.m_drop.m_rate[5 + i] = ScanInt(&ok);
+                    info.m_drop.m_expect[i] = ScanInt(&ok);
                     if (!ok)
                     {
                         return 0xab;
                     }
                 }
-                info.m_drop.m_rate[9] = ScanInt(&ok);
+                info.m_drop.m_limit = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0xb0;
                 }
-                info.m_drop.m_rate[10] = 0;
+                info.m_drop.m_mainRate = 0;
                 info.m_drop.m_pairList.clear();
                 info.m_drop.m_rangeMin = ScanInt(&ok);
                 if (!ok) { return 0xb7; }
@@ -361,10 +361,10 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                             // ORIG 0x0897c7a3 累积槽 -0x68 = info+0x34 = **m_rate[10]**
                             // （`movl $0x0,-0x68(%ebp)` 就在 0x0897c5ec 清零同一槽）
                             // ⇒ 累积目标与 pair 第二元同为 m_rate[10]，非 m_rate[9]。
-                            info.m_drop.m_rate[10] += rate;
+                            info.m_drop.m_mainRate += rate;
                             info.m_drop.m_pairList.push_back(
                                 std::pair<int, int>(
-                                    itemId, info.m_drop.m_rate[10]));
+                                    itemId, info.m_drop.m_mainRate));
                         }
                     }
                     }
@@ -410,11 +410,11 @@ extern STScriptFileList g_pvpSkillTreeScriptFileList;      // B 0x09500340
                                         m_vec0[e].m_list04[p].first;
                                     int rate =
                                         m_vec0[e].m_list04[p].second;
-                                    info.m_drop.m_rate[10] += rate;
+                                    info.m_drop.m_mainRate += rate;
                                     info.m_drop.m_pairList.push_back(
                                         std::pair<int, int>(
                                             itemId,
-                                            info.m_drop.m_rate[10]));
+                                            info.m_drop.m_mainRate));
                                 }
                                 found = true;
                                 }

@@ -1028,8 +1028,7 @@ struct SigLoadEtcBestClearTimeView
     {
         // b28d-31: P221 全表达式临时链（ORIG 0x08404bff 槽 -0x38 在 trq2 的
         // -0x28 之前；具名声明 4.4 槽序反向 ⇒ 改构造即调用）。
-        cMyTrace("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
-                 " CHARAC_QUEST_SHOP_DATA*)", 0x17ea, 5)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x17ea, 5)(
             "DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
             characNo);
         return false;
@@ -1038,8 +1037,7 @@ struct SigLoadEtcBestClearTimeView
     if (!ret)
     {
         // b28d-31: P221 全表达式临时链（ORIG 0x08404c22 槽 -0x28）。
-        cMyTrace("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
-                 " CHARAC_QUEST_SHOP_DATA*)", 0x17f1, 5)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x17f1, 5)(
             "DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
             characNo);
         return false;
@@ -1094,8 +1092,7 @@ struct SigLoadEtcBestClearTimeView
     {
         memset(&out->m_data, 0, sizeof(out->m_data));
         LogManager::logFormat(1, "DBThread.cpp",
-                              "static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
-                              " CHARAC_QUEST_SHOP_DATA*)",
+                              __PRETTY_FUNCTION__,
                               0x181f,
                               "DB_LoadEtc::LoadQuestShop, get(%d) ERROR charac_no=%u",
                               idx /*ORIG -0x10(%ebp)=local_14 列号*/, characNo);
@@ -1327,8 +1324,7 @@ struct SigLoadEtcBestClearTimeView
     // ORIG 0x0844a47a：kind 无具名槽（test/jne + cmp $1/je 直比形参，P0 槽律）。
     if (!(kind == 0 || kind == 1))
     {
-        cMyTrace("bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC*,"
-                 " ENUM_SKILL_TREE_KIND)", 0xbac4, 5)(
+        cMyTrace(__PRETTY_FUNCTION__, 0xbac4, 5)(
             "DB_LoadEtc::LoadComboSkill kind(%d) error characNo(%u)", kind,
             sig->m_characNo);
         return false;
@@ -1346,8 +1342,7 @@ struct SigLoadEtcBestClearTimeView
     bool ok = db->exec(true);                                // ORIG -0xd 具名槽
     if (!ok)
     {
-        cMyTrace("bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC*,"
-                 " ENUM_SKILL_TREE_KIND)", 0xbad4, 5)(
+        cMyTrace(__PRETTY_FUNCTION__, 0xbad4, 5)(
             "DB_LoadEtc::LoadComboSkill, exec() ERROR charac_no=%u",
             sig->m_characNo);
         return false;
@@ -1394,8 +1389,7 @@ struct SigLoadEtcBestClearTimeView
         if (!getComboSkill(db, sig->m_characNo, nRows,
                 ((ComboSkillView*)sig)->m_tree1Data))
         {
-            cMyTrace("bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC*,"
-                     " ENUM_SKILL_TREE_KIND)", 0xbae7, 5)(
+            cMyTrace(__PRETTY_FUNCTION__, 0xbae7, 5)(
                 "DB_LoadEtc::LoadComboSkill, getComboSkill ERROR charac_no=%u",
                 sig->m_characNo);
         }
@@ -1405,8 +1399,7 @@ struct SigLoadEtcBestClearTimeView
         if (!getComboSkill(db, sig->m_characNo, nRows,
                 ((ComboSkillView*)sig)->m_tree2Data))
         {
-            cMyTrace("bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC*,"
-                     " ENUM_SKILL_TREE_KIND)", 0xbaef, 5)(
+            cMyTrace(__PRETTY_FUNCTION__, 0xbaef, 5)(
                 "DB_LoadEtc::LoadComboSkill, getComboSkill ERROR charac_no=%u",
                 sig->m_characNo);
         }
@@ -1439,8 +1432,7 @@ struct SigLoadEtcBestClearTimeView
     {
         if (!db->fetch())
         {
-            cMyTrace("bool DB_LoadEtc::getComboSkill(MySQL*, unsigned int,"
-                     " int, comoboSkillData*)", 0xbb01, 5)(
+            cMyTrace(__PRETTY_FUNCTION__, 0xbb01, 5)(
                 "DB_LoadEtc::getComboSkill fetch, exec() ERROR charac_no=%u",
                 accId);
             return false;
@@ -1449,8 +1441,7 @@ struct SigLoadEtcBestClearTimeView
         int col = 0;                                          // ORIG -0x10 起 0，取后自增
         if (!db->get_short(col++, out[row].m_comboSkillIndex))
         {
-            cMyTrace("bool DB_LoadEtc::getComboSkill(MySQL*, unsigned int,"
-                     " int, comoboSkillData*)", 0xbb0a, 5)(
+            cMyTrace(__PRETTY_FUNCTION__, 0xbb0a, 5)(
                 "DB_LoadEtc::getComboSkill get(%d) ERROR charac_no=%u", col,
                 accId);
             return false;
@@ -1459,8 +1450,7 @@ struct SigLoadEtcBestClearTimeView
         {
             if (!db->get_short(col++, out[row].m_comboSkillList[k]))
             {
-                cMyTrace("bool DB_LoadEtc::getComboSkill(MySQL*,"
-                         " unsigned int, int, comoboSkillData*)", 0xbb14, 5)(
+                cMyTrace(__PRETTY_FUNCTION__, 0xbb14, 5)(
                     "DB_LoadEtc::getComboSkill get(%d) ERROR charac_no=%u",
                     col, accId);
                 return false;

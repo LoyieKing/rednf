@@ -71,12 +71,16 @@ enum INVENTORY_TYPE
 //                 lock@s+0x14ab9 → space 0x12, slot i+0xa；tag "fairpvp_equip"
 //   段B           i 0x0a..0x15  item=sig+0xa3a1   TYPE 1 (0,1)
 //                 lock@s+0xa3b2 → space 0x03, slot i；tag "equip"
-//                 ※ item+0xb 非零 → meterial_item_change(i,sig,item)
 //   段C           i 0x00..0x137 item=sig+0x5949   TYPE 1 (1,0)
 //                 lock@s+0x595a → space 0x00, slot i；tag "inven"
+//                 ※ [Q7S3 修正] 守卫读绝对 0x594b（= item+0x02 = m_addInfo）
+//                   → meterial_item_change(i,sig,item)；旧注 "item+0xb" 系
+//                   把「相对 0x5940 基址的偏移」误当 item 偏移（真 bug 已修）。
 //   段D           i 0x00..0x97  item=sig+0xa8e4   TYPE 2 (0,0)
 //                 lock@s+0xa8f5 → space 0x02, slot i；tag "cargo"
-//                 ※ item+0x06 非零 → cago_meterial_item_change(i,sig,item)
+//                 ※ [Q7S3 修正] 守卫读绝对 0xa8e6（= item+0x02 = m_addInfo）
+//                   → cago_meterial_item_change(i,sig,item)；旧注 "item+0x06"
+//                   同上为基址偏移误记（真 bug 已修）。
 //   段E           i 0x00..0xf1  item=sig+0xeed1   TYPE 3 (0,0)
 //                 lock@s+0xeee2 → space 0x07, slot i；tag "creature"
 //   段F 仅收集     i 0x00..0x09  lock@s+0xa3b2 → space 0x03, slot i
@@ -163,8 +167,14 @@ enum INVENTORY_TYPE
             ref.m_space = 0x00;
             lockRefs.push_back(ref);
         }
-        if (sig->m_invenType1[i].m_fieldb != 0 ||
-            sig->m_invenType1[i].m_fieldd != 0)
+        // [Q7S3 语义轴 · 真 bug 修正] ORIG 0x084f03a1..0x084f03e0：基址取
+        // sig+i*0x3d+0x5940（= &m_invenType1[i] - 9，数组 +0x5949 由 m_amp
+        // GetLock 传参 0x595a-0x11 双证）后 `mov 0xb(%eax); test %eax,%eax`
+        // ⇒ 绝对 0x594b = &m_invenType1[i] + 2 = m_addInfo（4 字节整体判）。
+        // 旧写 "item+0xb/item+0xd" 系把「相对 0x5940 基址的偏移」误当 item
+        // 偏移（对应绝对 0x5954/0x5956，字段为 m_fieldb/m_fieldd）⇒ 守卫条件
+        // 与原版不同（真语义 bug，已修）。
+        if (sig->m_invenType1[i].m_addInfo != 0)
             meterial_item_change(i, sig, &sig->m_invenType1[i]);
         err = _verifyItem(i, &sig->m_invenType1[i], INVENTORY_TYPE_1,
                           false, false, user);
@@ -186,9 +196,13 @@ enum INVENTORY_TYPE
             ref.m_space = 0x02;
             lockRefs.push_back(ref);
         }
-        // ORIG *(int*)(item+0x06)：m_attr(+0x06)+m_addInfo2 低 3 字节槽非零判定
-        if (sig->m_cargo[i].m_attr != 0 ||
-            (sig->m_cargo[i].m_addInfo2 & 0xffffff) != 0)
+        // [Q7S3 语义轴 · 真 bug 修正] ORIG 0x084f051c..0x084f0560：基址取
+        // sig+i*0x3d+0xa8e0（= &m_cargo[i] - 4，数组 +0xa8e4 由 _verifyItem/
+        // cago_ 传参的 `add $0x4` 双证）后 `mov 0x6(%eax); test %eax,%eax`
+        // ⇒ 绝对 0xa8e6 = &m_cargo[i] + 2 = m_addInfo（4 字节整体判）。
+        // 旧写 "item+0x06/低 3 字节槽" 对应绝对 0xa8ea/0xa8eb（m_attr/
+        // m_addInfo2）⇒ 守卫条件与原版不同（真语义 bug，已修）。
+        if (sig->m_cargo[i].m_addInfo != 0)
             cago_meterial_item_change(i, sig, &sig->m_cargo[i]);
         err = _verifyItem(i, &sig->m_cargo[i], INVENTORY_TYPE_2, false, false,
                           user);
@@ -614,7 +628,7 @@ private:
         1, "InterDispatcher.cpp",
         __PRETTY_FUNCTION__,
         0x1645,
-        "ERROR_ITEM_LOG %u,%d,%d,%u,%d,%d,%d,%u,%d - %s slot(%d), error_line(%d)\n",
+        "ERROR_ITEM_LOG %u,%d,%d,%u,%d,%d,%d,%u,%d - %s slot(%d), error_line(%d) \n",
         // ORIG 实参槽序（0x28=+0x7, 0x2c=+0xb, 0x30=+0xd, 0x34=+0x11）：
         // 第 6..9 参 = m_addInfo2, m_fieldb, m_fieldd, amp 首 int（P0 内联）
         characNo, (int)item.m_field0, (int)item.m_field1, item.m_addInfo,

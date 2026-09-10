@@ -283,6 +283,11 @@
 #include "ServerParameterScript/getAssaultGhostTime.inc"
                                                         int chaosPoint)
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N85）→ 试=④x87 轴：ORIG 0x08a8cb08
+    //   `fmuls -0xc(%ebp)` vs 我方 `flds -0xc(%ebp); fmulp %st,%st(1)`（4.4 恒 fld+fmulp）；
+    //   按 TimerDispatcher 先例在 overlay 追加 `-march=i486 -mtune=generic` 复编 ⇒ 本件
+    //   267/268、gap −1 **逐值不变**（同 TU 的 setDungeonOpen/CheckUnusable 亦不变）
+    //   ⇒ x87 lowering 差非 -march 所致、属 4.4 版本族。②prett ③strall CLEAR。⇒ 维持 N85。
     // b28d-solo-ServerParameterScript: DIFF→修（真语义 bug + P243 + P50 复活）
     // ORIG 0x08a8c804 逐段：① time clamp 为 `cmp t0,time; jbe`/`cmp t1,time; jae`
     // 回写形（与源码同）；② chaos 段 `iterator cit;` **默认构造 C1Ev 0x08a8dd24 +
@@ -602,6 +607,11 @@
          it != m_unusableEC.end(); ++it)
     {
         stUnusableEquipmentInfo* p = &*it;
+        // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18b/N93）→ 试=④：比较操作数**交换**
+        //   `p->m_field0 == type` 实测产 `mov (%eax),%edx; mov 0xc(%ebp),%eax; cmp %eax,%edx`
+        //   （4 条、寄存器角色变，无改善）⇒ 已回滚；ORIG 的 mem 直比 `cmp 0xc(%ebp),%eax`
+        //   属 4.4 前端形参装载族（P209）。尾部共享 `mov $1` 块（ORIG 0x08568b45 段）4.4
+        //   恒就地发射（旧 probe5/probe8 多形已试）。②prett ③strall CLEAR。⇒ 维持 N18b/N93。
         // b28d-L3：ORIG 0x08568ac0 段 `mov -0xc,%eax; mov (%eax),%eax;
         // cmp 0xc(%ebp),%eax`（field0 入 eax、type 内存直比）⇒ 比较方向交换。
         // b28d-solo-ServerParameterScript: 去冗余 cast 复现 mem 直比；守卫改
@@ -831,6 +841,12 @@
     // [b28d-L4a 2026-09-11] 第四形实测：`open != 1`（bool 提升 int 比较）仍出
     // `movzbl -0x3c; xor $0x1; test %al,%al; je`（4.4 对 bool 域 `!=1` 恒归一到
     // `!open`）⇒ ourN=103 不变（101 vs 103），回滚。N122 封顶确认。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N121/N122/N93）→ 试=④真 switch 轴
+    //   `switch (open) { case false: push; default: erase; }` 实测 our 101→**104** 更劣
+    //   （4.4 对 bool switch 产 `movzbl; test; jne`，不用 cmpb）；`!open` 与 `open != true`
+    //   同产 `xor $1`（103，`true == open` 同族不可得）；ORIG 0x08268698
+    //   `cmpb $0x1,-0x3c(%ebp); je <erase 段>` 需 4.4 不折叠 bool ≠1 ⇒ 三形均不可造。
+    //   ②prett ③strall CLEAR。⇒ 维持 N122（块序已翻正，仅 cmp 形态差）。
     if (open != true)
     {
         std::vector<int>::iterator it2 = std::find(

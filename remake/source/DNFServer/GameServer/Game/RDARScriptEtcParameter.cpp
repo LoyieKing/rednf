@@ -99,7 +99,9 @@ struct InvalidCharData::stRangeElement<unsigned short>
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
                               __FUNCTION__, 0xe3,
-                              "CRITICAL ERROR : \xec\xa0\x84\xec\xa0\x90\xeb\xb6\x84 \xea\xb8\x88\xec\x95\xa1 \xec\x86\x8c\xec\xa7\x80\xec\xa0\x9c\xed\x95\x9c \xec\xa0\x95\xeb\xb3\xb4 \xeb\xa1\x9c\xeb\x93\x9c \xec\x8b\xa4\xed\x8c\xa8!");
+                              // Q7S4: ORIG 0x08e0f3dc = CP949「레벨별 금액 소지제한 정보 로드 실패!」
+                              // （我方此前为 UTF-8 编码且文本不同「전적분…」，AE 归一化掩盖）
+                              "CRITICAL ERROR : \xb7\xb9\xba\xa7\xba\xb0 \xb1\xdd\xbe\xd7 \xbc\xd2\xc1\xf6\xc1\xa6\xc7\xd1 \xc1\xa4\xba\xb8 \xb7\xce\xb5\xe5 \xbd\xc7\xc6\xd0!");
         return 0;
     }
 
@@ -408,7 +410,9 @@ struct InvalidCharData::stRangeElement<unsigned short>
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
                               __FUNCTION__, 0x3233,
-                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xe8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
+                              // Q7S4: ORIG 0x08e103d8 起 34 字节；我方此前 \xbe\xe8('얕') 错字，
+                              // ORIG 为 \xbe\xf8('없')。
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
     // [b28d-solo-RDARScriptEtcParameter] ORIG 0x08913dbc：循环体内每轮重置
@@ -669,7 +673,9 @@ struct InvalidCharData::stRangeElement<unsigned short>
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              __FUNCTION__, 0x329a, "%s", path);
+                              // Q7S4: ORIG 0x08913f74 movl $0x8e103d8 = 完整前缀串（我方此前仅 "%s"）
+                              __FUNCTION__, 0x329a,
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
     // [b28d-solo] ORIG 声明序 token/ok 先于两 clear，job 先于 skills（P309 槽序）。
@@ -757,7 +763,9 @@ struct InvalidCharData::stRangeElement<unsigned short>
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              __FUNCTION__, 0x3372, "%s", path);
+                              // Q7S4: ORIG 0x08914dfe movl $0x8e103d8 = 完整前缀串（我方此前仅 "%s"）
+                              __FUNCTION__, 0x3372,
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
@@ -879,7 +887,9 @@ struct InvalidCharData::stRangeElement<unsigned short>
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              __FUNCTION__, 0x172c, "%s", path);
+                              // Q7S4: ORIG 0x08907e63 movl $0x8e103d8 = 完整前缀串（我方此前仅 "%s"）
+                              __FUNCTION__, 0x172c,
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
     std::string token;
@@ -1092,7 +1102,9 @@ struct InvalidCharData::stRangeElement<unsigned short>
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              __FUNCTION__, 0x16df, "%s", path);
+                              // Q7S4: ORIG 0x0890796c movl $0x8e103d8 = 完整前缀串（我方此前仅 "%s"）
+                              __FUNCTION__, 0x16df,
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
     std::string token;                    // ORIG 三 string 先构造（-0x34/-0x38/-0x3c）

@@ -208,8 +208,8 @@ namespace expert_job
 // b28d-solo-ExpertJobOnlyMaterial: AE — P248 档② removedBody 局部 bool 化
 // 复现 ORIG `movzbl -0x9; xor $1; test %al,%al; je`（char 局部 4.4 恒折 cmpb）。
 #include "ExpertJobOnlyMaterial/DelMaterialOfRecipe.inc"
-    CUser* user, const std::vector<std::pair<int, int> >& materials,
-    int slot, PacketGuard* packet, bool& changed)
+    CUser* user, const IntPairVector& materials,
+    int slot, PacketGuard* packet, bool& changed)   // [Q3PrettSweepA] typedef 拼写对齐 ORIG prett
 {
     int materialCount = 1;   // 配方本体固定计 1 份
 
@@ -223,8 +223,7 @@ namespace expert_job
     if (delCount == 0)
     {
         cMyTrace(
-            "bool expert_job::ExpertJobMaterial::DelMaterialOfRecipe("
-            "CUser*, const IntPairVector&, int, PacketGuard*, bool&)",
+            __PRETTY_FUNCTION__,
             0x288, 5)(
             "ExpertJobMaterial::DelMaterialOfRecipe, "
             "getCurCharacInvenR()->delete_event_items , size does not "
@@ -243,8 +242,7 @@ namespace expert_job
     if (!removedBody)
     {
         cMyTrace(
-            "bool expert_job::ExpertJobMaterial::DelMaterialOfRecipe("
-            "CUser*, const IntPairVector&, int, PacketGuard*, bool&)",
+            __PRETTY_FUNCTION__,
             0x292, 5)(
             "CUser::compound_item, getCurCharacInvenW()->delete_item "
             "failed , %d %d",
@@ -422,7 +420,7 @@ CItem* FindMonsterCard(CItem* recipe)
 // 上报配方本体条目，其它值只上报材料。
 // b28d-solo-ExpertJobOnlyMaterial: AE — P248 档②（同成员版 bool 局部）。
 #include "ExpertJobOnlyMaterial/DelMaterialOfRecipe_1.inc"
-                         std::vector<std::pair<int, int> >& materials,
+                         IntPairVector& materials,   // [Q3PrettSweepA] 同上
                          int slot, PacketGuard* packet, bool& changed,
                          int bodyCount)
 {
@@ -441,8 +439,7 @@ CItem* FindMonsterCard(CItem* recipe)
     if (delCount == 0)
     {
         cMyTrace(
-            "bool expert_job::DelMaterialOfRecipe(CUser*, IntPairVector&, "
-            "int, PacketGuard*, bool&, int)",
+            __PRETTY_FUNCTION__,
             0x1c0, 5)(
             "ExpertJobMaterial::DelMaterialOfRecipe, "
             "getCurCharacInvenR()->delete_event_items , size does not "
@@ -461,8 +458,7 @@ CItem* FindMonsterCard(CItem* recipe)
         if (!removedBody)
         {
             cMyTrace(
-                "bool expert_job::DelMaterialOfRecipe(CUser*, "
-                "IntPairVector&, int, PacketGuard*, bool&, int)",
+                __PRETTY_FUNCTION__,
                 0x1cf, 5)(
                 "CUser::compound_item, getCurCharacInvenW()"
                 "->delete_item failed , %d %d",

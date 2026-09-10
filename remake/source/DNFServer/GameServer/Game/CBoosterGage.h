@@ -17,6 +17,14 @@
 
 class Inven_Item;
 class CUser;
+
+// [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x08b2af80 size 0x56 =
+//   `void CBoosterGage::log_booster_gage_bonus_reward(CUser*, const MULTIBOX_REWARD_LIST&)`
+//   （P6S3 strall 实读；裸名 ⇒ 全局作用域 typedef，与现声明同底层类型
+//   `St6vectorISt4pairI10Inven_ItembESaIS2_EE`）⇒ 定义处 declarator 用它才能对齐
+//   （我方原展开形 prett 串 0x99 ≠ ORIG 0x56）。mangled/ABI 零变化。
+typedef std::vector<std::pair<Inven_Item, bool> > MULTIBOX_REWARD_LIST;
+
 class CUserCharacInfo;
 class CDataManager;
 class CItem;
@@ -172,7 +180,7 @@ public:
     void make_postar(CUser* pUser, const Inven_Item& item, const char* pAgency, int nPeriod);
     void log_booster_gage_bonus_reward(
         CUser* pUser,
-        const std::vector<std::pair<Inven_Item, bool> >& rewardList);
+        const MULTIBOX_REWARD_LIST& rewardList);   // [Q6HeaderTypeAxis] ORIG 用该 typedef 拼写
     int AddAvatarItem(std::vector<std::pair<int, int> >& itemList, bool bIsFirst,
                       CUser* pUser, const Inven_Item& item, int nCount, bool bFlag,
                       char cType, char cParam, const char* pAgency,

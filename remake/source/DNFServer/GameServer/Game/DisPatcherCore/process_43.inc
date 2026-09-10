@@ -105,6 +105,13 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             // —— 父泳道复编读数 490 无变化（P168a② 的 `==0` 旋钮对本族无效）。
             // 故这是 4.4 对 bool 返回值"失败判定"恒插 xor 归一的跨版本差异（4.1 直出 je）
             // ⇒ 记 N，勿再试（保留 `== 0` 直白语义；`!` 形与其机器码等价）。
+            // [Q5BigTURest.DisPatcherCore 2026-09-11 探针级复测·负结论] 上述"恒插 xor
+            // 归一"再获直证（同一 cc1plus446bin 后端）：被调返回 **bool** 时四种写法
+            // `!f()` / `f() == false` / `f() == 0` / `(int)f() == 0` **全部**产
+            // `call; xor $0x1,%eax; test %al,%al; jne`（探针 f10..f13 逐条对照），
+            // 仅当返回类型为 **char** 才改产 `test %al,%al; sete %al`（f14/f15）。
+            // ⇒ ORIG 4.1 在 0x081c390c / 0x081c3b93 / 0x081c3cae 三处的
+            // `call; test %al,%al; je`（无 xor）在 4.4 下**无源码写法可造** ⇒ 封顶（P168a② 族）。
             if (party->get_item(user, req.m_0d, req.m_0f == 1, (char)req.m_10,
                                 outIdx, outH, outB) == 0)
             {

@@ -23,6 +23,7 @@
     return -1;
 }
 
-#include "OrigMiscStrong21/dtor_stOneBuff_t.inc"
-{
-}
+// [Q6HeaderTypeAxis 2026-09-11 P342·杠杆A] 原 `#include "dtor_stOneBuff_t.inc"` + 空体
+//   已删（用户空析构解除 ⇒ stOneBuff_t 恢复 trivial）；D1/D2 由 ScriptLeafA2.cpp:297
+//   `vector<stOneBuff_t>` / :324 栈上对象这条 odr-use 链发射（W，ORIG W 0x08a04b54）。
+//   删前本 TU 3/3/0/0/1，删后 2/3/0/0/0（identical −1 系定义迁出，非丢件）。

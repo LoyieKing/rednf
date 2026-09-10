@@ -41,6 +41,10 @@ typedef unsigned int memberIdentificationNumber_t;
 //                     EventClassify::CExchangeRandomItemReward/WongWork::CItemUpgrade），
 //                     mangled 展开 `St6vectorISt4pairIiiESaIS2_EE`
 //   INT_VECTOR      : `int CBattle_Field::set_map_id(const GridScript*, int&, INT_VECTOR&)`，`St6vectorIiSaIiEE`
+//   IntVector       : `bool CParty::UseSealDoorItems(IntVector&)` 与
+//                     `bool EventClassify::CObjectBringUp::sendBringUpReward(CUser*, IntVector&, unsigned char&)`
+//                     （ORIG prett 实读，均打印**裸** IntVector 名），mangled 展开 `St6vectorIiSaIiEE`
+//                     ⇒ 与 INT_VECTOR 同底层；ARAD_Database.h:31 已有全局同型定义，重复 typedef 同类型合法。
 //   StrVector       : `int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser*, PacketBuf&, StrVector&)`，`St6vectorISsSaISsEE`
 //   itemIndexOnlyServer_t : `void Arad_IPGProcess::CashShopModeVendingItem(CUser*, itemIndexOnlyServer_t, ...)`，`m`=unsigned long
 //                     （InterDispatcher.h:2481 有同型定义；本处集中后对不含该头的 TU 亦可见，重复 typedef 合法）
@@ -48,10 +52,21 @@ typedef unsigned int memberIdentificationNumber_t;
 //   NCHAR           : `int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)`，`Pc`=char*
 typedef std::vector<std::pair<int, int> > IntPairVector;
 typedef std::vector<int> INT_VECTOR;
+// [Q6HeaderTypeAxis 2026-09-11] ORIG 全局作用域 typedef（prett 串直证；与 INT_VECTOR 同底层、异拼写）：
+//   ORIG 侧 `_ZZ…UseSealDoorItems…` / `_ZZ…sendBringUpReward…` 实串打印 `IntVector&`（非展开
+//   `std::vector<int, std::allocator<int> >&`）⇒ 源侧必须存在该拼写的 typedef 才能逐字节对齐。
+typedef std::vector<int> IntVector;
 typedef std::vector<std::string> StrVector;
 typedef unsigned long itemIndexOnlyServer_t;
 typedef unsigned short RequestItemCountType;
 typedef char NCHAR;
+// [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x08c34300 size 0x42 =
+//   `dword CDataManager::GetMoneyLimitPerLevel(int, const char*) const`（.rodata 逐字节
+//   手读：64 64 77 6f 72 = "dword"）⇒ ORIG 源侧存在全局 `dword` typedef（= unsigned int，
+//   由 mangled `_ZNK12CDataManager21GetMoneyLimitPerLevelEiPKc` 的返回不参与 mangling +
+//   函数体 `mov (%eax,%edx,4),%eax` 32 位读确定）。全库无既有 `dword` 类型定义
+//   （406 处命中均为注释/术语），故新增无冲突。
+typedef unsigned int dword;
 // [P7HeaderAxis 2026-09-11] 另 3 个 ORIG 全局 typedef（P139 prett 直证；全库此前无定义，
 // 各 TU 只能用手写串）：
 //   itemindex_t  : `bool ARAD::FnRewardLethe::operator()(int, itemindex_t, short int, arad_uint32)`

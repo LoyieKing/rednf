@@ -185,7 +185,8 @@ namespace APSystem
 {
     memset(this, 0, sizeof(*this));   // ORIG 常量 0xe
 }
-#include "APSystemOnlyOrig/dtor__TodayRewardItem.inc"
+// [Q8 2026-09-11 P342] `dtor__TodayRewardItem.inc` 已删（用户空析构删除；
+// 隐式析构由 ScriptLeafA2 的 odr-use 链发射，nm 实测 D1/D2 仍在）。
 
 // _SIG_LOAD_ACTION_POINT —— W 0x0848f5d8 C1/C2 同体（0x51 字节）：
 //   esi 循环 [300..1] 逐元素调 _ActionPointC1Ev，随后 memset(this,0,0xcf1)。

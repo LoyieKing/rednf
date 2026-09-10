@@ -406,6 +406,7 @@ namespace DNFFLib { int Binary2Hex(unsigned char const*, int, char*); }   // _ZN
 
 typedef std::map<ENUM_DB_HANDLE_IDX, ENUM_SERVER_GROUP> DBGroupMap;
 typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DBInfoMap;
+typedef DBInfoMap DBConnInfo;   // [Q3PrettSweepA] Connect 的 ORIG prett 拼写（见 GlobalData.h 同名注释）
 
 // ARAD::Arad_ServerStateManager 局部镜像已删除：权威定义在 Arad_ServerStateManager.h。
 
@@ -5548,7 +5549,7 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
         // 'bool CDBConnector::Connect(DBConnInfo)'（0x080ec760 段直证）——原写法
         // 裸 "CDBConnector::Connect" 与 ORIG 串首参不符（ORIG 侧为 __PRETTY_FUNCTION__，
         // 其 typedef 名 DBConnInfo 与本地 DBInfoMap 不同，故按 ORIG 字节写字面量）。
-        cMyTrace("bool CDBConnector::Connect(DBConnInfo)", 0x4e, 9, true, true)
+        cMyTrace(__PRETTY_FUNCTION__, 0x4e, 9, true, true)
             // [GlobalData-判据①] 实参序照 ORIG 0x080ec7c8(+0x46=db)/0x080ec7d9
             // (+0x1c=user)：ORIG 先算 arg5=it->second.m_db(+0x46)、再 arg4=
             // it->second.m_user(+0x1c) ⇒ 原码 arg4/arg5 为 (user, db)；旧写法
@@ -8653,7 +8654,7 @@ EventRewardSection* GetRewardSection(int idx, register int type)
     register const unsigned int accId = user.get_acc_id();
     register char* const pData = m_impl->m_data;
 
-    CMyFileLog flog("void RentalMachinePcRoom::log(CUser&, int)", 0x12e);
+    CMyFileLog flog(__PRETTY_FUNCTION__, 0x12e);
     flog(pData,
          "[RENT] m_id(%d) char_no(%d) server_info(%d) item_id(%d)", accId,
          charNo, serverEnv, itemId);
@@ -8684,7 +8685,7 @@ EventRewardSection* GetRewardSection(int idx, register int type)
     register const unsigned int accId = user.get_acc_id();
     register char* const pData = m_impl->m_data;
 
-    CMyFileLog flog("void RentalMachineDimension::log(CUser&, int)", 0x71);
+    CMyFileLog flog(__PRETTY_FUNCTION__, 0x71);
     // [G7-sub] 结论（N115/N126/N82 封顶）：ORIG 58 / 我方 58。ORIG 0x0826ef1c
     //   `sub $0x4c,%esp` + 槽 serverInfo(-0x19)/CMyFileLog(-0x24)/serverEnv(-0x2c)
     //   （另有空槽 -0x28）；我方 `sub $0x3c,%esp` + -0x1d/-0x28/-0x1c。
@@ -9187,9 +9188,7 @@ EventRewardSection* GetRewardSection(int idx, register int type)
         {
             LogManager::logFormat(
                 1, "RentalSystem.cpp",
-                "virtual ENUM_ERROR RentalMachinePcRoom::Rent(CUser&, const "
-                "InstanceRentalSystem::RentInput&, "
-                "InstanceRentalSystem::RentOutput&)",
+                __PRETTY_FUNCTION__,
                 0xf8,
                 "Rent error. GetRentItemInfo return false. "
                 "scriptSectionIndex(%d), scriptSeqIndex(%d)",
@@ -9254,9 +9253,7 @@ EventRewardSection* GetRewardSection(int idx, register int type)
         {
             LogManager::logFormat(
                 1, "RentalMachineDimension.cpp",
-                "virtual ENUM_ERROR RentalMachineDimension::Rent(CUser&, const "
-                "InstanceRentalSystem::RentInput&, "
-                "InstanceRentalSystem::RentOutput&)",
+                __PRETTY_FUNCTION__,
                 0x43,
                 "Rent error. GetDimensionRentItemInfo return false. "
                 "scriptSectionIndex(%d), scriptSeqIndex(%d)",

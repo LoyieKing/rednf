@@ -130,7 +130,7 @@
 
         // ---- 3) premium 掉率加成 ----
         // ORIG 0x83499b6 `movzbl 0x3c(%eax),%eax` ⇒ +0x3c 独立字节视图（P196）。
-        if (drop.m_rate[10] > 0 &&
+        if (drop.m_mainRate > 0 &&
             ref.m_premiumDropRate > 0 &&
             ref.m_field3c_byte == 3)
         {
@@ -154,7 +154,7 @@
 
         // ---- 5) 生成数量 ----
         int genCount = 0;
-        if (drop.m_itemIdx == 0 && drop.m_rate[10] == 0)
+        if (drop.m_itemIdx == 0 && drop.m_mainRate == 0)
         {
             // ORIG 0x8349aaf `movzbl g; sub $1; add $4; mov -0xc0(%ebp,%eax,4)`
             // ⇒ 绝对地址 drop+0x14+4g = m_rate[groupIdx+4]（m_rate 基址 +0x04）。
@@ -173,12 +173,12 @@
                          get_rand_int(0xf4240))                     // 1000000
                     ++hitCount;                                     // setg
             }
-            genCount = std::min(hitCount, drop.m_rate[9]);          // _ZSt3minIi
+            genCount = std::min(hitCount, drop.m_limit);          // _ZSt3minIi
         }
 
         // ---- 6) 物品生成 ----
         Inven_Item item;                                            // Inven_ItemC1Ev
-        if (drop.m_rate[10] != 0)
+        if (drop.m_mainRate != 0)
         {
             if (ref.m_field25 &&
                 drop.m_levelFilter >= 0 &&                          // js → 不过滤
@@ -187,7 +187,7 @@
 
             for (int k = 0; k < genCount; ++k)
             {
-                const int roll = get_rand_int(drop.m_rate[10]);
+                const int roll = get_rand_int(drop.m_mainRate);
                 // ORIG 0x8349bad 段：begin() 返回 iterator 经 const_iterator 转换
                 // 构造（P96 翻案——ORIG 侧确有转换临时）；循环体用 operator*（deEv）
                 // 而非 operator->（P167 新判据），并整对拷贝到 8 字节局部
@@ -219,7 +219,7 @@
             item.m_addInfo = drop.m_itemIdx;                        // +0x02 ← +0x00
             G_CDataManager()->m_itemList->create_item(
                 ENUM_ITEM_CREATE_TYPE_1, item, 1);
-            if (item.m_addInfo == 0 && drop.m_rate[10] == 0)
+            if (item.m_addInfo == 0 && drop.m_mainRate == 0)
             {
                 item.m_addInfo2 = genCount;                         // +0x07 ← count
                 out.push_back(item);

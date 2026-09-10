@@ -48,6 +48,7 @@ namespace {
 //      ORIG `add 0x8(%ebp),%eax`（this 装载序，N7/N18a）。另槽序
 //      -0x1c/-0x20/-0x28… vs ORIG -0x1c/-0x24/-0x2c…（N82/N98）。语义与调用点
 //      全等（14 处槽访问、3 处 insert/erase 调用点逐条同形）。ORIG 0x08468614。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N4/P30）→ 试=N4a 轴反向（`uchar(*)[0x17]` 数组引用 → `uchar* + i*0x17+0x14` 混合形 R2：our 228→234 劣化、add 链变长，已回滚）；ORIG 0x084686bc `imul $0x17; add 0x14(%ebp),%eax`（mem-add）vs 4.4 `mov 0x14(%ebp),%edx; lea (%edx,%eax,1)` ⇒ 维持。
 #include "W6_RankMailDeps/registRanker.inc"
     unsigned int towerIdx, unsigned int slotIdx,
     const struct stDeathTowerRecordMemberInfo_t* members,

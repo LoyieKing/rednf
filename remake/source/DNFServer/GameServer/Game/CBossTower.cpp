@@ -356,8 +356,10 @@ namespace WongWork
         // [L5Free49to60 P221 试形] 具名 cMyTrace 对象在 4.4 占低槽（-0x1c 区），
         // ORIG 该对象在 -0x1c..-0xb、serverRarity 深至 -0x1d ⇒ 改全表达式临时链
         // 复现 ORIG 槽方向（P37/P221）。
-        cMyTrace("virtual bool WongWork::CBossTower::handlePickupItem(CUser*, "
-                 "int, bool, char)", 600, 5)("server_item_rarity != client_item_rarity");
+        // [Q6HeaderTypeAxis 2026-09-11] 手写串 → __PRETTY_FUNCTION__（头/定义已 bool 化，
+        //   prett 产物逐字节 = ORIG `virtual bool WongWork::CBossTower::handlePickupItem
+        //   (CUser*, int, bool, char)`，size 0x4d @ORIG 0x08b701a0）。
+        cMyTrace(__PRETTY_FUNCTION__, 600, 5)("server_item_rarity != client_item_rarity");
     }
 
     if (user != 0 && c == 3)

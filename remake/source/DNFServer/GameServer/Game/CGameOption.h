@@ -183,7 +183,10 @@ public:
     void SetEtcOption(CETCOption& EtcOption);
     void SetQuickChatOption(const CQuickChattingOption& QuickChattingOption,
                             unsigned int nSlot);
-    unsigned char IsEtcOptionChanged(CETCOption& EtcOption);
+    // [Q4DispatchBig 2026-09-11 · bool 轴] 返回类型 unsigned char -> bool（ORIG 调用点
+    //   0x081cec17 `call; xor $0x1,%eax; test %al,%al; je` 直证；两侧定义体逐字节相同
+    //   ORIG 0x084b6f46 len 0x3d ≡ 我方 .o @0x2ee ⇒ 纯调用点收益）。
+    bool IsEtcOptionChanged(CETCOption& EtcOption);
     bool IsQuickChatOptionChanged(const CQuickChattingOption& QuickChattingOption,
                                   unsigned int nSlot);
     void CopyQuickChatting(CQuickChattingOption& QuickChattingOption,

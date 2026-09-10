@@ -384,7 +384,15 @@ public:
     CUser* GetMemberSlotNo(unsigned int characNo);  // ORIG T 0x0859acc2：按角色编号返回 CUser*
     unsigned int GetMemberSlotNo(CUser const* user) const;
     void ClearBadP2PUser();
-    int CheckMemberArea();   // ORIG eax：全员同区=1（0x859d706）
+    // [Q5BigTURest.DisPatcherCore 2026-09-11 返回类型轴] ORIG 调用点硬证据：
+    //   DisPatcher_StartGame::check_error 0x081ca16f 为
+    //   `call CheckMemberArea; xor $0x1,%eax; test %al,%al; je 0x081ca18f`
+    //   （同函数 0x081ca181 对已声明 bool 的 is_quick_party 亦同形）⇒ 4.1 视返回值
+    //   为 bool（0/1 语义）；我方 int 声明令 4.4 生成 `test %eax,%eax; jne`（极性
+    //   折痕 4→2 行）。定义点 0x0859d656 的 `setne %al` + `mov $0/$1,%eax` 同证。
+    //   返回类型不入 mangled ⇒ 零 ABI；overlay 实测该件 DIFF→AE 228/228、
+    //   TU 四数 ae +1 / diff −1（零劣化）。
+    bool CheckMemberArea();   // ORIG eax：全员同区=1（0x859d706）
     int GetUserPosition(CUser* user);
     bool check_allmember_die();
     void check_allmember_loading(bool flag);

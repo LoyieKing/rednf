@@ -56,7 +56,14 @@ public:
     virtual bool handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d);  // 0x08143ebc
     // 新增虚（char 按值，与 CBossStage 的 char& 版本不同）0x08143d2c
-    virtual int handlePickupItem(CUser* user, int a, bool b, char c);
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x08b701a0 size 0x4d =
+    //   `virtual bool WongWork::CBossTower::handlePickupItem(CUser*, int, bool, char)`
+    //   （REF 见 ORIG 0x08143dec `movl $0x8b701a0,0x4(%esp)`，P8S2 实读）。
+    //   我方原 `virtual int` ⇒ prett 串多 4 字节（"int " vs "bool "），故此前只能
+    //   手写串；本项与基类 CBossStage::handlePickupItem(char&) 参数不同（char 按值
+    //   vs char&）⇒ 非 override，无 conflicting return type 风险；返回类型不入
+    //   mangling，vtable 槽位/符号/sizeof 零变化。
+    virtual bool handlePickupItem(CUser* user, int a, bool b, char c);
 
     // ---- 其余非虚方法（全部于 CBossTower.cpp 按对应 ORIG 报告转写实现）----
     // b28d-solo-CBossTower P248 档①：ORIG 调用点全部 `call; xor $0x1,%eax;

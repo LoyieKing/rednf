@@ -160,6 +160,14 @@ public:
                                                    unsigned int stackCount,
                                                    unsigned int eventCode);
                                            // ORIG T 0x083f9b54
+    // [Q6HeaderTypeAxis 2026-09-11 负结论·已回滚] ORIG prett @0x08c5ddc0（size 0x7a）=
+    //   `void WongWork::EventCommon::LoadCharacEventItem(memberIdentificationNumber_t,
+    //   unsigned int, memberIdentificationNumber_t)`（第 1/3 参为 typedef 名）；修法需
+    //   把本头第 1/3 参拼写改 memberIdentificationNumber_t，但**本 TU 不可见该 typedef**
+    //   （WongWorkEvents_A.h 未直接/间接 include GameTypes.h ⇒ 实测
+    //   `error: 'memberIdentificationNumber_t' has not been declared`）⇒ 按 Main 规则
+    //   「不为拼写加 include」**回滚**。可行方案（待属主裁决）：在 GameTypes.h→本头的
+    //   include 链打通后改声明 + 定义（.inc:1 / .cpp:663）+ 站点换 `__PRETTY_FUNCTION__`。
     static void LoadCharacEventItem(unsigned int eventId,
                                     unsigned int characNo,
                                     unsigned int loadId);

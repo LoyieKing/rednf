@@ -368,6 +368,13 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
             //   **union**，m_body 偏移为 0（非 +8）⇒ 源地址少 8 字节，语义错；已回滚。
             //   正解只能经 m_body.m_info（Body 内 +8）。4.4 仍折叠为 `add $0x8,%eax`
             //   （ORIG 0x085f788c 为 `lea 0x8(%eax),%edx`）⇒ N102/N4 族，源码不可控。
+            // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N102/N4）→ 试=①prett2 缺口 0、
+            //   strall 串差 0（仅 base64 假阳性）、p167 本函数 MISSING/EXTRA CLEAR；
+            //   ②本波复核两处残差：ORIG 0x085f7857 `mov 0xa(%eax,%edx,1)`（基址提前
+            //   入 %edx + indexed 寻址）vs 4.4 `add -0x10(%ebp),%eax; mov 0xa(%eax)`；
+            //   同名 0x085f788c `lea 0x8(%eax),%edx` vs `add $0x8,%eax`（视图/union/
+            //   指针算术三形 + m_body 偏移 0 陷阱历史已试）⇒ 维持（新=DIFF 49/50
+            //   gap=-1, blocks=2：两处均为 4.1 基址/indexed 寻址折叠差）。
             m_redeemList.push_back(
                 *reinterpret_cast<const Inven_Item_Expand_RedeemInfo*>(
                     buf[i].m_body.m_info));
@@ -428,6 +435,13 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
         // [N1D 2026-09-11 试形] ++i 从 for-increment 移入 body：ORIG 0x085f7aac
         //   顺序为 `rep movsl → addl $0x1,-0x1c(%ebp) → call operator++(it)`；
         //   4.4 原先把 ++i 排在 operator++ 之后。
+        // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N76/N18a，件表文件名 _saveData_1.inc
+        //   系映射偏差：本函数体在 _saveData.inc）→ 试=①prett2 0 缺口、strall 0 串差、
+        //   p167 CLEAR；②本 TU 已路由 446 后端（实测读数不变）；③444 后端变体实测
+        //   逐项相同 ⇒ 无后端旋钮；④ORIG 0x085f7aa4 先 `call operator*`（源→%edx）
+        //   后算 dst，4.4 恒先算 dst 入 %ebx（P226 裸语句表达式历史已试无效）⇒ 维持
+        //   （新=DIFF 135/134 gap=+1, blocks=5：唯一残差为该求值序 + `mov %edx,%ebx`
+        //   RHS 保活两条 + GI 假阳性计数）。
         *(Inven_Item_Expand_RedeemInfo*)(
             reinterpret_cast<char*>(sig) + 8 + i * 0x44) = *it;
         ++i;

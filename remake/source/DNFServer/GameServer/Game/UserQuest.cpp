@@ -226,6 +226,14 @@ struct SelectQuestParamDataView
     //   mov %edx,0x4(%esp)`）+ 数据地址重定位（0x941f7f4 = CTimeGate 单例，AE 盲区）。
     //   P329 核过：本件无中间具名局部（全内联表达式）⇒ 无该旋钮可用；P331 核过：
     //   -0x54 vs -0x50 为 4B 单段平移但该区含 std::list 类对象 ⇒ 明文不可翻 ⇒ N82。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=①prett2 缺口 0、strall 串差 0
+    //   （仅 base64 假阳性）、p167 本函数 CLEAR；②444 后端变体逐项相同；③本波复核
+    //   5 块 13 行差**全为实参装载序 + 寄存器中转**：ORIG 0x086abba8 区段先写常量
+    //   栈槽后载接收者（`movl $0x15,0x8(%esp); movl $0x0,0x4(%esp); mov -0x14(%ebp),
+    //   %eax; mov %eax,(%esp)`），4.4 恒先载 this/pb（-0x14）再写常量；以及 ORIG
+    //   `mov -0x10(%ebp),%edx; mov %edx,0x4(%esp)` 的 %edx 中转 vs 4.4 经 %eax。
+    //   P329 已核全内联无具名局部可删 ⇒ 无新旋钮，维持（新=DIFF 136/136 gap=0,
+    //   blocks=5）。
     stSelectQuestParam selectParam(m_user);
 
     InterfacePacketBuf* pb = reinterpret_cast<InterfacePacketBuf*>(buf);
@@ -309,6 +317,13 @@ struct SelectQuestParamDataView
     // 【b28e-M1S2 本波复核】403/404（我方多 1）。P331 核过：quest（ORIG -0x3c / 我方
     // -0x30）与循环 i（ORIG -0x34 / 我方 -0x28）槽序**同向**（非倒置）⇒ 不属
     // P331 可翻域；平移恒 0xc = ORIG 独有 `push %edi`（帧 0xcc vs 0xc0）⇒ N82/N7。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7/N78/N82）→ 试=①prett2 缺口 0、
+    //   strall 串差 0、p167 新增复核（EXTRA memset x1 = 我方 call vs ORIG 4.1
+    //   `rep stos` 内联 11 dwords，N78 在案；其余 MISSING 属 GI/undefined-weak
+    //   假阳性族）；②444 后端变体逐项相同；③帧差 0xc = ORIG 独有 `push %edi`
+    //   （4.1 三 callee-saved：edi/esi/ebx vs 4.4 两：esi/ebx）+ 槽平移，属寄存器
+    //   分配不可择；P339 quest/i 槽序已核同向非倒置 ⇒ 无新旋钮，维持（新=DIFF
+    //   403/404 gap=-1, blocks=15）。
     // P339 明文禁把非 POD（stSelectQuestParam / vector）提前 ⇒ 不适用。
     // 语义轴：logFormat/cMyTrace 串与 ORIG 0x8cf3a14 / 0x8cf47a0 / 0x8cf3a21 /
     // 0x8cf3a64 一致（已核）。

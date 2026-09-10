@@ -46,6 +46,11 @@ struct SIG_BINGO_EVENT
 class DB_Login : public DBDispatcher
 {
 public:
+    // [Q3PrettSweepA 2026-09-11] ORIG prett 直证 =
+    // `DB_Login::RV_GetGameDBCharacInfo DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA*)` size 0x51
+    // ⇒ 该 typedef 在 ORIG 是**类内嵌套名**（我方原为文件作用域 typedef ⇒ 打印不带 `DB_Login::`）。
+    typedef int RV_GetGameDBCharacInfo;
+
     struct tagDNFEventEntry
     {
         int m_eventId;       // +0x00 event_id

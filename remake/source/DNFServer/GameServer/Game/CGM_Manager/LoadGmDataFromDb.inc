@@ -1,1 +1,1 @@
-bool CGM_Manager::LoadGmDataFromDb(unsigned int accId)
+bool CGM_Manager::LoadGmDataFromDb(memberIdentificationNumber_t accId)

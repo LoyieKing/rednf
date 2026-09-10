@@ -1938,7 +1938,8 @@ struct Packet_TowerOfDespair_Statistic_GTS
         packet.put_header(0, 0xfe);
         packet.finalize(true);
         send_to_party(packet);
-        m_battleField.m_dungeonClearTracer.Trace("void CParty::ClearDungeon()");
+        // [Q2P342ScanB] 原手写串 → prett（ORIG `_ZZN6CParty12ClearDungeonEvE19__PRETTY_FUNCTION__` size 0x1c）
+        m_battleField.m_dungeonClearTracer.Trace(__PRETTY_FUNCTION__);
         m_tournamentVictory = 1;
         return;
     }
@@ -2194,7 +2195,7 @@ struct Packet_TowerOfDespair_Statistic_GTS
         cal_hellparty_value(bf(this).get_dungeon_diff(),
                             get_rate_level_difference(), memberCount - 1);
     }
-    m_battleField.m_dungeonClearTracer.Trace("void CParty::ClearDungeon()");
+    m_battleField.m_dungeonClearTracer.Trace(__PRETTY_FUNCTION__);   // [Q2P342ScanB] 同上
     m_tournamentVictory = 1;
     QuickParty::RewardData_Param rewardParam(this);
     QuickParty::RewardData_Result rewardResult;

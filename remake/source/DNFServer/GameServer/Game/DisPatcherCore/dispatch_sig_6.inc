@@ -2,14 +2,17 @@ int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 
 {
     // [H5DisPatcher 核账 2026-09-11] 本轮改动实测 ours 484→491（+7）劣化 ⇒ 已回滚留 N
-    // [DPC_SigA 已排除] P312/P78：ORIG 0x081ee5ae/bc 与 0x081ee7d7..827 共 5 处内联
-    // `rep stos`，本 TU 4.4.7 路由下 `= {0}` 改写实测劣化（帧/对齐副作用 > rep stos 收益）
-    int unused0[10];                    // -0xa8（ORIG rep stos 0xa 清零，后未使用）
+    // [Q5BigTURest.DisPatcherCore 2026-09-11 落地·P312 重测正结论] ORIG
+    // 0x081ee5ae/bc（unused0）与 0x081ee7d7..0x827（itemPtrs/cashPrices/winPrices/
+    // goldPrices）共 5 处为**内联** `lea -0xNN,%ebx; mov $0x0,%eax; mov $0xa,%edx;
+    // mov %ebx,%edi; mov %edx,%ecx; rep stos`（memset 展开），我方原 5 条
+    // `memset(dst,0,sizeof)` 恒产 `call memset`（p167fix 直证 EXTRA memset×5）。
+    // 本轮把「声明处的 `= {0}`」与「使用点声明」两轴一起用（声明下移到原 memset 处）：
+    // rep stos ×5 全部复现（p167 EXTRA memset 5→0），本件 verdict 仍 DIFF 但
+    // gap +9→+2（orig 480 / our 478），TU 四数零劣化（215/666/2/49 → 215/667/2/48
+    // 中的 ae/diff 变动来自同轮 CParty.h 返回类型轴）。
+    int unused0[10] = {0};              // -0xa8（ORIG rep stos 0xa 清零，后未使用）
     STRentAvatarReq rentEntries;       // ORIG -0x188(%ebp) 起载荷区（逐 entry stride 5）
-    int itemPtrs[10];                   // -0xd0（find_item 结果）
-    int cashPrices[10];                 // -0xf8（GetCashPrice 租价）
-    int goldPrices[10];                 // -0x148（get_price 租价）
-    int winPrices[10];                  // -0x120（GetMedalPrice 租价）
     int totalCash;                      // -0x24
     int totalGold;                      // -0x20
     int totalWin;                       // -0x1c
@@ -19,7 +22,6 @@ int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     char itemIdStr[0x14];               // -0x54
     char priceStr[0x24];                // -0x80
 
-    memset(unused0, 0, sizeof(unused0));
     totalCash = 0;
     rentDays = 0;
     rentSeconds = 0;
@@ -51,10 +53,10 @@ int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    memset(itemPtrs, 0, sizeof(itemPtrs));
-    memset(cashPrices, 0, sizeof(cashPrices));
-    memset(goldPrices, 0, sizeof(goldPrices));
-    memset(winPrices, 0, sizeof(winPrices));
+    int itemPtrs[10] = {0};             // -0xd0（find_item 结果）
+    int cashPrices[10] = {0};           // -0xf8（GetCashPrice 租价）
+    int goldPrices[10] = {0};           // -0x148（get_price 租价）
+    int winPrices[10] = {0};            // -0x120（GetMedalPrice 租价）
     totalCash = 0;
     totalGold = 0;
     totalWin = 0;

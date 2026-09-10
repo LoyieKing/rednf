@@ -1,1 +1,1 @@
-int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromItemIdx,
+int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_t fromItemIdx,

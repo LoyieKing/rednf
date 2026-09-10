@@ -620,6 +620,11 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
                                                      unsigned int stackCount,
                                                      unsigned int eventCode)
 {
+    // [Q8 2026-09-11 负结论] 手写串改为 `__PRETTY_FUNCTION__` **不可行**：
+    // 4.4 对**类内 static 成员**的宏输出带 `static ` 前缀（实测串 0x7e vs
+    // ORIG 0x8c5de40 的 0x77，差 7 = "static "），把 trace 日志文本改坏（语义轴）
+    // ⇒ 回滚。且本 TU 四数 1/21/0/0/0 改前改后**完全相同**（该 prett 符号不进
+    // missing_in_game 统计）⇒ 净收益 0。手写串（与 ORIG 逐字节相同）才是正确形。
     static const char FUNC_NAME[] =
         "unsigned int WongWork::EventCommon::InsertEventItem2EventTable("
         "unsigned int, unsigned int, unsigned int, unsigned int)";
@@ -677,9 +682,13 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
         // [b28d-solo-WongWorkEvents_A] P221：ORIG cMyTrace 槽 -0x28 浅于
         // CStreamGuard 槽 -0x30；4.4 具名声明序恒反向（cMyTrace -0x30 /
         // guard -0x20）⇒ 改全表达式临时链翻互斥块槽方向。
-        cMyTrace("void WongWork::EventCommon::LoadCharacEventItem("
-                 "memberIdentificationNumber_t, unsigned int, "
-                 "memberIdentificationNumber_t)", 0x37, 5)
+        // [Q6HeaderTypeAxis 2026-09-11 §6.5 串修复] 手写串 → __PRETTY_FUNCTION__：
+        //   ORIG 0x083f9d28/0x083f9d36 用 prett 符号 0x8c5ddc0（串 = "void WongWork::
+        //   EventCommon::LoadCharacEventItem(memberIdentificationNumber_t, unsigned int,
+        //   memberIdentificationNumber_t)"，与手写串逐字节同）；line 0x37/level 5 两侧同；
+        //   fmt `"DB_LoadInventory::GetUserInven, exec ERROR charac_no=%u"`（ORIG 0x8c35d88）
+        //   为 ORIG 原样（copy-paste 遗留），不改。
+        cMyTrace(__PRETTY_FUNCTION__, 0x37, 5)
             ("DB_LoadInventory::GetUserInven, exec ERROR charac_no=%u", characNo);
         return;
     }

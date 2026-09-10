@@ -201,9 +201,7 @@ struct ExchangeServerInfoMsgView
         return true;
     }
     // P221/P227 临时链：复现 ORIG 0x8491314 `mov 0xc(%ebp),%ebx` + trace 槽 -0x18。
-    cMyTrace("bool exchange_server::CExchangeServer::"
-             "AttachSessionInExchangeServer(int, "
-             "exchange_server::CSession*)", 0x11b, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x11b, 0)
         ("AttachSessionInExchangeServer() channel_no(%d) failed", serverId);
     return false;
 }
@@ -225,9 +223,7 @@ struct ExchangeServerInfoMsgView
         return true;
     }
     // P221/P227 临时链：复现 ORIG 0x8491404 `mov 0xc(%ebp),%ebx` + trace 槽 -0x18。
-    cMyTrace("bool exchange_server::CExchangeServer::"
-             "RegisterExchangeServer(int, "
-             "exchange_server::ExchangeServerInfo&)", 0x128, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x128, 0)
         ("RegisterExchangeServer() channel_no(%d) failed", serverId);
     return false;
 }
@@ -255,8 +251,7 @@ struct ExchangeServerInfoMsgView
     }
     // P221/P227 临时链：复现 ORIG 0x84914e3 `mov 0xc(%ebp),%ebx`（serverId 跨
     // ctor 保活）与 trace 槽 -0x18（4.4 具名形恒落深槽 -0x20）。
-    cMyTrace("virtual bool exchange_server::CExchangeServer::"
-             "UnregisterExchangeServer(int)", 0x13b, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x13b, 0)
         ("UnregisterExchangeServer() channel_no(%d) failed", serverId);
     return false;
 }
@@ -425,9 +420,7 @@ struct ExchangeServerInfoMsgView
                 // [b28e 本泳道] P221/P227 全表达式临时链：ORIG 0x84919ec/0x8491a3e
                 // 两处 trace 分别占 -0x30/-0x20（浅于 pCache -0x34）；具名对象形在
                 // 4.4 取反方向（-0x2c/-0x3c）⇒ 改构造即调用临时链。
-                cMyTrace("bool exchange_server::CExchangeServer::"
-                         "ReturnCacheCharacter(int, int, int, int, bool, "
-                         "exchange_server::CSession*)", 0x1bf, 0)(
+                cMyTrace(__PRETTY_FUNCTION__, 0x1bf, 0)(
                     "GetMemberPosition() invalid information  type(%d), "
                     "idx(%d), channel_no(%d), charac_no(%d)", a, b, c, d);
             }
@@ -438,9 +431,7 @@ struct ExchangeServerInfoMsgView
         }
         else
         {
-            cMyTrace("bool exchange_server::CExchangeServer::"
-                     "ReturnCacheCharacter(int, int, int, int, bool, "
-                     "exchange_server::CSession*)", 0x1d6, 0)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x1d6, 0)(
                 "GetCacheCharacter() false  type(%d), idx(%d), "
                 "channel_no(%d), charac_no(%d)", a, b, c, d);
         }
@@ -568,9 +559,7 @@ struct ExchangeServerInfoMsgView
     // P227：ORIG 0x084923bd..0x084923e4 在 ctor 前右起求值 7 个实参
     // （characNo/chNoArg/mi1/mi2 落深槽，idx/errBook 落 %edi/%esi，
     // fromChannel 落 %ebx）⇒ 全表达式临时链复现。
-    cMyTrace("int exchange_server::CExchangeServer::"
-             "OnRecvPacketCharacInfo(exchange_server::CSession*, "
-             "PacketGuard&)", 0x253, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x253, 0)
         ("OnRecvPacketCharacInfo() type(%d), idx(%d), msg len(%d), "
          "member_size(%d), channel_no(%d), charac_no(%d), "
          "from_channel_no",
@@ -588,9 +577,7 @@ struct ExchangeServerInfoMsgView
         if (!SendResponseCharacInfo(errBook, idx, (void*)pos, mi1,
                                     session, 0x15))
         {
-            cMyTrace trace("int exchange_server::CExchangeServer::"
-                           "OnRecvPacketCharacInfo(exchange_server::"
-                           "CSession*, PacketGuard&)", 0x25d, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x25d, 0);
             trace("SendResponseCharacInfo() error");
         }
     }
@@ -660,9 +647,7 @@ struct ExchangeServerInfoMsgView
     // 无具名 channel 局部（旧码 `const int channel` 多发一槽）。
     // P227：ORIG 在 ctor 前求值 mi1/mi2/fromCh 到深槽、idx/ret 到 %edi/%esi、
     // channel 到 %ebx（0x0849277d..0x084927a5）⇒ 全表达式临时链复现。
-    cMyTrace("int exchange_server::CExchangeServer::"
-             "OnRecvPacketCharacInfoRet(exchange_server::"
-             "CSession*, PacketGuard&)", 0x28a, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x28a, 0)
         ("OnRecvPacketCharacInfoRet() ret(%d) type(%d), idx(%d), "
          "msg len(%d), member_size(%d), from_channel(%d)",
          ret, idx, fromCh, mi2, mi1, session->GetChannelNo());
@@ -722,9 +707,7 @@ struct ExchangeServerInfoMsgView
     // ⇒ 原码有具名 ipv 局部。P227：inet_ntoa 在 cMyTrace ctor 前求值并跨 ctor 保活。
     struct in_addr ipv;
     ipv.s_addr = info.m_field00;
-    cMyTrace("int exchange_server::CExchangeServer::"
-             "OnRecvPacketServerInfo(exchange_server::CSession*, "
-             "PacketGuard&)", 0x2a5, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x2a5, 0)
         ("channel no(%d), server ip(%s), port(%d)", serverId, inet_ntoa(ipv),
          (int)(short)info.m_word04);
 
@@ -764,17 +747,13 @@ struct ExchangeServerInfoMsgView
     {
         // P227 全表达式临时链：ORIG 0x08492bc1 `mov -0x4c(%ebp),%ebx` 在 ctor 前
         // 把 serverId 载入 callee-saved 并跨 ctor 保活（旧具名形 ctor 后重读槽）。
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvPacketServerInfo(exchange_server::CSession*, "
-                 "PacketGuard&)", 0x2c6, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x2c6, 0)
             ("RegisterExchangeServer! failed (%d)", serverId);
     }
     if (!AttachSessionInExchangeServer(serverId, session))
     {
         // P227 同上：ORIG 0x08492c1e `mov -0x4c(%ebp),%ebx` 跨 ctor 保活。
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvPacketServerInfo(exchange_server::CSession*, "
-                 "PacketGuard&)", 0x2cb, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x2cb, 0)
             ("AttachSessionInExchangeServer! failed (%d)", serverId);
     }
     return 0;
@@ -820,9 +799,7 @@ struct ExchangeServerInfoMsgView
         // entryCount(0xc) ⇒ 实参序 (senderId, entryCount)；旧码两值互换
         // （"channel no(%d), server count(%d)" 打印反）。
         // P227：ORIG 在 ctor 前把两值载入 %esi/%ebx 跨 ctor 保活。
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvPacketServerInfoRet(exchange_server::"
-                 "CSession*, PacketGuard&)", 0x2dc, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x2dc, 0)
             ("channel no(%d), server count(%d)", senderId, entryCount);
     }
 
@@ -850,9 +827,7 @@ struct ExchangeServerInfoMsgView
         // P227：ip/port/remoteId 在 ctor 前求值（%ebx/%edi/%esi 保活）。
         struct in_addr ipv;
         ipv.s_addr = info.m_field00;
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvPacketServerInfoRet(exchange_server::"
-                 "CSession*, PacketGuard&)", 0x2e8, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x2e8, 0)
             ("channel no(%d), server ip(%s), port(%d)", remoteId,
              inet_ntoa(ipv), (int)(short)info.m_word04);
 
@@ -874,18 +849,14 @@ struct ExchangeServerInfoMsgView
                      (int)(short)info.m_word04))
         {
             // P227：ORIG 0x08492ebd/0x8492ec7 在 ctor 前求值 port(%esi)/ip(%ebx)。
-            cMyTrace("int exchange_server::CExchangeServer::"
-                     "OnRecvPacketServerInfoRet(exchange_server::"
-                     "CSession*, PacketGuard&)", 0x2f2, 0)
+            cMyTrace(__PRETTY_FUNCTION__, 0x2f2, 0)
                 ("cannot connect other game server! (%s,%d)",
                  inet_ntoa(ipv), (int)(short)info.m_word04);
         }
         if (!RegisterExchangeServer(remoteId, info))
         {
             // P227：ORIG 0x08492f38 `mov -0x78(%ebp),%ebx` 跨 ctor 保活。
-            cMyTrace("int exchange_server::CExchangeServer::"
-                     "OnRecvPacketServerInfoRet(exchange_server::"
-                     "CSession*, PacketGuard&)", 0x301, 0)
+            cMyTrace(__PRETTY_FUNCTION__, 0x301, 0)
                 ("RegisterExchangeServer! failed (%d)", remoteId);
         }
     }
@@ -893,9 +864,7 @@ struct ExchangeServerInfoMsgView
     if (!AttachSessionInExchangeServer(senderId, session))
     {
         // P227：ORIG 0x08492faa `mov -0x7c(%ebp),%ebx` 跨 ctor 保活。
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvPacketServerInfoRet(exchange_server::"
-                 "CSession*, PacketGuard&)", 0x307, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x307, 0)
             ("AttachSessionInExchangeServer! failed (%d)", senderId);
     }
     SetSlave();
@@ -955,8 +924,7 @@ struct ExchangeServerInfoMsgView
         default:
             // P221/P227 临时链：ORIG 0x849312b `movzbl -0x9(%ebp),%ebx` 保活
             // + default 尾 jmp 共享 return 0 块（0x84931a8）⇒ 用 break 出 switch。
-            cMyTrace("virtual int exchange_server::CExchangeServer::"
-                     "DispatchPacket(exchange_server::CSession*, char*, int)",
+            cMyTrace(__PRETTY_FUNCTION__,
                      0x328, 0)
                 ("unknown packet code %d", pktCode);
             break;
@@ -971,9 +939,7 @@ struct ExchangeServerInfoMsgView
         // 对 pktType **本身**加 register 会消掉 ORIG 的 -0x10 槽（旧失败记录），
         // 故只在 default 块内加复本，pktType 保持普通具名局部（槽 -0x10 不变）。
         register int tracedType = pktType;
-        cMyTrace("virtual int exchange_server::CExchangeServer::"
-                 "DispatchPacket(exchange_server::CSession*, "
-                 "char*, int)", 0x330, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x330, 0)
             ("unknown packet type %d", tracedType);
         break;
     }
@@ -1012,8 +978,7 @@ struct ExchangeServerInfoMsgView
     {
         // P227 全表达式临时链：ORIG 0x8493216-0x8493284 在 ctor 前求值
         // channelNo/port/inet_ntoa 并以 %edi/%esi/%ebx 跨 ctor 保活。
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvMessageServerInfo(Stream*, int, int)", 0x343, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x343, 0)
             ("Exchange Server IP:%s, PORT:%d, Channel No:%d",
              inet_ntoa(ipv),
              (int)(short)sig->m_port0e, sig->m_channel0a);
@@ -1021,8 +986,7 @@ struct ExchangeServerInfoMsgView
 
     if (sig->m_channel0a == GetServerChannelNo())
     {
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvMessageServerInfo(Stream*, int, int)", 0x347, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x347, 0)
             ("This is Exchange Master Server");
         m_flag38 = true;
 
@@ -1031,8 +995,7 @@ struct ExchangeServerInfoMsgView
         // 端口相同时漏调 SetServerType）。
         if (sig->m_port0e != (unsigned short)m_port08)
         {
-            cMyTrace("int exchange_server::CExchangeServer::"
-                     "OnRecvMessageServerInfo(Stream*, int, int)", 0x34b, 0)
+            cMyTrace(__PRETTY_FUNCTION__, 0x34b, 0)
                 ("different server port (%d,%d) ",
                  (int)(short)sig->m_port0e, (int)(short)m_port08);
         }
@@ -1040,16 +1003,14 @@ struct ExchangeServerInfoMsgView
     }
     else
     {
-        cMyTrace("int exchange_server::CExchangeServer::"
-                 "OnRecvMessageServerInfo(Stream*, int, int)", 0x351, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x351, 0)
             ("This is Exchange Slave Server");
 
         if (!m_sessionMgr.TryConnect(
                 inet_ntoa(ipv),
                 (int)(short)sig->m_port0e))
         {
-            cMyTrace("int exchange_server::CExchangeServer::"
-                     "OnRecvMessageServerInfo(Stream*, int, int)", 0x354, 0)
+            cMyTrace(__PRETTY_FUNCTION__, 0x354, 0)
                 ("cannot connect to other game server!");
         }
         SetServerType(EXCHANGE_SERVER_SLAVE);
@@ -1135,8 +1096,7 @@ struct ExchangeServerInfoMsgView
     default:
         // P221/P227 全表达式临时链：复现 ORIG 0x84935e2 `mov -0x1c(%ebp),%ebx`
         // （msgid 在 ctor 前物化并跨 ctor 保活）与 trace 槽 -0x18。
-        cMyTrace("bool exchange_server::CExchangeServer::"
-                 "DispatchMessage(Stream*)", 0x39d, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x39d, 0)
             ("unknown message type %d", msgid);
         break;
     }
@@ -1183,8 +1143,7 @@ struct ExchangeServerInfoMsgView
             // 跨 ctor 保活（push %ebx; sub $0x54；ORIG 无 push、ctor 后重读
             // -0xc），88→91 insn 反劣 ⇒ 维持具名形；残差 4 条 lea 槽号
             // （三臂 cMyTrace 槽深方向跨版本相反，N93 主案）。
-            cMyTrace("bool exchange_server::CExchangeServer::"
-                     "FreeMessage(Stream*, int)", 0x3b5, 0x5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x3b5, 0x5)
                 ("Small Stream Size over code(%d), size(%u)", flag, len);
         }
         GlobalData::s_small_stream_pool->Free(stream);
@@ -1192,8 +1151,7 @@ struct ExchangeServerInfoMsgView
     case 0:                                           // StreamPool
         if (len > 0x3fff)
         {
-            cMyTrace("bool exchange_server::CExchangeServer::"
-                     "FreeMessage(Stream*, int)", 0x3c0, 0x5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x3c0, 0x5)
                 ("Default Stream Size over code(%d), size(%u)", flag, len);
         }
         GlobalData::s_stream_pool->Free(stream);
@@ -1201,8 +1159,7 @@ struct ExchangeServerInfoMsgView
     case 2:                                           // BigStreamPool
         if (len > 0x3ffff)
         {
-            cMyTrace("bool exchange_server::CExchangeServer::"
-                     "FreeMessage(Stream*, int)", 0x3cb, 0x5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x3cb, 0x5)
                 ("Big Stream Size over code(%d), size(%u)", flag, len);
         }
         GlobalData::s_big_stream_pool->Free(stream);
@@ -1262,8 +1219,7 @@ struct ExchangeServerInfoMsgView
 
     if (!m_sessionMgr.TryListen((int)(short)m_port08, GetServerIP()))
     {
-        cMyTrace("bool exchange_server::CExchangeServer::"
-                 "PreparePassiveSocket()", 0x40a, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x40a, 0)
             ("TryListen failed!");
         return false;
     }
@@ -1275,8 +1231,7 @@ struct ExchangeServerInfoMsgView
         info.m_type08 = EXCHANGE_CONNECT_UNKNOWN;
         if (!RegisterExchangeServer(GetServerChannelNo(), info))
         {
-            cMyTrace("bool exchange_server::CExchangeServer::"
-                     "PreparePassiveSocket()", 0x416, 0)
+            cMyTrace(__PRETTY_FUNCTION__, 0x416, 0)
                 ("RegisterExchangeServer! failed (%d)",
                  GetServerChannelNo());
         }
@@ -1289,22 +1244,19 @@ struct ExchangeServerInfoMsgView
     int sizeProbe = 0x15469;                          // -0xc
     if (sizeProbe > 0x17318)
     {
-        cMyTrace("bool exchange_server::CExchangeServer::"
-                 "PreparePassiveSocket()", 0x420, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x420, 0)
             ("RegisterExchangeServer! failed packet size over! (%d/%d)",
              sizeProbe, 0x17318);
     }
     if (sizeProbe > 0x17318)
     {
-        cMyTrace("bool exchange_server::CExchangeServer::"
-                 "PreparePassiveSocket()", 0x426, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x426, 0)
             ("RegisterExchangeServer! failed recv buffer size over! "
              "(%d/%d)", 0x3f869, 0x17318);
     }
     if (sizeProbe > 0x6ddd0)
     {
-        cMyTrace("bool exchange_server::CExchangeServer::"
-                 "PreparePassiveSocket()", 0x42c, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x42c, 0)
             ("RegisterExchangeServer! failed send buffer size over! "
              "(%d/%d)", 0x3f86b, 0x6ddd0);
     }

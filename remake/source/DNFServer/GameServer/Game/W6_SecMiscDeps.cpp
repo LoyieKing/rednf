@@ -108,6 +108,7 @@ char WongWork::CWebEvent::m_strEventName[10][0x12] = {
     m_timeCount = 1;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N4/P75）→ 试=新口径 n1_v 100/101 gap=-1；前任三形（`*(length+out)` 整型在左不变；整型加法+回 cast 编译非法；删 (size_t) cast 不变）+ 本波逐条复核不变 ⇒ 维持（ORIG 0x085fe417 `add 0x10(%ebp),%eax` 值上下文 vs 我方 lea 2 条）。
 #include "W6_SecMiscDeps/encryptString.inc"
 {
     // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（P75 实参装载序 + P30）；105→19]
@@ -290,6 +291,7 @@ struct CSecurityCardAnswerView
 };
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N4/P30 + P235）→ 试=新口径 n1_v 66/67 gap=-1；前任两形（`(&m_table[0])[idx]` 数组衰减逐条不变；`(uchar*)(this)+8` 真指针下标 66→71 劣化已回滚）+ 本波复核不变 ⇒ 维持（P235 正解需在 CUser.h:1185 CSecurityCard +0x08 具名化答案表，属共享头 —— 见交付 NEEDS-HEADER）。
 #include "W6_SecMiscDeps/checkAnswer.inc"
 {
     // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（P30/N4 add-vs-lea + P235 视图 base 先载）]
@@ -545,6 +547,7 @@ char WongWork::CWebEvent::m_strEventIPGCode[10 * 0xb] =
     return ReqSaveEventItem(p1, p2, p3, p4, p5, p6, false);
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N89/N93附）→ 试=新口径 n1_v 431/423 gap=+8 blocks=60；缺口全在 ORIG 独有段（0x086c15b5/0x086c18cd 两处 `cmpl $0xffffffff,槽; sete %al; test %al,%al; je` 物化 ×2 + bool 归并 5 条 + 实参装载 4/5 条差），4.4.6 后端复编更差（431/422，gap +9）⇒ 维持。
 #include "W6_SecMiscDeps/RecvInfoFromDB.inc"
                                                  unsigned int count, unsigned int eventIdx,
                                                  unsigned int extra)

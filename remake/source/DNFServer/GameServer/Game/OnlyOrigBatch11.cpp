@@ -72,7 +72,10 @@ extern void save_pid();                                                 // ORIG 
                             &ThreadInterface::dispatch_proxy, this);
     if (rc != 0)
     {
-        std::cerr << "[ThreadInterface::begin] Can't begin thread." << " "
+        // [Q7S2 2026-09-11] 串内容真错修正：ORIG .rodata @0x08ce6620 实测
+        //   `[ThreadInterface::begin] Can't begin thread`（**无末尾句号**，
+        //   objdump -s 直读，49 字节含 NUL）；原字面量多一个 '.'。
+        std::cerr << "[ThreadInterface::begin] Can't begin thread" << " "
                   << rc << std::endl;
     }
     m_tidCopy = m_tid;

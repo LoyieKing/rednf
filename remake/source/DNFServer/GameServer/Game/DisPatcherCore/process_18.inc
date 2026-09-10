@@ -70,8 +70,7 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         }
     }
 
-    const int count = (int)(signed char)req.m_count;
-    for (int i = 0; i < count; ++i)
+    for (int i = 0; i < (int)(signed char)req.m_count; ++i)
     {
         out.m_4 = condition_check(user, msg, invenKind, i);
         if (out.m_4 != 0)
@@ -216,7 +215,15 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
     out.m_8 = req.m_itemSpace;
     out.m_9 = (unsigned char)req.m_count;
-    for (int i = 0; i < count; ++i)
+    // [Q5BigTURest.DisPatcherCore 2026-09-11 比较方向轴·落地] 本函数三处计数循环的
+    // ORIG setcc 均为 `setg`（0x081c1f22 / 0x081c26ec / 0x081c277a：`movzbl 0xe(%eax);
+    // movsbl %al,%eax; cmp <i槽>,%eax; setg`，LHS=每次重读的 msg+0xe、RHS=i）。我方原
+    // `const int count` + `i < count` 令 4.4 产 `mov i,%eax; cmp count,%eax; setl`
+    // （setcc2 直证 ours setl×2 vs ORIG setg×4）。删 count 具名、条件改为重读
+    // `(int)(signed char)req.m_count` 后：ours setl 2→0、setg 2→4（= ORIG），
+    // 本件 unified-diff 行数 204/202 → 123/121（verdict 仍 DIFF：残差=槽平移 4B 与
+    // N18a store 序；TU 四数零劣化）。
+    for (int i = 0; i < (int)(signed char)req.m_count; ++i)
     {
         out.m_slotsD2[i] = req.m_position[i];
         out.m_counts19c[i] = req.m_countArr[i];

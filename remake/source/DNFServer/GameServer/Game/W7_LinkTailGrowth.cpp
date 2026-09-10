@@ -112,6 +112,11 @@
 // 谓词 std::find_if 遍历 m_map0；谓词条件 = (m_minLv==m_maxLv && m_minLv==lv)
 // 或 (m_minLv<=lv && lv<m_maxLv)。命中把 Value 五 int 拷入 out 返回 true。
 // ============================================================================
+// [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N93/N98，gap=-1/blocks=4）→ 试=①prett2/q3_gap2
+//   缺口 0 ②strall 串 CLEAR（仅 base64 假阳性）③4.4.6 后端 overlay 复编（`-B cc1plus446bin`）
+//   四数逐项等同 447（13/12/2/2/5）⇒ 非后端路由可治 ④n1_v 残差 = 两 Value 对象槽号互换
+//   （ORIG pred@-0x18/begin@-0x10，4.4 恒反；声明序翻转已实测劣化，见块内注释）
+//   ⇒ 维持 N（4.1 槽分配方向 vs 4.4 声明序，源码不可兼得）。
 #include "W7_LinkTailGrowth/get_value.inc"
 {
     // [b28d-solo-W7_LinkTailGrowth 判词·NEAR] ORIG 0x08693ad6（62/62）：pred/end/begin
@@ -204,6 +209,11 @@
 //       m_reward = m_vecC[idx].m_reward;          // 0x8d24d int 写
 //     else memset(&m_reward, 0, 4);
 // ============================================================================
+// [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N7，gap=+0/blocks=3）→ 试=①4.4.6 后端 overlay
+//   复编：四数 13/12/2/2/5 **逐项不变**（本函数仍 NEAR）⇒ 推翻「P230 换后端可治」的假设
+//   （该 TU 未在路由表内，且 446 后端对 N7 间接 call 目标寄存器无效）②prett/串 CLEAR；
+//   残差 3 块 = 间接 call 目标 %edx(ORIG)/%eax(我方) + 尾部 store 装载序（N7/N82）
+//   ⇒ 维持 N（源码无旋钮，路由亦无效）。
 #include "W7_LinkTailGrowth/set_growth_power_exp_reward.inc"
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x5d);

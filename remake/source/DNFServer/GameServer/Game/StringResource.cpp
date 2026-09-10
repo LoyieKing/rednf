@@ -164,6 +164,11 @@ static int parseStringLine(char* line, int* key, char** value)
 // 163/165 维持，p167 MISSING 1×_Unwind_Resume。
 #include "StringResource/loadFromString.inc"
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18b）→ 试=④：r 槽零比较 4.4 恒
+    //   `cmpl $0x0,-0x10(%ebp)`（ORIG `mov -0x10(%ebp),%eax; test %eax,%eax`；int/unsigned
+    //   两态逐字节同，旧实测已回退）+ 尾部返回物化 `mov $0/%1,%ebx` + 尾 `mov %ebx,%eax`
+    //   （ORIG 直 `mov $0/%1,%eax`，探针 auto_ptr 作用域双形同折）——P212 全头部声明实测
+    //   165→205 反劣。②prett ③strall CLEAR。⇒ 维持 N18b/N93/N104。
     m_strings.clear();
 
     // toTString(const char*)：ORIG _Z9toTStringPKc @0x08adeb75（恒等转换，
@@ -289,6 +294,13 @@ static int parseStringLine(char* line, int* key, char** value)
 // P329/P231/P226 无对应源形可翻 ⇒ 封顶维持。
 #include "StringResource/loadFromBinary.inc"
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a/N97）→ 试=④P226/N97：
+    //   `payloadBytes=(size+3)/4*4` 的 ORIG 形 `mov %eax,%edx; sar $0x1f,%edx; shr $0x1e,%edx;
+    //   lea (%edx,%eax,1),%eax; sar $2; shl $2`（4.1 expand_divmod）vs 4.4
+    //   `lea 0x3(%eax),%edx; test %eax,%eax; cmovs %edx,%eax; sar $2; shl $2`；显式位运算
+    //   展开需引两次 `(size+3)`（净 +3 条、且 ORIG 的 sar/shr 是作用在已 +3 的 %eax 上）⇒
+    //   反劣；XOR 循环 `shl $2; add <D>(%ebp)` vs 4.4 `lea (%eax,%edx,1)` 折叠同属指令选择。
+    //   ②prett ③strall CLEAR。⇒ 维持 N97/N18a。
     CharString content;                              // -0x48
 
     if (size > 4 && data[0] == 'S' && data[1] == 'C' &&

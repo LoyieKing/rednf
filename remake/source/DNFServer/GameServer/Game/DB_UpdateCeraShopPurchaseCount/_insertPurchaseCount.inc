@@ -1,1 +1,1 @@
-void DB_UpdateCeraShopPurchaseCount::_insertPurchaseCount(unsigned int mId)
+void DB_UpdateCeraShopPurchaseCount::_insertPurchaseCount(memberIdentificationNumber_t mId)

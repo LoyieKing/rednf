@@ -594,7 +594,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
     // varargs 并跨 ctor 保活（edi/esi/ebx + -0x2c 槽）；具名 log 两语句形令 4.4
     // 先 ctor 后求值（帧 0x3c vs 0x4c）。
     CSwitchLog(
-        "void fair_pvp::CFairMatch::_PullOutRoom(CUser*, PvP_Room*, int)",
+        __PRETTY_FUNCTION__,   // [Q2P342ScanB] 原手写串 → prett（ORIG prett size 0x3e）
         0xb5a, 0, 0)("pvp@log %s,%s,room(%d),%d,%d",
                      user->get_acc_name(), user->getCurCharacName(),
                      room->get_index(), room->get_pvp_battle_mode(), seat);
@@ -622,7 +622,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
     const int result = room->join_room(user, seat, observer);
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链（_PullOutRoom 实证同族）。
     CSwitchLog(
-        "int fair_pvp::CFairMatch::_PutInRoom(CUser*, PvP_Room*, bool)",
+        __PRETTY_FUNCTION__,   // [Q2P342ScanB] 原手写串 → prett（ORIG size 0x3e）
         0xb6a, 0, 0)("pvp@log %s,%s,room(%d),%d,%d",
                      user->get_acc_name(), user->getCurCharacName(),
                      room->get_index(), room->get_pvp_battle_mode(), result);
@@ -922,7 +922,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 {
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链（_PullOutRoom 实证同族）。
     CSwitchLog(
-        "PvP_Room* fair_pvp::CFairMatch::_ReturnTeam(PvP_Room*, int, CUser*)",
+        __PRETTY_FUNCTION__,   // [Q2P342ScanB] 原手写串 → prett（ORIG size 0x44）
         0xd95, 0, 0)("pvp@log room(%d), %d, %d",
                      room->get_index(), room->get_pvp_battle_mode(),
                      room->get_waiter_count());
@@ -975,7 +975,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 {
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链（_PullOutRoom 实证同族）。
     CSwitchLog(
-        "bool fair_pvp::CFairMatch::_PullOutRoomTeam(PvP_Room*, ENUM_SCHOOL_MATCH_TEAM)",
+        __PRETTY_FUNCTION__,   // [Q2P342ScanB] 原手写串 → prett（ORIG size 0x4f）
         0xfa7, 0, 0)("pvp@log room(%d),%d,%d",
                      room->get_index(), room->get_pvp_battle_mode(),
                      static_cast<int>(teamIdx));
@@ -1172,7 +1172,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
                     return;
                 // b28d-solo-CFairMatchRooms：P227 全表达式临时链。
                 CSwitchLog(
-                    "void fair_pvp::CFairMatch::UpdateScore(PvP_Room*, fair_pvp::PlayerInfoThird&, ENUM_SCHOOL_MATCH_TEAM, int, int, int)",
+                    __PRETTY_FUNCTION__,   // [Q2P342ScanB] 原手写串 → prett（ORIG size 0x75）
                     0xee5, 0, 0)("pvp@log %s,%s,room(%d),%d,%d,%d",
                                  user->get_acc_name(), user->getCurCharacName(),
                                  room->get_index(), room->get_pvp_battle_mode(),
@@ -1362,7 +1362,7 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
     // P0：ORIG 无 rematchable 槽（`call CheckRematch; movzbl %al,%edi` 直接留
     // callee-saved 供 vararg）⇒ 表达式内联为最右实参。
     CSwitchLog(
-        "virtual void fair_pvp::CFairMatch::OnRematchTimeout(PvP_Room*)",
+        __PRETTY_FUNCTION__,   // [Q2P342ScanB] 原手写串 → prett（ORIG size 0x3f）
         0xfd7, 0, 0)("pvp@log room(%d),%d,%d",
                      room->get_index(), room->get_pvp_battle_mode(),
                      static_cast<unsigned char>(CheckRematch(room)));

@@ -1,1 +1,1 @@
-CUser* CGameManager::GetUserByAccId(unsigned int accId)
+CUser* CGameManager::GetUserByAccId(memberIdentificationNumber_t accId)

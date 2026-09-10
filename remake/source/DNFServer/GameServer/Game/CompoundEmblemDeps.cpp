@@ -122,7 +122,7 @@ int getAvatarEmblemTypeIdxForCompountEmblem(unsigned short type, int* counts, in
 //       func, line, errNo, mid);
 //   return line;
 // ----------------------------------------------------------------------------
-int LineFunc(int line, const char* func, int errNo, unsigned int mid)
+int LineFunc(int line, const char* func, int errNo, memberIdentificationNumber_t mid)
 {
     LogManager::logFormat(
         1, "PacketDispatcher.cpp",

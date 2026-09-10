@@ -104,6 +104,7 @@ struct stGenerateRefCtx_t
 //   m_field3d/m_field3e_byte/m_field42_byte，+0x42 按 ORIG movsbl 取有符号），
 //   消除 helper 的 EXTRA add+movzbl；残余寄存器分配/栈槽 N-86b + AE。
 // ---------------------------------------------------------------------------
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7）→ 试=新口径 n1_v 157/156 gap=+1 blocks=5 + G1 具名 `unsigned char mf35` 局部（槽平移 −4 使 ndiff 19→62、hunk 4→18 ⇒ 回滚）；残差=choose_item/create_item 实参寄存器角色互换（ORIG call 果→%edx、inv.m_field1→%eax；4.4 反向）+ 二次 movzbl 折入 ⇒ cast/内联/掩码多形穷举不翻 ⇒ 维持。
 #include "WongWorkDrop_B/generateSpecificItem.inc"
                                              stGenerateResult_t& result)
 {
@@ -233,6 +234,7 @@ struct stGenerateRefCtx_t
 // _generateRandomItem — ORIG T 0x08536882（CSpecialMonsterDrop，报告分段转写；
 // 生成率三表偏移 0xa8/0xf8/0x15c 与 loadScript 写入证据一致）。
 // ---------------------------------------------------------------------------
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N85/N93）→ 试=新口径 n1_v 364/365 gap=-1 blocks=57：ORIG -0x48/-0x64.. 槽 vs 我方 -0x50/-0x6c..（全槽平移 8）+ x87 比较 lowering（ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp，N85）⇒ 维持。
 #include "WongWorkDrop_B/_generateRandomItem.inc"
                                               unsigned char dungeonLv,
                                               unsigned char difficulty,
@@ -494,6 +496,7 @@ typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map
 // type 调用方传 1..4 ⇒ m_slots[type-1]，m_slots 自块 +0x7110 起）：
 // empty→-1；roll=m_rand(+0x211fb0)->randInt(maxKey)；
 // lower_bound==end 回退 --it 返 second。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N93 + N-88 setne 族）→ 试=①守卫包裹形 `if(x==-1){}else{return x;}`（C1）读数不变；②bool 具名局部（C2）our 210→213 劣化回滚；③iterator 直接初始化（C3）our 210→204 且 p167 EXTRA `_Rb_tree_iteratorC1Ev` 消除，但 |gap| −2→+4、ndiff 81→80 ⇒ 回滚 ⇒ 维持（ORIG 0x08534fce+0x18 `cmpl;setne;test;je` 物化不可造；槽平移 0x14 独立存在）。
 #include "WongWorkDrop_B/chooseItem.inc"
     eItemDropType_t type, ENUM_RARITY rarity, int level,
     ENUM_DUNGEON_DIFFICULTY dungeonDiff,

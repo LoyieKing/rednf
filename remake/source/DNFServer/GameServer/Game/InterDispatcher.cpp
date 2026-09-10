@@ -2373,6 +2373,17 @@ struct Inter_LoadInvenPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=157（ORIG 0x84c4d38）：N18a 单段 regmove+N82/P112 帧槽平移。
 #include "InterDispatcher/_CheckOverEquipItem.inc"
 {
+    // [Q5-InterDisp 2026-09-11 已结案] ORIG 084c4d3f `call <T>; xor $0x1,%eax; test %al,%al;
+    //   jne <T>` 的 xor 只在 gcc 已知值域 {0,1} 时发出。三条路径实测：
+    //   ① 只把**返回类型** uchar→bool（未同步字段）：调用点 xor 复现 ✓、本函数 gap -1→+0，
+    //      但定义侧 `return (unsigned char)CUR->m_overEquipFlag;`（字段当时为 char）
+    //      需 uchar→bool 归一化 ⇒ CUserCharacInfo 251/391/1/3 → 251/390/1/4 反劣 ⇒ 回滚。
+    //   ② 调用点写 `f() ^ 1`：4.4 发 `cmp $0x1,%al; setne %al; test;jne`（多 1 条）⇒ 回滚。
+    //   ③ **字段 `m_overEquipFlag` 与返回类型同改 bool**（Main 授权，写点唯一且只写 0
+    //      ⇒ 语义零风险，布局 1 字节不变）：本函数 gap **-1→+0**（221=221），
+    //      CUserCharacInfo 复编回 **251/391/1/3**（不劣化）、CUser 809/1719/5/66/586
+    //      （不劣化）⇒ **已落地**（CUserCharacInfo.h:462/1079 + .inc:1 + .cpp:1162）。
+    //   本函数残差自此仅剩 N82/P112 槽平移族（-0x1c/-0x18 vs -0x20/-0x1c）。
     if (!user->needCurCharacCheckOverEquip())
         return;
     if (user->getCurCharacR() == 0)
@@ -2509,6 +2520,10 @@ struct Inter_LoadInvenPktView
                 int m_0;                    // +0x0
                 unsigned char m_4;          // +0x4
                 unsigned char m_5;          // +0x5
+                // [Q5-InterDisp 2026-09-11 负结论·已回滚] 曾疑此视图缺 pad（对照 006 的
+                //   ExchangeElemViewDim 真错位）。实测：`int m_8` 在自然对齐下已落 +0x8
+                //   （m_5 后 2 字节填充），加 `char m_pad6[2]` 后 nd 29→29 不变、ORIG
+                //   084c4612/461c/464d 各点逐条一致 ⇒ 本视图无偏移错，pad 冗余已撤。
                 int m_8;                    // +0x8
             };
             const ExchangeElemView* p = reinterpret_cast<const ExchangeElemView*>(
@@ -2606,6 +2621,11 @@ struct Inter_LoadInvenPktView
                 int m_0;                    // +0x0
                 unsigned char m_4;          // +0x4
                 unsigned char m_5;          // +0x5
+                // [Q5-InterDisp 2026-09-11 真修] 无此 pad 时 `unsigned char m_7` 落在 +0x6
+                //   （自然对齐下 uchar 不需填充）⇒ 本方发 `movzbl 0x6(%eax),%eax`，而
+                //   ORIG 084c4916 是 `movzbl 0x7(%eax),%eax`（m_type 读错一字节）。
+                //   补 pad 后逐条对齐 ORIG：nd 27→25（ORIG 0x084c4858）。
+                unsigned char m_pad6;       // +0x6 未消费
                 unsigned char m_7;          // +0x7
             };
             const ExchangeElemViewDim* p = reinterpret_cast<const ExchangeElemViewDim*>(
@@ -6214,10 +6234,17 @@ struct Inter_MonitorPayTaxToUpperPktViewI
         short accountBonus = user->getAccountMemberBonusFatigue();
         int maxCur = G_CDataManager()->m_serverParameter.m_488c;   // 当前角色奖励疲劳上限
         int maxAcc = G_CDataManager()->m_serverParameter.m_4890;   // 账号奖励疲劳上限
+        // ORIG 084ce2fd/084ce300：maxAcc 落地（-0x14）后**立即**发 `movl $0x0,-0x10(%ebp)`，
+        //   且 -0x10 正是 084ce359 `mov (%eax),%eax; mov %eax,-0x10(%ebp)`（max 返回值）的
+        //   落点 ⇒ 原码在此处**声明并零初始化 n**，max 只做赋值（`n = std::max<int>(0, v);`），
+        //   声明序在 maxAcc 之后、a/b 之前。
+        int n = 0;
         int a = maxCur - memberBonus;
         int b = maxAcc - accountBonus;
         int v = std::min<int>(a, b);
-        int n = std::max<int>(v, 0);
+        // ORIG 084ce345/084ce34c：`lea -0x38(%ebp)`（v）→0x4(%esp)、`lea -0x2c(%ebp)`（常量 0
+        //   的临时）→(%esp) ⇒ 实参序是 max<int>(0, v)，非 (v, 0)。
+        n = std::max<int>(0, v);
         if (n == 0)
         {
             fatigue = 0;
@@ -6228,8 +6255,10 @@ struct Inter_MonitorPayTaxToUpperPktViewI
         }
         else
         {
-            capped = true;
             fatigue = n;
+            // ORIG 084ce3xx：`mov -0x10(%ebp),%eax; mov %eax,-0x24(%ebp)`（fatigue 落地）
+            //   先于 `movb $0x1,-0x1d(%ebp)`（capped）⇒ 原码 fatigue 赋值在前。
+            capped = true;
         }
 
         if (fatigue > 0)
@@ -9018,6 +9047,12 @@ struct Inter_DBCheckDoubleGuildNamePktView
     // ⇒ err 支不带 return；正常支 dtor 内联块尾（0x084d355f lea/mov/call D1Ev，
     // 0x084d3564 jmp 汇合）⇒ PacketGuard 直接声明于 else 块（无额外 {}，
     // 额外作用域会使 gcc 把 dtor hoist 到汇合点共享尾块，产生行序差）。
+    // [Q5-InterDisp 2026-09-11 负结论·已回滚] 试「if/else 两支各写 `return 0;`」想让 dtor
+    //   留在 else 支尾：实测反劣 —— gcc 改用 %ebx 汇聚返回常量（3 处 `mov $0x0,%ebx`
+    //   + 尾 `mov %ebx,%eax`），nd 6→10、gap -1→-2。ORIG 0x084d349b/0x084d34d0/0x084d3564
+    //   三处出口都是 `mov $0x0,%eax`（0x084d349b 直接 jmp 0x084d3586 跳过尾块；后两处
+    //   jmp 0x084d3581 共享单条 `mov $0x0,%eax`），全程无 %ebx ⇒ 原码是**单一尾部 return**。
+    //   dtor 块物理位置（else 支内联 vs 汇合尾块）属 4.4 块布局，源码不可控 ⇒ 判 N。
     if (pPkt->m_0 == '\x02')
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x9f, 0x6b);

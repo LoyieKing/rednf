@@ -1,1 +1,1 @@
-bool CDBConnector::Connect(DBInfoMap infoMap)
+bool CDBConnector::Connect(DBConnInfo infoMap)

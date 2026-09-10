@@ -354,6 +354,7 @@ struct StRefCtx2
 //   `sub $0x25c,%esp; mov %eax,-0x22c(%ebp)`（帧差 0x10 + 槽平移 0x10）。
 //   新钥匙判定：P339（非单槽序问题）/P0 删具名局部（缺 +0x10 槽的对应证据）/
 //   类型轴三式（无掩码/cast 形）均不适用；未落地，维持 N（未决）。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N78/N82/N126）→ 试=新口径 n1_v 670/652 gap=+18 blocks=114（与 P6S2 复核一致）；P339 非单槽序（块内聚 Inven_Item/char[256]/int[6] 与标量分区）、P0 无 +0x10 槽证据、类型轴无掩码/cast 形 ⇒ 维持 N（帧 0x24c vs 0x25c 整帧平移）。
 #include "WongWorkDrop_A/_generateRandomItem.inc"
                                        unsigned char dungeonLv,
                                        unsigned char difficulty,

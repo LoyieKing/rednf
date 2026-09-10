@@ -187,6 +187,13 @@
     m_field28 = 0;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18b，gap=-1/blocks=1）→ 试=①对照探针（4.4.6/4.4.7
+//   同 -O0/-m32）：`局部指针->零偏移字段 = call 结果` 恒产 3 条 RHS-first
+//   （`mov %eax,%edx; mov slot,%eax; mov %edx,(%eax)`，与本件我方完全一致），
+//   仅**非零位移** store 才产 ORIG 的 2 条 LHS-first 形 ⇒ ORIG（4.1）对零位移产 2 条属
+//   版本 lowering 差异；②prett/q3_gap2 缺口 0、strall 串 CLEAR（"CharacBloodDungeon.cpp"
+//   与 ORIG 0x8c26d80 逐字节同）；③槽位与 ORIG 全等（sig -0xc/guard -0x14）⇒ 非 P339/P331
+//   ⇒ 维持 N18b（m_characNo 位于 sig+0x00，无法借非零位移翻形）。
 #include "W9_EventSmall/_saveData.inc"
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CharacBloodDungeon.cpp", 0x1e),

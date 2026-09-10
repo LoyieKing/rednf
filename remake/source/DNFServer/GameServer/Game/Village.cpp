@@ -105,10 +105,18 @@
     else
     {
         m_bEnabled = true;
-        void* dungeon = G_CDataManager()->get_dungeon(script.m_18);
         // §4.3 具名化：get_dungeon 的 ORIG 实体是 find_dungeon 转发
         // （CDataManager.cpp:300 返 CDungeon*），+0x6d4 具名成员 = CDungeon::m_vec6d4
         // （CDungeon.h:749，std::vector<int>，public 区）。
+        // [Q8 2026-09-11 旧N判词重扫·试形·回滚] P0/P183 删 dungeon / v 两个具名
+        //   局部（ORIG 0x086c33f6 区段确无该两槽往返）**实测劣化 gap**：
+        //   原 530 条 gap=−1 blocks=71 → 删 dungeon 528 gap=+1 blocks=70 →
+        //   再删 v 526 gap=**+3** blocks=66。ORIG 529 的多余条数来自 4.1 前端
+        //   对 `add $0x258,%eax; mov %eax,%ebx; imul $0x26,%ebx,%eax` 的寄存器
+        //   CSE/保活（4.4 -O0 无），删局部只让 4.4 更精简、反而远离 ORIG 指令数
+        //   （同 [N3] 判词「删 count/total ⇒ ours 526→523 劣化」同族）⇒ 按闸门
+        //   回滚，保留具名局部形。
+        void* dungeon = G_CDataManager()->get_dungeon(script.m_18);
         std::vector<int>* v = &static_cast<CDungeon*>(dungeon)->m_vec6d4;
         v->push_back(m_villageId);
     }

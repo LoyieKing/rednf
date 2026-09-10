@@ -54,6 +54,10 @@ class RefPvpGrade;
     // ---- CDBConnector 完整声明（全局类；定义移自 GlobalData.cpp，实现仍在 .cpp）----
     typedef std::map<ENUM_DB_HANDLE_IDX, ENUM_SERVER_GROUP> DBGroupMap;
     typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DBInfoMap;
+    // [Q3PrettSweepA 2026-09-11] ORIG `Connect` 的 prett 串用 DBConnInfo 拼写
+    // （`bool CDBConnector::Connect(DBConnInfo)` size 0x39）⇒ 同底层别名，
+    // mangled/ABI 零变化；其它成员仍用 DBInfoMap（各自 prett 拼写独立）。
+    typedef DBInfoMap DBConnInfo;
     class CDBConnector
     {
     public:
@@ -61,7 +65,7 @@ class RefPvpGrade;
         ~CDBConnector();
         bool Init(STDBConnInfo& info);
         bool GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap);
-        bool Connect(DBInfoMap infoMap);
+        bool Connect(DBConnInfo infoMap);
         bool ConnectWithServerGroup(DBInfoMap infoMap);
         bool QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
                            DBInfoMap& outMap);
@@ -178,6 +182,14 @@ namespace XNuclear { class CHades_GameSvr; }
 //      mangled 名不变：_ZN11GlobalData4InitEv / _ZN11GlobalData11s_msgq_mgrE）----
 namespace GlobalData
 {
+// [Q3PrettSweepA 2026-09-11 · Main 裁决登记] 已知 prett 形态差异（**评估后不修**）：
+//   ORIG prett 为 `static bool GlobalData::Init()` / `static bool GlobalData::initTournamentDB(const char*)`
+//   / `static bool GlobalData::setCurrentPacketPool(THREAD_TYPE, pthread_t)` 形态（ORIG 地址
+//   0x08299fa0 / 0x0829dd82 / 0x0829e4c4 直证；两侧符号绑定均为 `T`）⇒ ORIG 源码是
+//   `class GlobalData { static bool Init(); … }`，我方为 namespace 自由函数。
+//   修复需 namespace→class 转换（`s_*` 静态数据成员须类外定义、波及约 232 个 includer）
+//   ⇒ 收益 3 个 prett 符号 vs 全库级重构风险 ⇒ **不修**（与检查点 345 的 ARAD_Database.h
+//   方向相反：那是 class→namespace 且该类无静态数据成员/无实例，不可类推）。
 bool Init();                          // 0x08299fa0
 void Fini();                          // 0x0829e0b2
 bool InitCaptcha();                   // 0x0829d438

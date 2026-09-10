@@ -1100,8 +1100,13 @@ class DB_MailBox_Req_Send : public DBDispatcher
 public:
     DB_MailBox_Req_Send() {}   // ORIG C1 0x844e32e (sz 0x4: base ctor+vptr only)
     static bool insertMailData(MySQL* db, const SIG_MAILBOX_SEND_NEW_MAIL* sigRaw);  // ORIG T 0x0841f2fa（DB_MailBox_Req_Send.cpp）
-    static int sendResult(int userIdx, int slot, int mailIdx,
-                          ENUM_SERVER_GROUP group);  // ORIG T 0x0841f75a（DB_MailBox_Req_Send.cpp）
+    // [Q5W8LT 2026-09-11 落地·setcc/类型轴] 原为 `static int`，但**定义侧**
+    // `DB_MailBox_Req_Send/sendResult.inc:1` 实读为 `bool`（两侧原不一致）⇒ 本行补齐。
+    // ORIG 直证：调用点 0x084275f7 `xor $0x1,%eax; test %al,%al; je`（bool 取反形，无 sete）
+    // ＋定义侧 0x0841f75a 尾部 `mov $0x1,%ebx; call CStreamGuardD1Ev; mov %ebx,%eax; add/pop/ret`
+    // （唯一成功路径写 1、无 test/setne 归一化）⇒ 返回类型为 1 字节 bool。
+    static bool sendResult(int userIdx, int slot, int mailIdx,
+                           ENUM_SERVER_GROUP group);  // ORIG T 0x0841f75a（DB_MailBox_Req_Send.cpp）
 };
 class DB_InsertCreatureItem : public DBDispatcher
 {
@@ -3458,6 +3463,11 @@ class DB_StatisticAdvanceAltar : public DBDispatcher { public: DB_StatisticAdvan
     SIG_ACCOUNT_CARGO_DATA* sig;
     int binLen;
     unsigned int outLen;
+    // [Q5W8LT 2026-09-11 负结论·回滚] 曾试删此初始化器（想消我方 41 条 4.4 inline
+    // memset 展开），实测 our 189 / ORIG 225（gap +36 劣化）⇒ ORIG 0x0843b3c9 起
+    // **确实**有清零（`lea -0x1043(%ebp),%edx; mov $0x100f,%ebx; ...; shr $0x2,%ecx;
+    // rep stos %eax,%es:(%edi)` 共 49 条），只是 4.1 用 rep stos 而 4.4 用逐字节/字
+    // 对齐循环（41 条，无 rep stos）⇒ 编译器 stringop 策略差，非源形可控。保留初始化器。
     char buf[0x100f] = { '\0' };
     static const int compressed_buff_size = 0x100f;  // ORIG _ZZ…DB_LoadAccountCargo…E20compressed_buff_size
 
@@ -3836,7 +3846,6 @@ struct DB_SaveSkillCharacView
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9129), true);
     DB_RequestJoinGuildReplyView* reply;
     DB_RequestJoinGuildInView* sig;
-    int result = 0;
     char escBuf[53];
 
     guard.operator*()->operator<<((int)0x217);
@@ -3845,6 +3854,11 @@ struct DB_SaveSkillCharacView
         guard.operator->()->GetInBuffer<SIG_REQUEST_JOIN_GUILD_DB_REPLY>());
     sig = reinterpret_cast<DB_RequestJoinGuildInView*>(
         stream->GetOutBuffer<SIG_REQUEST_JOIN_GUILD>());
+    // [Q5W8LT 2026-09-11 落地] ORIG 0x0843ccf2：死局部 `result`（全函数零引用）的
+    // `movl $0x0,-0x1c(%ebp)` 发在 ORIG 第 45 条（GetOutBuffer 之后），而声明区版本
+    // 落在第 22 条（guard 构造后）⇒ 把声明移到使用点（GetOutBuffer 之后）后
+    // 本件 DIFF→**AE**（308=308 归一 + gap 0）。
+    int result = 0;
     db->set_query("seLect * from guild_join_list where charac_no=%d and server_group=%d",
                   sig->m_characNo, sig->m_serverGroup);
     if (db->exec(true) != 1)
@@ -16070,10 +16084,15 @@ static_assert(sizeof(DB_BoosterGageView) == 8,
     int vals[6] = {0};
     for (int i = 0; i < 6; ++i)
         *stream >> vals[i];
-    int channelNo = G_CEnvironment()->get_channel_no();
     db->set_query(
         "inSert into log_pvp_player_rate(channel_no,occ_date,single_one_to_one,single_one_to_one_other,team_one_to_one,team_one_to_one_other,relay_one_to_one,relay_one_to_one_other) values(%d,now(),%d,%d,%d,%d,%d,%d)",
-        channelNo, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]);
+        // [Q5W8LT 2026-09-11 落地 P329 实参位内联] ORIG 0x0842ca06 无 channelNo 具名槽
+        // （`call G_CEnvironment; call get_channel_no; mov %eax,0x8(%esp)`），且 v[0..5]
+        // 在 call **之前**取出（v5→-0x44 / v4→-0x40 / v3→-0x3c / v2→%edi / v1→%esi /
+        // v0→%ebx）⇒ channel_no 是实参位内联的**最后求值**表达式；删具名局部后
+        // 本件 DIFF→**AE**（80=80 归一）。
+        G_CEnvironment()->get_channel_no(), vals[0], vals[1], vals[2], vals[3],
+        vals[4], vals[5]);
     if (!db->exec(true))
         return 0;
     return 1;
@@ -20608,7 +20627,13 @@ struct DB_AutoPunishBlackIpView
             throw (int)0x6891;
         if (!DB_MailBox_Req_Send::sendResult(slot, 0, sig->m_field24,
                                              (ENUM_SERVER_GROUP)0))
-            throw (int)0x6894;   // ORIG xor$1/test%al vs 4.4 sete 物化，跨版本残差
+            throw (int)0x6894;   // ORIG 0x084275f7 `xor $0x1,%eax; test %al,%al; je`
+                                 // vs 我方 `test %eax,%eax; sete %al`（ndiff 唯一残差）。
+                                 // [Q5W8LT 2026-09-11 报告·未落] `xor $1` + `test %al` 表明
+                                 // ORIG 的 sendResult 返回 **1 字节类型**（bool/char）；
+                                 // 改我方**声明侧**（cpp:1103 `static int sendResult`）为 bool
+                                 // 即可消此差，但**定义侧**在 DB_MailBox_Req_Send.cpp（非本
+                                 // TU 写权）⇒ 声明/定义须同轮同步，留报告（禁单侧改致 ABI 不一致）。
     }
     catch (int e)
     {

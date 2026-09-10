@@ -2037,7 +2037,7 @@ enum ENUM_TRADESTATE
         user->getCurCharacR() == 0) {
         // P37 单语句链：实参在构造调用前求值（ORIG +0xc8/+0xd8 两 call 先于
         // traceC@0x132），arg1 先 arg2 后
-        cMyTrace("int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+        cMyTrace(__PRETTY_FUNCTION__   /* [Q2P342ScanB] 原手写串 → prett */,
                  0x45a, 5)
             ("CTradeSpace::remove_item()\t0 == "
              "m_pTraders[owner_index]->getCurCharacR() %x || 0 == "
@@ -2251,7 +2251,7 @@ enum ENUM_TRADESTATE
             if (trade_slot_no == 0) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
-                    "int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+                    __PRETTY_FUNCTION__   /* [Q2P342ScanB] 原手写串 → prett */,
                     0x59a, "trade_slot_no == 0");
                 return -1;
             }
@@ -2259,14 +2259,14 @@ enum ENUM_TRADESTATE
             if (copy.m_field08 != 3) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
-                    "int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+                    __PRETTY_FUNCTION__   /* [Q2P342ScanB] 原手写串 → prett */,
                     0x5a2, "moveitem.item_space != ENUM_ITEMSPACE_EQUIPPED");
                 return -1;
             }
             if (copy.m_item.m_addInfo == 0) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
-                    "int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+                    __PRETTY_FUNCTION__   /* [Q2P342ScanB] 原手写串 → prett */,
                     0x5a8, "moveitem.item.item_id == 0");
                 return -1;
             }
@@ -2285,7 +2285,7 @@ enum ENUM_TRADESTATE
             if (slotItem.m_addInfo != 0) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
-                    "int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+                    __PRETTY_FUNCTION__   /* [Q2P342ScanB] 原手写串 → prett */,
                     0x5bb, "moveitem.item.item_id == 0");
                 return -1;
             }
@@ -2295,7 +2295,7 @@ enum ENUM_TRADESTATE
             if (equipRef == 0) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
-                    "int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+                    __PRETTY_FUNCTION__   /* [Q2P342ScanB] 原手写串 → prett */,
                     0x5c3, "equip_ref == NULL");
                 return -1;
             }
@@ -2307,7 +2307,7 @@ enum ENUM_TRADESTATE
             if (res != 0) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
-                    "int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+                    __PRETTY_FUNCTION__   /* [Q2P342ScanB] 原手写串 → prett */,
                     0x5ca, "equip_ref->check_able_To_equip return false res(%d)",
                     res);
                 return -1;

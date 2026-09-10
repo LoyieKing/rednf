@@ -501,6 +501,11 @@ advancealtar::AchievementRewardData*
     // ORIG 每处直接 `mov 0x8(%ebp)` 传参（无 buf 引用槽）⇒ 不用具名别名。
     // 段 2..6 容器指针 = ORIG 二段初始化槽（`movl $0,-0x10/-0xc` + 赋值，
     // 0x0814184e/0x0814185b 等）；段 1/7 直取（0x081417a3/0x08141bb7）。
+    // [Q8 2026-09-11 旧N判词重扫·维持] N82/N18a 单段 regmove：ORIG 0x08141787/0x0814178a
+    //   `mov 0xc(%ebp),%eax; mov %eax,%edx`（4.1 先求 data 地址入 %eax，再为 this 覆盖
+    //   %eax 前把 data 搬到 %edx）vs 4.4 恒 `mov 0xc(%ebp),%edx` 直落目标。本波追加
+    //   试形 C `reinterpret_cast<char*>(&const_cast<AdvanceAltarData&>(data))`（在 P248
+    //   两 cast 形之外的第 3 形）**零变化**（350/350、delta 仍 1 行、四数不变）⇒ 维持。
     packet.put_binary(reinterpret_cast<char*>(const_cast<AdvanceAltarData*>(&data)), 0x21);   // [objdump 0x8141798]
 
     // +0x24 stages（put_binary 8 字节，0x081417fe）
@@ -612,6 +617,13 @@ advancealtar::AchievementRewardData*
     //   （0x088993cc/d1/ee/f3/40b/422/49d/4d5 八处 `add $0x1b0,%eax`，无 rec 缓存）
     //   且 pair/make_pair/insert 的临时槽更少；4.1/4.4 槽复用策略差属 N82 族
     //   （判据：p167 CLEAR + 控制流/调用序全等，仅帧与槽号平移）。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82 帧/槽族）→ 试=①prett2 缺口 0、
+    //   strall 串差 0（仅 base64 假阳性）、p167 本函数 CLEAR(17=17)；②444 后端
+    //   与 446h（4.4.6 头集+446 后端）变体四数逐项相同 ⇒ 无路由旋钮；③本波复核
+    //   ORIG 0x088992da 首条 `mov 0xc(%ebp),%edx; mov 0x8(%ebp),%eax; movl $0x21,
+    //   0x8(%esp)`（4.1 先 data 后 this）vs 4.4 data→0x4(%esp)/this→(%esp) 直写，
+    //   及循环内 `mov -0x18; shl $2; add; add; lea (%ecx,%eax,1)` 索引序 ⇒ 维持
+    //   （新=DIFF 297/304 gap=-7, blocks=23）。
     m_update = 0;                                                  // [objdump 0x88992e6]
     std::memcpy(this, &db, 0x21);                                  // [objdump 0x8899302]
 

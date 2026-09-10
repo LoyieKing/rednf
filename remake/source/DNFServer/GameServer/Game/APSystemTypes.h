@@ -45,7 +45,17 @@ public:
     // 2026-08-31：ORIG memset(this,0,0xe)、元素分配 14B（new_allocator 14B）
     // ——pack(1) sizeof 0xe；原默认对齐 0x10。
     __attribute__((used)) _TodayRewardItem();   // ORIG W 0x08895736
-    __attribute__((used)) ~_TodayRewardItem();  // ORIG W 0x08897d76
+    // [Q8 2026-09-11 P342 triviality 轴] 删用户空析构（旧判词「须保留」**已推翻**）：
+    // ORIG 该类型走 `_Destroy_auxILb1EE`/`__copy_move_backward<true,true>`（trivial 路径）
+    // 而我方用户析构使其退化 ILb0（ScriptLeafA2 观测：`_Destroy_auxILb0EE…_TodayRewardItem`
+    // + `importActionPointSystemEtcScript` EXTRA `D*Ev`×2 与 ORIG 不符）。
+    // ORIG D1/D2 W 0x08897d76（5B 空体）由隐式析构 odr-use 发射（唯一 call 点
+    // 0x08897d88 在 `new_allocator<_TodayRewardItem>::destroy` 体内）；
+    // 本组 TU 中 ScriptLeafA2（栈对象 `APSystem::_TodayRewardItem today;`、
+    // vector 成员 CDataManager.h:1736）提供 odr-use 链 ⇒ 删后 nm 实测 D1/D2 仍发射。
+    // overlay 实测：ScriptLeafA2 659/1087/0/13/319 → 661/1087/0/13/318；
+    // APSystemOnlyOrig 49/93/0/6/29 → 49/92/0/6/28；
+    // `importActionPointSystemEtcScript` 812 → 792（ORIG 794，gap −18 → +2）。
 
     int m_itemIdx;              // +0x00 today reward 序号 [0..3]
     unsigned short m_minAp;     // +0x04

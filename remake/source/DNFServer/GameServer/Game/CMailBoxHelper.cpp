@@ -1445,7 +1445,11 @@ return_true:
 // jns`（2 条）⇒ N22；已试回滚：具名 `unsigned slotSign = (unsigned)slot>>31`
 // 使帧 0xca30→0xca40、pkg→−0xdf、Inven_Item 压栈错位（gap −1→−3）。
 #include "CMailBoxHelper/_DoGetPackageItem.inc"
-                                       std::vector<std::pair<int, int> >& items,
+                                       // [Q6HeaderTypeAxis 2026-09-11 类型轴] 定义处拼写
+                                       // 决定 __PRETTY_FUNCTION__ 内容（实测）⇒ 用类内
+                                       // typedef（CMailBoxHelper.h:224）对齐 ORIG prett
+                                       // `…CMailBoxHelper::IntPairVector&…`（size 0x9f）。
+                                       IntPairVector& items,
                                        bool bReset, ENUM_ERROR& err)
 {
     // ORIG 0x08553936

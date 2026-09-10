@@ -29,13 +29,16 @@ class DB_UpdateCeraShopPurchaseCount : public DBDispatcher
 public:
     DB_UpdateCeraShopPurchaseCount() {}  // ORIG W C1 0x844fbe6（0x4 基类 ctor 形态）
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
-    static void makeRequest(unsigned int accId, unsigned long itemUid,
+    // [Q3PrettSweepA 2026-09-11] 拼写对齐 ORIG prett（同底层，mangled 不变）：
+    // `static void DB_UpdateCeraShopPurchaseCount::makeRequest(memberIdentificationNumber_t,
+    // itemIndexOnlyServer_t, int, int)` size 0x77；另三件同理（memberIdentificationNumber_t）。
+    static void makeRequest(memberIdentificationNumber_t accId, itemIndexOnlyServer_t itemUid,
                             int count, int param4);
 
 private:
-    bool _selectPurchaseCount(unsigned int mId, unsigned short& out);
-    void _updatePurchaseCount(unsigned int mId, unsigned short count);
-    void _insertPurchaseCount(unsigned int mId);
+    bool _selectPurchaseCount(memberIdentificationNumber_t mId, unsigned short& out);
+    void _updatePurchaseCount(memberIdentificationNumber_t mId, unsigned short count);
+    void _insertPurchaseCount(memberIdentificationNumber_t mId);
 };
 
 // b28d-21（D21）：SIG_CERASHOP_PURCHASE_COUNT 已按 ORIG 逐字段具名化
@@ -236,7 +239,7 @@ private:
 //   compare_tu clean=ae（残差仅 .o 重定位数据地址/call 目标，P264 口径）。
 //   ORIG 0x0844b31c。
 #include "DB_UpdateCeraShopPurchaseCount/makeRequest.inc"
-                                                 unsigned long itemUid,
+                                                 itemIndexOnlyServer_t itemUid,
                                                  int count, int param4)
 {
     CStreamGuard guard(

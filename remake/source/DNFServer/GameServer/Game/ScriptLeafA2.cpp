@@ -483,6 +483,13 @@ char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
 // ============================================================================
 #include "ScriptLeafA2/importScript.inc"
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82）→ 试=①n1_v 复核 497/498（gap −1）；
+    //   ②prett（q3_gap2 修正判据）③strall 均 CLEAR；④ORIG 0x08a9e1cd 段
+    //   `mov 0x8(%ebp),%eax; lea 0x78(%eax),%edx; lea -0x5c(%ebp),%eax;
+    //   mov %eax,0x4(%esp); mov %edx,(%esp); call find`（先算对象地址、lea 形）vs 我方
+    //   `lea -0x5c(%ebp),%eax; …; mov 0x8(%ebp),%edx; add $0x78,%edx`（先算实参、add 形）
+    //   = 求值序 + 地址计算形，4.4 前端固定，源码不可控（具名 int/int& 中转旧实测 +2）。
+    //   ⇒ 维持 N82。
     // [b28d-solo-ScriptLeafA2] 判词 = N（帧/槽形差，N82；p167 CLEAR 87=87）。
     //   已修：19 处 token 比较改「字面量在左」（P196 族）+ m_skillMap.find 比较改
     //   operator==（反向包裹，P222）。
@@ -776,6 +783,10 @@ public:
     //   `const char* name = 0;`+循环内赋值 gap 2 / ndiff 360。三形均为 DIFF（分类
     //   不变），且 (c) 反而劣化 ⇒ 帧差（我方 0xe0 vs ORIG 0xf0，判据⑪ 整帧平移，
     //   N126）非声明序可修；恢复语义最干净形。ORIG 0x0836485c，p167 CLEAR 55=55。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N126）→ 试=④P339/P232：按 ORIG 帧 0xf0
+    //   （我方 0xe0）补函数级 `int pad;` ⇒ 帧对齐 0xf0，但 name 槽仍差 4（ORIG -0x28
+    //   vs 我方 -0x24）且 4.4 对未初始化 int 恒发 `movl $0x0,-0x24`（+1 条）⇒ 槽号不可控，
+    //   已回滚（356/356 gap 0 与原状同）。⇒ 维持 N126。
     std::vector<_StageMapSummary> summaries;
     // [b28d-L4a 2026-09-11] ORIG 0x08364875 `movl $0x0,-0x28(%ebp)`（summaries
     // ctor 之后、begin() 之前）⇒ 函数级具名 `name` 带初值 0，循环内 `mov %eax,-0x28`
@@ -892,6 +903,14 @@ namespace APSystem
 #include "ScriptLeafA2/importActionPointSystemEtcScript.inc"
     const char* path, CActionPointEtcParameter& out)
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N91）→ 试=④P342（triviality 轴）：
+    //   `APSystemTypes.h:48` 用户空析构使 `APSystem::_TodayRewardItem` 非平凡 ⇒ 4.4 对
+    //   栈对象 `today` 布 EH 清理（p167 EXTRA `_TodayRewardItemD*Ev`×2）；删声明+定义后
+    //   812→**792**（ORIG 794，gap −18→**+2**），D1/D2 仍由 odr-use 发射（nm W 定义）。
+    //   本 TU 由 Q8OldNAgain 同轮落地核账（659/1087/0/13/319 → 661/1087/0/13/318）。
+    //   余 +2 = ORIG 0x088949af/0x08894a2f 两个**死局部** `movl $0x0,-0x40/-0x38`（各仅
+    //   1 次写、无使用，P232）；补同样 pad 可达 794=794 但帧 0x160→0x170 槽整体平移
+    //   ⇒ 未采用。⇒ 部分推翻（N91 项已消），残余归 N82/N126。
     // [b28d-solo-ScriptLeafA2] 判词 = N（残余迭代器计数/EH 清理差；p167 110=112）。
     //   已修：①EOF 段改 const_iterator + 后置 ++ + const vector&（P96/P28）；
     //   ②itemList 缓冲改 c_str() 视图（p167 原 operator[] EXTRA/c_str MISSING）；
@@ -1165,6 +1184,12 @@ namespace APSystem
 // ============================================================================
 #include "ScriptLeafA2/ImportRewardScript.inc"
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N168a/N18a/N82/N122）→ 试=②prett（按
+    //   q3_gap2「Ndx != UND」修正判据复核）③strall 均 CLEAR；④12 处 ORIG
+    //   `movzbl <__inited>; xor $0x1,%eax; test %al,%al; je` vs 我方 `movzbl; test; je`
+    //   —— 4.1 物化 xor、4.4 对**静态 char** 的 `!` 恒反相 jcc（否定形 4.4 产 test;jne
+    //   且 +1 条，A16 复核旧实测）⇒ 跨版本框标差不可造；余为共体块（P333 状态机 9 项
+    //   insert 顺序已对齐）。⇒ 维持 N168a/N122。
     // [b28d-solo-ScriptLeafA2] 结构按 ORIG 0x080ef3a2 还原为 **P333 状态机形**：
     //   每 case 块头 `if (__inited) {业务; break;} else {insert; fallthrough}`，
     //   9 项插完后共同尾部 `if(!__inited){leave; __inited=1; goto retry;}` 回跳重查

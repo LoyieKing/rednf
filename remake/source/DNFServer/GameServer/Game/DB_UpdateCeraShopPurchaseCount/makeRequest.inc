@@ -1,1 +1,1 @@
-void DB_UpdateCeraShopPurchaseCount::makeRequest(unsigned int accId,
+void DB_UpdateCeraShopPurchaseCount::makeRequest(memberIdentificationNumber_t accId,

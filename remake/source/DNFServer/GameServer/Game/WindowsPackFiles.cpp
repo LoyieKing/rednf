@@ -429,6 +429,10 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
 // ③ hint name 长度奇偶用 (char)(s+1)+(char)nameOff，且 nm!=0 外层判断；
 // ④ dll 名指针 = img+dllRva（**无** vaDelta），奇偶第二项 = thunkRva+vaDelta
 //    （local_38）——前批两处误读已修正。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N95）→ 试=槽集合比对：ORIG 38 槽 / OURS 39 槽；
+//   帧 ORIG 0x100 / OURS 0x110；头部 0x085738f6 `mov 0x4(%eax),%eax` 之后我方正 4 槽一组
+//   `mov %eax,-0x78; mov -0x78,%eax; mov %eax,-0x70; …` 槽往返链（4.4 对具名局部/间接层恒写栈，
+//   ORIG 4.1 直留寄存器）⇒ 读数 551 vs 553（gap -2）无源码可择项 ⇒ 维持 N82/N95。
 #include "WindowsPackFiles/ReadPeHeader.inc"
 {
     // [SweepC 2026-09-09 修复判词] 0x085738f6：P165 双份物理展开 + 头部具名局部已还原。
@@ -655,6 +659,11 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
 L_empty:;
 }
 
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N95）→ 试=槽集合比对 + 帧/寄存器轴：
+//   ORIG `push %esi; push %ebx; sub $0x60`（callee-saved 保 sec/range 中转）vs OURS
+//   `sub $0x78`（无 push，全落栈槽）；两枚 Interval ORIG -0x20/-0x24 vs OURS -0x30/-0x34
+//   （整体深 0x10）；余差 8 条全为 4.4 栈槽 vs 4.1 callee-saved 的取数/回写（0x085741c6 段）
+//   ⇒ 维持 N82/N95（ours 156 / ORIG 164，gap +8；P331 声明序轴已试）。
 #include "WindowsPackFiles/MakeCommonWindowsExeConstantSections.inc"
     const IntervalSet& intervals)                            // 0x085741c6
 {
@@ -1067,6 +1076,11 @@ template <class T>
     // vector<IntervalSet*>::C1Ev 为 ORIG-only out-of-line 模板实例（N89），保留声明。
     // [N] P331 声明序反转（unusedVec/sit0/it0）试过：读数不变（279/279）、严格差异行
     // 仍 115/279 ⇒ 4.4 槽分配不随声明序 ⇒ 回滚。
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N89/N95）→ 试=①槽集合比对（ORIG 279=OURS 279，
+    //   助记符全同仅操作数异）②prett/串审计：prettchk（Ndx!=UND 修正判据）0 缺口、p167 37/37
+    //   ③声明序轴 P331 已试 ④残余为两组不一致平移：C1Ev 组 ORIG -0x3c/-0x40/-0x4c vs OURS
+    //   -0x38/-0x3c/-0x48（浅 4）、对象基 ORIG -0x7c vs OURS -0x80（深 4）、bool ORIG -0x19 vs
+    //   OURS -0x25（差 0xc）⇒ 4.4/4.1 槽分配器固有差（非单调平移）⇒ 维持 NEAR（gap 0）。
     std::vector<WindowsExeFile*>::iterator it0;
     std::vector<WindowsExeConstantSection*>::iterator sit0;
     std::vector<IntervalSet*> unusedVec;

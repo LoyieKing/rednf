@@ -432,6 +432,12 @@ namespace advancealtar
 //   P226 语句表达式（后者升格 ebx 破帧、`push %ebx; sub $0x14`）——字段与 callee
 //   返回同为 unsigned 无可动旋钮（P211 反例）⇒ 无 C++98 源形可复现。语义等价。
 //   if/else 空 else 复现 ORIG 体尾 jmp+nop 岛（P285）保留。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N76，gap=+0/blocks=1）→ 试=①overlay 实测删 `(int)`
+//   cast（同型化）⇒ 残差逐字不变（仍 2 条 LHS-first `mov 0xc(%ebp),%edx; mov %eax,(%edx)`）
+//   ②对照探针（4.4.7 -O0 -m32 严格同形结构）：**零位移** store 恒产 2 条 LHS-first，**非零
+//   位移**才产 ORIG 的 3 条 RHS-first（`mov %eax,%edx; mov base,%eax; mov %edx,(%eax)`）
+//   ⇒ ORIG 0x0813395d 的 3 条形属 4.1 对零位移的 lowering，4.4 同源形恒 2 条（cast 的有无、
+//   指针/引用/局部指针三种基址形均实测同码）⇒ 维持 N76 封顶（语义等价）。
 #include "advancealtar_DB/getFromMemory.inc"
 {
     // [b28d-solo-advancealtar_DB] P211 档③ callee/RHS 侧旋钮：ORIG 0x0813395d
@@ -1004,6 +1010,11 @@ L_inc:;
 //       get/reset 多消费点共用（跨函数联动），本件不改型；
 //   (3) `&&` 短路链物化岛（P225 推广需拆嵌套 if；槽序未定时不单独翻）。
 //   P167 CLEAR（48/48；4 处 `data()`→`c_str()` 已修正 EXTRA）、语义等价。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N115/N82，gap=-2/blocks=73）→ 试=①prett/q3_gap2
+//   缺口 0、strall CLEAR ②n1_v：**帧长不同**（ORIG `sub $0xdc` vs 我方 `sub $0xbc`）+ 局部
+//   对象槽整体平移（ORIG -0x28/-0x21/-0x20/-0x1c vs 我方 -0x38/-0x31/-0x30/-0x2c）⇒ 4.1
+//   块内对象按序压深、4.1/4.4 版本槽策略（N115/N82）；③补假槽无法只增帧不增指令
+//   ⇒ 维持 N（468/470，gap −2），保持赋值形。
 #include "advancealtar_DB/update.inc"
 {
     MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);

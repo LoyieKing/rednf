@@ -60,7 +60,9 @@ std::map<unsigned int, STEquipmentStatInfo> g_equipmentStatInfoMap;
     {
         LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
                               __FUNCTION__, 0x12,
-                              "CRITICAL ERROR : old equipment stat info load failed!");
+                              // Q7S4: ORIG 0x08e23968 为 CP949 原文（영문 아님），字节直证：
+                              // 31 e2 c1 b8 ... ；我方此前发明英文串（AE 归一化掩盖）。
+                              "CRITICAL ERROR : \xb1\xe2\xc1\xb8 \xc0\xe5\xba\xf1 \xbd\xba\xc5\xc8 \xc1\xa4\xba\xb8 \xb7\xce\xb5\xe5 \xbd\xc7\xc6\xd0!");
         return false;
     }
 

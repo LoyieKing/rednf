@@ -32,6 +32,12 @@
 
 #include "Tick/nowAsInternalValue.inc"
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a）→ 试=④：ORIG 0x08ade887
+    //   `mov -0x10(%ebp),%eax; mov %eax,%edx; sar $0x1f,%edx; imul $0x3e8,%eax,%ebx`
+    //   （截断 64 位乘的**死**符号扩展，%edx 随后被 0x431bde83 magic 覆盖）在我方恒被
+    //   折叠：探针 7 形（`(long long)x*1000`、具名 ll、1000LL、ull、显式 cast 等）全部
+    //   折成 32 位 imul 或升真 64 位乘；再换 -B cc1plus446bin 后端复测同样 25 条
+    //   （gap +2 不变）⇒ 非后端版本差、属 4.1 前端遗留。⇒ 维持 N18a。
     // [b28d-39 判词 · N18a/跨版本] ORIG 0x08ade86a：ORIG 保留截断 64 位乘的
     // 死符号扩展 `mov %eax,%edx; sar $0x1f,%edx`（4.1 未消除），4.4 对
     // `(long long)tv_sec*1000` 的截断结果恒折 32 位 imul（少 2 条）；时钟源/

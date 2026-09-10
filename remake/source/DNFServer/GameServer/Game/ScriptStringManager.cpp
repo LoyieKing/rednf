@@ -112,6 +112,10 @@
 // 4.4 槽按首次使用分配、声明序不可翻 = N98）＋ %esi/%edi 角色互换。
 #include "ScriptStringManager/exportToBuffer.inc"
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N128）→ 试=④：`const int count` → `int count`
+    //   （P232 具名局部槽轴）实测 .o 逐条与改前全等（our 93 不变，gap +9）⇒ 4.4 不落
+    //   count 槽（ORIG 8acf44e `mov %eax,-0x1c(%ebp)` 存后 8acf472 复用）⇒ 不可造，已回滚。
+    //   ②prett ③strall CLEAR。残差 = 槽序（N98）+ %esi/%edi 角色（N82）。⇒ 维持 N128/N82。
     const int count = static_cast<int>(strings_.size());
     *reinterpret_cast<int*>(buffer) = count;        // 8acf43d：words[0] 无条件写
     if (buffSize <= 3)
@@ -245,6 +249,12 @@ fail:
 #include "ScriptStringManager/importFromBuffer.inc"
                                            int buffSize)
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N18a/N82）→ 试=④push_back 右值→左值
+    //   （Main 线索）：本 TU 路由为 `-O2 -std=gnu++98`（dnf_game_cxx.sh ScriptStringManager
+    //   分支），`vector::push_back` 恒走 C++03 `_M_insert_aux(…, RKT)`（nm 实证我方仅
+    //   lvalue 版 `…RKi`/`…RKSs`）⇒ ORIG 的 `_M_insert_auxIIiEE…DpOT_`（C++0x 变参版）
+    //   属**旗标差**（-std），源码形态不可翻；槽差（count ORIG -0x440 vs 我方 -0x43c）+
+    //   %esi↔%ebx 角色归 N82/N18a。②prett ③strall CLEAR。⇒ 维持。
     // ORIG 8acf97f-8acf992：两个**独立**守卫（buffer==NULL 早退 8acf984；
     // count 先读入槽 -0x440 再判 `buffSize > 3` 正向 8acf98c/992）。
     // [L4-r2 判据⑩ 一次性试验已回退] 试把 count 下移到 offsets 之后 ⇒ vector

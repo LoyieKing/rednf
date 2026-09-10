@@ -1326,6 +1326,11 @@ private:
 // 4.4 -O0 无 CSE，第二次使用恒重读形参槽 ⇒ 无合法源形可造 ⇒ N18a 反向封顶（ORIG 31/我们 32）。
 #include "cUserHistoryLog/ExpAdd.inc"
 {
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N6/N18a）→ 试=②prett ③strall CLEAR；
+    //   ④旧 10 形探针（register 形参/局部、语句表达式、逗号、(unsigned) 两侧同写、去 cast、
+    //   三目反向等）+ 本波 n1_v 复核：仍多 1 条 `mov 0x14(%ebp),%eax`（4.4 -O0 无 CSE，
+    //   reason 参数二次使用恒重载；ORIG 4.1 复用 `cmp $0xc` 装载的 %eax 作 shl 源）
+    //   ⇒ 维持 N18a（反向封顶，32/34 gap −2）。
     // [b28d-solo-cUserHistoryLog] N6 翻案：`(int)` cast 阻断 4.4 前端的 bool 位测试折叠
     // （探针 /tmp/hlprobe/Game/probe4.cpp k1：`(int)((1u<<r)&0x1892u)==0` 产 ORIG 的
     // shl;and $0x1892;test，无 cast 恒折 shr;and $1）。

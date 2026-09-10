@@ -459,7 +459,12 @@ struct CharacInfoFields
     unsigned char m_uppermemberExpLevel;  // +0xe32
     int m_memberPayTexMoney;           // +0xe33
     int m_memberPayTexFatigue;         // +0xe37
-    char m_overEquipFlag;              // +0xe3b
+    // [Q5-InterDisp 2026-09-11 · Main 授权] char → bool（布局 1 字节不变，实测
+    //   offsetof 仍 0xe3b）。依据：ORIG 定义侧 0x08696ca4 `movzbl 0x127b(%eax),%eax; jmp`
+    //   直返无 setne、调用点 0x084c4d3f `xor $0x1` 需值域 {0,1} ⇒ 字段语义即 bool；
+    //   全库写点唯一（CUserCharacInfo.cpp:1088 `= 0`）无 1/非 0/非 1 来源 ⇒ 语义零风险；
+    //   同型先例 CUser.h:1198（+0x85c 的 bool m_overEquipFlag，非本类）。
+    bool m_overEquipFlag;              // +0xe3b
     int m_blackCount;                  // +0xe3c
     union
     {
@@ -1065,7 +1070,13 @@ public:
     void setUpgradeSeparateFalseFlag(char flag);
     unsigned char GetCurExEquipSlotStat();
     void SetCurExpEquipSlotStat(char stat);
-    unsigned char needCurCharacCheckOverEquip();
+    // [Q5-InterDisp 2026-09-11 · Main 授权] 返回类型 unsigned char → bool。直证：
+    //   定义侧 ORIG 0x08696ca4 `movzbl 0x127b(%eax),%eax; jmp` 直返无 test/setne（字段为
+    //   bool 时无需归一化），调用点 ORIG 0x084c4d3f `call <T>; xor $0x1,%eax; test %al,%al;
+    //   jne <T>` 需 gcc 已知值域 {0,1}。二者同时自洽的唯一解 = 字段与返回类型同为 bool
+    //   （字段 m_overEquipFlag 已同步改 bool）。返回类型不入 mangled、ABI 同为 al 宽。
+    //   ⚠ 同头 `GetCurCharacSuperState` 保持 unsigned char（独立全局 A/B 定论，勿动）。
+    bool needCurCharacCheckOverEquip();
     void resetCurCharacOverEquipFlag();
     int getCurrCharacBlackCount() const;
     void setCurrCharacBlackCount(unsigned int count);

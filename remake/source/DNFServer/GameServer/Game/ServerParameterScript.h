@@ -41,7 +41,14 @@ struct stServerIndex
 
 struct stLuckPoint_t
 {
-    ~stLuckPoint_t() {}   // ORIG D1 W 0x08a922a6：空体（用户析构使符号对齐）
+    // [Q8 2026-09-11 杠杆A反向] 删用户空析构：ORIG 走
+    // `__copy_move_backward<true,true,...>`（ILb1ELb1=trivial 路径）而我方因用户
+    // 析构退化为 ILb1ELb0（逐元素 loop）⇒ 类型 trivial 才是 ORIG 形态。
+    // ORIG W D1 0x08a922a6（5B 空体）由隐式析构的 odr-use 发射，删后符号仍在。
+    // 证据（P342 判据 3/4）：我方 .o `nm` 有 `new_allocator<stLuckPoint_t>::destroy`
+    // W 实例；ORIG 该 D1 仅 1 处真实调用点（0x08a922b8 `call 0x08a922a6`）。
+    // 删除后 `__copy_move_backward_aILb1EP13stLuckPoint_t...` DIFF→AE（13=13），
+    // TU 四数 623/1138/3/8/489 → 625/1158/0/5/473（near 3→0）。
     int m_field0;   // +0x00
     int m_field1;   // +0x04
 };
@@ -118,7 +125,12 @@ struct stAssaultChaosPointGhostPanalty
 
 struct stUnusableEquipmentInfo
 {
-    ~stUnusableEquipmentInfo() {}   // ORIG D1 W 0x08a928da：空体
+    // [Q8 2026-09-11 杠杆A反向] 同上（stLuckPoint_t）：ORIG 走 ILb1ELb1 trivial 路径
+    // （`__copy_move_backward_aILb1E` 内 memmove 特化），我方用户空析构使其退化 ILb1ELb0。
+    // ORIG W D1 0x08a928da 由隐式析构 odr-use 发射，删后符号仍在（nm 实测）。
+    // 证据：我方 .o 有 `new_allocator<stUnusableEquipmentInfo>::destroy` W 实例；
+    // ORIG D1 仅 1 处调用点（0x08a928ec `call 0x08a928da`）；删后
+    // `__copy_move_backward_aILb1EP23stUnusableEquipmentInfo...` DIFF→AE（13=13）。
     int m_field0;   // +0x00（装备类型枚举 2..11，import 0x8a8a28c 实证）
     int m_field4;   // +0x04（ScanInt 首值）
     int m_field8;   // +0x08（ScanInt 次值）
@@ -159,7 +171,11 @@ struct stBurningFatigueParam_t
         m_field14 = 0;
         memset(m_field18, 0, 4);
     }
-    ~stBurningFatigueParam_t() {}   // ORIG D1 W 0x08a91bb0：空体。
+    // [Q8 2026-09-11 P342 triviality 轴] 删用户空析构：ORIG D1 W 0x08a91bb0 空体由
+    // 隐式析构 odr-use 发射；用户析构使 `__has_trivial_destructor` 为假 ⇒ 我方发射
+    // `_Destroy_auxILb0EE`，而 ORIG 只有 `ILb1EE`（Q1P342ScanA 全库 801 .o 键集扫描直证；
+    // 本 TU 持有 `new_allocator<stBurningFatigueParam_t>::destroy` 实例 ⇒ 判据 3 满足）。
+    // 用户默认构造保留（`__is_trivial` 不涉析构侧观测点）。
 
     unsigned short m_level;       // +0x00（getBonusExpRate ORIG 0x810a0ec 比较）
     int m_bonusExpRate;           // +0x04
@@ -180,7 +196,11 @@ struct ConditionEnterRevenge
 struct stFatigueEventParam_t
 {
     stFatigueEventParam_t();  // ORIG 0x08a8ccc4 W
-    ~stFatigueEventParam_t() {}  // ORIG 0x08a91dfc W（D1/D2 空体，须保留用户析构）
+    // [Q8 2026-09-11 P342 triviality 轴] 旧判词「须保留用户析构」**已推翻**：
+    // ORIG nm 只有 `_Destroy_auxILb1EE9__destroyIP21stFatigueEventParam_t`（trivial
+    // 析构路径）⇒ ORIG 类型 trivial；我方用户析构发射 ILb0 版（唯一差源）。
+    // ORIG D1 W 0x08a91dfc 空体由隐式析构的 odr-use 发射，删后仍在（nm 实测）；
+    // 本 TU 持有 `new_allocator<stFatigueEventParam_t>::destroy` 实例（判据 3）。
     unsigned short m_field0;   // +0x00（importServerParameterScript 0x8a883a3 mov %ax 实证）
     int m_field4;              // +0x04（0x8a883cc mov %eax 实证）
     unsigned char m_field8;    // +0x08（C1 memset(this+8,0,4)；0x8a883f8 mov %al 实证）
@@ -238,7 +258,9 @@ struct stAuctionLimitItemParam_t
         : m_itemId(0), m_startSec(0), m_endSec(0)
     {
     }
-    ~stAuctionLimitItemParam_t() {}   // ORIG D1 W 0x08a934ee：空体
+    // [Q8 2026-09-11 P342 triviality 轴] 同上：ORIG D1 W 0x08a934ee 空体（隐式析构
+    // odr-use 发射）；删用户析构恢复 `_Destroy_auxILb1EE`（ORIG 形态）。判据 3：
+    // 本 TU 有 `new_allocator<stAuctionLimitItemParam_t>::destroy` 实例。
     int m_itemId;    // +0x00（-1 通配）
     int m_startSec;  // +0x04
     int m_endSec;    // +0x08

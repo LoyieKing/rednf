@@ -58,7 +58,12 @@ public:
     // ORIG T 0x08146994（nm 实证）：getBossTower() 判空 → trace 后仍返 1；
     // 否则虚槽[10] handlePickupItem(user,item,flag,type)；非零 → 回包
     // put_header(1,0x2e)+put_byte(1)+finalize(true)+Send。恒返回 1。
-    static char GetItem(CUser* user, int item, bool flag, char type);
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴] ORIG prett 0x08b72e60 size 0x45 =
+    //   `static bool Global::CBossTowerFunc::GetItem(CUser*, int, bool, char)`
+    //   我方原 `static char`（P6S5 串审计上报）；P6 反汇编核对该函数尾部
+    //   `mov $0x1,%eax; add $0x60,%esp; pop %ebx/%esi/%ebp; ret` 两侧逐条全等
+    //   ⇒ 纯 prett 轴（非 codegen）；返回类型不入 mangling，符号/sizeof 零变化。
+    static bool GetItem(CUser* user, int item, bool flag, char type);
 };
 
 // ----------------------------------------------------------------------------

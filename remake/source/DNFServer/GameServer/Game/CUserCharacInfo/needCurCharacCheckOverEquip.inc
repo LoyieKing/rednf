@@ -1,1 +1,1 @@
-unsigned char CUserCharacInfo::needCurCharacCheckOverEquip()
+bool CUserCharacInfo::needCurCharacCheckOverEquip()

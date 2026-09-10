@@ -388,6 +388,7 @@ namespace WongWork
 //   ⑧itemType 预清 0xb（P198①）；⑨newItem 字段具名直写（去 set_add_info call）。
 //   残余 N115：ORIG shadowMem 落 -0xca0b（4.1 非 4 对齐分配）vs 4.4 恒 4 对齐
 //   -0xca0c ⇒ 3 处 lea 立即数差 1；aligned(1) 探针无效，其余帧/槽/调用点全等。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=NEAR（N115/N93）→ 试=sizeof 反推（ORIG `InventoryMemory::reset` 0x0822d472 四段 memset size 0x4a58+0x1905+0x39aa+0x2438=0xC13F；ctor 0x0822d3b8 只构造 312/105/242/152 个 Inven_Item）+ overlay 删 CUser.h `m_tailC13f`（断言改 0xc13f）⇒ 本件 349=349 **AE**、本 TU 92/144/1/1/65 → 92/145/0/1/65（改善）；**但同轮 CUser 家族实测劣化**：CUser 809/1719/5/66 → **809/1712/12/66**（ae −7、near 5→12）、CUserOnlyOrig 497/977/1/42 → 497/976/2/42 ⇒ Main 2026-09-11 裁决「全局净账为负」、CUser.h **已回滚**该成员 ⇒ **维持 N115**（算术证据只证「最后 1 字节无成员/未被 reset 覆盖」，不证 sizeof=0xC13F；ORIG 侧 sizeof 应为 0xC140，-0xca0b 系 4.1 栈分配非 4 对齐，N82/N115 族固有）。详见 CUser.h:1365 负结论。
 #include "WongWorkMiscB_A/ProcUpgradeChronicle.inc"
                                        short slotB, unsigned int,
                                        char chanceGrade, std::vector<int>& out)

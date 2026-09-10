@@ -130,10 +130,16 @@ public:
         // 使负体路径返回值不确定，而调用点 PacketDispatcher.h:264
         // `if ((result = process(...)) > 0) return result;` **消费返回值** ⇒ 属语义轴，
         // 按纪律不落（保持确定性返回 0）。残差①见上方注释（无源形解）。
-        LineFunc(0x269f,
-                 __PRETTY_FUNCTION__,
-                 out.m_4, user->get_acc_id());
-        return 0;
+        // [Q7S5 2026-09-11 语义轴·落] 「返回值不确定」的判词作废：LineFunc 的**真实
+        //   返回类型是 int 且返回第 1 参 line**（CompoundEmblemDeps.cpp:125
+        //   `return line;`，ORIG 0x085908d7 同形）⇒ ORIG 0x081cdd0e-0x081cdd13
+        //   `call LineFunc; jmp <epilogue>` 的负体返回值 = 0x269f(9887)，**完全确定**。
+        //   调用点 PacketDispatcher.h:264 `if ((result=process(...))>0) return result;`
+        //   消费该值 ⇒ 原 `return 0` 使负体路径落 `if (result<0) return 0;` 之后继续
+        //   （dispatch 结果 0），ORIG 则直接返回 9887。
+        //   改 `return LineFunc(...)`：无 UB、汇编形与 ORIG 同为 `call; jmp epilogue`
+        //   （返回值直落 eax，无 `mov $0x0,%eax`）。
+        return LineFunc(0x269f, __PRETTY_FUNCTION__, out.m_4, user->get_acc_id());
     }
 
     // strncpy(msg+0x14, len=msg+0x10)（MSG_REGISTER_TO_BLACKLIST 名字字段）

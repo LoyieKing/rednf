@@ -236,12 +236,15 @@ private:
 // N115 outgoing 预留）+ setcc 物化 ⇒ N82/N115 封顶。
 #include "CUserOnlyOrig/_CheckCompoundSkill.inc"
 {
-    // [H6 2026-09-11 负结论·已回滚] 试两旋钮（A：`__PRETTY_FUNCTION__` 替静态 PRETTY 字面量；
-    // B：两处具名 `bool ok` 内联进 if）：A+B 同批 133→**131**、仅 A 133→**132**（ORIG 135）
-    // ⇒ 两者均使 gap 变大（我们本就比 ORIG 少 2 条）⇒ 全部回滚。本件方向待重定：ORIG 多的
-    // 2 条更可能在 `mov %eax,%ebx; xor $1` 寄存器保活与 0x0867104e 段，而非这两个槽。
-    static const char* PRETTY =
-        "bool CUser::_CheckCompoundSkill(const CStackableItem*, bool)";
+    // [H6 2026-09-11 负结论·部分推翻 · Q2P342ScanB 2026-09-11 复测]
+    //   H6 原测：旋钮 A（`__PRETTY_FUNCTION__` 替静态 PRETTY 字面量）使 133→132（判为反劣）；
+    //   旋钮 B（两处具名 `bool ok` 内联进 if）使 133→131 ⇒ B 仍为负结论，**勿试 B**。
+    //   复测（当前码态）：删 `static const char* PRETTY`、直接用 `__PRETTY_FUNCTION__`
+    //   ⇒ our 指令数 **132 → 132（不变）**、TU 四数 497/977/1/42/284 **逐项不变**，
+    //   而符号集**净改善**：新增 ORIG 有的 `_ZZN5CUser19_CheckCompoundSkillEPK14CStackableItembE19__PRETTY_FUNCTION__`
+    //   （**size 0x3d = ORIG 相等**），并消除 ORIG 没有的局部符号 `…E6PRETTY`（我方多出的 4B 指针）。
+    //   ⇒ 本旋钮按「符号集」目标为正、按 gap/四数目标为中性 ⇒ 已落地。
+    //   （剩余 gap +3 仍指向 `mov %eax,%ebx; xor $1` 寄存器保活与 0x0867104e 段。）
 
     // [G6Sub1 单旋钮·P225 推广/P133] ORIG 0x08670f2c..0x08670f59 为**两跳同落**形：
     // `test %al,%al; je <主体>` + `call isAffectedPremium; xor $0x1,%eax; test %al,%al;
@@ -282,7 +285,7 @@ private:
         // 语义已完整（p167 CLEAR）⇒ 本件维持封顶，勿再按"消槽/内联/保活"方向重试。
         unsigned int characNo = getCurCharacNo();
         // [FL5 2026-09-10 负结论·已回滚] P37/P227 链在本件 ndiff 152→152 中性 ⇒ 维持具名形。
-        cMyTrace trace(PRETTY, 0x5c68, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x5c68, 0);
         trace("EXPERT_JOB_ERROR : check_skill_list() charac_no(%d)", characNo);
         return false;
     }
@@ -598,14 +601,20 @@ private:
 // （memset/vector begin/end 族，见 /tmp/b28d_solo_CUserOnlyOrig_result.tsv）；
 // 残余为帧槽/模板内联跨版本差（N82/N89 族），语义完成。
 #include "CUserOnlyOrig/_ProcCompoundCore.inc"
-    const std::vector<std::pair<int, int> >& mats,
-    std::vector<std::pair<int, int> >& outputs,
-    std::vector<int>& deletedSlots,
+    // [Q2P342ScanB 2026-09-11] 形参拼写改用 GameTypes.h 的 typedef（同底层类型 ⇒
+    // mangled/ABI 零变化），使 `__PRETTY_FUNCTION__` 打印 ORIG 的裸 typedef 名
+    // （ORIG 串 `_ZZN5CUser17_ProcCompoundCore…E19__PRETTY_FUNCTION__` @0x8cf2bc0
+    //  size=0xb6 = `bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&,
+    //  IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition,
+    //  CStackableItem*, Inven_Item&)`，pstr.py 实读）。
+    const IntPairVector& mats,
+    IntPairVector& outputs,
+    IntVector& deletedSlots,
     int mainMatSlotNo,
     bool cubeMode,
     PacketGuard* pkt,
     bool& resultFlag,
-    unsigned short mulCount,
+    RequestItemCountType mulCount,
     stEquipCondition cond,
     CStackableItem* recipe,
     Inven_Item& keptOptionSrc)
@@ -632,7 +641,8 @@ private:
         // 之后才 call cMyTrace::cMyTrace —— 即 operator() 作用于**临时**
         // cMyTrace 对象（具名局部会先构造后求参，顺序与 ORIG 相反）。
         cMyTrace(
-            "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
+            __PRETTY_FUNCTION__,   // [Q2P342ScanB] 原手写串 → prett（发射 ORIG 同符号
+                                   // _ZZN5CUser17_ProcCompoundCore…E19__PRETTY_FUNCTION__ size=0xb6）
             0x5c8b, 5)(
             "CUser::compound_item, getCurCharacInvenR()->delete_event_items , size does not match! %d %d !=%d",
             getCurCharacNo(), delCount, (int)mats.size());
@@ -651,7 +661,7 @@ private:
                 (int)mulCount, (eItemDelReason)8, true))
         {
             cMyTrace(
-                "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
+                __PRETTY_FUNCTION__,   // [Q2P342ScanB] 同上
                 0x5c9a, 5)(
                 "CUser::compound_item, getCurCharacInvenW()->delete_item failed , %d %d",
                 getCurCharacNo(), mainMatSlotNo);
@@ -697,7 +707,7 @@ private:
     if (insCount != (int)outputs.size())
     {
         cMyTrace(
-            "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
+            __PRETTY_FUNCTION__,   // [Q2P342ScanB] 同上
             0x5d73, 5)(
             "CUser::compound_item, getCurCharacInvenR()->insert_event_items failed %d",
             getCurCharacNo());
@@ -773,13 +783,16 @@ private:
                                        m_map0.end())
                         {
                             // [K7 2026-09-11 §6.5 PRETTY 串盲区] ORIG 0x08671887 压入
-                            // 0x8cf2bc0（.rodata 实串 `bool CUser::_ProcCompoundCore(const
+                            // 0x8cf2bc0 = `_ZZN5CUser17_ProcCompoundCore…E19__PRETTY_FUNCTION__`
+                            // （size 0xb6，pstr.py 实读 `bool CUser::_ProcCompoundCore(const
                             // IntPairVector&, IntPairVector&, IntVector&, int, bool,
                             // PacketGuard*, bool&, RequestItemCountType, stEquipCondition,
-                            // CStackableItem*, Inven_Item&)`）；`__PRETTY_FUNCTION__` 在此
-                            // 展开为完整模板形（ORIG 无该串）⇒ 改字面量，与同函数另 3 处一致。
+                            // CStackableItem*, Inven_Item&)`）。
+                            // [Q2P342ScanB 2026-09-11 复核] 旧注「prett 在此展开为模板形 ⇒
+                            // 必须写字面量」**已推翻**：本函数非模板、形参改 typedef 拼写
+                            // 后 prett 逐字节同 ORIG（本 TU 4 处统一改用 prett）。
                             LogManager::logFormat(1, "user.cpp",
-                                "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
+                                __PRETTY_FUNCTION__,
                                                   0x5d0c,
                                                   "item_making_skill_level error : %d",
                                                   level);
@@ -13478,7 +13491,9 @@ public:
 // InvenW（0x0868cc81）。⇒ **p167 CLEAR（117/117）**、739 vs 738 gap 1；ndiff 读数按
 // 新纪律（>500 条不按 ndiff 记账）以三件套为准。
 #include "CUserOnlyOrig/process_recipe_avatar_items.inc"
-                                       unsigned short count, int cmdHeader,
+                                       // [Q2P342ScanB] typedef 拼写：让 prett 打印 ORIG 的
+                                       // `RequestItemCountType`（同底层 unsigned short ⇒ ABI/ mangled 不变）
+                                       RequestItemCountType count, int cmdHeader,
                                        CStackableItem const* recipe)
 {
     // 0x0868c4f4+0x01f: recipe == NULL -> 0x11
@@ -13625,9 +13640,10 @@ public:
                     // +0x5c9: trace（ORIG 字符串原样）
                     // [FL5 2026-09-10 负结论·已回滚] P37/P227 全表达式链在本件
                     // ndiff 1008→1012 反劣（ours 742→743）⇒ 维持两语句具名形；勿再试。
+                    // [Q2P342ScanB 2026-09-11] 手写串 → prett（ORIG 该符号 size 0x64；
+                    // 形参已改 typedef 拼写 ⇒ 串与 ORIG 同）。
                     cMyTrace trace(
-                        "int CUser::process_recipe_avatar_items(int, bool, "
-                        "RequestItemCountType, int, const CStackableItem*)",
+                        __PRETTY_FUNCTION__,
                         0xa8c1, 5);
                     trace("CUser::process_recipe_avatar_items, "
                           "getCurCharacInvenW()->delete_item failed , %d %d",

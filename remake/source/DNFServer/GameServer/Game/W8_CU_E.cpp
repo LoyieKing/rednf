@@ -88,54 +88,63 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
         return false;
 
     __gnu_cxx::hash_map<int, CSkill*>::iterator sit = list->find(skillId);
-    if (sit == list->end())
+    // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82，gap=-1/blocks=34）→ 试=**守卫反置**：
+    //   ORIG 08654d02 `call operator!=`（`_ZNK…_Hashtable_iteratorI…EEneERKSD_`，p167 直证；
+    //   我方原写 `sit == list->end()` 产 `…EEeqERKSD_`）+ ORIG 的 0x2113 trace 块在
+    //   **函数尾**（08654e2a +0x296，`je` 目标）而非比较点内联 ⇒ 源码是
+    //   `if (sit != list->end()) { 主体; return true; } <trace 0x2113>; return false;`
+    //   （4.4 按源码块序发射）。反置后：**DIFF→NEAR，gap −1→+0（199=199）**、
+    //   diff 行 214→149、p167 该件 CLEAR（0 MISSING/0 EXTRA）。
+    //   残余 149 行**全为槽位映射**（sit/end 临时：ORIG -0x5c/-0x4c vs 我方 -0x34/-0x2c；
+    //   n：-0x20 vs -0x1c；帧 `sub $0x74` 两侧全等、cmds 槽 -0x24 两侧全等）
+    //   ⇒ 4.1/4.4 临时槽分配器差异（N82），源码不可控 ⇒ 维持封顶。
+    if (sit != list->end())
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x2113, 5);
-        trace("SKILL_COMMAND_LOG : KEY INDEX DUPLICATE!!");
-        return false;
-    }
-
-    // [M3S1 本波实测·P0] ORIG 8654d1a/8654d26 为**两次** ptEv：`mov 0x4(%eax),%eax;
-    //   mov %eax,-0x18` （skill）与 `mov (%eax),%eax; mov %eax,-0x14`（key）⇒ 原码有
-    //   具名 key（int）；我方原用 `sit->first` 表达式在三处使用 ⇒ 多两次 ptEv（-3 条）。
-    CSkill* skill = sit->second;          // node.first=键（与 skillId 相同）、second=CSkill*
-    int key = sit->first;
-    // [M3S1 本波实测·P196/P290] ORIG 8654d43..8654d4d 为 `cmpl $0x5,-0x10(%ebp);
-    //   jg 8654d4f` + `cmpl $0x0,-0x10(%ebp); jg 8654da3`（**有符号**），循环底
-    //   8654e19 `cmp -0x10(%ebp),%eax; setl`（有符号）⇒ n 是 int，条件写
-    //   `n > 5 || n <= 0`（`!(n<6)` 在 size_t 下产 `ja`，且 `n >= 6` 产 jge 而非 jg）。
-    int n = (int)skill->m_keyCommandList.size();
-    if (n > 5 || n <= 0)
-    {
-        if (n != 0)
+        // [M3S1 本波实测·P0] ORIG 8654d1a/8654d26 为**两次** ptEv：`mov 0x4(%eax),%eax;
+        //   mov %eax,-0x18` （skill）与 `mov (%eax),%eax; mov %eax,-0x14`（key）⇒ 原码有
+        //   具名 key（int）；我方原用 `sit->first` 表达式在三处使用 ⇒ 多两次 ptEv（-3 条）。
+        CSkill* skill = sit->second;          // node.first=键（与 skillId 相同）、second=CSkill*
+        int key = sit->first;
+        // [M3S1 本波实测·P196/P290] ORIG 8654d43..8654d4d 为 `cmpl $0x5,-0x10(%ebp);
+        //   jg 8654d4f` + `cmpl $0x0,-0x10(%ebp); jg 8654da3`（**有符号**），循环底
+        //   8654e19 `cmp -0x10(%ebp),%eax; setl`（有符号）⇒ n 是 int，条件写
+        //   `n > 5 || n <= 0`（`!(n<6)` 在 size_t 下产 `ja`，且 `n >= 6` 产 jge 而非 jg）。
+        int n = (int)skill->m_keyCommandList.size();
+        if (n > 5 || n <= 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x2102, 5);
-            trace("SKILL_COMMAND_LOG : ABNOMAL COMMAND CNT!! (%d) (%d)",
-                  key, (int)n);
+            if (n != 0)
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__,
+                               0x2102, 5);
+                trace("SKILL_COMMAND_LOG : ABNOMAL COMMAND CNT!! (%d) (%d)",
+                      key, (int)n);
+            }
+            return false;
         }
-        return false;
-    }
 
-    out.m_command = (unsigned short)key;      // ORIG 8654da3 从 -0x14 槽读
-    out.m_count   = (unsigned char)n;
-    // [轴 B 实测·本函数不适用] ORIG 0x08654e19 虽为 `cmp -0x10(%ebp),%eax; setl`
-    // 有符号序（P196 前置通过），但本函数改 `int i; i < (int)n` 实测
-    // **209→211 劣化**（`unsigned char key` 具名局部的 `movzbl` 链与 int 循环
-    // 的寄存器分配冲突）⇒ 回退 `size_t`；残差归 N82/N93（槽向 + getSkillCommand
-    // 具名缓存不可去），已按 P196/S1「一次旋钮、无改善即回滚」留痕。
-    for (int i = 0; i < n; ++i)
-    {
-        // [M3S1 本波实测·P291/P0] ORIG 8654dc2..8654e21 同族：单条 scaled 读
-        //   `mov (%eax),%eax`（vector<int>::operator[] 结果直传，无 v 槽）→ 单条写
-        //   out.m_keyBytes[i] → 重读 out.m_keyBytes[i] 与 7 比较 ⇒ 删 `int v` 具名局部，
-        //   表达式右值直传 + 数组视图。
-        out.m_keyBytes[i] = (unsigned char)skill->m_keyCommandList[i].m_ids[0];
-        if (out.m_keyBytes[i] == 7)
-            out.m_keyBytes[i] = 8;
+        out.m_command = (unsigned short)key;      // ORIG 8654da3 从 -0x14 槽读
+        out.m_count   = (unsigned char)n;
+        // [轴 B 实测·本函数不适用] ORIG 0x08654e19 虽为 `cmp -0x10(%ebp),%eax; setl`
+        // 有符号序（P196 前置通过），但本函数改 `int i; i < (int)n` 实测
+        // **209→211 劣化**（`unsigned char key` 具名局部的 `movzbl` 链与 int 循环
+        // 的寄存器分配冲突）⇒ 回退 `size_t`；残差归 N82/N93（槽向 + getSkillCommand
+        // 具名缓存不可去），已按 P196/S1「一次旋钮、无改善即回滚」留痕。
+        for (int i = 0; i < n; ++i)
+        {
+            // [M3S1 本波实测·P291/P0] ORIG 8654dc2..8654e21 同族：单条 scaled 读
+            //   `mov (%eax),%eax`（vector<int>::operator[] 结果直传，无 v 槽）→ 单条写
+            //   out.m_keyBytes[i] → 重读 out.m_keyBytes[i] 与 7 比较 ⇒ 删 `int v` 具名局部，
+            //   表达式右值直传 + 数组视图。
+            out.m_keyBytes[i] = (unsigned char)skill->m_keyCommandList[i].m_ids[0];
+            if (out.m_keyBytes[i] == 7)
+                out.m_keyBytes[i] = 8;
+        }
+        return true;
     }
-    return true;
+    cMyTrace trace(__PRETTY_FUNCTION__,
+                   0x2113, 5);
+    trace("SKILL_COMMAND_LOG : KEY INDEX DUPLICATE!!");
+    return false;
 }
 
 // ---------------------------------------------------------------------------
