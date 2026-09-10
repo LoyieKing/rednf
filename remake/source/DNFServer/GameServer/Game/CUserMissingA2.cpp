@@ -77,6 +77,43 @@
 //     groupIdx 重复清零与 mob/item 分支显式 return，复现 ORIG 四个 return-false
 //     岛。余 1 条 jmp 中继 + 尾部对齐 nop（§6.1/N112）。p167 50/50（CMTRand
 //     C1↔C2 同址别名，P262）。
+//
+// ---------------------------------------------------------------------------
+// [Lane14C·UserMissingA2] 本轮（Main 落 446 路由后复核；进入时 110/170/3/9
+//   ⇒ 收口 110/173/1/8，含 _Z41 豁免 ⇒ 真 diff 7 件）：
+//   · **CUser::updateBingoData DIFF→AE（真类型缺口）**：ORIG 0x0869145a
+//     `mov (%eax),%esi` 单段直落 callee-saved；字段 `BingoData::m_eventId` 为
+//     unsigned int 而 makeRequest 第 3 形参为 int（mangled Eijib）⇒ 4.4 对异型
+//     实参插转换中转（`mov (%eax),%eax; mov %eax,%esi`）。探针 p2(异型→两段)/
+//     p3(形参 unsigned→单段)/p6(同型 int 左值视图→单段) 三向实证 ⇒ 以 int 左值
+//     视图读取（P266 同族旋钮；sizeof/偏移/mangled 零变化）。
+//   · **CUser::processFatigueCharac 168→163 条（真语义修复）**：ORIG 0x08692689
+//     `cmpl $0,-0x14; je <+0x21f 共享清理出口>` = `if (def != 0) { … }` 正向包裹
+//     （P222/P257）；原「if (def == 0) return;」平铺形使 4.4 生成反向 jne + 独立
+//     出口块，**且 def==0 时仍执行 snprintf/findString**（ORIG 直接清理返回）。
+//     余差 = N115 outgoing 预留 16B + itemIndex 与 Inven_Item 对象重叠槽
+//     （ORIG -0x5f=item+2，4.1 栈复用；4.4 独立分配）+ expire→%edi 保活。
+//   · N 复核（新增探针，均为跨版本/后端结构性，语义等价）：
+//     - GetETC（NEAR 维持，N93）：/tmp/l14p 以外的 exp6 逗号声明形、exp2 先声明
+//       后赋值形（触发 iterator C1Ev + sret 临时 → DIFF）实测均不翻；ORIG end=
+//       -0x14/find=-0x10 与 4.4 恒反且调用序锁死声明序 ⇒ 封顶。
+//     - SetEquipment（N7 维持）：`int* volatile cnt` 强制重载探针实测无效（4.4
+//       仍缓存 base 到 %ebx、*cnt 到 %esi；ORIG 只缓存索引 %ebx）⇒ 封顶。
+//     - Competition（N）：16 位比较四形探针实测——(short)a<=(short)b ⇒ 6 条+jg；
+//       ushort<=ushort ⇒ 5 条+ja；交换操作数 ⇒ 5 条+jl；`*reinterpret_cast<short*>`
+//       视图 ⇒ 6 条+jg（多 add）。ORIG=5 条+jg（movzwl 直落 %edx）不可兼得 ⇒ 维持
+//       原 `(short)a <= m_level`（有符号语义优先，6 条+jg）。
+//     - GetRewardItem（N82/N112）：fresh 复核槽**集合全同**（-12…-104 各 26 项），
+//       差异为同一变量槽号互换（range ORIG -0x60 vs 我方 -0x50 等 14 块）+ 1 条
+//       jmp 中继/尾 nop。
+//     - Reward（N82）：我方槽集合多 5 项（ORIG 16 / 我方 21），帧 0x9c vs 0x8c；
+//       p167 仅 cMyTrace C1↔C2 / STL C1↔C2 同址别名（P262）。
+//     - SaveMercenaryData（N101/N82）：探针 p7 实证 4.4 对常数乘法恒强度归约
+//       shl/add（`row*0x54` 六条 vs ORIG 单条 `imul $0x54`；变量乘数可出 imul 但
+//       新增槽使帧 0x3c→0x40 反劣）⇒ 维持下标形。
+//     - _fnStatQuestClear（N1/N107）：context 自增十形探针（f0-f5/f8/f9/fA/fB）
+//       全折 `add DWORD PTR [ebp+0xc],0x4` 或劣化；ORIG `mov/lea/mov` 三连不可造，
+//       余 3 条/函数。p167 24/24（P262）。
 // ============================================================================
 
 #include <string.h>  // memset
@@ -1247,7 +1284,13 @@ void CUser::updateBingoData()
     {
         DB_UpdateBingoEvent::makeRequest(
             GetUID(), get_acc_id(),
-            static_cast<BingoData*>(getBingoData())->m_eventId,
+            // [Lane14C] ORIG 0x0869145a `mov (%eax),%esi` 单段直落 callee-saved：
+            // 字段 m_eventId 为 unsigned int 而 makeRequest 第 3 形参为 int
+            // （mangled Eijib）⇒ 4.4 对异型实参插转换中转（`mov (%eax),%eax;
+            // mov %eax,%esi`）。探针 p2(异型→两段)/p6(同型 int 视图→单段) 实证
+            // ⇒ 以 int 左值视图读取（P266 同族左值视图旋钮；sizeof/偏移/符号零变化）。
+            *reinterpret_cast<int*>(
+                &static_cast<BingoData*>(getBingoData())->m_eventId),
             static_cast<BingoData*>(getBingoData())->m_isWin);
         static_cast<BingoData*>(getBingoData())->m_needSave = 0;
     }
@@ -1392,26 +1435,30 @@ void CUser::processFatigueCharac(int usedMin)
     Inven_Item item;
     CItem* def = G_CDataManager()->find_item(giftId);
     int srvGrp = GetServerGroupToPvP();
-    if (def == 0)
-        return;
-
-    int itemIndex = def->get_index();
-    def->make_item(item);
-    item.set_add_info(1);
-
-    char msg[256];
-    // ORIG 0x086926d8：`call getCurCharacUsedFatigue; movzwl %ax,%ebx`（无局部槽，
-    // 值在 %ebx 跨 c_str/findString 保活）⇒ 变参位内联（P44/P0）。
-    OS_API::snprintf(msg, 0xff,
-                     g_scriptStringManager_.findString(4, fmtKey.c_str(), 0),
-                     getCurCharacUsedFatigue());
-    if (itemIndex != 0)
+    // [Lane14C] ORIG 0x08692689 `cmpl $0,-0x14(%ebp); je <+0x21f 共享清理出口>`
+    // = 正向包裹形（P222/P257）：def==0 直接落共享清理出口、不执行 snprintf/
+    // findString（原「if (def == 0) return;」平铺形使 4.4 生成反向 jne + 独立
+    // 出口块，帧/块数 168 vs ORIG 162）。
+    if (def != 0)
     {
-        int expire = def->getExpirationDate();
-        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            g_scriptStringManager_.findString(4, title.c_str(), 0),
-            item, 0, getCurCharacNo(), msg, (int)strlen(msg), expire,
-            (ENUM_SERVER_GROUP)srvGrp, false, true);
+        int itemIndex = def->get_index();
+        def->make_item(item);
+        item.set_add_info(1);
+
+        char msg[256];
+        // ORIG 0x086926d8：`call getCurCharacUsedFatigue; movzwl %ax,%ebx`（无局部槽，
+        // 值在 %ebx 跨 c_str/findString 保活）⇒ 变参位内联（P44/P0）。
+        OS_API::snprintf(msg, 0xff,
+                         g_scriptStringManager_.findString(4, fmtKey.c_str(), 0),
+                         getCurCharacUsedFatigue());
+        if (itemIndex != 0)
+        {
+            int expire = def->getExpirationDate();
+            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                g_scriptStringManager_.findString(4, title.c_str(), 0),
+                item, 0, getCurCharacNo(), msg, (int)strlen(msg), expire,
+                (ENUM_SERVER_GROUP)srvGrp, false, true);
+        }
     }
 }
 
