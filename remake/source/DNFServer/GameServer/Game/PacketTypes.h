@@ -122,10 +122,16 @@ public:
     unsigned short m_field0e; // +0x0e 队伍/角色类标识【推断】
                               //（Dispatcher_BossDieCheck/read.md get_short@msg+0xe；==-1 时 addServerHackCnt 0xcb）
     unsigned short m_field10; // +0x10 短整型参数【推断】（get_short@msg+0x10；process 复制进包）
+    // [Main·2026-09-11 **布局真 bug 修复**] ORIG 直证 `Dispatcher_BossDieCheck::process`
+    // @0x081cd83a `mov -0x20(%ebp),%edx; mov 0x14(%edx),%edx; cmp %edx,%eax; setne %al`
+    // ⇒ 技能校验和**读 +0x14**。但本类在 `#pragma pack(push,1)` 内：`m_field10`(2B) 止于
+    // +0x12，pack(1) 会把 int 放在 **+0x12** ✗（原码在 +0x12，读 +0x14 时取到下一字段
+    // 所在的填充/垃圾字节）⇒ **校验恒不等 ⇒ 误判作弊**（`addServerHackCnt(0x25c)` 误加）。
+    // ORIG 侧为**自然对齐**（int 对 4 取整 ⇒ +0x14）。此处用**显式 2 字节 pad** 在 pack(1)
+    // 下复现该对齐，同时保持 sizeof 不变（0x0d+1+2+2+2+4 = 0x18 ✓ static_assert 成立）。
+    char m_pad12[2];          // +0x12..+0x13（显式对齐 pad；ORIG 未出线，纯对齐用）
     int m_skillCheckSum;      // +0x14 技能校验和【推断】（get_int@msg+0x14；与
                               //  CUser::getCurCharacSkillCheckSum 比较）
-    char m_pad18[2];          // +0x16..+0x17（b28d-solo-S161：ORIG 0x8256094 域 msg 槽
-                              //  -0x24 ⇒ 帧距 0x18，原 0x16 差 2）
 };
 static_assert(sizeof(MSG_BOSS_DIE_CHECK) == 0x18, "MSG_BOSS_DIE_CHECK size");
 #pragma pack(pop)
