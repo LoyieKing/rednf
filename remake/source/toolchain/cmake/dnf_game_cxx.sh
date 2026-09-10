@@ -215,6 +215,7 @@ case "$src" in
             *Game/RDARScriptEtcParameter.cpp | \
             *Game/RDARScriptStringManager.cpp | \
             *Game/RandomOptionScript.cpp | \
+            *Game/RandomRentalA2.cpp | \
             *Game/RestrictNameDeps.cpp | \
             *Game/STAssignMonster.cpp | \
             *Game/STDeadTowerDialog.cpp | \
