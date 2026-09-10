@@ -1,1 +1,4 @@
 CServerXml::CServerXml()
+{
+    InitString();
+}

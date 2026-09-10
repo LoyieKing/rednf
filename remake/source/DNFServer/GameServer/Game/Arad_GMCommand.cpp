@@ -61,63 +61,27 @@ public:
 
 // [GI-ioinit L21] 本 TU 首个强外部符号定义（_GLOBAL__I_ 键名来源，P327）。
 #include "Arad_GMCommand/Init.inc"
-{
-    return 1; // ORIG 0x8198230: mov $0x1,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_ON.inc"
-{
-    return 0; // ORIG 0x8198254: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_POWER_WAR_START.inc"
-{
-    return 0; // ORIG 0x819825e: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_POWER_WAR_END.inc"
-{
-    return 0; // ORIG 0x8198268: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_USER_REPEL.inc"
-{
-    return 0; // ORIG 0x8198272: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_REQUEST_MID.inc"
-{
-    return 0; // ORIG 0x819827c: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_INVISIBLE.inc"
-{
-    return 0; // ORIG 0x8198286: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_VISIBLE.inc"
-{
-    return 0; // ORIG 0x8198290: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_SET_USER_DEFINE.inc"
-{
-    return 0; // ORIG 0x819829a: mov $0x0,%eax
-}
 
 #include "Arad_GMCommand/Destory.inc"
-{
-    // ORIG 0x819823a: push %ebp; mov %esp,%ebp; pop %ebp; ret —— 真实空体
-}
 
 #include "Arad_GMCommand/Process.inc"
-{
-    return 1; // ORIG 0x8198240: mov $0x1,%eax
-}
 
 #include "Arad_GMCommand/__FindPorcess.inc"
-{
-    return 0; // ORIG 0x819824a: mov $0x0,%eax
-}
 
 } // namespace ARAD

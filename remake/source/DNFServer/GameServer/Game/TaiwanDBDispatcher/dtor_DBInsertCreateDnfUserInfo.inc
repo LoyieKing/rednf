@@ -1,1 +1,3 @@
 DBInsertCreateDnfUserInfo::~DBInsertCreateDnfUserInfo()
+{
+}

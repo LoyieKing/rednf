@@ -16,26 +16,11 @@
 #include "CRandomOptionGiveNormal.h"
 
 #include "CRandomOptionGiveNormal/CRandomOptionGiveNormal.inc"
-    : m_pMapType4(0), m_pMapChoice8(0)
-{
-}
 
 std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >&
 #include "CRandomOptionGiveNormal/get_option_type.inc"
-{
-    return *m_pMapType4;
-}
 
 std::map<unsigned long long, OptionGroupChoiceValue>&
 #include "CRandomOptionGiveNormal/get_option_group_choice.inc"
-{
-    return *m_pMapChoice8;
-}
 
 #include "CRandomOptionGiveNormal/set.inc"
-    std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >* typeMap,
-    std::map<unsigned long long, OptionGroupChoiceValue>* choiceMap)
-{
-    m_pMapType4 = typeMap;
-    m_pMapChoice8 = choiceMap;
-}

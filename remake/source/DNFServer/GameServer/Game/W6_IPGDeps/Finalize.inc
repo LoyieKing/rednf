@@ -1,1 +1,23 @@
 void CIPGMgr::Finalize()
+{
+    if (m_workers != 0)
+    {
+        for (unsigned int i = 0; i < m_workerCount; ++i)
+        {
+            // [b28d-solo-W6_IPGDeps] ORIG 0x08104618 循环体无 i*0x10 缩放：
+            // `mov this; mov (%eax),%eax; mov (%eax),%edx; call *%edx`（vptr+0
+            // = stop，见 ThreadInterface.h 槽序修正）⇒ 原码对首元素调用，照抄 P171。
+            m_workers->stop();
+        }
+        // [b28d-solo-W6_IPGDeps] ORIG 0x08104648 段单次 D0（vptr+8）调用、无数组
+        // cookie/元素析构循环 ⇒ 原码为单对象 `delete m_workers`（非 delete[]），照抄。
+        delete m_workers;
+        m_workers = 0;
+    }
+    else
+    {
+        // [b28d-solo-W6_IPGDeps] ORIG 0x08104667 尾 `jmp;nop` 岛：4.4 对纯正向
+        // if 恒 jump-thread，空 else{return;} 保留体尾岛（P285）。
+        return;
+    }
+}

@@ -14,29 +14,12 @@
 #include "stClearTimeAverage.h"
 
 #include "stClearTimeAverage/stClearTimeAverage.inc"
-{
-    clear();
-}
 
 #include "stClearTimeAverage/clear.inc"
-{
-    m_v[0] = 0;
-    m_v[1] = 0;
-    m_v[2] = 0;
-    m_v[3] = 0;
-    m_v[4] = 0;
-}
 
 #include "stClearTimeAverage/stClearTimeAverageMapKey.inc"
-{
-    clear();
-}
 
 #include "stClearTimeAverage/clear_1.inc"
-{
-    m_a = 0;
-    m_b = 0;
-}
 
 bool stClearTimeAverageMapKey::operator<(const stClearTimeAverageMapKey& o) const
 {

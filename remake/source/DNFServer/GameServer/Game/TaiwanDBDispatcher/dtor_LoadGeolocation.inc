@@ -1,1 +1,3 @@
 LoadGeolocation::~LoadGeolocation()
+{
+}

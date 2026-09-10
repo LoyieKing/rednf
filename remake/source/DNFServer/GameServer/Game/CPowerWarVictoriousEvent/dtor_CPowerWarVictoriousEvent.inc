@@ -1,1 +1,3 @@
 CPowerWarVictoriousEvent::~CPowerWarVictoriousEvent()
+{
+}

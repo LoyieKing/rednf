@@ -1,1 +1,3 @@
 TaiwanInterfaceDBDispatcher::~TaiwanInterfaceDBDispatcher()
+{
+}

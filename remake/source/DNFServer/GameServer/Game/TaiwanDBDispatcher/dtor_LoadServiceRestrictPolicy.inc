@@ -1,1 +1,3 @@
 LoadServiceRestrictPolicy::~LoadServiceRestrictPolicy()
+{
+}

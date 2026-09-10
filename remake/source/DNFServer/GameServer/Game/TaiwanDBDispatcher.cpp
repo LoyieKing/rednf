@@ -59,64 +59,31 @@
 // ORIG T 0x081090b4（u32 版；权威声明见 CInventory.h:535，本 TU 同款局部声明）
 char* NumberToString(unsigned int value, int radix);
 // ORIG T 0x0846c0a8（定义 GameUtils.cpp:88）
-#include "TaiwanDBDispatcher/CheckDailyScheduleTime.inc"
+bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime);
 
 // ---- TaiwanDBDispatcher ----
 
 #include "TaiwanDBDispatcher/TaiwanDBDispatcher.inc"
-{
-    m_dispatchers.clear();   // ORIG @0x0815a134：map::map + map::clear
-}
 
 // ---- DB* 子类最小实现（仅基类 ctor + vptr；业务方法不在本批）----
 
 #include "TaiwanDBDispatcher/LoadServiceRestrictPolicy.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)1)  // ORIG @0x0815e001 movl $0x1
-{
-}
 #include "TaiwanDBDispatcher/dtor_LoadServiceRestrictPolicy.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/SaveServiceRestrictPolicy.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)2)  // ORIG @0x0815e073 movl $0x2
-{
-}
 #include "TaiwanDBDispatcher/dtor_SaveServiceRestrictPolicy.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/LoadGeolocation.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)4)  // ORIG @0x0815e0e5 movl $0x4
-{
-}
 #include "TaiwanDBDispatcher/dtor_LoadGeolocation.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/CheckStayTimeEvent.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)5)  // ORIG @0x0815e157 movl $0x5
-{
-}
 #include "TaiwanDBDispatcher/dtor_CheckStayTimeEvent.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/ResetStayTimeEvent.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)7)  // ORIG @0x0815e1c9 movl $0x7
-{
-}
 #include "TaiwanDBDispatcher/dtor_ResetStayTimeEvent.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBUpdateExitTime.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)8)  // ORIG code 0x8
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBUpdateExitTime.inc"
-{
-}
 
 
 // SigUpdateExitTime（TaiwanQueries.h 私有 m_timeA/m_timeB）偏移视图：
@@ -135,76 +102,24 @@ struct DBUpdateExitTimeView
 // 0x1d4, __PRETTY_FUNCTION__, "[Taiwan, Auth] update member_login last_play_time.
 // (error:%s)", e) 返 0；成功返 1。
 #include "TaiwanDBDispatcher/dispatch.inc"
-{
-    try
-    {
-        Taiwan::SigUpdateExitTime* sig =
-            stream->GetOutBuffer<Taiwan::SigUpdateExitTime>();
-        if (sig == 0)
-            throw "handle null";
-        if (GlobalData::s_psimpleSSO->updateSSOExpireTime(
-                reinterpret_cast<DBUpdateExitTimeView*>(sig)->m_timeA,
-                reinterpret_cast<DBUpdateExitTimeView*>(sig)->m_timeB) != 1)
-            throw "exec";
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x1d4,
-            "[Taiwan, Auth] update member_login last_play_time. (error:%s)", e);
-        return 0;
-    }
-}
 
 #include "TaiwanDBDispatcher/DBSelectCreateDnfEventInfo.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)9)  // ORIG @0x0815e2ad movl $0x9
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBSelectCreateDnfEventInfo.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBSelectCreateDnfUserInfo.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0xa)  // ORIG @0x0815e31f movl $0xa
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBSelectCreateDnfUserInfo.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBInsertCreateDnfUserInfo.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0xb)  // ORIG @0x0815e391 movl $0xb
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBInsertCreateDnfUserInfo.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBSelectMobileAuthRewardTw.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0xc)  // ORIG @0x0815e403 movl $0xc
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBSelectMobileAuthRewardTw.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBSelectPcroomDailyReward.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0xd)  // ORIG @0x0815e475 movl $0xd
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBSelectPcroomDailyReward.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBUpdatePcroomDailyReward.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0xe)  // ORIG @0x0815e4e7 movl $0xe
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBUpdatePcroomDailyReward.inc"
-{
-}
 
 // ORIG T 0x0815cf06（报告 DBUpdatePcroomDailyReward/makeRequest.md）：PC 房日奖励
 // 落库请求：internal_stream(0xe, uid) → MSG{m_id=acc_id, m_remain=user+0x8ec32}。
@@ -213,187 +128,33 @@ struct DBUpdateExitTimeView
 // `cMyTrace(...)(...)` 后槽向与 ORIG 一致（75=75 逐条全等，仅余 nop 填充）。
 // 旧 b22「N82 槽号不可翻」判词作废。
 #include "TaiwanDBDispatcher/makeRequest.inc"
-{
-    // P0：Acquire 返回值右值内联进 ctor（ORIG %eax 直通，无 stream 栈槽）。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x325), true);
-    Taiwan::internal_stream(guard, TaiwanInternalPack::T(0xe), user->GetUID());
-    MSG* msg = guard->GetInBuffer<MSG>();   // ORIG via CStreamGuard::operator->
-    if (msg == 0)
-    {
-        // b28d-lane6 试形：P221 全表达式临时链（翻块内对象槽方向）。
-        cMyTrace("static void DBUpdatePcroomDailyReward::makeRequest(CUser*)",
-                 0x32b, 0)("[Taiwan, Pcroom] msg is null");
-    }
-    else
-    {
-        msg->m_id = user->get_acc_id();
-        msg->m_remain = user->m_field8ec32;
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-}
 
 #include "TaiwanDBDispatcher/DBInsertGiveBoxEventReward.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0x10)  // ORIG @0x0815e559 movl $0x10
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBInsertGiveBoxEventReward.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBLoadHeroMissionEventData.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0x12)  // ORIG @0x0815e5cb movl $0x12
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBLoadHeroMissionEventData.inc"
-{
-}
 
 #include "TaiwanDBDispatcher/DBSaveHeroMissionEventData.inc"
-    : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0x11)  // ORIG @0x0815e63d movl $0x11
-{
-}
 #include "TaiwanDBDispatcher/dtor_DBSaveHeroMissionEventData.inc"
-{
-}
 
 // ---- TaiwanInterfaceDBDispatcher 基类（ORIG W：C1 0x0815df66 / D1 0x0815df7e / D0 0x0815dfa4 / getCode 0x0815dfc2）----
 
 #include "TaiwanDBDispatcher/TaiwanInterfaceDBDispatcher.inc"
-    : m_code(code)
-{
-}
 #include "TaiwanDBDispatcher/dtor_TaiwanInterfaceDBDispatcher.inc"
-{
-}
 #include "TaiwanDBDispatcher/getCode.inc"
-{
-    return m_code;
-}
 
 #include "TaiwanDBDispatcher/dtor_TaiwanDBDispatcher.inc"
-{
-    std::for_each(m_dispatchers.begin(), m_dispatchers.end(), FnDelete());  // ORIG @0x0815a176
-}
 
 #include "TaiwanDBDispatcher/operator.inc"
-    std::pair<const TaiwanInternalPack::T, TaiwanInterfaceDBDispatcher*>& item)
-{
-    /* N7 封顶（b26 NL26）：唯一残差为虚 deleting-dtor 调用的 callee 寄存器
-     * 互换（ORIG vfn=%edx vs 4.4 恒 %eax，临时/引用/限定名均无效）。 */
-    delete item.second;   // ORIG @0x0815dfce：test+je + vtable D0 调用
-}
 
 #include "TaiwanDBDispatcher/getDispatcher.inc"
-{
-    std::map<TaiwanInternalPack::T, TaiwanInterfaceDBDispatcher*>::iterator it =
-        m_dispatchers.find(code);
-    if (it != m_dispatchers.end())
-    {
-        return it->second;
-    }
-    return 0;
-}
 
 #include "TaiwanDBDispatcher/addDispatcher.inc"
-                                       TaiwanInterfaceDBDispatcher* disp)
-{
-    if (getDispatcher(code) != 0)
-    {
-        return false;
-    }
-    m_dispatchers[code] = disp;
-    return true;
-}
 
 #include "TaiwanDBDispatcher/delDispatcher.inc"
-{
-    if (getDispatcher(code) != 0)
-    {
-        m_dispatchers.erase(m_dispatchers.find(code));
-    }
-}
 
 #include "TaiwanDBDispatcher/init.inc"
-{
-    TaiwanInterfaceDBDispatcher* p = 0;
-    p = new LoadServiceRestrictPolicy();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new SaveServiceRestrictPolicy();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new LoadGeolocation();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new CheckStayTimeEvent();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new ResetStayTimeEvent();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBUpdateExitTime();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBSelectCreateDnfEventInfo();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBSelectCreateDnfUserInfo();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBInsertCreateDnfUserInfo();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBSelectMobileAuthRewardTw();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBSelectPcroomDailyReward();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBUpdatePcroomDailyReward();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBInsertGiveBoxEventReward();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBLoadHeroMissionEventData();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    p = new DBSaveHeroMissionEventData();
-    if (p != 0 && addDispatcher(p->getCode(), p) != 1)
-    {
-        return false;
-    }
-    return true;
-}
 
 // ============================================================================
 // OnlyOrigBatch8 —— Taiwan DB 分发器业务方法（ORIG 0x0815b362..0x0815db96 族）。
@@ -420,107 +181,17 @@ struct SigHeroMissionDataView
 // fetch 失败 throw "fetch"；get_int(0,&flag) 失败 throw "get_int"；
 // flag!=0 直接返 1；否则 UPDATE 后 sendStayTimeData(uid)。成功返 1。
 #include "TaiwanDBDispatcher/dispatch_1.inc"
-{
-    try
-    {
-        // ORIG 0x0815b362：GetOutBuffer<Taiwan::SigStayTimeEvent>（MoreTypes.h 真类型；
-        // 禁本地同构视图——实例化类型不符产生 EXTRA 调用，P167 判据）。
-        Taiwan::SigStayTimeEvent* sig =
-            stream->GetOutBuffer<Taiwan::SigStayTimeEvent>();
-        if (sig == 0)
-            throw "context null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        // ORIG 0x0815b424：set_query 返回值不检查（失败留给 exec 的 throw）
-        db->set_query(
-            "seLect reward_flag from event_stay_time_charac where m_id=%s",
-            NumberToString(sig->m_accId, 0));
-        if (!db->exec(true))                 // ORIG：exec(true) 失败 throw
-            throw "select_exec";
-        if (db->get_n_rows() == 0)
-        {
-            // ORIG 0x0815b4ac：insert set_query 不检查，exec(true) 失败 throw
-            db->set_query(
-                "inSert into event_stay_time_charac values('%s', 1, 1, now())",
-                NumberToString(sig->m_accId, 0));
-            if (!db->exec(true))
-                throw "insert_exec";
-            sendStayTimeData(uid);
-        }
-        else
-        {
-            if (!db->fetch())
-                throw "fetch";
-            int flag = 0;
-            if (!db->get_int(0, flag))
-                throw "get_int";
-            // ORIG 0x0815b5a1：`test; jne 0x2ce`（flag!=0 直跳 return 块），
-            // Ghidra `if (flag==0) { update } return 1`。原 `if(flag!=0)return 1`
-            // 被 4.4 反成 je+mov$1（+4 条）。改 flag==0 正入 update、return 1
-            // 统一走末尾（P59）。
-            if (flag == 0)
-            {
-                // ORIG：update set_query 不检查，exec(true) 失败 throw
-                db->set_query(
-                    "upDate event_stay_time_charac set reward_flag=1, reward_count=reward_count+1, mod_date=now() where m_id = %s",
-                    NumberToString(sig->m_accId, 0));
-                if (!db->exec(true))
-                    throw "update_exec";
-                sendStayTimeData(uid);
-            }
-        }
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x18a,
-            "[Taiwan, Event] select event_stay_time_charac. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815b6ac：Acquire("localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x192)
 // → CStreamGuard(true) → internal_stream(guard, 0x5, uid) →
 // GetInBuffer<Taiwan::SigStayTimeEvent> 非空时 MsgQueueMgr::put(DB_Q, guard)。
 #include "TaiwanDBDispatcher/sendStayTimeData.inc"
-{
-    // P89：单一视图表达式（合并 stream 局部）
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x192), true);
-    Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x5, uid);
-    Taiwan::SigStayTimeEvent* sig =
-        guard.operator->()->GetInBuffer<Taiwan::SigStayTimeEvent>();
-    if (sig != 0)
-    {
-        // [b21] ORIG put @0x815b735 movl $0x1=DISPATCH_Q（QueueSweep21 回扫实证）；
-        // 非 DB_Q(2)——同族 DB 派发器归队队列 idx 1。
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-}
 
 // ORIG 0x0815b89a（static）：Acquire(file, 0x1b9) → CStreamGuard(true) →
 // internal_stream(guard, 0x8, a) → GetInBuffer<Taiwan::SigUpdateExitTime> 非空
 // 时 init()、internal_stream 第三参传 b（ORIG 0xc(%ebp) 实证）、set(a, c)、
 // MsgQueueMgr::put(DB_Q, guard)。
 #include "TaiwanDBDispatcher/makeRequest_1.inc"
-{
-    // P89：单一视图表达式（合并 stream 局部）
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x1b9), true);
-    Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x8, b);
-    Taiwan::SigUpdateExitTime* sig =
-        guard.operator->()->GetInBuffer<Taiwan::SigUpdateExitTime>();
-    if (sig != 0)
-    {
-        sig->init();
-        sig->set(a, c);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-}
 
 // ORIG 0x0815bb8c：GetDBHandle(9,0) null → throw "handle null"；
 // set_query("seLect rate, HOUR(CURTIME()), event_day FROM event_create_dnf_info
@@ -536,54 +207,6 @@ struct SigHeroMissionDataView
 // 0x10=eventDay ⇒ 原码 (hour, rate, eventDay) 与格式串一一对应；旧写 (eventDay, rate,
 // hour) 使日志 hour/event_day 两值互换。改序后 4.4 edi/esi/ebx 分配逐条复现。
 #include "TaiwanDBDispatcher/dispatch_2.inc"
-{
-    try
-    {
-        int rate = 0;
-        int hour = 0;
-        int eventDay = 0;
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        // ORIG：set_query 返回值不检查（仅 exec 检查）
-        db->set_query(
-            "seLect rate, HOUR(CURTIME()), event_day FROM event_create_dnf_info WHERE occ_time=DATE_ADD(CURDATE(), INTERVAL HOUR(CURTIME()) HOUR)");
-        if (!db->exec(1))
-            throw "select_exec";
-        if (db->get_n_rows() == 0)
-            throw "get_n_rows=0";
-        if (!db->fetch())
-            throw "fetch";
-        if (!db->get_int(0, rate))
-            throw "get_int 0";
-        if (!db->get_int(1, hour))
-            throw "get_int 1";
-        if (!db->get_int(2, eventDay))
-            throw "get_int 2";
-        InterSelectCreateDnfEventInfo::makeRequest(rate, hour, eventDay);
-        cMyTrace(__PRETTY_FUNCTION__, 0x20d, 0)(
-            "[Taiwan, Event] select event_create_dnf_info. hour:%d rate:%d event_day:%d",
-            // [b28d-solo-TaiwanDBDispatcher] 真 bug 修正：ORIG 0x0815be02 push 序
-            // 0x8(%esp)=hour(-0x38)/0xc=rate(-0x34)/0x10=eventDay(-0x3c) ⇒ 原码实参
-            // (hour, rate, eventDay)，与格式串 hour/rate/event_day 一一对应；
-            // 旧写 (eventDay, rate, hour) 把两值打印互换。
-            hour, rate, eventDay);
-        return 1;
-    }
-    catch (const char* e)
-    {
-        int sec = GlobalData::s_systemTime_.getCurSec();
-        struct tm tm;
-        localtime_r((time_t*)&sec, &tm);
-        InterSelectCreateDnfEventInfo::makeRequest(-1, tm.tm_hour, 0);
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x219,
-            "[Taiwan, Event] select event_create_dnf_event_info. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815c034：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
 // (9,0) null → throw "handle null"；set_query("seLect m_id from
@@ -595,41 +218,6 @@ struct SigHeroMissionDataView
 // logFormat(0x253) 返 0。成功返 1。
 // [b28d-lane6] AE（已修）：删 set_query 返回值检查（ORIG 0x0815c034 仅 check exec，多出的 throw 块消除）。
 #include "TaiwanDBDispatcher/dispatch_3.inc"
-{
-    try
-    {
-        DBSelectCreateDnfUserInfo::MSG* sig = stream->GetOutBuffer<DBSelectCreateDnfUserInfo::MSG>();
-        if (sig == 0)
-            throw "msg is null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        // b28d-lane6：ORIG 0x0815c034 不检查 set_query 返回值（仅 exec 检查），
-        // 删检查后消去多出的一份 throw 块。
-        db->set_query(
-            "seLect m_id from event_create_dnf_user where occ_date=CURDATE() and m_id=%s",
-            NumberToString(sig->m_id, 0));
-        if (!db->exec(1))
-            throw "select_exec";
-        bool received = false;
-        if (db->get_n_rows() != 0)
-            received = true;
-        InterSelectCreateDnfUserInfo::makeRequest(uid, sig->m_id, received);
-        cMyTrace(__PRETTY_FUNCTION__, 0x24d, 0)(
-            "[Taiwan, Event] select event_create_dnf_user. m_id:%s isReceived:%d",
-            NumberToString(sig->m_id, 0), received ? 1 : 0);
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x253,
-            "[Taiwan, Event] select event_create_dnf_user. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815c25c：GetRepeatEvent(0xa0) 非空且 IsEventing((CUser*)0)==1 才
 // 发消息：Acquire(file, 0x261) → CStreamGuard(true) → internal_stream(guard,
@@ -637,29 +225,6 @@ struct SigHeroMissionDataView
 // null")；否则 *buf = b；MsgQueueMgr::put(DB_Q, guard)。
 // [b28d-lane6] AE（已修）：去 bool skip 汇聚槽改早期返回 + P221 临时链（复现 ORIG 0x0815c25c 帧 0x30/槽序）。
 #include "TaiwanDBDispatcher/makeRequest_2.inc"
-{
-    // b28d-lane6 试形：去 bool skip 汇聚槽，改早期返回（ORIG 0x0815c25c 无 bool 槽）。
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0xa0);
-    if (ev == 0 || !ev->IsEventing((CUser*)0))
-        return;
-    {
-        // P89：单一视图表达式（合并 stream 局部）
-        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-            "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x261), true);
-        Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0xb, a);
-        DBInsertCreateDnfUserInfo::MSG* sig =
-            guard.operator->()->GetInBuffer<DBInsertCreateDnfUserInfo::MSG>();
-        if (sig == 0)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x267, 0)("[Taiwan, Event] msg is null");
-        }
-        else
-        {
-            *reinterpret_cast<unsigned int*>(sig) = b;
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-        }
-    }
-}
 
 // ORIG 0x0815c3b0：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
 // (9,0) null → throw "handle null"；set_query("inSert into
@@ -670,73 +235,12 @@ struct SigHeroMissionDataView
 // logFormat(0x286) 返 0。成功返 1。
 // [b28d-lane6] AE（已修）：P221 临时链 + +0x378 视图内联（ORIG 0x0815c3b0 单条 mov 0x378(%eax),%ebx）。
 #include "TaiwanDBDispatcher/dispatch_4.inc"
-{
-    try
-    {
-        DBInsertCreateDnfUserInfo::MSG* sig = stream->GetOutBuffer<DBInsertCreateDnfUserInfo::MSG>();
-        if (sig == 0)
-            throw "msg is null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        // ORIG 0x0815c480: set_query("inSert into event_create_dnf_user(occ_date,
-        //   m_id,server_id,occ_time) VALUES(CURDATE(),%s,%d,CURTIME())",
-        //   NumberToString(sig->m_id,0), G_CEnvironment()->+0x378)
-        // b28d-lane6：+0x378 视图具名访问 + 实参内联（ORIG 0x0815c480 单条
-        // `mov 0x378(%eax),%ebx` 且无 serverGroup 具名槽）。
-        struct EnvView { char m_pad[0x378]; int m_serverGroup; };
-        db->set_query(
-            "inSert into event_create_dnf_user(occ_date,m_id,server_id,occ_time) "
-            "VALUES(CURDATE(),%s,%d,CURTIME())",
-            NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
-            reinterpret_cast<EnvView*>(G_CEnvironment())->m_serverGroup);
-        if (!db->exec(1))
-            throw "insert_exec";
-        cMyTrace(__PRETTY_FUNCTION__, 0x281, 0)(
-            "[Taiwan, Event] insert event_create_dnf_user. m_id:%d",
-            *reinterpret_cast<unsigned int*>(sig));
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x286,
-            "[Taiwan, Event] insert event_create_dnf_user. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815c586：user->m_field8ec31 非 0 直接返回；Acquire(file, 0x294) →
 // CStreamGuard(true) → internal_stream(guard, 0xc, user->GetUID()) →
 // GetInBuffer<MSG> null → cMyTrace(0x29a)("[Taiwan, MobileAuth] msg is null")；
 // 否则 *buf = user->get_acc_id()；MsgQueueMgr::put(DB_Q, guard)。
 #include "TaiwanDBDispatcher/makeRequest_3.inc"
-{
-    if (user->m_field8ec31 != 0)
-        return;
-    // P89：单一视图表达式（合并 stream 局部）
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x294), true);
-    Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0xc, user->GetUID());
-    DBSelectMobileAuthRewardTw::MSG* sig =
-        guard.operator->()->GetInBuffer<DBSelectMobileAuthRewardTw::MSG>();
-    if (sig == 0)
-    {
-        // [b28c-32] P221 全表达式临时链：ORIG trace 槽 -0x1c（浅于 guard -0x24），
-        // 具名声明在 4.4 落 -0x24（更深）⇒ 改构造即调用临时链。
-        cMyTrace(__PRETTY_FUNCTION__, 0x29a, 0)(
-            "[Taiwan, MobileAuth] msg is null");
-    }
-    else
-    {
-        // [b28c-32] 具名字段（P156）；ORIG 0x0815c64a call get_acc_id 后
-        // `mov -0xc(%ebp),%edx; mov %eax,(%edx)`（地址 call 后重物化）。
-        sig->m_id = user->get_acc_id();
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-}
 
 // ORIG 0x0815c6a8：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
 // (9,0) null → throw "handle null"；set_query("seLect m_id from
@@ -749,61 +253,6 @@ struct SigHeroMissionDataView
 // 直读 `mov -0x14(%ebp),%eax; mov (%eax),%eax`）后帧 0x60→0x50、bool 槽 -0x19→-0x15、
 // trace 临时槽 -0x3c→-0x38 全归零。
 #include "TaiwanDBDispatcher/dispatch_5.inc"
-{
-    // [b28d-solo-TaiwanDBDispatcher] 语义闭合：msg-null/handle-null throw、set_query
-    // (不查返)+exec→select_exec、get_n_rows()==0 → INSERT+ok=false+trace(0x2be)、
-    // else ok=true+trace(0x2c3)、makeRequest(uid, m_id, ok)、return 1、catch
-    // logFormat(0x2cd) 返 0——逐条对齐 ORIG。原「残余 N82/N86」已解：删 mId 具名缓存
-    // 改逐处 `*reinterpret_cast<unsigned int*>(sig)` 直读（P183/P0）⇒ AE 171/171。
-    try
-    {
-        bool ok = true;
-        DBSelectMobileAuthRewardTw::MSG* sig = stream->GetOutBuffer<DBSelectMobileAuthRewardTw::MSG>();
-        if (sig == 0)
-            throw "msg is null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        // [b28d-solo-TaiwanDBDispatcher] P183/P0：ORIG 0x0815c6a8 每处直读
-        // `mov -0x14(%ebp),%eax; mov (%eax),%eax`（无 mId 具名槽），删除缓存局部。
-        // ORIG：set_query 返回值不检查（仅 exec 检查）
-        db->set_query("seLect m_id from mobile_auth_reward_tw where m_id=%s",
-                      NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
-        if (!db->exec(1))
-            throw "select_exec";
-        if (db->get_n_rows() == 0)
-        {
-            db->set_query(
-                "inSert into mobile_auth_reward_tw(m_id,occ_date) VALUES(%s,now())",
-                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
-            if (!db->exec(1))
-                throw "insert_exec";
-            ok = false;
-            cMyTrace(__PRETTY_FUNCTION__, 0x2be, 0)(
-                "[Taiwan, MobileAuth] insert mobile_auth_reward_tw. m_id:%s",
-                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
-        }
-        else
-        {
-            ok = true;
-            cMyTrace(__PRETTY_FUNCTION__, 0x2c3, 0)(
-                "[Taiwan, MobileAuth] select mobile_auth_reward_tw. m_id:%s",
-                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
-        }
-        InterSelectMobileAuthReward::makeRequest(
-            uid, *reinterpret_cast<unsigned int*>(sig), ok);
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x2cd,
-            "[Taiwan, MobileAuth] mobile_auth_reward_tw. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815ca94：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
 // (9,0) null → throw "handle null"；set_query("seLect m_id, remain_reward_count,
@@ -823,82 +272,6 @@ struct SigHeroMissionDataView
 // ③return 1 移出 try 到函数尾（P214②：ORIG 0x0815cef7 `mov $0x1,%ebx` 与 catch 的
 // `mov $0x0,%ebx` 在尾共享块汇合）。
 #include "TaiwanDBDispatcher/dispatch_6.inc"
-{
-    try
-    {
-        // [b28d-solo-TaiwanDBDispatcher] P171/P232：ORIG 0x0815ca9c prologue 后
-        // `movb $0x1,-0x15(%ebp)` 写后从不读（dead 局部）⇒ 照抄声明。
-        bool bDead = true;
-        (void)bDead;
-        DBSelectPcroomDailyReward::MSG* sig = stream->GetOutBuffer<DBSelectPcroomDailyReward::MSG>();
-        if (sig == 0)
-            throw "msg is null";
-        // [b28d-solo-TaiwanDBDispatcher] P28：ORIG 0x0815cae0 三条清零在 GetOutBuffer
-        // 之后（-0x4c/-0x50/-0x51）⇒ 声明落在 sig 检查之后。
-        unsigned int yesterday = 0;
-        unsigned int reward = 0;
-        char flag = 0;
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        // ORIG 0x0815cb49：G_CEnvironment()+0x37c 供 set_query（不检查返回值）；
-        // 0x0815cd86 再调一次供 CheckDailyScheduleTime（两次独立 G_CEnvironment）。
-        db->set_query(
-            "seLect m_id, remain_reward_count, unix_timestamp(occ_date) FROM pcroom_daily_reward_tw WHERE m_id=%s",
-            NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
-            G_CEnvironment()->m_serverEnvir.m_fatigueTime);
-        if (!db->exec(1))
-            throw "select_exec";
-        if (db->get_n_rows() == 0)
-        {
-            InterSelectPcroomDailyReward::makeRequest(uid, yesterday, 4);
-            cMyTrace(__PRETTY_FUNCTION__, 0x300, 0)(
-                "[Taiwan, Pcroom] pcroom_daily_reward_tw get_n_row==0 m_id:%s",
-                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
-        }
-        else
-        {
-            if (!db->fetch())
-                throw "fetch";
-            if (!db->get_int(0, yesterday))
-                throw "get_int 0";
-            if (!db->get_byte(1, flag))
-                throw "get_int 1";
-            if (!db->get_int(2, reward))
-                throw "get_int 2";
-            if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                                       reward,
-                                       GlobalData::s_systemTime_.getCurSec()))
-            {
-                InterSelectPcroomDailyReward::makeRequest(uid, yesterday, 4);
-                cMyTrace(__PRETTY_FUNCTION__, 0x311, 0)(
-                    "[Taiwan, Pcroom] pcroom_daily_reward_tw yesterday m_id:%s",
-                    NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
-            }
-            else
-            {
-                InterSelectPcroomDailyReward::makeRequest(uid, yesterday,
-                                                          (char)flag);
-                cMyTrace(__PRETTY_FUNCTION__, 0x316, 0)(
-                    "[Taiwan, Pcroom] pcroom_daily_reward_tw today m_id:%s, remain_reward_count:%d",
-                    NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
-                    (char)flag);
-            }
-        }
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x31c,
-            "[Taiwan, Pcroom] mobile_auth_reward_tw. (error:%s)", e);
-        return 0;
-    }
-    // [b28d-solo-TaiwanDBDispatcher] P214②：ORIG 0x0815cef7 成功路径 jmp 到函数尾
-    // 共享块，`mov $0x1,%ebx` 与 catch 的 `mov $0x0,%ebx` 汇合 ⇒ return 1 在 try 外。
-    return 1;
-}
 
 // ORIG 0x0815d024：GetOutBuffer<MSG> null → throw "context null"；GetDBHandle
 // (9,0) null → throw "handle null"；set_query("seLect m_id from
@@ -909,53 +282,6 @@ struct SigHeroMissionDataView
 // throw "update_exec"。catch logFormat(0x35d) 返 0。成功返 1。
 // [b28d-lane6] AE（已修·真 bug）：UPDATE 语句实参序 (str,remain)→(remain,str) 修正（ORIG 0x0815d0f2 压栈序实证）+ 删多余 set_query 检查 + remain 内联。
 #include "TaiwanDBDispatcher/dispatch_7.inc"
-{
-    try
-    {
-        DBUpdatePcroomDailyReward::MSG* sig = stream->GetOutBuffer<DBUpdatePcroomDailyReward::MSG>();
-        if (sig == 0)
-            throw "context null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        // b28d-lane6：不检查 set_query 返回值（ORIG 0x0815d024 仅 check exec）；
-        // 不设 remain 具名槽（ORIG 各分支内联重读 `movzbl 0x4(%eax); movsbl`）。
-        db->set_query("seLect m_id from pcroom_daily_reward_tw where m_id=%s",
-                      NumberToString(sig->m_id, 0));
-        if (!db->exec(1))
-            throw "select_exec";
-        if (db->get_n_rows() == 0)
-        {
-            db->set_query(
-                "inSert into pcroom_daily_reward_tw(m_id, occ_date, remain_reward_count) values('%s', now(), %d)",
-                NumberToString(sig->m_id, 0), (int)(char)sig->m_remain);
-            if (!db->exec(1))
-                throw "insert_exec";
-        }
-        else
-        {
-            // b28d-lane6 真 bug 修复：SQL 格式符序为 %d(remain) 后 %s(m_id)，
-            // ORIG 0x0815d0f2 压栈序 `mov %edx(remain),0x8(%esp)` +
-            // `mov %eax(str),0xc(%esp)` 证实实参序必须是 (remain, str)，
-            // 原码 (str, remain) 会把字符串喂给 %d、整数喂给 %s。
-            db->set_query(
-                "upDate pcroom_daily_reward_tw set occ_date=now(), remain_reward_count=%d where m_id = %s",
-                (int)(char)sig->m_remain, NumberToString(sig->m_id, 0));
-            if (!db->exec(1))
-                throw "update_exec";
-        }
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x35d,
-            "[Taiwan, Pcroom] pcroom_daily_reward_tw. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815d3ee：GetOutBuffer<MSG> null → throw "context null"；GetDBHandle
 // (9,0) null → throw "handle null"；time+localtime_r 拷贝 tm，tm_hour 覆为
@@ -978,70 +304,6 @@ struct SigHeroMissionDataView
 //   与 catch 的 mov $0,%ebx 汇合）⇒ return 1 必须写在 try 之外。
 //   0x0815d3ee orig=231 our=231 gap=0 ndiff=0。
 #include "TaiwanDBDispatcher/dispatch_8.inc"
-{
-    try
-    {
-        DBInsertGiveBoxEventReward::MSG* sig = stream->GetOutBuffer<DBInsertGiveBoxEventReward::MSG>();
-        if (sig == 0)
-            throw "context null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        time_t t = time(0);
-        struct tm tm;
-        localtime_r(&t, &tm);
-        struct tm tm2 = tm;
-        tm2.tm_hour = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
-        tm2.tm_min = 0;
-        tm2.tm_sec = 0;
-        time_t now = mktime(&tm2);
-        if (tm.tm_hour < tm2.tm_hour)
-            now -= 0x15180;
-        db->set_query(
-                "seLect m_id from event_1306_account_reward_2nd where m_id=%s and occ_date > FROM_UNIXTIME(%d)",
-                NumberToString(sig->m_accId, 0), (int)now);
-        if (!db->exec(1))
-            throw "select_exec";
-        int nRows = db->get_n_rows();
-        if (nRows == 0)
-        {
-            // b28c-L20: ORIG 0x0815d5c6 对 m_characNo(int) 直发
-            // `mov 0x4(%eax),%ebx`（跨 NumberToString 调用保活）；写
-            // `(unsigned int)sig->m_characNo` 的异型化实参会多一条
-            // `mov %eax,%ebx` 中转 ⇒ 保持字段同型（int）直传（P211 反向）。
-            db->set_query(
-                    "inSert into event_1306_account_reward_2nd (m_id , charac_no , occ_date ) values (%s , %u , now())",
-                    NumberToString(sig->m_accId, 0), sig->m_characNo);
-            if (!db->exec(1))
-                throw "insert_exec";
-            CStreamGuard guard(
-                GlobalData::s_stream_pool->Acquire(
-                    "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x3a5),
-                true);
-            Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x10, uid);
-            DBInsertGiveBoxEventReward::MSG* outSig =
-                guard.operator->()->GetInBuffer<DBInsertGiveBoxEventReward::MSG>();
-            if (outSig == 0)
-                throw "stream";
-            outSig->m_characNo = sig->m_characNo;
-            outSig->m_accId = sig->m_accId;
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-        }
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x3b4,
-            "[Taiwan, GiveMeBox] GIVE_ME_BOX_EVENT. (error:%s)", e);
-        return 0;
-    }
-    // b28c-L20: ORIG 0x0815d3ee 成功返回值在函数尾共享块物化（mov $1,%ebx 位于
-    // CStreamGuard 析构之后、与 catch 的 mov $0,%ebx 汇合）⇒ return 1 落在
-    // try 之外，不能写在 try 块内（4.4 会在 put 后立刻物化，ndiff 5）。
-    return 1;
-}
 
 // ORIG 0x0815d7a8：GetOutBuffer<Taiwan::SigLoadHeroMissionData> null → throw
 // "context_null"；GetDBHandle(9,0) null → throw "handle_null"；set_query
@@ -1062,74 +324,6 @@ struct SigHeroMissionDataView
 // ②`return put(DISPATCH_Q, guard)`（ORIG 0x0815daf3 `call put; mov %eax,%ebx` 尾
 // epilogue 返回 ebx；旧写 put();return 1 在 put 失败时恒返 1 = 真语义 bug）。
 #include "TaiwanDBDispatcher/dispatch_9.inc"
-{
-    try
-    {
-        Taiwan::SigLoadHeroMissionData* sig =
-            stream->GetOutBuffer<Taiwan::SigLoadHeroMissionData>();
-        if (sig == 0)
-            throw "context_null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle_null";
-        // b28d-lane6 试形：characNo 不设具名槽，各点内联重读（ORIG 无该槽，
-        // P0/P183 表达式直读）。
-        // ORIG 0x0815d7a8：G_CEnvironment()+get_server_group() 供 set_query
-        // （返回值不检查）；0x0815d82c 插行时再调一次（两次独立调用，P167 判据）。
-        // 仅 exec(1) 失败才 throw "exec_select"。
-        db->set_query(
-            "seLect mission from event_hero_mission_data where server_group=%d and charac_no=%u",
-            G_CEnvironment()->get_server_group(),
-            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
-        if (!db->exec(1))
-            throw "exec_select";
-        Taiwan::SigLoadHeroMissionData data;
-        data.init();
-        data.m_field0 = sig->m_field0;
-        if (db->get_n_rows() == 0)
-        {
-            db->set_query(
-                "inSert into event_hero_mission_data values(%d,%u,'',now())",
-                G_CEnvironment()->get_server_group(),
-                reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
-            if (!db->exec(1))
-                throw "exec_insert";
-            memset(data.m_data, 0, 0x100);
-        }
-        else
-        {
-            if (!db->fetch())
-                throw "fetch";
-            if (!db->get_binary(0, data.m_data, 0x100))
-                throw "get_binary";
-        }
-        // [b21] ORIG put @0x815daf3 movl $0x1=DISPATCH_Q（QueueSweep21 回扫实证）；
-        // 非 DB_Q(2)。Acquire 内联进 ctor（P134）消中间槽。
-        CStreamGuard guard(
-            GlobalData::s_stream_pool->Acquire(
-                "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x3ea),
-            true);
-        Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x12, uid);
-        Taiwan::SigLoadHeroMissionData* outSig =
-            guard.operator->()->GetInBuffer<Taiwan::SigLoadHeroMissionData>();
-        if (outSig == 0)
-            throw "stream_alloc";
-        memcpy(outSig, &data, 0x104);
-        // [b28d-solo-TaiwanDBDispatcher] 真语义：ORIG 0x0815daf3 `call put;
-        // mov %eax,%ebx`（尾 epilogue 返回 ebx）⇒ 原码 `return put(...)`，
-        // 不是 `put(); return 1;`（put 失败时 ORIG 返 0，旧写法恒返 1）。
-        return GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x3f5,
-            "[HeroMission] Error load hero mission. (msg:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815db98：GetOutBuffer<Taiwan::SigSaveHeroMissionData> null → throw
 // "context_null"；GetDBHandle(9,0) null → throw "handle_null"；
@@ -1140,38 +334,6 @@ struct SigHeroMissionDataView
 // [b28d-lane6] AE（已修）：三实参内联（blob/serverGroup/characNo 不设具名槽）后
 // 帧 0x30 与 ORIG 0x0815db98 全等（104=104）。
 #include "TaiwanDBDispatcher/dispatch_10.inc"
-{
-    try
-    {
-        Taiwan::SigSaveHeroMissionData* sig =
-            stream->GetOutBuffer<Taiwan::SigSaveHeroMissionData>();
-        if (sig == 0)
-            throw "context_null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle_null";
-        // ORIG 0x0815db98：set_query 返回值不检查（call 后直接 exec）；仅 exec(1)
-        // 失败才 throw "exec_update"。b28d-lane6 试形：三实参内联（ORIG 用
-        // esi/ebx 寄存器流转、无 serverGroup/characNo/blob 具名槽，帧 0x30）。
-        db->set_query(
-            "upDate event_hero_mission_data set mission='%s' where server_group=%d and charac_no=%u",
-            db->blob_to_str(0, reinterpret_cast<SigHeroMissionDataView*>(sig)->m_data, 0x100),
-            G_CEnvironment()->get_server_group(),
-            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
-        if (!db->exec(1))
-            throw "exec_update";
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x413,
-            "[HeroMission] Error load hero mission. (msg:%s)", e);
-        return 0;
-    }
-}
 // ---- OnlyOrigBatch10：Taiwan DB 域 dispatch 实现 ----
 
 // ORIG 0x0815b010 T LoadGeolocation::dispatch（报告 LoadGeolocation/dispatch.md）：
@@ -1180,71 +342,11 @@ struct SigHeroMissionDataView
 // "get_str" → SigLoadGeolocation::set；count>0x2b 时 sendCountryData+init；末尾
 // sendCountryData 一次。catch(const char*) logFormat 0x13c 返 0，成功返 1。
 #include "TaiwanDBDispatcher/dispatch_11.inc"
-{
-    try
-    {
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        int serverGroup = G_CEnvironment()->get_server_group();
-        db->set_query(
-            "seLect country_code from geo_allow_country where server_group = %d",
-            serverGroup);
-        if (!db->exec(true))
-            throw "exec";
-        // P214③/P202①：ORIG 0x0815b0e5 区为 4 条独立 `movl $0,-N(%ebp)`
-        // （16B 逐 dword），memset 生 call；逐 dword 视图赋值复现。
-        union GeoCodeBuf { char c[0x10]; unsigned int d[4]; };
-        GeoCodeBuf buf;
-        buf.d[0] = 0;
-        buf.d[1] = 0;
-        buf.d[2] = 0;
-        buf.d[3] = 0;
-        Taiwan::SigLoadGeolocation sig;
-        sig.init();
-        while (db->fetch())
-        {
-            // ORIG 循环内是 call memset@plt（仅循环前的预清零为 4 movl）。
-            memset(buf.c, 0, 0x10);
-            if (db->get_str(0, buf.c, 0x10) != 1)
-                throw "get_str";
-            sig.set(buf.c);
-            if (sig.m_count > 0x2b)
-            {
-                sendCountryData(sig);
-                sig.init();
-            }
-        }
-        sendCountryData(sig);
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x13c,
-            "[Taiwan, GeoIP] select geo_allow_country. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815b266 T LoadGeolocation::sendCountryData（报告 sendCountryData.md）：
 // Acquire(...,0x144) → internal_stream(guard, 4, -1) → GetInBuffer<SigLoadGeolocation>
 // null→throw "stream" → setData → put(Q1)。
 #include "TaiwanDBDispatcher/sendCountryData.inc"
-{
-    // P89：单一视图表达式（合并 stream 局部）
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x144), true);
-    Taiwan::internal_stream(guard, (TaiwanInternalPack::T)4, -1);
-    Taiwan::SigLoadGeolocation* out =
-        guard->GetInBuffer<Taiwan::SigLoadGeolocation>();   // ORIG via operator->
-    if (out == 0)
-        throw "stream";
-    out->setData(data);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-}
 
 // ORIG 0x0815a8f2 T LoadServiceRestrictPolicy::dispatch（报告 dispatch.md）：
 // GetDBHandle(1,0) null→throw "handle null"；set_query 失败 throw "set_query"；
@@ -1260,79 +362,11 @@ struct SigHeroMissionDataView
 // idx+=1 七形均不可翻（(short)idx 可对齐求值序但多 3 条 cwtl 且引入截断，弃用）；
 // 实参值/压栈序/调用目标全同 ⇒ P75 跨版本实参装载时刻，语义等价封 N。
 #include "TaiwanDBDispatcher/dispatch_12.inc"
-{
-    try
-    {
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        int serverGroup = G_CEnvironment()->get_server_group();
-        if (!db->set_query(
-                "seLect category, restrict_code, restrict_value from dnf_restrict_state where server_group=%d",
-                serverGroup))
-            throw "set_query";
-        if (!db->exec(true))
-            throw "exec";
-        Taiwan::SigLoadRestrictPolicy sig;
-        sig.init();
-        while (db->fetch())
-        {
-            int idx = 0;
-            int v1 = 0;
-            int v2 = 0;
-            char c = 0;
-            ++idx;
-            if (db->get_int(idx, v1) != 1)
-                throw "category";
-            ++idx;
-            if (db->get_int(idx, v2) != 1)
-                throw "restrict";
-            ++idx;
-            if (db->get_char(idx, c) != 1)
-                throw "values";
-            if (sig.m_restrictValue == 0 || sig.m_restrictValue == v1)
-            {
-                // [b28d-solo-TaiwanDBDispatcher] 真 bug 修正：ORIG 0x0815a8f2 两处
-                // set 压栈序 (0x4=v1,-0x1c / 0x8=v2,-0x20 / 0xc=c) ⇒ 原码 set(v1,v2,c)；
-                // 旧写 set(v2,v1,c) 使 m_restrictValue 与 m_extra 索引互换（可观察行为错）。
-                sig.set(v1, v2, c);
-            }
-            else
-            {
-                sendRestrictData(sig);
-                sig.init();
-                sig.set(v1, v2, c);
-            }
-        }
-        sendRestrictData(sig);
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0xd2,
-            "[Taiwan, Restrict] select dnf_restrict_state. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815ac40 T LoadServiceRestrictPolicy::sendRestrictData（报告
 // sendRestrictData.md）：Acquire(...,0xd9) → internal_stream(guard, 1, -1) →
 // GetInBuffer<SigLoadRestrictPolicy> null→throw "stream" → set → put(Q1)。
 #include "TaiwanDBDispatcher/sendRestrictData.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0xd9), true);
-    Taiwan::internal_stream(guard, (TaiwanInternalPack::T)1, -1);
-    Taiwan::SigLoadRestrictPolicy* out =
-        guard->GetInBuffer<Taiwan::SigLoadRestrictPolicy>();
-    if (out == 0)
-        throw "stream";
-    out->set(data);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-}
 
 // ORIG 0x0815ad3c T SaveServiceRestrictPolicy::dispatch（报告 dispatch.md）：
 // GetOutBuffer<SigLoadRestrictPolicy> null→throw "context null"；GetDBHandle(1,0)
@@ -1341,73 +375,9 @@ struct SigHeroMissionDataView
 // values(%d,%d,'%s')= (sg, restrictValue, i, &m_data[i*0x2d]+8)；set_query 失败
 // throw "set_query" / exec 失败 throw "insert_exec"。catch 0x10e 返 0。
 #include "TaiwanDBDispatcher/dispatch_13.inc"
-{
-    try
-    {
-        Taiwan::SigLoadRestrictPolicy* sig =
-            stream->GetOutBuffer<Taiwan::SigLoadRestrictPolicy>();
-        if (sig == 0)
-            throw "context null";
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        int serverGroup = G_CEnvironment()->get_server_group();
-        for (int i = 1; i <= sig->m_count; ++i)
-        {
-            if (!db->set_query(
-                    "inSert ignore into dnf_restrict_state (server_group , category , restrict_code , restrict_value , mod_date , reg_date) values(%d, %d, %d, '%d', now(), now())",
-                    serverGroup, sig->m_restrictValue, i,
-                    static_cast<int>(static_cast<signed char>(sig->m_extra[i]))))
-                throw "set_query";
-            if (!db->exec(true))
-                throw "insert_exec";
-        }
-        for (int i = 1; i <= sig->m_count; ++i)
-        {
-            if (!db->set_query(
-                    "inSert ignore into dnf_restrict_info (category , restrict_code , restrict_str , reg_date) values(%d, %d, '%s', now())",
-                    sig->m_restrictValue, i,
-                    sig->m_data[i]))
-                throw "set_query";
-            if (!db->exec(true))
-                throw "insert_exec";
-        }
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x10e,
-            "[Taiwan, Restrict] select dnf_restrict_state. (error:%s)", e);
-        return 0;
-    }
-}
 
 // ORIG 0x0815b76a T ResetStayTimeEvent::dispatch（报告 dispatch.md）：
 // GetDBHandle(9,0) null→throw "handle null"；set_query("upDate
 // event_stay_time_charac set reward_flag = 0")（不检查）→ exec 失败 throw "exec"。
 // catch 0x1ac 返 0，成功返 1。
 #include "TaiwanDBDispatcher/dispatch_14.inc"
-{
-    try
-    {
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                      (ENUM_SERVER_GROUP)0);
-        if (db == 0)
-            throw "handle null";
-        db->set_query("upDate event_stay_time_charac set reward_flag = 0");
-        if (!db->exec(true))
-            throw "exec";
-        return 1;
-    }
-    catch (const char* e)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", __PRETTY_FUNCTION__,
-            0x1ac,
-            "[Taiwan, Event] reset event_stay_time_charac. (error:%s)", e);
-        return 0;
-    }
-}

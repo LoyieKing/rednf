@@ -41,14 +41,9 @@
 // GameResultType[4] 的构造全部由编译器隐式生成（含 EH 反向析构 landing pad），
 // 不存在 placement-new（ORIG 无 _ZnwjPv 调用点）。
 #include "BattleData/BattleData.inc"
-{
-    Reset();
-}
 
 // ORIG 0x082a54d6：空体，仅隐式析构 GameResultType[4]（反向 0x140 → 0）。
 #include "BattleData/dtor_BattleData.inc"
-{
-}
 
 // ORIG 0x82a4e90 头部清零为 4.1 dest 缓存形：每对字段一次 this 载入+双 store
 //（0x0..0x24 五对、0x2c..0x48 四对、0x4c 单、0x28..0x2b 字节逐条、0x68c 单）。
@@ -66,85 +61,19 @@ struct BattleDataZeroView {
 } // namespace
 
 #include "BattleData/Reset.inc"
-{
-    ((BattleDataZeroView*)this)->a[0] = 0;
-    ((BattleDataZeroView*)this)->a[1] = 0;
-    ((BattleDataZeroView*)this)->a[2] = 0;
-    ((BattleDataZeroView*)this)->a[3] = 0;
-    ((BattleDataZeroView*)this)->a[4] = 0;
-    ((BattleDataZeroView*)this)->b[0] = 0;   // 0x2c/0x30 成对
-    ((BattleDataZeroView*)this)->b[1] = 0;   // 0x34/0x38 成对
-    m_killedMonster0 = 0;                    // ORIG 0x3c..0x4c 各独立单 store
-    m_killedMonster1 = 0;
-    m_killedMonster2 = 0;
-    m_field48 = 0;
-    m_field4c = 0;
-    m_flag28[0] = 0;
-    m_flag28[1] = 0;
-    m_flag28[2] = 0;
-    m_flag28[3] = 0;
-    m_field68c = 0;
-    for (int i = 0; i < 4; ++i)
-    {
-        m_arr50[i] = 0;
-        m_arr54[i] = 0;
-        m_arr58[i] = 0;
-        m_arr5c[i] = 0;
-        m_arr60[i] = 0;
-        m_gameResults[i].Clear();
-        m_arr7e8[i] = 0x7fffffff;
-        m_arr64[i] = 0;
-        reinterpret_cast<Inven_Item*>(&m_itemGroups0[i][0])->reset();
-        reinterpret_cast<Inven_Item*>(&m_itemGroups0[i][1])->reset();
-        reinterpret_cast<Inven_Item*>(&m_itemGroups1[i][0])->reset();
-        reinterpret_cast<Inven_Item*>(&m_itemGroups1[i][1])->reset();
-        reinterpret_cast<Inven_Item*>(&m_itemGroups2[i][0])->reset();
-        reinterpret_cast<Inven_Item*>(&m_itemGroups2[i][1])->reset();
-        m_arr7d0[i] = 0;
-        m_arr7e4[i] = 0;
-    }
-}
 
 #include "BattleData/GetHellPartyValueTotal.inc"
-{
-    return (int)m_hellPartyValueTotal;
-}
 
 #include "BattleData/SetHellPartyValueTotal.inc"
-{
-    m_hellPartyValueTotal = (float)value;
-}
 
 #include "BattleData/GetTotalKilledMonsterCount.inc"
-{
-    return m_killedMonster0 + m_killedMonster1 + m_killedMonster2;
-}
 
 // b28d-40: 真 bug 已修（比较方向 >=）+ P183 去缓存 + goto fail 共享出口；
 // 残差 = ORIG ebx 缓存 roomIndex + 单累加器 add 链 vs 4.4 lea（N4/P30 封顶）。
 // ORIG 0x085be7aa。
 #include "BattleData/IncEventDungeonDestoryObjectPoint.inc"
-    int param_1, const CMDPacketStruct::_STReqEventDungeonDestoryObject& st)
-{
-    if (st.m_roomIndex >= 3)
-    {
-        return;
-    }
-    // b28d-40: P183 去 idx 缓存（ORIG 0x085be711/0x085be761 两臂各一次全量重算索引）。
-    if (st.m_destroyType == 1)
-    {
-        m_eventClear[param_1 * 3 + st.m_roomIndex].m_monsterIdx += st.m_point;
-    }
-    else
-    {
-        m_eventClear[param_1 * 3 + st.m_roomIndex].m_roomIdx += st.m_point;
-    }
-}
 
 #include "BattleData/ResetEventDungeonClearPoint.inc"
-{
-    memset(m_eventClear, 0, sizeof(m_eventClear));
-}
 
 // b28d-40: 真 bug 已修（st.m_monsterIndex >= param_2，原写 <= 反向；ORIG 0x085be82b
 // `cmp 0x10(%ebp),%eax; jl fail`）+ P183 去 idx 缓存 + 共享 fail 出口复现；
@@ -156,35 +85,5 @@ struct BattleDataZeroView {
 //        ⇒ N86/N125 族，源形不可择（P321-T5：装载序/lea-vs-add 不得用类型旋钮赌）。
 // ORIG 0x085be7aa。
 #include "BattleData/ClearEventDungeonRoom.inc"
-    int param_1, int param_2, const CMDPacketStruct::_STReqEventDungeonClearRoom& st)
-{
-    // b28d-40: 真语义 bug 修正——ORIG 0x085be82b `cmp 0x10(%ebp),%eax; jl fail`
-    // ⇒ 成功条件是 st.m_monsterIndex >= param_2（原码写成 <= 反向）。
-    // 同时按 P183 去 idx 缓存（ORIG 三次独立全量重算索引）、P133 拆独立守卫。
-    if (st.m_roomIndex > 2)
-        return 0;
-    if (m_eventClear[param_1 * 3 + st.m_roomIndex].m_monsterIdx == st.m_monsterIndex)
-    {
-        if (m_eventClear[param_1 * 3 + st.m_roomIndex].m_roomIdx == st.m_monsterCount)
-        {
-            if (st.m_monsterIndex >= param_2)
-            {
-                m_eventClear[param_1 * 3 + st.m_roomIndex].m_clearFlag = 1;
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
 
 #include "BattleData/IsClearEventDungeonRoom.inc"
-{
-    // b28d-40: N4/P30 封顶——ORIG 0x085be87e 索引链用 %ebx 缓存 roomIdx（push %ebx、
-    // 槽 -0x8）且单累加器 add；4.4 用 %eax + `lea (%eax,%edx,1),%edx`（下标序交换
-    // 实测无效）。add-vs-lea + callee-saved 选择语义全等。ORIG 0x085be862。
-    if (roomIdx >= 3)
-    {
-        return 0;
-    }
-    return m_eventClear[param_1 * 3 + roomIdx].m_clearFlag;
-}

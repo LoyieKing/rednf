@@ -1,1 +1,3 @@
 DBSelectCreateDnfEventInfo::~DBSelectCreateDnfEventInfo()
+{
+}

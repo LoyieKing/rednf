@@ -34,15 +34,11 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // 对象尺寸 4。析构链（D1 0x08402bea / D0 0x08402c1a deleting）由类定义产出。
 // ============================================================================
 #include "DB_DeleteCharac/DB_DeleteCharac.inc"
-{
-}
 
 // ============================================================================
 // ~DB_DeleteCharac @0x08402bea（D1）/ 0x08402c1a（D0 deleting）
 // ============================================================================
 #include "DB_DeleteCharac/dtor_DB_DeleteCharac.inc"
-{
-}
 
 // ============================================================================
 // DB_DeleteCharac::dispatch @0x08402c38
@@ -55,77 +51,6 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // DeleteCharacOption；SendResult 失败 → 0；成功 cMyTrace 0x12ce 返 1。
 // ============================================================================
 #include "DB_DeleteCharac/dispatch.inc"
-{
-    if (!DBDispatcher::dispatch(userIdx, slot, stream))
-    {
-        return 0;
-    }
-
-    bool ret;
-    SIG_DELETE_CHARAC* sig = stream->GetOutBuffer<SIG_DELETE_CHARAC>();
-    if (sig == 0)
-    {
-        return 0;
-    }
-    sig->m_errNo = 0;
-
-    int curSec = GlobalData::s_systemTime_.getCurSec();
-
-    stItemLockInfo lock[100];
-    if (DB_LoadInventory::GetItemLock(sig->m_characNo, lock) == 0)
-    {
-        for (int i = 0; i <= 99; ++i)
-        {
-            if (lock[i].m_state == 1 ||
-                (lock[i].m_state == 2 &&
-                 lock[i].m_unlockSec + 0x3f480 > curSec))
-            {
-                sig->m_errNo = 3;
-                if (!SendResult(userIdx, slot, sig))
-                {
-                    return 0;
-                }
-                return 1;
-            }
-        }
-    }
-
-    if (!DeleteGuildInfo(sig))
-    {
-        cMyTrace("virtual bool DB_DeleteCharac::dispatch(int, int, Stream*)",
-                 0x12a7, 0)("[%s][%d] deLete charac(%d),guild_id(%d) FAIL",
-                            __PRETTY_FUNCTION__, 0x12a7, sig->m_characNo,
-                            sig->m_guildId);
-        if (!SendResult(userIdx, slot, sig))
-        {
-            return 0;
-        }
-        return 1;
-    }
-
-    sig->m_eventFlag = 0;
-    if (CheckEventCharacter40(sig))
-    {
-        DeleteEventCharacFlag(sig);
-        sig->m_eventFlag = 1;
-    }
-    ret = DeleteCharac(sig);
-    if (!ret)
-    {
-        sig->m_errNo = 1;
-    }
-    DeleteCharacOption(sig);
-    ret = SendResult(userIdx, slot, sig);
-    if (!ret)
-    {
-        return 0;
-    }
-    cMyTrace("virtual bool DB_DeleteCharac::dispatch(int, int, Stream*)",
-             0x12ce, 0)("[%s][%d] deLete charac(%d),guild_id(%d)",
-                        __PRETTY_FUNCTION__, 0x12ce, sig->m_characNo,
-                        sig->m_guildId);
-    return 1;
-}
 
 // ============================================================================
 // DB_DeleteCharac::DeleteGuildInfo @0x08402f4c
@@ -135,87 +60,6 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // （member_flag=2/secede），count(*) 更新 guild_info.member_count。
 // ============================================================================
 #include "DB_DeleteCharac/DeleteGuildInfo.inc"
-{
-    if (sig->m_guildId == 0)
-    {
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
-                                                      (ENUM_SERVER_GROUP)0);
-        db->set_query("seLect guild_id from charac_info where charac_no = %d",
-                      sig->m_characNo);
-        if (!db->exec(true))
-        {
-            sig->m_errNo = 1;
-            return 0;
-        }
-        if (!db->fetch() || !db->get_uint(0, sig->m_guildId))
-        {
-            sig->m_errNo = 1;
-            return 0;
-        }
-        if (sig->m_guildId == 0)
-        {
-            LogManager::logFormat(
-                1, "DBThread.cpp",
-                __PRETTY_FUNCTION__,
-                0x1312, "[Guild Del Error] guild_id=0, charac_no:%d",
-                sig->m_characNo);
-            return 1;
-        }
-    }
-
-    MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)8,
-                                                   (ENUM_SERVER_GROUP)0);
-    db2->set_query("seLect master_no from guild_info where guild_id = %d",
-                   sig->m_guildId);
-    if (!db2->exec(true))
-    {
-        sig->m_errNo = 1;
-        return 0;
-    }
-    unsigned int masterNo = 0;
-    if (!db2->fetch() || !db2->get_uint(0, masterNo))
-    {
-        sig->m_errNo = 1;
-        return 0;
-    }
-    if (sig->m_characNo == masterNo)
-    {
-        sig->m_errNo = 2;
-        return 0;
-    }
-    db2->set_query("upDate guild_member set member_flag = 2, secede_time = "
-                   "now(), secede_type = 2 where guild_id = %d and "
-                   "charac_no = %d", sig->m_guildId, sig->m_characNo);
-    if (!db2->exec(true))
-    {
-        sig->m_errNo = 1;
-        return 0;
-    }
-    db2->set_query("seLect count(*) from guild_member where guild_id = %d and "
-                   "member_flag = 1", sig->m_guildId);
-    if (!db2->exec(true))
-    {
-        sig->m_errNo = 1;
-        return 0;
-    }
-    int count;
-    if (!db2->fetch() || !db2->get_int(0, count))
-    {
-        sig->m_errNo = 1;
-        return 0;
-    }
-    if (count != 0)
-    {
-        db2->set_query("upDate guild_info set member_count = %d where "
-                       "guild_id = %d", count, sig->m_guildId);
-        if (!db2->exec(true))
-        {
-            sig->m_errNo = 1;
-            return 0;
-        }
-    }
-    return 1;
-}
 
 // ============================================================================
 // DB_DeleteCharac::DeleteEventCharacFlag @0x084032aa
@@ -223,17 +67,6 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // event_charac_flag。exec 失败返 0。
 // ============================================================================
 #include "DB_DeleteCharac/DeleteEventCharacFlag.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)6,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query("upDate member_login set event_charac_flag = 0 where m_id=%s",
-                  NumberToString(sig->m_accId, 0));
-    if (!db->exec(true))
-    {
-        return 0;
-    }
-    return 1;
-}
 
 // ============================================================================
 // DB_DeleteCharac::CheckEventCharacter40 @0x08403324
@@ -241,27 +74,6 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // exec/fetch/get_int 失败 → 0；level==0 → 0；否则 1。
 // ============================================================================
 #include "DB_DeleteCharac/CheckEventCharacter40.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query("seLect event_charac_level from charac_info where m_id=%s "
-                  "and charac_no=%d and delete_flag=0",
-                  NumberToString(sig->m_accId, 0), sig->m_characNo);
-    if (!db->exec(true))
-    {
-        return 0;
-    }
-    int level = 0;
-    if (!db->fetch() || !db->get_int(0, level))
-    {
-        return 0;
-    }
-    if (level != 0)
-    {
-        return 1;
-    }
-    return 0;
-}
 
 // ============================================================================
 // DB_DeleteCharac::DeleteCharac @0x0840340c
@@ -270,26 +82,6 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // （m_id/servier_id=Server_Envir.m_serverGroup/charac_no）后返 1。
 // ============================================================================
 #include "DB_DeleteCharac/DeleteCharac.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query("upDate charac_info set delete_time=now(),delete_flag=1 "
-                  "where charac_no=%u and m_id=%s", sig->m_characNo,
-                  NumberToString(sig->m_accId, 0));
-    if (!db->exec(true))
-    {
-        return 0;
-    }
-
-    MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                   (ENUM_SERVER_GROUP)0);
-    db2->set_query("deLete from dnf_master_charac where m_id='%u' and "
-                   "server_id='%u' and charac_no='%u'", sig->m_accId,
-                   G_CEnvironment()->m_serverEnvir.m_serverGroup,
-                   sig->m_characNo);
-    db2->exec(true);
-    return 1;
-}
 
 // ============================================================================
 // DB_DeleteCharac::SendResult @0x084034fe
@@ -297,29 +89,9 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // put_binary(sig,0x14) → MsgQueueMgr::put(QUEUE_IDX 1)。恒返 1。
 // ============================================================================
 #include "DB_DeleteCharac/SendResult.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp",
-                                                           0x13b0), true);
-    **guard << userIdx;
-    **guard << slot;
-    guard->put_binary(sig, 0x14);
-    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
-    return true;
-}
 
 // ============================================================================
 // DB_DeleteCharac::DeleteCharacOption @0x084035e0
 // charac_option 按 charac_no 删除。exec 失败返 0。
 // ============================================================================
 #include "DB_DeleteCharac/DeleteCharacOption.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query("deLete from charac_option where charac_no = %u",
-                  sig->m_characNo);
-    if (!db->exec(true))
-    {
-        return 0;
-    }
-    return 1;
-}

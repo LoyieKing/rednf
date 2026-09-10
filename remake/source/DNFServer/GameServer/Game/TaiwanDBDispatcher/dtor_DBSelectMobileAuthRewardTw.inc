@@ -1,1 +1,3 @@
 DBSelectMobileAuthRewardTw::~DBSelectMobileAuthRewardTw()
+{
+}

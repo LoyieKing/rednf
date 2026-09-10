@@ -28,9 +28,6 @@
 // （char 成员会先做 bool→char 扩展，与 ORIG 次序不符，经探针核实）。
 // ============================================================================
 #include "CPartyQuestLeafC3/setQuestMaze.inc"
-{
-    m_questMaze = flag;
-}
 
 // ============================================================================
 // CParty::getMemberMaxLevel —— ORIG T 0x085b60be（getMemberMaxLevel.md）
@@ -41,15 +38,3 @@
 // 返回 maxLevel。转写与同族 getMemberMaxLevelBeforeDungeon（CPartyDepsB2.cpp）一致。
 // ============================================================================
 #include "CPartyQuestLeafC3/getMemberMaxLevel.inc"
-{
-    int level;                                          // -0x10（槽位对齐 ORIG）
-    int maxLevel = 0;                                   // -0x14
-    for (int i = 0; i <= 3; ++i)                        // -0xc
-    {
-        if (!_checkValidUser(i))
-            continue;
-        level = m_member[i].m_pUser->get_charac_level();
-        maxLevel = std::max(maxLevel, level);
-    }
-    return maxLevel;
-}

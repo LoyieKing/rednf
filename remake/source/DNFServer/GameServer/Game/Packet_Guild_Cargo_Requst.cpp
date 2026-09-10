@@ -18,8 +18,3 @@
 // 唯一残差 call PacketHeaderC1Ett 为重定位占位（call <本函数+off>），数据地址/
 // 调用目标 relink 后转 AE；非语义差。
 #include "Packet_Guild_Cargo_Requst/Packet_Guild_Cargo_Requst.inc"
-    : PacketHeader(0x70a, 0x12)   // ORIG _ZN12PacketHeaderC1Ett
-{
-    m_characNo = 0;
-    m_field0e = 0;
-}

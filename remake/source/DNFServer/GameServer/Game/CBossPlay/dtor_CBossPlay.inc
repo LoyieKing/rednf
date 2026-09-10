@@ -1,1 +1,4 @@
 CBossPlay::~CBossPlay()
+{
+    reset();
+}

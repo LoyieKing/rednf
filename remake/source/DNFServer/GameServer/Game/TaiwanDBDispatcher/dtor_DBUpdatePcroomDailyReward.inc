@@ -1,1 +1,3 @@
 DBUpdatePcroomDailyReward::~DBUpdatePcroomDailyReward()
+{
+}

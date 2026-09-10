@@ -35,44 +35,9 @@
 // mangled _ZN31DB_UpdateChuseokPackagePurchase11makeRequestEj
 // ============================================================================
 #include "DB_UpdateChuseokPackagePurchase/makeRequest.inc"
-{
-    // b28c-33：ORIG 0x0843c8b6 无 stream 具名局部（Acquire 返回值 eax 直传 guard
-    // ctor 0x4(%esp)，guard 槽 -0x10）；值缓存局部多 store/load 且槽平移 -0x14。
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x90bd), true);
-    guard.operator*()->operator<<(0x213);
-    guard.operator*()->operator<<(-1);
-    guard.operator*()->operator<<(mId);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}
 
 // ============================================================================
 // DB_UpdateChuseokPackagePurchase::dispatch @ 0x0843c7bc
 // mangled _ZN31DB_UpdateChuseokPackagePurchase8dispatchEiiP6Stream
 // ============================================================================
 #include "DB_UpdateChuseokPackagePurchase/dispatch.inc"
-                                               Stream* s)
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                  (ENUM_SERVER_GROUP)0);
-    unsigned int mId = 0;
-    *s >> mId;
-
-    // ORIG：NumberToString(local_14, 0) 后直接拼入硬编码表名 SQL。
-    db->set_query(
-        "upDate event_1009_package_count set purchase_cnt = purchase_cnt+1 "
-        "where m_id=%s",
-        NumberToString(mId, 0));
-    if (!db->exec(true))
-        return false;
-    if (db->getAffectedRowCount() == 0)
-    {
-        db->set_query(
-            "inSert into event_1009_package_count(m_id, purchase_cnt) "
-            "values(%s, %u)",
-            NumberToString(mId, 0), 1);
-        if (!db->exec(true))
-            return false;
-    }
-    return true;
-}

@@ -1,1 +1,44 @@
 int CCreatureMgr::GetExtraGold(int gold) const
+{
+    if (m_equippedCreature == 0)
+        goto RET0;                          // ORIG je→+0xfc（default 岛）
+    if (m_equippedCreature->IsDieCreature())
+        return 0;
+    // [b28d-23 翻正] ORIG 每个返回块为 `mov %eax,-N(%ebp); mov -N(%ebp),%eax;
+    // jmp end`（具名 int 局部槽往返，P0）且 4 块各占独立槽
+    // -0x18/-0x14/-0x10/-0xc（N82：4.1 不复用槽）。跳表实测（ORIG .rodata
+    // 0x8c2d9f4，43 项）：块序 = {0x16,0x17,0x18}*5 → {0x2a,0x3f}*3 →
+    // {0x40}*5 → {0x36,0x37,0x38}*3，故按块序书写 case 并各给具名局部。
+    switch (m_equippedCreature->GetCreatureId())
+    {
+        case 0x16:
+        case 0x17:
+        case 0x18:
+        {
+            int extra = gold * 5 / 100;
+            return extra;
+        }
+        case 0x2a:
+        case 0x3f:
+        {
+            int extra = gold * 3 / 100;
+            return extra;
+        }
+        case 0x40:
+        {
+            int extra = gold * 5 / 100;
+            return extra;
+        }
+        case 0x36:
+        case 0x37:
+        case 0x38:
+        {
+            int extra = gold * 3 / 100;
+            return extra;
+        }
+        default:
+            goto RET0;
+    }
+RET0:
+    return 0;
+}

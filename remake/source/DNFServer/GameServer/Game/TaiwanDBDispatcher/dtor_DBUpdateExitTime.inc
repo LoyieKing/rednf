@@ -1,1 +1,3 @@
 DBUpdateExitTime::~DBUpdateExitTime()
+{
+}

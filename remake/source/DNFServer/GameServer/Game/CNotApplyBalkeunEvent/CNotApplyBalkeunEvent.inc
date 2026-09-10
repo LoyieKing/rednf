@@ -1,1 +1,3 @@
 CNotApplyBalkeunEvent::CNotApplyBalkeunEvent()
+{
+}

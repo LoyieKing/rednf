@@ -23,45 +23,22 @@
 // ---------------------------------------------------------------------------
 // ORIG 0x0811fd64：基类构造 + vptr 置位 + m_channelFactor = 100。
 #include "CLeadingChannelEvent/CLeadingChannelEvent.inc"
-    : m_channelFactor(100)
-{
-}
 
 // ORIG 0x0811fd8a / 0x0811fdba：D1 重置 vptr 后调 CEventBase::~CEventBase；
 // D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
 #include "CLeadingChannelEvent/dtor_CLeadingChannelEvent.inc"
-{
-}
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0811fdd8：SetEventFlag(true) + m_channelFactor = 100 +
 // cMyTrace(__FUNCTION__,0x13,0)("Leading Channel Event Start!")。
 #include "CLeadingChannelEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    m_channelFactor = 100;
-    cMyTrace tr(__FUNCTION__, 0x13, 0);
-    tr("Leading Channel Event Start!");
-}
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0811fe34：SetEventFlag(true) + m_channelFactor = param.m_duration +
 // cMyTrace(__FUNCTION__,0x1b,0)(同字符串)。
 #include "CLeadingChannelEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    m_channelFactor = param.m_duration;
-    cMyTrace tr(__FUNCTION__, 0x1b, 0);
-    tr("Leading Channel Event Start!");
-}
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0811fe92：SetEventFlag(false) + m_channelFactor = 100 +
 // cMyTrace(__FUNCTION__,0x23,0)("Leading Channel Event End!")。
 #include "CLeadingChannelEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    m_channelFactor = 100;
-    cMyTrace tr(__FUNCTION__, 0x23, 0);
-    tr("Leading Channel Event End!");
-}

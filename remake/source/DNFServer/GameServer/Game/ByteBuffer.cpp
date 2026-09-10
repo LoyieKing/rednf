@@ -49,9 +49,6 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
 
 // ORIG 0x081ae9e2：start=write=read=buffer; capacity=len。
 #include "ByteBuffer/ByteBuffer.inc"
-    : m_start(buffer), m_writePtr(buffer), m_readPtr(buffer), m_capacity(len)
-{
-}
 
 // [b28d-D43] ORIG 0x081ae9b8：static 成员 + 按值 sret 返回 —— 体 = 单次
 // `call ByteBuffer::C1EPcj(sret, buffer, len)` + `mov %ebx,%eax; ret $0x4`，
@@ -59,13 +56,6 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
 // sret/buffer/len 三参、无 this ⇒ P88/P245 static 判据。旧重建的
 // `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
 #include "ByteBuffer/wrap.inc"
-{
-    // [b28d-solo-nexon_cash] N 封顶（帧量化跨版本）：ORIG `sub $0x14` vs 4.4
-    // `sub $0xc`。实测 4.4 帧增量恒 align16(局部需求)（char[4]/char[8]/int 均
-    // 落 $0x1c），$0x14 不可达（P190 附注②/N95 族）。体 16/16 条全等，仅帧
-    // sub/add 立即数差，语义等价。
-    return ByteBuffer(buffer, len);
-}
 
 // ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
 // 空间足够则写 ushort 长度前缀（大端）+ wcsncpy + 游标前进 len*2。
@@ -212,9 +202,6 @@ ByteBuffer& ByteBuffer::operator>>(unsigned int& value)
 // 定义置于全部 <<x/>>x 消费者之后：ORIG 各 W body 内 call length 为宽松帧
 // （sub $0x18 + 具名 value 槽 -0xc），同 TU 定义前置会收紧 caller 帧（技巧31）。
 #include "ByteBuffer/length.inc"
-{
-    return static_cast<unsigned int>(m_writePtr - m_start);
-}
 
 }  // namespace cash
 }  // namespace nexon

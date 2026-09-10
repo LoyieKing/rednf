@@ -1,1 +1,3 @@
 CCreatureMgr::~CCreatureMgr()
+{
+}
