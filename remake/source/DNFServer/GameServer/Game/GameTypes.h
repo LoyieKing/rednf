@@ -88,8 +88,13 @@ private:
 class cMyTrace
 {
 public:
-    cMyTrace(const char* name, int line, int flag);
-    cMyTrace(const char* name, int line, int flag, bool bFieldC, bool bFieldD);  // ORIG 0x854f746
+    // [Main·2026-09-11 全局 A/B 实验] `throw()`（C++98 空异常规格）告知编译器该 ctor 不抛
+    // ——4.4 在调用点**看不到定义**时布 EH landing pad（含 `__Unwind_Resume`），而 ORIG 侧
+    // 无该 pad（K2 在 CPartyDepsD2::check_allmember_loading 实证：我方多 13 条 EH cleanup）。
+    // 影响面 = 全库所有 `cMyTrace` 调用点（热点头）⇒ 必须以**全局核账**定稿：
+    // 若 identical 不升或 diff/near 上升即整批回滚。
+    cMyTrace(const char* name, int line, int flag) throw();
+    cMyTrace(const char* name, int line, int flag, bool bFieldC, bool bFieldD) throw();  // ORIG 0x854f746
     void operator()(const char* fmt, ...);
 
 private:
