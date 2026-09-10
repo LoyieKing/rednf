@@ -116,6 +116,10 @@ public:
     info.clear();
     if (job < 0 || job > 10 || level > 0x46 || level < 1)
     {
+        // [N1D 2026-09-11 试形·负结论] trace1 匿名临时形（`cMyTrace(...)(...)`）
+        //   实测槽仍为 -0x48（4.4 对具名/临时同区分配）⇒ 零收益，已回滚。
+        //   ORIG 槽序 -0x58(trace1)/-0x48(trace2)/-0x38(trace3) 与我方 -0x48/-0x58/-0x38
+        //   的 trace1↔trace2 交换属 4.1↔4.4 栈槽分配策略差（不可控）。
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x1f, 5);
@@ -131,6 +135,18 @@ public:
         //   300 条不变（gap 仍 +1），形变为 `imul→%eax; lea (%edx,%eax,1),%eax;
         //   mov %eax,%edx`（中转仍在，且 imul 目标转为 %eax）⇒ 零收益，已回滚。
         //   与 D08 探针 /tmp/addr_probe.cpp g1 读数一致，N18a 维持。
+        // [N1D 2026-09-11 复测·n1_v 口径] 本件三段残差全部试毕，均判后端封顶：
+        //   ① trace 槽序：ORIG trace1(-0x58)/trace2(-0x48)/trace3(-0x38) vs
+        //      我方 trace1(-0x48)/trace2(-0x58)/trace3(-0x38)。本波试形：
+        //      trace1 加嵌套块（`{ { cMyTrace ... } }`）与 trace1 改匿名临时
+        //      （`cMyTrace(...)(...)`）两形实测槽**均不变**（仍 -0x48）⇒
+        //      4.1↔4.4 栈槽分配策略差，源码不可控。
+        //   ② 基表源地址：ORIG 0x08145f5c `mov 0x14(%eax),%ecx; mov 0x10(%ebp),%eax;
+        //      imul $0x7dc,%eax,%edx; lea (%ecx,%edx,1),%edx`（4 条）vs 我方
+        //      `mov 0x14(%eax),%eax; mov %eax,%edx; mov 0x10(%ebp),%eax;
+        //      imul $0x7dc,%eax,%eax; add %eax,%edx`（5 条，多 1 条中转）。
+        //      本波试形：交换操作数（`job*0x7dc + (char*)list`）实测全同 ⇒ 回滚。
+        //      N18a（D08 探针 g0–g6 七形亦不可造）。
         _Additioal_info base = *reinterpret_cast<const _Additioal_info*>(
             reinterpret_cast<const char*>(G_CDataManager()->m_characList) +
             job * 0x7dc);
@@ -403,6 +419,15 @@ public:
           && table->m_vec18.rbegin()->first >= point))
         return;
 
+    // [N1D 2026-09-11 复测·n1_v 口径] 真残差唯一段 = 技能点加法：
+    //   ORIG 0x085457e2..0x085457f4 `movzwl 0x6(%eax,%ecx,2),%eax;
+    //   mov %eax,%ecx; mov 0x10(%ebp),%eax; lea (%ecx,%eax,1),%eax;
+    //   mov %eax,%ecx; mov %cx,...`（5 条）vs 4.4 `movzwl ...,%ecx;
+    //   mov 0x10(%ebp),%eax; add %eax,%ecx; mov %cx,...`（3 条）。
+    //   本波试形：`m_skillLevels[type] = (unsigned short)(m_skillLevels[type] + point)`
+    //   （显式加法+截断，原为 `+= (unsigned short)point`）实测读数与形态**全同**
+    //   （235/234，同段同形）⇒ 已回滚。4.1 的两条 %eax→%ecx 值中转 + lea 加法
+    //   在 4.4 不可造（N18a/N1 族，与 D08 探针 f0–f7 八形结论一致）。
     m_skillLevels[type] += static_cast<unsigned short>(point);
     if (user->get_charac_level() == 0x46)
     {
@@ -551,6 +576,21 @@ public:
 //   [Main 边界并入] 同因 A14 `CPrivateStore::BuyItem` 实测 +2 劣化 ⇒ C07 完整前提 =
 //   字段读被升格 callee-saved **且该值在 call 之后仍被本函数复用**；本件该值仅作
 //   find_item 的**被调方按值实参**（call 后不复用）⇒ 属禁套面。
+// [N1D 2026-09-11 · n1_v 口径 + §6.5 串审计] 本波真修：**返回类型 int → bool**。
+//   证据三合一：① ORIG `.rodata` `_ZZN17Arad_GiftItem_Set9send_mailEP5CUseriiiiE
+//   19__PRETTY_FUNCTION__` @0x08bad6e0 size **0x3e** 实字节 =
+//   `bool Arad_GiftItem_Set::send_mail(CUser*, int, int, int, int)`（我方原 0x3d
+//   = `int ...`，N8 strall.py 审计报 O-only/N-only）；② ORIG 尾段 0x081a3407
+//   `call ARAD::send_mail` 之后直落 `add/pop/ret`，**无 bool 截断**（`test/setne`
+//   零条）⇒ 与 `ARAD::send_mail` 同型；③ 头文件声明侧（`CItemList.h:338` /
+//   `Arad_ItemBonus.h:82`，父泳道批准）+ 本 .inc 首行 + N4 的 ARAD 定义侧同批落 bool。
+//   落地后：我方 prett 符号 size **0x3e** 与 ORIG 逐字节一致；读数 95/95 gap 0
+//   保持（4.4 未插入截断）⇒ 串差异消除、零 ABI 影响（返回类型不入 mangled）。
+//   余 2 处 codegen 残差（本波复测仍存，判后端封顶）：
+//   ① 0x081a3384 `mov -0x1c(%ebp),%eax; mov %eax,%ebx`（find_item 实参两段装载）
+//      vs 我方 `mov -0x1c(%ebp),%ebx` 单段 ⇒ N18a（C07 具名形反劣已证，见上）；
+//   ② 0x081a33e5 `mov (%eax),%edx … call *%edx` vs 我方 `call *%eax` ⇒ N7
+//      （间接 call 目标寄存器，4.4.7 恒 %eax；4.4.6 后端可翻，路由归 Main）。
 #include "LinkClosureE/send_mail.inc"
 {
     Data* data = find(giftIdx, p4, p3);

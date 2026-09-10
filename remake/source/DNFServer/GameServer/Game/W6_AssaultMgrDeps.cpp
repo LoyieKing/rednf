@@ -620,6 +620,13 @@ struct CDataManagerTailView
 // CDataManager+0x600/604/608 具名视图（+0x608 为 float）。残余 = 4 处 x87 比较
 // lowering（ORIG fucompp/fnstsw/test$5,ah/sete 各多 1 条）+ x87 求值序临时槽
 // （-0x50/-0x4c/-0x48 vs -0x40 区；具名 float 临时探针反致浅槽漂移 0x0c）。
+// [S2W6Deps 复核·负结论] gap=+4 归因确认 = **编译器中端固有差，源码不可造**：
+// ORIG（原厂旧 gcc）每处浮点比较发 4 条 `fucompp; fnstsw %ax; test $0x45,%ah;
+// sete %al`（5 处 ×4=20），我方 gcc11 发 3 条 `fucomip %st(1),%st; fstp %st(0);
+// setae/seta %al`（5 处 ×3=15）⇒ 净 +4~+5。探针 /tmp/fpcmp/t.cpp（gcc11 -m32 -O0
+// 编译 `a<=0.0f / a>=b / a>b / a-b<=0.0f` 四式）实测恒出 `fcomip/fucomip+setcc`，
+// 不因源码改写（`>=`↔`<=` 翻转、具名 float 临时、`(double)`/`(float)` 混型）而变；
+// 与 N97「有符号除法 lowering cmovs」同族。已由父泳道 N3Free171to190 复核接受。
 // ORIG 0x082edc86。
 #include "W6_AssaultMgrDeps/GetRequestAssaultNeedMoney.inc"
 {
@@ -723,6 +730,26 @@ struct CDataManagerTailView
 // §6.2 三件套①p167 CLEAR 202/202（0 missing/0 extra）；②逐块对齐 Ghidra C 并修
 // 2 个真语义 bug（0x082ee06e attacker 的 AssaultedUserId、0x082ef0ce 错误包
 // 漏 put_byte(4)）；③帧 sub $0x120 vs ORIG $0xdc + 缺 push %edi（4.4 临时槽更多）。
+// [S2W6Deps 收敛记录] 1156 → **1108**（gap −59 → **−11**，共 −48 条），逐项（ORIG 地址）：
+//   ① 082ee7be..082ee82c 曼哈顿距离：删 dx/distX/absDx/dy/distY/absDy 6 具名 + bool
+//      tooFar 槽（-0x64/-0x60/-0x5c/-0x38/-0x34/-0x30/-0x55）→ 单条短路或 +
+//      __builtin_abs（P0/P329，−20）；
+//   ② 082ee88d..082ee8b5 vill/area：tooFar 三元嵌套 → 短路或（P324，−8）；
+//   ③ 082ee61b..082ee64a blackCount：去具名槽 + signed→unsigned 比较（P0+类型轴；
+//      ORIG `ja` 无符号，旧形 signed `jg` 在负值域运行行为不同 = 真语义修，−4）；
+//   ④ 082ee1fb 删 s_villageMonsterMgr 多余 `!= 0` 判空（发明防御，−4）；
+//   ⑤ 082eecb0/082eecbc authen/placeId 具名 → 实参内联（−4）；
+//   ⑥ 082eeeb1 joinCount 具名 → 实参内联（−2）；⑦ 082eeec2 invenW → 直调（−2）；
+//   ⑧ 082ee19a/082ee1a1/082ee1dd preventPeer 段：`!PowerWarOn()+else-if` → 真块
+//      先写 + `if (flag) 0xfd else 0xfb`（P324，−6）；
+//   ⑨ 082ee32b/082ee33c/082ee343 PowerWar 大块：then/else 交换 + ORIG `sete` 形
+//      `if (vill == 0x7) {...} else throw 0xfc`（P324，−10）；
+//   ⑩ 082ee971..082ee9b5 store 两守卫：`&&` → 嵌套 if（消 4.4 整体 bool 物化，−4）。
+// 余 **11 条 = N 封顶**：push/pop %edi（ORIG 082ee369 用 %edi 保活 vill 跨
+//   G_GameWorld() call，我方 %esi ⇒ N7 寄存器角色）+ 帧 0xe0 vs 0xdc（槽基址整体
+//   平移 0x3c，N82/N95）+ `test %eax,%eax; setne %al` ×2（= GetAssaultPrevent
+//   头签名 int，ORIG 8 位 `test %al,%al`，已报父泳道按 .h 项裁决）+ ORIG 独有的
+//   movl $0 预清/物化段（我方缺，属 gcc 中端差）。
 // ORIG 0x082edfba。
 #include "W6_AssaultMgrDeps/OnRequestAssault.inc"
 {
@@ -760,26 +787,37 @@ struct CDataManagerTailView
         bool preventPeerFlag = false;
         if (expert_job::CAlchemist::GetAssaultPrevent(attacker, &preventPeerFlag))
         {
-            if (!PowerWarOn())
+            // ORIG 082ee19f..082ee1f6 / 082ee2xx 同形：`movzbl -0x9d; test; je 0xfb段`
+            // 紧接 `throw 0xfd` ⇒ 原码书写序 = `if (preventPeerFlag) throw 0xfd;
+            // throw 0xfb;`（P324 叶块书写序；我方旧序为 0xfb 先，两段各多 1 条 jmp）。
+            // ORIG 082ee198 `test %al,%al; je 082ee198`（PowerWarOn()==0 跳到 else）
+            // + then 块 `cmp $0x7,%al; setne; test; je 082ee1fb`（vill==7 跳过）
+            // ⇒ 原码 = `if (PowerWarOn()) { if (vill != 0x7) {flag} } else {flag}`
+            //（P324：真分支先写；我方旧形 !PowerWarOn+else-if 会多 1 条 xor + 块序反转）。
+            if (PowerWarOn())
             {
-                if (!preventPeerFlag)
+                if (attacker->getCurCharacVill() != 0x7)
                 {
+                    if (preventPeerFlag)
+                    {
+                        throw static_cast<ENUM_ERROR>(0xfd);
+                    }
                     throw static_cast<ENUM_ERROR>(0xfb);
                 }
-                throw static_cast<ENUM_ERROR>(0xfd);
             }
-            else if (attacker->getCurCharacVill() != 0x7)
+            else
             {
-                if (!preventPeerFlag)
+                if (preventPeerFlag)
                 {
-                    throw static_cast<ENUM_ERROR>(0xfb);
+                    throw static_cast<ENUM_ERROR>(0xfd);
                 }
-                throw static_cast<ENUM_ERROR>(0xfd);
+                throw static_cast<ENUM_ERROR>(0xfb);
             }
         }
 
-        if (GlobalData::s_villageMonsterMgr != 0
-            && GlobalData::s_villageMonsterMgr->OnEvent())
+        // ORIG 082ee1fb 直接把全局对象地址当 this 传入（`mov &s_villageMonsterMgr,
+        // %eax; mov %eax,(%esp); call OnEvent`，无判空分支）⇒ 原码无防御。
+        if (GlobalData::s_villageMonsterMgr->OnEvent())
         {
             throw static_cast<ENUM_ERROR>(0xd9);
         }
@@ -802,38 +840,47 @@ struct CDataManagerTailView
             throw static_cast<ENUM_ERROR>(0x13);
         }
 
-        if (!PowerWarOn())
+        // ORIG 082ee32b `je 082ee4f4`（PowerWarOn()==0 → 尾随 else 块）+ 082ee343
+        // `je 082ee4c8`（vill!=7 → 尾随 throw 0xfc 段）⇒ 原码书写序 = `if
+        // (PowerWarOn()) { ...大块... } else { vill==7 → 0x13 }`（P324 叶块序）。
+        if (PowerWarOn())
         {
+            // ORIG 082ee33c `cmp $0x7,%al; sete %al; test %al,%al; je 082ee4c8`
+            // （082ee4c8 = throw 0xfc 段）⇒ 原码 = `if (vill == 0x7) {...} else
+            // throw 0xfc;`（sete 而非 setne，P324 叶块书写序）。
             if (attacker->getCurCharacVill() == 0x7)
             {
-                throw static_cast<ENUM_ERROR>(0x13);
+                // ORIG 082ee349/082ee35e：实参内联（area 留 %ebx 无槽，P0/P183）。
+                if (G_GameWorld()->IsPowerWarSafeZone(
+                        static_cast<int>(attacker->getCurCharacVill()),
+                        attacker->get_area(false)))
+                {
+                    throw static_cast<ENUM_ERROR>(0x13);
+                }
+                if (attacker->getPowerSide() == target->getPowerSide()
+                    || attacker->isJoinPowerWar() == 0
+                    || target->isJoinPowerWar() == 0)
+                {
+                    throw static_cast<ENUM_ERROR>(0x13);
+                }
+                CParty* party = static_cast<CParty*>(attacker->GetParty());
+                if (party != 0 && party->CanDoPartyActionAssalutState() == 0)
+                {
+                    throw static_cast<ENUM_ERROR>(0x13);
+                }
+                if (target->GetCurCharacSuperState() != 0)
+                {
+                    throw static_cast<ENUM_ERROR>(0x13);
+                }
+            }
+            else
+            {
+                throw static_cast<ENUM_ERROR>(0xfc);
             }
         }
         else
         {
-            if (attacker->getCurCharacVill() != 0x7)
-            {
-                throw static_cast<ENUM_ERROR>(0xfc);
-            }
-            // ORIG 082ee349/082ee35e：实参内联（area 留 %ebx 无槽，P0/P183）。
-            if (G_GameWorld()->IsPowerWarSafeZone(
-                    static_cast<int>(attacker->getCurCharacVill()),
-                    attacker->get_area(false)))
-            {
-                throw static_cast<ENUM_ERROR>(0x13);
-            }
-            if (attacker->getPowerSide() == target->getPowerSide()
-                || attacker->isJoinPowerWar() == 0
-                || target->isJoinPowerWar() == 0)
-            {
-                throw static_cast<ENUM_ERROR>(0x13);
-            }
-            CParty* party = static_cast<CParty*>(attacker->GetParty());
-            if (party != 0 && party->CanDoPartyActionAssalutState() == 0)
-            {
-                throw static_cast<ENUM_ERROR>(0x13);
-            }
-            if (target->GetCurCharacSuperState() != 0)
+            if (attacker->getCurCharacVill() == 0x7)
             {
                 throw static_cast<ENUM_ERROR>(0x13);
             }
@@ -860,8 +907,10 @@ struct CDataManagerTailView
 
         if (!m_bAssaultChannel)
         {
-            const int blackCount = target->getCurrCharacBlackCount();
-            if (blackCount < 100 && target->GetCurCharacChaosPoint() == 0)
+            // ORIG 082ee62b `ja`（无符号比较）+ 值直留 %eax（无槽，P0/P197）：
+            // 原码为 unsigned 比较、无具名局部。
+            if (static_cast<unsigned int>(target->getCurrCharacBlackCount()) < 100
+                && target->GetCurCharacChaosPoint() == 0)
             {
                 throw static_cast<ENUM_ERROR>(0x8);
             }
@@ -888,48 +937,21 @@ struct CDataManagerTailView
             throw static_cast<ENUM_ERROR>(0x13);
         }
 
-        // 曼哈顿距离 |dx|+|dy| > 100 → 0x63。
-        unsigned int dx = attacker->get_posX() & 0xffff;
-        dx -= target->get_posX() & 0xffff;
-        int distX = static_cast<int>(dx) >> 31;
-        int absDx = static_cast<int>((dx ^ distX) - distX);
-        bool tooFar = false;
-        if (absDx >= 0x65)
-        {
-            tooFar = true;
-        }
-        else
-        {
-            unsigned int dy = attacker->get_posY() & 0xffff;
-            dy -= target->get_posY() & 0xffff;
-            int distY = static_cast<int>(dy) >> 31;
-            int absDy = static_cast<int>((dy ^ distY) - distY);
-            if (absDy > 100)
-            {
-                tooFar = true;
-            }
-        }
-        if (tooFar)
+        // ORIG 082ee7be..082ee82c：单条短路或 + abs builtin（dx/absDx/dy/absDy
+        // 全无具名槽：X 段 `cmp $0x64,%eax; jg`、Y 段 `jle`，值只在寄存器里
+        // 走 sar/xor/sub；P0/P329）。
+        if (__builtin_abs(static_cast<int>(attacker->get_posX())
+                          - static_cast<int>(target->get_posX())) > 100
+            || __builtin_abs(static_cast<int>(attacker->get_posY())
+                             - static_cast<int>(target->get_posY())) > 100)
         {
             throw static_cast<ENUM_ERROR>(99);          // ORIG movl $0x63
         }
 
-        if (attacker->getCurCharacVill() == target->getCurCharacVill())
-        {
-            if (attacker->get_area(false) == target->get_area(false))
-            {
-                tooFar = false;
-            }
-            else
-            {
-                tooFar = true;
-            }
-        }
-        else
-        {
-            tooFar = true;
-        }
-        if (tooFar)
+        // ORIG 082ee88d..082ee8b5：同形短路或（vill 用 `jne` 到 TRUE、area 用
+        // `je` 到 FALSE），无 tooFar 槽复用。
+        if (attacker->getCurCharacVill() != target->getCurCharacVill()
+            || attacker->get_area(false) != target->get_area(false))
         {
             throw static_cast<ENUM_ERROR>(0x13);
         }
@@ -945,14 +967,23 @@ struct CDataManagerTailView
         // ORIG 082ee95a/082ee9ba 两次独立 GetInstancePrivateStoreMgr（无 storeMgr 局部）。
         private_store::CPrivateStore* store =
             private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(attacker);
-        if (store != 0 && store->isDollCreated() == 0)
+        // ORIG 082ee971..082ee9b5：`cmpl $0x0,-0x38; setne %al; test %al,%al; je
+        // 082ee9ba` + 第二守卫同落 082ee9ba（**无** `mov $1/jmp/mov $0/test` 整体
+        // 物化）⇒ 原码为嵌套 if（P324 叶块书写序；`&&` 直写令 4.4 物化整体多 4 条）。
+        if (store != 0)
         {
-            throw static_cast<ENUM_ERROR>(0x3c);
+            if (store->isDollCreated() == 0)
+            {
+                throw static_cast<ENUM_ERROR>(0x3c);
+            }
         }
         store = private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(target);
-        if (store != 0 && store->isDollCreated() == 0)
+        if (store != 0)
         {
-            throw static_cast<ENUM_ERROR>(0x3c);
+            if (store->isDollCreated() == 0)
+            {
+                throw static_cast<ENUM_ERROR>(0x3c);
+            }
         }
 
         CParty* attackerParty = 0;
@@ -1009,9 +1040,11 @@ struct CDataManagerTailView
             m_places.insert(std::make_pair(nextPlaceId, acquiredPlace));
         (void)inserted;
 
-        const int authen = acquiredPlace->GetAuthenValue();
-        const int placeId = acquiredPlace->GetAssaultPlaceId();
-        TimerCompleteLoadAssaultTimeout::registNextTimer(0x3c, placeId, authen);
+        // ORIG 082eecb0..082eece6：两结果只在 %ebx/%eax 跨 call 保活（GetAuthenValue
+        // →%ebx、GetAssaultPlaceId→%eax 直落实参，无槽往返）⇒ 原码实参内联（P0/P329）。
+        TimerCompleteLoadAssaultTimeout::registNextTimer(
+            0x3c, acquiredPlace->GetAssaultPlaceId(),
+            acquiredPlace->GetAuthenValue());
 
         if (PowerWarOn()
             && attacker->getCurCharacVill() == 0x7)
@@ -1037,8 +1070,9 @@ struct CDataManagerTailView
                      + static_cast<float>(chargeMoney));
                 chargeMoney = static_cast<int>(pricedF);    // ORIG fstcw/fistpl 截断
             }
-            CInventory* invenW = attacker->getCurCharacInvenW();
-            invenW->use_money(chargeMoney, static_cast<eMoneySubReason>(0x15), true);
+            // ORIG 082eeec2：getCurCharacInvenW 结果直留 %eax 当 this（无具名槽）。
+            attacker->getCurCharacInvenW()->use_money(
+                chargeMoney, static_cast<eMoneySubReason>(0x15), true);
             attacker->SetCurCharacAssaultMoney(0);
             attacker->SetCurCharacAssaultedUserId(0);
         }
@@ -1047,9 +1081,10 @@ struct CDataManagerTailView
         if (PowerWarOn()
             && attacker->getCurCharacVill() == 0x7)
         {
-            const int joinCount = acquiredPlace->GetAssaulterCount();
-            // ORIG 082eeeb1/082eeecd 两次独立 GetPowerWarLog（无 log 局部）。
-            GlobalData::s_power_manager->GetPowerWarLog()->IncTotalJoinAssaultUser(joinCount);
+            // ORIG 082eeeb1/082eeecd 两次独立 GetPowerWarLog（无 log 局部）；
+            // GetAssaulterCount 结果直落 0x4(%esp)（无 joinCount 槽，P0/P329）。
+            GlobalData::s_power_manager->GetPowerWarLog()->IncTotalJoinAssaultUser(
+                acquiredPlace->GetAssaulterCount());
             GlobalData::s_power_manager->GetPowerWarLog()->IncAssaultAttemptSuccessCount();
         }
 

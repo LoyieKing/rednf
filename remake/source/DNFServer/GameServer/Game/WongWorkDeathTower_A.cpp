@@ -55,9 +55,13 @@ namespace WongWork { struct stGenerateRefClearReward_t; }
 namespace {
 
 static const char kFile_DeathTower[] = "DeathTower.cpp";
-static const char kFunc_generateRewardExp[] =
-    "void WongWork::CDeathTower::CPlayData::generateRewardExp(int, int, unsigned int, "
-    "CParty*, WongWork::CDeathTower::CDungeonMgr&)";
+// [N3 2026-09-11 P139] ORIG 该 TU 发射局部静态
+//   `_ZZN8WongWork11CDeathTower9CPlayData17generateRewardExpEiijP6CPartyRNS0_11CDungeonMgrEE19__PRETTY_FUNCTION__`
+//   @0x08c64020（size 0x7f，objdump -s 实读内容 =
+//   "void WongWork::CDeathTower::CPlayData::generateRewardExp(int, int, unsigned int,
+//    CParty*, WongWork::CDeathTower::CDungeonMgr&)"）；旧形手写 static const char[]
+//   串内容相同但**不发射该符号**（计入 missing_in_game）⇒ 改用 __PRETTY_FUNCTION__
+//   （串内容由声明拼写决定，与本处签名逐字节一致）。
 
 } // namespace
 
@@ -413,7 +417,7 @@ namespace WongWork {
         // [M1S3EmblemLink 2026-09-11 P0] ORIG 无 logWeight 具名槽：0x084626xx 处
         //   `flds 0xc(%eax,%edx,4)` 直接内存取（G_CDataManager 后取），其前仅
         //   `mov -0x1c(%ebp),%eax`（reward）⇒ 权重表达式内联进实参。
-        LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x2ff,
+        LogManager::logFormat(1, kFile_DeathTower, __PRETTY_FUNCTION__, 0x2ff,
             "BLOOD_LOG : EROOR DEATHTOWER REWARD EXP(%u), LAST STAGE(%d), BASE EXP(%u), EXP WEIGHT(%f)\n",
             reward, stage, baseExp,
             (double)G_CDataManager()->m_deathTower.m_rewardExpWeight[stage]);
@@ -427,16 +431,19 @@ namespace WongWork {
 
     float pcRoomRate = 0.0f;
     {   // 事件 8：PC 房间燃烧（整除 /100 —— imul 0x51eb851f 形态实证）
-        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(8);
-        if (ev->IsEventing(user))
+        // [N3 2026-09-11 P0] ORIG 0x08462701..0x08462727 无 ev 具名槽：
+        //   `mov s_event_manager,%eax; movl $0x8,0x4(%esp); call GetRepeatEvent;
+        //    mov (%eax),%edx; add $0x34,%edx; mov (%edx),%ecx; mov -0x18(%ebp),%edx;
+        //    mov %edx,0x4(%esp); mov %eax,(%esp); call *%ecx` ⇒ 虚调直内联。
+        if (GlobalData::s_event_manager->GetRepeatEvent(8)->IsEventing(user))
             pcRoomRate = (float)(((CPCRoomBurningEvent*)
                 GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
     }
 
     float expDoubleRate = 0.0f;
     {   // 事件 3：双倍经验（浮点 /100.0f，常量 _DAT_08c640b8 = 100.0f）
-        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(3);
-        if (ev->IsEventing(0))
+        // [N3 2026-09-11 P0] 同上：ORIG 0x08462775..0x0846279c 无 ev 具名槽（直内联）。
+        if (GlobalData::s_event_manager->GetRepeatEvent(3)->IsEventing(0))
             expDoubleRate = (float)((CExpDoubleEvent*)
                 GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / 100.0f;
     }
@@ -481,9 +488,9 @@ namespace WongWork {
 
     if (1100000 < reward)
     {
-        LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x324,
+        LogManager::logFormat(1, kFile_DeathTower, __PRETTY_FUNCTION__, 0x324,
             "BLOOD_LOG : EROOR DEATHTOWER CLEAR REWARD EXP(%u)\n", reward);
-        LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x32e,
+        LogManager::logFormat(1, kFile_DeathTower, __PRETTY_FUNCTION__, 0x32e,
             "BLOOD_LOG : DEATHTOWER EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
             (double)avatarBonus, (double)creatureBonus, (double)pcRoomRate,
             (double)expDoubleRate, (double)channelRate,

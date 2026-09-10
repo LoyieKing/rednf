@@ -382,6 +382,11 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
     std::time_t now = static_cast<std::time_t>(s_systemTime_.getCurSec());
     std::tm t;
     std::tm* p = localtime_r(&now, &t);   // P43：ORIG 经返回值指针读字段
+    // [N3Free171to190·GameMain] AE 修法（P339 声明序=槽序）：`next` 必须在 curHour
+    // **之前**声明 —— ORIG 槽序 next(-0x1c) < curHour(-0x18) < curMin(-0x14) <
+    // key(-0x10) 与声明序一致（4.4 先声明先分配深槽）。旧形在循环内声明，四槽整体
+    // 轮换（我方 curHour/curMin/key/next vs ORIG next/curHour/curMin/key）。
+    std::time_t next;
     const int curHour = p->tm_hour;
     const int curMin = p->tm_min;
     // P183：ORIG 无 table 引用缓存——begin/end 各自独立调 G_CDataManager()
@@ -398,7 +403,6 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
     for (; it != e; ++it)
     {
         int key = it->first;   // ORIG -0x10 槽（循环头一次性读取）
-        std::time_t next;
         // P157/P183：ORIG 每个字段访问都重新 `call operator->`（14×，p167 差集
         // MISSING 14×ptEv）——禁 `const T& win = it->second` 引用缓存。
         if (curHour >= it->second.m_startHour &&
@@ -475,18 +479,21 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x52, 0, 0, 0);
 
     // 0x54：对齐到整半点（ORIG：1740 - 60*(tm_mon - 30*(tm_mon/15)) + (60 - tm_sec)）
-    {
-        std::time_t now = std::time(0);
-        std::tm t;
-        // P43：ORIG 0x082a04fb `mov %eax,-0x18; mov 0x4(%eax),%ecx` 经返回值指针读字段。
-        std::tm* p = localtime_r(&now, &t);
-        // ORIG 0x082a0504 magic 0x88888889 + `sar $0x4` = **÷30**（sar 3 才是 ÷15），
-        // 随后 `v = tm_min - 30*q` ⇒ 源形 `tm_min % 30`（半点对齐；旧实现误用
-        // tm_mon/15，属真语义 bug）。v 无槽（寄存器直算），故内联进 delay 表达式。
-        int delay = 1740 - 60 * (p->tm_min % 30) + (60 - p->tm_sec);
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                    (TIMER_MESSAGE)0x54, delay, 0, 0);
-    }
+    // [N3Free171to190·GameMain] AE 修法（P339 块作用域=槽序）：ORIG 的 now/t/p/delay
+    // 全在**函数体 toplevel**（ORIG 后端先分配 toplevel、后块内变量；4.4.7 相反）——
+    // 去掉块后槽序 now(-0x1c)/t(-0x48)/p(-0x18)/delay(-0x14)/i(-0xc) 与 ORIG 全等
+    // （235=235 AE；旧形 235/235 但 p/delay/i 三槽轮换）。改名 now54/p54/delay54 仅为
+    // 避开 0x8e 段的 `delay`（局部名不入符号，mangled/行为不变）。
+    std::time_t now54 = std::time(0);
+    std::tm t;
+    // P43：ORIG 0x082a04fb `mov %eax,-0x18; mov 0x4(%eax),%ecx` 经返回值指针读字段。
+    std::tm* p54 = localtime_r(&now54, &t);
+    // ORIG 0x082a0504 magic 0x88888889 + `sar $0x4` = **÷30**（sar 3 才是 ÷15），
+    // 随后 `v = tm_min - 30*q` ⇒ 源形 `tm_min % 30`（半点对齐；旧实现误用
+    // tm_mon/15，属真语义 bug）。v 无槽（寄存器直算），故内联进 delay 表达式。
+    int delay54 = 1740 - 60 * (p54->tm_min % 30) + (60 - p54->tm_sec);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
+                                (TIMER_MESSAGE)0x54, delay54, 0, 0);
 
     // 0x55：TimerStatisticLevel 下一统计点距当前秒数（ORIG 0x082a0588：差在 %ebx
     // 跨 G_TimerQueue() 调用保活，无具名槽 ⇒ P24 内联实参）。
@@ -695,7 +702,10 @@ STScriptFileList g_npcScriptFileList;
     //   → 82a0b57 起 Fail 分支：trace 0x29d0 " %s Fail" → jmp 82a2105
     //   （Init 返回 0，main 退出）。影子实证：publickey.pem Fail 两侧都退出，
     //   第二轮均 pid 残留 already operated。
-    cMyTrace authTrace("AuthGarenaToken::Init", 0x29c9, 9, 1, 0);
+    // [N3Free171to190·GameMain] P139（§6.5 串盲区）：ORIG 的 cMyTrace name 实参是
+    // `bool Init(int, char**)` —— 即 0x8c1b026 = `_ZZ4InitiPPcE19__PRETTY_FUNCTION__`
+    // 符号本体（size 0x17 = 22+1）；手写串既不发射该静态符号（nm 缺项）又发错内容。
+    cMyTrace authTrace(__PRETTY_FUNCTION__, 0x29c9, 9, 1, 0);
     authTrace("[!] Init Taiwan Garena Auth Key ...");
     // P183：ORIG 0x082a0b36/0x082a0b57/0x082a0bc5 三处各自重算
     // `G_CEnvironment()+0x314 → c_str()`，无 garenaPubkey 具名缓存
@@ -705,12 +715,12 @@ STScriptFileList g_npcScriptFileList;
     {
         // ORIG 82a0b57..bb6：Fail trace 构造 (name, 0x29d0, 9, 0, 1)
         // ——bFieldC=0、bFieldD=1（+0xc=1 → bAppend/bTimestamp=1 → 尾部 CRLF）。
-        cMyTrace failTrace("AuthGarenaToken::Init", 0x29d0, 9, 0, 1);
+        cMyTrace failTrace(__PRETTY_FUNCTION__, 0x29d0, 9, 0, 1);   // P139：见 authTrace
         failTrace(" %s Fail",
                   G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str());
         return false;
     }
-    cMyTrace okTrace("AuthGarenaToken::Init", 0x29d3, 9, 0, 1);
+    cMyTrace okTrace(__PRETTY_FUNCTION__, 0x29d3, 9, 0, 1);   // P139：见 authTrace
     okTrace(" %s Success",
             G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str());
     CodePage::initCodePage();
@@ -821,35 +831,39 @@ STScriptFileList g_npcScriptFileList;
                 ENUM_SERVER_GROUP g = it->first;
                 std::map<std::string, std::string>& c = it->second;
 
-                int mTcp = atoi(GetConfigFileString(c, "tcp_port_of_monitor"));
-                int mUdp = atoi(GetConfigFileString(c, "udp_port_of_monitor"));
-                char* mIp = const_cast<char*>(GetConfigFileString(c, "udp_ip_of_monitor"));
+                // [N3Free171to190·GameMain] 去具名局部（P0/P183）：ORIG 的三个实参
+                // 全部留在寄存器（seg119 实证 %edi/%esi/%ebx），我方具名局部迫使
+                // 额外落槽 + 每处 2 条 mov（-0x5c/-0x58/-0x54）。实参求值序不变
+                // （cdecl 从右到左：tcp→udp→ip→g→idx→count），语义等价。
                 if (!GlobalData::s_monitor_proxy_mgr->createServerProxy(
                         static_cast<int>(G_CEnvironment()->m_serverGroupMap.size()),
-                        idx, g, mIp, mUdp, mTcp))
+                        idx, g,
+                        const_cast<char*>(GetConfigFileString(c, "udp_ip_of_monitor")),
+                        atoi(GetConfigFileString(c, "udp_port_of_monitor")),
+                        atoi(GetConfigFileString(c, "tcp_port_of_monitor"))))
                 {
                     std::cerr << "[s_monitor_proxy_mgr::Init] Fail Init (monitor server proxy)"
                               << std::endl;
                     return false;
                 }
 
-                int gTcp = atoi(GetConfigFileString(c, "tcp_port_of_guild"));
-                int gUdp = atoi(GetConfigFileString(c, "udp_port_of_guild"));
-                char* gIp = const_cast<char*>(GetConfigFileString(c, "udp_ip_of_guild"));
                 if (!GlobalData::s_guild_proxy_mgr->createServerProxy(
                         static_cast<int>(G_CEnvironment()->m_serverGroupMap.size()),
-                        idx, g, gIp, gUdp, gTcp))
+                        idx, g,
+                        const_cast<char*>(GetConfigFileString(c, "udp_ip_of_guild")),
+                        atoi(GetConfigFileString(c, "udp_port_of_guild")),
+                        atoi(GetConfigFileString(c, "tcp_port_of_guild"))))
                 {
                     std::cerr << "[s_guild_proxy_mgr::Init] Fail Init (guild server proxy)"
                               << std::endl;
                     return false;
                 }
 
-                int sUdp = atoi(GetConfigFileString(c, "udp_port_of_statistic"));
-                char* sIp = const_cast<char*>(GetConfigFileString(c, "udp_ip_of_statistic"));
                 if (!GlobalData::s_statistic_proxy_mgr->createServerProxy(
                         static_cast<int>(G_CEnvironment()->m_serverGroupMap.size()),
-                        idx, g, sIp, sUdp, 0))
+                        idx, g,
+                        const_cast<char*>(GetConfigFileString(c, "udp_ip_of_statistic")),
+                        atoi(GetConfigFileString(c, "udp_port_of_statistic")), 0))
                 {
                     std::cerr << "[s_statistic_proxy_mgr::Init] Fail Init (statistic server proxy)"
                               << std::endl;
@@ -1228,10 +1242,12 @@ STScriptFileList g_npcScriptFileList;
     // 槽位 0x3f/0x10/0x21 不变）⇒ 4.4 按块/使用序分配聚合槽，声明序不可翻
     // （N93/N82附 族：ORIG [pidFile 0x1e, trace 0x3c, inited 0x4f] vs 我方
     // [trace 0x10, pidFile 0x21, inited 0x3f]）。
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x25e6, 0);
-        trace("GAME SERVER SHUTDOWN COMPLETE\n");
-    }
+    // [N3Free171to190·GameMain] AE 修法（P339 块作用域=槽序）：ORIG 的 cMyTrace 是
+    // **函数体 toplevel** 对象（ORIG 后端先分配 toplevel 变量 ⇒ 槽序 trace 先于
+    // 块内的 pidFile；4.4.7 相反）——去块后 pidFile 0x1e / trace 0x3c / inited 0x4f
+    // 与 ORIG 逐字相同（70=70 AE，帧 0x50）。cMyTrace 析构 trivial（无 dtor call）。
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x25e6, 0);
+    trace("GAME SERVER SHUTDOWN COMPLETE\n");
     char pidFile[0x1e];
     std::memset(pidFile, 0, sizeof(pidFile));
     std::sprintf(pidFile, "./pid/%s.pid",
@@ -2052,8 +2068,15 @@ namespace user_creature {
     // -0xa4..-0x94），系 trace 实参从右到左求值的表达式临时 ⇒ 直用实参表达式。
 
     {
-        cMyTrace trace("void ProcessServerStatusLog()", 0x5c, 0);    // -0x7c
-        trace(
+        // [N3Free171to190·GameMain] 改临时对象形：ORIG 0x080ede91 实证 7 个 Size()
+        // 实参在 ctor **之前**求值并落槽（-0xa4..-0x8c 五槽 + %ebx/%esi/%edi），
+        // ctor 后才把实参搬入 0x??(%esp)；具名局部使 ctor 先执行，实参退化为纯寄存器
+        // 保活（我方 299 条；ORIG 302）。临时形后 302=302（DIFF +3 → NEAR）。
+        // [N3Free171to190·GameMain] P139：ORIG 发射
+        // `_ZZ22ProcessServerStatusLogvE19__PRETTY_FUNCTION__`（0x08b37c70，size 0x1e
+        // = "void ProcessServerStatusLog()"+NUL）——手写串内容相同但不发射该静态符号
+        // （nm missing）⇒ 换回 __PRETTY_FUNCTION__（串内容与符号双对齐）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x5c, 0)(
             "\n[DISPATCHER_Q (%3d) DB_Q (%3d) IPGQueue_Size (%3d)]\n"
             "[Small_Pool (%3d/%3d) Default_Pool (%3d/%3d) Big_Pool (%3d/%3d) "
             "IPGPool_Size(%3d/%3d)]\n"

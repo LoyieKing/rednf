@@ -111,6 +111,13 @@ bool stHackLog_t::operator==(const stHackLog_t& other) const
     specialDungeons[3] = 0x21;
     for (unsigned int i = 0; i <= 3; ++i)
     {
+        // [N6S5ZeroA] ORIG 0x08599b4b(+0xc3) 条件是 `mov -0x10(%ebp),%eax;
+        //   cmp $0x3,%eax; setbe %al`，我方为 `cmpl $0x3,-0x10(%ebp); setbe`
+        //   （gap=+1，ORIG 多一条装载）。穷举 30 形 × 三后端（4.4.7/4.4.6/4.4.4 +
+        //   4.1 族 c5）全部生成 `cmpl $3,mem`；唯一生成 `mov;cmp $3,%eax` 的
+        //   volatile 形与 ORIG 的 `addl $1,-0x10(%ebp)` 自增形互斥
+        //   （volatile 自增为 load/add/store 三条）⇒ 源码不可控，判 N 封顶
+        //   （编译器 lowering 差异；体/符号性/边界 setbe(unsigned) 均与 ORIG 一致）。
         if (specialDungeons[i] == dungeonIndex)
         {
             return;
@@ -130,7 +137,12 @@ bool stHackLog_t::operator==(const stHackLog_t& other) const
         }
         m_records[j].m_user = users[j];
         m_records[j].m_damage += (int)(curSec - m_traceBeginTime);
-        m_records[j].m_count += 1;
+        // [N6S5ZeroA] ORIG 0x08599c5b(+0x1d3) 块首为 `mov -0xc(%ebp),%edx;
+        //   mov 0x8(%ebp),%ecx; mov %edx,%eax`（edx 版，this→ecx）；`m_count += 1`
+        //   曾生成 `mov j,%edx; mov j,%ecx; mov this,%ebx; mov %ecx,%eax`（多一条
+        //   P231 纯寄存器复本 + this→ebx）。改后置/前置自增形为 `++` 后，
+        //   我方指令形与 ORIG 逐条一致（gap -1→+1，余仅 i 循环那一条）。
+        ++m_records[j].m_count;
     }
 }
 

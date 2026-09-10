@@ -113,7 +113,13 @@ namespace SCRIPT
                 result->m_itemIndex = static_cast<short>(ScanInt((bool*)0));
                 result->m_itemCount = static_cast<short>(ScanInt((bool*)0));
                 result->m_field6 = static_cast<short>(ScanInt((bool*)0));
-                result->m_selectable = (ScanInt((bool*)0) == 1);
+                // [b23S3C] ORIG 0x088b17cx 段 `call ScanInt; mov %eax,-0x14(%ebp);
+                // mov -0x60(%ebp),%eax; cmpl $0x1,-0x14(%ebp); sete %dl; mov %dl,
+                // 0x8(%eax)` ⇒ 扫描结果有**具名 int 槽**（P0 反向：ORIG 有槽我方
+                // 无）。单表达式 `(ScanInt()==1)` 恒 `cmp $0x1,%eax; sete %al`
+                // 直比（少 2 条）⇒ 拆出具名局部复现槽 + 内存比较。
+                int selectableValue = ScanInt((bool*)0);
+                result->m_selectable = (selectableValue == 1);
                 std::map<int, Result*>::iterator endIt = m_result.end();
                 if (m_result.find(grade) == endIt)
                     m_result.insert(std::map<int, Result*>::value_type(grade, result));

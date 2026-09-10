@@ -115,10 +115,20 @@
             {
                 it->second.m_state = 1;
                 ++counter;
+                // ORIG 0x082feaae..0x082feadf 实参装载序：field18 `mov
+                // 0x18(%eax),%eax; mov %eax,%edi`（%eax 中转落 %edi）→ field0c
+                // `mov 0xc(%eax),%esi` → field14 `mov 0x14(%eax),%ebx` → field10
+                // `mov 0x10(%eax),%eax`。4.4 直读恒单段 `mov 0x18(%eax),%edi`
+                // ⇒ 令前三者走 register 局部（callee-saved 家寄存器由 4.4
+                // 按 %edi/%esi/%ebx 分配，探针 e2 逐条同 ORIG 形）。
+                // [落地] 122/122 AE（原 121/122 DIFF），本 TU diff 1→0。
+                register unsigned int field18 = (unsigned int)it->second.m_field18;
+                register int field0c = it->second.m_field0c;
+                register int field14 = it->second.m_field14;
                 SendSpawnRidableObject(p, it->second.m_field10,
-                                       it->second.m_field14,
-                                       it->second.m_field0c,
-                                       it->second.m_field18);
+                                       field14,
+                                       field0c,
+                                       (int)field18);
             }
         }
     }

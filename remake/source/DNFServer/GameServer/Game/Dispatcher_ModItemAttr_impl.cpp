@@ -137,13 +137,19 @@ namespace
     // `register char* idStr asm("ebx")` / `register int st asm("esi")`（P0/N96 全域
     // 禁绑，P248 不得恢复）；bad 还原为具名栈槽局部（保 ORIG 双岛物化结构），
     // idStr/st 还原为右值直传。
-    bool bad = (user->get_state() != 3 || user->getCurCharacR() == 0);
-    if (bad)
+    // [N1Free91to105 2026-09-11] 试删具名 `bool bad`（P0：ORIG 三者均无栈槽）：
+    // 具名版实测多发 `mov %al,-0x45(%ebp); cmpb $0x0,-0x45(%ebp)`（2 条）+ 帧
+    // 次生 -0x45/-0x70 平移。改表达式直判后按 ORIG 双岛物化结构核对。
+    if (user->get_state() != 3 || user->getCurCharacR() == 0)
     {
-        cMyTrace tr(__PRETTY_FUNCTION__,
-                    0x95db, 5);
-        tr("Dispatcher_ModItemAttr => User State : %d, m_id : %s",
-           user->get_state(), NumberToString(user->get_acc_id(), 0));
+        // [N1Free91to105 2026-09-11] P227 全表达式临时链：ORIG 0x08200b62/0x08200b6f
+        // 把 `NumberToString` 与第二次 `get_state` 的结果直落 %ebx/%esi（跨 cMyTrace
+        // 构造 call 保活），构造 call 在实参之后 ⇒ 原码是**单语句** `cMyTrace(...)(...)`，
+        // 不是「具名 tr + 调用」两语句（具名版实测构造 call 提前，与 ORIG 逆序）。
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0x95db, 5)("Dispatcher_ModItemAttr => User State : %d, m_id : %s",
+                            user->get_state(),
+                            NumberToString(user->get_acc_id(), 0));
         throw 0;                        // ORIG 0x08200bd6 throw int(0)
     }
 

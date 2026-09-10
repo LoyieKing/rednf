@@ -1,8 +1,11 @@
 ByteBuffer ByteBuffer::wrap(char* buffer, unsigned int len)
 {
-    // [b28d-solo-nexon_cash] N 封顶（帧量化跨版本）：ORIG `sub $0x14` vs 4.4
-    // `sub $0xc`。实测 4.4 帧增量恒 align16(局部需求)（char[4]/char[8]/int 均
-    // 落 $0x1c），$0x14 不可达（P190 附注②/N95 族）。体 16/16 条全等，仅帧
-    // sub/add 立即数差，语义等价。
+    // [S4NexonProto 复测] 帧 $0x14 仍是 N 封顶（跨版本帧量化）。本轮再验两形：
+    //   ① `ByteBuffer tmp(buffer, len); return tmp;`（具名临时 + NRVO）= 16 条全等、
+    //      仍 `sub $0xc`（NRVO 把 tmp 直接构造到 sret，槽不保留）；
+    //   ② `const ByteBuffer tmp(...)` 同上（仍 $0xc）。
+    // ⚠ 探针 /tmp/probe/wrp.cpp W0/W3 在小函数/静态成员语境下给 $0x14，属**探针假象**
+    //   （真实 TU 的 `ByteBuffer ByteBuffer::wrap` 非静态成员签名下 4.4 恒 $0xc），
+    //   不得据此再判「可造」。带局部则落 $0x1c（lane 旧测 char[4]/char[8]/int 一致）。
     return ByteBuffer(buffer, len);
 }

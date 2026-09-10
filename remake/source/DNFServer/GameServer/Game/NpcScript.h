@@ -187,7 +187,12 @@ public:
     struct stRewardItemElement_t
     {
         int m_a;  // +0x00
-        int m_b;  // +0x04
+        // [S6 · N2Free151to170 已批准] unsigned：ORIG 0x08580e16 取本字段发两段
+        // `mov 0x4(%eax),%eax; mov %eax,%esi`（异型 → 经 eax 中转再落 callee-saved），
+        // 与 `CItemList::create_item(..., int)` 形参同型时 4.4 恒折单段。
+        // 探针 /tmp/s6/p7.cpp：int → 单段；unsigned int → 两段（= ORIG 形）。
+        // int≡unsigned 同宽同布局 ⇒ sizeof/偏移/mangled 零影响。
+        unsigned int m_b;  // +0x04
         int m_w;  // +0x08
     };
 

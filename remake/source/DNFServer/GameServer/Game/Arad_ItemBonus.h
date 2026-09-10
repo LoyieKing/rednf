@@ -79,7 +79,11 @@ bool CheckAccountItem(CUser* user, unsigned int itemIndex,
 
 // ORIG _ZN4ARAD9send_mailERN10ARAD_DATAS12AradMailInfoE T @0x08196b03（返回 1）。
 // 定义：Arad_ItemBonus.cpp（实现已在）。
-int send_mail(ARAD_DATAS::AradMailInfo& info);
+// [N1D 2026-09-11 签名轴·父泳道批准] 返回类型 int → bool：其唯一调用点
+//   LinkClosureE.cpp:617 `return ARAD::send_mail(info);` 在 ORIG 0x081a3407 之后
+//   直落 add/pop/ret（无 test/setne 截断）⇒ 与 Arad_GiftItem_Set::send_mail 同为
+//   bool。mangled 不变（返回类型不入 mangled）；定义侧由 Arad_ItemBonus 属主同批落地。
+bool send_mail(ARAD_DATAS::AradMailInfo& info);
 
 // ORIG _ZN4ARAD35importCashShopPurcahseBonusItemListEPcRSt3mapIiSt6vectorINS_13PurcahseBonusESaIS3_EESt4lessIiESaISt4pairIKiS5_EEE
 // T @0x088b62ec —— "CashShop/PurcahseBonusItem.shp" 解析器（LoadScript 直接依赖）。

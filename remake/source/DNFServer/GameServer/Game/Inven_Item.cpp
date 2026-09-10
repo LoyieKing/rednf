@@ -366,7 +366,8 @@ Inven_Item g_emptySlot;
 #include "Inven_Item/GetInventoryType.inc"
 {
     int result;
-    if ((unsigned char)m_field1 < 0xb)
+    register unsigned char t = (unsigned char)m_field1;
+    if (t < 0xb)
     {
         // [b28d-solo-Inven_Item] N 封顶（语义等价，仅跨版本 codegen 差）：
         // ①开头 ORIG `movzbl 0x1(%eax),%eax; movzbl %al,%eax; cmp $0xa,%eax`
@@ -378,61 +379,64 @@ Inven_Item g_emptySlot;
         // 已试 12 形（register 体内/体外、int/unsigned、嵌套 if、!=0、三元、
         // 双 register 变量、具名槽）+ 4.4.6 后端复测，全部同形 ⇒ 不可造。
         // P231 纯 register 仍必要（免 u 栈槽，否则帧/槽全错位）。
-        register unsigned int u = 1u << m_field1;
+        // [N2-151to170] register uchar t 单次读取（比较与 shift 共用）+ 三段独立 if
+        // 各自 goto 共享尾出口（default 块 fall-through）⇒ 41→38 条 = ORIG 38（gap 0）。
+        // 残余为跨版本寄存器/块序：①t 装载 4.4 落 %ebx / ORIG 落 %eax；②掩码 and 的
+        // 临时 4.1 走 %edx 双指令、4.4 自 %ebx 重载折叠单指令（P248 族）；③叶块 4.1
+        // 尾部集中（jne 跳叶块）/ 4.4 内联（je 跳过）⇒ 指令数已齐平，DIFF 封顶。
+        register unsigned int u = 1u << t;
         if (u & 0x61f)
         {
             result = 1;
+            goto done;
         }
-        else if (u & 0x100)
+        if (u & 0x100)
         {
             result = 2;
+            goto done;
         }
-        else if (u & 0xe0)
+        if (u & 0xe0)
         {
             result = 3;
-        }
-        else
-        {
-            result = 1;
+            goto done;
         }
     }
-    else
-    {
-        result = 1;
-    }
+    result = 1;
+done:
     return result;
 }
 
 #include "Inven_Item/GetItemSpace.inc"
 {
     int result;
-    if ((unsigned char)m_field1 < 0xb)
+    register unsigned char t = (unsigned char)m_field1;
+    if (t < 0xb)
     {
         // [b28d-solo-Inven_Item] 同 GetInventoryType：N 封顶（跨版本冗余 zext
         // `movzbl %al,%eax` 被 4.4 折叠 + and 临时寄存器选择 4.1 %edx / 4.4 %eax）；
         // P231 register 免 u 槽，控制流与返回值语义一致。
-        register unsigned int u = 1u << m_field1;
+        // [N2-151to170] 同 GetInventoryType：register uchar t 单次读取 + 三段独立 if
+        // 各自 goto 共享尾出口 ⇒ 41→38 条 = ORIG 38（gap 0）；残余同上（跨版本
+        // t/u 寄存器分配、and 临时折叠、叶块内联 vs 尾部集中）⇒ DIFF 封顶。
+        register unsigned int u = 1u << t;
         if (u & 0x61f)
         {
             result = 0;
+            goto done;
         }
-        else if (u & 0x100)
+        if (u & 0x100)
         {
             result = 1;
+            goto done;
         }
-        else if (u & 0xe0)
+        if (u & 0xe0)
         {
             result = 7;
-        }
-        else
-        {
-            result = 0;
+            goto done;
         }
     }
-    else
-    {
-        result = 0;
-    }
+    result = 0;
+done:
     return result;
 }
 

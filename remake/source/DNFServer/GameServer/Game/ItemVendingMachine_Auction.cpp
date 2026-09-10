@@ -72,41 +72,46 @@ const double kFeeDivisor = 100.0;  // 0x08b871d0
         double rate = static_cast<double>(price) / static_cast<double>(nRef);
         if (rate < kRateDeny)
             return false;
-        if (kRate150 <= rate)
+        // [S6] ORIG 0x08175cec..0x08175d1a：顶层判定是 A 形态（`fldl rate; fldl 1.5;
+        // fucompp; test $0x45,%ah; sete`＝「rate < 1.5」）且 fall-through 直落
+        // bPremium 臂 ⇒ 源形为 `if (rate < kRate150) {裸费率臂} else {分档链}`
+        // （NaN 亦落裸费率臂，与 ORIG 一致；此前 `kRate150 <= rate` 形在 4.4 生成
+        // 相位相反的 `fxch/setae` 形态且 NaN 落分档链）。
+        if (rate < kRate150)
         {
-            if (rate < kRate150 || kRate160 <= rate)
+            if (bPremium)
             {
-                if (rate < kRate160 || kRate170 <= rate)
-                {
-                    // ORIG 0x08175d8d..0x08175dc4 第 4 层（0x08175da4 比较 1.8）：
-                    // rate∈[1.7,1.8) → 0x32，rate>=1.8 → 0x50。旧重建漏此层，
-                    // 使 [1.7,1.8) 误发 0x50（真语义 bug，8 次 fucompp 只写 6 次）。
-                    if (rate < kRate170 || kRate180 <= rate)
-                    {
-                        feeBase = 0x50;
-                    }
-                    else
-                    {
-                        feeBase = 0x32;
-                    }
-                }
-                else
-                {
-                    feeBase = 0x32;
-                }
+                feeBase = nFeePremium;
             }
             else
             {
-                feeBase = 0x32;
+                feeBase = nFeeNormal;
             }
-        }
-        else if (bPremium)
-        {
-            feeBase = nFeePremium;
         }
         else
         {
-            feeBase = nFeeNormal;
+            // [S6] ORIG 0x08175c3..0x08175dc4 的分档链在 4.1 下是「假跳转 + 取反判定」
+            // 交替形态：B(1.5)/A(1.6) → B(1.6)/A(1.7) → B(1.7)/A(1.8)，then 臂各写
+            // 0x32 后跳 END，末层 0x50 fall-through。该形态由 `Lo <= rate && rate < Hi`
+            // （德摩根，then 写 0x32）产出；旧 `rate < Lo || Hi <= rate`（Ghidra 显示序）
+            // 在 4.4 生成相位相反的 A/B 并合并两个 0x32 尾块。语义等价（NaN 亦同落
+            // 末层，与 ORIG 0x08175d66 起 setae 判定一致）。
+            if (kRate150 <= rate && rate < kRate160)
+            {
+                feeBase = 0x32;
+            }
+            else if (kRate160 <= rate && rate < kRate170)
+            {
+                feeBase = 0x32;
+            }
+            else if (kRate170 <= rate && rate < kRate180)
+            {
+                feeBase = 0x32;
+            }
+            else
+            {
+                feeBase = 0x50;
+            }
         }
     }
 
@@ -133,8 +138,8 @@ const double kFeeDivisor = 100.0;  // 0x08b871d0
     // uidBuf 带 `= {0}`：ORIG 0x08175e5f..0x08175ebd 对其发 21 字节对齐感知清零展开
     // （P214③/P312），且清零发生在 put_binary 之后 ⇒ 声明点即此处。
     char payBuf[0x24];
-    char uidBuf[0x15] = {0};
     char priceBuf[8];
+    char uidBuf[0x15] = {0};
     // ORIG 0x08175ec0 `movl $0x1869f,-0x2c(%ebp)` + 0x08175ec7 回读 ⇒ 具名 int 局部，
     // 两段 snprintf 共用（第二段 0x081760f1 直接读 -0x2c，无重赋值，P244）。
     int  nPrice = 99999;
@@ -189,6 +194,16 @@ const double kFeeDivisor = 100.0;  // 0x08b871d0
     OS_API::snprintf(priceBuf, sizeof(priceBuf), "%ld", nPrice);   // 0x081760f1 读 -0x2c
     OS_API::snprintf(payBuf, sizeof(payBuf), "%d", feeBase);
     OS_API::snprintf(uidBuf, sizeof(uidBuf), "%ld", info.m_itemUid);
+
+    // [S6] ORIG 0x08176164..0x0817617a：第二段计费前**重取** IPGMgr（与首段
+    // 0x08175f46..0x08175f5c 逐条同形：`mov s_pIPGHelper,%eax; mov (%eax),%eax;
+    // add $0x3c,%eax; mov (%eax),%edx; mov s_pIPGHelper,%eax; mov %eax,(%esp);
+    // call *%edx; mov %eax,-0x28(%ebp)`，写回**同一** mgr 槽 -0x28）⇒ 源形为对
+    // mgr 再次赋值，而非复用首段结果（旧重建漏第二次 ⇒ 少 8 条 + 少一次虚调用）。
+    mgr = reinterpret_cast<WongWork::IPG::CIPGMgr*>(
+            (*reinterpret_cast<GetIPGMgrFn*>(
+                *reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0x3c))(
+                    GlobalData::s_pIPGHelper));
 
     rc = mgr->getBillingCash()->purchase(
                         info.m_itemUid,

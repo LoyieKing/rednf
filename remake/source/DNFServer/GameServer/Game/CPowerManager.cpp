@@ -94,13 +94,15 @@ struct PowerWarStatueView
     return penalty;
 }
 
-// [b28d-solo-CPowerManager] NEAR(18=18, gap 0) | ORIG 0x08480e92 | 语义全等
-// （fildl/fmuls/fistpl 同序、指令数一致），残差仅槽号：ghostTime -0x10、cw
-// -0x1a/-0x1c vs ORIG -0x1c/-0x1e/-0x20 ⇒ N82/P112 封顶。本轮穷举六族：
-// double framePad 前置/后置、int[3]/char pad、3×dead int、long double、union
-// {struct{int;int[3];};int;} 标量视图形、n-first 声明序——4.4 把未使用局部沉到
-// 帧底、使用的标量按声明序反向分配，源槽恒 -0x10/-0xc，无法移到 ORIG 的 -0x1c
-// （4.1 为不复用临时槽预留 12B 死槽；视图形虽命中 -0x1c 但 fildl 前多一次 spill）。
+// [b28d-solo-CPowerManager 2026-09-11 新口径 n1_v.py] NEAR(orig 18 / our 19, gap −1) |
+// ORIG 0x08480e92 | 语义全等（fildl/fmuls/fistpl 同序；旧 game_func_report 口径写
+// 18=18/DIFF 为假 DIFF）。残差仅槽号：ghostTime -0x10、cw -0x1a/-0x1c vs ORIG
+// -0x1c/-0x1e/-0x20 ⇒ N82/P112 封顶。穷举六族（double framePad 前置/后置、int[3]/
+// char pad、3×dead int、long double、union{struct{int;int[3];};int;}、n-first 声明序）
+// + 本波新口径复测「3×int 取址填充」：verdict/insns 均无改善（NEAR 18/19）且帧
+// 0x28→0x38 实测劣化 ⇒ 维持回滚。4.4 把未使用局部沉到帧底、使用的标量按声明序反向
+// 分配，源槽恒 -0x10/-0xc，无法移到 ORIG 的 -0x1c（4.1 为不复用临时槽预留 12B 死槽；
+// 视图形虽命中 -0x1c 但 fildl 前多一次 spill）。
 #include "CPowerManager/GetPowerWarGhostTime.inc"
 {
     // ORIG 0x08480e92：(int)(ghostTime * f)，fistpl 就近取整。
@@ -110,11 +112,11 @@ struct PowerWarStatueView
     // [b28d-solo] P0：ORIG 两个槽往返（源 -0x1c / 结果 -0xc）⇒ 原码有两个具名
     // 局部（4.4 对匿名转换临时会复用源槽）。
     int ghostTime = G_CDataManager()->m_powerParameter.m_ghostTime;
-    // [b28d-solo 新钥匙试·已回滚] 「3×int 取址填充」置于 ghostTime 与 n 之间：
-    // our 18→18 但帧 0x28→0x38、源槽仍 -0x10、cw 落 -0x2a/-0x2c ⇒ verdict NEAR→DIFF
-    // （劣化）。证实 4.4 把「仅取址未读写」局部一律沉到帧底（P182 加强），
-    // 不参与声明序分配 ⇒ P339/P331 声明序旋钮在本件不适用（ORIG -0x1c/-0x1e/-0x20
-    // 属 4.1 不复用临时槽预留区，ORIG 0x08480e92）。
+    // [b28d-solo 新钥匙试·已回滚·新口径复测] 「3×int 取址填充」置于 ghostTime 与 n
+    // 之间：新口径（n1_v.py）verdict=NEAR 18/19 与不加 pad 完全相同、帧 0x28→0x38、
+    // 源槽仍 -0x10、cw 落 -0x2a/-0x2c ⇒ insns/帧双劣化，维持回滚。证实 4.4 把
+    // 「仅取址未读写」局部一律沉到帧底（P182 加强），不参与声明序分配 ⇒ P339/P331
+    // 声明序旋钮在本件不适用（ORIG -0x1c/-0x1e/-0x20 属 4.1 不复用临时槽预留区）。
     int n = (int)((float)ghostTime * f);
     double framePad;
     (void)&framePad;
@@ -416,7 +418,8 @@ struct PowerWarStatueView
 
 
 
-// [b28d-solo-CPowerManager] 语义完成 / byte 层 N（352=352, gap 0）| ORIG 0x0847ed4e |
+// [b28d-solo-CPowerManager] 语义完成 / byte 层 N | ORIG 0x0847ed4e |
+// 新口径（n1_v.py）：DIFF orig 352 / our 353（gap −1）；旧 game_func_report 口径 352=352。
 // 此前修复：真语义缺口 m_flag=1（ORIG memcpy 后 `movb $0x1,0x8(%eax)`）+ pack(1)
 // 具名视图消 add 链（P80/P99/P183）+ P222 正向 if 包裹 + P227/P139 全表达式临时链
 // + __PRETTY_FUNCTION__ + P211 档③ 同型化。本轮：P310 消 N18b 尾测 1 条。

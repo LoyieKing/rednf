@@ -58,8 +58,7 @@ typedef char lvl_2nd_sciprt_size_assert[sizeof(LevelupSupport2ndScript) == 0x24 
     trace("\t- Loading Levelup Support Event script - ");
 
     m_script.m_stepItems.clear();
-    if (!m_script.loadScript())
-        goto load_false;
+    if (m_script.loadScript() == 0)
     {
         m_stepIndexMap.clear();
         m_events.clear();
@@ -81,16 +80,19 @@ typedef char lvl_2nd_sciprt_size_assert[sizeof(LevelupSupport2ndScript) == 0x24 
             m_events.push_back(EventInfo(static_cast<unsigned short>(it->first), 0));
         }
     }
-    // [M2FreeNext15A · 2026-09-11 · 落地] ORIG 尾部布局（0x08146fc7 jmp +0x194 跳过
-    // false 块 → 0x08146fc9 false 块 → 0x08146fd0 true 块）⇒ 用 goto 串（否定早退
-    // goto load_false + 出口 goto load_true，P223/P325 族）复现；配 P328⑥ 把
-    // `int stepIndex=0` 的初始化位点下移到两个迭代器声明之后（ORIG 0x08146f9b）。
-    // 核账：show_func_diff orig=110 our=110 **gap=0**、ndiff 7→**2**（唯一残差 =
-    // `je <T>` vs `jne <T>` 极性，语义等价，属 P222 对偶）；S1 反演版为 ndiff 7/gap +1。
-    goto load_true;
-load_false:
-    return false;
-load_true:
+    // [N1C·2026-09-11 · 语义轴修正 → IDENTICAL] ORIG 0x08146ea7 `sete %al` +
+    // 0x08146eac `je 0x08146fc9`（= false 块 `mov $0x0,%eax`）⇒ 原码为
+    // `if (loadScript() == 0) { 成功体 } else { return false; } return true;`
+    // （loadScript 是**错误码式**：0=成功）。旧 goto 串 `if (!loadScript()) goto
+    // load_false` 生成 `jne <false 块>` ⇒ loadScript()==0 时直接 return false，
+    // **返回值与 ORIG 相反**（真语义 bug，本次修正）。改 if/else 后 `je` 极性、
+    // 尾块序（+0x18d false / +0x194 true / +0x199 epilogue）与 ORIG 全等：
+    // 探针核账 110/110、blocks=0（IDENTICAL）。stepIndex 初值位点（ORIG
+    // 0x08146f9b，晚于两迭代器声明）保持原状。
+    else
+    {
+        return false;
+    }
     return true;
 }
 

@@ -89,6 +89,11 @@ L:;
 // sizeof / 语句表达式 / 逗号表达式 / 地址算术 / 5u / (int)5 / 具名 receiver / volatile
 // 对象 / 指针+0 / 5+0 / 宏形）全败，且 4.4.6 后端读数与 4.4.7 逐条相同（非后端敏感族，
 // P230 补）⇒ 判 N-G（P75 跨版本实参装载时刻）。
+// [N6S5ZeroA 复核] 重跑确认：ours 53 / ORIG 53（含尾部 nop），唯 19/20 两条对调。
+//   新增第 19 形 `sizeof(data)`（size_t 常量 5，pack(1) ⇒ 值等于 5，语义不变）仍全败。
+//   形参槽逐条核对无「字段错位/形参互换」：0xc(%ebp) 4 字节 → data+1(itemIdx，-0x18)，
+//   0x10(%ebp) 低字节 → -0x2c 实参溢出槽 → data+0(flag，-0x19)，与 ORIG 0x081224e0/
+//   0x081224e6/0x081224ea 三段逐条同形；缺失校验/接收者均无发明。判 N-G 不变。
 #include "CUserProc/SendGetRewardItem.inc"
                                             _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward,
                                             bool flag)

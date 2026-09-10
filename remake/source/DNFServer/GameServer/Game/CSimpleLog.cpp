@@ -123,6 +123,14 @@
     //   裸 register 第三条件（ORIG 目标寄存器为 callee-saved）不成立（ORIG 用 %eax）⇒ 不留 register。
     //   语义闭合证据：p167 调用点差集 7/7 CLEAR（C1/DiffDay/CloseFile/CreateLogFile/memcpy/fprintf/fflush）；
     //   自赋值防护与拷贝长度 7 与 ORIG 一致。
+    // [N6S2NegB 2026-09-11 复核] 真残差定位（n1_v: DIFF orig=57 our=59 gap=-2）：唯一差段是
+    //   4.4 后端在 memcpy 段**重发** `mov 0x8(%ebp),%eax; lea 0x4(%eax),%edx`（+2 条），
+    //   而 ORIG 0x0854fc80 `mov %eax,(%esp)` 复用比较段已存活的 %eax（=this+4），
+    //   且 ORIG 比较段用 `add $0x4,%eax`（4.1 后端形）而非 4.4 的 `lea 0x4(%eax),%edx`。
+    //   穷举复验（/tmp/probe_wl/v1..v4：正/反向比较、具名指针、`m_dt = dt` 结构赋值）+
+    //   446 后端：全部 12 条形；v3 结构赋值另引入 3 段内联拷贝（33 条）更劣，v4 具名指针
+    //   多 -0xc 槽。无源形能让 4.4 跨 je 复用 %eax 寄存器。
+    //   结论：N 封顶（编译器后端差异），保持现状 59 条；无源码可消除这 2 条。
     if (&m_dt != &dt) {
         memcpy(&m_dt, &dt, 7);
     }

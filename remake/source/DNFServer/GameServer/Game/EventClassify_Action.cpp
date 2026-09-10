@@ -356,7 +356,19 @@ namespace EventClassify
                  boosters.begin();
              it != boosters.end(); ++it)
         {
+            // [N2-S4 2026-09-11] 复现 ORIG 的条件结果 0/1 物化（gap 6→1）：
+            // ORIG 0x0810ddb1 `test %eax,%eax; je L1; <重算表达式>; mov $0x0,%eax;
+            // jmp L2; L1: mov $0x1,%eax; L2: test %al,%al; je`（4.1 对带副作用的
+            // bool 上下文二次求值）；4.4 直接初始化 `bool x = (p->m == 0)` 恒折
+            // 单条 sete（our=171），改 if/else 显式赋值可复现「分支+常量」物化
+            // （our=175）。负结论：三元 `? true : false`(171)、int if/else(175 同形)。
+            // 残余 +1 = 4.4 不复现 4.1 的二次求值（operator-> 重调），跨版本封顶。
+            bool emptyItem;
             if (it->m_itemIdx == 0)
+                emptyItem = true;
+            else
+                emptyItem = false;
+            if (emptyItem)
                 return 0x11;
             // ORIG make_pair<unsigned int const&, unsigned short const&>
             // （m_itemIdx 字段以 unsigned int 左值视图入参，P61/P211）

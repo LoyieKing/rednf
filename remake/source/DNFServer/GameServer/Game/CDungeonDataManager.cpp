@@ -22,13 +22,17 @@
 //   探针结论仅对「int 字段 cast」成立）；改用完整类型具名视图成员
 //   `((SigDungeonStatisticKeyView*)stat)->m_key` 后 4.4 发单条 lea（探针 /tmp/probe_ddm2.cpp
 //   probeC 与 ORIG 逐条同形），三件 DIFF→AE。
-//  InsertDungeonKey 的 make_pair 第二参改 static_cast<CDungeonNode&&>(node)：ORIG 0x0848573c
-//   实例为 <DungeonKey&, CDungeonNode>（值传/右值形），旧具名左值形实例化 <.., CDungeonNode&>
-//   （p167 EXTRA/MISSING）。修后 p167 仅剩 C1/C2、D1/D2 同址别名。
+//  InsertDungeonKey：node 改用**表达式临时** CDungeonNode()（[N5E 2026-09-11]）——ORIG
+//   0x0848573c 实例为 <DungeonKey&, CDungeonNode>（值传/右值形）；具名 `CDungeonNode node;`
+//   形令 4.4 把具名对象放深区（node=-0x1e0，其余 5 槽整体前移，NEAR），表达式临时形则
+//   node=-0x98/make_pair=-0x134/pair<const>=-0x1d0/insert.ret=-0x1d8/end=-0x1dc/it=-0x1e0
+//   一次归位（ORIG 0x084856ac 逐槽实证）⇒ **NEAR→AE（95/96，gap −1 为尾 nop 豁免）**。
+//   p167 修后仅剩 C1/C2、D1/D2 同址别名。
 //  其余 4 件（InsertMonsterKey/InsertSkillKey/UpdateDungeonDataStatistic/GetInstance）
 //  及 C1/D1 与值类 dtor 均 AE 或 IDENTICAL；无 `call *%reg` 间接调用（ORIG
 //  区间 0x084849b4..0x08485b79 与 .o 全文件均 0 处）⇒ 无虚槽核对项。
-//  四数（check_tu_routed fresh）：141/211/1/4/128 → 142/216/1/1/125。
+//  四数（check_tu_routed fresh）：141/211/1/4/128 → 142/216/1/1/125 → 142/217/0/1/125
+//  （InsertDungeonKey NEAR→AE：near 1→0、ae 216→217，零劣化）。
 // CDungeonDataManager 批次实现（仅 ORIG 符号，无桥）。
 // 证据：docs/class_func_reports/CDungeonDataManager/ 全部 7 份报告
 // （InsertDungeonKey/InsertMonsterKey/InsertSkillKey/UpdateCharacter/
@@ -65,13 +69,17 @@ CDungeonDataManager& GetInstanceDungeonDataManager()
     std::map<DungeonKey, CDungeonNode>::iterator it = m_dungeonMap.find(key);
     if (it != m_dungeonMap.end())
         return false;
-    {
-        CDungeonNode node;
-        // ORIG 0x0848573c 的 make_pair 实例为 <DungeonKey&, CDungeonNode>（第二参按值 ⇒
-        // 右值引用形），非具名左值版 <DungeonKey&, CDungeonNode&>（p167 EXTRA/MISSING 差集）。
-        // 用 static_cast<T&&> 而非 std::move：4.4 对 std::move 会发 out-of-line call（P234）。
-        m_dungeonMap.insert(std::make_pair(key, static_cast<CDungeonNode&&>(node)));
-    }
+    // [b28e-N5 · N93/N82附 翻正] node 写成表达式临时 CDungeonNode()。CDungeonNode 有用户提供
+    //   的默认 ctor（CDungeonNode.h:123 `CDungeonNode()` W 0x08486ae6）⇒ value-init 不额外
+    //   零初始化，与具名 `CDungeonNode node;` 语义等价；析构仍在 insert 语句末，与 ORIG
+    //   0x0848577e→0x084857f5 的 D1 序（pair<const> → pair → node）一致；ORIG 无前置 rep stos。
+    //   机理：4.4 把「具名对象」放深区、把「表达式临时」放浅区（与 4.1 相反）⇒ 具名 node 形
+    //   得到 node=-0x1e0（其余 5 槽整体前移，与 ORIG 镜像，NEAR）；临时形一次对齐全部 6 槽：
+    //   node=-0x98 / make_pair=-0x134 / pair<const>=-0x1d0 / insert.ret=-0x1d8 / end=-0x1dc /
+    //   it=-0x1e0（ORIG 0x084856ac 逐槽实证；探针 /tmp/r5/n5/mgr）。
+    //   make_pair 第二参为右值（OS_ 形），实例仍为 <DungeonKey&, CDungeonNode>；p167 仅余
+    //   C1/C2、D1/D2 同址别名（P93 豁免）。
+    m_dungeonMap.insert(std::make_pair(key, CDungeonNode()));
     return true;
 }
 

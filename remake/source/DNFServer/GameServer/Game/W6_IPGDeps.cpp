@@ -153,6 +153,11 @@ namespace WongWork { namespace IPG {
 // 残差 = 4.1 `add $K,%eax; mov %eax,%reg` vs 4.4 `lea K(%eax),%reg`（N4/P30/N107，
 // 探针 /tmp/addprobe{,2,3}.cpp 证实 4.4 在"地址+另一变参并存"时恒 lea）
 // + 间接调用/实参寄存器角色（N7）。语义完成、byte 层 N 封顶。
+// [S2W6Deps 复核] 六处 LogManager::logFormat 实参逐参核对**一致**（ORIG 0x08104947
+// `$"IPG_QUERY user: %s reason: %d"` / 0x08104957 `$&__PRETTY_FUNCTION__` /
+// 0x0810495f `$"IPGMgr.cpp"`；余 5 处同形）——报告里我方 `$0x1e/$0x440/$0x0`
+// 是 .o 未链接的 .rodata 段内偏移，**非立即数实参**（§6.5 串盲区已排除；
+// strall.py 四 TU 串审计：仅 _GLOBAL__I/vtable 假阳性，无语义串缺/多）。
 #include "W6_IPGDeps/ProcIPGSyncForTaiwan.inc"
 
 // ---------------------------------------------------------------------------

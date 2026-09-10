@@ -23,7 +23,8 @@ class CCommunityServerProxy : public CNetwork<100000, 100000>
 public:
     CCommunityServerProxy(char* ip, int port);   // ORIG T 0x0846c5c8
     void Init();                                 // ORIG T 0x0846c660（转发 InitTcp）
-    int InitTcp();                               // ORIG T 0x0846c674
+    bool InitTcp();                              // ORIG T 0x0846c674（P174 prett 串定：
+                                                 // "bool CCommunityServerProxy::InitTcp()"）
     void Disconnect();                           // ORIG T 0x0846c770
     void SendTcpPacket(char* data, int len);     // ORIG T 0x0846c7c4
     bool OnTcpRecv();                            // ORIG T 0x0846c82c

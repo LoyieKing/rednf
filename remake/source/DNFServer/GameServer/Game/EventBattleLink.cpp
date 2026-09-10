@@ -139,13 +139,15 @@ static const int kMaxMatchLine = 3;
             static_cast<BingoData*>(user.getBingoData())->m_pad4));
         if (diff > 0)
         {
+            // [b23S3C] ORIG 0x080ca37c 段 `mov -0x10(%ebp),%eax; cmp $0x3,%eax;
+            // jle +0x127; mov $0x3,%eax; mov %eax,-0x10(%ebp)`（载寄存器比较 +
+            // 常量经 eax 共享回存）。b23S3C 复核：三目 `diff = (diff>3)?3:diff;`
+            // 在本 TU（无 -march=i486 路由）折 MIN_EXPR → 产 `mov $3,%eax;
+            // cmpl $3,mem; cmovle mem,%eax; mov %eax,mem`（4 条，cmov 为 ORIG
+            // 本区段所无）⇒ 与 BingoEventLink4.cpp:232 十二形 + 三十余形探针
+            // 结论一致（共享 store 属跨版本后端形，N 封顶）⇒ 保留 if 形。
             if (diff > 3)
             {
-                // [b28d-58] DIFF N（P85 + P238 反向）：ORIG 0x080ca376 段
-                // `mov -0x10(%ebp),%eax; cmp $0x3,%eax; jle` + `mov $0x3,%eax;
-                // mov %eax,-0x10(%ebp)`（局部载入比较 + 常量经 eax 中转 store）；
-                // 4.4-O0 对 signed int 局部恒 `cmpl $0x3,mem` 直比 + `movl $3,mem`
-                // 直存（`(int)3u` 异型化亦折）⇒ 2 条封顶，语义等价。
                 diff = 3;
             }
             static_cast<BingoData*>(user.getBingoData())->m_pad4 =
@@ -186,6 +188,11 @@ static const int kMaxMatchLine = 3;
     CItem* found = G_CDataManager()->find_item(itemIdx);
     if (found != 0)
     {
+        // [b23S3C] ORIG 0x080ca704 `mov -0x14(%ebp),%eax; mov %eax,-0x6c(%ebp)`
+        // = Inven_Item+0x02（m_addInfo = 物品 idx）在 make_item 之前直写；
+        // set_add_info 只写 +0x07（m_addInfo2），不覆盖本字段 ⇒ 缺失即便邮件
+        // 物品 idx 为 0（真语义缺口）。
+        item.m_addInfo = static_cast<unsigned int>(itemIdx);
         found->make_item(item);                     // vtable+0x08 槽
         item.set_add_info(addInfo);
 
@@ -200,6 +207,7 @@ static const int kMaxMatchLine = 3;
             title, static_cast<int>(strlen(title)),
             0, user.GetServerGroup(), false, false);
     }
+    return;
 }
 
 // ---------------------------------------------------------------------------

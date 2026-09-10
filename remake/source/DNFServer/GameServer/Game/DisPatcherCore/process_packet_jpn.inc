@@ -10,6 +10,14 @@ int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBa
     // CDeleteGuild DONE 同族形。
 
     out.m_field4 = check_error(user, msg);
+    // [N8BigTURest 2026-09-11] 本 TU 的 prett 缺口审计（nm 逐符号差集）：
+    // ① `_ZZN20DisPatcher_AddFriend18process_packet_jpn…E19__PRETTY_FUNCTION__` 原缺
+    //    ⇒ 已把下方手写串（与 ORIG .rodata 实字节逐字节相同）改为 __PRETTY_FUNCTION__，
+    //    符号补齐且串内容不变（编译后 .rodata 实读一致）。
+    // ② `_ZZN20DisPatcher_AddFriend7process…E19__PRETTY_FUNCTION__`（ORIG 0x8bd5080）
+    //    在 ORIG 全二进制内**零引用**（对全库 disasm 搜 `$0x8bd5080` = 0 hit）⇒ 4.1
+    //    发射的死符号；我方 process 体 14 条与 ORIG 逐条相同（fdiff blocks=0）且无串引用
+    //    ⇒ 不可补（补=发明代码），判 N。
     if (out.m_field4 > 0)
     {
         return 0;
@@ -18,7 +26,7 @@ int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBa
     {
         LogManager::logFormat(
             1, "PacketDispatcher_Impl_1.cpp",
-            "int DisPatcher_AddFriend::process_packet_jpn(CUser*, MSG_BASE&, ParamBase&)",
+            __PRETTY_FUNCTION__,
             0x20d8, "Dispatcher_Impl Check_Error No(%d)", out.m_field4);
         return 0x20d9;
     }

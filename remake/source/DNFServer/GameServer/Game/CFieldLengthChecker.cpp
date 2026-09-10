@@ -75,6 +75,18 @@ std::vector<unsigned int> CFieldLengthChecker::fieldLength_;
     // [F2d-C05② 甄别] 无命中形：gap=+12（show_func_diff orig=623 our=611，我们**少**）
     //   ⇒ 减指令型 F2 方向相反；残余 ORIG-only={mov×8,add×3,test,je,jmp,sub,jne,jbe}
     //   = string 局部槽基（ORIG -0x41 非 4 对齐）+ EH landing 族 ⇒ 维持 N82/N91。
+    // [N6S3 2026-09-11 复核·封顶] 件级读数（N1 口径 /tmp/n1_v.py）：verdict=DIFF
+    //   orig_insns=623 our=611 gap=+12；残差形 = ORIG `lea -0x41(%ebp)` /
+    //   `lea -0x48(%ebp)` / `lea -0x4c(%ebp)` / `lea -0x50(%ebp)` 四个 string
+    //   槽（首槽 -0x41 **非 4 对齐**）vs 我方 `-0x49/-0x50/-0x54/-0x58/-0x5c`
+    //   （低 8 + 多一槽），且构造/析构序成对平移。定性证据（两把独立尺子
+    //   均为空）：p167all.py CFieldLengthChecker ⇒ AddField **无 MISSING/EXTRA
+    //   call**（差集只出现在 _Z41__static_initialization_and_destruction_0ii 与
+    //   uninitialized_copy 模型件）；strall.py ⇒ AddField 无真串差异。
+    //   ⇒ 无缺失语义调用、无缺失/多余字面量；余项为 -O0 槽分配（string 4 字节
+    //   槽 + 非对齐基）与 libstdc++ string 临时析构的 EH landing 排布，属编译器
+    //   内部分配序，函数体内无可落地旋钮（P216 边界：callee 为 libstdc++ 不可
+    //   加 throw()）⇒ 维持封顶，不做噪声改动。
     if (fieldLength_.empty()) {
         std::string s(query);
         std::string a;

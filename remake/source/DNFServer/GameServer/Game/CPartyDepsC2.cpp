@@ -93,6 +93,16 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 0x5a;
             {
                 if (!checkValidUser(i))     // checkValidUser(int) W 0x08145868
                     continue;
+                // [N6S4PosB 封顶] ORIG 0x0859be5a `mov -0xc(%ebp),%eax;
+                // shr $0x1f,%eax; test %al,%al; je 成功`（4 条）= 老 GCC 未
+                // fold `(x>>31)!=0`；4.4 tree 层恒 fold 成 `cmpl $0,-0xc;
+                // jns`（2 条）。阻 fold 唯一有效形 = volatile 局部（探针 v6/
+                // v1 与 ORIG 逐条同形），但 4.4 -O0 把 volatile 局部排到栈帧
+                // 最低段、组内逆序（探针 v12/v13），本函数整体槽映射随之上移
+                // 4 字节（itemId -0x1c→-0x18、slot -0xc→-0x1c）⇒ 反劣。
+                // 其余六形（== 1 / &1 / >0 / /0x80000000 / long long / 指针
+                // 别名）实测均 jns 或 +2 条。⇒ 权威口径 218/216 gap+2，全部
+                // 残差 = 此处 4→2 条。封 N（编译器 lowering）。
                 int slot = -1;              // movl $0xffffffff,-0xc
                 // insertItemIntoInventory(Inven_Item, eItemAddReason, bool, bool)
                 // 实参 (item, 0x38, 1, 1)；返回槽号符号扩展判负

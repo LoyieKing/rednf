@@ -89,10 +89,15 @@
     }
     std::sort(vec.begin(), vec.end(), STPacketLog::Compare);
 
-    for (std::vector<STPacketLog*>::iterator it = vec.begin();
-         it != vec.end(); ++it)
+    // [N6S6ZeroB 2026-09-11] ORIG 0x08480ac0 槽序实证：收集循环迭代器在
+    // -0x90（`lea -0x90(%ebp),%eax` @+0xbf，for-init 形态 ⇒ 4.4 延迟到最后分配，
+    // 落更深槽），打印循环迭代器在 -0x8c（@+0x23d）。两循环原为互换（我们
+    // -0x8c / -0x90）⇒ 打印循环改「普通块变量 + 空 init 的 for」，两槽归位，
+    // ndiff 8→0，verdict NEAR→ae。
+    std::vector<STPacketLog*>::iterator vit = vec.begin();
+    for (; vit != vec.end(); ++vit)
     {
-        STPacketLog* log = *it;
+        STPacketLog* log = *vit;
         cMyTrace(__PRETTY_FUNCTION__, 0x3b1, 0)(
             "- PACKET CLASS:%d NO:%5d, COUNT:%8d, NAME:%s",
             log->m_field4, log->m_field8, log->m_count, log->m_name.c_str());

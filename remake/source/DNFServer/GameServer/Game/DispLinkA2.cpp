@@ -722,6 +722,10 @@ public:
     {
         int luck = user->GetCurCharacLuckPoint();
         std::string text("remained luck point : ");
+        // [负结论·保留 0x100] ORIG 此点确为 255B（0x0820c982 `mov $0x3f,%ecx` +
+        //   `mov %ax,(%edx)/add $2/mov %al,(%edx)`）；但改成 `b[0xff]` 后我方 gcc
+        //   展开为 10 条（多一条 `add $0x1,%edx`）vs ORIG 9 条，该件 gap 由 −27
+        //   恶化到 −63（TU 复编实测 6688 vs 6625）⇒ 按「一次一旋钮不成即回滚」回退。
         char b[0x100] = {0};
         std::sprintf(b, "(%d) ", luck);
         text += b;
@@ -840,7 +844,7 @@ public:
     else if (args[0] == "mdt" || args[0] == "monsterdroptest" || args[0] == "startmdt" ||
              args[0] == "endmdt" || args[0] == "goldmdt")
     {
-        char b[0x100] = {0};
+        char b[0x100] = {0};    // ORIG 0x0820d4f8 为 255B（见上「负结论·保留 0x100」）
         if (args[0] == "startmdt")
             std::sprintf(b, "%d %s", 1, args[1].c_str());
         else if (args[0] == "endmdt")
@@ -854,7 +858,7 @@ public:
     // ---- cli / checklottoitem ----
     else if (args[0] == "cli" || args[0] == "checklottoitem")
     {
-        char b[0x100] = {0};
+        char b[0x100] = {0};    // ORIG 0x0820d712 为 255B（见上「负结论·保留 0x100」）
         if (args[1] == "ven")
         {
             std::sprintf(b, "%d %s", 1, args[2].c_str());
@@ -981,7 +985,7 @@ public:
     // ---- sep upgrade/up success|s|fail|f ----
     else if (args[0] == "sep" && (args[1] == "upgrade" || args[1] == "up"))
     {
-        char b[0x100] = {0};
+        char b[0x100] = {0};    // ORIG 0x0820e4a4 为 255B（见上「负结论·保留 0x100」）
         if (args[2] == "success" || args[2] == "s")
         {
             if (user->getUpgradeSeparateTrueFlag() == 0)
@@ -1354,7 +1358,7 @@ public:
         CItem* pItem = G_CDataManager()->find_item(name.c_str());
         if (pItem == 0)
         {
-            char b[0x100] = {0};
+            char b[0x100] = {0};    // ORIG 0x082103bf 为 255B（见上「负结论·保留 0x100」）
             std::sprintf(b, "cannot find item (%s) ", name.c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -1368,7 +1372,7 @@ public:
             return 0;
         }
         {
-            char b[0x100] = {0};
+            char b[0x100] = {0};    // ORIG 0x08210525 为 255B（见上「负结论·保留 0x100」）
             std::sprintf(b, "item_index(%d) ", pItem->get_index());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -1498,7 +1502,7 @@ public:
         CItem* pItem = G_CDataManager()->find_item(itemIdx);
         if (pItem == 0)
         {
-            char b[0x100] = {0};
+            char b[0x100] = {0};    // ORIG 0x08211337 为 255B（见上「负结论·保留 0x100」）
             std::sprintf(b, "cannot find item (%s) ", args[1].c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -1603,7 +1607,7 @@ public:
             if (party != 0 && party->get_member_count() >= 2)
             {
                 party->set_gm_random_buff_type(static_cast<QuickParty::RandomBuffType>(v));
-                char b[0x100] = {0};
+                char b[0x100] = {0};    // ORIG 0x08211b24 为 255B（见上「负结论·保留 0x100」）
                 std::sprintf(b, "GM QUICK PARTY RANDOM BUFF (%d) TYPE!!", v);
                 PacketGuard g;
                 g.put_header(0, 0xc);
@@ -1633,7 +1637,7 @@ public:
                 BattleData* bd = &party->m_battleData;   // +0x32c（MonC9 具名化：m_padBattleData→BattleData m_battleData）
                 bd->SetHellPartyValueTotal(v);
                 party->send_hellParty_value();
-                char b[0x100] = {0};
+                char b[0x100] = {0};    // ORIG 0x08211d6e 为 255B（见上「负结论·保留 0x100」）
                 std::sprintf(b, "HELL PARTY VALUE (%d)",
                              bd->GetHellPartyValueTotal());
                 PacketGuard g;
@@ -1691,7 +1695,9 @@ public:
     else if (args[0] == "bossdifficult")
     {
         char v = static_cast<char>(StringToNumber(args[1].c_str()));
-        if (v > '\0' && v < '\x05')
+        // ORIG 仅 `cmpb $0x4,-0x5d; jg`（0x796cc = m_gmBossDifficulty）——无下界检查
+        //   与 `cmpb $0x0`/`jle`，故我方旧形 `v > '\0' &&` 是**发明校验**（删）。
+        if (v < '\x05')
             user->m_gmBossDifficulty = v;              // +0x796cc
     }
     else if (args[0] == "bossmap")
@@ -1818,11 +1824,12 @@ public:
     else if (args[0] == "avatarcoin")
     {
         unsigned int v = static_cast<unsigned int>(std::atoi(args[1].c_str()));
-        AvatarCoin* coinR = const_cast<AvatarCoin*>(
-            &user->getCurCharacInvenR()->m_avatarCoin);  // +0x658（ORIG 用 R 读）
-        AvatarCoin* coinW = &user->getCurCharacInvenW()->m_avatarCoin;  // +0x658
-        unsigned int total = v + coinR->Get();
-        coinW->Set(total);
+        // ORIG 0x08212a36-0x08212a6c：**无** coinR/coinW/total 具名槽（P0/P183/P329）：
+        //   R 读侧 `add $0x658,%eax; mov %eax,(%esp); call AvatarCoin::Get()` 直入实参，
+        //   结果 `add %eax,-0x44(%ebp)` 就地在 v 上累加；W 写侧 `lea 0x658(%eax),%edx`
+        //   亦无槽直传 Set。
+        v += user->getCurCharacInvenR()->m_avatarCoin.Get();  // +0x658（ORIG 用 R 读）
+        user->getCurCharacInvenW()->m_avatarCoin.Set(v);      // +0x658
         AvatarCoin::SaveToDB(user);
         AvatarCoin::SendSyncPacket(user);
     }
@@ -1881,7 +1888,8 @@ public:
             return 0;
         }
         {
-            short fields[4] = {0, 0, 0, 0};
+            // ORIG 无 4×`movw $0x0`（4 条）——4 个元素随后全被赋值，初始化冗余（P0 族）。
+            short fields[4];
             fields[0] = static_cast<short>(std::atoi(args[1].c_str()));
             fields[1] = static_cast<short>(std::atoi(args[2].c_str()));
             fields[2] = static_cast<short>(std::atoi(args[3].c_str()));

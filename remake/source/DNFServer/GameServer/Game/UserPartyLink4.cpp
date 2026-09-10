@@ -163,8 +163,13 @@ enum ENUM_HARDCODE_ITEM
     // b28d-45 复测：右值引用具名化（static_cast<T&&> 控声明序）反劣 117→121、
     // NEAR→DIFF，确认 pair 临时槽序为 4.4 固定形态，维持 N 封顶（ORIG
     // 0x0867e8b6 first 临时=-0x10 / second=-0xc）。
+    // [b28e-S4 语义修复] ORIG 0x0867e8b6 `movl $0x0,-0x10` / 0x0867e8bd
+    // `movl $0x4b0,-0xc`：make_pair 的 A&&/B&& 绑定 (&(-0xc), &(-0x10))
+    // ⇒ ORIG pair 的 first(ENUM)=0x4b0、second(int)=0。原 (ENUM)0/0x4b0 把
+    // item id 落成 0（_isMatchedItem 以 it->first==itemIdx 匹配，
+    // CUser.cpp:12783；_deleteSpecificItemInven 消费）⇒ 运行期删不到公会经验书。
     requestItems.push_back(
-        std::make_pair((ENUM_HARDCODE_ITEM)ENUM_HARDCODE_ITEM_0, 0x4b0));
+        std::make_pair((ENUM_HARDCODE_ITEM)0x4b0, 0));
 
     deleteSpecificItem(requestItems, deletedItems);
 

@@ -49,7 +49,11 @@ namespace random_option
     // [b28d-31] 复核：字段 void*→unsigned int 同型化（P254 档③）消两段中转
     // （71→70）；残余 `mov 0x8(%ebp),%eax` this 重载（ORIG 0x085f3ccd 单次装载）
     // 四形（reinterpret 原序/交换、C cast、字段同型化）实测均不可翻 ⇒ N18a 封顶。
-    if ((m_slot4 | m_slot0) != 0)
+    // [b28e-S4] ORIG 0x085f3cca 单次 this 装载（`mov 0x8(%ebp),%eax;
+    //   mov 0x4(%eax),%edx; mov (%eax),%eax; or`）——与返回处
+    //   `*(long long*)this` 同形；原 `(m_slot4 | m_slot0) != 0` 让 4.4 对两个
+    //   成员各发一次 this 重载（+1 条 70 vs 69）。改 8 字节读求 or/test 折叠。
+    if (*(long long*)this != 0)
     {
         return *(long long*)this;
     }
@@ -83,11 +87,19 @@ namespace random_option
                                                  char const* ownerName)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_C, E_SERVER_GROUP_NONE);
+    // [b28e-S4 回滚] ORIG 0x085f3e17 `mov %eax,%esi`（首个 blob_to_str 结果
+    //   保活入 callee-saved，第二个落槽 -0x4c）——`register char*` 在真实函数里
+    //   实测反劣 124→**125**（首个结果仍落槽 -0x24，且位置变 -0x24 vs ORIG -0x1c）
+    //   ⇒ 4.4 -O0 下 register 不改变该变量的栈分配（探针里有效的简化上下文不成立）。
+    //   按 N 封顶，保持具名形（124/123，残差 1 条 + 帧 0xac/0xbc）。
     char* randomOptionStr = db->blob_to_str(1, (char*)&item + 0x25, 0xe);
     char* guidStr = db->blob_to_str(0, (char*)&item + 0x15, 10);
     // unsigned char：ORIG getAbilityType 后 movzbl 零扩展（P11；char 会 movsbl）。
-    unsigned char ampType = item.m_amp.getAbilityType();
+    // [b28e-S4] ORIG 0x085f3e47 先调 +0xa7（getAbilityValue，`movzwl %ax` → -0x48）
+    //   再调 +0x67（getAbilityType，`movzbl %al` → -0x44）⇒ 声明序 value 先 type 后
+    //   （原 type 先 value 后使两 call 顺序与槽各差一档）。
     unsigned short ampValue = item.m_amp.getAbilityValue();
+    unsigned char ampType = item.m_amp.getAbilityType();
 
     db->set_query(
         "inSert into auction_main(auction_id,occ_time,expire_time,owner_id,owner_name,"
@@ -107,8 +119,14 @@ namespace random_option
         (unsigned char)item.m_field0,
         item.m_addInfo,
         item.m_addInfo2,
-        (int)(item.m_attr & 0x1f),
-        (int)(item.m_attr >> 5),
+        // [b28e-S4] /tmp 探针（同旗标 c6root 4.4.7）实证：位域读
+        //   `m_attrBits.m_attrLo` 生成 ORIG 0x085f3e92 的
+        //   `movzbl 0x6(%eax),%eax; and $0x1f,%eax; movzbl %al,%eax`（位域=4 条，
+        //   `(int)(m_attr & 0x1f)` 会多 `mov %eax,%edx` 中转）；`m_attr / 32`
+        //   生成 ORIG 0x085f3e96 的 `shr $0x5,%al`（`>> 5` 走 32 位 `sar`）。
+        //   两者对 unsigned char 语义等价（非负），仅 lowering 不同。
+        (int)item.m_attrBits.m_attrLo,
+        (int)(item.m_attr / 32),
         item.m_fieldb,
         item.m_fieldd,
         (int)ampType,

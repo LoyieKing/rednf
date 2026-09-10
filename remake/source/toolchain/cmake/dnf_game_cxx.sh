@@ -610,6 +610,22 @@ case "$(basename "$src" .cpp)" in
                 #   实测（同口径两次编译，仅差该旗标）：623/1125(1748)/near4/diff20 →
                 #   623/1126(1749)/near4/diff19（ae +1 / diff −1，净 −1）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
+            *Game/CHackLog_OverDamage.cpp)
+                # [Main·2026-09-11 round5 第九批] 路由申请由 N6Free231to250 提出，附完整证据链：
+                #   x87 比较 lowering 族（P230/S156/N85 同族）——
+                #   `CHackLog_OverDamage::GetDungeonLimitDamageAndHackType` ORIG 0x082868cc 为
+                #   `fucompp; fnstsw %ax; test $0x45,%ah; sete %al`（**无 cmov 的 i386 族** lowering），
+                #   默认 4.4.7 产 `fucomip %st(1),%st; fstp; seta`。
+                #   N6S3PosA 探针扫 -march：i386/i486/i586 ⇒ fnstsw 序列；i686/pentium4 ⇒ fucomip。
+                # ⚠ **臂的收益经 Main 两次对照实测确认（勿再移除）**：N6 曾复审撤回该申请
+                #   （理由是「收益来自源码改动、默认路由也是 ae=5/diff=1」），Main 随后实测否证：
+                #     有臂：`identical=3 ae=5 near=0 diff=1`（唯一 DIFF = N133 工具假缺口 ⇒ 实质全绿）
+                #     无臂：`identical=3 ae=4 near=0 diff=2`
+                #   ⇒ **`GetDungeonLimitDamageAndHackType` 的 DIFF→AE 确实由该旗标带来**，
+                #   已恢复本臂。**教训：旗标 A/B 必须在「对方声称的当前源码状态」下自己做一次**，
+                #   不能只采信转述的读数（本件即两侧都自称测过、结论相反）。
+                # ⚠ `-mtune=generic` 必须同带（单独 -march=i486 会崩，既有记录）。
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/PvpUserTable.cpp | \
             *Game/ScriptLeafA2.cpp | \
             *Game/GmCmds_E.cpp | \

@@ -32,11 +32,11 @@
 {
     // ORIG：*(vptr) = &vtable_08b4bae0（编译器自动）；
     // stADDINFO ctor 0x0810af10：两个 ushort 置 0xffff；+0x08 flag 置 0。
-    // [b28 判词·N·帧阶梯不可达] ORIG 帧 0x18 vs 4.4 0x14：探针 /tmp/l2_p8.cpp
-    // 实测 4.4 本形帧仅 {0x14,0x24} 两档——4 dead int=0x14、+double/第5 int 跳
-    // 0x24（P190 double 撑帧此 TU 过冲，P31 int 垫无中间值）；stADDINFO ctor 为
-    // 他 TU 外联（P210 同 TU 继承律不适用）。唯一真差 = sub 立即数 1 行，N82/P182 族。
-    int d1, d2, d3, d4;
+    // [N5F 2026-09-11 修·帧 0x28→0x18] ORIG 帧 0x18 = P210 三分律③：stADDINFO::C1
+    // 定义虽已在本 TU（CEventBase.inc 之后），但位于本 caller 之后 ⇒ 4.4 看不到体、
+    // 按保守 0x18 outgoing 分配。旧 dead int×4（P31 垫帧）在此之上再撑 0x10 ⇒ 0x28。
+    // 删之即回归 0x18；探针 /tmp/r5/n5/N5F_EventFair/probe_frame.cpp 实测：
+    // 无 dead int = sub $0x18（13 条逐条同形 / 与 ORIG 一致）、有 dead int = sub $0x28。
     m_isEventing = false;
 }
 

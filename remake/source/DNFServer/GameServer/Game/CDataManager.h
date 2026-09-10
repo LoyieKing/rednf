@@ -3444,7 +3444,11 @@ public:
 
     std::map<int, CAICharacter*> m_charMap;               // +0x00
     std::vector<CAICharacter*> m_byLevelList[99];         // +0x18（99×0xc=0x4a4，止于 +0x4bc；ORIG dtor 析构区间 +0x4a4）
-    int m_maxAP;                                          // +0x4bc（init 置 0x7fffffff）
+    unsigned int m_maxAP;                                 // +0x4bc（init 置 0x7fffffff）
+    // [S2CAICharList 2026-09-11] int → unsigned int（P290 类型轴，父泳道授权）：
+    // _add ORIG 0x0834a8c1 `mov 0x4bc(%eax),%ebx`（比较左操作数直落 callee-saved）
+    // vs int 成员恒 `mov 0x4bc(%eax),%eax; mov %eax,%ebx`（探针 A/B 实证）。
+    // sizeof/偏移/mangled 零影响。
     std::map<int, std::vector<CAICharacter*> > m_groupMap; // +0x4c0
     std::vector<CAICharacter*> m_byAPList[6];             // +0x4d8（6×0xc=0x48，止于 +0x520）
     std::map<int, int> m_apStatMap;                       // +0x520

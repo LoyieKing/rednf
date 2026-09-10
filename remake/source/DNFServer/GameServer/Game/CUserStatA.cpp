@@ -268,6 +268,10 @@ public:
             if (slot < 0)                                      // +0x8f0 jns
             {
                 script->make_item(item);                       // +0x910 vtbl+0x08 make_item(Inven_Item&)
+                // [N6S6ZeroB 负结论] 本行是全局唯一残差：ORIG 0x08663a18 以
+                // `mov (%eax),%edx`（vfn→%edx）+ `lea -0x168(%ebp),%eax`（&item→%eax）；
+                // 4.4 恒反装（vfn→%eax、&item→%edx），call 形式亦然。试
+                // `(*script).make_item(item)`（等价语法）实测零变化 ⇒ N7 寄存器选择封顶。
                 item.m_addInfo2 = 3;                           // +0x912 movl $0x3（item+7 堆叠数）
                 item.m_addInfo = 0x1057;                       // +0x91c movl（item+2）
 

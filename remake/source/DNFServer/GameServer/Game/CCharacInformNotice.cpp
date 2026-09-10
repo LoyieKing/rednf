@@ -89,6 +89,14 @@ static const int kInformNoticeBit = 8;
 //   P248 三档试尽（探针 /tmp/cn_probe*.cpp）：m_flags 元素 1 字节 enum 化翻正第一处
 //   中转（v10/v13/v15），第二处中转与 xor 在 1u/1/+=/具名/register/uchar 截断/enum
 //   RHS 共 12 形下均不可翻；4.4.6 后端复测同形（非 N7 后端敏感族）。
+// [N5B 2026-09-11 复核 · fresh 口径 DIFF 55/55 gap 0（旧口径 55/54）] 三条残差轴终判：
+//   ①`xor $1` 不可消：`!f()`、`f()==false`、`f()!=true`、具名 bool、正向 `f()` 五形探针
+//     （p7.cpp）——前四形 4.4 恒发 `xor $0x1,%eax; test %al,%al`，仅正向 if 无 xor 但
+//     令岛 2/岛 3 被 jump-thread（51<55 更劣）；
+//   ②m_flags 元素改 1 字节 `enum : unsigned char` 确能补回第一处中转（p3.cpp h_enum
+//     `movzbl…,%edx; mov %edx,%ebx` ↔ h_uchar 单段），但令我方 56/55、gap 0→**−1 反劣**
+//     ⇒ 不采用（消费侧 get/chk 的 uchar 版与 enum 版逐条相同，p4.cpp）；
+//   ③第二处中转 4.4 恒 `lea …,%ecx` 直落（p3 的 h_enum 亦如此）⇒ N18a 封顶。
 #include "CCharacInformNotice/handleInformNoticeFlag.inc"
 {
     unsigned int bit = flag & 7;

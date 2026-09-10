@@ -404,10 +404,10 @@ struct BfkcBlueMarbleScriptView
     ref.m_pad37 = static_cast<char>(get_dungeon_diff());             // +0x37
     // [b28d-20] ORIG `test %al,%al; setg %al; test %al,%al; je`：无 dimPossible
     // 具名槽（P0 表达式直用）；具名 char 局部会多一槽并改分支形。
-    ref.m_rateSlot =
-        static_cast<signed char>(m_pDungeon->get_dimension_possible()) > 0
-            ? static_cast<char>(m_standardDimensionLevel)
-            : static_cast<char>(m_pDungeon->get_standard_level());  // +0x36
+    if (static_cast<signed char>(m_pDungeon->get_dimension_possible()) > 0)
+        ref.m_rateSlot = static_cast<char>(m_standardDimensionLevel);
+    else
+        ref.m_rateSlot = static_cast<char>(m_pDungeon->get_standard_level());
     ref.m_field35 = roleCvt;                                         // +0x35
     ref.m_field34 = static_cast<char>(mob.m_level);                  // +0x34 ← mob.level
     ref.m_field38 = static_cast<unsigned char>(dieReason);           // +0x38
@@ -429,32 +429,34 @@ struct BfkcBlueMarbleScriptView
     if (m_party != 0)
     {
         m_party->GetLuckPoint(&result.m_luckPoint, true);
-        if (m_party->IsSinglePlay() && m_party->getManager() != 0
-            && m_party->getManager()->getMoveSpace() == 1)
+        if (m_party->IsSinglePlay() && m_party->getManager() != 0)
         {
-            BlueMarble* marble = static_cast<BlueMarble*>(
-                m_party->getManager()->getBlueMarble());
-            if (marble != reinterpret_cast<BlueMarble*>(0))
+            if (m_party->getManager()->getMoveSpace() == 1)
             {
-                blueBuff1 = marble->getBuff(
-                    m_party->getManager(),
-                    static_cast<BlueMarbleBuffType::T>(1));
-                blueBuff2 = marble->getBuff(
-                    m_party->getManager(),
-                    static_cast<BlueMarbleBuffType::T>(2));
-                // [b28d-20] ORIG -0x9b/-0x98/-0x94/-0x90 落在 ref 对象内部
-                // （ref=-0xc0，sizeof 0x48）⇒ 不是独立局部，而是 ref 字段写入：
-                // +0x25=1 / +0x28=get_charac_job() / +0x2c=get_charac_level() /
-                // +0x30=blueBuff2（原 (void) 丢弃 = 真语义缺口）。
-                // ORIG 逐处重调 getManager（P183 禁缓存 ⇒ 原样内联重取）。
-                ref.m_field25 = 1;
-                // [SweepMonsterDrop 2026-09-09] m_field28 int→ENUM_CHARACTERJOB
-                // （P254）：get_charac_job() 返回 int ⇒ 必须显式 cast；探针实测
-                // cast 形仍为单条直存（与 ORIG 0x0830b03d `mov %eax,-0x98` 同形）。
-                ref.m_field28 = static_cast<ENUM_CHARACTERJOB>(
-                    m_party->getManager()->get_charac_job());
-                ref.m_field2c = m_party->getManager()->get_charac_level();
-                ref.m_field30 = blueBuff2;
+                BlueMarble* marble = static_cast<BlueMarble*>(
+                    m_party->getManager()->getBlueMarble());
+                if (marble != reinterpret_cast<BlueMarble*>(0))
+                {
+                    blueBuff1 = marble->getBuff(
+                        m_party->getManager(),
+                        static_cast<BlueMarbleBuffType::T>(1));
+                    blueBuff2 = marble->getBuff(
+                        m_party->getManager(),
+                        static_cast<BlueMarbleBuffType::T>(2));
+                    // [b28d-20] ORIG -0x9b/-0x98/-0x94/-0x90 落在 ref 对象内部
+                    // （ref=-0xc0，sizeof 0x48）⇒ 不是独立局部，而是 ref 字段写入：
+                    // +0x25=1 / +0x28=get_charac_job() / +0x2c=get_charac_level() /
+                    // +0x30=blueBuff2（原 (void) 丢弃 = 真语义缺口）。
+                    // ORIG 逐处重调 getManager（P183 禁缓存 ⇒ 原样内联重取）。
+                    ref.m_field25 = 1;
+                    // [SweepMonsterDrop 2026-09-09] m_field28 int→ENUM_CHARACTERJOB
+                    // （P254）：get_charac_job() 返回 int ⇒ 必须显式 cast；探针实测
+                    // cast 形仍为单条直存（与 ORIG 0x0830b03d `mov %eax,-0x98` 同形）。
+                    ref.m_field28 = static_cast<ENUM_CHARACTERJOB>(
+                        m_party->getManager()->get_charac_job());
+                    ref.m_field2c = m_party->getManager()->get_charac_level();
+                    ref.m_field30 = blueBuff2;
+                }
             }
         }
     }
@@ -469,10 +471,11 @@ struct BfkcBlueMarbleScriptView
         ref.m_field44_byte = 1;
     else
         ref.m_field44_byte = 0;
-    if (static_cast<signed char>(m_pDungeon->m_89e) != 0)
-        ref.m_field43 = 1;
-    else
-        ref.m_field43 = 0;
+    // [N5A] m_field43 为 bool（消费者形 `movzbl;xor $1;test;je` 双处实证；h_probe H2 对
+    // uchar 目标反产 `test;jne`）。ORIG 的 store 形（0x0830b0b5..0xc1）只能由「向**字节
+    // 左值**写 int 三目」产生（4.1.2/4.4.7 对 bool 目标恒 setne：e_probe E1..E5 /
+    // x_probe X1..X7 实测）⇒ 经 CItemGenerator.h 的 union 字节视角写（u_probe.cpp 实证）。
+    ref.m_field43Byte = static_cast<signed char>(m_pDungeon->m_89e) != 0 ? 1 : 0;
     // [b28d-20] ORIG 无 notBoss 局部槽（使用点内联 `movzbl 0x349; xor $1`）
     // ⇒ P0 判读：使用点直写 !mob.m_isBoss（bool 字段裸测形）。
 
@@ -485,10 +488,10 @@ struct BfkcBlueMarbleScriptView
     }
 
     // ---- 第二遍 blob（ORIG +0x32f..+0x425；覆盖第一遍大部分槽位） ----
-    ref.m_field35 =
-        static_cast<signed char>(m_pDungeon->get_dimension_possible()) > 0
-            ? static_cast<char>(m_standardDimensionLevel)
-            : static_cast<char>(m_pDungeon->get_standard_level());  // +0x35
+    if (static_cast<signed char>(m_pDungeon->get_dimension_possible()) > 0)
+        ref.m_field35 = static_cast<char>(m_standardDimensionLevel);
+    else
+        ref.m_field35 = static_cast<char>(m_pDungeon->get_standard_level());
     ref.m_rateSlot = static_cast<char>(get_dungeon_diff());          // +0x36
     ref.m_rankBonusIndex = mob.m_mobIndex;                           // +0x38 dword
     ref.m_field3c_byte = static_cast<unsigned char>(mob.m_roleType); // +0x3c ← roleType
@@ -505,10 +508,7 @@ struct BfkcBlueMarbleScriptView
         mob.m_hellPartyGroupIdx != 0);                               // +0x41
     ref.m_field42_byte = static_cast<unsigned char>(mob.m_hellPartyScriptIdx); // +0x42
     // [b28d-20] ORIG -0x7b = ref+0x45（m_field45）⇒ bloodFlag 是 ref 字段写入。
-    if (mob.m_bloodRoundFlag != 0)
-        ref.m_field45 = 1;                                           // +0x45
-    else
-        ref.m_field45 = 0;
+    ref.m_field45 = mob.m_bloodRoundFlag != 0 ? 1 : 0;               // +0x45
     // [b28d-20] ORIG `mov %al,-0x9c(%ebp)` = ref+0x24（m_field24）⇒ 返回值写入
     // ref 字段（原 (void) 丢弃 = 真语义缺口）。
     ref.m_field24 = static_cast<char>(m_party->GetPartyMemberForceDropFlag());
@@ -600,8 +600,7 @@ struct BfkcBlueMarbleScriptView
     {
         map_item mi;                                                 // -0x114
         mi.m_count = 1;
-        mi.m_itemIndex = mapInfo.m_dropItemCnt;
-        mapInfo.m_dropItemCnt = mi.m_itemIndex + 1;
+        mi.m_itemIndex = mapInfo.m_dropItemCnt++;  // N5A: ORIG 复用 eax（无 reload）
         mi.m_dropIndex = uid;
         mi.m_createTick = curSec;
         // P83/N84：ORIG 为 Inven_Item(0x3d) 结构整体拷贝（15×mov dword+1×movb，
@@ -610,24 +609,30 @@ struct BfkcBlueMarbleScriptView
 
         // 蓝矿金币缩放：单人且 manager 在移动空间且 itemIdx==0 时按脚本系数
         // ROUND((buff*f2+f1)*gold) 缩放 item.m_addInfo2(+0x07)。
-        if (m_party != 0 && m_party->IsSinglePlay()
-            && m_party->getManager() != 0
-            && m_party->getManager()->getMoveSpace() == 1
-            && mi.m_item.m_addInfo == 0)
+        if (m_party != 0)
         {
-            const float f1 = reinterpret_cast<BfkcBlueMarbleScriptView*>(
-                G_CDataManager()->getBlueMarbleScript())->m_f1;
-            const float f2 = reinterpret_cast<BfkcBlueMarbleScriptView*>(
-                G_CDataManager()->getBlueMarbleScript())->m_f2;
-            // [b28d-20] ORIG 直接改写 blueBuff1 槽（无独立 buff 局部），且公式为
-            // 纯 (int) 截断（fistpl+RC=11，无 fadds 0.5）⇒ 原 BFKC_ROUND 的
-            // +0.5f 多出 flds 0.5/faddp 且语义不同（四舍五入 vs 截断）=真 bug。
-            // P243：ORIG 首条 fildl 即 addInfo2（目标在左）⇒ 目标写在乘法左侧。
-            if (blueBuff1 < 1)
-                blueBuff1 = 1;
-            mi.m_item.m_addInfo2 = static_cast<int>(
-                static_cast<float>(mi.m_item.m_addInfo2)
-                * (blueBuff1 * f2 + f1));
+            if (m_party->IsSinglePlay() && m_party->getManager() != 0)
+            {
+                if (m_party->getManager()->getMoveSpace() == 1)
+                {
+                    if (mi.m_item.m_addInfo == 0)
+                    {
+                        const float f1 = reinterpret_cast<BfkcBlueMarbleScriptView*>(
+                            G_CDataManager()->getBlueMarbleScript())->m_f1;
+                        const float f2 = reinterpret_cast<BfkcBlueMarbleScriptView*>(
+                            G_CDataManager()->getBlueMarbleScript())->m_f2;
+                        // [b28d-20] ORIG 直接改写 blueBuff1 槽（无独立 buff 局部），且公式为
+                        // 纯 (int) 截断（fistpl+RC=11，无 fadds 0.5）⇒ 原 BFKC_ROUND 的
+                        // +0.5f 多出 flds 0.5/faddp 且语义不同（四舍五入 vs 截断）=真 bug。
+                        // P243：ORIG 首条 fildl 即 addInfo2（目标在左）⇒ 目标写在乘法左侧。
+                        if (blueBuff1 < 1)
+                            blueBuff1 = 1;
+                        mi.m_item.m_addInfo2 = static_cast<int>(
+                            static_cast<float>(mi.m_item.m_addInfo2)
+                            * (blueBuff1 * f2 + f1));
+                    }
+                }
+            }
         }
 
         mi.m_ownerId = result.m_luckPoint.GetUserGainItem(seq);

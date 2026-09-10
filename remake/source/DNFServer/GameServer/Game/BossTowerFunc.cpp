@@ -53,6 +53,14 @@
         //   DIFF —— 4.4 把 register 变量落 %ebx，多 `mov %ebx,%eax` 中转。
         // ⇒ 残差 = N18a（4.1 常量两跳不可造）+ N7（4.1 register 值保活 %eax
         //   vs 4.4 重载/%ebx），取 NEAR 形（20=20 长度全等）。
+        // [S4NexonProto 复测] 追加三形（探针 /tmp/probe/gsc.cpp G2/G4/G5，本轮实测）：
+        //   ④ `bit <<= state;`（enum 直作移位量，去 cast）= 与 ① 逐条同形
+        //      （`mov $0x1,%ebx` 单跳 + `mov 0x8(%ebp),%eax` 重载，20 条）；
+        //   ⑤ `register int bit = 1;`（与 enum 同型）= 同 ①；
+        //   ⑥ `register unsigned int bit = 1;` 声明于 if **之前**（函数级）=
+        //      `mov $0x1,%ebx` 前移到 cmp 之前，长度仍 20、序列异位。
+        //   ⇒ `mov $0x1,%edx; mov %edx,%ebx`（4.1 常量两跳）+ %eax 跨 cmp/shl 保活
+        //   在 4.4 下三形皆不可造，N18a/N7 锥实；维持 NEAR（20=20）。
         register unsigned int bit = 1;
         bit <<= static_cast<unsigned int>(state);
         if ((bit & 0x3420u) != 0)

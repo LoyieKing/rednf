@@ -41,32 +41,44 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
     // ORIG 0x08184abc（ARAD__ARAD_CRYPT/encryptAES.md）：与 ARAD::encryptAES
     // 指令体相同，仅 logFormat 文案不同（localjapan/Arad_Crypt.cpp、"encryptAES"、
     // 0x1f），按报告各自独立实现。
-    unsigned char enc[132];
-    size_t srcLen = strlen(inData);
-    size_t paddedLen;
+    // [AradMisc-E5~E9 2026-09-11 · DIFF(91)→**NEAR** 89/89 gap0] 六旋钮落地（ORIG 证据）：
+    //   D1 0x08184ad3 `movl $0x0,-0x14` ⇒ `int paddedLen = 0;`（原缺该条）；
+    //   D2 0x08184b0f `mov %eax,%edx; sar $0x1f,%edx; idivl` ⇒ srcLen/paddedLen 用 **int**
+    //      （size_t 时 4.4 发 `mov $0x0,%edx; divl` + 额外 -0xac 中转，多 2 条；离差整 27→0）；
+    //   D3 0x08184bdc 成功后 hexLen 写 -0x18（= srcLen 槽）⇒ 源码**复用同一变量** `srcLen`；
+    //   D4 0x08184af4 `js +0x6a` ⇒ `if (blockSize >= 0) {...} else {...}` 嵌套形（else-if 链产 `jns`+then 前置）；
+    //   D5 0x08184b05 `je +0x62` ⇒ 内层 `if (mod != 0) { 计算 } else { paddedLen = srcLen; }`（then 后置）；
+    //   D6 0x08184b87 `je +0x118` ⇒ `if (result != 0x6fffffff) { log; return NULL; }`（`==` 式产 `jne`+then 前置）。
+    // 残余 NEAR：0x08184b5b 段 Encrypt 实参装载的寄存器选择（ORIG fn→%edx、实参→%eax；
+    //   我方 fn→%eax、实参→%edx/%ecx），助记符逐行一致、仅寄存器不同。
+    char enc[132];
+    int srcLen = strlen(inData);
+    int paddedLen = 0;
     int blockSize = cipher->IMethod::GetBlockSize(NULL);
-    if (blockSize < 0) {
-        paddedLen = srcLen;
-    } else if (static_cast<int>(srcLen) % blockSize == 0) {
-        paddedLen = srcLen;
+    if (blockSize >= 0) {
+        if (srcLen % blockSize != 0) {
+            paddedLen = (srcLen / blockSize + 1) * blockSize;
+        } else {
+            paddedLen = srcLen;
+        }
     } else {
-        paddedLen = (srcLen / blockSize + 1) * blockSize;
+        paddedLen = srcLen;
     }
     if (blockSize >= 0) {
-        cipher->IMethod::Pad(inData, static_cast<int>(srcLen), NULL);
+        cipher->IMethod::Pad(inData, srcLen, NULL);
     }
-    int result = cipher->Encrypt(inData, reinterpret_cast<char*>(enc), paddedLen);
-    if (result == 0x6fffffff) {
-        size_t hexLen = paddedLen * 2 + 1;
-        DNFFLib::Binary2Hex(enc, static_cast<int>(paddedLen), outHex);
-        outHex[hexLen] = '\0';
-        return outHex;
+    int result = cipher->Encrypt(inData, enc, paddedLen);
+    if (result != 0x6fffffff) {
+        LogManager::logFormat(
+            1, "localjapan/Arad_Crypt.cpp", "encryptAES", 0x1f,
+            "[%s][%d][%s]", "encryptAES", 0x1f, "Encrypt Error");
+        return NULL;
     }
 
-    LogManager::logFormat(
-        1, "localjapan/Arad_Crypt.cpp", "encryptAES", 0x1f,
-        "[%s][%d][%s]", "encryptAES", 0x1f, "Encrypt Error");
-    return NULL;
+    srcLen = paddedLen * 2 + 1;
+    DNFFLib::Binary2Hex(reinterpret_cast<unsigned char*>(enc), paddedLen, outHex);
+    outHex[srcLen] = '\0';
+    return outHex;
 }
 
 }  // namespace ARAD_CRYPT
@@ -105,27 +117,41 @@ unsigned int inet_a2n(const char* addrText)
     return addr;
 }
 
-// [L31 round3 判 N · N82 族] ORIG 0x08197a4d（sz 0x121 = 85 条）：清零形为
-//   4×`movl $0x0,{-0x2c..-0x20}`（前 16B）+ `memset(-0x1c,0,0x10)`（后 16B），
-//   且 `inet_ntoa` 两次独立调用。实测两形均不可翻：
-//   ①`char buf[0x20] = {0};` + 两次 inet_ntoa ⇒ 我方 93 条 / clean 差异 **27→87 行（反劣）**；
-//   ②原形（分段 memset + 具名 text 缓存）⇒ 58 条 / 27 行。
-//   ⇒ 4.4 对 0x20 数组 `={0}` 不产 4×movl 分段形（clr_l 恒 orig=4 our=0），属跨版本初始化器展开差，
-//   与 P312/P202 反向（那两族的 ORIG 是 rep stos 慢路）；回滚保留原形。
-// [laneE1 2026-09-11 复测 · 零收益回滚] 按 P183/P329 删 `const char* text = inet_ntoa(addr);`
-//   具名缓存 + 补 `in_addr a = addr;` 副本与第二次独立 call（ORIG 0x08197a76/0x08197b02）
-//   后，本 TU 四数**逐值不变**（identical=1 ae=6 (7) near=0 diff=5 missing=0，改前=改后）
-//   ⇒ 按「codegen 轴须严格改善」判据回滚，保留旧形。buf 清零形维持旧实证（`={0}` 反劣）。
+// [L31 round3 判 N · N82 族 / AradMisc-E3~E4 2026-09-11 · DIFF(58)→**NEAR** 85/85 gap0]
+//   ORIG 0x08197a4d（sz 0x121 = 85 条）指令形（逐段取证据）：
+//     ① 0x08197a68 `memset(lea -0x1c,0,0x10)` — 清一块**16B 独立区**（lea 一步到位）；
+//     ② 0x08197a76 `mov 0xc(%ebp),%eax; mov %eax,-0x18` — in_addr **副本 spill**，
+//        两次 inet_ntoa（0x08197a9b 判空 / 0x08197afd 取串）均从 -0x18 加载；
+//     ③ 0x08197a79 起 4×`movl $0x0,{-0x2c,-0x28,-0x24,-0x20}` — buf 的**16B 初始化器**
+//        （4×movl 直对 ebp 槽），且其**位置在 memset/副本之后** ⇒ 源码里该 16B 数组的
+//        声明/初始化在副本之后。
+//   ✅ 落地形（85 条 = ORIG，NEAR）：`char tmp[0x10]; memset(tmp,...)` + `in_addr inaddr = addr;`
+//      + `char buf[0x10] = {0};` + 两次 `inet_ntoa(inaddr)` + `strncpy(buf,...,0x10)`。
+//      `char buf[0x10] = {0};`（16B 初始化器）是 4×movl 的唯一可复现来源。
+//   ⛔ 负结论（勿再试）：
+//      · `char buf[0x20] = {0};`（32B 单一初始化器）⇒ 我方 **106 条**（gap −21）：
+//        4.4 走 inline-memset 阶梯（`mov $0x20,%ebx; mov $0x0,%edx; and $0x2,%ecx; mov %dx,(%eax); …`），
+//        `= {}`（值初始化）同形；32B 初始化器**不产** ORIG 的 4×movl 分段形。
+//      · `&buf[0x10]` 与 `buf + 0x10` 等价（均 lea+add 两步，ORIG 的 lea 一步来自该 16B 区
+//        自身即为数组起点）。
+//      · 残余 NEAR 差：ORIG in_addr 副本(-0x18)与 memset 目标区(-0x1c)同槽、buf 落 -0x2c；
+//        我方 inaddr(-0x20)/tmp(-0x1a)/buf(-0x30) 各差 2~4B（GCC 同作用域不复用槽），
+//        助记符逐行一致、仅 disp 不同。
+//      · laneE1 旧读数「补副本 + 第二次 call 零收益」系假 DIFF 口径（game_func_report 不带 -r）
+//        ⇒ 该二旋钮实为**有效**，已落地。
 std::string inet_n2a(struct in_addr addr)
 {
-    // ORIG：buf[0x20] 清零后 inet_ntoa→strncpy(buf,..,0x10)；null → 空串。
-    char buf[0x20];
-    std::memset(buf + 0x10, 0, 0x10);
-    const char* text = inet_ntoa(addr);
-    if (text == NULL) {
-        return std::string();
+    // ORIG：16B 块清零后 inet_ntoa→strncpy(buf,..,0x10)；null → 空串（`std::string("")`）。
+    char tmp[0x10];
+    std::memset(tmp, 0, 0x10);
+    // ORIG 0x08197a9b / 0x08197afd：**两次独立** inet_ntoa（第一次结果仅判空、无具名指针槽），
+    // 两次都从 in_addr 副本槽加载 ⇒ 具名副本 + 两处直呼。
+    in_addr inaddr = addr;
+    char buf[0x10] = {0};
+    if (inet_ntoa(inaddr) == NULL) {
+        return std::string("");
     }
-    strncpy(buf, text, 0x10);
+    strncpy(buf, inet_ntoa(inaddr), 0x10);
     return std::string(buf);
 }
 
@@ -139,58 +165,68 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
 {
     // ORIG 0x0819e997：与 ARAD_CRYPT::encryptAES 指令体相同，仅 logFormat 文案不同
     // （localjapan/Arad_OS.cpp、"char* ARAD::encryptAES(CRijndael*, char*, char*)"、0x52）。
-    unsigned char enc[132];
-    size_t srcLen = strlen(inData);
-    size_t paddedLen;
+    // [AradMisc-E10 2026-09-11 · DIFF(91)→**NEAR** 89/89 gap0] 与 ARAD_CRYPT::encryptAES
+    //   同套六旋钮（ORIG 0x0819e9b5/0x0819e9fe/0x0819ea0c/0x0819ecc4/0x0819ecc8 同形）：
+    //   `int srcLen`（有符号 idiv 段）/ `int paddedLen = 0;` / 嵌套 `if (blockSize >= 0)`
+    //   / 内层 `if (mod != 0)` then 后置 / `if (result != 0x6fffffff) { log; return NULL; }`
+    //   / hexLen 复用 srcLen 槽。残余 NEAR 同 encA：Encrypt 实参装载寄存器选择。
+    char enc[132];
+    int srcLen = strlen(inData);
+    int paddedLen = 0;
     int blockSize = cipher->IMethod::GetBlockSize(NULL);
-    if (blockSize < 0) {
-        paddedLen = srcLen;
-    } else if (static_cast<int>(srcLen) % blockSize == 0) {
-        paddedLen = srcLen;
+    if (blockSize >= 0) {
+        if (srcLen % blockSize != 0) {
+            paddedLen = (srcLen / blockSize + 1) * blockSize;
+        } else {
+            paddedLen = srcLen;
+        }
     } else {
-        paddedLen = (srcLen / blockSize + 1) * blockSize;
+        paddedLen = srcLen;
     }
     if (blockSize >= 0) {
-        cipher->IMethod::Pad(inData, static_cast<int>(srcLen), NULL);
+        cipher->IMethod::Pad(inData, srcLen, NULL);
     }
-    int result = cipher->Encrypt(inData, reinterpret_cast<char*>(enc), paddedLen);
-    if (result == 0x6fffffff) {
-        size_t hexLen = paddedLen * 2 + 1;
-        DNFFLib::Binary2Hex(enc, static_cast<int>(paddedLen), outHex);
-        outHex[hexLen] = '\0';
-        return outHex;
+    int result = cipher->Encrypt(inData, enc, paddedLen);
+    if (result != 0x6fffffff) {
+        LogManager::logFormat(
+            1, "localjapan/Arad_OS.cpp", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,
+            "[%s][%d][%s]", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,
+            "Encrypt Error");
+        return NULL;
     }
 
-    LogManager::logFormat(
-        1, "localjapan/Arad_OS.cpp", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,
-        "[%s][%d][%s]", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,
-        "Encrypt Error");
-    return NULL;
+    srcLen = paddedLen * 2 + 1;
+    DNFFLib::Binary2Hex(reinterpret_cast<unsigned char*>(enc), paddedLen, outHex);
+    outHex[srcLen] = '\0';
+    return outHex;
 }
 
-// [b28d-L1] N82 封顶：ORIG 0x0819eaf8；P167 CLEAR（3/3）⇒ 语义完成；残余为 cMyTrace 实参装载/帧槽形态差（real diff 66）。
+// [b28d-L1] N82 封顶：ORIG 0x0819eaf8；P167 CLEAR（3/3）⇒ 语义完成。
+// [AradMisc-E1/E2 2026-09-11 · DIFF→**AE** 70/70 gap0] 残余为 cMyTrace 实参装载/帧槽形态差，
+//   两旋钮落地：① 去 `raw` 具名指针（ORIG 0x0819eb01 起一律 `mov 0xc(%ebp),%eax` 基址访问，
+//   无 raw 槽）⇒ 70→66；② 临时对象直呼 `cMyTrace(...)(...)`（ORIG 0x0819eb73 ctor 调用位于
+//   **全部**复杂实参求值之后、装参之前；具名 `trace` 形实测多 4 条）⇒ 66→70 = ORIG。
 #include "Arad_Misc/write_incorrect_item_info.inc"
                                const char* invenType, int errorLine, int slotNo)
 {
     // ORIG：cMyTrace(funcName,0x106,5)(fmt,...)；字段映射按 Inven_Item.h 布局：
     //   Seal=+0x00 / ItemType=+0x01 / ItemID=+0x02(m_addInfo) / ItemAt=GetItemAttr&0xff /
     //   add_info=+0x07(m_addInfo2) / endurance=+0x0b / extend_info=+0x0d(m_fieldd) /
-    //   amp_opt=+0x11(stAmplifyOption_t 首 dword)。
-    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
-    cMyTrace trace(
+    //   amp_opt=+0x11(`*(const unsigned*)((char*)&item + 0x11)`：ORIG 0x0819eb04 用
+    //   `add $0x11,%eax; mov (%eax),%edi` 两段形 = cast 口径，非成员直访 disp 形)。
+    cMyTrace(
         __PRETTY_FUNCTION__,
-        0x106, 5);
-    trace("charac_no[%u],Seal[%d],ItemType[%d],ItemID[%u],ItemAt[%d],add_info[%d],endurance[%d],extend_info[%u],amp_opt[%d] - inven_type[%s] slot_no(%d), error_line(%d) \n",
-          characNo,
-          static_cast<unsigned int>(raw[0x00]),
-          static_cast<unsigned int>(raw[0x01]),
-          static_cast<unsigned int>(item.m_addInfo),
-          static_cast<unsigned int>(item.GetItemAttr()) & 0xff,
-          item.m_addInfo2,
-          static_cast<unsigned int>(item.m_fieldb),
-          *reinterpret_cast<const unsigned int*>(raw + 0x0d),
-          *reinterpret_cast<const unsigned int*>(raw + 0x11),
-          invenType, slotNo, errorLine);
+        0x106, 5)("charac_no[%u],Seal[%d],ItemType[%d],ItemID[%u],ItemAt[%d],add_info[%d],endurance[%d],extend_info[%u],amp_opt[%d] - inven_type[%s] slot_no(%d), error_line(%d) \n",
+                  characNo,
+                  static_cast<unsigned int>(static_cast<unsigned char>(item.m_field0)),
+                  static_cast<unsigned int>(item.m_field1),
+                  item.m_addInfo,
+                  static_cast<unsigned int>(item.GetItemAttr()) & 0xff,
+                  item.m_addInfo2,
+                  static_cast<unsigned int>(item.m_fieldb),
+                  item.m_fieldd,
+                  *reinterpret_cast<const unsigned int*>(&item.m_amp),
+                  invenType, slotNo, errorLine);
 }
 
 }  // namespace ARAD

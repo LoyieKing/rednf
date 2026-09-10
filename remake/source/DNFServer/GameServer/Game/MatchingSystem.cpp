@@ -35,9 +35,15 @@
 // 空 IMatch 子类（ORIG 构造函数仅调 IMatch::IMatch() 并写独立 vtable，对象尺寸 4）。
 // [b22] 删显式 : IMatch() 初始化列表——4.4 对带用户初始化列表的派生 ctor 先
 // 发 vptr=0 预清+重载 this（比 ORIG 4.1 多 2 条）；隐式基类构造路径消之。
-class CNormalMatch     : public IMatch { public: CNormalMatch() {}     };
-class CLadderMatch     : public IMatch { public: CLadderMatch() {}     };
-class CTournamentMatch : public IMatch { public: CTournamentMatch() {} };
+// [S6 · N2Free151to170 父泳道授权] 再删**用户提供的空 ctor**（保持纯 `: public IMatch {}`）：
+//   有用户 ctor ⇒ `new T()` 走 default-init，4.4 不预清零；无用户 ctor（隐式 non-trivial
+//   ctor，因基类带虚函数）⇒ `new T()` 走 value-init ⇒ 复现 ORIG 0x085dfbe7/0x085dfc28/
+//   0x085dfcbe 的 `mov %ebx,%eax; movl $0x0,(%eax); mov %eax,(%esp); call C1` 预清序列。
+//   探针 /tmp/s6/p5.cpp（4.4.7 -O0 -m32）：`struct D1 : Base { };` 发预清，`D1() {}` 不发。
+//   TU-local 类，全仓 grep 仅本文件引用；C1 符号名/对象尺寸/vtable 名均不变。
+class CNormalMatch     : public IMatch { };
+class CLadderMatch     : public IMatch { };
+class CTournamentMatch : public IMatch { };
 
 // 复杂匹配子系统：定义与构造逻辑未在本批次交付（属其它匹配域批次）。
 // 此处仅按 ORIG 符号名预留，避免与前向声明冲突。

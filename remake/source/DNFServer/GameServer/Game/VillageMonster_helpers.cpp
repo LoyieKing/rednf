@@ -343,10 +343,15 @@ namespace village_attacked
     }
     packet.put_byte(countIdx, count);
     packet.finalize(true);
-    if (user == 0)
-        SendPacket(packet);
-    else
+    // [N1F 2026-09-11] 极性/叶块序：ORIG 0x086b3904 `cmpl $0x0,0xc(%ebp)` + 0x086b3908
+    //   `je 0x086b391e` —— je 落点 = 0x086b391e 的 CVillageMonsterArea::SendPacket(this) 体，
+    //   直落体 = 0x086b3911 `mov 0xc(%ebp),%eax` 的 CUser::Send(user) 体
+    //   ⇒ 4.1 -O0「假则跳 else」布局：源形条件 = `user != 0`，else = SendPacket。
+    //   语义等价（两态落点一致），纯布局轴。
+    if (user != 0)
         user->Send(packet);
+    else
+        SendPacket(packet);
 }
 
 }  // namespace village_attacked

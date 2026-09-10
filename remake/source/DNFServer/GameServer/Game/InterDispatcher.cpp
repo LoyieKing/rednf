@@ -78,6 +78,44 @@
 // ============================================================================
 
 // ============================================================================
+// N8InterDispatcher 第八轮（2026-09-11 04:10–05:00，单代理 TU 独占）
+//   基线 135/1388/5/93（missing 703）→ **135/1391/4/91**（ae +3、near 5→4、diff 93→91、
+//   missing 零增、零劣化；每件改后均 fresh 复编核账）。
+//   A. 语义/符号轴（逐件 ORIG 直证）：
+//      · P139 prett 符号补齐（父泳道指定 4 处；ORIG 各有同名函数局部静态符号）：
+//        Inter_LoginInfo 的 `static const char g_interLoginInfoSig[]`（手写签名字符串）⇒ 删该静态量、
+//        10 处 cMyTrace 名参改 `__PRETTY_FUNCTION__`；Inter_CreateCharac（CMyFileLog ctor 名参）、
+//        Inter_AuctionResultAskRegistedItemNum（cMyTrace）、
+//        Inter_MonitorNoticeOtherChannelChatHyperLink（LogManager::logFormat 第 3 参）
+//        三处手写串 ⇒ `__PRETTY_FUNCTION__`。手写串与编译器展开串逐字节相同（含 `virtual ` 前缀：
+//        四类 dispatch_sig 均为 ISigDispatcher 覆写虚函数）⇒ .rodata 字节不变、四数不变。
+//      · Inter_UpdateServerMessage（NEAR→**AE**）：case 1 cMyTrace 两实参原写形参 `data + 0x10` /
+//        `data + 0x48`，ORIG 084da5xx 两处均为具名 pPkt 槽基址（`mov -0x1c(%ebp),%eax; add $0x48,%eax`）
+//        ⇒ 改 `pPkt->m_10` / `pPkt->m_48`（P0/P183 正向：ORIG 该点用视图基址、我方误用形参）。
+//      · Inter_SetARSInfo（DIFF→**AE**）：Inter_SetARSInfoListView.m_a `unsigned int`→`int`
+//        （P290 类型轴；ORIG 084e09xx `mov 0xa(%eax),%ebx` 单段直落 callee-saved = 与使用上下文
+//        `(int)pPkt->m_a` 比较/循环上界同型 ⇒ 原码字段是 int；旧 unsigned 令 4.4 多发
+//        `mov %eax,%ebx` 中转）。改后 fn_diff blocks 1→**0**、指令数 287→**286** = ORIG。
+//      · Inter_OnTimeEventRewardStart（DIFF→**AE**）：Inter_OnTimeEventRewardStartPktView 的
+//        m_12/m_16 `int`→`unsigned int`（P290 反向：ORIG 084e0e5x 两处实参**两段**装载
+//        `mov 0x12(%eax),%eax; mov %eax,%edx` / `mov 0x16(%eax),%eax; mov %eax,%ecx` ⇒ 字段
+//        unsigned 而形参 int 异型；旧 int 同型恒折单段、每处少 1 条）。改后 fn_diff blocks 2→**0**、
+//        指令数 118→**120** = ORIG。
+//   B. 试形回退（负结论）：
+//      · _NS_NonClient_Request：`PacketGuard` 包进内层作用域块（旧头注释 [复原] 建议形）实测
+//        **零变化**（blocks 2、ours 68/orig 69 不变）⇒ 维持 N104 记法；
+//      · Inter_LoadEventItem：循环体 6 处 `data + i*0x10 + K` 改 `reinterpret_cast<char*>(pPkt) + …`
+//        （对齐 ORIG 具名基址形）实测**反劣**（blocks 28→33、ours 158→164）⇒ 已回滚，
+//        与 [L9-G PATCH#4] 旧记录同向。
+//   C. 审计结论（工具 /tmp/r5/n8/{strall,p167all}.py + 自建位移多重集比对）：
+//      · 串层面真缺口 **0**（632 差异函数全为 typeinfo/vtable 二进制碎片与空串假阳性；§6.5.1
+//        编码轴：本 TU 已无非 ASCII 字面量 ⇒ UTF-8/EUC-KR 不一致 0 处）；
+//      · 非栈帧内存位移常量多重集（字段偏移直证）逐件全等 ⇒ **包字段偏移零缺口**（108 件全扫）；
+//      · p167 差集仅 C1/C2·D1/D2 别名与 _Unwind_Resume（EH 结构反向差，N 类）；
+//        父泳道提示的 Inter_Terminate「MISSING exit」经核为假阳性（fn_diff blocks=0、puts+exit 两 call 齐备）。
+// ============================================================================
+
+// ============================================================================
 // b28d-L9InterDispatcherCUser 第七轮（2026-09-11 02:05–03:10，6 子代理并行 + 父泳道串行复编核账）
 //   TU 四数 135/1385/4/97（missing 703）→ **135/1388/5/93**（ae +3、diff −4、near 4→5 系一件
 //   DIFF→NEAR 的改善方向、missing 零增、**零劣化**）。
@@ -845,7 +883,6 @@ class DB_LoadAccountCargo              { public: static void makeRequest(int, un
 #include "Packet_Monitor_UDP_Login.h"
 
 // GameWorld 局部视图补充本函数所需成员（签名与 GameWorld.h/ORIG mangled 一致）
-static const char g_interLoginInfoSig[] =
 // [b28d-lane2] verdict=DIFF ndiff=2300（ORIG 0x084c5294）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+66。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=1326（ORIG 0x084c5294）：N22 cmp 操作数方向+P226 具名 bool/char 落槽+N18a 单段 regmove。
 // [BigParty/P331] verdict=DIFF ndiff 2352→1691、our 2396→2441（ORIG 2462，gap 66→21）：
@@ -884,8 +921,6 @@ static const char g_interLoginInfoSig[] =
 //   剩余 N：N4（0x3a54/0x3a68 vs 0x3a50+4/0x3a60+8 折叠路径）、N82/P112（帧 0x28c vs 0x27c 槽平移）、
 //   N7/N18a（寄存器中转）、P227/P328⑩（trace 两语句 vs 全表达式临时链）、
 //   P168a/P194（具名 bool punishNow/lockNow/inWindow/startBreakAway 落槽）、P196 无（⑤ 已修）。
-    "virtual int Inter_LoginInfo::dispatch_sig(CUser*, char*, int)";
-
 #include "InterDispatcher/dispatch_sig_2.inc"
 {
     // [G2A-PC 本轮负结论 N，ndiff=424（ratio 0.914）] 已核项：
@@ -919,7 +954,7 @@ static const char g_interLoginInfoSig[] =
             guard.put_byte(6);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace(g_interLoginInfoSig, 0x1b0a, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_CANTFIND");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1b0a, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_CANTFIND");
             user->DisConnSig(DISCONN_SIG(0xb), true, 0);
             return 0;
         }
@@ -939,7 +974,7 @@ static const char g_interLoginInfoSig[] =
             guard.put_byte(pInfo->m_loginErrDetail);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace(g_interLoginInfoSig, 0x1b67, 0)("pInfo->err_code == SIG_LOGIN_DATA::PUNISH_REASON");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1b67, 0)("pInfo->err_code == SIG_LOGIN_DATA::PUNISH_REASON");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -950,7 +985,7 @@ static const char g_interLoginInfoSig[] =
             guard.put_int(pInfo->m_punishInfos[pInfo->m_punishInfoCount].m_endTime);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace(g_interLoginInfoSig, 0x1b77, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1b77, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -961,7 +996,7 @@ static const char g_interLoginInfoSig[] =
             guard.put_byte(pInfo->m_passPadFailCnt);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace(g_interLoginInfoSig, 0x1ba0, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1ba0, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -971,7 +1006,7 @@ static const char g_interLoginInfoSig[] =
             guard.put_byte(0x49);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace(g_interLoginInfoSig, 0x1baa, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE_DENY");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1baa, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_AUTH_MOUSE_DENY");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -981,7 +1016,7 @@ static const char g_interLoginInfoSig[] =
             guard.put_byte(0xa6);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace(g_interLoginInfoSig, 0x1bb4, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_PASSPAD_WRONG_VERSION");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1bb4, 0)("pInfo->err_code == SIG_LOGIN_DATA::E_PASSPAD_WRONG_VERSION");
             user->DisConnSig(DISCONN_SIG(0x1a), true, 0);
             return 0;
         }
@@ -1002,13 +1037,13 @@ static const char g_interLoginInfoSig[] =
             guard.put_byte(1);
             guard.finalize(true);
             user->Send(guard);
-            cMyTrace(g_interLoginInfoSig, 0x1bf2, 0)("[Inter_LoginInfo::dispatch_sig] Abnormal LoginError: "
+            cMyTrace(__PRETTY_FUNCTION__, 0x1bf2, 0)("[Inter_LoginInfo::dispatch_sig] Abnormal LoginError: "
                   "SIG_LOGIN_DATA::ERROR_OK(%d)", pInfo->m_errCode);
             user->DisConnSig(DISCONN_SIG(0xe), true, 0);
             return 0;
         }
 
-        cMyTrace(g_interLoginInfoSig, 0x1bf6, 0)("[USER LOGIN] DB ID : %s (UID: %d)(SlotIDX: %d)(IncreID: %d)"
+        cMyTrace(__PRETTY_FUNCTION__, 0x1bf6, 0)("[USER LOGIN] DB ID : %s (UID: %d)(SlotIDX: %d)(IncreID: %d)"
                    "(SocketID: %d)\n",
                    NumberToString(pInfo->m_accId, 0),
                    user->GetUID(), user->GetSlotIDX(), user->GetIncreID(),
@@ -1294,7 +1329,7 @@ static const char g_interLoginInfoSig[] =
                 DB_PassPadUpdateFailCnt::makeRequest(user->get_acc_id(),
                                               static_cast<unsigned int>(user->getPad()->getFailCnt()),
                                               const_cast<char*>(user->getWebAddress()));
-                cMyTrace(g_interLoginInfoSig, 0x1df5, 0)("GOBLIN PAD RESET OK!!!");
+                cMyTrace(__PRETTY_FUNCTION__, 0x1df5, 0)("GOBLIN PAD RESET OK!!!");
             }
             user->getPad()->setPassword(pInfo->m_passPadPassword);
             // ORIG:每次使用重新调用 getHades()。
@@ -1317,7 +1352,7 @@ static const char g_interLoginInfoSig[] =
             pInfo->m_onlinePrelimServerGroup));
         user->setOnlinePreliminaryPlayType(pInfo->m_onlinePrelimPlayType);
         {
-            cMyTrace(g_interLoginInfoSig, 0x1e33, 0)("OnlinePreliminary m_id(%s), play_type(%d)",
+            cMyTrace(__PRETTY_FUNCTION__, 0x1e33, 0)("OnlinePreliminary m_id(%s), play_type(%d)",
                     NumberToString(pInfo->m_accId, 0),
                     pInfo->m_onlinePrelimPlayType);
         }
@@ -1623,7 +1658,7 @@ static const char g_interLoginInfoSig[] =
         register char* accStr =
             NumberToString(static_cast<unsigned int>(user->get_acc_id()), 0);
         CMyFileLog log(
-            "virtual int Inter_CreateCharac::dispatch_sig(CUser*, char*, int)",
+            __PRETTY_FUNCTION__,
             0x703);
         log(logPath, ",%s,%d,%d,%d,%s,%s", accStr, hangame, serverGroup,
             static_cast<int>(characNo), ipStr, timeBuf);
@@ -10238,7 +10273,7 @@ struct Inter_AuctionResultAskRegistedItemNumPktView
     {
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
-            cMyTrace("virtual int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser*, char*, int)",
+            cMyTrace(__PRETTY_FUNCTION__,
                 0x37a3, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskRegistedItemNum",
                   user->getCurCharacNo());
             break;
@@ -12258,8 +12293,8 @@ struct Inter_UpdateServerMessagePktView
             pPkt->m_4,
             (int)pPkt->m_8,
             (int)pPkt->m_9,
-            pPkt->m_msgLen, data + 0x10,
-            pPkt->m_nameLen, data + 0x48,
+            pPkt->m_msgLen, pPkt->m_10,
+            pPkt->m_nameLen, pPkt->m_48,
             pPkt->m_time);
         break;
     }
@@ -15328,7 +15363,8 @@ struct Inter_SetARSInfoElemView
 struct Inter_SetARSInfoListView
 {
     char m_pad0[0xa];           // +0x0..+0x9
-    unsigned int m_a;           // +0x0a
+    int m_a;                    // +0x0a（P290：ORIG 084e09xx `mov 0xa(%eax),%ebx` 单段 ⇒ 与
+                                //   使用上下文(int 比较/上界)同型 ⇒ int）
     unsigned char m_e;          // +0x0e
     Inter_SetARSInfoElemView m_entries[1];  // +0x0f 起，stride 0xc
 };
@@ -15398,8 +15434,11 @@ struct Inter_OnTimeEventRewardStartPktView
     char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     unsigned int m_e;         // +0x0e
-    int m_12;                 // +0x12
-    int m_16;                 // +0x16
+    // P290：ORIG 084e0e5x 两处实参装载为**两段**（`mov 0x12(%eax),%eax; mov %eax,%edx` /
+    //   `mov 0x16(%eax),%eax; mov %eax,%ecx`）⇒ 字段 unsigned、形参 int ⇒ 异型中转；
+    //   我方旧 int 同型恒折单段（每处少 1 条，gap +2）。
+    unsigned int m_12;        // +0x12
+    unsigned int m_16;        // +0x16
 };
 #pragma pack(pop)
 
@@ -17855,8 +17894,7 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkListView
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
-                "virtual int Inter_MonitorNoticeOtherChannelChatHyperLink::"
-                "dispatch_sig(CUser*, char*, int)", 0x6497,
+                __PRETTY_FUNCTION__, 0x6497,
                 "Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig() : "
                 "pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
                 user->get_charac_no(-1), pPkt->m_13);

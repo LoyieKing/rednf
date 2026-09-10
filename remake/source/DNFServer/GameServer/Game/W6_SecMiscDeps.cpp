@@ -127,6 +127,12 @@ char WongWork::CWebEvent::m_strEventName[10][0x12] = {
     // → strlen → IMethod::GetBlockSize 取块大小并向上取整 → Pad → CRijndael::
     // Encrypt（asm 为非虚派发直呼）→ Binary2Hex 转十六进制并以 len*2+1 下标补
     // '\0'。异常路径返回 NULL（ORIG catch 吞掉后 ebx=0）。
+    // [N1A 2026-09-11 负结论 · 封顶] 本波三试不可造 ORIG 形：
+    // ①`*(length + out) = '\0'`（整型在左）实测逐条不变（4.4 归一）；
+    // ②P319 整型加法+回 cast 形编译非法（static_cast<char*>→unsigned int），已回滚；
+    // ③（历史）删冗余 cast 亦不变。残余四处 = Pad/Encrypt/Binary2Hex 实参装载序
+    //   （同条数异序）+ `out[length]` 我方 lea(2 条) vs ORIG `add 0x10(%ebp),%eax`
+    //   (1 条，值上下文，0x085fe417) ⇒ 4.4 地址上下文固有选择 ⇒ gap −1 封顶。
     char plain[0x100] = {0};
     unsigned char cipher[0x100] = {0};
     strncpy(plain, src, 0x100);
@@ -301,6 +307,14 @@ struct CSecurityCardAnswerView
     // 重新 `mov 0x8(%ebp),%eax` 作 base。P235 正解需在权威类 CSecurityCard
     // （CUser.h:1185）+0x08 处具名化答案表成员（现为 TU 局部视图 cast）⇒
     // 属共享头改动，未自行落地，见交付 NEEDS-HEADER。
+    // [N1A 2026-09-11 负结论 · 封顶] 两试均不可造 ORIG 形：
+    // ①`(&...->m_table[0])[idx]`（数组→指针衰减）：逐条不变（4.4 归一回 ARRAY_REF）；
+    // ②`(reinterpret_cast<const unsigned char*>(this) + 8)[idx]`（真指针下标，期望
+    //   save_expr(index) 走 NORMAL 展开 ⇒ ORIG 0x085fdfce `add %eax,%edx`）：
+    //   实测反劣 our 66→71（新增 `add $0x8,%eax; lea (%ecx,%eax,1),%eax`，disp 8
+    //   不再折叠）⇒ 回滚。残余 2 处（ORIG `add %eax,%edx`+`mov 0x8(%ebp),%eax`
+    //   重载 base / 我方 `lea (%edx,%eax,1),%eax`+提前 `mov 0x8(%ebp),%ecx`）
+    //   系 4.4 地址上下文固有寄存器选择 ⇒ gap −1 封顶。
     if (m_question3c[0] == 0 && m_question3c[1] == 0 &&
         m_question3c[2] == 0 && m_question3c[3] == 0)
     {
@@ -555,6 +569,14 @@ char WongWork::CWebEvent::m_strEventIPGCode[10 * 0xb] =
     // P339（全头部声明）不宜套用：数组 `= {0}` 提头会提前发射清零（改可观察
     // 行为/指令序），非 POD 对象（guard/Inven_Item/vector/paramObj）禁提（P331）。
     // ⇒ 维持 N82/N89/N93附 封顶。
+    // [N1A 2026-09-11 复核 · 维持封顶] gap +8 的缺口全在 ORIG 独有段：
+    // ①0x086c15b5 / 0x086c18cd 两处 `cmpl $0xffffffff,槽; sete %al; test %al,%al;
+    //   je`（各较我方 `cmpl; jne` 多 2 条）——判据库 asm_translation_patterns.md
+    //   l.1441-1443「4.4-O0 槽比恒出 cmp/jne 直跳、唯 call 结果寄存器直比出 sete；
+    //   源形不可复现」⇒ 禁改内联比较；
+    // ②ORIG[346:351] `test %esi,%esi; jne; mov $0x0,%esi; jmp; mov $0x1,%esi`
+    //   （bool 归并 5 条，ORIG 用寄存器承载 bVar12）与 ③实参装载 4/5 条差同族。
+    // 反证：4.4.6 后端复编实测更差（431/422，gap +9）⇒ 非编译器轴，属 N 族封顶。
     // ORIG T 0x086c121e (size 0x6f1)：
     if (itemId == 1)
     {

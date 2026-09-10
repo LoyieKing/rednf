@@ -336,6 +336,14 @@ CraneItemInfo& CraneItemInfo::operator=(const CraneItemInfo& other)
     // b28c-L19 清绑（P0/N96 全域禁 register asm）：改 P0 表达式直传形。
     // ORIG +0x26..+0x2f：余数三段搬运后 1 字节存 +0x68；+0x49/+0x50：at() 结果
     // 指针与 m_material 双 callee-saved 保活（4.4 自然形可能落栈槽，残差记 N）。
+    // [N1Free91to105 2026-09-11] 负结论：本题（ORIG 40 / our 38，gap +2）残余为
+    // 4.1 与 4.4 的两处求值/搬运序差：
+    //  ① ORIG 0x080ebec4 `mov 0xc(%ebp),%ebx`（size() 调用**前**读 count 并保活）
+    //     vs 4.4 调用后才读 —— `A % B` 操作数求值序差异；
+    //  ② ORIG 0x080ebee2-0x080ebee6 `mov %edx,%ecx; mov %ecx,%eax`（余数三段搬运）
+    //     vs 4.4 `mov %edx,%eax`（两段）—— 窄化链跨版本差异。
+    // 已试旋钮：去双重 static_cast 改隐式窄化 `count % size` ⇒ 40/38 与 diff 逐条不变
+    // ⇒ 回滚。判 N 类封顶（ORIG 地址 0x080ebebc，形见 report）。
     m_selectIdx = static_cast<unsigned char>(
         static_cast<unsigned int>(count) % size);
     NeedMaterialDataManager::getInstance()->setNeedMaterialInfo(

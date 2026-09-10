@@ -41,7 +41,11 @@ public:
     void send_teleport_status(unsigned char status);
     void set_teleport_member_state(int idx, char state);
     void reset_teleport_data();
-    char check_cur_teleport_state();
+    // [N6-S2] 返回类型 char→bool（mangled 不变：返回类型不入 mangled）：ORIG
+    // `process_teleport` 尾段 0x085bc034 `movzbl -0x35(%ebp),%eax` 是 bool 槽直取
+    // （若是 char 局部转 bool 会发 `cmpb $0,slot; setne`，多 1 条 ⇒ gap=-1）。
+    // 探针 w1..w7 实证：bool 局部 + bool callee 与 ORIG 逐条同形。
+    bool check_cur_teleport_state();
     // SIGFIX:CPartyTelePort::process_teleport — ORIG __PRETTY_FUNCTION__ 串
     // "bool CPartyTelePort::process_teleport()"（返回类型不入 mangled）。
     bool process_teleport();

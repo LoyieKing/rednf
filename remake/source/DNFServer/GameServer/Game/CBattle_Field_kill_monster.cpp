@@ -28,26 +28,26 @@
 #include "CDataManager.h"           // getDropRate / find_monster（桥清零）
 #include "CKillMonsterInfo.h"       // 击杀/奖励链六谓词（桥清零）
 #include "CHellPartyItemStatistic.h" // 地狱派对统计单例/发送（桥清零）
-// ORIG __PRETTY_FUNCTION__（.r 区字面量；重建签名 unsigned int& 与 uint& 文本差异，
-// 故按 ORIG 字符串硬编码，供 LogManager/cMyTrace 使用）。
+// [N5 2026-09-11 · P139 符号轴] ORIG 局部静态
+// `_ZZN13CBattle_Field12kill_monsterER11PacketGuardR11map_monsterRjRK17STKillMonsterDataE19__PRETTY_FUNCTION__`
+// @0x08c23400（size 0x5e）内容 = "bool CBattle_Field::kill_monster(PacketGuard&,
+// map_monster&, uint&, const STKillMonsterData&)"。旧实现用硬编码 s_bfkm_pretty 供
+// LogManager/cMyTrace，运行期文本虽一致但**该符号不发射**（nm 该 TU 0 个 prett 符号）；
+// 改用 __PRETTY_FUNCTION__ 后由编译器生成同文串。
+// 定义处第 3 形参拼写必须是 `uint&`（GCC 取**定义处**拼写并保留 typedef 名——M3S4
+// 「Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser*, byte, byte)」先例）；声明侧
+// 保持 unsigned int& 不变，底层类型相同 ⇒ mangled（_ZN13CBattle_Field12kill_monsterE…RjRK…）
+// 逐字符不变。typedef 必须置于**全局作用域**（namespace 内会打印限定名）。
+typedef unsigned int uint;
 #define BFKM_ROUND(v) ((int)((v) + 0.5f))
 
-
-namespace
-{
-
-// 故按 ORIG 字符串硬编码，供 LogManager/cMyTrace 使用）。
-char const s_bfkm_pretty[] =
-    "bool CBattle_Field::kill_monster(PacketGuard&, map_monster&, uint&, "
-    "const STKillMonsterData&)";
-}  // namespace
 
 // ================= kill_monster 主函数 =================
 
 // [b28d-D33 N82/N89 封顶] ORIG 0x0830bc78：1587 vs 1579 条（超大函数 >500，
 // §6.2 三件套口径：ndiff 失真，语义以调用点/逐块为准）。语义等价。
 #include "CBattle_Field_kill_monster/kill_monster.inc"
-                                 unsigned int& reward,
+                                 uint& reward,
                                  const STKillMonsterData& data)
 {
     // ---- STKillMonsterData 载荷展开（ORIG +0x000c..+0x006b 标量提取） ----
@@ -56,8 +56,12 @@ char const s_bfkm_pretty[] =
     const int dieReason = (signed char)data.m_dieReason; // -0xa0
     const int avgMoneyPercent = data.m_field08;          // -0x9c
     int moneyValue = data.m_field0c;                     // -0xe4（效果缩放对象）
-    const bool flag10 = data.m_flag10 != 0;              // -0x96
-    const bool flag11 = data.m_flag11 != 0;              // -0x95
+    // [N5A 2026-09-11] ORIG +0x29/+0x5e：`movzbl 0x10(%eax),%eax; mov %al,-0x96(%ebp)` =
+    // 单条**字节直存**（无 test/setne）。字段已按 ORIG 改为 bool（CBattle_Field_shared.h）；
+    // 但实测本 TU 后端（4.4.6 路由）对 **bool 局部**会插归一 `test;setne`（gap −8→−10 反劣），
+    // 故局部保持 unsigned char 收字节（q_probe Q1 只在 4.4.7 探针环境成立，路由后端不同）。
+    const unsigned char flag10 = data.m_flag10;           // -0x96（bool 字段 → 字节局部）
+    const unsigned char flag11 = data.m_flag11;           // -0x95（bool 字段 → 字节局部）
 
     MapInfo* mapInfo = GetCurrentMapInfo();              // -0x94
 
@@ -74,7 +78,7 @@ char const s_bfkm_pretty[] =
                         : 0u;
             // ORIG 此处重新调用 GetCurrentMapInfo 取 map_index（+0x01a9）
             LogManager::logFormat(
-                1, "battle_field.cpp", s_bfkm_pretty, 0x1ba7,
+                1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1ba7,
                 "MOVE_MAP_LOG : kill_monster monster_map_trace_.find() fail ERROR "
                 "monster_uid(%d), grid(%d,%d) map_index(%d) charac_no (%u)",
                 uid, m_curX, m_curY, GetCurrentMapInfo()->m_mapIndex, characNo);
@@ -128,8 +132,12 @@ char const s_bfkm_pretty[] =
 
     // ---- 地狱派对组击杀计数（+0x0478） ----
     bool killedAllGroups = false;                        // -0xe9
+    // [N5A 2026-09-11] ORIG +0x48a..0x493 在调用前**重新** `lea -0xe8(%ebp),%eax;
+    // mov %eax,(%esp); call _ZNKSt17_Rb_tree_iterator…ptEv` ⇒ 实参是迭代器解引用
+    // `it->second`（其后 `lea 0x4(%eax),%edx` = &pair.second），不是缓存指针 *mobPtr。
+    // 这正是 p167 差集里 MISSING 的 `…ISt4pairIKi11map_monsterEEptEv`（ORIG 4 处 vs 我方 3 处）。
     if (mobPtr->m_hellPartyGroupIdx != 0)
-        KillHellPartyGroupMonsterCnt(*mapInfo, *mobPtr, killedAllGroups);
+        KillHellPartyGroupMonsterCnt(*mapInfo, it->second, killedAllGroups);
 
     // ---- roleType 数据源校验（+0x04be..+0x06cb） ----
     if ((signed char)mobPtr->m_roleType <= 3)
@@ -141,7 +149,7 @@ char const s_bfkm_pretty[] =
                 if (G_CDataManager()->m_aiCharacterList->get((unsigned int)mobPtr->m_mobIndex) == NULL)
                 {
                     LogManager::logFormat(
-                        1, "battle_field.cpp", s_bfkm_pretty, 0x1bed,
+                        1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1bed,
                         "G_CDataManager()->find_monster(%u) fail",
                         (unsigned int)mobPtr->m_mobIndex);
                     return false;
@@ -150,7 +158,7 @@ char const s_bfkm_pretty[] =
             else
             {
                 LogManager::logFormat(
-                    1, "battle_field.cpp", s_bfkm_pretty, 0x1bf3,
+                    1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1bf3,
                     "G_CDataManager()->find_monster(%u) fail",
                     (unsigned int)mobPtr->m_mobIndex);
                 return false;
@@ -162,7 +170,7 @@ char const s_bfkm_pretty[] =
         if (G_CDataManager()->m_aiCharacterList->get((unsigned int)mobPtr->m_mobIndex) == NULL)
         {
             LogManager::logFormat(
-                1, "battle_field.cpp", s_bfkm_pretty, 0x1bfd,
+                1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1bfd,
                 "G_CDataManager()->aiCharacterList_->get(%u) fail",
                 (unsigned int)mobPtr->m_mobIndex);
             return false;
@@ -173,7 +181,7 @@ char const s_bfkm_pretty[] =
         const unsigned int characNo =
             m_party ? (unsigned int)m_party->getManager()->getCurCharacNo() : 0u;
         LogManager::logFormat(
-            1, "battle_field.cpp", s_bfkm_pretty, 0x1c03,
+            1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1c03,
             "MOVE_MAP_LOG : kill_monster role_type(%d) ERROR monster_uid(%d), "
             "grid(%d,%d) charac_no (%u)",
             (int)(signed char)mobPtr->m_roleType, uid, m_curX, m_curY, characNo);
@@ -295,7 +303,7 @@ char const s_bfkm_pretty[] =
         const int singleMode = m_party->IsSinglePlay() ? 1 : 0;
         const unsigned int characNo =
             m_party ? (unsigned int)m_party->getManager()->getCurCharacNo() : 0u;
-        cMyTrace trace(s_bfkm_pretty, 0x1c67, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1c67, 0);
         trace("First Monster KILL : charac_no(%d), single_mode(%d), mob_index(%d), "
               "mob_type(%d), dungeon_index(%d), dungeon_diff(%d)",
               (int)characNo, singleMode, traceMobIdx, traceMobType,
@@ -422,7 +430,7 @@ char const s_bfkm_pretty[] =
                 if (!sent)
                 {
                     LogManager::logFormat(
-                        1, "battle_field.cpp", s_bfkm_pretty, 0x1d04,
+                        1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1d04,
                         "HELLPARTY_LOG : DUNGEON INDEX (%d) : HELLPARTY "
                         "STATISTIC ERROR!!\n",
                         m_pDungeon->get_index());

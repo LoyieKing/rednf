@@ -264,30 +264,40 @@ namespace cash {
 #include "NXCash/handle_cash_error.inc"
 {
     int result = 0x10;
-    // ORIG 跳转表（0x8bb42d4）逐项：case0=err5→r3"E_GIFT_LIMIT_OVER Remain cash"、
-    // case1=err6→r4"NO REMIN CASH"、case2=err7→default(r0x10)、case3=err8→r5"E_GIFT_NOT_READY
-    // error"、case4=err9→r6"E_GIFT_UNDER_AGE error"、case5=err10→r7"Undefined cash error"。
+    // ORIG 跳转表（0x8bb42d4，objdump -s 实证）逐项：
+    //   err-5=0→0x81ad225 r3 "[%s] NO REMIN CASH"
+    //   err-5=1→0x81ad205 r4 "[%s] DB error occur"
+    //   err-5=2→0x81ad299 r0x10 "[%s] Undefined cash error: %u"
+    //   err-5=3→0x81ad242 r5 "[%s] E_GIFT_LIMIT_OVER Remain cash"
+    //   err-5=4→0x81ad25f r6 "[%s] E_GIFT_NOT_READY error"
+    //   err-5=5→0x81ad27c r7 "[%s] E_GIFT_UNDER_AGE error"
+    // [§6.5 串盲区·运行期真 bug] 旧形 5 个串按块序整体**错位一格**（ndiff 把
+    // 立即数归一成 <A> ⇒ verdict 仍 AE，串内容差异不可见；strall.py 串多重集
+    // 才暴露）。错位后果：err=6 打 "NO REMIN CASH"（应 DB error occur）、
+    // err=5 打 "E_GIFT_LIMIT_OVER"（应 NO REMIN）、err=8 打 GIFT_NOT_READY、
+    // err=9 打 GIFT_UNDER_AGE、err=10 打 "Undefined cash error"（应 UNDER_AGE）。
+    // 串地址：0x8bb422b / 0x8bb4240 / 0x8bb4254 / 0x8bb4278 / 0x8bb4295 / 0x8bb42b4。
     switch (err - 5)
     {
-    case 1:      // 置于 case0 前，使块1=r4（NO REMIN）、块2=r3（GIFT_LIMIT）匹配 ORIG 块序
+    case 1:      // 置于 case0 前，使块1=r4（DB error occur）、块2=r3（NO REMIN）匹配 ORIG 块序
         result = 4;
-        printf("[%s] NO REMIN CASH\n", __FUNCTION__);
+        printf("[%s] DB error occur\n", __FUNCTION__);
         break;
     case 0:
         result = 3;
-        printf("[%s] E_GIFT_LIMIT_OVER Remain cash\n", __FUNCTION__);
+        printf("[%s] NO REMIN CASH\n", __FUNCTION__);
         break;
     case 3:
         result = 5;
-        printf("[%s] E_GIFT_NOT_READY error\n", __FUNCTION__);
+        printf("[%s] E_GIFT_LIMIT_OVER Remain cash\n", __FUNCTION__);
         break;
     case 4:
         result = 6;
-        printf("[%s] E_GIFT_UNDER_AGE error\n", __FUNCTION__);
+        printf("[%s] E_GIFT_NOT_READY error\n", __FUNCTION__);
         break;
     case 5:
         result = 7;
-        printf("[%s] Undefined cash error\n", __FUNCTION__);
+        printf("[%s] E_GIFT_UNDER_AGE error\n", __FUNCTION__);
         break;
     case 2:      // 与 default 同流（跳转表同项）
     default:
@@ -643,11 +653,6 @@ Lsilent:
     static wchar_t enc_data[1000];
     static char send_data[1000];
 
-    memset(data, 0, sizeof(data));
-    memset(wide_data, 0, sizeof(wide_data));
-    memset(enc_data, 0, sizeof(enc_data));
-    memset(send_data, 0, sizeof(send_data));
-
     ByteBuffer msg = set_data_header(0x02, 0x01);
 
     // [b28d-solo-nexon_cash] ORIG 0x081ade75..0x081ade83：set_data_header 后
@@ -656,6 +661,14 @@ Lsilent:
     int deadField = static_cast<int>(0xe8c3f80bu);
     unsigned long long frameKey = 0x00000000F3D8266FULL;
     (void)deadField;
+
+    // [P331 语句序] ORIG 0x081ade8a..0x081adec1 的 4 次 memset 落在
+    // set_data_header(0x081ade6d) 与 frameKey 3 条 movl 之后；旧形把 4 个 memset
+    // 写在最前 ⇒ 整块前移（16 条指令位移）。
+    memset(data, 0, sizeof(data));
+    memset(wide_data, 0, sizeof(wide_data));
+    memset(enc_data, 0, sizeof(enc_data));
+    memset(send_data, 0, sizeof(send_data));
 
     // [b28d-solo-nexon_cash] 真语义 bug：ORIG 0x081adefa..0x081adf2a 在栈上
     // 构造 27 字节 fmt = "%s|%i|%i|%i|%s|%s|%s|%s|%i"（9 token），并在
@@ -685,8 +698,14 @@ Lsilent:
     Encryption::EncodeDressStringWide(wide_data, enc_data,
                                       0x1b1bde64u);
 
-    size_t enclenChars = wcslen(enc_data);
-    wcstombs(send_data, enc_data, enclenChars);
+    // [P232 dead 标量占槽] ORIG 0x081ae004..0x081ae015：`call wcslen` 后
+    // `add $0x1,%eax; add %eax,%eax; mov %eax,-0x10(%ebp)` 把 (wcslen+1)*2
+    // 物化进 -0x10 槽（该值后续**未被消费**）；0x081ae01f 再取一次
+    // wcslen(enc_data) 直接作 wcstombs 第 3 参。旧形单次 wcslen + 具名复用
+    // ⇒ 少 1 次 call + 2 条 add（正 gap 段之一）。
+    int encSizeChars = static_cast<int>((wcslen(enc_data) + 1) * 2);
+    (void)encSizeChars;
+    wcstombs(send_data, enc_data, wcslen(enc_data));
 
     msg << send_data;
     msg << frameKey;                      // [-0x28/-0x24] 帧 key
@@ -702,23 +721,38 @@ Lsilent:
         return rc;
 
     // [b28d-solo-nexon_cash] P171：三元组无预清。
+    // [b28d-solo-nexon_cash] 真语义 bug：ORIG 0x081ae0cf 的 `lea -0x80(%ebp)` 即
+    // get_data_header 的 sret 对象，随后 0x081ae15a/0x081ae16f 两条
+    // `ByteBuffer::operator>>` 继续用同一对象（sret 与 in 同槽）⇒ 原码是
+    // `ByteBuffer in = get_data_header(...)` 续读；旧形丢弃返回值后
+    // 重新 `ByteBuffer::wrap(m_inMsg.body(), body_length())` 从头读入包 body
+    // ⇒ 字段错位（读到 ack/err 而非 db_id/tid）+ 多 5 调用/16B 栈。
     unsigned char ackPid, errCode;
     unsigned int reqId;
-    get_data_header(ackPid, errCode, reqId);
+    ByteBuffer in = get_data_header(ackPid, errCode, reqId);
 
     if (errCode != 2)
     {
         // [b28d-solo-nexon_cash] §4.1/P154：删发明符号
         // _ZN5nexon4cash12_GLOBAL__N_114traceRecvErrorEiPKc（ORIG nm 无此符号）。
         // ORIG 0x081ae105..0x081ae145 为就地具名 cMyTrace 两句式（ctor + op()）。
-        cMyTrace trace(__FUNCTION__, 0x303, 0);
-        trace("NCashImpl::chargeCash Recv Error!! packet_id:%d, data:%s",
-              static_cast<int>(errCode), data);
+        // [P231 保活] ORIG 0x081ae101 `movzbl -0x69(%ebp),%eax; movzbl %al,%ebx`
+        // 把 (int)errCode 在 ctor **之前**物化进 ebx（跨 ctor 保活，ctor 后
+        // 直接 `mov %ebx,0x8(%esp)`），代价是 prologue `push %ebx`/epilogue
+        // `mov -0x4(%ebp),%ebx` 各 1 条；4.4 对具名 errCode 在 ctor 后重载
+        // （2 条 movzbl）⇒ 少 2 条。用 register 中间量复现 4.1 的提前物化。
+        // [P221 全表达式临时链] ORIG ctor 的 this 落 -0x3c（临时槽区，浅于
+        // in@-0x80）；4.4 把我方**具名** trace 分到固定槽 -0x80，挤掉 in
+        // （in 上移 0x10、fmt/msg/CMyTrace 全套平移，130 行残差）⇒ 改链式
+        // 表达式让 4.4 走临时槽区（语义同：dtor 在 full-expression 末，ORIG
+        // 亦无 dtor 代码）。
+        register int pid = static_cast<int>(errCode);
+        cMyTrace(__FUNCTION__, 0x303, 0)(
+            "NCashImpl::chargeCash Recv Error!! packet_id:%d, data:%s",
+            pid, data);
         return static_cast<int>(errCode);
     }
 
-    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
-                                     m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
     printf("[%s] CHARGE_CASH OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,

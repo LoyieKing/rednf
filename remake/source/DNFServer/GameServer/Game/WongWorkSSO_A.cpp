@@ -223,6 +223,21 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
 #include "WongWorkSSO_A/_checkValiedPassword.inc"
                                                 CRijndael& cipher)
 {
+    // [2026-09-11 N4Free191to210.S6 复核] 本件由 DIFF 123/122（gap −1）推至
+    // **123/123（gap 0）**，三处结构性偏差已闭环：
+    //  ① paddedLen 三分支：ORIG 0x08602c06 为 `cmpl $0,-0xc; js <尾块>`
+    //    （blk<0 前向跳）+ 内层 `idivl; test %edx,%edx; je <另一份 paddedLen=srcLen>`，
+    //    故源形必须是 `if (blk >= 0) { if (len % blk != 0) … else … } else …`
+    //    （旧 if/else-if/else 令 4.4 发 `jns` + then 落 fall-through = 镜像布局）。
+    //  ② EH 区间：ORIG try 止于 `hexBuf[srcLen]=0`（Ghidra: 0x08602bfe..0x08602cbc，
+    //    handler @0x08602ceb）⇒ strncmp/log 在 try 之外（旧形把日志块放进 try 内，
+    //    使 catch handler 与块序错位）。
+    //  ③ catch 的 logFormat 第一个 %s 实参是 **hexBuf**（ORIG 0x08602cfa
+    //    `lea -0x98(%ebp),%eax; mov %eax,0x14(%esp)`），非空串；且 diff 分支
+    //    `if (rc == 0) return true;` 前置（ORIG 0x08602ce7 `je <true 块>`，true 块
+    //    地址 0x08602d51 < 日志块 0x08602d58）。
+    // 残差 3 处（N7 封顶，实测）：Pad 调用首条实参装载次序、Encrypt 间接 call 目标
+    //   （ORIG %edx vs 我方 %eax）、Binary2Hex 三实参求值序 —— 全为 4.4 寄存器分配产物。
     unsigned int srcLen = strlen(pwd);  // ORIG -0x14(%ebp)
     unsigned int paddedLen = 0;         // ORIG -0x10(%ebp)
 
@@ -235,17 +250,27 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
         // 即用 `cipher->IMethod::GetBlockSize(NULL)` 形。
         int blockSize = cipher.IMethod::GetBlockSize(NULL);
 
-        if (blockSize < 0)
+        // [2026-09-11 结构修正] ORIG 0x08602c06..0x08602c3a 的分支布局为
+        // `cmpl $0x0,-0xc(%ebp); js <B2>`（blk<0 时**前向跳**到尾部 “paddedLen=srcLen”
+        // 块，0x08602c3c），fall-through = blk>=0 的余数判定；内层
+        // `idivl; test %edx,%edx; je <B1>`（余数==0 前向跳到 0x08602c34 的另一份
+        // “paddedLen=srcLen”）。⇒ 源形必须是 `if (blk >= 0) { 内层 } else { ... }`
+        //（旧 if/else-if/else 让 4.4 发 `jns` + then 落 fall-through = 镜像布局）。
+        if (blockSize >= 0)
         {
-            paddedLen = srcLen;
-        }
-        else if (static_cast<int>(srcLen) % blockSize == 0)
-        {
-            paddedLen = srcLen;
+            if (static_cast<int>(srcLen) % blockSize != 0)
+            {
+                paddedLen =
+                    (static_cast<int>(srcLen) / blockSize + 1) * blockSize;
+            }
+            else
+            {
+                paddedLen = srcLen;
+            }
         }
         else
         {
-            paddedLen = (static_cast<int>(srcLen) / blockSize + 1) * blockSize;
+            paddedLen = srcLen;
         }
 
         // IMethod::Pad(pwd, len, NULL)（ORIG 0x08602c42 起 `call 080b44a6` **真调用**；
@@ -266,28 +291,37 @@ extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
         srcLen = paddedLen * 2 + 1;
         DNFFLib::Binary2Hex(encBuf, static_cast<int>(paddedLen), hexBuf);
         hexBuf[srcLen] = '\0';
-
-        if (strncmp(hexBuf, clientHash, 0x84) != 0)
-        {
-            LogManager::logFormat(
-                1, "SimpleSSO.cpp",
-                "bool WongWork::CSimpleSSO::_checkValiedPassword(char*, const char*, CRijndael&)",
-                0xee,
-                "_checkValiedPassword() diff password server(%s), client(%s)",
-                hexBuf, clientHash);
-            return false;
-        }
-        return true;
     }
     catch (...)
     {
+        // [2026-09-11 结构修正] ORIG 的 EH 区间止于 `hexBuf[srcLen]=0`
+        //（Ghidra：try from 0x08602bfe to 0x08602cbc，CatchHandler @ 0x08602ceb）
+        // ⇒ strncmp/log 在 try 之外；且异常日志的第一个 %s 实参是 **hexBuf**
+        //（ORIG 0x08602cfa `lea -0x98(%ebp),%eax; mov %eax,0x14(%esp)`），
+        // 而非空串。
         LogManager::logFormat(
             1, "SimpleSSO.cpp",
             "bool WongWork::CSimpleSSO::_checkValiedPassword(char*, const char*, CRijndael&)",
             0xe7,
-            "_checkValiedPassword() exception server(%s), client(%s)", "", clientHash);
+            "_checkValiedPassword() exception server(%s), client(%s)", hexBuf,
+            clientHash);
         return false;
     }
+
+    // [2026-09-11 块序修正] ORIG 0x08602ce7 为 `je <true 块>` + `jmp <日志块>`，
+    // 且 true 块（0x08602d51 `mov $1,%ebx`）地址低于日志块（0x08602d58）
+    // ⇒ 源语句序为 “rc==0 先返回 true”，日志/return false 在后。
+    if (strncmp(hexBuf, clientHash, 0x84) == 0)
+    {
+        return true;
+    }
+    LogManager::logFormat(
+        1, "SimpleSSO.cpp",
+        "bool WongWork::CSimpleSSO::_checkValiedPassword(char*, const char*, CRijndael&)",
+        0xee,
+        "_checkValiedPassword() diff password server(%s), client(%s)", hexBuf,
+        clientHash);
+    return false;
 }
 
 // ---- updateHumanCertify(mId, accountFail)  ORIG 0x08603226

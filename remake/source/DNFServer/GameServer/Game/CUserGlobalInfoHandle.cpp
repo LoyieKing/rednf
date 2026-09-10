@@ -61,6 +61,13 @@
 //       [identical=1 ae=6 合计7 near=0 diff=1 missing=2]，其中 diff=1 为 N123 撞名
 //       `_Z41__static_initialization_and_destruction_0ii`（本 TU 真副本 0x086ad978
 //       16 条助记符序列 16=16 全等），missing=2 为 P93 同址别名 C2/D2。
+// [N6S2NegB 2026-09-11 复核] ORIG 0x086ad94a `je` 目标前 / 函数尾各有 1 条对齐 nop，
+// 我方物理 25 行 vs ORIG 24 ⇒ 归一口径（compare_common.strip_nop_padding）已剥 ⇒
+// n1_v verdict=AE orig=24 our=24。消 nop 穷举（/tmp/probe_gid/p4..p12 + 446/444 后端）：
+// 裸 if=p5 `cmpl;jne`、具名 bool=p4/p7（多 -0x9 槽 + cmpb）、while+break=p6、while+goto=p11、
+// do-while=p12、while(true)+if(!=)break=p8（jne+回跳）——**全部复现该 nop**，无一形产出
+// 无 nop 的 `sete/test/je`；该 nop 为 4.4 对物化条件的固有产物，源码不可消。
+// 结论：保持 while+break 形（唯一复现 ORIG 0x086ad924..2d 四段的形），本件已到 .o 口径上限。
 // ============================================================================
 #include "CUserGlobalInfoHandle/get_uniqueid.inc"
 {

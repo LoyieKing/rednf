@@ -100,12 +100,16 @@ namespace {
     // asm +0x21b..+0x2ae: 无条件——m_rankMap[towerIdx][stageVal].insert(
     //   pair(playTime→slotIdx))；键已存在则改写值为 slotIdx（ORIG fresh 插入与
     //   dup 改写均收敛为同一语义对）。
-    RankMap& row = m_rankMap[towerIdx][stageVal];
     std::pair<RankMap::iterator, bool> r =
         // b28d-55（P178/P86）：ORIG 双层临时链 make_pair → value_type 右值构造
         // （P167 差集：make_pair<unsigned&,unsigned&> + pair<const unsigned,unsigned>
         //  ::C1IjjE）；4.4 对 value_type(a,b) 直构折叠掉 make_pair。
-        row.insert(RankMap::value_type(std::make_pair(playTime, slotIdx)));
+        // [S2W6Deps] P183 去具名引用局部：ORIG 0x084686bc..0x084686f8 在实参位置**内联重算**
+        // 秩表地址（`mov towerIdx; mov stageVal; mov %eax,%eax...` 直接进
+        // insert 的 0x4(%esp)），无 `RankMap& row` 缓存槽（我方原形多 1 个
+        // 槽 + 存/取 2 条，帧 0x14 差）；改内联表达式。
+        m_rankMap[towerIdx][stageVal].insert(
+            RankMap::value_type(std::make_pair(playTime, slotIdx)));
     if (!r.second)
         r.first->second = slotIdx;
     // asm +0x2b4..+0x2f5: 表级最优纪录比较，更优则整块拷贝（rep movsl 0x26*4）。
@@ -187,6 +191,11 @@ namespace {
 //      （N82/N98 首次使用序分配，声明序不可翻）；c) cur 槽 -0xd0 vs ORIG -0xcc
 //      连带 stage/playTime -0x48/-0x44 vs -0x44/-0x40（同族）。语义全等。
 //      ORIG 0x08468914。
+// [S2W6Deps 复核] a) 项 = **gcc 中端 lowering 固有差**（fdiff.py reloc 归一口径
+//   实测：3 处 lane 各 1 条，`insert orig[52..] N| mov 0x14(%ebp),%edx` 等）：
+//   同址表达式 `members + i*0x17`，原厂发 `imul; add 0x14(%ebp),%edx`（mem 直加），
+//   gcc11 恒先物化基址再 `lea (%edx,%eax,1),%edx` ⇒ 每 lane +1 条，gap -3 全额由
+//   此解释；属 N4/P30 族（同 registRanker），源码不可造。
 #include "W6_RankMailDeps/registBestRecord.inc"
     unsigned int towerIdx, unsigned int key,
     const struct stDeathTowerRecordMemberInfo_t* members,

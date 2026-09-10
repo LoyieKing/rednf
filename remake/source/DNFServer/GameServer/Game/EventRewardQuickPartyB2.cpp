@@ -128,11 +128,25 @@
 // p167 15 vs 16 调用点、0 MISSING（仅 +1 _Unwind_Resume，EH 共享差）。
 #include "EventRewardQuickPartyB2/getType.inc"
 {
+    // [N2-S4 2026-09-11] 4.4 bool 物化消解（109→99，ORIG 96，gap -13→-3）：
+    // 把两个 string 的作用域收进内层块、bool 提到块外 ⇒ `if (same)` 落在析构
+    // 之后，return 不再跨 cleanup —— 4.4 不再把 operator== 结果物化到
+    // callee-saved(%ebx) 并在 landing pad 后重整 0/1（ORIG 0x08ac35a4 仅一条
+    // `test %bl,%bl`），也不再需要 `mov $0,%esi; mov %esi,%eax` 的返回值中转。
+    // 负结论（同一函数实测 our_insns 不变或变差，故不采用）：声明序交换
+    // current/expected(109)、goto 共享出口(109)、while 手写 ++i(109)、
+    // 具名 hit+result+break(111)、break+守卫返回 i>12(111)；三元/`==0`/
+    // 具名 bool 已由 b28d 判词覆盖（恒 109）。残 -3 为 4.4 的 landing pad
+    // 分组（我方 12+12 条 pad + 2 条跳过 jmp vs ORIG 9+14 条）——跨版本结构。
     for (int i = 0; i <= 12; ++i)
     {
-        std::string expected(getString((ContentsType::T)i));
-        std::string current(name);
-        if (current == expected)
+        bool same;
+        {
+            std::string expected(getString((ContentsType::T)i));
+            std::string current(name);
+            same = (current == expected);
+        }
+        if (same)
             return i;
     }
     return 0;

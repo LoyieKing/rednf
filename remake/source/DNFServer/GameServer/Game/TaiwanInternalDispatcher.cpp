@@ -437,6 +437,14 @@
 // 「test; jmp + 保留体」单跳转形（4.1 -O0 发射不可达体、4.4 需 2 分支守卫）⇒ N111 维持。
 // ③p167 余项全为 C1/C2·D1/D2 别名族（ORIG nm 同址：Inven_ItemC1≡C2@0x080cb854、
 // vector<pair>D1≡D2@0x081349ea、pair C1≡C2@0x081627d4），非语义缺口。
+// [N1F 2026-09-11 复核·工具 desync 定量] 直读 ELF 字节：0x08161384 = `e9 04 02 00 00`
+//   （无条件 jmp → 0x0816158d，位移 0x204）；0x08161389 = 单字节 0x00，使 objdump 自该点
+//   顺序解码错位 ⇒ 报告 orig_insns=166 中 13 条为假指令（`add %cl,0x489c445(%ebp)` /
+//   `fadds (%ecx)` 等）。自 0x0816138a 对齐解码（objdump --start-address=0x0816138a）
+//   得死块真实 138 条（lea -0x3c/vector-pair ctor/findString×2/9-loop/ReqDBSend… /
+//   _Unwind_Resume），与我方死块同构（仅槽号差 2~4）。⇒ gap +3 全为 desync 假差，
+//   4.4 无法构造「test; 无条件 jmp + 仍发射体」的单跳转形（既有探针 /tmp/m2s6_probe3.o
+//   三形：`if (A && 0)` 连体删 / volatile 局部 / 复用已验事实），N111 维持。
 #include "TaiwanInternalDispatcher/dispatch_sig_1.inc"
 {
     Msg* msg = reinterpret_cast<Msg*>(buf);
@@ -582,6 +590,14 @@ struct SigLoadServiceRestrictPolicy
 // [M2S6 2026-09-11 复核] p167 余项 = C1/C2 别名族（ORIG Inven_ItemC1≡C2@0x080cb854、
 // cMyTraceC1≡C2@0x0854f718）⇒ 非缺口；kRewardItem_ 装载经探针 /tmp/m2s6_probe2.o 证 4.4 对
 // 静态成员地址恒单段直达 callee-saved（4.1 走 %eax 中转两段），N18a 维持；语义逐条核 ✓。
+// [N1F 2026-09-11 复核+探针] 本次以真后端（c6root 驱动 + cc1plus446）复测装载形，证据：
+//   ORIG 0x08160ad3 字节实测 `a1 a0 00 b8 08` + `89 c3`（= `mov 0x08b800a0,%eax` →
+//   `mov %eax,%ebx`，abs 形 a1 编码），我方 4.4 恒 `8b 1d <A>` 单段直落 %ebx ⇒ 差 1 条。
+//   探针（同后端）三形：① 实参声明类型为 unsigned（`extern unsigned` 或 typedef) ⇒ 复现
+//   ORIG 二段形（`mov <A>,%eax; mov %eax,%ebx`）逐字节同；② 显式 cast `(unsigned int)`
+//   于 int 静态 ⇒ 前端折叠成单段（不生效）；③ `*(const unsigned int*)&X` ⇒ 走地址形
+//   3 条（`mov $A,%eax; mov (%eax),%eax; mov %eax,%ebx`）更劣。
+//   ⇒ 唯一源形是**声明类型**，而 kRewardItem_ 在 CEventStayTime.h（非本泳道写域）⇒ N18a 封顶。
 #include "TaiwanInternalDispatcher/dispatch_sig_3.inc"
 {
     char* msg = buf;
@@ -622,6 +638,8 @@ struct SigLoadServiceRestrictPolicy
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N7+N18a 反向封顶（同 StayTime 形因；p167 16/16 CLEAR）
 // [M2S6 2026-09-11 复核] 同 StayTime：p167 余项 = C1/C2 别名族（非缺口）；装载形 N18a 维持
 // （探针 /tmp/m2s6_probe2.o）；语义（event 0xa5 / tw_givemebox2_* / 行号 0x1dc·0x1e6 / 返回 0x1dd）逐条核 ✓。
+// [N1F 2026-09-11 复核] 同 StayTime：本条唯一残差 = `mov <A>,%eax; mov %eax,%ebx` 二段装载
+//   （EventGiveMeBox::kRewardItem_ 同属 .h 声明类型轴，见上条探针三条证据）⇒ 封顶维持。
 #include "TaiwanInternalDispatcher/dispatch_sig_4.inc"
 {
     char* msg = buf;

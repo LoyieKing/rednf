@@ -165,13 +165,11 @@
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x153, st.m_4);
         return;
     }
-    int resultIdx = st.m_8;              // +0x08 movl → put_int
-    int resultCount = st.m_c;            // +0x0c movl → put_short（截断 cwtl）
     PacketGuard packet;
     packet.put_header(1, 0x153);
     packet.put_byte(1);
-    packet.put_int(resultIdx);
-    packet.put_short(resultCount);
+    packet.put_int(st.m_8);
+    packet.put_short((short)st.m_c);   // ORIG 0x081d4814 `mov 0xc(%eax),%eax; cwtl`
     packet.finalize(true);
     user->Send(packet);
 }
@@ -206,8 +204,10 @@
     CItem* source = G_CDataManager()->find_item(invA.m_addInfo);
 
     // ---- 物品锁检查 ----
-    int lockSpace = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)0);
-    if (user->CheckItemLock(lockSpace, slotA))
+    // ORIG 0x081d3e32：slotA 先入 %ebx、space **无具名槽**（P329 实参不提炼局部）
+    //   `mov -0x84(%ebp),%ebx; movl $0x0,(%esp); call GetInvenTypeFromItemSpace;
+    //    mov %ebx,0x8(%esp); mov %eax,0x4(%esp)`。
+    if (user->CheckItemLock(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)0), slotA))
     {
         st.m_4 = 0x1;
         return 0;
@@ -263,16 +263,18 @@
     }
 
     // ---- 源信息复制（source 非 stackable 时）----
-    // ORIG：local_35 = invA（整体 Inven_Item 拷贝，含 m_amp/m_attr/m_addInfo2/m_fieldd）；
-    //        随后仅 SetReSealCount(invA.GetReSealCount()&0xff) + set_add_info(invA.get_add_info())。
-    Inven_Item out;
-    out.reset();
-    unsigned char resealCount = 0;
-    int copyAddInfo = 0;
+    // ORIG 0x081d40e2 四槽清零（-0x31/-0x30/-0x2c/-0x28）+ 0x081d410d 分支逐字段取：
+    //   +0x00(1B) / GetReSealCount() / +0x0d(int) / get_add_info() 共 4 项——**无**
+    //   Inven_Item 局部、**无** out=invA 整体拷贝（旧形整体拷贝多 16 条 mov）。
+    bool outField0 = false;        // → resultItem+0x00（ORIG movb $0x0,-0x31）
+    int resealCount = 0;           // ORIG movl $0x0,-0x30（GetReSealCount 零扩展入 int 槽）
+    int outFieldD = 0;             // → resultItem+0x0d（ORIG movl $0x0,-0x2c）
+    int copyAddInfo = 0;           // ORIG movl $0x0,-0x28
     if (!source->is_stackable())
     {
-        out = invA;
-        resealCount = invA.GetReSealCount();
+        outField0 = invA.m_field0;             // ORIG 0x081d410d movzbl -0xf9
+        resealCount = invA.GetReSealCount();   // ORIG 0x081d4125 movzbl %al（uchar→int 零扩展）
+        outFieldD = invA.m_fieldd;             // ORIG 0x081d412b mov -0xec(%ebp)（invA+0x0d）
         copyAddInfo = invA.get_add_info();
     }
 
@@ -296,7 +298,9 @@
         updateSlots.push_back(1);
     }
     // ③ 第二材料
-    int mat2Slot = user->getCurCharacInvenR()->check_item_exist(mat2Idx);
+    // ORIG 0x081d4290 `mov %ax,-0x22(%ebp)` / 0x081d4294 `cmpw $0x0,-0x22(%ebp)`
+    //   / 0x081d42b2+0x081d4309 `movswl -0x22(...)` ⇒ 槽宽 16 位 = short（P9/P211 类型轴）。
+    short mat2Slot = (short)user->getCurCharacInvenR()->check_item_exist(mat2Idx);
     if (mat2Slot < 0)
     {
         st.m_4 = 0x11;
@@ -311,36 +315,46 @@
     }
 
     // ---- 对已删除槽逐组 SendUpdateItem ----
-    // [轴B 回滚·N] 表内行 jg/setb(81d4433) 为**假阳性**：ORIG 该点是
-    // `cmpl $0x9,-0x20(%ebp); jg`（迭代器循环的计数上限），与我方此处的
-    // `size_t i + 2 < updateSlots.size()` 循环尾测**上下文不同构**。
-    // 试改 int 后符号性虽对齐（setb→setl），但 matched 144→144、
-    // gap −96 不变、TU 四数 131/0/3/34 不变 ⇒ 无收益，按判据回滚。
-    for (size_t i = 0; i + 2 < updateSlots.size(); i += 3)
+    // ORIG 0x081d433d-0x081d4443：**迭代器**循环（begin/end/operator!=/operator*
+    //   /operator++ 调用全可见，it 槽 -0xbc、end 临时 -0x4c/-0x50）+ 计数上限
+    //   10（0x081d442f `cmpl $0x9,-0x20(%ebp)` / 0x081d4433 `jg`）——上限是
+    //   **语义缺口**（旧形索引循环 `i+2 < size()` 无上限）。循环体每组读 3 个
+    //   int（-0x14/-0x10/-0xc），只把前两个传给 SendUpdateItem(1, space, slot)。
+    std::vector<int>::const_iterator it = updateSlots.begin();
+    int sentCount = 0;
+    while (it != updateSlots.end() && sentCount < 10)
     {
-        int slot = updateSlots[i + 1];
-        user->SendUpdateItem(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
+        int space = *it;      // ORIG 0x081d4376 operator* → -0x14
+        ++it;
+        int slot = *it;       // ORIG 0x081d4397 operator* → -0x10
+        ++it;
+        int restCount = *it;  // ORIG 0x081d43b8 operator* → -0xc（读出后未消费）
+        ++it;
+        (void)restCount;
+        user->SendUpdateItem(CUser::eSendTarget_1, (ENUM_ITEMSPACE)space, slot);
+        ++sentCount;          // ORIG 0x081d43fa addl $0x1,-0x20
     }
 
     // ---- 结果物品生成 ----
-    Inven_Item resultItem;
-    resultItem.reset();
-    CItem* resultDef = G_CDataManager()->find_item(limitPair.first);  // 结果对象索引
+    Inven_Item resultItem;                 // ctor 内已 reset（ORIG 0x081d4452 只有 1 次 call）
+    resultItem.m_addInfo = limitPair.first;    // ORIG 0x081d4457 直写 +0x02，其后重读（P48）
+    CItem* resultDef = G_CDataManager()->find_item(resultItem.m_addInfo);  // 结果对象索引
     if (resultDef == 0)
     {
         st.m_4 = 0x11;
         return 0;
     }
     resultDef->make_item(resultItem);
-    if (!resultDef->is_stackable())
+    if (resultDef->is_stackable())
     {
-        resultItem = out;
-        resultItem.SetReSealCount(resealCount);
-        resultItem.set_add_info(copyAddInfo);
+        resultItem.m_addInfo2 = limitPair.second;  // +0x07 数量（ORIG 0x081d44c1 直写 -0x16c）
     }
     else
     {
-        resultItem.m_fieldd = limitPair.second;
+        resultItem.m_field0 = outField0;                    // +0x00
+        resultItem.SetReSealCount((unsigned char)resealCount);
+        resultItem.m_fieldd = outFieldD;                    // +0x0d
+        resultItem.set_add_info(copyAddInfo);
     }
 
     // ---- 插入背包 ----

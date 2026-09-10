@@ -201,16 +201,29 @@ static int parseStringLine(char* line, int* key, char** value)
                 {
                     // ORIG 0x08ad4b5c：format 为静态 sret，直写 -0x2c 局部槽，
                     // 无 C1Ev/无 op=（P215 展开形）。
-                    CharString msg = CharString::format(
-                        "Parse error : line:%d reason:%d", lineNo, r);
-                    *error = msg;
+                    // [N1F 2026-09-11] msg 作用域收口：ORIG 0x08ad4ba2-0x08ad4bad =
+                    //   dtor(-0x2c) 先、`mov $0x0,%eax` 后（返回物化在清理之后）⇒
+                    //   `return false;` 在 msg 作用域**之外**，4.4 才不发 %ebx 暂存。
+                    {
+                        CharString msg = CharString::format(
+                            "Parse error : line:%d reason:%d", lineNo, r);
+                        *error = msg;
+                    }
                     return false;
                 }
             }
             if (val != 0)               // ORIG @0xf5 判 val（非 key）
             {
-                CharString v(toTString(val));      // -0x28（toTString 恒等）
-                bool ok = add(key, v);             // -0x9 byte 槽
+                // [N1F 2026-09-11] v 作用域收口（P0/EH 轴）：ORIG 0x08ad4bf8-0x08ad4bfe 在
+                //   `call add`（0x08ad4bf0）后**立即**内联销毁 -0x28（v），随后才算
+                //   0x08ad4c03 `movzbl -0x9(%ebp),%eax`（!ok）⇒ ORIG 中 v 的 dtor 不在
+                //   「返回/续循环」共享清理路径上，且返回物化是 `mov $0,%eax`（0x08ad4bad/0x08ad4c92）
+                //   而非 4.4 的 %ebx 暂存 + %esi 选择子。源形 = v 收进内层块、ok 提到块外。
+                bool ok;                           // -0x9 byte 槽（ORIG 0x08ad4bf5 mov %al,-0x9(%ebp)）
+                {
+                    CharString v(toTString(val));  // -0x28（toTString 恒等）
+                    ok = add(key, v);
+                }
                 if (!ok)
                 {
                     // 重复 key：写 err 后**整表加载失败返回**（@0x16c-0x1d5）。
@@ -287,6 +300,9 @@ static int parseStringLine(char* line, int* key, char** value)
         char* buf = new char[payloadBytes];                         // -0x20
         memcpy(buf, data + 8, size);
 
+        // [N1F 2026-09-11 实测复核] 该未用 pad 局部是**必需**的：删除后本函数槽基
+        //   整体上浮 4（ORIG content -0x48 vs 我方 -0x44），归一 diff 208 行 → 398 行
+        //   ⇒ 该 pad 净收益为正，保留（N97/N18a 残余本身仍封顶）。
         int slotPad;
         char* cur = buf;                                            // -0x18
         unsigned int key = k0;                                      // -0x14
@@ -368,15 +384,16 @@ static int parseStringLine(char* line, int* key, char** value)
         return false;
     }
     // ORIG 各使用点直接读 ftell 槽（-0x14）：无具名 int 中间量（P183）。
-    char* buf = new char[fileSize];
+    // [N1F 2026-09-11] 缓冲区用 unsigned char*（ORIG 0x08ad4dbf 实参装载形：err→0xc/
+    //   size→0x8/buf→0x4/this→0x0 逐条 `mov <src>,%eax; mov %eax,N(%esp)`，**无** cast
+    //   节点的预取；带 reinterpret_cast 时 4.4 把 buf 预载入 %eax 并改走 %edx ⇒ 形态不符）。
+    unsigned char* buf = new unsigned char[fileSize];
     fread(buf, 1, (size_t)fileSize, fp);
     fclose(fp);
 
-    /* loadFromBinary 实参装载 N80 族封顶（b26 NL26，Main 裁定）：ORIG 4.1 右到左串联装
-     * 载全程 %eax；4.4 恒 arg0=eax、arg2/arg1=edx 交错。具名中间量/逗号重
-     * 排/size_t 内置 5 探针全败（/tmp/p26_lf.cpp、p26_lf2.cpp），语义完成。 */
-    const bool result = loadFromBinary(
-        reinterpret_cast<const unsigned char*>(buf), fileSize, error);
+    /* loadFromBinary 实参装载 N80 族（b26 NL26 旧结论「恒交错」已被上条重定类型推翻）：
+     * 去 cast 后 4.4 逐条 `mov %eax` 直落，与 ORIG 同形。 */
+    const bool result = loadFromBinary(buf, fileSize, error);
     delete[] buf;
     return result;
 }

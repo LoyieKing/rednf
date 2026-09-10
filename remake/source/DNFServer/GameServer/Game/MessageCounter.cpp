@@ -200,6 +200,11 @@ bool MessageKey::operator<(const MessageKey& rhs) const
     if (it != m_map.end())
     {
         ++it->second.m_count;
+        // [N2-S5 负结论] ORIG 0x0856fa94 `add -0x98(%ebp),%eax; adc -0x94(%ebp),%edx`
+        // 为「左值在 eax/edx + 内存源」形；`+=` 实测 4.4 反选「先加载右值
+        // bytes 到 eax/edx」，且显式 `m_bytes = m_bytes + bytes` 形更劣
+        // （132/139 → 132/141）⇒ 保持 `+=`；本处 2 条 + %esi 保活连带
+        // （push/pop + esp 恢复 epilogue）归 4.4 regmove 差异。
         it->second.m_bytes += (unsigned long long)bytes;
 
         wOld = (double)(it->second.m_count - 1) / (double)it->second.m_count;
@@ -241,13 +246,34 @@ bool MessageKey::operator<(const MessageKey& rhs) const
     (*guard)->operator<<(0x26c);
     (*guard)->operator<<(-1);
 
-    char* sig = reinterpret_cast<char*>(
+    // [N2-S5] ORIG 0x0856fcb5 起一律 `mov 0x4(%eax),%ebx` / `movl $0x0,0x4(%eax)`
+    // 单条 disp；而 TU 宏的数组下标形 `((int*)s)[1]` 在 4.4 -O0 恒发射
+    // `add $0x4,%eax; mov (%eax)` 两条（探针 /tmp/probe2.cpp：f1 下标形 3 条 vs
+    // f2 成员访问 2 条、g1 两条 vs g2 两条直存）⇒ 本函数体改走**函数局部视图
+    // 结构体**成员访问（TU 级宏/sig 视图保持不动）：+0 baseSec、+4 count、
+    // entries[100] @+8 每 0x14（8+100*0x14 = 0x7d8 与 SIG 视图吻合）。
+    struct SigEntryView
+    {
+        unsigned int m_id;            // +0x00
+        int m_count;                  // +0x04
+        unsigned long long m_bytes;   // +0x08（ORIG 一次 64 位写 0x10/0x14）
+        int m_avgRounded;             // +0x10（fistpl RC=11 截断）
+    };
+    struct SigView
+    {
+        int m_baseSec;                // +0x00
+        int m_count;                  // +0x04
+        SigEntryView m_entries[100];  // +0x08
+    };
+
+    SigView* sig = reinterpret_cast<SigView*>(
         guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
 
     int nowSec = GlobalData::s_systemTime_.getCurSec();
     int mod = nowSec % UPDATE_PERIOD;
     nowSec = nowSec - mod;
-    sig_init_head(sig, nowSec);
+    sig->m_baseSec = nowSec;
+    sig->m_count = 0;
 
     for (std::map<MessageKey, MessageValue>::iterator it = m_map.begin();
          it != m_map.end(); ++it)
@@ -255,30 +281,31 @@ bool MessageKey::operator<(const MessageKey& rhs) const
         // [R29-3] 删 `key`/`value`/`slot`/`idField` 四个具名局部：ORIG 每字段
         // 各重读 sig->count（4 次）并逐次 `it->first`/`it->second`（ptEv）；
         // avg 按 ORIG `fistpl`（RC=11 截断，无 ±0.5 调整）写 `(int)`。
-        sig_write_entry_id(sig, sig_entry_count(sig),
-                           ((it->first.m_id == 0)
-                                ? 0u
-                                : (unsigned int)(it->first.m_id + m_idBias)) +
-                               (unsigned int)it->first.m_size);
-        sig_write_entry_count(sig, sig_entry_count(sig), it->second.m_count);
-        sig_write_entry_bytes(sig, sig_entry_count(sig), it->second.m_bytes);
-        sig_write_entry_avg(sig, sig_entry_count(sig), (int)it->second.m_avg);
-        sig_bump_count(sig);
+        sig->m_entries[sig->m_count].m_id =
+            ((it->first.m_id == 0)
+                 ? 0u
+                 : (unsigned int)(it->first.m_id + m_idBias)) +
+            (unsigned int)it->first.m_size;
+        sig->m_entries[sig->m_count].m_count = it->second.m_count;
+        sig->m_entries[sig->m_count].m_bytes = it->second.m_bytes;
+        sig->m_entries[sig->m_count].m_avgRounded = (int)it->second.m_avg;
+        ++sig->m_count;
 
-        if (sig_entry_count(sig) == 100)
+        if (sig->m_count == 100)
         {
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 
             guard.Set(GlobalData::s_stream_pool->Acquire("MessageCounter.cpp", 0x7b));
             (*guard)->operator<<(0x26c);
             (*guard)->operator<<(-1);
-            sig = reinterpret_cast<char*>(
+            sig = reinterpret_cast<SigView*>(
                 guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
-            sig_init_head(sig, nowSec);
+            sig->m_baseSec = nowSec;
+            sig->m_count = 0;
         }
     }
 
-    if (sig_entry_count(sig) == 0)
+    if (sig->m_count == 0)
     {
         GlobalData::s_stream_pool->Free(guard);
     }

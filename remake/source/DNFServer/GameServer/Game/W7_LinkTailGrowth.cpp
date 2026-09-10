@@ -120,6 +120,12 @@
     // （pred、itEnd、it）后 pred@-0x10/end@-0x14/begin@-0x18，仅 pred↔begin 槽号互换。
     // N93/N98 封顶：「先声明后赋值」形引入迭代器 C1Ev 默认构造 call + 临时槽拷贝
     // （72 insn，P50/N86），已实测回退；声明序再换会翻构造序（call 块序）反劣。
+    // [N1B 2026-09-11 复核 n1_v 口径] 倒置声明序（it/itEnd/pred）需重排三声明，
+    // 4.4 槽分配=声明序递减（it→-0x10/itEnd→-0x14/pred→-0x18 = ORIG begin/end/pred）
+    // 但构造序随之翻成 begin→end→pred（ORIG pred→end→begin）⇒ 槽序/块序不可兼得。
+    // [N1B 2026-09-11 实测·真倒置] 声明序改 it→itEnd→pred（构造序随之翻）已试：
+    // 四数由 near=2/diff=2 **劣化**为 near=1/diff=3（get_value 转 DIFF，62/63 gap −1
+    // 不变）⇒ 回滚，维持 pred→itEnd→it 声明序。
     FindOneByLv pred(lv);                                   // ORIG 构造序第 1（+0x13）
     // [M2S1·P331 复核] 把三者**全倒置**（it/itEnd/pred）能把槽号对齐 ORIG
     //   （4.4 先声明浅：it→-0x10、itEnd→-0x14、pred→-0x18，恰为 ORIG begin/end/pred），
@@ -201,6 +207,10 @@
 #include "W7_LinkTailGrowth/set_growth_power_exp_reward.inc"
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x5d);
+    // [N1B 2026-09-11 负结论] ORIG 0x0868db06 段虚调用目标寄存器 = %edx
+    //（`mov (%eax),%edx; …; call *%edx`），4.4 恒 %eax ⇒ 试 `(*ev).IsEventing(0)`
+    // 形已实测**无效**（残差逐字不变，仍 %eax）⇒ N7 寄存器角色封顶（P230：须改
+    // 路由后端，路由表不动）。
     if (ev->IsEventing(0))
     {
         stSeriaBlessingScript::Value value;               // +0x15 清零 ctor
@@ -230,6 +240,9 @@
         if (idx >= 0 && idx < sz &&                            // +0xeb cmpl/js、+0xf3 cmpl/jge（有符号）
             !is_growth_power_exp_reward_right())             // +0xfb
         {
+            // [N1B 2026-09-11 负结论] ORIG 0x0868d24d 段：`mov 0x8(%ebp),%edx;
+            // mov (%eax),%eax; mov %eax,0x8d24d(%edx)` = LHS(this)先算；4.4 恒
+            // RHS-first。显式 `this->` 已实测**无效**（残差逐字不变）⇒ N7 族封顶。
             m_reward.m_reward = G_CDataManager()->m_growthPower.m_vecC[idx].m_reward;  // +0x135
         }
         else

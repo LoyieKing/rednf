@@ -61,6 +61,15 @@
     //   （userCharacNo/name/lv/job/grow/guild/pvp/abilities[0x16]/creature/creatureId）逐位核。
     //   trace 实参物化两批局部槽且顺序差(N82)、GetLayer 结果寄存器、帧 push edi vs 栈。
     //   语义完成，byte 层 N 封顶（近 identical）。
+    // [N3 复核 2026-09-11] 两旋钮实测均不过闸门（基线 our=201/gap=+1）：
+    // ① 临时对象直接调用形 `cMyTrace(...)(...)`（src/TowerAPCLeafC3.cpp 由具名 trace 改造）
+    //    ⇒ ORIG 的 ctor 发射点（0x085feb00 实参物化**之后**）与 prologue `push %edi` 复现，
+    //    但 our 201→203（gap +1→−1）、残差转为全帧槽映射差（trace 实参槽 ORIG
+    //    -0x50/-0x4c/-0x48/-0x44/-0x40/-0x3c、ctor -0x38；我方 -0x40/-0x3c/-0x38/-0x34…、ctor -0x50）
+    //    ⇒ 判负例。
+    // ② P339 全头部声明（6 个 trace 实参局部提头、声明序=ORIG 槽深→浅）叠加① ⇒ our 203 不变、
+    //    槽仅整体深移 0x10 仍不对齐 ⇒ 判负例。
+    //    ⇒ 保留原形（具名 trace + 块内声明），按 N82/N95 槽族封顶。
     m_buf.clear();
     m_userCharacNo = info.m_userCharacNo;
     m_buf.put_header(0, 0x15a);

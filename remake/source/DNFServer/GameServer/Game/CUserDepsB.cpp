@@ -776,6 +776,12 @@
     // 后 `mov %eax,0x4(%esp)`；我们 `mov -0x14(%ebp),%edx` 后 `mov %edx,0x4(%esp)`），
     // 参数序/槽位/指令数全同。再试两形：`register int characNo`（免槽，NEAR→DIFF）、
     // `unsigned int characNo`（NEAR→DIFF）⇒ 两旋钮皆不可用，维持 N7 封顶。
+    // [N6S6ZeroB 2026-09-11 复核] 按正确口径（objdump -dr + reloc 归一）复测：
+    // NEAR 维持（orig=114 our=114，gap=0），残差仍为 3 行——ORIG 0x081472ef
+    // `mov -0x14(%ebp),%eax`（characNo→%eax）→ 0x081472fe `mov %eax,0x4(%esp)`，
+    // 0x08147302 `mov -0x18(%ebp),%eax`（uid→%eax）→ `mov %eax,(%esp)`；我们
+    // 先 `mov -0x18(%ebp),%eax` 保活 uid、characNo 走 %edx。再试冗余
+    // `(int)characNo` cast：零变化 ⇒ 与 S191/L29 一致，N7 寄存器选择封顶。
     // ORIG 0x081471c6。
     int level = user->get_charac_level();
     // P214① 正极性包裹：复现 ORIG 0x081471ec 的短路物化岛（test/jne L_pass →

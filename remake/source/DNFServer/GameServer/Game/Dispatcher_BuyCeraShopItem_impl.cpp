@@ -129,9 +129,12 @@ extern char* NumberToString(unsigned int value, int radix);
     int  mailRc;                     // -0x1c
 
     // ---- acc_id trace（NumberToString + cMyTrace）----
-    char* idStr = NumberToString(user->get_acc_id(), 0);
-    cMyTrace tr0(kPretty, 0x8f66, 0);
-    tr0("Dispatcher_BuyCeraShopItem(m_id(%s))", idStr);
+    // [N1Free91to105 2026-09-11] P0/P227：ORIG 0x081f... `mov %eax,%ebx` 接
+    // NumberToString 结果（跨 cMyTrace 构造保活、**无栈槽**），且构造 call 在
+    // NumberToString 之后 ⇒ 原码是单语句临时链；具名 `char* idStr` 实测落
+    // -0x18 槽并令构造 call 提前（帧 0x7fb0 vs ORIG 0x7fbc）。
+    cMyTrace(kPretty, 0x8f66, 0)("Dispatcher_BuyCeraShopItem(m_id(%s))",
+                                 NumberToString(user->get_acc_id(), 0));
 
     // ---- user/trade/state 校验 ----
     if (user == 0 || user->CheckInTrade()) return 0;

@@ -187,6 +187,13 @@ L_end:;
         // bitmask」是在 `int` 表达式下测的（有符号 lowering）；改 **unsigned** 并补
         // [L8 实测] 补 case 0/4/5 反使 4.4 走 **bitmask**（`mov $0x1,%edx; shl %cl,%ebx`
         // 段，189 条 > 原 177）⇒ 已回退补 case，仅保留 **unsigned** 表达式。
+        // [2026-09-11 负结论·ORIG 跳表已 dump] 读 ORIG 0x08c14820 处 6 项跳表：
+        // [0]=0x08289b88(↓IsTradeRestriction 段，即 default/继续)、[1]=[2]=0x08289b67
+        // (return 0)、[3]=0x08289b71(case3 体)、[4]=[5]=0x08289b88 ⇒ ORIG 源码实有
+        // 6 个 case（0/4/5 空体）。两形实测均**更差**：
+        //   ① 6 个独立 case（0/4/5 `break;`）⇒ 4.4 发 `cmp $0x2; ja` + 双层比较（177 条）；
+        //   ② case 1/2 各自 `return 0;` ⇒ 发重复 `cmp $0x1; je` + 比较链（181 条）。
+        // ⇒ 4.4 的 `expand_case` 对本值域不选跳表（旧 bitmask 结论同为负），**封顶**。
         unsigned int attachType = (unsigned int)ci->GetAttachType();
         switch (attachType) {
         case 1:
@@ -206,11 +213,21 @@ L_end:;
         // 独立早返（各自 `xor $1; test; je <return 1 岛>`，P63/P133），非合并 &&。
         if (!m_pUser->isGMUser()) {
             if (!ci->IsAvatarItem()) {
-                // ORIG 0x194..0x1c8 + 0x1c2..0x1ec：段1 物化
-                // `usable == 0 && expire != 0`（`jne 段2` + `je false 块` 极性），
-                // false → return 1；段2 为第二段期限判定（不可达 return 0）。
-                if (ci->getUsablePeriod() == 0 && ci->getExpirationDate() != 0) {
-                    if (ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0) {
+                // [2026-09-11 语义修正] ORIG 0x08289bde..0x08289c0a 的判据是
+                // `!(usable == 0 && expire == 0)`：objdump 形为
+                // `call getUsablePeriod; test; jne <TRUE>; call getExpirationDate;
+                //  test; je <FALSE>; TRUE: mov $1; jmp <conv>; FALSE: mov $0;
+                //  conv: test %al,%al; je <return 1 岛>` —— 即“两者都为 0 才跳过”，
+                // 等价 `usable != 0 || expire != 0`（与 Ghidra bVar2 一致）。
+                // 原实现写成 `usable == 0 && expire != 0`（`jne`+`je` 均落 FALSE）
+                // ⇒ 有使用期限(usable!=0) 的物品被误放行、跳过到期时间检查 = 真语义 bug。
+                if (!(ci->getUsablePeriod() == 0 &&
+                      ci->getExpirationDate() == 0)) {
+                    // ORIG 0x08289c0c..0x08289c36：内层重复同一对调用，极性为
+                    // `a == 0 && b == 0`（两跳均 `jne <FALSE>`）→ 命中即 return 0
+                    // （外层为真时不可达，ORIG 原样保留该双调用形）。
+                    if (ci->getUsablePeriod() == 0 &&
+                        ci->getExpirationDate() == 0) {
                         return 0;
                     }
                     // [b28d-46 P0] ORIG 把 imul/add 结果先落 -0x10 槽再 call
@@ -220,8 +237,6 @@ L_end:;
                     int curSec = GlobalData::s_systemTime_.getCurSec();
                     if (expireSec <= curSec)
                         return 0;
-                } else {
-                    return 1;
                 }
             }
         }

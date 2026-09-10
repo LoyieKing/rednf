@@ -398,6 +398,17 @@ namespace ARAD
     // （localtime_r/strftime 实参）与 encryptedPwd 的 `={0}` rep stos 组合，
     // 非声明序可控；③ 显式 union 复用会改 rep stos 清零形（N78 memset 退化）。
     // ⇒ N82/N93 封顶。
+    // [2026-09-11 N4Free191to210.S6 复核·骨牌已翻] 上述「不复用」的**真因**是作用域
+    // 层级：旧形把主流程放在函数体（`if {…return}` + 平铺主流程），brokTm 在 if 子
+    // 作用域、encryptedPwd 在函数作用域 ⇒ 互为嵌套，4.4 的 stack-slot 复用只在**兄弟
+    // 作用域**间生效。把主流程移入 `else` 后（ORIG 0x0818f5c3 即 else 块），
+    // **brokTm 与 encryptedPwd 立即共槽 -0x8c、帧 0xc0→0xa0 = ORIG**，
+    // 且 if 块内槽区紧跟 ORIG（day/cMyTrace 等位置只余镜像）。
+    // 残差（N82/P112 封顶，实测）：if 块内 nowSec/day/trace 三槽相对深度镜像 ——
+    // ORIG nowSec=-0x3c、day=-0x38..-0x25、trace=-0x24、shift=-0x14；我方
+    // trace=-0x3c、nowSec=-0x2c、day=-0x28..-0x15、shift=-0x14。已试并回滚：
+    // `time_t nowSec;` 声明提前到块首（赋值留原位，执行序不变）⇒ nowSec 反落 -0x18、
+    // day 落 -0x2c..-0x1c，镜像未复现 ⇒ 4.4 块内分配序与声明序非线性，不可翻。
     static const char kFunc[] =
         "static int ARAD::Arad_Dispatcher_Login_Impl::pad_certifiaction_check("
         "SIG_LOGIN_DATA*)";
@@ -406,6 +417,10 @@ namespace ARAD
         // 已通过二级认证转化：执行当日 06:00 格式化的 Goblin 奖励复查
         char day[0x14] = {0};
 
+        // [2026-09-11 已试并回滚] 把 `time_t nowSec;` 声明提前到块首（赋值语句留原位）
+        // ⇒ 4.4 的块内槽序**不按声明序**平移：nowSec 反落 -0x18（更浅）、day 落
+        // -0x2c..-0x1c，ORIG 的 nowSec=-0x3c / day=-0x38..-0x25 / trace=-0x24 镜像未复现
+        // ⇒ 与 M1S5 在 updateSSOExpireTime 的 N82/P112「标量/数组相对深度不可翻」同结论。
         int shift = 0;
         time_t nowSec = GlobalData::s_systemTime_.getCurSec();
         struct tm brokTm;
@@ -426,50 +441,54 @@ namespace ARAD
 
         return DATABASE::LOGIN_QUERY::arad_sp_check_goblin_reward(data, day);
     }
-
-    // 二级口令校验主流程
-    data->m_passPadVersion = 1;
-
-    char inputPadPwd[0x24] = {0};   // ORIG -0x60(%ebp) 输入缓冲（rep stos 清零）
-    char encryptedPwd[0x24] = {0};  // ORIG -0x8c(%ebp) 输出缓冲（rep stos 清零）
-
-    strncpy(inputPadPwd,
-            data->m_passPadPassword + 0x24, 0x24);   // +0x3905
-
-    ARAD_CRYPT::encryptAES(GlobalData::s_pcryptRijndael_MousePassword_,
-                           inputPadPwd, encryptedPwd);
-
-    // ORIG 0x0818f633/0x0818f63e：两个具名指针局部（-0x10 savedHash / -0xc failCnt）
-    const char* savedHash = data->m_passPadPassword;   // +0x38e1
-    int* failCnt = &data->m_passPadFailCnt;            // +0x3914
-
-    if (strncmp(savedHash, encryptedPwd, 0x24) != 0)
+    else
     {
-        *failCnt = *failCnt + 1;
-        DATABASE::LOGIN_QUERY::arad_sp_update_fail_record(data);
-        if (*failCnt > 9)
+        // 二级口令校验主流程（ORIG 0x0818f5c3 分支体，与 if 分支互斥；
+        // 4.1 互斥块槽复用要求两分支为兄弟作用域：brokTm(-0x8c,0x2c) 与
+        // encryptedPwd(-0x8c,0x24) 在 ORIG 共槽即此结构之证据）。
+        data->m_passPadVersion = 1;
+
+        char inputPadPwd[0x24] = {0};   // ORIG -0x60(%ebp) 输入缓冲（rep stos 清零）
+        char encryptedPwd[0x24] = {0};  // ORIG -0x8c(%ebp) 输出缓冲（rep stos 清零）
+
+        strncpy(inputPadPwd,
+                data->m_passPadPassword + 0x24, 0x24);   // +0x3905
+
+        ARAD_CRYPT::encryptAES(GlobalData::s_pcryptRijndael_MousePassword_,
+                               inputPadPwd, encryptedPwd);
+
+        // ORIG 0x0818f633/0x0818f63e：两个具名指针局部（-0x10 savedHash / -0xc failCnt）
+        const char* savedHash = data->m_passPadPassword;   // +0x38e1
+        int* failCnt = &data->m_passPadFailCnt;            // +0x3914
+
+        if (strncmp(savedHash, encryptedPwd, 0x24) != 0)
+        {
+            *failCnt = *failCnt + 1;
+            DATABASE::LOGIN_QUERY::arad_sp_update_fail_record(data);
+            if (*failCnt > 9)
+            {
+                data->m_errCode = 6;
+                return 0x49;
+            }
+            data->m_errCode = 5;
+            return 0x48;
+        }
+
+        data->m_passPadFailCnt = 0;
+        data->m_passPadCancelCnt = 0;
+        if (DATABASE::LOGIN_QUERY::arad_sp_update_history(data, 7) != 0)
         {
             data->m_errCode = 6;
-            return 0x49;
+            return 1;
         }
-        data->m_errCode = 5;
-        return 0x48;
+        if (DATABASE::LOGIN_QUERY::arad_sp_delete_member_mouspass(data) != 0)
+        {
+            data->m_errCode = 6;
+            return 1;
+        }
+        data->m_passPadEnable = 0;
+        return 0;
     }
-
-    data->m_passPadFailCnt = 0;
-    data->m_passPadCancelCnt = 0;
-    if (DATABASE::LOGIN_QUERY::arad_sp_update_history(data, 7) != 0)
-    {
-        data->m_errCode = 6;
-        return 1;
-    }
-    if (DATABASE::LOGIN_QUERY::arad_sp_delete_member_mouspass(data) != 0)
-    {
-        data->m_errCode = 6;
-        return 1;
-    }
-    data->m_passPadEnable = 0;
-    return 0;
 }
 
 // premium_info_set @ 0x0818f1ca（0x2db 指令）。

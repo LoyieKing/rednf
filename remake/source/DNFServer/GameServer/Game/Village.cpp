@@ -126,6 +126,11 @@
                    script.m_field0 == 2;
     if (bSchool)
     {
+        // [N3 2026-09-11 负结论] ORIG 该分支无 count/total 具名槽（`add $0x258,%eax;
+        //   mov %eax,%ebx; imul $0x26,%ebx,%eax`，total 以 %ebx 跨 operator new[]
+        //   保活 —— 4.1 前端对重复右值做 CSE）。实测删 count/total 改右值内联后
+        //   our 526→523（ORIG 529，|gap| 3→6 劣化：4.4 -O0 无该 CSE，new[] 尺寸与
+        //   raw[0] 两处各自重算）⇒ 按闸门回滚，保留具名局部。
         int count = m_areaCount;
         int total = count + 600;
         int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
@@ -214,21 +219,22 @@
                 {
                     int nEnd = m_areaCount + 0x960;
                     int nStart = 0;
-                    switch (areaIndex)
-                    {
-                    case 0:
+                    // [N3 2026-09-11] ORIG 0x086c3992..0x086c39ed 为**顺序 if-else 链**
+                    //   （每段重新 `mov -0x98(%ebp),%eax` 载入 areaIndex：
+                    //    0x086c3992 `test %eax,%eax; jne` → 0x086c39ab `cmp $0x1,%eax; jne`
+                    //    → 0x086c39c4 `cmp $0x2,%eax; jne` → 0x086c39ed `cmp $0x3,%eax; jne`），
+                    //   非 4.4 的 switch 二分决策树（旧形 `cmp $1/je + cmp $1/jg + test/je`）
+                    //   ⇒ 改真 if-else 链复现（P320 反向：真 switch → 手写链）。
+                    if (areaIndex == 0)
                         nStart = m_areaCount;
-                        break;
-                    case 1:
+                    else if (areaIndex == 1)
                         nStart = m_areaCount + 1;
-                        break;
-                    case 2:
+                    else if (areaIndex == 2)
                         nStart = m_areaCount + 2;
-                        break;
-                    case 3:
+                    else if (areaIndex == 3)
+                    {
                         nStart = m_areaCount + 3;
                         m_areaCount += 0x960;
-                        break;
                     }
                     for (int i = nStart; i < nEnd; i += 4)
                     {
@@ -277,9 +283,7 @@ cleanup:
     if (area < 0 || area >= m_areaCount)
     {
         LogManager::logFormat(
-            1, "world.cpp",
-            "void Village::get_user_id_list(int, std::vector<short unsigned "
-            "int, std::allocator<short unsigned int> >&)",
+            1, "world.cpp", __PRETTY_FUNCTION__,
             0x36a, "area(%d) < 0 || area >= m_iAreaCount(%d)", area,
             m_areaCount);
     }

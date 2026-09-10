@@ -26,6 +26,12 @@ int SeriaRoomAniDecoEvent::processEvent(CUser& user)    // 0x0827ba52
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(4, "game_server_msg_289", 0),
                 item, 0, (unsigned int)user.getCurCharacNo(),
+                // [N1Free91to105 2026-09-11] 负结论：残余唯一差异 = ReqDBSendNewSystemMail
+                // 实参中 GetServerGroupToPvP()↔strlen() 的 callee-saved 角色互换
+                // （ORIG 0x0827bb58 `mov %eax,%esi` / 0x0827bb68 `mov %eax,%edi` vs
+                //  4.4.6 `%edi`/`%esi`；N109 跨版本 callee-saved 分配序）。
+                // 已试旋钮：去 `(int)strlen(title)` 显式 cast（P328⑤）⇒ 102=102 不变、
+                // esi/edi 未翻转 ⇒ 回滚。真值 NEAR（n1_v.py 口径），ORIG 102 = our 102。
                 title, (int)strlen(title), 0,
                 static_cast<ENUM_SERVER_GROUP>(user.GetServerGroupToPvP()),
                 false, false);

@@ -268,7 +268,10 @@ namespace expert_job
     //   （ORIG 正常尾在前、unwind 居中；4.4 恒正常尾内联、unwind 压最末，N104）。
     // 语义完整（p167 差集零）；以上均为 4.1/4.4 后端块布局差异。
     if (user->getCurCharacR() == 0)
-        return 3;
+    {
+        result = 3;
+        goto enchant_skip_zero;      // ORIG 0x0849d360 `mov $0x3,%ebx; jmp 0x41b`
+    }
 
     // ORIG 全部 unique_id 比较为 16 位（cmp %ax）；allowed 不落栈（寄存器物化）
     if ((unsigned short)user->get_unique_id() !=
@@ -283,11 +286,15 @@ namespace expert_job
         {
             if ((unsigned short)user->get_unique_id() !=
                 (unsigned short)m_user->get_unique_id())
-                return 3;
+            {
+                result = 3;              // ORIG 0x0849d3dc `mov $0x3,%ebx`
+                goto enchant_skip_zero;
+            }
         }
         else
         {
-            return 3;
+            result = 3;                  // ORIG 0x0849d3e6 `mov $0x3,%ebx`
+            goto enchant_skip_zero;
         }
     }
 
@@ -297,37 +304,67 @@ namespace expert_job
     {
     case 0:
         if (money < 0)
-            return 0x5f;
+        {
+            result = 0x5f;               // ORIG 0x0849d413 `mov $0x5f,%ebx`
+            goto enchant_skip_zero;
+        }
         if (m_field38 > 0)
-            return 0x14;
+        {
+            result = 0x14;               // ORIG 0x0849d427 `mov $0x14,%ebx`
+            goto enchant_skip_zero;
+        }
         if (!m_user->CheckMoney(money))
-            return 0x5f;
+        {
+            result = 0x5f;
+            goto enchant_skip_zero;
+        }
         if (user->getCurCharacInvenR()->get_money() < money)
-            return 0x16;
+        {
+            result = 0x16;
+            goto enchant_skip_zero;
+        }
         m_field38 = money;
         break;
     case 1:
         if (!m_materials[0].Empty())
-            return 0x14;
+        {
+            result = 0x14;
+            goto enchant_skip_zero;
+        }
         {
             int err = 0;
             if ((err = m_materials[0].SetData(user, pos->m_itemSpace,
                                               pos->m_slot)) != 0)
-                return err;
+            {
+                result = err;
+                goto enchant_skip_zero;
+            }
             if ((err = m_materials[0].CheckType(false, 0)) != 0)
-                return err;
+            {
+                result = err;
+                goto enchant_skip_zero;
+            }
         }
         break;
     case 2:
         if (!m_materials[1].Empty())
-            return 0x14;
+        {
+            result = 0x14;
+            goto enchant_skip_zero;
+        }
         {
             int err = 0;
             if ((err = m_materials[1].SetData(user, pos->m_itemSpace,
                                               pos->m_slot)) != 0)
-                return err;
+            {
+                result = err;
+                goto enchant_skip_zero;
+            }
             if ((err = m_materials[1].CheckType(true, 2)) != 0)
-                return err;
+            {
+                result = err;
+                goto enchant_skip_zero;
+            }
         }
         break;
     default:
@@ -546,13 +583,16 @@ enchant_skip_zero:
         if (m_field38 > 0)
         {
             // ORIG 条件照写：此处复核的是 m_peer 的当前角色（非 m_user）
-            // [b28d-solo-ExpertJobOnlyEnchanter] ORIG 0x056-0x0a1 先把
-            // `m_user != 0 && m_peer->getCurCharacR() != 0` 物化成 %al 岛再与
-            // CheckMoney 短路；平铺三条件链 4.4 把 CheckMoney 提到物化之前
-            // （残余顺序差）。P226 语句表达式形实测 553→558 劣化（+5 条），已回退。
-            if (m_user != 0 && m_peer->getCurCharacR() != 0 &&
-                m_user->CheckMoney(m_field38) != 1)
-                return 0x11;
+            // [N2-S5] ORIG 0x849cba5/0x0849cbaa 形 = 组合先物化成 %al 岛
+            // （`mov $0x1,%eax; jmp; mov $0x0,%eax; test %al,%al; je <get_money>`），
+            // CheckMoney 作为**内层独立 if** 跟在物化之后；三条件平铺（旧形）
+            // 时 4.4 把 CheckMoney 提到物化之前（同条数、18 行重排）。改嵌套
+            // if 即 ORIG 语句结构，语义等价（A&&B&&C 才 return）。
+            if (m_user != 0 && m_peer->getCurCharacR() != 0)
+            {
+                if (m_user->CheckMoney(m_field38) != 1)
+                    return 0x11;
+            }
             if (m_peer->getCurCharacInvenR()->get_money() < m_field38)
                 return 0x11;
         }

@@ -195,8 +195,13 @@
     {
         if (i == 0)
         {
-            m_baseInfo0.m_field00 = script->m_status[i].m_hpMax;
-            m_baseInfo0.m_field04 = script->m_status[i].m_mpMax;
+            // [b28c-L15 P211 类型旋钮] 与 RHS 同型化（union 同址成员 m_maxHP/
+            //   m_maxMP）：ORIG 0x083488c2/0x083488d8 为 `mov (%eax),%edx` 单段
+            //   直落；写 int 视角 m_field00（int ← unsigned int 异型）令 4.4 多
+            //   一条 `mov (%eax),%eax; mov %eax,%edx` 中转（探针
+            //   /tmp/r5/n5/BossCharac/p1.cpp v1 异型 / v2 同型对照）。
+            m_baseInfo0.m_maxHP = script->m_status[i].m_hpMax;
+            m_baseInfo0.m_maxMP = script->m_status[i].m_mpMax;
             m_baseInfo0.m_field08 = script->m_status[i].m_physAttack;
             m_baseInfo0.m_field0a = script->m_status[i].m_physDefense;
             m_baseInfo0.m_field0c = script->m_status[i].m_magAttack;
@@ -208,13 +213,17 @@
             m_baseInfo0.m_field3a = script->m_status[i].m_inventoryLimit;
             m_baseInfo0.m_field3e = script->m_status[i].m_hpRegen;
             m_baseInfo0.m_field40 = script->m_status[i].m_mpRegen;
-            m_baseInfo0.m_field42 = script->m_status[i].m_moveSpeed;
+            // [b28c-L15 P211] 同上：ORIG 0x08348a2e `mov 0x6(%eax),%edx` 单段。
+            m_baseInfo0.m_moveSpeed = script->m_status[i].m_moveSpeed;
             m_baseInfo0.m_field46 = script->m_status[i].m_attackSpeed;
             m_baseInfo0.m_field48 = script->m_status[i].m_castSpeed;
             m_baseInfo0.m_field4a = script->m_status[i].m_hitRecovery;
             m_baseInfo0.m_field4c = script->m_status[i].m_jumpPower;
             m_baseInfo0.m_field4e = script->m_status[i].m_weight;
-            m_growTypeFlag[0] = (char)script->m_status[i].m_field52;
+            // [b28c-L15 P211] ORIG 0x08348ac0 `movzbl 0x6(%eax),%edx` 单段直存；
+            //   char 视角 + (char) cast 令 4.4 多一条 mov %eax,%edx 中转 ⇒ 用同址
+            //   uchar 视角按同型写（探针 p1.cpp v3 异型 / v4 同型）。
+            m_growTypeFlagU[0] = script->m_status[i].m_field52;
         }
         else
         {
@@ -266,8 +275,12 @@
             m_secondGrowTypes[a].m_addInfo[b].m_field4c = script->m_secondGrow[a].m_statusA[b].m_jumpPower;
             m_secondGrowTypes[a].m_addInfo[b].m_field4e = script->m_secondGrow[a].m_statusA[b].m_weight;
             // ORIG this + a*0xc0 + b + 0x350：m_fieldbc 的第 b 个字节（源 +0x52）
-            reinterpret_cast<char*>(&m_secondGrowTypes[a].m_fieldbc)[b] =
-                (char)script->m_secondGrow[a].m_statusA[b].m_field52;
+            //   [b28c-L15 P211] ORIG 0x08349328..0x08349360 = 源字节先入 ecx、地址
+            //   后算、`mov %cl,0x10(%eax)` 直存无中转；reinterpret_cast<char*> 地址
+            //   视图令 4.4 多 1 条 mov %eax,%edx 且装载序翻反 ⇒ 改用同址 uchar 数组
+            //   视角按元素同型写（真实头探针 probe_sd_f2d 与 ORIG 该段逐条同形）。
+            m_secondGrowTypes[a].m_fieldbcBytes[b] =
+                script->m_secondGrow[a].m_statusA[b].m_field52;
             m_secondGrowTypes[a].m_skills[b] = script->m_secondGrow[a].m_skills[b];
         }
     }

@@ -281,6 +281,11 @@ const char* getDrawLayerName(ENUM_DRAWLAYER drawLayer)
 // 修法：①make_pair 键用 int 形参 cnt（ORIG 0x089e9db8 make_pair<int&,…>，勿收窄 ushort）；
 // ②pool insert 改 std::make_pair(fileIdx,localOrders)（ORIG 走 pair&& move ctor）；
 // ③`tok == "[hellparty]"` 正极性包裹（P222，ORIG _ZSteqIcSt…）；④rate 累加改 `+=`。
+// [N3Free171to190.S1STMapScript 收尾判词·N] call 多重集 CLEAR（ORIG 64 / 我方 75 次，唯一
+// 差集项是 `.rodata` 数据引用假项）⇒ 无缺调用/无语义缺口。残差 = 帧 0x150(我方) vs 0x140
+// (ORIG) + 栈布局不可平移：深区 -0x12c/-0x128 vs ORIG -0x124/-0x120（差 8）、浅区 -0xc8/
+// -0xd8 vs -0xc4/-0xd4（差 4）⇒ 局部对象排列不同（非单槽平移），P331/P339 声明序旋钮
+// 在此形下无效 ⇒ N（N82 栈布局/寄存器分配族）。
 #include "STMapScript/procSpecialPassiveObject_1.inc"
                               STAssignSpecialPassiveObj& owner, int fileIdx)
 {
@@ -774,6 +779,10 @@ TownPath& TownPath::operator=(const TownPath& other)   // ORIG 0x089ea970
 // verdict DIFF 残差＝N90 数组成员块搬移分块启发式（ORIG 5+4+1+1 组间重载基址，4.4 单次连发）。
 // 修法：m_pvpStartArea 进初始化列表（复现 ORIG 0x0837eb82 倒计数 C1ERKS_×5；原为
 // C1Ev×5+aSERKS_×5）。
+// [N3Free171to190.S1STMapScript 收尾判词·N] 尾部 ORIG 独有 9 段 EH cleanup 模板（每段
+// `mov 0x8(%ebp),%eax; add $0xNN,%eax; mov %eax,(%esp); call <T>` + `mov %esi,%eax;
+// mov %ebx,%edx; jmp <T>`），我方合并为单次 ⇒ N104（EH 尾块相对序）+ N90（ORIG 43 条
+// 准备段 vs 我方 7），源码不可控。
 #include "STMapScript/STMapScript_1.inc"
     : m_index(other.m_index),                           // *param_1 = *param_2
       m_list4(other.m_list4),                           // list<int> copy
@@ -956,7 +965,10 @@ TownPath& TownPath::operator=(const TownPath& other)   // ORIG 0x089ea970
     m_vecSound.clear();                     // vector<string>::clear(+0x65=0x194)
     // p167：ORIG 调 `_ZNSsaSEPKc`（string::operator=），非 assign（P167 调用目标）
     m_str1a0 = "";                          // Ss::operator=(+0x68,"")（UNK_08c2f620=""）
-    m_str1b0 = "PVP놀이게임";                // Ss::operator=(+0x6c,&UNK_08c2f621)
+    // [N3Free171to190.S1STMapScript §6.5.1 编码盲区] ORIG .rodata 实字节
+    //（file off 0xbce9d7 段）= `PVP \xb3\xeb\xb3\xd7\xc0\xd3`（EUC-KR，9 字节，含空格）；
+    // 原写 UTF-8「PVP놀이게임」⇒ 发射字节不同（运行期差异）。按 ORIG 字节转义。
+    m_str1b0 = "PVP \xb3\xeb\xb3\xd7\xc0\xd3";  // Ss::operator=(+0x6c)
     m_playerCountMin = 2;                   // param_1[0x6d]=2
     m_playerCountMax = 8;                   // param_1[0x6e]=8
     for (r2 = 0; r2 < 5; ++r2)              // 5×MapArea::clear(+0x6f+i*7 words)（ORIG r2@-0x10）
@@ -987,12 +999,14 @@ TownPath& TownPath::operator=(const TownPath& other)   // ORIG 0x089ea970
     m_screenEdgeBottom = -1;                // param_1[0xda]=-1
     m_blockUseActiveSkill = 0;              // byte(param_1+0xdb)=0
     m_blockUseStackableItem = 0;            // byte(0x36d)=0
-    m_fixChampion = 0;                      // byte(0x36e)=0
-    // ORIG Clear 0x0836c688：movb $0,0x248（m_pvpByPartySlot）+
-    // 循环 movb $0,0x249+i（m_keepStateAxisX/Y/Z 三 byte）——布局修正补漏。
+    // [N3Free171to190.S1STMapScript 顺序轴] ORIG 0x0836c688 段序实证：
+    //   0x36d → 0x248（m_pvpByPartySlot）→ loop 0x249+i（m_keepStateAxisX/Y/Z）
+    //   → **0x36e（m_fixChampion）** → +0x370 clear。原码把 0x36e 放在循环**之前**
+    //   ⇒ 三条指令位置与 ORIG 不符。按 ORIG 顺序下移（各赋值互相独立，零语义影响）。
     m_pvpByPartySlot = 0;
     for (r3 = 0; r3 < 3; ++r3)              // ORIG r3@-0xc
         (&m_keepStateAxisX)[r3] = 0;
+    m_fixChampion = 0;                      // byte(0x36e)=0（ORIG 在 0x249 循环之后）
     m_str370.clear();                       // Ss::clear(+0xdc)
     m_visibleMinimap = 1;                   // param_1[0xdd]=1
     m_visibleTownMinimap = 1;               // param_1[0xde]=1
@@ -1024,6 +1038,14 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
 // .cpp）后消失（ORIG 0x089e0a66 循环内 C1Ev 后无 D1 call）。
 // 超大函数 verdict DIFF 按 §6.2 口径收：残差＝N82/N89 + P163 决策树密度。
 // 修法：m_vec180 嵌套转换临时形、[hellparty] make_pair 键 int 化等（与 proc 同族）。
+// [N3Free171to190.S1STMapScript 收尾判词] ①**串审计（§6.5/§6.5.1）**：strall 报的 12 个
+//   O-only 串**全为假阳性**——0x8ae5848 = `__dso_handle`（`__cxa_atexit` 第 3 实参）、
+//   0x94fe4xx = 函数局部静态 guard 变量（`__cxa_guard_acquire/release` 操作数）⇒ 无语义缺口。
+//   ②**__uninitialized_copy 族（本 TU 9 个 DIFF 实例）判 N**（libstdc++ 头集族，源码不可控）：
+//   ORIG `...IPK9AssignNpc...` 65 条含 `__cxa_begin_catch`/`__cxa_rethrow`/`__cxa_end_catch`/
+//   `_Unwind_Resume` 四个 EH 回滚调用，我方同实例 48 条 **0 个 cxa**；对偶
+//   `...IPK17TournamentMonster...` ORIG 39 条（主循环直落 ret，无 cleanup 段）vs 我方 56 条
+//   （idx41..55 = 15 条 cleanup）⇒ ±17 的对称差即 EH cleanup 归属/生成差异（N89/N130）。
 #include "STMapScript/ImportMapScript.inc"
 {
     if (!loadRDARScriptFile(g_szMapScriptBaseDirectory, path))
@@ -3730,52 +3752,57 @@ const char* getStringOfIndexFromStringVector(int index,
 // _lt_global_gt_/getGrowTypeName.md 汇编+Ghidra C 双段转写）。ORIG 每次调用
 // 现场构造局部 std::map<std::pair<ENUM_CHARACTERJOB,int>, const char*>（32 条
 // operator[] 写入）后 find 派发，未命中返回 "none"（0x088bfd58）。逐条恢复。
-// 【残差豁免·NEAR 封顶】orig_insns=542 ours=542，帧 0x240 与全部栈槽（map@-0x22c、
+// 【AE 目标·待编译核】orig_insns=542 ours=542，帧 0x240 与全部栈槽（map@-0x22c、
 // 64 个 pair 物化槽 -0x20c..-0x1c、iterator/pair 临时）逐一对位，助记符序列全等。
-// 唯一文本差 = 每对物化槽立即数配对互换（ORIG 4.1 U1 先物化：`movl $1,-0x20c;
-// movl $0,-0x208`；4.4 U2 先：`movl $0,-0x20c; movl $1,-0x208`，ORIG 0x088bf2d1
-// vs ours .o 同偏移）——跨版本实参物化槽序，无合法源码写法翻转（P75 同类）。
-// [b28d-solo-STMapScript] _Z15getGrowTypeName17ENUM_CHARACTERJOBi：NEAR 封顶（542=542）。
-// p167 CLEAR 73/73（pair converting ctor C1IS0_iEEOT_OT0_ 与 map ctor/operator[] 全对齐）。
-// 残差＝每对 pair 物化槽的立即数配对序（ORIG 先 first 后 second：`movl $1,-0x20c;
-// movl $0,-0x208`；4.4 反之）⇒ N（P75 跨版本实参物化序，帧 0x240/槽位集全等）。
+// [N3Free171to190.S1STMapScript 语义轴③修复·原判 N 推翻] 键分量互换 = 真语义错误，
+// 非跨版本 codegen。ORIG 0x088bf2d1 首条 `movl $0x1,-0x20c; movl $0x0,-0x208`；
+// Ghidra C 同一现场：`local_210[0]=1; local_210[1]=0; pair(local_218,
+// (ENUM_CHARACTERJOB*)(local_210+1), local_210)` —— ctor 实参 arg1（4(%esp)）=
+// 浅槽(-0x208)=0、arg2（8(%esp)）= 深槽(-0x20c)=1 ⇒ ORIG 键 = (first=job 0based,
+// second=grow 1-based)：32 条 (0,1)..(8,2) 与 DNF 职业序 0=swordman/1=fighter/
+// 2=gunner/3=mage/4=priest/5=at gunner/6=thief/7=at fighter/8=at mage 的转职族
+// （weaponmaster..asura / nenmaster..grappler / ranger..spitfire / elementalmaster..
+// witch / crusader..avenger / rogue,necromancer / elementalbomber,glacialmaster）
+// 逐一吻合。原表写成转置键（首条 (1,0)）⇒ 与 `find(GrowKey(job,grow))` 不匹配，
+// 查表恒不命中（仅 job==grow 斜线巧合命中）＝运行期语义 bug；修正后立即数配对
+// 与 ORIG 逐位一致（AE 目标）。帧 0x240/槽位集/mnemonic 不变。
 const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
 {
     typedef std::pair<ENUM_CHARACTERJOB, int> GrowKey;
     typedef std::map<GrowKey, const char*> GrowTypeMap;
     GrowTypeMap table;                        // ORIG map ctor 0x088c4548
-    table[GrowKey((ENUM_CHARACTERJOB)1, 0)] = "weaponmaster";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 0)] = "soulbringer";
-    table[GrowKey((ENUM_CHARACTERJOB)3, 0)] = "berserker";
-    table[GrowKey((ENUM_CHARACTERJOB)4, 0)] = "asura";
+    table[GrowKey((ENUM_CHARACTERJOB)0, 1)] = "weaponmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)0, 2)] = "soulbringer";
+    table[GrowKey((ENUM_CHARACTERJOB)0, 3)] = "berserker";
+    table[GrowKey((ENUM_CHARACTERJOB)0, 4)] = "asura";
     table[GrowKey((ENUM_CHARACTERJOB)1, 1)] = "nenmaster";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 1)] = "striker";
-    table[GrowKey((ENUM_CHARACTERJOB)3, 1)] = "streetfighter";
-    table[GrowKey((ENUM_CHARACTERJOB)4, 1)] = "grappler";
-    table[GrowKey((ENUM_CHARACTERJOB)1, 2)] = "ranger";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 2)] = "striker";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 3)] = "streetfighter";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 4)] = "grappler";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 1)] = "ranger";
     table[GrowKey((ENUM_CHARACTERJOB)2, 2)] = "launcher";
-    table[GrowKey((ENUM_CHARACTERJOB)3, 2)] = "mechanic";
-    table[GrowKey((ENUM_CHARACTERJOB)4, 2)] = "spitfire";
-    table[GrowKey((ENUM_CHARACTERJOB)1, 3)] = "elementalmaster";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 3)] = "summoner";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 3)] = "mechanic";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 4)] = "spitfire";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 1)] = "elementalmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 2)] = "summoner";
     table[GrowKey((ENUM_CHARACTERJOB)3, 3)] = "battlemage";
-    table[GrowKey((ENUM_CHARACTERJOB)4, 3)] = "witch";
-    table[GrowKey((ENUM_CHARACTERJOB)1, 4)] = "crusader";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 4)] = "infighter";
-    table[GrowKey((ENUM_CHARACTERJOB)3, 4)] = "exorcist";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 4)] = "witch";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 1)] = "crusader";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 2)] = "infighter";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 3)] = "exorcist";
     table[GrowKey((ENUM_CHARACTERJOB)4, 4)] = "avenger";
-    table[GrowKey((ENUM_CHARACTERJOB)1, 5)] = "ranger";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 5)] = "launcher";
-    table[GrowKey((ENUM_CHARACTERJOB)3, 5)] = "mechanic";
-    table[GrowKey((ENUM_CHARACTERJOB)4, 5)] = "spitfire";
-    table[GrowKey((ENUM_CHARACTERJOB)1, 6)] = "rogue";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 6)] = "necromancer";
-    table[GrowKey((ENUM_CHARACTERJOB)1, 7)] = "nenmaster";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 7)] = "striker";
-    table[GrowKey((ENUM_CHARACTERJOB)3, 7)] = "streetfighter";
-    table[GrowKey((ENUM_CHARACTERJOB)4, 7)] = "grappler";
-    table[GrowKey((ENUM_CHARACTERJOB)1, 8)] = "elementalbomber";
-    table[GrowKey((ENUM_CHARACTERJOB)2, 8)] = "glacialmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)5, 1)] = "ranger";
+    table[GrowKey((ENUM_CHARACTERJOB)5, 2)] = "launcher";
+    table[GrowKey((ENUM_CHARACTERJOB)5, 3)] = "mechanic";
+    table[GrowKey((ENUM_CHARACTERJOB)5, 4)] = "spitfire";
+    table[GrowKey((ENUM_CHARACTERJOB)6, 1)] = "rogue";
+    table[GrowKey((ENUM_CHARACTERJOB)6, 2)] = "necromancer";
+    table[GrowKey((ENUM_CHARACTERJOB)7, 1)] = "nenmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)7, 2)] = "striker";
+    table[GrowKey((ENUM_CHARACTERJOB)7, 3)] = "streetfighter";
+    table[GrowKey((ENUM_CHARACTERJOB)7, 4)] = "grappler";
+    table[GrowKey((ENUM_CHARACTERJOB)8, 1)] = "elementalbomber";
+    table[GrowKey((ENUM_CHARACTERJOB)8, 2)] = "glacialmaster";
     GrowTypeMap::iterator it = table.find(GrowKey(job, grow));
     if (it != table.end())
         return it->second;
@@ -3807,6 +3834,9 @@ const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
 // 修法：①pool insert 改 std::make_pair；②`tok == "[hellparty]"` 正极性包裹（P222）；
 // ③priority_queue 第二实参 static_cast<vector<int>&&>（ORIG C1ERKS4_OS2_ move 重载）；
 // ④assignItems 步进改后置 it++（ORIG _List_iterator ppEi）；⑤rate 累加改 `+=`。
+// [N3Free171to190.S1STMapScript 收尾判词·N] call 多重集 CLEAR（ORIG 74 / 我方 97 次，差集
+// 仅 `.rodata` 假项）⇒ 无语义缺口；残差 = 帧差 0x10 + 同一栈布局族（同 procSpecialPassive
+// Object）⇒ N（N82/N89）。
 #include "STMapScript/procSpecialPassiveObjectVerifyError.inc"
                                          const char* path,
                                          STScriptFileList& monsterList,
@@ -4066,7 +4096,11 @@ const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
     exportCharacterEtcStatsScript(file, &script->m_etcStats[0]);
     for (i = 1; i < 7; ++i)                 // ORIG 复用同一 unsigned i（槽 -0x1c，0x8a1046a 尾测 setbe）
     {
-        fprintf(file, "\n[\xbe\xd5\xd0\xd1\xbc\xbc%d]\n", i);  // ORIG "\n[觉醒技%d]\n"
+        // [N3Free171to190.S1STMapScript §6.5.1 编码盲区] ORIG .rodata 实字节核
+        //（file off 0xdd6834）= `\n[\xbc\xba\xc0\xe5\xc7\xfc%d]\n`，EUC-KR「성장형」
+        // （成长型）；原写 `\xbe\xd5\xd0\xd1\xbc\xbc`（「觉醒技」）系发明串 ⇒ 导出
+        // 中间脚本内容与 ORIG 不同（运行期差异）。已改为 ORIG 实字节。
+        fprintf(file, "\n[\xbc\xba\xc0\xe5\xc7\xfc%d]\n", i);
         // ORIG 0x8a1038b：`imul $0x57; add $0x20; add this; add $4` ⇒ 基址取
         // m_initialStatus(+0x24) + i*0x57（与 m_growStatus[i-1] 同址，P30 两步折叠形）。
         exportCharacterStatusScript(file, &script->m_status[i]);
@@ -4160,10 +4194,15 @@ const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
     }
     fputc(10, file);
 
-    for (std::vector<WeaponInfo>::size_type w = 0; w < script->m_weaponWav.size(); ++w)
+    // [N3Free171to190.S1STMapScript] ORIG 槽复用实证（0x08a10f6e/0x08a10fb8/0x08a10fxx）：
+    // ORIG 三个 [weapon wav]/[weapon hit info]/[weapon skill info] 循环与函数级
+    // unsigned i 共用 -0x1c 槽（ORIG 该槽访问 24 次 = 前段 12 + 3×4；我方原用
+    // 独立 size_type w：-0x24/-0x18/-0x10 三槽）⇒ 帧 0x98 vs ORIG 0x88、浅槽整体
+    // 错位 0xC。改用同一 i（类型同 unsigned int，尾测 cmp/seta 形态不变）。
+    for (i = 0; i < script->m_weaponWav.size(); ++i)
     {
         fwrite("[weapon wav]\n", 1, 0xd, file);
-        std::vector<std::string>& wavs = script->m_weaponWav[w].m_wavs;
+        std::vector<std::string>& wavs = script->m_weaponWav[i].m_wavs;
         // P167：ORIG 用 size()+operator[]（MISSING ixEj/size），非 begin/end 迭代器
         for (std::vector<std::string>::size_type i = 0; i < wavs.size(); ++i)
             fprintf(file, "`%s`\n", wavs[i].c_str());
@@ -4172,9 +4211,9 @@ const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
     fputc(10, file);
 
     fwrite("[weapon hit info]\n", 1, 0x12, file);
-    for (std::vector<WeaponInfo>::size_type w = 0; w < script->m_weaponWav.size(); ++w)
+    for (i = 0; i < script->m_weaponWav.size(); ++i)
     {
-        const WeaponInfo& info = script->m_weaponWav[w];
+        const WeaponInfo& info = script->m_weaponWav[i];
         if (info.m_hitType == 0)
             fwrite("`[blow]` ", 1, 9, file);
         else if (info.m_hitType == 1)
@@ -4193,9 +4232,9 @@ const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
     fwrite("[/weapon hit info]\n", 1, 0x13, file);
 
     fwrite("[weapon skill info]\n", 1, 0x14, file);
-    for (std::vector<WeaponInfo>::size_type w = 0; w < script->m_weaponWav.size(); ++w)
+    for (i = 0; i < script->m_weaponWav.size(); ++i)
     {
-        const WeaponInfo& info = script->m_weaponWav[w];
+        const WeaponInfo& info = script->m_weaponWav[i];
         fprintf(file, "%.2f %.2f %.2f %.2f\n",
                 info.m_skillRates[0], info.m_skillRates[1],
                 info.m_skillRates[2], info.m_skillRates[3]);

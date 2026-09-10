@@ -298,7 +298,19 @@ struct stGenerateRefData_t
 			// b28d-solo-WongWorkDrop_A：ORIG generateSpecificItem 0x08537254
 			// `movzbl 0x43; xor $0x1; test %al,%al; je` ⇒ bool 字段（P248 档②；
 			// uchar 恒产 cmp $1 形）。1 字节、偏移/布局/mangled 零影响。
-			bool m_field43;                // +0x43
+			// [N5A 2026-09-11] 追加同址字节视角：ORIG kill_monster/_MakeDropItems
+			// `ref+0x43` 的 store 形（0x0830b0b5..0xc1 `mov $1,%eax/jmp/mov $0,%eax/
+			// mov %al,-0x7d`）只能由「向**字节左值**写 int 三目」产生 —— 4.1.2 与 4.4.7 对
+			// bool 目标恒发 `setne`（探针 /tmp/r5/n5/N5A_BattleField/e_probe.cpp E1..E5、
+			// x_probe.cpp X1..X7 全形实测）；而消费者形 `movzbl;xor $1;test;je` 要求 bool
+			// （h_probe.cpp：uchar 目标反产 `test;jne`）。union 双视角同时满足两侧
+			// （u_probe.cpp 实证：store 复现 ORIG 4 条形、消费者仍为 `xor $1` 形）。
+			// 1 字节 union，offsetof(+0x43)/sizeof(0x48)/mangled 零影响，写入值仅 0/1。
+			union
+			{
+				bool m_field43;               // +0x43
+				unsigned char m_field43Byte;  // +0x43（同址字节视角）
+			};
 		};
 	};
 	union

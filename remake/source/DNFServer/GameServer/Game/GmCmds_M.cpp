@@ -69,31 +69,42 @@ namespace game_master
     {
         return;
     }
-    if (target->getCurCharacR() == 0)                       // ORIG CUserCharacInfo::getCurCharacR 判 0
+    // [N2-S5 负结论] ORIG 两处早退 `je 0x084a8f62` 同目标（单一落点），但合并为
+    // `target == 0 || getCurCharacR() == 0` 实测 4.4 反劣 170→171（`||` 求值序
+    // 使 getCurCharacR 结果多一次布尔归一）⇒ 保持两条独立 if。
+    if (target->getCurCharacR() == 0)   // ORIG CUserCharacInfo::getCurCharacR 判 0
     {
         return;
     }
     int vill = static_cast<int>(target->getCurCharacVill());
     int area = target->get_area(false);
-    unsigned int x = target->get_posX() & 0xffff;
-    unsigned int y = target->get_posY() & 0xffff;
+    // [N2-S5] ORIG 槽 -0x10/-0xc 由 `movzwl %ax,%eax` 提升后直存 int 槽
+    // （get_posX/Y 返回 unsigned short）；试 int 具名（原 unsigned + `& 0xffff`
+    // 使 move_area 实参预取到 %edi/%esi 并多 push/pop %edi）。
+    int x = target->get_posX();
+    int y = target->get_posY();
 
     // ORIG(0x084a8dd4)：同 vill && 同 area → set_position，否则 move_area。
     // [G5 2026-09-10 P167/P183 真缺口修复] 旧码 `CUser* self = GetUser();` 把 5 个用点
     //   合并成 1 次调用；p167 实证 ORIG 调 `CCommand::GetUser()` **5 次**
     //   （MISSING 4×，OUR calls 27 vs ORIG 31）⇒ 删具名缓存，逐用点 fresh 重发
     //   （P48/P183：ORIG 在实参位直读、无 self 槽）。
-    if (static_cast<int>(GetUser()->getCurCharacVill()) == vill &&
-        GetUser()->get_area(false) == area)
-    {
-        GetUser()->set_position(static_cast<unsigned short>(x),
-                                static_cast<unsigned short>(y), 0);
-    }
-    else
+    // [N2-S5] ORIG 0x084a8daf `jne 0x084a8dd4` + 0x084a8dd2 `je 0x084a8ddb`
+    // ⇒ 条件为 `vill != curVill || area != curArea`（不等=真），真支落
+    // fall-through 0x084a8de4 move_area，假支 0x084a8e48 set_position。
+    // 旧码写相等 `&&` 使两分支布局镜像（move_area 被挤到尾部，多 1 条 jmp
+    // 与 %edi 保活 push/pop）。
+    if (static_cast<int>(GetUser()->getCurCharacVill()) != vill ||
+        GetUser()->get_area(false) != area)
     {
         G_GameWorld()->move_area(GetUser(), vill, area,
                                  static_cast<int>(x), static_cast<int>(y),
                                  0, false, 0, 0, 0);
+    }
+    else
+    {
+        GetUser()->set_position(static_cast<unsigned short>(x),
+                                static_cast<unsigned short>(y), 0);
     }
 
     PacketGuard packet;

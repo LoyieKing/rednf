@@ -186,10 +186,16 @@ const int kBuyEntryStride = 0x1cf;   // MSG 条目区步长（ProcessBuyRequest 
         }
         else
         {
+            // [N1A 2026-09-11 · DIFF(109/110,gap−1)→AE(109/109,gap 0)]
+            // 旋钮：第 6 vararg 实参去掉 `static_cast<int>(productNo)`（同型
+            // cast 生成的 NOP_EXPR 使 4.4 改走「先求值全部 vararg、后统一
+            // store」调度）⇒ 复现 ORIG 0x083238f2 `mov %eax,0x18(%esp)` 直存
+            // （旧形多 `mov %eax,%edx` 中转 + `mov %edx,0x18(%esp)`，即
+            // 0x083238f2 处 our 109+1）。%d 传 unsigned int 值域不变，语义等价。
             LogManager::logFormat(
                 1, "CeraShop.cpp", __PRETTY_FUNCTION__,
                 0xb47, "IPG ERROR (Goods No: %d)(%s)",
-                static_cast<int>(productNo), BufAt(resData, 0x177));
+                productNo, BufAt(resData, 0x177));
         }
     }
 
@@ -421,6 +427,11 @@ ipg_error_done:;
 // 槽号平移（N82：ORIG 给 12 个 cMyTrace 各占独立 0x10 槽，4.4 复用同槽）
 // + N7 间接调用目标寄存器 + 跨版本寄存器/寻址形态 ⇒ §6.2 三件套判语义完成、
 // byte 层 N 封顶。
+// [N1A 2026-09-11 · 本波] ①PVP 决策树改 goto 形（消 bool 物化）−7；
+// ②`m_optEntries[o + 0x16]`→`[o]` 真 bug 修正（读偏移多 0xb0）−2；
+// 合计 our 1588→1579，gap −37→−28（n1_v 口径；clean 计数 −37→−23）。
+// 残余为实参装载序/JCC 极性（`cmpl $0x289830; jg` vs ORIG `cmp $0x289831;
+// jge`，P59 极性族）+ N82 槽号平移，指令数 1:1 ⇒ 封顶。
 #include "W6_CeraShopDeps/ProcessBuyRequest.inc"
 {
     // [b28d-S278 P0/P227] ORIG 0x0832047a：NumberToString 结果落 %ebx 无栈槽、
@@ -534,20 +545,19 @@ ipg_error_done:;
             }
 
             // PVP 渠道禁购清单（ORIG 0x57e..0x68e 决策树，条目 itemIdx）。
-            bool pvpRestricted = false;
+            // [N1A 2026-09-11] ORIG 形态 = 判定树各命中点直接 `je <单份 body>`
+            //（0x08320a0f/0a28/0a33/0a4a/0a65/0a73/0a7a/0a88/0a94/0a9b），body 单份
+            // 落 0x08320aba（`movb $0x0,-0x45(%ebp)` 起）；无 bool 槽物化，
+            // 故不设 `pvpRestricted` 局部，直接 goto 共享标签。
             int checkIdx = goodsList[i]->GetItemIdx();
             if (checkIdx == 0x334)
-            {
-                pvpRestricted = true;
-            }
+                goto pvpBlock;
             else if (checkIdx < 0x335)
             {
                 if (checkIdx < 0xc6)
                 {
                     if (checkIdx >= 0xc4 || checkIdx == 0xc2)
-                    {
-                        pvpRestricted = true;
-                    }
+                        goto pvpBlock;
                     else if (checkIdx == 0xc3)
                     {
                         user->isAffectedPremium(
@@ -557,24 +567,19 @@ ipg_error_done:;
                 else if (checkIdx == 0x2d0 ||
                          (checkIdx > 0x2cf &&
                           (static_cast<unsigned int>(checkIdx - 0x2e7) < 2)))
-                {
-                    pvpRestricted = true;
-                }
+                    goto pvpBlock;
             }
             else if (checkIdx <= 0x289832)
             {
                 if (checkIdx >= 0x289831 || checkIdx == 0x2897c2 ||
                     checkIdx == 0x289806 || checkIdx == 0x398)
-                {
-                    pvpRestricted = true;
-                }
+                    goto pvpBlock;
             }
             else if (checkIdx == 0x28beba || checkIdx == 0x28d154)
-            {
-                pvpRestricted = true;
-            }
+                goto pvpBlock;
+            goto pvpDone;
 
-            if (pvpRestricted)
+        pvpBlock:
             {
                 char blockPvp = '\0';
                 if (G_GameWorld()->IsPVPChannel())
@@ -599,6 +604,7 @@ ipg_error_done:;
                     continue;
                 }
             }
+        pvpDone:;
 
             // _CheckBuyingCondition（ORIG 0x757：字段逐次从 msg 重读，P183）。
             unsigned short expiry =
@@ -861,14 +867,22 @@ ipg_error_done:;
                  o < static_cast<int>(msg.m_entrySection.m_arr[i].m_optCount);
                  ++o)
             {
+                // [N1A 2026-09-11 真 bug 修正 · P92 族] 原写 `[o + 0x16]`
+                // 使读取地址多 0xb0（0x16×8），真因：4.4 把 ORIG 的
+                // `m_optEntries[o]`（+0xbe = 0x16*8+0xe）规范化为
+                // `(o+0x16)*8 + 0xe`，误把索引常量抄进源码。直证：
+                // ORIG 0x08320b3x 读侧 `add $0x16,%ebx; shl $3,%ebx`（一次
+                // +0x16）＋`mov 0xe(%eax),%edx`；我方原形 `lea 0x16(%edx),%ebx;
+                // add $0x16,%ebx; shl $3,%ebx`（两次）⇒ 地址 0x16e+o*8 vs
+                // ORIG 0xbe+o*8。旁证 GlobalData.cpp:5340 同源消费点用 `[k]`。
                 *reinterpret_cast<unsigned int*>(&req->m_optEntries[o][0]) =
                     static_cast<unsigned int>(
                         msg.m_entrySection.m_arr[i]
-                            .m_optEntries[o + 0x16].m_itemUid);
+                            .m_optEntries[o].m_itemUid);
                 *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][4]) =
-                    msg.m_entrySection.m_arr[i].m_optEntries[o + 0x16].m_a;
+                    msg.m_entrySection.m_arr[i].m_optEntries[o].m_a;
                 *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][6]) =
-                    msg.m_entrySection.m_arr[i].m_optEntries[o + 0x16].m_b;
+                    msg.m_entrySection.m_arr[i].m_optEntries[o].m_b;
             }
 
             OS_API::snprintf(priceStr, 0x24, "%d", static_cast<int>(ceraPrice));
@@ -939,6 +953,13 @@ ipg_error_done:;
 // P235 具名 m_type 消 add+mov。残余：帧 0x31c vs ORIG 0x2cc + 全帧槽号平移（N82，
 // difflib 大面积窗口错位）+ 4.4 EH cleanup 物化（N91/N104 族）⇒ §6.2 三件套判
 // 语义完成、byte 层 N 封顶。
+// [N1A 2026-09-11 语义轴复核 · 无新旋钮 ⇒ 维持封顶]
+// ①结构偏移轴：`0xNN(%eax/%ebx/%ecx/%edx/%esi/%edi)` 立即数差集 = ORIG-only
+//   {0x1c:1, 0x8:1}、OURS-only {} ⇒ 无字段错位/布局轴 bug（对比 PBR 的
+//   `[o+0x16]` 真 bug 即由此轴暴露：当时差集为 0xb0 级）；
+// ②常量轴：立即数差集仅 {ORIG 0x2cc} vs {OURS 0x31c}（帧 −0x50）⇒ 无常量错位；
+// ③残余 = 帧/槽整体平移（N82，我方最深 -0x2b0 vs ORIG -0x264）+ 4.4 临时
+//   spill 深度（如 -0x2b0/-0x2ac 跨调用保活）+ 实参装载序 ⇒ 源形不可控。
 #include "W6_CeraShopDeps/ProcessIPGUserData.inc"
                                    IPG::SIPGData* resData, Stream* stream)
 {

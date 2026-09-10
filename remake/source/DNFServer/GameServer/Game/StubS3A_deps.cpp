@@ -338,6 +338,17 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
 //   `mov 0xa(%eax,%edx,1)`，4.4 恒 `add -0x10(%ebp),%eax; mov 0xa(%eax)`；
 //   ②ORIG 0x085f788c `lea 0x8(%eax),%edx`，4.4 恒 `add $0x8,%eax`（N102/N4 族，
 //   union 视图/指针算术/数组下标三形均不翻）。gap≤0，非缺段。
+// [N1D 2026-09-11 · n1_v 口径] 真残差三段（本波全部试毕，判后端封顶）：
+//   ① 0x085f783e 虚调 `_reset()`：ORIG `mov (%eax),%edx … call *%edx` vs 我方
+//      `mov (%eax),%eax … call *%eax`（vtable slot 落 %edx vs %eax）⇒ N7；
+//   ② 0x085f7857 check 段：ORIG 提前把 buf 载入 %edx 并以 `mov 0xa(%eax,%edx,1)`
+//      一次寻址，4.4 恒 `add -0x10(%ebp),%eax; mov 0xa(%eax)` ⇒ N102/N4；
+//   ③ 0x085f788c else 段：ORIG `lea 0x8(%eax),%edx`（源地址 → %edx）vs 我方
+//      `add $0x8,%eax`（源 → %eax、this → %edx，两寄存器互换）⇒ N102/N4。
+//   本波试形·负结论：`&buf[i].m_body`（取成员地址以逼出 `lea`）**不可用** ——
+//   RedeemEntryView 是 **union**，m_body 偏移为 **0**（非 +8）⇒ 源地址少 8 字节
+//   （语义错，改后 our 50→48 的假改善即此），已回滚；正解只能经 `m_body.m_info`
+//   （Body 内 +8），4.4 仍折叠为 add。
 #include "StubS3A_deps/loadData.inc"
 {
     (void)pUser;
@@ -353,6 +364,10 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
         else
         {
             // ORIG 0x085f788c：lea 0x8(%eax),%edx 直传源地址（无临时对象）。
+            // [N1D 2026-09-11 试形·负结论] `&buf[i].m_body` 不可用：RedeemEntryView 是
+            //   **union**，m_body 偏移为 0（非 +8）⇒ 源地址少 8 字节，语义错；已回滚。
+            //   正解只能经 m_body.m_info（Body 内 +8）。4.4 仍折叠为 `add $0x8,%eax`
+            //   （ORIG 0x085f788c 为 `lea 0x8(%eax),%edx`）⇒ N102/N4 族，源码不可控。
             m_redeemList.push_back(
                 *reinterpret_cast<const Inven_Item_Expand_RedeemInfo*>(
                     buf[i].m_body.m_info));
@@ -403,15 +418,19 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
     int i = 0;
     for (std::list<Inven_Item_Expand_RedeemInfo>::iterator it =
              m_redeemList.begin();
-         it != m_redeemList.end(); ++it, ++i)
+         it != m_redeemList.end(); ++it)
     {
         // [b28d-62] N84：ORIG 用结构整体赋值（rep movsl），显式 memcpy 生 call。
         // [M2S2 2026-09-11 试形·负结论] P226 裸语句表达式包 RHS（`= ({ *it; })`）
         //   实测对循环体求值序**零影响**（仍先算目的地址入 %ebx 后 call operator*，
         //   133 条不变）⇒ 回滚。ORIG 0x085f7aa4 的「call 先 / dst 后 + `mov %edx,%ebx`
         //   两条 RHS 保活」属 4.1↔4.4 求值序（N76/N18a 族），源码不可控。
+        // [N1D 2026-09-11 试形] ++i 从 for-increment 移入 body：ORIG 0x085f7aac
+        //   顺序为 `rep movsl → addl $0x1,-0x1c(%ebp) → call operator++(it)`；
+        //   4.4 原先把 ++i 排在 operator++ 之后。
         *(Inven_Item_Expand_RedeemInfo*)(
             reinterpret_cast<char*>(sig) + 8 + i * 0x44) = *it;
+        ++i;
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
@@ -476,7 +495,11 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
     //   三档类型旋钮（callee 返回类型 / 字段同异型 / store 方向）已由 lane14 穷举
     //   ⇒ 判 N18a 封顶。本文件内我波次真修的是 IsAbleItemUnlock/Cancel 两处
     //   「返回值被预清局部吞掉」的语义硬伤（见其上函数头判词）。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CItemMakingSkill.cpp", 0x33),
+    // [N1D 2026-09-11 §6.5 串盲区修正] ORIG .rodata 实读为 "ItemMakingSkill.cpp"
+    //   （ORIG 0x0854528b `movl $"ItemMakingSkill.cpp",0x4(%esp)`）；我方原写
+    //   "CItemMakingSkill.cpp" 多 "C" 前缀 ⇒ StreamPool 记录源名与 ORIG 不一致。
+    //   指令流零变化（AE 保持），仅串内容归位。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("ItemMakingSkill.cpp", 0x33),
                        true);
     guard.operator*()->operator<<((int)0x26e);       // op*(guard)→op<<(int)
     guard.operator*()->operator<<((int)pUser->GetUID());

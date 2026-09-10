@@ -47,6 +47,21 @@
 {
     // b28d-40: N80 封顶——P226 语句表达式已试，strerror/errno/ret 升格 callee-saved
     // 的求值序与保活寄存器仍差 2 条；帧 0x4c vs 0x40。ORIG 0x0846c674。
+    // [N5C_EventChar 2026-09-11 复核] 维持封顶。新证据（镜像探针
+    // /tmp/r5/n5/N5C_EventChar/probe6.cpp 逐条复现本函数：帧 0x40/push esi,ebx/寄存器
+    // 分配与本 .o 全等）：
+    //   ① `({ ret; })` 裸语句表达式作第 3 实参（probeB）与基线**同形**（P226 对槽变量无效）；
+    //   ② `*__errno_location()` 显式形（probeC，BaseServerProxy 惯用法）只交换 %esi/%ebx
+    //      角色，助记符序列与条数不变；P290 int→unsigned（probe5）两形完全相同；
+    //   ③ ORIG 独有 2 条 = `push %edi` + `mov -0x1c(%ebp),%esi`（ret 在 ctor 前升格跨调用
+    //      保活）⇒ 4.1 独有寄存器保活族（P332：callee-saved push 数源级不可诱导）；
+    //   ④ 帧 0x4c 非 4.4 帧量化形（≡4 mod 16，P190 附注）且槽差 = N126 首槽常数（4.1 -0x4
+    //      / 4.4 -0xc）⇒ N115+N126+N18a 封顶，勿再试。
+    // prett/返回类型轴已核并修正（N5C_EventChar 2026-09-11）：ORIG 串
+    // `_ZZN21CCommunityServerProxy7InitTcpEvE19__PRETTY_FUNCTION__` @0x08c662e0 =
+    // "bool CCommunityServerProxy::InitTcp()"（P174 串定返回类型）⇒ 声明/定义已由 int 改
+    // bool（返回类型不入 mangled，零 ABI 风险；调用点 Init 转发与 GlobalData 重连均丢弃返回值）。
+    // 修正后 strall 串多重集差异 1→0（仅余下方 SendTcpPacket 一处真串错）。
     if (m_ip.length() == 0 || m_tcpPort == 0)
     {
         return 0;
@@ -92,7 +107,9 @@
     if (m_udpPort != 2)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xd4, 0);
-        trace("cannot send packet because Community Server is disconnected.");
+        // [N5C_EventChar 2026-09-11] §6.5 串盲区真错（strall 审计发现）：ORIG .rodata
+        // 串无句号，我方多一个 '.' ⇒ 运行期日志文本与 ORIG 不一致且 AE 口径不可见（此处修正）。
+        trace("cannot send packet because Community Server is disconnected");
         return;
     }
     send_packet(data, len);

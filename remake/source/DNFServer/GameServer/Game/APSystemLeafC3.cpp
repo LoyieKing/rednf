@@ -50,15 +50,28 @@ namespace APSystem
 // ----------------------------------------------------------------------------
 #include "APSystemLeafC3/CActionPointEx.inc"
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0889566e 构造序（基类 call → +0x24 →
-    // +0x14 容器 → +0x34 → 尾清零）与 APSystemTypes.h 平铺布局妥协互斥
-    // （P242 族）；语义等价。
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0889566e 构造序（基类 call → +0xc/+0xe/
+    // +0xf/+0x10 字段 → +0x14 容器 → +0x20 → +0x24/+0x28 string）与
+    // APSystemTypes.h 平铺布局妥协互斥（P242 族）；语义等价。
+    // [S5AradDisp 2026-09-11 落地两旋钮：ours 57→56（gap −2→−1）]
+    //  ① `: m_weekday(7)` mem-init：ORIG 0x088956b0 的 `movl $0x7,0x20(%eax)`
+    //     位于 +0x14 容器构造之后、+0x24 string 之前（0x088956ad/0x088956c5）；
+    //     具名成员 mem-init 令 4.4 按声明序在成员构造序列内并发（此前在体内=序错）。
+    //  ② `m_record.m_mapKey = 0`：ORIG 0x08895684 `movw $0x0,0xc(%eax)` 两条；
+    //     原 `&m_bytes02[0x0a]` 取址式恒发 `mov this; add $0xc; movw (%eax)` 三条
+    //     （P183 反向）。
+    //  残差（判 DIFF 的根因，无源码解）：ORIG 首位 0x0889567c `call
+    //  _ZN8APSystem12_ActionPointC1Ev` = 3 条（mov this; mov (esp); call），
+    //  我方平铺布局只能 `memset(this,0,0xb)` = 5 条且在成员构造之后发射；
+    //  欲同形需 .h 令 CActionPointEx 真正继承 _ActionPoint（越界，未做）。
     memset(&m_field00, 0, 0xb);   // 基类 _ActionPoint 子对象 [+0x00,+0x0b)
-    *reinterpret_cast<unsigned short*>(&m_bytes02[0x0a]) = 0;   // +0x0c word
+    // P183 反向：`&m_bytes02[0x0a]` 取址式 4.4 恒发 `mov this; add $0xc; movw (%eax)`
+    // 三条；ORIG 0x08895684 为 `movw $0x0,0xc(%eax)` 两条 ⇒ 走 m_record 具名成员
+    // （常量偏移 0x02+0x0a）令 4.4 直落 disp。
+    m_record.m_mapKey = 0;
     m_bytes02[0x0c] = 0;          // +0x0e
     m_bytes02[0x0d] = 0;          // +0x0f
     m_bytes02[0x0e] = 0;          // +0x10
-    m_weekday = 7;                // +0x20（weekday 缺省 7）
 }
 
 // ----------------------------------------------------------------------------

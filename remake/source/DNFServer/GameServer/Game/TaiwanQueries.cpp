@@ -257,6 +257,11 @@ COpensslRSA AuthGarenaToken::openSSLRSA_;
 
 // ORIG T 0x081730d6：param==""（operator== 成立）走默认公钥，否则指定路径；
 // 返回对应 Init 的布尔结果。
+// [语义轴·分支反转] ORIG 0x0817313b `je 0x0817314b`，落点体 0x0817313d
+// `movl $0x9404754,(%esp); call _ZN11COpensslRSA4InitEv`（无参）为 **相等臂**；
+// 不等臂 0x0817314b..0x08173159 压 path 后 call `_ZN11COpensslRSA4InitEPKc`。
+// 旧形两臂写反（相等时调 Init(path)）⇒ path 为空串时行为不同（ORIG 用默认
+// publickey.pem 路径，旧形传空路径给 openssl）。
 // [b28d-solo-D02] verdict=DIFF（96 vs 91，N95/N104 族封顶）。本轮已修：
 // ①arg 去判空三目（P171 照抄：ORIG 0x08173115 直接压 path 形参）；
 // ②empty/arg 的 allocator 临时形与 ORIG 同构（0x8b83f20 空串字面量）。
@@ -273,8 +278,8 @@ COpensslRSA AuthGarenaToken::openSSLRSA_;
     // [b28d-solo-D02] ORIG 0x08173115 直接压 path 形参（无判空三目，P171）。
     std::string arg(path);
     if (arg == empty)
-        return openSSLRSA_.Init(path);
-    return openSSLRSA_.Init();
+        return openSSLRSA_.Init();
+    return openSSLRSA_.Init(path);
 }
 
 // ORIG T 0x081731f2

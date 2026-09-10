@@ -62,8 +62,14 @@ struct STKillMonsterData
     char m_pad5[3];               // +0x05
     int m_field08;                // +0x08
     int m_field0c;                // +0x0c
-    char m_flag10;                // +0x10
-    char m_flag11;                // +0x11
+    // [N5A 2026-09-11 · P248/q_probe] ORIG kill_monster 0x0830bccc/0x0830bcd9 的 store 为
+    // `movzbl 0x10(%eax),%eax; mov %al,-0x96(%ebp)` 单条字节直存（无 test/setne），
+    // 消费者 0x0830c8d5 `movzbl -0x96; xor $0x1; test; je` 为 bool 语义 ⇒ 字段是 bool。
+    // 1 字节、sizeof(0x18)/偏移/mangled 零影响；写入点仅本结构 ctor 与 CPartyLink2.cpp:191-192
+    // （写 0/1）。bool 字段 + bool 局部 ⇒ store 与消费者**两侧**同时复现 ORIG
+    // （探针 q_probe.cpp Q1；char 字段 Q2 多 test+setne、uchar 局部 Q3 消费者退化）。
+    bool m_flag10;                // +0x10
+    bool m_flag11;                // +0x11
     char m_pad12[2];              // +0x12
     float m_field14;              // +0x14
 };

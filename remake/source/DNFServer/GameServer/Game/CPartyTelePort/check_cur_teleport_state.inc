@@ -1,1 +1,1 @@
-char CPartyTelePort::check_cur_teleport_state()
+bool CPartyTelePort::check_cur_teleport_state()

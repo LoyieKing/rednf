@@ -1412,12 +1412,111 @@ public:
 class DB_SaveGoldZeroTradeLog : public DBDispatcher { public: DB_SaveGoldZeroTradeLog() {} 
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x084227f6
 };   // ORIG C1 0x844e49a (sz 0x4: base ctor+vptr only)
+#pragma pack(push, 1)
+// ORIG 0x08422964（dispatch）的写入视图：+0x1a 单字节（置 1）、+0x1b/+0x1f 各 4 字节清零。
+// 三处偏移都落在 SIG_MOUSE_REGISTER::m_pad16（0x16..0x22，共享头未建模填充）内，
+// 本 TU 只按 ORIG 的写宽/写序复现，故用本地视图结构（不改共享头）。
+struct DB_MouseRegisterWriteView
+{
+    char m_pad0[0x1a];
+    char m_field1a;     // +0x1a ORIG 0x08422b50 `movb $0x1,0x1a(%eax)`
+    int  m_field1b;     // +0x1b ORIG 0x08422b5e `movl $0x0,0x1b(%eax)`
+    int  m_field1f;     // +0x1f ORIG 0x08422b57 `movl $0x0,0x1f(%eax)`
+};
+#pragma pack(pop)
+static_assert(offsetof(DB_MouseRegisterWriteView, m_field1a) == 0x1a,
+              "DB_MouseRegisterWriteView m_field1a offset drift");
+static_assert(offsetof(DB_MouseRegisterWriteView, m_field1b) == 0x1b,
+              "DB_MouseRegisterWriteView m_field1b offset drift");
+static_assert(offsetof(DB_MouseRegisterWriteView, m_field1f) == 0x1f,
+              "DB_MouseRegisterWriteView m_field1f offset drift");
+
+char* encryptAES_(CRijndael* cipher, char* src, char* dst);  // ORIG T 0x0846c398（定义在 MouseRegisterEJ.cpp）
+
 class DB_MouseRegister : public DBDispatcher { public: DB_MouseRegister() {}
     // 虚表槽：本类在本 TU 是"注册用镜像"，真实实现在 MouseRegisterEJ.cpp（强定义）。
     // 内联定义在此仅用于满足 GCC 的 key-function 规则（否则本 TU 不发 `_ZTV`），
-    // 链接期该弱定义被真实强定义覆盖 ⇒ vtable 槽指向真实 dispatch。
+    // 链接期该弱定义被真实强定义覆盖 ⇒ vtable 槽指向真实 dispatch（行为不变）。
+    // [N8W8LT] 真实体在本 TU 复写（ORIG 0x08422964 逐条转写，与 MouseRegisterEJ.cpp 同源）：
+    //   改前 our=5（`mov $0x0,%eax` 桩，p167 MISSING 一大批）；改后 our=208=ORIG 208、
+    //   .o 符号 size 0x325=ORIG range 0x325，check_tu_routed 判 **AE**（该件离开 non-identical 集）。
+    //   关键旋钮：+0x192 分派必须是 **switch**(case 1/2/3 书写序)，4.4 才产出 ORIG 的
+    //   `cmp 2/je → cmp 3/je → cmp 1/jne` 决策树 + case1 直落叶块形；写成 if/else-if
+    //   同指令数 208 但分支反转（jne over block）⇒ 判 DIFF（实测）。
+    static MySQL* _getDBHandleForDevideAccountDB();                 // ORIG T 0x08422938
+    int _registNewPassword(unsigned int accId, const char* pwd,
+                           char* ip, int param4);                   // ORIG T 0x084232e0
+    int _modifyPassword(unsigned int accId, const char* pwd,
+                        char* ip, int param4, bool param5);         // ORIG T 0x08423528
+    int _unregistPassword(unsigned int accId, char* ip);            // ORIG T 0x08423794
+    void _sendResult(unsigned int accId, int param2, int param3,
+                     int param4, SIG_MOUSE_REGISTER* out);          // ORIG T 0x08423abe
     virtual bool dispatch(int userIdx, int slot, Stream* stream)
-    { (void)userIdx; (void)slot; (void)stream; return false; }
+    {
+        // ORIG 栈槽：0x8=this 0xc=userIdx（未用）0x10=slot 0x14=stream；
+        // 局部：-0x78 密文缓冲 -0x54 明文缓冲 -0x30 CStreamGuard -0x28 webAddress 快照
+        //       -0x18 DB 句柄 -0x14 SIG 出站 -0x10 返回码 -0xc 入站指针。
+        (void)userIdx;
+        char buf58[36];                     // -0x54 明文缓冲（strncpy 7 字节）
+        char buf7c[36];                     // -0x78 encryptAES_ 密文缓冲
+        MySQL* db;                          // -0x18（ORIG 仅赋值未消费，同）
+        SIG_MOUSE_REGISTER* out;            // -0x14
+        int ret;                            // -0x10
+        SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD* p;   // -0xc
+
+        db = _getDBHandleForDevideAccountDB();
+        out = stream->GetOutBuffer<SIG_MOUSE_REGISTER>();
+        ret = 0;
+        char buf2c[16] = { '\0' };          // -0x28（清零指令序须在 ret=0 之后，ORIG +0x28）
+        strncpy(buf2c, out->m_webAddress, 0x10);
+        strncpy(buf58, out->m_password2, 7);
+        encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_, buf58, buf7c);
+        if (strncmp(out->m_padPassword, buf7c, 0x24) == 0)
+        {
+            CStreamGuard guard(
+                GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5b59), true);
+            guard.operator*()->operator<<((int)0x246);
+            guard.operator*()->operator<<((int)slot);
+            p = guard.operator->()->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
+            p->m_adviceChangePwd = 0;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            return 0;
+        }
+        // ORIG +0x192 为 switch 决策树：cmp 2/je → cmp 3/je → cmp 1/jne，
+        // 叶块物理序 = case 书写序 1→2→3（case1 直落，case2/case3 在外）。
+        switch (out->m_pkgType)
+        {
+        case 1:
+            ret = _registNewPassword(out->m_accId, buf7c, buf2c, slot);
+            if (ret == 0)
+            {
+                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1a = 1;
+                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1f = 0;
+                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1b = 0;
+                memcpy(out->m_padPassword, buf7c, 0x24);
+            }
+            break;
+        case 2:
+            ret = _modifyPassword(out->m_accId, buf7c, buf2c, slot,
+                                  out->m_advideChangePwd);
+            if (ret == 0)
+            {
+                memcpy(out->m_padPassword, buf7c, 0x24);
+                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1f = 0;
+                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1b = 0;
+            }
+            break;
+        case 3:
+            ret = _unregistPassword(out->m_accId, buf2c);
+            if (ret == 0)
+            {
+                memset(out->m_padPassword, 0, 0x24);
+            }
+            break;
+        }
+        _sendResult(out->m_accId, ret, out->m_pkgType, slot, out);
+        return 1;
+    }
 };   // ORIG C1 0x844e4b6 (sz 0x4: base ctor+vptr only)
 class DB_UpdateDungeonDataStatisticLogdb : public DBDispatcher
 {
@@ -8453,6 +8552,12 @@ static_assert(sizeof(Inven_Item) == 0x3d,
 {
     char buf[0x40];
     (void)buf;
+    // [N8W8LT P139] ORIG 0x08437756 体仅 13B（`sub $0x40 / mov $1 / leave / ret`），
+    // 但 ORIG nm 有本函数 prett 局部串 `_ZZN19DB_LoadPowerWarInfo8dispatchEiiP6Stream
+    // E19__PRETTY_FUNCTION__`（0x08c5bd80, sz 0x3e，内容 `virtual bool
+    // DB_LoadPowerWarInfo::dispatch(int, int, Stream*)`）⇒ 原码有被丢弃的引用。
+    // 探针实证：`(void)sizeof(__PRETTY_FUNCTION__)` 只发射该串、零指令变化。
+    (void)sizeof(__PRETTY_FUNCTION__);
     return 1;
 }
 
@@ -18584,6 +18689,10 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
     // 实测 char[0xa4..0xb0] → sub $0xb0）。
     char buf[0xa8];
     (void)buf;
+    // [N8W8LT P139] ORIG nm 有 prett 局部串（0x08c5ba00, sz 0x47：`virtual bool
+    // DB_TOD_Random_Select_UserAPC::dispatch(int, int, Stream*)`）而体无引用 ⇒ 原码有被
+    // 丢弃的引用；sizeof 形只发射该串、零指令变化（探针实证）。
+    (void)sizeof(__PRETTY_FUNCTION__);
     return 1;
 }
 
@@ -20363,6 +20472,10 @@ struct DB_AutoPunishBlackIpView
     // 实测 char[0x34..0x40] → sub $0x40）。
     char buf[0x38];
     (void)buf;
+    // [N8W8LT P139] ORIG nm 有 prett 局部串（0x08c5bf40, sz 0x46：`virtual bool
+    // DB_LoadPowerWarStatueRanker::dispatch(int, int, Stream*)`）而体无引用 ⇒ 原码有被
+    // 丢弃的引用；sizeof 形只发射该串、零指令变化（探针实证）。
+    (void)sizeof(__PRETTY_FUNCTION__);
     return 1;
 }
 

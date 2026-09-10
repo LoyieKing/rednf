@@ -335,7 +335,10 @@ public:
     int str_to_enum(const char* name);                      // ORIG 0x081a2e3e
     bool level_check(CUser* user, const CStackableItem* item); // ORIG 0x081a31c4 [b28c-21 SIGFIX]
     // ORIG T _ZN17Arad_GiftItem_Set9send_mailEP5CUseriiii 0x081a329e（LinkClosureD 补）
-    int send_mail(CUser* user, int p2, int p3, int p4, int giftIdx);
+    // [N1D 2026-09-11 签名轴] ORIG pretty 串 @0x08bad6e0 size 0x3e =
+    //   "bool Arad_GiftItem_Set::send_mail(CUser*, int, int, int, int)"（我方原 int
+    //   为 0x3d）；ORIG 尾段 0x081a3407 无 bool 截断 ⇒ 返回类型 bool。mangled 不变。
+    bool send_mail(CUser* user, int p2, int p3, int p4, int giftIdx);
 
     // ORIG Arad_GiftItem_Set::Data（open 插入/ find 返回的对象）：
     //   +0x00 item_id；+0x04/+0x08 两个 std::string（脚本 +0x184/+0x188）。

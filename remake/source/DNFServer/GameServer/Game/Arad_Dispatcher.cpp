@@ -48,6 +48,13 @@ typedef char AradDispatcherManagerSizeAssert[
 // 已回退该无效实例化声明，保持纯自然形。
 // [b28d-23 N·N100/模板] 复测维持：模板成员 create 的 landing pad 抑制无源码解
 // （P210 定义前置仅适用非模板 caller）⇒ N。ORIG 0x0818e956
+// [S5AradDisp 2026-09-11 复核维持 N] ORIG 0x0818e956 的 13 条独有段 = EH cleanup 岛
+//   `0x0818e98b mov %edx,%esi; mov %eax,%edi; mov %ebx,(%esp); call _ZdlPv;
+//    mov %edi,%eax; mov %esi,%edx; mov %eax,(%esp); call _Unwind_Resume` + 连带
+//   push %edi/%esi 与帧 0x1c（我方 0x14）。GCC 只在 4.4 判定被调 ctor 可能抛时才发射该岛；
+//   本 TU 内 Manager ctor（0x0818fdd4 同 TU，AE 26/26）定义可见且体不抛 ⇒ 4.4 判 nothrow
+//   抑制；模板成员 create 的代码生成延至 TU 末（届时 ctor 定义恒可见），定义前置/显式
+//   实例化声明均无效（已三轮实测）⇒ 维持 N。我方 gap +13（orig 37 / our 24）。]
 
 // ---------------------------------------------------------------------------
 // 本 TU 实例化：GlobalInstance<ARAD::Arad_Dispatcher_Manager>::create()  @0x0818e956
@@ -354,14 +361,15 @@ namespace ARAD
                 "ITEM_PURCHASE_COUNT_CHECK MID[%d], CHARIDX[%d], ITEMIDX[%d], "
                 "CHECKTYPE[%d]",
                 info.mid, info.characNo, info.ipgNo, (int)info.checkType);
+            ret = 0;
         }
         else
         {
             *chk = info.buyable;
             memcpy(chk + 1, msg, 0x3f84);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            ret = 0;
         }
-        ret = 0;
     }
 out:
     return ret;

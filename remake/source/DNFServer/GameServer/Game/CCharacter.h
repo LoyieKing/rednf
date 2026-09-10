@@ -103,7 +103,15 @@ struct STSecondGrowTypeInfo
 
     _Additioal_info m_addInfo[2];                  // +0x00（0xa4）
     std::vector<std::pair<int, int> > m_skills[2]; // +0xa4（各 0xc）
-    int m_fieldbc;                                 // +0xbc → 共 0xc0
+    // [b28c-L15 P211 类型旋钮] set_data 的 +0x350+a*0xc0+b 逐字节写：ORIG
+    //   0x08349328..0x08349360 为「源字节先入 ecx → 地址后算 → mov %cl,0x10(%eax)」，
+    //   且无 regmove；reinterpret_cast<char*> 视图令我方多 1 条 mov %eax,%edx
+    //   （探针 /tmp/r5/n5/BossCharac/p2.cpp）。同址 uchar 元素视角按数组元素同型写即可。
+    //   sizeof/成员偏移/mangled 零影响（int 4 == unsigned char[4] 4）。
+    union {
+        int m_fieldbc;                             // +0xbc → 共 0xc0
+        unsigned char m_fieldbcBytes[4];           // +0xbc 字节视角（set_data 逐字节写）
+    };
 };
 
 struct STCharacterScript;  // 完整类型见 STCharacterScript.h（set_data 源表）
@@ -150,7 +158,14 @@ private:
     // +0x7d4..+0x7db：set_data（ORIG 0x08348ac7/0x08348e0c）按 grow 类型索引逐字节写入
     // this[idx + 0x7d4]（源 STCharacterScript 行内 +0x76）。CCharacList 以 0x7dc 步长
     // 遍历本类数组（CCharacList.md ctor/init/destroy），对象必须补足到 0x7dc。
-    char m_growTypeFlag[MAX_FIRST_GROWTH_TYPE];
+    // [b28c-L15 P211 类型旋钮] set_data 两处逐字节写：ORIG 0x08348ac0/0x08348e05 为
+    //   `movzbl 源 → mov %dl` 单段直存、无 regmove；char 视角令 4.4 因
+    //   char←unsigned char 异型多 1 条 mov %eax,%edx。加同址 uchar 视角（探针
+    //   /tmp/r5/n5/BossCharac/p1.cpp v3/v4 对照）后按同型写即可。sizeof/偏移不变。
+    union {
+        char m_growTypeFlag[MAX_FIRST_GROWTH_TYPE];
+        unsigned char m_growTypeFlagU[MAX_FIRST_GROWTH_TYPE]; // +0x7d4 同址 uchar 视角
+    };
 };
 
 // 布局自检：锁死 ORIG 数组步长 ABI（CCharacList = CCharacter[10]，步长 0x7dc；

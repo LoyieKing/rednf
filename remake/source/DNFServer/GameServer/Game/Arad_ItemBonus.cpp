@@ -10,6 +10,20 @@
 //   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
+// [S5AradDisp 2026-09-11 负结论 N·STL 实例化 EH] 本 TU 残差其一
+//   `_ZNSt20__uninitialized_copyILb0EE18uninitialized_copyIN9__gnu_cxx17__normal_iterator
+//    IPKN4ARAD13PurcahseBonusESt6vectorIS5_SaIS5_EEEEPS5_EET0_T_SE_SD_`（DIFF 57/40）:
+//   ORIG 0x088b7a35..0x088b7adb 保留 catch(...) 岛 —— 0x088b7aac `mov %eax,(%esp);
+//   call __cxa_begin_catch` → 0x088b7ac1 `call _ZSt8_DestroyIPN4ARAD13PurcahseBonusEEvT_S3_`
+//   → 0x088b7ac6 `call __cxa_rethrow` → 0x088b7acb/0x088b7adf `__cxa_end_catch` +
+//   `_Unwind_Resume`（push %esi + 帧 0x20）；我方同符号 size 0x75（无 catch 岛、push %ebx、
+//   帧 0x24）。函数体来自 4.4.7 头 `bits/stl_uninitialized.h` 的 __uninitialized_copy<false>
+//   （预处理实证含 __try/__catch，故非源码/头问题）：同旗标同头集的 /tmp/probe_pb.cpp
+//   探针（ARAD::PurcahseBonus 同形类型 + vector 拷贝）产出 0x8d **保留** catch，而本 TU 的
+//   同名实例被 4.4 判「try 区不抛」删除 ⇒ 属 TU 环境/编译器取舍，源码级不可控，且
+//   PurcahseBonus 定义在 ItemVendingMachine.h（越界）。仅 .o 级 EH cleanup 差异，
+//   对象语义等价 ⇒ 维持 N。
+// ============================================================================
 
 #include <math.h>
 #include <string.h>
@@ -432,7 +446,7 @@ namespace ARAD
     sig->m_field56 = 0;
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);
-    return 1;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -586,7 +600,14 @@ namespace ARAD
     else
     {
         LogManager::logFormat(
-            1, kAradFuncFile, __PRETTY_FUNCTION__, 0x187,
+            // §6.5 串盲区：ORIG .rodata 实读
+            // "bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)"
+            // （ORIG 侧 ARAD_ITEM 为 namespace 形，无 `static` 前缀）；本仓以
+            // class+static 重建 ⇒ __PRETTY_FUNCTION__ 展开多 7 字节 "static "。
+            // 改手写字面量逐字节对齐（同 db_dispatch 既有实践；指令形/mangled 不变）。
+            1, kAradFuncFile,
+            "bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)",
+            0x187,
             "Error process Item (charac:%u, item:%u, count:%d)",
             (unsigned int)user->getCurCharacNo(),
             (unsigned int)item.m_addInfo, item.m_addInfo2);

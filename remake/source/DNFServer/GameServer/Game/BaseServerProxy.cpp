@@ -26,9 +26,16 @@
 
 // ============================================================================
 // [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
-//   InitTcp 0x082fd47c  DIFF(171/167) P167 CLEAR(25/25)；本 TU 经
-//     dnf_game_cxx.sh 路由 C6446R（4.4.6 后端，N7 敏感族翻正）；残差 =
-//     errnoVal/ret 寄存器互换（路由表注释已记，P230 N7 边界）⇒ N 封顶。
+//   InitTcp 0x082fd47c  DIFF(171/170，改前 171/167) P167 CLEAR(25/25)；本 TU 经
+//     dnf_game_cxx.sh 路由 C6446R（4.4.6 后端，N7 敏感族翻正）。
+//     [N4 2026-09-11] 手法：ORIG 0x082fd537 `mov %eax,-0x54(%ebp)` 后
+//     0x082fd53a 才 `mov -0x1c(%ebp),%edi` ⇒ P0「ORIG 有槽往返必具名局部」；
+//     两分支 `*__errno_location()` 第 3 实参改 `errnoVal = *__errno_location()`，
+//     并在 `int ret;` 前声明 `int errnoVal;` ⇒ our 167→170，gap +4→+1
+//     （四数不劣：AE=11/IDENT=1/DIFF=2 不变）。
+//     残余 = ORIG 独有 `push %edi` + `mov -0x1c(%ebp),%edi`（ret 跨调用保活）
+//     与帧 0x6c（我方 0x60）、槽 -0x4c/-0x1c/-0x54（我方 -0x3c/-0xc/-0x10）
+//     ⇒ N7 寄存器分配/帧跨版本形，源码不可控，封顶。
 // ============================================================================
 
 #include "BaseServerProxy/BaseServerProxy.inc"
@@ -58,6 +65,7 @@
     }
     if (m_tcpHandler.m_sock < 0)
     {
+        int errnoVal;
         int ret;
         if (bSetNonBlock)
         {
@@ -66,7 +74,7 @@
             {
                 cMyTrace(__PRETTY_FUNCTION__, 0x134, 0)
                     ("%s CreateConnectionSocket() error(%d:%d:%s)",
-                     GetServerName().c_str(), ret, *__errno_location(),
+                     GetServerName().c_str(), ret, errnoVal = *__errno_location(),
                      strerror(*__errno_location()));
                 return 0;
             }
@@ -78,7 +86,7 @@
             {
                 cMyTrace(__PRETTY_FUNCTION__, 0x13d, 0)
                     ("%s CreateConnectionSocket() error(%d:%d:%s)",
-                     GetServerName().c_str(), ret, *__errno_location(),
+                     GetServerName().c_str(), ret, errnoVal = *__errno_location(),
                      strerror(*__errno_location()));
                 return 0;
             }

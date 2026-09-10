@@ -503,20 +503,33 @@ done:;
         // 空位检查：ORIG 逐背包区段 7 次 check_empty_count(zone, 2)（0x0821c8bb..），
         // 全部 ==1 才继续查货架 GetRemainCapacity(2, 8)。
         register bool invFull = true;
-        if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
-                (Inven_Item::ITEM_TYPE)1, 2) == '\x01') {
-        if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
-                (Inven_Item::ITEM_TYPE)2, 2) == 1) {
-        if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
-                (Inven_Item::ITEM_TYPE)3, 2) == 1) {
-        if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
-                (Inven_Item::ITEM_TYPE)10, 2) == 1) {
-        if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
-                (Inven_Item::ITEM_TYPE)9, 2) == 1) {
-        if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
-                (Inven_Item::ITEM_TYPE)5, 2) == 1) {
-        if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
-                (Inven_Item::ITEM_TYPE)6, 2) == 1) {
+        // [b23S3C] ORIG 0x0821c8bb.. 七次 check 处为 `call; xor $1,%eax; test
+        // %al,%al; jne <T>`（ORIG 0x0821c8c0/8ee/91c/94a/978/9a2/9cc 七处 xor
+        // 实读；7 个 jne 共享同一失败落点）。嵌套 `if (check==1){…}` 恒
+        // `test %al,%al; je`（无 xor）；`if(!c) goto` 虽出 xor+jne 但每个 goto
+        // 多 `jmp;nop` 跳板（998→1019 实测劣化）。正解 = **空 then + else 承载
+        // 后续**（e9 探针实证）：`xor;jne` 直跳、无跳板、每处 +1 条。
+        if (!static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)1, 2)) { }
+        else {
+        if (!static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)2, 2)) { }
+        else {
+        if (!static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)3, 2)) { }
+        else {
+        if (!static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)10, 2)) { }
+        else {
+        if (!static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)9, 2)) { }
+        else {
+        if (!static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)5, 2)) { }
+        else {
+        if (!static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)6, 2)) { }
+        else {
             if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->GetRemainCapacity(
                     (INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) > 1)
                 invFull = false;

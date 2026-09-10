@@ -342,6 +342,11 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
         static_cast<unsigned int>(GlobalData::s_systemTime_.getCurTickCount());
     unsigned int zero = 0;
     (void)zero;
+    // [N1B 2026-09-11 探针] ORIG 槽序（地址递增）：remain、tick、zero、size、
+    // headerLen、死槽、verdict ⇒ 4.4 声明序=地址递减，size 须声明在 zero 之后、
+    // headerLen 之前（原在循环内声明 ⇒ 得最高槽 -0x24，与 ORIG -0x2c 不符；
+    // 提前到 tick 之前 ⇒ 得 -0x34，亦不符）。
+    unsigned int size;
     // ORIG 4.1 把相邻两 int 字段合并为单次 8 字节写（`mov eax,0xe4; mov edx,0xe8`）；
     // CNetwork.h 已备 u64 整写视图 m_lastRecvGapPair（P206 先例），4.4 逐条重载
     // this 的问题由此消解。
@@ -356,6 +361,9 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
         cMyTrace t(__PRETTY_FUNCTION__, 0x69d, 0);
         t("(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
           reinterpret_cast<unsigned int>(m_network.m_recvBuf),
+          // [N1B 2026-09-11 负结论] `&m_network.m_recv[0]` 形已实测（ORIG +0x8c
+          // `lea 0x110(%eax),%edi` = 地址直算；我方 add+mov 两段）⇒ n1_v 归一后
+          // 残差**逐字节不变**，回滚。
           reinterpret_cast<unsigned int>(m_network.m_recv), m_network.m_recvOffset,
           received);
         m_network.m_bBufOffsetTrace = 1;                    // bufoffset 标记 +0x109
@@ -366,6 +374,10 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
     // （直接回跳循环头，无 setcc 物化）+ 入口 `jmp +0x10b` ⇒ 原码是
     // `for (;;) { ...; if (!(remain > 0xc)) break; }`；旧 do-while/while 形在
     // 4.4.7 恒产 `setg %al; test %al,%al`（探针 /tmp/m2probe_dw.o g1/g2 vs g3）。
+    // [N1B 2026-09-11] 探针：ORIG +0x101 `movl $0x0,-0x24(%ebp); jmp +0x10b`
+    //（循环入口前一个清零槽，函数其余处不再读）⇒ 试以具名局部复现。
+    int zeroPad = 0;
+    (void)zeroPad;
     for (;;)
     {
         if (m_network.m_recvOffset != 0)
@@ -384,9 +396,8 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
         std::memcpy(&hdr, m_network.m_recvBuf, 13);
 
         // ORIG 0x08647a59 `mov -0x76(%ebp),%eax; mov %eax,-0x2c(%ebp)`：m_size 以
-        // 32 位整读入具名 unsigned size 局部（P171 照抄 ORIG 的 32 位读形）。
-        const unsigned int size =
-            *reinterpret_cast<const unsigned int*>(&hdr.m_size);
+        // 32 位整写入具名 unsigned size 局部（P171 照抄 ORIG 的 32 位读形）。
+        size = *reinterpret_cast<const unsigned int*>(&hdr.m_size);
 
         if (size < 13 || size > 0x578)
         {
@@ -642,6 +653,10 @@ int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
     else
     {
         Inven_Item item;
+        // [N1B 2026-09-11 负结论] ORIG 0x086921f0 段 `mov -0x30(%ebp),%eax;
+        // mov %eax,%ebx; call G_CDataManager; mov %ebx,0x4(%esp)` = 实参先算后
+        // 跨 call 保活（4.1 冗余 regmove）；`(*G_CDataManager())` 解引用形已实测
+        // **无效**（残差逐字不变，仍折单段 `mov -0x30(%ebp),%ebx`）⇒ N7 封顶。
         CItem* base = G_CDataManager()->find_item(data.m_field0);
         if (base != 0)
         {

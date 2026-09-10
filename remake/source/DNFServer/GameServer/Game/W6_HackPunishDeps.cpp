@@ -378,6 +378,12 @@ namespace WongWork
     // int)cnt` 4.4 恒载 cnt 入寄存器而 ORIG mem 直比（P209）。**jcc 逐位交叉
     // 验证：37/37 MATCH**（控制流与 ORIG 等价，残差纯为寄存器分配/装载序，
     // 属 P75/N7 跨版本结构性差异）。ORIG 0x0869550c。
+    // [S2W6Deps 复核·负结论] 重新逐条核对（reloc 归一口径）：唯一残差 = prologue
+    // `push %esi` + `sub $0x40` vs 我方 `sub $0x44`，ORIG 用 %esi 跨 4 次 call 缓存
+    // 第 9 实参（索引 199/223/277/301：`mov 0x24(%ebp),%esi; mov %esi,0x1c(%esp)`），
+    // 我方 gcc11 每次从参数区重载入 %eax（**指令数完全相同**，仅寄存器角色差）。
+    // 该缓存由 gcc 分配器决定（同源多 call 跨活跃），源码改写（具名局部/指针）只会
+    // 引入新槽 ⇒ 维持 N7 封顶，不动。
     // [F2a-C05② 复测·不适用] 件级 F2 旋钮（具名局部 unsigned→int 求比较内存直比）
     //   逐条核对报告 5 处 ORIG `cmp -0xNN(%ebp),%eax`：其中 3 处（`setl` 族，
     //   ORIG 0x869550c+0x?? 的 cnt 循环尾测）我方已为同形 mem 直比（仅槽号差）；

@@ -51,15 +51,17 @@
 // 子串拷贝到 0x400 栈缓冲后 strcpy 回写（反汇编 0x0829f0ef 逐指令转写）。
 char* trim(char* s)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0829f0ef 循环变量/条件（js 与 cmp 0x20 顺序）
-    // 与 4.4 槽序镜像（P212/N98 族）；语义等价。
+    // [T2CryptoUtils 闭合] 原 [b28d-34] 的「槽序镜像」残差已消：声明序
+    // len→i→start + `i` 无声明处初值后置赋值 ⇒ 87/87 全等（AE，ndiff 0）。
     char buf[0x400];
     int len = strlen(s);
-    // [L13-round3 判据⑩] ORIG 0x0829f0ef：i@-0x14(深)/start@-0x10(浅)，`start=i`
-    // 形为 `mov -0x14,%eax; mov %eax,-0x10`；ORIG 两条零初始化 store 序为
-    // `-0x10 先 / -0x14 后`（4.4 函数头声明「先声明浅」⇒ start 先声明）。
+    // [T2CryptoUtils P331/P339 槽序] ORIG 0x0829f0ef 槽：len@-0x18(最深)/i@-0x14/
+    // start@-0x10(最浅) ⇒ 4.4 声明序须为 len→i→start（先声明=深槽），且 ORIG 两条
+    // 零初始化 store 序为 `-0x10 先 / -0x14 后`（start 先）⇒ i 不能带声明处初值，
+    // 须 `int i;` + 后置 `i = 0;`。此形 87/87 全等（ndiff 0）。
+    int i;
     int start = 0;
-    int i = 0;
+    i = 0;
     // ORIG 0x0829f11c..0x0829f134 条件序：先 `cmp $0x20,%al; jg 出口`，
     // 再 `test %al,%al; js 出口`（短路链先 >0x20 后 <0）；跳出时 start 即第一个非空白。
     while (i < len)
@@ -138,8 +140,9 @@ long long SECOND_TO_MILISECOND(int sec)
 }
 #include "GameUtils/operator_1.inc"
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0854f788 无 `cmpl $0,0xc(%ebp)` 前置，
-    // 我们多 1 条且帧 0x1020→0x1030（P0 表达式直用族）；语义等价。
+    // [T2CryptoUtils 复核] 原 [b28d-34] 的「多 1 条 + 帧 0x1020→0x1030」残差已消
+    // （va_start 前置于 strlen + `int used` ⇒ 137/137，gap 0）；残余 diff_lines=16
+    // 仅尾部 `0xfff-used` 的寄存器选择/`sub mem` 折叠（N4/N7 分配族，封顶）。
     // [L13-round3 P171 修正] 该防御分支 ORIG 完全不存在（0x0854f788 首条即
     // `movl $0x1000,0x8(%esp)`）⇒ 按 P171「ORIG 不写即删」删除 `if(!fmt)return;`：
     // 消 `cmpl $0,0xc(%ebp); je` 2 条 + 帧 0x1030→0x1020 + buf 槽 -0x101c→-0x1014。
@@ -153,9 +156,15 @@ long long SECOND_TO_MILISECOND(int sec)
     std::memset(buf, 0, sizeof(buf));
     if (m_flag != 8 && m_flag != 9)
         std::sprintf(buf, "%s(%d): ", m_name, m_line);
-    size_t used = std::strlen(buf);
+    // [T2CryptoUtils codegen+P339] ORIG 0x0854f7f0 的 va_start（`lea 0x10(%ebp),%eax;
+    // mov %eax,-0x10(%ebp)`）落在 strlen **之前** ⇒ 源码须 va_start 先于 used 计算；
+    // 且 used 须为 int：size_t 版使 4.4 对 `0xfff - used` 发
+    // `mov $0xfff,%eax; sub -0xc(%ebp),%eax; mov %eax,%edx`（常量物化+mem 直用，
+    // 136 条），int 版复现 ORIG `mov -0xc(%ebp),%eax; mov $0xfff,%ecx; sub %eax,%ecx`
+    // 形态（137/137，槽 -0xc 一致；strlen ≤ 0x1000 故转换无溢出）。
     va_list ap;
     va_start(ap, fmt);
+    int used = (int)std::strlen(buf);
     std::vsnprintf(buf + used, 0xfff - used, fmt, ap);
     va_end(ap);
 
@@ -164,7 +173,13 @@ long long SECOND_TO_MILISECOND(int sec)
     // 我方两具名局部占 -0x18/-0x1c 并整体下移 8 字节。改为 guard 实参内联。
     {
         Guard<Mutex> guard(reinterpret_cast<Mutex*>(
-            &CLog::instance()->m_mutexes[m_flag * 0x18]));
+            // [T2CryptoUtils 语义轴③] 下标必须是 m_flag：ORIG 0x0854f8a0 段仅
+            // `mov 0x8(%eax),%edx; mov %edx,%eax; add %eax,%eax; add %edx,%eax;
+            //  shl $0x3,%eax`（=m_flag*24，即 m_mutexes[m_flag] 的 sizeof 换算）；
+            // 旧码 `m_flag*0x18` 被再乘一次 sizeof(Mutex)=24 ⇒ 地址 m_flag*576，
+            // 越界写坏 CLog 之后的堆内存（m_flag=9 时偏 0x1440）。同 TU 对照：
+            // HistoryLog.cpp:334 与 LwServerWriter.cpp:38 均直用下标记法。
+            &CLog::instance()->m_mutexes[m_flag]));
         switch (m_flag)
         {
         case 0: CLog::instance()->logNotice(buf); break;

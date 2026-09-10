@@ -382,8 +382,16 @@ template <size_t N>
         }
     }
 
+    // [M2S5E 2026-09-11] P75 装载序旋钮（变量轴：显式 cast → 裸形参）：
+    //   ORIG 0x8aa5e9a `mov %eax,0xc(%esp); mov 0x10(%ebp),%eax; mov %eax,0x8(%esp)`
+    //   （先存 callee 返回值，再直接载形参 a）里**没有**任何转换指令；旧形
+    //   `reinterpret_cast<const char*>(a)` 让 4.4 视其为需提前求值的表达式，
+    //   产 `mov 0x10(%ebp),%edx; mov %eax,0xc(%esp); mov %edx,0x8(%esp)`（+1 条 edx
+    //   缓存）。ss_sprintf 为 `template<int N> int ss_sprintf(char (&buffer)[N],
+    //   const char* format, ...)`：N 仅由 errBuf[256] 推导，实参位无类型约束
+    //   ⇒ 传裸 a（同一指针值，位模式相同）不新实例化符号、语义等价。
     ss_sprintf(errBuf, "`%s is not found, %s`",
-               reinterpret_cast<const char*>(a), fileList_.GetFileName(table));
+               a, fileList_.GetFileName(table));
     return reinterpret_cast<const wchar_t*>(errBuf);
 }
 
@@ -440,6 +448,17 @@ template <size_t N>
 
     int lineNo = 0;
     char lineBuf[0x2928];
+    // [M2S5E 2026-09-11] P339 声明序：ORIG 槽序 isJpn(-0x2e)/isKor(-0x2d)/
+    //   lineNo(-0x2c)/foundDuplicate(-0x25)/r(-0x24)/i(-0x20)/count(-0x1c)
+    //   ⇒ foundDuplicate 的**声明**在 r 之前（4.4 按声明序自深至浅分配）；
+    //   旧形在 freeze() 之后才声明，令 4.4 把它放 -0x21、r 放 -0x28（两槽各偏 4）。
+    //   赋值点保持在 freeze() 之后（ORIG 0x56xx `movb $0x0,-0x25` 同点）。
+    bool foundDuplicate;
+    // [M2S5E 2026-09-11 负结论] `volatile int r` 试验：读数 393 vs ORIG 387
+    //   （gap 0→−6）且全函数槽整体平移（-0x38→-0x34、-0x2e→-0x2a、-0x2c→-0x28）
+    //   ⇒ 回滚。ORIG 0x8aa529e 段两处 r 比较为 4.1 的恒 load 形
+    //   `mov -0x24(%ebp),%eax; cmp $A,%eax; je`；4.4 -O0 对普通局部恒发 mem-compare
+    //   `cmpl $A,-0x24(%ebp); jne`（该处我方少 1 条）——4.4 无源形可翻（P75 封顶）。
     int r;
 
     while (!in->eof())
@@ -451,24 +470,28 @@ template <size_t N>
         char* value = 0;
         r = parseStringLine(lineBuf, &key, &value);
 
-        if (r == -2)
+        // [M2S5E 2026-09-11] 决策树 → 真 switch（P 族：手写 if/else-if → switch）：
+        //   ORIG 0x8aa529e+0x152 段为 `mov -0x24(%ebp),%eax; cmp $0xfffffffe,%eax;
+        //   je <err1>; cmp $0xffffffff,%eax; jne <skip>`（比较链 + 单次 load），
+        //   正是 4.1 -O0 对 switch 的发射形；旧 if/else-if 让 4.4 发
+        //   `cmpl $A,-0x24(%ebp); jne`（mem-compare，少 1 条 load）。
+        switch (r)
         {
+        case -1:
             if (err != 0)
             {
                 ErrorLog e;
-                e.m_code = static_cast<int>(0x80000001);
+                e.m_code = static_cast<int>(0x80000000);
                 e.m_message = path;
                 e.m_flag = lineNo;
                 err->push_back(e);
             }
             return false;
-        }
-        else if (r == -1)
-        {
+        case -2:
             if (err != 0)
             {
                 ErrorLog e;
-                e.m_code = static_cast<int>(0x80000000);
+                e.m_code = static_cast<int>(0x80000001);
                 e.m_message = path;
                 e.m_flag = lineNo;
                 err->push_back(e);
@@ -513,9 +536,15 @@ template <size_t N>
     dict->freeze();
 
     // 重复连续 key 检测
-    bool foundDuplicate = false;
+    foundDuplicate = false;
+    // [M2S5E 2026-09-11] P339 声明序（ORIG 槽深→浅）：ORIG `addl $0x1,-0x20(%ebp)`
+    //   + `cmp -0x1c(%ebp),%eax` ⇒ 循环变量 i 在 -0x20（深）、上限 count 在 -0x1c
+    //   （浅）；旧形 `int count = ...; for (int i = ...)` 让 4.4 把 count 放 -0x20、
+    //   i 放 -0x1c（全函数 10 处 mem 引用互换）。把 i 提到 count 之前声明
+    //   （`for (; i < count; ++i)` 保持初始化位置与 ORIG 的 `movl $0x0,-0x20` 同点）。
+    int i = 0;
     int count = dict->getCount() - 1;
-    for (int i = 0; i < count; ++i)
+    for (; i < count; ++i)
     {
         // ORIG 0x564b：strcmp/printf 的 getKey 均无具名槽（P0 实参内联），
         // 第 2 实参（i+1）先求值。
@@ -642,6 +671,17 @@ template <size_t N>
 // 6 条/组 ×3 = 18）对 4.4 的 3 条单 `jmp` ⇒ 18−3 = 15 ≈ 全部 gap（余 1 条对齐
 // nop 口径差）。P216 方向为「我方多 _Unwind_Resume」，与本件反向不适用；无源形
 // 可控项 ⇒ N91/N104 封顶维持。
+// [M2S5E 2026-09-11 复验·新旋钮亦封顶] 本轮按「Ghidra bVar1 被复用两次」假说
+//   在探针（/tmp/probeRDAR，4.4.6 后端 + 真 TU 旗标）复现 ORIG 结构：
+//   `bool ret=false; bool ok = !part1.empty() && !partInner.empty(); if (ok) {
+//    std::string out=…; ok = !out.empty(); if (ok) { s.clear(); s=out; ret=true; } }
+//    return ret;` ⇒ 255 条（我方现形 259、ORIG 274），**零归一化组** ⇒ 具名 bool
+//   在 4.4 -O0 恒落栈（`movzbl -0x9(%ebp),%ebx`），永不复现 ORIG 的 esi sink。
+//   结论：ORIG 0x8aa631e..0x8aa63e7 的三组 6 条归一化
+//   （`test %esi,%esi; jne L; mov $0x0,%esi; jmp L2; L: mov $0x1,%esi`）是 4.1 -O0
+//   把跨 EH-cleanup 的临时保活到寄存器（esi）并在每个析构点重建的行为；4.4 -O0
+//   只用栈槽/单次消费（我方 259 条中仅 ~out 后 1 处 `test %esi,%esi; je; mov $0,%ebx`）
+//   ⇒ 源形不可翻，gap +14 封顶维持。
 #include "RDARScriptStringManager/changeSpacilTagStr.inc"
 {
     // ORIG 0x8aa60b0：把 "<URL LINK>内文</URL LINK>" 转为 0x1c 内文 0x1d，

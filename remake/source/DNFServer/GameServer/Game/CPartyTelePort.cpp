@@ -235,7 +235,11 @@ struct effect_data
     {
         return 0;
     }
-    char result = 1;
+    // [N6S2NegB 2026-09-11] ORIG 0x85bbb21 `movb $0x1,-0xd(%ebp)` / 0x85bbb7f
+    // `movb $0x0,-0xd(%ebp)` / 尾 0x85bbbb1 `movzbl -0xd(%ebp),%eax` ⇒ 局部为
+    // **bool**（char 形在 4.4 下 `return` 会被插 `cmpb; setne`，多 1 条）。
+    // 配套：callee 返回类型已由父泳道 N6Free231to250 改 bool（.h:48）。
+    bool result = true;
     {
         for (int i = 0; i <= 3; ++i)
         {
@@ -252,7 +256,7 @@ struct effect_data
             // （P222），负极 `== 1 → continue` 产 sete/jne 反演。
             if (get_teleport_member_state(i) != 1)
             {
-                result = 0;
+                result = false;
             }
         }
         if (result != 0)
@@ -273,9 +277,27 @@ struct effect_data
 //    -0x70/-0x6c），4.4 复用于 -0x38/-0x34（-0x28/-0x24），cMyTrace 反向；
 //    声明序/位置调整无效（4.4 聚合优先低槽 + 标量分区）。
 // 其余指令序列（归一化地址/槽号后）与 ORIG 逐条一致；p167 调用点差集 CLEAR。
+// [N6S2NegB 2026-09-11 复核] 真残差收敛为 1 条（n1_v: DIFF orig=305 our=306 gap=-1）：
+//   ORIG 0x085bc034 尾 `movzbl -0x35(%ebp),%eax`，我方 `cmpb $0x0,-0x35(%ebp); setne %al`；
+//   其余 305 条（槽号归一后）逐条全等，差集仅 3 处 .o 未重定位立即数显示伪差
+//   （prett 串 / "party_teleport_*" / &GlobalData::s_systemTime_）。
+//   根因链（探针 /tmp/probe_pt/w1..w7）：`char` 局部 return 到 bool 函数 ⇒ 4.4 恒插
+//   cmpb+setne（w1/w4/w5）；`bool` 局部 + **bool callee** ⇒ 赋值仅 `mov %al,槽`、末尾
+//   `movzbl 槽,%eax`（w6 = ORIG 形）；`char` 局部 + bool callee ⇒ 末尾仍 setne（w7）。
+//   ⇒ ORIG 真相是 `bool check_cur_teleport_state()` + process_teleport 的 result 为 bool；
+//   我方两者皆 char。[落地 2026-09-11] 父泳道 N6Free231to250 改 `CPartyTelePort.h:48`
+//   为 bool，本 TU 同步三处：.inc 签名、`bool result = true/false`、本函数 `bool result;`。
+//   落地读数（compare_tu_game_orig 口径）：本件 DIFF→**NEAR**（301=301；槽号归一后与 ORIG
+//   逐条全等）。NEAR 已为口径上限：残差仅 ①clean 不归一栈槽号（我方 `-0x45..` vs ORIG
+//   `-0x35..`，4.4 槽分配 +0x10 见 ②）②ORIG 侧符号化立即数 `$&_ZZ…PRETTY_FUNCTION__` /
+//   `$"party_teleport_*"` / `$&_ZN10GlobalData13s_systemTime_E` vs 我方 .o 侧 `$<A>`
+//   （clean 单侧归一，两侧永不相等）。TU 四数 near 0→1 / diff 3→2，其余不变；
+//   check_cur_teleport_state 仍 AE 56=56。
 #include "CPartyTelePort/process_teleport.inc"
 {
-    char result;
+    // [N6S2NegB 2026-09-11] ORIG 0x085bc034 `movzbl -0x35(%ebp),%eax`（bool 槽直取）
+    // + 0x085bbbe2 `mov %al,-0x35(%ebp)`（callee 返回 bool 无转换）⇒ result 为 **bool**。
+    bool result;
     if (m_party == 0)
     {
         return 0;

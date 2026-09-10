@@ -669,6 +669,18 @@ namespace pvp_assault
     //   0x085a0781 `mov %eax,-0xc(%ebp)`）；4.4 对具名 `inv` 必落槽，无法表达跨守卫的
     //   寄存器延续 ⇒ 该 4 条为我方不可造段（去掉具名会多一次 getCurCharacInvenR 调用，
     //   p167 会 EXTRA，禁止）。帧 0x90 vs 0x80 由 inv/守卫槽引起。
+    // [M2S5E 2026-09-11 负结论·实测回滚] ① 删 inv 具名（改入口
+    //   `int slot = (int)reinterpret_cast<size_t>(user->getCurCharacInvenR());`）：
+    //   编译通过，读数 129 vs ORIG 133（gap 0→+4，劣化），且槽仍不对齐
+    //   （deadItem -0x69 vs ORIG -0x65、packet -0x30 vs -0x28、帧 0x90 vs 0x80）
+    //   ⇒ 已回滚。根源：ORIG 入口 4 条（0x085a0765 `mov 0xc(%ebp),%eax; mov (%eax),%ebx`
+    //   + 0x085a0775 `mov %ebx,0x4(%esp); mov %eax,(%esp)`）是 4.1 不可达块的寄存器
+    //   延续残留；删 inv 后我方无指令可补这 4 条。
+    //   ② 探针实证（/tmp/probeRDAR/Game/RDARScriptStringManager.cpp，4.4.6 后端 + 带 EH
+    //   作用域，FULLFLAGS 复刻）：`if(0)` / `if(false)` / `goto` / `const int z=0` 四种形
+    //   一律 DCE 块体（块内 0 条发射），只有 volatile 守卫保留块体（4 条
+    //   `movb/movzbl/test/je`）vs ORIG 1 条 `jmp`（0x085a077c）⇒ 「保留不可达块」是
+    //   4.1 -O0 不做 CFG DCE 的行为，4.4 无源形等价物；P337 折衷即上限，维持。
     int slot = 0;                                         // ORIG -0xc（+0x008 movl）
     const CInventory* inv = user->getCurCharacInvenR();   // ORIG +0x1a（返回值仅死块用）
 

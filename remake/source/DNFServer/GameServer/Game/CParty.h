@@ -497,8 +497,11 @@ public:
     // `call; xor $0x1,%eax; test %al,%al; je`（P292/P168a）⇒ bool 返回。
     bool CheckHellCoinLimint(int param);  // ORIG eax=0/1（checkLimitUsedCoinCondition 消费）
     bool checkDugeonInoutTime(int param);  // ORIG 尾部 isDungeonOpen 直落透传（无 movzbl）
-    int checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
-                                   ENUM_CMDPACKET cmd);   // ORIG 返回错误码（0x85abc80）
+    // [M1Free76to90 2026-09-11] ORIG prett @0x08cbb700 size 0x62 实字节直证返回类型为
+    // `ENUM_ERROR`（我方原 int ⇒ 同符号 0x5b，§6.5 日志契约差 7 字节）；mangled 不含返回
+    // 类型 ⇒ 零 ABI 影响。
+    ENUM_ERROR checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
+                                          ENUM_CMDPACKET cmd);   // ORIG 返回错误码（0x85abc80）
     int checkInoutConditionDungeon();
     bool checkDungeonDifficulty(char difficulty, CDungeon const* dungeon);
     bool checkFreeRevivalCondition(CDungeon const* dungeon);

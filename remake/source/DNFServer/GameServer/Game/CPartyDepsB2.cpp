@@ -357,7 +357,7 @@
 {
     int ret;                                            // ebx（单出口寄存）
     if (dungeon == 0)
-        return 1;
+        return static_cast<ENUM_ERROR>(1);
 
     PacketGuard packet;                                 // ORIG -0x28
     unsigned char ancientFlag = 0;                      // -0x29（ORIG 先存 flag 后构 packet）
@@ -553,7 +553,7 @@ TOURNAMENT_CHECK:
     ret = 0;
 
 DONE:
-    return ret;
+    return static_cast<ENUM_ERROR>(ret);
 }
 
 // ============================================================================

@@ -365,7 +365,11 @@ struct NetFlagView
     else
     {
         LogManager::logFormat(1, "ExchangeServerNetwork.h",
-            "Send(PacketGuard&)", 0x228,
+            // [M1Free76to90 2026-09-11 · P139] 原手写串缺返回类型/类限定；ORIG 局部静态
+            // `_ZZN15exchange_server8CSession4SendER11PacketGuardE19__PRETTY_FUNCTION__`
+            // @0x08c79b40 size **0x33** = `bool exchange_server::CSession::Send(PacketGuard&)`
+            // （声明已是 bool ⇒ 展开逐字节一致）。
+            __PRETTY_FUNCTION__, 0x228,
             "Packet.is_finallized return false");
         return 0;
     }

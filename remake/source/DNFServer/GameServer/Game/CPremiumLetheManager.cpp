@@ -181,7 +181,8 @@ unsigned char CPremiumLetheManager::NOT_USE_LETHE_STATE = 0;
     return true;
 }
 
-// [b28d-solo 2026-09-11] ORIG 0x085c40aa | 101 / our 102（gap −1）。全条比对仅 1 条差：
+// [b28d-solo 2026-09-11 · 新口径 n1_v.py] ORIG 0x085c40aa | **AE orig 101 / our 103**
+// （gap −2；旧 game_func_report 口径假 DIFF 101/102）。差异仅我方多 2 条：
 // ORIG 0x085c41d1..0x085c41dc `call PacketGuard::~PacketGuard; jmp <epilogue>` 之后无填充，
 // 我方同点多 1 条 jmp 后 `nop`（对齐填充；属 P6.1 nop 豁免族，但工具只剥 ret/call 之后者）。
 // 条件段 `call isAffectedPremium; xor $1; test %al,%al; jne`（bool 消费侧）两侧全等；
@@ -222,7 +223,9 @@ FAIL_TRACE:
     }
 }
 
-// [b28d-solo 2026-09-11] ORIG 0x085c421e | 328 / our 327（gap −1；本轮 340→327，−13 条）。
+// [b28d-solo 2026-09-11 · 新口径 n1_v.py] ORIG 0x085c421e | DIFF orig 328 / our 328（gap 0；
+// 本轮由旧口径 328/340 推进 13 条；旧 game_func_report 口径写 our 327）。负条件 goto 复测：
+// DIFF 328/332（gap −4，帧 0x13c）⇒ 维持回滚。
 // ① 语义轴真修 2 处：kind2/kind3 映射 —— ORIG 0x085c427c / 0x085c45e4 直证
 //    `movl $0x0; cmp $0xffffffff,%eax; je →1; test %eax,%eax; jne →2`（Ghidra 同判
 //    `(kind == -1) || (kind == 0) ? 1 : 2`），原码误作 `-1 → 0` ⇒ givePvPSkillTree /
@@ -413,7 +416,8 @@ FAIL_TRACE:
     SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* result =
         guard->GetInBuffer<SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD>();
     result->m_accID = user->get_acc_id();
-    // [b28d-solo 负结论] ORIG 0x085c48f4 `mov -0xc(%ebp),%edx; mov %eax,0x4(%edx)`
+    // [b28d-solo 负结论 · 新口径 n1_v.py: AE 127/127 gap 0 ✓] ORIG 0x085c48f4
+    // `mov -0xc(%ebp),%edx; mov %eax,0x4(%edx)`
     // （2 条形）⇒ ORIG 的 m_characNo 与 `getCurCharacNo()`（unsigned int）同型；
     // 头内声明为 int（SigTypes_E.h:959）时 4.4 恒插 `mov %eax,%edx` 值搬运
     // （our 128，gap −1，残余仅此 1 条）。已试并回滚：本 TU 内

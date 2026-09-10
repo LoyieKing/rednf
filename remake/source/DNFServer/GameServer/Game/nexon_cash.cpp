@@ -359,22 +359,39 @@ positive:
         FD_SET(static_cast<unsigned int>(m_socket), &writeSet);
 
         result = ::select(m_socket + 1, 0, &writeSet, 0, &timeout);
+        // [S4NexonProto] 负结论：ORIG 0x081afc03 段的「bool 物化」形
+        // （`mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`）在 4.4 下不可造——
+        // 已试 3 形：`&&` 裸形 / `static_cast<bool>(...)` / `static_cast<int>(...) != 0`，
+        // 三者均产短路形（`jns/je` 直跳 + 内联 return 块）。第一段（5 条件）
+        // 同理（`shr $0x1f` 符号位物化 vs 4.4 `cmpl $0; jns`）。
+        // 另：ORIG 0x081afada `mov -0x2c(%ebp),%ecx`（len）在 `lea -0x3c(%ebp)`
+        // 之前 = 4.1 的纯右→左实参求值序；4.4 恒为「arg2(lea)/arg1/arg3」固定序
+        // （探针 /tmp/probe/argo.cpp A1..A3 三形同序；getsockopt 五实参同理
+        // A4/A5：sock→&optLen→&soError）。属前端行为，源码侧不可造。
         if (result < 0 && errno != EINTR)
             return false;
-        if (result <= 0)
+        // [S4NexonProto] ORIG 0x081afc36 `jle 0x081afc86`（条件假跳**函数尾部**
+        // 的失败岛 +0x1ee）⇒ 源码是 if/else 形：then 块 fallthrough、else 块
+        // 落函数尾（旧形 `if (result <= 0) return false;` + 平铺令 4.4 把该
+        // return 块放中间：`jg +0x193; mov $0; jmp end`，岛序与 ORIG 不符）。
+        if (result > 0)
+        {
+            // [b28d-solo-nexon_cash] P171：ORIG 0x081afc6a 无 soError 预清
+            // （仅 movl $0x4,-0x40 写 optLen），槽序 soError@-0x44/optLen@-0x40。
+            // [b28d-solo-nexon_cash] P212：块内 4.4 先声明占浅槽 ⇒ optLen 先声明
+            // 得 -0x40、soError 后声明得 -0x44（=ORIG 槽序）。
+            socklen_t optLen = 4;
+            int soError;
+            if (::getsockopt(m_socket, 1 /*SOL_SOCKET*/, 4 /*SO_ERROR*/,
+                             &soError, &optLen) < 0)
+                return false;
+            if (soError != 0)
+                return false;
+        }
+        else
+        {
             return false;
-
-        // [b28d-solo-nexon_cash] P171：ORIG 0x081afc6a 无 soError 预清
-        // （仅 movl $0x4,-0x40 写 optLen），槽序 soError@-0x44/optLen@-0x40。
-        // [b28d-solo-nexon_cash] P212：块内 4.4 先声明占浅槽 ⇒ optLen 先声明
-        // 得 -0x40、soError 后声明得 -0x44（=ORIG 槽序）。
-        socklen_t optLen = 4;
-        int soError;
-        if (::getsockopt(m_socket, 1 /*SOL_SOCKET*/, 4 /*SO_ERROR*/,
-                         &soError, &optLen) < 0)
-            return false;
-        if (soError != 0)
-            return false;
+        }
     }
 
     memcpy(&m_peerAdrs, &adrs.sin_addr, 4);

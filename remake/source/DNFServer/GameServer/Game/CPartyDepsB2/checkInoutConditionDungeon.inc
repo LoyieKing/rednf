@@ -1,1 +1,1 @@
-int CParty::checkInoutConditionDungeon(CDungeon const* dungeon,
+ENUM_ERROR CParty::checkInoutConditionDungeon(CDungeon const* dungeon,

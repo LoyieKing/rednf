@@ -71,6 +71,11 @@ static unsigned int getStringHashValue(const char* s)
     // [L6 round3 · P141 实测] 删显式 `if (*it)` 包裹：ORIG 只有 `delete[]` 自带的
     // 一次空指针守卫（`test %eax,%eax; je`），我方显式 if 使其物化为
     // `test; setne %al; test %al,%al; je`（OURS-only setne/test×2/je + 3 call，+11 条）。
+    // [b28e-S4 回滚] ORIG 0x08ab22c6~0x08ab233c 虽为「begin/end 各一次 + 后缀
+    //   it++」，但 for-init 双声明 + it++ 实测 76→**80**（N3 编译读数）：
+    //   4.4 在 for-init 双声明下于尾部多发 `~vector<StringEntity>`/`~vector<uchar*>`
+    //   两次析构调用（+4 条，ORIG 无）⇒ 该形比原形更远。回滚到 for(cond 内
+    //   blocks_.end(), ++it) 形（76 vs ORIG 73 为既有封顶态）。
     for (std::vector<unsigned char*>::iterator it = blocks_.begin();
          it != blocks_.end(); ++it)
     {
@@ -183,20 +188,23 @@ static unsigned int getStringHashValue(const char* s)
 
     // [b28d-48] ORIG 0x08ab2528 段：先 3×`movl $0`（{} 值初始化 -0x20/-0x1c/-0x18）
     // 再 `mov -0x10,%eax; mov %eax,-0x20`（probe.hash=h）——逐字段赋值形顺序反。
+    // [b28e-S4] ORIG 0x08ab2546~0x08ab255e 只写 probe.hash（3 条 movl $0 清零 +
+    //   `mov -0x10,%eax; mov %eax,-0x20`），无 probe.key 写入 ⇒ 删该行。
     StringEntity probe = {};
     probe.hash = h;
-    probe.key = key;
 
     std::pair<std::vector<StringEntity>::iterator,
               std::vector<StringEntity>::iterator> range =
         std::equal_range(buckets_[bucket], buckets_[bucket + 1], probe);
 
-    for (std::vector<StringEntity>::iterator it = range.first;
-         it != range.second; ++it)
+    // [b28e-S4] ORIG 0x08ab2599 `jmp` 直落条件体（equal_range 结果原地用，无
+    //   `it = range.first` 拷贝），循环体尾 `local_14 = it++`（后缀
+    //   operator++(int)）⇒ 直接迭代 range.first 并用后缀 ++。
+    for (; range.first != range.second; range.first++)
     {
-        if (std::strcmp(it->key, key) == 0)
+        if (std::strcmp(range.first->key, key) == 0)
         {
-            return it->value;
+            return range.first->value;
         }
     }
     return 0;

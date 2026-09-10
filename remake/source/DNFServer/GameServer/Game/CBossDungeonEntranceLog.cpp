@@ -229,8 +229,13 @@
             //   GetInBuffer ⇒ 源形必须保留 operator-> 两层链。
             STBossDungeonTowerLog* out =
                 guard.operator->()->GetInBuffer<STBossDungeonTowerLog>();
-            std::memcpy(out, &(*it).second, 0x10);
-            std::memset(&(*it).second, 0, 0x10);
+            // [b28c-p167 真缺口] ORIG 0x081569e1 / 0x08156a06 两处均为
+            //   `lea -0x14(%ebp); call _ZNKSt17_Rb_tree_iteratorISt4pairIKj21STBossDungeonTowerLogEEptEv`
+            //   （即 operator->）再 `add $0x4,%eax` 取 value ⇒ 源形必须是
+            //   `it->second`；写成 `(*it).second` 会发射 `deEv`（operator*）。
+            //   p167 差集实证：MISSING ptEv ×2 / EXTRA deEv ×2（calls 27=27）。
+            std::memcpy(out, &it->second, 0x10);
+            std::memset(&it->second, 0, 0x10);
         }
 
         m_logMap.clear();                      // ORIG map::clear

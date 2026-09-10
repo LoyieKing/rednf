@@ -355,6 +355,57 @@
 //   证据与逐件读数：/tmp/L9/{D,E,F,J,K,L}/RESULT.md、/tmp/{CUser,InterDispatcher}_sizes.tsv。
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// b28d-N8CUser 第八轮（2026-09-11 04:00–05:00，单代理独占本 TU）：AE 转正 ×2 + §6.5 串盲区
+//   真修 ×1 + P139 符号补齐 ×2 + 四轴审计封账。TU 四数 **808/1715/5/70 → 808/1717/5/68**
+//   （ae +2、diff −2、identical/near 持平、missing 588 零增，**零劣化**）。
+//   口径：compare_tu_game_orig.py（四数）+ 自建 reloc 归一逐件 diff（/tmp/n8cu/fn_diff2.py，
+//   与 /tmp/n1_v.py 同口径）。**禁用** `game_func_report --no-compile` 的 verdict —— 其 objdump
+//   不带 -r，.o 未重定位 call 显示成本函数+偏移 ⇒ 恒判假 DIFF（本波全员广播）。
+//   A. AE 转正（正条件包裹旋钮 P214①；判据 = ORIG 的 fall-through 属于哪个分支）：
+//      · `SendPacket`：case 2/3 由 `if (p == 0) Send(packet); else p->f();` 交换为
+//        `if (p != 0) p->f(); else Send(packet);` —— ORIG 0x0867b9xx 决策树内
+//        `cmpl $0x0,-0x10(%ebp); je <this 分支>` ⇒ fall-through 是 p!=0 分支；旧形 4.4 产
+//        `jne` + fall-through = this 分支（条件方向与块序双反、diff 16 行）⇒ 现 0 行、68=68 AE。
+//      · `send_ontime_reward_start_notify`：**半包裹**（只把第一个 if 改成
+//        `if (ev != 0) { IsEventing 检查 } else { trace; return 0; }`；全包裹形实测 26 行
+//        反劣于原 25 行，已弃）—— ORIG 0x0868c194 `cmp DWORD PTR [ebp-0x24],0x0; je 0x0868c1c5`
+//        （else 块 = trace 紧跟 IsEventing 的 return-0 岛）⇒ 现 0 行、151=151 AE。
+//   B. §6.5 串盲区真修（AE 不可见，运行期日志文本）：`DB_LogBuyItem::makeRequest` 的
+//      `__PRETTY_FUNCTION__` 第一参类型 —— ORIG prett 实字节 @0x08b639e0/133B =
+//      `static void DB_LogBuyItem::makeRequest(memberIdentificationNumber_t, unsigned int,
+//      unsigned int, unsigned int, ENUM_DBLOG_ITEM_TYPE)`，我方旧形 `unsigned int,...`
+//      ⇒ 本 TU 顶部补 `typedef unsigned int memberIdentificationNumber_t;`
+//      （与 InterSelectPcroomDailyReward.h:18 同型；重复 typedef 合法）+ 定义侧首参改名。
+//      探针实证（c6root 4.4.7，/tmp/n8cu/probe）：声明写 unsigned int、定义写 typedef 名
+//      ⇒ prett 取**定义处拼写**。改后 `strings /tmp/tu_CUser.o` 该串与 ORIG 逐字节一致，
+//      TU 四数零劣化（ours-only 串扫描清零）。
+//   C. P139 符号补齐（零语义风险）：`master_new_skills`（2 处 logFormat 实参）与
+//      `_processEffectItem`（cMyTrace 实参）的手写签名字符串 → `__PRETTY_FUNCTION__`
+//      ⇒ 本 TU PF 符号 26→28，28/28 内容与 ORIG 逐字节一致（nm 取址读 .rodata 全量比对：
+//      content mismatch = 0、发明 PF = 0）。父泳道点名的第 3 处 `AddSecuRewardItem` 为**假缺口**：
+//      ORIG 本体 0x08688328 仅 20B（push/mov/sub $0xa4/mov %al,-0xa4/leave/ret，**零 prett 引用**），
+//      ORIG 侧该 PF 符号属他 TU 副本 ⇒ 不落地。
+//   D. 四轴审计（全 TU 复扫；结论 = 已清零 / 无新真缺口）：
+//      · p167（96 件）：MISSING/EXTRA 全为 C1/C2、D1/D2 同址别名（P93 伪差）+ N130（C++11 右值
+//        `pair<int,int>::pair<unsigned long,int>(pair<...>&&)`）+ N89 伴生模板件 ⇒ 无真游戏域 callee 缺口。
+//      · 串轴：our-only 串 1 项（即 B 项，已修）；strall.py 升级版复扫仅余 base64 码表/typeinfo
+//        碎片（结构性假阳性）。编码轴：本 TU 非 ASCII 字面量 **0 处**。
+//      · 大位移轴（disp ≥ 0x20000 = CUser 成员域）：唯一候选 `NextCharacMoneyLog` 我方 0x79678
+//        vs ORIG 0x79670 经逐条直证为**常量分解差**（我方 0x79678+lea 0x4 ≡ ORIG 0x79670+lea 0xc
+//        = member+0x7967c）⇒ 非字段错位；CheckQuestMonster 0x11d/0x15a 等全为 `lea [ebp-…]` 栈帧位移。
+//   E. 负结论（本轮实测/直证后封 N，未落地）：
+//      · `setInitQuestPoint` 仅差 1 条 `jmp`（ORIG 0x868aeff `jmp 0x868af02` 跳过 else 位 nop）：
+//        4.4 前端折叠「跳转到紧邻下一条」⇒ if 包裹/continue/goto 三形均不可复现 ⇒ N。
+//      · `CacheCharacterMemory`：ORIG `setne+test+je <函数尾 return-0 共享岛>` vs 我方 4.4
+//        `sete+…+本地岛`（setcc 方向 P168a/P248 + 共享尾岛 P325 双轴同现）⇒ N。
+//      · `GetSkill` 的 add+mov vs lea 折叠、`_deleteSpecificItemAccountCargo` 的 `setne+test` 物化、
+//        `STGuildDBInfoOnly::C1` 的 %edx/%eax 角色、`WorkPerFiveMin` 的 %edi/%esi 角色、
+//        `gainExpAsUpperMember` 的 x87 槽 ⇒ 均 N7/N18a/N82/N115 封顶（逐件 diff /tmp/n8cu/diffs*.txt）。
+//   证据与逐件读数：/tmp/n8cu/{base_compare,scan_strs_out,disp_all,p167_all,diffs1,diffs2,diffs3}.txt、
+//     /tmp/n8cu/rank.py（逐件 reloc 归一行数排序）、/tmp/n8cu/fn_diff2.py。
+// ---------------------------------------------------------------------------
+
 #include <string.h>
 #include <cstdarg>
 #include "TimeLog_.h"      // CUser::LogHistory（ORIG 0x0867c8d8 时间头）
@@ -773,6 +824,11 @@ public:
 // → <<0x251/<<-1/<<accId/<<characNo/<<itemIdx/<<type/<<value
 // → NumberToString(accId,0) 独立求值 → cMyTrace(__PRETTY_FUNCTION__,0x5af,0)
 // → trace(fmt,accStr,characNo,itemIdx,type,value) → s_msgq_mgr->put(LOGDB_Q,guard)。
+// [P110] ORIG prett 实字节（0x8b639e0，133B）第一参类型名为 `memberIdentificationNumber_t`
+//   ⇒ 定义侧参数必须写该 typedef 名（GCC 取**定义处拼写**展开 prett；探针实证：
+//   声明写 unsigned int、定义写 typedef 名 ⇒ 展开取 typedef 名）。typedef 与
+//   InterSelectPcroomDailyReward.h:18 同型（重复 typedef 合法），本 TU 顶部补齐。
+typedef unsigned int memberIdentificationNumber_t;
 #include "CUser/makeRequest.inc"
                                 unsigned int itemIdx, unsigned int type,
                                 ENUM_DBLOG_ITEM_TYPE value)
@@ -3770,19 +3826,24 @@ public:
     case 2:
     {
         CParty* pParty = (CParty*)GetParty();
-        if (pParty == 0)
-            Send(packet);
-        else
+        // 2026-09-11 N8CUser P214①/P222 正条件：ORIG 0x0867b9xx 决策树 case2 段
+        //   `cmpl $0x0,-0x10(%ebp); je <this 分支>` ⇒ fall-through 是 pParty!=0 分支
+        //   （receiver=槽 %ebp-0x10），我方旧形 `if (pParty==0) Send(...) else ...`
+        //   产 `jne` + fall-through=this 分支 ⇒ 条件与块序双反。交换两分支体。
+        if (pParty != 0)
             pParty->send_to_party(packet);
+        else
+            Send(packet);
     }
     break;
     case 3:
     {
         WarRoom* pRoom = (WarRoom*)GetWarRoom();
-        if (pRoom == 0)
-            Send(packet);
-        else
+        // 同上（ORIG case3 段同形：je 跳 this 分支、pRoom!=0 块 fall-through）。
+        if (pRoom != 0)
             pRoom->SendToRoom(packet);
+        else
+            Send(packet);
     }
     break;
     }
@@ -8818,14 +8879,22 @@ struct CharacViewCacheView
     //     `mov -0x24(%ebp),%eax` 直接作 this 调 get_reward_state ⇒ 无 ev 二次拷贝
     //     （我方旧 `CEventBase* eventRaw` + `COnTimeEvent* ev` 多占 -0x20 且多 2 mov）。
     COnTimeEvent* ev = (COnTimeEvent*)GlobalData::s_event_manager->GetRepeatEvent(0x33);
-    if (ev == 0)
+    // 2026-09-11 N8CUser P214①（正条件包裹）：ORIG 0x0868c194 `cmp DWORD PTR
+    //   [ebp-0x24],0x0; je 0x0868c1c5` ⇒ fall-through 是 ev!=0 主体，而 trace
+    //   早退块落 if 体之后（0x0868c1c5，紧跟 IsEventing 的 return-0 出口）；
+    //   旧早退形（`if (ev==0) { trace; return 0; }`）4.4 产 `jne` + fall-through
+    //   = trace 块 ⇒ 条件方向与块序双反。
+    if (ev != 0)
     {
-        cMyTrace(__PRETTY_FUNCTION__, 0xa7f7, 5)
-            ("[ON_TIME_EVENT] send_ontime_reward_start_notify() error");
-        return 0;
-    }
     if (!ev->IsEventing((CUser*)0))
         return 0;
+    }
+    else
+    {
+    cMyTrace(__PRETTY_FUNCTION__, 0xa7f7, 5)
+        ("[ON_TIME_EVENT] send_ontime_reward_start_notify() error");
+    return 0;
+    }
     if (ev->get_reward_state() != 0)
         return 0;
     // b28d-solo-CUser p167：ORIG 0x0868a7f7 内联 rep stos（我方 EXTRA memset）。
@@ -11027,8 +11096,7 @@ struct CharacViewCacheView
             {
                 LogManager::logFormat(
                     1, "user.cpp",
-                    "bool CUser::master_new_skills(_Mastered_skill*, "
-                    "ENUM_SKILL_TREE_KIND)",
+                    __PRETTY_FUNCTION__,
                     0x52bd, "G_CDataManager()->find_skill( %d, %d )",
                     get_charac_job(), skillId);
                 return false;
@@ -11066,8 +11134,7 @@ struct CharacViewCacheView
             {
                 LogManager::logFormat(
                     1, "user.cpp",
-                    "bool CUser::master_new_skills(_Mastered_skill*, "
-                    "ENUM_SKILL_TREE_KIND)",
+                    __PRETTY_FUNCTION__,
                     0x52e0, "G_CDataManager()->find_skill( %d, %d )",
                     get_charac_job(), skillId);
                 return false;
@@ -13633,8 +13700,7 @@ RCEND:
     //   并连带 StatChangeInfo 对象被顶到 -0x48，ORIG 在 -0x38）。改为内联表达式。
     if (!(unsigned char)(item->m_stat2dc.m_flagLo ^ 1))
     {
-        cMyTrace("void CUser::_processEffectItem(CStackableItem*, "
-                 "unsigned int, unsigned int)", 0x391e, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x391e, 0)
             ("ERROR : Mismatch tag [stat change duration] and "
              "[effect maintenance]. There is no duration value.");
         return;

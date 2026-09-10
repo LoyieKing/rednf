@@ -204,6 +204,11 @@ check_out:
     // -0x127 / CSwitchLog -0x20 vs -0x24 / sret 临时 -0x28 vs -0x12c）⇒ N82 维持。
     // b28d-L3：同 DelRoom（ORIG 0x8567c35 形）——GetUserName 返回值经 %ebx 跨
     // CSwitchLog ctor 保活并作 log 的 %s 实参；register 提示令 4.4.6 免落槽。
+    // [N1C·2026-09-11 · 负结论] 残余 15 块全为帧内槽基差（name[255] -0x12f vs
+    // ORIG -0x127 / CSwitchLog -0x20 vs -0x24 / begin sret -0x30 vs -0x28 /
+    // find sret -0x28 vs -0x12c / playCount -0x24 vs -0x10），指令数与助记符序列
+    // 全等（167/167 NEAR）。试：tmpIt 声明前置（167→172 条、13 块）、tmpIt+it
+    // 双前置（175 条、15 块）均劣化 ⇒ 判 N82（GCC 帧布局族，源码不可达），维持现状。
     register char* pName = GetUserName(room, name);
     // b28d-M2S3（P139/§6.5）：ORIG 0x85679e9 实参 =
     // `&_ZZN19CMultiMatchRoomList7AddRoomEP6IMatchE19__PRETTY_FUNCTION__`
@@ -339,7 +344,7 @@ check_out:
     static const unsigned char MAX_COMBINATION_COUNT = 10;
     static const unsigned char MAX_REMAIN_WAITING_ROOM = 7;
     static const unsigned char CombinationTable[MAX_REMAIN_WAITING_ROOM]
-        [MAX_COMBINATION_COUNT][MAX_WAITING_ROOM_COUNT * 2] = {
+        [MAX_COMBINATION_COUNT][MAX_WAITING_ROOM_COUNT][MAX_SAME_COUNT] = {
         /* playCount=0（无效区，全 0） */
         { {0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0,0,0,0,0},
           {0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -385,6 +390,11 @@ check_out:
           {5,1,1,1,0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0,0,0,0,0} },
     };
 
+    // [N1C·2026-09-11] ORIG find 的实参槽 = -0x50，紧贴 matched(-0x68..-0x51)
+    // 之后 ⇒ count 与函数块变量同批分配（块内具名局部会抢 -0x68 把 matched
+    // 挤到 -0x64，产生 9 处 `lea -0x64` vs `-0x68` 残差；探针 v4/v7 实证
+    // 上移声明后该 9 处全消）。语义不变：每轮 j 都在使用前赋值。
+    int count;
     int totalPlayers = 0;
     float avgScore[MAX_COMBINATION_COUNT] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                              0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
@@ -410,19 +420,25 @@ check_out:
     // 注：一维视图 (ci*7+pc*70+j)*2 探针（/tmp/b28d_gwc_probe.cpp g1b）实测
     // 外层 j=0 被 4.4 常量折叠回 imul $0x8c、内层多 1 条中转 ⇒ 净负，保留
     // 三维下标（4.4 强度归约与 ORIG 不同形，判 N86b）。
+    // [N1C·2026-09-11 · 负结论] 外循环首项检查（ORIG 0x085670ee..0x08567112）的
+    // combIdx*14 归约形：ORIG=`lea (%eax,%eax,1),%edx; lea 0x0(,%edx,8),%eax;
+    // sub %edx,%eax; imul $0x8c,%ecx,%edx; add %edx,%eax`，我方=`add %eax,%eax;
+    // lea 0x0(,%eax,8),%edx; sub %eax,%edx; imul $0x8c,%ecx,%eax;
+    // lea (%edx,%eax,1),%eax`（6 条，仅临时寄存器选择差，语义等价）。探针
+    // t4/t5/t9/t12（'\0' / yoda / unsigned 下标 / int 下标）与 count 位置
+    // t2/t3 均不改变该形 ⇒ 判 regalloc N 类（源码不可达）；件残差仅此 1 块。
     for (combIdx = 0; combIdx <= 9; ++combIdx) {
-        if (CombinationTable[playCount][combIdx][0] == 0)
+        if (CombinationTable[playCount][combIdx][0][0] == 0)
             break;
         totalPlayers = 0;
         for (j = 0; j < MAX_WAITING_ROOM_COUNT; ++j) {
-            if (CombinationTable[playCount][combIdx][j * 2] == 0)
+            if (CombinationTable[playCount][combIdx][j][0] == 0)
                 break;
             matched.clear();
             // ORIG：if 检查为表达式直读（test %al），find 侧再算一次并物化 int 槽
             // b28d-S3：ORIG 0x856717f 单槽 `mov %eax,-0x50` + `lea -0x50` 直传
             // find；旧源 `unsigned int` 触发 int 临时转换（多 2 条 mov）。
-            int count =
-                (unsigned char)CombinationTable[playCount][combIdx][j * 2];
+            count = (unsigned char)CombinationTable[playCount][combIdx][j][0];
             // ORIG 对 find 结果不做 end() 检查（GetPlayCountPerOneTeam=1 时
             // 组合表只使用 key=1 的列表），此处忠实还原。
             std::map<int, CWaitingRoomList>::iterator it = m_roomMap.find(count);
@@ -430,12 +446,12 @@ check_out:
             if (!it->second.doMatch(me, matched))
                 break;
             if (matched.size() <
-                CombinationTable[playCount][combIdx][j * 2 + 1])
+                CombinationTable[playCount][combIdx][j][1])
                 break;
             k = 0;
             for (std::multimap<float, IMatch*>::iterator mit = matched.begin();
                  mit != matched.end() &&
-                 k < CombinationTable[playCount][combIdx][j * 2 + 1];
+                 k < CombinationTable[playCount][combIdx][j][1];
                  ++mit, ++k) {
                 // b28d-S3（P329 求值序）：ORIG 0x8567233 先 `mov -0x34,%ebx` +
                 // `flds avgScore[combIdx]` 再 `fildl -0x3c` ⇒ 乘法左操作数 =

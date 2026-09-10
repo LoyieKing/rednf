@@ -147,13 +147,29 @@ struct DB_CheckCharacNameReqView
         cur.m_auctionSub = 0;
     }
 }
-// b28d-31: N 封顶（N82附）——ORIG 0x0828757c；4.1 push %esi/%ebx 缓存
-// this/&m_mailCharName vs 4.4 栈槽 -0x10/-0xc（跨 call 值缓存策略差）。
+// ORIG 0x0828757c。**判词：AE（61/61，diff_lines=0）**。
+// 手法：①case 0xe 置 switch 首（块物理序对齐，见内注 P324）；②makeRequest 三实参
+// 直写进调用（删具名 accId/uid），令 4.4 自然升格 callee-saved `push %esi/%ebx`
+// —— 与 ORIG 0x082875c1 `lea 0xc8(%eax),%esi` / 0x082875d4 `mov %eax,%ebx` 同形
+// （旧形两局部各占 4B 栈槽、帧 0x28 vs ORIG 0x10）。
 #include "Secu_GoldControl/AddGold.inc"
 {
     CheckDate();
     switch (reason)
     {
+    // [P324 叶块书写序] ORIG 0x0828757c 块物理序 = MailGold(0x28) → Import(0x81)
+    // → Auction(0x95) → Money(0xa7)，即 case 0xe 在源码中排最前（4.1 按 case
+    // 声明序 emit 块）；旧形把 Import 组写最前 ⇒ 三块整体位移（ndiff=0 但 diff）。
+    case 0xe:
+        MailGold(value, false);
+        {
+            // [P52/P134 实测] ORIG 0x0828757c 以 `push %esi/%ebx` 保活实参跨调用
+            // （无 -0x10/-0xc 栈槽）⇒ 删具名 accId/uid 内联进调用，让 4.4 自然升格
+            // callee-saved。旧形两局部各占 4B 槽且帧 0x28 vs ORIG 0x10。
+            DB_CheckCharacName::makeRequest(m_pUser->GetUID(), m_pUser->get_acc_id(),
+                                            m_mailCharName, false);
+        }
+        return;
     case 0:
     case 3:
     case 4:
@@ -166,16 +182,6 @@ struct DB_CheckCharacNameReqView
     case 1:
     case 2:
         return;
-    case 0xe:
-        MailGold(value, false);
-        {
-            // [P52/P134 实测] ORIG 0x0828757c 以 `push %esi/%ebx` 保活实参跨调用
-            // （无 -0x10/-0xc 栈槽）⇒ 删具名 accId/uid 内联进调用，让 4.4 自然升格
-            // callee-saved。旧形两局部各占 4B 槽且帧 0x28 vs ORIG 0x10。
-            DB_CheckCharacName::makeRequest(m_pUser->GetUID(), m_pUser->get_acc_id(),
-                                            m_mailCharName, false);
-        }
-        return;
     case 0x12:
         AddAuctionMoney(value);
         break;
@@ -185,36 +191,39 @@ struct DB_CheckCharacNameReqView
     AddMoney(value);
     CheckMoneyRange();
 }
-// b28d-31: N 封顶（N82附/P209）——ORIG 0x0828764a；同上 callee-saved 差，
-// 且 reason 比较 ORIG `cmp $0xe,%eax`（载寄存器）vs 4.4 mem 直比。
+// ORIG 0x0828764a。**判词：AE（69/69，diff_lines=0）**。
+// 手法：①if-else 链 → 真 switch（case 声明序 0x11,0xe,0x1a,2，见内注）；②同
+// AddGold 的实参内联（ORIG 0x082876a1 `lea 0xc8(%eax),%esi` / 0x082876b4
+// `mov %eax,%ebx` 跨 MailGold→makeRequest 保活，无 -0x10/-0xc 栈槽）。
 #include "Secu_GoldControl/SubGold.inc"
 {
     CheckDate();
-    if (reason == 0xe)
+    // [P339/switch 轴] ORIG 0x0828764a 是真 switch 展开 ——
+    //   `mov 0x10(%ebp),%eax; cmp $0xe,%eax; je <import>; cmp $0xe,%eax; jg <L2>;
+    //    cmp $2,%eax; je <case2>; jmp <money>; L2: cmp $0x11 ...; cmp $0x1a ...`，
+    // 块物理序 MailGold(0x3a) → SubImport(0x93) → SubAuction(0xa7) → SubMoney(0xb9)
+    // → case2 空块(0xd8: `nop`) ⇒ 源码为 switch 且 case 声明序 = 0x11, 0xe, 0x1a, 2。
+    // 旧 if-else 链形：`cmpl $0xe,0x10(%ebp); jne`（4.4 内存直比）、case2 无空块，
+    // 且 makeRequest 实参经具名 accId/uid 落 -0x10/-0xc 栈槽（ORIG 无槽）。
+    switch (reason)
     {
+    case 0x11:
+        MailGold(value, true);
+        // [P52/P134] 同 AddGold：实参直接内联进调用，让 4.4 自然升格 callee-saved
+        // （ORIG 以 esi/ebx 保活 charName/get_acc_id 结果跨 call，无栈槽）。
+        DB_CheckCharacName::makeRequest(m_pUser->GetUID(), m_pUser->get_acc_id(),
+                                        m_mailCharName, true);
+        return;
+    case 0xe:
         SubImportMoney(value);
-    }
-    else if (reason < 0xf)
-    {
-        if (reason == 2)
-        {
-            return;
-        }
-    }
-    else
-    {
-        if (reason == 0x11)
-        {
-            MailGold(value, true);
-            unsigned int accId = m_pUser->get_acc_id();
-            int uid = m_pUser->GetUID();
-            DB_CheckCharacName::makeRequest(uid, accId, m_mailCharName, true);
-            return;
-        }
-        if (reason == 0x1a)
-        {
-            SubAuctionMoney(value);
-        }
+        break;
+    case 0x1a:
+        SubAuctionMoney(value);
+        break;
+    case 2:
+        return;
+    default:
+        break;
     }
     SubMoney(value);
     CheckMoneyRange();

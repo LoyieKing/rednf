@@ -182,7 +182,7 @@ extern STScriptFileList g_aiCharacterScriptFileList;  // B 0x094f6a20
         return false;
     }
 
-    m_maxAP = static_cast<int>(0x7fffffff);   // +0x4bc
+    m_maxAP = 0x7fffffff;   // +0x4bc（ORIG 0x0834a2c5 `movl $0x7fffffff,0x4bc(%eax)` 直落）
 
     // ORIG 0x0834a2cf：fileName 在循环外置 0（P28 声明序 = 槽序）。
     const char* fileName = 0;
@@ -226,6 +226,24 @@ extern STScriptFileList g_aiCharacterScriptFileList;  // B 0x094f6a20
             if (drops[i].m_field0 == 1 && drops[i].m_monsterIndex == fileIdx)
                 script.m_f2c.push_back(drops[i].m_drop);
         }
+        // [S2CAICharList 2026-09-11 负结论①] 上面的 push_back 触发本 TU 两个 weak 符号
+        //   _ZN26stMonsterIndependentDrop_tC1ERKS_（ORIG 0x08376bb2，58 条）与
+        //   _ZN26stMonsterIndependentDrop_taSERKS_（ORIG 0x083a3942，59 条）；本 TU 52/53
+        //   条（gap=+6，DIFF）。根因**不是**编译器分块差异，而是 CDataManager.h:398 的成员
+        //   划分：ORIG 的 +0x04..+0x2c 是 4 个独立成员（边界 5/4/1/1，与语义分组一致：
+        //   分档掉率×5 / 期望值×4 / 数量上限 / 主掉率），非 int[11] 一体数组。
+        //   探针实证：int[5]+int[4]+int+int ⇒ C1ERKS_/aSERKS_ 与 ORIG **逐条一致**（含每块
+        //   结尾 `mov 0x14(%edx),%edx` 破 src 基址、随后重载）；int[11] ⇒ 11 连发（我方现状）；
+        //   union 数组视图（保留 m_rate[11] 名）⇒ 仍 11 连发（GCC 按最大成员整体拷贝）。
+        //   ⇒ 可修但**不能只在本 TU 内修**：拆成员会破坏 3 个其它 TU 的 `m_rate[i]` 访问
+        //   （MonsterIndependentDrop.cpp / DomainMiscDeps.cpp / GmCmds_D.cpp），需父泳道协调。
+        // [负结论②] _ZNSt20__uninitialized_copyILb0EE…<__normal_iterator<const pair<int,int>*
+        //   …>,pair<int,int>*>（ORIG 0x0823eade）：我方 56 条 vs ORIG 39 条，差全在 EH
+        //   landing pad（我方循环体 39 条与 ORIG 逐条一致）。探针：同头集 + -fno-exceptions
+        //   ⇒ size=0x6f = ORIG 的 nm size 0x6f，n1_v verdict=AE（39/39）；带 -fexceptions
+        //   恒 0xa5/56 条。ORIG 本 TU 确有 EH（_add 0x0834a8a8 `call _Unwind_Resume`）⇒
+        //   ORIG 链接时该 COMDAT 取自另一个 -fno-exceptions TU（PacketBuf.cpp 族），per-TU
+        //   工具按符号名归属给本 TU ⇒ **工具口径缺口（weak COMDAT 跨 TU 归属）**，源码无解。
 
         aiChar->set(
             g_aiCharacterScriptFileList.FindIndexByFullScan(fileName), script);
@@ -242,8 +260,6 @@ extern STScriptFileList g_aiCharacterScriptFileList;  // B 0x094f6a20
 //      （+0x08 int）入 m_byAPList 桶。----
 #include "CAICharacterList/_add.inc"
 {
-    // ORIG 0x0834a8be 段用块内具名 ap（-0x58）；头部声明复现其槽深序（P212）。
-    int ap;
     std::pair<std::map<int, CAICharacter*>::iterator, bool> ins =
         m_charMap.insert(std::make_pair(
             static_cast<unsigned int>(aiChar->getIdx()), aiChar));   // ORIG make_pair<unsigned int,...>
@@ -266,9 +282,13 @@ extern STScriptFileList g_aiCharacterScriptFileList;  // B 0x094f6a20
     // getAppearancePoint（P48）；仅 find 用具名 ap。
     if (aiChar->getAppearancePoint() != 0)
     {
-        ap = aiChar->getAppearancePoint();
+        // [S2CAICharList] ORIG 0x0834a749 `mov %eax,-0x58(%ebp)` + 0x0834a75b
+        // `lea -0x58(%ebp),%edx`（find 实参）⇒ -0x58 是**表达式临时**而非具名局部。
+        // 负结论（三个写法的实测）：具名 ap 声明在函数头 → 槽 -0x7c；声明在 if 块首
+        // → 槽 -0x84；两者都让整函数槽位全线偏移（ndiff 39 行）。本写法（直接传
+        // getAppearancePoint()）令槽位逐条对齐：ndiff 39 → 5（余仅 m_maxAP 类型差）。
         std::map<int, std::vector<CAICharacter*> >::iterator group =
-            m_groupMap.find(ap);
+            m_groupMap.find(aiChar->getAppearancePoint());
         // ORIG 0x0834a79c 用 operator!=（then=push_back / else=fresh，P220）。
         if (group != m_groupMap.end())
         {
@@ -284,6 +304,13 @@ extern STScriptFileList g_aiCharacterScriptFileList;  // B 0x094f6a20
         // ORIG 0x0834a8be：三元（cond 走 jae 无 bool 物化、两臂共用尾部 store；
         // then 臂重载 m_maxAP，else 臂重调 getAppearancePoint）。m_maxAP 为
         // int 与 unsigned 右操作数比较 ⇒ 无符号序（jae），勿写成有符号。
+        // 残余 1 条（ORIG 0x0834a8c1 `mov 0x4bc(%eax),%ebx` 直落 vs 我方
+        // `mov 0x4bc(%eax),%eax; mov %eax,%ebx`）根因 = **m_maxAP 的声明类型 int**：
+        // 探针 A/B（同表达式、同编译器）实证 int 成员恒多一条中转、unsigned 成员直落。
+        // 本 TU 内三个等价写法实测无效（负结论）：①双侧显式 (unsigned) cast 不变；
+        // ②reinterpret_cast<unsigned int&> → `add $0x4bc,%eax; mov (%eax),%ebx`（2 条）；
+        // ③*(unsigned int*)((char*)this+0x4bc) → 同上 add 形式。**已落地**：
+        // CDataManager.h 的 `m_maxAP` 改 `unsigned int`（2026-09-11，父泳道授权后）。
         m_maxAP = (m_maxAP < (unsigned int)aiChar->getAppearancePoint())
                       ? m_maxAP
                       : aiChar->getAppearancePoint();

@@ -26,21 +26,22 @@
 // ==================== WongWork::CCompoundAvatar（键名位 · P327）====================
 // ORIG 0x08331d74：11×tagCompoundAvatarTable 构造（成员数组自动）→
 // CMTRand(new 0x9c8)(time(0)) 存 +0x84 → 100 次 randInt(10000) 热身。
-// 槽残差：ORIG seed=-0x24/range=-0x20 vs 4.4 call 临时恒浅槽对调（P212 全头部
-// 声明试形反劣 8→10，具名 seed 亦不落深槽）——与 CItemUpgrade_Separate::C1
-// b26 判词同型，N82 族封顶。
+// [N5Free211to230.N5D 2026-09-11] 槽序已解（DIFF→AE）：ORIG 0x08331deb seed=-0x24 /
+// 0x08331e35 range=-0x20。range 原为循环内具名局部（4.4 落深槽 -0x24，与 seed 临时
+// 对调）⇒ 改为内联右值临时 `randInt(static_cast<unsigned long>(10000))` 后，4.4 按
+// 「匿名临时先创建者占深槽」使 seed 临时 -0x24 / range 临时 -0x20，与 ORIG 逐槽一致
+// （探针 /tmp/r5/n5/p_avatar5.cpp fs：4.4 输出与 ORIG 0x08331deb..0x08331e35 同形）。
+// 旧 P212/N82「槽序封顶」判词作废。
 namespace WongWork
 {
 #include "CCompoundAvatar/CCompoundAvatar.inc"
 {
-    // b28d-45 复测：P212 全头部声明（seed/range/i 按 ORIG 槽深序）槽序不变且
-    // 判级 NEAR→DIFF，确认 N82/N98 槽序封顶（ORIG 0x08331deb seed=-0x24 /
-    // 0x08331e35 range=-0x20 不可翻）。
     m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
     for (int i = 0; i < 100; ++i)
     {
-        unsigned long range = 10000;
-        m_rand->randInt(range);
+        // ORIG 0x08331e35：range 为绑定到 `const unsigned long&` 的匿名临时
+        // （movl $0x2710,-0x20(%ebp) + lea 取址），非具名局部。
+        m_rand->randInt(static_cast<unsigned long>(10000));
     }
 }
 }  // namespace WongWork

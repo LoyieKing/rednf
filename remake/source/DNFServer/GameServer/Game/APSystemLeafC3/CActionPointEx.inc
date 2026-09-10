@@ -1,1 +1,1 @@
-CActionPointEx::CActionPointEx()
+CActionPointEx::CActionPointEx() : m_weekday(7)

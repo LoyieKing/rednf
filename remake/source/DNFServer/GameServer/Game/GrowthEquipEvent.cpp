@@ -190,11 +190,11 @@
 
     if (giftBoxIdx != 0)
     {
+        // [b28c-L18/N2 复核] ORIG 0x080f7055 `sub $0x180,%esp` + `push %esi;push %ebx`：
+        // len/characNo 均无槽（%esi/%ebx 保活）。实测去具名局部三个变体全部反劣：
+        // 去两者 115/118、只去 characNo 115/117、只去 len 115/117（基线 115/116）
+        // ⇒ 4.4 在实参表达式形下把 findString 的 this/串实参多物化，保持具名局部。
         const int titleLen = static_cast<int>(strlen(title));
-        // [实测] ORIG 0x080f7179 `mov %eax,%esi` + 0x080f71cb `mov %esi,0x14(%esp)`
-        // （以 %esi 跨 findString call 保活），但加裸 `register` 提示实测指令数
-        // 115→117 反劣（4.4 未按预期选 %esi）⇒ 保持具名；本件残差归 N82/N7
-        // （帧 0x180 vs 0x190、data 槽 -0x18 vs -0x1c）。
         const unsigned int characNo =
             static_cast<unsigned int>(user.getCurCharacNo());
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
