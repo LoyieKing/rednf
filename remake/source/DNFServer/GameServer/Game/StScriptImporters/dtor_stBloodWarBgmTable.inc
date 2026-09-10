@@ -1,0 +1,2 @@
+stBloodWarBgmTable::~stBloodWarBgmTable()
+{

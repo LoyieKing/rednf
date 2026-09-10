@@ -1,0 +1,3 @@
+WpBonusPointResult::WpBonusPointResult()
+{
+    clear();

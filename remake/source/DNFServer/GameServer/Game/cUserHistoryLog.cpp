@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 cUserHistoryLog/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // 声明以 CUser.h 为准。全部方法按 ORIG 反编译（docs/class_func_reports/cUserHistoryLog/）
 // 通过 CUser::LogHistory 输出 uHistory 日志；成员布局见 CUser.h：+0x00 m_user、
 // +0x04 m_traderAccount[0x1e]、+0x22 m_traderCharac[0x1e]（首字节当"交易中"标志）、+0x40 m_pad。
@@ -76,58 +86,32 @@ private:
 
 
 // 构造：仅清零 m_user（ORIG 0x8695fe4，C1/C2 同址）
-cUserHistoryLog::cUserHistoryLog()
-{
-    m_user = 0;
+#include "cUserHistoryLog/cUserHistoryLog.inc"
 }
 
-void cUserHistoryLog::SetUser(CUser* user)
-{
-    m_user = user;
+#include "cUserHistoryLog/SetUser.inc"
 }
 
 // GiveupPvP(reason)：ORIG 0x868646c —— CUser::LogHistory(m_user, "PVP,%d", reason)。
-void cUserHistoryLog::GiveupPvP(ENUM_PVP_HISTORY_REASON reason)
-{
-    m_user->LogHistory("PVP,%d", (int)reason);
+#include "cUserHistoryLog/GiveupPvP.inc"
 }
 
 // ORIG 0x8686c36：m_user 非空时 LogHistory("SealItem ,%d,%d,%d", itemIdx, count, reason)。
-void cUserHistoryLog::seal_Item(int itemIdx, short count, eSealItemReason reason)
-{
-    if (m_user != 0)
-        m_user->LogHistory("SealItem ,%d,%d,%d", itemIdx, (int)count, (int)reason);
-    return;
+#include "cUserHistoryLog/seal_Item.inc"
 }
 
 // ORIG 0x08686f1e（DeleteInvaildItem.md）：直接以 m_user 调 LogHistory
 // （ORIG 无空指针检查），格式 "DeleteInvaildItem, %s, %d, %d"。
-void cUserHistoryLog::DeleteInvaildItem(const std::string& str, int a, int b)
-{
-    m_user->LogHistory("DeleteInvaildItem, %s, %d, %d", str.c_str(), a, b);
+#include "cUserHistoryLog/DeleteInvaildItem.inc"
 }
 
 // SetTrader(accName, characName)：ORIG 0x8532036，strncpy 到 m_traderCharac(acc) 与 m_traderAccount(charac)
-void cUserHistoryLog::SetTrader(const char* accName, const char* characName)
-{
-    strncpy(m_traderCharac, accName, 0x1e);
-    strncpy(m_traderAccount, characName, 0x1e);
+#include "cUserHistoryLog/SetTrader.inc"
 }
 
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] m_traderCharac[0] 读改逗号表达式旋钮
 // `*(0, m_traderCharac)`（判词见 TradeBegin）⇒ 本函数 AE。
-void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agency, eAvatarItemAddReason reason)
-{
-    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
-    if (reason == static_cast<eAvatarItemAddReason>(1) || reason == static_cast<eAvatarItemAddReason>(3)
-        || reason == static_cast<eAvatarItemAddReason>(4)) {
-        if (*(0, m_traderCharac) != 0)
-            m_user->LogHistory("Avatar+,%d,%d,%s,%d,\"%s\",\"%s\"", itemIdx, avatarUid, agency,
-                               static_cast<int>(reason), m_traderCharac, m_traderAccount);
-    } else {
-        m_user->LogHistory("Avatar+,%d,%d,\"%s\",%d", itemIdx, avatarUid, agency,
-                           static_cast<int>(reason));
-    }
+#include "cUserHistoryLog/AvatarItemAdd.inc"
 }
 
 // ORIG 0x8682e84：reason∈{1,2} 且交易中（m_traderCharac[0]!=0）→ 交易格式；
@@ -171,50 +155,7 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 // 唯实参绑定「指针形参（const void*）」时 4.4 才发 lea（探针 p1/p2/p9 实证），而 ORIG
 // `operator()(itemGloballyUniqueIdentifier_t const&)` 的 mangled 为 `clERK30…`（nm 0x084ebe82
 // 实证，引用）⇒ 引用路径无源形可择 ⇒ N107 封顶。
-void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
-                              const Inven_Item& item, eItemAddReason reason)
-{
-    if ((int)reason == 1 || (int)reason == 2)
-    {
-        if (*(0, m_traderCharac) != 0)
-        {
-            m_user->LogHistory(
-                "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
-                "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-                (int)invenType, item.m_addInfo, a3, a4, (int)reason,
-                m_traderCharac, m_traderAccount,
-                item.GetUpgrade(), (unsigned)item.m_fieldb,
-                ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
-                ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
-                ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
-                item.m_field0,
-                item.GetReSealCount(),
-                CItemGloballyUniqueIdentifierPrint()(
-                    *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
-        }
-    }
-    else
-    {
-        // ORIG：getItemXPos/YPos(m_user + 0x79700)（history 子对象 +0x40/+0x42 网格坐标）。
-        // 全部实参就地内联 ⇒ GCC -O0 右→左求值，与 ORIG 装载序一致
-        // （末实参 GUID 最先，XPos 最后）。
-        m_user->LogHistory(
-            "Item+,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
-            "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-            (int)invenType, item.m_addInfo, a3, a4, (int)reason,
-            m_user->m_historyLog.getItemXPos() & 0xffff,
-            m_user->m_historyLog.getItemYPos() & 0xffff,
-            item.m_addInfo2, item.m_fieldd,
-            (unsigned)item.m_amp.m_abilityType, (unsigned)item.m_amp.m_abilityValue,
-            item.GetUpgrade(), (unsigned)item.m_fieldb,
-            ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
-            ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
-            ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
-            item.m_field0,
-            item.GetReSealCount(),
-            CItemGloballyUniqueIdentifierPrint()(
-                *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
-    }
+#include "cUserHistoryLog/ItemAdd.inc"
 }
 
 // ORIG 0x868340a：与 ItemAdd 对应的删除日志（无 XPos/YPos，11 个 %d）；
@@ -229,259 +170,93 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
 // [2026-09-09] N102 已翻案（`*(0, m_traderCharac)`）；Compound 段 `%0x1f` 掩码改位域
 // m_bits.m_lo 复现 ORIG 的「and 后截断」形（探针 mask2 w1）⇒ 残差仅 N107 ×2（同 ItemAdd）。
 // [SweepHistoryLog2 2026-09-09 复核] 同上 12 形复验（引用形参恒 add、指针形参才 lea）⇒ 维持封顶。
-void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
-                              const Inven_Item& item, eItemDelReason reason)
-{
-    if ((int)reason == 1 || (int)reason == 2)
-    {
-        if (*(0, m_traderCharac) != 0)
-        {
-            m_user->LogHistory(
-                "Item-,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
-                "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-                (int)invenType, item.m_addInfo, a3, a4, (int)reason,
-                m_traderCharac, m_traderAccount,
-                item.GetUpgrade(), (unsigned)item.m_fieldb,
-                ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
-                ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
-                ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
-                item.m_field0,
-                item.GetReSealCount(),
-                CItemGloballyUniqueIdentifierPrint()(
-                    *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
-        }
-    }
-    else
-    {
-        m_user->LogHistory(
-            "Item-,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
-            "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-            (int)invenType, item.m_addInfo, a3, a4, (int)reason,
-            item.m_addInfo2, item.m_fieldd,
-            (unsigned)item.m_amp.m_abilityType, (unsigned)item.m_amp.m_abilityValue,
-            item.GetUpgrade(), (unsigned)item.m_fieldb,
-            ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
-            ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
-            ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
-            item.m_field0,
-            item.GetReSealCount(),
-            CItemGloballyUniqueIdentifierPrint()(
-                *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
-    }
-
-    // Compound 补丁块（ORIG +0x543）：reason==8 && m_field1(ITEM_TYPE)==1。
-    if ((int)reason == 8 && item.m_field1 == 1)
-    {
-        // ORIG 0x086839xx：实参位右到左即时求值（P44）——全部实参就地内联。
-        m_user->LogHistory(
-            "Compound-,%u,%d,%d,%d,%d,%d,%d,%d,",
-            (unsigned)item.m_addInfo, item.GetUpgrade(), item.get_add_info(),
-            // [b28d-solo-cUserHistoryLog 2026-09-09] ORIG 0x086839xx 读形为
-            // `movzbl 0x33(%eax),%eax; and $0x1f,%eax; movzbl %al,%eax`（and 后截断）；
-            // 写 `m_field & 0x1f` 时 4.4 把截断提到 and 之前并经 %edx 中转（多 1 条）。
-            // 位域 m_lo 读取即 ORIG 形（探针 /tmp/hlprobe/mask2.cpp w1 逐条同形）。
-            item.m_upgradeSep.m_bits.m_lo, item.m_fieldd,
-            item.m_amp.getAbilityType(), item.m_amp.getAbilityValue(),
-            item.m_amp.GetLock());
-    }
+#include "cUserHistoryLog/ItemDel.inc"
 }
 
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 AvatarItemAdd ⇒ 本函数 AE。
-void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agency, eAvatarItemDelReason reason)
-{
-    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
-    if (reason == static_cast<eAvatarItemDelReason>(0) || reason == static_cast<eAvatarItemDelReason>(1)) {
-        if (*(0, m_traderCharac) != 0)
-            m_user->LogHistory("Avatar-,%d,%d,%s,%d,\"%s\",\"%s\"", itemIdx, avatarUid, agency,
-                               static_cast<int>(reason), m_traderCharac, m_traderAccount);
-    } else {
-        m_user->LogHistory("Avatar-,%d,%d,%s,%d", itemIdx, avatarUid, agency, static_cast<int>(reason));
-    }
+#include "cUserHistoryLog/AvatarItemDel.inc"
 }
 
 // b28d-65 [N4/N102]：同 CreatureItemAdd；ORIG 0x08684f38。
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
-void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemDelReason reason)
-{
-    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
-    if (type == 5) {
-        if (reason == static_cast<eItemDelReason>(0x14) || reason == static_cast<eItemDelReason>(0x15)) {
-            if (*(0, m_traderCharac) != 0)
-                m_user->LogHistory("CTItem-,%d,%d,%d,%d,\"%s\",\"%s\"", itemIdx, count, addInfo,
-                                   static_cast<int>(reason), m_traderCharac, m_traderAccount);
-        } else {
-            m_user->LogHistory("CTItem-,%d,%d,%d,%d", itemIdx, count, addInfo, static_cast<int>(reason));
-        }
-    } else {
-        Inven_Item item;
-        item.reset();
-        item.m_addInfo = itemIdx;   // ORIG local_47 = param_3（m_addInfo +0x02）
-        ItemDel(invenType, count, addInfo, item, reason);
-    }
+#include "cUserHistoryLog/CreatureItemDel.inc"
 }
 
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
-void cUserHistoryLog::MoneyAddTrade(int money, int add, eMoneyAddReason reason)
-{
-    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
-    if (*(0, m_traderCharac) != 0)
-        m_user->LogHistory("Money+,%d,%d,%d,%s(%s)", money, add, static_cast<int>(reason),
-                           m_traderCharac, m_traderAccount);
+#include "cUserHistoryLog/MoneyAddTrade.inc"
 }
 
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
-void cUserHistoryLog::MoneySubTrade(int money, int sub, eMoneySubReason reason)
-{
-    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
-    if (*(0, m_traderCharac) != 0)
-        m_user->LogHistory("Money-,%d,%d,%d,%s(%s)", money, sub, static_cast<int>(reason),
-                           m_traderCharac, m_traderAccount);
+#include "cUserHistoryLog/MoneySubTrade.inc"
 }
 
-void cUserHistoryLog::MoneyAdd(int money, int add, eMoneyAddReason reason)
-{
-    if (reason == static_cast<eMoneyAddReason>(1) || reason == static_cast<eMoneyAddReason>(2)) {
-        MoneyAddTrade(money, add, reason);
-    } else {
-        m_user->LogHistory("Money+,%d,%d,%d", money, add, static_cast<int>(reason));
-    }
+#include "cUserHistoryLog/MoneyAdd.inc"
 }
 
-void cUserHistoryLog::MoneySub(int money, int sub, eMoneySubReason reason)
-{
-    if (reason == static_cast<eMoneySubReason>(2) || reason == static_cast<eMoneySubReason>(3)) {
-        MoneySubTrade(money, sub, reason);
-    } else {
-        m_user->LogHistory("Money-,%d,%d,%d", money, sub, static_cast<int>(reason));
-    }
+#include "cUserHistoryLog/MoneySub.inc"
 }
 
 // ORIG T 0x8682cc8（0x32 字节）：LogHistory("WP-,%d,%d,%d", cur, sub, reason)。
-void cUserHistoryLog::WPSub(int cur, int sub, eWPSubReason reason)
-{
-    m_user->LogHistory("WP-,%d,%d,%d", cur, sub, static_cast<int>(reason));
+#include "cUserHistoryLog/WPSub.inc"
 }
 
 // ORIG T 0x8685bb8（0x40 字节）：GuildAddExp,"%d/%d/%d",%d,"%s",%d,%d
 // （年/月/日/guildKey/guildDBInfo/characNo/exp）。
-void cUserHistoryLog::GuildAddExp(unsigned int guildKey,
-                                  const char* guildDBInfo,
-                                  unsigned int characNo, int exp)
-{
-    const time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm local;
-    struct tm* r = localtime_r(&now, &local);
-    // b28d-50：ORIG 0x08685be2 段把 tm_year/tm_mon+1/tm_mday 各落具名槽
-    // （-0x14/-0x10/-0xc，P0 槽往返⇒原码有具名局部），调用点再 `lea 0x76c(%eax)`；
-    // 直接内联读 r-> 字段会丢槽并改帧（0x78→0x70 + push esi/ebx）。
-    int year = r->tm_year;
-    int month = r->tm_mon + 1;
-    int day = r->tm_mday;
-    m_user->LogHistory(
-        "GuildAddExp,\"%d/%d/%d\",%d,\"%s\",%d,%d",
-        year + 1900, month, day,
-        guildKey, guildDBInfo, characNo, exp);
+#include "cUserHistoryLog/GuildAddExp.inc"
 }
 
 // ORIG T 0x086853e6（0x32 字节）：LogHistory("CleanPad,%d,%d", a, b)。
-void cUserHistoryLog::RequestCleanPad(unsigned int a, char b)
-{
-    m_user->LogHistory("CleanPad,%d,%d", a, static_cast<int>(b));
+#include "cUserHistoryLog/RequestCleanPad.inc"
 }
 
-void cUserHistoryLog::CoinAdd(int coin, int amount, eCoinAddReason reason)
-{
-    m_user->LogHistory("Coin+,%d,%d,%d", coin, amount, static_cast<int>(reason));
+#include "cUserHistoryLog/CoinAdd.inc"
 }
 
-void cUserHistoryLog::PayCoinAdd(int coin, int amount, eCoinAddReason reason)
-{
-    m_user->LogHistory("PCoin+,%d,%d,%d", coin, amount, static_cast<int>(reason));
+#include "cUserHistoryLog/PayCoinAdd.inc"
 }
 
-void cUserHistoryLog::EventCoinAdd(int coin, int amount, eCoinAddReason reason)
-{
-    m_user->LogHistory("ECoin+,%d,%d,%d", coin, amount, static_cast<int>(reason));
+#include "cUserHistoryLog/EventCoinAdd.inc"
 }
 
 // LevelUp(int, eLevelUpReason)：ORIG 0x86845b2，"Level+,%d,%d"
-void cUserHistoryLog::LevelUp(int level, eLevelUpReason reason)
-{
-    m_user->LogHistory("Level+,%d,%d", level, static_cast<int>(reason));
+#include "cUserHistoryLog/LevelUp.inc"
 }
 
 // LevelDown(int, eLevelDownReason)：ORIG 0x86845de，"Level-,%d,%d"
-void cUserHistoryLog::LevelDown(int level, eLevelDownReason reason)
-{
-    m_user->LogHistory("Level-,%d,%d", level, static_cast<int>(reason));
+#include "cUserHistoryLog/LevelDown.inc"
 }
 
-void cUserHistoryLog::CoinSub(int coin, int sub, eCoinSubReason reason)
-{
-    m_user->LogHistory("Coin-,%d,%d,%d", coin, sub, static_cast<int>(reason));
+#include "cUserHistoryLog/CoinSub.inc"
 }
 
-void cUserHistoryLog::EventCoinSub(int coin, int sub, eCoinSubReason reason)
-{
-    m_user->LogHistory("ECoin-,%d,%d,%d", coin, sub, static_cast<int>(reason));
+#include "cUserHistoryLog/EventCoinSub.inc"
 }
 
-void cUserHistoryLog::PayCoinSub(int coin, int sub, eCoinSubReason reason)
-{
-    m_user->LogHistory("PCoin-,%d,%d,%d", coin, sub, static_cast<int>(reason));
+#include "cUserHistoryLog/PayCoinSub.inc"
 }
 
-void cUserHistoryLog::pvpMissionClearReward(int expPoint, int exp, int missionKind, int missionIndex)
-{
-    m_user->LogHistory("PvPMissionReward+,%d,%d,%d,%d", expPoint, exp, missionKind, missionIndex);
+#include "cUserHistoryLog/pvpMissionClearReward.inc"
 }
 
-void cUserHistoryLog::EnterDungeon(const char* dungeonName, int level)
-{
-    m_user->LogHistory("DungeonEnter,\"%s\",%d", dungeonName, level);
+#include "cUserHistoryLog/EnterDungeon.inc"
 }
 
-void cUserHistoryLog::LeaveDungeon(const char* dungeonName, int level)
-{
-    m_user->LogHistory("DungeonLeave,\"%s\",%d", dungeonName, level);
+#include "cUserHistoryLog/LeaveDungeon.inc"
 }
 
-void cUserHistoryLog::LeaveDungeon(const char* dungeonName, int unk, const char* memberNames, int state)
-{
-    m_user->LogHistory("DungeonLeave,\"%s\",%d,%d,%s", dungeonName, unk, state, memberNames);
+#include "cUserHistoryLog/LeaveDungeon_1.inc"
 }
 
-void cUserHistoryLog::LeaveDungeon(int dungeonIdx, int unk, const char* memberNames, int state)
-{
-    m_user->LogHistory("DungeonLeave,%d,%d,%d,%s", dungeonIdx, unk, state, memberNames);
+#include "cUserHistoryLog/LeaveDungeon_2.inc"
 }
 
 // b28d-65 [N4/N102]：残余仅 m_traderCharac[0] add-vs-disp 1 条（同 TradeBegin 判词）；
 //   ORIG 0x08684e3c，78=77+1 封顶。
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
-void cUserHistoryLog::CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemAddReason reason)
-{
-    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
-    if (type == 5) {
-        if (reason == static_cast<eItemAddReason>(0x1a) || reason == static_cast<eItemAddReason>(0x1c)
-            || reason == static_cast<eItemAddReason>(0x1d)) {
-            if (*(0, m_traderCharac) != 0)
-                m_user->LogHistory("CTItem+,%d,%d,%d,%d,\"%s\",\"%s\")", itemIdx, count, addInfo,
-                                   static_cast<int>(reason), m_traderCharac, m_traderAccount);
-        } else {
-            m_user->LogHistory("CTItem+,%d,%d,%d,%d", itemIdx, count, addInfo, static_cast<int>(reason));
-        }
-    } else {
-        Inven_Item item;
-        item.reset();
-        item.m_addInfo = itemIdx;   // ORIG local_47 = param_3（m_addInfo +0x02）
-        ItemAdd(invenType, count, addInfo, item, reason);
-    }
+#include "cUserHistoryLog/CreatureItemAdd.inc"
 }
 
-void cUserHistoryLog::InitSkill(int treeKind, int level, int sp, int sfp, eSkillInitReason reason)
-{
-    m_user->LogHistory("SkillInit,%d,%d,%d,%d,%d", treeKind, level, sp, sfp, static_cast<int>(reason));
+#include "cUserHistoryLog/InitSkill.inc"
 }
 
 // ============================================================================
@@ -490,43 +265,7 @@ void cUserHistoryLog::InitSkill(int treeKind, int level, int sp, int sfp, eSkill
 //   经 CSkillChanger::GetCurCharacTotalSP 计算总 SP；按当前技能树索引（-1 单树 /
 //   其它双树）记录 "SkillSPInfo,%d,%d,%d,%d"（reason, remainSP, totalSP, treeKind）。
 // ============================================================================
-void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason)
-{
-    // ORIG 语句顺序：changer 构造 → totalSP → buf 清零 → isSingleTree 判定。
-    WongWork::CSkillChanger changer;
-    int totalSP = changer.GetCurCharacTotalSP(user, false);
-
-    // ORIG 0x08686188：buf1/buf2 各 0x80（rep stos $0x20 dwords，P116 计数口径）；
-    // 单/双树判定不物化 bool（ORIG test/je+cmp/je 直落两分支体，P133 独立守卫形）。
-    char buf1[0x80] = {0};
-    char buf2[0x80] = {0};
-
-    if (user != 0 && user->GetCurCharacSkillTreeIndex() == -1)
-    {
-        // ORIG 0x08686210：链式 receiver（getR 结果 eax 直转 this 实参，不落
-        // slot——P52；命名 slot 局部会 spill+reload 各多 1 条）。
-        int remain0 = reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())
-                          ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0);
-        if (totalSP >= 0 && remain0 >= 0)
-        {
-            sprintf(buf1, "SkillSPInfo,%d,%d,%d,%d", (int)reason, remain0, totalSP, 0xffffffff);
-            user->LogHistory(buf1);
-        }
-    }
-    else
-    {
-        int remain0 = reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())
-                          ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0);
-        int remain1 = reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())
-                          ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)1);
-        if (totalSP >= 0 && remain0 >= 0 && remain1 == 0)
-        {
-            sprintf(buf1, "SkillSPInfo,%d,%d,%d,%d", (int)reason, remain0, totalSP, 0);
-            user->LogHistory(buf1);
-            sprintf(buf2, "SkillSPInfo,%d,%d,%d,%d", (int)reason, remain1, totalSP, 1);
-            user->LogHistory(buf2);
-        }
-    }
+#include "cUserHistoryLog/SkillSPInfoSave.inc"
 }
 
 // ============================================================================
@@ -539,17 +278,7 @@ void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason
 //   字面量 3→(int)type（ORIG 读参数槽 0xc(%ebp)），45/45 指令对齐；仅剩 call/字符串
 //   地址 AE 占位差异。
 // ============================================================================
-void cUserHistoryLog::BillingSuccess(ENUM_BILLING_TYPE type,
-                                     unsigned long long tranNo, int amount)
-{
-    // ORIG 0x086858a0：两分支各独立调 NumberToString（P48 去跨臂缓存，
-    // `push %ebx`（第二臂 %ebx=amount）正由此双调用引入）。
-    if (type == 3)
-        m_user->LogHistory("BILLING, Success,%d,%s", (int)type,
-                           NumberToString(tranNo, 0));
-    else
-        m_user->LogHistory("BILLING, Success,%d,%d,%d", (int)type,
-                           NumberToString(tranNo, 0), amount);
+#include "cUserHistoryLog/BillingSuccess.inc"
 }
 
 // ============================================================================
@@ -557,15 +286,7 @@ void cUserHistoryLog::BillingSuccess(ENUM_BILLING_TYPE type,
 //   BillingFail(ENUM_BILLING_TYPE, unsigned long long, int, int, char*)
 //   "BILLING, Fail,%d,%s,%d,%d,%s"（type, tranNo 串, amount, code, reason）。
 // ============================================================================
-void cUserHistoryLog::BillingFail(ENUM_BILLING_TYPE type,
-                                  unsigned long long tranNo, int amount,
-                                  int code, char* reason)
-{
-    // b28d-50：ORIG 0x08685838 的 NumberToString 结果直留 %eax 落 0xc(%esp)（无
-    // str 槽）；具名局部多一槽且使 ull spill 由 -0x10/-0xc 漂到 -0x20/-0x1c、
-    // 帧 0x34→0x48、丢 push ebx。内联实参即复现（P0 表达式直传）。
-    m_user->LogHistory("BILLING, Fail,%d,%s,%d,%d,%s",
-                       (int)type, NumberToString(tranNo, 0), amount, code, reason);
+#include "cUserHistoryLog/BillingFail.inc"
 }
 
 // ============================================================================
@@ -578,297 +299,110 @@ void cUserHistoryLog::BillingFail(ENUM_BILLING_TYPE type,
 // （ORIG rep stos ecx=0x100 dwords，P116/P253）、chunk 0x80→0x200；make_pair 去 (int) cast
 // 以匹配 ORIG 实例 make_pair<uchar const&,char const&>（0x0869c165）；lineCount/end 预清（P198①）。
 // 残差 N78（tmp memset 恒 call）+ N107（&tmp[0x10] lea+add）+ 字符串地址 AE 伪差。
-void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, int b,
-                                eSkillSaveReason reason)
-{
-    // ORIG 0x08685e02 段首 `movl $0xf,-0x44(%ebp)`（具名 15 局部，P0 槽往返）。
-    int perLine = 15;
-    char header[16];
-    sprintf(header, ",%d, ", (int)reason);
-
-    // ORIG 0x08685dfb 段：lineCount(-0x40) 预清先于 vec 构造（P198① 预清两句式）。
-    int lineCount = 0;
-    std::vector<std::pair<int, int> > vec;
-    int count = 0;
-    for (int i = 0; i < 0xcc; i++)
-    {
-        if (skills[i].m_index != 0 && (i < 0x8a || 0x95 < i))
-        {
-            // ORIG 0x0869c165 实例 = make_pair<unsigned char const&, char const&>
-            // （C++0x 完美转发重载，实参为无 cast 的左值）；(int) cast 会选错实例。
-            vec.push_back(std::make_pair(skills[i].m_index, skills[i].m_level));
-            count++;
-        }
-    }
-
-    lineCount = (int)((float)count / 15.0f) + 1;
-    for (int line = 0; line < lineCount; line++)
-    {
-        // ORIG 0x08685ef2 段：rep stos ecx=0x100 dwords = 0x400 字节（整块 buf 清零，P116/P253）。
-        // 旧 memset(buf,0,0x100) 只清 0x100 字节（少清 0x300）——真语义缺口。
-        char buf[1024] = {0};
-        memcpy(buf, "SaveLethe", 10);
-        strcat(buf, header);
-
-        int start = line * 0xf;
-        // ORIG 0x08685f48 段：`movl $0x0,-0x2c`（end 预清 0，P198① 两句式）。
-        int end = 0;
-        if (line < lineCount - 1)
-        {
-            end = start + 0xe;
-        }
-        else
-        {
-            end = (count % 0xf) - 1 + start;
-        }
-        int n = end - start + 1;
-        if (n == 0)
-            break;
-
-        // [b28d-solo-cUserHistoryLog 2026-09-09 翻案] 原 `char tmp[40]` 两处残差：
-        // ①`&tmp[0x10]` 4.4 恒发 lea -0x94 + add $0x10（ORIG 单条 lea -0x84）；
-        // ②循环内 memset 恒发 call（ORIG 内联 4 条 movl disp）。
-        // 拆成「先声明 char num[24]（浅槽 -0x84，ORIG tmp+0x10 区）+ 后声明 16 字节
-        // 结构体 pre（深槽 -0x94，4.4 后声明占深槽且与 num 紧邻——探针
-        // /tmp/hlprobe/y8.cpp y8 逐条同形）」：num 数组名退化 = 单条 lea -0x84；
-        // pre.m_zero[i]=0 = 4 条 movl disp；sprintf((char*)&pre,…) = 单条 lea -0x94。
-        // union 双视角：m_chars 供 sprintf/strcat 数组名退化（单条 lea，探针 y10），
-        // m_zero 供 4 条 disp movl 清零（探针 y8）。
-        union SkillSavePre { char m_chars[16]; unsigned int m_zero[4]; };
-        char num[24];          // ORIG tmp+0x10（-0x84）区
-        SkillSavePre pre;      // ORIG tmp+0x00（-0x94）区
-        // ORIG 循环外无 tmp 清零（sprintf 自写终止符）；清零只在 k 循环内（4.1 内联 4 条 movl）。
-        sprintf(num, "%d/%d/%d", a, n, b);
-        strcat(buf, num);
-
-        // ORIG 0x08685ff3 段：rep stos ecx=0x80 dwords = 0x200 字节（整块 chunk 清零）。
-        char chunk[512] = {0};
-        for (int k = 0; k < n; k++)
-        {
-            int idx = vec[start + k].first;
-            int lvl = vec[start + k].second;
-            // ORIG 0x08686009 段：4 条 `movl $0,-0x94/-0x90/-0x8c/-0x88(%ebp)`（disp 形）——
-            // 结构体成员赋值复现（探针 y8；memset 恒 call，指针 cast 写恒 lea+add）。
-            pre.m_zero[0] = 0;
-            pre.m_zero[1] = 0;
-            pre.m_zero[2] = 0;
-            pre.m_zero[3] = 0;
-            if (k % 3 == 0)
-                sprintf(pre.m_chars, ",%d/%d", idx, lvl);
-            else
-                sprintf(pre.m_chars, "/%d/%d", idx, lvl);
-            strcat(chunk, pre.m_chars);
-        }
-        strcat(buf, chunk);
-
-        m_user->LogHistory(buf);
-    }
+#include "cUserHistoryLog/SkillSave.inc"
 }
 
-void cUserHistoryLog::SkillAdd(int job, int treeKind, int skillIdx, int count, eSkillAddReason reason)
-{
-    m_user->LogHistory("Skill+,%d,%d,%d,%d,%d", job, skillIdx, count, static_cast<int>(reason), treeKind);
+#include "cUserHistoryLog/SkillAdd.inc"
 }
 
-void cUserHistoryLog::SkillDel(int job, int treeKind, int skillIdx, int count, eSkillDelReason reason)
-{
-    m_user->LogHistory("Skill-,%d,%d,%d,%d,%d", job, skillIdx, count, static_cast<int>(reason), treeKind);
+#include "cUserHistoryLog/SkillDel.inc"
 }
 
-void cUserHistoryLog::SPAdd(int treeKind, int remainSP, int sp, eSPAddReason reason)
-{
-    m_user->LogHistory("SP+,%d,%d,%d,%d", remainSP, sp, static_cast<int>(reason), treeKind);
+#include "cUserHistoryLog/SPAdd.inc"
 }
 
-void cUserHistoryLog::SPSub(int treeKind, int remainSP, int sp, eSPSubReason reason)
-{
-    m_user->LogHistory("SP-,%d,%d,%d,%d", remainSP, sp, static_cast<int>(reason), treeKind);
+#include "cUserHistoryLog/SPSub.inc"
 }
 
-void cUserHistoryLog::SFPAdd(int treeKind, int remainSFP, int sfp, eSPAddReason reason)
-{
-    m_user->LogHistory("SFP+,%d,%d,%d,%d", remainSFP, sfp, static_cast<int>(reason), treeKind);
+#include "cUserHistoryLog/SFPAdd.inc"
 }
 
-void cUserHistoryLog::SFPSub(int treeKind, int remainSFP, int sfp, eSPSubReason reason)
-{
-    m_user->LogHistory("SFP-,%d,%d,%d,%d", remainSFP, sfp, static_cast<int>(reason), treeKind);
+#include "cUserHistoryLog/SFPSub.inc"
 }
 
-void cUserHistoryLog::FPAdd(int a, int b, int c, eFPAddReason reason)
-{
-    m_user->LogHistory("FP+,%d,%d,%d,%d", a, b, c, static_cast<int>(reason));
+#include "cUserHistoryLog/FPAdd.inc"
 }
 
-void cUserHistoryLog::FPSub(int a, int b, int c, eFPSubReason reason)
-{
-    m_user->LogHistory("FP-,%d,%d,%d,%d", a, b, c, static_cast<int>(reason));
+#include "cUserHistoryLog/FPSub.inc"
 }
 
 // WPAdd(int, int, eWPAddReason)：ORIG _ZN15cUserHistoryLog5WPAddEii12eWPAddReason @0x08682c96。
 // 记录 "WP+,%d,%d,%d"（winPoint 当前值, 增加量, reason）。
-void cUserHistoryLog::WPAdd(int winPoint, int add, eWPAddReason reason)
-{
-    m_user->LogHistory("WP+,%d,%d,%d", winPoint, add, static_cast<int>(reason));
+#include "cUserHistoryLog/WPAdd.inc"
 }
 
-void cUserHistoryLog::ChangeGrowType(int a, int b, int c, int d, int e, eChangeGrowTypeReason reason)
-{
-    m_user->LogHistory("CP,%d,%d,%d,%d,%d,%d", a, b, c, d, e, static_cast<int>(reason));
+#include "cUserHistoryLog/ChangeGrowType.inc"
 }
 
-void cUserHistoryLog::ClearUsedQP(int before, int after, int initCount, int unused)
-{
-    m_user->LogHistory("ClearQP,%d,%d,%d,%d", before, after, initCount, unused);
+#include "cUserHistoryLog/ClearUsedQP.inc"
 }
 
 // QPAdd(int, int, int)：ORIG _ZN15cUserHistoryLog5QPAddEiii @0x0868888c。
 // 记录 "QP+,%d,%d,%d"（before, questIdx, add）。
-void cUserHistoryLog::QPAdd(int before, int questIdx, int add)
-{
-    m_user->LogHistory("QP+,%d,%d,%d", before, questIdx, add);
+#include "cUserHistoryLog/QPAdd.inc"
 }
 
 // SendMail：ORIG 0x86847ea。字段已具名（PacketTypes.h MSG_MAILBOX_SEND，
 // m_pad 即 MSG_BASE 后的 +0x0d 起原字节区）。条件为 mail 非空 且 收件人名非空。
-void cUserHistoryLog::SendMail(MSG_MAILBOX_SEND* mail, unsigned int a)
-{
-    // b28d-65：ORIG 0x086847ea 两条独立早退（je 分落两个 jmp/nop 中继，P63）：
-    // 第二守卫 `add $0x11; test %eax,%eax` 是数组退化比较（恒真、无 movzbl）
-    // ⇒ 原码写 `mail->m_name11 == 0`（P171 照抄原码恒真形）；nstr/f2e/f36/f37
-    // 无槽往返 ⇒ 内联实参（P0），mailBody/f3d/f39 有槽 ⇒ 具名局部。
-    if (mail == 0)
-        return;
-    if (mail->m_name11 == 0)
-        return;
-    m_user->LogHistory("MailS,%s,%d,%d,%d,%d,%d,\"%s\",%s",
-                       mail->m_name11, mail->m_gold2e, mail->m_space36,
-                       mail->m_slot37, mail->m_itemId39, mail->m_extra3d,
-                       mail->m_text45, NumberToString(a, 0));
+#include "cUserHistoryLog/SendMail.inc"
 }
 
-void cUserHistoryLog::MoveArea(int a, int b, int c, int d, int e)
-{
-    m_user->LogHistory("MoveArea,%d,%d,%d,%d", a, b, c, d);
+#include "cUserHistoryLog/MoveArea.inc"
 }
 
 // Logout：ORIG 0x86840c4。"IP-,%s,%d,%d,%d,%d,%d,%p"，
 // 参数顺序：characName, a3, a4, (int)a6(uchar), server_group(CEnvironment), a5, this指针。
-void cUserHistoryLog::Logout(const char* a, const char* b, int c, int d, int e,
-                             unsigned char f)
-{
-    // ORIG 0x08685bxx：get_server_group 结果留 callee-saved（%ebx）直转实参；
-    // 4.4 命名局部必 spill 槽（frame +0x14）。取链式内联形。
-    m_user->LogHistory("IP-,%s,%d,%d,%d,%d,%d,%p",
-                       b, c, d, static_cast<int>(f),
-                       G_CEnvironment()->get_server_group(), e,
-                       (const void*)m_user);
+#include "cUserHistoryLog/Logout.inc"
 }
 
 // RecvMail：ORIG 0x86848a8。"MailR,%d,\"%s\",\"%s\""
-void cUserHistoryLog::RecvMail(unsigned int mailIdx, const char* senderName,
-                               const char* accName)
-{
-    m_user->LogHistory("MailR,%d,\"%s\",\"%s\"", mailIdx, senderName, accName);
+#include "cUserHistoryLog/RecvMail.inc"
 }
 
 // ChangeItemLimitCount：ORIG 0x8686d54。m_user 非空才记录，
 // "ChangeItemTradeLimitCount,%d,%d,%d,%d,%d"。
-void cUserHistoryLog::ChangeItemLimitCount(int a, int b, int itemIdx, int d, int e)
-{
-    if (m_user != 0)
-        m_user->LogHistory("ChangeItemTradeLimitCount,%d,%d,%d,%d,%d", a, b, itemIdx, d, e);
-    return;
+#include "cUserHistoryLog/ChangeItemLimitCount.inc"
 }
 
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] m_traderCharac[0] 数组退化 add-vs-disp
 // 单条已复现 ⇒ 本函数 AE。本文件交易中判族共同判词见下。
-void cUserHistoryLog::TradeBegin()
-{
-    // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] ORIG（0x08685047 TradeBegin /
-    // 0x08682xxx MoneyAdd·MoneySub·Avatar±·TradeEnd·Creature± 同族）对数组退化读发
-    // `mov 0x8(%ebp),%eax; add $0x22,%eax; movzbl (%eax),%eax`（4.1 两步寻址）；
-    // 4.4 对直接下标 `m_traderCharac[0]` 恒折单条 disp。把退化指针经逗号表达式变成
-    // 右值再解引用（`*(0, m_traderCharac)`，语义同 `m_traderCharac[0]`）即复现两步
-    // 寻址——探针 /tmp/hlprobe/tb3.cpp h3 与 ORIG 逐条同形（sub $0x18 / add $0x22 /
-    // movzbl (%eax)），无槽、无新增符号。P288 数组退化族旋钮。
-    if (*(0, m_traderCharac) != 0)
-        m_user->LogHistory("Trade+,\"%s\",\"%s\"", m_traderCharac, m_traderAccount);
+#include "cUserHistoryLog/TradeBegin.inc"
 }
 
 // b28d-65 [N4/N102]：残余仅 m_traderCharac[0] 数组退化 add-vs-disp 1 条（同 TradeBegin
 //   判词，七形探针封顶）；ORIG 0x0868507c，53=53。
 // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
-void cUserHistoryLog::TradeEnd(eTradeEndReason reason, int a, int b, int c, int d)
-{
-    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
-    if (*(0, m_traderCharac) != 0) {
-        static const int ILLEGAL_FACTOR = 10;   // ORIG _ZZN15cUserHistoryLog8TradeEndE15eTradeEndReasoniiiiE14ILLEGAL_FACTOR @0x8cf2690（=10）
-        int sum1 = a + b;
-        int sum2 = c + d;
-        char flag = 0;
-        if (sum1 * ILLEGAL_FACTOR < sum2)
-            flag = 1;
-        else if (sum2 * ILLEGAL_FACTOR < sum1)
-            flag = 2;
-        m_user->LogHistory("Trade-,\"%s\",\"%s\",%d, %d, %d, %d",
-                           m_traderCharac, m_traderAccount, static_cast<int>(reason), sum1, sum2,
-                           static_cast<int>(flag));
-    }
+#include "cUserHistoryLog/TradeEnd.inc"
 }
 
-void cUserHistoryLog::TradeItemAddFail(int a, int b)
-{
-    m_user->LogHistory("Item!,%d,%d", a, b);
+#include "cUserHistoryLog/TradeItemAddFail.inc"
 }
 
-void cUserHistoryLog::AchievementComplete(int idx)
-{
-    m_user->LogHistory("AchieveComplete,%d", idx);
+#include "cUserHistoryLog/AchievementComplete.inc"
 }
 
-void cUserHistoryLog::pvpMissionAdd(int a, int b, int c, int d)
-{
-    m_user->LogHistory("PvPMission+,%d,%d,%d,%d", a, b, c, d);
+#include "cUserHistoryLog/pvpMissionAdd.inc"
 }
 
-void cUserHistoryLog::pvpMissionDel(int a, int b)
-{
-    m_user->LogHistory("PvPMission-,%d,%d", a, b);
+#include "cUserHistoryLog/pvpMissionDel.inc"
 }
 
-void cUserHistoryLog::RedeemItemAdd(int a, int b)
-{
-    m_user->LogHistory("RedeemItem+,%d,%d", a, b);
+#include "cUserHistoryLog/RedeemItemAdd.inc"
 }
 
-void cUserHistoryLog::ItemDelCargo(int a, int b, int c, eItemDelReason reason)
-{
-    m_user->LogHistory("Inven-,%d,%d,%d,%d", a, b, c, static_cast<int>(reason));
+#include "cUserHistoryLog/ItemDelCargo.inc"
 }
 // DungeonClearInfo(int, long)：ORIG 0x8684ac4，经 CUser::LogHistory 记录
-void cUserHistoryLog::DungeonClearInfo(int isLast, long playTimeSec)
-{
-    m_user->LogHistory("DungeonClearInfo,%d,%d", isLast, playTimeSec);
+#include "cUserHistoryLog/DungeonClearInfo.inc"
 }
 
 // DungeonClearInfo(int,long,int,int,int,ENUM_DUNGEON_MODE,char const*,int)：ORIG 0x8684a6e
-void cUserHistoryLog::DungeonClearInfo(int isLast, long playTimeSec, int idx, int mode2,
-                                       int val2, ENUM_DUNGEON_MODE dungeonMode,
-                                       const char* name, int val3)
-{
-    m_user->LogHistory("AdvanceDungeonClearInfo,%d,%d,%d,%d,%d,%d,%s,%d",
-                       idx, mode2, isLast, playTimeSec, val2, static_cast<int>(dungeonMode),
-                       name, val3);
+#include "cUserHistoryLog/DungeonClearInfo_1.inc"
 }
 
 // apply_Item(int,int,eApplyItemReason)：ORIG 0x8686c7c。
 // m_user 非空才记录，"ApplyItem ,%d,%d,%d"（注意逗号后有空格，与 ORIG 字符串一致）。
-void cUserHistoryLog::apply_Item(int a, int b, eApplyItemReason reason)
-{
-    if (m_user)
-        m_user->LogHistory("ApplyItem ,%d,%d,%d", a, b, static_cast<int>(reason));
-    return;
+#include "cUserHistoryLog/apply_Item.inc"
 }
 
 // UseSelectBooster(unsigned int,int,int,std::vector<Inven_Item>&)：ORIG 0x8686b52。
@@ -876,45 +410,21 @@ void cUserHistoryLog::apply_Item(int a, int b, eApplyItemReason reason)
 // 每项至少占 0xd 字节），经 CUser::LogHistory 记录 "UseSelectBooster,%u,%d,%d,%s"。
 // b28d-65：while(i<size)+体内 `if(strlen+0xd>0x3fe) break` + sprintf 目标内联（去 p 槽）
 //   ⇒ 与 ORIG 0x08686b52 逐条全等（60=60）。
-void cUserHistoryLog::UseSelectBooster(unsigned int a, int b, int c,
-                                       std::vector<Inven_Item>& items)
-{
-    char buffer[0x400];
-    memset(buffer, 0, sizeof(buffer));
-    unsigned int i = 0;
-    while (i < items.size())
-    {
-        if (strlen(buffer) + 0xd > 0x3fe)
-            break;
-        sprintf(buffer + strlen(buffer), "%d,", items[i].m_addInfo);
-        ++i;
-    }
-    m_user->LogHistory("UseSelectBooster,%u,%d,%d,%s", a, b, c, buffer);
+#include "cUserHistoryLog/UseSelectBooster.inc"
 }
 
 // ============================================================================
 // cUserHistoryLog::UpgradeItem @ 0x8684ca0
 //   记录强化日志 "Upgrade+,%d,%d,%d" / "Upgrade-,%d,%d,%d"。
 // ============================================================================
-void cUserHistoryLog::UpgradeItem(int itemIdx, int from, int to, bool isUpgrade)
-{
-    if (isUpgrade)
-        m_user->LogHistory("Upgrade+,%d,%d,%d", itemIdx, from, to);
-    else
-        m_user->LogHistory("Upgrade-,%d,%d,%d", itemIdx, from, to);
+#include "cUserHistoryLog/UpgradeItem.inc"
 }
 
 // ============================================================================
 // cUserHistoryLog::SeparateUpgradeItem @ 0x8684d0a
 //   记录分离强化日志 "SeparateUpgrade+,%d,%d,%d" / "-..."。
 // ============================================================================
-void cUserHistoryLog::SeparateUpgradeItem(int itemIdx, int from, int to,
-                                          bool isUpgrade)
-{
-    if (isUpgrade)
-        m_user->LogHistory("SeparateUpgrade+,%d,%d,%d", itemIdx, from, to);
-    else
-        m_user->LogHistory("SeparateUpgrade-,%d,%d,%d", itemIdx, from, to);
+#include "cUserHistoryLog/SeparateUpgradeItem.inc"
 }
 
 // ============================================================================
@@ -922,9 +432,7 @@ void cUserHistoryLog::SeparateUpgradeItem(int itemIdx, int from, int to,
 //   记录背包扩容日志 "ExpandInventory+,%d,%d,%d"（cap, newCap, a）。
 //   经 CUser::LogHistory 输出（与其余日志方法同构）。
 // ============================================================================
-void cUserHistoryLog::ExpandInventory(int cap, int newCap, int a)
-{
-    m_user->LogHistory("ExpandInventory+,%d,%d,%d", cap, newCap, a);
+#include "cUserHistoryLog/ExpandInventory.inc"
 }
 
 // ============================================================================
@@ -932,9 +440,7 @@ void cUserHistoryLog::ExpandInventory(int cap, int newCap, int a)
 //   记录副本通关物品日志 "MapClear,%d,%d,%d"。
 //   调用方：WongWork::CBossStage::handleMoveMap（逐有效成员）。
 // ============================================================================
-void cUserHistoryLog::MapClear(unsigned short itemIdx, int playSec, int a)
-{
-    m_user->LogHistory("MapClear,%d,%d,%d", (unsigned)itemIdx, playSec, a);
+#include "cUserHistoryLog/MapClear.inc"
 }
 
 // ============================================================================
@@ -944,24 +450,7 @@ void cUserHistoryLog::MapClear(unsigned short itemIdx, int playSec, int a)
 //   %d,%d,%d,%d,%d,%d,%d"（20 变参，含 MSG_MONSTER_DIE +0xa22..+0xa3d 字段）。
 //   调用方：WongWork::CBossStage::handleKillMonster。
 // ============================================================================
-void cUserHistoryLog::KillMonster(int mobIndex, unsigned int killValue1,
-                                  unsigned int killValue2, unsigned short a,
-                                  unsigned short b, const MSG_MONSTER_DIE& msg,
-                                  char roleType, bool isBoss, int curExp,
-                                  int exp, eExpAddReason reason)
-{
-    m_user->LogHistory(
-        "KillMob,%d,%d,%d, (%d:%d),%d, (%d:%d),%d,%d,%d, (%d:%d),%d,%d,%d,%d,%d,%d,%d",
-        mobIndex, killValue1, killValue2,
-        (unsigned)a & 0xffff, (unsigned)b & 0xffff,
-        (unsigned)msg.m_fieldA22,
-        (int)msg.m_fieldA29, (int)msg.m_fieldA2b,
-        msg.m_fieldA31, msg.m_fieldA2d,
-        (int)roleType,
-        (int)msg.m_fieldA35, (int)msg.m_fieldA37,
-        (int)msg.m_fieldA39, (int)msg.m_fieldA3b, (int)msg.m_fieldA3d,
-        (unsigned)(isBoss ? 1 : 0),
-        curExp, exp, (int)reason);
+#include "cUserHistoryLog/KillMonster.inc"
 }
 
 
@@ -970,17 +459,11 @@ void cUserHistoryLog::KillMonster(int mobIndex, unsigned int killValue1,
 // PrivateStoreItemAdd,PrivateStoreItemDel}.md 全文已读（汇编+反编译 C）。
 
 // ORIG T 0x868455a（报告全文）："Private Store+,%d,%d"
-void cUserHistoryLog::CreatePrivateStore(int zoneA, int zoneB, char const* name)
-{
-    // ORIG vararg 只压 zoneA+zoneB 两个实参（0xc/0x10(%esp)），format "%d,%d"，
-    // 不传 name；多余 name 实参是 ORIG 未有的（移除以匹配 0x18 帧）。
-    m_user->LogHistory("Private Store+,%d,%d", zoneA, zoneB);
+#include "cUserHistoryLog/CreatePrivateStore.inc"
 }
 
 // ORIG T 0x8684586（报告全文）："Private Store-,%d,%d"
-void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
-{
-    m_user->LogHistory("Private Store-,%d,%d", zoneA, zoneB);
+#include "cUserHistoryLog/RemovePrivateStore.inc"
 }
 
 // ORIG T 0x868433e（报告全文）："Item+,..."
@@ -1013,28 +496,7 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 // （/tmp/hlprobe/tb4/tb5/tb6）全部产 add+mov ⇒ 成员取址 N107 封顶。
 // [SweepHistoryLog2 2026-09-09 复核] 再试 12 形（/tmp/print_probe{,2,3,4}.cpp 双后端）：
 // 引用形参恒 add、唯指针形参才 lea（ORIG operator() 为引用，nm 0x084ebe82 实证）⇒ 维持封顶。
-void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
-                                          int addNew, int addOld, eItemAddReason reason,
-                                          char const* name1, char const* name2)
-{
-    m_user->LogHistory(
-        "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
-        "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-        (int)invenType, item.m_addInfo, addNew, addOld, (int)reason,
-        name1, name2,
-        item.GetUpgrade(),
-        (unsigned)item.m_fieldb,
-        ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26,
-        ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28,
-        ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
-        ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c,
-        ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e,
-        ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
-        ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
-        item.m_field0,            // ORIG IVar1 = *param_3（item+0x00 字节）
-        item.GetReSealCount(),
-        CItemGloballyUniqueIdentifierPrint()(
-            *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
+#include "cUserHistoryLog/PrivateStoreItemAdd.inc"
 }
 
 // ORIG T 0x868412a（报告全文）："Item-,..."——注意 %s 只有一个名字参数（param_8）。
@@ -1045,28 +507,7 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
 // [b28d-solo-cUserHistoryLog] DIFF 164/163：P227 同 PrivateStoreItemAdd；残差仅 N107。
 // [2026-09-09 复核] 同上：仅剩 N107 ×1（16 形探针封顶）。
 // [SweepHistoryLog2 2026-09-09 复核] 同上 12 形复验（引用形参恒 add、指针形参才 lea）⇒ 维持封顶。
-void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
-                                          int delNew, int delOld, eItemDelReason reason,
-                                          char const* name1, char const* name2)
-{
-    m_user->LogHistory(
-        "Item-,%d,%d,%d,%d,%d,\"%s\",%d,%d,"
-        "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-        (int)invenType, item.m_addInfo, delNew, delOld, (int)reason,
-        name2,
-        item.GetUpgrade(),
-        (unsigned)item.m_fieldb,
-        ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26,
-        ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28,
-        ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
-        ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c,
-        ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e,
-        ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
-        ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
-        item.m_field0,            // ORIG IVar1 = *param_3（item+0x00 字节）
-        item.GetReSealCount(),
-        CItemGloballyUniqueIdentifierPrint()(
-            *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
+#include "cUserHistoryLog/PrivateStoreItemDel.inc"
 }
 
 // ============================================================================
@@ -1074,117 +515,45 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
 // ============================================================================
 
 // ORIG T 0x08683cee（ItemAddCargo.md）："Inven+,%d,%d,%d"（itemIdx, count, slotType）。
-void cUserHistoryLog::ItemAddCargo(int itemIdx, int count, int slotType)
-{
-    m_user->LogHistory("Inven+,%d,%d,%d", itemIdx, count, slotType);
+#include "cUserHistoryLog/ItemAddCargo.inc"
 }
 
 // ORIG T 0x086868b4（AccountCargoAddItem.md）：'AccountCargo+,%d,%d,%d,%d'
 // ——ORIG 变参首参是 reason（param_5），其后才是 itemIdx/count/slotType。
-void cUserHistoryLog::AccountCargoAddItem(int itemIdx, int count, int slotType,
-                                          eItemAddReason reason)
-{
-    m_user->LogHistory("AccountCargo+,%d,%d,%d,%d",
-                       static_cast<int>(reason), itemIdx, count, slotType);
+#include "cUserHistoryLog/AccountCargoAddItem.inc"
 }
 
 // ORIG T 0x086868ee（AccountCargoDelItem.md）：与 Add 对应的 "AccountCargo-,..."
 // （变参顺序同上：reason 在前）。
-void cUserHistoryLog::AccountCargoDelItem(int itemIdx, int count, int slotType,
-                                          eItemDelReason reason)
-{
-    m_user->LogHistory("AccountCargo-,%d,%d,%d,%d",
-                       static_cast<int>(reason), itemIdx, count, slotType);
+#include "cUserHistoryLog/AccountCargoDelItem.inc"
 }
 
 // ORIG T 0x08684dfa（CharacDie.md）：'Die,"%s",%d,%d'
 // （两个 ushort 零扩展后按 %d 打印，ORIG movzbl/movzwl 口径一致）。
-void cUserHistoryLog::CharacDie(char const* name, unsigned short unkD,
-                                unsigned short unkF)
-{
-    m_user->LogHistory("Die,\"%s\",%d,%d", name,
-                       static_cast<unsigned>(unkD), static_cast<unsigned>(unkF));
+#include "cUserHistoryLog/CharacDie.inc"
 }
 
 // ORIG T 0x086849a2（EnterDungeon_086849a2.md）：'DungeonEnter,"%s",%d,%d,%s'
 // ——第 3 个 %d 是形参 4（state）、%s 是形参 3（memberNames），按报告交错转写。
-void cUserHistoryLog::EnterDungeon(const char* dungeonName, int unk,
-                                   const char* memberNames, int state)
-{
-    m_user->LogHistory("DungeonEnter,\"%s\",%d,%d,%s",
-                       dungeonName, unk, state, memberNames);
+#include "cUserHistoryLog/EnterDungeon_1.inc"
 }
 
 // ORIG T 0x0868491a（EnterDungeon.md 主报告）：
 // 'AdvanceDungeonEnter,%d,%d,%d,%s,%d,%d'——char 形参经 movsbl 符号扩展后打印。
-void cUserHistoryLog::EnterDungeon(int dungeonIdx, int a, int b,
-                                   const char* memberNames, char flag, int state)
-{
-    m_user->LogHistory("AdvanceDungeonEnter,%d,%d,%d,%s,%d,%d",
-                       dungeonIdx, a, b, memberNames, static_cast<int>(flag), state);
+#include "cUserHistoryLog/EnterDungeon_2.inc"
 }
 
 // ============================================================================
 // ORIG T 0x08685452（Auction.md 全量转写）：按 m_type 0/1/2/3 分派
 // LogHistory 格式串（SIG_AUCTION_LOG_MESSAGE_AG 布局见 SigTypes.h）。
 // ============================================================================
-void cUserHistoryLog::Auction(SIG_AUCTION_LOG_MESSAGE_AG* msg)
-{
-    switch (msg->m_type)
-    {
-        case 0:
-            m_user->LogHistory("Auction_reg_s,%llu,%d,%u,%hhu,%d,%hu,%u",
-                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
-                msg->m_arg16, msg->m_arg1a, msg->m_arg1c);
-            break;
-        case 1:
-            m_user->LogHistory("Auction_reg_f,%llu,%d,%u,%hhu,%d,%hu,%u,%hhu",
-                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
-                msg->m_arg16, msg->m_arg1a, msg->m_arg1c, msg->m_arg20);
-            break;
-        case 2:
-            m_user->LogHistory("Auction_bid_s,%llu,%d,%d,%d",
-                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg0d);
-            break;
-        case 3:
-            m_user->LogHistory("Auction_bid_f,%llu,%d,%d",
-                msg->m_key, msg->m_arg09, msg->m_arg0d);
-            break;
-        default:
-            m_user->LogHistory("Auction_unknown,%d", (int)msg->m_type);
-            break;
-    }
+#include "cUserHistoryLog/Auction.inc"
 }
 
 // ============================================================================
 // ORIG T 0x08685654（AuctionPoint.md 全量转写）：与 Auction 同型，POINT_* 串。
 // ============================================================================
-void cUserHistoryLog::AuctionPoint(SIG_AUCTION_LOG_MESSAGE_PG* msg)
-{
-    switch (msg->m_type)
-    {
-        case 0:
-            m_user->LogHistory("POINT_reg_s,%llu,%d,%u,%hhu,%d,%hu,%u",
-                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
-                msg->m_arg16, msg->m_arg1a, msg->m_arg1c);
-            break;
-        case 1:
-            m_user->LogHistory("POINT_reg_f,%llu,%d,%u,%hhu,%d,%hu,%u",
-                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
-                msg->m_arg16, msg->m_arg1a, msg->m_arg1c);
-            break;
-        case 2:
-            m_user->LogHistory("POINT_bid_s,%llu,%d,%d",
-                msg->m_key, msg->m_arg09, msg->m_arg0d);
-            break;
-        case 3:
-            m_user->LogHistory("POINT_bid_f,%llu,%d,%d",
-                msg->m_key, msg->m_arg09, msg->m_arg0d);
-            break;
-        default:
-            m_user->LogHistory("POINT_unknown,%d", (int)msg->m_type);
-            break;
-    }
+#include "cUserHistoryLog/AuctionPoint.inc"
 }
 
 // ============================================================================
@@ -1194,101 +563,50 @@ void cUserHistoryLog::AuctionPoint(SIG_AUCTION_LOG_MESSAGE_PG* msg)
 // ============================================================================
 
 // ORIG _ZN15cUserHistoryLog16AntibotPacketLogEN20AntibotPacketLogType1TE @0x08686dd0
-void cUserHistoryLog::AntibotPacketLog(AntibotPacketLogType::T type)
-{
-    m_user->LogHistory("AntibotPacketLog,%d", (int)type);
+#include "cUserHistoryLog/AntibotPacketLog.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog15BuyCashShopItemEjmjPKccN19CeraShopPaymentType1TEy
 //      @0x08686ea0：价格 u64 经 NumberToString 渲染后入参。
-void cUserHistoryLog::BuyCashShopItem(unsigned int itemIdx, unsigned long uid,
-                                      unsigned int count, const char* buyer, char flag,
-                                      CeraShopPaymentType::T payType,
-                                      unsigned long long price)
-{
-    m_user->LogHistory("BuyCashItem, %u, %u, %u, %s, %d, %d, %s",
-                       itemIdx, (unsigned int)uid, count, buyer, (int)flag,
-                       (int)payType, NumberToString(price, 0));
+#include "cUserHistoryLog/BuyCashShopItem.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog12CashInvenAddE19eCashInvenAddReasonjjm @0x0868683a
-void cUserHistoryLog::CashInvenAdd(eCashInvenAddReason reason, unsigned int a,
-                                   unsigned int b, unsigned long c)
-{
-    m_user->LogHistory("CashInven+,%u,%u,%u,%u",
-                       (unsigned)reason, a, b, (unsigned)c);
+#include "cUserHistoryLog/CashInvenAdd.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog12CashInvenDelE19eCashInvenDelReasonjjmj @0x08686874
-void cUserHistoryLog::CashInvenDel(eCashInvenDelReason reason, unsigned int a,
-                                   unsigned int b, unsigned long c, unsigned int d)
-{
-    m_user->LogHistory("CashInven-,%u,%u,%u,%u,%u",
-                       (unsigned)reason, a, b, (unsigned)c, d);
+#include "cUserHistoryLog/CashInvenDel.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog9CharacAddEi @0x08682a92：
 //   栈上 TimeLog_ 计时后读 m_charac[idx].m_field26(+0x26 growtype) 日志 "Charac+,%d"。
 //   【推断】TimeLog_ 为纯计时局部对象，无可观察副作用，重建中省略。
-void cUserHistoryLog::CharacAdd(int idx)
-{
-    // ORIG 栈上 TimeLog_ 局部对象调 setTime()（结果未用，保留以对齐字节）。
-    TimeLog_ tl;
-    tl.setTime();
-    // CUser::m_characList @+0x796e8（ORIG 0x08682a92 operator[] 基址），
-    // 表达式内联传递（P134——引用局部会挤占 -0xc 槽并使实参装载序漂移）。
-    m_user->LogHistory("Charac+,%d",
-        (int)m_user->m_characList[idx].m_field26);
+#include "cUserHistoryLog/CharacAdd.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog9CharacDelEi @0x08682ae0（与 CharacAdd 同型，"Charac-,"）
-void cUserHistoryLog::CharacDel(int idx)
-{
-    TimeLog_ tl;
-    tl.setTime();
-    m_user->LogHistory("Charac-,%d",
-        (int)m_user->m_characList[idx].m_field26);
+#include "cUserHistoryLog/CharacDel.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog6DiePvPE23ENUM_PVP_HISTORY_REASONjjiiiiPKc @0x08686490
-void cUserHistoryLog::DiePvP(ENUM_PVP_HISTORY_REASON reason, unsigned int a, unsigned int b,
-                             int c, int d, int e, int f, const char* name)
-{
-    m_user->LogHistory("PVP,%d,%u,%u,%d,%d,%d,%d,\"%s\"",
-                       (int)reason, a, b, c, d, e, f, name);
+#include "cUserHistoryLog/DiePvP.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog23Enchant3rdChronicleItemEbiiii @0x08684c28
-void cUserHistoryLog::Enchant3rdChronicleItem(bool isEnchant, int itemIdx, int materialIdx,
-                                              int equipType, int count)
-{
-    if (isEnchant)
-        m_user->LogHistory("3rdEnchant+,%d,%d,%d,%d", itemIdx, materialIdx, equipType, count);
-    else
-        m_user->LogHistory("3rdEnchant-,%d,%d,%d,%d", itemIdx, materialIdx, equipType, count);
+#include "cUserHistoryLog/Enchant3rdChronicleItem.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog11EnchantItemEiiibPKcS1_ @0x08684d74
-void cUserHistoryLog::EnchantItem(int a, int b, int c, bool up,
-                                  const char* name1, const char* name2)
-{
-    if (up)
-        m_user->LogHistory("Enchant+,%d,%d,%d,\"%s\",\"%s\"", a, b, c, name1, name2);
-    else
-        m_user->LogHistory("Enchant-,%d,%d,%d,\"%s\",\"%s\"", a, b, c, name1, name2);
+#include "cUserHistoryLog/EnchantItem.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog6EndPvPE23ENUM_PVP_HISTORY_REASONbj @0x0868642e
-void cUserHistoryLog::EndPvP(ENUM_PVP_HISTORY_REASON reason, bool flag, unsigned int v)
-{
-    // ORIG 0x08687f1x：bool 形参 spill 槽 movzbl 直接进 %d 实参（无三目岛）。
-    m_user->LogHistory("PVP,%d,%d,%u", (int)reason, flag, v);
+#include "cUserHistoryLog/EndPvP.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog10EndRidableENS_12eRidableTypeEi @0x0868695c：注意参数换位
-void cUserHistoryLog::EndRidable(eRidableType type, int a)
-{
-    m_user->LogHistory("Transform,%d,%d,%d", 0, a, (int)type);
+#include "cUserHistoryLog/EndRidable.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog6ExpAddEii13eExpAddReasoni @0x08684bd0：
@@ -1308,294 +626,129 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 // （+2 条）；⑨语句表达式 ({reason;})；⑩逗号 (0,reason)——**全部仍多 1 条
 // `mov 0x14(%ebp),%eax`**。机理：4.1 把 || 左操作数装载的 %eax 保留给右操作数 shl 源；
 // 4.4 -O0 无 CSE，第二次使用恒重读形参槽 ⇒ 无合法源形可造 ⇒ N18a 反向封顶（ORIG 31/我们 32）。
-void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
-{
-    // [b28d-solo-cUserHistoryLog] N6 翻案：`(int)` cast 阻断 4.4 前端的 bool 位测试折叠
-    // （探针 /tmp/hlprobe/Game/probe4.cpp k1：`(int)((1u<<r)&0x1892u)==0` 产 ORIG 的
-    // shl;and $0x1892;test，无 cast 恒折 shr;and $1）。
-    // 证据（ORIG 0x08684bd7..0x08684c27）：`mov 0x14(%ebp),%eax; cmp $0xc,%eax; ja body;
-    // shl/and/test; jne <nop 岛>; body: ... call; jmp +0x52; nop`。P223 尾空标签复现
-    // （探针 probe4.cpp e3 与 ORIG 同形，仅 reason 重载一条差）。
-    if (!((0xc < (unsigned)reason) ||
-          (((int)((1u << reason) & 0x1892U)) == 0)))
-        goto end;
-    m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reason);
-end:;
+#include "cUserHistoryLog/ExpAdd.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog16FullIPCounterLogEiiiiiPc @0x08685d54
-void cUserHistoryLog::FullIPCounterLog(int a, int b, int c, int d, int e, char* ip)
-{
-    m_user->LogHistory("D_IPCount,%d,%d,%d,%d,%d,%s", a, b, c, d, e, ip);
+#include "cUserHistoryLog/FullIPCounterLog.inc"
 }
 
 // ---- GuildCargo 族（全部为 "GuildCargo,%d..." 前缀透传；ORIG 地址见各注释） ----
-void cUserHistoryLog::GuildCargo(ENUM_GUILD_CARGO_HISTORY_REASON reason, int a)   // 0x086864e6
-{
-    m_user->LogHistory("GuildCargo,%d,%d", (int)reason, a);
+#include "cUserHistoryLog/GuildCargo.inc"
 }
-void cUserHistoryLog::GuildCargoResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                       int a, int b)                              // 0x08686512
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d", (int)reason, a, b);
+#include "cUserHistoryLog/GuildCargoResult.inc"
 }
-void cUserHistoryLog::GuildCargoHistory(ENUM_GUILD_CARGO_HISTORY_REASON reason, int a) // 0x08686544
-{
-    m_user->LogHistory("GuildCargo,%d,%d", (int)reason, a);
+#include "cUserHistoryLog/GuildCargoHistory.inc"
 }
-void cUserHistoryLog::GuildCargoHistoryResult(ENUM_GUILD_CARGO_HISTORY_REASON reason, int a) // 0x08686570
-{
-    m_user->LogHistory("GuildCargo,%d,%d", (int)reason, a);
+#include "cUserHistoryLog/GuildCargoHistoryResult.inc"
 }
-void cUserHistoryLog::GuildCargoCheckPushItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                              int a, int b, int c, int d, int e, int f)  // 0x0868659c
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+#include "cUserHistoryLog/GuildCargoCheckPushItem.inc"
 }
-void cUserHistoryLog::GuildCargoCheckPushItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                                    int a, int b, int c, int d, int e, int f) // 0x086865ea
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+#include "cUserHistoryLog/GuildCargoCheckPushItemResult.inc"
 }
-void cUserHistoryLog::GuildCargoPushItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                         int a, int b, int c, int d, int e, int f,
-                                         unsigned char g)                         // 0x08686638
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d,%d",
-                       (int)reason, a, b, c, d, e, f, g & 0xff);
+#include "cUserHistoryLog/GuildCargoPushItem.inc"
 }
-void cUserHistoryLog::GuildCargoItemRecovery(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                             int a, int b, int c, int d, int e,
-                                             unsigned char f)                     // 0x08686694
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d",
-                       (int)reason, a, b, c, d, e, f & 0xff);
+#include "cUserHistoryLog/GuildCargoItemRecovery.inc"
 }
-void cUserHistoryLog::GuildCargoPopItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                        int a, int b, int c, int d, int e)        // 0x086866ea
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e);
+#include "cUserHistoryLog/GuildCargoPopItem.inc"
 }
-void cUserHistoryLog::GuildCargoPopItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                              int a, int b, int c, int d, int e, int f) // 0x08686780
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+#include "cUserHistoryLog/GuildCargoPopItemResult.inc"
 }
-void cUserHistoryLog::GuildCargoPushItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                               int a, int b, int c, int d, int e, int f) // 0x08686732
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+#include "cUserHistoryLog/GuildCargoPushItemResult.inc"
 }
-void cUserHistoryLog::GuildCargoMoveItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                         int a, int b)                            // 0x086867ce
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d", (int)reason, a, b);
+#include "cUserHistoryLog/GuildCargoMoveItem.inc"
 }
-void cUserHistoryLog::GuildCargoMoveItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
-                                               int a, int b, int c)               // 0x08686800
-{
-    m_user->LogHistory("GuildCargo,%d,%d,%d,%d", (int)reason, a, b, c);
+#include "cUserHistoryLog/GuildCargoMoveItemResult.inc"
 }
 
 // ---- 公会日期族：ORIG 取 GlobalData::s_systemTime_ 当前秒 + localtime_r，
 //      "%d/%d/%d" = tm_year+1900(tm_year+0x76c)/tm_mon+1/tm_mday ----
 // ORIG _ZN15cUserHistoryLog11GuildCreateEjPKcj @0x08685978
-void cUserHistoryLog::GuildCreate(unsigned int guildKey, const char* guildName,
-                                  unsigned int characNo)
-{
-    time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm broken;
-    struct tm* r = localtime_r(&now, &broken);
-    // b28d-50：同 GuildAddExp——ORIG 0x086859a2 段三具名日期槽 -0x14/-0x10/-0xc。
-    int year = r->tm_year;
-    int month = r->tm_mon + 1;
-    int day = r->tm_mday;
-    m_user->LogHistory("GuildCreate,\"%d/%d/%d\",%d,\"%s\",%d",
-                       year + 0x76c, month, day,
-                       guildKey, guildName, characNo);
+#include "cUserHistoryLog/GuildCreate.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog9GuildJoinEjPKcjtc @0x08685a48
 // b28d-65：三具名日期局部（year/month/day，P0 槽往返）⇒ 53=53 逐条全等（ORIG 0x08685a48）。
-void cUserHistoryLog::GuildJoin(unsigned int guildKey, const char* guildName,
-                                unsigned int characNo, unsigned short a, char b)
-{
-    time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm broken;
-    struct tm* r = localtime_r(&now, &broken);
-    int year = r->tm_year;
-    int month = r->tm_mon + 1;
-    int day = r->tm_mday;
-    m_user->LogHistory("GuildJoin,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
-                       year + 0x76c, month, day,
-                       guildKey, guildName, characNo, (unsigned)a, (int)b);
+#include "cUserHistoryLog/GuildJoin.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog8GuildOutEjPKcjct @0x08685b00
 // b28d-65：同 GuildJoin（三具名日期局部）⇒ 53=53（ORIG 0x08685b00）。
-void cUserHistoryLog::GuildOut(unsigned int guildKey, const char* guildName,
-                               unsigned int characNo, char a, unsigned short b)
-{
-    time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm broken;
-    struct tm* r = localtime_r(&now, &broken);
-    int year = r->tm_year;
-    int month = r->tm_mon + 1;
-    int day = r->tm_mday;
-    m_user->LogHistory("GuildOut,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
-                       year + 0x76c, month, day,
-                       guildKey, guildName, characNo, (int)a, (unsigned)b);
+#include "cUserHistoryLog/GuildOut.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog16GuildChangeGradeEjPKcjjhh @0x08685c4e
 // b28d-65：同 GuildJoin（三具名日期局部）⇒ 55=55（ORIG 0x08685c4e）。
-void cUserHistoryLog::GuildChangeGrade(unsigned int guildKey, const char* guildName,
-                                       unsigned int characNo, unsigned int grade,
-                                       unsigned char oldGrade, unsigned char newGrade)
-{
-    time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm broken;
-    struct tm* r = localtime_r(&now, &broken);
-    int year = r->tm_year;
-    int month = r->tm_mon + 1;
-    int day = r->tm_mday;
-    m_user->LogHistory("GuildChangeGrade,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d,%d",
-                       year + 0x76c, month, day,
-                       guildKey, guildName, characNo, grade,
-                       (unsigned)(oldGrade & 0xff), (unsigned)(newGrade & 0xff));
+#include "cUserHistoryLog/GuildChangeGrade.inc"
 }
 
-void cUserHistoryLog::useEmblem(unsigned long a, unsigned long b, unsigned int c,
-                                const char* d, unsigned int e)
-{
-    // b28c-L2: 删 (int) 冗余 cast——-m32 下 unsigned long 即 32 位，cast 不改变
-    // 压栈宽度但诱发 4.4 callee-saved %ebx 缓存 + 帧 0x28→0x24（P41 变体/BM13
-    // charge 同族），删后 4.4 回到 ORIG 0x08685a08 的 edx 逐段即用即弃形。
-    m_user->LogHistory("UseEmblem,%d,%d,%d,%s,%d", a, b, c, d, e);
+#include "cUserHistoryLog/useEmblem.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog12StartRidableENS_12eRidableTypeEi @0x08686928：参数换位同 EndRidable
-void cUserHistoryLog::StartRidable(eRidableType type, int a)
-{
-    m_user->LogHistory("Transform,%d,%d,%d", 1, a, (int)type);
+#include "cUserHistoryLog/StartRidable.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog11HackDetectedEjjjjjj @0x08685320：按尾参是否为零递增格式长度
-void cUserHistoryLog::HackDetected(unsigned int a, unsigned int b, unsigned int c,
-                                   unsigned int d, unsigned int e, unsigned int f)
-{
-    if (e == 0 && f == 0)
-        m_user->LogHistory("Hack,%d,%d,%d,%d", a, b, c, d);
-    else if (f == 0)
-        m_user->LogHistory("Hack,%d,%d,%d,%d,%d", a, b, c, d, e);
-    else
-        m_user->LogHistory("Hack,%d,%d,%d,%d,%d,%d", a, b, c, d, e, f);
+#include "cUserHistoryLog/HackDetected.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog15HadesHistoryLogEjjjj @0x08685418
-void cUserHistoryLog::HadesHistoryLog(unsigned int a, unsigned int b, unsigned int c,
-                                      unsigned int d)
-{
-    m_user->LogHistory("Hades,%d,%d,%d,%d", a, b, c, d);
+#include "cUserHistoryLog/HadesHistoryLog.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog12IPCounterLogEiiiiiPc @0x08685d0c
-void cUserHistoryLog::IPCounterLog(int a, int b, int c, int d, int e, char* ip)
-{
-    m_user->LogHistory("IPCount,%d,%d,%d,%d,%d,%s", a, b, c, d, e, ip);
+#include "cUserHistoryLog/IPCounterLog.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog21IPCounterLog_InsertIpEiiPc @0x08685d9c
-void cUserHistoryLog::IPCounterLog_InsertIp(int a, int b, char* ip)
-{
-    m_user->LogHistory("IPCountInt,%d,%d,%s", a, b, ip);
+#include "cUserHistoryLog/IPCounterLog_InsertIp.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog18ItemMakingSkillAddE21ENUM_ITEM_MAKING_TYPEiis @0x08686a88
-void cUserHistoryLog::ItemMakingSkillAdd(ENUM_ITEM_MAKING_TYPE type, int a, int b, short c)
-{
-    m_user->LogHistory("ItemMakingSkill+,%d,%d,%d,%d",
-                       (int)type, a, b, (int)c);
+#include "cUserHistoryLog/ItemMakingSkillAdd.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog20MercenaryCompetitionEjcc @0x08686aca
-void cUserHistoryLog::MercenaryCompetition(unsigned int a, char b, char c)
-{
-    m_user->LogHistory("MercenaryCompetition,%u,%d,%d", a, (int)b, (int)c);
+#include "cUserHistoryLog/MercenaryCompetition.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog15MercenaryReturnEjiiiii @0x08686b0a（注意 "MecenaryReturn" 拼写照抄 ORIG）
-void cUserHistoryLog::MercenaryReturn(unsigned int mercNo, int a, int b, int c, int d, int e)
-{
-    m_user->LogHistory("MecenaryReturn,%u,%d,%d,%d,%d,%d", mercNo, a, b, c, d, e);
+#include "cUserHistoryLog/MercenaryReturn.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog5QPSubEiii @0x0868885a
-void cUserHistoryLog::QPSub(int before, int questIdx, int sub)
-{
-    m_user->LogHistory("QP-,%d,%d,%d", before, questIdx, sub);
+#include "cUserHistoryLog/QPSub.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog11SecuServiceE22ENUM_SECU_SERVICE_TYPE24ENUM_SECU_SERVICE_ACTION
 //      @0x0868479c：仅 type 0/1 有日志串。
-void cUserHistoryLog::SecuService(ENUM_SECU_SERVICE_TYPE type, ENUM_SECU_SERVICE_ACTION action)
-{
-    if (type == ENUM_SECU_SERVICE_TYPE_GOBLIN)
-        m_user->LogHistory("s_gob,%d", (int)action);
-    else if (type == ENUM_SECU_SERVICE_TYPE_CARD)
-        m_user->LogHistory("s_card,%d", (int)action);
+#include "cUserHistoryLog/SecuService.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog27SelectCubeForPremiumServiceEi @0x08686da0
-void cUserHistoryLog::SelectCubeForPremiumService(int a)
-{
-    if (m_user != 0)
-        m_user->LogHistory("SelectCubeForPremiumService,%d", a);
-    return;
+#include "cUserHistoryLog/SelectCubeForPremiumService.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog21SendBuffertoClientLogEishb @0x08686e3a
-void cUserHistoryLog::SendBuffertoClientLog(int kind, short a, unsigned char b, bool c)
-{
-    // b28d-50：ORIG 0x08686e3a 在右起 varargs（c→%esi, b→%ebx, a→%ecx）之后才求
-    // %s 三元并直留 %eax（无槽，push esi/ebx + sub 0x30）；具名 `name` 局部会提前
-    // 物化到 -0xc 槽并改帧（0x44）。内联三元即复现。
-    m_user->LogHistory("SendBuffertoClient [%s],%d,%d,%d",
-                       (kind == 0) ? "ANTIBOT" : "DPROTO",
-                       (int)a, (unsigned)b, (unsigned)c);
+#include "cUserHistoryLog/SendBuffertoClientLog.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog23SendMailForCeraShopGiftEjcjj @0x086848da
-void cUserHistoryLog::SendMailForCeraShopGift(unsigned int mailIdx, char flag,
-                                              unsigned int a, unsigned int b)
-{
-    m_user->LogHistory("MailSG,%u,%d,%u,%u", mailIdx, (int)flag, a, b);
+#include "cUserHistoryLog/SendMailForCeraShopGift.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog8StartPvPE23ENUM_PVP_HISTORY_REASONPKcS2_S2_S2_S2_S2_S2_S2_
 //      @0x086863b6：两条 PVP 行（前 4 名/后 4 名角色名）。
-void cUserHistoryLog::StartPvP(ENUM_PVP_HISTORY_REASON reason, const char* n1, const char* n2,
-                               const char* n3, const char* n4, const char* n5,
-                               const char* n6, const char* n7, const char* n8)
-{
-    m_user->LogHistory("PVP,%d,\"%s\",\"%s\",\"%s\",\"%s\"", (int)reason, n1, n2, n3, n4);
-    m_user->LogHistory("PVP,%d,\"%s\",\"%s\",\"%s\",\"%s\"", (int)reason, n5, n6, n7, n8);
+#include "cUserHistoryLog/StartPvP.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog21UseAvatarOptionChangeEiiii @0x08686d0e
-void cUserHistoryLog::UseAvatarOptionChange(int a, int b, int c, int d)
-{
-    if (m_user != 0)
-        m_user->LogHistory("UseAvatarOptionChange,%d,%d,%d,%d", a, b, c, d);
-    return;
+#include "cUserHistoryLog/UseAvatarOptionChange.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog6UseDyeEiiiRKSsi @0x08686cba
-void cUserHistoryLog::UseDye(int a, int b, int c, const std::string& dyeName, int d)
-{
-    if (m_user != 0)
-        m_user->LogHistory("UseDye ,%d,%d,%d,%s,%d", a, b, c, dyeName.c_str(), d);
-    return;
+#include "cUserHistoryLog/UseDye.inc"
 }
 
 // ---- 物品网格坐标视图：ORIG 存于 this+0x40/+0x42（类尾部 m_pad 区）， ----
@@ -1604,41 +757,28 @@ void cUserHistoryLog::UseDye(int a, int b, int c, const std::string& dyeName, in
 // ORIG W _ZN15cUserHistoryLog11getItemXPosEv @0x08696000：
 //   mov 0x8(%ebp),%eax; movzwl 0x40(%eax),%eax（单 disp 折叠）——具名成员
 //   m_itemX（CUser.h:2153 +0x40）直读。
-unsigned short cUserHistoryLog::getItemXPos()
-{
-    return m_itemX;
+#include "cUserHistoryLog/getItemXPos.inc"
 }
 
 // ORIG W _ZN15cUserHistoryLog11getItemYPosEv @0x0869600c：movzwl 0x42(%eax)。
-unsigned short cUserHistoryLog::getItemYPos()
-{
-    return m_itemY;
+#include "cUserHistoryLog/getItemYPos.inc"
 }
 
 // ORIG W _ZN15cUserHistoryLog12SetItemXYPosEtt @0x0822f084：short 形参 spill
 // 槽（-0x4/-0x8）+ movzwl 回读 + `mov %dx,0x40(%eax)` disp 折叠写。
-void cUserHistoryLog::SetItemXYPos(unsigned short x, unsigned short y)
-{
-    m_itemX = x;
-    m_itemY = y;
+#include "cUserHistoryLog/SetItemXYPos.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog13QuestCompleteEi @0x0868514e（格式串 ORIG .rodata 0x8cf0957）
-void cUserHistoryLog::QuestComplete(int questIdx)
-{
-    m_user->LogHistory("QuestComplete,%d", questIdx);
+#include "cUserHistoryLog/QuestComplete.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog13RedeemItemDelEii @0x086869bc（格式串 ORIG 0x8cf0e9d）
-void cUserHistoryLog::RedeemItemDel(int a, int b)
-{
-    m_user->LogHistory("RedeemItem-,%d,%d", a, b);
+#include "cUserHistoryLog/RedeemItemDel.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog16ItemLockUsingLogEhiiii @0x08689808（格式串 ORIG 0x8cf1153）
-void cUserHistoryLog::ItemLockUsingLog(unsigned char lockType, int a, int b, int c, int d)
-{
-    m_user->LogHistory("ItemLock,%d,%d,%d,%d,%d", lockType & 0xff, a, b, c, d);
+#include "cUserHistoryLog/ItemLockUsingLog.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog9CeraPointE23ENUM_CERAPOINT_LOG_TYPEj @0x0868593c：
@@ -1647,16 +787,7 @@ void cUserHistoryLog::ItemLockUsingLog(unsigned char lockType, int a, int b, int
 // （GetCeraPoint 返回 unsigned int，vararg %d 位模式不变、语义等价）⇒ 4.4 复现 ORIG
 // 「balance 留 %eax / type 先入 %ecx 跨 receiver 保活 / receiver 用 %edx」装载序
 // （探针 /tmp/hlprobe/Game/probe3.cpp fB 与 ORIG 逐条同形；旧 fA 带 cast 多 mov %eax,%ecx）。
-void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amount)
-{
-    // 证据（ORIG 0x0868594f..0x08685971）：call GetCeraPoint 后
-    //   mov 0xc(%ebp),%ecx（type 先入 ecx）→ mov 0x8(%ebp),%edx; mov (%edx),%edx
-    //   → mov %eax,0x10(%esp)（balance 留 eax）→ mov 0x10(%ebp),%eax（amount）
-    //   → mov %eax,0xc(%esp) → mov %ecx,0x8(%esp) → call。
-    // 带 (int) 的第三实参（unsigned→int 转换节点）会使 4.4 把 balance 提前转存 %ecx
-    // （fA 20 条）；去掉转换节点即得 ORIG 19 条全等（P41 变体：冗余 cast 诱发寄存器改派）。
-    m_user->LogHistory("CeraPoint,%d,%d,%d", (int)type, amount,
-                       m_user->GetCeraPoint());
+#include "cUserHistoryLog/CeraPoint.inc"
 }
 
 // ORIG _ZN15cUserHistoryLog5LoginEPKcS1_iihi @0x08683d86（Login.md 全量转写）：
@@ -1672,92 +803,5 @@ void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amoun
 //      两个独立 continue 多 2 条、goto 双标签多 2 条、纯嵌套 if 少 1 条；唯有「1 continue +
 //      1 正向 if」两处各差 0）。
 //   探针 /tmp/hlprobe 复用与 check_tu_routed fresh 双证；旧判词「正向包裹各劣 4 条」已作废。
-void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int param4,
-                            unsigned char loginType, int param6)
-{
-    // 声明序=栈槽序（P28）：region/money 先声明得 -0x5c/-0x58 槽，余者顺延。
-    int region = 0;                              // local_60 回归分类（ORIG 顶部零初始化）
-    int money = 0;                               // ORIG 亦先零初始化后覆写（+0x019/+0x05d）
-    int upgradeFirst = 0;                        // local_58（首件强化）
-    int firstItemId = 0;                         // local_54（10 号槽 itemId）
-    int upgradeSum = 0;                          // local_50（其余件强化和）
-    int rareCount = 0;                           // local_4c（rarity 0/1 计数）
-    int petCount = 0;                            // local_48（invenType=2 计数）
-
-    money = reinterpret_cast<CInventory*>(
-                reinterpret_cast<char*>(const_cast<_Charac_info*>(m_user->getCurCharacR()))
-                + 0xda)->get_money();
-
-    for (int slot = 10; slot < 0x14; ++slot)
-    {
-        // ORIG 每循环迭代重复 getCurCharacInvenR（P48 去缓存，禁循环外缓存）
-        const Inven_Item* it = m_user->getCurCharacInvenR()->GetInvenRef(0, slot);
-        // [b28d-solo-cUserHistoryLog 2026-09-09] ORIG 0x08683e19/0x08683e27 两守卫分落
-        // +0x118 nop 岛 / +0x119 增量段，++rareCount 后 `jmp +0x119`；4.4 对 continue
-        // 恒生成 nop+jmp 岛（多 1 条 jmp）。实测：拆两 continue（+2）、goto 多源共享尾标签
-        // （ndiff 同 2）、循环2 改 || continue（+2）均不闭合 ⇒ N108/P223 封顶。
-        if (it == 0)
-            continue;
-        if (it->m_addInfo != 0)
-        {
-            if (slot == 10)
-            {
-                upgradeFirst = it->GetUpgrade() & 0xff;
-                firstItemId = it->m_addInfo;
-            }
-            else
-            {
-                upgradeSum += it->GetUpgrade() & 0xff;
-            }
-            CItem* item = G_CDataManager()->find_item(it->m_addInfo);
-            if (item != 0)
-            {
-                // ORIG 单次 get_rarity 缓存后判 0/1（P183 反向警告：二次访问须具名缓存）
-                int rarity = item->get_rarity();
-                if (rarity == 0 || rarity == 1)
-                    ++rareCount;
-            }
-        }
-    }
-    for (int slot = 0; slot < 0x74; ++slot)
-    {
-        // ORIG 每循环迭代重复 getCurCharacInvenR（P48 去缓存）
-        const Inven_Item* it = m_user->getCurCharacInvenR()->GetInvenRef(2, slot);
-        if (it == 0)
-            continue;
-        if (it->m_addInfo != 0)
-            ++petCount;
-    }
-
-    // +0x7b 处回归用户标记 = _Charac_info::m_field7b（CUser.h:546，int）。
-    // ORIG 0x08683dxx 单条 `mov 0x7b(%eax),%eax`（具名成员 disp 折叠）；
-    // 裸偏移 `*(int*)(char*+0x7b)` 使 4.4 发 `add $0x7b; mov (%eax),%eax` 两步（§4.3 禁裸偏移）。
-    int returnUserFlag = m_user->getCurCharacR()->m_field7b;
-    // ORIG 先取 GetFirstLogin 落字节槽(-0x39)再判（勿内联 bool 物化）
-    unsigned char isFirstLogin = m_user->GetFirstLogin();
-    if (returnUserFlag == 0 && isFirstLogin != 0)
-        region = 0;
-    else if (loginType == 0 && returnUserFlag != 0)
-        region = 1;
-    else if (loginType == 1 && returnUserFlag != 0)
-        region = 2;
-    else if (loginType == 2 && returnUserFlag != 0)
-        region = 3;
-    // else：ORIG 无 else 写，region 保持初值 0（勿补 -1）
-
-    int expertJobLevel = 0;                      // local_3c
-    STExpertJobScript* script =
-        reinterpret_cast<STExpertJobScript*>(
-            G_CDataManager()->GetExpertJobScript(m_user->GetCurCharacExpertJobType()));
-    if (script != 0)
-        expertJobLevel = script->GetLevel((unsigned)m_user->GetCurCharacExpertJobExp());
-
-    m_user->LogHistory(
-        "IP+,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%p",
-        param2, param3, param4, (int)loginType, param6,
-        m_user->get_charac_job(), m_user->get_charac_level(),
-        (int)m_user->getCurCharFirstGrowType(), (int)m_user->getCurCharSecondGrowType(),
-        region, money, upgradeFirst, firstItemId, upgradeSum, rareCount, petCount,
-        m_user->GetCurCharacExpertJobType(), expertJobLevel,
-        reinterpret_cast<void*>(m_user));
+#include "cUserHistoryLog/Login.inc"
 }

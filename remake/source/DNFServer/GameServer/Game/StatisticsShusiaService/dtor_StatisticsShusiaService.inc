@@ -1,0 +1,1 @@
+StatisticsShusiaService::~StatisticsShusiaService() {}

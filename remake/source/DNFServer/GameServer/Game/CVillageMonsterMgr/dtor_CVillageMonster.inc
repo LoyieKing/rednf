@@ -1,0 +1,2 @@
+CVillageMonster::~CVillageMonster()
+{

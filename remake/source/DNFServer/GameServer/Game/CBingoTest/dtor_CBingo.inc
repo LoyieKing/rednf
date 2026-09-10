@@ -1,0 +1,2 @@
+CBingo::~CBingo()
+{

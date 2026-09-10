@@ -1,0 +1,1 @@
+PurchaseCashItemBonusScript::PurchaseBonusRule::PurchaseBonusRule() { reset(); }

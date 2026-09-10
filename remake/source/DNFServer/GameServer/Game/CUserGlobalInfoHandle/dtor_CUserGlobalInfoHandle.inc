@@ -1,0 +1,1 @@
+CUserGlobalInfoHandle::~CUserGlobalInfoHandle() {}

@@ -1,0 +1,3 @@
+MazeScript::MazeScript()
+{
+    clear();

@@ -1,0 +1,1 @@
+MultiBoxLotteryInfo::~MultiBoxLotteryInfo() {}

@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CChattingEmoticonList/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // [本波] ImportChattingEmoticon DIFF→AE（p167 CLEAR 42/42 语义完成基础上）：
 //  ① P164 显式回边 `scan_exit:` + `goto scan_done` / 公共尾 `goto scan_exit`
 //     复现 ORIG 入口直落（原 for(;;)+break 令 4.4 旋转出多余 `jmp/nop`）；
@@ -31,28 +41,7 @@
 // （ORIG +0x73/+0xc3/+0x11a 三处独立 call，非共享尾），default 仅保持
 // result=0（ORIG cmp 链尾 `cmp $1; jne end` 直落出口，无额外写）。
 // ============================================================================
-ChattingEmoticonBase* CChattingEmoticonList::Factory(
-    const EmoticonType::EmoticonScript& script)
-{
-    ChattingEmoticonBase* result = 0;
-    switch (script.m_type)
-    {
-    case 1:
-        result = new ChattingEmoticon_byEvent();
-        result->SetIndex(script.m_index);
-        break;
-    case 2:
-        result = new ChattingEmoticon_byPremium();
-        result->SetIndex(script.m_index);
-        break;
-    case 4:
-        result = new ChattingEmoticon_byLevel(script.m_param);
-        result->SetIndex(script.m_index);
-        break;
-    default:
-        break;
-    }
-    return result;
+#include "CChattingEmoticonList/Factory.inc"
 }
 
 // ---- 本地 STScriptFileList（与 CItemShop.cpp / STScriptFileList.cpp 同布局：
@@ -88,172 +77,42 @@ char g_ChattingEmoticonScriptBaseDirectory[0x100];
 // 调用（去掉具名 key 局部）使 string/迭代器槽与 ORIG 全等。
 // 全函数逐条全等（仅 .o 未重定位的数据地址呈 AE）。
 // ============================================================================
-bool ImportChattingEmoticon(EmoticonType::EmoticonScript& script,
-                            const char* path)
-{
-    if (!loadRDARScriptFile(g_ChattingEmoticonScriptBaseDirectory, path))
-        return false;                                   // +0x23 ebx=0
-    script.m_index =
-        g_ChattingEmoticonScriptFileList.FindIndexByFullScan(path);  // +0x34
-
-    typedef std::map<const char*, int, less_TCHAR> LookupMap;
-
-    std::string token;      // ORIG -0x70（+0x45 构造）
-    std::string value;      // ORIG -0x74（+0x50 构造）
-    int dead20 = 0;         // ORIG -0x20 死写入，照抄
-
-    for (;;)
-    {
-        if (!ScanType(token, true))    // +0x62（xor$1 物化）
-        {
-        scan_exit:                     // [P164] 回边落点：入口直落、出口共享
-            goto scan_done;            // +0x45c：mov $1,%ebx → dtor 岛 → true
-        }
-
-    redo_lookup:                       // +0x80：两条重派发边（+0x23c/+0x451）落点
-        static LookupMap __lookup;     // guard + __cxa_atexit(map::~map)
-        static SpinLock __init_lock;   // guard + __cxa_atexit(SpinLock::~SpinLock)
-        static bool __inited = false;  // 零初始化 plain bool（无 guard）
-
-        int id;                        // ORIG -0x1c
-        if (__inited)
-        {
-            LookupMap::const_iterator it = __lookup.find(token.c_str());  // -0x68 临时
-            id = (it != __lookup.end()) ? it->second : -1;             // -0x60/-0x64
-        }
-        else
-        {
-            __init_lock.enter();                                       // +0x21f
-            if (__inited)
-            {
-                __init_lock.leave();                                   // +0x236
-                goto redo_lookup;                                      // +0x23c
-            }
-            id = 0;                                // +0x241 注册轮入口
-        }
-
-        switch (id)
-        {
-        case 0:
-        case 0x2f:                      // [type]（+0x275 与 case 0 共 leaf）
-            if (!__inited)
-            {
-                __lookup.insert(LookupMap::value_type("[type]", 0x2f));
-            }
-            else
-            {
-                if (!ScanStr(&value))              // +0x2cc
-                    return false;
-                if (value == "EVENT")              // +0x2f0
-                    script.m_type = 1;
-                else if (value == "CASH")          // +0x313
-                    script.m_type = 2;
-                else
-                    script.m_type = 4;
-                if (!ScanInt(&script.m_param))     // +0x33b
-                    return false;
-                break;                             // → 公共尾 +0x430
-            }
-            /* fall through（+0x2c1 jmp +0x355） */
-        case 0x40:                      // [ani]
-            if (!__inited)
-            {
-                __lookup.insert(LookupMap::value_type("[ani]", 0x40));
-            }
-            else
-            {
-                if (!ScanStr(&script.m_field0c))   // +0x3ac
-                    return false;
-                break;                             // → 公共尾
-            }
-            /* fall through（+0x39e jmp +0x3c2） */
-        case 0x46:                      // [macro]
-            if (!__inited)
-            {
-                __lookup.insert(LookupMap::value_type("[macro]", 0x46));
-            }
-            else
-            {
-                if (!ScanStr(&script.m_field10))   // +0x419
-                    return false;
-                break;                             // → 公共尾
-            }
-        }
-
-        if (!__inited)                 // 公共尾 +0x430（xor$1 物化）：
-        {                              // inited → je 落尾部回跳岛（ORIG +0x456
-            __init_lock.leave();                   //   nop;jmp +0x62，nop 剥离
-            __inited = true;                       // +0x44e   后为 je;jmp 形）
-            goto redo_lookup;                      // +0x451 → guard 重派发
-        }
-        goto scan_exit;                // [P164] 公共尾正常回边（ORIG +0x456）
-    }
-scan_done:
-    return true;                                   // +0x4ac ebx=1
+#include "CChattingEmoticonList/ImportChattingEmoticon.inc"
 }
 
 // ============================================================================
 // ChattingEmoticonBase 派生类（ctor 置 vptr + 调基类；GetStart/End/语义见报告）
 // ============================================================================
 
-ChattingEmoticon_byEvent::ChattingEmoticon_byEvent()
-    : ChattingEmoticonBase() {}
+#include "CChattingEmoticonList/ChattingEmoticon_byEvent.inc"
 
-bool ChattingEmoticon_byEvent::isUsable(const CUser& user) const
-{
-    for (std::set<int>::const_iterator it = m_set.begin();
-         it != m_set.end(); ++it)
-    {
-        if (user.isAffectedPremium((ENUM_PREMIUM_TYPE)*it))
-            return 1;
-    }
-    return 0;
+#include "CChattingEmoticonList/isUsable.inc"
 }
 
-int ChattingEmoticon_byEvent::GetStartArrayIndex() const { return 0; }
-int ChattingEmoticon_byEvent::GetEndArrayIndex() const { return 5; }
+#include "CChattingEmoticonList/GetStartArrayIndex.inc"
+#include "CChattingEmoticonList/GetEndArrayIndex.inc"
 
-ChattingEmoticon_byPremium::ChattingEmoticon_byPremium()
-    : ChattingEmoticonBase() {}
+#include "CChattingEmoticonList/ChattingEmoticon_byPremium.inc"
 
-bool ChattingEmoticon_byPremium::isUsable(const CUser& user) const
-{
-    for (std::set<int>::const_iterator it = m_set.begin();
-         it != m_set.end(); ++it)
-    {
-        if (user.isAffectedPremium((ENUM_PREMIUM_TYPE)*it))
-            return 1;
-    }
-    return 0;
+#include "CChattingEmoticonList/isUsable_1.inc"
 }
 
-int ChattingEmoticon_byPremium::GetStartArrayIndex() const { return 6; }
-int ChattingEmoticon_byPremium::GetEndArrayIndex() const { return 0x11; }
+#include "CChattingEmoticonList/GetStartArrayIndex_1.inc"
+#include "CChattingEmoticonList/GetEndArrayIndex_1.inc"
 
-ChattingEmoticon_byLevel::ChattingEmoticon_byLevel(int level)
-    : ChattingEmoticonBase(), m_level(level) {}
+#include "CChattingEmoticonList/ChattingEmoticon_byLevel.inc"
 
-bool ChattingEmoticon_byLevel::isUsable(const CUser& user) const
-{
-    // ORIG 0x80e5e4e：call get_charac_level 先行（结果留 %eax），随后重读
-    // this->m_level 入 %edx，`cmp %edx,%eax; setge` ⇒ 左操作数为调用结果。
-    return user.get_charac_level() >= m_level;
+#include "CChattingEmoticonList/isUsable_2.inc"
 }
 
-int ChattingEmoticon_byLevel::GetStartArrayIndex() const { return 0x12; }
-int ChattingEmoticon_byLevel::GetEndArrayIndex() const { return 0x17; }
+#include "CChattingEmoticonList/GetStartArrayIndex_2.inc"
+#include "CChattingEmoticonList/GetEndArrayIndex_2.inc"
 
-bool ChattingEmoticon_byLevel::isCommonEmoticon(const CUser& user) const
-{
-    // [b26N7] 虚调用 callee 寄存器：ORIG(4.1) vfn→%edx，4.4 恒 call *%eax；
-    // 探针 /tmp/nl29/n7probe.cpp 实证不可翻，ndiff 12 全由此封顶。
-    (void)user;
-    return 1;
+#include "CChattingEmoticonList/isCommonEmoticon.inc"
 }
 
 // ORIG W 0x080e5fe0：空体（push ebp/mov esp,ebp/pop ebp/ret）。
-void ChattingEmoticon_byLevel::AddPremiumIndex(int /*idx*/)
-{
+#include "CChattingEmoticonList/AddPremiumIndex.inc"
 }
 
 // ============================================================================
@@ -270,43 +129,5 @@ void ChattingEmoticon_byLevel::AddPremiumIndex(int /*idx*/)
 // ① call/数据地址 .o 未重定位显示（链接后 AE 核销）；② 判重 delete 的
 // 虚调用 callee 寄存器 %edx↔%eax 互换（范式库 N7，勿再试）。
 // ============================================================================
-bool CChattingEmoticonList::Load_list()
-{
-    // [b26L17 判词 N7] 唯一残差：1 处虚调用 callee 装载 %eax↔%edx 互换
-    //   （244/244 助记符全等）。
-    const char* path = 0;                                  // ORIG -0xc
-    std::map<int, std::string>::iterator it =
-        g_ChattingEmoticonScriptFileList.m_fileMap.begin();  // ORIG -0x68
-    EmoticonType::EmoticonScript script;                   // ORIG -0x7c 环外构造一次
-
-    while (it != g_ChattingEmoticonScriptFileList.m_fileMap.end())
-    {
-        path = it->second.c_str();          // +0x38：operator->+4 → c_str → -0xc
-        if (path == 0)
-            break;
-        if (!ImportChattingEmoticon(script, path))
-        {
-            printf("Mission Script Error: %s\n", path);
-            return false;
-        }
-        ChattingEmoticonBase* emo = Factory(script);
-        if (emo == 0)
-            return false;
-        if (m_map.find(emo->GetIndex()) != m_map.end())
-        {
-            delete emo;
-            return false;
-        }
-        m_map.insert(std::make_pair(emo->GetIndex(), emo));
-        std::map<int, std::vector<ChattingEmoticonBase*> >::iterator vit =
-            m_mapVec.find(script.m_type);
-        if (vit == m_mapVec.end())
-        {
-            std::vector<ChattingEmoticonBase*> vec;
-            m_mapVec.insert(std::make_pair(script.m_type, vec));
-        }
-        m_mapVec[script.m_type].push_back(emo);
-        ++it;
-    }
-    return true;
+#include "CChattingEmoticonList/Load_list.inc"
 }

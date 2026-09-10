@@ -1,0 +1,2 @@
+CBoosterGage::~CBoosterGage()
+{

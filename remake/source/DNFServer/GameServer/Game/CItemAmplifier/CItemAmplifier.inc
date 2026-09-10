@@ -1,0 +1,2 @@
+CItemAmplifier::CItemAmplifier()
+{

@@ -1,0 +1,3 @@
+PvpUserTable::PvpUserTable()
+{
+    Clear();

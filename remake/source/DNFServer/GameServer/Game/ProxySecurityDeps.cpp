@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 ProxySecurityDeps/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // ProxySecurityDeps.cpp —— checkDenyIP / cutIPdclass / getSha256UsingSalt 真实定义。
 // 全部按 ORIG objdump 逐指令转写（报告缺失，地址见 ProxySecurityDeps.h）。
 
@@ -27,31 +37,7 @@ std::string cutIPdclass(const char* ip)
 // [b28d-N86] fresh 复验 132/117：差值全在 std::string 成员函数外联调用序列
 // （4.1 保留 find/erase/operator= 中间结果寄存器链，4.4 多 15 条 sret/临时槽）
 // 与多分支早返块布局（P47/N104）⇒ 跨版本 libstdc++ 内联差，语义逐分支全等。
-bool checkDenyIP(const char* innerIp, const char* peerIp)
-{
-    if (innerIp == 0 || peerIp == 0)
-        return false;
-    if (innerIp[0] == '\0' || peerIp[0] == '\0')
-        return false;
-    if (strncmp(innerIp, peerIp, 0x10) == 0)
-        return false;
-    std::string a = cutIPdclass(innerIp);
-    std::string b = cutIPdclass(peerIp);
-    if (a == b)                                   // ORIG 0x081f4556 eq(string,string)
-        return false;
-    // ORIG 0x081f457f..0x081f45e6：a/b 各再做 find('.',0)+erase(pos,npos)
-    // （取到第一个 '.'，即仅保留首段）。**erase 返回值赋回自身**：ORIG 汇编
-    // 0x081f459b `mov %eax,0x4(%esp)`（erase 返回值作 operator= 第 2 参）+
-    // 0x081f45a5 call `_ZNSsaSERKSs`（erase 返 string& 左值 ⇒ 自我赋值走
-    // operator=(const string&)）；p167 旧读数 MISSING×2 即此处漏赋值。
-    a = a.erase(a.find('.', 0), std::string::npos);
-    b = b.erase(b.find('.', 0), std::string::npos);
-    // ORIG 0x081f45f9..0x081f4635：短路 `||` 双 call + bool 物化（081f4619 mov$1 /
-    // 081f4620 mov$0 汇聚 → test %al）⇒ 原码是 `if (a=="0" || b=="0") return false;`
-    // ——旧重建 `return b == "0";` 在 b=="0" 时返回 true，与 ORIG 相反（真语义 bug）。
-    if (a == "0" || b == "0")
-        return false;
-    return true;
+#include "ProxySecurityDeps/checkDenyIP.inc"
 }
 
 // ORIG T _Z18getSha256UsingSaltPKhiPc @0x0808cc6a sz 0x18c：
@@ -77,56 +63,5 @@ bool checkDenyIP(const char* innerIp, const char* peerIp)
 //   寄存器角色差。**round5 路由实测：447 / 仅 446 后端 / 446 后端+446 头集 三态
 //   逐函数读数全同（diff=2）⇒ 路由变更无收益（P230 补的「4.4.6 可翻」本 TU 不成立）。**
 //   p167 CALLSITE CLEAR。
-bool getSha256UsingSalt(const unsigned char* src, int len, char* out)
-{
-    if (src == 0)
-        return false;
-    if (src[0] == '\0')
-        return true;
-
-    bool ok = false;                              // ORIG -0x1d
-    // ORIG 0x0808cc9a/0x0808cca1/0x0808cca8：ok 预清后连发 3 条
-    // `movl $0x20/$0x41/$0x4,-0x1c/-0x18/-0x14`，全函数**无任何读取点**
-    // ⇒ 原码遗留死写入（P171 照抄；非语义字段）。
-    int deadA = 0x20;                             // ORIG -0x1c（死写入）
-    int deadB = 0x41;                             // ORIG -0x18（死写入）
-    int deadC = 0x4;                              // ORIG -0x14（死写入）
-    unsigned char salt[4];                        // ORIG -0x21..-0x1e 逐字节置值
-    salt[0] = 'n';
-    salt[1] = 'h';
-    salt[2] = 's';
-    salt[3] = '\0';
-
-    // ORIG 0x0808cccd..0x0808ccec：`call _Znaj` 后存槽，再 **call memset** 清零
-    // 全长（`mov len+4,0x8(%esp); movl $0,0x4(%esp); mov buf,(%esp); call`）
-    // ⇒ 原码是 `new[]` + 显式 `memset(buf,0,len+4)`，非 value-init 内联循环。
-    unsigned char* buf = new unsigned char[len + 4];      // ORIG _Znaj
-    memset(buf, 0, len + 4);                              // ORIG call memset
-    strcpy(reinterpret_cast<char*>(buf),
-           reinterpret_cast<const char*>(src));
-    strcat(reinterpret_cast<char*>(buf),
-           reinterpret_cast<const char*>(salt));
-
-    // ORIG 0x0808cd11..0x0808cd34：digest 清零是**内联 word 循环**
-    // （`lea -0x48,%edx; mov $0x20,%eax; and $0xfffffffc,%ebx; loop mov/add/cmp/jb`）
-    // ⇒ 原码是栈数组零初始化 `= {0}`（P214③），非 memset call。
-    unsigned char digest[0x20] = {0};             // ORIG -0x48（内联 word 循环）
-
-    IChecksum* checksum = CreateCryptoChecksum((CRYPTO_CHECKSUM_TYPE)1);
-    if (checksum->MakeChecksumFromMemory(buf, len + 4, digest, 0x20) ==
-        static_cast<int>(0x6fffffff))
-        ok = true;
-
-    // ORIG 0x0808cdc2..0x0808cdcb：尾测为**两段寄存器形**
-    // （`mov -0xc(%ebp),%eax; cmp $0x1f,%eax; setbe %al`）⇒ 下标局部 int +
-    // 显式无符号比较（P310：4.4 对 unsigned 局部恒折槽直比 ⇒ 不改局部类型）。
-    // ORIG 0x0808cd87/0x0808cd8e 连发**两条** `movl $0x0,-0xc(%ebp)`（idx 0x119/0x124）
-    // ⇒ 原码是「`int i = 0;` + `for (i = 0; …)`」双初始化形（P191 配套）。
-    int i = 0;
-    for (i = 0; (unsigned int)i < 0x20; ++i)
-        sprintf(out + i * 2, "%02X", digest[i]);
-
-    DestroyCryptoChecksum(checksum);
-    delete[] buf;                                 // ORIG _ZdaPv
-    return ok;
+#include "ProxySecurityDeps/getSha256UsingSalt.inc"
 }

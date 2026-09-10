@@ -1,0 +1,2 @@
+CItemGenerator::~CItemGenerator()
+{

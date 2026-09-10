@@ -1,0 +1,2 @@
+CreatureScript::~CreatureScript()
+{

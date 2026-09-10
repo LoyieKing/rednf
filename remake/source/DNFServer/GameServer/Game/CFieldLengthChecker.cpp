@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CFieldLengthChecker/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // CFieldLengthChecker.cpp — ORIG 转写（df_game_r elf32-i386）
 // AddField 双分支：静态 fieldLength_ 空 → 解析字段定义（'(' ')' ';' 分隔，填充
 // 静态 fieldNames_/fieldLength_）；实例成员空 → 解析 "values(" 数据行，按列
@@ -12,27 +22,7 @@
 // @0x0861ca1b 是首个全局函数声明 ⇒ GI 键名取它；定义必须置于本文件最前。
 // ORIG T 0x0861ca1b：socket 类型 → 字符。1→'1' 2→'2' 4→'3' 8→'4'
 // 0x10→'5' 0xffef→'6' 0xffff→'7'，其余 0（决策树见 ORIG 反汇编）。
-int GetSocketTypeCharacter(unsigned short type)
-{
-    switch (type)
-    {
-    case 1:
-        return '1';
-    case 2:
-        return '2';
-    case 4:
-        return '3';
-    case 8:
-        return '4';
-    case 0x10:
-        return '5';
-    case 0xffef:
-        return '6';
-    case 0xffff:
-        return '7';
-    default:
-        return 0;
-    }
+#include "CFieldLengthChecker/GetSocketTypeCharacter.inc"
 }
 
 // fieldNames_/fieldLength_ 的权威定义在本 TU（判据 P186/P108 键名 + 地址邻接）：
@@ -46,73 +36,11 @@ int GetSocketTypeCharacter(unsigned short type)
 std::vector<std::string> CFieldLengthChecker::fieldNames_;
 std::vector<unsigned int> CFieldLengthChecker::fieldLength_;
 
-CFieldLengthChecker::CFieldLengthChecker()
-{
+#include "CFieldLengthChecker/CFieldLengthChecker.inc"
 }
 
-CFieldLengthChecker::~CFieldLengthChecker()
-{
+#include "CFieldLengthChecker/dtor_CFieldLengthChecker.inc"
 }
 
-void CFieldLengthChecker::AddField(char const* query)
-{
-    // [b28d-56 判词·N] N82/N91：ORIG 0x0817? 623 条 vs 我们 611 条；find 重载已按
-    // p167 修正（MISSING/EXTRA 各 6→0）；残余为 string 局部槽基差 8（ORIG -0x41 起
-    // 非 4 对齐槽基）+ 4.4 对 string 临时析构多布 EH landing（P216 边界：callee 为
-    // libstdc++ 不可加 throw()）。语义完成。
-    // [F2d-C05② 甄别] 无命中形：gap=+12（show_func_diff orig=623 our=611，我们**少**）
-    //   ⇒ 减指令型 F2 方向相反；残余 ORIG-only={mov×8,add×3,test,je,jmp,sub,jne,jbe}
-    //   = string 局部槽基（ORIG -0x41 非 4 对齐）+ EH landing 族 ⇒ 维持 N82/N91。
-    if (fieldLength_.empty()) {
-        std::string s(query);
-        std::string a;
-        std::string b;
-        std::string c;
-        // [b28d-56 判词·P167] ORIG 0x0817? 六处调用 `find(char const*, size_type)`
-        // （`_ZNKSs4findEPKcj`），旧码 `find(char)` 选 `find(char, size_type)`
-        // 重载 ⇒ p167 MISSING/EXTRA 各 6。改为字符串字面量实参。
-        size_t pos = s.find("(");
-        a = s.substr(0, pos);
-        b = s.substr(pos + 1, std::string::npos);
-        pos = b.find(")");
-        c = b.substr(0, pos);
-        while ((pos = c.find(";")) != std::string::npos) {
-            fieldNames_.push_back(c.substr(0, pos));
-            c = c.substr(pos + 1, std::string::npos);
-            fieldLength_.push_back(0);
-        }
-        fieldNames_.push_back(c);
-        fieldLength_.push_back(0);
-    }
-    if (m_fieldNames_.empty()) {
-        std::string s(query);
-        std::string a;
-        std::string b;
-        std::string c;
-        size_t pos = s.find("values(");
-        a = s.substr(0, pos);
-        b = s.substr(pos + 7, std::string::npos);
-        pos = b.find(")");
-        c = b.substr(0, pos);
-        for (int i = 0; i < fieldLength_.size() && (pos = c.find(";")) != std::string::npos; ++i) {
-            std::string val;
-            if (c[0] == '\'') {
-                pos = 0;
-                do {
-                    pos = c.find("'", pos + 1);
-                    if (pos == std::string::npos)
-                        return;
-                } while (c[pos - 1] == '\\');
-                ++pos;
-                val = c.substr(1, pos - 2);
-            } else {
-                val = "";
-            }
-            trim(val);
-            if (fieldLength_[i] < val.length()) {
-                fieldLength_[i] = val.length();
-            }
-            c = c.substr(pos + 1, std::string::npos);
-        }
-    }
+#include "CFieldLengthChecker/AddField.inc"
 }

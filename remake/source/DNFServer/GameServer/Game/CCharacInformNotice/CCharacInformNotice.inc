@@ -1,0 +1,3 @@
+CCharacInformNotice::CCharacInformNotice()
+{
+    _reset();

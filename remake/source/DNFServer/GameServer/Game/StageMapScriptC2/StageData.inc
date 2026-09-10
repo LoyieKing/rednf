@@ -1,0 +1,3 @@
+StageData::StageData()
+{
+    clear();

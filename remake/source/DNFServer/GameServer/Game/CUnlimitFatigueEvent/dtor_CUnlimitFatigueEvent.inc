@@ -1,0 +1,2 @@
+CUnlimitFatigueEvent::~CUnlimitFatigueEvent()
+{

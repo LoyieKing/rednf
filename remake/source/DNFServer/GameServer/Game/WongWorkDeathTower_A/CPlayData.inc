@@ -1,0 +1,2 @@
+CDeathTower::CPlayData::CPlayData() throw()
+{

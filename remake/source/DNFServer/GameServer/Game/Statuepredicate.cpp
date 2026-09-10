@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Statuepredicate/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // Statuepredicate.cpp — ORIG 真实实现（独立 TU，未入 CMake，待 Main 登记）。
 // ORIG 证据（df_game_r elf32-i386 objdump）：
 //   C1 @0x08a6c186：call unary_function::C1（0x8a6c192）→ 以 eax 缓存 this，
@@ -28,18 +38,8 @@
 //   同族差：ORIG 0x08a6c197 载入 eax 一次并复用供 3 次 store（4.1 的 dest 缓存形），
 //   我方每字段重读 0x8(%ebp)（4.4 恒重读）⇒ 该 2 条亦跨编译器寄存器分配差（N18a 族）。
 //   语义等价（空基类 ctor 零副作用）。判定：不可翻，封 N。
-Statuepredicate::Statuepredicate(pieceQuestRewardStatus status)
-    : std::unary_function<pieceQuestRewardStatus, bool>(),
-      m_appendageType(status.m_appendageType),
-      m_valueType(status.m_valueType),
-      m_value(status.m_value)
-{
+#include "Statuepredicate/Statuepredicate.inc"
 }
 
-bool Statuepredicate::operator()(pieceQuestRewardStatus const& status) const
-{
-    if (m_appendageType == status.m_appendageType &&
-        m_valueType == status.m_valueType)
-        return true;
-    return false;
+#include "Statuepredicate/operator.inc"
 }

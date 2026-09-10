@@ -1,0 +1,1 @@
+void CEventBase::deliveryEnd(CDelivery*) {}

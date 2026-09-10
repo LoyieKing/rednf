@@ -1,0 +1,2 @@
+IHandler::~IHandler()
+{

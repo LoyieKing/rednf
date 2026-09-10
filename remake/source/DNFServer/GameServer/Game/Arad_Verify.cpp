@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Arad_Verify/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // Game/Arad_Verify.cpp —— OrigArad20 独占 TU（Arad/脚本域缺口）。
 //
 // 覆盖 ORIG 符号（df_game_r nm -S 实证）：
@@ -46,15 +56,11 @@ namespace ARAD
 {
 
 // ORIG T 0x0819eaee（10 字节）：mov $0x0,%eax; ret。
-int arad_equipment_verify(Inven_Item*, CItem const*, ARAD_TYPE::INVENTORY_TYPE)
-{
-    return 0;
+#include "Arad_Verify/arad_equipment_verify.inc"
 }
 
 // ORIG T 0x0819eae4（10 字节）：mov $0xb0,%eax; ret。
-int arad_stackable_verify(Inven_Item*, CItem const*)
-{
-    return 0xb0;
+#include "Arad_Verify/arad_stackable_verify.inc"
 }
 
 // ORIG W 0x08188c56：destroyAradData 的 for_each 删除函子。
@@ -64,15 +70,7 @@ int arad_stackable_verify(Inven_Item*, CItem const*)
 //   重读 p.second; test; je +0x4a                               ← 二次判空
 //   取 vptr; add $0x4; call *(槽1)                              ← D0 deleting dtor
 //   movl $0,0x4(pair)                                          ← p.second = 0
-void FN_DeleteGameScript::operator()(
-    std::pair<const std::string, Arad_InterfaceGameScript*>& p)
-{
-    if (p.second != 0)
-    {
-        p.second->clearScriptData();
-        delete p.second;
-        p.second = 0;
-    }
+#include "Arad_Verify/operator.inc"
 }
 
 }  // namespace ARAD

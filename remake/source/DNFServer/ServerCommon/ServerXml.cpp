@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 ServerXml/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // Rebuilt from df_auction_r (DWARF + Ghidra decompile), 2026-08-08
 #include "ServerXml.h"
 
@@ -32,300 +42,43 @@ np_server_xml::CServerXml g_ServerString_;
 namespace np_server_xml
 {
 
-CServerXml::CServerXml()
-{
-    InitString();
+#include "ServerXml/CServerXml.inc"
 }
 
-CServerXml::~CServerXml()
-{
-    InitString();
+#include "ServerXml/dtor_CServerXml.inc"
 }
 
-void CServerXml::InitString()
-{
-    m_eCharSet = ENUM_CHARSET_KOR;
-    memset(m_cCharSet, 0, sizeof(m_cCharSet));
-    m_mapServerStr.clear();
-    m_mapEventStartStr.clear();
-    m_mapEventEndStr.clear();
-    m_map_EventRGBA.clear();
+#include "ServerXml/InitString.inc"
 }
 
-void CServerXml::StrLoading()
-{
-    StrLoading(std::string(FILE_NAME));
+#include "ServerXml/StrLoading.inc"
 }
 
-void CServerXml::StrLoading(std::string file)
-{
-    InitString();
-    xmlFileName_ = file;
-    m_cStrDoc.Clear();
-    if (!m_cStrDoc.LoadFile(xmlFileName_, TIXML_ENCODING_UNKNOWN))
-    {
-        printf("[CServerXml] Load Fail File : %s\n", FILE_NAME);
-    }
-    else
-    {
-        TiXmlNode* pRootNode = m_cStrDoc.FirstChild("xml");
-        if (pRootNode == (TiXmlNode*)0)
-        {
-            puts("[CServerXml] <xml> Tag Error");
-        }
-        else
-        {
-            CharsetInit(pRootNode);
-            EventLoad(pRootNode);
-            ProcessLoad(pRootNode);
-        }
-    }
+#include "ServerXml/StrLoading_1.inc"
 }
 
-void CServerXml::CharsetInit(TiXmlNode* pRootNode)
-{
-    const char* cTemp = (const char*)0;
-    TiXmlNode* pRoot = (TiXmlNode*)0;
-    pRoot = pRootNode->FirstChild("option");
-    if (pRoot == (TiXmlNode*)0)
-    {
-        puts("[CServerXml] <option> Tag Error");
-        exit(-1);
-    }
-    pRoot = pRoot->FirstChild("charset");
-    if (pRoot == (TiXmlNode*)0)
-    {
-        puts("[CServerXml] <charset> Tag Error");
-        exit(-1);
-    }
-    cTemp = pRoot->ToElement()->Attribute("type");
-    if (cTemp == (const char*)0)
-    {
-        puts("[CServerXml] <type> Tag Error");
-        exit(-1);
-    }
-    if (strcmp(cTemp, "kor") == 0)
-    {
-        m_eCharSet = ENUM_CHARSET_KOR;
-    }
-    else if (strcmp(cTemp, "chn") == 0)
-    {
-        m_eCharSet = ENUM_CHARSET_CHN;
-    }
-    else if (strcmp(cTemp, "jpn") == 0)
-    {
-        m_eCharSet = ENUM_CHARSET_JPN;
-    }
-    else if (strcmp(cTemp, "usa") == 0)
-    {
-        m_eCharSet = ENUM_CHARSET_USA;
-    }
-    else if (strcmp(cTemp, "twn") == 0)
-    {
-        m_eCharSet = ENUM_CHARSET_TWN;
-    }
-    else
-    {
-        puts("[CServerXml] <type> Tag Error");
-        exit(-1);
-    }
-    strcpy(m_cCharSet, cTemp);
+#include "ServerXml/CharsetInit.inc"
 }
 
-void CServerXml::EventLoad(TiXmlNode* pRootNode)
-{
-    TiXmlNode* pRoot = (TiXmlNode*)0;
-    pRoot = pRootNode->FirstChild("event_str");
-    if (pRoot == (TiXmlNode*)0)
-    {
-        puts("[CServerXml] <event_str> Tag Skip!!");
-    }
-    else
-    {
-        pRoot = pRoot->FirstChild("event");
-        if (pRoot == (TiXmlNode*)0)
-        {
-            puts("[CServerXml] <event> Tag Error");
-            exit(-1);
-        }
-        for (; pRoot != (TiXmlNode*)0; pRoot = pRoot->NextSibling())
-        {
-            int un_ID = 0;
-            char* strTemp = (char*)0;
-            char* cSentence = (char*)0;
-            TiXmlNode* cNode = (TiXmlNode*)0;
-            pRoot->ToElement()->Attribute("id", &un_ID);
-            RGBALoad(un_ID, pRoot);
-            cNode = pRoot->FirstChild(m_cCharSet);
-            if (cNode == (TiXmlNode*)0)
-            {
-                printf("%s Tag Error\n", this);
-                exit(-1);
-            }
-            cSentence = (char*)cNode->ToElement()->Attribute("start_msg");
-            StrPunish(un_ID, cSentence, ENUM_EVENT_STRING_START);
-            cSentence = (char*)cNode->ToElement()->Attribute("end_msg");
-            StrPunish(un_ID, cSentence, ENUM_EVENT_STRING_END);
-        }
-    }
+#include "ServerXml/EventLoad.inc"
 }
 
-void CServerXml::RGBALoad(int eventID, TiXmlNode* pRootNode)
-{
-    TiXmlNode* cNode = (TiXmlNode*)0;
-    cNode = pRootNode->FirstChild("color");
-    if (cNode == (TiXmlNode*)0)
-    {
-        printf("%s Tag Error\n", this);
-        exit(-1);
-    }
-    union uniRGBA
-    {
-        int color;
-        char c[4];
-    };
-    uniRGBA color;
-    color.color = 0;
-    color.c[0] = (char)atoi(cNode->ToElement()->Attribute("red"));
-    color.c[1] = (char)atoi(cNode->ToElement()->Attribute("green"));
-    color.c[2] = (char)atoi(cNode->ToElement()->Attribute("blue"));
-    color.c[3] = (char)atoi(cNode->ToElement()->Attribute("alpha"));
-    m_map_EventRGBA.insert(std::pair<int, int>(eventID, color.color));
+#include "ServerXml/RGBALoad.inc"
 }
 
-void CServerXml::ProcessLoad(TiXmlNode* pRootNode)
-{
-    TiXmlNode* pRoot = (TiXmlNode*)0;
-    pRoot = pRootNode->FirstChild("str");
-    if (pRoot == (TiXmlNode*)0)
-    {
-        puts("[CServerXml] <str> Tag Skip!!");
-    }
-    else
-    {
-        pRoot = pRoot->FirstChild("string");
-        if (pRoot == (TiXmlNode*)0)
-        {
-            puts("[CServerXml] <string> Tag Error");
-            exit(-1);
-        }
-        for (; pRoot != (TiXmlNode*)0; pRoot = pRoot->NextSibling())
-        {
-            int un_ID = 0;
-            char* strTemp = (char*)0;
-            char* cSentence = (char*)0;
-            TiXmlNode* cNode = (TiXmlNode*)0;
-            pRoot->ToElement()->Attribute("id", &un_ID);
-            cNode = pRoot->FirstChild(m_cCharSet);
-            if (cNode == (TiXmlNode*)0)
-            {
-                printf("%s Tag Error\n", this);
-                return;
-            }
-            cSentence = (char*)cNode->ToElement()->Attribute("text");
-            StrPunish(un_ID, cSentence, ENUM_SERVER_STRING);
-        }
-    }
+#include "ServerXml/ProcessLoad.inc"
 }
 
-void CServerXml::StrPunish(int nTextID, const char* pText, _eStringType type)
-{
-    if (pText == (const char*)0)
-    {
-        return;
-    }
-    std::string strText = pText;
-    switch (type)
-    {
-    case ENUM_SERVER_STRING:
-        m_mapServerStr.insert(std::pair<int, std::string>(nTextID, strText));
-        break;
-    case ENUM_EVENT_STRING_START:
-        m_mapEventStartStr.insert(std::pair<int, std::string>(nTextID, strText));
-        break;
-    case ENUM_EVENT_STRING_END:
-        m_mapEventEndStr.insert(std::pair<int, std::string>(nTextID, strText));
-        break;
-    }
+#include "ServerXml/StrPunish.inc"
 }
 
-std::string CServerXml::GetServerString(int nTextID, bool* pbResult) const{
-    std::string ret = "";
-    std::map<int, std::string>::const_iterator pIter;
-    pIter = m_mapServerStr.find(nTextID);
-    if (pIter != m_mapServerStr.end())
-    {
-        if (pbResult != (bool*)0)
-        {
-            *pbResult = true;
-        }
-    }
-    else
-    {
-        if (pbResult != (bool*)0)
-        {
-            *pbResult = false;
-        }
-        return ret;
-    }
-    return pIter->second;
+#include "ServerXml/GetServerString.inc"
 }
 
-int CServerXml::GetEventRGBA(int nEventID) const
-{
-    std::map<int, int>::const_iterator pIter;
-    pIter = m_map_EventRGBA.find(nEventID);
-    if (pIter != m_map_EventRGBA.end())
-    {
-        return pIter->second;
-    }
-    return 0;
+#include "ServerXml/GetEventRGBA.inc"
 }
 
-std::string CServerXml::GetEventString(int nTextID, _eStringType type, bool* pbResult) const{
-    std::string ret = "";
-    std::map<int, std::string>::const_iterator pIter;
-    switch (type)
-    {
-    case ENUM_EVENT_STRING_START:
-        pIter = m_mapEventStartStr.find(nTextID);
-        if (pIter != m_mapEventStartStr.end())
-        {
-            if (pbResult != (bool*)0)
-            {
-                *pbResult = true;
-            }
-        }
-        else
-        {
-            if (pbResult != (bool*)0)
-            {
-                *pbResult = false;
-            }
-            return ret;
-        }
-        return pIter->second;
-    case ENUM_EVENT_STRING_END:
-        pIter = m_mapEventEndStr.find(nTextID);
-        if (pIter != m_mapEventEndStr.end())
-        {
-            if (pbResult != (bool*)0)
-            {
-                *pbResult = true;
-            }
-        }
-        else
-        {
-            if (pbResult != (bool*)0)
-            {
-                *pbResult = false;
-            }
-            return ret;
-        }
-        return pIter->second;
-    default:
-        return ret;
-    }
+#include "ServerXml/GetEventString.inc"
 }
 
 } // namespace np_server_xml

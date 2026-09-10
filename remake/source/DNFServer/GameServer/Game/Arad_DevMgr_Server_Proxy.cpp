@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Arad_DevMgr_Server_Proxy/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // CNetwork<6144,100000> 在本 TU 隐式实例化（ORIG 同：10 个 W 符号位于本 TU
 // 0x0818df60-0x0818e837；CNetwork.h 的 extern template 已按 Main 批准移除该实例）；
 // CNetwork.cpp 保留显式实例化（weak 合并）。TU 内还含 <iostream> 的
@@ -13,60 +23,20 @@
 #include "Arad_DevMgr_Server_Proxy.h"
 #include "LogManager.h"
 
-Arad_DevMgr_Server_Proxy::Arad_DevMgr_Server_Proxy(std::basic_string<char, std::char_traits<char>, std::allocator<char> > ip, int port)
-    : m_port(port), m_ip(ip), m_network()
-{
+#include "Arad_DevMgr_Server_Proxy/Arad_DevMgr_Server_Proxy.inc"
 }
 
-int Arad_DevMgr_Server_Proxy::open()
-{
-    return 1;
+#include "Arad_DevMgr_Server_Proxy/open.inc"
 }
 
-int Arad_DevMgr_Server_Proxy::init()
-{
-    if (m_network.m_sock < 0)
-    {
-        m_ip = "127.0.0.1";
-        m_port = 30000;
-        if (CNetwork<6144, 100000>::CreateConnectionSocket(m_network.m_sock, m_ip.c_str(), m_port) == 0)
-        {
-            return 0;
-        }
-    }
-    return 1;
+#include "Arad_DevMgr_Server_Proxy/init.inc"
 }
 
-void Arad_DevMgr_Server_Proxy::disconnect()
-{
-    m_network.disconnect();
+#include "Arad_DevMgr_Server_Proxy/disconnect.inc"
 }
 
-int Arad_DevMgr_Server_Proxy::recv()
-{
-    int size = m_network.recv_packet();
-    if (size > 0)
-    {
-        if (!m_network.Parsing_ServerPacket(size))
-        {
-            LogManager::logFormat(1, "localjapan/Arad_DevMgr_Server_Proxy.cpp", __FUNCTION__, 0x34, "Monitor Recv Parsing Err!!!");
-            return 0;
-        }
-        return 1;
-    }
-    if (size <= 0)
-    {
-        disconnect();
-        return 0;
-    }
-    return 1;
+#include "Arad_DevMgr_Server_Proxy/recv.inc"
 }
 
-int Arad_DevMgr_Server_Proxy::send(char* data, int len)
-{
-    if (m_network.send_packet() < 0)
-    {
-        return -1;
-    }
-    return m_network.GetRemainSendSize();
+#include "Arad_DevMgr_Server_Proxy/send.inc"
 }

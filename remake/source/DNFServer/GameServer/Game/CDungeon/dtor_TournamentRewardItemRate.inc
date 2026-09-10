@@ -1,0 +1,2 @@
+TournamentRewardItemRate::~TournamentRewardItemRate()
+{

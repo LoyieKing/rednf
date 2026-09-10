@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 DropLayoutDeps/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // DropLayoutDeps.cpp — WongWork 掉落生成器域：生命周期 + 脚本装载（独占 TU）
 //
 // 全部符号经 df_game_r nm 核实；实现逐条对照 docs/class_func_reports/
@@ -38,1045 +48,120 @@ namespace WongWork
 // WongWorkDrop_A.cpp（嵌套限定名；此处旧顶层定义删除以免 ODR/符号分裂）。
 
 // ============================================================================
-int* CGeneratorCommonData::getGoldGenTable(unsigned char level)
-{
-    // ORIG T 0x08533424：静态返回区（bss 0x943ded0，函数局部 static 名 ret）；
-    // level>0xc8 回退表项 0 并按 0 级取费率；末次经 AutoMarket 折算写回首字。
-    static GoldGenEntry ret;
-    if (level > 0xc8)
-    {
-        ret = m_goldGenTable[0];
-        level = 0;
-    }
-    else
-    {
-        ret = m_goldGenTable[level];
-    }
-    ret.m_base = G_CDataManager()->GetAutoMarketContitionsControl()->GetGoldDropAmountRate(
-        (int)level, ret.m_base);
-    return &ret.m_base;
+#include "DropLayoutDeps/getGoldGenTable.inc"
 }
 
 // ============================================================================
 // CItemGenRateTable
 // ============================================================================
 
-CItemGenRateTable::CItemGenRateTable()
-    : m_rand(0)
-{
-    // ORIG 0x08539e66：map 循环构造（成员自动）→ m_rand=0 → Handle 构造（自动）→ init()。
-    init();
+#include "DropLayoutDeps/CItemGenRateTable.inc"
 }
 
-CItemGenRateTable::~CItemGenRateTable()
-{
-    // ORIG 0x0853a030：destroy() → Handle D1 → map D1（后两者成员自动）。
-    destroy();
+#include "DropLayoutDeps/dtor_CItemGenRateTable.inc"
 }
 
-void CItemGenRateTable::init()
-{
-    // [b28d-solo-DropLayoutDeps] 封 N18a（ORIG 0x085345b6）：new 表达式实参地址
-    // 求值序跨版本——ORIG 先 `lea -0x1c(%ebp),%esi` 跨 operator new 保活，4.4 恒
-    // 分配后求实参（`lea …%edx` 在 new 之后）。本轮实测 P226 裸语句表达式
-    // `new CMTRand(*({&seed;}))` 无效（同 43 条，序不变）。语义等价。
-    if (m_rand != 0)
-        delete m_rand;
-    unsigned long seed = time(0);
-    register unsigned long* pSeed = &seed;
-    m_rand = new CMTRand(*pSeed);
+#include "DropLayoutDeps/init.inc"
 }
 
-void CItemGenRateTable::destroy()
-{
-    // ORIG 0x08534638。
-    if (m_rand != 0)
-    {
-        delete m_rand;
-        m_rand = 0;
-    }
+#include "DropLayoutDeps/destroy.inc"
 }
 
-void CItemGenRateTable::set_disable_drop_random_option_item()
-{
-    // ORIG 0x08539e4e：转发 +0x23554 句柄 set_disable_drop。
-    m_optHandle.set_disable_drop();
+#include "DropLayoutDeps/set_disable_drop_random_option_item.inc"
 }
 
-bool CItemGenRateTable::_itemTypeVerify(int type, const CItem* item)
-{
-    // 报告 _itemTypeVerify.md 逐分支转写（T 0x08534906）。虚槽核对（Main 2026-09-09
-    // 全库 call* 排查）：is_stackable=add $0xc（ORIG 0x08534920）、IsCreatureItem=
-    // add $0x14（ORIG 0x08534961），与我方 .o 逐槽一致。
-    if (item->is_stackable())
-    {
-        if (item->GetItemType() == 3 && type == 3)
-            return true;
-        if (type == 1)
-            return true;
-    }
-    else
-    {
-        if (item->IsCreatureItem() && type == 4)
-            return true;
-        if (type == 2)
-            return true;
-    }
-    return false;
+#include "DropLayoutDeps/_itemTypeVerify.inc"
 }
 
-void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOption)
-{
-    // [b28d-solo-DropLayoutDeps] 203/202 条；已修：删 pairBytes/maxOffset/target
-    // 局部（ORIG 全程表达式重算，P0/P183）、end() 不缓存（ORIG end 在条件块）、
-    // insert 直接构造 value_type（非 make_pair，P192）、grades 用 const 指针
-    //（ORIG 调 ZNK…5beginEv，消迭代器转换 ctor）、m_slots 索引用 level（ORIG 原码
-    // 行为，P171 照抄）。残差=帧/槽号（N82）+ 虚调 IsRandomOption 寄存器角色（N7）。
-    // 报告 generateTable.md（T 0x0853466c）逐循环转写。槽址 =
-    // type*0x7110+rarity*0x12d8+level*24 ⇒ m_slots[type][rarity][level]。
-    const __gnu_cxx::hash_map<int, CItem*>* grades =
-        G_CDataManager()->m_itemList->getItemGradeList();
-    for (int type = 1; type <= 4; ++type)
-    {
-        for (int rarity = 0; rarity <= 5; ++rarity)
-        {
-            for (int level = 1; level <= 200; ++level)
-            {
-                unsigned int cumulative = 0;
-                // ORIG：无 pairBytes/maxOffset/target 局部（每次重算表达式）。
-                int offset = -(int)(*reinterpret_cast<const unsigned char(*)[2]>(
-                                  &range->m_range[level]))[0];   // -(u8)min
-                for (; offset < (int)(*reinterpret_cast<const unsigned char(*)[2]>(
-                                     &range->m_range[level]))[1]; ++offset)
-                {
-                    if (level + offset > 200)         // cmp $0xc8 jg → 终止整行
-                        break;
-                    for (__gnu_cxx::hash_map<int, CItem*>::const_iterator
-                             it = grades[level + offset].begin();
-                         it != grades[level + offset].end(); ++it)
-                    {
-                        CItem* item = it->second;
-                        if (item->get_gen_rate() == 0)
-                            continue;
-                        if (item->get_rarity() != rarity)
-                            continue;
-                        if (!_itemTypeVerify(type, item))
-                            continue;
-                        if (item->isSpecialMonsterDropItem())
-                            continue;
-                        // param_2 假时剔除随机选项物品（虚槽 0x4c =
-                        // CItem::IsRandomOption；df_game_r vtable 0x8c96da0+0x4c 实证）。
-                        if (!keepRandomOption && item->IsRandomOption())
-                            continue;
-                        cumulative += (unsigned int)item->get_gen_rate();
-                        m_slots[type][rarity][level].insert(   // ORIG 用 level（非 target）
-                            std::pair<const unsigned int, int>(
-                                cumulative, item->get_index()));
-                    }
-                }
-            }
-        }
-    }
+#include "DropLayoutDeps/generateTable.inc"
 }
 
 // ============================================================================
 // CSecialIMonsterDropItemGenRateTable
 // ============================================================================
 
-CSecialIMonsterDropItemGenRateTable::CSecialIMonsterDropItemGenRateTable()
-    : m_rand(0)
-{
-    // ORIG 0x0853a0b6：map 循环 → rand=0(+0x211fb0) → Handle(+0x211fb4) → init()。
-    init();
+#include "DropLayoutDeps/CSecialIMonsterDropItemGenRateTable.inc"
 }
 
-CSecialIMonsterDropItemGenRateTable::~CSecialIMonsterDropItemGenRateTable()
-{
-    // ORIG 0x0853a35c。
-    destroy();
+#include "DropLayoutDeps/dtor_CSecialIMonsterDropItemGenRateTable.inc"
 }
 
-void CSecialIMonsterDropItemGenRateTable::init()
-{
-    // [b28d-solo-DropLayoutDeps] 封 N18a（ORIG 0x08534c1a）：与 CItemGenRateTable::init
-    // 同款（lea -0x1c,%esi 跨 new 的 4.1 求值序不可造）。语义等价。
-    if (m_rand != 0)
-        delete m_rand;
-    unsigned long seed = time(0);
-    register unsigned long* pSeed = &seed;
-    m_rand = new CMTRand(*pSeed);
+#include "DropLayoutDeps/init_1.inc"
 }
 
-void CSecialIMonsterDropItemGenRateTable::destroy()
-{
-    if (m_rand != 0)
-    {
-        delete m_rand;
-        m_rand = 0;
-    }
+#include "DropLayoutDeps/destroy_1.inc"
 }
 
-bool CSecialIMonsterDropItemGenRateTable::_itemTypeVerify(int type, const CItem* item)
-{
-    // 报告 WongWork__CSecialIMonsterDropItemGenRateTable/_itemTypeVerify.md：
-    // 与 CItemGenRateTable 版逐分支一致。虚槽核对：add $0xc（ORIG 0x085352c0）/
-    // add $0x14（ORIG 0x08535301），与我方 .o 一致。
-    if (item->is_stackable())
-    {
-        if (item->GetItemType() == 3 && type == 3)
-            return true;
-        if (type == 1)
-            return true;
-    }
-    else
-    {
-        if (item->IsCreatureItem() && type == 4)
-            return true;
-        if (type == 2)
-            return true;
-    }
-    return false;
+#include "DropLayoutDeps/_itemTypeVerify_1.inc"
 }
 
-void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
-{
-    // [SweepDropLayout 2026-09-09] AE（ORIG 220 = 我方 220，ndiff=0），p167 CLEAR（17=17）。
-    // 旧判词「已试 callee bool 化→回退」被推翻：真因是**字段类型**未 bool 化。
-    // ORIG 谓词定义体 0x8539e10/0x8539e24 `movzbl 0xb5/0xba(%edx,%eax),%eax; ret`
-    // （7 条无 setne）+ 调用点 0x8534ee4/0x8534ee7 `call; xor $1; test %al,%al; jne`
-    // （P292 ⇒ callee bool）⇒ 原码字段即 bool（bool 字段+bool 返回=7 条；char 字段+
-    // bool 返回=9 条带 test/setne，探针 /tmp/p_boolf.cpp f/g/h/k）。
-    // 落地：STItemScript.h m_difficulty[5]/m_dungeonType[3] char→bool +
-    // CItem.h 两谓词返回 unsigned char→bool（Main 批准 + 全广播）。
-    // sizeof(STSpecialMonsterDrop)=9、偏移/mangled 零变化；写入点仍 movb 常量。
-    // 已修：同 CItemGenRateTable::generateTable（去局部缓存、end 条件块、直接构造
-    // pair、const grades、m_blocks 用 level）+ 数组指针解引用视图复现 ORIG 0x08534d2f
-    // `add %eax,%eax; add 0xc(%ebp),%eax; movzbl (%eax)`/`0x1(%eax)` disp 折叠。
-    // 报告 generateTable.md（T 0x08534cd0）：五重循环 a(0..4) b(0..2) type(1..4)
-    // rarity(0..5) level(1..200)；槽址 a*0x69ff0+b*0x23550+type*0x7110+
-    // rarity*0x12d8+level*24。过滤要求 isSpecialMonsterDropItem /
-    // isDropItemDungeonDifficulty(a) / isDropItemDungeonType(b) 全真，无随机选项分支。
-    const __gnu_cxx::hash_map<int, CItem*>* grades =
-        G_CDataManager()->m_itemList->getItemGradeList();
-    for (int a = 0; a <= 4; ++a)
-    {
-        for (int b = 0; b <= 2; ++b)
-        {
-            for (int type = 1; type <= 4; ++type)
-            {
-                for (int rarity = 0; rarity <= 5; ++rarity)
-                {
-                    for (int level = 1; level <= 200; ++level)
-                    {
-                        unsigned int cumulative = 0;
-                        int offset = -(int)(*reinterpret_cast<
-                                          const unsigned char(*)[2]>(
-                                          &range->m_range[level]))[0];
-                        for (; offset < (int)(*reinterpret_cast<
-                                             const unsigned char(*)[2]>(
-                                             &range->m_range[level]))[1]; ++offset)
-                        {
-                            if (level + offset > 200)
-                                break;
-                            for (__gnu_cxx::hash_map<int, CItem*>::const_iterator
-                                     it = grades[level + offset].begin();
-                                 it != grades[level + offset].end(); ++it)
-                            {
-                                CItem* item = it->second;
-                                if (item->get_gen_rate() == 0)
-                                    continue;
-                                if (item->get_rarity() != rarity)
-                                    continue;
-                                if (!_itemTypeVerify(type, item))
-                                    continue;
-                                if (!item->isSpecialMonsterDropItem())
-                                    continue;
-                                if (!item->isDropItemDungeonDifficulty(a))
-                                    continue;
-                                if (!item->isDropItemDungeonType(b))
-                                    continue;
-                                cumulative += (unsigned int)item->get_gen_rate();
-                                m_blocks[a][b][type][rarity][level].insert(
-                                    std::pair<const unsigned int, int>(
-                                        cumulative, item->get_index()));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+#include "DropLayoutDeps/generateTable_1.inc"
 }
 
 // ============================================================================
 // CMonsterDrop_Hell —— ctor W 0x0853a56a / D1 W 0x0853a60e / loadScript T 0x08535344
 // ============================================================================
 
-CMonsterDrop_Hell::CMonsterDrop_Hell(int count)
-    : CItemGenerator(count)
-{
-    // vptr 0x08c9a778 由编译器写入；两向量与 +0x254 表为成员自动构造。
+#include "DropLayoutDeps/CMonsterDrop_Hell.inc"
 }
 
-CMonsterDrop_Hell::~CMonsterDrop_Hell()
-{
+#include "DropLayoutDeps/dtor_CMonsterDrop_Hell.inc"
 }
 
-int CMonsterDrop_Hell::loadScript(char const* path)
-{
-    // [SweepDropLayout 2026-09-09 复核] N82附/N126 封顶（ORIG 0x08535344，277/280，
-    // ndiff 299→295）。本轮把具名 `stGenItemProb_t fill`（4.4 恒占最深 -0x50..-0x35）
-    // 改为 resize 实参位**匿名临时** `m_probs.resize(ScanInt(&ok), stGenItemProb_t())`
-    // ⇒ 槽差由 0x18 缩到 4（OURS ok -0x4d/token -0x4c vs ORIG -0x49/-0x48；idx -0x2c
-    // vs -0x28），残 4 = 4.4 首槽基址常数（N126/N95，P190 只能下移不能上移）。
-    // 具名 fill 块内声明/头声明两形实测同槽，故取匿名形。逐段对照报告 Ghidra C 语义一致。
-    // p167 CLEAR（23=23）。已修：for(;;)+break（顶部条件头）、i<rows+1（ORIG
-    // add$1/setg 形）、idx 循环前预清（P198①）、全头部声明（P212）。残差=槽常数 4
-    // + m_range[0] movw vs 两条 movb（P202/N78 族）+ N125（4.1 `add %eax,%eax` 两次
-    // vs 4.4 shl）+ 多分支出口岛数（N108）。语义等价。
-    if (!loadRDARScriptFile("", path))
-        return 0x302;
-    std::string token;
-    bool ok = false;
-    int idx = 0;                             // ORIG 循环前预清（-0x28，P198①）
-    int rows;
-    int i;
-    int j;
-    size_t jd;
-    int* e;
-    int k;
-    int lvl;
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            break;
-        if (token == "[basis of rarity dicision]")
-        {
-            rows = ScanInt(&ok);
-            if (!ok)
-                return 0x311;
-            for (i = 1; i < rows + 1; ++i)   // ORIG add$1/setg 形
-            {
-                for (j = 0; j <= 5; ++j)
-                {
-                    m_rarityBasis[i][j] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x319;
-                }
-            }
-        }
-        else if (token == "[drop prob count]")
-        {
-            m_probs.resize(ScanInt(&ok), stGenItemProb_t());   // 试形：匿名临时
-            if (!ok)
-                return 0x320;
-        }
-        else if (token == "[dungeon difficulty drop prob]")
-        {
-            for (jd = 0; jd < m_probs.size(); ++jd)
-            {
-                e = &m_probs[jd].v[0];
-                e[0] = ScanInt(&ok);
-                if (!ok)
-                    return 0x328;
-                e[1] = ScanInt(&ok);
-                if (!ok)
-                    return 0x32a;
-                for (k = 0; k <= 4; ++k)
-                {
-                    e[2 + k] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x332;
-                }
-            }
-        }
-        else if (token == "[item drop ref table]")
-        {
-            // ORIG 0x0853560e/0x08535615 为两条 movb；4.4 恒折单条 movw
-            // （P202/N78 族）。字节视图形实测反劣 +5 条（地址 add 链），已回退。
-            m_range.m_range[0] = 0;
-            for (lvl = 1; lvl <= 200; ++lvl)
-            {
-                idx = ScanInt(&ok);
-                if (!ok)
-                    return 0x33f;
-                unsigned char* entry =
-                    reinterpret_cast<unsigned char*>(&m_range.m_range[idx]);
-                entry[0] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x343;
-                entry[1] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x347;
-            }
-        }
-        else
-        {
-            return 0x34b;
-        }
-    }
-    m_table.generateTable(&m_range, true);
-    return 0;
+#include "DropLayoutDeps/loadScript.inc"
 }
 
 // ============================================================================
 // CSpecialMonsterDrop —— ctor W 0x0853a426 / D1 W 0x0853a4ca / loadScript T 0x085373ee
 // ============================================================================
 
-CSpecialMonsterDrop::CSpecialMonsterDrop(int count)
-    : CItemGenerator(count)
-{
-    // vptr 0x08c9a760；向量 ×2 与 +0x340 SecialIM 表为成员自动构造。
+#include "DropLayoutDeps/CSpecialMonsterDrop.inc"
 }
 
-CSpecialMonsterDrop::~CSpecialMonsterDrop()
-{
+#include "DropLayoutDeps/dtor_CSpecialMonsterDrop.inc"
 }
 
-int CSpecialMonsterDrop::loadScript(char const* path)
-{
-    // [SweepDropLayout 2026-09-09 复核] N82附/N76 封顶（ORIG 0x085373ee，377/381，
-    // ndiff 434→430）。具名 fill 改 resize 实参位匿名临时后槽差 0x18→4
-    // （OURS ok -0x61/token -0x60 vs ORIG -0x5d/-0x5c；残 4 = N126/N95 首槽常数）。
-    // p167 CLEAR（28=28）。已修：for(;;)+break、idx 循环前预清、全头部声明（P212）。
-    // 逐段对照报告 Ghidra C 语义一致（含 e[1] 的 RHS-first 属 N76）。残差=槽常数 4；
-    // ②`e[1] = ScanInt(&ok)` store 序 ORIG RHS-first `mov -S,%edx; mov %eax,0x4(%edx)`
-    // vs 4.4 LHS-first `lea 0x4(%eax),%ebx` 跨 call 缓存（N76）；已试 P211 异型化
-    // （e→unsigned int* + cast）反劣 +1 条，回退。语义等价。
-    if (!loadRDARScriptFile("", path))
-        return 0x5fb;
-    std::string token;
-    bool ok = false;
-    int idx = 0;
-    size_t jd;
-    int* e;
-    int k;
-    int i;
-    int j;
-    int i2;
-    int j2;
-    int b;
-    int j3;
-    int t;
-    int j4;
-    int lvl;
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            break;
-        if (token == "[drop prob count]")
-        {
-            m_probs.resize(ScanInt(&ok), stGenItemProb_t());   // 试形：匿名临时
-            if (!ok)
-                return 0x609;
-        }
-        else if (token == "[drop prob]")
-        {
-            for (jd = 0; jd < m_probs.size(); ++jd)
-            {
-                e = &m_probs[jd].v[0];
-                e[0] = ScanInt(&ok);
-                if (!ok)
-                    return 0x611;
-                e[1] = ScanInt(&ok);
-                if (!ok)
-                    return 0x613;
-                for (k = 0; k <= 4; ++k)
-                {
-                    e[2 + k] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x617;
-                }
-            }
-        }
-        else if (token == "[basis of rarity dicision]")
-        {
-            for (i = 1; i <= 4; ++i)
-            {
-                for (j = 0; j <= 5; ++j)
-                {
-                    m_rarityBasis[i][j] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x623;
-                }
-            }
-        }
-        else if (token == "[party member drop bonusrate]")
-        {
-            for (i2 = 0; i2 <= 4; ++i2)
-            {
-                for (j2 = 0; j2 <= 3; ++j2)
-                {
-                    m_partyBonus[i2][j2] = ScanFloat(&ok);
-                    if (!ok)
-                        return 0x62e;
-                }
-            }
-        }
-        else if (token == "[dungeon difficulty drop bonusrate]")
-        {
-            for (b = 0; b <= 4; ++b)
-            {
-                for (j3 = 0; j3 <= 4; ++j3)
-                {
-                    m_dungeonBonus[b][j3] = ScanFloat(&ok);
-                    if (!ok)
-                        return 0x63d;
-                }
-            }
-        }
-        else if (token == "[monster type drop bonusrate]")
-        {
-            for (t = 0; t <= 4; ++t)
-            {
-                for (j4 = 0; j4 <= 3; ++j4)
-                {
-                    m_monsterTypeBonus[t][j4] = ScanFloat(&ok);
-                    if (!ok)
-                        return 0x648;
-                }
-            }
-        }
-        else if (token == "[item drop ref table]")
-        {
-            m_range.m_range[0] = 0;
-            for (lvl = 1; lvl <= 200; ++lvl)
-            {
-                idx = ScanInt(&ok);
-                if (!ok)
-                    return 0x655;
-                unsigned char* entry =
-                    reinterpret_cast<unsigned char*>(&m_range.m_range[idx]);
-                entry[0] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x659;
-                entry[1] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x65d;
-            }
-        }
-        else
-        {
-            return 0x661;
-        }
-    }
-    m_table.generateTable(&m_range);
-    return 0;
+#include "DropLayoutDeps/loadScript_1.inc"
 }
 
 // ============================================================================
 // CMonsterDrop —— ctor W 0x0853a6c8 / loadScript T 0x08537938 / ×3 T 0x085380fa
 // ============================================================================
 
-CMonsterDrop::CMonsterDrop(int count)
-    : CItemGenerator(count), m_hell(2), m_special(3)   // ORIG HellC1(2)/SpecialC1(3)
-{
-    // [B24D判词 N] 语义正确：基类 CItemGenerator(count) + m_hell(2)/m_special(3)
-    //   成员 init + m_firstMobWeight=1/m_firstMobWeightRate=1.0f。P167 差集 ORIG
-    //   CItemGeneratorC1/D1（完整构造/析构）vs 我方 C2/D2+CSpecialMonsterDropD1
-    //   （基类/成员子对象构造析构 mangling），C1/C2、D1/D2 配对同语义，非缺口。
-    // ORIG 0x0853a6c8：基类 → vptr 0x08c9a748 → 向量×2/表/Hell/Special/FirstMob
-    // （成员自动）→ +0x259380=1 → +0x259384=1.0f。
-    m_firstMobWeight = 1;
-    m_firstMobWeightRate = 1.0f;
+#include "DropLayoutDeps/CMonsterDrop.inc"
 }
 
-int CMonsterDrop::loadScript(char const* path)
-{
-    // [SweepDropLayout 2026-09-09 复核] N82附/N76 封顶（ORIG 0x08537938，540/545，
-    // ndiff 549→545）。具名 fill 改 resize 实参位匿名临时后槽差 0x18→4
-    // （OURS ok -0x65/token -0x64 vs ORIG -0x61/-0x60；残 4 = N126/N95 首槽常数）。
-    // p167 CLEAR（42=42）。已修：for(;;)+break、count 内联实参、
-    // [gold quantity] 展开为 ORIG 的 4 次独立 ScanInt
-    // （原循环少 3 个调用点，p167 MISSING -3）、全头部声明（P212）。残差=槽常数 4
-    // （N126/N95）+ `e[1] = ScanInt(&ok)` store 序 ORIG RHS-first vs 4.4 LHS-first
-    // （N76，与 CSpecialMonsterDrop 同型）+ 多分支出口 jmp/nop 岛数（P63/N108）。
-    // 逐段对照报告 Ghidra C 语义一致。语义等价。
-    if (!loadRDARScriptFile("", path))
-        return 0x66b;
-    std::string token;
-    bool ok = false;
-    int idx = 0;
-    size_t jd;
-    int* e;
-    int k;
-    int i;
-    int j;
-    int i2;
-    int j2;
-    int b;
-    int j3;
-    int t;
-    int j4;
-    int lvl;
-    int k2;
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            break;
-        if (token == "[drop prob count]")
-        {
-            m_probs.resize(ScanInt(&ok), stGenItemProb_t());   // 试形：匿名临时
-            if (!ok)
-                return 0x679;
-        }
-        else if (token == "[drop prob]")
-        {
-            for (jd = 0; jd < m_probs.size(); ++jd)
-            {
-                e = &m_probs[jd].v[0];
-                e[0] = ScanInt(&ok);
-                if (!ok)
-                    return 0x681;
-                e[1] = ScanInt(&ok);
-                if (!ok)
-                    return 0x683;
-                for (k = 0; k <= 4; ++k)
-                {
-                    e[2 + k] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x687;
-                }
-            }
-        }
-        else if (token == "[basis of rarity dicision]")
-        {
-            for (i = 1; i <= 4; ++i)
-            {
-                for (j = 0; j <= 5; ++j)
-                {
-                    m_rarityBasis[i][j] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x693;
-                }
-            }
-        }
-        else if (token == "[party member drop bonusrate]")
-        {
-            for (i2 = 0; i2 <= 4; ++i2)
-            {
-                for (j2 = 0; j2 <= 3; ++j2)
-                {
-                    m_partyBonus[i2][j2] = ScanFloat(&ok);
-                    if (!ok)
-                        return 0x69e;
-                }
-            }
-        }
-        else if (token == "[dungeon difficulty drop bonusrate]")
-        {
-            for (b = 0; b <= 4; ++b)
-            {
-                for (j3 = 0; j3 <= 4; ++j3)
-                {
-                    m_dungeonBonus[b][j3] = ScanFloat(&ok);
-                    if (!ok)
-                        return 0x6ad;
-                }
-            }
-        }
-        else if (token == "[monster type drop bonusrate]")
-        {
-            for (t = 0; t <= 4; ++t)
-            {
-                for (j4 = 0; j4 <= 3; ++j4)
-                {
-                    m_monsterTypeBonus[t][j4] = ScanFloat(&ok);
-                    if (!ok)
-                        return 0x6b8;
-                }
-            }
-        }
-        else if (token == "[item drop ref table]")
-        {
-            m_range.m_range[0] = 0;
-            for (lvl = 1; lvl <= 200; ++lvl)
-            {
-                idx = ScanInt(&ok);
-                if (!ok)
-                    return 0x6c5;
-                unsigned char* entry =
-                    reinterpret_cast<unsigned char*>(&m_range.m_range[idx]);
-                entry[0] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x6c9;
-                entry[1] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x6cd;
-            }
-        }
-        else if (token == "[first boss/named mob hunting]")
-        {
-            // ORIG：先 [+0x25937c]=1 拷到 [+0x259378]，再两次扫描覆写。
-            m_firstMobHunt.m_field04 = 1;
-            m_firstMobHunt.m_weight = m_firstMobHunt.m_field04;
-            m_firstMobHunt.m_weight = ScanInt(&ok);
-            if (!ok)
-                return 0x6d7;
-            m_firstMobHunt.m_field04 = ScanInt(&ok);
-            if (!ok)
-                return 0x6db;
-        }
-        else if (token == "[condition rate]")
-        {
-            for (k2 = 0; k2 <= 3; ++k2)
-            {
-                m_conditionRate[k2].rate = (unsigned short)ScanInt(&ok);
-                if (!ok)
-                    return 0x6e5;
-                m_conditionRate[k2].value = (unsigned short)ScanInt(&ok);
-                if (!ok)
-                    return 0x6e9;
-            }
-        }
-        else if (token == "[gold quantity]")
-        {
-            // ORIG 展开 4 次 ScanInt（各带独立错误码，非循环）。
-            m_goldQuantity[0] = (unsigned short)ScanInt(&ok);
-            if (!ok)
-                return 0x6f0;
-            m_goldQuantity[1] = (unsigned short)ScanInt(&ok);
-            if (!ok)
-                return 0x6f4;
-            m_goldQuantity[2] = (unsigned short)ScanInt(&ok);
-            if (!ok)
-                return 0x6f8;
-            m_goldQuantity[3] = (unsigned short)ScanInt(&ok);
-            if (!ok)
-                return 0x6fc;
-        }
-        else if (token == "[gold volume]")
-        {
-            m_goldVolume[0] = (unsigned short)ScanInt(&ok);
-            if (!ok)
-                return 0x702;
-            m_goldVolume[1] = (unsigned short)ScanInt(&ok);
-            if (!ok)
-                return 0x706;
-        }
-        else
-        {
-            return 0x70a;
-        }
-    }
-    m_table.generateTable(&m_range, true);
-    return 0;
+#include "DropLayoutDeps/loadScript_2.inc"
 }
 
-int CMonsterDrop::loadScript(char const* path, char const* hell, char const* special)
-{
-    // ORIG T 0x085380fa：虚槽调单参版 → +0x238ac Hell → 第三参非空才装 Special。
-    if (loadScript(path) != 0)
-        return 0x715;
-    int err = 0;                                  // ORIG movl $0,-0xc 预清
-    err = m_hell.loadScript(hell);
-    if (err != 0)
-        return err;
-    if (special != 0)
-    {
-        err = m_special.loadScript(special);
-        if (err != 0)
-            return err;
-    }
-    return 0;
+#include "DropLayoutDeps/loadScript_3.inc"
 }
 
 // ============================================================================
 // CObjectDrop —— ctor W 0x0853a7f8 / loadScript T 0x08538352
 // ============================================================================
 
-CObjectDrop::CObjectDrop(int count)
-    : CMonsterDrop(count)
-{
-    // ORIG：CMonsterDrop C1 → vptr 0x08c9a730（编译器自动）。
+#include "DropLayoutDeps/CObjectDrop.inc"
 }
 
-int CObjectDrop::loadScript(char const* path)
-{
-    // ORIG T 0x08538352：先把队伍加成区 (+0xa8..0xf7) 全写 1.0f，再非虚直呼
-    // CMonsterDrop::loadScript（0x08537938）。
-    for (int i = 0; i <= 4; ++i)
-        for (int j = 0; j <= 3; ++j)
-            m_partyBonus[i][j] = 1.0f;
-    return CMonsterDrop::loadScript(path);
+#include "DropLayoutDeps/loadScript_4.inc"
 }
 
 // ============================================================================
 // CClearReward —— ctor W 0x0853a968 / loadScript T 0x085392c0
 // ============================================================================
 
-CClearReward::CClearReward(int count)
-    : CItemGenerator(count)
-{
-    // [b28d-solo-DropLayoutDeps] AE（ORIG 0x0853a968）：194/194 条、帧 0x3c、
-    // EH 槽 -0x30/-0x2c 全等（仅 .o 重定位伪差）。修法=m_goldCardCost 清零由
-    // memset 改 ORIG 的 for 循环（N78/P214③：4.1 内联逐元素 store）。
-    // ORIG 0x0853a968：基类 → vptr 0x08c9a700 → 7×vector(+0x18 步进 0xc，第 7 个在
-    // +0x60) → 表 ctor(+0x2a8) → 两个空白卡 vector(+0x23b40/+0x23b78) →
-    // 金卡费用表 [201] 清零 → +0x23b38=0.0f → +0x23b3c=0 → +0x23b74=0 →
-    // memset(+0x23b4c,0,0x28) → set_disable_drop_random_option_item()。
-    // 成员对象由编译器按声明序完成；标量/清零在此补齐。
-    for (int i = 0; i <= 200; ++i)          // ORIG 循环清零（非 memset）
-        m_goldCardCost[i] = 0;
-    m_goldCardCreateRate = 0.0f;
-    m_goldCardBlankTotal = 0;
-    m_pcRoomBlankTotal = 0;
-    memset(m_rewardRatePerMap, 0, sizeof(m_rewardRatePerMap));
-    m_table.set_disable_drop_random_option_item();
+#include "DropLayoutDeps/CClearReward.inc"
 }
 
-int CClearReward::loadScript(char const* path)
-{
-    // [SweepDropLayout 2026-09-09 复核] N82/N126 封顶（ORIG 0x085392c0，651/651；
-    // §6.2 超大件三件套：p167 CLEAR 61=61、gap=0、槽位集差 8）。本轮试形记录：
-    // ①[drop prob count] 的 fill 清零移入 for 循环内（贴 ORIG 0x853941f 的
-    //   local_54/50/4c 每轮清零）——ndiff/槽集合不变，保留；
-    // ②[drop prob] 内层独立 `std::string token`（贴 Ghidra C 的 local_60 do-while
-    //   每轮构造/析构）——我方多 11 条（4.4 在 break/return 各点各发 D1，ORIG 单
-    //   析构点 + iVar7 状态机），our 662 vs ORIG 651 反劣，已回退。
-    // 残差=局部槽序（4.4 首槽常数 8：section/token -0x55/-0x54 vs -0x4d/-0x4c，
-    // N82/N126）+ 多分支出口岛数
-    //（P63/N108）。语义等价。
-    if (!loadRDARScriptFile("", path))
-        return 0x943;
-    std::string section;
-    std::string token;
-    // [b28d-C08] ORIG 语句序 = section 构造(0x085392ef) → idx 清零(0x085392fa) →
-    // ok 清零(0x08539301)：`idx` 声明**先于** `ok`。
-    // [b28d-C08 clr_l/widthscan 判据⑫] ORIG 0x085392fa 在函数入口清 `-0x44(%ebp)`，
-    // 而 [item drop ref table] 0x08539893 / [gold card cost table] 0x0853994f 都是
-    // `mov %eax,-0x44(%ebp)`（ScanInt 结果复用同一槽）⇒ 原码是**函数头**具名
-    // `int idx = 0;`，两段各自赋值（非循环内声明）。旧形两处 `int idx = ScanInt(&ok);`
-    // 使 clr_l 少 1（8 vs 11）并整体抬高槽序。
-    int idx = 0;
-    bool ok = false;
-    for (;;)
-    {
-        if (!ScanType(section, true))
-            break;
-        if (section == "[drop prob count]")
-        {
-            int count = ScanInt(&ok);
-            if (!ok)
-                return 0x951;
-            for (int i = 0; i <= 5; ++i)
-            {
-                // [b28d-C08 试形记录] fill 提到函数头反致 +22 条（4.4 每轮额外拷贝），
-                // 已回退；块内声明维持（槽 -0x58/-0x54/-0x50 vs ORIG -0x50/-0x4c/-0x48
-                // 属 4.4 块内 POD 深槽策略，N82/N126 族）。
-                // ORIG 0x08539373/7a/81：循环内三次**独立** `movl $0x0,-0x50/-0x4c/-0x48(%ebp)`。
-                // 链式 `v[0]=v[1]=v[2]=0` 被 4.4 copy-prop 成 1 store + 2 copy（clr_l 8 vs 11）；
-                // 三条独立语句才还原三次清零（widthscan clr_l 判据⑫）。
-                stGenItemProb_t fill;
-                fill.v[0] = 0;
-                fill.v[1] = 0;
-                fill.v[2] = 0;
-                m_scriptProbs[i].resize(count, fill);
-            }
-        }
-        else if (section == "[drop prob]")
-        {
-            // ScanStr 选槽：default/event/event2/pcroom default/pcroom event/
-            // pcroom bonus → 0..5；未知 → 0x969。扫描失败静默退出本节。
-            for (;;)
-            {
-                if (!ScanStr(&token))
-                    break;
-                int slot;
-                if (token == "default")
-                    slot = 0;
-                else if (token == "event")
-                    slot = 1;
-                else if (token == "event2")
-                    slot = 2;
-                else if (token == "pcroom default")
-                    slot = 3;
-                else if (token == "pcroom event")
-                    slot = 4;
-                else if (token == "pcroom bonus")
-                    slot = 5;
-                else
-                    return 0x969;
-                for (size_t j = 0; j < m_scriptProbs[slot].size(); ++j)
-                {
-                    int* e = &m_scriptProbs[slot][j].v[0];
-                    e[0] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x96f;
-                    e[1] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x971;
-                    e[2] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x973;
-                }
-            }
-        }
-        else if (section == "[drop kind prob]")
-        {
-            m_dropKindProb[0] = ScanInt(&ok);
-            if (!ok)
-                return 0x97a;
-            m_dropKindProb[1] = ScanInt(&ok);
-            if (!ok)
-                return 0x97c;
-        }
-        else if (section == "[drop item type prob]")
-        {
-            for (int i = 1; i <= 4; ++i)
-            {
-                m_dropItemTypeProb[i - 1] = ScanInt(&ok);   // ORIG 索引 1..4 → 下标 i-1
-                if (!ok)
-                    return 0x984;
-            }
-        }
-        else if (section == "[basis of rarity dicision]")
-        {
-            for (int j = 0; j <= 5; ++j)
-            {
-                m_rarityBasis[j] = ScanInt(&ok);
-                if (!ok)
-                    return 0x98d;
-            }
-        }
-        else if (section == "[dungeon difficulty drop bonusrate]")
-        {
-            for (int b = 0; b <= 4; ++b)
-            {
-                m_dungeonDropBonus[b] = ScanInt(&ok);
-                if (!ok)
-                    return 0x99a;
-            }
-        }
-        else if (section == "[party member drop bonusrate]")
-        {
-            for (int f = 0; f <= 3; ++f)
-            {
-                m_partyBonus[f] = ScanFloat(&ok);
-                if (!ok)
-                    return 0x9a3;
-            }
-        }
-        else if (section == "[dungeon difficulty gold drop bonusrate]")
-        {
-            for (int g = 0; g <= 4; ++g)
-            {
-                m_dungeonGoldBonus[g] = ScanFloat(&ok);
-                if (!ok)
-                    return 0x9b0;
-            }
-        }
-        else if (section == "[item drop ref table]")
-        {
-            m_range.m_range[0] = 0;
-            for (int lvl = 1; lvl <= 200; ++lvl)
-            {
-                idx = ScanInt(&ok);
-                if (!ok)
-                    return 0x9bc;
-                unsigned char* entry =
-                    reinterpret_cast<unsigned char*>(&m_range.m_range[idx]);
-                entry[0] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x9c0;
-                entry[1] = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return 0x9c4;
-            }
-        }
-        else if (section == "[gold card cost table]")
-        {
-            // 扫描失败静默结束本节（ORIG 跳回节分发）。
-            for (;;)
-            {
-                idx = ScanInt(&ok);
-                if (!ok)
-                    break;
-                m_goldCardCost[idx] = ScanInt(&ok);
-                if (!ok)
-                    return 0x9d1;
-            }
-        }
-        else if (section == "[gold card create rate]")
-        {
-            m_goldCardCreateRate = ScanFloat(&ok);
-            if (!ok)
-                return 0x9d8;
-        }
-        else if (section == "[pcroom card blank item]")
-        {
-            m_pcRoomBlankTotal = 0;
-            for (;;)
-            {
-                stGoldCardBlankItemInfo_t info;
-                info.v[0] = ScanInt(&ok);
-                if (!ok)
-                    break;
-                info.v[1] = ScanInt(&ok);
-                if (!ok)
-                    return 0x9e6;
-                info.v[2] = ScanInt(&ok);
-                if (!ok)
-                    return 0x9e9;
-                m_pcRoomBlanks.push_back(info);
-                m_pcRoomBlankTotal += info.v[0];   // ORIG：count += 首值
-            }
-        }
-        else if (section == "[reward item rate per map max count]")
-        {
-            for (;;)
-            {
-                // [b28d-C08 轴 B / P196 正向] ORIG 0x08539ace-0x08539ad2 =
-                // `cmpl $0x9,-0x10(%ebp); **jbe**`（**无符号**序）⇒ 该局部为 unsigned；
-                // 我方 `int idx` 产有符号 `jle` ⇒ `idx<0` 时 ORIG 走 return 0x9f6 拒绝，
-                // 我方却继续 `m_rewardRatePerMap[idx]`（负下标）⇒ **真语义分叉**，非纯 codegen。
-                // 轴 B 来源：/tmp/r5/axisB_points.tsv 第 71 行（b_U->S，ORIG jbe vs OUR jle）。
-                unsigned int idx = ScanInt(&ok);
-                if (!ok)
-                    break;
-                if (idx > 9)
-                    return 0x9f6;
-                m_rewardRatePerMap[idx] = ScanInt(&ok);
-                if (!ok)
-                    return 0x9f9;
-            }
-        }
-        else if (section == "[gold card blank item]")
-        {
-            m_goldCardBlankTotal = 0;
-            for (;;)
-            {
-                stGoldCardBlankItemInfo_t info;
-                info.v[0] = ScanInt(&ok);
-                if (!ok)
-                    break;
-                info.v[1] = ScanInt(&ok);
-                if (!ok)
-                    return 0xa08;
-                info.v[2] = ScanInt(&ok);
-                if (!ok)
-                    return 0xa0b;
-                m_goldBlanks.push_back(info);
-                m_goldCardBlankTotal += info.v[0];
-            }
-        }
-        else
-        {
-            return 0xa41;
-        }
-    }
-    m_table.generateTable(&m_range, false);
-    return 0;
+#include "DropLayoutDeps/loadScript_5.inc"
 }
 
 // ============================================================================
 // CDungeonDrop —— ctor W 0x0853abc2（ORIG 无 loadScript 覆写符号）
 // ============================================================================
 
-CDungeonDrop::CDungeonDrop(int count)
-    : CItemGenerator(count)
-{
-    // vptr 0x08c9a6e8 由编译器写入；无其余成员。
+#include "DropLayoutDeps/CDungeonDrop.inc"
 }
 
 // ============================================================================
@@ -1084,54 +169,11 @@ CDungeonDrop::CDungeonDrop(int count)
 // getGoldGenTable T 0x08533424
 // ============================================================================
 
-CGeneratorCommonData::CGeneratorCommonData() {}
+#include "DropLayoutDeps/CGeneratorCommonData.inc"
 
-CGeneratorCommonData::~CGeneratorCommonData() {}
+#include "DropLayoutDeps/dtor_CGeneratorCommonData.inc"
 
-int CGeneratorCommonData::loadScript(const char* path)
-{
-    // [b28d-solo-DropLayoutDeps] AE（ORIG 0x08534456；verdict 以 check_tu_routed
-    // clean 口径为准，尾部对齐 nop 由 §6.1 strip_nop_padding 剥离；game_func_report
-    // --no-compile 报 101/102 属 N124 伪差）。p167 CLEAR（10=10）。已修：for(;;)+
-    // goto 尾标签（P164/P223）、idx 循环前预清（P198①）、条件 operator==（p167 判据）、
-    // return 0x1f8 块移至循环出口后。形实验记录：if/else 正形为最优；break+循环后
-    // return、标签置循环内、#pragma optimize(no-align-labels/loops/jumps/align-labels=1)
-    // 均致块序错或条数 -1，已回退。
-    if (!loadRDARScriptFile("", path))
-        return 0x1d8;
-    std::string token;
-    int idx = 0;                             // ORIG 循环前预清（-0x10，P198①）
-    bool ok = false;
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            goto ok_done;
-        if (token == "[gold drop ref table]")   // ORIG 用 operator==（p167 判据）
-        {
-            m_goldGenTable[0].m_base = 0;
-            m_goldGenTable[0].m_randAmp = 0;
-            for (int i = 1; i <= 200; ++i)
-            {
-                idx = ScanInt(&ok);          // 写入下标来自脚本首列（ORIG 同形）
-                if (!ok)
-                    return 0x1ec;
-                m_goldGenTable[idx].m_base = ScanInt(&ok);
-                if (!ok)
-                    return 0x1f0;
-                m_goldGenTable[idx].m_randAmp = ScanInt(&ok);
-                if (!ok)
-                    return 500;              // 0x1f4
-            }
-        }
-        else
-        {
-            goto fail_ref_table;
-        }
-    }
-fail_ref_table:
-    return 0x1f8;
-ok_done:
-    return 0;
+#include "DropLayoutDeps/loadScript_6.inc"
 }
 
 }  // namespace WongWork
@@ -1141,42 +183,27 @@ ok_done:
 //   C1 0x08374ec8：仅构造 +0x04 的 vector<WorldDropItemChunck>；
 //   D1 0x08374ede：仅析构该 vector；标量成员 m_first/m_total 无动作。
 // ============================================================================
-WorldDropInfo::WorldDropInfo() : m_chunks() {}
-WorldDropInfo::~WorldDropInfo() {}
-
-// ============================================================================
-// random_option::CRandomOptionItemHandle::set_disable_drop —— W 0x08539e42
-// （objdump：movb $0x1,0xc(%eax)。C1/D1 权威定义在 GlobalData.cpp。）
-// ============================================================================
+#include "DropLayoutDeps/WorldDropInfo.inc"
+#include "DropLayoutDeps/dtor_WorldDropInfo.inc"
 namespace random_option
 {
-void CRandomOptionItemHandle::set_disable_drop()
-{
-    m_disabled = 1;
+#include "DropLayoutDeps/set_disable_drop.inc"
 }
 }  // namespace random_option
 
 // ============================================================================
 // CItem 访问器族（W inline；字段名见 CItem.h/STItemScript.h）
 // ============================================================================
-int CItem::get_gen_rate() const
-{
-    return m_field50;                       // ORIG 0x832e02a：mov 0x50(%eax),%eax
+#include "DropLayoutDeps/get_gen_rate.inc"
 }
 
-bool CItem::isSpecialMonsterDropItem()
-{
-    return (unsigned char)m_drop.m_enable;  // ORIG 0x8539e00：movzbl 0xb4(%eax) 直返
+#include "DropLayoutDeps/isSpecialMonsterDropItem.inc"
 }
 
-bool CItem::isDropItemDungeonDifficulty(int idx)
-{
-    return m_drop.m_difficulty[idx];        // ORIG 0x8539e10：movzbl 0xb5(%edx,%eax)
+#include "DropLayoutDeps/isDropItemDungeonDifficulty.inc"
 }
 
-bool CItem::isDropItemDungeonType(int idx)
-{
-    return m_drop.m_dungeonType[idx];       // ORIG 0x8539e24：movzbl 0xba(%edx,%eax)
+#include "DropLayoutDeps/isDropItemDungeonType.inc"
 }
 
 // ============================================================================
@@ -1192,9 +219,7 @@ __gnu_cxx::hash_map<int, CItem*, __gnu_cxx::hash<int>, std::equal_to<int>,
 // CDataManager::GetAutoMarketContitionsControl —— ORIG W 0x084e92fc
 // （objdump：mov 0x8cc4(%eax),%eax —— 即成员 m_autoMarket）
 // ============================================================================
-CAutoMarketConditionsControl* CDataManager::GetAutoMarketContitionsControl()
-{
-    return m_autoMarket;
+#include "DropLayoutDeps/GetAutoMarketContitionsControl.inc"
 }
 
 // ============================================================================
@@ -1202,44 +227,7 @@ CAutoMarketConditionsControl* CDataManager::GetAutoMarketContitionsControl()
 // （ORIG T 0x082f89bc 逐分支转写；除数 -1000.0 为 .rodata 0x8c1fc70 双字实测）
 // ============================================================================
 __attribute__((target("arch=i486")))
-int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
-{
-    // [b28d-solo-DropLayoutDeps] N 封顶（ORIG 0x082f89bc，98/99；本函数级
-    // `__attribute__((target("arch=i486")))` 消 x87 比较 lowering，N85 突破口）。
-    // 已修：①真语义 bug——比较改 Ghidra C 实证的 `rate < 0.0`（原 `!(rate>0.0)`
-    // 在 rate==0/NaN 时错误回退 base；ORIG 0x82f8a20 `test $0x45,%ah; sete` 实证）；
-    // ②logCount/trace 段移入 m_field00!=0 分支（ORIG `je +0x11c`）；③P243 乘序
-    // (1-base)*goldPerLevel；④register bool logIt（P231 免槽，槽组 -0x14/-0x10/-0x24；
-    // 删 register 帧 0x54→0x64 全槽漂）。残差 N18a/N7：静态 logCount 自增 ORIG
-    // `lea 0x1(%ecx),%edx; mov %edx,addr` vs 4.4 `mov/add/mov`（+1 条，`+=1`/
-    // `1+x`/`x+1` 三形实测同）+ bool 局部 %al vs %bl（跨版本寄存器分配）。
-    int result = 0;                         // ORIG prolog 后立即清零（-0x14）
-    double rate;                            // ORIG 不预初始化（仅 else 路径赋值）
-    if (m_field00 != 0)
-    {
-        // rate = (1-base)*cond[level]/(-1000) + 1；出 (0,1] 则回退 base。
-        // ORIG fldl base→fsubp 先于 fildl cond[level]（P243 书写序）。
-        rate = ((1.0 - m_goldBaseRate) * (double)m_goldPerLevel[level]) / -1000.0 + 1.0;
-        if (rate < 0.0 || rate > 1.0)   // Ghidra C 实证：严格小于（非 <=）
-            rate = m_goldBaseRate;
-        result = (int)((double)gold * rate);         // ORIG fistpl 直接截断（无 +0.5）
-        static int logCount = 0;            // ORIG bss _ZZ...GetGoldDropAmountRateEiiE8logCount
-        register bool logIt = (logCount % 1000 == 0);
-        logCount += 1;   // [L27-r2] 实测 `++logCount` 与 `+=1` 同形（4.4 对 static 恒
-                         //   mov/add/mov 3 条，ORIG `lea 0x1(%ecx),%edx; mov %edx,<A>`
-                         //   2 条 lea 形）⇒ 按 P211 负例（static 复合赋值序不可翻）判 N
-        if (logIt)
-        {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__, 0xce, 0);
-            trace("goldDropAmountRate(%lf) gold(%d), baseGold(%d)", rate, result, gold);
-        }
-    }
-    else
-    {
-        result = gold;                      // 未启用折算：原样返回（ORIG 尾部块）
-    }
-    return result;
+#include "DropLayoutDeps/GetGoldDropAmountRate.inc"
 }
 
 // 布局自检（嵌入尺寸三重互证见文件头）

@@ -1,0 +1,2 @@
+InGameEventScript::~InGameEventScript()
+{

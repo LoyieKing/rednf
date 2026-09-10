@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 TournamentFinalC3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // TournamentFinalC3.cpp — CBattle_Field 锦标赛链最后两个链接符号（本 TU 独占实现）
 //
 // 覆盖符号（ORIG df_game_r nm 实证，均为 T）：
@@ -44,21 +54,7 @@
 // → pair<const short,TournamentInfo> 转换构造后 map::insert（结果对 -0x48，
 // 丢弃），最后 infos.erase/infoIt、indexes.erase/idxIt 双向推进 —— 迭代器仅靠
 // erase 返回值前进（0x08303eb0..0x08303ef4），无 ++it、无空表防护 —— 忠实保留。
-void CBattle_Field::InsertTournamentInfo(std::vector<int>& indexes,
-    std::vector<TournamentInfo>& infos,
-    std::map<short, TournamentInfo>& roundMap)
-{
-    std::vector<TournamentInfo>::iterator infoIt = infos.begin();
-    std::vector<int>::iterator idxIt = indexes.begin();
-
-    while (infoIt != infos.end() && idxIt != indexes.end())
-    {
-        infoIt->m_roundOrder = (short)*idxIt;
-        roundMap.insert(std::make_pair(infoIt->m_roundOrder, *infoIt));
-
-        infoIt = infos.erase(infoIt);
-        idxIt = indexes.erase(idxIt);
-    }
+#include "TournamentFinalC3/InsertTournamentInfo.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -71,25 +67,7 @@ void CBattle_Field::InsertTournamentInfo(std::vector<int>& indexes,
 // roundMap) 推进对阵（0x0830410c），最后 ~vector；循环外调
 // MakeTournamentMonsterList(roundInfoMap, mobList)（0x08304594）。
 // roundMap 不预先 clear —— 忠实保留。
-void CBattle_Field::MakeRoundInfo(std::map<short, TournamentInfo>& roundMap,
-    std::map<short, std::vector<TournamentInfo> >& roundInfoMap,
-    std::list<_mapMonster>& mobList)
-{
-    for (int round = 1; round <= 4; ++round)
-    {
-        std::map<short, TournamentInfo>::iterator it = roundMap.begin();
-        std::vector<TournamentInfo> snapshot;
-        while (it != roundMap.end())
-        {
-            snapshot.push_back(it->second);
-            it++;
-        }
-
-        roundInfoMap.insert(std::make_pair(round, snapshot));
-        MakeNextRoundInfo(round, roundMap);
-    }
-
-    MakeTournamentMonsterList(roundInfoMap, mobList);
+#include "TournamentFinalC3/MakeRoundInfo.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -104,50 +82,7 @@ void CBattle_Field::MakeRoundInfo(std::map<short, TournamentInfo>& roundMap,
 // 后以三次 operator[] 形态 insert 进 nextMap：
 // insert(make_pair(roundMap[key].m_roundOrder, roundMap[key]))（返回值丢弃）。
 // 循环外 roundMap = nextMap（copy-assign 0x083115be）→ ~nextMap。
-void CBattle_Field::MakeNextRoundInfo(int memberCount,
-    std::map<short, TournamentInfo>& roundMap)
-{
-    std::map<short, TournamentInfo> nextMap;
-    for (int i = 0; i < 0x10 / memberCount - 1; i += 2)
-    {
-        int a = i;
-        int b = i + 1;
-        int groupA = roundMap[(short)a].m_group;
-        int groupB = roundMap[(short)b].m_group;
-
-        if (roundMap[(short)a].m_monster[0].m_mobId == 0)
-        {
-            roundMap[(short)a].m_roundOrder = (short)(a / 2);
-            nextMap.insert(std::make_pair(
-                roundMap[(short)a].m_roundOrder, roundMap[(short)a]));
-        }
-        else if (roundMap[(short)b].m_monster[0].m_mobId == 0)
-        {
-            roundMap[(short)b].m_roundOrder = (short)(b / 2);
-            nextMap.insert(std::make_pair(
-                roundMap[(short)b].m_roundOrder, roundMap[(short)b]));
-        }
-        else
-        {
-            int rndA = 0;
-            int rndB = 0;
-            rndA = get_rand_int(groupA);
-            rndB = get_rand_int(groupB);
-            if (rndA > rndB)
-            {
-                roundMap[(short)a].m_roundOrder = (short)(a / 2);
-                nextMap.insert(std::make_pair(
-                    roundMap[(short)a].m_roundOrder, roundMap[(short)a]));
-            }
-            else
-            {
-                roundMap[(short)b].m_roundOrder = (short)(b / 2);
-                nextMap.insert(std::make_pair(
-                    roundMap[(short)b].m_roundOrder, roundMap[(short)b]));
-            }
-        }
-    }
-    roundMap = nextMap;
+#include "TournamentFinalC3/MakeNextRoundInfo.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -158,32 +93,7 @@ void CBattle_Field::MakeNextRoundInfo(int memberCount,
 // spawnType=0 → roleType 以 if/else 双分支直接存储（isUltimate?3:0）→ champion(字节)=0 → posX=0 →
 // orderIdx=0 → hpPct=100 → flag30(字节)=0（注意：ORIG 不写 m_level(+0x24)，
 // 保持 ctor 默认），push_back 后析构局部 —— 空槽同样走 ctor/dtor 对。
-void CBattle_Field::AddTournamentMonster(const TournamentInfo& info,
-    std::list<_mapMonster>& mobList, bool isUltimate)
-{
-    for (int i = 0; i <= 1; ++i)
-    {
-        _mapMonster mob;
-        if (info.m_monster[i].m_mobId != 0)
-        {
-            mob.m_mobId = info.m_monster[i].m_mobId;
-            mob.m_flag04 = 1;
-            mob.m_field08 = 0;
-            mob.m_levelAdd = 1;
-            mob.m_field14 = 1;
-            mob.m_spawnType = 0;
-            if (isUltimate)
-                mob.m_roleType = 3;
-            else
-                mob.m_roleType = 0;
-            mob.m_champion = 0;
-            mob.m_posX = 0;
-            mob.m_orderIdx = 0;
-            mob.m_hpPct = 100;
-            mob.m_flag30 = 0;
-            mobList.push_back(mob);
-        }
-    }
+#include "TournamentFinalC3/AddTournamentMonster.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -195,37 +105,5 @@ void CBattle_Field::AddTournamentMonster(const TournamentInfo& info,
 // UB —— ORIG 无防护，忠实保留）；round==4 传 true 否则 false。
 // 循环后遍历 mobList 重编号 it->m_orderIdx=order++（+0x2c，list 迭代器
 // 后置 it++ 推进）。
-void CBattle_Field::MakeTournamentMonsterList(
-    std::map<short, std::vector<TournamentInfo> >& roundInfoMap,
-    std::list<_mapMonster>& mobList)
-{
-    for (int round = 1; round <= 4; ++round)
-    {
-        const std::vector<TournamentInfo>& vec = roundInfoMap[(short)round];   // ORIG const operator[]
-        int peer = -1;
-        for (int i = 0; i < 0x10; ++i)
-        {
-            if (vec[i].m_monster[0].m_mobId == 0)
-            {
-                if ((i & 1) == 0)
-                    peer = i + 1;
-                else
-                    peer = i - 1;
-                break;
-            }
-        }
-
-        if (round == 4)
-            AddTournamentMonster(vec[peer], mobList, true);
-        else
-            AddTournamentMonster(vec[peer], mobList, false);
-    }
-
-    std::list<_mapMonster>::iterator it = mobList.begin();
-    int order = 0;
-    while (it != mobList.end())
-    {
-        it->m_orderIdx = order++;
-        it++;
-    }
+#include "TournamentFinalC3/MakeTournamentMonsterList.inc"
 }

@@ -1,0 +1,3 @@
+UpgradeSeparateInfo::UpgradeSeparateInfo()
+{
+    reset();

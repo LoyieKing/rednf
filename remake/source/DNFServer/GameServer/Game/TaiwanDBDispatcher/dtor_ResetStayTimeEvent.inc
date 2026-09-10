@@ -1,0 +1,2 @@
+ResetStayTimeEvent::~ResetStayTimeEvent()
+{

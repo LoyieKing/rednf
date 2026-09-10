@@ -1,145 +1,99 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 InterfacePacketBuf/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 #include "InterfacePacketBuf.h"
 
-InterfacePacketBuf::InterfacePacketBuf()
-{
+#include "InterfacePacketBuf/InterfacePacketBuf.inc"
 }
 
-InterfacePacketBuf::~InterfacePacketBuf()
-{
+#include "InterfacePacketBuf/dtor_InterfacePacketBuf.inc"
 }
 
 // throw() 与头声明同步（见 InterfacePacketBuf.h 的 ORIG EH 形证据注释）
-void InterfacePacketBuf::AcquirePacketBuf(PacketBuf* packetBuf) throw()
-{
-    m_packetBuf = packetBuf;
+#include "InterfacePacketBuf/AcquirePacketBuf.inc"
 }
 
-bool InterfacePacketBuf::bind_packet(char* packet, int size)
-{
-    return m_packetBuf->bind_packet(packet, size);
+#include "InterfacePacketBuf/bind_packet.inc"
 }
 
-void InterfacePacketBuf::clear()
-{
-    m_packetBuf->clear();
+#include "InterfacePacketBuf/clear.inc"
 }
 
-void InterfacePacketBuf::finalize(bool isEncryptRequired)
-{
-    m_packetBuf->finalize(isEncryptRequired);
+#include "InterfacePacketBuf/finalize.inc"
 }
 
-PacketBuf* InterfacePacketBuf::get() const
-{
-    return m_packetBuf;
+#include "InterfacePacketBuf/get.inc"
 }
 
-PacketBuf::PACKETBUF_ERROR_TYPE InterfacePacketBuf::getLastError()
-{
-    return m_packetBuf->getLastError();
+#include "InterfacePacketBuf/getLastError.inc"
 }
 
-bool InterfacePacketBuf::get_binary(char* out, int size)
-{
-    return m_packetBuf->get_binary(out, size);
+#include "InterfacePacketBuf/get_binary.inc"
 }
 
-int InterfacePacketBuf::get_index()
-{
-    return m_packetBuf->get_index();
+#include "InterfacePacketBuf/get_index.inc"
 }
 
-bool InterfacePacketBuf::get_int(int& out)
-{
-    return m_packetBuf->get_int(out);
+#include "InterfacePacketBuf/get_int.inc"
 }
 
-int InterfacePacketBuf::get_len() const
-{
-    return m_packetBuf->get_len();
+#include "InterfacePacketBuf/get_len.inc"
 }
 
-char* InterfacePacketBuf::get_packet(int size)
-{
-    return m_packetBuf->get_packet(size);
+#include "InterfacePacketBuf/get_packet.inc"
 }
 
-bool InterfacePacketBuf::get_short(short& out)
-{
-    return m_packetBuf->get_short(out);
+#include "InterfacePacketBuf/get_short.inc"
 }
 
-bool InterfacePacketBuf::is_finallized() const
-{
-    return m_packetBuf->is_finallized();
+#include "InterfacePacketBuf/is_finallized.inc"
 }
 
-bool InterfacePacketBuf::put_binary(const char* data, int len)
-{
-    return m_packetBuf->put_binary(data, len);
+#include "InterfacePacketBuf/put_binary.inc"
 }
 
-bool InterfacePacketBuf::put_binary(char* data, int len)
-{
-    return m_packetBuf->put_binary(data, len);
+#include "InterfacePacketBuf/put_binary_1.inc"
 }
 
-bool InterfacePacketBuf::put_byte(int value)
-{
-    return m_packetBuf->put_byte(value);
+#include "InterfacePacketBuf/put_byte.inc"
 }
 
-bool InterfacePacketBuf::put_byte(int& index, int value)
-{
-    return m_packetBuf->put_byte(index, value);
+#include "InterfacePacketBuf/put_byte_1.inc"
 }
 
-bool InterfacePacketBuf::put_header(int packetId, int packetSize)
-{
-    return m_packetBuf->put_header(packetId, packetSize);
+#include "InterfacePacketBuf/put_header.inc"
 }
 
-bool InterfacePacketBuf::put_int(int value)
-{
-    return m_packetBuf->put_int(value);
+#include "InterfacePacketBuf/put_int.inc"
 }
 
-bool InterfacePacketBuf::put_int(int& index, int value)
-{
-    return m_packetBuf->put_int(index, value);
+#include "InterfacePacketBuf/put_int_1.inc"
 }
 
-bool InterfacePacketBuf::put_item_idx(unsigned long value)
-{
-    return m_packetBuf->put_item_idx(value);
+#include "InterfacePacketBuf/put_item_idx.inc"
 }
 
-void InterfacePacketBuf::put_packet(const Inven_Item& item)
-{
-    m_packetBuf->put_packet(item);
+#include "InterfacePacketBuf/put_packet.inc"
 }
 
-bool InterfacePacketBuf::put_short(int value)
-{
-    return m_packetBuf->put_short(value);
+#include "InterfacePacketBuf/put_short.inc"
 }
 
-bool InterfacePacketBuf::put_short(int& index, int value)
-{
-    return m_packetBuf->put_short(index, value);
+#include "InterfacePacketBuf/put_short_1.inc"
 }
 
-bool InterfacePacketBuf::put_str(const char* str, int len)
-{
-    return m_packetBuf->put_str(str, len);
+#include "InterfacePacketBuf/put_str.inc"
 }
 
-bool InterfacePacketBuf::put_str(char* str, int len)
-{
-    return m_packetBuf->put_str(str, len);
+#include "InterfacePacketBuf/put_str_1.inc"
 }
 
-void InterfacePacketBuf::set_index(int index)
-{
-    m_packetBuf->set_index(index);
+#include "InterfacePacketBuf/set_index.inc"
 }

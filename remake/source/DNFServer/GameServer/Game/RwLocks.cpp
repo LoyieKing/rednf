@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 RwLocks/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r Game/ RwSpinLock + SectionLock + RwSectionLock 实现（独立 TU，仅 ORIG 符号）。
 // 证据：docs/class_func_reports/RwSpinLock/（11 函数报告）、
 // docs/class_func_reports/SectionLock/（7 函数报告）；
@@ -12,108 +22,56 @@
 static void YieldProcessor() {}
 
 // ---- RwSpinLock（ORIG T 0x08ad35a6..0x08ad3741）----
-RwSpinLock::RwSpinLock() : Uncopyable() { state_ = 0; }
+#include "RwLocks/RwSpinLock.inc"
 
-void RwSpinLock::enterRead() { enterReadToValue(&state_); }
+#include "RwLocks/enterRead.inc"
 
-void RwSpinLock::leaveRead() { leaveReadToValue(&state_); }
+#include "RwLocks/leaveRead.inc"
 
-void RwSpinLock::enterWrite() { enterWriteToValue(&state_); }
+#include "RwLocks/enterWrite.inc"
 
-void RwSpinLock::leaveWrite() { leaveWriteToValue(&state_); }
+#include "RwLocks/leaveWrite.inc"
 
-bool RwSpinLock::isReadTaken() { return (state_ & 0x3fffffff) != 0; }
+#include "RwLocks/isReadTaken.inc"
 
-bool RwSpinLock::isWriteTaken() { return (state_ & 0xc0000000) != 0; }
+#include "RwLocks/isWriteTaken.inc"
 
-void RwSpinLock::enterReadToValue(long volatile* value)
-{
-    while (true)
-    {
-        long ostate = *value;
-        if ((ostate & 0xc0000000) == 0)
-        {
-            if (__sync_val_compare_and_swap(value, ostate, ostate + 1) == ostate)
-                return;
-        }
-        YieldProcessor();
-    }
+#include "RwLocks/enterReadToValue.inc"
 }
 
-void RwSpinLock::leaveReadToValue(long volatile* value)
-{
-    while (true)
-    {
-        long ostate = *value;
-        if (__sync_val_compare_and_swap(
-                value, ostate, ((ostate & 0x3fffffff) - 1) | (ostate & 0x40000000)) == ostate)
-            return;
-        YieldProcessor();
-    }
+#include "RwLocks/leaveReadToValue.inc"
 }
 
-void RwSpinLock::enterWriteToValue(long volatile* value)
-{
-    while (true)
-    {
-        long ostate = *value;
-        // [b28d-41 判词·N3] DIFF：唯一残差 = ORIG CAS 后 `cmp;jne/mov $1;jmp/mov $0;
-        // test %al,%al` 的 4.1 寄存器 select 物化（P56 分支返回形）vs 4.4 `sete %al;
-        // test`；帧/跳转布局与其余 28 条已全等。b28c-lane25 探针 /tmp/l25probe/rw.cpp
-        // fA/fB/fC 三形全败 + 本轮复核（N3 choose-without-store 负例，非 O0 可复现；
-        // 无类型旋钮可试，比较两侧均 long）。
-        if (ostate == 0 || ostate == 0x40000000)
-        {
-            if (__sync_val_compare_and_swap(value, ostate, 0x80000000) == ostate)
-                break;
-        }
-        if ((ostate & 0x40000000) == 0)
-            __sync_val_compare_and_swap(value, ostate, ostate | 0x40000000);
-        YieldProcessor();
-    }
+#include "RwLocks/enterWriteToValue.inc"
 }
 
-void RwSpinLock::leaveWriteToValue(long volatile* value)
-{
-    __sync_lock_test_and_set(value, *value & 0x40000000);
+#include "RwLocks/leaveWriteToValue.inc"
 }
 
 // ---- SectionLock（ORIG T 0x08ad3742..0x08ad37f7）----
-SectionLock::SectionLock() : Uncopyable()
-{
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&m_mutex, &attr);
-    pthread_mutexattr_destroy(&attr);
+#include "RwLocks/SectionLock.inc"
 }
 
-SectionLock::~SectionLock() { pthread_mutex_destroy(&m_mutex); }
+#include "RwLocks/dtor_SectionLock.inc"
 
-void SectionLock::enter() { pthread_mutex_lock(&m_mutex); }
+#include "RwLocks/enter.inc"
 
-bool SectionLock::tryEnter() { return pthread_mutex_trylock(&m_mutex) != 0; }
+#include "RwLocks/tryEnter.inc"
 
-void SectionLock::leave() { pthread_mutex_unlock(&m_mutex); }
+#include "RwLocks/leave.inc"
 
-bool SectionLock::isTaken() { return false; }
+#include "RwLocks/isTaken.inc"
 
-bool SectionLock::isTakenByCurrentThread() { return false; }
-
-// ---- RwSectionLock（ORIG T 0x08ad37f8..0x08ad389b；报告缺失，objdump 转写）----
-RwSectionLock::RwSectionLock() : Uncopyable()
-{
-    pthread_rwlockattr_t attr;
-    pthread_rwlockattr_init(&attr);
-    pthread_rwlock_init(&m_rwlock, &attr);
-    pthread_rwlockattr_destroy(&attr);
+#include "RwLocks/isTakenByCurrentThread.inc"
+#include "RwLocks/RwSectionLock.inc"
 }
 
-RwSectionLock::~RwSectionLock() { pthread_rwlock_destroy(&m_rwlock); }
+#include "RwLocks/dtor_RwSectionLock.inc"
 
-void RwSectionLock::enterRead() { pthread_rwlock_rdlock(&m_rwlock); }
+#include "RwLocks/enterRead_1.inc"
 
-void RwSectionLock::leaveRead() { pthread_rwlock_unlock(&m_rwlock); }
+#include "RwLocks/leaveRead_1.inc"
 
-void RwSectionLock::enterWrite() { pthread_rwlock_wrlock(&m_rwlock); }
+#include "RwLocks/enterWrite_1.inc"
 
-void RwSectionLock::leaveWrite() { pthread_rwlock_unlock(&m_rwlock); }
+#include "RwLocks/leaveWrite_1.inc"

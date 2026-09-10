@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 MonsterIndependentDrop/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // MonsterIndependentDrop.cpp — 独立掉落生成域（df_game_r 忠实转写）
 //
 // 全部函数按 ORIG objdump 逐指令转写（自由函数无 Ghidra 报告，逐指令还原；
@@ -59,40 +69,7 @@
 //   diff = (u8)ref.m_field3f - (u8)ref.m_field34；仅当 ctrl.m_field04 <= diff：
 //   f = (float)(10000 - ctrl.m_field08*diff)；f==0 → f=1.0f；
 //   drop.m_rate[jobIdx] = (int)(rate * (f / 10000.0f))（fistpl 舍入）。
-void independentItemRateControl(stMonsterIndependentDrop_t& drop,
-                                const WongWork::stGenerateRefData_t& ref)
-{
-    std::vector<stIndependentDropRateControl>& ctrls =
-        G_CDataManager()->m_independentDrop.m_vec18;
-
-    const unsigned char jobIdx = (unsigned char)ref.m_rateSlot;    // movzbl 0x36
-    const unsigned char base34 = (unsigned char)ref.m_field34;     // movzbl 0x34
-
-    for (std::vector<stIndependentDropRateControl>::iterator it = ctrls.begin();
-         it != ctrls.end(); ++it)
-    {
-        if (it->m_itemId != drop.m_itemIdx)                        // setne → next
-            continue;
-        if (drop.m_rate[jobIdx] == 0)                              // test → next
-            continue;
-
-        // ORIG 0x83497a5 `movzbl 0x3f(%eax),%eax` ⇒ +0x3f 独立字节视图（P196
-        // 字段宽度；旧 `m_goldFactor>>8` 恒产 movzwl+shr）。
-        const int diff = (int)ref.m_field3f - (int)base34;          // +0x3f（等级上界）
-        // ORIG 0x83497c7 `cmp diff; setle %al; test; je <循环尾>` ⇒ 仅当
-        // m_field04 <= diff 时**执行**衰减体（Ghidra C 同判：`if (field04 <= diff) {...}`）。
-        // 旧源码写成 `<= diff` 时 continue ⇒ 条件反向真 bug（衰减作用到错误条目）。
-        if (it->m_field04 > diff)
-            continue;
-
-        int value = 10000 - it->m_field08 * diff;                  // imul + 0x2710 sub
-        float factor = (float)value;                               // fildl/fstps
-        if (factor == 0.0f)                                        // fucompp fldz
-            factor = 1.0f;
-        // flds 0x8c349ec = 10000.0f；fdivrp/fmulp → rate*(factor/10000.0f)
-        drop.m_rate[jobIdx] = (int)((float)drop.m_rate[jobIdx] *
-                                    (factor / 10000.0f));          // fistpl 回写
-    }
+#include "MonsterIndependentDrop/independentItemRateControl.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -117,176 +94,17 @@ void independentItemRateControl(stMonsterIndependentDrop_t& drop,
 //      create_item(TYPE_1,item,1) 后 push_back。
 //      m_rate[10]==0：过滤通过后 item.m_addInfo=m_itemIdx，create_item 一次；
 //      若 m_itemIdx==0 则 item.m_addInfo2=count 后入一个，否则入 count 个。
-void generateIndependentItem(
-    const std::vector<stMonsterIndependentDrop_t>& drops,
-    const WongWork::stGenerateRefData_t& ref,
-    std::vector<Inven_Item>& out)
-{
-    const unsigned char jobIdx = (unsigned char)ref.m_rateSlot;     // movzbl 0x36
-    const unsigned char chanByte = (unsigned char)ref.m_field34;    // movzbl 0x34
-    // ORIG 0x83498bc `movzbl 0x3e(%eax),%eax` ⇒ +0x3e 独立字节视图（旧
-    // `(unsigned char)m_goldFactor` 恒产 movzwl 0x3e，P196 字段宽度）。
-    const unsigned char groupIdx = ref.m_field3e_byte;              // movzbl 0x3e
-
-    // ORIG 0x83498d0/0x83498e5 在循环初始化区各求值一次 begin/end（P13 缓存
-    // end，非每次迭代重调）。
-    std::vector<stMonsterIndependentDrop_t>::const_iterator it = drops.begin();
-    const std::vector<stMonsterIndependentDrop_t>::const_iterator endIter =
-        drops.end();
-    for (; it != endIter; ++it)
-    {
-        stMonsterIndependentDrop_t drop(*it);                       // copy ctor
-
-        // ---- 1) 范围过滤 ----
-        if (drop.m_rangeMin != 0 || drop.m_rangeMax != 0)
-        {
-            if (ref.m_field25)                                      // movzbl/test
-            {
-                if (ref.m_field2c < drop.m_rangeMin)                // jl → skip
-                    continue;
-                if (!(ref.m_field2c <= drop.m_rangeMax))            // jle 取反
-                    continue;
-            }
-            else
-            {
-                if (drop.m_rangeMin > (int)chanByte)                // jg → skip
-                    continue;
-                if (drop.m_rangeMax < (int)chanByte)                // jl → skip
-                    continue;
-            }
-        }
-
-        // ---- 2) 掉率衰减控制（命中计数器先清零，ORIG -0x34 槽）----
-        int hitCount = 0;
-        independentItemRateControl(drop, ref);
-
-        // ---- 3) premium 掉率加成 ----
-        // ORIG 0x83499b6 `movzbl 0x3c(%eax),%eax` ⇒ +0x3c 独立字节视图（P196）。
-        if (drop.m_rate[10] > 0 &&
-            ref.m_premiumDropRate > 0 &&
-            ref.m_field3c_byte == 3)
-        {
-            // imul + 0x51eb851f/sar5 有符号除 100，结果再经 fildl/fistpl 恒等
-            // 往返（ORIG 0x83499f8/0x8349a1a）⇒ 源码含 (int)(float) 转换。
-            drop.m_rate[jobIdx] = (int)(float)(
-                drop.m_rate[jobIdx] * (ref.m_premiumDropRate + 100) / 100);
-        }
-
-        // ---- 4) 倍率放大并封顶 ----
-        if (ref.m_field25 && ref.m_field30 > 1)
-        {
-            // ORIG 0x8349a49 / 0x8349a75 两次独立 imul（无 product 局部槽，P0：
-            // 原码无具名局部 ⇒ 比较与赋值各写一遍完整表达式）；两侧均先装 rate
-            // 再装 field30（0x8349a4d/0x8349a57）⇒ rate 为左操作数。
-            if (drop.m_rate[jobIdx] * ref.m_field30 > 0xf423f)      // 1000000
-                drop.m_rate[jobIdx] = 0xf4240;
-            else
-                drop.m_rate[jobIdx] = drop.m_rate[jobIdx] * ref.m_field30;
-        }
-
-        // ---- 5) 生成数量 ----
-        int genCount = 0;
-        if (drop.m_itemIdx == 0 && drop.m_rate[10] == 0)
-        {
-            // ORIG 0x8349aaf `movzbl g; sub $1; add $4; mov -0xc0(%ebp,%eax,4)`
-            // ⇒ 绝对地址 drop+0x14+4g = m_rate[groupIdx+4]（m_rate 基址 +0x04）。
-            // 旧 `groupIdx+3` 读 drop+0x10+4g，少 1 个元素 = 真语义 bug。
-            genCount = drop.m_rate[groupIdx + 4];
-        }
-        else
-        {
-            // ORIG 0x8349ac8 仅发 j=0（hitCount 已在 0x834997b 调用
-            // rateControl 前清零一次，else 分支不重复清零）。
-            for (int j = 0; drop.m_rate[groupIdx + 4] > j; ++j)
-            {
-                if (ref.m_field24)                                  // movzbl/test
-                    ++hitCount;
-                else if (drop.m_rate[jobIdx] >
-                         get_rand_int(0xf4240))                     // 1000000
-                    ++hitCount;                                     // setg
-            }
-            genCount = std::min(hitCount, drop.m_rate[9]);          // _ZSt3minIi
-        }
-
-        // ---- 6) 物品生成 ----
-        Inven_Item item;                                            // Inven_ItemC1Ev
-        if (drop.m_rate[10] != 0)
-        {
-            if (ref.m_field25 &&
-                drop.m_levelFilter >= 0 &&                          // js → 不过滤
-                ref.m_field28 != drop.m_levelFilter)
-                continue;
-
-            for (int k = 0; k < genCount; ++k)
-            {
-                const int roll = get_rand_int(drop.m_rate[10]);
-                // ORIG 0x8349bad 段：begin() 返回 iterator 经 const_iterator 转换
-                // 构造（P96 翻案——ORIG 侧确有转换临时）；循环体用 operator*（deEv）
-                // 而非 operator->（P167 新判据），并整对拷贝到 8 字节局部
-                // -0x40/-0x3c（0x8349be7..0x8349bef）。
-                for (std::vector<std::pair<int, int> >::const_iterator p =
-                         drop.m_pairList.begin();
-                     p != drop.m_pairList.end(); ++p)
-                {
-                    const std::pair<int, int> pr = *p;
-                    if (pr.second > roll)
-                    {
-                        item.m_addInfo = pr.first;                  // +0x02 ← first
-                        break;                                      // 未命中沿用旧值
-                    }
-                }
-                G_CDataManager()->m_itemList->create_item(
-                    ENUM_ITEM_CREATE_TYPE_1, item, 1);
-                out.push_back(item);
-            }
-            continue;
-        }
-        else
-        {
-            if (ref.m_field25 &&
-                drop.m_levelFilter >= 0 &&
-                ref.m_field28 != drop.m_levelFilter)
-                continue;
-
-            item.m_addInfo = drop.m_itemIdx;                        // +0x02 ← +0x00
-            G_CDataManager()->m_itemList->create_item(
-                ENUM_ITEM_CREATE_TYPE_1, item, 1);
-            if (item.m_addInfo == 0 && drop.m_rate[10] == 0)
-            {
-                item.m_addInfo2 = genCount;                         // +0x07 ← count
-                out.push_back(item);
-            }
-            else
-            {
-                for (int k = 0; k < genCount; ++k)
-                    out.push_back(item);
-            }
-        }
-        // 循环尾：局部 copy/item 析构由编译器生成（与 ORIG 8349d63 一致）。
-    }
+#include "MonsterIndependentDrop/generateIndependentItem.inc"
 }
 
 // ----------------------------------------------------------------------------
 // ORIG 0x0834a13a：lea 0x24(%eax) 取容器后直接转发自由函数。
-void CAICharacter::generateIndependentItem(
-    const WongWork::stGenerateRefData_t& ref,
-    std::vector<Inven_Item>& out) const
-{
-    ::generateIndependentItem(m_independentDrops, ref, out);
+#include "MonsterIndependentDrop/generateIndependentItem_1.inc"
 }
 
 // ----------------------------------------------------------------------------
 // ORIG 0x0834f876：call CMonster::getMonsterScript(this)
 // （_ZNK8CMonster16getMonsterScriptEv @0x0830e6c6），lea 0x3ac(%eax) 取脚本内
 // 独立掉落容器（STMonsterScript::m_independentDrops）后转发自由函数。
-void CMonster::generateIndependentItem(
-    const WongWork::stGenerateRefData_t& ref,
-    std::vector<Inven_Item>& out) const
-{
-    // ORIG 0x0834f876：`call getMonsterScript; lea 0x3ac(%eax)` 无局部中转。
-    // static_cast 结果直接取容器内联传参（P0/技巧36），声明 script 局部多一
-    // -0xc 槽令帧 0x28→0x18 失配。
-    ::generateIndependentItem(
-        static_cast<STMonsterScript*>(getMonsterScript())->m_independentDrops,
-        ref, out);
+#include "MonsterIndependentDrop/generateIndependentItem_2.inc"
 }

@@ -1,0 +1,2 @@
+WarField::~WarField()
+{

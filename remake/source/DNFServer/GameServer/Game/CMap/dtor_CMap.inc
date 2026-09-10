@@ -1,0 +1,3 @@
+CMap::~CMap()
+{
+    destroy();

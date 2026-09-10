@@ -1,0 +1,3 @@
+CDeathTower::CStage::CStage()
+{
+    resetCurrentStage();

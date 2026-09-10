@@ -1,0 +1,2 @@
+CDeathTower::CStage::~CStage()
+{

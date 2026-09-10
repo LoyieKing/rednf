@@ -1,0 +1,1 @@
+stSecurityLogParam::stSecurityLogParam() {}

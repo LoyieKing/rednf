@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CUserStatB/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // CUserStatB.cpp —— CUser 脚本补给/任务碎片批次 B（独立 TU，仅承载两符号）
 //   1. CUser::RefillItemByScript   ORIG _ZN5CUser18RefillItemByScriptERSt6vectorISt4pairIiiESaIS2_EE
 //                                  @0x086890be (T)
@@ -54,61 +64,12 @@
 //        再把 +0x07 数量改为 entry.m_count 后 update_item 回写；
 //   插入/更新成功（slot>=0）→ SendUpdateItemList(eSendTarget_1, 空间 0, slot)。
 // ---------------------------------------------------------------------------
-void CUser::RefillItemByScript(std::vector<std::pair<int, int> >& list)
-{
-    // ORIG 0x086890be：经 const 指针走 const operator[]（ix 常量符号）
-    const std::vector<stRefillItemInfo::RefillItem>* refill =
-        G_CDataManager()->GetRefillItemInfo();
-    const int nowSec = GlobalData::s_systemTime_.getCurSec();
-
-    for (unsigned int i = 0; i < refill->size(); ++i)
-    {
-        const stRefillItemInfo::RefillItem& entry =
-            refill->operator[](i);
-        if (nowSec >= entry.m_endSec)      // ORIG：endSec<=curSec 跳过（jle）
-            continue;
-        if (entry.m_count == 0)
-        {
-            // std::make_pair<int const&, int>(itemId, 0) → push_back
-            list.push_back(std::make_pair(entry.m_itemId, 0));
-            continue;
-        }
-
-        CItem* def = G_CDataManager()->find_item(entry.m_itemId);
-        if (def == 0)
-            continue;
-
-        Inven_Item item;                   // ORIG Inven_Item::Inven_Item() W 0x80cb854
-        int slot = getCurCharacInvenR()->GetInvenData(entry.m_itemId, item);
-        if (slot < 0)
-        {
-            def->make_item(item);              // ORIG *(*(def)+8)(def,&item)：vtable 槽 2
-            item.m_addInfo2 = entry.m_count;   // +0x07 数量（ORIG -0x62 槽，先写）
-            item.m_addInfo = entry.m_itemId;   // +0x02 物品索引（ORIG -0x67 槽，后写）
-            slot = getCurCharacInvenW()->insertItemIntoInventory(
-                item, eItemAddReason_0xd, true, false);
-        }
-        else
-        {
-            m_historyLog.ItemAdd((INVEN_TYPE)1, item.m_addInfo2, item.m_addInfo,
-                                 item, eItemAddReason_0xd);
-            item.m_addInfo2 = entry.m_count;
-            getCurCharacInvenW()->update_item((INVEN_TYPE)1, slot, item);
-        }
-        if (slot >= 0)
-            SendUpdateItemList(eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
-    }
+#include "CUserStatB/RefillItemByScript.inc"
 }
 
 // ---------------------------------------------------------------------------
 // CUser::sendCharacQuestPiece —— ORIG 0x0868af2c。
 // 取角色扩展槽 0xb（CQuestShop），非空则转发 sendCharacQuestPiece(this)。
 // ---------------------------------------------------------------------------
-void CUser::sendCharacQuestPiece()
-{
-    CQuestShop* shop =
-        (CQuestShop*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xb);
-    if (shop != 0)
-        shop->sendCharacQuestPiece(this);
-    return;
+#include "CUserStatB/sendCharacQuestPiece.inc"
 }

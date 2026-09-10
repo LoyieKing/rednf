@@ -1,0 +1,2 @@
+CraneMinigameScript::CraneMinigameScript()
+{

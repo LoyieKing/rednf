@@ -1,0 +1,3 @@
+TownScript::TownScript()
+{
+    clear();

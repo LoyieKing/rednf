@@ -1,0 +1,2 @@
+CPcRoomCardBlankItemEvent::CPcRoomCardBlankItemEvent()
+{

@@ -1,0 +1,2 @@
+DBDispatcher::DBDispatcher() throw()
+{

@@ -1,0 +1,1 @@
+_mapMonster::~_mapMonster() {}

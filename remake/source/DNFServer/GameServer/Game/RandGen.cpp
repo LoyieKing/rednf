@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 RandGen/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // RandGen：静态 float 随机辅助。ORIG 符号：
 //   getFloat01()             T 0x08ae0206
 //   getFloat01(XorRand4*)    T 0x08ae0244
@@ -7,9 +17,7 @@
 #include "RandGen.h"
 #include "XorRand4.h"
 
-float RandGen::getFloat01()
-{
-    return (float)((unsigned long long)(XorRand4::getStaticUInt32() % 65535u) * (1.0f / 65536.0f));
+#include "RandGen/getFloat01.inc"
 }
 
 // [b28d-solo-RandGen N(跨版本 outgoing 预留/栈边界)] 判词 NEAR(4)：ORIG 0x08ae0244
@@ -22,9 +30,7 @@ float RandGen::getFloat01()
 // dead 局部只撑帧不移槽（P232/N98），源码层亦无 per-function 开关
 // （#pragma GCC target("preferred-stack-boundary=2") 被 4.4.7 拒绝）⇒ 不可用。
 // 语义等价（同一 magic 取模 + 2^-16 乘），byte 层按 P190附注②/N95/N82 族封顶。
-float RandGen::getFloat01(XorRand4* rng)
-{
-    return (float)((unsigned long long)(rng->getUInt32() % 65535u) * (1.0f / 65536.0f));
+#include "RandGen/getFloat01_1.inc"
 }
 
 // [b28d-solo-RandGen N(同 getFloat01EP8XorRand4 栈边界族)] 判词 NEAR(3)：
@@ -33,18 +39,12 @@ float RandGen::getFloat01(XorRand4* rng)
 // 实证：-mpreferred-stack-boundary=2 下 `sub $0x8` + span -0x4（仍差 8：4.4 对同 TU
 // 已定义 callee 继承 outgoing，P210②；callee 定义前置/后置/仅声明三形探针
 // /tmp/gprobe.cpp G2/H2/I2 在 sb2 下均 0x8）⇒ 语义等价，byte 层封顶。
-float RandGen::getFloat(XorRand4* rng, float min, float max)
-{
-    float span = max - min;
-    return getFloat01(rng) * span + min;
+#include "RandGen/getFloat.inc"
 }
 
 // ORIG _ZN7RandGen8getFloatEff T 0x08ae0288（0x1c）：span=max-min 落 -0xc 槽、
 // call getFloat01() 后 fmuls/fadds 逐条对位（P204① 补定义；头声明已备）。
-float RandGen::getFloat(float min, float max)
-{
-    float span = max - min;
-    return getFloat01() * span + min;
+#include "RandGen/getFloat_1.inc"
 }
 
 

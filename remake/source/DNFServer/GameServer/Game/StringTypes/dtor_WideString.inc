@@ -1,0 +1,3 @@
+WideString::~WideString()
+{
+    getData()->decRef();

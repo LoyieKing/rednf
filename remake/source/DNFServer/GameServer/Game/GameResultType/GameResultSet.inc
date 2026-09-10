@@ -1,0 +1,2 @@
+GameResultSet::GameResultSet()
+{

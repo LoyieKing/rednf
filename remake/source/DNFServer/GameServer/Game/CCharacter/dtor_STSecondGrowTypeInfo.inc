@@ -1,0 +1,2 @@
+STSecondGrowTypeInfo::~STSecondGrowTypeInfo()
+{

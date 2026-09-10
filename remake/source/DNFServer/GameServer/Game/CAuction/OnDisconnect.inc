@@ -1,0 +1,3 @@
+void CAuctionServerProxy::OnDisconnect()
+{
+    Init();

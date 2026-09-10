@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CAICharacterList/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // CAICharacterList.cpp
 // ORIG 依据：objdump 0x0834aaf4(getByAP T) / 0x08150872(getMinAP W) /
 //   0x08150880(getAPCount W)。布局见 CDataManager.h mirror 类：
@@ -23,42 +33,17 @@ typedef std::map<int, std::vector<CAICharacter*> > APGroupMap;
 //   (unsigned)it->first > ap 且 it!=begin → --it；
 //   it->second.size()==1 分支的 at(0) 结果在 ORIG 中被丢弃（忠实转写）；
 //   返回 at(get_rand_int(size()))。
-CAICharacter* CAICharacterList::getByAP(unsigned int ap)
-{
-    if (m_groupMap.empty())
-        return 0;
-
-    // [b28d-L14 实证] ORIG 0x0834a38e 全用 _Rb_tree_const_iterator（含 4 次
-    // 转换构造 + const 版 operator--/at，P96/P270 反向：此处须 const_iterator）。
-    APGroupMap::const_iterator it = m_groupMap.lower_bound((int)ap);
-    // ORIG 0x0834ab66/0x0834aba9：end() 求值两次（比较 + 赋值后再自减）。
-    if (it == m_groupMap.end())
-    {
-        it = m_groupMap.end();
-        --it;
-    }
-
-    if (((unsigned int)it->first > ap) && it != m_groupMap.begin())
-        --it;
-
-    if (it->second.size() == 1)
-        it->second.at(0);  // ORIG 汇编如此调用但未使用结果
-
-    return it->second.at(get_rand_int((int)it->second.size()));
+#include "CAICharacterList/getByAP.inc"
 }
 
 // ORIG 0x08150872 _ZN16CAICharacterList8getMinAPEv（非 const）
-int CAICharacterList::getMinAP()
-{
-    return m_maxAP;
+#include "CAICharacterList/getMinAP.inc"
 }
 
 // ORIG 0x08150880 _ZNK16CAICharacterList10getAPCountEv
 // ORIG 调用方（CBossStage/CDeathTower consistMap）把返回值作为
 // map<int,int>::operator=(const map&) 的实参 —— 即返回 m_apStatMap 引用。
-std::map<int, int> const& CAICharacterList::getAPCount() const
-{
-    return m_apStatMap;
+#include "CAICharacterList/getAPCount.inc"
 }
 
 // ============================================================================
@@ -154,73 +139,8 @@ typedef char assert_cai_character_size[sizeof(CAICharacter) == 0x74 ? 1 : -1];
 
 extern STScriptFileList g_aiCharacterScriptFileList;  // B 0x094f6a20
 
-bool importAICharacterCommonScript(STAICharacterCommonScript* script,
-                                   const char* path, bool byLevel);
-
-// ---- init（ORIG 0x0834a28c）：truncate 失败打印并返 false；m_maxAP 置
-//      0x7fffffff；遍历文件列表逐条 clear→new→import（失败 printf+析构释放+
-//      返 false）→FindIndex→insert_db（失败 printf+返 false，ORIG 不释放
-//      aiChar）→独立掉落收集（push_back 到 script.m_f2c）→set（重新
-//      FindIndex）→_add。----
-bool CAICharacterList::init()
-{
-    if (!sync_script::GetInstanceSyncScript()->truncate_aicharacter_info_table())
-    {
-        std::puts("Fail truncate_aicharacter_info_table");
-        return false;
-    }
-
-    m_maxAP = static_cast<int>(0x7fffffff);   // +0x4bc
-
-    // ORIG 0x0834a2cf：fileName 在循环外置 0（P28 声明序 = 槽序）。
-    const char* fileName = 0;
-    // [b28d-L14 实证] ORIG 0x0834a28c：非 const _Rb_tree_iterator + 默认构造
-    // （C1Ev）+ 后置 it++（ppEi）——P50 复活 / P28 增量侧判据。
-    std::map<int, std::string>::iterator it;
-    STAICharacterCommonScript script;
-    it = g_aiCharacterScriptFileList.m_fileMap.begin();
-    while (it != g_aiCharacterScriptFileList.m_fileMap.end())
-    {
-        fileName = it->second.c_str();
-        if (fileName == 0)
-            break;
-
-        script.clear();
-
-        CAICharacter* aiChar = new CAICharacter;
-        if (!importAICharacterCommonScript(&script, fileName, false))
-        {
-            std::printf("AI charac Script Error: %s\n", fileName);
-            delete aiChar;                    // ORIG 0x0834a3b3 test/je + D1 + _ZdlPv
-            return false;
-        }
-
-        const int fileIdx =
-            g_aiCharacterScriptFileList.FindIndexByFullScan(fileName);
-        if (!sync_script::GetInstanceSyncScript()->insert_aicharacter_info_to_db(fileIdx, script))
-        {
-            std::printf("insert_aicharacter_category Error: %s\n", fileName);
-            return false;                     // ORIG 此路径不释放 aiChar（忠实保留）
-        }
-
-        // 独立掉落收集（G_CDataManager()+0xa890 = m_independentDrop.m_vecC）。
-        // ORIG 0x0834a4a9：push_back 目标是 script+0xf2c（m_f2c），非局部 vector；
-        // 0x0834a4b2 cmp/setg 为有符号比较 ⇒ 下标 int；每字段独立 operator[]
-        // （P157，不缓存元素引用）。
-        std::vector<stIndependentDropInfo>& drops =
-            G_CDataManager()->m_independentDrop.m_vecC;
-        for (int i = 0; i < (int)drops.size(); ++i)
-        {
-            if (drops[i].m_field0 == 1 && drops[i].m_monsterIndex == fileIdx)
-                script.m_f2c.push_back(drops[i].m_drop);
-        }
-
-        aiChar->set(
-            g_aiCharacterScriptFileList.FindIndexByFullScan(fileName), script);
-        _add(aiChar);
-        it++;
-    }
-    return true;
+#include "CAICharacterList/importAICharacterCommonScript.inc"
+#include "CAICharacterList/init.inc"
 }
 
 // ---- _add（ORIG 0x0834a61c）：charMap 按 idx insert，重复返 false；
@@ -228,63 +148,5 @@ bool CAICharacterList::init()
 //      告警仍写入）；ap!=0 时 groupMap find-or-insert、m_maxAP 取无符号
 //      min、apStatMap 以 ap 为键计数（value 恒 1）；最后按 getRarity
 //      （+0x08 int）入 m_byAPList 桶。----
-bool CAICharacterList::_add(CAICharacter* aiChar)
-{
-    // ORIG 0x0834a8be 段用块内具名 ap（-0x58）；头部声明复现其槽深序（P212）。
-    int ap;
-    std::pair<std::map<int, CAICharacter*>::iterator, bool> ins =
-        m_charMap.insert(std::make_pair(
-            static_cast<unsigned int>(aiChar->getIdx()), aiChar));   // ORIG make_pair<unsigned int,...>
-    if (!ins.second)
-        return false;
-
-    // ORIG 0x0834a697/0x0834a70e：getLevel 两次独立求值（P48，无 level 缓存）。
-    for (unsigned int lv = (unsigned int)aiChar->getLevel() - 5;
-         (unsigned int)aiChar->getLevel() + 5 > lv; ++lv)
-    {
-        if (lv > 0x62)   // ORIG cmp $0x62,jbe：仅告警不拦截
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x537, 0)(
-                "aiCharacter Script file load failed");
-        }
-        m_byLevelList[lv].push_back(aiChar);   // this+lv*12+0x18 盲写
-    }
-
-    // ORIG 0x0834a726：外层判定、m_maxAP 段、apStatMap 段均逐次调用
-    // getAppearancePoint（P48）；仅 find 用具名 ap。
-    if (aiChar->getAppearancePoint() != 0)
-    {
-        ap = aiChar->getAppearancePoint();
-        std::map<int, std::vector<CAICharacter*> >::iterator group =
-            m_groupMap.find(ap);
-        // ORIG 0x0834a79c 用 operator!=（then=push_back / else=fresh，P220）。
-        if (group != m_groupMap.end())
-        {
-            group->second.push_back(aiChar);
-        }
-        else
-        {
-            std::vector<CAICharacter*> fresh;
-            fresh.push_back(aiChar);
-            m_groupMap.insert(std::make_pair(aiChar->getAppearancePoint(), fresh));
-        }
-
-        // ORIG 0x0834a8be：三元（cond 走 jae 无 bool 物化、两臂共用尾部 store；
-        // then 臂重载 m_maxAP，else 臂重调 getAppearancePoint）。m_maxAP 为
-        // int 与 unsigned 右操作数比较 ⇒ 无符号序（jae），勿写成有符号。
-        m_maxAP = (m_maxAP < (unsigned int)aiChar->getAppearancePoint())
-                      ? m_maxAP
-                      : aiChar->getAppearancePoint();
-
-        // ORIG 0x0834a8f5：make_pair 第一实参 = getAppearancePoint()（key），
-        // 第二实参 = 常量 1（value）——0x0834a910 arg2=&(-0x14)=1、
-        // 0x0834a917 arg1=&(-0x10)=ap。插入失败时把该 AP 的计数 +1。
-        std::pair<std::map<int, int>::iterator, bool> stat =
-            m_apStatMap.insert(std::make_pair(aiChar->getAppearancePoint(), 1));
-        if (!stat.second)
-            stat.first->second = stat.first->second + 1;
-    }
-
-    m_byAPList[aiChar->getRarity()].push_back(aiChar);   // this+rarity*12+0x4d8
-    return true;
+#include "CAICharacterList/_add.inc"
 }

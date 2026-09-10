@@ -1,0 +1,3 @@
+RidableObject::RidableObject()
+{
+    clear();

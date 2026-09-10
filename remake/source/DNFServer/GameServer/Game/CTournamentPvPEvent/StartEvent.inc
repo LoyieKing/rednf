@@ -1,0 +1,2 @@
+void CTournamentPvPEvent::StartEvent()
+{

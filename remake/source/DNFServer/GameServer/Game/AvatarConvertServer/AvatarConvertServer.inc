@@ -1,0 +1,2 @@
+AvatarConvertServer::AvatarConvertServer()
+{

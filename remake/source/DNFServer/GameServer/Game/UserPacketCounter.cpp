@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 UserPacketCounter/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // UserPacketCounter.cpp —— message_counter::CUserPacketCounter 实现
 //   + cUserHistoryLog::AbnormalUser（ORIG 0x08686df4，声明在 CUser.h）。
 // 全部函数体按 ORIG df_game_r objdump 逐指令转写。
@@ -19,32 +29,17 @@ namespace message_counter
 
 // ORIG W 0x0847e8d2：map 默认构造（编译器生成）+ total=0 +
 // sprintf(m_logPath, "./log/%s/%s", dir, name)。
-CUserPacketCounter::CUserPacketCounter(char* dir, char* name)
-{
-    m_totalCount = 0;
-    sprintf(m_logPath, "./log/%s/%s", dir, name);
+#include "UserPacketCounter/CUserPacketCounter.inc"
 }
 
 // ORIG W 0x0847e916：仅 map 析构（其余成员平凡）。
-CUserPacketCounter::~CUserPacketCounter()
-{
+#include "UserPacketCounter/dtor_CUserPacketCounter.inc"
 }
 
 // ORIG T 0x0856ff24：
 //   find(accId) != end → ++it->second；否则 insert(make_pair(accId, 1))；
 //   最后 ++m_totalCount（+0x118）。
-void CUserPacketCounter::IncreasePacket(unsigned int accId)
-{
-    std::map<unsigned int, int>::iterator it = m_counter.find(accId);
-    if (it != m_counter.end())
-    {
-        ++it->second;
-    }
-    else
-    {
-        m_counter.insert(std::make_pair(accId, 1));
-    }
-    ++m_totalCount;
+#include "UserPacketCounter/IncreasePacket.inc"
 }
 
 // ORIG T 0x0856fff0：
@@ -53,29 +48,7 @@ void CUserPacketCounter::IncreasePacket(unsigned int accId)
 //     CMyFileLog(m_logPath, 0xa0)(m_logPath, "(%s,%12d)", idStr, value)
 //   收尾：total=0、map.clear()。
 // （ORIG 每条记录都新建一个 CMyFileLog，忠实保留。）
-void CUserPacketCounter::WriteLog()
-{
-    // [A24TailBatch2] 判据③/P139：ORIG 0x08570010 `movl $&_ZZ...E19__PRETTY_FUNCTION__,0x4(%esp)`
-    // ⇒ ctor 第一实参是 __PRETTY_FUNCTION__（局部静态符号），非 m_logPath。
-    // P227 全表达式临时链：ORIG 0x0856fffc/0x08570005 在 ctor call 之前把
-    // op() 实参求值到 callee-saved（total→%ebx、&m_logPath→%esi），4.4 具名对象形
-    // 恒把实参压到 ctor 之后 ⇒ 用临时链复现（push ebx/esi + 帧 0x4c）。
-    CMyFileLog(__PRETTY_FUNCTION__, 0x9d)(
-        m_logPath, "user_packet_counter total_count(%d)", m_totalCount);
-
-    for (std::map<unsigned int, int>::iterator it = m_counter.begin();
-         it != m_counter.end(); ++it)
-    {
-        // [A24TailBatch2] P329/P52：ORIG 全部 no-slot（0x08570060 second→%esi、
-        // 0x086070082 first→%eax→NumberToString→%ebx、idStr 留 %ebx 跨 ctor）⇒
-        // 原码无 value/accId/idStr 具名局部（旧三槽使帧 0x4c→0x58 = 3×4B）。
-        // 实参右→左求值：末实参 it->second 先算（→%esi），再 NumberToString(it->first,0)。
-        CMyFileLog(__PRETTY_FUNCTION__, 0xa0)(
-            m_logPath, "(%s,%12d)", NumberToString(it->first, 0), it->second);
-    }
-
-    m_totalCount = 0;
-    m_counter.clear();
+#include "UserPacketCounter/WriteLog.inc"
 }
 
 }  // namespace message_counter
@@ -86,9 +59,5 @@ void CUserPacketCounter::WriteLog()
 //   m_user->LogHistory("AbnormalUser,%u,%hu,%d,%d", type, value, a3, a4) 转发。
 // 格式串 ORIG @0x8cf1037 已核对。
 // ----------------------------------------------------------------------------
-void cUserHistoryLog::AbnormalUser(ENUM_ABNORMAL_USER_LOG_TYPE type,
-                                   unsigned short value, int a3, int a4)
-{
-    m_user->LogHistory("AbnormalUser,%u,%hu,%d,%d",
-                       (unsigned int)type, (unsigned int)value, a3, a4);
+#include "UserPacketCounter/AbnormalUser.inc"
 }

@@ -1,0 +1,2 @@
+void CClientCrashDownLogStatistic::Init()
+{

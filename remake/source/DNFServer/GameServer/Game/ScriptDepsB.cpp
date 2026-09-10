@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 ScriptDepsB/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— ScriptDepsB.cpp（脚本装载依赖 B 组，独占 TU）
 //
 // 逐报告转写自 docs/class_func_reports/_lt_global_gt_/ 对应 md
@@ -62,65 +72,14 @@ float g_mpRegenRateAddRateConst_;
 // loadValueType —— ORIG 0x08892ac4（_Z13loadValueTypeRKSs）
 // "+"=0、"%"=1、其他=2。
 // ============================================================================
-int loadValueType(const std::string& token)
-{
-    if (token == "+")
-        return 0;
-    if (token == "%")
-        return 1;
-    return 2;
+#include "ScriptDepsB/loadValueType.inc"
 }
 
 // ============================================================================
 // loadAppendageType —— ORIG 0x0889253b（_Z17loadAppendageTypeRKSs）
 // 纯字符串→枚举映射链；比较顺序与 ORIG 级联完全一致，未匹配返回 -1。
 // ============================================================================
-int loadAppendageType(const std::string& token)
-{
-    if (token == "[physical attack]")                  return 0x00;
-    if (token == "[magical attack]")                   return 0x01;
-    if (token == "[physical defense]")                 return 0x03;
-    if (token == "[magical defense]")                  return 0x02;
-    if (token == "[equipment physical attack]")        return 0x04;
-    if (token == "[equipment physical defense]")       return 0x05;
-    if (token == "[jump power]")                       return 0x08;
-    if (token == "[attack speed]")                     return 0x0a;
-    if (token == "[move speed]")                       return 0x0b;
-    if (token == "[cast speed]")                       return 0x0c;
-    if (token == "[hp max]")                           return 0x0d;
-    if (token == "[hp regen rate]")                    return 0x0e;
-    if (token == "[magical critical hit rate]")        return 0x10;
-    if (token == "[physical critical hit rate]")       return 0x0f;
-    if (token == "[physical back attack critical rate]") return 0x11;
-    if (token == "[magical back attack critical rate]")  return 0x12;
-    if (token == "[fire element]")                     return 0x14;
-    if (token == "[water element]")                    return 0x15;
-    if (token == "[dark element]")                     return 0x16;
-    if (token == "[light element]")                    return 0x17;
-    if (token == "[stuck]")                            return 0x1b;
-    if (token == "[mp regen rate]")                    return 0x1d;
-    if (token == "[hit recovery]")                     return 0x1e;
-    if (token == "[equipment magical attack]")         return 0x1f;
-    if (token == "[equipment magical defense]")        return 0x20;
-    if (token == "[good hit]")                         return 0x21;
-    if (token == "[all active status resistance]")     return 0x1a;
-    if (token == "[all element]")                      return 0x18;
-    if (token == "[fire element attack]")              return 0x2a;
-    if (token == "[water element attack]")             return 0x2b;
-    if (token == "[dark element attack]")              return 0x2c;
-    if (token == "[light element attack]")             return 0x2d;
-    if (token == "[all element attack]")               return 0x2e;
-    if (token == "[mp max]")                           return 0x30;
-    if (token == "[separate attack]")                  return 0x35;
-    if (token == "[antievil]")                         return 0x37;
-    if (token == "[physical absolute damage]")         return 0x38;
-    if (token == "[village moving speed]")             return 0x3f;
-    if (token == "[magical absolute damage]")          return 0x3c;
-    if (token == "[physical absolute defense]")        return 0x3d;
-    if (token == "[magical absolute defense]")         return 0x3e;
-    if (token == "[physical attack bonus]")            return 0x06;
-    if (token == "[magical attack bonus]")             return 0x07;
-    return -1;
+#include "ScriptDepsB/loadAppendageType.inc"
 }
 
 // ============================================================================
@@ -134,51 +93,7 @@ int loadAppendageType(const std::string& token)
 // [b28d-solo-ScriptDepsB AE: 补 ORIG 两枚 string + int/float/bool 死局部（P232/P171
 //  照抄）：ctor 序 -0x18→-0x1c、清零序 -0x14(int 单段)/-0x10(float 两段 eax 中转)/-0x9(bool)，
 //  目标串以立即数压参。ORIG 0x080966fa]
-bool importEtcParameterScriptForServer(void)
-{
-    if (!loadRDARScriptFile("", "Etc/EtcParameter.etc"))
-        return false;
-
-    std::string token;
-    std::string unused;
-    int deadInt = 0;
-    float deadFloat = 0.0f;
-    bool deadBool = false;
-
-    for (;;)
-    {
-        ScanType(token, false);
-        if (token == "[damage fomula constant]")
-            break;
-    }
-
-    g_physicalDamageRateConst_            = ScanFloat((bool*)0);
-    g_physicalDamageAddConst_             = ScanFloat((bool*)0);
-    g_physicalReduceRateConst_            = ScanFloat((bool*)0);
-    g_physicalReduceAddConst_             = ScanFloat((bool*)0);
-    g_physicalRandomBaseConst_            = ScanFloat((bool*)0);
-    g_physicalRandomRateConst_            = ScanFloat((bool*)0);
-    g_magicalDamageRateConst_             = ScanFloat((bool*)0);
-    g_magicalDamageAddConst_              = ScanFloat((bool*)0);
-    g_magicalReduceRateConst_             = ScanFloat((bool*)0);
-    g_magicalReduceAddConst_              = ScanFloat((bool*)0);
-    g_magicalRandomBaseConst_             = ScanFloat((bool*)0);
-    g_magicalRandomRateConst_             = ScanFloat((bool*)0);
-    g_commonElementBaseConst_             = ScanFloat((bool*)0);
-    g_commonElementRateConst_             = ScanFloat((bool*)0);
-    g_commonElementRateConstInPVP_        = ScanFloat((bool*)0);
-    g_commonElementRateConstInLadderPVP_  = ScanFloat((bool*)0);
-    g_hpIncreaseRateConst_                = ScanFloat((bool*)0);
-    g_hpRegenRateConst_                   = ScanFloat((bool*)0);
-    g_mpIncreaseRateConst_                = ScanFloat((bool*)0);
-    g_mpRegenRateConst_                   = ScanFloat((bool*)0);
-    g_activeStatusDamageRateConst_        = ScanFloat((bool*)0);
-    g_activeStatusDefenseRateConst_       = ScanFloat((bool*)0);
-    g_physicalDefenseAddConst_            = ScanFloat((bool*)0);
-    g_magicalDefenseAddConst_             = ScanFloat((bool*)0);
-    g_hpRegenRateAddRateConst_            = ScanFloat((bool*)0);
-    g_mpRegenRateAddRateConst_            = ScanFloat((bool*)0);
-    return true;
+#include "ScriptDepsB/importEtcParameterScriptForServer.inc"
 }
 
 // ============================================================================
@@ -214,42 +129,7 @@ std::vector<stTitleElement>* getTitleCollection(stTitleBookInfo* book, int tab)
 //  body 末尾 goto 公共尾（等价 break 后跳尾）⇒ 与 ORIG 0x08aa8ba4/0x08aa8c10 逐条
 //  一致（探针 /tmp/sdb_probe/p1.o f_while_goto）。
 //  D1 虚调目标（旧 N7）已由 CTitleBook.h 指针算术形修复。
-int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
-{
-    std::string typeText;
-    const unsigned int appendage =
-        static_cast<unsigned int>(loadAppendageType(token));
-
-    // ORIG 0x08aa8ba4: cmpl $-1,槽; setne %al; test %al,%al; je <else>
-    while (appendage != static_cast<unsigned int>(-1))
-    {
-        stRewardChangeStatus* reward = new stRewardChangeStatus();
-        reward->m_appendage = appendage;                    // +0x0c
-        ScanStr(&typeText);
-        reward->m_valueType = loadValueType(typeText);      // +0x10
-        reward->m_value = ScanFloat((bool*)0);              // +0x14（fstps）
-        out->push_back(reward);
-        goto rewardsTail;                                   // ORIG 0x08aa8c10 jmp 尾
-    }
-    if (token == "[give emotion]")
-    {
-        stRewardGiveEmotion* reward = new stRewardGiveEmotion();
-        reward->m_emotionId = ScanInt((bool*)0);            // +0x0c
-        out->push_back(reward);
-    }
-    else if (token == "[send postal]")
-    {
-        int deadPostal = 0;
-        stRewardPostal* reward = new stRewardPostal();
-        reward->m_itemIdx = ScanInt((bool*)0);              // +0x18
-        reward->m_addInfo = ScanInt((bool*)0);              // +0x1c
-        ScanStr(&reward->m_sender);                         // +0x0c
-        ScanStr(&reward->m_subject);                        // +0x10
-        ScanStr(&reward->m_message);                        // +0x14
-        out->push_back(reward);
-    }
-rewardsTail:
-    return 1;
+#include "ScriptDepsB/importRewards.inc"
 }
 
 // ============================================================================
@@ -265,139 +145,7 @@ rewardsTail:
 // [b28d-solo-ScriptDepsB: switch 驱动级联注册链（P177 static 三件套落循环体内、
 //  P163 case 0 撑宽、P192/P315 value_type 直构、P96/P270 const_iterator）；
 //  查表段单点共享。ORIG 0x08aa8d65]
-bool importTitleSection(stTitleSection* section, int idx)
-{
-    typedef std::map<const char*, int, less_TCHAR> LookupMap;
-
-    std::string token;
-    std::string deadToken;          // ORIG -0xec（仅 ctor/dtor，P171 照抄）
-
-    section->m_startIdx = idx * 10;                    // +0x0c
-    section->m_endIdx = section->m_startIdx + 10;      // +0x10
-
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            return true;
-
-    dispatch:                       // ORIG +0x72：重派发当前令牌（不重扫）
-        static LookupMap __lookup;      // ORIG _ZZ18importTitleSection..8__lookup
-        static SpinLock __init_lock;     // ORIG ..11__init_lock
-        static bool __inited = false;   // ORIG ..8__inited
-
-        int id;
-        if (__inited)
-        {
-            LookupMap::const_iterator it = __lookup.find(token.c_str());
-            id = (it != __lookup.end()) ? it->second : -1;
-        }
-        else
-        {
-            __init_lock.enter();
-            if (__inited)
-            {
-                // 双检竞争失败方：解锁后重走查表（当前令牌，不重扫）。
-                __init_lock.leave();
-                goto dispatch;
-            }
-            id = 0;                     // 首遍：id=0 驱动级联注册链
-        }
-
-        switch (id)
-        {
-        case 0:
-        case 0x155:                                    // [/section]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[/section]", 0x155));
-            else
-                return false;
-            // fall through（注册链）
-        case 0x158:                                    // [/reward type]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[/reward type]", 0x158));
-            else
-                return true;
-            // fall through
-        case 0x15c:                                    // [section name]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[section name]", 0x15c));
-            else
-            {
-                ScanStr(&section->m_sectionName);       // +0x04
-                break;
-            }
-            // fall through
-        case 0x15f:                                    // [section icon]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[section icon]", 0x15f));
-            else
-            {
-                ScanStr(&section->m_icon);              // +0x24
-                section->m_iconId = ScanInt((bool*)0);  // +0x28
-                break;
-            }
-            // fall through
-        case 0x166:                                    // [frame type]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[frame type]", 0x166));
-            else
-            {
-                section->m_frameType = ScanInt((bool*)0);  // +0x2c
-                break;
-            }
-            // fall through
-        case 0x169:                                    // [lock message]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[lock message]", 0x169));
-            else
-            {
-                ScanStr(&section->m_lockMessage);       // +0x30
-                break;
-            }
-            // fall through
-        case 0x16e:                                    // [name]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[name]", 0x16e));
-            else
-            {
-                ScanStr(&section->m_name);              // +0x14
-                break;
-            }
-            // fall through
-        case 0x172:                                    // [image path]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[image path]", 0x172));
-            else
-            {
-                ScanStr(&section->m_imagePath);         // +0x18
-                section->m_imageParam = ScanInt((bool*)0);  // +0x1c
-                break;
-            }
-            // fall through
-        case 0x179:                                    // [effect path]
-            if (!__inited)
-                __lookup.insert(LookupMap::value_type("[effect path]", 0x179));
-            else
-            {
-                ScanStr(&section->m_effectPath);        // +0x20
-                break;
-            }
-            // fall through（注册链尾）
-        default:
-            break;
-        }
-
-        // ORIG +0x6a3 公共尾：注册链上 leave+置位并回循环头重派发；
-        // __inited 后每个令牌（含标签）都会进入 importRewards。
-        if (!__inited)
-        {
-            __init_lock.leave();
-            __inited = true;
-            goto dispatch;
-        }
-
-        importRewards(&section->m_rewards, token);
-    }
+#include "ScriptDepsB/importTitleSection.inc"
 }
 
 // ============================================================================
@@ -415,39 +163,7 @@ struct stSpPerLevelTable : public std::vector<unsigned int> {};
 // [b28d-solo-ScriptDepsB AE: int 局部 + 隐式转换物化右值 push_back(EOj) 对齐
 //  ORIG 0x08910505；等级位与数值位均为 int 具名局部（-0x10/-0xc），
 //  push_back 传 int 触发 int→unsigned 转换临时（-0x18/-0x14）⇒ 右值重载 EOj]
-int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
-{
-    bool ok = false;
-    std::string token;
-    int level;
-    int value;
-
-    if (!loadRDARScriptFile("", path))
-        return 0x2948;
-
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            break;
-        if (token == "[sp table]")
-        {
-            level = 0;
-            value = 0;
-            table.reserve(200);
-            table.push_back(value);                    // 等级 0 占位（int→unsigned 右值）
-            for (;;)
-            {
-                level = ScanInt(&ok);                  // 等级位（丢弃，索引即位）
-                if (!ok)
-                    break;
-                value = ScanInt(&ok);
-                if (!ok)
-                    break;
-                table.push_back(value);                // 仅数值位入表
-            }
-        }
-    }
-    return 0;
+#include "ScriptDepsB/importSpPerLevelReferenceTable.inc"
 }
 
 // ============================================================================
@@ -487,176 +203,5 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
 //  `-fdump-tree-gimple` 证实 GIMPLE 树序未交换（`D = r | (g<<8)`），差异在
 //  expand 阶段的可交换操作数 dst 选择 ⇒ 判 N86b（同一算术多 codegen 定论）+
 //  P321-T5（寄存器角色不改类型/源码），**无源码旋钮**（探针路径见上）。
-bool importGenuineUpgradeTable(const char* path,
-                              GenuineDamageUpgradeTable* table)
-{
-    if (!loadRDARScriptFile("", path))
-        return false;
-
-    std::string token;
-    std::string deadToken1;      // ORIG -0xb0（仅 ctor/dtor，P171 照抄）
-    std::string deadToken2;      // ORIG -0xb4
-    int level = 0;
-
-    for (;;)
-    {
-    sectionHead:                 // ORIG 7 处 continue 均为 jmp 0x089123a2（直跳循环头）；
-                                 // 4.4 对 continue 恒发共享 latch 块（jmp 尾部），
-                                 // goto 头标签才复现直跳形（探针 /tmp/sdb_probe/p5.o fGoto）。
-        if (!ScanType(token, true))
-            break;
-
-        if (token == "[table]")
-        {
-            int key = 1;
-            table->m_infos.clear();
-            for (;;)
-            {
-                GenuineDamageUpgradeInfo info;
-                if (!ScanInt(&info.m_a))
-                    break;
-                if (!ScanInt(&info.m_b))
-                    break;
-                if (!ScanInt(&level))
-                    break;
-                info.m_levelRate =
-                    static_cast<float>(level) / 10000.0f;
-                if (!ScanFloat(&info.m_goldRate))
-                    break;
-                table->m_infos.insert(
-                    std::make_pair(key++, info));   // 后置 ++ ⇒ make_pair<int,T&>
-            }
-            goto sectionHead;
-        }
-
-        if (token == "[separate upgrade max]")
-        {
-            if (!ScanInt(&table->m_maxLevel))
-            {
-                LogManager::logFormat(
-                    0, "../RDARScriptEtcParameter.cpp",
-                    __FUNCTION__, 0x2f9e,
-                    "importGenuineUpgradeTable() - [separate_upgrade max] false");
-            }
-            goto sectionHead;
-        }
-
-        if (token == "[level]")
-        {
-            if (!ScanInt(&table->m_divisor))
-            {
-                LogManager::logFormat(
-                    0, "../RDARScriptEtcParameter.cpp",
-                    __FUNCTION__, 0x2fa5,
-                    "importGenuineUpgradeTable() - [level] false");
-            }
-            goto sectionHead;
-        }
-
-        if (token == "[item weights by grade]")
-        {
-            for (;;)
-            {
-                int key = 0;
-                GenuineDamageUpgradeMaterialInfo material;
-                if (!ScanInt(&key))
-                    break;
-                if (!ScanInt(&material.m_materialItemIdx))
-                    break;
-                if (!ScanInt(&material.m_materialCount))
-                    break;
-                table->m_materials.insert(
-                    std::make_pair(key, material));
-            }
-            goto sectionHead;
-        }
-
-        if (token == "[item weights by rarity]")
-        {
-            for (int i = 0; i <= 5; ++i)
-            {
-                if (!ScanFloat(&table->m_itemWeightsByRarity[i]))
-                {
-                    LogManager::logFormat(
-                        0, "../RDARScriptEtcParameter.cpp",
-                        __FUNCTION__, 0x2fbe,
-                        "importGenuineUpgradeTable() - [item weights by rarity] false");
-                }
-            }
-            goto sectionHead;
-        }
-
-        if (token == "[stat weights by rarity]")
-        {
-            for (int i = 0; i <= 5; ++i)
-            {
-                if (!ScanFloat(&table->m_statWeightsByRarity[i]))
-                {
-                    LogManager::logFormat(
-                        0, "../RDARScriptEtcParameter.cpp",
-                        __FUNCTION__, 0x2fc9,
-                        "importGenuineUpgradeTable() - [stat weights by rarity] false");
-                }
-            }
-            goto sectionHead;
-        }
-
-        if (token == "[weapon weights]")
-        {
-            for (int a = 0; a <= 10; ++a)
-            {
-                for (int b = 0; b <= 5; ++b)
-                {
-                    if (!ScanFloat(&table->m_weaponWeights[a][b]))
-                    {
-                        LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp",
-                            __FUNCTION__, 0x2fd5,
-                            "importGenuineUpgradeTable() - [weapon weights] false");
-                    }
-                }
-            }
-            goto sectionHead;
-        }
-
-        if (token == "[separate upgrade effect]")
-        {
-            int key = 1;
-            for (;;)
-            {
-                OutLineEFFECTInfoTemp effect;
-                int r = 0;
-                int g = 0;
-                int b = 0;
-                if (!ScanInt(&r))
-                    break;
-                if (!ScanInt(&g))
-                    break;
-                if (!ScanInt(&b))
-                    break;
-                // ORIG 0x08912863..0x0891289a：(unsigned char)r | ((unsigned char)g
-                //   << 8) | ((unsigned char)b << 16) | 0xff000000 → +0x04
-                //   （movzbl 逐字节扩展；`& 0xffu` 形会退化成 and，见 /tmp/sdb_probe/p3.o）
-                effect.m_b = static_cast<int>(
-                    static_cast<unsigned>(static_cast<unsigned char>(r)) |
-                    (static_cast<unsigned>(static_cast<unsigned char>(g)) << 8) |
-                    (static_cast<unsigned>(static_cast<unsigned char>(b)) << 16) |
-                    0xff000000u);
-                if (!ScanInt(&effect.m_d))              // +0x0c
-                    break;
-                if (!ScanInt(&effect.m_c))              // +0x08
-                    break;
-                if (!ScanInt(&effect.m_a))              // +0x00
-                    break;
-                table->m_effects.insert(
-                    std::make_pair(key++, effect));     // 后置 ++ ⇒ make_pair<int,T&>
-            }
-            // ORIG 0x0891285d `je <continue 岛>` + 内层循环尾 0x089129c4 `jmp 退出块`
-            // ⇒ 本分支处理完即退出外层令牌循环（真 bug 修正：原写 continue 会继续
-            //  扫描后续令牌，与 ORIG 行为不同）。
-            break;
-        }
-    }
-
-    return true;
+#include "ScriptDepsB/importGenuineUpgradeTable.inc"
 }

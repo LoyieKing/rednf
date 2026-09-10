@@ -1,0 +1,2 @@
+CFatigueGiveItemEvent::CFatigueGiveItemEvent()
+{

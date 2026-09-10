@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 DB_DispatcherTaiwan/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— DB_DispatcherTaiwan 实现（报告 docs/class_func_reports/
 // DB_DispatcherTaiwan/）。C1 0x0844c9d4：基类 DBDispatcher() + 设 vptr +
 // TaiwanDBDispatcher C1 + init()；dispatch 0x0844ca48：Stream>>code →
@@ -7,29 +17,11 @@
 #include "GameTypes.h"                       // cMyTrace
 #include "TaiwanInterfaceDBDispatcher.h"     // dispatch 虚调用需完整类型
 
-DB_DispatcherTaiwan::DB_DispatcherTaiwan()
-{
-    m_disp.init();   // ORIG @0x0844ca07 call TaiwanDBDispatcher::init()
+#include "DB_DispatcherTaiwan/DB_DispatcherTaiwan.inc"
 }
 
-DB_DispatcherTaiwan::~DB_DispatcherTaiwan()
-{
+#include "DB_DispatcherTaiwan/dtor_DB_DispatcherTaiwan.inc"
 }
 
-bool DB_DispatcherTaiwan::dispatch(int userIdx, int slot, Stream* stream)
-{
-    int code = 0;   // ORIG movl $0,-0x20(%ebp)
-    *stream >> code;   // ORIG call Stream::operator>>(int&)
-
-    TaiwanInterfaceDBDispatcher* disp =
-        m_disp.getDispatcher((TaiwanInternalPack::T)code);   // ORIG call getDispatcher
-    if (disp == 0)
-    {
-        // ORIG：cMyTrace 临时链式（code 提前入 ebx 跨构造调用缓存）
-        cMyTrace(__PRETTY_FUNCTION__, 0xc17a, 5)
-            ("[TaiwanDispater] Invalid internal packet code. Code:%d, Uid:%d",
-             code, slot);
-        return false;   // ORIG mov $0,%eax
-    }
-    return disp->dispatch(userIdx, slot, stream);   // ORIG 虚槽2（vptr+8）直调
+#include "DB_DispatcherTaiwan/dispatch.inc"
 }

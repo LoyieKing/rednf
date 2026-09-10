@@ -1,0 +1,1 @@
+seriaDecoObjectInfo::~seriaDecoObjectInfo() {}

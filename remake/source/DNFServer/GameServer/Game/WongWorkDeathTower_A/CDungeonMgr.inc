@@ -1,0 +1,1 @@
+CDeathTower::CDungeonMgr::CDungeonMgr() {}

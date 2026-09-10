@@ -1,0 +1,2 @@
+TimerQueue::~TimerQueue() throw()
+{

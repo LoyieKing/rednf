@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CmdPacketStructCtors/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r CMDPacketStruct 生命周期符号实现（OnlyOrig_Exchange 批）
 //
 // worklist /tmp/only_orig/CMDPacketStruct.txt 全部 77 个符号由本 TU + 头文件
@@ -16,101 +26,61 @@ namespace CMDPacketStruct
 {
 
 // ---- Pause ----
-_ReqAdvanceAltarPause::_ReqAdvanceAltarPause()
-{
-    memset(this, 0, 0xe);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarPause.inc"
 }
-_ResAdvanceAltarPause::_ResAdvanceAltarPause()
-{
-    memset(this, 0, 0xc);
+#include "CmdPacketStructCtors/_ResAdvanceAltarPause.inc"
 }
 
 // ---- BuyItem ----
-_ReqAdvanceAltarBuyItem::_ReqAdvanceAltarBuyItem()
-{
-    memset(this, 0, 0x20);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarBuyItem.inc"
 }
-_ResAdvanceAltarBuyItem::_ResAdvanceAltarBuyItem()
-{
-    memset(this, 0, 0x1c);
+#include "CmdPacketStructCtors/_ResAdvanceAltarBuyItem.inc"
 }
 
 // ---- SetSlot ----
-_ReqAdvanceAltarSetSlot::_ReqAdvanceAltarSetSlot()
-{
-    memset(this, 0, 0x24);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarSetSlot.inc"
 }
-_ResAdvanceAltarSetSlot::_ResAdvanceAltarSetSlot()
-{
-    memset(this, 0, 0x1c);
+#include "CmdPacketStructCtors/_ResAdvanceAltarSetSlot.inc"
 }
 
 // ---- ResetStar ----
-_ReqAdvanceAltarResetStar::_ReqAdvanceAltarResetStar()
-{
-    memset(this, 0, 0x14);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarResetStar.inc"
 }
-_ResAdvanceAltarResetStar::_ResAdvanceAltarResetStar()
-{
-    memset(this, 0, 0xc);
+#include "CmdPacketStructCtors/_ResAdvanceAltarResetStar.inc"
 }
 
 // ---- SummonUnit ----
-_ReqAdvanceAltarSummonUnit::_ReqAdvanceAltarSummonUnit()
-{
-    memset(this, 0, 0x18);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarSummonUnit.inc"
 }
-_ResAdvanceAltarSummonUnit::_ResAdvanceAltarSummonUnit()
-{
-    memset(this, 0, 0x14);
+#include "CmdPacketStructCtors/_ResAdvanceAltarSummonUnit.inc"
 }
 
 // ---- UpgradeGage ----
-_ReqAdvanceAltarUpgradeGage::_ReqAdvanceAltarUpgradeGage()
-{
-    memset(this, 0, 0x18);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarUpgradeGage.inc"
 }
-_ResAdvanceAltarUpgradeGage::_ResAdvanceAltarUpgradeGage()
-{
-    memset(this, 0, 0x14);
+#include "CmdPacketStructCtors/_ResAdvanceAltarUpgradeGage.inc"
 }
 
 // ---- ExchangeSlot ----
-_ReqAdvanceAltarExchangeSlot::_ReqAdvanceAltarExchangeSlot()
-{
-    memset(this, 0, 0x30);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarExchangeSlot.inc"
 }
-_ResAdvanceAltarExchangeSlot::_ResAdvanceAltarExchangeSlot()
-{
-    memset(this, 0, 0x24);
+#include "CmdPacketStructCtors/_ResAdvanceAltarExchangeSlot.inc"
 }
 
 // ---- GetAchievementReward ----
-_ReqAdvanceAltarGetAchievementReward::_ReqAdvanceAltarGetAchievementReward()
-{
-    memset(this, 0, 0x14);
+#include "CmdPacketStructCtors/_ReqAdvanceAltarGetAchievementReward.inc"
 }
-_ResAdvanceAltarGetAchievementReward::_ResAdvanceAltarGetAchievementReward()
-{
-    memset(this, 0, 0xc);
+#include "CmdPacketStructCtors/_ResAdvanceAltarGetAchievementReward.inc"
 }
 
 // ---- EventDungeon ClearRoom / DestoryObject ----
-_STReqEventDungeonClearRoom::_STReqEventDungeonClearRoom()
-{
-    memset(this, 0, 0x14);
+#include "CmdPacketStructCtors/_STReqEventDungeonClearRoom.inc"
 }
-_STResEventDungeonClearRoom::_STResEventDungeonClearRoom()
-{
-    memset(this, 0, 0xc);
+#include "CmdPacketStructCtors/_STResEventDungeonClearRoom.inc"
 }
-_STReqEventDungeonDestoryObject::_STReqEventDungeonDestoryObject()
-{
-    memset(this, 0, 0x18);
+#include "CmdPacketStructCtors/_STReqEventDungeonDestoryObject.inc"
 }
-_STResEventDungeonDestoryObject::_STResEventDungeonDestoryObject()
-{
-    memset(this, 0, 6);   // ORIG 字面量（< sizeof(8)，忠实复刻）
+#include "CmdPacketStructCtors/_STResEventDungeonDestoryObject.inc"
 }
 
 }  // namespace CMDPacketStruct

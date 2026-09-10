@@ -1,0 +1,2 @@
+AttendanceEvent::AttendanceEvent()
+{

@@ -1,0 +1,2 @@
+CExchangeRandomItemReward::~CExchangeRandomItemReward()
+{

@@ -1,0 +1,2 @@
+CAICharacter::~CAICharacter()
+{

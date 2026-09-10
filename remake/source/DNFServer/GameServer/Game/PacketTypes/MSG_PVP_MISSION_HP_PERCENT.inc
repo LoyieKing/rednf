@@ -1,0 +1,1 @@
+MSG_PVP_MISSION_HP_PERCENT::MSG_PVP_MISSION_HP_PERCENT() {}  // ORIG 0x8250c7c：仅两个 vector C1（+0xe/+0x1a），无标量初始化

@@ -1,0 +1,1 @@
+int get_rand_int(int range);

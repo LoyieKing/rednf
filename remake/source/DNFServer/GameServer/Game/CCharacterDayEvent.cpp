@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CCharacterDayEvent/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // CCharacterDayEvent —— 角色生日事件实现。
 // 函数逐段对齐 docs/class_func_reports/CCharacterDayEvent/ 下报告：
 //   CCharacterDayEvent.md(C1 0x0810a4c8) / ~CCharacterDayEvent.md(D1 0x0810a4ee) /
@@ -12,48 +22,21 @@
 
 #include "GameTypes.h"   // cMyTrace
 
-CCharacterDayEvent::CCharacterDayEvent()
-{
-    // ORIG 0x0810a4c8：基类 CEventBase ctor + 写 vptr（编译器生成）；
-    // movw $0xffff,0xa(%eax) 置 m_eventJob（-1 位模式）。
-    m_eventJob = -1;
+#include "CCharacterDayEvent/CCharacterDayEvent.inc"
 }
 
-CCharacterDayEvent::~CCharacterDayEvent()
-{
-    // ORIG 0x0810a4ee：写 vptr 后调 CEventBase::~CEventBase（编译器生成）。
+#include "CCharacterDayEvent/dtor_CCharacterDayEvent.inc"
 }
 
 // [b28d-D9] N18a：ORIG movzwl 0xc(%ebp),%eax + mov %eax,%edx 两段；4.4 恒单段（四形探针 a-d 全败）（ORIG 0x0810a58e sz 0x0000005e）
-void CCharacterDayEvent::StartEvent()
-{
-    // ORIG 0x0810a53c：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x17,0)(...)。
-    SetEventFlag(true);
-    cMyTrace(__FUNCTION__, 0x17, 0)("Character Day Event Start!");
+#include "CCharacterDayEvent/StartEvent.inc"
 }
 
-void CCharacterDayEvent::StartEvent(Word_Param param)
-{
-    // [b28c-27] N18a：ORIG `movzwl 0xc(%ebp),%eax; mov %eax,%edx; ...; mov %dx,0xa`
-    // （零扩展经 eax 中转再落 edx）；4.4 恒折 `movzwl 0xc(%ebp),%edx` 单段。
-    // ORIG 0x0810a58e：SetEventFlag(true)；movzwl 0xc(%ebp),%eax → mov %eax,%edx
-    // → mov %dx,0xa 写 m_eventJob（unsigned ushort 目标，零扩展直写 16 位）；
-    // cMyTrace(__FUNCTION__,0x1f,0)(...)。残差 N18a：4.4 恒折
-    // movzwl 0xc(%ebp),%edx 单段（两段中转不可复现）。
-    SetEventFlag(true);
-    m_eventJob = param.m_duration;
-    cMyTrace(__FUNCTION__, 0x1f, 0)("Character Day Event Start!");
+#include "CCharacterDayEvent/StartEvent_1.inc"
 }
 
-void CCharacterDayEvent::EndEvent()
-{
-    // ORIG 0x0810a5ec：SetEventFlag(false) + cMyTrace(__FUNCTION__,0x25,0)(...)。
-    SetEventFlag(false);
-    cMyTrace(__FUNCTION__, 0x25, 0)("Character Day Event End!");
+#include "CCharacterDayEvent/EndEvent.inc"
 }
 
-unsigned short CCharacterDayEvent::GetEventJob()
-{
-    // ORIG 0x08697886：movzwl 0xa(%eax),%eax 直返（unsigned short 返回无规范化）。
-    return m_eventJob;
+#include "CCharacterDayEvent/GetEventJob.inc"
 }

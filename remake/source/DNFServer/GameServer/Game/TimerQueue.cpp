@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 TimerQueue/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r TimerQueue 实现（ORIG ctor 0x80f63ac / dtor 0x82a42b8 /
 // InsertTimer 0x8630cec / GetTimerMess 0x8630ecc，AE 口径还原）。
 #include "TimerQueue.h"
@@ -21,42 +31,11 @@ struct GlobalData
 // [P327 GI 键名] ORIG 本 TU `_GLOBAL__I_` 键名 = _ZN10TimerQueue11InsertTimerER10TimerEntry
 // ⇒ 该重载定义须为本 TU 首个强符号（此前 TimerEntry::TimerEntry 定义在前 ⇒ 键名错为
 // _GLOBAL__I__ZN10TimerEntryC2Ev）。纯前置函数定义，符号集合/构造序零变化。
-void TimerQueue::InsertTimer(TimerEntry& entry) throw()
-{
-    // b28d-solo-TimerQueue 判词：AE（94=94 逐条，P167 CLEAR）。两处关键：
-    // ① `int msg;` 声明前置到 Guard 之前、赋值留在 push 之后 —— 4.4 栈槽按声明序
-    //    「先声明浅」（P212/N98），据此把 ORIG 的 Guard(-0x34 深)/msg(-0x30 浅) 翻正；
-    // ② ORIG 的 -0x10/-0xc 两槽不是具名 one/msg2，而是 `std::make_pair((int)entry.msg, 1)`
-    //    右值引用参数的临时物化 —— 具名左值版选错 make_pair<int&,int&> 实例（ORIG 为
-    //    make_pair<int,int>），直接实参形调用点差集归零且逐条 AE（P167 判据②）。
-    // 残余具名 mp/cp 形（ndiff 38）与 hoist 形（32）均劣。@0x8630cec
-    int msg;
-    Guard<Mutex> guard(&m_mutex);
-    m_queue.push(entry);
-
-    msg = entry.msg;
-    std::map<int, int>::iterator it = m_map.find(msg);
-    if (it != m_map.end())
-    {
-        it->second += 1;
-    }
-    else
-    {
-        m_map.insert(std::make_pair((int)entry.msg, 1));
-    }
+#include "TimerQueue/InsertTimer.inc"
 }
 
 // TimerEntry（ORIG 0x8630e60 族调用方无 EH 清理块，throw() 对齐）
-TimerEntry::TimerEntry() throw()
-{
-    // ORIG _ZN10TimerEntryC1Ev 0x847e85c：objType=0 / param1=0 / msg=0x75(DEFAULT) /
-    // time=0 / param2=0 / param3=0，逐字段 movl 清零。
-    objType = OBJ_TYPE_0;
-    param1 = 0;
-    msg = TIMER_MESSAGE_DEFAULT;
-    time = 0;
-    param2 = 0;
-    param3 = 0;
+#include "TimerQueue/TimerEntry.inc"
 }
 bool TimerEntry::operator<(const TimerEntry& other) const throw()
 {
@@ -82,95 +61,25 @@ bool TimerEntry::operator<(const TimerEntry& other) const throw()
     return thisHi > other.words.hi;
 }
 
-TimerQueue::TimerQueue()   // 声明同步去 throw()：ORIG create landing pad 证据
-{
-    m_map.clear();
+#include "TimerQueue/TimerQueue.inc"
 }
 
-TimerQueue::~TimerQueue() throw()
-{
+#include "TimerQueue/dtor_TimerQueue.inc"
 }
 
-void TimerQueue::InsertTimer(TimerEntry::OBJ_TYPE objType, int param1,
-                             TIMER_MESSAGE msg, int sec, int param2, unsigned int param3) throw()
-{
-    InsertTimerInMilisecond(objType, param1, msg, SECOND_TO_MILISECOND(sec), param2, param3);
+#include "TimerQueue/InsertTimer_1.inc"
 }
 
-void TimerQueue::InsertTimerInMilisecond(TimerEntry::OBJ_TYPE objType, int param1,
-                                         TIMER_MESSAGE msg, long long milisecond,
-                                         int param2, unsigned int param3) throw()
-{
-    TimerEntry entry;
-    entry.objType = objType;
-    entry.param1 = param1;
-    entry.msg = msg;
-    entry.time = GlobalData::s_systemTime_.getCurTickCount() + milisecond;
-    entry.param2 = param2;
-    entry.param3 = param3;
-    InsertTimer(entry);
+#include "TimerQueue/InsertTimerInMilisecond.inc"
 }
 
-bool TimerQueue::GetTimerMess(TimerEntry& entry) throw()
-{
-    unsigned int cur = GlobalData::s_systemTime_.getCurTickCount();
-
-    Guard<Mutex> guard(&m_mutex);
-    if (m_queue.empty())
-    {
-        return false;
-    }
-
-    entry = m_queue.top();
-    if (entry.time <= cur)
-    {
-        m_queue.pop();
-
-        std::map<int, int>::iterator it = m_map.find(entry.msg);
-        if (it != m_map.end())
-        {
-            it->second -= 1;
-        }
-        return true;
-    }
-    return false;
+#include "TimerQueue/GetTimerMess.inc"
 }
 
-size_t TimerQueue::GetQueueSize() throw()
-{
-    return m_queue.size();
+#include "TimerQueue/GetQueueSize.inc"
 }
 
-void TimerQueue::write_timer_queue_log() throw()
-{
-    // b28d-solo-TimerQueue 判词：AE（130=130，P227 全表达式临时链）。原形「具名
-    // const char* str + 具名 cMyTrace trace」使 4.4 把 c_str 结果落槽（-0x10/-0xc）
-    // 并把 trace 临时压深（-0x44/-0x54）——即 b28d-49「N82 整体浅移 0x18」判词的根因；
-    // 改 cMyTrace(...)(...) 后 4.4 在 ctor 前求值 c_str 并以 %ebx 跨 ctor 保活、
-    // trace 临时落 -0x2c/-0x18，与 ORIG 逐条 AE。@0x863101e
-    std::string log;
-    log.clear();
-
-    std::map<int, int>::iterator it = m_map.begin();
-    std::map<int, int>::iterator end = m_map.end();
-    for (; it != end; it++)
-    {
-        char buf[20] = { '\0' };
-        sprintf(buf, "(%d %d) ", it->first, it->second);
-        log += buf;
-
-        // P23：ORIG 仅当 log 长度 > 0x800 才构造 cMyTrace 并输出。
-        if (log.length() > 0x800)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x101, 0)("TIMER_QUEUE_LOG : %s", log.c_str());
-        }
-        log.clear();
-    }
-
-    if (log.length() != 0)
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0x107, 0)("TIMER_QUEUE_LOG : %s", log.c_str());
-    }
+#include "TimerQueue/write_timer_queue_log.inc"
 }
 
 // ---- 全局单例访问器 ----

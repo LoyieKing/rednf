@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CCubeStatistic/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— CCubeStatistic 缺失符号批次
 // 参照 docs/class_func_reports/CCubeStatistic/*.md（sendCubeStatistic.md、
 // findCubeStuff.md、collectCubeStatistics.md、collectCubeStatistics_0860e07a.md）、
@@ -28,13 +38,7 @@ struct SECRET_SHOP_STATISTIC_DATA
                      // [3]=buyCount [4]=buyPrice
 } __attribute__((packed));
 
-SECRET_SHOP_STATISTIC_DATA::SECRET_SHOP_STATISTIC_DATA()
-{
-    m_data[0] = 0;
-    m_data[1] = 0;
-    m_data[2] = 0;
-    m_data[3] = 0;
-    m_data[4] = 0;
+#include "CCubeStatistic/SECRET_SHOP_STATISTIC_DATA.inc"
 }
 
 // ---- getItemGroupNameTable（ORIG 0x88c0409）：__cxa_guard 单例 map ----
@@ -54,72 +58,21 @@ CCubeStatistic* GetInstanceCubeStatistic()
 }
 
 // ---- CCubeStatistic 空构造（ORIG 0x86103b8，函数体仅有 ret） ----
-CCubeStatistic::CCubeStatistic()
-{
+#include "CCubeStatistic/CCubeStatistic.inc"
 }
 
 // ---- findCubeStuff（ORIG 0x860de96）：查表 "cube stuff" 值是否 == 入参 ----
-bool CCubeStatistic::findCubeStuff(int groupValue)
-{
-    // ORIG：拷贝 getItemGroupNameTable() 得本地 map，find("cube stuff")；
-    // 命中且 it->second == 入参 → true，否则 false。
-    std::map<std::string, int> table(getItemGroupNameTable());
-    std::map<std::string, int>::iterator it = table.find("cube stuff");
-    if (it != table.end())
-    {
-        // P225：ORIG 0x0860df6e 内层条件为 `cmp; sete %al; test %al,%al; je`
-        // bool 四段物化——while+return 形复现（if 短路链恒折 jne 直跳）。
-        while (it->second == groupValue)
-            return true;
-    }
-    return false;
+#include "CCubeStatistic/findCubeStuff.inc"
 }
 
 // ---- sendCubeStatistic（ORIG 0x860e0d8）：组装 Packet_Cube_Statistic 发出 ----
-int CCubeStatistic::sendCubeStatistic(int itemIndex, int count, CUser* user,
-                                      CUBE_STATISTIC_FIELD field)
-{
-    // ORIG：Packet_Cube_Statistic(channel_no, get_charac_level, itemIndex,
-    //   count, field) 通过 CStatisticServerProxy::SendPacket(pkt, 0x17=23) 上报。
-    // 与 CValueStatistic::InsertValueStatistic 同型（GetServerProxy→SendPacket）。
-    Packet_Cube_Statistic pkt;
-    pkt.m_channel = (unsigned short)G_CEnvironment()->get_channel_no();
-    pkt.m_level = (unsigned short)user->get_charac_level();
-    pkt.m_itemIndex = (unsigned int)itemIndex;
-    pkt.m_itemCount = count;
-    pkt.m_type = (unsigned char)field;
-
-    // ORIG 0x861002e 区：GetServerProxy 返回直传 0x4(%esp) 无判空无槽
-    // （P140/P52 链式单语句；&pkt 跨 GetServerProxy 调用缓存 %ebx）。
-    GlobalData::s_statistic_proxy_mgr->GetServerProxy(user->GetServerGroup())
-        ->SendPacket((char*)&pkt, 0x17);
-    return 1;
+#include "CCubeStatistic/sendCubeStatistic.inc"
 }
 
 // ---- collectCubeStatistics(int,int,CUser*,CUBE_STATISTIC_FIELD)（ORIG 0x860dfb8） ----
-void CCubeStatistic::collectCubeStatistics(int itemIndex, int count, CUser* user,
-                                           CUBE_STATISTIC_FIELD field)
-{
-    // ORIG：item=G_CDataManager()->find_item(itemIndex) 直调（无 manager NULL 防御）。
-    // 两处 findCubeStuff 各自内联 getItemGroupName()（ORIG 重算两次，无 group 局部；
-    // P0 槽-局部对应律禁缓存局部）。GetInstanceCubeStatistic() 也用两次。
-    CItem* item = G_CDataManager()->find_item(itemIndex);
-    if (item == 0)
-        return;
-    if (findCubeStuff(item->getItemGroupName()))
-        sendCubeStatistic(itemIndex, count, user, field);
-    if (GetInstanceCubeStatistic()->findCubeStuff(item->getItemGroupName()))
-        GetInstanceCubeStatistic()->sendCubeStatistic(itemIndex, count, user, field);
+#include "CCubeStatistic/collectCubeStatistics.inc"
 }
 
 // ---- collectCubeStatistics(CItem*,int,CUser*,CUBE_STATISTIC_FIELD)（ORIG 0x860e07a） ----
-void CCubeStatistic::collectCubeStatistics(CItem* item, int count, CUser* user,
-                                           CUBE_STATISTIC_FIELD field)
-{
-    // ORIG：item 非 NULL 且 findCubeStuff(item->getItemGroupName()) 命中 →
-    // sendCubeStatistic(item->get_index(), count, user, field)。
-    if (item == 0)
-        return;
-    if (findCubeStuff(item->getItemGroupName()))
-        sendCubeStatistic(item->get_index(), count, user, field);
+#include "CCubeStatistic/collectCubeStatistics_1.inc"
 }

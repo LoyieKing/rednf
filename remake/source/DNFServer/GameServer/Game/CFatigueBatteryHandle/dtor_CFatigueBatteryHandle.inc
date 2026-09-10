@@ -1,0 +1,1 @@
+CFatigueBatteryHandle::~CFatigueBatteryHandle() {}

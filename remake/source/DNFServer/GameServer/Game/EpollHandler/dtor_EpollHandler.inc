@@ -1,0 +1,4 @@
+EpollHandler::~EpollHandler()
+{
+    destroy();
+    release();

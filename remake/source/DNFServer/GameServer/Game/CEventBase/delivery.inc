@@ -1,0 +1,1 @@
+void CEventBase::delivery(DeliveryMsg&) {}

@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 BitTools/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 全局位工具 + SameBuffer（ORIG 自由函数，objdump 直转）。
 // ----------------------------------------------------------------------------
 // ORIG 符号（df_game_r，全部 T 强符号，同一工具区域 0x088921c2-0x0889253a）：
@@ -17,48 +27,17 @@
 //   SameBuffer：i 无符号（movl $0 + setb 循环界），不等即返回 0，等完返回 1。
 // ============================================================================
 
-void setBit_Byte(unsigned char& value, bool set, int bit)
-{
-    if (set)
-    {
-        value = static_cast<unsigned char>(value | (1u << bit));
-    }
-    else
-    {
-        value = static_cast<unsigned char>(value & ~static_cast<unsigned char>(1u << bit));
-    }
+#include "BitTools/setBit_Byte.inc"
 }
 
-bool isSetBit_Byte(unsigned char value, int bit)
-{
-    return static_cast<unsigned char>(1u << bit) & value;
+#include "BitTools/isSetBit_Byte.inc"
 }
 
-void setBit_Word(unsigned short& value, bool set, int bit)
-{
-    if (set)
-    {
-        value = static_cast<unsigned short>(value | (1u << bit));
-    }
-    else
-    {
-        value = static_cast<unsigned short>(value & ~static_cast<unsigned short>(1u << bit));
-    }
+#include "BitTools/setBit_Word.inc"
 }
 
-bool isSetBit_Word(unsigned short value, int bit)
-{
-    return static_cast<unsigned short>(1u << bit) & value;
+#include "BitTools/isSetBit_Word.inc"
 }
 
-bool SameBuffer(unsigned char* a, unsigned long size, unsigned char* b)
-{
-    for (unsigned long i = 0; i < size; ++i)
-    {
-        if (a[i] != b[i])
-        {
-            return false;
-        }
-    }
-    return true;
+#include "BitTools/SameBuffer.inc"
 }

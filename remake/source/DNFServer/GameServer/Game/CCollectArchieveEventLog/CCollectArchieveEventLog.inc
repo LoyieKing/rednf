@@ -1,0 +1,2 @@
+CCollectArchieveEventLog::CCollectArchieveEventLog()
+{

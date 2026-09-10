@@ -1,0 +1,2 @@
+CNPCScript::CNPCScript()
+{

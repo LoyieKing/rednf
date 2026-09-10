@@ -1,0 +1,3 @@
+stClearTimeAverage::stClearTimeAverage()
+{
+    clear();

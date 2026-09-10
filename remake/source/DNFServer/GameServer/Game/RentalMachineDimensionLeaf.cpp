@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 RentalMachineDimensionLeaf/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN22RentalMachineDimensionC2Ev`（ORIG 0x826f9fe）；ctor 已是首强符号。
 #include <iostream>
@@ -93,16 +103,11 @@ private:
 //   mov 0x8(%ebp),%eax; movl $0x104,0x8(%esp); movl $0x0,0x4(%esp)
 //   mov %eax,(%esp); call memset@plt; leave; ret
 // [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x0826eafc。
-RentalMachineDimension::RentalMachineDimension()
-    : m_impl(new RentalMachineDimensionImpl)
-{
-    initLoggingEnvironment();
+#include "RentalMachineDimensionLeaf/RentalMachineDimension.inc"
 }
 
 // ----------------------------------------------------------------------------
-RentalMachineDimension::RentalMachineDimensionImpl::RentalMachineDimensionImpl()
-{
-    memset((char*)this, 0, 0x104);   // set 成员子对象已先于体构造
+#include "RentalMachineDimensionLeaf/RentalMachineDimensionImpl.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -110,8 +115,7 @@ RentalMachineDimension::RentalMachineDimensionImpl::RentalMachineDimensionImpl()
 //   mov 0x8(%ebp),%eax; add $0x104,%eax; mov %eax,(%esp); call setD1Ev
 //   leave; ret
 // ----------------------------------------------------------------------------
-RentalMachineDimension::RentalMachineDimensionImpl::~RentalMachineDimensionImpl()
-{
+#include "RentalMachineDimensionLeaf/dtor_RentalMachineDimensionImpl.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -128,6 +132,5 @@ RentalMachineDimension::RentalMachineDimensionImpl::~RentalMachineDimensionImpl(
 //   movl $vtable,(%eax); lea 0x4(%eax); call auto_ptr<Impl>D1Ev
 //   call IRentalMachineD1Ev; mov $0x0,%eax; test %al,%al; je; ret
 // ----------------------------------------------------------------------------
-RentalMachineDimension::~RentalMachineDimension()
-{
+#include "RentalMachineDimensionLeaf/dtor_RentalMachineDimension.inc"
 }

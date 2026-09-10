@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CDoubleConnCheckServerProxy/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CDoubleConnCheckServerProxy（双开检测 UDP 代理，G2-4 批次）。
 // 逐函数对照 docs/class_func_reports/CDoubleConnCheckServerProxy.md 与
 // ORIG 反汇编实现。布局：+0x00 std::string m_ip | +0x04 int m_port |
@@ -63,63 +73,20 @@ public:
 // 实现
 // ============================================================================
 
-CDoubleConnCheckServerProxy::CDoubleConnCheckServerProxy(std::string ip, int port)
-    : m_ip(ip), m_port(port), m_udpHandler()
-{
+#include "CDoubleConnCheckServerProxy/CDoubleConnCheckServerProxy.inc"
 }
 
-bool CDoubleConnCheckServerProxy::Init()
-{
-    if (m_udpHandler.InitClientSocket() == -1)
-    {
-        LogManager::logFormat(1, "DF_DoubleConnCheckServerProxy.cpp",
-                              __FUNCTION__, 0x78,
-                              "[CDoubleConnCheckServerProxy::Init] Can\'t init udp client socket\n");
-        return false;
-    }
-    return true;
+#include "CDoubleConnCheckServerProxy/Init.inc"
 }
 
-void CDoubleConnCheckServerProxy::SendHeartBeat(int channel, int group)
-{
-    Packet_Double_Check_Server_UDP_HeartBeat packet;
-    packet.m_connNo = 1000;
-    packet.m_channel = (unsigned char)channel;
-    packet.m_group = (unsigned char)group;
-    m_udpHandler.SendToServer((char*)&packet, 0xc,
-                              (unsigned short)m_port, m_ip.c_str());
+#include "CDoubleConnCheckServerProxy/SendHeartBeat.inc"
 }
 
-void CDoubleConnCheckServerProxy::SendLogin(unsigned int userID, int channel,
-                                            int group)
-{
-    Packet_DoubleCheck_UDP_Login packet;
-    packet.m_connNo = userID;
-    packet.m_userID = userID;
-    packet.m_channel = (unsigned char)channel;
-    packet.m_group = (unsigned char)group;
-    m_udpHandler.SendToServer((char*)&packet, 0x10,
-                              (unsigned short)m_port, m_ip.c_str());
+#include "CDoubleConnCheckServerProxy/SendLogin.inc"
 }
 
-void CDoubleConnCheckServerProxy::SendLogout(unsigned int userID, int channel,
-                                             int group)
-{
-    if (userID == 0)
-    {
-        return;
-    }
-    Packet_DoubleCheck_UDP_Logout packet;
-    packet.m_connNo = userID;
-    packet.m_accId = userID;
-    packet.m_channel = (unsigned char)channel;
-    packet.m_serverGroup = (unsigned char)group;
-    m_udpHandler.SendToServer((char*)&packet, 0x10,
-                              (unsigned short)m_port, m_ip.c_str());
+#include "CDoubleConnCheckServerProxy/SendLogout.inc"
 }
 
-void CDoubleConnCheckServerProxy::SendPacket(char* packet, int size)
-{
-    m_udpHandler.SendToServer(packet, size,
-                              (unsigned short)m_port, m_ip.c_str());
+#include "CDoubleConnCheckServerProxy/SendPacket.inc"
 }

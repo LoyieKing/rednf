@@ -1,0 +1,2 @@
+ICryptoGraph::~ICryptoGraph()
+{

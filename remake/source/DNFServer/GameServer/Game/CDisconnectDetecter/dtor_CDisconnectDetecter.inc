@@ -1,0 +1,2 @@
+CDisconnectDetecter::~CDisconnectDetecter()
+{

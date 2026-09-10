@@ -1,0 +1,2 @@
+WorkThread::~WorkThread()
+{

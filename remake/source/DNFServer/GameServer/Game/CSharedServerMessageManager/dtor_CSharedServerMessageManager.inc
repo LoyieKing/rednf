@@ -1,0 +1,2 @@
+CSharedServerMessageManager::~CSharedServerMessageManager()
+{

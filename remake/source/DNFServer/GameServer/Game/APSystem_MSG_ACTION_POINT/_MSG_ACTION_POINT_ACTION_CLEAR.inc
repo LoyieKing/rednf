@@ -1,0 +1,3 @@
+_MSG_ACTION_POINT_ACTION_CLEAR::_MSG_ACTION_POINT_ACTION_CLEAR()
+{
+    memset(this, 0, 0xb);

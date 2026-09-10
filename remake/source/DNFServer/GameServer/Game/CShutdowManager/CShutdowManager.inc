@@ -1,0 +1,3 @@
+CShutdowManager::CShutdowManager()
+{
+    Reset();

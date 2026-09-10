@@ -1,0 +1,3 @@
+SigAradAvatarHiddenOptionSave::SigAradAvatarHiddenOptionSave()
+{
+    init();

@@ -1,0 +1,2 @@
+CIntegratedPvPServerMatchEvent::CIntegratedPvPServerMatchEvent()
+{

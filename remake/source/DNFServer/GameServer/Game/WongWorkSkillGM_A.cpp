@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 WongWorkSkillGM_A/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // WongWorkSkillGM_A.cpp — WongWorkA 批次 G5：CSkillChanger 追加成员 + CGMAccounts
 //   独占 TU；勿在此实现 SkillSlot.cpp 已有的 10 个 CSkillChanger 符号。
 // 证据来源：docs/class_func_reports/WongWork__CSkillChanger/*.md、
@@ -31,69 +41,32 @@ namespace WongWork
 {
 
 // ORIG T 0x0810933c loadGMAccounts(char const*)：恒返回 1。
-int CGMAccounts::loadGMAccounts(char const* /*path*/)
-{
-    return 1;
+#include "WongWorkSkillGM_A/loadGMAccounts.inc"
 }
 
 // ============================================================================
 // ORIG T 0x08609d10 CheckCondition(CUser const*)
 // exp < get_level_exp(level) || get_level_exp(level+1) < exp → 不可执行
 // ============================================================================
-bool CSkillChanger::CheckCondition(const CUser* user)
-{
-    // ORIG 0x08609d10：get_charac_level ×2、G_CDataManager ×2、
-    // getCurCharacExp 两条件各取一次（P48 无 CSE）；结果槽 -0xc/-0x10。
-    unsigned int levelExp = static_cast<unsigned int>(
-        G_CDataManager()->get_level_exp(user->get_charac_level()));
-    unsigned int nextLevelExp = static_cast<unsigned int>(
-        G_CDataManager()->get_level_exp(user->get_charac_level() + 1));
-    // 双物化岛：bVar1 = (c1||c2) 经 mov$1/mov$0，再 `return !bVar1` 二次物化
-    // （+0x76 test %al;je / +0x7a mov$0 / +0x81 mov$1）。
-    // N96 清绑：原 `register bool b __asm__("al")` 已删。ORIG b 无槽 ⇒ 按
-    // P226扩展/P316① 用语句表达式包住短路条件。清绑前后 44=44、与 ORIG 逐条全等
-    // （仅 .o 重定位地址差）⇒ 残差 0；具名 bool 局部形为 45（+1 槽物化）。
-    if (({ (user->getCurCharacExp() < levelExp)
-            || (nextLevelExp < user->getCurCharacExp()); }))
-        return false;
-    return true;
+#include "WongWorkSkillGM_A/CheckCondition.inc"
 }
 // ============================================================================
 // ORIG T 0x08609d9c CountElixer(CUser*)：重置四组数据（8/组首）、置就绪标志，
 // 统计用户物品并应用双树 kind 数据。
 // ============================================================================
-void CSkillChanger::CountElixer(CUser* user)
-{
-    memset(m_data.m_elixerCount, 0, 0x24);
-    memset(m_data.m_skillBookCount, 0, 0x24);
-    memset(m_data.m_needElixerCount, 0, 0x24);
-    memset(m_data.m_needElixerAbility, 0, 0x24);
-    m_state.m_sec0.m_kindState = 8;   // 组首 +0x00/0x24/0x48/0x6c（SkillB 将 CSkillChanger 4 节结构化为 STKindSection）
-    m_state.m_sec1.m_kindState = 8;
-    m_state.m_sec2.m_kindState = 8;
-    m_state.m_sec3.m_kindState = 8;
-    m_state.m_reserved91 = 1;                      // ORIG 0x08609e41 movb $0x1,0x91(%eax)
-    _GetUserItemCount(user);
-    _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);
-    _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)1);
+#include "WongWorkSkillGM_A/CountElixer.inc"
 }
 
 // ORIG W 0x0869780e GetElixerCount()：返回第一组计数数组（即 this）。
-int* CSkillChanger::GetElixerCount()
-{
-    return m_data.m_elixerCount;
+#include "WongWorkSkillGM_A/GetElixerCount.inc"
 }
 
 // ORIG W 0x08697816 GetNeedElixerCount()：返回 this+0x48。
-int* CSkillChanger::GetNeedElixerCount()
-{
-    return m_data.m_needElixerCount;
+#include "WongWorkSkillGM_A/GetNeedElixerCount.inc"
 }
 
 // ORIG W 0x08697822 GetNeedElixerAbility()：返回 this+0x6c。
-int* CSkillChanger::GetNeedElixerAbility()
-{
-    return m_data.m_needElixerAbility;
+#include "WongWorkSkillGM_A/GetNeedElixerAbility.inc"
 }
 
 // ============================================================================
@@ -102,49 +75,14 @@ int* CSkillChanger::GetNeedElixerAbility()
 // 其余且 initialized：命中 SP 书索引时 needCount[i] += count、
 // needAbility[i] = g_nElixerAbility[i]（直接赋值，与 ORIG store 一致）。
 // ============================================================================
-void CSkillChanger::_addSPRelatedItem(int* a, int* b, int itemIdx, int count)
-{
-    if (itemIdx == 0x407)
-    {
-        *a = *a + count;
-    }
-    else if (itemIdx == 0x40e)
-    {
-        *b = *b + count;
-    }
-    else if (m_state.m_initialized != 0)
-    {
-        for (int i = 1; i <= CSkillChanger::g_nStatUpItemIdx[0]; i++)
-        {
-            if (CSkillChanger::g_nStatUpItemIdx[i] == itemIdx)
-            {
-                // b28d-D66：P183 地址重物化铁律 —— ORIG 每处读写都重发完整
-                // `mov this,%eax; add $0x10,%edx/%ecx; mov 0x8/0xc(%eax,%edx,4)`
-                // 两步寻址（0x0860a8cb..0x0860a901），无指针局部；原具名
-                // `int* needCount = ...` 缓存使 4.4 多发 `add $0x48; mov %eax,-0x8`
-                // 与 `shl/add` 序列（61 vs 56 insn）。
-                m_data.m_needElixerCount[i] = m_data.m_needElixerCount[i] + count;
-                m_data.m_needElixerAbility[i] = CSkillChanger::g_nElixerAbility[i];
-                return;
-            }
-        }
-    }
+#include "WongWorkSkillGM_A/_addSPRelatedItem.inc"
 }
 
 // ============================================================================
 // ORIG T 0x0860a918 _addSFPRelatedItem(int*,int*,int,int)
 // 0x4b4 → *a += count；0x4b5 → *b += count；其余无操作。
 // ============================================================================
-void CSkillChanger::_addSFPRelatedItem(int* a, int* b, int itemIdx, int count)
-{
-    if (itemIdx == 0x4b4)
-    {
-        *a = *a + count;
-    }
-    else if (itemIdx == 0x4b5)
-    {
-        *b = *b + count;
-    }
+#include "WongWorkSkillGM_A/_addSFPRelatedItem.inc"
 }
 
 // ============================================================================
@@ -162,57 +100,14 @@ void CSkillChanger::_addSFPRelatedItem(int* a, int* b, int itemIdx, int count)
 //   ② N82：迭代器槽 it/end ORIG -0x34/-0x38 vs 4.4 -0x3c/-0x34（具名 it 形、
 //      for-init 直构形两种均实测同槽）。
 // ============================================================================
-bool CSkillChanger::_fnEnumQuestClear(unsigned int questIdx, char* args)
-{
-    // b28d-L3 复测（P0/P183）：ORIG 0x0860a6da 为**形参自增指针**形 —— 每个槽
-    //   `mov 0xc(%ebp),%eax; lea 0x4(%eax),%edx; mov %edx,0xc(%ebp); mov (%eax),%eax;
-    //    mov %eax,-0x30…(%ebp)`（6 连，偏移步进 4）⇒ 直接对 args 做 `+= 4` 步进，
-    //   不设 `slots` 中间层（旧形多一具名槽 -0x34 且读形为 `mov -0x34(%ebp),%eax;
-    //   add $0x4,%eax`）。
-    int* spA = *(int**)args;
-    args += 4;
-    int* spB = *(int**)args;
-    args += 4;
-    int* sfpA = *(int**)args;
-    args += 4;
-    int* sfpB = *(int**)args;
-    args += 4;
-    CSkillChanger* self = *reinterpret_cast<CSkillChanger**>(args);
-    args += 4;
-    CUser* user = *reinterpret_cast<CUser**>(args);
-
-    Quest const* quest = G_CDataManager()->find_quest(static_cast<int>(questIdx));
-    if (quest == 0)
-        return true;
-    if (quest->m_fieldB8 != 0 && quest->m_fieldB8 != 0x19)
-        return true;
-
-    // ORIG 0x0860a781：`movl $0x0,-0x14(%ebp)` 预清后再 call（P198① 两句式）。
-    std::vector<RewardItemInfo>* rewards = 0;
-    rewards = user->getUserQuestRewardItem(quest, user);   // ORIG _ZN5CUser22…PKS_
-    for (std::vector<RewardItemInfo>::const_iterator it = rewards->begin();
-         it != rewards->end(); ++it)
-    {
-        const int itemIdx = it->m_itemIdx;   // +0x00
-        const int count = it->m_count;       // +0x04
-        self->_addSPRelatedItem(spA, spB, itemIdx, count);
-        self->_addSFPRelatedItem(sfpA, sfpB, itemIdx, count);
-    }
-    return true;
+#include "WongWorkSkillGM_A/_fnEnumQuestClear.inc"
 }
 
 // ============================================================================
 // ORIG T 0x0860a680 _CountQuestSPBook(const CUser*,int&,int&,int&,int&)
 // 经 UserQuest+0x04 的 CQuestClear 子对象遍历已完成任务并回调统计。
 // ============================================================================
-void CSkillChanger::_CountQuestSPBook(const CUser* user, int& a, int& b,
-                                      int& c, int& d)
-{
-    // ORIG 无槽：getCurCharacQuestR 结果直存 eax、+0x4 经 lea 内联（P0/P183）。
-    (&user->getCurCharacQuestR()->m_cleared)
-        ->enumQuestClear(&_fnEnumQuestClear, &a, &b, &c, &d,
-                         static_cast<CSkillChanger*>(this),
-                         const_cast<CUser*>(user));
+#include "WongWorkSkillGM_A/_CountQuestSPBook.inc"
 }
 
 // ============================================================================
@@ -220,30 +115,12 @@ void CSkillChanger::_CountQuestSPBook(const CUser* user, int& a, int& b,
 // ============================================================================
 
 // ORIG T 0x081093ee appendGM(unsigned,unsigned)：恒返回 0。
-int CGMAccounts::appendGM(unsigned int /*mid*/, unsigned int /*type*/)
-{
-    int dead_frame;                        // ORIG sub $0x10,%esp + leave（0x10 无读写帧）
-    (void)&dead_frame;                     // P31 dead local 帧差对齐（探针实证取址保槽）
-    return 0;
+#include "WongWorkSkillGM_A/appendGM.inc"
 }
 
 // ORIG T 0x08109524 AppendGM_Sys(unsigned,char)：入列 {mid,(int)(signed char)}
 // 并记 "./log/Init" 文件日志 "GM List Add mid:%s"。
-void CGMAccounts::AppendGM_Sys(unsigned int mid, char type)
-{
-    // ORIG：POD 直接赋值（stGMInfo_t 无用户 ctor，ORIG nm 无 C1 符号）。
-    CGMAccounts::stGMInfo_t info = {};   // ORIG 零填 -0x18/-0x14 两槽后覆写
-    info.mid = mid;
-    info.type = static_cast<unsigned int>(static_cast<int>(type));
-    m_gmList.push_back(info);
-
-    // ORIG 0x08109524 段：`call NumberToString; mov %eax,%ebx`（ctor 前求值 + %ebx
-    //   跨 CMyFileLog ctor 保活）⇒ P227 全表达式临时链形（具名 log 对象/语句表达式
-    //   两形在 4.4 下把结果落槽 -0xc，多 1 store + 1 reload）。
-    // ORIG 0x0810957b 立即数符号为 `_ZZN8WongWork11CGMAccounts12AppendGM_SysEjcE12__FUNCTION__`
-    //   （P139：手写字面量不生成该局部静态符号 ⇒ 仅ORIG 差集）⇒ 传 __FUNCTION__。
-    CMyFileLog(__FUNCTION__, 0xcd)("./log/Init", "GM List Add mid:%s",
-                                   NumberToString(mid, 0));
+#include "WongWorkSkillGM_A/AppendGM_Sys.inc"
 }
 
 }  // namespace WongWork

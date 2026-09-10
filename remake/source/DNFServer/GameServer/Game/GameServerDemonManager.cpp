@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 GameServerDemonManager/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // GameServerDemonManager.cpp — ORIG 全套方法实现（LinkClosureD 批次）
 //
 // 报告：docs/class_func_reports/GameServerDemonManager/（README/SetUserProhibitFlag/
@@ -26,43 +36,25 @@ GameServerDemonManager* GameserverDemonManagerInstance()      // T 0x080f61b8
     return &instance;
 }
 
-GameServerDemonManager::GameServerDemonManager()      // W 0x080f6330
-{
-    m_prohibitFlag = 0;
-    m_noticeLen = 0;
-    memset(m_notice, 0, 0xff);
+#include "GameServerDemonManager/GameServerDemonManager.inc"
 }
 
-GameServerDemonManager::~GameServerDemonManager()     // T 0x080f621c（空体）
-{
+#include "GameServerDemonManager/dtor_GameServerDemonManager.inc"
 }
 
-void GameServerDemonManager::SetUserProhibitFlag(bool flag)   // T 0x080f6222
-{
-    m_prohibitFlag = static_cast<unsigned char>(flag);
+#include "GameServerDemonManager/SetUserProhibitFlag.inc"
 }
 
-bool GameServerDemonManager::IsProhibitConnectState()          // W 0x084ed404
-{
-    return m_prohibitFlag;
+#include "GameServerDemonManager/IsProhibitConnectState.inc"
 }
 
-void GameServerDemonManager::SetNoticeMessage(unsigned char len, char* msg)  // T 0x080f6280
-{
-    m_noticeLen = len;
-    memset(m_notice, 0, 0xff);
-    memcpy(m_notice, msg, static_cast<unsigned int>(len));
+#include "GameServerDemonManager/SetNoticeMessage.inc"
 }
 
-char const* GameServerDemonManager::GetNoticeMessage()        // W 0x0863bff6
-{
-    return m_notice;
+#include "GameServerDemonManager/GetNoticeMessage.inc"
 }
 
-void GameServerDemonManager::Notice10MinShutDownMessage()     // T 0x080f623a
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0xa2, 0x3c, 0, 0);
+#include "GameServerDemonManager/Notice10MinShutDownMessage.inc"
 }
 
 // [GI-ioinit L21 注] GameserverDemonManagerInstance 定义已前移至 ctor 之前（P327 键名）。

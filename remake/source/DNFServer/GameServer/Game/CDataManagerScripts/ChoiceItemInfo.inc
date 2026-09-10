@@ -1,0 +1,3 @@
+ChoiceItemInfo::ChoiceItemInfo()
+{
+    clear();

@@ -1,0 +1,2 @@
+CClientCrashDownLogStatistic::stClientCrashDownLog_t::~stClientCrashDownLog_t()
+{

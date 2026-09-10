@@ -1,0 +1,3 @@
+SigAradEmblemCompound::SigAradEmblemCompound()
+{
+    init();

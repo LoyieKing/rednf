@@ -1,0 +1,2 @@
+CTournamentPvPEvent::~CTournamentPvPEvent()
+{

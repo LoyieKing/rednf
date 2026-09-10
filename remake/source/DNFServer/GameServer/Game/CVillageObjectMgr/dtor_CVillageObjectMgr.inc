@@ -1,0 +1,2 @@
+CVillageObjectMgr::~CVillageObjectMgr()
+{

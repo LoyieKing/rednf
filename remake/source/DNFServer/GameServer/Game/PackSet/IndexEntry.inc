@@ -1,0 +1,3 @@
+IndexEntry::IndexEntry()
+{
+    clear();

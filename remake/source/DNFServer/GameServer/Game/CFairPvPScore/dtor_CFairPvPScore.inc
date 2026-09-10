@@ -1,0 +1,2 @@
+CFairPvPScore::~CFairPvPScore()
+{

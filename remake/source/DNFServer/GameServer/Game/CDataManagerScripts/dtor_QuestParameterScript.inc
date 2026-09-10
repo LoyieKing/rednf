@@ -1,0 +1,1 @@
+QuestParameterScript::~QuestParameterScript() {}

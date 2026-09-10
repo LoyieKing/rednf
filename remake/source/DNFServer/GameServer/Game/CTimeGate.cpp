@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CTimeGate/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN9CTimeGate15put_object_infoER11PacketGuard`（ORIG 0x8284584）。
 #include <iostream>
@@ -39,89 +49,46 @@
 // [A31-GI · P327] put_object_info 定义前移为本 TU 首个强外部符号 ⇒ GI 键名
 // `_GLOBAL__I__ZN9CTimeGate15put_object_infoER11PacketGuard`（ORIG 0x8284584）。
 // ORIG 0x82844d8：put_byte(2); put_byte(m_openState 零扩展); return 1。
-bool CTimeGate::put_object_info(PacketGuard& p)
-{
-    p.put_byte(2);
-    p.put_byte((int)m_openState);
-    return true;
+#include "CTimeGate/put_object_info.inc"
 }
 
-CTimeGate::CTimeGate()
-{
-    m_openState = 0;
+#include "CTimeGate/CTimeGate.inc"
 }
 
 // ORIG 0x8284536：仅重设 vptr（基类 IObject 析构为空，不调用）。
-CTimeGate::~CTimeGate()
-{
+#include "CTimeGate/dtor_CTimeGate.inc"
 }
 
 // ORIG W 0x82845a0：vtable slot0 的 include 覆写（IObject 纯虚）；函数体
 // return 0（恒不碰撞）。ORIG 无 CTimeGate::reset 符号。
-bool CTimeGate::include(const village_object::IObject&) const
-{
-    return false;
+#include "CTimeGate/include.inc"
 }
 
-void CTimeGate::SetTimeGate(int a, int b, int c, int d, int e)
-{
-    m_villageIndex = a;
-    m_areaIndex = b;
-    m_npcIndex = c;
-    m_questIndex = d;
-    m_openedQuestIndex = e;
+#include "CTimeGate/SetTimeGate.inc"
 }
 
 // ORIG W 0x84ed4a4：movb %?,+0x04（level 截断为 unsigned char）。
-void CTimeGate::SetLevel(int level)
-{
-    m_openState = (unsigned char)level;
+#include "CTimeGate/SetLevel.inc"
 }
 
 // ORIG 0x8234e46：两段条件各自物化为 bool 再判定（见文件头注释）。
-bool CTimeGate::setBlindTimeGateStateQuest(int questIdx)
-{
-    // b28d-35：ORIG 0x08234e46 短路物化在 %al（`mov $1/%al; test %al,%al`，
-    //   零槽，帧 0x18）。实测：register bool → %ebx+push（+5）；普通 bool →
-    //   落槽 movb/cmpb（+2）。按 P226 扩展用语句表达式包条件（内无具名变量）
-    //   复现短路物化岛且零槽。
-    if (({ getQuestIndex() == questIdx && isOpen(); }))
-    {
-        return true;
-    }
-    if (({ getOpenedQuestIndex() == questIdx && !isOpen(); }))
-    {
-        return true;
-    }
-    return false;
+#include "CTimeGate/setBlindTimeGateStateQuest.inc"
 }
 
-bool CTimeGate::isOpen() const
-{
-    return m_openState == 0x64;   // ORIG: movzbl +0x04; cmp $0x64; sete
+#include "CTimeGate/isOpen.inc"
 }
 
-int CTimeGate::getVillageIndex() const
-{
-    return m_villageIndex;        // ORIG W 0x84ed480：mov +0x08
+#include "CTimeGate/getVillageIndex.inc"
 }
 
-int CTimeGate::getAreaIndex() const
-{
-    return m_areaIndex;           // ORIG W 0x84ed48c：mov +0x0c
+#include "CTimeGate/getAreaIndex.inc"
 }
 
-int CTimeGate::getNpcIndex() const
-{
-    return m_npcIndex;            // ORIG W 0x84ed498：mov +0x10
+#include "CTimeGate/getNpcIndex.inc"
 }
 
-int CTimeGate::getQuestIndex() const
-{
-    return m_questIndex;          // ORIG W 0x8234e2e：mov +0x14
+#include "CTimeGate/getQuestIndex.inc"
 }
 
-int CTimeGate::getOpenedQuestIndex() const
-{
-    return m_openedQuestIndex;    // ORIG W 0x8234e3a：mov +0x18
+#include "CTimeGate/getOpenedQuestIndex.inc"
 }

@@ -1,0 +1,2 @@
+CReduceUpgradeItemPay::CReduceUpgradeItemPay()
+{

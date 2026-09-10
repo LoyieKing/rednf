@@ -1,0 +1,2 @@
+CItemUpgradeTable::~CItemUpgradeTable()
+{

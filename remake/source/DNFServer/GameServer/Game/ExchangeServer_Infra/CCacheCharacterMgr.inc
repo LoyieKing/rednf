@@ -1,0 +1,2 @@
+CCacheCharacterMgr::CCacheCharacterMgr()
+{

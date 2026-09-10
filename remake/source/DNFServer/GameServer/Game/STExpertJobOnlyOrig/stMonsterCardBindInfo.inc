@@ -1,0 +1,3 @@
+STExpertJobScript::stMonsterCardBindInfo::stMonsterCardBindInfo()
+{
+    clear();

@@ -1,0 +1,1 @@
+WpBonusPointData::WpBonusPointData() { clear(); }

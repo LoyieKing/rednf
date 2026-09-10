@@ -1,0 +1,3 @@
+SigLoadHeroMissionData::SigLoadHeroMissionData()
+{
+    init();

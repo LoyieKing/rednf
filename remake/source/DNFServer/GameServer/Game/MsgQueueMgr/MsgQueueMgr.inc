@@ -1,0 +1,2 @@
+MsgQueueMgr::MsgQueueMgr()
+{

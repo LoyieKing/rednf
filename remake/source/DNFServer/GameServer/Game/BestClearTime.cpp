@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 BestClearTime/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r BestClearTime 实现（2026-08-19）。
 // 逐函数对照 docs/class_func_reports/BestClearTime.md 与 ORIG objdump：
 //   ctor 0x80c851c / dtor 0x80c8596 / _reset 0x80c8758 /
@@ -16,92 +26,33 @@
 // 构造 / 析构 / 重置
 // ============================================================================
 
-BestClearTime::BestClearTime()
-{
-    // ORIG 0x80c851c：基类 CData 构造后，map 默认构造并立即 clear，
-    // newRecord 清零。
-    m_map.clear();
-    m_bNewRecord = false;
+#include "BestClearTime/BestClearTime.inc"
 }
 
-BestClearTime::~BestClearTime()
-{
+#include "BestClearTime/dtor_BestClearTime.inc"
 }
 
-void BestClearTime::_reset()
-{
-    // ORIG 0x80c8758：map.clear() + newRecord = false。
-    m_map.clear();
-    m_bNewRecord = false;
+#include "BestClearTime/_reset.inc"
 }
 
 // ============================================================================
 // 最佳通关时间读写
 // ============================================================================
 
-void BestClearTime::setBestClearTime(int dungeonIdx, int difficulty, int time)
-{
-    // ORIG 0x80c8928。
-    // 难度只允许 0..4；时间为负按 0 处理。
-    if (difficulty > 4)
-        return;
-    if (time < 0)
-        time = 0;
-
-    std::map<int, SIG_BEST_CLEAR_TIME_DIFFICULTY>::iterator it =
-        m_map.find(dungeonIdx);
-    if (it == m_map.end())
-    {
-        // 无该副本记录：以全零 SIG_BEST_CLEAR_TIME_DIFFICULTY 插入，
-        // 再写入当前难度的时间。
-        SIG_BEST_CLEAR_TIME_DIFFICULTY tmp;
-        tmp.m_time[difficulty] = time;
-        m_map.insert(std::make_pair(dungeonIdx, tmp));
-        setNewRecord(true);
-        alter();
-        return;
-    }
-
-    if (it->second.m_time[difficulty] == 0)
-    {
-        // 该难度尚无记录：直接写入。
-        it->second.m_time[difficulty] = time;
-        setNewRecord(true);
-        alter();
-    }
-    else if (it->second.m_time[difficulty] > time)
-    {
-        // 已有记录且新时间更短：覆盖。
-        it->second.m_time[difficulty] = time;
-        setNewRecord(true);
-        alter();
-    }
+#include "BestClearTime/setBestClearTime.inc"
 }
 
-int BestClearTime::getBestClearTime(int dungeonIdx, int difficulty)
-{
-    // ORIG 0x80c8ac0：find 未命中或难度 > 4 返回 0，否则返回记录值。
-    std::map<int, SIG_BEST_CLEAR_TIME_DIFFICULTY>::iterator it =
-        m_map.find(dungeonIdx);
-    if (it == m_map.end() || difficulty > 4)
-        return 0;
-    return it->second.m_time[difficulty];
+#include "BestClearTime/getBestClearTime.inc"
 }
 
 // ============================================================================
 // 新纪录标志
 // ============================================================================
 
-void BestClearTime::setNewRecord(bool bNew)
-{
-    // ORIG 0x80c8b44：写 this+0x20。
-    m_bNewRecord = bNew;
+#include "BestClearTime/setNewRecord.inc"
 }
 
-bool BestClearTime::checkNewRecord()
-{
-    // ORIG 0x80c8b5c：读 this+0x20。
-    return m_bNewRecord;
+#include "BestClearTime/checkNewRecord.inc"
 }
 
 // ============================================================================
@@ -127,86 +78,14 @@ struct SIG_BEST_CLEAR_TIME_VIEW
 
 // ORIG 0x080c8776：虚调 _reset() 后按 count（≤1000）逐条
 // map::insert(value_type)（ORIG 为 make_pair 引用 → pair 拷贝 → insert 展开）。
-bool BestClearTime::loadData(CUser* pUser, char* pData)
-{
-    (void)pUser;
-    _reset();
-    // ORIG 0x080c8776：data(-0x10)/i(-0xc) 具名；循环条件每轮重读 count
-    // （无 count 具名局部）；记录经结构体数组下标访问（ORIG 的 3i*8 强度
-    // 归约 + `lea 0x8/0xc(%eax)` 成员 disp）；make_pair 两实参为记录内
-    // int&/SIG& 左值。
-    SIG_BEST_CLEAR_TIME_VIEW* data =
-        reinterpret_cast<SIG_BEST_CLEAR_TIME_VIEW*>(pData);
-    int i = 0;
-    while (i < data->m_count && i < 1000)
-    {
-        // ORIG：make_pair<int&,SIG&>(记录.m_key, 记录.m_data) → pair<int,SIG>
-        // 拷贝 → map::insert(value_type const&)（三段调用与 ORIG 展开一致）。
-        m_map.insert(std::make_pair(data->m_entries[i].m_key,
-                                    data->m_entries[i].m_data));
-        ++i;
-    }
-    return true;
+#include "BestClearTime/loadData.inc"
 }
 
 // ORIG 0x080c883c：按 map 顺序填 entries（i>0x3e7 截断），写 count=i。
 // （characNo@+0 不由本函数写，由 _saveData 填。）
-void BestClearTime::getData(char* pData) const
-{
-    // ORIG 0x080c883c 结构：data(-0x10)/i(-0xc) 具名 + begin 具名迭代器(-0x18)；
-    // 循环体先 i>0x3e7 直接 return（不写 count）；逐字段重算 i*0x18（无 entry
-    // 指针缓存，P183）；first 一次 ptEv、second 一次取值后连读 5 个 int。
-    SIG_BEST_CLEAR_TIME_VIEW* data =
-        reinterpret_cast<SIG_BEST_CLEAR_TIME_VIEW*>(pData);
-    int i = 0;
-    std::map<int, SIG_BEST_CLEAR_TIME_DIFFICULTY>::const_iterator it =
-        m_map.begin();
-    while (it != m_map.end())
-    {
-        if (i > 0x3e7)
-            return;
-        data->m_entries[i].m_key = it->first;
-        const SIG_BEST_CLEAR_TIME_DIFFICULTY& d = it->second;
-        data->m_entries[i].m_data.m_time[0] = d.m_time[0];
-        data->m_entries[i].m_data.m_time[1] = d.m_time[1];
-        data->m_entries[i].m_data.m_time[2] = d.m_time[2];
-        data->m_entries[i].m_data.m_time[3] = d.m_time[3];
-        data->m_entries[i].m_data.m_time[4] = d.m_time[4];
-        ++it;
-        ++i;
-    }
-    data->m_count = i;
+#include "BestClearTime/getData.inc"
 }
 
 // ORIG 0x080c8616：BigStreamPool 序列化 → put DB_Q（QUEUE_IDX 2）。
-bool BestClearTime::_saveData(CUser* pUser)
-{
-    // ORIG 无 stream 具名槽（P0/P259：Acquire 结果 %eax 直传 CStreamGuard C1
-    // 第二实参；旧形 +1 store/load 且 guard 槽 -0x14→-0x1c）。
-    CStreamGuard guard(
-        GlobalData::s_big_stream_pool->Acquire("BestClearTime.cpp", 0x16),
-        true);
-    // ORIG 0x080c8616：`(*guard)->operator<<(x)`（operator* de() + operator<<）
-    // 与 `guard->GetInBuffer`（operator-> pt()）标识调用形态，勿改为直接成员调用
-    // （直接 `guard << x` 会省略 ORIG 的 de() 调用）。
-    (*guard)->operator<<((int)0x300);
-    (*guard)->operator<<((int)pUser->GetUID());
-
-    SIG_BEST_CLEAR_TIME* sig = guard->GetInBuffer<SIG_BEST_CLEAR_TIME>();
-    // ORIG：`cmpl $0,sig; jne body; mov $0,%ebx; jmp 尾部` + 尾 `mov $1,%ebx`
-    // ⇒ 返回值跨析构保活于 ebx（无 bool 槽）：早退形（旧 `bool ok` 形落槽
-    // -0x9 并令 guard 槽 -0x14→-0x18）。
-    if (sig == 0)
-    {
-        return false;
-    }
-    memset(sig, 0, sizeof(SIG_BEST_CLEAR_TIME));
-    // ORIG 虚调 vtable slot2 = getData(char*)。
-    getData(reinterpret_cast<char*>(sig));
-    // ORIG store 为 RHS-first + eax 中转（`mov %eax,%edx; mov -0xc(%ebp),%eax;
-    // mov %edx,(%eax)`）⇒ 目标字段与 RHS 异型（P211 档③）⇒ unsigned 视角。
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig)) =
-        pUser->get_charac_no(-1);   // sig->characNo @+0
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return true;
+#include "BestClearTime/_saveData.inc"
 }

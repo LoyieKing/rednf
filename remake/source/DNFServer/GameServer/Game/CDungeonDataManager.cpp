@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CDungeonDataManager/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // [SweepCDungeonDataManager 判词] 本 TU 8 件最终状态：
 //  InsertDungeonKey 0x084856ac NEAR：残差 17 行全为 lea 槽号（ORIG it -0x1e0/end -0x1dc/
 //   node -0x98；我方 node -0x1e0/it -0x150）。4.4 聚合对象优先占深槽 vs 4.1 按声明序
@@ -48,87 +58,24 @@ CDungeonDataManager& GetInstanceDungeonDataManager()
     return instance;
 }
 
-bool CDungeonDataManager::InsertDungeonKey(DungeonKey& key)
-{
-    std::map<DungeonKey, CDungeonNode>::iterator it = m_dungeonMap.find(key);
-    if (it != m_dungeonMap.end())
-        return false;
-    {
-        CDungeonNode node;
-        // ORIG 0x0848573c 的 make_pair 实例为 <DungeonKey&, CDungeonNode>（第二参按值 ⇒
-        // 右值引用形），非具名左值版 <DungeonKey&, CDungeonNode&>（p167 EXTRA/MISSING 差集）。
-        // 用 static_cast<T&&> 而非 std::move：4.4 对 std::move 会发 out-of-line call（P234）。
-        m_dungeonMap.insert(std::make_pair(key, static_cast<CDungeonNode&&>(node)));
-    }
-    return true;
+#include "CDungeonDataManager/InsertDungeonKey.inc"
 }
 
-int CDungeonDataManager::InsertMonsterKey(int monsterIndex)
-{
-    for (std::map<DungeonKey, CDungeonNode>::iterator it = m_dungeonMap.begin();
-         it != m_dungeonMap.end(); it++)
-    {
-        CDungeonNode* node = &it->second;
-        node->InsertMonsterKey(monsterIndex);
-    }
-    return 1;
+#include "CDungeonDataManager/InsertMonsterKey.inc"
 }
 
-int CDungeonDataManager::InsertSkillKey(int skillIndex, int job)
-{
-    for (std::map<DungeonKey, CDungeonNode>::iterator it = m_dungeonMap.begin();
-         it != m_dungeonMap.end(); it++)
-    {
-        CDungeonNode* node = &it->second;
-        const DungeonKey& key = it->first;
-        node->InsertSkillKey(skillIndex, job,
-                             key.m_dungeonIndex, key.m_dungeonDiff);
-    }
-    return 1;
+#include "CDungeonDataManager/InsertSkillKey.inc"
 }
 
-bool CDungeonDataManager::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
-{
-    std::map<DungeonKey, CDungeonNode>::iterator it =
-        m_dungeonMap.find(((SigDungeonStatisticKeyView*)stat)->m_key);
-    if (it == m_dungeonMap.end())
-        return false;
-    CDungeonNode* node = &it->second;
-    node->UpdateCharacter(stat);
-    return true;
+#include "CDungeonDataManager/UpdateCharacter.inc"
 }
 
-bool CDungeonDataManager::UpdateMonster(SIG_DUNGEON_DATA_STATISTIC* stat)
-{
-    std::map<DungeonKey, CDungeonNode>::iterator it =
-        m_dungeonMap.find(((SigDungeonStatisticKeyView*)stat)->m_key);
-    if (it == m_dungeonMap.end())
-        return false;
-    CDungeonNode* node = &it->second;
-    node->UpdateMonster(stat);
-    return true;
+#include "CDungeonDataManager/UpdateMonster.inc"
 }
 
-bool CDungeonDataManager::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
-{
-    std::map<DungeonKey, CDungeonNode>::iterator it =
-        m_dungeonMap.find(((SigDungeonStatisticKeyView*)stat)->m_key);
-    if (it == m_dungeonMap.end())
-        return false;
-    CDungeonNode* node = &it->second;
-    node->UpdateSkill(stat);
-    return true;
+#include "CDungeonDataManager/UpdateSkill.inc"
 }
 
-int CDungeonDataManager::UpdateDungeonDataStatistic()
-{
-    for (std::map<DungeonKey, CDungeonNode>::iterator it = m_dungeonMap.begin();
-         it != m_dungeonMap.end(); it++)
-    {
-        CDungeonNode* node = &it->second;
-        const DungeonKey& key = it->first;
-        node->InsertDB(key);
-    }
-    return 1;
+#include "CDungeonDataManager/UpdateDungeonDataStatistic.inc"
 }
 

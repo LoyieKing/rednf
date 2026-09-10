@@ -1,0 +1,2 @@
+IndexEntry::~IndexEntry()
+{

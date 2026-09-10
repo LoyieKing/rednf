@@ -1,0 +1,2 @@
+void CClearRewardTest::parse()
+{

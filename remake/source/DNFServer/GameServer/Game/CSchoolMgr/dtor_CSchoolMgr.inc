@@ -1,0 +1,2 @@
+CSchoolMgr::~CSchoolMgr()
+{

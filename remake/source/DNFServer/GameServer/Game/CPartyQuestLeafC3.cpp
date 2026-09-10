@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CPartyQuestLeafC3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // CPartyQuestLeafC3.cpp —— CParty/CBattle_Field 任务迷宫叶子恢复（2026-08-24，CPartyQuestLeafC3）
 //
 // 完整读取 docs/class_func_reports/ 对应 .md 的 ## 汇编 + ## 反编译 C 后转写：
@@ -43,9 +53,7 @@
 // bool 成员直赋才能复现 ORIG 的「先取 this、后 movzbl 读回」指令次序
 // （char 成员会先做 bool→char 扩展，与 ORIG 次序不符，经探针核实）。
 // ============================================================================
-void CBattle_Field::setQuestMaze(bool flag)
-{
-    m_questMaze = flag;
+#include "CPartyQuestLeafC3/setQuestMaze.inc"
 }
 
 // ============================================================================
@@ -56,16 +64,5 @@ void CBattle_Field::setQuestMaze(bool flag)
 //   CUserCharacInfo::get_charac_level()；std::max<int>(&maxLevel,&level) 回写。
 // 返回 maxLevel。转写与同族 getMemberMaxLevelBeforeDungeon（CPartyDepsB2.cpp）一致。
 // ============================================================================
-int CParty::getMemberMaxLevel()
-{
-    int level;                                          // -0x10（槽位对齐 ORIG）
-    int maxLevel = 0;                                   // -0x14
-    for (int i = 0; i <= 3; ++i)                        // -0xc
-    {
-        if (!_checkValidUser(i))
-            continue;
-        level = m_member[i].m_pUser->get_charac_level();
-        maxLevel = std::max(maxLevel, level);
-    }
-    return maxLevel;
+#include "CPartyQuestLeafC3/getMemberMaxLevel.inc"
 }

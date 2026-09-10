@@ -1,0 +1,2 @@
+PvpResultType::~PvpResultType()
+{

@@ -1,0 +1,3 @@
+int CRelayBattleMgr::GetKillCount(int seat)
+{
+    return m_battles[seat].m_killCount;

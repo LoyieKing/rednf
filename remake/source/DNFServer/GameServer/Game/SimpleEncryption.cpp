@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 SimpleEncryption/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // SimpleEncryption 仅ORIG 11 符号真实定义（9 函数 + 无额外辅助）。
 // 证据：docs/class_func_reports/SimpleEncryption/*.md（9 份报告全文已读）。
 // 关键点：
@@ -14,64 +24,29 @@
 
 #include "SimpleEncryption.h"
 
-SimpleEncryption::SimpleEncryption()
-{
-    m_shift = 0;
-    m_key = 0;
-    initialize();
+#include "SimpleEncryption/SimpleEncryption.inc"
 }
 
-SimpleEncryption::~SimpleEncryption()
-{
-    uninitialize();
+#include "SimpleEncryption/dtor_SimpleEncryption.inc"
 }
 
-SimpleEncryption* SimpleEncryption::instance()
-{
-    static SimpleEncryption simpleEncryption;
-    return &simpleEncryption;
+#include "SimpleEncryption/instance.inc"
 }
 
-void SimpleEncryption::initialize()
-{
-    m_shift = 3;
-    m_key = 0xf089980f;
+#include "SimpleEncryption/initialize.inc"
 }
 
-void SimpleEncryption::uninitialize()
-{
+#include "SimpleEncryption/uninitialize.inc"
 }
 
-void SimpleEncryption::encryptUINT(unsigned int shift, unsigned int& out)
-{
-    unsigned int t = 0;   // -0x8 槽
-    int u = 0;            // -0x4 槽
-    t = m_shift;
-    u = (int)m_key;
-    out = shift << t;
-    out = (unsigned int)u ^ shift;
+#include "SimpleEncryption/encryptUINT.inc"
 }
 
-unsigned int SimpleEncryption::encryptUINT(unsigned int val)
-{
-    unsigned int out = 0;
-    encryptUINT(val, out);
-    return out;
+#include "SimpleEncryption/encryptUINT_1.inc"
 }
 
-void SimpleEncryption::decryptUINT(unsigned int shift, unsigned int& out)
-{
-    unsigned int t = 0;
-    int u = 0;
-    t = m_shift;
-    u = (int)m_key;
-    out = shift >> t;
-    out = (unsigned int)u ^ shift;
+#include "SimpleEncryption/decryptUINT.inc"
 }
 
-unsigned int SimpleEncryption::decryptUINT(unsigned int val)
-{
-    unsigned int out = 0;
-    encryptUINT(val, out);   // ORIG 0x0808cfd8 call 双参 encryptUINT（0x0808cf24），照抄
-    return out;
+#include "SimpleEncryption/decryptUINT_1.inc"
 }

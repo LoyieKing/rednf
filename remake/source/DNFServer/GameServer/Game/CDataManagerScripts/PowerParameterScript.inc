@@ -1,0 +1,3 @@
+PowerParameterScript::PowerParameterScript()
+{
+    clear();

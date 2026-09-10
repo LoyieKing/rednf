@@ -1,0 +1,1 @@
+void CDnFTimer::SetLastTime() {}

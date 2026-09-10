@@ -1,0 +1,2 @@
+DBLoadHeroMissionEventData::~DBLoadHeroMissionEventData()
+{

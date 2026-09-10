@@ -1,0 +1,3 @@
+QuestScript::~QuestScript()
+{
+    destroy();

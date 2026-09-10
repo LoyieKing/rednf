@@ -1,0 +1,2 @@
+CCoinEventPerDay::~CCoinEventPerDay()
+{

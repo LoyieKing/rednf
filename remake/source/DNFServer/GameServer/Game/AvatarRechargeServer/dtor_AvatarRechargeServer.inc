@@ -1,0 +1,2 @@
+AvatarRechargeServer::~AvatarRechargeServer()
+{

@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 APSystemLeafC3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // APSystemLeafC3.cpp — AP 域叶片批次 C3（独占 TU；CMake 由 Main 统一登记）
 //
 // 覆盖符号（全部经 df_game_r elf32-i386 nm 核实）：
@@ -46,9 +56,7 @@ namespace APSystem
 //   mov 0x8(%ebp),%eax; mov %eax,(%esp); call memset@plt
 //   leave; ret
 // ----------------------------------------------------------------------------
-_ActionPoint::_ActionPoint()
-{
-    memset(this, 0, sizeof(*this));   // ORIG 常量 0xb（pack(1) 后 sizeof 即 0xb）
+#include "APSystemLeafC3/_ActionPoint.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -66,17 +74,7 @@ _ActionPoint::_ActionPoint()
 // 位于 mem-initializer 阶段（先于成员构造），此处位于构造函数体（后于成员构
 // 造）；最终对象状态一致。
 // ----------------------------------------------------------------------------
-CActionPointEx::CActionPointEx()
-{
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0889566e 构造序（基类 call → +0x24 →
-    // +0x14 容器 → +0x34 → 尾清零）与 APSystemTypes.h 平铺布局妥协互斥
-    // （P242 族）；语义等价。
-    memset(&m_field00, 0, 0xb);   // 基类 _ActionPoint 子对象 [+0x00,+0x0b)
-    *reinterpret_cast<unsigned short*>(&m_bytes02[0x0a]) = 0;   // +0x0c word
-    m_bytes02[0x0c] = 0;          // +0x0e
-    m_bytes02[0x0d] = 0;          // +0x0f
-    m_bytes02[0x0e] = 0;          // +0x10
-    m_weekday = 7;                // +0x20（weekday 缺省 7）
+#include "APSystemLeafC3/CActionPointEx.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -87,9 +85,7 @@ CActionPointEx::CActionPointEx()
 //   mov $0x1,%eax / L_false: mov $0x0,%eax            // else true
 // 静态成员：唯一实参（_ActionGroupIndex 单 int 按值传递）即 [ebp+8]。
 // ----------------------------------------------------------------------------
-bool CActionPointEtcParameter::IsValidActionGroupIndex(_ActionGroupIndex group)
-{
-    return (int)group >= 1 && (int)group <= 0x2d;
+#include "APSystemLeafC3/IsValidActionGroupIndex.inc"
 }
 
 }  // namespace APSystem

@@ -1,0 +1,3 @@
+PvpResultRecvFlag::PvpResultRecvFlag()
+{
+    Clear();

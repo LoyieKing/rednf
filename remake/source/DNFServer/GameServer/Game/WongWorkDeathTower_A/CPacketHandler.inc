@@ -1,0 +1,1 @@
+CDeathTower::CPacketHandler::CPacketHandler() {}

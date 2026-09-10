@@ -1,0 +1,1 @@
+CCandidateMatrix::CCandidateMatrix() {}

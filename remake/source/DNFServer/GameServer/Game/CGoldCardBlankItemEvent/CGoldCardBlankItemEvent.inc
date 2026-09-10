@@ -1,0 +1,2 @@
+CGoldCardBlankItemEvent::CGoldCardBlankItemEvent()
+{

@@ -1,0 +1,2 @@
+STKeyCommand::~STKeyCommand()
+{

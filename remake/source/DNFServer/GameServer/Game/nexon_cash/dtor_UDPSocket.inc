@@ -1,0 +1,3 @@
+UDPSocket::~UDPSocket()
+{
+    close();

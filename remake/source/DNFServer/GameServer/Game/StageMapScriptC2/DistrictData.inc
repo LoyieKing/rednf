@@ -1,0 +1,3 @@
+DistrictData::DistrictData()
+{
+    clear();

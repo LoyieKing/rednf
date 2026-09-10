@@ -1,0 +1,2 @@
+void nsl::LinuxService::controlContinue()
+{

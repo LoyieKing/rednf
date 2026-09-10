@@ -1,0 +1,1 @@
+stBingoReward::stBingoReward() {}

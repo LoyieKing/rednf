@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 NOTIPacketStructCtors/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r NOTIPacketStruct 生命周期符号实现（OrigNOTIPkt 批）
 //
 // ORIG 12 个符号全部由本 TU 的 6 个 out-of-line ctor 定义生成
@@ -21,38 +31,26 @@
 
 // ---- SpawnUnit ----
 // ORIG 0x081346a6（0x31）：_SummonObject ctor(this+0x4) → memset(this,0,0x28)
-NOTIPacketStruct::_NotiAdvanceAltarSpawnUnit::_NotiAdvanceAltarSpawnUnit()
-{
-    std::memset(this, 0, 0x28);
+#include "NOTIPacketStructCtors/_NotiAdvanceAltarSpawnUnit.inc"
 }
 
 // ---- StageInfo ----
-NOTIPacketStruct::_NotiAdvanceAltarStageInfo::_NotiAdvanceAltarStageInfo()
-{
-    std::memset(this, 0, 8);
+#include "NOTIPacketStructCtors/_NotiAdvanceAltarStageInfo.inc"
 }
 
 // ---- MapInfo ----
-NOTIPacketStruct::_NotiAdvanceAltarMapInfo::_NotiAdvanceAltarMapInfo()
-{
-    std::memset(this, 0, 0x14);
+#include "NOTIPacketStructCtors/_NotiAdvanceAltarMapInfo.inc"
 }
 
 // ---- ClearStage ----
 // ORIG 0x08134720（0x31）：_Stage ctor(this+0xd) → memset(this,0,0x1c)
-NOTIPacketStruct::_NotiAdvanceAltarClearStage::_NotiAdvanceAltarClearStage()
-{
-    std::memset(this, 0, 0x1c);
+#include "NOTIPacketStructCtors/_NotiAdvanceAltarClearStage.inc"
 }
 
 // ---- EplpState ----
-NOTIPacketStruct::_NotiAdvanceAltarEplpState::_NotiAdvanceAltarEplpState()
-{
-    std::memset(this, 0, 8);
+#include "NOTIPacketStructCtors/_NotiAdvanceAltarEplpState.inc"
 }
 
 // ---- UpdateRidable ----
-NOTIPacketStruct::_NotiAdvanceAltarUpdateRidable::_NotiAdvanceAltarUpdateRidable()
-{
-    std::memset(this, 0, 1);
+#include "NOTIPacketStructCtors/_NotiAdvanceAltarUpdateRidable.inc"
 }

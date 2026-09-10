@@ -1,0 +1,3 @@
+CMapList::~CMapList()
+{
+    destroy();

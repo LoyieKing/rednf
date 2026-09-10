@@ -1,0 +1,3 @@
+EpisodeScript::EpisodeScript()
+{
+    clear();

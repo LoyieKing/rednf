@@ -1,0 +1,1 @@
+seriaRoomDecoAniEventScript::~seriaRoomDecoAniEventScript() {}

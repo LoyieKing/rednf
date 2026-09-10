@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 LinkMiscSecuTimerSolo/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // LinkMiscSecuTimerSolo.cpp —— 杂项/安全/定时器域剩余链接期未定义符号补齐。
 // 各符号 ORIG 地址注释随注（nm -C df_game_r 核实）；实现逐指令转写自
 // objdump。本文件由 LinkMiscSecuTimerSolo 批次注册（cmake/game/CMakeLists.txt）。
@@ -107,34 +117,7 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
 // 其余语义（含 pack/PackSet 双分支、full 默认构造+substr 临时 operator= 链）与
 // ORIG 切片逐条对位。
 // ===========================================================================
-bool findFileWithServerToken(char* path)
-{
-    std::string pathStr(path);
-    std::string full;
-    int pos = pathStr.find_last_of("/", std::string::npos);
-    if (pos == -1)
-        pos = pathStr.find_last_of("\\", std::string::npos);
-    if (pos != -1)
-    {
-        full = pathStr.substr(0, pos + 1);
-        full += "(R)";
-        full += pathStr.substr(pos + 1, pathStr.size());
-        ss_strcpy(path, 0x104, full.c_str());
-        // ORIG 982 `movzbl s_b;xor$1;test;je pack`：pack==0 fall=access，
-        // pack==1 je=PackSet；P22 `if(!f())`⇒xor+test 同 line 数。
-        if (!UseScriptPack())
-        {
-            if (access(path, 0) == 0)
-                return true;
-        }
-        else
-        {
-            if (g_script_package.is_exist(path))
-                return true;
-        }
-        ss_strcpy(path, 0x104, pathStr.c_str());
-    }
-    return false;
+#include "LinkMiscSecuTimerSolo/findFileWithServerToken.inc"
 }
 
 // ===========================================================================
@@ -143,34 +126,7 @@ bool findFileWithServerToken(char* path)
 // 命中 access/findFileWithServerToken 即采用；否则落到
 // g_szScriptFileBaseDirectory。out 尺寸由 size 限制。
 // ===========================================================================
-void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
-                           const char* name)
-{
-    if (!g_szScriptFilePriorityBaseDirectory.empty())
-    {
-        int i = static_cast<int>(g_szScriptFilePriorityBaseDirectory.size()) - 1;
-        for (; i >= 0; --i)
-        {
-            ss_strcpy(out, size,
-                      g_szScriptFilePriorityBaseDirectory[i].c_str());
-            if (dir != 0)
-                ss_strcat(out, size, dir);
-            if (name != 0)
-                ss_strcat(out, size, name);
-            if (access(out, 0) == 0)
-                return;
-            if (findFileWithServerToken(out))
-                return;
-        }
-        out[0] = 0;
-    }
-    ss_strcpy(out, size, g_szScriptFileBaseDirectory);
-    if (dir != 0)
-        ss_strcat(out, size, dir);
-    if (name != 0)
-        ss_strcat(out, size, name);
-    if (access(out, 0) != 0)
-        findFileWithServerToken(out);
+#include "LinkMiscSecuTimerSolo/getScriptFileFullPath.inc"
 }
 
 // ===========================================================================
@@ -200,101 +156,7 @@ void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
 // nop;jmp 中继（跨版本 jump-threading，N）。
 // ===========================================================================
 // ORIG T 0x08a97637（mangled _Z19processModuleTagSetRiS_PSsib：int&,int& 形参）。
-bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
-                         int type, bool flag)
-{
-    type = 3;
-    bool subMatched = false;
-    moduleId = -1;
-    subId = -1;
-    int i = 0;
-    for (; i <= 0x10; ++i)
-    {
-        if (*tag == g_moduleNameTag[i][0] ||
-            *tag == g_moduleNameTag[i][1])
-        {
-            moduleId = i;
-            subMatched = (*tag == g_moduleNameTag[i][1]);
-            if (i != type && type <= 0x10)
-            {
-                // 操作数序 [i] 左 [type] 右：4.4 二元比较 RHS 先求值 ⇒
-                // type 槽先装载，与 ORIG 6f5-6fa（mov KE;shl3;lea/mov SE;shl3）
-                // 行序一致。
-                if (g_moduleNameTag[i][0] == g_moduleNameTag[type][0])
-                    moduleId = type;
-            }
-            break;
-        }
-    }
-
-    if (moduleId != -1)
-    {
-        if (moduleId == type)
-        {
-            if (!subMatched)
-                subId = type;
-        }
-        else if (g_moduleNameTag[moduleId][0] == "[dungeon]")
-        {
-            if (!subMatched)
-            {
-                subId = 3;
-                LogManager::logFormat(0, "../RDARScriptSkill.cpp",
-                                      __FUNCTION__, 0xc0,
-                                      "skillscript separating : \xbc\xba\xb0\xf8 : \xb1\xe2\xba\xbb\xb0\xaa \xb8\xf0\xb5\xe2\xc5\xc2\xb1\xd7\xc0\xcc\xb9\xc7\xb7\xce \xc1\xf8\xc7\xe0 tag %s",
-                                      tag->c_str());
-            }
-        }
-        else if (g_moduleNameTag[moduleId][0] == "[pvp]")
-        {
-            // ORIG 8a97810..8a9782a：`cmpl $9;je;cmpl $5;jne;mov $1,%eax;jmp;
-            // mov $0,%eax;test %al,%al;je` —— 4.1 -O0 对 `||` 条件先**物化 bool 到
-            // %al 再测试**（无栈槽，P0 ⇒ 原码无具名局部）。4.4 两形实测：
-            // ①具名 bool（本形）恒落槽 `mov %al,-0xf;cmpb $0,-0xf`（214 条，gap +1）；
-            // ②P226 语句表达式 `({type==9||type==5;})` 被前端整折为
-            //   `cmpl $9;je;cmpl $5;jne`（208 条，gap −5，无物化段）。
-            // 无第三形可复现 4.1 的「物化但零槽」（P0：非 call 结果的纯比较在 4.4
-            // -O0 恒折直跳）⇒ N（跨版本 if 条件 bool 物化；与 setcc-fold 同族）。
-            bool hit = (type == 9 || type == 5);
-            if (hit)
-                subId = 4;
-        }
-        else
-        {
-            bool foundSub = false;
-            bool matched;
-            for (;;)
-            {
-                ScanType(*tag, false);
-                matched = false;
-                for (int j = 0; j <= 0x10; ++j)
-                {
-                    if (*tag == g_moduleNameTag[moduleId][1])
-                    {
-                        foundSub = true;
-                        matched = true;
-                        break;
-                    }
-                }
-                if (matched)
-                    break;
-            }
-            if (!foundSub)
-            {
-                LogManager::logFormat(0, "../RDARScriptSkill.cpp",
-                                      __FUNCTION__, 0xf3,
-                                      "ERROR : skillscript separating : \xbf\xa1\xb7\xaf : \xc0\xdf\xb8\xf8\xb5\xc8 \xb8\xf0\xb5\xe2\xb1\xb8\xba\xd0\xc5\xc2\xb1\xd7 \xbb\xe7\xbf\xeb %s",
-                                      tag->c_str());
-            }
-            return 0;
-        }
-    }
-
-    if (subMatched)
-        return 0;
-    if (!flag && moduleId != -1)
-        ScanType(*tag, false);
-    return 1;
+#include "LinkMiscSecuTimerSolo/processModuleTagSet.inc"
 }
 
 // processModuleTagSet(std::string*, int&)  ORIG T 0x0896a87b（RDARScriptSkill.cpp）
@@ -308,37 +170,12 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
 // 表达式在 4.4.7 下不产生该形态。[5][2] 形整函数 438 条与 ORIG 逐条对位
 // （/tmp/pt2.md diff 仅剩 guard 数据地址与字面量常量，AE 口径归一）。
 // ===========================================================================
-bool processModuleTagSet(std::string* tag, int& out)
-{
-    static const std::string moduleNameTag[5][2] = {
-        {"[expert job none]", "[/expert job none]"},
-        {"[magic enchant]",   "[/magic enchant]"},
-        {"[alchemist]",       "[/alchemist]"},
-        {"[disjointer]",      "[/disjointer]"},
-        {"[doll controller]", "[/doll controller]"}
-    };
-    for (int i = 1; i <= 4; ++i)
-    {
-        if (*tag == moduleNameTag[i][0])
-        {
-            out = i;
-            return 0;
-        }
-        if (*tag == moduleNameTag[i][1])
-            return 0;
-    }
-    return 1;
+#include "LinkMiscSecuTimerSolo/processModuleTagSet_1.inc"
 }
 // GetLinearDataForMonsterAbility  ORIG T 0x08891bae
 // diff>=span → high；diff<=0 → low；否则 low + (high-low)*diff/span。
 // ===========================================================================
-int GetLinearDataForMonsterAbility(int low, int high, int diff, int span)
-{
-    if (diff >= span)
-        return high;
-    if (diff <= 0)
-        return low;
-    return low + (high - low) * diff / span;
+#include "LinkMiscSecuTimerSolo/GetLinearDataForMonsterAbility.inc"
 }
 
 // ===========================================================================
@@ -393,12 +230,7 @@ __attribute__((weak)) competition_reward_result::competition_reward_result() thr
 // 嵌套 if 形（非 && 短路）：4.4.7 对 `if (a && b) return true;` 会追加 bool
 // 物化尾块（+5），ORIG 21 条为统一 leave 双失败出口，嵌套写形与其逐条一致。
 // ===========================================================================
-bool user_creature::CCreatureMgr::CheckDiedCreature()
-{
-    if (m_equippedCreature != 0)
-        if (m_equippedCreature->CheckDiedCreature(m_user))
-            return true;
-    return false;
+#include "LinkMiscSecuTimerSolo/CheckDiedCreature.inc"
 }
 
 // ===========================================================================
@@ -417,49 +249,21 @@ bool user_creature::CCreatureMgr::CheckDiedCreature()
 // fcomi 系。按 Main 路由纪律本波不改 dnf_game_cxx.sh，故现路由下仍记 DIFF(N85)，
 // 已把该 TU 列入「4.4.6/i486 路由变更后优先复测」清单。
 // ===========================================================================
-void GetMarketConditionRate(double rate, double amount, double* arr,
-                            int nCount, int& outIdx, double& outRate)
-{
-    outIdx = 0;
-    outRate = 1.0;
-    for (outIdx = 0; outIdx <= 4; outIdx = outIdx + 1)
-    {
-        if (arr[outIdx] * rate > amount)
-            break;
-    }
-    if (nCount + 1 < outIdx)
-    {
-        outIdx = nCount + 1;
-    }
-    if (outIdx != 0)
-    {
-        int idx = outIdx + 4;
-        outRate = arr[idx];
-    }
+#include "LinkMiscSecuTimerSolo/GetMarketConditionRate.inc"
 }
 
 // ===========================================================================
 // MakeNotiSetDurability  ORIG T 0x082f84f8：header(0,0xb3) + put_int + finalize(1)。
 // ===========================================================================
-void MakeNotiSetDurability(PacketGuard& packet, int value)
-{
-    packet.put_header(0, 0xb3);
-    packet.put_int(value);
-    packet.finalize(true);
+#include "LinkMiscSecuTimerSolo/MakeNotiSetDurability.inc"
 }
 
 // SendNotiSetDurability(int)  ORIG T 0x082f8540：广播耐久度比率包。
-void CAutoMarketConditionsControl::SendNotiSetDurability(int value)
-{
-    PacketGuard packet;
-    MakeNotiSetDurability(packet, value);
-    G_GameWorld()->send_all(packet);
+#include "LinkMiscSecuTimerSolo/SendNotiSetDurability.inc"
 }
 
 // SendNotiSetDurability()  ORIG T 0x082f85a8：m_durCurrent*100 转 int 后广播。
-void CAutoMarketConditionsControl::SendNotiSetDurability()
-{
-    SendNotiSetDurability(static_cast<int>(m_durCurrent * 100.0));
+#include "LinkMiscSecuTimerSolo/SendNotiSetDurability_1.inc"
 }
 
 // ===========================================================================
@@ -477,26 +281,7 @@ public:
                             int e, int f, int g);
 };
 
-void DB_UpdateAutoMarketConditionsControl::makeRequest(
-    unsigned long long a, unsigned long long b, unsigned long long c,
-    unsigned long long d, int e, int f, int g)
-{
-        CStreamGuard guard(
-            GlobalData::s_stream_pool->Acquire("../RDARScript.cpp", 0x7c79), true);
-        guard.operator*()->operator<<(0x15b);
-        guard.operator*()->operator<<(-1);
-        SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL* sig =
-            guard->GetInBuffer<SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL>();
-        // 具名字段（SecuLink 批次裸偏移清理；SigTypes_E.h m_values0/m_values20
-        // 布局，写侧 ORIG 0x08433d70 宽度：4×8B + 3×4B）。
-        sig->m_values0[0] = a;
-        sig->m_values0[1] = b;
-        sig->m_values0[2] = c;
-        sig->m_values0[3] = d;
-        sig->m_values20[0] = e;
-        sig->m_values20[1] = f;
-        sig->m_values20[2] = g;
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+#include "LinkMiscSecuTimerSolo/makeRequest.inc"
 }
 
 // ===========================================================================
@@ -540,91 +325,7 @@ void DB_UpdateAutoMarketConditionsControl::makeRequest(
 // 构造 header(0,0x45) + byte(noti) + short(eventIdx) + short(interval) 包；
 // user 为空广播全服（GameWorld::send_all），否则单发（CUser::Send）。
 // ===========================================================================
-void Inter_MonitorServerEventStart::SendEventNotiPacket(bool noti,
-                                                        short eventIdx,
-                                                        short interval,
-                                                        CUser* user)
-{
-    PacketGuard packet;
-    packet.put_header(0, 0x45);
-    packet.put_byte(noti);
-    packet.put_short((int)eventIdx);
-    packet.put_short((int)interval);
-    packet.finalize(true);
-    if (user == 0)
-        G_GameWorld()->send_all(packet);
-    else
-        user->Send(packet);
+#include "LinkMiscSecuTimerSolo/SendEventNotiPacket.inc"
 }
-int CAutoMarketConditionsControl::LoadDatabase(
-    SIG_AUTO_MARKET_CONDITIONS_CONTROL* msg)
-{
-    long long base = 0;
-    if (msg->m_view.m_flag != 0)
-    {
-        base = msg->m_view.m_overGold;
-    }
-    else
-    {
-        base = (msg->m_view.m_rows[1].m_totalGold +
-                msg->m_view.m_rows[1].m_auctionGold) -
-               (msg->m_view.m_rows[0].m_totalGold +
-                msg->m_view.m_rows[0].m_auctionGold) +
-               msg->m_view.m_rows[0].m_overGold;
-    }
-
-    GetMarketConditionRate(
-        static_cast<double>(msg->m_view.m_optimumGold),
-        static_cast<double>(base), m_goldRate,
-        msg->m_view.m_rows[0].m_goldPhase, m_field00, m_goldBaseRate);
-    GetMarketConditionRate(
-        static_cast<double>(msg->m_view.m_optimumGold),
-        static_cast<double>(base), m_equipProb,
-        msg->m_view.m_rows[0].m_itemPhase, m_field380, m_equipProbBase);
-    GetMarketConditionRate(
-        static_cast<double>(msg->m_view.m_optimumGold),
-        static_cast<double>(base), m_durRate,
-        msg->m_view.m_rows[0].m_durabilityPhase, m_field3e8, m_durCurrent);
-
-    if (msg->m_view.m_rows[0].m_durabilityPhase != m_field3e8)
-        SendNotiSetDurability();
-
-    int durNow = m_field3e8;    // ORIG -0x64（ctor 前具名槽）
-    int equipNow = m_field380;  // ORIG -0x60
-    // ORIG ctor call 前把余下三个变参读入 callee-saved（1df edi=this[0]、
-    // 1e4 ebx=msg+8、1e7 esi=msg+c）跨调用保活（P87/P37 形；寄存器归属
-    // 差异记 N7）。
-    register int field00Now = m_field00;
-    // ORIG 1e4/1e7 为**单次基址装载**读入 callee-saved 对（`mov 0xc(%ebp),%eax;
-    // mov 0x8(%eax),%ebx; mov 0xc(%eax),%esi`）。两个 32 位独立视图读各发一次
-    // 基址装载（+1 条 = 残差①）；改 `register unsigned long long` + `>>32` 拆字
-    // 实测更劣（252 vs ORIG 246）⇒ 回退。**[b28e 补测 P227 全表达式临时链
-    // （`cMyTrace(...)(...)` 构造即调用）]：fresh 读数 248 条 / 帧仍 `sub $0xac`
-    // / 四数 4/30/0/5 全不变 ⇒ 对「ctor 前求值 + 单次基址装载」无改善，回退**；
-    // 该段（含槽差 -0x30 vs ORIG -0x28、帧 +0x10）判 N80/N82 封顶。
-    register unsigned int optGoldLo = msg->m_view.m_optimumGoldWords[0];
-    register unsigned int optGoldHi = msg->m_view.m_optimumGoldWords[1];
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0xae, 0);
-    trace("LoadDatabase() %qd %u %d %d %d",
-          base,
-          optGoldLo,
-          static_cast<int>(optGoldHi),
-          field00Now, equipNow, durNow);
-
-    long long diff = base - msg->m_view.m_optimumGold;
-    if (diff < 0)
-        diff = 0;
-
-    if (G_CEnvironment()->get_channel_no() == 1)
-    {
-        DB_UpdateAutoMarketConditionsControl::makeRequest(
-            msg->m_view.m_rows[1].m_totalGold,
-            msg->m_view.m_rows[1].m_auctionGold,
-            diff,
-            msg->m_view.m_optimumGold,
-            m_field00, m_field380, m_field3e8);
-    }
-    return 0;
+#include "LinkMiscSecuTimerSolo/LoadDatabase.inc"
 }

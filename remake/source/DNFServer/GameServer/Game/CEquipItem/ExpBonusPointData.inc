@@ -1,0 +1,1 @@
+ExpBonusPointData::ExpBonusPointData() { clear(); }

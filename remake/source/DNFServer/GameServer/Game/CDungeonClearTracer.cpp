@@ -1,84 +1,51 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CDungeonClearTracer/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CDungeonClearTracer（G2 副本链）。
 // 逐函数对照 docs/class_func_reports/CDungeonClearTracer.md 与 ORIG 反汇编实现。
 #include "CDungeonClearTracer.h"
 
 #include "GameTypes.h"
 
-void CDungeonClearTracer::SetMapId(int v)
-{
-    m_mapId = v;
+#include "CDungeonClearTracer/SetMapId.inc"
 }
 
-void CDungeonClearTracer::SetMaxBossCount(int v)
-{
-    m_maxBossCount = v;
+#include "CDungeonClearTracer/SetMaxBossCount.inc"
 }
 
-void CDungeonClearTracer::SetKilledBossCount(int v)
-{
-    m_killedBossCount = v;
+#include "CDungeonClearTracer/SetKilledBossCount.inc"
 }
 
-void CDungeonClearTracer::SetMaxMonsterCount(int v)
-{
-    m_maxMonsterCount = v;
+#include "CDungeonClearTracer/SetMaxMonsterCount.inc"
 }
 
-void CDungeonClearTracer::SetKilledMonsterCount(int v)
-{
-    m_killedMonsterCount = v;
+#include "CDungeonClearTracer/SetKilledMonsterCount.inc"
 }
 
-void CDungeonClearTracer::SetClearedDungeon(bool v)
-{
-    m_clearedDungeon = v;
+#include "CDungeonClearTracer/SetClearedDungeon.inc"
 }
 
-void CDungeonClearTracer::SetEndPoint(bool v)
-{
-    m_endPoint = v;
+#include "CDungeonClearTracer/SetEndPoint.inc"
 }
 
-void CDungeonClearTracer::IncrementKilledBossCount()
-{
-    m_killedBossCount = m_killedBossCount + 1;
+#include "CDungeonClearTracer/IncrementKilledBossCount.inc"
 }
 
-void CDungeonClearTracer::IncrementKilledMonsterCount()
-{
-    m_killedMonsterCount = m_killedMonsterCount + 1;
+#include "CDungeonClearTracer/IncrementKilledMonsterCount.inc"
 }
 
-bool CDungeonClearTracer::IsKilledBoss()
-{
-    if (m_killedBossCount > 0 && m_killedBossCount >= m_maxBossCount)
-    {
-        return true;
-    }
-    return false;
+#include "CDungeonClearTracer/IsKilledBoss.inc"
 }
 
-void CDungeonClearTracer::Reset()
-{
-    m_mapId = 0;
-    m_maxBossCount = 0;
-    m_killedBossCount = 0;
-    m_maxMonsterCount = 0;
-    m_killedMonsterCount = 0;
-    m_clearedDungeon = 0;
-    m_endPoint = 0;
+#include "CDungeonClearTracer/Reset.inc"
 }
 
-void CDungeonClearTracer::Trace(const char* name)
-{
-    if (IsKilledBoss())
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0x108, 0)(
-            "FUNC(%s) Map ID(%d), Boss(%d/%d), Monster(%d/%d) Cleared(%d), "
-            "End Point(%d)\n",
-            name, m_mapId, m_killedBossCount, m_maxBossCount,
-            m_killedMonsterCount, m_maxMonsterCount, m_clearedDungeon,
-            m_endPoint);
-    }
-    Reset();
+#include "CDungeonClearTracer/Trace.inc"
 }

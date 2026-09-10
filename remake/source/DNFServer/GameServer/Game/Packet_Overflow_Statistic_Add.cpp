@@ -1,12 +1,17 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Packet_Overflow_Statistic_Add/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // LinkHelper 核销批次 —— Packet_Overflow_Statistic_Add ctor（ORIG W @0x0822bdf0 objdump 逐指令转写）。
 // ============================================================================
 #include "Packet_Overflow_Statistic_Add.h"
 
-Packet_Overflow_Statistic_Add::Packet_Overflow_Statistic_Add()
-    // b28c-33 真语义 bug 修复：ORIG 0x0822bdf0 为 `movl $0xd,0x8(%esp);
-    // movl $0xc43,0x4(%esp)` ⇒ 第 1 实参=packetId=0xc43、第 2 实参=packetSize=0xd；
-    // 原写法两参颠倒。
-    : PacketHeader(0xc43, 0xd)
-{
+#include "Packet_Overflow_Statistic_Add/Packet_Overflow_Statistic_Add.inc"
 }

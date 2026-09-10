@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 UsedFatigueRewardItem/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // UsedFatigueRewardItem::Data —— ORIG W C1 @0x081a40a0 / D1 @0x081a6bf4
 // （objdump 逐指令转写；无独立 md 报告，证据见头注释与
 //  docs/class_func_reports/UsedFatigueRewardItem/{parsing,find}.md）
@@ -24,73 +34,18 @@
 // GetString(0,"flag")=="true" → m_enable=1；Load(path,"item_reward") 失败返
 // 0xac、GetRowNum()==0 返 0xaf；逐行 GetInt("fatigue"/"item_count"/"item_id")
 // + GetString("message"/"title") 填 Data 后 push_back；成功返 0。
-int UsedFatigueRewardItem::parsing(char* path)
-{
-    Arad_Script script;
-    if (!script.Load(path, "on_off"))
-        return 0xa1;
-    if (script.GetRowNum() == 0)
-        return 0xa4;
-
-    m_enable = false;
-    std::string flag(script.GetString(0, "flag"),
-                     std::allocator<char>());   // ORIG SaIcC1+SsC1(ptr,alloc)
-    if (flag == std::string("true"))            // ORIG string==string（构造临时）
-        m_enable = true;
-
-    if (!script.Load(path, "item_reward"))
-        return 0xac;
-    if (script.GetRowNum() == 0)
-        return 0xaf;
-
-    for (int i = 0; i < script.GetRowNum(); ++i)
-    {
-        Data d;
-        d.m_begin = (short)script.GetInt(i, "fatigue");
-        d.m_end = (short)script.GetInt(i, "item_count");
-        d.m_id = script.GetInt(i, "item_id");
-        strncpy(d.m_str, script.GetString(i, "message"), 0xff);
-        strncpy(d.m_name, script.GetString(i, "title"), 0x10);
-        m_data.push_back(d);
-    }
-    return 0;
+#include "UsedFatigueRewardItem/parsing.inc"
 }
 
 // ORIG T 0x081a28e4：遍历 m_data，命中 m_begin<=low 且 high<m_end（开区间）
 // 的项：复制 m_begin/m_id/m_end；m_name 经 findString(4,...) 解析后
 // strncpy 0x14；m_str 经 findString(4,...) 解析后 strncpy 0xff；返 1。
 // 未命中返 0。
-int UsedFatigueRewardItem::find(int low, int high, Data& out)
-{
-    // [b28c-30] ORIG 0x081a28e4：end() 在循环外求值一次落 -0xc（P13 end 缓存），
-    // begin() 落 -0x10；原形每轮重调 m_data.end() 且槽序相反。
-    std::vector<Data>::iterator itEnd = m_data.end();
-    for (std::vector<Data>::iterator it = m_data.begin(); it != itEnd; ++it)
-    {
-        if (it->m_begin >= low && it->m_begin < high)   // ORIG 两次 movzwl (%eax)：low/high 均对 m_begin
-        {
-            out.m_begin = it->m_begin;
-            out.m_id = it->m_id;
-            out.m_end = it->m_end;
-            strncpy(out.m_name,
-                    g_scriptStringManager_.findString(4, it->m_name, 0), 0x14);
-            strncpy(out.m_str,
-                    g_scriptStringManager_.findString(4, it->m_str, 0), 0xff);
-            return 1;
-        }
-    }
-    return 0;
+#include "UsedFatigueRewardItem/find.inc"
 }
 
-UsedFatigueRewardItem::Data::Data()
-{
-    m_begin = 0;
-    m_end = 0;
-    m_id = 0;
-    memset(m_str, 0, sizeof(m_str));
-    memset(m_name, 0, sizeof(m_name));
+#include "UsedFatigueRewardItem/Data.inc"
 }
 
-UsedFatigueRewardItem::Data::~Data()
-{
+#include "UsedFatigueRewardItem/dtor_Data.inc"
 }

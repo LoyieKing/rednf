@@ -1,0 +1,3 @@
+STCharacterScript::STCharacterScript()
+{
+    Clear();

@@ -1,0 +1,2 @@
+CAutoMarketConditionsControl::~CAutoMarketConditionsControl()
+{

@@ -1,0 +1,2 @@
+BattleData::~BattleData()
+{

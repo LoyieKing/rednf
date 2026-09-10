@@ -1,0 +1,2 @@
+CAuctionServerProxy::~CAuctionServerProxy()
+{

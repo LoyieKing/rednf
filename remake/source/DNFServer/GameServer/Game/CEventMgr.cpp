@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CEventMgr/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // WongWork::CEventMgr 实现 —— 严格转写 ORIG df_game_r：
 //   _IsEventing            0x0848ef0c（docs/class_func_reports/WongWork__CEventMgr/_IsEventing.md）
 //   GetPremiumServiceBonus 0x0848f078（同目录 GetPremiumServiceBonus.md）
@@ -17,7 +27,7 @@
 // in_time 仅给前置声明（纯 extern 声明不参与键名，P327）。零语义/布局改动。
 #include <iostream>
 
-bool in_time(struct tm* begin, struct tm* end);   // 前置声明（P327 不参与 GI 键名）
+#include "CEventMgr/in_time.inc"
 
 namespace WongWork
 {
@@ -25,47 +35,7 @@ namespace WongWork
 // ---- ORIG @0x0848ef0c ------------------------------------------------------
 // begin.tm = {year-1900, mon-1, mday, hour}；end 同构；
 // in_time 通过后：EVENT_WEEKEND 时再要求 localtime_r(now).tm_wday ∈ {0,6}。
-bool CEventMgr::_IsEventing(int startYear, int startMon, int startDay, int startHour,
-                            int endYear, int endMon, int endDay, int endHour,
-                            EVENT_TYPE type)
-{
-    struct tm endTm;
-    struct tm begin;
-    memset(&endTm, 0, sizeof(struct tm));   // ORIG memset 0x2c == sizeof(tm)@i386
-    memset(&begin, 0, sizeof(struct tm));
-
-    begin.tm_year = startYear - 1900;       // ORIG sub $0x76c
-    begin.tm_mon  = startMon - 1;
-    begin.tm_mday = startDay;
-    begin.tm_hour = startHour;
-
-    endTm.tm_year = endYear - 1900;
-    endTm.tm_mon  = endMon - 1;
-    endTm.tm_mday = endDay;
-    endTm.tm_hour = endHour;
-
-    // ORIG Ghidra 形态：cVar1 = in_time(&begin,&end); if (cVar1) {
-    //   if (type != EVENT_WEEKEND) return 1;
-    //   local_14 = CSystemTime::getCurSec(&GlobalData::s_systemTime_);
-    //   ptVar2 = localtime_r(&local_14,&local_98);
-    //   if (ptVar2->tm_wday==0 || ptVar2->tm_wday==6) return 1; }
-    // return 0;
-    if (in_time(&begin, &endTm))
-    {
-        if (type == EVENT_WEEKEND)
-        {
-            time_t now = (time_t)GlobalData::s_systemTime_.getCurSec();
-            struct tm cur;
-            struct tm* pcur = localtime_r(&now, &cur);
-            if ((pcur->tm_wday == 0) || (pcur->tm_wday == 6))
-                return true;
-        }
-        else
-        {
-            return true;
-        }
-    }
-    return false;
+#include "CEventMgr/_IsEventing.inc"
 }
 
 } // namespace WongWork（_IsEventing 前移段结束）
@@ -73,12 +43,7 @@ bool CEventMgr::_IsEventing(int startYear, int startMon, int startDay, int start
 // ---- ORIG @0x086b1d86 _Z7in_timeP2tmS0_ ------------------------------------
 // t1 = mktime(begin); t2 = mktime(end); now = time(NULL);
 // return now >= t1 && now < t2;
-bool in_time(struct tm* begin, struct tm* end)
-{
-    time_t t1 = mktime(begin);
-    time_t t2 = mktime(end);
-    time_t now = time(NULL);
-    return (now >= t1 && now < t2);
+#include "CEventMgr/in_time_1.inc"
 }
 
 namespace WongWork
@@ -86,15 +51,7 @@ namespace WongWork
 
 // ---- ORIG @0x0848f078 ------------------------------------------------------
 // GetPremiumServiceBonus: _IsEventing(2006,1,2,0, 2006,1,11,0, EVENT_PLAIN) ? 7 : 0
-int CEventMgr::GetPremiumServiceBonus()
-{
-    if (_IsEventing(2006, 1, 2, 0,
-                    2006, 1, 11, 0,
-                    EVENT_PLAIN))
-    {
-        return 7;
-    }
-    return 0;
+#include "CEventMgr/GetPremiumServiceBonus.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -103,15 +60,7 @@ int CEventMgr::GetPremiumServiceBonus()
 // （ORIG 栈 movl 常量序：(esp)=0x7d6,(4)=5,(8)=5,(c)=6,(10)=0x7d6,
 //   (14)=5,(18)=8,(1c)=6,(20)=EVENT_TYPE(0)）
 // ---------------------------------------------------------------------------
-bool CEventMgr::IsChildrensDayEventing()
-{
-    if (_IsEventing(0x7d6, 5, 5, 6,
-                    0x7d6, 5, 8, 6,
-                    EVENT_PLAIN))
-    {
-        return true;
-    }
-    return false;
+#include "CEventMgr/IsChildrensDayEventing.inc"
 }
 
 } // namespace WongWork

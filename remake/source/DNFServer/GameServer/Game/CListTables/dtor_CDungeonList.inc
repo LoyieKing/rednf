@@ -1,0 +1,3 @@
+CDungeonList::~CDungeonList()
+{
+    destroy();

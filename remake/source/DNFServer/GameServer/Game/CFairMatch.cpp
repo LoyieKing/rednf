@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CFairMatch/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— fair_pvp::CFairMatch 生命周期 + 轻量组 &
 //            fair_pvp::TeamInfoThird 全方法
 // 权威头：CFairMatch.h（勿在此重复类定义）。
@@ -43,28 +53,17 @@ bool CFairMatch::bMatchable_ = true;
 // ORIG C1/C2 0x85668ff0（W）：仅对 4 个 PlayerInfoThird 子对象做默认构造
 // （esi=3 递减循环 call PlayerInfoThird::C1）；不动 m_field00/m_field04
 // （由 reset 显式置值）。编译器自动为 m_players[4] 逐个调用 PlayerInfoThird()。
-TeamInfoThird::TeamInfoThird()
-{
+#include "CFairMatch/TeamInfoThird.inc"
 }
 
 // ORIG reset 0x8562582：清玩家数组后 m_field00=0、m_field04=2。
 // reset 置于 PlayerInfoThird::reset 定义前：callee 未知时 4.4 outgoing 保守
 // 分配恰为 ORIG 帧 0x28（定义在后则继承 callee 小帧 0x14，槽号连带漂移）。
-void TeamInfoThird::reset()
-{
-    for (int i = 0; i < 4; ++i)
-        m_players[i].reset();
-    m_field00 = 0;
-    m_field04 = 2;
+#include "CFairMatch/reset.inc"
 }
 
 // ORIG 仅清 +0x00/+0x04(1B)/+0x08/+0x0c；+0x05 的 CharacterKind m_kind 不初始化。
-void PlayerInfoThird::reset()
-{
-    m_user = 0;
-    m_flag = 0;
-    m_pvpGrade = 0;
-    m_rating = 0.0f;
+#include "CFairMatch/reset_1.inc"
 }
 
 // ORIG add 0x85625c6：首个空位（m_flag==0）写入；满返 0，成功返 1。
@@ -76,74 +75,24 @@ void PlayerInfoThird::reset()
 // int) / (unsigned char)(int) / (int) RHS / (unsigned int) RHS / (unsigned short) /
 // &0xff / *1u / +0 / 裸语句表达式 / 具名语句表达式[劣化75]），callee 侧旋钮需改
 // CUserCharacInfo 返回类型（跨 .cpp，单文件铁律外）⇒ 已上报 Main。
-int TeamInfoThird::add(CUser* user)
-{
-    for (int i = 0; i < 4; ++i)
-    {
-        if (!m_players[i].m_flag)
-        {
-            m_players[i].m_flag = true;
-            m_players[i].m_user = user;
-            m_players[i].m_kind.m_job = (unsigned char)user->get_charac_job();
-            m_players[i].m_kind.m_grow = user->getCurCharacGrowType();
-            m_players[i].m_pvpGrade = user->get_pvp_grade();
-            m_players[i].m_rating = user->GetRating();
-            return 1;
-        }
-    }
-    return 0;
+#include "CFairMatch/add.inc"
 }
 
 // ORIG del 0x85626aa：命中占用且指针相等者清 flag，返 1；否则返 0。
-int TeamInfoThird::del(CUser* user)
-{
-    for (int i = 0; i < 4; ++i)
-    {
-        if (m_players[i].m_flag != 0 && m_players[i].m_user == user)
-        {
-            m_players[i].m_flag = 0;
-            return 1;
-        }
-    }
-    return 0;
+#include "CFairMatch/del.inc"
 }
 
 // ORIG refresh 0x85624de：重算每人 rating（未占用/空指针者清零）；
 // 之后与 reset 相同置 m_field00=0、m_field04=2。
-void TeamInfoThird::refresh()
-{
-    int deadSlot = 0;  // ORIG -0x10 死槽（0x85624e5 movl $0x0 初始化后未读）
-    for (int i = 0; i < 4; ++i)
-    {
-        if (m_players[i].m_flag != 0 && m_players[i].m_user != 0)
-            m_players[i].m_rating = m_players[i].m_user->GetRating();
-        else
-            m_players[i].m_rating = 0.0f;
-    }
-    m_field00 = 0;
-    m_field04 = 2;
+#include "CFairMatch/refresh.inc"
 }
 
 // ORIG size 0x856270c（const）：统计占用槽位数。
-int TeamInfoThird::size() const
-{
-    int count = 0;
-    for (int i = 0; i < 4; ++i)
-    {
-        if (m_players[i].m_flag != 0)
-            ++count;
-    }
-    return count;
+#include "CFairMatch/size.inc"
 }
 
 // ORIG SendToTeam 0x856274c：向全员 CUser::Send(PacketGuard&)。
-void TeamInfoThird::SendToTeam(PacketGuard& pkt)
-{
-    for (int i = 0; i < 4; ++i)
-    {
-        if (m_players[i].m_flag != 0 && m_players[i].m_user != 0)
-            m_players[i].m_user->Send(pkt);
-    }
+#include "CFairMatch/SendToTeam.inc"
 }
 
 // ORIG GetTeamRating 0x85627b2：非零 rating 求平均，全零返 0。
@@ -157,19 +106,7 @@ void TeamInfoThird::SendToTeam(PacketGuard& pkt)
 // `#pragma GCC target("i486")` 实测报 attribute 未知）⇒ 已上报 Main；Main 已将
 // *Game/CFairMatch.cpp 加入 i486 路由组（dnf_game_cxx.sh L355，P230 补先例），
 // check_tu_routed 复验该件 AE（TU ae 24→25 / diff 3→2）。
-float TeamInfoThird::GetTeamRating()
-{
-    float sum = 0.0f;
-    int count = 0;
-    for (int i = 0; i < 4; ++i)
-    {
-        sum += m_players[i].m_rating;
-        if (m_players[i].m_rating != 0.0f)
-            ++count;
-    }
-    if (count != 0)
-        sum = sum / (float)count;
-    return sum;
+#include "CFairMatch/GetTeamRating.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -179,27 +116,13 @@ float TeamInfoThird::GetTeamRating()
 // ORIG C1/C2 0x856284a：IMatch 基类、PVP_ROOM_INFO@+8 与 TeamInfoThird[2]@+0x1c
 // 子对象由默认初始化完成（vptr 同步）；随后延迟单例化 CMultiMatchRoomList 并
 // 引用计数++；最后 m_fieldC0=0。
-CFairMatch::CFairMatch()
-{
-    if (pWaitingRoomList_ == 0)
-    {
-        pWaitingRoomList_ = new CMultiMatchRoomList();
-    }
-    ++nWaitingRoomListRefCount_;
-    m_fieldC0 = 0;
+#include "CFairMatch/CFairMatch.inc"
 }
 
 // ORIG D1/D2 0x856292e / D0 0x85629ca。
 // 体：引用计数--并在归零且单例仍存活时 delete；m_fieldC0=0。
 // （ORIG 尾部 operator delete(this) 仅出现在 D0，由编译器按虚析构语义生成。）
-CFairMatch::~CFairMatch()
-{
-    --nWaitingRoomListRefCount_;
-    if (pWaitingRoomList_ != 0 && nWaitingRoomListRefCount_ == 0)
-    {
-        ::operator delete(pWaitingRoomList_);
-    }
-    m_fieldC0 = 0;
+#include "CFairMatch/dtor_CFairMatch.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -212,38 +135,23 @@ CFairMatch::~CFairMatch()
 // 改结构整体赋值 `*(TeamInfoThird*)out = m_teams[0]` 触发 4.4 发射同形
 // rep movsl 三件套缓存（探针 /tmp/l2_p5.cpp z2：dst→edi/src→esi/count→ecx，
 // 与 ORIG `mov $0x12,%eax; lea 0x1c(%eax),%ebx` 结构一致）。语义不变。
-void CFairMatch::GetUserList(void* out)
-{
-    *reinterpret_cast<TeamInfoThird*>(out) = m_teams[0];
+#include "CFairMatch/GetUserList.inc"
 }
 
 // ORIG RequestMap 0x8562bae：mapNo=0；mode!=6 时取 CDataManager::GetPvPMode。
-void CFairMatch::RequestMap(short& mapNo, PVP_BATTLE_MODE& mode)
-{
-    mapNo = 0;
-    if ((int)mode != 6)
-    {
-        mode = (PVP_BATTLE_MODE)G_CDataManager()->GetPvPMode();
-    }
+#include "CFairMatch/RequestMap.inc"
 }
 
 // ORIG OnStartFight 0x8564952：状态机 +4 置 5（对战中）。
-void CFairMatch::OnStartFight()
-{
-    m_field04 = 5;
+#include "CFairMatch/OnStartFight.inc"
 }
 
 // ORIG OnEndPvP 0x8565c4e：纯 ret。
-void CFairMatch::OnEndPvP(PvP_Room*)
-{
+#include "CFairMatch/OnEndPvP.inc"
 }
 
 // ORIG CheckSeat 0x8562b78。
-bool CFairMatch::CheckSeat(int a)
-{
-    if (a == 2)
-        return false;
-    return true;
+#include "CFairMatch/CheckSeat.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -251,14 +159,11 @@ bool CFairMatch::CheckSeat(int a)
 // ---------------------------------------------------------------------------
 
 // ORIG SetMatchAble 0x8562b96。
-void CFairMatch::SetMatchAble(bool able)
-{
-    bMatchable_ = able;
+#include "CFairMatch/SetMatchAble.inc"
 }
 
 // ORIG SetPlayCountPerOneTeam 0x8562b90：空体 ret。
-void CFairMatch::SetPlayCountPerOneTeam(unsigned int)
-{
+#include "CFairMatch/SetPlayCountPerOneTeam.inc"
 }
 
 // ORIG CheckUnusableEquipment 0x8562bdc：
@@ -273,77 +178,22 @@ void CFairMatch::SetPlayCountPerOneTeam(unsigned int)
 // 本机双后端实测均不可治：4.4.7 与 4.4.6（-B cc1plus446bin，含 4.4.6 头集）读数
 // 完全相同（identical=37 ae=24 near=1 diff=3）。虚槽 +0xc 已按 P193/P282 核对
 // _ZTV10CEquipItem vptr+0xc = CEquipItem::GetItemType 0x08514d26（语义正确）。
-int CFairMatch::CheckUnusableEquipment(const Inven_Item* item)
-{
-    if (item == 0)
-        return 0;
-
-    // ORIG *(int*)(param_1 + 2)：+0x02 m_addInfo（item idx）
-    // P0/P48：ORIG 无 itemIdx 槽往返——条件与 find_item 实参各独立读一次
-    //（0x08562bxx 两处 `mov 0x8(%ebp),%eax; mov 0x2(%eax),%eax`）。
-    if (item->m_addInfo == 0)
-        return 1;
-
-    // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（find_item /
-    // CheckUnusableEquipmentInfo / CheckUnusableItem 共 3 次）；equipType 也
-    // 不在比较与实参间缓存（GetUsableEquipmentType 共 2 次）。
-    CItem* found = G_CDataManager()->find_item(item->m_addInfo);
-    if (found == 0)
-        return 0;
-
-    // P59/P222 正极性（ORIG 0x8562c1x `call is_stackable; test %al; je` 直落
-    // 主流程；负极性多 xor $1）；P0：无 equip 具名局部，found 表达式直用。
-    if (found->is_stackable())
-        return 0;
-
-    if (static_cast<CEquipItem*>(found)->GetUsableEquipmentType() == 0)
-        return 1;
-
-    // P168a 裸形（ORIG 0x08562c9d/0x08562ce4 `xor $1; test %al; je`）：
-    // bool 返回 callee 用 `if (!call()) return 0;`。
-    if (!G_CDataManager()->m_serverParameter.CheckUnusableEquipmentInfo(
-            (ENUM_UNUSABLE_EQUIPMENT_TYPE)static_cast<CEquipItem*>(found)->GetUsableEquipmentType(),
-            found->getUsableLevel()))
-        return 0;
-    // ORIG vtable 槽 +0xc：CItem::GetItemType()
-    if (!G_CDataManager()->m_serverParameter.CheckUnusableItem(
-            (ENUM_EQUIPMENTTYPE)const_cast<const CItem*>(found)->GetItemType(),
-            (unsigned long)found->get_index()))
-        return 0;
-    return 1;
+#include "CFairMatch/CheckUnusableEquipment.inc"
 }
 
 // ORIG _GetOppositeTeam 0x8564f8c：1↔2，其余原样返回。
-int CFairMatch::_GetOppositeTeam(int team)
-{
-    switch (team)
-    {
-    case 1:
-        return 2;
-    case 2:
-        return 1;
-    default:
-        return team;
-    }
+#include "CFairMatch/_GetOppositeTeam.inc"
 }
 
 // ORIG _GetOtherTeam 0x8566476：0↔1，否则 2。
-ENUM_SCHOOL_MATCH_TEAM CFairMatch::_GetOtherTeam(ENUM_SCHOOL_MATCH_TEAM team)
-{
-    if (team == (ENUM_SCHOOL_MATCH_TEAM)0)
-        return (ENUM_SCHOOL_MATCH_TEAM)1;
-    if (team == (ENUM_SCHOOL_MATCH_TEAM)1)
-        return (ENUM_SCHOOL_MATCH_TEAM)0;
-    return (ENUM_SCHOOL_MATCH_TEAM)2;
+#include "CFairMatch/_GetOtherTeam.inc"
 }
 
 // ORIG W 0x08234f64：movzbl 0x5b 直返（m_giveItem 字节）。
 // [B24D判词 N] 语义正确：return m_giveItem（movzbl 0x5b 直返）。diff=ORIG GCC4.1
 //   冗余 `movzbl %al,%eax` 双零扩展 vs 我方单 movzbl（4.4 已优化），7/6 纯 lowering
 //   表示差异，语义等价。报告 NO 由 nm/objdump diff 兜底。
-int CFairPvPScore::GetGiveItem() const
-{
-    return m_giveItem;
+#include "CFairMatch/GetGiveItem.inc"
 }
 
 }  // namespace fair_pvp

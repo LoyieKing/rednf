@@ -1,0 +1,2 @@
+CKillMonsterInfo::~CKillMonsterInfo()
+{

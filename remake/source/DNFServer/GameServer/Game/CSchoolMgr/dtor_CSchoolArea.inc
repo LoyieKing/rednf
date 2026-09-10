@@ -1,0 +1,2 @@
+CSchoolArea::~CSchoolArea()
+{

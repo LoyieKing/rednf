@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CAuctionAveragePrice/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CAuctionAveragePrice（G2-4 批次）
 // 参照 docs/class_func_reports/CAuctionAveragePrice.md 与 ORIG 反汇编逐函数实现。
 // 原源文件 AuctionAveragePrice.cpp；数据表 auction_average_price。
@@ -52,85 +62,17 @@ private:
     unsigned char m_upgrade;
 };
 
-CAuctionAveragePrice::CAuctionAveragePrice()
-{
+#include "CAuctionAveragePrice/CAuctionAveragePrice.inc"
 }
 
-CAuctionAveragePrice::~CAuctionAveragePrice()
-{
+#include "CAuctionAveragePrice/dtor_CAuctionAveragePrice.inc"
 }
 
-bool CAuctionAveragePrice::LoadAveragePrice()
-{
-    MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_C, E_SERVER_GROUP_NONE);
-    mysql->set_query("seLect item_id,upgrade,average_price from auction_average_price");
-    if (!mysql->exec(true))
-    {
-        return false;
-    }
-    if (mysql->get_n_rows() == 0)
-    {
-        return true;
-    }
-
-    int itemID = 0;
-    int price = 0;
-    unsigned char upgrade = 0;
-    char local11 = 0;
-    unsigned int count;
-    for (count = 0; count < (unsigned int)mysql->get_n_rows(); ++count)
-    {
-        if (!mysql->fetch())
-        {
-            return false;
-        }
-        if (!mysql->get_int(0, itemID))
-        {
-            return false;
-        }
-        if (!mysql->get_ubyte(1, upgrade))
-        {
-            return false;
-        }
-        if (!mysql->get_int(2, price))
-        {
-            return false;
-        }
-        SetAveragePrice(itemID, upgrade, price);
-    }
-    return true;
+#include "CAuctionAveragePrice/LoadAveragePrice.inc"
 }
 
-void CAuctionAveragePrice::SetAveragePrice(int itemID, unsigned char upgrade, int price)
-{
-    std::map<int, std::vector<std::pair<unsigned char, int> > >::iterator it =
-        m_averagePriceMap.find(itemID);
-    if (it != m_averagePriceMap.end())
-    {
-        std::pair<unsigned char, int> p(upgrade, price);
-        it->second.push_back(p);
-    }
-    else
-    {
-        std::vector<std::pair<unsigned char, int> > vec;
-        std::pair<unsigned char, int> p(upgrade, price);
-        vec.push_back(p);
-        m_averagePriceMap.insert(std::make_pair(itemID, vec));
-    }
+#include "CAuctionAveragePrice/SetAveragePrice.inc"
 }
 
-int CAuctionAveragePrice::GetAveragePrice(int itemID, unsigned char upgrade) const
-{
-    std::map<int, std::vector<std::pair<unsigned char, int> > >::const_iterator it =
-        m_averagePriceMap.find(itemID);
-    if (it != m_averagePriceMap.end())
-    {
-        std::vector<std::pair<unsigned char, int> >::const_iterator pit =
-            std::find_if(it->second.begin(), it->second.end(), FindPrice(upgrade));
-        if (pit != it->second.end())
-        {
-            return pit->second;
-        }
-    }
-    return 0;
+#include "CAuctionAveragePrice/GetAveragePrice.inc"
 }

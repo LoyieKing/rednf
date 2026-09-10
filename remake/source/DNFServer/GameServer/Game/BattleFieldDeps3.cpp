@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 BattleFieldDeps3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— LinkClosureC 批次：CBattle_Field 电梯计时/技能材料统计、
 // ::stMapMonsterKillChecker_t 访问器。
 // ORIG 依据：
@@ -15,49 +25,16 @@
 // ++m_elevatorTimer(+0x139)；若 <4 且 m_elevatorState(+0x138)==2 →
 // gen_timer_key(0x28)+GetPartyIndex → InsertTimer(1, partyIdx, msg 0x28, 0xf, key, 0)；
 // 若 m_elevatorState==2 → send_elevator_time_packet(0)。
-void CBattle_Field::check_elevator_timer()
-{
-    ++m_elevatorTimer;
-
-    if (m_elevatorTimer < 4 && m_elevatorState == 2)
-    {
-        // P24/P52：key→esi、partyIdx→ebx 跨 call 缓存，G_TimerQueue 直通
-        // receiver——实参内联形（timerKey/partyIndex 无槽）。
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
-                                    m_party->GetPartyIndex(),
-                                    (TIMER_MESSAGE)0x28, 0xf,
-                                    m_party->gen_timer_key((TIMER_MESSAGE)0x28), 0);
-    }
-
-    if (m_elevatorState == 2)
-        send_elevator_time_packet(0);
+#include "BattleFieldDeps3/check_elevator_timer.inc"
 }
 
 //   → total += m_killChecker1.m_useSkillMaterialTime(+0x4c+0x00)。
 //   （ORIG 0830dea6 累加 -0xb4(%ebp)=MapInfo+0x4c=killChecker1 首字段；
 //    2026-08-30 Fix21_C 由 m_field14 修正）
-int CBattle_Field::GetTotalSkillMaterial()
-{
-    // ORIG 0x0830de27..0x0830de47 发射序：MapInfo::C1Ev(-0x100) → total=0(-0xc)
-    // → iterator::C1Ev(-0x14) → map::begin；-O0 按语句序发射，故 info 必须声明在
-    // total 之前（旧序 total→it→info 使三条初始化错位，本件唯一 DIFF 根因）。
-    MapInfo info;
-    int total = 0;
-    // b28d-lane25：P167 差集实证 ORIG 走 iterator C1Ev + MapInfo C1Ev/D1/aSERKS_
-    // ⇒ iterator 与 MapInfo 均在循环外"先声明"，循环内 info = it->second 赋值。
-    std::map<int, MapInfo>::iterator it;
-    for (it = m_mapInfo.begin(); it != m_mapInfo.end(); ++it)
-    {
-        info = it->second;
-        if (info.m_dummyBossMap != 1 && info.m_visited != 0)
-            total += info.m_killChecker1.m_useSkillMaterialTime;
-    }
-    return total;
+#include "BattleFieldDeps3/GetTotalSkillMaterial.inc"
 }
 
 // ORIG W _ZN25stMapMonsterKillChecker_t24getUseSkillMaterialCountEv @ 0x0822cb86：
 // 无独立报告；objdump 逐指令：push ebp / mov 0x14(%eax),%eax / pop ebp / ret
-int stMapMonsterKillChecker_t::getUseSkillMaterialCount()
-{
-    return m_field14;
+#include "BattleFieldDeps3/getUseSkillMaterialCount.inc"
 }

@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 EpisodeScript/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— EpisodeScript（史诗任务脚本条目）+
 // importEpicQuestScript（RDARScriptQuest.cpp 解析器）。
 // 对照 ORIG 反汇编：
@@ -15,99 +25,20 @@
 #include "LogManager.h"
 #include "STQuestScript.h"  // g_questScriptBaseDirectory
 
-EpisodeScript::EpisodeScript()
-{
-    clear();
+#include "EpisodeScript/EpisodeScript.inc"
 }
 
-EpisodeScript::~EpisodeScript()
-{
+#include "EpisodeScript/dtor_EpisodeScript.inc"
 }
 
-EpisodeScript::EpisodeScript(EpisodeScript const& other)
-    : m_episodeIndex(other.m_episodeIndex),
-      m_episodeName(other.m_episodeName),
-      m_completeText(other.m_completeText),
-      m_quests(other.m_quests)
-{
+#include "EpisodeScript/EpisodeScript_1.inc"
 }
 
-void EpisodeScript::clear()
-{
-    m_episodeIndex = -1;
-    m_episodeName = "";
-    m_completeText = "";
-    m_quests.clear();
+#include "EpisodeScript/clear.inc"
 }
 
-void EpisodeScript::setEpisodeIndex(int index, int questIndex)
-{
-    m_episodeIndex = (index << 16) | questIndex;
+#include "EpisodeScript/setEpisodeIndex.inc"
 }
 
-int importEpicQuestScript(std::list<EpisodeScript>* out, const char* path)
-{
-    if (out == 0)
-    {
-        return 0;
-    }
-    if (!loadRDARScriptFile(g_questScriptBaseDirectory, path))
-    {
-        return 0;
-    }
-
-    std::string token;
-    std::string token2;
-    int local_18 = 0;
-    bool ok = false;
-    EpisodeScript es;
-
-    while (ScanType(token, true))
-    {
-        if (token == "[episode]")
-        {
-            es.clear();
-            int a = 0;
-            int b = 0;
-            a = ScanInt(&ok);
-            if (ok != true) break;
-            b = ScanInt(&ok);
-            if (ok != true) break;
-            es.setEpisodeIndex(a, b);
-            while (true)
-            {
-                if (ScanType(token, true) && token == "[/episode]") goto done;
-                if (token == "[episode_name]")
-                {
-                    ScanStr(&es.m_episodeName);
-                }
-                else if (token == "[epic_index]")
-                {
-                    while (true)
-                    {
-                        int idx = ScanInt(&ok);
-                        if (!ok) break;
-                        std::pair<int, QuestScript*> p;
-                        p.first = idx;
-                        p.second = 0;
-                        es.m_quests.push_back(p);
-                    }
-                }
-                else if (token == "[complete_text]")
-                {
-                    ScanStr(&es.m_completeText);
-                }
-                else
-                {
-                    LogManager::logFormat(0, "../RDARScriptQuest.cpp",
-                                          __FUNCTION__, 0x687,
-                                          "Unknown Type (%s)", token.c_str());
-                    break;
-                }
-            }
-        }
-    done:
-        out->push_back(es);
-    }
-    return 1;
+#include "EpisodeScript/importEpicQuestScript.inc"
 }

@@ -1,0 +1,2 @@
+AvatarFixedHiddenOptionServer::AvatarFixedHiddenOptionServer()
+{

@@ -1,0 +1,2 @@
+CDungeonList::CDungeonList()
+{

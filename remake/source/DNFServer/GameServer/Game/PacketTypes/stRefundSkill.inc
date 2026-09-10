@@ -1,0 +1,1 @@
+stRefundSkill::stRefundSkill() {}

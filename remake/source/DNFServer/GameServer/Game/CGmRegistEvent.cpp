@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CGmRegistEvent/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r GM 注册事件 CGmRegistEvent 实现。
 // 报告：docs/class_func_reports/CGmRegistEvent/ 全部 6 个方法
 // （CGmRegistEvent / ~CGmRegistEvent / ~CGmRegistEvent_0811ccc4 /
@@ -13,42 +23,29 @@
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0811cc78：仅基类构造 + vptr 置位（无自有成员）。
-CGmRegistEvent::CGmRegistEvent()
-{
+#include "CGmRegistEvent/CGmRegistEvent.inc"
 }
 
 // ORIG 0x0811cc94 / 0x0811ccc4：D1 重置 vptr 后调 CEventBase::~CEventBase；
 // D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
-CGmRegistEvent::~CGmRegistEvent()
-{
+#include "CGmRegistEvent/dtor_CGmRegistEvent.inc"
 }
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0811cce2：DB_UpdateGMData::makeRequest(true) +
 // cMyTrace(__PRETTY_FUNCTION__,0x16,0)
 // ("CGmRegistEvent Start!")（无 SetEventFlag）。
-void CGmRegistEvent::StartEvent()
-{
-    DB_UpdateGMData::makeRequest(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x16, 0);
-    tr("CGmRegistEvent Start!");
+#include "CGmRegistEvent/StartEvent.inc"
 }
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0811cd2c：同 StartEvent()（file 串
 // "virtual void CGmRegistEvent::StartEvent(Word_Param)"，行 0x1d）。
-void CGmRegistEvent::StartEvent(Word_Param param)
-{
-    DB_UpdateGMData::makeRequest(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1d, 0);
-    tr("CGmRegistEvent Start!");
+#include "CGmRegistEvent/StartEvent_1.inc"
 }
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0811cd76：仅 cMyTrace(__PRETTY_FUNCTION__,0x24,0)
 // ("CGmRegistEvent End!")（无 SetEventFlag）。
-void CGmRegistEvent::EndEvent()
-{
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x24, 0);
-    tr("CGmRegistEvent End!");
+#include "CGmRegistEvent/EndEvent.inc"
 }

@@ -1,0 +1,2 @@
+CAssaulter::~CAssaulter()
+{

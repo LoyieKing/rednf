@@ -1,0 +1,2 @@
+CPremiumLetheManager::~CPremiumLetheManager()
+{

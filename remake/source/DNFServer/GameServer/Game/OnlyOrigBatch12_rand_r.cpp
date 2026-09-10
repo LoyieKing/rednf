@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 OnlyOrigBatch12_rand_r/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // OnlyOrigBatch12_rand_r.cpp —— 由 OnlyOrigBatch12.cpp 按 ORIG TU 边界拆出。
 // 目标 ORIG TU：rand_r.cpp（ORIG GI 键 = _Z11timeGetTimev @0x0808be25）。
 // 本文件首个 file-scope 强符号·外部链接定义 = timeGetTime ⇒
@@ -46,12 +56,8 @@
 // ---------------------------------------------------------------------------
 extern char g_szScriptFileBaseDirectory[0x104];   // B 0x949b180（ScriptExtras.cpp）
 extern std::vector<std::string> g_szScriptFilePriorityBaseDirectory;  // B 0x949b168
-void getScriptFileFullPath(char* out, unsigned int size,
-                           const char* dir, const char* name);        // T 0x088bba4e
-bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                            const char* listPath, std::map<int, int>* unused);
-// g_script_package 的定义已按 ORIG TU（RDARScript.cpp）拆至
-// OnlyOrigBatch12_server_utility.cpp；本文件仅引用。
+#include "OnlyOrigBatch12_rand_r/getScriptFileFullPath.inc"
+#include "OnlyOrigBatch12_rand_r/loadRDARScriptListFile.inc"
 extern PackSet g_script_package;                  // ORIG B 0x09494fe0
 
 // ===========================================================================
@@ -76,24 +82,14 @@ static bool is_base64(unsigned char c)
 // splitPathByDirectory  ORIG T 0x088bbc30：返回最后一个 '/' 或 '\\' 的下标，
 // 无分隔符返回 -1。（ORIG TU = RDARScript.cpp）
 // ===========================================================================
-int splitPathByDirectory(const char* path)
-{
-    int last = -1;
-    for (const char* p = path; *p != '\0'; ++p)
-    {
-        if (*p == '/' || *p == '\\')
-            last = static_cast<int>(p - path);
-    }
-    return last;
+#include "OnlyOrigBatch12_rand_r/splitPathByDirectory.inc"
 }
 
 // ===========================================================================
 // isEndModuleTag  ORIG T 0x08a97610：*tag == MODULE_NAME_TAG[idx*2+1]。
 // （ORIG TU = RDARScriptSkill.cpp）
 // ===========================================================================
-bool isEndModuleTag(std::string* tag, int idx)
-{
-    return *tag == g_moduleNameTag[idx][1];
+#include "OnlyOrigBatch12_rand_r/isEndModuleTag.inc"
 }
 
 // ===========================================================================
@@ -101,18 +97,7 @@ bool isEndModuleTag(std::string* tag, int idx)
 //   n1==0 → true；n1<n2 → false；否则 a.substr(n1-n2, n2) == b。
 // （ORIG TU = RDARScriptObject.cpp）
 // ===========================================================================
-bool isValidExtension(const std::string& a, const std::string& b)
-{
-    // ORIG 0x8a3c6b7 `cmp -0xc(%ebp),%eax; jge`（有符号序）⇒ 长度局部为
-    // signed int（size_t 局部 4.4 恒 jae 无符号序，P196 反演）。
-    int n1 = (int)a.length();
-    int n2 = (int)b.length();
-    if (n1 == 0)
-        return true;
-    if (n1 < n2)
-        return false;
-    std::string s = a.substr(n1 - n2, n2);
-    return s.compare(b) == 0;
+#include "OnlyOrigBatch12_rand_r/isValidExtension.inc"
 }
 
 // ===========================================================================
@@ -192,12 +177,7 @@ static const char* g_MainHudMenuActionString[26] = {
     "GO_TO_TOWN",              "EXIT_GAME",
 };
 
-void makeMenuActionHashMap(std::map<std::string, int>& menuMap)
-{
-    if (!menuMap.empty())
-        menuMap.clear();
-    for (int i = 0; i <= 0x19; ++i)
-        menuMap.insert(std::make_pair(g_MainHudMenuActionString[i], i));
+#include "OnlyOrigBatch12_rand_r/makeMenuActionHashMap.inc"
 }
 
 // ===========================================================================
@@ -268,25 +248,7 @@ static int parseStringLine(char* line, char** p1, char** p2)
 // save_pid  ORIG T 0x0829eeb2：写 "./pid/<name>.pid"（O_CREAT|O_RDWR 0x42,
 // 0644），内容 "%ld\n" getpid()。（ORIG TU = App.cpp）
 // ===========================================================================
-int save_pid()
-{
-    char path[0x1e];
-    memset(path, 0, sizeof(path));
-    sprintf(path, "./pid/%s.pid", G_CEnvironment()->get_file_name());
-    ssize_t n;
-    int fd = open(path, 0x42, 0x1a4);
-    if (fd < 0)
-        return 0;
-    char buf[0x200];
-    memset(buf, 0, sizeof(buf));
-    sprintf(buf, "%ld\n", static_cast<long>(getpid()));
-    n = write(fd, buf, strlen(buf));
-    if (n < 0)
-    {
-        close(fd);
-        return 0;
-    }
-    return 1;
+#include "OnlyOrigBatch12_rand_r/save_pid.inc"
 }
 
 // ===========================================================================
@@ -299,37 +261,7 @@ int save_pid()
 // r,f,pid,path——同层 int/指针中先声明者深（r 先于 f 才得 r@-0x10、f@-0xc），
 // pid 先于 path 才得 pid@-0x14、path@-0x32。四槽与 ORIG 逐一对齐、帧 0x48
 // 不变、助记符序列全等。ORIG 0x0829e5de
-int send_term_signal()
-{
-    // pid 无预清零（ORIG 无 movl $0,-0x14），f/r 声明赋值分离（P198 孪生）。
-    int r;
-    FILE* f;
-    int pid;
-    char path[0x1e];
-    memset(path, 0, sizeof(path));
-    sprintf(path, "pid/%s.pid", G_CEnvironment()->get_file_name());
-    f = fopen(path, "r");
-    if (!f)
-    {
-        printf("%s process id file open \xbd\xc7\xc6\xd0\n", path);
-        return 0;
-    }
-    fscanf(f, "%d", &pid);
-    if (pid <= 0)
-    {
-        fclose(f);
-        printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
-        return 0;
-    }
-    r = kill(pid, 15);
-    if (r < 0)
-    {
-        fclose(f);
-        printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
-        return 0;
-    }
-    fclose(f);
-    return 0;
+#include "OnlyOrigBatch12_rand_r/send_term_signal.inc"
 }
 
 // ===========================================================================
@@ -343,30 +275,10 @@ struct script_tag
     static bool isTypeString(std::string& str);
 };
 
-bool script_tag::isCloseString(std::string& str)
-{
-    // [b28c-lane17] ORIG 0x08a0c8b2：`movb $0x0,-0x9` 预清 + 条件置 1 +
-    // 尾 `movzbl -0x9` ⇒ bool 汇聚局部形；嵌套 if 才产 ORIG 的
-    // `seta;test;je` / `sete;test;je` 双物化（&& 被 4.4 折成 jbe/jne）。
-    bool result = false;
-    if (str.size() > 2)
-    {
-        if (str.at(1) == '/')
-            result = true;
-    }
-    return result;
+#include "OnlyOrigBatch12_rand_r/isCloseString.inc"
 }
 
-bool script_tag::isTypeString(std::string& str)
-{
-    // [b28c-lane17] ORIG 0x08a0c8fa：同 isCloseString（size()>1 && at(0)=='['）。
-    bool result = false;
-    if (str.size() > 1)
-    {
-        if (str.at(0) == '[')
-            result = true;
-    }
-    return result;
+#include "OnlyOrigBatch12_rand_r/isTypeString.inc"
 }
 
 // ===========================================================================
@@ -402,61 +314,14 @@ struct TgaHeader
 } __attribute__((packed));
 }  // namespace
 
-int saveGreyImage(const GreyImage& img, const char* path)
-{
-    FILE* f = fopen(path, "wb");
-    if (!f)
-        return 0;
-    TgaHeader hdr;
-    hdr.idLength = 0;
-    hdr.colorMapType = 0;
-    hdr.imageType = 2;
-    hdr.colorMapFirst = 0;
-    hdr.colorMapLength = 0;
-    hdr.colorMapEntrySize = 0;
-    hdr.xOrigin = 0;
-    hdr.yOrigin = 0;
-    hdr.width = static_cast<unsigned short>(img.getWidth());
-    hdr.height = static_cast<unsigned short>(img.getHeight());
-    hdr.depth = 0x20;
-    hdr.descriptor = 8;
-    fwrite(&hdr, 1, 0x12, f);
-
-    unsigned char* buf = new unsigned char[img.getWidth() * 4];
-    int y = img.getHeight() - 1;
-    while (y >= 0)
-    {
-        const unsigned char* row =
-            static_cast<const unsigned char*>(img.getImage()) + img.getWidth() * y;
-        for (int x = 0; x < img.getWidth(); ++x)
-        {
-            unsigned char v = static_cast<unsigned char>(~row[x]);
-            *reinterpret_cast<unsigned int*>(buf + x * 4) =
-                (static_cast<unsigned int>(v) << 16) |
-                (static_cast<unsigned int>(v) << 8) |
-                static_cast<unsigned int>(v) | 0xff000000u;
-        }
-        fwrite(buf, 1, img.getWidth() * 4, f);
-        --y;
-    }
-    delete[] buf;
-    fclose(f);
-    return 1;
+#include "OnlyOrigBatch12_rand_r/saveGreyImage.inc"
 }
 
 // ===========================================================================
 // isServiceServerGroup  ORIG T 0x0889456f：枚举值 ∈ {0,7,8,10,13,0x12,0x65}
 // 时返回 false，否则 true。（ORIG TU = CSCommonFunction.cpp）
 // ===========================================================================
-bool isServiceServerGroup(ENUM_SERVER_GROUP group)
-{
-    // ORIG：无参数槽（比较直读 0x8(%ebp)）；结果字节槽 movb $1 初值、
-    // 命中 movb $0，尾 movzbl 返回。
-    bool result = true;
-    if (group == 8 || group == 10 || group == 7 || group == 13 ||
-        group == 0 || group == 0x12 || group == 0x65)
-        result = false;
-    return result;
+#include "OnlyOrigBatch12_rand_r/isServiceServerGroup.inc"
 }
 
 // ===========================================================================
@@ -522,13 +387,5 @@ bool rewardSubKey::operator<(const rewardSubKey& other) const
 //   先 push_back 11 个空 vector，再逐项 clear + reserve(6)。
 // （ORIG TU = RDARScriptEventCharacterParameter.cpp）
 // ===========================================================================
-void tagRecommendNewbieOptionTable::clear()
-{
-    for (int i = 0; i <= 0xa; ++i)
-        push_back(std::vector<tagRecommendNewbieOption>());
-    for (int i = 0; i <= 0xa; ++i)
-    {
-        operator[](i).clear();
-        operator[](i).reserve(6);
-    }
+#include "OnlyOrigBatch12_rand_r/clear.inc"
 }

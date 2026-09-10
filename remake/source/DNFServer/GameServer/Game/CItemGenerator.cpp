@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CItemGenerator/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // CItemGenerator.cpp — WongWork 掉落生成器域权威实现（唯一 TU）
 //
 // 提供以下 ORIG 符号（全部经 df_game_r nm/objdump 核实）：
@@ -34,27 +44,10 @@ namespace WongWork
 //   +0x1c=1.0f；+0x20=0；+0x24=0；+0x25=0；+0x28=11；+0x2c=0；+0x30=0
 // dtor 0x0814aaf0：仅析构 +0x08 vector<bool>（成员析构自动完成）。
 // ============================================================================
-stGenerateRefData_t::stGenerateRefData_t()
-{
-    m_dropRate = 100;
-    // b28d-54 翻正（P238）：ORIG 0x0814a9f8 `mov $0x0,%edx; mov %edx,0x4(%eax)`
-    //   常数经 edx 中转；int 字段恒折单条 movl。经 D53 的匿名 union float 视图
-    //   `m_field04f = 0.0f` 复现中转（sizeof/偏移/mangled 不变）。
-    m_field04f = 0.0f;
-    m_forceTag.clear();
-    m_forceTag.push_back(false);
-    m_forceTag.push_back(false);
-    m_field1c = 1.0f;
-    m_premiumDropRate = 0;
-    m_field24 = 0;
-    m_field25 = 0;
-    m_field28 = (ENUM_CHARACTERJOB)11;   // P254 enum 字段（ctor 常数写入，同宽零码）
-    m_field2c = 0;
-    m_field30 = 0;
+#include "CItemGenerator/stGenerateRefData_t.inc"
 }
 
-stGenerateRefData_t::~stGenerateRefData_t()
-{
+#include "CItemGenerator/dtor_stGenerateRefData_t.inc"
 }
 
 // ============================================================================
@@ -62,43 +55,15 @@ stGenerateRefData_t::~stGenerateRefData_t()
 //   vector<Inven_Item>(+0x00) 默认构造 → CLuckPoint(+0x0c) 构造。
 // dtor 0x0814ab4c：逆序析构两成员（成员析构自动完成）。
 // ============================================================================
-stGenerateResult_t::stGenerateResult_t() {}
-stGenerateResult_t::~stGenerateResult_t() {}
-
-// ============================================================================
-// CGenerateRandomNumber —— ORIG ctor 0x085334ea：
-//   m_count=count；count!=0 时 new CMTRand[count]（逐元素默认构造）；
-//   随后第二循环逐元素播种：seed = time(0) + seedIncValue + i（函数局部
-//   static seedIncValue，bss 符号 _ZZN8WongWork21CGenerateRandomNumberC1EiE
-//   12seedIncValue 与 ORIG 同名），末尾 seedIncValue += count。
-// dtor 0x085335d0：裸 delete []（delete[] 内置空检；ORIG 仅一次 test/je）。
-// generateNumber 0x085334a4：idx 超界走 get_rand_int(range)；否则对元素
-//   m_table[idx]（CMTRand，0x9c8 字节）调 randInt((unsigned long)range)。
-// ============================================================================
-CGenerateRandomNumber::CGenerateRandomNumber(int count)
-    : m_count(count)
-{
-    if (count != 0)
-    {
-        m_table = new CMTRand[m_count];
-        static int seedIncValue = 0;
-        int i = 0;
-        for (i = 0; i < m_count; ++i)
-            m_table[i].seed(time(0) + seedIncValue + i);
-        seedIncValue += i;
-    }
+#include "CItemGenerator/stGenerateResult_t.inc"
+#include "CItemGenerator/dtor_stGenerateResult_t.inc"
+#include "CItemGenerator/CGenerateRandomNumber.inc"
 }
 
-CGenerateRandomNumber::~CGenerateRandomNumber()
-{
-    delete [] m_table;
+#include "CItemGenerator/dtor_CGenerateRandomNumber.inc"
 }
 
-int CGenerateRandomNumber::generateNumber(int idx, int range)
-{
-    if (m_count < idx)
-        return get_rand_int(range);
-    return m_table[idx].randInt((unsigned long)range);
+#include "CItemGenerator/generateNumber.inc"
 }
 
 // ============================================================================
@@ -107,16 +72,10 @@ int CGenerateRandomNumber::generateNumber(int idx, int range)
 //   CMTRand::CMTRand(this, &seed)（带种子构造，const unsigned long&）。
 // dtor 0x0853364e：m_rand 非空则 operator delete，随后置 0。
 // ============================================================================
-GenerateRandomUpgrade::GenerateRandomUpgrade()
-    : m_rand(new CMTRand(static_cast<unsigned long>(time(0))))
-{
+#include "CItemGenerator/GenerateRandomUpgrade.inc"
 }
 
-GenerateRandomUpgrade::~GenerateRandomUpgrade()
-{
-    if (m_rand)
-        delete m_rand;
-    m_rand = 0;
+#include "CItemGenerator/dtor_GenerateRandomUpgrade.inc"
 }
 
 // ============================================================================
@@ -127,54 +86,34 @@ GenerateRandomUpgrade::~GenerateRandomUpgrade()
 //   成员析构顺序由编译器保证）。
 // 6 个 W inline 方法体均来自 objdump 直译（空实现/字段读写）。
 // ============================================================================
-CItemGenerator::CItemGenerator(int count)
-    : m_random(count)
-{
+#include "CItemGenerator/CItemGenerator.inc"
 }
 
-CItemGenerator::~CItemGenerator()
-{
+#include "CItemGenerator/dtor_CItemGenerator.inc"
 }
 
-void CItemGenerator::setDropRatio(float)
-{
-    // ORIG 0x0853a3f0：基类空实现（派生类覆写）。
+#include "CItemGenerator/setDropRatio.inc"
 }
 
-int CItemGenerator::loadScript(char const*)
-{
-    // ORIG 0x0853a3f6：mov $0x0,%eax —— 返回错误行 0（成功）。
-    return 0;
+#include "CItemGenerator/loadScript.inc"
 }
 
-void CItemGenerator::generateRandomItem(stGenerateRefData_t const&, stGenerateResult_t&)
-{
-    // ORIG 0x0853a400：基类空实现（派生类覆写）。
+#include "CItemGenerator/generateRandomItem.inc"
 }
 
-void CItemGenerator::generateSpecificItem(stGenerateRefData_t const&, stGenerateResult_t&)
-{
-    // ORIG 0x0853a406：基类空实现（派生类覆写）。
+#include "CItemGenerator/generateSpecificItem.inc"
 }
 
-void CItemGenerator::setCommonData(CGeneratorCommonData* common)
-{
-    m_common = common;  // ORIG 0x0853a3e2：mov 0xc(%ebp),%edx; mov %edx,0x4(%eax)
+#include "CItemGenerator/setCommonData.inc"
 }
 
-CGeneratorCommonData* CItemGenerator::getGeneratorCommonData()
-{
-    return m_common;  // ORIG 0x085beff4
+#include "CItemGenerator/getGeneratorCommonData.inc"
 }
 
-void CItemGenerator::setGeneratorType(int type)
-{
-    m_generatorType = type;  // ORIG 0x0853a40c：写 +0x14
+#include "CItemGenerator/setGeneratorType.inc"
 }
 
-int CItemGenerator::getGeneratorType()
-{
-    return m_generatorType;  // ORIG 0x0853a41a：读 +0x14
+#include "CItemGenerator/getGeneratorType.inc"
 }
 
 }  // namespace WongWork
@@ -222,16 +161,5 @@ GenuineDamageUpgradeTable* getGenuineUpgradeTable()
 //                              abs(diff)（sar $0x1f/xor/sub 惯用法，内联实参）)；
 //   user->DecCurCharacLuckPoint(rate)；返回 1。
 // ============================================================================
-bool CLuckPoint::UseLuckPoint(CUser* user, int itemType, int rarity, int grade)
-{
-    if (user == 0)
-        return false;
-    if (itemType != 1)
-        return false;
-    if (rarity != 2)
-        return false;
-    int rate = G_CDataManager()->m_serverParameter.getLuckPointDeductionRate(
-        user->get_charac_level(), abs(grade - user->get_charac_level()));
-    user->DecCurCharacLuckPoint(rate);
-    return true;
+#include "CItemGenerator/UseLuckPoint.inc"
 }

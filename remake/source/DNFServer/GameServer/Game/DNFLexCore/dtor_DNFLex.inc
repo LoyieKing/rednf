@@ -1,0 +1,3 @@
+DNFLex::~DNFLex()
+{
+    CloseInputStream();

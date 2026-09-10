@@ -1,0 +1,3 @@
+STAssignMonster::STAssignMonster()
+{
+    Clear();

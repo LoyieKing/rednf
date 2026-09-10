@@ -1,0 +1,1 @@
+ISigDispatcher::~ISigDispatcher() {}

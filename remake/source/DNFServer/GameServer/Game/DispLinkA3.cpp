@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 DispLinkA3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // DispLinkA3.cpp —— LinkHelper.DispLinkA3 独占 TU
 // 核销 /tmp/undef_r21.txt 中 7 类 8 个 Dispatcher 符号（调用方 Dispatchers.cpp，
 // 本 TU 不改它）。类声明均在 Dispatchers.h（include，勿改）。
@@ -65,30 +75,14 @@ public:
 //    ORIG @0x081d26c0 [0x081d26c0, 0x081d26e9]
 //    语义：channel state 必须为 5（dungeon 内）；否则 0x7fffffff（上层静默）。
 // ============================================================================
-unsigned int Dispatcher_SecretShopBuyItem::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
-{
-    (void)msg;
-    (void)param;
-    if (user->get_state() != 5)
-    {
-        return (int)0x7fffffff;
-    }
-    return 0;
+#include "DispLinkA3/check_error.inc"
 }
 
 // ============================================================================
 // 2. Dispatcher_SecretShopOpenClose::check_error
 //    ORIG @0x081d288a [0x081d288a, 0x081d28b3]，与 SecretShopBuyItem 同型。
 // ============================================================================
-unsigned int Dispatcher_SecretShopOpenClose::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
-{
-    (void)msg;
-    (void)param;
-    if (user->get_state() != 5)
-    {
-        return (int)0x7fffffff;
-    }
-    return 0;
+#include "DispLinkA3/check_error_1.inc"
 }
 
 // ============================================================================
@@ -98,40 +92,7 @@ unsigned int Dispatcher_SecretShopOpenClose::check_error(CUser* user, MSG_BASE& 
 //          否则若密保 Pad 激活 → 同型走 CPad + DB_PassPadUpdateCancelCnt（带 web 地址）。
 //          两条路径尾部的 getCancelCnt() 读取调用在 ORIG 中存在（内联读），保留。
 // ============================================================================
-int Dispatcher_SecurityCardAuthCancel::process(CUser* user)
-{
-    // [b23S3C] P48：ORIG getSecurityCard ×5 / getPad ×5 每用点独立重取
-    // （p167 MISSING 各 -4 即此），card/pad 无具名槽。
-    if (user->getSecurityCard()->isActivate() != 0)
-    {
-        user->getSecurityCard()->setRequestState(
-            WongWork::CSecurityCard::eRequestStateNone);
-        user->getSecurityCard()->incCancelCnt();
-        DB_SecurityCardUpdateCancelCnt::makeRequest(
-            user->get_acc_id(),
-            (unsigned int)user->getSecurityCard()->getCancelCnt());
-        // [b23S3C] ORIG +0x08c：尾部 getCancelCnt 后 `cmp $0x9,%eax` 死比较
-        // （结果弃置、无分支）⇒ 比较表达式语句形。
-        if (user->getSecurityCard()->getCancelCnt() == 9)  // ORIG cmp $9（死比较岛）
-        {
-        }
-    }
-    else
-    {
-        if (user->getPad()->isActivate() != 0)
-        {
-            user->getPad()->setRequestState(Sanicova::CPad::eRequestStateNone);
-            user->getPad()->incCancelCnt();
-            DB_PassPadUpdateCancelCnt::makeRequest(
-                user->get_acc_id(),
-                (unsigned int)user->getPad()->getCancelCnt(),
-                (char*)user->getWebAddress());
-            if (user->getPad()->getCancelCnt() == 9)      // ORIG +0x12d cmp $9（死）
-            {
-            }
-        }
-    }
-    return 1;
+#include "DispLinkA3/process.inc"
 }
 
 // ============================================================================
@@ -139,10 +100,7 @@ int Dispatcher_SecurityCardAuthCancel::process(CUser* user)
 //    ORIG @0x0823426c W：push ebp; mov esp,ebp; mov $0x0,%eax; pop ebp; ret —— 空体。
 //    实际业务逻辑在 dispatch_sig（Dispatchers.cpp 已还原）。
 // ============================================================================
-int Dispatcher_SelectUltimateDifficulty::process(CUser* user, MSG_BASE& msg, ParamBase& param)
-{
-    (void)user; (void)msg; (void)param;
-    return 0;
+#include "DispLinkA3/process_1.inc"
 }
 
 // ============================================================================
@@ -150,8 +108,7 @@ int Dispatcher_SelectUltimateDifficulty::process(CUser* user, MSG_BASE& msg, Par
 //    ORIG @0x08596674 W：call IPacketDispatcher<MSG_BASE,ParamBase,ch_state0>::C1 + 设 vptr。
 //    类无新增数据成员；空定义由编译器生成同形代码（vptr 由基类多态隐式写入）。
 // ============================================================================
-Dispatcher_SDC_ActiveStatus_Damage_Check::Dispatcher_SDC_ActiveStatus_Damage_Check() throw()
-{
+#include "DispLinkA3/Dispatcher_SDC_ActiveStatus_Damage_Check.inc"
 }
 
 
@@ -160,9 +117,5 @@ Dispatcher_SDC_ActiveStatus_Damage_Check::Dispatcher_SDC_ActiveStatus_Damage_Che
 // 7. Dispatcher_ValidateScriptHash::check_error(CUser*, MSG_BASE&)
 //    ORIG @0x0826435a [0x0826435a, 0x08264363]：mov $0x0,%eax; pop ebp; ret。
 // ============================================================================
-int Dispatcher_ValidateScriptHash::check_error(CUser* user, MSG_BASE& msg)
-{
-    (void)user;
-    (void)msg;
-    return 0;
+#include "DispLinkA3/check_error_2.inc"
 }

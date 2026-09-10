@@ -1,132 +1,69 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CGameOption/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN11CGameOptionC2Ev`（ORIG 0x84b731a）；ctor 已是首强符号。
 #include <iostream>
 
 #include "CGameOption.h"
 
-CGameOption::CGameOption()
-{
-    resetFlag_QuickChatChnage();
-    reset_load_hotkey_flag();
+#include "CGameOption/CGameOption.inc"
 }
 
-void CGameOption::SetHotKeyOption(unsigned char cSlot, CHotkeyOption& HotKeyOption)
-{
-    if (cSlot > 1)
-        return;
-    m_HotKeyOption[cSlot] = HotKeyOption;
-    m_bLoadHotKeyFlag[cSlot] = 1;
+#include "CGameOption/SetHotKeyOption.inc"
 }
 
-bool CGameOption::IsHotKeyOptionChanged(unsigned char cSlot,
-                                        CHotkeyOption& HotKeyOption)
-{
-    if (cSlot > 1)
-        return 0;
-    int nRet = memcmp(&m_HotKeyOption[cSlot], &HotKeyOption, 0xbc);
-    if (nRet == 0)
-        return 0;
-    return 1;
+#include "CGameOption/IsHotKeyOptionChanged.inc"
 }
 
-void CGameOption::SetEtcOption(CETCOption& EtcOption)
-{
-    m_EtcOption = EtcOption;
+#include "CGameOption/SetEtcOption.inc"
 }
 
-void CGameOption::SetQuickChatOption(const CQuickChattingOption& QuickChattingOption,
-                                     unsigned int nSlot)
-{
-    if (IsQuickChatOptionChanged(QuickChattingOption, nSlot))
-    {
-        setFlag_QuickChatChange();
-        if (nSlot == 0 || nSlot == 1)
-            m_QuickChattingOption[nSlot] = QuickChattingOption;
-    }
+#include "CGameOption/SetQuickChatOption.inc"
 }
 
-unsigned char CGameOption::IsEtcOptionChanged(CETCOption& EtcOption)
-{
-    int nRet = memcmp(&m_EtcOption, &EtcOption, 0x48);
-    if (nRet == 0)
-        return 0;
-    return 1;
+#include "CGameOption/IsEtcOptionChanged.inc"
 }
 
-bool CGameOption::IsQuickChatOptionChanged(
-    const CQuickChattingOption& QuickChattingOption, unsigned int nSlot)
-{
-    if (nSlot == 0 || nSlot == 1)
-    {
-        int nRet = memcmp(&m_QuickChattingOption[nSlot], &QuickChattingOption, 0x12c);
-        if (nRet == 0)
-            return 0;
-        return 1;
-    }
-    return 0;
+#include "CGameOption/IsQuickChatOptionChanged.inc"
 }
 
-void CGameOption::CopyQuickChatting(CQuickChattingOption& QuickChattingOption,
-                                    unsigned int nSlot)
-{
-    if (nSlot == 0 || nSlot == 1)
-        QuickChattingOption = m_QuickChattingOption[nSlot];
+#include "CGameOption/CopyQuickChatting.inc"
 }
 
-bool CGameOption::SetEmoticonInfo(const CChattingEmoticonConfig& ChattingEmoticonConfig)
-{
-    if (memcmp(&m_ChattingEmoticonConfig, &ChattingEmoticonConfig, 0x210) != 0)
-    {
-        m_ChattingEmoticonConfig = ChattingEmoticonConfig;
-        return true;
-    }
-    return false;
+#include "CGameOption/SetEmoticonInfo.inc"
 }
 
-void CGameOption::SetFlag(bool bFlag)
-{
-    m_bEmoticonChanged = bFlag;
+#include "CGameOption/SetFlag.inc"
 }
 
-unsigned char CGameOption::isEmoticonChanged()
-{
-    return m_bEmoticonChanged;
+#include "CGameOption/isEmoticonChanged.inc"
 }
 
-bool CGameOption::isEqualEmoticon(const CChattingEmoticonConfig& ChattingEmoticonConfig)
-{
-    return memcmp(&m_ChattingEmoticonConfig, &ChattingEmoticonConfig, 0x210) == 0;
+#include "CGameOption/isEqualEmoticon.inc"
 }
 
-void CGameOption::set_etc_option(ENUM_OPTION_ETC eOption, short sValue)
-{
-    m_EtcOption.setETCOption(eOption, sValue);
+#include "CGameOption/set_etc_option.inc"
 }
 
-short CGameOption::get_etc_option(ENUM_OPTION_ETC eOption)
-{
-    return m_EtcOption.getETCOption(eOption);
+#include "CGameOption/get_etc_option.inc"
 }
 
-CHotkeyOption* CGameOption::get_hotkey_option(unsigned char cSlot)
-{
-    return &m_HotKeyOption[cSlot];
+#include "CGameOption/get_hotkey_option.inc"
 }
 
-void CGameOption::reset_load_hotkey_flag()
-{
-    for (int i = 0; i <= 1; ++i)
-        m_bLoadHotKeyFlag[i] = 0;
+#include "CGameOption/reset_load_hotkey_flag.inc"
 }
 
-bool CGameOption::get_load_hotkey_flag(unsigned char cSlot)
-{
-    if (cSlot > 1)
-        return 0;
-    return m_bLoadHotKeyFlag[cSlot];
+#include "CGameOption/get_load_hotkey_flag.inc"
 }
 
-CChattingEmoticonConfig CGameOption::getEmoticonInfo() const
-{
-    return m_ChattingEmoticonConfig;
+#include "CGameOption/getEmoticonInfo.inc"
 }

@@ -1,0 +1,2 @@
+stQPGuideScript::stRecommendQPData::~stRecommendQPData()
+{

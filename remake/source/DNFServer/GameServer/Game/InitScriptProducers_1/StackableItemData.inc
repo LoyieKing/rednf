@@ -1,0 +1,3 @@
+StackableItemData::StackableItemData()
+{
+    clear();

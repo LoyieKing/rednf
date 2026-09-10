@@ -1,0 +1,2 @@
+IMethod::~IMethod()
+{

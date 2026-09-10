@@ -1,0 +1,3 @@
+effect::STEffect::STEffect()
+{
+    clear();

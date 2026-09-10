@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CSchoolMgr/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CSchoolMgr（学院 PvP 频道用户/学院分区管理器，G2-4 批次）。
 // 逐函数对照 docs/class_func_reports/CSchoolMgr.md 与 ORIG 反汇编实现。
 // 布局（ORIG ctor 0x856f206 / dtor 0x856f0ba 推导）：
@@ -39,201 +49,67 @@ class CUser;
 // CSchoolArea 实现
 // ============================================================================
 
-CSchoolArea::CSchoolArea()
-    : m_areaMap(), m_areaStack()
-{
+#include "CSchoolMgr/CSchoolArea.inc"
 }
 
-CSchoolArea::~CSchoolArea()
-{
+#include "CSchoolMgr/dtor_CSchoolArea.inc"
 }
 
-int CSchoolArea::GetAreaIndex()
-{
-    if (m_areaStack.empty())
-    {
-        return -1;
-    }
-    int areaIdx = m_areaStack.top();
-    m_areaStack.pop();
-    return areaIdx;
+#include "CSchoolMgr/GetAreaIndex.inc"
 }
 
-void CSchoolArea::SetAreaMapping(unsigned int schoolNo, int areaIdx)
-{
-    m_areaMap.insert(std::make_pair(schoolNo, areaIdx));
+#include "CSchoolMgr/SetAreaMapping.inc"
 }
 
-void CSchoolArea::AddSchoolArea(unsigned int schoolNo)
-{
-    int areaIdx = GetAreaIndex();
-    if (areaIdx >= 0)
-    {
-        SetAreaMapping(schoolNo, areaIdx);
-    }
+#include "CSchoolMgr/AddSchoolArea.inc"
 }
 
-void CSchoolArea::DelSchoolArea(unsigned int schoolNo)
-{
-    std::map<unsigned int, int>::iterator it = m_areaMap.find(schoolNo);
-    if (it != m_areaMap.end())
-    {
-        m_areaStack.push(it->second);
-        m_areaMap.erase(it);
-    }
+#include "CSchoolMgr/DelSchoolArea.inc"
 }
 
-void CSchoolArea::SetSchoolArea(int start, int end)
-{
-    for (int area = start; area < end; ++area)
-    {
-        m_areaStack.push(area);
-    }
+#include "CSchoolMgr/SetSchoolArea.inc"
 }
 
-int CSchoolArea::GetAreaIndex(unsigned int schoolNo)
-{
-    std::map<unsigned int, int>::iterator it = m_areaMap.find(schoolNo);
-    if (it != m_areaMap.end())
-    {
-        return it->second;
-    }
-    return -1;
+#include "CSchoolMgr/GetAreaIndex_1.inc"
 }
 
 // ============================================================================
 // CBelong / CSchoolMember 实现
 // ============================================================================
 
-CSchoolMember::CSchoolMember(CUser* user)
-    : CBelong(), m_user(user)
-{
+#include "CSchoolMgr/CSchoolMember.inc"
 }
 
-bool CSchoolMember::IsRight(CUser* user)
-{
-    // N96 清绑：原 `register bool right asm("eax")` 已删。ORIG 无 right 槽
-    // （&& 短路直落 mov$1/mov$0 岛）⇒ 还原为单 return 短路形。清绑前后 25=25、
-    // 与 ORIG（objdump 0x085690dc，报告缺失）逐条全等（仅 .o 重定位地址差）
-    // ⇒ 残差 0，无需 N96+N18a 封顶。
-    return m_user->GetSchoolNo() == user->GetSchoolNo() && m_user != user;
+#include "CSchoolMgr/IsRight.inc"
 }
 
 // ============================================================================
 // CSchoolMgr 实现
 // ============================================================================
 
-CSchoolMgr::CSchoolMgr()
-    : m_schoolUserCount(), m_schoolArea()
-{
+#include "CSchoolMgr/CSchoolMgr.inc"
 }
 
-CSchoolMgr::~CSchoolMgr()
-{
+#include "CSchoolMgr/dtor_CSchoolMgr.inc"
 }
 
-void CSchoolMgr::AddUser(CUser* user)
-{
-    if (!G_GameWorld()->IsSchoolPvPChannel())
-    {
-        return;
-    }
-    SendBroadcastUserIn(user);
-    unsigned int schoolNo = user->GetSchoolNo();
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_schoolUserCount.find(schoolNo);
-    if (it != m_schoolUserCount.end())
-    {
-        it->second += 1;
-    }
-    else
-    {
-        m_schoolUserCount.insert(std::make_pair(user->GetSchoolNo(), 1));
-        m_schoolArea.AddSchoolArea(user->GetSchoolNo());
-    }
+#include "CSchoolMgr/AddUser.inc"
 }
 
-void CSchoolMgr::DelUser(CUser* user)
-{
-    if (!G_GameWorld()->IsSchoolPvPChannel())
-    {
-        return;
-    }
-    SendBroadcastUserOut(user);
-    unsigned int schoolNo = user->GetSchoolNo();
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_schoolUserCount.find(schoolNo);
-    if (it != m_schoolUserCount.end())
-    {
-        it->second -= 1;
-        if (it->second == 0)
-        {
-            m_schoolUserCount.erase(it);
-            m_schoolArea.DelSchoolArea(user->GetSchoolNo());
-        }
-    }
+#include "CSchoolMgr/DelUser.inc"
 }
 
-void CSchoolMgr::SendBroadcastUserIn(CUser* user)
-{
-    const char* channelMsg = g_scriptStringManager_.findString(
-        4, "channel_connect", 0);
-    if (channelMsg != 0)
-    {
-        char buf[255] = {0};
-        sprintf(buf, channelMsg, user->getCurCharacName(),
-                G_CEnvironment()->get_channel_no());
-        PacketGuard guard;
-        guard.put_header(0, 0xc);
-        guard.put_byte(0);
-        guard.put_short(0);
-        guard.put_byte(0);
-        guard.put_int(strlen(buf));
-        guard.put_str(buf, strlen(buf));
-        guard.finalize(true);
-        CSchoolMember member(user);
-        G_GameWorld()->send_group(guard, &member);
-    }
+#include "CSchoolMgr/SendBroadcastUserIn.inc"
 }
 
-void CSchoolMgr::SendBroadcastUserOut(CUser* user)
-{
-    const char* channelMsg = g_scriptStringManager_.findString(
-        4, "channel_disconnect", 0);
-    if (channelMsg != 0)
-    {
-        char buf[255] = {0};
-        sprintf(buf, channelMsg, user->getCurCharacName());
-        PacketGuard guard;
-        guard.put_header(0, 0xc);
-        guard.put_byte(0);
-        guard.put_short(0);
-        guard.put_byte(0);
-        guard.put_int(strlen(buf));
-        guard.put_str(buf, strlen(buf));
-        guard.finalize(true);
-        CSchoolMember member(user);
-        G_GameWorld()->send_group(guard, &member);
-    }
+#include "CSchoolMgr/SendBroadcastUserOut.inc"
 }
 
-unsigned int CSchoolMgr::GetUserCount(unsigned int schoolNo)
-{
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_schoolUserCount.find(schoolNo);
-    if (it != m_schoolUserCount.end())
-    {
-        return it->second;
-    }
-    return 0;
+#include "CSchoolMgr/GetUserCount.inc"
 }
 
-void CSchoolMgr::SetSchoolArea(int start, int end)
-{
-    m_schoolArea.SetSchoolArea(start, end);
+#include "CSchoolMgr/SetSchoolArea_1.inc"
 }
 
-int CSchoolMgr::GetSchoolArea(unsigned int schoolNo)
-{
-    return m_schoolArea.GetAreaIndex(schoolNo);
+#include "CSchoolMgr/GetSchoolArea.inc"
 }

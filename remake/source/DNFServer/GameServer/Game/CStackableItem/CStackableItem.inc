@@ -1,0 +1,2 @@
+CStackableItem::CStackableItem()
+{

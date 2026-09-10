@@ -1,0 +1,3 @@
+SigSaveHeroMissionData::SigSaveHeroMissionData()
+{
+    init();

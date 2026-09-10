@@ -1,0 +1,2 @@
+CNoNeedGoldOnGuildCreateEvent::CNoNeedGoldOnGuildCreateEvent()
+{

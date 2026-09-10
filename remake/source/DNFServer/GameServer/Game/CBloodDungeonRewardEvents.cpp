@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CBloodDungeonRewardEvents/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // CBloodDungeonRewardEvents.cpp —— 血之副本结算金币 repeat 事件实现
 // （2026-08-24，EventRewardGoldC2 批次；独占 TU）
 //
@@ -22,90 +32,42 @@
 // CBloodDungeonRewardFirstEvent
 // ---------------------------------------------------------------------------
 
-CBloodDungeonRewardFirstEvent::CBloodDungeonRewardFirstEvent()
-{
-    // ORIG C1 0x0811bdde：CEventBase() 后 vptr=0x8b52208（vtable+8），m_gold(+0xc)=0。
-    m_gold = 0;
+#include "CBloodDungeonRewardEvents/CBloodDungeonRewardFirstEvent.inc"
 }
 
-CBloodDungeonRewardFirstEvent::~CBloodDungeonRewardFirstEvent()
-{
-    // ORIG D1 0x0811be04：恢复本类 vptr 后调 CEventBase::~CEventBase()（空）。
+#include "CBloodDungeonRewardEvents/dtor_CBloodDungeonRewardFirstEvent.inc"
 }
 
-void CBloodDungeonRewardFirstEvent::StartEvent()
-{
-    // ORIG 0x0811bd12：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__, 0x10, 0)。
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x10, 0);
-    tr("CBloodDungeonRewardFirstEvent Start!");
+#include "CBloodDungeonRewardEvents/StartEvent.inc"
 }
 
-void CBloodDungeonRewardFirstEvent::StartEvent(Word_Param param)
-{
-    // [N7 封顶][b28c-33 复核 16/16] 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。
-    // ORIG 0x0811bd64：movzwl 零扩展 param 低 ushort 写 +0x0c，再经 vptr 槽 2 虚调
-    // StartEvent()。成员内未限定调用即为虚分派，与 ORIG call *vptr+8 一致。
-    m_gold = (unsigned short)param.m_duration;
-    StartEvent();
+#include "CBloodDungeonRewardEvents/StartEvent_1.inc"
 }
 
-void CBloodDungeonRewardFirstEvent::EndEvent()
-{
-    // ORIG 0x0811bd8c：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__, 0x2d, 0)。
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x2d, 0);
-    tr("CBloodDungeonRewardFirstEvent End!");
+#include "CBloodDungeonRewardEvents/EndEvent.inc"
 }
 
-int CBloodDungeonRewardFirstEvent::GetGold()
-{
-    // ORIG W 0x085bff1a：return *(int*)(this+0xc)。
-    return m_gold;
+#include "CBloodDungeonRewardEvents/GetGold.inc"
 }
 
 // ---------------------------------------------------------------------------
 // CBloodDungeonRewardSecondEvent
 // ---------------------------------------------------------------------------
 
-CBloodDungeonRewardSecondEvent::CBloodDungeonRewardSecondEvent()
-{
-    // ORIG C1 0x0811bf1e：CEventBase() 后 vptr=0x8b521c8（vtable+8），m_gold(+0xc)=0。
-    m_gold = 0;
+#include "CBloodDungeonRewardEvents/CBloodDungeonRewardSecondEvent.inc"
 }
 
-CBloodDungeonRewardSecondEvent::~CBloodDungeonRewardSecondEvent()
-{
-    // ORIG D1 0x0811bf44：恢复本类 vptr 后调 CEventBase::~CEventBase()（空）。
+#include "CBloodDungeonRewardEvents/dtor_CBloodDungeonRewardSecondEvent.inc"
 }
 
-void CBloodDungeonRewardSecondEvent::StartEvent()
-{
-    // ORIG 0x0811be52：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__, 0x10, 0)。
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x10, 0);
-    tr("CBloodDungeonRewardSecondEvent Start!");
+#include "CBloodDungeonRewardEvents/StartEvent_2.inc"
 }
 
-void CBloodDungeonRewardSecondEvent::StartEvent(Word_Param param)
-{
-    // [N7 封顶][b28c-33 复核 16/16] 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。
-    // ORIG 0x0811bea4：movzwl 零扩展 param 低 ushort 写 +0x0c，再经 vptr 槽 2 虚调
-    // StartEvent()。
-    m_gold = (unsigned short)param.m_duration;
-    StartEvent();
+#include "CBloodDungeonRewardEvents/StartEvent_3.inc"
 }
 
-void CBloodDungeonRewardSecondEvent::EndEvent()
-{
-    // ORIG 0x0811becc：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__, 0x1b, 0)。
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1b, 0);
-    tr("CBloodDungeonRewardSecondEvent End!");
+#include "CBloodDungeonRewardEvents/EndEvent_1.inc"
 }
 
-int CBloodDungeonRewardSecondEvent::GetGold()
-{
-    // ORIG W 0x085bff26：return *(int*)(this+0xc)。
-    return m_gold;
+#include "CBloodDungeonRewardEvents/GetGold_1.inc"
 }

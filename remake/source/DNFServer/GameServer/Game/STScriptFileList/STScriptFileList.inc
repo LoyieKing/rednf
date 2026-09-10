@@ -1,0 +1,3 @@
+STScriptFileList::STScriptFileList()
+{
+    Clear();

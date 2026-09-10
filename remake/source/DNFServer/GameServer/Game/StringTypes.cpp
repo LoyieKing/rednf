@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 StringTypes/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CharString / WideString 实现
 // 依据 docs/class_func_reports/{StringData,CharStringData,WideStringData,
 // CharString,WideString,_lt_global_gt_(left/right/mid/ss_vsprintf)} 各报告逐函数转写。
@@ -39,359 +49,133 @@ static WideStringData* s_emptyWideStringData =
 
 // ---- StringData（docs/class_func_reports/StringData/）----
 
-void StringData::incRef()
-{
-    // ORIG: lock addl $0x1,(%eax)
-    __sync_fetch_and_add(&m_refCount, 1);
+#include "StringTypes/incRef.inc"
 }
 
-void StringData::decRef()
-{
-    // ORIG: lock xadd -1；新值 <=0 则 free(this)
-    if (__sync_sub_and_fetch(&m_refCount, 1) <= 0)
-        ::free(this);
+#include "StringTypes/decRef.inc"
 }
 
-bool StringData::isUnique() const
-{
-    return m_refCount == 1;
+#include "StringTypes/isUnique.inc"
 }
 
-bool StringData::isShared() const
-{
-    return m_refCount > 1;
+#include "StringTypes/isShared.inc"
 }
 
-int StringData::getSize() const
-{
-    return m_size;
+#include "StringTypes/getSize.inc"
 }
 
-unsigned char* StringData::getBuffer()
-{
-    return reinterpret_cast<unsigned char*>(this + 1);
+#include "StringTypes/getBuffer.inc"
 }
 
-StringData* StringData::create(int size)
-{
-    StringData* data = static_cast<StringData*>(malloc(size + 8));
-    if (data == 0)
-        return 0;
-    data->m_refCount = 0;
-    data->m_size = size;
-    return data;
+#include "StringTypes/create.inc"
 }
 
 // ---- CharStringData ----
 
-int CharStringData::getLength() const
-{
-    return m_size - 1;
+#include "StringTypes/getLength.inc"
 }
 
-char* CharStringData::getBuffer()
-{
-    return reinterpret_cast<char*>(this + 1);
+#include "StringTypes/getBuffer_1.inc"
 }
 
-CharStringData* CharStringData::create(int length)
-{
-    int size = length + 1;
-    StringData* data = StringData::create(size);
-    if (data == 0)
-        return 0;
-    return static_cast<CharStringData*>(data);
+#include "StringTypes/create_1.inc"
 }
 
-CharStringData* CharStringData::createTerminated(int length)
-{
-    CharStringData* data = create(length);
-    data->getBuffer()[length] = '\0';
-    return data;
+#include "StringTypes/createTerminated.inc"
 }
 
 // ---- WideStringData ----
 
-int WideStringData::getLength() const
-{
-    return static_cast<int>(static_cast<unsigned int>(m_size) >> 2) - 1;
+#include "StringTypes/getLength_1.inc"
 }
 
-wchar_t* WideStringData::getBuffer()
-{
-    return reinterpret_cast<wchar_t*>(this + 1);
+#include "StringTypes/getBuffer_2.inc"
 }
 
-WideStringData* WideStringData::create(int length)
-{
-    int size = (length + 1) * 4;
-    StringData* data = StringData::create(size);
-    if (data == 0)
-        return 0;
-    return static_cast<WideStringData*>(data);
+#include "StringTypes/create_2.inc"
 }
 
-WideStringData* WideStringData::createTerminated(int length)
-{
-    WideStringData* data = create(length);
-    data->getBuffer()[length] = 0;
-    return data;
+#include "StringTypes/createTerminated_1.inc"
 }
 
 // ---- CharString 生命周期与数据访问 ----
 
-CharString::CharString()
-{
-    attachData(s_emptyCharStringData);
+#include "StringTypes/CharString.inc"
 }
 
-CharString::CharString(const CharString& src)
-{
-    CharStringData* newData = src.getData();
-    attachData(newData);
+#include "StringTypes/CharString_1.inc"
 }
 
-CharString::CharString(const char* src)
-{
-    int length = static_cast<int>(strlen(src));
-    if (length == 0)
-    {
-        attachData(s_emptyCharStringData);
-    }
-    else
-    {
-        CharStringData* data = CharStringData::create(length);
-        memcpy(data->getBuffer(), src, length + 1);
-        attachData(data);
-    }
+#include "StringTypes/CharString_2.inc"
 }
 
-CharString::CharString(const char* src, int length)
-{
-    if (length == 0)
-    {
-        attachData(s_emptyCharStringData);
-    }
-    else
-    {
-        CharStringData* data = CharStringData::createTerminated(length);
-        memcpy(data->getBuffer(), src, length);
-        attachData(data);
-    }
+#include "StringTypes/CharString_3.inc"
 }
 
-CharString::CharString(const std::string& src)
-{
-    int length = static_cast<int>(src.size());
-    if (length == 0)
-    {
-        attachData(s_emptyCharStringData);
-    }
-    else
-    {
-        CharStringData* data = CharStringData::create(length);
-        memcpy(data->getBuffer(), src.c_str(), length + 1);
-        attachData(data);
-    }
+#include "StringTypes/CharString_4.inc"
 }
 
-CharString::CharString(char src)
-{
-    CharStringData* data = CharStringData::createTerminated(1);
-    data->getBuffer()[0] = src;
-    attachData(data);
+#include "StringTypes/CharString_5.inc"
 }
 
-CharString::CharString(CharStringData* newData)
-{
-    attachData(newData);
+#include "StringTypes/CharString_6.inc"
 }
 
-CharString::~CharString()
-{
-    getData()->decRef();
+#include "StringTypes/dtor_CharString.inc"
 }
 
-const char* CharString::c_str() const
-{
-    return buffer_;
+#include "StringTypes/c_str.inc"
 }
 
-int CharString::length() const
-{
-    return getData()->getLength();
+#include "StringTypes/length.inc"
 }
 
-bool CharString::isEmpty() const
-{
-    return length() == 0;
+#include "StringTypes/isEmpty.inc"
 }
 
-bool CharString::isWhiteSpace() const
-{
-    const char* buf = buffer_;
-    while (*buf != '\0')
-    {
-        if (isspace(static_cast<int>(*buf)) == 0)
-            return false;
-        ++buf;
-    }
-    return true;
+#include "StringTypes/isWhiteSpace.inc"
 }
 
-unsigned int CharString::getHash() const
-{
-    // [b28d-solo-StringTypes] verdict=AE：残差仅 N112 循环出口对齐 nop（§6.1 豁免）。
-    // [b28d-34] AE（compare_tu 口径，ndiff 2→0）：残差仅 4.4 循环出口 nop 填充
-    // （4.1 无；-falign-loops=1/-fno-align-jumps 实测无效）⇒ §6.1 对齐 nop 豁免；
-    // 归一后逐条全等。ORIG 0x08ad6c1c。
-    // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
-    // 常量岛提前 return；value=0 初始化在检查之后落槽。
-    if (isEmpty())
-        return 0;
-    unsigned int value = 0;
-    const char* str = buffer_;
-    while (true)
-    {
-        char c = *str;
-        str = str + 1;
-        if (c == '\0')
-            break;
-        value = ((value << 6) + (value << 16)) - value + static_cast<int>(c);
-    }
-    if (value == 0)
-        value = 1;
-    return value;
+#include "StringTypes/getHash.inc"
 }
 
-char CharString::getAt(int idx) const
-{
-    return buffer_[idx];
+#include "StringTypes/getAt.inc"
 }
 
-CharString CharString::setAt(int idx, char ch)
-{
-    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad6ca2）：①删 `char* dest` 具名缓存
-    // （P183），memcpy 三实参按 ORIG 求值序内联——size(`getLength()+1`)→edi、
-    // src(`thisData->getBuffer()`)→esi、dst(`newData->getBuffer()`)→eax；
-    // ②两个指针局部按 P212 全头部声明（thisData 先 ⇒ 4.4 先声明深 -0x20、
-    // newData 后 ⇒ -0x1c），复现 ORIG 槽序（旧 N82 判词作废）。
-    CharStringData* thisData;
-    CharStringData* newData;
-    if (buffer_[idx] == ch)
-    {
-        return *this;
-    }
-    else
-    {
-        thisData = getData();
-        newData = CharStringData::create(thisData->getLength());
-        memcpy(newData->getBuffer(), thisData->getBuffer(), thisData->getLength() + 1);
-        newData->getBuffer()[idx] = ch;
-        return CharString(newData);
-    }
+#include "StringTypes/setAt.inc"
 }
 
-bool CharString::startsWith(const char* pat, bool isIgnoreCase) const
-{
-    int patLength = static_cast<int>(strlen(pat));
-    if (length() < patLength)
-        return false;
-    if (isIgnoreCase)
-        return strncasecmp(c_str(), pat, patLength) == 0;
-    else
-        return strncmp(c_str(), pat, patLength) == 0;
+#include "StringTypes/startsWith.inc"
 }
 
-bool CharString::endsWith(const char* pat, bool isIgnoreCase) const
-{
-    int patLength = static_cast<int>(strlen(pat));
-    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad6e02）：早退 `if (length() < patLength)
-    // return false;` 保持；残差仅 `length() - patLength` 物化段（同 right 族），
-    // 改左结合 `c_str() + length() - patLength` 复现 ORIG 六段
-    // （P205 拆形族；旧 N-86b 判词作废）。
-    if (length() < patLength)
-        return false;
-    if (isIgnoreCase)
-        return strncasecmp(c_str() + length() - patLength, pat, patLength) == 0;
-    return strncmp(c_str() + length() - patLength, pat, patLength) == 0;
+#include "StringTypes/endsWith.inc"
 }
 
-char CharString::front() const
-{
-    return *buffer_;
+#include "StringTypes/front.inc"
 }
 
-char CharString::back() const
-{
-    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad6edc）：`if(length())` 形在 4.4
-    // 恒物化 `test %eax,%eax; setne %al; test %al,%al; je`（P292 int callee 侧），
-    // ORIG 4.1 为直判 `test %eax,%eax; je`。改三目 `cond ? a : b`（P47 族）
-    // 即复现直判 + 零分支后置岛布局，逐条与 ORIG 全等。
-    return length() ? buffer_[length() - 1] : '\0';
+#include "StringTypes/back.inc"
 }
 
-CharString::const_iterator CharString::begin() const
-{
-    return buffer_;
+#include "StringTypes/begin.inc"
 }
 
-CharString::const_iterator CharString::end() const
-{
-    return buffer_ + length();
+#include "StringTypes/end.inc"
 }
 
-void CharString::assign(const CharString& src)
-{
-    // ORIG 0x08ad6fed：`cmp %eax,%ebx; sete %al; test %al,%al; jne +0x44(nop 岛)`
-    // ⇒ goto 尾空标签形（P223）。while+break 空体被 4.4 折掉 jne（实测 -3 条）。
-    if (getData() == src.getData())
-        goto done;
-    replaceData(src.getData());
-done:;
+#include "StringTypes/assign.inc"
 }
 
-void CharString::assign(const char* src)
-{
-    assign(src, static_cast<int>(strlen(src)));
+#include "StringTypes/assign_1.inc"
 }
 
-void CharString::assign(const char* src, int srcLength)
-{
-    if (srcLength == 0)
-    {
-        clear();
-    }
-    else
-    {
-        CharStringData* newData = CharStringData::createTerminated(srcLength);
-        memcpy(newData->getBuffer(), src, srcLength);
-        replaceData(newData);
-    }
+#include "StringTypes/assign_2.inc"
 }
 
-void CharString::assign(char src)
-{
-    if (src == '\0')
-    {
-        clear();
-    }
-    else
-    {
-        CharStringData* newData = CharStringData::createTerminated(1);
-        newData->getBuffer()[0] = src;
-        replaceData(newData);
-    }
+#include "StringTypes/assign_3.inc"
 }
 
-void CharString::clear()
-{
-    // ORIG 0x08ad707f：`test %al,%al; jne +0x2b` + 体尾 `jmp +0x2c` + `nop`
-    // ⇒ P223 goto 尾空标签复现 4.1 空 then 占位岛。
-    if (isEmpty())
-        goto done;
-    replaceData(s_emptyCharStringData);
-done:;
+#include "StringTypes/clear.inc"
 }
 
 char CharString::operator[](int idx) const
@@ -428,267 +212,98 @@ CharString& CharString::operator=(char src)
     return *this;
 }
 
-void CharString::attachData(CharStringData* newData)
-{
-    newData->incRef();
-    buffer_ = newData->getBuffer();
+#include "StringTypes/attachData.inc"
 }
 
-void CharString::replaceData(CharStringData* newData)
-{
-    CharStringData* oldData = getData();
-    newData->incRef();
-    buffer_ = newData->getBuffer();
-    oldData->decRef();
+#include "StringTypes/replaceData.inc"
 }
 
-CharStringData* CharString::getData() const
-{
-    return reinterpret_cast<CharStringData*>(buffer_ - 8);
+#include "StringTypes/getData.inc"
 }
 
 // ---- CharString::find / rfind ----
 
-int CharString::find(const char* pat) const
-{
-    return find(0, pat, static_cast<int>(strlen(pat)));
+#include "StringTypes/find.inc"
 }
 
-int CharString::find(int pos, const char* pat) const
-{
-    return find(pos, pat, static_cast<int>(strlen(pat)));
+#include "StringTypes/find_1.inc"
 }
 
-int CharString::find(const char* pat, int patLength) const
-{
-    return find(0, pat, patLength);
+#include "StringTypes/find_2.inc"
 }
 
-int CharString::find(int pos, const char* pat, int patLength) const
-{
-    if (patLength == 0)
-        return -1;
-    if (pos < 0 || length() - pos < patLength)
-        return -1;
-    const char* strBuf = c_str();
-    int endPos = length() - patLength;
-    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
-    {
-        if (memcmp(strBuf + thisPos, pat, patLength) == 0)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/find_3.inc"
 }
 
-int CharString::find(const CharString& pat) const
-{
-    return find(0, pat.c_str(), pat.length());
+#include "StringTypes/find_4.inc"
 }
 
-int CharString::find(int pos, const CharString& pat) const
-{
-    return find(pos, pat.c_str(), pat.length());
+#include "StringTypes/find_5.inc"
 }
 
-int CharString::find(char pat) const
-{
-    return find(0, pat);
+#include "StringTypes/find_6.inc"
 }
 
-int CharString::find(int pos, char pat) const
-{
-    if (pat == '\0')
-        return -1;
-    if (pos < 0 || length() <= pos)
-        return -1;
-    const char* strBuf = c_str();
-    int endPos = length() - 1;
-    // 注意：ORIG 此处固定用 strBuf[pos] 比较（保留原始行为）。
-    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
-    {
-        if (strBuf[pos] == pat)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/find_7.inc"
 }
 
-int CharString::rfind(const char* pat) const
-{
-    int patLength = static_cast<int>(strlen(pat));
-    return rfind(length() - patLength, pat, patLength);
+#include "StringTypes/rfind.inc"
 }
 
-int CharString::rfind(int pos, const char* pat) const
-{
-    return rfind(pos, pat, static_cast<int>(strlen(pat)));
+#include "StringTypes/rfind_1.inc"
 }
 
-int CharString::rfind(const char* pat, int patLength) const
-{
-    return rfind(length() - patLength, pat, patLength);
+#include "StringTypes/rfind_2.inc"
 }
 
-int CharString::rfind(int pos, const char* pat, int patLength) const
-{
-    if (patLength == 0)
-        return -1;
-    if (pos < 0 || length() - pos < patLength)
-        return -1;
-    const char* strBuf = c_str();
-    for (int thisPos = pos; thisPos > -1; --thisPos)
-    {
-        if (memcmp(strBuf + thisPos, pat, patLength) == 0)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/rfind_3.inc"
 }
 
-int CharString::rfind(const CharString& pat) const
-{
-    int patLength = pat.length();
-    return rfind(length() - patLength, pat.c_str(), patLength);
+#include "StringTypes/rfind_4.inc"
 }
 
-int CharString::rfind(int pos, const CharString& pat) const
-{
-    return rfind(pos, pat.c_str(), pat.length());
+#include "StringTypes/rfind_5.inc"
 }
 
-int CharString::rfind(char pat) const
-{
-    return rfind(length() - 1, pat);
+#include "StringTypes/rfind_6.inc"
 }
 
-int CharString::rfind(int pos, char pat) const
-{
-    if (pat == '\0')
-        return -1;
-    if (pos < 0 || length() <= pos)
-        return -1;
-    const char* strBuf = c_str();
-    for (int thisPos = pos; thisPos > -1; --thisPos)
-    {
-        if (strBuf[thisPos] == pat)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/rfind_7.inc"
 }
 
 // ---- CharString static 工厂 ----
 
-CharString CharString::concat(const char* src1, const char* src2)
-{
-    return concat(src1, static_cast<int>(strlen(src1)),
-                  src2, static_cast<int>(strlen(src2)));
+#include "StringTypes/concat.inc"
 }
 
-CharString CharString::concat(const char* src1, int src1Len,
-                              const char* src2, int src2Len)
-{
-    if (src1Len + src2Len == 0)
-        return CharString();
-    CharStringData* newData = CharStringData::createTerminated(src1Len + src2Len);
-    memcpy(newData->getBuffer(), src1, src1Len);
-    memcpy(newData->getBuffer() + src1Len, src2, src2Len);
-    return CharString(newData);
+#include "StringTypes/concat_1.inc"
 }
 
-CharString CharString::concat(const CharString& src1, const char* src2)
-{
-    return concat(src1, src2, static_cast<int>(strlen(src2)));
+#include "StringTypes/concat_2.inc"
 }
 
-CharString CharString::concat(const CharString& src1, const char* src2, int src2Len)
-{
-    if (src1.length() == 0)
-        return CharString(src2, src2Len);
-    if (src2Len == 0)
-        return CharString(src1);
-    return concat(src1.c_str(), src1.length(), src2, src2Len);
+#include "StringTypes/concat_3.inc"
 }
 
-CharString CharString::concat(const char* src1, const CharString& src2)
-{
-    return concat(src1, static_cast<int>(strlen(src1)), src2);
+#include "StringTypes/concat_4.inc"
 }
 
-CharString CharString::concat(const char* src1, int src1Len, const CharString& src2)
-{
-    if (src1Len == 0)
-        return CharString(src2);
-    if (src2.length() == 0)
-        return CharString(src1, src1Len);
-    return concat(src1, src1Len, src2.c_str(), src2.length());
+#include "StringTypes/concat_5.inc"
 }
 
-CharString CharString::concat(const CharString& src1, const CharString& src2)
-{
-    if (src1.length() == 0)
-        return CharString(src2);
-    if (src2.length() == 0)
-        return CharString(src1);
-    return concat(src1.c_str(), src1.length(), src2.c_str(), src2.length());
+#include "StringTypes/concat_6.inc"
 }
 
-CharString CharString::concat(const CharString& src1, char ch)
-{
-    if (src1.length() == 0)
-        return CharString(ch);
-    if (ch == '\0')
-        return CharString(src1);
-    CharStringData* newData = CharStringData::createTerminated(src1.length() + 1);
-    memcpy(newData->getBuffer(), src1.c_str(), src1.length());
-    newData->getBuffer()[src1.length()] = ch;
-    return CharString(newData);
+#include "StringTypes/concat_7.inc"
 }
 
-CharString CharString::concat(char ch, const CharString& src1)
-{
-    if (ch == '\0')
-        return CharString(src1);
-    if (src1.length() == 0)
-        return CharString(ch);
-    CharStringData* newData = CharStringData::createTerminated(src1.length() + 1);
-    newData->getBuffer()[0] = ch;
-    memcpy(newData->getBuffer() + 1, src1.c_str(), src1.length());
-    return CharString(newData);
+#include "StringTypes/concat_8.inc"
 }
 
-CharString CharString::pattern(const char* pattern, int count)
-{
-    int patternLen = static_cast<int>(strlen(pattern));
-    if (patternLen == 0 || count < 1)
-        return CharString();
-    CharStringData* newData = CharStringData::createTerminated(patternLen * count);
-    char* buffer = newData->getBuffer();
-    for (int i = 0; i < count; ++i)
-    {
-        memcpy(buffer, pattern, patternLen);
-        buffer += patternLen;
-    }
-    return CharString(newData);
+#include "StringTypes/pattern.inc"
 }
 
-CharString CharString::format(const char* formatStr, ...)
-{
-    // b28d-Main：改为 static sret 按值（ORIG 0x08ad8afa 尾 ret $0x4、fmt@0xc/varargs@0x10）。
-    va_list argList;
-    va_start(argList, formatStr);
-    // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08ad8afa）：ORIG format 体是 vformat 逻辑的
-    // **独立副本**（体内无 call vformat；4.1 前端把头内 inline vformat 展开进 format）。
-    // 旧「委托 vformat」形只 15 条 vs ORIG 53 条且调用点差集巨大，改为展开完整逻辑；
-    // 展开后 53 vs 62，余下 9 条全为 N83（placement operator new 4.4 恒发
-    // _ZnwjPv call+判空，两处 ×4~5）⇒ 封顶，语义等价。
-    int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
-    if (length == 0)
-    {
-        va_end(argList);
-        return CharString();
-    }
-    CharStringData* newData = CharStringData::create(length);
-    ss_vsprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    va_end(argList);
-    return CharString(newData);
+#include "StringTypes/format.inc"
 }
 
 // ORIG T 0x08ad8b9e：length==0 → this->C1Ev()（**就地默认构造覆盖**，旧 data 不 detach——
@@ -700,490 +315,117 @@ CharString CharString::format(const char* formatStr, ...)
 // （每处 +4~5 条，58 vs 49）。显式构造调用语法 `this->CharString::CharString()`
 // 在 4.4 编译报「错误地使用了 struct」（探针 /tmp/s23/p3.cpp）⇒ 无合法源形，
 // 语义等价（就地构造覆盖、旧 data 不 detach 均保持）。
-CharString CharString::vformat(const char* formatStr, va_list argList)
-{
-    // b28d-Main：static sret 按值（ORIG 0x08ad8b9e）。
-    int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
-    if (length == 0)
-        return CharString();
-    CharStringData* newData = CharStringData::create(length);
-    ss_vsprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    return CharString(newData);
+#include "StringTypes/vformat.inc"
 }
 
-int CharString::tokenize(const CharString& str, std::vector<CharString>* tokenVector)
-{
-    return tokenize(str, tokenVector, " \t\n\r", ".,", false);
+#include "StringTypes/tokenize.inc"
 }
 
-int CharString::tokenize(const CharString& str, std::vector<CharString>* tokenVector,
-                         const char* dropDelimiters, const char* returnDelimiters,
-                         bool isKeepEmptyToken)
-{
-    // [b28d-solo-StringTypes] 收敛（ORIG 0x08ad8c6c）：①ORIG 的 `*d0` 判定为
-    // `test *d0; je <远处 d1 分支>` + drop 分支直落；4.4 对原 if/else 顺序产
-    // 反向布局（jne 跳 else + d1 分支直落），交换两臂并取反条件即复现块序。
-    // ②按 P212 全头部声明（i/c/d0/d1/drop-newLen，声明序=ORIG 槽深序）复现
-    // ORIG 槽位 i=-0x20/c=-0x19/d0=-0x18/d1=-0x14/newLen=-0x10。
-    const char* strBuf = str.c_str();
-    int strLen = str.length();
-    int nextStartIdx = 0;
-    int tokenCount = 0;
-    int i;
-    char c;
-    const char* d0;
-    const char* d1;
-    int newLen;
-    for (i = 0; i < strLen; ++i)
-    {
-        c = strBuf[i];
-        d0 = dropDelimiters;
-        while (*d0 != '\0' && *d0 != c)
-            ++d0;
-        if (*d0 != '\0')
-        {
-            newLen = i - nextStartIdx;
-            if (newLen == 0)
-            {
-                if (isKeepEmptyToken)
-                {
-                    tokenVector->push_back(CharString());
-                    tokenCount = tokenCount + 1;
-                }
-            }
-            else
-            {
-                tokenVector->push_back(mid(str, nextStartIdx, newLen));
-                tokenCount = tokenCount + 1;
-            }
-            nextStartIdx = i + 1;
-        }
-        else
-        {
-            d1 = returnDelimiters;
-            while (*d1 != '\0' && *d1 != c)
-                ++d1;
-            if (*d1 != '\0')
-            {
-                int newLen = i - nextStartIdx;
-                if (newLen == 0)
-                {
-                    if (isKeepEmptyToken)
-                    {
-                        tokenVector->push_back(CharString());
-                        tokenCount = tokenCount + 1;
-                    }
-                }
-                else
-                {
-                    tokenVector->push_back(mid(str, nextStartIdx, newLen));
-                    tokenCount = tokenCount + 1;
-                }
-                tokenVector->push_back(CharString(*d1));
-                tokenCount = tokenCount + 1;
-                nextStartIdx = i + 1;
-            }
-        }
-    }
-    if (nextStartIdx != strLen)
-    {
-        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
-        tokenCount = tokenCount + 1;
-    }
-    return tokenCount;
+#include "StringTypes/tokenize_1.inc"
 }
 
-int CharString::tokenizeNewLine(const CharString& str,
-                                std::vector<CharString>* tokenVector)
-{
-    const char* strBuf = str.c_str();
-    int strLen = str.length();
-    int nextStartIdx = 0;
-    int lastNewLineIdx = -1;
-    int tokenCount = 0;
-    for (int i = 0; i < strLen; ++i)
-    {
-        char c = strBuf[i];
-        if (c == '\r')
-        {
-            tokenVector->push_back(mid(str, nextStartIdx, i - nextStartIdx));
-            if (strBuf[i + 1] == '\n')
-                i = i + 1;
-            nextStartIdx = i + 1;
-            lastNewLineIdx = i;
-        }
-        else if (c == '\n')
-        {
-            tokenVector->push_back(mid(str, nextStartIdx, i - nextStartIdx));
-            nextStartIdx = i + 1;
-            lastNewLineIdx = i;
-        }
-    }
-    if (nextStartIdx != strLen)
-    {
-        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
-        tokenCount = tokenCount + 1;
-    }
-    else if (strLen - 1 == lastNewLineIdx)
-    {
-        tokenVector->push_back(CharString());
-        tokenCount = tokenCount + 1;
-    }
-    return tokenCount;
+#include "StringTypes/tokenizeNewLine.inc"
 }
 
-CharString CharString::join(const std::vector<CharString>& stringVector,
-                            const CharString& separator)
-{
-    // [R22 2026-09-10] DIFF(gap=-30) → NEAR 196=196（判据 P292/P168a + 探针
-    // /tmp/p_r22{,b,c,d}.cpp 定形）：ORIG 0x08ad9268/0x08ad9348 两遍扫描各带一个
-    // runOnce 守卫——`movb $0,-0x19` → 头部 `cmpb $0,-0x19; jne <跳过整个循环块>`
-    // → `&&` 右侧 `xorb $1,-0x19; cmpb $0,-0x19; je` → 体内 `while(runOnce){…;=false;}`。
-    // 4.4 复现三要素：① 变量必须是 **bool**（uchar 时 while 恒 setne 物化，bool 才
-    // `cmpb;jne` 直跳）；② 头部守卫写「`if (x) {} else { 整个循环块 }`」（反置空 then
-    // ⇒ `cmpb;jne` 直跳；写 `if (!x)` 触发 4.4 bool 取反 xor 物化 N122）；③ 条件写
-    // `(x = !x)`（产 ORIG 的 xorb 就地异或）。残余仅 1 字节局部/指针局部的槽位分配
-    // 序差（OURS -0x21/-0x15 vs ORIG -0x19/-0x11）⇒ P112/N82 族，指令数与助记符全等。
-    if (stringVector.empty())
-    {
-        return CharString();
-    }
-    const char* separatorStrSrc = separator.c_str();
-    int separatorStrLen = separator.length();
-    int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    // [R22] ORIG 0x08ad9268/0x08ad9348 两遍扫描各带一个 runOnce bool 守卫
-    // （movb $0,-0x19 / -0x11 → 循环头 cmpb+jne 跳过 → 条件段 xorb $1 取反），
-    // 内层 while(runOnce){...; runOnce=false;} 只跑一次。照抄该形状。
-    bool token_runOnce = false;
-    if (token_runOnce)
-    {
-    }
-    else
-    {
-        std::vector<CharString>::const_iterator it = stringVector.begin();
-        std::vector<CharString>::const_iterator itEnd = stringVector.end();
-        while (it != itEnd && (token_runOnce = !token_runOnce))
-        {
-            const CharString& token = *it;
-            while (token_runOnce)
-            {
-                totalLength += token.length();
-                token_runOnce = false;
-            }
-            it++;
-        }
-    }
-    if (totalLength == 0)
-    {
-        return CharString();
-    }
-    CharStringData* newData = CharStringData::createTerminated(totalLength);
-    char* newDataBuf = newData->getBuffer();
-    bool token_runOnce2 = false;
-    if (token_runOnce2)
-    {
-    }
-    else
-    {
-        std::vector<CharString>::const_iterator it2 = stringVector.begin();
-        std::vector<CharString>::const_iterator itEnd2 = stringVector.end();
-        while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
-        {
-            const CharString& token = *it2;
-            while (token_runOnce2)
-            {
-                if (separatorStrLen >= 1 && it2 != stringVector.begin())
-                {
-                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
-                    newDataBuf += separatorStrLen;
-                }
-                int tokenLength = token.length();
-                memcpy(newDataBuf, token.c_str(), tokenLength);
-                newDataBuf += tokenLength;
-                token_runOnce2 = false;
-            }
-            it2++;
-        }
-    }
-    return CharString(newData);
+#include "StringTypes/join.inc"
 }
 
-int CharString::compare(const CharString& src1, const char* src2)
-{
-    return strcmp(src1.c_str(), src2);
+#include "StringTypes/compare.inc"
 }
 
-int CharString::compare(const CharString& src1, const CharString& src2)
-{
-    return strcmp(src1.c_str(), src2.c_str());
+#include "StringTypes/compare_1.inc"
 }
 
-int CharString::compare(const char* src1, const CharString& src2)
-{
-    return strcmp(src1, src2.c_str());
+#include "StringTypes/compare_2.inc"
 }
 
-int CharString::compareNoCase(const CharString& src1, const char* src2)
-{
-    return strcasecmp(src1.c_str(), src2);
+#include "StringTypes/compareNoCase.inc"
 }
 
-int CharString::compareNoCase(const CharString& src1, const CharString& src2)
-{
-    return strcasecmp(src1.c_str(), src2.c_str());
+#include "StringTypes/compareNoCase_1.inc"
 }
 
-int CharString::compareNoCase(const char* src1, const CharString& src2)
-{
-    return strcasecmp(src1, src2.c_str());
+#include "StringTypes/compareNoCase_2.inc"
 }
 
 // ---- WideString 生命周期与数据访问 ----
 
-WideString::WideString()
-{
-    attachData(s_emptyWideStringData);
+#include "StringTypes/WideString.inc"
 }
 
-WideString::WideString(const WideString& src)
-{
-    WideStringData* newData = src.getData();
-    attachData(newData);
+#include "StringTypes/WideString_1.inc"
 }
 
-WideString::WideString(const wchar_t* src)
-{
-    int length = static_cast<int>(wcslen(src));
-    if (length == 0)
-    {
-        attachData(s_emptyWideStringData);
-    }
-    else
-    {
-        WideStringData* data = WideStringData::create(length);
-        memcpy(data->getBuffer(), src, (length + 1) * sizeof(wchar_t));
-        attachData(data);
-    }
+#include "StringTypes/WideString_2.inc"
 }
 
-WideString::WideString(const wchar_t* src, int length)
-{
-    if (length == 0)
-    {
-        attachData(s_emptyWideStringData);
-    }
-    else
-    {
-        WideStringData* data = WideStringData::createTerminated(length);
-        memcpy(data->getBuffer(), src, length * sizeof(wchar_t));
-        attachData(data);
-    }
+#include "StringTypes/WideString_3.inc"
 }
 
-WideString::WideString(const std::wstring& src)
-{
-    int length = static_cast<int>(src.size());
-    if (length == 0)
-    {
-        attachData(s_emptyWideStringData);
-    }
-    else
-    {
-        WideStringData* data = WideStringData::create(length);
-        memcpy(data->getBuffer(), src.c_str(), (length + 1) * sizeof(wchar_t));
-        attachData(data);
-    }
+#include "StringTypes/WideString_4.inc"
 }
 
-WideString::WideString(wchar_t src)
-{
-    WideStringData* data = WideStringData::createTerminated(1);
-    data->getBuffer()[0] = src;
-    attachData(data);
+#include "StringTypes/WideString_5.inc"
 }
 
-WideString::WideString(WideStringData* newData)
-{
-    attachData(newData);
+#include "StringTypes/WideString_6.inc"
 }
 
-WideString::~WideString()
-{
-    getData()->decRef();
+#include "StringTypes/dtor_WideString.inc"
 }
 
-const wchar_t* WideString::c_str() const
-{
-    return buffer_;
+#include "StringTypes/c_str_1.inc"
 }
 
-int WideString::length() const
-{
-    return getData()->getLength();
+#include "StringTypes/length_1.inc"
 }
 
-bool WideString::isEmpty() const
-{
-    return length() == 0;
+#include "StringTypes/isEmpty_1.inc"
 }
 
-bool WideString::isWhiteSpace() const
-{
-    const wchar_t* buf = buffer_;
-    while (*buf != 0)
-    {
-        if (!isuspace(*buf))
-            return false;
-        ++buf;
-    }
-    return true;
+#include "StringTypes/isWhiteSpace_1.inc"
 }
 
-unsigned int WideString::getHash() const
-{
-    // [b28d-solo-StringTypes] verdict=AE：残差仅 N112 循环出口对齐 nop（§6.1 豁免）。
-    // [b28d-34] AE（同 CharString::getHash，nop 豁免）。ORIG 0x08ad9c74。
-    // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
-    // 常量岛提前 return；value=0 初始化在检查之后落槽。
-    if (isEmpty())
-        return 0;
-    unsigned int value = 0;
-    const wchar_t* str = buffer_;
-    while (true)
-    {
-        int c = *str;
-        str = str + 1;
-        if (c == 0)
-            break;
-        value = ((value << 6) + (value << 16)) - value + c;
-    }
-    if (value == 0)
-        value = 1;
-    return value;
+#include "StringTypes/getHash_1.inc"
 }
 
-wchar_t WideString::getAt(int idx) const
-{
-    return buffer_[idx];
+#include "StringTypes/getAt_1.inc"
 }
 
-WideString WideString::setAt(int idx, wchar_t ch)
-{
-    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad9cf8）：同 CharString::setAt，
-    // 删 `wchar_t* dest` 缓存 + P212 全头部声明复现槽序。
-    WideStringData* thisData;
-    WideStringData* newData;
-    if (buffer_[idx] == ch)
-    {
-        return *this;
-    }
-    else
-    {
-        thisData = getData();
-        newData = WideStringData::create(thisData->getLength());
-        memcpy(newData->getBuffer(), thisData->getBuffer(),
-               (thisData->getLength() + 1) * sizeof(wchar_t));
-        newData->getBuffer()[idx] = ch;
-        return WideString(newData);
-    }
+#include "StringTypes/setAt_1.inc"
 }
 
-bool WideString::startsWith(const wchar_t* pat, bool isIgnoreCase) const
-{
-    int patLength = static_cast<int>(wcslen(pat));
-    if (length() < patLength)
-        return false;
-    if (isIgnoreCase)
-        return wcsncasecmp(c_str(), pat, patLength) == 0;
-    else
-        return wcsncmp(c_str(), pat, patLength) == 0;
+#include "StringTypes/startsWith_1.inc"
 }
 
-bool WideString::endsWith(const wchar_t* pat, bool isIgnoreCase) const
-{
-    int patLength = static_cast<int>(wcslen(pat));
-    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad9df8）：同 CharString::endsWith，
-    // 左结合 `c_str() + length() - patLength` 复现 4.1 六段物化（P205 拆形族）。
-    if (length() < patLength)
-        return false;
-    if (isIgnoreCase)
-        return wcsncasecmp(c_str() + length() - patLength, pat, patLength) == 0;
-    return wcsncmp(c_str() + length() - patLength, pat, patLength) == 0;
+#include "StringTypes/endsWith_1.inc"
 }
 
-wchar_t WideString::front() const
-{
-    return *buffer_;
+#include "StringTypes/front_1.inc"
 }
 
-wchar_t WideString::back() const
-{
-    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad9f36）：同 CharString::back，
-    // 三目复现 4.1 直判 `test;je` + 零值岛后置（P47 族）。
-    return length() ? buffer_[length() - 1] : 0;
+#include "StringTypes/back_1.inc"
 }
 
-WideString::const_iterator WideString::begin() const
-{
-    return buffer_;
+#include "StringTypes/begin_1.inc"
 }
 
-WideString::const_iterator WideString::end() const
-{
-    return buffer_ + length();
+#include "StringTypes/end_1.inc"
 }
 
-void WideString::assign(const WideString& src)
-{
-    // ORIG 0x08ad9feb：`cmp; sete %al; test %al,%al; jne +0x44(nop 岛)`
-    // ⇒ goto 尾空标签形（P223，同 CharString::assign）。
-    if (getData() == src.getData())
-        goto done;
-    replaceData(src.getData());
-done:;
+#include "StringTypes/assign_4.inc"
 }
 
-void WideString::assign(const wchar_t* src)
-{
-    assign(src, static_cast<int>(wcslen(src)));
+#include "StringTypes/assign_5.inc"
 }
 
-void WideString::assign(const wchar_t* src, int srcLength)
-{
-    if (srcLength == 0)
-    {
-        clear();
-    }
-    else
-    {
-        WideStringData* newData = WideStringData::createTerminated(srcLength);
-        memcpy(newData->getBuffer(), src, srcLength * sizeof(wchar_t));
-        replaceData(newData);
-    }
+#include "StringTypes/assign_6.inc"
 }
 
-void WideString::assign(wchar_t src)
-{
-    if (src == 0)
-    {
-        clear();
-    }
-    else
-    {
-        WideStringData* newData = WideStringData::createTerminated(1);
-        newData->getBuffer()[0] = src;
-        replaceData(newData);
-    }
+#include "StringTypes/assign_7.inc"
 }
 
-void WideString::clear()
-{
-    // ORIG 0x08ada0dd：`test %al,%al; jne +0x2b` + `jmp +0x2c` + `nop`
-    // ⇒ P223 goto 尾空标签（同 CharString::clear）。
-    if (isEmpty())
-        goto done;
-    replaceData(s_emptyWideStringData);
-done:;
+#include "StringTypes/clear_1.inc"
 }
 
 wchar_t WideString::operator[](int idx) const
@@ -1220,572 +462,140 @@ WideString& WideString::operator=(wchar_t src)
     return *this;
 }
 
-void WideString::attachData(WideStringData* newData)
-{
-    newData->incRef();
-    buffer_ = newData->getBuffer();
+#include "StringTypes/attachData_1.inc"
 }
 
-void WideString::replaceData(WideStringData* newData)
-{
-    WideStringData* oldData = getData();
-    newData->incRef();
-    buffer_ = newData->getBuffer();
-    oldData->decRef();
+#include "StringTypes/replaceData_1.inc"
 }
 
-WideStringData* WideString::getData() const
-{
-    return reinterpret_cast<WideStringData*>(reinterpret_cast<char*>(buffer_) - 8);
+#include "StringTypes/getData_1.inc"
 }
 
 // ---- WideString::find / rfind ----
 
-int WideString::find(const wchar_t* pat) const
-{
-    return find(0, pat, static_cast<int>(wcslen(pat)));
+#include "StringTypes/find_8.inc"
 }
 
-int WideString::find(int pos, const wchar_t* pat) const
-{
-    return find(pos, pat, static_cast<int>(wcslen(pat)));
+#include "StringTypes/find_9.inc"
 }
 
-int WideString::find(const wchar_t* pat, int patLength) const
-{
-    return find(0, pat, patLength);
+#include "StringTypes/find_10.inc"
 }
 
-int WideString::find(int pos, const wchar_t* pat, int patLength) const
-{
-    if (patLength == 0)
-        return -1;
-    if (pos < 0 || length() - pos < patLength)
-        return -1;
-    const wchar_t* strBuf = c_str();
-    int endPos = length() - patLength;
-    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
-    {
-        if (memcmp(strBuf + thisPos, pat, patLength * sizeof(wchar_t)) == 0)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/find_11.inc"
 }
 
-int WideString::find(const WideString& pat) const
-{
-    return find(0, pat.c_str(), pat.length());
+#include "StringTypes/find_12.inc"
 }
 
-int WideString::find(int pos, const WideString& pat) const
-{
-    return find(pos, pat.c_str(), pat.length());
+#include "StringTypes/find_13.inc"
 }
 
-int WideString::find(wchar_t pat) const
-{
-    return find(0, pat);
+#include "StringTypes/find_14.inc"
 }
 
-int WideString::find(int pos, wchar_t pat) const
-{
-    if (pat == 0)
-        return -1;
-    if (pos < 0 || length() <= pos)
-        return -1;
-    const wchar_t* strBuf = c_str();
-    int endPos = length() - 1;
-    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
-    {
-        if (strBuf[thisPos] == pat)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/find_15.inc"
 }
 
-int WideString::rfind(const wchar_t* pat) const
-{
-    int patLength = static_cast<int>(wcslen(pat));
-    return rfind(length() - patLength, pat, patLength);
+#include "StringTypes/rfind_8.inc"
 }
 
-int WideString::rfind(int pos, const wchar_t* pat) const
-{
-    return rfind(pos, pat, static_cast<int>(wcslen(pat)));
+#include "StringTypes/rfind_9.inc"
 }
 
-int WideString::rfind(const wchar_t* pat, int patLength) const
-{
-    return rfind(length() - patLength, pat, patLength);
+#include "StringTypes/rfind_10.inc"
 }
 
-int WideString::rfind(int pos, const wchar_t* pat, int patLength) const
-{
-    if (patLength == 0)
-        return -1;
-    if (pos < 0 || length() - pos < patLength)
-        return -1;
-    const wchar_t* strBuf = c_str();
-    for (int thisPos = pos; thisPos > -1; --thisPos)
-    {
-        if (memcmp(strBuf + thisPos, pat, patLength * sizeof(wchar_t)) == 0)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/rfind_11.inc"
 }
 
-int WideString::rfind(const WideString& pat) const
-{
-    int patLength = pat.length();
-    return rfind(length() - patLength, pat.c_str(), patLength);
+#include "StringTypes/rfind_12.inc"
 }
 
-int WideString::rfind(int pos, const WideString& pat) const
-{
-    return rfind(pos, pat.c_str(), pat.length());
+#include "StringTypes/rfind_13.inc"
 }
 
-int WideString::rfind(wchar_t pat) const
-{
-    return rfind(length() - 1, pat);
+#include "StringTypes/rfind_14.inc"
 }
 
-int WideString::rfind(int pos, wchar_t pat) const
-{
-    if (pat == 0)
-        return -1;
-    if (pos < 0 || length() <= pos)
-        return -1;
-    const wchar_t* strBuf = c_str();
-    for (int thisPos = pos; thisPos > -1; --thisPos)
-    {
-        if (strBuf[thisPos] == pat)
-            return thisPos;
-    }
-    return -1;
+#include "StringTypes/rfind_15.inc"
 }
 
 // ---- WideString static 工厂 ----
 
-WideString WideString::concat(const wchar_t* src1, const wchar_t* src2)
-{
-    return concat(src1, static_cast<int>(wcslen(src1)),
-                  src2, static_cast<int>(wcslen(src2)));
+#include "StringTypes/concat_9.inc"
 }
 
-WideString WideString::concat(const wchar_t* src1, int src1Len,
-                              const wchar_t* src2, int src2Len)
-{
-    if (src1Len + src2Len == 0)
-        return WideString();
-    WideStringData* newData = WideStringData::createTerminated(src1Len + src2Len);
-    memcpy(newData->getBuffer(), src1, src1Len * sizeof(wchar_t));
-    memcpy(newData->getBuffer() + src1Len, src2, src2Len * sizeof(wchar_t));
-    return WideString(newData);
+#include "StringTypes/concat_10.inc"
 }
 
-WideString WideString::concat(const WideString& src1, const wchar_t* src2)
-{
-    return concat(src1, src2, static_cast<int>(wcslen(src2)));
+#include "StringTypes/concat_11.inc"
 }
 
-WideString WideString::concat(const WideString& src1, const wchar_t* src2, int src2Len)
-{
-    if (src1.length() == 0)
-        return WideString(src2, src2Len);
-    if (src2Len == 0)
-        return WideString(src1);
-    return concat(src1.c_str(), src1.length(), src2, src2Len);
+#include "StringTypes/concat_12.inc"
 }
 
-WideString WideString::concat(const wchar_t* src1, const WideString& src2)
-{
-    return concat(src1, static_cast<int>(wcslen(src1)), src2);
+#include "StringTypes/concat_13.inc"
 }
 
-WideString WideString::concat(const wchar_t* src1, int src1Len, const WideString& src2)
-{
-    if (src1Len == 0)
-        return WideString(src2);
-    if (src2.length() == 0)
-        return WideString(src1, src1Len);
-    return concat(src1, src1Len, src2.c_str(), src2.length());
+#include "StringTypes/concat_14.inc"
 }
 
-WideString WideString::concat(const WideString& src1, const WideString& src2)
-{
-    if (src1.length() == 0)
-        return WideString(src2);
-    if (src2.length() == 0)
-        return WideString(src1);
-    return concat(src1.c_str(), src1.length(), src2.c_str(), src2.length());
+#include "StringTypes/concat_15.inc"
 }
 
-WideString WideString::concat(const WideString& src1, wchar_t ch)
-{
-    if (src1.length() == 0)
-        return WideString(ch);
-    if (ch == 0)
-        return WideString(src1);
-    WideStringData* newData = WideStringData::createTerminated(src1.length() + 1);
-    memcpy(newData->getBuffer(), src1.c_str(), src1.length() * sizeof(wchar_t));
-    newData->getBuffer()[src1.length()] = ch;
-    return WideString(newData);
+#include "StringTypes/concat_16.inc"
 }
 
-WideString WideString::concat(wchar_t ch, const WideString& src1)
-{
-    if (ch == 0)
-        return WideString(src1);
-    if (src1.length() == 0)
-        return WideString(ch);
-    WideStringData* newData = WideStringData::createTerminated(src1.length() + 1);
-    newData->getBuffer()[0] = ch;
-    memcpy(newData->getBuffer() + 1, src1.c_str(), src1.length() * sizeof(wchar_t));
-    return WideString(newData);
+#include "StringTypes/concat_17.inc"
 }
 
-WideString WideString::pattern(const wchar_t* pattern, int count)
-{
-    int patternLen = static_cast<int>(wcslen(pattern));
-    if (patternLen == 0 || count < 1)
-        return WideString();
-    WideStringData* newData = WideStringData::createTerminated(patternLen * count);
-    wchar_t* buffer = newData->getBuffer();
-    for (int i = 0; i < count; ++i)
-    {
-        memcpy(buffer, pattern, patternLen * sizeof(wchar_t));
-        buffer += patternLen;
-    }
-    return WideString(newData);
+#include "StringTypes/pattern_1.inc"
 }
 
-WideString WideString::format(const wchar_t* formatStr, ...)
-{
-    // b28d-Main：static sret 按值（ORIG 0x08adbbe4）。
-    va_list argList;
-    va_start(argList, formatStr);
-    // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08adbbe4）：同 CharString::format——
-    // ORIG 体是 vformat 逻辑的独立副本（无 call vformat），展开完整逻辑；
-    // 余下仅 N83（placement operator new）封顶。
-    int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
-    if (length == 0)
-    {
-        va_end(argList);
-        return WideString();
-    }
-    WideStringData* newData = WideStringData::create(length);
-    ss_vswprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    va_end(argList);
-    return WideString(newData);
+#include "StringTypes/format_1.inc"
 }
 
 // CharString::vformat 同形（ORIG T 0x08adbc88）。
 // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08adbc88）：同 CharString::vformat
 // （4.4 placement operator new 恒发 `_ZnwjPv` call + 判空，无合法源形可内联）。
-WideString WideString::vformat(const wchar_t* formatStr, va_list argList)
-{
-    // b28d-Main：static sret 按值（ORIG 0x08adbc88）。
-    int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
-    if (length == 0)
-        return WideString();
-    WideStringData* newData = WideStringData::create(length);
-    ss_vswprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    return WideString(newData);
+#include "StringTypes/vformat_1.inc"
 }
 
-int WideString::tokenize(const WideString& str, std::vector<WideString>* tokenVector)
-{
-    return tokenize(str, tokenVector, L" \t\n\r", L".", false);
+#include "StringTypes/tokenize_2.inc"
 }
 
-int WideString::tokenize(const WideString& str, std::vector<WideString>* tokenVector,
-                         const wchar_t* dropDelimiters, const wchar_t* returnDelimiters,
-                         bool isKeepEmptyToken)
-{
-    // [b28d-solo-StringTypes] 收敛（ORIG 0x08adbd56）：同 CharString::tokenize，
-    // 交换两臂 + 取反条件复现 ORIG 的 `je <远处 d1 分支>` + drop 分支直落块序，
-    // 并按 P212 全头部声明复现槽位。
-    const wchar_t* strBuf = str.c_str();
-    int strLen = str.length();
-    int nextStartIdx = 0;
-    int tokenCount = 0;
-    int i;
-    wchar_t c;
-    const wchar_t* d0;
-    const wchar_t* d1;
-    int newLen;
-    for (i = 0; i < strLen; ++i)
-    {
-        c = strBuf[i];
-        d0 = dropDelimiters;
-        while (*d0 != 0 && *d0 != c)
-            ++d0;
-        if (*d0 != 0)
-        {
-            newLen = i - nextStartIdx;
-            if (newLen == 0)
-            {
-                if (isKeepEmptyToken)
-                {
-                    tokenVector->push_back(WideString());
-                    tokenCount = tokenCount + 1;
-                }
-            }
-            else
-            {
-                tokenVector->push_back(mid(str, nextStartIdx, newLen));
-                tokenCount = tokenCount + 1;
-            }
-            nextStartIdx = i + 1;
-        }
-        else
-        {
-            d1 = returnDelimiters;
-            while (*d1 != 0 && *d1 != c)
-                ++d1;
-            if (*d1 != 0)
-            {
-                int newLen = i - nextStartIdx;
-                if (newLen == 0)
-                {
-                    if (isKeepEmptyToken)
-                    {
-                        tokenVector->push_back(WideString());
-                        tokenCount = tokenCount + 1;
-                    }
-                }
-                else
-                {
-                    tokenVector->push_back(mid(str, nextStartIdx, newLen));
-                    tokenCount = tokenCount + 1;
-                }
-                tokenVector->push_back(WideString(*d1));
-                tokenCount = tokenCount + 1;
-                nextStartIdx = i + 1;
-            }
-        }
-    }
-    if (nextStartIdx != strLen)
-    {
-        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
-        tokenCount = tokenCount + 1;
-    }
-    return tokenCount;
+#include "StringTypes/tokenize_3.inc"
 }
 
-int WideString::tokenizeNewLine(const WideString& str,
-                                std::vector<WideString>* tokenVector)
-{
-    const wchar_t* strBuf = str.c_str();
-    int strLen = str.length();
-    int nextStartIdx = 0;
-    int lastNewLineIdx = -1;
-    int tokenCount = 0;
-    for (int i = 0; i < strLen; ++i)
-    {
-        wchar_t c = strBuf[i];
-        if (c == 0xd)
-        {
-            tokenVector->push_back(mid(str, nextStartIdx, i - nextStartIdx));
-            if (strBuf[i + 1] == 0xa)
-                i = i + 1;
-            nextStartIdx = i + 1;
-            lastNewLineIdx = i;
-        }
-        else if (c == 0xa)
-        {
-            tokenVector->push_back(mid(str, nextStartIdx, i - nextStartIdx));
-            nextStartIdx = i + 1;
-            lastNewLineIdx = i;
-        }
-    }
-    if (nextStartIdx != strLen)
-    {
-        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
-        tokenCount = tokenCount + 1;
-    }
-    else if (strLen - 1 == lastNewLineIdx)
-    {
-        tokenVector->push_back(WideString());
-        tokenCount = tokenCount + 1;
-    }
-    return tokenCount;
+#include "StringTypes/tokenizeNewLine_1.inc"
 }
 
-WideString WideString::join(const std::vector<WideString>& stringVector,
-                            const WideString& separator)
-{
-    // [R22 2026-09-10] DIFF(gap=-30) → NEAR 200=200：同 CharString::join 的 runOnce
-    // 守卫复现（ORIG 0x08adc34e/0x08adc42e）。残余为 1 字节局部槽位分配序差
-    // （P112/N82 族，指令数与助记符全等）。
-    if (stringVector.empty())
-    {
-        return WideString();
-    }
-    const wchar_t* separatorStrSrc = separator.c_str();
-    int separatorStrLen = separator.length();
-    int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    // [R22] 同 CharString::join（ORIG 0x08adc34e/0x08adc42e 两遍 runOnce 守卫）。
-    bool token_runOnce = false;
-    if (token_runOnce)
-    {
-    }
-    else
-    {
-        std::vector<WideString>::const_iterator it = stringVector.begin();
-        std::vector<WideString>::const_iterator itEnd = stringVector.end();
-        while (it != itEnd && (token_runOnce = !token_runOnce))
-        {
-            const WideString& token = *it;
-            while (token_runOnce)
-            {
-                totalLength += token.length();
-                token_runOnce = false;
-            }
-            it++;
-        }
-    }
-    if (totalLength == 0)
-    {
-        return WideString();
-    }
-    WideStringData* newData = WideStringData::createTerminated(totalLength);
-    wchar_t* newDataBuf = newData->getBuffer();
-    bool token_runOnce2 = false;
-    if (token_runOnce2)
-    {
-    }
-    else
-    {
-        std::vector<WideString>::const_iterator it2 = stringVector.begin();
-        std::vector<WideString>::const_iterator itEnd2 = stringVector.end();
-        while (it2 != itEnd2 && (token_runOnce2 = !token_runOnce2))
-        {
-            const WideString& token = *it2;
-            while (token_runOnce2)
-            {
-                if (separatorStrLen >= 1 && it2 != stringVector.begin())
-                {
-                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
-                    newDataBuf += separatorStrLen;
-                }
-                int tokenLength = token.length();
-                memcpy(newDataBuf, token.c_str(), tokenLength * sizeof(wchar_t));
-                newDataBuf += tokenLength;
-                token_runOnce2 = false;
-            }
-            it2++;
-        }
-    }
-    return WideString(newData);
+#include "StringTypes/join_1.inc"
 }
 
-int WideString::compare(const WideString& src1, const wchar_t* src2)
-{
-    return wcscmp(src1.c_str(), src2);
+#include "StringTypes/compare_3.inc"
 }
 
-int WideString::compare(const WideString& src1, const WideString& src2)
-{
-    return wcscmp(src1.c_str(), src2.c_str());
+#include "StringTypes/compare_4.inc"
 }
 
-int WideString::compare(const wchar_t* src1, const WideString& src2)
-{
-    return wcscmp(src1, src2.c_str());
+#include "StringTypes/compare_5.inc"
 }
 
-int WideString::compareNoCase(const WideString& src1, const wchar_t* src2)
-{
-    return wcscasecmp(src1.c_str(), src2);
+#include "StringTypes/compareNoCase_3.inc"
 }
 
-int WideString::compareNoCase(const WideString& src1, const WideString& src2)
-{
-    return wcscasecmp(src1.c_str(), src2.c_str());
+#include "StringTypes/compareNoCase_4.inc"
 }
 
-int WideString::compareNoCase(const wchar_t* src1, const WideString& src2)
-{
-    return wcscasecmp(src1, src2.c_str());
+#include "StringTypes/compareNoCase_5.inc"
 }
 
-bool WideString::isuspace(wchar_t ch)
-{
-    // ORIG 0x08adca62：Unicode 空白白名单。
-    if ((((((ch == 9) || (ch == 10)) || (ch == 0xb)) ||
-          (((ch == 0xc || (ch == 0xd)) || ((ch == 0x20 || ((ch == 0xa0 || (ch == 0x2000)))))))) ||
-         ((ch == 0x2001 ||
-          ((((((ch == 0x2002 || (ch == 0x2003)) || (ch == 0x2004)) ||
-             ((ch == 0x2005 || (ch == 0x2006)))) ||
-            ((ch == 0x2007 || ((ch == 0x2008 || (ch == 0x2009)))))) || (ch == 0x200a)))))) ||
-        ((((ch == 0x200b || (ch == 0x202f)) || (ch == 0x205f)) ||
-          ((ch == 0x3000 || (ch == 0xfeff))))))
-    {
-        return true;
-    }
-    return false;
+#include "StringTypes/isuspace.inc"
 }
 
-bool WideString::isupunct(wchar_t ch)
-{
-    // ORIG 0x08adcb50：条件为「不是 Unicode 标点」，命中返回 false，否则 true。
-    // 极性反演（P196）：ORIG true 常量岛在前（mov $1;jmp 在 mov $0 之前），
-    // 需 if 条件 = 「是标点」命中 → return true。
-    if (!(((((((((((ch < 0x21) || (0x23 < ch)) && ((ch < 0x25 || (0x2a < ch)))) &&
-            ((((((ch < 0x2c || (0x2f < ch)) && (ch != 0x3a)) && ((ch != 0x3b && (ch != 0x3f)))) &&
-              (ch != 0x40)) &&
-             (((ch < 0x5b || (0x5d < ch)) &&
-              ((ch != 0x5f && (((ch != 0x7b && (ch != 0x7d)) && (ch != 0xa1)))))))))) &&
-           (((ch != 0xab && (ch != 0xad)) && ((ch != 0xb7 && ((ch != 0xbb && (ch != 0xbf)))))))) &&
-          (ch != 0x37e)) && ((ch != 0x387 && (((ch < 0x55a || (0x55f < ch)) && (ch != 0x589)))))) &&
-        (((ch != 0x58a && (ch != 0x5be)) &&
-         ((ch != 0x5c0 &&
-          ((((ch != 0x5c3 && (ch != 0x5c6)) &&
-            ((ch != 0x5f3 &&
-             ((((ch != 0x5f4 && (ch != 0x60c)) && (ch != 0x60d)) && ((ch != 0x61b && (ch != 0x61e)))
-              ))))) && (ch != 0x61f)))))))) &&
-       ((((((((ch < 0x66a || (0x66d < ch)) && ((ch != 0x6d4 && ((ch < 0x700 || (0x70d < ch)))))) &&
-            ((ch < 0x7f7 || (0x7f9 < ch)))) &&
-           ((((((ch != 0x964 && (ch != 0x965)) && (ch != 0x970)) &&
-              ((ch != 0xdf4 && ((ch < 0xe4f || (0xe5b < ch)))))) && ((ch < 0xf04 || (0xf12 < ch))))
-            && (((ch < 0xf3a || (0xf3d < ch)) && ((ch != 0xf85 && ((ch != 0xfd0 && (ch != 0xfd1)))))
-                ))))) && ((ch < 0x104a || (0x104f < ch)))) &&
-         (((((ch != 0x10fb && (((ch < 0x1361 || (0x1368 < ch)) && (ch != 0x166d)))) &&
-            ((ch != 0x166e && (ch != 0x169b)))) && (ch != 0x169c)) &&
-          (((((((ch < 0x16eb || (0x16ed < ch)) && ((ch != 0x1735 && (ch != 0x1736)))) &&
-              ((ch < 0x17d4 || (0x17d6 < ch)))) &&
-             (((ch < 0x17d8 || (0x17da < ch)) &&
-              (((((ch < 0x1800 || (0x180a < ch)) && (ch != 0x1944)) &&
-                ((ch != 0x1945 && (ch != 0x19de)))) &&
-               ((ch != 0x19df && ((ch != 0x1a1e && (ch != 0x1a1f)))))))))) &&
-            ((ch < 0x1b5a || (0x1b60 < ch)))) &&
-           (((((ch < 0x2010 || (0x2027 < ch)) && ((ch < 0x2030 || (0x2043 < ch)))) &&
-             ((ch < 0x2045 || (0x2051 < ch)))) && ((ch < 0x2053 || (0x205e < ch)))))))))) &&
-        ((((ch != 0x207d && (ch != 0x207e)) && (ch != 0x208d)) &&
-         (((ch != 0x208e && (ch != 0x2329)) && ((ch != 0x232a && ((ch < 0x2768 || (0x2775 < ch))))))
-         )))))) && ((ch < 0x27c5 || (0x27c6 < ch)))) &&
-     (((((((ch < 0x27e6 || (0x27eb < ch)) && ((ch < 0x2983 || (0x2998 < ch)))) &&
-         (((((((ch < 0x29d8 || (0x29db < ch)) && (ch != 0x29fc)) && (ch != 0x29fd)) &&
-            (((ch < 0x2cf9 || (0x2cfc < ch)) && ((ch != 0x2cfe && (ch != 0x2cff)))))) &&
-           ((ch < 0x2e00 || (0x2e17 < ch)))) &&
-          ((ch != 0x2e1c && ((ch != 0x2e1d && ((ch < 0x3001 || (0x3003 < ch)))))))))) &&
-        ((ch < 0x3008 || (0x3011 < ch)))) &&
-       ((((((((ch < 0x3014 || (0x301f < ch)) && (ch != 0x3030)) &&
-            ((ch != 0x303d && (ch != 0x30a0)))) && (ch != 0x30fb)) &&
-          (((ch < 0xa874 || (0xa877 < ch)) && ((ch != 0xfd3e && (ch != 0xfd3f)))))) &&
-         ((ch < 0xfe10 || (0xfe19 < ch)))) && ((ch < 0xfe30 || (0xfe52 < ch)))))) &&
-      (((((ch < 0xfe54 || (0xfe61 < ch)) && (ch != 0xfe63)) &&
-        (((ch != 0xfe68 && (ch != 0xfe6a)) && ((ch != 0xfe6b && ((ch < 0xff01 || (0xff03 < ch)))))))
-        ) && (((ch < 0xff05 || (0xff0a < ch)) &&
-              (((((ch < 0xff0c || (0xff0f < ch)) && (ch != 0xff1a)) &&
-                (((ch != 0xff1b && (ch != 0xff1f)) &&
-                 (((ch != 0xff20 && ((ch < 0xff3b || (0xff3d < ch)))) && (ch != 0xff3f)))))) &&
-               (((ch != 0xff5b && (ch != 0xff5d)) && ((ch < 0xff5f || (0xff65 < ch))))))))))))))) {
-    return true;
-    }
-        return false;
+#include "StringTypes/isupunct.inc"
 }
 
 // ---- <global> 自由函数 ----
@@ -1910,56 +720,16 @@ WideString right(const WideString& str, int length)
     }
 }
 
-int ss_vsprintf(char* buffer, size_t count, const char* format, char* argList)
-{
-    // ORIG _Z11ss_vsprintfPcjPKcS_ @0x08ad457c
-    int ret = vsnprintf(buffer, count, format, argList);
-    if (static_cast<int>(count) <= ret)
-    {
-        *buffer = '\0';
-        return 0;
-    }
-    return ret;
+#include "StringTypes/ss_vsprintf.inc"
 }
 
-int ss_vswprintf(wchar_t* buffer, size_t count, const wchar_t* format, char* argList)
-{
-    // ORIG _Z12ss_vswprintfPwjPKwPc @0x08ad45f3
-    int ret = vswprintf(buffer, count, format, argList);
-    if (ret < 0 || static_cast<int>(count) <= ret)
-    {
-        *buffer = L'\0';
-        return 0;
-    }
-    return ret;
+#include "StringTypes/ss_vswprintf.inc"
 }
 
-int ss_strcpy(char* dest, size_t count, const char* src)
-{
-    // ORIG _Z9ss_strcpyPcjPKc @0x08ad463f：count 容纳 len+1 时 memcpy 并返回 0；
-    // 否则 dest[0]=0 返回 1。
-    int len = static_cast<int>(strlen(src));
-    if (static_cast<int>(count) <= len)
-    {
-        *dest = '\0';
-        return 1;
-    }
-    memcpy(dest, src, len + 1);
-    return 0;
+#include "StringTypes/ss_strcpy.inc"
 }
 
-int ss_strcat(char* dest, size_t count, const char* src)
-{
-    // ORIG _Z9ss_strcatPcjPKc @0x08ad46dd：容纳 dlen+slen+1 时 memcpy 并返回 0；
-    // 否则直接返回 1（不写字节）。
-    int dlen = static_cast<int>(strlen(dest));
-    int slen = static_cast<int>(strlen(src));
-    if (static_cast<int>(count) <= dlen + slen)
-    {
-        return 1;
-    }
-    memcpy(dest + dlen, src, slen + 1);
-    return 0;
+#include "StringTypes/ss_strcat.inc"
 }
 
 // ---- CharString / WideString 自由运算符（ORIG 0x8ad959a..0x8ad997c /

@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Village/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 #include "LogManager.h"
 // ============================================================================
 // df_game_r Village（G2-5 村庄对象，sizeof 0x34）
@@ -36,272 +46,38 @@
 #include <vector>
 
 // ImportMapScript（ORIG 0x089dcf54，自由函数；定义于 STMapScript.cpp，无权威头）
-bool ImportMapScript(STMapScript* script, const char* path);
+#include "Village/ImportMapScript.inc"
 
-Village::Village()
-{
-    // m_users（map）由编译器隐式构造（ORIG 086c32e0：map C1 于 +0x08）
-    m_pAreas = 0;
+#include "Village/Village.inc"
 }
 
-Village::~Village()
-{
-    destroy();
-    // m_users（map）由编译器隐式析构（ORIG：destroy() 后 map D1）
+#include "Village/dtor_Village.inc"
 }
 
 // [b28d-62] N18b：cmp 操作数序（写 `m_pAreas == pEnd` 亦不可翻）+ N112 对齐
 //   nop；39=39，p167 CLEAR。ORIG 0x086c3348
-void Village::destroy()
-{
-    if (m_pAreas)
-    {
-        if (m_pAreas)
-        {
-            // §4.3 具名化：Area 步长由真实尺寸给出（sizeof(Area)==0x98 探针
-            // 实证，Area.h 权威布局），不再写字面量 0x98。
-            // [b28d-62] 去 count 具名局部（P0/P183）：ORIG 0x086c3366 直接
-            //   `mov p; mov p; sub $4; mov (%eax),%eax; imul $0x98; lea (%edx,%eax,1),%ebx`
-            //   —— 只有 pEnd 一个 callee-saved 缓存，count 是内联右值。
-            register Area* pEnd = m_pAreas + ((int*)m_pAreas)[-1];
-            // [b28d-62] ORIG 0x086c337d 布局为「cond 在头 + body 尾 jmp 回 cond」，
-            //   4.4 对 while 旋转成前置 jmp ⇒ 改 for(;;)+break 复现（P283 反向）。
-            for (;;)
-            {
-                if (m_pAreas == pEnd)
-                    break;
-                pEnd = pEnd - 1;   // §4.3（同上，负向遍历）
-                pEnd->~Area();
-            }
-            ::operator delete[]((char*)m_pAreas - 4);
-        }
-        m_pAreas = 0;
-    }
+#include "Village/destroy.inc"
 }
 
 // [b28d-62] N89/P50：ORIG 用 `Area::~Area` + `operator delete[]`（数组删除），
 //   我方 placement new/delete 形态 + 迭代器 cv 差。ORIG 0x086c33b8
-bool Village::set_village(TownScript& script)
-{
-    bool result = false;
-
-    m_villageId = script.m_field0;
-    if (script.m_18 == -1)
-    {
-        m_bEnabled = false;
-    }
-    else
-    {
-        m_bEnabled = true;
-        void* dungeon = G_CDataManager()->get_dungeon(script.m_18);
-        // §4.3 具名化：get_dungeon 的 ORIG 实体是 find_dungeon 转发
-        // （CDataManager.cpp:300 返 CDungeon*），+0x6d4 具名成员 = CDungeon::m_vec6d4
-        // （CDungeon.h:749，std::vector<int>，public 区）。
-        std::vector<int>* v = &static_cast<CDungeon*>(dungeon)->m_vec6d4;
-        v->push_back(m_villageId);
-    }
-
-    m_areaCount = (int)script.m_areas.size();
-    if (m_areaCount == 0)
-    {
-        LogManager::logFormat(
-            1, "world.cpp", __PRETTY_FUNCTION__, 0x2d0,
-            "town.townAreaScripts_.size() == 0");
-        return false;
-    }
-
-    bool bSchool = G_GameWorld()->IsSchoolPvPChannel() != 0 &&
-                   script.m_field0 == 2;
-    if (bSchool)
-    {
-        int count = m_areaCount;
-        int total = count + 600;
-        int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
-        raw[0] = total;
-        Area* pArea = (Area*)(raw + 1);
-        for (int i = total - 1; i != -1; --i)
-        {
-            ::new (pArea) Area();
-            pArea = pArea + 1;   // §4.3：步长由 Area 真实尺寸给出（sizeof==0x98 探针实证）
-        }
-        m_pAreas = (Area*)(raw + 1);
-        g_schoolMgr.SetSchoolArea(m_areaCount, m_areaCount + 600);
-    }
-    else if (script.m_field0 == 8)
-    {
-        int count = m_areaCount;
-        int total = count + 0x960;
-        int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
-        raw[0] = total;
-        Area* pArea = (Area*)(raw + 1);
-        for (int i = total - 1; i != -1; --i)
-        {
-            ::new (pArea) Area();
-            pArea = pArea + 1;   // §4.3（同上）
-        }
-        m_pAreas = (Area*)(raw + 1);
-        // [b28d-sweep] 对象语义（ORIG 0x86c3685 `movl $0x943e0e0,(%esp)`，符号 B 0x58）
-        g_guildAgitMgr.SetGuildAgitAreaDomain(m_areaCount, total);
-    }
-    else
-    {
-        int count = m_areaCount;
-        int* raw = (int*)::operator new[]((count * 0x26 + 1) * 4);
-        raw[0] = count;
-        Area* pArea = (Area*)(raw + 1);
-        for (int i = count - 1; i != -1; --i)
-        {
-            ::new (pArea) Area();
-            pArea = pArea + 1;   // §4.3（同上）
-        }
-        m_pAreas = (Area*)(raw + 1);
-    }
-
-    m_field2c = script.m_3c;
-    m_questIdx = script.m_40;
-
-    TownAreaScript temp;
-    bool bSuccess = false;
-
-    std::map<int, TownAreaScript>::iterator it = script.m_areas.begin();
-    for (;;)
-    {
-        if (it == script.m_areas.end())
-            break;
-
-        {
-            TownAreaScript copy(it->second);
-            temp = copy;
-        }
-
-        int areaIndex = temp.m_areaIndex;
-        if (areaIndex < 0 || areaIndex >= m_areaCount)
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x32e, 5);
-            trace("temp_area.areaIndex_ %d", areaIndex);
-        }
-        else
-        {
-            STMapScript mapScript;
-            const char* mapName = temp.m_mapName.c_str();
-            if (ImportMapScript(&mapScript, mapName) == 1)
-            {
-                m_pAreas[areaIndex].set_area(m_villageId, temp, mapScript);
-                if (G_GameWorld()->IsSchoolPvPChannel() != 0 &&
-                    script.m_field0 == 2 && areaIndex == 4)
-                {
-                    for (int i = m_areaCount; i < m_areaCount + 600; ++i)
-                    {
-                        temp.m_areaIndex = i;
-                        m_pAreas[i].set_area(m_villageId, temp, mapScript);
-                    }
-                    m_areaCount += 600;
-                }
-                if (script.m_field0 == 8 && areaIndex < 4)
-                {
-                    int nEnd = m_areaCount + 0x960;
-                    int nStart = 0;
-                    switch (areaIndex)
-                    {
-                    case 0:
-                        nStart = m_areaCount;
-                        break;
-                    case 1:
-                        nStart = m_areaCount + 1;
-                        break;
-                    case 2:
-                        nStart = m_areaCount + 2;
-                        break;
-                    case 3:
-                        nStart = m_areaCount + 3;
-                        m_areaCount += 0x960;
-                        break;
-                    }
-                    for (int i = nStart; i < nEnd; i += 4)
-                    {
-                        temp.m_areaIndex = i;
-                        m_pAreas[i].set_area(m_villageId, temp, mapScript);
-                    }
-                }
-                bSuccess = true;
-            }
-            else
-            {
-                result = false;
-                bSuccess = false;
-            }
-            if (!bSuccess)
-                goto cleanup;
-        }
-
-        ++it;
-    }
-    result = true;
-
-cleanup:
-    return result;
+#include "Village/set_village.inc"
 }
 
-Area* Village::getArea(int area)
-{
-    if (area < 0 || area >= m_areaCount)
-    {
-        // [b28c-35] ORIG 0x086c3bba：m_iAreaCount 在 cMyTrace::C1 调用**之前**读入
-        // %ebx 并跨 ctor 保活（push %ebx; sub $0x24），具名对象形 4.4 会改在 ctor 后
-        // 重读（无 push ebx，帧 0x28）。全表达式临时链（P227/P87）复现 ORIG 形。
-        cMyTrace(__PRETTY_FUNCTION__, 0x356, 5)(
-            "area(%d) < 0 || area >= m_iAreaCount(%d)",
-            area, m_areaCount);
-        return 0;
-    }
-    return &m_pAreas[area];
+#include "Village/getArea.inc"
 }
 
-void Village::get_user_id_list(
-    int area,
-    std::vector<unsigned short, std::allocator<unsigned short> >& list)
-{
-    if (area < 0 || area >= m_areaCount)
-    {
-        LogManager::logFormat(
-            1, "world.cpp",
-            "void Village::get_user_id_list(int, std::vector<short unsigned "
-            "int, std::allocator<short unsigned int> >&)",
-            0x36a, "area(%d) < 0 || area >= m_iAreaCount(%d)", area,
-            m_areaCount);
-    }
-    else
-    {
-        m_pAreas[area].get_user_id_list(list);
-    }
+#include "Village/get_user_id_list.inc"
 }
 
-void Village::send_to_area(int area, PacketGuard& pkt)
-{
-    if (area < 0 || area >= m_areaCount)
-    {
-        LogManager::logFormat(
-            1, "world.cpp", __PRETTY_FUNCTION__,
-            0x360, "area(%d) < 0 || area >= m_iAreaCount(%d)", area,
-            m_areaCount);
-    }
-    else
-    {
-        m_pAreas[area].send_to_all(pkt);
-    }
+#include "Village/send_to_area.inc"
 }
 
-int Village::GetUserCount(int area) const
-{
-    if (area < 0 || area >= m_areaCount)
-        return 0;
-    return m_pAreas[area].GetUserCount();
+#include "Village/GetUserCount.inc"
 }
 
 // CBelong::CBelong 定义置于本 TU（与消费调用者分离）：4.4 unit-at-a-time
 // 对 TU 内可见 callee 塌缩 outgoing 帧（CSchoolMemberC1 sub $0x4），
 // ORIG 4.1 恒发 sub $0x18（探针 p6/p7 实证同族）。
-CBelong::CBelong()
-{
+#include "Village/CBelong.inc"
 }

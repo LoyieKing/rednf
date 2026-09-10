@@ -1,0 +1,2 @@
+DBSelectPcroomDailyReward::~DBSelectPcroomDailyReward()
+{

@@ -1,0 +1,2 @@
+CAssaultOnOffEvent::~CAssaultOnOffEvent()
+{

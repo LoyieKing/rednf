@@ -1,0 +1,3 @@
+CountinuousItemOption::CountinuousItemOption()
+{
+    clear();

@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 ByteBuffer/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // nexon::cash::ByteBuffer —— 大端序读写游标缓冲（独立 TU）。
 //
 // [GI 拆分] 本文件由 nexon_cash.cpp 拆出：ORIG 侧 ByteBuffer 属独立编译单元
@@ -48,9 +58,7 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
 }
 
 // ORIG 0x081ae9e2：start=write=read=buffer; capacity=len。
-ByteBuffer::ByteBuffer(char* buffer, unsigned int len)
-    : m_start(buffer), m_writePtr(buffer), m_readPtr(buffer), m_capacity(len)
-{
+#include "ByteBuffer/ByteBuffer.inc"
 }
 
 // [b28d-D43] ORIG 0x081ae9b8：static 成员 + 按值 sret 返回 —— 体 = 单次
@@ -58,13 +66,7 @@ ByteBuffer::ByteBuffer(char* buffer, unsigned int len)
 // 全字段由 ctor 覆盖（无 this 参与）。调用点（0x081ad43b 等）只压
 // sret/buffer/len 三参、无 this ⇒ P88/P245 static 判据。旧重建的
 // `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
-ByteBuffer ByteBuffer::wrap(char* buffer, unsigned int len)
-{
-    // [b28d-solo-nexon_cash] N 封顶（帧量化跨版本）：ORIG `sub $0x14` vs 4.4
-    // `sub $0xc`。实测 4.4 帧增量恒 align16(局部需求)（char[4]/char[8]/int 均
-    // 落 $0x1c），$0x14 不可达（P190 附注②/N95 族）。体 16/16 条全等，仅帧
-    // sub/add 立即数差，语义等价。
-    return ByteBuffer(buffer, len);
+#include "ByteBuffer/wrap.inc"
 }
 
 // ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
@@ -211,9 +213,7 @@ ByteBuffer& ByteBuffer::operator>>(unsigned int& value)
 // ORIG 0x081acf60：length = m_writePtr - m_start。
 // 定义置于全部 <<x/>>x 消费者之后：ORIG 各 W body 内 call length 为宽松帧
 // （sub $0x18 + 具名 value 槽 -0xc），同 TU 定义前置会收紧 caller 帧（技巧31）。
-unsigned int ByteBuffer::length() const
-{
-    return static_cast<unsigned int>(m_writePtr - m_start);
+#include "ByteBuffer/length.inc"
 }
 
 }  // namespace cash

@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Stream/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— Stream / SmallStream / BigStream（S1 组）
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN6StreamC2Ev`（ORIG 0x861c999）；ctor 已是首强符号。
@@ -7,139 +17,55 @@
 
 #include <string.h>
 
-Stream::Stream()
-{
-    // ORIG 存储顺序：+8(m_buffer) → +4(m_size) → +0xc → +0x10
-    m_buffer = 0;
-    m_size = 0;
-    m_inPtr = 0;
-    m_outPtr = 0;
-    set_big_stream(false);
-    resize(0x4000);
-    m_poolType = 0;
+#include "Stream/Stream.inc"
 }
 
-Stream::Stream(int size)
-{
-    m_buffer = 0;
-    m_size = 0;
-    m_inPtr = 0;
-    m_outPtr = 0;
-    set_big_stream(false);
-    resize(size);
-    m_poolType = 0;
+#include "Stream/Stream_1.inc"
 }
 
-Stream::Stream(char* str)
-{
-    Stream();
-    *this << str;
+#include "Stream/Stream_2.inc"
 }
 
-Stream::Stream(Stream& other)
-{
-    Stream();
-    put_binary(other.get_buffer(), other.length());
+#include "Stream/Stream_3.inc"
 }
 
-Stream::~Stream()
-{
-    delete[] m_buffer;
+#include "Stream/dtor_Stream.inc"
 }
 
-int Stream::size()
-{
-    return m_size;
+#include "Stream/size.inc"
 }
 
-int Stream::length()
-{
-    return in_ptr() - out_ptr();
+#include "Stream/length.inc"
 }
 
-int Stream::in_ptr()
-{
-    return m_inPtr;
+#include "Stream/in_ptr.inc"
 }
 
-int Stream::in_ptr(int n)
-{
-    m_inPtr += n;
-    return m_inPtr;
+#include "Stream/in_ptr_1.inc"
 }
 
-int Stream::out_ptr()
-{
-    return m_outPtr;
+#include "Stream/out_ptr.inc"
 }
 
-int Stream::out_ptr(int n)
-{
-    if (m_outPtr + n > m_inPtr)
-    {
-        return -1;
-    }
-    m_outPtr += n;
-    if (m_outPtr == m_inPtr)
-    {
-        reset();
-    }
-    return m_outPtr;
+#include "Stream/out_ptr_1.inc"
 }
 
-void Stream::reset()
-{
-    m_inPtr = 0;
-    m_outPtr = 0;
-    set_big_stream(false);
-    m_poolType = 0;
+#include "Stream/reset.inc"
 }
 
-void Stream::set_big_stream(bool b)
-{
-    m_bigStream = b;
+#include "Stream/set_big_stream.inc"
 }
 
-bool Stream::is_big_stream()
-{
-    return m_bigStream;
+#include "Stream/is_big_stream.inc"
 }
 
-int Stream::resize(int n)
-{
-    char* buf = new char[n];
-    if (!buf)
-    {
-        return 0;
-    }
-    memcpy(buf, m_buffer + out_ptr(), length());
-    if (m_buffer)
-    {
-        delete[] m_buffer;
-    }
-    m_outPtr = 0;
-    m_inPtr = length();
-    m_buffer = buf;
-    m_size = n;
-    return 1;
+#include "Stream/resize.inc"
 }
 
-bool Stream::enable_in(int n)
-{
-    if (in_ptr() + n > size())
-    {
-        return false;
-    }
-    return true;
+#include "Stream/enable_in.inc"
 }
 
-bool Stream::enable_out(int n)
-{
-    if (out_ptr() + n > in_ptr())
-    {
-        return false;
-    }
-    return true;
+#include "Stream/enable_out.inc"
 }
 
 Stream& Stream::operator<<(bool b)
@@ -240,15 +166,7 @@ Stream& Stream::operator<<(unsigned long v)
     return *this;
 }
 
-int Stream::put_binary(void* src, int len)
-{
-    while (!enable_in(len))
-    {
-        resize(size() * 2);
-    }
-    memcpy(m_buffer + in_ptr(), src, len);
-    in_ptr(len);
-    return 1;
+#include "Stream/put_binary.inc"
 }
 
 bool Stream::operator>>(bool& b)
@@ -359,52 +277,23 @@ bool Stream::operator>>(unsigned long& v)
     return ok;
 }
 
-int Stream::str_len(char* s)
-{
-    int len = 0;
-    int i = 0;
-    while (i <= 9999999)
-    {
-        if (s[i] == 0)
-        {
-            return len;
-        }
-        ++len;
-        ++i;
-    }
-    return 0;
+#include "Stream/str_len.inc"
 }
 
-char* Stream::get_buffer()
-{
-    return m_buffer + out_ptr();
+#include "Stream/get_buffer.inc"
 }
 
-bool Stream::get_binary(void* dst, int len)
-{
-    if (!enable_out(len))
-    {
-        return 0;
-    }
-    memcpy(dst, m_buffer + out_ptr(), len);
-    out_ptr(len);
-    return 1;
+#include "Stream/get_binary.inc"
 }
 
-SmallStream::SmallStream()
-    : Stream(0x1000)
-{
+#include "Stream/SmallStream.inc"
 }
 
-SmallStream::~SmallStream()
-{
+#include "Stream/dtor_SmallStream.inc"
 }
 
-BigStream::BigStream()
-    : Stream(0x40000)
-{
+#include "Stream/BigStream.inc"
 }
 
-BigStream::~BigStream()
-{
+#include "Stream/dtor_BigStream.inc"
 }

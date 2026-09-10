@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CCharacter/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— CCharacter（依据 docs/class_func_reports/CCharacter/ 报告）。
 // ctor ORIG _ZN10CCharacterC1Ev T 0x0834828c / dtor D1 T 0x0834842a。
 //
@@ -15,54 +25,29 @@
 
 // ORIG STSecondGrowTypeInfo::STSecondGrowTypeInfo W 0x8373934：
 // 2 个 _Additioal_info 构造 + 2 个 vector 默认构造 + clear()。
-STSecondGrowTypeInfo::STSecondGrowTypeInfo()
-    // ORIG W 0x08373934：两组数组循环构造后直接 call clear()；
-    // m_fieldbc 不在 C1 写（仅 clear 的 memset 2B 覆盖）。
-    : m_addInfo(), m_skills()
-{
-    clear();   // ORIG 0x8373a1e：成员构造后调 clear()（m_fieldbc 低 2 字节置 0）
+#include "CCharacter/STSecondGrowTypeInfo.inc"
 }
 
 // ORIG ~STSecondGrowTypeInfo W 0x8376324：逆序析构 +0xa4/+0xb0 两个 vector。
-STSecondGrowTypeInfo::~STSecondGrowTypeInfo()
-{
+#include "CCharacter/dtor_STSecondGrowTypeInfo.inc"
 }
 
 // ORIG CCharacter::CCharacter @ 0x834828c：
 //   _Additioal_info[7]（this+0 起，步长 0x52）
 //   vector[7]（+0x240，步长 0xc）
 //   STSecondGrowTypeInfo[7]（+0x294，步长 0xc0）→ clear()。
-CCharacter::CCharacter()
-    : m_baseInfo0(), m_baseInfoGrow(), m_giveSkillList(), m_secondGrowTypes()
-{
-    // ORIG 0x834828c：各成员构造完成后调 clear()。
-    clear();
+#include "CCharacter/CCharacter.inc"
 }
 
 // ORIG ~CCharacter @ 0x834842a：destroy → 逆序析构 STSecondGrowTypeInfo[7]、
 // vector[7]（成员析构由编译器按声明逆序生成，语义一致）。
-CCharacter::~CCharacter()
-{
-    // ORIG ~CCharacter @ 0x834842a：先调 destroy()（→clear()）再析构成员。
-    destroy();
+#include "CCharacter/dtor_CCharacter.inc"
 }
 
 // ORIG get_give_skill_firstGrowtype @ 0x83485d8。
 // ORIG 地址 = this + 0x240 + 12*(grow+1)（set_data 填满 [0..6]，本查询跳过 0 号基础槽）。
 // [2026-09-10 D06] bool（同 get_give_skill 判据；尾 `mov $0x1,%eax` 与 bool 兼容）。
-bool CCharacter::get_give_skill_firstGrowtype(int grow,
-                                              std::vector<std::pair<int, int> >& out) const
-{
-    if (grow < 0 || grow > 5)
-        return 0;
-    std::vector<std::pair<int, int> >::const_iterator it = m_giveSkillList[grow + 1].begin();
-    std::vector<std::pair<int, int> >::const_iterator e = m_giveSkillList[grow + 1].end();
-    for (; it != e; ++it)
-    {
-        const std::pair<int, int>& p = *it;
-        out.push_back(p);
-    }
-    return 1;
+#include "CCharacter/get_give_skill_firstGrowtype.inc"
 }
 
 // ORIG get_give_skill_secondGrowtype @ 0x8348694。
@@ -70,23 +55,7 @@ bool CCharacter::get_give_skill_firstGrowtype(int grow,
 // ORIG 地址 = this + 0x330 + 0xc0*(grow+1) + 12*(secondGrow-1) + 8
 //          = &m_secondGrowTypes[grow+1].m_skills[secondGrow-1]（同样跳过 0 号基础槽）。
 // [2026-09-10 D06] bool（同族）。
-bool CCharacter::get_give_skill_secondGrowtype(int grow, int secondGrow,
-                                               std::vector<std::pair<int, int> >& out) const
-{
-    if (grow < 0 || grow > 5)
-        return 0;
-    if (secondGrow < 1 || secondGrow > 2)
-        return 1;
-    std::vector<std::pair<int, int> >::const_iterator it =
-        m_secondGrowTypes[grow + 1].m_skills[secondGrow - 1].begin();
-    std::vector<std::pair<int, int> >::const_iterator e =
-        m_secondGrowTypes[grow + 1].m_skills[secondGrow - 1].end();
-    for (; it != e; ++it)
-    {
-        const std::pair<int, int>& p = *it;
-        out.push_back(p);
-    }
-    return 1;
+#include "CCharacter/get_give_skill_secondGrowtype.inc"
 }
 
 // ORIG get_growtype_stat @ 0x834883e：按 (firstGrow, secondGrow) 返回成长属性块
@@ -96,36 +65,11 @@ bool CCharacter::get_give_skill_secondGrowtype(int grow, int secondGrow,
 // （= &m_secondGrowTypes[firstGrow+1].m_addInfo[secondGrow-1]，
 //   m_secondGrowTypes @+0x294、步长 sizeof(STSecondGrowTypeInfo)=0xc0、
 //   m_addInfo 元素步长 0x52；布局断言见 CCharacter.h）。
-const _Additioal_info* CCharacter::get_growtype_stat(int firstGrow,
-                                                     int secondGrow) const
-{
-    if (firstGrow > 5 || secondGrow > 2)
-        return 0;
-    if (secondGrow == 0)
-        return &m_baseInfoGrow[firstGrow];
-    return &m_secondGrowTypes[firstGrow + 1].m_addInfo[secondGrow - 1];
+#include "CCharacter/get_growtype_stat.inc"
 }
 
 // ORIG get_give_skill @ 0x8348798。
-bool CCharacter::get_give_skill(int firstGrow, int secondGrow,
-                                std::vector<std::pair<int, int> >& out,
-                                unsigned int flag) const
-{
-    // ORIG 0x08348798：所有分支经 bool r 槽（-0x9，1 字节直存）物化后统一 movzbl 尾返；
-    // flag==0 支双赋值（r=f1(); r=f2(); 死写照抄 P171）。
-    bool r;
-    if (flag == 0)
-    {
-        r = get_give_skill_firstGrowtype(firstGrow, out);
-        r = get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
-    }
-    else if (flag == 1)
-        r = get_give_skill_firstGrowtype(firstGrow, out);
-    else if (flag == 2)
-        r = get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
-    else
-        r = false;
-    return r;
+#include "CCharacter/get_give_skill.inc"
 }
 
 // ============================================================================
@@ -139,34 +83,14 @@ bool CCharacter::get_give_skill(int firstGrow, int secondGrow,
 // ORIG STSecondGrowTypeInfo::clear W 0x08373a1e（objdump 转写）：
 // i=0..1 { m_addInfo[i].clear(); m_skills[i].clear(); } 后 memset(&m_fieldbc,0,2)
 // —— 仅清 m_fieldbc 低 2 字节，高 2 字节保留（ORIG 固有）。
-void STSecondGrowTypeInfo::clear()
-{
-    for (int i = 0; i <= 1; ++i)
-    {
-        m_addInfo[i].clear();
-        m_skills[i].clear();
-    }
-    memset(&m_fieldbc, 0, 2);
+#include "CCharacter/clear.inc"
 }
 
 // ORIG CCharacter::destroy @ 0x083485c4：sub $0x18 帧 + call clear()。
-void CCharacter::destroy()
-{
-    clear();
+#include "CCharacter/destroy.inc"
 }
 
-void CCharacter::clear()
-{
-    // ORIG 0x0834852e..0x0834856c：base case 单条 + 循环 i≤5 写 m_baseInfoGrow[i]
-    // （imul $0x52 +0x50/+0x2）——与 C1 混合构造形一致。
-    m_baseInfo0.clear();
-    for (int i = 0; i <= 5; ++i)
-        m_baseInfoGrow[i].clear();
-    for (int i = 0; i <= 6; ++i)
-    {
-        m_giveSkillList[i].clear();
-        m_secondGrowTypes[i].clear();
-    }
+#include "CCharacter/clear_1.inc"
 }
 
 // ORIG CCharacter::set_data @ 0x08348894（objdump 全量转写，2901B / 932 条）。
@@ -190,86 +114,5 @@ void CCharacter::clear()
 //   尾字节写 ((char*)&m_secondGrowTypes[a].m_fieldbc)[b]（ORIG +0x350+a*0xc0+b），
 //   末尾 m_secondGrowTypes[a].m_skills[b] = script->m_secondGrow[a].m_skills[b]。
 // [b28d-7 N82] ORIG 0x08348894：帧 $0x5c + `imul $0x57` 后 add 两步寻址（-0x3c 先载），4.4 帧 $0x4c + lea 折叠；P167 CLEAR ⇒ 封顶。
-void CCharacter::set_data(STCharacterScript* script)
-{
-    for (int i = 0; i <= 6; ++i)
-    {
-        if (i == 0)
-        {
-            m_baseInfo0.m_field00 = script->m_status[i].m_hpMax;
-            m_baseInfo0.m_field04 = script->m_status[i].m_mpMax;
-            m_baseInfo0.m_field08 = script->m_status[i].m_physAttack;
-            m_baseInfo0.m_field0a = script->m_status[i].m_physDefense;
-            m_baseInfo0.m_field0c = script->m_status[i].m_magAttack;
-            m_baseInfo0.m_field0e = script->m_status[i].m_magDefense;
-            for (int j = 0; j <= 3; ++j)
-                m_baseInfo0.m_field10[j] = script->m_status[i].m_elemResist[j];
-            for (int k = 0; k <= 16; ++k)
-                m_baseInfo0.m_field18[k] = script->m_status[i].m_activeResist[k];
-            m_baseInfo0.m_field3a = script->m_status[i].m_inventoryLimit;
-            m_baseInfo0.m_field3e = script->m_status[i].m_hpRegen;
-            m_baseInfo0.m_field40 = script->m_status[i].m_mpRegen;
-            m_baseInfo0.m_field42 = script->m_status[i].m_moveSpeed;
-            m_baseInfo0.m_field46 = script->m_status[i].m_attackSpeed;
-            m_baseInfo0.m_field48 = script->m_status[i].m_castSpeed;
-            m_baseInfo0.m_field4a = script->m_status[i].m_hitRecovery;
-            m_baseInfo0.m_field4c = script->m_status[i].m_jumpPower;
-            m_baseInfo0.m_field4e = script->m_status[i].m_weight;
-            m_growTypeFlag[0] = (char)script->m_status[i].m_field52;
-        }
-        else
-        {
-            m_baseInfoGrow[i - 1].m_field00 = script->m_status[i].m_hpMax;
-            m_baseInfoGrow[i - 1].m_field04 = script->m_status[i].m_mpMax;
-            m_baseInfoGrow[i - 1].m_field08 = script->m_status[i].m_physAttack;
-            m_baseInfoGrow[i - 1].m_field0a = script->m_status[i].m_physDefense;
-            m_baseInfoGrow[i - 1].m_field0c = script->m_status[i].m_magAttack;
-            m_baseInfoGrow[i - 1].m_field0e = script->m_status[i].m_magDefense;
-            for (int j = 0; j <= 3; ++j)
-                m_baseInfoGrow[i - 1].m_field10[j] = script->m_status[i].m_elemResist[j];
-            for (int k = 0; k <= 16; ++k)
-                m_baseInfoGrow[i - 1].m_field18[k] = script->m_status[i].m_activeResist[k];
-            m_baseInfoGrow[i - 1].m_field3a = script->m_status[i].m_inventoryLimit;
-            m_baseInfoGrow[i - 1].m_field3e = script->m_status[i].m_hpRegen;
-            m_baseInfoGrow[i - 1].m_field40 = script->m_status[i].m_mpRegen;
-            m_baseInfoGrow[i - 1].m_field42 = script->m_status[i].m_moveSpeed;
-            m_baseInfoGrow[i - 1].m_field46 = script->m_status[i].m_attackSpeed;
-            m_baseInfoGrow[i - 1].m_field48 = script->m_status[i].m_castSpeed;
-            m_baseInfoGrow[i - 1].m_field4a = script->m_status[i].m_hitRecovery;
-            m_baseInfoGrow[i - 1].m_field4c = script->m_status[i].m_jumpPower;
-            m_baseInfoGrow[i - 1].m_field4e = script->m_status[i].m_weight;
-            m_growTypeFlag[i] = (char)script->m_status[i].m_field52;
-        }
-        m_giveSkillList[i] = script->m_skillList[i];   // vector::operator=
-    }
-
-    for (int a = 0; a <= 6; ++a)
-    {
-        for (int b = 0; b <= 1; ++b)
-        {
-            m_secondGrowTypes[a].m_addInfo[b].m_field00 = script->m_secondGrow[a].m_statusA[b].m_hpMax;
-            m_secondGrowTypes[a].m_addInfo[b].m_field04 = script->m_secondGrow[a].m_statusA[b].m_mpMax;
-            m_secondGrowTypes[a].m_addInfo[b].m_field08 = script->m_secondGrow[a].m_statusA[b].m_physAttack;
-            m_secondGrowTypes[a].m_addInfo[b].m_field0a = script->m_secondGrow[a].m_statusA[b].m_physDefense;
-            m_secondGrowTypes[a].m_addInfo[b].m_field0c = script->m_secondGrow[a].m_statusA[b].m_magAttack;
-            m_secondGrowTypes[a].m_addInfo[b].m_field0e = script->m_secondGrow[a].m_statusA[b].m_magDefense;
-            for (int t = 0; t <= 3; ++t)
-                m_secondGrowTypes[a].m_addInfo[b].m_field10[t] = script->m_secondGrow[a].m_statusA[b].m_elemResist[t];
-            for (int k = 0; k <= 16; ++k)
-                m_secondGrowTypes[a].m_addInfo[b].m_field18[k] = script->m_secondGrow[a].m_statusA[b].m_activeResist[k];
-            m_secondGrowTypes[a].m_addInfo[b].m_field3a = script->m_secondGrow[a].m_statusA[b].m_inventoryLimit;
-            m_secondGrowTypes[a].m_addInfo[b].m_field3e = script->m_secondGrow[a].m_statusA[b].m_hpRegen;
-            m_secondGrowTypes[a].m_addInfo[b].m_field40 = script->m_secondGrow[a].m_statusA[b].m_mpRegen;
-            m_secondGrowTypes[a].m_addInfo[b].m_field42 = script->m_secondGrow[a].m_statusA[b].m_moveSpeed;
-            m_secondGrowTypes[a].m_addInfo[b].m_field46 = script->m_secondGrow[a].m_statusA[b].m_attackSpeed;
-            m_secondGrowTypes[a].m_addInfo[b].m_field48 = script->m_secondGrow[a].m_statusA[b].m_castSpeed;
-            m_secondGrowTypes[a].m_addInfo[b].m_field4a = script->m_secondGrow[a].m_statusA[b].m_hitRecovery;
-            m_secondGrowTypes[a].m_addInfo[b].m_field4c = script->m_secondGrow[a].m_statusA[b].m_jumpPower;
-            m_secondGrowTypes[a].m_addInfo[b].m_field4e = script->m_secondGrow[a].m_statusA[b].m_weight;
-            // ORIG this + a*0xc0 + b + 0x350：m_fieldbc 的第 b 个字节（源 +0x52）
-            reinterpret_cast<char*>(&m_secondGrowTypes[a].m_fieldbc)[b] =
-                (char)script->m_secondGrow[a].m_statusA[b].m_field52;
-            m_secondGrowTypes[a].m_skills[b] = script->m_secondGrow[a].m_skills[b];
-        }
-    }
+#include "CCharacter/set_data.inc"
 }

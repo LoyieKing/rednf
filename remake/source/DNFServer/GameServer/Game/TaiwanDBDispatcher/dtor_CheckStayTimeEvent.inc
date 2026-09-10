@@ -1,0 +1,2 @@
+CheckStayTimeEvent::~CheckStayTimeEvent()
+{

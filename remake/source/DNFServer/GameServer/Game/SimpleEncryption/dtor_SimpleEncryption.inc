@@ -1,0 +1,3 @@
+SimpleEncryption::~SimpleEncryption()
+{
+    uninitialize();

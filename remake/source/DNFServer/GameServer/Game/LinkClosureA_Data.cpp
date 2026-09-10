@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 LinkClosureA_Data/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // LinkClosureA_Data.cpp — CDataManager PvP 组 getter（undef_bizA 收口批 A）
 //
 // 覆盖符号（唯一 owner = 本 TU；报告缺失 → nm -S 定址 objdump 忠实转写）：
@@ -15,34 +25,19 @@
 
 #include "CDataManager.h"
 
-int CDataManager::GetPvPMode()
-{
-    return m_pvpChannel.m_field1c;      // [objdump 0x844d4b4 mov 0xb44c(%eax)]
+#include "LinkClosureA_Data/GetPvPMode.inc"
 }
 
-int CDataManager::GetPvPTeamCount()
-{
-    return m_pvpChannel.m_field20;      // [objdump 0x8568ce6 mov 0xb450(%eax)]
+#include "LinkClosureA_Data/GetPvPTeamCount.inc"
 }
 
 // ==== QuestParameterScript 三 getter（ORIG T 0x08a6bd1c/0x08a6bd86/0x08a6bda6）====
 // getRewardWeight：map<char,int> find，未命中返 100；exp/gold：vector::at 抛越界。
-int QuestParameterScript::getRewardWeight(char level)
-{
-    // [b28c-L29] ORIG 0x08a6bd1c：find 结果直接落 it 槽（无 const_iterator
-    // 转换构造调用），ne/ptEv 均为迭代器本型——用非 const iterator。
-    std::map<char, int>::iterator it = m_map0.find(level);
-    if (it != m_map0.end())
-        return it->second;
-    return 100;
+#include "LinkClosureA_Data/getRewardWeight.inc"
 }
 
-int QuestParameterScript::getRewardExp(int idx)
-{
-    return m_vec24.at(idx);
+#include "LinkClosureA_Data/getRewardExp.inc"
 }
 
-int QuestParameterScript::getRewardGold(int idx)
-{
-    return m_vec30.at(idx);
+#include "LinkClosureA_Data/getRewardGold.inc"
 }

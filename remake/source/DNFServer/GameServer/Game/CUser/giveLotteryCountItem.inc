@@ -26,13 +26,18 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
     for (int i = 0; i < (int)src.size(); i += 2)
     {
         Inven_Item it;                              // 默认构造后按 ORIG 填 8 字节
-        *(int*)((char*)&it + 0) = src[i];
-        *(int*)((char*)&it + 4) = src[i + 1];
+        // 2026-09-10（FL2CUser p167）：ORIG 每个 pair 只调 **2 次** `vector<int>::operator[]`
+        //   （差集 EXTR `_ZNSt6vectorIiSaIiEEixEj` ×3 = 旧形对同一元素重复取 4 次）
+        //   ⇒ 原码把 pair 两字段各缓存进具名局部后复用。
+        int itemNo = src[i];
+        int itemCnt = src[i + 1];
+        *(int*)((char*)&it + 0) = itemNo;
+        *(int*)((char*)&it + 4) = itemCnt;
         rewards.push_back(it);
 
-        if (*(int*)&it == 1 && src[i + 1] >= 0)     // 事件币分支
+        if (*(int*)&it == 1 && itemCnt >= 0)        // 事件币分支
         {
-            int amount = src[i + 1];
+            int amount = itemCnt;
             // ORIG 0x086916d4..0x08691715：GetEventCoin() **独立调用两次**
             //（Set 实参一次、EventCoinAdd 实参一次；O0 无 CSE，P48）——
             // 旧版缓存 now 局部少一次调用（p167 miss=2）。
@@ -46,7 +51,7 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
         }
 
         G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, it, src[i + 1]);
+            (ENUM_ITEM_CREATE_TYPE)2, it, itemCnt);
 
         bool give = (*(int*)&it != 0) || (it.get_add_info() != 0);
         if (!give)

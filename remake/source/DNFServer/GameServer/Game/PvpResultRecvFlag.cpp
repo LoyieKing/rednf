@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 PvpResultRecvFlag/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r PvpResultRecvFlag 还原（G2-4 批次）。
 // 对照 docs/class_func_reports/PvpResultRecvFlag.md 与 ORIG 反汇编逐函数实现。
 // 布局：8 个 byte 标志（PvpResultRecvFlag 总尺寸 8）。
@@ -20,40 +30,17 @@ private:
     char m_flag[8];  // +0x00
 };
 
-PvpResultRecvFlag::PvpResultRecvFlag()
-{
-    Clear();
+#include "PvpResultRecvFlag/PvpResultRecvFlag.inc"
 }
 
-PvpResultRecvFlag::~PvpResultRecvFlag()
-{
+#include "PvpResultRecvFlag/dtor_PvpResultRecvFlag.inc"
 }
 
-void PvpResultRecvFlag::SetRecvFlag(int idx)
-{
-    if (!IsValidIdx(idx))
-    {
-        return;
-    }
-    m_flag[idx] = 1;
+#include "PvpResultRecvFlag/SetRecvFlag.inc"
 }
 
-void PvpResultRecvFlag::Clear()
-{
-    for (int i = 0; i <= 7; ++i)
-    {
-        m_flag[i] = 0;
-    }
+#include "PvpResultRecvFlag/Clear.inc"
 }
 
-bool PvpResultRecvFlag::IsValidIdx(int idx) const
-{
-    if (idx >= 0 && idx <= 7)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+#include "PvpResultRecvFlag/IsValidIdx.inc"
 }

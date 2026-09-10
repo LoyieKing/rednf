@@ -1,0 +1,3 @@
+CBitManager::CBitManager()
+    : m_data(0), m_buffer(0), m_size(0), m_field0c(0)
+{

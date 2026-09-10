@@ -1,0 +1,2 @@
+CClearCondition::~CClearCondition()
+{

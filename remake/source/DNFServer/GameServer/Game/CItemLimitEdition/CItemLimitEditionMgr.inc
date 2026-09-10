@@ -1,0 +1,2 @@
+CItemLimitEditionMgr::CItemLimitEditionMgr()
+{

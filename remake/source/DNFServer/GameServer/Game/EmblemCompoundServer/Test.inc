@@ -1,0 +1,2 @@
+void EmblemCompoundServer::Test()
+{

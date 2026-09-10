@@ -1,0 +1,3 @@
+SigLoadRewardEventItem::SigLoadRewardEventItem()
+{
+    init();

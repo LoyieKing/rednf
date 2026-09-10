@@ -1,0 +1,1 @@
+CEventTable::~CEventTable() {}

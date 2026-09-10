@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 md5/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r Game/ MD5 实现（独立 TU，从 GameStubs.cpp 拆出）。
 // 算法正确即可，不逐指令对齐。
 #include "md5.h"
@@ -8,43 +18,10 @@ static unsigned int md5_rotl(unsigned int x, int c)
     return (x << c) | (x >> (32 - c));
 }
 
-void md5_starts(md5_context* ctx)
-{
-    md5_ctx* c = (md5_ctx*)ctx;
-    c->total[0] = 0;
-    c->total[1] = 0;
-    c->state[0] = 0x67452301;
-    c->state[1] = 0xefcdab89;
-    c->state[2] = 0x98badcfe;
-    c->state[3] = 0x10325476;
+#include "md5/md5_starts.inc"
 }
 
-void md5_update(md5_context* ctx, unsigned char* data, int len)
-{
-    md5_ctx* c = (md5_ctx*)ctx;
-    unsigned int used = (c->total[0] >> 3) & 0x3f;
-    c->total[0] += (unsigned int)len << 3;
-    if (c->total[0] < ((unsigned int)len << 3))
-    {
-        ++c->total[1];
-    }
-    c->total[1] += (unsigned int)len >> 29;
-    if (used != 0)
-    {
-        unsigned int fill = 64 - used;
-        if (len < (int)fill)
-        {
-            memcpy(c->buffer + used, data, len);
-            return;
-        }
-        memcpy(c->buffer + used, data, fill);
-        data += fill;
-        len -= (int)fill;
-        used = 0;
-        md5_ctx* p = (md5_ctx*)ctx;
-        unsigned int* x = (unsigned int*)p->buffer;
-        unsigned int a = p->state[0], b = p->state[1];
-        unsigned int cc = p->state[2], d = p->state[3];
+#include "md5/md5_update.inc"
 #define MD5_F(x, y, z) (((x) & (y)) | (~(x) & (z)))
 #define MD5_G(x, y, z) (((x) & (z)) | ((y) & ~(z)))
 #define MD5_H(x, y, z) ((x) ^ (y) ^ (z))
@@ -221,36 +198,10 @@ void md5_update(md5_context* ctx, unsigned char* data, int len)
     memcpy(c->buffer, data, len);
 }
 
-void md5_finish(md5_context* ctx, unsigned char* out)
-{
-    md5_ctx* c = (md5_ctx*)ctx;
-    unsigned int used = (c->total[0] >> 3) & 0x3f;
-    unsigned char pad[64] = {0x80};
-    unsigned char lenbytes[8];
-    unsigned int i;
-    for (i = 0; i < 4; ++i)
-    {
-        lenbytes[i] = (unsigned char)(c->total[0] >> (i * 8));
-        lenbytes[4 + i] = (unsigned char)(c->total[1] >> (i * 8));
-    }
-    md5_update(ctx, pad, used < 56 ? 56 - used : 120 - used);
-    md5_update(ctx, lenbytes, 8);
-    for (i = 0; i < 4; ++i)
-    {
-        out[i * 4] = (unsigned char)(c->state[i]);
-        out[i * 4 + 1] = (unsigned char)(c->state[i] >> 8);
-        out[i * 4 + 2] = (unsigned char)(c->state[i] >> 16);
-        out[i * 4 + 3] = (unsigned char)(c->state[i] >> 24);
-    }
+#include "md5/md5_finish.inc"
 }
 
 // 一步式封装（ORIG T _Z3md5PhiS_ @0x080b3d57：starts→update(data,len)→finish→
 // memset(ctx,0,0xd8)；GameSecurity::_NS_MakeHash_ 0x0808c8f0 唯一调用点）。
-void md5(unsigned char* data, int len, unsigned char* digest)
-{
-    md5_context ctx;
-    md5_starts(&ctx);
-    md5_update(&ctx, data, len);
-    md5_finish(&ctx, digest);
-    memset(&ctx, 0, 0xd8);
+#include "md5/md5.inc"
 }

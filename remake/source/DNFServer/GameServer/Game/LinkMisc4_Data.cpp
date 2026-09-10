@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 LinkMisc4_Data/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // LinkMisc4_Data.cpp — LinkMisc4 批次杂项数据/叶子符号（df_game_r 忠实转写）
 //
 // 覆盖符号（地址经 nm -C -S 核实）：
@@ -81,9 +91,7 @@ public:
     unsigned short m_field3;  // +0x10 param2
 } __attribute__((packed));
 
-Packet_Monitor_Event_Start::Packet_Monitor_Event_Start()
-    : PacketHeader(0x44f, 0x12)
-{
+#include "LinkMisc4_Data/Packet_Monitor_Event_Start.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -119,15 +127,11 @@ private:
     std::string m_name;                             // +0x6c
 };
 
-const char* CAICharacter::GetName() const
-{
-    return m_name.c_str();
+#include "LinkMisc4_Data/GetName.inc"
 }
 
 std::vector<stMonsterIndependentDrop_t>
-CAICharacter::getIndepentDropItem() const
-{
-    return m_independentDrops;
+#include "LinkMisc4_Data/getIndepentDropItem.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -138,24 +142,7 @@ CAICharacter::getIndepentDropItem() const
 namespace OS_API
 {
 
-void WriteLog(char const* fileName, char const* fmt, ...)
-{
-    FILE* fp = fopen(fileName, "ab");
-    // [b28c-34] ORIG 0x0858c7fe `je <+0x74 nop 岛>` + body 尾 `jmp +0x75`：
-    // 4.1 if-join 空块占位岛；4.4 对正向 if 块恒 jump-thread ⇒ 用负条件
-    // goto 共享尾空标签复现（P223 定案）。
-    if (fp == 0) goto end;
-    {
-        char buf[1024];
-        va_list ap;
-        va_start(ap, fmt);
-        vsprintf(buf, fmt, ap);
-        va_end(ap);
-        fputs(buf, fp);
-        fflush(fp);
-        fclose(fp);
-    }
-end:;
+#include "LinkMisc4_Data/WriteLog.inc"
 }
 
 }  // namespace OS_API

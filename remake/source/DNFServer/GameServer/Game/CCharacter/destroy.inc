@@ -1,0 +1,3 @@
+void CCharacter::destroy()
+{
+    clear();

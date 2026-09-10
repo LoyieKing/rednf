@@ -1,0 +1,2 @@
+CPCRoomWorldDropEvent::CPCRoomWorldDropEvent()
+{

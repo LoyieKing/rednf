@@ -1,0 +1,2 @@
+CExchangeServer::~CExchangeServer()
+{

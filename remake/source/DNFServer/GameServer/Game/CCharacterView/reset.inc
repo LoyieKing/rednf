@@ -1,0 +1,3 @@
+void CCharacterView::reset()
+{
+    disableSaveCharacView();

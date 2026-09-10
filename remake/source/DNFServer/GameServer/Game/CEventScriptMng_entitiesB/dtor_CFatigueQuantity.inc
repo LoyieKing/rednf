@@ -1,0 +1,2 @@
+CFatigueQuantity::~CFatigueQuantity()
+{

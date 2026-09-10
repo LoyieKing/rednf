@@ -1,0 +1,3 @@
+BattleData::BattleData()
+{
+    Reset();

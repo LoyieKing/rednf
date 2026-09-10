@@ -1,19 +1,18 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 AradRabbitBox/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // CRabbitBox ORIG 符号实例化 TU（头内 inline 定义，本 TU 强制发出弱符号）。
 #include "AradRabbitBox.h"
 
 namespace
 {
-void forceEmit()
-{
-    CRabbitBox a;
-    CRabbitBox b(a);              // C1 拷贝构造 0x0852488c
-    CRabbitBox c;
-    c = b;                        // operator= 0x08197ec2
-    volatile int v = b.getItemIndex() + b.getItemCount();  // 0x08197e9e / 0x08197eaa
-    b.setItemIndex(1);            // 0x089c3338
-    b.SetItemCount(2);            // 0x089c3346
-    b.SetDropRate(3);             // 0x089c3354
-    delete new CRabbitBox();      // D0 0x08197e80（内部 call D1 0x08197e5a）
-    (void)a; (void)c; (void)v;
+#include "AradRabbitBox/forceEmit.inc"
 }
 }

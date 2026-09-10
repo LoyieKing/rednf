@@ -1,0 +1,3 @@
+AradWhiteAccount::AradWhiteAccount()
+{
+    Load();

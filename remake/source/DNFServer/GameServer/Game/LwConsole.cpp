@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 LwConsole/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // LwConsole.cpp —— LwConsole 类实现（仅 ORIG）
 // 报告: docs/class_func_reports/LwConsole/LwConsole.md（仅 C1）
 // isSourcePositionVisible/setSourcePositionVisible/log/D1/D0 报告缺失，
@@ -22,32 +32,20 @@
 // @0x08ad39e2 同 TU 且定义在先 ⇒ 4.4 精确继承 outgoing 帧 `sub $0x4`；仅声明时
 // 保守 `sub $0x18`。故 LogWriter::C1 的 out-of-line 空体定义从 LogManager.cpp
 // 迁入本 TU（caller 之前）；符号全局仍唯一（探针 /tmp/l35_probe_frame.cpp）。
-LogWriter::LogWriter()
-{
+#include "LwConsole/LogWriter.inc"
 }
 
-LwConsole::LwConsole()
-    : m_sourcePositionVisible(false)
-{
+#include "LwConsole/LwConsole.inc"
 }
 
-LwConsole::~LwConsole()
-{
+#include "LwConsole/dtor_LwConsole.inc"
 }
 
-bool LwConsole::isSourcePositionVisible() const
-{
-    return m_sourcePositionVisible;
+#include "LwConsole/isSourcePositionVisible.inc"
 }
 
-void LwConsole::setSourcePositionVisible(bool visible)
-{
-    m_sourcePositionVisible = visible;
+#include "LwConsole/setSourcePositionVisible.inc"
 }
 
-void LwConsole::log(char const* file, char const* func, int line, char const* msg)
-{
-    if (m_sourcePositionVisible)
-        printf("%s(%d) %s: ", file, line, func);
-    puts(msg);
+#include "LwConsole/log.inc"
 }

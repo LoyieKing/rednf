@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CSpecialItemRoutingManager/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // CSpecialItemRoutingManager.cpp
 // ORIG 依据：docs/class_func_reports/CSpecialItemRoutingManager/StartRouting.md
 //   + objdump 0x0860a9d4/0x0860b45c/0x0860b4c2 逐指令忠实转写。
@@ -11,9 +21,7 @@
 #include "PacketGuard.h"
 #include "TimerQueue.h"    // G_TimerQueue/TimerEntry/TIMER_MESSAGE
 
-CSpecialItemRoutingManager::CSpecialItemRoutingManager()
-{
-    // ORIG 0x0860a9c8：空函数（push ebp; mov; pop ebp; ret），不初始化任何成员。
+#include "CSpecialItemRoutingManager/CSpecialItemRoutingManager.inc"
 }
 
 // [b28d-64 判词汇总 · 泳道64] 本 TU 1 件：StartRouting 0x0860a9d4
@@ -24,43 +32,7 @@ CSpecialItemRoutingManager::CSpecialItemRoutingManager()
 // get_state∉{5,0xc}→1；GetParty()==0→1；find_item(item idx)==0→1；
 // IsRoutingState()→0x12；否则置路由状态/物品、insertTimer(0x23s)、
 // put_header(0,0x119)+put_int(item idx)+finalize(true) 后 send_to_party，返回 0。
-int CSpecialItemRoutingManager::StartRouting(CUser* user, Inven_Item& item,
-                                             unsigned int uniqueId)
-{
-    // [round3-L30 修] ORIG 0x0860a9d4：`call get_state; cmp $0x5,%eax; je; cmp $0xc,%eax;
-    //   je`（**一次** call 结果留 %eax 复用、无栈槽）⇒ 按 P261/P279「无状态槽 + cmp $K,%eax
-    //   链 ⇒ 源形是 switch(call())」改写；旧形 `int state = ...; if (state != 5 && state != 0xc)`
-    //   引入 ORIG 无的具名槽且第二次比较退化为槽直比。
-    switch (user->get_state())
-    {
-    case 5:
-    case 0xc:
-        break;
-    default:
-        return 1;
-    }
-
-    CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0)
-        return 1;
-
-    CDataManager* dataMgr = G_CDataManager();
-    if (dataMgr->find_item(item.m_addInfo) == 0)
-        return 1;
-
-    if (party->IsRoutingState())
-        return 0x12;
-
-    party->SetStartRouting();
-    party->SetRoutingItem(item, uniqueId);
-    insertTimer(party);
-
-    PacketGuard packet;
-    packet.put_header(0, 0x119);
-    packet.put_int(item.m_addInfo);
-    packet.finalize(true);
-    party->send_to_party(packet);
-    return 0;
+#include "CSpecialItemRoutingManager/StartRouting.inc"
 }
 
 // ORIG 0x0860b45c _ZN26CSpecialItemRoutingManager11insertTimerEP6CParty
@@ -69,36 +41,20 @@ int CSpecialItemRoutingManager::StartRouting(CUser* user, Inven_Item& item,
 // b28c-L20: AE — P0 清绑（原 register asm("esi"/"ebx") 违反全域禁令）；P24 内联
 // 实参自然形复现 ORIG 的 key→%esi / index→%ebx / G_TimerQueue() 置后三件套
 // （ndiff 清绑前 >0 → 0，gap=0，N96 清绑正向例）。
-void CSpecialItemRoutingManager::insertTimer(CParty* party)
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, party->GetPartyIndex(),
-                                (TIMER_MESSAGE)0x2b, 0x23,
-                                party->gen_timer_key((TIMER_MESSAGE)0x2b), 0);
+#include "CSpecialItemRoutingManager/insertTimer.inc"
 }
 
 // ORIG 0x0860b4c2 _ZN26CSpecialItemRoutingManager11cancelTimerEP6CParty
-int CSpecialItemRoutingManager::cancelTimer(CParty* party)
-{
-    return party->gen_timer_key((TIMER_MESSAGE)0x2b);
+#include "CSpecialItemRoutingManager/cancelTimer.inc"
 }
 
 // ORIG T 0x0860b2c2（报告 CSpecialItemRoutingManager/ProcessGiveUp.md）：
 // party 非空时——路由未开启 或 全员完成选卡（HasAllMemberSelection）——
 // 且首个有效成员状态为 5（短路返回）或再次读取为 0xc 时，执行 processRouting。
-void CSpecialItemRoutingManager::ProcessGiveUp(CParty* party)
-{
-    if (party == 0)
-        return;
-
-    if (party->IsRoutingState() && party->HasAllMemberSelection()
-        && (party->GetFirstValidMemberState() == 5
-            || party->GetFirstValidMemberState() == 0xc))
-        processRouting(party);
+#include "CSpecialItemRoutingManager/ProcessGiveUp.inc"
 }
 
-CSpecialItemRoutingManager::~CSpecialItemRoutingManager()
-{
-    // ORIG T 0x0860a9ce：空函数（push ebp; mov; pop ebp; ret）。
+#include "CSpecialItemRoutingManager/dtor_CSpecialItemRoutingManager.inc"
 }
 
 // ORIG 0x0860abde（报告 CSpecialItemRoutingManager/ProcessTimeOut.md）：
@@ -114,27 +70,7 @@ CSpecialItemRoutingManager::~CSpecialItemRoutingManager()
 //   4.4 对 switch 空 case 恒 jump-thread 成双 `je body`（实测三形：独立
 //   break / 共享 goto 标签 / 双 goto 串——岛数恒 0）⇒ 2 nop+1 jmp 封顶，
 //   语义等价（gap=3）。
-int CSpecialItemRoutingManager::ProcessTimeOut(CParty* party)
-{
-    if (!party->IsRoutingState())
-    {
-        party->SetEndRouting();
-        return 1;
-    }
-    switch (party->GetFirstValidMemberState())
-    {
-    default:
-        party->SetEndRouting();
-        return 1;
-    case 5:
-        break;
-    case 0xc:
-        break;
-    }
-    party->SetRoutingTimerOver();
-    if (party->HasAllMemberSelection())
-        processRouting(party);
-    return 1;
+#include "CSpecialItemRoutingManager/ProcessTimeOut.inc"
 }
 // ORIG T 0x0860ab2e（报告 CSpecialItemRoutingManager/ArriveMemberSelection.md
 // 全文转写）：GetMemberRoutingState(user) 已非 0 → 返回 0（已选过）；
@@ -146,25 +82,5 @@ int CSpecialItemRoutingManager::ProcessTimeOut(CParty* party)
 // CHECK 在 +0x75 —— 该块序即 `if (state == 0) { sel 链 } else { return 0; }`
 // 的 4.1 布局；原 goto FAIL/CHECK 形令 4.4 在 FAIL 前后各插一条跳转对齐 nop
 // （+0x6e/+0x76）且 CHECK 漂到 +0x77 ⇒ 改自然 if/else 后逐条全等。
-int CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party,
-                                                      char sel)
-{
-    int state = party->GetMemberRoutingState(user);           // ORIG 0x085ba150
-    if (state == 0)
-    {
-        if (sel == 0)
-            party->SetMemberRoutingState(user, 1);            // ORIG 0x085ba0d8
-        else if (sel == 1)
-            party->SetMemberRoutingState(user, 2);
-    }
-    else
-    {
-        return 0;
-    }
-    if (party->HasAllMemberSelection())                       // ORIG 0x085ba1c0
-    {
-        cancelTimer(party);
-        processRouting(party);
-    }
-    return 1;
+#include "CSpecialItemRoutingManager/ArriveMemberSelection.inc"
 }

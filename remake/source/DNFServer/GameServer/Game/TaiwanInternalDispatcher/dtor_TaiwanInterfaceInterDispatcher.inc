@@ -1,0 +1,2 @@
+TaiwanInterfaceInterDispatcher::~TaiwanInterfaceInterDispatcher()
+{

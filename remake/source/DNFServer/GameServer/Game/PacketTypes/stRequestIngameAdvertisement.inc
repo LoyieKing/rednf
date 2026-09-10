@@ -1,0 +1,1 @@
+stRequestIngameAdvertisement::stRequestIngameAdvertisement() {}

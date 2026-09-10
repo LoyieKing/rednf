@@ -1,0 +1,2 @@
+void CPcRoomCardBlankItemEvent::StartEvent()
+{

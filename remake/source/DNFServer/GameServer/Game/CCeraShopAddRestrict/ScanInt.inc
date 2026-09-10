@@ -1,0 +1,1 @@
+int ScanInt(bool* ok);

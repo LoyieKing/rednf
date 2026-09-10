@@ -1,0 +1,2 @@
+CMemberExpRewardEvent::~CMemberExpRewardEvent()
+{

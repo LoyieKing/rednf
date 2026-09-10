@@ -1,0 +1,2 @@
+CClearRewardCardEvent::CClearRewardCardEvent()
+{

@@ -1,0 +1,3 @@
+SlotType::SlotType()
+{
+    clear();

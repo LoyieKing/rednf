@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 STExpertJobOnlyOrig/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // STExpertJobOnlyOrig.cpp — Wave5 only_orig 批：STExpertJobScript 域（独占 TU）
 //
 // worklist：/tmp/only_orig/STExpertJobScript.txt（48 符号）。
@@ -19,29 +29,21 @@
 // ----------------------------------------------------------------------------
 // stSelfDisjoinMaterialInfo — C1/C2 W 0x0896dc0c range [...dc20]：体仅尾调 clear
 // ----------------------------------------------------------------------------
-STExpertJobScript::stSelfDisjoinMaterialInfo::stSelfDisjoinMaterialInfo()
-{
-    clear();
+#include "STExpertJobOnlyOrig/stSelfDisjoinMaterialInfo.inc"
 }
 
 // ----------------------------------------------------------------------------
 // stMonsterCardBindRate::stMonsterCardBindRate — ORIG W 0x0822b1de
 // range [0x0822b1de,0x0822b1f4)：movw $0,+0；movw $0,+2
 // ----------------------------------------------------------------------------
-STExpertJobScript::stMonsterCardBindRate::stMonsterCardBindRate()
-{
-    m_field0 = 0;
-    m_field2 = 0;
+#include "STExpertJobOnlyOrig/stMonsterCardBindRate.inc"
 }
 
 // stMonsterCardBindResult — C1/C2 W 0x0896dc20 range [...dc37]
 //   movl $0,(%eax)；movw $0,0x4(%eax)   // 只清 +0 dword 与 +4 word
 // D1/D2 W 0x08974fac size 5：push ebp; mov ebp,esp; pop ebp; ret（空体）
 // ----------------------------------------------------------------------------
-STExpertJobScript::stMonsterCardBindResult::stMonsterCardBindResult()
-{
-    ZERO_WORD(&m_field4);
-    m_field0 = 0;
+#include "STExpertJobOnlyOrig/stMonsterCardBindResult.inc"
 }
 
 
@@ -50,13 +52,7 @@ STExpertJobScript::stMonsterCardBindResult::stMonsterCardBindResult()
 //   w+8=0 → w+6=w+8 → w+4=w+6 → d+0=(uint)(word)(w+4)   // 链式置零
 // D1/D2 W 0x089751fa size 5（空体）
 // ----------------------------------------------------------------------------
-STExpertJobScript::stDollControllerResult::stDollControllerResult()
-{
-    ZERO_WORD(&m_field8);                       // +8 word = 0
-    m_field6 = m_field8;                        // +6 word = w+8
-    m_field4 = m_field6;                        // +4 word = w+6
-    m_field0 = static_cast<int>(
-        static_cast<unsigned short>(m_field4)); // +0 dword = zext(w+4)
+#include "STExpertJobOnlyOrig/stDollControllerResult.inc"
 }
 
 
@@ -64,11 +60,7 @@ STExpertJobScript::stDollControllerResult::stDollControllerResult()
 // stSelfDisjoinMaterialInfo::clear — ORIG W 0x0896dbe6 range [...dc0c]
 //   +8=0；+4=+8；+0=+4（链式传递，全零效果）
 // ----------------------------------------------------------------------------
-void STExpertJobScript::stSelfDisjoinMaterialInfo::clear()
-{
-    m_field8 = 0;
-    m_field4 = m_field8;
-    m_field0 = m_field4;
+#include "STExpertJobOnlyOrig/clear.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -78,22 +70,13 @@ void STExpertJobScript::stSelfDisjoinMaterialInfo::clear()
 // clear W 0x0896dc38 range [...dc80]：i=0..3 { cnt[i]=0；vec[i].clear() }
 // D1/D2 W 0x0896e218 range [...e250]：逆序析构 3 vector（编译器成员析构等价）
 // ----------------------------------------------------------------------------
-STExpertJobScript::stMonsterCardBindInfo::stMonsterCardBindInfo()
-{
-    clear();
+#include "STExpertJobOnlyOrig/stMonsterCardBindInfo.inc"
 }
 
-STExpertJobScript::stMonsterCardBindInfo::~stMonsterCardBindInfo()
-{
+#include "STExpertJobOnlyOrig/dtor_stMonsterCardBindInfo.inc"
 }
 
-void STExpertJobScript::stMonsterCardBindInfo::clear()
-{
-    for (int i = 0; i <= 3; ++i)
-    {
-        m_count[i] = 0;
-        m_vec[i].clear();
-    }
+#include "STExpertJobOnlyOrig/clear_1.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -113,13 +96,7 @@ STExpertJobScript::stAlchemistExtractionResultInfo::
 {
 }
 
-void STExpertJobScript::stAlchemistExtractionResultInfo::clear()
-{
-    for (int i = 0; i <= 2; ++i)
-    {
-        m_count[i] = 0;
-        m_vec[i].clear();
-    }
+#include "STExpertJobOnlyOrig/clear_2.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -139,10 +116,7 @@ STExpertJobScript::stEnchanterExtractionResultInfo::
 {
 }
 
-void STExpertJobScript::stEnchanterExtractionResultInfo::clear()
-{
-    m_count = 0;
-    m_vec.clear();
+#include "STExpertJobOnlyOrig/clear_3.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -162,13 +136,7 @@ STExpertJobScript::stDollControllerResultInfo::
 {
 }
 
-void STExpertJobScript::stDollControllerResultInfo::clear()
-{
-    for (int i = 0; i <= 2; ++i)
-    {
-        m_count[i] = 0;
-        m_vec[i].clear();
-    }
+#include "STExpertJobOnlyOrig/clear_4.inc"
 }
 
 // ============================================================================
@@ -179,14 +147,10 @@ void STExpertJobScript::stDollControllerResultInfo::clear()
 // GetCommonBindInfo — ORIG W 0x0822b366 range [...b374]：return this+0x84
 // GetSpecialBindInfo — ORIG W 0x0822b358 range [...b366]：return this+0xc4
 // ----------------------------------------------------------------------------
-STExpertJobScript::stMonsterCardBindInfo* STExpertJobScript::GetCommonBindInfo()
-{
-    return &m_commonBindInfo;   // this+0x84
+#include "STExpertJobOnlyOrig/GetCommonBindInfo.inc"
 }
 
-STExpertJobScript::stMonsterCardBindInfo* STExpertJobScript::GetSpecialBindInfo()
-{
-    return &m_specialBindInfo;  // this+0xc4
+#include "STExpertJobOnlyOrig/GetSpecialBindInfo.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -194,12 +158,7 @@ STExpertJobScript::stMonsterCardBindInfo* STExpertJobScript::GetSpecialBindInfo(
 //   n = m_upgradeCost.size()；if (n <= index) return 0；
 //   else return m_upgradeCost.at(index)
 // ----------------------------------------------------------------------------
-int STExpertJobScript::GetUpgradeCost(unsigned int index)
-{
-    // P0：ORIG `call size; cmp index,%eax; setbe` 无槽、帧 0x18；具名 n 局部致帧 0x28。
-    if (index >= m_upgradeCost.size())
-        return 0;
-    return m_upgradeCost.at(index);
+#include "STExpertJobOnlyOrig/GetUpgradeCost.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -207,19 +166,7 @@ int STExpertJobScript::GetUpgradeCost(unsigned int index)
 //   it = m_monsterCardBindRateMap.find(key)；miss → out=零值、copy dword、
 //   return 0；hit → copy dword(it->second)、return 1（dword 一次拷贝 = 两 word）
 // ----------------------------------------------------------------------------
-bool STExpertJobScript::GetMonsterCardBindRate(int key,
-                                               stMonsterCardBindRate& out)
-{
-    std::map<int, stMonsterCardBindRate>::iterator it =
-        m_monsterCardBindRateMap.find(key);
-    if (it == m_monsterCardBindRateMap.end())
-    {
-        stMonsterCardBindRate zeroed;
-        out = zeroed;   // ORIG miss：C1→dword 槽拷 out→return 0
-        return false;
-    }
-    out = it->second;   // ORIG hit：pt→mov 0x4(%eax)→store out
-    return true;
+#include "STExpertJobOnlyOrig/GetMonsterCardBindRate.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -228,20 +175,13 @@ bool STExpertJobScript::GetMonsterCardBindRate(int key,
 //   else return &m_enduranceRepairCost.at(grade-1)
 // ----------------------------------------------------------------------------
 stEnduranceRepairCost*
-STExpertJobScript::_GetEnduranceRepairCost(unsigned int grade)
-{
-    if (m_enduranceRepairCost.size() <= grade - 1u)  // 无符：grade=0 → 0xffffffff 恒真
-        return 0;
-    stEnduranceRepairCost* c = &m_enduranceRepairCost.at(grade - 1u);
-    return c;
+#include "STExpertJobOnlyOrig/_GetEnduranceRepairCost.inc"
 }
 
 // ----------------------------------------------------------------------------
 // GetDisjointMachineMaxGrade — ORIG W 0x085d3c0e range [...c26]：size()
 // ----------------------------------------------------------------------------
-int STExpertJobScript::GetDisjointMachineMaxGrade()
-{
-    return static_cast<int>(m_enduranceRepairCost.size());
+#include "STExpertJobOnlyOrig/GetDisjointMachineMaxGrade.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -250,13 +190,7 @@ int STExpertJobScript::GetDisjointMachineMaxGrade()
 //   return c->m_field0 - (c->m_field0 * count) / c->m_field4
 //   （乘除均为 32 位符号运算：imul/sar/idiv 截断口径）
 // ----------------------------------------------------------------------------
-int STExpertJobScript::GetDisjointMachineRepairCost(int grade, int count)
-{
-    const stEnduranceRepairCost* c = _GetEnduranceRepairCost(
-        static_cast<unsigned int>(grade));
-    if (c == 0)
-        return 0;
-    return c->m_field0 - (c->m_field0 * count) / c->m_field4;
+#include "STExpertJobOnlyOrig/GetDisjointMachineRepairCost.inc"
 }
 
 // ----------------------------------------------------------------------------
@@ -265,72 +199,32 @@ int STExpertJobScript::GetDisjointMachineRepairCost(int grade, int count)
 //   div = c->m_field0 / c->m_field4；if (div <= 0) return 0；
 //   outCost = endurance - endurance % div；return endurance / div
 // ----------------------------------------------------------------------------
-int STExpertJobScript::GetDisjointMachineRepair(int grade, int endurance,
-                                                int& outCost)
-{
-    const stEnduranceRepairCost* c = _GetEnduranceRepairCost(
-        static_cast<unsigned int>(grade));
-    if (c == 0)
-        return 0;
-    const int div = c->m_field0 / c->m_field4;
-    if (div <= 0)
-        return 0;
-    outCost = endurance - endurance % div;
-    return endurance / div;
+#include "STExpertJobOnlyOrig/GetDisjointMachineRepair.inc"
 }
 
 // 同构四联（find 命中返 second、未中返 -1；ORIG 为逐调用完整 find/end 展开，
 // 不抽 helper 以保持函数体形态）：
-int STExpertJobScript::GetUnsealScrollPossibleLevel(int level)
-{
-    // ORIG：非 const iterator（_Rb_tree_iterator 直用，无 const 转换）。
-    std::map<int, unsigned short>::iterator it = m_unsealScrollMap.find(level);
-    if (it == m_unsealScrollMap.end())
-        return -1;
-    return static_cast<int>(it->second);
+#include "STExpertJobOnlyOrig/GetUnsealScrollPossibleLevel.inc"
 }
 
-int STExpertJobScript::GetAlchemistExtractionPossibleLevel(int level)
-{
-    std::map<int, unsigned short>::iterator it =
-        m_alchemistExtractInfo.find(level);
-    if (it == m_alchemistExtractInfo.end())
-        return -1;
-    return static_cast<int>(it->second);
+#include "STExpertJobOnlyOrig/GetAlchemistExtractionPossibleLevel.inc"
 }
 
-int STExpertJobScript::GetEnchanterExtractionPossibleLevel(int level)
-{
-    std::map<int, unsigned short>::iterator it =
-        m_enchanterExtractInfo.find(level);
-    if (it == m_enchanterExtractInfo.end())
-        return -1;
-    return static_cast<int>(it->second);
+#include "STExpertJobOnlyOrig/GetEnchanterExtractionPossibleLevel.inc"
 }
 
-int STExpertJobScript::GetDollControllerExtractionPossibleLevel(int level)
-{
-    std::map<int, unsigned short>::iterator it = m_dollExtractInfo.find(level);
-    if (it == m_dollExtractInfo.end())
-        return -1;
-    return static_cast<int>(it->second);
+#include "STExpertJobOnlyOrig/GetDollControllerExtractionPossibleLevel.inc"
 }
 
 // ResultInfo getter 三连（纯地址返回）
 STExpertJobScript::stAlchemistExtractionResultInfo*
-STExpertJobScript::GetAlchemistExtractionResultInfo()
-{
-    return &m_alchemistResultInfo;  // this+0x14c
+#include "STExpertJobOnlyOrig/GetAlchemistExtractionResultInfo.inc"
 }
 
 STExpertJobScript::stEnchanterExtractionResultInfo*
-STExpertJobScript::GetEnchanterExtractionResultInfo()
-{
-    return &m_enchanterResultInfo;  // this+0x17c
+#include "STExpertJobOnlyOrig/GetEnchanterExtractionResultInfo.inc"
 }
 
 STExpertJobScript::stDollControllerResultInfo*
-STExpertJobScript::GetDollControllerExtractionResultInfo()
-{
-    return &m_dollResultInfo;       // this+0x18c
+#include "STExpertJobOnlyOrig/GetDollControllerExtractionResultInfo.inc"
 }

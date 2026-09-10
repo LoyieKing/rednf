@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 RestrictNameDeps/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // RestrictNameDeps.cpp —— restrict_inputting_name 域 + checkValidCharacName 真实定义。
 // 逐符号证据：
 //   - importUnicodeRangeData：W _ZN23restrict_inputting_name25RestrictInputtingNameData
@@ -36,95 +46,18 @@ bool RestrictInputtingNameData::isLoaded_ = false;
 //   class_func_reports 报告 ⇒ md_text=='' 分支不做 AE 归一）：.o 内 .rodata 串/
 //   _ZTIPKc 立即数尚未重定位显示为 0，且 4.4 在 ranges 构造前多一条循环对齐 nop
 //   （strip_nop_padding 剥离后两侧等长）。ORIG sz 0x29e / 我方 0x29f 同因。
-bool RestrictInputtingNameData::importUnicodeRangeData(
-    const char* path, std::vector<std::pair<int, int> >* out)
-{
-    // [b28c-L15 真语义 bug] 权威签名 loadRDARScriptFile(directory, path)；ORIG
-    //   0x08ac2ecf：`mov 0xc(%ebp),%eax; mov %eax,0x4(%esp)`（path→第 2 参）
-    //   `movl $0x8e2e1a0,(%esp)`（空目录→第 1 参）⇒ 原码为 ("", path)。
-    if (!loadRDARScriptFile("", path))
-        return false;
-    std::string token;                       // ORIG +0x53（外层循环前构造一次）
-    for (;;)
-    {
-        try
-        {
-            // seek "[allow unicode range]"（ORIG jmp 回 +0x61）
-            for (;;)
-            {
-                if (!ScanType(token, true))
-                    throw "[allow unicode range] 태그가 아님\n";
-                if (token == "[allow unicode range]")
-                    break;
-            }
-            std::vector<std::pair<int, int> > ranges;   // ORIG +0xc1 每轮新建
-            for (;;)
-            {
-                if (!ScanType(token, true))
-                    throw "태그가 와야 할 자리에 다른 값이 파싱 됨\n";
-                if (token == "[/allow unicode range]")
-                {
-                    *out = ranges;                  // ORIG vector::operator= 复制
-                    break;                          // 重回 seek（ORIG jmp +0x61）
-                }
-                // [b28d-D9] ORIG 0x08ac2f3d 为 `call operator==; je <range 处理体>`
-                // （正极性、命中直落处理体），非 `operator!=`+continue 反形（P222 正向包裹）。
-                if (token == "[range]")
-                {
-                    int left = 0;
-                    int right = 0;
-                    if (!ScanInt(&left))
-                        throw "range의 left값을 읽어 오다 실패\n";
-                    if (!ScanInt(&right))
-                        throw "range의 right값을 읽어 오다 실패\n";
-                    ranges.push_back(std::make_pair(left, right));
-                }
-            }
-        }
-        catch (const char* message)
-        {
-            // [b28d-D9] ORIG 0x08ac30c2 只压 5 个实参（0, file, func, 0x48, message）——
-            // message 直接作 logFormat 的格式串，无 "%s" 中间实参（我方多压 1 条
-            // `movl $"\"%s\"",0x10(%esp)` 使 message 落到 0x14(%esp)）。
-            LogManager::logFormat(0, "../../RestrictInputtingName.cpp",
-                                  __FUNCTION__, 0x48, message);
-            return false;
-        }
-    }
-    // ORIG 无正常退出路径（正常返回仅经 catch→return false）。
-    return false;
+#include "RestrictNameDeps/importUnicodeRangeData.inc"
 }
 
-RestrictInputtingNameData::RestrictInputtingNameData()
-{
-    static const char* scriptPath =
-        "etc\\RestrictNameUnicodeRangeTable.etc";  // .rodata 0x08e2e68c 实测
-    if (!isLoaded_)                                // ORIG movzbl+xor$1/test/je
-    {
-        isLoaded_ = this->importUnicodeRangeData(
-            scriptPath, &unicodeRangeDataList_);
-    }
+#include "RestrictNameDeps/RestrictInputtingNameData.inc"
 }
 
 // ORIG W 0x08ac31a0：for i<size: if (first<=ch && ch<=second) return true；
 // ORIG 用 vector::operator[](i) 两次取 first/second——保持成员访问形态。
-bool RestrictInputtingNameData::isInRange(wchar_t ch) const
-{
-    for (unsigned int i = 0; i < unicodeRangeDataList_.size(); ++i)
-    {
-        // [b28c-L15 P198②] ORIG `test %al,%al; je` 直测汇聚寄存器无槽往返
-        //   ⇒ 谓词整体内联进 if（提具名 bool 反多 mov%al,槽 + cmpb 两步）。
-        if (unicodeRangeDataList_[i].first <= (int)ch &&
-            (int)ch <= unicodeRangeDataList_[i].second)
-            return true;
-    }
-    return false;
+#include "RestrictNameDeps/isInRange.inc"
 }
 
-bool IsNoneUnicodeRange::operator()(wchar_t ch) const
-{
-    bool notInRange = !isInRange(ch);
-    return notInRange;
+#include "RestrictNameDeps/operator.inc"
 }
 
 // ORIG T 0x08ac2de4（isWideStrInUnicodeRange.md 全文）：
@@ -144,46 +77,19 @@ bool IsNoneUnicodeRange::operator()(wchar_t ch) const
 //   探针 /tmp/probe_sra2.cpp 实证空类→%bl、带 1 字节成员→movzbl -N(%ebp)。
 //   加成员后 4.4 逐条复现 ORIG（sub $0x28 / 无 push ebx / movzbl -0x11(%ebp),%edx
 //   / leave），同 TU any_of/find_if/none_of/__find_if 四实例一并 DIFF→AE。
-bool isWideStrInUnicodeRange(const wchar_t* str)
-{
-    IsNoneUnicodeRange pred;
-    size_t len = wcslen(str);
-    // P0：ORIG 把 any_of 结果物化到 bool 槽 -0x9（mov %al,-0x9(%ebp)），
-    // 再以 cmpb $0,-0x9 / je 两支各 mov $0/$1 返回 → 源码为 if 展开形态
-    // （`return !found;` 会被 4.4.7 编成 movzbl+xor，与 ORIG 分支形态不符）。
-    bool found = std::any_of(str, str + len, pred);
-    if (found)
-        return false;
-    return true;
+#include "RestrictNameDeps/isWideStrInUnicodeRange.inc"
 }
 
 // ORIG T 0x08ac2d6c sz 0x78（isUtf8StrInUnicodeRange.md 全文）：
 // WideString 构造 → convertFromUtf8(str,(int)strlen,str 的宽度) → c_str 判定 → 析构返回。
-bool isUtf8StrInUnicodeRange(const char* str)
-{
-    WideString wide;
-    convertFromUtf8(str, (int)strlen(str), &wide);
-    return isWideStrInUnicodeRange(wide.c_str());
+#include "RestrictNameDeps/isUtf8StrInUnicodeRange.inc"
 }
 
 }  // namespace restrict_inputting_name
 
 // ORIG T 0x0820582b _Z20checkValidCharacNamePKc sz 0x6c（objdump 全文转写）：
 // G_CDataManager()->hasSpecialCharacter / hasPreventString / hasPreventStringName 三连。
-bool checkValidCharacName(const char* name)
-{
-    // b28c-l23 根因：ORIG 尾段 `mov $0x1,%eax / jmp / mov $0,%eax / test %al,%al /
-    // je →mov $1 / fall→mov $0`（@0x08205879..0x08205890）= **短路结果先物化、
-    // 再整体取反返回**，且无 bool 局部槽（帧 sub $0x18）。我方具名
-    // `bool invalid` 使 4.4 出 `mov %al,-0x9; cmpb $0,-0x9` 双段并撑帧 +0x10；
-    // 改写 `if(...) return true` 则 mov $1/mov $0 两岛顺序反转（ndiffX 5→4 后唯一残差）。
-    // 正形 = `return !(A || B || C);`：语义与调用点 `if (!checkValidCharacName(..))`
-    // （true=名字有效）一致。
-    if (G_CDataManager()->hasSpecialCharacter(name) ||
-        G_CDataManager()->hasPreventString(name) ||
-        G_CDataManager()->hasPreventStringName(name))
-        return false;
-    return true;
+#include "RestrictNameDeps/checkValidCharacName.inc"
 }
 
 // ORIG 函数无正常退出路径（外层 for(;;) 永不离开；正常返回仅经 catch→return false）。

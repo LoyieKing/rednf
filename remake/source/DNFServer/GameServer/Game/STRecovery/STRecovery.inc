@@ -1,0 +1,3 @@
+STRecovery::STRecovery()
+{
+    clear();

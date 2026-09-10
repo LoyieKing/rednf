@@ -1,0 +1,31 @@
+bool DenyPacket(int id)
+{
+    switch (id)
+    {
+        case 0x05: case 0x06:
+        case 0x1a: case 0x1b:
+        case 0x1d:
+        case 0x42:
+        case 0x44:
+        case 0x53: case 0x54:
+        case 0x61:
+        case 0x66:
+        case 0x69:
+        case 0x8a:
+        case 0xac:
+        case 0xb9: case 0xba: case 0xbb: case 0xbc: case 0xbd:
+        case 0xbe: case 0xbf: case 0xc0: case 0xc1:
+        case 0xcc: case 0xcd:
+        case 0xe1:
+        case 0xee:
+        case 0x100:
+        case 0x104:
+        case 0x107:
+        case 0x10f: case 0x110: case 0x111:
+        case 0x120:
+        case 0x13c:
+        case 0x145:
+            return true;
+        default:
+            return false;
+    }

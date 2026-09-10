@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 STGameUserInfo/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 //
 // Created by loyieking on 24-3-24.
 //
@@ -5,16 +15,5 @@
 #include "STGameUserInfo.h"
 
 #include <cstring>
-STGameUserInfo::STGameUserInfo() {
-    this->server_id = 0;
-    this->user_m_id = 0;
-    // 来自反编译/DWARF 的推断：m_uid 初始化为 0xffffffff (-1)，不是 0
-    this->m_uid = -1;
-    this->channel_no = 0;
-    this->charac_no = 0;
-    this->m_level = 0;
-    this->m_job = 0;
-    this->m_growType = 0;
-    this->m_sex = 0;
-    memset(this->m_name, 0, sizeof(this->m_name));
+#include "STGameUserInfo/STGameUserInfo.inc"
 }

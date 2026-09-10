@@ -1,0 +1,3 @@
+STExpertJobScript::stSelfDisjoinMaterialInfo::stSelfDisjoinMaterialInfo()
+{
+    clear();

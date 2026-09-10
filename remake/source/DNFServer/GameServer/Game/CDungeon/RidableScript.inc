@@ -1,0 +1,3 @@
+RidableScript::RidableScript()
+{
+    clear();

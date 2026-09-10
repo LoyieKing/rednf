@@ -1,0 +1,2 @@
+CGlobalEffect::~CGlobalEffect()
+{

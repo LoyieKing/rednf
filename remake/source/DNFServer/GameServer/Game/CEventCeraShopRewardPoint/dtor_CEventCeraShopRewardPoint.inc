@@ -1,0 +1,2 @@
+CEventCeraShopRewardPoint::~CEventCeraShopRewardPoint()
+{

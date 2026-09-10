@@ -1,0 +1,2 @@
+advancealtar::SurvivalRewardData::~SurvivalRewardData()
+{

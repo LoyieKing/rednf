@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 VillageMonster_helpers/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— village_attacked::CVillageMonsterMgr::OnKillVillageMonster
 // 调用链（CBattle_Field.cpp 引用；独立 TU，避免与并行批次争文件）。
 // 逐函数对照 ORIG df_game_r 反汇编（证据见各函数注释）；不编译，主 agent 统一验证。
@@ -70,13 +80,7 @@ namespace village_attacked
 // [round2-L30 复核·N82/P200] 残余：ORIG `sub $0x38` 无 callee-saved vs 我方
 //   `push %esi; push %ebx; sub $0x30`（我方多 2 push，跨 find 保活 c/d）+ 槽整体浅 4
 //   （ORIG -0x18/-0x12/-0x10 vs 我方 -0x14/-0xe/-0xc）⇒ N82 帧/槽分区族；ORIG 0x086b4964。
-int CVillageMonsterMgr::OnKillVillageMonster(int a, int b, unsigned short c, bool d)
-{
-    Zone zone((unsigned char)a, (unsigned char)b);
-    std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(zone);
-    if (it == m_areas.end())
-        return 0x15;
-    return it->second.OnKillVillageMonster(0, c, d);
+#include "VillageMonster_helpers/OnKillVillageMonster.inc"
 }
 
 // ============================================================================
@@ -87,18 +91,7 @@ int CVillageMonsterMgr::OnKillVillageMonster(int a, int b, unsigned short c, boo
 //            if (flag && ret == 0) m_monsters.erase(it);
 //            return ret;  否则 return 0
 // ============================================================================
-int CVillageMonsterArea::OnKillVillageMonster(CUser* user, unsigned short zone, bool flag)
-{
-    std::map<unsigned short, CVillageMonster>::iterator it = m_monsters.find(zone);
-    if (it != m_monsters.end())
-    {
-        CVillageMonster* monster = &it->second;
-        int ret = monster->OnKillVillageMonster(user, m_field28, m_field2c, m_field38, flag);
-        if (flag && ret == 0)
-            m_monsters.erase(it);
-        return ret;
-    }
-    return 0;
+#include "VillageMonster_helpers/OnKillVillageMonster_1.inc"
 }
 
 // ============================================================================
@@ -116,31 +109,7 @@ int CVillageMonsterArea::OnKillVillageMonster(CUser* user, unsigned short zone, 
 //   OnChangeState(0)/SendFight(false) 段，+0x8e 为 true 段）⇒ 源形必写
 //   `if (!flag) { …0… } else { …2… }`（P222/P214①；正极性 `if (flag)` 4.4 产直判
 //   `cmpb; je` 且块序相反）。
-int CVillageMonster::OnKillVillageMonster(CUser* user, int a, int b, int c, bool flag)
-{
-    if (m_state != 1)
-        return 0x13;
-    if (user != 0)
-    {
-        if (user->GetPartyIndex() != m_partyIndex)
-            return 0x13;
-    }
-    if (!flag)
-    {
-        OnChangeState(ENUM_VILLAGE_MONSTER_STATE_0);
-        // ORIG 0x086b350d/0x086b357b：两分支都 `movzbl -0xc(%ebp),%eax;
-        //   mov %eax,0x8(%esp)` ⇒ 实参是 flag 变量本身（非 false/true 常量）。
-        SendVillageMonsterFightResult(user, flag);
-        return 0;                       // ORIG 0x086b3527 `mov $0x0,%eax; jmp`（分支内独立设值）
-    }
-    else
-    {
-        OnChangeState(ENUM_VILLAGE_MONSTER_STATE_2);
-        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                    (TIMER_MESSAGE)0x86, c, a, b);
-        SendVillageMonsterFightResult(user, flag);
-        return 0;                       // ORIG 0x086b3595 `mov $0x0,%eax`
-    }
+#include "VillageMonster_helpers/OnKillVillageMonster_2.inc"
 }
 
 // ============================================================================
@@ -149,23 +118,7 @@ int CVillageMonster::OnKillVillageMonster(CUser* user, int a, int b, int c, bool
 //   objdump: m_state = state; PacketGuard 打包：put_header(0,0xf0); put_byte(m_state);
 //            put_short(m_id); finalize(true); m_area->SendPacket(pg);
 // ============================================================================
-void CVillageMonster::OnChangeState(ENUM_VILLAGE_MONSTER_STATE state)
-{
-    // P95：ORIG 0x86b35a0 首句 store 先载 this 后载 state；4.4 直成员赋值先备值。
-    // 具名视图复现（仅表达布局；m_state = CVillageMonster +0x14）。
-    struct CVMonsterStateView
-    {
-        char m_head[0x14];
-        int  m_state;
-    };
-    ((CVMonsterStateView*)this)->m_state = state;
-    PacketGuard pg;
-    pg.clear();
-    pg.put_header(0, 0xf0);
-    pg.put_byte(m_state);
-    pg.put_short(m_id);
-    pg.finalize(true);
-    m_area->SendPacket(pg);
+#include "VillageMonster_helpers/OnChangeState.inc"
 }
 
 // ============================================================================
@@ -173,9 +126,7 @@ void CVillageMonster::OnChangeState(ENUM_VILLAGE_MONSTER_STATE state)
 //   —— ORIG 0x86b3b9c
 //   objdump: G_GameWorld()->send_to_area(+0x28, +0x2c, packet);
 // ============================================================================
-void CVillageMonsterArea::SendPacket(PacketGuard& packet)
-{
-    G_GameWorld()->send_to_area(m_field28, m_field2c, packet);
+#include "VillageMonster_helpers/SendPacket.inc"
 }
 
 // ============================================================================
@@ -199,41 +150,7 @@ void CVillageMonsterArea::SendPacket(PacketGuard& packet)
 // ============================================================================
 // [round2-L30 复核·N/B24D] 残余 3 条 + 整帧平移 4：ORIG ctor W 0x86b4b84 一次性 memset
 //   全结构 vs 我方显式清零 lowering（语义等价）；ORIG 0x086b330a。
-void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
-{
-    if (user == 0)
-        return;
-    CParty* party = (CParty*)user->GetParty();
-    if (party == 0)
-        return;
-
-    Packet_VillageMonsterFightResult pkt;
-    // ORIG ctor 0x86b4b84：PacketHeader(0x1772,0x2b) + m_flag=0 + m_keys[8] 清零。
-
-    for (int i = 0; i <= 3; ++i)
-    {
-        CUser* member = party->get_user(i);
-        if (member != 0)
-        {
-            pkt.m_uids[i] = member->GetUID();
-            pkt.m_characNos[i] = member->get_charac_no(-1);
-            if (GlobalData::s_villageMonsterMgr->OnEvent())
-                if (flag)
-                member->IncVillageAttackCount();
-        }
-    }
-    pkt.m_flag = flag;
-
-    CMonitorServerProxy* monitorProxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    monitorProxy->SendTcpPacket((char*)&pkt, 0x2b);
-
-    PacketGuard pg;
-    pg.clear();
-    pg.put_header(0, 0xf9);
-    pg.put_byte(flag);
-    pg.finalize(true);
-    party->send_to_party(pg);
+#include "VillageMonster_helpers/SendVillageMonsterFightResult.inc"
 }
 
 // ============================================================================
@@ -243,17 +160,7 @@ void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
 //            put_short(m_field04); put_short(m_field08); return 1。
 // ============================================================================
 // [b28d-L8] AE | 修法：m_state int→ENUM_VILLAGE_MONSTER_STATE（P254 enum 字段两段装载 mov 0x14(%eax),%eax;mov %eax,%edx，ORIG 0x86b3666）；旧 N18a 判词作废
-bool CVillageMonster::MakeVillageMonsterListPacket(PacketGuard& packet)
-{
-    // [b28-L11 判 N·N18a] ORIG put_short(m_field04) 实参装载为 `mov 0x14(%eax),%eax;
-    // mov %eax,%edx` 两段死 regmove（4.1 冗余产物）；4.4 恒折单段直落 %edx，
-    // 「反向亦不可造」判词在册（负例表 N18a）。ndiff 3/gap 1 封顶。
-    packet.put_short(m_id);
-    packet.put_short(m_zone);
-    packet.put_byte(m_state);
-    packet.put_short(m_field04);
-    packet.put_short(m_field08);
-    return true;
+#include "VillageMonster_helpers/MakeVillageMonsterListPacket.inc"
 }
 
 // ============================================================================
@@ -267,47 +174,15 @@ bool CVillageMonster::MakeVillageMonsterListPacket(PacketGuard& packet)
 //   count -0x10 vs 我方 -0x1c/-0x20/-0xc，间距全等；帧同为 sub $0x30）⇒ 判据⑪ (b)
 //   类，声明重排无效（ORIG 0x086b37fa）。已修：占位字节改传具名 count（ORIG
 //   0x086b3814 `mov -0x10(%ebp),%eax; mov %eax,0x4(%esp)`，非立即数 0）。
-void CVillageMonsterArea::SendVillageMonsterList(CUser* user)
-{
-    PacketGuard packet;
-    packet.clear();
-    packet.put_header(0, 0xee);
-    int countIdx = packet.get_index();
-    int count = 0;
-    // ORIG 0x086b37ff：占位字节传的是**具名 count 变量**（0x81 `mov -0x10(%ebp),%eax;
-    //   mov %eax,0x4(%esp)`），非立即数 0 ⇒ 源形 `put_byte(count)`（此时 count==0）。
-    packet.put_byte(count);
-    for (std::map<unsigned short, CVillageMonster>::iterator it =
-             m_monsters.begin();
-         it != m_monsters.end(); ++it)
-    {
-        if (it->second.MakeVillageMonsterListPacket(packet))
-            ++count;
-    }
-    packet.put_byte(countIdx, count);
-    packet.finalize(true);
-    if (user == 0)
-        SendPacket(packet);
-    else
-        user->Send(packet);
+#include "VillageMonster_helpers/SendVillageMonsterList.inc"
 }
 
 }  // namespace village_attacked
 
 // ORIG W 0x084ed3f8：return m_field20（当前奖励类型）。
-int village_attacked::CVillageMonsterMgr::GetRewardType()
-{
-    return m_field20;
+#include "VillageMonster_helpers/GetRewardType.inc"
 }
 
 // ORIG W 0x0847dd44：m_field20 = reward（单赋值）。
-void village_attacked::CVillageMonsterMgr::SetRewardType(ENUM_VILLAGE_ATTACKED_REWARD reward)
-{
-    // P95：ORIG 先载 this 后载 reward；具名视图复现（m_field20 = +0x20）。
-    struct CVMgrRewardView
-    {
-        char m_head[0x20];
-        int  m_field20;
-    };
-    ((CVMgrRewardView*)this)->m_field20 = reward;
+#include "VillageMonster_helpers/SetRewardType.inc"
 }

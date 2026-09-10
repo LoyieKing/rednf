@@ -1,0 +1,3 @@
+SkillUseItem::SkillUseItem()
+{
+    clear();

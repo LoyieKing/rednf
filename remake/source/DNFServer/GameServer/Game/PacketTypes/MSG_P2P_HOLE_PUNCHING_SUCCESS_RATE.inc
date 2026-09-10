@@ -1,0 +1,4 @@
+MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE::MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE()
+{
+    m_0d = 0;  // ORIG C1：+0xd byte、+0xe int
+    m_0e = 0;

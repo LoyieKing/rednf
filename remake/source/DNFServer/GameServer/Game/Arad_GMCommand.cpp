@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Arad_GMCommand/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // ARAD::GMCommandProcess + ARAD::Arad_GMCommandManger
 // ORIG: 0x08198230..0x081982a3, 每个 ORIG 函数均为 0xa 字节纯固定返回
 // （逐函数核对 docs/class_func_reports/ARAD__GMCommandProcess/ 与
@@ -48,64 +58,40 @@ public:
 };
 
 // [GI-ioinit L21] 本 TU 首个强外部符号定义（_GLOBAL__I_ 键名来源，P327）。
-int Arad_GMCommandManger::Init()
-{
-    return 1; // ORIG 0x8198230: mov $0x1,%eax
+#include "Arad_GMCommand/Init.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_ON(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x8198254: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_ON.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_POWER_WAR_START(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x819825e: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_POWER_WAR_START.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_POWER_WAR_END(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x8198268: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_POWER_WAR_END.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_USER_REPEL(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x8198272: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_USER_REPEL.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_REQUEST_MID(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x819827c: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_REQUEST_MID.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_INVISIBLE(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x8198286: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_INVISIBLE.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_VISIBLE(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x8198290: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_VISIBLE.inc"
 }
 
-int GMCommandProcess::Command_DEBUG_COMMAND_SET_USER_DEFINE(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 0; // ORIG 0x819829a: mov $0x0,%eax
+#include "Arad_GMCommand/Command_DEBUG_COMMAND_SET_USER_DEFINE.inc"
 }
 
-void Arad_GMCommandManger::Destory()
-{
-    // ORIG 0x819823a: push %ebp; mov %esp,%ebp; pop %ebp; ret —— 真实空体
+#include "Arad_GMCommand/Destory.inc"
 }
 
-int Arad_GMCommandManger::Process(CUser* /*user*/, MSG_DEBUG_COMMAND& /*msg*/)
-{
-    return 1; // ORIG 0x8198240: mov $0x1,%eax
+#include "Arad_GMCommand/Process.inc"
 }
 
-int Arad_GMCommandManger::__FindPorcess(ENUM_DEBUG_COMMAND /*command*/)
-{
-    return 0; // ORIG 0x819824a: mov $0x0,%eax
+#include "Arad_GMCommand/__FindPorcess.inc"
 }
 
 } // namespace ARAD

@@ -1,0 +1,2 @@
+StringResourceDelayedItem::~StringResourceDelayedItem()
+{

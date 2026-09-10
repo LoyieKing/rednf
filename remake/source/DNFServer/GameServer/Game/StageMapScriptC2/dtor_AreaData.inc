@@ -1,0 +1,2 @@
+AreaData::~AreaData()
+{

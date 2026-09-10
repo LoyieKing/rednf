@@ -1,0 +1,2 @@
+GameResultType::~GameResultType()
+{

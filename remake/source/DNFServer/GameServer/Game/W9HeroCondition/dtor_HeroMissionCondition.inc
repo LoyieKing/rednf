@@ -1,0 +1,2 @@
+HeroMissionCondition::~HeroMissionCondition()
+{

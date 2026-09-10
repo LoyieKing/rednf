@@ -1,0 +1,3 @@
+ExpertJobMaterial::ExpertJobMaterial() { Reset(); }
+
+// ORIG 0x849f252：先清 +0x0c/+0x0e（short），再清 +0x00/+0x04/+0x08。

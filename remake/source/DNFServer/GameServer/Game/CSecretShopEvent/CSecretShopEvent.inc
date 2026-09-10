@@ -1,0 +1,2 @@
+CSecretShopEvent::CSecretShopEvent()
+{

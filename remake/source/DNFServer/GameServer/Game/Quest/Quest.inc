@@ -1,0 +1,2 @@
+Quest::Quest()
+{

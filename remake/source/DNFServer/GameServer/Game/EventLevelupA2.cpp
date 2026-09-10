@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 EventLevelupA2/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // EventLevelupA2.cpp —— 事件/升级剩余依赖恢复（独占 TU；EventLevelupA2 批次）。
 //
 // 指派符号（全部逐份完整阅读 ## 汇编 + ## 反编译 C 后转写，报告路径见各函数）：
@@ -62,68 +72,40 @@
 //   movl $0x0,(%eax)` 清零（我方显式列 Singleton/ScriptInterface 会插入该 2 条）
 //   ⇒ 按本文件 LevelupSupport2ndEventManger 先例，省略基类（默认构造），
 //   只留成员初始化（同 gcc 4.4 对「显式基类构造」的插入行为）。
-LevelupSupportEventManger::LevelupSupportEventManger()
-    : m_script(),
-      m_stepIndexMap(),
-      m_events()
-{
+#include "EventLevelupA2/LevelupSupportEventManger.inc"
 }
 
-LevelupSupportEventManger::~LevelupSupportEventManger()
-{
+#include "EventLevelupA2/dtor_LevelupSupportEventManger.inc"
 }
 
 // ============ LevelupSupport2ndEventManger C1/D1（报告转写） ============
 // 报告：Singleton base → ScriptInterface base → 写 vptr →
 // LevelupSupport2ndScript(+0x04)。D1：写 vptr → 析构脚本对象。
-LevelupSupport2ndEventManger::LevelupSupport2ndEventManger()
-    : m_script()
-{
-    // 显式列出基类构造会让 gcc 4.4 在 Singleton 构造后插入 movl $0,(%eax)
-    // （ORIG 无此清零）；省略基类（默认构造）以匹配 ORIG 字节。
+#include "EventLevelupA2/LevelupSupport2ndEventManger.inc"
 }
 
-LevelupSupport2ndEventManger::~LevelupSupport2ndEventManger()
-{
+#include "EventLevelupA2/dtor_LevelupSupport2ndEventManger.inc"
 }
 
 // ============ InGameEventScript C1/D1【报告缺失·objdump 转写】 ============
 // C1 0x08985864：_ZNSsC1Ev(this)、_ZNSsC1Ev(this+4)，随后对两者 _ZNSs5clearEv。
 // D1 0x08110e96：析构 string(this+4)、string(this)；无虚表写入（非多态）。
-InGameEventScript::InGameEventScript()
-    : m_field00(), m_field04()
-{
-    m_field00.clear();
-    m_field04.clear();
+#include "EventLevelupA2/InGameEventScript.inc"
 }
 
-InGameEventScript::~InGameEventScript()
-{
+#include "EventLevelupA2/dtor_InGameEventScript.inc"
 }
 
 // ============ Action_SendMail::reset【报告缺失·objdump 转写】 ============
 // 0x080ec026：map(+0x00)::clear → (+0x18)=0 → byte(+0x1c)=0 → (+0x24)=0 →
 // (+0x20)=0 → (+0x28)=0 → byte(+0x2c)=0 → string(+0x30).clear → string(+0x34).clear。
 // 忠实保留：不触碰 m_vec38(+0x38)。
-void Action_SendMail::reset()
-{
-    m_jobMap.clear();
-    m_field18 = 0;
-    m_field1c = 0;
-    m_addInfo = 0;
-    m_itemIdx = 0;
-    m_gold = 0;
-    m_coin = 0;          // ORIG 仅清 +0x2c 低字节（movb），字段即按字节建模
-    m_field30.clear();
-    m_field34.clear();
+#include "EventLevelupA2/reset.inc"
 }
 
 // ============ Action_SendMail::set_item【报告缺失·objdump 转写】 ============
 // 0x080ec08c：(+0x20)=arg1、(+0x24)=arg2。仅此两条存储。
-void Action_SendMail::set_item(int itemIndex, int addInfo)
-{
-    m_itemIdx = itemIndex;
-    m_addInfo = addInfo;
+#include "EventLevelupA2/set_item.inc"
 }
 
 namespace EventClassify
@@ -139,67 +121,14 @@ namespace EventClassify
 // flag 真：item.m_level <= level 即中；假：== 才中。未命中返回 0。
 // 形态说明：ORIG 每次使用都重新经 this->+0x1c 取脚本指针（无局部缓存），
 // 本转写按同样语句形状书写以保持 O0 指令序列一致。
-bool CLevelUpReward::check_recv_level(int level, int job, int growType, bool flag)   // [b28d-Main 代落·S366 P292] int→bool
-{
-    std::map<int, Condition_LevelUp>::iterator it =
-        static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);
-    if (it != static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end())
-    {
-        // value 基址 +5 字节过滤：先零扩展比 0xff（通配），再有符号扩展比 growType。
-        if (it->second.m_filter1 == static_cast<unsigned char>(0xff)
-            || static_cast<int>(static_cast<signed char>(it->second.m_filter1))
-               == growType)
-        {
-            for (int i = 0; static_cast<int>(it->second.m_items.size()) > i; ++i)
-            {
-                if (flag)
-                {
-                    if (it->second.m_items[i].m_level <= level)   // setle 分支
-                        return 1;
-                }
-                else if (it->second.m_items[i].m_level == level)  // sete 分支
-                {
-                    return 1;
-                }
-            }
-        }
-    }
-    return 0;
+#include "EventLevelupA2/check_recv_level.inc"
 }
 
 // ============ set_reward_item（报告转写） ============
 // 查找/过滤与 check_recv_level 同形；命中 item.m_level == level 时对脚本
 // +0x28 的 mail 执行 reset → set_item(itemIndex,itemCount) → 标题/正文 key
 // 赋值（mail+0x30/+0x34 ← item+0xc/+0x10），返回 1；否则继续循环，耗尽返回 0。
-bool CLevelUpReward::set_reward_item(int level, int job, int growType)   // [b28d-Main 代落·S366 P292] int→bool
-{
-    std::map<int, Condition_LevelUp>::iterator it =
-        static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);
-    if (it != static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end())
-    {
-        if (it->second.m_filter1 == static_cast<unsigned char>(0xff)
-            || static_cast<int>(static_cast<signed char>(it->second.m_filter1))
-               == growType)
-        {
-            for (int i = 0; static_cast<int>(it->second.m_items.size()) > i; ++i)
-            {
-                if (it->second.m_items[i].m_level == level)       // sete 分支
-                {
-                    // ORIG 对 mail 的每步操作都重读 this->+0x1c 并加 +0x28。
-                    static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.reset();
-                    static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.set_item(
-                        it->second.m_items[i].m_itemIndex,
-                        it->second.m_items[i].m_itemCount);
-                    static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field30 =
-                        it->second.m_items[i].m_title;
-                    static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field34 =
-                        it->second.m_items[i].m_content;
-                    return 1;
-                }
-            }
-        }
-    }
-    return 0;
+#include "EventLevelupA2/set_reward_item.inc"
 }
 
 }  // namespace EventClassify
@@ -212,84 +141,5 @@ bool CLevelUpReward::set_reward_item(int level, int job, int growType)   // [b28
 // GCC 对相邻 case 的合并策略——ORIG 树中 {0x191,0x192}→AFL 与 {0x193}→AddItem
 // 编码为「jl 默认 / jle AFL / jmp AddItem」三向节点，本仓 g++4.4 将相邻同类项
 // 合并为「sub $0x191 / cmp $1 / ja」无符号区间节点。两编码判定结果等价。
-InGameEventScript* InGameEventScriptLoader::importInGameEventScript(
-    int recordType, const std::string& path)
-{
-    InGameEventScript* script = 0;
-    bool loaded = true;
-
-    switch (recordType)
-    {
-    case 0x194:  // 升级奖励（new 0x6c）
-        script = new LevelUpRewardScript();
-        loaded = importLevelUpRewardScript(
-            static_cast<LevelUpRewardScript*>(script), path.c_str());
-        break;
-    case 0x65:   // 疲劳消耗赠物（new 100）
-        script = new UsedFatigueGiveItemScript();
-        loaded = importUsedFatigueGiveItemEventScript(
-            static_cast<UsedFatigueGiveItemScript*>(script), path.c_str());
-        break;
-    case 0x56:   // 出勤签到（new 0x78）
-        script = new AttendanceScript();
-        loaded = importAttendanceScript(
-            static_cast<AttendanceScript*>(script), path.c_str());
-        break;
-    case 0x5c:   // 网吧游戏时长（new 0x18）
-        script = new PcBangPlayTimeScript();
-        loaded = importPcBangPlayTimeScript(
-            static_cast<PcBangPlayTimeScript*>(script), path.c_str());
-        break;
-    case 0x191:
-    case 0x192:
-    case 0x19c:  // 账号首次登录 / 每日变体共用 AccountFirstLoginScript（new 0x50）
-        script = new AccountFirstLoginScript();
-        loaded = importAccountFirstLoginEventScript(
-            static_cast<AccountFirstLoginScript*>(script), path.c_str());
-        break;
-    case 0x193:  // 按条目计数 DB（new 0x24）
-        script = new AddItemCountDBScript();
-        loaded = importAddItemCountDBEventScript(
-            static_cast<AddItemCountDBScript*>(script), path.c_str());
-        break;
-    case 0x196:  // 交换随机奖励（new 0x68）
-        script = new ExchangeRandomItemRewardScript();
-        loaded = importExchangeRandomItemRewardScript(
-            static_cast<ExchangeRandomItemRewardScript*>(script), path.c_str());
-        break;
-    case 0x197:  // 头像分解随机奖励（new 100）
-        script = new AvatarDisjointRandomRewardScript();
-        loaded = importAvatarDisjointRandomRewardScript(
-            static_cast<AvatarDisjointRandomRewardScript*>(script), path.c_str());
-        break;
-    case 0x199:  // 疲劳量（new 0x10）
-        script = new FatigueQuantityScript();
-        loaded = importFatigueQuantityEventScript(
-            static_cast<FatigueQuantityScript*>(script), path.c_str());
-        break;
-    case 0x19a:  // 购买现金道具奖励（new 0x30）
-        script = new PurchaseCashItemBonusScript();
-        loaded = importPurchaseCashItemBonusEventScript(
-            static_cast<PurchaseCashItemBonusScript*>(script), path.c_str());
-        break;
-    case 0x19b:  // 养成本体（new 0x34）
-        script = new ObjectBringUpScript();
-        loaded = importObjectBringUpEventScript(
-            static_cast<ObjectBringUpScript*>(script), path.c_str());
-        break;
-    default:     // 未建模类型：ORIG 保持 ptr=0、ok=1，直接返回 0
-        return 0;
-    }
-
-    if (!loaded)
-    {
-        // ORIG 失败路径：显式基类析构（D1 非虚直调）后 operator delete，两次判空。
-        if (script != 0)
-        {
-            script->~InGameEventScript();
-            ::operator delete(script);
-        }
-        script = 0;
-    }
-    return script;
+#include "EventLevelupA2/importInGameEventScript.inc"
 }

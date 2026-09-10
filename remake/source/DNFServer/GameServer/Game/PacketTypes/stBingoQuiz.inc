@@ -1,0 +1,1 @@
+stBingoQuiz::stBingoQuiz() {}

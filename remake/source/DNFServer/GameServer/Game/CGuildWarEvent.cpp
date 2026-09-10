@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CGuildWarEvent/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 公会战事件 CGuildWarEvent 实现（G3 公会域，2026-08-17）。
 // 语义依据 docs/class_func_reports/CGuildWarEvent.md + ORIG 反汇编
 // （C1 0x0811cfa8 / StartEvent 0x0811d024 / StartEvent(Word_Param) 0x0811d152 /
@@ -40,76 +50,17 @@ struct GWView
 static_assert(sizeof(CGuildWarEvent) == 0x10, "CGuildWarEvent sizeof");
 static_assert(offsetof(CGuildWarEvent, m_duration) == 0xa, "m_duration +0xa");
 static_assert(offsetof(CGuildWarEvent, m_field0c) == 0xc, "m_field0c +0xc");
-CGuildWarEvent::CGuildWarEvent()
-{
-    m_duration = 5;
-    m_field0c = 0;
+#include "CGuildWarEvent/CGuildWarEvent.inc"
 }
 
-CGuildWarEvent::~CGuildWarEvent()
-{
+#include "CGuildWarEvent/dtor_CGuildWarEvent.inc"
 }
 
-void CGuildWarEvent::StartEvent()
-{
-    // ORIG xor 形：call;xor $0x1;test;je 尾 ⇒ if (!IsEventing(0)) { body } 块形。
-    if (!IsEventing(0))
-    {
-        SetEventFlag(true);
-        m_duration = 5;
-        m_field0c = 0;
-        if (G_GameWorld()->GetChannelType() == 6)
-        {
-            G_TimerQueue()->InsertTimer(
-                TimerEntry::OBJ_TYPE_2, 0, TIMER_MESSAGE_0x62,
-                (int)m_duration * 0xe10 - 600, 10, 0);
-            GlobalData::s_guild_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)0)
-                ->SendGuildWarStart(
-                    (unsigned char)((CEnvView*)G_CEnvironment())->m_gcNo);
-            cMyTrace(__PRETTY_FUNCTION__, 0x27, 0)(
-                "Guild War Event Start! time(%d)", 5);
-        }
-    }
+#include "CGuildWarEvent/StartEvent.inc"
 }
 
-void CGuildWarEvent::StartEvent(Word_Param param)
-{
-    if (!IsEventing(0))
-    {
-        SetEventFlag(true);
-        ((GWView*)this)->m_wp = param;
-        if (G_GameWorld()->GetChannelType() == 6)
-        {
-            G_TimerQueue()->InsertTimer(
-                TimerEntry::OBJ_TYPE_2, 0, TIMER_MESSAGE_0x62,
-                (int)m_duration * 0xe10 - 600, 10, 0);
-            GlobalData::s_guild_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)0)
-                ->SendGuildWarStart(
-                    (unsigned char)((CEnvView*)G_CEnvironment())->m_gcNo);
-            cMyTrace(__PRETTY_FUNCTION__, 0x39, 0)(
-                "Guild War Event Start! time(%d), server(%d)",
-                (int)param.m_duration,
-                ((CEnvView*)G_CEnvironment())->m_gcNo);
-        }
-    }
+#include "CGuildWarEvent/StartEvent_1.inc"
 }
 
-void CGuildWarEvent::EndEvent()
-{
-    if (IsEventing(0))
-    {
-        if (G_GameWorld()->GetChannelType() == 6)
-        {
-            GlobalData::s_guild_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)0)
-                ->SendGuildWarEnd(
-                    (unsigned char)((CEnvView*)G_CEnvironment())->m_gcNo);
-        }
-        SetEventFlag(false);
-        m_duration = 0;
-        m_field0c = 0;
-        cMyTrace(__PRETTY_FUNCTION__, 0x49, 0)("Guild War Event End");
-    }
+#include "CGuildWarEvent/EndEvent.inc"
 }

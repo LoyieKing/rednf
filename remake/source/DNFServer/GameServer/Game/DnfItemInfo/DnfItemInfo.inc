@@ -1,0 +1,3 @@
+DnfItemInfo::DnfItemInfo()
+{
+    reset();

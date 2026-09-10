@@ -1,0 +1,1 @@
+CNPCDynamicInfoManager::~CNPCDynamicInfoManager() {}

@@ -1,0 +1,2 @@
+TimeManager::~TimeManager()
+{

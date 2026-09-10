@@ -1,0 +1,1 @@
+stRankSystemInfo::~stRankSystemInfo() {}

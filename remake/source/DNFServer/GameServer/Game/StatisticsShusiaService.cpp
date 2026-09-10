@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 StatisticsShusiaService/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— StatisticsShusiaService（G2-4 批次，统计域）。
 // 依据 docs/class_func_reports/StatisticsShusiaService.md + ORIG 反汇编。
 // 布局：+0x00 Mutex | +0x18 map<int,int> | +0x30 map<int,int>。
@@ -25,68 +35,22 @@ public:
     std::map<int, int> m_serviceUsage;    // +0x30
 };
 
-StatisticsShusiaService::StatisticsShusiaService()
-    : m_mutex(), m_dungeonFailure(), m_serviceUsage()
-{
+#include "StatisticsShusiaService/StatisticsShusiaService.inc"
 }
 
-StatisticsShusiaService::~StatisticsShusiaService() {}
+#include "StatisticsShusiaService/dtor_StatisticsShusiaService.inc"
 
-void StatisticsShusiaService::reset()
-{
-    Guard<Mutex> guard(&m_mutex);
-    m_dungeonFailure.clear();
-    m_serviceUsage.clear();
+#include "StatisticsShusiaService/reset.inc"
 }
 
-void StatisticsShusiaService::incDungeonFailure(int dungeonIdx)
-{
-    // b28d-35: DIFF→N82（帧 0x30 vs 0x40、全帧槽平移 8）。ORIG @0x0860c1ba。
-    Guard<Mutex> guard(&m_mutex);
-    std::map<int, int>::iterator it = m_dungeonFailure.find(dungeonIdx);
-    if (it == m_dungeonFailure.end())
-    {
-        m_dungeonFailure.insert(std::make_pair(dungeonIdx, 1));
-    }
-    else
-    {
-        it->second += 1;
-    }
+#include "StatisticsShusiaService/incDungeonFailure.inc"
 }
 
-void StatisticsShusiaService::incServiceUsage(int serviceIdx)
-{
-    // b28d-35: DIFF→N82（帧 0x30 vs 0x40、全帧槽平移 8）。ORIG @0x0860c358。
-    Guard<Mutex> guard(&m_mutex);
-    std::map<int, int>::iterator it = m_serviceUsage.find(serviceIdx);
-    if (it == m_serviceUsage.end())
-    {
-        m_serviceUsage.insert(std::make_pair(serviceIdx, 1));
-    }
-    else
-    {
-        it->second += 1;
-    }
+#include "StatisticsShusiaService/incServiceUsage.inc"
 }
 
-int StatisticsShusiaService::getDungeonFailure(int dungeonIdx)
-{
-    Guard<Mutex> guard(&m_mutex);
-    std::map<int, int>::iterator it = m_dungeonFailure.find(dungeonIdx);
-    if (it != m_dungeonFailure.end())
-    {
-        return (*it).second;   // ORIG 用 operator*（de）
-    }
-    return 0;
+#include "StatisticsShusiaService/getDungeonFailure.inc"
 }
 
-int StatisticsShusiaService::getServiceUSage(int serviceIdx)
-{
-    Guard<Mutex> guard(&m_mutex);
-    std::map<int, int>::iterator it = m_serviceUsage.find(serviceIdx);
-    if (it != m_serviceUsage.end())
-    {
-        return (*it).second;   // ORIG 用 operator*（de）
-    }
-    return 0;
+#include "StatisticsShusiaService/getServiceUSage.inc"
 }

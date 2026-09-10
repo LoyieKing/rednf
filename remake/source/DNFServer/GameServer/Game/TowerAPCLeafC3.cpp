@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 TowerAPCLeafC3/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // TowerAPCLeafC3.cpp —— TowerOfDespair APC 发送链（TowerAPCLeafC3 批次）
 //
 // 逐指令依据 docs/class_func_reports/（## 汇编 + ## 反编译 C 已完整读取）：
@@ -34,90 +44,19 @@
 // SendingAPC_Info::SendingAPC_Info —— ORIG T 0x085fe860 [0x085fe860,0x085fe8c9]
 // 报告 SendingAPC_Info/SendingAPC_Info.md：构造 +0x04 PacketBuf → clear →
 // memset(m_apcInfo@+0x17338, 0, 0xbc)。
-SendingAPC_Info::SendingAPC_Info()
-{
-    m_buf.clear();
-    memset(&m_apcInfo, 0, 0xbc);
+#include "TowerAPCLeafC3/SendingAPC_Info.inc"
 }
 
 // SendingAPC_Info::~SendingAPC_Info —— ORIG T 0x085fe8ca [0x085fe8ca, 0x085fe8df]
 // 仅析构 +0x04 内嵌 PacketBuf（m_buf），成员自动析构等价。
-SendingAPC_Info::~SendingAPC_Info()
-{
+#include "TowerAPCLeafC3/dtor_SendingAPC_Info.inc"
 }
 
 // [b28d-32 N(P75): 1 条装载序/寄存器差（202/201） | ORIG 0x085fe906]
-void SendingAPC_Info::Set_APC_Info(TOD_Layer const& layer, _APCInfo const& info)
-{
-    // b21 verdict=DIFF（N 残余）：202/201（gap=1）。调用点全等（clear/put_header/put_byte×/
-    //   GetLayer/strlen×3/put_int×/put_str×3/finalize/cMyTraceC1+cMyTracecl）。包字段序
-    //   （userCharacNo/name/lv/job/grow/guild/pvp/abilities[0x16]/creature/creatureId）逐位核。
-    //   trace 实参物化两批局部槽且顺序差(N82)、GetLayer 结果寄存器、帧 push edi vs 栈。
-    //   语义完成，byte 层 N 封顶（近 identical）。
-    m_buf.clear();
-    m_userCharacNo = info.m_userCharacNo;
-    m_buf.put_header(0, 0x15a);
-    m_buf.put_byte(layer.GetLayer());
-
-    int nameLen = (int)strlen(info.m_userCharacName);
-    m_buf.put_int(nameLen);
-    m_buf.put_str(info.m_userCharacName, nameLen);
-
-    m_buf.put_byte(info.m_lv);
-    m_buf.put_byte(info.m_job);
-    m_buf.put_byte(info.m_growType);
-
-    int guildLen = (int)strlen(info.m_guildName);
-    m_buf.put_int(guildLen);
-    m_buf.put_str(info.m_guildName, guildLen);
-
-    m_buf.put_int(info.m_pvpGrade);
-    for (int i = 0; i < 0x16; ++i)                  // ORIG cmpl $0x15/setle
-        m_buf.put_int(info.m_abilities[i]);
-
-    int creatureLen = (int)strlen(info.m_creatureName);
-    m_buf.put_int(creatureLen);
-    m_buf.put_str(info.m_creatureName, creatureLen);
-
-    m_buf.put_int(info.m_creatureId);
-    m_buf.finalize(true);
-
-    // ORIG +0x1fb..+0x2b1：trace 实参先物化到局部槽（creature_id→esi、
-    // &creature_name/-0x50、pvp/-0x4c、&guild/-0x48、grow/-0x44、job/-0x40、
-    // lv/-0x3c、GetLayer→ebx），再反序写入变参栈槽。
-    char* creatureName = const_cast<char*>(info.m_creatureName);
-    int pvpGrade = info.m_pvpGrade;
-    char* guildName = const_cast<char*>(info.m_guildName);
-    int growType = info.m_growType;
-    int job = info.m_job;
-    int lv = info.m_lv;
-
-    cMyTrace trace(__PRETTY_FUNCTION__,
-                   0x68, 5);
-    trace("@TOD : setting layer:%d, name:%s, lv:%d, job:%d, grow_type:%d, "
-          "guild_name:%s, pvp_grade:%d, creature_name:%s, creature_id:%d",
-          (unsigned int)(layer.GetLayer() & 0xffff),
-          info.m_userCharacName, lv, job, growType,
-          guildName, pvpGrade, creatureName,
-          info.m_creatureId);
+#include "TowerAPCLeafC3/Set_APC_Info.inc"
 }
 // ---------------------------------------------------------------------------
-void SendingAPC_Info::Send_APC_Info(TOD_Layer const& layer, CUser* user)
-{
-    Set_APC_Info(layer, m_apcInfo);
-
-    PacketGuard guard(&m_buf);
-    user->Send(guard);
-
-    char msg[256];
-    sprintf(msg,
-            "TOD : setting layer:%d, name:%s, lv:%d, job:%d, grow_type:%d, "
-            "guild_name:%s, pvp_grade:%d, creature_name:%s, creature_id:%d",
-            (unsigned int)(layer.GetLayer() & 0xffff),
-            m_apcInfo.m_userCharacName, m_apcInfo.m_lv, m_apcInfo.m_job,
-            m_apcInfo.m_growType, m_apcInfo.m_guildName, m_apcInfo.m_pvpGrade,
-            m_apcInfo.m_creatureName, m_apcInfo.m_creatureId);
-    TowerOfDespairMgr::SendMessageToCUser(user, msg);
+#include "TowerAPCLeafC3/Send_APC_Info.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -128,20 +67,7 @@ void SendingAPC_Info::Send_APC_Info(TOD_Layer const& layer, CUser* user)
 // → put_int(strlen(msg)) → put_str(msg, strlen(msg))（ORIG 调用两次 strlen）
 // → finalize(true) → Send。
 // ---------------------------------------------------------------------------
-void TowerOfDespairMgr::SendMessageToCUser(CUser* user, char* msg)
-{
-    if (user->isGMUser())
-    {
-        PacketGuard guard;
-        guard.put_header(0, 0xc);
-        guard.put_byte(0);
-        guard.put_short(0);
-        guard.put_byte(0);
-        guard.put_int((int)strlen(msg));
-        guard.put_str(msg, (int)strlen(msg));
-        guard.finalize(true);
-        user->Send(guard);
-    }
+#include "TowerAPCLeafC3/SendMessageToCUser.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -157,26 +83,5 @@ void TowerOfDespairMgr::SendMessageToCUser(CUser* user, char* msg)
 // 接入时须按本真实容器模型实现。
 // ---------------------------------------------------------------------------
 // [b28d-32 N(P75): 装载序/寄存器差（90/87） | ORIG 0x085feee4]
-void TowerOfDespair_APC_Mgr::Send_APC_Info(TOD_Layer const& layer, CUser* user)
-{
-    // ORIG 形态：默认构造 it → end() 先求值 → find 赋值 → operator!= 判断；
-    // 日志三参为内联 getter 表达式（右到左求值，寄存器临时跨 noop 构造存活）。
-    std::map<TOD_Layer, SendingAPC_Info>::iterator it;
-    std::map<TOD_Layer, SendingAPC_Info>::iterator endIt = m_APCInfoMap.end();
-    it = m_APCInfoMap.find(layer);
-    if (it != endIt)
-    {
-        it->second.Send_APC_Info(layer, user);
-        cMyTraceNoop noop;
-        noop("TOD:sending [%d] toUser, layer [%d] : clone : [%d]",
-             user->getCurCharacNo(),
-             layer.GetLayer(),
-             it->second.get_user_charac_no());
-    }
-    else
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xa1, 5);
-        trace("TOD:invalid layer %d", (unsigned int)(layer.GetLayer() & 0xffff));
-    }
+#include "TowerAPCLeafC3/Send_APC_Info_1.inc"
 }

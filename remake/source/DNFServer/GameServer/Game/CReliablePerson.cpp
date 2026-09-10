@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CReliablePerson/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN15CReliablePerson13InitTradeGoldEjjj`（ORIG 0x86454a8）。
 #include <iostream>
@@ -29,43 +39,20 @@ public:
     int m_schoolPoint;              // +0x0c
 };
 
-void CReliablePerson::InitTradeGold(unsigned int total, unsigned int billion,
-                                    unsigned int daily)
-{
-    m_totalTradeGold = total;
-    m_billionTradeGold = billion;
-    m_dailyTradeGold = daily;
+#include "CReliablePerson/InitTradeGold.inc"
 }
 
-unsigned int CReliablePerson::GetTradeGoldDaily() const
-{
-    return m_dailyTradeGold;
+#include "CReliablePerson/GetTradeGoldDaily.inc"
 }
 
-unsigned int CReliablePerson::GetTradeGoldTotal() const
-{
-    return m_totalTradeGold;
+#include "CReliablePerson/GetTradeGoldTotal.inc"
 }
 
-unsigned int CReliablePerson::GetTradeGoldTotalBillion() const
-{
-    return m_billionTradeGold;
+#include "CReliablePerson/GetTradeGoldTotalBillion.inc"
 }
 
-void CReliablePerson::SetTradeGoldDaily(unsigned int gold)
-{
-    m_dailyTradeGold = gold;
+#include "CReliablePerson/SetTradeGoldDaily.inc"
 }
 
-void CReliablePerson::IncrementTradeGold(unsigned int gold)
-{
-    m_dailyTradeGold += gold;
-    m_totalTradeGold += gold;
-    if (m_totalTradeGold > 999999999)
-    {
-        unsigned int total = m_totalTradeGold;
-        // 累计交易额超过 10 亿：十亿位进位到 billion，total 保留余数
-        m_totalTradeGold = total - total / 1000000000 * 1000000000;
-        m_billionTradeGold += total / 1000000000;
-    }
+#include "CReliablePerson/IncrementTradeGold.inc"
 }

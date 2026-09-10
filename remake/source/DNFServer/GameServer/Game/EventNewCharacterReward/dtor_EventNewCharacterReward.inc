@@ -1,0 +1,2 @@
+EventNewCharacterReward::~EventNewCharacterReward()
+{

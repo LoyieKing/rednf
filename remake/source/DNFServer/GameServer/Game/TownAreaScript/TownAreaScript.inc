@@ -1,0 +1,3 @@
+TownAreaScript::TownAreaScript()
+{
+    clear();

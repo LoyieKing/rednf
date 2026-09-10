@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CCompoundAvatar/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // CCompoundAvatar.cpp — 头像合成/分离脚本域生命周期与查询（Ctor2_ContB）
 //
 // 全部实现按 docs/class_func_reports/{WongWork__CCompoundAvatar,
@@ -34,81 +44,29 @@
 // b26 判词同型，N82 族封顶。
 namespace WongWork
 {
-CCompoundAvatar::CCompoundAvatar()
-{
-    // b28d-45 复测：P212 全头部声明（seed/range/i 按 ORIG 槽深序）槽序不变且
-    // 判级 NEAR→DIFF，确认 N82/N98 槽序封顶（ORIG 0x08331deb seed=-0x24 /
-    // 0x08331e35 range=-0x20 不可翻）。
-    m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
-    for (int i = 0; i < 100; ++i)
-    {
-        unsigned long range = 10000;
-        m_rand->randInt(range);
-    }
+#include "CCompoundAvatar/CCompoundAvatar.inc"
 }
 }  // namespace WongWork
 
 // ============================ STAncientRareAvatarCube ============================
 
 // ORIG 0x0891aa3a：单循环内逐组「置零 int + clear 向量」，末尾 clear 首向量。
-STAncientRareAvatarCube::STAncientRareAvatarCube()
-{
-    for (int i = 0; i < 10; ++i)
-    {
-        m_field0c[i] = 0;
-        m_vecs[i].clear();
-    }
-    m_vec.clear();
+#include "CCompoundAvatar/STAncientRareAvatarCube.inc"
 }
 
 // ============================ tagCompoundAvatar ============================
 
 // ORIG 0x0891ab56：标量清零（含 memset 0x28 于 +0x04）+ 三组/尾向量逐个 clear，
 // 循环体内顺序为 A.clear/B.clear/m_b/m_c/m_d/C.clear，尾部顺序 2b8/2dc/2e0[]/2c4/2d0。
-void tagCompoundAvatar::Clean()
-{
-    m_idx = 0;
-    std::memset(&m_a[0], 0, sizeof(m_a));
-    for (int i = 0; i < 10; ++i)
-    {
-        m_optsA[i].clear();
-        m_optsB[i].clear();
-        m_b[i] = 0;
-        m_c[i] = 0;
-        m_d[i] = 0;
-        m_optsC[i].clear();
-    }
-    m_tailA.clear();
-    m_flag2dc = 0;
-    for (int j = 0; j < 10; ++j)
-    {
-        m_e[j] = 0;
-    }
-    m_tailB.clear();
-    m_tailC.clear();
+#include "CCompoundAvatar/Clean.inc"
 }
 
 // ============================ tagCompoundAvatarTable ============================
 
-tagCompoundAvatarTable::tagCompoundAvatarTable() {}   // ORIG 0x0833431c：vector 构造
+#include "CCompoundAvatar/tagCompoundAvatarTable.inc"
 
-tagCompoundAvatarTable::~tagCompoundAvatarTable() {}  // ORIG 0x08334330：vector 析构
-
-// ORIG 0x08903fcc：公共路径内联、非法路径前向跳转合并 ret0；
-// at(idx).m_idx != idx → 0；否则元素指针。
-tagCompoundAvatar*
-tagCompoundAvatarTable::getCompoundAvatarInfo(int idx) const
-{
-    // b28d-45 P0/N96 清绑：`register bool invalid asm("al")` 删除，裸短路形
-    // （ORIG (idx<1)||(size()<=idx) bool 物化岛 → test/je；body 内 at() 落槽
-    // -0xc，*entry==idx je 正跳 return-块）。
-    if ((idx < 1) || (static_cast<int>(m_avatars.size()) <= idx))
-        return 0;
-    const tagCompoundAvatar* entry =
-        &m_avatars.at(static_cast<unsigned int>(idx));
-    if (entry->m_idx != idx)
-        return 0;
-    return const_cast<tagCompoundAvatar*>(entry);
+#include "CCompoundAvatar/dtor_tagCompoundAvatarTable.inc"
+#include "CCompoundAvatar/getCompoundAvatarInfo.inc"
 }
 
 // ============================ WongWork::CCompoundAvatar ============================
@@ -117,20 +75,11 @@ namespace WongWork
 {
 
 // ORIG 0x08331ea2：delete m_rand 并置空；11 张表逆序析构（编译器生成）。
-CCompoundAvatar::~CCompoundAvatar()
-{
-    if (m_rand != 0)
-    {
-        delete m_rand;
-    }
-    m_rand = 0;
+#include "CCompoundAvatar/dtor_CCompoundAvatar.inc"
 }
 
 // ORIG 0x08333ea6：importCompoundAvatarTable(dir,path,this) == 0。
-bool CCompoundAvatar::LoadScript(const char* dir, const char* path)
-{
-    return importCompoundAvatarTable(dir, path,
-                                     reinterpret_cast<tagCompoundAvatarTable*>(this)) == 0;
+#include "CCompoundAvatar/LoadScript.inc"
 }
 
 }  // namespace WongWork

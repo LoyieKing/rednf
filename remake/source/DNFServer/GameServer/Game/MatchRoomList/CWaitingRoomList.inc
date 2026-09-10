@@ -1,0 +1,2 @@
+CWaitingRoomList::CWaitingRoomList()
+{

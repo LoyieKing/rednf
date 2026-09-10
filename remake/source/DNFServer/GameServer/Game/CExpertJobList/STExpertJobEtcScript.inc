@@ -1,0 +1,3 @@
+STExpertJobEtcScript::STExpertJobEtcScript()
+{
+    Clear();

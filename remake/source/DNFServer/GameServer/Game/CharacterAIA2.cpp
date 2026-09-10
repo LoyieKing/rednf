@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CharacterAIA2/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // CharacterAIA2.cpp —— 角色/AI 脚本依赖恢复（CharacterAIA2 批次独占 TU）。
 // ---- round5 判词汇解（本 TU 2 件非 identical，均 4.1/4.4 codegen 族）----
 // STAIInfoScript::destroy 0x0836753a：**round5 已修**（去具名 `elem`，改
@@ -71,9 +81,7 @@
 #include "CreatureScript.h"          // getElementName(ENUM_ELEMENT)
 
 // ScriptDeps 域提供的全局（ORIG T 0x088bfd97）；无公共头声明，此处补一致声明。
-int getItemRarity(const char* name);
-
-// ORIG B 0x094f6920（char[0x100]，定义在 InitScriptProducers_5.cpp）。
+#include "CharacterAIA2/getItemRarity.inc"
 extern char g_aiCharacterScriptBaseDirectory[0x100];
 
 // ============================================================================
@@ -108,32 +116,11 @@ const char* ACTIVEOBJECT_STATE_STRING[16] = {
 // ============================================================================
 
 // isKeyFile —— 报告 _lt_global_gt_/isKeyFile.md：非空且以 ".key" 结尾。
-bool isKeyFile(const char* name)
-{
-    if (name == 0)
-        return false;
-    // ORIG 0x088c9a65：strlen 结果落命名槽；strcmp 命中/未命中走分支常量岛（P56）。
-    unsigned int len = strlen(name);
-    if (strcmp(name + (len - 4), ".key") == 0)
-        return true;
-    return false;
+#include "CharacterAIA2/isKeyFile.inc"
 }
 
 // stringToInt —— 报告 _lt_global_gt_/stringToInt.md：线性查表，max==-1 视为 999。
-int stringToInt(const char* s, const char** table, int maxCount)
-{
-    if (maxCount == -1)
-        maxCount = 999;
-    // ORIG 0x08a38aa7..0x08a38ae8：loop 头只判 i<max（setl）；体内 table[i]
-    // 两次独立装载（null 守卫 + strcmp 实参，O0 无 CSE，P48），空则跳出。
-    for (int i = 0; i < maxCount; ++i)
-    {
-        if (table[i] == 0)
-            break;
-        if (strcmp(table[i], s) == 0)
-            return i;
-    }
-    return -1;
+#include "CharacterAIA2/stringToInt.inc"
 }
 
 // getFileName —— 报告 _lt_global_gt_/getFileName.md：拷贝入串后从尾向前找
@@ -168,31 +155,17 @@ std::string getFileName(const std::string& path)
 
 // makeFullPath —— 报告 _lt_global_gt_/makeFullPath.md：path 不含 '/'/'\\' 时
 // dir+path 回写 path 并返 true；否则不动返 false。首参按值传递（mangled Ss）。
-bool makeFullPath(std::string directory, std::string& path)
-{
-    // ORIG 0x088c99d4..0x088c99de：两处 `cmpl $0x0; jns/js` 符号位测试
-    // （4.1 把 ==npos 折成 <0 判）→ 用有符号比较复现 cmp 立即数形；
-    // 第二分支 js→then 的前跳为 4.1 jump-threading（N 类残余）。
-    const int slash = path.find('/', 0);
-    const int backslash = path.find('\\', 0);
-    if (slash >= 0 || backslash >= 0)
-        return false;
-    path = directory + path;
-    return true;
+#include "CharacterAIA2/makeFullPath.inc"
 }
 
 // makeAIFullPath —— 报告 _lt_global_gt_/makeAIFullPath.md：dir+"ai/" 后接 makeFullPath。
 // ORIG 0x08a38af4：临时直接作为按值参数（无额外拷贝构造）。
-void makeAIFullPath(std::string& dir, std::string& name)
-{
-    makeFullPath(dir + "ai/", name);
+#include "CharacterAIA2/makeAIFullPath.inc"
 }
 
 // makeKeyFullPath —— 报告 _lt_global_gt_/makeKeyFullPath.md：dir+"key/" 后接 makeFullPath。
 // ORIG 0x08a38b5d：临时直接作为按值参数（无额外拷贝构造）。
-void makeKeyFullPath(std::string& dir, std::string& name)
-{
-    makeFullPath(dir + "key/", name);
+#include "CharacterAIA2/makeKeyFullPath.inc"
 }
 
 // ============================================================================
@@ -473,19 +446,10 @@ public:
 typedef char assert_stai_script_size[
     sizeof(STAICharacterCommonScript) == 0x1014 ? 1 : (int)-sizeof(STAICharacterCommonScript)];
 
-STAIInfoScript::STAIInfoScript()
-{
-    // ORIG C1 W 0x08366f48：vptr + 成员默认构造（编译器生成）→ 调 clear()。
-    // 强符号覆盖 STMonsterScript.h 的 inline 弱定义（后者内联 clear 展开，
-    // 与 ORIG 的“成员构造 + call clear”结构不一致）。
-    clear();
+#include "CharacterAIA2/STAIInfoScript.inc"
 }
 
-STAIInfoScript::STAIInfoScript(const STAIInfoScript& other)
-{
-    // ORIG C1ERKS T 0x08a38bc6：vptr + 成员默认构造（编译器生成）→ clear() → operator=()。
-    clear();
-    *this = other;
+#include "CharacterAIA2/STAIInfoScript_1.inc"
 }
 
 STAIInfoScript& STAIInfoScript::operator=(const STAIInfoScript& other)
@@ -530,143 +494,25 @@ STAIInfoScript& STAIInfoScript::operator=(const STAIInfoScript& other)
     return *this;
 }
 
-STAIInfoScript::~STAIInfoScript()
-{
-    // ORIG D1 W 0x083671a4：写 vtable 后先 destroy() 释放 pattern 桶，
-    // 随后编译器按声明逆序析构成员。
-    destroy();
+#include "CharacterAIA2/dtor_STAIInfoScript.inc"
 }
 
-void STAIInfoScript::destroy()
-{
-    // ORIG 0x0836753a 逐块转写：外层 p≤4（setle）；内层每轮重取 size()
-    // （setg 有符号比较）；body 内 ix() 三次独立装载（P48 无 CSE）：
-    // 判空 → 取值 → 置 0；死块重复判空照抄（P184）。
-    for (int p = 0; p <= 4; ++p)
-    {
-        for (int i = 0; i < (int)m_patterns[p].size(); ++i)
-        {
-            if (m_patterns[p][i] != 0)
-                delete m_patterns[p][i];   // ORIG 0x083675a1 第 2 次 ix() 直读实参
-            m_patterns[p][i] = 0;
-        }
-        m_patterns[p].clear();
-    }
+#include "CharacterAIA2/destroy.inc"
 }
 
-void STAIInfoScript::clear()
-{
-    // ORIG 0x083673d4（objdump 逐条转写）。
-    m_thinkTerm = 0x3e8;
-    m_destinationChangeTerm = 0x3e8;
-    m_keepRange0.clear();               // ORIG 0x083673f9..0x08367439 逐条
-    m_keepRange1.clear();
-    m_keepRange2.clear();
-    m_keepRange3.clear();
-    m_keepRange4.clear();
-    m_dir.clear();
-    for (int i = 0; i <= 4; ++i)
-        m_patterns[i].clear();
-    for (int i = 0; i <= 21; ++i)
-    {
-        // ORIG 0x08367487..0x083674b0：两分支各自重装载 this+下标写常量
-        // （三目会被 4.4 合并公共地址，-2 insn）。
-        if (i == 0)
-            m_targetingBonus[i] = 0x32;
-        else
-            m_targetingBonus[i] = 0;
-        m_targetingBonusStr[i].clear();
-    }
-    m_keepDistance = 0x64;
-    m_intelligence = 0x64;
-    m_field1f0 = 0x64;
-    m_field1f4 = 0x1388;
-    m_vision = 0x5dc;
-    m_backVision = 0x5dc;
-    m_noChangeTarget = true;
+#include "CharacterAIA2/clear.inc"
 }
 
-STAICharacterCommonScript::STAICharacterCommonScript()
-{
-    // ORIG C1 0x088c8a78：vptr + 逐成员构造后调 clear()。
-    // 成员构造由编译器生成；m_status 无用户 ctor，由 clear 内 Clear() 补齐。
-    clear();
+#include "CharacterAIA2/STAICharacterCommonScript.inc"
 }
 
-STAICharacterCommonScript::~STAICharacterCommonScript()
-{
-    // ORIG D1 0x088c903c：vptr + destroy() + 成员逆序析构（编译器生成）。
-    destroy();
+#include "CharacterAIA2/dtor_STAICharacterCommonScript.inc"
 }
 
-void STAICharacterCommonScript::destroy()
-{
-    // ORIG 0x088c98bc：仅转发 STAIInfoScript::destroy。
-    m_info.destroy();
+#include "CharacterAIA2/destroy_1.inc"
 }
 
-void STAICharacterCommonScript::clear()
-{
-    // ORIG 0x088c9592（objdump 逐条转写，保持调用次序与默认值）。
-    m_minimumInfo.clear();               // MinimumInfo(+4).clear
-    m_status.Clear();                    // STRDCharacterStatus(+0xc).Clear
-    m_equipment.clear();                 // +0x64
-    m_skills[0].clear();                 // +0x70
-    m_skills[1].clear();                 // +0x7c
-    m_corrections.clear();               // +0x88
-    m_items[0].clear();                  // +0x94
-    m_items[1].clear();                  // +0xa0
-    m_info.clear();                      // +0xac
-    m_keyStreamFiles.clear();            // +0x2d0
-    m_keyFiles.clear();                  // +0x2dc
-    m_keyCooltimes.clear();              // +0x2e8
-    m_rarity = 0;                        // +0xd80
-    m_appearancePoint = 0;               // +0xd84
-    m_deathTowerItems.clear();           // +0xd88
-    m_partyMembers.clear();              // +0xd94
-    m_farAttackReactionRate = 0;         // +0xda0
-    m_pvpWinPointLow = 0;                // +0xda4
-    m_pvpWinPointHigh = 0;               // +0xda8
-    m_championElements.clear();          // +0xf20（ORIG 先于 StatusRate 清理）
-    m_statusRate.Clear();                // +0xdac
-    m_customSkills.clear();              // +0xe50
-    m_attackDamageRate = 1.0f;           // +0xe5c
-    m_addEquipStatusFromLevel = 0;       // +0xe60
-    m_armorSubtype = 2;                  // +0xe64
-    m_defaultEquipment = 1;              // +0xe68
-    m_dollSpecialDungeons.clear();       // +0xe6c
-    m_specialStatusRate.Clear();         // +0xe78
-    m_attackDamageRateSpecial = 1.0f;    // +0xf1c
-    m_independentDrops.clear();          // +0xf2c
-    m_onAttackSpeech.clear();            // +0xd68
-    m_onKeySpeech.clear();               // +0xd74
-    m_limitPassiveObjects.clear();       // +0xf38
-    m_overheadGaugeType = 0;             // +0xf44
-    m_overheadGaugePosX = 0;             // +0xf48
-    m_overheadGaugePosY = 0;             // +0xf4c
-    m_avatarDrop.clear();                // +0xf50
-    m_getupInvincible = 1;               // +0xf8c = 1
-    m_skillDataUps.clear();              // +0xf90
-    m_summonStatusRates.clear();         // +0xf9c
-    m_leaveBody = true;                  // byte +0xfa8 = 1
-    m_addGravityInAerial = false;        // byte +0xff4 = 0
-    m_gravityAerialA = 20.0f;            // +0xff8 = 0x41a00000
-    m_gravityAerialB = -300.0f;          // +0xffc = 0xc3960000（-300.0）
-    // ORIG 0x088c9819..0x088c9898 逐条序：1000 → 1008 → 1004 → POD 组
-    // （POD 写序 0,1,7,4,6,5,2,3 非单调——原码语句序照抄）→ 100c → 1010。
-    m_noCooltime = 0;                    // +0x1000
-    m_npcId = -1;                        // +0x1008
-    m_checkAccountItem = true;           // byte +0x1004 = 1
-    m_info.m_pod204[0] = 0;
-    m_info.m_pod204[1] = 0;
-    m_info.m_pod204[7] = 0;
-    m_info.m_pod204[4] = 0;
-    m_info.m_pod204[6] = 0;
-    m_info.m_pod204[5] = 0;
-    m_info.m_pod204[2] = 0;
-    m_info.m_pod204[3] = 0;
-    m_isHellMonster = false;             // byte +0x100c = 0
-    m_animationJob = 11;                 // +0x1010 = 0xb
+#include "CharacterAIA2/clear_1.inc"
 }
 
 // ============================================================================
@@ -680,142 +526,9 @@ void STAICharacterCommonScript::clear()
 // bool 局部恒 cmpb $0 直比，源形不可造）与 `while (ScanStr(&s))` 落槽形
 // ⇒ 判语义完成、byte 层 N 封顶（§6.2 同口径）。
 // ============================================================================
-bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel);
+#include "CharacterAIA2/importAIInfoScript.inc"
 
-bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
-{
-    // ORIG 0x08a390e7 段：入口（byLevel spill 之后）即 `call _ZNSsC1Ev` 构造 tok，
-    // 紧随 `movb $0x0,-0x21` 置 isType —— 两个局部**声明在函数头**（P0：槽图基线；
-    // isType@-0x21 / tok@-0x44 为其后全部局部的分配基准）。放分支内会整体浅移。
-    std::string tok;
-    bool isType = false;
-    // ORIG 0x08a391xx 入口 `movb $0x0,-0x21(%ebp)`（P198① 预清必写）⇒ 函数头另有
-    // 一个 bool；[targeting bonus] 两处 `mov %al,-0x21` 即写它（复用同一变量）。
-    bool ok = false;
-    if (*tag == "[think term]")
-    {
-        info->m_thinkTerm = ScanInt((bool*)0);
-        return true;
-    }
-    if (*tag == "[destination change term]")
-    {
-        info->m_destinationChangeTerm = ScanInt((bool*)0);
-        return true;
-    }
-    if (*tag == "[ai pattern]")
-    {
-        int bucket = 0;
-        while (ScanTypeOrStr(isType, tok, true))
-        {
-            if (isType)
-            {
-                if (tok == "[/ai pattern]")
-                    break;
-                if (tok == "[easy]")         bucket = 0;
-                else if (tok == "[medium]")  bucket = 1;
-                else if (tok == "[hard]")    bucket = 2;
-                else if (tok == "[ultimate]") bucket = 3;
-                else if (tok == "[hero]")    bucket = 4;
-            }
-            else
-            {
-                // ORIG 0x08a39280：直落块是 !byLevel（makeAIFullPath），byLevel
-                // 块在跳转目标处（`movzbl;xor $1;test;je` 布局）⇒ 块序交换。
-                if (!byLevel)
-                    makeAIFullPath(info->m_dir, tok);
-                else
-                    tok = info->m_dir + tok;   // ORIG: operator+ 后赋回
-                std::string* name = new std::string(tok);   // ORIG operator new(4) + string copy
-                info->m_patterns[bucket].push_back(name);
-            }
-        }
-        return true;
-    }
-    if (*tag == "[no change target]")
-    {
-        info->m_noChangeTarget = (ScanInt((bool*)0) != 0);
-        return true;
-    }
-    if (*tag == "[targeting bonus]")
-    {
-        for (int i = 0; i <= 21; ++i)
-        {
-            info->m_targetingBonus[i] = ScanInt((bool*)0);
-            if (i == 20)
-            {
-                std::string s;
-                // ORIG 0x08a3940e：`call ScanStr; mov %al,-0xa5(%ebp)`（-0xa5 = 函数级
-                // `ok`）+ `movzbl; xor $1; test; jne <exit>` ⇒ 原码把 ScanStr 结果写回
-                // **复用**的函数级 ok（P0 槽往返；直写 `while (ScanStr(&s))` 被 4.4
-                // 折成裸 `test %al,%al; je`，少 mov+取反）。
-                ok = ScanStr(&s);
-                // [C05④ 步骤 2 实测·取反形回退] `while (true) { if (!ok) break; … }` 亦试过：
-                // our 473→**478**（gap 2→−3，劣 5 条；A17 探针的 `if(!r)` 取反形在此
-                // body 下不成立）⇒ 保留 `while (ok)` 具名形（gap=2，本件最优）。
-                while (ok)
-                {
-                    // ORIG 0x08a39463：实参右值 → push_back(int&&)。
-                    info->m_targetingBonusStr[i].push_back(
-                        stringToInt(s.c_str(), ACTIVEOBJECT_STATE_STRING, -1));
-                    ok = ScanStr(&s);
-                }
-            }
-            else if (i == 21)
-            {
-                std::string s;
-                ok = ScanStr(&s);                    // 同上（ORIG 0x08a394a9）
-                while (ok)
-                {
-                    info->m_targetingBonusStr[i].push_back(
-                        stringToInt(s.c_str(), ACTIVESTATUS_ATTACK_TAG, 0x13));
-                    ok = ScanStr(&s);
-                }
-            }
-        }
-        return true;
-    }
-    if (*tag == "[keep distance with target]")
-    {
-        info->m_keepDistance = ScanInt((bool*)0);
-        return true;
-    }
-    if (*tag == "[keep range distance with target]" ||
-        *tag == "[keep range distance with target 1]" ||
-        *tag == "[keep range distance with target 2]" ||
-        *tag == "[keep range distance with target 3]" ||
-        *tag == "[keep range distance with target 4]" ||
-        *tag == "[keep range distance with target 5]")
-    {
-        // ORIG 0x08a3961c..0x08a396b3：4 条逐句写 m_keepRange0..3（非循环）。
-        info->m_keepRange0.push_back(ScanInt((bool*)0));
-        info->m_keepRange1.push_back(ScanInt((bool*)0));
-        info->m_keepRange2.push_back(ScanInt((bool*)0));
-        info->m_keepRange3.push_back(ScanInt((bool*)0));
-        return true;
-    }
-    if (*tag == "[warlike]")
-    {
-        info->m_intelligence = ScanInt((bool*)0);
-        return true;
-    }
-    if (*tag == "[intelligence]")
-    {
-        info->m_intelligence = ScanInt((bool*)0);
-        info->m_field1f0 = ScanInt((bool*)0);
-        info->m_field1f4 = ScanInt((bool*)0);
-        return true;
-    }
-    if (*tag == "[vision]")
-    {
-        info->m_vision = ScanInt((bool*)0);
-        return true;
-    }
-    if (*tag == "[back vision]")
-    {
-        info->m_backVision = ScanInt((bool*)0);
-        return true;
-    }
-    return false;
+#include "CharacterAIA2/importAIInfoScript_1.inc"
 }
 
 // ============================================================================
@@ -830,637 +543,15 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
 //   [drop avatar item] 任一扫描失败 / [animation job] 失败 /
 //   兜底 importAIInfoScript 失败 → false；ScanType 终结 → true。
 // ============================================================================
-bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel);
+#include "CharacterAIA2/importAIInfoScript_2.inc"
 
-bool importAICharacterCommonScript(STAICharacterCommonScript* script,
-                                   const char* path, bool byLevel)
-{
-    if (!loadRDARScriptFile(g_aiCharacterScriptBaseDirectory, path))
-        return false;
-
-    script->clear();
-    getDirectoryPath(script->m_info.m_dir, "%s%s",
-                     g_aiCharacterScriptBaseDirectory, path);
-
-    std::string tag;
-    std::string tok;
-    bool ok = false;
-
-    while (true)
-    {
-        if (!ScanType(tag, true))
-            return true;                       // LAB_088cc01f: ebx=1
-
-        if (tag == "[minimum info]")
-        {
-            // ORIG 0x088c9dd0..0x088c9eaf：ScanStr→m_name=tok + 14 个逐条
-            // ScanInt（第 5 个写 m_field4），无循环合并（P183 物化口径）。
-            ScanStr(&tok);
-            script->m_minimumInfo.m_name = tok;
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            script->m_minimumInfo.m_field4 = ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanStr(&tok);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
-        }
-        else if (tag == "[NPC]")
-        {
-            script->m_npcId = ScanInt((bool*)0);          // +0x1008
-        }
-        else if (tag == "[additional character status]")
-        {
-            STRDCharacterStatus& st = script->m_status;
-            st.m_hpMax       = ScanInt((bool*)0);         // +0x00
-            st.m_mpMax       = ScanInt((bool*)0);         // +0x04
-            st.m_physAttack  = (unsigned short)ScanInt((bool*)0);  // +0x08
-            st.m_physDefense = (unsigned short)ScanInt((bool*)0);  // +0x0a
-            st.m_magAttack   = (unsigned short)ScanInt((bool*)0);  // +0x0c
-            st.m_magDefense  = (unsigned short)ScanInt((bool*)0);  // +0x0e
-            st.m_inventoryLimit = ScanInt((bool*)0);      // +0x3a
-            st.m_hpRegen     = (unsigned short)ScanInt((bool*)0);  // +0x3e
-            st.m_mpRegen     = (unsigned short)ScanInt((bool*)0);  // +0x40
-            st.m_moveSpeed   = ScanInt((bool*)0);         // +0x42
-            st.m_attackSpeed = (unsigned short)ScanInt((bool*)0);  // +0x46
-            st.m_castSpeed   = (unsigned short)ScanInt((bool*)0);  // +0x48
-            st.m_hitRecovery = (unsigned short)ScanInt((bool*)0);  // +0x4a
-            st.m_jumpPower   = (unsigned short)ScanInt((bool*)0);  // +0x4c
-            st.m_weight      = ScanInt((bool*)0);         // +0x4e
-            st.m_field52     = (unsigned char)ScanInt((bool*)0);   // +0x52
-            for (int j = 0; j <= 3; ++j)                  // elemResist @+0x10
-                st.m_elemResist[j] = (unsigned short)ScanInt((bool*)0);
-            for (int n = 0; ; ++n)                        // activeResist @+0x18
-            {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                st.m_activeResist[n] = (short)v;      // ORIG 0x088ca0bd 无界写，照抄（P171）
-            }
-        }
-        else if (tag == "[equipment]")
-        {
-            while (true)
-            {
-                STAICharacterEquipmentData e;
-                e.m_a = ScanInt(&ok);
-                if (!ok)
-                    break;
-                e.m_b = ScanInt((bool*)0);
-                e.m_c = ScanInt((bool*)0);
-                script->m_equipment.push_back(e);
-            }
-        }
-        else if (tag == "[skill]" || tag == "[quick skill]")
-        {
-            while (true)
-            {
-                STAICharacterSkillData s;
-                s.m_a = ScanInt(&ok);
-                if (!ok)
-                    break;
-                s.m_b = ScanInt((bool*)0);
-                if (tag == "[quick skill]")
-                    script->m_skills[0].push_back(s);      // +0x70
-                else
-                    script->m_skills[1].push_back(s);      // +0x7c
-            }
-        }
-        else if (tag == "[item]" || tag == "[quick item]")
-        {
-            while (true)
-            {
-                STAICharacterItemData it;
-                it.m_a = ScanInt(&ok);
-                if (!ok)
-                    break;
-                it.m_b = ScanInt((bool*)0);
-                if (tag == "[quick item]")
-                    script->m_items[0].push_back(it);      // +0x94
-                else
-                    script->m_items[1].push_back(it);      // +0xa0
-            }
-        }
-        else if (tag == "[skill correction]")
-        {
-            while (true)
-            {
-                const int first = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAICharacterSkillCorrection c;
-                c.m_skill = first;
-                c.m_rate = ScanFloat((bool*)0);
-                script->m_corrections.push_back(c);
-            }
-        }
-        else if (tag == "[key stream]")
-        {
-            bool again = true;
-            while (again)
-            {
-                again = false;
-                std::string keyFile;
-                bool keyOk = ScanStr(&keyFile);
-                if (!keyOk)
-                    break;
-                if (isKeyFile(keyFile.c_str()))
-                {
-                    tok = keyFile;
-                    keyFile = "";                      // ORIG 0x088ca432 operator=(const char*)
-                }
-                else
-                {
-                    keyOk = ScanStr(&tok);
-                }
-                if (*keyFile.c_str() == '\0')          // ORIG 0x088ca456 c_str+testb（非 empty()）
-                    keyFile = getFileName(tok);
-                script->m_keyFiles.push_back(keyFile);
-                if (keyOk)
-                {
-                    makeKeyFullPath(script->m_info.m_dir, tok);
-                    script->m_keyStreamFiles.push_back(tok);
-                    again = true;
-                }
-            }
-        }
-        else if (tag == "[key cooltime]")
-        {
-            while (ScanStr(&tok))
-            {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                script->m_keyCooltimes[tok] = v;
-            }
-        }
-        else if (tag == "[rarity]")
-        {
-            if (!ScanStr(&tok))
-                return false;
-            if (tok == "common")         script->m_rarity = 0;
-            else if (tok == "uncommon")  script->m_rarity = 1;
-            else if (tok == "rare")      script->m_rarity = 2;
-            else if (tok == "unique")    script->m_rarity = 3;
-            else if (tok == "epic")      script->m_rarity = 4;
-            else if (tok == "chronicle") script->m_rarity = 5;
-            script->m_rarity = getItemRarity(tok.c_str());
-            if (script->m_rarity == 6)
-                return false;
-        }
-        else if (tag == "[appearance point]")
-        {
-            script->m_appearancePoint = ScanInt((bool*)0);
-        }
-        else if (tag == "[death tower item]")
-        {
-            script->m_deathTowerItems.clear();
-            while (true)
-            {
-                int first = ScanInt(&ok);
-                if (!ok)
-                    break;
-                // ORIG 0x088ca81c/0x088ca837：pair<int&,int> 模板 ctor（第二参为
-                // 右值实参）→ push_back(T&&)。
-                script->m_deathTowerItems.push_back(
-                    std::pair<int, int>(first, ScanInt((bool*)0)));
-            }
-        }
-        else if (tag == "[leave body]")
-        {
-            script->m_leaveBody = (ScanInt((bool*)0) != 0);
-        }
-        else if (tag == "[waiting action]")   { ScanStr(&script->m_actionSet.m_waiting); }
-        else if (tag == "[move action]")      { ScanStr(&script->m_actionSet.m_move); }
-        else if (tag == "[dash action]")      { ScanStr(&script->m_actionSet.m_dash); }
-        else if (tag == "[sit action]")       { ScanStr(&script->m_actionSet.m_sit); }
-        else if (tag == "[damage action 1]")  { ScanStr(&script->m_actionSet.m_damage[0]); }
-        else if (tag == "[damage action 2]")  { ScanStr(&script->m_actionSet.m_damage[1]); }
-        else if (tag == "[down action]")      { ScanStr(&script->m_actionSet.m_down); }
-        else if (tag == "[overturn action]")  { ScanStr(&script->m_actionSet.m_overturn); }
-        else if (tag == "[jump action]")      { ScanStr(&script->m_actionSet.m_jump); }
-        else if (tag == "[jumpattack action]"){ ScanStr(&script->m_actionSet.m_jumpattack); }
-        else if (tag == "[attack action]" || tag == "[action list]")
-        {
-            script->m_actionSet.m_attackList.clear();
-            std::string line;
-            while (ScanStr(&line))
-                script->m_actionSet.m_attackList.push_back(line);
-        }
-        else if (tag == "[etc action]" || tag == "[custom action]")
-        {
-            script->m_actionSet.m_etc.clear();
-            std::string line;
-            while (ScanStr(&line))
-                script->m_actionSet.m_etc.push_back(line);
-        }
-        else if (tag == "[last action]")  { ScanStr(&script->m_lastAction); }
-        else if (tag == "[proc action]")  { ScanStr(&script->m_procAction); }
-        else if (tag == "[add gravity in aerial]")
-        {
-            script->m_addGravityInAerial = (ScanInt((bool*)0) != 0);
-            script->m_gravityAerialA = ScanFloat((bool*)0);
-            script->m_gravityAerialB = ScanFloat((bool*)0);
-        }
-        else if (tag == "[speech on situation]")
-        {
-            std::string line;
-            for (int i = 0; i <= 0x6e; ++i)               // ORIG cmpl $0x6e; setle（P51）
-                script->m_speeches[i].clear();           // 24*i + 0x300
-            script->m_onAttackSpeech.clear();            // +0xd68
-            script->m_onKeySpeech.clear();               // +0xd74
-            while (true)
-            {
-                bool isType = false;
-                if (!ScanTypeOrStr(isType, tok, true))
-                    break;                               // 段结束（esi=1）
-                if (tok == "[/speech on situation]")     // ORIG 不查 isType 标志
-                    break;
-                ScanStr(&line);
-                const int prob = ScanInt((bool*)0);
-                // [C05 F2/P310 一次性旋钮实测·已回退] `unsigned slot` 确使尾段谓词
-                // 对齐 ORIG 的 `cmpl $0x6e,-0x44; ja`（内存直比；widthscan 的
-                // cmp_l orig=8 our=7 差消失），但 `(std::size_t)slot+1` 三处使用点
-                // 因无符号语义各多 1 条 ⇒ our_insns 2108→2111、gap −3→−6（净负）
-                // ⇒ 按 P321 S1 恢复直证形态并封 N（本旋钮不可用，勿再试）。
-                int slot = -1;                            // ORIG 0x088cadb2 先置 -1
-                if (tok == "[on attack]")
-                {
-                    // ORIG 0x088cad83..0x088caeed：独立块（与 [on key] 不共享代码）。
-                    // ORIG 0x088cad8d 只 lea 取址、全函数无 fv 初始化写 ⇒ 原码无初值
-                    // （P0/P171：不写即不写，`= 0.0f` 反生 `mov $0,%eax;mov %eax,槽`）。
-                    float fv;
-                    // P251：返回值无栈槽往返 + 多路相等比较 ⇒ 原码是 switch
-                    // （ORIG 0x088cad9b `test %eax,%eax;je` + `cmp $0x1,%eax;je` + `jmp`）。
-                    switch (ScanFloatStr(fv, tok))
-                    {
-                    case 0:
-                        slot = (int)fv;
-                        break;
-                    case 1:
-                        for (std::size_t i = 0; i < script->m_keyFiles.size(); ++i)
-                        {
-                            if (script->m_keyFiles[i] == tok)
-                            {
-                                slot = (int)i;
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                    if (script->m_onAttackSpeech.size() < (std::size_t)slot + 1)
-                        script->m_onAttackSpeech.resize((std::size_t)slot + 1, APCSpeech());
-                    script->m_onAttackSpeech[(std::size_t)slot].add(line, prob);
-                }
-                else if (tok == "[on key]")
-                {
-                    // 同 [on attack]：无初值 + switch（ORIG 0x088caf1a/0x088caf28）。
-                    float fv;
-                    switch (ScanFloatStr(fv, tok))
-                    {
-                    case 0:
-                        slot = (int)fv;
-                        break;
-                    case 1:
-                        for (std::size_t i = 0; i < script->m_keyFiles.size(); ++i)
-                        {
-                            if (script->m_keyFiles[i] == tok)
-                            {
-                                slot = (int)i;
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                    if (script->m_onKeySpeech.size() < (std::size_t)slot + 1)
-                        script->m_onKeySpeech.resize((std::size_t)slot + 1, APCSpeech());
-                    script->m_onKeySpeech[(std::size_t)slot].add(line, prob);
-                }
-                else
-                {
-                    if (tok == "[on damage]")      slot = 0x65;
-                    else if (tok == "[on die]")    slot = 0x66;
-                    else if (tok == "[on revenge]") slot = 0x67;
-                    else if (tok == "[on etc]")    slot = 0x68;
-                    else if (tok == "[on appear]") slot = 0x69;
-                    else if (tok == "[on disappear]") slot = 0x6a;
-                    else if (tok == "[on go to help]") slot = 0x6b;
-                    else if (tok == "[on stand]")  slot = 0x6c;
-                    else
-                        return false;                // ORIG: esi=0 → 返回失败
-                    if ((unsigned)slot <= 0x6e)      // ORIG cmpl $0x6e,-0x44; ja（无符号）
-                        script->m_speeches[slot].add(line, prob);
-                }
-            }
-        }
-        else if (tag == "[common champion elemental property]")
-        {
-            script->m_championElements.clear();
-            while (ScanStr(&tok))
-            {
-                for (int e = 0; e < 5; ++e)
-                {
-                    if (tok == getElementName((ENUM_ELEMENT)e))
-                    {
-                        script->m_championElements.push_back(e);
-                        break;
-                    }
-                }
-            }
-        }
-        else if (tag == "[party member]")
-        {
-            script->m_partyMembers.clear();
-            while (true)
-            {
-                int a = ScanInt(&ok);
-                if (!ok)
-                    break;
-                int b = ScanInt(&ok);
-                if (!ok)
-                    break;
-                // ORIG 0x088cb399：make_pair<int&,int&> sret + push_back 嵌套实参（P178）。
-                script->m_partyMembers.push_back(std::make_pair(a, b));
-            }
-        }
-        else if (tag == "[far attack reaction rate]")
-        {
-            const float f = ScanFloat(&ok);
-            // ORIG flds [_DAT_08e0a1e0]=100.0f; fmulp; fldcw(截断); fistp
-            script->m_farAttackReactionRate = (int)(f * 100.0f);
-        }
-        else if (tag == "[pvp win point]")
-        {
-            script->m_pvpWinPointLow = ScanInt(&ok);
-            if (!ok)
-                return false;
-            script->m_pvpWinPointHigh = ScanInt(&ok);
-            if (!ok)
-                return false;
-            if (script->m_pvpWinPointHigh < script->m_pvpWinPointLow)
-                return false;
-        }
-        else if (tag == "[character status rate]")
-        {
-            // ORIG 0x088cb4ed..0x088cb703：head 10 条 + tail 10 条逐条单写
-            // （fstps 0xdac.. / 0xe28..），随后 for≤3 写 mid28、while 无界写 mid38。
-            STRDCharacterStatusRate& r = script->m_statusRate;
-            r.m_head[0] = ScanFloat((bool*)0);
-            r.m_head[1] = ScanFloat((bool*)0);
-            r.m_head[2] = ScanFloat((bool*)0);
-            r.m_head[3] = ScanFloat((bool*)0);
-            r.m_head[4] = ScanFloat((bool*)0);
-            r.m_head[5] = ScanFloat((bool*)0);
-            r.m_head[6] = ScanFloat((bool*)0);
-            r.m_head[7] = ScanFloat((bool*)0);
-            r.m_head[8] = ScanFloat((bool*)0);
-            r.m_head[9] = ScanFloat((bool*)0);
-            r.m_tail[0] = ScanFloat((bool*)0);
-            r.m_tail[1] = ScanFloat((bool*)0);
-            r.m_tail[2] = ScanFloat((bool*)0);
-            r.m_tail[3] = ScanFloat((bool*)0);
-            r.m_tail[4] = ScanFloat((bool*)0);
-            r.m_tail[5] = ScanFloat((bool*)0);
-            r.m_tail[6] = ScanFloat((bool*)0);
-            r.m_tail[7] = ScanFloat((bool*)0);
-            r.m_tail[8] = ScanFloat((bool*)0);
-            r.m_tail[9] = ScanFloat((bool*)0);
-            for (int t = 0; t <= 3; ++t)
-                r.m_mid28[t] = ScanFloat((bool*)0);      // (t+0x370)*4+0x14 → Rate+0x28+4t
-            for (int n = 0; ; ++n)
-            {
-                const float f = ScanFloat(&ok);
-                if (!ok)
-                    break;
-                // ORIG 0x088cb6cc 无界连续写 (n+0x374)*4+0x14 → Rate+0x38+4n；照抄（P171）。
-                r.m_mid38[n] = f;
-            }
-        }
-        else if (tag == "[custom skill level]")
-        {
-            while (true)
-            {
-                STAICharacterCustomSkillLevel c;
-                c.m_a = ScanInt(&ok);
-                if (!ok)
-                    break;
-                c.m_b = ScanInt((bool*)0);
-                c.m_c = ScanInt((bool*)0);
-                c.m_d = ScanInt((bool*)0);
-                script->m_customSkills.push_back(c);
-            }
-        }
-        else if (tag == "[attack damage rate]")
-        {
-            script->m_attackDamageRate = ScanFloat(&ok);
-        }
-        else if (tag == "[add equipment status from level]")
-        {
-            script->m_addEquipStatusFromLevel = ScanInt(&ok);
-        }
-        else if (tag == "[armor subtype]")
-        {
-            script->m_armorSubtype = ScanInt(&ok);
-        }
-        else if (tag == "[default equipment]")
-        {
-            script->m_defaultEquipment = ScanInt(&ok);
-        }
-        else if (tag == "[doll special dungeon]")
-        {
-            while (true)
-            {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                script->m_dollSpecialDungeons.push_back(v);
-            }
-        }
-        else if (tag == "[character status rate special]")
-        {
-            // ORIG 0x088cb8da..（链位在 doll 之后）：special 独立块，e78.. / ef4..
-            // 各 10 条逐条单写（fstps），for≤3 mid28、while 无界 mid38。
-            STRDCharacterStatusRate& r = script->m_specialStatusRate;
-            r.m_head[0] = ScanFloat((bool*)0);
-            r.m_head[1] = ScanFloat((bool*)0);
-            r.m_head[2] = ScanFloat((bool*)0);
-            r.m_head[3] = ScanFloat((bool*)0);
-            r.m_head[4] = ScanFloat((bool*)0);
-            r.m_head[5] = ScanFloat((bool*)0);
-            r.m_head[6] = ScanFloat((bool*)0);
-            r.m_head[7] = ScanFloat((bool*)0);
-            r.m_head[8] = ScanFloat((bool*)0);
-            r.m_head[9] = ScanFloat((bool*)0);
-            r.m_tail[0] = ScanFloat((bool*)0);
-            r.m_tail[1] = ScanFloat((bool*)0);
-            r.m_tail[2] = ScanFloat((bool*)0);
-            r.m_tail[3] = ScanFloat((bool*)0);
-            r.m_tail[4] = ScanFloat((bool*)0);
-            r.m_tail[5] = ScanFloat((bool*)0);
-            r.m_tail[6] = ScanFloat((bool*)0);
-            r.m_tail[7] = ScanFloat((bool*)0);
-            r.m_tail[8] = ScanFloat((bool*)0);
-            r.m_tail[9] = ScanFloat((bool*)0);
-            for (int t = 0; t <= 3; ++t)
-                r.m_mid28[t] = ScanFloat((bool*)0);      // (t+0x3a4)*4+0x10 → Rate+0x28+4t
-            for (int n = 0; ; ++n)
-            {
-                const float f = ScanFloat(&ok);
-                if (!ok)
-                    break;
-                r.m_mid38[n] = f;                        // ORIG 无界写，照抄（P171）
-            }
-        }
-        else if (tag == "[attack damage rate special]")
-        {
-            script->m_attackDamageRateSpecial = ScanFloat(&ok);
-        }
-        else if (tag == "[attack stuck rate]")
-        {
-            // ORIG fstps 0x5f —— 绝对 +0x5f = STRDCharacterStatus(+0xc)+0x53 = m_field53
-            *reinterpret_cast<float*>(&script->m_status.m_field53) = ScanFloat(&ok);
-        }
-        else if (tag == "[limit passiveobject]")
-        {
-            while (true)
-            {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                script->m_limitPassiveObjects.push_back(v);
-            }
-        }
-        else if (tag == "[overhead gauge type]")
-        {
-            script->m_overheadGaugeType = ScanInt((bool*)0);
-        }
-        else if (tag == "[overhead gauge pos]")
-        {
-            script->m_overheadGaugePosX = ScanInt((bool*)0);
-            script->m_overheadGaugePosY = ScanInt((bool*)0);
-        }
-        else if (tag == "[getup invincible]")
-        {
-            script->m_getupInvincible = ScanInt((bool*)0);
-        }
-        else if (tag == "[drop avatar item]")
-        {
-            for (int i = 0; i <= 3; ++i)
-            {
-                const float f = ScanFloat(&ok);
-                if (!ok)
-                    return false;
-                script->m_avatarDrop.m_rates08[i] = f;
-            }
-            for (int k = 0; k <= 4; ++k)
-            {
-                const float f = ScanFloat(&ok);
-                if (!ok)
-                    return false;
-                script->m_avatarDrop.m_rates18[k] = f;
-            }
-            script->m_avatarDrop.m_field0 = ScanInt(&ok);
-            if (!ok)
-                return false;
-            script->m_avatarDrop.m_field4 = ScanInt(&ok);
-            if (!ok)
-                return false;
-            while (true)
-            {
-                stEnamyDropAvatarElement_t el;
-                el.m_itemId = ScanInt(&ok);
-                if (!ok)
-                    break;
-                el.m_total = ScanInt(&ok);
-                if (!ok)
-                    return false;
-                el.m_flag = (unsigned char)ScanInt(&ok);
-                if (!ok)
-                    return false;
-                script->m_avatarDrop.m_total += el.m_total;
-                el.m_total = script->m_avatarDrop.m_total;   // 回填累计值
-                script->m_avatarDrop.m_elements.push_back(el);
-            }
-        }
-        else if (tag == "[skill data up]")
-        {
-            importSkillDataUp(script->m_skillDataUps);
-        }
-        else if (tag == "[summon monster status rate]")
-        {
-            while (true)
-            {
-                const float f = ScanFloat(&ok);
-                if (!ok)
-                    break;
-                script->m_summonStatusRates.push_back(f);
-            }
-        }
-        else if (tag == "[no cooltime]")
-        {
-            script->m_noCooltime = 1;
-        }
-        else if (tag == "[check accountitem]")
-        {
-            script->m_checkAccountItem = (ScanInt((bool*)0) == 1);
-        }
-        else if (tag == "[hell monster]")
-        {
-            // ORIG 0x088cbfc3/0x088cbfc6：结果先落具名 int 槽（-0x10）再
-            // `cmpl $0x0,-0x10(%ebp); setne %dl` ⇒ 原码有具名局部（P0 槽往返律）；
-            // 直接 `(ScanInt(...) != 0)` 会被 4.4 折成 `test %eax,%eax`（少 mov+cmp）。
-            const int v = ScanInt((bool*)0);
-            script->m_isHellMonster = (v != 0);
-        }
-        else if (tag == "[animation job]")
-        {
-            const int v = ScanInt(&ok);
-            if (!ok)
-                return false;
-            script->m_animationJob = v;
-        }
-        else
-        {
-            if (!importAIInfoScript(&script->m_info, &tag, false))
-                return false;
-        }
-
-        if (byLevel)
-            break;                       // ORIG do{}while(!param_3)
-    }
-    return true;
+#include "CharacterAIA2/importAICharacterCommonScript.inc"
 }
 // ============================================================================
 // isExistAiPattern —— ORIG T 0x08a2232f
 // 报告 _lt_global_gt_/isExistAiPattern.md 完整转写。
 // bucket==-1 遍历 5 个难度桶；否则只查指定桶；任一非空返 1，否则 0。
-bool isExistAiPattern(STAIInfoScript* info, int bucket)   // ORIG 调用侧 test %al 直判（P9/P22）
-{
-    if (info != 0)
-    {
-        if (bucket != -1)
-        {
-            if (!info->m_patterns[bucket].empty())
-                return 1;
-        }
-        else
-        {
-            for (int i = 0; i < 5; ++i)
-            {
-                if (!info->m_patterns[i].empty())
-                    return 1;
-            }
-        }
-    }
-    return 0;
+#include "CharacterAIA2/isExistAiPattern.inc"
 }
 
 // ============================================================================
@@ -1468,17 +559,7 @@ bool isExistAiPattern(STAIInfoScript* info, int bucket)   // ORIG 调用侧 test
 // 报告 _lt_global_gt_/exportAIPatternPath.md 完整转写。
 // 遍历指定桶内模式名，截掉 m_dir 目录前缀后 fprintf 每行 "`%s`\n"。
 // ============================================================================
-void exportAIPatternPath(FILE* f, STAIInfoScript* info, int bucket)
-{
-    std::vector<std::string*>::iterator it;
-    std::string out;
-    it = info->m_patterns[bucket].begin();
-    while (it != info->m_patterns[bucket].end())
-    {
-        out = (*it)->substr(info->m_dir.length(), (*it)->length());
-        fprintf(f, "`%s`\n", out.c_str());
-        ++it;
-    }
+#include "CharacterAIA2/exportAIPatternPath.inc"
 }
 
 // ============================================================================
@@ -1487,20 +568,7 @@ void exportAIPatternPath(FILE* f, STAIInfoScript* info, int bucket)
 // _lt_global_gt_/getRandomChampionElement_088b9d54.md 完整转写。
 // m_championElements(+0xf20) 非空 → rand()%size 取元素；空 → rand()%4+1。
 // ============================================================================
-int getRandomChampionElement(const STAICharacterCommonScript* script, int seed)
-{
-    int result = 4;
-    const int size = (int)script->m_championElements.size();
-    srand(seed);
-    if (size == 0)
-    {
-        result = rand() % 4 + 1;
-    }
-    else
-    {
-        result = script->m_championElements[rand() % size];
-    }
-    return result;
+#include "CharacterAIA2/getRandomChampionElement.inc"
 }
 // CNPCDynamicInfo —— C1 W 0x0858191c（报告缺失 → objdump 转写）：
 //   m_script = a; +0x04 = 3; +0x08 = 0x7fffffff; +0x0c = 0。
@@ -1520,9 +588,7 @@ public:
     int m_fieldc;                // +0x0c（ctor 置 0）
 };
 
-CNPCDynamicInfo::CNPCDynamicInfo(const CNPCScript* script) throw()
-    : m_script(script), m_moodState(3), m_field8(0x7fffffff), m_fieldc(0)
-{
+#include "CharacterAIA2/CNPCDynamicInfo.inc"
 }
 
 // ============================================================================
@@ -1534,44 +600,7 @@ CNPCDynamicInfo::CNPCDynamicInfo(const CNPCScript* script) throw()
 //   +0x64/+0x68=0；+0xa8=0；vecAC.clear；+0xb8=0；vecBC.clear；vecC8.clear；
 //   +0xd4=0。【+0x18/+0x2c/+0x6c 与 +0x9c powerWarServerList 不触碰】（ORIG 固有）
 // ============================================================================
-void PowerParameterScript::clear()
-{
-    m_powerJoinCost = 0;               // +0x00
-    m_powerJoinGuildLevel = 0;         // +0x04
-    m_powerJoinQuest = 0;              // +0x08
-    m_killPointToEndPowerWar = 0;      // +0x0c
-    m_expReward = 0;                   // +0x10
-    m_ghostTime = 0;                   // +0x14
-    m_powerUpRatio = 0;                // +0x1c
-    m_refreshProcessInfo = 0;          // +0x30
-    m_abuserBanTime = 0;               // +0x34
-    m_powerUpGeneratePeriod = 0;       // +0x48
-    m_powerUpAssaultCount = 0;         // +0x4c
-    m_powerUpAssaultVictoryRatio = 0;  // +0x50
-    m_powerWarPointMultiple = 0;       // +0x54
-    m_vec20.clear();                   // +0x20
-    m_straightVictories = 0;           // +0x58
-    m_timeAssaultSuperPowerStateOnJoin = 5;  // +0x5c（ORIG clear 默认 5）
-    m_timeAssaultSuperPowerStateAfter = 5;   // +0x60（ORIG clear 默认 5）
-    m_vec70.clear();                   // +0x70
-    m_basicPowerWarPoint = 0;          // +0x7c
-    m_firstGradeBonusPoint = 0;        // +0x80
-    m_rankingBonusGrade = 0;           // +0x84
-    m_rankingBonusDecreasePoint = 0;   // +0x88
-    m_decreasePointPerDay = 0;         // +0x8c
-    m_requiredUserPoint4Dungeon = 0;   // +0x90
-    m_powerWarDungeonInfo.first = 0;   // +0x94（ORIG pair 子对象）
-    m_powerWarDungeonInfo.second = 0; // +0x98
-    m_vec38.clear();                    // +0x38
-    m_pcRoomBonus = 0;                 // +0x44
-    m_minEnterLevel = 0;               // +0x64
-    m_minEnterAge = 0;                 // +0x68
-    m_powerUpPointMod = 0;             // +0xa8
-    m_vecAC.clear();                   // +0xac
-    m_powerWarCooldownMinutes = 0;     // +0xb8
-    m_vecBC.clear();                   // +0xbc
-    m_vecC8.clear();                   // +0xc8
-    m_victoriousRewardTime = 0;        // +0xd4
+#include "CharacterAIA2/clear_2.inc"
 }
 
 // ============================================================================
@@ -1603,21 +632,14 @@ public:
 };  // sizeof == 0x74
 typedef char assert_cai_character_size[(sizeof(CAICharacter) == 0x74) ? 1 : -1];
 
-CAICharacter::CAICharacter()
-    : m_dropItems(), m_independentDrops(), m_avatarDrops(), m_name()
-{
+#include "CharacterAIA2/CAICharacter.inc"
 }
 
-CAICharacter::~CAICharacter()
-{
+#include "CharacterAIA2/dtor_CAICharacter.inc"
 }
 
 // ---- force 发射 APCSpeech::add（ORIG W 0x088cc3b2）----
 namespace {
-void forceApcSpeechAddEmission()
-{
-    APCSpeech sp;
-    std::string line;
-    sp.add(line, 0);
+#include "CharacterAIA2/forceApcSpeechAddEmission.inc"
 }
 }  // namespace

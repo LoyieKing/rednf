@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 DNFFunctionLib/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 #include "DNFFunctionLib.h"
 
 
@@ -23,13 +33,7 @@
 
 
 
-void Char2Hex(unsigned char c, char* out) {
-    // ORIG DWARF: saucHex = unsigned char[] (non-const, .data); const 会改变
-    // GCC 4.4 -O0 的寄存器分配（edx 直接装载 vs eax->edx 拷贝），须保持非 const。
-    static unsigned char saucHex[] = "0123456789abcdef";
-    out[0] = saucHex[c >> 4];
-    out[1] = saucHex[c & 0xf];
-    out[2] = '\0';
+#include "DNFFunctionLib/Char2Hex.inc"
 }
 
 
@@ -85,32 +89,7 @@ char* NumberToString(unsigned long long value, int index) {
     return gNumberToStringBuffer[index];
 }
 
-void PrintBackTrace() {
-    void* frames[100];
-    // ORIG DWARF（line 455-457）：buffer、stack_strings、nptrs 声明序为
-    // stack_strings 在前、nptrs 在后（§40 栈槽反序分配 → nptrs@-0x10、
-    // stack_strings@-0x14）。写成 count 在前会产生槽位互换 DIFF。
-    char** symbols;
-    int count;
-    count = backtrace(frames, 100);
-    symbols = backtrace_symbols(frames, count);
-    // 原始：if (== NULL) return; 早退形态（§3.3 共享出口 jmp+nop），
-    // 循环变量名 index（ORIG DWARF decl_line 464）。
-    if (symbols == NULL) {
-        return;
-    }
-    for (int index = 0; index < count; index++) {
-        // 原始：先取 symbols[index] 到局部变量（触发 ebx 保存，ctor 调用前取值）
-        register char* s = symbols[index];
-        // 行号实参以各服务 ORIG 二进制实测为准：
-        //   coserver: 0x186=390（DWARF decl_line 465=0x1d1 是伪 C 还原
-        //   的猜测值，与 coserver 二进制不符，2026-08-11 修正）
-        //   point/auction/guild: 0x1d1=465（对应服务 ORIG 实测）。
-        // 四服务 ORIG 第四参实测均为 _ZZ14PrintBackTracevE12__FUNCTION__
-        //   （__FUNCTION__ 符号：coserver 0x80bb834 / point 0x8154f34 /
-        //   guild 0x811aa74 / manager 0x8159bc4），不得用字面量；
-        //   statics/monitor 亦为 __FUNCTION__（0x1d1），
-        //   见 2026-08-11 coserver/manager 第 2 轮记录。
+#include "DNFFunctionLib/PrintBackTrace.inc"
 #if defined(DNF_SVC_POINT) || defined(DNF_SVC_AUCTION) || defined(DNF_SVC_GUILD) || defined(DNF_SVC_DBMW) || defined(DNF_SVC_COMMUNITY) || defined(DNF_SVC_MANAGER) || defined(DNF_SVC_STATICS) || defined(DNF_SVC_MONITOR)
         CMyFileLog log(__FUNCTION__, 0x1d1);
 #elif defined(DNF_SVC_COSERVER)
@@ -125,79 +104,19 @@ void PrintBackTrace() {
     free(symbols);
 }
 
-int StringToNumber(char const* str) {
-    if (str == NULL) {
-        return 0;
-    }
-    return strtoul(str, NULL, 10);
+#include "DNFFunctionLib/StringToNumber.inc"
 }
 
-char checkTimeToday(long t, int hour) {
-    long yesterday = t - 86400;
-    tm now;
-    tm yday;
-    tm* nowP = localtime_r(&t, &now);
-    tm* ydayP = localtime_r(&yesterday, &yday);
-    (void)ydayP;
-    int localHour = hour;
-    char result = 0;
-    if (nowP->tm_hour >= 0 && nowP->tm_hour < localHour) {
-        result = 0;
-    } else {
-        result = 1;
-    }
-    return result;
+#include "DNFFunctionLib/checkTimeToday.inc"
 }
 
 // ORIG T 0x0810912a _Z23GetCurrentResetBaseTimeli（返回 reset 时间戳 long）。
-long GetCurrentResetBaseTime(long t, int hour) {
-    long yester_time = t - 86400;
-    tm now;
-    tm yday;
-    tm* tm_ptr = localtime_r(&t, &now);
-    tm* tm_ptr_yester = localtime_r(&yester_time, &yday);
-    // ORIG：localtime_r 调用后声明 reset_time（置 0）与 day（赋 hour）。
-    long reset_time = 0;
-    int day;
-    day = hour;
-    // 原始：条件为 tm_ptr->tm_hour >= 0 && tm_ptr->tm_hour < day 时改 ydayP，否则改 nowP
-    if (tm_ptr->tm_hour >= 0 && tm_ptr->tm_hour < day) {
-        tm_ptr_yester->tm_hour = day;
-        tm_ptr_yester->tm_min = 0;
-        tm_ptr_yester->tm_sec = 0;
-        return mktime(tm_ptr_yester);
-    } else {
-        tm_ptr->tm_hour = day;
-        tm_ptr->tm_min = 0;
-        tm_ptr->tm_sec = 0;
-        return mktime(tm_ptr);
-    }
+#include "DNFFunctionLib/GetCurrentResetBaseTime.inc"
 }
 
 // 反编译：saucHex = "0123456789abcdef"
 
-bool Hex2Char(char const* hex, unsigned char& out) {
-    // 原始：数字分支在前（cmp 0x2f/0x39），hex 分支其次（cmp 0x60/0x66），失败最后
-    if (hex[0] > '/' && hex[0] <= '9') {
-        out = hex[0] - '0';
-    } else if (hex[0] > '`' && hex[0] <= 'f') {
-        out = hex[0] - 'a' + 10;
-    } else {
-        return 0;
-    }
-    // 原始：指针递增 hex++（add DWORD PTR [ebp+0x8],0x1）
-    hex++;
-    if (hex[0] > '/' && hex[0] <= '9') {
-        // 原始：两步赋值（out<<4 先存回 out，再与低半字节相加）
-        out = (unsigned char)(out << 4);
-        out = (unsigned char)(out + (hex[0] - '0'));
-    } else if (hex[0] > '`' && hex[0] <= 'f') {
-        out = (unsigned char)(out << 4);
-        out = (unsigned char)(out + (hex[0] - 'a' + 10));
-    } else {
-        return 0;
-    }
-    return 1;
+#include "DNFFunctionLib/Hex2Char.inc"
 }
 
 #ifndef DF_NO_CODEPAGE
@@ -227,39 +146,10 @@ unsigned int SDC_Rand(unsigned int* seed) {
 
 // ---- DNFFLib ----
 
-void DNFFLib::Binary2Hex(unsigned char const* data, int len, char* out) {
-    // ORIG DWARF：局部 i(67)/szHex(68)/pucBinStr1(69)，声明不初始化，
-    // 体中按 pucBinStr1→out[0]→i 序赋值（同 wrapper 版形态）。
-    int i;
-    char szHex[3];
-    unsigned char const* pucBinStr1;
-    pucBinStr1 = data;
-    out[0] = '\0';
-    i = 0;
-    while (i < len) {
-        Char2Hex(*pucBinStr1, szHex);
-        strcat(out, szHex);
-        // ORIG：i 先自增、指针后自增。
-        i++;
-        pucBinStr1++;
-    }
+#include "DNFFunctionLib/Binary2Hex.inc"
 }
 
-bool DNFFLib::Hex2Binary(char const* hex, unsigned char* out, int maxLen) {
-    int count = 0;
-    while (count < maxLen) {
-        unsigned char value;
-        if (Hex2Char(hex, value) != 1) {
-            // 原始：Hex2Char 失败即返回 0
-            return 0;
-        }
-        // 原始：*out = value 后按 count→hex→out 序自增。
-        *out = value;
-        count++;
-        hex += 2;
-        out++;
-    }
-    return 1;
+#include "DNFFunctionLib/Hex2Binary.inc"
 }
 
 // ORIG 证据（全部 9 个服务）：r / 65536 用非 cmov 的
@@ -267,187 +157,45 @@ bool DNFFLib::Hex2Binary(char const* hex, unsigned char* out, int maxLen) {
 // 与 -march=i586 产物逐指令一致；§89 允许函数级 target 覆盖。
 // divide==0 分支为 switch 形态（mov divide,%eax; test; jne），不能写成 if。
 __attribute__((target("arch=i586")))
-unsigned int DNFFLib::get_rand_int(int divide) {
-    if (divide < 0) {
-        return 0;
-    }
-    switch (divide) {
-    case 0:
-        return rand();
-    default:
-        break;
-    }
-    int r = rand();
-    // 原始：r > range 时直接返回 rand() % range
-    if (r > divide) {
-        return rand() % divide;
-    }
-    // 原始：单累加器逐步 LCG（imul → 存栈 → add [ebp]；result 逐步 shl/xor）
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    unsigned int result = (r / 65536) & 0x7ff;
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    result <<= 10;
-    result ^= (r / 65536) & 0x3ff;
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    result <<= 10;
-    result ^= (r / 65536) & 0x3ff;
-    // 原始：result > range（无符号）才取模
-    if (result > (unsigned int)divide) {
-        return result % divide;
-    }
-    return result;
+#include "DNFFunctionLib/get_rand_int.inc"
 }
 
 // ORIG 中自由函数 get_rand_int 与 DNFFLib::get_rand_int 为同字节的独立复制体
 // （73 条指令逐条一致），并非包装调用；此处保持与成员版本相同的完整实现。
 __attribute__((target("arch=i586")))
-int get_rand_int(int range) {
-    if (range < 0) {
-        return 0;
-    }
-    switch (range) {
-    case 0:
-        return rand();
-    default:
-        break;
-    }
-    int r = rand();
-    if (r > range) {
-        return rand() % range;
-    }
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    unsigned int result = (r / 65536) & 0x7ff;
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    result <<= 10;
-    result ^= (r / 65536) & 0x3ff;
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    result <<= 10;
-    result ^= (r / 65536) & 0x3ff;
-    if (result > (unsigned int)range) {
-        return result % range;
-    }
-    return result;
+#include "DNFFunctionLib/get_rand_int_1.inc"
 }
 
-int DNFFLib::ExplodeString(char* str, char* delims, char** out, int maxCount) {
-    // ORIG DWARF 局部：iTokenCnt(158)/pToken(159)/pLast(160)/pTail(160)。
-    int iTokenCnt = 0;
-    if (maxCount < 1 || str == NULL) {
-        out[0] = str;
-        return 0;
-    }
-    // 原始：直接存尾指针 end = str + strlen(str)（mov [ebp-0x10],eax）
-    // ORIG 声明序：pToken(159) 先于 pLast(160)，但体中先赋 pLast 再 pToken。
-    char* pToken;
-    char* pLast;
-    pLast = str + strlen(str);
-    pToken = strtok(str, delims);
-    while (pToken != NULL) {
-        out[iTokenCnt] = pToken;
-        iTokenCnt++;
-        if (iTokenCnt >= maxCount) {
-            // 原始：token + strlen(token) 存为临时指针（mov [ebp-0xc],eax）
-            char* pTail = pToken + strlen(pToken);
-            if (pTail == pLast) {
-                out[iTokenCnt] = NULL;
-            } else {
-                out[iTokenCnt] = pTail + 1;
-            }
-            break;
-        }
-        pToken = strtok(NULL, delims);
-    }
-    return iTokenCnt;
+#include "DNFFunctionLib/ExplodeString.inc"
 }
 
-void DNFFLib::PrintTextFile(char* file, char* text) {
-    FILE* f = fopen(file, "a");
-    if (f != NULL) {
-        fprintf(f, text);  // 原始：文本直接作为格式串
-        fclose(f);
-    }
+#include "DNFFunctionLib/PrintTextFile.inc"
 }
 
-void DNFFLib::fPrintTextFile(char* file, char* fmt, ...) {
-    static const short MAX_INFO_LINE = 0x1000;  // ORIG _ZZN7DNFFLib14fPrintTextFileEPcS0_zE13MAX_INFO_LINE
-    char buffer[0x1000];
-    memset(buffer, 0, MAX_INFO_LINE);
-    va_list ap;
-    va_start(ap, fmt);
-    vsprintf(buffer, fmt, ap);
-    va_end(ap);
-    PrintTextFile(file, buffer);
+#include "DNFFunctionLib/fPrintTextFile.inc"
 }
 
 #ifndef DF_NO_CODEPAGE
-bool DNFFLib::CharacSetSwitch(char const* from, char const* to, char* src, char* dst) {
-    char* SrcPtr = NULL;
-    char* DstPtr = NULL;
-    size_t size1 = 0;
-    size_t string_size = 0;
-    size_t size2 = 0;
-    size_t cc;
-    iconv_t it = iconv_open(to, from);
-    if (it == (iconv_t)-1) {
-        printf("iconv_open error : %s\n", strerror(errno));
-        return 0;
-    }
-    SrcPtr = src;
-    DstPtr = dst;
-    size1 = strlen(SrcPtr);
-    string_size = size1 * 3;
-    size2 = string_size;
-    cc = iconv(it, &SrcPtr, &size1, &DstPtr, &string_size);
-    if (cc == (size_t)-1) {
-        printf("iconv error : %s\n", strerror(errno));
-        return 0;
-    }
-    dst[size2 - string_size] = '\0';
-    iconv_close(it);
-    return 1;
+#include "DNFFunctionLib/CharacSetSwitch.inc"
 }
 
-bool DNFFLib::ConvertGBKtoUTF8(char* src, char* dst) {
-    // 原始：call CharacSetSwitch 后 xor eax,1; test al,al; je（if (== false) return 0; return 1 形态）
-    if (CharacSetSwitch("GBK", "UTF-8", src, dst) == false) {
-        return 0;
-    }
-    return 1;
+#include "DNFFunctionLib/ConvertGBKtoUTF8.inc"
 }
 
-bool DNFFLib::ConvertUTF8toGBK(char* src, char* dst) {
-    if (CharacSetSwitch("UTF-8", "GBK", src, dst) == false) {
-        return 0;
-    }
-    return 1;
+#include "DNFFunctionLib/ConvertUTF8toGBK.inc"
 }
 #endif
 
-void DNFFLib::Make_Dir(char* path) {
-    DIR* dir = opendir(path);
-    if (dir == NULL) {
-        mkdir(path, 0x1ff);
-    }
+#include "DNFFunctionLib/Make_Dir.inc"
 }
 
-void DNFFLib::Sleep_Ext(int sec, int usec) {
-    timeval tv;
-    tv.tv_sec = sec;
-    tv.tv_usec = usec;
-    select(0, NULL, NULL, NULL, &tv);
+#include "DNFFunctionLib/Sleep_Ext.inc"
 }
 
 #ifndef DF_NO_CODEPAGE
 // ---- CodePage ----
 
-void CodePage::initCodePage() {
-    gClientEncoding = "UTF-8";
+#include "DNFFunctionLib/initCodePage.inc"
 #if defined(DNF_SVC_AUCTION) || defined(DNF_SVC_POINT) || defined(DNF_SVC_GUILD)
     // auction/point/guild ORIG 实测 script 编码为 GBK。
     gScriptEncoding = "GBK";
@@ -458,43 +206,24 @@ void CodePage::initCodePage() {
     gDatabaseEncoding = "UTF-8";
 }
 
-char const* CodePage::client() {
-    return gClientEncoding.c_str();
+#include "DNFFunctionLib/client.inc"
 }
 
-char const* CodePage::script() {
-    return gScriptEncoding.c_str();
+#include "DNFFunctionLib/script.inc"
 }
 
-char const* CodePage::database() {
-    return gDatabaseEncoding.c_str();
+#include "DNFFunctionLib/database.inc"
 }
 
-bool CodePage::client2Database(char* src, char* dst) {
-    if (gDatabaseEncoding.compare(gClientEncoding) == 0) {
-        return 1;
-    }
-    return DNFFLib::CharacSetSwitch(gClientEncoding.c_str(), gDatabaseEncoding.c_str(), src, dst);
+#include "DNFFunctionLib/client2Database.inc"
 }
 
-bool CodePage::database2Client(char* src, char* dst) {
-    if (gDatabaseEncoding.compare(gClientEncoding) == 0) {
-        return 1;
-    }
-    return DNFFLib::CharacSetSwitch(gDatabaseEncoding.c_str(), gClientEncoding.c_str(), src, dst);
+#include "DNFFunctionLib/database2Client.inc"
 }
 
-bool CodePage::database2Script(char* src, char* dst) {
-    if (gDatabaseEncoding.compare(gScriptEncoding) == 0) {
-        return 1;
-    }
-    return DNFFLib::CharacSetSwitch(gDatabaseEncoding.c_str(), gScriptEncoding.c_str(), src, dst);
+#include "DNFFunctionLib/database2Script.inc"
 }
 
-bool CodePage::script2Database(char* src, char* dst) {
-    if (gDatabaseEncoding.compare(gScriptEncoding) == 0) {
-        return 1;
-    }
-    return DNFFLib::CharacSetSwitch(gScriptEncoding.c_str(), gDatabaseEncoding.c_str(), src, dst);
+#include "DNFFunctionLib/script2Database.inc"
 }
 #endif

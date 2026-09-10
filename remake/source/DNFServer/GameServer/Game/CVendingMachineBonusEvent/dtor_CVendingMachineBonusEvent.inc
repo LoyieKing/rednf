@@ -1,0 +1,2 @@
+CVendingMachineBonusEvent::~CVendingMachineBonusEvent()
+{

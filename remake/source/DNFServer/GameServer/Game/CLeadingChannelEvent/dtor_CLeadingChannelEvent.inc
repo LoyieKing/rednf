@@ -1,0 +1,2 @@
+CLeadingChannelEvent::~CLeadingChannelEvent()
+{

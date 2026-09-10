@@ -1,0 +1,3 @@
+SkillLevelFeature::SkillLevelFeature()
+{
+    clear();

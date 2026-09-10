@@ -1,0 +1,3 @@
+BlueMarbleInfoScript::BlueMarbleInfoScript()
+{
+    clear();

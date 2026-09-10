@@ -1,0 +1,3 @@
+CItemLimitEditionMgr::~CItemLimitEditionMgr()
+{
+    clear();

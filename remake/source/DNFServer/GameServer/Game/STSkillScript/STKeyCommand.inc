@@ -1,0 +1,3 @@
+STKeyCommand::STKeyCommand()
+{
+    clear();

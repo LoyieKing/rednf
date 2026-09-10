@@ -1,0 +1,8 @@
+bool UDPSocket::setOptResizeRecvBuf(int size)
+{
+    if (size <= 0)
+        return false;
+    int ret = ::setsockopt(m_socket, 1, 8, &size, sizeof(size));
+    if (ret < 0)
+        return false;
+    return true;

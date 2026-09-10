@@ -1,0 +1,3 @@
+seriaRoomDecoAniInfo::seriaRoomDecoAniInfo() throw()
+{
+    clear();

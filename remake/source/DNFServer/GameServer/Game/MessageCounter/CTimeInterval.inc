@@ -1,0 +1,2 @@
+CTimeInterval::CTimeInterval()
+{

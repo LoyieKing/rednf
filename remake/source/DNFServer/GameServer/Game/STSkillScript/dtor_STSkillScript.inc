@@ -1,0 +1,2 @@
+STSkillScript::~STSkillScript()
+{

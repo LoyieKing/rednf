@@ -1,0 +1,2 @@
+InterSelectCreateDnfEventInfo::~InterSelectCreateDnfEventInfo()
+{

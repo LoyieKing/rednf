@@ -1,0 +1,2 @@
+InterSelectCreateDnfUserInfo::~InterSelectCreateDnfUserInfo()
+{

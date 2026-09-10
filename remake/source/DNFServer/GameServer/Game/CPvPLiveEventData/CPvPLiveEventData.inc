@@ -1,0 +1,2 @@
+CPvPLiveEventData::CPvPLiveEventData()
+{

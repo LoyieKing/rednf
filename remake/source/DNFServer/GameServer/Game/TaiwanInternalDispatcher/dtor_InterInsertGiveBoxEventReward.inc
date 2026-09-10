@@ -1,0 +1,2 @@
+InterInsertGiveBoxEventReward::~InterInsertGiveBoxEventReward()
+{

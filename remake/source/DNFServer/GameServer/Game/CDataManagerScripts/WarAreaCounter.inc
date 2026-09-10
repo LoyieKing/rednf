@@ -1,0 +1,3 @@
+WarAreaCounter::WarAreaCounter()
+{
+    clear();

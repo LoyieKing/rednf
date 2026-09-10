@@ -1,0 +1,3 @@
+void CItemShop::testupdateOneADayItemList()
+{
+    updateOneADayItemList();

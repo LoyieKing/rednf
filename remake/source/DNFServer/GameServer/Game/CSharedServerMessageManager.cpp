@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CSharedServerMessageManager/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r CSharedServerMessageManager（G2-5 批次，共享服务器公告管理）
 // 逐函数对照 docs/class_func_reports/CSharedServerMessageManager.md 与
 // CSharedServerMessageManager__CSharedServerMessageAdapter.md + ORIG 反汇编实现。
@@ -79,20 +89,7 @@ public:
 };
 
 template <class T>
-T* Stream::GetInBuffer()
-{
-    // [b28d-solo-CSharedServerMessageManager 判词 · AE] ORIG 0x08602160/0x0860219e（两实例
-    // <SIG_SELECT>/<SIG_UPDATE> 均 fresh 33=33，TU near=0 diff=0，p167 4/4 CLEAR）：
-    // m_buffer 载入 %eax 后中转 %edx
-    // （`mov 0x8(%eax),%eax; mov %eax,%edx`）。4.4 对 `&m_buffer[m_inPtr]` / `m_buffer+idx`
-    // 均折单段 `mov 0x8(%eax),%edx`；改为整型加法 + 回 cast（探针 /tmp/gs_probe.cpp f5，
-    // `(char*)((unsigned int)m_buffer + (unsigned int)m_inPtr)`）即逐条复现两段装载形。
-    // 32 位下指针算术与无符号整型加法逐位等价（i386 无分段，m_buffer 非空）。
-    while (!enable_in((int)sizeof(T)))
-        resize(size() * 2);
-    char* p = (char*)((unsigned int)m_buffer + (unsigned int)m_inPtr);
-    in_ptr((int)sizeof(T));
-    return (T*)p;
+#include "CSharedServerMessageManager/GetInBuffer.inc"
 }
 
 class CStreamGuard
@@ -111,9 +108,7 @@ public:
 };
 
 template <class T>
-T* CStreamGuard::GetInBuffer()
-{
-    return m_stream->GetInBuffer<T>();
+#include "CSharedServerMessageManager/GetInBuffer_1.inc"
 }
 
 class StreamPool
@@ -218,473 +213,59 @@ CEnvironment* G_CEnvironment();
 // `_GLOBAL__I__ZN27CSharedServerMessageManagerC2Ev`，ORIG 0x086019b4；
 // 只移函数定义，不动任何带动态初始化的对象）
 // ----------------------------------------------------------------------------
-CSharedServerMessageManager::CSharedServerMessageManager()
-{
-    m_isSet = 0;
-    m_event.clear();
+#include "CSharedServerMessageManager/CSharedServerMessageManager.inc"
 }
 
 // ----------------------------------------------------------------------------
 // Adapter：索引/映射表查询
 // ----------------------------------------------------------------------------
-int CSharedServerMessageManager::CSharedServerMessageAdapter::GetMappedEventID(int nIndex)
-{
-    std::vector<std::pair<int, int> >::iterator it = m_pInfo->m_vecMapped.begin();
-    while (it != m_pInfo->m_vecMapped.end())
-    {
-        std::pair<int, int>* pPair = &(*it);
-        if (pPair == 0)
-        {
-            it++;
-            continue;
-        }
-        if (pPair->first == nIndex)
-            return pPair->second;
-        it++;
-    }
-    return -1;
+#include "CSharedServerMessageManager/GetMappedEventID.inc"
 }
 
-bool CSharedServerMessageManager::CSharedServerMessageAdapter::IsOnIndex(int nIndex)
-{
-    std::vector<int>::iterator it = m_pInfo->m_vecIndex.begin();
-    while (it != m_pInfo->m_vecIndex.end())
-    {
-        int nVal = *it;
-        if (nVal == nIndex)
-            return true;
-        it++;
-    }
-    return false;
+#include "CSharedServerMessageManager/IsOnIndex.inc"
 }
 
-int CSharedServerMessageManager::CSharedServerMessageAdapter::GetShareKindWithIndex(int nIndex)
-{
-    int nMapped = GetMappedEventID(nIndex);
-    if (nMapped == -1)
-        return -1;
-
-    std::vector<std::pair<int, int> >::iterator it = m_pInfo->m_vecShareKind.begin();
-    while (it != m_pInfo->m_vecShareKind.end())
-    {
-        std::pair<int, int>* pPair = &(*it);
-        if (pPair == 0)
-        {
-            it++;
-            continue;
-        }
-        if (pPair->first == nMapped)
-            return pPair->second;
-        it++;
-    }
-    return -1;
+#include "CSharedServerMessageManager/GetShareKindWithIndex.inc"
 }
 
 // ----------------------------------------------------------------------------
 // 构造 / 析构
 // ----------------------------------------------------------------------------
-CSharedServerMessageManager::CSharedServerMessageManager(stSharedServerMessageInfo* pInfo)
-{
-    m_isSet = 0;
-    m_adapter.SetServerMessageAddInfo(pInfo);
-    m_event.clear();
+#include "CSharedServerMessageManager/CSharedServerMessageManager_1.inc"
 }
 
-CSharedServerMessageManager::~CSharedServerMessageManager()
-{
+#include "CSharedServerMessageManager/dtor_CSharedServerMessageManager.inc"
 }
 
 // ----------------------------------------------------------------------------
 // 公告收发
 // ----------------------------------------------------------------------------
-void CSharedServerMessageManager::SendServerMessageInfo(CUser* pUser,
-                                                       SIG_EVENT_SERVER_MESSAGE* pMsg,
-                                                       char bFlag)
-{
-    // [b28d-solo-CSharedServerMessageManager 判词 · AE] ORIG 0x086008d8（fresh 196=196，
-    // TU near=0 diff=0，p167 25/25 CLEAR）。原 N93 判词（迭代器槽 -0x2c/-0x28 方向）作废：
-    // 根因是 ①P50 复活（iterator 先声明后赋值复现 C1Ev + begin() sret 临时 -0x50/-0x40）；
-    // ②P198 死局部（ev ctor 前 `movl $0x0,-0x18(%ebp)`）；③P231 纯 register `nSent` 三件套
-    // （mov $0/$1,%ebx + 尾 test，无槽）；④ev 内层作用域使 `~ev()` 落在 test 之前、
-    // `~PacketGuard()` 之后（ORIG 0x08600b43/b48/b50 顺序）。
-    PacketGuard pg;
-    pg.put_header(0, 0xc0);
-    pg.put_byte((int)bFlag);
-
-    // [b28d-S112] ORIG 0x0860091f `movl $0x0,-0x18(%ebp)` 为 ev ctor 前的死局部初值
-    // （P198 孪生：4.4 对未使用标量局部仍发清零 store）。
-    int nUnused = 0;
-    (void)nUnused;
-    // [b28d-S112] P231（纯 register 存储类提示，无 asm 绑定，P0 合规）：ORIG 0x086009a9
-    // `mov $0x0,%ebx` / 0x08600b21 `mov $0x1,%ebx` / 0x08600b48 `test %ebx,%ebx` 三件套
-    // 无栈槽 ⇒ 原码是 `register int nSent` 标志 + 末尾 `if (nSent) return;`（探针
-    // /tmp/gs_probe6.cpp f8 逐条同形；普通 bool/int 局部 4.4 恒槽化且空 if 被 DCE）。
-    // ORIG 布局为 `jbe <body>`（≤0x32 跳远处 body）+ 直落 `mov $0x0,%ebx; jmp tail`
-    // ⇒ 源形须写成 `if (count > 0x32) { nSent = 0; } else { body; nSent = 1; }`
-    // （4.4 对 then 短/else 长恒 then 直落、else 远置，与 f8 探针镜像）。
-    register int nSent;
-    // [b28d-S112] ORIG 0x08600b43 `~ev()` 在 0x08600b48 `test %ebx,%ebx` **之前**、
-    // `~PacketGuard()` 之后 ⇒ ev 位于内层作用域（先于 test 析构），pg 在函数级作用域。
-    {
-        EVENT_SERVER_MESSAGE ev;
-        ev.m_count = 0;
-        for (int i = 0; i < pMsg->m_count; ++i)
-        {
-            if (m_adapter.IsOnIndex(pMsg->m_msg[i].m_index))
-            {
-                ++ev.m_count;
-                ev.m_vecMsg.push_back(pMsg->m_msg[i]);
-            }
-        }
-
-        if (ev.m_count > 0x32)
-        {
-            nSent = 0;
-        }
-        else
-        {
-            pg.put_byte((int)ev.m_count);
-
-            // ORIG 循环条件为 i<count || it!=end（两者同步推进，等价于 count 次）
-            // [b28d-S112] P50 复活：ORIG 0x086009c9 先 `iterator::C1Ev` 占 -0x40，再以
-            // begin() 的 sret 临时 -0x50 拷入 ⇒ 必须先声明后赋值（初始化式形 4.4 直构无临时槽）。
-            std::vector<stSERVER_MESSAGE>::iterator it;
-            it = ev.m_vecMsg.begin();
-            for (int i = 0; i < (int)ev.m_count || it != ev.m_vecMsg.end(); ++i)
-            {
-                stSERVER_MESSAGE* p = &(*it);
-                pg.put_byte((int)p->m_index);
-                pg.put_int(p->m_lenMsg);
-                pg.put_str(p->m_msg, p->m_lenMsg);
-                pg.put_int(p->m_lenMsg2);
-                pg.put_str(p->m_msg2, p->m_lenMsg2);
-                it++;
-            }
-
-            pg.finalize(true);
-            pUser->Send(pg);
-            nSent = 1;
-        }
-    }
-    if (nSent)
-        return;
+#include "CSharedServerMessageManager/SendServerMessageInfo.inc"
 }
 
-void CSharedServerMessageManager::SetServerMessage(SIG_EVENT_SERVER_MESSAGE* pMsg)
-{
-    // b28c-L20: AE — ndiff 3→0（fresh orig=59 our=59）。P0 清绑（删 `register unsigned char
-    // set asm("eax")`）后的正解是**字段 bool 化**（CSharedServerMessageManager.h: m_isSet
-    // unsigned char→bool，+0x04/sizeof 0x18 不变），配 P168a① 裸形 `if (!m_isSet)` 即逐条复现
-    // ORIG 0x08600b83..0x08600b8c 的 `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je`，
-    // 无需任何寄存器绑定。清绑过程中的实测负例（供各 lane 避坑）：uchar 字段下
-    // `(m_isSet^1)!=0` 与 P226 `({m_isSet^1;})!=0` 均被前端折成 `cmp $0x1,%al`（ndiff 3）；
-    // 具名 uchar 局部 `v^=1`/`v=v^1` 恒槽化（ndiff 5）；裸 `register uchar set`（无 asm 绑定）
-    // 反劣最剧（ndiff 13：4.4 强占 %ebx ⇒ `push %ebx; sub $0x24` + pop 尾，帧/epilogue 全破）。
-    // 全消费段 fresh 联判（P211 陷阱法）：IsSetServerMessage 6/6、setLoadingComplete 6/6、
-    // C1Ev 42/42、C1EP25 47/47、D1Ev 27/27 均 ndiff=0（IsSetServerMessage 返回类型按 P9
-    // 保持 unsigned char，ORIG 0x084ed182 W sz 0xc 为 movzbl 直返无归一）。
-    if (!m_isSet)
-    {
-        if (pMsg->m_count == 0)
-            return;
-
-        m_event.m_count = pMsg->m_count;
-        for (int i = 0; i < pMsg->m_count; ++i)
-        {
-            if (m_adapter.IsOnIndex(pMsg->m_msg[i].m_index))
-                m_event.m_vecMsg.push_back(pMsg->m_msg[i]);
-        }
-        m_event.m_count = (unsigned char)m_event.m_vecMsg.size();
-    }
-    setLoadingComplete();
+#include "CSharedServerMessageManager/SetServerMessage.inc"
 }
 
-stSERVER_MESSAGE* CSharedServerMessageManager::getCurMessage(int nIndex)
-{
-    std::vector<stSERVER_MESSAGE>::iterator it = m_event.m_vecMsg.begin();
-    while (it != m_event.m_vecMsg.end())
-    {
-        stSERVER_MESSAGE* p = &(*it);
-        if (p->m_index == nIndex)
-            return p;
-        it++;
-    }
-    return 0;
+#include "CSharedServerMessageManager/getCurMessage.inc"
 }
 
-bool CSharedServerMessageManager::IsChangableMessage(int nIndex, int nTime)
-{
-    // [b28d-solo-CSharedServerMessageManager 判词 · AE] ORIG 0x08600cc8：fresh 复验 TU ae（23=23），
-    // 清单 NEAR(2) 为 .o 重定位标签伪差；语义/控制流与 ORIG 全等。
-    // b28c-L20: AE — fresh 复验 orig=23 our=23 ndiff=0（归一口径）。槽往返仅 pMsg 一处
-    // （ORIG -0xc(%ebp) `mov %eax,-0xc(%ebp); cmpl $0x0,-0xc(%ebp)`）；pMsg->m_endTime(+0x54)
-    // +0x78 与 nTime 的有符号 `jl` 走 RHS 值先物化（P0/P85），get_channel_no 类返回宽度无关。
-    stSERVER_MESSAGE* pMsg = getCurMessage(nIndex);
-    if (pMsg == 0)
-        return true;
-    // ORIG 0x…：`add $0x78,%eax; cmp; jl <RET1>`（`m_endTime+0x78 < nTime` 时
-    // je 直跳 return-true 岛，return-false 为 fall-through+jmp over）——用 goto
-    // 落点岛把 return true 放 jump 目标（P133/P16；普通 if(cond)return true 被
-    // 4.4 折成反向 jge 跳 return-false 岛）。
-    if (pMsg->m_endTime + 0x78 < nTime)
-        goto ret_true;
-    return false;
-ret_true:
-    return true;
+#include "CSharedServerMessageManager/IsChangableMessage.inc"
 }
 
-void CSharedServerMessageManager::DeleteSpecificMessage(int nIndex)
-{
-    std::vector<stSERVER_MESSAGE>::iterator it = m_event.m_vecMsg.begin();
-    while (it != m_event.m_vecMsg.end())
-    {
-        stSERVER_MESSAGE* p = &(*it);
-        if (p->m_index == nIndex)
-        {
-            m_event.m_vecMsg.erase(it);
-            --m_event.m_count;
-            return;
-        }
-        it++;
-    }
+#include "CSharedServerMessageManager/DeleteSpecificMessage.inc"
 }
 
-bool CSharedServerMessageManager::CheckUserCondition(CUser* pUser, int nIndex, int& nOut)
-{
-    int nMapped = m_adapter.GetMappedEventID(nIndex);
-    if (nMapped == -1)
-        return false;
-
-    int nSlot = 0;
-    switch (nMapped)
-    {
-    case 1:
-        break;
-    case 3:
-        nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x28d3aa);
-        if (nSlot == -1)
-            return false;
-        break;
-    case 0:
-        nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x28d3aa);
-        if (nSlot == -1)
-            return false;
-        break;
-    case 2:
-        nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x1d9d);
-        if (nSlot == -1)
-            return false;
-        break;
-    default:
-        return false;
-    }
-    return true;
+#include "CSharedServerMessageManager/CheckUserCondition.inc"
 }
 
 // ----------------------------------------------------------------------------
 // 公告更新（含物品条件校验 + 广播到 DB 队列）
 // ----------------------------------------------------------------------------
-void CSharedServerMessageManager::UpdateServerMessage(CUser* pUser, int nIndex,
-                                                      char* pMsg, char* pMsg2, int nEndTime)
-{
-    // [b28d-solo-CSharedServerMessageManager 判词 · AE] ORIG 0x08600ec0（fresh 383=383，
-    // TU near=0 diff=0，p167 50/50 CLEAR）。原 N93 判词（pCur 槽 -0x1c/-0x24 方向）作废：
-    // 根因 ①P292/P214① 正极性 if/else（IsOnIndex 直判，消 xor 段）；②P259/P226 内联实参
-    // （Acquire 直落 CStreamGuard ctor、GetUID 直落 operator<<，消 pStream/nUID 槽）；
-    // ③P251/P279 `switch(nMapped)`（寄存器比较链，叶块序 3→0→2 按 ORIG 地址序）；
-    // ④P211/P254 字段同型化（stSERVER_MESSAGE/SIG_UPDATE_SERVER_MESSAGE 的 m_lenMsg/m_lenMsg2
-    // 改 unsigned int + 显式 cast ⇒ LHS-first 直存）；⑤P221 全表达式临时链（trace 槽 -0x2c）。
-    stSERVER_MESSAGE* pCur = getCurMessage(nIndex);
-    if (pCur == 0)
-    {
-        // [b28d-S112] P292/P214①：ORIG 0x08600f? 为 `call IsOnIndex; test %al,%al;
-        // je <trace 岛>`（无 xor $1）⇒ 原码正极性 `if (IsOnIndex) { body } else { trace }`；
-        // 负极性 `if (!f()){trace;return;}` 恒多 xor 段并反置块布局。
-        if (m_adapter.IsOnIndex(nIndex))
-        {
-            int nKind = m_adapter.GetShareKindWithIndex(nIndex);
-            if (nKind == -1)
-                return;
-
-            stSERVER_MESSAGE local;
-            local.m_kind = (unsigned char)nKind;
-            local.m_index = (unsigned char)nIndex;
-            local.m_lenMsg2 = (unsigned int)strlen(pMsg2);
-            strncpy(local.m_msg2, pMsg2, local.m_lenMsg2 + 1);
-            local.m_lenMsg = (unsigned int)strlen(pMsg);
-            strncpy(local.m_msg, pMsg, local.m_lenMsg + 1);
-            local.m_endTime = nEndTime;
-
-            m_event.m_vecMsg.push_back(local);
-            ++m_event.m_count;
-            pCur = &local;
-        }
-        else
-        {
-            // [b28d-S112] P221/P227：ORIG trace 槽 -0x2c 浅于 guard 槽 -0x34（互斥路径
-            // 槽方向）；具名对象 4.4 恒反，改全表达式临时链复现 ORIG 槽深。
-            cMyTrace(__PRETTY_FUNCTION__, 0x126, 0)(
-                "SERVER_MESSAGE : NOT EXIST INDEX and NOT EXIST DATA");
-            return;
-        }
-    }
-    else
-    {
-        // [b28d-S112] P211/P254：字段 unsigned int + 显式 (unsigned int) cast ⇒ LHS-first
-        // 直存（ORIG 0x0860106f `mov -0x1c(%ebp),%edx; mov %eax,0x4(%edx)`）；无 cast 恒
-        // RHS-first + eax→edx 中转（探针 /tmp/gs_probe3.cpp a1/a2）。
-        pCur->m_lenMsg = (unsigned int)strlen(pMsg);
-        strncpy(pCur->m_msg, pMsg, pCur->m_lenMsg + 1);
-        pCur->m_lenMsg2 = (unsigned int)strlen(pMsg2);
-        strncpy(pCur->m_msg2, pMsg2, pCur->m_lenMsg2 + 1);
-        pCur->m_endTime = nEndTime;
-    }
-
-    if (!IsSetServerMessage())
-        setLoadingComplete();
-
-    int nMapped = m_adapter.GetMappedEventID(pCur->m_index);
-    int nSlot = 0;
-    // [b28d-S112] P251/P279：ORIG 0x086010c6 段为 `mov -0x18(%ebp),%eax; cmp $0x2,%eax;
-    // je …; cmp $0x3,%eax; je …; test %eax,%eax; je …; jmp`（寄存器多路比较链，无内存直比）
-    // ⇒ 源形是 `switch (nMapped)`；if-else 链在 4.4 恒折 `cmpl $imm,mem`（P286）。
-    // 叶块排放顺序按 ORIG 地址序 = case 书写顺序（P46）：3 → 0 → 2。
-    switch (nMapped)
-    {
-    case 3:
-        nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x28d3aa);
-        if (nSlot == -1)
-            return;
-        if (!pUser->getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, nSlot, 1,
-                                                      eItemDelReason_3, true))
-            return;
-        if (!pUser->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_INVEN, nSlot))
-            return;
-        break;
-    case 0:
-        nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x28d3aa);
-        if (nSlot == -1)
-            return;
-        if (!pUser->getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, nSlot, 1,
-                                                      eItemDelReason_0x1d, true))
-            return;
-        if (!pUser->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_INVEN, nSlot))
-            return;
-        break;
-    case 2:
-        nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x1d9d);
-        if (nSlot == -1)
-            return;
-        if (!pUser->getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, nSlot, 1,
-                                                      eItemDelReason_3, true))
-            return;
-        if (!pUser->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_INVEN, nSlot))
-            return;
-        break;
-    }
-
-    // [b28d-S112] P259/P0：ORIG 0x086012bd 无 pStream 具名局部（Acquire 返回值经 %eax
-    // 直落 CStreamGuard ctor 实参）；nUID 亦无槽（`call GetUID; mov %eax,%ebx` 跨 operator*
-    // 保活，P226 内联实参）。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("SharedServerMessageManager.cpp", 0x16c),
-                       true);
-    **guard << 0x16c;
-    **guard << (int)pUser->GetUID();
-
-    SIG_UPDATE_SERVER_MESSAGE* pOut = guard->GetInBuffer<SIG_UPDATE_SERVER_MESSAGE>();
-    pOut->m_index = pCur->m_index;
-    pOut->m_server = G_CEnvironment()->m_field378;
-    if (pCur->m_kind == 0)
-        pOut->m_channel = G_CEnvironment()->get_channel_no();
-    else if (pCur->m_kind == 1)
-        pOut->m_channel = 0;
-    pOut->m_kind = pCur->m_kind;
-    pOut->m_lenMsg2 = pCur->m_lenMsg2;
-    pOut->m_lenMsg = pCur->m_lenMsg;
-    strncpy(pOut->m_msg, pCur->m_msg, pOut->m_lenMsg + 1);
-    strncpy(pOut->m_msg2, pCur->m_msg2, pOut->m_lenMsg2 + 1);
-    pOut->m_endTime = pCur->m_endTime;
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+#include "CSharedServerMessageManager/UpdateServerMessage.inc"
 }
 
-void CSharedServerMessageManager::UpdateServerMessageByBroadcast(int nIndex,
-                                                                 char* pMsg, char* pMsg2,
-                                                                 int nEndTime)
-{
-    // [b28d-solo-CSharedServerMessageManager 判词 · AE] ORIG 0x08601476（fresh 129=129，
-    // TU near=0 diff=0，p167 16/16 CLEAR）。原 N168a③b 判词作废：①IsOnIndex 改正极性
-    // if/else 后 ORIG 的 `call; test %al,%al; je` 直出；②IsSetServerMessage 返回类型
-    // bool 化（P292/P248 档①）消 `test; sete; test; je` 四段；③字段同型化（P211/P254）。
-    stSERVER_MESSAGE* pCur = getCurMessage(nIndex);
-    if (pCur == 0)
-    {
-        // [b28d-S112] P292/P214①：ORIG 0x086014b0 为 `call IsOnIndex; test %al,%al;
-        // je <trace 岛>`（无 xor $1）⇒ 正极性 if/else；负极性形恒多 xor 段。
-        if (m_adapter.IsOnIndex(nIndex))
-        {
-            int nKind = m_adapter.GetShareKindWithIndex(nIndex);
-            if (nKind == -1)
-                return;
-
-            stSERVER_MESSAGE local;
-            local.m_kind = (unsigned char)nKind;
-            local.m_index = (unsigned char)nIndex;
-            local.m_lenMsg2 = (unsigned int)strlen(pMsg2);
-            strncpy(local.m_msg2, pMsg2, local.m_lenMsg2 + 1);
-            local.m_lenMsg = (unsigned int)strlen(pMsg);
-            strncpy(local.m_msg, pMsg, local.m_lenMsg + 1);
-            local.m_endTime = nEndTime;
-
-            m_event.m_vecMsg.push_back(local);
-            ++m_event.m_count;
-            pCur = &local;
-        }
-        else
-        {
-            cMyTrace tr(__PRETTY_FUNCTION__,
-                        0x1c6, 0);
-            tr("SERVER_MESSAGE : NOT EXIST INDEX and NOT EXIST DATA");
-            return;
-        }
-    }
-    else
-    {
-        // [b28d-S112] P211/P254：ORIG 0x086015b9 `mov -0x10(%ebp),%edx; mov %eax,0x4(%edx)`
-        // 为 LHS-first 直存 ⇒ 字段 unsigned int + 显式 cast（探针 /tmp/gs_probe3.cpp a2）。
-        pCur->m_lenMsg = (unsigned int)strlen(pMsg);
-        strncpy(pCur->m_msg, pMsg, pCur->m_lenMsg + 1);
-        pCur->m_lenMsg2 = (unsigned int)strlen(pMsg2);
-        strncpy(pCur->m_msg2, pMsg2, pCur->m_lenMsg2 + 1);
-        pCur->m_endTime = nEndTime;
-    }
-
-    if (!IsSetServerMessage())
-        setLoadingComplete();
+#include "CSharedServerMessageManager/UpdateServerMessageByBroadcast.inc"
 }
 
-void CSharedServerMessageManager::LoadServerMessageFromDB()
-{
-    // b28c-L20: AE — ndiff 30→0（fresh orig=68 our=68）。两处归因：
-    // ①本 TU 局部 GlobalData 声明原为 object 形（`s_stream_pool.Acquire` / `s_msgq_mgr.put`
-    //   生 `movl $&sym,(%esp)` 取址立即数），与权威头 GlobalData.h 的指针声明矛盾；ORIG
-    //   +0x08 `mov _ZN11GlobalData13s_stream_poolE,%eax`、+0xb1 `mov …s_msgq_mgrE,%eax` 是
-    //   32 位**值装载**作 this ⇒ 声明改指针 + 调用点 `->`（同 TU 的 UpdateServerMessage 一并
-    //   受益：ndiff 395→385）。
-    // ②P0：ORIG Acquire 返回值经 %eax 直落 CStreamGuard ctor 实参（+0x25 `movl $0x1` /
-    //   +0x2d `mov %eax,0x4(%esp)`，无 Stream* 槽往返）⇒ 原码无具名 pStream 局部，改内联
-    //   实参后 guard 槽回正 -0x14(%ebp)（原 -0x18）。
-    // 消费侧 P132/P103（`**guard <<` 两级 operator*、`guard->GetInBuffer<T>()`）与
-    // m_server=(short)m_field378（32 位读 + `movw` 写）、m_channel=(short)get_channel_no()
-    // （`mov %eax,%edx; mov %dx,0x2(%eax)`）改前已同形，未动。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("SharedServerMessageManager.cpp", 0x21b),
-                       true);
-    **guard << 0x16d;
-    **guard << -1;
-
-    SIG_SELECT_SERVER_MESSAGE* pOut = guard->GetInBuffer<SIG_SELECT_SERVER_MESSAGE>();
-    pOut->m_server = (short)G_CEnvironment()->m_field378;
-    pOut->m_channel = (short)G_CEnvironment()->get_channel_no();
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+#include "CSharedServerMessageManager/LoadServerMessageFromDB.inc"
 }

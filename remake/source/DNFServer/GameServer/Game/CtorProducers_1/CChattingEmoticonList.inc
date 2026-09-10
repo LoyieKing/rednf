@@ -1,0 +1,1 @@
+CChattingEmoticonList::CChattingEmoticonList() {}

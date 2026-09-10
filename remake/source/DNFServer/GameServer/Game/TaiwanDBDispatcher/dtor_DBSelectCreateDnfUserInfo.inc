@@ -1,0 +1,2 @@
+DBSelectCreateDnfUserInfo::~DBSelectCreateDnfUserInfo()
+{

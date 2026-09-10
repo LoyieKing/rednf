@@ -1,0 +1,3 @@
+DungeonClearCondition::DungeonClearCondition()
+{
+    clear();

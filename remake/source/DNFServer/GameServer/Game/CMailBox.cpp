@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CMailBox/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // [b28d-38 判词] 本 TU 3 件最终状态：
 //  RemoveMail 0x082f.. DIFF（p167 CLEAR 16/16；byte 层 N 封顶）
 //  AddNewMail 0x082f.. DIFF（p167 余 make_pair 首参 const& 形：ORIG make_pair<unsigned int const&, CMail*&>）
@@ -68,139 +78,25 @@ namespace WongWork
 // ============================================================================
 
 // ORIG 0x085574d4 (W)
-unsigned int CMailBox::CMail::GetLetterId() { return m_letterId; }
-
-// ORIG 0x085574f2 (W)
-long CMailBox::CMail::GetPeriod() const { return m_period; }
-
-// ORIG 0x085574e0 (W)：m_period <= nowSec
-bool CMailBox::CMail::IsTimeOver(long nowSec) const { return m_period <= nowSec; }
-
-// ORIG 0x08557590 (W)：movzbl 直返（bool 字段直返无归一化，P9 勘误）+
-// 消费端 0x08552486 `call; xor $0x1,%eax; test %al,%al; je`（P292 bool 形）。
-bool CMailBox::CMail::isUnlimit() const { return m_unlimit; }
-
-// ORIG 0x085574fe (W)
-const char* CMailBox::CMail::GetSenderName() const { return m_senderName; }
-
-// ORIG 0x08557516 (W)
-unsigned int CMailBox::CMail::GetPackageMoney() const { return m_package.m_packageMoney; }
-
-// ORIG 0x08557522 (W)：sret 按值拷贝 Inven_Item（0x3d 字节）
-Inven_Item CMailBox::CMail::GetPackageItem() const { return m_package.m_item; }
-
-// ORIG 0x0855750a (W)
-unsigned int CMailBox::CMail::GetSenderCharacNo() const { return m_senderCharacNo; }
-
-// ---- CMailBox::CMail::._398（命名类 t_398；成员 +0x00 unsigned int m_packageMoney /
-//      +0x04 Inven_Item m_item）----
-// ORIG _ZN8WongWork8CMailBox5CMail5._398C1Ev t 0x085519cc (0x16)：仅 Inven_Item 默认
-// 构造（切片 9 条无 packageMoney 清零——原码不初始化该字段，P131 口径）。GCC 对
-// ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `t_398`（自然 mangled `5t_398*` >
-// 别名 `5._398*`，P203 附注条件②）重建，末尾 `.set`+四件套令点号别名成标注名。
-CMailBox::CMail::t_398::t_398()
-{
-    // ORIG 0x085519cc：仅 Inven_Item 默认构造（成员自动构造）。
+#include "CMailBox/GetLetterId.inc"
+#include "CMailBox/GetPeriod.inc"
+#include "CMailBox/IsTimeOver.inc"
+#include "CMailBox/isUnlimit.inc"
+#include "CMailBox/GetSenderName.inc"
+#include "CMailBox/GetPackageMoney.inc"
+#include "CMailBox/GetPackageItem.inc"
+#include "CMailBox/GetSenderCharacNo.inc"
+#include "CMailBox/t_398.inc"
 }
 
 // ORIG 0x0855759c (W)：m_packageType == 1
-bool CMailBox::CMail::isAvatarPackage() const { return m_packageType == 1; }
-
-// ORIG 0x085575ae (W)：m_packageType == 2
-bool CMailBox::CMail::isCreaturePackage() const { return m_packageType == 2; }
-
-// ORIG 0x085519fe (T)：senderName[0]=0、money=0、item.reset、type=0、unlimit=0
-void CMailBox::CMail::ResetPackage()
-{
-    m_senderName[0] = '\0';
-    m_package.m_item.reset();
-    m_package.m_packageMoney = 0;
-    m_unlimit = 0;
-    m_packageType = 0;
+#include "CMailBox/isAvatarPackage.inc"
+#include "CMailBox/isCreaturePackage.inc"
+#include "CMailBox/ResetPackage.inc"
 }
 
 // ORIG 0x08551a36 (T)——docs/class_func_reports/WongWork__CMailBox__CMail/MakePacket.md
-void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
-                                 CUser const* user) const
-{
-    packet->put_int((int)m_mailIndex);
-
-    packet->put_int((int)std::strlen(m_senderName));
-    packet->put_str(m_senderName, (int)std::strlen(m_senderName));
-
-    packet->put_int(m_package.m_packageMoney);
-    packet->put_int(m_package.m_item.m_addInfo);            // item idx（Inven_Item+0x02）
-    packet->put_byte(m_package.m_item.m_field0 != 0 ? 1 : 0);         // Inven_Item+0x00
-
-    if (isAvatarPackage())
-    {
-        CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        // ORIG 8551b25/8551b34：GetRemainDate 返回即 put_int（avatar 分支也 put）
-        packet->put_int(inv->GetAvatarItemMgrR()->GetRemainDate(
-            m_package.m_item.m_addInfo2, (int)nowSec));
-    }
-    else
-    {
-        packet->put_int(m_package.m_item.m_addInfo2);           // avatar/creature uid 域
-    }
-
-    packet->put_short((int)m_package.m_item.m_fieldb);
-
-    packet->put_byte((int)(m_package.m_item.GetItemAttr() & 0xff));
-
-    packet->put_int(m_package.m_item.m_fieldd);
-
-    // +0x3d 即 Inven_Item 内嵌 stAmplifyOption_t（m_package.m_item +0x11）
-    packet->put_byte((int)(m_package.m_item.m_amp.getAbilityType() & 0xff));
-    packet->put_short((int)(m_package.m_item.m_amp.getAbilityValue() & 0xffff));
-
-    if (m_package.m_item.m_field1 == 5)                               // ITEM_TYPE creature
-    {
-        CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        user_creature::CCreatureMgr* cmgr =
-            const_cast<user_creature::CCreatureMgr*>(inv->GetCreatureMgrR());
-        packet->put_int(
-            cmgr->getRemainTempPeriod(m_package.m_item.m_addInfo2, (int)nowSec));
-    }
-
-    packet->put_packet(m_package.m_item);
-
-    if (isAvatarPackage())
-    {
-        int uid = m_package.m_item.m_addInfo2;
-
-        packet->put_int(0x1e);
-        // ORIG 8551c6d/8551cab：getCurCharacInvenR/GetAvatarItemMgrR 各点重取（P48 去缓存）
-        packet->put_binary(const_cast<CInventory*>(user->getCurCharacInvenR())
-                               ->GetAvatarItemMgrR()->getJewelSocketData(uid),
-                           0x1e);
-
-        const void* exp = const_cast<CInventory*>(user->getCurCharacInvenR())
-                              ->GetAvatarItemMgrR()->GetExpansionInfo(uid);
-        packet->put_int(4);
-        if (exp == 0)
-        {
-            stAvatarExpansionInfo_t init;
-            init.init();
-            packet->put_binary(reinterpret_cast<const char*>(&init), 4);
-        }
-        else
-        {
-            packet->put_binary(reinterpret_cast<const char*>(exp), 4);
-        }
-    }
-
-    if (!isUnlimit())
-    {
-        long remain = m_period - nowSec;
-        packet->put_int(std::max<int>((int)remain, 1));      // ORIG 8551d65 std::max<int>
-    }
-    else
-    {
-        packet->put_int(0);
-    }
-
-    packet->put_int((int)m_letterId);
+#include "CMailBox/MakePacket.inc"
 }
 
 // ============================================================================
@@ -208,123 +104,55 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
 // ============================================================================
 
 // ORIG 0x08234566 (W)：map::size @+0x40
-int CMailBox::GetRecvSize()
-{
-    return (int)m_mailMap.size();
+#include "CMailBox/GetRecvSize.inc"
 }
 
 // ORIG 0x08557922 (W)：StaticPool<CMail,20>::Remain @+0x10
-int CMailBox::GetRemainSize()
-{
-    return m_mailPool.Remain();
+#include "CMailBox/GetRemainSize.inc"
 }
 
 // ORIG 0x0823454c (W)
-int CMailBox::GetLoadedLetterCount() { return m_loadedLetterCount; }
-
-// ORIG 0x0823455a (W)
-int CMailBox::GetNotLoadedMailCount() { return m_notLoadedMailCount; }
-
-// ORIG 0x08557944 (W)
-int CMailBox::GetLastLoadIdx()
-{
-    return (int)m_lastLoadIdx;
+#include "CMailBox/GetLoadedLetterCount.inc"
+#include "CMailBox/GetNotLoadedMailCount.inc"
+#include "CMailBox/GetLastLoadIdx.inc"
 }
 
 // ORIG 0x0855784c (W)
-int CMailBox::GetLastLoadLetterIdx()
-{
-    return (int)m_lastLoadLetterIdx;
+#include "CMailBox/GetLastLoadLetterIdx.inc"
 }
 
 // ORIG 0x08557886 (W)：keep map::size @+0x64
-int CMailBox::GetLetterKeepCount()
-{
-    return (int)m_letterKeepCount.size();
+#include "CMailBox/GetLetterKeepCount.inc"
 }
 
 // ORIG 0x08557866 (W)：clear keep map 并清零 lastLoadLetterIdx
-void CMailBox::ClearLetterKeepCount()
-{
-    m_letterKeepCount.clear();
-    m_lastLoadLetterIdx = 0;
+#include "CMailBox/ClearLetterKeepCount.inc"
 }
 
 // ORIG 0x084ed222 (W)：map.insert(make_pair(letterId,true))，返回 insert 的 bool
 //（新插入 true / 已存在 false；ORIG movzbl insert 返回 pair.second）。
-bool CMailBox::InsertLetterKeepCount(unsigned int letterId)
-{
-    return m_letterKeepCount
-        .insert(std::make_pair(letterId, true)).second;
+#include "CMailBox/InsertLetterKeepCount.inc"
 }
 
 // ORIG 0x08557938 (W)
-bool CMailBox::IsLoaded() { return m_bInit; }
-
-// ORIG 0x08557950 (W)：写加载状态；置 true 时同时写 lastLoadIdx ← nowSec
-void CMailBox::SetLoadState(bool loaded, long nowSec)
-{
-    m_bInit = loaded;                              // ORIG mov %dl,(%eax) 直写
-    if (loaded)
-        m_lastLoadIdx = (unsigned int)nowSec;      // ORIG mov %edx,0x4(%eax)
+#include "CMailBox/IsLoaded.inc"
+#include "CMailBox/SetLoadState.inc"
 }
 
 // ORIG 0x085577ac (W)：id==0 → false；否则在 loadLack 列表中查找
-bool CMailBox::FindPackageLoadLack(unsigned int id)
-{
-    if (id == 0)
-        return 0;
-    return std::find(m_loadLackList.begin(), m_loadLackList.end(), id)
-               != m_loadLackList.end();
+#include "CMailBox/FindPackageLoadLack.inc"
 }
 
 // ORIG 0x08557608 (W)：逐项拷贝 lack 列表前 n 项到 out（越界即停）
-void CMailBox::GetPackageLoadLack(unsigned int* out, unsigned int n)
-{
-    for (unsigned int i = 0; i < n && i < m_loadLackList.size(); ++i)
-        out[i] = m_loadLackList[i];
+#include "CMailBox/GetPackageLoadLack.inc"
 }
 
 // ORIG 0x085522c4 (T, _ZNK)：map find，未找到返回 0
-CMailBox::CMail* CMailBox::GetMail(unsigned int mailIndex) const
-{
-    MailMap::const_iterator it = m_mailMap.find(mailIndex);
-    if (it == m_mailMap.end())
-        return 0;
-    return it->second;
+#include "CMailBox/GetMail.inc"
 }
 
 // ORIG 0x08552138 (T)——docs/class_func_reports/WongWork__CMailBox/RemoveMail.md
-int CMailBox::RemoveMail(unsigned int mailIndex)
-{
-    CMail* mail = 0;                       // ORIG movl $0x0 提前清零
-    MailMap::iterator it;                  // ORIG 先默认构造再拷贝赋值
-    it = m_mailMap.find(mailIndex);
-    if (it == m_mailMap.end())
-        return 0;
-
-    mail = it->second;
-    m_mailMap.erase(it);
-
-    if (mail->GetLetterId() != 0)
-    {
-        // 若剩余邮件中不再有同 letterId 者 → 已加载计数 +1
-        // [b27 封顶] 唯一残差 = begin() 返回槽：ORIG -0x2c 临时槽→拷贝 jt(-0x1c)
-        // 两步（N86：4.1 无 copy-elision），4.4 直构进 jt 槽(-0x20) ⇒ jt 槽号
-        // 连锁平移。无源码解（直构即 4.4 语义）。语义/循环体/出口全等。
-        bool stillExists = false;
-        for (MailMap::iterator jt = m_mailMap.begin(); jt != m_mailMap.end(); ++jt)
-        {
-            if (jt->second->GetLetterId() == mail->GetLetterId())
-                stillExists = true;
-        }
-        if (!stillExists)
-            m_loadedLetterCount += 1;
-    }
-
-    mail->ResetPackage();
-    m_mailPool.Free(mail);
-    return 1;
+#include "CMailBox/RemoveMail.inc"
 }
 
 // ORIG 0x08551f5a (T)——docs/class_func_reports/WongWork__CMailBox/AddNewMail.md
@@ -333,37 +161,7 @@ int CMailBox::RemoveMail(unsigned int mailIndex)
 //   +0x0c letterId    +0x10 remainSec       +0x14 packageType
 //   +0x18 period      +0x1c unlimit(byte)   +0x20 const char* senderName
 //   +0x24 Inven_Item*（可空）
-CMailBox::CMail* CMailBox::AddNewMail(const stAddNewMailInput& inputRaw)
-{
-    CMail* mail = m_mailPool.Acquire();
-    if (mail == 0)
-        return 0;
-
-    mail->m_mailIndex      = SIG_OFF(unsigned int, &inputRaw, 0x00);
-    mail->m_senderCharacNo = SIG_OFF(unsigned int, &inputRaw, 0x04);
-    mail->m_package.m_packageMoney   = SIG_OFF(unsigned int, &inputRaw, 0x08);
-
-    // ORIG：srcItem 分支逐字段展开拷贝；空时构造 Inven_Item() 后逐字段搬移。
-    const Inven_Item* srcItem = SIG_OFF(const Inven_Item*, &inputRaw, 0x24);
-    if (srcItem == 0)
-        mail->m_package.m_item = Inven_Item();
-    else
-        mail->m_package.m_item = *srcItem;
-
-    mail->m_period = (long)SIG_OFF(unsigned int, &inputRaw, 0x18);
-
-    std::strncpy(mail->m_senderName, SIG_OFF(const char*, &inputRaw, 0x20), 0x1d);
-
-    mail->m_packageType = SIG_OFF(int, &inputRaw, 0x14);
-    // P292 全链 bool：ORIG 0x085520c4 `movzbl 0x1c(%edx),%edx; mov %dl,0x74(%eax)`
-    // 单条直存（无 uchar→bool 归一化）⇒ 源类型同为 bool。
-    mail->m_unlimit     = SIG_OFF(bool, &inputRaw, 0x1c);
-    mail->m_letterId    = SIG_OFF(unsigned int, &inputRaw, 0x0c);
-
-    m_mailMap.insert(std::make_pair(mail->m_mailIndex, mail));
-
-    mail->m_remainSec = SIG_OFF(unsigned int, &inputRaw, 0x10);
-    return mail;
+#include "CMailBox/AddNewMail.inc"
 }
 
 }  // namespace WongWork
@@ -376,37 +174,14 @@ namespace user_creature
 {
 
 // ORIG 0x08339292 (_ZNK...16FindCreatureItemEi)：m_creatureItems map 查找。
-CCreatureItem* CCreatureMgr::FindCreatureItem(int uid) const
-{
-    std::map<int, CCreatureItem*>::const_iterator it = m_creatureItems.find(uid);
-    if (it != m_creatureItems.end())
-        return it->second;
-    return 0;
+#include "CMailBox/FindCreatureItem.inc"
 }
 
 // ORIG 0x0833d88c (_ZNK...18getRemainTempPeriodEii)
 // docs/class_func_reports/user_creature__CCreatureMgr/getRemainTempPeriod.md：
 // m_field30 有 key=uid：v<1 直接返回 v；否则 r=v-nowSec，r==0 时取 1。
 // 无记录时委托装备宠的 GetRemainDate（BLOCKED: CCreatureItem 未建模 → -1，推断）。
-int CCreatureMgr::getRemainTempPeriod(int uid, int nowSec) const
-{
-    std::map<int, int>::const_iterator it = m_field30.find(uid);
-    if (it != m_field30.end())
-    {
-        if (it->second > 0)
-        {
-            int r = it->second - nowSec;
-            if (r == 0)
-                return 1;
-            return r;
-        }
-        return it->second;
-    }
-    CCreatureItem* item = FindCreatureItem(uid);
-    if (item == 0)
-        return -1;
-    // ORIG 委托 CCreatureItem::GetRemainDate(nowSec)。
-    return item->GetRemainDate(nowSec);
+#include "CMailBox/getRemainTempPeriod.inc"
 }
 
 }  // namespace user_creature

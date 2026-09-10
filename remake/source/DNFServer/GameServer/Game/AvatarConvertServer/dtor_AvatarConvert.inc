@@ -1,0 +1,2 @@
+AvatarConvert::~AvatarConvert()
+{

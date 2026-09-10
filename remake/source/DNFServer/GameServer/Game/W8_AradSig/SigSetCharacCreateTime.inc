@@ -1,0 +1,3 @@
+SigSetCharacCreateTime::SigSetCharacCreateTime()
+{
+    init();

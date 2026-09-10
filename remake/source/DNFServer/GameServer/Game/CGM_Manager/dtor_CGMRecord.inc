@@ -1,0 +1,2 @@
+CGMRecord::~CGMRecord()
+{

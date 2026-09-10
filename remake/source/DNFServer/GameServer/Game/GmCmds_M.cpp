@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 GmCmds_M/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // GmCmds_M.cpp — game_master::CMoveCharacCmd（id=0x01 "move"，样板实现）
 // + 9 个命令类的 execute/parse 补齐（vtable key function 落地 TU）。
 // 对照 docs/class_func_reports/game_master__{CPvPStartCmd,CItemDropRateCmd,
@@ -41,60 +51,11 @@ namespace game_master
 // ORIG ctor 0x082a7ffe：基类 vptr → 自身 vptr(0x8c81ca0)；string@+0x08 默认构造。
 
 // ORIG parse 0x084a8cce：trim(parser->args)；m_str0 = parser->args（目标角色名）。
-void CMoveCharacCmd::parse()
-{
-    trim(m_parser->m_args);
-    m_str0 = m_parser->m_args;
+#include "GmCmds_M/parse.inc"
 }
 
 // ORIG execute 0x084a8d02。
-void CMoveCharacCmd::execute()
-{
-    // P48：ORIG 每用点 fresh G_GameWorld()（find/move_area/send_to_area 各调）
-    CUser* target =
-        G_GameWorld()->find_user_by_charac_name(m_str0.c_str());
-    if (target == 0)
-    {
-        return;
-    }
-    if (target->getCurCharacR() == 0)                       // ORIG CUserCharacInfo::getCurCharacR 判 0
-    {
-        return;
-    }
-    int vill = static_cast<int>(target->getCurCharacVill());
-    int area = target->get_area(false);
-    unsigned int x = target->get_posX() & 0xffff;
-    unsigned int y = target->get_posY() & 0xffff;
-
-    // ORIG(0x084a8dd4)：同 vill && 同 area → set_position，否则 move_area。
-    // [G5 2026-09-10 P167/P183 真缺口修复] 旧码 `CUser* self = GetUser();` 把 5 个用点
-    //   合并成 1 次调用；p167 实证 ORIG 调 `CCommand::GetUser()` **5 次**
-    //   （MISSING 4×，OUR calls 27 vs ORIG 31）⇒ 删具名缓存，逐用点 fresh 重发
-    //   （P48/P183：ORIG 在实参位直读、无 self 槽）。
-    if (static_cast<int>(GetUser()->getCurCharacVill()) == vill &&
-        GetUser()->get_area(false) == area)
-    {
-        GetUser()->set_position(static_cast<unsigned short>(x),
-                                static_cast<unsigned short>(y), 0);
-    }
-    else
-    {
-        G_GameWorld()->move_area(GetUser(), vill, area,
-                                 static_cast<int>(x), static_cast<int>(y),
-                                 0, false, 0, 0, 0);
-    }
-
-    PacketGuard packet;
-    packet.put_header(0, 0x8a);
-    packet.put_short(static_cast<int>(GetUser()->get_unique_id() & 0xffff));
-    packet.put_short(static_cast<int>(x));
-    packet.put_short(static_cast<int>(y));
-    packet.put_byte(0);
-    packet.finalize(true);
-    if (vill != 0 || area != 0)
-    {
-        G_GameWorld()->send_to_area(vill, area, packet);
-    }
+#include "GmCmds_M/execute.inc"
 }
 
     // -------------------------------------------------------------------
@@ -272,28 +233,14 @@ void CMoveCharacCmd::execute()
 // P210 实证（b28）：本 ctor 定义前置到基类 CGameMasterCharacter() 之前，令
 // 4.4 编译本函数体时基类 ctor 定义尚不可见 → 保守 outgoing 帧 sub $0x18，
 // 与 ORIG 逐条全等（推翻 b23「6 形探针穷举不可达」判词——缺的正是定义顺序维度）。
-CGameMasterCharacterItemDropRate::CGameMasterCharacterItemDropRate() throw()  // 0x084b4434
-{
+#include "GmCmds_M/CGameMasterCharacterItemDropRate.inc"
 }
 
-CGameMasterCharacter::CGameMasterCharacter()                 // ORIG 0x084b4426
-{
+#include "GmCmds_M/CGameMasterCharacter.inc"
 }
 
-void CGameMasterCharacter::sendServerState(CUser*, char const*)   // 0x084b42b6
-{
+#include "GmCmds_M/sendServerState.inc"
 }
 
-void CGameMasterCharacterItemDropRate::sendServerState(
-    CUser* user, char const* msg)                            // 0x084b4330
-{
-    PacketGuard packet;
-    packet.put_header(0, 0xc);
-    packet.put_byte(0);
-    packet.put_short(0);
-    packet.put_byte(0);
-    packet.put_int((int)strlen(msg));
-    packet.put_str(msg, (int)strlen(msg));
-    packet.finalize(true);
-    user->Send(packet);
+#include "GmCmds_M/sendServerState_1.inc"
 }

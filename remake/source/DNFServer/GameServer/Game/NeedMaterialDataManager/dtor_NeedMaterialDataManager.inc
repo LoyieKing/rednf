@@ -1,0 +1,2 @@
+NeedMaterialDataManager::~NeedMaterialDataManager()
+{

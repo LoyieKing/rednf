@@ -1,0 +1,2 @@
+CFirstServerOpenEvent::CFirstServerOpenEvent()
+{

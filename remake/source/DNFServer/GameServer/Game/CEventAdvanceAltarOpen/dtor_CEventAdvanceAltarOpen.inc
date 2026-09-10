@@ -1,0 +1,2 @@
+CEventAdvanceAltarOpen::~CEventAdvanceAltarOpen()
+{

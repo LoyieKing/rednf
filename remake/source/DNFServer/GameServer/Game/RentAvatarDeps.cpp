@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 RentAvatarDeps/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // RentAvatarDeps.cpp — avatar 租借域自由函数（LinkE2 批次）
 // 需登记 CMake：source/cmake/game/CMakeLists.txt
 #include "PacketGuard.h"   // PacketGuard（InterfacePacketBuf 子类）
@@ -9,17 +19,7 @@
 //   == 2                → price * 2
 //   == 3                → price * 4（shl 2）
 //   其它                → price
-int getAvatarRentPrice(int price, int rentType)
-{
-    if (rentType == 0)
-        return price;
-    if (rentType == 1)
-        return price;
-    if (rentType == 2)
-        return price * 2;
-    if (rentType == 3)
-        return price * 4;
-    return price;
+#include "RentAvatarDeps/getAvatarRentPrice.inc"
 }
 
 // ORIG W _Z18RentAvatarErrorProcP5CUseri @ 0x082352c5 (size 0xb2)
@@ -27,13 +27,5 @@ int getAvatarRentPrice(int price, int rentType)
 //   PacketGuard 构造 → clear() → put_header(0x1, 0x16)
 //   → put_byte(0) → put_byte(errCode) → finalize(true) → user->Send(guard)
 // ORIG 无返回值（ebp 恢复前不写 eax），签名 void 与调用点语句级用法一致。
-void RentAvatarErrorProc(CUser* user, int errCode)
-{
-    PacketGuard guard;
-    guard.clear();
-    guard.put_header(0x1, 0x16);
-    guard.put_byte(0);
-    guard.put_byte(errCode);
-    guard.finalize(true);
-    user->Send(guard);
+#include "RentAvatarDeps/RentAvatarErrorProc.inc"
 }

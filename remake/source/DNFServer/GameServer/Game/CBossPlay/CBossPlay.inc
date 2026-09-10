@@ -1,0 +1,3 @@
+CBossPlay::CBossPlay()
+{
+    reset();

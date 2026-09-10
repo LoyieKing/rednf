@@ -1,0 +1,2 @@
+NullPolicy::~NullPolicy()
+{

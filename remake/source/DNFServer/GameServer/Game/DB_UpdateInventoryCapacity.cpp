@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 DB_UpdateInventoryCapacity/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— DB_UpdateInventoryCapacity（背包容量更新 DB 请求，DBThread 派发）。
 // 逐函数对照 docs/class_func_reports/DB_UpdateInventoryCapacity/makeRequest.md
 // （ORIG 0x08444d12）与 dispatch.md（ORIG 0x08444bea）。
@@ -18,20 +28,7 @@
 // ============================================================================
 // DB_UpdateInventoryCapacity::makeRequest @ 0x08444d12
 // ============================================================================
-void DB_UpdateInventoryCapacity::makeRequest(ENUM_SERVER_GROUP serverGroup,
-                                             int /*uid*/, unsigned int characNo,
-                                             int capacity)
-{
-    // [b28c-32] P0/P103：ORIG 0x08444d32 Acquire 结果 %eax 直传 guard C1 的
-    // 0x4(%esp)（无具名 stream 局部槽；guard 落 -0x10 而非 -0x14）。
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xabd0), true);
-    guard.operator*()->operator<<(0x2ae);
-    guard.operator*()->operator<<(-1);
-    guard.operator*()->operator<<(static_cast<int>(serverGroup));
-    guard.operator*()->operator<<(characNo);   // 走 operator<<(unsigned int) 0x080e2292
-    guard.operator*()->operator<<(capacity);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+#include "DB_UpdateInventoryCapacity/makeRequest.inc"
 }
 
 // ============================================================================
@@ -48,28 +45,5 @@ void DB_UpdateInventoryCapacity::makeRequest(ENUM_SERVER_GROUP serverGroup,
 // `exec(true)!=1 || getAffectedRowCount()==0`（复现 ORIG 0x08444c92 xor/or +
 // mov $1/$0 物化，P214①）；②trace 改 P227 全表达式临时链（复现 ORIG 0x08444cba
 // esi/ebx 跨 ctor 保活 + trace 槽 -0x1c）；③槽号/帧随二者自动对齐（0x30）。
-bool DB_UpdateInventoryCapacity::dispatch(int /*userIdx*/, int /*slot*/,
-                                          Stream* stream)
-{
-    int serverGroup = 0;      // -0x20（先于 GetDBHandle 解包）
-    *stream >> serverGroup;
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
-        DB_HANDLE_3, static_cast<ENUM_SERVER_GROUP>(serverGroup));
-    unsigned int characNo = 0;  // -0x24
-    int capacity = 0;           // -0x28
-    *stream >> characNo;
-    *stream >> capacity;
-    db->set_query("upDate inventory set inventory_capacity=%d where charac_no=%u",
-                  capacity, characNo);
-    // b28d-lane6：ORIG 0x08444c92 负极性短路 `exec!=1 || affected==0` → mov $1/$0
-    // 物化后 test/je 返回 1（P214① 正极性反演的另一向）。
-    if (db->exec(true) != 1 || db->getAffectedRowCount() == 0)
-    {
-        // P227 全表达式临时链（复现 ORIG 0x08444cba esi/ebx 跨 ctor 保活 + trace 槽 -0x1c）。
-        cMyTrace(__PRETTY_FUNCTION__, 0xabc8, 5)(
-            "upDate inventory set inventory_capacity=%d where charac_no=%u",
-            capacity, characNo);
-        return 0;
-    }
-    return 1;
+#include "DB_UpdateInventoryCapacity/dispatch.inc"
 }

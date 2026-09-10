@@ -1,0 +1,2 @@
+RandomOptionScript::~RandomOptionScript()
+{

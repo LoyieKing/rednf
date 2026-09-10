@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 STStackableScript/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— STStackableScript（G5 堆叠物脚本表）
 // Clear 0x0899087a / ctor 0x0898f218 / copy 0x0898f8e6 / dtor 0x0899013c /
 // operator= 0x089c418e；Arad_STStackableScript 0x089c33fa..0x089c4052。
@@ -101,19 +111,12 @@
 //      ImportStackable 键名的 GI，且 0x0898xxxx..0x089cxxxx 区间 GI 计数 = 0）
 //      ⇒ P338/P327。局部声明与 DNFLexWrapper.h 权威签名逐字一致（mangled 相同，
 //      链接到同一 ORIG 函数）。----
-bool ScanType(std::string& token, bool consume);
-bool ScanInt(int* value);
-int ScanInt(bool* ok);
-float ScanFloat(bool* ok);
-bool ScanStr(std::string* value);
-int ScanTypeOrInt(bool& isType, std::string& s, bool& isInt, bool consume);
-
-// ---- stStackableBooster_t::clear（ORIG W 0x089c3076：
-//      vector::clear(@+0x00) + map::clear(@+0x0c)）----
-__attribute__((weak)) void stStackableBooster_t::clear()
-{
-    m_elements.clear();
-    m_map.clear();
+#include "STStackableScript/ScanType.inc"
+#include "STStackableScript/ScanInt.inc"
+#include "STStackableScript/ScanInt_1.inc"
+#include "STStackableScript/ScanFloat.inc"
+#include "STStackableScript/ScanStr.inc"
+#include "STStackableScript/ScanTypeOrInt.inc"
 }
 
 __attribute__((weak)) stStackableBooster_t& stStackableBooster_t::operator=(
@@ -223,15 +226,9 @@ __attribute__((weak)) void STSummonApc::clear()
 }
 
 // ---- CountinuousItemOption（ORIG T 0x0898c770 C1 调 clear；clear 0x0898c784）----
-CountinuousItemOption::CountinuousItemOption()
-{
-    clear();
+#include "STStackableScript/CountinuousItemOption.inc"
 }
-void CountinuousItemOption::clear()
-{
-    m_field0 = 0;
-    m_field1 = 0;
-    m_field2 = 0;
+#include "STStackableScript/clear.inc"
 }
 
 // ---- AvatarOptionChangeType（ORIG C1 0x08513b6e 调 clear；clear 0x08513b48）----
@@ -278,63 +275,18 @@ __attribute__((weak)) void Arad_STStackableScript::AradStClear()
     m_str10 = "";
 }
 
-STStackableScript::STStackableScript()
-{
-    Clear();
+#include "STStackableScript/STStackableScript.inc"
 }
 
 // [b28d-solo-STStackableScript] NEAR（orig=643 our=643，ndiff 44 全为块内
 // 迭代器槽号分配；p167 仅 STItemScript C2/D2 vs D1 同址别名伪差（P93）。
 // 本轮修正：for 布局 + src_pair 逐成员赋值（p.first/p.second）+ insert 传值对。
-STStackableScript::STStackableScript(STStackableScript& other)
-{
-    operator=(other);
-    if (!other.m_module4bc.empty())
-    {
-        // ORIG 0x0898fbf7..0x0898fd68：4.1 for 布局（begin 后 jmp 尾条件、每次
-        // 迭代重调 other.end()）；循环体内 dst_end=end() → it->first(ptEv) →
-        // find → ne(found,dst_end)；body 为 src_pair 逐成员赋值
-        // （src_pair.first=it->first；src_pair.second=new ...；*second=*it->second）。
-        // [b28d-solo-STStackableScript] N93/P212 封顶：ORIG 槽序（4.1 块内先声明
-        // 深）it(-0x38) > dst_end(-0x30) > found(-0x2c)；4.4 块内先声明浅
-        // （dst_end -0x34 / found -0x38，方向相反）。三种改写实测：
-        // ①三迭代器提函数头：+3 C1Ev call、帧 +0x10（P50 反例）；
-        // ②found/dst_end 提 for 前：+2 C1Ev call、帧 +0x10（ndiff 24 但引入
-        //   EXTRA 调用）；③循环体内声明（本形）：orig=643 our=643、无额外 call、
-        //   残差仅槽号，ndiff 44 NEAR ⇒ 取 ③，p167 无缺口。
-        for (std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator it =
-                 other.m_module4bc.begin();
-             it != other.m_module4bc.end(); ++it)
-        {
-            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator dst_end = m_module4bc.end();
-            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator found = m_module4bc.find(it->first);
-            if (found != dst_end)
-            {
-                std::pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*> src_pair;
-                src_pair.first = it->first;
-                src_pair.second = new EquipmentParameterInfo();
-                *src_pair.second = *it->second;
-                m_module4bc.insert(src_pair);
-            }
-        }
-    }
+#include "STStackableScript/STStackableScript_1.inc"
 }
 
 // ORIG 0x0899013c：体部先清理 m_module4bc 的指针值（空检查 + 遍历 delete +
 // clear），随后编译器按声明序析构全部成员。
-STStackableScript::~STStackableScript()
-{
-    if (!m_module4bc.empty())
-    {
-        for (std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator it = m_module4bc.begin();
-             it != m_module4bc.end(); ++it)
-        {
-            if (it->second != 0)
-                delete it->second;
-            it->second = 0;   // ORIG +0x79：赋 0 在 if 之外（两次 je 同落 +0x79）
-        }
-        m_module4bc.clear();
-    }
+#include "STStackableScript/dtor_STStackableScript.inc"
 }
 
 // ORIG 0x089c418e：无 self 检查；基类 op= → arad op= → +0x18c →
@@ -477,129 +429,7 @@ __attribute__((weak)) STStackableScript& STStackableScript::operator=(const STSt
 // [b28d-solo-STStackableScript] AE（322=322）：+0x1c4/+0x1cc 两处
 // `mov $0,%edx; mov %edx,disp` 常量中转 = P238 float 字段形（m_1c4/m_1cc
 // 改 float + 0.0f；同时修真语义 bug：ImportStackableScript 写 ScanFloat）。
-void STStackableScript::Clear()
-{
-    // [b28c-27] N18a：+0x1c4/+0x1cc 两处 ORIG `mov $0x0,%edx; mov %edx,disp`
-    // （4.1 常量经寄存器中转）；字段 unsigned int 化后 4.4 仍 `movl $0,disp` 直写，
-    // 不可翻。其余为 .o 重定位伪差（"\"\" 字面量 → <A>，AE 口径）。
-    STItemScript::Clear();
-    m_field4 = 0;
-    m_arad178.AradStClear();
-    m_rabbit19c.clear();
-    m_vec190.clear();
-    m_1a8 = 0;
-    m_1ac = 0;
-    m_1b0 = 0;
-    m_1b4 = -1;
-    m_1b8 = 0;
-    m_str1d8 = "";
-    m_1dc = 0;
-    m_1d4 = 0;
-    m_1e0 = 0x27;
-    m_1e4 = 0;
-    m_str238 = "";
-    m_23c = 1;
-    m_240 = -1;
-    m_option1b9.m_field0 = 0;
-    m_option1b9.m_field1 = 0;
-    m_option1b9.m_field2 = 0;
-    m_statChange34c.clear();
-    m_option1bc.m_field0 = 0;
-    m_option1bc.m_field1 = 0;
-    m_option1bc.m_field2 = 0;
-    m_1bf = 0;
-    m_1c0 = 0;
-    m_1c4 = 0.0f;
-    m_1c8 = 0;
-    m_1cc = 0.0f;
-    m_1d0 = 0;
-    m_package268.clear();
-    m_package274.clear();
-    m_booster280.clear();
-    m_364 = 9999999;
-    m_module4bc.clear();
-    m_str368 = "";
-    m_36c = -1;
-    m_vec374.clear();
-    m_380 = 0;
-    m_384 = 0;
-    m_388 = 1;
-    m_38c = -1;
-    m_summonMonster314.clear();
-    m_summonApc330.clear();
-    m_348 = -1;
-    m_390 = 1;
-    m_394 = 0;
-    m_396 = 0;
-    m_398 = 0;
-    m_438 = 0;
-    m_pair43c.first = 0;
-    m_pair43c.second = 0;
-    m_39a = 0;
-    m_39b = 0;
-    m_39c = 0;
-    m_3a0 = 0;
-    m_3a1 = 0;
-    m_map3a4.clear();
-    m_3bc = 0;
-    m_vec3c0.clear();
-    m_3cc = 0;
-    m_vec25c.clear();
-    m_3d0 = 0;
-    m_3d1 = 1;
-    m_cube3d4.m_materials.clear();
-    m_cube3d4.m_2ndMaterialIdx = 0;
-    m_cube3d4.m_2ndMaterialCount = 0;
-    m_cube3d4.m_results.clear();
-    m_enchant3f4.clear();
-    m_40c = 0xff;
-    memset(m_40d, 0, 2);
-    m_414 = 0;
-    m_str410 = "";
-    m_418 = 0;
-    m_444 = 0xb;
-    m_448 = 0;
-    m_44c = -1;
-    m_450 = -1;
-    m_454 = -1;
-    m_458 = -1;
-    m_45c = -1;
-    m_460 = -1;
-    m_464 = -1;
-    m_468 = -1;
-    m_46c = 0;
-    m_470 = -1;
-    m_478 = 0;
-    m_474 = 0;
-    m_avatar47c.clear();
-    m_set480.clear();
-    m_set498.clear();
-    m_4b0 = 0;
-    m_1e8 = 0;
-    m_vec1ec.clear();
-    m_place1f8.clear();
-    m_204 = 0;
-    m_server214.clear();
-    m_205 = 0;
-    m_passive208.clear();
-    m_220 = 0;
-    m_vec224.clear();
-    m_4b8 = 0;
-    m_str1d8 = "";
-    m_1dc = 0;
-    m_414 = 0;
-    m_str410 = "";
-    m_418 = 0;
-    m_370 = -1;
-    m_4ec = 0;
-    m_arad178.m_field14 = 0;
-    m_4f0 = 0;
-    m_4f4 = 0;
-    m_4f8 = 0;
-    m_vec4fc.clear();
-    m_set4d4.clear();
-    m_508 = 0;
-    m_set50c.clear();
+#include "STStackableScript/Clear.inc"
 }
 
 __attribute__((weak)) void RecipeInfo::additionalInfo(STStackableScript& script)
@@ -848,352 +678,7 @@ static bool GetExpertJobValueCompoundRate(STItemScript* item)
 //   STStatChange/stLimitCubeResult 删用户空析构（P317，消 EXTRA D1 ×4）；
 // ②gap −49（orig 10197 / our 10246）；③槽位/帧差属 N82/N89（4.1 不按 lifetime
 //   复用槽 + libstdc++ 全内联），万行级解析件不再逐条强凑。
-bool ImportStackableScript(STStackableScript* script, const char* path,
-                           bool flag, int idx)
-{
-    if (!loadRDARScriptFile(g_szStackableScriptBaseDirectory, path))
-    {
-        return false;
-    }
-    script->Clear();
-    std::string line;
-    std::string token;
-    int vzero = 0;   // ORIG -0x144c：函数级 int 暂存槽，顶部 movl $0 初始化
-    (void)vzero;
-    bool ok = false; // ORIG -0x144d：顶部唯一一次 movb $0 清零
-
-    // ORIG 0x089aeec8..0x089ba83b（10197 指令）结构（docs 报告 ImportStackableScript.md
-    // 汇编 16..10217 / 反编译 C 10218..17101）：
-    //   while (ScanType(line,1)) {
-    //     if (line=="[name]") ScanStr(&m_strac(+0xac)); flag 置位则立即跳出循环（
-    //       jmp +0xb8cd 收尾）；
-    //     else if (line=="[emancipate ticket]") m_field10e=1 后 ScanInt 写 +0x394(short)，
-    //       失败仅继续循环；                    [+0x394.. = m_394 ushort]
-    //     else if (line=="[equipment reinforcement ticket]") m_396=1、ScanInt(+ok)→m_398、
-    //       再 ScanInt→+0x39a 字节；任一 !ok → return false（mov $0,%ebx 出口）；
-    //     else if (line=="[check usable itemlevel]") 两 ScanInt 写 +0x43c/+0x440，
-    //       任一 !ok → return false；ok 后 m_438=1；
-    //     else if (line=="[passive object in stackable]") 内层循环连读 4 int（field0..C）
-    //       push 到 m_passive208(+0x208)，行首失败跳出；
-    //     else if (line=="[equipment amplify reinforcement ticket]") m_39b=1、ScanInt→m_39c、
-    //       ScanInt→+0x3a0 字节；任一 !ok → return false；
-    //     else if (line=="[amplification random value]") m_3a1=1 后循环 {ScanInt v1(v2)；
-    //       !ok 跳出；pair(v1,v2) insert m_map3a4}；
-    //     else if (line=="[/amplification random value]") 空（继续循环）；
-    //     else 主分发：静态 __lookup 惰性填充（[name2]..[attach type] 等 157 主标签
-    //       → 下述 hash，case 顺序即 hash 升序填充链）后 find(line.c_str())，switch 分派；
-    //       命中失败（无 case）→ 089ba768 桩（continue）。
-    //   每行处理完毕都经公共桩 089ba768 → +0x80 回 ScanType 循环。
-    // 扫描结束（ScanType false）→ +0xb8cd 收尾：if(m_field24==-1) m_field24=m_field14；
-    //   idx==-1 → m_field0=FindIndexByFullScan(path) else m_field0=idx；返回 true。
-    // 转写形态（本轮三步法 Step2 重构，ORIG 证据同上报告）：
-    //   主表 + 4 张子表(attach/stackable-type/my-status/itemmaking)均为
-    //   for(;;){ find-或-双检锁 → switch(tag){ case V: if(!__inited){单条
-    //   value_type 惰性 insert} else {work; break;} } → if(__inited)break;
-    //   leave;置位 } 的**逐例 guard 链**（非集中批量 insert）；case 0 与首个
-    //   case 共叶、子表首 case 亦然；[enchant] 内层循环复用主表 __lookup
-    //   （[/enchant]/[pvp] 作为主表条目在循环内 guard 链登记）。
-    //   gcc4.4.7 对 if(!__inited){insert} else {work;break} + case 贯穿生成的
-    //   块布局（check:xor/test/je → insert 块 → jmp 下叶 → work 块）与 ORIG
-    //   逐条同形（探针验证，见 docs/asm_translation_patterns 新范式提报）。
-    while (ScanType(line, true))
-    {
-        if (line == "[name]")
-        {
-            ScanStr(&script->m_strac);  // +0xac（ORIG +0x3c..+0x46 ScanStr(&+0xac)）
-            if (flag)
-            {
-                break;  // ORIG 089aef9a：flag → jmp +0xb8cd 收尾
-            }
-        }
-        else if (line == "[emancipate ticket]")
-        {
-            // ORIG 089aefbb..089aeff1：movb $1,0x10e；ScanInt(&ok)→(short)+0x394；
-            // 其后 if(!ok) continue 的物化检查（双 landing pad +0x76/+0x7f，
-            // 两向均回主循环——逐指令转写需要保留该语句）。
-            script->m_field10e = 1;
-            script->m_394 = static_cast<unsigned short>(ScanInt(&ok));
-            if (!ok)
-            {
-                continue;
-            }
-        }
-        else if (line == "[equipment reinforcement ticket]")
-        {
-            // ORIG 089aeff6..089af080：movb $1,0x396；ScanInt→0x398(short)；
-            // ScanInt→0x39a(byte)；!ok 任一 → return false。
-            script->m_396 = 1;
-            script->m_398 = static_cast<unsigned short>(ScanInt(&ok));
-            if (!ok)
-            {
-                return false;
-            }
-            script->m_39a = static_cast<char>(ScanInt(&ok));
-            if (!ok)
-            {
-                return false;
-            }
-        }
-        else if (line == "[check usable itemlevel]")
-        {
-            // ORIG 089af081..089af107：两 ScanInt 写 +0x43c/+0x440；任一失败 return false；
-            // 成功 movb $1,0x438。
-            script->m_pair43c.first = ScanInt(&ok);
-            if (!ok)
-            {
-                return false;
-            }
-            script->m_pair43c.second = ScanInt(&ok);
-            if (!ok)
-            {
-                return false;
-            }
-            script->m_438 = 1;
-        }
-        else if (line == "[passive object in stackable]")
-        {
-            // ORIG 089af108..089af1ce：局部 STPassiveObjectInStackable 反复 5×ScanInt
-            // （+0x00..+0x10；仅每轮首值失败即跳出），成功后 push_back 到 m_passive208
-            // （call 089c6f9e = vector::push_back；+0x208 元素 sizeof 0x10）。
-            // 089af126：段内局部 bool ok2 先置 true，5 次 ScanInt 全部传 &ok2。
-            bool ok2 = true;
-            STPassiveObjectInStackable obj;
-            for (;;)
-            {
-                obj.m_field0 = ScanInt(&ok2);
-                if (!ok2)
-                {
-                    break;
-                }
-                // ORIG 089af163..089af1ad：首值失败才结束本段；后四次
-                // ScanInt 的返回值直接写入对象，不检查 ok2（实参仍是 &ok2）。
-                obj.m_field4 = ScanInt(&ok2);
-                obj.m_field8 = ScanInt(&ok2);
-                obj.m_fieldC = ScanInt(&ok2);
-                obj.m_field10 = ScanInt(&ok2);
-                script->m_passive208.push_back(obj);
-            }
-        }
-        else if (line == "[equipment amplify reinforcement ticket]")
-        {
-            // ORIG 089af1d3..089af25a：movb $1,0x39b；ScanInt→0x39c；
-            // ScanInt→0x3a0(byte)；!ok 任一 return false。
-            script->m_39b = 1;
-            script->m_39c = ScanInt(&ok);
-            if (!ok)
-            {
-                return false;
-            }
-            script->m_3a0 = static_cast<char>(ScanInt(&ok));
-            if (!ok)
-            {
-                return false;
-            }
-        }
-        else if (line == "[amplification random value]")
-        {
-            // ORIG 089af25b..089af34e：movb $1,0x3a1 后循环 {v1=ScanInt(!ok break);
-            // v2=ScanInt(!ok break); m_map3a4.insert(pair(v1,v2))}。
-            script->m_3a1 = 1;
-            for (;;)
-            {
-                int v1 = ScanInt(&ok);
-                if (!ok)
-                {
-                    break;
-                }
-                int v2 = ScanInt(&ok);
-                if (!ok)
-                {
-                    break;
-                }
-                script->m_map3a4.insert(std::make_pair(v1, v2));
-            }
-            // ORIG 089af339..089af34b：循环出口后的 ok 物化检查（两向均 continue）。
-            if (!ok)
-            {
-                continue;
-            }
-        }
-        else if (line == "[/amplification random value]")
-        {
-            // ORIG 089af350..089af36a：无操作，继续主循环。
-        }
-        else
-        {
-    static std::map<char const*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-    int tag;
-    for (;;)
-    {
-        if (__inited)
-        {
-            std::map<char const*, int, less_TCHAR>::const_iterator it = __lookup.find(line.c_str());
-            tag = (it != __lookup.end()) ? it->second : -1;
-        }
-        else
-        {
-            __init_lock.enter();
-            if (__inited)
-            {
-                __init_lock.leave();
-                continue;
-            }
-            tag = 0;
-        }
-        switch (tag)
-        {
-            case 0:
-            case 0x2064:  // "[name2]"
-
-
-                if (!__inited)
-                {
-                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[name2]", 0x2064));
-                }
-                else
-                {
-    ScanStr(&script->m_strb0);
-    break;
-                }
-            case 0x2067:  // "[explain]"
-                if (!__inited)
-                {
-                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[explain]", 0x2067));
-                }
-                else
-                {
-    ScanStr(&script->m_strb4);
-    break;
-                }
-            case 0x206b:  // "[explain2]"
-                if (!__inited)
-                {
-                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[explain2]", 0x206b));
-                }
-                else
-                {
-    ScanStr(&script->m_strb4);
-    break;
-                }
-            case 0x206f:  // "[flavor text]"
-                if (!__inited)
-                {
-                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[flavor text]", 0x206f));
-                }
-                else
-                {
-    ScanStr(&script->m_strb8);
-    break;
-                }
-            case 0x2072:  // "[grade]"
-                if (!__inited)
-                {
-                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[grade]", 0x2072));
-                }
-                else
-                {
-    script->m_field4 = ScanInt((bool*)0);
-    break;
-                }
-            case 0x2075:  // "[attach type]"
-                if (!__inited)
-                {
-                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[attach type]", 0x2075));
-                }
-                else
-                {
-{
-    ScanStr(&token);
-    static std::map<char const*, int, less_TCHAR> __lookup_0;
-    static SpinLock __init_lock_0;
-    static bool __inited_0 = false;
-    int sub;
-    for (;;)
-    {
-        if (__inited_0)
-        {
-            std::map<char const*, int, less_TCHAR>::const_iterator it0 = __lookup_0.find(token.c_str());
-            sub = (it0 != __lookup_0.end()) ? it0->second : -1;
-        }
-        else
-        {
-            __init_lock_0.enter();
-            if (__inited_0)
-            {
-                __init_lock_0.leave();
-                continue;
-            }
-            sub = 0;
-        }
-        switch (sub)
-        {
-            case 0:
-            case 0x2079:  // "[free]"
-                if (!__inited_0)
-                {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[free]", 0x2079));
-                }
-                else
-                {
-    script->m_field8 = 0x0; break;   // "[free]"
-                }
-            case 0x207c:  // "[trade]"
-                if (!__inited_0)
-                {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[trade]", 0x207c));
-                }
-                else
-                {
-    script->m_field8 = 0x1; break;   // "[trade]"
-                }
-            case 0x207f:  // "[trade delete]"
-                if (!__inited_0)
-                {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[trade delete]", 0x207f));
-                }
-                else
-                {
-    script->m_field8 = 0x2; break;   // "[trade delete]"
-                }
-            case 0x2082:  // "[sealing]"
-                if (!__inited_0)
-                {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[sealing]", 0x2082));
-                }
-                else
-                {
-    script->m_field8 = 0x3; break;   // "[sealing]"
-                }
-            case 0x2085:  // "[account]"
-                if (!__inited_0)
-                {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[account]", 0x2085));
-                }
-                else
-                {
-    script->m_field8 = 0x5; break;   // "[account]"
-                }
-            case 0x2089:  // "[trade limit]"
-                if (!__inited_0)
-                {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[trade limit]", 0x2089));
-                }
-                else
-                {
-    script->m_field8 = 0x7; break;   // "[trade limit]"
-                }
-            default:
-    break;
-        }
-        if (__inited_0)
-        {
-            break;
-        }
-        __init_lock_0.leave();
-        __inited_0 = true;
-    }
+#include "STStackableScript/ImportStackableScript.inc"
 }
 break;
                 }
@@ -4671,82 +4156,5 @@ break;
 // [b28d-solo-STStackableScript] AE（172=172）：local_d 由 char 改 bool（P136/P32：
 // bool 源→bool 字段直存，char 源恒多 `cmpb $0; setne`），`local_15 != true`
 // 改 `!local_15`（ORIG 089ae947 `movzbl; xor $1; test; je` = N122 取反形）。
-bool StackableScriptSpecialMonsterDrop(STStackableScript* script,
-                                       std::string str, const char* path)
-{
-    // ORIG 0x89ae906（Ghidra C 逐句转写）：
-    // 局部：bool local_15、std::string local_14、char local_d。
-    // "[special monster drop]"：local_15=false → ScanInt(&local_15) 返回 int iVar3 →
-    //   local_d = (iVar3 != 0)；若 local_15 != true 返回 false；否则
-    //   m_specialDrop.m_enable = local_d。
-    // "[difficulty for extra drop]" / "[dungeon type for extra drop]"：循环 ScanStr，
-    //   命中标签置对应 flag（+0x106..+0x10a 难度 / +0x10b..+0x10d 类型），
-    //   "[all]" memset 5 / 3 字节。其余输入返回 true。
-    (void)path;
-    std::string local_14;
-    bool local_15;
-    bool local_d;
-    if (str == "[special monster drop]")
-    {
-        local_15 = false;
-        local_d = ScanInt(&local_15) != 0;
-        if (!local_15)
-        {
-            return false;
-        }
-        script->m_specialDrop.m_enable = local_d;
-    }
-    else if (str == "[difficulty for extra drop]")
-    {
-        while (ScanStr(&local_14))
-        {
-            if (local_14 == "[easy]")
-            {
-                script->m_specialDrop.m_difficulty[0] = 1;
-            }
-            else if (local_14 == "[medium]")
-            {
-                script->m_specialDrop.m_difficulty[1] = 1;
-            }
-            else if (local_14 == "[hard]")
-            {
-                script->m_specialDrop.m_difficulty[2] = 1;
-            }
-            else if (local_14 == "[ultimate]")
-            {
-                script->m_specialDrop.m_difficulty[3] = 1;
-            }
-            else if (local_14 == "[hero]")
-            {
-                script->m_specialDrop.m_difficulty[4] = 1;
-            }
-            else if (local_14 == "[all]")
-            {
-                memset(script->m_specialDrop.m_difficulty, 1, 5);
-            }
-        }
-    }
-    else if (str == "[dungeon type for extra drop]")
-    {
-        while (ScanStr(&local_14))
-        {
-            if (local_14 == "[normal]")
-            {
-                script->m_specialDrop.m_dungeonType[0] = 1;
-            }
-            else if (local_14 == "[ancient]")
-            {
-                script->m_specialDrop.m_dungeonType[1] = 1;
-            }
-            else if (local_14 == "[dimension]")
-            {
-                script->m_specialDrop.m_dungeonType[2] = 1;
-            }
-            else if (local_14 == "[all]")
-            {
-                memset(script->m_specialDrop.m_dungeonType, 1, 3);
-            }
-        }
-    }
-    return true;
+#include "STStackableScript/StackableScriptSpecialMonsterDrop.inc"
 }

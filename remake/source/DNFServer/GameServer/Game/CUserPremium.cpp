@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CUserPremium/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r Game/ CUserPremium 实现（独立 TU）。
 // 声明以 CUser.h 为准；ORIG 字段已全部具名化（m_entries / m_additionalBase /
 // m_additionalInfo 等，见 CUser.h 的 WongWork::CUserPremium），本 TU 不再使用
@@ -161,41 +171,11 @@ struct stPremiumTable_t
 };  // 总计 0x130
 typedef char stpremiumtable_size_0x130[(sizeof(stPremiumTable_t) == 0x130) ? 1 : -1];
 
-stPremiumTable_t::stPremiumTable_t() {}
+#include "CUserPremium/stPremiumTable_t.inc"
 
-stPremiumTable_t::~stPremiumTable_t() {}
+#include "CUserPremium/dtor_stPremiumTable_t.inc"
 
-void stPremiumTable_t::clean()
-{
-    // ORIG 0x891ae68：清零顺序照抄（循环 applyDayMask=-1 在前，随后
-    // kind/checkTerm/overSkillLevel/cerashopDiscountRate/useTargetServer/
-    // expireTime/unlimitFatigue/fatigueRate/coin/expRate/advantageItems/
-    // goldBonus/overEquipCount/overEquipPairs/returnItemCount/returnItemPairs/
-    // hpMax..field118/bonusExp/questItemDropRate/dropRates/targetItemKey/premiumItems）。
-    for (int i = 0; i <= 6; ++i)
-        m_applyDayMask[i] = -1;
-    m_kind = 0;
-    m_checkTerm = 0;
-    m_overSkillLevel = 0;
-    m_cerashopDiscountRate = 0;
-    m_useTargetServer = 0;
-    m_expireTime = 0;
-    m_unlimitFatigue = 0;
-    m_fatigueRate = 0;
-    m_coin = 0;
-    m_expRate = 0;
-    memset(m_advantageItems, 0, sizeof(m_advantageItems));
-    m_goldBonus = 0;
-    m_overEquipCount = 0;
-    memset(m_overEquipPairs, 0, sizeof(m_overEquipPairs));
-    m_returnItemCount = 0;
-    memset(m_returnItemPairs, 0, sizeof(m_returnItemPairs));
-    memset(&m_hpMax, 0, 0x54);
-    m_bonusExp = 0;
-    m_questItemDropRate = 0;
-    m_independentDropRates.clear();
-    m_targetItemKey = 0;
-    m_premiumItems.clear();
+#include "CUserPremium/clean.inc"
 }
 
 // ORIG 全局容器（变量名不 mangle，符号与 B 0x0948b180/0x0948b18c 一致）
@@ -215,536 +195,7 @@ std::vector<SPremiumReturnItemInfo> g_vecPremiumReturnItemInfo;
 // token/value/ok 在 -0x74/-0x78/-0x79 而 4.4 给 -0x6c/-0x70/-0x71（全帧 8 字节
 // 平移）、cur/equipCase/i 相对序相反，以及各 `cur->m_X = ScanInt()` 点的值/地址
 // 寄存器角色互换（N7）⇒ N93/N98/N82 封顶，语义与调用点差集均已闭合。
-int importPremiumList(const char* path,
-                      stPremiumTable_t* table,
-                      std::vector<SPremiumOverEquipableInfo>& overVec,
-                      std::vector<SPremiumReturnItemInfo>& returnVec)
-{
-    if (!loadRDARScriptFile("", path))
-        return 0x14a6;
-
-    std::string token;
-    std::string value;
-    // [b28d-solo-CUserPremium] P171/P232：ORIG +0x45 `movl $0x0,-0x6c(%ebp)`
-    // 全函数唯一一次写、无读（死局部占帧）⇒ 照抄。
-    int deadLocal = 0;
-    bool ok = false;
-    // [b28d-solo-CUserPremium] 槽序对齐试形：ORIG cur=-0x68 深于
-    // equipCase=-0x60（4.1 先声明更深）⇒ 把 cur 的**声明**提到 equipCase
-    // 之前（无初始化），赋值仍留在 clean 循环之后（ORIG +0x7c 才写 cur）。
-    stPremiumTable_t* cur;
-    // ORIG i=-0x64 介于 cur(-0x68) 与 equipCase(-0x60) 之间 ⇒ 同法提头。
-    int i;
-    // ORIG -0x60 槽：跨组保留的标签分类值（未知标签时写入残留值）；ORIG 头段
-    // 无 `movl $0,-0x60` ⇒ 原码声明处不带初始化。
-    int equipCase;
-
-    for (i = 0; i <= 0x69; ++i)
-        table[i].clean();
-
-    cur = table;
-
-    while (true)
-    {
-        if (!ScanType(token, true))
-            return 0;
-
-        if (token == "[overequip list]")
-        {
-            SPremiumOverEquipableInfo elem;
-            memset(&elem, 0, sizeof(elem));
-            overVec.push_back(elem);
-            while (true)
-            {
-                elem.m_count = ScanInt(&ok);
-                if (!ok)
-                    break;
-                for (int j = 0; elem.m_count > j; ++j)
-                {
-                    if (!ScanStr(&value))
-                        return 0x14c5;
-                    if (value == "[hat avatar]")          equipCase = 0x0;
-                    else if (value == "[hair avatar]")     equipCase = 0x1;
-                    else if (value == "[face avatar]")     equipCase = 0x2;
-                    else if (value == "[coat avatar]")     equipCase = 0x3;
-                    else if (value == "[pants avatar]")    equipCase = 0x4;
-                    else if (value == "[shoes avatar]")    equipCase = 0x5;
-                    else if (value == "[breast avatar]")   equipCase = 0x6;
-                    else if (value == "[waist avatar]")    equipCase = 0x7;
-                    else if (value == "[skin avatar]")     equipCase = 0x8;
-                    else if (value == "[aurora avatar]")   equipCase = 0x9;
-                    else if (value == "[weapon]")          equipCase = 0xa;
-                    else if (value == "[title name]")      equipCase = 0xb;
-                    else if (value == "[coat]")            equipCase = 0xc;
-                    else if (value == "[shoulder]")        equipCase = 0xd;
-                    else if (value == "[pants]")           equipCase = 0xe;
-                    else if (value == "[shoes]")           equipCase = 0xf;
-                    else if (value == "[waist]")           equipCase = 0x10;
-                    else if (value == "[amulet]")          equipCase = 0x11;
-                    else if (value == "[wrist]")           equipCase = 0x12;
-                    else if (value == "[ring]")            equipCase = 0x13;
-                    else if (value == "[support]")         equipCase = 0x14;
-                    else if (value == "[magic stone]")     equipCase = 0x15;
-                    elem.m_slots[j] = (ENUM_OVER_EQUIP_SLOT)equipCase;
-                }
-                overVec.push_back(elem);
-            }
-            continue;
-        }
-
-        if (token == "[returnitem list]")
-        {
-            // [b28d-solo-CUserPremium] P171/P232 死局部照抄：ORIG 0x08906221
-            // `movl $0x0,-0x58(%ebp)`（memset 之前）是全函数对该槽唯一一次
-            // 访问，之后无读（grep -0x58(%ebp) 仅此一条）⇒ 原码分支头遗留
-            // 的未使用 int 局部；缺它少 1 条指令。
-            int deadSlot = 0;
-            SPremiumReturnItemInfo elem;
-            memset(&elem, 0, sizeof(elem));
-            returnVec.push_back(elem);
-            while (true)
-            {
-                elem.m_count = ScanInt(&ok);
-                if (!ok)
-                    break;
-                for (int k = 0; elem.m_count > k; ++k)
-                {
-                    elem.m_items[k] = ScanInt(&ok);
-                    if (!ok)
-                        return 0x1512;
-                }
-                returnVec.push_back(elem);
-            }
-            continue;
-        }
-
-        if (token == "[type]")
-        {
-            int idx = ScanInt((bool*)0);
-            if (idx > 0x69)
-                return 0x151b;
-            cur = table + idx;
-            continue;
-        }
-
-        if (token == "[name]")
-        {
-            if (!ScanStr(&value))
-                return 0x1520;
-            cur->m_name = value;
-            continue;
-        }
-
-        if (token == "[attr]")
-        {
-            if (!ScanStr(&value))
-                return 0x1525;
-            if (value == "[term]")
-            {
-                cur->m_kind = 2;
-                continue;
-            }
-            if (value == "[bonus]")
-            {
-                cur->m_kind = 1;
-                continue;
-            }
-            return 0x152b;
-        }
-
-        if (token == "[term]")
-        {
-            cur->m_checkTerm = ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[expire time]")
-        {
-            cur->m_expireTime = ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[items]")
-        {
-            // [b28d-solo-CUserPremium] P0/P198①：ORIG 0x0890646f 分支头三连
-            // `movl $0x0,-0x4c/-0x48/-0x44`（itemIdx/cnt/n 三个具名局部声明即
-            // 置零、循环内仅赋值）⇒ 提至分支头、循环体只赋值。
-            int itemIdx = 0;
-            int cnt = 0;
-            int n = 0;
-            for (;;)
-            {
-                itemIdx = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cnt = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cur->m_advantageItems[n].first = itemIdx;
-                cur->m_advantageItems[n].second = cnt;
-                ++n;
-            }
-            continue;
-        }
-
-        if (token == "[fatigue]")
-        {
-            cur->m_fatigueRate = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[unlimit fatigue]")
-        {
-            cur->m_unlimitFatigue = (ScanInt((bool*)0) == 1);
-            continue;
-        }
-
-        if (token == "[bonus exp]")
-        {
-            cur->m_bonusExp = ScanInt(&ok);
-            if (!ok)
-                return 0;  // ORIG 怪癖（0x8906f2d）：此处扫描失败按成功返回 0
-            continue;
-        }
-
-        if (token == "[quest item drop rate]")
-        {
-            cur->m_questItemDropRate = ScanInt(&ok);
-            if (!ok)
-                return 0;  // 同上怪癖
-            continue;
-        }
-
-        if (token == "[independent drop rate]")
-        {
-            // [b28d-solo-CUserPremium] P0/P211：ORIG +0x842 rate 局部为 **int**
-            // （for-init `movl $0x0,-0x40` 在头、for-incr `movl $0x0,-0x40` 在尾
-            // +0x883）；push_back 处 `mov -0x40,%eax; mov %eax,-0x70` 转换临时
-            // ⇒ 原码 `push_back(rate)` 由 int→unsigned int 产生右值临时，选中
-            // `push_back(unsigned int&&)`（EOj）。旧 `unsigned int rate` +
-            // static_cast<unsigned int&&> 无 -0x70 临时且尾无 re-init。
-            for (int rate = 0; ; rate = 0)
-            {
-                rate = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cur->m_independentDropRates.push_back(rate);
-            }
-            continue;
-        }
-
-        if (token == "[exp]")
-        {
-            cur->m_expRate = ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[coin]")
-        {
-            cur->m_coin = ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[gold bonus]")
-        {
-            ScanStr(&value);  // ORIG 不检查返回值（0x890669c 无判空）
-            if (value == "[true]")
-            {
-                cur->m_goldBonus = 1;
-                continue;
-            }
-            if (value == "[false]")
-            {
-                cur->m_goldBonus = 0;
-                continue;
-            }
-            return 0x156d;
-        }
-
-        if (token == "[over skill]")
-        {
-            cur->m_overSkillLevel = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[cerashop discount rate]")
-        {
-            cur->m_cerashopDiscountRate = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[apply target server]")
-        {
-            if (!ScanStr(&value))
-                return 0x1583;
-            if (value == "self")
-            {
-                cur->m_useTargetServer = 1;
-                continue;
-            }
-            if (value == "all")
-            {
-                cur->m_useTargetServer = 0;
-                continue;
-            }
-            return 0x1588;
-        }
-
-        if (token == "[over equipinfo]")
-        {
-            // [b28d-solo-CUserPremium] P212/P198①：ORIG 0x089067f7..0x08906805
-            // 分支头三连置零 `movl $0x0,-0x3c/-0x38/-0x34`，且 -0x3c 全函数
-            // 仅此一次写、无读（P171/P232 死局部）；-0x38/-0x34 为 cnt/itemId
-            // （声明即置零、循环内仅赋值）。旧形把 itemId/cnt 写在循环内直接
-            // 初始化，缺三条置零指令。
-            int deadSlot2 = 0;
-            int cnt = 0;
-            int itemId = 0;
-            cur->m_overEquipCount = ScanInt((bool*)0);
-            if (cur->m_overEquipCount > 5)
-                return 0x1591;
-            for (int m = 0; cur->m_overEquipCount > m; ++m)
-            {
-                itemId = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cnt = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cur->m_overEquipPairs[m].first = itemId;
-                cur->m_overEquipPairs[m].second = cnt;
-            }
-            continue;
-        }
-
-        if (token == "[return iteminfo]")
-        {
-            // [b28d-solo-CUserPremium] P212/P198①：ORIG 0x089068cb..0x089068d9
-            // 分支头三连置零 `movl $0x0,-0x2c/-0x28/-0x24`（slot/cnt/itemId）
-            // **先于** 0x089068e0 的 ScanInt(m_returnItemCount)；旧形在循环内
-            // 直接初始化 itemId/cnt，缺三条置零。
-            int slot = 0;
-            int cnt = 0;
-            int itemId = 0;
-            cur->m_returnItemCount = ScanInt((bool*)0);
-            if (cur->m_returnItemCount > 3)
-                return 0x15a6;
-            for (int n = 0; cur->m_returnItemCount > n; ++n)
-            {
-                if (slot > 2)
-                    return 0x15aa;
-                itemId = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cnt = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cur->m_returnItemPairs[slot].first = itemId;
-                cur->m_returnItemPairs[slot].second = cnt;
-                ++slot;
-            }
-            continue;
-        }
-
-        if (token == "[apply date]")
-        {
-            // ORIG 0x089069bc d=-0x18、0x089069ce v=-0x1c（4.1 先声明更深）；
-            // 4.4 按 for-init 先声明给 d 更深槽 ⇒ 把 v 提到循环外先声明
-            // （无初始化，ORIG 循环头无 v 置零），d 留在 for init。
-            int v;
-            for (int d = 0;; ++d)
-            {
-                v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                cur->m_applyDayMask[d] = v;
-            }
-            continue;
-        }
-
-        if (token == "[HP MAX]")
-        {
-            cur->m_hpMax = ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[MP MAX]")
-        {
-            cur->m_mpMax = ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[physical attack]")
-        {
-            cur->m_physicalAttack = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[physical defense]")
-        {
-            cur->m_physicalDefense = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[magical attack]")
-        {
-            cur->m_magicalAttack = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[magical defense]")
-        {
-            cur->m_magicalDefense = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[fire resistance]")
-        {
-            cur->m_fireResistance = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[water resistance]")
-        {
-            cur->m_waterResistance = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[dark resistance]")
-        {
-            cur->m_darkResistance = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[light resistance]")
-        {
-            cur->m_lightResistance = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[inventory limit]")
-        {
-            cur->m_inventoryLimit = ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[HP regen speed]")
-        {
-            cur->m_hpRegenSpeed = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[MP regen speed]")
-        {
-            cur->m_mpRegenSpeed = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[move speed]")
-        {
-            cur->m_moveSpeed = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[attack speed]")
-        {
-            cur->m_attackSpeed = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[cast speed]")
-        {
-            cur->m_castSpeed = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[hit recovery]")
-        {
-            cur->m_hitRecovery = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[jump power]")
-        {
-            cur->m_jumpPower = (unsigned short)ScanInt((bool*)0);
-            continue;
-        }
-
-        if (token == "[target item]")
-        {
-            // [b28d-solo-CUserPremium] P0：ORIG 0x08906f1a 该分支自带
-            // `movl $0x0,-0x14` + `movb $0x0,-0x7a` 两槽（int v 与分支局部
-            // bool），与 [item] 分支的 -0x7b bool 各占独立槽——原码是两个
-            // 分支各自的局部，非函数头单例 itemOk。
-            int v = 0;
-            bool itemOk = false;
-            v = ScanInt(&itemOk);
-            if (!itemOk)
-                return 0;  // ORIG 怪癖（0x8906f2c）：失败按成功返回 0
-            cur->m_targetItemKey = (unsigned int)v;
-            continue;
-        }
-
-        if (token == "[item]")
-        {
-            // [b28d-solo-CUserPremium] P0：ORIG 0x08906f0a `movb $0x0,-0x7b`
-            // 先于 item 的 C1（0x08906f0f），且循环内 [term]/[restrict] 复用
-            // 同一槽 ⇒ 分支局部 bool 声明在 item 之前。
-            bool itemOk = false;
-            premium_script_parsing::STPremiumItemData item;
-            item.m_key = (unsigned int)ScanInt(&itemOk);
-            if (!itemOk)
-                return 0x15fb;
-            while (true)
-            {
-                if (!ScanType(token, true))
-                    return 0x1600;
-                if (token == "[term]")
-                {
-                    // [b28d-solo-CUserPremium] 真缺口修正：ORIG 0x08906e77..
-                    // 0x08906ea3 是**分支内循环**——成功写字段后 `jmp 08906e77`
-                    // 回分支头继续 ScanInt，失败才 `jmp 08906e3c` 回 ScanType。
-                    // 旧单次形（处理一个值就 continue 回 ScanType）在
-                    // 「[term] v1 v2」或连续多个 [term] 的脚本上语义不同
-                    // （多消费一次 ScanType / 丢后续值）。Ghidra C 段同证：
-                    // `while(1){ local_14=0; local_14=ScanInt(&ok); if(!ok) break;
-                    //  item.m_termFlag=(uchar)local_14; }`。
-                    while (true)
-                    {
-                        int v = 0;
-                        v = ScanInt(&itemOk);
-                        if (!itemOk)
-                            break;
-                        item.m_termFlag = (unsigned char)v;
-                    }
-                    continue;
-                }
-                if (token == "[restrict]")
-                {
-                    // ORIG 0x08906ebc..0x08906ee2：与 [term] 同构的内循环
-                    // （成功 `jmp 08906ebc` 回分支头，失败 `jmp 08906e3c`）。
-                    while (true)
-                    {
-                        int v = 0;
-                        v = ScanInt(&itemOk);
-                        if (!itemOk)
-                            break;
-                        item.m_restrictFlag = (unsigned char)v;
-                    }
-                    continue;
-                }
-                if (token == "[/item]")
-                {
-                    cur->m_premiumItems.push_back(item);
-                    break;
-                }
-                // 其余 token：继续扫描（ORIG 8906f02 → 重入 ScanType）
-            }
-            continue;
-        }
-
-        // 未知顶层 token：跳过继续（ORIG 比较链全部落空 → 回循环头）
-    }
+#include "CUserPremium/importPremiumList.inc"
 }
 
 namespace WongWork
@@ -764,75 +215,29 @@ namespace WongWork
 //   0x864 m_overEquipableLevel[0x58]  0x8bc m_field8bc   0x8bd m_additionalBase   0x90f m_additionalInfo
 //   0x964 m_returnItemMap（ORIG 为 std::map<int,int>；真实成员，C1/D1 自动管理）
 // ---------------------------------------------------------------------------
-unsigned short CUserPremium::getOverSkillLevel() const
-{
-    return m_overSkillLevel;
+#include "CUserPremium/getOverSkillLevel.inc"
 }
 
-int CUserPremium::GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const
-{
-    // ORIG：0x4(%eax,%edx,4) 且 edx = type+0x218 → this+0x864+4*type（additionalInfo[type]）
-    return m_overEquipableLevel[(int)type];
+#include "CUserPremium/GetOverEquipableLevel.inc"
 }
 
-int CUserPremium::GetAdvantageExpRate() const
-{
-    return m_outExpRate;
+#include "CUserPremium/GetAdvantageExpRate.inc"
 }
 
-unsigned short CUserPremium::GetAdvantageFatigueRate() const
-{
-    return m_outFatigueRate;
+#include "CUserPremium/GetAdvantageFatigueRate.inc"
 }
 
-int CUserPremium::GetAdvPremiumCount() const
-{
-    return m_normalCount;
+#include "CUserPremium/GetAdvPremiumCount.inc"
 }
 
 // ORIG W 0x0863bd5c：*(int*)(this+0x848) + *(int*)(this+0x84c)
-int CUserPremium::GetTotalPremiumCount() const
-{
-    return m_normalCount
-         + m_restrictedCount;
+#include "CUserPremium/GetTotalPremiumCount.inc"
 }
 
-void CUserPremium::InitPremium()
-{
-    // ORIG：memset(this, 0, 0x848) —— 前缀 + entries
-    memset(m_entries, 0, sizeof(m_entries));
-    m_normalCount = 0;                // normalCount
-    m_restrictedCount = 0;                // restrictedCount
-    m_outFatigueRate = 0;              // outFatigueRate
-    m_outPremiumCount = 0;                // outPremiumCount
-    m_outExpRate = 0;                // outExpRate
-    m_overEquipFlag = false;                        // overEquipFlag
-    m_overSkillLevel = 0;              // overSkillLevel
-    m_ceraDiscountRate = 0;                  // +0x860（field860）
-    m_field862 = 0;                          // +0x862（field862）
-    // ORIG 0x86ad9e8 序：memset(+0x864,0x58) → +0x8bc → clear(0x8bd) →
-    // clear(0x90f) → map.clear；_Additioal_info 走 **clear() 调用**（W 符号），
-    // 非 memset（后者使 4.4 展开/直调 memset，与 ORIG call 形不符）
-    memset(m_overEquipableLevel, 0, sizeof(m_overEquipableLevel));  // +0x864
-    m_field8bc = 0;                                                 // +0x8bc
-    m_additionalBase.clear();                                       // +0x8bd
-    m_additionalInfo.clear();                                       // +0x90f
-    m_returnItemMap.clear();                                        // +0x964
+#include "CUserPremium/InitPremium.inc"
 }
 
-void CUserPremium::AddPremium(int type, int start, int end, int flag)
-{
-    // ORIG 0x86adad2：每个字段读写独立重算 this+type*0x14 链（T-C9-1，
-    // 无 entry/def 指针缓存）；m_applyDayMask[0] 直读 +0xac。
-    if (m_entries[type].m_type != 0)
-        RemovePremium(type);
-    m_entries[type].m_type = type;
-    m_entries[type].m_start = start;
-    m_entries[type].m_end = end;
-    m_entries[type].m_flag = flag;
-    if (g_SPremiumInfo[type].m_applyDayMask[0] != -1)
-        m_field862 = 1;
-    startPremium(type, true);
+#include "CUserPremium/AddPremium.inc"
 }
 
 // [b28d-solo-CUserPremium] P309 + 早返尾形（b28d 复测）：ORIG 0x086adba6 两处
@@ -846,56 +251,10 @@ void CUserPremium::AddPremium(int type, int start, int end, int flag)
 // if/else 形 4.4 令末臂直落（缺第二 jmp）⇒ 已由本形取代。
 // 终判（b28d-solo-CUserPremium，routed 口径）：IDENTICAL 59/59（ndiff 0）、
 // P167 CLEAR（2/2）。
-void CUserPremium::RemovePremium(int type)
-{
-    // ORIG 0x86adba6：计数递减走 std::max<int>(zero, dec) 调用形（两临时
-    // 槽分支各独立，非三目）；链全重算。
-    // P309：声明序 = ORIG 槽浅→深（勿改序，否则槽位回退）。
-    int zero2;
-    int dec2;
-    int zero1;
-    int dec1;
-    if (m_entries[type].m_state != 2)
-    {
-        m_entries[type].m_type = 0;
-        if (g_SPremiumInfo[type].m_kind == 1)
-        {
-            dec1 = m_normalCount + -1;
-            zero1 = 0;
-            m_normalCount = std::max(zero1, dec1);
-            return;
-        }
-        dec2 = m_restrictedCount + -1;
-        zero2 = 0;
-        m_restrictedCount = std::max(zero2, dec2);
-        return;
-    }
-    return;
+#include "CUserPremium/RemovePremium.inc"
 }
 
-bool CUserPremium::startPremium(int type, bool force)   // 0x086adc6a；调用点 xor $0x1 ⇒ bool（Main 代落 CUser.h 同步）
-{
-    // ORIG 0x86adc6a：无 entry/def 缓存；state/start/end 各独立
-    // this+type*0x14 链，checkTerm/kind 直读 g_SPremiumInfo 表（T-C9-1）
-    if (!force && m_entries[type].m_state != 2)
-        return 0;
-    int curTime = GlobalData::s_systemTime_.getCurSec();
-    if (g_SPremiumInfo[type].m_checkTerm != 0)
-    {
-        if (curTime < m_entries[type].m_start)
-        {
-            m_entries[type].m_state = 2;
-            return 0;
-        }
-        if (m_entries[type].m_end <= curTime)
-            return 0;
-    }
-    if (g_SPremiumInfo[type].m_kind == 1)
-        ++(m_normalCount);
-    else
-        ++(m_restrictedCount);
-    m_entries[type].m_state = 1;
-    return 1;
+#include "CUserPremium/startPremium.inc"
 }
 
 // [b28d-solo-CUserPremium] 修法（P167/P0/P211/P214①/P254）：
@@ -909,140 +268,7 @@ bool CUserPremium::startPremium(int type, bool force)   // 0x086adc6a；调用�
 //   中转（P254）。
 // 终判（b28d 复测）：IDENTICAL 482/482（ndiff 0，gap 0，槽位集全等），
 // P167 CLEAR（23/23）——旧判词「余 3 处 N18a/N-86b 封顶」已由④推翻。
-void CUserPremium::ReCalcAdvantage()
-{
-    // ORIG 0x086ae10e（O=487）：形态按 T-C9-1 全去缓存——g_SPremiumInfo[type]
-    // 链（type*0x120=(t*9)<<5）与 m_entries[slot]（slot*0x14）在每个字段读取点
-    // 独立重算（ORIG +0x142/0x1bc/0x1ee/0x237/0x283...每处 11-14 条），不使用
-    // def/groupDef/entries 指针局部。清零段：0x850(movw)/0x854/0x858/0x85c/
-    // 0x8bc/memset(0x864,0x58)/clear×2/map.clear/0x85e/0x860。
-    m_outFatigueRate = 0;
-    m_outPremiumCount = 0;
-    m_outExpRate = 0;
-    m_overEquipFlag = false;
-    m_field8bc = 0;
-    memset(m_overEquipableLevel, 0, sizeof(m_overEquipableLevel));
-    m_additionalBase.clear();
-    m_additionalInfo.clear();
-    m_returnItemMap.clear();
-    m_overSkillLevel = 0;
-    m_ceraDiscountRate = 0;
-
-    // [b28d-solo-CUserPremium] P0：ORIG 只有 nowT 一槽（`mov %eax,-0x3c(%ebp)`
-    // 后直接 lea 传址）；具名 int now 中转多 1 槽 + 1 条 mov（ndiff -3）。
-    time_t nowT = (time_t)GlobalData::s_systemTime_.getCurSec();
-    tm localTm;
-    localtime_r(&nowT, &localTm);
-
-    for (int slot = 1; slot <= 0x69; ++slot)
-    {
-        if (m_entries[slot].m_type == 0)
-            continue;
-        if (g_SPremiumInfo[m_entries[slot].m_type].m_kind != 1)
-            continue;
-        if (m_entries[slot].m_state == 2)
-            continue;
-        if (!_CheckApply(m_entries[slot].m_type, localTm))
-            continue;
-
-        if (g_SPremiumInfo[m_entries[slot].m_type].m_needDailyCheck != 0)
-            m_overEquipFlag = true;
-
-        // +0x85e/+0x860：unsigned short max，ORIG 调用站点 max<unsigned short>
-        // [b28d-solo-CUserPremium] P0：ORIG 对 +0x85e 直接取址（`add $0x85e,%eax`）
-        // 传引用；`static_cast<unsigned short>(字段)` 产生临时槽（movzwl+movw+lea）。
-        m_overSkillLevel =
-            std::max(reinterpret_cast<unsigned short&>(m_overSkillLevel),
-                     g_SPremiumInfo[m_entries[slot].m_type].m_overSkillLevel);
-        m_ceraDiscountRate = std::max(
-            m_ceraDiscountRate,
-            g_SPremiumInfo[m_entries[slot].m_type].m_field5a);
-
-        m_outFatigueRate =
-            (unsigned short)m_outFatigueRate +
-            g_SPremiumInfo[m_entries[slot].m_type].m_fatigueRate;
-        m_outExpRate =
-            m_outExpRate + g_SPremiumInfo[m_entries[slot].m_type].m_expRate;
-        m_outPremiumCount = m_outPremiumCount +
-            g_SPremiumInfo[m_entries[slot].m_type].m_premiumCount;
-        if (g_SPremiumInfo[m_entries[slot].m_type].m_overEquipFlag != 0)
-            m_field8bc = 1;
-
-        // ORIG 组循以 slot（非 type）索引 g_SPremiumInfo（+0x120*(slot) 链
-        // 每次重算，+0x378/+0x42a/+0x4a3/+0x5d1...）；pair 元素 (t*0x24+i+0xc)
-        // *8 链独立。
-        for (int i = 0;
-             i < g_SPremiumInfo[slot].m_field64; ++i)
-        {
-            int j = 0;
-            while (j < (int)g_vecPremiumOverEquipableInfo
-                          .operator[](
-                              g_SPremiumInfo[slot]
-                                  .m_returnPairs68[i]
-                                  .first)
-                          .m_count)
-            {
-                // [b28d-solo-CUserPremium] P167：ORIG 该 body 有**两个**
-                // vector<SPremiumOverEquipableInfo>::operator[] 调用点
-                // （lhs 索引 + max 第一实参各重算一次，无 category 具名局部；
-                // ORIG 共 3 处调用 vs 旧形 2 处 ⇒ MISSING×1）。
-                m_overEquipableLevel[
-                    g_vecPremiumOverEquipableInfo
-                        .operator[](
-                            g_SPremiumInfo[slot].m_returnPairs68[i].first)
-                        .m_slots[j]] =
-                    std::max(
-                        m_overEquipableLevel[
-                            g_vecPremiumOverEquipableInfo
-                                .operator[](
-                                    g_SPremiumInfo[slot].m_returnPairs68[i].first)
-                                .m_slots[j]],
-                        g_SPremiumInfo[slot].m_returnPairs68[i].second);
-                j++;
-            }
-        }
-
-        for (int i = 0;
-             i < g_SPremiumInfo[slot].m_field90; ++i)
-        {
-            int j = 0;
-            while (j < (int)g_vecPremiumReturnItemInfo
-                          .operator[](
-                              g_SPremiumInfo[slot]
-                                  .m_returnPairs94[i]
-                                  .first)
-                          .m_count)
-            {
-                int itemIndex =
-                    g_vecPremiumReturnItemInfo
-                        .operator[](
-                            g_SPremiumInfo[slot].m_returnPairs94[i].first)
-                        .m_items[j];
-                std::map<int, int>::iterator it =
-                    m_returnItemMap.find(itemIndex);
-                if (it == m_returnItemMap.end())
-                {
-                    // [b28d-solo-CUserPremium] P167：ORIG 调 make_pair<int&,int&>
-                    // + pair<const int,int>::C1<int,int>(pair<int,int>&&)（右值
-                    // 转换构造）；旧具名 pair 左值走拷贝版（EXTRA 两符号）。
-                    m_returnItemMap.insert(std::make_pair(itemIndex,
-                        g_SPremiumInfo[slot].m_returnPairs94[i].second));
-                }
-                else
-                {
-                    // [b28d-solo-CUserPremium] P167：ORIG 只发 1 次 ptEv
-                    // （`it->second += x` 复合赋值形）；写成 `it->second =
-                    // it->second + x` 4.4 会发 2 次 ptEv。
-                    it->second +=
-                        g_SPremiumInfo[slot].m_returnPairs94[i].second;
-                }
-                j++;
-            }
-        }
-
-        m_additionalBase +=
-            g_SPremiumInfo[m_entries[slot].m_type].m_additionalInfo;
-    }
+#include "CUserPremium/ReCalcAdvantage.inc"
 }
 
 // [b28d-solo-CUserPremium] N107/N7 封顶（b28d 复测；旧注释地址 0x0830ed48
@@ -1059,32 +285,14 @@ void CUserPremium::ReCalcAdvantage()
 // P167 CLEAR、gap 1/14 ⇒ 语义等价。
 // 本波复测：clean/AE ndiff=7、14 vs 13（唯一缺口 = ORIG `lea 0x10(%eax),%edx;
 // mov %eax,(%edx)` 两段取址 vs 4.4 折 disp），N107 六形探针结论不变 ⇒ 维持封顶。
-void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state)
-{
-    (m_entries + (int)type)->m_state = (int)state;
+#include "CUserPremium/setPremiumState.inc"
 }
 
 // [b28d-solo-CUserPremium] P225 修法：ORIG 0x086ae834 的 mask[0]==-1 分支是
 // `mov $1,%eax; jmp end`（return true 直返，非 ok=true 落槽）；循环为
 // while+break 形（体首 mask==-1 je 出口、尾测 `cmpl $6; setle; test; jne`），
 // 旧 for&& 形使 4.4 折成 `jg` 直跳（缺 setle 物化）。
-bool CUserPremium::_CheckApply(int type, tm t)
-{
-    // ORIG 0x86ae834：结果落 bool 槽 local_9（命中不早退，继续迭代）；
-    // mask 每判定独立全链（无 def 缓存）；+0x18 即 tm_wday。
-    bool ok = false;
-    if (g_SPremiumInfo[type].m_applyDayMask[0] == -1)
-        return true;
-    int i = 0;
-    while (i < 7)
-    {
-        if (g_SPremiumInfo[type].m_applyDayMask[i] == -1)
-            break;
-        if (g_SPremiumInfo[type].m_applyDayMask[i] == t.tm_wday)
-            ok = true;
-        ++i;
-    }
-    return ok;
+#include "CUserPremium/_CheckApply.inc"
 }
 
 // [b28d-solo-CUserPremium] IDENTICAL/AE（routed 口径 check_tu_routed 复验）：
@@ -1092,151 +300,29 @@ bool CUserPremium::_CheckApply(int type, tm t)
 // 实参 IRKm vs IRm ⇒ 定义处形参加 top-level const（P315：const 左值实参令
 // make_pair 推导 IRKm；top-level const 不入函数类型/mangled，声明无需同步）。
 // 终判（b28d-solo-CUserPremium）：IDENTICAL 52/52、P167 CLEAR（6/6）。
-bool CUserPremium::SetPremiumItemData(const unsigned long key, const STPremiumItemData& data)
-{
-    if (key == 0)
-        return 1;
-    // ORIG 0x86af70a：end() 先求值、find 后；未命中走 make_pair(lvalue,lvalue)
-    // 引用对 + converting pair + insert（P123：非 operator[] 形）
-    std::map<unsigned long, STPremiumItemData>::iterator e =
-        g_map_premium_item_data.end();
-    if (g_map_premium_item_data.find(key) == e)
-    {
-        g_map_premium_item_data.insert(std::make_pair(key, data));
-        return 1;
-    }
-    return 0;
+#include "CUserPremium/SetPremiumItemData.inc"
 }
 
-bool CUserPremium::IsRestrictedPremium(int type)  // static（ORIG 0x086af7c4 无 this）
-{
-    return (type >= 60000 && type <= 69999);
+#include "CUserPremium/IsRestrictedPremium.inc"
 }
 
 // [b28d-solo-CUserPremium] 修法（P235/P211）：ORIG 0x086ae8c6 读侧单段
 // `mov (%eax),%edx; shr $0x5,%edx`；改 unsigned int 同型视图
 // （m_maxHP/m_maxMP/m_moveSpeed）直读后 315=315 ndiff=0（旧 int 视图 +
 // static_cast 使 4.4 多发 `mov %eax,%edx`，3 处 ×7 条）。P167 CLEAR（3/3）。
-void CUserPremium::RecalcAdditionalInfo(CUser const* user)
-{
-    if (user->getCurCharacR() == 0 || GetAdvPremiumCount() == 0)
-        return;
-
-    // 残差豁免（O=316/N=325，+9：乘除段个别操作数 4.4 双段物化/单段折叠
-    // 位差，Main 裁决标注不追）。
-    // ORIG（0x086ae8c6）：读侧一律 this+0x8bd（= m_additionalBase），写侧一律
-    // this+0x90f（= m_additionalInfo）——asm 实证 `mov 0x8bd(%eax),%eax` …
-    // `mov %edx,0x90f(%eax)`，Ghidra C 同形。此前把结果写回 +0x8bd 属偏移错配。
-
-    // 0x00/0x04/0x42 的 ORIG 除法使用无符号乘积（mul+shr）；其余 int/short
-    // 分支按汇编的有符号乘除（imul+sar）处理。pack(1) 成员直访保留
-    // +0x3a/+0x42 等非自然对齐字段的 ABI 宽度。
-    // ORIG：getCurCharacAddInfoR 只调用一次并缓存于 ebp-0x10，各语句按
-    // `mov -0x10(%ebp),%eax` + disp 重读（故此处用单局部指针）。
-    const _Additioal_info* addInfo =
-        static_cast<const _Additioal_info*>(user->getCurCharacAddInfoR());
-    // probe p16/m1：4.4 乘法 L2R 求值——ORIG 先 *(addInfo 槽) 后 m_8bd ⇒ 左操作数
-    // 必为 addInfo->field（原写 m_additionalBase 在左=先读 m_8bd，反序）。
-    // [b28d-solo-CUserPremium] P235/P211：ORIG 读侧为单段 `mov (%eax),%edx`
-    // （无 eax→edx 中转）⇒ 源用 unsigned int 同型视图 m_maxHP/m_maxMP/
-    // m_moveSpeed 直读；`static_cast<unsigned int>(int 视图)` 使 4.4 多发
-    // `mov %eax,%edx` 两段（3 处 ×7 条 = ndiff 21）。
-    m_additionalInfo.m_maxHP =
-        addInfo->m_maxHP * m_additionalBase.m_maxHP / 100U;
-    m_additionalInfo.m_maxMP =
-        addInfo->m_maxMP * m_additionalBase.m_maxMP / 100U;
-    m_additionalInfo.m_field08 = static_cast<unsigned short>(
-        (static_cast<int>(addInfo->m_field08) *
-         static_cast<int>(m_additionalBase.m_field08)) / 100);
-    m_additionalInfo.m_field0a = static_cast<unsigned short>(
-        (static_cast<int>(addInfo->m_field0a) *
-         static_cast<int>(m_additionalBase.m_field0a)) / 100);
-    m_additionalInfo.m_field0c = static_cast<unsigned short>(
-        (static_cast<int>(addInfo->m_field0c) *
-         static_cast<int>(m_additionalBase.m_field0c)) / 100);
-    m_additionalInfo.m_field0e = static_cast<unsigned short>(
-        (static_cast<int>(addInfo->m_field0e) *
-         static_cast<int>(m_additionalBase.m_field0e)) / 100);
-
-    for (int i = 0; i < 4; ++i)
-    {
-        m_additionalInfo.m_field10[i] = static_cast<unsigned short>(
-            (static_cast<short>(addInfo->m_field10[i]) *
-             static_cast<short>(m_additionalBase.m_field10[i])) / 100);
-    }
-
-    m_additionalInfo.m_field3a = (addInfo->m_field3a * m_additionalBase.m_field3a) / 100;
-    m_additionalInfo.m_field3e = static_cast<unsigned short>(
-        (static_cast<short>(addInfo->m_field3e) *
-         static_cast<short>(m_additionalBase.m_field3e)) / 100);
-    m_additionalInfo.m_field40 = static_cast<unsigned short>(
-        (static_cast<short>(addInfo->m_field40) *
-         static_cast<short>(m_additionalBase.m_field40)) / 100);
-    m_additionalInfo.m_moveSpeed =
-        addInfo->m_moveSpeed * m_additionalBase.m_moveSpeed / 100U;
-    m_additionalInfo.m_field46 = static_cast<unsigned short>(
-        (static_cast<int>(addInfo->m_field46) *
-         static_cast<int>(m_additionalBase.m_field46)) / 100);
-    m_additionalInfo.m_field48 = static_cast<unsigned short>(
-        (static_cast<int>(addInfo->m_field48) *
-         static_cast<int>(m_additionalBase.m_field48)) / 100);
-    m_additionalInfo.m_field4a = static_cast<unsigned short>(
-        (static_cast<short>(addInfo->m_field4a) *
-         static_cast<short>(m_additionalBase.m_field4a)) / 100);
-    m_additionalInfo.m_field4c = static_cast<unsigned short>(
-        (static_cast<short>(addInfo->m_field4c) *
-         static_cast<short>(m_additionalBase.m_field4c)) / 100);
+#include "CUserPremium/RecalcAdditionalInfo.inc"
 }
 // ORIG W 0x8694a88 GetAdditionalInfo() const：sret ← 隐式拷贝 ctor 的
 // 内联块移（对齐检查 + rep movsl + word/byte 尾，0x52 字节，无 clear 调用
 // ⇒ ORIG 源即 return 成员表达式，非 局部+memcpy——后者多 out ctor 与 call）。
-_Additioal_info CUserPremium::GetAdditionalInfo() const
-{
-    return m_additionalInfo;
+#include "CUserPremium/GetAdditionalInfo.inc"
 }
 
 
-SUserPremiumInfo CUserPremium::CheckPremiumTimeout() const
-{
-    // ORIG 0x86add9c：result 即 sret（NRVO 直写，无栈局部）；entries[i] 每个
-    // 判定点独立全链重算（T-C9-1）；checkTerm 直读 g_SPremiumInfo 表
-    // （ORIG +0x63 无 helper call，原 static GetPremiumDefinition 属发明符号）。
-    SUserPremiumInfo result;
-    int curTime = GlobalData::s_systemTime_.getCurSec();
-    // [b28c-L7] P23 实参求值序：ORIG 0x086add9c 序为 `movl $&s_systemTime_,(%esp);
-    // call getCurSec; movl $0x0,(%ebx)`——getCurSec 先于 result.m_type 清零落栈
-    // ⇒ 清零语句必须写在取时之后（result 声明仍在先，占 sret/NRVO 通道）。
-    result.m_type = 0;
-    for (int i = 1; i <= 0x69; ++i)
-    {
-        if (m_entries[i].m_type == 0)
-            continue;
-        if (g_SPremiumInfo[m_entries[i].m_type].m_checkTerm == 0)
-            continue;
-        if (m_entries[i].m_state == 3)
-            continue;
-        if (m_entries[i].m_end <= curTime)
-        {
-            result = m_entries[i];
-            break;
-        }
-    }
-    return result;
+#include "CUserPremium/CheckPremiumTimeout.inc"
 }
 
-SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
-{
-    // P0：ORIG 无局部槽（sub 0，`add 0x8(%ebp),%eax`）——原码内联右值直返，
-    // 禁 entries 具名局部（4.4 恒落 -0x4 槽差帧）。
-    // ORIG：仅 type<0x6a 且 type!=0x270f 时按下标偏移；其余（含
-    // 9999 和正向越界值）均返回 entries[0]，负值仍按原始负偏移。
-    // [b28c-L7] P222 互试（第二形）：ORIG 0x086adf52 `cmpl $0x69; jg FAIL;
-    // cmpl $0x270f; jne SUCC; FAIL: mov 0x8(%ebp),%eax; jmp end; SUCC:<calc>`
-    // ⇒ 否定短路 || 早返（then=FAIL 落前、SUCC fall-through 落后）；三目形
-    // 实测产 `jg X; je X; jmp Y` 镜像布局（+1 jmp）。
-    if (type >= 0x6a || type == 0x270f)
-        return const_cast<SUserPremiumInfo*>(m_entries);
-    return const_cast<SUserPremiumInfo*>(&m_entries[type]);
+#include "CUserPremium/GetPremiumInfo.inc"
 }
 
 // [b28d-solo-CUserPremium] N93 封顶（b28d 复测）：ORIG 0x086ae7a8；find 结果槽
@@ -1247,50 +333,14 @@ SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 // 本波复测：clean/AE ndiff=10（唯二残差 = find/end 两迭代器槽互换，
 // ORIG -0x10/-0xc vs 4.4 -0xc/-0x10；交换声明序会反转调用序，探针族已证）
 // ⇒ N93/N98 维持。
-int CUserPremium::GetReturnItemRate(int type) const
-{
-    // ORIG 0x86ae7a8：先 empty() 预检；find/end 结果落 const_iterator 临时
-    // 槽后 operator!= 比较（迭代器不直呼内联比较形）
-    // [b28c-L7] P59 反向：ORIG 0x86ae7b9 `call empty; test %al,%al; je +0x21`
-    // （空→原地 fall 到 `mov $0,%eax; jmp end`、非空→je 跳 body）⇒ 原码是
-    // 正极性 guard `if (empty()) return 0;`；`if(!empty()){}` 形 4.4 恒产
-    // `xor $1` 反演 + body 前置。map::empty 为 bool callee（P168a①裸形）。
-    if (m_returnItemMap.empty())
-        return 0;
-    std::map<int, int>::const_iterator it = m_returnItemMap.find(type);
-    // [b28c-L7] 残差 2 处 = N93（控制流/装载形已全等）：find 结果槽 ORIG
-    // -0x10 vs 4.4 -0xc、end 结果槽 ORIG -0xc vs 4.4 -0x10——同块内两个直接
-    // 初始化迭代器，4.1 按声明序占低→高槽、4.4 相反（N93 原例即本仓
-    // DB_LoadInventory::_GetTagCharacInven 族）。排除形实测：交换声明序 ⇒
-    // end() call 前置于 find()（ORIG 调用序反，新增 2 处失配）；提头声明
-    // + 块内赋值 ⇒ 触发 _Rb_tree_const_iterator 默认 C1 + sret 临时拷贝
-    // （N86，+3 条）。源形不可翻，语义与条数等价 ⇒ 封 N93。
-    // [b28c-L7] P222：ORIG 0x86ae81a `call ne; test %al; je <mov$0 尾岛>` +
-    // SUCC(ptEv+mov 0x4) fall-through 在前 ⇒ 正极性 `if(it!=e) return …`，
-    // 否定早返形把 SUCC 推到岛后（+1 jmp）。
-    // [b28d-solo-CUserPremium] P326 试形：ORIG 0x086ae7e3 find→-0x10、
-    // 0x086ae7fe end→-0xc（4.1 先声明更深），4.4 具名双迭代器恒相反
-    // （find→-0xc/end→-0x10）。把 end() 包成右值临时内联进比较，看是否
-    // 复现 ORIG 槽阶梯。
-    if (it != std::map<int, int>::const_iterator(m_returnItemMap.end()))
-        return it->second;
-    return 0;
+#include "CUserPremium/GetReturnItemRate.inc"
 }
 
-bool CUserPremium::CheckPremium(int type) const
-{
-    // ORIG（W，汇编实证）：直接 this+type*0x14 读 m_type，仅判非 0；
-    // 不查 state（state==3 已过期条目仍返回 true），无边界检查。
-    // ORIG 0x80e5fe6：test;je;mov$1;jmp;mov$0 分支物化；原 !=0 折 setne（P22/P101）。
-    if (m_entries[type].m_type != 0)
-        return true;
-    return false;
+#include "CUserPremium/CheckPremium.inc"
 }
 
 // ORIG W 0x086b086c：返回 +0x862 字节（任一 premium 定义需每日检查时为 1）。
-bool CUserPremium::IsNeedCheckEveryday()
-{
-    return m_field862;
+#include "CUserPremium/IsNeedCheckEveryday.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -1298,51 +348,13 @@ bool CUserPremium::IsNeedCheckEveryday()
 // type∈[0,0x69] 时返回 g_SPremiumInfo[type].m_field44（表基 0x09483a84，
 // 步长 0x120），否则 0。逐指令转写。
 // ---------------------------------------------------------------------------
-int CUserPremium::GetAddExpBonus(int type) const
-{
-    if (type < 0 || type > 0x69)
-        return 0;
-    return g_SPremiumInfo[type].m_field44;
+#include "CUserPremium/GetAddExpBonus.inc"
 }
 
 // [b28d-solo-CUserPremium] 修法（P225）：ORIG 0x086adf7c 循环为「尾测 setle
 // 物化 + 体首 first==0 出口」形；for&& 合并条件使 4.4 折 jg/bool 物化，
 // 改 while+break 后 132=132 ndiff=0。P167 CLEAR（7/7）。
-std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
-{
-    std::vector<std::pair<int, int> > items;
-    // ORIG 0x86adf7c：getCurSec+localtime_r 结果不被使用（死调用，保序保留）；
-    // entries[type] 每个条件位独立全链（T-C9-1）；表访问以
-    // g_SPremiumInfo[type*0x120…] 内联链直读（无 def/entry/helper）；
-    // 循环 pair 为默认 ctor + 两字段写 + lvalue push_back（非 make_pair）。
-    time_t nowT = (time_t)GlobalData::s_systemTime_.getCurSec();
-    tm localTm;
-    localtime_r(&nowT, &localTm);
-    (void)localTm;
-    if (m_entries[type].m_type != 0 && m_entries[type].m_type < 0x6a &&
-        g_SPremiumInfo[m_entries[type].m_type].m_kind == 1)
-    {
-        // [b28d-solo-CUserPremium] P225：ORIG 循环为「尾测 setle 物化 + 体首
-        // first==0 出口」形；for&& 合并条件使 4.4 折 jg/bool 物化（ndiff 38）。
-        int i = 0;
-        while (i < 5)
-        {
-            if (g_SPremiumInfo[m_entries[type].m_type]
-                    .m_advantageItems[i]
-                    .first == 0)
-                break;
-            std::pair<int, int> p;
-            p.first = g_SPremiumInfo[m_entries[type].m_type]
-                          .m_advantageItems[i]
-                          .first;
-            p.second = g_SPremiumInfo[m_entries[type].m_type]
-                           .m_advantageItems[i]
-                           .second;
-            items.push_back(p);
-            ++i;
-        }
-    }
-    return items;
+#include "CUserPremium/GetAdvantageItem.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -1373,122 +385,7 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 // const iterator 且 for 初始化处直构；改后差集清零（20/20 CLEAR）。
 // 终判（b28d）：同上——删 key 局部后 gap -3/758；残余帧差与槽基差（N82/N95/
 // P232）封顶。
-int CUserPremium::LoadPremiumInfo(const char* path)
-{
-    stPremiumTable_t table[0x6a];
-    // [b28d-solo-CUserPremium] P212：ORIG 0x086aed54 起外层循环变量 i 占 -0x34
-    // （4.4 若留在 for-init 会被同块 key 顶到 -0x38）⇒ 提函数头声明、循环内仅赋值。
-    int i;
-
-    if (importPremiumList(path,
-                          table,
-                          g_vecPremiumOverEquipableInfo,
-                          g_vecPremiumReturnItemInfo) != 0)
-        return 0x15c;
-
-    for (i = 0; i <= 0x69; ++i)
-    {
-        // ORIG 无任何引用缓存：每个字段读写都重算 table+i*0x130+off 与
-        // g_SPremiumInfo+i*0x120+off（Ghidra C 每条赋值两侧都带 local_38*0x130 /
-        // local_38*0x120 的完整下标式），且四抗性走 j=0..3 循环而非四条赋值。
-        g_SPremiumInfo[i].m_kind = table[i].m_kind;                 // +0x00
-        g_SPremiumInfo[i].m_checkTerm = table[i].m_checkTerm;       // +0x04
-        g_SPremiumInfo[i].m_timeLimit = table[i].m_expireTime;      // +0x08
-        for (int j = 0; j < 5; ++j)                     // +0x0c 特权物品对
-        {
-            g_SPremiumInfo[i].m_advantageItems[j].first = table[i].m_advantageItems[j].first;
-            g_SPremiumInfo[i].m_advantageItems[j].second = table[i].m_advantageItems[j].second;
-        }
-        g_SPremiumInfo[i].m_fatigueRate = table[i].m_fatigueRate;         // +0x34
-        g_SPremiumInfo[i].m_premiumCount = table[i].m_coin;               // +0x38
-        g_SPremiumInfo[i].m_expRate = table[i].m_expRate;                 // +0x3c
-        // [b28d-solo-CUserPremium] 顺序照 ORIG g 表 store 序列（0x00/0x04/0x08/
-        // 0x0c/0x34/0x38/0x3c/0x58/0x5a/0x5c/0x40/0x44/0x48/0x60/0x64）。
-        g_SPremiumInfo[i].m_overSkillLevel = table[i].m_overSkillLevel;   // +0x58 ← t+0x42
-        g_SPremiumInfo[i].m_field5a = table[i].m_cerashopDiscountRate;    // +0x5a ← t+0x44
-        g_SPremiumInfo[i].m_useTargetServer = table[i].m_useTargetServer; // +0x5c
-        g_SPremiumInfo[i].m_needDailyCheck = table[i].m_unlimitFatigue;   // +0x40
-        g_SPremiumInfo[i].m_field44 = table[i].m_bonusExp;                // +0x44
-        g_SPremiumInfo[i].m_field48 = table[i].m_questItemDropRate;       // +0x48
-        g_SPremiumInfo[i].m_independentDropRates = table[i].m_independentDropRates;  // +0x4c
-        g_SPremiumInfo[i].m_overEquipFlag = table[i].m_goldBonus;         // +0x60
-        g_SPremiumInfo[i].m_field64 = table[i].m_overEquipCount;          // +0x64
-        for (int j = 0; j < 5; ++j)                     // +0x68 返还物品对
-        {
-            g_SPremiumInfo[i].m_returnPairs68[j].first = table[i].m_overEquipPairs[j].first;
-            g_SPremiumInfo[i].m_returnPairs68[j].second = table[i].m_overEquipPairs[j].second;
-        }
-        g_SPremiumInfo[i].m_field90 = table[i].m_returnItemCount;         // +0x90
-        for (int j = 0; j < 3; ++j)                     // +0x94 返还对
-        {
-            g_SPremiumInfo[i].m_returnPairs94[j].first = table[i].m_returnItemPairs[j].first;
-            g_SPremiumInfo[i].m_returnPairs94[j].second = table[i].m_returnItemPairs[j].second;
-        }
-        for (int j = 0; j < 7; ++j)                     // +0xac yday 掩码
-            g_SPremiumInfo[i].m_applyDayMask[j] = table[i].m_applyDayMask[j];
-
-        g_SPremiumInfo[i].m_additionalInfo.m_field00 = table[i].m_hpMax;
-        g_SPremiumInfo[i].m_additionalInfo.m_field04 = table[i].m_mpMax;
-        g_SPremiumInfo[i].m_additionalInfo.m_field08 = table[i].m_physicalAttack;
-        g_SPremiumInfo[i].m_additionalInfo.m_field0a = table[i].m_physicalDefense;
-        g_SPremiumInfo[i].m_additionalInfo.m_field0c = table[i].m_magicalAttack;
-        g_SPremiumInfo[i].m_additionalInfo.m_field0e = table[i].m_magicalDefense;
-        for (int j = 0; j < 4; ++j)                     // +0xd8 四抗性（ORIG 为循环）
-            g_SPremiumInfo[i].m_additionalInfo.m_field10[j] =
-                (&table[i].m_fireResistance)[j];
-        for (int j = 0; j < 17; ++j)
-            g_SPremiumInfo[i].m_additionalInfo.m_field18[j] = table[i].m_rawE0[j];
-        g_SPremiumInfo[i].m_additionalInfo.m_field3a = table[i].m_inventoryLimit;
-        g_SPremiumInfo[i].m_additionalInfo.m_field3e = table[i].m_hpRegenSpeed;
-        g_SPremiumInfo[i].m_additionalInfo.m_field40 = table[i].m_mpRegenSpeed;
-        g_SPremiumInfo[i].m_additionalInfo.m_field42 = (unsigned int)table[i].m_moveSpeed;
-        g_SPremiumInfo[i].m_additionalInfo.m_field46 = table[i].m_attackSpeed;
-        g_SPremiumInfo[i].m_additionalInfo.m_field48 = table[i].m_castSpeed;
-        g_SPremiumInfo[i].m_additionalInfo.m_field4a = table[i].m_hitRecovery;
-        g_SPremiumInfo[i].m_additionalInfo.m_field4c = table[i].m_jumpPower;
-        g_SPremiumInfo[i].m_additionalInfo.m_field4e = table[i].m_field118;
-
-        g_SPremiumInfo[i].m_name = table[i].m_name;                    // +0x11c
-
-        STPremiumItemData data;
-        data.m_value0 = i;
-        // [b28d-solo-CUserPremium] P0 取舍（b28d 实测）：ORIG 0x86af54c
-        // `mov %eax,-0x38(%ebp)` + 空分支 0x86af667 回读，确为键具名局部；
-        // 但 4.4 一旦为该键分配栈槽即触发帧 0x7e3c→0x7e4c、table 基址
-        // -0x7e28→-0x7e2c 全帧平移（探针 /tmp/b28d_solo：带槽 ndiff 466、
-        // 内联实参 56、纯 register 52；帧/槽对齐后整函数 ~700 条回正）。
-        // 取内联实参形（P264/P112 帧族：语义与 ORIG 完全一致，仅少 store/load 对）。
-        // [b28d-solo-CUserPremium] P22/P197④：ORIG 0x86af571 `test %eax,%eax;
-        // setne %al; test %al,%al; je <空分支 0x86af651>` ⇒ 原码是 `size() != 0`
-        // 正向判（非空分支直落、空分支置后），非 `==0` 反极性（后者产 sete）。
-        if (table[i].m_premiumItems.size() != 0)
-        {
-            // [b28d-solo-CUserPremium] P13/P50：ORIG 0x86af5a2/0x86af5ce 的
-            // begin/end 各只调一次（it=-0x44、end=-0x48 缓存），循环条件复用
-            // 槽；原码在 for 初始化处同时直构 it/itEnd（无 iterator::C1Ev）。
-            for (std::vector<premium_script_parsing::STPremiumItemData>::iterator
-                     it = table[i].m_premiumItems.begin(),
-                     itEnd = table[i].m_premiumItems.end();
-                 it != itEnd; ++it)
-            {
-                data.m_c4 = it->m_termFlag;
-                data.m_c5 = (unsigned char)(it->m_restrictFlag != 0);
-                // [b28d-solo-CUserPremium] P292/P321-T3：ORIG 0x086af61d
-                // `call; xor $0x1,%eax; test %al,%al; je` ⇒ bool 返回 + 裸 `!`
-                // （`!=1` 形在 bool 下仍产 cmp/setne）。
-                if (!SetPremiumItemData((unsigned long)it->m_key, data))
-                    return 0x1bc;
-            }
-        }
-        else
-        {
-            // 空表：flag 字节取已拷贝 g 表 m_checkTerm 低字节，key 用记录键。
-            data.m_c4 = (unsigned char)g_SPremiumInfo[i].m_checkTerm;
-            if (!SetPremiumItemData((unsigned long)table[i].m_targetItemKey, data))
-                return 0x1c4;
-        }
-    }
-    return 0;
+#include "CUserPremium/LoadPremiumInfo.inc"
 }
 
 } // namespace WongWork
@@ -1523,27 +420,7 @@ void _Additioal_info::operator+=(const _Additioal_info& other)
 // ORIG 的 `movzx eax; mov edx,eax; …; lea eax,[edx+eax]; mov edx,eax` 舞
 // 无任何源形可择 ⇒ N-86b 维持；clean/AE ndiff 116→52（gap 12 条全为四 union
 // 字段 + 两循环体的收形差），语义逐字段相等。
-void _Additioal_info::add(const _Additioal_info& other)
-{
-    m_field00 += other.m_field00;
-    m_field04 += other.m_field04;
-    m_field08 += other.m_field08;
-    m_field0a += other.m_field0a;
-    m_field0c += other.m_field0c;
-    m_field0e += other.m_field0e;
-    for (int i = 0; i <= 3; ++i)
-        m_field10[i] += other.m_field10[i];
-    for (int j = 0; j <= 0x10; ++j)
-        m_field18[j] += other.m_field18[j];
-    m_field3a += other.m_field3a;
-    m_field3e += other.m_field3e;
-    m_field40 += other.m_field40;
-    m_field42 += other.m_field42;
-    m_field46 += other.m_field46;
-    m_field48 += other.m_field48;
-    m_field4a += other.m_field4a;
-    m_field4c += other.m_field4c;
-    m_field4e += other.m_field4e;
+#include "CUserPremium/add.inc"
 }
 
 // subtract（ORIG W _ZN15_Additioal_info8subtractERKS_ @0x08693d04）：与 add 同构、
@@ -1557,27 +434,7 @@ void _Additioal_info::add(const _Additioal_info& other)
 // 经 lea/mov 寄存器舞 + %edx 索引中转，4.4 恒直接 sub/add + %ecx；0x4c/0x4e
 // 两字段加法特例已忠实保留。P167 CLEAR（0/0）⇒ 语义等价，封顶。
 // 本波复测：同 add 探针族（13 形）不可择；clean/AE ndiff 121→62，语义等价。
-void _Additioal_info::subtract(const _Additioal_info& other)
-{
-    m_field00 -= other.m_field00;
-    m_field04 -= other.m_field04;
-    m_field08 -= other.m_field08;
-    m_field0a -= other.m_field0a;
-    m_field0c -= other.m_field0c;
-    m_field0e -= other.m_field0e;
-    for (int i = 0; i <= 3; ++i)
-        m_field10[i] -= other.m_field10[i];
-    for (int j = 0; j <= 0x10; ++j)
-        m_field18[j] -= other.m_field18[j];
-    m_field3a -= other.m_field3a;
-    m_field3e -= other.m_field3e;
-    m_field40 -= other.m_field40;
-    m_field42 -= other.m_field42;
-    m_field46 -= other.m_field46;
-    m_field48 -= other.m_field48;
-    m_field4a -= other.m_field4a;
-    m_field4c += other.m_field4c;   // ORIG：加法（非减）
-    m_field4e += other.m_field4e;   // ORIG：加法（非减）
+#include "CUserPremium/subtract.inc"
 }
 
 // ORIG W 0x0830ed48 _ZN8WongWork12CUserPremium25GetAddIndependentDropRateEij
@@ -1586,14 +443,5 @@ void _Additioal_info::subtract(const _Additioal_info& other)
 // [b28d-solo-CUserPremium] P133/P258 修法：ORIG 0x0830ed48 的两组越界检查是
 // **短路或**形（`cmp 0; je bad; cmp 4; jbe ok` 与 `cmp 0; js bad; cmp 0x69;
 // jle ok`，两失败块各自独立 mov$0）；旧独立早返形使 4.4 对 level<0 产 jns 反跳。
-unsigned int WongWork::CUserPremium::GetAddIndependentDropRate(int level, unsigned int type)
-{
-    // ORIG 0x830ed48：两组短路或守卫各自独立物化 mov$0 失败块；
-    // type-1 落 uchar 槽 -0x9（mov %al,-0x9;movzbl -0x9 回读，P0 具名局部）。
-    if (type == 0 || type > 4)
-        return 0;
-    if (level < 0 || level > 0x69)
-        return 0;
-    unsigned char idx = static_cast<unsigned char>(type - 1);
-    return g_SPremiumInfo[level].m_independentDropRates[idx];
+#include "CUserPremium/GetAddIndependentDropRate.inc"
 }

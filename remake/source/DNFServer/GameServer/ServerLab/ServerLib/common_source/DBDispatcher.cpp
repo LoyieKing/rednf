@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 DBDispatcher/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // nsl::DBDispatcher.cpp
 #include "DBDispatcher.h"
 #include "IHandlers.h"
@@ -13,63 +23,10 @@
 
 namespace nsl {
 
-DBDispatcher::DBDispatcher() throw()
-{
+#include "DBDispatcher/DBDispatcher.inc"
 }
 
-void DBDispatcher::dispatch(Message* pMsg)
-{
-    CMsgCell* pCell = pMsg->getCellFromMessage();
-    int dbtrid;
-    int dbid;
-    LPDBTR_HEADER pDbTr = pCell->GetDBTr();
-    dbtrid = pDbTr->dbtrId;
-    dbid = pDbTr->dbId;
-    int ret = 0;
-    IDBHandler::DBHandlerFunc handle = pApp->super_IHandlers.getDBHandler(dbid)->SearchDBHandlerFunc(dbtrid);
-    if (handle != NULL)
-    {
-        // ORIG: member-pointer call without implicit base-subobject temp —
-        // explicit (IHandler*) cast folds to direct lea (%edx,%ecx,1) forms.
-        ret = (((IHandler*)pApp->super_IHandlers.getDBHandler(dbid))->*handle)(pCell);
-        if (ret != 0)
-        {
-            G_TraceLog()->sysLog(7,
-                "DB : '%d' \xc3\xb3\xb8\xae\xbf\xa1 \xbd\xc7\xc6\xd0 \xc7\xcf\xbf\xb4\xbd\xc0\xb4\xcf\xb4\xd9.", dbtrid);
-            if (ret == 2)
-            {
-                G_TraceLog()->sysLog(7,
-                    "DB : \xbf\xac\xb0\xe1\xc0\xcc \xb2\xf7\xbe\xee\xc1\xb3\xbd\xc0\xb4\xcf\xb4\xd9.");
-                // ORIG（df_game_r）不发射 INTERNALMSG_SERVICE_UNAVAILABLE 的 ctor
-                // （无 _ZN31INTERNALMSG_SERVICE_UNAVAILABLEC[12]Ev，也无
-                //  nsl::INTERNALMSG_HEADER::setCategory/setInternalMsgID/setSize）
-                // ⇒ 该消息体在 ORIG 里是「零指令 POD 视图 + 显式字段写入」。
-                // 头内 ctor 服务于其它二进制（Auction），不能删；本 TU 改以字节
-                // 缓冲承载，逐条复现 ctor 体的写入序，不 odr-use 任何 inline 成员。
-                unsigned char svcRaw[sizeof(INTERNALMSG_SERVICE_UNAVAILABLE)];
-                INTERNALMSG_SERVICE_UNAVAILABLE* pSvc =
-                    reinterpret_cast<INTERNALMSG_SERVICE_UNAVAILABLE*>(svcRaw);
-                memset(pSvc, 0, sizeof(svcRaw));   // ctor: memset(this, 0, sizeof)
-                pSvc->classification = 0;          // ctor: setCategory(0)
-                pSvc->msg_no = 0;                  // ctor: setInternalMsgID(0)
-                pSvc->sLength = sizeof(svcRaw);    // ctor: setSize(sizeof(...))
-                pSvc->bWillDelete = false;
-                pSvc->workIndex = 0;
-                pSvc->mOwnerWorkId = 0;
-                pSvc->bActiveJob = false;
-                pSvc->reason = 2;
-                Message* pNewMsg = pApp->super_DataPools.getCommonDataPool(tlsThreadId)->createMessage(1);
-                CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
-                *pNewCell << pSvc;
-                pApp->super_Threads.getWorkThread(pNewMsg->getCellFromMessage()->GetInternalMsg()->workIndex)->PushTransaction(pNewMsg);
-            }
-        }
-    }
-    else
-    {
-        G_TraceLog()->sysLog(7,
-            "DB : '%d' \xbf\xa1 \xb4\xeb\xc7\xd1 \xc7\xda\xb5\xe9\xb7\xaf\xb8\xa6 \xc3\xa3\xc1\xf6 \xb8\xf8\xc7\xcf\xbf\xb4\xbd\xc0\xb4\xcf\xb4\xd9.", dbtrid);
-    }
+#include "DBDispatcher/dispatch.inc"
 }
 
 } // namespace nsl

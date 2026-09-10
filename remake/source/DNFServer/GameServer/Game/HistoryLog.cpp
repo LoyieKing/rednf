@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 HistoryLog/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— HistoryLog（G2-4 批次，历史日志文件写入）。
 // 依据 docs/class_func_reports/HistoryLog.md + ORIG 反汇编逐函数转录。
 // 另含 cHistoryTrace::operator()（ORIG 0x0854f990，权威声明 cHistoryTrace.h）：
@@ -28,35 +38,11 @@ int HistoryLog::count_;
 char HistoryLog::time[0x10];
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
-void get_str_datetime(char* buf, int len);
-void get_str_date(char* buf, int len, char sep);
-char* NumberToString(unsigned int value, int radix);
-void get_str_date(char* buf, int len, char sep)
-{
-    (void)len;
-    time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm value;
-    // ORIG：使用 localtime_r 的返回值指针访问字段。
-    struct tm* pValue = localtime_r(&now, &value);
-    // ORIG 0x086b19f1：rodata 0x8cf5a7c = "%04d%02d%02d"（无分隔符；
-    // 相邻串 0x8cf5a89 与之相距 0xd 字节，长度自洽）。
-    if (sep == 0)
-        sprintf(buf, "%04d%02d%02d", pValue->tm_year + 1900, pValue->tm_mon + 1, pValue->tm_mday);
-    else
-        sprintf(buf, "%04d%c%02d%c%02d", pValue->tm_year + 1900, sep,
-                pValue->tm_mon + 1, sep, pValue->tm_mday);
+#include "HistoryLog/get_str_datetime.inc"
+#include "HistoryLog/get_str_date.inc"
+#include "HistoryLog/get_str_date_1.inc"
 }
-void get_str_datetime(char* buf, int len)
-{
-    (void)len;
-    time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm value;
-    struct tm* pValue = localtime_r(&now, &value);
-    // ORIG 0x086b199e：rodata 0x8cf5a63 = "%04d%02d%02d%02d%02d%02d"
-    // （与 0x8cf5a7c 相距 0x19 = 24+1 字节，确证无分隔符）。
-    sprintf(buf, "%04d%02d%02d%02d%02d%02d", pValue->tm_year + 1900,
-            pValue->tm_mon + 1, pValue->tm_mday, pValue->tm_hour,
-            pValue->tm_min, pValue->tm_sec);
+#include "HistoryLog/get_str_datetime_1.inc"
 }
 
 // ---- 格式串（ORIG rodata 逐字节） ----
@@ -123,199 +109,75 @@ static const char FMT_CREATE_CH[] =
 
 // [L32 GI 调序] 类静态定义已前移到文件首（须保持 ORIG 的 GI 键名），此处不再重复定义。
 
-bool HistoryLog::Init()
-{
-    struct stat st;
-    if (stat("./history/", &st) < 0)
-    {
-        if (mkdir("./history/", 0x1fd) < 0)
-        {
-            printf("Fail To Make Directory, PATH[%s]\n", "./history/");
-            return false;
-        }
-    }
-    return true;
+#include "HistoryLog/Init.inc"
 }
 
-bool HistoryLog::CheckFD(FILE* file)
-{
-    if (file == 0)
-    {
-        return false;
-    }
-    get_str_datetime(time, 0x10);
-    return true;
+#include "HistoryLog/CheckFD.inc"
 }
 
-void HistoryLog::LogClose(FILE* file)
-{
-    if (file == 0)
-        return;
-    fclose(file);
-    logfiles_.Free(file);
-    count_ -= 1;
+#include "HistoryLog/LogClose.inc"
 }
 
 // [b28d-19] N：N82 —— 帧/槽序（对象临时物化差）；ORIG 0x084b9b32。
-FILE* HistoryLog::LogOpen(unsigned int chNo)
-{
-    int rnd = rand();
-    rnd = rnd % 100;
-    if (rnd <= 0x5f)
-    {
-        return 0;
-    }
-
-    FILE* file = logfiles_.Acquire();
-    if (file == 0)
-    {
-        return 0;
-    }
-
-
-    // [b28d-round1-L24] P202①/P214③：ORIG 0x084b9b32 的清零是 `movl $0` ×2 +
-    // `movw $0`（widthscan：clr_l orig=2 our=0 / clr_w orig=1 our=0 / clr_b orig=0
-    // our=10）⇒ 原码是数组初始化式，非 10 条逐字节赋值。
-    char date[10] = { '\0' };
-    get_str_date(date, 10, '\0');
-
-    char dir[50] = { '\0' };
-    sprintf(dir, "%s%s/", "./history/", date);
-
-    struct stat st;
-    if (stat(dir, &st) < 0)
-    {
-        mkdir(dir, 0x1fd);
-    }
-
-    char path[127] = { '\0' };
-    char* num = NumberToString(chNo, 0);
-    sprintf(path, "%s%s.log", dir, num);
-
-
-    file = fopen(path, "a");
-    if (file == 0)
-    {
-        return 0;
-    }
-    count_ += 1;
-    return file;
+#include "HistoryLog/LogOpen.inc"
 }
 
-void HistoryLog::WriteCreateCh(FILE* file, char* name, int job)   // ORIG T 0x084b9d70
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_CREATE_CH, time, name, job);
+#include "HistoryLog/WriteCreateCh.inc"
 }
 
 
-void HistoryLog::WriteDeleteCh(FILE* file, char* name, int job, int level, int growType)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_DELETE_CH, time, name, job, level, growType);
+#include "HistoryLog/WriteDeleteCh.inc"
 }
 
-void HistoryLog::WriteSelectCh(FILE* file, const char* name, int job, int level,
-                               int growType)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_SELECT_CH, time, name, job, level, growType);
+#include "HistoryLog/WriteSelectCh.inc"
 }
 
-void HistoryLog::WriteLevelUp(FILE* file, int level)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_LEVEL_UP, time, level);
+#include "HistoryLog/WriteLevelUp.inc"
 }
 
-void HistoryLog::WriteChat(FILE* file, int type, char* content, int level)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_CHAT, time, type, content);
+#include "HistoryLog/WriteChat.inc"
 }
 
-void HistoryLog::WriteFineQuest(FILE* file, int questIdx)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_FINE_QUEST, time, questIdx);
+#include "HistoryLog/WriteFineQuest.inc"
 }
 
-void HistoryLog::WriteLearnSkill(FILE* file, int skillIdx, int level)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_LEARN_SKILL, time, skillIdx, level);
+#include "HistoryLog/WriteLearnSkill.inc"
 }
 
-void HistoryLog::WriteDunStart(FILE* file, int job, int level, int growType)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_DUN_START, time, job, level, growType);
+#include "HistoryLog/WriteDunStart.inc"
 }
 
-void HistoryLog::WriteKillMob(FILE* file, int mobType)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_KILL_MOB, time, mobType);
+#include "HistoryLog/WriteKillMob.inc"
 }
 
-void HistoryLog::WriteDie(FILE* file)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_DIE, time);
+#include "HistoryLog/WriteDie.inc"
 }
 
-void HistoryLog::WriteGiveUp(FILE* file, const char* reason)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_GIVE_UP, time, reason);
+#include "HistoryLog/WriteGiveUp.inc"
 }
 
-void HistoryLog::WriteUseCoin(FILE* file, const char* reason)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_USE_COIN, time, reason);
+#include "HistoryLog/WriteUseCoin.inc"
 }
 
-void HistoryLog::WriteDunClear(FILE* file)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_DUN_CLEAR, time);
+#include "HistoryLog/WriteDunClear.inc"
 }
 
-void HistoryLog::WriteTradeUp(FILE* file, int itemIdx, int count)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_TRADE_UP, time, itemIdx, count);
+#include "HistoryLog/WriteTradeUp.inc"
 }
 
-void HistoryLog::WriteTradeDown(FILE* file, int itemIdx, int count)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_TRADE_DOWN, time, itemIdx, count);
+#include "HistoryLog/WriteTradeDown.inc"
 }
 
-void HistoryLog::WriteDisJoint(FILE* file, int itemIdx)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_DISJOINT, time, itemIdx);
+#include "HistoryLog/WriteDisJoint.inc"
 }
 
-void HistoryLog::WriteComposition(FILE* file, int itemIdx)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_COMPOSITION, time, itemIdx);
+#include "HistoryLog/WriteComposition.inc"
 }
 
-void HistoryLog::WriteBuyItem(FILE* file, int itemIdx, int count)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_BUY_ITEM, time, itemIdx, count);
+#include "HistoryLog/WriteBuyItem.inc"
 }
 
-void HistoryLog::WriteSellItem(FILE* file, int itemIdx, int count)
-{
-    if (!CheckFD(file)) return;
-    fprintf(file, FMT_SELL_ITEM, time, itemIdx, count);
+#include "HistoryLog/WriteSellItem.inc"
 }
 
 // ============================================================================
@@ -323,15 +185,5 @@ void HistoryLog::WriteSellItem(FILE* file, int itemIdx, int count)
 //   CLog::instance() 后对 +0xa8（m_mutexes[7]，Mutex 0x18）构造 Guard<Mutex>，
 //   再调 CLog::logHistory(fmt, va_list)，Guard 析构解锁。
 // ============================================================================
-void cHistoryTrace::operator()(char const* fmt, ...)
-{
-    // ORIG 0x0854f998/0x0854f9ba：Guard 与 logHistory 各调一次 CLog::instance()，
-    // 两次调用不缓存（logHistory 的 CLog* 直载 %eax 寄存器）。
-    Guard<Mutex> guard(&CLog::instance()->m_mutexes[7]);
-
-    va_list ap;
-    va_start(ap, fmt);
-    CLog::instance()->logHistory(fmt, reinterpret_cast<char*>(ap));  // ORIG logHistory(fmt, &stack)
-
-    va_end(ap);
+#include "HistoryLog/operator.inc"
 }

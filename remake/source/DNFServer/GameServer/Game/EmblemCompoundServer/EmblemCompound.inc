@@ -1,0 +1,2 @@
+EmblemCompound::EmblemCompound()
+{

@@ -1,0 +1,2 @@
+CGuildAgitManager::~CGuildAgitManager()
+{

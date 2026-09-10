@@ -1,0 +1,2 @@
+AdditionalEffectData::~AdditionalEffectData()
+{

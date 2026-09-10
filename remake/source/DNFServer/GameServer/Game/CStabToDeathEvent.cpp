@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CStabToDeathEvent/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 刺死事件 CStabToDeathEvent 实现。
 // 报告：docs/class_func_reports/CStabToDeathEvent/ 全部 6 个方法（已完整阅读
 // CStabToDeathEvent / ~CStabToDeathEvent / ~CStabToDeathEvent_0827f554 /
@@ -12,44 +22,30 @@
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0827f508：仅基类构造 + vptr 置位（无自有成员初始化）。
-CStabToDeathEvent::CStabToDeathEvent()
-{
+#include "CStabToDeathEvent/CStabToDeathEvent.inc"
 }
 
 // ORIG 0x0827f524 / 0x0827f554：D1 重置 vptr 后调 CEventBase::~CEventBase；
 // D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
-CStabToDeathEvent::~CStabToDeathEvent()
-{
+#include "CStabToDeathEvent/dtor_CStabToDeathEvent.inc"
 }
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0827f572：SetEventFlag(true) +
 // cMyTrace(&_ZZN17CStabToDeathEvent10StartEventEvE12__FUNCTION__,0x11,0)
 // ("CStabToDeathEvent Start!")。
-void CStabToDeathEvent::StartEvent()
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x11, 0);
-    tr("CStabToDeathEvent Start!");
+#include "CStabToDeathEvent/StartEvent.inc"
 }
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0827f5c4：与 StartEvent() 同体（SetEventFlag(true) + trace，
 // file 串为 __FUNCTION__ 局部静态（E12__FUNCTION__），行 0x17）。
-void CStabToDeathEvent::StartEvent(Word_Param param)
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x17, 0);
-    tr("CStabToDeathEvent Start!");
+#include "CStabToDeathEvent/StartEvent_1.inc"
 }
 
 // ---------------------------------------------------------------------------
 // ORIG 0x0827f616：SetEventFlag(false) +
 // cMyTrace(&_ZZN17CStabToDeathEvent8EndEventEvE12__FUNCTION__,0x1d,0)
 // ("CStabToDeathEvent End!")。
-void CStabToDeathEvent::EndEvent()
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x1d, 0);
-    tr("CStabToDeathEvent End!");
+#include "CStabToDeathEvent/EndEvent.inc"
 }

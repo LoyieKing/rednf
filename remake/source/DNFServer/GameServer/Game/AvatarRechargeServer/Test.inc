@@ -1,0 +1,2 @@
+void AvatarRechargeServer::Test()
+{

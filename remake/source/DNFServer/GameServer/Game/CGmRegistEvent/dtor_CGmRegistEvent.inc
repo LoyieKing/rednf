@@ -1,0 +1,2 @@
+CGmRegistEvent::~CGmRegistEvent()
+{

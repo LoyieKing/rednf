@@ -1,0 +1,2 @@
+CQueryCounter::~CQueryCounter()
+{

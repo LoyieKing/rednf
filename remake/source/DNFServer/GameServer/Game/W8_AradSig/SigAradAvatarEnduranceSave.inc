@@ -1,0 +1,3 @@
+SigAradAvatarEnduranceSave::SigAradAvatarEnduranceSave()
+{
+    init();

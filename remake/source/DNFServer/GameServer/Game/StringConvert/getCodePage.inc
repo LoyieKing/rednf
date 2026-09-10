@@ -1,0 +1,3 @@
+int getCodePage()
+{
+    return gCodePage;

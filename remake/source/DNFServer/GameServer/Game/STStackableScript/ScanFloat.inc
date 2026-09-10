@@ -1,0 +1,1 @@
+float ScanFloat(bool* ok);

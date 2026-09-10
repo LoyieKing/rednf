@@ -1,0 +1,2 @@
+DBInsertGiveBoxEventReward::~DBInsertGiveBoxEventReward()
+{

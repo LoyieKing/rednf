@@ -1,0 +1,3 @@
+ActiveNetClose::ActiveNetClose()
+{
+    bInData = false;

@@ -1,0 +1,2 @@
+STItemScript::~STItemScript()
+{

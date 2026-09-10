@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CStreamGuard/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CStreamGuard 全量（S1 组）
 #include "CStreamGuard.h"
 
@@ -10,45 +20,19 @@ public:
     static SmallStreamPool* s_small_stream_pool;  // 0x0940bda8
 };
 
-CStreamGuard::CStreamGuard(bool bOwn)
-{
-    m_bOwn = bOwn;
+#include "CStreamGuard/CStreamGuard.inc"
 }
 
-CStreamGuard::CStreamGuard(Stream* stream, bool bOwn)
-{
-    m_stream = stream;
-    m_bOwn = bOwn;
+#include "CStreamGuard/CStreamGuard_1.inc"
 }
 
-CStreamGuard::~CStreamGuard()
-{
-    if (m_stream && m_bOwn && m_stream->m_inUse)
-    {
-        // ORIG cmp 级联顺序：1→Small、2→Big、default→Stream
-        switch (m_stream->m_poolType)
-        {
-        case 1:
-            GlobalData::s_small_stream_pool->Free(m_stream);
-            break;
-        case 0:
-            GlobalData::s_stream_pool->Free(m_stream);
-            break;
-        case 2:
-            GlobalData::s_big_stream_pool->Free(m_stream);
-            break;
-        }
-    }
+#include "CStreamGuard/dtor_CStreamGuard.inc"
 }
 
-void CStreamGuard::Set(Stream* stream)
-{
-    m_stream = stream;
+#include "CStreamGuard/Set.inc"
 }
 
-Stream* CStreamGuard::Get()
-{
-    return m_stream;
+#include "CStreamGuard/Get.inc"
 }
 
 CStreamGuard* CStreamGuard::operator->()
@@ -111,7 +95,5 @@ Stream& CStreamGuard::operator<<(char* s)
     return *m_stream << s;
 }
 
-int CStreamGuard::put_binary(void* src, int len)
-{
-    return m_stream->put_binary(src, len);
+#include "CStreamGuard/put_binary.inc"
 }

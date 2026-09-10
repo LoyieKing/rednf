@@ -1,0 +1,2 @@
+CTimeGate::~CTimeGate()
+{

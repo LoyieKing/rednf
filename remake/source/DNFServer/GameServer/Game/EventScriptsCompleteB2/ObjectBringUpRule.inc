@@ -1,0 +1,1 @@
+ObjectBringUpScript::ObjectBringUpRule::ObjectBringUpRule() { reset(); }

@@ -1,0 +1,2 @@
+CPremiumGoldCard::CPremiumGoldCard()
+{

@@ -1,0 +1,3 @@
+STGuildStorageUpgradeInfo::STGuildStorageUpgradeInfo()
+{
+    clear();

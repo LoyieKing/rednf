@@ -1,0 +1,3 @@
+int CAssaultPlace::GetAuthenValue()             // ORIG T 0x82f06a0
+{
+    return m_authenValue;

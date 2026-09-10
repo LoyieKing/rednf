@@ -1,0 +1,2 @@
+void AvatarConvertServer::Test()
+{

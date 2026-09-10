@@ -1,0 +1,3 @@
+SigSaveRewardEventItem::SigSaveRewardEventItem()
+{
+    init();

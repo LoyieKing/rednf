@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 MatchingSystem/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 #include <cstring>
 
 #include "CLeagueMatch.h"    // type 2：CLeagueMatch（new 0xfc）
@@ -30,59 +40,14 @@ class CTournamentMatch : public IMatch { public: CTournamentMatch() {} };
 // 复杂匹配子系统：定义与构造逻辑未在本批次交付（属其它匹配域批次）。
 // 此处仅按 ORIG 符号名预留，避免与前向声明冲突。
 
-CMatchingSystem::CMatchingSystem() throw()
-{
-    // ORIG 0x085dfac6：m_systems[0..5] 置 0。
-    for (int i = 0; i < 6; ++i)
-        m_systems[i] = 0;
+#include "MatchingSystem/CMatchingSystem.inc"
 }
 
 // [b28d-lane6] NEAR·N7：虚调用目标 %ecx(ORIG 0x085dfb1c)↔%edx(4.4.7)。探针证 4.4.6 后端可归零，但本 TU 换 446 后 ae 13→11（净负）故不改路由。
-CMatchingSystem::~CMatchingSystem()
-{
-    // ORIG 0x085dfaf4：i=0..5，对非空槽位经虚析构 delete。
-    for (int i = 0; i < 6; ++i)
-        if (m_systems[i] != 0)
-            delete m_systems[i];
+#include "MatchingSystem/dtor_CMatchingSystem.inc"
 }
 
 // [L10b P211 档③] 返回类型 void*→int（PvPTypes.h 同步）：与消费方 int 字段同型 ⇒
 // 调用点 store 复现 ORIG 的 LHS-first 直存（PvP_Room::C1 0x085d610a 实证）。
-int CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type)
-{
-    // ORIG 0x085dfba0：type>5 返回 0（`ja` 直通直返 eax=0）；否则跳表逐 case 内查
-    // 空槽并懒构造缓存于 m_systems[type]，共同出口 `mov (this+idx*4),%eax; mov -0x1c`
-    // 走 result 局部（-0x1c）。判空在 case 内，非 switch 前一次性预查。
-    // [b21 N·N90] 结构性修正：跳表逐 case 判空 + result 局部（-0x1c）对齐 ORIG。
-    //   残余 N90 值初始化 codegen：ORIG(4.1) 对三个 4 字节空 IMatch 子类
-    //   （CNormalMatch/CLadderMatch/CTournamentMatch）在 `new <T>()` 后、ctor 前发
-    //   `movl $0x0,(%eax)` value-init 预清，4.4 对该 trivial 用户 ctor 类不发（ctor 直设
-    //   vptr）。源形不可复现（probe 实证 4.4 恒不预零）。父子母各 case new+ctor+槽位
-    //   写回、返回统一走 m_systems[type]，语义闭合，封 N。
-    int result = 0;
-    switch (type)
-    {
-    case 0:
-        if (!m_systems[type]) m_systems[type] = new CNormalMatch();
-        break;
-    case 1:
-        if (!m_systems[type]) m_systems[type] = new CLadderMatch();
-        break;
-    case 2:
-        if (!m_systems[type]) m_systems[type] = new CLeagueMatch();
-        break;
-    case 3:
-        if (!m_systems[type]) m_systems[type] = new CTournamentMatch();
-        break;
-    case 4:
-        if (!m_systems[type]) m_systems[type] = new online_preliminary::COnlinePreliminary();
-        break;
-    case 5:
-        if (!m_systems[type]) m_systems[type] = new fair_pvp::CFairMatch();
-        break;
-    default:
-        return 0;
-    }
-    result = (int)m_systems[type];
-    return result;
+#include "MatchingSystem/GetMatchingSystem.inc"
 }

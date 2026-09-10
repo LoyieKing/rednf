@@ -1,0 +1,2 @@
+stQuestShopStatus::~stQuestShopStatus()
+{

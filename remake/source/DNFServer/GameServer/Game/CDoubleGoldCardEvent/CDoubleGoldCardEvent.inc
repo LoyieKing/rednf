@@ -1,0 +1,2 @@
+CDoubleGoldCardEvent::CDoubleGoldCardEvent()
+{

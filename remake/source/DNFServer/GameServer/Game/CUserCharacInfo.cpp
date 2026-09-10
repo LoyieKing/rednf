@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CUserCharacInfo/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— CUserCharacInfo 全部函数（498 符号）。
 // 依据 docs/class_func_reports/CUserCharacInfo/（98 个 T 函数逐函数报告）与
 // ORIG 反汇编（386 个 W 访问器）逐函数实现；identical 口径编译验证。
@@ -77,396 +87,186 @@ static_assert(offsetof(LoadEtcEffectItemWindow, m_entries) == 0x8,
 static_assert(offsetof(CharacInvenView, m_inven) == 0xda,
               "inven view base drift (ORIG lea 0xda(%edx),%ecx)");
 
-CUserCharacInfo::~CUserCharacInfo()
-{
-    // 空体：隐式成员逆序析构（m_dungeonClear→m_battleRecord→m_pvpResult =
-    // ORIG +0xb4→+0x9c→+0x18 调用序）。显式伪析构调用使 4.4 每调用点再布
-    // cleanup 链（+22 条 vs ORIG 43）。
+#include "CUserCharacInfo/dtor_CUserCharacInfo.inc"
 }
 
-void CUserCharacInfo::useWinPoint(int point, eWPSubReason)
-{
-    enableSavePvP();
-    if (m_pvpResult.m_winPoint >= point)
-        m_pvpResult.m_winPoint -= point;
-    else
-        m_pvpResult.m_winPoint = 0;
+#include "CUserCharacInfo/useWinPoint.inc"
 }
 
-void CUserCharacInfo::updateLastItemLimitEditionBuyTime(long t)
-{
-    if (m_selected)
-    {
-    CUR->m_lastItemLimitEditionBuyTime = t;
-    }
+#include "CUserCharacInfo/updateLastItemLimitEditionBuyTime.inc"
 }
 
 
-void CUserCharacInfo::subtractCurCharacExp(int exp)
-{
-    enableSaveCharacStat();
-    if (m_selected)
-    {
-    CUR->m_exp -= exp;
-    }
+#include "CUserCharacInfo/subtractCurCharacExp.inc"
 }
 
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-void CUserCharacInfo::subUltimateInoutValue(char index)
-{
-    CUR->m_saveBloodInout = 1;
-    --CUR->m_ultimateInout[index];
+#include "CUserCharacInfo/subUltimateInoutValue.inc"
 }
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-void CUserCharacInfo::subDemensionInoutValue(char index)
-{
-    if (index > 5 || index < 0)
-        return;
-    CUR->m_saveDemensionInout = 1;
-    --CUR->m_demensionInout[index];
+#include "CUserCharacInfo/subDemensionInoutValue.inc"
 }
 
-void CUserCharacInfo::set_uppermember_exp_level(unsigned char level)
-{
-    if (m_selected)
-    {
-        if (level != 0 && CUR->m_uppermemberExpLevel > level)
-        {
-            LogManager::logFormat(1, "user.cpp",
-                                  __PRETTY_FUNCTION__,
-                                  0x2d2, "set member exp level error , name(%s) , level(%d), new level(%d)",
-                                  (char*)CUR->m_name, (unsigned int)CUR->m_uppermemberExpLevel,
-                                  (unsigned int)level);
-        }
-        else
-        {
-            CUR->m_uppermemberExpLevel = level;
-        }
-    }
+#include "CUserCharacInfo/set_uppermember_exp_level.inc"
 }
 
 
-void CUserCharacInfo::set_member_pay_tex_money_to_upper(int money)
-{
-    if (m_selected)
-    {
-    CUR->m_memberPayTexMoney = money;
-    }
+#include "CUserCharacInfo/set_member_pay_tex_money_to_upper.inc"
 }
 
 
-void CUserCharacInfo::set_member_pay_tex_fatigue_to_upper(int fatigue)
-{
-    if (m_selected)
-    {
-    CUR->m_memberPayTexFatigue = fatigue;
-    }
+#include "CUserCharacInfo/set_member_pay_tex_fatigue_to_upper.inc"
 }
 
 
-void CUserCharacInfo::set_level_before_dungeon(short level)
-{
-    if (m_selected)
-    {
-    CUR->m_levelBeforeDungeon = level;
-    }
+#include "CUserCharacInfo/set_level_before_dungeon.inc"
 }
 
 
-void CUserCharacInfo::set_guild_exp(int exp)
-{
-    if (m_selected && CUR->m_guildkey != 0)
-        CUR->m_guildExp = exp;
+#include "CUserCharacInfo/set_guild_exp.inc"
 }
 
 
-void CUserCharacInfo::set_guild_create_right(unsigned char right)
-{
-    if (m_selected)
-    {
-    enableSaveCharacEtc();
-    CUR->m_guildCreateRight = right;
-    }
+#include "CUserCharacInfo/set_guild_create_right.inc"
 }
 
 
-void CUserCharacInfo::set_growth_power_reward(int reward)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_growthPowerReward = (unsigned char)reward;
-    }
+#include "CUserCharacInfo/set_growth_power_reward.inc"
 }
 
 
-void CUserCharacInfo::set_growth_power_exp_reward_right(bool flag)
-{
-    if (m_selected)
-    {
-    CUR->m_growthPowerExpRewardRight = flag;
-    }
+#include "CUserCharacInfo/set_growth_power_exp_reward_right.inc"
 }
 
 
-void CUserCharacInfo::set_connect_upper_member(unsigned int member)
-{
-    if (m_selected)
-    {
-    CUR->m_connectUpperMember = member;
-    }
+#include "CUserCharacInfo/set_connect_upper_member.inc"
 }
 
 
-void CUserCharacInfo::set_charac_visible_values(char values)
-{
-    if (m_selected)
-    {
-    CUR->m_visibleValues = (unsigned char)values;
-    }
+#include "CUserCharacInfo/set_charac_visible_values.inc"
 }
 
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-void CUserCharacInfo::set_charac_visible_teleport_(bool flag)
-{
-    if (m_selected)
-    {
-        CUR->m_visibleBits.teleport = flag;
-    }
+#include "CUserCharacInfo/set_charac_visible_teleport_.inc"
 }
 
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-void CUserCharacInfo::set_charac_visible_grow_avatar(bool flag)
-{
-    if (m_selected)
-    {
-        CUR->m_visibleBits.growAvatar = flag;
-    }
+#include "CUserCharacInfo/set_charac_visible_grow_avatar.inc"
 }
 
 
-void CUserCharacInfo::set_charac_seria_buf_bonus_exp(int exp)
-{
-    if (m_selected)
-    {
-    CUR->m_seriaBufBonusExp = exp;
-    }
+#include "CUserCharacInfo/set_charac_seria_buf_bonus_exp.inc"
 }
 
 
-void CUserCharacInfo::set_charac_party_bonus_exp(int exp)
-{
-    if (m_selected)
-    {
-    CUR->m_partyBonusExp = exp;
-    }
+#include "CUserCharacInfo/set_charac_party_bonus_exp.inc"
 }
 
 
-void CUserCharacInfo::set_charac_memberkey(unsigned int key)
-{
-    if (m_selected)
-    {
-    CUR->m_memberkey = key;
-    }
+#include "CUserCharacInfo/set_charac_memberkey.inc"
 }
 
 
-void CUserCharacInfo::set_charac_member_bonus_exp(int exp)
-{
-    if (m_selected)
-    {
-    CUR->m_memberBonusExp = exp;
-    }
+#include "CUserCharacInfo/set_charac_member_bonus_exp.inc"
 }
 
 
-void CUserCharacInfo::set_charac_guildkey(unsigned int key)
-{
-    if (m_selected)
-    {
-    CUR->m_guildkey = key;
-    }
+#include "CUserCharacInfo/set_charac_guildkey.inc"
 }
 
 
-void CUserCharacInfo::set_charac_fatigue_buf_bonus_exp(int exp)
-{
-    if (m_selected)
-    {
-    CUR->m_fatigueBufBonusExp = exp;
-    }
+#include "CUserCharacInfo/set_charac_fatigue_buf_bonus_exp.inc"
 }
 
 
-void CUserCharacInfo::set_charac_createtime(long t)
-{
-    CUR->m_createTime.SetCreateTime(t);
+#include "CUserCharacInfo/set_charac_createtime.inc"
 }
 
-void CUserCharacInfo::set_aura_avatar_option_value(int index, int value)
-{
-    if (m_selected && index >= 0 && index <= 2)
-        CUR->m_auraAvatarOptionArr[index] = value;
+#include "CUserCharacInfo/set_aura_avatar_option_value.inc"
 }
 
 
-void CUserCharacInfo::set_aura_avatar_option(stAuraAvatarOption& option)
-{
-    if (m_selected)
-        CUR->m_auraAvatarOption = option;
+#include "CUserCharacInfo/set_aura_avatar_option.inc"
 }
 
 
 
-void CUserCharacInfo::setWeekendBonusFatigue(unsigned short value)
-{
-    if (m_selected)
-    {
-    CUR->m_maxFatigue = (unsigned short)(DEFAULT_MAX_FATIGUE + value);
-    }
+#include "CUserCharacInfo/setWeekendBonusFatigue.inc"
 }
 
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-void CUserCharacInfo::setWeekendBonusExp(unsigned int exp, int percent)
-{
-    if (m_selected)
-    {
-        CUR->m_weekendBonusExp = (int)((double)exp * (percent / 100.0f));
-    }
+#include "CUserCharacInfo/setWeekendBonusExp.inc"
 }
 
 
-void CUserCharacInfo::setUserEventCharacterFlag(unsigned char flag) { m_userEventCharacterFlag = flag; }
+#include "CUserCharacInfo/setUserEventCharacterFlag.inc"
 
-void CUserCharacInfo::setUpgradeSeparateTrueFlag(char flag)
-{
-    if (m_selected)
-    {
-    CUR->m_upgradeSeparateTrue = (unsigned char)flag;
-    }
+#include "CUserCharacInfo/setUpgradeSeparateTrueFlag.inc"
 }
 
 
-void CUserCharacInfo::setUpgradeSeparateFalseFlag(char flag)
-{
-    if (m_selected)
-    {
-    CUR->m_upgradeSeparateFalse = (unsigned char)flag;
-    }
+#include "CUserCharacInfo/setUpgradeSeparateFalseFlag.inc"
 }
 
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-void CUserCharacInfo::setUltimateInoutValue(char index, char value)
-{
-    CUR->m_saveBloodInout = 1;
-    CUR->m_ultimateInout[index] = (unsigned char)value;
+#include "CUserCharacInfo/setUltimateInoutValue.inc"
 }
 
-void CUserCharacInfo::setTagCharac(_Charac_info* p) { m_tag = p; }
+#include "CUserCharacInfo/setTagCharac.inc"
 
-void CUserCharacInfo::setStraightVictories(unsigned short count)
-{
-    if (m_selected)
-    {
-    CUR->m_straightVictories = count;
-    }
+#include "CUserCharacInfo/setStraightVictories.inc"
 }
 
 
-void CUserCharacInfo::setSeriaRoomAniDecoInfo(seriaRoom_AniDeco info)
-{
-    if (m_selected)
-        CUR->m_seriaRoomAniDeco = info;
+#include "CUserCharacInfo/setSeriaRoomAniDecoInfo.inc"
 }
 
 
 
-void CUserCharacInfo::setSaveCharacOption(bool flag)
-{
-    m_saveCharacOption = flag;
+#include "CUserCharacInfo/setSaveCharacOption.inc"
 }
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-int CUserCharacInfo::setPremiumBonusExp(unsigned int exp, int percent)
-{
-    if (m_selected)
-    {
-        CUR->m_premiumBonusExp = (int)(long long)((double)exp * (percent / 100.0f));
-        return CUR->m_premiumBonusExp;
-    }
-    return 0;
+#include "CUserCharacInfo/setPremiumBonusExp.inc"
 }
 
 
-void CUserCharacInfo::setPowerWarHP(unsigned short hp)
-{
-    if (m_selected)
-    {
-    CUR->m_powerWarHP = hp;
-    }
+#include "CUserCharacInfo/setPowerWarHP.inc"
 }
 
 
-void CUserCharacInfo::setMemberDungeonFlag(bool flag)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_memberDungeonFlag = flag;
-    }
+#include "CUserCharacInfo/setMemberDungeonFlag.inc"
 }
 
 
-void CUserCharacInfo::setLinkCharacSlotIndex(char index)
-{
-    if (m_selected)
-    {
-    CUR->m_linkCharacSlotIndex = index;
-    }
+#include "CUserCharacInfo/setLinkCharacSlotIndex.inc"
 }
 
 
-void CUserCharacInfo::setGuildMemberGrade(unsigned char grade)
-{
-    if (m_selected)
-    {
-    CUR->m_guildMemberGrade = grade;
-    }
+#include "CUserCharacInfo/setGuildMemberGrade.inc"
 }
 
 
-void CUserCharacInfo::setGuildCreateFlag(unsigned short flag)
-{
-    if (m_selected)
-    {
-    CUR->m_guildCreateFlag = (unsigned short)(CUR->m_guildCreateFlag | flag);
-    }
+#include "CUserCharacInfo/setGuildCreateFlag.inc"
 }
 
 
 // ORIG W 0x0822f8f6：m_selected 非空时返回其 +0xee9 字节，否则 0。
 // 返回 bool：调用点 0x0821b4d8 `xor $0x1,%eax;test %al,%al`（uchar/int 声明不出 xor，探针实证）。
-bool CUserCharacInfo::isDisguiseCharac()
-{
-    if (m_selected)
-    {
-        return CUR->m_isDisguiseCharac;
-    }
-    return false;
+#include "CUserCharacInfo/isDisguiseCharac.inc"
 }
 
 
@@ -476,98 +276,42 @@ bool CUserCharacInfo::isDisguiseCharac()
 // 4.4 对 TU 内已见定义的 callee 精确继承 outgoing ⇒ caller 帧塌缩 sub $0x14
 // + spill -0x4/-0x8/-0xc；前置后恢复 ORIG 保守帧 sub $0x28 + spill
 // -0xc/-0x10/-0x14（探针 /tmp/s156_probe/p11.cpp f0/f1 对照）。
-void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind,
-                                        unsigned short index)
-{
-    if (m_selected)
-    {
-    CUR->m_isDisguiseCharac = flag;
-    setDisguiseKind(kind);
-    setDisguiseIndex(index);
-    }
+#include "CUserCharacInfo/setDisguiseCharac.inc"
 }
 
 
-void CUserCharacInfo::setDisguiseKind(unsigned char kind)
-{
-    if (m_selected)
-    {
-    CUR->m_disguiseKind = kind;
-    }
+#include "CUserCharacInfo/setDisguiseKind.inc"
 }
 
 
-void CUserCharacInfo::setDisguiseIndex(unsigned short index)
-{
-    if (m_selected)
-    {
-    CUR->m_disguiseIndex = index;
-    }
+#include "CUserCharacInfo/setDisguiseIndex.inc"
 }
 
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-void CUserCharacInfo::setDemensionInoutValue(char index, char value)
-{
-    if (index > 5 || index < 0)
-        return;
-    CUR->m_saveDemensionInout = 1;
-    CUR->m_demensionInout[index] = (unsigned char)value;
+#include "CUserCharacInfo/setDemensionInoutValue.inc"
 }
 
-void CUserCharacInfo::setCurrCharacJoinPower(char power)
-{
-    enableSaveCharacStat();
-    if (m_selected)
-        CUR->m_joinPower = (unsigned char)power;
+#include "CUserCharacInfo/setCurrCharacJoinPower.inc"
 }
 
 
 
 
-void CUserCharacInfo::setCurrCharacBlackCount(unsigned int count)
-{
-    if (m_selected)
-    {
-    CUR->m_blackCount = count;
-    }
+#include "CUserCharacInfo/setCurrCharacBlackCount.inc"
 }
 
 
-void CUserCharacInfo::setCurUseBringUpMaterialTotal(unsigned char total)
-{
-    if (m_selected)
-    {
-    CUR->m_curUseBringUpMaterialTotal = total;
-    }
+#include "CUserCharacInfo/setCurUseBringUpMaterialTotal.inc"
 }
 
 
-void CUserCharacInfo::setCurEquipslotFlag(char flag)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_curEquipslotFlag = flag;
-    }
+#include "CUserCharacInfo/setCurEquipslotFlag.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacVill(char vill)
-{
-    if (!m_selected)
-        return;
-    CUR->m_villPrev = CUR->m_vill;
-    if (G_GameWorld()->IsPVPChannel())
-    {
-        CUR->m_villPvP = 2;
-    }
-    else
-    {
-        enableSaveCharacStat();
-        CUR->m_vill = (unsigned char)vill;
-    }
+#include "CUserCharacInfo/setCurCharacVill.inc"
 }
 
 
@@ -581,227 +325,88 @@ void CUserCharacInfo::setCurCharacVill(char vill)
 // ③or 操作数序改 field 先（ORIG 先读 field 再算 1<<bit，寄存器 %ebx/%edi 归位）；
 // ④路由 `-march=i486 -mtune=generic`（Main 2026-09-09 已批）+ `index / 8` 复现
 //   ORIG 6 条符号修正链（探针 /tmp/s156_probe/p13i486.o）。
-bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
-{
-    if (m_selected)
-    {
-        enableSaveCharacStat();
-        if (flag < 0x20)
-        {
-            // [b28d-L14 实证] ORIG 0x08647466 无 mask 槽：表达式内联（P0）。
-            // [b28d-solo-CUserCharacInfo N6 翻案] `1 << flag`（int 字面量）保 ORIG 的
-            // `mov $1,%ebx; mov %ebx,%esi; shl %cl,%esi`；`1u <<` 被 4.4 折成
-            // `shr %cl; and $1`（探针 /tmp/s156_probe/p12.cpp f1 vs f4）。
-            if ((CUR->m_tutorialFlags & (1 << flag)) != 0)
-                return false;
-            CUR->m_tutorialFlags |= 1 << flag;
-            return true;
-        }
-        if (flag < 0x80)
-        {
-            int index = (int)(flag - 0x20);
-            // [b28d-solo-CUserCharacInfo N97 复核] `index / 8` 实测 4.4 产
-            // `lea 0x7(%eax); test; cmovs`（默认旗标，cmovs 形 ORIG 无）；
-            // [b28d-solo-CUserCharacInfo 路由已批] 本 TU 走 `-march=i486 -mtune=generic`
-            // （dnf_game_cxx.sh i486 组，Main 2026-09-09 落）后 4.4.7 对 `index / 8`
-            // 产 ORIG 精确 6 条（mov/mov/sar/shr/lea/sar，探针 /tmp/s156_probe/p13i486.o）。
-            int byteIndex = index / 8;
-            // [b28d-solo-CUserCharacInfo P0/P222] ORIG 0x086474ad 有 int bit 槽 -0x1c
-            // （先算 index%8 再边界检查）且两守卫走 P222 正向包裹（js 尾部共享 false 块）。
-            int bit = index % 8;
-            if (byteIndex >= 0)
-            {
-                if (byteIndex <= 0xf)
-                    goto PASS;
-            }
-            return false;
-        // [b28d-solo-CUserCharacInfo P169] 复现 ORIG 0x086474ad 段
-        // `js <false>; cmpl $0xf; jle <body>; mov $0; jmp; <body>:`（P222 包裹恒产
-        // `jg <skip>` 岛）。
-        PASS:
-            if ((((signed char)CUR->m_tutorialFlags2[byteIndex]) >> bit & 1) != 0)
-                return false;
-            CUR->m_tutorialFlags2[byteIndex] =
-                (unsigned char)(CUR->m_tutorialFlags2[byteIndex] | (1 << bit));
-            return true;
-        }
-    }
-    return false;
+#include "CUserCharacInfo/setCurCharacTutorialFlag.inc"
 }
 
-void CUserCharacInfo::setCurCharacTradeGoldDaily(unsigned int gold)
-{
-    enableSaveCharacStat();
-    CUR->m_reliablePerson.SetTradeGoldDaily(gold);
+#include "CUserCharacInfo/setCurCharacTradeGoldDaily.inc"
 }
 
-void CUserCharacInfo::setCurCharacTagCharacNo(unsigned int no)
-{
-    if (m_selected)
-    {
-    enableSaveCharacManageInfo();
-    CUR->m_tagCharacNo = no;
-    }
+#include "CUserCharacInfo/setCurCharacTagCharacNo.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacStrikerSkillIndex(unsigned char index)
-{
-    if (m_selected)
-    {
-    enableSaveCharacManageInfo();
-    CUR->m_strikerSkillIndex = index;
-    }
+#include "CUserCharacInfo/setCurCharacStrikerSkillIndex.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacStamina(unsigned char value)
-{
-    enableSaveCharacStat();
-    CUR->m_stamina = value;
+#include "CUserCharacInfo/setCurCharacStamina.inc"
 }
 
 
 
-void CUserCharacInfo::setCurCharacPremiumFatigue(unsigned short value)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_premiumFatigue = value;
-    }
+#include "CUserCharacInfo/setCurCharacPremiumFatigue.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacMaxPremiumFatigue(unsigned short value)
-{
-    if (m_selected)
-    {
-    enableSaveCharacEtc();
-    CUR->m_maxPremiumFatigue = value;
-    }
+#include "CUserCharacInfo/setCurCharacMaxPremiumFatigue.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacLevel(int level)
-{
-    enableSaveCharacInfo();
-    if (m_selected)
-    {
-    CUR->m_level = (unsigned short)level;
-    }
+#include "CUserCharacInfo/setCurCharacLevel.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacLastPlayTickPowerWar(long tick)
-{
-    enableSaveCharacStat();
-    CUR->m_lastPlayTickPowerWar = tick;
+#include "CUserCharacInfo/setCurCharacLastPlayTickPowerWar.inc"
 }
 
 
 
-void CUserCharacInfo::setCurCharacLastPlayTick(long tick)
-{
-    enableSaveCharacStat();
-    CUR->m_lastPlayTick = tick;
+#include "CUserCharacInfo/setCurCharacLastPlayTick.inc"
 }
 
 
 
-void CUserCharacInfo::setCurCharacLastPlayDungeonIndex(unsigned int index)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_lastPlayDungeonIndex = index;
-    }
+#include "CUserCharacInfo/setCurCharacLastPlayDungeonIndex.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacHelpAbuseComputedRatio(unsigned int ratio)
-{
-    if (m_selected)
-    {
-    CUR->m_helpAbuseComputedRatio = ratio;
-    }
+#include "CUserCharacInfo/setCurCharacHelpAbuseComputedRatio.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacGuildSecede(char flag)
-{
-    CUR->m_guildSecede = (unsigned char)flag;
+#include "CUserCharacInfo/setCurCharacGuildSecede.inc"
 }
 
-void CUserCharacInfo::setCurCharacFatigueGrownUpBuff(unsigned short value)
-{
-    if (m_selected)
-    {
-        enableSaveCharacStat();
-        CUR->m_fatigueGrownUpBuff = value;
-    }
+#include "CUserCharacInfo/setCurCharacFatigueGrownUpBuff.inc"
 }
 
 
 
 
-void CUserCharacInfo::setCurCharacFatigue(int fatigue)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_fatigue = (unsigned short)fatigue;
-    }
+#include "CUserCharacInfo/setCurCharacFatigue.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacExp(int exp)
-{
-    enableSaveCharacStat();
-    if (m_selected)
-    {
-    CUR->m_exp = exp;
-    }
+#include "CUserCharacInfo/setCurCharacExp.inc"
 }
 
 
-void CUserCharacInfo::setCurCharacEventCharacterGrowtype(char growtype)
-{
-    enableSaveCharacEtc();
-    CUR->m_eventCharacterGrowtype = (unsigned char)growtype;
+#include "CUserCharacInfo/setCurCharacEventCharacterGrowtype.inc"
 }
 
 
 
-void CUserCharacInfo::setCurCharacBackupStamina(unsigned char value)
-{
-    if (m_selected)
-    {
-    CUR->m_backupStamina = value;
-    }
+#include "CUserCharacInfo/setCurCharacBackupStamina.inc"
 }
 
 
-void CUserCharacInfo::setCurCharac(_Charac_info* p)
-{
-    enableSaveCharacInfo();
-    enableSaveCharacStat();
-    enableSaveCharacEtc();
-    m_selected = p;
+#include "CUserCharacInfo/setCurCharac.inc"
 }
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 // （身位字节 shl/sar/and/or 逻辑逐条全等）
-void CUserCharacInfo::setCurCharGrowthType(char first, char second)
-{
-    if (first > 6)
-        return;
-    if (second > 2)
-        return;
-    enableSaveCharacInfo();
-    CUR->m_growType.first = first;
-    CUR->m_growType.second = second;
+#include "CUserCharacInfo/setCurCharGrowthType.inc"
 }
 
 
@@ -809,750 +414,345 @@ void CUserCharacInfo::setCurCharGrowthType(char first, char second)
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 // 同 setCurCharGrowthType（身位字节写逻辑逐条一致）。
-void CUserCharacInfo::setCurCharChangingGrowthType(char first, char second)
-{
-    if (first > 6)
-        return;
-    if (second > 2)
-        return;
-    CUR->m_growTypeChanging.first = first;
-    CUR->m_growTypeChanging.second = second;
+#include "CUserCharacInfo/setCurCharChangingGrowthType.inc"
 }
 
 
 
-void CUserCharacInfo::setCurChannelEquipslotSwitch(char flag)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_curChannelEquipslotSwitch = (unsigned char)flag;
-    }
+#include "CUserCharacInfo/setCurChannelEquipslotSwitch.inc"
 }
 
 
-bool CUserCharacInfo::setConctractOfCubePremiumInfo(bool active, unsigned char count)
-{
-    if (!m_selected)
-        return false;
-    CUR->m_cubePremiumSaved = 1;
-    CUR->m_cubePremiumContract = active;
-    CUR->m_cubePremiumCount = count;
-    return true;
+#include "CUserCharacInfo/setConctractOfCubePremiumInfo.inc"
 }
 
-void CUserCharacInfo::setCharacViewState(int state)
-{
-    if (m_selected)
-    {
-    CUR->m_characViewState = state;
-    }
+#include "CUserCharacInfo/setCharacViewState.inc"
 }
 
 
-void CUserCharacInfo::setCharacOption(CharacterOption& option)
-{
-    if (m_selected)
-        CUR->m_characterOption = option;
+#include "CUserCharacInfo/setCharacOption.inc"
 }
 
 
 
 
-void CUserCharacInfo::setCharacLinkBonusGold(unsigned int gold)
-{
-    if (m_selected)
-    {
-    CUR->m_characLinkBonusGold = gold;
-    }
+#include "CUserCharacInfo/setCharacLinkBonusGold.inc"
 }
 
 
-void CUserCharacInfo::setCharacLinkBonusExp(unsigned int exp)
-{
-    if (m_selected)
-    {
-    CUR->m_characLinkBonusExp = exp;
-    }
+#include "CUserCharacInfo/setCharacLinkBonusExp.inc"
 }
 
 
-void CUserCharacInfo::setBringUpRewardFlag(bool flag)
-{
-    if (m_selected)
-    {
-    CUR->m_bringUpRewardFlag = flag;
-    }
+#include "CUserCharacInfo/setBringUpRewardFlag.inc"
 }
 
 
-void CUserCharacInfo::setBlueMarbleEnterCount(unsigned char count)
-{
-    if (m_selected)
-    {
-    CUR->m_blueMarbleEnterCount = count;
-    }
+#include "CUserCharacInfo/setBlueMarbleEnterCount.inc"
 }
 
 
-void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int record, bool flag)
-{
-    // [b28 BM8 P223] ORIG 三空块中继岛（+0x24c/0x24f/0x252 `nop;jmp`）：
-    // m_selected==0 空 else、`!(best<=round)`、`best==cur 全等` 短路空出口。
-    // 4.4 jump-threading 折叠空块 ⇒ 改 goto+尾空标签形逐岛复现。
-    if (m_selected == 0)
-        goto L_SBR_END;
-    {
-    if (round > 0xf)
-        round = 0xf;
-    {
-    std::map<int, stBloodBestRecord>::iterator it =
-        CUR->m_bloodBestMap.m_map.find(record);
-    if (it == CUR->m_bloodBestMap.m_map.end())
-    {
-        if (!flag)
-            setBloodBestRecordUpdate(true);
-        // ORIG（0x086880a3-0x086880c4）实参槽序：0x4(%esp)=lea 0x14(%ebp)
-        // （&record），0x8(%esp)=lea -0x38(%ebp)（&local{-0x38=round,-0x34=time}）
-        // ⇒ make_pair(record, local)。旧形把两实参对调且把 record+flag 裸字节
-        // 重读成 Blood 值——真语义 bug（P196 族），按 ORIG 恢复：key=record、
-        // value=stBloodBestRecord{m_round=round,m_time=time} 具名局部。
-        stBloodBestRecord local;
-        local.m_round = round;
-        local.m_time = time;
-        CUR->m_bloodBestMap.m_map.insert(
-            std::make_pair<int&, stBloodBestRecord&>(record, local));
-        CUR->m_bloodBestRound = round;
-        CUR->m_bloodBestTime = time;
-    }
-    else
-    {
-        CUR->m_bloodBestRound = it->second.m_round;
-        CUR->m_bloodBestTime = it->second.m_time;
-        if (round < CUR->m_bloodBestRound)
-            goto L_SBR_END2;
-        if (CUR->m_bloodBestTime == time &&
-            CUR->m_bloodBestRound == round)
-            goto L_SBR_END3;
-        {
-            if (CUR->m_bloodBestRound == round)
-            {
-                setBloodBestRecordUpdate(true);
-                CUR->m_bloodBestTime = std::min(CUR->m_bloodBestTime, time);
-            }
-            else
-            {
-                setBloodBestRecordUpdate(true);
-                CUR->m_bloodBestTime = time;
-                CUR->m_bloodBestRound = round;
-            }
-            it->second.m_round = CUR->m_bloodBestRound;
-            it->second.m_time = CUR->m_bloodBestTime;
-        }
-    }
-    }
-    }
-L_SBR_END3:;
-L_SBR_END2:;
-L_SBR_END:;
+#include "CUserCharacInfo/setBloodBestRecord.inc"
 }
 
 
-void CUserCharacInfo::setBloodBestRecordUpdate(bool flag)
-{
-    if (m_selected)
-    {
-    CUR->m_bloodBestRecordUpdate = flag;
-    }
+#include "CUserCharacInfo/setBloodBestRecordUpdate.inc"
 }
 
 
-void CUserCharacInfo::reset_level_before_dungeon()
-{
-    if (m_selected)
-    {
-    CUR->m_levelBeforeDungeon = 0;
-    }
+#include "CUserCharacInfo/reset_level_before_dungeon.inc"
 }
 
 
-void CUserCharacInfo::reset_is_end_lethe_at_login()
-{
-    if (m_selected)
-    {
-    CUR->m_isEndLetheAtLogin = 0;
-    }
+#include "CUserCharacInfo/reset_is_end_lethe_at_login.inc"
 }
 
 
-void CUserCharacInfo::reset_guild_today_exp()
-{
-    if (m_selected && CUR->m_guildkey != 0)
-        CUR->m_guildTodayExp = 0;
+#include "CUserCharacInfo/reset_guild_today_exp.inc"
 }
 
 
-void CUserCharacInfo::reset_guild_temp_exp()
-{
-    if (m_selected)
-    {
-    CUR->m_guildTempExp = 0;
-    }
+#include "CUserCharacInfo/reset_guild_temp_exp.inc"
 }
 
 
-void CUserCharacInfo::reset_guild_exp()
-{
-    if (m_selected && CUR->m_guildkey != 0)
-        CUR->m_guildExp = 0;
+#include "CUserCharacInfo/reset_guild_exp.inc"
 }
 
 
-void CUserCharacInfo::resetWeekendBonusExp()
-{
-    if (m_selected)
-    {
-    CUR->m_weekendBonusExp = 0;
-    }
+#include "CUserCharacInfo/resetWeekendBonusExp.inc"
 }
 
 
-void CUserCharacInfo::resetTempGuildNameAddr()
-{
-    if (m_selected)
-    {
-    memset(CUR->m_guildName, 0, sizeof(CUR->m_guildName));
-    memset(CUR->m_guildAddr, 0, sizeof(CUR->m_guildAddr));
-    }
+#include "CUserCharacInfo/resetTempGuildNameAddr.inc"
 }
 
 
-void CUserCharacInfo::resetStraightVictories()
-{
-    if (m_selected)
-    {
-    CUR->m_straightVictories = 0;
-    }
+#include "CUserCharacInfo/resetStraightVictories.inc"
 }
 
 
-void CUserCharacInfo::resetPremiumBonusExp()
-{
-    if (m_selected)
-    {
-    CUR->m_premiumBonusExp = 0;
-    }
+#include "CUserCharacInfo/resetPremiumBonusExp.inc"
 }
 
 
-void CUserCharacInfo::resetGuildCreateFlag()
-{
-    if (m_selected)
-    {
-    CUR->m_guildCreateFlag = 0;
-    }
+#include "CUserCharacInfo/resetGuildCreateFlag.inc"
 }
 
 
-void CUserCharacInfo::resetCurUseBringUpMaterialCount()
-{
-    if (m_selected)
-    {
-    CUR->m_curUseBringUpMaterialCount = 0;
-    }
+#include "CUserCharacInfo/resetCurUseBringUpMaterialCount.inc"
 }
 
 
-void CUserCharacInfo::resetCurCharacUsedFatigue()
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_usedFatigue = 0;
-    }
+#include "CUserCharacInfo/resetCurCharacUsedFatigue.inc"
 }
 
 
-void CUserCharacInfo::resetCurCharacSchoolPoint()
-{
-    if (m_selected)
-    {
-    CUR->m_reliablePerson.m_schoolPoint = 0;
-    }
+#include "CUserCharacInfo/resetCurCharacSchoolPoint.inc"
 }
 
 
-void CUserCharacInfo::resetCurCharacOverEquipFlag()
-{
-    if (!m_selected)
-        return;
-    CUR->m_overEquipFlag = 0;
+#include "CUserCharacInfo/resetCurCharacOverEquipFlag.inc"
 }
 
 
 
-void CUserCharacInfo::resetCurCharacMemberBonusFatigue()
-{
-    enableSaveCharacStat();
-    CUR->m_memberBonusFatigue = 0;
+#include "CUserCharacInfo/resetCurCharacMemberBonusFatigue.inc"
 }
 
 
 
 
-void CUserCharacInfo::resetCharacTutorialFlag()
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_tutorialFlags = 0;
-    memset(CUR->m_tutorialFlags2, 0, 0x10);
-    }
+#include "CUserCharacInfo/resetCharacTutorialFlag.inc"
 }
 
 
-void CUserCharacInfo::resetCharacFatigueGrownUpBuff()
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_fatigueGrownUpBuff = 0;
-    }
+#include "CUserCharacInfo/resetCharacFatigueGrownUpBuff.inc"
 }
 
 
-void CUserCharacInfo::resetCharGuildInfo()
-{
-    if (m_selected)
-    {
-    CUR->m_guildkey = 0;
-    CUR->m_guildTempExp = 0;
-    CUR->m_guildExp = 0;
-    CUR->m_guildMemberGrade = 0;
-    CUR->m_guildCreateRight = 0;
-    CUR->m_guildCreateFlag = 0;
-    CUR->m_guildTodayExp = 0;
-    }
+#include "CUserCharacInfo/resetCharGuildInfo.inc"
 }
 
 
-void CUserCharacInfo::resetBlueMarbleUserDeadCount()
-{
-    if (m_selected)
-    {
-    CUR->m_blueMarbleUserDeadCount = 0;
-    }
+#include "CUserCharacInfo/resetBlueMarbleUserDeadCount.inc"
 }
 
 
-void CUserCharacInfo::resetBlueMarbleEnterCount()
-{
-    if (m_selected)
-    {
-    CUR->m_blueMarbleEnterCount = 0;
-    }
+#include "CUserCharacInfo/resetBlueMarbleEnterCount.inc"
 }
 
 
-unsigned char CUserCharacInfo::needCurCharacCheckOverEquip()
-{
-    if (!m_selected)
-        return 0;
-    return (unsigned char)CUR->m_overEquipFlag;
+#include "CUserCharacInfo/needCurCharacCheckOverEquip.inc"
 }
 
 
 // [b28d-Main·检查点14] ORIG 0x08696ca4：13 条，`movzbl 0x127b(%eax),%eax; jmp`
 // 直返无 setne ⇒ 字段/返回同型 bool；调用点 0x0868dbfb `xor $1` 联判。
 // 字段已由 Main 在 CUserCharacInfo.h 正式改 bool，TU 局部视图已删除（直读）。
-bool CUserCharacInfo::is_growth_power_exp_reward_right() const
-{
-    return m_selected ? CUR->m_growthPowerExpRewardRight : 0;
+#include "CUserCharacInfo/is_growth_power_exp_reward_right.inc"
 }
 
-bool CUserCharacInfo::is_connect_upper_member()
-{
-    if (m_selected && CUR->m_connectUpperMember != 0)
-        return true;
-    return false;
+#include "CUserCharacInfo/is_connect_upper_member.inc"
 }
 
 
 
 
-bool CUserCharacInfo::isSetGuildCreateFlag(unsigned short flag)
-{
-    if (m_selected)
-    {
-        if ((CUR->m_guildCreateFlag & flag) == flag)
-            return true;
-        return false;
-    }
-    return false;
+#include "CUserCharacInfo/isSetGuildCreateFlag.inc"
 }
 
 
 
-unsigned char CUserCharacInfo::isSavedPremiumCubeInfo() const
-{
-    if (!m_selected)
-        return 0;
-    return CUR->m_cubePremiumSaved;
+#include "CUserCharacInfo/isSavedPremiumCubeInfo.inc"
 }
 
 
 // [b28c-L26 档①] 返回类型随头改 bool（Main 批准，ORIG 体 movzbl 直返实证）。
-bool CUserCharacInfo::isSaveSkill() { return m_saveSkill; }
+#include "CUserCharacInfo/isSaveSkill.inc"
 
-bool CUserCharacInfo::isSaveQuest() { return m_saveQuest; }
+#include "CUserCharacInfo/isSaveQuest.inc"
 
-bool CUserCharacInfo::isSavePvP() { return m_savePvP; }
+#include "CUserCharacInfo/isSavePvP.inc"
 
-bool CUserCharacInfo::isSaveInven() { return m_saveInven; }
+#include "CUserCharacInfo/isSaveInven.inc"
 
-char CUserCharacInfo::isSaveDungeonClear() { return m_saveDungeonClear; }
+#include "CUserCharacInfo/isSaveDungeonClear.inc"
 
-char CUserCharacInfo::isSaveCharacOption() { return m_saveCharacOption; }
+#include "CUserCharacInfo/isSaveCharacOption.inc"
 
-char CUserCharacInfo::isSaveCharacInfo() { return m_saveCharacInfo; }
+#include "CUserCharacInfo/isSaveCharacInfo.inc"
 
-char CUserCharacInfo::isSaveCharacEtc() { return m_saveCharacEtc; }
+#include "CUserCharacInfo/isSaveCharacEtc.inc"
 
-char CUserCharacInfo::isSaveCargo() { return m_saveCargo; }
+#include "CUserCharacInfo/isSaveCargo.inc"
 
-char CUserCharacInfo::isSaveBattleRecord() { return m_saveBattleRecord; }
+#include "CUserCharacInfo/isSaveBattleRecord.inc"
 
-unsigned char CUserCharacInfo::isJoinPowerWar() const
-{
-    return m_selected ? CUR->m_joinPower : 0;
+#include "CUserCharacInfo/isJoinPowerWar.inc"
 }
 
-unsigned short CUserCharacInfo::getPowerWarHP()
-{
-    return m_selected ? CUR->m_powerWarHP : 0;
+#include "CUserCharacInfo/getPowerWarHP.inc"
 }
 
-bool CUserCharacInfo::isExistItem(int itemIdx)
-{
-    if (!m_selected)
-        return false;
-    // ORIG（0x8678084）`lea 0xdaa(%eax),%edx`/`lea 0xda(%eax)` 指针算术形态；
-    // char 数组成员 decay 会退化为 add 改写 dest 寄存器（回退证据：转换实验），
-    // 故保留指针算术但偏移改用具名字段 offsetof（防布局漂移，docs/
-    // class_func_reports/CUserCharacInfo/isExistItem.md）。
-    if (((const CCargo*)((const char*)m_selected +
-                         offsetof(CharacInfoFields, m_cargo)))->check_item_exist(itemIdx) != -1)
-        return true;
-    if (((const CInventory*)((const char*)m_selected +
-                             offsetof(CharacInfoFields, m_inven)))->check_item_exist(itemIdx) != -1)
-        return true;
-    return false;
+#include "CUserCharacInfo/isExistItem.inc"
 }
 
 
 
-unsigned char CUserCharacInfo::isBloodBestRecordUpdate()
-{
-    return CUR->m_bloodBestRecordUpdate;
+#include "CUserCharacInfo/isBloodBestRecordUpdate.inc"
 }
 
-bool CUserCharacInfo::initContractOfCubePremiumInfo(bool active, unsigned char count)
-{
-    if (!m_selected)
-        return false;
-    CUR->m_cubePremiumSaved = 0;
-    CUR->m_cubePremiumContract = active;
-    CUR->m_cubePremiumCount = count;
-    return true;
+#include "CUserCharacInfo/initContractOfCubePremiumInfo.inc"
 }
 
-void CUserCharacInfo::increaseBlueMarbleUserDeadCount()
-{
-    if (m_selected)
-    {
-    ++CUR->m_blueMarbleUserDeadCount;
-    }
+#include "CUserCharacInfo/increaseBlueMarbleUserDeadCount.inc"
 }
 
 
-void CUserCharacInfo::increaseBlueMarbleEnterCount()
-{
-    if (m_selected)
-    {
-    ++CUR->m_blueMarbleEnterCount;
-    }
+#include "CUserCharacInfo/increaseBlueMarbleEnterCount.inc"
 }
 
 
-void CUserCharacInfo::incStraightVictories()
-{
-    if (m_selected)
-    {
-    ++CUR->m_straightVictories;
-    }
+#include "CUserCharacInfo/incStraightVictories.inc"
 }
 
 
-void CUserCharacInfo::incCurUseBringUpMaterialCount()
-{
-    if (m_selected)
-    {
-    ++CUR->m_curUseBringUpMaterialCount;
-    ++CUR->m_curUseBringUpMaterialTotal;
-    }
+#include "CUserCharacInfo/incCurUseBringUpMaterialCount.inc"
 }
 
 
-void CUserCharacInfo::incCurCharacUsedFatigue(unsigned short value)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_usedFatigue = (unsigned short)(CUR->m_usedFatigue + value);
-    }
+#include "CUserCharacInfo/incCurCharacUsedFatigue.inc"
 }
 
 
-void CUserCharacInfo::incCurCharacMemberBonusFatigue(short value)
-{
-    enableSaveCharacStat();
-    CUR->m_memberBonusFatigue =
-        (unsigned short)(CUR->m_memberBonusFatigue + value);
+#include "CUserCharacInfo/incCurCharacMemberBonusFatigue.inc"
 }
 
 
 
-void CUserCharacInfo::incCurCharacLevel()
-{
-    enableSaveCharacInfo();
-    if (m_selected)
-    {
-    ++CUR->m_level;
-    }
+#include "CUserCharacInfo/incCurCharacLevel.inc"
 }
 
 
-unsigned char CUserCharacInfo::get_uppermember_exp_level()
-{
-    return m_selected ? CUR->m_uppermemberExpLevel : 0;
+#include "CUserCharacInfo/get_uppermember_exp_level.inc"
 }
 
-int CUserCharacInfo::get_pvp_result_oldexp_point() const { return m_pvpResult.m_oldExpPoint; }
+#include "CUserCharacInfo/get_pvp_result_oldexp_point.inc"
 
-int CUserCharacInfo::get_pvp_result_exp_point() const { return m_pvpResult.m_expPoint; }
+#include "CUserCharacInfo/get_pvp_result_exp_point.inc"
 
-int CUserCharacInfo::get_pvp_grade() const { return m_pvpResult.m_pvpGrade; }
+#include "CUserCharacInfo/get_pvp_grade.inc"
 
-int CUserCharacInfo::get_member_pay_tex_money_to_upper() const
-{
-    return m_selected ? CUR->m_memberPayTexMoney : 0;
+#include "CUserCharacInfo/get_member_pay_tex_money_to_upper.inc"
 }
 
-int CUserCharacInfo::get_member_pay_tex_fatigue_to_upper() const
-{
-    return m_selected ? CUR->m_memberPayTexFatigue : 0;
+#include "CUserCharacInfo/get_member_pay_tex_fatigue_to_upper.inc"
 }
 
-int CUserCharacInfo::get_guild_today_exp()
-{
-    return m_selected ? CUR->m_guildTodayExp : 0;
+#include "CUserCharacInfo/get_guild_today_exp.inc"
 }
 
-int CUserCharacInfo::get_guild_temp_exp()
-{
-    return m_selected ? CUR->m_guildTempExp : 0;
+#include "CUserCharacInfo/get_guild_temp_exp.inc"
 }
 
-int CUserCharacInfo::get_guild_exp()
-{
-    return m_selected ? CUR->m_guildExp : 0;
+#include "CUserCharacInfo/get_guild_exp.inc"
 }
 
-unsigned char CUserCharacInfo::get_guild_create_right()
-{
-    return m_selected ? CUR->m_guildCreateRight : 0;
+#include "CUserCharacInfo/get_guild_create_right.inc"
 }
 
-unsigned char CUserCharacInfo::get_growth_power_reward() const
-{
-    return m_selected ? CUR->m_growthPowerReward : 0;
+#include "CUserCharacInfo/get_growth_power_reward.inc"
 }
 
-int CUserCharacInfo::get_connect_upper_member()
-{
-    return m_selected ? CUR->m_connectUpperMember : 0;
+#include "CUserCharacInfo/get_connect_upper_member.inc"
 }
 
-signed char CUserCharacInfo::get_charac_visible_values()
-{
-    return m_selected ? CUR->m_visibleValues : 0;
+#include "CUserCharacInfo/get_charac_visible_values.inc"
 }
 
-bool CUserCharacInfo::get_charac_visible_grow_avatar()
-{
-    if (m_selected && CUR->m_visibleBits.growAvatar)
-        return 1;
-    return 0;
+#include "CUserCharacInfo/get_charac_visible_grow_avatar.inc"
 }
 
 
-int CUserCharacInfo::get_charac_seria_buf_bonus_exp() const
-{
-    if (m_selected)
-    {
-        int value = CUR->m_seriaBufBonusExp;
-        CUR->m_seriaBufBonusExp = 0;
-        return value;
-    }
-    return 0;
+#include "CUserCharacInfo/get_charac_seria_buf_bonus_exp.inc"
 }
 
 
-int CUserCharacInfo::get_charac_party_bonus_exp() const
-{
-    return m_selected ? CUR->m_partyBonusExp : 0;
+#include "CUserCharacInfo/get_charac_party_bonus_exp.inc"
 }
 
-int CUserCharacInfo::get_charac_memberkey()
-{
-    return m_selected ? CUR->m_memberkey : 0;
+#include "CUserCharacInfo/get_charac_memberkey.inc"
 }
 
-int CUserCharacInfo::get_charac_member_bonus_exp() const
-{
-    return m_selected ? CUR->m_memberBonusExp : 0;
+#include "CUserCharacInfo/get_charac_member_bonus_exp.inc"
 }
 
-int CUserCharacInfo::get_charac_level_before_dungeon() const
-{
-    if (m_selected)
-    {
-        if (CUR->m_levelBeforeDungeon != 0)
-            return CUR->m_levelBeforeDungeon;
-        return CUR->m_level;
-    }
-    return 0;
+#include "CUserCharacInfo/get_charac_level_before_dungeon.inc"
 }
 
 
-int CUserCharacInfo::get_charac_job() const
-{
-    return m_selected ? (signed char)CUR->m_job : 0;
+#include "CUserCharacInfo/get_charac_job.inc"
 }
 
-int CUserCharacInfo::get_charac_guildkey()
-{
-    return m_selected ? CUR->m_guildkey : 0;
+#include "CUserCharacInfo/get_charac_guildkey.inc"
 }
 
-int CUserCharacInfo::get_charac_fatigue_buf_bonus_exp() const
-{
-    return m_selected ? CUR->m_fatigueBufBonusExp : 0;
+#include "CUserCharacInfo/get_charac_fatigue_buf_bonus_exp.inc"
 }
 
-int CUserCharacInfo::get_charac_exp() const
-{
-    return m_selected ? CUR->m_exp : 0;
+#include "CUserCharacInfo/get_charac_exp.inc"
 }
 
-int CUserCharacInfo::get_charac_10_level_section() const
-{
-    if (m_selected)
-    {
-        if (CUR->m_level % 10 == 0)
-            return CUR->m_level;
-        else
-            return CUR->m_level - (CUR->m_level % 10) + 10;
-    }
-    return 10;
+#include "CUserCharacInfo/get_charac_10_level_section.inc"
 }
 
-int CUserCharacInfo::getWeekendBonusExp()
-{
-    return m_selected ? CUR->m_weekendBonusExp : 0;
+#include "CUserCharacInfo/getWeekendBonusExp.inc"
 }
 
-unsigned char CUserCharacInfo::getUserEventCharacterFlag() { return m_userEventCharacterFlag; }
+#include "CUserCharacInfo/getUserEventCharacterFlag.inc"
 
-char CUserCharacInfo::getUpgradeSeparateTrueFlag()
-{
-    return m_selected ? (char)CUR->m_upgradeSeparateTrue : 0;
+#include "CUserCharacInfo/getUpgradeSeparateTrueFlag.inc"
 }
 
-char CUserCharacInfo::getUpgradeSeparateFlaseFlag()
-{
-    return m_selected ? (char)CUR->m_upgradeSeparateFalse : 0;
+#include "CUserCharacInfo/getUpgradeSeparateFlaseFlag.inc"
 }
 
-unsigned char CUserCharacInfo::getUltimateInoutValue(char index)
-{
-    // [b28] 值 cast 伪差已消（m_selView 直读），本函数 AE。
-    return CUR->m_ultimateInout[index];
+#include "CUserCharacInfo/getUltimateInoutValue.inc"
 }
 
-_Charac_info* CUserCharacInfo::getTagCharacW() { return m_tag; }
+#include "CUserCharacInfo/getTagCharacW.inc"
 
-char* CUserCharacInfo::getTagCharacSkillW()
-{
-    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return (char*)((CharacInfoFields*)m_tag)->m_skill;
+#include "CUserCharacInfo/getTagCharacSkillW.inc"
 }
 
-SkillSlot* CUserCharacInfo::getTagCharacSkillR() const
-{
-    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return (SkillSlot*)((CharacInfoFields*)m_tag)->m_skill;
+#include "CUserCharacInfo/getTagCharacSkillR.inc"
 }
 
-const _Charac_info* CUserCharacInfo::getTagCharacR() const { return m_tag; }
+#include "CUserCharacInfo/getTagCharacR.inc"
 
-Inven_Item* CUserCharacInfo::getTagCharacInvenW()
-{
-    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return (Inven_Item*)((CharacInfoFields*)m_tag)->m_inven;
+#include "CUserCharacInfo/getTagCharacInvenW.inc"
 }
 
-CInventory* CUserCharacInfo::getTagCharacInvenR() const
-{
-    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return (CInventory*)((CharacInfoFields*)m_tag)->m_inven;
+#include "CUserCharacInfo/getTagCharacInvenR.inc"
 }
 
-CCargo* CUserCharacInfo::getTagCharacCargoW()
-{
-    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return &((CharacInfoFields*)m_tag)->m_cargo;
+#include "CUserCharacInfo/getTagCharacCargoW.inc"
 }
 
-const CCargo* CUserCharacInfo::getTagCharacCargoR() const
-{
-    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return &((CharacInfoFields*)m_tag)->m_cargo;
+#include "CUserCharacInfo/getTagCharacCargoR.inc"
 }
 
-const void* CUserCharacInfo::getTagCharacAddInfoR() const
-{
-    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return (const void*)((CharacInfoFields*)m_tag)->m_addInfo;
+#include "CUserCharacInfo/getTagCharacAddInfoR.inc"
 }
 
-unsigned short CUserCharacInfo::getStraightVictories() const
-{
-    return m_selected ? CUR->m_straightVictories : 0;
+#include "CUserCharacInfo/getStraightVictories.inc"
 }
 
-const char* CUserCharacInfo::getSkillCommand() const
-{
-    return m_selected ? (const char*)CUR->m_skillCommand : 0;
+#include "CUserCharacInfo/getSkillCommand.inc"
 }
 
-seriaRoom_AniDeco CUserCharacInfo::getSeriaRoomAniDecoInfo()
-{
-    if (m_selected)
-        return CUR->m_seriaRoomAniDeco;
-    seriaRoom_AniDeco result;
-    result.m_field2 = -1;
-    return result;
+#include "CUserCharacInfo/getSeriaRoomAniDecoInfo.inc"
 }
 
 // [b28d-solo-CUserCharacInfo AE] 160=160：
@@ -1560,343 +760,183 @@ seriaRoom_AniDeco CUserCharacInfo::getSeriaRoomAniDecoInfo()
 // ②删具名 bool stop 改直测条件（P198②）；
 // ③P274/P319：offset 更新三处 unsigned cast ⇒ 复现 ORIG 两条 lea
 //   （`lea (%eax,%edx,1)` + `lea (%edx,%eax,1)`，探针 /tmp/s156_probe/p10.cpp g3）。
-void CUserCharacInfo::getSeparatedTextUnits(std::vector<std::string>& out,
-                                            const char* text, const char* sep,
-                                            int maxUnits)
-{
-    // [b28d-L14 真 bug 修正 + P253] ORIG 0x08647874 `mov $0x40,%edx; rep stos`：
-    // %edx 是 dword 计数 ⇒ 清零 0x40*4=0x100 字节（全缓冲），旧 memset(0x40)
-    // 少清 0xc0 字节。显式零初始化数组复现 4.1 rep stos（P214③）。
-    out.clear();
-    char buffer[0x100] = {0};
-    int offset = 6;
-    while (true)
-    {
-        // [b28d-solo-CUserCharacInfo P198②] ORIG 0x086460d4 无 stop 槽（寄存器 setne
-        // 物化直测）⇒ 条件内联，勿用具名 bool 局部。
-        if (maxUnits != 0 && (int)out.size() >= maxUnits - 1)
-            break;
-        const char* found = strstr(text + offset, sep);
-        if (found == 0)
-            break;
-        int length = (int)(found - (text + offset));
-        if (length != 0)
-        {
-            strncpy(buffer, text + offset, length);
-            buffer[length] = 0;
-            out.push_back(std::string(buffer, std::allocator<char>()));
-        }
-        // [b28d-solo-CUserCharacInfo P274/P319] ORIG 0x08646196 两条 lea
-        // （`lea (%eax,%edx,1)` + `lea (%edx,%eax,1)`）；三处 unsigned 化
-        // （异型化旋钮，探针 /tmp/s156_probe/p10.cpp g3）即逐条复现。
-        offset = (unsigned int)strlen(sep) + (unsigned int)length +
-                 (unsigned int)offset;
-    }
-    if (text[offset] != 0)
-        out.push_back(std::string(text + offset, std::allocator<char>()));
+#include "CUserCharacInfo/getSeparatedTextUnits.inc"
 }
 
-int CUserCharacInfo::getRequestRenameState() const
-{
-    return m_selected ? CUR->m_characViewState : 0;
+#include "CUserCharacInfo/getRequestRenameState.inc"
 }
 
-int CUserCharacInfo::getPremiumBonusExp() const
-{
-    return m_selected ? CUR->m_premiumBonusExp : 0;
+#include "CUserCharacInfo/getPremiumBonusExp.inc"
 }
 
-PvpResultType* CUserCharacInfo::getPVPResultW()
-{
-    enableSavePvP();
-    return &m_pvpResult;
+#include "CUserCharacInfo/getPVPResultW.inc"
 }
 
-PvpResultType* CUserCharacInfo::getPVPResultRefW()
-{
-    enableSavePvP();
-    return &m_pvpResult;
+#include "CUserCharacInfo/getPVPResultRefW.inc"
 }
-const PvpResultType* CUserCharacInfo::getPVPResultRefR() const
-{
-    return &m_pvpResult;
+#include "CUserCharacInfo/getPVPResultRefR.inc"
 }
 
-PvpResultType* CUserCharacInfo::getPVPResultR() const
-{
-    return const_cast<PvpResultType*>(&m_pvpResult);
+#include "CUserCharacInfo/getPVPResultR.inc"
 }
 
-bool CUserCharacInfo::getMemberDungeonFlag() const
-{
-    return m_selected ? CUR->m_memberDungeonFlag : true;
+#include "CUserCharacInfo/getMemberDungeonFlag.inc"
 }
 
 
-char CUserCharacInfo::getLinkCharacSlotIndex()
-{
-    return m_selected ? (int)(unsigned char)CUR->m_linkCharacSlotIndex : -1;
+#include "CUserCharacInfo/getLinkCharacSlotIndex.inc"
 }
 
 
-long CUserCharacInfo::getLastItemLimitEditionBuyTime() const
-{
-    return m_selected ? CUR->m_lastItemLimitEditionBuyTime : 0;
+#include "CUserCharacInfo/getLastItemLimitEditionBuyTime.inc"
 }
 
-unsigned char CUserCharacInfo::getGuildMemberGrade()
-{
-    return m_selected ? CUR->m_guildMemberGrade : 0;
+#include "CUserCharacInfo/getGuildMemberGrade.inc"
 }
 
-WongWork::CDungeonClear* CUserCharacInfo::getDungeonClearRefW()
-{
-    enableSaveDungeonClear();
-    return &m_dungeonClear;
+#include "CUserCharacInfo/getDungeonClearRefW.inc"
 }
 
-const WongWork::CDungeonClear* CUserCharacInfo::getDungeonClearRefR() const
-{
-    return &m_dungeonClear;
+#include "CUserCharacInfo/getDungeonClearRefR.inc"
 }
-unsigned char CUserCharacInfo::getDisguiseKind()
-{
-    return m_selected ? CUR->m_disguiseKind : 0;
+#include "CUserCharacInfo/getDisguiseKind.inc"
 }
 
-unsigned short CUserCharacInfo::getDisguiseIndex()
-{
-    return m_selected ? CUR->m_disguiseIndex : 0;
+#include "CUserCharacInfo/getDisguiseIndex.inc"
 }
 
 // [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
-unsigned char CUserCharacInfo::getDemensionInoutValue(char index)
-{
-    if (index > 5 || index < 0)
-        return 0;
-    return CUR->m_demensionInout[index];
+#include "CUserCharacInfo/getDemensionInoutValue.inc"
 }
 
-int CUserCharacInfo::getCurrCharacBlackCount() const
-{
-    return m_selected ? CUR->m_blackCount : 0;
+#include "CUserCharacInfo/getCurrCharacBlackCount.inc"
 }
 
-unsigned char CUserCharacInfo::getCurUseBringUpMaterialTotal() const
-{
-    return m_selected ? CUR->m_curUseBringUpMaterialTotal : 0;
+#include "CUserCharacInfo/getCurUseBringUpMaterialTotal.inc"
 }
 
-unsigned char CUserCharacInfo::getCurUseBringUpMaterialCount() const
-{
-    return m_selected ? CUR->m_curUseBringUpMaterialCount : 0;
+#include "CUserCharacInfo/getCurUseBringUpMaterialCount.inc"
 }
 
-char CUserCharacInfo::getCurExpandEquipslotSwitch()
-{
-    return m_selected ? (int)(unsigned char)CUR->m_curExpandEquipslotSwitch : -1;
+#include "CUserCharacInfo/getCurExpandEquipslotSwitch.inc"
 }
 
 
-unsigned char CUserCharacInfo::getCurEquipslotFlag()
-{
-    // ORIG 0x8696c23 true 路单一 `movzbl 0x1275(%eax),%eax`、false 0x8696c2c
-    // `mov $0xffffffff,%eax`（dword -1）。int 返回三元/if 形均反产二段 promote
-    // （IsCurCharacGhost 同款教训）→ uchar 返回 + if 形，false 保留 dword -1。
-    if (m_selected)
-        return CUR->m_curEquipslotFlag;
-    return -1;
+#include "CUserCharacInfo/getCurEquipslotFlag.inc"
 }
 
 
-_Charac_info* CUserCharacInfo::getCurCharacW() { return m_selected; }
+#include "CUserCharacInfo/getCurCharacW.inc"
 
-signed char CUserCharacInfo::getCurCharacVillPrev() const
-{
-    return m_selected ? CUR->m_villPrev : 0;
+#include "CUserCharacInfo/getCurCharacVillPrev.inc"
 }
 
-unsigned char CUserCharacInfo::getCurCharacVill4Save() const
-{
-    return CUR->m_vill;
+#include "CUserCharacInfo/getCurCharacVill4Save.inc"
 }
 
-int CUserCharacInfo::getCurCharacTutorialFlag()
-{
-    return m_selected ? CUR->m_tutorialFlags : 0;
+#include "CUserCharacInfo/getCurCharacTutorialFlag.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacTradeGoldTotalBillion()
-{
-    return m_selected ? CUR->m_reliablePerson.GetTradeGoldTotalBillion() : 0;
+#include "CUserCharacInfo/getCurCharacTradeGoldTotalBillion.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacTradeGoldTotal()
-{
-    return m_selected ? CUR->m_reliablePerson.GetTradeGoldTotal() : 0;
+#include "CUserCharacInfo/getCurCharacTradeGoldTotal.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacTradeGoldDaily()
-{
-    return m_selected ? CUR->m_reliablePerson.GetTradeGoldDaily() : 0;
+#include "CUserCharacInfo/getCurCharacTradeGoldDaily.inc"
 }
 
-int CUserCharacInfo::getCurCharacTagCharacNo() const
-{
-    return m_selected ? CUR->m_tagCharacNo : 0;
+#include "CUserCharacInfo/getCurCharacTagCharacNo.inc"
 }
 
-unsigned char CUserCharacInfo::getCurCharacStrikerSkillIndex() const
-{
-    return m_selected ? CUR->m_strikerSkillIndex : 0;
+#include "CUserCharacInfo/getCurCharacStrikerSkillIndex.inc"
 }
 
-unsigned char CUserCharacInfo::getCurCharacStamina() const
-{
-    return CUR->m_stamina;
+#include "CUserCharacInfo/getCurCharacStamina.inc"
 }
 
-char* CUserCharacInfo::getCurCharacSkillW()
-{
-    enableSaveSkill();
-    return (char*)CUR->m_skill;
+#include "CUserCharacInfo/getCurCharacSkillW.inc"
 }
 
-const char* CUserCharacInfo::getCurCharacSkillR() const
-{
-    return (const char*)CUR->m_skill;
+#include "CUserCharacInfo/getCurCharacSkillR.inc"
 }
 
-int CUserCharacInfo::getCurCharacSchoolPoint()
-{
-    return m_selected ? CUR->m_reliablePerson.m_schoolPoint : 0;
+#include "CUserCharacInfo/getCurCharacSchoolPoint.inc"
 }
 
-const _Charac_info* CUserCharacInfo::getCurCharacR() const { return m_selected; }
+#include "CUserCharacInfo/getCurCharacR.inc"
 
-unsigned short CUserCharacInfo::getCurCharacPremiumFatigue() const
-{
-    return m_selected ? CUR->m_premiumFatigue : 0;
+#include "CUserCharacInfo/getCurCharacPremiumFatigue.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacPayCoin() const
-{
-    if (m_selected)
-        return ((const CInventory*)getCurCharacInvenR())->GetPayCoin();
-    return 0;
+#include "CUserCharacInfo/getCurCharacPayCoin.inc"
 }
 
 
 
-unsigned int CUserCharacInfo::getCurCharacNo() const
-{
-    return m_selected ? CUR->m_characNo : 0;
+#include "CUserCharacInfo/getCurCharacNo.inc"
 }
 
-int CUserCharacInfo::getCurCharacMoney() const
-{
-    if (m_selected)
-        return ((const CInventory*)getCurCharacInvenR())->get_money();
-    return 0;
+#include "CUserCharacInfo/getCurCharacMoney.inc"
 }
 
 
 
-unsigned short CUserCharacInfo::getCurCharacMemberBonusFatigue()
-{
-    return CUR->m_memberBonusFatigue;
+#include "CUserCharacInfo/getCurCharacMemberBonusFatigue.inc"
 }
 
-unsigned short CUserCharacInfo::getCurCharacMaxPremiumFatigue() const
-{
-    return m_selected ? CUR->m_maxPremiumFatigue : 0;
+#include "CUserCharacInfo/getCurCharacMaxPremiumFatigue.inc"
 }
 
-unsigned short CUserCharacInfo::getCurCharacMaxFatigue() const
-{
-    return m_selected ? CUR->m_maxFatigue : 0;
+#include "CUserCharacInfo/getCurCharacMaxFatigue.inc"
 }
 
-long CUserCharacInfo::getCurCharacLastPlayTickPowerWar() const
-{
-    return CUR->m_lastPlayTickPowerWar;
+#include "CUserCharacInfo/getCurCharacLastPlayTickPowerWar.inc"
 }
 
-long CUserCharacInfo::getCurCharacLastPlayTick() const
-{
-    return CUR->m_lastPlayTick;
+#include "CUserCharacInfo/getCurCharacLastPlayTick.inc"
 }
 
-int CUserCharacInfo::getCurCharacLastPlayDungeonIndex()
-{
-    return m_selected ? CUR->m_lastPlayDungeonIndex : 0;
+#include "CUserCharacInfo/getCurCharacLastPlayDungeonIndex.inc"
 }
 
-CInventory* CUserCharacInfo::getCurCharacInvenW()
-{
-    enableSaveInven();
-    return (CInventory*)CUR->m_inven;
+#include "CUserCharacInfo/getCurCharacInvenW.inc"
 }
 
-CInventory* CUserCharacInfo::getCurCharacInvenRefW()
-{
-    enableSaveInven();
-    return (CInventory*)CUR->m_inven;
+#include "CUserCharacInfo/getCurCharacInvenRefW.inc"
 }
 
-const CInventory* CUserCharacInfo::getCurCharacInvenRefR() const
-{
-    return (const CInventory*)CUR->m_inven;
+#include "CUserCharacInfo/getCurCharacInvenRefR.inc"
 }
 
-const CInventory* CUserCharacInfo::getCurCharacInvenR() const
-{
-    return (const CInventory*)CUR->m_inven;
+#include "CUserCharacInfo/getCurCharacInvenR.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacHelpAbuseComputedRatio() const
-{
-    return m_selected ? CUR->m_helpAbuseComputedRatio : 0;
+#include "CUserCharacInfo/getCurCharacHelpAbuseComputedRatio.inc"
 }
 
-unsigned char CUserCharacInfo::getCurCharacGuildSecede()
-{
-    return m_selected ? CUR->m_guildSecede : 0;
+#include "CUserCharacInfo/getCurCharacGuildSecede.inc"
 }
 
-unsigned char CUserCharacInfo::getCurCharacGrowType() const
-{
-    return m_selected ? CUR->m_growType.byte : 0;
+#include "CUserCharacInfo/getCurCharacGrowType.inc"
 }
 
-unsigned short CUserCharacInfo::getCurCharacFatigueGrownUpBuff() const
-{
-    return m_selected ? CUR->m_fatigueGrownUpBuff : 0;
+#include "CUserCharacInfo/getCurCharacFatigueGrownUpBuff.inc"
 }
 
-unsigned short CUserCharacInfo::getCurCharacFatigue() const
-{
-    return m_selected ? CUR->m_fatigue : 0;
+#include "CUserCharacInfo/getCurCharacFatigue.inc"
 }
 
-int CUserCharacInfo::getCurCharacExp() const
-{
-    return m_selected ? CUR->m_exp : 0;
+#include "CUserCharacInfo/getCurCharacExp.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacEventCoin() const
-{
-    if (m_selected)
-        return ((const CInventory*)getCurCharacInvenR())->GetEventCoin();
-    return 0;
+#include "CUserCharacInfo/getCurCharacEventCoin.inc"
 }
 
 
 
-char CUserCharacInfo::getCurCharacEventCharacterGrowtype()
-{
-    return m_selected ? CUR->m_eventCharacterGrowtype : 0;
+#include "CUserCharacInfo/getCurCharacEventCharacterGrowtype.inc"
 }
 
 // [b28d-solo-CUserCharacInfo AE] 69=69：
@@ -1904,329 +944,167 @@ char CUserCharacInfo::getCurCharacEventCharacterGrowtype()
 // ②P169 尾标签守卫 + 低位分支共享尾 return（消两处 `mov $0; jmp` 岛）；
 // ③路由 `-march=i486 -mtune=generic`（Main 已批）+ `index / 8` 复现 ORIG 6 条修正链
 //   （探针 /tmp/s156_probe/p13i486.o）。
-int CUserCharacInfo::getCurCharacEscaladeTutorialFlag(unsigned int flag)
-{
-    if (m_selected)
-    {
-        if (flag < 0x20)
-        {
-            // [b28d-L14 实证] ORIG 0x0864751e 无 mask 槽：`1<<flag` 以表达式内联
-            // （mov $1,%ebx; mov %ebx,%esi; shl %cl,%esi），P0 禁具名局部缓存。
-            // [b28d-solo-CUserCharacInfo N6 翻案] `1 << flag` 保 shl（探针 p12 f4）。
-            if ((CUR->m_tutorialFlags & (1 << flag)) != 0)
-                return 1;
-        }
-        else if (flag < 0x80)
-        {
-            int index = (int)(flag - 0x20);
-            // [b28d-solo-CUserCharacInfo 路由已批] `index / 8` + i486 产 ORIG 6 条
-            // （同 setCurCharacTutorialFlag；探针 /tmp/s156_probe/p13i486.o）。
-            int byteIndex = index / 8;
-            // [b28d-solo-CUserCharacInfo P0/P222] ORIG 0x0864757a 有独立 bit 槽 -0xc
-            // （先算 index%8 再边界检查）且两守卫走 P222 正向包裹（js 尾部共享 false 块）。
-            int bitIndex = index % 8;
-            if (byteIndex >= 0)
-            {
-                if (byteIndex <= 0xf)
-                    goto PASS;
-            }
-            return 0;
-        // [b28d-solo-CUserCharacInfo P169] 复现 ORIG 0x0864757a 段
-        // `js <false>; cmpl $0xf; jle <body>; mov $0; jmp; <body>:`。
-        PASS:
-            return (int)((signed char)CUR->m_tutorialFlags2[byteIndex]) >> bitIndex & 1;
-        }
-    }
-    return 0;
+#include "CUserCharacInfo/getCurCharacEscaladeTutorialFlag.inc"
 }
 
-unsigned char* CUserCharacInfo::getCurCharacEscaladeTutorialFlag()
-{
-    return m_selected ? (unsigned char*)CUR->m_tutorialFlags2 : 0;
+#include "CUserCharacInfo/getCurCharacEscaladeTutorialFlag_1.inc"
 }
 
-long CUserCharacInfo::getCurCharacCreateTime() const
-{
-    return CUR->m_createTime.operator long();
+#include "CUserCharacInfo/getCurCharacCreateTime.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacCoin() const
-{
-    if (m_selected)
-        return ((const CInventory*)getCurCharacInvenR())->GetCoin();
-    return 0;
+#include "CUserCharacInfo/getCurCharacCoin.inc"
 }
 
 
 
-CCargo* CUserCharacInfo::getCurCharacCargoW()
-{
-    enableSaveCargo();
-    return &CUR->m_cargo;
+#include "CUserCharacInfo/getCurCharacCargoW.inc"
 }
 
-const CCargo* CUserCharacInfo::getCurCharacCargoR() const
-{
-    return &CUR->m_cargo;
+#include "CUserCharacInfo/getCurCharacCargoR.inc"
 }
 
-void* CUserCharacInfo::getCurCharacAddInfoW()
-{
-    enableSaveCharacInfo();
-    return (void*)CUR->m_addInfo;
+#include "CUserCharacInfo/getCurCharacAddInfoW.inc"
 }
 
-void* CUserCharacInfo::getCurCharacAddInfoRefW()
-{
-    enableSaveCharacInfo();
-    return (void*)CUR->m_addInfo;
+#include "CUserCharacInfo/getCurCharacAddInfoRefW.inc"
 }
 
-const void* CUserCharacInfo::getCurCharacAddInfoRefR() const
-{
-    return (const void*)CUR->m_addInfo;
+#include "CUserCharacInfo/getCurCharacAddInfoRefR.inc"
 }
 
-const void* CUserCharacInfo::getCurCharacAddInfoR() const
-{
-    return (const void*)CUR->m_addInfo;
+#include "CUserCharacInfo/getCurCharacAddInfoR.inc"
 }
 
-char CUserCharacInfo::getCurCharSecondGrowType() const
-{
-    return m_selected ? (char)CUR->m_growType.second : 0;
+#include "CUserCharacInfo/getCurCharSecondGrowType.inc"
 }
 
-char CUserCharacInfo::getCurCharFirstGrowType() const
-{
-    return m_selected ? (char)CUR->m_growType.first : 0;
+#include "CUserCharacInfo/getCurCharFirstGrowType.inc"
 }
 
-char CUserCharacInfo::getCurChannelEquipslotSwitch()
-{
-    return m_selected ? (int)(unsigned char)CUR->m_curChannelEquipslotSwitch : -1;
+#include "CUserCharacInfo/getCurChannelEquipslotSwitch.inc"
 }
 
 
-char* CUserCharacInfo::getCreateGuildName()
-{
-    return m_selected ? (char*)CUR->m_guildName : 0;
+#include "CUserCharacInfo/getCreateGuildName.inc"
 }
 
-char* CUserCharacInfo::getCreateGuildAddr()
-{
-    return m_selected ? (char*)CUR->m_guildAddr : 0;
+#include "CUserCharacInfo/getCreateGuildAddr.inc"
 }
 
-bool CUserCharacInfo::getContractOfCubePremiumInfo(unsigned char& active, unsigned char& count)
-{
-    if (!m_selected)
-        return false;
-    *(&active) = CUR->m_cubePremiumContract != 0 ? 1 : 0;
-    *(&count) = CUR->m_cubePremiumCount;
-    return true;
+#include "CUserCharacInfo/getContractOfCubePremiumInfo.inc"
 }
 
 
-char CUserCharacInfo::getCharacLinkType()
-{
-    return m_selected ? (char)CUR->m_characLinkType : 0;
+#include "CUserCharacInfo/getCharacLinkType.inc"
 }
 
-int CUserCharacInfo::getCharacLinkBonusGold()
-{
-    return m_selected ? CUR->m_characLinkBonusGold : 0;
+#include "CUserCharacInfo/getCharacLinkBonusGold.inc"
 }
 
-int CUserCharacInfo::getCharacLinkBonusExp()
-{
-    return m_selected ? CUR->m_characLinkBonusExp : 0;
+#include "CUserCharacInfo/getCharacLinkBonusExp.inc"
 }
 
-bool CUserCharacInfo::getBringUpRewardFlag() const   // [b28d-Main 代落·S350 P292] uchar→bool
-{
-    return m_selected ? CUR->m_bringUpRewardFlag : 0;
+#include "CUserCharacInfo/getBringUpRewardFlag.inc"
 }
 
-int CUserCharacInfo::getBlueMarbleUserDeadCount() const
-{
-    return m_selected ? CUR->m_blueMarbleUserDeadCount : 0;
+#include "CUserCharacInfo/getBlueMarbleUserDeadCount.inc"
 }
 
-unsigned char CUserCharacInfo::getBlueMarbleEnterCount() const
-{
-    return m_selected ? CUR->m_blueMarbleEnterCount : 0;
+#include "CUserCharacInfo/getBlueMarbleEnterCount.inc"
 }
 
-unsigned int CUserCharacInfo::getBloodBestTimeRecord()
-{
-    return CUR->m_bloodBestTime;
+#include "CUserCharacInfo/getBloodBestTimeRecord.inc"
 }
 
-int CUserCharacInfo::getBloodBestRoundRecord()
-{
-    return CUR->m_bloodBestRound;
+#include "CUserCharacInfo/getBloodBestRoundRecord.inc"
 }
 
-std::map<int, GameResultType>* CUserCharacInfo::getBattleRecordRefW()
-{
-    enableSaveBattleRecord();
-    return &m_battleRecord;
+#include "CUserCharacInfo/getBattleRecordRefW.inc"
 }
 
-const std::map<int, GameResultType>* CUserCharacInfo::getBattleRecordRefR() const
-{
-    return &m_battleRecord;
+#include "CUserCharacInfo/getBattleRecordRefR.inc"
 }
 
-void CUserCharacInfo::enableSaveSkill() { m_saveSkill = 1; }
+#include "CUserCharacInfo/enableSaveSkill.inc"
 
-void CUserCharacInfo::enableSaveQuest() { m_saveQuest = 1; }
+#include "CUserCharacInfo/enableSaveQuest.inc"
 
-void CUserCharacInfo::enableSavePvP() { m_savePvP = 1; }
+#include "CUserCharacInfo/enableSavePvP.inc"
 
-void CUserCharacInfo::enableSaveInven() { m_saveInven = 1; }
+#include "CUserCharacInfo/enableSaveInven.inc"
 
-void CUserCharacInfo::enableSaveDungeonClear() { m_saveDungeonClear = 1; }
+#include "CUserCharacInfo/enableSaveDungeonClear.inc"
 
-void CUserCharacInfo::enableSaveCharacEtc() { m_saveCharacEtc = 1; }
+#include "CUserCharacInfo/enableSaveCharacEtc.inc"
 
-void CUserCharacInfo::enableSaveCargo() { m_saveCargo = 1; }
+#include "CUserCharacInfo/enableSaveCargo.inc"
 
-void CUserCharacInfo::enableSaveBattleRecord() { m_saveBattleRecord = 1; }
+#include "CUserCharacInfo/enableSaveBattleRecord.inc"
 
-void CUserCharacInfo::disableSavedPremiumCubeInfo()
-{
-    if (!m_selected)
-        return;
-    CUR->m_cubePremiumSaved = 0;
+#include "CUserCharacInfo/disableSavedPremiumCubeInfo.inc"
 }
 
 
 
-void CUserCharacInfo::disableSaveSkill() { m_saveSkill = 0; }
+#include "CUserCharacInfo/disableSaveSkill.inc"
 
-void CUserCharacInfo::disableSaveQuest() { m_saveQuest = 0; }
+#include "CUserCharacInfo/disableSaveQuest.inc"
 
-void CUserCharacInfo::disableSavePvP() { m_savePvP = 0; }
+#include "CUserCharacInfo/disableSavePvP.inc"
 
-void CUserCharacInfo::disableSaveInven() { m_saveInven = 0; }
+#include "CUserCharacInfo/disableSaveInven.inc"
 
-void CUserCharacInfo::disableSaveDungeonClear() { m_saveDungeonClear = 0; }
+#include "CUserCharacInfo/disableSaveDungeonClear.inc"
 
-void CUserCharacInfo::disableSaveCharacStat() { m_saveCharacStat = 0; }
+#include "CUserCharacInfo/disableSaveCharacStat.inc"
 
-void CUserCharacInfo::disableSaveCharacManageInfo() { m_saveCharacManageInfo = 0; }
+#include "CUserCharacInfo/disableSaveCharacManageInfo.inc"
 
-void CUserCharacInfo::disableSaveCharacInfo() { m_saveCharacInfo = 0; }
+#include "CUserCharacInfo/disableSaveCharacInfo.inc"
 
-void CUserCharacInfo::disableSaveCharacEtc() { m_saveCharacEtc = 0; }
+#include "CUserCharacInfo/disableSaveCharacEtc.inc"
 
-void CUserCharacInfo::disableSaveCargo() { m_saveCargo = 0; }
+#include "CUserCharacInfo/disableSaveCargo.inc"
 
-void CUserCharacInfo::disableSaveBattleRecord() { m_saveBattleRecord = 0; }
+#include "CUserCharacInfo/disableSaveBattleRecord.inc"
 
-void CUserCharacInfo::decCurCharacLevel()
-{
-    enableSaveCharacInfo();
-    if (m_selected)
-    {
-    --CUR->m_level;
-    }
+#include "CUserCharacInfo/decCurCharacLevel.inc"
 }
 
 
-void CUserCharacInfo::decCurCharacFatigueGrownUpBuff(unsigned int value)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    if ((unsigned int)CUR->m_fatigueGrownUpBuff > value)
-        CUR->m_fatigueGrownUpBuff = (unsigned short)(CUR->m_fatigueGrownUpBuff - value);
-    else
-        CUR->m_fatigueGrownUpBuff = 0;
-    }
+#include "CUserCharacInfo/decCurCharacFatigueGrownUpBuff.inc"
 }
 
 
-void CUserCharacInfo::checkBonusPoint()
-{
-    if (!m_selected)
-        return;
-    resetBonusPoint();
-    const Inven_Item* invenItem = 0;
-    for (int slot = 10; slot <= 0x15; ++slot)
-    {
-        if ((invenItem = getCurCharacInvenR()->GetInvenRef(0, slot)) == 0)
-            continue;
-        if (invenItem->m_addInfo == 0)
-            continue;
-        CItem* found = G_CDataManager()->find_item(invenItem->m_addInfo);
-        if (found == 0)
-            continue;
-        CEquipItem* equip = (CEquipItem*)found;
-        if (equip->getWpBonusPoint()->m_type == 0)
-        {
-            CUR->m_wpBonus.m_base += equip->getWpBonusPoint()->m_value;
-        }
-        else if (equip->getWpBonusPoint()->m_type == 1)
-        {
-            CUR->m_wpBonus.m_add += equip->getWpBonusPoint()->m_value;
-        }
-        if (equip->getExpBonusPoint()->m_type == 0)
-        {
-            CUR->m_expBonus.m_base += equip->getExpBonusPoint()->m_value;
-        }
-        else if (equip->getExpBonusPoint()->m_type == 1)
-        {
-            CUR->m_expBonus.m_add += equip->getExpBonusPoint()->m_value;
-        }
-    }
+#include "CUserCharacInfo/checkBonusPoint.inc"
 }
 
 
 
-void CUserCharacInfo::resetBonusPoint()
-{
-    if (m_selected)
-    {
-    memset(&CUR->m_wpBonus, 0, sizeof(CUR->m_wpBonus));
-    memset(&CUR->m_expBonus, 0, sizeof(CUR->m_expBonus));
-    }
+#include "CUserCharacInfo/resetBonusPoint.inc"
 }
 
 
-void CUserCharacInfo::getWpBonusPoint(WpBonusPointResult& out)
-{
-    if (m_selected)
-        out = CUR->m_wpBonus;
+#include "CUserCharacInfo/getWpBonusPoint.inc"
 }
 
 
 
 
-void CUserCharacInfo::getExpBonusPoint(ExpBonusPointResult& out)
-{
-    if (m_selected)
-        out = CUR->m_expBonus;
+#include "CUserCharacInfo/getExpBonusPoint.inc"
 }
 
 
 
 
-int CUserCharacInfo::get_level_up_exp(int level)
-{
-    return G_CDataManager()->get_level_exp(level + 1) - G_CDataManager()->get_level_exp(level);
+#include "CUserCharacInfo/get_level_up_exp.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacDungeonHelpAbuseRatio() const
-{
-    return m_selected ? CUR->m_dungeonHelpAbuseRatio : 0;
+#include "CUserCharacInfo/getCurCharacDungeonHelpAbuseRatio.inc"
 }
 
-unsigned int CUserCharacInfo::getCurCharacDungeonHelpAbuseExp() const
-{
-    return m_selected ? CUR->m_dungeonHelpAbuseExp : 0;
+#include "CUserCharacInfo/getCurCharacDungeonHelpAbuseExp.inc"
 }
 
 // [b28 BM8 P210] 定义序移到全部同 TU callee（get_level_up_exp/两 getter）之后：
@@ -2247,41 +1125,14 @@ unsigned int CUserCharacInfo::getCurCharacDungeonHelpAbuseExp() const
 // 与 cw/除数槽相对 ebp 整体下移 8（-0x30/-0x32/-0x3c → -0x38/-0x3a/-0x4c）及帧
 // 0x58↔0x68：4.4 对 (double)uint 的匿名 8B 临时优先占深槽（N95/N82附）；本件无死
 // 局部可删（P232）、撑帧只会加深（P190 反向）⇒ 维持 NEAR 封顶（p167 CLEAR）。
-int CUserCharacInfo::calc_disp_help_abuse_ratio(int param)
-{
-    int levelUpExp = get_level_up_exp(get_charac_level());
-    float helpRate =
-        (float)((double)getCurCharacDungeonHelpAbuseExp() / (double)levelUpExp);
-    int ratio = (int)((float)getCurCharacDungeonHelpAbuseRatio() + 1000000.0f * helpRate);
-    int result = 0;
-    if (get_charac_level() + param > 0)
-        result = ratio / (get_charac_level() + param);
-    return std::min(1000000, result);
+#include "CUserCharacInfo/calc_disp_help_abuse_ratio.inc"
 }
 
-void CUserCharacInfo::calcHelpAbuseRatioBeforeLevelUp(int param)
-{
-    char unused[0x20];
-    (void)unused;
-    (void)param;
-    // [b28d-solo-CUserCharacInfo 复核] ORIG 该空体函数仍发射局部静态
-    // _ZZN15CUserCharacInfo31calcHelpAbuseRatioBeforeLevelUpEiE19__PRETTY_FUNCTION__
-    // （r 段 0x3b，全仓仅此一件 ORIG-only 数据符号；ORIG 体 0x7 条无引用）
-    // ⇒ 原码有对该串的死引用，照抄（P171 死写入族；不产生指令）。
-    (void)__PRETTY_FUNCTION__;
+#include "CUserCharacInfo/calcHelpAbuseRatioBeforeLevelUp.inc"
 }
 
 
-void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, bool flag)
-{
-    // [b28d-solo-CUserCharacInfo P232/P0] ORIG 帧 0x24 + 唯一 `mov %al,-0x24(%ebp)`：
-    // 4.4 对 bool 形参恒 spill 到帧底槽（槽深=帧大小），探针 /tmp/p2d_probe.cpp
-    // k1/k2/k3 实测 `sub $0x24; mov 0x10(%ebp),%eax; mov %al,-0x24(%ebp)` 与 ORIG
-    // 逐条全等 ⇒ 死局部 char[0x20] 撑帧 0x24 即复现（旧数组赋值形两段已废）。
-    char unused[0x20];
-    (void)unused;
-    (void)flag;
-    (void)param;
+#include "CUserCharacInfo/calcHelpAbuseRatio.inc"
 }
 
 
@@ -2290,707 +1141,315 @@ void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, bool flag)
 // ORIG 0x08655bce 有符号除 `fatigue/10` 魔数段 `sar $0x1f,%eax;sub %eax,%edx` 直落 %edx；
 // 4.4 经 %ecx 中转 `mov %edx,%ecx;sub %eax,%ecx;mov %ecx,%eax;mov %eax,%edx`（N7/N18a
 // 寄存器路由），除运算与数组索引逐段全等，分支 je/jbe 落点合规，语义等价。
-void CUserCharacInfo::calcCurCharacSchoolPoint(int fatigue)
-{
-    static const int point[24] = {
-        0, 1, 1, 1, 1, 1, 1, 1,
-        2, 2, 2, 2, 3, 3, 3, 3,
-        4, 4, 4, 4, 5, 5, 5, 5
-    };
-    static const int pointSize = sizeof(point) / sizeof(point[0]);
-    unsigned short used = getCurCharacUsedFatigue();
-    // [b28d-L14 实证] 右操作数显式 (int) 化消 4.4 的 int→unsigned 物化四连
-    // （探针 /tmp/l14_probe4.cpp c4 与 ORIG 0x08655bce 逐条全等：sub %eax,%edx 直落）。
-    if (fatigue / 10 == (int)(used / 10u))
-        return;
-    unsigned int index = used / 10u;
-    if (index > 0x17)
-        index = 0x17;
-    CUR->m_reliablePerson.m_schoolPoint += point[index];
+#include "CUserCharacInfo/calcCurCharacSchoolPoint.inc"
 }
 
 
-unsigned short CUserCharacInfo::getCurCharacUsedFatigue()
-{
-    return m_selected ? CUR->m_usedFatigue : 0;
+#include "CUserCharacInfo/getCurCharacUsedFatigue.inc"
 }
 
-void CUserCharacInfo::add_member_pay_tex_money_to_upper(int money)
-{
-    if (m_selected)
-    {
-    CUR->m_memberPayTexMoney += money;
-    }
+#include "CUserCharacInfo/add_member_pay_tex_money_to_upper.inc"
 }
 
 
-void CUserCharacInfo::add_member_pay_tex_fatigue_to_upper(int fatigue)
-{
-    if (m_selected)
-    {
-    CUR->m_memberPayTexFatigue += fatigue;
-    }
+#include "CUserCharacInfo/add_member_pay_tex_fatigue_to_upper.inc"
 }
 
 
 // [b28d-solo-CUserCharacInfo AE] 21=21：P274 异型视角（字段 unsigned 视角
 // m_guildTodayExpU + 形参 int）⇒ 复现 ORIG `mov 0xdef(%edx),%ecx; mov 0xc(%ebp),%edx;
 // lea (%ecx,%edx,1),%edx`（旧判「字段 unsigned 无效」系未用 union 视角 + 字段在前写法）。
-void CUserCharacInfo::add_guild_today_exp(int exp)
-{
-    if (m_selected && CUR->m_guildkey != 0)
-        // P274 异型视角（字段 unsigned + 形参 int）：复现 ORIG
-        // `mov 0xdef(%edx),%ecx; mov 0xc(%ebp),%edx; lea (%ecx,%edx,1),%edx`。
-        CUR->m_guildTodayExpU = CUR->m_guildTodayExpU + exp;
+#include "CUserCharacInfo/add_guild_today_exp.inc"
 }
 
 
-void CUserCharacInfo::add_guild_temp_exp(int exp)
-{
-    if (m_selected && CUR->m_guildkey != 0)
-        CUR->m_guildTempExp = (unsigned short)(CUR->m_guildTempExp + (short)exp);
+#include "CUserCharacInfo/add_guild_temp_exp.inc"
 }
 
 
 // [b28d-solo-CUserCharacInfo AE] 21=21：P274 异型视角（m_guildExpU）复现 ORIG
 // 0x08645cb1 `mov 0xde9(%edx),%ecx; mov 0xc(%ebp),%edx; lea (%ecx,%edx,1),%edx`。
-void CUserCharacInfo::add_guild_exp(int exp)
-{
-    if (m_selected && CUR->m_guildkey != 0)
-        // P274 异型视角（同 add_guild_today_exp）。
-        CUR->m_guildExpU = CUR->m_guildExpU + exp;
+#include "CUserCharacInfo/add_guild_exp.inc"
 }
 
 
-void CUserCharacInfo::addCurcharacStamina(unsigned char value)
-{
-    enableSaveCharacStat();
-    CUR->m_stamina = (unsigned char)(CUR->m_stamina + value);
+#include "CUserCharacInfo/addCurcharacStamina.inc"
 }
 
 
-void CUserCharacInfo::addCurCharacExp(int exp)
-{
-    enableSaveCharacStat();
-    if (m_selected)
-    {
-    CUR->m_exp += exp;
-    }
+#include "CUserCharacInfo/addCurCharacExp.inc"
 }
 
 
 // [b28d-L14 N7/N4] ORIG 0x086459c4：残差=寄存器角色互换（%ecx↔%edx）+
 // `lea 0x380(%reg)` 物化时刻（4.1 于 fadds 后 / 4.4 前置）。p167 CLEAR（语义完整）。
-void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
-{
-    if (!m_selected)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x284, 5);
-        trace("WARAREA CUserCharacInfo::WarAreaKill() : m_selected is NULL");
-        return;
-    }
-    ChangeFinishPoint(point);
-    // ORIG 0x08645a3a：读 flds 0xe(%edx,%ebx,4) + 写 lea 0x380(%ecx),%edx 两次
-    // 独立 lea、raw idx 留 %ecx；4.4 RA 共享单 lea（读写拆两式亦被 copy-prop），
-    // N18a/4.1-RA 族天花板，维持 += 最简形。
-    // [b28d-solo-CUserCharacInfo N18a/4.1-RA 封顶] 11 形实测（/tmp/s156_probe/
-    // p5-p8：`+=`、展开赋值、下标加法序交换、指针算术、cast 下标、`*&` 形、union
-    // 双数组视角、pack(1) 下标等）全部产 4.4 前置 `lea 0x380(%edx),%ecx`（ORIG 为
-    // fadds 后 `lea 0x380(%ecx),%edx`）；4.4 对「读写共享的 PLUS_EXPR 下标」恒先
-    // 求值 LHS 地址（SAVE_EXPR），无源形可翻。59/59 条数全等，语义等价。
-// [b28d-solo-CUserCharacInfo 复核] 再补 9 形（/tmp/b28d_solo/wak.cpp、wak2.cpp、
-// wak3.cpp、star.cpp：`+=`/展开式/下标加法序交换/指针算术/具名 float 槽/裸语句
-// 表达式 `({...})`/volatile 视图/`*&` 双算/两处独立下标）全部产 LHS 地址前置
-// `lea 0x380(%edx),%ecx`；P211 档③ cast 异型化（int↔unsigned）亦无 RHS-first
-// ⇒ N76/N18a 封顶定论（ORIG 4.1 为 fadds 后 `lea 0x380(%ecx),%edx`）。
-    ((WarAreaKillWindow*)CUR)->m_warAreaKillFlat[index + 0x380] += kill;
-    ((CUser*)this)->m_historyLog.FPAdd(
-        point, CUR->m_finishPoint, CUR->m_finishPointTotal,
-        index == 4 ? (eFPAddReason)1 : eFPAddReason_0);
+#include "CUserCharacInfo/WarAreaKill.inc"
 }
 
-void CUserCharacInfo::VillageAttack_NotDBUpdate()
-{
-    if (m_selected)
-    {
-    CUR->m_villageAttackDBUpdate = 0;
-    }
+#include "CUserCharacInfo/VillageAttack_NotDBUpdate.inc"
 }
 
 
-void CUserCharacInfo::VillageAttack_DBUpdate()
-{
-    if (m_selected)
-    {
-    CUR->m_villageAttackDBUpdate = 1;
-    }
+#include "CUserCharacInfo/VillageAttack_DBUpdate.inc"
 }
 
 
 // [b28c-L26 SIGFIX·档①] 定义返回类型随头改 unsigned int（P159：返回类型不入
 // mangled，ABI 同宽；lane35 转来的 spec，Main 终裁本 TU 归我收尾）。
-unsigned int CUserCharacInfo::UseFinishPoint(int point)
-{
-    if (!m_selected)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x220, 5);
-        trace("WARAREA CUserCharacInfo::UseFinishPoint() : m_selected is NULL");
-        return 0;
-    }
-    ChangeFinishPoint(-point);
-    ((CUser*)this)->m_historyLog.FPSub(
-        point, CUR->m_finishPoint, CUR->m_finishPointTotal, eFPSubReason_0);
-    return CUR->m_finishPoint;
+#include "CUserCharacInfo/UseFinishPoint.inc"
 }
 
-void CUserCharacInfo::SubCurCharacChaosPoint(int point)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_chaosPoint -= point;
-    if (CUR->m_chaosPoint < 0)
-        CUR->m_chaosPoint = 0;
-    }
+#include "CUserCharacInfo/SubCurCharacChaosPoint.inc"
 }
 
 
-void CUserCharacInfo::SetVisible()
-{
-    CUR->m_visibleBits.visible = 1;
+#include "CUserCharacInfo/SetVisible.inc"
 }
 
-void CUserCharacInfo::SetSaveDemensionInoutValue(bool flag)
-{
-    CUR->m_saveDemensionInout = flag;
+#include "CUserCharacInfo/SetSaveDemensionInoutValue.inc"
 }
 
 
 
 
-void CUserCharacInfo::SetSaveBloodInoutValue(bool flag)
-{
-    CUR->m_saveBloodInout = flag;
+#include "CUserCharacInfo/SetSaveBloodInoutValue.inc"
 }
 
 
 
 
-void CUserCharacInfo::SetReliablePerson(bool flag)
-{
-    m_reliablePerson = flag;
+#include "CUserCharacInfo/SetReliablePerson.inc"
 }
 
-void CUserCharacInfo::SetProperDungeonUser()
-{
-    if (m_selected)
-    {
-    CUR->m_properDungeonUser = 1;
-    }
+#include "CUserCharacInfo/SetProperDungeonUser.inc"
 }
 
 
-void CUserCharacInfo::SetPowerWarProcessInfoLastUpdateTime(long t)
-{
-    if (m_selected)
-    {
-    CUR->m_powerWarProcessLastUpdateTime = t;
-    }
+#include "CUserCharacInfo/SetPowerWarProcessInfoLastUpdateTime.inc"
 }
 
 
-void CUserCharacInfo::SetPowerWarLastPlayTime(long t)
-{
-    if (m_selected)
-    {
-    CUR->m_powerWarLastPlayTime = t;
-    }
+#include "CUserCharacInfo/SetPowerWarLastPlayTime.inc"
 }
 
 
-void CUserCharacInfo::SetOverTradeGoldCount(unsigned int count)
-{
-    // ORIG：`mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0xd0(%eax)`
-    // LHS(this) 先载。字段已改 unsigned（头同步）与形参 Ej 同型直赋无转换节点，
-    // 4.4 出 LHS 先=ORIG 同形（N76 翻案：无转换→LHS 先，有转换→RHS 先）。
-    m_overTradeGoldCount = count;
+#include "CUserCharacInfo/SetOverTradeGoldCount.inc"
 }
 
-void CUserCharacInfo::SetOpencoin(char value)
-{
-    if (m_selected)
-    {
-        if ((char)CUR->m_opencoin != value)
-        {
-            enableSaveCharacStat();
-            CUR->m_opencoin = (unsigned char)value;
-        }
-    }
+#include "CUserCharacInfo/SetOpencoin.inc"
 }
 
 
 
 
-void CUserCharacInfo::SetOneDayLetheFlag2ND(unsigned char flag)
-{
-    if (m_selected)
-    {
-    CUR->m_oneDayLetheFlag2ND = flag;
-    }
+#include "CUserCharacInfo/SetOneDayLetheFlag2ND.inc"
 }
 
 
-void CUserCharacInfo::SetOneDayLetheFlag(unsigned char flag)
-{
-    if (m_selected)
-    {
-    CUR->m_oneDayLetheFlag = flag;
-    }
+#include "CUserCharacInfo/SetOneDayLetheFlag.inc"
 }
 
 
-void CUserCharacInfo::SetLoginTick(long tick)
-{
-    CUR->m_loginTick = tick;
+#include "CUserCharacInfo/SetLoginTick.inc"
 }
 
-void CUserCharacInfo::SetIsEndLetheAtLogin()
-{
-    if (m_selected)
-    {
-    CUR->m_isEndLetheAtLogin = 1;
-    }
+#include "CUserCharacInfo/SetIsEndLetheAtLogin.inc"
 }
 
 
-void CUserCharacInfo::SetInvisible()
-{
-    CUR->m_visibleBits.visible = 0;
+#include "CUserCharacInfo/SetInvisible.inc"
 }
 
-void CUserCharacInfo::SetFirstTimeLogin(bool flag)
-{
-    CUR->m_firstTimeLogin = flag;
+#include "CUserCharacInfo/SetFirstTimeLogin.inc"
 }
 
-void CUserCharacInfo::SetCurRevengeDungeonCount(unsigned char count)
-{
-    if (m_selected)
-    {
-    CUR->m_revengeDungeonCount = count;
-    }
+#include "CUserCharacInfo/SetCurRevengeDungeonCount.inc"
 }
 
 
-void CUserCharacInfo::SetCurExpEquipSlotStat(char stat)
-{
-    if (m_selected)
-    {
-    CUR->m_curExEquipSlotStat = stat;
-    }
+#include "CUserCharacInfo/SetCurExpEquipSlotStat.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacSuperState(bool flag)
-{
-    if (m_selected)
-    {
-    CUR->m_superState = flag;
-    }
+#include "CUserCharacInfo/SetCurCharacSuperState.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacSkillTreeIndex(char index)
-{
-    if (m_selected)
-    {
-    enableSaveCharacInfo();
-    CUR->m_skillTreeIndex = index;
-    }
+#include "CUserCharacInfo/SetCurCharacSkillTreeIndex.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacRevengeData(unsigned char count, unsigned char ticket)
-{
-    if (m_selected)
-    {
-    CUR->m_revengeCount = count;
-    CUR->m_revengeDungeonCount = ticket;
-    }
+#include "CUserCharacInfo/SetCurCharacRevengeData.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacOption(CharacterOption& option)
-{
-    if (m_selected)
-        CUR->m_characterOption = option;
+#include "CUserCharacInfo/SetCurCharacOption.inc"
 }
 
 
 
 
-void CUserCharacInfo::SetCurCharacOnlinePreliminaryTeam(
-    online_preliminary::COnlinePreliminaryTeam* team)
-{
-    if (m_selected)
-    {
-    CUR->m_onlinePreliminaryTeam = team;
-    }
+#include "CUserCharacInfo/SetCurCharacOnlinePreliminaryTeam.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacMaxEquipLevel(int level)
-{
-    if (m_selected)
-    {
-    enableSaveCharacManageInfo();
-    CUR->m_maxEquipLevel = level;
-    }
+#include "CUserCharacInfo/SetCurCharacMaxEquipLevel.inc"
 }
 
 
-void CUserCharacInfo::enableSaveCharacManageInfo() { m_saveCharacManageInfo = 1; }
+#include "CUserCharacInfo/enableSaveCharacManageInfo.inc"
 
-void CUserCharacInfo::SetCurCharacLuckPointUpdateTimeCount(int count)
-{
-    if (m_selected)
-    {
-    CUR->m_luckPointUpdateTimeCount = count;
-    }
+#include "CUserCharacInfo/SetCurCharacLuckPointUpdateTimeCount.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacLeaveTimeout(bool flag)
-{
-    if (m_selected)
-    {
-    CUR->m_leaveTimeout = flag;
-    }
+#include "CUserCharacInfo/SetCurCharacLeaveTimeout.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacGhost(bool flag)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_ghost = flag;
-    }
+#include "CUserCharacInfo/SetCurCharacGhost.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacExpertJobType(int type)
-{
-    if (m_selected)
-    {
-    enableSaveCharacInfo();
-    CUR->m_expertJobType = type;
-    }
+#include "CUserCharacInfo/SetCurCharacExpertJobType.inc"
 }
 
 
-void CUserCharacInfo::enableSaveCharacInfo() { m_saveCharacInfo = 1; }
+#include "CUserCharacInfo/enableSaveCharacInfo.inc"
 
-void CUserCharacInfo::SetCurCharacExpertJobExp(int exp)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_expertJobExp = exp;
-    }
+#include "CUserCharacInfo/SetCurCharacExpertJobExp.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacExpertJob(expert_job::CExpertJob* job)
-{
-    if (m_selected)
-    {
-    CUR->m_expertJob = job;
-    }
+#include "CUserCharacInfo/SetCurCharacExpertJob.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacEmotion(short emotion)
-{
-    enableSaveCharacStat();
-    CUR->m_curCharacEmotion = (unsigned short)emotion;
+#include "CUserCharacInfo/SetCurCharacEmotion.inc"
 }
 
-void CUserCharacInfo::SetCurCharacChaosPoint(int point)
-{
-    if (m_selected)
-    {
-    CUR->m_chaosPoint = point;
-    }
+#include "CUserCharacInfo/SetCurCharacChaosPoint.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacChaosKillTime(int t)
-{
-    if (m_selected)
-    {
-    CUR->m_chaosKillTime = t;
-    }
+#include "CUserCharacInfo/SetCurCharacChaosKillTime.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacAssaultedUserId(unsigned short userId)
-{
-    if (m_selected)
-    {
-    CUR->m_assaultedUserId = userId;
-    }
+#include "CUserCharacInfo/SetCurCharacAssaultedUserId.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacAssaultMoney(int money)
-{
-    if (m_selected)
-    {
-    CUR->m_assaultMoney = money;
-    }
+#include "CUserCharacInfo/SetCurCharacAssaultMoney.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacAssaultFatigueCount(int count)
-{
-    if (m_selected)
-    {
-    CUR->m_assaultFatigueCount = count;
-    }
+#include "CUserCharacInfo/SetCurCharacAssaultFatigueCount.inc"
 }
 
 
-void CUserCharacInfo::SetCharacStartPlayTick(long tick) { m_characStartPlayTick = tick; }
+#include "CUserCharacInfo/SetCharacStartPlayTick.inc"
 
-void CUserCharacInfo::SetAssaultPlace(int place)
-{
-    if (m_selected)
-    {
-    CUR->m_assaultPlace = place;
-    }
+#include "CUserCharacInfo/SetAssaultPlace.inc"
 }
 
 
-void CUserCharacInfo::ResetRevengeDungeonClear()
-{
-    if (m_selected)
-    {
-    CUR->m_revengeDungeonCount = 0;
-    CUR->m_revengeCount = 0;
-    }
+#include "CUserCharacInfo/ResetRevengeDungeonClear.inc"
 }
 
 
-void CUserCharacInfo::ResetPowerWarAssaultRecord()
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_powerWarAssaultCount = 0;
-    CUR->m_powerWarAssaultVictoryCount = 0;
-    }
+#include "CUserCharacInfo/ResetPowerWarAssaultRecord.inc"
 }
 
 
-void CUserCharacInfo::ResetCurCharacEventItemCount()
-{
-    if (m_selected)
-    {
-    CUR->m_curCharacEventItemCount = 0;
-    }
+#include "CUserCharacInfo/ResetCurCharacEventItemCount.inc"
 }
 
 
-void CUserCharacInfo::ResetCurCharacEventAddItemCount()
-{
-    if (m_selected)
-    {
-    CUR->m_curCharacEventAddItemCount = 0;
-    }
+#include "CUserCharacInfo/ResetCurCharacEventAddItemCount.inc"
 }
 
 
-void CUserCharacInfo::ResetCurCharacDungeonPlayCount()
-{
-    enableSaveCharacStat();
-    SetCurCharacDungeonPlayCount(0);
+#include "CUserCharacInfo/ResetCurCharacDungeonPlayCount.inc"
 }
 
-void CUserCharacInfo::LiveCurCharac()
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_ghost = 0;
-    CUR->m_chaosDieTime = 0;
-    CUR->m_chaosStateTime = 0;
-    if (!GlobalData::s_power_manager->IsPowerWarEventOn() ||
-        getCurCharacVill() != 7)
-    {
-        CUR->m_stamina = CUR->m_backupStamina;
-    }
-    }
+#include "CUserCharacInfo/LiveCurCharac.inc"
 }
 
 
 // b28d-CUser P292：ORIG 0x08696976 `test;je;movzbl 0x1244;ret`（无 setne 归一化）
 //   ⇒ 返回 bool 且三目两臂同型（字段已 bool 化）。
-bool CUserCharacInfo::IsVillageAttackDBUpdate() const
-{
-    return m_selected ? CUR->m_villageAttackDBUpdate : false;
+#include "CUserCharacInfo/IsVillageAttackDBUpdate.inc"
 }
 
-unsigned char CUserCharacInfo::IsSaveDemensionInoutValue()
-{
-    return CUR->m_saveDemensionInout;
+#include "CUserCharacInfo/IsSaveDemensionInoutValue.inc"
 }
 
-char CUserCharacInfo::IsSaveCharacStat() { return m_saveCharacStat; }
+#include "CUserCharacInfo/IsSaveCharacStat.inc"
 
-char CUserCharacInfo::IsSaveCharacManageInfo() { return m_saveCharacManageInfo; }
+#include "CUserCharacInfo/IsSaveCharacManageInfo.inc"
 
-unsigned char CUserCharacInfo::IsSaveBloodInoutValue()
-{
-    return CUR->m_saveBloodInout;
+#include "CUserCharacInfo/IsSaveBloodInoutValue.inc"
 }
 
-bool CUserCharacInfo::IsProperDungeonUser()
-{
-    return m_selected ? CUR->m_properDungeonUser : 0;
+#include "CUserCharacInfo/IsProperDungeonUser.inc"
 }
 
-bool CUserCharacInfo::IsFirstTimeLogin()   // [b28d-Main 代落·S336 P292] uchar→bool
-{
-    return CUR->m_firstTimeLogin;
+#include "CUserCharacInfo/IsFirstTimeLogin.inc"
 }
 
-unsigned char CUserCharacInfo::IsExpItemAffected()
-{
-    return m_selected ? CUR->m_isExpItemAffected : 0;
+#include "CUserCharacInfo/IsExpItemAffected.inc"
 }
 
 
-unsigned char CUserCharacInfo::IsEndLetheAtLogin()
-{
-    return m_selected ? CUR->m_isEndLetheAtLogin : 0;
+#include "CUserCharacInfo/IsEndLetheAtLogin.inc"
 }
 
 
-bool CUserCharacInfo::IsCurCharacVisible()
-{
-    if (m_selected && CUR->m_visibleBits.visible)
-        return true;
-    return false;
+#include "CUserCharacInfo/IsCurCharacVisible.inc"
 }
 
 
-bool CUserCharacInfo::IsCurCharacLeaveTimeout()
-{
-    return m_selected ? CUR->m_leaveTimeout : false;
+#include "CUserCharacInfo/IsCurCharacLeaveTimeout.inc"
 }
 
-bool CUserCharacInfo::IsBusyDisjointStore()
-{
-    if (GetCurCharacExpertJob() != 0)
-    {
-        if (GetCurCharacExpertJob()->GetType() == 3)
-            return true;
-    }
-    return false;
+#include "CUserCharacInfo/IsBusyDisjointStore.inc"
 }
 
 
 // [b28d-L14 N82附/N18a] ORIG 0x0864657e：ORIG 用 %edi 跨 call 保活（push edi，帧 0x4c）
 // vs 4.4 槽化（帧 0x40）；`mov (%eax),%ebx` 4.4 折单段。p167 CLEAR（8/8，语义完整）。
-bool CUserCharacInfo::IsAvailableCurCharacTradeGoldDaily(unsigned int gold)
-{
-    if (!m_selected)
-        return false;
-    unsigned int limit = get_charac_level() * get_charac_level() * 10000;
-    if (limit < CUR->m_reliablePerson.GetTradeGoldDaily() + gold)
-    {
-        // [b28d-solo-CUserCharacInfo P227/P37] ORIG 0x0864657e：varargs 先求值（右起）
-        // 且 GetTradeGoldDaily 值经 %edi 跨 ctor 保活（push edi）⇒ 全表达式临时链。
-        cMyTrace(__PRETTY_FUNCTION__, 0x3f1, 0)(
-            "TRADE_RESTIRCTION charac_name(%s), charac_level(%d), limit_gold(%u), "
-            "add_gold(%u), use_gold(%u)",
-            getCurCharacName(), get_charac_level(), limit, gold,
-            CUR->m_reliablePerson.GetTradeGoldDaily());
-        return false;
-    }
-    return true;
+#include "CUserCharacInfo/IsAvailableCurCharacTradeGoldDaily.inc"
 }
 
-const char* CUserCharacInfo::getCurCharacName() const
-{
-    return m_selected ? (const char*)CUR->m_name : "";
+#include "CUserCharacInfo/getCurCharacName.inc"
 }
 
 
-void CUserCharacInfo::InitFinishPoint()
-{
-    if (m_selected)
-    {
-    CUR->m_finishPoint = 0;
-    CUR->m_finishPointTotal = 0;
-    memset(CUR->m_warAreaKill, 0, sizeof(CUR->m_warAreaKill));
-    ((CUser*)this)->m_historyLog.FPSub(
-        0, CUR->m_finishPoint, CUR->m_finishPointTotal, (eFPSubReason)1);
-    }
+#include "CUserCharacInfo/InitFinishPoint.inc"
 }
 
 
-void CUserCharacInfo::IncrementCurCharacTradeGoldDaily(unsigned int gold)
-{
-    enableSaveCharacStat();
-    CUR->m_reliablePerson.IncrementTradeGold(gold);
+#include "CUserCharacInfo/IncrementCurCharacTradeGoldDaily.inc"
 }
 
 // ORIG `movzwl 0x121f(%edx),%edx;mov %edx,%ecx` 二段；4.4 折单步 `movzwl …,%ecx`
 // （N18a：4.4 恒折 mem→%reg→callee-saved 两段），寄存器分配差异，语义等价。
 // [b28d-solo-CUserCharacInfo N18a 复核] `+=` 形实测同形（movzwl mem,%ecx 单段）；
 // 字段为 16 位 ushort，无法按 P254 改 enum（宽度变 4 破坏 +0x121f 布局）⇒ 封顶。
-void CUserCharacInfo::IncreasePowerWarPoint(short point)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    // P254 packed enum 视角：复现 ORIG `movzwl 0x121f(%edx),%edx; mov %edx,%ecx` 两段。
-    CUR->m_powerWarPointEnum =
-        (EPowerWarPointValue)((int)CUR->m_powerWarPointEnum + point);
-    if ((short)CUR->m_powerWarPoint > 9999)
-        CUR->m_powerWarPoint = 9999;
-    }
+#include "CUserCharacInfo/IncreasePowerWarPoint.inc"
 }
 
 
-void CUserCharacInfo::IncProperDungeonClearCount()
-{
-    if (m_selected)
-    {
-    ++CUR->m_properDungeonClearCount;
-    }
+#include "CUserCharacInfo/IncProperDungeonClearCount.inc"
 }
 
 
-void CUserCharacInfo::IncPowerWarAssaultVictoryCount()
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    ++CUR->m_powerWarAssaultVictoryCount;
-    }
+#include "CUserCharacInfo/IncPowerWarAssaultVictoryCount.inc"
 }
 
 
-void CUserCharacInfo::IncPowerWarAssaultCount()
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    ++CUR->m_powerWarAssaultCount;
-    }
+#include "CUserCharacInfo/IncPowerWarAssaultCount.inc"
 }
 
 
@@ -2999,523 +1458,257 @@ void CUserCharacInfo::IncPowerWarAssaultCount()
 // 无一分支反向，语义等价。
 // [b28d-solo-CUserCharacInfo AE] 49=49：P254 packed enum 视角（EFatigueBatteryValue /
 // m_fatigueBatteryEnum）⇒ 累加段两段 regmove 复现（old/比较段维持 ushort 视角不变）。
-void CUserCharacInfo::IncFatigueBatteryCharging(short value)
-{
-    if (m_selected)
-    {
-        enableSaveCharacStat();
-        // ORIG IncFatigueBatteryCharging（0x86566e4）：movzwl 0x5c0(%eax) 读
-        // CDataManager+0x68 处 ServerParameterScript 的疲劳电池常量表上限。
-        ServerParameterScript* sp =
-            (ServerParameterScript*)((char*)G_CDataManager() +
-                                     offsetof(CDataManager, m_serverParameter));
-        // P209 翻案：old 声明 signed short 出 ORIG 直 `cmp -0xa(%ebp),%ax`
-        // 内存比较（探针 /tmp/bl10/p5.cpp h1/h2）。
-        short old = (short)CUR->m_fatigueBattery;
-        // P254 packed enum 视角：复现 ORIG `movzwl 0x4f(%edx),%edx; mov %edx,%ecx` 两段。
-        CUR->m_fatigueBatteryEnum =
-            (EFatigueBatteryValue)((int)CUR->m_fatigueBatteryEnum + value);
-        if ((short)CUR->m_fatigueBattery < old ||
-            (int)(short)CUR->m_fatigueBattery > (int)sp->m_fatigueTable5c0.m_capLimit)
-        {
-            CUR->m_fatigueBattery = sp->m_fatigueTable5c0.m_capLimit;
-        }
-    }
+#include "CUserCharacInfo/IncFatigueBatteryCharging.inc"
 }
 
 
 
 
-void CUserCharacInfo::IncCurConditionEventStep()
-{
-    if (m_selected)
-    {
-        ++CUR->m_curConditionEventStep;
-        if ((short)CUR->m_curConditionEventStep > 0xff)
-            CUR->m_curConditionEventStep = 0xff;
-    }
+#include "CUserCharacInfo/IncCurConditionEventStep.inc"
 }
 
 
 
 
-void CUserCharacInfo::IncCurConditionEventRewardStep()
-{
-    if (m_selected)
-    {
-        ++CUR->m_curConditionEventRewardStep;
-        if ((short)CUR->m_curConditionEventRewardStep > 0xff)
-            CUR->m_curConditionEventRewardStep = 0xff;
-    }
+#include "CUserCharacInfo/IncCurConditionEventRewardStep.inc"
 }
 
 
 
 
-void CUserCharacInfo::IncCurCharacLuckPointUpdateTimeCount()
-{
-    if (m_selected)
-        CUR->m_luckPointUpdateTimeCount += 1;
+#include "CUserCharacInfo/IncCurCharacLuckPointUpdateTimeCount.inc"
 }
 
 
 
 
-void CUserCharacInfo::IncCurCharacLuckPoint(int point)
-{
-    enableSaveCharacStat();
-    if (GetCurCharacLuckPoint() == 100000)
-        return;
-    SetCurCharacLuckPoint(GetCurCharacLuckPoint() + point);
+#include "CUserCharacInfo/IncCurCharacLuckPoint.inc"
 }
 
-void CUserCharacInfo::IncCurCharacEventAddItemCount(unsigned short count)
-{
-    if (m_selected)
-    {
-    CUR->m_curCharacEventAddItemCount =
-        (unsigned short)(CUR->m_curCharacEventAddItemCount + count);
-    }
+#include "CUserCharacInfo/IncCurCharacEventAddItemCount.inc"
 }
 
 
-void CUserCharacInfo::IncCurCharacDungeonPlayCount()
-{
-    enableSaveCharacStat();
-    SetCurCharacDungeonPlayCount(GetCurCharacDungeonPlayCount() + 1);
+#include "CUserCharacInfo/IncCurCharacDungeonPlayCount.inc"
 }
 
-void CUserCharacInfo::SetCurCharacDungeonPlayCount(int count)
-{
-    if (m_selected)
-    {
-    CUR->m_dungeonPlayCount = count;
-    }
+#include "CUserCharacInfo/SetCurCharacDungeonPlayCount.inc"
 }
 
 
-void CUserCharacInfo::IncCurCharacChaosModeCount()
-{
-    enableSaveCharacStat();
-    SetCurCharacChaosModeCount(GetCurCharacChaosModeCount() + 1);
+#include "CUserCharacInfo/IncCurCharacChaosModeCount.inc"
 }
 
-void CUserCharacInfo::SetCurCharacChaosModeCount(int count)
-{
-    if (m_selected)
-    {
-    CUR->m_chaosModeCount = count;
-    }
+#include "CUserCharacInfo/SetCurCharacChaosModeCount.inc"
 }
 
 
-void CUserCharacInfo::IncCurCharacChaosKillCount()
-{
-    enableSaveCharacStat();
-    SetCurCharacChaosKillCount(GetCurCharacChaosKillCount() + 1);
+#include "CUserCharacInfo/IncCurCharacChaosKillCount.inc"
 }
 
-void CUserCharacInfo::SetCurCharacChaosKillCount(int count)
-{
-    if (m_selected)
-    {
-    CUR->m_chaosKillCount = count;
-    }
+#include "CUserCharacInfo/SetCurCharacChaosKillCount.inc"
 }
 
 
-void CUserCharacInfo::IncCurCharacChaosDieCount()
-{
-    enableSaveCharacStat();
-    SetCurCharacChaosDieCount(GetCurCharacChaosDieCount() + 1);
+#include "CUserCharacInfo/IncCurCharacChaosDieCount.inc"
 }
 
-void CUserCharacInfo::SetCurCharacChaosDieCount(int count)
-{
-    if (m_selected)
-    {
-    CUR->m_chaosDieCount = count;
-    }
+#include "CUserCharacInfo/SetCurCharacChaosDieCount.inc"
 }
 
 
-void CUserCharacInfo::IncCurCharacAssaultFatigueCount()
-{
-    if (m_selected)
-    {
-    ++CUR->m_assaultFatigueCount;
-    }
+#include "CUserCharacInfo/IncCurCharacAssaultFatigueCount.inc"
 }
 
 
-void CUserCharacInfo::IncCurCharacAssaultCount()
-{
-    enableSaveCharacStat();
-    SetAssaultCount(GetAssaultCount() + 1);
+#include "CUserCharacInfo/IncCurCharacAssaultCount.inc"
 }
 
-void CUserCharacInfo::SetAssaultCount(int count)
-{
-    if (m_selected)
-    {
-    CUR->m_assaultCount = count;
-    }
+#include "CUserCharacInfo/SetAssaultCount.inc"
 }
 
 
-void CUserCharacInfo::GmSetCurCharacChaosPoint(int point)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_chaosPoint = point;
-    if (CUR->m_chaosPoint < 0)
-        CUR->m_chaosPoint = 0;
-    if (CUR->m_chaosPoint > 100)
-        CUR->m_chaosPoint = 100;
-    }
+#include "CUserCharacInfo/GmSetCurCharacChaosPoint.inc"
 }
 
 
 // [b28d-CPrivateStoreMgr] 返回类型判据（ORIG 0x085cbd38 + 探针 f15/f16）：unsigned int。
-unsigned int CUserCharacInfo::GetWinPoint() { return m_pvpResult.m_winPoint; }
+#include "CUserCharacInfo/GetWinPoint.inc"
 
-float CUserCharacInfo::GetWarAreaKillCountTotal()
-{
-    if (!m_selected)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x22f, 5);
-        trace("WARAREA CUserCharacInfo::GetWarAreaKillCountTotal() : m_selected is NULL");
-        return 0.0f;
-    }
-    float total = 0.0f;
-    for (int i = 0; i < 4; ++i)
-        total += CUR->m_warAreaKill[i];
-    return total;
+#include "CUserCharacInfo/GetWarAreaKillCountTotal.inc"
 }
 
 
-float CUserCharacInfo::GetWarAreaKillCount(int index)
-{
-    if (!m_selected)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x260, 5);
-        trace("WARAREA CUserCharacInfo::GetWarAreaKillCount() : m_selected is NULL");
-        return 0.0f;
-    }
-    return CUR->m_warAreaKill[index];
+#include "CUserCharacInfo/GetWarAreaKillCount.inc"
 }
 
-int CUserCharacInfo::GetUserStateByAssault()
-{
-    if (m_selected != 0)
-    {
-        if (CUR->m_superState != 0)
-            return 6;
-        if (CUR->m_ghost != 0)
-            return 4;
-        if (CUR->m_assaultPlace != 0)
-            return 5;
-    }
-    return 0;
+#include "CUserCharacInfo/GetUserStateByAssault.inc"
 }
 
 
-unsigned short CUserCharacInfo::GetUserPowerWarPoint()
-{
-    return m_selected ? CUR->m_powerWarPoint : 0;
+#include "CUserCharacInfo/GetUserPowerWarPoint.inc"
 }
 
 // [b28d-CPrivateStoreMgr] 返回类型判据（ORIG 0x085c8acf xor 形 + P292/T3）：bool。
-bool CUserCharacInfo::GetReliablePerson() { return m_reliablePerson; }
+#include "CUserCharacInfo/GetReliablePerson.inc"
 
-unsigned short CUserCharacInfo::GetProperDungeonClearCount() const
-{
-    return m_selected ? CUR->m_properDungeonClearCount : 0;
+#include "CUserCharacInfo/GetProperDungeonClearCount.inc"
 }
 
-long CUserCharacInfo::GetPowerWarProcessInfoLastUpdateTime()
-{
-    return m_selected ? CUR->m_powerWarProcessLastUpdateTime : 0;
+#include "CUserCharacInfo/GetPowerWarProcessInfoLastUpdateTime.inc"
 }
 
-long CUserCharacInfo::GetPowerWarLastPlayTime()
-{
-    return m_selected ? CUR->m_powerWarLastPlayTime : 0;
+#include "CUserCharacInfo/GetPowerWarLastPlayTime.inc"
 }
-void CUserCharacInfo::SetIsInitSkillFlag(bool flag)
-{
-    if (m_selected)
-    {
-        CUR->m_isInitSkillFlag = flag;
-    }
+#include "CUserCharacInfo/SetIsInitSkillFlag.inc"
 }
 
-void CUserCharacInfo::SetIsInitSkillFlag2ND(bool flag)
-{
-    if (m_selected)
-    {
-        CUR->m_isInitSkillFlag2ND = flag;
-    }
+#include "CUserCharacInfo/SetIsInitSkillFlag2ND.inc"
 }
 
-void CUserCharacInfo::IncVillageAttackCount()
-{
-    if (m_selected)
-    {
-        ++CUR->m_revengeCount;
-        CUR->m_villageAttackDBUpdate = 1;
-    }
+#include "CUserCharacInfo/IncVillageAttackCount.inc"
 }
 
-int CUserCharacInfo::GetPowerWarAssaultVictoryCount()
-{
-    return m_selected ? CUR->m_powerWarAssaultVictoryCount : 0;
+#include "CUserCharacInfo/GetPowerWarAssaultVictoryCount.inc"
 }
 
-int CUserCharacInfo::GetPowerWarAssaultCount()
-{
-    return m_selected ? CUR->m_powerWarAssaultCount : 0;
+#include "CUserCharacInfo/GetPowerWarAssaultCount.inc"
 }
 
-int CUserCharacInfo::GetOverTradeGoldCount() { return m_overTradeGoldCount; }
+#include "CUserCharacInfo/GetOverTradeGoldCount.inc"
 
-unsigned char CUserCharacInfo::GetOpencoin()
-{
-    return CUR->m_opencoin;
+#include "CUserCharacInfo/GetOpencoin.inc"
 }
 
-unsigned char CUserCharacInfo::GetOneDayLetheFlag2ND() const
-{
-    return m_selected ? CUR->m_oneDayLetheFlag2ND : 0;
+#include "CUserCharacInfo/GetOneDayLetheFlag2ND.inc"
 }
 
-unsigned char CUserCharacInfo::GetOneDayLetheFlag() const
-{
-    return m_selected ? CUR->m_oneDayLetheFlag : 0;
+#include "CUserCharacInfo/GetOneDayLetheFlag.inc"
 }
 
-long CUserCharacInfo::GetLoginTick()
-{
-    if (!m_selected)
-        return 0;
-    return CUR->m_loginTick;
+#include "CUserCharacInfo/GetLoginTick.inc"
 }
 
 
-int CUserCharacInfo::GetFinishPointTotal()
-{
-    if (!m_selected)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x26a, 5);
-        trace("WARAREA CUserCharacInfo::GetFinishPointTotal() : m_selected is NULL");
-        return 0;
-    }
-    return CUR->m_finishPointTotal;
+#include "CUserCharacInfo/GetFinishPointTotal.inc"
 }
 
 
 
-int CUserCharacInfo::GetFinishPoint()
-{
-    if (m_selected)
-        return CUR->m_finishPoint;
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x244, 5);
-    trace("WARAREA CUserCharacInfo::GetFinishPoint() : m_selected is NULL");
-    return 0;
+#include "CUserCharacInfo/GetFinishPoint.inc"
 }
 
 
-short CUserCharacInfo::GetFatigueBatteryCharging()
-{
-    return m_selected ? CUR->m_fatigueBattery : 0;
+#include "CUserCharacInfo/GetFatigueBatteryCharging.inc"
 }
 
-unsigned short CUserCharacInfo::GetFatigue() const
-{
-    return m_selected ? CUR->m_fatigue : 0;
+#include "CUserCharacInfo/GetFatigue.inc"
 }
 
-float CUserCharacInfo::GetExpAffectRate()
-{
-    return m_selected ? CUR->m_expAffectRate : 0.0f;
+#include "CUserCharacInfo/GetExpAffectRate.inc"
 }
 
 
-unsigned char CUserCharacInfo::GetCurVillageAttackCount() const
-{
-    return m_selected ? CUR->m_revengeCount : 0;
+#include "CUserCharacInfo/GetCurVillageAttackCount.inc"
 }
 
-unsigned char CUserCharacInfo::GetCurRevengeDungeonCount() const
-{
-    return m_selected ? CUR->m_revengeDungeonCount : 0;
+#include "CUserCharacInfo/GetCurRevengeDungeonCount.inc"
 }
 
-unsigned char CUserCharacInfo::GetCurExEquipSlotStat()
-{
-    return m_selected ? (unsigned char)CUR->m_curExEquipSlotStat : 0;
+#include "CUserCharacInfo/GetCurExEquipSlotStat.inc"
 }
 
-unsigned short CUserCharacInfo::GetCurConditionEventStep() const
-{
-    return m_selected ? CUR->m_curConditionEventStep : 0;
+#include "CUserCharacInfo/GetCurConditionEventStep.inc"
 }
 
-unsigned short CUserCharacInfo::GetCurConditionEventRewardStep() const
-{
-    return m_selected ? CUR->m_curConditionEventRewardStep : 0;
+#include "CUserCharacInfo/GetCurConditionEventRewardStep.inc"
 }
 
-unsigned char CUserCharacInfo::GetCurCharacSuperState()
-{
-    return m_selected ? CUR->m_superState : 0;
+#include "CUserCharacInfo/GetCurCharacSuperState.inc"
 }
 
-int CUserCharacInfo::GetCurCharacSkillTreeIndex() const  // ORIG 0x822f33c _ZNK15CUserCharacInfo26GetCurCharacSkillTreeIndexEv
-{
-    return m_selected ? (signed char)CUR->m_skillTreeIndex : 0;
+#include "CUserCharacInfo/GetCurCharacSkillTreeIndex.inc"
 }
 
-const char* CUserCharacInfo::GetCurCharacOnlinePreliminaryTeamName() const
-{
-    if (m_selected)
-    {
-        if (CUR->m_onlinePreliminaryTeam != 0)
-            return CUR->m_onlinePreliminaryTeam->GetTeamName();
-    }
-    return "";
+#include "CUserCharacInfo/GetCurCharacOnlinePreliminaryTeamName.inc"
 }
 
 
 
-int CUserCharacInfo::GetCurCharacOnlinePreliminaryTeamId() const
-{
-    if (m_selected)
-    {
-        if (CUR->m_onlinePreliminaryTeam != 0)
-            return CUR->m_onlinePreliminaryTeam->GetTeamId();
-    }
-    return 0;
+#include "CUserCharacInfo/GetCurCharacOnlinePreliminaryTeamId.inc"
 }
 
 
 
 online_preliminary::COnlinePreliminaryTeam*
-CUserCharacInfo::GetCurCharacOnlinePreliminaryTeam()
-{
-    return m_selected ? CUR->m_onlinePreliminaryTeam : 0;
+#include "CUserCharacInfo/GetCurCharacOnlinePreliminaryTeam.inc"
 }
 
 
-int CUserCharacInfo::GetCurCharacMaxEquipLevel() const
-{
-    return m_selected ? CUR->m_maxEquipLevel : 0;
+#include "CUserCharacInfo/GetCurCharacMaxEquipLevel.inc"
 }
 
-int CUserCharacInfo::GetCurCharacLuckPointUpdateTimeCount()
-{
-    return m_selected ? CUR->m_luckPointUpdateTimeCount : 0;
+#include "CUserCharacInfo/GetCurCharacLuckPointUpdateTimeCount.inc"
 }
 
-int CUserCharacInfo::GetCurCharacExpertJobType() const
-{
-    return m_selected ? CUR->m_expertJobType : 0;
+#include "CUserCharacInfo/GetCurCharacExpertJobType.inc"
 }
 
-int CUserCharacInfo::GetCurCharacExpertJobExp() const
-{
-    return m_selected ? CUR->m_expertJobExp : 0;
+#include "CUserCharacInfo/GetCurCharacExpertJobExp.inc"
 }
 
-expert_job::CExpertJob* CUserCharacInfo::GetCurCharacExpertJob() const
-{
-    return m_selected ? CUR->m_expertJob : 0;
+#include "CUserCharacInfo/GetCurCharacExpertJob.inc"
 }
 
-unsigned short CUserCharacInfo::GetCurCharacEventItemCount()
-{
-    return m_selected ? CUR->m_curCharacEventItemCount : 0;
+#include "CUserCharacInfo/GetCurCharacEventItemCount.inc"
 }
 
-unsigned short CUserCharacInfo::GetCurCharacEventAddItemCount()
-{
-    return m_selected ? CUR->m_curCharacEventAddItemCount : 0;
+#include "CUserCharacInfo/GetCurCharacEventAddItemCount.inc"
 }
 
-unsigned short CUserCharacInfo::GetCurCharacEmotion()
-{
-    return m_selected ? CUR->m_curCharacEmotion : 0;
+#include "CUserCharacInfo/GetCurCharacEmotion.inc"
 }
 
-int CUserCharacInfo::GetCurCharacDungeonPlayCount() const
-{
-    return m_selected ? CUR->m_dungeonPlayCount : 0;
+#include "CUserCharacInfo/GetCurCharacDungeonPlayCount.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosStateTime()
-{
-    return m_selected ? CUR->m_chaosStateTime : 0;
+#include "CUserCharacInfo/GetCurCharacChaosStateTime.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosResponTime()
-{
-    return m_selected ? CUR->m_chaosResponTime : 0;
+#include "CUserCharacInfo/GetCurCharacChaosResponTime.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosModeCount()
-{
-    return m_selected ? CUR->m_chaosModeCount : 0;
+#include "CUserCharacInfo/GetCurCharacChaosModeCount.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosKillTime()
-{
-    return m_selected ? CUR->m_chaosKillTime : 0;
+#include "CUserCharacInfo/GetCurCharacChaosKillTime.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosKillCount()
-{
-    return m_selected ? CUR->m_chaosKillCount : 0;
+#include "CUserCharacInfo/GetCurCharacChaosKillCount.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosExp()
-{
-    return m_selected ? CUR->m_chaosExp : 0;
+#include "CUserCharacInfo/GetCurCharacChaosExp.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosDieTime()
-{
-    return m_selected ? CUR->m_chaosDieTime : 0;
+#include "CUserCharacInfo/GetCurCharacChaosDieTime.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosDieCount()
-{
-    return m_selected ? CUR->m_chaosDieCount : 0;
+#include "CUserCharacInfo/GetCurCharacChaosDieCount.inc"
 }
 
-const char* CUserCharacInfo::GetCurCharacBackupSkill2ND() const
-{
-    return m_selected ? (const char*)CUR->m_backupSkill2ND : 0;
+#include "CUserCharacInfo/GetCurCharacBackupSkill2ND.inc"
 }
 
-const char* CUserCharacInfo::GetCurCharacBackupSkill() const
-{
-    return m_selected ? (const char*)CUR->m_backupSkill : 0;
+#include "CUserCharacInfo/GetCurCharacBackupSkill.inc"
 }
 
-unsigned short CUserCharacInfo::GetCurCharacAssaultedUserId()
-{
-    return m_selected ? CUR->m_assaultedUserId : 0;
+#include "CUserCharacInfo/GetCurCharacAssaultedUserId.inc"
 }
 
-int CUserCharacInfo::GetCurCharacAssaultMoney()
-{
-    return m_selected ? CUR->m_assaultMoney : 0;
+#include "CUserCharacInfo/GetCurCharacAssaultMoney.inc"
 }
 
-int CUserCharacInfo::GetCurCharacAssaultFatigueCount()
-{
-    return m_selected ? CUR->m_assaultFatigueCount : 0;
+#include "CUserCharacInfo/GetCurCharacAssaultFatigueCount.inc"
 }
 
 // [b28d-solo-CUserCharacInfo] ①字段直赋中转已修（P211 档③）：SigTypes_C.h
@@ -3529,81 +1722,26 @@ int CUserCharacInfo::GetCurCharacAssaultFatigueCount()
 // cast 异型化、unsigned 下标）均产同一「LHS 地址（index+0x460）前置跨 call 保活」形；
 // disp 折叠经探针确认为 4.4 定则（disp/scale≥2 折、==1 不折：gcii.cpp k1 vs k3）
 // ⇒ N76/N82附/N4 封顶定论。
-void CUserCharacInfo::GetContinuousItemInfo(SIG_LOAD_ETC* p) const
-{
-    p->m_cooltimeCharacNo = p->m_characNo;
-    p->m_effectCharacNo = p->m_characNo;
-    const std::vector<ContinuousItemInfo>* cool = GetCurCharacCoolTimeItemListR();
-    p->m_cooltimeItemCount = (unsigned char)cool->size();
-    int index = 0;
-    for (unsigned int i = 0; i < cool->size(); ++i)
-    {
-        ((LoadEtcCoolItemWindow*)p)->m_entries[index + 0x460].m_itemIdx =
-            (*cool)[i].m_itemIdx;
-        ((LoadEtcCoolItemWindow*)p)->m_entries[index + 0x460].m_expireTime =
-            (*cool)[i].m_expireTime;
-        ++index;
-    }
-    index = 0;
-    const std::vector<ContinuousItemInfo>* effect = GetCurCharacEffectItemListR();
-    p->m_effectItemCount = (unsigned char)effect->size();
-    for (unsigned int i = 0; i < effect->size(); ++i)
-    {
-        ((LoadEtcEffectItemWindow*)p)->m_entries[index + 0x494].m_itemIdx =
-            (*effect)[i].m_itemIdx;
-        ((LoadEtcEffectItemWindow*)p)->m_entries[index + 0x494].m_expireTime =
-            (*effect)[i].m_expireTime;
-        ++index;
-    }
+#include "CUserCharacInfo/GetContinuousItemInfo.inc"
 }
 
-const std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacEffectItemListR() const
-{
-    return &CUR->m_effectItemList.m_list;
+#include "CUserCharacInfo/GetCurCharacEffectItemListR.inc"
 }
 
-const std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacCoolTimeItemListR() const
-{
-    return &CUR->m_coolTimeItemList.m_list;
+#include "CUserCharacInfo/GetCurCharacCoolTimeItemListR.inc"
 }
-int CUserCharacInfo::GetCharacPlayTick()
-{
-    return GlobalData::s_systemTime_.getCurSec() - GetCharacStartPlayTick();
+#include "CUserCharacInfo/GetCharacPlayTick.inc"
 }
 
-long CUserCharacInfo::GetCharacStartPlayTick() { return m_characStartPlayTick; }
+#include "CUserCharacInfo/GetCharacStartPlayTick.inc"
 
-int CUserCharacInfo::GetAssaultPlace()
-{
-    return m_selected ? CUR->m_assaultPlace : 0;
+#include "CUserCharacInfo/GetAssaultPlace.inc"
 }
 
-int CUserCharacInfo::GetAssaultCount()
-{
-    return m_selected ? CUR->m_assaultCount : 0;
+#include "CUserCharacInfo/GetAssaultCount.inc"
 }
 
-void CUserCharacInfo::GainCurCharacChaosExp(int exp)
-{
-    // P63 正极性包裹：否定早返 `if(!sel||cp<=0)return` 使 4.4 为两条短路测试
-    // 各发空 else 桩（nop;jmp 中继 ×2，+4 条）；正极 `if(sel&&cp>0){主流程}`
-    // 时 je/jle 直达尾 epilogue，与 ORIG 0x08645e5e 一致。
-    if (m_selected && CUR->m_chaosPoint > 0)
-    {
-        CUR->m_chaosExp += exp;
-        int percent = G_CDataManager()->get_level_exp_percent(get_charac_level(), 1);
-        if (CUR->m_chaosExp > percent && percent > 0)
-        {
-            enableSaveCharacStat();
-            CUR->m_chaosPoint -= CUR->m_chaosExp / percent;
-            CUR->m_chaosExp %= percent;
-            if (CUR->m_chaosPoint < 0)
-            {
-                CUR->m_chaosPoint = 0;
-                CUR->m_chaosExp = 0;
-            }
-        }
-    }
+#include "CUserCharacInfo/GainCurCharacChaosExp.inc"
 }
 
 // [b28d-L14 N107+控制流] ORIG 0x08680e04：`lea 0xdaa(%edx),%ecx` vs 4.4 `add $0xdaa,%eax`
@@ -3613,24 +1751,7 @@ void CUserCharacInfo::GainCurCharacChaosExp(int exp)
 // 归零 —— m_cargo 由 char[0x14] 改真实 CCargo（CUserCharacInfo.h），m_inven 经 pack(1)
 // CharacInvenView 真实 CInventory 成员访问 ⇒ `lea 0xdaa(%edx),%ecx` / `lea 0xda(%edx),%ecx`
 // 逐条复现（数组退化形恒产 add）。
-bool CUserCharacInfo::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot,
-                                   CUser* user) const
-{
-    if (user == 0)
-        return false;
-    if (m_selected == 0)
-        return false;
-    if (((const CCargo&)CUR->m_cargo).FindItemLock(b, space, slot))
-        return true;
-    if (((const CharacInvenView*)CUR)->m_inven.FindItemLock(b, space, slot))
-        return true;
-    CExpandEquipslot* expand = user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
-    if (expand->FindItemLock(b, space, slot))
-        return true;
-    if (((CTitleBook*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)14))
-            ->findItemLock(b, space, slot))
-        return true;
-    return false;
+#include "CUserCharacInfo/FindItemLock.inc"
 }
 
 // [b28d-L14 N18a/N95] ORIG 0x08659c50：增量段 ppEi ⇒ 源写 `it++`（P28，已改）；
@@ -3639,74 +1760,21 @@ bool CUserCharacInfo::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& 
 // ②P254 enum 视角：ContinuousItemInfo 加匿名 union 成员 EContinuousItemIdx
 // m_itemIdxEnum（4 字节等宽，原 m_itemIdx int 全仓消费点不变）⇒ 复现 ORIG
 // `mov (%eax),%eax; mov %eax,%ebx` 两段中转。
-bool CUserCharacInfo::EnablePeriodExpItem()
-{
-    std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
-    std::vector<ContinuousItemInfo>::iterator it = v->begin();
-    unsigned int now = GlobalData::s_systemTime_.getCurSec();
-    for (; it != v->end();)
-    {
-        // P254 enum 视角：复现 ORIG `mov (%eax),%eax; mov %eax,%ebx` 两段中转。
-        CItem* item = G_CDataManager()->find_item(it->m_itemIdxEnum);
-        if (item == 0)
-            return 0;
-        if (item->is_stackable())
-        {
-            CStackableItem* stack = (CStackableItem*)item;
-            if (stack->IsExpAffect())
-            {
-                unsigned int expire = it->m_expireTime;
-                if (now < expire)
-                    return 1;
-                it = v->erase(it);
-                SetExpAffectItemEffect(false, 0.0f);
-                break;
-            }
-        }
-        // [b28d-L14 实证] ORIG 0x08659cf0 增量段调 ppEi（后置）⇒ 源写 it++（P28）。
-        it++;
-    }
-    return 0;
+#include "CUserCharacInfo/EnablePeriodExpItem.inc"
 }
 
 
 
-void CUserCharacInfo::SetExpAffectItemEffect(bool flag, float rate)
-{
-    if (m_selected)
-    {
-    CUR->m_isExpItemAffected = flag;
-    CUR->m_expAffectRate = rate;
-    }
+#include "CUserCharacInfo/SetExpAffectItemEffect.inc"
 }
 
 
-bool CUserCharacInfo::EnablePeriodExpDouble()
-{
-    std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
-    std::vector<ContinuousItemInfo>::iterator it = v->begin();
-    unsigned int now = GlobalData::s_systemTime_.getCurSec();
-    for (; it != v->end();)
-    {
-        if (it->m_itemIdx == 0x1cd1)
-        {
-            unsigned int expire = it->m_expireTime;
-            if (now < expire)
-                return 1;
-            it = v->erase(it);
-            SetIsAffectedExpDouble(false);
-            break;
-        }
-        it++;
-    }
-    return 0;
+#include "CUserCharacInfo/EnablePeriodExpDouble.inc"
 }
 
 
 
-void CUserCharacInfo::SetIsAffectedExpDouble(bool flag)
-{
-    CUR->m_isAffectedExpDouble = flag;
+#include "CUserCharacInfo/SetIsAffectedExpDouble.inc"
 }
 
 
@@ -3718,127 +1786,35 @@ void CUserCharacInfo::SetIsAffectedExpDouble(bool flag)
 // ②P198②/P225 两处 bool 条件整体内联（ORIG 直测 `test %al,%al; je`，无 mov$1/mov$0 物化）；
 // ③P252 具名 `float penalty` 局部（ORIG 0x086462f0 `fstps -0x10(%ebp)` + 回读压栈；
 //   删 other 局部后槽位自洽，旧「复测反劣」系 other 占槽所致）。
-void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_ghost = 1;
-    CUR->m_chaosStateTime = GlobalData::s_systemTime_.getCurSec() - CUR->m_chaosDieTime;
-    CUR->m_chaosDieTime = GlobalData::s_systemTime_.getCurSec() + responTime;
-    int ghostTime = 0;
-    // [b28d-solo-CUserCharacInfo P198②/P225] ORIG 0x086462b0 直测
-    // `test %al,%al; je`（无 bool 物化）⇒ 条件整体内联，勿用具名/register bool。
-    if (GlobalData::s_power_manager->IsPowerWarEventOn() ||
-        getCurCharacVill() == 7)
-    {
-        // [b28d-solo-CUserCharacInfo P252] 具名 float penalty 局部复现 ORIG
-        // 0x086462f0 `fstps -0x10(%ebp)` + 回读压栈（删 other 局部后槽位自洽）。
-        float penalty =
-            GlobalData::s_power_manager->GetPowerWarResponPenalty(user);
-        ghostTime =
-            GlobalData::s_power_manager->GetPowerWarGhostTime(user, penalty);
-    }
-    else
-    {
-        // [b28d-solo-CUserCharacInfo P0] 删具名 other 局部：ORIG 0x0864633a/0x0864634d
-        // 两次重读 0x10(%ebp)（形参直用），命名局部多槽 + 2 insn。
-        ghostTime = ((ServerParameterScript*)((char*)G_CDataManager() +
-                                              offsetof(CDataManager, m_serverParameter)))
-                        ->getAssaultGhostTime(((CUserCharacInfo*)user)->get_charac_level(),
-                                              ((CUserCharacInfo*)user)->GetCurCharacChaosPoint());
-    }
-    // [b28d-solo-CUserCharacInfo P198②] 同上：ORIG 直测 `test %al,%al; je`。
-    if (IsCurCharacGhost() && ghostTime != 0)
-    {
-        int now = GlobalData::s_systemTime_.getCurSec();
-        SetCurCharacChaosDieTime(now);
-        SetCurCharacChaosResponTime(now + ghostTime);
-    }
-    }
+#include "CUserCharacInfo/DieCurCharac.inc"
 }
 
 
-int CUserCharacInfo::get_charac_level() const
-{
-    return m_selected ? CUR->m_level : 0;
+#include "CUserCharacInfo/get_charac_level.inc"
 }
 
-signed char CUserCharacInfo::getCurCharacVill() const
-{
-    if (!m_selected)
-        return 0;
-    if (G_GameWorld()->IsPvPVillageMapChannel())
-        return 10;
-    if (G_GameWorld()->IsPVPChannel())
-        return CUR->m_villPvP;
-    return CUR->m_vill;
+#include "CUserCharacInfo/getCurCharacVill.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacChaosResponTime(int t)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_chaosResponTime = t;
-    }
+#include "CUserCharacInfo/SetCurCharacChaosResponTime.inc"
 }
 
 
-void CUserCharacInfo::SetCurCharacChaosDieTime(int t)
-{
-    enableSaveCharacStat();
-    if (m_selected)
-    {
-    CUR->m_chaosDieTime = t;
-    }
+#include "CUserCharacInfo/SetCurCharacChaosDieTime.inc"
 }
 
 
-bool CUserCharacInfo::IsCurCharacGhost()
-{
-    // ORIG：true 路单一 `movzbl 0xe66(%eax),%eax` 直返（uchar 返回 = load 即
-    // 终值，无 int promote 二段 movzbl %al；bool 声明反产 test;je;mov$1 规范化）
-    // ⇒ 返回类型 unsigned char（技巧 33，mangled 无返回类型）。
-    if (m_selected)
-        return CUR->m_ghost;
-    return 0;
+#include "CUserCharacInfo/IsCurCharacGhost.inc"
 }
 
-int CUserCharacInfo::GetCurCharacChaosPoint()
-{
-    return m_selected ? CUR->m_chaosPoint : 0;
+#include "CUserCharacInfo/GetCurCharacChaosPoint.inc"
 }
 
-void CUserCharacInfo::DecreaseWarPoint(int point)
-{
-    if (!m_selected)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x297, 5);
-        trace("WARAREA CUserCharacInfo::DecreaseWarPoint() : m_selected is NULL");
-        return;
-    }
-    if (point < 1)
-    {
-        CUR->m_finishPointTotal = 0;
-    }
-    else
-    {
-        CUR->m_finishPointTotal -= point;
-        if (CUR->m_finishPointTotal < 0)
-            CUR->m_finishPointTotal = 0;
-    }
-    ((CUser*)this)->m_historyLog.FPSub(
-        point, CUR->m_finishPoint, CUR->m_finishPointTotal, (eFPSubReason)3);
+#include "CUserCharacInfo/DecreaseWarPoint.inc"
 }
 
-void CUserCharacInfo::DecreaseRevengeDungeonTicket()
-{
-    if (m_selected)
-    {
-    --CUR->m_revengeDungeonCount;
-    }
+#include "CUserCharacInfo/DecreaseRevengeDungeonTicket.inc"
 }
 
 
@@ -3846,17 +1822,7 @@ void CUserCharacInfo::DecreaseRevengeDungeonTicket()
 // 同 IncreasePowerWarPoint。
 // [b28d-solo-CUserCharacInfo AE] 36=36：P254 packed enum 视角（EPowerWarPointValue /
 // m_powerWarPointEnum）⇒ 减算段两段 regmove 复现。
-void CUserCharacInfo::DecreasePowerWarPoint(short point)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    // P254 packed enum 视角（同 IncreasePowerWarPoint）。
-    CUR->m_powerWarPointEnum =
-        (EPowerWarPointValue)((int)CUR->m_powerWarPointEnum - point);
-    if ((short)CUR->m_powerWarPoint < 0)
-        CUR->m_powerWarPoint = 0;
-    }
+#include "CUserCharacInfo/DecreasePowerWarPoint.inc"
 }
 
 
@@ -3864,202 +1830,72 @@ void CUserCharacInfo::DecreasePowerWarPoint(short point)
 // `mfat>old` ORIG 直 `cmp -0xa(%ebp),%ax;jle` 折返（跳返回侧），4.4 先物化 old 到 %eax 再
 // `cmp %ax,%dx`，jle 落点/相位同 ORIG，无一分支反向，语义等价。
 // [b28d-solo-CUserCharacInfo AE] 45=45：P254 packed enum 视角（m_fatigueBatteryEnum）。
-void CUserCharacInfo::DecFatigueBatteryCharging(short value)
-{
-    if (m_selected)
-    {
-        enableSaveCharacStat();
-        // P209 翻案：old 必须声明为 **signed short**——unsigned short 局部使 4.4
-        // 恒物化 `movzwl 槽,%eax; cmp %ax,%dx` 三段；signed 局部出 ORIG 直
-        // `cmp -0xa(%ebp),%ax` 内存比较（探针 /tmp/bl10/p5.cpp h1/h2 对照）。
-        short old = (short)CUR->m_fatigueBattery;
-        // P254 packed enum 视角（同 IncFatigueBatteryCharging）。
-        CUR->m_fatigueBatteryEnum =
-            (EFatigueBatteryValue)((int)CUR->m_fatigueBatteryEnum - value);
-        if ((short)CUR->m_fatigueBattery < 0 || (short)CUR->m_fatigueBattery > old)
-            CUR->m_fatigueBattery = 0;
-    }
+#include "CUserCharacInfo/DecFatigueBatteryCharging.inc"
 }
 
 
 
 
-void CUserCharacInfo::DecCurCharacLuckPoint(int percent)
-{
-    enableSaveCharacStat();
-    SetCurCharacLuckPoint(GetCurCharacLuckPoint() - GetTenThousandPercentage(GetCurCharacLuckPoint(), percent));
+#include "CUserCharacInfo/DecCurCharacLuckPoint.inc"
 }
 
-void CUserCharacInfo::SetCurCharacLuckPoint(int point)
-{
-    if (m_selected)
-    {
-    if (point - CUR->m_luckPoint == 100000)
-    {
-        CUR->m_luckPoint = 100000;
-    }
-    else
-    {
-        CUR->m_luckPoint = point;
-        if (CUR->m_luckPoint < 0)
-            CUR->m_luckPoint = 0;
-        else if (CUR->m_luckPoint > 99999)
-            CUR->m_luckPoint = 99999;
-    }
-    }
+#include "CUserCharacInfo/SetCurCharacLuckPoint.inc"
 }
 
 
-int CUserCharacInfo::GetCurCharacLuckPoint()
-{
-    return m_selected ? CUR->m_luckPoint : 0;
+#include "CUserCharacInfo/GetCurCharacLuckPoint.inc"
 }
 
-void CUserCharacInfo::ClearUselessEffectItem(unsigned int expireTime)
-{
-    std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
-    for (std::vector<ContinuousItemInfo>::iterator it = v->begin(); it != v->end();)
-    {
-        if (it->m_expireTime < expireTime)
-            it = v->erase(it);
-        else
-            it++;
-    }
+#include "CUserCharacInfo/ClearUselessEffectItem.inc"
 }
 
-std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacEffectItemList()
-{
-    return &CUR->m_effectItemList.m_list;
+#include "CUserCharacInfo/GetCurCharacEffectItemList.inc"
 }
 
-void CUserCharacInfo::ClearUselessCooltimeItem(unsigned int expireTime)
-{
-    std::vector<ContinuousItemInfo>* v = &CUR->m_coolTimeItemList.m_list;
-    for (std::vector<ContinuousItemInfo>::iterator it = v->begin(); it != v->end();)
-    {
-        if (it->m_expireTime < expireTime)
-            it = v->erase(it);
-        else
-            it++;
-    }
+#include "CUserCharacInfo/ClearUselessCooltimeItem.inc"
 }
 
-std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacCoolTimeItemList()
-{
-    return &CUR->m_coolTimeItemList.m_list;
+#include "CUserCharacInfo/GetCurCharacCoolTimeItemList.inc"
 }
 
-void CUserCharacInfo::ClearProperDungeonUser()
-{
-    if (m_selected)
-    {
-    CUR->m_properDungeonUser = 0;
-    }
+#include "CUserCharacInfo/ClearProperDungeonUser.inc"
 }
 
 
-void CUserCharacInfo::ClearProperDungeonClearCount()
-{
-    SetProperDungeonClearCount(0);
+#include "CUserCharacInfo/ClearProperDungeonClearCount.inc"
 }
 
-void CUserCharacInfo::SetProperDungeonClearCount(short count)
-{
-    if (m_selected)
-    {
-    CUR->m_properDungeonClearCount = (unsigned short)count;
-    }
+#include "CUserCharacInfo/SetProperDungeonClearCount.inc"
 }
 
 
-void CUserCharacInfo::ClearCurConditionEventStep()
-{
-    SetCurConditionEventStep(0);
+#include "CUserCharacInfo/ClearCurConditionEventStep.inc"
 }
 
-void CUserCharacInfo::SetCurConditionEventStep(short step)
-{
-    if (m_selected)
-    {
-    CUR->m_curConditionEventStep = (unsigned short)step;
-    }
+#include "CUserCharacInfo/SetCurConditionEventStep.inc"
 }
 
 
-void CUserCharacInfo::ClearCurConditionEventRewardStep()
-{
-    SetCurConditionEventRewardStep(0);
+#include "CUserCharacInfo/ClearCurConditionEventRewardStep.inc"
 }
 
-void CUserCharacInfo::SetCurConditionEventRewardStep(short step)
-{
-    if (m_selected)
-    {
-    CUR->m_curConditionEventRewardStep = (unsigned short)step;
-    }
+#include "CUserCharacInfo/SetCurConditionEventRewardStep.inc"
 }
 
 
-void CUserCharacInfo::ChangeFinishPoint(int point)
-{
-    if (!m_selected)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x24d, 5);
-        trace("WARAREA CUserCharacInfo::ChangeFinishPoint() : m_selected is NULL");
-        return;
-    }
-    if (point > 0)
-        CUR->m_finishPointTotal += point;
-    CUR->m_finishPoint += point;
-    if (CUR->m_finishPoint < 0)
-        CUR->m_finishPoint = 0;
+#include "CUserCharacInfo/ChangeFinishPoint.inc"
 }
 
-CUserCharacInfo::CUserCharacInfo()
-    : m_pvpResult(), m_battleRecord(), m_dungeonClear()
-{
-    m_selected = 0;
-    m_tag = 0;
-    resetSaveFlags();
+#include "CUserCharacInfo/CUserCharacInfo.inc"
 }
 
-void CUserCharacInfo::resetSaveFlags()
-{
-    m_saveCharacInfo = 0;
-    m_saveCharacStat = 0;
-    m_saveCharacEtc = 0;
-    m_saveCharacManageInfo = 0;
-    m_saveInven = 0;
-    m_saveSkill = 0;
-    m_savePvP = 0;
-    m_saveQuest = 0;
-    m_field08 = 0;
-    m_saveDungeonClear = 0;
-    m_saveBattleRecord = 0;
-    m_saveCargo = 0;
-    m_field0c = 0;
-    m_saveCharacOption = 0;
+#include "CUserCharacInfo/resetSaveFlags.inc"
 }
 
-void CUserCharacInfo::AddCurCharacChaosPoint(int point)
-{
-    if (m_selected)
-    {
-    enableSaveCharacStat();
-    CUR->m_chaosPoint += point;
-    }
+#include "CUserCharacInfo/AddCurCharacChaosPoint.inc"
 }
 
 
-void CUserCharacInfo::enableSaveCharacStat() { m_saveCharacStat = 1; }
-
-// ============================================================================
-// GetTenThousandPercentage（ORIG 0x8550fc9 W）
-// 万分比计算：value * percent / 10000（编译器以 0x68db8bad 魔数除法实现，
-// 反汇编确认 = imul 后魔数除法，语义即 value*percent/10000）。
-// 声明见 CUserCharacInfo.h（SetCurCharacLuckPoint 使用）。
-// ============================================================================
-int GetTenThousandPercentage(int value, int percent)
-{
-    return value * percent / 10000;
+#include "CUserCharacInfo/enableSaveCharacStat.inc"
+#include "CUserCharacInfo/GetTenThousandPercentage.inc"
 }

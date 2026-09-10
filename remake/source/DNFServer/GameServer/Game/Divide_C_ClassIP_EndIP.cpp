@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Divide_C_ClassIP_EndIP/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // Divide_C_ClassIP_EndIP 实现（W7 链接收敛）。
 // 忠实转写 objdump ORIG T @0x086b1dd5 / @0x086b1e85（无独立 md 报告，
 // 反汇编见 /tmp/df_batches/W7_linkfix_W7E.md 证据节）。
@@ -32,28 +42,7 @@ inline char* strrchr(char* s, int c)
 // [b28d-solo-Divide_C_ClassIP_EndIP 判词 · AE] 清单 NEAR(1) → fresh TU compare
 // `ae`（60=60 逐条；清单 NEAR 系 .o 重定位标签伪差）。P167 调用点差集 CLEAR
 // （std::strrchr wrapper 归位见文件头注释）。语义/控制流/栈槽与 ORIG 0x086b1dd5 全等。
-void Divide_C_ClassIP_EndIP(char* out, char* end, char* src)
-{
-    if (src == 0)
-        return;
-
-    char* dot = std::strrchr(src, '.');  // +0x14: call _ZSt7strrchrPci
-    if (dot == 0)
-        return;
-
-    unsigned int len = dot - src;                   // -0x10(%ebp)
-    if (len > 12)                                   // cmpl $0xc,-0x10; ja
-        return;
-
-    unsigned int endLen = strlen(src + len + 1);    // -0xc(%ebp)
-    if (endLen > 4)                                 // cmpl $0x4,-0xc; ja
-        return;
-
-    if (out != 0)
-        strncpy(out, src, len);
-    if (end != 0)
-        strncpy(end, src + len + 1, endLen);
-    return;
+#include "Divide_C_ClassIP_EndIP/Divide_C_ClassIP_EndIP.inc"
 }
 
 // ============================================================================
@@ -68,54 +57,5 @@ void Divide_C_ClassIP_EndIP(char* out, char* end, char* src)
 //   ② 文件头 std::strrchr wrapper 复现 ORIG `call _ZSt7strrchrPci`（p167 归零）。
 // 残余 2 条跳转目标前对齐 nop 由 compare 口径剥离（§6.1/P223 判词族），非语义差。
 // ============================================================================
-void Divide_C_ClassIP_EndIP(char* out, char* end, char* src, char* err)
-{
-    if (src == 0)
-    {
-        *err = 1;
-        return;
-    }
-
-    char* dot = std::strrchr(src, '.');
-    if (dot == 0)
-    {
-        *err = 2;
-        return;
-    }
-
-    unsigned int len = dot - src;
-    if (len > 12)
-    {
-        *err = 3;
-        return;
-    }
-
-    unsigned int endLen = strlen(src + len + 1);
-    if (endLen > 4)
-    {
-        *err = 4;
-        return;
-    }
-
-    // ORIG 块序：[out判定 je→l5][strncpy][end判定 jne→l2; jmp→l6][l5:*err5]
-    // [l2:strncpy2][l6:*err6]。复现形 = 显式双 goto + 冷标签源序 l5→l2→l6。
-    if (out == 0)
-        goto l5;
-    strncpy(out, src, len);
-    // [P222] ORIG 0x086b1f21 为 `jne l2; jmp l6` 双跳；两形互试后取
-    // `if(end==0) goto l6;`（正极性写法产 `je l6; jmp l2` 反极性，勿用）。
-    if (end == 0)
-    {
-        goto l6;
-    }
-    goto l2;
-l5:
-    *err = 5;
-    return;
-l2:
-    strncpy(end, src + len + 1, endLen);
-    return;
-l6:
-    *err = 6;
-    return;                                          // 成功路径不写 err
+#include "Divide_C_ClassIP_EndIP/Divide_C_ClassIP_EndIP_1.inc"
 }

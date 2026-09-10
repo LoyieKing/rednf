@@ -1,0 +1,2 @@
+CItemDropRatioEvent::~CItemDropRatioEvent()
+{

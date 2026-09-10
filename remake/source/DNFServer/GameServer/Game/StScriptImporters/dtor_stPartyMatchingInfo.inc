@@ -1,0 +1,2 @@
+stPartyMatchingInfo::~stPartyMatchingInfo()
+{

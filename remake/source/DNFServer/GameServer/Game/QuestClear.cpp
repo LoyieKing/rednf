@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 QuestClear/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 #include "QuestClear.h"
 #include <stdarg.h>
 #include <string.h>
@@ -12,91 +22,37 @@ namespace WongWork
 // ORIG 0x0808ba78：TU 内第一个**非内联**函数 ⇒ 决定 _GLOBAL__I_ 键名
 // （ORIG 键 = _GLOBAL__I__ZN8WongWork11CQuestClear15setClearedQuestEj）；
 // 构造/析构已按 ORIG 弱符号形改头内联定义（见 QuestClear.h）。
-bool CQuestClear::setClearedQuest(unsigned int questIdx)
-{
-    // save-flag=1 后置 m_cleared[idx]=1（单指令 disp 写入）。
-    if (questIdx == 0 || questIdx > 0x752f)
-        return false;
-    m_saveFlag = 1;
-    m_cleared[questIdx].m_cleared = 1;
-    return true;
+#include "QuestClear/setClearedQuest.inc"
 }
 
-void CQuestClear::clear()
-{
-    // ORIG 0x0808bb06：memset 0x7530 + save-flag(+0x7530) 单指令清零。
-    memset(m_cleared, 0, 0x7530);
-    m_saveFlag = 0;
+#include "QuestClear/clear.inc"
 }
 
-bool CQuestClear::isClearedQuest(unsigned int questIdx) const
-{
-    // ORIG 0x0808bae0：idx==0 或 idx>0x752f → 0；否则 movzbl 直返字节（P9 无 setne）。
-    if (questIdx == 0 || questIdx > 0x752f)
-        return 0;
-    return m_cleared[questIdx].m_cleared;
+#include "QuestClear/isClearedQuest.inc"
 }
 
-const STClearedQuest* CQuestClear::getClearedQuest() const
-{
-    // ORIG（0x0808bb80）返回 this：m_cleared 位于 +0x00，get_quest 据此 memcpy 0x7530 字节。
-    return reinterpret_cast<const STClearedQuest*>(this);
+#include "QuestClear/getClearedQuest.inc"
 }
 
-bool CQuestClear::resetClearedQuests(unsigned int questIdx)
-{
-    // ORIG 0x0808baac：save-flag=1 后清 m_cleared[idx]=0（movb $1,0x7530(%eax) 单指令）。
-    if (questIdx == 0 || questIdx > 0x752f)
-        return false;
-    m_saveFlag = 1;
-    m_cleared[questIdx].m_cleared = 0;
-    return true;
+#include "QuestClear/resetClearedQuests.inc"
 }
 
-void CQuestClear::setClearedQuest(const STClearedQuest* quest)
-{
-    // ORIG 0x0808bb5e：memcpy(this, quest, 0x7530)，不含 save-flag。
-    memcpy(m_cleared, quest, 0x7530);
+#include "QuestClear/setClearedQuest_1.inc"
 }
 
-bool CQuestClear::syncScript()
-{
-    // ORIG 0x0808bb34：mov $0x1,%eax; ret —— 恒返回 1。
-    return true;
+#include "QuestClear/syncScript.inc"
 }
 
-unsigned char CQuestClear::checkSaveFlag() const
-{
-    // ORIG 0x0808bb3e：movzbl 0x7530(%eax) 直返 save-flag 字节（P9）。
-    return m_saveFlag;
+#include "QuestClear/checkSaveFlag.inc"
 }
 
-int CQuestClear::getClearedQuestNum() const
-{
-    // ORIG 0x0808bbc4：统计 m_cleared[1..0x752f] 非零数；有符号比较 setle（P2：i <= 0x752f）。
-    int count = 0;
-    for (int i = 1; i <= 0x752f; ++i)
-    {
-        if (m_cleared[i].m_cleared != 0)
-            ++count;
-    }
-    return count;
+#include "QuestClear/getClearedQuestNum.inc"
 }
 
-void CQuestClear::resetSaveFlags()
-{
-    // ORIG 0x0808bb4e：清零 save-flag（movb $0,0x7530 单指令）。
-    m_saveFlag = 0;
+#include "QuestClear/resetSaveFlags.inc"
 }
 
-void CQuestClear::enumQuestClear(bool (*cb)(unsigned int, char*), ...) const
-{
-    // ORIG 0x0808bb88：va_start 后对 i=1..0x752f 调 cb(i,(char*)ap)；setle 有符号比较（P2）。
-    va_list ap;
-    va_start(ap, cb);
-    for (int i = 1; i <= 0x752f; ++i)
-        cb(i, (char*)ap);
-    va_end(ap);
+#include "QuestClear/enumQuestClear.inc"
 }
 
 }  // namespace WongWork

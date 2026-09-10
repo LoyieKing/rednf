@@ -1,0 +1,2 @@
+CBreakAwayPreventEvent::~CBreakAwayPreventEvent()
+{

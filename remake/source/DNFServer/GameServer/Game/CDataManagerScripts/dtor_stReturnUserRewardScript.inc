@@ -1,0 +1,1 @@
+stReturnUserRewardScript::~stReturnUserRewardScript() {}

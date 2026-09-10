@@ -1,0 +1,2 @@
+CExpandEquipslot::CExpandEquipslot()
+{

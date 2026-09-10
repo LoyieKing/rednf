@@ -1,0 +1,3 @@
+stPacket::stPacket()
+    : stHeader()
+{

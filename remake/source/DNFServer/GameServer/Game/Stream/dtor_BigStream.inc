@@ -1,0 +1,2 @@
+BigStream::~BigStream()
+{

@@ -1,0 +1,3 @@
+GlobalScriptTutorial::~GlobalScriptTutorial()
+{
+    clearScript();

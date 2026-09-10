@@ -1,0 +1,3 @@
+InGameAdvertisementScript::InGameAdvertisementScript()
+{
+    clear();

@@ -1,0 +1,3 @@
+GridScript::GridScript()
+{
+    clear();

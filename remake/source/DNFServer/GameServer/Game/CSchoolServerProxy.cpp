@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CSchoolServerProxy/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CSchoolServerProxy（学校服务器 UDP 代理）。
 // 函数与布局参照 docs/class_func_reports/CSchoolServerProxy.md。
 
@@ -9,25 +19,11 @@
 
 #include "LogManager.h"
 
-CSchoolServerProxy::CSchoolServerProxy(std::string ip, int port)
-    : m_ip(ip), m_port(port), m_udpHandler()
-{
+#include "CSchoolServerProxy/CSchoolServerProxy.inc"
 }
 
-bool CSchoolServerProxy::Init()
-{
-    if (m_udpHandler.InitClientSocket() == -1) {
-        LogManager::logFormat(1, "DF_SchoolServerProxy.cpp",
-                              __PRETTY_FUNCTION__, 0x3c,
-                              "[CSchoolServerProxy::Init] Can't init udp client socket\n");
-        return false;
-    }
-    return true;
+#include "CSchoolServerProxy/Init.inc"
 }
 
-void CSchoolServerProxy::SendPacket(char* packet, int length)
-{
-    m_udpHandler.SendToServer(packet, length,
-                               static_cast<unsigned short>(m_port),
-                               m_ip.c_str());
+#include "CSchoolServerProxy/SendPacket.inc"
 }

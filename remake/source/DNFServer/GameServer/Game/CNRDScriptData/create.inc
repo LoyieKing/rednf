@@ -1,0 +1,2 @@
+void CNRDScriptData::create()
+{

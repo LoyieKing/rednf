@@ -1,0 +1,1 @@
+DyeInfo::~DyeInfo() {}

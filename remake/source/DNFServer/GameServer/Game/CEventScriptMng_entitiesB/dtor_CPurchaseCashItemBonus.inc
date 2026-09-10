@@ -1,0 +1,2 @@
+CPurchaseCashItemBonus::~CPurchaseCashItemBonus()
+{

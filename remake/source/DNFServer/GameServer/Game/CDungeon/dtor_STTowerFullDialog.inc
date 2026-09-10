@@ -1,0 +1,2 @@
+STTowerFullDialog::~STTowerFullDialog()
+{

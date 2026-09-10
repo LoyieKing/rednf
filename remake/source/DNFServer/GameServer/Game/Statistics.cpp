@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Statistics/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— Statistics（G2-4 批次，统计域）。
 // 依据 docs/class_func_reports/Statistics.md + ORIG 反汇编逐函数转录。
 // 本类只做消息打包并转发给 SendSignal（ORIG 中 SendSignal 为空实现，
@@ -68,132 +78,44 @@ struct StatDungeonData
 // ----------------------------------------------------------------------------
 // Statistics（声明见 Statistics.h）
 // ----------------------------------------------------------------------------
-Statistics::Statistics() {}
-Statistics::~Statistics() {}
+#include "Statistics/Statistics.inc"
+#include "Statistics/dtor_Statistics.inc"
 
-void Statistics::BreakJar(unsigned int a, unsigned int b, int c)
-{
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
-
-    localA = a;
-    localB = b;
-    localC = c;
-    SendSignal(0x37, &localA, 0xc);
+#include "Statistics/BreakJar.inc"
 }
 
-void Statistics::Composition(unsigned int a, unsigned int b, int c)
-{
-    StatCompositionData data;
-
-    data.a = a;
-    data.b = b;
-    data.type = 0x63;  // 'c'
-    data.c = c;
-    SendSignal(0x38, &data, 0xd);
+#include "Statistics/Composition.inc"
 }
 
-void Statistics::Decomposition(unsigned int a, unsigned int b, int c)
-{
-    StatCompositionData data;
-
-    data.a = a;
-    data.b = b;
-    data.type = 0x64;  // 'd'
-    data.c = c;
-    SendSignal(0x38, &data, 0xd);
+#include "Statistics/Decomposition.inc"
 }
 
-void Statistics::UseCoin(unsigned int a, unsigned int b, int c)
-{
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
-
-    localA = a;
-    localB = b;
-    localC = c;
-    SendSignal(0x39, &localA, 0xc);
+#include "Statistics/UseCoin.inc"
 }
 
-void Statistics::PvpPlay(unsigned int a, unsigned int b, int c, int d)
-{
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
-    int localD;
-
-    localA = a;
-    localB = b;
-    localC = c;
-    localD = d;
-    SendSignal(0x3a, &localA, 0x10);
+#include "Statistics/PvpPlay.inc"
 }
 
-void Statistics::RankResult(unsigned int a, unsigned int b, int c, int d, int e,
-                            int f, int g, GameResultType& result)
-{
-    MSG_STAT_RANKRES msg;
-
-    msg.m_a = a;
-    msg.m_b = b;
-    msg.m_c = c;
-    msg.m_d = d;
-    msg.m_e = e;
-    msg.m_f = g;   // param_7 -> +0x14
-    msg.m_g = f;   // param_6 -> +0x18
-    msg.m_result = result;
-    SendSignal(0x3b, &msg, 0x6c);
+#include "Statistics/RankResult.inc"
 }
 
-void Statistics::DungeonClear(unsigned int a, unsigned int b, int c, int d, int e,
-                              int f)
-{
-    StatDungeonData data;
-
-    data.a = a;
-    data.b = b;
-    data.c = c;
-    data.d = d;
-    data.type = 0x63;  // 'c'
-    data.e = e;
-    data.f = f;
-    SendSignal(0x3c, &data, 0x19);
+#include "Statistics/DungeonClear.inc"
 }
 
-void Statistics::DungeonGiveUp(unsigned int a, unsigned int b, int c, int d, int e,
-                               int f)
-{
-    StatDungeonData data;
-
-    data.a = a;
-    data.b = b;
-    data.c = c;
-    data.d = d;
-    data.type = 0x67;  // 'g'
-    data.e = e;
-    data.f = f;
-    SendSignal(0x3c, &data, 0x19);
+#include "Statistics/DungeonGiveUp.inc"
 }
 
-void Statistics::DungeonFail(int dungeonIdx)
-{
-    G_GameWorld()->getStatisticsShusiaService()->incDungeonFailure(dungeonIdx);
+#include "Statistics/DungeonFail.inc"
 }
 
-void Statistics::UseShusiaService(int value)
-{
-    G_GameWorld()->getStatisticsShusiaService()->incServiceUsage(value);
+#include "Statistics/UseShusiaService.inc"
 }
 
-void Statistics::PVPPlay2(int a, int b, int c)
-{
-    G_GameWorld()->getStatisticsPvP()->incPvPRoomResult(a, b, c);
+#include "Statistics/PVPPlay2.inc"
 }
 
 // [b28c-4 P210] SendSignal 定义必须晚于全部 caller：4.4 对"已见定义"的 callee 按
 // 其帧精确继承 outgoing（BreakJar 帧塌缩 0x1c、槽基 -0xc），ORIG 4.1 为保守帧
 // 0x28/槽基 -0x14。定义后置即复现（探针 /tmp/l4/order.cpp T1 与 ORIG 0x0860b66c
 // 逐条全等；同 TU 的 RankResult 等消费函数随之复查）。
-void Statistics::SendSignal(int signal, void* data, int len) {}
+#include "Statistics/SendSignal.inc"

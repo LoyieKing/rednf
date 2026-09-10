@@ -19,7 +19,11 @@ int CUser::gainGuildSkillExp(int exp)
     {
         return 0;
     }
-    CSkill* skill = 0;
+    // 2026-09-10（FL2CUser 类型轴 S2）：ORIG 0x0864fbdc 段 p167 实形 = **const 重载**
+    //   `_ZNKSt6vectorIS_IiSaIiEESaIS1_EEixEj`（`m_field108` 的 operator[]）+ 
+    //   `_ZNKSt6vectorIiSaIiEE2atEj`（at）⇒ 原码持 **const CSkill***（find_skill 结果
+    //   以 const 视角使用）；旧形非 const 指针致两处均走非 const 重载。
+    const CSkill* skill = 0;
     skill = G_CDataManager()->find_skill(get_charac_job(), 0xc9);
     // ORIG 0x0864fbdc-0x86fbfd：gradeIdx（=learned-1）跨 operator[] call 存活于
     // %ebx（callee-saved）；P200/P197② 直传形——拓宽表达式作 at() 实参直传，

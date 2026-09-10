@@ -1,0 +1,3 @@
+STDeadTowerData::STDeadTowerData()
+{
+    clear();

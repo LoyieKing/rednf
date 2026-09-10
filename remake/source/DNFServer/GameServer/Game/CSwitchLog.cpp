@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CSwitchLog/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— CSwitchLog（频道/线路切换日志，G2-4 批次）
 // 参照 docs/class_func_reports/CSwitchLog.md。
 // ORIG 符号：
@@ -16,59 +26,12 @@
 #include "CSwitchLog.h"   // 权威声明（本 TU 唯一实现）
 
 char CSwitchLog::log_write_[1];   // ORIG 0x0943df78，1 字节
-CSwitchLog::CSwitchLog(const char* name, int line, int level, int flagIndex)
-{
-    m_name = name;
-    m_line = line;
-    m_level = level;
-    m_flagIndex = flagIndex;
+#include "CSwitchLog/CSwitchLog.inc"
 }
 
-void CSwitchLog::SetLogWriteFlag(register int flag)
-{
-    switch (flag)
-    {
-    case 0:
-        log_write_[0] = 0;
-        break;
-    case 1:
-        log_write_[0] = 1;
-        break;
-    }
+#include "CSwitchLog/SetLogWriteFlag.inc"
 }
 
 // [b28d-23 N·N82] ⇒ N。ORIG 0x0854fd64
-void CSwitchLog::operator()(const char* fmt, ...)
-{
-    if (log_write_[m_flagIndex]) {
-        char buf[4096];
-        sprintf(buf, "%s(%d): ", m_name, m_line);
-        va_list ap;
-        va_start(ap, fmt);
-        int len = strlen(buf);
-        vsnprintf(buf + len, 0xfff - len, fmt, ap);
-        // [L23-r4 P0/P183] ORIG 槽表无 log 具名槽（我方多 `mov %eax,-0x14(%ebp)`
-        //   使 buf 基址由 -0x1014 漂到 -0x1018）⇒ instance() 结果实参位直传。
-        Guard<Mutex> g((Mutex*)((char*)CLog::instance() + m_level * 0x18));
-        switch (m_level) {
-        case 0:
-            CLog::instance()->logNotice(buf);
-            break;
-        case 1:
-            CLog::instance()->logError(buf);
-            break;
-        case 2:
-            CLog::instance()->logDebug(buf);
-            break;
-        case 3:
-            CLog::instance()->logConsole(buf);
-            break;
-        case 4:
-            CLog::instance()->logMoney(buf);
-            break;
-        case 5:
-            CLog::instance()->logCritical(buf);
-            break;
-        }
-    }
+#include "CSwitchLog/operator.inc"
 }

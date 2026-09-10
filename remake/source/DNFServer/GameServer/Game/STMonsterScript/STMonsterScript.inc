@@ -1,0 +1,3 @@
+STMonsterScript::STMonsterScript()
+{
+    Clear();

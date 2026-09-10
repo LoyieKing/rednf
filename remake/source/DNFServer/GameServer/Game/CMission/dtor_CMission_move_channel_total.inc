@@ -1,0 +1,1 @@
+CMission_move_channel_total::~CMission_move_channel_total() {}

@@ -1,0 +1,2 @@
+RidableScript::~RidableScript()
+{

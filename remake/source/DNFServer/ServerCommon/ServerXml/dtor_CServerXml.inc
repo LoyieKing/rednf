@@ -1,0 +1,3 @@
+CServerXml::~CServerXml()
+{
+    InitString();

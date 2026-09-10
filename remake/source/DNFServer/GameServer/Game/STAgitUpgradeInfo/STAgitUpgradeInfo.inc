@@ -1,0 +1,3 @@
+STAgitUpgradeInfo::STAgitUpgradeInfo()
+{
+    clear();

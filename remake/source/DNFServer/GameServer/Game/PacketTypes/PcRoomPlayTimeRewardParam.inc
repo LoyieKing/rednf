@@ -1,0 +1,1 @@
+PcRoomPlayTimeRewardParam::PcRoomPlayTimeRewardParam() {}

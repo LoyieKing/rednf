@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Arad_MomijiEvent/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 阿拉德红叶事件 Arad_MomijiEvent 实现（Game 域；Monitor/ 同名类为
 // 另一独立模块，与此无关）。
 // 报告：docs/class_func_reports/Arad_MomijiEvent/ 全部 6 个方法已读。
@@ -13,38 +23,23 @@
 #include "GameTypes.h"   // cMyTrace
 
 // ORIG 0x0819e738：仅基类构造 + vptr 置位。
-Arad_MomijiEvent::Arad_MomijiEvent()
-{
+#include "Arad_MomijiEvent/Arad_MomijiEvent.inc"
 }
 
 // ORIG 0x0819e754 / 0x0819e784：空体 + 虚析构由编译器生成同形。
-Arad_MomijiEvent::~Arad_MomijiEvent()
-{
+#include "Arad_MomijiEvent/dtor_Arad_MomijiEvent.inc"
 }
 
 // ORIG 0x0819e7a2：cMyTrace(PRETTY, 0x14, 0)("[MOMIJI_EVENT] Event Start.")
 // 在前，SetEventFlag(true) 在后。
-void Arad_MomijiEvent::StartEvent()
-{
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x14, 0);
-    trace("[MOMIJI_EVENT] Event Start.");
-    SetEventFlag(true);
+#include "Arad_MomijiEvent/StartEvent.inc"
 }
 
 // ORIG 0x0819e7f4（thunk，0x1a）：经 vptr+8 虚调 StartEvent()。
-void Arad_MomijiEvent::StartEvent(Word_Param /*param*/)
-{
-    // [b28c-27] N7 封顶：唯一残差=虚调用目标寄存器（ORIG `mov (%eax),%edx; ...;
-    // call *%edx` vs 4.4 `mov (%eax),%eax; ...; call *%eax`）；4.4 间接 call 目标
-    // 恒 %eax，源码形不可择（探针 /tmp/l22p/vprobe*.cpp）。
-    StartEvent();
+#include "Arad_MomijiEvent/StartEvent_1.inc"
 }
 
 // ORIG 0x0819e80e：cMyTrace(PRETTY, 0x1f, 0)("[MOMIJI_EVENT] Event End.")
 // 在前，SetEventFlag(false) 在后。
-void Arad_MomijiEvent::EndEvent()
-{
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1f, 0);
-    trace("[MOMIJI_EVENT] Event End.");
-    SetEventFlag(false);
+#include "Arad_MomijiEvent/EndEvent.inc"
 }

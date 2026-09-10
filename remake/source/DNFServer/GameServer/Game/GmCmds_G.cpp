@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 GmCmds_G/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // GmCmds_G.cpp — game_master GM 命令批次 G（13 个命令类）。
 //
 // 对照 docs/class_func_reports/game_master__{CTeleportCmd,CTestDisjointCmd,
@@ -88,28 +98,7 @@ namespace { struct IntSlotView { void* m_vptr; void* m_parser; int m_slot; }; }
 // ============================================================================
 
 // 拼 "tutorial flag : " + 各置位教程位 "(%d) "，组包(0,0xc) 回发本人。
-void CViewTutorialFlagCmd::execute()
-{
-    std::string text("tutorial flag : ");
-    char buf[255] = { 0 };
-    for (int i = 0; i <= 0x7f; ++i)
-    {
-        if ((char)GetUser()->getCurCharacEscaladeTutorialFlag((unsigned int)i))
-        {
-            sprintf(buf, "(%d) ", i);
-            text += buf;
-        }
-    }
-
-    PacketGuard packet;
-    packet.put_header(0, 0xc);
-    packet.put_byte(0);
-    packet.put_short(0);
-    packet.put_byte(0);
-    packet.put_int((int)text.size());
-    packet.put_str(text.c_str(), (int)text.size());
-    packet.finalize(true);
-    GetUser()->Send(packet);
+#include "GmCmds_G/execute.inc"
 }
 
 // ============================================================================
@@ -117,12 +106,7 @@ void CViewTutorialFlagCmd::execute()
 // ============================================================================
 
 // 调炼金术师 OnTeleportCharacter(本人, 当前村庄, 0,0,0, true) 回城传送。
-void CTeleportCmd::execute()
-{
-    expert_job::CAlchemist::OnTeleportCharacter(
-        GetUser(),
-        (int)(signed char)GetUser()->getCurCharacVill(),
-        0, 0, 0, true);
+#include "GmCmds_G/execute_1.inc"
 }
 
 // ============================================================================
@@ -131,23 +115,11 @@ void CTeleportCmd::execute()
 // ============================================================================
 
 // trim(args)；atoi → +0x08。
-void CVillageAttackedStartCmd::parse()
-{
-    trim(m_parser->m_args);
-    reinterpret_cast<IntSlotView*>(this)->m_slot = atoi(m_parser->m_args.c_str());
+#include "GmCmds_G/parse.inc"
 }
 
 // 组 Packet_VillageAttackedGMCommand 经 monitor proxy 发往本人所属服务器组。
-void CVillageAttackedStartCmd::execute()
-{
-    Packet_VillageAttackedGMCommand pkt;
-    pkt.m_uid = GetUser()->GetUID();
-    pkt.m_characNo = (unsigned int)GetUser()->get_charac_no(-1);
-    pkt.m_vill = (unsigned int)reinterpret_cast<IntSlotView*>(this)->m_slot;
-    pkt.m_field16 = 0;
-
-    GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetUser()->GetServerGroup())
-        ->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x1a);
+#include "GmCmds_G/execute_2.inc"
 }
 
 // ============================================================================
@@ -155,8 +127,7 @@ void CVillageAttackedStartCmd::execute()
 // execute 0x084aa298（纯空）
 // ============================================================================
 
-void CVillageAttackedStopCmd::execute()
-{
+#include "GmCmds_G/execute_3.inc"
 }
 
 // ============================================================================
@@ -166,28 +137,7 @@ void CVillageAttackedStopCmd::execute()
 
 // 本人无队伍则借 GameManager 大厅队伍并设单人；随后发起村战入场，
 // 失败码经 SendCmdErrorPacket(0x10b, code) 回发。
-void CVillageAttackedFightCmd::execute()
-{
-    CParty* party = static_cast<CParty*>(GetUser()->GetParty());
-    if (party == 0)
-    {
-        party = G_CGameManager()->GetParty();
-        if (party != 0)
-            party->set_single_play(GetUser());
-    }
-    if (party != 0)
-    {
-        int ret = 0;
-        ret = party->OnFightVillageMonster(GetUser(), 0);
-        // 4.1 bool 物化+je 形：while(cond){body;break} 使 4.4 保留
-        // cmpl/setne/test/je 四段（探针 /tmp/bl5/probe7.cpp m1 实证）。
-        while (ret != 0)
-        {
-            GetUser()->SendCmdErrorPacket((ENUM_CMDPACKET)0x10b,
-                                          (unsigned char)ret);
-            break;
-        }
-    }
+#include "GmCmds_G/execute_4.inc"
 }
 
 // ============================================================================
@@ -196,37 +146,7 @@ void CVillageAttackedFightCmd::execute()
 
 // 对 6 个样本道具 × 9 个品级 × 1000 次跑分解结果并把六元组刷入日志
 // （disjoint_result："rarity;grade;f6;f0;f7;f2\n"，压栈序依 objdump 实测）。
-void CTestDisjointCmd::execute()
-{
-    CItem* samples[6];
-    samples[0] = G_CDataManager()->find_item(0x795a);
-    samples[1] = G_CDataManager()->find_item(0x795b);
-    samples[2] = G_CDataManager()->find_item(0x797a);
-    samples[3] = G_CDataManager()->find_item(0x795e);
-    samples[4] = G_CDataManager()->find_item(0x7977);
-    samples[5] = G_CDataManager()->find_item(620000);
-    int runs = 1000;                       // -0x28
-
-    DisJointResult result;                 // -0x68（ctor 清零 0x28）
-    for (int s = 0; s <= 5; ++s)           // -0x24
-    {
-        for (int grade = 0; grade <= 8; ++grade)   // -0x20
-        {
-            for (int i = 0; i < runs; ++i)         // -0x1c
-            {
-                expert_job::CDisjointer::get_disjoint_result_(
-                    samples[s], (Inven_Item*)0, grade, result, false,
-                    (CUser*)0);
-                // 参数序（ORIG result@-0x68 下位移实测 +0x14/+0x00/+0x18/+0x04）：
-                // f[5] / f[0] / f[6] / f[1]
-                OS_API::WriteLog("disjoint_result",
-                                 "%d;%d;%d;%d;%d;%d\n",
-                                 samples[s]->get_rarity(), grade,
-                                 result.m_f[5], result.m_f[0],
-                                 result.m_f[6], result.m_f[1]);
-            }
-        }
-    }
+#include "GmCmds_G/execute_5.inc"
 }
 
 // ============================================================================
@@ -245,57 +165,7 @@ void CTestDisjointCmd::execute()
 //      （lsEi 0x080c8c56），unsigned 实参选 lsEj 0x080e2292 = 重载选错。
 //   修复后 p167 CLEAR（48=48；残余 C1/C2、D1/D2 为 P93 同址别名伪差）。
 //   残余 DIFF = 槽/帧序跨版本差（N82）：ORIG guard -0x3c/vector -0x30/it -0x24 一族。
-void CUserPremiumDelete::execute()
-{
-    CUser* user = GetUser();
-    WongWork::CUserPremium* premium = user->GetPremiumInfo();
-
-    std::vector<WongWork::SUserPremiumInfo> list;
-    for (int type = 1; type <= 0x69; ++type)
-    {
-        // P48：ORIG 0x084abf93 与 0x084abfb0 是两次独立 GetPremiumInfo 调用
-        // （O0 无 CSE；缓存具名局部会少 1 次 call，p167 MISSING 实测）。
-        if (premium->GetPremiumInfo(type)->m_type != 0)
-            list.push_back(*premium->GetPremiumInfo(type));
-    }
-
-    long curSec = (long)GlobalData::s_systemTime_.getCurSec();
-    long nextSec = curSec + 1;
-
-    for (std::vector<WongWork::SUserPremiumInfo>::iterator it = list.begin();
-         it != list.end(); ++it)
-    {
-        int serverCode = 0;
-        if (g_SPremiumInfo[it->m_type].m_useTargetServer == 1)
-            serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
-
-        Stream* stream =
-            GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0x989);
-        CStreamGuard guard(stream, true);
-        // ORIG operator<< 重载序：int / uint / uint / int / long / long /
-        // int / uint（0x54 头 + uid + accId + type + curSec + nextSec +
-        // flag + serverCode）。
-        // P103/P132：ORIG 每处都先 call CStreamGuard::operator*（0x080c8c46）
-        // 再 call CStreamGuard::operator<<（0x080c8c56/0x080e2276/0x080e2292）
-        // ⇒ 必须保留 operator* 链（8 处；直接 `guard << x` 会少 8 次 call）。
-        guard.operator*()->operator<<(0x54);
-        guard.operator*()->operator<<(user->GetUID());
-        guard.operator*()->operator<<(user->get_acc_id());
-        guard.operator*()->operator<<(it->m_type);
-        guard.operator*()->operator<<(curSec);
-        guard.operator*()->operator<<(nextSec);
-        guard.operator*()->operator<<(it->m_flag);
-        guard.operator*()->operator<<(serverCode);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-
-        WongWork::CHandlePremium::handleSetUserPremium(
-            user, (ENUM_PREMIUM_TYPE)it->m_type, curSec, nextSec,
-            it->m_flag, false);
-        WongWork::CHandlePremium::handlePremiumEffect(
-            user, (ENUM_PREMIUM_TYPE)it->m_type);
-        WongWork::CHandlePremium::handleNotifyPremiumInfo(
-            user, it->m_type, (int)(nextSec - curSec));
-    }
+#include "GmCmds_G/execute_6.inc"
 }
 
 // ============================================================================
@@ -304,30 +174,7 @@ void CUserPremiumDelete::execute()
 
 // 取 0x32 号分发器，手组掉落测试包（finalize(false)+set_index(0xf)）后
 // 经其虚表 [0] 入口 (this, user, PacketBuf*) 投递。
-void CDropItem::execute()
-{
-    IDispatcher* dispatcher = CGameMasterMgr::GetDispatcher(0x32);
-    if (dispatcher == 0)
-        return;
-
-    PacketGuard packet;
-    packet.put_header(1, 0x32);
-    packet.put_short(1);
-    packet.put_short(1);
-    packet.put_byte(0);
-    packet.put_short(8);
-    packet.put_int(1);
-    packet.put_byte(0);
-    packet.put_byte(0);
-    packet.finalize(false);
-    packet.set_index(0xf);
-
-    typedef int (*DispatchFn)(void*, CUser*, PacketBuf*);
-    // ORIG 返回值经 bool 物化后丢弃（test/setne/test 无消费者）：
-    // `while (call != 0) break;` 形复现（探针 /tmp/bl5/probe6.cpp q1 实证）。
-    while ((*reinterpret_cast<DispatchFn*>(*(void**)dispatcher))(
-               dispatcher, GetUser(), packet.get()) != 0)
-        break;
+#include "GmCmds_G/execute_7.inc"
 }
 
 // ============================================================================
@@ -335,12 +182,7 @@ void CDropItem::execute()
 // ============================================================================
 
 // 称号簿(扩展数据 0xe)：_gm_clear 后重发列表（ORIG 每次 GetUser 重取）。
-void CTitleBookReset::execute()
-{
-    ((CTitleBook*)GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xe))->_gm_clear();
-    ((CTitleBook*)GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xe))->sendList();
+#include "GmCmds_G/execute_8.inc"
 }
 
 // ============================================================================
@@ -348,18 +190,7 @@ void CTitleBookReset::execute()
 // ============================================================================
 
 // 称号簿清空 + 成就(0xf)_gm_init/adjust + 双列表重发（顺序照 ORIG）。
-void CTitleBookAdjust::execute()
-{
-    ((CTitleBook*)GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xe))->_gm_clear();
-    ((CAchievement*)GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xf))->_gm_init();
-    ((CAchievement*)GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xf))->adjust();
-    ((CTitleBook*)GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xe))->sendList();
-    ((CAchievement*)GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xf))->sendList();
+#include "GmCmds_G/execute_9.inc"
 }
 
 // ============================================================================
@@ -369,10 +200,7 @@ void CTitleBookAdjust::execute()
 namespace { struct AchFlagView { char m_pad[0x25]; unsigned char m_flag; }; }
 
 // 置成就扩展数据(+0x25 字节，未具名字段) 为 1（ORIG 单表达式直写）。
-void CTitleBookNoClear::execute()
-{
-    reinterpret_cast<AchFlagView*>(GetUser()->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0xf))->m_flag = 1;
+#include "GmCmds_G/execute_10.inc"
 }
 
 }  // namespace game_master
@@ -382,21 +210,13 @@ void CTitleBookNoClear::execute()
 // parse 0x084b1b5e / execute 0x084b1b96 / SendChatMsg 0x084b1e8a
 namespace game_master
 {
-void CUpgradeCardDebug::parse()
-{
-    trim(m_parser->m_args);
-    m_itemIdx = atoi(m_parser->m_args.c_str());
+#include "GmCmds_G/parse_1.inc"
 }
 
 // ORIG SendChatMsg(CUser*, char*) @0x084b1e8a：strlen 后经
 // GameWorld::make_packet_chat_msg(type=2, NOTI=0xc) 发给本人。
 // 头已按 ORIG 两参签名声明（GameMasterCmd.h）；以真成员定义承载 ORIG 符号。
-void CUpgradeCardDebug::SendChatMsg(CUser* user, char* msg)
-{
-    PacketGuard packet;
-    G_GameWorld()->make_packet_chat_msg(
-        packet, user, msg, (int)strlen(msg), 2, (ENUM_NOTIPACKET)0xc);
-    user->Send(packet);
+#include "GmCmds_G/SendChatMsg.inc"
 }
 
 // 万次蒙特卡洛统计强化券成功率并向 GM 回播聊天消息。
@@ -412,84 +232,7 @@ void CUpgradeCardDebug::SendChatMsg(CUser* user, char* msg)
 //      （与 CAchievementReport::execute 同现象）封顶。
 //   残余 = N126 版本首槽基址常数：我方全帧浅 8（user -0x34 vs ORIG -0x3c；
 //   deadLarge `lea -0x17b6a` vs ORIG -0x17b72；msg -0x452 vs -0x45a）⇒ 整帧平移不可消。
-void CUpgradeCardDebug::execute()
-{
-    CUser* user = GetUser();
-    if (user == 0)
-        return;
-
-    // P0/P183：ORIG 0x084b1bba `mov 0x8(%ebp),%eax; mov 0x8(%eax),%ebx` 把 m_slot
-    // 装 callee-saved %ebx 直传 find_item（无具名槽）⇒ 内联表达式，不设具名局部。
-    CItem* item = G_CDataManager()->find_item(
-        reinterpret_cast<const IntSlotView*>(this)->m_slot);
-    if (item == 0)
-        return;
-
-    // ORIG：call is_stackable 后 xor $0x1/test 判 _Bool 假值即出函数。
-    if (item->is_stackable() == false)
-        return;
-
-    // ORIG 入口对三块栈缓冲整块清零（0x400/0x1e/0x400 内联展开 +
-    // 95000 大缓冲 memset call）；除 sprintf 目标外均为死存储。
-    // ORIG 物理顺序 0x084b1bf4(0x400) → 0x084b1c3e(memset) → 0x084b1c5d(0x1e)
-    // → 0x084b1caf(0x400) ⇒ dead400 必须声明在 dead1e 之后。
-    char msg[1024] = { 0 };
-    unsigned char deadLarge[95000];
-    // P68：ORIG 0x084b1c3e 先 `lea` 落 %eax、size 经 %edx 中转再压栈
-    // （`memset((char*)p,0,N)` 形）；裸 memset(p,0,N) 直接 movl 立即数。
-    memset((char*)deadLarge, 0, sizeof(deadLarge));
-    unsigned char dead1e[30] = { 0 };
-    unsigned short dead400[512] = { 0 };
-
-    int rate = 0;                                   // -0x34
-    switch (item->get_index())
-    {
-    case 0x1d29:
-    case 0x1c69:
-    case 0x1c6a:
-    case 0x1c6b:
-    case 0x1e3f:
-    case 0x1e40:
-    case 0x1e86:
-        rate = 100;
-        break;
-    default:
-        break;
-    }
-
-    if (static_cast<CStackableItem*>(item)->IsReinforceTicket())
-    {
-        signed char value =
-            (signed char)static_cast<CStackableItem*>(item)->GetReinforceRate();
-        if (value < 0 || value > 100)
-            rate = 0;
-        else
-            rate = (int)value;
-    }
-    else if (static_cast<CStackableItem*>(item)->IsAmplifyReinforceTicket())
-    {
-        signed char value =
-            (signed char)static_cast<CStackableItem*>(item)->GetAmplifyReinforceRate();
-        if (value < 0 || value > 100)
-            rate = 0;
-        else
-            rate = (int)value;
-    }
-
-    int success = 0;                                // -0x30
-    int failure = 0;                                // -0x2c
-    for (int i = 0; i <= 9999; ++i)                 // -0x1c
-    {
-        if (get_rand_int(100) < rate)
-            ++success;
-        else
-            ++failure;
-    }
-
-    sprintf(msg,
-            "아이템:%s(%d) 성공확률:%d  (%d번 성공, %d번 실패)\n",
-            item->GetItemName(), item->get_index(), rate, success, failure);
-    SendChatMsg(GetUser(), msg);
+#include "GmCmds_G/execute_11.inc"
 }
 
 // ============================================================================
@@ -497,8 +240,7 @@ void CUpgradeCardDebug::execute()
 // parse 0x084b263a（空）/ execute 0x084b2640
 // ============================================================================
 
-void CTestTradeRestrict::parse()
-{
+#include "GmCmds_G/parse_2.inc"
 }
 
 // 对背包/仓库/账号货物全部在库且 flag==1 的道具槽打上 0x20 交易限制标志，
@@ -513,62 +255,7 @@ void CTestTradeRestrict::parse()
 //      4.4 对 `if(a&&b)` 恒 jump-thread 消岛。
 //   ③ 循环 5 ORIG 判空 `cmpl $0,-0x24(%ebp); je` 位于条件块；我方把
 //      `i<0x38 && p!=0` 物化为 `jg` + `mov $1/$0` 岛（P223 岛数恒=条件数或 0）。
-void CTestTradeRestrict::execute()
-{
-    CUser* user = GetUser();
-    if (user == 0)
-        return;
-
-    // ---- 循环 1：m_pEquipSlot 数组（0x39 槽）----
-    for (int i = 0; i < 0x39; ++i)
-    {
-        // ORIG 每用点 fresh 取 getter/基址（P48），右值表达式寻址（P0 无具名）
-        if (user->getCurCharacInvenR()->m_pEquipSlot[i].m_addInfo != 0 &&
-            user->getCurCharacInvenR()->m_pEquipSlot[i].m_field1 == 1)
-            user->getCurCharacInvenW()->m_pEquipSlot[i].m_upgradeSep.m_field |= 0x20;
-    }
-
-    // ---- 循环 2：inventory 对象内嵌数组（0x1a 槽，m_invenItem）----
-    for (int i = 0; i < 0x1a; ++i)
-    {
-        if (user->getCurCharacInvenR()->m_invenItem[i].m_addInfo != 0 &&
-            user->getCurCharacInvenR()->m_invenItem[i].m_field1 == 1)
-            user->getCurCharacInvenW()->m_invenItem[i].m_upgradeSep.m_field |= 0x20;
-    }
-
-    // ---- 循环 3：m_pAvatarSlot 数组（0x69 槽，仅判 itemIndex）----
-    for (int i = 0; i < 0x69; ++i)
-    {
-        if (user->getCurCharacInvenR()->m_pAvatarSlot[i].m_addInfo != 0)
-            user->getCurCharacInvenW()->m_pAvatarSlot[i].m_upgradeSep.m_field |= 0x20;
-    }
-
-    // ---- 循环 4：角色仓库 CCargo（0x98 槽）----
-    Inven_Item* cargoStart =
-        const_cast<Inven_Item*>(user->getCurCharacCargoW()->get_cargo_start());
-    for (int i = 0; i < 0x98; ++i)
-    {
-        if (cargoStart[i].m_addInfo != 0 &&
-            cargoStart[i].m_field1 == 1)            // ITEM_TYPE_EQUIP
-        {
-            cargoStart[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
-        }
-    }
-
-    // ---- 账号货物（GetSlotRef(0)，0x38 槽；引用为空则跳过）----
-    Inven_Item* accSlot = user->GetAccountCargo()->GetSlotRef(0);
-    int i = 0;
-    while (i < 0x38 && accSlot != 0)
-    {
-        if (accSlot[i].m_addInfo != 0 &&
-            accSlot[i].m_field1 == 1)               // ITEM_TYPE_EQUIP
-        {
-            accSlot[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
-        }
-        ++i;
-    }
-
-    DB_TestTradeRestrict::makeRequest((unsigned int)user->getCurCharacNo());
+#include "GmCmds_G/execute_12.inc"
 }
 
 }  // namespace game_master

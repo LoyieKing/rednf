@@ -1,0 +1,1 @@
+stFatigueAttendance::stFatigueAttendance() {}

@@ -1,0 +1,3 @@
+MultiBoxLotteryInfo::stDefaultItemInfo::~stDefaultItemInfo() {}
+
+// ---- LotteryUnit ----

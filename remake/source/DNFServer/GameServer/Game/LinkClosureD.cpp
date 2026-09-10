@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 LinkClosureD/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // LinkClosureD.cpp — 全量链接收敛批 D 散件 producer（LinkClosureD 批次）
 //
 // 覆盖符号（ORIG nm -S 核对）：
@@ -37,203 +47,11 @@ enum INVENTORY_TYPE
     INVENTORY_TYPE_3 = 3
 };
 
-int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
-                bool b1, bool b2, CUser* user);
-void _writeIncorrectItemInventoryForRecovery(unsigned int characNo,
-                                             const Inven_Item& item,
-                                             const char* tag, int err,
-                                             int slot);
-void meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item);
-void cago_meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig,
-                               Inven_Item* item);
-
-// ORIG 段内联展开（无独立符号）：collectLock 逐段直接内联，用共享
-// 函数级临时 lock/ref 槽对齐 ORIG 的 6 个栈槽（frame 0x38 → disp8 编码）。
-
-// ---------------------------------------------------------------------------
-// ORIG W 0x084f0145 sz 0x647（报告缺失；objdump 0x084f0145..0x084f078c 逐指令
-// 转写）。SIG_LOAD_INVENTORY 各 wire 段（item stride 0x3d，pack(1)）逐件
-// _verifyItem；任一失败 → _writeIncorrectItemInventoryForRecovery 并返 0；
-// 途中把各段 amplify lock 非零者收集到 lockRefs（stItemLockRef{lock,space,slot}）。
-//   段A equip 区  i 0x00..0x0b  item=sig+0x14aa8  TYPE 0 (b1=0,b2=1)
-//                 lock@s+0x14ab9 → space 0x12, slot i+0xa；tag "fairpvp_equip"
-//   段B           i 0x0a..0x15  item=sig+0xa3a1   TYPE 1 (0,1)
-//                 lock@s+0xa3b2 → space 0x03, slot i；tag "equip"
-//                 ※ item+0xb 非零 → meterial_item_change(i,sig,item)
-//   段C           i 0x00..0x137 item=sig+0x5949   TYPE 1 (1,0)
-//                 lock@s+0x595a → space 0x00, slot i；tag "inven"
-//   段D           i 0x00..0x97  item=sig+0xa8e4   TYPE 2 (0,0)
-//                 lock@s+0xa8f5 → space 0x02, slot i；tag "cargo"
-//                 ※ item+0x06 非零 → cago_meterial_item_change(i,sig,item)
-//   段E           i 0x00..0xf1  item=sig+0xeed1   TYPE 3 (0,0)
-//                 lock@s+0xeee2 → space 0x07, slot i；tag "creature"
-//   段F 仅收集     i 0x00..0x09  lock@s+0xa3b2 → space 0x03, slot i
-//   段G 仅收集     i 0x00..0x68  lock@s+0x4065 → space 0x01, slot i
-// 全部通过返回 1。
-// ---------------------------------------------------------------------------
-// [b28d-solo-LinkClosureD] DIFF→N 封顶 | 已收：P183 去 item 指针缓存（每点重发
-// imul/add 链，gap 372→424 vs ORIG 427）+ P171/P191 预清与双初始化（lock/i/err
-// 槽序 -0x11/-0x10/-0xc 全等）。残余 = 4.1 对部分段 `if(x!=0)` 物化
-// `setne;test;je`（4.4 直跳，setcc-fold 负例；P225 while+break 实测可造该物化但
-// 净增 23 条、助记符差异不减，故回退）+ 少量常量折叠（ORIG 0x14ab0+9 合并 vs
-// 我们 0x14aa0+8+11，N4/P30）。语义与 ORIG 逐段一致（ORIG 0x084f0145 sz0x647）。
-bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
-                      std::vector<item_lock::stItemLockRef>& lockRefs,
-                      CUser* user)
-{
-    // ORIG 0x084f0185..19a 预清（P171 照抄）：lock(-0x11)=0、i(-0x10)=0、err(-0xc)=0、
-    // 随后 `movl $0x0,-0x10` 二次初始化（P191 双初始化形）。
-    // ORIG 每处访问重发完整 imul 链（P183 地址重物化铁律）⇒ 无 item 指针缓存。
-    // ref 赋值序 ORIG 为 m_lock→m_slot→m_space（0x084f019f..1b0）。
-    // ORIG 预清序 lock(-0x11) → i(-0x10) → err(-0xc) ⇒ 声明序 lock, i, err。
-    unsigned char lock = 0;
-    int i = 0;
-    int err = 0;
-    item_lock::stItemLockRef ref;
-
-    // 段 A（SIG_LOAD_INVENTORY m_expandEquip.m_items，+0x14aa8 起 0x24 项）
-    for (i = 0; i <= 0xb; ++i)
-    {
-        lock = sig->m_expandEquip.m_items[i].m_amp.GetLock();
-        if (lock != 0)
-        {
-            ref.m_lock = lock;
-            ref.m_slot = static_cast<short>(i + 0xa);
-            ref.m_space = 0x12;
-            lockRefs.push_back(ref);
-        }
-        err = _verifyItem(i, &sig->m_expandEquip.m_items[i], INVENTORY_TYPE_0,
-                          true, true, user);
-        // [D01 · C05④ 步骤 2 实测负例 2026-09-10] P225 原形（5 处 `if` 整块换
-        // `while (err != 0) { _write…; return false; }`）**劣化**：our_insns
-        // 424→**434**、gap −3→**+7**（ORIG 427）、TU 四数不变 ⇒ 已回滚。
-        // 与 C01 三正例的差别：本处 body 仅「单条调用 + return」、无多分支早退 +
-        // 末尾 break 结构 ⇒ while 恒多回边/结构 jmp。⇒ 本件归 **N-88/P197④**
-        // （槽值 vs 常量比较物化：ORIG `mov %eax,-0xc; cmpl $0,-0xc; setne; test; je`）。
-        if (err != 0)
-        {
-            _writeIncorrectItemInventoryForRecovery(
-                sig->m_characNo, sig->m_expandEquip.m_items[i],
-                "fairpvp_equip", err, i);
-            return false;
-        }
-    }
-    // 段 B（m_equipMirror）——ORIG 无 meterial_item_change 调用（仅段 C/D 有）
-    for (i = 0xa; i <= 0x15; ++i)
-    {
-        lock = sig->m_equipMirror[i].m_amp.GetLock();
-        // ORIG 段 B 为 bool 物化形（cmpb $0; setne %al; test %al,%al; je）
-        // 与段 A 的 cmpb $0; je 不同 ⇒ P225 while+break 复现。
-        if (lock != 0)
-        {
-            ref.m_lock = lock;
-            ref.m_slot = static_cast<short>(i);
-            ref.m_space = 0x03;
-            lockRefs.push_back(ref);
-        }
-        err = _verifyItem(i, &sig->m_equipMirror[i], INVENTORY_TYPE_0,
-                          true, true, user);
-        if (err != 0)
-        {
-            _writeIncorrectItemInventoryForRecovery(
-                sig->m_characNo, sig->m_equipMirror[i], "equip", err, i);
-            return false;
-        }
-    }
-    // 段 C（m_invenType1）
-    for (i = 0; i <= 0x137; ++i)
-    {
-        lock = sig->m_invenType1[i].m_amp.GetLock();
-        if (lock != 0)
-        {
-            ref.m_lock = lock;
-            ref.m_slot = static_cast<short>(i);
-            ref.m_space = 0x00;
-            lockRefs.push_back(ref);
-        }
-        if (sig->m_invenType1[i].m_fieldb != 0 ||
-            sig->m_invenType1[i].m_fieldd != 0)
-            meterial_item_change(i, sig, &sig->m_invenType1[i]);
-        err = _verifyItem(i, &sig->m_invenType1[i], INVENTORY_TYPE_1,
-                          false, false, user);
-        if (err != 0)
-        {
-            _writeIncorrectItemInventoryForRecovery(
-                sig->m_characNo, sig->m_invenType1[i], "inven", err, i);
-            return false;
-        }
-    }
-    // 段 D（m_cargo）
-    for (i = 0; i <= 0x97; ++i)
-    {
-        lock = sig->m_cargo[i].m_amp.GetLock();
-        if (lock != 0)
-        {
-            ref.m_lock = lock;
-            ref.m_slot = static_cast<short>(i);
-            ref.m_space = 0x02;
-            lockRefs.push_back(ref);
-        }
-        // ORIG *(int*)(item+0x06)：m_attr(+0x06)+m_addInfo2 低 3 字节槽非零判定
-        if (sig->m_cargo[i].m_attr != 0 ||
-            (sig->m_cargo[i].m_addInfo2 & 0xffffff) != 0)
-            cago_meterial_item_change(i, sig, &sig->m_cargo[i]);
-        err = _verifyItem(i, &sig->m_cargo[i], INVENTORY_TYPE_2, false, false,
-                          user);
-        if (err != 0)
-        {
-            _writeIncorrectItemInventoryForRecovery(
-                sig->m_characNo, sig->m_cargo[i], "cargo", err, i);
-            return false;
-        }
-    }
-    // 段 E（m_invenType3）
-    for (i = 0; i <= 0xf1; ++i)
-    {
-        lock = sig->m_invenType3[i].m_amp.GetLock();
-        if (lock != 0)
-        {
-            ref.m_lock = lock;
-            ref.m_slot = static_cast<short>(i);
-            ref.m_space = 0x07;
-            lockRefs.push_back(ref);
-        }
-        err = _verifyItem(i, &sig->m_invenType3[i], INVENTORY_TYPE_3,
-                          false, false, user);
-        if (err != 0)
-        {
-            _writeIncorrectItemInventoryForRecovery(
-                sig->m_characNo, sig->m_invenType3[i], "creature", err, i);
-            return false;
-        }
-    }
-    // 段 F（仅收集；m_equipMirror[i].m_amp，+0xa3b2 = 0xa3a1+0x11）
-    for (i = 0; i <= 9; ++i)
-    {
-        lock = sig->m_equipMirror[i].m_amp.GetLock();
-        if (lock != 0)
-        {
-            ref.m_lock = lock;
-            ref.m_slot = static_cast<short>(i);
-            ref.m_space = 0x03;
-            lockRefs.push_back(ref);
-        }
-    }
-    // 段 G（仅收集；ORIG +0x4065 = m_invenType2[i].m_random.m_field2 区，
-    // 按 stAmplifyOption_t 视图读取——ORIG 语义保留类型视图）
-    for (i = 0; i <= 0x68; ++i)
-    {
-        lock = reinterpret_cast<const stAmplifyOption_t*>(
-            &sig->m_invenType2[i].m_random.m_field2)->GetLock();
-        if (lock != 0)
-        {
-            ref.m_lock = lock;
-            ref.m_slot = static_cast<short>(i);
-            ref.m_space = 0x01;
-            lockRefs.push_back(ref);
-        }
-    }
-    return true;
+#include "LinkClosureD/_verifyItem.inc"
+#include "LinkClosureD/_writeIncorrectItemInventoryForRecovery.inc"
+#include "LinkClosureD/meterial_item_change.inc"
+#include "LinkClosureD/cago_meterial_item_change.inc"
+#include "LinkClosureD/_verifyInventory.inc"
 }
 #include "CItem.h"
 #include "CDataManager.h"             // G_CDataManager / find_item
@@ -252,30 +70,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
 // 解引用（后缀 *p++ 发射形）；引用形 `InterfacePacketBuf**& p` 引入引用槽
 // 24→29 insn 反劣；movswl/movsbl 目标 %eax vs ORIG %edx（N7，本 TU 未路由
 // 4.4.6，P230 限定）。语义等价（先取旧值再按 4 字节前移）。
-int fnEnumDungeonClear(short dungeonIdx, char diff, char* userData)
-// [b28c-L23 真语义 bug 修正 + N7/P75 残余] ①已修游标步长：ORIG @0x0867817c
-// `lea 0x4(%eax),%edx; mov %edx,0x10(%ebp)` 表明回调游标按**指针槽 4 字节**前移，
-// 原码 `userData++`（char* 步长 1）使第 2 条起读错偏移。②残余 9 行 = 4.4 对
-// `p += 4` 恒发单条 `addl $4,mem`（4.1 为 lea+mov 两条，探针 /tmp/l23/p2.cpp
-// gA/gB/gD 四形穷举不可造）+ 两处实参装载寄存器差（ORIG `movswl→%edx`、
-// 4.4 `movswl→%eax`，N7）。语义与 ORIG 一致。
-{
-    // ORIG：lea 0x4→写回形参槽 + 旧值解引用（后缀 ++ 语义，4.1 发射写回）。
-    // b28c-l23 真语义 bug 修正：ORIG @0x0867817c 为 `lea 0x4(%eax),%edx;
-    // mov %edx,0x10(%ebp)` ⇒ 游标按**指针槽 4 字节**前移（枚举多条目时每条占
-    // 一个 4 字节槽）；原写法 `userData++`（char* 步长 1）使第 2 条起读错偏移。
-    // 探针 /tmp/l23/p2.cpp gA/gB/gE：4.4 恒"解引用在前 + addl 在后"（无法产出
-    // 4.1 的 lea 前置 + 双写回），余 1 条为跨版本指令选择差（P75 族）。
-    // ORIG 0x0867817c 为后缀 `*p++` 发射形（lea 0x4 前置写回 + 旧值解引用）。
-    // 4.4 无槽别名不可得：引用形 `InterfacePacketBuf**& p` 引入引用槽
-    //（lea 0x10(%ebp) → -0x10，+5 insn 反劣 24→29，b28d-S120 实测）；
-    // 具名 `p` 形写回的是局部槽非形参槽且 +1 槽。本形语义与 ORIG 全等
-    //（先取旧值再按 4 字节前移），残余 = P75 指令调度 + N7 寄存器角色。
-    InterfacePacketBuf* buf = *reinterpret_cast<InterfacePacketBuf**>(userData);
-    userData += 4;
-    buf->put_short(dungeonIdx);
-    buf->put_byte(diff);
-    return 1;
+#include "LinkClosureD/fnEnumDungeonClear.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -301,45 +96,7 @@ int fnEnumDungeonClear(short dungeonIdx, char diff, char* userData)
 // 栈距 0x100，Ghidra local_16a[256]）、P227 内联实参（group→%ebx/strlen→%esi/
 // characNo→%eax 无槽）。帧 0x190 与全部具名槽对齐；残余 = title/item/body 槽
 // 整体浅 1 字节（4.1 在 title 与 now 间留 1B 空洞，N95/P28 族）。
-void RewardItem(CUser* user, long begin, long end, long start3,
-                unsigned int itemIdx, const char* titleStr,
-                const char* msgStr, unsigned int p8)
-{
-    long now = GlobalData::s_systemTime_.getCurSec();
-    if (end > now)
-        return;
-    if (start3 != 0 && start3 < now)
-        return;
-    if (begin > end)
-        return;
-
-    // ORIG 0x084bfbc8 `movl $0x1,-0x10(%ebp)` 在 item ctor 之前 ⇒ 具名 int 局部
-    int nAddInfo = 1;
-    Inven_Item item;
-    const CItem* found = G_CDataManager()->find_item((int)itemIdx);
-    if (found == 0)
-        return;
-
-    // ORIG 0x084bfbfb `mov 0x18(%ebp),%eax; mov %eax,-0x64(%ebp)`：make_item 前
-    // 把 itemIdx 写入 item+0x02（真语义缺口，原译漏写）。
-    item.m_addInfo = (int)itemIdx;
-    found->make_item(item);
-    item.set_add_info(nAddInfo);
-
-    // ORIG 深区顶部：title 起点 -0x29（= now -0x14 上方 0x15 字节，Ghidra
-    // local_2d[21]）⇒ 数组声明 char[0x15]；strncpy 长度仍 0x14（0x084bfc4f）。
-    char title[0x15];
-    strncpy(title, g_scriptStringManager_.findString(4, titleStr, 0), 0x14);
-    // ORIG 栈距 -0x166..-0x66 = 0x100 字节（Ghidra local_16a[256]），
-    // strncpy 长度 0xff（0x084bfc89）。
-    char body[0x100];
-    strncpy(body, g_scriptStringManager_.findString(4, msgStr, 0), 0xff);
-
-    // ORIG 0x084bfca3..cf4：group→%ebx、strlen→%esi、characNo→%eax 全程无槽
-    //（P0）⇒ 三值均内联实参。
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, item, 0, (unsigned int)user->getCurCharacNo(), body,
-        (int)strlen(body), p8, user->GetServerGroup(), false, false);
+#include "LinkClosureD/RewardItem.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -357,53 +114,7 @@ void RewardItem(CUser* user, long begin, long end, long start3,
 // 块序（入口 jmp→非空处理→++idx/尾测 jle 直跳→overflow→体头 isEmpty
 // xor$1;jne→空处理）。残余 = ORIG `add $0x5950` vs 我们 `add $0x5940;
 // mov 0x10(%eax)`（N4/P30 常量折叠）+ 2 条对齐 nop（§6.1）。
-void meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item)
-{
-    if (sig == 0 || item == 0)
-    {
-        LogManager::logFormat(1, "InterDispatcher.cpp",
-            __PRETTY_FUNCTION__,
-            0x1604, "selected_item | pInfo is null");
-        return;
-    }
-
-    int idx = 0xc9;
-    // ORIG 0x084c3e11..e2e：&& 短路物化 mov$1/mov$0 + test（无槽、无 xor）⇒
-    // P214① 正极性包裹 `if (A && B) { 主流程 }`（负极性/取反形恒反演块序）。
-    // ORIG 每处访问重发完整 imul/add 链（0x084c3e40/3e5e/3ed7/3efb 四组）⇒
-    // 无 dst 指针缓存（P183 地址重物化铁律），逐点全表达式访问。
-    if (ARAD::Singleton<ARAD::Arad_DataManager>::Get()->getExceptionItem()
-            ->find_index(item->m_addInfo)
-        && item->m_field1 == 3)
-    {
-        item->m_field1 = 0xa;
-        // ORIG 物理块序：入口 jmp → 非空处理(+0x9b) → ++idx/尾测(+0xf7..102,
-        // `jle` 直跳) → overflow(+0x104) → 体头 isEmpty(+0x132, `xor$1;jne`) →
-        // 空处理(+0x156)。用 goto 固定物理顺序（P283），do-while 在 4.4 恒 setle。
-        goto L_check;
-    L_body:
-        if (sig->m_invenType1[idx].m_addInfo == item->m_addInfo)
-        {
-            sig->m_invenType1[idx].m_addInfo2 += item->m_addInfo2;
-            item->reset();
-            return;
-        }
-        ++idx;
-        if (idx <= 0xf8)
-            goto L_check;
-
-        LogManager::logFormat(1, "InterDispatcher.cpp",
-            __PRETTY_FUNCTION__,
-            0x161d, "new_meterial_slot_index overflow");
-        return;
-
-    L_check:
-        if (!sig->m_invenType1[idx].isEmpty())
-            goto L_body;
-        sig->m_invenType1[idx].setCopy(*item);
-        item->reset();
-        return;
-    }
+#include "LinkClosureD/meterial_item_change_1.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -412,21 +123,7 @@ void meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item)
 // @0x084c3f2c sz0x66。报告 _lt_global_gt_/cago_meterial_item_change.md：
 // cargo 版仅做 find_index && m_field1==3 命中后的 m_field1=0xa 标记。
 // ---------------------------------------------------------------------------
-void cago_meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item)
-{
-    // [b28c-lane24] ORIG 0x084c3f2c：两个失败路径各有 nop;jmp 中继岛
-    //（+0x5c nop+jmp / +0x5f nop），赋值块尾另有 jmp 到统一 epilogue；
-    // P223 goto 尾空标签形复现（4.4 对 && 短路恒 jump-thread 无岛）。
-    if (sig == 0) goto L_sig;
-    if (item == 0) goto L_item;
-    if (ARAD::Singleton<ARAD::Arad_DataManager>::Get()->getExceptionItem()
-            ->find_index(item->m_addInfo)
-        && item->m_field1 == 3)
-    {
-        item->m_field1 = 0xa;
-    }
-L_item:;
-L_sig:;
+#include "LinkClosureD/cago_meterial_item_change_1.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -474,111 +171,7 @@ private:
 // （ORIG shl/and，N6/N86b，P231 已试）；②`get_rarity()<=1` ORIG `add $0x0;ja`
 // 我们 `jg`（返回类型宽度/setcc-fold）；③空槽 `return 0` 独立块 vs ORIG je 直
 // 达 epilogue（P47/P59 块布局）；④GUID 实参 ebx 前置（P52 变体）。
-int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
-                bool b1, bool b2, CUser* user)
-{
-    if (item->m_addInfo == 0)
-    {
-        // 空槽：必须全零（recovery 校验），残留 → 0x1562
-        if (item->m_field0 != 0 || item->m_field1 != 0 ||
-            item->GetItemAttr() != 0 || item->m_addInfo2 != 0 ||
-            item->m_fieldb != 0 || item->m_fieldd != 0 ||
-            *(int*)(reinterpret_cast<const char*>(item) + 0x11) != 0)
-            return 0x1562;
-        return 0;
-    }
-
-    if (item->m_addInfo == 0x71d7)
-    {
-        // GUID 物品：渲染 guid 串并 trace（校验继续）。ORIG 0x084efd9b..efe0c：
-        // guid→%edi、characNo→%esi、accId→%ebx 均在 cMyTrace ctor 之前求值并跨
-        // ctor 保活 ⇒ P227 全表达式临时链（具名局部会各自占槽，帧 +0x14）。
-        CItemGloballyUniqueIdentifierPrint print;
-        cMyTrace(
-            __PRETTY_FUNCTION__,
-            0x156a, 5)("[HaveAccountLog] Invalid item. (mid:%u, charac:%u, item:%u, guid:%s)",
-              user->get_acc_id(), user->get_charac_no(-1),
-              (unsigned int)item->m_addInfo,
-              print(*(const itemGloballyUniqueIdentifier_t*)(
-                  const void*)(reinterpret_cast<const char*>(item) + 0x15)));
-    }
-
-    const CItem* def = G_CDataManager()->find_item(item->m_addInfo);
-    if (def == 0)
-        return 0x1576;
-    if (item->m_addInfo != def->get_index())
-        return 0x157a;
-    if (item->m_field0 != 0 && b1)
-        return 0x157d;
-
-    if (def->is_stackable())
-    {
-        if (b2)
-            return 0x1582;
-        // ORIG 0x84efec2：t 全程寄存器（无槽，P0）⇒ 内联表达式；位测写
-        // `(1u<<t) & 0x69c`（左操作数先物化，复现 ORIG shl 形；0x69c 在右
-        // 会触发 4.4 强度归约 shr/and $1，N6/N86b）。t>0xa 检查先于位测。
-        register unsigned int t = (unsigned char)item->m_field1;
-        if (t > 0xa || ((1u << t) & 0x69c) == 0)
-            return 0x158f;
-        // ORIG 0x84efef8 直接以 def 槽为 this（无 stackDef 具名局部）
-        if (item->m_addInfo2 >
-                static_cast<const CStackableItem*>(def)->getStackableLimit() ||
-            item->m_addInfo2 < 0)
-            return 0x159e;
-    }
-    else
-    {
-        // 非 stackable：ORIG 0x84eff2f..ff4f 为二分决策树（cmp $6 jg /
-        // cmp $5 jge / cmp $1 je / cmp $8 je）⇒ 原码是 switch（数值升序 case）。
-        switch ((int)(unsigned char)item->m_field1)
-        {
-        case 1:
-            break;
-        case 5:
-        case 6:
-            if (type != INVENTORY_TYPE_0 && type != INVENTORY_TYPE_3)
-                return 0x15b0;
-            break;
-        case 8:
-            if (type != INVENTORY_TYPE_0)
-                return 0x15b4;
-            break;
-        default:
-            return 0x15b7;
-        }
-    }
-
-    if (def->get_rarity() <= 1 && item->GetReSealCount() != 0)
-        return 0x15c2;
-
-    // p167：ORIG 只 call 一次 GetAttachType（结果留 %eax 供 cmp+shl）⇒ 单次求值，
-    // 纯 register 免槽（P231）。
-    register unsigned int at = (unsigned int)def->GetAttachType();
-    if (at <= 5)
-    {
-        if ((0x27 & (1u << at)) != 0)
-        {
-            if (item->GetReSealCount() != 0)
-                return 0x15d9;
-            if (item->m_field0 != 0)
-                return 0x15e1;
-        }
-    }
-
-    if (type != INVENTORY_TYPE_1)
-        return 0;
-
-    if (user->getCurCharacR() == 0)
-        return 0x15f0;
-
-    int slotType = user->getCurCharacInvenR()->GetSlotItemType(slot);
-    if (slotType != 0)
-    {
-        if ((unsigned int)item->m_field1 != (unsigned int)slotType)
-            return 0x15f8;
-    }
-    return 0;
+#include "LinkClosureD/_verifyItem_1.inc"
 }
 
 // ---------------------------------------------------------------------------
@@ -593,19 +186,5 @@ int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
 // fieldd(+0xd),amp 首 int(+0x11),tag,slot,err；amp 内联表达式消具名槽（P0）后
 // 帧 0x7c→0x6c 与 ORIG 全等，全部槽/寄存器分配逐条一致（残余仅 .o 重定位占位，
 // compare_tu AE 归一化后 clean）。
-void _writeIncorrectItemInventoryForRecovery(unsigned int characNo,
-                                             const Inven_Item& item,
-                                             const char* tag, int err,
-                                             int slot)
-{
-    LogManager::logFormat(
-        1, "InterDispatcher.cpp",
-        __PRETTY_FUNCTION__,
-        0x1645,
-        "ERROR_ITEM_LOG %u,%d,%d,%u,%d,%d,%d,%u,%d - %s slot(%d), error_line(%d)\n",
-        // ORIG 实参槽序（0x28=+0x7, 0x2c=+0xb, 0x30=+0xd, 0x34=+0x11）：
-        // 第 6..9 参 = m_addInfo2, m_fieldb, m_fieldd, amp 首 int（P0 内联）
-        characNo, (int)item.m_field0, (int)item.m_field1, item.m_addInfo,
-        (int)item.GetItemAttr(), item.m_addInfo2, (int)item.m_fieldb,
-        item.m_fieldd, *(const int*)(const void*)&item.m_amp, tag, slot, err);
+#include "LinkClosureD/_writeIncorrectItemInventoryForRecovery_1.inc"
 }

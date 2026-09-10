@@ -1,0 +1,2 @@
+CSpecialMonsterDrop::~CSpecialMonsterDrop()
+{

@@ -1,0 +1,3 @@
+EquipmentAniInfoScript::EquipmentAniInfoScript()
+{
+    clear();

@@ -1,0 +1,2 @@
+CCargo::~CCargo()
+{

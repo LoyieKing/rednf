@@ -1,0 +1,2 @@
+InterDispatcher::InterDispatcher() throw()
+{

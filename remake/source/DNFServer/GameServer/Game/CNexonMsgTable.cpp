@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CNexonMsgTable/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r 还原 —— CNexonMsgTable（LinkE2 批）。
 // 报告：docs/class_func_reports/CNexonMsgTable/{CNexonMsgTable,GetMessageString}.md
 // ctor @0x0858001c：构造 map<int,std::string>，循环 0x1c=28 次插入
@@ -57,25 +67,11 @@ CNexonMsgTable g_nexonMsgTable;   // ORIG B @0x0945b8e4
 
 // [b28d-L14 P209附] ORIG 0x0857ffcc：unsigned 局部循环尾测 4.4 恒折
 // `cmpl $0x1b,-0xc` 内存直比（ORIG 先 mov 到寄存器再 cmp+setbe）⇒ 封顶。
-CNexonMsgTable::CNexonMsgTable()   // ORIG T 0x0858001c
-{
-    // P2 反向：ORIG 尾测 `mov -0xc,%eax; cmp $0x1b,%eax; setbe`（无符号序）
-    // ⇒ 循环变量 unsigned（int 生 cmpl mem+setle）。
-    // N 封顶：ORIG 尾测 `mov -0xc,%eax; cmp $0x1b,%eax; setbe` 寄存器装载形；
-    // 4.4 对 unsigned 局部恒折 `cmpl $imm,mem`（for/do-while/<=/< 三形实测
-    // 69/68/69，do-while 反少前置 jmp 岛），源形不可择。
-    for (unsigned int i = 0; i < 0x1c; ++i)
-        m_messages.insert(std::make_pair(msgs[i].key, msgs[i].str));
+#include "CNexonMsgTable/CNexonMsgTable.inc"
 }
 
-const char* CNexonMsgTable::GetMessageString(int idx)   // ORIG T 0x0858010c
-{
-    std::map<int, std::string>::iterator it = m_messages.find(idx);
-    if (it != m_messages.end())
-        return it->second.c_str();
-    return "";                            // ORIG "" @0x08ca9390
+#include "CNexonMsgTable/GetMessageString.inc"
 }
 
-CNexonMsgTable::~CNexonMsgTable()   // ORIG D1/D2 T 0x085800f8（map 成员逆序析构）
-{
+#include "CNexonMsgTable/dtor_CNexonMsgTable.inc"
 }

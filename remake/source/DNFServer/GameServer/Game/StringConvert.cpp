@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 StringConvert/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // StringConvert.cpp —— CharString / WideString 自由 insert/replace/toUnicode/
 // convertTo* 函数（G4 域字符串自由函数）。
 //
@@ -41,16 +51,10 @@ static unsigned int gCodePage;
 // （ORIG 0x08adea10/0x08adea1a 与本 TU 的 convertTo* 同 TU），与 convertToWideString/
 // convertToCharString 共享本 TU 的 gCodePage ⇒ 修复「setCodePage 写他 TU 副本、
 // 转换读本 TU 恒 0 副本」的语义分叉（二进制曾实测 3 份 _ZL9gCodePage，ORIG 仅 1 份）。
-int getCodePage()
-{
-    return gCodePage;
+#include "StringConvert/getCodePage.inc"
 }
 
-int setCodePage(int nNewCodePage)
-{
-    const int old = gCodePage;
-    gCodePage = nNewCodePage;
-    return old;
+#include "StringConvert/setCodePage.inc"
 }
 
 // [b28d-Main R3 迁移·检查点13] convertToCharString(PKwj/PKw/RK10WideString) 自
@@ -453,15 +457,11 @@ const wchar_t* toUnicode(const std::wstring& src)
 }
 
 // _Z9toUnicodePKwRSbIwSt11char_traitsIwESaIwEE 0x08adf3df：sDst = src。
-void toUnicode(const wchar_t* src, std::wstring& dst)
-{
-    dst = src;
+#include "StringConvert/toUnicode.inc"
 }
 
 // _Z9toUnicodeRKSbIwSt11char_traitsIwESaIwEERS2_ 0x08adf315：sDst = sSrc。
-void toUnicode(const std::wstring& src, std::wstring& dst)
-{
-    dst = src;
+#include "StringConvert/toUnicode_1.inc"
 }
 
 // ---------------------------------------------------------------------------

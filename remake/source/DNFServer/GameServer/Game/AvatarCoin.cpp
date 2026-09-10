@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 AvatarCoin/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // AvatarCoin — DNF 币（ORIG 0x817feXX..0x8180XXX；
 // 权威参照 docs/class_func_reports/AvatarCoin.md）
 // 布局：+0x00 unsigned int m_coin（ORIG 类尺寸 4，嵌于 Inven 区 +0x658）
@@ -24,29 +34,20 @@ public:
     unsigned int m_coin;  // +0x00
 };
 
-AvatarCoin::AvatarCoin() : m_coin(0) {}
+#include "AvatarCoin/AvatarCoin.inc"
 
-void AvatarCoin::Set(unsigned int value)
-{
-    m_coin = value;
+#include "AvatarCoin/Set.inc"
 }
 
-int AvatarCoin::Add(unsigned int value)
-{
-    m_coin += value;
-    return 1;  // ORIG 恒返回 1
+#include "AvatarCoin/Add.inc"
 }
 
-unsigned int AvatarCoin::Get() const
-{
-    return m_coin;
+#include "AvatarCoin/Get.inc"
 }
 
 // ORIG 0x0817ff44（IsUsable.md）：mov (%eax),%eax / test / setne %al / ret ——
 // 直返 m_coin != 0，无 movzbl 规范化（P9/P22：char 返回只需 %al）。
-bool AvatarCoin::IsUsable() const
-{
-    return m_coin != 0;
+#include "AvatarCoin/IsUsable.inc"
 }
 
 // ============================================================================
@@ -56,7 +57,5 @@ bool AvatarCoin::IsUsable() const
 // 即 bool 直返 m_avatarCoinInfo == avatarCoin（sete %al 后无 movzbl 规范化，
 // bool 返回形态；Ghidra 反编译的 *(ulong*)this 为 8 字节读伪影，真实只读 4 字节）。
 // ============================================================================
-bool AvatarRoulette::isAvatarCoin(unsigned long avatarCoin)
-{
-    return m_avatarCoinInfo == avatarCoin;
+#include "AvatarCoin/isAvatarCoin.inc"
 }

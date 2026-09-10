@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 Secu_GoldControl/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r Game/ Secu_GoldControl 实现（独立 TU，从 GameStubs.cpp 拆出）。
 // 对照 docs/class_func_reports/Secu_GoldControl.md
 #include "CUser.h"
@@ -32,395 +42,72 @@ struct DB_CheckCharacNameReqView
 };
 #pragma pack(pop)
 
-void Secu_GoldControl::Init(CUser* user)
-{
-    m_pUser = user;
-    m_dateFlag = GlobalData::g_GoldControlDateFlag;
-    m_fieldb8 = 0;
-    m_fieldbc = 0;
-    m_mailGold = 0;
-    m_fielde6 = 0;
-    memset(m_mailCharName, 0, 0x1e);
+#include "Secu_GoldControl/Init.inc"
 }
 
-void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* charName, bool flag)
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa4f9),
-                       true);
-    guard.operator*()->operator<<((int)0x2a2);   // op*(guard)→op<<(int)
-    guard.operator*()->operator<<(uid);          // op*(guard)→op<<(int)
-    SIG_CHECK_CHARAC_NAME* pkt =
-        guard.operator->()->GetInBuffer<SIG_CHECK_CHARAC_NAME>();
-    reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_accId = accId;
-    if (charName != NULL && charName[0] != '\0')
-    {
-        strncpy(reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_charName,
-                charName, 0x1e);
-    }
-    reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_flag =
-        (unsigned char)flag;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+#include "Secu_GoldControl/makeRequest.inc"
 }
-void Secu_GoldControl::SetInfo(user_gold_info& info)
-{
-    info.toCopy(m_total);
+#include "Secu_GoldControl/SetInfo.inc"
 }
 
-void Secu_GoldControl::SetMailCharName(const char* name)
-{
-    if (name)
-    {
-        strncpy(m_mailCharName, name, 0x1e);
-    }
+#include "Secu_GoldControl/SetMailCharName.inc"
 }
 
-void Secu_GoldControl::resetRangeMoney(user_gold_info& cur, user_gold_info& copy)
-{
-    // ORIG 0x08287bdc 逐条：memcpy(copy, cur, 0x3c)；6 组 64 位
-    // if (cur > 0x00000000fffffffe) { copy = -1; cur -= 0xffffffff; }
-    // else { cur = 0; }（ORIG add $1/adc $-1 = 64 位减 0xffffffff，手动展开）
-    memcpy(&copy, &cur, 0x3c);
-    if (cur.m_gold > 0x00000000fffffffeULL)
-    {
-        copy.m_gold = 0x00000000ffffffffULL;
-        cur.m_gold -= 0x00000000ffffffffULL;
-    }
-    else
-    {
-        cur.m_gold = 0;
-    }
-    if (cur.m_import > 0x00000000fffffffeULL)
-    {
-        copy.m_import = 0x00000000ffffffffULL;
-        cur.m_import -= 0x00000000ffffffffULL;
-    }
-    else
-    {
-        cur.m_import = 0;
-    }
-    if (cur.m_sub > 0x00000000fffffffeULL)
-    {
-        copy.m_sub = 0x00000000ffffffffULL;
-        cur.m_sub -= 0x00000000ffffffffULL;
-    }
-    else
-    {
-        cur.m_sub = 0;
-    }
-    if (cur.m_importSub > 0x00000000fffffffeULL)
-    {
-        copy.m_importSub = 0x00000000ffffffffULL;
-        cur.m_importSub -= 0x00000000ffffffffULL;
-    }
-    else
-    {
-        cur.m_importSub = 0;
-    }
-    if (cur.m_auctionAdd > 0x00000000fffffffeULL)
-    {
-        copy.m_auctionAdd = 0x00000000ffffffffULL;
-        cur.m_auctionAdd -= 0x00000000ffffffffULL;
-    }
-    else
-    {
-        cur.m_auctionAdd = 0;
-    }
-    if (cur.m_auctionSub > 0x00000000fffffffeULL)
-    {
-        copy.m_auctionSub = 0x00000000ffffffffULL;
-        cur.m_auctionSub -= 0x00000000ffffffffULL;
-    }
-    else
-    {
-        cur.m_auctionSub = 0;
-    }
+#include "Secu_GoldControl/resetRangeMoney.inc"
 }
 // b28d-31: N 封顶（N82附）——ORIG 0x0828757c；4.1 push %esi/%ebx 缓存
 // this/&m_mailCharName vs 4.4 栈槽 -0x10/-0xc（跨 call 值缓存策略差）。
-void Secu_GoldControl::AddGold(unsigned int value, eMoneyAddReason reason)
-{
-    CheckDate();
-    switch (reason)
-    {
-    case 0:
-    case 3:
-    case 4:
-    case 5:
-    case 10:
-    case 15:
-    case 0x1a:
-        AddImportMoney(value);
-        break;
-    case 1:
-    case 2:
-        return;
-    case 0xe:
-        MailGold(value, false);
-        {
-            // [P52/P134 实测] ORIG 0x0828757c 以 `push %esi/%ebx` 保活实参跨调用
-            // （无 -0x10/-0xc 栈槽）⇒ 删具名 accId/uid 内联进调用，让 4.4 自然升格
-            // callee-saved。旧形两局部各占 4B 槽且帧 0x28 vs ORIG 0x10。
-            DB_CheckCharacName::makeRequest(m_pUser->GetUID(), m_pUser->get_acc_id(),
-                                            m_mailCharName, false);
-        }
-        return;
-    case 0x12:
-        AddAuctionMoney(value);
-        break;
-    default:
-        break;
-    }
-    AddMoney(value);
-    CheckMoneyRange();
+#include "Secu_GoldControl/AddGold.inc"
 }
 // b28d-31: N 封顶（N82附/P209）——ORIG 0x0828764a；同上 callee-saved 差，
 // 且 reason 比较 ORIG `cmp $0xe,%eax`（载寄存器）vs 4.4 mem 直比。
-void Secu_GoldControl::SubGold(unsigned int value, eMoneySubReason reason)
-{
-    CheckDate();
-    if (reason == 0xe)
-    {
-        SubImportMoney(value);
-    }
-    else if (reason < 0xf)
-    {
-        if (reason == 2)
-        {
-            return;
-        }
-    }
-    else
-    {
-        if (reason == 0x11)
-        {
-            MailGold(value, true);
-            unsigned int accId = m_pUser->get_acc_id();
-            int uid = m_pUser->GetUID();
-            DB_CheckCharacName::makeRequest(uid, accId, m_mailCharName, true);
-            return;
-        }
-        if (reason == 0x1a)
-        {
-            SubAuctionMoney(value);
-        }
-    }
-    SubMoney(value);
-    CheckMoneyRange();
+#include "Secu_GoldControl/SubGold.inc"
 }
 
-void Secu_GoldControl::AddMoney(unsigned int value)
-{
-    // ORIG：m_cur(+0x40).m_gold += value；m_cur.m_count[2]++；
-    // m_total(+0x04).m_gold += value；m_total.m_count[2]++；hades GoldPlus。
-    m_cur.m_gold += value;
-    m_cur.m_count[2]++;
-    m_total.m_gold += value;
-    m_total.m_count[2]++;
-
-    ((XNuclear::CHades*)m_pUser->getHades())->GoldPlus(
-        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)0);
+#include "Secu_GoldControl/AddMoney.inc"
 }
 
-void Secu_GoldControl::SubMoney(unsigned int value)
-{
-    m_cur.m_sub += value;
-    m_cur.m_count[4]++;
-    m_total.m_sub += value;
-    m_total.m_count[4]++;
-
-    ((XNuclear::CHades*)m_pUser->getHades())->GoldMinus(
-        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)0);
+#include "Secu_GoldControl/SubMoney.inc"
 }
 
-void Secu_GoldControl::AddImportMoney(unsigned int value)
-{
-    m_cur.m_import += value;
-    m_cur.m_count[3]++;
-    m_total.m_import += value;
-    m_total.m_count[3]++;
-
-    ((XNuclear::CHades*)m_pUser->getHades())->GoldPlus(
-        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)1);
+#include "Secu_GoldControl/AddImportMoney.inc"
 }
 
-void Secu_GoldControl::SubImportMoney(unsigned int value)
-{
-    m_cur.m_importSub += value;
-    m_cur.m_count[5]++;
-    m_total.m_importSub += value;
-    m_total.m_count[5]++;
-
-    ((XNuclear::CHades*)m_pUser->getHades())->GoldMinus(
-        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)1);
+#include "Secu_GoldControl/SubImportMoney.inc"
 }
-void Secu_GoldControl::AddAuctionMoney(unsigned int value)
-{
-    // P63：ORIG if 块出口统一 → 尾部 jmp;nop 中继；early-return 形使 4.4
-    // 同产 jbe→中继（现形 jbe 直落 epilogue 少中继）。
-    if (value <= 4999)
-        return;
-    {
-        m_cur.m_auctionAdd += value;
-        m_cur.m_count[0]++;
-        m_total.m_auctionAdd += value;
-        m_total.m_count[0]++;
-
-        // ORIG 0x828793f/0x828794a：getHades() 三次 fresh call（P0 不缓存）。
-        ((XNuclear::CHades*)m_pUser->getHades())->
-            GoldPlus(value, (XNuclear::ENUM_GOLD_CONTROL_REASON)2);
-        // GoldTracking
-        char ipBuf[16];
-        ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
-
-        // [b24ab] P197②：ORIG fatigue(→%esi)/accId(→%ebx) callee-saved 缓存跨 getHades。
-        // fatigue 用 unsigned int 承接 unsigned short 返回值：ORIG 为单条
-        // movzwl %ax,%esi（零扩展直存），声明成 unsigned short 会拆成 mov+movzwl 两步。
-        register unsigned int fatigue = m_pUser->getCurCharacUsedFatigue();
-        register unsigned int accId = m_pUser->get_acc_id();
-
-        // ORIG 0x828793f..0x828794a：GoldTracking(type=4, money=accId, ip=ipBuf,
-        // param4=value, fatigue=fatigue)
-        ((XNuclear::CHades*)m_pUser->getHades())->
-            GoldTracking(4, accId, ipBuf, value, fatigue);
-    }
+#include "Secu_GoldControl/AddAuctionMoney.inc"
 }
 
 // ORIG 0x0828795a：value>4999 时 m_cur/m_total.m_auctionSub += value、
 // m_total.m_count[1]++，再 GoldMinus(value, 2)（无 GoldTracking）。
-void Secu_GoldControl::SubAuctionMoney(unsigned int value)
-{
-    // P63 同 AddAuctionMoney。
-    if (value <= 4999)
-        return;
-    {
-        m_cur.m_auctionSub += value;
-        m_total.m_auctionSub += value;
-        m_total.m_count[1]++;
-
-        // ORIG 无中间槽：getHades() 返回值直接作 this（P0 去缓存，具名局部
-        // 会诱发 -0xc 槽往返 + 栈帧 0x24、GoldMinus 参数走 eax 而非 edx）。
-        ((XNuclear::CHades*)m_pUser->getHades())->
-            GoldMinus(value, (XNuclear::ENUM_GOLD_CONTROL_REASON)2);
-    }
+#include "Secu_GoldControl/SubAuctionMoney.inc"
 }
 
-void Secu_GoldControl::MailComplete(bool flag)
-{
-    // ORIG 尾复制：m_mailGold=0 在两分支内各出现一次（jmp/nop 共享出口仅指 ret），
-    // 共享尾写法会丢 if 分支的清零序，需按分支重复。
-    if (flag)
-    {
-        SubImportMoney(m_mailGold);
-        SubMoney(m_mailGold);
-        m_mailGold = 0;
-    }
-    else
-    {
-        AddMoney(m_mailGold);
-        m_mailGold = 0;
-    }
+#include "Secu_GoldControl/MailComplete.inc"
 }
 
-void Secu_GoldControl::TradeComplete(int subValue, int addValue)
-{
-    if (subValue > 0)
-    {
-        SubImportMoney(subValue);
-        SubMoney(subValue);
-    }
-    if (addValue > 0)
-    {
-        AddMoney(addValue);
-    }
+#include "Secu_GoldControl/TradeComplete.inc"
 }
 
-void Secu_GoldControl::MailGold(unsigned int value, bool flag)
-{
-    m_mailGold = (int)value;
+#include "Secu_GoldControl/MailGold.inc"
 }
 
-void Secu_GoldControl::MailSameMid()
-{
-    m_mailGold = 0;
+#include "Secu_GoldControl/MailSameMid.inc"
 }
 
 
 
-void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
-{
-    if (a && (m_cur.m_count[2] != 0 || m_cur.m_count[4] != 0 || m_fieldb8 != 0))
-    {
-        char ipBuf[16] = {0};
-        ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
-
-        char macBuf[65] = {0};
-        // get mac address from CNetwork at this+0xe0
-        strncpy(macBuf, m_pUser->m_network.get_mac_addr(), 0x41);
-
-        if (c)
-        {
-            user_gold_info tmp;
-            resetRangeMoney(m_cur, tmp);
-        }
-        else
-        {
-            m_cur.reset();
-        }
-        m_fieldb8 = 0;
-    }
-
-    if (b)
-    {
-        if (m_backup.m_count[2] != 0 || m_backup.m_count[4] != 0 || m_fieldbc != 0)
-        {
-            char ipBuf[16] = {0};
-            ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
-
-            char macBuf[65] = {0};
-            strncpy(macBuf, m_pUser->m_network.get_mac_addr(), 0x41);
-
-            m_backup.reset();
-            m_fieldbc = 0;
-        }
-    }
+#include "Secu_GoldControl/SavetoDB.inc"
 }
 
-void Secu_GoldControl::CheckMoneyRange()
-{
-    // b28d-31: P183 去指针缓存 —— ORIG 0x08287b80 直接
-    // `mov 0x44(%eax),%edx; mov 0x40(%eax),%eax; cmp $0,hi; ja/jb;
-    //  cmp $0xfffffffe,lo; ja` 即 64 位无符号 `> 0xfffffffeULL` 展开
-    // （逐半指针比较四形不产生该 cmp 链）。语义等价，且消去 -0x10/-0xc 槽。
-    if (m_cur.m_gold > 0xfffffffeULL || m_cur.m_sub > 0xfffffffeULL)
-    {
-        SavetoDB(true, false, true);
-    }
+#include "Secu_GoldControl/CheckMoneyRange.inc"
 }
-void* Secu_GoldControl::GetGoldInfo()
-{
-    return &m_total;
+#include "Secu_GoldControl/GetGoldInfo.inc"
 }
 
-void Secu_GoldControl::CheckDate()
-{
-    if (m_dateFlag != GlobalData::g_GoldControlDateFlag)
-    {
-        m_dateFlag = GlobalData::g_GoldControlDateFlag;
-        // Copy current gold info (+0x40) to backup (+0x7c)
-        m_cur.toCopy(m_backup);
-        // Reset total gold info (+0x04)
-        m_total.reset();
-        // Reset current gold info (+0x40)
-        m_cur.reset();
-        // Copy m_fieldb8 to m_fieldbc, reset m_fieldb8
-        m_fieldbc = m_fieldb8;
-        m_fieldb8 = 0;
-    }
+#include "Secu_GoldControl/CheckDate.inc"
 }
 
 
-void Secu_GoldControl::UseFatigue(int count)
-{
-    CheckDate();
-    m_fieldb8 += count;
+#include "Secu_GoldControl/UseFatigue.inc"
 }

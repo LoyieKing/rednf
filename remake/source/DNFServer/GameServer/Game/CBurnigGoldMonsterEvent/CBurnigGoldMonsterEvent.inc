@@ -1,0 +1,2 @@
+CBurnigGoldMonsterEvent::CBurnigGoldMonsterEvent()
+{

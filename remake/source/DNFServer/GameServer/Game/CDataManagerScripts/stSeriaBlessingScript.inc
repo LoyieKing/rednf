@@ -1,0 +1,1 @@
+stSeriaBlessingScript::stSeriaBlessingScript() {}

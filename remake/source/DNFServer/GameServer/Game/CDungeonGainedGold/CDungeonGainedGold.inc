@@ -1,0 +1,1 @@
+CDungeonGainedGold::CDungeonGainedGold() {}

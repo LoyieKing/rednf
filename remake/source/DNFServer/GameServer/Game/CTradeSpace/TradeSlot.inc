@@ -1,0 +1,3 @@
+TradeSlot::TradeSlot() throw()
+{
+    Reset();

@@ -1,0 +1,2 @@
+void CTradeSpace::lock()
+{

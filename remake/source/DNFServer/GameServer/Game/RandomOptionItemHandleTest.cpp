@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 RandomOptionItemHandleTest/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // LinkFinal2 核销（/tmp/undef_r26.txt）—— random_option::CRandomOptionItemHandleTest
 // 声明：CRandomOptionItemHandleTest.h。ORIG nm -S 核实：
 //   C1/C2                  W 0x0822cb70 (0x15)：+0x00/+0x04 两 dword 清零
@@ -20,53 +30,16 @@ namespace random_option
 {
 
 // ORIG C1 0x0822cb70：mov this 一次缓存后连发两 store（P29 初始化列表形态）。
-CRandomOptionItemHandleTest::CRandomOptionItemHandleTest()
-{
-    // ORIG 0x0822cb70：一次 this 读共享两 store（8 字节整块）
-    *(long long*)this = 0;
+#include "RandomOptionItemHandleTest/CRandomOptionItemHandleTest.inc"
 }
 
-void CRandomOptionItemHandleTest::test_regist_auction(CUser* /*user*/) {}  // ORIG 纯 ret
+#include "RandomOptionItemHandleTest/test_regist_auction.inc"
 
-void CRandomOptionItemHandleTest::test_drop() {}       // ORIG 纯 ret
-void CRandomOptionItemHandleTest::test_unseal() {}     // ORIG 纯 ret
-void CRandomOptionItemHandleTest::test_change() {}     // ORIG 纯 ret
-void CRandomOptionItemHandleTest::test_reset() {}      // ORIG 纯 ret
-// ============================================================================
-// CRandomOptionItemHandleTest::_get_auction_id —— ORIG T 0x085f3cc4
-// （OrigItemGen20 批；报告 random_option__CRandomOptionItemHandleTest/_get_auction_id.md）。
-//   缓存命中判定为 ORIG 单次 or+test（mov this+4→edx; mov this→eax; or; test; je，
-//   gcc4.1 对 a==0&&b==0 的德摩根合并；gcc4.4 不合并，故显式 or 保持形态）。
-//   空缓存走 DB：GetDBHandle(s_db_mgr, 0xc, 0) → set_query("seLect max(auction_id)…")
-//   → exec(true)/fetch()/is_valid_data(0)/get_longlong(0, this) 四级成功链，
-//   任一级失败返回 0（ORIG call 后 xor $1/test/je + mov $0,%eax/%edx）。
-// ============================================================================
-long long CRandomOptionItemHandleTest::_get_auction_id()
-{
-    // ORIG 布局：or/test/je(DB) —— 非空缓存直落返回，DB 链后置（if-else 排布）。
-    // [b28c-lane17] 判词：本形已复现 ORIG 的 or/test 折叠；残余为单次 this 装载。
-    // [b28d-31] 复核：字段 void*→unsigned int 同型化（P254 档③）消两段中转
-    // （71→70）；残余 `mov 0x8(%ebp),%eax` this 重载（ORIG 0x085f3ccd 单次装载）
-    // 四形（reinterpret 原序/交换、C cast、字段同型化）实测均不可翻 ⇒ N18a 封顶。
-    if ((m_slot4 | m_slot0) != 0)
-    {
-        return *(long long*)this;
-    }
-    else
-    {
-        MySQL* db =
-            GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_C, E_SERVER_GROUP_NONE);
-        db->set_query("seLect max(auction_id) from auction_main");
-        if (!db->exec(true))
-            return 0;
-        if (!db->fetch())
-            return 0;
-        if (!db->is_valid_data(0))
-            return 0;
-        if (!db->get_longlong(0, *(long long*)this))
-            return 0;
-        return *(long long*)this;
-    }
+#include "RandomOptionItemHandleTest/test_drop.inc"
+#include "RandomOptionItemHandleTest/test_unseal.inc"
+#include "RandomOptionItemHandleTest/test_change.inc"
+#include "RandomOptionItemHandleTest/test_reset.inc"
+#include "RandomOptionItemHandleTest/_get_auction_id.inc"
 }
 
 // ============================================================================
@@ -77,48 +50,7 @@ long long CRandomOptionItemHandleTest::_get_auction_id()
 //   23 个 SQL 变参按 ORIG 压栈序（0x8(%esp) 首参 → 0x64 尾参）照抄。
 // ============================================================================
 // b28d-31: N 封顶（N82）——ORIG 0x085f3dba；123 vs 126（帧/槽 + 变参装载）。
-int CRandomOptionItemHandleTest::_regist_auction(Inven_Item& item, long long auctionId,
-                                                 int occTime, int expireTime,
-                                                 char const* ownerName)
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_C, E_SERVER_GROUP_NONE);
-    char* randomOptionStr = db->blob_to_str(1, (char*)&item + 0x25, 0xe);
-    char* guidStr = db->blob_to_str(0, (char*)&item + 0x15, 10);
-    // unsigned char：ORIG getAbilityType 后 movzbl 零扩展（P11；char 会 movsbl）。
-    unsigned char ampType = item.m_amp.getAbilityType();
-    unsigned short ampValue = item.m_amp.getAbilityValue();
-
-    db->set_query(
-        "inSert into auction_main(auction_id,occ_time,expire_time,owner_id,owner_name,"
-        "buyer_id,buyer_name,price,instant_price,seal_flag,item_id,add_info,upgrade,"
-        "seal_cnt,endurance,extend_info,amplify_option,amplify_value,owner_type,"
-        "item_guid,unit_price,black_point,random_option) values(%llu,from_unixtime(%d),"
-        "%d,%d,'%s',%d,'%s',%d,%d,%d,%u,%d,%hhu,%hhu,%hu,%hu,%hhu,%hu,%hhu,'%s',%d,%d,'%s')",
-        auctionId,
-        occTime,
-        occTime + 0x3f480,
-        expireTime,
-        ownerName,
-        -1,
-        "",
-        1,
-        2,
-        (unsigned char)item.m_field0,
-        item.m_addInfo,
-        item.m_addInfo2,
-        (int)(item.m_attr & 0x1f),
-        (int)(item.m_attr >> 5),
-        item.m_fieldb,
-        item.m_fieldd,
-        (int)ampType,
-        (int)ampValue,
-        0,
-        guidStr,
-        1,
-        0,
-        randomOptionStr);
-    db->exec(true);
-    return 1;
+#include "RandomOptionItemHandleTest/_regist_auction.inc"
 }
 
 }  // namespace random_option

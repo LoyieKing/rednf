@@ -1,0 +1,32 @@
+void PetScript::clear()
+{
+    m_idx0 = 0;
+    m_name = "";
+    m_width1 = 0;
+    m_width2 = 0;
+    m_floatingHeight = 0;
+    m_layer = 1;
+    m_recoveryTime = 0;
+    m_directionCorrect = true;
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x08a3dc18 循环体为 `m_moveSpeed[i]` +
+    // `m_moveSpeed[i+2]`（无 *2 索引 ⇒ 无 lea 2i），且循环变量双初始化
+    // （0x08a3dc08/0x08a3dc0f 两条 movl $0,-0xc，P191 配套）；ORIG 随后清
+    // +0x30 = m_moveSpeed[4]（我方原缺失，真语义缺口），末尾才清 +0x34 m_gravity。
+    int i = 0;
+    for (i = 0; i <= 1; ++i)
+    {
+        m_moveSpeed[i] = 0;
+        // [b28d-solo-OnlyOrigBatch14] ORIG 0x08a3dc28 形 `mov i,%edx; ...
+        // add $0x8,%edx; movl $0,0x8(%eax,%edx,4)`（+2 折进 disp）；4.4 恒把
+        // +2 折进索引 `lea 0x2(%eax),%edx`（P30/N4 索引常量分配差），
+        // `(m_moveSpeed+2)[i]` 形更劣（73）。⇒ N 封顶。
+        m_moveSpeed[i + 2] = 0;
+    }
+    m_moveSpeed[4] = 0;
+    m_basicMotion = "";
+    m_etcMotion.clear();
+    m_attackInfo.clear();
+    m_intData.clear();
+    m_stringData.clear();
+    m_directoryPath = "";
+    m_gravity = 0;

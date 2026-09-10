@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CPartyResultRecvFlag/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // df_game_r CPartyResultRecvFlag 还原（G2-4 批次）。
 // CParty +0x1dc，总尺寸 0x34；无独立报告，按 ORIG 反汇编 +
 // PvpResultRecvFlag.md 参考实现。方法清单（ORIG 符号）：
@@ -22,42 +32,17 @@ private:
     char m_pad[0x30];     // +0x04..+0x33
 };
 
-CPartyResultRecvFlag::CPartyResultRecvFlag()
-{
-    Clear();
+#include "CPartyResultRecvFlag/CPartyResultRecvFlag.inc"
 }
 
-void CPartyResultRecvFlag::SetRecvFlag(int idx)
-{
-    if (!IsValidIdx(idx))
-    {
-        return;
-    }
-    m_flag[idx] = 1;
+#include "CPartyResultRecvFlag/SetRecvFlag.inc"
 }
 
-unsigned char CPartyResultRecvFlag::IsRecv(int idx) const
-{
-    if (!IsValidIdx(idx))
-    {
-        return 0;
-    }
-    return m_flag[idx];
+#include "CPartyResultRecvFlag/IsRecv.inc"
 }
 
-void CPartyResultRecvFlag::Clear()
-{
-    memset(m_flag, 0, sizeof(m_flag));
+#include "CPartyResultRecvFlag/Clear.inc"
 }
 
-bool CPartyResultRecvFlag::IsValidIdx(int idx) const
-{
-    if (idx >= 0 && idx <= 3)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+#include "CPartyResultRecvFlag/IsValidIdx.inc"
 }

@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 TCPDispatcher/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 // nsl::TCPDispatcher.cpp
 #include "TCPDispatcher.h"
 #include "IHandlers.h"
@@ -10,70 +20,16 @@
 
 namespace nsl {
 
-TCPDispatcher::TCPDispatcher() throw()
-{
-    MaxCategory = 100000;
-    NullHandler = NULL;
+#include "TCPDispatcher/TCPDispatcher.inc"
 }
 
-void TCPDispatcher::SetMaxCategory(int Category)
-{
-    MaxCategory = Category;
+#include "TCPDispatcher/SetMaxCategory.inc"
 }
 
-void TCPDispatcher::SetNullSessionHandler(NullSessionHandler* handler)
-{
-    NullHandler = handler;
+#include "TCPDispatcher/SetNullSessionHandler.inc"
 }
 
-bool TCPDispatcher::dispatch(TCPUser* u, Message* msg)
-{
-    CMsgCell* pMsg = msg->getCellFromMessage();
-    PACKET_HEADER* pPCK = pMsg->GetPacket();
-    int nProtoID = pPCK->getPacketID();
-    int nCategory = pPCK->getCategory();
-    int ret = 0;
-    u->setLastAccessTime();
-    if ((nCategory == 0xffffffff) && (nProtoID == 0))
-    {
-        return false;
-    }
-    else if (nCategory < 0 || nCategory >= MaxCategory)
-    {
-        return true;
-    }
-    else
-    {
-        INetWorkHandler* netWorkHandler = pApp->super_IHandlers.getNetWorkHandler(nCategory);
-        if (netWorkHandler != NULL)
-        {
-            INetWorkHandler::networkFuncType handle = netWorkHandler->searchNetworkFunc(nProtoID);
-            if (handle != NULL)
-            {
-                ret = (pApp->super_IHandlers.getNetWorkHandler(nCategory)->*handle)(pMsg, u);
-                if (ret != 0)
-                {
-                    G_TraceLog()->sysLog(7, "TCP : '%d' \xc3\xb3\xb8\xae\xbf\xa1 \xbd\xc7\xc6\xd0 \xc7\xcf\xbf\xb4\xbd\xc0\xb4\xcf\xb4\xd9. Error: %d", nProtoID, ret);
-                    return true;
-                }
-            }
-            else
-            {
-                G_TraceLog()->sysLog(7, "TCP : could not find handler for Category :'%d' Protocol: '%d'.", nCategory, nProtoID);
-                return true;
-            }
-        }
-        else
-        {
-            G_TraceLog()->sysLog(7,
-                "TCP : '%d' <- protocol category \xb0\xa1 \xb9\xfc\xc0\xa7\xb8\xa6 \xb9\xfe\xbe\xee\xb3\xb5\xbd\xc0\xb4\xcf\xb4\xd9, ip:%d.%d.%d.%d",
-                nCategory, (int)u->pSock_->getPeerAdrs()[0],
-                (int)u->pSock_->getPeerAdrs()[1], (int)u->pSock_->getPeerAdrs()[2],
-                (int)u->pSock_->getPeerAdrs()[3]);
-            return true;
-        }
-        return false;
-    }
+#include "TCPDispatcher/dispatch.inc"
 }
 
 } // namespace nsl

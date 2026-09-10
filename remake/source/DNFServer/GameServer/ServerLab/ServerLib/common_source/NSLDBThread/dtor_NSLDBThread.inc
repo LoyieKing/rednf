@@ -1,0 +1,2 @@
+NSLDBThread::~NSLDBThread()
+{

@@ -1,0 +1,2 @@
+CStabToDeathEvent::CStabToDeathEvent()
+{

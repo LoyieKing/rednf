@@ -1,0 +1,3 @@
+StageMapScript::StageMapScript()
+{
+    clear();

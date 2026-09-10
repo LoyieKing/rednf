@@ -1,0 +1,1 @@
+stTournamentRewardSelectState::stTournamentRewardSelectState() {}

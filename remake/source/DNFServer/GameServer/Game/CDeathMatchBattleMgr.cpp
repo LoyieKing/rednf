@@ -1,3 +1,13 @@
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CDeathMatchBattleMgr/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
 #include "LogManager.h"
 // ============================================================================
 // df_game_r CDeathMatchBattleMgr（G2-5 批次，PvP_Room +0x69c，尺寸 0x44）
@@ -25,333 +35,99 @@
 // cMyTrace 权威声明见 GameTypes.h（经 PvP_Room.h 链包含），本地类已删除（§7）。
 
 // ---- std::pair 排序比较器（ORIG 085df55f T） ----
-bool funDeathMatchKillCntCompare(const std::pair<int, int>& a,
-                                 const std::pair<int, int>& b)
-{
-    return a.second > b.second;
+#include "CDeathMatchBattleMgr/funDeathMatchKillCntCompare.inc"
 }
 
 // ---- CDeathMatchBattleMgr（0x44，权威声明见 CDeathMatchBattleMgr.h） ----
 
 // ==== ORIG 085dee22 ====
-void CDeathMatchBattleMgr::Reset()
-{
-    memset(m_killCount, 0, sizeof(m_killCount));
-    memset(m_deathCount, 0, sizeof(m_deathCount));
+#include "CDeathMatchBattleMgr/Reset.inc"
 }
 
 // ==== ORIG 085df92c（弱符号） ====
-void CDeathMatchBattleMgr::SetParent(PvP_Room* room)
-{
-    m_pRoom = room;
+#include "CDeathMatchBattleMgr/SetParent.inc"
 }
 
 // ==== ORIG 085dee66 ====
-void CDeathMatchBattleMgr::OnCreateRoom(int roomIdx)
-{
-    if (roomIdx < 0 || roomIdx > 7)
-        return;
+#include "CDeathMatchBattleMgr/OnCreateRoom.inc"
 }
 
 // ==== ORIG 085deeca ====
-void CDeathMatchBattleMgr::OnStart()
-{
-    memset(m_killCount, 0, sizeof(m_killCount));
-    memset(m_deathCount, 0, sizeof(m_deathCount));
+#include "CDeathMatchBattleMgr/OnStart.inc"
 }
 
 // ==== ORIG 085def0e ====
-void CDeathMatchBattleMgr::IncreaseKillCount(int userIdx)
-{
-    if (userIdx >= 0 && userIdx <= 7)
-        ++m_killCount[userIdx];
+#include "CDeathMatchBattleMgr/IncreaseKillCount.inc"
 }
 
 // ==== ORIG 085def34 ====
-void CDeathMatchBattleMgr::IncreaseDeathCount(int userIdx)
-{
-    if (userIdx >= 0 && userIdx <= 7)
-        ++m_deathCount[userIdx];
+#include "CDeathMatchBattleMgr/IncreaseDeathCount.inc"
 }
 
 // ==== ORIG 085df524 ====
-int CDeathMatchBattleMgr::getKillCount(int userIdx)
-{
-    if (userIdx <= 7)
-        return m_killCount[userIdx];
-    return 0;
+#include "CDeathMatchBattleMgr/getKillCount.inc"
 }
 
 // ==== ORIG 085df540 ====
-int CDeathMatchBattleMgr::getDeathCount(int userIdx)
-{
-    if (userIdx <= 7)
-        return m_deathCount[userIdx];
-    return 0;
+#include "CDeathMatchBattleMgr/getDeathCount.inc"
 }
 
 // ==== ORIG 085defcc ====
-int CDeathMatchBattleMgr::getMaxKillCount()
-{
-    int max = 0;
-    for (int i = 0; i <= 7; ++i)
-    {
-        if (m_killCount[i] > max)
-            max = m_killCount[i];
-    }
-    return max;
+#include "CDeathMatchBattleMgr/getMaxKillCount.inc"
 }
 
 // ==== ORIG 085def60 ====
 // [b28d-27] NEAR N82附：ORIG 0x085def60；多实参 call 首值 callee-saved 寄存器对调
 // （ORIG key→%ebx/idx→%esi，我方相反），语句表达式/具名形实测反劣 ⇒ 封顶。
 // p167 CLEAR（3/3），语义闭合。
-void CDeathMatchBattleMgr::InsertTimerKilledUserForRevive(int roomIdx, int a)
-{
-    // ORIG 0x8568d90：key 先物化 %ebx、G_TimerQueue 次之 %esi（P24），无具名槽；
-    // 源形=内联实参单语句（P134），禁中间局部（具名 key/queue 槽化致 0x38 帧）。
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)5, roomIdx,
-                                (TIMER_MESSAGE)(a + 0x33), 3,
-                                m_pRoom->gen_timer_key((TIMER_MESSAGE)(a + 0x33)), 0);
+#include "CDeathMatchBattleMgr/InsertTimerKilledUserForRevive.inc"
 }
 
 // ==== ORIG 085df012 ====
 // [L10b P292 档①] int→bool（头同步）：ORIG PvP_Room::check_winner 0x085d9950
 // `test %al,%al; je` 无 setne。
-bool CDeathMatchBattleMgr::checkGameOverForSinglePlay(int mode)
-{
-    if (mode == 0)
-        return 1;
-    // ORIG 跳转表 0x8cc1430：mode 2/3 同判 >1，4→>2，5→>3，6→>4，7→>5，8→>6。
-    // case 按降序书写以对齐 ORIG 基本块布局（>6 块在最低地址）。
-    switch (mode)
-    {
-    case 8:
-        if (getMaxKillCount() > 6)
-            return 1;
-        return 0;
-    case 7:
-        if (getMaxKillCount() > 5)
-            return 1;
-        return 0;
-    case 6:
-        if (getMaxKillCount() > 4)
-            return 1;
-        return 0;
-    case 5:
-        if (getMaxKillCount() > 3)
-            return 1;
-        return 0;
-    case 4:
-        if (getMaxKillCount() > 2)
-            return 1;
-        return 0;
-    case 3:
-    case 2:
-        if (getMaxKillCount() > 1)
-            return 1;
-        return 0;
-    default:
-        return 1;   // mode 0/1 与 >8 均判结束
-    }
+#include "CDeathMatchBattleMgr/checkGameOverForSinglePlay.inc"
 }
 
 // ==== ORIG 085df126 ====
 // SIGFIX b28c-L29：ORIG 串 "bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(...)"。
 // [b28d-27] DIFF N82：ORIG 0x085df126；p167 CLEAR（1/1），残差为帧/槽与块排布，
 // 语义闭合。
-bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(
-    CUser** users, int teamCnt, unsigned char* teamWin)
-{
-    if (teamCnt == -1)
-        return true;
-    int killTeam1 = 0;
-    int killTeam2 = 0;
-    // [本波] ORIG 0x085df126 序言发三个零初始化 `movl $0x0,-0x18/-0x14/-0x10`
-    // ⇒ maxKill 是**函数级具名 int（带 0 初值）**，三目赋值降为循环后的独立语句
-    // （P28/P212 槽序：killTeam1 -0x18 → killTeam2 -0x14 → maxKill -0x10 → i -0xc）。
-    int maxKill = 0;
-    for (int i = 0; i <= 7; ++i)
-    {
-        if (users[i] != 0 || m_killCount[i] != 0)
-        {
-            if (teamWin[i] == 1)
-                killTeam1 += m_killCount[i];
-            else if (teamWin[i] == 2)
-                killTeam2 += m_killCount[i];
-            else
-                LogManager::logFormat(
-                    1, "pvp.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x157f,
-                    "CDeathMatchBattleMgr::checkWinnerForTeamPlay , ERROR, bTeamState[%d] = %d",
-                    i, (unsigned int)teamWin[i]);
-        }
-    }
-    maxKill = killTeam1 > killTeam2 ? killTeam1 : killTeam2;
-    // [本波·P56] ORIG 各 case 为 `cmpl $N,-0x10; jle <尾岛 mov $0>` + `mov $0x1,%eax`
-    // 分支形（jle×4 + jmp×4）；直写 `return maxKill > N;` 被 4.4 折成 `setg` 单流 ⇒
-    // 改 if-return 显式形。
-    switch (teamCnt)
-    {
-    case 1:
-        if (maxKill > 1)
-            return true;
-        return false;
-    case 2:
-        if (maxKill > 4)
-            return true;
-        return false;
-    case 3:
-        if (maxKill > 7)
-            return true;
-        return false;
-    case 4:
-        if (maxKill > 9)
-            return true;
-        return false;
-    default:
-        return true;
-    }
+#include "CDeathMatchBattleMgr/checkGameOverForTeamPlay.inc"
 }
 
 // ==== ORIG 085df48a ====
-void CDeathMatchBattleMgr::checkWinnerForSinglePlay(
-    CUser** users, bool* win, PvpUserTable& table)
-{
-    for (int i = 0; i <= 7; ++i)
-    {
-        if (users[i] == 0)
-            m_killCount[i] = 0;
-        win[i] = false;
-    }
-    int* pMax = std::max_element(m_killCount, m_killCount + 8);
-    int winIdx = (int)(((unsigned int)pMax - (unsigned int)m_killCount) >> 2);
-    if (winIdx <= 7)
-        win[winIdx] = true;
-    table.SetWinTeam(winIdx);
+#include "CDeathMatchBattleMgr/checkWinnerForSinglePlay.inc"
 }
 
 // ==== ORIG 085df296 ====
 // [b28d-27] DIFF N82/N93：ORIG 0x085df296；p167 CLEAR（4/4），残差为帧/槽与
 // 分支块排布，语义闭合。
-void CDeathMatchBattleMgr::checkWinnerForTeamPlay(
-    CUser** users, bool* win, unsigned char* teamWin, PvpUserTable& table)
-{
-    int killTeam1 = 0;
-    int killTeam2 = 0;
-    for (int i = 0; i <= 7; ++i)
-    {
-        if (users[i] != 0)
-        {
-            if (teamWin[i] == 1)
-                killTeam1 += m_killCount[i];
-            else if (teamWin[i] == 2)
-                killTeam2 += m_killCount[i];
-            else
-                LogManager::logFormat(
-                    1, "pvp.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x1617,
-                    "CDeathMatchBattleMgr::checkWinnerForTeamPlay , ERROR, bTeamState[%d] = %d",
-                    i, (unsigned int)teamWin[i]);
-        }
-    }
-    // [本波·R20 建议] ORIG 0x085df296 用 `int winCount[2]`（基址 -0x24 + team 索引）
-    // 而非两个独立标量 ⇒ 改数组形（索引访问形态与 ORIG 的 `-0x24(,%edx,4)` 一致）。
-    int aliveTeam[2] = {0, 0};
-    for (int i = 0; i <= 7; ++i)
-    {
-        if (win[i] && users[i] != 0)
-        {
-            int t = teamWin[i] - 1;
-            if (t >= 0 && t <= 1)
-                ++aliveTeam[t];
-        }
-    }
-    unsigned char winTeam;
-    if (killTeam1 < killTeam2)
-        winTeam = 2;
-    else if (killTeam1 > killTeam2)
-        winTeam = 1;
-    else if (aliveTeam[0] > aliveTeam[1])
-        winTeam = 1;
-    else if (aliveTeam[1] > aliveTeam[0])
-        winTeam = 2;
-    else
-        winTeam = (rand() & 1) ? 2 : 1;
-    memset(win, 0, 8);
-    for (int i = 0; i <= 7; ++i)
-    {
-        if (teamWin[i] == winTeam)
-            win[i] = true;
-    }
-    table.SetWinTeam((int)winTeam);
+#include "CDeathMatchBattleMgr/checkWinnerForTeamPlay.inc"
 }
 
 // ==== ORIG 085df576（const） ====
 // [b28d-27] DIFF N82/N86：ORIG 0x085df576；p167 CLEAR（10/10），残差为 pair 数组
 // 临时槽与帧分配，语义闭合。
-int CDeathMatchBattleMgr::getRanking(CUser** users, int* out) const
-{
-    int count = 0;
-    std::pair<int, int> rank[8];
-    memset(out, 0, 0x20);
-    for (int i = 0; i <= 7; ++i)
-    {
-        if (users[i] != 0)
-        {
-            rank[i] = std::make_pair(i, m_killCount[i]);
-            ++count;
-        }
-        else
-        {
-            rank[i] = std::make_pair(i, -1);
-        }
-    }
-    std::sort(rank, rank + 8, funDeathMatchKillCntCompare);
-    for (int j = 0; j < count; ++j)
-    {
-        out[j] = rank[j].first;
-        // [本波·P227] 全表达式临时链（Main 配方②）：ORIG 0x085df576 在 cMyTrace
-        // ctor **之前**右起求 varargs 并以 callee-saved 跨 ctor 保活；具名两语句形
-        // 使 4.4 只在 ctor 后求值（帧/槽差 0x10 的来源）。
-        cMyTrace(__PRETTY_FUNCTION__, 0x1695, 0)(
-            "CDeathMatchBattleMgr::getRanking => Room(%d), Idx(%d), Rank(%d)",
-            m_pRoom->get_index(), j, out[j]);
-    }
-    return count;
+#include "CDeathMatchBattleMgr/getRanking.inc"
 }
 
 // ==== ORIG 085dee78 ====
-void CDeathMatchBattleMgr::OnJoinRoom(int roomIdx)
-{
-    if (roomIdx < 0 || roomIdx > 7)
-        return;
+#include "CDeathMatchBattleMgr/OnJoinRoom.inc"
 }
 
 // ==== ORIG 085dee8a ====
-void CDeathMatchBattleMgr::OnLeaveRoom(int roomIdx)
-{
-    if (roomIdx < 0 || roomIdx > 7)
-        return;
+#include "CDeathMatchBattleMgr/OnLeaveRoom.inc"
 }
 
 // ==== ORIG 085deeae ====
-void CDeathMatchBattleMgr::OnReady(int roomIdx, bool ready)
-{
-    if (roomIdx < 0 || roomIdx > 7)
-        return;
+#include "CDeathMatchBattleMgr/OnReady.inc"
 }
 
 // ==== ORIG 085dee9c ====
-void CDeathMatchBattleMgr::OnChangeTeam(int team, int a)
-{
-    if (team < 0 || team > 7)
-        return;
+#include "CDeathMatchBattleMgr/OnChangeTeam.inc"
 }
 
 // ==== ORIG 085defc6 ====
-void CDeathMatchBattleMgr::OnFight()
-{
+#include "CDeathMatchBattleMgr/OnFight.inc"
 }

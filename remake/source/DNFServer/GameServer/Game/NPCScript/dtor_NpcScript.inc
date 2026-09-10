@@ -1,0 +1,2 @@
+NpcScript::~NpcScript()
+{

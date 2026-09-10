@@ -1,0 +1,1 @@
+stBingoScript::~stBingoScript() {}

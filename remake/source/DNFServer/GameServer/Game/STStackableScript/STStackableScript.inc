@@ -1,0 +1,3 @@
+STStackableScript::STStackableScript()
+{
+    Clear();

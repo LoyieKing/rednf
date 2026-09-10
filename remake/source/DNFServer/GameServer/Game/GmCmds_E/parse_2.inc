@@ -1,0 +1,2 @@
+void NpcLimitBuyItem::parse()
+{

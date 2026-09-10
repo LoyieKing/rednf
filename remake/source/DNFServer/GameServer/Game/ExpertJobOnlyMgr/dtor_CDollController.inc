@@ -1,0 +1,2 @@
+CDollController::~CDollController()
+{

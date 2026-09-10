@@ -1,0 +1,2 @@
+CCeraAuctionServerProxy::~CCeraAuctionServerProxy()
+{

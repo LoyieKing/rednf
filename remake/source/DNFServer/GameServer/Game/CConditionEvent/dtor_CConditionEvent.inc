@@ -1,0 +1,2 @@
+CConditionEvent::~CConditionEvent()
+{

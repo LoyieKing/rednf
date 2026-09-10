@@ -1,0 +1,3 @@
+IndependentDropParameterScript::IndependentDropParameterScript()
+{
+    clear();

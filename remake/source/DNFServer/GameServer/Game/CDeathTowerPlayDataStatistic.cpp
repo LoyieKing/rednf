@@ -1,4 +1,14 @@
 // ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是聚合器：
+//   每个顶层函数已移入 CDeathTowerPlayDataStatistic/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件**逐行保留**原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图），只把函数定义块换成一行 #include。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 每个 `#include` 的**位置即原函数定义位置**，改动顺序会改 codegen。
+// ============================================================================
+// ============================================================================
 // df_game_r 还原 —— CDeathTowerPlayDataStatistic::SendDeathTowerPlayInfo。
 // ORIG 0x0860f45c T
 // （_ZN28CDeathTowerPlayDataStatistic22SendDeathTowerPlayInfoEicPK30stDeathTowerRecordMemberInfo_tjj）。
@@ -32,38 +42,5 @@ public:
     unsigned char m_grow;    // +0x16
 };
 
-int CDeathTowerPlayDataStatistic::SendDeathTowerPlayInfo(
-    int idx, char deathTowerType,
-    const stDeathTowerRecordMemberInfo_t* members,
-    unsigned int clearStage, unsigned int partyCount)
-{
-    Packet_DeathTower_Statistic_Playdata_Job jobPkt;
-    jobPkt.m_deathTowerType = deathTowerType;
-    jobPkt.m_level = (unsigned short)members[idx].m_level;
-    jobPkt.m_characJob = (unsigned int)members[idx].m_job;
-    jobPkt.m_characGrow = (char)members[idx].m_grow;
-    jobPkt.m_field = (int)clearStage;
-    if (jobPkt.m_level == 0)
-    {
-        LogManager::logFormat(1, "Statistics.cpp",
-            __PRETTY_FUNCTION__,
-            0x5fe,
-            "CDeathTowerPlayDataStatistic ERROR!! deathTower_type (%d) level (%d) job_ (%d) grow_type_ (%d) clearStage (%d)",
-            (int)(char)jobPkt.m_deathTowerType, (int)(short)jobPkt.m_level,
-            (int)jobPkt.m_characJob, (int)(char)jobPkt.m_characGrow,
-            (int)jobPkt.m_field);
-    }
-    else
-    {
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
-            ->SendPacket(reinterpret_cast<char*>(&jobPkt), 0x16);
-    }
-
-    Packet_DeathTower_Statistic_Playdata_Party partyPkt;
-    partyPkt.m_deathTowerType = deathTowerType;
-    partyPkt.m_partyCount = (char)partyCount;
-    partyPkt.m_field = (int)clearStage;
-    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
-        ->SendPacket(reinterpret_cast<char*>(&partyPkt), 0x10);
-    return 1;
+#include "CDeathTowerPlayDataStatistic/SendDeathTowerPlayInfo.inc"
 }

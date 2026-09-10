@@ -1,0 +1,2 @@
+BingoEvent::~BingoEvent()
+{
