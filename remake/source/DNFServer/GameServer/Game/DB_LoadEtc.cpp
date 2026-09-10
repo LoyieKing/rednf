@@ -800,6 +800,37 @@ bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 //   sig+0xecd8+24*idx（**元素首 int**）⇒ 删 +8。另 trace 改 P227 临时链
 //   （ORIG 0x0840859f ctor 前 `mov 0x4(%eax),%ebx` 缓存 characNo）。
 //   残差：N107/N30 地址形 + N82 槽基差 4（不可翻）。
+// [b29-Lane21 复核] 四旋钮定位（ndiff 82→16，orig 168/our 170）：
+//   ①删 `int* p` 指针局部改表达式直用（P0：ORIG 无指针槽往返）⇒ 整体槽基回退 4，
+//     槽集与 ORIG 全等（-0xc/-0x10/-0x14/-0x18/-0x1c/-0x2c）；
+//   ②全头部声明 count/i/idx（P212 按 ORIG 槽深序 db→col→count→i→idx）⇒ i/idx 槽位归位；
+//   ③负值钳位改 sig 基址视图 `m_clamp[i+0x3b34]`（P291）⇒ 逐字复现 `mov 0xc(%eax,%edx,4)`；
+//   ④条目计数改 `m_rows[idx].m_first`（行基址 +0xecd0/步长 0x18/行内 +8）。
+// 残差（不可翻）：①N107 取址形 ×2（`lea 0xeac8(%eax)`/`lea 0x14a9a(%eax)` vs 4.4
+//   `add+mov`）；②N4/P30 装载序（ORIG 先装索引 %edx 后装 %eax 基址，4.4 相反）。
+// LoadCharacOption 负值钳位窗口视图：m_clamp 数组起 +0xC（元素 4 字节、索引
+// i+0x3b34 落 sig+0xECDC）；具名数组成员让 4.4 产 ORIG 的
+// `mov 0xc(%eax,%edx,4)`（edx=i+0x3b34）scaled 索引形（P291/P30）。
+struct SigLoadEtcNegClampView
+{
+    char m_pad[0xc];               // +0x000..+0x00B（= m_fieldC 前的字段区）
+    int  m_clamp[0x3b34 + 5];      // +0x00C..（索引 i+0x3b34 即 sig+0xECDC+i*4）
+};
+
+// LoadCharacOption best_clear_time 条目视图：行基址 sig+0xECD0、步长 0x18、
+// 首 int 在行内 +8（ORIG `lea (%ecx,%eax,1); add $0xecd0; mov 0x8(%eax)`）。
+struct SigLoadEtcBestClearTimeView
+{
+    struct Row
+    {
+        char m_pad8[8];
+        int  m_first;                  // 行内 +0x08
+        char m_rest[0xc];
+    };
+    char m_pad[0xecd0];                // +0x0000..+0xECCF
+    Row  m_rows[1000];                 // +0xECD0，步长 0x18
+};
+
 bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
 {
     (void)userIdx;   // ORIG 仅透传第 3 参起作用（in_stack_00000010）
@@ -826,6 +857,10 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     // [b28d-solo-DB_LoadEtc] ORIG 用自增列号局部（-0x18，`mov -0x18,%eax; addl $1,-0x18`
     //   取后自增）；原字面量列号使 4.4 直填常量（`movl $0x1,0x4(%esp)`）。
     int col = 0;
+    // P212 全头部声明 + ORIG 槽深序（db-0x1c→col-0x18→count-0x14→i-0x10→idx-0xc）。
+    int count;
+    int i;
+    int idx;
     if (!db->get_binary(col++, sig->m_characOptions, 0x200))     // col0 options
     {
         return false;
@@ -839,14 +874,13 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
         return false;
     }
 
-    for (int i = 0; i <= 4; ++i)                             // base sig+0xC+(i+0x3b34)*4
+    for (i = 0; i <= 4; ++i)                                 // base sig+0xC+(i+0x3b34)*4
     {
-        int* p = reinterpret_cast<int*>(sig->m_bestClearTime + 4 + i * 4);
-        // = 0xECDC + i*4（ORIG mov 0xc(%eax,%edx,4) 读 + jns 跳 + movl $0 写；
-        // 4.4 恒 add $0x3b37+shl+add 不折 disp ⇒ N94 封顶，保留 p 形）
-        if (*p < 0)
+        // ORIG `mov 0xc(%eax,%edx,4)`（edx=i+0x3b34）= sig+0xECDC+i*4：具名数组成员
+        // 视图（P291）产 scaled 索引；P0：无指针局部槽往返。
+        if (reinterpret_cast<SigLoadEtcNegClampView*>(sig)->m_clamp[i + 0x3b34] < 0)
         {
-            *p = 0;
+            reinterpret_cast<SigLoadEtcNegClampView*>(sig)->m_clamp[i + 0x3b34] = 0;
         }
     }
 
@@ -861,15 +895,15 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
         return false;
     }
 
-    int count = 0;
-    int idx = 0;
+    count = 0;
+    idx = 0;
     // ORIG 0x08408718..0x0840873c：地址 = sig + idx*0x18 + 0xecd0 + 8 = +0xecd8 + idx*24
     // （`lea (%ecx,%eax,1); add $0xecd0; mov 0x8(%eax)`，P185 直读）——读**元素首 int**；
     // 旧式 `m_bestClearTime + idx*0x18 + 8` 多 8 字节（真 bug：读元素内第 3 个 int）。
     // 语义：首条 0 即 break（`test %eax,%eax; je`），非零则 count++/idx++。
     while (idx <= 0x3e7)
     {
-        if (*reinterpret_cast<int*>(sig->m_bestClearTime + idx * 0x18) == 0)
+        if (reinterpret_cast<SigLoadEtcBestClearTimeView*>(sig)->m_rows[idx].m_first == 0)
             break;
         ++count;
         ++idx;
@@ -1076,13 +1110,19 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
 // 残差（不可翻）：N7 族 uncompress_zip 实参寄存器角色互换 + N82 槽序（ORIG db=-0x20/
 //   ok=-0x19/srcLen=-0x18..-0xc/outLen=-0x34..-0x40 各 4 个独立槽；4.4 按 lifetime 复用
 //   ⇒ db=-0x1c。全头部声明（P212）实测把 db 顶到 -0xc 反劣，已回退）。
+// [b29-Lane21 复核] 三旋钮定位（ndiff 114→8，orig/our 221=221）：
+//   ①`bool ok` 后置到 db 声明之后 ⇒ 槽形翻正（ORIG db=-0x20/ok=-0x19；ok 前置时 4.4 给
+//     db=-0x1c/ok=-0x1d，本件方向与 P212 相反）；
+//   ②四段 srcLen/outLen 声明交换（ORIG `movl $0x10ae,-0x34` 在 get_binary_length call 之后）；
+//   ③fetch 检查改直测 `if (!db->fetch())`（ORIG 无 ok 槽保存，仅 exec 走 ok=-0x19）。
+// 残差（P75 实参装载序，4 处）：ORIG 先取第 4 参 srcLen 再算第 1 参 dst；4.4 恒 dst 先。
 bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 {
     // ORIG 槽形：ok=-0x19 保存、srcLen=-0x18/-0x14/-0x10/-0xc（各列命名槽）、
     // outLen 各块独立槽 -0x34/-0x38/-0x3c/-0x40。
-    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
                                                   (ENUM_SERVER_GROUP)0);
+    bool ok;
     db->set_query("seLect general_section, specific_section, despair, event from"
                   " charac_titlebook where charac_no=%u", sig->m_characNo);
     ok = db->exec(true);
@@ -1096,8 +1136,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    ok = db->fetch();
-    if (!ok)
+    if (!db->fetch())                 // ORIG 直测 call 结果（无 ok 槽保存）
     {
         return false;
     }
@@ -1112,8 +1151,8 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen1 = 0x10ae;
         int srcLen1 = db->get_binary_length(0);
+        unsigned int outLen1 = 0x10ae;   // ORIG 初始化在 call 之后
         if (!uncompress_zip(sig->m_titlebookGeneral, outLen1, blob,
                             static_cast<unsigned int>(srcLen1)))
         {
@@ -1127,8 +1166,8 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen2 = 0x2fa8;
         int srcLen2 = db->get_binary_length(1);
+        unsigned int outLen2 = 0x2fa8;   // ORIG 初始化在 call 之后
         if (!uncompress_zip(sig->m_titlebookSpecific, outLen2, blob,
                             static_cast<unsigned int>(srcLen2)))
         {
@@ -1142,8 +1181,8 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen3 = 0x1c98;
         int srcLen3 = db->get_binary_length(2);
+        unsigned int outLen3 = 0x1c98;   // ORIG 初始化在 call 之后
         if (!uncompress_zip(sig->m_titlebookDespair, outLen3, blob,
                             static_cast<unsigned int>(srcLen3)))
         {
@@ -1157,8 +1196,8 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen4 = 0x0e4c;
         int srcLen4 = db->get_binary_length(3);
+        unsigned int outLen4 = 0x0e4c;   // ORIG 初始化在 call 之后
         if (!uncompress_zip(sig->m_titlebookEvent, outLen4, blob,
                             static_cast<unsigned int>(srcLen4)))
         {
@@ -2040,9 +2079,18 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
 // trace 的复用 bool ok 槽）；p167 CLEAR 0/0 ⇒ 语义完成、byte 层封顶（§6.2）。
 //   [b28d-solo 复测] 474=474 vs 476、p167 CLEAR 20/20；P221/P227 临时链试形对 trace 槽
 //   （ORIG -0xe8 深 vs 4.4 -0x28）**零效**（4.1 不复用 13 个 trace 槽，N82 真因）⇒ 封顶。
+// [b29-Lane21 复核] 「trace 槽零效」系 fndiff 对齐错觉：两侧 lea -0xe8..-0x28 分布实测全等。
+//   真修法三条已落：①`bool ok;` 前置声明（P212，ok=-0x15/db=-0x14 就位）；②`int col = 0;`
+//   移到 fetch 检查之后（ORIG +0x1d1 col/i 连发）；③13 处具名 cMyTrace 改全表达式临时链
+//   （P227：ctor 前 vararg 装 %ebx 跨 ctor 保活）。读数 ndiff 516→14（orig 474/our 476）。
+//   残差（N1 常量拆分，5 形实测）：ORIG `shl $2; add $0xcf10; add sig; lea 0x13` vs 4.4
+//   `add $0x33c8; shl $2; add sig; lea 3`（0xcf23 非 4 对齐的拆分点不同）；&arr[K] /
+//   arr+K / 视图指针 / 两段常量 / 行视图五形均折 add。
 bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc16LoadFairPvPScore…E9handleIdx
+    // ORIG 槽序：ok(-0x15) 深于 db(-0x14) ⇒ 原码 ok 先声明（P212 全头部声明「先声明深」）。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect private_win,private_lose,private_draw,relay_battle_win,"
@@ -2053,17 +2101,15 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
                   sig->m_characNo);
     // ORIG local_19（-0x15）为复用的 bool 结果槽：每步 call 后 `mov %al,-0x15;`
     // `movzbl; xor$1; test; je` —— 命名 bool ok 赋值再判触发同形。
-    bool ok = db->exec(true);
+    ok = db->exec(true);
     if (!ok)
     {
-        cMyTrace tr1(__PRETTY_FUNCTION__,
-                       0x1618, 5);
-        tr1("DB_LoadSkill::LoadFairPvPScore, exec() ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1618, 5)(
+            "DB_LoadSkill::LoadFairPvPScore, exec() ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
 
-    int col = 0;                                            // 8904461 movl $0,-0x10
     if (db->get_n_rows() == 0)
     {
         db->set_query("inSert into fair_pvp_score (charac_no) values(%u)",
@@ -2071,9 +2117,8 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
         ok = db->exec(true);                                // ORIG local_19 复用同槽
         if (!ok)
         {
-            cMyTrace tr2(__PRETTY_FUNCTION__,
-                           0x1625, 5);
-            tr2("DB_LoadEtc::LoadFairPvPScore insert, exec() ERROR"
+            cMyTrace(__PRETTY_FUNCTION__, 0x1625, 5)(
+                "DB_LoadEtc::LoadFairPvPScore insert, exec() ERROR"
                   " charac_no=%u", sig->m_characNo);
             return false;
         }
@@ -2083,13 +2128,13 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     ok = db->fetch();
     if (!ok)
     {
-        cMyTrace tr3(__PRETTY_FUNCTION__,
-                       0x162f, 5);
-        tr3("DB_LoadEtc::LoadFairPvPScore, fetch() ERROR charac_no=%u",
+        cMyTrace(__PRETTY_FUNCTION__, 0x162f, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, fetch() ERROR charac_no=%u",
               sig->m_characNo);
         return false;
     }
 
+    int col = 0;                                            // 8904461 movl $0,-0x10
     // 前 6 列：i∈[0,1] 外层循环内 3 个显式 get（ORIG 8904474..8904636 无内层循环，
     // 字段地址 = sig + i*0xc + 0xcf23/27/2b；行号 0x1638/0x163f/0x1646）。
     for (int i = 0; i <= 1; ++i)
@@ -2097,25 +2142,25 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
         ok = db->get_uint(col++, sig->m_fairPvpScore[i * 3 + 0]);
         if (!ok)
         {
-            cMyTrace tr4(__PRETTY_FUNCTION__, 0x1638, 5);
-            tr4("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-                  col, sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x1638, 5)(
+                "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+                col, sig->m_characNo);
             return false;
         }
         ok = db->get_uint(col++, sig->m_fairPvpScore[i * 3 + 1]);
         if (!ok)
         {
-            cMyTrace tr5(__PRETTY_FUNCTION__, 0x163f, 5);
-            tr5("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-                  col, sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x163f, 5)(
+                "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+                col, sig->m_characNo);
             return false;
         }
         ok = db->get_uint(col++, sig->m_fairPvpScore[i * 3 + 2]);
         if (!ok)
         {
-            cMyTrace tr6(__PRETTY_FUNCTION__, 0x1646, 5);
-            tr6("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-                  col, sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x1646, 5)(
+                "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+                col, sig->m_characNo);
             return false;
         }
     }
@@ -2123,33 +2168,33 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     ok = db->get_uint(col++, sig->m_fairPvpScore[6]);        // successive_win +0xcf3b
     if (!ok)
     {
-        cMyTrace tr7(__PRETTY_FUNCTION__, 0x1667, 5);
-        tr7("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1667, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            col, sig->m_characNo);
         return false;
     }
     ok = db->get_uint(col++, sig->m_fairPvpScore[7]);        // max_successive_win +0xcf3f
     if (!ok)
     {
-        cMyTrace tr8(__PRETTY_FUNCTION__, 0x166e, 5);
-        tr8("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x166e, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            col, sig->m_characNo);
         return false;
     }
     ok = db->get_uint(col++, sig->m_fairPvpScore[8]);        // job_score +0xcf43
     if (!ok)
     {
-        cMyTrace tr9(__PRETTY_FUNCTION__, 0x1675, 5);
-        tr9("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1675, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            col, sig->m_characNo);
         return false;
     }
     ok = db->get_uint(col++, sig->m_fairPvpScore[9]);        // daily_play_count +0xcf47
     if (!ok)
     {
-        cMyTrace tr10(__PRETTY_FUNCTION__, 0x167c, 5);
-        tr10("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x167c, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            col, sig->m_characNo);
         return false;
     }
 
@@ -2161,18 +2206,18 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     ok = db->get_uint(col++, sig->m_fairPvpLastPlayTime);    // +0xd59b
     if (!ok)
     {
-        cMyTrace tr11(__PRETTY_FUNCTION__, 0x1689, 5);
-        tr11("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1689, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            col, sig->m_characNo);
         return false;
     }
     // get_int 直写 sig+0xd59f（ORIG 无中间局部；行号 0x1690）
     ok = db->get_int(col++, sig->m_fairPvpLastPlaySec);
     if (!ok)
     {
-        cMyTrace tr12(__PRETTY_FUNCTION__, 0x1690, 5);
-        tr12("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1690, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            col, sig->m_characNo);
         return false;
     }
     if (sig->m_fairPvpLastPlaySec < getDailyInitializeTime(6, 0, 0))
@@ -2183,9 +2228,9 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     ok = db->get_ubyte(col++, sig->m_fairPvpGiveFlag);
     if (!ok)
     {
-        cMyTrace tr13(__PRETTY_FUNCTION__, 0x16a5, 5);
-        tr13("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x16a5, 5)(
+            "DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            col, sig->m_characNo);
         return false;
     }
     return true;
