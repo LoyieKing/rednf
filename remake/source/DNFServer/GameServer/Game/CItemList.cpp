@@ -69,30 +69,11 @@
 //   输出经 CStreamBuffer::operator<<(char const*/int/unsigned/float)，
 //   列表拼接经 std::for_each(..., CStringMaker)。
 // ============================================================================
-// ORIG T 0x0861ca1b：socket 类型 → 字符。1→'1' 2→'2' 4→'3' 8→'4'
-// 0x10→'5' 0xffef→'6' 0xffff→'7'，其余 0（决策树见 ORIG 反汇编）。
-int GetSocketTypeCharacter(unsigned short type)
-{
-    switch (type)
-    {
-    case 1:
-        return '1';
-    case 2:
-        return '2';
-    case 4:
-        return '3';
-    case 8:
-        return '4';
-    case 0x10:
-        return '5';
-    case 0xffef:
-        return '6';
-    case 0xffff:
-        return '7';
-    default:
-        return 0;
-    }
-}
+// ORIG T 0x0861ca1b：socket 类型 → 字符（1→'1' … 0xffff→'7'，其余 0）。
+// [b28d-Lane16] TU 归属修正：ORIG 中它与 static_init @0x0862690c 同 TU
+//   （`orig_tu_names.tsv:107` 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert`
+//   = SyncScript.cpp），定义已迁至 CFieldLengthChecker.cpp；本 TU 仅引用。
+int GetSocketTypeCharacter(unsigned short type);
 
 
 // EquipmentParameterInfo 字段镜像（TU 私有）：真名取自 dnf_item_info 列名；
@@ -196,12 +177,13 @@ struct EquipParamInfo
 
 
  
-// ORIG static_init @0x0862690c（GI 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert` 与本
-// TU 一致）依次构造 ioinit@0x94734d6、CFieldLengthChecker::fieldNames_@0x94734a0、
-// fieldLength_@0x94734ac（各 1 ctor + 1 atexit，30 条与我方逐条同形）⇒ 二者权威定义
-// 属本 TU（P108 键名归属）；定义不得留在 CFieldLengthChecker.cpp。
-std::vector<std::string> CFieldLengthChecker::fieldNames_;
-std::vector<unsigned int> CFieldLengthChecker::fieldLength_;
+// [b28d-Lane16] TU 归属修正（P186/P108 键名 + 地址邻接双向证据）：
+//   本 TU 的 ORIG static_init @0x0851398b 只含 ioinit（26 条）⇒
+//   CFieldLengthChecker::fieldNames_/fieldLength_ 的定义**不属本 TU**；
+//   其真正的 ORIG 归属是 static_init @0x0862690c 所在的 TU
+//   （含 `CFieldLengthChecker::AddField`@0x086272e8、`GetSocketTypeCharacter`
+//   @0x0861ca1b，GI 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert`）。
+//   定义已迁至 CFieldLengthChecker.cpp；本 TU 仅经权威头引用（U 引用）。
 
 // ===================== 外部依赖（其它 TU 提供，仅声明） =====================
 
@@ -2564,9 +2546,10 @@ int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x
             return 0x12;
         }
         // ORIG +0x115/+0x123：两次独立 getItemGroupName 调用（P48 无 CSE）。
-        // ORIG +0x173 `jle`（有符号>0）与 +0x18b `jbe`（无符号>0x3a）混合 ⇒
-        // 第二个比较显式转 unsigned（Ghidra `0x3a < uVar5`）。
-        if (refs[i]->getItemGroupName() > 0 &&
+        // ORIG +0x173 `jle`（有符号 ≤0 落 bVar1=true 岛）/ +0x18b `jbe`（无符号
+        // ≤0x3a 落 bVar1=false 岛）双岛形 ⇒ 原码是短路 `||`：`(signed)a <= 0 ||
+        // (unsigned)b > 0x3a`（旧 `&&` 写法把区间判反 = 真语义 bug）。
+        if (refs[i]->getItemGroupName() <= 0 ||
             (unsigned int)refs[i]->getItemGroupName() > 0x3a)
         {
             return 0x11;

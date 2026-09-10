@@ -6,8 +6,45 @@
 #include "CFieldLengthChecker.h"
 #include "CEnvironment.h"
 
-// fieldNames_/fieldLength_ 的权威定义在 CItemList.cpp（ORIG static_init
-// @0x0862690c 归属 CItemList TU，GI 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert`）。
+// [b28d-Lane16] TU 归属迁移（否则 GI 键名不匹配）：
+// ORIG 本 TU（= SyncScript.cpp，`orig_tu_names.tsv:107`
+// `086269a2 _GLOBAL__I__Z22GetSocketTypeCharactert`）中 `GetSocketTypeCharacter`
+// @0x0861ca1b 是首个全局函数声明 ⇒ GI 键名取它；定义必须置于本文件最前。
+// ORIG T 0x0861ca1b：socket 类型 → 字符。1→'1' 2→'2' 4→'3' 8→'4'
+// 0x10→'5' 0xffef→'6' 0xffff→'7'，其余 0（决策树见 ORIG 反汇编）。
+int GetSocketTypeCharacter(unsigned short type)
+{
+    switch (type)
+    {
+    case 1:
+        return '1';
+    case 2:
+        return '2';
+    case 4:
+        return '3';
+    case 8:
+        return '4';
+    case 0x10:
+        return '5';
+    case 0xffef:
+        return '6';
+    case 0xffff:
+        return '7';
+    default:
+        return 0;
+    }
+}
+
+// fieldNames_/fieldLength_ 的权威定义在本 TU（判据 P186/P108 键名 + 地址邻接）：
+// ORIG static_init @0x0862690c 依次构造 ioinit@0x94734d6、fieldNames_@0x94734a0、
+// fieldLength_@0x94734ac，且与 `CFieldLengthChecker::AddField`@0x086272e8、
+// `sync_script::DisplayMaxLength`@0x0861ca94、`GetSocketTypeCharacter`@0x0861ca1b
+// 同属一个 TU（GI 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert`）。
+// 反向证据：CItemList TU 的 ORIG static_init @0x0851398b 只含 ioinit（26 条），
+// 故两个静态定义不得留在 CItemList.cpp（否则本 TU GI 缺 2 对象、CItemList GI 多 2 对象，
+// 两侧同时 DIFF）。
+std::vector<std::string> CFieldLengthChecker::fieldNames_;
+std::vector<unsigned int> CFieldLengthChecker::fieldLength_;
 
 CFieldLengthChecker::CFieldLengthChecker()
 {
