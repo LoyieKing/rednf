@@ -265,8 +265,12 @@ bool ImportDungeonScript(STDungeonScript* pScript, const char* path)
     // （语义等价：指针值全程不变，仅访问方式由形参改为局部量）。
     // [E06 2026-09-10 实验] 去 volatile：volatile 形使 4.4 把它落深带 -0x1094；
     // 普通具名指针期望落回标量区（ORIG -0x128）。
-    // 实测：去 volatile 后 script 落 -0x130（近 ORIG -0x128）但指令数 9255→9270；
-    // 归一 diff 行数对照见下（保留更优者）。
+    // [E06 2026-09-10 复测·保留 volatile] 去 volatile 变体：script 落 -0x130
+    //（更近 ORIG -0x128）、指令数 9255→9270（gap −8→+7），但归一化 diff 内容
+    // 175−/160+ = 335 行 vs volatile 形 121−/131+ = 252 行 ⇒ volatile 更优，保留。
+    // 残余为 N82 非恒定槽平移（line/token/iv0/ok/mazeLocal/mazeInited 各段常数
+    // 不同：−8/0/+4/+4/+0x60/+8；帧 ORIG 0x134c vs 本方 0x13ac）⇒ 按 P331
+    // 「多段不同常数 ⇒ 封 N」封顶。
     STDungeonScript* volatile script = pScript;
     script->m_vec384.clear();
     // ORIG 0x88e6027：getDirectoryPath(&script->m_str17c, "%s%s", 基目录, path)

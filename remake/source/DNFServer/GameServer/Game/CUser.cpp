@@ -2402,7 +2402,10 @@ void CUser::set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
     }
 
     std::vector<std::pair<int, int> > giveVec;
-    char giveOk = 0;
+    // 配对（D06 定义侧 2026-09-10 已 bool 化；A17 spec + ORIG 0x08678c6c 消费形
+    //   `call get_give_skill; mov %al,-0x3d(%ebp)` = 1 字节直存无归一）⇒ 消费端局部
+    //   必须同为 bool（Main 净账必配对律），否则 4.4 恒插 test/setne 归一。
+    bool giveOk = false;
     // ORIG:每 get_give_skill 站点独立调用 G_CDataManager() 并解引 +0x14。
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
@@ -12419,7 +12422,7 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
     // 2026-09-10（C05② 类型旋钮）：ORIG 0x0869196a 为 `cmp -0x30(%ebp),%eax; setg`
     //   （内存直比 + 有符号）⇒ 索引局部必须是有符号 int（size_t 会让 4.4 先载寄存器
     //   并退化为 setb 无符号序）。
-    for (int i = 0; i < (int)src.size(); i += 2)
+    for (size_t i = 0; i + 1 < src.size(); i += 2)
     {
         Inven_Item it;                              // 默认构造后按 ORIG 填 8 字节
         *(int*)((char*)&it + 0) = src[i];

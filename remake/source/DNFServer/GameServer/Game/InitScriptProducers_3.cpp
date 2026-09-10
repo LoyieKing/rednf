@@ -609,6 +609,10 @@ scan_end:
 // ============================================================================
 // [b28d-solo-InitScriptProducers_3 N 封顶] 638/629、P167 CLEAR(101/101)；残差 =
 // 4.1/4.4 break 块序（N122/P168a）+ nop 岛（详见文件头判词表）。
+// [2026-09-10 D06 · N] 残差 = 我方多 1 条**不可达中继** `jmp <while_head>`（位于
+//   `jmp <return done>` 之后的死区，ORIG 该处为 `nop`）⇒ 4.4 的循环出口中继
+//   （A28 边界）；实测 `while(true)`↔`for(;;)` 同值（631 vs 630），`break`↔`goto
+//   scan_end` 同值 ⇒ 源码层不可控，封顶。
 bool importPowerParameterScript(PowerParameterScript* script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -953,6 +957,12 @@ scan_end:
 // ============================================================================
 // [b28d-solo-InitScriptProducers_3 N 封顶] 650/650、P167 CLEAR(94/94)；残差 =
 // 4.1 switch 叶块 nop 占位岛 ×6（4.4 恒不发射；详见文件头判词表）。
+// [2026-09-10 D06 · N 封顶复核] 本轮三形实测（读 `fnx.py` 归一化口径）：
+//  ① 原形（内层 `for(;;)` + `continue`）：643 vs ORIG 642（我方多 1 条 jmp）；
+//  ② 内层+外层全 goto 形（`titlebook_retry:`/`outer_retry:`）：642 = 642（gap 0）
+//     但残差变为「入口 `jmp <outer_head>`（我方多）↔ 置位处 `jmp +0x61`（我方少）」
+//     两处位置互换；③ 单 goto 出口形：同 ②。⇒ 属 4.4 循环头/出口块布局（P223/A28
+//     epilogue-threading 族），源码层不可分裂；保留 ② 形（gap 0 优于 ① 的 +1）。
 bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
 {
     if (!loadRDARScriptFile("", path))

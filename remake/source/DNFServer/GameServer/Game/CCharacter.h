@@ -119,14 +119,17 @@ public:
     void set_data(STCharacterScript* script);
                    // ORIG _ZN10CCharacter8set_dataEP17STCharacterScript T 0x08348894
 
-    char get_give_skill(int firstGrow, int secondGrow,
+    // [2026-09-10 D06 · A17 归因 1 派单] char→bool：ORIG 0x08348798 体内 4 处
+    // `88 45 f7`（mov %al,-0x9）**1 字节直存无归一** + else `movb $0x0,-0x9` +
+    // 尾 `movzbl -0x9; ret` ⇒ bool 语义（P321-T3/A17 判据）；返回类型不入 mangled。
+    bool get_give_skill(int firstGrow, int secondGrow,
                         std::vector<std::pair<int, int> >& out,
                         unsigned int flag) const;
 
-    char get_give_skill_firstGrowtype(int grow,
+    bool get_give_skill_firstGrowtype(int grow,
                                       std::vector<std::pair<int, int> >& out) const;
     // secondGrow 1..2 → m_secondGrowTypes[grow+1].m_skills[secondGrow-1]。
-    char get_give_skill_secondGrowtype(int grow, int secondGrow,
+    bool get_give_skill_secondGrowtype(int grow, int secondGrow,
                                        std::vector<std::pair<int, int> >& out) const;
     // ORIG T 0x0834883e：按 (firstGrow,secondGrow) 返回成长属性块指针。
     // 返回块地址恒为 0x52 步长的 _Additioal_info（CalcStat.md 调用点直接以

@@ -49,6 +49,9 @@ bool CClearCondition::IsClearCondition()
 
 // [b28d-51] 判词 N（ORIG 0x082fefce，N82 族）：switch 决策树 + 帧槽方向差；
 // 语义/调用集齐，byte 层封顶。
+// [F2d-C05② 甄别] 无「两具名局部」比较（比较对象为 enum/int 形参 + 指针解引用）⇒ F2 不适用；
+//   A/B 实测删 `(int)type` 零效（show_func_diff 两态同形 orig=110 our=112 gap=-2 ndiff=18；
+//   ORIG-only={jg×2} vs OURS-only={mov,jle×2,jmp} = 块排布镜像 N82/N93附）⇒ 回滚维持原形。
 bool CClearCondition::ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int idx)
 {
     if ((int)type < 0 || (int)type > 4)

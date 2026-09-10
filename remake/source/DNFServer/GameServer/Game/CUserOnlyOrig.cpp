@@ -395,32 +395,30 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
     // je +0xb4` 与 `cmpl $1,0x14(%ebp); je +0xb4` **两失败出口同目标**（裸短路 &&）；
     // 具名 bool on 反产 `movb %al,-0x29; cmpb $0,-0x29; je` 物化 + 多 jcc/jmp。
     {
-        // [Lane39 判据①/P223 定案] ORIG 两个失败出口同落 +0xb4（共享 join）⇒ 4.4 复现形
-        // 唯一为「负条件 goto 到共享尾空标签」。
-        // [A06 2026-09-10 C05③ 试行记录·已回退] 按 D08 正解改单条 `if (c0 || c1) goto`
-        // 实测**反劣**（199/203→199/207、delta 48→53：4.4 为 `||` 短路另发跳板/物化岛）
-        // ⇒ 本件不命中「多守卫同目标」族（其岛属 4.4 epilogue-threading，A28 边界）⇒ 回退。
-        if (!GlobalData::s_event_manager->GetRepeatEvent(0x15)->IsEventing((CUser*)0))
-            goto GROW_SKIP;
-        if (reason == (eChangeGrowTypeReason)0x1)
-            goto GROW_SKIP;
+        // [Lane39 判据①/P223] ORIG 两个失败出口同落 +0xb4（共享 join）。
+        // [A06 2026-09-10 C05③ 两手实测] 负条件 goto 与 `||` 合并（199/207 反劣）均不达标；
+        // 按 Main 三手协议第 2 手（守卫含 call/setcc ⇒ **正向嵌套 if**，F3c 实证）改写：
+        // 4.4 把 fail 路径 jump-thread 到共享尾出口，逐条 `test; je` / `cmp; je` 与 ORIG 同构。
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x15)->IsEventing((CUser*)0))
         {
-            // ORIG：makeRequest 两分支独立，每分支各自重调 getCurCharacNo/get_acc_id
-            // （访问器结果禁缓存，战术 P183/P48）。
-            if (secondGrew == 0)
+            if (reason != (eChangeGrowTypeReason)0x1)
             {
-                DB_InsertArchieveEventLog::makeRequest(
-                    get_acc_id(), getCurCharacNo(),
-                    (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)10u);
-            }
-            else
-            {
-                DB_InsertArchieveEventLog::makeRequest(
-                    get_acc_id(), getCurCharacNo(),
-                    (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)0xb);
+                // ORIG：makeRequest 两分支独立，每分支各自重调 getCurCharacNo/get_acc_id
+                // （访问器结果禁缓存，战术 P183/P48）。
+                if (secondGrew == 0)
+                {
+                    DB_InsertArchieveEventLog::makeRequest(
+                        get_acc_id(), getCurCharacNo(),
+                        (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)10u);
+                }
+                else
+                {
+                    DB_InsertArchieveEventLog::makeRequest(
+                        get_acc_id(), getCurCharacNo(),
+                        (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)0xb);
+                }
             }
         }
-    GROW_SKIP:;
     }
 
     // [A06 2026-09-10 P226 扩展 试行记录·已回退] ORIG 0x086640c5 段 env/now 无槽 + 短路岛

@@ -11385,7 +11385,8 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x112, 0x13);
         return 0;
     }
-    if ((unsigned int)itemB.m_fieldb < (unsigned int)equip->get_endurance())
+    const int endurance = equip->get_endurance();
+    if ((int)itemB.m_fieldb < endurance)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x112, 7);
         return 0;
@@ -15455,6 +15456,11 @@ int Dispatcher_SecurityCardCertKey::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x0820a6bc（docs/class_func_reports/Dispatcher_SecurityCardCertKey/dispatch_sig.md）
     char certKey[6];                          // local_1a -0x16
     unsigned int keyLen = 0;                  // local_14 -0x10
+    // [round5 A01 · C05④ 第二步判定（未落地，留痕）] ORIG 0x0820a847/0x0820a88c 尾测为
+    //   `mov -0xc,%eax; cmp $0x4,%eax; setbe %al; test %al,%al; jne`（P51 setbe 守卫）。
+    //   按 Main 修正后的步骤 2 前置「body 必须以 throw/return 终止才试 P225 原形」：
+    //   本处循环 body 正常路径以 `idx = idx + 1` 结束（仅**条件** return）⇒ **无终止语句**
+    //   情形，按判据直接转步骤 4（N-88）**不试 P225/do-while**，避免 +2 回边劣化（A07/A03 反例）。
     int idx;                                  // local_10 -0xc
 
     // +0x00：state < 3 → 拒绝

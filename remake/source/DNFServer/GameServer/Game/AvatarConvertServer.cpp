@@ -10,6 +10,16 @@
 
 #include "AvatarConvertServer.h"
 #include "GameTypes.h"      // cMyTrace
+// ----------------------------------------------------------------------------
+// [b28d-E03 2026-09-10 本波复核] 四数 102/182/1/5 不变（4 件维持封顶）：
+//   · StatisticsEmblemCreate 115/112：P231 纯 register 试形（itemId 升格 callee-saved）
+//     实测**无效已回退**；残差 = 实参升格时刻 P75 + N94/N4 索引分解 + N22。
+//   · CheckCondition 293/292：N18a 两段装 callee-saved（`mov 0x4(%eax),%eax;
+//     mov %eax,%ebx` 4.4 恒折单段）。
+//   · Convert 610/604：N18a/N82（p167 CLEAR）。
+//   · ARAD::SCRIPT::AvatarConvert::loadScript NEAR：N7 寄存器角色（路由 446 后端已启用）。
+//   · `_ZNSt20__uninitialized_copyILb0EE…move_iterator…` 实例：N89 库头族。
+// ----------------------------------------------------------------------------
 #include "DNFLexWrapper.h"  // loadRDARScriptFile/unloadRDARScriptFile/ScanType/
                             // ScanInt(bool*)/ScanTypeOrInt（真实符号声明）
 

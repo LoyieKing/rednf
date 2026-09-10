@@ -4611,6 +4611,11 @@ void GameWorld::check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char typ
 // 对应 ORIG 0x086c… `call getUserVillage; mov %eax,-0x30(%ebp); cmpl $0x0,-0x30(%ebp);
 // sete %al; test %al,%al; je` vs 我方 `…; jne`（P197④/P295 族形式命中）—— 该件已
 // N89/N87/N82 封顶（单点不归零）且改形扰动本 1255 条巨件的块布局 ⇒ 判风险>收益留痕。
+// [A11-round5 C05④ 分诊] ORIG-only `setne %al; test %al,%al; je` 逐点核（按 Main 硬性顺序）：
+// ①callee 侧**无** uchar↔bool 错配 —— 0x086ca4xx 段 `call CUserCharacInfo::GetAssaultPlace;
+// test %eax,%eax; setne %al` 与我方 `call …; sete %al` 同为 `test %eax` + setcc，仅
+// **极性互补**（落点互补）⇒ 语义等价、非「我方缺归一化」形；②故 P225 原文形（`while`）
+// 不适用（P225 针对 setcc **缺失**）⇒ 判 P197④ 族（4.1 setcc 物化 vs 4.4 折叠）N。
 // p167 调用点差集（/tmp/tu_GameWorld.o）：MISSING G_GameWorld×3 / getCurCharacName×1 /
 // strlen×1；EXTRA make_packet_chat_msg×1 / send_to_area×1 / G_CGameManager×2 /
 // PacketGuardC1/D1×3 / basic_string D1×1（ORIG 部分 case 走 G_GameWorld()-> 自由函数

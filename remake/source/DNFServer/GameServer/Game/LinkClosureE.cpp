@@ -84,6 +84,11 @@ public:
 //   远过闸门（正例）；差 1 岛的多为 4.4 rel8 跳板/epilogue-threading。同 TU 反例：
 //   `add_monster_list_bossroom_condition` 三守卫同目标合并**零收益**（176/ORIG 173）；
 //   正例参照 `CBattle_Field::choose_random_bossmap_from_dummymaps` 尾部岛 5→3 ⇒ DIFF→AE 236=236。
+//   **三手协议（Main/C05③ 定稿）**：① 守卫为**纯条件短路（无 call）** ⇒ 本手 `||` 合并
+//   （本件即此，命中）；② 守卫**含 call/setcc 操作数** ⇒ 改**正向嵌套 `if`**
+//   （F3c 实证：`AvatarRechargeServer::CalcDurabilityDetail` ours 96→90=ORIG、DIFF→AE；
+//   同件 `||` 合并净零）；③ 两手不成 ⇒ A28 封顶。另：「同目标 jcc 多」≠「我方多岛」
+//   —— 计数须落在 `jmp+nop` 岛而非 bool 物化形（F3c `importActionDefine` 2:2 判例）。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)

@@ -146,6 +146,8 @@ void EventClassify::CEventScriptMng::test_process_change_day(int timeVal)
 // ---------------------------------------------------------------------------
 // [b28d-D33 P28/P61 封顶] ORIG 0x08333fda：142 vs 143 条；p167 差集 = ne/make_pair
 // 非 const(MISSING) vs eq/make_pair const(EXTRA)（P61/P81 左值性 + P220 极性）。
+// [F2d-C05② 甄别] 无命中形：gap=+1（show_func_diff orig=143 our=142，我们**少**）
+//   ⇒ F2 减指令方向相反（残余 ORIG-only={mov×2} / OURS-only={add}）。维持封顶。
 void WongWork::CCompoundAvatar::ProcTest(ENUM_CHARACTERJOB job,
                                          ENUM_EQUIPMENTTYPE equipType,
                                          int addRate, int bonusFlag,

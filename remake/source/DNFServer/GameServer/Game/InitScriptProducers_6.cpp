@@ -2154,6 +2154,10 @@ bool importDimensionActivationData(const char* path,
 // sete 不可复现，探针族已证），非语义差；其余 2 段为块首落点差。语义等价。
 // [C03CryptoInit68 复测·2026-09-10] 已试 `data.m_10 = static_cast<char>(v == 1);`
 // 三处同改 ⇒ 产物与 `(v==1)?1:0` **逐条相同**（仍分支形）⇒ 维持 N197④ 封顶。
+// [C03 按 Main·A07 判别式定稿] ORIG 该点形为 `mov -0x20(%ebp),%eax; cmp $0x1,%eax;
+// sete %al`（**先落槽再比较、无 movzbl/movsbl 归一**）⇒ setcc 来自「槽值 vs 常量」
+// 的比较物化，属 **P197④ / N-88 族，与 callee 返回类型无关**；改调用点控制流恒劣化
+// （A07 两例 187→193 同族）⇒ 不再试控制流形、不动 callee（ScanInt 两侧声明一致）。
 // p167 复核：本件 MISSING/EXTRA 全为 C1↔C2 同址别名伪差（`_ZNSsC2Ev` vs `_ZNSsC1Ev`、
 // stOneEmotionData C1/C2），无真语义缺口（P93）。
 bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
@@ -2200,13 +2204,13 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
             }
             int v = ScanInt(&ok);
             if (!ok) { return false; }
-            data.m_10 = (v == 1) ? 1 : 0;           // sete
+            data.m_10 = (v == 1);                   // ORIG `cmp $1; sete %al; mov %al,-0x34(=data.m_10)`
             v = ScanInt(&ok);
             if (!ok) { return false; }
-            data.m_11 = (v == 1) ? 1 : 0;
+            data.m_11 = (v == 1);
             v = ScanInt(&ok);
             if (!ok) { return false; }
-            data.m_12 = (v == 1) ? 1 : 0;
+            data.m_12 = (v == 1);
 
             if (!ScanStr(&data.m_14))
             {

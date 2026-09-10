@@ -230,6 +230,13 @@ _Additioal_info* CCalcCharacStat::CalcStat(_Additioal_info* out, int job,
 //   `add/sub $C,%ax` 或 32 位 `add $C,%eax;mov`，4.4 对 u16 目标恒折 `lea C(%eax)`
 //   （8 形探针 /tmp/probe_w.cpp gA-gF、/tmp/probe_h.cpp hA-hG 全 lea）⇒ N1/N86b +
 //   跨版本窄化。p167: 0 missing / 0 extra；语义与 Ghidra C 逐字段一致。
+// [2026-09-10 D06 · DIFF→IDENTICAL 423=423] 旧判词"跨版本窄化不可翻"**作废**：真因是
+//   **字段符号性**——ORIG 的 16 位窄化 `add $0x1770,%ax; mov %eax,%edx` 只在 **signed
+//   short 视角**下由 4.4 复现（unsigned 视角恒产 `lea`，探针 /tmp/d06/p16c.cpp
+//   f20..f27）；改用 CCharacter.h `_Additioal_info` 的 union 同址 signed 视角
+//   （+0x40 `m_mpRegen` / +0x4a `m_hitRecovery`）+ `static_cast<short>` 后逐条全等；
+//   +0x14 用新增 `m_field10s[4]`（探针 /tmp/d06/p14.cpp g0..g7 矩阵，含
+//   reinterpret_cast<short&> 反例：多 `add $0x14,%eax` 基址提前物化）。P321-T1 + P235。
 _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
                                                 int secondType, int level)
 {
@@ -308,6 +315,9 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
 //   unsigned 字面量 + `*` 化去 t 槽），段级 identical 17→33/45；残余 7 段 = 16 位
 //   字段 add/sub vs lea（N1/N86b+跨版本窄化，探针见 _CalcSwordman 注释）⇒ 封顶。
 //   p167: 0 missing / 0 extra；语义与 Ghidra C 逐字段一致。
+// [2026-09-10 D06 · DIFF→IDENTICAL 402=402] 同 _CalcSwordman 修法（signed 视角
+//   m_mpRegen/m_hitRecovery + m_field10s[2]），旧"16 位字段 add/sub vs lea ⇒ 封顶"
+//   判词作废。
 _Additioal_info* CCalcCharacStat::_CalcFighter(_Additioal_info* out,
                                                int secondType, int level)
 {
@@ -472,6 +482,8 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
 // [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：同 _CalcSwordman 修法，段级
 //   identical 15→33/44；残余 6 段 = 16 位字段 add/sub vs lea（N1/N86b+跨版本窄化）
 //   ⇒ 封顶。p167: 0 missing / 0 extra；语义与 Ghidra C 逐字段一致。
+// [2026-09-10 D06 · DIFF→IDENTICAL 402=402] 同 _CalcSwordman 修法（signed 视角
+//   m_hitRecovery/m_mpRegen），旧"16 位字段 add/sub vs lea ⇒ 封顶"判词作废。
 _Additioal_info* CCalcCharacStat::_CalcGunner(_Additioal_info* out,
                                               int secondType, int level)
 {

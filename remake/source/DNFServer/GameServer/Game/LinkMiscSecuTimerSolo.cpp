@@ -90,17 +90,20 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
 // full += substr(pos+1,size())；ss_strcpy 回写 path，pack 模式查
 // g_script_package.is_exist，否则 access(path,0)==0；命中即 true（path 保留
 // full），未命中 ss_strcpy 还原 pathStr 后 false；pos==-1 直接 false。
-// [b28e 定稿] **P189 结构性封顶：TU-local static 直读 vs 跨 TU call 不可由源形消除。**
-// ORIG 0x088bb982..0x088bb98e 为同 TU 直读 `movzbl 0x93f4d24,%eax; xor $1,%eax;
-// test %al,%al; je`（s_bUseScriptPack 与 findFileWithServerToken 在 ORIG 同一
-// RDARScript.cpp 内）；重建把 RDAR 域拆到两个 TU（定义在 ScriptExtras.cpp），
-// `_ZL16s_bUseScriptPack` 为内部链接（P189 禁 extern 桥）⇒ 只能经真实访问器
-// `call _Z14UseScriptPackv`，调用点恒为 call（1 条）而非 movzbl（1 条）⇒ 助记符
-// 序列永久差 1，属 N。**双向实测**：①char 声明（现形）182 条、gap +1
-// （`call; test; sete; test; je`）；②bool 声明（P292 消费端判据）181 条 = ORIG
-// 181、gap 0（`call; xor $1; test; je`），但定义侧 `_Z13UseScriptPackv` 由 AE 落
-// DIFF（多 test/setne），ScriptExtras 合计 293→292 ⇒ **净负，两侧同步回 char**
-// （判据：跨 TU 类型统一必须先核算两侧 identical 账）。后人勿再试。
+// [b28e 定稿 · 181=181 gap 0] **P248 档② 源字段同型化（两全形）**：ORIG
+// 0x088bb982..0x088bb98e 为 `movzbl 0x93f4d24,%eax; xor $1,%eax; test %al,%al; je`
+// （s_bUseScriptPack 与 findFileWithServerToken 在 ORIG 同属 RDARScript.cpp）。
+// 重建把 RDAR 域拆两个 TU（定义在 ScriptExtras.cpp），`_ZL16s_bUseScriptPack` 为
+// 内部链接 ⇒ 只能经真实访问器 `call _Z14UseScriptPackv`（P189 禁 extern 桥）⇒
+// 调用点恒差 1 条 call vs TU-local movzbl（**不可消除**）。
+// 三形净账实测（净 identical 红线）：
+//   ①char 字段 + char 返回（原状）：182 条 gap +1（`call; test; sete; test; je`）；
+//   ②char 字段 + bool 返回：消费点 181/gap 0，但定义侧本体被插 `test; setne`
+//     落 DIFF（ScriptExtras 合计 **293→292，identical 账 −1 ⇒ 净负，已回退**）；
+//   ③**bool 字段 + bool 返回（现形，P248 档②）**：返回表达式本身已是 bool ⇒
+//      本体仍是 `movzbl mem; ret` 直返（identical 保持），消费点
+//      `call; xor $1; test %al,%al; je` = 181 条 = ORIG（gap 0）
+//      ⇒ ScriptExtras **103/190/0/9 → 103/191/0/8**（ae +1、diff −1、identical 不减）。
 // 其余语义（含 pack/PackSet 双分支、full 默认构造+substr 临时 operator= 链）与
 // ORIG 切片逐条对位。
 // ===========================================================================

@@ -93,24 +93,32 @@ void CMonster::generateCatchMonsterItem(std::vector<Inven_Item>& out) const
 //       item, 1)；out.push_back(item)；命中后不推进迭代器即退出本轮
 //       （ORIG jmp +0x170 → 轮数 +1 继续）。
 // [b28d-L14 N18a] ORIG 0x08598f34；p167 缺 1 次 const_iterator ptEv；残差=槽深/寄存器。
+// [F2e-Singles2 C05② 2026-09-10] 旋钮①删 rounds 具名局部（P0：ORIG 尾测每轮重读
+//   `mov 0x8(%ebp),%eax; mov 0x4(%eax),%eax; cmp -0x10(%ebp),%eax; seta`，而我方缓存
+//   rounds 于 -0x14 并折 `setb`）⇒ 尾测与 threshold 槽(-0x18→-0x14)一次对齐 ORIG；
+//   旋钮②base/tableA/tableB 引用内联 + longlong 整数域（fildll/fistpll）⇒ thresholdLL。
+//   实测 our 129→121（ORIG 122，gap **−7→−1**），TU 四数 27/38/0/2 两态逐位一致。
+//   残余 = 4.4 寻址折叠（我方 `add $0x6; shl $0x2; add; flds (%eax)` vs ORIG
+//   `add $0x4,%edx; flds 0x8(%eax,%edx,4)`，复现需 .h 成员数组视图，本任务禁改 .h；
+//   N125 族）+ 槽号差（N82）。
 void generateDropAvatarItem(const stEnamyDropAvatarInfo_t& info,
                             unsigned char rarity, unsigned char grade,
                             std::vector<Inven_Item>& out)
 {
-    const char* base = reinterpret_cast<const char*>(&info);
-
-    // ① 入门阈值（ORIG fildl/fmul/fistpll 序列）
-    double thresholdD =
-        static_cast<double>(static_cast<long long>(info.m_field00));
-    const float& tableA =
-        *reinterpret_cast<const float*>(base + 0x8 +
-                                        4 * (static_cast<unsigned>(rarity) + 4));
-    const float& tableB =
-        *reinterpret_cast<const float*>(base + 0x8 +
-                                        4 * (static_cast<unsigned>(grade) - 1));
-    thresholdD *= tableA;
-    thresholdD *= tableB;
-    const int threshold = static_cast<int>(thresholdD);
+    // ① 入门阈值（ORIG fildll/flds/fmulp/fistpll 序列：64 位整数域 + float 乘法，
+    //    表引用与 base 指针内联 —— ORIG 每访问点 `mov 0x8(%ebp),%eax` 重读参数，
+    //    无 base/tableA/tableB 具名槽）。
+    long long thresholdLL =
+        static_cast<long long>(static_cast<unsigned int>(info.m_field00));
+    thresholdLL = static_cast<long long>(
+        static_cast<float>(thresholdLL) *
+        *reinterpret_cast<const float*>(
+            reinterpret_cast<const char*>(&info) + 0x8 +
+            4 * (static_cast<unsigned>(rarity) + 4)) *
+        *reinterpret_cast<const float*>(
+            reinterpret_cast<const char*>(&info) + 0x8 +
+            4 * (static_cast<unsigned>(grade) - 1)));
+    const int threshold = static_cast<int>(thresholdLL);
     if (get_rand_int(100000) > threshold)
         return;
 
@@ -148,6 +156,9 @@ void generateDropAvatarItem(const stEnamyDropAvatarInfo_t& info,
 //   push_back count 次（signed setg 比较）。
 // [b28d-L14 P167/N90] ORIG 0x08598d2c；已改 m_itemList 直取（消 EXTRA getItemList）；
 // 残差=12B 结构体按值拷贝形（N90 族）。
+// [F2e-Singles2 C05③ 2026-09-10] D08 `||` 合并两守卫（m_field4==0 ‖ rate==0.0f）
+//   **实测零效果**：我方汇编改前/改后逐条相同、our_insns 93=93、岛数不变
+//   （3×`jmp+nop` 仍在）⇒ 已回滚（属 4.4 块布局/A28 族，非「多守卫同目标」可治）。
 void generateCatchMonsterItem(const std::vector<CatchItemInfo>& items,
                               std::vector<Inven_Item>& out)
 {

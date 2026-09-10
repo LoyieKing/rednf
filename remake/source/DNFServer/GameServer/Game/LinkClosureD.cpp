@@ -104,6 +104,12 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         }
         err = _verifyItem(i, &sig->m_expandEquip.m_items[i], INVENTORY_TYPE_0,
                           true, true, user);
+        // [D01 · C05④ 步骤 2 实测负例 2026-09-10] P225 原形（5 处 `if` 整块换
+        // `while (err != 0) { _write…; return false; }`）**劣化**：our_insns
+        // 424→**434**、gap −3→**+7**（ORIG 427）、TU 四数不变 ⇒ 已回滚。
+        // 与 C01 三正例的差别：本处 body 仅「单条调用 + return」、无多分支早退 +
+        // 末尾 break 结构 ⇒ while 恒多回边/结构 jmp。⇒ 本件归 **N-88/P197④**
+        // （槽值 vs 常量比较物化：ORIG `mov %eax,-0xc; cmpl $0,-0xc; setne; test; je`）。
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(

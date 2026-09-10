@@ -194,15 +194,14 @@ bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
 //      右起；P226 语句表达式 `({ it->second.m_itemIdx; })` 实测无效（保持原形）；
 //   c) std::copy/back_inserter 内联块序（ORIG 把 `lea -0x48;call` 前置，4.4 后置，
 //      多 1 条 jmp 到相同目标）。
-// 未修（头依赖，已上报 Main）：CUserCharacInfo::getBringUpRewardFlag 返回 uchar
-//   ⇒ 调用点多 `setne; test` 2 条（ORIG 0x08110d76 体无 setne、调用点
-//   `call; test %al,%al; jne` ⇒ P292 判 bool）。
-//   [d03-C05④ 分诊] 属**归因 1（callee 返回类型旋钮）**：`nm` 符号名不含返回类型 ⇒
-//   低成本旋钮族。但按 Main 的净账红线需「两侧同核」：定义侧 `movzbl 字段; ret` 若字段仍
-//   为 char 会被 4.4 插归一化（E01 IsBanRedeemItem identical −1 教训），首选 P248 档②
-//   把 `m_bringUpRewardFlag` 同步 bool 化。本波未动：该件残差主体是帧差 0x10 + varargs
-//   求值序 + std::copy 块序，单消这 2 条 setne **不改变 verdict**（仍 DIFF），净 identical
-//   账不可保 ⇒ 暂缓，留待该字段的写入端（`setBringUpRewardFlag`）一并同批核账。
+// 【b28d-D03 更正 · 该头依赖已闭合】原记「getBringUpRewardFlag 返回 uchar（头依赖，
+//   已上报 Main）」为**过时信息**：Main 已在 S350 代落 `CUserCharacInfo.h:567
+//   m_bringUpRewardFlag` 与 `getBringUpRewardFlag()` 双 bool 化（1 字节/偏移/mangled 不变）。
+//   本波 fresh 实测：调用点两侧均为 `call; test %al,%al; jne`（**无 setne 差异**）⇒ 该项
+//   不再是本件残差来源。C05④ 四步落点（留档）：①无消费者死比较？否 ②值槽化/表达式
+//   物化？否（两侧同寄存器直测）③callee 声明不一致？**否（已两侧 bool）**⇒ 归因 1 不成立
+//   ④本件残差 = 帧 0x60 vs 0x70（我方多 4 槽）+ varargs 求值序 ORIG 右起 vs 4.4 左起
+//   （P75/P87）+ std::copy/back_inserter 块序，均属跨版本结构性 ⇒ 维持 N82/N115 封顶。
 bool CObjectBringUp::sendBringUpReward(CUser* user,
                                        std::vector<int>& rewardVec,
                                        unsigned char& flag)

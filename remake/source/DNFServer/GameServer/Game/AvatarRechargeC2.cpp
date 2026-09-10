@@ -32,6 +32,9 @@
 // 并把槽位号 push 进 rates。除空槽分支外恒返 true。
 // ============================================================================
 // [b28d-D43] N82/N89 大函数（90/92）（ORIG 0x081902e8）。
+// [C05③ 2026-09-10 F3c] 三守卫岛族归零：96→**90 = ORIG 90（gap 0）**，TU 四数
+//   48/1/2 → **49/1/1**（该件 DIFF→AE）。正解 = 正向嵌套 if（P223 定案①），
+//   合并单条 `||` goto 实测净零（物化抵消）。
 bool AvatarRechargeServer::CalcDurabilityDetail(CUser* user, int equipSlot,
                                                 std::vector<int>& rates)
 {

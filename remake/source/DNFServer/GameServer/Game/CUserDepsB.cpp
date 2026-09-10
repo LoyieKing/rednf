@@ -296,8 +296,10 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
                         // 不变），此处直接产 ORIG 的 xor $1;test;jne。
         return;
     table = mgr->GetProperLevelRewardTableR();     // T 0x08687e62
-    if (table == 0)
-        return;
+    // [F3b-C05③ 2026-09-10 试形三] 同上：ORIG 0x086874a8 `je <epilogue +0x260>`
+    // 直达尾 ⇒ 改正向包裹。
+    if (table != 0)
+    {
     int rewardItemNo = 0;                          // ORIG -0x20 初值 0（声明在
                                                    // IsChallengingJob 之前）
     // 真语义 bug 修正：ORIG 0x086874cb `call IsChallengingJob; xor $1; test; jne
@@ -307,10 +309,11 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
         return;
     int jobIdx = table->GetProperJobIndex(job);    // T 0x08687e78
     int levelIdx = table->GetProperLevelIndex(level);  // T 0x086876c8
-    if (levelIdx < 0)
-        return;
-    if (jobIdx < 0)
-        return;
+    // [F3b-C05③ 2026-09-10 试形二] F3c 实证：正向嵌套 if 使 4.4 fail 路径
+    // jump-thread 直达共享尾出口（ORIG 0x08687508/0x08687512 两条
+    // `js <epilogue +0x260>` 直达同一尾标签）。
+    if (levelIdx >= 0 && jobIdx >= 0)
+    {
     rewardItemNo = table->GetRewardItemNo(jobIdx, levelIdx);      // local_24
     int itemCount = table->GetItemCount(jobIdx, levelIdx);        // local_18
     if (itemCount < 0)
@@ -356,6 +359,8 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         title, item, sendCount, characNo, body,
         static_cast<int>(strlen(body)), 0, GetServerGroup(), 0, 0);
+    }
+    }
 }
 
 // ----------------------------------------------------------------------------

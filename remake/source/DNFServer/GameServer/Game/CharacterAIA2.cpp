@@ -5,10 +5,13 @@
 //   `if (m_patterns[p][i] != 0) delete m_patterns[p][i];` ⇒ 3 次 ix() 直读 +
 //   `mov (%eax),%ebx` callee-saved 保活）⇒ 86/86 指令数全等、DIFF 列表移除；
 //   旧 b28d-L16「去具名反劣 90→102」判词系试验形偏差（下标写多一次），作废。
-// importAIInfoScript 0x08a390db：round5 补 tok/isType 函数头声明（复现入口
-//   `call _ZNSsC1Ev; movb $0x0,-0x21` 的槽图基线）+ byLevel 块序交换；剩 13 条
-//   属 4.1 `movzbl/xor $1/test/je` bool 物化族（N122：4.4 恒 cmpb 直比）⇒
-//   §6.2 判语义完成、byte 层 N 封顶（p167 差集仅 C1↔C2 / D1↔D2 同址别名对）。
+// importAIInfoScript 0x08a390db：round5 共四处修复 —— ①tok/isType/ok 三个函数头
+//   局部（复现入口 `call _ZNSsC1Ev; movb $0x0,-0x21` 槽图基线，P198① 预清）；
+//   ②byLevel 分支块序交换（直落块 = !byLevel/makeAIFullPath）；③[targeting bonus]
+//   两处 `while (ok = ScanStr(&s))` 复用函数级 ok（ORIG `mov %al,-0x21` 实证）
+//   ⇒ our 461→**473**（ORIG 475，gap 14→**2**）。取反形 `while(true){if(!ok)break;}`
+//   实测劣化（478，gap −3）已回退留痕。余 2 条 = 4.1 `movzbl/xor $1/test/je`
+//   取反物化族（N122）⇒ §6.2 判语义完成、byte 层 N 封顶。
 // importAICharacterCommonScript 0x088c9ccc：round5 把 [on attack]/[on key] 两段改
 //   `switch (ScanFloatStr(fv, tok))`（P251）并删多余 `float fv = 0.0f`（ORIG 全
 //   函数无该初始化写）⇒ our_insns 2111→2107；再补 [hell monster] 段具名 int
@@ -682,6 +685,9 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
     // isType@-0x21 / tok@-0x44 为其后全部局部的分配基准）。放分支内会整体浅移。
     std::string tok;
     bool isType = false;
+    // ORIG 0x08a391xx 入口 `movb $0x0,-0x21(%ebp)`（P198① 预清必写）⇒ 函数头另有
+    // 一个 bool；[targeting bonus] 两处 `mov %al,-0x21` 即写它（复用同一变量）。
+    bool ok = false;
     if (*tag == "[think term]")
     {
         info->m_thinkTerm = ScanInt((bool*)0);
@@ -734,20 +740,31 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
             if (i == 20)
             {
                 std::string s;
-                while (ScanStr(&s))
+                // ORIG 0x08a3940e：`call ScanStr; mov %al,-0xa5(%ebp)`（-0xa5 = 函数级
+                // `ok`）+ `movzbl; xor $1; test; jne <exit>` ⇒ 原码把 ScanStr 结果写回
+                // **复用**的函数级 ok（P0 槽往返；直写 `while (ScanStr(&s))` 被 4.4
+                // 折成裸 `test %al,%al; je`，少 mov+取反）。
+                ok = ScanStr(&s);
+                // [C05④ 步骤 2 实测·取反形回退] `while (true) { if (!ok) break; … }` 亦试过：
+                // our 473→**478**（gap 2→−3，劣 5 条；A17 探针的 `if(!r)` 取反形在此
+                // body 下不成立）⇒ 保留 `while (ok)` 具名形（gap=2，本件最优）。
+                while (ok)
                 {
                     // ORIG 0x08a39463：实参右值 → push_back(int&&)。
                     info->m_targetingBonusStr[i].push_back(
                         stringToInt(s.c_str(), ACTIVEOBJECT_STATE_STRING, -1));
+                    ok = ScanStr(&s);
                 }
             }
             else if (i == 21)
             {
                 std::string s;
-                while (ScanStr(&s))
+                ok = ScanStr(&s);                    // 同上（ORIG 0x08a394a9）
+                while (ok)
                 {
                     info->m_targetingBonusStr[i].push_back(
                         stringToInt(s.c_str(), ACTIVESTATUS_ATTACK_TAG, 0x13));
+                    ok = ScanStr(&s);
                 }
             }
         }

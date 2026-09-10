@@ -18,6 +18,11 @@
 //     esi/ebx 寄存器承载（无槽）；本波 P231 纯 register（非 asm 绑定，P0 合规）
 //     实测 286→288 insns 反劣 ⇒ 回滚，判 N（槽/寄存器分配差）；p167 MISSING=EXTRA=8
 //     （别名）⇒ 无语义缺口。
+//   · [C05③ 2026-09-10 F3c 复核] ORIG 同目标 3 条（0889a5dd/0889a5f4/0889a60b
+//     `jne 0x0889a64c` = body 入口）在我方是 `||` 短路 bool 物化形
+//     （`mov $1/$0,%eax; test %al,%al; je`，非 `jmp+nop` 岛）；两侧 `jmp+nop` 岛
+//     计数 2:2（函数头 + 内层回边）⇒ 闸门「我方岛 − ORIG 岛 ≥ 2」不成立，
+//     守卫亦非源码相邻独立 `if(cond) goto L;`（是 `||` 条件表达式）⇒ 维持 N。
 # include "CDataManager.h"    // advancealtar::StageTimeLineParameter/_SummonObject/
                               // _Action/ActionDefine 权威声明
 #include "DNFLexWrapper.h"    // loadRDARScriptFile/ScanType/ScanInt(bool*)/ScanStr

@@ -834,6 +834,9 @@ bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
 // ClearAction —— 报告全文转写。ORIG T 0x08121dcc。
 // [b28d-27] DIFF N82：ORIG 0x08121dcc；p167 CLEAR（3/3），残差为帧/槽分配，
 // [b28d-solo-APSystemOnlyOrig] 判词：**N18b/P265 封顶**（残差 = ①字段 vs enum 形参比较 4.4 恒载寄存器 1 条；②enum 实参 int→unsigned-enum 转换两段中转 ×2；p167 CLEAR 3/3；帧 0x34/槽 -0xd/-0xc/汇聚变量全等）。
+// [F2d-C05② 甄别] 比较对象为 enum 形参（非「两具名局部」）⇒ F2 不适用；A/B 实测删
+//   `(int)group` cast 两态逐条同形（show_func_diff orig=107 our=111 gap=-4 ndiff=12，
+//   OURS-only={mov×3,jmp×1}）⇒ 回滚维持原形，判 N18b。
 // 语义闭合。
 bool CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group,
                                       int itemIdx, ENUM_PACKETCLASS packetClass)

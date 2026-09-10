@@ -23,6 +23,20 @@
 //      `mov $imm,%eax; jmp <共享 epilogue>`，与我方同形，故无需双层嵌套）；
 //   ③ C07（字段读升格 callee-saved ⇒ 写具名 int 局部）—— 本 TU 无该族残件；其负例
 //      边界（消费者为被调方按值实参时写具名局部反而落槽 +2，A14 实证）亦不适用。
+//   ④ [C05④ 分诊 2026-09-10，按 Main「四步判定顺序」] `ProcUpgrade` 的两处 OUR-only
+//      `movzbl`（我方 `movzbl -0x7a(%ebp),%eax; movzbl %al,%eax` 双段 vs ORIG 单段
+//      `movzbl -0xba(%ebp),%eax`）逐条判：
+//      ① 无消费者死比较？**否** —— ORIG 该段 `and $0x1,%eax; test %al,%al; je` 有真消费者；
+//      ② 槽值/表达式物化 ⇒ 试 P225 原形？**不适用** —— 偏差方向是**我方多一条归一化**，
+//        非「ORIG 有 setne 我方缺」（P225 治的是后者，D04 实证）；
+//      ③ callee 返回类型与 ORIG 不一致？**否** —— 该 `movzbl` 与任何 call 返回无关，
+//        两侧均从 1 字节槽读（ORIG -0xba / 我方 -0x7a 同族），属 4.4 前端 uchar 读冗余
+//        归一化（P168a③）；
+//      ⇒ 落第 4 档：**N-88 / P197④ 封顶**（勿动控制流、勿动 callee），与 A07 两例同族。
+//        补充取证：ProcUpgrade 函数范围内**无**可见的多余 `(unsigned char)` cast
+//        （内置 grep 已核），故该冗余归一化源自 4.4 前端对 1 字节槽值的使用点零扩展，
+//        非源形可择；C05④ 四步中「body 终止性」（P225 命中条件）对本偏差亦不适用
+//        （偏差方向为**我方多归一化**而非缺 setne）。
 #include "CUser.h"
 #include "CDataManager.h"
 #include "CItem.h"

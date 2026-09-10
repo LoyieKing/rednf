@@ -3936,6 +3936,11 @@ unsigned int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, Param
     const char* pcVar7 = user->getCurCharacName();
     if (G_GameWorld()->IsForbiddenMove(pcVar7) != false)
     {
+        // [b28e-L5] C05④ 步骤2 实测**不命中**（已回退）：ORIG 0x081ca0de 为
+        // `test %eax,%eax; setne %al; test %al,%al; je`（body 以 `return 0x44` 终止、
+        // 表面符合「含 return」的 P225 命中前件），但整块换 `while (cond != 0)
+        // { body; break; }` + 去具名 iVar3 后 our_insns **246→249**（ORIG 228）劣化
+        // ⇒ 本件残差主体是 N82 帧差（0x34 vs 0x58）+ 条件极性折痕，保持原形。
         pcVar7 = user->getCurCharacName();
         int iVar3 = G_GameWorld()->GetLeftTimeOfForbiddenMove(pcVar7);
         if (iVar3 != 0)

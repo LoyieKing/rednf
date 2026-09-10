@@ -289,6 +289,18 @@
 //   callee 返回类型旋钮族）⇒ 归因 2；但「极性反 = 真 bug」须按 P196 核**跳转目标体是否互换**
 //   （两侧 je 落点体若相同则仅 fold 方向差，若互换则是真语义反）——该项本轮未完成取证，
 //   留作下轮首查（不用 ae 换 identical，遵守 Main 净账红线）。
+//   [下轮首查形] ORIG 0x08426cb6 段 = `call get_n_rows(80e236c); test %eax,%eax;
+//   **setne** %al; test %al,%al; je`，两侧 je 落点（ORIG +0x42a / OURS +0x210）体未核 ⇒
+//   按 Main C05④ **四步顺序**执行：步 1 若非无消费者死比较（本例有 je 消费者）→ 步 2
+//   **试 P225 原形（整块换 `while (cond != 0) { body; break; }`，D04 `DB_LoadInventory::dispatch`
+//   实证 DIFF→AE）**→ 不成试拆嵌套 if → 步 3 核 callee 返回类型（净账红线，优选 P248 档②
+//   源字段同型化）→ 步 4 才 N-88/P197④ 封顶（勿在既有 if 上补 setne：A07 实证恒劣化）。
+//   [步 2 终判（Main 最终边界）] P225 原形**仅两类 body 命中**：(a) 以 `throw` 硬终止
+//   （D04 正例），(b) **多分支 return + 末尾 break**（C01 三正例）；其余（纯赋值 A08/
+//   A07、**单条调用+return** D01 负例 424→434）恒劣。本件对应块为
+//   `if (db->get_n_rows() == 0) { _sendResult(0x15, …); return 1; }` = **单条调用+return**
+//   ⇒ 不命中，**按 N-88/P197④ 封顶收工**（勿再对控制流试形；两侧 sete/setne 为 fold 方向差、
+//   语义等价，非 P196 真 bug）。
 // ============================================================================
 #include "W8LT_DBTask.h"
 #include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）
@@ -16604,6 +16616,11 @@ struct DB_PvPResultSchoolView
 #pragma pack(pop)
 
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 084317b2
+// [F2e-Singles2 C05② 2026-09-10] 旋钮①删 `(unsigned char)i` 收窄（我方 8 位
+//   `cmp %al,%dl; seta` vs ORIG 32 位 `movzbl; movzbl; cmp -N(%ebp),%eax; setg`）
+//   ⇒ 翻正为 ORIG 逐条形；旋钮②mId/schoolId 具名局部内联（P0，实参直传）⇒
+//   实测 our 78→76（ORIG 74，gap **−4→−2**），TU 四数 141/1743/9/67 两态逐位一致。
+//   残余 = 我方多 sig/v 缓存槽 + 帧 `sub $0x34` vs ORIG `$0x20` + 缺 push %esi（P210/N82）。
 bool DB_UpdatePvPLastPlayTime::dispatch(int /*userIdx*/, int /*slot*/,
                                         Stream* stream)
 {
@@ -16612,15 +16629,13 @@ bool DB_UpdatePvPLastPlayTime::dispatch(int /*userIdx*/, int /*slot*/,
     Packet_PvPResult* sig = stream->GetOutBuffer<Packet_PvPResult>();
     DB_PvPResultSchoolView* v =
         reinterpret_cast<DB_PvPResultSchoolView*>(sig);
-    for (int i = 0; (unsigned char)v->m_count > (unsigned char)i; ++i)
+    for (int i = 0; (unsigned char)v->m_count > i; ++i)
     {
         for (int j = 0; j <= 1; ++j)
         {
-            unsigned int mId = v->m_mId[j][i];
-            int schoolId = v->m_schoolId[j][i];
             db->set_query(
                 "upDate school_member set last_play_time=NOW()  where m_id=%s and school_id=%d",
-                NumberToString(mId, 0), schoolId);
+                NumberToString(v->m_mId[j][i], 0), v->m_schoolId[j][i]);
             if (db->exec(true) != 1)
                 return 0;
         }

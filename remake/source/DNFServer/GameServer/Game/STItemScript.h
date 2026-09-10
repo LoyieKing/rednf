@@ -192,7 +192,15 @@ public:
     bool m_fieldd0;                  // +0xd0
     char m_fieldd1;                  // +0xd1
     int m_fieldd4;                   // +0xd4
-    char m_fieldd8;                  // +0xd8
+    // [C04 2026-09-10] `char`→`bool`（必配对律第三查点：目标字段 ↔ 写入源字段同型化）：
+    //   ORIG 两写点直证为**无归一化直存** —— CEquipItem::set_item 0x085107ef
+    //   `movzbl 0xd8(%eax),%edx` → 0x085107f9 `mov %dl,0x144(%eax)`；CStackableItem::set_item
+    //   0x0850e825 `movzbl 0xd8(%eax),%edx` → 0x0850e82f `mov %dl,0x144(%eax)`
+    //   （同段 0x0850e816 `setne %dl` 属**另一字段**的表达式物化）。目标端 `m_char144`
+    //   已为 bool（E01，CItem.h）⇒ 源端不成对时 4.4 必插 `test/setne`。
+    //   ABI：1 字节同宽 ⇒ sizeof/全部成员偏移/对齐/mangled 零变化；
+    //   邻字段 m_fieldd9/m_fieldda 本就是 bool（同结构先例）。
+    bool m_fieldd8;                  // +0xd8（"ban redeemitem" 标记，STStackableScript.cpp:3443 置 1）
     bool m_fieldd9;                  // +0xd9
     bool m_fieldda;                  // +0xda
     std::set<int> m_setdc;           // +0xdc

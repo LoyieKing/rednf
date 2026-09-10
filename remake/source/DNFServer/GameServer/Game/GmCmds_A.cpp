@@ -865,6 +865,13 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
             // [b28d-solo-GmCmds_A] P167：本件 ORIG 用 ptEv（08111bc0），与
             // getBoosterResult 的 deEv（084b4a16）相反；条件取反避免第二个
             // ppEv 调用点（ORIG 仅 +0x267 一处 ppEv）。
+            // [round5-A20 C05④ 归因核 · 实测回退] ORIG 0x084af25f `mov %eax,-0xc(%ebp);
+            //   cmpl $0x0,-0xc(%ebp); je`（find_item 结果有槽再比较，P0/P115）。
+            //   试补具名局部 `CItem* foundInner = …` 实测：setne 消除 ✓，但 4.4 把该槽
+            //   分配到**浅区 -0x2c**，挤出 p1/p2/count/sockets 整组错位（p1 多一份 -0x2c
+            //   副本）、指令数 217→**216**（gap 0→−1）、归一 ndiff 191 vs 旧 254。
+            //   与 A28/P0「我方多槽不可控」同族：**净账不达标（gap 由 0 退化 −1 +
+            //   头部槽集新增 ORIG 无的 -0x2c）⇒ 已回退**，保留 gap 0 与头/尾槽集全等的旧形。
             if (G_CDataManager()->find_item(it->m_itemIdx) != 0)
             {
                 int key = it->m_itemIdx;

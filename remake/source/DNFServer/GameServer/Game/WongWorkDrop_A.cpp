@@ -468,6 +468,10 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
 
         if (tier == 2)
         {
+            // [A28 round5 · P312 实测反例 2026-09-10 19:55] 曾按 ORIG 0x085360xx 段
+            //   （-0x1ed 起 0x100 字节对齐剥离慢路 rep stos）把本数组改为
+            //   `char buf[256] = {0};`：**反劣**（ours 646→680，+34；4.4 的零初始化
+            //   形与本处槽位/帧配合后长于 ORIG）⇒ 已回滚；维持无初始化形并封 N78。
             char buf[256];                             // -0xed 起 0x100 日志缓冲
             sprintf(buf,
                     "monster drop rate : item_id(%d), mon_lv(%d), role(%d), "

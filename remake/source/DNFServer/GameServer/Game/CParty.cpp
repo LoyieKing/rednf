@@ -4915,24 +4915,30 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
     }
     }
 
-    if (user == 0)
-        goto ret_true;                                  // ORIG 085b4412 `je 44c4`
-    APSystem::CUserProc::ClearActionAndSendtoUser(
-        user, (APSystem::_ActionGroupIndex)8, 0, (ENUM_PACKETCLASS)0);
+    // C05③ 单尾 fail 块（Main 判据②多层形）：ORIG 5 条失败 jcc
+    // （0x2b8/0x2fc/0x319/0x345，另 0x0d6）= 全部汇到同一 0x44c4（mov $1,%eax）
+    // ⇒ 原码为嵌套 if + 单一公共尾 return，而非 5 个独立 `goto ret_true`
+    // （后者令 4.4 每个 site 各复制一份尾块）。
+    if (user != 0)
     {
-        int itemId = reward.m_addInfo;                  // -0x14
-        if (itemId == 0)
-            goto ret_true;                              // ORIG 085b4456 `je 44c4`
-        CItem* item = G_CDataManager()->find_item(itemId);   // -0x10
-        if (item == 0)
-            goto ret_true;                              // ORIG 085b4473 `je 44c4`
-        int rarity = item->get_rarity();                // -0xc
-        if (rarity != 0 && rarity != 1 && rarity != 2 &&
-            rarity != 3 && rarity != 4)
-            goto ret_true;                              // ORIG 085b449f `jne 44c4`
         APSystem::CUserProc::ClearActionAndSendtoUser(
-            user, (APSystem::_ActionGroupIndex)0x15, 0,
-            (ENUM_PACKETCLASS)0);
+            user, (APSystem::_ActionGroupIndex)8, 0, (ENUM_PACKETCLASS)0);
+        int itemId = reward.m_addInfo;                  // -0x14
+        if (itemId != 0)
+        {
+            CItem* item = G_CDataManager()->find_item(itemId);   // -0x10
+            if (item != 0)
+            {
+                int rarity = item->get_rarity();        // -0xc
+                if (rarity == 0 || rarity == 1 || rarity == 2 ||
+                    rarity == 3 || rarity == 4)
+                {
+                    APSystem::CUserProc::ClearActionAndSendtoUser(
+                        user, (APSystem::_ActionGroupIndex)0x15, 0,
+                        (ENUM_PACKETCLASS)0);
+                }
+            }
+        }
     }
 ret_true:
     return true;

@@ -145,6 +145,9 @@ bool CompareLetter(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b)
 //   vs 4.4 折 `sub mem,%eax`；②`cmpl $0xffffffff,slot; setne; test; je`
 //   （4.1 槽比物化，P197④）vs 4.4 直 `je`；③外层尾测 ORIG mem 直比 vs 4.4
 //   载 %edx 比较（P209）。109 vs 111。
+// [F2d-C05② 甄别] 无命中形：gap=+2（show_func_diff orig=111 our=109，我们**少**）⇒ F2
+//   减指令方向相反；且③的比较对象含跨调用返回值 size()（非两具名局部）。本轮实测
+//   ORIG-only={setne,test}（=②物化段）⇒ 残余归 P197④/N18b。
 int ArrangeMailAndLetter(SIG_MAILBOX_LIST* list,
                          std::vector<SIG_LETTER_INFO>& vecNew, int count,
                          std::vector<SIG_LETTER_INFO>& vecOld)

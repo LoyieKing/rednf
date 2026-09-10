@@ -243,6 +243,20 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx)
 // 已修：start 改 unsigned（复现 `mov count,%edx; sub %edx,%eax` + seta）、
 // operator[] 结果内联作实参（去 letterId 具名槽）、拆两条独立 if（消 && 物化岛）、
 // begin/end 迭代器循环头缓存（P13）。语义等价。
+// [round5-A29 · C05④ 四步流程复核，2026-09-10 定稿] 按 Main 最新四步判定顺序逐关走过：
+//   ① **无消费者死比较？** 否 —— ORIG 0x0841d1fc 的 `setne %al; test %al,%al; je +0x159`
+//      有真实消费者（je 跳过 if 体）⇒ 配方㉓ 空 switch 不适用。
+//   ② **槽值/表达式物化？** 是 —— ORIG 正是「先落槽再比较」（`mov %eax,-0x10(%ebp)` →
+//      `cmpl $0xffffffff,-0x10(%ebp); setne …`，无 movzbl/movsbl 归一）。按 D04 反证
+//      （`DB_LoadInventory::dispatch` 259=259 AE）应整块换 **P225 原形**；**本件已实测**
+//      `while (mailIdx != -1) { …; break; }`（见下方 b28e-L5 记录：clean 差异 24→24、
+//      jcc 相对偏移反 +7 字节）——与 D04 的差别在 D04 的 body 以 `throw` 终止（无回边），
+//      本件 body 尾部 `++start` 需真实 break ⇒ 得回边 + jmp 残留，故 P225 原形在此不成立；
+//      本件亦无嵌套 if 可拆（推广形不适用）。
+//   ③ **callee 返回类型与 ORIG 不一致？** 否 —— `FindLastLetterIndexMail` 两侧同为
+//      `int`（返回下标、与 -1 有符号比较，`jle/jge` 有符号序与 ORIG 一致）⇒ 归因 1 不成立。
+//   ④ ⇒ 按 **N-88 / P197④ 封顶收工**（不动控制流、不动 callee）。letterId 一项已由本轮
+//      P235 具名视图修复（见函数体注释）。
 bool ArrangeMailAndLetterIndex(SIG_MAILBOX_LIST* list,
                                std::vector<SIG_LETTER_INFO>& vecNew,
                                int count,
@@ -338,6 +352,11 @@ union MailExtSource
 // [b28d-solo-DB_MailBox_Req_List] verdict=DIFF（ORIG 513 vs 554），§6.2 超大函数
 // （orig_insns>500）三件套：①p167 调用点差集 **CLEAR 34=34**；②gap = -41（我方大）；
 // ③帧 ORIG sub $0x1cc vs 我方 sub $0x1ec（+0x20 槽组平移）。残余为 N82/N95
+//   [F2d-C05② 甄别] 本轮实测（show_func_diff fresh .o）orig=511 our=544 gap=-33 ndiff=357
+//   （旧读数 -41 作废）；全 ORIG mem 直比点（`cmp -0x38/-0x40(%ebp),%eax`）我方同为
+//   mem 直比（同形）⇒ 无 C05② 命中形；多出 = OURS-only{mov×11,lea×11,add×4,movzwl×3,…}
+//   （具名局部缓存 + SIG 宏裸偏移 add/lea）；另含符号扩展点（ORIG cwtl vs 我方 movzwl×3，
+//   建议后续按 P196 复核）。无 F2 落点。
 // 帧-槽号族 + SIG 宏 offset 形（本轮已修 exec 校验为 ORIG 的
 // `movzbl; mov slot; cmpl; jne` 形）。语义完成、byte 层 N 封顶。
 bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,

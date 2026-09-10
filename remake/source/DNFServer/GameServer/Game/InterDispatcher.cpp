@@ -9712,7 +9712,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             }
         }
         if (!item.isEquipableItemType() &&
-            item.m_addInfo2 < static_cast<unsigned int>(restrictAmount))
+            static_cast<int>(item.m_addInfo2) < restrictAmount)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x92, (PAY_TYPE)payType);
             return 0;

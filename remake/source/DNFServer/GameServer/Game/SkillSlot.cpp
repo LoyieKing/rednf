@@ -1404,7 +1404,10 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
                                                   0x7dc +
                                               0x240));
     std::vector<std::pair<int, int> > learnList;
-    char result = 1;
+    // 2026-09-10（D06 消费侧配对 bool 化，A17 spec）：CCharacter::get_give_skill
+    //   定义侧已 char→bool ⇒ 本处 result 同步 bool（ORIG 0x086056xx 为
+    //   `mov %al,-0x35; movzbl -0x35; xor $1; test; je` = bool 负极性物化）。
+    bool result = true;
     char secondGrow = ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
     char firstGrow = 0;
     if (secondGrow == 0)
@@ -1431,7 +1434,7 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
                      ->get_give_skill((int)firstGrow, (int)secondGrow,
                                       learnList, 0);
     }
-    if (result == 1)
+    if (result)
     {
         std::vector<std::pair<int, int> >::const_iterator git =
             learnList.begin();
@@ -1600,7 +1603,8 @@ int SkillSlot::get_give_skill(
     out = *(std::vector<std::pair<int, int> >*)(
         (char*)G_CDataManager()->m_characList + job * 0x7dc + 0x240);
     std::vector<std::pair<int, int> > learnList;
-    char result = 1;
+    // 同上（D06 消费侧配对 bool 化）。
+    bool result = true;
     if (secondGrow == 0)
     {
         result = (((CCharacter*)G_CDataManager()->m_characList) + job)
@@ -2372,7 +2376,11 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
         {
             return -1;
         }
-        for (unsigned int i = 0; i < giveList.size(); ++i)
+        // 2026-09-10（C05② 反向/符号性旋钮）：ORIG 0x08607b35 段为
+        //   `mov -0x38(%ebp),%eax; cmp -0x10(%ebp),%eax; setg`（**有符号**序）
+        //   ⇒ ORIG 索引局部是 int；我方 unsigned 产 `seta` 无符号序 ⇒ 改 int
+        //   对齐（P196 同向：ORIG 本身即 setg 有符号）。
+        for (int i = 0; i < (int)giveList.size(); ++i)
         {
             pair = giveList[i];
             if (m_tempSkillSlot[slot].m_index == pair.first)
@@ -2389,7 +2397,8 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
         G_CDataManager()->m_skillList->get_post_learning_skill(
             ((CUserCharacInfo*)m_parent)->get_charac_job(), skillIdx,
             postList);
-        for (unsigned int i = 0; i < postList.size(); ++i)
+        // 同上（ORIG 0x08607bxx 循环条件 `cmp -0x18(%ebp),%eax; setg`）。
+        for (int i = 0; i < (int)postList.size(); ++i)
         {
             int preSkillIdx = postList[i].first;
             int preLevel = postList[i].second;
@@ -3185,9 +3194,10 @@ bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     char secondGrow = m_parent->getCurCharSecondGrowType();
     char firstGrow = m_parent->getCurCharFirstGrowType();
     CCharacter* chars = (CCharacter*)G_CDataManager()->m_characList;
-    char got = chars[m_parent->get_charac_job()].get_give_skill(
+    // 同上（D06 配对 bool 化）：ORIG 0x08608xxx 段为 1 字节 bool 槽。
+    bool got = chars[m_parent->get_charac_job()].get_give_skill(
         firstGrow, secondGrow, giveVec, 0);
-    if ((got ^ 1) != 0)
+    if (!got)
     {
         return false;
     }

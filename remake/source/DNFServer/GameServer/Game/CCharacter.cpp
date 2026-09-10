@@ -49,7 +49,8 @@ CCharacter::~CCharacter()
 
 // ORIG get_give_skill_firstGrowtype @ 0x83485d8。
 // ORIG 地址 = this + 0x240 + 12*(grow+1)（set_data 填满 [0..6]，本查询跳过 0 号基础槽）。
-char CCharacter::get_give_skill_firstGrowtype(int grow,
+// [2026-09-10 D06] bool（同 get_give_skill 判据；尾 `mov $0x1,%eax` 与 bool 兼容）。
+bool CCharacter::get_give_skill_firstGrowtype(int grow,
                                               std::vector<std::pair<int, int> >& out) const
 {
     if (grow < 0 || grow > 5)
@@ -68,7 +69,8 @@ char CCharacter::get_give_skill_firstGrowtype(int grow,
 // 注意：secondGrow 越界（<1 或 >2）时返回 1 且不拷贝（ORIG uVar2=1 分支）。
 // ORIG 地址 = this + 0x330 + 0xc0*(grow+1) + 12*(secondGrow-1) + 8
 //          = &m_secondGrowTypes[grow+1].m_skills[secondGrow-1]（同样跳过 0 号基础槽）。
-char CCharacter::get_give_skill_secondGrowtype(int grow, int secondGrow,
+// [2026-09-10 D06] bool（同族）。
+bool CCharacter::get_give_skill_secondGrowtype(int grow, int secondGrow,
                                                std::vector<std::pair<int, int> >& out) const
 {
     if (grow < 0 || grow > 5)
@@ -105,24 +107,24 @@ const _Additioal_info* CCharacter::get_growtype_stat(int firstGrow,
 }
 
 // ORIG get_give_skill @ 0x8348798。
-char CCharacter::get_give_skill(int firstGrow, int secondGrow,
+bool CCharacter::get_give_skill(int firstGrow, int secondGrow,
                                 std::vector<std::pair<int, int> >& out,
                                 unsigned int flag) const
 {
-    // ORIG 0x08348798：所有分支经 char r 槽（-0x9）物化后统一 movzbl 尾返；
+    // ORIG 0x08348798：所有分支经 bool r 槽（-0x9，1 字节直存）物化后统一 movzbl 尾返；
     // flag==0 支双赋值（r=f1(); r=f2(); 死写照抄 P171）。
-    char r;
+    bool r;
     if (flag == 0)
     {
         r = get_give_skill_firstGrowtype(firstGrow, out);
-        r = (char)get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
+        r = get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
     }
     else if (flag == 1)
         r = get_give_skill_firstGrowtype(firstGrow, out);
     else if (flag == 2)
-        r = (char)get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
+        r = get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
     else
-        r = 0;
+        r = false;
     return r;
 }
 

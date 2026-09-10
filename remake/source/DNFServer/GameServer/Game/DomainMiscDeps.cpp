@@ -356,12 +356,17 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                                 {
                                     continue;
                                 }
-                                // [b28d-C08 C05④ 试形] ORIG 0x0897c964 `cmp -0x14(%ebp),%eax;
-                                // setg %al; test %al,%al; jne <回边>` = 4.1 对 **while** 条件
-                                // 的 setcc 物化（P25：while ⇒ 前置 jmp cond + 尾部
-                                // cmpl/setle/test/jne）；for 形在 4.4 恒折直跳（无 setcc）。
-                                int p = 0;
-                                while (p < (int)m_vec0[e].m_list04.size())
+                                // [b28d-C08 C05④ 第2步试形·已回退] ORIG 0x0897c964
+                                // `cmp -0x14(%ebp),%eax; setg %al; test %al,%al; jne` 的
+                                // setcc 物化，改 `int p=0; while(p<size())` 后**确实复现**
+                                // （OURS setcc 3 = ORIG 3：setle + setg×2，逐条同形同槽），
+                                // 但 gap +9→**+10**、difflib equal_ratio 0.828 不变
+                                // （本件 519~529 条 >500，N127 台账失真）⇒ **无净收益**
+                                // 按纪律回退，维持 for 形（P25 的 while 形钥匙对本件
+                                // 只换来 setcc 形态、未换 gap/对齐）。
+                                for (int p = 0;
+                                     p < (int)m_vec0[e].m_list04.size();
+                                     ++p)
                                 {
                                     itemId =
                                         m_vec0[e].m_list04[p].first;
@@ -372,7 +377,6 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                                         std::pair<int, int>(
                                             itemId,
                                             info.m_drop.m_rate[9]));
-                                    ++p;
                                 }
                                 found = true;
                                 break;             // ORIG 命中后跳出线性搜索
