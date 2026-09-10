@@ -1611,6 +1611,11 @@ int RegenerationROI::RegenVer_get_option_value(int minV, int maxV)
     // -0x1c 槽在 ORIG 是 r）；②P243 乘法书写序（ORIG 085f8e6c 先 `fildl -0x3c`(maxV-minV)
     // 后 `flds -0x30`(sel)）；③语句序 acc=0 先于 sel C1Ev（ORIG 085f8dcc < 085f8dd3）；
     // ④P0 内联 bound2/r2（ORIG 无该两具名槽）。
+    // [F2e-Singles2 C05② 复核 2026-09-10] 本件比较双方 r/acc 均为**具名 int 局部**
+    // （C05② 命名命中形），但 int 态已是最优形（我方仍两载 `mov r,%edx; mov acc,%eax;
+    // cmp`）且 unsigned 向已试反劣（b28f：`cmp -0x1c(%ebp),%eax; jb` 极性/方向双反）
+    // ⇒ S1 一次性旋钮已用尽，维持 N86b（P209 unsigned 比较恒载寄存器；改 signed 会翻
+    // ja→jg 触 P196）。our 92 = ORIG 92，四数不变。
     // **残余 N86b 封顶**：比较段 ORIG `mov -0x1c(%ebp),%eax; cmp -0x18(%ebp),%eax; ja`
     // 单段 vs 我方两载入；尾 `mov -0x10(%ebp),%edx; add %edx,%eax` 两段 vs 我方
     // `add -0x10(%ebp),%eax` 折叠（r/acc 改 unsigned 实测反劣已回退）。语义完成。

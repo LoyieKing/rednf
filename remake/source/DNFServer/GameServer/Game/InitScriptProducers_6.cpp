@@ -2202,13 +2202,13 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
             {
                 return false;
             }
-            int v = ScanInt(&ok);
+            unsigned int v = static_cast<unsigned int>(ScanInt(&ok));   // P209：unsigned 局部 ⇒ 4.4 载寄存器比较
             if (!ok) { return false; }
             data.m_10 = (v == 1);                   // ORIG `cmp $1; sete %al; mov %al,-0x34(=data.m_10)`
-            v = ScanInt(&ok);
+            v = static_cast<unsigned int>(ScanInt(&ok));
             if (!ok) { return false; }
             data.m_11 = (v == 1);
-            v = ScanInt(&ok);
+            v = static_cast<unsigned int>(ScanInt(&ok));
             if (!ok) { return false; }
             data.m_12 = (v == 1);
 

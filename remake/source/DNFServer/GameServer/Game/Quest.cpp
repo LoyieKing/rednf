@@ -357,6 +357,9 @@ bool Quest::check_clear_item(int itemIdx, int dungeonIdx) const
 // 本轮 18 形探针（无 cast/(int)/(ENUM) cast/交换/取址视图/一元+ 等，4.4.7 -m32
 // -O0）全败；同函数 int 形参（mapIdx/dungeonIdx/killCount）比较已 mem 直比 ⇒
 // 差异根因=ENUM_QUEST_ENEMY_TYPE 全非负 ⇒ 4.4 底层 unsigned、比较走寄存器。
+// [F2e-Singles2 C05② 复核 2026-09-10] 4 处比较对象全为**形参**（0xc/0x10/0x14/0x18
+//   (%ebp)，含 ENUM_QUEST_ENEMY_TYPE）⇒ C05②「两个具名局部比较」命中形**不成立**
+//   （边界表 ❌ 形参子型），维持 N18b（18 形探针已穷举）。our 94 vs ORIG 93（gap −1）。
 bool Quest::CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
                              ENUM_QUEST_ENEMY_TYPE enemyType,
                              std::vector<MonsterKillItem>& out) const

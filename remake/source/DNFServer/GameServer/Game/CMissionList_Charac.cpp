@@ -545,41 +545,39 @@ void CMissionList_Charac::check_mission_kind(
     std::vector<int>& outClearList)
 {
     bool cleared = false;
-    if (m_missionList[kind].m_index == 0)
+    // [F3b-C05③ 2026-09-10 翻案] ORIG 0x085e6295 `je <add esp 尾 +0x154>` 与
+    // 0x085e62e7/0x085e63a8 三条守卫**直达同一尾标签** ⇒ 平铺
+    // `if (m_index == 0) { return; }` 在 4.4 产一组 nop+jmp 中继岛（+2 条）；
+    // 改正向包裹后 4.4 把 fail 路径 jump-thread 直达共享尾出口。旧判词
+    // 「N121（109/111）七形实测均不消」作废（当时未试正向包裹本形）。
+    if (m_missionList[kind].m_index != 0)
     {
-        return;
-    }
-    CMission* mission =
-        (CMission*)G_CDataManager()->find_mission(m_missionList[kind].m_index);
-    // [b28d-solo-CMissionList_Charac] ORIG 0x085e62bd..0x085e62e7：mission==0 与
-    // canUpdate==0 共享 `je <mov $0>` 落点 + `mov $1;jmp;test %al;je <return>` 物化
-    // ⇒ P214① 正极性包裹：`if (a!=0 && b!=0) {主流程}` 复现 je P;je P;mov$1;jmp;
-    // P:mov$0;Q:test;je 形（负极性早返被 4.4 反演为 xor $1 直跳）。
-    // [b28d-solo-CMissionList_Charac] 判词 N121（109/111）：守卫/物化段逐条对齐；残差仅尾部
-    // 4.4 epilogue-threading 多 `jmp+nop` 岛 2 条（ORIG 0x085e63cc movb 后 fall through
-    // 到 0x085e63d0 add esp）。本轮七形实测均不消：①`cleared=false` 移出 if（111 不变）；
-    // ②空 `else{return;}`（113 反劣）；③空 `else{}`（111 不变）；④块移出外层 if（111 不变）；
-    // ⑤否定 goto 尾标签（115 反劣，多 jmp+nop）；⑥显式尾 `return;`（114 反劣）；
-    // ⑦P223 尾标签串（ORIG 无岛，不适用）⇒ 封顶，语义等价。
-    if (mission != 0 && mission->canUpdate(param))
-    {
-        mission->Update(m_missionList[kind], param);
-        if (mission->isClearable(m_missionList[kind], cleared))
+        CMission* mission =
+            (CMission*)G_CDataManager()->find_mission(m_missionList[kind].m_index);
+        // [b28d-solo-CMissionList_Charac] ORIG 0x085e62bd..0x085e62e7：mission==0 与
+        // canUpdate==0 共享 `je <mov $0>` 落点 + `mov $1;jmp;test %al;je <return>` 物化
+        // ⇒ P214① 正极性包裹：`if (a!=0 && b!=0) {主流程}` 复现 je P;je P;mov$1;jmp;
+        // P:mov$0;Q:test;je 形（负极性早返被 4.4 反演为 xor $1 直跳）。
+        if (mission != 0 && mission->canUpdate(param))
         {
-            int index = (int)m_missionList[kind].m_index;
-            outClearList.push_back(index);
-            if (kind == 0x1b)
+            mission->Update(m_missionList[kind], param);
+            if (mission->isClearable(m_missionList[kind], cleared))
             {
-                m_missionList[7].clear();
-                m_missionList[0x1e].clear();
+                int index = (int)m_missionList[kind].m_index;
+                outClearList.push_back(index);
+                if (kind == 0x1b)
+                {
+                    m_missionList[7].clear();
+                    m_missionList[0x1e].clear();
+                }
+                ClearMission(user, (short)index);
             }
-            ClearMission(user, (short)index);
         }
-    }
-    if (cleared)
-    {
-        Send_Fail_Mission(user, m_missionList[kind].m_index);
-        cleared = false;
+        if (cleared)
+        {
+            Send_Fail_Mission(user, m_missionList[kind].m_index);
+            cleared = false;
+        }
     }
 }
 

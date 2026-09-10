@@ -8700,7 +8700,7 @@ int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
 
     // +0x376：逐条目读取（i: local_24，setg 无符号比较 itemCnt > i）
-    for (slotIdx = 0; slotIdx < (int)(unsigned int)itemCount; slotIdx = slotIdx + 1)
+    for (slotIdx = 0; slotIdx < (int)(unsigned int)itemCount; ++slotIdx)
     {
         // +0x382：5 连读，全部成功才通过
         if (!(packet.get_short((short&)item.m_field44)

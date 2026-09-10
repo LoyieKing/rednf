@@ -594,6 +594,14 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_growthD = script.m_param1c0.m_growthGradeEnd;
     m_growthE = script.m_param1c0.m_growthRepairBegin;
     m_growthF = script.m_param1c0.m_growthRepairEnd;
+    // [b28e 必配对律第 3 点 · 目标字段 ↔ 写入源字段同型化] ORIG 0x085107ef
+    // `movzbl 0xd8(%eax),%edx` → 0x085107f9 `mov %dl,0x144(%eax)`（**无 setne**）。
+    // 目标 `CItem::m_char144` 改 bool（E01）后源 `STItemScript::m_fieldd8` 仍 char
+    // ⇒ 4.4 插 `movzbl; test %al,%al; setne %dl; mov %dl,0x144`（+2）致本件 AE→DIFF
+    // （191/375/1/2 → 191/374/1/3）；源端改 bool（C04 落 STItemScript.h，权威头与
+    // CStackableItem.cpp:792 本地视图统一）后写点复现 ORIG 直存 ⇒ **恢复 191/375/1/2**。
+    // 边界（供判词模板）：源端「本地镜像视图已 bool 而权威头仍 char」时无 codegen 后果
+    // （该 TU 直存），但有 §4.4 重复定义/ODR 隐患 ⇒ 仍须成对统一。
     m_char144 = script.m_fieldd8;
     m_parentBoosterItemId = 0;
 }

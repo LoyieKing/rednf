@@ -1069,6 +1069,10 @@ int importQuestShopScript(const char* path, stQuestShop& out)
 //  析构的 EH 双份 epilogue vs 4.1 merge（N104）。
 //  p167 别名口径 CLEAR（MISSING C2/D2 ↔ EXTRA C1/D1 一一配对，P93）；
 //  无 call *（无虚调用）；orig/ours=582/581。
+// [F2e-Singles2 C05② 复核 2026-09-10] cmp 差 2 处：①0x08915cb9 `cmp -0x1c(%ebp),%eax;
+//  setg` —— 左操作数是**跨调用返回值**（0x08915cb4 call 结果直用）⇒ 边界表 ❌；
+//  ②0x08915998 `cmp -0x30(%ebp),%eax; setl` 我方 -0x34 槽（槽差，属 N82 平移）。
+//  ⇒ 非 C05② 命中形，维持 N78/N7/N104 封顶（our 581 vs ORIG 582，gap +1）。
 bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 {
     // ORIG 双相派发（T 0x08915606）：out 判空先于 loadRDAR（+0x0c）；__lookup

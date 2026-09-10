@@ -210,6 +210,10 @@ void EventATI::UpdateEventATIInfo(unsigned int uid, int itemNo)
 // 临时链、P164/P283 for 底部条件 + unsigned 尾测 seta、P171 删 count<10 防御、
 // 存储序 [0],[2],[3],[1]。残余 = P209（4.4 unsigned 形参比较恒载寄存器 +1/分支）
 // + P311/N81 族（4.4 对 rows[count][1..2] 常量列下标折 scaled，4.1 恒 shl+lea+sub 链）。
+// [F2e-Singles2 C05② 复核 2026-09-10] 两处 cmp 差（ORIG `mov -0x40/-0x54(%ebp),%eax;
+//   cmp 0xc(%ebp),%eax` mem 直比）**比较对象是 unsigned 形参 serverId**（0xc(%ebp)）⇒
+//   按 C05② 边界表 ❌ 形参子型，P209/N18b 封顶（改形参会动 mangled，禁）。主 gap 来源
+//   仍是 P311 数组链（our 290 vs ORIG 307，3 处 shl$4+lea 链被 4.4 折 scaled）。
 void EventATI::ArrangeATIEventItem(unsigned int mid, unsigned int serverId)
 {
     // ORIG 函数头 `movl $0xa,-0x1c` 为未被读的 dead int 局部（P232）。
@@ -337,6 +341,8 @@ void EventMuz::UpdateEventMuzInfo(unsigned int uid, int itemNo)
 // [b28d-solo-LinkClosureB_Misc] N 封顶：同 ArrangeATIEventItem（p167 CLEAR）。
 // 已修：__PRETTY_FUNCTION__、dead local limit=10、P227 临时链、for 底部条件、
 // 存储序 [0],[2],[3],[1]。残余 = P209 + P311 数组常量列下标 scaled 折叠。
+// [F2e-Singles2 C05② 复核 2026-09-10] 同上：`cmp 0xc(%ebp),%eax`（serverId 形参）⇒
+//   N18b/P209 封顶；our 184 vs ORIG 194 gap +10 主体为 P311 scaled 折叠。
 void EventMuz::ArrangeMuzEventItem(unsigned int mid, unsigned int serverId)
 {
     // [b28d-solo-LinkClosureB_Misc] ORIG 函数头 `movl $0xa,-0x1c` 为未被读的
