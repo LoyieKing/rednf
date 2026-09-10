@@ -128,6 +128,7 @@ case "$src" in
             *Game/CUser.cpp | \
             *Game/CUserCharacInfo.cpp | \
             *Game/CUserDepsB.cpp | \
+            *Game/CUserMissingA2.cpp | \
             *Game/CUserOnlyOrig.cpp | \
             *Game/CUserPremium.cpp | \
             *Game/CUserStatB.cpp | \
