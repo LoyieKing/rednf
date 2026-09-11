@@ -73,8 +73,14 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
     std::string line;
     bool ok = false;
     bool missed = false;
-    while (ScanType(line, true))
+    // [G19 P168a 试形] ORIG 该扫描循环头为 `call ScanType; xor $0x1,%eax; test %al,%al;
+    // jne <exit>`（bool callee 裸取反）⇒ 源形须写 for(;;)+if(!ScanType) break；
+    // `while(ScanType(...))` 在 4.4 直产 `test %al; jne`（少 xor、块位置亦不同）。
+    // 依据 = DiffG21.G21F 实证（importSecretShopScript 644/640 gap+4 → 644/644 gap+0）。
+    for (;;)
     {
+        if (!ScanType(line, true))
+            break;
         missed = false;
         if (line == "[nation code]")
         {
