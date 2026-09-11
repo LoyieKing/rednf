@@ -39,6 +39,8 @@ case "$src" in
             *Game/AradPeriodB.cpp | \
             *Game/Arad_AvatarRoulette.cpp | \
             *Game/Arad_Dispatcher.cpp | \
+            *Game/Arad_Dispatch_Manager.cpp | \
+            *Game/Arad_Dispatcher_BuyItemCheck_Impl.cpp | \
             *Game/Arad_IPGProcess.cpp | \
             *Game/Arad_InternalDispatcher.cpp | \
             *Game/Arad_ItemBonus.cpp | \
@@ -204,6 +206,8 @@ case "$src" in
             *Game/NewAccountLevelUpEventToJob.cpp | \
             *Game/OnlinePreliminaryMatch.cpp | \
             *Game/OnlyOrigBatch11.cpp | \
+            *Game/RDARScriptEventUpgradeJar.cpp | \
+            *Game/greg_month.cpp | \
             *Game/OnlyOrigBatch12_rand_r.cpp | \
             *Game/OnlyOrigBatch12_security_server.cpp | \
             *Game/OnlyOrigBatch12_server_utility.cpp | \
@@ -329,6 +333,8 @@ case "$src" in
             *Game/Encryption.cpp | \
             *Game/DB_Login.cpp | \
             *Game/UserMiscLink.cpp | \
+            *Game/CharacBloodDungeon.cpp | \
+            *Game/AutoMarketConditionsControlEvent.cpp | \
             *Game/W9_EventSmall.cpp)
                 # b28d-S419：DB_LoadEtc 的间接 call 目标寄存器同族（ORIG 0x08405c9e
                 # `mov (%eax),%edx; mov -0x14(%ebp),%eax; call *%edx` vs 4.4.7 %eax）。
@@ -421,6 +427,7 @@ case "$(basename "$src" .cpp)" in
                 #   1 件 DIFF→AE，四数 45/77/0/2 → **45/78/0/1**（comm-3=0、missing 不变）。
                 exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/CMaxFatigueFactorEvent.cpp | \
+            *Game/MaxFatigueFactorEvent.cpp | \
             *Game/CUserStatA.cpp | \
             *Game/DispLinkA3.cpp | \
             *Game/EventBattleLink.cpp | \

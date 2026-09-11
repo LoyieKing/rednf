@@ -81,7 +81,8 @@ extern void save_pid();                                                 // ORIG 
 // UPGRADEJAR
 // ============================================================================
 
-#include "OnlyOrigBatch11/doNothing.inc"
+// [SplitC 2026-09-11 · TU 迁移] UPGRADEJAR::doNothing 已迁出至 RDARScriptEventUpgradeJar.cpp（ORIG GI 键对齐）。
+
 
 
 // ============================================================================
@@ -269,26 +270,9 @@ const char* getAvatarRentDayString(int n)
 // 语义同 boost date_time greg_month.cpp 标准实现（P148 语义相等；被
 // month_str_to_ushort 模板实例化引用，无实现则链接失败）。
 // ============================================================================
-namespace boost
-{
-namespace gregorian
-{
-namespace
-{
-const char* const kLongMonthNames[] = {
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-};
-const char* const kShortMonthNames[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-};
-}  // namespace
-
-#include "OnlyOrigBatch11/get_month_map_ptr.inc"
-
-}  // namespace gregorian
-}  // namespace boost
+// [SplitC 2026-09-11 · TU 迁移] boost::gregorian::greg_month::get_month_map_ptr
+//   + 月名常量表（匿名 namespace）已整体迁出至 greg_month.cpp
+//   （ORIG GI 键 _GLOBAL__I__ZN5boost9gregorian10greg_month17get_month_map_ptrEv 对齐）。
 
 // [b29-SymForceBatch] StaticPool<expert_job::CEnchanter,300>::CNode D0 force 块
 // 删除：forceCNodeD0 本身是发明符号（ORIG 无）。两池 CNode 的 C1/C2/D0/D1/D2 +

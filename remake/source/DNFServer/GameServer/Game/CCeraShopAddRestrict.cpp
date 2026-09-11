@@ -98,7 +98,8 @@ namespace CerashopAddRestrict
 #include "CCeraShopAddRestrict/FindIpgNo.inc"
 
 
-#include "CCeraShopAddRestrict/readTime.inc"
+// [SplitC 2026-09-11 · TU 迁移] CerashopAddRestrict::readTime 已迁出至 RDARScriptCeraShopAddRestrictType.cpp（ORIG GI 键对齐）。
+
 
 
 unsigned int uint32Time(short* buf)

@@ -73,7 +73,8 @@
 #include "W9_EventSmall/StartEvent_5.inc"
 
 
-#include "W9_EventSmall/CAutoMarketConditionsControlEvent.inc"
+// [SplitC 2026-09-11 · TU 迁移] CAutoMarketConditionsControlEvent ctor 已迁出至 AutoMarketConditionsControlEvent.cpp（ORIG GI 键对齐）。
+
 #include "W9_EventSmall/dtor_CAutoMarketConditionsControlEvent.inc"
 
 #include "W9_EventSmall/StartEvent_6.inc"
@@ -88,7 +89,8 @@
 #include "W9_EventSmall/CCharacBloodDungeon.inc"
 
 
-#include "W9_EventSmall/_reset.inc"
+// [SplitC 2026-09-11 · TU 迁移] CCharacBloodDungeon::_reset 已迁出至 CharacBloodDungeon.cpp（ORIG GI 键对齐）。
+
 
 
 #include "W9_EventSmall/_saveData.inc"

@@ -28,7 +28,8 @@ extern int DEFAULT_MAX_FATIGUE;    // CUserCharacInfo.h 亦声明（ORIG B 0x937
 #include "CMaxFatigueFactorEvent/SendFatigueEvent.inc"
 
 
-#include "CMaxFatigueFactorEvent/CMaxFatigueFactorEvent.inc"
+// [SplitC 2026-09-11 · TU 迁移] CMaxFatigueFactorEvent ctor 已迁出至 MaxFatigueFactorEvent.cpp（ORIG GI 键对齐）。
+
 
 
 #include "CMaxFatigueFactorEvent/dtor_CMaxFatigueFactorEvent.inc"

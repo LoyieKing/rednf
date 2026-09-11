@@ -903,6 +903,19 @@ dnf_service(game
         ${SVC_DIR}/GlobalScriptTutorial.cpp
         ${SVC_DIR}/RandomOptionItemHandleTest.cpp
         ${SVC_DIR}/StubS3A_deps.cpp
+        # ---- [SplitC 2026-09-11] ORIG GI 锚点迁移新增 TU（10 个，追加在段尾以保持
+        #      既有 TU 相对顺序不变；每 TU 承载 1 个原合并 TU 内的函数，见
+        #      /tmp/lane_splitC/report.md。路由档位在 dnf_game_cxx.sh 中同步登记）----
+        ${SVC_DIR}/Arad_Dispatch_Manager.cpp
+        ${SVC_DIR}/Arad_Dispatcher_BuyItemCheck_Impl.cpp
+        ${SVC_DIR}/RDARScriptEventUpgradeJar.cpp
+        ${SVC_DIR}/greg_month.cpp
+        ${SVC_DIR}/CharacBloodDungeon.cpp
+        ${SVC_DIR}/AutoMarketConditionsControlEvent.cpp
+        ${SVC_DIR}/MaxFatigueFactorEvent.cpp
+        ${SVC_DIR}/Method.cpp
+        ${SVC_DIR}/RDARScriptCeraShopAddRestrictType.cpp
+        ${SVC_DIR}/Obfuscator.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

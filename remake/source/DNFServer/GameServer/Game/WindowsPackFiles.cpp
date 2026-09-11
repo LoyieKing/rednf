@@ -90,7 +90,8 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
     return 1;
 }
 
-#include "WindowsPackFiles/CObfuscator.inc"
+// [SplitC 2026-09-11 · TU 迁移] CObfuscator::CObfuscator 已迁出至 Obfuscator.cpp（ORIG GI 键对齐）。
+
 
 
 #include "WindowsPackFiles/dtor_CObfuscator.inc"

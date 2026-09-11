@@ -79,7 +79,8 @@ namespace ARAD
 #include "Arad_Dispatcher/open.inc"
 
 
-#include "Arad_Dispatcher/Arad_Dispatcher_BuyItemCheck_Impl.inc"
+// [SplitC 2026-09-11 · TU 迁移] Arad_Dispatcher_BuyItemCheck_Impl ctor 已迁出至 Arad_Dispatcher_BuyItemCheck_Impl.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Arad_Dispatcher/Arad_Dispatcher.inc"
@@ -97,7 +98,8 @@ namespace ARAD
 #include "Arad_Dispatcher/unregister_dispatcher.inc"
 
 
-#include "Arad_Dispatcher/Arad_Dispatcher_Manager.inc"
+// [SplitC 2026-09-11 · TU 迁移] Arad_Dispatcher_Manager ctor 已迁出至 Arad_Dispatch_Manager.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Arad_Dispatcher/dtor_Arad_Dispatcher_Manager.inc"

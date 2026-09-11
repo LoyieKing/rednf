@@ -23,7 +23,8 @@
 
 const char CTEA::sm_chain0[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-#include "CTEA/IMethod.inc"
+// [SplitC 2026-09-11 · TU 迁移] IMethod::IMethod 已迁出至 Method.cpp（ORIG GI 键对齐）。
+
 
 
 #include "CTEA/dtor_IMethod.inc"
