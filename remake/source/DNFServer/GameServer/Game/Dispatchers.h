@@ -1395,7 +1395,9 @@ private:
         BIND_TYPE_COMMON = 1
     };
     // ORIG T 0x081d83c4：双区空槽检查（怪物卡区/普通区均无空槽 → 0）
-    int check_need_slot(CUser* user);
+    // [g05 · Main 批准 · P22/P292 类型轴] ORIG 调用点 0x081d83e5 `call; xor $0x1,%eax;
+    //   test %al,%al; je` = bool 形；我方原 int 形产 `test %eax,%eax; sete %al` ⇒ 改 bool。
+    bool check_need_slot(CUser* user);
     // ORIG T 0x081d842e：randInt(10000)<rate 时按稀有度升档（0→1/1→2/2,3→3/其它→0）
     int calcurate_rarity(ENUM_RARITY rarity, unsigned short rate);
     // ORIG T 0x081d84a0：主卡绑定率查表 → _bind_process 选表填充 results

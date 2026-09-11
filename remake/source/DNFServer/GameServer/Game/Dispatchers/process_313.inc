@@ -48,27 +48,11 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
     if (req.m_0d == 0)                                   // 用户仍在蓝弹珠内存池
     {
         // ORIG 0x81e6495/0x81e649f：serverIdx==getBlueMarbleIndex() 比较点重取（P48）
-        if (static_cast<short>(req.m_0e) ==
+        // [Main 2026-09-12 · P353] ORIG `cmp %ax,%bx; setne %al; test %al,%al; je`
+        //   ⇒ 不等侧为 fall-through（setne 画像）⇒ 原码用 `!=` 且**交换两臂**
+        //   （旧写 `==`+原臂序 ⇒ 4.4 产 `sete`，与 ORIG 反）。
+        if (static_cast<short>(req.m_0e) !=
             static_cast<short>(user->getBlueMarbleIndex()))
-        {
-            BlueMarble* marble = static_cast<BlueMarble*>(user->getBlueMarble());
-            if (marble != 0)
-            {
-                // ORIG 0x81e66dd..0x81e67a1：sameLog 各参数重取
-                CMyFileLog sameLog(
-                    __PRETTY_FUNCTION__,
-                    0x614d);
-                sameLog(path,
-                        "OverLap User index same m_id(%s) charac_no(%u) userState(%d)"
-                        " userSpace(%d)client_blueMarble_Index(%d) server_bluemarble_index(%d)",
-                        NumberToString(user->get_acc_id(), 0),
-                        user->get_charac_no(-1), user->get_state(), user->getMoveSpace(),
-                        static_cast<int>(static_cast<short>(user->getBlueMarbleIndex())),
-                        static_cast<int>(static_cast<short>(req.m_0e)));
-                marble->checkBlueMarbleUserConfirm(user);
-            }
-        }
-        else
         {
             overlapBm = static_cast<BlueMarble*>(
                 G_CGameManager()->getBlueMarble(static_cast<int>(static_cast<short>(req.m_0e))));
@@ -102,6 +86,25 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
                         static_cast<int>(static_cast<short>(user->getBlueMarbleIndex())),
                         static_cast<int>(static_cast<short>(req.m_0e)));
                 overlapBm->checkBlueMarbleUserConfirm(user);
+            }
+        }
+        else
+        {
+            BlueMarble* marble = static_cast<BlueMarble*>(user->getBlueMarble());
+            if (marble != 0)
+            {
+                // ORIG 0x81e66dd..0x81e67a1：sameLog 各参数重取
+                CMyFileLog sameLog(
+                    __PRETTY_FUNCTION__,
+                    0x614d);
+                sameLog(path,
+                        "OverLap User index same m_id(%s) charac_no(%u) userState(%d)"
+                        " userSpace(%d)client_blueMarble_Index(%d) server_bluemarble_index(%d)",
+                        NumberToString(user->get_acc_id(), 0),
+                        user->get_charac_no(-1), user->get_state(), user->getMoveSpace(),
+                        static_cast<int>(static_cast<short>(user->getBlueMarbleIndex())),
+                        static_cast<int>(static_cast<short>(req.m_0e)));
+                marble->checkBlueMarbleUserConfirm(user);
             }
         }
     }

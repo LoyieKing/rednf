@@ -105,8 +105,10 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
         }
         if (token == "[role]")
         {
-            while (ScanStr(&sub))
+            for (;;)
             {
+                if (!ScanStr(&sub))
+                    break;
                 int role = getNpcRoleByString(sub);
                 if (role == -1)
                 {
@@ -164,8 +166,12 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
         }
         if (token == "[movie path]")
         {
-            while (ScanStr(&sub))
+            // [g12 P168a 试形] ORIG 该处为 `call ScanStr; xor $0x1,%eax; test %al,%al;
+            //   jne <exit>`（!boolfn 物化，Δ16 主族）⇒ 改 `for(;;){ if(!f()) break; }`。
+            for (;;)
             {
+                if (!ScanStr(&sub))
+                    break;
                 npc->m_movieData.m_movies.push_back(sub);
             }
             npc->m_movieData.m_movieIdx = 0;
@@ -177,8 +183,10 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
         }
         if (token == "[ingame advertisement movie path]")
         {
-            while (ScanStr(&sub))
+            for (;;)
             {
+                if (!ScanStr(&sub))
+                    break;
                 // ORIG 同样只消费不存储。
             }
             continue;

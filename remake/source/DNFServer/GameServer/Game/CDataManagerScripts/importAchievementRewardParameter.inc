@@ -44,14 +44,21 @@ int advancealtar::RewardParameter::importAchievementRewardParameter(
     if (!loadRDARScriptFile("", path))
         return 0;
 
-    while (ScanType(token, true))
+    // [G23-P168a 落地] `while (ScanType(...))` ⇒ 4.4 无 xor（直折）；改
+    // `for (;;) { if (!ScanType(...)) break; ... }` 复现 ORIG `call; xor $0x1;
+    // test %al,%al; jne` 的取反形（P168a 修法；两处同改）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         // p167 MISSING operator==×1 / EXTRA operator!=×1 ⇒ ORIG 为正向 `==` 包裹。
         if (token == "[reward data]")
         {
             AchievementRewardData data;
-            while (ScanType(token, true))
+            for (;;)
             {
+                if (!ScanType(token, true))
+                    break;
                 if (token == "[/reward data]")
                 {
                     m_rewardMap.insert(std::make_pair(data.m_type, data));

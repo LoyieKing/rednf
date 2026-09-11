@@ -137,12 +137,22 @@ ENUM_ERROR CCompoundAvatar::_ProcCompoundCore(CUser* user, stCompoundAvatarInfo&
             reinterpret_cast<CEquipItem*>(item)->getAvatarOptionSize()));
         if (info.m_slot > 99)
             info.m_slot = 0;
-        if (inv->delete_item((INVEN_TYPE)2,
-                             static_cast<int>(info.m_field08), 1,
-                             static_cast<eItemDelReason>(3), true) == 1 &&
-            inv->delete_item((INVEN_TYPE)2,
-                             static_cast<int>(info.m_field48), 1,
-                             static_cast<eItemDelReason>(3), true) == 1)
+        // [g06 2026-09-11 · Main 批准：真语义缺口修正] ORIG 为**两处独立早返**（反汇编
+        //   实证 `call; xor $1; test %al,%al; je <next>; mov $0x16,%eax; jmp <epilogue>`
+        //   ×2）⇒ `delete_item` 失败时 ORIG 返回 **0x16**，旧稿经 `&&` 链落到函数尾
+        //   `return 1`（ENUM_ERROR(1)）属**错误码不一致**（调用方可观测）。
+        //   即时数对照（函数级切片）：`mov $0x16,%eax` ORIG 6 / 我方 5；`xor $0x1,%eax`
+        //   ORIG 3 / 我方 1；call 数 63 = 63。
+        if (inv->delete_item((INVEN_TYPE)2, static_cast<int>(info.m_field08), 1,
+                             static_cast<eItemDelReason>(3), true) != 1)
+        {
+            return static_cast<ENUM_ERROR>(0x16);
+        }
+        if (inv->delete_item((INVEN_TYPE)2, static_cast<int>(info.m_field48), 1,
+                             static_cast<eItemDelReason>(3), true) != 1)
+        {
+            return static_cast<ENUM_ERROR>(0x16);
+        }
         {
             bool bFoundAll = false;                            // -0x8d
             // 【batch-16 物理展开】ORIG 0x0833321x..0x083332bx 是 4 个 if-else 分支

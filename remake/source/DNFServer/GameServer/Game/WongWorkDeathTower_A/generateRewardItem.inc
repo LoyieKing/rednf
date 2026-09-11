@@ -113,7 +113,11 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                 ref.m_field34 = (char)param4;
                 ref.m_rankBonusIndex = 0x3f800000;             // float 1.0f 位型（ORIG movl）
                 ref.m_dungeon = dungeonMgr.getDungeon();       // ORIG movl（指针）
-                *reinterpret_cast<int*>(&ref.m_goldBase) = 0;  // ORIG movl $0 覆盖 +0x3c/+0x3e
+                // [G23-P355 落地] 原为 `*reinterpret_cast<int*>(&ref.m_goldBase) = 0;`
+                // —— 退化为指针写 ⇒ 4.4 恒产 `lea -0x140(%ebp),%eax; add $0x3c,%eax;
+                // movl $0x0,(%eax)`（3 条）；改 union 的**整字具名视图** `m_field3c`
+                // 直赋 ⇒ 复现 ORIG 单条 disp 直清 `movl $0x0,-0x104(%ebp)`（P355）。
+                ref.m_field3c = 0;                             // ORIG movl $0 覆盖 +0x3c/+0x3e
 
                 // [P282 真 bug 修] ORIG 08462311 `mov (%eax),%edx; add $0x8,%edx;
                 //   mov (%edx),%ecx; call *%ecx` ⇒ 本分支（roll>=boundHigh、ref

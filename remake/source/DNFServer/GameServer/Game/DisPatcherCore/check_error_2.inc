@@ -69,11 +69,19 @@ int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
     // 多占一槽（-0x10）⇒ msg 视图被挤到 -0x18、帧 0x44（ORIG 0x40）、且多发一条槽写。
     // 按 ORIG 内联（+0x12 = m_padE+4，m_padE 内 +0xe..+0x11 为填充）。
     const char* name = user->get_charac_name(req.m_slot);
-    if (name == 0 || req.m_padE[4] == 0)
+    // [g05 代落 · G16 实测 · P365 整型算术形] ORIG 0x081c16ef `mov -0x14(%ebp),%eax;
+    //   add $0x12,%eax; movzbl (%eax),%eax`（base 先入 eax + 整型加法）⇒ 用
+    //   `reinterpret_cast<unsigned long>(&req) + 0x12` 复现两步 add（G16 实测本件 AE 199/199）。
+    if (name == 0 ||
+        *reinterpret_cast<unsigned char*>(
+            reinterpret_cast<unsigned long>(&req) + 0x12) == 0)
     {
         return -5;
     }
-    if (strncmp(name, req.m_padE + 4, 0x1e) != 0)
+    if (strncmp(name,
+                reinterpret_cast<const char*>(
+                    reinterpret_cast<unsigned long>(&req) + 0x12),
+                0x1e) != 0)
     {
         return -6;
     }
