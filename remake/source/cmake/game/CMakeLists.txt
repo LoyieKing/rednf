@@ -1158,8 +1158,19 @@ dnf_service(game
         #   替代原先写在 Game/ 源码里的 __attribute__((weak)) 空 stub——那是
         #   "我方 .cpp 发明导出符号"（only_new 2 项），且运行期返回 0 与 ORIG
         #   真实实现不一致（行为差异）。
+        # [Main·检查点71] 与 ORIG 动态导出面对齐：MySQL / yaSSL 静态库**强制全包含**。
+        #   ORIG 的 .dynsym 含 THR_* / yaSSL::* / TaoCrypt::*（MySQL 客户端库符号）——
+        #   原先按需取用（ld 默认）会丢弃未被引用的目标文件 ⇒ onlyORIG 359。
+        #   配合下方 LINK_FLAGS 的 --version-script 精确控制导出面。
+        #   注：libmysqlclient.a 内嵌一份 zlib（trees.o/zutil.o/uncompr.o）⇒ 与独立
+        #   libz.a 重复定义（_tr_align/uncompress/zlibVersion…）。两份 zlib 同源、
+        #   语义等价 ⇒ 用 --allow-multiple-definition 取首定义（仅影响链接期判定，
+        #   不改变行为）；该标志是**全局**的，当前构建除 zlib 外无其它重复定义。
+        -Wl,--allow-multiple-definition
+        -Wl,--whole-archive
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a
+        -Wl,--no-whole-archive
     LINK_FLAGS
         # [b28d-Main·检查点22] NEEDED 次序与 ORIG 逐位对齐：
         #   libpthread → librt → libnxencryption → libGeoIP.so.1 → libdl → libm → libc。
@@ -1174,6 +1185,15 @@ dnf_service(game
         -l:libGeoIP.so.1
         -ldl
         -lm
+        # [Main·检查点71] 动态导出面 = ORIG 逐符号对齐：
+        #   ① --export-dynamic：把**全部全局符号**放进 .dynsym（否则链接器只为「被动态
+        #      引用」的符号建条目，如 THR_*/yaSSL::* 这类仅本模块使用的库符号不会有
+        #      dynsym 条目，version script 也**无法新增** ⇒ 只能删减）；
+        #   ② --version-script：再从完整 .dynsym 里**筛出** ORIG 的 3017 个符号
+        #      （local: * ⇒ 我方多出的 libstdc++ 4.4 实例 _ZGVNSt…/_M_extract… 等不导出）。
+        #   映射由 source/toolchain/gen_export_map.sh 自 ORIG 重新生成。
+        -Wl,--export-dynamic
+        -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/../../../source/toolchain/game_export.map
 )
 
 target_compile_options(game PRIVATE -std=gnu++0x)
