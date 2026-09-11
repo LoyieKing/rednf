@@ -180,7 +180,18 @@ void CParty::ClearDungeon()
             WongWork::stGenerateRefData_t ref;
             WongWork::stGenerateResult_t result;
             std::vector<std::pair<int, int> > itemList;
-            ref.m_field34 = 0;
+            // [G07 2026-09-11 · 值级缺口修复] ORIG 085a9b1b `movb $0x46,-0x118(%ebp)`
+            //   与 085a9b14 `movb $0x0,-0x117(%ebp)`：ref 基址 = -0x14c（085a9aea
+            //   `lea -0x14c(%ebp); call stGenerateRefData_t::C1`）⇒ 二者 = ref+0x34 /
+            //   ref+0x35。**我方旧码把 +0x34 写成 0，ORIG 写 0x46(70)** ⇒ strict 复核
+            //   我方整函数 0x46 出现 0 次（值级缺口，非 codegen）。
+            //   语义（同字段其它调用点实证）：+0x34 = 等级基准值 ——
+            //   CBattle_Field_KillChain/_MakeDropItems.inc `ref.m_field34 = (char)mob.m_level`；
+            //   GmCmds_B/execute_10.inc `ref.m_field34 = (char)standardLevel`；
+            //   MonsterIndependentDrop 以 `(u8)ref.m_field3f - (u8)ref.m_field34` 作掉落等级差。
+            //   ⇒ 本处为 TOD 奖励生成的**固定等级 70**（原码即字面量：ORIG 为 `movb $imm`
+            //     而不是变量装载；本库同区已用字面量 0x4e4/0xcf2，风格一致）。
+            ref.m_field34 = (char)70;
             ref.m_field35 = 0;
             ref.m_rateSlot = 1;
             ref.m_field1c = 1.0f;

@@ -107,8 +107,10 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
             // ORIG 0x081f3b63 call _ZNSsC1EPKcRKSaIcE —— 只有 (const char*, alloc) 两参，
             // 即按 NUL 截断构造。原先多传 sizeof(m_msg) 会把缓冲区尾部未初始化字节
             // 一并纳入字符串（REAL-BUG：filtered.size() 随之失真）。
-            std::string filtered(CSyncSlangFilter::GetInstance()->Filter(
-                std::string(notify.m_msg)));
+            // [G00 2026-09-11 p167 净差试点] ORIG 侧 string dtor = 4（2 正常 + 2 EH 岛），
+            //   我方 = 5（3 正常 + 2 EH）⇒ 试「引用绑定返回临时」形，看 dtor/岛数是否归位。
+            const std::string& filtered = CSyncSlangFilter::GetInstance()->Filter(
+                std::string(notify.m_msg));
             if (filtered.size() != 0)
             {
                 strncpy(notify.m_msg, filtered.c_str(), filtered.size());
