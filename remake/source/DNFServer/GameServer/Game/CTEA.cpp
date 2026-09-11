@@ -33,6 +33,63 @@ const char CTEA::sm_chain0[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 {
 }
 
+// ---- ORIG _ZN7IMethod10SetPaddingEi T @0x080b43aa（0x3b）：与 SetMode 同构（错误码
+//   0x70000004 域 [0,2] 越界）。报告 docs/class_func_reports/IMethod/SetPadding.md：
+//   `movzbl +0x4; xor $1; test; je` 判 m_bInit → 0x70000005；`cmpl $0 js / cmpl $2 jle`
+//   有符号双检；ok 路径 `mov %edx,0x14(%eax)` 写 m_padding 后返 0x6fffffff。
+#include "CTEA/SetPadding.inc"
+{
+    if (!m_bInit)
+        return 0x70000005;
+    if (iPadding < 0 || iPadding > 2)
+        return 0x70000004;
+    m_padding = iPadding;
+    return 0x6fffffff;
+}
+
+// ---- ORIG _ZN7IMethod12GetKeyLengthEPj T @0x080b43e6（0x2f）：与 GetBlockSize 同构，
+//   未初始化时写 *outError=0x70000005 并返 0；已初始化直返 m_keyLength(+0xc)。
+#include "CTEA/GetKeyLength.inc"
+{
+    if (!m_bInit)
+    {
+        if (outError != NULL)
+        {
+            *outError = 0x70000005;
+        }
+        return 0;
+    }
+    return m_keyLength;
+}
+
+// ---- ORIG _ZN7IMethod7GetModeEPj T @0x080b4446（0x2f）：同形，直返 m_mode(+0x10)。
+#include "CTEA/GetMode.inc"
+{
+    if (!m_bInit)
+    {
+        if (outError != NULL)
+        {
+            *outError = 0x70000005;
+        }
+        return 0;
+    }
+    return m_mode;
+}
+
+// ---- ORIG _ZN7IMethod10GetPaddingEPj T @0x080b4476（0x2f）：同形，直返 m_padding(+0x14)。
+#include "CTEA/GetPadding.inc"
+{
+    if (!m_bInit)
+    {
+        if (outError != NULL)
+        {
+            *outError = 0x70000005;
+        }
+        return 0;
+    }
+    return m_padding;
+}
+
 // ---- 全局 IMethod 工具成员（ORIG T 0x080b459e/0x080b4616；声明 CEnvironment.h:42-43 static，
 // ServerLib 侧为 nsl::IMethod 不同 mangled ⇒ game 全局形定义须落本 TU——Main 按 DBMW/Method.cpp
 // :134-149 语义复制，G7 算法豁免面，big-endian 字组双向转换）----

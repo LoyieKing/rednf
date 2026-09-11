@@ -372,6 +372,14 @@ case "$(basename "$src" .cpp)" in
                 # STDungeonScript（Import/exportDungeonScript）：ORIG 为 4.4.6。
                 # 字节级 identical 需 4.4.6 产生与 ORIG 相同栈布局/寄存器分配。
                 exec "$C6446R" "$@" ;;
+            *Game/Arad_Misc.cpp)
+                # [Main·2026-09-11 Round7 路由 A/B 实测] c46h7sweep 全量三态主候选之一，
+                # Main 真实口径复测（flags.make 旗标 + 4.4.7 头 + 4.4.6 cc1plus）：
+                #   默认(C6/4.4.7)   = identical=1 ae=7 near=3 diff=1 missing=0
+                #   446h47/446h46    = identical=1 **ae=9 near=1** diff=1 missing=0
+                #   ⇒ `ARAD::ARAD_CRYPT::encryptAES` 与 `ARAD::encryptAES` 两件 NEAR→AE，
+                #     零回归（其余件读数不变）。
+                exec "$C6446R" "$@" ;;
             *Game/CUser.cpp)
                 # CUser：ORIG 为 4.4.6（构造/EH 着陆垫链、子对象寄存器形态；
                 # CUser agent 验证 c6446r 更接近，建议与 CItemList 同路由）

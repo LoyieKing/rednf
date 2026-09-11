@@ -881,11 +881,16 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 //      （bool + `!` 在 4.4 产 movzbl/xor 物化，N122 族）。
 //   ⑥ `if (dupSlot != 0) 栈副本 else 主槽` 翻转形实测劣化（opcode 匹配
 //      681→677、差异行 111→120）⇒ 已回滚，维持 `== 0` 主槽形。
-//   ⑦ 重复槽分支的栈副本：ORIG 0x0840d3d6 仅 `lea -0x1a5(%ebp),%eax;
-//      mov %eax,(%esp); call Inven_Item::Inven_Item()`（W 0x080cb854，ctor 内
-//      reset 已清全字段，CreatureOnlyMgrRest.cpp 有同判例）⇒ 删掉旧译多余的
-//      `memset(&item,0,sizeof(item))`（少 3 条实参 + 1 call，737 vs 742）。
-//   残差（N82/N122 封顶）：我方 737 vs ORIG 731（+6）= extra mov ×13 / add ×6 /
+//   ⑦ 重复槽分支的栈副本：ORIG 0x0840d343 `lea -0x1a5(%ebp),%eax;
+//      call Inven_Item::C1Ev`（W 0x080cb854）之后**紧跟独立 memset**：
+//      0x0840d351 `movl $0x3d,0x8(%esp)` + 0x0840d359 `movl $0x0,0x4(%esp)` +
+//      0x0840d361 `lea -0x1a5(%ebp),%eax` + 0x0840d367 `mov %eax,(%esp)` +
+//      0x0840d36a `call memset@plt` ⇒ 原码确为
+//      `Inven_Item item; memset(&item, 0, 0x3d);`（0x3d=sizeof(Inven_Item)）。
+//      [Round7 FillC] 旧判词「ctor 内 reset 已清全字段 ⇒ 无独立 memset」为误判，
+//      删除动作已回滚；补后 p167 该 `memset` MISSING(−1) 清零，余 C1/C2、D1/D2
+//      同址别名（P93 豁免）。
+//   残差（N82/N122 封顶）：我方 742 vs ORIG 731（+11）= extra mov ×13 / add ×6 /
 //   movb ×4 / jne ×1 与 missing imul ×9（ORIG 用 `imul $0x3d` 算 m_invenType3
 //   步长，4.4 折成 `add $0xeed0` 常量）/ lea ×5 / movl ×2 / je ×1；帧 0x280 vs
 //   0x2c0、db -0x34 vs -0x1c。
@@ -1157,10 +1162,17 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
             }
             else
             {
-                // ORIG 0x0840d3d6：仅 `lea -0x1a5(%ebp),%eax; mov %eax,(%esp);
-                // call Inven_Item::Inven_Item()`（W 0x080cb854）—— 清零由 ctor
-                // 内的 reset 完成，**无独立 memset**（旧译多 3 条实参 + 1 call）。
+                // ORIG 0x0840d343 `lea -0x1a5(%ebp),%eax; call Inven_Item::C1Ev`
+                // （W 0x080cb854）之后**紧跟**独立 memset：0x0840d351
+                // `movl $0x3d,0x8(%esp)` + 0x0840d359 `movl $0x0,0x4(%esp)` +
+                // 0x0840d361 `lea -0x1a5(%ebp),%eax` + 0x0840d367 `mov %eax,(%esp)`
+                // + 0x0840d36a `call memset@plt` ⇒ 原码 ctor 后确有
+                // `memset(&item, 0, 0x3d)`（0x3d = sizeof(Inven_Item)，ORIG 立即数）。
+                // [Round7 FillC] 旧判词「ctor 内 reset 已清全字段 ⇒ 无独立 memset」
+                // 与本直证矛盾 ⇒ 回滚删除（P171：ORIG 死写入照抄；p167 调用点差集
+                // 该 memset 为 MISSING）。
                 Inven_Item item;
+                memset(&item, 0, 0x3d);
                 item.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
                 item.m_fieldb = rowBuf.endurance;
                 item.m_addInfo = static_cast<int>(rowBuf.itId);   // +0x02 movl 4B（ORIG 栈副本同构）

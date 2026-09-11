@@ -459,6 +459,11 @@ std::vector<stLimitSlowDown> NAMED_MONSER_LIMIT_SLOWDOWN_TABLE;
 float NORMAL_MONSTER_GAUGE_ADJUST = 1.0f;
 float NAMED_MONSTER_GAUGE_ADJUST  = 1.0f;
 float BOSS_MONSTER_GAUGE_ADJUST   = 1.0f;
+// ORIG D 0x93f4d20 [4]：脚本包安全开关，初值 1（objdump -s -j .data 原字节
+// `01000000`；紧邻 ORIG 的 _ZL16s_bUseScriptPack d 0x93f4d24 = `01`，两者同段
+// 相邻 ⇒ 同 TU 数据域）。ORIG 全库 `objdump -d` 无任何以 0x93f4d20 为操作数的
+// 指令 ⇒ 纯数据符号对账项（无消费点），值逐字节直读、非推断。
+int g_xUseScriptPackSecurity = 1;
 
 // ORIG B 0x94ff160 [0x100] / B 0x94ff260 [0x18]
 char g_szMonsterScriptBaseDirectory[0x100];

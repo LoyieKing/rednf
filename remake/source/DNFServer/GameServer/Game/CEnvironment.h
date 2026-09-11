@@ -49,6 +49,17 @@ public:
     //   _ZN7IMethod3PadEPciPj T 0x080b44a6；定义在 DBMW/Method.cpp）。
     int GetBlockSize(unsigned int* outError);
     int Pad(char* data, int len, unsigned int* outError);
+    // ORIG 非虚成员（真缺口 4 条，报告 docs/class_func_reports/IMethod/*.md）：
+    //   _ZN7IMethod10SetPaddingEi  T 0x080b43aa（0x3b）
+    //   _ZN7IMethod12GetKeyLengthEPj T 0x080b43e6（0x2f）
+    //   _ZN7IMethod7GetModeEPj     T 0x080b4446（0x2f）
+    //   _ZN7IMethod10GetPaddingEPj T 0x080b4476（0x2f）
+    // 定义落 CTEA.cpp（同 IMethod::BytesToWord/WordToBytes 所在 TU）。
+    // 非虚成员函数不入布局 ⇒ sizeof/成员偏移零变化。
+    int SetPadding(int iPadding);
+    int GetKeyLength(unsigned int* outError);
+    int GetMode(unsigned int* outError);
+    int GetPadding(unsigned int* outError);
     bool m_bInit;      // +0x04
     int m_blockSize;   // +0x08
     int m_keyLength;   // +0x0c

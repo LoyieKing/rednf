@@ -14684,3 +14684,59 @@ namespace Sanicova
     : m_magic(0xaa), m_length(0), m_cmd(0)
 {
 }
+
+// ============================================================================
+// encryptSecurityCardTEA —— ORIG T 0x086805ef（nm size 0x117；user.cpp:32907，
+// 报告缺失 ⇒ 按 §3.2 objdump 切片转写）。ORIG 该 TU 三函数地址相邻：
+//   CUser::GetUserListByParty 0x0868056a / encryptSecurityCardTEA 0x086805ef /
+//   CUser::sendBackSecurityAuthRequest 0x08680706（本仓该二者分居
+//   W7_UserLinkTail.cpp / Sanicova.cpp；本件按任务书落 CUser.cpp）。
+// 与 encryptAES 家族同骨架（strlen 换成形参副本），差异在收尾：
+//   成功时只把 paddedLen 写回出参引用并返回 dst（不转 hex、无 '\0'）。
+// logFormat 常量组：file = "user.cpp"（0x08cee1dd）、line = 0x808b = 32907、
+//   func = __PRETTY_FUNCTION__（ORIG 局部串符号
+//   _ZZ22encryptSecurityCardTEAP4CTEAPcS1_jRjE19__PRETTY_FUNCTION__ @0x08cf2740
+//   r size 0x4f = "char* encryptSecurityCardTEA(CTEA*, char*, char*,
+//   unsigned int, unsigned int&)"，变参首项再次传该串）、
+//   末项 "Encrypt Error"（0x08cefeb7）、fmt "[%s][%d][%s]"（0x08cefec5）。
+// 语义（ORIG 0x086805ef..0x08680705）：len 副本 → GetBlockSize(NULL) →
+//   块对齐 paddedLen → blockSize>=0 时 Pad(src, len, NULL) → 虚槽 +0xc
+//   Encrypt(src, dst, paddedLen) → 结果 != 0x6fffffff 即 logFormat 并返 NULL；
+//   否则 *(unsigned int*)&outLength = paddedLen 且返回 dst。
+// ============================================================================
+char* encryptSecurityCardTEA(CTEA* tea, char* src, char* dst,
+                             unsigned int length, unsigned int& outLength)
+{
+    int srcLen = length;
+    int paddedLen = 0;
+    int blockSize = tea->IMethod::GetBlockSize(NULL);
+    if (blockSize >= 0)
+    {
+        if (srcLen % blockSize != 0)
+        {
+            paddedLen = (srcLen / blockSize + 1) * blockSize;
+        }
+        else
+        {
+            paddedLen = srcLen;
+        }
+    }
+    else
+    {
+        paddedLen = srcLen;
+    }
+    if (blockSize >= 0)
+    {
+        tea->IMethod::Pad(src, srcLen, NULL);
+    }
+    int result = tea->Encrypt(src, dst, paddedLen);
+    if (result != 0x6fffffff)
+    {
+        LogManager::logFormat(
+            1, "user.cpp", __PRETTY_FUNCTION__, 0x808b,
+            "[%s][%d][%s]", __PRETTY_FUNCTION__, 0x808b, "Encrypt Error");
+        return NULL;
+    }
+    outLength = paddedLen;
+    return dst;
+}

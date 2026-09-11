@@ -596,6 +596,8 @@ struct DB_TitleBookSaveView
 #include "CGuildServerProxy.h"  // CEventManager 完整类型（GetRepeatEvent）+ CEventBase::IsEventing
 #include "AdvanceAltarZip.h"   // compress_zip（DB_SaveExpandEquipslot::_SaveExpandEquipslot）
 #include <string.h>          // memcpy（DB_UpdateAvatarJewelSlot::makeRequest）
+#include "CRijndael.h"       // encryptAES（ORIG DBThread.cpp:532 T 0x083fbe2f：GetBlockSize/Pad/Encrypt 需完整类型）
+#include "../../ServerCommon/DNFFunctionLib.h"  // DNFFLib::Binary2Hex（encryptAES 出参转十六进制）
 #include "SIG_SAVE_EXPAND_EQUIPSLOT.h"  // SIG_SAVE_EXPAND_EQUIPSLOT（同上）
 
 #include "DB_SaveInven.h"   // DB_SaveInven（权威定义移出；本文件仅 new 注册）
@@ -3504,6 +3506,59 @@ class DB_StatisticAdvanceAltar : public DBDispatcher { public: DB_StatisticAdvan
         return 0;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
+}
+
+// ---------------------------------------------------------------------------
+// encryptAES —— ORIG T 0x083fbe2f（nm size 0x14d；DBThread.cpp:532，报告缺失 ⇒
+// 按 §3.2 objdump 切片转写）。与 ARAD::encryptAES(0x0819e997) /
+// ARAD_CRYPT::encryptAES(0x08184abc) / encryptAES_(0x0846c398) **四体逐 89 条
+// 指令相同**（去掉地址/常量后 diff 零行），唯一差异 = logFormat 常量组：
+//   file = "DBThread.cpp"（0x08c36714）、line = 0x214 = 532、
+//   func = __PRETTY_FUNCTION__（ORIG 局部串符号
+//   _ZZ10encryptAESP9CRijndaelPcS1_E19__PRETTY_FUNCTION__ @0x08c5db00 r size 0x2b
+//   = "char* encryptAES(CRijndael*, char*, char*)"，变参首项再次传该串）、
+//   末项 "Encrypt Error"（0x08c366f9）、fmt "[%s][%d][%s]"（0x08c36707）。
+// 语义：strlen → GetBlockSize → 块对齐 paddedLen → Pad → 虚槽 +0xc Encrypt →
+//   结果 != 0x6fffffff 即 logFormat 并返 NULL；否则 Binary2Hex(len) 且
+//   outHex[2*len+1] = '\0'（ORIG 0x083fbf47 把 2*len+1 **写回 srcLen 槽 -0x18**）。
+// ---------------------------------------------------------------------------
+char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
+{
+    char enc[132];
+    int srcLen = strlen(inData);
+    int paddedLen = 0;
+    int blockSize = cipher->IMethod::GetBlockSize(NULL);
+    if (blockSize >= 0)
+    {
+        if (srcLen % blockSize != 0)
+        {
+            paddedLen = (srcLen / blockSize + 1) * blockSize;
+        }
+        else
+        {
+            paddedLen = srcLen;
+        }
+    }
+    else
+    {
+        paddedLen = srcLen;
+    }
+    if (blockSize >= 0)
+    {
+        cipher->IMethod::Pad(inData, srcLen, NULL);
+    }
+    int result = cipher->Encrypt(inData, enc, paddedLen);
+    if (result != 0x6fffffff)
+    {
+        LogManager::logFormat(
+            1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x214,
+            "[%s][%d][%s]", __PRETTY_FUNCTION__, 0x214, "Encrypt Error");
+        return NULL;
+    }
+    srcLen = paddedLen * 2 + 1;
+    DNFFLib::Binary2Hex(reinterpret_cast<unsigned char*>(enc), paddedLen, outHex);
+    outHex[srcLen] = '\0';
+    return outHex;
 }
 
 // ORIG 0x0843b7c2 sz 0x183：*stream >> m_id(uint) → GetOutBuffer<

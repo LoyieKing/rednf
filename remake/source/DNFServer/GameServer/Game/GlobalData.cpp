@@ -613,6 +613,41 @@ public:
     return 0;
 }
 
+// ORIG D 0x0936e2a0 [0x190]：HUMAN_CERTIFY_EXAM_TABLE = 100×4B 指针表，全部
+// 指向 .rodata 0x08af1400 处 20 字节 UTF-16LE 串 "6125830947"（无 NUL 终止，
+// 其后紧随 4 字节 0x0c000000）。ORIG .data 逐 dword 直读（objdump -s -j .data
+// 0x936e2a0..0x936e42f，100×4B）：100 项均为 0x08af1400 + 2k（k∈[0,9]）——
+// 单元宽度 2 字节 ⇒ 原码表类型是双字节单元指针（unsigned short*），非 wchar_t*。
+// 唯一引用 CHumanCertifier::init 0x082a73cb `mov 0x936e2a0(,%eax,4),%eax`。
+// [Round7 FillC] 落点在本 TU 首个强实体 SendBuffertoClient 函数体之后 ⇒ GI 键
+// `_GLOBAL__I__ZN13CBusinessImpl18SendBuffertoClientEiiijPhs` 保持不变（P327 安全闸）。
+#define HUMAN_CERTIFY_EXAM_DIGITS \
+    "6\0" "1\0" "2\0" "5\0" "8\0" "3\0" "0\0" "9\0" "4\0" "7\0"
+const unsigned short* HUMAN_CERTIFY_EXAM_TABLE[100] =
+{
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 0,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 2, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 5, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 8, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 3, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 4, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7,
+    reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 1, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 9, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 7, reinterpret_cast<const unsigned short*>(HUMAN_CERTIFY_EXAM_DIGITS) + 6
+};
+#undef HUMAN_CERTIFY_EXAM_DIGITS
+
 #include "GlobalData/getSize.inc"
 
 struct tagCS_GET_SCRIPT   // ORIG ctor 0x08106c48：cat=2/id=9/size=0xb

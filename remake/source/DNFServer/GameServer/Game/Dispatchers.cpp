@@ -15452,6 +15452,10 @@ L_late:;
                                  (unsigned char)(secu & 0xff));
         return 0;
     }
+    // [AttackA b28d-r7 翻正·P339/P331] masterName 声明前提（ORIG masterName@-0x2e 浅于
+    // masterNameLen@-0x34）：原声明序使 4.4 落 -0x14/-0x32（反置）；对调后逐条复现
+    // ORIG 0x082082d6 区槽序，clean 残差 12→0（129=129，verdict NEAR→AE）。
+    char masterName[30];
     int masterNameLen = 0;
     if (!packet.get_int(masterNameLen))
     {
@@ -15460,7 +15464,6 @@ L_late:;
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    char masterName[30];
     if (!packet.get_str(masterName, 0x1e, masterNameLen))
     {
         return LineFunc(
@@ -18971,7 +18974,8 @@ struct MercenaryCompetitionResultView
                         __PRETTY_FUNCTION__,
                         out->m_4, user->get_acc_id());
     }
-    int result = 0;                                    // ORIG：调用前 -0xc 预清零
+    // [AttackA b28d-r7 P342 试形] result 改 unsigned（与 m_4 异型）⇒ store RHS-first
+    unsigned int result = 0;                           // ORIG：调用前 -0xc 预清零
     result = expert_job::CDisjointer::OnRepairDisjointMachine(user);
     // ORIG 0x081cfecf: cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je
     //   —— 源码就是 `if (result != 0)`，ORIG 无 bool 具名槽；
@@ -20407,7 +20411,8 @@ LOUT:
                         __PRETTY_FUNCTION__,
                         out.m_4, user->get_acc_id());
     }
-    int result = 0;                        // ORIG 0x081d0012：调用前 -0xc 预清零
+    // [AttackA b28d-r7 P342 试形] result 改 unsigned（与 m_4 异型）⇒ store RHS-first
+    unsigned int result = 0;               // ORIG 0x081d0012：调用前 -0xc 预清零
     result = expert_job::CDisjointer::OnUpgradeDisjointMachine(user);
     // ORIG 0x081cffd5 区：`cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`
     //   —— bool 归一岛且 ORIG 无 bool/rv/dst2 具名槽；4.4 对 `result != 0` 直跳
@@ -26682,7 +26687,9 @@ namespace pc_room
         char m_head[0xf];
         struct Pair { unsigned char m_sectionIdx, m_itemIdx; } m_pairs[1];  // +0xf 起
     };
-    // 视图指针**不落槽**（ORIG 无该槽，P0）⇒ 每使用点内联 cast 表达式。
+    // [AttackA b28d-r7 P341 试形·负结论] 具名类型化局部（`RentPairView* view`）落
+    // -0x14 具名槽并使全帧平移 4（ORIG 无该槽，-0x10/-0xc 两槽不变）⇒ 已回退；
+    // 维持每使用点内联 cast 表达式（P0）。残余仅 index/base 装载序（P75 族）。
     for (int i = 0; i < static_cast<int>(static_cast<char>(req.m_0d)); ++i)
     {
         InstanceRentalSystem::RentInElem elem;
@@ -30244,14 +30251,13 @@ namespace expert_extraction
         if (!reinterpret_cast<Teleport*>(res.m_c)->move_area(user))
         {
             register const int charNo = user->getCurCharacNo();
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x57d9, 5);
-            trace("SOLO_TELEPORT : teleport_error:(char_no:%d)", charNo);
+            // [AttackA b28d-r7 P221 试形] 全表达式临时链复现 ORIG sibling/互斥块槽序
+            cMyTrace(__PRETTY_FUNCTION__, 0x57d9, 5)("SOLO_TELEPORT : teleport_error:(char_no:%d)", charNo);
         }
         else
         {
             register const int charNo = user->getCurCharacNo();
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x57dd, 0);
-            trace("SOLO_TELEPORT : teleport_success:(char_no:%d)", charNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x57dd, 0)("SOLO_TELEPORT : teleport_success:(char_no:%d)", charNo);
         }
     }
     else

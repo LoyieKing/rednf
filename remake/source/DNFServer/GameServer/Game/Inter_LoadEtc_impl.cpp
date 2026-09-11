@@ -1280,10 +1280,13 @@ give_break_away_reward_end:;
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(1));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
-            // [b28d-solo-Inter_LoadEtc_impl] 同 1 号：内联实参 + m_skillSlot(+0x46) + reason=1。
+            // [AttackB 2026-09-11 真 bug 修正] kind=1 应取 SkillSlot::m_skillSlot2
+            // （SkillSlot.h:354 +0x1de）；ORIG 0x084d9b8f / 0x084d9c54 均为
+            // `lea 0x1de(%eax),%edx`（%eax=getCurCharacSkillR()），旧形误抄 1 号的
+            // m_skillSlot(+0x46) ⇒ 日志写入指向 kind0 技能数组，语义错位。
             user->m_historyLog.SkillSave(
                 reinterpret_cast<SkillSlot*>(const_cast<char*>(
-                    user->getCurCharacSkillR()))->m_skillSlot,
+                    user->getCurCharacSkillR()))->m_skillSlot2,
                 (unsigned)user->get_charac_job(), 1, eSkillSaveReason(1));
         }
         else if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
@@ -1293,7 +1296,7 @@ give_break_away_reward_end:;
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
             user->m_historyLog.SkillSave(
                 reinterpret_cast<SkillSlot*>(const_cast<char*>(
-                    user->getCurCharacSkillR()))->m_skillSlot,
+                    user->getCurCharacSkillR()))->m_skillSlot2,
                 (unsigned)user->get_charac_job(), 1, eSkillSaveReason(1));
         }
     }

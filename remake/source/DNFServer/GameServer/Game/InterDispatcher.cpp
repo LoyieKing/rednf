@@ -10985,9 +10985,12 @@ struct PrePayInfoView
     if (pkt.m_0 == 1)
     {   // vtable+0x2c（slot12 IPGQuery(CUser*)）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void (*QueryFn)(void*, CUser*);
-        void* helper = GlobalData::s_pIPGHelper;
-        QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);
-        query(helper, user);
+        // [Round7·2026-09-11 Main 点名] ORIG 0x84d73c8/0x84d73d4 对该虚调用发**两次**
+        //   `mov &s_pIPGHelper,%eax`（取 vptr 一次、压 this 一次）；我方旧稿具名 `void* helper`
+        //   只加载 1 次（槽 -0x10）⇒ 全函数引用数 3 vs ORIG 4。按 P0/P183 去具名局部内联
+        //   （与同 TU 第 3627 行先例同形）。
+        QueryFn query = *(QueryFn*)((*(void***)GlobalData::s_pIPGHelper)[0x2c / 4]);
+        query(GlobalData::s_pIPGHelper, user);
     }
     return 0;
 }
