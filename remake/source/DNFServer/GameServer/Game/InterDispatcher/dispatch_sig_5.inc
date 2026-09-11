@@ -170,8 +170,13 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         typedef void (*ReportFn)(void*, int, int, int, void*, int);
         void* checker = GlobalData::s_antibotChecker_;
         ReportFn report = *(ReportFn*)((*(void***)checker)[0x38 / 4]);
-        report(checker, G_CEnvironment()->getProcessSequence(), 0, 100000,
-               &payload[0], 0x48);
+        // [G00 2026-09-12 · 值级信号轴真缺口修复] ORIG 0x84c3b86
+        //   `movl $0x186a1,0xc(%esp)` ⇒ 第 4 实参 = **100001**（我方旧值 100000，差 1；
+        //   由 G19 在值级信号扫描中逐条对齐两侧 objdump 同上下文确证）。
+        //   用具名 enum 常量（不占栈槽 ⇒ 不触发 P0 槽律副作用）。
+        enum { kAntibotReportValueLimit = 100001 };   // ORIG 0x84c3b86 movl $0x186a1
+        report(checker, G_CEnvironment()->getProcessSequence(), 0,
+               kAntibotReportValueLimit, &payload[0], 0x48);
     }
     {   // PowerWar 未连接天数扣点链（lastPlayTickPowerWar = curCharac +0x7b long）
         // ORIG 4 次 `_ZNK getCurCharacR`（门判 + 读 +0x7b + trace 两处）、
