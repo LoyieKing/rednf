@@ -25,21 +25,10 @@
 #include "sync_script.h"             // STEquipmentPartSetPiece / STEquipmentScript / EquipmentParameterInfo
 
 // ---- 装备特效套装表（ORIG B 0x094f7148）----
-// STEquipmentPartSetData 类视图与 DataManagerInitDepends.h 权威声明一致
-// （+0x00 int / +0x04 string / +0x08 STEquipmentScript* / +0x0c vector<piece>），
-// 成员函数定义归 InitScriptProducers_2.cpp（importEquipmentPartSetInfo 生产 TU）。
-class STEquipmentPartSetData
-{
-public:
-    STEquipmentPartSetData();
-    ~STEquipmentPartSetData();
-
-    int m_field0;                                   // +0x00（ctor 置 -1）
-    std::string m_name4;                            // +0x04
-    STEquipmentScript* m_script;                    // +0x08（dtor delete）
-    std::vector<STEquipmentPartSetPiece> m_pieces;  // +0x0c
-};
-
+// [SplitC batch10 · P2a 隔离件障碍清除] STEquipmentPartSetData 权威定义改由
+// DataManagerInitDepends.h 提供（原 TU-local 镜像定义已删除；该类视图原与头一致）。
+// 影子验证：键不变、四数逐位不变、符号集仅 +1 局部 static const（零 codegen 影响）。
+#include "DataManagerInitDepends.h"
 extern std::map<int, STEquipmentPartSetData> g_equipmentEffectSetMap_;
 #include "RDARScriptEtcParameter/getSameStringIndex.inc"
 extern const char* characterEquipmentTypeTags[26];

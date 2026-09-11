@@ -11,7 +11,10 @@
 // 改为 `break` + 循环外单一 `return 1`（P283/P63）⇒ 4.4 复现 ORIG 三态共享尾
 // （state 0=返回 result / 1=退出返回 1 / 2=继续，result/state 全程 esi/ebx 无槽），
 // 112=112 归一化逐条全等（ndiff 45→0）。p167 CLEAR（10/10），语义闭合。
-int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
+// [SplitC batch10 · 判据] 权威返回类型 = **bool**：ORIG 唯一外部调用点 `_ZN12CDataManager4initEv`
+//   的 `call` 后为 `xor $0x1,%eax` + `test %al,%al`（运算符 ! 的 8 位语义）
+//   ⇒ 与 DataManagerInitDepends.h 的 bool 声明一致；原 int 为历史错修。
+bool importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 {
     if (!loadRDARScriptFile("", path))
     {

@@ -19,7 +19,11 @@
 // 173=173 归一化逐条全等（ndiff 158→0）。删 stRangeElement 用户空析构后 4.4 不发
 // 4×D1+EH（P71/P67），D1/D2 仍由 vector 使用点发 W（同 ORIG 0x8948ff0/0x89491a6）。
 // p167 CLEAR（22/22），语义闭合。
-int importInvalidName(char* path, InvalidCharData* out)
+// [SplitC batch10 · 判据] 返回类型权威 = **bool**：ORIG 唯一外部调用点
+//   `_ZN12CDataManager4initEv`：`call 8908338` → `xor $0x1,%eax` → `test %al,%al`
+//   （运算符 ! 的 8 位语义；若为 int 会走 test %eax,%eax; sete %al）
+//   ⇒ 与 DataManagerInitDepends.h:52 的 bool 声明一致；本处原 int 为历史错修。
+bool importInvalidName(char* path, InvalidCharData* out)
 {
     if (!loadRDARScriptFile("", path))
         return 0;

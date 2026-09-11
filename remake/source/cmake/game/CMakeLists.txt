@@ -1107,6 +1107,7 @@ dnf_service(game
         ${SVC_DIR}/RDARScript.cpp
         ${SVC_DIR}/CSHumanCertifyTable.cpp
         ${SVC_DIR}/TaiwanAuth.cpp
+        ${SVC_DIR}/EventTable.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

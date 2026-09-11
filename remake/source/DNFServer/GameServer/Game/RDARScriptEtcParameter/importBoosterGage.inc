@@ -14,7 +14,10 @@
 // [b28d-27] AE：ORIG 0x08913a7e；fn_diff_tu 归一 0 差（157=157），p167 CLEAR。
 // [b28d-solo-RDARScriptEtcParameter] AE（IDENTICAL 级）：fresh .o fn_diff_tu
 // 归一 0 差（152=152，raw 157=157），p167 CLEAR（19/19）。
-int importBoosterGage(char* path, BoosterGageData* out)
+// [SplitC batch10 · 判据] 权威返回类型 = **bool**：ORIG 唯一外部调用点 `_ZN12CDataManager4initEv`
+//   的 `call` 后为 `xor $0x1,%eax` + `test %al,%al`（运算符 ! 的 8 位语义）
+//   ⇒ 与 DataManagerInitDepends.h 的 bool 声明一致；原 int 为历史错修。
+bool importBoosterGage(char* path, BoosterGageData* out)
 {
     if (!out)
         return 0;
