@@ -74,6 +74,9 @@ void CCreature::SetState(CUser* user, CREATURE_STATE state)
     //      asm 绑定全域禁、裸 register 条件②「4.4 不自升格」不满足）⇒ NEAR 封顶。
     //   实证探针：/tmp/probe_enum.cpp（同路由旗标，int 字段产两寄存器比较+RHS-first，
     //   enum 字段产 ORIG 两形）、/tmp/probe_enum2.cpp（另 5 个消费形 int↔enum 逐字节相同）。
+    // [C4A0Nine 2026-09-11 复验] n1_v=NEAR 133/133 gap=0，唯一残差仍为 callee-saved
+    //   角色互换（ORIG 0x083371dc `mov %esi`←getCurCharacNo / 0x083371f7 `mov %ebx`←GetUID；
+    //   4.4.7 相反，%edi 两侧一致）⇒ N7/N109 封顶不变（本波未再试形，前波三旋钮已穷举）。
     m_state = state;
     m_saveFlag = 1;
 }

@@ -357,6 +357,13 @@
 //   ORIG 两个 hash_map 迭代器 it(-0x1c)/last(-0x14) 为「声明序=先声明深」，
 //   4.4 按首次使用序「先用浅」⇒ 仅两处 end() 的 lea 槽号互换；两序互试
 //   （it 先/8 行差、last 先/4 行差）已取优。
+// [W15ANearHunt1 2026-09-11 收尾复核] routed 复编（10:27）n1_v=NEAR 60/60 gap+0
+//   ndiff2，残差**仅**两处 end() 的 sret 槽互换：ORIG 0x08234d7f `lea
+//   -0x1c(%ebp),%eax`（首次 end）/ 0x08234d94 `lea -0x14(%ebp),%eax`（二次 end），
+//   我方顺序相反；0x08234dd1/0x08234dd8 的比较用 lea 随动。4.4 按「首次使用序」
+//   先浅(-0x14)后深(-0x1c)，4.1 按「声明序」先深后浅 ⇒ 交换声明序两向均不可翻转
+//   （本批 W13G `CalculateExpertJobMaterials`、W13A `get_limit_cube_item` 同族件
+//   独立复现同一结论）⇒ 维持 N98 封顶，未改动代码。
 #include "CItemAmplifier/getInvestMaterialInfo.inc"
     ENUM_ITEM_AMPLIFY_INVEST_TYPE type,
     unsigned long level,

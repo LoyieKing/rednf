@@ -336,6 +336,9 @@ L3:;
 // `int itemId = 0; … itemId = m_itemIdx;`（P198①）后 orig/ours=187/187。
 // 残余 2 条：`G_CDataManager()->find_item(itemId)` ORIG 先装实参到 %ebx 再调
 // receiver，4.4 恒 receiver 先（P75/P23 跨版本求值序，探针 p2/p3 五形不翻）。
+//   [C4A0Nine 2026-09-11 复验] 第 6 形 deEv（`(*G_CDataManager()).find_item(itemId)`）
+//   亦不翻（187/187 不变；ORIG 0x084ac4b1 `mov -0x28(%ebp),%ebx` 跨 receiver call
+//   保活为 4.1 独有形）⇒ P75/P23 封顶不变。
 // [b29-Lane21] N7 封顶（446 可救，已上报 Main）：ORIG `mov (%eax),%edx; lea -0x82(%ebp),%eax;
 //   mov %eax,0x4(%esp); mov -0x1c(%ebp),%eax; mov %eax,(%esp); call *%edx` vs 4.4.7 用 %eax 目标；
 //   另 `mov -0x28(%ebp),%ebx` 保活（ORIG）vs 4.4.7 直读（P226/N18a）。
@@ -1056,7 +1059,12 @@ struct CBoosterEmblemIdTableView
 }
 
 // ORIG make_file_gold_contents 0x084af7fc：金币分布行 + 尾部 max gold 合计。
-// （格式串 %I64u 按 ORIG 原样保留；glibc 下由 %llu 语义承载 64 位实参。）
+// [W13BGmCmdsWarRoom 2026-09-11] **串轴真缺陷修复**：ORIG 0x084af983
+//   `movl $"max gold = %I64u \n",0x4(%esp)` 逐字节 = `max gold = %I64u \n`；
+//   我方原写 `%llu`（前轮「glibc 语义承载」的改写）⇒ .rodata 实际字节与 ORIG 不同，
+//   而件级 verdict 因 §AE 重定位归一（.rodata+addend 形）**看不见**该差
+//   （陷阱⑪族：`.rodata`/`.LC*` 串差异被 clean() 归一）。strall 轴暴露。
+//   ⇒ 按 ORIG 原样回填 `%I64u`（ABI 无差：实参仍是 64 位 maxGold）。
 // [b28d-47] verdict=DIFF(routed) [N82/P112] ORIG 0x084af7fc orig/ours=121/113
 //   p167 CLEAR（18/18 调用点全等）⇒ 语义完成；残差为槽/寄存器分配跨版本差。
 // [b28d-solo-GmCmds_A] verdict=IDENTICAL/AE ndiff=0 [P214③+P171+P0]
@@ -1090,7 +1098,8 @@ struct CBoosterEmblemIdTableView
         result.erase(it++);
     }
 
-    sprintf(line, "max gold = %llu \n", maxGold);
+    // [W13BGmCmdsWarRoom] ORIG 0x084af983 原样串（逐字节）：`max gold = %I64u \n`
+    sprintf(line, "max gold = %I64u \n", maxGold);
     strcat(fileBuf, line);
     // [b28d-solo-GmCmds_A] P171：ORIG +0x1cb 末尾死写入 memset(line,0,0x400)
     // （结果从不被读）照抄，缺失即少一个调用点（p167 MISSING memset）。

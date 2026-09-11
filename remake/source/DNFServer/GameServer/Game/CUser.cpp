@@ -7357,6 +7357,12 @@ done:;
     int needGold = 0;
     short needGSP = 0;
     bool isGuildSkill = (skillIdx >= 0xc8 && skillIdx <= 0xd0);
+    // 2026-09-11 R5 负结论（P183「删具名缓存⇒逐使用点重读」实测**净劣化**，已回滚）：
+    //   按「ORIG 0x0866afa2 段 9× `movzbl 0x1(%eax),%eax`（重读 info.m_skillIdx）」
+    //   删 skillIdx/isGuildSkill 两具名 ⇒ 实测 `movzbl 0x1(%eax),%eax` 我方 1→**10**
+    //   （ORIG 9），指令数 395→409（ORIG 399 ⇒ gap +4→**−10**），ndiff 仅 61→60
+    //   ⇒ 净劣化（多出的 14 条为每使用点重载 `mov 0xc(%ebp),%eax` 取 info 地址，
+    //   ORIG 侧 info 指针常驻寄存器 = N7/N18a 寄存器分配族，源码不可造）⇒ 维持具名缓存。
 
     if (isGuildSkill)
     {
@@ -8051,6 +8057,11 @@ done:;
     //   cMyTrace），差集为**全帧槽号整体平移**（param -0xac→-0xbc、guard -0x50→-0x44、
     //   sig -0x28→-0x3c；帧 0xcc→0xdc）——属 N82/P112 槽分配族（4.1 与 4.4 局部
     //   分配方向/复用不同），逐块无字段或调用缺口可下刀 ⇒ N 封顶。
+    // 2026-09-11 R5 补（disp2 命中终判，门②/③d）：disp2 报本件 ORIG-only `+0x47`。核指令
+    //   上下文：ORIG 0x08655735 `lea 0x47(%eax),%edx`（eax = -0x28(%ebp) 槽值）→
+    //   `movl $0x41,0x8(%esp); lea -0x9d(%ebp),%eax; …; call <memcpy>` ⇒ 是**局部指针槽的
+    //   地址算术**（0x47 是目标缓冲偏移），**非结构成员读**；我方同点 `add $0x47,%eax`
+    //   （imm 轴同值命中）⇒ 门② 同值互补 + 门③d ⇒ 等价，非 bug，勿再改。
     UpdateCharacView();
 
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x2260), true);
@@ -9322,7 +9333,16 @@ struct CharacViewCacheView
                              kills.begin();
                          it != kills.end(); ++it)
                     {
-                        if (memcmp(&drop, &*it, 0x20) == 0)
+                        // 2026-09-11 R5（门③a-2 复核 + 具体源码改法，已落地）：
+                        //   disp2 报 ORIG-only `+0x4..+0x1c`（连续 4 步长 ×7）⇒ 核指令
+                        //   上下文：ORIG 0x0866d42e..0x0866d469 为 8×`mov K(%eax),%edx;
+                        //   mov %edx,-0xe0+K(%ebp)`（把 `*it` **按值**拷到栈临时 -0xe0），
+                        //   随后 0x0866d46f/477/481/48a = `memcmp(-0xc0, -0xe0, 0x20)`
+                        //   ⇒ ORIG 源码取的是**结构值**而非迭代器指针。我方原形 `&*it`
+                        //   直传指针 ⇒ 少 16 条拷贝。改具名值拷贝后：本件 gap +13→−1、
+                        //   ndiff 190→185、TU 四数 809/1719/5/66/586 逐项不变（零劣化）。
+                        MonsterKillItem killItem = *it;
+                        if (memcmp(&drop, &killItem, 0x20) == 0)
                         {
                             kills.erase(it);
                             break;
@@ -9451,6 +9471,12 @@ struct CharacViewCacheView
     //    sub %ax,%dx; test %dx,%dx; sete` ⇒ 判定式 = **fat - 50*((fat/25)/2) == 0**，
     //   即 `fat % 50 == 0`（尾 `add %eax,%eax` 把 25x 变 50x）。我方旧形乘数写 -0x2a(42)
     //   （= fat - 42*floor(fat/50)）⇒ fat=50k 时漏报、fat=42 时误报；改回 -0x32。
+    // 2026-09-11 R5 补（imm/bits 命中终判）：本段 ORIG `imul $0x147b`（5243 ≈ 2^16·2/25）
+    //   vs 我方 `imul $0x47af`（18351 ≈ 2^16·7/25）。5 形探针实测（/tmp/r5/probe/p_div.cpp
+    //   t1 `(f>>1&0x7fff)/0x19`｜t2 `(f>>1)/0x19`｜t3 具名 `unsigned short half` + `/0x19`
+    //   ｜t4 `int half` / 25｜t5 `u16 q = half/25`）**全部**产 `imul $0x47af`（或 `imul %edx`），
+    //   无一产 0x147b ⇒ ORIG 的简化 16 位除法 lowering（4.1）在 4.4 下不可造（N85 同族）
+    //   ⇒ 判 N，勿再试写法。
     if ((short)((short)nowFatigue + (short)((nowFatigue >> 1 & 0x7fff) / 0x19) * -0x32) == 0)
         getHackAnalyzer()->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x263, 1, 0, 0);
 

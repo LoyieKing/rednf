@@ -383,13 +383,13 @@ inline void sig_copy(void* dst, int off, const void* src, int len)
     std::memcpy(static_cast<char*>(dst) + off, src, len);
 }
 
-// CMailBox 内部布局（ORIG 偏移，权威布局批次前以偏移访问）：
+// CMailBox 内部布局（ORIG 偏移）：
 //   +0x10 StaticPool<CMail,20> / +0x40 map<uint,CMail*> / +0x58 list<Stream*>
 //   +0x80 int letter keep 计数
-const int CMAILBOX_OFF_STATICPOOL = 0x10;
-const int CMAILBOX_OFF_MAILMAP    = 0x40;
-const int CMAILBOX_OFF_STREAMLIST = 0x58;
-const int CMAILBOX_OFF_KEEPCNT    = 0x80;
+// [W13G 2026-09-11 符号名轴] 原此处 4 个文件作用域 `const int CMAILBOX_OFF_*`
+//   **零使用点**，却在 4.4 下发射 4 个 `_ZN12_GLOBAL__N_1L…` 只读符号
+//   （gap3 报 OUR-only ×4，ORIG 全库无此 4 名）⇒ 发明符号，已删。
+//   布局权威视图见下方 CMailBoxView（成员名 + 注释偏移），无需常量别名。
 
 typedef std::map<unsigned int, WongWork::CMailBox::CMail*> MailMap;
 typedef std::list<Stream*> MailStreamList;
@@ -1264,7 +1264,22 @@ inline unsigned int GetUIDOf(CUser* user) { return user->GetUID(); }
     // `if (money != 0)` 恒折 `cmpl; je` 直跳 ⇒ 用 while+break 形复现四段物化
     // （实测 ndiff 273→2；残余 2 条 `jmp <exit>` 系 4.4 为多出口 body 发的中继，
     //  单 case switch 形反劣 ndiff=5 已回退）。
-    while (money != 0)
+    // [W13G 2026-09-11 落地·探针实测] while+break → **if**（去 break；语义恒等：
+    //   `while(x){…;break;}` ≡ `if(x){…}`）。
+    //   实测（routed 影子编译）：`_DoGetPackage` gap **+2 → 0**（ours 243 = ORIG 243），
+    //   TU 四数 142/309/1/6 逐项不变。
+    //   ⛔ **负结论（勿再试旋钮）**：残余唯一 diff 块 = ORIG 的 2 条条件物化
+    //   `0x0855469b setne %al; 0x0855469e test %al,%al`（4.1 对**内存槽比零**
+    //   `cmpl $0x0,-0x14(%ebp)` 的物化形）；4.4 对 `if (整型 != 0)` 恒折
+    //   `cmpl; je` 直跳，**不物化**。
+    //   已实测四形：① `if(x!=0)` ⇒ 无物化、无中继（**本形**）；② `while+break`
+    //   ⇒ 有物化但为「多出口 body + break」另发 2 条中继 `jmp <exit>`（净 +2，
+    //   即改前状态）；③ 具名 `bool b=(x!=0); if(b)` ⇒ 多「存槽+cmpp」2 条
+    //   （探针 `/tmp/w13/probe/p3.cpp` f5：`setne %al; movb %al,-9(%ebp);
+    //   cmpb $0,-9(%ebp)`，非 ORIG 的 `test %al,%al`）；④ 单 case switch 形
+    //   早前实测 ndiff=5（注释历史）。
+    //   ⇒ 4.4 无任何源码形可同时产「物化」与「无中继」⇒ 跨版本 N 档封顶。
+    if (money != 0)
     {
         if (bReset)
         {
@@ -1308,7 +1323,6 @@ inline unsigned int GetUIDOf(CUser* user) { return user->GetUID(); }
             items.push_back(
                 std::make_pair((ENUM_ITEMSPACE)0, (Inven_Item::INVEN_SLOT)0));
         }
-        break;
     }
 
     // 主流程一次 sret（ORIG local_e9），isAvatarPottery 分支复用同一 sret。
@@ -2023,7 +2037,15 @@ namespace WongWork
         }
     }
 
-    if (inven->use_money(tax, (eMoneySubReason)0x10, 1) == 1)
+    // [W13G 2026-09-11] ORIG 0x08555f5f 实证：本处为**负条件 + 早期返回**形 ——
+    //   `call use_money; xor $0x1,%eax; test %al,%al; je 0x08555f70（继续）;
+    //    mov $0xa,%eax; jmp 0x085561a6（函数尾统一返回）`。
+    //   旧正条件形 `== 1` 使 4.4 直跳 then 块（成功 fall-through）⇒ 本处缺 1 条
+    //   `xor $0x1`（bitscan 报 ORIG-only `xor $0x1(1)`）且基本块序与 ORIG 相反。
+    //   同一函数的第二处 use_money（ORIG 0x08555fbc = `!= 1` 形）已产 xor ⇒ 同形改写。
+    //   语义等价：`if (x==1) {A} else return 10` ≡ `if (x!=1) return 10; {A}`。
+    if (inven->use_money(tax, (eMoneySubReason)0x10, 1) != 1)
+        return 10;
     {
         if (MSGV->m_money != 0)
         {

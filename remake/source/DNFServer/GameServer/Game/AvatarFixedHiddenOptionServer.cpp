@@ -134,28 +134,28 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
     int value = 0;
     float fvalue = 0.0f;
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
-    static LookupMap lookup;
-    static SpinLock initLock;
-    static bool inited = false;
+    static LookupMap __lookup;
+    static SpinLock __init_lock;
+    static bool __inited = false;
 
     for (;;)
     {
         int key;
-        if (inited)
+        if (__inited)
         {
-            LookupMap::const_iterator it = lookup.find(tag.c_str());
+            LookupMap::const_iterator it = __lookup.find(tag.c_str());
             // [L4fEventAvatar 2026-09-11] P47：ORIG 0x088aef7c..0x088aef98 为
             //   `真支算到 %eax → jmp 汇合` + `假支 mov $0xffffffff,%eax` +
             //   唯一 `mov %eax,-0x1c(%ebp)` ⇒ 三目整体赋值；if/else 会各自落槽
             //   （我方旧形多 `mov %eax,-0x1c; jmp` + `movl $imm,-0x1c`）。
-            key = (it != lookup.end()) ? it->second : -1;
+            key = (it != __lookup.end()) ? it->second : -1;
         }
         else
         {
-            initLock.enter();
-            if (inited)
+            __init_lock.enter();
+            if (__inited)
             {
-                initLock.leave();
+                __init_lock.leave();
                 continue;   // ORIG 0x088af157 jmp 0x088aef74：重查
             }
             key = 0;        // 哨兵：进入注册链（case 0 与 case 0x46 共享入口）
@@ -170,9 +170,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
         // call），与 ORIG 不符，故直接构造 value_type。
         case 0:
         case 0x46:   // [physical attack] → type 1
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[physical attack]", 0x46));
+                __lookup.insert(LookupMap::value_type("[physical attack]", 0x46));
             }
             else
             {
@@ -184,9 +184,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
             }
             // fallthrough：ORIG 0x088af1d9 jmp 0x088af237（下一 case 入口）
         case 0x4b:   // [magical attack] → type 2
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[magical attack]", 0x4b));
+                __lookup.insert(LookupMap::value_type("[magical attack]", 0x4b));
             }
             else
             {
@@ -197,9 +197,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x50:   // [physical defense] → type 3
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[physical defense]", 0x50));
+                __lookup.insert(LookupMap::value_type("[physical defense]", 0x50));
             }
             else
             {
@@ -210,9 +210,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x55:   // [magical defense] → type 4
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[magical defense]", 0x55));
+                __lookup.insert(LookupMap::value_type("[magical defense]", 0x55));
             }
             else
             {
@@ -223,9 +223,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x5a:   // [HP MAX] → type 5
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[HP MAX]", 0x5a));
+                __lookup.insert(LookupMap::value_type("[HP MAX]", 0x5a));
             }
             else
             {
@@ -236,9 +236,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x5f:   // [MP MAX] → type 6
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[MP MAX]", 0x5f));
+                __lookup.insert(LookupMap::value_type("[MP MAX]", 0x5f));
             }
             else
             {
@@ -249,9 +249,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 100:    // [HP regen speed] → type 7
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[HP regen speed]", 100));
+                __lookup.insert(LookupMap::value_type("[HP regen speed]", 100));
             }
             else
             {
@@ -262,9 +262,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x69:   // [MP Regen speed] → type 8
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[MP Regen speed]", 0x69));
+                __lookup.insert(LookupMap::value_type("[MP Regen speed]", 0x69));
             }
             else
             {
@@ -275,9 +275,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x6e:   // [attack speed] → type 9
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[attack speed]", 0x6e));
+                __lookup.insert(LookupMap::value_type("[attack speed]", 0x6e));
             }
             else
             {
@@ -288,9 +288,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x73:   // [move speed] → type 10
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[move speed]", 0x73));
+                __lookup.insert(LookupMap::value_type("[move speed]", 0x73));
             }
             else
             {
@@ -301,9 +301,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x78:   // [cast speed] → type 11
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[cast speed]", 0x78));
+                __lookup.insert(LookupMap::value_type("[cast speed]", 0x78));
             }
             else
             {
@@ -314,9 +314,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x7d:   // [inventory limit] → type 12
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[inventory limit]", 0x7d));
+                __lookup.insert(LookupMap::value_type("[inventory limit]", 0x7d));
             }
             else
             {
@@ -327,9 +327,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x82:   // [stuck] → type 13（第一个数值为浮点）
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[stuck]", 0x82));
+                __lookup.insert(LookupMap::value_type("[stuck]", 0x82));
             }
             else
             {
@@ -340,9 +340,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x87:   // [stuck resistance] → type 14
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[stuck resistance]", 0x87));
+                __lookup.insert(LookupMap::value_type("[stuck resistance]", 0x87));
             }
             else
             {
@@ -353,9 +353,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x8c:   // [all activestatus resistance] → type 15
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[all activestatus resistance]", 0x8c));
+                __lookup.insert(LookupMap::value_type("[all activestatus resistance]", 0x8c));
             }
             else
             {
@@ -366,9 +366,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x91:   // [hit recovery] → type 16
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[hit recovery]", 0x91));
+                __lookup.insert(LookupMap::value_type("[hit recovery]", 0x91));
             }
             else
             {
@@ -379,9 +379,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x96:   // [equipment magical defence] → type 17（首个 ScanInt 弃读）
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[equipment magical defence]", 0x96));
+                __lookup.insert(LookupMap::value_type("[equipment magical defence]", 0x96));
             }
             else
             {
@@ -393,9 +393,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0x9c:   // [equipment physical defence] → type 18（首个 ScanInt 弃读）
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[equipment physical defence]", 0x9c));
+                __lookup.insert(LookupMap::value_type("[equipment physical defence]", 0x9c));
             }
             else
             {
@@ -407,9 +407,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0xa2:   // [jump power] → type 19
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[jump power]", 0xa2));
+                __lookup.insert(LookupMap::value_type("[jump power]", 0xa2));
             }
             else
             {
@@ -420,9 +420,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0xa7:   // [physical critical hit] → type 20（浮点）
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[physical critical hit]", 0xa7));
+                __lookup.insert(LookupMap::value_type("[physical critical hit]", 0xa7));
             }
             else
             {
@@ -433,9 +433,9 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
                 break;
             }
         case 0xac:   // [magical critical hit] → type 21（浮点）
-            if (!inited)
+            if (!__inited)
             {
-                lookup.insert(LookupMap::value_type("[magical critical hit]", 0xac));
+                __lookup.insert(LookupMap::value_type("[magical critical hit]", 0xac));
             }
             else
             {
@@ -447,17 +447,17 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
             }
             // fallthrough：ORIG 0x088b0041 jmp 0x088b0096（default 入口）
         default:
-            if (inited)
+            if (__inited)
                 return false;
             break;
         }
 
         // 公共尾（ORIG 0x088b00a8）：注册链走完（inited 仍 false）时 leave 并置位，
         // 回到循环头重查；正常动作路径（inited true）直接返回 true。
-        if (!inited)
+        if (!__inited)
         {
-            initLock.leave();
-            inited = true;
+            __init_lock.leave();
+            __inited = true;
             // ORIG 0x088b00c9 的 `jmp 0x088aef74` 即 do-while(true) 的尾部回跳
             // （原码未写 continue，否则 4.4 会把该 jmp 排到 return true 之后）。
         }

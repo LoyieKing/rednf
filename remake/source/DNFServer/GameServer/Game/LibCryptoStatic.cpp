@@ -234,9 +234,8 @@ done_tail:
         return 0;                              // xor edx,edx
     std::size_t r = std::fread(out, 1, static_cast<std::size_t>(outl), fp);
     if (std::ferror(fp)) {                     // 87ec7ed..f6
-        static const char kFile[] = "bss_file.c";
-        ERR_put_error(2, 0x0b, *__errno_location(), kFile, 0xf5);
-        ERR_put_error(0x20, 0x82, 2, kFile, 0xf6);
+        ERR_put_error(2, 0x0b, *__errno_location(), "bss_file.c", 0xf5);
+        ERR_put_error(0x20, 0x82, 2, "bss_file.c", 0xf6);
         return -1;                             // 87ec853
     }
     return static_cast<long>(r);
@@ -287,7 +286,6 @@ done_tail:
 //   0x6b GET_FP 0x80/0x85=fseek 同路 0x6c=SET_FILENAME（模式串组合见内注）
 #include "LibCryptoStatic/file_ctrl_1.inc"
 {
-    static const char kFile[] = "bss_file.c";   // ORIG 0x8de22ee
     std::FILE* fp = static_cast<std::FILE*>(b->ptr);   // [b+0x20]
 
     switch (cmd) {
@@ -381,7 +379,7 @@ done_tail:
             } else if ((larg & 0x2) != 0) {
                 BUF_strlcpy(mode_buf, "r", sizeof(mode_buf));        // 0x8d78111
             } else {
-                ERR_put_error(0x20, 0x74, 0x65, kFile, 0x17b);
+                ERR_put_error(0x20, 0x74, 0x65, "bss_file.c", 0x17b);
                 return 0;                       // xor eax,eax
             }
         }
@@ -391,7 +389,7 @@ done_tail:
                 fopen64(static_cast<const char*>(parg), mode_buf));
         if (new_fp == 0) {
             int e = *__errno_location();
-            ERR_put_error(2, 1, e, kFile, 0x18e);
+            ERR_put_error(2, 1, e, "bss_file.c", 0x18e);
             // [Q7S1 语义轴 · SIG] ORIG 0x087ecd96..0x087ecdbd 实参压栈序与串字节：
             //   movl $0x8de22f9,0x14(%esp) ; "')"      (arg5)
             //   mov  %ebx,0x10(%esp)       ; mode_buf  (arg4)
@@ -406,7 +404,7 @@ done_tail:
                                "','",                           // ORIG 0x8de22fc
                                mode_buf,                        // ebx 模式缓冲
                                "')");                           // ORIG 0x8de22f9
-            ERR_put_error(0x20, 0x74, 0x74, kFile, 0x190);
+            ERR_put_error(0x20, 0x74, 0x74, "bss_file.c", 0x190);
             return 0;
         }
         b->ptr = new_fp;                        // mov %eax,0x20(%esi)
@@ -434,11 +432,10 @@ void* BIO_s_file()
 // 字段初始化严格按汇编书写顺序；ex_data class_index=0；create 回调失败清理）。
 void* BIO_new(bio_method_st* type)
 {
-    static const char kFile[] = "bio_lib.c";     // ORIG 0x8de22e4
     bio_st_st* ret =
-        static_cast<bio_st_st*>(CRYPTO_malloc(0x40, kFile, 0x40));
+        static_cast<bio_st_st*>(CRYPTO_malloc(0x40, "bio_lib.c", 0x40));
     if (ret == 0) {
-        ERR_put_error(0x20, 0x6c, 0x41, kFile, 0x49);
+        ERR_put_error(0x20, 0x6c, 0x41, "bio_lib.c", 0x49);
         return 0;
     }
     ret->method        = type;       // mov %edi,(%eax)
@@ -474,7 +471,6 @@ void* BIO_new(bio_method_st* type)
 // ORIG 行为差异点（如实转写）：第二次回调存在时其返回值即函数返回值。
 #include "LibCryptoStatic/BIO_ctrl.inc"
 {
-    static const char kFile[] = "bio_lib.c";
     bio_st_st* b = static_cast<bio_st_st*>(a);
 
     if (b == 0)                                      // 87eba75
@@ -482,7 +478,7 @@ void* BIO_new(bio_method_st* type)
 
     bio_method_st* m = b->method;
     if (m == 0 || m->ctrl == 0) {                    // 87eba81/8b
-        ERR_put_error(0x20, 0x67, 0x79, kFile, 0x168);
+        ERR_put_error(0x20, 0x67, 0x79, "bio_lib.c", 0x168);
         return -2;                                   // 87ebb43
     }
 
@@ -569,11 +565,10 @@ void* PEM_read_bio_RSA_PUBKEY(void* bp, void** x, void* cb, void* u)
 // 8×BN_clear_free/BN_BLINDING_free(+50,+54)/CRYPTO_free_locked(lock+4c)/tail-free。
 #include "LibCryptoStatic/RSA_free.inc"
 {
-    static const char kFile[] = "rsa_lib.c";
     RSA_VIEW* rsa = static_cast<RSA_VIEW*>(rsa_v);
     if (rsa == 0)
         return;
-    if (CRYPTO_add_lock(&rsa->references, -1, 9, kFile, 0xdd) > 0)
+    if (CRYPTO_add_lock(&rsa->references, -1, 9, "rsa_lib.c", 0xdd) > 0)
         return;
     RSA_METH* meth = static_cast<RSA_METH*>(rsa->meth);
     if (meth->finish != 0)

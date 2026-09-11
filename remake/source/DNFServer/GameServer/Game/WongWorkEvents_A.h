@@ -160,14 +160,15 @@ public:
                                                    unsigned int stackCount,
                                                    unsigned int eventCode);
                                            // ORIG T 0x083f9b54
-    // [Q6HeaderTypeAxis 2026-09-11 负结论·已回滚] ORIG prett @0x08c5ddc0（size 0x7a）=
-    //   `void WongWork::EventCommon::LoadCharacEventItem(memberIdentificationNumber_t,
-    //   unsigned int, memberIdentificationNumber_t)`（第 1/3 参为 typedef 名）；修法需
-    //   把本头第 1/3 参拼写改 memberIdentificationNumber_t，但**本 TU 不可见该 typedef**
-    //   （WongWorkEvents_A.h 未直接/间接 include GameTypes.h ⇒ 实测
-    //   `error: 'memberIdentificationNumber_t' has not been declared`）⇒ 按 Main 规则
-    //   「不为拼写加 include」**回滚**。可行方案（待属主裁决）：在 GameTypes.h→本头的
-    //   include 链打通后改声明 + 定义（.inc:1 / .cpp:663）+ 站点换 `__PRETTY_FUNCTION__`。
+    // [Q6HeaderTypeAxis 2026-09-11 类型轴·维持手写串] ORIG prett @0x08c5ddc0（size 0x7a，**无 static 前缀**）
+    //   = `void WongWork::EventCommon::LoadCharacEventItem(memberIdentificationNumber_t,
+    //   unsigned int, memberIdentificationNumber_t)`。⚠ 本头（在其 .cpp:17 先于
+    //   GameTypes.h:21 解析）**不能**写 typedef 名（实测 error: has not been declared）
+    //   ⇒ 声明保持 `unsigned int`（别名同类型，mangled `…Ejjj` 不变）。
+    //   定义侧 typedef 拼写已对齐（`WongWorkEvents_A/LoadCharacEventItem.inc:1` +
+    //   `WongWorkEvents_A.cpp:662-663`），但**站点维持手写串**（`.cpp:685-699` 负结论）：
+    //   `EventCommon` 为 class + **static 成员** ⇒ 4.4 宏带 `static ` 前缀（实测宏版
+    //   符号 size 0x81 vs ORIG 0x7a，恰差 7）⇒ 换宏 = 运行期日志文本改变 ⇒ 不可落。
     static void LoadCharacEventItem(unsigned int eventId,
                                     unsigned int characNo,
                                     unsigned int loadId);

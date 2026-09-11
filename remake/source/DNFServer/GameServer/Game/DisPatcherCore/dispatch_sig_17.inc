@@ -279,10 +279,15 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
                 }
                 else if (
                      /* ORIG 0x081f75ca `movzbl 0x364(%eax),%eax; test %al,%al`：
-                        1B 零扩展读具名字段 m_char364（CStackableItem.h:476，
-                        声明为 char，故此处按 ORIG 宽度取无符号视图；
-                        原转写作 *(int*)(stack+0xd90)——偏移与宽度均与 ORIG 不符）*/
-                     *reinterpret_cast<const unsigned char*>(&stack->m_char364) != 0 &&
+                        1B 零扩展读具名字段 m_char364（CStackableItem.h:476，声明为 char，
+                        故按 ORIG 无符号宽度取值；原转写作 *(int*)(stack+0xd90) —— 偏移与
+                        宽度均与 ORIG 不符）。
+                        [DPC_DispA 2026-09-11] 旧形 `*reinterpret_cast<const unsigned char*>
+                        (&stack->m_char364)` 取址 ⇒ 4.4 产两步形
+                        `mov -0x2c(%ebp),%eax; add $0x364,%eax; movzbl (%eax),%eax`
+                        （0x18770-0x18775，disp2 OURS-only 无 `+0x364`、ORIG-only `+0x364`×1）；
+                        改 `static_cast<unsigned char>(成员)` 直读 ⇒ 单步 `movzbl 0x364(%eax)`。*/
+                     static_cast<unsigned char>(stack->m_char364) != 0 &&
                          stack->GetItemType() != 0x12)
                 {
                     denyCode = 0xff;

@@ -101,14 +101,17 @@
     //    无 base/tableA/tableB 具名槽）。
     long long thresholdLL =
         static_cast<long long>(static_cast<unsigned int>(info.m_field00));
+    // [Q7S5 2026-09-11 形态轴·triage] ORIG 两处表访问为成员数组寻址形
+    //   0x08349dd2/0x08349de2 `add $0x4,%edx; flds 0x8(%eax,%edx,4)` /
+    //   `lea -0x1(%eax),%edx; flds 0x8(%eax,%edx,4)`；旧稿用
+    //   `reinterpret_cast<char*>(&info)+0x8+4*(…)` 指针算术 ⇒ 4.4 折成
+    //   `add $0x6; shl $0x2; add; flds (%eax)`（N125 族）。改为 **既有视图成员**
+    //   `m_field08[i]`（STMonsterScript.h:+0x08 float[9]，与 union 的
+    //   m_field08v 同址）—— **地址与语义逐值不变**，仅寻址形态对齐 ORIG。
     thresholdLL = static_cast<long long>(
         static_cast<float>(thresholdLL) *
-        *reinterpret_cast<const float*>(
-            reinterpret_cast<const char*>(&info) + 0x8 +
-            4 * (static_cast<unsigned>(rarity) + 4)) *
-        *reinterpret_cast<const float*>(
-            reinterpret_cast<const char*>(&info) + 0x8 +
-            4 * (static_cast<unsigned>(grade) - 1)));
+        info.m_field08[static_cast<unsigned>(rarity) + 4] *
+        info.m_field08[static_cast<unsigned>(grade) - 1]);
     const int threshold = static_cast<int>(thresholdLL);
     if (get_rand_int(100000) > threshold)
         return;

@@ -85,7 +85,10 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
         return;
 
     MapInfo* mapInfo = GetCurrentMapInfo();
-    m_pMap = getMap(mapInfo->m_mapIndex);        // 实参 = mapInfo->m_mapIndex(+0x04)
+    // [W13E 2026-09-11] getMap 现返回 const CMap*（ORIG 类型，prett 串直证）；
+    // m_pMap 为非 const 成员 ⇒ const_cast（指针 cast 零指令，机器码不变）。
+    m_pMap = const_cast<CMap*>(getMap(mapInfo->m_mapIndex));
+                                                 // 实参 = mapInfo->m_mapIndex(+0x04)
     if (m_pMap == NULL)
         return;
 

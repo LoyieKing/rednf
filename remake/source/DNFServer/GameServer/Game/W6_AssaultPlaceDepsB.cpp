@@ -930,6 +930,11 @@ namespace pvp_assault
             _ProcessChaos(victimIdx, killerIdx);
     }
 
+    // [Q8 2026-09-11 试形·回滚] ORIG 0x082ec2c6 `xor $0x1,%eax; test %al,%al;
+    //   je <+0x7a6>`（bool 取反物化 + 互补跳）vs 我方 `test %al,%al; jne <+0x7a4>`
+    //   —— 两者同条件（_CheckAssaultable()!=0 跳主体），仅 4.1 多一条 `xor $1`
+    //   物化。实测 P226 语句表达式 `({ !_CheckAssaultable(); })` **零变化**
+    //   （our 533 / diff 174+175 行逐项相同、四数不变）⇒ 回滚，形态差维持 N。
     if (!_CheckAssaultable())
         return;
 

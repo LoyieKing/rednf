@@ -146,13 +146,19 @@ BuyUpgradeData& BuyUpgradeData::operator=(const BuyUpgradeData& other)
     //   -0x10，it=-0x18 / end=-0x14 三槽并存）。4.4 对 `++it` 走 ppEv（返回引用、
     //   免临时槽）⇒ 迭代器槽阶梯少一格、cond 段整体错位（原 ndiff 26）。
     //   改后置形即复现 ORIG 三槽 + ppEi 调用（P28 声明序即栈槽序的增量侧推论）。
+    // [W13C 2026-09-11 落地] 符号轴：ORIG 0x088a3322 两处 key 读取的 call 目标是
+    //   `_ZNKSt23_Rb_tree_const_iterator<...>::deEv`（**operator\***），我方原 `it->first`
+    //   发射 `...ptEv`（**operator->**）⇒ 我方多一份 ORIG 全 ELF 无的弱实例、少一份
+    //   ORIG 有的 deEv 实例。改 `(*it).first` 后 routed 口径实测：
+    //   `deEv` → IDENTICAL、`ptEv` 消失（identical 273→274、missing 2→1，其余三项不变）。
+    //   语义等价（`(*it).first` ≡ `it->first`，同为 const int 左值）。
     int maxLevel = 0;
     for (LevelFieldDataMap::const_iterator it = m_listMap.begin();
          it != m_listMap.end(); it++)
     {
-        if (maxLevel < it->first)
+        if (maxLevel < (*it).first)
         {
-            maxLevel = it->first;
+            maxLevel = (*it).first;
         }
     }
     return maxLevel;
@@ -165,13 +171,14 @@ BuyUpgradeData& BuyUpgradeData::operator=(const BuyUpgradeData& other)
     //   49=49 逐条全等）。ORIG @0x088a33c0。
     // b28d-35: IDENTICAL_AE（49/49 clean 全等）。ORIG @0x088a33c0；同 getMaxLevel。
     // b28c-L5：同 getMaxLevel —— ORIG ppEi 后置 ++ 三槽形（0x088a33c0）。
+    // [W13C 2026-09-11 落地] 同 getMaxLevel 的符号轴（ORIG 用 operator* / deEv）。
     int minLevel = 0;
     for (LevelFieldDataMap::const_iterator it = m_listMap.begin();
          it != m_listMap.end(); it++)
     {
-        if (it->first < minLevel)
+        if ((*it).first < minLevel)
         {
-            minLevel = it->first;
+            minLevel = (*it).first;
         }
     }
     return minLevel;
@@ -506,6 +513,10 @@ advancealtar::AchievementRewardData*
     //   %eax 前把 data 搬到 %edx）vs 4.4 恒 `mov 0xc(%ebp),%edx` 直落目标。本波追加
     //   试形 C `reinterpret_cast<char*>(&const_cast<AdvanceAltarData&>(data))`（在 P248
     //   两 cast 形之外的第 3 形）**零变化**（350/350、delta 仍 1 行、四数不变）⇒ 维持。
+    // [W13C 2026-09-11 试形 D·负结论] 再试 **C 风格 cast** `(char*)&data`（第 4 形）：
+    //   影子树 routed 实测 `verdict=DIFF orig=350 our=350 gap=0 ndiff=1` —— 与基线逐项
+    //   相同（仍缺 ORIG 那条 `mov %eax,%edx`）⇒ 维持；本件 4 形已穷尽（P248 两 cast +
+    //   Q8 形 C + 本形 D），残余确为 4.1 冗余 regmove（N18a），源码侧无旋钮。
     packet.put_binary(reinterpret_cast<char*>(const_cast<AdvanceAltarData*>(&data)), 0x21);   // [objdump 0x8141798]
 
     // +0x24 stages（put_binary 8 字节，0x081417fe）

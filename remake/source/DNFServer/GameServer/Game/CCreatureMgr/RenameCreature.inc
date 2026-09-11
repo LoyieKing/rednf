@@ -28,8 +28,11 @@ bool CCreatureMgr::RenameCreature(const char* name, int creatureIdx, int slot)
     if (!sender.RenameCreatureItem(
             reinterpret_cast<CCreatureItem*>(m_equippedCreature)->GetUid(), name))
     {
+        // [R2PrettAClass 2026-09-11 · prett A 类落地] 手写串 → __PRETTY_FUNCTION__
+        //   （ORIG .rodata @0x08c2f260 size 0x48 = "bool user_creature::CCreatureMgr::"
+        //   "RenameCreature(const char*, int, int)"）。
         cMyTrace(
-            "bool user_creature::CCreatureMgr::RenameCreature(const char*, int, int)",
+            __PRETTY_FUNCTION__,
             0xaa0, 5)("cannot write db uid(%d)\n",
                       m_user->get_unique_id() & 0xffff);
         respondent.SetError(2);

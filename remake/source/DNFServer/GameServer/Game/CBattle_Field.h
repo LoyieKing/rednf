@@ -90,6 +90,11 @@ public:
         bool operator<(const TournamentInfo& other) const;  // ORIG 0830eaa6
     };
 
+    // [prett-A 2026-09-11] ORIG prett 串 @0x08c23960 size 0x6a 第 3 参写作
+    //   `CBattle_Field::TournamentRoundInfoMap&`：类内 typedef ⇒ 宏打印全限定名
+    //   （GCC 4.4 探针 /tmp/r2/probe2.cpp 实证）。纯增量：不改既有声明、mangled 不变、零 codegen。
+    typedef std::map<short, std::vector<TournamentInfo> > TournamentRoundInfoMap;
+
     class CBloodRound
     {
     public:
@@ -269,7 +274,7 @@ public:
     void setQuestMazeInfo();                                  // 0830e170
     void set_dungeon_diff(char diff);                         // 0830ed1e
     bool ConsistTournament(const CMap* map, std::list<_mapMonster>& mobList,
-                           std::map<short, std::vector<TournamentInfo> >& roundMap);  // 083035c8
+                           TournamentRoundInfoMap& roundMap);  // 083035c8
     MapInfo* GetCurrentMapInfo();                             // 0822cbcc
     MapInfo* GetMapInfoFromPos(int x, int y, bool create);    // 0822cc48
     void MakeNextRoundInfo(int memberCount,
@@ -399,7 +404,11 @@ public:
     int get_blood_spawn_time_of_next_small_round(short smallRound);  // 0830676a
     int get_blood_round_difficylty_of_small_round(short smallRound);  // 083062fe
     int get_blood_spawn_phase_total_cnt_of_small_round(short smallRound);  // 08306c0e
-    CMap* getMap(int unused);                                 // 08300ed4
+    // [W13E 2026-09-11] ORIG 返回类型为 const（prett 串直证 ORIG 侧
+    // `const CMap* CBattle_Field::getMap(int)` vs 我方无 const）⇒ 补 const。
+    // mangled 不含返回类型 ⇒ ABI/mangled 零变化；机器码零变化（仅 .rodata
+    // prett 串）；唯一调用点 BattleDepsB2.cpp:88 加 const_cast（零指令）。
+    const CMap* getMap(int unused);                           // 08300ed4
     int MoveMap(int x, int y, bool& firstVisit);              // 08308ae6
     MazeScript* getMaze();                                    // 0822d052
     void SetParty(CParty* party);                             // 082a43be

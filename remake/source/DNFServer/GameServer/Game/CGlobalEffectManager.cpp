@@ -28,7 +28,8 @@
 #include "GlobalData.h"
 
 // 值编码常数：ORIG makeNotifyInfo 用 10000.0f 缩放（.rodata 0x8c854b0 = 0x461c4000 = 10000.0f）。
-static const float kValueScale = 10000.0f;
+// [W16ASymNameSeg2 2026-09-11 符号名轴] ORIG 无 `_ZL11kValueScale` 实体（全 ELF grep 0 命中）⇒
+// 该常量为 .rodata 字面量，内联以消 _ZL11kValueScale（OUR-only 1→0，四数不变 28/67/2/1/0）。
 
 // ============================================================================
 // CGlobalEffect（0x2c）
@@ -39,7 +40,7 @@ static const float kValueScale = 10000.0f;
 #include "CGlobalEffectManager/makeNotifyInfo.inc"
 {
     packet.put_int( static_cast<int>(m_type));
-    packet.put_int(static_cast<int>(m_value * kValueScale));
+    packet.put_int(static_cast<int>(m_value * 10000.0f));
     // P48/P0：ORIG 无 CSE，strlen(name) 调两次，各自结果寄存器直传入参（无 len 局部槽）。
     packet.put_int( static_cast<int>(strlen(m_name)));
     packet.put_str( m_name, static_cast<int>(strlen(m_name)));

@@ -1118,6 +1118,16 @@ public:
 // [S1Charac 2026-09-11 复核] 118=118、无指令增删：diff 43+/43- 全为 begin/ctor/end/ppEi
 // 调用块的**位置重排**（ORIG 把 end() 提到循环前存 -0x40、range 槽 -0x38；我方 range
 // -0x44 且 end() 后置）⇒ 4.4 循环调度 + 槽分配差（N95/N93）；§6.5 无串引用 ⇒ CLEAR。
+// [W13AStackableItem 2026-09-11 探针负结论·含 ORIG 指令形] range/it 槽交换
+// （-0x38↔-0x3c）**不可翻**，两形均实测劣化：
+//   ORIG 0x0850fc45 `lea -0x3c(%ebp),%eax`（第一循环 begin() 的 sret 目标 ⇒ it 槽 -0x3c）、
+//        0x0850fc96 `mov %eax,-0x38(%ebp)`（`range = total` ⇒ range 槽 -0x38）、
+//        0x0850fca2 `lea -0x38(%ebp),%edx`（randInt(range) 实参）⇒ ORIG: it -0x3c(1)/range -0x38(2)；
+//   我方基线（slotmap 影子实测）：it -0x38(1)/range -0x3c(2)。
+//   探针 v1（`range` 移至 it 之后 + 内联初始化 `unsigned long range = total;`）／
+//        v2（同位置、保持 `range = total;`）⇒ **两形均新增劣化**（-0x44/-0x48 计数互换；
+//        v2 ndiff 7→8），已回滚。判：4.1 按声明序而 4.4 按首次使用序分配取地址标量，
+//        方向差不可由源码声明顺序反转（N95/N93 族封顶）。
 #include "CStackableItem/get_limit_cube_item.inc"
 {
     unsigned long range;

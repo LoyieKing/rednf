@@ -334,10 +334,14 @@ namespace expert_job
 //   ③keyByte unsigned char + find 直传其地址（无 cast 临时）+ 两次独立
 //   GetEtcScript() + 非 const iterator（P48/P96/P270）；④upgradeCost<0||==0
 //   双独立守卫（P133①）；⑤比较方向 `it->second > level`（ORIG 先算 RHS）。
-// 残差：it==end 的 0x13 错误块物理位置（ORIG 0x085d38ee 紧跟 0xe 块后，4.4 恒
-// 置于函数尾 fall-through；202 vs 201，差 1 条 jmp）。else-if/正向包裹两形互试
-// ⇒ 正向包裹最优（identical 20 vs 19）。p167 调用点 38/38 CLEAR、指令集合与
-// 槽位集全等 ⇒ 语义完成、块序 N 封顶。
+// [W13HExpertJob 2026-09-11 收口·DIFF→AE] ⑥**块序根因消除**：把正常流程从
+//   `it != end` 的 then 块**移出**到 if/else 之后，it==end 改走显式 else 早退
+//   （`else { return 0x13; }`）。ORIG 形状 = 0xe 块与 0x13 块**相邻**且各带
+//   `jmp 尾`（0x085d38e4 `mov $0xe,%ebx; jmp 0x085d3abf`；0x085d38ee
+//   `mov $0x13,%ebx; jmp 0x085d3abf`），正常流程自 0x085d38f8 起。4.4 在此形
+//   下把内层 `je` 经 jump-threading 直指正常流程入口 → 两侧 clean 后 202/202
+//   逐条全等（verdict=AE，raw 多 1 条为函数尾对齐 nop）。同前 ①–⑤ 全保留。
+//   ⇒ 旧「N93附/N121 块序封顶」判词**作废**（原判源于内层 else 包裹形）。
 #include "ExpertJobOnlyMgr/OnUpgradeDisjointMachine.inc"
 {
     int grade = GetSelfExpand(user)->get_disjoint_machine_grade();
@@ -360,15 +364,10 @@ namespace expert_job
     unsigned char keyByte = (unsigned char)(grade + 2);
     std::map<unsigned char, short>::iterator it =
         GetEtcScript()->m_levelMap.find(keyByte);
-    // b28d-solo（P222 正向包裹）：ORIG 把 it==end 的 0x13 错误块放在 0xe 块
-    // **之后**（0x085d38ee vs 0x085d38e4）；实测 else-if 链劣化（identical
-    // 20→19），正向包裹为最优形（残差仅块序，见函数头判词）。
-    // [2026-09-10 复测] 显式 `else { return 0x13; }` 形实测无效（仍 202/201，
-    // 4.4 把 else 出口排到函数尾 landing pad 之后）⇒ 块序属 N93附/N121 族。
-    // [L3Free25to36 2026-09-11 复核·负结论] 唯一残差 = ORIG 0x085d38e4/0x085d38ee
-    // 两个**相邻**返回块（`mov $0xe,%ebx; jmp 尾` + `mov $0x13,%ebx; jmp 尾`，各带
-    // jmp）vs 我方 0x13 块被 4.4 排到 EH/尾落地区并共用尾 jmp（-1 条）。属块序+尾
-    // jmp 合并，非语义差（两侧 0x13 出口同效）；记 N121。
+    // 块序（W13HExpertJob 2026-09-11 收口）：正常流程必须在 if/else **之外**，
+    // 才能让 4.4 把 it==end 的 0x13 块排在 0xe 块之后（ORIG 0x085d38ee）并把
+    // 内层 `je` 直指正常流程入口（0x085d38f8）。语义与「then 内续写 + 尾
+    // return 0x13」等价（else 分支提前 return，正常流程仅 it!=end 可达）。
     if (it != GetEtcScript()->m_levelMap.end())
     {
         // ORIG 0x085d38c9 先取 it->second（movzwl+movswl→%ebx）再调
@@ -378,45 +377,48 @@ namespace expert_job
         {
             return 0xe;
         }
-
-        ++grade;   // 升级
-        int upgradeCost = GetScript()->GetUpgradeCost((unsigned)grade);
-        // ORIG 0x085d3913/0x085d3919 两条**独立**比较（js <0 / jne !=0 共落
-        // 0x137 错误块）⇒ 拆两条独立守卫（P133①）；money 检查独立成句。
-        if (upgradeCost < 0 || upgradeCost == 0)
-        {
-            return 0x16;
-        }
-        if (user->getCurCharacMoney() < upgradeCost)
-        {
-            return 0x16;
-        }
-
-        user->getCurCharacInvenW()->use_money(upgradeCost,
-                                              (eMoneySubReason)0x20, true);
-        GetSelfExpand(user)->set_disjoint_machine_grade(grade);
-
-        // 新等级满值耐久若存在则一并重置。
-        stEnduranceRepairCost* full =
-            GetScript()->_GetEnduranceRepairCost((unsigned)(grade + 1));
-        if (full != 0)
-        {
-            GetSelfExpand(user)->set_disjoint_machine_endurance(full->m_field4);
-        }
-
-        PacketGuard packet;
-        packet.put_header(1, 0xf4);
-        packet.put_byte(1);
-        packet.put_int(user->getCurCharacMoney());
-        // b28d-solo 真语义修正：ORIG 0x085d3a2e `mov -0x18(%ebp),%eax;
-        // add $0x1,%eax` ⇒ put_int(grade + 1)（原实现少 +1）。
-        packet.put_int(grade + 1);
-        packet.put_int(GetSelfExpand(user)->get_disjoint_machine_endurance());
-        packet.finalize(true);
-        user->Send(packet);
-        return 0;
     }
-    return 0x13;
+    else
+    {
+        return 0x13;
+    }
+
+    ++grade;   // 升级
+    int upgradeCost = GetScript()->GetUpgradeCost((unsigned)grade);
+    // ORIG 0x085d3913/0x085d3919 两条**独立**比较（js <0 / jne !=0 共落
+    // 0x137 错误块）⇒ 拆两条独立守卫（P133①）；money 检查独立成句。
+    if (upgradeCost < 0 || upgradeCost == 0)
+    {
+        return 0x16;
+    }
+    if (user->getCurCharacMoney() < upgradeCost)
+    {
+        return 0x16;
+    }
+
+    user->getCurCharacInvenW()->use_money(upgradeCost,
+                                          (eMoneySubReason)0x20, true);
+    GetSelfExpand(user)->set_disjoint_machine_grade(grade);
+
+    // 新等级满值耐久若存在则一并重置。
+    stEnduranceRepairCost* full =
+        GetScript()->_GetEnduranceRepairCost((unsigned)(grade + 1));
+    if (full != 0)
+    {
+        GetSelfExpand(user)->set_disjoint_machine_endurance(full->m_field4);
+    }
+
+    PacketGuard packet;
+    packet.put_header(1, 0xf4);
+    packet.put_byte(1);
+    packet.put_int(user->getCurCharacMoney());
+    // b28d-solo 真语义修正：ORIG 0x085d3a2e `mov -0x18(%ebp),%eax;
+    // add $0x1,%eax` ⇒ put_int(grade + 1)（原实现少 +1）。
+    packet.put_int(grade + 1);
+    packet.put_int(GetSelfExpand(user)->get_disjoint_machine_endurance());
+    packet.finalize(true);
+    user->Send(packet);
+    return 0;
 }
 
 }  // namespace expert_job

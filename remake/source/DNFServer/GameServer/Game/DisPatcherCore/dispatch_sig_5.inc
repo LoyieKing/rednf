@@ -449,8 +449,11 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         pgRes.put_short(user->get_unique_id() & 0xffff);
         pgRes.put_byte(1);
         pgRes.put_int(static_cast<int>(cookie));
+        // [DPC_BitsA] ORIG 0x081f200b `movzbl %al,%eax` 后**直入实参槽**
+        // （0x081f200e `mov %eax,0x4(%esp)`）⇒ 原文无 `& 0xff`；旧形
+        // `static_cast<int>(X) & 0xff` 产 `movzbl; and $0xff`（多 1 条）。
         pgRes.put_byte(
-            static_cast<int>(user->GetReliablePerson()) & 0xff);
+            static_cast<unsigned char>(user->GetReliablePerson()));
         pgRes.put_int(
             static_cast<int>(user->getCurCharacCreateTime()));
         pgRes.finalize(true);
@@ -460,8 +463,9 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         pgRes.put_byte(1);
         pgRes.put_short(static_cast<int>(peerIdx) & 0xffff);
         pgRes.put_byte(1);
+        // [DPC_BitsA] ORIG 0x081f20e7 `movzbl %al,%eax` 后直入实参槽（0x081f20ea）。
         pgRes.put_byte(
-            static_cast<int>(target->GetReliablePerson()) & 0xff);
+            static_cast<unsigned char>(target->GetReliablePerson()));
         pgRes.finalize(true);
         user->Send(pgRes);
         break;

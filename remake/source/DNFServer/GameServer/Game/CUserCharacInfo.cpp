@@ -2398,6 +2398,14 @@ L_SBR_END:;
 // 0x08645a41 `lea 0x380(%ecx),%edx` / `fstps 0xe(%eax,%edx,4)`；我方同段为
 // `mov 0xc(%ebp),%edx` / `lea 0x380(%edx),%ecx` / `fstps 0xe(%eax,%ecx,4)`
 // ⇒ 4.1/4.4 RA 命名差（前面两轮 20 形已证无源形可翻）。维持 N82/N18a。
+// [W15ANearHunt1 2026-09-11 收尾复核] routed 复编（07:15）本 TU 非 identical 仅 4 件，
+//   已逐件指令级复核：本件 59/60 ndiff2（RA 角色互换，见上）；calc_disp_help_abuse_ratio
+//   68/68 ndiff8（残差 = (double)uint 匿名 8B 临时与 cw/除数槽相对 ebp 整体下移 8B +
+//   帧 0x68↔0x58，N95/N82附）；GetContinuousItemInfo 100/104 ndiff10（4.4 把
+//   index+0x460 CSE 至 %esi 跨 call 保活并多发 push %esi，且 disp 0x10 折成
+//   `lea 0x2(%esi),%edx`，N82附/N4）；其余 1 件为 static_init 口径差（勿碰）。
+//   ⇒ 「disp/scale≥2 折叠」与「槽按首次使用序先浅后深」均为 4.4 定则，无源码旋钮；
+//   四数 251/391/1/3/38 与复核前逐项相同（本轮零代码改动）。
 #include "CUserCharacInfo/WarAreaKill.inc"
 {
     if (!m_selected)

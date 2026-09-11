@@ -172,7 +172,11 @@ namespace {
 char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
 {
     // ORIG 0x0819e997：与 ARAD_CRYPT::encryptAES 指令体相同，仅 logFormat 文案不同
-    // （localjapan/Arad_OS.cpp、"char* ARAD::encryptAES(CRijndael*, char*, char*)"、0x52）。
+    // （localjapan/Arad_OS.cpp、funcName 与 `%s` 实参均用宏、0x52）。
+    // [AradPrett 2026-09-11 · A 类落地] ORIG 0x08ba9a20 size 0x31（串
+    // `char* ARAD::encryptAES(CRijndael*, char*, char*)`）：本函数两处手写串改
+    // `__PRETTY_FUNCTION__` 后 `_ZZN4ARAD10encryptAESEP9CRijndaelPcS2_E19__PRETTY_FUNCTION__`
+    // 与 ORIG 逐字节 SAME。
     // [AradMisc-E10 2026-09-11 · DIFF(91)→**NEAR** 89/89 gap0] 与 ARAD_CRYPT::encryptAES
     //   同套六旋钮（ORIG 0x0819e9b5/0x0819e9fe/0x0819ea0c/0x0819ecc4/0x0819ecc8 同形）：
     //   `int srcLen`（有符号 idiv 段）/ `int paddedLen = 0;` / 嵌套 `if (blockSize >= 0)`
@@ -197,8 +201,8 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
     int result = cipher->Encrypt(inData, enc, paddedLen);   // P6AuditOldN-S1 试形负结论同 AC 版
     if (result != 0x6fffffff) {
         LogManager::logFormat(
-            1, "localjapan/Arad_OS.cpp", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,
-            "[%s][%d][%s]", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,
+            1, "localjapan/Arad_OS.cpp", __PRETTY_FUNCTION__, 0x52,
+            "[%s][%d][%s]", __PRETTY_FUNCTION__, 0x52,
             "Encrypt Error");
         return NULL;
     }

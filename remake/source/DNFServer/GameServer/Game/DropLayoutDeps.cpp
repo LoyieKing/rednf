@@ -578,6 +578,14 @@ namespace WongWork
 
 #include "DropLayoutDeps/loadScript_2.inc"
 {
+    // [W13AStackableItem 2026-09-11 槽轴实证·具名变量区整体深 4，不可翻]
+    // slotmap（影子 routed 实测）逐槽对照：ORIG 仅 -0x60(15)/-0x61(43) 两槽
+    // ↔ 我方 -0x64(15)/-0x65(43)（token/ok），其余 -0x18..-0x58 全槽计数**逐条相同**
+    // ⇒ 非「变量集不同」，而是我方具名局部区整体深 4 字节（4.4 于浅端多留 4）。
+    // 本波 overlay 未再试形（前人已记录 resize 实参匿名化把槽差 0x18→4，见下）。
+    // ⚠ 口径提醒（对全员判槽有用）：Ghidra 报告的 `local_65`/`local_64` 与 objdump 的
+    //   `-0x61`/`-0x60` **差 4 是基准差**（Ghidra 以函数入口 esp 为基、objdump 以 ebp 为基），
+    //   **不是**布局差异 —— 用 Ghidra local_NN 判我方槽位前必须减去 4。
     // [SweepDropLayout 2026-09-09 复核] N82附/N76 封顶（ORIG 0x08537938，540/545，
     // ndiff 549→545）。具名 fill 改 resize 实参位匿名临时后槽差 0x18→4
     // （OURS ok -0x65/token -0x64 vs ORIG -0x61/-0x60；残 4 = N126/N95 首槽常数）。

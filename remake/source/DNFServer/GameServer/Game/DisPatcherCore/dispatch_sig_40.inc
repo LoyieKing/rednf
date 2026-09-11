@@ -56,6 +56,13 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
         notify.m_characNo = (unsigned int)user->getCurCharacNo();
         notify.m_recverCharId = (int)recvCharno;
         notify.m_buddyNameLen = (char)((unsigned int)srcLen & 0xff);
+        // [DPC_BitsB 负结论 2026-09-11] disp2/bits 报本件 OURS-only `and $0xff`×2；
+        // ORIG 0x081f3902/0x081f392a 该实参为 `mov -0x18f(%ebp),%eax; mov %eax,0x8(%esp)`
+        // （-0x18f = ORIG 0x081f3774 get_int 的 srcLen 输出槽，无掩码）。
+        // 试 `static_cast<unsigned char>(srcLen)` ⇒ 我方产 `mov; movzbl %al,%eax; mov`
+        // （3 条，仍 ≠ ORIG 2 条），件级 ndiff 131 不变、四数不变 ⇒ 无收益已回滚。
+        // 去掩码改 `srcLen` 可逐条对齐但会去掉 srcLen 的长度钳制（ORIG 无钳制 ⇒ 还原
+        // 栈溢出面），按安全纪律不落。ORIG 地址：0x081f38fc / 0x081f3924。
         memcpy(notify.buddy_n_user_id_what, nickBuf,
                (size_t)srcLen & 0xffu);
         memcpy(notify.m_msg, msgBuf, (unsigned char)msgLen);
@@ -82,6 +89,8 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
             Packet_Monitor_Other_Channel_Chat notify;
             notify.m_characNo = (unsigned int)user->getCurCharacNo();
             notify.m_buddyNameLen = (char)((unsigned int)srcLen & 0xff);
+            // [DPC_BitsB 负结论] 同第一处（ORIG 0x081f3b0a/0x081f3b16 直传 srcLen 槽）；
+            // `static_cast<unsigned char>` 形态实测 ndiff 不变 ⇒ 已回滚。
             memcpy(notify.buddy_n_user_id_what, nickBuf,
                    (size_t)srcLen & 0xffu);
             memcpy(notify.m_msg, msgBuf, (unsigned char)msgLen);

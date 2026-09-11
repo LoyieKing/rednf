@@ -678,6 +678,8 @@ typedef std::map<const char*, int, less_TCHAR> LookupMap;
 // static 对象承载同一地址语义。
 CDeathTowerPlayDataStatistic* GetInstanceDeathTowerPlaydataStatistic()
 {
-    static CDeathTowerPlayDataStatistic s_instance;
-    return &s_instance;
+    // ORIG 0x094733a8 = _ZZ38GetInstanceDeathTowerPlaydataStatisticvE8instance（b，1B）
+    // ⇒ 函数内 static 真名为 `instance`（原 `s_instance` 为发明名，改回 ORIG 名）。
+    static CDeathTowerPlayDataStatistic instance;
+    return &instance;
 }

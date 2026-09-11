@@ -63,6 +63,10 @@ protected:
 class Arad_Dispatcher_Manager
 {
 public:
+    // ORIG prett 串形参名（`ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE`）：
+    // 纯增量类内 typedef（与 int 同类型 ⇒ 不入 mangled、零 ABI/布局影响）。
+    // 定义侧按此拼写即可让 `__PRETTY_FUNCTION__` 复现 ORIG 串（见 Arad_Dispatcher.cpp）。
+    typedef int INTERNAL_PACKET_CODE;
     Arad_Dispatcher_Manager();                    // 0x0818fdd4
     ~Arad_Dispatcher_Manager();                   // D1/D2 0x0818fe32（非虚析构）
     bool open();                                  // 0x0818fe38

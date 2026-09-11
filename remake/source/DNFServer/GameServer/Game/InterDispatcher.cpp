@@ -2260,25 +2260,26 @@ struct Inter_LoadInvenPktView
     user->getCurCharacInvenW()->GetCreatureMgrW()->Reset();
     user->getCurCharacInvenW()->GetCreatureMgrW()->SetUser(user);
     {
-        const int creatureCount = pPkt->m_1287c;
-        for (int i = 0; i < creatureCount; ++i)
+        // [R5·InterDisp 形态收口 2026-09-11] 去具名槽 + 条件每轮重读（P0/P183）：
+        //   ORIG 0x084c4122 `mov -0x34(%ebp),%eax; mov 0x1287c(%eax),%eax; cmp -0x2c(%ebp),%eax`
+        //   ⇒ count 无栈槽、每轮重读；item/detail 亦不落槽（0x084c40cc `mov %eax,%ebx; add -0x34(%ebp),%ebx`
+        //   直落实参寄存器、0x084c40f8 `lea 0x1(%eax),%esi`）。我方旧形为 -0x5c/-0x4c/-0x48 三个具名槽。
+        for (int i = 0; i < pPkt->m_1287c; ++i)
         {
-            const int itemOffset = *reinterpret_cast<int*>(data + 0x12880 + i * 0x38);
-            Inven_Item* item = reinterpret_cast<Inven_Item*>(
-                data + 0xeed1 + itemOffset * 0x3d);
-            SIG_CREATURE_ITEM_DETAIL_INFO* detail =
+            user->getCurCharacInvenW()->GetCreatureMgrW()->LoadCreatureItem(
+                reinterpret_cast<Inven_Item*>(
+                    data + 0xeed1 +
+                    *reinterpret_cast<int*>(data + 0x12880 + i * 0x38) * 0x3d),
                 reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-                    data + 0x12880 + i * 0x38);
-            user->getCurCharacInvenW()->GetCreatureMgrW()->LoadCreatureItem(item, detail);
+                    data + 0x12880 + i * 0x38));
         }
-        const int tempPeriodCount = pPkt->m_15340;
-        for (int i = 0; i < tempPeriodCount; ++i)
+        // 同族：ORIG 0x084c4172 `mov -0x34(%ebp),%eax; mov 0x15340(%eax),%eax` 每轮重读。
+        for (int i = 0; i < pPkt->m_15340; ++i)
         {
-            SIG_POSTAL_CREATURE_TEMP_PERIOD* period =
+            user->getCurCharacInvenW()->GetCreatureMgrW()->LoadCreatureTempPeriod(
                 // 权威槽：SIG_LOAD_INVENTORY::m_tempPeriods[0x14] @+0x15344
                 //（= (0x2a68*8+4)，元素 8 字节 = sizeof(SIG_POSTAL_CREATURE_TEMP_PERIOD)）。
-                &reinterpret_cast<SIG_LOAD_INVENTORY*>(data)->m_tempPeriods[i];
-            user->getCurCharacInvenW()->GetCreatureMgrW()->LoadCreatureTempPeriod(period);
+                &reinterpret_cast<SIG_LOAD_INVENTORY*>(data)->m_tempPeriods[i]);
         }
     }
     if (!user->SetInventory(reinterpret_cast<SIG_LOAD_INVENTORY*>(data)))
@@ -3579,13 +3580,20 @@ struct Inter_MonitorCeraUpdatePktView
 struct Inter_IPGResultPktView
 {
     char m_0;                 // +0x00
-    char m_pad1[0x1c];  // 未消费
-    int m_1d;                 // +0x1d
-    int m_21;                 // +0x21
+    // [Q5-InterDisp 2026-09-11 真修·偏移整体错位] 原写 `char m_pad1[0x1c]` ⇒ 本视图全部字段
+    //   比 ORIG 大 1 字节（m_1d 落 +0x1d 而 ORIG 084ceb0x 读 0x1c、m_21 落 +0x21 而 ORIG 读
+    //   0x20、m_b2 落 +0xb2 而 ORIG 读 0xb1、m_26e 落 +0x26e 而 ORIG 读 0x26d —— disp2.py
+    //   偏移多重集实测 OURS[0x1d/0x21/0xb2/0x26e] vs ORIG[0x1c/0x20/0xb1/0x26d]，**全字段恒差 1**）。
+    //   根因：m_0(1) + pad(0x1c) = 0x1d；ORIG 实际是 m_0(1) + pad(0x1b) = 0x1c。改 pad=0x1b 后
+    //   四个字段（+0x1c/+0x20/+0xb1/+0x26d）与 ORIG 逐个对齐，其后 pad25/padb3 不需动。
+    //   运行期后果：m_1d 是分支选择子（==4/6/0 三分支）⇒ 读错会走错分支。
+    char m_pad1[0x1b];  // 未消费
+    int m_1d;                 // +0x1c（ORIG 直读 0x1c(%eax)）
+    int m_21;                 // +0x20（ORIG 直读 0x20(%eax)）
     char m_pad25[0x8d];  // 未消费
-    char m_b2;                // +0xb2
+    char m_b2;                // +0xb1（ORIG 直读 0xb1(%eax)）
     char m_padb3[0x1bb];  // 未消费
-    unsigned char m_26e;      // +0x26e
+    unsigned char m_26e;      // +0x26d（ORIG 直读 0x26d(%eax)）
 };
 #pragma pack(pop)
 
@@ -8679,9 +8687,13 @@ struct Inter_DeathTowerLoadTopRankerPktView
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-// Inter_DeathTowerLoadTopRankerRecWinView —— Inter_DeathTowerLoadTopRanker::dispatch_sig 窗口 rec 元素视图
-//   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
-struct Inter_DeathTowerLoadTopRankerRecWinView
+// [R5·InterDisp 形态收口 2026-09-11] 负结论（已回滚，反劣）：ORIG 对 rec 内字段发
+//   `add $0xfa0,%eax` + `movzwl 0xc(%eax)`/`movzwl 0xe(%eax)`（0x084d340c/0x084d3424）、
+//   `add $0xfa0; add -0x24(%ebp); add $0x10`（0x084d33e4，记录体 +0xfb0），
+//   而 `add $0x1010`/`add $0x100c`（0x084d33c1/0x084d33d7）为独立裸偏移。
+//   试「rec +0xfa0 具名子结构视图（m_c/m_e/m_pad10）+ +0x100c/+0x1010 裸偏移」复现该两步形：
+//   实测 ndiff 18→22（反劣，our_insns 87 不变）⇒ 回滚，判 gcc 指令选择/寄存器分配族。
+struct Inter_DeathTowerLoadTopRankerRecWinView   // rec 元素视图（扁平绝对偏移）
 {
     char m_pad0[0xfac];  // 未消费
     unsigned short m_fac;     // +0xfac
@@ -10138,7 +10150,7 @@ struct Inter_NotifyAuctionMailPktView
 // ORIG 0x084d5740 T dispatch_sig —— 拍卖询价应答：GM 延迟追踪后组 0xb9 包回发。
 // 报告 docs/class_func_reports/Inter_AuctionResultAskPrice/dispatch_sig.md 全文转写。
 // ORIG d _ZL6gmList @0x093701d8（延迟追踪 GM 角色号表；定义先移至首个使用点前）
-static const int g_auctionResultGmList[5] =
+static int gmList[5] =
     { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
 
 #pragma pack(push, 1)
@@ -10182,10 +10194,10 @@ struct Inter_AuctionResultAskPricePktViewI
     if (pPkt->m_4 != user->getCurCharacNo())         // ORIG 084d5761 +0x021 `mov 0x4(%eax),%eax`
         return 0;
 
-    // GM 延迟追踪（asm 循环界 cmpl $0x4, setle；ORIG d _ZL6gmList 同 TU g_auctionResultGmList）
+    // GM 延迟追踪（asm 循环界 cmpl $0x4, setle；ORIG d _ZL6gmList 同 TU gmList）
     for (int i = 0; i <= 4; ++i)
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        if (gmList[i] == user->getCurCharacNo())
         {
             cMyTrace(__PRETTY_FUNCTION__,
                 0x377c, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskPrice",
@@ -10306,7 +10318,7 @@ struct Inter_AuctionResultAskRegistedItemNumPktView
     // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
     for (int i = 0; i <= 4; ++i)
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        if (gmList[i] == user->getCurCharacNo())
         {
             cMyTrace(__PRETTY_FUNCTION__,
                 0x37a3, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskRegistedItemNum",
@@ -10713,7 +10725,7 @@ struct Inter_AuctionResultRegistPktViewI
     // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
     for (int i = 0; i <= 4; ++i)
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        if (gmList[i] == user->getCurCharacNo())
         {
             cMyTrace(__PRETTY_FUNCTION__,
                 0x3ab4, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultRegist",
@@ -10761,26 +10773,42 @@ struct Inter_AuctionResultRegistPktViewI
 struct Inter_AuctionResultBiddingPktView
 {
     int m_0;                  // +0x00
-    char m_pad4[0x8];  // 未消费
+    int m_4;                  // +0x04（角色号；ORIG 0x084d6ceb `mov 0x4(%eax),%eax` 直读）
+    int m_8;                  // +0x08（退款金额 msg[2]）
     unsigned char m_c;        // +0x0c
     unsigned char m_d;        // +0x0d
 };
 #pragma pack(pop)
 
+// PrePayInfoView —— FindPrePayInfo 返回值的本 TU 消费视图（CPrePayInfoMgr.h 的
+//   PrePayInfo 为 char[0x28] 字节区）。ORIG 0x084d6f9a..0x084d6fe4（三组）:
+//   `mov -0x28(%ebp),%eax; mov 0x10(%eax),%edx; mov %edx,-0x54(%ebp)…` 逐段 disp
+//   直读 ⇒ 源码须为成员访问（cast+算术会让 4.4 产 add 型）；两组 12B 整块
+//   （BillTransaction 4/4/4 展开）+ 尾随 0x8/0xc 两 int。
+struct PrePayInfoView
+{
+    char m_pad0[0x8];                  // +0x00..未消费
+    unsigned int m_amount1;            // +0x08（ORIG 0x084d6fe4 段）
+    unsigned int m_amount2;            // +0x0c
+    Taiwan::BillTransaction m_tran1;   // +0x10（12B，ORIG 0x084d6fcd 段）
+    Taiwan::BillTransaction m_tran2;   // +0x1c（12B，ORIG 0x084d6ff2 段）
+};
+
 // [b28d-lane2] verdict=DIFF ndiff=449（ORIG 0x084d6cda）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-26。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=560（ORIG 0x84d6cda）：N18a 单段 regmove+N7 间接调用寄存器+N82/P112 帧槽平移。
 #include "InterDispatcher/dispatch_sig_taiwan.inc"
 {
-    Inter_AuctionResultBiddingPktView* pPkt = reinterpret_cast<Inter_AuctionResultBiddingPktView*>(data);
+    // [c3] ORIG 只保留一个 data 槽（-0x2c）且逐处 disp 直读 ⇒ 用引用视图（引用别名不占新槽）。
+    const Inter_AuctionResultBiddingPktView& pkt =
+        *reinterpret_cast<const Inter_AuctionResultBiddingPktView*>(data);
     (void)len;                                         // ORIG 未用 param_3 长度
-    const int* msg =&pPkt->m_0;
-    if (msg[1] != static_cast<int>(user->getCurCharacNo()))   // msg+0x04 角色号
+    if (pkt.m_4 != static_cast<int>(user->getCurCharacNo()))   // msg+0x04 角色号
         return 0;
 
-    {   // GM 延迟追踪（cmpl $0x4 setle；g_auctionResultGmList = ORIG _ZL6gmList）
+    {   // GM 延迟追踪（cmpl $0x4 setle；gmList = ORIG _ZL6gmList）
         for (int i = 0; i <= 4; ++i)
         {
-            if (g_auctionResultGmList[i] == static_cast<int>(user->getCurCharacNo()))
+            if (gmList[i] == static_cast<int>(user->getCurCharacNo()))
             {
                 cMyTrace(__PRETTY_FUNCTION__,
                     0x3c12, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultBidding",
@@ -10793,24 +10821,26 @@ struct Inter_AuctionResultBiddingPktView
     PacketGuard packet;
     packet.put_header(1, 0xbc);
     packet.put_byte(static_cast<int>(
-        pPkt->m_c));      // msg byte @0xc
-    if (static_cast<char>(msg[3]) == '\0')                    // 低字节为 0 补错误码
+        pkt.m_c));        // msg byte @0xc
+    if (static_cast<char>(pkt.m_c) == '\0')                   // 低字节为 0 补错误码
         packet.put_byte(static_cast<int>(
-            pPkt->m_d));  // byte @0xd
-    packet.put_byte(msg[0]);                                  // msg+0x00 pay 类型
+            pkt.m_d));    // byte @0xd
+    packet.put_byte(pkt.m_0);                                 // msg+0x00 pay 类型
 
-    PrePayInfo* prePay = 0;                            // local_2c（FindPrePayInfo 返回 &PrePayInfo）
+    const PrePayInfoView* prePay = 0;                  // local_2c（FindPrePayInfo 返回 &PrePayInfo，
+                                                       // 本 TU 以 PrePayInfoView 消费，ORIG disp 直读形）
     Taiwan::BillTransaction trans1;                    // -0x60..-0x54 段（+0x10/+0x14/+0x18）
     Taiwan::BillTransaction trans2;                    // -0x64..-0x58 段（+0x1c/+0x20/+0x24）
     unsigned int amount1 = 0;                          // local_24（PrePayInfo+0x08）
     unsigned int amount2 = 0;                          // local_20（PrePayInfo+0x0c）
     WongWork::IPG::CIPGMgr* mgr = 0;                   // local_28
 
-    if (msg[0] == 1)
+    if (pkt.m_0 == 1)
     {
         user->SetBuyingGold(false);
-        prePay = G_CPrePayInfoMgr()->FindPrePayInfo(
-            static_cast<int>(user->getCurCharacNo()));
+        prePay = reinterpret_cast<const PrePayInfoView*>(
+            G_CPrePayInfoMgr()->FindPrePayInfo(
+                static_cast<int>(user->getCurCharacNo())));
         if (prePay == 0)
         {
             LogManager::logFormat(
@@ -10825,27 +10855,20 @@ struct Inter_AuctionResultBiddingPktView
         // 旧桥多传 characNo（p167 EXTRA getCurCharacNo）且绕过 vtable 派发。
         mgr = GlobalData::s_pIPGHelper->GetIPGMgr();
 
-        // PrePayInfo +0x10/+0x14/+0x18 → trans1；+0x1c/+0x20/+0x24 → trans2
-        trans1.m_tranNo = *reinterpret_cast<unsigned long long*>(
-            reinterpret_cast<char*>(prePay) + 0x10);
-        trans1.m_field0 = *reinterpret_cast<int*>(
-            reinterpret_cast<char*>(prePay) + 0x18);
-        trans2.m_tranNo = *reinterpret_cast<unsigned long long*>(
-            reinterpret_cast<char*>(prePay) + 0x1c);
-        trans2.m_field0 = *reinterpret_cast<int*>(
-            reinterpret_cast<char*>(prePay) + 0x24);
-        amount1 = *reinterpret_cast<unsigned int*>(
-            reinterpret_cast<char*>(prePay) + 0x08);
-        amount2 = *reinterpret_cast<unsigned int*>(
-            reinterpret_cast<char*>(prePay) + 0x0c);
+        // PrePayInfo +0x10..0x1b → trans1；+0x1c..0x27 → trans2（各 12B 整块，
+        // ORIG 0x084d6fcd/0x084d6ff2 逐段 disp 4/4/4 展开）；+0x08/+0x0c → amount1/2。
+        trans1 = prePay->m_tran1;
+        trans2 = prePay->m_tran2;
+        amount1 = prePay->m_amount1;
+        amount2 = prePay->m_amount2;
 
         G_CPrePayInfoMgr()->DeletePrePayInfo(
             static_cast<int>(user->getCurCharacNo()));
     }
 
-    if (static_cast<char>(msg[3]) == '\0')
+    if (static_cast<char>(pkt.m_c) == '\0')
     {
-        if (msg[0] == 1)
+        if (pkt.m_0 == 1)
         {   // 失败：双段回滚（cancel）
             Taiwan::TaiwanCash* cash = mgr->getBillingCash();
             int rc = cash->cancel(trans1);
@@ -10886,7 +10909,7 @@ struct Inter_AuctionResultBiddingPktView
         }
         else
         {   // 成功退款：金币返还（msg+0x08 金额，reason 0x14）
-            const int money = msg[2];
+            const int money = pkt.m_8;
             const int gained = user->getCurCharacInvenW()->gain_money(
                 money, static_cast<eMoneyAddReason>(0x14), true, 0);
             if (gained < money)
@@ -10896,7 +10919,7 @@ struct Inter_AuctionResultBiddingPktView
                     static_cast<unsigned long>(gained));
         }
     }
-    else if (msg[0] == 1)
+    else if (pkt.m_0 == 1)
     {   // 成功：双段确认（confirm）
         Taiwan::TaiwanCash* cash = mgr->getBillingCash();
         int rc = cash->confirm(trans1);
@@ -10938,7 +10961,7 @@ struct Inter_AuctionResultBiddingPktView
 
     packet.finalize(true);
     user->Send(packet);
-    if (msg[0] == 1)
+    if (pkt.m_0 == 1)
     {   // vtable+0x2c（slot12 IPGQuery(CUser*)）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void (*QueryFn)(void*, CUser*);
         void* helper = GlobalData::s_pIPGHelper;
@@ -10994,7 +11017,7 @@ struct Inter_AuctionResultRegistCancelPktViewI
     // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
     for (int i = 0; i <= 4; ++i)
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        if (gmList[i] == user->getCurCharacNo())
         {
             cMyTrace(__PRETTY_FUNCTION__,
                 0x3c88, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultRegistCancel",
@@ -11041,7 +11064,7 @@ struct Inter_AuctionResultRegistCancelPktViewI
         // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
         for (int i = 0; i <= 4; ++i)
         {
-            if (g_auctionResultGmList[i] == user->getCurCharacNo())
+            if (gmList[i] == user->getCurCharacNo())
             {
                 cMyTrace(__PRETTY_FUNCTION__,
                     0x3cab, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultItemList",
@@ -11092,7 +11115,7 @@ struct Inter_AuctionResultRegistCancelPktViewI
         // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
         for (int i = 0; i <= 4; ++i)
         {
-            if (g_auctionResultGmList[i] == user->getCurCharacNo())
+            if (gmList[i] == user->getCurCharacNo())
             {
                 cMyTrace(__PRETTY_FUNCTION__,
                     0x3ced, 0)("Trace Auction Delay, %s(%d)",
@@ -11138,7 +11161,7 @@ struct Inter_AuctionResultRegistCancelPktViewI
         // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
         for (int i = 0; i <= 4; ++i)
         {
-            if (g_auctionResultGmList[i] == user->getCurCharacNo())
+            if (gmList[i] == user->getCurCharacNo())
             {
                 cMyTrace(__PRETTY_FUNCTION__,
                     0x3d31, 0)("Trace Auction Delay, %s(%d)", "ACK AuctionResultMyBidding",
@@ -11247,7 +11270,7 @@ struct Inter_AuctionResultRegistCancelPktViewI
 #include "InterDispatcher/dtor_Inter_AuctionResultBuyItemApiece.inc"
 // ORIG 0x084d7c8e T dispatch_sig —— 拍卖逐件购买结果（金币返还 + 0x14f 包）。
 // 报告 docs/class_func_reports/Inter_AuctionResultBuyItemApiece/dispatch_sig.md 全文转写。
-// g_auctionResultGmList（ORIG _ZL6gmList d @0x093701d8）定义已存在于
+// gmList（ORIG _ZL6gmList d @0x093701d8）定义已存在于
 // InterDispatcher.cpp:6527（五值 GM characNo 延迟追踪表），本函数直接引用。
 #pragma pack(push, 1)
 // Inter_AuctionResultBuyItemApiecePktView —— Inter_AuctionResultBuyItemApiece::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
@@ -11278,7 +11301,7 @@ struct Inter_AuctionResultBuyItemApiecePktView
 
     for (int i = 0; i <= 4; ++i)                       // cmpl $4; setle
     {
-        if (g_auctionResultGmList[i] == user->getCurCharacNo())
+        if (gmList[i] == user->getCurCharacNo())
         {
             cMyTrace(__PRETTY_FUNCTION__,
                 0x3e12, 0)("Trace Auction Delay, %s(%d)",
@@ -13820,6 +13843,14 @@ struct Inter_GuildCargoPktView
 // 修正为 payload+0x02（真语义 bug 修复，原 +0x00 少 2 字节）。
 // [b28d-lane2] verdict=DIFF ndiff=62（ORIG 0x084dd26c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+1。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=11（ORIG 0x84dd26c）：P30/N4 add-vs-lea。
+// [R5·InterDisp 形态收口 2026-09-11] payload 基址（entry + 0x10）独立成步（复现 ORIG 两段地址）：
+//   ORIG 0x084dd3dc `imul $0x35 → lea (base,i) → add $0x10,%eax → mov 0x3(%eax),%eax`、
+//   0x084dd405 `imul → add $0x10 → add base → add $0x2` ⇒ 成员偏移按 payload 自 0 起算；
+//   扁平形（entry + 0x13 / +0x12）被 4.4 折成单条 `mov 0x13(%eax)` / `add $0x12`。
+//   逐处内联：具名基址局部会占槽顶深 pPkt（技巧36）。
+#define G2_GC_PAYLOAD() \
+    (reinterpret_cast<GuildCargoPayloadV*>( \
+        reinterpret_cast<char*>(pPkt) + i * 0x35 + 0x10))
 #include "InterDispatcher/dispatch_sig_204.inc"
 {
     // [G2A-PC 本轮负结论 N，ndiff=11] 残留两类：
@@ -13873,12 +13904,11 @@ struct Inter_GuildCargoPktView
         // ORIG 0x084dd3dc..：entry 数组（stride 0x35）+ payload 嵌套成员 ⇒
         // 两段地址 `add $0x10` + disp；put_binary 地址独立重算（P48 无 CSE）。
         // entries 具名指针占槽顶深 pPkt（技巧36），改 rvalue cast 免槽。
-        if (reinterpret_cast<GuildCargoEntryV*>(pPkt)[i].m_payload.m_flag != 0)
+        if (G2_GC_PAYLOAD()->m_flag != 0)
         {
             packet.put_short((int)(short)i);
             packet.put_binary(
-                reinterpret_cast<char*>(
-                    &reinterpret_cast<GuildCargoEntryV*>(pPkt)[i].m_payload.m_blob0),
+                reinterpret_cast<char*>(&G2_GC_PAYLOAD()->m_blob0),
                 0x35);
             count = count + 1;
         }
@@ -13888,6 +13918,7 @@ struct Inter_GuildCargoPktView
     user->Send(packet);
     return 0;
 }
+#undef G2_GC_PAYLOAD
 
 #include "InterDispatcher/dtor_Inter_NoticeGuildCargo.inc"
 // ORIG 0x084dd4b2 T dispatch_sig —— 公会仓库容量应答：记历史、设容量、组 0xed 包回发。
@@ -14046,21 +14077,8 @@ struct Inter_GuildCargoHistoryPktView
 // 背包物品并把物品内容打包转发给公会服务器代理。
 // 报告 docs/class_func_reports/Inter_GuildCargoCheckPushItem/dispatch_sig.md 全文转写。
 // 依赖 Packet_Guild_Guild_Cargo_Push_Item（NEEDS_DECL，见同目录 meta）。
-class DnfItemInfoView
-{
-public:
-    unsigned char m_seal;
-    unsigned int m_itemId;
-    unsigned char m_attr;
-    unsigned int m_addInfo;
-    unsigned short m_endurance;
-    unsigned int m_extendInfo;
-    unsigned char m_abilityType;
-    unsigned short m_abilityValue;
-    RandomOption m_opt;
-    UpgradeSeparateInfo m_up;
-};
-
+// [c3] 旧 DnfItemInfoView（本 TU 字节区视图）已删：头内 m_item 为真实 DnfItemInfo
+// 成员，视图引用别名会多占一个 lea 槽（ORIG 全为 pck+常量栈槽直写）。
 // ORIG ctor 0x084e9434：PacketHeader(0x70d,0x53) → 字段清零 → DnfItemInfo(+0x1b) 构造
 // → m_e/m_f 清零。m_item 为字节区（Guild 域同名类冲突），placement-new 显式构造
 // （多一次 operator new 调用，形态残留；gcc 4.4.7 拒绝显式构造调用，语义与 ORIG 一致）。
@@ -14084,7 +14102,7 @@ struct Inter_GuildCargoCheckPushItemPktView
     int m_17;                 // +0x17
     int m_1b;                 // +0x1b
     unsigned int m_1f;        // +0x1f
-    char m_pad23[0x1];  // 未消费
+    unsigned char m_23;       // +0x23（ORIG 0x084ddcc2 `movzbl 0x23(%eax),%eax` 直读）
     unsigned char m_24;       // +0x24
     unsigned short m_25;      // +0x25
 };
@@ -14124,9 +14142,12 @@ struct Inter_GuildCargoCheckPushItemPktView
         return 0;
     }
 
-    Inven_Item item = user->getCurCharacInvenR()->GetInvenSlot(   // -0x71 栈槽
-        (int)GetInvenTypeFromItemSpace(
-            (ENUM_ITEMSPACE)pPkt->m_24),  // msg+0x24 itemSpace
+    // [c3] ORIG 0x084dd9c6..0x084dda1e：receiver 先求值（-0x30 槽）→ 再算实参
+    // （GetInvenTypeFromItemSpace 结果 -0x2c 槽）⇒ 具名 receiver + 具名 invenType。
+    const CInventory* invenR = user->getCurCharacInvenR();        // -0x30 槽（ORIG）
+    const int invenType = (int)GetInvenTypeFromItemSpace(
+        (ENUM_ITEMSPACE)pPkt->m_24);  // msg+0x24 itemSpace
+    Inven_Item item = invenR->GetInvenSlot(invenType,             // -0x71 栈槽
         (int)pPkt->m_25);    // msg+0x25 slot
 
     if (pPkt->m_17 == 0 ||
@@ -14194,28 +14215,35 @@ struct Inter_GuildCargoCheckPushItemPktView
     user->SaveInventory();
 
     Packet_Guild_Guild_Cargo_Push_Item pck;            // ORIG ctor 0x084e9434
-    DnfItemInfoView& pckItem = *reinterpret_cast<DnfItemInfoView*>(&pck.m_item);  // +0x1b DnfItemInfo 视图（头内 m_item 为字节区）
     pck.m_guildKey = (unsigned int)user->get_charac_guildkey();   // +0x0a
     pck.m_charNo   = (unsigned int)user->getCurCharacNo();        // +0x0e
+    // [c3] ORIG 0x084ddcbf..0x084ddcc6：`movzbl 0x23(%eax),%eax; mov %al,-0xaa(%ebp)`
+    // （-0xaa = pck+0x1a）⇒ m_itemType 来自 pPkt+0x23（旧形完全缺失）。
+    pck.m_itemType = pPkt->m_23;   // +0x1a
     pck.m_b        = (int)pPkt->m_13;   // +0x12
     pck.m_d        = pPkt->m_1f;   // +0x16
-    pckItem.m_itemId     = (unsigned int)item.m_addInfo;       // +0x1c
-    pckItem.m_attr       = item.GetItemAttr();                 // +0x20
-    pckItem.m_addInfo    = (unsigned int)item.m_addInfo2;      // +0x21
-    pckItem.m_endurance  = item.m_fieldb;                      // +0x25
-    pckItem.m_extendInfo = (unsigned int)item.m_fieldd;        // +0x27
-    item.m_amp.getValues(pckItem.m_abilityType, pckItem.m_abilityValue);
-    // p167：ORIG 无 memcpy call ⇒ 结构整体赋值形（N84/P83）。
-    *reinterpret_cast<RandomOption*>(&pckItem.m_opt) =    // +0x1d ← item+0x25
-        *reinterpret_cast<const RandomOption*>(
-            reinterpret_cast<const unsigned char*>(&item) + 0x25);
-    pckItem.m_up.SetUpgradeSeparate(item.m_upgradeSep.GetUpgradeSeparate());
-    pck.m_e = pPkt->m_24;     // +0x50
+    // [c3] ORIG 0x084ddce4..0x084ddcf6：m_f（+0x51，word）先于 m_e（+0x50，byte），
+    // 且紧接 m_d 之后 ⇒ 与下方 item 字段段分开写。
     pck.m_f = pPkt->m_25;    // +0x51
+    pck.m_e = pPkt->m_24;     // +0x50
+    // [c3] pck.m_item 为真实 DnfItemInfo 成员（头内已字段化）⇒ 逐字段栈常量写
+    // （ORIG 0x084ddcf9..0x084ddd53 段为 pck+0x1c/+0x21/+0x25/+0x27/+0x20 直写）。
+    pck.m_item.m_itemId     = (unsigned int)item.m_addInfo;       // +0x1c
+    pck.m_item.m_addInfo    = (unsigned int)item.m_addInfo2;      // +0x21
+    pck.m_item.m_endurance  = item.m_fieldb;                      // +0x25
+    pck.m_item.m_extendInfo = (unsigned int)item.m_fieldd;        // +0x27
+    pck.m_item.m_attr       = item.GetItemAttr();                 // +0x20（ORIG 在 extendInfo 之后）
+    item.m_amp.getValues(pck.m_item.m_abilityType, pck.m_item.m_abilityValue);
+    // [c3] ORIG 0x084ddd58..0x084ddd77：pck+0x38（= m_opt）14B 块（4/4/4/2 段），
+    // 源为 item+0x25 的 disp 直读 ⇒ 用真实成员 m_random.m_random（去 cast+算术）。
+    pck.m_item.m_opt = item.m_random.m_random;
+    pck.m_item.m_up.SetUpgradeSeparate(item.m_upgradeSep.GetUpgradeSeparate());
+    // [c3] ORIG 0x084dddb0..0x084dddc1 覆写目标是 pck+0x21（= pckItem.m_addInfo，
+    // `mov [ebp-0xa3],eax`；-0xa3 = pck+0x21），非 pck+0x16（m_d 只写一次）。
     if (ci->is_stackable() != 0)                                  // 堆叠件记录申请数
-        pck.m_d     = (unsigned int)pPkt->m_1b;  // +0x16 覆写
+        pck.m_item.m_addInfo = (unsigned int)pPkt->m_1b;  // +0x21 覆写
     else
-        pck.m_d     = (unsigned int)item.m_addInfo2;
+        pck.m_item.m_addInfo = (unsigned int)item.m_addInfo2;
 
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
@@ -14223,9 +14251,9 @@ struct Inter_GuildCargoCheckPushItemPktView
 
     user->m_historyLog.GuildCargoPushItem(
         (ENUM_GUILD_CARGO_HISTORY_REASON)7,
-        (int)pck.m_b, (int)pckItem.m_itemId, (int)pck.m_d,
-        (int)pckItem.m_endurance, (int)pckItem.m_extendInfo,
-        (int)pckItem.m_attr, pckItem.m_up.GetUpgradeSeparate());
+        (int)pck.m_b, (int)pck.m_item.m_itemId, (int)pck.m_d,
+        (int)pck.m_item.m_endurance, (int)pck.m_item.m_extendInfo,
+        (int)pck.m_item.m_attr, pck.m_item.m_up.GetUpgradeSeparate());
     return 0;
 }
 
@@ -14250,6 +14278,11 @@ struct Inter_GuildCargoPushItemPktView
     int m_23;                 // +0x23
     unsigned char m_27;       // +0x27
     unsigned short m_28;      // +0x28
+    // [R5·InterDisp 形态收口 2026-09-11] 负结论（已回滚）：ORIG 0x084de058..071 复用 pPkt 基址
+    //   逐字段 `mov 0x34/0x38/0x3c(%eax),%edx` + `movzwl 0x40(%eax),%eax`；我方裸偏移形
+    //   `data + 0x34` 被 4.4 提升为 `add $0x34,%eax` 后以 +0/+4/+8/+0xc 访问（**绝对地址逐值相同**
+    //   ⇒ 门③b 等价，非 bug）。试改视图成员 `RandomOption m_random34`（+0x34，14B 与 ORIG 逐段吻合）
+    //   消除提升：实测 insn 310→309 但 ndiff 53→55 **反劣** ⇒ 回滚。
     char m_pad2a[0x18];       // +0x2a..未消费
     UpgradeSeparateInfo m_42; // +0x42 §4.3 字段化（1B class，ORIG 读 UpgradeSeparate）
     char m_pad43[0x9];        // +0x43..未消费
@@ -14361,10 +14394,8 @@ struct Inter_GuildCargoPopItemPktView
     unsigned char m_26;             // +0x26
     unsigned short m_27;            // +0x27
     char m_pad29[0xa];  // +0x29..未消费
-    unsigned int m_33;              // +0x33
-    unsigned int m_37;              // +0x37
-    unsigned int m_3b;              // +0x3b
-    unsigned short m_3f;            // +0x3f
+    RandomOption m_33;              // +0x33..0x40（14B；ORIG 0x084de580..0x084de596
+                                    // 整块结构赋值，disp 0x33/0x37/0x3b/0x3f 直读）
     unsigned char m_41;             // +0x41
     char m_pad42[0x9];  // +0x42..未消费
     unsigned char m_4b;             // +0x4b
@@ -14433,18 +14464,11 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
     item.SetItemAttr(pPkt->m_1b);
     item.m_amp.assign(pPkt->m_26,
                       pPkt->m_27);
-    // RandomOption 连续块（item+0x25..0x32）与升级分离位（item+0x33）：
-    // 网络消息到跨字段连续区的按块拷贝（ORIG 五段 disp 存储指令；
-    // 同款按块视图先例 CMailBoxHelper.cpp:514 sig_at(&item,0x25)）。
-    // +0x25..+0x32 = m_random.m_random（ChronicleRandomOptionInfo+0x06）连续区块写
-    *(unsigned int*)&item.m_random.m_random.m_field0 =
-        pPkt->m_33;
-    *(unsigned int*)&item.m_random.m_random.m_field3 =
-        pPkt->m_37;
-    *(unsigned int*)&item.m_random.m_random.m_field6 =
-        pPkt->m_3b;
-    *(unsigned short*)&item.m_random.m_random.m_seed9 =
-        pPkt->m_3f;
+    // [c3] ORIG 0x084de580..0x084de596：msg+0x33..0x40（14B，视图成员 m_33）→
+    // item+0x25..0x32（= m_random.m_random，sizeof 0x0e）整块赋值（4/4/4/2 段展开、
+    // 末段 movzwl+movw）。旧形按 RandomOptionField（stride 3）逐成员 cast 4B 写 ⇒
+    // 写侧偏移 0x25/0x28/0x2b/0x2e 与 ORIG 0x25/0x29/0x2d/0x31 错位 1..3 字节（真错位）。
+    item.m_random.m_random = pPkt->m_33;
     item.m_upgradeSep.m_field = pPkt->m_41;
 
     int firstResult = 0;                   // 试占位结果（包内回发槽号）
@@ -17253,6 +17277,18 @@ struct Inter_GuildJoinListEntryWinView
 };
 #pragma pack(pop)
 
+// [R5·InterDisp 形态收口 2026-09-11] 本件两项形态实验的负结论（均 routed 口径实测）：
+//   ① 回滚：ORIG 4 字节字段发 `add $0x20,%eax` + `movzbl 0x{6,7,9,8}(%eax),%eax`
+//      （0x084e3d79/d7a5/d7d1/d7fd）、第 2 串发 `add $0x20,%eax; add -0x18(%ebp),%eax;
+//      add $0xa,%eax`（0x084e3e23/e26/e29）。试「entry +0x20 具名子结构视图 + 逐处内联宏」
+//      复现该两步形：形态确实产出 `add $0x20; movzbl 0x6(%eax)`，但 our 206→214、gap +6→-2、
+//      ndiff 25→31 ⇒ 反劣，回滚（视图形态不如扁平偏移 + 两步裸偏移）。
+//   ② 回滚：ORIG 每处基址首指令为 `mov -0x14(%ebp),%eax`（先取 local_18）—— 试以
+//      `local_18 * 0x44 + local_1c`（索引项作左操作数）复现该加载序：codegen 逐字节不变
+//      （4.4 前端 gimplify 重排加法树）⇒ 加载序不可造，判 N 档。
+//   保留：m_4/m_44 的裸指针算术两步形（ORIG 0x084e3cf9 `add $0x4,%eax; mov (%eax),%eax`、
+//      0x084e3e8b `add $0x44,%eax; mov (%eax),%eax`）⇒ our +2 条、gap +8→+6、ndiff 26→25。
+
 // [b28d-lane2] verdict=DIFF ndiff=196（ORIG 0x084e3c60）：槽序/帧差(N82/P212/P221)+混合残差；gap+54。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=184（ORIG 0x84e3c60）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 #include "InterDispatcher/dispatch_sig_263.inc"
@@ -17269,7 +17305,10 @@ struct Inter_GuildJoinListEntryWinView
 
     for (int local_18 = 0; local_18 < *reinterpret_cast<int*>(local_1c); ++local_18)
     {
-        packet.put_int(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_4);
+        // [R5·InterDisp 形态收口 2026-09-11] ORIG 0x084e3cf9 `add $0x4,%eax; mov (%eax),%eax`
+        //   —— 裸指针算术 + 解引用（4.4 对此恒发两步 add），非视图成员访问
+        //   （后者折单条 `mov 0x4(%eax)`）。ORIG 0x084e3e8b 同形于 +0x44。
+        packet.put_int(*reinterpret_cast<int*>(local_1c + local_18 * 0x44 + 0x4));
         const int local_14 = (int)strlen(local_1c + local_18 * 0x44 + 0x08);
         packet.put_int(local_14);
         packet.put_str(local_1c + local_18 * 0x44 + 0x08, local_14);
@@ -17280,7 +17319,7 @@ struct Inter_GuildJoinListEntryWinView
         const int local_10 = (int)strlen(local_1c + local_18 * 0x44 + 0x2a);
         packet.put_int(local_10);
         packet.put_str(local_1c + local_18 * 0x44 + 0x2a, local_10);
-        packet.put_int(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_44);
+        packet.put_int(*reinterpret_cast<int*>(local_1c + local_18 * 0x44 + 0x44));
     }
 
     packet.finalize(true);
@@ -19458,8 +19497,16 @@ struct Inter_NpcLimitBuyItemInfoPktView
         m_data1c = 1;
     }
 
+    // [R5BigTURest 偏移轴·形参错 2026-09-11] ORIG 0x084e6a09-12 逐字节：
+    // `8b 45 08`(this→%eax) + **`8b 70 0c`**(mov 0xc(%eax),%esi) ⇒ delete_item 第 3 参
+    // （CInventory::delete_item(type, slot, **count**, reason, flag)）= **m_needItem.second**
+    // （+0xc = pair 的 count；+0x8 = first = itemId）。旁证：同函数 checkError 链
+    // ORIG 0x084e6acc 把 GetNeedMaterial() 的 `%eax→0x8(%ecx)`(.first)、`%edx→0xc(%ecx)`(.second)，
+    // 且用 `.second` 做「need count < 1 || add_info < need count」校验 ⇒ 我方原写 `.first`
+    // 把 **itemId 当 count** 传给 delete_item。同日我方新写 .second 亦与本函数 +0x8/+0xc
+    // 的用法自洽。ORIG 0x084e6a09 / 0x084e6acc。
     user->getCurCharacInvenW()->delete_item(
-        (INVEN_TYPE)1, m_param2, m_needItem.first,
+        (INVEN_TYPE)1, m_param2, m_needItem.second,
         (eItemDelReason)0x1a, true);
 
     update.m_errorNo     = 0;                          // +0x16（084e6a48）

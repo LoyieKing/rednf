@@ -329,8 +329,12 @@ template <size_t N>
     // 栈槽且装载序更远 ⇒ 源形不可翻，判 NEAR 封顶。
     // TLS `lea -0x3c248(%eax)` vs `lea 0x0(%eax)` 与 .rodata addend 差属链接产物
     // （.o 未解析重定位；P155 TLS 豁免 + P196 .o 伪差），链接后随 <A> 归一化。
-    static __thread char buf[256];      // ORIG TLS -0x3c248
-    static __thread char errBuf[256];   // ORIG TLS -0x3c148
+    // [Q7S2 2026-09-11 符号名轴] ORIG 局部 static 的 mangled 名 = `buffer` / `errStr`：
+    //   nm 直证 `_ZZNK23RDARScriptStringManager12getTagByNameEiPKwS1_bE6buffer` 与
+    //   `…E6errStr`（原 `buf` / `errBuf` 为我方发明名，ORIG 无 `…E3buf`/`…E6errBuf`）。
+    //   纯改名，TLS 语义与布局不变，零运行期影响。
+    static __thread char buffer[256];      // ORIG TLS -0x3c248
+    static __thread char errStr[256];      // ORIG TLS -0x3c148
 
     (void)flag;                         // ORIG -0x2c：bool 形参归一化存栈后未再使用
 
@@ -353,11 +357,11 @@ template <size_t N>
 
             for (int i = 0; i < 10000; ++i)
             {
-                ss_sprintf(buf, "%s_%d", base, i);
+                ss_sprintf(buffer, "%s_%d", base, i);
                 bool exists = false;                       // ORIG -0xd
                 for (int j = 0; j < d->getCount(); ++j)    // ORIG 每轮重调 getCount()
                 {
-                    if (strcmp(d->getKey(j), buf) == 0)    // ORIG 无 NULL 检查
+                    if (strcmp(d->getKey(j), buffer) == 0)    // ORIG 无 NULL 检查
                     {
                         exists = true;
                         break;
@@ -366,7 +370,7 @@ template <size_t N>
                 if (!exists)
                 {
                     // ORIG：add(key=buf, value=a[0x10(%ebp)]) 直接把 wchar_t* 当 char* 传。
-                    d->add(buf, reinterpret_cast<const char*>(a));
+                    d->add(buffer, reinterpret_cast<const char*>(a));
                     idx = d->getCount() - 1;
                     break;
                 }
@@ -377,8 +381,8 @@ template <size_t N>
         (void)unusedSlot;
         if (idx != -1)
         {
-            ss_sprintf(buf, "<%d::%s>", table, d->getKey(idx));
-            return toUnicode(buf);
+            ss_sprintf(buffer, "<%d::%s>", table, d->getKey(idx));
+            return toUnicode(buffer);
         }
     }
 
@@ -390,9 +394,9 @@ template <size_t N>
     //   缓存）。ss_sprintf 为 `template<int N> int ss_sprintf(char (&buffer)[N],
     //   const char* format, ...)`：N 仅由 errBuf[256] 推导，实参位无类型约束
     //   ⇒ 传裸 a（同一指针值，位模式相同）不新实例化符号、语义等价。
-    ss_sprintf(errBuf, "`%s is not found, %s`",
+    ss_sprintf(errStr, "`%s is not found, %s`",
                a, fileList_.GetFileName(table));
-    return reinterpret_cast<const wchar_t*>(errBuf);
+    return reinterpret_cast<const wchar_t*>(errStr);
 }
 
 #include "RDARScriptStringManager/setTableValue.inc"

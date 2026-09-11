@@ -418,8 +418,16 @@ struct MonsterBaseParameter
 // 内部字段无解析证据，按 9×int 占位。
 struct STGuard
 {
+    // [P342 triviality 2026-09-11] 用户声明默认构造（内联空体）⇒ 类型非 POD/非平凡
+    // ⇒ std::uninitialized_copy / std::copy 走 ILb0 分支，与 ORIG 形态对齐：
+    //   ORIG _ZNSt20__uninitialized_copyILb0EE...IP7STGuard.. 0x083d5439（逐字段拷贝）、
+    //        _ZNSt11__copy_moveILb0ELb0E...__copy_mIP7STGuard.. 0x083e325e；
+    //   析构仍平凡（ORIG _ZNSt12_Destroy_auxILb1EE9__destroyIP7STGuardEEvT_S4_ 0x083cb8a9 = 空）。
+    // 布局不变（sizeof 仍 0x24）；不引入任何符号（该 ctor 未被 odr-use）。
+    STGuard() {}
     int m_field[9];
 };  // sizeof == 0x24
+static_assert(sizeof(STGuard) == 0x24, "STGuard layout locked (ORIG 0x24: divide-by-36 in vector::size 0x083aa36e)");
 
 // STAttackMethod：clear W 0x08a3d5fe / C1 W 0x08a3d690 / D1 W 0x08a4bed8（全 W → 头内联）。
 // clear（ORIG 0x08a3d5fe 逐指令）：+0x00=0；+0x18=0 → +0x14=+0x18；+0x20=0 → +0x1c=+0x20；

@@ -660,7 +660,7 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
 // ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/LoadCharacEventItem.inc"
                                       unsigned int characNo,
-                                      unsigned int loadId)
+                                      memberIdentificationNumber_t loadId)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
                                                   (ENUM_SERVER_GROUP)0);
@@ -682,15 +682,17 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
         // [b28d-solo-WongWorkEvents_A] P221：ORIG cMyTrace 槽 -0x28 浅于
         // CStreamGuard 槽 -0x30；4.4 具名声明序恒反向（cMyTrace -0x30 /
         // guard -0x20）⇒ 改全表达式临时链翻互斥块槽方向。
-        // [Q6HeaderTypeAxis 2026-09-11 核验通过·维持手写串] 已用 ORIG 反汇编逐参核
-        //   （0x083f9d18/28/36）：prett 符号 0x8c5ddc0 串 = "void WongWork::EventCommon::
+        // [Q6HeaderTypeAxis 2026-09-11 负结论·维持手写串] 已逐参核 ORIG 0x083f9d18/28/36：
+        //   prett 符号 0x8c5ddc0（size 0x7a）串 = "void WongWork::EventCommon::
         //   LoadCharacEventItem(memberIdentificationNumber_t, unsigned int,
-        //   memberIdentificationNumber_t)"，**与本手写串逐字节相同**；line 0x37、level 5
-        //   两侧同；fmt 0x8c35d88 = "DB_LoadInventory::GetUserInven, exec ERROR
-        //   charac_no=%u"（ORIG 原样 copy-paste 遗留）⇒ 本处无串错。
-        //   ⚠ 换 `__PRETTY_FUNCTION__` 暂不可行：本 TU 的 include 序为先 WongWorkEvents_A.h
-        //   后 GameTypes.h ⇒ 定义处无法写 memberIdentificationNumber_t 拼写（实测编译失败），
-        //   换宏会发射 (unsigned int, unsigned int, unsigned int) 的**不符内容** ⇒ 维持手写串。
+        //   memberIdentificationNumber_t)"（**无 `static ` 前缀**）、line 0x37、level 5；
+        //   fmt 0x8c35d88 = "DB_LoadInventory::GetUserInven, exec ERROR charac_no=%u"
+        //   （ORIG 原样 copy-paste 遗留，勿"修正"）。
+        //   ⚠ **不可换 `__PRETTY_FUNCTION__`**：EventCommon 为 class + **static 成员**
+        //   ⇒ 4.4 宏输出带 `static ` 前缀（Q8 在同 TU `InsertEventItem2EventTable` 实测：
+        //   宏串 0x7e vs ORIG 0x77，恰差 7 = "static "）⇒ 换宏后串 0x81 ≠ ORIG 0x7a
+        //   （内容改变 = 语义轴劣化）。定义侧 typedef 拼写（.inc:1 / .cpp:663）保留仅为
+        //   与 ORIG 语义一致，对 prett 无影响（本处不用宏）。
         cMyTrace("void WongWork::EventCommon::LoadCharacEventItem("
                  "memberIdentificationNumber_t, unsigned int, "
                  "memberIdentificationNumber_t)", 0x37, 5)

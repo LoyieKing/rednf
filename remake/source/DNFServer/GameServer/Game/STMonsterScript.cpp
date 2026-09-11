@@ -603,6 +603,18 @@ static const char* const kMonsterActiveStatusTags[17] = {
 // ④ 帧差 0x20 + 全帧槽号平移（N82/N126）；
 // ⑤ STL 模板形态差（N130：ORIG C++11 右值 pair `C2*_OT_OT0_` / string `D2` 族，
 //    本仓 C++98 头集无对应重载，语言级不可复现）。ORIG 0x08a12827
+// [W16C 符号名轴·2026-09-11] ORIG 0x093f5640 `PARAMETER_CATEGORY_NAME`（D 段、全局
+//   **非 static**、size 0x38 = 14 指针）：原 `s_catName`（ImportMonsterScript 内 static）
+//   与 `s_abilityCategoryName`（exportMonsterScript 内 static）是该表的两份发明拷贝
+//   ⇒ 合并为单一全局表，名字/作用域/段型与 ORIG 对齐（OUR-only −2；四数逐项不变）。
+const char* PARAMETER_CATEGORY_NAME[14] = {
+    "[ATTACK_SPEED]", "[MOVE_SPEED]", "[PHYSICAL_ATTACK]",
+    "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
+    "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
+    "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
+    "[HP MAX]", "[HIT_RECOVERY]", "[STUCK]", "[HP MAX BOSS]"
+};
+
 #include "STMonsterScript/ImportMonsterScript.inc"
                         bool flag)
 {
@@ -838,20 +850,13 @@ case 0xa55:  // "[ability category]"（C @LAB_08a13df3 权威：clear+0x7c → w
         {
             //   14 类名匹配 PARAMETER_CATEGORY_NAME 表 → 元素 push_back 到 m_parameterCategories）
             {
-                static const char* const s_catName[14] = {
-                    "[ATTACK_SPEED]", "[MOVE_SPEED]", "[PHYSICAL_ATTACK]",
-                    "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
-                    "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
-                    "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
-                    "[HP MAX]", "[HIT_RECOVERY]", "[STUCK]", "[HP MAX BOSS]"
-                };
                 script->m_parameterCategories.clear();
                 STMonsterParameterCategory item;
                 while (ScanStr(&token))
                 {
                     for (int i = 0; i <= 13; ++i)
                     {
-                        if (token == s_catName[i])
+                        if (token == PARAMETER_CATEGORY_NAME[i])
                         {
                             item.m_field0 = i;
                             ScanStr(&token);
@@ -2252,24 +2257,24 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                 int i;                       // ORIG -0xe8（各 resize/读循环共用）
                 while (true)
                 {
-                    static std::map<const char*, int, less_TCHAR> __lookup_1;
-                    static SpinLock __init_lock_1;
-                    static bool __inited_1 = false;
-                    if (__inited_1)
+                    static std::map<const char*, int, less_TCHAR> __lookup;
+                    static SpinLock __init_lock;
+                    static bool __inited = false;
+                    if (__inited)
                     {
                         std::map<const char*, int, less_TCHAR>::const_iterator __it =
-                            __lookup_1.find(token.c_str());
-                        if (__it != __lookup_1.end())
+                            __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
                             subId2 = __it->second;
                         else
                             subId2 = -1;
                     }
                     else
                     {
-                        __init_lock_1.enter();
-                        if (__inited_1)
+                        __init_lock.enter();
+                        if (__inited)
                         {
-                            __init_lock_1.leave();
+                            __init_lock.leave();
                             continue;                        // ORIG 08a18725 nop;jmp 08a18544
                         }
                         subId2 = 0;                          // ORIG 08a18730 movl $0,-0xec
@@ -2278,9 +2283,9 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                     {
                     case 0:
                     case 3370:       // [passive object filename]：count(=m_field50) 条
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object filename]", 3370));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object filename]", 3370));
                             goto sub2_3377;                  // ORIG 08a18866 jmp 08a188b9
                         }
                         for (i = 0; i < elem.m_field50; ++i)
@@ -2291,45 +2296,45 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                         break;
                     sub2_3377:
                     case 3377:       // [passive object number] → +0x50
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object number]", 3377));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object number]", 3377));
                             goto sub2_3380;                  // ORIG 08a18914 jmp 08a1892d
                         }
                         elem.m_field50 = ScanInt(static_cast<bool*>(0));
                         break;
                     sub2_3380:
                     case 3380:       // [passive object index] → +0xc
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3380));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3380));
                             goto sub2_3383;
                         }
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         break;
                     sub2_3383:
                     case 3383:       // [power] → +0x10
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[power]", 3383));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[power]", 3383));
                             goto sub2_3386;
                         }
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
                         break;
                     sub2_3386:
                     case 3386:       // [throw frame] → +0x14
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw frame]", 3386));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw frame]", 3386));
                             goto sub2_3389;
                         }
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
                         break;
                     sub2_3389:
                     case 3389:       // [start x cood] → resize +0x18 后逐项 ScanInt
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start x cood]", 3389));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start x cood]", 3389));
                             goto sub2_3396;
                         }
                         elem.m_field18.resize(elem.m_field50);
@@ -2338,9 +2343,9 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                         break;
                     sub2_3396:
                     case 3396:       // [start y cood] → +0x24
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start y cood]", 3396));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start y cood]", 3396));
                             goto sub2_3403;
                         }
                         elem.m_field24.resize(elem.m_field50);
@@ -2349,9 +2354,9 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                         break;
                     sub2_3403:
                     case 3403:       // [start z cood] → +0x30
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start z cood]", 3403));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start z cood]", 3403));
                             goto sub2_3410;
                         }
                         elem.m_field30.resize(elem.m_field50);
@@ -2360,9 +2365,9 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                         break;
                     sub2_3410:
                     case 3410:       // [direction] → resize +0x58（ORIG avStack_1ccc 直证）
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[direction]", 3410));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[direction]", 3410));
                             goto sub2_3417;
                         }
                         elem.m_field58.resize(elem.m_field50);
@@ -2371,45 +2376,45 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                         break;
                     sub2_3417:
                     case 3417:       // [attack number] → +0x3c
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack number]", 3417));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack number]", 3417));
                             goto sub2_3420;
                         }
                         elem.m_field3c = ScanInt(static_cast<bool*>(0));
                         break;
                     sub2_3420:
                     case 3420:       // [attack index] → +0x44
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3420));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3420));
                             goto sub2_3423;
                         }
                         elem.m_field44 = ScanInt(static_cast<bool*>(0));
                         break;
                     sub2_3423:
                     case 3423:       // [throw sound] → ScanStr 直读 +0x40
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw sound]", 3423));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw sound]", 3423));
                             goto sub2_3426;
                         }
                         ScanStr(&elem.m_field40);
                         break;
                     sub2_3426:
                     case 3426:       // [object type] → +0x4c
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[object type]", 3426));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[object type]", 3426));
                             goto sub2_3429;
                         }
                         elem.m_field4c = ScanInt(static_cast<bool*>(0));
                         break;
                     sub2_3429:
                     case 3429:       // [start kind] → +0x54
-                        if (!__inited_1)
+                        if (!__inited)
                         {
-                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[start kind]", 3429));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[start kind]", 3429));
                             goto sub2_end;                   // ORIG 末键 insert 直落尾
                         }
                         elem.m_field54 = ScanInt(static_cast<bool*>(0));
@@ -2418,10 +2423,10 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                         break;
                     }
                 sub2_end:
-                    if (!__inited_1)
+                    if (!__inited)
                     {
-                        __init_lock_1.leave();               // ORIG 08a1902a..31
-                        __inited_1 = true;                   // ORIG 08a19036
+                        __init_lock.leave();               // ORIG 08a1902a..31
+                        __inited = true;                   // ORIG 08a19036
                         continue;                            // ORIG 08a1903d jmp 08a18544
                     }
                     if (!ScanStr(&token))                    // ORIG 08a19043..53
@@ -5550,13 +5555,6 @@ case 0x12fb:  // "[start immune time]"
     // ---- [ability category] +0x7c size != 0；内循环匹配 0x93f5640 表 14 类 ----
     if (script->m_parameterCategories.size() != 0)
     {
-        static const char* const s_abilityCategoryName[14] = {
-            "[ATTACK_SPEED]", "[MOVE_SPEED]", "[PHYSICAL_ATTACK]",
-            "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
-            "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
-            "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
-            "[HP MAX]", "[HIT_RECOVERY]", "[STUCK]", "[HP MAX BOSS]"
-        };
         fwrite("[ability category]\n", 1, 0x13, file);
         for (unsigned int i = 0; i < script->m_parameterCategories.size(); ++i)
         {
@@ -5567,7 +5565,7 @@ case 0x12fb:  // "[start immune time]"
                 if (cat->m_field0 == j)
                 {
                     fprintf(file, "`%s` `%s` %d\n",
-                            s_abilityCategoryName[j],
+                            PARAMETER_CATEGORY_NAME[j],
                             cat->m_field4 ? "*" : "+",
                             cat->m_field8);
                     break;

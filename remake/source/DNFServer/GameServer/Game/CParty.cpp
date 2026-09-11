@@ -6027,7 +6027,14 @@ extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 
         if (getManager()->getMoveSpace() == (UserSpace::T)1)
             send_to_party(packet);
         else
-            G_GameWorld()->send_all(packet, m_host);
+            // [R5BigTURest 偏移轴·接收者错 2026-09-11] ORIG 0x085b3b59-5c 逐字节：
+            // `8b 45 08` (mov 0x8(%ebp),%eax = this) + `8b 58 74` (mov 0x74(%eax),%ebx)
+            // ⇒ 实参 = **m_manager**（+0x74），非 m_host（+0x70）。三重旁证：ORIG
+            // party_dungeon_fail 内 0x74 出现 7 次 / 0x70 出现 0 次；两侧
+            // CParty::getManager() 均读 0x74（m_manager 布局一致）；本分支其余
+            // 6 处（mgrIndex/mgrState/accId/SetPartyIndex/set_state/make_basic_info）
+            // 全用 m_manager。我方原写 m_host ⇒ **send_all 第 2 参 CUser* 取错对象**。
+            G_GameWorld()->send_all(packet, m_manager);
     }
 }
 #undef bf

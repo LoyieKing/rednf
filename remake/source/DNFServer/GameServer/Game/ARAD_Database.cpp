@@ -309,7 +309,12 @@ namespace DATABASE
 //   sizeof 三形已试）；gap +1 = ORIG 独有段，判 N 不硬啃。SQL 串逐字节命中 ORIG。
 #include "ARAD_Database/arad_sp_create_inven.inc"
 {
-    static const unsigned int kInvenSrcLen = sourceInvenSize;   // ORIG 背包快照长度
+    // [符号名轴 2026-09-11 W13D 探针实测] 原 `static const unsigned int kInvenSrcLen =
+    //   sourceInvenSize;` 会在本 .o 发射 ORIG 侧不存在的
+    //   `_ZZN4ARAD8DATABASE12CREATE_QUERY20arad_sp_create_inven…E12kInvenSrcLen`（4B r）
+    //   ⇒ 发明符号。改用命名空间常量 sourceInvenSize（ORIG 侧有同名
+    //   `_ZN4ARAD8DATABASEL15sourceInvenSizeE`；编译期常量 ⇒ 仍出立即数）。
+    //   overlay 实测：OUR-only 2→0、四数 63/130/0/6 零变化。
     char zipBuf[0x4152];
     memset(zipBuf, 0, sizeof(zipBuf));
     unsigned int zipLen = 0x4152;
@@ -318,7 +323,7 @@ namespace DATABASE
     if (sig->m_giftFindOk != 0)
     {
         // ORIG 判定与 equip 相反：compress 返回非 0 即放弃（逐指令转写，勿"修正"）
-        if (compress_zip(zipBuf, zipLen, invenSrc, kInvenSrcLen))
+        if (compress_zip(zipBuf, zipLen, invenSrc, sourceInvenSize))
         {
             return -1;
         }
@@ -326,7 +331,7 @@ namespace DATABASE
                        "values(%u, '%s',%d)",
                        sig->m_characNo,
                        db->blob_to_str(0, zipBuf, static_cast<int>(zipLen)),
-                       db->blob_to_str(0, invenSrc, kInvenSrcLen),
+                       db->blob_to_str(0, invenSrc, sourceInvenSize),
                        WongWork::CEventMgr::GetCoinCharacCreate()) != 0)
         {
             return -1;
@@ -367,7 +372,9 @@ namespace DATABASE
 //   调度）。语义闭合。
 #include "ARAD_Database/arad_sp_create_equip.inc"
 {
-    static const unsigned int kEquipSrcLen = sourceEquipSize;    // ORIG 初始装备区长度
+    // [符号名轴 2026-09-11 W13D] 同 inven：原函数内 static const 会在 .o 发射 ORIG 侧
+    //   不存在的 `…arad_sp_create_equip…E12kEquipSrcLen` ⇒ 改用命名空间常量
+    //   sourceEquipSize（ORIG 有 `_ZN4ARAD8DATABASEL15sourceEquipSizeE`）。
     char zipBuf[0x333] = {0};
     // ORIG 槽布局：zipLen@-0x10（深）、equipSrc@-0xc（浅）；存储序 zipLen=0x333
     //   先于 equipSrc 计算；调用实参序则 equipSrc 读取先于第 4 参常量压栈
@@ -378,7 +385,7 @@ namespace DATABASE
     unsigned int zipLen = 0x333;                                          // ORIG -0x10 具名局部
     equipSrc = reinterpret_cast<char*>(&sig->m_giftItem);
     if (!compress_zip(zipBuf, zipLen, equipSrc,
-                      kEquipSrcLen))   // +0x4e01 初始装备区
+                      sourceEquipSize))   // +0x4e01 初始装备区
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",

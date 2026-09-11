@@ -197,6 +197,10 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
     //   （逐指令全等；含 ORIG 0x0865502b/0x08655040 的 operator-> 双取、0x086550a3
     //   `make_pair<short&, T&>` 左值 data.m_command 实参形、0x086550b8 pair 转换 ctor）
     //   ⇒ 本件已是 ORIG 形，P212/P309/P339 均无可转之旋钮。
+    // [C4A0Nine 2026-09-11 复验] n1_v=AE（114/114，clean 归一口径 identical）；
+    //   strict 残差纯为 .o 未链接 reloc 表示（`call <off> <self+0x..>` vs 链接后
+    //   `<sym>`），非源码可控 ⇒ 无需改 STSkillCommandData.h:43 位域类型（该位域是
+    //   STCommand 内嵌结构，与本函数读的 +0x00 `unsigned short m_command` 非同字段）。
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
             const_cast<char*>(getSkillCommand()));

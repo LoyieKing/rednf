@@ -54,9 +54,6 @@
 #include "CSystemTime.h"
 
 namespace {
-const char kProcessPretty[] =
-    "void ARAD::CeraShopPurcahseCountBonus::_processBonusItem(CUser*, int, "
-    "const ARAD::PurcahseBonus&)";
 const char kAradFuncFile[] = "localjapan/Arad_Function_Set.cpp";
 
 // ---------------------------------------------------------------------------
@@ -319,7 +316,7 @@ namespace ARAD
         user->SaveMoneyCoin();
         user->SendCoin();
 
-        cMyTrace(kProcessPretty, 0x45, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x45, 0)(
             "[PURCAHSE BONUS] add coin (mid:%u, coin:%d)",
             user->get_acc_id(), (unsigned short)bonus.m_field8);
         return;
@@ -329,7 +326,7 @@ namespace ARAD
         goods = (CCeraShopGoods*)G_CDataManager()->FindGoods(goodsIdx);
         if (goods == 0)
         {
-            cMyTrace(kProcessPretty, 0x5f, 0)(
+            cMyTrace(__PRETTY_FUNCTION__, 0x5f, 0)(
                 "[PURCAHSE BONUS] goods is null (goods:%d)", goodsIdx);
             return;
         }
@@ -342,7 +339,7 @@ namespace ARAD
         user->AddMileage(mileage, (eCoinAddReason)5);   // ORIG reason 5
         user->SendCashData(false);
 
-        cMyTrace(kProcessPretty, 0x67, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x67, 0)(
             "[PURCAHSE BONUS] add mileage coupon (mid:%u, mileage:%d)",
             user->get_acc_id(), mileage);
         return;
@@ -355,7 +352,7 @@ namespace ARAD
     item = G_CDataManager()->find_item(bonus.m_field4);
     if (item == 0)
     {
-        cMyTrace(kProcessPretty, 0x71, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x71, 0)(
             "[PURCAHSE BONUS] item is null (item:%u)",
             bonus.m_field4);
         return;
@@ -368,7 +365,7 @@ namespace ARAD
 
     if (item->IsCreatureItem() || item->IsAvatarItem())
     {
-        cMyTrace(kProcessPretty, 0x7c, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x7c, 0)(
             "[PURCAHSE BONUS] invalid item type (mid:%u, item:%u)",
             user->get_acc_id(), bonus.m_field4);
         return;
@@ -390,7 +387,7 @@ namespace ARAD
     }
 
     // P92：日志实参从 inv 载荷字段读取（ORIG -0xcb/-0xc6）。
-    cMyTrace(kProcessPretty, 0x96, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x96, 0)(
         "[PURCAHSE BONUS] add item. (mid:%u, item:%u, count:%d)",
         user->get_acc_id(), inv.m_addInfo, inv.m_addInfo2);
 }
@@ -610,6 +607,11 @@ namespace ARAD
             // （mangled 逐字符不变、零布局/零 ABI，prett 便不再带 `static `），见 `ARAD_Database.h`
             // 的 class+static→namespace 转换（检查点 345 实证：strings 归零 + prett OURS-only=0 +
             // 四数逐值不变）。若后续统一转换，本处手写串应一并撤除改回 `__PRETTY_FUNCTION__`。
+            // [AradPrett 2026-09-11 · A 类实测负结论] 试换宏 ⇒ 展开
+            // `static bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)`
+            // size **0x4a**（vsz 实测），≠ ORIG 0x08b9da00 size **0x43**（ORIG 串
+            // `bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)`）；
+            // 差 7 字节 = 类内 `static` 前缀（判据②）⇒ 本件**维持手写串**。
             1, kAradFuncFile,
             "bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)",
             0x187,

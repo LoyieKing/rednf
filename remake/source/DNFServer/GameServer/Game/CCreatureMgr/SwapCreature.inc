@@ -26,8 +26,10 @@ bool CCreatureMgr::SwapCreature(Inven_Item* item1, int slot1, int type1,
             // ⇒ 短整表达式作普通实参直传，禁具名中间局部。
             // P227/P87：ORIG 在 ctor 前 `movzwl %ax,%ebx` 求值 uid 并跨 ctor
             // 保活 ⇒ 全表达式临时链。
-            cMyTrace("bool user_creature::CCreatureMgr::SwapCreature("
-                     "Inven_Item*, int, int, Inven_Item*, int, int)",
+            // [R2PrettAClass 2026-09-11 · prett A 类落地] 手写串 → __PRETTY_FUNCTION__
+            //   （ORIG .rodata @0x08c2f2c0 size 0x5d = "bool user_creature::CCreatureMgr::"
+            //   "SwapCreature(Inven_Item*, int, int, Inven_Item*, int, int)"）。
+            cMyTrace(__PRETTY_FUNCTION__,
                      0x9a5, 5)(
                 "IsCreatureEquipmentScope() uid(%d) slot_left(%d)\n",
                 static_cast<unsigned short>(m_user->get_unique_id()), slot1);
@@ -35,8 +37,8 @@ bool CCreatureMgr::SwapCreature(Inven_Item* item1, int slot1, int type1,
         }
         if (!IsCreatureEquipmentScope(slot2))
         {
-            cMyTrace("bool user_creature::CCreatureMgr::SwapCreature("
-                     "Inven_Item*, int, int, Inven_Item*, int, int)",
+            // [R2PrettAClass 2026-09-11 · prett A 类落地] 同上（ORIG @0x08c2f2c0 size 0x5d）。
+            cMyTrace(__PRETTY_FUNCTION__,
                      0x9ab, 5)(
                 "IsCreatureEquipmentScope() uid(%d) slot_right(%d)\n",
                 static_cast<unsigned short>(m_user->get_unique_id()), slot2);

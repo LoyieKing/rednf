@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <cstddef>  // offsetof static_assert
 
 // ---- 专家职业脚本子结构（ORIG 全局作用域：_ZI12ExpertJobExp 等）----
 
@@ -133,8 +134,16 @@ public:
         // new_allocator::destroy（0x08974fbe）使用点发射，不得声明用户析构。
         int            m_field0;  // +0x00
         unsigned short m_field4;  // +0x04
-        char           m_pad6[2]; // +0x06
     };
+    // [W13HExpertJob 2026-09-11] ORIG `__copy_move_backwardILb1ELb0E<…stMonsterCardBindResult…>`
+    // @0x089775a0 的逐元素拷贝 = `memcpy(dst, src, 6)`（`movl $0x6,0x8(%esp)`；
+    // `sar $0x3`/`subl $0x8` ⇒ 步长 8）⇒ ORIG 有效数据仅 6B（int+ushort），
+    // +0x06 的 2B 是编译器 padding，**不是成员**。原 `char m_pad6[2]`（全库无使用点）
+    // 使拷贝变 8B ⇒ 丢失 ORIG 的 memcpy(6) 路径（`_M_insert_aux` 同源差异）。
+    // 布局不变：sizeof 8（4+2→对齐 4→pad 2）、偏移 0/4、mangled 均不变。
+    static_assert(sizeof(stMonsterCardBindResult) == 8, "stMonsterCardBindResult sizeof drift");
+    static_assert(offsetof(stMonsterCardBindResult, m_field4) == 4,
+                  "stMonsterCardBindResult m_field4 offset drift");
     // 娃娃机结果（[doll_controller extraction result item] 元素）。
     // ctor 0x0896deac：w@+8=0 → w+6=w+8 → w+4=w+6 → d+0=(uint)(word)w+4（链式置零）。
     struct stDollControllerResult

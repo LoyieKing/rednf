@@ -494,6 +494,12 @@ island3:
 //   （`if (!hit) goto hit_done; ++count; hit_done:;`）⇒ **AE 102/102 ndiff=0**。
 //   ORIG 0x08130869 证据形：`mov %al,-0x9; movzbl -0x9,%eax; xor $1,%eax; test %al,%al;
 //   jne <skip>; addl $1,-0x14; jmp <join>; <skip>: nop`。
+// [W13C 2026-09-11 探针A·负结论·双处同改] 单改 sendMapInfo 的 const 化曾使 identical
+//   −1（见该函数判词），故本波试「getCenterCount + sendMapInfo **两处同时** const 化
+//   （容器 const ⇒ begin() 走 `_ZNKSt4list...5beginEv`，期望消掉转换构造
+//   `_List_const_iteratorC1ERK_List_iterator` 后转净收益）」。影子树实测（routed 口径）：
+//   **identical 80→77、ae 198→196、sendMapInfo nd 42→51** ⇒ **反向**，维持非 const
+//   （ORIG 0x08130869 段确用 const 版符号，属 P183/符号选择档，不换 verdict）。
 #include "advancealtar_StageControl/getCenterCount.inc"
 {
     // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调

@@ -196,20 +196,21 @@ namespace ARAD
     Arad_Dispatcher* d = m_interDispatchers[code];
     if (d == 0)
     {
-        // [P6S4 2026-09-11 P139 prett 审计·结论] 本 TU 4 处手写 prett 串经 pstr.py 与
-        // ORIG 字节逐条比对 = **逐字节相同**（`_ZZ…E19__PRETTY_FUNCTION__` 符号仍缺，
-        // 因未引用宏）：①本处 `bool ARAD::Arad_Dispatcher_Manager::inter_dispatch(
-        // ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE, CUser*, char*, int)`
-        // （ORIG 0x…，size 0x7c）②`virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::
-        // inter_dispatch(CUser*, char*, int)`（0x54）③`virtual int …::db_dispatch(int, int,
-        // Stream*)`（0x58）④`int ARAD::DATABASE::ITEM_QUERY::arad_sp_buy_item_check(
-        // ARAD_DATAS::BuyItemInfo&)`（0x51）。**不替换为 __PRETTY_FUNCTION__**：本 TU
-        // Manager::inter_dispatch 形参拼写作 `int code`（非枚举限定名），宏会生成
-        // `(int, CUser*, char*, int)` ≠ ORIG ⇒ 串内容反劣（手写串现为正确形）。
+        // [AradPrett 2026-09-11 · A 类落地] 本 TU 4 处手写 prett 串已全换
+        // `__PRETTY_FUNCTION__`，四符号齐（vsz 对 ORIG 逐字节 SAME）：
+        //   ①本处 `bool ARAD::Arad_Dispatcher_Manager::inter_dispatch(
+        //   ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE, CUser*, char*, int)`
+        //   （ORIG 0x08b99d80 size 0x7c）：定义侧第 1 形参拼写 `int code` →
+        //   `INTERNAL_PACKET_CODE code`（类内 typedef 见 Arad_Dispatcher.h；同类型 ⇒
+        //   mangled 不变 `…14inter_dispatchEiP5CUserPci…`）；
+        //   ②`virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch(
+        //   CUser*, char*, int)`（0x08b980c0 size 0x58）③同 `…::db_dispatch(int, int,
+        //   Stream*)`（0x08b98060 size 0x54）④`int ARAD::DATABASE::ITEM_QUERY::
+        //   arad_sp_buy_item_check(ARAD_DATAS::BuyItemInfo&)`（0x08b93ba0 size 0x51）。
+        //   ②③ `virtual ` 前缀由类内声明（.h:84-85）决定，类外定义不带关键字亦打印。
         LogManager::logFormat(
             1, "localjapan/Arad_Dispatch_Manager.cpp",
-            "bool ARAD::Arad_Dispatcher_Manager::inter_dispatch("
-            "ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE, CUser*, char*, int)",
+            __PRETTY_FUNCTION__,
             0x7d, "Not found Inter_Dispatch_Code[%d]", code);
         return false;
     }
@@ -226,8 +227,7 @@ namespace ARAD
         }
         LogManager::logFormat(
             1, "localjapan/Arad_Dispatch_Manager.cpp",
-            "bool ARAD::Arad_Dispatcher_Manager::inter_dispatch("
-            "ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE, CUser*, char*, int)",
+            __PRETTY_FUNCTION__,
             0x8d, "Inter Dispatch Result Error Inter_Dispatch_Code[%d] user_acc_id[%d]",
             code, accId);
         return false;
@@ -283,8 +283,7 @@ namespace ARAD
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp",
-            "virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch("
-            "CUser*, char*, int)", 0x40,
+            __PRETTY_FUNCTION__, 0x40,
             "[ERROR] BuyItem() Result Error ItemIdx(%d)",
             ((const ItemIdxView*)b)->m_idx);
         return -1;
@@ -335,8 +334,7 @@ namespace ARAD
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp",
-            "virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch("
-            "int, int, Stream*)", 0x66,
+            __PRETTY_FUNCTION__, 0x66,
             "[ERROR] MSG_BUY_CERASHOP_ITEM GetOutBuffer => MID[%d], CHARIDX[%d], "
             "ITEMIDX[%d], CHECKTYPE[%d]",
             info.mid, info.characNo, info.ipgNo, (int)info.checkType);
@@ -366,8 +364,7 @@ namespace ARAD
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp",
-                "virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch("
-                "int, int, Stream*)", 0x7b,
+                __PRETTY_FUNCTION__, 0x7b,
                 "ITEM_PURCHASE_COUNT_CHECK MID[%d], CHARIDX[%d], ITEMIDX[%d], "
                 "CHECKTYPE[%d]",
                 info.mid, info.characNo, info.ipgNo, (int)info.checkType);
@@ -412,8 +409,7 @@ out:
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::ITEM_QUERY::arad_sp_buy_item_check("
-            "ARAD_DATAS::BuyItemInfo&)", 0x454, "%s", "Database null!!");
+            __PRETTY_FUNCTION__, 0x454, "%s", "Database null!!");
         return -1;
     }
     char quarter[5] = {0};  // ORIG `movl $0; movb $0` 两写消 5 字节零
@@ -436,8 +432,7 @@ out:
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::ITEM_QUERY::arad_sp_buy_item_check("
-            "ARAD_DATAS::BuyItemInfo&)", 0x472,
+            __PRETTY_FUNCTION__, 0x472,
             "[ERROR] DB Exec Error => MID[%d], CHARIDX[%d], ITEMIDX[%d], CHECKTYPE[%d]",
             info.mid, info.characNo, info.ipgNo, (int)info.checkType);
         return -1;
@@ -446,8 +441,7 @@ out:
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::ITEM_QUERY::arad_sp_buy_item_check("
-            "ARAD_DATAS::BuyItemInfo&)", 0x47b,
+            __PRETTY_FUNCTION__, 0x47b,
             "[ERROR] DB Fetch Error => MID[%d], CHARIDX[%d], ITEMIDX[%d], CHECKTYPE[%d]",
             info.mid, info.characNo, info.ipgNo, (int)info.checkType);
         return -1;
@@ -457,8 +451,7 @@ out:
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::ITEM_QUERY::arad_sp_buy_item_check("
-            "ARAD_DATAS::BuyItemInfo&)", 0x485,
+            __PRETTY_FUNCTION__, 0x485,
             "RESULT_COUNT MID[%d], CHARIDX[%d], ITEMIDX[%d], CHECKTYPE[%d]",
             info.mid, info.characNo, info.ipgNo, (int)info.checkType);
         return -1;

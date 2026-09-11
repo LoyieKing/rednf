@@ -384,7 +384,11 @@ typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map
 // w[0] 截断缩放后 total 修正为 5000-w0+w0'，randInt(&total) 落累计权重槽。
 #include "WongWorkDrop_B/generateEquipGrade.inc"
 {
-    static const int grades[5] = { 0x5aa7, 0xfa6, 0x6a23, 0x5df0, 0x7270 };
+    // [W16C 符号名轴·2026-09-11] ORIG 无
+    //   `_ZZN8WongWork21GenerateRandomUpgrade18generateEquipGradeEiE6grades` 实体：
+    //   ORIG 0x08533938..0x0853395a 为 5 条 `mov DWORD PTR [ebp-0x44+i*4],<imm>`
+    //   （**栈上局部数组**、非 static）⇒ 去 `static const`；OUR-only −1、件级 ndiff 14→12。
+    int grades[5] = { 0x5aa7, 0xfa6, 0x6a23, 0x5df0, 0x7270 };
     int weights[5] = { 1000, 1000, 1000, 1000, 1000 };
     int total = 5000;
 

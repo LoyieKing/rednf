@@ -64,62 +64,44 @@ char* NumberToString(unsigned int value, int radix);
 }
 
 // ---- 格式串（ORIG rodata 逐字节） ----
-static const char FMT_BUY_ITEM[] =
-    "\133\045\163\135\276\306\300\314\305\333\261\270\300\324\040\111\104\072\040"
-    "\045\144\054\040\103\157\165\156\164\072\045\144\015\012";
-static const char FMT_CHAT[] =
-    "\133\045\163\135\303\244\306\303\305\270\300\324\072\045\144\040\263\273\277"
-    "\353\072\040\045\163\015\012";
-static const char FMT_COMPOSITION[] =
-    "\133\045\163\135\307\325\274\272\040\267\271\274\255\307\307\072\040\045\144"
-    "\015\012";
-static const char FMT_SELECT_CH[] =
-    "\133\045\163\135\304\263\270\257\274\261\305\303\072\045\163\054\040\301\367"
-    "\276\367\072\045\144\054\040\267\271\272\247\072\045\144\054\040\274\272\300"
-    "\345\307\374\072\045\144\015\012";
-static const char FMT_DUN_START[] =
-    "\133\045\163\135\264\370\301\257\040\275\303\300\333\040\112\157\142\072\040"
-    "\045\144\054\040\114\145\166\145\154\072\040\045\144\040\274\272\300\345\307"
-    "\374\072\040\045\144\015\012";
-static const char FMT_FINE_QUEST[] =
-    "\133\045\163\135\304\371\275\272\306\256\040\277\317\267\341\072\040\045\144"
-    "\015\012";
-static const char FMT_GIVE_UP[] =
-    "\133\045\163\135\264\370\301\257\306\367\261\342\072\040\045\163\015\012";
-static const char FMT_KILL_MOB[] =
-    "\133\045\163\135\113\151\154\154\040\115\157\142\124\171\160\145\072\040\045"
-    "\144\015\012";
-static const char FMT_LEARN_SKILL[] =
-    "\133\045\163\135\275\272\305\263\300\324\274\366\040\111\104\072\045\144\054"
-    "\040\114\145\166\145\154\072\045\144\015\012";
-static const char FMT_LEVEL_UP[] =
-    "\133\045\163\135\267\271\272\247\276\367\072\040\045\144\015\012";
-static const char FMT_DUN_CLEAR[] =
-    "\133\045\163\135\264\370\301\257\040\305\254\270\256\276\356\015\012";
-static const char FMT_TRADE_DOWN[] =
-    "\133\045\163\135\306\256\267\271\300\314\265\345\040\264\331\277\356\270\256"
-    "\275\272\306\256\040\111\104\072\045\144\040\103\157\165\156\164\072\045\144"
-    "\015\012";
-static const char FMT_TRADE_UP[] =
-    "\133\045\163\135\306\256\267\271\300\314\265\345\040\276\367\270\256\275\272"
-    "\306\256\040\111\104\072\045\144\040\103\157\165\156\164\072\045\144\015\012";
-static const char FMT_USE_COIN[] =
-    "\133\045\163\135\304\332\300\316\273\347\277\353\040\055\076\040\045\163\015"
-    "\012";
-static const char FMT_SELL_ITEM[] =
-    "\133\045\163\135\276\306\300\314\305\333\306\307\270\305\040\111\104\072\040"
-    "\045\144\054\040\103\157\165\156\164\072\045\144\015\012";
-static const char FMT_DIE[] =
-    "\133\045\163\135\307\303\267\271\300\314\301\337\040\273\347\270\301\015\012";
-static const char FMT_DISJOINT[] =
-    "\133\045\163\135\307\330\303\274\040\111\104\072\040\045\144\015\012";
-static const char FMT_DELETE_CH[] =
-    "\133\045\163\135\304\263\270\257\273\350\301\246\072\045\163\054\040\301\367"
-    "\276\367\072\045\144\054\040\267\271\272\247\072\045\144\054\040\274\272\300"
-    "\345\307\374\072\040\045\144\015\012";
-static const char FMT_CREATE_CH[] =
-    "\133\045\163\135\304\263\270\257\273\275\274\272\072\045\163\040\301\367\276"
-    "\367\072\045\144\015\012";
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
+// [symname-seg34] 删发明符号 static const char FMT_*[]（ORIG 0x08c3e1xx 为无名 .rodata，
+// 逐字节相同）⇒ 使用点已内联为字面量。
 
 // ----------------------------------------------------------------------------
 // HistoryLog 类声明见 HistoryLog.h（唯一声明点）
@@ -217,117 +199,135 @@ static const char FMT_CREATE_CH[] =
 #include "HistoryLog/WriteCreateCh.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_CREATE_CH, time, name, job);
+    fprintf(file, "\133\045\163\135\304\263\270\257\273\275\274\272\072\045\163\040\301\367\276"
+    "\367\072\045\144\015\012", time, name, job);
 }
 
 
 #include "HistoryLog/WriteDeleteCh.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_DELETE_CH, time, name, job, level, growType);
+    fprintf(file, "\133\045\163\135\304\263\270\257\273\350\301\246\072\045\163\054\040\301\367"
+    "\276\367\072\045\144\054\040\267\271\272\247\072\045\144\054\040\274\272\300"
+    "\345\307\374\072\040\045\144\015\012", time, name, job, level, growType);
 }
 
 #include "HistoryLog/WriteSelectCh.inc"
                                int growType)
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_SELECT_CH, time, name, job, level, growType);
+    fprintf(file, "\133\045\163\135\304\263\270\257\274\261\305\303\072\045\163\054\040\301\367"
+    "\276\367\072\045\144\054\040\267\271\272\247\072\045\144\054\040\274\272\300"
+    "\345\307\374\072\045\144\015\012", time, name, job, level, growType);
 }
 
 #include "HistoryLog/WriteLevelUp.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_LEVEL_UP, time, level);
+    fprintf(file, "\133\045\163\135\267\271\272\247\276\367\072\040\045\144\015\012", time, level);
 }
 
 #include "HistoryLog/WriteChat.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_CHAT, time, type, content);
+    fprintf(file, "\133\045\163\135\303\244\306\303\305\270\300\324\072\045\144\040\263\273\277"
+    "\353\072\040\045\163\015\012", time, type, content);
 }
 
 #include "HistoryLog/WriteFineQuest.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_FINE_QUEST, time, questIdx);
+    fprintf(file, "\133\045\163\135\304\371\275\272\306\256\040\277\317\267\341\072\040\045\144"
+    "\015\012", time, questIdx);
 }
 
 #include "HistoryLog/WriteLearnSkill.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_LEARN_SKILL, time, skillIdx, level);
+    fprintf(file, "\133\045\163\135\275\272\305\263\300\324\274\366\040\111\104\072\045\144\054"
+    "\040\114\145\166\145\154\072\045\144\015\012", time, skillIdx, level);
 }
 
 #include "HistoryLog/WriteDunStart.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_DUN_START, time, job, level, growType);
+    fprintf(file, "\133\045\163\135\264\370\301\257\040\275\303\300\333\040\112\157\142\072\040"
+    "\045\144\054\040\114\145\166\145\154\072\040\045\144\040\274\272\300\345\307"
+    "\374\072\040\045\144\015\012", time, job, level, growType);
 }
 
 #include "HistoryLog/WriteKillMob.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_KILL_MOB, time, mobType);
+    fprintf(file, "\133\045\163\135\113\151\154\154\040\115\157\142\124\171\160\145\072\040\045"
+    "\144\015\012", time, mobType);
 }
 
 #include "HistoryLog/WriteDie.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_DIE, time);
+    fprintf(file, "\133\045\163\135\307\303\267\271\300\314\301\337\040\273\347\270\301\015\012", time);
 }
 
 #include "HistoryLog/WriteGiveUp.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_GIVE_UP, time, reason);
+    fprintf(file, "\133\045\163\135\264\370\301\257\306\367\261\342\072\040\045\163\015\012", time, reason);
 }
 
 #include "HistoryLog/WriteUseCoin.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_USE_COIN, time, reason);
+    fprintf(file, "\133\045\163\135\304\332\300\316\273\347\277\353\040\055\076\040\045\163\015"
+    "\012", time, reason);
 }
 
 #include "HistoryLog/WriteDunClear.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_DUN_CLEAR, time);
+    fprintf(file, "\133\045\163\135\264\370\301\257\040\305\254\270\256\276\356\015\012", time);
 }
 
 #include "HistoryLog/WriteTradeUp.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_TRADE_UP, time, itemIdx, count);
+    fprintf(file, "\133\045\163\135\306\256\267\271\300\314\265\345\040\276\367\270\256\275\272"
+    "\306\256\040\111\104\072\045\144\040\103\157\165\156\164\072\045\144\015\012", time, itemIdx, count);
 }
 
 #include "HistoryLog/WriteTradeDown.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_TRADE_DOWN, time, itemIdx, count);
+    fprintf(file, "\133\045\163\135\306\256\267\271\300\314\265\345\040\264\331\277\356\270\256"
+    "\275\272\306\256\040\111\104\072\045\144\040\103\157\165\156\164\072\045\144"
+    "\015\012", time, itemIdx, count);
 }
 
 #include "HistoryLog/WriteDisJoint.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_DISJOINT, time, itemIdx);
+    fprintf(file, "\133\045\163\135\307\330\303\274\040\111\104\072\040\045\144\015\012", time, itemIdx);
 }
 
 #include "HistoryLog/WriteComposition.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_COMPOSITION, time, itemIdx);
+    fprintf(file, "\133\045\163\135\307\325\274\272\040\267\271\274\255\307\307\072\040\045\144"
+    "\015\012", time, itemIdx);
 }
 
 #include "HistoryLog/WriteBuyItem.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_BUY_ITEM, time, itemIdx, count);
+    fprintf(file, "\133\045\163\135\276\306\300\314\305\333\261\270\300\324\040\111\104\072\040"
+    "\045\144\054\040\103\157\165\156\164\072\045\144\015\012", time, itemIdx, count);
 }
 
 #include "HistoryLog/WriteSellItem.inc"
 {
     if (!CheckFD(file)) return;
-    fprintf(file, FMT_SELL_ITEM, time, itemIdx, count);
+    fprintf(file, "\133\045\163\135\276\306\300\314\305\333\306\307\270\305\040\111\104\072\040"
+    "\045\144\054\040\103\157\165\156\164\072\045\144\015\012", time, itemIdx, count);
 }
 
 // ============================================================================

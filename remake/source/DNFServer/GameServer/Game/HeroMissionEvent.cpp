@@ -730,22 +730,22 @@ template HeroMissionEvent* Singleton<HeroMissionEvent>::Get();
 static int ConvertString2EnumMissionType(std::string& s)
 {
 loop_top:
-    static std::map<const char*, int, less_TCHAR> lookup;
-    static SpinLock lock;
-    static bool inited;
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static bool __inited;
     int code;
-    if (inited)
+    if (__inited)
     {
         std::map<const char*, int, less_TCHAR>::const_iterator it =
-            lookup.find(s.c_str());
-        code = (it != lookup.end()) ? it->second : -1;
+            __lookup.find(s.c_str());
+        code = (it != __lookup.end()) ? it->second : -1;
     }
     else
     {
-        lock.enter();
-        if (inited)
+        __init_lock.enter();
+        if (__inited)
         {
-            lock.leave();
+            __init_lock.leave();
             goto loop_top;
         }
         code = 0;
@@ -755,26 +755,26 @@ loop_top:
     {
     case 0:
     case 0x3d1:   // "normal"
-        if (!inited)
-            lookup.insert(std::pair<const char* const, int>("normal", 0x3d1));
+        if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("normal", 0x3d1));
         else
             return 1;
     case 0x3d3:   // "payment"
-        if (!inited)
-            lookup.insert(std::pair<const char* const, int>("payment", 0x3d3));
+        if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("payment", 0x3d3));
         else
             return 2;
     case 0x3d5:   // "final"
-        if (!inited)
-            lookup.insert(std::pair<const char* const, int>("final", 0x3d5));
+        if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("final", 0x3d5));
         else
             return 3;
     }
 
-    if (!inited)
+    if (!__inited)
     {
-        lock.leave();
-        inited = true;
+        __init_lock.leave();
+        __inited = true;
         goto loop_top;
     }
     return 0;
@@ -786,7 +786,7 @@ loop_top:
 //   [/hero event] [mission] [type] [repeat] [reset] [item] [condition]
 //   [mail title] [mail content] [/mission]
 // 返回：0=成功；非 0=出错脚本行号（loadScript 以 0 判活）。
-// 首轮经 switch fallthrough 链惰性填充标签表（lookup @0x94f7578 / SpinLock
+// 首轮经 switch fallthrough 链惰性填充标签表（__lookup @0x94f7578 / SpinLock
 // @0x94f7590 / 就绪字节 @0x94f7594，P21 范式），随后重查当前行分派。
 // ============================================================================
 // importHeroMissionConditionsData @ 0x0896171b —— [b28d-solo-HeroMissionEvent ·

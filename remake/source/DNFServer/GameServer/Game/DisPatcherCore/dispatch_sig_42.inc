@@ -55,6 +55,18 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 以 byte 口径取载荷首 int（DisPatcherCore.h:716 MSG_DEBUG_COMMAND
     // `int m_arg` @+0x0e）的第 0/1 字节（movzbl 0xe / 0xf）——取具名成员的
     // 同宽度字节视图，不用裸偏移。
+    // [Q5BigTURest.DisPatcherCore 2026-09-11 ③a-2 复查·负结论] 本处是 `disp2` 报
+    // ORIG-only `0xe/0xf/0x12` 的根因：ORIG 为**同类型基址 + 常量 disp** 单条读
+    // （`mov -0x20(%ebp),%eax; movzbl 0xe(%eax)`，见 ORIG 0x081fca5e/0x081fca68 与
+    // 0x081fcab5/0x081fcabf）；我方经具名 `argBytes` 指针 ⇒ 索引退化
+    // `mov -0x18(%ebp),%eax; add $0x1,%eax; movzbl (%eax)`。**三试形在 4.4.6 全部不可造**
+    // （实测：① 具名 `argBytes=&msg->m_arg` + 索引 0/1；② 立即 cast 表达式
+    // `reinterpret_cast<const unsigned char*>(msg)[0xe]`；③ 未偏置具名字节指针
+    // `argBytes=(const unsigned char*)msg` + 索引 0xe/0xf —— 三者均产
+    // `mov -0xNN(%ebp),%eax; add $0xe,%eax; movzbl (%eax)`，**恒不折 disp**）⇒ 属
+    // 4.4 对「异类型 cast 视图」物化基址的固有行为（与 Dispatchers A 组同族天花板）。
+    // 正解只能来自共享头：`MSG_DEBUG_COMMAND` 自身在 +0x0e 提供 byte 成员（同类型访问
+    // 才折 disp）；属共享头话题，此处保持原形（语义等价，仅 3 条指令形态差）。
     const unsigned char* argBytes =
         reinterpret_cast<const unsigned char*>(&msg->m_arg);   // +0x0e..0x11
 

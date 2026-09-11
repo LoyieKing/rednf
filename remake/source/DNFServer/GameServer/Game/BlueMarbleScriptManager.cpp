@@ -48,10 +48,10 @@
 // ORIG 0x88d60f2：懒加载单例（new + 静态指针保存；异常路径 delete）。
 #include "BlueMarbleScriptManager/getInsance.inc"
 {
-    static BlueMarbleScriptManager* s_instance;
-    if (s_instance == 0)
-        s_instance = new BlueMarbleScriptManager();
-    return s_instance;
+    static BlueMarbleScriptManager* instance;
+    if (instance == 0)
+        instance = new BlueMarbleScriptManager();
+    return instance;
 }
 
 // ORIG 0x088d66b6 T：m_maps（this+0xd4）find，未命中返回 0。

@@ -890,15 +890,18 @@ private:
     // 0x086594cf `movl $0x0,-0x20(%ebp)`），使 dayA/dayB 临时槽落回 -0x1c/-0x18。
     // 旧 H6 记录「单独 B」234→236 反劣：A 未同消时槽图仍错 ⇒ 本次 A+B 同落。
     unsigned int itemId = 0; int addCount = 0;   // ORIG 0x086594c8/cf（顶部零写）
-    static const float DIV_DAY = 30.0f;  // ORIG .rodata DAY 常量（0x08cf3960 处值 30.0，已验证）
-    int dayA = (int)(oldFatigue / DIV_DAY);
-    int dayB = (int)(total / DIV_DAY);
+    // [W16ASymNameSeg2 2026-09-11 符号名轴] ORIG 该处为 .rodata 字面量（0x08cf3960 = 30.0f）、
+    // 无函数内 static 实体 ⇒ 内联字面量，消 _ZZN5CUser25_processCharacterDayEventEjjE7DIV_DAY。
+    int dayA = (int)(oldFatigue / 30.0f);
+    int dayB = (int)(total / 30.0f);
     char body[256];
     if (dayA == dayB)                       // 同日跨周
     {
-        static const float DIV_WEEK = 156.0f;  // ORIG .rodata WEEK 常量（0x08cf3964 处值 156.0，已验证）
-        int weekA = (int)(oldFatigue / DIV_WEEK);
-        int weekB = (int)(total / DIV_WEEK);
+        // [W16ASymNameSeg2 2026-09-11 符号名轴] ORIG 为 .rodata 字面量（0x08cf3964 = 156.0f）⇒
+        // 内联，消 _ZZN5CUser25_processCharacterDayEventEjjE8DIV_WEEK（static const float 即使
+        // 只定义不用，GCC 4.4 仍发射符号 ⇒ 必须删定义行）。
+        int weekA = (int)(oldFatigue / 156.0f);
+        int weekB = (int)(total / 156.0f);
         if (weekA == weekB)
             return;
         itemId = 0x1d5e; addCount = 1;
@@ -967,15 +970,16 @@ private:
     unsigned int total = oldFatigue + addFatigue;
     if (!(oldFatigue != 0 && total != 0 && oldFatigue < 0x9du))
         return;
-    static const float DIV = 50.0f;  // ORIG .rodata 常量（0x08cf3968 处值 50.0，已验证）
+    // [W16ASymNameSeg2 2026-09-11 符号名轴] ORIG 为 .rodata 字面量（0x08cf3968 = 50.0f）⇒
+    // 内联，消 _ZZN5CUser24_processFatigueBuffEventEjjE3DIV。
     // [b28d-22 修法 P211/P218] itemId int→unsigned int：ORIG 0x08659afe `mov -0x1c(%ebp),%ebx;
     // call G_CDataManager; mov %ebx,0x4(%esp)`（实参先升格 callee-saved 跨 receiver call 保活）。
     // 4.4 对 int 局部恒反序（探针 /tmp/p22_arg2.cpp k/l：call 后才 `mov -0xc,%edx`），
     // unsigned 局部（/tmp/p22_arg3.cpp o）逐条复现 ORIG 形。
     unsigned int itemId = 0;      // ORIG 顶部清零（movl $0x0,-0x1c）
     int addCount = 0;    // ORIG 顶部清零（movl $0x0,-0x18）
-    int zoneA = (int)(oldFatigue / DIV);
-    int zoneB = (int)(total / DIV);
+    int zoneA = (int)(oldFatigue / 50.0f);
+    int zoneB = (int)(total / 50.0f);
     if (zoneA == zoneB) return;
     itemId = 0x1d95;
     char body[256];
@@ -12252,7 +12256,15 @@ public:
     new (reinterpret_cast<char*>(this) + 0x24a0) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
     new (reinterpret_cast<char*>(this) + 0x29fd) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
     new (reinterpret_cast<char*>(this) + 0x2b97) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
-    for (int i = 0; i < 0x31; ++i)
+    // [C1 2026-09-11 真 bug#8：构造次数 off-by-one —— ORIG 构造 50 个、我方原 49 个]
+    // ORIG 0x0849205d: `mov $0x31,%esi` / body `call stNPCRelationship_t::C1Ev`(0x848fa50)
+    // / `sub $1,%esi` / 0x08492072: `cmp $0xffffffff,%esi` / 0x08492075: `setne %al` ⇒
+    // do/while(--i != -1) ⇒ i ∈ {0x31 … 0x00}，共 **50** 次；我方原 `i < 0x31` 编译为
+    // `cmp $0x30; setle` ⇒ 仅 49 次。布局互证：SigTypes_C.h m_npcData 区间
+    // [0x40c8-0x3e70] = 0x258 = 600 字节，sizeof(stNPCRelationship_t) = 0xc ⇒ 600/12 = 50 ✓
+    // （探针实测：改 `i < 0x32` 得 `cmp $0x31; setle` = 50 次；`i != -1` 倒计数可得与 ORIG
+    //  同形的 `cmp $0xffffffff; setne`，但四数同，取前者最小改动。）
+    for (int i = 0; i < 0x32; ++i)
         new (reinterpret_cast<char*>(this) + 0x3e70 + i * 0xc) stNPCRelationship_t();       // 0x848fa50
     new (reinterpret_cast<char*>(this) + 0x40ce) SIG_REDEEMINFO_LIST_TO_DB();               // 0x848f894
     new (reinterpret_cast<char*>(this) + 0x466a) stTitleBook();                             // 0x848f62a

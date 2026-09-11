@@ -130,8 +130,10 @@ public:
 // ============================================================================
 #include "ItemUpgradeVtableB2/GetItemUpgradeSuccessRate.inc"
 {
-    static const float divisor = 9840.0f;  // ORIG .rodata 0x08cbfa3c
-    return (float)g_alchemistInfo[0] / divisor;   // 合并后 int[2]；低半区 [0] 为原标量
+    // ORIG .rodata 0x08cbfa3c 为**字面量** 9840.0f（无符号）；原 `static const float
+    // divisor` 是发明符号（_ZZN10expert_job10CAlchemist25GetItemUpgradeSuccessRateEvE7divisor，
+    // ORIG 全 ELF 无）⇒ 改回内联字面量，指令形同为 flds。
+    return (float)g_alchemistInfo[0] / 9840.0f;   // 合并后 int[2]；低半区 [0] 为原标量
 }
 
 // ============================================================================
@@ -1545,14 +1547,15 @@ namespace WongWork
         }
 
         std::vector<int> slots;
-        // ORIG 尾参 a/b 为 .rodata 空串 0x08c9c3a0（邮件标题/正文查找键）。
-        static const char kEmptyKey[1] = "";
+        // ORIG 尾参 a/b 为 .rodata 空串字面量 0x08c9c3a0（邮件标题/正文查找键）；
+        // 原 `static const char kEmptyKey[1]` 是发明符号
+        // （_ZZN8WongWork12CItemUpgrade12_ProcPenalty...E9kEmptyKey，ORIG 全 ELF 无）⇒ 内联字面量。
         // [b28d-solo-ItemUpgradeVtableB2] P167：ORIG 0x08547295 在
         // insert_event_items 前**重调** getCurCharacInvenW（不复用上面的 invenW）。
         const int rc = ((CUserCharacInfo*)user)->getCurCharacInvenW()
                            ->insert_event_items(items, slots, (eMoneyAddReason)7,
                                                 eItemAddReason_0x13, false,
-                                                kEmptyKey, kEmptyKey);
+                                                "", "");
         pg->put_byte(rc);
 
         // insert_event_items 输出三元组 {slot, itemIdx, addInfo2/count}。

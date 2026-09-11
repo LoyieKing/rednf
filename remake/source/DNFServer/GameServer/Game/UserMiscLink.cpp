@@ -764,6 +764,18 @@ namespace random_option
 // ===========================================================================
 void* GetRandomOption();   // GlobalData.cpp 定义（T 0x085f0eb0：&G_CDataManager()->m_randomOption）
 
+// ---------------------------------------------------------------------------
+// [Q8S5 2026-09-11 指派复核（Main 第⑤类待核项）] setcc/jcc + disp2 逐指令核实 ⇒ **等价，非 bug**：
+//   ① setcc 点：我方 `1af4 seta %al` vs ORIG `0x085f3841 setbe %al`，两侧**同一** `cmp -0x10(%ebp),%eax`
+//      （eax = vector<OptionGroup>::size()，mem = get_value() ⇒ sel）。我方 `seta`(size>sel) + `je 1c03`
+//      （跳 logFormat 舱）↔ ORIG `setbe`(size<=sel) + `je 0x085f3897`（跳正常路径）⇒ **条件取补 + 两臂对调**
+//      ⇒ 语义相同（两舱 logFormat 的 line 均 `0x390`：ORIG 0x085f3869 / 我方 1c21）✓
+//   ② disp2 ORIG-only `+0xd ×2`：ORIG `movzbl 0xd(%eax),%edx` + `mov %dl,0xd(%eax)`（字段 load/store，0x085f394a/953、
+//      0x085f3987/990）vs 我方 `lea 0xd(%eax),%edx` + `add $0xd,%eax`（1b9c/1ba2、1bc4/1bca，**取址/地址算术**）
+//      ⇒ 门控 **③d**，与结构字段偏移无关 ✓
+//   cmpscan2 v2 亦判 `[INFO 窗口不匹配]`（非 SYMSIGN）⇒ 三路一致（工具 v2 / 本核实 / Q8S3 独立核实）。
+//   无改动、无回滚。
+// ---------------------------------------------------------------------------
 #include "UserMiscLink/change_option.inc"
                                             int level, int grade, int group,
                                             int slot, RandomOption* opts)

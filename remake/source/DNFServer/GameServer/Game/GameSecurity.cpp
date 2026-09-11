@@ -656,6 +656,9 @@
     // 残余 N-P75：ORIG `difftime(now,t)` 先载 t→%edx 再载 now→%eax 再压栈；
     // 4.4 恒逐个求值即压（`mov t,%eax; mov %eax,0x4(%esp); mov now,%eax; …`）。
     // 探针穷举（time_t/int/double cast/具名 double）均不翻，压栈序/调用约定/语义全同。
+    // [C4A0Nine 2026-09-11 复验] 本波 n1_v=NEAR 200/200 gap=0，唯一残差即此处
+    //   difftime 双实参装载序（ORIG 0x082753e6 `mov -0x20(%ebp),%edx`（t）→
+    //   `mov -0x1c(%ebp),%eax`（now）→ 先存 %edx 后存 %eax）⇒ P75 同族，封顶不变。
     struct tm tmv;
     int year = static_cast<int>(hackType / 10000);
     unsigned int mon = (hackType / 100) % 100;

@@ -111,8 +111,12 @@
 
 CShutdowManager* GetInstanceShutdowManager()
 {
-    static CShutdowManager s;
-    return &s;
+    // [W16ASymNameSeg2 2026-09-11 符号名轴] ORIG 单例名 = `instance`（非 `s`）：
+    //   _ZZ25GetInstanceShutdowManagervE8instance  @0x0943bc90（b,16B 对象）
+    //   _ZGVZ25GetInstanceShutdowManagervE8instance @0x093fa760（V,guard）
+    // ⇒ `s`→`instance`，两条 OUR-only 归零、四数不变（2/8/0/1/1）。
+    static CShutdowManager instance;
+    return &instance;
 }
 // ORIG 0x082a6f88（_ZN15CShutdowManager5ResetEv，W）：
 //   this+0 = 0；this+4 = 0；this+8 = 0。

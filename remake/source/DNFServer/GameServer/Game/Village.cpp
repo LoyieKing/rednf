@@ -64,6 +64,9 @@
 
 // [b28d-62] N18b：cmp 操作数序（写 `m_pAreas == pEnd` 亦不可翻）+ N112 对齐
 //   nop；39=39，p167 CLEAR。ORIG 0x086c3348
+// [C4A0Nine 2026-09-11 复验] 交换书写序 `pEnd == m_pAreas` ⇒ 4.4.7 仍产
+//   `cmp %ebx,%eax`（39/41 不变）；`(*pEnd).~Area()` deEv 形亦不翻 ⇒ N18b/N112
+//   双封顶。ORIG 0x086c3383 `cmp %ebx,%eax`（= m_pAreas-pEnd 减序）为 4.1 独有形。
 #include "Village/destroy.inc"
 {
     if (m_pAreas)

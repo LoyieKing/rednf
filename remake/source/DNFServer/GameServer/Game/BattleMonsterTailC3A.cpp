@@ -62,6 +62,10 @@
 #include "DataManagerInitDepends.h"   // stHellParty_t/stHellPartyMonsterGroupList（须在 CDataManager.h 之后）
 #include "HellPartyGroupOrder.h"
 
+// [prett-A 2026-09-11] ORIG prett 串第 2 参为 `MOB_REF_LIST&`（命名空间级 typedef ⇒ 宏打裸名；
+// 同型先例 BattleMonsterDepsC2/add_monsters_current_map.inc:5）。纯类型别名，零 codegen。
+typedef std::list<_mapMonster> MOB_REF_LIST;
+
 // ==================================================================
 // CBattle_Field::ConsistTournament @ 0x083035c8
 // 报告：docs/class_func_reports/CBattle_Field/ConsistTournament.md
@@ -72,15 +76,13 @@
 // 残差 = P264（.o 数据立即数/重定位显示差）+ N82 槽号。
 // ==================================================================
 #include "BattleMonsterTailC3A/ConsistTournament.inc"
-                                      std::map<short, std::vector<TournamentInfo> >& roundMap)
+                                      TournamentRoundInfoMap& roundMap)
 {
     if (pMap == NULL)
     {
         // ORIG 0x083035f7 段：trace 槽 -0x50/-0x40 浅于容器槽（-0x78..-0x5c）
         // ⇒ P221 扩展：全表达式临时链（具名形 4.4 恒先声明更浅、槽方向相反）。
-        cMyTrace("bool CBattle_Field::ConsistTournament(const CMap*, "
-                 "MOB_REF_LIST&, CBattle_Field::TournamentRoundInfoMap&)",
-                 0xb5a, 5)
+        cMyTrace(__PRETTY_FUNCTION__, 0xb5a, 5)
             ("CBattle_Field::ConsistTournament ERROR!! : pMap is NULL pointer");
         return false;
     }
@@ -89,9 +91,7 @@
     if (pMap->m_tournamentMap.empty())
     {
         // ORIG 0x0830364b 段：同上，临时链形（槽 -0x40）。
-        cMyTrace("bool CBattle_Field::ConsistTournament(const CMap*, "
-                 "MOB_REF_LIST&, CBattle_Field::TournamentRoundInfoMap&)",
-                 0xb61, 5)
+        cMyTrace(__PRETTY_FUNCTION__, 0xb61, 5)
             ("CBattle_Field::ConsistTournament ERROR!! : tournamentMonster is empty");
         return false;
     }
@@ -105,9 +105,7 @@
     {
         // ORIG 0x083036e9 `call get_member_count; mov %eax,%ebx` 在 cMyTrace ctor 之前
         // 求值并以 %ebx 跨 ctor 保活（无具名槽）⇒ 全表达式临时链（P227）。
-        cMyTrace("bool CBattle_Field::ConsistTournament(const CMap*, "
-                 "MOB_REF_LIST&, CBattle_Field::TournamentRoundInfoMap&)",
-                 0xb6c, 5)
+        cMyTrace(__PRETTY_FUNCTION__, 0xb6c, 5)
             ("CBattle_Field::ConsistTournament ERROR!! : party member count is invalid(%d)",
              m_party->get_member_count());
         return false;
@@ -207,9 +205,11 @@
 // 与 oit->first 同型化（0x083073ca 单段）；m_roleType 反极性 if/else（0x0830726c jne）；
 // m_field11b 双字节视图 + Add_Mob 匿名临时（0x083074b4 单次 C2ERKS_）。
 // 残差 gap −1 = script_values 段 4.4 `mov %eax,%edx` 中转（N7）。
+// [prett-A 2026-09-11] prett 落地：全局 typedef MAP_HELL_PARTY_GROUP_ORDER（落 .inc）+ 第 4 参拼写改
+//   typedef 名 + 调用点 `__PRETTY_FUNCTION__`（ORIG 符号 @0x08c23700 size 0x62，字节已 SAME）。
 // ==================================================================
 #include "BattleMonsterTailC3A/add_hell_party_monster.inc"
-                                           std::map<unsigned short, STHellPartyGroupOrder>* groups)
+                                           MAP_HELL_PARTY_GROUP_ORDER* groups)
 {
     // ORIG 入口 4 条具名局部初始化（0x083071c5..0x083071da：-0x24/-0x20/-0x1c/-0x18
     // = 0/0/1/0）。-0x24 为命中率累加器（成功插入后与 -0x20 成对清零，跨外层迭代
@@ -260,8 +260,7 @@
             {
                 LogManager::logFormat(
                     1, "battle_field.cpp",
-                    "void CBattle_Field::add_hell_party_monster(map_monster&, int&, int&, "
-                    "MAP_HELL_PARTY_GROUP_ORDER*)",
+                    __PRETTY_FUNCTION__,
                     0x1076,
                     "HELLPARTY_LOG : HELLPARTY GROUP INDEX (%d) , MAP INDEX (%d) : "
                     "ADD HELL PARTY GROUP ERROR!!\n",

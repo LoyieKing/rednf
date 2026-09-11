@@ -148,6 +148,9 @@ namespace game_master
 // 仅数据地址/别名差（p167 34=34，MISSING/EXTRA 全为 C2/D2↔C1/D1 同址别名，P93）；
 // ORIG 0x084ab333 起 `mov -0xc(%ebp),%eax`（guildKey 具名局部跨 set 清零复用）等
 // 槽序与 4.1 逐条同形 ⇒ 无旋钮、零改动。
+// [C4A0Nine 2026-09-11 复验] n1_v=AE（165/166，clean 归一口径 identical）；strict 残差
+//   纯为 .o 未链接 reloc/大地址表示（`mov 0x0,%eax`+`$0x8c7fa63` vs 链接后绝对地址），
+//   p167 差集 CLEAR ⇒ 前波 lsEi/lsEj 问题已随实参类型修正收口，无剩余可造项。
 #include "GmCmds_C/execute_3.inc"
 {
     CUser* user = GetUser();

@@ -7,6 +7,10 @@ void CUser::RefillItemByScript(std::vector<std::pair<int, int> >& list)
 
     for (unsigned int i = 0; i < refill->size(); ++i)
     {
+        // [C4A0Nine 2026-09-11 探针] ORIG 0x086890f3 该调用为「先 this→%eax、
+        //   后 i→%edx，再逆序统一 store」；4.4.7 恒「先从右到左求值即 store」。
+        //   试 `(*refill).operator[](i)` 与 `(*refill)[i]` 两形均不翻（204/205
+        //   不变）⇒ P75 跨版本实参装载时刻族，封顶。
         const stRefillItemInfo::RefillItem& entry =
             refill->operator[](i);
         if (nowSec >= entry.m_endSec)      // ORIG：endSec<=curSec 跳过（jle）

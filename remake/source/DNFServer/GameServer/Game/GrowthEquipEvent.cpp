@@ -170,7 +170,12 @@
 
     int serverGroup;
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-        serverGroup = G_CEnvironment()->get_server_group();
+        // [P6S3 round6 · 父泳道线索（p167fix EXTRA `CEnvironment::get_server_group`）+
+        // 同 TU 既有判例] 本件 ORIG 与 SendGrowthWeaponEventInfo 同形：**直读字段**
+        // `call G_CEnvironment; mov 0x378(%eax),%eax`（= m_serverEnvir.m_serverGroup，
+        // +0x198+0x1e0），不发 `get_server_group()` call（该 getter 我方仅 weak 定义、
+        // 语义等价于返回同一字段 ⇒ 直读为 ORIG 形）。
+        serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // ORIG +0x378
     else
         serverGroup = (int)user.GetServerGroup();
 

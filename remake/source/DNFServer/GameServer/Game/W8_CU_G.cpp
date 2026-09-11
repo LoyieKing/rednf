@@ -536,8 +536,6 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
     {
         // ORIG rodata：DAT_08cf10ec（"아이템 지급" 类标题）/ DAT_08cf10fc（正文），
         // GBK/EUC 多字节原样字节保真转写（objdump -s .rodata 实证）。
-        static const char kSenderTitle[] =
-            "\260\355\272\355\270\260\300\307\040\274\261\271\260";
         // [S3-W8 2026-09-11 §6.5 真 bug] ORIG 0x8cf10fc 逐字节 = 40B
         //   b0 ed ba ed b8 b0 c0 c7 20 bc b1 b9 b0 c0 cc 20 bf ec c6 ed c0 b8
         //   b7 ce 20 b5 b5 c2 f8 c7 cf bf b4 bd c0 b4 cf b4 d9 2e
@@ -545,13 +543,16 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
         //   旧码为八进制转义且错 4 处：缺 `\272\355`（"블"）、`\304` 多 1 字节、
         //   `\360`→`\370`（f0→f8）、`\231`→`\331`（99→d9）⇒ 二进制串与 ORIG 不符。
         //   改用 \xNN 十六进制逐字节保真，避免八进制歧义。
-        static const char kFailMessage[] =
-            "\xb0\xed\xba\xed\xb8\xb0\xc0\xc7\x20\xbc\xb1\xb9\xb0\xc0\xcc\x20"
-            "\xbf\xec\xc6\xed\xc0\xb8\xb7\xce\x20\xb5\xb5\xc2\xf8\xc7\xcf\xbf"
-            "\xb4\xbd\xc0\xb4\xcf\xb4\xd9.";
 
-        strncpy(title, kSenderTitle, 0x14);   // ORIG 0x08688490（长度 0x14）
-        strncpy(body, kFailMessage, 0xff);    // ORIG 0x086884ab（长度 0xff）
+        // [W16C 符号名轴·2026-09-11] ORIG 无 `_ZZN5CUser18sendSecuRewardItem…E12kFailMessage`
+        //   / `…E12kSenderTitle` 实体：ORIG 0x08688498/0x086884b3 直接
+        //   `mov DWORD PTR [esp+0x4],0x8cf10ec` / `0x8cf10fc`（.rodata 匿名串、无符号）
+        //   ⇒ 去两处 `static const char[]` 改内联字面量；OUR-only −2、四数不变（overlay 实证）。
+        strncpy(title, "\260\355\272\355\270\260\300\307\040\274\261\271\260", 0x14);   // ORIG 0x08688490（长度 0x14）
+        strncpy(body,
+                "\xb0\xed\xba\xed\xb8\xb0\xc0\xc7\x20\xbc\xb1\xb9\xb0\xc0\xcc\x20"
+                "\xbf\xec\xc6\xed\xc0\xb8\xb7\xce\x20\xb5\xb5\xc2\xf8\xc7\xcf\xbf"
+                "\xb4\xbd\xc0\xb4\xcf\xb4\xd9.", 0xff);    // ORIG 0x086884ab（长度 0xff）
         // b28d-W8: P52/P134 —— ORIG 0x086884cf/4df/4ec 三值入 %ebx/%esi/%eax 跨
         // 调用保活、装载段直读寄存器；具名局部引入 3 对 store/reload（P0 直传）。
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(

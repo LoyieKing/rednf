@@ -52,6 +52,11 @@
 // 全局依赖前置（3 参版定义见本文件尾；6 参版 owner=CVillageMonsterMgr.cpp）
 #include "CAssaultMgr/IsIncludeVirtualMoveAreas.inc"
 
+// [W13F 2026-09-11] 复现 ORIG 文件作用域常量符号 `_ZL14MAX_PVP_PLAYER`
+//   （`nm ORIG`：r, 4B, 0x8c1c344 = 0x00000008；本 TU 的 SetUserConnectP2P 取址使用）。
+//   必须在**全局作用域**声明：放命名空间内会得到 `_ZN11pvp_assaultL14MAX_PVP_PLAYERE`。
+static const int MAX_PVP_PLAYER = 0x8;
+
 namespace pvp_assault
 {
 
@@ -79,8 +84,13 @@ namespace pvp_assault
 CAssaultMgr* GetInstanceAssaultMgr()
 {
     // ORIG _ZN11pvp_assault21GetInstanceAssaultMgrEv：guard 单例。
-    static CAssaultMgr s;
-    return &s;
+    // [W13F 2026-09-11] 局部 static 名实证：ORIG guard = `_ZGVZN11pvp_assault21
+    //   GetInstanceAssaultMgrEvE8instance` @0x94001a0（8B）/ 对象
+    //   `_ZZN11pvp_assault21GetInstanceAssaultMgrEvE8instance` @0x9400b520（0x20B）；
+    //   我方原名 `s` ⇒ 两条 ORIG-only 符号缺口 ⇒ 改名复现（纯符号名，零 codegen 影响）。
+    //   遗留：ORIG 两符号为 W/V（原厂头内 inline 定义所致），我方为 T/b —— 见 W13F 报告待核。
+    static CAssaultMgr instance;
+    return &instance;
 }
 
 #include "CAssaultMgr/_GetAssaultPlace.inc"
@@ -1083,8 +1093,10 @@ namespace pvp_assault
 {
     // ORIG 0x82e6a96 call _ZSt3minIiERKT_S2_S2_（(%esp)=&len，0x4esp=&.rodata 8
     // @0x8c1c344 ⇒ static const int 取地址），`mov (%eax),%eax` 解引用返回引用。
-    static const int kIpMax = 8;
-    memcpy(m_connectIp, ip, std::min(len, kIpMax));
+    // [W13F 2026-09-11] 符号名实证：ORIG 0x8c1c344 处符号 = `_ZL14MAX_PVP_PLAYER`（r, 4B,
+    //   值 0x00000008）。原 `kIpMax` 为**发明符号**（`nm ORIG` 无 `_ZZ...E6kIpMax`）⇒
+    //   改用同名文件作用域常量复现同一符号。
+    memcpy(m_connectIp, ip, std::min(len, MAX_PVP_PLAYER));
 }
 
 #include "CAssaultMgr/Reset.inc"

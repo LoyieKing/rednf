@@ -258,21 +258,21 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
     for (; ScanType(token, true); )                   // P6S6: 主扫描失败 → false
     {
     re_lookup:
-        static std::map<const char*, int, less_TCHAR> s_lookup;
-        static SpinLock s_initLock;
-        static bool s_inited = false;
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
 
-        if (s_inited)
+        if (__inited)
         {
-            LookupMap::const_iterator it = s_lookup.find(token.c_str());
-            id = (it != s_lookup.end()) ? it->second : -1;
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
         }
         else
         {
-            s_initLock.enter();
-            if (s_inited)
+            __init_lock.enter();
+            if (__inited)
             {
-                s_initLock.leave();
+                __init_lock.leave();
                 goto re_lookup;                       // 双检命中：重查表
             }
             id = 0;                                   // 首遍哨兵 → 注册链
@@ -282,9 +282,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
         {
         case 0:                                       // 首遍注册哨兵（与 0x3e 同块）
         case QPSEC_QUICK_PARTY_END:                   // [/quick party] → 成功
-            if (!s_inited)
+            if (!__inited)
             {
-                s_lookup.insert(LookupMap::value_type(
+                __lookup.insert(LookupMap::value_type(
                     "[/quick party]", (int)QPSEC_QUICK_PARTY_END));
             }
             else
@@ -294,9 +294,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
             // 首遍：继续登记下一段
 
         case QPSEC_UNABLE:                            // 单扫描：值即入列元素
-            if (!s_inited)
+            if (!__inited)
             {
-                s_lookup.insert(LookupMap::value_type(
+                __lookup.insert(LookupMap::value_type(
                     "[unable to quickparty]", (int)QPSEC_UNABLE));
             }
             else
@@ -313,9 +313,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
             // 首遍：继续登记下一段
 
         case QPSEC_LEVEL_SECTION:                     // 单扫描：值即入列元素
-            if (!s_inited)
+            if (!__inited)
             {
-                s_lookup.insert(LookupMap::value_type(
+                __lookup.insert(LookupMap::value_type(
                     "[level section]", (int)QPSEC_LEVEL_SECTION));
             }
             else
@@ -332,9 +332,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
             // 首遍：继续登记下一段
 
         case QPSEC_BASIC_REWARD:
-            if (!s_inited)
+            if (!__inited)
             {
-                s_lookup.insert(LookupMap::value_type(
+                __lookup.insert(LookupMap::value_type(
                     "[basic reward]", (int)QPSEC_BASIC_REWARD));
             }
             else
@@ -389,9 +389,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
             // 首遍：继续登记下一段
 
         case QPSEC_RANDOM_REWARD:
-            if (!s_inited)
+            if (!__inited)
             {
-                s_lookup.insert(LookupMap::value_type(
+                __lookup.insert(LookupMap::value_type(
                     "[random reward]", (int)QPSEC_RANDOM_REWARD));
             }
             else
@@ -435,9 +435,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
             // 首遍：继续登记下一段
 
         case QPSEC_RANDOM_REWARD_PROB:
-            if (!s_inited)
+            if (!__inited)
             {
-                s_lookup.insert(LookupMap::value_type(
+                __lookup.insert(LookupMap::value_type(
                     "[random reward prob]", (int)QPSEC_RANDOM_REWARD_PROB));
             }
             else
@@ -461,9 +461,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
             // 首遍：继续登记下一段
 
         case QPSEC_REQUIRE_PARTY_NUM:
-            if (!s_inited)
+            if (!__inited)
             {
-                s_lookup.insert(LookupMap::value_type(
+                __lookup.insert(LookupMap::value_type(
                     "[require party num]", (int)QPSEC_REQUIRE_PARTY_NUM));
             }
             else
@@ -503,10 +503,10 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
             break;
         }
 
-        if (!s_inited)
+        if (!__inited)
         {
-            s_initLock.leave();
-            s_inited = true;
+            __init_lock.leave();
+            __inited = true;
             goto re_lookup;                           // 首遍登记完 → 重查表
         }
     }

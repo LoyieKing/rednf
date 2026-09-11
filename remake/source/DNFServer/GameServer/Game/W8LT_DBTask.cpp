@@ -3629,7 +3629,14 @@ namespace OS_API
 // ---------------------------------------------------------------------------
 
 // ORIG 0x083fbfc6（报告 docs/class_func_reports/DBTask/DBTask.md）
-const int DBTask::DISPATCHER_COUNT;   // C++98 odr-use 保险（ORIG 循环上界常量）
+// [Q5W8LT 2026-09-11 符号名轴落地] 原为类外定义 `const int DBTask::DISPATCHER_COUNT;`
+// （C++98 odr-use 保险）—— 实测该定义发射了**发明符号** `_ZN6DBTask16DISPATCHER_COUNTE`
+// （R 4B），而 **ORIG 全 ELF 无任何含 `DISPATCHER_COUNT` 的符号**（`nm -S ORIG` 0 命中）。
+// 该常量仅在两处作**值使用**（`for (i = 0; i <= DISPATCHER_COUNT - 1; ++i)`，`RegistDispatcher`
+// 与 `DBTask::clear` 内），**无取址/引用绑定 ⇒ 非 odr-use**，故定义可删。
+// 链接验证（Main 要求的前置）：扫 1429 个 `.o` 的 `nm -u` ⇒ **UND 引用 = 0**；
+// 整库 `build/game/df_game_r` 中该符号仅 1 处 R（= 本 TU 定义被链接进去，非引用）。
+// overlay 实测：删除后 OUR-only 1→0、四数 143/1771/9/48/705 逐项不变。
 #include "W8LT_DBTask/DBTask.inc"
 {
     RegistDispatcher();
@@ -20100,6 +20107,12 @@ struct DB_AutoPunishBlackIpView
 // [r3 负结论] `if (rowCount == 1) {} else { return 0; }` 空-if 极性包裹（P222）
 //   实测**无效**（484/484、ndiff 8、差集 {jne}/{je} 全同）：ORIG 08438c76 `jne`
 //   跳后部 return-0 块 + 两处 tail-merge 块 vs 4.4 本地 `je` ⇒ N 封顶。
+// [R5BigTURest 2026-09-11 复核] 已落 1 处：两处 int 零初始化次序（ORIG
+//   `movl $0x0,-0x14` 先 / `-0x40` 后 ⇒ 源码 rowCount 声明须在 no 之前）⇒
+//   ndiff 4→2（484/485、gap -1 不变）。残留 2 处均为 N：① ORIG 08438c76
+//   `jne` + 后部 return-0 块 vs 4.4 `je` + 目标后置块（块布局）；② ORIG
+//   0843?? 两处**重复** `mov $0x0,%ebx; jmp` 出口块（4.1 不合并），4.4 合并
+//   为一份 ⇒ 源码不可造。
 #include "W8LT_DBTask/dispatch_264.inc"
                                            Stream* stream)
 {
@@ -20108,8 +20121,12 @@ struct DB_AutoPunishBlackIpView
     bool flag = false;
     *stream >> flag;
     SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER sig;
-    int no = 0;
+    // [R5BigTURest 偏移/槽序] ORIG 0x08438c5x 两处 int 零初始化次序为
+    // `movl $0x0,-0x14(%ebp)`（rowCount，后接 `cmpl $0x1,-0x14(%ebp)` 判行数）
+    // **先**、`movl $0x0,-0x40(%ebp)`（no，后作 UPDATE 第二实参）**后**
+    // ⇒ 源码中 rowCount 声明在 no 之前（4.4 按声明序发零初始化）。
     int rowCount = 0;
+    int no = 0;
     db->set_query(
         "seLect no, weekday_var_a, weekday_var_b, weekday_var_c, weekend_var_x, weekend_var_y, weekend_var_z, next_reward_day, state_flag from churn_system_manager order by no desc limit 1");
     if (!db->exec(true))

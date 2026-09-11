@@ -2851,6 +2851,17 @@ struct stBloodWarGrowTable
             // [b28d-solo-WarRoom P223] ORIG 循环头双岛：089025ad nop + 089025ae
             //   jmp HEAD（if 假分支落点）、089025b0 nop（do-while again==0 落点）。
             //   试 continue 形（同层 continue + 循环尾自然 fall）复现双岛。
+            // [W13BGmCmdsWarRoom 2026-09-11 探针复核 · 结论：维持 do-while]
+            //   ① ORIG 089026af 尾条件 = `test %ebx,%ebx; je <+0x6d nop 岛>;
+            //      jmp <+0xa3 体>`（3 条，GCC 4.1 的 do-while 布局）；
+            //   ② 4.4.6 对 **do-while** 恒发 `test;setne %al;test %al,%al;jne 体;
+            //      jmp 岛`（5 条，多 2 条物化）；
+            //   ③ 4.4.6 对 `for(;;){…; if (again == 0) break;}`（break 为体末句）**确实
+            //      改出 ②的 3 条尾形**，但**另加一处 0/1 选择块**
+            //      （`test %ebx,%ebx; jne; mov $0x0,%ebx; jmp; mov $0x1,%ebx; jmp`）
+            //      ⇒ 实测 our 128→**133**（gap 0→**−5**）**劣化** ⇒ **已回滚**。
+            //   ④ 探针 /tmp/w13bg/probe_g.cpp（g1=for 形 / g2=空 else 形 / g3=do-while）
+            //      复现同现象 ⇒ **尾形与重复块同源，二者不可兼得**（封 N，非路由域）。
             register int again;
             do
             {
@@ -2875,15 +2886,10 @@ struct stBloodWarGrowTable
                     again = 1;
                 }
             } while (again != 0);
-            // [S3-W8 2026-09-11 负结论 · 封 N] ORIG 089026af `test %ebx,%ebx;
-            //   je 089025b0 <+0x6d>(nop 岛); jmp 089025e6 <+0xa3>` = 3 条；
-            //   4.4 对 `do{}while(again!=0)` 尾条件恒**物化 bool**：
-            //   `test;setne %al;test %al,%al;jne;jmp`（多 2 条）。
-            //   实测两形均劣：①`while (again)`（隐式转换）⇒ setne 不动；
-            //   ②`for(;;){…; if (again==0) break;}` ⇒ setne 消除且 089026af 三条件
-            //   形与 ORIG 全等，但引入 4 条重复 jmp（+0x6e×2 / +0x11b×2，jump-thread
-            //   失效）⇒ our 124→128（gap −1→−5）劣化 ⇒ 已回滚。
-            //   ⇒ 本条 N 封顶（保留 ORIG 指令形证据如上）。
+            // [S3-W8 2026-09-11 判词 · W13BGmCmdsWarRoom 2026-09-11 复核确认]
+            //   `do{}while` 尾条件 4.4 恒物化 bool（`test;setne;test;jne;jmp`，较
+            //   ORIG 089026af 三条件多 2 条）⇒ 封 N；for 形实测**亦劣**（见上
+            //   ③，our 128→133）⇒ 本件尾条件维持 do-while。
             // [b28d-solo-WarRoom-4 判据④/P223 多岛] ORIG 循环尾两个物理相邻但不同
             //   地址的落点：+0x6a（operator== 假分支）与 +0x6d（do-while again==0）。
             //   两个**不同源**的 goto 跳物理连续尾标签 ⇒ 4.4 不 jump-thread（P223 可造形）。

@@ -409,9 +409,12 @@ namespace ARAD
     // trace=-0x3c、nowSec=-0x2c、day=-0x28..-0x15、shift=-0x14。已试并回滚：
     // `time_t nowSec;` 声明提前到块首（赋值留原位，执行序不变）⇒ nowSec 反落 -0x18、
     // day 落 -0x2c..-0x1c，镜像未复现 ⇒ 4.4 块内分配序与声明序非线性，不可翻。
-    static const char kFunc[] =
-        "static int ARAD::Arad_Dispatcher_Login_Impl::pad_certifiaction_check("
-        "SIG_LOGIN_DATA*)";
+    // [R2PrettAClass 2026-09-11 · prett A 类落地] 手写签名串 → __PRETTY_FUNCTION__。
+    //   ORIG .rodata @0x08b98f20 size 0x56 = "static int ARAD::Arad_Dispatcher_Login_Impl::"
+    //   "pad_certifiaction_check(SIG_LOGIN_DATA*)"；本函数是类内 static 成员（.h:168）⇒
+    //   GCC 4.4 宏展开自带 `static ` 前缀（换宏三条件②通过：ORIG 串同样含 static）。
+    //   定义侧拼写 = `int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(
+    //   SIG_LOGIN_DATA* data)`（.inc:1）⇒ 形参拼写与 ORIG 一致（条件①③通过）。
     if (data->m_passPadVersion == 2)
     {
         // 已通过二级认证转化：执行当日 06:00 格式化的 Goblin 奖励复查
@@ -436,7 +439,7 @@ namespace ARAD
 
         strftime(day, sizeof(day), "%Y-%m-%d 06:00:00", &brokTm);
 
-        cMyTrace trace(kFunc, 0x11a, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x11a, 0);
         trace("[Goblin Check Time(%s)]]", day);
 
         return DATABASE::LOGIN_QUERY::arad_sp_check_goblin_reward(data, day);
@@ -577,15 +580,18 @@ namespace ARAD
     // **作废**：4.4.7 对空体 `if (f()) {}`（结果丢弃）正是该形
     // （探针 /tmp/p_arad/t4.cpp c3：`call f; test %eax,%eax; <下一条>`，无 setne/
     // jcc；c1/c2 的 while 形才会多 setne）。改用空 if 即逐条复现。
-    static const char kFunc[] =
-        "virtual int ARAD::Arad_Dispatcher_Login_Impl::db_dispatch(int, int, "
-        "Stream*)";
+    // [R2PrettAClass 2026-09-11 · prett A 类落地] 手写签名串 → __PRETTY_FUNCTION__。
+    //   ORIG .rodata @0x08b98f80 size 0x4d = "virtual int ARAD::Arad_Dispatcher_Login_Impl::"
+    //   "db_dispatch(int, int, Stream*)"；本函数类内声明为虚（.h:158）⇒ 宏自带 `virtual `
+    //   （探针 /tmp/r2/probe.cpp 实证：类外定义不写 virtual 也打印）。定义侧拼写 =
+    //   `int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx, Stream* stream)`
+    //   （db_dispatch.inc:1）⇒ 与 ORIG 逐字节一致。
 
     SIG_LOGIN_DATA* loginData = stream->GetOutBuffer<SIG_LOGIN_DATA>();
     if (loginData == 0)
     {
         LogManager::logFormat(
-            1, "localjapan/Arad_Dispatcher_Login_Impl.cpp", kFunc, 0x39,
+            1, "localjapan/Arad_Dispatcher_Login_Impl.cpp", __PRETTY_FUNCTION__, 0x39,
             "%s", "recv stream buffer null!!");
         return -1;
     }

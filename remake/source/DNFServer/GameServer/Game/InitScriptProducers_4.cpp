@@ -804,23 +804,23 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     break;                  // 段结束 → 下一主标签
 
                 // P177：ORIG 的 static 三件套声明在循环体内（guard 每轮执行）。
-                static std::map<const char*, int, less_TCHAR> lookup;
-                static SpinLock lock;
-                static bool inited = false;
+                static std::map<const char*, int, less_TCHAR> __lookup;
+                static SpinLock __init_lock;
+                static bool __inited = false;
 
             retry:
-                if (inited)
+                if (__inited)
                 {
                     std::map<const char*, int, less_TCHAR>::const_iterator it =
-                        lookup.find(sub.c_str());           // ORIG 0x8a12218
-                    id = (it != lookup.end()) ? it->second : -1;
+                        __lookup.find(sub.c_str());           // ORIG 0x8a12218
+                    id = (it != __lookup.end()) ? it->second : -1;
                 }
                 else
                 {
-                    lock.enter();                       // ORIG 0x8a122a2
-                    if (inited)
+                    __init_lock.enter();                       // ORIG 0x8a122a2
+                    if (__inited)
                     {
-                        lock.leave();                   // ORIG 0x8a122c0
+                        __init_lock.leave();                   // ORIG 0x8a122c0
                         goto retry;                     // 回跳重查（ORIG 0x8a122c6）
                     }
                     id = 0;                             // 建表哨兵
@@ -832,9 +832,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                 case 0x932:                             // [/limit slowdown] 终止标记
                     // P22/P133：ORIG 0x8a12312 movzbl __inited; xor $1; test; je <else>
                     // ⇒ 原码为 `if (!inited) {insert} else {bStop; break}` 负极性形。
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
                         // fall through
                     }
                     else
@@ -844,9 +844,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     }
                 case 0x935:                             // [normal]
                     // ORIG 0x8a12378 movzbl __inited; xor $1; test; je <parse>
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
                         // fall through
                     }
                     else
@@ -865,9 +865,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     }
                 case 0x949:                             // [boss]
                     // ORIG 0x8a1245c movzbl __inited; xor $1; test; je <parse>
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
                         // fall through
                     }
                     else
@@ -887,9 +887,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                 case 0x95d:                             // [named]
                     // ORIG 0x8a12540 movzbl __inited; xor $1; test; je <parse>；
                     // 0x8a1259b jmp <switch 尾>（插入分支 break，不 fallthrough）。
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
                         break;
                     }
                     else
@@ -910,10 +910,10 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     break;
                 }
 
-                if (!inited)
+                if (!__inited)
                 {
-                    lock.leave();                       // ORIG 0x8a12631
-                    inited = true;                      // ORIG 0x8a12636
+                    __init_lock.leave();                       // ORIG 0x8a12631
+                    __inited = true;                      // ORIG 0x8a12636
                     goto retry;                         // ORIG 0x8a1263d 回跳重查
                 }
                 if (bStop)                              // ORIG 0x8a12643 cmpb
@@ -1286,23 +1286,23 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     break;                  // 段结束 → 下一主标签
 
                 // P177：ORIG 的 static 三件套声明在循环体内（guard 每轮执行）。
-                static std::map<const char*, int, less_TCHAR> lookup;
-                static SpinLock lock;
-                static bool inited = false;
+                static std::map<const char*, int, less_TCHAR> __lookup;
+                static SpinLock __init_lock;
+                static bool __inited = false;
 
             retry:
-                if (inited)
+                if (__inited)
                 {
                     std::map<const char*, int, less_TCHAR>::const_iterator it =
-                        lookup.find(sub.c_str());
-                    id = (it != lookup.end()) ? it->second : -1;
+                        __lookup.find(sub.c_str());
+                    id = (it != __lookup.end()) ? it->second : -1;
                 }
                 else
                 {
-                    lock.enter();
-                    if (inited)
+                    __init_lock.enter();
+                    if (__inited)
                     {
-                        lock.leave();
+                        __init_lock.leave();
                         goto retry;                     // 回跳重查
                     }
                     id = 0;                             // 建表哨兵
@@ -1313,9 +1313,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                 case 0:
                 case 0x2c6e:                            // [/limit slowdown] 终止标记
                     // P22/P133：ORIG 0x8a3c0ad movzbl __inited; xor $1; test; je 8a3c10a
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x2c6e));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x2c6e));
                         // fall through
                     }
                     else
@@ -1325,9 +1325,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     }
                 case 0x2c71:                            // [normal]
                     // ORIG 0x8a3c113 movzbl __inited; xor $1; test; je 8a3c173
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x2c71));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x2c71));
                         // fall through
                     }
                     else
@@ -1346,9 +1346,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     }
                 case 0x2c85:                            // [boss]
                     // ORIG 0x8a3c1f7 movzbl __inited; xor $1; test; je 8a3c257
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x2c85));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x2c85));
                         // fall through
                     }
                     else
@@ -1367,9 +1367,9 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     }
                 case 0x2c99:                            // [named]
                     // ORIG 0x8a3c2db movzbl __inited; xor $1; test; je 8a3c338
-                    if (!inited)
+                    if (!__inited)
                     {
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x2c99));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x2c99));
                         break;
                     }
                     else
@@ -1390,10 +1390,10 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
                     break;
                 }
 
-                if (!inited)
+                if (!__inited)
                 {
-                    lock.leave();
-                    inited = true;
+                    __init_lock.leave();
+                    __inited = true;
                     goto retry;                         // 回跳重查
                 }
                 if (bStop)

@@ -45,8 +45,13 @@
 //     （探针 t1/t2 实证：`a&&b` 在 4.4 -O0 恒物化，两段 guard 生 ORIG 形）。残差 = a) 帧
 //     0xdc vs 0xbc 与全部槽号平移 0x10（N82：4.4 块内对象按序压深 —— insert 分支"重声明 q*"
 //     实验使帧 0xbc→0xcc、槽再深 0x10，实测反劣已回滚）；b) `db.m_update != 1` 1 条
-//     （ORIG 的 `xor $1` 形要求字段为 bool；现 unsigned char，advancealtar.h:246
-//     —— **.h 侧建议：uchar→bool（1B/偏移 0x517/mangled 零影响）本泳道不改，只报告**）。
+//     —— **[Q1P342ScanA 2026-09-11 复核·已落地；原注「现 unsigned char，.h 侧建议改名」
+//     系过时表述]** `advancealtar.h:250` 现为 `bool m_update;`（注释带
+//     `[类型轴 2026-09-11]` + ORIG 0x0813ecb6 直证），并配
+//     `static_assert(offsetof(_CharacAdvanceAltarDbData, m_update) == 0x517)`。
+//     实测本函数 ORIG 468 / OURS 470，双方 `xor $0x1` **各 6 条、逐点成对**
+//     （ORIG 0x813ecb6/ecce/ee62/eeb3/ef04/ef55 ↔ OURS 0x8798/8822/9226/9307/9388/9469）
+//     ⇒ 该项收益已兑现，**不再是未决建议**（残余已归 N82 帧-槽族）。
 //     p167 48/48 仅 std::string C1/C2、D1/D2 别名差。
 //   · DB_Load::SendResult 0x0813ea46 —— **[S6 本波归零] 71→66（66/66 AE）**：原判 N122/N93附
 //     撤销 —— ORIG 0x0813ea54 `cmpb $0x0,-0x1c(%ebp); je +0xe6` 是**正面条件包裹**形

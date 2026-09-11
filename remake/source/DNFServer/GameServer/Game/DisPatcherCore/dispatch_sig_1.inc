@@ -200,6 +200,14 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
         cMyTrace groupTrace(__PRETTY_FUNCTION__, 0x699a, 0);
         groupTrace("CheckLoginServerGroup user_id(%s), server_group(%d)",
                    authBuf.m_userId, (int)login->m_channelRestrictField);
+        // [DPC_SigC 负结论 2026-09-11] disp2 OURS-only `+0x3a38`×1 源于此处：ORIG
+        // 0x081e9969 单次读 `movzwl 0x3a38(%eax),%eax; cwtl; cmp $0xa,%eax; ja` 并**复用**
+        // 该 %eax 做 `shl`；我方 4.4 产 `cmp $0xa,%ax`（16 位）⇒ 移位处**再读一次**
+        // （0x15f7-0x1601）。实测两种 cast 写法均产同一 16 位比较：
+        //   `(unsigned short)v`（原）与 `(unsigned int)v` 二者机器码相同 ⇒
+        // 4.4 做了「(unsigned)(int)short 与 0xa 比较 ⇒ 可用 16 位比较」的范围优化，
+        // 4.1 未做 ⇒ **编译器固有差，源码级不可造**，已回滚（件级 ndiff 不变）。
+        // 语义等价：0..0xffff 全域两形同判（阈值 0xa < 0x8000，负值均 false）。
         if ((unsigned short)login->m_channelRestrictField <= 0xa &&
             ((1 << login->m_channelRestrictField) & (unsigned long)0x580) != 0)
             return LineFunc(0x69a2, __PRETTY_FUNCTION__, 0, 0);
@@ -248,6 +256,12 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
     // +0x3905 落于 m_passPadPassword(+0x38e1) 内 +0x24 区（ORIG 网吧密码串写入）
     strncpy(&login->m_passPadPassword[0x24], authBuf.m_encPwd, 7);
     user->SetLoginTime(GlobalData::s_systemTime_.getCurSec());
+    // [DPC_SigB] ORIG 0x081e9bb7..0x081e9bc0：
+    //   `mov -0x9c(%ebp),%edx`（-0x9c = 上方 get_int 读出的 version，ORIG 0x081e977b/0x081e9795）
+    //   `mov -0xc(%ebp),%eax; mov %edx,0x3a34(%eax)`
+    // ⇒ 客户端上报版本号必须回写登录载荷 m_clientVersion(+0x3a34)。
+    // 原缺此写 ⇒ 发给客户端的 SIG_LOGIN_DATA 里 clientVersion 恒为 memset 后的 0。
+    login->m_clientVersion = version;                    // +0x3a34
     // CUser m_mcap 区（+0x8e3f0；字段偏移 = mcap 内偏移）
     user->m_mcap.m_field24 =                           // +0x24（0x8e414）
         (unsigned int)GlobalData::s_systemTime_.getCurSec();

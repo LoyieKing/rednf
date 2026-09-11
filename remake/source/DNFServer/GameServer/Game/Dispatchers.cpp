@@ -4420,8 +4420,12 @@ struct GmCmdArgs
         int leaveRet = party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
         if (leaveRet != 1)
         {
-            PacketGuard notification;
+            // [R4BigTUDispatchers 2026-09-11 · 语句顺序轴（S2Diff 只读定位）]
+            //   ORIG 0x08205676 `call out_from_dungeon` 先于 0x08205681 `call PacketGuardC1`
+            //   ⇒ 原码把 PacketGuard 声明写在 out_from_dungeon 之后。我方原顺序相反 ⇒
+            //   声明下移（语义不变：notification 在此点之前未被使用）。
             G_GameWorld()->out_from_dungeon(user);
+            PacketGuard notification;
             notification.clear();
             notification.put_header(0, 2);
             notification.put_byte(0);
@@ -7631,7 +7635,9 @@ public:
         return 0;
     }
 
-    static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
+    // [R4BigTUDispatchers 2026-09-11 · 符号名轴（Q4DispatchBig 定位）] 删函数内
+    //   `static const int gmList[5]` —— 使用点改解析到 TU 文件级 `_ZL6gmList`（:96，
+    //   初值逐项相同），消 `_ZZN25Dispatcher_AuctionBidding12dispatch_sigE6gmList` 发明符号。
 
     // ---- gold 分支：PCK_AUCTION_BIDDING_GA ctor ORIG W 0x0822e62c ----
     PCK_AUCTION_BIDDING_GA pck;
@@ -11213,11 +11219,15 @@ L_late:;
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    cMyTraceNoop log;
     // [J1Dispatchers 2026-09-11] §6.5 文本契约：ORIG .rodata 0x0b7a6ec =
     //   "user %s Lack votes slot %d as Lack"（无前导空格、无结尾句点）——
     //   旧形 " %s ... as Lack." 为发明文本，AE 口径不可见（P-6.5）。
-    log("user %s Lack votes slot %d as Lack", user->getCurCharacName(), (int)seat);
+    // [R4BigTUDispatchers 2026-09-11 · 调用序轴（callseq3 定位，与 Back2Village 同型）]
+    //   ORIG 0x081fd0ff `call getCurCharacName`（结果入 %ebx）**先于** 0x081fd10c
+    //   `call cMyTraceNoopC1` ⇒ 原码先在 ctor 前求实参 ⇒ 具名局部前移。
+    register const char* characName = user->getCurCharacName();
+    cMyTraceNoop log;
+    log("user %s Lack votes slot %d as Lack", characName, (int)seat);
     // ORIG 0x0820..：[46] 段先用 `$0x8de8`（_!pPVPRoom）⇒ CheckInPvp() 为**真**/PVPRoom
     //   分支在前；我方旧形 `if (!CheckInPvp())` 令两支序列整体互换（ndiff 38）。
     if (user->CheckInPvp())
@@ -12971,7 +12981,12 @@ L_late:;
             return LineFunc(0xa5b3,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (2 < user->getSecurityCard()->getFailCnt())
+        // [R4BigTUDispatchers 2026-09-11 · 符号性轴] ORIG 0x08209eb2 `cmp $0x2,%eax;
+        //   seta %al`（**unsigned** 比较）—— 而同函数下方 CPad 分支 ORIG 0x08209f0f 为
+        //   `setg`（signed）⇒ ORIG 两处**故意不同**（CSecurityCard::getFailCnt 返回
+        //   unsigned）。我方原写 `2 < getFailCnt()`（int）产 `setg` ⇒ 与 ORIG 不符。
+        //   同点 CPad 分支保持 signed（0821 行 `(int)` cast 即为此）。
+        if (2u < (unsigned int)user->getSecurityCard()->getFailCnt())
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa4, 0x7a);
             return 0;
@@ -13168,7 +13183,12 @@ L_late:;
     local_4ev.m_curCapacity = user->GetGuildCargoCapacity();
     local_4ev.m_newCapacity = user->GetGuildCargoCapacity() + local_2c->m_field10;
 
-    local_4ev.m_field1a = (unsigned int)local_2c->m_field4;
+    // [C2Dispatchers3a2 2026-09-11 ③a-2 人工核·负结论·偏移等价] ORIG 0x0822db3
+    //   `mov -0x20(%ebp),%eax; mov %eax,-0x30(%ebp)` ⇒ 复用**栈副本 local_20**（ORIG `?D4:1`），
+    //   旧文重读 `local_2c->m_field4`（我方 `?D4:2`）——同一成员 info+0x04、两侧偏移一致，非错位；
+    //   改后 our 331→320、gap −28→−17。（ORIG 0x0822b8b `mov 0xa0(%eax)` vs 我方 0x1ed20
+    //   `add $0xa0; mov (%eax)` = 门控③d 取址 lowering，等价。）
+    local_4ev.m_field1a = (unsigned int)local_20;
 
     pCVar9 = GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
     pCVar9->SendTcpPacket((char*)&local_4ev,
@@ -14846,7 +14866,7 @@ L_late:;
     // ORIG 0x08214b96..0x08214e43 (0x2ae 字节)。GM 表 _ZL6gmList @0x093abb4c。
     // 包：PCK_AUCTION_REGIST_CANCEL_GP（ctor W 0x0822ea1c）/ _GA（ctor W 0x0822e5c4）
     //   uid@0x12, characNo@0x16, auctionId[8]@0x1a。
-    static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
+    // [R4BigTUDispatchers 2026-09-11 · 符号名轴] 删函数内定义 ⇒ 用 TU 文件级 `_ZL6gmList`。
 
     // ORIG 0x08214b96：[4] `lea -0x29(%ebp),%eax` 直取址、无 `movb $0x0` 预清（P328⑤）。
     unsigned char payType;
@@ -16796,7 +16816,8 @@ L_late:;
 {
     // ORIG 0x08216b9a
     // ORIG _ZL6gmList：TU 内 static int[5]（0x093701d8，0x14 字节 .data，初值忠实转写）
-    static int s_gmList[5] = {0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae};
+    // [R4BigTUDispatchers 2026-09-11 · 符号名轴] 删具名 `s_gmList` ⇒ 用 TU 文件级
+    //   `_ZL6gmList`（消 `_ZZ…E7s_gmList` 发明符号；初值逐项相同）。
 
     // call CAuctionServerProxy::IsRunning(s_auction_proxy); xor $1 → !IsRunning
     if (!GlobalData::s_auction_proxy->IsRunning())
@@ -16827,7 +16848,7 @@ L_late:;
     // ORIG cmpl $0x4,-0xc; setle → i <= 4（含 4，共 5 轮）
     for (int i = 0; i <= 4; ++i)
     {
-        if (s_gmList[i] == (int)user->getCurCharacNo())
+        if (gmList[i] == (int)user->getCurCharacNo())   // [R4 2026-09-11 · 符号名轴] 原 s_gmList（定义已删）
         {
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
@@ -17611,7 +17632,15 @@ struct ExtreamItemWordView { unsigned char m_pad08[8]; unsigned int m_words[0x22
         memcpy(pkt.m_msg, m.m_text18, m.m_textLen14);
         pkt.m_itemCount = m.m_linkCount13b;
         for (int i = 0; i < m.m_linkCount13b; i++)
-            memcpy(pkt.m_items[i] + 0xb, m.m_links13c[i] + 0xc, 0x68);
+            // [Q4DispatchBig 2026-09-11 · 偏移轴真 bug 修复] 旧译 src 多 `+ 0xc`：
+            //   ORIG 0x081d9e11..081d9e45 为 `imul $0x68,%eax; add $0x130,%eax;
+            //   add msg,%eax; lea 0xc(%eax),%edx` ⇒ src 绝对 = msg + 0x13c + i*0x68
+            //   （0x130+0xc = 成员基址 0x13c，**非**额外偏移）；ORIG 反编译直证
+            //   `memcpy(dst+i*0x68, msg + i*0x68 + 0x13c, 0x68)`（报告 :689）。
+            //   我方 `m_links13c[i] + 0xc` = msg + 0x148 + i*0x68 ⇒ 复制源每项错位
+            //   12 字节（跨服物品链接显示错乱，玩家可见）。同成员全库使用点
+            //   （GameWorld.cpp:4656/5268/5291/5314/5333 + 本文件 :17551）均无 `+0xc`。
+            memcpy(pkt.m_items[i] + 0xb, m.m_links13c[i], 0x68);
         pkt.packetSize = (unsigned short)(0x174 + m.m_textLen14);
         GlobalData::s_community_proxy->SendTcpPacket(
             reinterpret_cast<char*>(&pkt), pkt.packetSize);
@@ -18953,7 +18982,8 @@ struct MercenaryCompetitionResultView
     //   循环 i=0..2: byte@0x1f+i, short@0x22+2i, char@0x2a+i, 尾 byte@0x2e；ROI sort@0x22。
     // GP/PCK_AUCTION_ASK_AVERAGE_PRICE_GP（ctor W 0x0822e94c）
     //   uid@0x12, characNo@0x16, itemIdx@0x1a, flag@0x1e。
-    static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
+    // [R4BigTUDispatchers 2026-09-11 · 符号名轴] 删函数内定义 ⇒ 用 TU 文件级 `_ZL6gmList`
+    //   （ORIG 为 `d` 段 = 可写 data，删后与我方 `:96` 的 `static int gmList[5]` 段型一致）。
 
     // ORIG 0x0821394a `lea -0x2d(%ebp),%eax; mov %eax,0x4(%esp)`：直接取址给
     //   PacketBuf::get_byte(unsigned char&)，其前**无** `movb $0x0,-0x2d(%ebp)`
@@ -20912,7 +20942,7 @@ LOUT:
     }
 
     // 尾部 GM 延迟追踪（_ZL6gmList ORIG @0x093abb4c，5 项，数据已 objdump 核实）
-    static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
+    // [R4BigTUDispatchers 2026-09-11 · 符号名轴] 删函数内定义 ⇒ 用 TU 文件级 `_ZL6gmList`。
     for (int i = 0; i <= 4; i++)
     {
         if (gmList[i] == user->getCurCharacNo())
@@ -22568,10 +22598,16 @@ LOUT:
         out.m_4 = 7;
         return 0;
     }
+    // [Q4DispatchBig 2026-09-11 探针] 裸 `(char*)&msg + 0xe` 产 `add $0xe,%eax;
+    //   movzwl (%eax)` 链；ORIG 0x081de5xx 为 `mov 0x10(%ebp),%eax; movzwl 0xe(%eax)`
+    //   （具名 msg 槽 + 单 disp）⇒ 改本 TU 局部视图引用读（物化基址正是 ORIG 形）。
+    struct ExchRandMsgView
+    {
+        char m_pad0e[0xe];
+        unsigned short m_eventIdx;          // +0x0e
+    } __attribute__((packed));
     const unsigned int eventIdx =
-        static_cast<unsigned int>(
-            *reinterpret_cast<const unsigned short*>(
-                reinterpret_cast<const char*>(&msg) + 0xe));
+        static_cast<unsigned int>(reinterpret_cast<const ExchRandMsgView&>(msg).m_eventIdx);
     EventClassify::CEventScriptMng* mng =
         static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng());
@@ -27138,7 +27174,15 @@ LOUT:
             return 0;
         }
 
-        rfErr(param) = 0;                                       // refund_skill 的 needGold 出参
+        // [C2Dispatchers3a2 2026-09-11 ③a-2 人工核·负结论·偏移等价] ORIG 0x081daa96/0x081daa9c/
+        //   0x081daab3 `mov -0x2c(%ebp),%edx; mov %eax,0x8(%edx); mov -0x2c(%ebp),%eax;
+        //   mov 0x8(%eax),%eax` ⇒ ORIG 的 -0x2c 槽缓的是 **param（[ebp+0x14]）**，与我方
+        //   `[ebp+0x14]` 直读**同一成员 param+0x08**（两侧偏移一致，非字段错位）。
+        //   差在计数重分布：ORIG 存后重读该字段 2 次（`?D8:4`）vs 我方局部 result（`?D8:2`）
+        //   = 门控③b（Q4DispatchBig 已证宏形劣化，保持局部变量）。
+        //   另：ORIG 0x081daa91 之前**无** `movl $0x0,0x18(%eax)`（`?D24:6`；我方旧文多此写 ⇒
+        //   `?D24:8`）——refund_skill 0x086069c8 入口即 `movl $0x13,(%eax)` 覆写出参 ⇒ 该初始化冗余，
+        //   删除后 our 350→348、gap −4→−2（`?D24` 8→7）。
         SkillSlot* skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
         const int result = skillW->refund_skill(
             static_cast<int>(req.m_12),                         // skillIdx（树内技能）
@@ -27150,6 +27194,11 @@ LOUT:
             rfErr(param));
         rfResult(param) = result;                               // +0x08
 
+        // [Q4DispatchBig 2026-09-11 负结论·形态差档回滚] ORIG 0x081daaa9 存后重读
+        //   param+0x08 两次（`mov 0x8(%eax),%eax` x2；其基址寄存器已保活）；我方试
+        //   `if (rfResult(param) …)` 宏形 ⇒ our 350→**354**（gap −4→**−8** 劣化）：
+        //   宏每次读重算 RF(p) 基址（多 4 条）。⇒ 维持 `if (result …)`（局部变量）。
+        //   本件 disp 多重集差属门控③b/⑤（我方局部变量替代字段重读，绝对语义等价）。
         if (result > 0xcc)
             return 0;                                           // 超出可退上限
         if (result < 0)
@@ -27806,7 +27855,10 @@ struct ScrMsgView
         PacketGuard packet;
         packet.put_header(1, 0x204);                 // class=1 cmd=0x204
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(pbase + 0x4) & 0xff);
+        // [Q4DispatchBig 2026-09-11] 范式同 :26741（ORIG `movzbl` ⇒ (unsigned char)
+        //   截断；旧译 `& 0xff` 产 `and $0xff,%eax` 掩码形）。紧邻 :27816 同段先例。
+        packet.put_byte(static_cast<int>(
+            static_cast<unsigned char>(*reinterpret_cast<int*>(pbase + 0x4))));
         // ORIG `movzbl 0xa(%eax),%eax; movsbl %al,%eax` 两段 = 读 uchar 后按 char 提升
         packet.put_byte((int)(char)*reinterpret_cast<unsigned char*>(pbase + 0xa));
         packet.finalize(true);

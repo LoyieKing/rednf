@@ -431,6 +431,10 @@ struct NetFlagView
     // failed 值全程在寄存器、无栈槽 ⇒ 原码为**裸 register 存储类提示**
     // （P231：禁的是 `register T x asm("reg")` 绑定，裸 register 合法且 -O0
     // 仍参与分配决策；本形即 docs 中登记的 ExchangeServer_Session 计数族）。
+    // [C4A0Nine 2026-09-11 复验] 另 4 形全败：`register char failed` /
+    //   `register const bool` / 分离赋值（先声明后赋）/ `= !!ok` ⇒ 4.4.7 恒
+    //   `setne %bl; test %bl,%bl`（57/58 不变）。ORIG 0x08490850 `setne %al` 为
+    //   4.1 QImode 分配独有形 ⇒ N7/N109 封顶。
     register bool failed = (ok != 0);
     if (failed)
     {

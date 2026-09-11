@@ -203,8 +203,12 @@ namespace WongWork
                                   char& outRarity)
 {
     (void)flag;   // ORIG 未读取第 3 参（仅按值传递占位）
-    static const char kPretty[] =
-        "virtual bool WongWork::CBossStage::handlePickupItem(CUser*, int, bool, char&)";
+    // [R2PrettAClass 2026-09-11 · prett A 类落地] 原 `static const char kPretty[]` 手写串已删，
+    //   调用点直接内联 __PRETTY_FUNCTION__（4.4 下 `static const char k[] = __PRETTY_FUNCTION__`
+    //   数组初始化编译不过 ⇒ 必须内联）。ORIG .rodata @0x08b75e20 size 0x4e =
+    //   "virtual bool WongWork::CBossStage::handlePickupItem(CUser*, int, bool, char&)"；
+    //   类内声明为虚成员 ⇒ 宏自动带 `virtual `（探针 /tmp/r2/probe.cpp 实证：类外定义不写
+    //   virtual 时宏仍打印 virtual），非 static 成员 ⇒ 无 `static ` 前缀（换宏三条件②通过）。
 
     // P0：ORIG 0x0814fa9e `mov 0x8(%ebp),%eax; lea 0xa18(%eax),%ecx` ⇒
     //   m_stageData.m_itemMap 直访问（无 MapInfo& 引用槽）。
@@ -226,7 +230,7 @@ namespace WongWork
     CItem* script = G_CDataManager()->find_item(item.m_item.m_addInfo);
     if (script == 0)
     {
-        cMyTrace trace(kPretty, 0x57f, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x57f, 5);
         trace("item not find - item_id : %d, itemUID : %d",
               item.m_item.m_addInfo, itemUID);
         return 0;
@@ -273,7 +277,7 @@ namespace WongWork
     {
         if (!RandomPickupItem(user, (unsigned int)itemUID, item))
         {
-            cMyTrace trace(kPretty, 0x5ac, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x5ac, 5);
             trace("RandomPickupItem false");
             return 0;
         }
@@ -282,14 +286,14 @@ namespace WongWork
     {
         if (!NormalPickupItem(user, (unsigned int)itemUID, item))
         {
-            cMyTrace trace(kPretty, 0x5b4, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x5b4, 5);
             trace("NormalPickupItem false");
             return 0;
         }
     }
     return 1;
     }
-    cMyTrace trace(kPretty, 0x56e, 5);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x56e, 5);
     trace("stageData_.item not find itemUID : %d", itemUID);
     PacketGuard packet;
     packet.clear();
@@ -894,12 +898,13 @@ namespace WongWork
     //   主流程后）⇒ 正极包裹（P222）。
     if (winner != 0)
     {
-    static const char kPretty[] =
-        "bool WongWork::CBossStage::RandomPickupItem(CUser*, unsigned int, const map_item&)";
+    // [R2PrettAClass 2026-09-11 · prett A 类落地] 同上：手写串已删，内联 __PRETTY_FUNCTION__。
+    //   ORIG .rodata @0x08b75e80 size 0x53 = "bool WongWork::CBossStage::RandomPickupItem("
+    //   "CUser*, unsigned int, const map_item&)"（非虚、非 static ⇒ 宏无前缀）。
     const CItem* script = G_CDataManager()->find_item(item.m_item.m_addInfo);
     if (script == 0)
     {
-        cMyTrace trace(kPretty, 0x39c, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x39c, 5);
         trace("item not find : %d", item.m_item.m_addInfo);
         return false;
     }

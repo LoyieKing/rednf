@@ -1279,7 +1279,7 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
         if (tok == "[background animation]")                // 0x089ddaf0 区（__lookup 表段）
         {
             // ORIG：局部对象循环复用（BackAniScript ctor / string ctor 在 do 之前，
-            // dtor 在段尾）；子键分派走函数局部静态表 __lookup / __lookup_0。
+            // dtor 在段尾）；子键分派走函数局部静态表 __lookup / __lookup。
             script->m_vecBackAni.clear();                   // vector(+0xa0)::clear
             BackAniScript ani;                              // BackAniScript::BackAniScript
             std::string line;                               // local_4d8
@@ -1334,25 +1334,25 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         int subId;
                         while (true)
                         {
-                            static std::map<const char*, int, less_TCHAR> __lookup_0;
-                            static SpinLock __init_lock_0;
-                            static bool __inited_0 = false;
+                            static std::map<const char*, int, less_TCHAR> __lookup;
+                            static SpinLock __init_lock;
+                            static bool __inited = false;
                         for (;;)
                         {
-                            if (!__inited_0)
+                            if (!__inited)
                             {
-                                __init_lock_0.enter();
-                                if (__inited_0)
+                                __init_lock.enter();
+                                if (__inited)
                                 {
-                                    __init_lock_0.leave();
+                                    __init_lock.leave();
                                     continue;
                                 }
                                 subId = 0;
                                 break;
                             }
                             std::map<const char*, int, less_TCHAR>::const_iterator it =
-                                __lookup_0.find(subLine.c_str());
-                            if (it != __lookup_0.end())
+                                __lookup.find(subLine.c_str());
+                            if (it != __lookup.end())
                                 subId = it->second;
                             break;
                         }
@@ -1361,9 +1361,9 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         case 0:
                         case 0x1d7:                         // [filename]
                         {
-                            if (!__inited_0)
+                            if (!__inited)
                             {
-                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[filename]", 0x1d7));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[filename]", 0x1d7));
                                 goto sub_next;
                             }
                             if (!ScanStr(&sub))
@@ -1374,9 +1374,9 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         }
                         case 0x1dd:                         // [layer]
                         {
-                            if (!__inited_0)
+                            if (!__inited)
                             {
-                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[layer]", 0x1dd));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[layer]", 0x1dd));
                                 goto sub_next;
                             }
                             if (!ScanStr(&sub))
@@ -1387,9 +1387,9 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         }
                         case 0x1e3:                         // [order]
                         {
-                            if (!__inited_0)
+                            if (!__inited)
                             {
-                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[order]", 0x1e3));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[order]", 0x1e3));
                                 goto sub_next;
                             }
                             if (!ScanStr(&sub))
@@ -1405,9 +1405,9 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         }
                         case 0x1ee:                         // [loop y axis]
                         {
-                            if (!__inited_0)
+                            if (!__inited)
                             {
-                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[loop y axis]", 0x1ee));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[loop y axis]", 0x1ee));
                                 goto sub_next;
                             }
                             int flag = -1;                  // local_4e8
@@ -1419,9 +1419,9 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         }
                         case 0x1f8:                         // [screen pos]
                         {
-                            if (!__inited_0)
+                            if (!__inited)
                             {
-                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[screen pos]", 0x1f8));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[screen pos]", 0x1f8));
                                 goto sub_next;
                             }
                             int v = -1;                     // local_4ec
@@ -1437,9 +1437,9 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         }
                         case 0x205:                         // [/ani info]
                         {
-                            if (!__inited_0)
+                            if (!__inited)
                             {
-                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[/ani info]", 0x205));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/ani info]", 0x205));
                                 goto sub_next;
                             }
                             script->m_vecBackAni.push_back(ani);  // vector(+0xa0)
@@ -1451,10 +1451,10 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                             break;
                         }
                     sub_next:
-                            if (!__inited_0)
+                            if (!__inited)
                         {
-                                    __init_lock_0.leave();
-                                __inited_0 = true;
+                                    __init_lock.leave();
+                                __inited = true;
                             continue;                       // 重入本轮 find（0x1157）
                         }
                     sub_tail:
@@ -2635,11 +2635,11 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
             }
             continue;
         }
-        if (tok == "[move layered map]")                    // 0x089e2216 区（__lookup_1 表段）
+        if (tok == "[move layered map]")                    // 0x089e2216 区（__lookup 表段）
         {
-            static std::map<const char*, int, less_TCHAR> __lookup_1;
-            static SpinLock __init_lock_1;
-            static bool __inited_1 = false;
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
             std::string line;                               // local_5f8（循环外构造一次）
             bool loop = true;                               // local_5f9
             do
@@ -2650,20 +2650,20 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 int id;
                 for (;;)
                 {
-                    if (!__inited_1)
+                    if (!__inited)
                     {
-                        __init_lock_1.enter();
-                        if (__inited_1)
+                        __init_lock.enter();
+                        if (__inited)
                         {
-                            __init_lock_1.leave();
+                            __init_lock.leave();
                             continue;
                         }
                         id = 0;
                         break;
                     }
                     std::map<const char*, int, less_TCHAR>::const_iterator it =
-                        __lookup_1.find(line.c_str());
-                    if (it != __lookup_1.end())
+                        __lookup.find(line.c_str());
+                    if (it != __lookup.end())
                         id = it->second;
                     break;
                 }
@@ -2672,7 +2672,7 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 case 0:
                 case 0x8b8:                                 // [zpos under]
                 {
-                    if (__inited_1)
+                    if (__inited)
                     {
                         script->m_moveLayeredType = 1;      // movl $1,0x350
                         script->m_zposUnder = ScanInt(&loop);  // -0x354 ← &-0x5f5
@@ -2680,48 +2680,48 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                             return false;
                         goto layered_next;
                     }
-                    __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[zpos under]", 0x8b8));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[zpos under]", 0x8b8));
                     /* fall through */
                 }
                 case 0x8be:                                 // [all dead case passable]
                 {
-                    if (__inited_1)
+                    if (__inited)
                     {
                         script->m_allDeadCasePassable = 1;  // movb $1,0x358
                         if (loop != true)
                             return false;
                         goto layered_next;
                     }
-                    __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[all dead case passable]", 0x8be));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[all dead case passable]", 0x8be));
                     /* fall through */
                 }
                 case 0x8c3:                                 // [/move layered map]
                 {
-                    if (__inited_1)
+                    if (__inited)
                         loop = false;
                     else
-                        __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[/move layered map]", 0x8c3));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/move layered map]", 0x8c3));
                     break;
                 }
                 default:
                     break;
                 }
-                if (!__inited_1)
+                if (!__inited)
                 {
-                    __init_lock_1.leave();
-                    __inited_1 = true;
+                    __init_lock.leave();
+                    __inited = true;
                 }
             layered_next:;
             } while (loop);
             continue;
         }
-        if (tok == "[static player start pos]")             // 0x089e26a0 区（__lookup_2 表段）
+        if (tok == "[static player start pos]")             // 0x089e26a0 区（__lookup 表段）
         {
             // ORIG：string / StaticStartPos 每轮 do 体内构造（dtor 同轮尾）；
             // ScanInt 全部走 bool* 版（局部 ok 复用 ScanType 的 flag 槽）。
-            static std::map<const char*, int, less_TCHAR> __lookup_2;
-            static SpinLock __init_lock_2;
-            static bool __inited_2 = false;
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
             int cont = 0;
             do
             {
@@ -2735,20 +2735,20 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 {
                 for (;;)
                 {
-                    if (!__inited_2)
+                    if (!__inited)
                     {
-                        __init_lock_2.enter();
-                        if (__inited_2)
+                        __init_lock.enter();
+                        if (__inited)
                         {
-                            __init_lock_2.leave();
+                            __init_lock.leave();
                             continue;
                         }
                         id = 0;
                         break;
                     }
                     std::map<const char*, int, less_TCHAR>::const_iterator it =
-                        __lookup_2.find(line.c_str());
-                    if (it != __lookup_2.end())
+                        __lookup.find(line.c_str());
+                    if (it != __lookup.end())
                         id = it->second;
                     break;
                 }
@@ -2757,59 +2757,59 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 case 0:
                 case 0x8dc:                                 // [player 1]
                 {
-                    if (__inited_2)
+                    if (__inited)
                     {
                         pos.m_playerIdx = 0;                // movl $0,-0x604
                         goto static_after;
                     }
-                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 1]", 0x8dc));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 1]", 0x8dc));
                     /* fall through */
                 }
                 case 0x8df:                                 // [player 2]
                 {
-                    if (__inited_2)
+                    if (__inited)
                     {
                         pos.m_playerIdx = 1;
                         goto static_after;
                     }
-                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 2]", 0x8df));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 2]", 0x8df));
                     /* fall through */
                 }
                 case 0x8e2:                                 // [player 3]
                 {
-                    if (__inited_2)
+                    if (__inited)
                     {
                         pos.m_playerIdx = 2;
                         goto static_after;
                     }
-                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 3]", 0x8e2));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 3]", 0x8e2));
                     /* fall through */
                 }
                 case 0x8e5:                                 // [player 4]
                 {
-                    if (__inited_2)
+                    if (__inited)
                     {
                         pos.m_playerIdx = 3;
                         goto static_after;
                     }
-                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 4]", 0x8e5));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 4]", 0x8e5));
                     /* fall through */
                 }
                 case 0x8e8:                                 // [/static player start pos]
                 {
-                    if (__inited_2)
+                    if (__inited)
                         ok2 = false;                        // movb $0,-0x611
                     else
-                        __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[/static player start pos]", 0x8e8));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/static player start pos]", 0x8e8));
                     break;
                 }
                 default:
                     break;
                 }
-                if (!__inited_2)
+                if (!__inited)
                 {
-                    __init_lock_2.leave();
-                    __inited_2 = true;
+                    __init_lock.leave();
+                    __inited = true;
                     continue;                               // 重入本轮 find（0x26dd）
                 }
             static_after:
@@ -2831,13 +2831,13 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
             } while (cont != 1);
             continue;
         }
-        if (tok == "[limit player move area]")              // 0x089e2c8c 区（__lookup_3 表段）
+        if (tok == "[limit player move area]")              // 0x089e2c8c 区（__lookup 表段）
         {
             // ORIG：每轮 string + MapArea（ctor 后额外 clear()）；未知键 idx 保持 0
             // 且仍读 4 int（id=-1 同路），find==end 才 insert。
-            static std::map<const char*, int, less_TCHAR> __lookup_3;
-            static SpinLock __init_lock_3;
-            static bool __inited_3 = false;
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
             int cont = 0;
             do
             {
@@ -2853,20 +2853,20 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 {
                 for (;;)
                 {
-                    if (!__inited_3)
+                    if (!__inited)
                     {
-                        __init_lock_3.enter();
-                        if (__inited_3)
+                        __init_lock.enter();
+                        if (__inited)
                         {
-                            __init_lock_3.leave();
+                            __init_lock.leave();
                             continue;
                         }
                         id = 0;
                         break;
                     }
                     std::map<const char*, int, less_TCHAR>::const_iterator it =
-                        __lookup_3.find(line.c_str());
-                    if (it != __lookup_3.end())
+                        __lookup.find(line.c_str());
+                    if (it != __lookup.end())
                         id = it->second;
                     break;
                 }
@@ -2875,59 +2875,59 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 case 0:
                 case 0x911:                                 // [player 1]
                 {
-                    if (__inited_3)
+                    if (__inited)
                     {
                         playerIdx = 0;                      // movl $0,-0x620
                         goto limit_after;
                     }
-                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 1]", 0x911));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 1]", 0x911));
                     /* fall through */
                 }
                 case 0x914:                                 // [player 2]
                 {
-                    if (__inited_3)
+                    if (__inited)
                     {
                         playerIdx = 1;
                         goto limit_after;
                     }
-                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 2]", 0x914));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 2]", 0x914));
                     /* fall through */
                 }
                 case 0x917:                                 // [player 3]
                 {
-                    if (__inited_3)
+                    if (__inited)
                     {
                         playerIdx = 2;
                         goto limit_after;
                     }
-                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 3]", 0x917));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 3]", 0x917));
                     /* fall through */
                 }
                 case 0x91a:                                 // [player 4]
                 {
-                    if (__inited_3)
+                    if (__inited)
                     {
                         playerIdx = 3;
                         goto limit_after;
                     }
-                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 4]", 0x91a));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 4]", 0x91a));
                     /* fall through */
                 }
                 case 0x91d:                                 // [/limit player move area]
                 {
-                    if (__inited_3)
+                    if (__inited)
                         ok2 = false;
                     else
-                        __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit player move area]", 0x91d));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit player move area]", 0x91d));
                     break;
                 }
                 default:
                     break;
                 }
-                if (!__inited_3)
+                if (!__inited)
                 {
-                    __init_lock_3.leave();
-                    __inited_3 = true;
+                    __init_lock.leave();
+                    __inited = true;
                     continue;                               // 重入本轮 find（0x2ce1）
                 }
             limit_after:
@@ -2956,12 +2956,12 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
             } while (cont != 1);
             continue;
         }
-        if (tok == "[customized screen edge]")              // 0x089e3404 区（__lookup_4 表段）
+        if (tok == "[customized screen edge]")              // 0x089e3404 区（__lookup 表段）
         {
             // ORIG：结束键以 eq 前置判定；ScanType 返回 false（自然耗尽）→ 整函数失败。
-            static std::map<const char*, int, less_TCHAR> __lookup_4;
-            static SpinLock __init_lock_4;
-            static bool __inited_4 = false;
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
             std::string line;                               // local_64c（循环外一次）
             bool done = false;
             while (ScanType(line, true))
@@ -2976,20 +2976,20 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 {
                 for (;;)
                 {
-                    if (!__inited_4)
+                    if (!__inited)
                     {
-                        __init_lock_4.enter();
-                        if (__inited_4)
+                        __init_lock.enter();
+                        if (__inited)
                         {
-                            __init_lock_4.leave();
+                            __init_lock.leave();
                             continue;
                         }
                         id = 0;
                         break;
                     }
                     std::map<const char*, int, less_TCHAR>::const_iterator it =
-                        __lookup_4.find(line.c_str());
-                    if (it != __lookup_4.end())
+                        __lookup.find(line.c_str());
+                    if (it != __lookup.end())
                         id = it->second;
                     break;
                 }
@@ -2998,7 +2998,7 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                 case 0:
                 case 0x946:                                 // [left]
                 {
-                    if (__inited_4)
+                    if (__inited)
                     {
                         int leftV;                          // -0x650（ORIG 无初始化）
                         if (ScanInt(&leftV) != 1)
@@ -3006,12 +3006,12 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         script->m_screenEdgeLeft = leftV;   // +0x35c
                         goto edge_after;
                     }
-                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[left]", 0x946));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[left]", 0x946));
                     /* fall through */
                 }
                 case 0x94f:                                 // [right]
                 {
-                    if (__inited_4)
+                    if (__inited)
                     {
                         int rightV;                         // -0x654
                         if (ScanInt(&rightV) != 1)
@@ -3019,12 +3019,12 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         script->m_screenEdgeRight = rightV; // +0x360
                         goto edge_after;
                     }
-                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[right]", 0x94f));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[right]", 0x94f));
                     /* fall through */
                 }
                 case 0x958:                                 // [top]
                 {
-                    if (__inited_4)
+                    if (__inited)
                     {
                         int topV;                           // -0x658
                         if (ScanInt(&topV) != 1)
@@ -3032,12 +3032,12 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         script->m_screenEdgeTop = topV;     // +0x364
                         goto edge_after;
                     }
-                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[top]", 0x958));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[top]", 0x958));
                     /* fall through */
                 }
                 case 0x961:                                 // [bottom]
                 {
-                    if (__inited_4)
+                    if (__inited)
                     {
                         int bottomV;                        // -0x65c
                         if (ScanInt(&bottomV) != 1)
@@ -3045,16 +3045,16 @@ static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header spa
                         script->m_screenEdgeBottom = bottomV;  // +0x368
                         goto edge_after;
                     }
-                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[bottom]", 0x961));
+                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[bottom]", 0x961));
                     break;
                 }
                 default:
                     break;
                 }
-                if (!__inited_4)
+                if (!__inited)
                 {
-                    __init_lock_4.leave();
-                    __inited_4 = true;
+                    __init_lock.leave();
+                    __inited = true;
                     continue;                               // 重入本轮 find（0x644b）
                 }
             edge_after:

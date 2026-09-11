@@ -895,6 +895,10 @@ static const int MAX_OPTION_VALUE = 100;
 
     LogManager::logFormat(
         1, "RandomOption.cpp",
+        // [RentalPrett 2026-09-11 · 负结论] 保留手写串：ORIG prett 串返回类型为
+        // `itemIndex_t`(=unsigned long)，我方类内声明为 `unsigned int`
+        // （CItemGenerator.h:446）⇒ 宏展开不符；改它须改 .h（本任务禁止）。
+        // 详见 RandomRentalA2/RegenVer_choose_item.inc 头部负结论。
         "itemIndex_t random_option::CRandomOptionItemHandle::"
         "RegenVer_choose_item(ENUM_RARITY, int, const std::vector<int, "
         "std::allocator<int> >&)",
@@ -927,8 +931,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::give_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            __PRETTY_FUNCTION__,
             0x2f9, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
             (int)itemIdx, (int)rarity, level, grade, (int)outGrade, err);
         return false;
@@ -942,8 +945,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::give_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            __PRETTY_FUNCTION__,
             0x300, "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
             (int)rarity, grade, (int)outGrade, level, quantity, err);
         return false;
@@ -960,8 +962,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::give_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            __PRETTY_FUNCTION__,
             0x30d, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
             (int)rarity, grade, group, level, (int)outGrade, groupId, err);
         return false;
@@ -981,8 +982,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::give_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            __PRETTY_FUNCTION__,
             0x319, "different_weight_ (%d,%d) ",
             (int)(unsigned char)rarity, (int)outGrade);
         return false;
@@ -997,8 +997,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::give_option("
-            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            __PRETTY_FUNCTION__,
             0x321, "option_group_ (%d) ", groupId);
         return false;
     }
@@ -1060,7 +1059,7 @@ static const int MAX_OPTION_VALUE = 100;
 // 数值出口 optType==0xc9 走 roi->RegenVer_get_option_value，否则
 // _get_option_value。logFormat 行号/PRETTY 与 give_option 不同。
 #include "RandomRentalA2/RegenVer_give_option.inc"
-    unsigned long itemIdx, ENUM_RARITY rarity, int level, int group, int grade,
+    itemIndex_t itemIdx, ENUM_RARITY rarity, int level, int group, int grade,
     RandomOption* opts, RegenerationROI* roi, int optType)
 {
     // [b28d-solo-RandomRentalA2 判词] DIFF 506/486（ORIG 0x085f1bb0）：P0/P48 四处
@@ -1074,9 +1073,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-            " RegenerationROI*, int)",
+            __PRETTY_FUNCTION__,
             0x1d8, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
             (int)itemIdx, (int)rarity, level, grade, (int)outGrade, err);
         return false;
@@ -1092,9 +1089,7 @@ static const int MAX_OPTION_VALUE = 100;
         {
             LogManager::logFormat(
                 1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-                " RegenerationROI*, int)",
+                __PRETTY_FUNCTION__,
                 0x1e2, "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
                 (int)rarity, grade, (int)outGrade, level, quantity, err);
             return false;
@@ -1108,9 +1103,7 @@ static const int MAX_OPTION_VALUE = 100;
         {
             LogManager::logFormat(
                 1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-                " RegenerationROI*, int)",
+                __PRETTY_FUNCTION__,
                 0x1ea, "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
                 (int)rarity, grade, (int)outGrade, level, quantity, err);
             return false;
@@ -1124,9 +1117,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-            " RegenerationROI*, int)",
+            __PRETTY_FUNCTION__,
             0x1f2, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
             (int)rarity, grade, group, level, (int)outGrade, groupId, err);
         return false;
@@ -1144,9 +1135,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-            " RegenerationROI*, int)",
+            __PRETTY_FUNCTION__,
             0x1fe, "different_weight_ (%d,%d) ",
             (int)(unsigned char)rarity, (int)outGrade);
         return false;
@@ -1160,9 +1149,7 @@ static const int MAX_OPTION_VALUE = 100;
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
-            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-            " RegenerationROI*, int)",
+            __PRETTY_FUNCTION__,
             0x206, "option_group_ (%d) ", groupId);
         return false;
     }
@@ -1355,8 +1342,7 @@ static const int MAX_OPTION_VALUE = 100;
         // 求值之后）。原具名 `cMyTrace t(...)` 形把 ctor 提到 vararg 之前 ⇒ 两 call
         // 块序互换（结构残差 9 行的全部）。cMyTrace 无用户析构（GameTypes.h:92）
         // ⇒ 临时化不改可观察行为。
-        cMyTrace("void RegenerationROI::_Select_Part(int, "
-                 "std::vector<int, std::allocator<int> >&)",
+        cMyTrace(__PRETTY_FUNCTION__,
                  0xd6, 5)("packet:%d groupName:%s\n", partIdx, groupName.c_str());
     }
 }
@@ -1667,8 +1653,7 @@ static const int MAX_OPTION_VALUE = 100;
         // [Lane13] P221/P227：ORIG 085f878b 把 cMyTrace 构到 **-0x40**（浅槽），
         // 具名 `cMyTrace t` 被 4.4 放最深 -0x6c 并顶浅整组对象槽 ⇒ 改全表达式
         // 临时链（构造即调用），复现 ORIG 槽深。
-        cMyTrace("int RegenerationROI::Regenerate(int, int, int, int, int&, "
-                 "Inven_Item&, CUser*)",
+        cMyTrace(__PRETTY_FUNCTION__,
                  0x47, 5)("ROI regen Error : %d, %d, %d, %d", partIdx,
                           optType, baseLv0, baseLv1);
         return 0x11;

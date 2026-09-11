@@ -1,1 +1,1 @@
-void EventCommon::LoadCharacEventItem(unsigned int eventId,
+void EventCommon::LoadCharacEventItem(memberIdentificationNumber_t eventId,

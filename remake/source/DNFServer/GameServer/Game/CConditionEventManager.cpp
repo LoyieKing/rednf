@@ -341,8 +341,11 @@
         G_CDataManager()->m_conditionEvent.m_map8.find((int)step);
     if (it != G_CDataManager()->m_conditionEvent.m_map8.end())
     {
-        result.first = it->second.first;
-        result.second = it->second.second;
+        // [W15BNearHunt2 2026-09-11 符号轴落地] ORIG 0x083356a4 段发
+        // `_ZNKSt17_Rb_tree_iteratorISt4pairIKiS0_IiiEEEdeEv`（operator*），
+        // 非 `ptEv`（operator->）⇒ ORIG 源码为 `(*it).second` 形。
+        result.first = (*it).second.first;
+        result.second = (*it).second.second;
         return result;
     }
     result.first = -1;

@@ -12,8 +12,10 @@ bool CCreatureMgr::InsertCreatureItem(Inven_Item* item, int slotNo, int reason,
                                    days, expireTick))
     {
         // [b28d-solo P221] 全表达式临时链（ORIG trace 槽 -0x20）
-        cMyTrace("bool user_creature::CCreatureMgr::InsertCreatureItem("
-                 "Inven_Item*, int, int, int, int)", 0xcaf, 5)(
+        // [R2PrettAClass 2026-09-11 · prett A 类落地] 手写签名串 → __PRETTY_FUNCTION__
+        //   （ORIG .rodata @0x08c2ee60 size 0x56 = "bool user_creature::CCreatureMgr::"
+        //   "InsertCreatureItem(Inven_Item*, int, int, int, int)"；非 static 成员 ⇒ 无前缀）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xcaf, 5)(
             "cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         return false;
     }

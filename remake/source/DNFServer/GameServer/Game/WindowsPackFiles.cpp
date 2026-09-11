@@ -433,6 +433,11 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
 //   帧 ORIG 0x100 / OURS 0x110；头部 0x085738f6 `mov 0x4(%eax),%eax` 之后我方正 4 槽一组
 //   `mov %eax,-0x78; mov -0x78,%eax; mov %eax,-0x70; …` 槽往返链（4.4 对具名局部/间接层恒写栈，
 //   ORIG 4.1 直留寄存器）⇒ 读数 551 vs 553（gap -2）无源码可择项 ⇒ 维持 N82/N95。
+// [Q8 2026-09-11 形态轴 A/B（检测器∩triage）] `opt[(d+12)*2]` 的索引强度削减（ORIG 0x08573a0e
+//   等 4 处 `mov 0x4(%eax,%edx,8),%eax` = 4.1 索引折半 scale-8）两次实验均不成：
+//   ① `*reinterpret_cast<unsigned long*>((char*)opt + (d+12)*8 [+4])` ⇒ **反劣**（our 553→559、
+//   gap -2→-8，每处多 3 条 add/lea/mov 链）；② `(d+12)<<1` ⇒ 读数不变（553=553）。
+//   ⇒ 4.4 前端不可择该折叠形，维持 N82/N95（两实验均已在 overlay 回滚）。
 #include "WindowsPackFiles/ReadPeHeader.inc"
 {
     // [SweepC 2026-09-09 修复判词] 0x085738f6：P165 双份物理展开 + 头部具名局部已还原。
