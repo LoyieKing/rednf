@@ -103,13 +103,27 @@ namespace SCRIPT
 // P164 循环头形（for(;;)+if(!ScanType) break，复现 4.1 入口直落条件头）+
 // P0 去 key 具名局部（info.m_key 直收 ScanTypeOrInt 返回值）+ P220 正极性 find==end +
 // field20 具名临时（复现 ORIG -0x1c 比较前落槽）。
-// 残差：槽号整体浅 4（块内 endIt 的 end() sret -0x48 vs ORIG -0x34；试函数头先声明后
-// 赋值反而劣化 195 条 ⇒ 回退）⇒ N82/P112 槽分配族，语义完成。
+// [LaneD nearA 2026-09-11 改善] 旧判「槽号整体浅 4（N82/P112）」真因查明：
+// ORIG 函数头存在一个**未被引用的 4 字节局部**（位于最深槽，反汇编不可见），
+// 它使 ORIG 的 token/isType/isInt 组整体比我方深 4。加死数组
+// `char framePad4[4]; (void)framePad4;`（P31/P232）后该组逐值对齐
+// （token -0x38 / isType -0x39 / isInt -0x3a，与 ORIG 全等），**ndiff 32→2**、
+// 帧 0x5c 不变、TU 四数零回退（102/183/1/4）。
+// 残余 1 处（ndiff=2）：块内 endIt 槽 ORIG -0x34 vs 我方 -0x50（`end()` sret 两点）。
+// 已试并回滚：函数头声明 `iterator endIt;` + 块内赋值 ⇒ 4.4 发迭代器默认 ctor call
+// （+1 call/帧 0x5c→0x6c/ndiff 28）劣化；ORIG 无该 call（P215：4.1 空默认 ctor 展开 0 条）
+// ⇒ 该槽不可在 4.4 下复现，判 N95/N82 槽分配族，语义完成。
 #include "AvatarConvertServer/loadScript.inc"
 {
     if (!loadRDARScriptFile("Etc/EmblemRenewal/", "avatar_convert_jpn.etc"))
         return -1;
 
+    // [LaneD nearA 2026-09-11 已落地·改善] P31/P232：ORIG 本组（token/isType/isInt）
+    // 槽位整体较我方深 4（-0x38/-0x39/-0x3a vs -0x34/-0x35/-0x36）= ORIG 函数头多一个
+    // 未被引用的 4 字节局部（deepest，故反汇编不可见）。本死数组即该槽的等价复现：
+    // 组槽逐值对齐、帧仍 0x5c、ndiff 32→2、TU 四数零回退。
+    char framePad4[4];
+    (void)framePad4;
     std::string token;
     bool isType = false;
     bool isInt = false;

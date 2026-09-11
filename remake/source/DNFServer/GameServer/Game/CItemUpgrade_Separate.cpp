@@ -455,8 +455,11 @@ namespace WongWork
         // **P225 原形**（body 以 `return false;` 终止 ⇒ 满足「无回边」前置）：
         // `while (a < b) { return false; }` 实测读数**逐值不变**（我们 66 / ORIG 69，
         // 仍 setb）⇒ 步骤 4 封顶 N-88/P197④（勿再动控制流、勿动 callee）。
-        if (static_cast<unsigned int>(gold * 10) <
-            static_cast<unsigned int>(m_rand->randInt(range = m_randRange)))
+        // [LaneA P346 变体试形] 具名 bool 局部（复现 ORIG 0x0811e508 mov$1/mov$0 岛）
+        bool overLimit =
+            static_cast<unsigned int>(gold * 10) >=
+            static_cast<unsigned int>(m_rand->randInt(range = m_randRange));
+        if (!overLimit)
         {
             return false;
         }

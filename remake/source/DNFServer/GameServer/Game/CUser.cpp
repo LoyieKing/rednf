@@ -6858,11 +6858,15 @@ RET0:;
 	((InterfacePacketBuf*)&packet)->put_short(1);
 	// ORIG 0x0865cb??：`call; xor $1,%eax; test %al,%al; jne 尾` = if(!f()) goto
 	// 尾出口反形（4.4 正向 if 生 test/je 无 xor）。
+	// [LaneA P346 试形 C] 负条件 + 空 then + else（保 xor 形 + 移 dtor 块序）
 	if (!getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet))
-		goto done;
-	((InterfacePacketBuf*)&packet)->finalize(true);
-	Send(packet);
-done:;
+	{
+	}
+	else
+	{
+		((InterfacePacketBuf*)&packet)->finalize(true);
+		Send(packet);
+	}
 }
 
 #include "CUser/send_MissionList.inc"

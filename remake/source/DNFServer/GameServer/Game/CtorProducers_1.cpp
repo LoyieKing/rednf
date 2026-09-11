@@ -1322,6 +1322,11 @@ CLevelRewardTableMgr* CLevelRewardTableMgr::levelRewardTableMgr = 0;
     // 标量例外不适用）。方案 A（last 先声明后赋值）实测 73→78 且多一条 C1Ev ⇒ 回退。
     if (it == last)
     {
+        // [LaneB-P314 试形·已回滚] 显式具名 `std::pair<int,CWorldMap*> entry(...)` +
+        //   `m_map.insert(entry)`：实测 NEAR(7) → **DIFF(16)**，且符号集劣化 ——
+        //   `_ZSt4moveIRP9CWorldMap…`、`_ZSt9make_pairIiRP9CWorldMap…`、
+        //   `_ZNSt4pairIKiP9CWorldMapEC1IiS2_EEOS_IT_T0_E`（C1ERKS_ 右值形）三项
+        //   消失变 MISSING ⇒ 违反「符号集零差」⇒ 回滚。N86 copy-elision 判词维持。
         m_map.insert(std::make_pair(worldMap->get_index(), worldMap));
         return true;
     }

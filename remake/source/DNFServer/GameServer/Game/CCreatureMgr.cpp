@@ -748,11 +748,9 @@ namespace user_creature
 //   Acquire 后经 vtable+0 调 C1 构造。失败 cMyTrace 报错并返回 0。
 //   FreeCreatureItem(item)：按池归还。
 // ============================================================================
-namespace
-{
-    const char* kCreativeFactoryTrace = 
-        "user_creature::CCreatureItemFactory::AcquireCreatureItem(user_creature::CREATURE_ITME_TYPE)";
-}
+// [AnonLane3 R14 · P154] 删除发明死常量 (anonymous namespace)::kCreativeFactoryTrace
+//   （.data 4B 指针 + 所指数串；本 TU 零使用点——AcquireCreatureItem.inc 已按 P139 直用
+//   __PRETTY_FUNCTION__；ORIG 全库无该 mangled 名，nm 零命中）⇒ 仅NEW 噪音，删定义。
 
 #include "CCreatureMgr/CCreatureItemFactory.inc"
 

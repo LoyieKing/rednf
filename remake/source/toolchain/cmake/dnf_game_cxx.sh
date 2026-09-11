@@ -97,7 +97,6 @@ case "$src" in
             *Game/CItem.cpp | \
             *Game/CItemDictionary.cpp | \
             *Game/W9Interval.cpp | \
-            *Game/BlueMarble.cpp | \
             *Game/CDungeonClear.cpp | \
             *Game/CPartyTelePort.cpp | \
             *Game/AvatarConvertServer.cpp | \
@@ -345,6 +344,33 @@ case "$src" in
                 # identical=97/ae=181/near=1/diff=6 → 4.4.6 identical=97/ae=182/
                 # near=0/diff=6 ⇒ 零回归。
         set -- -B"${ROOT}/cc1plus446bin/" "$@" ;;
+esac
+
+# [LaneC Round13 · §P0.1 五步落地] h46-only 块：仅把 3 项 `c++/4.4.7` isystem **原位**替换为
+#   4.4.6 头集，**不加** `-B cc1plus446bin`（后端保持默认 4.4.7）。用于「头集要 46、后端要 47」的 TU。
+#   BlueMarble（Main 已放行）：现档 446h46 = identical=90 ae=196 near=4 diff=2（.o missing=1）
+#   → 447h46 = **90/197/4/1**（.o missing=1）⇒ +1 AE / diff −1 且 missing 不增。
+#   翻正件 `_ZNSt20__uninitialized_copyILb0EE18uninitialized_copyISt13move_iteratorIP18BlueMarbleUserInfoES4_EET0_T_S7_S6_`
+#   （ORIG 侧 DIFF→AE）；该件虽为 W，但全 build 目录 802 个 .o 中**仅 BlueMarble.cpp.o 发射**（逐 .o nm 核证）
+#   ⇒ 链接口径可兑现（无 weak/COMDAT 高估）。
+#   A/B 唯一变量=后端：`nm --defined-only | comm -3` 逐名零差（457=457）、`nm -u` 零差。
+#   反证：447h47（同去头集）missing 1→2 属劣化；446h47（去头集保 446 后端）90/195/4/3 亦劣 ⇒ 头集必须保留。
+case "$src" in
+    *Game/BlueMarble.cpp)
+        _newargs=""
+        _swapped=""
+        for _a in "$@"; do
+            case "$_a" in
+                *c++/4.4.7*)
+                    if [ -z "$_swapped" ]; then
+                        _swapped=1
+                        _newargs="$_newargs -isystem${H46} -isystem${H46}/x86_64-redhat-linux -isystem${H46}/backward"
+                    fi
+                    continue ;;
+            esac
+            _newargs="$_newargs $_a"
+        done
+        set -- $_newargs ;;
 esac
 
 case "$(basename "$src" .cpp)" in

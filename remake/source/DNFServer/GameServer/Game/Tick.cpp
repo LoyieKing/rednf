@@ -44,6 +44,13 @@
     // 毫秒换算/magic 除法逐条等价。
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
+    // [LaneB-P345 2026-09-11 两形复核·均回滚] 目标 = ORIG 0x08ade887 死符号扩展
+    //   `mov %eax,%edx; sar $0x1f,%edx`（27 条）：
+    //   试形1 `(int)((long long)ts.tv_sec*1000)` 显式截断 ⇒ 26 条（gap 27→1 好）
+    //     但 ndiff 2→**3**（`imul $0x3e8,%eax,%eax; mov %eax,%ebx` 仍非 ORIG
+    //     `imul $0x3e8,%eax,%ebx` 单条）⇒ 按「ndiff 不劣」闸门回滚。
+    //   试形5 `long long ms=...; return (unsigned)(ms + ...)` ⇒ 39 条 / ndiff 17（劣）⇒ 回滚。
+    //   ⇒ 维持原形（25 条 / ndiff 2），N18a 封顶判词维持。
     return (unsigned int)((long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
 }
 

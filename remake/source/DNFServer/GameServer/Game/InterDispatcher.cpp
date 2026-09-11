@@ -11693,10 +11693,26 @@ struct Inter_LoadDimensionInoutSrcWinView
     user->m_characList[idx].m_fieldEB8 = 0;            // +0xeb8 ⇒ ORIG `movb $0x0,0xeb8(%eax)`
     user->m_characList[idx].m_fieldEBF = 0;            // +0xebf ⇒ ORIG `movb $0x0,0xebf(%eax)`
 
-    if (user->getCurCharacR() != 0 && user->IsFirstTimeLogin() &&
-        user->get_charac_level() > 0x3b)
+    // [LaneE 2026-09-11 P225 试形] ORIG 084d85b5/084d85d8 两处各发 `setne/setg %al;
+    //   test %al,%al; je <共享出口>`（bool 物化后测试，无具名 bool 槽）⇒ 原码条件
+    //   不是 `&&` 短路链（4.4 产 jle/jmp/mov$0/mov$1 岛 + 一次 jcc），而是
+    //   `while (cond) { body; break; }` 逐层物化形（P225：CVillageAttacked/CDropItem 同族）。
+    // [LaneE P225 实测] 单 while+&& 链退回 setne/setg 岛（ndiff 3）⇒ 维持逐层
+    //   `while (cond) { …; break; }` 三嵌套形：ORIG 084d85b5/084d85d8 的
+    //   `setne/setg %al; test %al,%al; je <共享出口>` 归位，唯余尾 2 条 jmp
+    //   （ndiff 2→1；gap −1→−2）。备选形读数：单 while+&& = ndiff 3（已回退）。
+    while (user->getCurCharacR() != 0)
     {
-        user->DimensionInoutUpdate(changed, ultimateChanged);
+        while (user->IsFirstTimeLogin())
+        {
+            while (user->get_charac_level() > 0x3b)
+            {
+                user->DimensionInoutUpdate(changed, ultimateChanged);
+                break;
+            }
+            break;
+        }
+        break;
     }
     return 0;
 }
