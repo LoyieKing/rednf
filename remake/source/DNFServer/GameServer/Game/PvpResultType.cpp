@@ -28,108 +28,22 @@ T AverageIncremental(T2 a, T2 b, T2 count)
 }
 
 #include "PvpResultType/PvpResultType.inc"
-{
-}
+
 
 #include "PvpResultType/dtor_PvpResultType.inc"
-{
-}
+
 
 #include "PvpResultType/Set.inc"
-{
-    *this = other;
-    if (m_expPoint < 0)
-    {
-        m_expPoint = 0;
-        m_pvpGrade = 0;
-    }
-}
+
 
 #include "PvpResultType/Get.inc"
-{
-    out = *this;
-}
+
 
 #include "PvpResultType/AddNewResult.inc"
-{
-    if (m_count == 0)
-    {
-        unsigned savedWinPoint = m_winPoint;
-        Set(other);
-        // N76 封顶：此 store ORIG 4.1 值先（mov -0x1c,%edx 后 mov 0x8,%eax），
-        // 4.4 恒 LHS 地址先载，probe 全试不可翻（负例表 N76）。
-        m_winPoint = savedWinPoint;
-    }
-    else
-    {
-        m_avg[0] = AverageIncremental<int, long long>(
-            (long long)m_avg[0], (long long)other.m_avg[0], (long long)m_count);
-        m_avg[1] = AverageIncremental<int, long long>(
-            (long long)m_avg[1], (long long)other.m_avg[1], (long long)m_count);
-        m_avg[2] = AverageIncremental<int, long long>(
-            (long long)m_avg[2], (long long)other.m_avg[2], (long long)m_count);
-        m_avg[3] = AverageIncremental<int, long long>(
-            (long long)m_avg[3], (long long)other.m_avg[3], (long long)m_count);
-        m_avg[4] = AverageIncremental<int, long long>(
-            (long long)m_avg[4], (long long)other.m_avg[4], (long long)m_count);
-        m_avg[5] = AverageIncremental<int, long long>(
-            (long long)m_avg[5], (long long)other.m_avg[5], (long long)m_count);
-        m_avg[6] = AverageIncremental<int, long long>(
-            (long long)m_avg[6], (long long)other.m_avg[6], (long long)m_count);
-        m_avg[7] = AverageIncremental<int, long long>(
-            (long long)m_avg[7], (long long)other.m_avg[7], (long long)m_count);
-        m_avg[8] = AverageIncremental<int, long long>(
-            (long long)m_avg[8], (long long)other.m_avg[8], (long long)m_count);
-        m_avg[9] = AverageIncremental<int, long long>(
-            (long long)m_avg[9], (long long)other.m_avg[9], (long long)m_count);
-        m_avg[10] = AverageIncremental<int, long long>(
-            (long long)m_avg[10], (long long)other.m_avg[10], (long long)m_count);
-        m_avg[11] = AverageIncremental<int, long long>(
-            (long long)m_avg[11], (long long)other.m_avg[11], (long long)m_count);
-        m_avg[12] = AverageIncremental<int, long long>(
-            (long long)m_avg[12], (long long)other.m_avg[12], (long long)m_count);
-        m_avg[13] = AverageIncremental<int, long long>(
-            (long long)m_avg[13], (long long)other.m_avg[13], (long long)m_count);
-        m_avg[14] = AverageIncremental<int, long long>(
-            (long long)m_avg[14], (long long)other.m_avg[14], (long long)m_count);
-    }
-    ++m_count;
-}
+
 
 #include "PvpResultType/Clear.inc"
-{
-    m_totalWinCount = 0;
-    m_totalLoseCount = 0;
-    m_expPoint = 0;
-    m_pvpGrade = 0;
-    m_field10 = -1;
-    m_avg[0] = 0;
-    m_avg[1] = 0;
-    m_avg[2] = 0;
-    m_avg[3] = 0;
-    m_avg[4] = 0;
-    m_avg[5] = 0;
-    m_avg[6] = 0;
-    m_avg[7] = 0;
-    m_avg[8] = 0;
-    m_avg[9] = 0;
-    m_avg[10] = 0;
-    m_avg[11] = 0;
-    m_avg[12] = 0;
-    m_avg[13] = 0;
-    m_avg[14] = 0;
-    m_count = 0;
-    m_winPoint = 0;
-    m_todayWinCount = 0;
-    m_field6c = 0;
-    m_field70 = 0;
-    m_field74 = 0;
-    m_field78 = 0;
-    m_todayLoseCount = 0;
-    m_todayPlayCount = 0;
-    m_field7c = 0;
-    m_field80 = 0;
-}
+
 
 // [L10-2 P210②] GetTotalScore 的 out-of-line 定义迁往 PvP_Room.cpp（置于
 // SetPVPResult 之前）：4.4 只对「本 TU 内定义且先于 caller」的 callee 精确继承
@@ -146,14 +60,10 @@ T AverageIncremental(T2 a, T2 b, T2 count)
 #include "PvpResultSet.h"
 
 #include "PvpResultType/PvpResultSet.inc"
-{
-}
+
 
 #include "PvpResultType/dtor_PvpResultSet.inc"
-{
-}
+
 
 #include "PvpResultType/Clear_1.inc"
-{
-    PvpResultType::Clear();
-}
+

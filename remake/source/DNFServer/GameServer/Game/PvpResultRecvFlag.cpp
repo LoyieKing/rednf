@@ -33,39 +33,16 @@ private:
 };
 
 #include "PvpResultRecvFlag/PvpResultRecvFlag.inc"
-{
-    Clear();
-}
+
 
 #include "PvpResultRecvFlag/dtor_PvpResultRecvFlag.inc"
-{
-}
+
 
 #include "PvpResultRecvFlag/SetRecvFlag.inc"
-{
-    if (!IsValidIdx(idx))
-    {
-        return;
-    }
-    m_flag[idx] = 1;
-}
+
 
 #include "PvpResultRecvFlag/Clear.inc"
-{
-    for (int i = 0; i <= 7; ++i)
-    {
-        m_flag[i] = 0;
-    }
-}
+
 
 #include "PvpResultRecvFlag/IsValidIdx.inc"
-{
-    if (idx >= 0 && idx <= 7)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
+

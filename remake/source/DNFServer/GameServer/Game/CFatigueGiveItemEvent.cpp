@@ -22,43 +22,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c838：仅基类构造 + vptr 置位（无自有成员）。
 #include "CFatigueGiveItemEvent/CFatigueGiveItemEvent.inc"
-{
-}
 
-// ORIG 0x0811c854 / 0x0811c884：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CFatigueGiveItemEvent/dtor_CFatigueGiveItemEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c8a2：SetEventFlag(true) +
-// cMyTrace(__PRETTY_FUNCTION__@0x08b51f20,0x12,0)
-// ("CFatigueGiveItemEvent Event Start!"@0x08b4fcfc)。
+
 #include "CFatigueGiveItemEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x12, 0);
-    tr("CFatigueGiveItemEvent Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c8f4：thunk —— 经 vptr slot2 虚调 StartEvent()（忽略 param）。
+
 #include "CFatigueGiveItemEvent/StartEvent_1.inc"
-{
-    this->StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c90e：SetEventFlag(false) +
-// cMyTrace(__PRETTY_FUNCTION__@0x08b51ee0,0x1c,0)
-// ("CFatigueGiveItemEvent Event End!"@0x08b4fd20)。
+
 #include "CFatigueGiveItemEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1c, 0);
-    tr("CFatigueGiveItemEvent Event End!");
-}
+

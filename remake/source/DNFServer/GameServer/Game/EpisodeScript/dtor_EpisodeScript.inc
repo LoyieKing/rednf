@@ -1,1 +1,3 @@
 EpisodeScript::~EpisodeScript()
+{
+}

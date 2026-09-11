@@ -22,50 +22,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081173ea：仅基类构造 + vptr 置位（无自有成员）。
 #include "CFatigueAttendance/CFatigueAttendance.inc"
-{
-}
 
-// ORIG 0x08117406 / 0x08117436：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CFatigueAttendance/dtor_CFatigueAttendance.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08117454：仅 SetEventFlag(true)（无 trace）。
+
 #include "CFatigueAttendance/StartEvent.inc"
-{
-    SetEventFlag(true);
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08117470：param 两 ushort 写入 m_addInfo（+0x04/+0x06）→
-// 经 vptr slot2 虚调 StartEvent() →
-// cMyTrace(__PRETTY_FUNCTION__,0x1c,0)
-// ("CFatigueAttendance(AddInfo:%d,%d) Event Start!", m_info0, m_info1)
-// （读取以 movswl 符号扩展，变参 %d 求值序 = ORIG esi/ebx）。
+
 #include "CFatigueAttendance/StartEvent_1.inc"
-{
-    // [b28c-27] N7 封顶：唯一残差=虚调用目标寄存器（ORIG 用 %edx，4.4 恒 %eax）；
-    // 其余为 .o 重定位伪差（字符串立即数 + call 目标，AE 口径归一）。
-    m_addInfo.m_info0 = param.m_duration;
-    m_addInfo.m_info1 = param.m_field2;
-    this->StartEvent();
-    cMyTrace(__PRETTY_FUNCTION__, 0x1c, 0)(
-        "CFatigueAttendance(AddInfo:%d,%d) Event Start!",
-        (short)m_addInfo.m_info0, (short)m_addInfo.m_info1);
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081174fe：SetEventFlag(false) +
-// cMyTrace(__PRETTY_FUNCTION__,0x22,0)
-// ("CFatigueAttendance Event End!")。
+
 #include "CFatigueAttendance/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x22, 0);
-    tr("CFatigueAttendance Event End!");
-}
+

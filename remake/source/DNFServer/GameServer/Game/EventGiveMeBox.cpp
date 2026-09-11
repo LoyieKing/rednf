@@ -25,47 +25,17 @@
 // ORIG R 0x08b7cd20（.rodata，4 字节 0x2920918c）：只读静态常量。
 const int EventGiveMeBox::kRewardItem_ = 0x2920918c;
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081649b0：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "EventGiveMeBox/EventGiveMeBox.inc"
-{
-}
 
-// ORIG 0x081649cc / 0x081649fc：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "EventGiveMeBox/dtor_EventGiveMeBox.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08164a1a：SetEventFlag(true) +
-// cMyTrace(__PRETTY_FUNCTION__,0x12,0)（ORIG 局部静态
-// _ZZN14EventGiveMeBox10StartEventEvE19__PRETTY_FUNCTION__ @0x08b7da00）
-// ("[Taiwan, EventGiveMeBox] Event start!")。
+
 #include "EventGiveMeBox/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x12, 0);
-    tr("[Taiwan, EventGiveMeBox] Event start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08164a6c：与 StartEvent() 同体（同样 SetEventFlag(true) + trace，
-// __PRETTY_FUNCTION__ 局部静态 @0x08b7d9c0，行 0x17）。
+
 #include "EventGiveMeBox/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x17, 0);
-    tr("[Taiwan, EventGiveMeBox] Event start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08164abe：SetEventFlag(false) +
-// cMyTrace(__PRETTY_FUNCTION__,0x1d,0)（ORIG 局部静态 @0x08b7d980）
-// ("[Taiwan, EventGiveMeBox] Event stop!")。
+
 #include "EventGiveMeBox/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1d, 0);
-    tr("[Taiwan, EventGiveMeBox] Event stop!");
-}
+

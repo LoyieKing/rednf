@@ -1,3 +1,8 @@
+// ---------------------------------------------------------------------------
+// CUser::SetChildrensDayEventValue(int slot, int targetItem, int period)
+// W 0x083281be。slot>9 直接返回；否则 state@(this+0x8e098) |= 1<<slot，
+// 写 targetItem 表 @(slot+0x23824)*4+0xc 与 period 表 @(slot+0x23830)*4+4。
+// ---------------------------------------------------------------------------
 void CUser::SetChildrensDayEventValue(int slot, int targetItem, int period)
 {
     if (slot > 9)

@@ -45,29 +45,8 @@
 #include "TagRecommendNewbieOption.h"  // tagRecommendNewbieOptionTable
 #include "Interval.h"                // IntervalSet
 
-// ---------------------------------------------------------------------------
-// PI-2nd 加密轮函数域（ORIG 0x080b46xx/0x082744a4）—— ORIG TU = SecurityServer.cpp。
-// ===========================================================================
-// pi_2nd_print_bin  ORIG T 0x082744a4（本文件首强实体 ⇒ GI 键名）
-// ===========================================================================
 #include "OnlyOrigBatch12_security_server/pi_2nd_print_bin.inc"
-{
-    // b28c-l23 根因翻案（旧"双槽不可翻"判词作废）：ORIG @0x082744aa 只出**一条**
-    // 形参 spill（`mov 0xc(%ebp),%eax; mov %ax,-0x1c(%ebp)`）后 `cmpw $0x64,-0x1c`
-    // 内存直比 ⇒ 原码是**直接 clamp 形参本身**（P77 形参直用）；我方引入具名
-    // `short n` 使 4.4 多出 spill+`movzwl/mov %ax` 双槽物化（帧 0x48 vs 0x38）。
-    // buf 侧 ORIG 为两条 dword 清零（`movl $0x0,-0x18/-0x14`）⇒ `char buf[8] = {0}`
-    // （P202①/P214③：显式零初始化复现 4.1 逐字清零，第三条 -0x10 是 for 的 i）。
-    if (count > 0x64)
-        count = 0x64;
-    char buf[8] = {0};
-    for (int i = 0; i < count; ++i)
-    {
-        unsigned char v = static_cast<unsigned char>(data[i]);
-        sprintf(buf, "%02x", v);
-        printf("%s ", buf);
-    }
-}
+
 
 static unsigned int ROL(unsigned int v, int bits)
 {
@@ -156,44 +135,14 @@ static void setup(unsigned long* a, unsigned long* b, unsigned long* c)
 extern int ss_vsprintf(char* buffer, size_t count, const char* format, char* argList);
 extern int ss_vswprintf(wchar_t* buffer, size_t count, const wchar_t* format, char* argList);
 extern int ss_strcpy(char* dest, size_t count, const char* src);
-// T 0x08ad4548/0x08ad45bf/0x081b76??/0x08ad468b/0x08ad473e（Game 目标缺失，
-// SecureStdio.cpp 仅入 point/auction 目标；本批补齐到 game）。模板版
-// ss_sprintf<N> / ss_strcpy<N> 为 ORIG W（头内联模板），force 实例化。
-// （ORIG TU = SecureStdio.cpp）
-// ===========================================================================
 #include "OnlyOrigBatch12_security_server/ss_sprintf.inc"
-{
-    // ORIG 0x08ad4548：va_list 槽（lea 0x14(%ebp) 单条）+ 返回值具名局部槽。
-    va_list args;
-    va_start(args, format);
-    int r = ss_vsprintf(buffer, count, format, reinterpret_cast<char*>(args));
-    va_end(args);
-    return r;
-}
+
 
 #include "OnlyOrigBatch12_security_server/ss_swprintf.inc"
-{
-    // ORIG 0x08ad45bf：va_list 槽（lea 0x14(%ebp)）+ 返回值具名局部槽。
-    va_list args;
-    va_start(args, format);
-    int r = ss_vswprintf(buffer, count, format, (char*)args);
-    va_end(args);
-    return r;
-}
+
 
 #include "OnlyOrigBatch12_security_server/ss_wcscpy.inc"
-{
-    // ORIG 0x08ad468b：else 块（清空 dest 返回 1）fall-through，
-    // memcpy 块 jg 前跳；len 槽有符号比较（jg）⇒ (int)count > len。
-    int len = wcslen(src);
-    if ((int)count <= len)
-    {
-        dest[0] = L'\0';
-        return 1;
-    }
-    memcpy(dest, src, (len + 1) * sizeof(wchar_t));
-    return 0;
-}
+
 
 #include "OnlyOrigBatch12_security_server/ss_wcscat.inc"
 {
@@ -268,57 +217,6 @@ namespace
 {
 
 #include "OnlyOrigBatch12_security_server/forceEmitBatch12.inc"
-{
-        char buf1024[1024];
-        char buf256[256];
-        char buf32[32];
-        char buf512[512];
-        char buf30[30];
-        ss_sprintf(buf1024, "%d", 1);
-        ss_sprintf(buf256, "%d", 1);
-        ss_sprintf(buf32, "%d", 1);
-        ss_sprintf(buf512, "%d", 1);
-        ss_strcpy(buf30, "x");
 
-        IntervalSet* a = 0;
-        IntervalSet* b = 0;
-        swap_value(a, b);
-
-        stCeraShopBonusInfo_t ceraA;
-        stCeraShopBonusInfo_t ceraB;
-        ceraA = ceraB;
-
-        WongWork::CGMAccounts::stGMInfo_t gm1; gm1.mid = 1; gm1.type = 2;
-        WongWork::CGMAccounts::stGMInfo_t gm2; gm2.mid = 1; gm2.type = 2;
-        volatile bool eq = (gm1 == gm2);
-
-        stQuestTargetCharacter_t qt1(ENUM_CHARACTERJOB_0, 0, 0);
-        stQuestTargetCharacter_t qt2(ENUM_CHARACTERJOB_0, 0, 0);
-        volatile bool eq2 = (qt1 == qt2);
-
-        stSeriaBlessingScript seria;
-        stSeriaBlessingScript::Value v;
-        volatile bool ok1 = seria.get_value(1, v);
-        volatile bool ok2 = seria.is_possible_lv(1);
-
-        stLimitItemUsageInfo lim;
-        lim.Add(1, 2, 3);
-
-        stNPCEventItemInfo npi;
-        stNPCEventItemInfo npi2;
-        npi = npi2;
-
-        rewardSubKey rk1;
-        rewardSubKey rk2;
-        volatile bool lt = (rk1 < rk2);
-
-        // [b29-SymForceBatch] tagRecommendNewbieOptionTable tnt 删除：ORIG 无
-        // 该派生类的 C1/C2/D1/D2（仅 importRecommendNewbieOptionScript 以引用
-        // 收参，从不构造/析构）；栈对象会发明四个 mangled。Table::clear（ORIG
-        // W 0x0891ad8c）已由 importRecommendNewbieOptionScript 体内 out.clear()
-        // （ORIG 0x89045b2 实证）自然 ODR-use，无需此处触发。
-
-        (void)eq; (void)eq2; (void)ok1; (void)ok2; (void)lt;
-}
 
 }  // namespace

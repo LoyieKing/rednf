@@ -26,59 +26,19 @@
 #include "LogManager.h"
 
 #include "Arad_DevMgr_Server_Proxy/Arad_DevMgr_Server_Proxy.inc"
-    : m_port(port), m_ip(ip), m_network()
-{
-}
+
 
 #include "Arad_DevMgr_Server_Proxy/open.inc"
-{
-    return 1;
-}
+
 
 #include "Arad_DevMgr_Server_Proxy/init.inc"
-{
-    if (m_network.m_sock < 0)
-    {
-        m_ip = "127.0.0.1";
-        m_port = 30000;
-        if (CNetwork<6144, 100000>::CreateConnectionSocket(m_network.m_sock, m_ip.c_str(), m_port) == 0)
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
+
 
 #include "Arad_DevMgr_Server_Proxy/disconnect.inc"
-{
-    m_network.disconnect();
-}
+
 
 #include "Arad_DevMgr_Server_Proxy/recv.inc"
-{
-    int size = m_network.recv_packet();
-    if (size > 0)
-    {
-        if (!m_network.Parsing_ServerPacket(size))
-        {
-            LogManager::logFormat(1, "localjapan/Arad_DevMgr_Server_Proxy.cpp", __FUNCTION__, 0x34, "Monitor Recv Parsing Err!!!");
-            return 0;
-        }
-        return 1;
-    }
-    if (size <= 0)
-    {
-        disconnect();
-        return 0;
-    }
-    return 1;
-}
+
 
 #include "Arad_DevMgr_Server_Proxy/send.inc"
-{
-    if (m_network.send_packet() < 0)
-    {
-        return -1;
-    }
-    return m_network.GetRemainSendSize();
-}
+

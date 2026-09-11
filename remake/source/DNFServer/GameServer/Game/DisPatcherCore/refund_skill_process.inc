@@ -1,3 +1,10 @@
+// ORIG 0x081bfc5c T _ZN19DisPatcher_BuySkill20refund_skill_processEP5CUsercR12buySkillInfo
+// （docs/class_func_reports/DisPatcher_BuySkill/refund_skill_process.md 全文转写）：
+// 无树门/无权限门（treeKind 存 -0x2c 后未再读取）；refundCount 局部清零后取址；
+// SkillSlot::refund_skill(idx, level, job, first, second, (s8)m_1, &refundCount)
+// [b28d-29] N82：帧/槽重排（ORIG sub $0x4c+三 push，4.4 sub $0x58），调用点全等  (ORIG 0x081bfc5c insn 73->72)
+// 写 m_4，≥0 时 m_8←当前等级。ORIG 不读回 refundCount 值。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 66（ORIG 73 / ours 71），残差=N7/N82 帧与 callee-saved 角色/P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 void DisPatcher_BuySkill::refund_skill_process(CUser* user, char /*treeKind*/,
 
                                                buySkillInfo& info)

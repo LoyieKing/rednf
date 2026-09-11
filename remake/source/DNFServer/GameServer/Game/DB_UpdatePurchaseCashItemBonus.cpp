@@ -34,77 +34,8 @@
 #include "SyncScriptDeps.h"     // toTString
 #include "Stream.h"
 
-// ============================================================================
-// DB_UpdatePurchaseCashItemBonus::makeRequest @ 0x0843e560
-// mangled _ZN30DB_UpdatePurchaseCashItemBonus11makeRequestEij
-// ============================================================================
 #include "DB_UpdatePurchaseCashItemBonus/makeRequest.inc"
-{
-    // b28c-33：同 DB_UpdateBreakAwayAccruedCera::makeRequest，Acquire 返回值直传
-    // guard ctor（ORIG 无 stream 局部、guard 槽 -0x10）。
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9415), true);
-    guard.operator*()->operator<<(0x23c);
-    guard.operator*()->operator<<(p1);
-    guard.operator*()->operator<<(p2);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}
 
-// ============================================================================
-// DB_UpdatePurchaseCashItemBonus::dispatch @ 0x0843e252
-// mangled _ZN30DB_UpdatePurchaseCashItemBonus8dispatchEiiP6Stream
-// ============================================================================
-// 逐条对照 ORIG 0x0843e252..0x0843e55e：槽图 db(-0x10)/mId(-0x14)/tableStr(-0x18)/
-// purchaseCnt(-0x1c)/sig(-0xc)/guard(-0x24)。三处 set_query 的 toTString 均为 fresh
-// 调用（ORIG 0x0843e2da/e34f/e3b6 三次 `lea -0x18; call toTString`，禁缓存）；
-// Acquire 返回值直传 guard ctor（P259，ORIG 0x0843e47e→e495 无 stream 槽）；
-// GetInBuffer 经 operator-> 链（P103，ORIG 0x0843e4d5 `call ptEv`）。
+
 #include "DB_UpdatePurchaseCashItemBonus/dispatch.inc"
-                                               Stream* s)
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                  (ENUM_SERVER_GROUP)0);
-    unsigned int mId = 0;
-    *s >> mId;
 
-    // P0：ORIG 无 dm/sm 槽（G_CDataManager()→get_event_script_mng→get_db_table_name
-    // 全链 %eax 直传，0x0843e293..e2ba）；std::string 局部 = ORIG -0x18 槽。
-    std::string tableStr(
-        static_cast<EventClassify::CEventScriptMng*>(
-            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x19a));
-
-    db->set_query("upDate %s set purchase_cnt = purchase_cnt + 1 where m_id=%s",
-                  toTString(tableStr), NumberToString(mId, 0));
-    if (!db->exec(true))
-        return 0;
-    if (db->getAffectedRowCount() == 0)
-    {
-        db->set_query("inSert into %s(m_id, purchase_cnt) values(%s, %u)",
-                      toTString(tableStr), NumberToString(mId, 0), 1);
-        if (!db->exec(true))
-            return 0;
-    }
-    db->set_query("seLect purchase_cnt from %s where m_id=%s",
-                  toTString(tableStr), NumberToString(mId, 0));
-    if (!db->exec(true))
-        return 0;
-    if (db->get_n_rows() == 0)
-        return 0;
-    if (!db->fetch())
-        return 0;
-    unsigned int purchaseCnt = 0;
-    if (!db->get_uint(0, purchaseCnt))
-        return 0;
-
-    // P259：Acquire 返回值直传 guard ctor（ORIG 无 stream 具名局部）。
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9407), true);
-    guard.operator*()->operator<<(0x23c);
-    guard.operator*()->operator<<(slot);   // ORIG 0x843e4c0：第二个 lsEi 参数 = 0x10(%ebp) = slot
-    // P103：ORIG 0x0843e4d5 `call CStreamGuard::ptEv` 后再调 GetInBuffer。
-    SIG_PURCHASE_CASHITEM_BONUS* sig =
-        guard.operator->()->GetInBuffer<SIG_PURCHASE_CASHITEM_BONUS>();
-    sig->m_purchaseCnt = purchaseCnt;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    return 1;
-}

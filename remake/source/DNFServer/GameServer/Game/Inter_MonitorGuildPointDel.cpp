@@ -24,12 +24,7 @@
 // 由 GI `_GLOBAL__I__Z7getUserj` @0x084e904e 调用）。本文件**不得**再定义该符号（否则重复定义且丢初值）。
 
 #include "Inter_MonitorGuildPointDel/getLastDeleteTime.inc"
-{
-    return g_lastDeleteTime;
-}
 
-// ORIG W 0x084eb100：movl $0,(%esp); call time@plt; mov %eax,0x943dd88
+
 #include "Inter_MonitorGuildPointDel/setLastDeleteTime.inc"
-{
-    g_lastDeleteTime = time(0);
-}
+

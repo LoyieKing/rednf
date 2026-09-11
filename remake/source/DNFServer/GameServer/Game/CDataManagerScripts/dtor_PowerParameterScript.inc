@@ -1,1 +1,4 @@
 PowerParameterScript::~PowerParameterScript()
+{
+    // ORIG D1：逆序析构 7 个容器成员（+0xc8/+0xbc/+0xac/+0x9c/+0x70/+0x38/+0x20）
+}

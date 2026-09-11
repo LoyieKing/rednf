@@ -1,3 +1,16 @@
+// ORIG 0x0815a8f2 T LoadServiceRestrictPolicy::dispatch（报告 dispatch.md）：
+// GetDBHandle(1,0) null→throw "handle null"；set_query 失败 throw "set_query"；
+// exec 失败 throw "exec"；逐行 get_int(++idx,&v)/get_char(&c) 失败 throw
+// "category"/"restrict"/"values"；sig.restrictValue==0 或 ==v1 时 sig.set(v2,v1,c)，
+// 否则先 sendRestrictData+init 再 set；末尾 sendRestrictData。catch 0xd2 返 0。
+// [b28d-solo-TaiwanDBDispatcher] DIFF·N 封顶（201/201，仅 3 处实参求值序）：①真 bug
+// 修正 set(v2,v1,c)→set(v1,v2,c)（ORIG 0x0815a8f2 两处压栈序 0x4=v1(-0x1c)/0x8=v2
+// (-0x20)/0xc=c 实证；旧写使 m_restrictValue 与 m_extra 索引互换）；②TaiwanQueries.h
+// SigLoadRestrictPolicy 加 pack(1)（P250：ORIG 槽基 -0x1221 非 4 对齐）⇒ 槽基/块序归零。
+// 残余：三处 get_int/get_char 实参求值序——ORIG 左→右（idx 先入 %eax、&v 后入 %edx），
+// 4.4 恒右→左（先 lea &v）；实测语句表达式/逗号/(int)/(unsigned)/引用 cast/内联 ++idx/
+// idx+=1 七形均不可翻（(short)idx 可对齐求值序但多 3 条 cwtl 且引入截断，弃用）；
+// 实参值/压栈序/调用目标全同 ⇒ P75 跨版本实参装载时刻，语义等价封 N。
 bool LoadServiceRestrictPolicy::dispatch(int code, int uid, Stream* stream)
 {
     try

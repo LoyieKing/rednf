@@ -22,43 +22,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08285c44：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "CUnlimitFatigueEvent/CUnlimitFatigueEvent.inc"
-{
-}
 
-// ORIG 0x08285c60 / 0x08285c90：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CUnlimitFatigueEvent/dtor_CUnlimitFatigueEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08285cae：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x12,0)
-// ("Unlimit Fatigue Event Start!")。
+
 #include "CUnlimitFatigueEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x12, 0);
-    tr("Unlimit Fatigue Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08285d00：与 StartEvent() 同体（file 串 "StartEvent"，行 0x19）。
+
 #include "CUnlimitFatigueEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x19, 0);
-    tr("Unlimit Fatigue Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08285d52：SetEventFlag(false) + cMyTrace(__FUNCTION__,0x20,0)
-// ("Unlimit Fatigue Event End!")。
+
 #include "CUnlimitFatigueEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x20, 0);
-    tr("Unlimit Fatigue Event End!");
-}
+

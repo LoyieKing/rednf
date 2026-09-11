@@ -25,14 +25,10 @@
 // ---------------------------------------------------------------------------
 
 #include "ChecksumCrypto/IChecksum.inc"
-    : m_type((int)type)
-{
-}
+
 
 #include "ChecksumCrypto/IChecksum_1.inc"
-    : m_type(other.m_type)
-{
-}
+
 
 IChecksum& IChecksum::operator=(IChecksum const& other)
 {
@@ -40,124 +36,41 @@ IChecksum& IChecksum::operator=(IChecksum const& other)
 }
 
 #include "ChecksumCrypto/dtor_IChecksum.inc"
-{
-}
+
 
 #include "ChecksumCrypto/DestroyCryptoChecksum.inc"
-{
-    if (p != 0) {
-        delete p;
-        p = 0;
-    }
-}
+
 
 // ---------------------------------------------------------------------------
 // CNChecksumMd5（ORIG 0x0809830c..0x080986ac）
 // ---------------------------------------------------------------------------
 
 #include "ChecksumCrypto/CNChecksumMd5.inc"
-    : IChecksum(CHECKSUM_TYPE_MD5),
-      m_ctx(0)
-{
-    // ORIG 0x0809830c：标量 `_Znwj`(0xd8)，非 new[]（p167：我方曾发 `_Znaj`）
-    m_ctx = (unsigned char*)::operator new(0xd8);   // md5_context 视图块
-}
+
 
 #include "ChecksumCrypto/dtor_CNChecksumMd5.inc"
-{
-    if (m_ctx != 0) {
-        ::operator delete(m_ctx);      // ORIG 0x08098370：标量 `_ZdlPv`
-        m_ctx = 0;
-    }
-}
+
 
 #include "ChecksumCrypto/Initialize.inc"
-{
-    return CKS_ERR_DATALEN;   // ORIG 0x080983e0：恒返 0x70000017
-}
+
 
 #include "ChecksumCrypto/GetChecksumSize.inc"
-{
-    return 0x10;
-}
+
 
 #include "ChecksumCrypto/ChecksumStart.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    md5_starts(reinterpret_cast<md5_context*>(m_ctx));
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumUpdate.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    md5_update(reinterpret_cast<md5_context*>(m_ctx),
-               const_cast<unsigned char*>(data), len);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumFinish.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < GetChecksumSize())
-        return CKS_ERR_BUFSIZE;
-    md5_finish(reinterpret_cast<md5_context*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromMemory.inc"
-                                          unsigned char* out, int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < GetChecksumSize())
-        return CKS_ERR_BUFSIZE;
-    md5_starts(reinterpret_cast<md5_context*>(m_ctx));
-    md5_update(reinterpret_cast<md5_context*>(m_ctx),
-               const_cast<unsigned char*>(data), len);
-    md5_finish(reinterpret_cast<md5_context*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromFile.inc"
-                                        int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < GetChecksumSize())
-        return CKS_ERR_BUFSIZE;
-    if (path == 0)
-        return CKS_ERR_FILESIZE;
 
-    FILE* fp = std::fopen(path, "rb");
-    if (fp == 0)
-        return CKS_ERR_OPENFILE;
-
-    std::fseek(fp, 0, SEEK_END);
-    long fileLen = std::ftell(fp);
-    if (fileLen < 0) {
-        std::fclose(fp);
-        return CKS_ERR_FILESIZE;
-    }
-    std::fseek(fp, 0, SEEK_SET);
-
-    unsigned char buf[1024];
-    md5_starts(reinterpret_cast<md5_context*>(m_ctx));
-    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
-        size_t chunk = (unsigned long)fileLen - off;
-        if (chunk > sizeof(buf))
-            chunk = sizeof(buf);
-        std::fread(buf, chunk, 1, fp);
-        md5_update(reinterpret_cast<md5_context*>(m_ctx), buf, (int)chunk);
-        off += (unsigned long)chunk;
-    }
-    md5_finish(reinterpret_cast<md5_context*>(m_ctx), out);
-    std::fclose(fp);
-    return CKS_OK;
-}
 
 // ---------------------------------------------------------------------------
 // CNChecksumSha256 / Sha384 / Sha512（显式实现；copy ctor/or= 与 ORIG 一致）
@@ -166,24 +79,13 @@ IChecksum& IChecksum::operator=(IChecksum const& other)
 // ---- CNChecksumSha256（ORIG 0x080986b8..0x08098a9c）----
 
 #include "ChecksumCrypto/CNChecksumSha256.inc"
-    : IChecksum(CHECKSUM_TYPE_SHA256), m_ctx(0)
-{
-    // ORIG 0x080986b8：标量 `_Znwj`(0x70)，非 new[]
-    m_ctx = (unsigned char*)::operator new(0x70);
-}
+
 
 #include "ChecksumCrypto/CNChecksumSha256_1.inc"
-    : IChecksum(CHECKSUM_TYPE_SHA256), m_ctx(0)
-{
-}
+
 
 #include "ChecksumCrypto/dtor_CNChecksumSha256.inc"
-{
-    if (m_ctx != 0) {
-        ::operator delete(m_ctx);      // ORIG 0x0809871c：标量 `_ZdlPv`
-        m_ctx = 0;
-    }
-}
+
 
 CNChecksumSha256& CNChecksumSha256::operator=(CNChecksumSha256 const&)
 {
@@ -191,114 +93,36 @@ CNChecksumSha256& CNChecksumSha256::operator=(CNChecksumSha256 const&)
 }
 
 #include "ChecksumCrypto/Initialize_1.inc"
-{ return CKS_ERR_DATALEN; }
+
 
 #include "ChecksumCrypto/GetChecksumSize_1.inc"
-{ return 0x20; }
+
 
 #include "ChecksumCrypto/ChecksumStart_1.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    SHA256_Init(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx));
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumUpdate_1.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    SHA256_Update(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx),
-                  const_cast<unsigned char*>(data), (unsigned long)len);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumFinish_1.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < GetChecksumSize())
-        return CKS_ERR_BUFSIZE;
-    SHA256_Final(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromMemory_1.inc"
-                                             unsigned char* out, int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (GetChecksumSize() > outSize)
-        return CKS_ERR_BUFSIZE;
-    if (len <= 0)
-        return CKS_ERR_DATALEN;
-    SHA256_Init(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx));
-    SHA256_Update(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx),
-                  const_cast<unsigned char*>(data), (unsigned long)len);
-    SHA256_Final(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromFile_1.inc"
-                                           int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (GetChecksumSize() > outSize)
-        return CKS_ERR_BUFSIZE;
-    if (path == 0)
-        return CKS_ERR_FILESIZE;
 
-    SHA256_Init(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx));
-
-    FILE* fp = std::fopen(path, "rb");
-    if (fp == 0)
-        return CKS_ERR_OPENFILE;
-
-    std::fseek(fp, 0, SEEK_END);
-    long fileLen = std::ftell(fp);
-    if (fileLen < 0) {
-        std::fclose(fp);
-        return CKS_ERR_FILESIZE;
-    }
-    std::fseek(fp, 0, SEEK_SET);
-
-    unsigned char buf[1024];
-    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
-        size_t chunk = (unsigned long)fileLen - off;
-        if (chunk > sizeof(buf))
-            chunk = sizeof(buf);
-        std::fread(buf, chunk, 1, fp);
-        SHA256_Update(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx), buf,
-                      (unsigned long)chunk);
-        off += (unsigned long)chunk;
-    }
-    SHA256_Final(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx), out);
-    std::fclose(fp);
-    return CKS_OK;
-}
 
 // ---- CNChecksumSha384（ORIG 0x08098a9c..0x08098e76）----
 
 #include "ChecksumCrypto/CNChecksumSha384.inc"
-    : IChecksum(CHECKSUM_TYPE_SHA384), m_ctx(0)
-{
-    // ORIG 0x8098aca new 0xd0（标量 operator new）——对齐 _Znwj
-    m_ctx = (unsigned char*)::operator new(0xd0);
-}
+
 
 #include "ChecksumCrypto/CNChecksumSha384_1.inc"
-    : IChecksum(CHECKSUM_TYPE_SHA384), m_ctx(0)
-{
-}
+
 
 #include "ChecksumCrypto/dtor_CNChecksumSha384.inc"
-{
-    if (m_ctx != 0) {
-        ::operator delete(m_ctx);
-        m_ctx = 0;
-    }
-}
+
 
 CNChecksumSha384& CNChecksumSha384::operator=(CNChecksumSha384 const&)
 {
@@ -306,114 +130,36 @@ CNChecksumSha384& CNChecksumSha384::operator=(CNChecksumSha384 const&)
 }
 
 #include "ChecksumCrypto/Initialize_2.inc"
-{ return CKS_ERR_DATALEN; }
+
 
 #include "ChecksumCrypto/GetChecksumSize_2.inc"
-{ return 0x30; }
+
 
 #include "ChecksumCrypto/ChecksumStart_2.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    SHA384_Init(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx));
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumUpdate_2.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    SHA384_Update(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx),
-                  const_cast<unsigned char*>(data), (unsigned long)len);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumFinish_2.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < GetChecksumSize())
-        return CKS_ERR_BUFSIZE;
-    SHA384_Final(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromMemory_2.inc"
-                                             unsigned char* out, int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (GetChecksumSize() > outSize)
-        return CKS_ERR_BUFSIZE;
-    if (len <= 0)
-        return CKS_ERR_DATALEN;
-    SHA384_Init(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx));
-    SHA384_Update(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx),
-                  const_cast<unsigned char*>(data), (unsigned long)len);
-    SHA384_Final(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromFile_2.inc"
-                                           int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (GetChecksumSize() > outSize)
-        return CKS_ERR_BUFSIZE;
-    if (path == 0)
-        return CKS_ERR_FILESIZE;
 
-    SHA384_Init(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx));
-
-    FILE* fp = std::fopen(path, "rb");
-    if (fp == 0)
-        return CKS_ERR_OPENFILE;
-
-    std::fseek(fp, 0, SEEK_END);
-    long fileLen = std::ftell(fp);
-    if (fileLen < 0) {
-        std::fclose(fp);
-        return CKS_ERR_FILESIZE;
-    }
-    std::fseek(fp, 0, SEEK_SET);
-
-    unsigned char buf[1024];
-    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
-        size_t chunk = (unsigned long)fileLen - off;
-        if (chunk > sizeof(buf))
-            chunk = sizeof(buf);
-        std::fread(buf, chunk, 1, fp);
-        SHA384_Update(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx), buf,
-                      (unsigned long)chunk);
-        off += (unsigned long)chunk;
-    }
-    SHA384_Final(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx), out);
-    std::fclose(fp);
-    return CKS_OK;
-}
 
 // ---- CNChecksumSha512（ORIG 0x08098e80..0x0809925a）----
 
 #include "ChecksumCrypto/CNChecksumSha512.inc"
-    : IChecksum(CHECKSUM_TYPE_SHA512), m_ctx(0)
-{
-    // ORIG 0x8098aca new 0xd0（标量 operator new）——对齐 _Znwj
-    m_ctx = (unsigned char*)::operator new(0xd0);
-}
+
 
 #include "ChecksumCrypto/CNChecksumSha512_1.inc"
-    : IChecksum(CHECKSUM_TYPE_SHA512), m_ctx(0)
-{
-}
+
 
 #include "ChecksumCrypto/dtor_CNChecksumSha512.inc"
-{
-    if (m_ctx != 0) {
-        ::operator delete(m_ctx);
-        m_ctx = 0;
-    }
-}
+
 
 CNChecksumSha512& CNChecksumSha512::operator=(CNChecksumSha512 const&)
 {
@@ -421,92 +167,25 @@ CNChecksumSha512& CNChecksumSha512::operator=(CNChecksumSha512 const&)
 }
 
 #include "ChecksumCrypto/Initialize_3.inc"
-{ return CKS_ERR_DATALEN; }
+
 
 #include "ChecksumCrypto/GetChecksumSize_3.inc"
-{ return 0x40; }
+
 
 #include "ChecksumCrypto/ChecksumStart_3.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    SHA512_Init(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx));
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumUpdate_3.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    SHA512_Update(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx),
-                  const_cast<unsigned char*>(data), (unsigned long)len);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/ChecksumFinish_3.inc"
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < GetChecksumSize())
-        return CKS_ERR_BUFSIZE;
-    SHA512_Final(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromMemory_3.inc"
-                                             unsigned char* out, int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (GetChecksumSize() > outSize)
-        return CKS_ERR_BUFSIZE;
-    if (len <= 0)
-        return CKS_ERR_DATALEN;
-    SHA512_Init(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx));
-    SHA512_Update(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx),
-                  const_cast<unsigned char*>(data), (unsigned long)len);
-    SHA512_Final(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx), out);
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/MakeChecksumFromFile_3.inc"
-                                           int outSize)
-{
-    if (m_ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (GetChecksumSize() > outSize)
-        return CKS_ERR_BUFSIZE;
-    if (path == 0)
-        return CKS_ERR_FILESIZE;
 
-    SHA512_Init(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx));
-
-    FILE* fp = std::fopen(path, "rb");
-    if (fp == 0)
-        return CKS_ERR_OPENFILE;
-
-    std::fseek(fp, 0, SEEK_END);
-    long fileLen = std::ftell(fp);
-    if (fileLen < 0) {
-        std::fclose(fp);
-        return CKS_ERR_FILESIZE;
-    }
-    std::fseek(fp, 0, SEEK_SET);
-
-    unsigned char buf[1024];
-    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
-        size_t chunk = (unsigned long)fileLen - off;
-        if (chunk > sizeof(buf))
-            chunk = sizeof(buf);
-        std::fread(buf, chunk, 1, fp);
-        SHA512_Update(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx), buf,
-                      (unsigned long)chunk);
-        off += (unsigned long)chunk;
-    }
-    SHA512_Final(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx), out);
-    std::fclose(fp);
-    return CKS_OK;
-}
 
 // ---------------------------------------------------------------------------
 // SHA 内核（FIPS 180-4；Transform 数据大端读入，与 ORIG static 一致）
@@ -662,230 +341,31 @@ static void SHA384_Transform(unsigned long* dataWords, unsigned long* stateWords
 }
 
 #include "ChecksumCrypto/SHA256_Init.inc"
-{
-    ctx->state[0] = 0x6a09e667u; ctx->state[1] = 0xbb67ae85u;
-    ctx->state[2] = 0x3c6ef372u; ctx->state[3] = 0xa54ff53au;
-    ctx->state[4] = 0x510e527fu; ctx->state[5] = 0x9b05688cu;
-    ctx->state[6] = 0x1f83d9abu; ctx->state[7] = 0x5be0cd19u;
-    ctx->total[1] = 0;
-    ctx->total[0] = ctx->total[1];   // ORIG 0x080be075：先写 hi 再置 lo=hi(=0)
-    std::memset(ctx->buffer, 0, sizeof(ctx->buffer));
-}
+
 
 #include "ChecksumCrypto/SHA256_Update.inc"
-{
-    // ORIG _Z13SHA256_UpdateP15SHA256_ALG_INFOPhm T @0x080be08a（102 条）：
-    // total[0/1] 为**位计数**（buffered=(total[0]>>3)&0x3f，0x080be093 实证），
-    // 4 字节对齐输入直压 Transform（0x080be164），否则经 ctx->buffer 中转。
-    unsigned long buffered = (ctx->total[0] >> 3) & 0x3f;
-    unsigned long copy = 64 - buffered;
-    ctx->total[0] = ctx->total[0] + len * 8;
-    if (ctx->total[0] < len * 8)
-        ctx->total[1] = ctx->total[1] + 1;
-    ctx->total[1] = ctx->total[1] + (len >> 29);
-    if (len >= copy) {
-        std::memcpy(ctx->buffer + buffered, in, copy);
-        SHA256_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                         reinterpret_cast<unsigned long*>(ctx));
-        in += copy;
-        len -= copy;
-        buffered = 0;
-        while (len > 0x3f) {
-            if ((reinterpret_cast<unsigned long>(in) & 3) == 0) {
-                SHA256_Transform(reinterpret_cast<unsigned long*>(in),
-                                 reinterpret_cast<unsigned long*>(ctx));
-            } else {
-                std::memcpy(ctx->buffer, in, 0x40);
-                SHA256_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                                 reinterpret_cast<unsigned long*>(ctx));
-            }
-            in += 0x40;
-            len -= 0x40;
-        }
-    }
-    std::memcpy(ctx->buffer + buffered, in, len);
-}
+
 
 #include "ChecksumCrypto/SHA256_Final.inc"
-{   // ORIG 0x080be1d1（103 条）：位计数定填充位点，长度域 64 位大端（hi 前 lo 后），
-    // 尾块经 ctx->buffer 就地补齐后压缩，摘要按大端序列化输出。
-    unsigned long lo = ctx->total[0];
-    unsigned long hi = ctx->total[1];
-    unsigned long pos = (lo >> 3) & 0x3f;
-    ctx->buffer[pos] = 0x80;
-    pos += 1;
-    if (pos > 0x38) {
-        std::memset(ctx->buffer + pos, 0, 0x40 - pos);
-        SHA256_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                         reinterpret_cast<unsigned long*>(ctx));
-        std::memset(ctx->buffer, 0, 0x38);
-    } else {
-        std::memset(ctx->buffer + pos, 0, 0x38 - pos);
-    }
-    sha256StoreBE(hi, ctx->buffer + 0x38);
-    sha256StoreBE(lo, ctx->buffer + 0x3c);
-    SHA256_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                     reinterpret_cast<unsigned long*>(ctx));
-    for (int i = 0; i < 8; ++i)
-        sha256StoreBE(ctx->state[i], out + i * 4);
-}
+
 
 #include "ChecksumCrypto/SHA384_Init.inc"
-{
-    ctx->state[0] = 0xcbbb9d5dc1059ed8ULL; ctx->state[1] = 0x629a292a367cd507ULL;
-    ctx->state[2] = 0x9159015a3070dd17ULL; ctx->state[3] = 0x152fecd8f70e5939ULL;
-    ctx->state[4] = 0x67332667ffc00b31ULL; ctx->state[5] = 0x8eb44a8768581511ULL;
-    ctx->state[6] = 0xdb0c2e0d64f98fa7ULL; ctx->state[7] = 0x47b5481dbefa4fa4ULL;
-    ctx->total[3] = 0;               // ORIG 0x080c288c 清零链：3→2→1→0
-    ctx->total[2] = ctx->total[3];
-    ctx->total[1] = ctx->total[2];
-    ctx->total[0] = ctx->total[1];
-}
+
 
 #include "ChecksumCrypto/SHA384_Update.inc"
-{   // ORIG _Z13SHA384_UpdateP15SHA384_ALG_INFOPhm T @0x080c0469（与 SHA512 逐条同构）
-    unsigned long buffered = (ctx->total[0] >> 3) & 0x7f;
-    unsigned long copy = 128 - buffered;
-    ctx->total[0] = ctx->total[0] + len * 8;
-    if (ctx->total[0] < len * 8) {
-        ctx->total[1] = ctx->total[1] + 1;
-        if (ctx->total[1] == 0) {
-            ctx->total[2] = ctx->total[2] + 1;
-            if (ctx->total[2] == 0)
-                ctx->total[3] = ctx->total[3] + 1;
-        }
-    }
-    ctx->total[1] = ctx->total[1] + (len >> 29);
-    if (ctx->total[1] < (len >> 29)) {
-        ctx->total[2] = ctx->total[2] + 1;
-        if (ctx->total[2] == 0)
-            ctx->total[3] = ctx->total[3] + 1;
-    }
-    if (len >= copy) {
-        std::memcpy(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, in, copy);
-        SHA384_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                         reinterpret_cast<unsigned long*>(ctx));
-        in += copy;
-        len -= copy;
-        buffered = 0;
-        while (len > 0x7f) {
-            if ((reinterpret_cast<unsigned long>(in) & 3) == 0) {
-                SHA384_Transform(reinterpret_cast<unsigned long*>(in),
-                                 reinterpret_cast<unsigned long*>(ctx));
-            } else {
-                std::memcpy(ctx->buffer, in, 0x80);
-                SHA384_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                                 reinterpret_cast<unsigned long*>(ctx));
-            }
-            in += 0x80;
-            len -= 0x80;
-        }
-    }
-    std::memcpy(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, in, len);
-}
+
 
 #include "ChecksumCrypto/SHA384_Final.inc"
-{   // ORIG 0x080c062e：与 SHA512_Final 同构，摘要取前 6 个 state（48 字节）。
-    unsigned long buffered = (ctx->total[0] >> 3) & 0x7f;
-    reinterpret_cast<unsigned char*>(ctx->buffer)[buffered] = 0x80;
-    buffered += 1;
-    if (buffered > 0x70) {
-        std::memset(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, 0, 0x80 - buffered);
-        SHA384_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                         reinterpret_cast<unsigned long*>(ctx));
-        std::memset(ctx->buffer, 0, 0x78);
-    } else {
-        std::memset(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, 0, 0x78 - buffered);
-    }
-    sha512StoreBE(((unsigned long long)ctx->total[3] << 32) | ctx->total[2],
-                  reinterpret_cast<unsigned char*>(ctx->buffer) + 0x70);
-    sha512StoreBE(((unsigned long long)ctx->total[1] << 32) | ctx->total[0],
-                  reinterpret_cast<unsigned char*>(ctx->buffer) + 0x78);
-    SHA384_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                     reinterpret_cast<unsigned long*>(ctx));
-    for (int i = 0; i < 6; ++i)               // SHA-384 取前 48 字节
-        sha512StoreBE(ctx->state[i], out + i * 8);
-}
+
 
 #include "ChecksumCrypto/SHA512_Init.inc"
-{
-    ctx->state[0] = 0x6a09e667f3bcc908ULL; ctx->state[1] = 0xbb67ae8584caa73bULL;
-    ctx->state[2] = 0x3c6ef372fe94f82bULL; ctx->state[3] = 0xa54ff53a5f1d36f1ULL;
-    ctx->state[4] = 0x510e527fade682d1ULL; ctx->state[5] = 0x9b05688c2b3e6c1fULL;
-    ctx->state[6] = 0x1f83d9abfb41bd6bULL; ctx->state[7] = 0x5be0cd19137e2179ULL;
-    ctx->total[3] = 0;               // ORIG 0x080c288c 清零链：3→2→1→0
-    ctx->total[2] = ctx->total[3];
-    ctx->total[1] = ctx->total[2];
-    ctx->total[0] = ctx->total[1];
-}
+
 
 #include "ChecksumCrypto/SHA512_Update.inc"
-{
-    // ORIG _Z13SHA512_UpdateP15SHA512_ALG_INFOPhm T @0x080c28b9（148 条）：
-    // 位计数 + 三级进位链；对齐输入直压 Transform，否则经 ctx->buffer 中转。
-    unsigned long buffered = (ctx->total[0] >> 3) & 0x7f;
-    unsigned long copy = 128 - buffered;
-    ctx->total[0] = ctx->total[0] + len * 8;
-    if (ctx->total[0] < len * 8) {
-        ctx->total[1] = ctx->total[1] + 1;
-        if (ctx->total[1] == 0) {
-            ctx->total[2] = ctx->total[2] + 1;
-            if (ctx->total[2] == 0)
-                ctx->total[3] = ctx->total[3] + 1;
-        }
-    }
-    ctx->total[1] = ctx->total[1] + (len >> 29);
-    if (ctx->total[1] < (len >> 29)) {
-        ctx->total[2] = ctx->total[2] + 1;
-        if (ctx->total[2] == 0)
-            ctx->total[3] = ctx->total[3] + 1;
-    }
-    if (len >= copy) {
-        std::memcpy(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, in, copy);
-        SHA512_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                         reinterpret_cast<unsigned long*>(ctx));
-        in += copy;
-        len -= copy;
-        buffered = 0;
-        while (len > 0x7f) {
-            if ((reinterpret_cast<unsigned long>(in) & 3) == 0) {
-                SHA512_Transform(reinterpret_cast<unsigned long*>(in),
-                                 reinterpret_cast<unsigned long*>(ctx));
-            } else {
-                std::memcpy(ctx->buffer, in, 0x80);
-                SHA512_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                                 reinterpret_cast<unsigned long*>(ctx));
-            }
-            in += 0x80;
-            len -= 0x80;
-        }
-    }
-    std::memcpy(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, in, len);
-}
+
 
 #include "ChecksumCrypto/SHA512_Final.inc"
-{   // ORIG 0x080c2a7e（102 条）：位计数定填充位点，128 位长度域大端
-    //（total[3]:total[2] 在 +0x70，total[1]:total[0] 在 +0x78）。
-    unsigned long buffered = (ctx->total[0] >> 3) & 0x7f;
-    reinterpret_cast<unsigned char*>(ctx->buffer)[buffered] = 0x80;
-    buffered += 1;
-    if (buffered > 0x70) {
-        std::memset(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, 0, 0x80 - buffered);
-        SHA512_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                         reinterpret_cast<unsigned long*>(ctx));
-        std::memset(ctx->buffer, 0, 0x78);
-    } else {
-        std::memset(reinterpret_cast<unsigned char*>(ctx->buffer) + buffered, 0, 0x78 - buffered);
-    }
-    sha512StoreBE(((unsigned long long)ctx->total[3] << 32) | ctx->total[2],
-                  reinterpret_cast<unsigned char*>(ctx->buffer) + 0x70);
-    sha512StoreBE(((unsigned long long)ctx->total[1] << 32) | ctx->total[0],
-                  reinterpret_cast<unsigned char*>(ctx->buffer) + 0x78);
-    SHA512_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
-                     reinterpret_cast<unsigned long*>(ctx));
-    for (int i = 0; i < 8; ++i)
-        sha512StoreBE(ctx->state[i], out + i * 8);
-}
+
 
 // [b28d-Main·检查点18] 9 个 sha*Hook* 包装函数已删（见上方 Hooks* 直接指针赋值）。
 
@@ -1036,141 +516,30 @@ static void RIJNDAEL_KeySchedule(unsigned char* key, unsigned long keyLen,
         _p[3] = (unsigned char)(aesMul(_a0, 11) ^ aesMul(_a1, 13) ^ aesMul(_a2, 9)  ^ aesMul(_a3, 14)); \
     } } while (0)
 
-// ORIG AES_Encrypt(void*, unsigned char*) @0x0809f981：完全展开单块加密。
-// 参数语义：pNumArea = &alg->num（结构体 +0x3c），ek 紧随其后（+0x40）。
-// [b28d-41] 豁免（用户规则 §6：AES/DES/SHA 通用算法类只保算法正确，不强制
-// identical）：ORIG 4.1 将 10/12/14 轮完全展开（1595 条），重建按轮循环表达
-// （70 条）——语义等价、轮数由 num+6 驱动（AES-128/192/256 通用）。
-// 实测（/tmp/d41_crypto_test.cpp，链接 tu_ChecksumCrypto.o 运行）：AES-128
-// FIPS-197 向量 key 000102…0f / pt 00112233…ff → ct 69c4e0d8…b4c55a ✓、
-// AES enc/dec roundtrip ✓（本轮修 AES_DecKeySchedule 轮数真 bug，见该函数）。
-// [b28d-solo-ChecksumCrypto] AES_Encrypt N 封顶（算法族豁免，guide §6）：ORIG 为
-// _ZL6ft_tab 表驱动 10/12/14 轮完全展开（1595 条，报告 0x0809f981）；重建为
-// SBox 表 + 轮循环（70 条）。实现策略不同 ⇒ 源形不可复现；FIPS-197 向量 ✓。
 #include "ChecksumCrypto/AES_Encrypt.inc"
-{
-    unsigned long const* pNum = reinterpret_cast<unsigned long const*>(pNumArea);
-    unsigned long num = pNum[0];
-    unsigned long const* rk = pNum + 1;
-    unsigned long nr = num + 6;      // Nb=4：Nk(4/6/8)+6 → 10/12/14 轮
 
-    unsigned char state[16];
-    std::memcpy(state, block, 16);
-    aesAddRoundKey(state, rk);
-    for (unsigned long r = 1; r < nr; ++r) {
-        aesSubBytes(state);
-        aesShiftRows(state);
-        aesMixColumns(state);
-        aesAddRoundKey(state, rk + r * 4);
-    }
-    aesSubBytes(state);
-    aesShiftRows(state);
-    aesAddRoundKey(state, rk + nr * 4);
-    std::memcpy(block, state, 16);
-}
 
-// [b28d-solo-ChecksumCrypto] AES_Decrypt N 封顶（算法族豁免，guide §6）：ORIG 为
-// _ZL6ft_tab 表驱动 10/12/14 轮完全展开（1595 条，报告 0x0809f981 同族）；重建为
-// InvSBox 表 + 轮循环（70 条）。AES roundtrip ✓（/tmp/d41_crypto_test.cpp）。
 #include "ChecksumCrypto/AES_Decrypt.inc"
-{
-    unsigned long const* pNum = reinterpret_cast<unsigned long const*>(pNumArea);
-    unsigned long num = pNum[0];
-    unsigned long const* dk = pNum + 1;
-    unsigned long nr = num + 6;
 
-    unsigned char state[16];
-    std::memcpy(state, block, 16);
-    aesAddRoundKey(state, dk);
-    for (unsigned long r = 1; r < nr; ++r) {
-        aesInvSubBytes(state);
-        aesInvShiftRows(state);
-        aesInvMixColumnsBlk(state);              // dk 已做 InvMixColumn 预变换，逆列混合须先于加轮密钥
-        aesAddRoundKey(state, dk + r * 4);
-    }
-    aesInvSubBytes(state);
-    aesInvShiftRows(state);
-    aesAddRoundKey(state, dk + nr * 4);
-    std::memcpy(block, state, 16);
-}
 
 // ---------------------------------------------------------------------------
 // AES 模式骨架（public 符号；布局见 ChecksumCrypto.h）
 // ---------------------------------------------------------------------------
 
 #include "ChecksumCrypto/AES_SetAlgInfo.inc"
-                    unsigned char* vec, AES_ALG_INFO* alg)
-{
-    alg->mode = mode;
-    alg->padding = padding;
-    if (vec != 0)
-        std::memcpy(alg->vec, vec, 16);
-    else
-        std::memset(alg->vec, 0, 16);
-}
+
 
 #include "ChecksumCrypto/AES_EncKeySchedule.inc"
-                        AES_ALG_INFO* alg)
-{
-    if (keyLen != 16 && keyLen != 24 && keyLen != 32)
-        return;                      // ORIG 返错误码 0x1002 的 void 口径
-    alg->num = (keyLen + 3) >> 2;
-    RIJNDAEL_KeySchedule(key, keyLen, alg->rk);
-}
+
 
 #include "ChecksumCrypto/AES_DecKeySchedule.inc"
-                        AES_ALG_INFO* alg)
-{
-    if (keyLen != 16 && keyLen != 24 && keyLen != 32)
-        return;
-    alg->num = (keyLen + 3) >> 2;
 
-    unsigned long esk[60];
-    RIJNDAEL_KeySchedule(key, keyLen, esk);
-    // [b28d-41] 真 bug 修复：原写 `alg->num / 4 + 6`，对 AES-128（num=4）得 7 轮
-    // （应为 Nk+6=10；AES-192/256 同理得 7/8 而非 12/14）⇒ 等效解密轮密钥
-    // dk[0]=esk[nr*4] 取到 esk[28] 而非 esk[40]，AES 解密 roundtrip 全错。
-    // 轮数与 AES_Encrypt/AES_Decrypt 一致应为 num + 6。
-    unsigned long nr = alg->num + 6;
-
-    // ORIG 等效解密轮密钥：dk[0]=esk[nr]，中间组 InvMixColumn，dk[nr]=esk[0]
-    std::memcpy(&alg->rk[0], &esk[nr * 4], 16);
-    for (unsigned long r = 1; r < nr; ++r) {
-        unsigned char col[16];
-        for (int c = 0; c < 4; ++c) {
-            unsigned long w = esk[(nr - r) * 4 + c];
-            col[c * 4 + 0] = (unsigned char)(w >> 24);
-            col[c * 4 + 1] = (unsigned char)(w >> 16);
-            col[c * 4 + 2] = (unsigned char)(w >> 8);
-            col[c * 4 + 3] = (unsigned char)w;
-        }
-        aesInvMixColumnsBlk(col);
-        for (int c = 0; c < 4; ++c) {
-            alg->rk[r * 4 + c] =
-                ((unsigned long)col[c * 4 + 0] << 24) |
-                ((unsigned long)col[c * 4 + 1] << 16) |
-                ((unsigned long)col[c * 4 + 2] << 8) |
-                (unsigned long)col[c * 4 + 3];
-        }
-    }
-    std::memcpy(&alg->rk[nr * 4], &esk[0], 16);
-}
 
 #include "ChecksumCrypto/AES_EncInit.inc"
-{
-    alg->buffered = 0;                    // ORIG 0x080a27ce
-    if (alg->mode == 1)
-        return;                           // ECB 无链初始化
-    std::memcpy(alg->chain, alg->vec, 16); // ORIG 0x080a27fd：vec→chain
-}
+
 
 #include "ChecksumCrypto/AES_DecInit.inc"
-{
-    alg->buffered = 0;
-    if (alg->mode == 1)
-        return;
-    std::memcpy(alg->chain, alg->vec, 16);
-}
+
 
 // ORIG static _ZL7PaddSetPhmmm（0x080a26d8）
 static unsigned long PaddSet(unsigned char* buf, unsigned long dataLen,
@@ -1637,146 +1006,27 @@ static int CFB_EncFinal(AES_ALG_INFO* alg, unsigned char* out, unsigned long* ou
 }
 
 #include "ChecksumCrypto/AES_EncFinal.inc"
-{
-    switch (alg->mode) {
-    case 1:
-        return ECB_EncFinal(alg, out, outLen);
-    case 2:
-        return CBC_EncFinal(alg, out, outLen);
-    case 3:
-        return OFB_EncFinal(alg, out, outLen);
-    case 4:
-        return CFB_EncFinal(alg, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 // ---- ORIG public Dec Final 四种（T 符号 0x080a4396..0x080a47aa）----
 
 #include "ChecksumCrypto/ECB_DecFinal.inc"
-{   // ORIG 0x080a4396（80 条）：buffered==0 → 空尾；!=blockLen → 0x1005；
-    // 原地解密 out（密文取自 buf），PaddCheck 返回值按 ORIG 与 -3/-1 比较。
-    unsigned long* pNum = &alg->num;
-    unsigned long blockLen = 16;
-    unsigned long buffered = alg->buffered;
-    if (buffered == 0) {
-        *outLen = 0;
-        return 0;
-    }
-    *outLen = blockLen;
-    if (buffered != blockLen)
-        return 0x1005;
-    ((unsigned long*)out)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)alg->buf)[1];
-    ((unsigned long*)out)[2] = ((unsigned long*)alg->buf)[2];
-    ((unsigned long*)out)[3] = ((unsigned long*)alg->buf)[3];
-    AES_Decrypt(pNum, out);
-    unsigned long pad = PaddCheck(out, blockLen, alg->padding);
-    if (pad == 0xfffffffd)
-        return 0x1003;
-    if (pad == 0xffffffff)
-        return 0x1001;
-    *outLen = blockLen - pad;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/CBC_DecFinal.inc"
-{   // ORIG 0x080a448d：原地解密 out（密文取自 alg->buf），链更新为 buf；
-    // buffered==0 → 空尾；buffered!=blockLen → 0x1005（缺块）；
-    // PaddCheck 返回值按 ORIG 原码与 -3/-1 比较（0x1003/0x1001 映射）。
-    unsigned long* pNum = &alg->num;
-    unsigned long blockLen = 16;
-    unsigned long buffered = alg->buffered;
-    if (buffered == 0) {
-        *outLen = 0;
-        return 0;
-    }
-    *outLen = blockLen;
-    if (buffered != blockLen)
-        return 0x1005;
-    ((unsigned long*)out)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)alg->buf)[1];
-    ((unsigned long*)out)[2] = ((unsigned long*)alg->buf)[2];
-    ((unsigned long*)out)[3] = ((unsigned long*)alg->buf)[3];
-    AES_Decrypt(pNum, out);
-    ((unsigned long*)out)[0] = ((unsigned long*)out)[0] ^ ((unsigned long*)alg->chain)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)out)[1] ^ ((unsigned long*)alg->chain)[1];
-    ((unsigned long*)out)[2] = ((unsigned long*)out)[2] ^ ((unsigned long*)alg->chain)[2];
-    ((unsigned long*)out)[3] = ((unsigned long*)out)[3] ^ ((unsigned long*)alg->chain)[3];
-    ((unsigned long*)alg->chain)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)alg->chain)[1] = ((unsigned long*)alg->buf)[1];
-    ((unsigned long*)alg->chain)[2] = ((unsigned long*)alg->buf)[2];
-    ((unsigned long*)alg->chain)[3] = ((unsigned long*)alg->buf)[3];
-    unsigned long pad = PaddCheck(out, blockLen, alg->padding);
-    if (pad == 0xfffffffd)
-        return 0x1003;
-    if (pad == 0xffffffff)
-        return 0x1001;
-    *outLen = blockLen - pad;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/OFB_DecFinal.inc"
-{   // ORIG 0x080a4641（46 条）：pNum/buffered 具名局部 + *outLen 两写（ORIG 形态）。
-    unsigned long* pNum = &alg->num;
-    unsigned long buffered = alg->buffered;
-    *outLen = buffered;
-    AES_Encrypt(pNum, alg->chain);
-    for (unsigned long k = 0; k < buffered; ++k)
-        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
-    *outLen = buffered;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/CFB_DecFinal.inc"
-{   // ORIG 0x080a46c7（81 条）：keystream 就地回写 chain（4×ulong XOR）后 memcpy 出。
-    unsigned long* pNum = &alg->num;
-    unsigned long buffered = alg->buffered;
-    *outLen = buffered;
-    AES_Encrypt(pNum, alg->chain);
-    ((unsigned long*)alg->chain)[0] = ((unsigned long*)alg->chain)[0] ^ ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)alg->chain)[1] = ((unsigned long*)alg->chain)[1] ^ ((unsigned long*)alg->buf)[1];
-    ((unsigned long*)alg->chain)[2] = ((unsigned long*)alg->chain)[2] ^ ((unsigned long*)alg->buf)[2];
-    ((unsigned long*)alg->chain)[3] = ((unsigned long*)alg->chain)[3] ^ ((unsigned long*)alg->buf)[3];
-    std::memcpy(out, alg->chain, buffered);
-    *outLen = buffered;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/AES_EncUpdate.inc"
-                  unsigned char* out, unsigned long* outLen)
-{   // ORIG 0x080a31bc：按 alg->mode 分派到对应模式 Update
-    switch (alg->mode) {
-    case 1:
-        return ECB_EncUpdate(alg, in, inLen, out, outLen);
-    case 2:
-        return CBC_EncUpdate(alg, in, inLen, out, outLen);
-    case 3:
-        return OFB_EncUpdate(alg, in, inLen, out, outLen);
-    case 4:
-        return CFB_EncUpdate(alg, in, inLen, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;               // ORIG 返 0x1001
-    }
-}
+
 
 #include "ChecksumCrypto/AES_DecUpdate.inc"
-                  unsigned char* out, unsigned long* outLen)
-{
-    switch (alg->mode) {
-    case 1:
-        return ECB_DecUpdate(alg, in, inLen, out, outLen);
-    case 2:
-        return CBC_DecUpdate(alg, in, inLen, out, outLen);
-    case 3:
-        return OFB_DecUpdate(alg, in, inLen, out, outLen);
-    case 4:
-        return CFB_DecUpdate(alg, in, inLen, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 // DES / 3DES（ORIG 0x080abcbc..0x080b14a0 / 0x080addf8..0x080afa08）
 // 算法族语义正确真实现（FIPS 46-3 与 3DES-EDE）；布局/错误码/分派按 ORIG 反汇编。
@@ -1968,162 +1218,41 @@ static const unsigned char k_desWeakKeys[16][8] = {
         desStore64(block, desPermute(pre, 64, 64, k_desFP));                  \
     } while (0)
 
-// ORIG 0x080abcbc：keyLen==8 否则 0x1002；弱/半弱密钥 0x1006；
-// 生成 16 轮 × 8 字节子密钥至 alg->rk（返回错误码，DES3_KeySchedule 检查）
 #include "ChecksumCrypto/DES_KeySchedule.inc"
-                    DES_ALG_INFO* alg)
-{
-    if (keyLen != 8)
-        return AES_ERR_BAD_KEYLEN;
-    for (int i = 0; i < 16; ++i) {
-        if (std::memcmp(key, k_desWeakKeys[i], 8) == 0)
-            return 0x1006;
-    }
-    unsigned long long k56 = desPermute(desLoad64(key), 64, 56, k_desPC1);
-    unsigned long C = (unsigned long)(k56 >> 28);
-    unsigned long D = (unsigned long)(k56 & 0x0fffffffUL);
-    for (int r = 0; r < 16; ++r) {
-        C = desRotl28(C, k_desShifts[r]);
-        D = desRotl28(D, k_desShifts[r]);
-        unsigned long long cd = ((unsigned long long)C << 28) | D;
-        unsigned long long k48 = desPermute(cd, 56, 48, k_desPC2);
-        for (int i = 0; i < 6; ++i)
-            alg->rk[r * 8 + i] = (unsigned char)((k48 >> (40 - i * 8)) & 0xff);
-        alg->rk[r * 8 + 6] = 0;
-        alg->rk[r * 8 + 7] = 0;
-    }
-    return 0;
-}
 
-// ORIG 0x080addf8：keyLen 16/24 否则 0x1002；K1..K3 各经 DES_KeySchedule 生成
-// 并拷入 rk 三块（keyLen==16 时 K3 重复 K1，ORIG 分支实证）
+
 #include "ChecksumCrypto/DES3_KeySchedule.inc"
-                     DES3_ALG_INFO* alg)
-{
-    if (keyLen != 16 && keyLen != 24)
-        return AES_ERR_BAD_KEYLEN;
-    DES_ALG_INFO tmp;
-    int rc = DES_KeySchedule(key, 8, &tmp);
-    if (rc != 0)
-        return rc;
-    std::memcpy(alg->rk, tmp.rk, 0x80);
-    rc = DES_KeySchedule(key + 8, 8, &tmp);
-    if (rc != 0)
-        return rc;
-    std::memcpy(alg->rk + 0x80, tmp.rk, 0x80);
-    if (keyLen == 24)
-        rc = DES_KeySchedule(key + 0x10, 8, &tmp);
-    else
-        rc = DES_KeySchedule(key, 8, &tmp);
-    if (rc != 0)
-        return rc;
-    std::memcpy(alg->rk + 0x100, tmp.rk, 0x80);
-    return 0;
-}
 
-// ORIG 0x080adf6c / 0x080adfbc：EDE 三块顺序调用
+
 #include "ChecksumCrypto/DES3_Encrypt.inc"
-{
-    // [b28d-solo-ChecksumCrypto] DES3_Encrypt IDENTICAL（ndiff 7→0，ORIG=OUR=24 条全等）：
-    // ①P210——把 DES_Encrypt/DES_Decrypt 定义后置于本函数之后 ⇒ 4.4 恢复 ORIG 保守帧
-    // （实测 sub $0x18→$0x28、rk 槽 -0x4→-0xc）；②把 rk 声明为 `unsigned char* volatile`
-    // ⇒ volatile 读强制先求值 arg0，复现 ORIG 4.1「先载 rk 入 %eax 再载 block 入 %edx」
-    // （rk+0 / &rk[0] / 语句表达式 / const 局部 / void* 局部 / 显式 cast 六形实测均被
-    // 4.4.7 折叠，顺序不变）。P167 调用点差集 CLEAR（ORIG 3 = OUR 3）。语义不变
-    // （-O0 普通局部本就每次从槽读；调用序列/参数同）。
-    unsigned char* volatile rk = (unsigned char*)rkArea;
-    DES_Encrypt(rk, block);
-    DES_Decrypt(rk + 0x80, block);
-    DES_Encrypt(rk + 0x100, block);
-}
+
 
 #include "ChecksumCrypto/DES3_Decrypt.inc"
-{
-    // [b28d-solo-ChecksumCrypto] DES3_Decrypt IDENTICAL（ndiff 7→0，ORIG=OUR=24 条全等）：
-    // 同 DES3_Encrypt——P210 定义后置翻正帧 0x28 + 槽 -0xc，`unsigned char* volatile rk`
-    // 翻正末段实参装载序。P167 CLEAR（ORIG 3 = OUR 3）。
-    unsigned char* volatile rk = (unsigned char*)rkArea;
-    DES_Decrypt(rk + 0x100, block);   // D(K3)
-    DES_Encrypt(rk + 0x80, block);    // E(K2)
-    DES_Decrypt(rk, block);           // D(K1)
-}
 
-// [b28d-41] 豁免（用户规则 §6：DES 通用算法类只保算法正确）：ORIG 4.1 将 16 轮
-// 完全展开（1058 条），重建用 DES_BLOCK_BODY 宏内 16 轮循环（81 条）——语义等价。
-// 实测（/tmp/d41_crypto_test.cpp 运行 tu_ChecksumCrypto.o）：NIST 单块向量
-// key 133457799BBCDFF1 / pt 0123456789ABCDEF → ct 85E813540F0AB405 ✓、
-// DES enc/dec roundtrip ✓、3DES EDE roundtrip ✓。
-// [b28d-solo-ChecksumCrypto] DES_Encrypt N 封顶（算法族豁免，guide §6）：ORIG 为
-// OpenSSL 风格 des_SPtrans 表驱动 16 轮完全展开（1058 条，报告 0x080ac0ba）；重建为
-// FIPS 46-3 置换表 + desF helper 的 16 轮循环（80 条）。实现策略不同 ⇒ 源形不可复现。
+
 #include "ChecksumCrypto/DES_Encrypt.inc"
-{
-    DES_BLOCK_BODY(1);
-}
 
-// [b28d-solo-ChecksumCrypto] DES_Decrypt N 封顶（算法族豁免，guide §6）：ORIG 与
-// DES_Encrypt 同族 des_SPtrans 16 轮完全展开（1058 条，报告 0x080acf59）；重建为
-// FIPS 表 + 轮循环（80 条）。NIST 单块向量 ✓（/tmp/d41_crypto_test.cpp）。
+
 #include "ChecksumCrypto/DES_Decrypt.inc"
-{
-    DES_BLOCK_BODY(0);
-}
 
-// ORIG 0x080afaa4 / 0x080ae00c：mode/padding 直写，vec 拷 8 字节（DES 块大小）
+
 #include "ChecksumCrypto/DES_SetAlgInfo.inc"
-                    unsigned char* vec, DES_ALG_INFO* alg)
-{
-    alg->mode = mode;
-    alg->padding = padding;
-    if (vec != 0)
-        std::memcpy(alg->vec, vec, 8);
-    else
-        std::memset(alg->vec, 0, 8);
-}
+
 
 #include "ChecksumCrypto/DES3_SetAlgInfo.inc"
-                     unsigned char* vec, DES3_ALG_INFO* alg)
-{
-    alg->mode = mode;
-    alg->padding = padding;
-    if (vec != 0)
-        std::memcpy(alg->vec, vec, 8);
-    else
-        std::memset(alg->vec, 0, 8);
-}
 
-// ORIG 0x080afbf0/0x080b07ca/0x080ae158/0x080aed32：buffered=0，非 ECB 时 chain←vec(8)
+
 #include "ChecksumCrypto/DES_EncInit.inc"
-{
-    alg->buffered = 0;
-    if (alg->mode == 1)
-        return;
-    std::memcpy(alg->chain, alg->vec, 8);
-}
+
 
 #include "ChecksumCrypto/DES_DecInit.inc"
-{
-    alg->buffered = 0;
-    if (alg->mode == 1)
-        return;
-    std::memcpy(alg->chain, alg->vec, 8);
-}
+
 
 #include "ChecksumCrypto/DES3_EncInit.inc"
-{
-    alg->buffered = 0;
-    if (alg->mode == 1)
-        return;
-    std::memcpy(alg->chain, alg->vec, 8);
-}
+
 
 #include "ChecksumCrypto/DES3_DecInit.inc"
-{
-    alg->buffered = 0;
-    if (alg->mode == 1)
-        return;
-    std::memcpy(alg->chain, alg->vec, 8);
-}
+
 
 // DES/DES3 模式骨架（file-static，ORIG _ZL13ECB_EncUpdateP12DES_ALG_INFO... 等；
 // 与 AES 族 Update/Final 骨架同构，块大小 8）
@@ -2555,151 +1684,30 @@ static int CFB_EncFinal(DES_ALG_INFO* alg, unsigned char* out,
 // ---- public 分派：DES ----
 
 #include "ChecksumCrypto/DES_EncUpdate.inc"
-                  unsigned char* out, unsigned long* outLen)
-{   // ORIG 0x080b0393：按 alg->mode 分派
-    switch (alg->mode) {
-    case 1:
-        return ECB_EncUpdate(alg, in, inLen, out, outLen);
-    case 2:
-        return CBC_EncUpdate(alg, in, inLen, out, outLen);
-    case 3:
-        return OFB_EncUpdate(alg, in, inLen, out, outLen);
-    case 4:
-        return CFB_EncUpdate(alg, in, inLen, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;               // ORIG 返 0x1001
-    }
-}
+
 
 #include "ChecksumCrypto/DES_DecUpdate.inc"
-                  unsigned char* out, unsigned long* outLen)
-{
-    switch (alg->mode) {
-    case 1:
-        return ECB_DecUpdate(alg, in, inLen, out, outLen);
-    case 2:
-        return CBC_DecUpdate(alg, in, inLen, out, outLen);
-    case 3:
-        return OFB_DecUpdate(alg, in, inLen, out, outLen);
-    case 4:
-        return CFB_DecUpdate(alg, in, inLen, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 #include "ChecksumCrypto/DES_EncFinal.inc"
-{   // ORIG 0x080b072f
-    switch (alg->mode) {
-    case 1:
-        return ECB_EncFinal(alg, out, outLen);
-    case 2:
-        return CBC_EncFinal(alg, out, outLen);
-    case 3:
-        return OFB_EncFinal(alg, out, outLen);
-    case 4:
-        return CFB_EncFinal(alg, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 // ORIG public 四模式 Dec Final（T 符号 0x080b1187..0x080b1403）
 
 #include "ChecksumCrypto/ECB_DecFinal_1.inc"
-{   // ORIG（与 AES 版同构，blockLen=8）：buffered==0 → 空尾；!=blockLen → 0x1005；
-    // 原地解密 out，PaddCheck 返回值按 ORIG 与 -3/-1 比较（旧实现错误码映射错）。
-    unsigned char* rk = alg->rk;
-    unsigned long blockLen = 8;
-    unsigned long buffered = alg->buffered;
-    if (buffered == 0) {
-        *outLen = 0;
-        return 0;
-    }
-    *outLen = blockLen;
-    if (buffered != blockLen)
-        return 0x1005;
-    ((unsigned long*)out)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)alg->buf)[1];
-    DES_Decrypt(rk, out);
-    unsigned long pad = PaddCheck(out, blockLen, alg->padding);
-    if (pad == 0xfffffffd)
-        return 0x1003;
-    if (pad == 0xffffffff)
-        return 0x1001;
-    *outLen = blockLen - pad;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/CBC_DecFinal_1.inc"
-{   // ORIG 0x080b1255（与 AES 版同构）：原地解密 out，链更新为 buf，
-    // buffered==0 → 空尾；buffered!=blockLen → 0x1005。
-    unsigned char* rk = alg->rk;
-    unsigned long blockLen = 8;
-    unsigned long buffered = alg->buffered;
-    if (buffered == 0) {
-        *outLen = 0;
-        return 0;
-    }
-    *outLen = blockLen;
-    if (buffered != blockLen)
-        return 0x1005;
-    ((unsigned long*)out)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)alg->buf)[1];
-    DES_Decrypt(rk, out);
-    ((unsigned long*)out)[0] = ((unsigned long*)out)[0] ^ ((unsigned long*)alg->chain)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)out)[1] ^ ((unsigned long*)alg->chain)[1];
-    ((unsigned long*)alg->chain)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)alg->chain)[1] = ((unsigned long*)alg->buf)[1];
-    unsigned long pad = PaddCheck(out, blockLen, alg->padding);
-    if (pad == 0xfffffffd)
-        return 0x1003;
-    if (pad == 0xffffffff)
-        return 0x1001;
-    *outLen = blockLen - pad;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/OFB_DecFinal_1.inc"
-{   // ORIG（与 AES 版同构）：rk/buffered 具名局部 + *outLen 两写。
-    unsigned char* rk = alg->rk;
-    unsigned long buffered = alg->buffered;
-    *outLen = buffered;
-    DES_Encrypt(rk, alg->chain);
-    for (unsigned long k = 0; k < buffered; ++k)
-        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
-    *outLen = buffered;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/CFB_DecFinal_1.inc"
-{   // ORIG（与 AES 版同构）：keystream 就地回写 chain（2×ulong XOR）后 memcpy 出。
-    unsigned char* rk = alg->rk;
-    unsigned long buffered = alg->buffered;
-    *outLen = buffered;
-    DES_Encrypt(rk, alg->chain);
-    ((unsigned long*)alg->chain)[0] = ((unsigned long*)alg->chain)[0] ^ ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)alg->chain)[1] = ((unsigned long*)alg->chain)[1] ^ ((unsigned long*)alg->buf)[1];
-    std::memcpy(out, alg->chain, buffered);
-    *outLen = buffered;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/DES_DecFinal.inc"
-{
-    switch (alg->mode) {
-    case 1:
-        return ECB_DecFinal(alg, out, outLen);
-    case 2:
-        return CBC_DecFinal(alg, out, outLen);
-    case 3:
-        return OFB_DecFinal(alg, out, outLen);
-    case 4:
-        return CFB_DecFinal(alg, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 // ---- public 分派：DES3（骨架同 DES，块 8；单块走 3DES-EDE）----
 
@@ -3121,150 +2129,30 @@ static int CFB_EncFinal(DES3_ALG_INFO* alg, unsigned char* out,
 }
 
 #include "ChecksumCrypto/DES3_EncUpdate.inc"
-                   unsigned char* out, unsigned long* outLen)
-{   // ORIG 0x080ae8fb
-    switch (alg->mode) {
-    case 1:
-        return ECB_EncUpdate(alg, in, inLen, out, outLen);
-    case 2:
-        return CBC_EncUpdate(alg, in, inLen, out, outLen);
-    case 3:
-        return OFB_EncUpdate(alg, in, inLen, out, outLen);
-    case 4:
-        return CFB_EncUpdate(alg, in, inLen, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 #include "ChecksumCrypto/DES3_DecUpdate.inc"
-                   unsigned char* out, unsigned long* outLen)
-{
-    switch (alg->mode) {
-    case 1:
-        return ECB_DecUpdate(alg, in, inLen, out, outLen);
-    case 2:
-        return CBC_DecUpdate(alg, in, inLen, out, outLen);
-    case 3:
-        return OFB_DecUpdate(alg, in, inLen, out, outLen);
-    case 4:
-        return CFB_DecUpdate(alg, in, inLen, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 #include "ChecksumCrypto/DES3_EncFinal.inc"
-{   // ORIG 0x080aec97
-    switch (alg->mode) {
-    case 1:
-        return ECB_EncFinal(alg, out, outLen);
-    case 2:
-        return CBC_EncFinal(alg, out, outLen);
-    case 3:
-        return OFB_EncFinal(alg, out, outLen);
-    case 4:
-        return CFB_EncFinal(alg, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 // ORIG public 3DES 四模式 Dec Final（T 符号 0x080af6ef..0x080af96b）
 
 #include "ChecksumCrypto/ECB_DecFinal_2.inc"
-{   // ORIG（与 AES 版同构，blockLen=8）：buffered==0 → 空尾；!=blockLen → 0x1005；
-    // 原地解密 out，PaddCheck 返回值按 ORIG 与 -3/-1 比较（旧实现错误码映射错）。
-    unsigned char* rk = alg->rk;
-    unsigned long blockLen = 8;
-    unsigned long buffered = alg->buffered;
-    if (buffered == 0) {
-        *outLen = 0;
-        return 0;
-    }
-    *outLen = blockLen;
-    if (buffered != blockLen)
-        return 0x1005;
-    ((unsigned long*)out)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)alg->buf)[1];
-    DES3_Decrypt(rk, out);
-    unsigned long pad = PaddCheck(out, blockLen, alg->padding);
-    if (pad == 0xfffffffd)
-        return 0x1003;
-    if (pad == 0xffffffff)
-        return 0x1001;
-    *outLen = blockLen - pad;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/CBC_DecFinal_2.inc"
-{   // ORIG 0x080af7bd（与 DES 版逐条同构，仅 DES3_Decrypt）。
-    unsigned char* rk = alg->rk;
-    unsigned long blockLen = 8;
-    unsigned long buffered = alg->buffered;
-    if (buffered == 0) {
-        *outLen = 0;
-        return 0;
-    }
-    *outLen = blockLen;
-    if (buffered != blockLen)
-        return 0x1005;
-    ((unsigned long*)out)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)alg->buf)[1];
-    DES3_Decrypt(rk, out);
-    ((unsigned long*)out)[0] = ((unsigned long*)out)[0] ^ ((unsigned long*)alg->chain)[0];
-    ((unsigned long*)out)[1] = ((unsigned long*)out)[1] ^ ((unsigned long*)alg->chain)[1];
-    ((unsigned long*)alg->chain)[0] = ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)alg->chain)[1] = ((unsigned long*)alg->buf)[1];
-    unsigned long pad = PaddCheck(out, blockLen, alg->padding);
-    if (pad == 0xfffffffd)
-        return 0x1003;
-    if (pad == 0xffffffff)
-        return 0x1001;
-    *outLen = blockLen - pad;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/OFB_DecFinal_2.inc"
-{   // ORIG（与 AES 版同构）：rk/buffered 具名局部 + *outLen 两写。
-    unsigned char* rk = alg->rk;
-    unsigned long buffered = alg->buffered;
-    *outLen = buffered;
-    DES3_Encrypt(rk, alg->chain);
-    for (unsigned long k = 0; k < buffered; ++k)
-        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
-    *outLen = buffered;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/CFB_DecFinal_2.inc"
-{   // ORIG（与 AES 版同构）：keystream 就地回写 chain（2×ulong XOR）后 memcpy 出。
-    unsigned char* rk = alg->rk;
-    unsigned long buffered = alg->buffered;
-    *outLen = buffered;
-    DES3_Encrypt(rk, alg->chain);
-    ((unsigned long*)alg->chain)[0] = ((unsigned long*)alg->chain)[0] ^ ((unsigned long*)alg->buf)[0];
-    ((unsigned long*)alg->chain)[1] = ((unsigned long*)alg->chain)[1] ^ ((unsigned long*)alg->buf)[1];
-    std::memcpy(out, alg->chain, buffered);
-    *outLen = buffered;
-    return 0;
-}
+
 
 #include "ChecksumCrypto/DES3_DecFinal.inc"
-{
-    switch (alg->mode) {
-    case 1:
-        return ECB_DecFinal(alg, out, outLen);
-    case 2:
-        return CBC_DecFinal(alg, out, outLen);
-    case 3:
-        return OFB_DecFinal(alg, out, outLen);
-    case 4:
-        return CFB_DecFinal(alg, out, outLen);
-    default:
-        return AES_ERR_BAD_MODE;
-    }
-}
+
 
 // ---------------------------------------------------------------------------
 // CRijndael_fake（ORIG 0x080b824c..0x080b851c）
@@ -3276,83 +2164,25 @@ static int CFB_EncFinal(DES3_ALG_INFO* alg, unsigned char* out,
     reinterpret_cast<unsigned char*>(reinterpret_cast<std::size_t>(p) ^ (std::size_t)(salt))
 
 #include "ChecksumCrypto/CRijndael_fake.inc"
-{   // ORIG 0x080b824c：salt=0xa321bcde ^ (rand()|rand()<<16)；new(0x268) 后 ptr^=salt
-    m_salt = 0xa321bcdeu;
-    unsigned int r1 = (unsigned int)std::rand();
-    unsigned int r2 = (unsigned int)std::rand();
-    m_salt ^= (r2 | (r1 << 16));
-    // ORIG 0x080b824c：标量 `_Znwj`(0x268)，非 new[]（p167：我方曾发 `_Znaj`）
-    m_ctxObf = ::operator new(0x268);          // symmetric_key(anubis) 空间
-    m_ctxObf = reinterpret_cast<void*>(reinterpret_cast<std::size_t>(m_ctxObf) ^ static_cast<std::size_t>(m_salt));
-}
+
 
 #include "ChecksumCrypto/dtor_CRijndael_fake.inc"
-{   // ORIG 0x080b82c8：delete(ptr ^ salt)
-    ::operator delete(fakeXor(m_ctxObf, m_salt));   // ORIG：标量 `_ZdlPv`
-    m_ctxObf = 0;
-}
+
 
 #include "ChecksumCrypto/Initialize_4.inc"
-                               char const* /*chain*/, int /*chainLen*/,
-                               int /*blockSize*/, int /*mode*/, int /*padding*/)
-{
-    if (keyLen <= 15)                          // ORIG cmpl $0xf
-        return CKS_ERR_OPENFILE;               // 0x70000002
-    symmetric_key* skey =
-        reinterpret_cast<symmetric_key*>(fakeXor(m_ctxObf, m_salt));
-    int rc = anubis_setup(reinterpret_cast<unsigned char const*>(key), 16, 12,
-                          skey);
-    if (rc == 0)
-        return CKS_OK;                         // 0x6fffffff
-    if (rc == CRYPT_INVALID_ROUNDS)
-        return (int)0x7000001a;
-    if (rc == CRYPT_INVALID_KEYSIZE)
-        return CKS_ERR_OPENFILE;
-    return CKS_ERR_NOSTATE;                    // ORIG 其它分支返 0x70000000
-}
+
 
 #include "ChecksumCrypto/Encrypt.inc"
-{
-    symmetric_key* skey =
-        reinterpret_cast<symmetric_key*>(fakeXor(m_ctxObf, m_salt));
-    unsigned int blocks = len >> 4;
-    for (unsigned int i = 0; i < blocks; ++i) {
-        anubis_ecb_encrypt(reinterpret_cast<unsigned char const*>(in),
-                           reinterpret_cast<unsigned char*>(out), skey);
-        in += 16;
-        out += 16;
-    }
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/Decrypt.inc"
-{
-    symmetric_key* skey =
-        reinterpret_cast<symmetric_key*>(fakeXor(m_ctxObf, m_salt));
-    unsigned int blocks = len >> 4;
-    for (unsigned int i = 0; i < blocks; ++i) {
-        anubis_ecb_decrypt(reinterpret_cast<unsigned char const*>(in),
-                           reinterpret_cast<unsigned char*>(out), skey);
-        in += 16;
-        out += 16;
-    }
-    return CKS_OK;
-}
+
 
 #include "ChecksumCrypto/Pad.inc"
-{
-    if (*pLen % GetBlockSize() != 0) {
-        unsigned int pad = GetBlockSize() - (*pLen % GetBlockSize());
-        std::memset(buffer + pos, 0, pad);      // ORIG：补零至块边界
-        *pLen += pad;
-    }
-    return *pLen;
-}
+
 
 #include "ChecksumCrypto/GetBlockSize.inc"
-{
-    return 0x10;
-}
+
 
 // ---------------------------------------------------------------------------
 // 全局工厂（ORIG CreateCryptoChecksum 0x0809e309 / Destroy 0x0809e423）
@@ -3407,175 +2237,19 @@ unsigned int const CSHA::sm_K256[64] = {
 };  // ORIG CSHA::sm_K256 @0x8b22fe0
 
 #include "ChecksumCrypto/CSHA.inc"
-{
-    for (int i = 0; i < 8; ++i) {
-        m_state[i] = sm_H256[i];
-    }
-    m_lenLo = 0;
-    m_lenHi = 0;
-    std::memset(m_buffer, 0, sizeof(m_buffer));
-    m_pending = 0;
-}
+
 
 #include "ChecksumCrypto/AddData.inc"
-{
-    if (len < 1) {
-        return (int)0x70000007;    // ORIG：len <= 0 错误码
-    }
-    unsigned int prevBits = m_lenLo;
-    m_lenLo = (unsigned int)len * 8u + prevBits;
-    if (m_lenLo < prevBits) {
-        m_lenHi = m_lenHi + 1u;
-    }
-    m_lenHi = m_lenHi + ((unsigned int)len >> 29u);
-    unsigned int pos = (prevBits >> 3u) & 0x3fu;
-    if (pos != 0u) {
-        unsigned char* tail = m_buffer + pos;
-        unsigned int room = 0x40u - pos;
-        if ((unsigned int)len < room) {
-            std::memcpy(tail, data, len);
-            return (int)0x6fffffff;
-        }
-        std::memcpy(tail, data, room);
-        Transform();
-        data += room;
-        len -= room;
-    }
-    for (; len > 0x3f; data += 0x40, len -= 0x40) {
-        std::memcpy(m_buffer, data, 0x40);
-        Transform();
-    }
-    std::memcpy(m_buffer, data, len);
-    m_pending = 1;
-    return (int)0x6fffffff;
-}
+
 
 #include "ChecksumCrypto/FinalDigest.inc"
-{
-    if (m_pending != 1) {
-        return (int)0x70000008;    // ORIG：缓冲区有残留时拒绝 finalize
-    }
-    unsigned int pos = (m_lenLo >> 3u) & 0x3fu;
-    unsigned char* tail = m_buffer + pos;
-    *tail = 0x80;
-    ++tail;
-    unsigned int room = 0x3fu - pos;
-    if (room < 8u) {
-        std::memset(tail, 0, room);
-        Transform();
-        std::memset(m_buffer, 0, 0x38);
-    } else {
-        std::memset(tail, 0, room - 8u);
-    }
-    Word2Bytes(m_lenHi, m_buffer + 0x38);
-    Word2Bytes(m_lenLo, m_buffer + 0x3c);
-    Transform();
-    for (int i = 0; i < 8; ++i, out += 4) {
-        Word2Bytes(m_state[i], reinterpret_cast<unsigned char*>(out));
-    }
-    Reset();
-    return (int)0x6fffffff;
-}
+
 
 #include "ChecksumCrypto/Reset.inc"
-{
-    for (int i = 0; i < 8; ++i) {
-        m_state[i] = sm_H256[i];
-    }
-    m_lenLo = 0;
-    m_lenHi = 0;
-    m_pending = 0;
-}
+
 
 #include "ChecksumCrypto/Transform.inc"
-{
-    unsigned int w[64];
-    for (int i = 0; i < 16; ++i) {
-        Bytes2Word(m_buffer + i * 4, w[i]);
-    }
-    for (int i = 16; i < 64; ++i) {
-        w[i] = sig1(w[i - 2]) + w[i - 7] + sig0(w[i - 15]) + w[i - 16];
-    }
-    unsigned int a = m_state[0], b = m_state[1], c = m_state[2], d = m_state[3];
-    unsigned int e = m_state[4], f = m_state[5], g = m_state[6], h = m_state[7];
-    // [P165 we-smaller 还原 2026-09-11] ORIG 主循环为**源码级 64 轮完全展开**：
-    // 2281 条指令 / helper 各 64 个 call 点（0x80bbb0b..0x80bd761 分散全段）、
-    // t1/t2 复用槽（-0xc/-0x10）、sm_K256[i]/w[i] 为常量索引直址（`mov 0x8b22fe0,%eax`）。
-    // 重建原为 for 循环（198 条、每 helper 0~1 call）⇒ 按 ORIG 结构展开为 64 份独立块。
-    unsigned int t1, t2;                     // 复用槽（宏内赋值，勿每轮新声明）
-    #define SHA256_ROUND(va, vb, vc, vd, ve, vf, vg, vh, idx)                 \
-        t1 = vh + SIG1(ve) + CH(ve, vf, vg) + sm_K256[idx] + w[idx];           \
-        t2 = SIG0(va) + MAJ(va, vb, vc);                                       \
-        vd += t1;                                                              \
-        vh = t1 + t2
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 0);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 1);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 2);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 3);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 4);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 5);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 6);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 7);
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 8);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 9);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 10);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 11);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 12);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 13);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 14);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 15);
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 16);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 17);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 18);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 19);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 20);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 21);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 22);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 23);
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 24);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 25);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 26);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 27);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 28);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 29);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 30);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 31);
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 32);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 33);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 34);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 35);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 36);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 37);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 38);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 39);
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 40);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 41);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 42);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 43);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 44);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 45);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 46);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 47);
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 48);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 49);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 50);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 51);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 52);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 53);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 54);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 55);
-    SHA256_ROUND(a, b, c, d, e, f, g, h, 56);
-    SHA256_ROUND(h, a, b, c, d, e, f, g, 57);
-    SHA256_ROUND(g, h, a, b, c, d, e, f, 58);
-    SHA256_ROUND(f, g, h, a, b, c, d, e, 59);
-    SHA256_ROUND(e, f, g, h, a, b, c, d, 60);
-    SHA256_ROUND(d, e, f, g, h, a, b, c, 61);
-    SHA256_ROUND(c, d, e, f, g, h, a, b, 62);
-    SHA256_ROUND(b, c, d, e, f, g, h, a, 63);
-    #undef SHA256_ROUND
-    m_state[0] += a; m_state[1] += b; m_state[2] += c; m_state[3] += d;
-    m_state[4] += e; m_state[5] += f; m_state[6] += g; m_state[7] += h;
-}
+
 
 
 // ---------------------------------------------------------------------------
@@ -3586,133 +2260,25 @@ unsigned int const CSHA::sm_K256[64] = {
 // ---------------------------------------------------------------------------
 
 #include "ChecksumCrypto/CSHA1.inc"
-{
-    // ORIG 0x08087d28：m_blockPtr = this+0x80; Reset();
-    m_blockPtr = m_work;
-    Reset();
-}
+
 
 #include "ChecksumCrypto/dtor_CSHA1.inc"
-{
-    // [P167 2026-09-11] ORIG 0x08087d4c（size 0x13、1 call）：D1 体内调 `CSHA1::Reset()`
-    // —— 旧判「空析构」有误（p167 MISSING `_ZN5CSHA15ResetEv`）。按 ORIG 补调用。
-    Reset();
-}
+
 
 #include "ChecksumCrypto/Reset_1.inc"
-{
-    // ORIG 0x08087d60：SHA-1 初始链接变量 + 位计数清零。
-    m_state[0] = 0x67452301u;
-    m_state[1] = 0xefcdab89u;
-    m_state[2] = 0x98badcfeu;
-    m_state[3] = 0x10325476u;
-    m_state[4] = 0xc3d2e1f0u;
-    m_countLo  = 0;
-    m_countHi  = 0;
-}
+
 
 #include "ChecksumCrypto/Update.inc"
-{
-    // ORIG 0x0808a19e：位计数（含进位），缓冲区满则 Transform（整块 0x40）。
-    unsigned int buffered = (m_countLo >> 3) & 0x3f;
-    m_countLo += len * 8u;
-    if (m_countLo < len * 8u)
-        m_countHi += 1;
-    m_countHi += (len >> 0x1d);
 
-    unsigned int copied = 0;
-    if (buffered + len >= 0x40)
-    {
-        copied = 0x40 - buffered;
-        memcpy(&m_buffer[buffered], data, copied);
-        Transform(m_state, m_buffer);
-        for (; copied + 0x3f < len; copied += 0x40)
-            Transform(m_state, data + copied);
-        buffered = 0;
-    }
-    if (len != copied)
-        memcpy(&m_buffer[buffered], data + copied, len - copied);
-}
 
 #include "ChecksumCrypto/Transform_1.inc"
-{
-    // ORIG 0x08087daa：块经 m_blockPtr 大端读入展开为 W[80]，四轮 80 步压缩。
-    static const unsigned int K[4] = { 0x5a827999u, 0x6ed9eba1u, 0x8f1bbcdcu, 0xca62c1d6u };
-    unsigned int w[80];
-    for (int i = 0; i < 16; ++i)
-    {
-        w[i] = ((unsigned int)block[i * 4] << 24) | ((unsigned int)block[i * 4 + 1] << 16)
-             | ((unsigned int)block[i * 4 + 2] << 8) | (unsigned int)block[i * 4 + 3];
-    }
-    for (int i = 16; i < 80; ++i)
-    {
-        unsigned int v = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
-        w[i] = v << 1 | v >> 31;
-    }
-    unsigned int a = state[0], b = state[1], c = state[2], d = state[3], e = state[4];
-    for (int i = 0; i < 80; ++i)
-    {
-        unsigned int f;
-        if (i < 20)      f = (d ^ (b & (c ^ d))) + K[0];       // ORIG 0x5a827999 轮
-        else if (i < 40) f = (b ^ c ^ d) + K[1];               // 0x6ed9eba1
-        else if (i < 60) f = ((b | c) & d | b & c) + K[2];     // 0x8f1bbcdc
-        else             f = (b ^ c ^ d) + K[3];               // 0xca62c1d6
-        unsigned int tmp = (a << 5 | a >> 27) + f + e + w[i];
-        e = d;
-        d = c;
-        c = b << 30 | b >> 2;
-        b = a;
-        a = tmp;
-    }
-    state[0] += a;
-    state[1] += b;
-    state[2] += c;
-    state[3] += d;
-    state[4] += e;
-}
+
 
 #include "ChecksumCrypto/Final.inc"
-{
-    // ORIG 0x0808a2d2：0x80 填充 + 0x00 补位至 (count&0x1f8)==0x1c0 + 8 字节大端位长，
-    // 摘要按大端写入 m_digest[20]。
-    unsigned char tail[8];
-    // ORIG 0x0808a2e6：`cmpl $0x3,i; setbe; add $0x4,%ecx; mov 0x4(%this,%ecx,4)` ⇒
-    // i<=3 取槽 5（+0x18 m_countHi）、i>3 取槽 4（+0x14 m_countLo）；位移 (~i&3)<<3。
-    // [真 bug 修复] 旧实现写成 lo 在前，SHA-1("abc") 实测 c3173c3d…（应 a9993e36…）。
-    for (int i = 0; i < 8; ++i)
-    {
-        unsigned int v = (i < 4) ? m_countHi : m_countLo;
-        tail[i] = (unsigned char)(v >> ((3 - (i & 3)) * 8));
-    }
-    static unsigned char const pad0x80[1] = { 0x80 };
-    Update(pad0x80, 1);
-    static unsigned char const padZero[1] = { 0x00 };
-    while ((m_countLo & 0x1f8u) != 0x1c0u)
-        Update(padZero, 1);
-    Update(tail, 8);
 
-    for (int i = 0; i < 0x14; ++i)
-    {
-        unsigned int v = m_state[i >> 2];
-        m_digest[i] = (unsigned char)(v >> ((3 - (i & 3)) * 8));
-    }
-}
 
 #include "ChecksumCrypto/GetHash.inc"
-{
-    // ORIG 0x0808a3d8：memcpy digest[20]。
-    if (out == 0)
-        return 0;
-    memcpy(out, m_digest, 0x14);
-    return 1;
-}
+
 
 #include "ChecksumCrypto/GetHexHash.inc"
-{
-    // ORIG 0x0808a410：逐字节 sprintf("%02X")，40 个十六进制字符 + NUL 由调用方持有。
-    if (out == 0)
-        return 0;
-    for (int i = 0; i < 0x14; ++i)
-        sprintf(out + i * 2, "%02X", (unsigned int)m_digest[i]);
-    return 1;
-}
+

@@ -1,1 +1,3 @@
 InterLoadHeroMissionEventData::~InterLoadHeroMissionEventData()
+{
+}

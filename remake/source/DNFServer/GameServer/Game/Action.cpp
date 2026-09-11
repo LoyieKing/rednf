@@ -22,27 +22,12 @@ namespace StackableAction
 {
 
 #include "Action/check.inc"
-{
-    std::map<int, boost::function<int(input_param&)> >::iterator it = m_map1.find(type);
-    if (it != m_map1.end())
-    {
-        return it->second(p);
-    }
-    return 0;
-}
+
 
 #include "Action/run.inc"
-{
-    std::map<int, boost::function<int(input_param&)> >::iterator it = m_map2.find(type);
-    if (it != m_map2.end())
-    {
-        return it->second(p);
-    }
-    return 0;
-}
+
 
 #include "Action/dtor_Action.inc"
-{
-}
+
 
 }  // namespace StackableAction

@@ -1,1 +1,3 @@
 CTradeSpace::~CTradeSpace()
+{
+}

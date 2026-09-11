@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 225（ORIG 267 / ours 284），残差=P168a④ bool 槽化/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 // [M8BigTURest/M8DPB 2026-09-11 签名轴] ORIG .rodata 直证
 // `int DisPatcher_SelectCharac::check_error(CUser*, MSG_BASE&)`（原写 unsigned int）。
 int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)

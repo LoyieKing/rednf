@@ -1,1 +1,3 @@
 AdvanceAltarData::~AdvanceAltarData()
+{
+}

@@ -1,1 +1,18 @@
+// ORIG T 0x082881a2（报告 GetCashShopErr.md）：switch 树状展开。
 int CSecu_ProtectionField::GetCashShopErr(int err)
+{
+    switch (err)
+    {
+    case 0x73: return 0x82;
+    case 0x7a: return 0x83;
+    case 0x7b: return 0x84;
+    case 0x88: return 0x85;
+    case 0x89: return 0x86;
+    case 0x72: return 0x87;
+    case 0xe5: return 0x88;
+    case 0xe4: return 0x89;
+    case 0xcf: return 0x8a;
+    case 0x78: return 0x8b;
+    default: return 1;
+    }
+}

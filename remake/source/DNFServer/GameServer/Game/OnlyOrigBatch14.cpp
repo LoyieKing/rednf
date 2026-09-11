@@ -287,8 +287,6 @@ static int compareSortedKeyArray(unsigned long* a, unsigned long* b, int n)
 // 2) 杂散小函数
 // ============================================================================
 
-// ===== _Z14InitTileScriptv —— ORIG 0x089dcbac =====
-// mov $1 直返。
 #include "OnlyOrigBatch14/InitTileScript.inc"
 
 // ===== g_stMapScriptFileList —— ORIG B 0x094fe3a0 =====
@@ -309,78 +307,19 @@ static int compareSortedKeyArray(unsigned long* a, unsigned long* b, int n)
 // B 0x18（ORIG B 0x18）、_ZN16STScriptFileListD2Ev W 0x13（ORIG W 0x13）等全等。
 STScriptFileList g_stMapScriptFileList;
 
-// ORIG T 0x0841d2ea _Z11PrintLetter15SIG_LETTER_INFO：空体。
 #include "OnlyOrigBatch14/PrintLetter.inc"
 
-// ORIG T 0x08104884 _Z11SetSockNonbim：ioctl(fd, FIONBIO=0x5421, &arg) == 0。
-// 返回 int（ORIG 尾 sete %al;movzbl %al,%eax 加宽形，bool 返回 4.4 不加宽）。
 #include "OnlyOrigBatch14/SetSockNonb.inc"
 
-// ORIG T 0x089bd03b _Z20IsDamageActiveStatusi：
-// status<=0xb && ((1<<status) & 0xac4)。ORIG 形：bool 局部汇聚（089bd042
-// movb $0,-0x5；两写点 089bd065/089bd06b）+ **无符号边界**（089bd046
-// cmpl $0xb,0x8(%ebp) 直比参数槽 + ja，P137/P2）+ 末尾 movzbl 读回。
 #include "OnlyOrigBatch14/IsDamageActiveStatus.inc"
 
-// ORIG T 0x0808c74b _Z13PI_GetType_SCcs：type==1 查表、type==2 if 链、缺省 0。
 #include "OnlyOrigBatch14/PI_GetType_SC.inc"
 
-// ORIG T 0x0808bc7e _Z6Rand_rPj：LCG rand_r（NULL 时用全局种子）。
-// [b28d-solo-OnlyOrigBatch14 复核 lane24 判词·N 封顶] 唯一残差 = NULL 分支
-// `staticSeed = timeGetTime() + staticSeed`：ORIG 0x0808bc8f `mov %eax,%edx;
-// mov staticSeed,%eax; lea (%edx,%eax,1),%eax`（RHS-first + lea），4.4 恒
-// `mov staticSeed,%edx; add %edx,%eax`（LHS-first + add）。P211 负例（static
-// 存储期变量复合赋值装载序不可翻，b28c C28L24 三救均败）+ add/lea 跨版本；
-// 其余 49 条与 ORIG 全等。
-// [P1T1 本波复核] 残差复核 = 仅 NULL 分支 3 条（ORIG 0x0808bc8f `mov %eax,%edx;
-// mov staticSeed,%eax; lea (%edx,%eax,1),%eax` vs 我方 `mov staticSeed,%edx;
-// add %edx,%eax`）；维持 P211 static 装载序 + add/lea 跨版本封顶。
-unsigned int Rand_r(unsigned int* seed)
-{
-    static unsigned int staticSeed = 0;  // ORIG _ZZ6Rand_rPjE10staticSeed 0x0936e480
-    if (seed == 0)
-    {
-        // [b28c-lane24] ORIG 0x0808bc82：`call timeGetTime; mov %eax,%edx;
-        // mov staticSeed,%eax; lea (%edx,%eax,1),%eax` = RHS 值先（P211 符号性
-        // 异型 ⇒ RHS-first）；LHS/RHS 同为 unsigned 时 4.4 恒 LHS-first
-        //（`mov staticSeed,%edx; add %edx,%eax`）⇒ 交换书写序探测（P211 无效：
-        // staticSeed int 化反使取址多一条 eax 中转，已回退）。
-        staticSeed = timeGetTime() + staticSeed;
-        return Rand_r(&staticSeed);
-    }
-    unsigned int next = *seed;
-    // 拆句 *=/+= 复现 ORIG addl $K,-off 内存加与 shll mem 内存移
-    // [b28c-lane24] result 由 unsigned 改 int：ORIG xor 段 `mov %eax,%edx;
-    // and $0x3ff,%edx; mov -0xc(%ebp),%eax; xor %edx,%eax; mov %eax,-0xc(%ebp)`
-    // = RHS 先物化（P211 异型）；同型时 4.4 恒折 `and %eax; xor %eax,mem`。
-    next *= 0x41c64e6d;
-    next += 0x3039;
-    int result = (next >> 16) & 0x7ff;
-    next *= 0x41c64e6d;
-    next += 0x3039;
-    result <<= 10;
-    result = result ^ ((next >> 16) & 0x3ff);
-    next *= 0x41c64e6d;
-    next += 0x3039;
-    result <<= 10;
-    result = result ^ ((next >> 16) & 0x3ff);
-    *seed = next;
-    return result;
-}
 
 // ============================================================================
 // 3) 脚本 import/export 族
 // ============================================================================
 
-// [b14 本波·报告核对] 三处修复：
-//  ①槽序：ORIG token@-0x14 / got@-0xd（4.4「后声明更深」）⇒ 声明序改 token/got；
-//  ②`token = 7` 位置按 ORIG 0x88bdcb8 提到 findString 之前；
-//  ③**真语义 bug**：报告 Ghidra C 0x88bdd77 段 logFormat 变参序为
-//    ("ScanAnyData", streamName, lineNo, tokenData)，原写 (streamName,"ScanAnyData")
-//    两串互换（日志内容反写）⇒ 已按报告修正。
-// ndiff 54→4。残余 1 处（N 封顶）：`if(!ignoreUnknown)` ORIG 为 4.1
-// `cmpb $0,-0x2c` 内存直测 vs 4.4 `movzbl; xor $1; test`（N122 bool 取反 lowering；
-// `==0`/`==false`/`!=true` 三形实测同形）。p167 CLEAR（26=26）。语义等价。
 #include "OnlyOrigBatch14/ScanAnyData.inc"
 
 // ORIG T 0x089e6dc4 _Z20ScanChampionFeaturesiR27STAICharacterMapArrangeData：
@@ -407,53 +346,10 @@ static const unsigned int CHAMPION_FEATURE_LIST[0x25] = {
 extern const char* CHAMPION_FEATURE_NAME[37];
 #include "OnlyOrigBatch14/ScanChampionFeatures.inc"
 
-// ORIG T 0x08a65da5 _Z15ScanRewardItemsRSt6vectorI14RewardItemInfoSaIS0_EESs。
-// [b14 报告核对·两条真修复]
-//  ①真语义缺口（报告 Ghidra C 0x8a65e6a 段 + objdump 0x8a65e6a..0x8a65eec 双证）：
-//    ORIG 为 `if (ok1) { if (s=="[job]") { ScanInt→m_job; ScanInt→m_growType; }
-//    ScanInt→v; } info.m_count = v;` —— 最后一次 ScanInt 在 ok1 分支内**无条件**
-//    执行（非 "[job]" 时 `je 0x12e` 亦落该段）；原实现写在 else 分支 ⇒ [job]
-//    情形少消耗一个 int（真 bug）。修后 123=123、gap 0。
-//  ②ORIG 全程只用一个 -0xc 变量（v 兼作 ScanInt 中转槽；Ghidra local_10 贯穿）
-//    ⇒ 删除原 v2 具名中转。
-// 声明序按 4.4「后声明更深」排：info@-0x20 / s@-0x24 已与 ORIG 一致。
-// [b14 本波·DIFF→NEAR] `s == token` 真块位置镜像已翻正（旧判词②作废）：
-//   ORIG 形 `test %al,%al; jne <真岛 +0x164>` + fall-through `mov $0x0,%ebx`
-//   （false 紧随），if-return/`!=` 两形在 4.4 恒把真块前置 ⇒ 改 **goto 尾标签**
-//   形（`if (s == token) goto scan_reward_true; return false;` + 函数尾
-//   `scan_reward_true: return true;`），4.4 jump-threading 折成 ORIG 的
-//   `jne <真岛>`；现 124=124 助记符逐条全等、全部分支偏移一致
-//   （+0x76/+0x164/+0x187 三处与 ORIG 逐位相同）⇒ **NEAR**（ae 800→799、
-//   diff 13→12、near 0→1）。
-// 残余（NEAR，N 封顶）：标量区槽基 4 字节差（我方 ok1/unusedFlag/ok2/v =
-//   -0xa/-0x9/-0xb/-0x10 对 ORIG -0xf/-0xe/-0xd/-0xc；ORIG 侧 int v 浅于
-//   bool 组、4.4 侧 int 恒最深 = N82附/N126 版本分区常数；前置 dead pad 实测
-//   ndiff 44→66 反劣、v 提前声明致 info/s 下移 4，均已回退）。
-// p167 CLEAR（13=13）。
 #include "OnlyOrigBatch14/ScanRewardItems.inc"
 
-// ORIG T 0x08a0fff6 _Z30exportCharacterGiveSkillScriptP8_IO_FILEPSt6vectorISt4pairIiiESaIS3_EE。
 #include "OnlyOrigBatch14/exportCharacterGiveSkillScript.inc"
 
-// ORIG T 0x08a100f3 _Z29exportCharacterEtcStatsScriptP8_IO_FILEP17CharacterEtcStats。
-// [b28d 判词·N 封顶（N82 槽复用 + N85 x87）] 本波修：①第一循环加具名
-// ENUM_CATEGORY cat 局部（P0：ORIG 0x08a10151 槽往返 + 回读压参）。
-// [H10-b14wave14 本波·槽序归零] 两处修复（均 ORIG 逐地址实证）：
-//  ①`int i = 0;` → `int i;`：消我方多发的一条 `movl $0x0,-0x18(%ebp)`
-//    （ORIG 0x08a101f3 段仅一条 for-init 写；旧形声明初始化 + for-init 各写一次）
-//    ⇒ our_insns 118→117、ndiff 该 hunk 消失（P191/P328⑤）。
-//  ②`int j;` 由函数头移入 `if (i != 4)` 块内（for-init 单点赋值保留）：4.4 按
-//    内层块后声明占浅槽分配 ⇒ j@-0xc（ORIG 0x08a1024e）、i1@-0x14（ORIG
-//    0x08a10134）、cat@-0x10（ORIG 0x08a10151）、i2@-0x18（ORIG 0x08a101f3）
-//    四处与 ORIG 逐槽相同 ⇒ 原「N82 槽复用」两 hunk 全消。
-//  p167 CLEAR（14=14）。残余唯一差异 = N85 x87 lowering（ORIG 0x08a10215 段
-//  `fucompp;fnstsw %ax;sahf` vs 4.4 `fucomip %st(1),%st;fstp %st(0)`）。
-// [b14 A/B 实测·路由不提] N85 x87 lowering：默认 mne_delta =
-// {sahf:-1,fucompp:-1,fnstsw:-1,fucomip:+1,fstp:+1,movl:+1}（ndiff 55 / gap 0）；
-// 追加 `-march=i486 -mtune=generic`（Main 判据，须同带 mtune）后 x87 差异全消，
-// 但**新引入 1 条 movl**（gap 0→-1、ndiff 52），本件仍 DIFF，且整 TU 四数逐项
-// 不变（396+800=1196 / near 0 / diff 13 / missing 197；30 个函数指令形变化、
-// 0 件翻转）⇒ 依 Main 口径（仅整 TU 净收益才提路由）不提。
 #include "OnlyOrigBatch14/exportCharacterEtcStatsScript.inc"
 
 // ORIG T 0x08a0fb38 _Z27exportCharacterStatusScriptP8_IO_FILEP19STRDCharacterStatus：
@@ -465,126 +361,46 @@ extern const char* CHAMPION_FEATURE_NAME[37];
 // （外部链接 `const char* ACTIVESTATUS_TAG[17]`，.data 0x44），此处只留声明 ⇒
 // OUR-only −1，本 TU 该件（AE 331/331 gap=0）读数不变。
 extern const char* ACTIVESTATUS_TAG[17];
-// [b14 本波·AE 归零] 三条真缺口（旧判词「N85 x87 除法 lowering 封顶」作废）：
-//  ①`(double)field` → `(float)field`：4.4 对 double 常量发 `fldl <A>`，ORIG 是
-//    `flds <A>`（float 常量）；且 `(float)unsigned int`（+0x0/+0x4/+0x42）走
-//    `mov $0,%edx; … fildll` 零扩展形、`(float)int`（+0x3a/+0x4e）走 `fildl`
-//    —— 与 ORIG 逐段同形（探针 /tmp/b14_probe2.cpp pA/pB/pC/pE）。
-//  ②elemResist(+0x10..+0x16) 与 activeResist(+0x18..) 需 `(float)(short)field`：
-//    ORIG 发 `movzwl; mov %ax,-0x1e; filds -0x1e`（16 位载入，共 5 处），直写
-//    `(float)field` 只给 32 位 `fildl`（探针 pC 复证）。
-//  ③m_hpRegen/m_mpRegen/m_hitRecovery/m_jumpPower(+0x3e/+0x40/+0x4a/+0x4c) 同为
-//    filds 形，各加 `(short)`。
-// 终态 orig=331 our=331 gap=0 ndiff=0。
 #include "OnlyOrigBatch14/exportCharacterStatusScript.inc"
 
-// ORIG T 0x08919127 _Z22importQuestPieceScriptPKcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE。
 #include "OnlyOrigBatch14/importQuestPieceScript.inc"
 
-// ORIG T 0x088ffaa9 _Z15importSlangListPcPSt6vectorISsSaISsEE。
 #include "OnlyOrigBatch14/importSlangList.inc"
 
-// [b14 本波·AE 归零] 内层循环局部槽序（旧判词「残余 NEAR=N98 槽序」作废）：
-// ORIG s@-0x1c(深)/isInt@-0x16/isType@-0x15/v@-0x14(浅)，4.4「后声明更深」
-// ⇒ 声明序改 v/isType/isInt/s（v 声明与赋值分离，P244）后 121=121、ndiff=0。
 #include "OnlyOrigBatch14/importHiddenNpcListInfo.inc"
 
-// ORIG T 0x088ffe75 _Z29importUniqueRewardForAllUsersPcPSt3mapIiSt6vectorIS1_I22STStackablePackageDataSaIS2_EESaIS4_EESt4lessIiESaISt4pairIKiS6_EEE。
-// [b28d-solo-OnlyOrigBatch14；gap 2→1 本波收敛]
-// loadRDARScriptFile 参数序已修为 ("", path)（真语义 bug，ORIG 0x088ffe8d
-// 压参序实证）。本波两条真缺口：
-//   (a) `[package selection]` 内层循环 ORIG 088fff63-69 为负极性
-//       `int itemIdx; for(;;){ if(!ScanInt(&itemIdx)) break; … }`（有 xor、
-//       无 for-init `movl $0`），原 `for(int itemIdx=0; ScanInt(&itemIdx); )`
-//       产 for-init+尾条件正极性 jne（多 movl、少 xor）；
-//   (b) group 块尾 ORIG 0890002d `jmp 08900044` → jobs dtor → 0890004f
-//       `jmp 088ffeca`（循环头）= 原码 **continue**（语义等价：token=="[group]"
-//       时 "[/package]" 恒 false）。
-// 残余 gap 1 = ORIG 的正常路径 jobs dtor 块（08900044-4f）物理位于 EH 段之后
-// 并由 `jmp 08900044` 进入，4.4 把该 dtor 内联在 continue 点（N104 EH 尾块
-// 相对序）。p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`
-// （string==const char* 外链实例，4.4 libstdc++ 全内联，N89）。
-// [b14 复核] 槽序修复：P212「4.4 块内先声明占**浅**槽（4.1 相反）」⇒ 把
-// `int itemIdx;` 提到 `std::vector<STStackablePackageData> items;` 之前，
-// 复现 ORIG items@-0x30（12B，深）/ itemIdx@-0x24（4B，浅）的槽对
-// （改前我方 itemIdx@-0x30 / items@-0x2c 恰好互换）。修复后 174 vs 173，
-// 唯一残差即上述 `jmp +0x1cf` 单源 EH 尾岛（P223 负例：单源 goto 的尾岛
-// 4.4 恒 jump-thread ⇒ 不可造，封 N）。
-// 控制流/全部插入点与 ORIG 逐段核对，语义等价。
 #include "OnlyOrigBatch14/importUniqueRewardForAllUsers.inc"
 
-// ORIG T 0x08a358d7 _Z15importPetScriptP9PetScriptPKc。
 #include "OnlyOrigBatch14/importPetScript.inc"
 
-// [b14 本波] 循环体第二条 `m_moveSpeed[i+2]=0`：ORIG 0x08a3dc28 为
-// `add $0x8,%edx; movl $0,0x8(%eax,%edx,4)`（+2 折进 disp8），4.4 恒
-// `lea 0x2(%eax),%edx; add $0x8,%edx; movl $0,(%eax,%edx,4)`（+2 折进索引）。
-// 探针 /tmp/b14_probe3.cpp f1..f4（`[i+2]`/`[2+i]`/`(arr+2)[i]`/`*(arr+i+2)` 四形）
-// 全部产出 lea 形（后两形更劣 9 条）⇒ 判 N4/P30 索引常量分配跨版本差，封顶。
-// 其余 `m_moveSpeed[4]` 清零等本波已补（真语义缺口）。ndiff 5 / gap -1。
 #include "OnlyOrigBatch14/clear.inc"
 
-// ORIG T 0x0890a334 _Z27importUltimateSkillCutScenePKcRSt6vectorI23STUltimateSkillCutSceneSaIS2_EERi：
-// 空体（mov $0,%eax; ret）。
 #include "OnlyOrigBatch14/importUltimateSkillCutScene.inc"
 
-// ORIG T 0x088c1e68 _Z18importActiveStatusR14STActiveStatusb
-// （报告缺失，按 §3.2 以 ORIG objdump 全量转写；两侧 AE 逐条核对）。
-// 结构：flag 入参 spill(-0x6c)、s(-0x5c)、16 个 ScanInt 物化临时(-0x58..-0x1c)、
-// type(-0x18)、循环计数 i9(-0x14)/iD(-0x10)/i4(-0xc)。
-// [b14 本波·AE 归零] 两条真缺口（旧判词「N 封顶、32 条 mov 不可消」作废）：
-//  ①16 处原写 `tX = ScanInt((bool*)0); push_back(static_cast<int&&>(tX));`
-//    ⇒ 4.4 对具名 int 的右值 cast 额外 materialize 中转（每处 +2 条 mov，共 +32）。
-//    改为 **prvalue 直传** `push_back(ScanInt((bool*)0))`：prvalue 绑定 int&& 仍
-//    选中 ORIG 的 `_ZNSt6vectorIiSaIiEE9push_backEOi`（p167 42=42 CLEAR），每处只余
-//    `call; mov %eax,-0xNN` 一条 —— ORIG 的 -0x58..-0x1c 16 槽即这些匿名物化临时。
-//  ②标量区声明序：4.4 按「先声明更深」分配 ⇒ 声明序改 type/i9/iD/i4（s 为类对象
-//    优先占低槽 -0x5c，位置不受影响）。
-// 终态 orig=261 our=261 gap=0 ndiff=0。
 #include "OnlyOrigBatch14/importActiveStatus.inc"
 
 // ============================================================================
 // 4) 成员/类函数
 // ============================================================================
 
-// ORIG T 0x089e82f6 _ZN12STTileScript5ClearEv。
 #include "OnlyOrigBatch14/Clear.inc"
 
-// ORIG W 0x0844d584 _ZN21STBreakAwayMemberData5clearEv。
 #include "OnlyOrigBatch14/clear_1.inc"
 
-// ORIG T 0x085e709e _ZN15MissionLessThanclEPK8CMissionS2_：
-// 先比 MissionKind 再比 MissionIndex。
 #include "OnlyOrigBatch14/operator.inc"
 
-// ORIG T 0x081b5bf2 _ZNK23NeedMaterialDataManager15getNeedMaterialEi：
-// getNeedMaterial(G_CDataManager()->find_item(i))。
 #include "OnlyOrigBatch14/getNeedMaterial.inc"
 
-// ORIG T 0x0816d454 _ZN16RestrictCategory12enumToStringENS_4EnumE。
 #include "OnlyOrigBatch14/enumToString.inc"
 
 // （importKeyNameIndexTable 已按 R3 批准迁至 ScriptExtras.cpp —— 判词随行迁走。）
 
-// ORIG T 0x0808aa37 _Z16WriteCodeSectionPKc：读取 PE 头后写回 .code.bin。
 #include "OnlyOrigBatch14/WriteCodeSection.inc"
 
-// ORIG T 0x089bbe1e _Z32getActivePropertyTypeToEnumValueRSs：
-// 函数局部 static map + SpinLock 惰性填充；键 "slow resistance" 等 16 项。
 #include "OnlyOrigBatch14/getActivePropertyTypeToEnumValue.inc"
-// ===== _Z13G_EncryptToolv —— ORIG 0x0848e1c6 =====
-// ORIG：mov 尾调 GlobalInstance<EncryptTool>::inst_ptr()（inst_ptr 0x848e1d3）。
-// [b14 判据㉓·Main 已批准单点修法] ORIG nm 绑定 = **W**（弱符号，0x0848e1c6 W
-// 0xd）；本 TU 原为 T 强绑定。加 weak 使绑定对齐（尺寸/mangled/函数体零变化）。
-__attribute__((weak)) EncryptTool* G_EncryptTool()
-{
-    return GlobalInstance<EncryptTool>::inst_ptr();
-}
 
-// ===== _ZN35FAIR_PVP_SKILL_TREE_SKILL_PER_POINT5clearEv —— ORIG 0x08a5e874 =====
-// 反汇编：map@+0x00 clear、map@+0x18 clear、vector<pair>@+0x30 clear、int@+0x3c=0。
+
 #include "OnlyOrigBatch14/clear_2.inc"
-// ORIG C1 0x08a5e7e6：构造成员后调 clear()。
 #include "OnlyOrigBatch14/FAIR_PVP_SKILL_TREE_SKILL_PER_POINT.inc"
 
 // ============================================================================
@@ -598,23 +414,8 @@ struct DifficultPenaltyInfo
     int m_values[5];
 };
 
-// ===== _Z32ImportDifficultPenaltyInfoScriptPKcR20DifficultPenaltyInfo —— ORIG 0x0890a33e =====
-// loadRDARScriptFile(dir="", path) 失败 → 返回 0x1bdb；逐行 ScanType(token, true)：
-// 遇 "[COMMON TRAP EXPLOSION]" 段读取 5 个 int（ScanInt 成功才写入 out）。
 #include "OnlyOrigBatch14/ImportDifficultPenaltyInfoScript.inc"
 
-// ===== _Z16ImportTileScriptP12STTileScriptPKc —— ORIG 0x089dcbb6 =====
-// loadRDARScriptFile("", path) 失败 → printf("TILE LOAD FAIL! [%s]\n", path) 返回 0；
-//   【gi00 串 key 配平修正】ORIG 0x089dcbc5 `movl $"",(%esp)` ⇒ 第一参为**空串**
-//   （非 "TILE"；"TILE" 只出现在后面的 printf 文案里）。旧注释误记为 "TILE"。
-// 先 Clear()，随后按 token 分派：
-//   [IMAGE]   → 循环 { pair<string,int>；ScanStr(&first)；second=ScanInt((bool*)0)；
-//                 m_actions.push_back }
-//   [tile type]→ ScanStr 比较 "[basic]"→m_flagC=0、"[extended]"→m_flagC=1
-//   [img pos] → m_field1c = ScanInt((bool*)0)
-//   [pass type]→ m_collisions 清空；循环 { n=ScanInt(&ok)；!ok 退出；
-//                 row.clear()+push(n)；再读 13 个 ScanInt((bool*)0) 追加；push_back(row) }
-// 返回 1。
 #include "OnlyOrigBatch14/ImportTileScript.inc"
 
 
@@ -635,45 +436,13 @@ typedef std::map<const char*, int, less_TCHAR> LookupMap;
 
 }  // namespace
 
-// ===== _Z25ImportPassiveObjectScriptP21STPassiveObjectScriptPKcb —— ORIG 0x08a2c51a =====
-// loadRDARScriptFile(基目录, path) 失败 → false；随后 clear 三个子对象、
-// getDirectoryPath 拼 m_s90，主 token 循环分派（未知 token → false；
-// bRepair 且已读 [name] 时提前结束）。EOF 统一尾处理：
-// FindIndexByFullScan(path) 写 m_idx 并返回 true。
 #include "OnlyOrigBatch14/ImportPassiveObjectScript.inc"
 
-// ===== _Z17GetSlicedIntervalPlS_S_S_lll —— ORIG 0x085732d8 =====
-// 切片区间工具：arg6>0 时写 [0,arg6] 到 out1/out2（count=1）；
-// 若 arg7+arg6 < arg5（总长），第二段 [arg7+arg6, arg5-(arg7+arg6)] 写
-// out3/out4（count==0 时写 out1/out2），count 增 1。返回段数。
 #include "OnlyOrigBatch14/GetSlicedInterval.inc"
 
-// ===== _Z24CheckDayScheduleTimeOveril —— ORIG 0x0846c370 =====
-// time(&local)（ORIG 0x0846c37a `lea -0xc(%ebp),%eax; call time` 传局部地址，
-// 非 time(NULL)）+ day * (-86400) > checkTime（0xfffeae80 == -86400 补码）。
 #include "OnlyOrigBatch14/CheckDayScheduleTimeOver.inc"
 
-// ===== _Z29DecreaseTradeLimitCountByUserR5CUserii —— ORIG 0x0812017d =====
-// curCharac 缺失 → false；GetInvenRef(space, slot) 缺失 → false；
-// 否则委托 DecreaseTradeLimitCount(Inven_Item&)。
 #include "OnlyOrigBatch14/DecreaseTradeLimitCountByUser.inc"
 
-// ===== _Z18GiveItemReturnUserP5CUser —— ORIG 0x084bfd28 =====
-// find_item(0x1f15) 失败直接返回；make_item 填局部 Inven_Item、set_add_info(1)。
-// 按最后游玩 dungeon 是否存在分两路拼邮件：正文
-// findString(4,"return_user_msg_1",0) + snprintf("%s", dungeonName) 或
-// findString(4,"return_user_msg_2",0)；发件人 findString(4,"return_user_msg_title",0)；
-// ReqDBSendNewSystemMail(title, item, 0, characNo, body, strlen(body), 7,
-//                        serverGroup, false, false)。
 #include "OnlyOrigBatch14/GiveItemReturnUser.inc"
 
-// ===== _Z38GetInstanceDeathTowerPlaydataStatisticv —— ORIG 0x0860f451 =====
-// ORIG：mov $0x94733a8 直返（.bss 静态实例，无 guard）。重建以文件级
-// static 对象承载同一地址语义。
-CDeathTowerPlayDataStatistic* GetInstanceDeathTowerPlaydataStatistic()
-{
-    // ORIG 0x094733a8 = _ZZ38GetInstanceDeathTowerPlaydataStatisticvE8instance（b，1B）
-    // ⇒ 函数内 static 真名为 `instance`（原 `s_instance` 为发明名，改回 ORIG 名）。
-    static CDeathTowerPlayDataStatistic instance;
-    return &instance;
-}

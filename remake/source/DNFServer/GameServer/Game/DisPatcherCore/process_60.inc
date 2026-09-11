@@ -1,3 +1,5 @@
+// ORIG 0x081cb2e2 T _ZN20DisPatcher_AddFriend7processEP5CUserR8MSG_BASER9ParamBase：
+// 薄包装，尾调 process_packet_jpn 并透传返回值（汇编 leave/ret 直传 eax）。
 int DisPatcher_AddFriend::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

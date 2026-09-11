@@ -35,38 +35,11 @@
 #include "WarField.h"
 #include "CUser.h"
 
-// ============================================================================
-// addUserHackCount149(CUser*) —— ORIG T 0x830dc9d [_Z19addUserHackCount149P5CUser]
-// 报告反编译：
-//   pCVar1 = CUser::getHackAnalyzer(param_1);
-//   addServerHackCnt(pCVar1, param_1, 0x198, 1, 0, 0);
-//   return 1;
-// 实参序（汇编压栈）：type=0x198(ENUM_HACKTYPE), count=1, a=0, b=0。
-// ============================================================================
 #include "HackTickLeafC3/addUserHackCount149.inc"
-{
-    user->getHackAnalyzer()->addServerHackCnt(
-        user, (WongWork::ENUM_HACKTYPE)0x198, 1u, 0u, 0u);
-    return true;
-}
 
-// ============================================================================
-// addUserHackCount150(CUser*) —— ORIG T 0x830dce4 [_Z19addUserHackCount150P5CUser]
-// 同 149，仅 hack type=0x199。
-// ============================================================================
+
 #include "HackTickLeafC3/addUserHackCount150.inc"
-{
-    user->getHackAnalyzer()->addServerHackCnt(
-        user, (WongWork::ENUM_HACKTYPE)0x199, 1u, 0u, 0u);
-    return true;
-}
 
-// ============================================================================
-// stMapPlayInfo_t::getPlayTick() —— ORIG W 0x830e7ea
-// [_ZN15stMapPlayInfo_t11getPlayTickEv]（objdump 转写，见文件头标记；ORIG 非 const）
-//   return m_clearTick - m_startTick;（unsigned 减法回绕）
-// ============================================================================
+
 #include "HackTickLeafC3/getPlayTick.inc"
-{
-    return m_clearTick - m_startTick;
-}
+

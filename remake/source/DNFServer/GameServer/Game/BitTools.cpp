@@ -12,47 +12,16 @@
 // ============================================================================
 
 #include "BitTools/setBit_Byte.inc"
-{
-    if (set)
-    {
-        value = static_cast<unsigned char>(value | (1u << bit));
-    }
-    else
-    {
-        value = static_cast<unsigned char>(value & ~static_cast<unsigned char>(1u << bit));
-    }
-}
+
 
 #include "BitTools/isSetBit_Byte.inc"
-{
-    return static_cast<unsigned char>(1u << bit) & value;
-}
+
 
 #include "BitTools/setBit_Word.inc"
-{
-    if (set)
-    {
-        value = static_cast<unsigned short>(value | (1u << bit));
-    }
-    else
-    {
-        value = static_cast<unsigned short>(value & ~static_cast<unsigned short>(1u << bit));
-    }
-}
+
 
 #include "BitTools/isSetBit_Word.inc"
-{
-    return static_cast<unsigned short>(1u << bit) & value;
-}
+
 
 #include "BitTools/SameBuffer.inc"
-{
-    for (unsigned long i = 0; i < size; ++i)
-    {
-        if (a[i] != b[i])
-        {
-            return false;
-        }
-    }
-    return true;
-}
+

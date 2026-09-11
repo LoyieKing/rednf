@@ -104,33 +104,11 @@ namespace game_master
 
 // ORIG ctor 0x082a8124：基类 ctor → 自身 vptr(0x8c81ba0)；string@+0x08 默认构造。
 
-// ORIG parse 0x084a97c0：trim(parser->args)；m_str0 = parser->args（目标角色名）。
 #include "GmCmds_F/parse.inc"
-{
-    trim(m_parser->m_args);
-    m_str0 = m_parser->m_args;
-}
 
-// ORIG execute 0x084a97f4：按角色名查目标用户，存在则以 GM 发起者名义请求
-// 拆解（DisPatcher_DisJointItem::_disjoint(user, 9, 0, 0x1c, target, 0xffff)；
-// 9=请求来源 GM（推断），0x1c=CMD 包类型（对应 dispatchers[28]），
-// 0xffff=目标区域通配（推断））。
+
 #include "GmCmds_F/execute.inc"
-{
-    register char const* name = m_str0.c_str();   // ORIG ebx 缓存跨 G_GameWorld
-    CUser* target = G_GameWorld()->find_user_by_charac_name(name);
-    if (target != 0)
-    {
-        int type = 9;
-        DisPatcher_DisJointItem::_disjoint(GetUser(), type, 0,
-                                           static_cast<ENUM_CMDPACKET>(0x1c),
-                                           target, 0xffff);
-    }
-    else
-    {
-        return;
-    }
-}
+
 
 // ===========================================================================
 // CReselectDailyQuestCmd（sizeof=0x8）
@@ -138,11 +116,8 @@ namespace game_master
 
 // ORIG ctor 0x082a8370：基类 ctor → 自身 vptr，无数据成员。
 
-// ORIG execute 0x084ab4f2：G_GameWorld()->ReselectDailyQuest()（返回值丢弃）。
 #include "GmCmds_F/execute_1.inc"
-{
-    G_GameWorld()->ReselectDailyQuest();
-}
+
 
 // ===========================================================================
 // CResetTrainingQuestCmd（sizeof=0x8）
@@ -150,11 +125,8 @@ namespace game_master
 
 // ORIG ctor 0x082a838c：基类 ctor → 自身 vptr，无数据成员。
 
-// ORIG execute 0x084ab508：GetUser()->ResetTrainingQuest()。
 #include "GmCmds_F/execute_2.inc"
-{
-    GetUser()->ResetTrainingQuest();
-}
+
 
 // ===========================================================================
 // CSecretShopCheckLottery（sizeof=0x8）
@@ -162,11 +134,8 @@ namespace game_master
 
 // ORIG ctor 0x082a847a：基类 ctor → 自身 vptr，无数据成员。
 
-// ORIG execute 0x084ab9c4：GlobalData::s_secret_shop->CheckLottery()。
 #include "GmCmds_F/execute_3.inc"
-{
-    GlobalData::s_secret_shop->CheckLottery();
-}
+
 
 // ===========================================================================
 // CSecretShopNpc（sizeof=0xc）
@@ -174,85 +143,11 @@ namespace game_master
 
 // ORIG ctor 0x082a8496：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 
-// ORIG parse 0x084ab9da：trim(args)；+0x08(int 占位槽) = atoi(args)（npc id）。
 #include "GmCmds_F/parse_1.inc"
-{
-    trim(m_parser->m_args);
-    m_npcIdx = atoi(m_parser->m_args.c_str());
-}
 
-// ORIG execute 0x084aba12：GM 用户处于 state 5（组队等待态，推断）时，把本人
-// 秘密商店数据的 npc id 改为参数值（限 1000/0x3ea/0x3eb/0x3ec 四个合法值），
-// 条件：无队伍，或队伍不在血色地下城中（party->m_battleField.m_pDungeon == 0 或
-// dungeon->m_bloodDungeonType == 0）。随后聊天通告 + 广播 0x114 npc 替换包。
-// [b28d-solo-GmCmds_F] AE：①删 npcId 具名局部（P0：ORIG 0x084aba6b 起四次直读 this+0x8，
-// 无槽往返）；②party 检查改具名 CDungeon* dungeon（ORIG -0x1c 有槽往返）；
-// ③m_bloodDungeonType 加 static_cast<signed char> 复现 ORIG 0x084abac7 的 movzbl+test%al+jg
-// （裸 >0 被 4.4 折成 jne；P196/P292 族）；④char buf[0x100]={0} 复现 ORIG rep stos 0x40
-// dwords（P214③/P253）；⑤trace 改全表达式临时链 cMyTrace(...)(...)（P227：*shopData→%esi、
-// name→%ebx 在 ctor 前求值跨 ctor 保活，对齐 0x084abb0d 段）；⑥删冗余 packet.clear()
-// （ORIG 无该 call）；⑦分支反转 if(party!=0){send_to_party}else{Send}（P59：ORIG je 落
-// Send 块）。188=188，仅 .o 重定位占位差（AE）。
-// ORIG 报告：docs/class_func_reports/game_master__CSecretShopNpc/execute.md。
+
 #include "GmCmds_F/execute_4.inc"
-{
-    CUser* user = GetUser();
-    if (user->get_state() != 5)
-    {
-        return;
-    }
 
-    CParty* party = static_cast<CParty*>(user->GetParty());
-    // ORIG CUser::GetSecretShopData 返回秘密商店数据块指针，首 int 为 npc id。
-    int* shopData = static_cast<int*>(user->GetSecretShopData());
-    if (shopData == 0)
-    {
-        return;
-    }
-
-    if (!(m_npcIdx == 1000 || m_npcIdx == 0x3ea || m_npcIdx == 0x3eb || m_npcIdx == 0x3ec))
-    {
-        return;
-    }
-    if (party != 0)
-    {
-        CDungeon* dungeon = party->m_battleField.m_pDungeon;
-        if (dungeon != 0 && static_cast<signed char>(dungeon->m_bloodDungeonType) > 0)
-        {
-            return;
-        }
-    }
-
-    *shopData = m_npcIdx;
-
-    // ORIG：256 字节栈缓冲 rep stos 清零后 sprintf 韩文通告。
-    char buf[0x100] = {0};
-    sprintf(buf, "\xba\xf1\xb9\xd0\xbb\xf3\xc1\xa1 npc\xb0\xa1 %d\xb7\xce \xb1\xb3\xc3\xbc\xb5\xc7\xbe\xfa\xbd\xc0\xb4\xcf\xb4\xd9", *shopData);
-
-    cMyTrace(__PRETTY_FUNCTION__, 0x73f, 0)(
-        "[SECRETSHOP] change npc(%s, %d)", user->getCurCharacName(), *shopData);
-
-    PacketGuard chatPacket;
-    G_GameWorld()->make_packet_chat_msg(chatPacket, user, buf,
-                                        static_cast<int>(strlen(buf)), 2,
-                                        static_cast<ENUM_NOTIPACKET>(0xc));
-
-    PacketGuard packet;
-    packet.put_header(0, 0x114);
-    packet.put_int(*shopData);
-    packet.finalize(true);
-
-    if (party != 0)
-    {
-        party->send_to_party(chatPacket);
-        party->send_to_party(packet);
-    }
-    else
-    {
-        user->Send(chatPacket);
-        user->Send(packet);
-    }
-}
 
 // ===========================================================================
 // CSetGuildFund（sizeof=0xc）
@@ -260,37 +155,11 @@ namespace game_master
 
 // ORIG ctor 0x082a8576：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 
-// ORIG parse 0x084ac668：trim(args)；+0x08(int 占位槽) = atoi(args)（金额）。
 #include "GmCmds_F/parse_2.inc"
-{
-    trim(m_parser->m_args);
-    m_fund = atoi(m_parser->m_args.c_str());
-}
 
-// ORIG execute 0x084ac6a0：向发起者所在公会代理发送加 fund 请求
-// SendAddGuildFund(characNo, guildKey, amount, eFundType_GM)。
-// [b28d-solo-GmCmds_F] N7 封顶（callee-saved 角色互换）：ORIG 0x084ac6a0 amount=%edi /
-// guildKey=%ebx / characNo=%esi；4.4 按首次跨调用序分配 %edi→%esi→%ebx（guildKey=%esi、
-// characNo=%ebx）。实测五形均不翻：①声明序 amount/characNo/guildKey ②初始化式三连
-// ③register 子集（全删 / 仅 amount+guildKey）④guildKey unsigned 化 ⑤语句表达式升格。
-// [补] ⑥4.4.6 后端（c6-g++-446r）与 4.4.7 逐条同形 ⇒ 非 P230 N7 敏感族，换路由无解；
-// ⑦声明/赋值分离（register int a; a=…）声明序两向均不改分配（探针 /tmp/probe_guild2.cpp
-// execA/execB/execC：A=B=edi/esi/ebx，无 register 全落栈）。
-// [P1 round5] ⑧交换 guildKey/characNo 的**求值序**（characNo 先、guildKey 后）实测
-//   **不翻**且更差：寄存器角色仍 characNo=%ebx/guildKey=%esi（4.4 分配序与该序无关），
-//   反而把 `movl $<A>,0x4(%esp)`（eFundType_GM）提前 ⇒ NEAR→DIFF，已回滚。
-// 全 register 形 40=40，仅两处寄存器名差，语义等价（SendAddGuildFund 实参序/符号一致）。
-// ORIG 报告：docs/class_func_reports/game_master__CSetGuildFund/execute.md。
+
 #include "GmCmds_F/execute_5.inc"
-{
-    CUser* user = GetUser();
-    register int amount = m_fund;
-    register int guildKey = user->get_charac_guildkey();
-    register int characNo = user->get_charac_no(-1);
-    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
-        ->SendAddGuildFund(characNo, guildKey, amount,
-                           Packet_Add_Guild_Fund::eFundType_GM);
-}
+
 
 // ===========================================================================
 // CSetMultiboxFailCnt（sizeof=0xc）
@@ -298,38 +167,11 @@ namespace game_master
 
 // ORIG ctor 0x082a891e：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 
-// ORIG parse 0x084b34a4：+0x08(int 占位槽) = 0；trim(args)；
-// atoi(parser->m_extra[1])（第二个分词）。
 #include "GmCmds_F/parse_3.inc"
-{
-    m_failCnt = 0;
-    trim(m_parser->m_args);
-    m_failCnt = atoi(m_parser->m_extra[1].c_str());   // ORIG 直接 operator[](1)，无边界检查
-}
 
-// ORIG execute 0x084b34f8：set_multiboxLotteryItemFailCnt(v)；v > 2 时追加
-// 下发 0x1c6 空包头通知客户端（多重盒子抽取失败次数刷新）。
-// [b28d-solo-GmCmds_F] AE：删具名 int cnt 局部（P0：ORIG 0x084b34f8 两次直读 this+0x8，
-// 无槽往返 ⇒ 原码无该局部）后帧 0x30→0x20、user 槽 -0x10→-0xc、PacketGuard -0x1c→-0x18
-// 全对齐；61=61，仅 .o 重定位占位差（AE）。
-// ORIG 报告：docs/class_func_reports/game_master__CSetMultiboxFailCnt/execute.md。
+
 #include "GmCmds_F/execute_6.inc"
-{
-    CUser* user = GetUser();
-    if (user == 0)
-    {
-        return;
-    }
-    user->set_multiboxLotteryItemFailCnt(m_failCnt);
-    if (m_failCnt > 2)
-    {
-        PacketGuard packet;
-        packet.clear();
-        packet.put_header(0, 0x1c6);
-        packet.finalize(true);
-        user->Send(packet);
-    }
-}
+
 
 // ===========================================================================
 // CSetTutorialFlagCmd（sizeof=0xc）
@@ -337,30 +179,11 @@ namespace game_master
 
 // ORIG ctor 0x082a80b4：基类 ctor → 自身 vptr；+0x08 标量未初始化。
 
-// ORIG parse 0x084a921a：trim(args)；+0x08 = atoi(args)（教程标记）。
-// [b28d-solo-GmCmds_F] P211 双旋钮闭合（旧 N76 封顶判词作废）：
-// parse 0x084a921a store 无中转（mov 0x8(%ebp),%edx; mov %eax,0x8(%edx)）⇒ 字段与
-// atoi 返回 int 同型；execute 0x084a9252 两段（mov 0x8(%eax),%eax; mov %eax,%ebx）
-// 由 execute 侧局部改 `register unsigned int`（异型）复现。字段侧 int 见
-// GameMasterCmd.h（+0x08/sizeof 0xc/偏移/mangled 不变）。探针 /tmp/probe_flag2.cpp
-// execA(int+int=单段)/execB(int+unsigned=两段)/execC/D。
 #include "GmCmds_F/parse_4.inc"
-{
-    trim(m_parser->m_args);
-    m_flag = static_cast<unsigned int>(atoi(m_parser->m_args.c_str()));
-}
 
-// ORIG execute 0x084a9252：GetUser()->RewardTutorial(flag)；flag 为 unsigned
-// 局部（RewardTutorial 形参 unsigned int，ORIG mangled 尾 j）。
-// 帧差 0x10 用 P190 double 对齐撑帧闭合（探针 /tmp/bl5/probe3.cpp padD1：
-// 单 double framePad 使 sub $0x14→$0x24 精确命中 ORIG）。
+
 #include "GmCmds_F/execute_7.inc"
-{
-    double framePad;                                    // P190：对齐撑帧，无读写
-    (void)&framePad;
-    register unsigned int flag = m_flag;
-    GetUser()->RewardTutorial(flag);
-}
+
 
 // CStartEvent（sizeof=0x14）
 //   ORIG 真实布局：+0x08 int 参数计数 / +0x0c int eventId /
@@ -369,51 +192,13 @@ namespace game_master
 // ===========================================================================
 
 #include "GmCmds_F/parse_5.inc"
-{
-    m_eventId = 0;
-    m_param1 = 0;
-    m_param2 = 0;
-    m_eventCount = 0;
-    trim(m_parser->m_args);
-    getParam(m_parser->m_args);
-}
 
-// ORIG getParam 0x084ab64e：按值接收参数副本并切分。
+
 #include "GmCmds_F/getParam.inc"
-{
-    int pos = 0;
-    std::string params[16];
-    while ((pos = static_cast<int>(param.find(' ', 0))) != -1)
-    {
-        params[m_eventCount] = param.substr(0, pos);
-        param = param.substr(pos + 1, std::string::npos);
-        m_eventCount = m_eventCount + 1;
-    }
-    params[m_eventCount] = param;
-    m_eventId = atoi(params[0].c_str());
-    m_param1 = static_cast<unsigned short>(atoi(params[1].c_str()));
-    m_param2 = static_cast<unsigned short>(atoi(params[2].c_str()));
-}
 
-// ORIG execute 0x084ab886：仅 GM 用户生效；组 Packet_Monitor_Event_Start
-//（0x44f/0x12：eventType=eventCode，p1/p2 两 ushort），经监控代理按
-// 发起者 server group 下发 TCP 包。
+
 #include "GmCmds_F/execute_8.inc"
-{
-    CUser* user = GetUser();
-    if (!user->isGMUser())
-    {
-        return;
-    }
 
-    Packet_Monitor_Event_Start packet;
-    packet.m_field1 = static_cast<unsigned int>(m_eventId);
-    packet.m_field2 = m_param1;
-    packet.m_field3 = m_param2;
-    register Packet_Monitor_Event_Start* pPkt = &packet;
-    GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
-        ->SendTcpPacket(reinterpret_cast<char*>(pPkt), 0x12);
-}
 
 // ===========================================================================
 // CStartMacroCmd（sizeof=0x8）
@@ -421,12 +206,8 @@ namespace game_master
 
 // ORIG ctor 0x082a81a2：基类 ctor → 自身 vptr，无数据成员。
 
-// ORIG execute 0x084a9bfa：函数体仅 push %ebp; mov %esp,%ebp; pop %ebp; ret
-// —— 原始二进制即为空实现（宏录制的启停在 CMacro/包处理链路，非此命令）。
-// 如实还原为空。
 #include "GmCmds_F/execute_9.inc"
-{
-}
+
 
 // ===========================================================================
 // CStopMacroCmd（sizeof=0x8）
@@ -434,9 +215,7 @@ namespace game_master
 
 // ORIG ctor 0x082a81be：基类 ctor → 自身 vptr，无数据成员。
 
-// ORIG execute 0x084a9c00：同 CStartMacroCmd，原始二进制即为空实现。
 #include "GmCmds_F/execute_10.inc"
-{
-}
+
 
 } // namespace game_master

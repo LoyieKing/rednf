@@ -99,47 +99,14 @@ private:
     std::auto_ptr<RentalMachineDimensionImpl> m_impl;  // +0x04
 };
 
-// ----------------------------------------------------------------------------
-// Impl C1 —— ORIG W 0x0826fa6c（objdump 转写）
-//   mov 0x8(%ebp),%eax; add $0x104,%eax; mov %eax,(%esp); call setC1Ev
-//   mov 0x8(%ebp),%eax; movl $0x104,0x8(%esp); movl $0x0,0x4(%esp)
-//   mov %eax,(%esp); call memset@plt; leave; ret
-// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x0826eafc。
 #include "RentalMachineDimensionLeaf/RentalMachineDimension.inc"
-    : m_impl(new RentalMachineDimensionImpl)
-{
-    initLoggingEnvironment();
-}
 
-// ----------------------------------------------------------------------------
+
 #include "RentalMachineDimensionLeaf/RentalMachineDimensionImpl.inc"
-{
-    memset((char*)this, 0, 0x104);   // set 成员子对象已先于体构造
-}
 
-// ----------------------------------------------------------------------------
-// Impl D1 —— ORIG W 0x0826fb0c
-//   mov 0x8(%ebp),%eax; add $0x104,%eax; mov %eax,(%esp); call setD1Ev
-//   leave; ret
-// ----------------------------------------------------------------------------
+
 #include "RentalMachineDimensionLeaf/dtor_RentalMachineDimensionImpl.inc"
-{
-}
 
-// ----------------------------------------------------------------------------
-// C1 —— ORIG T 0x0826eafc
-//   call IRentalMachineC1Ev; movl $vtable,(%eax)
-//   movl $0x11c,(%esp); call _Znwj; mov %eax,%ebx
-//   call ImplC1Ev; mov %ebx,%eax
-//   lea 0x4(%ebp 处 this),%edx; mov %eax,0x4(%esp); mov %edx,(%esp)
-//   call auto_ptr<Impl>C1EPS1_
-//   call initLoggingEnvironmentEv; ret（异常路径 _Unwind_Resume）
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// D1 —— ORIG T 0x0826eba2
-//   movl $vtable,(%eax); lea 0x4(%eax); call auto_ptr<Impl>D1Ev
-//   call IRentalMachineD1Ev; mov $0x0,%eax; test %al,%al; je; ret
-// ----------------------------------------------------------------------------
+
 #include "RentalMachineDimensionLeaf/dtor_RentalMachineDimension.inc"
-{
-}
+

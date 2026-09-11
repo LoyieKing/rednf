@@ -1,1 +1,4 @@
 MSG_USE_RENAME_CARD::MSG_USE_RENAME_CARD()
+{
+    m_0e = 0;  // ORIG C1：+0xe word
+}

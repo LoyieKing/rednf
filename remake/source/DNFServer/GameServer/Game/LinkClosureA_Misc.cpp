@@ -30,30 +30,11 @@ int Manager::gmTimeSpeed_ = 1;
 
 }  // namespace advancealtar
 
-// ---- CItem::getAdvanceAltarNeedGage（ORIG W 0x081347ca 报告缺失）----------
-// ORIG 汇编（objdump 0x81347cd）：push %ebp; mov %esp,%ebp;
-// mov 0x8(%ebp),%eax; mov 0x68(%eax),%eax; pop %ebp; ret —— 直返 +0x68 字段。
 #include "LinkClosureA_Misc/getAdvanceAltarNeedGage.inc"
-{
-    return m_field68;
-}
 
-// ---- EnableWorld（ORIG T 0x0849d768 报告缺失，77 字节 objdump 全文转写）--
-// 双向校验（ORIG 0x849d76e 段 this=0x8(%ebp)=a、arg=0xc(%ebp)=b；
-// 0x849d78e 段 this=0xc(%ebp)=b、arg=0x8(%ebp)=a——objdump 实参槽实证）：
-// 任一方向失败返 0，否则返 1。
+
 #include "LinkClosureA_Misc/EnableWorld.inc"
-{
-    if (!a->IsEnableWorld(b))           // [objdump 0x849d76e..0x787]
-    {
-        return false;                   // [0x849d780 xor $1; 失败 mov $0]
-    }
-    if (!b->IsEnableWorld(a))           // [0x849d78e this=b, arg=a]
-    {
-        return false;                   // [0x849d79b..0x7a7]
-    }
-    return true;                        // [0x849d7ae mov $1]
-}
+
 
 // ---- GetUserName（ORIG T 0x08563ff7 报告缺失，0x159 字节 objdump 转写）---
 // 对 team 3/2/1/0 各两次调用 match->GetUser(team)（虚槽+0x10，P48 双 call），

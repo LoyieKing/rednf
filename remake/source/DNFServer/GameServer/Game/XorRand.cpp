@@ -20,85 +20,41 @@
 #include <time.h>
 #include <pthread.h>
 
-// getInt32 置于 TU 首个成员函数定义前：4.4 对未定义 callee 保守 outgoing
-// 恰为 ORIG 帧 0x18（定义于 getUInt32 后会精确继承 callee 帧 0x10+4=0x14，
-// 与 ORIG 槽差 4；XorRand8 大帧函数定义在前时保守值升至 0x28）。
 #include "XorRand/getInt32.inc"
-{
-    return (int)getUInt32();
-}
+
 
 #include "XorRand/XorRand8.inc"
-{
-    m_counter = 0;
-}
+
 
 #include "XorRand/XorRand8_1.inc"
-{
-    m_counter = seed;
-}
+
 
 #include "XorRand/seed.inc"
-{
-    m_counter = seed;
-}
+
 
 #include "XorRand/getUInt64.inc"
-{
-    unsigned long long v = m_counter++;
-    unsigned char* c = (unsigned char*)&v;
-    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]] ^
-           ms_table4[c[4]] ^ ms_table5[c[5]] ^ ms_table6[c[6]] ^ ms_table7[c[7]];
-}
+
 
 #include "XorRand/getInt64.inc"
-{
-    unsigned long long u;
-    return (long long)getUInt64();
-}
+
 
 #include "XorRand/operator.inc"
-{
-    return getUInt64();
-}
+
 
 #include "XorRand/min.inc"
-{
-    return 0;
-}
+
 
 #include "XorRand/max.inc"
-{
-    return 0xffffffffffffffffULL;
-}
+
 
 #include "XorRand/getStaticInt64.inc"
-{
-    return (long long)getStaticUInt64(seed);
-}
+
 
 #include "XorRand/getStaticInt64_1.inc"
-{
-    return (long long)(int)(unsigned int)getStaticUInt64();
-}
+
 
 #include "XorRand/getStaticUInt64.inc"
-{
-    static __thread bool s_isCounterInited;
-    static __thread unsigned long long s_counter;
-    unsigned long long v;
-    unsigned char* c;
-    if (!s_isCounterInited)
-    {
-        unsigned long long seed = (unsigned long long)((long long)clock() + (unsigned long long)pthread_self());
-        s_counter = getStaticUInt64(seed);
-        s_isCounterInited = true;
-    }
-    v = s_counter++;
-    c = (unsigned char*)&v;
-    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]] ^
-           ms_table4[c[4]] ^ ms_table5[c[5]] ^ ms_table6[c[6]] ^ ms_table7[c[7]];
-}
+
 
 
 const unsigned long long XorRand8::ms_table0[256] = {
@@ -470,77 +426,38 @@ const unsigned long long XorRand8::ms_table7[256] = {
 };
 
 
-// ---- XorRand4（ORIG 0x08adfa90 起 12 函数；ms_table0..3 数据自 ORIG .rodata
-// VA 0x08e32cc0..0x08e338c0 提取）----
 #include "XorRand/XorRand4.inc"
-{
-    m_counter = 0;
-}
+
 
 #include "XorRand/XorRand4_1.inc"
-{
-    m_counter = seed;
-}
+
 
 #include "XorRand/seed_1.inc"
-{
-    m_counter = seed;
-}
+
 
 #include "XorRand/getUInt32.inc"
-{
-    unsigned int v = m_counter++;
-    unsigned char* c = (unsigned char*)&v;
-    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]];
-}
+
 
 #include "XorRand/operator_1.inc"
-{
-    return getUInt32();
-}
+
 
 #include "XorRand/min_1.inc"
-{
-    return 0;
-}
+
 
 #include "XorRand/max_1.inc"
-{
-    return 0xffffffffu;
-}
+
 
 #include "XorRand/getStaticInt32.inc"
-{
-    return (int)getStaticUInt32(seed);
-}
+
 
 #include "XorRand/getStaticUInt32.inc"
-{
-    unsigned char* c = (unsigned char*)&seed;
-    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]];
-}
+
 
 #include "XorRand/getStaticInt32_1.inc"
-{
-    return (int)getStaticUInt32();
-}
+
 
 #include "XorRand/getStaticUInt32_1.inc"
-{
-    static __thread bool s_isCounterInited;
-    static __thread unsigned int s_counter;
-    unsigned int v;
-    unsigned char* c;
-    if (!s_isCounterInited)
-    {
-        unsigned int seed = (unsigned int)(clock() + (unsigned int)pthread_self());
-        s_counter = getStaticUInt32(seed);
-        s_isCounterInited = true;
-    }
-    v = s_counter++;
-    c = (unsigned char*)&v;
-    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]];
-}
+
 
 
 const unsigned int XorRand4::ms_table0[256] = {

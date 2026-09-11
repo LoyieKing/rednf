@@ -1,3 +1,15 @@
+// ===== _Z16ImportTileScriptP12STTileScriptPKc —— ORIG 0x089dcbb6 =====
+// loadRDARScriptFile("", path) 失败 → printf("TILE LOAD FAIL! [%s]\n", path) 返回 0；
+//   【gi00 串 key 配平修正】ORIG 0x089dcbc5 `movl $"",(%esp)` ⇒ 第一参为**空串**
+//   （非 "TILE"；"TILE" 只出现在后面的 printf 文案里）。旧注释误记为 "TILE"。
+// 先 Clear()，随后按 token 分派：
+//   [IMAGE]   → 循环 { pair<string,int>；ScanStr(&first)；second=ScanInt((bool*)0)；
+//                 m_actions.push_back }
+//   [tile type]→ ScanStr 比较 "[basic]"→m_flagC=0、"[extended]"→m_flagC=1
+//   [img pos] → m_field1c = ScanInt((bool*)0)
+//   [pass type]→ m_collisions 清空；循环 { n=ScanInt(&ok)；!ok 退出；
+//                 row.clear()+push(n)；再读 13 个 ScanInt((bool*)0) 追加；push_back(row) }
+// 返回 1。
 int ImportTileScript(STTileScript* script, const char* path)
 {
     // [b28d-solo-OnlyOrigBatch14；gap 5→0 / DIFF→AE 本波收敛（208=208）]

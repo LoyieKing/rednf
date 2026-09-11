@@ -55,123 +55,28 @@ namespace
 // 生命周期
 // ============================================================================
 
-// ============================================================================
-// reset（ORIG 0x08149120）
-// ============================================================================
 #include "CBossPlay/reset.inc"
 
-// stRewardItem_t ctor（ORIG W 0x081519b6）：构造 10 个 Inven_Item
-// （ORIG 为编译器对 Inven_Item m_items[10] 数组成员的自动构造，body 为空）。
 #include "CBossPlay/stRewardItem_t.inc"
 
-// Ctor（ORIG W 0x081519ec）：置 vptr（编译器自动），构造 4 个 stRewardItem_t 块
-// （编译器在进入函数体前自动调用 stRewardItem_t ctor），再调 reset()。
 #include "CBossPlay/CBossPlay.inc"
 
-// Dtor（ORIG W 0x08151a3a）：置 vptr 后调 reset()。
 #include "CBossPlay/dtor_CBossPlay.inc"
 
-// ============================================================================
-// InitPlayUser（ORIG 0x0814926e）
-// ============================================================================
 #include "CBossPlay/InitPlayUser.inc"
 
-// ============================================================================
-// _checkMemberDie（ORIG 0x08149382）
-// ============================================================================
 #include "CBossPlay/_checkMemberDie.inc"
 
-// ============================================================================
-// checkAllMemberReady（ORIG 0x081493fe）
-// ============================================================================
 #include "CBossPlay/checkAllMemberReady.inc"
 
-// ============================================================================
-// getLiveMemberCount（ORIG 0x08149466）
-// ============================================================================
 #include "CBossPlay/getLiveMemberCount.inc"
 
-// ============================================================================
-// handleDieUser（ORIG 0x081494a4）
-// [b28d-46 判词·N/P197④+P168a③b+N82] 168 vs 172，p167 CLEAR（29/29）。
-// for(i=0;i<=3;++i)+continue 形复现双初始化（P191）与尾部 setle 物化（P51）。
-// [b21 N·P197-④] 语义已闭合：找成员循环 `checkValidUser(i) && get_user(i)==user`
-//   的取反判定——ORIG(4.1) 发 `sete %al; test; je`，4.4-O0 对 call 结果直比恒发
-//   `mov $1/mov $0 + test/jne`（P197-④：源形不可复现，禁改内联比较=双调用真 bug）；
-//   循环头 `movl $0,-0xc` 双写为 4.1 代码生 quirk（int i=0）。返回路径 ORIG 在各
-//   return 点直发 `mov $0x0/%1,%eax`+共享尾，4.4 以 %ebx 合并 epilogue（N82/寄存器分配）。
-//   while(true){if(3<i)return 1;...break;++i;} 形态 + 时间比较改 `GetRevivalTime() >
-//   getCurSec()` 已对齐 4.1 求值序/setg 方向；逐调用逐分支语义逐一相等，封 N。
-// [L5Free49to60 2026-09-11 复核] fresh 168 vs 170（gap −2，与基线一致）。bcmp 逐条：
-// ①第 1 守卫 ORIG `call; test %al; sete %al; test %al; je` vs 4.4 `xor $1`（N122/
-//   P168a④：4.4 对布尔取反恒 xor、4.1 的 sete 内存物化不可复现）；
-// ②packet2 段 4.4 多 5 条 `mov/lea/call/jmp` 中继（P63 早退共享出口族）。
-// 均属跨版本结构性差异 ⇒ 维持封 N。
-// ============================================================================
 #include "CBossPlay/handleDieUser.inc"
 
-// ============================================================================
-// handleLeaveUser（ORIG 0x08149724）
-// [N18b 封顶] ORIG 0x08149771 对 get_user(i)==user（call 结果 vs 形参比较）生成
-// `cmp 0xc(%ebp),%eax; sete %al; test` 物化；4.4 恒折直 cmp+jne 双岛，无源码写法
-// 可产 sete（N18b 判据），其余 128 条逐条同形。
-// [b27 复证] N93附 尾块序亦不适用（此处非 return 块而是 && 汇聚物化；
-// 探针 44 再证 4.4 双岛恒 jne+mov$1/mov$0）。维持封顶。
-// [b27 DL3R] 返回类型 int→bool（ORIG 调用点 CBossTower 0x08143b04 `test %al`
-// 单字节直判实证）：callee 行数 128:131 两型实测完全一致（零成本），受益方为
-// 调用点 xor 消形。
-// ============================================================================
 #include "CBossPlay/handleLeaveUser.inc"
 
-// ============================================================================
-// generateRewardExp（ORIG 0x08149e20）
-// [b28d-46] baseExp 具名 float（P252 复现 fstps -0xf0 槽往返）、tower 内联表达式。
-// [L5Free49to60 2026-09-11] 244 vs 267 → **244 vs 245**（gap −23→−1，bcmp NDIFF
-// 139→78）。本波旋钮（全为 P0/P183 删多余具名局部，依据 ORIG 无槽往返实证）：
-// ① 删 ev8/ev3/evF，GetRepeatEvent(8/3/0xf)->IsEventing() 内联（ORIG 0x08149fa7..
-//    0x08149fb8 虚调用链全程 %edx/%ecx 寄存器直用，无槽）；
-// ② 删 dm2/chScript/env/channelNo/channelType 五局部，getBonusRate 单表达式链
-//    （ORIG 0x08149f4c get_index→%edi、0x08149f5b GetChannelScript→%esi、
-//    0x08149f62/68 G_CEnvironment+0x378→%ebx、0x08149f73 channel_no→%eax）；
-// ③ pcrBurning/expDouble/premiumRate 去 `= 0.0f`（ORIG 三槽 c4/bc/b8/a8 无清零，
-//    仅条件分支内 fstps 写入 ⇒ P131/P171）；
-// ④ 删 pre（GetPremiumInfo），内联链式（ORIG 0x0814a0e1/0x0814a0e6 直用 %eax）；
-// ⑤ `m_rewardExpWeight[1 + a]` → `[a]`：ORIG `flds 0x4(%eax,%edx,4)` 由 stDeathTower_t
-//    的 m_apcExpWeight@+0x0 提供 +0x4 基址，旧写法多发 `add $0x1,%edx`。
-// 残差（封顶）：帧 0x13c vs 0x15c 全帧槽号平移 0x20 —— ORIG 把 8 个 float 局部排在
-// param(-0xcc,8B) 之后的 -0xc4..-0xa4、baseExp 落 -0xf0，4.4 恒「聚合对象优先占低槽、
-// 标量分区排布」（P332/N82附）；尾段 m_rewardExp[memberIdx] ORIG `lea 0x4(%edx),%ecx`
-// vs 我方 `add`（P30/N4 结构性伪影）；日志段 `.o` 重定位 imm 伪差。语义闭合。
-// ============================================================================
 #include "CBossPlay/generateRewardExp.inc"
 
-// ============================================================================
-// generateRewardItem（ORIG 0x08149914）
-// [b28d-46 判词·N(死 ebx 物化) + 3 真 bug] 327 vs 324（gap 3）、p167 44:44 CLEAR
-// （仅 C1/D1↔C2/D2 同址别名，P93）、帧 0x13c 两侧全等。本轮修：
-// ① 真 bug·虚槽互换：ORIG vtable `_ZTVN8WongWork15CItemGeneratorE` @0x08c9a788
-//    word[4]=0x0853a400 generateRandomItem（vptr+0x08）、word[5]=0x0853a406
-//    generateSpecificItem（vptr+0x0c）；ORIG 段 A（0x08149a87 `add $0xc`）与
-//    段 B（0x08149c03 `add $0x8`）各调其一，原实现两分支调用名互换。
-// ② 真 bug·舍入：ORIG 0x08149b18 为 `fildl; fmuls; 设截断 CW; fistpl`
-//    （= (int)(float) 截断），原 ROUND(+0.5f) 宏（fadd 0.5 + fistpll）错误。
-// ③ 形态：外层条件原 `< || ==` 双算 imul 且块序反 ⇒ 单条件 + 随机块 fall-through
-//    （P328⑧/P272）；内层同理改 `rare2*b > randVal`。
-// ④ P0/P52/P248：rare/rare2/randVal 同型化 unsigned（消 edx 中转）、rare 三段链式
-//    （消 dungeonIdx/dm/tower 具名槽）、ref/result 先于 get_rand_int 构造、
-//    dst 去具名引用（逐点重算地址）、特定分支补 `Inven_Item rewardItem = *begin()`
-//    值拷贝（ORIG 0x08149c9b..0x08149d25 共 17 条 mov）、随机分支独立 randResult
-//    对象（-0x9c 自带 ctor/dtor）、删 m_party 判空（P140/P171）、
-//    addInfo 回写同槽（ORIG fildl/fistpl 同址 -0x12c）。
-// 残差 gap 3 = ORIG 段 A/B 公共出口 `mov $0x1,%ebx` / item==0 路径 `mov $0x0,%ebx`
-//  + 循环尾 `test %ebx,%ebx`（**无消费者死物化**：4.1 条件值保留；ebx 全程无栈槽
-//  ⇒ 非具名局部，4.4 无对应源形，同 P197④/跨版本族）⇒ 语义闭合，封 N。
-// [L5Free49to60 2026-09-11 复核] fresh .o 327 vs 324（gap 3）不变；bcmp 逐条对比：
-// 指令序列全等，唯一实质差 = 全帧槽相位 4B —— ORIG 把 addInfo 排到深区 -0x12c
-// （fildl/fistpl 同址，ORIG 0x08149b18 段）而 4.4 分到浅区 -0x20；帧 sub 两侧同为
-// 0x13c（ORIG 深区多 4B、我方浅区多 4B）。属 N82附（4.4 聚合对象优先占低槽、标量
-// 分区排布；声明序/位置为 N98 不控）⇒ 维持封 N。
-// ============================================================================
 #include "CBossPlay/generateRewardItem.inc"
 
 }  // namespace WongWork

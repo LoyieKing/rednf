@@ -1,3 +1,7 @@
+// ORIG _ZN13user_creature9CCreature9SetItemIdEi T 0x83375ae（SetItemId.md）：
+// 写 m_itemId → GetCreatureId(itemIdx) 解析种族 → FindCreatureScript 刷新 m_script；
+// 无脚本打 trace 返回；IsItemGrowCreature(script) 真→m_isGrow=0、假→m_isGrow=1
+// （注意与字段名直觉相反）；非成长宠且 exp==0 时 exp 低字节与 m_field4d 同置 5。
 void CCreature::SetItemId(int itemId)
 {
     // ORIG 0x83375c1 call CCreatureItem::SetItemId W 0x833efb0；0x83375cc call

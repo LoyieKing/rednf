@@ -1,1 +1,4 @@
 STPassiveFeatureData::STPassiveFeatureData()
+{
+    clear();
+}

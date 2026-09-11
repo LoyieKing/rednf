@@ -24,7 +24,3 @@ public:
 };
 
 #include "SeriaRoomAniDeco/seriaRoom_AniDeco.inc"
-{
-    m_field0 = 0;
-    m_field2 = 0;
-}

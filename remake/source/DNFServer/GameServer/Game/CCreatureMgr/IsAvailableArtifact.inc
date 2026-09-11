@@ -1,3 +1,5 @@
+// ORIG _ZN13user_creature9CCreature19IsAvailableArtifactEi T 0x83376f6：
+// m_script==0 → false；否则委托 CCreatureScript::IsAvailableArtifactSlot(slot)。
 bool CCreature::IsAvailableArtifact(int slot)
 {
     if (m_script == 0)

@@ -1,3 +1,18 @@
+// ORIG _ZN13user_creature12CCreatureMgr16SetKeepRightItemEP5CUserP10Inven_Item
+// T 0x0833c00c（SetKeepRightItem.md）：遍历 m_creatureItems，对
+// GetCreatureItemType()==1 且 IsNoCharge() 的宠物清免充标志并落库——
+// CDBMsgSender((ENUM_INTERNALPACKET)0x8a, user).UseKeepRight(uid, flag)
+// （flag 为清标志后重读的 IsNoCharge，恒 0）；失败打 cMyTrace
+// ("...SetKeepRightItem(CUser*, Inven_Item*)",0xdf0,5) 返 0；成功 Send +
+// CPacketRespondent(m_user,0,0).MakeNotipacketCreatureItemList(
+// &m_creatureItems, slotNo)。循环尽 item->reset() 返 1。
+// [b28d-solo-CCreatureMgr N] ndiff=2：已翻正 ①`it++` 后置（P167）、②`a!=0 && b==1`
+// 短路物化正向包裹（P214①）、③去具名 creature 局部（P183）、④UseKeepRight 双实参
+// 内联（P0）、⑤cMyTrace 全生命周期临时链（P227）。唯一残余 = SetNoCharge(false) 的
+// 立即数与 this 装载序（ORIG `movl $0,0x4(%esp)` 先 / 4.4 先备 this；P75/N-G 跨版本
+// 装载序，1 条位置差）。156=156。ORIG 0x0833c00c
+// [b28d-solo-CCreatureMgr P277 试形失败] 具名派生指针（CCreature* creature = ...）
+// 156→158 条 + 槽基 -0x28→-0x2c（多 4B 局部）⇒ 已回滚，封 N（P75/N-G）。
 bool CCreatureMgr::SetKeepRightItem(CUser* user, Inven_Item* item)
 {
     for (std::map<int, CCreatureItem*>::iterator it = m_creatureItems.begin();

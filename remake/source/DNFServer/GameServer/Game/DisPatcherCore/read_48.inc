@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] 复核 AE：ORIG 21 / ours 21 insn 全等（AE 口径，重定位归一）。
 int DisPatcher_UseEquip::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

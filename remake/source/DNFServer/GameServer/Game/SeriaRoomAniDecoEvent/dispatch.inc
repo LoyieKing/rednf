@@ -1,3 +1,10 @@
+// ============================================================================
+// DB_UpdateSeriaRoomAnimationDeco::dispatch —— ORIG T 0x0844adc0（报告
+// docs/class_func_reports/DB_UpdateSeriaRoomAnimationDeco/dispatch.md）。
+// GetDBHandle(DB_HANDLE_9,0) → >>accId(u32) >>serverGroup(s16) >>characNo(int)
+// >>field1(s16) >>field2(s16) → UPDATE receive_flow=field1, deco_flow=field2；
+// affected==0 → INSERT（occ_date=now()）；exec 失败返 0。
+// ============================================================================
 bool DB_UpdateSeriaRoomAnimationDeco::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9,

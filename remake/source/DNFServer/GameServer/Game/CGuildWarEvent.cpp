@@ -53,75 +53,16 @@ static_assert(sizeof(CGuildWarEvent) == 0x10, "CGuildWarEvent sizeof");
 static_assert(offsetof(CGuildWarEvent, m_duration) == 0xa, "m_duration +0xa");
 static_assert(offsetof(CGuildWarEvent, m_field0c) == 0xc, "m_field0c +0xc");
 #include "CGuildWarEvent/CGuildWarEvent.inc"
-{
-    m_duration = 5;
-    m_field0c = 0;
-}
+
 
 #include "CGuildWarEvent/dtor_CGuildWarEvent.inc"
-{
-}
+
 
 #include "CGuildWarEvent/StartEvent.inc"
-{
-    // ORIG xor 形：call;xor $0x1;test;je 尾 ⇒ if (!IsEventing(0)) { body } 块形。
-    if (!IsEventing(0))
-    {
-        SetEventFlag(true);
-        m_duration = 5;
-        m_field0c = 0;
-        if (G_GameWorld()->GetChannelType() == 6)
-        {
-            G_TimerQueue()->InsertTimer(
-                TimerEntry::OBJ_TYPE_2, 0, TIMER_MESSAGE_0x62,
-                (int)m_duration * 0xe10 - 600, 10, 0);
-            GlobalData::s_guild_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)0)
-                ->SendGuildWarStart(
-                    (unsigned char)((CEnvView*)G_CEnvironment())->m_gcNo);
-            cMyTrace(__PRETTY_FUNCTION__, 0x27, 0)(
-                "Guild War Event Start! time(%d)", 5);
-        }
-    }
-}
+
 
 #include "CGuildWarEvent/StartEvent_1.inc"
-{
-    if (!IsEventing(0))
-    {
-        SetEventFlag(true);
-        ((GWView*)this)->m_wp = param;
-        if (G_GameWorld()->GetChannelType() == 6)
-        {
-            G_TimerQueue()->InsertTimer(
-                TimerEntry::OBJ_TYPE_2, 0, TIMER_MESSAGE_0x62,
-                (int)m_duration * 0xe10 - 600, 10, 0);
-            GlobalData::s_guild_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)0)
-                ->SendGuildWarStart(
-                    (unsigned char)((CEnvView*)G_CEnvironment())->m_gcNo);
-            cMyTrace(__PRETTY_FUNCTION__, 0x39, 0)(
-                "Guild War Event Start! time(%d), server(%d)",
-                (int)param.m_duration,
-                ((CEnvView*)G_CEnvironment())->m_gcNo);
-        }
-    }
-}
+
 
 #include "CGuildWarEvent/EndEvent.inc"
-{
-    if (IsEventing(0))
-    {
-        if (G_GameWorld()->GetChannelType() == 6)
-        {
-            GlobalData::s_guild_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)0)
-                ->SendGuildWarEnd(
-                    (unsigned char)((CEnvView*)G_CEnvironment())->m_gcNo);
-        }
-        SetEventFlag(false);
-        m_duration = 0;
-        m_field0c = 0;
-        cMyTrace(__PRETTY_FUNCTION__, 0x49, 0)("Guild War Event End");
-    }
-}
+

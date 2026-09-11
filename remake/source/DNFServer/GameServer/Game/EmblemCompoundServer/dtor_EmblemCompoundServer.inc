@@ -1,1 +1,3 @@
 EmblemCompoundServer::~EmblemCompoundServer()
+{
+}

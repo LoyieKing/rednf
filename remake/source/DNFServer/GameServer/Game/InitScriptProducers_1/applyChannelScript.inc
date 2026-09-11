@@ -1,3 +1,12 @@
+// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 66/66 CLEAR，语义闭合）。
+// 残余 = 帧 0x120 vs 0x110 + 槽组整体平移 0xc（N82/N95：4.4 聚合对象优先占低槽 +
+// 标量分区排布）+ 条件取反 xor 物化；逐块控制流/字段偏移/日志行号常量已核。
+// 本波复核：jcc 目标下标逐位全等（666 件审计含本件）；p167 差集仅 C1↔C2/D1↔D2
+// 同址别名（ORIG 调用点用 C2/D2，4.1 同址发射；P93 伪差集）；无 call*（无虚槽）；
+// 残余帧差 = 我方多 1 个具名 state 槽（RowState，ORIG 以 ebx 表达式承载）。
+// ORIG T 0x088dc069。主循环分 [dungeon]/[server] 两段：
+//  返回 1＝正常结束/EOF/未知类型（均 esi=1 出口）；0＝[server] 行解析错误（esi=0）。
+// [P248 档①] 返回 bool（全部 return 为常量 0/1 ⇒ 机器码与 int 版逐条相同）。
 bool applyChannelScript(channel_script_t* script)
 {
     std::string token;

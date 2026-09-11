@@ -1,3 +1,7 @@
+// ORIG T 0x089bd03b _Z20IsDamageActiveStatusi：
+// status<=0xb && ((1<<status) & 0xac4)。ORIG 形：bool 局部汇聚（089bd042
+// movb $0,-0x5；两写点 089bd065/089bd06b）+ **无符号边界**（089bd046
+// cmpl $0xb,0x8(%ebp) 直比参数槽 + ja，P137/P2）+ 末尾 movzbl 读回。
 bool IsDamageActiveStatus(int status)
 // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P209），本波翻正位测试]
 // 本波：位测试改 P231 纯 register（`register int bit = 1 << status;`，非 asm

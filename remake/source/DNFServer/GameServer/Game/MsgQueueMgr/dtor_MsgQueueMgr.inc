@@ -1,1 +1,3 @@
 MsgQueueMgr::~MsgQueueMgr()
+{
+}

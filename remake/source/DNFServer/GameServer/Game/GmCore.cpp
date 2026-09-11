@@ -27,178 +27,67 @@ namespace game_master
 
 
 #include "GmCore/HandleRequest.inc"
-{
-    // b26 NEAR 封顶:虚调用 vtable 项寄存器 ORIG 4.1 用 %ecx、4.4 恒 %eax
-    // (负例 N7,临时/引用/限定名均不可翻),余逐条相等。
-    if (m_next != 0)
-    {
-        m_next->HandleRequest(cmd);             // ORIG：虚调用 vtable[0]
-    }
-}
+
 
 
 
 #include "GmCore/HandleRequest_1.inc"
-{
-    // 链尾：校验通过即执行，失败静默丢弃。
-    // b26 NEAR 封顶:N7(虚调用 callee 寄存器 %ecx↔%eax 互换)。
-    if (cmd->HasSeniorPermission())             // ORIG：vtable[3]，test %al
-    {
-        cmd->executeTemplate();
-    }
-}
+
 
 
 
 #include "GmCore/HandleRequest_2.inc"
-{
-    // b26 NEAR 封顶:N7(虚调用 callee 寄存器 %edx↔%eax 互换)。
-    if (cmd->HasJuniorPermission())             // ORIG：vtable[2]，test %al
-    {
-        cmd->executeTemplate();
-    }
-    else
-    {
-        IGameMaster::HandleRequest(cmd);        // 非虚转发 m_next（ORIG 直呼基类实现）
-    }
-}
+
 
 // ---- CCommand ----
 
 
 #include "GmCore/SetParser.inc"
-{
-    m_parser = parser;
-}
+
 
 #include "GmCore/GetUser.inc"
-{
-    return m_parser->m_user;                    // parser+0x04
-}
+
 
 #include "GmCore/executeTemplate.inc"
-{
-    // b26 NEAR 封顶:N7(两处虚调用 callee 寄存器 %edx↔%eax 互换)。
-    parse();                                    // ORIG：先 vtable[1]
-    execute();                                  // 后 vtable[0]
-}
 
-// ---- CParser ----
+
 #include "GmCore/CParser.inc"
-    : m_cmdName(), m_args(), m_line(), m_extra()
-{
-    // ORIG 仅构造 3 个 string 与 +0x11c vector；m_user/m_pos/m_id/m_buf 不初始化
-    //（由 GM 入口填充，ORIG 行为如此）。
-}
+
 
 #include "GmCore/dtor_CParser.inc"
-{
-}
 
-// [b28d-solo-GmCore] 具名块级局部（head/tail）令 4.4 槽序反转为 -0xc/-0x10；改
-// **匿名表达式临时**（substr 结果直接赋给成员）后 4.4 复现 ORIG 的 -0x10/-0xc
-// 与块尾析构点（探针 fF/fH 实证；具名→匿名是槽向旋钮，语义不变）。
+
 #include "GmCore/parse.inc"
-{
-    m_line = m_buf;                             // operator=(string&, const char*)
-    m_pos = static_cast<int>(m_line.find(" ", 0));
-    // ORIG：substr 的 sret 临时直接赋给成员（head@-0x10 先、tail@-0xc 后），块尾即毁。
-    {
-        m_cmdName = m_line.substr(0, m_pos);
-    }
-    {
-        m_args = m_line.substr(m_pos + 1, std::string::npos);
-    }
-    trim(m_cmdName);
-    m_id = atoi(m_cmdName.c_str());
-}
 
-// ---- CCommandMap ----
+
 #include "GmCore/CCommandMap.inc"
-    : m_byId(),
-      m_byName(10, std::hash<std::string>(), std::equal_to<std::string>())
-{
-    // ORIG：unordered_map 以 bucket_count=10 直接构造。
-}
 
-// [b28d-solo-GmCore] AE | ORIG 0x082a7d88 | 双容器（map+unordered_map）迭代器析构
-// 循环逐条全等（含两段 EH landing）；show_func_diff ndiff=0，仅 .o 未解析重定位
-// 显示差（call 目标）属 AE 归一范围。
+
 #include "GmCore/dtor_CCommandMap.inc"
-{
-    // ORIG 双遍历：id 侧与名字侧各按迭代器取 second，判空后 delete。
-    for (std::map<int, CCommand*>::iterator it = m_byId.begin(); it != m_byId.end(); ++it)
-    {
-        CCommand* cmd = it->second;
-        if (cmd != 0)
-        {
-            delete cmd;
-        }
-    }
-    for (std::unordered_map<std::string, CCommand*>::iterator it = m_byName.begin();
-         it != m_byName.end(); ++it)
-    {
-        CCommand* cmd = it->second;
-        if (cmd != 0)
-        {
-            delete cmd;
-            cmd = 0;
-        }
-    }
-}
+
 
 #include "GmCore/add.inc"
-{
-    m_byId.insert(std::make_pair(id, cmd));
-}
+
 
 #include "GmCore/add_1.inc"
-{
-    // ORIG pair ctor 模板 C1IRSsRS3_EEOT_OT0_（引用绑定）直接构造 value_type 临时，
-    // 由 insert(RKS5_) 按引用消费 ⇒ 禁 make_pair（值 pair 额外一次拷贝构造+析构）。
-    m_byName.insert(std::pair<const std::string, CCommand*>(name, cmd));
-}
+
 
 #include "GmCore/get.inc"
-{
-    std::map<int, CCommand*>::iterator it = m_byId.find(id);
-    if (it != m_byId.end())
-    {
-        return it->second;
-    }
-    return 0;
-}
+
 
 #include "GmCore/get_1.inc"
-{
-    std::unordered_map<std::string, CCommand*>::iterator it = m_byName.find(name);
-    if (it != m_byName.end())
-    {
-        return it->second;
-    }
-    return 0;
-}
 
-// ---- CGameMasterMgr ----
+
 #include "GmCore/GetDispatcher.inc"
-{
-    return G_PacketDispatcher()->get_dispatcher(code);
-}
+
 
 #include "GmCore/HandleRequest_3.inc"
-{
-    // b26 NEAR 封顶:N7(虚调用 callee 寄存器 %ecx↔%eax 互换)。
-    m_junior->HandleRequest(cmd);                       // ORIG：junior vtable[0]
-}
+
 
 #include "GmCore/GetCommand.inc"
-{
-    return m_cmdMap.get(id);
-}
+
 
 #include "GmCore/GetCommand_1.inc"
-{
-    return m_cmdMap.get(name);
-}
+
 
 } // namespace game_master

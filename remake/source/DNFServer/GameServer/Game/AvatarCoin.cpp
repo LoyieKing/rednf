@@ -39,36 +39,16 @@ public:
 #include "AvatarCoin/AvatarCoin.inc"
 
 #include "AvatarCoin/Set.inc"
-{
-    m_coin = value;
-}
+
 
 #include "AvatarCoin/Add.inc"
-{
-    m_coin += value;
-    return 1;  // ORIG 恒返回 1
-}
+
 
 #include "AvatarCoin/Get.inc"
-{
-    return m_coin;
-}
 
-// ORIG 0x0817ff44（IsUsable.md）：mov (%eax),%eax / test / setne %al / ret ——
-// 直返 m_coin != 0，无 movzbl 规范化（P9/P22：char 返回只需 %al）。
+
 #include "AvatarCoin/IsUsable.inc"
-{
-    return m_coin != 0;
-}
 
-// ============================================================================
-// AvatarRoulette::isAvatarCoin —— ORIG T 0x08911da0（range 0x10）
-// 汇编：mov 0x8(%ebp),%eax / mov (%eax),%eax（读 +0x00 m_avatarCoinInfo）/
-//       cmp 0xc(%ebp),%eax / sete %al / pop / ret
-// 即 bool 直返 m_avatarCoinInfo == avatarCoin（sete %al 后无 movzbl 规范化，
-// bool 返回形态；Ghidra 反编译的 *(ulong*)this 为 8 字节读伪影，真实只读 4 字节）。
-// ============================================================================
+
 #include "AvatarCoin/isAvatarCoin.inc"
-{
-    return m_avatarCoinInfo == avatarCoin;
-}
+

@@ -1,3 +1,7 @@
+// ORIG _ZN13user_creature12CDBMsgSender8RecvMailEP10Inven_Itemiiii W 0x833ff34：
+// GetInBuffer<SIG_CREATURE_ITEM> → memset 0x74 → setCopy → 逐字段填充。
+// [b28d-23 N·P30/N4] 临时 this 取址：ORIG `lea 0x4(%eax),%edx` vs 4.4 `add $0x4,%eax`（+1 mov）⇒ N。ORIG 0x0833ff34
+// [b28d-solo-CCreatureMgr AE] P235 m_itemView.setCopy 出 ORIG lea（N107 cast 形恒 add 的边界）；ORIG 0x833ff34
 bool CDBMsgSender::RecvMail(Inven_Item* item, int characNo, int slot,
                             int reason, int mapSize)
 {

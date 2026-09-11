@@ -1,3 +1,6 @@
+// 布局（ORIG 汇编实证）：Packet_Emblem_Create_Statistic(0x17a4, 0x36)
+// + count@slots[0](+0xa) + grades@slots[i+1](+0xe) + addInfo@slots[i+6](+0x22)，
+// SendPacket(pkt, 0x36)。迭代器 while 循环（ORIG __gnu_cxx::operator!= 判续）。
 void Dispatcher_CompoundEmblem::SendCreateEmblemInfo(
     const std::vector<std::pair<int, int> >& created)
 {

@@ -1,3 +1,5 @@
+// ORIG T 0x0891063b。[Seria Blessing] 段每行 key + 5 int 写满 map 值；
+// 任一 int 断流即按 ORIG 行号常量返回（init.md 非 0 = Fail）。
 int ImportSeriaBlessingScript(const char* path, stSeriaBlessingScript& out)
 {
     if (!loadRDARScriptFile("", path))

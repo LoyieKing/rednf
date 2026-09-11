@@ -1,1 +1,5 @@
+// ---- OnlyOrigBatch3：CHARAC_QUEST_SHOP_DATA（ORIG C1 W 0x0848f862 / clear W 0x0848f83e）----
 CHARAC_QUEST_SHOP_DATA::CHARAC_QUEST_SHOP_DATA()
+{
+    clear();
+}

@@ -199,3 +199,5 @@ int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
 
     return 0;
 }
+
+int Dispatcher_CompoundEmblem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { (void)user; (void)msg; (void)param; return 0; }

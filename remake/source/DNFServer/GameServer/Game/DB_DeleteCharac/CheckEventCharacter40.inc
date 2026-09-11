@@ -1,3 +1,8 @@
+// ============================================================================
+// DB_DeleteCharac::CheckEventCharacter40 @0x08403324
+// charac_info 查 event_charac_level（m_id=accId 串、delete_flag=0）；
+// exec/fetch/get_int 失败 → 0；level==0 → 0；否则 1。
+// ============================================================================
 bool DB_DeleteCharac::CheckEventCharacter40(SIG_DELETE_CHARAC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,

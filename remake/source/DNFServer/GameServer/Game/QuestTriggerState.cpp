@@ -42,10 +42,7 @@
 #include "QuestTriggerState.h"
 
 #include "QuestTriggerState/stQuestTriggerState_t.inc"
-{
-    // ORIG：movl $0x0,(%eax); movl $0x0,0x4(%eax) —— 按 8 字节（2×int）整块清零
-    *(long long*)this = 0;
-}
+
 
 void stQuestTriggerState_t::operator=(int const& v)
 {
@@ -62,60 +59,10 @@ void stQuestTriggerState_t::operator=(int const& v)
 }
 
 #include "QuestTriggerState/incTirggerState.inc"
-{
-    // ORIG 0x086ad602：读 `movzwl; andw $0x1ff,%ax; movzwl %ax,%eax; cmp $0x3fe`，
-    // 自增段 `movzwl; andw $0x1ff,%ax; add $0x1,%eax; andw $0x1ff,%ax` + 位域写回
-    // （保留高 7 位）。位域 `++m_triggerN` 逐条复现（探针 /tmp/qts/b.cpp，73=73）。
-    if (v & 0x10)
-    {
-        if (m_trigger0 <= 0x3fe)
-            ++m_trigger0;
-    }
-    if (v & 0x20)
-    {
-        if (m_trigger1 <= 0x3fe)
-            ++m_trigger1;
-    }
-    if (v & 0x40)
-    {
-        if (m_trigger2 <= 0x3fe)
-            ++m_trigger2;
-    }
-}
+
 
 #include "QuestTriggerState/subTriggerState.inc"
-{
-    if (v == 0)
-    {
-        // ORIG 0x086ad6fc：`mov (%eax),%eax; lea -1(%eax),%edx; mov %edx,(%eax)` ——
-        // 对 +0x00 的 4 字节视图（m_trigger0/m_trigger1 同容器）裸自减 1（m_low32）。
-        --m_low32;
-        return;
-    }
-    // ORIG 自减段：读同 inc（`add $0x1ff,%ax` 即 16 位 -1）+ 位域写回保留高 7 位。
-    if (v & 0x10)
-    {
-        if (m_trigger0 > 0)
-            --m_trigger0;
-    }
-    if (v & 0x20)
-    {
-        if (m_trigger1 > 0)
-            --m_trigger1;
-    }
-    if (v & 0x40)
-    {
-        if (m_trigger2 > 0)
-            --m_trigger2;
-    }
-}
 
-// ORIG 0x0836dd68：每字段 `movzwl; andw $0x1ff,%ax; movzwl %ax,%eax`（位域读），
-// 后两字段 `shl` 后 `or %eax,-0x4(%ebp)` ⇒ 具名 int r + |= 形（探针 23=23）。
+
 #include "QuestTriggerState/getTrigger.inc"
-{
-    int r = m_trigger0;
-    r |= (m_trigger1 << 9);
-    r |= (m_trigger2 << 18);
-    return r;
-}
+

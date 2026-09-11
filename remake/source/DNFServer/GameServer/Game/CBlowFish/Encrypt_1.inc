@@ -1,1 +1,43 @@
 int CBlowFish::Encrypt(unsigned char* buf, unsigned int len, int mode)
+{
+    if (len == 0 || (len & 7) != 0)
+        return 0x70000006;
+    SBlock block(0, 0);
+    if (mode == 1)
+    {
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(buf, block);
+            block ^= link;
+            Encrypt(block);
+            link = block;
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    else if (mode == 2)
+    {
+        SBlock link(m_right);
+        for (; len > 7; len -= 8)
+        {
+            Encrypt(link);
+            BytesToBlock(buf, block);
+            block ^= link;
+            link = block;
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    else
+    {
+        for (; len > 7; len -= 8)
+        {
+            BytesToBlock(buf, block);
+            Encrypt(block);
+            buf += 8;
+            BlockToBytes(block, buf);
+        }
+    }
+    return 0x6fffffff;
+}

@@ -1,3 +1,11 @@
+// ORIG _ZN13user_creature9CCreature15GainExpCreatureEiP5CUser T 0x8337bbc
+// （GainExpCreature.md）：仅成长宠（m_isGrow==1）；饱食度截断 >0 才继续；
+// CalculateExp 结算经验；未满级或有升级 → GainExp 通知包（析构补发）；
+// 升级且可普通进化则 Evolute（失败整体返 0）；最后置 m_saveFlag=1 返回 1。
+// [b28d-solo-CCreatureMgr AE] 翻正三旋钮：①notify/canEvolute 去具名 bool（P0 表达式内联）；
+// ②`IsAbleEvolute` int→bool（P248 档①，ORIG 调用点 0x8337d11 `test %al,%al`）；
+// ③`({ levelUp && IsAbleEvolute(user); })` 语句表达式 + 嵌套 if 复现 ORIG 物化岛 + 直跳（P226）。
+// 127=127 逐条全等。ORIG 0x8337bbc
 bool CCreature::GainExpCreature(int exp, CUser* user)
 {
     bool levelUp = false;

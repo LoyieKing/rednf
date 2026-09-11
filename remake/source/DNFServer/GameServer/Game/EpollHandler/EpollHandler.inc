@@ -1,1 +1,4 @@
 EpollHandler::EpollHandler()
+{
+    init();
+}

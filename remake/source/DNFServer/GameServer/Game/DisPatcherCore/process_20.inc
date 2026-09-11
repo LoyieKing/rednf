@@ -1,3 +1,4 @@
+// ORIG 0x081c9c54 T process（process.md 全文转写）。
 int DisPatcher_SortItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

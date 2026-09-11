@@ -1,3 +1,4 @@
+// ORIG 0x081c98c8 T _ZN17DisPatcher_SetPos7processEP5CUserR8MSG_BASER9ParamBase
 int DisPatcher_SetPos::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

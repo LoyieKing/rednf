@@ -27,71 +27,19 @@ char* NumberToString(unsigned int value, int radix);   // 定义 LinkFinalDeps.c
 namespace OS_API
 {
 
-// ORIG 0x0858c53a _ZN6OS_API4ExitEi：直接 exit。
 #include "OS_API/Exit.inc"
-{
-    exit(exitCode);
-}
 
-// ORIG 0x0858c6d4 _ZN6OS_API17WriteLastBookmarkEPKci：
-// fopen(path,"wb") 成功则 fprintf "bm:%d" 后 fclose。
+
 #include "OS_API/WriteLastBookmark.inc"
-{
-    FILE* f = fopen(path, "wb");
-    if (f != 0)
-    {
-        fprintf(f, "bm:%d", value);
-        fclose(f);
-    }
-}
 
-// ORIG 0x0858c54c _ZN6OS_API12WriteLastSigEPKcS1_iiPKvi：
-// 256 栈缓冲清零 → sprintf "./log/%s/%s" → fopen("wb") →
-// fprintf "K:%d C:%d P:%p SZ:%d\n" → fclose。
+
 #include "OS_API/WriteLastSig.inc"
-{
-    char path[256] = { '\0' };
-    sprintf(path, "./log/%s/%s", dir, name);
-    FILE* f = fopen(path, "wb");
-    if (f != 0)
-    {
-        fprintf(f, "K:%d C:%d P:%p SZ:%d\n", k, c, p, sz);
-        fclose(f);
-    }
-}
 
-// ORIG 0x0858c5f4 _ZN6OS_API12WriteLastSigEPKcS1_jiiPKviiiiii：
-// 512 栈缓冲清零 → sprintf "./log/%s/%s" → NumberToString(u,0) →
-// CMyFileLog(__PRETTY_FUNCTION__, 0x4e) → log(path, "U:%s ...", us, 后续 9 参)。
+
 #include "OS_API/WriteLastSig_1.inc"
-                  int k, int c, void const* p,
-                  int tq, int dq, int nq, int dbq, int logdbq, int extra)
-{
-    char path[512] = { '\0' };
-    sprintf(path, "./log/%s/%s", dir, name);
-    register char* us = NumberToString(u, 0);
-    CMyFileLog log(__PRETTY_FUNCTION__, 0x4e);
-    log(path,
-        "U:%s K:%d C:%d P:%p SZ:%d TimerQ:%d DispatchQ:%d NetworkQ:%d DBQ:%d, LOGDBQ:%d\n",
-        us, k, c, p, tq, dq, nq, dbq, logdbq, extra);
-}
 
-// ORIG 0x0858c71e _ZN6OS_API14WriteLoginInfoEPKcS1_z：
-// fopen(path,"wb") 成功则 vsprintf 到 1024 栈缓冲 → fputs → fclose。
+
 #include "OS_API/WriteLoginInfo.inc"
-{
-    char buf[1024];
-    va_list ap;
-    FILE* f = fopen(path, "wb");
-    if (f != 0)
-    {
-        va_start(ap, fmt);
-        vsprintf(buf, fmt, ap);
-        va_end(ap);
-        fputs(buf, f);
-        fclose(f);
-    }
-    return;
-}
+
 
 }  // namespace OS_API

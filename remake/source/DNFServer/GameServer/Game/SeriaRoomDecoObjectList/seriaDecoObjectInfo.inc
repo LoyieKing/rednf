@@ -1,1 +1,2 @@
+// ---- seriaDecoObjectInfo ----
 seriaDecoObjectInfo::seriaDecoObjectInfo() {}

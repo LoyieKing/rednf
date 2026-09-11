@@ -1,3 +1,13 @@
+// ORIG 0x0815c6a8：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
+// (9,0) null → throw "handle null"；set_query("seLect m_id from
+// mobile_auth_reward_tw where m_id=%s", NumberToString(msg->m_id))；exec 失败
+// throw "select_exec"；get_n_rows()==0 → 插行 exec 失败 throw "insert_exec"、
+// ok=false、cMyTrace(0x2be) 插行日志；否则 ok=true、cMyTrace(0x2c3) 查行日志；
+// InterSelectMobileAuthReward::makeRequest(uid, msg->m_id, ok)；catch
+// logFormat(0x2cd) 返 0。成功返 1。
+// [b28d-solo-TaiwanDBDispatcher] AE（171/171）：删 mId 具名缓存（P183/P0，ORIG 每处
+// 直读 `mov -0x14(%ebp),%eax; mov (%eax),%eax`）后帧 0x60→0x50、bool 槽 -0x19→-0x15、
+// trace 临时槽 -0x3c→-0x38 全归零。
 bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
 {
     // [b28d-solo-TaiwanDBDispatcher] 语义闭合：msg-null/handle-null throw、set_query

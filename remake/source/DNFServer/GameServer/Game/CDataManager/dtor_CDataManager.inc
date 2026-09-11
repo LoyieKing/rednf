@@ -1,1 +1,4 @@
 CDataManager::~CDataManager()
+{
+    destroy();
+}

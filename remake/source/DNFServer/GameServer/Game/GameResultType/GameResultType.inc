@@ -1,1 +1,4 @@
 GameResultType::GameResultType()
+{
+    Clear();
+}

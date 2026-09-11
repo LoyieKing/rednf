@@ -27,40 +27,22 @@ int CServerEvent::m_nCurEvent[0x100] = {0};    // 0x943c13c
 int CServerEvent::m_nCurEventInterval[0x100] = {0};  // 0x943c144
 
 #include "CServerEvent/GetExpRate.inc"
-{
-    return m_nExpRate;
-}
+
 
 #include "CServerEvent/AddExpRate.inc"
-{
-    m_nExpRate += rate;
-    return m_nExpRate;
-}
+
 
 #include "CServerEvent/SubExpRate.inc"
-{
-    m_nExpRate -= rate;
-    return m_nExpRate;
-}
+
 
 #include "CServerEvent/IsEventing.inc"
-{
-    return m_nCurEvent[idx] == 1;
-}
+
 
 #include "CServerEvent/TurnOnEvent.inc"
-{
-    m_nCurEvent[idx] = 1;
-    m_nCurEventInterval[idx] = durationSecond;
-}
+
 
 #include "CServerEvent/TurnOffEvent.inc"
-{
-    m_nCurEvent[idx] = 0;
-    m_nCurEventInterval[idx] = 0;
-}
+
 
 #include "CServerEvent/GetEventInterval.inc"
-{
-    return m_nCurEventInterval[idx];
-}
+

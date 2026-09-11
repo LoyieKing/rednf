@@ -20,9 +20,7 @@
 
 
 #include "CCirculationStatistic/reset.inc"
-{
-    memset(m_values, 0, sizeof(m_values));
-}
+
 
 CCirculationStatistic* GetInstanceCirculationStatistic()
 {
@@ -30,129 +28,8 @@ CCirculationStatistic* GetInstanceCirculationStatistic()
     return &instance;
 }
 
-// ORIG 0x0860daaa：无 user 判空、无 level 局部缓存（get_charac_level 在条件里被
-// 调两次、错误分支再调一次、命中分支各调一次），且槽位不是 map::operator[] 而是
-// find/end 比较 + 未命中时栈上零初始化记录 insert(make_pair(...))。
-// [M4FreeNext15C.M4S1 round5] 形归位后 150/150（残余仅寄存器形，两处同数量）：
-//   · 条件段 ORIG 0x0860daf0 `mov $1,%eax / jmp +0x46 / mov $0,%eax / test %al,%al
-//     / je 0860db52(+0xa8)` —— 探针实证：含调用的短路链**直接**作 if 条件即产此形
-//     （赋给具名 bool 才落 `mov %al,-0x19; cmpb` 栈槽，旧判「P0/P168a③b 不可翻」推翻）。
-//   · 命中分支 ORIG 0x0860dbcd `call ptEv; add $0x4,%eax; mov %eax,-0x1c(%ebp)` 具名
-//     `&it->second` 物化槽，读/写各重载一次（我方旧形用 `+4` disp 折平，少 3 条）。
-//   · 残余 2 处皆为寄存器选择（读回 `mov (%ebx,%eax,4),%eax` 后 ORIG `mov %eax,%ebx;
-//     add value,%ebx` vs 我方 `add value,%eax; mov %eax,%ebx`；insert 分支 ORIG
-//     `lea (%eax,%ecx,1),%edx` 双层索引 vs 我方 `add %ebx,%eax` 单层）——同数量、同语义。
 #include "CCirculationStatistic/AddCirculationStatistic.inc"
-                                                       unsigned int value)
-{
-    // [M4FreeNext15C.M4S1 round5 归位] ORIG 0x0860daaa `mov $1,%eax / jmp +0x46 /
-    // mov $0,%eax / test %al,%al / je 0860db52` —— 0/1 物化留在 %al 直测、无栈槽。
-    // 旧判「bool 槽 `mov %al,-0x19; cmpb` 不可翻」已被探针推翻：4.4 对**含调用的
-    // 短路链直接作 if 条件**（探针 b1/b2/b4/b7 四形）即产该形；一旦把表达式赋给
-    // 具名 bool（b8）才落栈槽。⇒ 删具名 wrongIndex 内联回 if 条件。
-    if (!(field >= 0 && field < 0x30 &&
-          user->get_charac_level() > 0 &&
-          user->get_charac_level() < 0x47))
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0x39b, 0)(
-            "CIRCULATION_STATISTIC wrong index (%d,%d)", field, user->get_charac_level());
-        return false;
-    }
 
-    std::map<ENUM_SERVER_GROUP, stCirculationStatistic>::iterator it =
-        m_data.find(user->GetServerGroup());
-    // [L6-S1 P167/P220] ORIG 0x0860dbb0 段：`call _Rb_tree_iterator::operator!=;
-    // test %al,%al; je 0860dc0e(insert 分支)` —— 命中分支（+=）直落、insert 后置
-    // ⇒ 原码是**正极性** `it != end()`；旧 `== end()` 负极性使 p167 出现
-    // MISSING operator!= / EXTRA operator== 且两臂块序相反（MISSING/EXTRA 各 1）。
-    if (it != m_data.end())
-    {
-        // [M4FreeNext15C.M4S1 round5 归位] ORIG 0x0860dbcd 段：`call ptEv` 后
-        // `add $0x4,%eax / mov %eax,-0x1c(%ebp)`（具名 `&it->second` 物化槽），
-        // 随后读/写各**重载一次**该槽（`mov -0x1c(%ebp),%ebx` / `%ecx`）并各自
-        // 重算一遍索引 —— 即原码把 second 取址存具名指针局部（P329 反向：
-        // ORIG 有具名物化、我方此前直接 `it->second.m_values[...]` 用 +4 disp 折平）。
-        stCirculationStatistic* pStat = &it->second;
-        pStat->m_values[user->get_charac_level()][field] += value;
-    }
-    else
-    {
-        stCirculationStatistic stat;
-        memset(&stat, 0, 0x3540);
-        stat.m_values[user->get_charac_level()][field] = value;
-        m_data.insert(std::make_pair(user->GetServerGroup(), stat));
-    }
-    return true;
-}
 
-// ORIG T 0x0860dccc sz 0x184（InsertCirculationStatistic.md 全文已读）：
-// 遍历 m_data（map<ENUM_SERVER_GROUP,stCirculationStatistic>）；每条目 level 1..0x46
-// 有任一 field 值非 0 → 构造 Packet_Circulation_Statistic（0xd0 字节）：
-//   ctor(0x086100f8)→m_fieldCE=get_channel_no()→m_channelLevel=level→memcpy(数据, level*0xc0)
-//   → GetServerProxy(group).SendPacket(buf,0xd0)；全部 level 发送完 → reset。
-// 注意：局部包对象在栈上，ctor 置 +0x0a/+0xce 为 0（Packet_Circulation_Statistic.h
-// 初始化列表已对位）。
-// [M4FreeNext15C.M4S1 round5 · 语义轴 ③ 字段错位] ORIG 0x0860dd84 `mov %ax,-0x26(%ebp)`
-// 落 **+0xce**（16 位）、ORIG 0x0860dd88 `mov -0x14(%ebp),%eax; mov %eax,-0xea(%ebp)`
-// 落 **+0xa**（**32 位**）⇒ 原码是 `m_fieldCE = get_channel_no(); m_channelLevel = level;`，
-// 旧我方两条 16 位 `fields.m_channel/.m_level` 写把 channel 错放到 +0xa、level 错放到 +0xc。
-// [待 .h 裁定 · 签名轴] ORIG 0x0860de46 `mov $0x1,%eax`（for 退出路径、`mov -0x4(%ebp),%ebx`
-// 之前）= **返回 1**。已落地：父泳道改 CCirculationStatistic.h 为 `bool`，本 TU
-// 定义侧同步 `.inc` 签名 + 末尾 `return true;` ⇒ 单件 ndiff=0（该 +1 条补齐 108→109）。
 #include "CCirculationStatistic/InsertCirculationStatistic.inc"
-{
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0860dccc 槽组整体平移 4（-0xf4/-0x1c vs -0xf8/-0x20）。
-    // [L6-S1 P0/P183 归位] 真因 = 具名 `CStatisticServerProxy* proxy` 多占 4B 槽（我方
-    // 多 `mov %eax,-0x10(%ebp)` + 调用点回载两条）：ORIG 0x0860ddd2 后直接
-    // `movl $0xd0,0x8(%esp); mov %ebx,0x4(%esp); mov %eax,(%esp); call SendPacket`
-    // ⇒ 原码是 `GetServerProxy(group)->SendPacket(...)` 内联实参形（P134）。删具名后
-    // 槽组整体回位（-0x28/-0x20/-0x1c/-0x18/-0xf8 → ORIG 的 -0x24/-0x1c/-0x18/-0x14/-0xf4）。
-    // [M4FreeNext15C.M4S1 round5 归位 · P326] ORIG 0x0860dccc 的 for 骨架：
-    // 函数头 `lea -0x24(%ebp); call begin` 后**直接 jmp +0x14b**，而尾块 +0x14b
-    // `lookup end()`（`call 08611440`，写临时 -0x20）+ `operator!=(it,-0x20)` +
-    // `jne 体` —— 即 end() 在**条件块内每次迭代现调**、临时返回槽 -0x20 复用，
-    // 不是循环前缓存的第二个具名迭代器。旧我方 `it=begin(), endIt=end()` 使
-    // begin/end 在序言里连调（-0x20/-0x24 顺序亦反）且条件块只剩 operator!=。
-    for (std::map<ENUM_SERVER_GROUP, stCirculationStatistic>::iterator it =
-             m_data.begin();
-         it != m_data.end(); ++it)
-    {
-        const ENUM_SERVER_GROUP group = it->first;
-        stCirculationStatistic& stat = it->second;
-        for (int level = 1; level <= 0x46; ++level)
-        {
-            bool hasValue = false;
-            for (int field = 0; field <= 0x2f; ++field)
-            {
-                if (stat.m_values[level][field] != 0)
-                {
-                    hasValue = true;
-                    break;
-                }
-            }
-            if (!hasValue)
-                continue;
 
-            Packet_Circulation_Statistic packet;
-            // [M4FreeNext15C.M4S1 round5 · 语义轴 ③ 字段错位] ORIG 0x0860dd84
-            // `mov %ax,-0x26(%ebp)` 落 **+0xce**（m_fieldCE，16 位），
-            // ORIG 0x0860dd88 `mov -0x14(%ebp),%eax; mov %eax,-0xea(%ebp)` 落
-            // **+0xa**（m_channelLevel，**32 位**）—— 即原码是
-            // `m_fieldCE = get_channel_no(); m_channelLevel = level;`，
-            // 不是 `fields.m_channel/fields.m_level` 两条 16 位写（后者发
-            // `mov %ax,-0xea / mov %ax,-0xe8` 两条，字段错位到 +0xa/+0xc）。
-            packet.m_fieldCE =
-                static_cast<unsigned short>(G_CEnvironment()->get_channel_no());
-            packet.m_channelLevel = level;
-            memcpy(packet.m_data, stat.m_values[level],
-                   0x30 * sizeof(int));
-            GlobalData::s_statistic_proxy_mgr->GetServerProxy(group)
-                ->SendPacket(reinterpret_cast<char*>(&packet), 0xd0);
-        }
-        stat.reset();
-    }
-    // [M4FreeNext15C.M4S1 round5 · 签名轴落地] ORIG 0x0860de46 `mov $0x1,%eax` 位于
-    // for 退出路径（`jne 体` 的失败边）与 `mov -0x4(%ebp),%ebx; leave; ret` 之间
-    // ⇒ 原码为 `return true;`（.h 已由父泳道改 `bool InsertCirculationStatistic();`）。
-    return true;
-}

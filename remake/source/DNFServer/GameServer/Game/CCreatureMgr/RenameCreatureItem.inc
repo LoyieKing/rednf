@@ -1,3 +1,7 @@
+// ============================================================================
+//   m_hdr|=0x200；+0x30(m_addInfo2)=uid；name 拷入 +0x34（m_pad34 名字区，截 0xc）；
+//   返回 1。hdr 位/name 位置依同族（UseFeedCreature|0x2 等）推断，无独立报告。
+//   （ORIG asm 833fbe9..833fc1a 无 buf 判空、无 name 判空。）
 bool CDBMsgSender::RenameCreatureItem(int uid, const char* name)
 {
     if (m_stream == 0)

@@ -17,6 +17,4 @@
 #include "CDungeon.h"
 
 #include "MazeScript/getGridR.inc"
-{
-    return m_grids[m_width * y + x];
-}
+

@@ -14,21 +14,13 @@
 #include "CUser.h"
 
 #include "CCharacterView/reset.inc"
-{
-    disableSaveCharacView();
-}
+
 
 #include "CCharacterView/enableSaveCharacView.inc"
-{
-    m_bSaveCharacView = true;
-}
+
 
 #include "CCharacterView/isSaveCharacView.inc"
-{
-    return m_bSaveCharacView;
-}
+
 
 #include "CCharacterView/disableSaveCharacView.inc"
-{
-    m_bSaveCharacView = false;
-}
+

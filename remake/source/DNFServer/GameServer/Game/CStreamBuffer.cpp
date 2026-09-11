@@ -17,23 +17,13 @@
 #include <string.h>
 
 #include "CStreamBuffer/CStreamBuffer.inc"
-{
-    memset(m_buf, 0, sizeof(m_buf));
-}
+
 
 #include "CStreamBuffer/c_str.inc"
-{
-    return m_buf;
-}
+
 
 #include "CStreamBuffer/AppendString.inc"
-{
-    unsigned int slen;
-    unsigned int n;
-    n = maxlen - strlen(dst) - 1;
-    slen = strlen(src);
-    strncat(dst, src, std::min(slen, n));
-}
+
 
 CStreamBuffer& CStreamBuffer::operator<<(const char* v)   // 0x08626a4a "%s"
 {

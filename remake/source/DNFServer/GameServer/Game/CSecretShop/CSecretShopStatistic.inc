@@ -1,1 +1,3 @@
 CSecretShopStatistic::CSecretShopStatistic()
+{
+}

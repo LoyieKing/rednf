@@ -1,1 +1,3 @@
 TimeLineSummary::~TimeLineSummary()
+{
+}

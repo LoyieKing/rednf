@@ -1,3 +1,4 @@
+// ORIG T 0x08105258 (0x1d)：tail-call ProcIPGSyncForTaiwan。
 SIPGData* CIPGMgr::CIPGWorker::ProcIPGSync(SIPGData* data)
 {
     // ORIG 帧 0xc8（仅一次 8 字节出参调用，其余为死局部）：P31 dummy local

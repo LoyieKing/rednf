@@ -1,3 +1,9 @@
+// [b14 本波] 循环体第二条 `m_moveSpeed[i+2]=0`：ORIG 0x08a3dc28 为
+// `add $0x8,%edx; movl $0,0x8(%eax,%edx,4)`（+2 折进 disp8），4.4 恒
+// `lea 0x2(%eax),%edx; add $0x8,%edx; movl $0,(%eax,%edx,4)`（+2 折进索引）。
+// 探针 /tmp/b14_probe3.cpp f1..f4（`[i+2]`/`[2+i]`/`(arr+2)[i]`/`*(arr+i+2)` 四形）
+// 全部产出 lea 形（后两形更劣 9 条）⇒ 判 N4/P30 索引常量分配跨版本差，封顶。
+// 其余 `m_moveSpeed[4]` 清零等本波已补（真语义缺口）。ndiff 5 / gap -1。
 void PetScript::clear()
 {
     m_idx0 = 0;

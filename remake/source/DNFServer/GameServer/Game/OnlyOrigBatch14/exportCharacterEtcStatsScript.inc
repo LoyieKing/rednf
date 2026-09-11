@@ -1,3 +1,22 @@
+// ORIG T 0x08a100f3 _Z29exportCharacterEtcStatsScriptP8_IO_FILEP17CharacterEtcStats。
+// [b28d 判词·N 封顶（N82 槽复用 + N85 x87）] 本波修：①第一循环加具名
+// ENUM_CATEGORY cat 局部（P0：ORIG 0x08a10151 槽往返 + 回读压参）。
+// [H10-b14wave14 本波·槽序归零] 两处修复（均 ORIG 逐地址实证）：
+//  ①`int i = 0;` → `int i;`：消我方多发的一条 `movl $0x0,-0x18(%ebp)`
+//    （ORIG 0x08a101f3 段仅一条 for-init 写；旧形声明初始化 + for-init 各写一次）
+//    ⇒ our_insns 118→117、ndiff 该 hunk 消失（P191/P328⑤）。
+//  ②`int j;` 由函数头移入 `if (i != 4)` 块内（for-init 单点赋值保留）：4.4 按
+//    内层块后声明占浅槽分配 ⇒ j@-0xc（ORIG 0x08a1024e）、i1@-0x14（ORIG
+//    0x08a10134）、cat@-0x10（ORIG 0x08a10151）、i2@-0x18（ORIG 0x08a101f3）
+//    四处与 ORIG 逐槽相同 ⇒ 原「N82 槽复用」两 hunk 全消。
+//  p167 CLEAR（14=14）。残余唯一差异 = N85 x87 lowering（ORIG 0x08a10215 段
+//  `fucompp;fnstsw %ax;sahf` vs 4.4 `fucomip %st(1),%st;fstp %st(0)`）。
+// [b14 A/B 实测·路由不提] N85 x87 lowering：默认 mne_delta =
+// {sahf:-1,fucompp:-1,fnstsw:-1,fucomip:+1,fstp:+1,movl:+1}（ndiff 55 / gap 0）；
+// 追加 `-march=i486 -mtune=generic`（Main 判据，须同带 mtune）后 x87 差异全消，
+// 但**新引入 1 条 movl**（gap 0→-1、ndiff 52），本件仍 DIFF，且整 TU 四数逐项
+// 不变（396+800=1196 / near 0 / diff 13 / missing 197；30 个函数指令形变化、
+// 0 件翻转）⇒ 依 Main 口径（仅整 TU 净收益才提路由）不提。
 void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
 {
     if (!stats->m_category.empty())

@@ -1,3 +1,4 @@
+// ORIG C1 0x08a5e7e6：构造成员后调 clear()。
 FAIR_PVP_SKILL_TREE_SKILL_PER_POINT::FAIR_PVP_SKILL_TREE_SKILL_PER_POINT()
 {
     clear();

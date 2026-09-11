@@ -1,3 +1,6 @@
+// b28d-40: 真 bug 已修（比较方向 >=）+ P183 去缓存 + goto fail 共享出口；
+// 残差 = ORIG ebx 缓存 roomIndex + 单累加器 add 链 vs 4.4 lea（N4/P30 封顶）。
+// ORIG 0x085be7aa。
 // [b28d-L5a 2026-09-11 落地 + 残差封顶] ORIG 0x085be6e2（71 条，每臂 25 条）：
 // push edi/esi/ebx 三 callee-saved；每臂 `movzwl %ax,%esi` + `movzwl %ax,%edi`
 // 两次**独立**零扩展（读/写地址各一份），索引链全 add，两处 this 各自装载

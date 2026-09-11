@@ -94,18 +94,7 @@ public:
 };
 
 #include "OrigDBInter19/SendResult.inc"
-                                   SIG_GET_USER_REGDATE* sig)
-{
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa4c1), true);
 
-    guard.operator*()->operator<<(userIdx);
-    guard.operator*()->operator<<(slot);
-    guard->put_binary(sig, 0xc);
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    return 1;
-}
 
 // ============================================================================
 // 2. DB_SecurityCardIssue::_sendResult —— ORIG 0x0842b410（_sendResult.md）：
@@ -123,37 +112,7 @@ public:
 };
 
 #include "OrigDBInter19/_sendResult.inc"
-                                       char const* param_3, char const* param_4,
-                                       char const* param_5, ENUM_ERROR error)
-{
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6dec), true);
 
-    guard.operator*()->operator<<(0xfd);
-    guard.operator*()->operator<<(param_1);
-
-    SecuIssueView* view = reinterpret_cast<SecuIssueView*>(
-        guard->GetInBuffer<SIG_SECURITY_CARD_ISSUE>());
-    view->m_error = error;
-    if (param_3 != 0)
-    {
-        strncpy(view->m_certKey, param_3, 0x21);
-    }
-    if (param_4 != 0)
-    {
-        strncpy(view->m_serverKey, param_4, 0x27);
-    }
-    if (param_5 != 0)
-    {
-        strncpy(view->m_phone, param_5, 5);
-    }
-    if (param_2 != 0)
-    {
-        strncpy(view->m_serial, param_2, 0xc);
-    }
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-}
 
 // ============================================================================
 // 3. DB_ReqQueryCharacInfo::_sendResult —— ORIG 0x08426e04（_sendResult.md）：
@@ -171,32 +130,7 @@ public:
 };
 
 #include "OrigDBInter19/_sendResult_1.inc"
-                                       int characNo, int job, int lev,
-                                       int growType, int sex, int field2e)
-{
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6716), true);
 
-    guard.operator*()->operator<<(0xc4);
-    guard.operator*()->operator<<(slot);
-
-    QueryCharacInfoView* view = reinterpret_cast<QueryCharacInfoView*>(
-        guard->GetInBuffer<SIG_QUERY_CHARAC_INFO>());
-    view->m_errCode = errCode;
-    if (errCode == 0)
-    {
-        strncpy(view->m_name, name, 0x1d);
-        view->m_characNo = characNo;
-        view->m_job = static_cast<unsigned char>(job);
-        view->m_lev = static_cast<short>(lev);
-        view->m_growType = static_cast<unsigned char>(growType);
-        view->m_sex = static_cast<unsigned char>(sex);
-        view->m_field2e = static_cast<unsigned char>(field2e);
-    }
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    return 1;
-}
 
 // ============================================================================
 // 4. DB_RequestTagCharacInfo::sendResult —— ORIG 0x084478a6（sendResult.md）：
@@ -212,20 +146,7 @@ public:
 };
 
 #include "OrigDBInter19/sendResult.inc"
-                                         SIG_REQUEST_TAG_CHARAC_INFO* sig)
-{
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb23f), true);
 
-    guard.operator*()->operator<<(0x2fe);
-    guard.operator*()->operator<<(param_1);
-
-    SIG_REQUEST_TAG_CHARAC_INFO* out =
-        guard->GetInBuffer<SIG_REQUEST_TAG_CHARAC_INFO>();
-    memcpy(out, sig, 0x414c);
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-}
 
 // ============================================================================
 // 5. DB_SecurityCardRetransfer::_sendResult —— ORIG 0x0842c7be（_sendResult.md）：
@@ -243,30 +164,4 @@ public:
 };
 
 #include "OrigDBInter19/_sendResult_2.inc"
-                                            char const* param_3,
-                                            char const* param_4, ENUM_ERROR error)
-{
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6fd2), true);
 
-    guard.operator*()->operator<<(0x138);
-    guard.operator*()->operator<<(param_1);
-
-    SecuRetransferView* view = reinterpret_cast<SecuRetransferView*>(
-        guard->GetInBuffer<SIG_SECURITY_CARD_RETRANSFER>());
-    view->m_error = error;
-    if (param_3 != 0)
-    {
-        strncpy(view->m_certKey, param_3, 0x21);
-    }
-    if (param_4 != 0)
-    {
-        strncpy(view->m_serverKey, param_4, 0x27);
-    }
-    if (param_2 != 0)
-    {
-        strncpy(view->m_serial, param_2, 0xc);
-    }
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-}

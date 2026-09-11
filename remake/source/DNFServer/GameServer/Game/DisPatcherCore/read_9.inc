@@ -1,3 +1,6 @@
+// ORIG 0x081c3d46 T _ZN22DisPatcher_GetUserInfo4readER9PacketBufR8MSG_BASE
+// （报告 DisPatcher_GetUserInfo/read.md 逐块映射）：get_short→msg+0xd、
+// get_byte→msg+0xf；失败各走 LineFunc(0xf5b/0xf5d, PRETTY, 0, 0)。
 int DisPatcher_GetUserInfo::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

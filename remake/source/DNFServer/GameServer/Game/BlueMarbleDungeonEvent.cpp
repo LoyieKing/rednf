@@ -22,39 +22,17 @@
 
 #include "GameTypes.h"   // cMyTrace
 
-// ORIG 0x080dc470：仅基类构造 + vptr 置位。
 #include "BlueMarbleDungeonEvent/BlueMarbleDungeonEvent.inc"
-{
-}
 
-// ORIG 0x080dc48c / 0x080dc4bc：空体 + 虚析构由编译器生成同形。
+
 #include "BlueMarbleDungeonEvent/dtor_BlueMarbleDungeonEvent.inc"
-{
-}
 
-// ORIG 0x080dc4da：SetEventFlag(true) + cMyTrace(__FUNCTION__, 0x16, 0)
-//   ("BlueMarbleDungeonEvent Start!")。__FUNCTION__ 名（0x0b 长度符号）。
+
 #include "BlueMarbleDungeonEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x16, 0);
-    trace("BlueMarbleDungeonEvent Start!");
-}
 
-// ORIG 0x080dc52c：SetEventFlag(true) + cMyTrace(__FUNCTION__, 0x1c, 0)
-//   ("BlueMarbleDungeonEvent Start!")。完整实现，非 thunk。
+
 #include "BlueMarbleDungeonEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x1c, 0);
-    trace("BlueMarbleDungeonEvent Start!");
-}
 
-// ORIG 0x080dc57e：SetEventFlag(false) + cMyTrace(__FUNCTION__, 0x22, 0)
-//   ("BlueMarbleDungeonEvent End!")。
+
 #include "BlueMarbleDungeonEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace trace(__FUNCTION__, 0x22, 0);
-    trace("BlueMarbleDungeonEvent End!");
-}
+

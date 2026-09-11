@@ -1,3 +1,20 @@
+// ============================================================================
+// handleDieUser（ORIG 0x081494a4）
+// [b28d-46 判词·N/P197④+P168a③b+N82] 168 vs 172，p167 CLEAR（29/29）。
+// for(i=0;i<=3;++i)+continue 形复现双初始化（P191）与尾部 setle 物化（P51）。
+// [b21 N·P197-④] 语义已闭合：找成员循环 `checkValidUser(i) && get_user(i)==user`
+//   的取反判定——ORIG(4.1) 发 `sete %al; test; je`，4.4-O0 对 call 结果直比恒发
+//   `mov $1/mov $0 + test/jne`（P197-④：源形不可复现，禁改内联比较=双调用真 bug）；
+//   循环头 `movl $0,-0xc` 双写为 4.1 代码生 quirk（int i=0）。返回路径 ORIG 在各
+//   return 点直发 `mov $0x0/%1,%eax`+共享尾，4.4 以 %ebx 合并 epilogue（N82/寄存器分配）。
+//   while(true){if(3<i)return 1;...break;++i;} 形态 + 时间比较改 `GetRevivalTime() >
+//   getCurSec()` 已对齐 4.1 求值序/setg 方向；逐调用逐分支语义逐一相等，封 N。
+// [L5Free49to60 2026-09-11 复核] fresh 168 vs 170（gap −2，与基线一致）。bcmp 逐条：
+// ①第 1 守卫 ORIG `call; test %al; sete %al; test %al; je` vs 4.4 `xor $1`（N122/
+//   P168a④：4.4 对布尔取反恒 xor、4.1 的 sete 内存物化不可复现）；
+// ②packet2 段 4.4 多 5 条 `mov/lea/call/jmp` 中继（P63 早退共享出口族）。
+// 均属跨版本结构性差异 ⇒ 维持封 N。
+// ============================================================================
 bool CBossPlay::handleDieUser(CUser* user)
 {
     // [b28d-46 实测] ORIG 双 `movl $0,-0xc`（P191）+ 尾部 `cmpl $3; setle; test;

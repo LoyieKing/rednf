@@ -1,1 +1,21 @@
+// ORIG makeGoldItemDropList 0x084ae944：itemId==0 的金币掉落按金额分组计数。
+// b28d-solo-GmCmds_E：92=92 AE（P222 正向包裹形，check_tu_routed 判 AE）。
 void CMonsterDropTest::makeGoldItemDropList(std::list<map_item>& items, DropStat& out)
+{
+    for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
+    {
+        if (it->m_item.m_addInfo == 0)
+        {
+            std::map<int, int>::iterator mit = out.find(it->m_item.m_addInfo2);
+            // P222 正向包裹：ORIG 块序 = je→insert、increment fall-through。
+            if (mit != out.end())
+            {
+                mit->second++;
+            }
+            else
+            {
+                out.insert(std::make_pair(it->m_item.m_addInfo2, 1));
+            }
+        }
+    }
+}

@@ -1,3 +1,8 @@
+// ORIG 0x0811dba6（ret $0x4 克隆；逐条转写）：遍历位图（+0x5 起），置位处
+// itemIdx=i*8+bit 经 G_CDataManager()->m_mapA940（+0xa940）翻译后
+// push_back(map[itemIdx])；map 无此键则跳过。
+// ORIG 为按值返回（ret $0x4 NRV 隐藏参数 @ ebp+8、this @ ebp+0xc；引用返回
+// 少 NRV 参数、直接返回 &成员，符号同 mangled 但语义不同），故用局部对象。
 std::vector<int> CItemDictionary::getGainItemList() {
     int itemIdx = 0;      // ORIG：先声明 itemIdx（-0x2c 清零在 vector 构造前）
     std::vector<int> result;

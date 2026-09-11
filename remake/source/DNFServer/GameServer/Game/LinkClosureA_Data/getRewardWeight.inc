@@ -1,3 +1,5 @@
+// ==== QuestParameterScript 三 getter（ORIG T 0x08a6bd1c/0x08a6bd86/0x08a6bda6）====
+// getRewardWeight：map<char,int> find，未命中返 100；exp/gold：vector::at 抛越界。
 int QuestParameterScript::getRewardWeight(char level)
 {
     // [b28c-L29] ORIG 0x08a6bd1c：find 结果直接落 it 槽（无 const_iterator

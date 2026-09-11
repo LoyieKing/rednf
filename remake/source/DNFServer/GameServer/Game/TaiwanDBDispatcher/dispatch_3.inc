@@ -1,3 +1,12 @@
+// ORIG 0x0815c034：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
+// (9,0) null → throw "handle null"；set_query("seLect m_id from
+// event_create_dnf_user where occ_date=CURDATE() and m_id=%s",
+// NumberToString(msg->m_id))；exec 失败 throw "select_exec"；
+// received = (get_n_rows() != 0)；InterSelectCreateDnfUserInfo::makeRequest(uid,
+// msg->m_id, received)；cMyTrace(0x24d)("[Taiwan, Event] select
+// event_create_dnf_user. m_id:%s isReceived:%d", str, received)；catch
+// logFormat(0x253) 返 0。成功返 1。
+// [b28d-lane6] AE（已修）：删 set_query 返回值检查（ORIG 0x0815c034 仅 check exec，多出的 throw 块消除）。
 bool DBSelectCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
 {
     try

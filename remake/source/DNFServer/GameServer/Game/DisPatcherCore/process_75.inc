@@ -1,3 +1,8 @@
+// ORIG 0x0812bd8c T _ZN37DisPatcher_EventDungeon_DestoryObject7processEP5CUserR8MSG_BASER9ParamBase
+// （docs/class_func_reports/DisPatcher_EventDungeon_DestoryObject/process.md 全文转写：
+//   局部引用槽 -0x8=msg、-0x4=param；*(u16*)(param+0x4)=*(u16*)(msg+0xe)；check_error；返回 0。
+//   模板实例化中 ParamBase 栈对象仅 4 字节 vptr（ORIG dispatch_template 0x824aa8c 实证：
+//   param@-0x1d 与 msg@-0x19 相邻），param+0x4 写入与相邻 msg 存储重叠为 ORIG 原始行为，忠实转写。）
 int DisPatcher_EventDungeon_DestoryObject::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

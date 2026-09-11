@@ -1,3 +1,4 @@
+// ORIG T 0x08100790 (0x57)。
 void CIPGHelper::IPGQuery(CUser* user)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_QUERY, true);

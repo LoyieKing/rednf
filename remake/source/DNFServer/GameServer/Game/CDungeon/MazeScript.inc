@@ -1,1 +1,4 @@
 MazeScript::MazeScript()
+{
+    clear();
+}

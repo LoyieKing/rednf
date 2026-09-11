@@ -1,3 +1,4 @@
+// ORIG T 0x080ffea8 (0x118)。
 void CIPGHelper::IPGInputCancel(CUser* user,
                                 const char* p2, const char* p3, const char* p4,
                                 const char* p5, const char* p6, const char* p7,

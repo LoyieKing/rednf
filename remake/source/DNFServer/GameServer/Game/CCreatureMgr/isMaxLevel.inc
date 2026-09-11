@@ -1,3 +1,5 @@
+// ORIG isMaxLevel @ 0x833756e：m_script==0 → false；
+// 否则 GetMaxLevel(m_script) <= m_level（setge）。
 bool CCreature::isMaxLevel()
 {
     // ORIG 0x833742x：je→尾mov0；call 体 fall；setge;test;je→中mov0；fall mov1。

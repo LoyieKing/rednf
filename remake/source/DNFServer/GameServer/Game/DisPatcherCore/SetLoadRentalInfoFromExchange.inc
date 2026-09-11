@@ -1,3 +1,4 @@
+// ORIG 0x0822fc06 W _ZN5CUser29SetLoadRentalInfoFromExchangeEb：写 +0x6ef91 字节
 void CUser::SetLoadRentalInfoFromExchange(bool flag)
 
 {

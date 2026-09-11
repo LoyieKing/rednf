@@ -17,128 +17,55 @@
 #include "CGameOption.h"
 
 #include "CGameOption/CGameOption.inc"
-{
-    resetFlag_QuickChatChnage();
-    reset_load_hotkey_flag();
-}
+
 
 #include "CGameOption/SetHotKeyOption.inc"
-{
-    if (cSlot > 1)
-        return;
-    m_HotKeyOption[cSlot] = HotKeyOption;
-    m_bLoadHotKeyFlag[cSlot] = 1;
-}
+
 
 #include "CGameOption/IsHotKeyOptionChanged.inc"
-                                        CHotkeyOption& HotKeyOption)
-{
-    if (cSlot > 1)
-        return 0;
-    int nRet = memcmp(&m_HotKeyOption[cSlot], &HotKeyOption, 0xbc);
-    if (nRet == 0)
-        return 0;
-    return 1;
-}
+
 
 #include "CGameOption/SetEtcOption.inc"
-{
-    m_EtcOption = EtcOption;
-}
+
 
 #include "CGameOption/SetQuickChatOption.inc"
-                                     unsigned int nSlot)
-{
-    if (IsQuickChatOptionChanged(QuickChattingOption, nSlot))
-    {
-        setFlag_QuickChatChange();
-        if (nSlot == 0 || nSlot == 1)
-            m_QuickChattingOption[nSlot] = QuickChattingOption;
-    }
-}
+
 
 #include "CGameOption/IsEtcOptionChanged.inc"
-{
-    int nRet = memcmp(&m_EtcOption, &EtcOption, 0x48);
-    if (nRet == 0)
-        return 0;
-    return 1;
-}
+
 
 #include "CGameOption/IsQuickChatOptionChanged.inc"
-    const CQuickChattingOption& QuickChattingOption, unsigned int nSlot)
-{
-    if (nSlot == 0 || nSlot == 1)
-    {
-        int nRet = memcmp(&m_QuickChattingOption[nSlot], &QuickChattingOption, 0x12c);
-        if (nRet == 0)
-            return 0;
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CGameOption/CopyQuickChatting.inc"
-                                    unsigned int nSlot)
-{
-    if (nSlot == 0 || nSlot == 1)
-        QuickChattingOption = m_QuickChattingOption[nSlot];
-}
+
 
 #include "CGameOption/SetEmoticonInfo.inc"
-{
-    if (memcmp(&m_ChattingEmoticonConfig, &ChattingEmoticonConfig, 0x210) != 0)
-    {
-        m_ChattingEmoticonConfig = ChattingEmoticonConfig;
-        return true;
-    }
-    return false;
-}
+
 
 #include "CGameOption/SetFlag.inc"
-{
-    m_bEmoticonChanged = bFlag;
-}
+
 
 #include "CGameOption/isEmoticonChanged.inc"
-{
-    return m_bEmoticonChanged;
-}
+
 
 #include "CGameOption/isEqualEmoticon.inc"
-{
-    return memcmp(&m_ChattingEmoticonConfig, &ChattingEmoticonConfig, 0x210) == 0;
-}
+
 
 #include "CGameOption/set_etc_option.inc"
-{
-    m_EtcOption.setETCOption(eOption, sValue);
-}
+
 
 #include "CGameOption/get_etc_option.inc"
-{
-    return m_EtcOption.getETCOption(eOption);
-}
+
 
 #include "CGameOption/get_hotkey_option.inc"
-{
-    return &m_HotKeyOption[cSlot];
-}
+
 
 #include "CGameOption/reset_load_hotkey_flag.inc"
-{
-    for (int i = 0; i <= 1; ++i)
-        m_bLoadHotKeyFlag[i] = 0;
-}
+
 
 #include "CGameOption/get_load_hotkey_flag.inc"
-{
-    if (cSlot > 1)
-        return 0;
-    return m_bLoadHotKeyFlag[cSlot];
-}
+
 
 #include "CGameOption/getEmoticonInfo.inc"
-{
-    return m_ChattingEmoticonConfig;
-}
+

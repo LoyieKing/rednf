@@ -1,3 +1,14 @@
+// ORIG 0x081d6af4 T _ZN34Dispather_RegenerationRandomOption7processEP5CUserR8MSG_BASER9ParamBase
+// （报告 Dispather_RegenerationRandomOption/process.md ## 反编译 C 全文映射）：
+// 两装备槽逐槽校验（非空/可穿装/已有选项/IsRandomOption/Restrict(1,0x10)/安全保护
+// 0x1b/CheckItemLock）→ 全部 m_field0==1 时可再封印 → reSealCount=ROUND(0.5+(r0+r1)/2)
+// → RegenerationROI::Regenerate(usableLv0,usableLv1,opt0,opt1,&cost,newItem,user)
+// → 统计 regen_cnt/regen_gold → use_money(cost,0x2f,1) → delete_item(1,槽,1,0x2e,1)×2
+// → newItem 置封印标志与次数 → insertItemIntoInventory(reason 0x36,1,1) →
+// SendUpdateItemList ×3 + cUserHistoryLog::RandomOption(reason 1)。
+// [b28d-29] N82：帧 0x19c vs 0x1ac + 槽平移与参数副本顺序差，调用点全等  (ORIG 0x081d6af4 insn 479->466)
+// 错误码写 param.m_errNo；插入槽位写 param.m_insertedSlot。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 238（ORIG 479 / ours 465），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
 
                                                 ParamBase& param)

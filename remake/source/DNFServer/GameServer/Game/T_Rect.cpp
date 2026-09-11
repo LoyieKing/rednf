@@ -14,14 +14,7 @@
 #include "T_Rect.h"
 
 #include "T_Rect/T_Rect.inc"
-{
-    clear();
-}
+
 
 #include "T_Rect/clear.inc"
-{
-    m_00 = 0;
-    m_04 = 0;
-    m_08 = 0;
-    m_0c = 0;
-}
+

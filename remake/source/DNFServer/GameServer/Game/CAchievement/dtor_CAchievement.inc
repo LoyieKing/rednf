@@ -1,1 +1,3 @@
 CAchievement::~CAchievement()
+{
+}

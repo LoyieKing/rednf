@@ -1,3 +1,7 @@
+// ORIG 0x081c0e4a T _ZN19DisPatcher_UseEquip7processEP5CUserR8MSG_BASER9ParamBase
+// err=check_error；>0：SendCmdErrorPacket(0x33, err&0xff) 返回 -1；==0：
+// m_errNo=getCurCharacInvenW()->use_equip((int)(sbyte)msg.m_0d)，m_8=msg.m_0d，
+// 返回 err。
 int DisPatcher_UseEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

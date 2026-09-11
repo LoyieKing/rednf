@@ -1,3 +1,5 @@
+// ---------------------------------------------------------------------------
+// ORIG 0x08268a68：同 StartEvent()（ORIG 未写 m_param）。
 void CPowerWarVictoriousEvent::StartEvent(Word_Param param)
 {
     // [N7 封顶] ORIG 虚调用 funcptr→%edx、this→%eax；4.4 恒 funcptr→%eax

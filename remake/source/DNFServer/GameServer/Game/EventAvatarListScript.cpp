@@ -20,24 +20,13 @@
 #include <iostream>
 
 #include "EventAvatarListScript/isfindEventAvatar.inc"
-{
-    if (m_avatars.empty())
-        return false;
-    std::set<int>::const_iterator it = m_avatars.find(avatar_id);
-    if (it != m_avatars.end())
-        return true;
-    return false;
-}
+
 
 #include "EventAvatarListScript/EventAvatarListScript.inc"
-{
-    clear();
-}
+
 
 #include "EventAvatarListScript/dtor_EventAvatarListScript.inc"
 
 #include "EventAvatarListScript/clear.inc"
-{
-    m_avatars.clear();
-}
+
 

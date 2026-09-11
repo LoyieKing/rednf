@@ -1,1 +1,6 @@
 void TimerConnectP2PAssaultTimeout::registNextTimer(long sec, int p1, int p2)
+{
+    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, p1,
+                                (TIMER_MESSAGE)0x6f, static_cast<int>(sec),
+                                p2, 0);
+}

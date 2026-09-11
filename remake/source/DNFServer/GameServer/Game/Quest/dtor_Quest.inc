@@ -1,1 +1,3 @@
 Quest::~Quest()
+{
+}

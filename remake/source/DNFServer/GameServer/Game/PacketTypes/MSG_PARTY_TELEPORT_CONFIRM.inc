@@ -1,1 +1,4 @@
 MSG_PARTY_TELEPORT_CONFIRM::MSG_PARTY_TELEPORT_CONFIRM()
+{
+    m_confirmFlag = 0;  // ORIG C1（字段化改名）
+}

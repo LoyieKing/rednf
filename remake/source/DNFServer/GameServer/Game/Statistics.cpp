@@ -67,135 +67,40 @@ struct StatDungeonData
     char type;
 } __attribute__((packed));
 
-// ----------------------------------------------------------------------------
-// Statistics（声明见 Statistics.h）
-// ----------------------------------------------------------------------------
 #include "Statistics/Statistics.inc"
 #include "Statistics/dtor_Statistics.inc"
 
 #include "Statistics/BreakJar.inc"
-{
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
 
-    localA = a;
-    localB = b;
-    localC = c;
-    SendSignal(0x37, &localA, 0xc);
-}
 
 #include "Statistics/Composition.inc"
-{
-    StatCompositionData data;
 
-    data.a = a;
-    data.b = b;
-    data.type = 0x63;  // 'c'
-    data.c = c;
-    SendSignal(0x38, &data, 0xd);
-}
 
 #include "Statistics/Decomposition.inc"
-{
-    StatCompositionData data;
 
-    data.a = a;
-    data.b = b;
-    data.type = 0x64;  // 'd'
-    data.c = c;
-    SendSignal(0x38, &data, 0xd);
-}
 
 #include "Statistics/UseCoin.inc"
-{
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
 
-    localA = a;
-    localB = b;
-    localC = c;
-    SendSignal(0x39, &localA, 0xc);
-}
 
 #include "Statistics/PvpPlay.inc"
-{
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
-    int localD;
 
-    localA = a;
-    localB = b;
-    localC = c;
-    localD = d;
-    SendSignal(0x3a, &localA, 0x10);
-}
 
 #include "Statistics/RankResult.inc"
-                            int f, int g, GameResultType& result)
-{
-    MSG_STAT_RANKRES msg;
 
-    msg.m_a = a;
-    msg.m_b = b;
-    msg.m_c = c;
-    msg.m_d = d;
-    msg.m_e = e;
-    msg.m_f = g;   // param_7 -> +0x14
-    msg.m_g = f;   // param_6 -> +0x18
-    msg.m_result = result;
-    SendSignal(0x3b, &msg, 0x6c);
-}
 
 #include "Statistics/DungeonClear.inc"
-                              int f)
-{
-    StatDungeonData data;
 
-    data.a = a;
-    data.b = b;
-    data.c = c;
-    data.d = d;
-    data.type = 0x63;  // 'c'
-    data.e = e;
-    data.f = f;
-    SendSignal(0x3c, &data, 0x19);
-}
 
 #include "Statistics/DungeonGiveUp.inc"
-                               int f)
-{
-    StatDungeonData data;
 
-    data.a = a;
-    data.b = b;
-    data.c = c;
-    data.d = d;
-    data.type = 0x67;  // 'g'
-    data.e = e;
-    data.f = f;
-    SendSignal(0x3c, &data, 0x19);
-}
 
 #include "Statistics/DungeonFail.inc"
-{
-    G_GameWorld()->getStatisticsShusiaService()->incDungeonFailure(dungeonIdx);
-}
+
 
 #include "Statistics/UseShusiaService.inc"
-{
-    G_GameWorld()->getStatisticsShusiaService()->incServiceUsage(value);
-}
+
 
 #include "Statistics/PVPPlay2.inc"
-{
-    G_GameWorld()->getStatisticsPvP()->incPvPRoomResult(a, b, c);
-}
 
-// [b28c-4 P210] SendSignal 定义必须晚于全部 caller：4.4 对"已见定义"的 callee 按
-// 其帧精确继承 outgoing（BreakJar 帧塌缩 0x1c、槽基 -0xc），ORIG 4.1 为保守帧
-// 0x28/槽基 -0x14。定义后置即复现（探针 /tmp/l4/order.cpp T1 与 ORIG 0x0860b66c
-// 逐条全等；同 TU 的 RankResult 等消费函数随之复查）。
+
 #include "Statistics/SendSignal.inc"

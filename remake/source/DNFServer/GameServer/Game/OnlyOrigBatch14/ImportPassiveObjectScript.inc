@@ -1,3 +1,8 @@
+// ===== _Z25ImportPassiveObjectScriptP21STPassiveObjectScriptPKcb —— ORIG 0x08a2c51a =====
+// loadRDARScriptFile(基目录, path) 失败 → false；随后 clear 三个子对象、
+// getDirectoryPath 拼 m_s90，主 token 循环分派（未知 token → false；
+// bRepair 且已读 [name] 时提前结束）。EOF 统一尾处理：
+// FindIndexByFullScan(path) 写 m_idx 并返回 true。
 bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                                bool bRepair)
 {

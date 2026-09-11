@@ -1,3 +1,4 @@
+// ORIG T 0x08918f24。注意：无论装载成败一律返回 0（ORIG 两出口 ebx 均为 0）。
 int ImportBroadCastItemScript(const char* path, stBroadCastItemScript& script)
 {
     if (!loadRDARScriptFile("", path))

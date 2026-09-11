@@ -1,3 +1,20 @@
+// ORIG 0x0815ca94：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
+// (9,0) null → throw "handle null"；set_query("seLect m_id, remain_reward_count,
+// unix_timestamp(occ_date) FROM pcroom_daily_reward_tw WHERE m_id=%s",
+// NumberToString(msg->m_id), G_CEnvironment()->+0x37c (m_fatigueTime))；exec
+// 失败 throw "select_exec"；get_n_rows()==0 → makeRequest(uid, 0, 4) +
+// cMyTrace(0x300)；否则 fetch 失败 throw "fetch"；get_int(0,&yesterday) 失败
+// throw "get_int 0"；get_byte(1,&flag) 失败 throw "get_int 1"；
+// get_int(2,&reward) 失败 throw "get_int 2"；
+// CheckDailyScheduleTime(fatigueTime, reward, getCurSec()) 为真 →
+// makeRequest(uid, yesterday, 4) + cMyTrace(0x311)；否则 makeRequest(uid,
+// yesterday, (char)flag) + cMyTrace(0x316)。catch logFormat(0x31c) 返 0。
+// 成功返 1。
+// [b28d-solo-TaiwanDBDispatcher] AE（261/261）：三处修形——①补 ORIG 的 dead bool 局部
+// （P171/P232：0x0815ca9c `movb $0x1,-0x15(%ebp)` 写后从不读）⇒ 槽基 -0x48→-0x4c 归零；
+// ②yesterday/reward/flag 声明移到 GetOutBuffer 之后（P28：ORIG 0x0815cae0 三条清零位置）；
+// ③return 1 移出 try 到函数尾（P214②：ORIG 0x0815cef7 `mov $0x1,%ebx` 与 catch 的
+// `mov $0x0,%ebx` 在尾共享块汇合）。
 bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 {
     try

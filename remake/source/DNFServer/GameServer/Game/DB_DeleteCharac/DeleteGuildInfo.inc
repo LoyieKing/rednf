@@ -1,3 +1,10 @@
+// ============================================================================
+// DB_DeleteCharac::DeleteGuildInfo @0x08402f4c
+// guildId==0 → charac_info 查 guild_id 入 +0xc（失败/空 +0x8=1 返 0；
+// 查到仍 0 → logFormat 0x1312 返 1）。guild_info 查 master_no：
+// 失败 +0x8=1；characNo==master → +0x8=2 返 0；否则 guild_member 退会
+// （member_flag=2/secede），count(*) 更新 guild_info.member_count。
+// ============================================================================
 bool DB_DeleteCharac::DeleteGuildInfo(SIG_DELETE_CHARAC* sig)
 {
     if (sig->m_guildId == 0)

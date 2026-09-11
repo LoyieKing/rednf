@@ -1,3 +1,9 @@
+// ORIG 0x081c40b4 T _ZN21DisPatcher_GiveUpGame7processEP5CUserR8MSG_BASER9ParamBase
+// （docs/class_func_reports/DisPatcher_GiveUpGame/process.md 全文转写）。
+// err>0 返 -1；<0 LineFunc(0xff7,pretty,0,acc_id) 返回其值；==0 按 state 分派：
+// 10=getDeathTower 非空 handleLeaveUser；0xc=CBossTowerFunc::GiveUpGame；
+// 0xd=advancealtar::Manager::giveUpGame；其它=GetParty 非空 giveup_game(user,true,false,false)。
+// 尾部返回 check_error 原值（ORIG mov -0x14,%eax）。param 不写。
 int DisPatcher_GiveUpGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

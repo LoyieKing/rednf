@@ -110,216 +110,46 @@
 #include "LevelupSupport2ndEvent.h"
 
 #include "CEventManager/CEventManager.inc"
-{
-    std::memset(m_events, 0, sizeof(m_events));
-    // ORIG 0x08114ce4：memset 0x298，operator new(0x18) 后调 CDelivery::CDelivery()
-    // （0x08116386），存 CDelivery* 于 +0x298。此处用真实 CDelivery 构造。
-    // [b24] 直接 `m_delivery = new CDelivery`（ORIG 寄存器直传 %ebx→+0x298，
-    // 无具名局部栈槽 -0x1c 中转；具名局部在 GCC11 生成 -0x1c(%ebp) 槽，A 类 1 insn 差）。
-    m_delivery = new CDelivery;
-}
+
 
 #include "CEventManager/CDelivery.inc"
-    : m_eventMap()
-{
-}
+
 
 #include "CEventManager/dtor_CDelivery.inc"
-{
-    m_eventMap.clear();
-}
+
 
 #include "CEventManager/checkAddress.inc"
-{
-    return type >= 1 && type <= 2;
-}
 
-// b28d-40: BOOST_FOREACH 复现 + 正向 `if (it != end)` 包裹（P220）；ORIG 0x081163fa，AE。
+
 #include "CEventManager/attach.inc"
-{
-    if (!checkAddress(type))
-        return;
-    std::map<int, std::list<CEventBase*> >::iterator it = m_eventMap.find(type);
-    if (it != m_eventMap.end())
-    {
-        BOOST_FOREACH(CEventBase*& e, it->second)
-        {
-            if (e == event)
-                return;
-        }
-    }
-    m_eventMap[type].push_back(event);
-}
+
 
 #include "CEventManager/detach.inc"
-{
-    if (!checkAddress(type))
-        return;
-    std::map<int, std::list<CEventBase*> >::iterator it = m_eventMap.find(type);
-    if (it != m_eventMap.end())
-        it->second.remove(event);
-}
 
-// b28d-solo-CEventManager: [N7 封顶] BOOST_FOREACH 复现 + 正向 `if (it != end)` 包裹
-// （P220）；ORIG 0x08116682，144=144 助记符序列全等，唯一残差=间接 call 目标寄存器
-// （ORIG %ecx vs 4.4.7 恒 %eax，P230 限定 4.4.7；4.4.6 后端可翻但禁改路由表）。
-// 逐条归一化比对确认无其它差异；P282 复核 vtable 槽 +0x30=delivery 与头声明序一致。
-// b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
-// checkAddress 校验 → map.find → 遍历该 type 的 list，对非空 CEventBase 经
-// vtable+0x30（= delivery 虚槽 12）调用 delivery(msg)。
+
 #include "CEventManager/notify.inc"
-{
-    if (!checkAddress(type))
-        return;
-    std::map<int, std::list<CEventBase*> >::iterator it = m_eventMap.find(type);
-    if (it != m_eventMap.end())
-    {
-        BOOST_FOREACH(CEventBase*& e, it->second)
-        {
-            if (e != 0)
-                e->delivery(msg);
-        }
-    }
-}
+
 
 
 
 
 #include "CEventManager/dtor_CEventManager.inc"
-{
-    // b28d-solo-CEventManager: [N7 封顶] P183/P0 修正——ORIG 0x08114d4e 无 event/
-    // delivery 具名局部（每次重读 m_events[i]；delete 自带判空），缓存局部使槽
-    // -0xc→-0x10 平移（已删）。44=44 助记符序列全等，唯一残差=虚析构调用目标寄存器
-    // （ORIG add $0x4 槽 %ecx vs 4.4.7 %eax，P230/N7）。
-    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
-    for (int i = 0; i <= 0xa5; ++i)
-    {
-        if (m_events[i] != 0)
-            delete m_events[i];
-    }
-    delete m_delivery;
-}
+
 
 #include "CEventManager/AddEvent.inc"
-{
-    m_events[type] = event;
-    return 1;
-}
+
 
 #include "CEventManager/GetRepeatEvent.inc"
-{
-    if (type > 0xa5)
-        return 0;
-    return m_events[type];
-}
 
-// ORIG T 0x08116212 _ZN13CEventManager30IsExistOverlappedExpBonusEventEv
-// 事件 0x66（经验加成类）进行中，或全局效果管理器效果 2 生效 → 视为存在
-// 重叠经验加成。
+
 #include "CEventManager/IsExistOverlappedExpBonusEvent.inc"
-{
-    bool eventExp = GlobalData::s_event_manager->GetRepeatEvent(0x66)->IsEventing(0);
-    bool effect2 = GlobalData::s_globalEffectManager_->isAffectedEffect(2);
-    if (eventExp || effect2)
-        return true;
-    return false;
-}
 
-// b28d-solo-CEventManager: [N7 封顶] ORIG 0x0811630e——虚调用目标 %ecx + 索引
-// %edx/%eax vs 4.4.7 目标恒 %eax + 索引 %ecx/%edx（42=42 助记符序列全等，仅寄存器
-// 角色轮转）；P282 复核 +0x34=IsEventing、+0x24=dailyresetData 槽与头声明序一致。
-// b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
+
 #include "CEventManager/dailyresetData.inc"
-{
-    for (int i = 0; i <= 0xa5; ++i)
-    {
-        if (m_events[i] != 0)
-        {
-            if (m_events[i]->IsEventing(0))
-                m_events[i]->dailyresetData();
-        }
-    }
-}
 
-// b28d-solo-CEventManager: [N 封顶] P292 档① 已修——ORIG 两处调用点均
-// `call; test %al,%al; je`（无 setne）⇒ 返回类型改 bool（TriggerEventStart/End
-// 同步归位）。本体 ORIG 0x08115bf4：78 vs 79（round5：82→79，残 1 条）。P222
-// 正向包裹 `if (channel <= 0x10) { … } return 0;` 已复现 ORIG 的 `ja <共享尾 mov$0>`
-// 方向（旧 `if (channel >= 0x11) return 0;` 生反极 `jbe` + 独立 mov$0 块）。
-// [round5] 本轮试形与实测（每形均 check_tu_routed 复算）：
-//  ①纯 return 版（4 个独立 `mov $0` 块）= 82；②全 goto 尾标签 = 85（4.4 给每个
-//    case 组各生 `nop;jmp` 岛：段1 4 岛 vs ORIG 1 岛）；③全 break+goto = 75
-//    （case 直接跳、0 岛）；④**混合**（段1 break→1 岛，段2/段3 goto→3 岛/1 岛）
-//    = **79**，岛数与 ORIG 的 1+3+1 逐段全等 ⇒ 取此形。
-// 残余 1 条 = channel 寄存器角色（N7）：ORIG 的 register 值留 %eax
-// （`cmp $0x10,%eax` / `mov %eax,%ecx`），4.4 把 register 变量落 %ebx ⇒ 多
-// `mov %eax,%ebx`+`mov %ebx,%eax` 两条，而掩码区段1 少 `mov %eax,%edx` 复制、
-// 段3 多 `mov %ebx,%eax` 恢复（净 +1）。已试并回退：去 register（槽化）、
-// 三档类型旋钮（P248）、`==`/`!` 极性、goto/break 形。块体物理序 A/C/B（ORIG）
-// vs A/B/C（我方）同属该族。
-// [round5 C05 范式复检] 按 Main 转发 C05② 适用边界（常量比较 / 形参 / 跨调用返回值
-// 三者均不适用）逐条核：本件两侧皆为**立即数寄存器比较**（`cmp $0x10,%eax` vs
-// `cmp $0x10,%ebx`），无内存直比可换，既不属 C05② 命中形（需两个具名局部比较），
-// 也非 C05①/③/④（无尾 fail 块、我方岛数已对齐、无 setne 段）⇒ 归 N7 寄存器角色族。
-// P56 直分支形 + P133 独立守卫已应用。
-// b28d-solo 双后端实测：4.4.7 DIFF / 4.4.6 后端 DIFF（后端不敏感）。
+
 #include "CEventManager/filterEvent.inc"
-{
-    if (type == 2)
-        return 0;
-    // P231 纯 register 存储类提示（无 asm 绑定，P0 合规）：ORIG 0x08115bf4 中
-    // channel/bit 全程无栈槽（cmp $0x10,%eax / shl %cl,%ebx），4.4 裸形恒槽化。
-    register unsigned int channel = (unsigned int)G_GameWorld()->GetChannelType();
-    if (channel <= 0x10)
-    {
-        register unsigned int bit = 1U << channel;
-        if ((bit & 0x1a100U) != 0)
-        {
-            // P251/P286：ORIG 0x5d 段是**寄存器**比较决策树（`mov 0x8(%ebp),%eax;
-            // cmp $0x39,%eax; jg …`，首键 0x39 = 8 键索引中点）⇒ 原码为
-            // switch(type)；if 链在 4.4 恒退化为内存直比 `cmpl $imm,0x8(%ebp)`。
-            // P325/P223：ORIG 各 case 命中后走 `nop; jmp +0xc6` 岛并共享函数尾
-            // `mov $0x0,%eax`（+0xc6）⇒ break 到 switch 外再 goto 尾标签。
-            switch (type)
-            {
-            case 0xb:
-            case 0x36: case 0x37: case 0x38: case 0x39:
-            case 0x3d: case 0x3e:
-            case 0x5c:
-                break;
-            default:
-                return 1;
-            }
-            goto L_false;
-        }
-        else if ((bit & 0x4000U) != 0)
-        {
-            switch (type)
-            {
-            case 0xb:
-                goto L_false;
-            case 0x39:
-                goto L_false;
-            case 0x3d: case 0x3e:
-                goto L_false;
-            default:
-                return 1;
-            }
-        }
-        else if ((bit & 0x600U) != 0)
-        {
-            switch (type)
-            {
-            case 9:
-                goto L_false;
-            default:
-                return 1;
-            }
-        }
-    }
-L_false:
-    return 0;
-}
+
 // ORIG 0x08115de2 实证（push_back 4/2/2 字节 store + 迭代 deEv 读 +0/+4/+6）：
 // 权威类型名 stEVENTADDINFO（vector 实例 mangled St6vectorI14stEVENTADDINFO…），
 // 旧重建发明的 EventAddInfo 属发明符号（N114/§4.4）。
@@ -331,316 +161,22 @@ struct stEVENTADDINFO
 };
 
 #include "CEventManager/MakeNotiEventInfo.inc"
-{
-    // b28d-solo-CEventManager: [N7] 本轮修——两循环 `if (event == 0) continue;`
-    // 改正向包裹 `if (event != 0) { if (event->IsEventing(user)) {…} }`（P296）
-    // ⇒ 消 2 处 if 体尾 `jmp+nop` 中继岛（旧判「三形不消」作废：continue 岛随
-    // 包裹消失），237→233（gap 0，§6.2）。ORIG 0x08115de2 实证——两循环各由
-    // `if (GlobalData::s_event_manager != 0)` 包裹；`packet.put_short(activeCount)`
-    // （非字面量 0）；尾部 if(!extra.empty())…else put_byte(0)；const_iterator +
-    // `(*it).field`（ORIG 调 deEv 非 ptEv，P167 判据）；put_short 实参 (short) 截断。
-    // 类型名 stEVENTADDINFO 已按 ORIG vector 实例 mangled 归位（原发明名 EventAddInfo
-    // 违反 N114）。p167 30/30 CLEAR；4.4.7 口径 NEAR（残差=4 处虚调用目标寄存器
-    // ORIG %edx/%ecx vs 4.4.7 恒 %eax，N7；P282 复核 +0x34=IsEventing/+0x1c=
-    // GetAddInfo/+0x18=AppendInfo 槽序与头一致）；4.4.6 后端口径 AE（233=233，
-    // 双后端读数见 /tmp/b28d_solo_CEventManager_result.tsv）。迭代器段
-    // （begin/end 各带转换构造 + operator*/++/!=）与 ORIG 逐条同构。
-    std::vector<stEVENTADDINFO> extra;
-    packet.clear();
-    packet.put_header(0, 0x6c);
-    int countIndex = 0;
-    int activeCount = 0;
-    countIndex = packet.get_index();
-    packet.put_short(activeCount);
-    if (GlobalData::s_event_manager != 0)
-    {
-        for (int id = 0; id <= 0xa5; ++id)
-        {
-            CEventBase* event = GetRepeatEvent(id);
-            if (event != 0)
-            {
-                if (event->IsEventing(user))
-                {
-                    packet.put_short(id);
-                    ++activeCount;
-                    // GetAddInfo 返回 stADDINFO（ORIG sret ABI，2026-08-28 OrigEventLeaf8f 修正）。
-                    stADDINFO add = event->GetAddInfo();
-                    if ((short)add.m_info0 >= 0)
-                    {
-                        stEVENTADDINFO item;
-                        item.eventId = id;
-                        item.info0 = add.m_info0;
-                        item.info1 = add.m_info1;
-                        extra.push_back(item);
-                    }
-                }
-            }
-        }
-    }
-    packet.put_short(countIndex, activeCount);
-    if (GlobalData::s_event_manager != 0)
-    {
-        for (int id = 0; id <= 0xa5; ++id)
-        {
-            CEventBase* event = GetRepeatEvent(id);
-            if (event != 0)
-            {
-                if (event->IsEventing(user))
-                    event->AppendInfo(packet);
-            }
-        }
-    }
-    if (!extra.empty())
-    {
-        packet.put_byte((int)extra.size());
-        // P13：ORIG begin()/end() 各求值一次（end 缓存 -0x48 槽），循环内不再重求。
-        std::vector<stEVENTADDINFO>::const_iterator it = extra.begin();
-        std::vector<stEVENTADDINFO>::const_iterator itEnd = extra.end();
-        for (; it != itEnd; ++it)
-        {
-            packet.put_short((short)(*it).eventId);
-            packet.put_short((short)(*it).info0);
-            packet.put_short((short)(*it).info1);
-        }
-    }
-    else
-    {
-        packet.put_byte(0);
-    }
-    packet.finalize(true);
-}
+
 
 #include "CEventManager/BroadcastEventInfo.inc"
-{
-    // b28d-solo-CEventManager: [AE] ORIG 0x08116108 实证——PacketGuard 构造在循环外一次
-    // （-0x20 槽，循环内复用）；无 world==0 / user==0 防御（P140/P171 照抄）；
-    // begin 一次求值、end 每轮经 G_GameWorld() 重求值；迭代器后置 `it++`（P28，
-    // ORIG 增量段 ppEi）。80=80 逐条归一化后仅剩 call/全局地址重定位伪差（P264）。
-    PacketGuard packet;
-    for (std::map<unsigned short, CUser*>::iterator it =
-             G_GameWorld()->m_UserInWorld.begin();
-         it != G_GameWorld()->m_UserInWorld.end(); it++)
-    {
-        CUser* user = it->second;
-        if (user->get_state() > 2)
-        {
-            MakeNotiEventInfo(packet, user);
-            user->Send(packet);
-        }
-    }
-}
+
 
 #include "CEventManager/TriggerEventStart.inc"
-{
-    // b28d-solo-CEventManager: [N7 封顶] ORIG 0x08115cc6——`je <mov $0 尾>` 布局，
-    // 正向包裹 `if (event != 0) { body; return 1; } return 0;`（P222/P194）+
-    // filterEvent bool 化后 52=52 助记符序列全等；唯一残差=3 处虚调用目标寄存器
-    // （ORIG %edx vs 4.4.7 %eax，N7）。
-    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
-    if (filterEvent(idx))
-        return 1;
-    CEventBase* event = GetRepeatEvent(idx);
-    if (event != 0)
-    {
-        event->StartEvent(param);
-        BroadcastEventInfo();
-        event->deliveryStart(m_delivery);
-        event->StartAction();
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CEventManager/TriggerEventEnd.inc"
-{
-    // b28d-solo-CEventManager: [N7 封顶] ORIG 0x08115d60——同 TriggerEventStart 的
-    // 正向包裹 `je <mov $0 尾>` 布局 + filterEvent bool 化后 43=43 全等；唯一残差=
-    // 2 处虚调用目标寄存器（ORIG %edx vs 4.4.7 %eax，N7）。
-    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
-    if (filterEvent(idx))
-        return 1;
-    CEventBase* event = GetRepeatEvent(idx);
-    if (event != 0)
-    {
-        event->deliveryEnd(m_delivery);
-        BroadcastEventInfo();
-        event->EndEvent();
-        return 1;
-    }
-    return 0;
-}
 
-// ORIG 0x08114dcc（InitEventManager.md 反汇编逐槽核对）：按槽位映射堆构造 50
-// 个事件对象（new + C1 + 写槽），成功后调 LoadEventFromDB() 并透传其返回值；
-// 任何构造异常经 catch 直接返回 0（ORIG catch @0x08115965 只 begin/end_catch，
-// 不回收已构造对象）。GLOBAL 键控槽（21/24/35/36/39/50/58/86/87/91/102/119/
-// 158）在 ORIG 为静态单例 getter 返回指针，析构同样 delete——语义等价堆构造，
-// 统一 new。槽位 = 偏移/4，映射如下：
-//   1 CUnlimitFatigueEvent 2 CMaxFatigueFactorEvent 3 CExpDoubleEvent
-//   4 CCoinEventPerDay 5 CCoinEventOnCharCreate 6 CLeadingChannelEvent
-//   7 CItemDropRatioEvent 8 CPCRoomBurningEvent 33 CGuildWarEvent
-//   10 CPCRoomFatigueEvent 12 CReformingDanjinEvent 13 CCoinRefillEvent
-//   15 CBurningFatigueEvent 16 CClearRewardCardEvent 17 CCeraShopBonusItemEvent
-//   18 CTournamentPvPEvent 19 CGoldCardBlankItemEvent 29 CPcRoomCardBlankItemEvent
-//   30 CPowerWarEvent 21 CCollectArchieveEventLog 22 CPCRoomWorldDropEvent
-//   24 CPartyExpBonusEvent 32 CStabToDeathEvent 9 CSchoolMatchEvent
-//   34 CAutoMarketConditionsControlEvent 35 CVendingMachineBonusEvent
-//   36 CBurnigGoldMonsterEvent 38 CNoNeedGoldOnGuildCreateEvent
-//   39 CDeathTowerWinPointEvent 40 CNotApplyBalkeunEvent 41 CCharacterDayEvent
-//   49 CRestrictCharacCreationEvent 50 CReduceUpgradeItemPay 51 COnTimeEvent
-//   52 CBreakAwayPreventEvent 53 CPowerWarVictoriousEvent 58 CSecretShopEvent
-//   86 CFatigueAttendance 87 CWeekendBonusEvent 113 CConditionEvent
-//   91 CUXGameLogEvent 95 BlueMarbleDungeonEvent 102 CStopOverlabExpEvent
-//   119 CEventAdvanceAltarOpen 116 CAradRyosikaEvent 155 Arad_MomijiEvent
-//   158 LevelupSupportEvent 159 CEventStayTime 160 CEventCreateDnf
-//   165 EventGiveMeBox
-// §6.2 巨件核销：P167 153/153 [0缺0多]；gap 927→927。
-// [round5 归零] 原残余尾部 7 条（缺 `xor $0x1,%eax` 段 + 两臂块序）。真因 =
-// 「汇聚变量」：ORIG 的 if 在 **try 体内**、两臂写 4 字节 `mov $0x0/%0x1,%ebx`，
-// catch 体同写 `mov $0x0,%ebx` 并 fall-through 到 0x08115977 `mov %ebx,%eax`
-// ⇒ 变量为 **register int**（非 bool 局部：不占槽、不物化 movb），函数返回类型
-// 为 **int**（尾块无 bool 归一化 setne，P9/P159）。改法：`register int result;`
-// 裸声明（零发射）+ `if (!LoadEventFromDB()) result = 0; else result = 1;` 移入
-// try 内 + `return result;`；同步 CGuildServerProxy.h 返回类型 bool→int
-// （mangled 不含返回类型、全仓无调用点 ⇒ 零 ABI 风险）。实测 927=927（AE 归位，
-// TU diff 3→2）。
+
 #include "CEventManager/InitEventManager.inc"
-{
-    // b28d-solo-CEventManager: [N82/N80 封顶] §6.2 三件套已验——①gap=0（927=927）；
-    // ②P167 调用点差集 153/153 CLEAR（0 缺 0 多）；③残差=全帧槽号平移 + cMyTrace
-    // 变参保活顺序（P227 全表达式链已试）。ORIG 0x08114dcc。
-    // b28d-solo 本轮复核：归一化后唯一实质差异 = 尾部 7 条（LoadEventFromDB 调用点
-    // 的 `xor $0x1/test/je` bool 物化 + __cxa_begin/end_catch 块相对序，N104/P292；
-    // ①`if(call())return true;return false;` 形 gap=0 但缺 xor 段，②否定形 928 条
-    // 且 catch 块序反劣，取 ①）。双后端：4.4.7 DIFF / 4.4.6 后端 DIFF（后端免疫）。
-    // [round5] 汇聚变量：裸 register 声明（无初值 ⇒ 零发射；ORIG 头部无 ebx 初始化）。
-    register int result;
-    try
-    {
-        m_events[1]  = new CUnlimitFatigueEvent;
-        m_events[2]  = new CMaxFatigueFactorEvent;
-        m_events[3]  = new CExpDoubleEvent;
-        m_events[4]  = new CCoinEventPerDay;
-        m_events[5]  = new CCoinEventOnCharCreate;
-        m_events[6]  = new CLeadingChannelEvent;
-        m_events[7]  = new CItemDropRatioEvent;
-        m_events[8]  = new CPCRoomBurningEvent;
-        m_events[33] = new CGuildWarEvent;
-        m_events[10] = new CPCRoomFatigueEvent;
-        m_events[12] = new CReformingDanjinEvent;
-        m_events[13] = new CCoinRefillEvent;
-        m_events[15] = new CBurningFatigueEvent;
-        m_events[16] = new CClearRewardCardEvent;
-        m_events[17] = new CCeraShopBonusItemEvent;
-        m_events[18] = new CTournamentPvPEvent;
-        m_events[19] = new CGoldCardBlankItemEvent;
-        m_events[29] = new CPcRoomCardBlankItemEvent;
-        m_events[30] = new CPowerWarEvent;
-        m_events[21] = new CCollectArchieveEventLog;
-        m_events[22] = new CPCRoomWorldDropEvent;
-        m_events[24] = new CPartyExpBonusEvent;
-        m_events[32] = new CStabToDeathEvent;
-        m_events[9]  = new CSchoolMatchEvent;
-        m_events[34] = new CAutoMarketConditionsControlEvent;
-        m_events[35] = new CVendingMachineBonusEvent;
-        m_events[36] = new CBurnigGoldMonsterEvent;
-        m_events[38] = new CNoNeedGoldOnGuildCreateEvent;
-        m_events[39] = new CDeathTowerWinPointEvent;
-        m_events[40] = new CNotApplyBalkeunEvent;
-        m_events[41] = new CCharacterDayEvent;
-        m_events[49] = new CRestrictCharacCreationEvent;
-        m_events[50] = new CReduceUpgradeItemPay;
-        m_events[51] = new COnTimeEvent;
-        m_events[52] = new CBreakAwayPreventEvent;
-        m_events[53] = new CPowerWarVictoriousEvent;
-        m_events[58] = new CSecretShopEvent;
-        m_events[86] = new CFatigueAttendance;
-        m_events[87] = new CWeekendBonusEvent;
-        m_events[113] = new CConditionEvent;
-        m_events[91] = new CUXGameLogEvent;
-        m_events[95] = new BlueMarbleDungeonEvent;
-        m_events[102] = new CStopOverlabExpEvent;
-        m_events[119] = new CEventAdvanceAltarOpen;
-        m_events[116] = new CAradRyosikaEvent;
-        m_events[155] = new Arad_MomijiEvent;
-        m_events[158] = new LevelupSupportEvent;
-        m_events[159] = new CEventStayTime;
-        m_events[160] = new CEventCreateDnf;
-        m_events[165] = new EventGiveMeBox;
-        // [round5 复测] ORIG 0x08115945..0x08115997 实证：if 检查在 **try 体内**
-        // 末尾（`call LoadEventFromDB; xor $0x1,%eax; test %al,%al; je <mov $1
-        // 块>; mov $0x0,%ebx; jmp 0xbab; <mov $0x1,%ebx>`），catch 体同写
-        // `mov $0x0,%ebx` 并 fall-through 到 0xbab `mov %ebx,%eax` ⇒ 汇聚变量是
-        // **register int**（两臂/尾块均 32 位 `mov $imm,%ebx`，非 bool 的 movb、
-        // 也无槽）。前轮 `bool ok` 具名形（923 条）正是踩在「bool 局部必占槽」
-        // （P158/§4.0）上，改用裸 register 声明即消槽。
-        if (!LoadEventFromDB())
-            result = 0;
-        else
-            result = 1;
-    }
-    catch (...)
-    {
-        result = 0;
-    }
-    return result;
-}
+
 
 #include "CEventManager/LoadEventFromDB.inc"
-{
-    // b28d-solo-CEventManager: [N 封顶] ORIG 0x081159b6 实证——fetch 在循环体内
-    // （`ok = db->fetch(); if (!ok) break;`，非 for 条件）；复用同一 bool ok 局部
-    // （P102，ORIG 槽 -0x25 反复赋值）；get_int/get_ushort 直接写出参
-    // （type 无初始化、param 成员直接传址）；type/param 传值 TriggerEventStart。
-    // 143=143（助记符序列全等）、p167 14/14 CLEAR。残差 = 聚合对象优先低槽
-    // （N82附）：ORIG trace -0x38 / db -0x24 / ok -0x25 vs 4.4 trace -0x48 /
-    // db -0x28 / ok -0x21（rows -0x20、i -0x1c、type -0x4c、param -0x50 两侧一致）；
-    // 4.1 按生命周期穿插 vs 4.4 类对象沉底 + bool 紧贴下邻标量，声明序/纯 register
-    // 均不可翻（P182/N95）。变参寄存器已对齐 %edi/%esi/%ebx（P87）。
-    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 NEAR（槽平移非后端敏感，
-    // 与 N7 不同族）。
-    // [round5 复测] 槽位序：ORIG db=-0x24 / ok=-0x25（ok 紧贴 db 之下）而 4.4
-    // 旧形 db=-0x28 / ok=-0x21（ok 反落在 db 之上）⇒ 试把 `bool ok;` 声明提前
-    // 到 db 之前（4.4 对函数头声明按「先声明深」分配，P309/P331）。
-    bool ok;
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
-    db->set_query(
-        "seLect event_type, parameter1, parameter2 from dnf_event_log where "
-        "end_time = 0 and server_id in (0,%d) and unix_timestamp() >= start_time "
-        "order by start_time",
-        G_CEnvironment()->m_serverEnvir.m_serverGroup);
-    cMyTrace traceEnter(__PRETTY_FUNCTION__, 0x296, 9, true, true);
-    traceEnter("[!] Load Event From DB");
-    ok = db->exec(true);
-    if (!ok)
-        return false;
-    const int rows = db->get_n_rows();
-    for (int i = 0; i < rows; ++i)
-    {
-        ok = db->fetch();
-        if (!ok)
-            break;
-        int type;
-        Word_Param param;
-        ok = db->get_int(0, type);
-        if (!ok)
-            return false;
-        ok = db->get_ushort(1, param.m_duration);
-        if (!ok)
-            return false;
-        ok = db->get_ushort(2, param.m_field2);
-        if (!ok)
-            return false;
-        if (!TriggerEventStart(type, param))
-            return false;
-        // P227 全表达式临时链：ORIG 0x08115af2 在 ctor 前右起求 varargs 并以
-        // %edi/%esi/%ebx 跨 ctor 保活（4.4 具名对象形恒用 caller-saved）。
-        cMyTrace(__PRETTY_FUNCTION__, 0x305, 9, true, true)(
-            "\t- Event Code(%d) , Parameter1(%d), Parameter2(%d)",
-            type, (int)param.m_duration, (int)param.m_field2);
-    }
-    return true;
-}
+
 
 #include "CEventManager/eventDeliveryNotify.inc"
 {
@@ -762,184 +298,25 @@ EventTableEntry events[0x4f] =
 
 #include "CEventManager/CEventTable.inc"
 
-// ORIG 0x0811a0ce：空析构（T D1/D2 同址）。
 #include "CEventManager/dtor_CEventTable.inc"
 
 #include "CEventManager/GetEventTableCount.inc"
-{
-    return 0x4f;
-}
+
 
 #include "CEventManager/GetEventBase.inc"
-{
-    if (idx < 0 || GetEventTableCount() <= idx)
-        return 0;
-    return events[idx].base;
-}
+
 
 #include "CEventManager/GetEventId.inc"
-{
-    if (idx < 0 || GetEventTableCount() <= idx)
-        return 0;
-    return events[idx].id;
-}
+
 
 #include "CEventManager/_FindEventTable.inc"
-{
-    // b28d-solo-CEventManager: [AE] P0/P183——ORIG 0x0811a15d 无 tblName 具名局部、
-    // strlen(name) 无条件调用（无 name/tblName 判空守卫），逐次重读 events[i].name；
-    // P222 正向包裹 + 单出口（dup 块 fall-through 到 return i，ORIG 0x0811a1c1）
-    // ⇒ 43=43；逐条归一化仅剩 events 绝对寻址/重定位伪差（N102/P264）。
-    for (int i = 0; i < CEventTable::GetEventTableCount(); ++i)
-    {
-        if (events[i].id == id)
-        {
-            if (strncmp(events[i].name, name, strlen(name)) != 0)
-                dup = true;
-            return i;   // ORIG 0x0811a1c1 单出口：dup 块 fall-through 到 return i
-        }
-    }
-    return -1;
-}
 
-// ORIG 0x811a1e0（0x2f4 字节）：经 DBMgr::GetDBHandle 查询
-// dnf_event_info(event_id, event_name)，逐行 _FindEventTable 校验；把校验通过
-// 的事件表索引记入集合，最后将「未在 DB 中」的事件表索引追加到 out，返回是否成功。
+
 #include "CEventManager/VerifyEventTable.inc"
-{
-    // b28d-solo-CEventManager: [N 封顶] ORIG 0x0811a1e0 实证——局部全函数头声明（P212）：
-    // ok(-0x1d,=false)/id(-0x48,=0)/name[0xff](-0x16f,={0})/dup(-0x49,=false)/
-    // idx(-0x50,=-1)/found map(-0x68)；i 为函数级变量，两个 for 复用（P191 双初始化
-    // `int i=0; for(i=0;…)` 两次清零）；fetch 失败 break。name 清零为 4.1 内联
-    // rep stos（N78 封顶）。
-    // 本轮修：P293 第二循环改具名迭代器 `iterator it = found.find(i); if (it ==
-    // found.end())`（ORIG 0x0811a427 先 find sret -0x70 后 end sret -0x28；旧单表达式
-    // 形 4.4 反序且令 id/dup/idx/found/i 全组深 4）⇒ 全部槽位归位（-0x48/-0x49/
-    // -0x50/-0x68/-0x6c/-0x70/-0x2c/-0x34/-0x3c/-0x44 与 ORIG 逐一对齐）。
-    // b28d-solo 本轮修（DIFF→AE）：唯一实质残差 = ORIG 0x0811a395 `mov -0x50(%ebp),
-    // %eax; not %eax; shr $0x1f,%eax; test %al,%al; je`（4.1 对 `idx >= 0` 的寄存器
-    // bool 物化）vs 4.4 `test %eax,%eax; js` 直跳。旧 `(unsigned int)~idx >> 31`
-    // 表达式形被折叠（无效）；**改 `while (idx >= 0) { …; break; }` 后 4.4 精确复现
-    // not/shr/test/je 四段**（P225 推广：while+break 对 4.1 寄存器 bool 物化同样有效，
-    // 不只 setne 族），217→220 与 ORIG 219 在 compare_tu clean 口径下 AE（数据地址
-    // 伪差豁免，P264）。槽位/帧 0x17c 与 ORIG 全等。
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE);
-    bool ok = false;
-    int id = 0;
-    char name[0xff] = {0};
-    bool dup = false;
-    int idx = -1;
-    std::map<int, int> found;
-    db->set_query("seLect event_id, event_name from dnf_event_info");
-    ok = db->exec(true);
-    if (!ok)
-        return false;
 
-    const int rows = db->get_n_rows();
-    int i = 0;
-    for (i = 0; i < rows; ++i)
-    {
-        ok = db->fetch();
-        if (!ok)
-            break;
-        ok = db->get_int(0, id);
-        if (!ok)
-            return false;
-        ok = db->get_str(1, name, 0xff);
-        if (!ok)
-            return false;
-        idx = _FindEventTable(id, name, dup);
-        // P197④ 镜像：ORIG 0x0811a395 `not %eax; shr $0x1f,%eax; test %al,%al; je`
-        //（4.1 对 `idx >= 0` 的寄存器 bool 物化）vs 4.4 `test %eax,%eax; js` 直跳。
-        // 等价位形 `(unsigned int)~idx >> 31` 实测仍被 4.4 折叠为 js（无收益），
-        // 保留可读正向形；2 条差归 N93附/P197④ 封顶。
-        while (idx >= 0)
-        {
-            if (dup)
-                return false;
-            // P167：ORIG 用 map::insert(make_pair(idx,1))（首值保留），非 operator[]
-            found.insert(std::make_pair(idx, 1));
-            break;
-        }
-    }
 
-    for (i = 0; i < GetEventTableCount(); ++i)
-    {
-        // P293：ORIG 0x0811a427 先 find（sret -0x70）后 end（sret -0x28）⇒ 原码
-        // 为具名迭代器形；单表达式 `find(i)==end()` 在 4.4 恒反序（end 先）。
-        std::map<int, int>::iterator it = found.find(i);
-        if (it == found.end())
-            out.push_back(i);
-    }
-    return true;
-}
-
-// ORIG 0x811a4d4（0x2d0 字节）：为空则直接返回 1；否则遍历 ids 中各事件表索引，
-// 用事件表 name/explain 字段构造 "(%d,%d,'%s','%s')" 插入串（explain 经
-// g_scriptStringManager_.findString(4, ...) 解析），一次性 INSERT 到
-// dnf_event_info，exec 成功返回 1，出错码 0x426（诱骗重复）或失败返回 0。
 #include "CEventManager/InsertEventTable.inc"
-{
-    // b28d-solo-CEventManager: [AE] ORIG 0x0811a4d4 实证——buf[0xff]={0} 声明在
-    // ids.empty() 之后；while + `++it; if (it != ids.end()) sql += ",";`
-    // （无 operator+，ORIG 两次 end()/ne() 调用）；events[*it].field 逐次重读
-    // （P157/P183，无 idx/e 引用缓存）；set_query 单格式串 "…values%s"
-    // （ORIG .rodata 0x8b50858 实读）；bool ok 局部 + getDBError()==0x426 判定。
-    // P214① 正向包裹 `if (!ids.empty()){…} return true;` 复现 `call empty; xor $1;
-    // test; je <成功尾>` ⇒ 208=208；逐条归一化仅剩重定位伪差（P264）。
-    // ORIG 0x0811a4d4 实证：`call empty; xor $1; test; je <成功尾>` ⇒ 正向包裹
-    // `if (!ids.empty()) { … } return true;`（P214①/P168a），非 `if(empty)return true`。
-    if (!ids.empty())
-    {
-        char buf[0xff] = {0};
-        std::string sql;
-        std::vector<int>::iterator it = ids.begin();
-        while (it != ids.end())
-        {
-            std::sprintf(buf, "(%d,%d,'%s','%s')", events[*it].id,
-                         events[*it].apply_type, events[*it].name,
-                         g_scriptStringManager_.findString(4, events[*it].explain, 0));
-            sql += buf;
-            ++it;
-            if (it != ids.end())                           // ORIG 末位元素不加逗号
-                sql += ",";
-        }
 
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE);
-        bool ok = false;
-        db->set_query(
-            "inSert into dnf_event_info(event_id, apply_type, event_name, event_explain) values%s",
-            sql.c_str());
-        ok = db->exec(true);
-        if (!ok)
-        {
-            if (db->getDBError() == 0x426)
-                return false;
-            return false;
-        }
-    }
-    return true;
-}
 
-// ---------------------------------------------------------------------------
-// LinkClosureB-2 追加：changeCharacName（ORIG T 0x08116276 sz 0x98，
-// 报告 docs/class_func_reports/CEventManager/changeCharacName.md 全文已读）：
-// 遍历事件数组 0..0xa5：槽非空且 IsEventing(0)（ORIG vptr+0x34 槽）为真 →
-// 调该事件 vptr+0x20 槽（ORIG changeCharacName 槽，头内声明序与 ORIG vtable
-// 对位：_ZTV10CEventBase @0x08b4bae0 实测 +0x20=changeCharacName、
-// +0x34=IsEventing），实参 (user, key, name, flag)。
-// b28d-solo-CEventManager: [N7 封顶] 同 dailyresetData——50=50 助记符序列全等，
-// 残余=虚调用目标 %ecx vs 4.4.7 %eax + 索引寄存器轮转；P282 复核 +0x34=IsEventing、
-// +0x20=changeCharacName 槽与头声明序一致。ORIG 0x08116276。
-// b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 IDENTICAL（N7 敏感族）。
 #include "CEventManager/changeCharacName.inc"
-{
-    for (int i = 0; i <= 0xa5; ++i)
-    {
-        if (m_events[i] != 0)
-        {
-            if (m_events[i]->IsEventing(0))
-                m_events[i]->changeCharacName(user, key, name, flag);
-        }
-    }
-}
+

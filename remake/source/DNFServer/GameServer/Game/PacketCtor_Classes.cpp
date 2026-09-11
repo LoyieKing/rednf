@@ -141,4 +141,3 @@ public:
     unsigned char m_group;    // +0xb
 } __attribute__((packed));
 #include "PacketCtor_Classes/Packet_Double_Check_Server_UDP_HeartBeat.inc"
-    : PacketHeader(0xbba, 0xc), m_channel(255) {}

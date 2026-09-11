@@ -1,1 +1,3 @@
 SmallStream::~SmallStream()
+{
+}

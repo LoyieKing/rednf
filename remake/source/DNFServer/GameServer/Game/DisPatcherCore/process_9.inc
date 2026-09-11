@@ -1,3 +1,6 @@
+// ORIG 0x081c3eae T _ZN25DisPatcher_RecoverStamina7processEP5CUserR8MSG_BASER9ParamBase
+// err>0：SendCmdErrorPacket(cmd=9, err&0xff) 后返回 -1；err<0：LineFunc(0xf9d,pretty,0,acc_id)
+// 并返回其值；err==0：param+0x4 = user->serviceOfShusia()，返回 err。
 int DisPatcher_RecoverStamina::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

@@ -16,41 +16,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08116b48（弱 W）：仅基类构造 + vptr 置位。
 #include "CCollectArchieveEventLog/CCollectArchieveEventLog.inc"
-{
-}
 
-// ORIG 0x08116b64 / 0x08116b94（弱 W）：标准虚析构（空体编译器生成同形）。
+
 #include "CCollectArchieveEventLog/dtor_CCollectArchieveEventLog.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08116bb2：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__,0x19,0)
-// ("Collect Archieve Event Log Start!")。
+
 #include "CCollectArchieveEventLog/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x19, 0);
-    tr("Collect Archieve Event Log Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08116c04：thunk——经 vtable slot 2（StartEvent()）虚调用。
-// [b28c-31] N7：转调虚调用 callee ORIG %edx vs 4.4 %eax（12=12，仅寄存器名差）。
+
 #include "CCollectArchieveEventLog/StartEvent_1.inc"
-{
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08116c1e：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__,0x23,0)
-// ("Collect Archieve Event Log End!")。
+
 #include "CCollectArchieveEventLog/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x23, 0);
-    tr("Collect Archieve Event Log End!");
-}
+

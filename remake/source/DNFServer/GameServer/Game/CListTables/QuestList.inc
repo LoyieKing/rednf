@@ -1,1 +1,3 @@
 QuestList::QuestList()
+{
+}

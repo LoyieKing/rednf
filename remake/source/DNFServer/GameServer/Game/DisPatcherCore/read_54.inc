@@ -1,3 +1,6 @@
+// ORIG 0x081c5d78 T _ZN21DisPatcher_PvPTimeout4readER9PacketBufR8MSG_BASE
+// （报告 DisPatcher_PvPTimeout/read.md 逐块映射）：循环 i=0..7 共 8 次
+// get_int → msg+0xd+i*4；失败 LineFunc(0x14a6, PRETTY, 0, 0)。
 int DisPatcher_PvPTimeout::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

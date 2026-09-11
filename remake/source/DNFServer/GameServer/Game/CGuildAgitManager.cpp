@@ -34,122 +34,47 @@
 // ============================================================================
 
 #include "CGuildAgitManager/CGuildAgitArea.inc"
-    : m_areaMap(), m_areaStack()
-{
-}
+
 
 #include "CGuildAgitManager/dtor_CGuildAgitArea.inc"
-{
-}
+
 
 #include "CGuildAgitManager/AllocGuildAgitArea.inc"
-{
-    int areaIdx = GetArea();
-    if (areaIdx >= 0)
-    {
-        SetAreaMapping(guildKey, areaIdx);
-    }
-}
+
 
 #include "CGuildAgitManager/GetArea.inc"
-{
-    if (m_areaStack.empty())
-    {
-        return -1;
-    }
-    int areaIdx = m_areaStack.top();
-    m_areaStack.pop();
-    m_areaStack.pop();
-    m_areaStack.pop();
-    m_areaStack.pop();
-    return areaIdx;
-}
+
 
 #include "CGuildAgitManager/SetAreaMapping.inc"
-{
-    m_areaMap.insert(std::make_pair(guildKey, areaIdx));
-}
+
 
 #include "CGuildAgitManager/SetGuildAgitAreaDomain.inc"
-{
-    for (int area = start; area < end; ++area)
-    {
-        m_areaStack.push(area);
-    }
-}
+
 
 #include "CGuildAgitManager/GetGuildAgitAreaIndex.inc"
-{
-    std::map<unsigned int, int>::iterator it = m_areaMap.find(guildKey);
-    if (it != m_areaMap.end())
-    {
-        return it->second - start;
-    }
-    return -1;
-}
+
 
 #include "CGuildAgitManager/ReleaseGuildAgitArea.inc"
-{
-    std::map<unsigned int, int>::iterator it = m_areaMap.find(guildKey);
-    if (it != m_areaMap.end())
-    {
-        m_areaStack.push(it->second - 3);
-        m_areaStack.push(it->second - 2);
-        m_areaStack.push(it->second - 1);
-        m_areaStack.push(it->second);
-        m_areaMap.erase(it);
-    }
-}
+
 
 // ============================================================================
 // CGuildAgitManager 实现
 // ============================================================================
 
 #include "CGuildAgitManager/CGuildAgitManager.inc"
-    : m_guildCountMap(), m_area()
-{
-}
+
 
 #include "CGuildAgitManager/dtor_CGuildAgitManager.inc"
-{
-}
+
 
 #include "CGuildAgitManager/AllocGuildAgitArea_1.inc"
-{
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_guildCountMap.find(guildKey);
-    if (it != m_guildCountMap.end())
-    {
-        it->second += 1;
-    }
-    else
-    {
-        m_guildCountMap.insert(std::make_pair(guildKey, 1));
-        m_area.AllocGuildAgitArea(guildKey);
-    }
-}
+
 
 #include "CGuildAgitManager/SetGuildAgitAreaDomain_1.inc"
-{
-    m_area.SetGuildAgitAreaDomain(start, end);
-}
+
 
 #include "CGuildAgitManager/GetGuildAgitAreaIndex_1.inc"
-{
-    return m_area.GetGuildAgitAreaIndex(guildKey, start);
-}
+
 
 #include "CGuildAgitManager/ReleaseGuildAgitArea_1.inc"
-{
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_guildCountMap.find(guildKey);
-    if (it != m_guildCountMap.end())
-    {
-        it->second -= 1;
-        if (it->second == 0)
-        {
-            m_guildCountMap.erase(it);
-            m_area.ReleaseGuildAgitArea(guildKey);
-        }
-    }
-}
+

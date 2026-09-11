@@ -47,16 +47,8 @@ class CDataManager;
 CDataManager* G_CDataManager();
 // ---------------- CAdvertisementExposeInfo ----------------
 
-// ORIG 静态池实例：MemPool<CAdvertisementExposeInfo>（ctor count 0x32 =
-// 50 块，实证 __static_initialization_and_destruction_0 @0x080fdc63 push $0x32）。
 #include "CInGameAdvertisementManager/advertisementExposeInfoPool_.inc"
 
-// ORIG T 0x080fc998：直调 MemPool::alloc（反编译实证）。
-void* CAdvertisementExposeInfo::operator new(unsigned int size)
-{
-    (void)size;
-    return advertisementExposeInfoPool_.alloc();
-}
 
 // ORIG T 0x080fc9ce：直调 MemPool::free(void*)（反编译实证）。
 void CAdvertisementExposeInfo::operator delete(void* p)
@@ -70,183 +62,29 @@ void CAdvertisementExposeInfo::operator delete(void* p, unsigned int size)
     advertisementExposeInfoPool_.free(p, size);
 }
 
-// ORIG W 0x080fdd0a：memcpy(this, &cond, 0x84c)。
 #include "CInGameAdvertisementManager/SetAdvertisementExposeInfo.inc"
-    stInGameADExposeCondition& cond)
-{
-    std::memcpy(&m_condition, &cond, 0x84c);
-}
 
-// ORIG W 0x080fdd2c：返回 this（条件缓冲即对象首 0x84c）。
+
 #include "CInGameAdvertisementManager/getExposeCondition.inc"
-{
-    return &m_condition;
-}
 
-// ORIG W _ZN27CInGameAdvertisementManagerC1Ev @0x080fdd6a：multimap 默认构造
-// → time(0) → new CMTRand(0x9c8, seed) 存 +0x18。
+
 #include "CInGameAdvertisementManager/CInGameAdvertisementManager.inc"
-{
-    time_t now = time(0);
-    // ORIG 0x080fdd8a：time 结果槽 -0x1c 单槽直绑（lea -0x1c 早于 operator new，
-    // %esi 跨调用缓存 &now）。const unsigned long& 形参 → time_t 槽同址绑定。
-    // 4.4 对 &now 实参表达式自然产 lea -0x1c 并物化（P0：寄存器仅承载表达式值）。
-    // 旧判 N96（b28d-solo-CInGameAdvertisementManager，ORIG 0x080fdd8a）：
-    // ORIG 4.1 在 `call _Znwj` **之前**发单条 `lea -0x1c(%ebp),%esi`（&now 直接
-    // 提前入 callee-saved，无中间槽）；4.4 把 lea 放到 operator new 之后且用 %edx。
-    // 旧复测 9 形（/tmp/b28d_solo_probe{,2,3}.cpp：现形 / reinterpret_cast 引用
-    // cast / C cast / 裸语句表达式 ({&now;}) / volatile now / 同型 unsigned long
-    // 直传 / 声明后赋值 / 具名指针局部 / 具名引用局部）无一复现——后两形虽能让 lea
-    // 提前，但额外物化 1~2 个槽 + 2 条 store/load（ORIG 无该槽），形态更劣。
-    // ⇒ 旧结论 4.1「无副作用地址计算提前调度 + callee-saved 直绑」不可复现。
-    // [L6S6b 2026-09-11 复核] 46/46 ndiff4：唯一差异 = ORIG 0x080fdd8d
-    //   `lea -0x1c(%ebp),%esi`（`call _Znwj` @0x080fdd97 **之前**）vs 我方
-    //   `lea -0x1c(%ebp),%edx`（new 之后）。上轮 9 形（现形/reinterpret_cast/
-    //   C cast/裸语句表达式/volatile/同型直传/声明后赋值/具名指针局部/具名引用
-    //   局部）无一能让 4.4 提前且不加槽 ⇒ 旧判 N96（P75 实参装载调度 + N7）。
-    // [L6S6b-2 2026-09-11 P307 **命中**，破 N96] 裸 `register` 指针承载 &now：
-    //   register 变量无地址 ⇒ 4.4 不落槽，&now 的 lea 成为独立语句被提前到
-    //   operator new 之前并直绑 callee-saved %esi（跨 new + ctor 保活），
-    //   逐条复现 ORIG 0x080fdd8d..0x080fddac。C1Ev DIFF→AE（151→152）。
-    register const unsigned long* seedp =
-        reinterpret_cast<const unsigned long*>(&now);
-    m_rand = new CMTRand(*seedp);
-}
 
-// ORIG W _ZN27CInGameAdvertisementManagerD1Ev @0x080fca7c：delete m_rand(+0x18)
-// → multimap 析构（ORIG 无 m_rand 置零）。
+
 #include "CInGameAdvertisementManager/dtor_CInGameAdvertisementManager.inc"
-{
-    delete m_rand;
-}
 
-// ORIG T _ZN27CInGameAdvertisementManager16InitADExposeInfoEv @0x080fd122
-// （报告 InitADExposeInfo.md）：遍历 multimap delete 各 info → clear(this)。
-// ORIG 循环体将 it->second 存入命名局部(-0xc)再 delete（P28 槽位序）。
+
 #include "CInGameAdvertisementManager/InitADExposeInfo.inc"
-{
-    for (std::multimap<short, CAdvertisementExposeInfo*>::iterator it =
-             m_exposeInfo.begin();
-         it != m_exposeInfo.end(); ++it)
-    {
-        CAdvertisementExposeInfo* info = it->second;
-        delete info;
-    }
-    m_exposeInfo.clear();
-}
 
-// ORIG T _ZN27CInGameAdvertisementManager18InsertADExposeInfoER25stInGameADExposeCondition
-// @0x080fd8e4（报告 InsertADExposeInfo.md）：new(0x850) → SetAdvertisementExposeInfo
-// → multimap<short,CAdvertisementExposeInfo*>::insert(make_pair(cond+0x204, info))。
-// 注：CAdvertisementExposeInfo 无用户 ctor（ORIG nm 无 C1/C2），new 不生成 ctor call。
+
 #include "CInGameAdvertisementManager/InsertADExposeInfo.inc"
-{
-    // ORIG new 无括号：trivial 类不做 value-init（无 rep stos 清零、无 ctor call）
-    CAdvertisementExposeInfo* info = new CAdvertisementExposeInfo;
-    info->SetAdvertisementExposeInfo(cond);
-    m_exposeInfo.insert(std::make_pair(cond.m_key, info));
-}
 
-// ORIG T _ZN27CInGameAdvertisementManager17queryADExposeInfoEP25stInGameADExposeCondition
-// @0x080fd19e（报告 queryADExposeInfo.md 全转写）：DB_HANDLE_9 取连接，
-// "seLect * from in_game_ad where visible = 1"；行 → 0x84c 条件记录逐列填充
-//（失败即返 0）；循环后写哨兵（cond[i]+0x210 = -1）并双 trace，返 1。
-// ORIG 形态：char 暂存槽 b(-0x15) 先于 db(-0x14) 声明；cMyTrace 临时链式
-//（P37，__PRETTY_FUNCTION__）；无 rec 命名局部（每列 cond+i 内联重算）。
+
 #include "CInGameAdvertisementManager/queryADExposeInfo.inc"
-{
-    bool b;
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
-    db->set_query("seLect * from in_game_ad where visible = 1");
-    b = db->exec(true);
-    if (!b)
-    {
-        return false;
-    }
-    int nRows = db->get_n_rows();
-    int i = 0;
-    while (i < nRows)
-    {
-        b = db->fetch();
-        if (!b)
-        {
-            break;
-        }
-        if (199 < i)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0xeb, 5)(
-                "[IN_GAME_ADVERTISEMENT_ERROR] count(%d)", nRows);
-            break;
-        }
-        b = db->get_uint(0, reinterpret_cast<unsigned int&>(cond[i].m_sentinel));
-        if (!b) return false;
-        b = db->get_str(1, cond[i].m_title, 0x32);
-        if (!b) return false;
-        b = db->get_byte(2, cond[i].m_pad0[0]);
-        if (!b) return false;
-        b = db->get_byte(3, cond[i].m_pad0[1]);
-        if (!b) return false;
-        b = db->get_byte(4, cond[i].m_pad0[2]);
-        if (!b) return false;
-        b = db->get_str(5, cond[i].m_pad0 + 3, 0x200);
-        if (!b) return false;
-        b = db->get_str(6, cond[i].m_field246, 0xff);
-        if (!b) return false;
-        b = db->get_uint(7, cond[i].m_field444);
-        if (!b) return false;
-        b = db->get_str(8, cond[i].m_field345, 0xff);
-        if (!b) return false;
-        b = db->get_str(9, cond[i].m_field54a, 0xff);
-        if (!b) return false;
-        b = db->get_str(10, cond[i].m_field649, 0xff);
-        if (!b) return false;
-        b = db->get_uint(0xb, cond[i].m_field748);
-        if (!b) return false;
-        b = db->get_str(0xc, cond[i].m_field74c, 0xff);
-        if (!b) return false;
-        b = db->get_uint(0xd, cond[i].m_minCera);
-        if (!b) return false;
-        b = db->get_uint(0xe, cond[i].m_maxCera);
-        if (!b) return false;
-        b = db->get_byte(0xf, cond[i].m_field547);
-        if (!b) return false;
-        b = db->get_ubyte(0x11,
-            reinterpret_cast<unsigned char&>(cond[i].m_pad0[0x203]));
-        if (!b) return false;
-        b = db->get_short(0x12, cond[i].m_key);
-        if (!b) return false;
-        b = db->get_str(0x14, cond[i].m_field448, 0xff);
-        if (!b) return false;
-        b = db->get_byte(0x15, cond[i].m_field548);
-        if (!b) return false;
-        ++i;
-    }
-    cMyTrace(__PRETTY_FUNCTION__, 300, 9, true, true)(
-        "[!] Load In Game Advertisement Expose Info From DB(%d) Complete", nRows);
-    cond[i].m_sentinel = -1;
-    return true;
-}
 
-// ORIG 形态：if(q()){…;return true;} return false;（test %al; je 直测，P59）；
-// 循环 i<=199（P2 setle）；无 tailPad（buf 恰 200*0x84c = 0x67b60）。
+
 #include "CInGameAdvertisementManager/LoadADExposeInfoAtApp.inc"
-{
-    stInGameADExposeCondition buf[200];
-    std::memset(buf, 0xff, 0x67b60);
-    if (queryADExposeInfo(buf))
-    {
-        for (int i = 0; i <= 199; ++i)
-        {
-            if (buf[i].m_sentinel == -1)
-            {
-                break;
-            }
-            InsertADExposeInfo(buf[i]);
-        }
-        return true;
-    }
-    return false;
-}
+
 // ORIG T _Z23InGameADManagerInstancev @0x080fc9e9：函数局部 static 单例
 //（guard 0x093feac8 / instance 0x093fead0；__cxa_atexit 析构由 static 语义给出）。
 CInGameAdvertisementManager* InGameADManagerInstance()
@@ -255,193 +93,17 @@ CInGameAdvertisementManager* InGameADManagerInstance()
     return &instance;
 }
 
-// ORIG T _ZN27CInGameAdvertisementManager10checkLevelEP5CUserPc @0x080fca9e
-//（报告 checkLevel.md）：data 逗号分隔等级表 → ExplodeString → atoi 逐项；
-// 命中 -1（表尾）或 user 当前等级即返 1。
 #include "CInGameAdvertisementManager/checkLevel.inc"
-{
-    if (user == 0)
-    {
-        return false;
-    }
-    char* list[0x79];
-    int count = DNFFLib::ExplodeString(data, ",", list, 0x78);
-    for (int i = 0; i < count; ++i)
-    {
-        int lv = atoi(list[i]);
-        if (lv == -1)
-        {
-            return true;
-        }
-        if (user->get_charac_level() == lv)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
-// ORIG T _ZN27CInGameAdvertisementManager14checkConditionEP5CUserP24CAdvertisementExposeInfo
-// @0x080fcd2e（报告 checkCondition.md）：年龄表(G_CDataManager+0x4a5c)/
-// 性别/等级/商城币区间/职业/账号取模逐项过滤，写 info 暴露标记(+0x549)。
+
 #include "CInGameAdvertisementManager/checkCondition.inc"
-    CAdvertisementExposeInfo* info)
-{
-    if (info == 0)
-    {
-        return false;
-    }
-    // b28d-36：ORIG 0x080fcd2c 段为 `mov -0xc(%ebp),%edx; movzbl (%edx,%eax,1),%eax`
-    // （基址入 edx、索引留 eax 的 scaled 形）。4.4 对**指针**下标恒折
-    // `add base,%eax; movzbl (%eax)`（探针 /tmp/d36_probe_idx.cpp f1..f8 八形全败）；
-    // 改用**数组引用**（探针 f9/f10）即逐条复现。
-    char (&ageTbl)[1] =
-        *reinterpret_cast<char(*)[1]>(&G_CDataManager()->m_inGameAd);  // +0x4a5c
-    if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[1]) != 0xffu)
-    {
-        if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[1]) == 0)
-        {
-            if (ageTbl[user->GetAge()] == 1)
-            {
-                return false;
-            }
-        }
-        else
-        {
-            if (ageTbl[user->GetAge()] == 0)
-            {
-                return false;
-            }
-        }
-    }
-    if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[0]) != 0xffu)
-    {
-        if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[0]) == 1)
-        {
-            if (static_cast<int>(user->getSex()) == 0)
-            {
-                return false;
-            }
-        }
-        else
-        {
-            if (static_cast<int>(user->getSex()) == 1)
-            {
-                return false;
-            }
-        }
-    }
-    if (checkLevel(user, info->getExposeCondition()->m_pad0 + 3) != 1)
-    {
-        return false;
-    }
-    // 商城币区间：ORIG 嵌套三目汇聚（ja/jb + mov $1/jmp/mov $0 + test，无 bool 局部）
-    if (info->getExposeCondition()->m_minCera >
-            static_cast<unsigned int>(user->GetCera())
-        ? true
-        : (static_cast<unsigned int>(user->GetCera()) <
-               info->getExposeCondition()->m_maxCera
-           ? false
-           : true))
-    {
-        return false;
-    }
-    if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[2]) != 0xffu)
-    {
-        if (user->get_charac_job() !=
-            static_cast<signed char>(info->getExposeCondition()->m_pad0[2]))
-        {
-            return false;
-        }
-    }
-    if (static_cast<unsigned char>(
-            info->getExposeCondition()->m_pad0[0x203]) != 0)
-    {
-        if (user->get_acc_id() % static_cast<unsigned int>(
-                static_cast<unsigned char>(
-                    info->getExposeCondition()->m_pad0[0x203])) == 0)
-        {
-            info->getExposeCondition()->m_exposeFlag = 0;
-        }
-        else
-        {
-            info->getExposeCondition()->m_exposeFlag = 1;
-        }
-    }
-    else
-    {
-        info->getExposeCondition()->m_exposeFlag = 1;
-    }
-    return true;
-}
 
-// ORIG T _ZN27CInGameAdvertisementManager33CheckIngameAdvertisementConditionEP5CUserR20stNotifyIngameADInfoi
-// @0x080fcfa8（报告 CheckIngameAdvertisementCondition.md）：multimap 按 short
-// 键 [lower_bound, upper_bound) 遍历 → checkCondition 命中者 memcpy 0x63c 入
-// vector → RandNum 随机取一条 rep movsl 0x63c 拷出。
-// [L6S6 2026-09-11 语义轴修正] 父泳道 p167 联网实证真缺口：ORIG 调
-// `_ZNSt6vectorI20stNotifyIngameADInfoSaIS0_EE2atEj`（vector::at，越界抛
-// std::out_of_range），我方误写 `operator[]`（EXTRA …ixEj）⇒ 已改回 `.at()`。
-// 修复后 p167 该缺口消失（仅余 vector ctor/dtor 的 C1/C2 别名名差，同址 weak）。
-// 旧记：b28d-solo AE 闭合（无源码改动）114/114。
+
 #include "CInGameAdvertisementManager/CheckIngameAdvertisementCondition.inc"
-    CUser* user, stNotifyIngameADInfo& info, int flag)
-{
-    stNotifyIngameADInfo buf;
-    // ORIG：vec 先构造、it 后初始化（调用顺序）；upper_bound 在循环条件处
-    std::vector<stNotifyIngameADInfo> vec;
-    std::multimap<short, CAdvertisementExposeInfo*>::iterator it =
-        m_exposeInfo.lower_bound(static_cast<short>(flag));
-    while (it != m_exposeInfo.upper_bound(static_cast<short>(flag)))
-    {
-        CAdvertisementExposeInfo* ad = it->second;
-        if (checkCondition(user, ad))
-        {
-            std::memcpy(&buf,
-                &ad->getExposeCondition()->m_sentinel,   // +0x210（连续块起点）
-                0x63c);
-            vec.push_back(buf);
-        }
-        ++it;
-    }
-    int n = static_cast<int>(vec.size());
-    if (n == 0)
-    {
-        return false;
-    }
-    // [L6S6 2026-09-11 语义轴 P175 修正] p167 联网实证：ORIG 调
-    // `_ZNSt6vectorI20stNotifyIngameADInfoSaIS0_EE2atEj`（vector::at，带边界检查，
-    // 越界抛 std::out_of_range），我方误写 `operator[]`（EXTRA `…ixEj`）。
-    // ORIG 0x080fd0d0 `call <vector at>` 后 `mov $0x18f,%eax; rep movsl`（399×4 =
-    // 0x63c 内联聚合赋值）。改回 at() 恢复异常语义；返回值即元素指针，直接整体赋值。
-    info = vec.at(static_cast<unsigned int>(RandNum(n)));
-    return true;
-}
 
-// ORIG W _ZN27CInGameAdvertisementManager7RandNumEi @0x080fdd34：
-// m_rand->randInt() 无符号 % range（xor edx / div 实证）。
+
 #include "CInGameAdvertisementManager/RandNum.inc"
-{
-    return static_cast<unsigned int>(m_rand->randInt()) %
-           static_cast<unsigned int>(range);
-}
 
-// ORIG T _ZN27CInGameAdvertisementManager18ReloadADExposeInfoEv @0x080fd95e
-//（报告 ReloadADExposeInfo.md）：stream 0x2f9 + (-1) → GetInBuffer 缓冲 →
-// queryADExposeInfo 成功则 put(DISPATCH_Q) 广播重载。
+
 #include "CInGameAdvertisementManager/ReloadADExposeInfo.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "InGameAdvertisementManager.cpp", 0x150), true);
-    guard.operator*()->operator<<(0x2f9);
-    guard.operator*()->operator<<(-1);
-    SIG_RELOAD_IN_GAME_ADVERTISEMENT* sig =
-        guard->GetInBuffer<SIG_RELOAD_IN_GAME_ADVERTISEMENT>();
-    if (queryADExposeInfo(
-            reinterpret_cast<stInGameADExposeCondition*>(sig)))
-    {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-        return true;
-    }
-    return false;
-}
+

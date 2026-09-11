@@ -1,3 +1,16 @@
+// ORIG _ZN13user_creature12CDBMsgSender18InsertCreatureItemEP5CUserP10Inven_Itemiiiii
+// W 0x0833faaa（objdump 逐条转写）：
+//   m_stream 空 → 0；buf 清 0x74 后 setCopy(item) 到 +0x04；
+//   m_slot(+0x2c)=slot；m_characNo(+0x48)=user->getCurCharacNo()；
+//   m_stomachValue(+0x44)=100；m_reason(+0x51 byte)=reason；
+//   m_mapSize(+0x68)=mapSize；m_days(+0x54)=days；m_expireTick(+0x58)=expireTick；
+//   m_ceraOrderNo(+0x60)=user->get_cera_item_order_no()；
+//   itemIdx=item->m_addInfo（ORIG mov 0x2(%eax) 即 +0x02 int）：find_item 为空或
+//   is_stackable → 返回 0；
+//   CEquipItem::get_sub_type()==0 → m_flag50(+0x50)=1 且 m_field64(+0x64)=6，
+//   否则 m_flag50=0；返回 1。
+// [b28d-23 N·N81/N76] 临时 this lea-vs-add + store 装载序 ⇒ N。ORIG 0x0833faaa
+// [b28d-solo-CCreatureMgr AE] +0x48 m_characNo 在当前头集/路由下与 ORIG 逐条对齐（曾因 edx 中转差异判 N；字段 unsigned 化会破坏 RecvMail/SendMail 同字段，P248 两端冲突，勿改）；ORIG 0x833faaa
 bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
                                       int reason, int mapSize, int days,
                                       int expireTick)

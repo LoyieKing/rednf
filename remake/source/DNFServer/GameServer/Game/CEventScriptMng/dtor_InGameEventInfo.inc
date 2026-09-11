@@ -1,1 +1,3 @@
 InGameEventInfo::~InGameEventInfo()
+{
+}

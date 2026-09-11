@@ -19,31 +19,20 @@
 #include "LwCallback.h"
 
 #include "LwCallback/LwCallback.inc"
-{
-}
+
 
 #include "LwCallback/LwCallback_1.inc"
-    : m_callback(callback)
-{
-}
+
 
 #include "LwCallback/dtor_LwCallback.inc"
-{
-}
+
 
 #include "LwCallback/setCallback.inc"
-{
-    m_callback = callback;
-}
+
 
 #include "LwCallback/log.inc"
-{
-    if (m_callback)
-        m_callback(file, func, line, msg);
-}
+
 
 std::function<void (char const*, char const*, int, char const*)>
 #include "LwCallback/getCallback.inc"
-{
-    return m_callback;
-}
+

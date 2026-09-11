@@ -1,1 +1,4 @@
 StageData::StageData()
+{
+    clear();
+}

@@ -37,12 +37,8 @@
 // 构造 / 析构 / Reset
 // ============================================================================
 
-// ORIG 0x082a4cea：ctor 体内只有 Reset()；三组 Inven_Item[4][2] 与
-// GameResultType[4] 的构造全部由编译器隐式生成（含 EH 反向析构 landing pad），
-// 不存在 placement-new（ORIG 无 _ZnwjPv 调用点）。
 #include "BattleData/BattleData.inc"
 
-// ORIG 0x082a54d6：空体，仅隐式析构 GameResultType[4]（反向 0x140 → 0）。
 #include "BattleData/dtor_BattleData.inc"
 
 // ORIG 0x82a4e90 头部清零为 4.1 dest 缓存形：每对字段一次 this 载入+双 store
@@ -68,22 +64,10 @@ struct BattleDataZeroView {
 
 #include "BattleData/GetTotalKilledMonsterCount.inc"
 
-// b28d-40: 真 bug 已修（比较方向 >=）+ P183 去缓存 + goto fail 共享出口；
-// 残差 = ORIG ebx 缓存 roomIndex + 单累加器 add 链 vs 4.4 lea（N4/P30 封顶）。
-// ORIG 0x085be7aa。
 #include "BattleData/IncEventDungeonDestoryObjectPoint.inc"
 
 #include "BattleData/ResetEventDungeonClearPoint.inc"
 
-// b28d-40: 真 bug 已修（st.m_monsterIndex >= param_2，原写 <= 反向；ORIG 0x085be82b
-// `cmp 0x10(%ebp),%eax; jl fail`）+ P183 去 idx 缓存 + 共享 fail 出口复现；
-// 本文档轮（R25DungeonPvpBattleData）实测：goto 形生 3 条出口中继岛（nop+jmp，我方 64 条）
-// ⇒ 改「正极性早返 + 嵌套 if 正向包裹」（P214①/P222）：`jbe 主体; mov $0,%eax; jmp epi`
-// 早返岛与三个 `jne fail` 共享 fail 块（mov $0,%eax 落尾部）逐块与 ORIG 同构，60 条 vs 61。
-// 残差 = ①ORIG 用 %ebx 缓存 roomIndex（push/pop %ebx 各 1，callee-saved 角色 N7/N125）
-//        ②3*p1 强度归约 ORIG `add %eax,%eax; add %edx,%eax` vs 4.4 `add; lea (%eax,%edx,1)`
-//        ⇒ N86/N125 族，源形不可择（P321-T5：装载序/lea-vs-add 不得用类型旋钮赌）。
-// ORIG 0x085be7aa。
 #include "BattleData/ClearEventDungeonRoom.inc"
 
 #include "BattleData/IsClearEventDungeonRoom.inc"

@@ -1,1 +1,4 @@
 EpisodeScript::EpisodeScript()
+{
+    clear();
+}

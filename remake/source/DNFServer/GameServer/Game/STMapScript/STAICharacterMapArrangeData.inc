@@ -1,1 +1,4 @@
 STAICharacterMapArrangeData::STAICharacterMapArrangeData()
+{
+    Clear();
+}

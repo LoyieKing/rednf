@@ -1,3 +1,9 @@
+// ORIG 0x08682d3a T _ZN15cUserHistoryLog12RandomOptionERK10Inven_ItemN18randomOptionReason1TE
+// （docs/class_func_reports/cUserHistoryLog/RandomOption.md + objdump 全文转写）：
+// m_user->LogHistory("RandomOptionItem,%d,%02X×14,%d", item.m_addInfo,
+// [b28d-29] N82/P183：ORIG 无逐字段临时缓存，4.4 新增 -0x50..-0x48 三槽（帧 0x9c vs 0xac）；语义集合全等  (ORIG 0x08682d3a insn 102->119)
+//   item.m_random.m_random 的 14 字节（+0x25..+0x32）逐字节, reason)。无 m_user 空检查。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 124（ORIG 102 / ours 118），残差=N82 帧差；沿用上方 b28d-29 归因，封顶。
 void cUserHistoryLog::RandomOption(const Inven_Item& item, randomOptionReason::T reason)
 
 {

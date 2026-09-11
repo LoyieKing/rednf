@@ -17,64 +17,25 @@
 
 #include "RewardUserList.h"
 
-// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x081bb690。
 #include "RewardUserList/insert.inc"
-{
-    if (!is_exist(key)) {
-        RewardUserData d;   // 默认构造：a=b=0，mark=0
-        d.a = a;
-        d.b = b;
-        d.mark = false;     // ORIG 在 ctor 后再次显式清零 mark（offset 0x8）
-        m_map.insert(std::make_pair(key, d));
-        m_index.push_back(key);
-        return true;
-    }
-    return false;
-}
+
 
 #include "RewardUserList/CRewardUserList.inc"
-{
-    // map(+0x00) 与 deque(+0x18) 由成员默认构造（ORIG ctor 0x081bbfb6 显式构造二者）
-}
+
 
 #include "RewardUserList/RewardUserData.inc"
-{
-    a = 0;
-    b = 0;
-    mark = false;
-}
 
-// ORIG 0x081bb73c：find→iterator 临时→const_iterator 拷贝→end→拷贝→
-// operator== 取反汇聚（test/je/mov $0/jmp/mov $1）。
+
 #include "RewardUserList/is_exist.inc"
-{
-    std::map<unsigned int, RewardUserData>::const_iterator it =
-        m_map.find(key);
-    return it == m_map.end() ? false : true;
-}
+
 
 #include "RewardUserList/delete_mark.inc"
-{
-    std::map<unsigned int, RewardUserData>::iterator it = m_map.find(key);
-    if (it != m_map.end()) {
-        it->second.mark = true;
-        return true;
-    }
-    return false;
-}
+
 
 #include "RewardUserList/dtor_CRewardUserList.inc"
-{
-    // 成员按声明反序自动析构：deque(+0x18) → map(+0x00)（ORIG D1/D2 0x081bbffc 同序）
-}
+
 
 #include "RewardUserList/clear.inc"
-{
-    m_map.clear();     // ORIG 先 map（0x081bc04e）
-    m_index.clear();   // 后 deque（0x081bc05c）
-}
+
 
 #include "RewardUserList/get_index_size.inc"
-{
-    return m_index.size();   // ORIG 0x081bc064
-}

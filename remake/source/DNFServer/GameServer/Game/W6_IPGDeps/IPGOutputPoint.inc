@@ -1,3 +1,8 @@
+// ORIG T 0x081000f6 (0x137)。
+// [b28d-solo-W6_IPGDeps] verdict=AE（76=76）。修法：删 `SIPGDataPointView* pt`
+// 具名局部，全部改 `data->m_cmd.m_point.*` 成员链（ORIG 0x081000f6 各字段
+// `add $0x8c/0x94/0xac/0xb0/0xb1/0xb2` 直接重算，无槽往返，P0/P183）。
+// P167 CLEAR（11/11）。
 void CIPGHelper::IPGOutputPoint(CUser* user,
                                 const char* p2, const char* p3, const char* p4,
                                 const char* p5, const char* p6, void* callback)

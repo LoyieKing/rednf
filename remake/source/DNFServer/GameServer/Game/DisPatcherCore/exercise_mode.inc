@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 7（ORIG 154 / ours 157），残差=P211/N18a 中转/store 序；沿用上方 b28d-29 归因，封顶。
 bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

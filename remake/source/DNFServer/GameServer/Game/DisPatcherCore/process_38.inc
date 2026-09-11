@@ -1,3 +1,10 @@
+// ORIG 0x081cadaa T _ZN19DisPatcher_UseSkill7processEP5CUserR8MSG_BASER9ParamBase
+// （报告 DisPatcher_UseSkill/process.md ## 反编译 C 全文映射）：
+// param.m_errNo=check_error；>=1 直接返回 0；<0 LineFunc(0x1ff2,err,acc_id)；
+// ==0 时构造校验信息 → 非法使用记黑客计数（addServerHackCnt(type,1,slot,0)），
+// 有队伍则 CParty::use_skill(user, slot, target)，恒返 0。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
+// [b28d-solo-DisPatcherCore] 复核 AE：ORIG 112 / ours 112 insn 全等（AE 口径，重定位归一）。
 int DisPatcher_UseSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

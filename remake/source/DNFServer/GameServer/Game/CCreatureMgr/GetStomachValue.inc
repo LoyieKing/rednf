@@ -1,3 +1,9 @@
+// ORIG _ZN13user_creature8CStomach15GetStomachValueENS_14CREATURE_STATEEb T 0x8336cfc。
+// 非成长宠恒 100；state==1（战斗）按 -60/秒消耗，state 2..3 按 +360/秒恢复，
+// 上限 100；每次调用后刷新 m_lastTime。常量取自 .rodata 0x8c2f450/54/58。
+// [b28d-solo-CCreatureMgr AE] TU 路由 -march=i486 已消 x87 比较 lowering；
+// 唯一残差 = 阈值比较的 C3 掩码：ORIG `test $0x45,%ah`（严格 `m_value<0.0f`）
+// vs 原 `<=` 的 `test $0x5` ⇒ 改严格小于后逐条全等。ORIG 0x08336cfc
 float CStomach::GetStomachValue(CREATURE_STATE state, bool growFlag)
 {
     if (!growFlag)

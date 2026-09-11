@@ -1,1 +1,3 @@
 CItemAmplifier::CItemAmplifier()
+{
+}

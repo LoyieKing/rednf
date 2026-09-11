@@ -64,86 +64,25 @@ public:
 };
 
 #include "GameResultType/GameResultType.inc"
-{
-    Clear();
-}
+
 
 #include "GameResultType/dtor_GameResultType.inc"
-{
-}
 
-// [GI-ioinit L21] DungeonUserShotCount 两个定义后移，使 GameResultType ctor
-//（ORIG 键名 `_GLOBAL__I__ZN14GameResultTypeC2Ev` @0x84b764d）成为本 TU 首个强符号（P327）。
+
 #include "GameResultType/DungeonUserShotCount.inc"
-{
-    reset();
-}
+
 
 #include "GameResultType/reset.inc"
-{
-    m_count = 0;
-    m_field4 = 0;
-}
+
 
 #include "GameResultType/Set.inc"
-{
-    *this = other;
-    return 1;
-}
+
 
 #include "GameResultType/Clear.inc"
-{
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_field9 = 0;
-    m_fielda = 0;
-    m_fieldc = 0;
-    m_field10 = 0;
-    m_field34 = 0;
-    m_field36 = 0;
-    m_field38 = 0;
-    m_field3a = 0;
-    m_field3c = 0;
-    m_field3e = 0;
-    m_field40 = 0;
-    m_field42 = 0;
-    m_field48 = 0;
-    m_field44 = 0;
-    m_field4a = 0;
-    m_field4c = 0;
-    memset(m_shot, 0, sizeof(m_shot));
-}
 
-// [b28d-54 修复] ORIG 0x084b750c：m_field44 改 unsigned int（P211 档③同型化）后
-//   4.4 复现 ORIG 单段 `mov 0x44(%eax),%edx` + 无符号 jae；整函数 AE。
+
 #include "GameResultType/UpdateHighScore.inc"
-{
-    int flags = 0;
-    if (other.m_field40 > m_field40)
-    {
-        m_field40 = other.m_field40;
-        flags |= 1;
-    }
-    if (other.m_field42 > m_field42)
-    {
-        m_field42 = other.m_field42;
-        flags |= 2;
-    }
-    if (other.m_field48 > m_field48)
-    {
-        m_field48 = other.m_field48;
-        flags |= 8;
-    }
-    // b28d-54 判词：ORIG 0x084b7588 段 `mov 0x44(%eax),%edx; cmp %eax,%edx; jae`
-    //   ⇒ 无符号比较 + 单段装载；字段改 unsigned int（与 RHS 同型，P211 档③）。
-    if (other.m_field44 < m_field44)
-    {
-        m_field44 = other.m_field44;
-        flags |= 4;
-    }
-    return flags;
-}
+
 
 #include "GameResultType/GetUniqueKey.inc"
 {
@@ -162,14 +101,10 @@ public:
 };
 
 #include "GameResultType/GameResultSet.inc"
-{
-}
+
 
 #include "GameResultType/dtor_GameResultSet.inc"
-{
-}
+
 
 #include "GameResultType/Clear_1.inc"
-{
-    GameResultType::Clear();
-}
+

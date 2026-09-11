@@ -1,3 +1,4 @@
+// ORIG T 0x089e82f6 _ZN12STTileScript5ClearEv。
 void STTileScript::Clear()
 {
     m_actions.clear();

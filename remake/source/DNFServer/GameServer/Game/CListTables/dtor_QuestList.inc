@@ -1,1 +1,4 @@
 QuestList::~QuestList()
+{
+    destroy();
+}

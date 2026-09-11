@@ -15,52 +15,20 @@
 #include "CPartyExpBonusEvent.h"
 #include "GameTypes.h"   // cMyTrace
 
-// ORIG C1/C2 0x08116d4a：基类构造 + vptr 装载 + m_field0c = 0。
 #include "CPartyExpBonusEvent/CPartyExpBonusEvent.inc"
-{
-    m_field0c = 0;
-}
 
-// ORIG D1/D2 0x08116d70：恢复基类 vptr + 基类析构（编译器自动）。
+
 #include "CPartyExpBonusEvent/dtor_CPartyExpBonusEvent.inc"
-{
-}
 
-// ORIG T 0x08116c70：置事件标志后经 cMyTrace 输出
-// "Party Exp Bonus Event Start! (%x%%)"（实参为 m_field0c 千分数）。
+
 #include "CPartyExpBonusEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    // [b28c-L15 P227] ORIG 在 cMyTrace ctor 前读 m_field0c 入 %ebx 跨 ctor 保活
-    //   ⇒ 全表达式临时链形（具名对象则 ctor 后才读）。
-    cMyTrace(__PRETTY_FUNCTION__, 0x10, 0)(
-        "Party Exp Bonus Event Start! (%x%%)", m_field0c);
-}
 
-// ORIG T 0x08116cd0：m_field0c = param.m_duration 后转调无参 StartEvent()
-//（经 vptr+0x08 槽虚调用）。
+
 #include "CPartyExpBonusEvent/StartEvent_1.inc"
-{
-    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
-    m_field0c = (unsigned int)param.m_duration;
-    StartEvent();
-}
 
-// ORIG T 0x08116cf8：清事件标志并输出 "Party Exp Bonus Event End!"。
+
 #include "CPartyExpBonusEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1b, 0);
-    trace("Party Exp Bonus Event End!");
-}
 
-// ORIG W 0x085bfe1a _ZN19CPartyExpBonusEvent12getBonusRateEib
-// 事件进行中 且 memberCount>1 且 !isHelpAbuse → m_field0c/100.0f，否则 0.0f。
-    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
+
 #include "CPartyExpBonusEvent/getBonusRate.inc"
-{
-    // P0：ORIG 虚调结果直 test，无 bool 槽（右值内联）
-    if (IsEventing((CUser*)0) && memberCount > 1 && !isHelpAbuse)
-        return (float)m_field0c / 100.0f;
-    return 0.0f;
-}
+

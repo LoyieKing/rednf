@@ -1,1 +1,3 @@
 CEventStayTime::~CEventStayTime()
+{
+}

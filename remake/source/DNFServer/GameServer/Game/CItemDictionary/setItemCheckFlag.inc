@@ -1,3 +1,7 @@
+// ORIG 0x0811d9d7：user==0 直接返回；index=flag>>3、bit=flag&7 越界（
+// index∉[0,0x1387] 或 bit∉[0,7]）→ logFormat 后返回；getItemCheckFlag(-1,flag)
+// 已置位则跳过；否则 m_data[index] += (1<<bit)（加法非 or），
+// sendItemDictionaryInfo + CData::alter()。
 void CItemDictionary::setItemCheckFlag(CUser* user, unsigned int item,
                                        unsigned int flag)
 {

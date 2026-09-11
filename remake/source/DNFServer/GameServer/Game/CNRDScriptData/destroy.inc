@@ -1,1 +1,3 @@
 void CNRDScriptData::destroy()
+{
+}

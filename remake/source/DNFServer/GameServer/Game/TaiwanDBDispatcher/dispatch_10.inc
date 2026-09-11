@@ -1,3 +1,11 @@
+// ORIG 0x0815db98：GetOutBuffer<Taiwan::SigSaveHeroMissionData> null → throw
+// "context_null"；GetDBHandle(9,0) null → throw "handle_null"；
+// blob_to_str(0, sig+4, 0x100)；set_query("upDate event_hero_mission_data set
+// mission='%s' where server_group=%d and charac_no=%u", blob,
+// get_server_group(), sig->m_field0) exec 失败 throw "exec_update"。catch
+// logFormat(0x413) 返 0。成功返 1。
+// [b28d-lane6] AE（已修）：三实参内联（blob/serverGroup/characNo 不设具名槽）后
+// 帧 0x30 与 ORIG 0x0815db98 全等（104=104）。
 bool DBSaveHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
 {
     try

@@ -1,1 +1,4 @@
 int getErrno()
+{
+    return errno;
+}

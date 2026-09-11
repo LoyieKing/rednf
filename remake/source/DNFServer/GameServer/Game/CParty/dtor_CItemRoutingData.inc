@@ -1,1 +1,3 @@
 CParty::CItemRoutingData::~CItemRoutingData()
+{
+}

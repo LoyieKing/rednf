@@ -1,1 +1,3 @@
 CCharacInformNotice::~CCharacInformNotice()
+{
+}

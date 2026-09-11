@@ -1,1 +1,3 @@
 CItemLimitEdition::~CItemLimitEdition()
+{
+}

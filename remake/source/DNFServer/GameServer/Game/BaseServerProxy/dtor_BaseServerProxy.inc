@@ -1,1 +1,3 @@
 BaseServerProxy::~BaseServerProxy()
+{
+}

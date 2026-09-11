@@ -1,3 +1,6 @@
+// ===== _Z29DecreaseTradeLimitCountByUserR5CUserii —— ORIG 0x0812017d =====
+// curCharac 缺失 → false；GetInvenRef(space, slot) 缺失 → false；
+// 否则委托 DecreaseTradeLimitCount(Inven_Item&)。
 bool DecreaseTradeLimitCountByUser(CUser& user, int space, int slot)
 {
     if (user.getCurCharacR() == 0)

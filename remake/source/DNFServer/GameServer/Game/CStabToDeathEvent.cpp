@@ -22,46 +22,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0827f508：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "CStabToDeathEvent/CStabToDeathEvent.inc"
-{
-}
 
-// ORIG 0x0827f524 / 0x0827f554：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CStabToDeathEvent/dtor_CStabToDeathEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0827f572：SetEventFlag(true) +
-// cMyTrace(&_ZZN17CStabToDeathEvent10StartEventEvE12__FUNCTION__,0x11,0)
-// ("CStabToDeathEvent Start!")。
+
 #include "CStabToDeathEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x11, 0);
-    tr("CStabToDeathEvent Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0827f5c4：与 StartEvent() 同体（SetEventFlag(true) + trace，
-// file 串为 __FUNCTION__ 局部静态（E12__FUNCTION__），行 0x17）。
+
 #include "CStabToDeathEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x17, 0);
-    tr("CStabToDeathEvent Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0827f616：SetEventFlag(false) +
-// cMyTrace(&_ZZN17CStabToDeathEvent8EndEventEvE12__FUNCTION__,0x1d,0)
-// ("CStabToDeathEvent End!")。
+
 #include "CStabToDeathEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x1d, 0);
-    tr("CStabToDeathEvent End!");
-}
+

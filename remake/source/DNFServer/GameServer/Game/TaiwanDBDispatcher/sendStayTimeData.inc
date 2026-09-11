@@ -1,3 +1,6 @@
+// ORIG 0x0815b6ac：Acquire("localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x192)
+// → CStreamGuard(true) → internal_stream(guard, 0x5, uid) →
+// GetInBuffer<Taiwan::SigStayTimeEvent> 非空时 MsgQueueMgr::put(DB_Q, guard)。
 void CheckStayTimeEvent::sendStayTimeData(int uid)
 {
     // P89：单一视图表达式（合并 stream 局部）

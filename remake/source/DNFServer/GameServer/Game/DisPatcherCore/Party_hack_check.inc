@@ -1,3 +1,23 @@
+// 队伍 >2 人时逐成员核对：0 号记录 job/growType/IP 前缀/前三技能 index，
+// 其余成员与之全等（job/growType 不等或 IP 网络前缀不等 → 0x330 多开计数清标；
+// [b28d-29] N82/P197③：ORIG 4 dead 局部预清 + push ebx，4.4 丢预清且帧 +4；语义集合全等  (ORIG 0x08264c28 insn 251->240)
+// 技能三槽不全等 → 仅清 0x32f 同 IP 标）。任一失败即短路置双标志为 0。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 277（ORIG 250 / ours 235），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [SweepDispatchCore 2026-09-09] 真缺口修复：ORIG 对三处 16B 栈缓冲预清零
+// （basePrefix 0x08264c3a/41/48/4f、peerIpBuf 0x08264d43/4a/51/58、peerIp
+// 0x08264e67/6e/75/7c 各 4×movl $0）⇒ 原码 char[16]={0}；我方原缺清零，strncpy
+// 短写后残留栈垃圾（越界读隐患）。补 {0} 初始化并删多余显式终止 movb。
+// gap 15→2（ours 235→249，ORIG 251），四数不回退。残余 p167 MISSING
+// `_ZSt7strrchrPci`/EXTRA `strrchr` = glibc 头集差异：ORIG(4.1.2) 时
+// __CORRECT_ISO_CPP_STRING_H_PROTO 未启用（__GNUC_PREREQ(4,4) 不成立）⇒ <cstring>
+// 发射 inline 重载；4.4 头集启用该宏令重载被抑制。实测 undef 宏再引 <cstring>
+// 触发 "conflicts with previous using declaration" 编译错误 ⇒ 合法源码不可复现
+// （N130 同族工具链头集差异）。
+// [SweepDispatchCore 2026-09-09b] 补块序对齐：ORIG 0x08264cf2 `cmpl $0,-0x28; je
+// 08264e44` ⇒ idx!=0 分支物理在前、idx==0 分支在后 ⇒ 源码改写
+// `if (idx != 0) {…} else {…}`，并把 idx==0 分支内 job/growType 提前到 peerIp 流程
+// 之前（ORIG 0x08264e4a/58 → 0x08264e67/91）。指令数 251/249 不变，ndiff
+// 332→282（-50），四数不回退（213/639/2/74）。
 void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
 
 {   // ORIG 栈位映射：-0x40 sameIp / -0x3f multiBox / -0x3e job(sbyte) /

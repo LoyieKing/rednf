@@ -1,1 +1,62 @@
+// ============================================================================
+// CDollControllerExtraction::extraction —— ORIG T 0x084a3dce
+// ============================================================================
+// [b28d-solo-ExpertExtraction] AE 修复：同 AlchemistExtraction::extraction 三旋钮
+//   （pick 两句 + cMyTrace 全表达式链 + 内联 count；字段 m_field8、
+//   stDollControllerResult 表）。p167 27/27 CLEAR。
 bool CDollControllerExtraction::extraction(CUser* user, short param,
+                                           IntPairVector& needItems)
+{
+    const CInventory* invenR = user->getCurCharacInvenR();
+    Inven_Item item = invenR->GetInvenSlot(1, (int)param);
+    CEquipItem* equip = (CEquipItem*)G_CDataManager()->find_item(item.m_addInfo);
+    STExpertJobScript* script = (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(4);
+    STExpertJobScript::stDollControllerResultInfo* info =
+        script->GetDollControllerExtractionResultInfo();
+    int type = get_doll_controller_extraction_type(equip);
+    if (type == 3)
+    {
+        LogManager::logFormat(1, "Extraction.cpp", __PRETTY_FUNCTION__, 0x1d0,
+                              "CDollControllerExtraction::extraction ERROR : result_type(%d)", type);
+        return false;
+    }
+    int sum = info->m_count[type];
+    unsigned long range = (unsigned long)(sum - 1);
+    int pick = m_rand->randInt(range);
+    ++pick;
+    std::vector<STExpertJobScript::stDollControllerResult>& vec = info->m_vec[type];
+    if (vec.size() == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x1dc, 5)(
+            "CDollControllerExtraction::extraction ERROR : size(%d)", (int)vec.size());
+        return false;
+    }
+    if (vec.size() != 0 && sum == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e1, 5)(
+            "CDollControllerExtraction::extraction ERROR : size(%d), sum(%d)",
+            (int)vec.size(), sum);
+        return false;
+    }
+    int acc = 0;
+    unsigned int i = 0;
+    while (i < vec.size())
+    {
+        if (acc < pick &&
+            acc + (int)vec[i].m_field8 >= pick)
+        {
+            needItems.push_back(std::make_pair(vec[i].m_field0,
+                                               (int)get_extraction_count(item)));
+            break;
+        }
+        acc += (int)vec[i].m_field8;
+        ++i;
+    }
+    if (needItems.empty())
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f2, 5)(
+            "CDollControllerExtraction::extraction ERROR : result is empty");
+        return false;
+    }
+    return true;
+}

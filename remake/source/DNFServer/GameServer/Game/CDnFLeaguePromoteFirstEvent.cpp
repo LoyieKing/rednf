@@ -16,42 +16,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c0ba（弱 W）：仅基类构造 + vptr 置位。
 #include "CDnFLeaguePromoteFirstEvent/CDnFLeaguePromoteFirstEvent.inc"
-{
-}
 
-// ORIG 0x0811c0d6 / 0x0811c106（弱 W）：标准虚析构（空体编译器生成同形）。
+
 #include "CDnFLeaguePromoteFirstEvent/dtor_CDnFLeaguePromoteFirstEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c124：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__,0x13,0)
-// ("CDnFLeaguePromoteFirstEvent Event Start!")。
+
 #include "CDnFLeaguePromoteFirstEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x13, 0);
-    tr("CDnFLeaguePromoteFirstEvent Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c176：thunk——经 vtable slot 2（StartEvent()）虚调用。
-// [b28c-32] verdict=NEAR：N7 虚调用 callee 寄存器互换（12=12）。
+
 #include "CDnFLeaguePromoteFirstEvent/StartEvent_1.inc"
-{
-    // [N7 封顶] 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c190：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__,0x1d,0)
-// ("CDnFLeaguePromoteFirstEvent Event End!")。
+
 #include "CDnFLeaguePromoteFirstEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1d, 0);
-    tr("CDnFLeaguePromoteFirstEvent Event End!");
-}
+

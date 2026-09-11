@@ -1,1 +1,3 @@
 PvpResultSet::PvpResultSet()
+{
+}

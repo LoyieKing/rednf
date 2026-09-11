@@ -1,3 +1,11 @@
+// ORIG 0x0815b362：GetOutBuffer<Taiwan::SigStayTimeEvent> null → throw
+// "context null"；GetDBHandle(9,0) null → throw "handle null"；
+// set_query("seLect reward_flag from event_stay_time_charac where m_id=%s",
+// NumberToString(m_accId))；exec 失败 → throw "select_exec"；
+// get_n_rows()==0 → 插行("inSert into event_stay_time_charac values('%s', 1, 1,
+// now())") exec 失败 throw "insert_exec" 后 sendStayTimeData(uid)；否则
+// fetch 失败 throw "fetch"；get_int(0,&flag) 失败 throw "get_int"；
+// flag!=0 直接返 1；否则 UPDATE 后 sendStayTimeData(uid)。成功返 1。
 bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
 {
     try

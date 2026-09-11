@@ -28,9 +28,6 @@
 namespace WongWork
 {
 
-// ---- ORIG @0x0848ef0c ------------------------------------------------------
-// begin.tm = {year-1900, mon-1, mday, hour}；end 同构；
-// in_time 通过后：EVENT_WEEKEND 时再要求 localtime_r(now).tm_wday ∈ {0,6}。
 #include "CEventMgr/_IsEventing.inc"
                             int endYear, int endMon, int endDay, int endHour,
                             EVENT_TYPE type)
@@ -76,9 +73,6 @@ namespace WongWork
 
 } // namespace WongWork（_IsEventing 前移段结束）
 
-// ---- ORIG @0x086b1d86 _Z7in_timeP2tmS0_ ------------------------------------
-// t1 = mktime(begin); t2 = mktime(end); now = time(NULL);
-// return now >= t1 && now < t2;
 #include "CEventMgr/in_time_1.inc"
 {
     time_t t1 = mktime(begin);
@@ -90,34 +84,10 @@ namespace WongWork
 namespace WongWork
 {
 
-// ---- ORIG @0x0848f078 ------------------------------------------------------
-// GetPremiumServiceBonus: _IsEventing(2006,1,2,0, 2006,1,11,0, EVENT_PLAIN) ? 7 : 0
 #include "CEventMgr/GetPremiumServiceBonus.inc"
-{
-    if (_IsEventing(2006, 1, 2, 0,
-                    2006, 1, 11, 0,
-                    EVENT_PLAIN))
-    {
-        return 7;
-    }
-    return 0;
-}
 
-// ---------------------------------------------------------------------------
-// ORIG T 0x0848f140 _ZN8WongWork9CEventMgr22IsChildrensDayEventingEv：
-// 逐指令转写 —— return _IsEventing(0x7d6,5,5,6, 0x7d6,5,8,6, EVENT_PLAIN);
-// （ORIG 栈 movl 常量序：(esp)=0x7d6,(4)=5,(8)=5,(c)=6,(10)=0x7d6,
-//   (14)=5,(18)=8,(1c)=6,(20)=EVENT_TYPE(0)）
-// ---------------------------------------------------------------------------
+
 #include "CEventMgr/IsChildrensDayEventing.inc"
-{
-    if (_IsEventing(0x7d6, 5, 5, 6,
-                    0x7d6, 5, 8, 6,
-                    EVENT_PLAIN))
-    {
-        return true;
-    }
-    return false;
-}
+
 
 } // namespace WongWork

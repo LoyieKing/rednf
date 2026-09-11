@@ -1,3 +1,4 @@
+// ORIG T 0x0810466c (0x83)：Guard(allocMutex) → pool.Acquire → memset 0x2dc。
 SIPGData* CIPGMgr::AllocIPGData()
 {
     Guard<Mutex> guard(&m_allocMutex);

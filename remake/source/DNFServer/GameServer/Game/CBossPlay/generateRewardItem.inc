@@ -1,3 +1,30 @@
+// ============================================================================
+// generateRewardItem（ORIG 0x08149914）
+// [b28d-46 判词·N(死 ebx 物化) + 3 真 bug] 327 vs 324（gap 3）、p167 44:44 CLEAR
+// （仅 C1/D1↔C2/D2 同址别名，P93）、帧 0x13c 两侧全等。本轮修：
+// ① 真 bug·虚槽互换：ORIG vtable `_ZTVN8WongWork15CItemGeneratorE` @0x08c9a788
+//    word[4]=0x0853a400 generateRandomItem（vptr+0x08）、word[5]=0x0853a406
+//    generateSpecificItem（vptr+0x0c）；ORIG 段 A（0x08149a87 `add $0xc`）与
+//    段 B（0x08149c03 `add $0x8`）各调其一，原实现两分支调用名互换。
+// ② 真 bug·舍入：ORIG 0x08149b18 为 `fildl; fmuls; 设截断 CW; fistpl`
+//    （= (int)(float) 截断），原 ROUND(+0.5f) 宏（fadd 0.5 + fistpll）错误。
+// ③ 形态：外层条件原 `< || ==` 双算 imul 且块序反 ⇒ 单条件 + 随机块 fall-through
+//    （P328⑧/P272）；内层同理改 `rare2*b > randVal`。
+// ④ P0/P52/P248：rare/rare2/randVal 同型化 unsigned（消 edx 中转）、rare 三段链式
+//    （消 dungeonIdx/dm/tower 具名槽）、ref/result 先于 get_rand_int 构造、
+//    dst 去具名引用（逐点重算地址）、特定分支补 `Inven_Item rewardItem = *begin()`
+//    值拷贝（ORIG 0x08149c9b..0x08149d25 共 17 条 mov）、随机分支独立 randResult
+//    对象（-0x9c 自带 ctor/dtor）、删 m_party 判空（P140/P171）、
+//    addInfo 回写同槽（ORIG fildl/fistpl 同址 -0x12c）。
+// 残差 gap 3 = ORIG 段 A/B 公共出口 `mov $0x1,%ebx` / item==0 路径 `mov $0x0,%ebx`
+//  + 循环尾 `test %ebx,%ebx`（**无消费者死物化**：4.1 条件值保留；ebx 全程无栈槽
+//  ⇒ 非具名局部，4.4 无对应源形，同 P197④/跨版本族）⇒ 语义闭合，封 N。
+// [L5Free49to60 2026-09-11 复核] fresh .o 327 vs 324（gap 3）不变；bcmp 逐条对比：
+// 指令序列全等，唯一实质差 = 全帧槽相位 4B —— ORIG 把 addInfo 排到深区 -0x12c
+// （fildl/fistpl 同址，ORIG 0x08149b18 段）而 4.4 分到浅区 -0x20；帧 sub 两侧同为
+// 0x13c（ORIG 深区多 4B、我方浅区多 4B）。属 N82附（4.4 聚合对象优先占低槽、标量
+// 分区排布；声明序/位置为 N98 不控）⇒ 维持封 N。
+// ============================================================================
 bool CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
                                   ENUM_DUNGEON_DIFFICULTY diff, unsigned int b,
                                   const CDungeon* dungeon)

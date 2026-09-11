@@ -32,79 +32,14 @@
 // OnlyOrigBatch11 落地：find / parsing（报告 parsing.md / find.md 全文转写）
 // ============================================================================
 
-// ORIG T 0x081a25d2：Load(path,"on_off") 失败返 0xa1；GetRowNum()==0 返 0xa4；
-// GetString(0,"flag")=="true" → m_enable=1；Load(path,"item_reward") 失败返
-// 0xac、GetRowNum()==0 返 0xaf；逐行 GetInt("fatigue"/"item_count"/"item_id")
-// + GetString("message"/"title") 填 Data 后 push_back；成功返 0。
 #include "UsedFatigueRewardItem/parsing.inc"
-{
-    Arad_Script script;
-    if (!script.Load(path, "on_off"))
-        return 0xa1;
-    if (script.GetRowNum() == 0)
-        return 0xa4;
 
-    m_enable = false;
-    std::string flag(script.GetString(0, "flag"),
-                     std::allocator<char>());   // ORIG SaIcC1+SsC1(ptr,alloc)
-    if (flag == std::string("true"))            // ORIG string==string（构造临时）
-        m_enable = true;
 
-    if (!script.Load(path, "item_reward"))
-        return 0xac;
-    if (script.GetRowNum() == 0)
-        return 0xaf;
-
-    // [P3·UsedFatigueRewardItem] ORIG 0x081a2774：Data::Data() 只在循环外构造一次
-    // （在 movl $0x0,-0xc(%ebp) 之前），循环体 [0x081a2785,0x081a2883] 内无构造调用，
-    // 且全 ELF 无任何 Data::~Data 外部调用点；故对象声明在循环外、每轮复用。
-    Data d;
-    for (int i = 0; i < script.GetRowNum(); ++i)
-    {
-        d.m_begin = (short)script.GetInt(i, "fatigue");
-        d.m_end = (short)script.GetInt(i, "item_count");
-        d.m_id = script.GetInt(i, "item_id");
-        strncpy(d.m_str, script.GetString(i, "message"), 0xff);
-        strncpy(d.m_name, script.GetString(i, "title"), 0x10);
-        m_data.push_back(d);
-    }
-    return 0;
-}
-
-// ORIG T 0x081a28e4：遍历 m_data，命中 m_begin<=low 且 high<m_end（开区间）
-// 的项：复制 m_begin/m_id/m_end；m_name 经 findString(4,...) 解析后
-// strncpy 0x14；m_str 经 findString(4,...) 解析后 strncpy 0xff；返 1。
-// 未命中返 0。
 #include "UsedFatigueRewardItem/find.inc"
-{
-    // [b28c-30] ORIG 0x081a28e4：end() 在循环外求值一次落 -0xc（P13 end 缓存），
-    // begin() 落 -0x10；原形每轮重调 m_data.end() 且槽序相反。
-    std::vector<Data>::iterator itEnd = m_data.end();
-    for (std::vector<Data>::iterator it = m_data.begin(); it != itEnd; ++it)
-    {
-        if (it->m_begin >= low && it->m_begin < high)   // ORIG 两次 movzwl (%eax)：low/high 均对 m_begin
-        {
-            out.m_begin = it->m_begin;
-            out.m_id = it->m_id;
-            out.m_end = it->m_end;
-            strncpy(out.m_name,
-                    g_scriptStringManager_.findString(4, it->m_name, 0), 0x14);
-            strncpy(out.m_str,
-                    g_scriptStringManager_.findString(4, it->m_str, 0), 0xff);
-            return 1;
-        }
-    }
-    return 0;
-}
+
 
 #include "UsedFatigueRewardItem/Data.inc"
-{
-    m_begin = 0;
-    m_end = 0;
-    m_id = 0;
-    memset(m_str, 0, sizeof(m_str));
-    memset(m_name, 0, sizeof(m_name));
-}
+
 
 // [P3Wave4 2026-09-11] 原 `#include "…/dtor_Data.inc"` + `~Data` 空体定义已删除
 // （部件文件同步删除）：

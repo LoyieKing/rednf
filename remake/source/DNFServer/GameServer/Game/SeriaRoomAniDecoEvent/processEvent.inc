@@ -1,3 +1,18 @@
+// [b23S3C] ORIG 0x0827ba52 `movzwl -0x22(%ebp)` = deco(sret @-0x24)+2 ⇒ 奖励索引用
+// deco_flow(m_field2)，原码误取 m_field0（+0 是 receive_flow 计数）⇒ 真 bug 修正；
+// strncpy 后 ORIG 无 `movb $0x0,title+255` ⇒ 删补 NUL 行（与 SendAniDecoItem 同）
+// 残余 28 全为帧槽号平移（4.1 把 index 挤在 item 之后 -0x5f、4.4 独立高槽 = N82）、
+// N7 虚调用 %edx/%eax 归属、以及 `mov MEM,%eax; test` vs 4.4 `cmpl $0,MEM`（N-88 候选）
+// ⇒ 语义已核，调用点级无剩余缺口。
+// [b28d-solo-W8LT_EventTail] DIFF→NEAR(N7) | ORIG 0x0827ba52 | P167 CLEAR（15/15）。
+// 修法：`int index = src->get_index()` 改为直接写 `item.m_addInfo`（ORIG
+// 0x0827bad5 `mov %eax,-0x5f` = item@-0x61 + 0x02）⇒ 槽集/帧全对齐、102=102；
+// 亦解释 ORIG 的 unsigned 字段 test 形（P209）。残余（N 封顶，与 SendAniDecoItem
+// 同族）：ReqDBSendNewSystemMail 实参中 `GetServerGroupToPvP()`↔`strlen()` 的
+// callee-saved 角色互换——ORIG 4.1 esi→edi→ebx，4.4.6 edi→esi→ebx（N109；本 TU
+// 已路由 4.4.6 后端，P230 亦不翻；两值无槽往返，P0 禁具名缓存）。
+// [M2S6 2026-09-11 复核] 102=102，残余仍仅 N109 + AE；§6.5 串核：
+// game_server_msg_291（我方 .rodata 0xed ≡ ORIG 0x8c064a5）、_289（0xd9 ≡ 0x8c06491）逐字节同。
 int SeriaRoomAniDecoEvent::processEvent(CUser& user)    // 0x0827ba52
 {
     seriaRoom_AniDeco deco = user.getSeriaRoomAniDecoInfo();

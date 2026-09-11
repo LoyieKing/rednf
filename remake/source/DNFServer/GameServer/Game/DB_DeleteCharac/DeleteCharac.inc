@@ -1,3 +1,9 @@
+// ============================================================================
+// DB_DeleteCharac::DeleteCharac @0x0840340c
+// charac_info 置 delete_time=now()/delete_flag=1（charac_no=%u and m_id=%s）；
+// exec 失败返 0。成功 → GetDBHandle(1) 从 dnf_master_charac 删除
+// （m_id/servier_id=Server_Envir.m_serverGroup/charac_no）后返 1。
+// ============================================================================
 bool DB_DeleteCharac::DeleteCharac(SIG_DELETE_CHARAC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,

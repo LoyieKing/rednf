@@ -1,1 +1,3 @@
 CCharacExpertJob::~CCharacExpertJob()
+{
+}

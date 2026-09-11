@@ -1,3 +1,11 @@
+// ORIG CCreatureMgr::InsertCreatureItem @ 0x833b204（InsertCreatureItem.md）：
+// 槽位/类型过滤后 CDBMsgSender(0x87, m_user)，size=m_creatureItems.size()，
+// sender.InsertCreatureItem(m_user,item,slot,reason,size,days,expireTick)：
+// 成功 → sender.Send() + 到期时间（days==0 且 expireTick!=0 取
+// expireTick-GetDateTimeTick()，否则 days*0x15180）写 m_tempExpireDelta 返回 1；
+// 失败 → cMyTrace("...InsertCreatureItem(...)",0xcaf,5) 返回 0。
+// [b28d-23 N·N82] ⇒ N。ORIG 0x0833b204
+// [b28d-solo-CCreatureMgr AE] P248 裸 register tick=expireTick 令值升格 callee-saved %ebx 跨 GetDateTimeTick call 保活（非绑定，P0 合规）；ORIG 0x833b204
 bool CCreatureMgr::InsertCreatureItem(Inven_Item* item, int slotNo, int reason,
                                       int days, int expireTick)
 {

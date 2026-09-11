@@ -1,3 +1,4 @@
+// ORIG Send @ 0x833f950：投递 DB_Q 后释放持有并返回 true。
 bool CDBMsgSender::Send()
 {
     if (m_stream == 0)

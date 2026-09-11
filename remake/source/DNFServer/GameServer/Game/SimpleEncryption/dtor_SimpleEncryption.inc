@@ -1,1 +1,4 @@
 SimpleEncryption::~SimpleEncryption()
+{
+    uninitialize();
+}

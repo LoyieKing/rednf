@@ -1,1 +1,3 @@
 advancealtar::SurvivalRewardData::~SurvivalRewardData()
+{
+}

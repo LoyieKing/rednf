@@ -1,3 +1,9 @@
+// ORIG UseFeed(CUser*, int&) T @ 0x083373d4：
+// 仅 +0x4c==1 可喂；死亡则 MakeNotipacketRevivalCreature + SendAll；
+// IncrementValue(30.0f) 截断写入 out；MakeNotipacketCreatureState(uid,out)
+// 后 Send()，返回其值。
+// [b28d-23 N·N82] 帧/槽差（79/81）⇒ N。ORIG 0x083373d4
+// [b28d-solo-CCreatureMgr N] bool 规范化：`return pkt.Send()`（int→bool）4.1 直透 `mov %eax,%ebx` vs 4.4 test/setne；P183 去 value 槽与 GetUid 真调用已落；ORIG 0x83373d4
 bool CCreature::UseFeed(CUser* user, int& stomachValue)
 {
     if (m_isGrow != 1)

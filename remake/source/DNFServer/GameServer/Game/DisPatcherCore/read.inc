@@ -1,3 +1,8 @@
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 最前，使 `_GLOBAL__I_` 名等于
+// ORIG 的 `_ZN18DisPatcher_BuyItem4readER9PacketBufR8MSG_BASE`（P327；
+// plan_gi_swaps.py --arbitrate 唯一最高分 37/210）。语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
 int DisPatcher_BuyItem::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

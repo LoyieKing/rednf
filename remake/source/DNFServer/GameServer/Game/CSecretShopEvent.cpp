@@ -16,44 +16,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081172c2：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "CSecretShopEvent/CSecretShopEvent.inc"
-{
-}
 
-// ORIG 0x081172de / 0x0811730e：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CSecretShopEvent/dtor_CSecretShopEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811732c：SetEventFlag(true) +
-// cMyTrace(__PRETTY_FUNCTION__,0x16,0)
-// ("CSecretShopEvent Event Start!")。
+
 #include "CSecretShopEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x16, 0);
-    tr("CSecretShopEvent Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811737e：thunk —— 经 vptr slot2 虚调 StartEvent()，不读 param。
+
 #include "CSecretShopEvent/StartEvent_1.inc"
-{
-    // [b28c-27] N7 封顶：唯一残差=虚调用目标寄存器（ORIG 用 %edx，4.4 恒 %eax）。
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08117398：SetEventFlag(false) +
-// cMyTrace(__PRETTY_FUNCTION__,0x20,0)
-// ("CSecretShopEvent Event End!")。
+
 #include "CSecretShopEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x20, 0);
-    tr("CSecretShopEvent Event End!");
-}
+

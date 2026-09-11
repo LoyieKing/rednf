@@ -20,139 +20,55 @@
 #include <string.h>
 
 #include "Stream/Stream.inc"
-{
-    // ORIG 存储顺序：+8(m_buffer) → +4(m_size) → +0xc → +0x10
-    m_buffer = 0;
-    m_size = 0;
-    m_inPtr = 0;
-    m_outPtr = 0;
-    set_big_stream(false);
-    resize(0x4000);
-    m_poolType = 0;
-}
+
 
 #include "Stream/Stream_1.inc"
-{
-    m_buffer = 0;
-    m_size = 0;
-    m_inPtr = 0;
-    m_outPtr = 0;
-    set_big_stream(false);
-    resize(size);
-    m_poolType = 0;
-}
+
 
 #include "Stream/Stream_2.inc"
-{
-    Stream();
-    *this << str;
-}
+
 
 #include "Stream/Stream_3.inc"
-{
-    Stream();
-    put_binary(other.get_buffer(), other.length());
-}
+
 
 #include "Stream/dtor_Stream.inc"
-{
-    delete[] m_buffer;
-}
+
 
 #include "Stream/size.inc"
-{
-    return m_size;
-}
+
 
 #include "Stream/length.inc"
-{
-    return in_ptr() - out_ptr();
-}
+
 
 #include "Stream/in_ptr.inc"
-{
-    return m_inPtr;
-}
+
 
 #include "Stream/in_ptr_1.inc"
-{
-    m_inPtr += n;
-    return m_inPtr;
-}
+
 
 #include "Stream/out_ptr.inc"
-{
-    return m_outPtr;
-}
+
 
 #include "Stream/out_ptr_1.inc"
-{
-    if (m_outPtr + n > m_inPtr)
-    {
-        return -1;
-    }
-    m_outPtr += n;
-    if (m_outPtr == m_inPtr)
-    {
-        reset();
-    }
-    return m_outPtr;
-}
+
 
 #include "Stream/reset.inc"
-{
-    m_inPtr = 0;
-    m_outPtr = 0;
-    set_big_stream(false);
-    m_poolType = 0;
-}
+
 
 #include "Stream/set_big_stream.inc"
-{
-    m_bigStream = b;
-}
+
 
 #include "Stream/is_big_stream.inc"
-{
-    return m_bigStream;
-}
+
 
 #include "Stream/resize.inc"
-{
-    char* buf = new char[n];
-    if (!buf)
-    {
-        return 0;
-    }
-    memcpy(buf, m_buffer + out_ptr(), length());
-    if (m_buffer)
-    {
-        delete[] m_buffer;
-    }
-    m_outPtr = 0;
-    m_inPtr = length();
-    m_buffer = buf;
-    m_size = n;
-    return 1;
-}
+
 
 #include "Stream/enable_in.inc"
-{
-    if (in_ptr() + n > size())
-    {
-        return false;
-    }
-    return true;
-}
+
 
 #include "Stream/enable_out.inc"
-{
-    if (out_ptr() + n > in_ptr())
-    {
-        return false;
-    }
-    return true;
-}
+
 
 Stream& Stream::operator<<(bool b)
 {
@@ -253,15 +169,7 @@ Stream& Stream::operator<<(unsigned long v)
 }
 
 #include "Stream/put_binary.inc"
-{
-    while (!enable_in(len))
-    {
-        resize(size() * 2);
-    }
-    memcpy(m_buffer + in_ptr(), src, len);
-    in_ptr(len);
-    return 1;
-}
+
 
 bool Stream::operator>>(bool& b)
 {
@@ -372,51 +280,22 @@ bool Stream::operator>>(unsigned long& v)
 }
 
 #include "Stream/str_len.inc"
-{
-    int len = 0;
-    int i = 0;
-    while (i <= 9999999)
-    {
-        if (s[i] == 0)
-        {
-            return len;
-        }
-        ++len;
-        ++i;
-    }
-    return 0;
-}
+
 
 #include "Stream/get_buffer.inc"
-{
-    return m_buffer + out_ptr();
-}
+
 
 #include "Stream/get_binary.inc"
-{
-    if (!enable_out(len))
-    {
-        return 0;
-    }
-    memcpy(dst, m_buffer + out_ptr(), len);
-    out_ptr(len);
-    return 1;
-}
+
 
 #include "Stream/SmallStream.inc"
-    : Stream(0x1000)
-{
-}
+
 
 #include "Stream/dtor_SmallStream.inc"
-{
-}
+
 
 #include "Stream/BigStream.inc"
-    : Stream(0x40000)
-{
-}
+
 
 #include "Stream/dtor_BigStream.inc"
-{
-}
+

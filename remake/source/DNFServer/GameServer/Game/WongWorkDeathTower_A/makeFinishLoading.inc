@@ -1,1 +1,7 @@
+// ORIG T 0x0846012c：header(0,0x1e)；int(0)；finalize(true)。
 void CDeathTower::CPacketHandler::makeFinishLoading()
+{
+    put_header(0, 0x1e);
+    put_int(0);
+    finalize(true);
+}

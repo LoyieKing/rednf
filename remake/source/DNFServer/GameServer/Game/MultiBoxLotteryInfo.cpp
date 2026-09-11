@@ -23,62 +23,29 @@
 //   LotteryDefaultArad C1Ejjj 0x8513e30 / D1 0x8522962
 #include "MultiBoxLotteryInfo.h"
 
-// ---- LotteryDefaultArad ----
 #include "MultiBoxLotteryInfo/LotteryDefaultArad.inc"
-    unsigned int a, unsigned int b, unsigned int c)
-    : m_field0(a), m_field4(b), m_field8(c)
-{
-}
 
-// ---- stDefaultItem ----
+
 #include "MultiBoxLotteryInfo/stDefaultItem.inc"
-{
-    m_itemIdx = 0;
-    m_count = 0;
-    m_prob = 0;
-    m_flag = 0;
-}
+
 
 // stDefaultItem 隐式平凡析构（ORIG _Destroy_aux<true> 实证，见头文件判词）。
 
-// ---- stDefaultItemInfo ----
 #include "MultiBoxLotteryInfo/stDefaultItemInfo.inc"
-    : m_items()
-{
-    m_defaultCount = 0;
-    m_defaultIdx = 0;
-    m_defaultNum = 0;
-    m_defaultFlag = 0;
-    m_items.clear();
-}
+
 
 #include "MultiBoxLotteryInfo/dtor_stDefaultItemInfo.inc"
 
-// ---- LotteryUnit ----
 #include "MultiBoxLotteryInfo/LotteryUnit.inc"
-    : m_items(), m_bonus()
-{
-    clear();
-}
+
 
 #include "MultiBoxLotteryInfo/LotteryUnit_1.inc"
-    : m_count(other.m_count), m_defaultIdx(other.m_defaultIdx),
-      m_defaultNum(other.m_defaultNum), m_defaultFlag(other.m_defaultFlag),
-      m_items(other.m_items), m_bonus(other.m_bonus)
-{
-}
+
 
 #include "MultiBoxLotteryInfo/dtor_LotteryUnit.inc"
 
 #include "MultiBoxLotteryInfo/clear.inc"
-{
-    m_defaultIdx = 0;
-    m_defaultNum = 0;
-    m_defaultFlag = 0;
-    m_items.clear();
-    m_bonus.clear();
-    m_count = 0;
-}
+
 
 MultiBoxLotteryInfo::LotteryUnit& MultiBoxLotteryInfo::LotteryUnit::operator=(
     const LotteryUnit& other)
@@ -92,20 +59,10 @@ MultiBoxLotteryInfo::LotteryUnit& MultiBoxLotteryInfo::LotteryUnit::operator=(
     return *this;
 }
 
-// ---- MultiBoxLotteryInfo ----
 #include "MultiBoxLotteryInfo/MultiBoxLotteryInfo.inc"
-    : m_units(), m_default()
-{
-    clear();
-}
+
 
 #include "MultiBoxLotteryInfo/dtor_MultiBoxLotteryInfo.inc"
 
 #include "MultiBoxLotteryInfo/clear_1.inc"
-{
-    m_units.clear();
-    m_field0 = -1;
-    m_field4 = 0;
-    m_field8 = -1;
-    m_fieldc = 0;
-}
+

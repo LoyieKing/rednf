@@ -1,3 +1,6 @@
+// [b14 本波·AE 归零] 内层循环局部槽序（旧判词「残余 NEAR=N98 槽序」作废）：
+// ORIG s@-0x1c(深)/isInt@-0x16/isType@-0x15/v@-0x14(浅)，4.4「后声明更深」
+// ⇒ 声明序改 v/isType/isInt/s（v 声明与赋值分离，P244）后 121=121、ndiff=0。
 bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 {
     // ORIG 0x089178de：`mov 0xc(%ebp),%eax; mov %eax,0x4(%esp);

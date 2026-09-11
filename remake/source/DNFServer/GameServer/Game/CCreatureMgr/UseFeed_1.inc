@@ -1,3 +1,10 @@
+// ORIG CCreatureMgr::UseFeed T @ 0x08339dba（UseFeed.md）：
+// 装备宠为空 → 0；CCreature::UseFeed(m_user, out) 失败 → 0；
+// 成功后 CDBMsgSender(0x8a, m_user) 发 UseFeedCreature(uid, out)：
+// 写库失败打 cMyTrace("...UseFeed()",0xab5,5) 返回 0；成功 sender.Send() 返回 1。
+// [b28d-solo-CCreatureMgr AE] 翻正三旋钮：①`if (!sender.UseFeedCreature(...))` 内联判定
+// + 早返（禁具名 ok，4.4 槽化 cmpb 反劣）；②cMyTrace 全表达式临时链（P227 vararg 跨 ctor
+// 保活 %ebx）；③GetUid 内联实参（P183）。84=84 逐条全等。ORIG 0x08339dba
 bool CCreatureMgr::UseFeed()
 {
     // ORIG 0x8339dca/0x8339df8/0x8339e98 三失败路径共享尾 + 返回值 %ebx 汇聚：

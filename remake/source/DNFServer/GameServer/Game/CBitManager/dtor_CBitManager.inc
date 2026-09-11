@@ -1,1 +1,3 @@
 CBitManager::~CBitManager()
+{
+}

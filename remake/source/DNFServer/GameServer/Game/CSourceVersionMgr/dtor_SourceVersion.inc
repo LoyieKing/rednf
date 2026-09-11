@@ -1,1 +1,3 @@
 CSourceVersionMgr::SourceVersion::~SourceVersion()
+{
+}

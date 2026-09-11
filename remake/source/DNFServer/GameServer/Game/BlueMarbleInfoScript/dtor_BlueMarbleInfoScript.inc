@@ -1,1 +1,3 @@
 BlueMarbleInfoScript::~BlueMarbleInfoScript()
+{
+}

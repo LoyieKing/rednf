@@ -1,1 +1,3 @@
 STExpertJobScript::stMonsterCardBindInfo::~stMonsterCardBindInfo()
+{
+}

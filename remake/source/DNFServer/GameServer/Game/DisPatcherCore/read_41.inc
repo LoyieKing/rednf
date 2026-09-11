@@ -1,3 +1,6 @@
+// ORIG 0x081ca5e4 T _ZN18DisPatcher_UseCoin4readER9PacketBufR8MSG_BASE
+// （报告 DisPatcher_UseCoin/read.md 逐块映射）：get_short → msg+0xd；
+// 失败 LineFunc(0x1ebb, PRETTY, 0, 0)。
 int DisPatcher_UseCoin::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

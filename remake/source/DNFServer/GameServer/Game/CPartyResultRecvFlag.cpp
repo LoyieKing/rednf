@@ -35,41 +35,16 @@ private:
 };
 
 #include "CPartyResultRecvFlag/CPartyResultRecvFlag.inc"
-{
-    Clear();
-}
+
 
 #include "CPartyResultRecvFlag/SetRecvFlag.inc"
-{
-    if (!IsValidIdx(idx))
-    {
-        return;
-    }
-    m_flag[idx] = 1;
-}
+
 
 #include "CPartyResultRecvFlag/IsRecv.inc"
-{
-    if (!IsValidIdx(idx))
-    {
-        return 0;
-    }
-    return m_flag[idx];
-}
+
 
 #include "CPartyResultRecvFlag/Clear.inc"
-{
-    memset(m_flag, 0, sizeof(m_flag));
-}
+
 
 #include "CPartyResultRecvFlag/IsValidIdx.inc"
-{
-    if (idx >= 0 && idx <= 3)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
+

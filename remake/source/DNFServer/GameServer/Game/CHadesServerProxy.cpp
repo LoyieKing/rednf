@@ -27,86 +27,34 @@
 #include "Packet_Hades_Udp_HeartBeat.h"
 
 #include "CHadesServerProxy/CHadesServerProxy.inc"
-    : BaseServerProxy(ip, tcpPort, "HadesSvr"), m_udpPort(udpPort), m_connSec(0)
-{
-    HadesSvrInit();
-}
+
 
 #include "CHadesServerProxy/HadesSvrInit.inc"
-{
-    ConnTcpHadesSvr();
-    InitUdp();
-    return 1;
-}
+
 
 #include "CHadesServerProxy/ConnTcpHadesSvr.inc"
-{
-    BaseServerProxy::Init();
-    BaseServerProxy::SetSocketState(ENUM_SOCKET_STATE_CONNECTED);
-    m_connSec = GlobalData::s_systemTime_.getCurSec();
-    return 1;
-}
+
 
 #include "CHadesServerProxy/InitUdp.inc"
-{
-    if (m_udpHandler.InitClientSocket() == -1)
-    {
-        LogManager::logFormat(1, "DF_HadesServerProxy.cpp",
-                              __PRETTY_FUNCTION__, 0xd5,
-                              "[CHadesServerProxy::Init] Can't init udp client socket");
-        return false;
-    }
-    return true;
-}
+
 
 #include "CHadesServerProxy/IsConnect.inc"
-{
-    if (BaseServerProxy::GetSocketState() == ENUM_SOCKET_STATE_CONNECTED)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CHadesServerProxy/OnDisconnect.inc"
-{
-    RunConnTimer();
-}
+
 
 #include "CHadesServerProxy/Parsing.inc"
-{
-    return GetTcpHandler()->Parsing_ServerPacket(recvLen);
-}
+
 
 #include "CHadesServerProxy/RunConnTimer.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DF_HadesServerProxy.cpp", 0x119),
-                       true);
-    (**guard) << 0x23a;
-    (**guard) << -1;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-}
+
 
 #include "CHadesServerProxy/SendHadesTcpPacket.inc"
-{
-    if (BaseServerProxy::GetSocketState() == ENUM_SOCKET_STATE_CONNECTED)
-    {
-        BaseServerProxy::SendTcpPacket(packet, ((PacketHeader*)packet)->packetSize);
-    }
-    return 1;
-}
+
 
 #include "CHadesServerProxy/SendHadesUdpPacket.inc"
-{
-    std::string serverIP = GetServerIP();
-    m_udpHandler.SendToServer(packet, ((PacketHeader*)packet)->packetSize,
-                              (unsigned short)m_udpPort, serverIP.c_str());
-}
+
 
 #include "CHadesServerProxy/SendHeartBeatPacket.inc"
-{
-    Packet_Hades_Udp_HeartBeat packet;
-    packet.m_channelNo = (unsigned short)channelNo;
-    packet.m_udpPort = udpPort;
-    SendHadesUdpPacket((char*)&packet);
-}
+

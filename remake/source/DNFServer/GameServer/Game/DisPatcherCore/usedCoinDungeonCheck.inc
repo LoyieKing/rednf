@@ -1,3 +1,5 @@
+// ORIG 0x081cab3a T _ZN18DisPatcher_UseCoin20usedCoinDungeonCheckEP5CUserP6CParty
+// （报告 DisPatcher_UseCoin/usedCoinDungeonCheck.md 汇编+C 全文转写，wave2）。
 int DisPatcher_UseCoin::usedCoinDungeonCheck(CUser* user, CParty* party)
 
 {

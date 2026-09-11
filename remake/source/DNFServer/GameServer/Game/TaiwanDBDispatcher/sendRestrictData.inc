@@ -1,3 +1,6 @@
+// ORIG 0x0815ac40 T LoadServiceRestrictPolicy::sendRestrictData（报告
+// sendRestrictData.md）：Acquire(...,0xd9) → internal_stream(guard, 1, -1) →
+// GetInBuffer<SigLoadRestrictPolicy> null→throw "stream" → set → put(Q1)。
 void LoadServiceRestrictPolicy::sendRestrictData(Taiwan::SigLoadRestrictPolicy& data)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(

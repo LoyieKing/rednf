@@ -14,15 +14,7 @@
 #include "BuffInfo.h"
 
 #include "BuffInfo/BuffInfo.inc"
-{
-    m_exp = 1;
-    m_gold = 1;
-    m_drop = 1;
-}
+
 
 #include "BuffInfo/reset.inc"
-{
-    m_exp = 1;
-    m_gold = 1;
-    m_drop = 1;
-}
+

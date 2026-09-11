@@ -43,12 +43,7 @@
 // CParty::m_dungeon（+0xcac）在 CParty.h 为 public 数据成员，直接具名访问。
 
 #include "CTraceMobDieHack/stMonsterDamageLog_t.inc"
-{
-    m_monsterId = 0;
-    m_damage = 0;
-    m_count = 0;
-    m_monsterIndex = 0;
-}
+
 
 bool stHackLog_t::operator==(const stHackLog_t& other) const
 {
@@ -56,235 +51,31 @@ bool stHackLog_t::operator==(const stHackLog_t& other) const
 }
 
 #include "CTraceMobDieHack/CTraceMobDieHack.inc"
-{
-    // m_map1/m_map2（map）与 m_mobKillers/m_hackLogs（vector）由编译器
-    // 按成员声明序隐式构造，随后执行本函数体（ORIG 086c32e0 同序）。
-    reset();
-}
+
 
 #include "CTraceMobDieHack/dtor_CTraceMobDieHack.inc"
-{
-    // 成员按声明逆序隐式析构（vector<stHackLog_t> → vector<int> → map → map）。
-}
+
 
 #include "CTraceMobDieHack/reset.inc"
-{
-    m_map1.clear();
-    m_traceBeginTime = 0;
-    m_mobKillers.clear();
-    m_hackLogs.clear();
-    m_bTracing = false;
-    m_dungeonDiff = 5;
-    for (int i = 0; i <= 3; ++i)
-    {
-        m_records[i].m_user = 0;
-        m_records[i].m_damage = 0;
-        m_records[i].m_count = 0;
-    }
-}
+
 
 #include "CTraceMobDieHack/traceBegin.inc"
-{
-    m_traceBeginTime = t;
-    m_bTracing = 1;
-    m_bInspectUser = b;
-}
+
 
 #include "CTraceMobDieHack/traceEnd.inc"
-{
-    if (!m_bTracing)
-    {
-        return;
-    }
-    long curSec = GlobalData::s_systemTime_.getCurSec();
-    m_bTracing = false;
-    if (killer == 0 || killer->GetParty() == 0 ||
-        ((CParty*)killer->GetParty())->m_battleField.m_pDungeon == 0)
-    {
-        return;
-    }
-    int dungeonIndex = ((CParty*)killer->GetParty())->m_battleField.m_pDungeon->get_index();
-    int specialDungeons[4];
-    specialDungeons[0] = 1;
-    specialDungeons[1] = 2;
-    specialDungeons[2] = 0x29;
-    specialDungeons[3] = 0x21;
-    for (unsigned int i = 0; i <= 3; ++i)
-    {
-        // [N6S5ZeroA] ORIG 0x08599b4b(+0xc3) 条件是 `mov -0x10(%ebp),%eax;
-        //   cmp $0x3,%eax; setbe %al`，我方为 `cmpl $0x3,-0x10(%ebp); setbe`
-        //   （gap=+1，ORIG 多一条装载）。穷举 30 形 × 三后端（4.4.7/4.4.6/4.4.4 +
-        //   4.1 族 c5）全部生成 `cmpl $3,mem`；唯一生成 `mov;cmp $3,%eax` 的
-        //   volatile 形与 ORIG 的 `addl $1,-0x10(%ebp)` 自增形互斥
-        //   （volatile 自增为 load/add/store 三条）⇒ 源码不可控，判 N 封顶
-        //   （编译器 lowering 差异；体/符号性/边界 setbe(unsigned) 均与 ORIG 一致）。
-        if (specialDungeons[i] == dungeonIndex)
-        {
-            return;
-        }
-    }
-    for (int j = 0; j <= 3; ++j)
-    {
-        if (users[j] == 0 || users[j]->getCurCharacR() == 0 ||
-            users[j]->GetParty() == 0)
-        {
-            continue;
-        }
-        if (users[j]->get_charac_level() >
-            ((CParty*)users[j]->GetParty())->m_battleField.m_pDungeon->get_standard_level() + 10)
-        {
-            continue;
-        }
-        m_records[j].m_user = users[j];
-        m_records[j].m_damage += (int)(curSec - m_traceBeginTime);
-        // [N6S5ZeroA] ORIG 0x08599c5b(+0x1d3) 块首为 `mov -0xc(%ebp),%edx;
-        //   mov 0x8(%ebp),%ecx; mov %edx,%eax`（edx 版，this→ecx）；`m_count += 1`
-        //   曾生成 `mov j,%edx; mov j,%ecx; mov this,%ebx; mov %ecx,%eax`（多一条
-        //   P231 纯寄存器复本 + this→ebx）。改后置/前置自增形为 `++` 后，
-        //   我方指令形与 ORIG 逐条一致（gap -1→+1，余仅 i 循环那一条）。
-        ++m_records[j].m_count;
-    }
-}
+
 
 #include "CTraceMobDieHack/addMonsterDamage.inc"
-{
-    stMonsterDamageLog_t log;
-    log.m_monsterId = monsterId;
-    log.m_damage = (unsigned short)damage;
-    log.m_count = 1;
-    log.m_monsterIndex = nMonsterIndex;
 
-    // map 的 value_type：pair<const unsigned short, stMonsterDamageLog_t>
-    std::pair<std::map<unsigned short, stMonsterDamageLog_t>::iterator, bool>
-        result = m_map1.insert(std::make_pair(monsterId, log));
-    if (!result.second)
-    {
-        if (m_map1[monsterId].m_damage == damage)
-        {
-            m_map1[monsterId].m_count = m_map1[monsterId].m_count + 1;
-        }
-        else
-        {
-            m_map1[monsterId] = log;
-        }
-    }
-    return m_map1[monsterId].m_count;
-}
 
 #include "CTraceMobDieHack/setMobKiller.inc"
-{
-    m_mobKillers.push_back(killer);
-}
+
 
 #include "CTraceMobDieHack/setDungeonDiff.inc"
-{
-    m_dungeonDiff = diff;
-}
+
 
 #include "CTraceMobDieHack/reportHackInfo.inc"
-{
-    if (GlobalData::s_villageMonsterMgr->OnEvent())
-    {
-        reset();
-        return;
-    }
-    for (int i = 0; i <= 3; ++i)
-    {
-        if (m_records[i].m_user == 0 || m_records[i].m_count <= 1)
-        {
-            continue;
-        }
-        int avg = m_records[i].m_damage / m_records[i].m_count;
-        if (m_dungeonDiff != 5 && !m_bInspectUser)
-        {
-            int limit = 10;
-            switch (m_dungeonDiff)
-            {
-            case 0:
-                limit = 5;
-                break;
-            case 1:
-                limit = 6;
-                break;
-            case 2:
-                limit = 7;
-                break;
-            case 3:
-                limit = 8;
-                break;
-            default:
-                break;
-            }
-            if (avg <= limit)
-            {
-                unsigned int extra = (unsigned int)(limit - avg);
-                m_records[i].m_user->getHackAnalyzer()->addServerHackCnt(
-                    m_records[i].m_user, (WongWork::ENUM_HACKTYPE)0x19e,
-                    extra + 1, 0, 0);
-            }
-        }
-        if (m_bInspectUser)
-        {
-            if (avg < 10)
-            {
-                m_records[i].m_user->getHackAnalyzer()->addServerHackCnt(
-                    m_records[i].m_user, (WongWork::ENUM_HACKTYPE)0x194, 1, 0, 0);
-            }
-        }
-        else
-        {
-            if (avg < 0x14)
-            {
-                m_records[i].m_user->getHackAnalyzer()->addServerHackCnt(
-                    m_records[i].m_user, (WongWork::ENUM_HACKTYPE)0x193, 1, 0, 0);
-            }
-        }
-    }
-    reset();
-}
+
 
 #include "CTraceMobDieHack/_collect.inc"
-{
-    for (int i = 0; i <= 3; ++i)
-    {
-        if (users[i] == 0)
-        {
-            continue;
-        }
-        if (users[i]->IsGameMasterMode())
-        {
-            continue;
-        }
-        if (users[i]->GetParty() == 0 ||
-            ((CParty*)users[i]->GetParty())->m_battleField.m_pDungeon == 0)
-        {
-            continue;
-        }
-        if (users[i]->get_charac_level() <= 10)
-        {
-            continue;
-        }
-        int diff = users[i]->get_charac_level() -
-                   ((CParty*)users[i]->GetParty())->m_battleField.m_pDungeon->get_standard_level();
-        if (diff > 5)
-        {
-            continue;
-        }
-        stHackLog_t log;
-        log.m_accId = users[i]->get_acc_id();
-        log.m_characNo = users[i]->getCurCharacNo();
-        log.m_hackType = 0x193;
-        log.m_value = param_2;
-        log.m_count = 1;
-        std::vector<stHackLog_t>::iterator found =
-            std::find(m_hackLogs.begin(), m_hackLogs.end(), log);
-        if (found == m_hackLogs.end())
-        {
-            m_hackLogs.push_back(log);
-        }
-        else
-        {
-            found->m_count += 1;
-        }
-    }
-}
+

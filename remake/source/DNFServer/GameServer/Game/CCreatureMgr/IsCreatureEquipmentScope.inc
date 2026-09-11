@@ -1,3 +1,4 @@
+// ORIG _ZN13user_creature12CCreatureMgr24IsCreatureEquipmentScopeEi T 0x0833926c。
 bool CCreatureMgr::IsCreatureEquipmentScope(int slot)
 {
     // ORIG 833926c：js→cmp16(7e) / jle→mov1(84) / jne→mov0(8b)。

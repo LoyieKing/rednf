@@ -38,40 +38,14 @@ struct stMapMonsterKillChecker_t
 };
 
 #include "FieldSmallStructs/init.inc"
-{
-    m_useSkillMaterialTime = 0;
-    m_lastMobDieTime = 0;
-    m_uncontinuallyMobDieCnt = 0;
-    m_dieCnt = 0;
-    m_field10 = 0;
-    m_field14 = 0;
-}
 
-// ORIG W _ZN25stMapMonsterKillChecker_t19setUseSkillMaterialEj @ 0x830e72c。
-// 无独立函数报告；本实现经 ORIG objdump（0x830e72c..0x830e748）逐指令核实，
-// 调用方报告 CBattle_Field/onUseItem.md 已完整核对：
-//   mov 0xc(%ebp),%edx; mov %edx,(%eax)        → m_useSkillMaterialTime = tick
-//   mov 0x14(%eax),%eax; lea 0x1(%eax),%edx;
-//   mov %edx,0x14(%eax)                        → m_field14 += 1
+
 #include "FieldSmallStructs/setUseSkillMaterial.inc"
-{
-    m_useSkillMaterialTime = tick;
-    ++m_field14;
-}
 
-// ---- 击杀节奏反外挂链（kill_monster +0x1585..+0x18a8 消费）----
-// ORIG W _ZN25stMapMonsterKillChecker_t15setLastMobDieTimeEj @ 0x830e796：
-//   mov 0xc(%ebp),%edx; mov %edx,0x10(%eax)   → 写 +0x10（本头 m_field10 槽；
-//   ORIG 中该槽即"上次击杀时刻"，与 dieMonster 用的 +0x04 是两个独立槽位）。
+
 #include "FieldSmallStructs/setLastMobDieTime.inc"
-{
-    m_field10 = tick;
-}
 
-// ORIG W _ZN25stMapMonsterKillChecker_t19checkLongTermMobDieEjj @ 0x830e7a4：
-//   mov 0x10(%eax),%eax; test; je ret         → last(+0x10)==0 直接返回 m_0c
-//   tick - last ≥ limit（无符号 jb 判 <）时 ++m_0c
-//   返回 *(int*)(this+0xc)（本头 m_dieCnt 槽；ORIG 该槽存"非连续计数"）
+
 #include "FieldSmallStructs/checkLongTermMobDie.inc"
                                                    unsigned int limit)
 {
@@ -80,8 +54,6 @@ struct stMapMonsterKillChecker_t
     return m_dieCnt;
 }
 
-// ORIG W _ZN25stMapMonsterKillChecker_t25setUncontinuallyMobDieCntEj @ 0x830e7dc：
-//   mov %edx,0xc(%eax)                        → 写 +0x0c（m_dieCnt 槽）
 #include "FieldSmallStructs/setUncontinuallyMobDieCnt.inc"
 {
     m_dieCnt = cnt;   // 字段已 unsigned（WarField.h），同型赋值保 ORIG store 展开序
@@ -97,9 +69,4 @@ struct stMapPlayInfo_t
 };
 
 #include "FieldSmallStructs/init_1.inc"
-{
-    m_startTick = 0;
-    m_clearTick = 0;
-    m_useItemType2Count = 0;
-    m_useItemOtherCount = 0;
-}
+

@@ -1,1 +1,3 @@
 IMethod::~IMethod()
+{
+}

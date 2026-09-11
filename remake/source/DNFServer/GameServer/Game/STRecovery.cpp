@@ -15,15 +15,7 @@
 #include "STRecovery.h"
 
 #include "STRecovery/STRecovery.inc"
-{
-    clear();
-}
+
 
 #include "STRecovery/clear.inc"
-{
-    m_bAddMode = 0;
-    m_nValue1 = 0;
-    m_nValue2 = 0;
-    m_nTarget = 0;
-    m_bEnable = 0;
-}
+

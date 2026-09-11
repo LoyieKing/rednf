@@ -22,12 +22,7 @@ struct TournamentMonster
 };
 
 #include "TournamentMonster/TournamentMonster.inc"
-{
-    Clear();
-}
+
 
 #include "TournamentMonster/Clear.inc"
-{
-    m_mobId = 0;
-    m_rate = 0;
-}
+

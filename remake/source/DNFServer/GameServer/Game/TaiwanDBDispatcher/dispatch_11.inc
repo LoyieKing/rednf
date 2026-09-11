@@ -1,3 +1,8 @@
+// ORIG 0x0815b010 T LoadGeolocation::dispatch（报告 LoadGeolocation/dispatch.md）：
+// GetDBHandle(1,0) null→throw "handle null"；get_server_group → set_query
+// geo_allow_country → exec 失败 throw "exec"；逐行 get_str(0,buf,0x10) 失败 throw
+// "get_str" → SigLoadGeolocation::set；count>0x2b 时 sendCountryData+init；末尾
+// sendCountryData 一次。catch(const char*) logFormat 0x13c 返 0，成功返 1。
 bool LoadGeolocation::dispatch(int code, int uid, Stream* stream)
 {
     try

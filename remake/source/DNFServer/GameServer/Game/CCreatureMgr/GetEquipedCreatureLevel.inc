@@ -1,3 +1,4 @@
+// ORIG GetEquipedCreatureLevel @ 0x833a6b0。
 int CCreatureMgr::GetEquipedCreatureLevel() const
 {
     // ORIG 0x833a6be：test;je→mov0 尾块；call fall-through = 三元 ?: 形态。

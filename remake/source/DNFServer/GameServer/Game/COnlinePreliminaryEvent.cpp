@@ -18,50 +18,17 @@
 #include "OnlinePreliminary.h"     // online_preliminary::COnlinePreliminary::SetMatchAble
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081bb490：仅基类构造 + vptr 置位。
 #include "COnlinePreliminaryEvent/COnlinePreliminaryEvent.inc"
-{
-}
 
-// ORIG 0x081bb4ac / 0x081bb4dc：空体 + 虚析构由编译器生成同形。
+
 #include "COnlinePreliminaryEvent/dtor_COnlinePreliminaryEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081bb4fa：置事件标志、打日志；频道类型为 0xe 时开放匹配。
+
 #include "COnlinePreliminaryEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x15, 0);
-    tr("COnlinePreliminaryEvent Start!");
-    if (G_GameWorld()->GetChannelType() == 0xe)
-    {
-        online_preliminary::COnlinePreliminary::SetMatchAble(true);
-    }
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081bb56e：同 StartEvent()（忽略 param）。
+
 #include "COnlinePreliminaryEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1f, 0);
-    tr("COnlinePreliminaryEvent Start!");
-    if (G_GameWorld()->GetChannelType() == 0xe)
-    {
-        online_preliminary::COnlinePreliminary::SetMatchAble(true);
-    }
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081bb5e2：清事件标志；频道类型为 0xe 时关闭匹配。
+
 #include "COnlinePreliminaryEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    if (G_GameWorld()->GetChannelType() == 0xe)
-    {
-        online_preliminary::COnlinePreliminary::SetMatchAble(false);
-    }
-}
+

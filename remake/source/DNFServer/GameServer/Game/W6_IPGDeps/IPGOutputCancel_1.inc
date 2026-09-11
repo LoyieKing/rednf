@@ -1,3 +1,8 @@
+// ORIG T 0x08100616 (0x179)：Alloc 响应块 → 拷 req/res 字段 → 投递（无前置保留字段）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（97=97）。修法：① 删 dv/rv/sv 具名局部，req/res
+// 各点成员链重算（P0/P183）；② tran 拷贝改 union 视图整体赋值
+// `d->m_cmd.m_cancel.m_tran = res->m_cmd.m_output.m_tran`（P246）⇒ ORIG 尾部
+// res 指针单载 + 3 dword 连续拷贝。P167 CLEAR（9/9）。
 void CIPGHelper::IPGOutputCancel(SIPGData* req, SIPGData* res)
 {
     SIPGData* d = m_mgr->AllocIPGData();

@@ -1,3 +1,5 @@
+// ORIG 0x0811da32：index=flag>>3、bit=flag&7 越界（index∉[0,0x1387] 或 bit∉[0,7]）
+// → logFormat 后返回 1；否则返回 (m_data[index]>>bit)&1。item 参数仅入日志。
 bool CItemDictionary::getItemCheckFlag(unsigned int item, unsigned int flag) const
 {
     int index = (int)(flag >> 3);

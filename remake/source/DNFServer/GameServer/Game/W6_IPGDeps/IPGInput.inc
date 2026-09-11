@@ -1,3 +1,4 @@
+// ORIG T 0x080ffb0a (0x19a)。
 void CIPGHelper::IPGInput(CUser* user,
                           const char* p2, const char* p3, const char* p4,
                           const char* p5, const char* p6, void* callback)

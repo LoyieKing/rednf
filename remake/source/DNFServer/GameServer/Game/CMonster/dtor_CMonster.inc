@@ -1,1 +1,3 @@
 CMonster::~CMonster()
+{
+}

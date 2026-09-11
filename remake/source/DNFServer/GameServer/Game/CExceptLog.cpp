@@ -22,19 +22,9 @@
 #include <string.h>
 #include <time.h>
 
-// [GI-ioinit L21] 首强符号前移（P327）：ORIG 0x0846d640。
 #include "CExceptLog/PrintTextFile.inc"
-{
-    FILE* stream = fopen(name, "a");
-    if (stream != NULL)
-    {
-        fprintf(stream, content);
-        fclose(stream);
-    }
-}
 
-// ORIG ctor @0x0846d736：memset(this,0,2000) → Set_Time_String(buf) →
-// fPrintTextFile("Except.txt","%s\n%s\n",buf,str.c_str())。
+
 #include "CExceptLog/CExceptLog.inc"
 {
     memset((char*)this, 0, 2000);
@@ -44,7 +34,6 @@
     fPrintTextFile("Except.txt", "%s\n%s\n", buf, str.c_str());
 }
 
-// ORIG @0x0846d682：vsprintf 写入 (char*)this，再 PrintTextFile(name,(char*)this)。
 #include "CExceptLog/fPrintTextFile.inc"
 {
     va_list ap;
@@ -55,7 +44,6 @@
     PrintTextFile(name, reinterpret_cast<char*>(this));
 }
 
-// ORIG @0x0846d6c2：time(&t) → localtime_r(&t,&tm) → sprintf 时间串。
 #include "CExceptLog/Set_Time_String.inc"
 {
     struct tm tm;

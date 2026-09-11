@@ -22,41 +22,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x082677f8：仅基类构造 + vptr 置位。
 #include "CPCRoomWorldDropEvent/CPCRoomWorldDropEvent.inc"
-{
-}
 
-// ORIG 0x08267814 / 0x08267844：空体 + 虚析构由编译器生成同形。
+
 #include "CPCRoomWorldDropEvent/dtor_CPCRoomWorldDropEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x082678be：置事件标志并打日志（__FUNCTION__ "StartEvent"，line 0x21）。
+
 #include "CPCRoomWorldDropEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x21, 0);
-    tr("PCRoom World Drop Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08267910：vtable+0x8 直调 StartEvent()（转发无参版本）。
-// [b28c-30] N7 封顶：ORIG 取槽后 `mov (%eax),%edx; mov 0x8(%ebp),%eax;
-// mov %eax,(%esp); call *%edx`（4.1 间接目标 %edx）；4.4 恒目标 %eax
-// （`mov (%eax),%eax; …; call *%eax`）。助记符序列全等仅寄存器名差。
+
 #include "CPCRoomWorldDropEvent/StartEvent_1.inc"
-{
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0826792a：清事件标志并打日志（__FUNCTION__ "EndEvent"，line 0x2c）。
+
 #include "CPCRoomWorldDropEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x2c, 0);
-    tr("PCRoom World Drop Event End!");
-}
+

@@ -1,3 +1,5 @@
+// ORIG T 0x081c70c2（RequestDBQuest.md）：SIG 10 → CACHE_QUEST；BigStreamPool；
+// memset 0x7608 后仅写 characNo。
 int DisPatcher_SelectCharac::RequestDBQuest(CUser* user, MSG_CHARAC_SELECT& msg)
 
 {

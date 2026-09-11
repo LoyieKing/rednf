@@ -1,3 +1,5 @@
+// ORIG 0x0821b02a W _ZN28DisPatcher_UdpCharacteristic15fairPvpPingStatEP5CUserRtS2_
+// （报告 fairPvpPingStat.md 全文转写，wave2）：Fair_Pvp_Ping 包（0x27ed,0xe）同型。
 int DisPatcher_UdpCharacteristic::fairPvpPingStat(CUser* user, unsigned short& bad, unsigned short& total)
 
 {

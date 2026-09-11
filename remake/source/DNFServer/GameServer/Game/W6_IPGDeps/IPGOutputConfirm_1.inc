@@ -1,3 +1,7 @@
+// ORIG T 0x08100e0a (0x194)：前置写保留字段后按 Cancel 同款拷 req/res → 投递。
+// [b28d-solo-W6_IPGDeps] verdict=AE（103=103）。修法：① 删 dv/rv/sv 具名局部，
+// req/res 各点成员链重算（P0/P183）；② tran 拷贝改 union 视图整体赋值（P246）
+// ⇒ ORIG 尾部 res 指针单载 + 3 dword 连续拷贝。P167 CLEAR（9/9）。
 void CIPGHelper::IPGOutputConfirm(SIPGData* req, SIPGData* res)
 {
     SIPGData* d = m_mgr->AllocIPGData();

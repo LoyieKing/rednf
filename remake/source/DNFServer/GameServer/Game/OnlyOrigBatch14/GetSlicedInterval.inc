@@ -1,3 +1,7 @@
+// ===== _Z17GetSlicedIntervalPlS_S_S_lll —— ORIG 0x085732d8 =====
+// 切片区间工具：arg6>0 时写 [0,arg6] 到 out1/out2（count=1）；
+// 若 arg7+arg6 < arg5（总长），第二段 [arg7+arg6, arg5-(arg7+arg6)] 写
+// out3/out4（count==0 时写 out1/out2），count 增 1。返回段数。
 long GetSlicedInterval(long* out1, long* out2, long* out3, long* out4,
                        long total, long firstLen, long step)
 {

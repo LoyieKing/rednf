@@ -1,3 +1,11 @@
+// ORIG _ZN13user_creature12CCreatureMgr8SendMailEP10Inven_Itemii T 0x0833aa32
+// （docs/class_func_reports/user_creature__CCreatureMgr/SendMail.md）。
+// 逻辑：非宠物装备槽 → 1；item 类型非 5（CREATURE_EQUIP）→ 1；
+// CDBMsgSender sender(0x8a,m_user) → mapSize=m_creatureItems.size()，
+// characNo=m_user->getCurCharacNo()；SendMail 写库失败 → cMyTrace 并返回 0；
+// 成功 → sender.Send() 后 DeleteCreatureItem(item->m_addInfo2, reason)。
+// [b28d-23 N·N82] ⇒ N。ORIG 0x0833aa32
+// [b28d-solo-CCreatureMgr AE] P194 尾判 `if(!DeleteCreatureItem())return false;return true;` + P221 临时链 + P183 去 characNo 槽；ORIG 0x833aa32
 bool CCreatureMgr::SendMail(Inven_Item* item, int slot, int reason)
 {
     if (!IsCreatureEquipmentScope(slot))

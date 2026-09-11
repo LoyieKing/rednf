@@ -1,3 +1,10 @@
+// ===== _Z18GiveItemReturnUserP5CUser —— ORIG 0x084bfd28 =====
+// find_item(0x1f15) 失败直接返回；make_item 填局部 Inven_Item、set_add_info(1)。
+// 按最后游玩 dungeon 是否存在分两路拼邮件：正文
+// findString(4,"return_user_msg_1",0) + snprintf("%s", dungeonName) 或
+// findString(4,"return_user_msg_2",0)；发件人 findString(4,"return_user_msg_title",0)；
+// ReqDBSendNewSystemMail(title, item, 0, characNo, body, strlen(body), 7,
+//                        serverGroup, false, false)。
 void GiveItemReturnUser(CUser* user)
 {
     // [b14 复核·AE 归零（145=145，gap 0）] 三项修复（旧判词 N82/N115 作废）：
@@ -60,4 +67,15 @@ void GiveItemReturnUser(CUser* user)
     }
 give_item_ret1:;
 give_item_ret2:;
+}
+
+// ===== _Z38GetInstanceDeathTowerPlaydataStatisticv —— ORIG 0x0860f451 =====
+// ORIG：mov $0x94733a8 直返（.bss 静态实例，无 guard）。重建以文件级
+// static 对象承载同一地址语义。
+CDeathTowerPlayDataStatistic* GetInstanceDeathTowerPlaydataStatistic()
+{
+    // ORIG 0x094733a8 = _ZZ38GetInstanceDeathTowerPlaydataStatisticvE8instance（b，1B）
+    // ⇒ 函数内 static 真名为 `instance`（原 `s_instance` 为发明名，改回 ORIG 名）。
+    static CDeathTowerPlayDataStatistic instance;
+    return &instance;
 }

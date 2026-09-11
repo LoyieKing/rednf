@@ -1,3 +1,5 @@
+// ---------------------------------------------------------------------------
+// ORIG 0x081b9e4c：同 StartEvent()（忽略 param）。
 void CNotApplyBalkeunEvent::StartEvent(Word_Param param)
 {
     if (!IsEventing(0))

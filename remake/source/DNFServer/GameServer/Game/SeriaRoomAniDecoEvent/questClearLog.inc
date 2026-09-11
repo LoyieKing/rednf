@@ -1,3 +1,13 @@
+// [b28d-solo-W8LT_EventTail] AE | ORIG 0x081ba21e | P167 CLEAR（38/38）。
+// 修法：①字段经 m 视图读（非 msg.）；②删 progress/p 具名局部（P0/P183）；
+// ③条件 `empty()`→`size() != 0`（p167 MISSING size）；④循环体由 `text = X + sep`
+// 改左结合累加 `text = text + X + sep`——补回 p167 MISSING 的 1×`operator+` 与
+// 2×`~string`（ORIG 两次 op+ 的临时析构），AST 左结合形与 ORIG 逐条同构；
+// ⑤memcpy dest 用具名 `sig.m_data`：4.4 复现 ORIG「先压 size/src、后 lea+add 算
+// dest」的装载序（原 `(unsigned char*)&sig + 0x14` 使 4.4 提前算到 %edx）；
+// ⑥`sig` 局部加 `__attribute__((aligned(4)))`：ORIG 4.1 给 pack(1) 载荷 4 字节
+// 对齐槽（-0xbc），4.4 默认 1 字节对齐（-0xb9）⇒ 补属性后槽基与全帧逐条对齐。
+// ⑦memcpy 无补 NUL（P171 照抄）。
 // [P8S3 2026-09-11] 新口径复核 n1_v=AE（reloc 归一）；旧判词 NEAR 系 objdump 无 -r 的假残差
 void OneADayItemShopEvent::questClearLog(DeliveryMsg& msg)  // 0x081ba21e
 {

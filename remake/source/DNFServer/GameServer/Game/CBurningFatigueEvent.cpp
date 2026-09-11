@@ -27,64 +27,22 @@
 #include "cMyTraceNoop.h"
 
 #include "CBurningFatigueEvent/CBurningFatigueEvent.inc"
-{
-    // ORIG：CEventBase ctor 置基类 vptr 与 stADDINFO/+0x08 flag；
-    // m_params 指向全局 CDataManager 内 +0x4f4 的 burning-fatigue 参数 vector
-    // （= CDataManager::m_serverParameter(+0x68) 内 ServerParameterScript+0x48c，
-    //   与 importServerParameterScript 的 push_back 目标互证）。
-    m_params = reinterpret_cast<std::vector<stBurningFatigueParam_t>*>(
-        reinterpret_cast<char*>(G_CDataManager()) + 0x4f4);
-}
+
 
 #include "CBurningFatigueEvent/dtor_CBurningFatigueEvent.inc"
-{
-    // ORIG D1：恢复本类 vptr，再调 CEventBase::~CEventBase()（空）。
-}
+
 
 #include "CBurningFatigueEvent/StartEvent.inc"
-{
-    // ORIG 0x810a042：空实现。
-}
+
 
 #include "CBurningFatigueEvent/StartEvent_1.inc"
-{
-    // ORIG 0x810a048：SetEventFlag(true) + 日志。
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1b, 0);
-    tr("Burning Fatigue Event Start");
-}
+
 
 #include "CBurningFatigueEvent/EndEvent.inc"
-{
-    // ORIG 0x810a09a：SetEventFlag(false) + 日志。
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x21, 0);
-    tr("Burning Fatigue Event End");
-}
+
 
 #include "CBurningFatigueEvent/getBonusExpRate.inc"
-{
-    // ORIG 0x810a0ec：从 i=1 开始找第一个 m_level > level 的项，返回其前一项
-    // m_bonusExpRate(+0x04)；越界返回 0。每次访问均重解引用 this+0xc（ORIG 形态）。
-    for (size_t i = 1; i < m_params->size(); ++i)
-    {
-        if (level < (*m_params)[i].m_level)
-            return (*m_params)[i - 1].m_bonusExpRate;
-    }
-    return 0;
-}
+
 
 #include "CBurningFatigueEvent/getRefillFatigue.inc"
-                                                      unsigned short cur) const
-{
-    // ORIG 0x810a166：找第一个 (level >= m_level) 且 m_level > (level-cur)
-    // （16 位值提升为 int 相减）的项，返回其 m_refillFatigue(+0x08)；越界返回 0。
-    // ORIG 汇编为 || 短路求值后 test/je 判定：ja/jle 落在置 0 分支。
-    for (size_t i = 1; i < m_params->size(); ++i)
-    {
-        if (!(level < (*m_params)[i].m_level ||
-              (int)(*m_params)[i].m_level <= (int)(level - cur)))
-            return (*m_params)[i].m_refillFatigue;
-    }
-    return 0;
-}
+

@@ -1,3 +1,38 @@
+// ---------------------------------------------------------------------------
+// ProcIPGSyncForTaiwan —— ORIG T 0x081048c6 (0x992)。switch(data->m_type)：
+// 0=charge、2=purchase、3=cancel、4=getBalance、5=confirm、6=ceraPoint、
+// 其余（含 1）记日志。cash 取 m_mgr->m_billingCash（ORIG 6 处均直接解引用
+// m_mgr(+0xc)→+0xec，无 getBillingCash call）。载荷按命令族视图访问
+// （m_cmd.m_input / m_output / m_cancel / m_point / m_query，见 TaiwanCash.h）。
+// §6.2 巨件核销（b25）：P167 修前 50/56 [多6 getBillingCash]→修后 50/50
+// [0缺0多]；gap 0→0（orig 601 / our 601 指令数相等）；修法：6 处
+// getBillingCash() 调用改 m_mgr->m_billingCash 直接成员访问（ORIG 本函数
+// 内联解引用 +0xec，访问器不产生 call；TaiwanCash.cpp 的 out-of-line 定义
+// 保留供 0x08175f94 等真实 call 点使用）。残差为 N82 槽序/ndiff 951 字节层
+// 排布（详见 docs/asm_translation_patterns.md 负例表）。
+// ---------------------------------------------------------------------------
+// [b28d-solo-W6_IPGDeps] verdict=DIFF/N4+N7+N107 封顶（§6.2 三件套）。
+// 本轮修法（四组，全部有 ORIG 证据）：
+//  ① **case 块物理顺序重排**：ORIG jump table @0x8b42290 七项目标地址排序 =
+//     case 4/2/5/3/0/6/1，P46「叶块排放顺序 = case 书写顺序」⇒ 源码按 4,2,5,3,0,6 书写；
+//  ② **删 11 个视图指针局部**（rq/in/cash×2/out/ro/cv×2/pt/rv，P183/P134）——
+//     ORIG 各点 `mov 0xc(%ebp),%eax; add $0xNN` 重算，指针局部使帧 0xdc（ORIG 0x9c）；
+//  ③ **case 2 pay/price 内联实参**（P0：ORIG 两 atoi 结果只在 %ebx/%eax 跨第二 atoi
+//     保活、无槽往返 ⇒ 原码非具名局部）；
+//  ④ **case 3/5 tran 改整体赋值** `tran = data->m_cmd.m_cancel.m_tran;`（P247：ORIG
+//     单基址 0x1f0/0x1f4/0x1f8 三 dword 连续拷贝）。
+// 三件套读数（447 与 446 双后端一致）：① gap=16（601 vs 585，逐点 = 下述 add-vs-lea
+// 每处少 1 条）；② p167 调用点差集 CLEAR（50/50，0 缺 0 多，/tmp/tu_W6_IPGDeps.o
+// 复验）；③ 帧 0x9c 与 ORIG 全等、槽集差 1（多 0x68 = case 0 tran 与 case 6 缓存
+// 复用边界的 4B 槽），语义逐块比对完成（Ghidra C 段 622-812 逐 case 核对）。
+// 残差 = 4.1 `add $K,%eax; mov %eax,%reg` vs 4.4 `lea K(%eax),%reg`（N4/P30/N107，
+// 探针 /tmp/addprobe{,2,3}.cpp 证实 4.4 在"地址+另一变参并存"时恒 lea）
+// + 间接调用/实参寄存器角色（N7）。语义完成、byte 层 N 封顶。
+// [S2W6Deps 复核] 六处 LogManager::logFormat 实参逐参核对**一致**（ORIG 0x08104947
+// `$"IPG_QUERY user: %s reason: %d"` / 0x08104957 `$&__PRETTY_FUNCTION__` /
+// 0x0810495f `$"IPGMgr.cpp"`；余 5 处同形）——报告里我方 `$0x1e/$0x440/$0x0`
+// 是 .o 未链接的 .rodata 段内偏移，**非立即数实参**（§6.5 串盲区已排除；
+// strall.py 四 TU 串审计：仅 _GLOBAL__I/vtable 假阳性，无语义串缺/多）。
 SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
 {
     SIPGData* result = 0;

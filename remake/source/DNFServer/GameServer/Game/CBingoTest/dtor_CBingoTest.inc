@@ -1,1 +1,3 @@
 CBingoTest::~CBingoTest()
+{
+}

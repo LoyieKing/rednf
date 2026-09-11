@@ -1,1 +1,3 @@
 PvpResultRecvFlag::~PvpResultRecvFlag()
+{
+}

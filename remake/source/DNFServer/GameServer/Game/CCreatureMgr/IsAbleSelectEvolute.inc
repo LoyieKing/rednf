@@ -1,3 +1,5 @@
+// ORIG _ZN13user_creature9CCreature19IsAbleSelectEvoluteEP5CUser T 0x08337d58：
+// 同 IsAbleEvolute，但等级门槛取 GetTypeSelectEvolutionLevel()（-1 视为不可）。
 bool CCreature::IsAbleSelectEvolute(CUser* user)
 {
     if (m_script == 0)

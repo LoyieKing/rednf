@@ -1,3 +1,9 @@
+// b28d-solo-InitScriptProducers_1: DIFF→AE（0x2ae=0x2ae）。修：共享的链外
+// `if (err != 0) return err;` 移入三个分支体各一份 —— ORIG 每分支独立
+// `cmpl $0,-0xc; je <岛>` + fall-through return（0x08917af8/0x08917ba7/0x08917c53，
+// 岛 0x08917a36/39/3f 各 `nop; jmp 循环头`）；共享检查在 4.4 下 tail-merge 成单回边。
+// err 具名 int（ORIG -0xc）与 token→err→clear 声明序已复原。
+// ORIG T 0x089179eb。首成员 clear 后按三段分发至共享 loader；loader 非 0 即透传。
 int ImportNewAccountLeventUpToJobScript(const char* path,
                                         stNewAccountLevelUpToJobScript& script)
 {

@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 15（ORIG 140 / ours 135），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 // [DPCB 2026-09-11] 签名轴（§6.5 串盲区直证）：ORIG .rodata 串为
 // `int DisPatcher_CreateCharac::check_error(CUser*, MSG_BASE&)`
 // （strings df_game_r 命中，无 `unsigned` 前缀）；我方原写 `unsigned int` ⇒

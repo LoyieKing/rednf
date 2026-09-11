@@ -26,13 +26,8 @@
 namespace AvatarVariation
 {
 
-// ORIG C1 0x088d43f0：三字节各置 0xff（函数体逐句赋值形态，每句重读 this）。
 #include "AvatarVariation/colorRGB.inc"
-{
-    m_r = 0xff;
-    m_g = 0xff;
-    m_b = 0xff;
-}
+
 
 // ORIG 0x088d440a：三字段短路相等比较（movzbl 宽度=unsigned char 实证）。
 bool colorRGB::operator==(colorRGB const& rhs)
@@ -70,14 +65,8 @@ colorRGB getAvatarColorValue(int key)
     return colorRGB();
 }
 
-// ORIG 0x088d4856：与 getAvatarColorValue(0)（默认色）相同则不可启用。
 #include "AvatarVariation/isEnAbleColorKey.inc"
-{
-    colorRGB defaultColor = getAvatarColorValue(0);
-    if (color == defaultColor)
-        return false;
-    return true;
-}
+
 
 // ORIG 0x088d4896：key∈[0,0x1ff] 查 m_nameMap 返回 c_str；越界/info 空/未找到 → 0。
 const char* getAvatarColorName(int key)

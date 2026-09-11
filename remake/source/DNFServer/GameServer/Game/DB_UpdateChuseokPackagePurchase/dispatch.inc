@@ -1,3 +1,7 @@
+// ============================================================================
+// DB_UpdateChuseokPackagePurchase::dispatch @ 0x0843c7bc
+// mangled _ZN31DB_UpdateChuseokPackagePurchase8dispatchEiiP6Stream
+// ============================================================================
 bool DB_UpdateChuseokPackagePurchase::dispatch(int /*userIdx*/, int /*slot*/,
                                                Stream* s)
 {

@@ -1,1 +1,3 @@
 InterfacePacketBuf::~InterfacePacketBuf()
+{
+}

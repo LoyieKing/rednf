@@ -27,86 +27,16 @@
 // ============================================================================
 
 #include "BlueMarbleMapScript/BlueMarbleMapScript.inc"
-{
-    clear();
-}
+
 
 #include "BlueMarbleMapScript/dtor_BlueMarbleMapScript.inc"
-{
-    unsigned int i = 0;
-    while (i < m_tiles.size())
-    {
-        if (m_tiles[i] != 0)
-        {
-            delete m_tiles[i];
-        }
-        m_tiles[i] = 0;
-        ++i;
-    }
-    m_tiles.clear();
-}
+
 
 #include "BlueMarbleMapScript/clear.inc"
-{
-    m_tiles.clear();
-}
+
 
 #include "BlueMarbleMapScript/getTile.inc"
-{
-    if (m_tiles.size() < zone || zone == 0)
-    {
-        return 0;
-    }
-    return m_tiles[zone - 1];
-}
+
 
 #include "BlueMarbleMapScript/importScript.inc"
-{
-    if (!loadRDARScriptFile("", path))
-    {
-        return 0;
-    }
-    // 局部声明顺序与 ORIG 栈布局一致（line/-0x10、value/-0x14、tile/-0xc、t/-0x18）
-    std::string line;
-    int value = 0;
-    BlueMarbleTileScript* tile;
-    BlueMarbleTileScript* t;
-    for (;;)
-    {
-        if (!ScanType(line, true))
-        {
-            break;
-        }
-        if (line == "[tile]")
-        {
-            m_tiles.clear();
-            for (;;)
-            {
-                if (!ScanInt(&value))
-                {
-                    break;
-                }
-                tile = BlueMarbleScriptManager::getInsance()->getTile(value);
-                if (tile == 0)
-                {
-                    return 0;
-                }
-                if (!ScanInt(&value))
-                {
-                    break;
-                }
-                t = new BlueMarbleTileScript;
-                struct BM_TileRaw
-                {
-                    int m_a;  // +0x00
-                    int m_b;  // +0x04
-                    int m_c;  // +0x08
-                };
-                *(BM_TileRaw*)t = *(BM_TileRaw*)tile;
-                t->m_value = value;
-                m_tiles.push_back(t);
-            }
-        }
-    }
-    return 1;
-}
+

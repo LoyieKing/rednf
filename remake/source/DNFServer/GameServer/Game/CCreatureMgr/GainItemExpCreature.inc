@@ -1,3 +1,13 @@
+// ORIG _ZN13user_creature9CCreature19GainItemExpCreatureEiP5CUser T 0x83379c0
+// （GainItemExpCreature.md）：仅非成长宠（m_isGrow==0）。A 型经验物品使
+// m_field4d+1（钳 10）、B 型使其 -1（钳 0）；随后把 m_exp 低字节改写为
+// m_field4d 并令高 16 位进度 +1（16 位回绕），以新进度查 GetExpLevel 定级；
+// 通知包条件同成长宠；升级且可选择性进化则 SelectEvolute（失败返 0）；
+// 最后置 m_saveFlag=1 返回 1。
+// [b28d-solo-CCreatureMgr AE] 翻正四旋钮：①`char levelUp` + 函数头 `int newLevel=0`
+// 预清（P198①）；②A/B 型钳位改 char 局部 + `++value/--value` 就地字节自增（P320 字节版）；
+// ③packed 改 union 字节/半字视图（P197① 拆半）；④notify 内联 + P226 语句表达式嵌套 if。
+// 157=157 逐条全等。ORIG 0x83379c0
 bool CCreature::GainItemExpCreature(int exp, CUser* user)
 {
     // ORIG 0x83379c4..0x83379cc：char levelUp(-0x11) 与 int newLevel(-0x10) 均函数头

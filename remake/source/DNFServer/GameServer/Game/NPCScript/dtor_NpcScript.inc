@@ -1,1 +1,3 @@
 NpcScript::~NpcScript()
+{
+}

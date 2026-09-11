@@ -1,1 +1,3 @@
 CPartyTelePort::~CPartyTelePort()
+{
+}

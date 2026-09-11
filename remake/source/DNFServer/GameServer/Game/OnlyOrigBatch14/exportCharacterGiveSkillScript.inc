@@ -1,3 +1,4 @@
+// ORIG T 0x08a0fff6 _Z30exportCharacterGiveSkillScriptP8_IO_FILEPSt6vectorISt4pairIiiESaIS3_EE。
 void exportCharacterGiveSkillScript(FILE* fp, std::vector<std::pair<int, int> >* vec)
 {
     if (!vec->empty())

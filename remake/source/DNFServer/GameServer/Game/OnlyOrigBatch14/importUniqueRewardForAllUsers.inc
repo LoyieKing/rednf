@@ -1,3 +1,25 @@
+// ORIG T 0x088ffe75 _Z29importUniqueRewardForAllUsersPcPSt3mapIiSt6vectorIS1_I22STStackablePackageDataSaIS2_EESaIS4_EESt4lessIiESaISt4pairIKiS6_EEE。
+// [b28d-solo-OnlyOrigBatch14；gap 2→1 本波收敛]
+// loadRDARScriptFile 参数序已修为 ("", path)（真语义 bug，ORIG 0x088ffe8d
+// 压参序实证）。本波两条真缺口：
+//   (a) `[package selection]` 内层循环 ORIG 088fff63-69 为负极性
+//       `int itemIdx; for(;;){ if(!ScanInt(&itemIdx)) break; … }`（有 xor、
+//       无 for-init `movl $0`），原 `for(int itemIdx=0; ScanInt(&itemIdx); )`
+//       产 for-init+尾条件正极性 jne（多 movl、少 xor）；
+//   (b) group 块尾 ORIG 0890002d `jmp 08900044` → jobs dtor → 0890004f
+//       `jmp 088ffeca`（循环头）= 原码 **continue**（语义等价：token=="[group]"
+//       时 "[/package]" 恒 false）。
+// 残余 gap 1 = ORIG 的正常路径 jobs dtor 块（08900044-4f）物理位于 EH 段之后
+// 并由 `jmp 08900044` 进入，4.4 把该 dtor 内联在 continue 点（N104 EH 尾块
+// 相对序）。p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`
+// （string==const char* 外链实例，4.4 libstdc++ 全内联，N89）。
+// [b14 复核] 槽序修复：P212「4.4 块内先声明占**浅**槽（4.1 相反）」⇒ 把
+// `int itemIdx;` 提到 `std::vector<STStackablePackageData> items;` 之前，
+// 复现 ORIG items@-0x30（12B，深）/ itemIdx@-0x24（4B，浅）的槽对
+// （改前我方 itemIdx@-0x30 / items@-0x2c 恰好互换）。修复后 174 vs 173，
+// 唯一残差即上述 `jmp +0x1cf` 单源 EH 尾岛（P223 负例：单源 goto 的尾岛
+// 4.4 恒 jump-thread ⇒ 不可造，封 N）。
+// 控制流/全部插入点与 ORIG 逐段核对，语义等价。
 bool importUniqueRewardForAllUsers(
     char* path,
     std::map<int, std::vector<std::vector<STStackablePackageData> > >* out)

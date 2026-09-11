@@ -1,1 +1,3 @@
 WarRoom::~WarRoom()
+{
+}

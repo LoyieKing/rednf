@@ -1,3 +1,6 @@
+// ORIG 0x081c5904 T process（process.md 全文转写）。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 136（ORIG 192 / ours 196），残差=P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

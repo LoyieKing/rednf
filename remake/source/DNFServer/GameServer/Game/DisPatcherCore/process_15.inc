@@ -1,3 +1,9 @@
+// ORIG 0x081ca2fe T process（process.md 全文转写）。
+// err>0 返 0；err<0 LineFunc(0x1e5b)；err==0：世界图 hasDeathTower 死调用后，
+// 未组队走 GameManager 单人 party（hack 记账 0x1f6 + set_single_play + game_start）；
+// [b28d-29] N82：全帧槽号平移 4（ORIG 帧更浅），助记符序列与调用点全等  (ORIG 0x081ca2fe insn 129->133)
+// 已组队且 state==3 时对所在 party game_start；均返回 0。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 55（ORIG 129 / ours 132），残差=N82 槽/块序；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

@@ -1,3 +1,5 @@
+// ORIG 0x081c335c T _ZN18DisPatcher_GetItem4readER9PacketBufR8MSG_BASE
+// 报告：docs/class_func_reports/DisPatcher_GetItem/read.md（汇编+反编译 C 全读）
 int DisPatcher_GetItem::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

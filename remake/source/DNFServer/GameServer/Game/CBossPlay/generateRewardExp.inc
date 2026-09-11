@@ -1,3 +1,23 @@
+// ============================================================================
+// generateRewardExp（ORIG 0x08149e20）
+// [b28d-46] baseExp 具名 float（P252 复现 fstps -0xf0 槽往返）、tower 内联表达式。
+// [L5Free49to60 2026-09-11] 244 vs 267 → **244 vs 245**（gap −23→−1，bcmp NDIFF
+// 139→78）。本波旋钮（全为 P0/P183 删多余具名局部，依据 ORIG 无槽往返实证）：
+// ① 删 ev8/ev3/evF，GetRepeatEvent(8/3/0xf)->IsEventing() 内联（ORIG 0x08149fa7..
+//    0x08149fb8 虚调用链全程 %edx/%ecx 寄存器直用，无槽）；
+// ② 删 dm2/chScript/env/channelNo/channelType 五局部，getBonusRate 单表达式链
+//    （ORIG 0x08149f4c get_index→%edi、0x08149f5b GetChannelScript→%esi、
+//    0x08149f62/68 G_CEnvironment+0x378→%ebx、0x08149f73 channel_no→%eax）；
+// ③ pcrBurning/expDouble/premiumRate 去 `= 0.0f`（ORIG 三槽 c4/bc/b8/a8 无清零，
+//    仅条件分支内 fstps 写入 ⇒ P131/P171）；
+// ④ 删 pre（GetPremiumInfo），内联链式（ORIG 0x0814a0e1/0x0814a0e6 直用 %eax）；
+// ⑤ `m_rewardExpWeight[1 + a]` → `[a]`：ORIG `flds 0x4(%eax,%edx,4)` 由 stDeathTower_t
+//    的 m_apcExpWeight@+0x0 提供 +0x4 基址，旧写法多发 `add $0x1,%edx`。
+// 残差（封顶）：帧 0x13c vs 0x15c 全帧槽号平移 0x20 —— ORIG 把 8 个 float 局部排在
+// param(-0xcc,8B) 之后的 -0xc4..-0xa4、baseExp 落 -0xf0，4.4 恒「聚合对象优先占低槽、
+// 标量分区排布」（P332/N82附）；尾段 m_rewardExp[memberIdx] ORIG `lea 0x4(%edx),%ecx`
+// vs 我方 `add`（P30/N4 结构性伪影）；日志段 `.o` 重定位 imm 伪差。语义闭合。
+// ============================================================================
 bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
                                  const CDungeon* dungeon)
 {

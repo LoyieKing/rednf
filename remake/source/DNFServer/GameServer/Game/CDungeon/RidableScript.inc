@@ -1,1 +1,4 @@
 RidableScript::RidableScript()
+{
+    clear();
+}

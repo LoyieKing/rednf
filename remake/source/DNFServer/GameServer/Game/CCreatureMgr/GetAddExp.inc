@@ -1,3 +1,5 @@
+// [b28d-23 N·P133/P169] 分支极性/块序（ORIG jge 落 -0x18 岛 vs 4.4 jl 落共享尾）⇒ N。ORIG 0x08337724
+// [b28d-solo-CCreatureMgr AE] P169/P59 早退形：`if(minLevel!=0){if(m_level<minLevel)return result;}` 复现双跳同落+早退；ORIG 0x8337724
 float CCreature::GetAddExp(int artifactSlot, CUser* user)
 {
     float result = 0.0f;

@@ -12,7 +12,6 @@
 // ============================================================================
 #include "randomMessageBalloonInfo.h"
 
-// ORIG 0x08a00c08：string 默认构造 → vector 默认构造 → clear()（带 unwind 清理路径）
 #include "randomMessageBalloonInfo/randomMessageBalloonInfo.inc"
     : m_randomMessageAnimation(),
       m_randomMessageList()
@@ -20,7 +19,6 @@
     clear();
 }
 
-// ORIG 0x08a00bd2：+0x04 置 0 + vector::clear + vector::reserve(0xa)
 #include "randomMessageBalloonInfo/clear.inc"
 {
     m_randomMessageProbability = 0;
@@ -36,7 +34,5 @@
 namespace
 {
 #include "randomMessageBalloonInfo/force_randomMessageBalloonInfo_dtor.inc"
-{
-    delete p;
-}
+
 }

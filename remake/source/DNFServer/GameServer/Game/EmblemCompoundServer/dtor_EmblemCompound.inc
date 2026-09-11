@@ -1,1 +1,3 @@
 EmblemCompound::~EmblemCompound()
+{
+}

@@ -1,1 +1,4 @@
 GreyImage::~GreyImage()
+{
+    reset();
+}

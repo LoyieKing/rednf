@@ -1,3 +1,11 @@
+// b28d-solo-InitScriptProducers_1: DIFF→AE（0x206=0x206，指令数全等）。修：外层
+// slot 循环由逗号条件 `while ((slot=ScanInt(&ok), ok==true))`（4.4 旋转成底部条件）
+// 改为 `while (true) { slot = ScanInt(&ok); if (ok != true) break; ... }`，复现
+// ORIG 条件块置顶 + 体尾无条件回跳（P25/P283；ORIG 0x08902364 读 slot →
+// 0x08902372 `movzbl ok; xor $1; test; je 体`）。
+// ORIG T 0x089022be。[world drop] 段：slot 步长 0x14 寻址；槽内首值写 +0x00，
+// 总量清零后成对读 (itemIdx, rate)：rate 累加 +0x10、chunck 入 +0x04 vector；
+// 段内所有出口统一执行 +0x00 = +0x10。itemIdx==-1 即终止本槽。slot 无越界检查（忠实）。
 bool ImportWorldDrop(WorldDropInfo* out, const char* path)
 {
     if (!loadRDARScriptFile("", path))

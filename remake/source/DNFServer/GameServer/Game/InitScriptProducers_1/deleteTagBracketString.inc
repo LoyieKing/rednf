@@ -1,3 +1,7 @@
+// b28d-solo-InitScriptProducers_1: AE（修：循环变量 size_type→int，复现 ORIG
+// `cmp -0xc(%ebp),%eax; setg` 有符号边界；size_type 生 seta）。
+// ORIG T 0x08917db3：剔除 '[' 与 ']'（ORIG 以 tag="[]" 逐字符比对）；仅当确有
+// 剔除时回写（ORIG local_11 门禁）。
 void deleteTagBracketString(std::string& text)
 {
     std::string tag = "[]";

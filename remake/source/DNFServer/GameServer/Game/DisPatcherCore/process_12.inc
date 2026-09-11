@@ -1,3 +1,10 @@
+// ORIG 0x081c4562 T _ZN23DisPatcher_SetPartyInfo7processEP5CUserR8MSG_BASER9ParamBase
+// param+0x4 = check_error；>0 返回 0；<0 LineFunc(0x10f6,pretty,err,acc_id) 并返回其值；
+// 无队：G_CGameManager()->GetParty() 空则 param=4 返回 0，否则 create_party +
+// SetPartyInfoUI + send_party_info_to_all(party,0)；有队：非队长 param=8，
+// 队长 SetPartyInfoUI + send_party_info_to_all(party,1)；均返回 0。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
+// [b28d-solo-DisPatcherCore] 复核 AE：ORIG 96 / ours 96 insn 全等（AE 口径，重定位归一）。
 int DisPatcher_SetPartyInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

@@ -1,3 +1,14 @@
+// ORIG _ZN13user_creature9CCreature8SetStateEP5CUserNS_14CREATURE_STATEE T 0x0833715a
+// （docs/class_func_reports/user_creature__CCreature/SetState.md）。
+// [b28d-solo-CCreatureMgr N] ndiff=10：①三处 `(int)state != m_state` ORIG 为
+// `mov 0x3c(%eax),%eax; cmp 0x10(%ebp),%eax`（形参 mem 直比），4.4 恒
+// `mov 0x3c,%edx; mov 0x10(%ebp),%eax; cmp %eax,%edx`——8 形探针（f1..f8 含
+// `m_state != (int)state` / `(CREATURE_STATE)m_state != state` / unsigned 双向）
+// 均不可产（N18b/P209 族）；②InsertTimer 三实参首值 callee-saved 角色互换
+// （ORIG esi=第 6 实参 getCurCharacNo / ebx=GetUID，4.4 相反，N82附/P78）。
+// [b28d-solo-CCreatureMgr S1 已试] 交换左右操作数（m_state != (int)state）后 4.4 仍产
+// `mov 0x3c,%edx; mov state,%eax; cmp %eax,%edx`（两寄存器比较，135 条不变）⇒ 恢复直证形。
+// 语义全等（p167 CLEAR）。ORIG 0x0833715a
 void CCreature::SetState(CUser* user, CREATURE_STATE state)
 {
     float stomachValue = m_stomach.GetStomachValue(m_state, m_isGrow);

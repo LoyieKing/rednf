@@ -21,199 +21,33 @@
 
 const char* toMbcs(const char* src);
 
-// ORIG 变参格式化助手：弱模板 _Z10ss_sprintfILj1024EEiRAT__cPKcz @0x8acf0e0
-// （紧接本 TU switchChannelInputStream 之后，自然宿主即本文件）。ORIG 体为
-// ss_vsprintf(buffer, N, format, ap)；ss_vsprintf @0x8ad457c 的语义：
-// n=vsnprintf(buf,size,fmt,ap)；size>n 返回 n，否则清 buf[0] 返回 0（截断
-// 报错形）。声明不定义，宿主属字符串工具批次。
 #include "DNFLexWrapperStream/ss_vsprintf.inc"
                 std::va_list ap);
 
 template <unsigned int N>
 #include "DNFLexWrapperStream/ss_sprintf.inc"
-{
-    std::va_list ap;
-    va_start(ap, format);
-    int n = ss_vsprintf(buffer, N, format, ap);
-    va_end(ap);
-    return n;
-}
 
-// getInputStream（ORIG 0x8ace900）：仅 NORMAL 分流到 DNFLex::GetInputStream，
-// 取其返回流对象偏移 +0x8 的 istream*；其它 lexType 返回 0。
+
 #include "DNFLexWrapperStream/getInputStream.inc"
-{
-    void* r = 0;
-    if (lexType_ != LEX_TYPE_NORMAL)
-        return r;
-    return dnfLex_.GetInputStream()->s.stream;
-}
 
-// getInputStreamBuffer（ORIG 0x8ace970）：NORMAL 取 DNFLex stream_t +0x10，
-// COMPILED 取 CompiledDNFLex stream_t +0x0c；其它返回 0。无空指针护栏。
+
 #include "DNFLexWrapperStream/getInputStreamBuffer.inc"
-{
-    if (lexType_ == LEX_TYPE_NORMAL)
-        return dnfLex_.GetInputStream()->s.buffer;
-    char* r = 0;
-    if (lexType_ == LEX_TYPE_COMPILED)
-        return compiledDnfLex_.GetInputStream()->buffer;
-    return r;
-}
 
-// getInputStreamSize（ORIG 0x8ace930）：NORMAL 取 DNFLex stream_t +0x0c；
-// COMPILED 取 CompiledDNFLex stream_t +0x08；其它返回 -1。无空指针护栏。
+
 #include "DNFLexWrapperStream/getInputStreamSize.inc"
-{
-    if (lexType_ == LEX_TYPE_NORMAL)
-        return dnfLex_.GetInputStream()->s.size;
-    int r = -1;
-    if (lexType_ == LEX_TYPE_COMPILED)
-        return (int)compiledDnfLex_.GetInputStream()->size;
-    return r;
-}
 
-// getStreamName（ORIG 0x8ace8a0）：tstring 返回（按 DNFLexWrapper.cpp
-// getLastTokenDataAsString 的 by-value std::string 惯例）：lexType_ != 0 时
-// 返回 "NONE"；NORMAL 时委托 DNFLex::getStreamName。
-// b28d-21 + E06 复测: NEAR 封顶 — 29=29 助记符序列全同，唯一残差为 lexType_
-// 载入寄存器（ORIG `mov 0x14(%eax),%edx; test %edx,%edx` vs 4.4.x `%ecx`）。
-// E06 实测矩阵：①本 TU 路由 c6446r -O2 → %ecx；②c6root 4.4.7 全旗标 -O2（无
-// 路由改写）→ %ecx；③源码形穷举 `lexType_ != 0` / Yoda `NORMAL != lexType_` /
-// 三目条件式（此处反劣为 DIFF，已回退）→ 均 %ecx。⇒ 4.4 分配器恒选 %ecx，
-// 属 N7 跨版本寄存器角色差（P321-T5：寄存器角色不改类型/源码），无源码旋钮。
-// ORIG 0x8ace8a0。
+
 #include "DNFLexWrapperStream/getStreamName.inc"
-{
-    // [P6S3 round6 · §6.5 串审计命中复核 → 判**工具归因假阳性**，非语义缺口]
-    // strall.py 报本函数 `O-only[1] NONE`；但 `strings -a /tmp/tu_DNFLexWrapperStream.o`
-    // 直证我方 .o 首串即 `NONE`，且本函数体内确有
-    // `movl $0x14,0x4(%esp) + R_386_32 .rodata.str1.1` + `call _ZNSsC1EPKcRKSaIcE`
-    // （= `std::string("NONE")`，与 ORIG 0x8ace9xx 同形）⇒ 串未缺，属逐函数归因偏差。
-    // 残余真差仅 1 处寄存器：ORIG `mov 0x14(%eax),%edx; test %edx,%edx` vs 我方
-    // `%ecx`（N22 族「后求值者作 dst / 首槽寄存器择取」，源码不可翻）。
-    if (lexType_ != LEX_TYPE_NORMAL)
-        return std::string("NONE");
-    return dnfLex_.getStreamName();
-}
 
-// closeInputStream（ORIG 0x8acea70）：依次调用 DNFLex::CloseInputStream 与
-// CompiledDNFLex::CloseInputStream。
+
 #include "DNFLexWrapperStream/closeInputStream.inc"
-{
-    dnfLex_.CloseInputStream();
-    compiledDnfLex_.CloseInputStream();
-}
 
-// setStringStreamData（ORIG 0x8ace9b0）：用 buffer/bufferSize 构造 istrstream
-// 填充 stream_data_t；bufferSize==0 时先释放 buffer 再以空串+长度 1 构造
-// （size=1，buffer 槽不写）。恒返回 true。
+
 #include "DNFLexWrapperStream/setStringStreamData.inc"
-                                        unsigned int bufferSize)
-{
-    static const char* kEmptyBuf = "";
-    if (bufferSize)
-    {
-        std::istrstream* is = new std::istrstream(buffer, (int)bufferSize);
-        s->stream = is;
-        s->size = (int)bufferSize;
-        s->buffer = buffer;
-    }
-    else
-    {
-        const char* e = kEmptyBuf;
-        ::operator delete(buffer);
-        std::istrstream* is = new std::istrstream(e, 1);
-        s->stream = is;
-        s->size = 1;
-    }
-    return true;
-}
 
-// switchInputStream（ORIG 0x8aceaa0）：按流内容魔数判断编译态/文本态：
-//   - s==0 时先 clear 局部 stream_data_t 并 LoadStream；失败经 lexerError_
-//     回调报错返回 0；
-//   - size>1 时读 2 字节魔数 0xd0b0 → COMPILED：转发 CompiledDNFLex::
-//     SwitchInputStream（buffer 为读取区或新分配拷贝；若用 sd->stream 读则
-//     完成后释放 istream）；否则 NORMAL：转发 DNFLex::SwitchInputStream。
-// b28d-21 + E06 复测: NEAR 封顶 — 120=120 助记符序列全同，唯一实质残差为
-// lexerError_（0x6108(%esi)）载入寄存器（ORIG `mov 0x6108(%esi),%ebx; test %ebx,
-// %ebx` vs 4.4.x `%edx`）。E06 实测矩阵：①本 TU 路由 c6446r -O2 → %edx；
-// ②c6root 4.4.7 全旗标 -O2（无路由改写）→ %edx。⇒ N7/P321-T5 跨版本寄存器
-// 角色差，无源码旋钮（后续同址 `call *0x6108(%esi)` 两侧逐条一致，证明语义等价）。
-// 另余 ORIG `nop; lea 0x0(%esi,%eiz,1),%esi` 与本方 `lea…; nop` 的对齐填充顺序差
-// （§6.1 填充豁免）。ORIG 0x8aceaa0。
+
 #include "DNFLexWrapperStream/switchInputStream.inc"
-                                      DNFLex::stream_data_t* s)
-{
-    char errbuf[0x400];
-    DNFLex::stream_data_t local;
-    short magic;
-    // [P6S3 round6 · §6.5 串审计命中复核 → 判**工具归因假阳性**，非语义缺口]
-    // strall.py 报本函数 `O-only[1] %s/%s Read failed!`；`strings -a
-    // /tmp/tu_DNFLexWrapperStream.o` 直证该串在我方 .o 中（首串），且下方
-    // `ss_sprintf(errbuf, "%s/%s Read failed!", toMbcs(dir), toMbcs(filename))`
-    // 逐字存在 ⇒ 非缺串。残余真差为 N22/N82 寄存器-槽族（124/127）。
 
-    if (s == 0)
-    {
-        s = &local;
-        s->clear();
-        if (!LoadStream(dir, filename, s))
-        {
-            if (lexerError_ == 0)
-                return false;
-            ss_sprintf(errbuf, "%s/%s Read failed!",
-                       toMbcs(dir), toMbcs(filename));
-            reinterpret_cast<void (*)(const char*)>(lexerError_)(errbuf);
-            return false;
-        }
-    }
-    if (1 < (unsigned)s->size)
-    {
-        reinterpret_cast<std::istream*>(s->stream)->read(
-            reinterpret_cast<char*>(&magic), 2);
-        reinterpret_cast<std::istream*>(s->stream)->seekg(-2, std::ios::cur);
-        if (magic == static_cast<short>(0xd0b0))
-        {
-            char* pc = s->buffer;
-            lexType_ = LEX_TYPE_COMPILED;
-            if (pc == 0)
-            {
-                pc = new char[s->size];
-                reinterpret_cast<std::istream*>(s->stream)->read(pc, s->size);
-                return compiledDnfLex_.SwitchInputStream(
-                    dir, filename, pc, static_cast<unsigned int>(s->size));
-            }
-            bool ret = compiledDnfLex_.SwitchInputStream(
-                dir, filename, pc, static_cast<unsigned int>(s->size));
-            if (s->stream != 0)
-            {
-                void (**vtable)(void*) =
-                    *reinterpret_cast<void (***)(void*)>(s->stream);
-                vtable[1](s->stream);
-            }
-            return ret;
-        }
-    }
-    lexType_ = LEX_TYPE_NORMAL;
-    return dnfLex_.SwitchInputStream(dir, filename, s);
-}
 
-// switchChannelInputStream（ORIG 0x8acf060）：s==0 时先 clear 局部
-// stream_data_t 并 setFileStreamData；置 lexType_=NORMAL 后转发
-// DNFLex::SwitchInputStream("", filename, s)。
 #include "DNFLexWrapperStream/switchChannelInputStream.inc"
-                                             DNFLex::stream_data_t* s)
-{
-    DNFLex::stream_data_t local;
-    if (s == 0)
-    {
-        s = &local;
-        s->clear();
-        if (!setFileStreamData(s, filename))
-            return false;
-    }
-    lexType_ = LEX_TYPE_NORMAL;
-    return dnfLex_.SwitchInputStream("", filename, s);
-}
+

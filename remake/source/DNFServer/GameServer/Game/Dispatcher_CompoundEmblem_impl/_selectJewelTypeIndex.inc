@@ -1,3 +1,5 @@
+// ORIG _ZNK25Dispatcher_CompoundEmblem21_selectJewelTypeIndexEjPKt（0x8220a60）
+// 纹章位图→槽位 加权随机选取珍宝类型索引。
 int Dispatcher_CompoundEmblem::_selectJewelTypeIndex(
     unsigned int count, const unsigned short* sockets) const
 {

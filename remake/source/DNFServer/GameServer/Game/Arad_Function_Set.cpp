@@ -45,57 +45,16 @@
 namespace ARAD
 {
 
-// ---- PRINT_ERROR::isEmpty @ 0x08197ba4 ------------------------------------
-// N96 清绑：characNo 无槽 ⇒ 实参内联右值（21=21，与 ORIG 全等）。
 #include "Arad_Function_Set/isEmpty.inc"
-{
-    LogManager::logFormat(
-        1, "localjapan/Arad_Function_Set.cpp",
-        __PRETTY_FUNCTION__,
-        0x29d,
-        "%s : isEmpty() [slot:%d] [charac_no:%d]",
-        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
-}
 
-// ---- PRINT_ERROR::CheckItemLock @ 0x08197bfd -------------------------------
-// N96 清绑：同 isEmpty（21=21，与 ORIG 全等）。
+
 #include "Arad_Function_Set/CheckItemLock.inc"
-{
-    LogManager::logFormat(
-        1, "localjapan/Arad_Function_Set.cpp",
-        __PRETTY_FUNCTION__,
-        0x2a2,
-        "%s : CheckItemLock() fail [slot:%d] [charac_no:%d]",
-        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
-}
 
-// ---- PRINT_ERROR::delete_item @ 0x08197c56 ---------------------------------
-// N96 清绑：同 isEmpty（21=21，与 ORIG 全等）。
+
 #include "Arad_Function_Set/delete_item.inc"
-{
-    LogManager::logFormat(
-        1, "localjapan/Arad_Function_Set.cpp",
-        __PRETTY_FUNCTION__,
-        0x2a7,
-        "%s : delete_item() [slot:%d] [charac_no:%d]",
-        tag, (unsigned int)slot, (unsigned int)user->getCurCharacNo());
-}
 
-// ---- notifySystemMessage @ 0x08197d00（objdump 转写【推断】）-----------------
+
 #include "Arad_Function_Set/notifySystemMessage.inc"
-{
-    if (user == 0)          // 0x8197d08: cmpl $0x0,0x8(%ebp) → je ret
-        return;
-    if (msg == 0)           // 0x8197d12: cmpl $0x0,0xc(%ebp) → je ret
-        return;
 
-    int len = static_cast<int>(strlen(msg));   // 0x8197d22 strlen
-
-    PacketGuard packet;                        // -0x18 栈对象
-    // type=0、notify=(ENUM_NOTIPACKET)0xc（ORIG movl $0xc,0x18(%esp)）
-    G_GameWorld()->make_packet_chat_msg(
-        packet, user, msg, len, (char)0, (ENUM_NOTIPACKET)0xc);
-    user->Send(packet);
-}
 
 }  // namespace ARAD

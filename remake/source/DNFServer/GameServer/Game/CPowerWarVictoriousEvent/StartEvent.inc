@@ -1,3 +1,6 @@
+// ---------------------------------------------------------------------------
+// ORIG 0x08268986：IsEventing(0) 为假时置事件标志、挂 0x8b 定时器
+// （时长 = m_victoriousRewardTime × 0x3c 分钟）并打日志。
 void CPowerWarVictoriousEvent::StartEvent()
 {
     // [N7 封顶] IsEventing 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。

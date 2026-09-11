@@ -1,3 +1,8 @@
+// ORIG 0x0815c25c：GetRepeatEvent(0xa0) 非空且 IsEventing((CUser*)0)==1 才
+// 发消息：Acquire(file, 0x261) → CStreamGuard(true) → internal_stream(guard,
+// 0xb, a) → GetInBuffer<MSG> null → cMyTrace(0x267)("[Taiwan, Event] msg is
+// null")；否则 *buf = b；MsgQueueMgr::put(DB_Q, guard)。
+// [b28d-lane6] AE（已修）：去 bool skip 汇聚槽改早期返回 + P221 临时链（复现 ORIG 0x0815c25c 帧 0x30/槽序）。
 // [P2S5] P139 正向缺口：ORIG prett 串（0x8b78fe0, size=0x56）第三参拼写为
 // `memberIdentificationNumber_t`（typedef unsigned int，GameTypes.h，经
 // TaiwanQueries.h 可见）⇒ mangled 不变（j），零 ABI。

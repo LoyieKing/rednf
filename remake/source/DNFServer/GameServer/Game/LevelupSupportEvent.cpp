@@ -19,42 +19,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081169f8：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "LevelupSupportEvent/LevelupSupportEvent.inc"
-{
-}
 
-// ORIG 0x08116a14 / 0x08116a44：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "LevelupSupportEvent/dtor_LevelupSupportEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08116a62：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x3f,0)
-// ("LevelupSupportEvent Event Start!")。
+
 #include "LevelupSupportEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x3f, 0);
-    tr("LevelupSupportEvent Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08116ab4：thunk——经 vtable slot 2（StartEvent()）虚调用。
+
 #include "LevelupSupportEvent/StartEvent_1.inc"
-{
-    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08116ace：SetEventFlag(false) + cMyTrace(__FUNCTION__,0x49,0)
-// ("LevelupSupportEvent Event End!")。
+
 #include "LevelupSupportEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x49, 0);
-    tr("LevelupSupportEvent Event End!");
-}
+

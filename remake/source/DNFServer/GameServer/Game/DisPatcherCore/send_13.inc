@@ -1,3 +1,7 @@
+// ORIG 0x081c61ea T _ZN22DisPatcher_RepairEquip4sendEP5CUserR9ParamBase
+// （docs/class_func_reports/DisPatcher_RepairEquip/send.md 汇编+反编译 C 全文转写）：
+// put_header(1,0x19)；errNo==0 → put_byte(1)/getCurCharacInvenR()->get_money()
+// put_int/(char)m_8/(ushort)m_a/(ushort)m_c；否则 0/errNo；finalize(true)+Send。
 void DisPatcher_RepairEquip::send(CUser* user, ParamBase& param)
 
 {

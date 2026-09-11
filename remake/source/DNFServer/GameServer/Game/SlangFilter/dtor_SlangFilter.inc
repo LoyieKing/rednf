@@ -1,1 +1,3 @@
 SlangFilter::~SlangFilter()
+{
+}

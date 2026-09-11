@@ -1,3 +1,9 @@
+// ORIG T 0x089107e9。八个职业分支各自携带独立内联解析循环与临时对象槽（ORIG
+// 汇编中 make_pair/pair/insert 临时槽按 swordman..thief 分支序自 -0xf4 依次
+// 分配至 -0x14，即每分支一条独立 insert(std::make_pair(key,data)) 语句）；
+// key/data 对象构造在 ScanType 主循环前（ORIG +0x35..+0x5b）。未知 token 跳过。
+// 收敛口径：orig=ours=607，助记符序列全等；仅 8 个 token 串/空串字面量在 .o
+// 阶段以未解析重定位显示（.rodata 实测内容逐条一致），链接后按 AE 口径判等。
 int ImportLevelUpRewardItemScript(const char* path, stLevelUpRewardItemScript& script)
 {
     if (!loadRDARScriptFile("", path))

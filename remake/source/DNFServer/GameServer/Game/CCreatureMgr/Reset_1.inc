@@ -1,3 +1,6 @@
+// ORIG Reset @ 0x833a45a。
+// [b28d-solo-CCreatureMgr AE] 翻正钥匙 = 循环增量改后置 `it++`（P167：ORIG 增量段
+// ppEi，前置 ppEv 会多/少一条并把后续槽整体上移）；96=96 逐条全等。ORIG 0x0833a45a
 void CCreatureMgr::Reset()
 {
     // [b28-BM7 判词] 残余 = N82/N89 复合：①ORIG 帧 0x48（迭代器槽 -0x1c/

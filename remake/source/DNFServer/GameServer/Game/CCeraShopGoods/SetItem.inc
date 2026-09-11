@@ -1,3 +1,9 @@
+// ---- SetItem @ 0x8510c1a ----
+// [b28d-solo-CCeraShopGoods] AE：m_itemIdx 读 ORIG 0x08510c24 为
+// `mov 0x14(%eax),%eax; mov %eax,%edx` 两段物化 ⇒ 按 P254 把
+// STCeraShopItem::m_field14 改为 ENUM_CERA_SHOP_ITEM_NO（enum 源字段→int
+// 目标保留 eax→edx 中转；int 字段 4.4 恒折单段）。原 N18a 判词作废
+// （P248 档③类型旋钮）。sizeof/偏移/mangled 不变。
 void CCeraShopGoods::SetItem(const STCeraShopItem& item)
 {
     m_itemIdx = item.m_field14;

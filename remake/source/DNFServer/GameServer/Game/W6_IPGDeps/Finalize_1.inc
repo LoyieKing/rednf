@@ -1,3 +1,4 @@
+// ORIG T 0x08100c92 (0x3f)：mgr->Finalize → ~CIPGMgr → delete → 清指针。
 void CIPGHelper::Finalize()
 {
     m_mgr->Finalize();

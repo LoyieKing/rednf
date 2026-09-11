@@ -1,3 +1,10 @@
+// ORIG T 0x0810085e (0x1d0)：结果回传流 —— Acquire→header 0x48/err -1→按有无
+// 响应数据组织 0/1 分支 put_binary(req[,res])→回调数据或回收。
+// [b28d-solo-W6_IPGDeps] verdict=AE（120=120）。修法：① 删 stream 具名局部，
+// `Acquire(...)` 内联作 CStreamGuard ctor 实参（ORIG 0x0810086e 无槽往返，P259，
+// guard 槽回 -0x10）；② 两处 if/else 按 ORIG 块序翻转写（P47/P59）：res!=0 块直落
+// + res==0 块 je 落后（0x08100985）、notifyFlag!=0 块直落 + Free 块 je 落后
+// （0x081009eb）。P167 CLEAR（22/22）。
 void CIPGHelper::IPGResult(SIPGData* req, SIPGData* res)
 {
     // [b28d-solo-W6_IPGDeps] ORIG 0x0810085e：Acquire 结果无具名局部，直接作

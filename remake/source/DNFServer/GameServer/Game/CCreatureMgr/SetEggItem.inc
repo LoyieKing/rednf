@@ -1,3 +1,19 @@
+// ============================================================================
+// CCreatureItemConverter::SetEggItem —— ORIG 0x08336eae (T)
+// _ZN13user_creature22CCreatureItemConverter10SetEggItemEP10Inven_Item
+// 语义（反编译）：槽物 item 的 itemIdx = *(int*)(item+2)；
+//   find_item(itemIdx) 为 0 → 返回 0；
+//   物品 is_stackable → 返回 0；
+//   否则按 CEquipItem::get_sub_type()：
+//     ==1 → 仅置 item->m_field0 = 1；
+//     ==2 → get_rand_int(m_randomTable.m_field0) 得随机权重，
+//           GetRandomItemIndex(table, idx) 得目标 itemIdx，
+//           写回 item->m_addInfo 并置 item->m_field0 = 1；
+//   均返回 1。
+// ============================================================================
+// [b28d-23 N·P133] 分支布局/极性（get_sub_type 两跳同落）⇒ N。ORIG 0x08336eae
+// [b28d-solo-CCreatureMgr N] N111：ORIG switch 决策链残留死 `test %eax,%eax`（4.4 不产死指令，补 case 0 被折叠）；ORIG 0x8336eae
+// [b28d-solo-CCreatureMgr 复测] 58 vs 57（差即该死 test）；case 0 已试折叠 ⇒ 维持 N111 封顶。
 // [2026-09-11 收口判词 · N111 死指令] ORIG 0x08336eae（58 条）vs 我方 57 条（gap +1）。
 //   ORIG 0x8336f0f `test %eax,%eax` 后紧跟无条件 `jmp 0x8336f55`（flags 无消费者）
 //   = 4.1 对「case 0 与 default 同 leaf」保留的合并比较残留；4.4 前端对该死比较恒 DCE。

@@ -1,1 +1,4 @@
 TournamentRewardItemRate::TournamentRewardItemRate()
+{
+    Clear();
+}

@@ -1,3 +1,19 @@
+// [b28d-TakeDispatchCore] 真缺口修复（P183 地址重物化 + 调用链）：① CStreamGuard 链
+// `guard.operator*()->operator<<(x)`×2 + `guard.operator->()->GetInBuffer<T>()`
+// （ORIG 0x081c0511/0x081c0539 de、0x081c054a pt；原直写 `guard <<`/`guard.GetInBuffer`
+// 少 2 de + 1 pt）；② m_field78 处**重新** call G_CDataManager() 并重算 imul 0x7dc
+// （ORIG 0x081c064c；原两处共用 jobRec ⇒ MISSING _Z14G_CDataManagerv ×1）。
+// p167 5缺→0缺（CALLSITE CLEAR 38/38；余 C1↔C2/D1↔D2 同址别名对=Main 2026-09-09 裁定豁免、
+// memcpy=N78）；ndiff 204→112（ORIG 267 / ours 273，gap −6 形态代价）；
+// TU 三数 211/639/2/75/190 → 212/639/2/74/190。
+// ORIG T 0x081c041e _ZN23DisPatcher_CreateCharac7processEP5CUserR8MSG_BASER9ParamBase
+// param.m_errNo=check_error；>0 返 0；<0 LineFunc(0x79c,pretty,err,acc_id)。
+// GM 透传 setCharacNameFilterPass → BigStreamPool 取流构造 SIG_CREATE_CHARAC
+// （memset 0x5354）→ 填 accid/slot/name/+0x23 → 活动角色占用则 m_errNo=0x14 →
+// 角色创建表（CDataManager::m_characList + job*0x7dc）回填 → 双技能树初始技能 →
+// [b28d-29] N82/P211：帧 0x3c vs 0x30 + 参数副本槽 + store 装载序，调用点全等  (ORIG 0x081c041e insn 267->258)
+// SP/makeGift/SSN 检查 → 战士(slot9) 连技 → lockCreateCharac 成功投递 DB_Q。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 204（ORIG 267 / ours 259），残差=N7/N82 帧与 callee-saved 角色/setcc-fold bool 物化岛/P211/N18a 中转/store 序/P30；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

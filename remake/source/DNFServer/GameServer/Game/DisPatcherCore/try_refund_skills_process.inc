@@ -1,3 +1,8 @@
+// ORIG 0x081bfd3c T _ZN19DisPatcher_BuySkill25try_refund_skills_processEP5CUsercR12buySkillInfo
+// （docs/class_func_reports/DisPatcher_BuySkill/try_refund_skills_process.md 全文转写）：
+// [b28d-29] N82：帧/槽重排（ORIG sub $0x4c+push edi/esi/ebx，4.4 sub $0x58），助记符序列与调用点全等  (ORIG 0x081bfd3c insn 59->55)
+// 与 refund 同参形态调 try_refund_skill；仅写 m_4，无等级回读、无任何门。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 58（ORIG 59 / ours 55），残差=N7/N82 帧与 callee-saved 角色/P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 void DisPatcher_BuySkill::try_refund_skills_process(CUser* user, char /*treeKind*/,
 
                                                     buySkillInfo& info)

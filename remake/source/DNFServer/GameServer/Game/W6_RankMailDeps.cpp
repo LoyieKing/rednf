@@ -32,23 +32,6 @@ namespace {
 
 } // namespace
 
-// ORIG T 0x08468614 (size 0x300) —— registRanker.md
-// [b28d-solo-W6_RankMailDeps] DIFF(N) — 修法（ndiff 216→~125，insn 170→229/ORIG 224，gap 5）：
-//   ① slot 指针缓存与 oldStage/oldTime 具名局部全删（P183），每处槽访问重发完整
-//      二维链；② 槽寻址直用真二维下标 `m_towers[towerIdx].m_slots[slotIdx]`
-//      （Main 代落头 m_slots[6] 后）复现 ORIG 双 imul 形
-//      （探针 /tmp/b28d_w6_probe3.cpp f_2d 逐条同形；此前 TU-local 视图因 cast
-//      多 this 中转 236→229）；③ byte lane 改
-//      `uchar(*)[0x17]` 数组引用形（探针 probe4 l2：7→6 条/lane）；
-//      ④ insert 保持 P178 双层临时链（make_pair+pair C1IjjE/C1IjS3_）。
-//      P167 CLEAR(8/8)。残余 gap 5 = 结构性 N 族：a) 3 处 byte lane 源读 4.4
-//      恒先载 members 寄存器 + lea（ORIG `add 0x14(%ebp),%eax` 内存操作数，
-//      N4/P30，探针 probe4 l2）；b) m_playTime store LHS-first+`mov %eax,%edx`
-//      中转 vs ORIG RHS-first（N76/P211）；c) erase 段 `add %edx,%eax` vs
-//      ORIG `add 0x8(%ebp),%eax`（this 装载序，N7/N18a）。另槽序
-//      -0x1c/-0x20/-0x28… vs ORIG -0x1c/-0x24/-0x2c…（N82/N98）。语义与调用点
-//      全等（14 处槽访问、3 处 insert/erase 调用点逐条同形）。ORIG 0x08468614。
-// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N4/P30）→ 试=N4a 轴反向（`uchar(*)[0x17]` 数组引用 → `uchar* + i*0x17+0x14` 混合形 R2：our 228→234 劣化、add 链变长，已回滚）；ORIG 0x084686bc `imul $0x17; add 0x14(%ebp),%eax`（mem-add）vs 4.4 `mov 0x14(%ebp),%edx; lea (%edx,%eax,1)` ⇒ 维持。
 #include "W6_RankMailDeps/registRanker.inc"
     unsigned int towerIdx, unsigned int slotIdx,
     const struct stDeathTowerRecordMemberInfo_t* members,
@@ -121,82 +104,15 @@ namespace {
         m_tableBest = cur;   // P83：ORIG rep movsl 0x26 dword = 结构整体赋值
 }
 
-// ORIG T 0x08468594 (size 0x80) —— resetRanking.md
-// [b28d-solo-W6_RankMailDeps] AE（compare_tu clean，DIFF→AE；旧 b28d-55
-//   「P209 附无源码解」判词作废）— 修法：内层局部改 int + 显式
-//   `(unsigned int)s < 200` 比较，复现 ORIG 两段寄存器尾测
-//   `mov -0xc(%ebp),%eax; cmp $0xc7,%eax; setbe; test; jne`（探针
-//   /tmp/b28d_w6_probe5.cpp f2 逐条同形；unsigned 局部恒折 cmpl mem 单段）。
-//   语义不变（0..199）。ORIG 0x08468594。
 #include "W6_RankMailDeps/resetRanking.inc"
-{
-    // asm: 外层 cmp $0x4/setle ⇒ i<=4（有符号，P2）；内层 cmp $0xc7/setbe ⇒ s<=199。
-    // [b28d-solo-W6_RankMailDeps] P209 附翻正：内层尾测 ORIG 为两段寄存器形
-    //   `mov -0xc(%ebp),%eax; cmp $0xc7,%eax; setbe; test; jne`；4.4 对 unsigned
-    //   局部与常量比较恒折 `cmpl $0xc7,-0xc(%ebp)` 单段（旧判词「无源码解」）。
-    //   局部改 int + 显式 (unsigned int) 比较即复现（探针
-    //   /tmp/b28d_w6_probe5.cpp f2 实测逐条同形，语义仍为 0..199）。
-    for (int i = 0; i < 5; ++i)
-    {
-        _getRankingTable(i)->clear();
-        for (int s = 0; (unsigned int)s < 200; ++s)
-            m_rankMap[i][s].clear();
-    }
-}
 
-// ORIG T 0x084683da (size 0xf3) —— registRanking.md
-// [b28d-55] DIFF(N) — 修法：value_type(make_pair(key,rank)) 复现 ORIG
-//   make_pair<unsigned&,unsigned&> + pair<const unsigned,unsigned>::C1IjjE
-//   （P178/P86），P167 CLEAR(10/10)。残余 = 寄存器/槽位差（N82 族）。
-//   ORIG 0x084683da。
+
 #include "W6_RankMailDeps/registRanking.inc"
-                                                 unsigned int key,
-                                                 unsigned int rank)
-{
-    // asm +0x18..+0x81: ranking 子表 insert(key→rank)，重复键改写。
-    RankTable& rt = *_getRankingTable(tableIdx);
-    std::pair<RankTable::iterator, bool> rr =
-        rt.insert(RankTable::value_type(std::make_pair(key, rank)));
-    if (!rr.second)
-        rr.first->second = rank;
-    // asm +0x93..+0xf2: best 子表 find(key)；命中则其记录存故名次(+0x94)=rank。
-    BestMap& bt = *_getBestRecordTable(tableIdx);
-    BestMap::iterator bi = bt.find(key);
-    if (bi != bt.end())
-        bi->second.m_field94 = static_cast<int>(rank);
-}
 
-// ORIG T 0x084684ce (size 0x83) —— updateRanking.md
+
 #include "W6_RankMailDeps/updateRanking.inc"
-                                                 unsigned int key,
-                                                 unsigned int rank)
-{
-    RankTable& rt = *_getRankingTable(tableIdx);
-    // ORIG: make_pair(key,rank) 临时(-0x14) → value_type 移动拷贝(-0x1c) →
-    // insert(-0x28) 双层临时链（mangled 实证）。
-    std::pair<RankTable::iterator, bool> rr =
-        rt.insert(RankTable::value_type(std::make_pair(key, rank)));
-    if (!rr.second)
-        rr.first->second = rank;
-}
 
-// ORIG T 0x08468914 (size 0x238) —— registBestRecord.md
-// [b28d-solo-W6_RankMailDeps] DIFF(N) — 修法（ndiff 133→~93，insn 152→153/ORIG 150）：
-//   ① 删 src 指针缓存（P183），每 lane 重发 `imul $0x17 + add members` 链；
-//   ② byte lane 改 `uchar(*)[0x17]` 数组引用形复现 ORIG `movzbl 0x14(%edx)`
-//      disp 读（探针 /tmp/b28d_w6_probe4.cpp l2）；③ insert 保持 P178
-//      value_type(make_pair(key,rec)) 双层临时链（pair C1IjS3_）。P167 CLEAR(14/14)。
-//   残余 = 结构性 N 族：a) 每 lane 多 1 条 `mov 0x14(%ebp),%ecx` + lea（ORIG
-//      `add 0x14(%ebp),%edx` 内存操作数，N4/P30 基址恒先物化，探针 l2 实测）；
-//   b) 局部槽序 i/rt/bt = -0x20/-0x1c/-0x24 vs ORIG -0x1c/-0x24/-0x20
-//      （N82/N98 首次使用序分配，声明序不可翻）；c) cur 槽 -0xd0 vs ORIG -0xcc
-//      连带 stage/playTime -0x48/-0x44 vs -0x44/-0x40（同族）。语义全等。
-//      ORIG 0x08468914。
-// [S2W6Deps 复核] a) 项 = **gcc 中端 lowering 固有差**（fdiff.py reloc 归一口径
-//   实测：3 处 lane 各 1 条，`insert orig[52..] N| mov 0x14(%ebp),%edx` 等）：
-//   同址表达式 `members + i*0x17`，原厂发 `imul; add 0x14(%ebp),%edx`（mem 直加），
-//   gcc11 恒先物化基址再 `lea (%edx,%eax,1),%edx` ⇒ 每 lane +1 条，gap -3 全额由
-//   此解释；属 N4/P30 族（同 registRanker），源码不可造。
+
 #include "W6_RankMailDeps/registBestRecord.inc"
     unsigned int towerIdx, unsigned int key,
     const struct stDeathTowerRecordMemberInfo_t* members,
@@ -246,112 +162,52 @@ namespace {
 // return this + 0x11d0 + idx*0x14 == &m_rankingTables[idx]（stride 已验证）。
 WongWork::CDeathTowerRanking::RankTable*
 #include "W6_RankMailDeps/_getRankingTable.inc"
-{
-    return m_rankingTables + idx;
-}
+
 
 // ORIG W 0x08469dae (size 0x1e) —— 同构，基址 0x1234 == m_bestTables。
 WongWork::CDeathTowerRanking::BestMap*
 #include "W6_RankMailDeps/_getBestRecordTable.inc"
-{
-    return m_bestTables + idx;
-}
+
 
 // ============================================================================
 // B) WongWork::CDeathTower::CDungeonMgr — 三 getter（转发 CDungeon）
 // ============================================================================
 
 #include "W6_RankMailDeps/getStandardLevel.inc"
-{
-    return m_pDungeon->get_standard_level();  // ORIG call _ZNK8CDungeon18get_standard_levelEv
-}
+
 
 std::vector<std::pair<int, int> >*
 #include "W6_RankMailDeps/getObjectDropItems.inc"
-{
-    return m_pDungeon->getObjectDropItems();  // ORIG call _ZNK8CDungeon18getObjectDropItemsEv
-}
+
 
 std::vector<stDungeonAssignItem_t>*
 #include "W6_RankMailDeps/getSpecialPassiveObjectItems.inc"
-{
-    return m_pDungeon->getSpecialPassiveObjectItems();  // ORIG call _ZNK8CDungeon28getSpecialPassiveObjectItemsEv
-}
+
 
 // ============================================================================
 // C) WongWork::CMailBox / CMail
 // ============================================================================
 
-// ORIG W 0x085578ae (size 0x65)：前 0x28 字节清零（7 dword + byte@0x1c +
-// dword@0x20/0x24）。语义映射（AddNewMail.md 装载证据）：+0x00 mailIndex、
-// +0x04 senderCharacNo、+0x08 packageMoney/senderNamePtr（CMailBox.cpp 与
-// CMailBoxHelper.cpp 两 TU 对该槽/后段视图分歧，见 NOTES 上报）、+0x0c letterId、
-// +0x10 remainSec、+0x14 packageType、+0x18 period、+0x1c unlimit(byte)、
-// +0x20/+0x24 指针字段。
 #include "W6_RankMailDeps/stAddNewMailInput.inc"
-{
-    // 具名字段清零（SecuLink 批次裸偏移清理；字段布局/宽度证据见
-    // CMailBoxHelper.h stAddNewMailInput 注释——AddNewMail ORIG 0x08551f5a）。
-    // ORIG 清零序：+0x00..+0x18 七 dword、+0x1c 一 byte、+0x20/+0x24 两 dword。
-    m_mailIndex = 0;
-    m_senderCharacNo = 0;
-    m_packageMoney = 0;
-    m_letterId = 0;
-    m_remainSec = 0;
-    m_packageType = 0;
-    m_period = 0;
-    m_unlimit = 0;
-    m_senderName = 0;
-    m_packageItem = 0;
-}
 
-// ORIG W 0x084ed2fc (size 0x34)：m_loadedLetterCount-1；负数归零。
+
 #include "W6_RankMailDeps/DecLoadedLetterCount.inc"
-{
-    --m_loadedLetterCount;
-    if (m_loadedLetterCount < 0)
-        m_loadedLetterCount = 0;
-}
 
-// ORIG W 0x084ed280 (size 0x7c)：letterKeepCount erase；命中返回 1 否则 0。
+
 #include "W6_RankMailDeps/DeleteLetterKeepCount.inc"
-{
-    // ORIG +0x006..+0x07a: find(key); it != end() → erase(it) 返回 1，否则 0。
-    std::map<int, bool>::iterator it =
-        m_letterKeepCount.find(static_cast<int>(key));
-    if (it != m_letterKeepCount.end())
-    {
-        m_letterKeepCount.erase(it);
-        return 1;
-    }
-    return 0;
-}
 
-// ORIG W 0x084ed330 (size 0x14)：m_notLoadedMailCount+1。
+
 #include "W6_RankMailDeps/IncNotLoadedMailCount.inc"
-{
-    ++m_notLoadedMailCount;
-}
 
-// ORIG W 0x084ed216 (size 0xb)：return this+0xc 的 int（现头具名字段
-// m_mailLoadCount，原 m_pad0c 区）。
+
 #include "W6_RankMailDeps/getMailLoadCount.inc"
-{
-    return m_mailLoadCount;
-}
 
-// ORIG T 0x085519e2 (size 0x1c)：m_mailIndex=0 后调 ResetPackage()。
+
 #include "W6_RankMailDeps/Init.inc"
-{
-    m_mailIndex = 0;
-    ResetPackage();
-}
 
-// ORIG W 0x0869782e (size 0xa)：return m_mailIndex。
+
 #include "W6_RankMailDeps/getMailIdx.inc"
-{
-    return m_mailIndex;
-}
+
 
 // CMail::._398 子对象 ctor 现由 CMailBoxHelper.h 的匿名 m_package 子对象声明确认，
 // 编译器自动生成（原先的 asm label 桥违反 §4.5，已移除）。

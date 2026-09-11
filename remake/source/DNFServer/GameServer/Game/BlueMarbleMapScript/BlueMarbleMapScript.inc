@@ -1,1 +1,4 @@
 BlueMarbleMapScript::BlueMarbleMapScript()
+{
+    clear();
+}

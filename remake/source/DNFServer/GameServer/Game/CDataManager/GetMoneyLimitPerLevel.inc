@@ -13,3 +13,24 @@ dword CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGroup) co
 //   ③ 站点（CDataManager.cpp:466）已改 `__PRETTY_FUNCTION__`，并同轮修正另两处串盲区：
 //      fmt `"Out of range level (%d)"` → `"Invalid Character Level %d"`（ORIG 0x08c32e6e）、
 //      strcmp 目标 `"0"` → `"rksekrlsek"`（ORIG 0x08c32e89，**语义差**）。
+{
+    if (level <= 0 || level > 200)
+    {
+        LogManager::logFormat(1, "data_manager.cpp",
+                              // [Q6HeaderTypeAxis 2026-09-11 §6.5 串盲区 + prett 缺口]
+                              // ORIG 0x08360d0e：0x4=0x08c2f90a "data_manager.cpp"、
+                              // 0x8=0x08c34300 prett、0xc=0x2705(9989)、0x10=0x08c32e6e
+                              // "Invalid Character Level %d"、vararg=level。
+                              __PRETTY_FUNCTION__, 0x2705,
+                              "Invalid Character Level %d", level);
+        level = std::max(1, std::min(200, level));
+    }
+    // [Q6HeaderTypeAxis 2026-09-11 语义轴·串] ORIG 0x08360d64 `movl $0x8c32e89,0x4(%esp)`
+    // ⇒ 比较串实为 "rksekrlsek"（.rodata 手读：72 6b 73 65 6b 72 6c 73 65 6b 00），
+    // 我方原写 "0"（串盲区，行为不同：该 serverGroup 才返回 INT_MAX）。
+    if (serverGroup && strcmp(serverGroup, "rksekrlsek") == 0)
+    {
+        return 0x7fffffff;
+    }
+    return m_moneyLimit[level];
+}

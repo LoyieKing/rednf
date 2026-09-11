@@ -1,1 +1,3 @@
 AvatarConvertServer::~AvatarConvertServer()
+{
+}

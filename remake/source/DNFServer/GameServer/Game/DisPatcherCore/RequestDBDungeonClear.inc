@@ -1,3 +1,5 @@
+// ORIG T 0x081c7436（RequestDBDungeonClear.md）：SIG 12 → CACHE_DUNGEON_CLEAR；
+// StreamPool；memset 0x1810 后 characNo@0 / accId@4。
 int DisPatcher_SelectCharac::RequestDBDungeonClear(CUser* user, MSG_CHARAC_SELECT& msg)
 
 {

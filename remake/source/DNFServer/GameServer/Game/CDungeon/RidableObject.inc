@@ -1,1 +1,4 @@
 RidableObject::RidableObject()
+{
+    clear();
+}

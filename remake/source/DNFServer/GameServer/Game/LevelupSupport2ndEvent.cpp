@@ -19,43 +19,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811b988：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "LevelupSupport2ndEvent/LevelupSupport2ndEvent.inc"
-{
-}
 
-// ORIG 0x0811b9a4 / 0x0811b9d4：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "LevelupSupport2ndEvent/dtor_LevelupSupport2ndEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811b9f2：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x6b,0)
-// ("LevelupSupport2ndEvent Event Start!")。
+
 #include "LevelupSupport2ndEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x6b, 0);
-    tr("LevelupSupport2ndEvent Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811ba44：thunk——经 vtable slot 2（StartEvent()）虚调用。
-// [b28c-30] N7 封顶：同 CPCRoomWorldDropEvent::StartEvent(Word_Param)——
-// ORIG 间接 call 目标 %edx vs 4.4 恒 %eax，助记符全等仅寄存器名差。
+
 #include "LevelupSupport2ndEvent/StartEvent_1.inc"
-{
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811ba5e：SetEventFlag(false) + cMyTrace(__FUNCTION__,0x75,0)
-// ("LevelupSupport2ndEvent Event End!")。
+
 #include "LevelupSupport2ndEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x75, 0);
-    tr("LevelupSupport2ndEvent Event End!");
-}
+

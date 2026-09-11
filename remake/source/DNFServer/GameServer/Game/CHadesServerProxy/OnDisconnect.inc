@@ -1,1 +1,4 @@
 void CHadesServerProxy::OnDisconnect()
+{
+    RunConnTimer();
+}

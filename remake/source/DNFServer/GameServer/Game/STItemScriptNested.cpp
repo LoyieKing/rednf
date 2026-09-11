@@ -16,15 +16,11 @@
 #include "STItemScript.h"
 #include <string.h>
 
-// ---- DyeInfo（ORIG 0x8513ac6 族）----
 #include "STItemScriptNested/DyeInfo.inc"
 #include "STItemScriptNested/dtor_DyeInfo.inc"
 
 #include "STItemScriptNested/clear.inc"
-{
-    m_field0 = 1;
-    m_vec4.clear();
-}
+
 
 DyeInfo& DyeInfo::operator=(const DyeInfo& other)
 {
@@ -33,37 +29,15 @@ DyeInfo& DyeInfo::operator=(const DyeInfo& other)
     return *this;
 }
 
-// ORIG 0x898d37c：m_field0==1 且 m_vec4 非空 → m_vec4[0].first，否则 -1
 #include "STItemScriptNested/getDyeColorIndex.inc"
-{
-    if (m_field0 == 1)
-    {
-        if (m_vec4.empty())
-            return -1;
-        return m_vec4[0].first;
-    }
-    return -1;
-}
 
-// ---- STSpecialMonsterDrop（ORIG 0x8513a10 族）----
+
 #include "STItemScriptNested/STSpecialMonsterDrop.inc"
-{
-    clear();   // ORIG C1 0x8513a10：仅调 clear
-}
-#include "STItemScriptNested/clear_1.inc"
-{
-    // ORIG 0x8513a24：m_enable 字节直写 0 + memset(+0x01,0,5) + memset(+0x06,0,3)。
-    m_enable = 0;
-    memset(m_difficulty, 0, sizeof(m_difficulty));
-    memset(m_dungeonType, 0, sizeof(m_dungeonType));
-}
 
-// ---- STItemScript::SEXPERTJOB（ORIG 0x89c36aa 族）----
-// ORIG C1 0x089c36aa：stExpertCompoundResultVariation@+0 → stExpertJobAdditionalExp@+8
-// → vector<SUSABLE>@+0x20（m_field10..m_field1c 不显式初始化，O0 保持 ORIG 原样）。
+#include "STItemScriptNested/clear_1.inc"
+
+
 #include "STItemScriptNested/SEXPERTJOB.inc"
-    : m_variation(), m_additionalExp(), m_usable()
-{
-}
+
 #include "STItemScriptNested/dtor_SEXPERTJOB.inc"
 

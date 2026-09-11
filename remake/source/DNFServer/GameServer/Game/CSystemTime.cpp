@@ -17,13 +17,8 @@
 #include "CSystemTime.h"
 #include "GlobalData.h"
 
-// 构造：仅记录 m_lastSec 与毫秒（m_sec 留待 update 首次填充）
 #include "CSystemTime/CSystemTime.inc"
-{
-    gettimeofday(&m_tv, 0);
-    m_lastSec = m_tv.tv_sec;
-    m_msec = m_tv.tv_usec / 1000;
-}
+
 
 #include "CSystemTime/dtor_CSystemTime.inc"
 {
@@ -68,11 +63,5 @@ namespace OS_API
 namespace OS_API
 {
 #include "CSystemTime/snprintf.inc"
-{
-    va_list ap;
-    va_start(ap, fmt);
-    int r = vsnprintf(buf, n, fmt, ap);
-    va_end(ap);
-    return r;
-}
+
 }

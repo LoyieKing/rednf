@@ -25,42 +25,19 @@
 #include "cMyTraceNoop.h"
 
 #include "CExpDoubleEvent/CExpDoubleEvent.inc"
-{
-    // ORIG：CEventBase ctor 置基类 vptr 与 stADDINFO/+0x08 flag；本类 vptr 由编译器设置。
-    m_factor = 100;
-}
+
 
 #include "CExpDoubleEvent/dtor_CExpDoubleEvent.inc"
-{
-    // ORIG D1：恢复本类 vptr，再调 CEventBase::~CEventBase()（空）。
-}
+
 
 #include "CExpDoubleEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    m_factor = 100;
-    cMyTrace tr(__FUNCTION__, 0x13, 0);
-    tr("Exp Double Event Start!");
-}
+
 
 #include "CExpDoubleEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    m_factor = (unsigned int)param.m_duration;
-    cMyTrace tr(__FUNCTION__, 0x1a, 0);
-    tr("Exp Double Event Start!");
-}
+
 
 #include "CExpDoubleEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    m_factor = 100;
-    cMyTrace tr(__FUNCTION__, 0x21, 0);
-    tr("Exp Double Event End!");
-}
+
 
 #include "CExpDoubleEvent/GetExpFactor.inc"
-{
-    // ORIG 0x0814aad8：return *(int*)(this+0x0c)。
-    return m_factor;
-}
+

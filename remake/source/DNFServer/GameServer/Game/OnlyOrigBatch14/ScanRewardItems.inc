@@ -1,3 +1,26 @@
+// ORIG T 0x08a65da5 _Z15ScanRewardItemsRSt6vectorI14RewardItemInfoSaIS0_EESs。
+// [b14 报告核对·两条真修复]
+//  ①真语义缺口（报告 Ghidra C 0x8a65e6a 段 + objdump 0x8a65e6a..0x8a65eec 双证）：
+//    ORIG 为 `if (ok1) { if (s=="[job]") { ScanInt→m_job; ScanInt→m_growType; }
+//    ScanInt→v; } info.m_count = v;` —— 最后一次 ScanInt 在 ok1 分支内**无条件**
+//    执行（非 "[job]" 时 `je 0x12e` 亦落该段）；原实现写在 else 分支 ⇒ [job]
+//    情形少消耗一个 int（真 bug）。修后 123=123、gap 0。
+//  ②ORIG 全程只用一个 -0xc 变量（v 兼作 ScanInt 中转槽；Ghidra local_10 贯穿）
+//    ⇒ 删除原 v2 具名中转。
+// 声明序按 4.4「后声明更深」排：info@-0x20 / s@-0x24 已与 ORIG 一致。
+// [b14 本波·DIFF→NEAR] `s == token` 真块位置镜像已翻正（旧判词②作废）：
+//   ORIG 形 `test %al,%al; jne <真岛 +0x164>` + fall-through `mov $0x0,%ebx`
+//   （false 紧随），if-return/`!=` 两形在 4.4 恒把真块前置 ⇒ 改 **goto 尾标签**
+//   形（`if (s == token) goto scan_reward_true; return false;` + 函数尾
+//   `scan_reward_true: return true;`），4.4 jump-threading 折成 ORIG 的
+//   `jne <真岛>`；现 124=124 助记符逐条全等、全部分支偏移一致
+//   （+0x76/+0x164/+0x187 三处与 ORIG 逐位相同）⇒ **NEAR**（ae 800→799、
+//   diff 13→12、near 0→1）。
+// 残余（NEAR，N 封顶）：标量区槽基 4 字节差（我方 ok1/unusedFlag/ok2/v =
+//   -0xa/-0x9/-0xb/-0x10 对 ORIG -0xf/-0xe/-0xd/-0xc；ORIG 侧 int v 浅于
+//   bool 组、4.4 侧 int 恒最深 = N82附/N126 版本分区常数；前置 dead pad 实测
+//   ndiff 44→66 反劣、v 提前声明致 info/s 下移 4，均已回退）。
+// p167 CLEAR（13=13）。
 bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
 {
     // ok2 无初始化式（ScanTypeOrInt 写入后即读）；ORIG 预清仅两条

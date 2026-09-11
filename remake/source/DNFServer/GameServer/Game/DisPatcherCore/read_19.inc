@@ -1,3 +1,5 @@
+// ORIG 0x081c17c0 T _ZN21DisPatcher_DeleteItem4readER9PacketBufR8MSG_BASE
+// 报告：docs/class_func_reports/DisPatcher_DeleteItem/read.md（汇编+反编译 C 全读）
 int DisPatcher_DeleteItem::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

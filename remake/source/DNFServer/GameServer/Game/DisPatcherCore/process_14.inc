@@ -1,3 +1,6 @@
+// ORIG 0x081caf98 T _ZN23DisPatcher_WalkoutParty7processEP5CUserR8MSG_BASER9ParamBase
+// err>0 原样返回；err<0 返回 -1；否则 param+0x4=0，无队 param=0x13；
+// 有队先 SendWalkout(msg+0xd 槽位, WALKOUT_TYPE_0) 再 param = walkout_member(user, 槽位)，返回 0。
 int DisPatcher_WalkoutParty::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

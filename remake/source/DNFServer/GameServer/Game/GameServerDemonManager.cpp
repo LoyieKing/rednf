@@ -39,42 +39,24 @@ GameServerDemonManager* GameserverDemonManagerInstance()      // T 0x080f61b8
 }
 
 #include "GameServerDemonManager/GameServerDemonManager.inc"
-{
-    m_prohibitFlag = 0;
-    m_noticeLen = 0;
-    memset(m_notice, 0, 0xff);
-}
+
 
 #include "GameServerDemonManager/dtor_GameServerDemonManager.inc"
-{
-}
+
 
 #include "GameServerDemonManager/SetUserProhibitFlag.inc"
-{
-    m_prohibitFlag = static_cast<unsigned char>(flag);
-}
+
 
 #include "GameServerDemonManager/IsProhibitConnectState.inc"
-{
-    return m_prohibitFlag;
-}
+
 
 #include "GameServerDemonManager/SetNoticeMessage.inc"
-{
-    m_noticeLen = len;
-    memset(m_notice, 0, 0xff);
-    memcpy(m_notice, msg, static_cast<unsigned int>(len));
-}
+
 
 #include "GameServerDemonManager/GetNoticeMessage.inc"
-{
-    return m_notice;
-}
+
 
 #include "GameServerDemonManager/Notice10MinShutDownMessage.inc"
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0xa2, 0x3c, 0, 0);
-}
+
 
 // [GI-ioinit L21 注] GameserverDemonManagerInstance 定义已前移至 ctor 之前（P327 键名）。

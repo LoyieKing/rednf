@@ -1,3 +1,4 @@
+// ORIG T 0x0808c74b _Z13PI_GetType_SCcs：type==1 查表、type==2 if 链、缺省 0。
 int PI_GetType_SC(char type, short value)
 {
     // [b28d-solo-OnlyOrigBatch14] ORIG 0x0808c75e `movsbl -0x4(%ebp),%eax;
@@ -44,4 +45,47 @@ int PI_GetType_SC(char type, short value)
         break;
     }
     return 0;
+}
+
+// ORIG T 0x0808bc7e _Z6Rand_rPj：LCG rand_r（NULL 时用全局种子）。
+// [b28d-solo-OnlyOrigBatch14 复核 lane24 判词·N 封顶] 唯一残差 = NULL 分支
+// `staticSeed = timeGetTime() + staticSeed`：ORIG 0x0808bc8f `mov %eax,%edx;
+// mov staticSeed,%eax; lea (%edx,%eax,1),%eax`（RHS-first + lea），4.4 恒
+// `mov staticSeed,%edx; add %edx,%eax`（LHS-first + add）。P211 负例（static
+// 存储期变量复合赋值装载序不可翻，b28c C28L24 三救均败）+ add/lea 跨版本；
+// 其余 49 条与 ORIG 全等。
+// [P1T1 本波复核] 残差复核 = 仅 NULL 分支 3 条（ORIG 0x0808bc8f `mov %eax,%edx;
+// mov staticSeed,%eax; lea (%edx,%eax,1),%eax` vs 我方 `mov staticSeed,%edx;
+// add %edx,%eax`）；维持 P211 static 装载序 + add/lea 跨版本封顶。
+unsigned int Rand_r(unsigned int* seed)
+{
+    static unsigned int staticSeed = 0;  // ORIG _ZZ6Rand_rPjE10staticSeed 0x0936e480
+    if (seed == 0)
+    {
+        // [b28c-lane24] ORIG 0x0808bc82：`call timeGetTime; mov %eax,%edx;
+        // mov staticSeed,%eax; lea (%edx,%eax,1),%eax` = RHS 值先（P211 符号性
+        // 异型 ⇒ RHS-first）；LHS/RHS 同为 unsigned 时 4.4 恒 LHS-first
+        //（`mov staticSeed,%edx; add %edx,%eax`）⇒ 交换书写序探测（P211 无效：
+        // staticSeed int 化反使取址多一条 eax 中转，已回退）。
+        staticSeed = timeGetTime() + staticSeed;
+        return Rand_r(&staticSeed);
+    }
+    unsigned int next = *seed;
+    // 拆句 *=/+= 复现 ORIG addl $K,-off 内存加与 shll mem 内存移
+    // [b28c-lane24] result 由 unsigned 改 int：ORIG xor 段 `mov %eax,%edx;
+    // and $0x3ff,%edx; mov -0xc(%ebp),%eax; xor %edx,%eax; mov %eax,-0xc(%ebp)`
+    // = RHS 先物化（P211 异型）；同型时 4.4 恒折 `and %eax; xor %eax,mem`。
+    next *= 0x41c64e6d;
+    next += 0x3039;
+    int result = (next >> 16) & 0x7ff;
+    next *= 0x41c64e6d;
+    next += 0x3039;
+    result <<= 10;
+    result = result ^ ((next >> 16) & 0x3ff);
+    next *= 0x41c64e6d;
+    next += 0x3039;
+    result <<= 10;
+    result = result ^ ((next >> 16) & 0x3ff);
+    *seed = next;
+    return result;
 }

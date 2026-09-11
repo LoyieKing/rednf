@@ -1,3 +1,6 @@
+// ORIG 0x081c6c22 T _ZN23DisPatcher_SelectCharac22checkPvpEnterCharacterEP5CUserR17MSG_CHARAC_SELECT
+// （报告 DisPatcher_SelectCharac/checkPvpEnterCharacter.md 全文转写，wave2）：
+// user==0 → false；PvP 频道且槽位职业为 9/10（ restricting job ）→ false；否则 true。
 bool DisPatcher_SelectCharac::checkPvpEnterCharacter(CUser* user, MSG_CHARAC_SELECT& msg)
 
 {

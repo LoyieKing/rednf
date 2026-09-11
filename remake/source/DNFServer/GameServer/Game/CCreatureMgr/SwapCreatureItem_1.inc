@@ -1,3 +1,5 @@
+// ORIG _ZN13user_creature12CCreatureMgr16SwapCreatureItemEP10Inven_ItemiiS2_ii
+// T 0x083399fa：按物品类型分流到 SwapCreature/SwapArtifact，最后交换两物品内容。
 bool CCreatureMgr::SwapCreatureItem(Inven_Item* item1, int slot1, int type1,
                                     Inven_Item* item2, int slot2, int type2)
 {

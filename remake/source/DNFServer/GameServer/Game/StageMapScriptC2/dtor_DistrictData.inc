@@ -1,1 +1,3 @@
 DistrictData::~DistrictData()
+{
+}

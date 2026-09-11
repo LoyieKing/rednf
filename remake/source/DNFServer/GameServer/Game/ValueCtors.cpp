@@ -32,69 +32,30 @@
 // setPacketID → setSize；成员构造由编译器在函数体前自动发射）
 // ---------------------------------------------------------------------------
 
-// ORIG 0x822e54e（W 同址 C1/C2）
 #include "ValueCtors/PCK_AUCTION_ASK_REGISTED_ITEM_NUM_GA.inc"
-{
-    memset(this, 0, 0x3d);
-    m_header.setCategory(0);
-    m_header.setPacketID(2);
-    m_header.setSize(0x3d);
-}
 
-// ORIG 0x822e9b4（W 同址 C1/C2）
+
 #include "ValueCtors/PCK_AUCTION_ASK_REGISTED_ITEM_NUM_GP.inc"
-{
-    memset(this, 0, 0x2d);
-    m_header.setCategory(0x12);
-    m_header.setPacketID(2);
-    m_header.setSize(0x2d);
-}
 
-// ORIG 0x822e6aa（W 同址 C1/C2）
+
 #include "ValueCtors/PCK_AUCTION_SEARCH_BY_ITEMKEY_GA.inc"
-{
-    memset(this, 0, 0x81);
-    m_header.setCategory(0);
-    m_header.setPacketID(6);
-    m_header.setSize(0x81);
-}
 
-// ORIG 0x822ea84（W 同址 C1/C2）
+
 #include "ValueCtors/PCK_AUCTION_SEARCH_BY_ITEMKEY_GP.inc"
-{
-    memset(this, 0, 0x81);
-    m_header.setCategory(0x12);
-    m_header.setPacketID(6);
-    m_header.setSize(0x81);
-}
 
-// ORIG W 0x822e694：仅 ROI_Category 成员构造（+0x9）。
+
 #include "ValueCtors/TSearchByItemId_.inc"
-{
-}
+
 
 // ---------------------------------------------------------------------------
 // stSeriaBlessingScript::FindOneByLv（ORIG W 0x822aebe / 0x822aecc）
 // ---------------------------------------------------------------------------
 
 #include "ValueCtors/FindOneByLv.inc"
-    : m_lv(lv)
-{
-}
+
 
 #include "ValueCtors/operator.inc"
-    const std::pair<const int, Value>& p) const
-{
-    if (p.second.m_minLv == p.second.m_maxLv)
-    {
-        if (p.second.m_minLv == m_lv)
-            return true;
-    }
-    // b25c：ORIG 两 if 共享后置 mov$0 块（jg/jge 同落 +0x4e）；4.4 对独立
-    // if-return 内联 mov$0。!(A||B) 形（探针 /tmp/probe_fob.cpp f2）复现共享
-    // 块布局，残差仅块4 cmp 操作数序反转（N22 族）。
-    return !(p.second.m_minLv > m_lv || m_lv >= p.second.m_maxLv);
-}
+
 
 // ---------------------------------------------------------------------------
 // stLevelUpRewardItemScript::GetGrowUpRewardItemFunctor
@@ -102,30 +63,10 @@
 // ---------------------------------------------------------------------------
 
 #include "ValueCtors/GetGrowUpRewardItemFunctor.inc"
-    const LevelUpRewardItemTableKey& key, std::vector<LevelUpRewardItemData>& out)
-    : m_key(&key), m_out(&out)
-{
-}
+
 
 #include "ValueCtors/operator_1.inc"
-    const std::pair<const LevelUpRewardItemTableKey,
-                    LevelUpRewardItemData>& p) const
-{
-    // b28c-L20: AE — 真语义修正：ORIG 0x081b893d `cmp %ax,%dx; jg 函数尾`
-    // 跳过 push_back ⇒ 命中条件为 `p.first.m_lv <= m_key->m_lv`（与
-    // get_data_when_growup 0x081b895a 注释「pair.lv <= key.lv 才 push」一致）；
-    // 原写 `>` 为方向反（P196 真反族）。三早退共享函数尾，嵌套正向形（P63）。
-    if (m_key->m_grow == p.first.m_grow)
-    {
-        if (m_key->m_job == p.first.m_job)
-        {
-            if (p.first.m_lv <= m_key->m_lv)
-            {
-                m_out->push_back(p.second);
-            }
-        }
-    }
-}
+
 
 // ---------------------------------------------------------------------------
 // [AnonLane2 2026-09-11 试形-回滚] 曾删本垫片：orphan-W=0/519（目标 W 符号全库
@@ -138,22 +79,6 @@ namespace
 {
 
 #include "ValueCtors/forceInstantiateRandomOptionValueCtors.inc"
-{
-    BaseItemSelectionValue a;
-    BaseItemSelectionValue b(a);
-    OptionGroupChoiceValue c;
-    OptionGroupChoiceValue d(c);
-    OptionGroupValue e;
-    OptionGroupValue f(e);
-    PartSelectonValue g;
-    PartSelectonValue h(g);
-    stCeraShopBonusInfo_t i;
-    stCeraShopBonusInfo_t j(i);
-    AradItemInfo k;
-    // [b29-SymForceBatch] AradItemInfo l(k) 删除：ORIG 无 C1ERKS_/C2ERKS_
-    // （拷贝 ctor 从未 ODR-use），隐式合成会发明符号。k 保留（ORIG 有
-    // C1/C2/D1/D2 全 W 0x08515618/0x08514430）。
-    (void)b; (void)d; (void)f; (void)h; (void)j;
-}
+
 
 }  // namespace

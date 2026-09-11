@@ -42,46 +42,8 @@ public:
 };
 extern CDataManager* G_CDataManager();
 
-// ORIG 0x898c79d：线性插值
-// [b28d-solo-CEquipItem] 逐条还原（ORIG 0x0898c79d；帧 0x68）：
-//   ① vSpan/vLevel/vDiff 三个 int 槽按 ORIG 顺序先算（vDiff=d-c 在 x87 段之前，槽 -0x24）；
-//   ② ratio 的钳位是 `ratio <= 0.0`（ORIG `fucompp;fnstsw;test $0x45,%ah;sete;test;je`），
-//      不是旧写的 `ratio == 0.0`（后者 4.4 产 fucomip+jne/jp 双跳）；
-//   ③ `double diff = (double)vDiff;` 具名局部复现 ORIG `fildl -0x24;fstpl -0x50`。
-//   x87 比较 lowering 需 -march=i486 才出 ORIG 的 fnstsw/sahf 形（P230 补；已上报 Main 路由）。
-// [b28e 三形实测] 帧/槽：①无 pad ⇒ `sub $0x58`（ORIG 0x68）、diff -0x38、floor 临时 -0x40；
-//   ②pad 置首（本形）⇒ `sub $0x68` = ORIG、diff -0x38、临时 -0x50；③`double diff` 迁到
-//   三个 int 之后 ⇒ 全槽整体平移（vSpan -0x34 等）、更劣已回退。ORIG 形（diff -0x50、
-//   临时 -0x40、帧 0x68）要求 4.1 的「具名 double 深槽 / 临时浅槽」方向，4.4 恒反向
-//   （具名 -0x38 / 临时 -0x50），与 0x.. 帧差无关 ⇒ 残差 = 两 double 槽互换，N82附/P112 族。
 #include "CEquipItem/getLevelLinearAbility.inc"
-{
-    // [b28e 帧对齐] ORIG 帧 `sub $0x68`（4.1 对 x87 段多预留 0x10）；无此局部时
-    // 我方 0x58（帧差 0x10）。按 P232 补未使用局部后帧 **0x68 = ORIG**。
-    // [b2c 试形 A·回滚] `double diff;` 提到 framePad 之前（P339 声明序 ⇒ 最深槽）
-    // 实测读数不变（diff 仍 -0x38、floor 临时仍 -0x50、near=1）⇒ 4.4 具名 double
-    // 槽与声明序无关，按纪律回滚。
-    char framePad[0x10];
-    (void)framePad;
-    double diff;                                    // ORIG：声明在函数头（深槽 -0x50）
-    int vSpan = b - a;                              // ORIG：先求除数（-0x2c）
-    int vLevel = level - a;                         // ORIG：再求被除数（-0x28）
-    int vDiff = d - c;                              // ORIG：-0x24（在 x87 段之前）
-    double ratio = (double)vLevel / (double)vSpan;
-    // ORIG `fucompp;fnstsw;test $0x45,%ah;sete;test;je` = !(x>0) 钳回 0；
-    // 掩码 0x45（C0|C2|C3 全 0 = 严格大于）对应源码 `x < 0.0`；`x <= 0` 产 `test $0x5`。
-    if (ratio < 0.0)
-        ratio = 0.0;
-    if (ratio > 1.0)
-        ratio = 1.0;
-    diff = (double)vDiff;                           // ORIG：-0x50
-    // ORIG 无具名 result 局部：floor 结果留 st0 直接续算（`fldl const;fdivrp;fmull -0x50`）。
-    double result2 = floor(ratio * 1000000.0 + 0.5L) / 1000000.0 * diff;
-    int out = (int)((double)c + result2);
-    if (out < 0)
-        out = 0;
-    return out;
-}
+
 
 #include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t 权威定义
 #include "../../ServerCommon/DNFFunctionLib.h"
@@ -111,813 +73,169 @@ public:
 // 不再保留本文件的 flat 工作布局副本（消除与权威头的重复定义）。
 // ===================== 报告函数（CEquipItem.md） =====================
 
-// ORIG WpBonusPointData/ExpBonusPointData ctor/clear 为独立符号（0x08513a6e/0x08513a82 等），
-// 由 CEquipItem::C1/STEquipmentScript::C1 调用；故在此 out-of-line 定义以发射符号。
 #include "CEquipItem/WpBonusPointData.inc"
 #include "CEquipItem/clear.inc"
 #include "CEquipItem/ExpBonusPointData.inc"
 #include "CEquipItem/clear_1.inc"
 
-// ORIG 0x851547e：+0x1e0 WpBonusPointData 与 +0x1e8 ExpBonusPointData 各自
-// clear()（m_type=2、m_value=0）。本文件以 4 个 int 平铺该 16 字节区
-// （m_field1e0..m_field1ec），初始化列表按声明顺序（0x1f0 vector 之前）补齐。
 #include "CEquipItem/CEquipItem.inc"
-    : m_wpBonus1e0(),   // WpBonusPointData::C1（type=2, value=0）
-      m_expBonus1e8()    // ExpBonusPointData::C1（type=2, value=0）
-{
-}
+
 
 #include "CEquipItem/dtor_CEquipItem.inc"
 
 #include "CEquipItem/IsAvatarColorVariation.inc"
-{
-    if (idx < 0 || idx > 1)
-    {
-        return 0;
-    }
-    return m_avatarColor[idx];
-}
+
 
 #include "CEquipItem/IsAvatarOptionValid.inc"
-{
-    if (idx < 0)
-    {
-        return 0;
-    }
-    if ((signed char)m_avatarAbility.size() <= idx)
-    {
-        return 0;
-    }
-    return 1;
-}
 
-// [b28d-solo-CEquipItem] ORIG 0x0851388e（34 条，N 封顶）：值全程寄存器直传（无槽往返）
-// ⇒ P0 判原码为内联表达式右值；4.1 对 `&&` 两侧同一 this->m_itemType 的两次读复用为单条
-// `mov 0x234(%eax),%eax`（cmp 与 shl 共用 %eax）。4.4 -O0 无该复用：内联形恒发第二次读
-// （36 条），register 局部形（P231 合法）改出 `mov %eax,%ebx; cmp %ebx; ja; mov %ebx,%eax`
-// 两条中转（同 36 条，掩码段寄存器分配差异）。两形实测（/tmp/p1/t.cpp f_inline/f_reg、
-// t2.cpp g1..g7、t3.cpp h1..h6、4.4.6 后端同形）均差 2 条 ⇒ 跨版本 CSE 结构性封顶。
-// [b2c 复核·维持 N18a] 父泳道建议的 P251 `switch (m_field234)` 形**不适用**：ORIG
-//   0x085138c0..0x085138d4 是 `mov $1,%edx; shl %cl,%ebx; and $0x3ff400,%eax; test` 的
-//   **位测试**语义（掩码 0x3ff400 的 7 个命中值写成 case 会发 7 条 cmp/je 比较链 = 必劣），
-//   且 ORIG `je 085138dd`（return 0 出口）证明两条件为短路结构 ⇒ 源码必是两次成员读、
-//   4.1 在 RTL 层 CSE 掉第二次载入，4.4 `-O0` 无该 pass。本 TU 现状 = 内联形（36 条），
-//   第二次载入在 0x...8b5 位置（我方 `mov 0x8(%ebp),%eax; mov 0x234(%eax),%eax`）。
-// [P6S4 2026-09-11 头轴备忘] 本 TU .o 有 `_ZNSt12_Destroy_auxILb0EE9__destroyIP24
-//   STAvatarAbilityVariationEE…`，ORIG 仅 ILb1 同参 ⇒ 我方 EquipmentParameterInfo.h:118
-//   多写 `~STAvatarAbilityVariation() {}`；影响面 9 TU，已上报 P7HeaderAxis 统一裁决。
-//   本件残余与该 ILb0/ILb1 轴相关，定义侧不动。
+
 #include "CEquipItem/checkItemUpgradePossible.inc"
-{
-    if (IsImpossibleUpgrade())
-    {
-        return 0;
-    }
-    // [L23-r3 试形记录·回退] ORIG 0x085138b2 单次 `mov 0x234(%eax),%eax` 后在
-    //   %eax/%ecx 复用；试 `register unsigned int itemType = (unsigned int)m_itemType;`
-    //   后实测仍 36 条（= 试前，ORIG 34）⇒ 4.4 寄存器复用不可造（N18a 族），已回退。
-    //   [b28e 试形记录] P226 语句表达式形（`({unsigned int t=(unsigned)m_itemType;
-    //   t<0x16 && ((1<<t)&0x3ff400U)!=0;})`）fresh 实测 **41 条**（t 落槽 →
-    //   `mov %eax,-slot` + 两次回读，比内联形 36 更劣）⇒ 回退，维持内联形。
-    // [P6S4 2026-09-11 负结论·掩码轴实测] 试掩码侧 `(unsigned long)` cast 破
-    // 4.4 的 `(1<<s)&C → (C>>s)&1` fold（同 CUserStatC 落地形）：复编读数
-    // blocks=1 / ours=36 orig=34 **不变**，残差仍只有 `mov 0x8(%ebp),%eax;
-    // mov 0x234(%eax),%eax` 第二次成员载入（N18a 跨版本 CSE，非 fold）⇒ 本件
-    // 掩码段与 ORIG（`mov $1,%edx; shl %cl,%ebx; and $0x3ff400,%eax`）本就同形，
-    // cast 属多余 ⇒ 回滚。
-    if ((unsigned int)m_itemType < 0x16 &&
-        ((1 << (unsigned int)m_itemType) & 0x3ff400U) != 0)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CEquipItem/check_able_To_equip.inc"
-{
-    if (is_stackable())
-    {
-        return 1;
-    }
-    if (!check_eType(eType))
-    {
-        return 0x17;
-    }
-    if (!check_job_type((char)job))
-    {
-        return 8;
-    }
-    if (!check_low_level(level))
-    {
-        return 0xe;
-    }
-    return 0;
-}
+
 
 #include "CEquipItem/check_eType.inc"
-{
-    if (eType > 0x15)
-    {
-        return 0;
-    }
-    if ((char)m_itemType == eType)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 #include "CEquipItem/getExpBonusPoint.inc"
-{
-    return (ExpBonusPointData*)&m_expBonus1e8;
-}
+
 
 #include "CEquipItem/getGrowthGrade.inc"
-{
-    if (m_growthFlag != 0)
-    {
-        return getLevelLinearAbility(m_growthA, m_growthB, m_growthC,
-                                     m_growthD, level);
-    }
-    return m_grade;
-}
+
 
 #include "CEquipItem/getGrowthRepairCost.inc"
-{
-    if (m_growthFlag != 0)
-    {
-        return getLevelLinearAbility(m_growthA, m_growthB, m_growthE,
-                                     m_growthF, level);
-    }
-    return m_repairCost;
-}
 
-// ============================================================================
-// CEquipItem::getUpgradeCostDiscount @ 0x822ca80
-//   返回 +0x1cc 的 float 折扣率（强化成本折扣；ORIG flds 位读）。
-// ============================================================================
+
 #include "CEquipItem/getUpgradeCostDiscount.inc"
-{
-    return m_field1cc;   // ORIG flds 0x1cc 位读直返
-}
+
 
 #include "CEquipItem/getWpBonusPoint.inc"
-{
-    return (WpBonusPointData*)&m_wpBonus1e0;
-}
+
 #include "CEquipItem/get_aura_avatar_option_value.inc"
-{
-    return m_auraOptionValue;
-}
+
 
 #include "CEquipItem/isAmplifyPollutionItem.inc"
-{
-    return m_pollutionFlag;
-}
+
 
 #include "CEquipItem/isExistUpgradableLevelTag.inc"
-{
-    return m_upgradeLevel.size() != 0;
-}
+
 
 #include "CEquipItem/isGrowthType.inc"
-{
-    return m_growthFlag;
-}
+
 
 #include "CEquipItem/isUpgradableLevel.inc"
-{
-    std::map<ItemUpgradeType::T, std::pair<int, int> >::iterator it =
-        m_upgradeLevel.find(type);
-    if (it != m_upgradeLevel.end())
-    {
-        if (level < it->second.first || it->second.second < level)
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
+
 
 #include "CEquipItem/is_aura_avatar_option.inc"
-{
-    if ((unsigned char)m_auraOptionType == (char)option)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CEquipItem/verify.inc"
-{
-    if (m_usablePeriod != 0 || m_expirationDate != 0)
-    {
-        if ((GetItemType() < 0 || GetItemType() > 9) &&
-            GetItemType() != 0xb &&
-            GetItemType() != 0x16 &&
-            GetItemType() != 10)
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
+
 
 // ===================== make_item（ORIG 0x851098a） =====================
 
-// [b28d-solo-CEquipItem] ORIG 0x0851098a（182/184）：仅剩两处结构性残差，N 封顶。
-//   ① 位掩码段（0x08510b7f 段）ORIG 为单次读 `mov 0x234(%eax),%eax`（cmp 与 shl 共用
-//      %eax）：4.1 对 `&&` 两侧同一 this->m_itemType 的两次读复用为一次；4.4 -O0 内联形
-//      恒发第二次 `mov 0x8(%ebp),%eax; mov 0x234(%eax),%eax`（+2 条），register 局部形
-//      换成 `mov %eax,%ebx`+`mov %ebx,%eax` 两条中转（净差同）⇒ 跨版本同表达式字段读
-//      CSE 差异，封顶（探针 /tmp/p1/t.cpp f_inline/f_reg）。
-//   ② G_CEnvironment 段（0x08510ba3 段）ORIG 值先入 %eax、&item+0x15 入 %edx；4.4 恒
-//      互换（助记符序列全等仅寄存器角色互换 = N7；本 TU 已路由 4.4.6 后端仍存）。
-// [b2c 复核·维持 N18a/N7] 槽归一化后全函数**仅剩 2 组**残差（其余逐条全等）：
-//   ① ORIG#158 插入 2 条：我方位掩码段（ORIG 0x08510b88 `cmp $0x19` 前）多发
-//      `mov 0x8(%ebp),%eax; mov 0x234(%eax),%eax`（第二次成员载入，同 checkItemUpgrade
-//       Possible 的 4.1 RTL-CSE vs 4.4 -O0 差异 = N18a）；
-//   ② ORIG#167 起 5 条：ORIG `mov 0x198(%eax),%eax; mov 0xc(%ebp),%edx; add $0x15,%edx;
-//      mov %eax,0x8(%esp); mov %edx,0x4(%esp)`（m_gcNo→%eax、&item+0x15→%edx）vs 我方
-//      %eax/%edx 角色互换（纯寄存器分配 = N7，源码形不可控；P211/P248 类型旋钮对
-//      该段不适用：实参是 env 成员与地址常量 +0x15）。
 #include "CEquipItem/make_item.inc"
-{
-    if (IsAvatarItem())
-    {
-        item.m_field1 = 8;
-    }
-    else
-    {
-        item.m_field1 = 1;
-    }
-    if (m_itemType == 0x16)
-    {
-        item.m_field1 = 5;
-    }
-    else if (m_itemType == 0x17 || m_itemType == 0x18 || m_itemType == 0x19)
-    {
-        item.m_field1 = 6;
-    }
-    item.set_add_info(get_rand_int(0));
-    item.ResetItemAttr();
-    item.m_fieldb = (unsigned short)m_randomTable.m_endurance;
-    if (item.m_field1 == 8)
-    {
-        if (m_avatarSelectIdx > 0 && m_avatarSelectIdx <
-            (int)((std::vector<stAvatarTypeSelect_t>*)getAvatarTypeSelect())->size())
-        {
-            item.m_fieldb = (unsigned short)m_avatarSelectIdx;
-        }
-    }
-    if (m_attachType == 3)
-    {
-        item.m_field0 = 1;
-    }
-    if (PeriodAfterUnsealing() == 0)
-    {
-        int t = 0;
-        if (getUsablePeriod() != 0)
-        {
-            t = GlobalData::s_systemTime_.getCurSec() +
-                getUsablePeriod() * 0x15180;
-        }
-        else if (getExpirationDate() != 0)
-        {
-            t = getExpirationDate();
-        }
-        if (t != 0 && m_itemType != 10)
-        {
-            item.m_fieldb = (unsigned short)((t - 0x44a54a80) / 0x15180);
-        }
-    }
-    item.m_fieldd = 0;
-    // ORIG（make_item）：(`inven` + 0x15) 处 0x11 字节打包全局唯一标识，位于
-    // Inven_Item 的 m_amp(+0x11).m_pad4 起始（即 &item + 0x15），跨 ampen/pad 与
-    // m_random 的交叠打包区。保留地址形式（打包交叠区非独立具名成员），锚定到
-    // 具名子成员 m_amp.m_pad4 使偏移可审计。
-    ((itemGloballyUniqueIdentifier_t*)(char*)&item.m_amp.m_pad4[0])->reset();
-    if ((unsigned int)m_itemType < 0x1a &&
-        ((1 << m_itemType) & 0x3bffc00U) != 0)
-    {
-        g_ItemGloballyUniqueIdentifierGenerator.generate(
-            (itemGloballyUniqueIdentifier_t*)(char*)&item.m_amp.m_pad4[0],
-            G_CEnvironment()->m_serverEnvir.m_gcNo);
-    }
-    item.m_amp.reset();
-}
+
 
 // ===================== set_item（ORIG 0x850fd84） =====================
 
-// [b28d-solo-CEquipItem] ORIG 0x0850fd84（669=669 AE；p167 32/32 CLEAR）修复要点：
-//   ① 真语义 bug：`(T*)0x941f750` 把全局变量**地址**当对象指针 ⇒ 改取
-//      `GlobalData::s_pCompoundBindCube` 的**指针值**（ORIG `mov 0x941f750,%eax`，P237）；
-//   ② bool 族源字段化（P136/P300）：STItemScript/STEquipmentScript 的 11 个 char 字段
-//      （m_usable[0xb]、m_fieldd0/d9/da/10f、m_6f4/5/6、m_7ac/7bc/888）改 bool 后直存；
-//   ③ cMyTrace 全表达式临时链（P227）复现 ctor 前右起求 varargs + 跨 ctor 保活；
-//   ④ m_field1d4 包匿名 union float 视图复现单条位拷贝（N107 取址形恒 add+mov）；
-//   ⑤ Wp/ExpBonus 类型统一（stBonusPointData_t 副本删除，§4.4）+ trivial op= 整体赋值
-//      复现 P246 的 dest 缓存 %ecx 块拷贝；
-//   ⑥ m_880 char→unsigned char 复现两段零扩展装载；
-//   ⑦ m_experienceAmount float 视图（替旧 `(int)` 转换 7 条）、m_compound110/
-//      m_additionalExp120 结构整体赋值（P246）、m_auraOptionType 直存。
 #include "CEquipItem/set_item.inc"
-{
-    m_index = script.m_field0;
-    m_grade = script.m_field4;
-    m_field0c = script.m_field14;
-    m_field30 = script.m_field24;
-    m_field10 = script.m_field18;
-    m_field14 = script.m_field1c;
-    m_rarity = script.m_field10;
-    m_char60 = script.m_fieldfc;
-    m_pair24.first = script.m_pair28.first;
-    m_pair24.second = script.m_pair28.second;
-    if (script.m_field30)
-    {
-        G_CDataManager()->set_AuctionRegFreeCeraItem(m_index);
-    }
-    m_boolF8 = script.m_field31;
-    char buf[500] = {0};
-    strcpy(buf, script.m_strac.c_str());
-    if (!CodePage::script2Database((char*)script.m_strac.c_str(), buf))
-    {
-        // [b28d-solo-CEquipItem] ORIG 在 ctor 之前右起求 varargs 并跨 ctor 保活
-        // （edi/esi/ebx）⇒ P227 全表达式临时链形（具名 trace 会先构造后求值）。
-        cMyTrace(__PRETTY_FUNCTION__, 0x553, 5)(
-            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-            CodePage::database(), script.m_strac.c_str(),
-            __PRETTY_FUNCTION__, 0x553);
-    }
-    m_str2c = buf;
-    m_attachType = script.m_field8;
-    m_field50 = script.m_fieldc;
-    m_field64 = script.m_field20;
-    m_field68 = script.m_88c;
-    for (int i = 0; i <= 10; ++i)
-    {
-        m_jobUsable[i] = script.m_usable[i];
-    }
-    m_usableLevel = script.m_field5c;
-    m_field4c = script.m_field60;
-    m_itemType = script.m_field1b4;
-    m_randomTable.m_endurance = script.m_1bc;
-    m_stackable = 0;
-    m_int58 = script.m_184;
-    m_int5c = script.m_180;
-    // [b28d-solo-CEquipItem] ORIG `mov 0x750(%eax),%edx` 单条位拷贝 ⇒ 走 +0x10 float 视图
-    // （float=float 直搬），旧 `(int)` 转换形多 flds/fnstcw/fistpl 七条。
-    m_randomTable.m_experienceAmount = script.m_artifact738.m_expRate;
-    m_randomTable.m_field14 = script.m_6bc;
-    m_randomTable.m_field20 = script.m_artifact738.m_minLevel;
-    if (script.m_field1b4 == 0x16)
-    {
-        switch (script.m_1b8)
-        {
-        case 0:
-            user_creature::GetInstanceCreatureScriptMgr()
-                ->RegisterCreatureIdAndItemId(m_randomTable.m_field14, m_index);
-            break;
-        case 1:
-            m_randomTable.m_field1c = script.m_764;
-            break;
-        case 2:
-            m_randomTable.Set(&script.m_vec88);
-            break;
-        }
-    }
-    m_randomTable.m_field18 = script.m_1b8;
-    m_usablePeriod = script.m_fieldf4;
-    m_expirationDate = script.m_fieldf8;
-    m_randomTable.m_field24 = script.m_7ac;
-    m_avatarSelect = script.m_avatar6c0;
-    m_vec180 = script.m_vec6cc;
-    m_field18c = script.m_6d8;
-    m_repairCost = script.m_178;
-    m_itemGroupName = script.m_field100;
-    m_char78 = script.m_field104;
-    m_bool79 = script.m_7bc;
-    m_strb0 = script.m_str6c;
-    m_int80 = script.m_fieldc8;
-    m_int7c = script.m_fieldcc;
-    m_impossibleUpgrade = script.m_6f4;
-    m_impossibleAmplify = script.m_6f5;
-    m_impossibleDisjoint = script.m_6f6;
-    m_impossibleGift = script.m_fieldd0;
-    m_impossibleCharacCargo = script.m_fieldda;
-    m_possibleKiriProtection = script.m_fieldd9;
-    m_periodAfterUnsealing = script.m_6f8;
-    m_drop = script.m_specialDrop;
-    script.m_specialDrop.clear();
-    m_char194 = script.m_field10e;
-    m_vec198 = script.m_vec7d8;
-    m_vec1a4 = script.m_vec7e4;
-    m_enchantVec = script.m_enchant7cc;
-    m_field1bc = 0;
-    if (IsAvatarItem())
-    {
-        if (m_grade == 3 && script.m_798 == 3)
-        {
-            m_field1bc = 6;
-        }
-        setAvatarOptionSize((int)script.m_param1c0.m_avatar264.size());
-    }
-    else if (GetItemType() == 0x16)
-    {
-        if (script.m_field10 == 2)
-        {
-            m_field1bc = 10;
-        }
-    }
-    else if (script.m_field10 == 2)
-    {
-        if (script.m_fieldc4 == 5)
-        {
-            m_field1bc = 2;
-        }
-        else if (script.m_fieldc4 == 0x1e)
-        {
-            m_field1bc = 1;
-        }
-        else
-        {
-            m_field1bc = 9;
-        }
-    }
-    else if (script.m_field10 == 3)
-    {
-        m_field1bc = 3;
-    }
-    else if (script.m_field10 == 5)
-    {
-        m_field1bc = 4;
-    }
-    else if (script.m_field10 == 4)
-    {
-        m_field1bc = 5;
-    }
-    else if (script.m_field10 == 0)
-    {
-        m_field1bc = 7;
-    }
-    else if (script.m_field10 == 1)
-    {
-        m_field1bc = 8;
-    }
-    m_isRoutingItem = script.m_field10f;
-    m_vecC0 = script.m_vec110;
-    m_questBonus = script.m_810;
-    m_field1c0 = script.m_17c;
-    if (script.m_814 != 2)
-    {
-        // [b28d-solo-CEquipItem] ORIG `mov 0x941f750,%eax; mov %eax,(%esp)` = 取
-        // GlobalData::s_pCompoundBindCube **指针值**（+0x941f750 存的是 void*）；
-        // 旧硬编码 `(T*)0x941f750` 直传变量地址 = 真语义 bug（P237）。
-        ((ExtreamDungeon::CCompound_ExtreamDun_Item*)GlobalData::s_pCompoundBindCube)
-            ->ForceResultItemRule_Setting(m_index, script.m_814 != 0,
-                                          script.m_818);
-    }
-    m_setd4 = script.m_setdc;
-    m_intEC = script.m_field64;
-    m_avatarSelectIdx = script.m_6e0;
-    m_randomOption = script.m_888;
-    m_randomGrade = script.m_889;
-    m_floatFC = script.m_expertJob.m_field18;
-    m_float100 = script.m_expertJob.m_field1c;
-    m_vec104.clear();
-    m_vec104 = script.m_expertJob.m_usable;
-    // [b28d-solo-CEquipItem] ORIG dest 缓存 %ecx + 两读交错 = 8 字节结构整体赋值（P246）。
-    m_compound110 = script.m_expertJob.m_variation;
-    m_float118 = script.m_expertJob.m_field10;
-    m_float11c = script.m_expertJob.m_field14;
-    m_additionalExp120 = script.m_expertJob.m_additionalExp;
-    m_set128 = script.m_set11c;
-    // ORIG set_item @ 0x850fd84 +0x8a1..+0x8f9 reads STEquipmentScript
-    // +0x604/+0x608/+0x60c, i.e. EquipmentParameterInfo
-    // +0x444/+0x448/+0x44c.  The middle field is rounded by the x87
-    // fistp sequence; the final field is copied as one dword by ORIG.
-    m_field1cc = script.m_param1c0.m_upgradeCostDiscount;
-    m_field1d0 = static_cast<int>(script.m_param1c0.m_upgradeProbIncrease);
-    // [b28d-solo-CEquipItem] ORIG 单条 `mov 0x60c(%eax),%edx` 位拷贝 ⇒ float 视图直搬。
-    m_assaultCostDiscount = script.m_param1c0.m_assaultCostDiscount;
-    // [b28d-solo-CEquipItem] ORIG 两段装载 `movzbl 0x880(%eax),%eax; mov %eax,%edx`
-    //（源字段 unsigned char 的零扩展 + 目标 char 转换中转）。
-    m_auraOptionType = script.m_880;
-    m_auraOptionValue = script.m_884;
-    {
-        // ORIG 依字节偏移读 STEquipmentScript +0x81c/+0x820/+0x824/+0x828
-        //（+0x81c/+0x820=wpBonus、+0x824/+0x828=expBonus，具名成员见 STEquipmentScript.h）。
-        // [b28d-solo-CEquipItem] ORIG dest 缓存 %ecx + 两读交错 = 8 字节整体赋值（P246）；
-        // 类型统一后 trivial op= 直接块拷贝，不发射符号。
-        m_wpBonus1e0 = script.m_wpBonus81c;
-        m_expBonus1e8 = script.m_expBonus824;
-    }
-    m_avatarAbility = script.m_param1c0.m_avatar264;
-    if (script.m_890 == 1)
-    {
-        m_pollutionFlag = 0;
-    }
-    else
-    {
-        m_pollutionFlag = 1;
-    }
-    m_upgradeLevel = script.m_upgrade6fc;
-    m_avatarColor[0] = script.m_88a;
-    m_avatarColor[1] = script.m_88b;
-    // ORIG set_item @ 0x850fd84 +0x9fc..+0xa62 copies the
-    // [level linear ability] values in this order: level bounds, grade
-    // bounds, then repair bounds.  These names preserve the nested layout.
-    m_growthFlag = script.m_69c;
-    m_growthA = script.m_param1c0.m_growthLevelBegin;
-    m_growthB = script.m_param1c0.m_growthLevelEnd;
-    m_growthC = script.m_param1c0.m_growthGradeBegin;
-    m_growthD = script.m_param1c0.m_growthGradeEnd;
-    m_growthE = script.m_param1c0.m_growthRepairBegin;
-    m_growthF = script.m_param1c0.m_growthRepairEnd;
-    // [b28e 必配对律第 3 点 · 目标字段 ↔ 写入源字段同型化] ORIG 0x085107ef
-    // `movzbl 0xd8(%eax),%edx` → 0x085107f9 `mov %dl,0x144(%eax)`（**无 setne**）。
-    // 目标 `CItem::m_char144` 改 bool（E01）后源 `STItemScript::m_fieldd8` 仍 char
-    // ⇒ 4.4 插 `movzbl; test %al,%al; setne %dl; mov %dl,0x144`（+2）致本件 AE→DIFF
-    // （191/375/1/2 → 191/374/1/3）；源端改 bool（C04 落 STItemScript.h，权威头与
-    // CStackableItem.cpp:792 本地视图统一）后写点复现 ORIG 直存 ⇒ **恢复 191/375/1/2**。
-    // 边界（供判词模板）：源端「本地镜像视图已 bool 而权威头仍 char」时无 codegen 后果
-    // （该 TU 直存），但有 §4.4 重复定义/ODR 隐患 ⇒ 仍须成对统一。
-    m_char144 = script.m_fieldd8;
-    m_parentBoosterItemId = 0;
-}
+
 
 
 // ===================== 简单虚函数 / 访问器（ORIG weak） =====================
 
 #include "CEquipItem/GetItemType.inc"
-{
-    return m_itemType;
-}
+
 
 #include "CEquipItem/setAvatarOptionSize.inc"
-{
-    m_avatarOptionSize = size;
-}
+
 
 #include "CEquipItem/getAvatarOptionSize.inc"
-{
-    // ORIG W 0x81803bc：返回 +0x1c4（m_avatarOptionSize）。
-    return m_avatarOptionSize;
-}
+
 
 #include "CEquipItem/IsAvatarItem.inc"
-{
-    if (m_itemType >= 0 && m_itemType <= 9)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CEquipItem/IsCreatureItem.inc"
-{
-    if (m_itemType > 0x15 && m_itemType <= 0x19)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CEquipItem/IsClearAvatar.inc"
-{
-    return m_randomTable.m_field24;
-}
+
 
 #include "CEquipItem/IsEnchantalbe.inc"
-{
-    if (m_itemType > 9 && m_itemType <= 0x15)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CEquipItem/getUsableItemType.inc"
-{
-    return 0;
-}
+
 
 #include "CEquipItem/isEnableAvatarFunc.inc"
-{
-    return (m_field18c & (int)filter) == (int)filter;
-}
+
 
 #include "CEquipItem/GetGuildPowerWarPoint.inc"
-{
-    return m_int80;
-}
+
 
 #include "CEquipItem/GetUserPowerWarPoint.inc"
-{
-    return m_int7c;
-}
+
 
 #include "CEquipItem/IsImpossibleUpgrade.inc"
-{
-    return m_impossibleUpgrade;
-}
+
 
 #include "CEquipItem/IsImpossibleAmplify.inc"
-{
-    return m_impossibleAmplify;
-}
+
 
 #include "CEquipItem/IsImpossibleDisjoint.inc"
-{
-    return m_impossibleDisjoint;
-}
+
 
 #include "CEquipItem/IsImpossibleGift.inc"
-{
-    return m_impossibleGift;
-}
+
 
 #include "CEquipItem/IsRandomOption.inc"
-{
-    return m_randomOption;
-}
+
 
 #include "CEquipItem/GetRandomOptionGrade.inc"
-{
-    return (signed char)m_randomGrade;
-}
+
 
 #include "CEquipItem/set_parent_booster_item_id.inc"
-{
-    m_parentBoosterItemId = id;
-}
+
 
 #include "CEquipItem/get_parent_booster_item_id.inc"
-{
-    return m_parentBoosterItemId;
-}
+
 
 #include "CEquipItem/get_endurance.inc"
-{
-    return m_randomTable.m_endurance;
-}
+
 
 #include "CEquipItem/getAvatarTypeSelect.inc"
-{
-    return (void*)&m_avatarSelect;
-}
+
 #include "CEquipItem/getAvatarPeriod.inc"
-{
-    // ORIG 0x8151120：result 默认 = getUsablePeriod(); 若 a < avatarSelect.size()，
-    // 则 result = avatarSelect[a].m_field0。
-    // ORIG 经 getAvatarTypeSelect() 取视图且比较为有符号（cmp+setl）→ 同型复刻。
-    const std::vector<stAvatarTypeSelect_t>* pSel =
-        (const std::vector<stAvatarTypeSelect_t>*)getAvatarTypeSelect();
-    int result = getUsablePeriod();
-    if ((int)a < (int)pSel->size())
-        result = (*pSel)[a].m_field0;
-    return result;
-}
 
-// ORIG 0x8150f36：填充 emblem 的小孔类型。
-// 1) 先将 m_vec180（vector<ushort>）逐项写入 emblem.stEmblemSocket[i].emblemSocketType_
-// 2) 依 slot 选择 m_avatarSelect 项并写入其 socketType 数组（index 续接）
-// [b28d-solo-CEquipItem] 逐条还原（ORIG 0x8150f36）：
-//   ① 第一循环 ORIG 无 index<5 上限（P140：ORIG 无防御就照抄直访）且 end() 循环前求值一次
-//      （P13 缓存 end）；
-//   ② slot 范围检查与 empty() 检查是**两个独立 if**（ORIG 各出一段 bool 物化，
-//      P133 独立守卫不可合并）；
-//   ③ slot==-1 分支同样缓存 end()；
-//   ④ 残余：ORIG `add $0x8,%ecx; movzwl 0x4(%eax,%ecx,2)` 是 4.1 对 +0x14 数组下标的
-//      add+disp 拆形，4.4 恒折单 disp 0x14(%eax,%edx,2)（P30/N4 结构性伪影，封顶）。
+
 #include "CEquipItem/getAvatarSocket.inc"
-{
-    size_t index = 0;
-    std::vector<unsigned short>::const_iterator it = m_vec180.begin();
-    std::vector<unsigned short>::const_iterator e = m_vec180.end();
-    for (; it != e; ++it)
-    {
-        emblem.stEmblemSocket[index].emblemSocketType_ = *it;
-        index++;
-    }
 
-    if (slot < -1 || slot >= (int)m_avatarSelect.size())
-        return;
-    if (m_avatarSelect.empty())
-        return;
-
-    int selIndex = slot;
-    if (slot == -1)
-    {
-        // 找第一个 m_field10 > 0 的选项
-        std::vector<stAvatarTypeSelect_t>::const_iterator it2 =
-            m_avatarSelect.begin();
-        std::vector<stAvatarTypeSelect_t>::const_iterator e2 =
-            m_avatarSelect.end();
-        while (it2 != e2)
-        {
-            ++selIndex;
-            if (it2->m_field10 > 0)
-                break;
-            ++it2;
-        }
-        if (it2 == e2)
-            return;
-    }
-
-    const stAvatarTypeSelect_t* p = &m_avatarSelect.at(selIndex);
-    if (index + (size_t)p->m_field10 > 4)
-        return;
-
-    // ORIG 增量段序：先 index++ 再 i++（`addl $0x1,-0x18` 在 `addl $0x1,-0xc` 之前）。
-    for (int i = 0; i < p->m_field10; ++index, ++i)
-        emblem.stEmblemSocket[index].emblemSocketType_ = p->m_socketType[i];
-}
 
 #include "CEquipItem/GetUsableMaxLevel.inc"
-{
-    return m_field1c0;
-}
 
-// ORIG _ZNK10CEquipItem20getEnchantSystemDataEv W 0x0854b544：返回 +0x1b0（m_enchantVec）
+
 #include "CEquipItem/getEnchantSystemData.inc"
-{
-    return m_enchantVec;
-}
 
-// ORIG 0x833eecc：返回 this+0x160（脚本写入的 sub type 选择值，见 set_item 报告）
+
 #include "CEquipItem/get_sub_type.inc"
-{
-    return m_randomTable.m_field18;
-}
 
-// ORIG W 0x833eea6：flds [this+0x158]，即 m_randomTable.m_field10 的 float 位模式。
+
 #include "CEquipItem/get_experience_amount.inc"
-{
-    // [b28c-21] ORIG `mov 0x158(%eax),%eax` 单条；float 位视图成员直读。
-    return m_randomTable.m_experienceAmount;
-}
 
-// ORIG W 0x833eee8：返回 this+0x168（m_randomTable.m_field20）。
+
 #include "CEquipItem/get_creature_minimum_level.inc"
-{
-    return m_randomTable.m_field20;
-}
 
-// ORIG W 0x0833eebe：返回 this+0x15c 的 creature species。
+
 #include "CEquipItem/get_creature_species.inc"
-{
-    return m_randomTable.m_field14;
-}
 
-// ORIG _ZNK10CEquipItem17get_hatch_item_idEv W 0x0833eeda size 0xe（nm -S + objdump
-// 实证：push ebp/mov esp,ebp/mov 0x8(%ebp),%eax/mov 0x164(%eax),%eax/pop ebp/ret），
-// 即 m_randomTable.m_field1c（蛋孵化物品 id，set_item case 1 由脚本 m_764 写入）。
-// 本 TU 提供该 W 符号的强定义；调用方 user_creature::CEgg::Hatch（0x833912a）
-// 按 ORIG 形态外联调用它（非内联）。
+
 #include "CEquipItem/get_hatch_item_id.inc"
-{
-    return m_randomTable.m_field1c;
-}
 
-// ===================== RandomItemTable::Set（G6 物品表；ORIG T 0x89bba40）=====================
-// [b28d-solo-CEquipItem] ORIG 0x089bba40 逐条还原：
-//   1. m_vec4.clear(); m_field0 = 0;
-//   2. 遍历 source：pair 默认构造；pr.first = *it；it++；
-//      若 it == end 则 break；否则 m_field0 += *it；
-//      **pr.second = m_field0**（累计权重上界，GetRandomItemIndex 依此判定区间；
-//      旧重建漏写该赋值 = 真语义 bug）；m_vec4.push_back(pr)；it++。
-// 增量用后置 it++（ORIG 增量段为 operator++(int)/ppEi，P28 增量侧推论）。
+
 #include "CEquipItem/Set.inc"
-{
-    m_vec4.clear();
-    m_field0 = 0;
-    std::vector<int>::iterator it = source->begin();
-    while (it != source->end())
-    {
-        std::pair<int, int> pr;
-        pr.first = *it;
-        it++;
-        if (it == source->end())
-            break;
-        pr.second = *it;
-        m_field0 += pr.second;
-        pr.second = m_field0;
-        m_vec4.push_back(pr);
-        it++;
-    }
-}
 
-// ===================== RandomItemTable::GetRandomItemIndex（ORIG 0x089bbb6c，const）=====================
-// 遍历 m_vec4（pair<int,int> 数组，+0x04）：找第一个 it->second > index 的元素，
-// 返回其 it->first；未命中返回 0。SetEggItem 依赖此把随机权重映射到物品 index。
+
 #include "CEquipItem/GetRandomItemIndex.inc"
-{
-    // [b28c-21 代落 C28L35 spec] ORIG 增量用后置 ++（operator++(int) 三参形）。
-    for (std::vector<std::pair<int, int> >::const_iterator it = m_vec4.begin();
-         it != m_vec4.end(); it++)
-    {
-        if (index < it->second)
-            return it->first;
-    }
-    return 0;
-}
+

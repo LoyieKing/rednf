@@ -56,7 +56,6 @@
 #include "MsgQueueMgr.h"
 #include "StreamPool.h"
 
-// ---- ORIG 全局工具函数（属 DB 工具 TU，0x083fbc66）----
 #include "CQueryCounter/GetIdentityFromDB.inc"
 
 // ---- ORIG 全局数据：query_table（D 0x093abc80 size 0x554 = 341×4）----
@@ -409,246 +408,28 @@ const char* query_table[341] = {
 };
 
 #include "CQueryCounter/CQueryCounter.inc"
-{
-    m_current = m_queryInfoMap.end();
-    m_totalQueryCount = 0;
-}
+
 
 #include "CQueryCounter/dtor_CQueryCounter.inc"
-{
-}
+
 
 #include "CQueryCounter/Reset.inc"
-{
-    for (std::map<int, QUERY_INFO>::iterator it = m_queryInfoMap.begin();
-         it != m_queryInfoMap.end(); ++it)
-    {
-        it->second.count = 0;
-        it->second.responseTime = 0.0;
-    }
-    m_totalQueryCount = 0;
-}
 
-// [b28d-62] 修：P220 极性翻转（`it == end` 直落未命中分支）+ m_bLogDB 正极性。
-//   ORIG 0x085ecc5e
+
 #include "CQueryCounter/IncreaseQueryCount.inc"
-{
-    if (query.find("log_query_ref", 0) != std::string::npos)
-    {
-        return;
-    }
-    if (query.find("from db_connect", 0) != std::string::npos)
-    {
-        return;
-    }
-    std::map<std::string, std::map<int, QUERY_INFO>::iterator>::iterator it =
-        m_queryIDMap.find(query);
-    // [b28d-62] P220 极性翻转：ORIG 0x085eccfc 调 operator==（`it == end` 为真直落
-    //   未命中分支），我方 `!=` 生相反块序；m_bLogDB 正极性（`test %al; je else`，
-    //   ORIG 0x085ecd0f 实证）⇒ 未命中分支内先 stream 后 SaveQuery。
-    if (it == m_queryIDMap.end())
-    {
-        if (m_bLogDB)
-        {
-            CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QueryCounter.cpp", 0x1d2), true);
-            **guard << 0xbe;
-            **guard << -1;
-            **guard << (int)query.size();
-            guard->put_binary((void*)query.c_str(), (int)query.size());
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-        }
-        else
-        {
-            int qid = 0;
-            if (SaveQuery(query.c_str(), qid))
-            {
-                RegisterQuery(query.c_str(), qid, 0);
-            }
-        }
-    }
-    else
-    {
-        // [2026-09-11] P0：ORIG 0x85eccxx `mov %eax,-0x14(%ebp);
-        // mov -0x14(%ebp),%edx; mov %edx,0x34(%eax)`（值先落具名槽再写成员）
-        // ⇒ 原码有具名 iterator 局部；4.4 直传 `mov %eax,0x34(%edx)` 少 2 条。
-        std::map<int, QUERY_INFO>::iterator cur = it->second;
-        m_current = cur;
-        // [G5 2026-09-10 P167] ORIG 0x085ecc5e 调用差集：我方多 1×
-        // `_ZNKSt17_Rb_tree_iteratorISt4pairIKiN13CQueryCounter10QUERY_INFOEEEptEv`。
-        // 实测 `(*m_current).second` 形反劣（换出 +3 deEv 且 ORIG 需 ptEv×2）⇒ 维持
-        // `->` 形；试后置自增（P38 反向：`= x+1` 单语句 SAVE_EXPR 合并成单次 ptEv，
-        // 拆/`++` 形可出第二处访问）。
-        // [2026-09-11] 后半段 ORIG 用**局部** -0x14 做 operator-> this
-        // （`lea -0x14(%ebp),%eax; mov %eax,(%esp); call ptEv`），非
-        // `mov 0x8(%ebp),%eax; add $0x34,%eax`（成员取址 2 条）⇒ 后续访问走 cur。
-        if (cur->second.count == 0)
-        {
-            m_totalQueryCount = m_totalQueryCount + 1;
-        }
-        cur->second.count++;
-    }
-}
 
-// [b28d-62] 修：迭代器增量改后置 `it++`（P28 增量侧：ORIG 调 operator++(int)）。
-//   ORIG 0x085ecee6
+
 #include "CQueryCounter/UpdateQueryCounter.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QueryCounter.cpp", 0x1f1), true);
-    **guard << 0x7d;
-    **guard << -1;
-    int curTime = time(0);
-    **guard << curTime;
-    **guard << m_totalQueryCount;
-    // [b28d-62] P28 增量侧：ORIG 增量段调 operator++(int)（后置，带独立 sret
-    //   临时槽）⇒ 源形必写 `it++`（`++it` 走 ppEv 免临时槽）。
-    // [2026-09-11] P283：ORIG 0x85ecfb6 `begin()` 后 `sub $0x4; jmp <条件块>`
-    // （4.1 的 for 底部条件布局 + nop 填充岛），4.4 恒条件置顶 ⇒ 用
-    // goto 尾条件形复现。
-    std::map<int, QUERY_INFO>::iterator it = m_queryInfoMap.begin();
-    goto query_loop_cond;
-query_loop_body:
-    {
-        int qid = it->first;
-        int count = it->second.count;
-        int response = (int)(it->second.responseTime * 1000.0);
-        if (count > 0)
-        {
-            **guard << qid;
-            **guard << count;
-            **guard << response;
-        }
-    }
-    it++;
-query_loop_cond:
-    if (it != m_queryInfoMap.end())
-        goto query_loop_body;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
-    Reset();
-}
+
 
 #include "CQueryCounter/SetResponseTime.inc"
-{
-    if (m_current != m_queryInfoMap.end())
-    {
-        m_current->second.responseTime += responseTime;
-        m_current = m_queryInfoMap.end();
-    }
-}
 
-// [b28d-62] N82：p167 CLEAR。ORIG 0x085ed18a
+
 #include "CQueryCounter/LoadQueryTable.inc"
-{
-    MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
-    int ret = 0;
-    char query[0x6001];
-    mysql->set_query("seLect q_id,query from log_query_ref");
-    if (!mysql->exec(true))
-    {
-        return false;
-    }
-    int nRows = mysql->get_n_rows();
-    int i = 0;    // P191 ORIG -0xc 双 init 形
-    for (i = 0; i < nRows; i = i + 1)
-    {
-        int qid = 0;
-        memset(query, 0, 0x6001);
-        if (!mysql->fetch())
-        {
-            // [G5 2026-09-10 P227 试验] ORIG 0x085ed18a 段为 cMyTrace ctor 后直接
-            // operator()（varargs 在 ctor 前右起求值并保活 callee-saved）⇒ 改全表达式
-            // 临时链；具名两语句形使 4.4 把 ctor 提前、帧 0x…。
-            cMyTrace(__PRETTY_FUNCTION__, 0x22f, 5)("LoadQueryTable, fatch ERROR");
-            return false;
-        }
-        if (!mysql->get_int(0, qid))
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x235, 5)("LoadQueryTable, get_int(0) ERROR");
-            return false;
-        }
-        if (!mysql->get_str(1, query, 0x6000))
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x23b, 5)("LoadQueryTable, get_str(1) ERROR");
-            return false;
-        }
-        if (!RegisterQuery(query, qid, 0))
-        {
-            return false;
-        }
-    }
-    return true;
-}
 
-// [b28d-62] N82：p167 CLEAR。ORIG 0x085ed3a2
+
 #include "CQueryCounter/SaveQuery.inc"
-// [P8S1 2026-09-11 控制流极性对齐] ORIG 0x085ed3a2 实证：exec#1 0x085ed440
-//   `xor $0x1,%eax; test %al,%al; je 0x85ed594`（成功 → 跳到**末尾**
-//   `GetIdentityFromDB` 段 0x085ed594），失败 fallthrough 进 select 路径；
-//   内层 exec#2 0x085ed47b 同形 `je 0x85ed4c2`，失败 fallthrough 即
-//   `cMyTrace 0x265`（0x085ed482，紧邻 je 之后）；fetch 0x085ed4eb、get_int
-//   0x085ed549 均为「负条件 + 早退」。⇒ 源码形 = `if (!exec) { … } qid =
-//   GetIdentityFromDB(); return true;`（旧形正条件 if (exec) 使 4.4 走
-//   fallthrough 成功路径 ⇒ 缺 xor 且 trace 段块序反，N104）。
-{
-    MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
-    char escaped[0xc001];
-    memset(escaped, 0, 0xc001);
-    mysql->escape_string(escaped, query);
-    mysql->set_query("inSert into log_query_ref(query, query_hash) values('%s',password('%s'))",
-                     escaped, escaped);
-    if (!mysql->exec(true))
-    {
-        mysql->set_query("seLect q_id from log_query_ref where query_hash=password('%s')",
-                         escaped, escaped);
-        if (!mysql->exec(true))
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x265, 5);
-            trace("SaveQuery, exec() ERROR");
-            return false;
-        }
-        if (mysql->get_n_rows() == 0)
-        {
-            return false;
-        }
-        if (!mysql->fetch())
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x271, 5);
-            trace("SaveQuery, fetch() ERROR");
-            return false;
-        }
-        // [P8S1 2026-09-11] ORIG 0x085ed549 `xor $0x1,%eax; test %al,%al;
-        //   je 0x85ed58d`（0x85ed58d = `mov $0x1,%eax; jmp leave`）⇒ 源码为
-        //   **负条件 + 尾随 return true**（旧形正条件无 xor）。
-        if (!mysql->get_int(0, qid))
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x277, 5);
-            trace("SaveQuery, get_int(0) ERROR");
-            return false;
-        }
-        return true;
-    }
-    qid = GetIdentityFromDB(mysql);
-    return true;
-}
 
-// [b28d-62] N95/N82：槽基整体差 0x10（4.4 槽基自 ebp-8 起，N95）；p167 CLEAR。
-//   ORIG 0x085ed5ae
+
 #include "CQueryCounter/RegisterQuery.inc"
-{
-    QUERY_INFO info;
-    info.count = type;
-    std::pair<std::map<int, QUERY_INFO>::iterator, bool> ins =
-        m_queryInfoMap.insert(std::make_pair(qid, info));
-    if (!ins.second)
-    {
-        return false;
-    }
-    std::pair<std::map<std::string, std::map<int, QUERY_INFO>::iterator>::iterator, bool> ins2 =
-        m_queryIDMap.insert(std::make_pair(query, ins.first));
-    if (!ins2.second)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x291, 0);
-        trace("LoadQueryTable,  query_id_map_.insert ERROR");
-        return false;
-    }
-    return true;
-}
+

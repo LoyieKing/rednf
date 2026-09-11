@@ -269,105 +269,22 @@ CraneItemInfo& CraneItemInfo::operator=(const CraneItemInfo& other)
     return true;                         // +0x70d mov $1,%ebx（dtor 后统一出口）
 }
 
-// ============================================================================
-// CraneMinigameScript C1/D1 —— ORIG 0x088e3736 / 0x088e37a8（外联定义，
-// 产独立符号；头内不再内联）。
-// C1：空体，仅按声明序默认构造 m_items(+0x04) → m_sendMail(+0x18) →
-// m_needMaterials(+0x5c)；m_viewCnt/m_material/m_field14 故意不初始化（ORIG 无 store）。
-// D1：begin/end 迭代器（声明序 it 先、end 后 = ORIG 栈槽 -0xc/-0x10），
-// 循环内 O0 三次独立 operator*（判空 / delete / 置 0，P48 无 CSE），
-// clear 后编译器按声明逆序析构 m_needMaterials → m_sendMail → m_items（ORIG 同序）。
-// ============================================================================
 #include "CraneMinigameManager/CraneMinigameScript.inc"
-{
-}
+
 
 #include "CraneMinigameManager/dtor_CraneMinigameScript.inc"
-{
-    std::vector<CraneItemInfo*>::iterator it = m_items.begin();
-    std::vector<CraneItemInfo*>::iterator end = m_items.end();
-    for (; it != end; ++it)
-    {
-        if (*it != 0)
-            delete *it;
-        *it = 0;
-    }
-    m_items.clear();
-}
+
 
 #include "CraneMinigameManager/CraneMinigameManager.inc"
-    : m_selectIdx(0)
-{
-    // ORIG 0x080ebc32：仅调 CraneMinigameScriptC1（构造 m_items/m_sendMail/
-    // m_needMaterials）+ m_selectIdx=0；m_material(+0x10) 不初始化。
-}
+
 
 #include "CraneMinigameManager/dtor_CraneMinigameManager.inc"
 
-// ORIG 0x080ebc6e：reset Action_SendMail 后导入脚本表；失败 trace 并返回 false。
 #include "CraneMinigameManager/init.inc"
-{
-    m_sendMail.reset();   // ORIG 0x080ebc6e：call Action_SendMail::reset（0x080ec026）
 
-    if (!importCraneMinigameScript(
-            reinterpret_cast<CraneMinigameScript*>(this),
-            "Etc/craneMinigameItem.etc"))
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d, 0);
-        trace("Error : craneMinigameItem.etc load failed!!");
-        return false;
-    }
-    return true;
-}
 
-// ORIG 0x080ebebc：m_selectIdx = count % m_needMaterials.size()；
-// 取对应 pair 调 NeedMaterialDataManager::setNeedMaterialInfo(m_material, pair)。
-// 逐条对齐：帧 0x20 + `push %esi; push %ebx` 与 ORIG 全等（+0x49 at() 结果留
-// %ebx、+0x50 m_material 留 %esi，二者跨 +0x56 getInstance() 保活 ⇒ 用 P179
-// register 形复现 4.1 双 callee-saved 形；普通引用形被 4.4 落栈槽，37→40）。
-// 残余 DIFF 归因（N 类，40/40 等长，仅 6 行搬移链次序）：4.1 把 count 提前
-// 载入 %ebx 再 `mov %ebx,%eax` 喂 divl、余数 `mov %edx,%ecx`；4.4 直取
-// 0xc(%ebp) 且 div 结果先归 %eax 再 `mov %eax,%ecx`（N7/N82 RA 族）。
-// [b28d-lane15 复核] 维持 N：N96 清绑后残差为 N7/N82 RA 寄存器角色差（ORIG
-// +0x26 余数三段搬运 / +0x49 双 callee-saved 保活），语义等价。
 #include "CraneMinigameManager/updateCraneItemNeedMaterial.inc"
-{
-    // [P6AuditOldN.P6S2 2026-09-11] 试验旋钮：ORIG 0x080ebec4 在 size() 调用**前**
-    //   先 `mov 0xc(%ebp),%ebx` 保活 count（4.1 求值序），4.4 调用后才读 ⇒ 用裸
-    //   register（P231 非绑定、不占槽）承载 count 值，强制提前读并跨调用保活。
-    register unsigned int regCount = static_cast<unsigned int>(count);
-    unsigned int size = m_needMaterials.size();
-    // b28c-L19 清绑（P0/N96 全域禁 register asm）：改 P0 表达式直传形。
-    // ORIG +0x26..+0x2f：余数三段搬运后 1 字节存 +0x68；+0x49/+0x50：at() 结果
-    // 指针与 m_material 双 callee-saved 保活（4.4 自然形可能落栈槽，残差记 N）。
-    // [N1Free91to105 2026-09-11] 负结论：本题（ORIG 40 / our 38，gap +2）残余为
-    // 4.1 与 4.4 的两处求值/搬运序差：
-    //  ① ORIG 0x080ebec4 `mov 0xc(%ebp),%ebx`（size() 调用**前**读 count 并保活）
-    //     vs 4.4 调用后才读 —— `A % B` 操作数求值序差异；
-    //  ② ORIG 0x080ebee2-0x080ebee6 `mov %edx,%ecx; mov %ecx,%eax`（余数三段搬运）
-    //     vs 4.4 `mov %edx,%eax`（两段）—— 窄化链跨版本差异。
-    // 已试旋钮：去双重 static_cast 改隐式窄化 `count % size` ⇒ 40/38 与 diff 逐条不变
-    // ⇒ 回滚。判 N 类封顶（ORIG 地址 0x080ebebc，形见 report）。
-    // [P6AuditOldN.P6S2 2026-09-11] 本波落地 2 旋钮：裸 register 承载 count
-    //   （regCount，P231 非绑定不占槽）⇒ ORIG 0x080ebec4 `mov 0xc(%ebp),%ebx` 提前
-    //   读 + `mov %ebx,%eax` 两段已复现；再加深 register 余数 regRem ⇒ 38→39 条
-    //   （gap +2→+1）。残余仅 ORIG 0x080ebee2..e6 `mov %edx,%ecx; mov %ecx,%eax`
-    //   三段搬运（4.4 恒两段；已试 `register unsigned char` 形 ⇒ `%bl` 写并重载
-    //   this，更劣已回滚）。判 N 类封顶。
-    register unsigned int regRem = regCount % size;
-    m_selectIdx = static_cast<unsigned char>(regRem);
-    NeedMaterialDataManager::getInstance()->setNeedMaterialInfo(
-        m_material, m_needMaterials.at(m_selectIdx));
-}
 
-// ORIG 0x080ebf2e（报告 CraneMinigameManager/SendCraneItemNeedMaterial.md）：
-// PacketGuard → put_header(0,0x1a7) → put_byte(m_selectIdx +0x68) →
-// finalize(true) → CUser::Send。
+
 #include "CraneMinigameManager/SendCraneItemNeedMaterial.inc"
-{
-    PacketGuard packet;
-    packet.put_header(0, 0x1a7);
-    packet.put_byte(m_selectIdx);
-    packet.finalize(true);
-    user->Send(packet);
-}
+

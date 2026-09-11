@@ -42,42 +42,19 @@ public:
 };
 
 #include "CReliablePerson/InitTradeGold.inc"
-                                    unsigned int daily)
-{
-    m_totalTradeGold = total;
-    m_billionTradeGold = billion;
-    m_dailyTradeGold = daily;
-}
+
 
 #include "CReliablePerson/GetTradeGoldDaily.inc"
-{
-    return m_dailyTradeGold;
-}
+
 
 #include "CReliablePerson/GetTradeGoldTotal.inc"
-{
-    return m_totalTradeGold;
-}
+
 
 #include "CReliablePerson/GetTradeGoldTotalBillion.inc"
-{
-    return m_billionTradeGold;
-}
+
 
 #include "CReliablePerson/SetTradeGoldDaily.inc"
-{
-    m_dailyTradeGold = gold;
-}
+
 
 #include "CReliablePerson/IncrementTradeGold.inc"
-{
-    m_dailyTradeGold += gold;
-    m_totalTradeGold += gold;
-    if (m_totalTradeGold > 999999999)
-    {
-        unsigned int total = m_totalTradeGold;
-        // 累计交易额超过 10 亿：十亿位进位到 billion，total 保留余数
-        m_totalTradeGold = total - total / 1000000000 * 1000000000;
-        m_billionTradeGold += total / 1000000000;
-    }
-}
+

@@ -1,3 +1,11 @@
+// ORIG 0x0815d024：GetOutBuffer<MSG> null → throw "context null"；GetDBHandle
+// (9,0) null → throw "handle null"；set_query("seLect m_id from
+// pcroom_daily_reward_tw where m_id=%s", NumberToString(msg->m_id))；exec 失败
+// throw "select_exec"；get_n_rows()==0 → INSERT(values('%s', now(), %d),
+// str, (char)msg->m_remain) exec 失败 throw "insert_exec"；否则 UPDATE
+// (remain_reward_count=%d where m_id = %s, str, (char)m_remain) exec 失败
+// throw "update_exec"。catch logFormat(0x35d) 返 0。成功返 1。
+// [b28d-lane6] AE（已修·真 bug）：UPDATE 语句实参序 (str,remain)→(remain,str) 修正（ORIG 0x0815d0f2 压栈序实证）+ 删多余 set_query 检查 + remain 内联。
 bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 {
     try

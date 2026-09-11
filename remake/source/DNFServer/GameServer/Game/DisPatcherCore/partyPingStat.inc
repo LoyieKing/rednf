@@ -1,3 +1,6 @@
+// ORIG 0x0821b098 W _ZN28DisPatcher_UdpCharacteristic13partyPingStatEP5CUserRtS2_
+// （报告 DisPatcher_UdpCharacteristic/partyPingStat.md 汇编+C 全文转写，wave2）：
+// Party_Ping 统计包（0xfa7,0xe）：+0xa=bad、+0xc=bad+total，经统计代理 SendPacket。
 int DisPatcher_UdpCharacteristic::partyPingStat(CUser* user, unsigned short& bad, unsigned short& total)
 
 {

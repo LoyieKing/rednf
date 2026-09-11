@@ -22,40 +22,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x082845cc：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "CTournamentPvPEvent/CTournamentPvPEvent.inc"
-{
-}
 
-// ORIG 0x082845e8 / 0x08284618：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CTournamentPvPEvent/dtor_CTournamentPvPEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08284636：空体（仅 push/mov/pop/ret，无 SetEventFlag、无 trace）。
+
 #include "CTournamentPvPEvent/StartEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0828463c：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x18,0)
-// ("Tournament PvP Channel Open Start")。
+
 #include "CTournamentPvPEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x18, 0);
-    tr("Tournament PvP Channel Open Start");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0828468e：SetEventFlag(false) + cMyTrace(__FUNCTION__,0x1e,0)
-// ("Tournament PvP Channel Open End")。
+
 #include "CTournamentPvPEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x1e, 0);
-    tr("Tournament PvP Channel Open End");
-}
+

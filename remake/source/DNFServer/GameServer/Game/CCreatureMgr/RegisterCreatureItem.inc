@@ -1,3 +1,7 @@
+// ORIG _ZN13user_creature12CCreatureMgr20RegisterCreatureItemEPNS_13CCreatureItemEi
+// T 0x0833a77e：uid 查重后插入 m_creatureItems；重复则 cMyTrace 报错返回 false。
+// [b28d-23 N·N18a/N76] 查重物化后 uid/get_unique_id 装载序 ⇒ N。ORIG 0x0833a77e
+// [b28d-solo-CCreatureMgr AE] P227 全表达式临时链令变参在 ctor 前求值并 callee-saved 保活（删具名 uniqBx）；ORIG 0x833a77e
 bool CCreatureMgr::RegisterCreatureItem(CCreatureItem* item, int uid)
 {
     // ORIG 0x833a798：`test;setne %al;test;je` 查重物化（技巧 22）；true 块

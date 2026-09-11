@@ -27,16 +27,8 @@
 #include "CEnvironment.h"      // class SpinLock / less_TCHAR（importQuestScript [type] 静态表）
 #include "SyncScriptDeps.h"    // checkValiedJobName（importQuestScript [target character]）
 
-// loadRDARScriptListFile 定义于 STScriptFileList.cpp（ORIG T 0x088bbd77，
-// mangled _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE）。
-// STScriptFileList 无权威头，此处仅前置声明 + 正常 C++ 自由函数声明（非 asm 桥）。
-// STScriptFileList 权威定义见 NpcScript.h（经 Quest.h include 链可见）。
-// 本 TU 按 bool 视图声明（P22：ORIG init* 尾 @0x8a616e9 xor $1,%eax;test %al
-// 为 bool 取反形；返回类型不入 mangled，链接 STScriptFileList.cpp 的 int 定义，
-// 其返回恒 0/1，ABI 兼容——StrikerScript.cpp 同例先）。
 #include "STQuestScript/loadRDARScriptListFile.inc"
                             const char* listPath, std::map<int, int>* map);
-// ---- importQuestScript 依赖的外部符号（权威定义分属其他 TU）----
 #include "STQuestScript/IsLightServer.inc"
 #include "STQuestScript/OutputErrorMessage.inc"
 #include "STQuestScript/ScanRewardItems.inc"
@@ -61,13 +53,8 @@ extern STScriptFileList g_questScriptFileList;
 
 // ===================== QuestScript =====================
 
-// [b28d-solo-STQuestScript · P69] ORIG C1 0x0836e4e2（487 条）：40+ 成员子对象隐式
-// 构造（含 EH cleanup 链）后**单一 `call QuestScript::clear()`**（836e738），ctor 体
-// 无任何 memset ⇒ 原码 `QuestScript::QuestScript() { clear(); }`。
 #include "STQuestScript/QuestScript.inc"
-{
-    clear();
-}
+
 
 // [b28d-Lane SymSrvParam · N84 处置③] ORIG _ZN11QuestScriptC1ERKS_ 0x0837adc8
 // 为 W 隐式合成（0xd65）；CListTables.cpp 镜像类仅有拷贝 ctor **声明**（U 引用，
@@ -86,213 +73,43 @@ static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
 
 
 
-// ORIG D1 0x08a70700：先 destroy()（delete 四组 11 指针），再成员自动析构。
 #include "STQuestScript/dtor_QuestScript.inc"
-{
-    destroy();
-}
+
 
 
 #include "STQuestScript/clear.inc"
-{
-    m_index = -1;                    // +0x00
-    m_name = "";                     // +0x04
-    m_requestDefault = "";           // +0x08
-    m_conditionDefault = "";         // +0x0c
-    m_solveDefault = "";             // +0x10
-    m_fieldC8.clear();               // +0xc8
-    m_str2e8 = "";                   // +0x2e8（ORIG 顺序：早于 m_questType）
-    m_2ec = 0;                       // +0x2ec
-    m_questType = 4;                 // +0xd4
-    m_npcIdx = 0;                    // +0xe4
-    m_fieldE8 = -1;                  // +0xe8
-    m_field134 = -1;                 // +0x134
-    m_jobChangeQuest = 0;            // +0xdc
-    m_field1b0.clear();              // +0x1b0
-    m_field1bc = 0;                  // +0x1bc
-    m_field1c0 = -1;                 // +0x1c0
-    m_postalReward.clear();          // +0x298
-    m_field1c4 = 4;                  // +0x1c4
-    m_targetCharacters.clear();      // +0xf4
-    m_fieldE0 = -1;                  // +0xe0
-    m_fieldD8 = 3;                   // +0xd8
-    m_fieldEC = 0xb;                 // +0xec
-    m_fieldF0 = -1;                  // +0xf0
-    for (int i = 0; i <= 1; ++i)
-        m_levelMin[i] = 0;           // +0x100/+0x104
-    m_field108 = 0;                  // +0x108
-    m_intDataList.clear();           // +0x10c
-    m_antiQuestList.clear();         // +0x118
-    m_questCountLimit = 0;           // +0x124
-    m_field130 = 0;                  // +0x130
-    m_clearItems.clear();            // +0x138
-    m_killItems.clear();             // +0x144
-    m_appearMap.clear();             // +0x150
-    m_rewardSelectList.clear();      // +0x160
-    m_triggerType = 0;               // +0x178
-    m_triggerSubType = 0;            // +0x17c
-    m_triggerData.clear();           // +0x180
-    m_field18c.clear();              // +0x18c
-    m_rewardType = 0;                // +0x1d4
-    m_titleReward.clear();           // +0x1d8
-    m_field1e4 = -1;                 // +0x1e4
-    m_field228 = -1;                 // +0x228
-    m_field20c.clear();              // +0x20c
-    m_field218 = 0;                  // +0x218
-    m_rewardData.clear();            // +0x21c
-    m_field22c = 0;                  // +0x22c
-    m_field23d = 0;                  // +0x23d
-    m_field240 = 100;                // +0x240
-    m_str244 = "";                   // +0x244
-    m_field248 = -1;                 // +0x248
-    m_field24c = -1;                 // +0x24c
-    m_field250 = -1;                 // +0x250
-    m_field254 = -1;                 // +0x254
-    m_mailQuestFlag = -1;            // +0x258
-    m_mailTitle.clear();             // +0x25c
-    m_mailContents.clear();          // +0x260
-    m_mailItems.clear();             // +0x264
-    m_field1f4.clear();              // +0x1f4
-    m_selectReward.clear();          // +0x1e8
-    m_eventDialogs.clear();          // +0x200
-    m_field22d = 1;                  // +0x22d
-    m_field22e = 0;                  // +0x22e
-    for (int i = 0; i <= 2; ++i)
-        m_autoDisplay.m_values[i] = -1;          // +0x230..+0x23b
-    m_field23c = 0;                  // +0x23c
-    m_field270 = 0;                  // +0x270
-    m_field271 = 1;                  // +0x271
-    m_powerSide = 0xff;              // +0x272
-    m_field274 = -1;                 // +0x274
-    m_field278 = 0;                  // +0x278
-    m_field27c = 0;                  // +0x27c
-    m_questIdx = 0;                  // +0x14
-    for (int i = 0; i <= 10; ++i)
-    {
-        m_jobNames[i] = 0;            // +0x18
-        m_jobRequests[i] = 0;         // +0x44
-        m_jobConditions[i] = 0;       // +0x70
-        m_jobSolves[i] = 0;           // +0x9c
-    }
-    m_field280 = 0;                  // +0x280
-    m_field282 = 0;                  // +0x282
-    m_field284 = -1;                 // +0x284
-    m_field288 = -1;                 // +0x288
-    m_field28c = -1;                 // +0x28c
-    m_field290 = -1;                 // +0x290
-    m_str294.clear();                // +0x294
-    m_field2a8 = 0;                  // +0x2a8
-    m_field2ac = -1;                 // +0x2ac
-    m_2c8 = 0;                       // +0x2c8
-    m_str2cc = "";                   // +0x2cc
-    m_exceptionList.clear();         // +0x2d0
-    m_field128 = 0;                  // +0x128
-    m_field12c = 0;                  // +0x12c
-    m_dailySchedule.clear();         // +0x2dc
-    m_field12c = 0;                  // +0x12c
-    m_field128 = 0;                  // +0x128
-    m_vec2f0.clear();                // +0x2f0
-    m_vec2fc.clear();                // +0x2fc
-    m_308 = 0;                       // +0x308
-}
+
 
 #include "STQuestScript/destroy.inc"
-{
-    for (int i = 0; i < 0xb; ++i)
-    {
-        if (m_jobNames[i])
-        {
-            delete m_jobNames[i];
-        }
-        m_jobNames[i] = 0;
-        if (m_jobRequests[i])
-        {
-            delete m_jobRequests[i];
-        }
-        m_jobRequests[i] = 0;
-        if (m_jobConditions[i])
-        {
-            delete m_jobConditions[i];
-        }
-        m_jobConditions[i] = 0;
-        if (m_jobSolves[i])
-        {
-            delete m_jobSolves[i];
-        }
-        m_jobSolves[i] = 0;
-    }
-}
+
 
 #include "STQuestScript/getName.inc"
-{
-    if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobNames[job])
-    {
-        return *m_jobNames[job];
-    }
-    return m_name;
-}
+
 
 #include "STQuestScript/getRequestMessage.inc"
-{
-    if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobRequests[job])
-    {
-        return *m_jobRequests[job];
-    }
-    return m_requestDefault;
-}
+
 
 #include "STQuestScript/getConditionMessage.inc"
-{
-    if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobConditions[job])
-    {
-        return *m_jobConditions[job];
-    }
-    return m_conditionDefault;
-}
+
 
 #include "STQuestScript/getSolveMessage.inc"
-{
-    if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobSolves[job])
-    {
-        return *m_jobSolves[job];
-    }
-    return m_solveDefault;
-}
+
 
 // ===================== TownScript =====================
 
 #include "STQuestScript/TownScript.inc"
-{
-    clear();
-}
+
 
 #include "STQuestScript/dtor_TownScript.inc"
-{
-}
+
 
 #include "STQuestScript/clear_1.inc"
-{
-    m_field0 = 0;
-    m_str4 = "";
-    m_str8 = "";
-    m_strc = "";
-    m_str10 = "";
-    m_14 = 0;
-    m_18 = -1;
-    m_1c = -1;
-    m_areas.clear();
-    m_str38 = "";
-    m_40 = 0;
-    m_3c = m_40;
-}
+
 
 // ===================== TrainingQuestScript =====================
 
 #include "STQuestScript/ST_TrainingQuest_Select_Prob.inc"
-{
-    m_count = 0;
-    m_pairs.clear();   // ORIG 正常路径仅 m_count=0 + m_pairs.clear()；数组由隐式构造初始化
-}
+
 
 #include "STQuestScript/dtor_ST_TrainingQuest_Select_Prob.inc"
 {
@@ -333,188 +150,22 @@ static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
 }
 
 #include "STQuestScript/get_random_fake_value.inc"
-{
-    return m_selectProb.m_dayProb[day].at(idx);
-}
+
 
 #include "STQuestScript/suffleTrainingQuests.inc"
-{
-    int day = computeDayIndex();
-    int count = m_selectProb.m_dayProb[day].at(0);
-    // ORIG 0x08aafcbc：MyRandom(count) 作随机数器（3 参 random_shuffle）。
-    MyRandom rnd(count);
-    for (int i = 0; i <= 0x45; ++i)
-    {
-        // b28c-28（P223 + P168a①）：ORIG 0x08aafd2f 段为
-        // `call empty; test %al,%al; jne <nop 岛>` + then 体尾 `jmp <岛后>`——
-        // 即「正向 empty 判定 + goto 尾空标签」形；`if(!empty()){}` 被 4.4 折成
-        // `xor$1; test; je`（极性反、少 jmp 岛）。
-        if (m_questProb[i].empty())
-            goto SHUFFLE_DONE;
-        std::random_shuffle(m_questProb[i].begin(), m_questProb[i].end(), rnd);
-SHUFFLE_DONE:;
-    }
-}
+
 
 #include "STQuestScript/getTrainingQuest.inc"
-{
-    if (questCount == job)
-    {
-        ++m_applyCount;
-    }
-    else
-    {
-        m_applyCount = 0;
-    }
-    if (questCount == -100)
-    {
-        if (m_applyCount >= m_sameApplyQuest.size())
-        {
-            return 0x7fffffff;
-        }
-        return m_sameApplyQuest.at(m_applyCount);
-    }
-    if (dayIndex - 1 + questCount < 0)
-    {
-        return 0x7fffffff;
-    }
-    if (m_applyCount >= m_questProb[dayIndex - 1 + questCount].size())
-    {
-        return 0x7fffffff;
-    }
-    return m_questProb[dayIndex - 1 + questCount].at(m_applyCount);
-}
 
-// [b28d-solo-STQuestScript · P212] ORIG 先构造 tmp（-0x38）再 call computeDayIndex
-// ⇒ 头部声明序 tmp 在前（4.1/4.4 全头部声明同为先声明更深）；ORIG 0x08aaf8b6。
+
 #include "STQuestScript/getApplyLevel.inc"
-{
-    if (m_selectProb.m_count <= 0 || m_selectProb.m_pairs.empty())
-    {
-        return false;
-    }
-    std::vector<int> tmp;
-    int day = computeDayIndex();
-    for (int i = 0; i < m_selectProb.m_count; ++i)
-    {
-        int val = get_random_fake_value(i, day);
-        int acc = 0;
-        for (std::vector<std::pair<int, int> >::iterator it =
-                 m_selectProb.m_pairs.begin();
-             it != m_selectProb.m_pairs.end(); ++it)
-        {
-            acc += it->second;
-            if (val < acc)
-            {
-                tmp.push_back(it->first);
-                break;
-            }
-        }
-    }
-    for (int level = 1; level <= 0x46; ++level)
-    {
-        for (std::vector<int>::iterator it = tmp.begin(); it != tmp.end(); ++it)
-        {
-            if (*it == -100)
-            {
-                out[level - 1].insert(*it);
-            }
-            // ORIG else 段 = `*it != -100 && *it + level >= 1` 短路链（cmp $-100;je
-            // 跳过 + jle 跳过 + mov$1/mov$0/test 物化，P214①）。
-            else if (*it != -100 && *it + level >= 1)
-            {
-                out[level - 1].insert(*it);
-            }
-        }
-    }
-    return true;
-}
+
 
 // ===================== 脚本导入 =====================
 
-// [b28d-solo-STQuestScript · P303] ORIG 追加分隔符段 = __builtin_strcat 内建展开
-// （movl $2,0x8; movl $str,0x4; movl $buf,(%esp); call strlen; add $buf,%eax;
-//  mov %eax,(%esp); mov (%esp),%eax; mov %eax,(%esp); call memcpy，ORIG 0x8a6166a 族）
 #include "STQuestScript/initQuestScript.inc"
-{
-    strncpy(g_questScriptBaseDirectory, dir, 0x100);
-    // ORIG 0x8a6166a..0x8a616c1 族形：内联补齐（strlen×3 + 追加 "\\"），无空串
-    // 防御（ORIG len==0 时读 buf[-1] 为原始 UB 形态，P140 忠实保留）；P49 禁
-    // 本 TU 外 helper——原 AppendDirSeparator 属发明符号（ORIG nm 无）。
-    // P303：追加段必须 __builtin_strcat 形（手写 memcpy(dst+strlen,..) 恒 DIFF）。
-    if (g_questScriptBaseDirectory[strlen(g_questScriptBaseDirectory) - 1] != '\\' && g_questScriptBaseDirectory[strlen(g_questScriptBaseDirectory) - 1] != '/')
-    {
-        __builtin_strcat(g_questScriptBaseDirectory, "\\");
-    }
-    // P304：权威型 &g_questScriptFileList 直压（ORIG movl $&g_..,(%esp)）。
-    if (!loadRDARScriptListFile(&g_questScriptFileList,
-                                g_questScriptBaseDirectory, list, 0))
-    {
-        return 0;
-    }
-    return 1;
-}
 
-// [b28d-solo-STQuestScript · §6.2 三件套] ORIG 0x08a61813（raw 3883 / norm 3836）
-// ---------------------------------------------------------------------------
-// [2026-09-10 SweepSTQuestScript-2 收口判词] 本函数三项修复（逐项实测）：
-// ① [type]/[exception quest] 状态机 27+1 处块序翻转为
-//    `if(!__inited){insert}else{dst;break}` —— 与 ORIG 汇编逐条同构：
-//    `movzbl __inited;xor $1;test;je <dst>` → insert 块 → `jmp <下一 case>`
-//    → dst 块（ORIG 0x8a632b6..0x8a63ea4 / 0x8a65563 段实证）。效果：
-//    xor 61→89（ORIG 87）、jmp 283→311（ORIG 315）、raw 3841→3897。
-//    旧判词「翻转后 fn_diff 变差（3635→3676）」系在未做 ②③ 的基线上测得；
-//    三项联改后 difflib 对齐率 0.7255→0.7544（matched 2803→2932）⇒ 保留。
-// ② ConvertHHMMSSStringToInt 6 处改直接传 entry 成员引用（去 h/m/sec
-//    具名局部）：ORIG 0x8a6214d/15a/167/1e1/1ee/1fb 为
-//    `lea -0x45c; add $0x18/19/1a/1b/1c/1d`，我方原多 6 组
-//    `movb $0 + movb %al,entry` ⇒ 修后 raw 3897→3885。
-// ③ entry.m_eventId 改经具名局部 eventId（ORIG -0x40 中间槽实证
-//    0x8a61ee7/0x8a61efc：`mov %eax,-0x40; …; mov -0x40,%eax; mov %eax,-0x45c`）
-//    ⇒ raw 3885→3887（+2 条与 ORIG 对齐）。
-// 现状：raw 3883/3887（gap -4）、xor 87/89、jmp 315/311、
-// p167 517/517 CLEAR、四数 458/917/0/12 不回退。
-// 残余 gap -4 = 4.1/4.4 块布局差（非语义缺口，逐点核对）：
-//   · ORIG 序言 +0x84..+0xbf 的 20 组 `nop;jmp loop_head` continue 岛，
-//     20 个前驱全部实证在案（0x8a61a5a jne / 0x8a61e16 je / 0x8a623cd…/
-//     0x8a6572c je；**旧判词「17 组无前驱=死岛」系误判，已更正**）；
-//     我方 4.4 把 71 处 continue 汇入 1 个中继（jmp loop_head）并把 14 处
-//     break 生成 `jmp 收尾;nop` 岛链 ⇒ 岛归属/落点不可控（P223/N82 族）。
-//   · 13 处 `if(!ok) break;` 我方 `xor;test;jne <break 岛>` + fall-through
-//     到 continue；ORIG `xor;test;je <continue 岛>` + `jmp 收尾` —— 两侧
-//     极性/落点互补、语义逐点等价（抽查 .o 岛链 60b3..60c5 与
-//     ORIG 0x8a64e37 等 7 点）。
-//   · 槽漂移（line -0x320↔-0x308 族）与 setne/lea 级分散形态差 ⇒ N82/N126。
-// 以下为 2026-09-09 历史判词（gap 42 /「翻转变差」结论已被本次推翻）：
-// vs 我方（raw 3841 / norm 3811，gap 25）；p167 调用点差集 517/517 CLEAR
-// （唯一差异为 C1↔C2 / D1↔D2 镜像对，豁免）。残余 byte 层 N 封顶：
-// ① P223 实测复验（BigQuestScript 2026-09-09）：ORIG +0x86..+0xbf 为 19 组
-//    `nop;jmp +0xc0` 中继岛（仅 +0x86/+0x8c/+0x92 有 jne 前驱 +0x247/+0xbba/
-//    +0xcf1，其余 16 组无前驱）；我方 4.4 只发 15 组且全部落在函数尾
-//    （+0x3f6a 附近 8 连 + 7 处分散）⇒ 岛数/落点不可控，19 条封顶。
-// ② [type]/[exception quest] 守卫块序镜像（P272/P194）：ORIG 为
-//    `if(!__inited){insert}else{dst;break}`（movzbl;xor $1;test;je dst，
-//    insert 后 jmp 下一 case），我方为 `if(__inited){dst;break}insert`
-//    （movzbl;test;je insert，insert fall-through）。27+1 处全量翻转实测：
-//    ORIG-only 指令 181→36、xor 61→88（ORIG 87）、jmp 283→311（ORIG 315）
-//    ⇒ 补回 54 条真实指令，但净 gap +25→-31、fn_diff 不等行 3635→3676
-//    （本区固有 mov+22/jne+11/movb+8 冗余未消）⇒ 保持现形，判镜像块序差。
-// ③ 其余 6 条为 je/add/lea/sete 级分散形态差（我方 3 处 setcc 分支形、
-//    我方多 mov/movb/movzbl 与 ORIG 多 je/add/lea 互为抵消），非语义缺口。
-// [b28d-solo-STQuestScript · P292/P315 档①] int→bool（与头同步）：
-// ORIG 调用点 0x08353e51 `call; xor $0x1,%eax; test %al,%al; je`（无 setne）。
-// 函数体 return 0/1 均为常量 ⇒ bool 化不引入 setne，定义侧形态不变；
-// mangled _Z17importQuestScriptP11QuestScriptPKc 不变（返回类型不入 mangled）。
-// [b28d-solo-STQuestScript 2026-09-09 复核] 定义侧同快照 A/B（bool vs int）
-// 四数逐项相同 460/906/0/23 ⇒ 返回类型改动零形态影响；fresh 读数
-// 458/917/0/12（missing 362，全 TU）。gap 42（raw 3883/3841）主体 = ORIG
-// 序言 +0x32..+0x71 共 20 组 `nop;jmp 0x8a618d3` 中继岛（仅 +0x86/+0x8c/
-// +0x92 三组有 jne 前驱，余 17 组无前驱 = 死岛）vs 我方 1 组（+0x21cb
-// jmp +0x21cd nop）⇒ 4.4 jump-thread 合并；死岛无法用合法 C++ 生成
-// （P337 volatile 守卫每处固有 +4 条 > 收益，净负）⇒ P223 负例封顶；
-// 余 4 条为槽漂移（非恒定：line -0x320↔-0x308、qd0 -0x3d8↔-0x3e0）
-// 与 [type] 块序 ⇒ N82/N126 封顶。p167 517/517 CLEAR（差集全 C1/C2·D1/D2
-// 同址镜像，P93 豁免），miss=0（无 ORIG-only 游戏域 callee）。
+
 #include "STQuestScript/importQuestScript.inc"
 {
     // ORIG importQuestScript 的函数局部辅助类 QuestData（报告
@@ -2160,402 +1811,23 @@ SHUFFLE_DONE:;
     }
     return 1;
 }
-// [b28d-solo-STQuestScript · P303] 同 initQuestScript：追加分隔符段 =
-// __builtin_strcat 内建展开（ORIG 0x8aad9ec memcpy 段 8 条形）。
 #include "STQuestScript/initTownScript.inc"
-{
-    strncpy(g_townScriptBaseDirectory, dir, 0x100);
-    // ORIG 0x8aad9ec 族形：内联补齐（strlen×3 + 追加 "\\"），无空串防御
-    // （ORIG len==0 时读 buf[-1] 为原始 UB 形态，P140 忠实保留）；P49 禁本 TU
-    // 外 helper——原 AppendDirSeparator 属发明符号（ORIG nm 无）。
-    // P303：追加段必须 __builtin_strcat 形。
-    if (g_townScriptBaseDirectory[strlen(g_townScriptBaseDirectory) - 1] != '\\' && g_townScriptBaseDirectory[strlen(g_townScriptBaseDirectory) - 1] != '/')
-    {
-        __builtin_strcat(g_townScriptBaseDirectory, "\\");
-    }
-    // P304：权威型 &g_townScriptFileList 直压（ORIG movl $&g_..,(%esp)）。
-    if (!loadRDARScriptListFile(&g_townScriptFileList,
-                                g_townScriptBaseDirectory, list, 0))
-    {
-        return 0;
-    }
-    return 1;
-}
 
-// [b28d-solo-STQuestScript · §6.2 三件套] ORIG 0x08aadaa8（382 条）vs 我方 384
-// （gap −2）；p167 调用点差集 57/57 CLEAR（0/0，含 P304 权威型 &g_townScriptFileList
-// 直压、TownAreaScript 循环外构造 + 块内 clear、ScanInt(NULL)、bool 直存 setne、
-// if/else 正极性守卫、Main 代落 T_Rect 去用户析构）。残余 byte 层 N 封顶：
-// ① N104/EH 类：我方 TownAreaScript+两 string 的 cleanup 链相对正常路径的块序与
-//    ORIG 相反（内容逐条等价，仅尾块互换）；② P223 单源尾岛合并（`je` 落点）；
-// ③ 少量 `mov %eax,A(%esp)` vs `(%esp)` 寻址形态。
+
 #include "STQuestScript/importTownScript.inc"
-{
-    // ORIG T 0x8aada90（382 条）：ScanType 失败=文件读完并成功收尾；各标签
-    // 的 ScanStr/ScanInt 按报告保留其原始检查边界。
-    if (!loadRDARScriptFile(g_townScriptBaseDirectory, path))
-    {
-        return false;
-    }
-    script->clear();
 
-    // ORIG：getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory, path)
-    getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory, path);
 
-    std::string line;
-    std::string sub;
-    int value = 0;
-    bool flag = false;
-    // ORIG 8aadb2b：TownAreaScript 在循环**外**构造（-0x54），[area] 段内只
-    // `call clear`（8aadc82）后复用同一对象。
-    TownAreaScript area;
-    // [P2S2STQuest 2026-09-11 负结论] 试形 `while (ScanType(...))` 已回滚：4.4 把
-    // while 的条件块放在**循环体之后**（我方 head 处 ScanType 段消失、整体 -1 条），
-    // 与 ORIG「条件在 head（08aadb33）+ 各 continue 直跳 head（10 条 `jmp 08aadb33`）」
-    // 不符。旧有 for(;;) 形 head 正确，仅多一个 continue 中继块（我方 0x69d1）。
-    // [P2S2STQuest 2026-09-11 负结论·残余 1 条] 我方 0x69d1 是 8 条 continue 的公共
-    // 中继块（`jmp 0x6577`）；ORIG 全部 continue 直跳 head（10 条 `jmp 08aadb33`，无
-    // 中继块）。探针 /tmp/p2/probe4.cpp（同构 for(;;)+`if(!ScanType)break`+10 个
-    // `if(...){...;continue;}`）**逐条复现我方形态**（9 条中继 + 末条直跳 .L14），
-    // 二分支版 /tmp/p2/probe2.cpp(v1) 才是 ORIG 形态；probe2.cpp(v2) 的 `goto next`、
-    // probe3.cpp(v7)/probe5.cpp(v14) 的 else-return 变体均**无法**消除中继 ⇒ 4.4 对
-    // 多分支 for(;;) 的 continue-label 合并启发式，源码层不可控（P223 族）。
-    for (;;)
-    {
-        if (!ScanType(line, true))
-        {
-            break;
-        }
-        if (line == "[name]")
-        {
-            ScanStr(&script->m_str4);
-            continue;
-        }
-        if (line == "[entering title]")
-        {
-            ScanStr(&script->m_str8);
-            continue;
-        }
-        if (line == "[entering title next]")
-        {
-            ScanStr(&script->m_str10);
-            continue;
-        }
-        if (line == "[cutscene image]")
-        {
-            ScanStr(&script->m_strc);
-            script->m_14 = ScanInt((bool*)0);   // ORIG：ScanInt 返回直接存（无检查）
-            continue;
-        }
-        if (line == "[dungeon what must be cleared]")
-        {
-            script->m_18 = ScanInt((bool*)0);
-            continue;
-        }
-        if (line == "[only server parsing dungeon what must be cleared]")
-        {
-            script->m_1c = ScanInt((bool*)0);
-            continue;
-        }
-        if (line == "[area]")
-        {
-            area.clear();
-            // ORIG 8aadc87 `movl $0x0,(%esp)` ⇒ 传 NULL，无检查；flag 全程用外层
-            // -0x19 槽（块内再声明会另占槽，P212）。
-            area.m_areaIndex = ScanInt((bool*)0);
-            ScanStr(&area.m_mapName);               // ORIG 8aadc9f 无检查
-            ScanStr(&sub);                          // ORIG 8aadca4 ScanStr（非 ScanType）
-            if (sub == "[minimap rect]")
-            {
-                // ORIG 8aadcca..8aadd75：T_Rect 复用 + 多个 rect；内层每次
-                // ScanInt 得到下一项，四项后的值直接作为下一矩形首项复用。
-                T_Rect r;
-                value = ScanInt(&flag);                 // 8aadcd5
-                while (flag)
-                {
-                    int i = 0;
-                    // [P2S2STQuest 2026-09-11] ORIG 8aadcec `jmp 08aadd30` = 首轮先跳
-                    // 条件检查 ⇒ 原码是 while（do/while 无此 jmp，我方旧形多 -1 条）。
-                    // 外层 while (flag) 保证进入时 flag 为真 ⇒ 与 do/while 行为等价。
-                    while (i <= 3 && flag)
-                    {
-                        if (i == 0)
-                            r.m_00 = value;
-                        else if (i == 1)
-                            r.m_08 = value;
-                        else if (i == 2)
-                            r.m_04 = value;
-                        else
-                            r.m_0c = value;
-                        value = ScanInt(&flag);         // 8aadd1e
-                        ++i;
-                    }                                    // 8aadd30
-                    area.m_rects.push_back(r);           // 8aadd4e
-                }
-                ScanStr(&sub);                      // ORIG 8aadd6f ScanStr
-            }
-            if (sub == "[use private store]")
-            {
-                value = ScanInt(&flag);             // ORIG 8aadd97
-                area.m_field24 = (value != 0);      // ORIG 8aadda2 setne（bool 直存）
-                ScanStr(&sub);                      // ORIG 8aaddb0 ScanStr
-            }
-            // 区域类型：normal/gate/fishing place/pub/dungeon gate/
-            //          safe zone against a / safe zone against b
-            if (sub == "[normal]")
-                area.m_areaType = 0;
-            else if (sub == "[gate]")
-                area.m_areaType = 1;
-            else if (sub == "[fishing place]")
-                area.m_areaType = 2;
-            else if (sub == "[pub]")
-                area.m_areaType = 3;
-            else if (sub == "[dungeon gate]")
-                area.m_areaType = 4;
-            else if (sub == "[safe zone against a]")
-                area.m_areaType = 5;
-            else if (sub == "[safe zone against b]")
-                area.m_areaType = 6;
-            // [P2S2STQuest 2026-09-11] ORIG 无末位 else：8aade90 `je 08aade99` 直接把
-            // [safe zone against b] 不匹配的路径送到共同后继（无 `jmp`+`movl $0x0,-0x4c`
-            // 两条）；未匹配标签时 m_areaType 保持 area.clear() 后的值。
-            // ORIG 8aade99..8aadec7：循环 ScanInt 直到 flag 失败，全部 push
-            for (;;)
-            {
-                value = ScanInt(&flag);
-                if (!flag)
-                    break;
-                area.m_field18.push_back(value);
-            }
-            script->m_areas[area.m_areaIndex] = area;
-            continue;
-        }
-        if (line == "[limit level]")
-        {
-            // [P2S2STQuest 2026-09-11] ORIG 8aadf15 `mov %eax,-0x18(%ebp)` = 外层 value
-            // 槽（非块内新局部）；块内 `int level` 会另占浅槽并把全部槽位压低 8、
-            // 帧 0x60→0x70（§P212 同族）。
-            value = ScanInt(&flag);
-            // ORIG 8aadf18：`test; je <return false 块（在后）>` ⇒ if/else 正极性
-            // （早返形 4.4 恒把 return false 块前置，P59/P222）。
-            if (flag)
-            {
-                script->m_3c = value;
-            }
-            else
-            {
-                return false;
-            }
-            continue;
-        }
-        if (line == "[need quest]")
-        {
-            // ORIG 8aadf5b `mov %eax,-0x18(%ebp)` ⇒ 同为外层 value 槽复用。
-            value = ScanInt(&flag);
-            if (flag)
-            {
-                script->m_40 = value;
-            }
-            else
-            {
-                return false;
-            }
-            continue;
-        }
-        // 未知键：忽略（回到循环读下一行）
-    }
-    // ORIG 尾部：script->m_field0 = g_townScriptFileList.FindIndexByFullScan(path)
-    script->m_field0 = g_townScriptFileList.FindIndexByFullScan(path);
-    return true;
-}
-
-// [b28d-solo-STQuestScript · P0/P244/P171] ORIG 0x08aaf554（257 条）逐条还原：
-// ①具名指针副本 s（ORIG `mov 0x8(%ebp),%eax; mov %eax,-0x1c; mov -0x1c,%eax`
-//   槽往返 ⇒ 原码有具名指针局部，P0）；②pair 循环外默认构造 + 成员赋值；
-// ③各段尾 `sub` 与闭合标签比较（ORIG 中 sub 全函数无写入点 = 原码遗留恒假
-//   死条件，P171 照抄）；④ScanType 失败/[training quest end] 走统一 `return ok`。
-// [§6.2 三件套] 2026-09-09 复核：257 vs 253（gap 4）；p167 30/30 CLEAR。
-// 逐条归一化 diff 实测 4 处残差全为跳转中继岛/对齐 nop（无语义）：
-// ① +0x5e..+0x63 ORIG `jmp;nop;jmp;nop` 双中继岛（[level] else 的 continue
-//    落 +0x5b4、[training quest end] 不等落 +0x5b7）vs 我方单 `jmp`（差 2）；
-// ② +0x71e nop（`je` 后 `jmp` 前）与 +0x802 nop 两处 4.1 对齐填充（差 2）；
-// ③ +0x680/+0x685 两条同目标 jmp（5b8）4.4 合并为一条（差 1），我方
-//    +0x2cb/+0x2ee 侧多一条 jmp（+1）⇒ 净 -4。
-// 4.4 对同址目标恒 jump-thread（P223 负例），nop 属 §6.1 对齐产物 ⇒ N 封顶。
-// 尾部 `movzbl -0x25(%ebp),%ebx` 已与 ORIG 单段形一致（旧 N18a 残差已消）。
-// [2026-09-10 SweepSTQuestScript-2] [level] 分支补 2 处显式 continue
-// （ORIG 0x8aaf7d6 / 0x8aaf802 两条 `jmp loop_head`）⇒ raw 253→254；
-// 残余 gap 3 = ORIG 循环头前 2 组 `jmp loop_head;nop`（0x8aaf5b2 入口 +
-// 0x8aaf5b5，后者是 0x8aaf7df `jne` 的落点）被 4.4 jump-thread 合并为 1 组，
-// 0x8aaf685 中继同被合并 ⇒ P223 族封顶（无合法 C++ 源形可分裂）。
-// 四数 458/917/0/12 不回退；p167 无 ORIG-only 游戏域 callee。
-// [P2S2STQuest 2026-09-11 复核] 本轮实测 verdict=DIFF orig_insns=257 our_insns=255
-// gap=+2，4 处残差全为 jmp 中继/对齐（ORIG 0x8aaf5b5 中继块被 0x8aaf7df `jne` 引用、
-// 0x8aaf680/0x8aaf685 双 `jmp`、我方 +0x2cb/+0x2ee 侧各多一条）⇒ 与 importTownScript
-// 残余块同族（4.4 continue-label 布局启发式，本轮已被 /tmp/p2/probe4.cpp 定性）
-// ⇒ 封顶维持，无源码层旋钮。
 #include "STQuestScript/importTrainingQuestScript.inc"
-{
-    if (!loadRDARScriptFile("", path))
-    {
-        return 0;
-    }
-    TrainingQuestScript* s = script;
-    s->clear();
-    std::string line;
-    int prev = 0;
-    std::string sub;
-    bool ok = false;
-    for (;;)
-    {
-        if (!ScanType(line, true))
-        {
-            break;
-        }
-        if (line == "[select prob]")
-        {
-            s->m_selectProb.m_count = ScanInt(&ok);
-            if (!ok)
-            {
-                break;
-            }
-            std::pair<int, int> p;
-            for (;;)
-            {
-                p.first = ScanInt(&ok);
-                if (!ok)
-                {
-                    break;
-                }
-                p.second = ScanInt(&ok);
-                if (!ok)
-                {
-                    break;
-                }
-                s->m_selectProb.m_pairs.push_back(p);
-                // p167：ORIG 用 _ZSteq…（operator==）⇒ 原码正极性 ==；相等→退出循环。
-                if (sub == "[/select prob]")
-                {
-                    break;
-                }
-            }
-            continue;
-        }
-        if (line == "[rand value]")
-        {
-            for (int day = 0; day <= 0x16d; ++day)
-            {
-                int count = 0;
-                while (count < s->m_selectProb.m_count)
-                {
-                    int v = ScanInt(&ok);
-                    if (!ok)
-                    {
-                        break;
-                    }
-                    s->m_selectProb.m_dayProb[day].push_back(v);
-                    ++count;
-                }
-                if (sub == "[/rand value]")
-                {
-                    break;
-                }
-            }
-            continue;
-        }
-        if (line == "[level]")
-        {
-            int level = ScanInt((bool*)0);
-            if (prev + 1 == level)
-            {
-                // ORIG：递增序号段的数值进 m_questProb[prev]，行首失败仅结束该段。
-                for (;;)
-                {
-                    int value = ScanInt(&ok);
-                    if (!ok)
-                    {
-                        break;
-                    }
-                    s->m_questProb[prev].push_back(value);
-                    if (sub == "[/level]")
-                    {
-                        break;
-                    }
-                }
-                prev = level;
-                continue;
-            }
-            else if (level == -100)
-            {
-                // ORIG：-100 段的数值进 m_sameApplyQuest。
-                for (;;)
-                {
-                    int value = ScanInt(&ok);
-                    if (!ok)
-                    {
-                        break;
-                    }
-                    s->m_sameApplyQuest.push_back(value);
-                    if (sub == "[/level]")
-                    {
-                        break;
-                    }
-                }
-                continue;
-            }
-            continue;
-        }
-        if (line == "[training quest end]")
-        {
-            ok = true;
-            break;
-        }
-        // 未知键：忽略（回循环读下一行）
-    }
-    return ok;
-}
+
 
 // ORIG B 0x09500380：脚本根目录（EpisodeScript 等 loadRDARScriptFile 首参）。
 char g_questScriptBaseDirectory[0x100];
 
-// ORIG T 0x8a60f78（0x95）：0x14 字节标量区清零（+0x10 为字节）+ m_str20 构造
-// + m_field24 清零 + 11 个 dialog 指针清零（i=0..10，P151）。
 #include "STQuestScript/dungeonEventHanaseStruct.inc"
-    : m_field0(0), m_field4(0), m_field8(0), m_fieldc(0), m_field10(0),
-      m_field14(0), m_field18(0), m_field1c(0), m_str20(), m_field24(0)
-{
-    for (int i = 0; i <= 10; ++i)
-        m_dialogs[i] = 0;
-}
 
-// ORIG T 0x8a6100e：逐字段拷贝 + 深拷贝 11 个 dialog 串
-// （new std::string + operator=，非拷贝构造；ORIG asm _Znwj→SsC1→SsaSERKSs 实证）。
+
 #include "STQuestScript/dungeonEventHanaseStruct_1.inc"
-    const dungeonEventHanaseStruct& o)
-    : m_field0(o.m_field0), m_field4(o.m_field4), m_field8(o.m_field8),
-      m_fieldc(o.m_fieldc), m_field10(o.m_field10), m_field14(o.m_field14),
-      m_field18(o.m_field18), m_field1c(o.m_field1c), m_str20(o.m_str20),
-      m_field24(o.m_field24)
-{
-    for (int i = 0; i <= 10; ++i)
-    {
-        m_dialogs[i] = 0;
-        if (o.m_dialogs[i] != 0)
-        {
-            m_dialogs[i] = new std::string;
-            *m_dialogs[i] = *o.m_dialogs[i];
-        }
-    }
-}
 
-// ORIG T 0x8a615fe（0x44）：m_field24!=0 且 0<=job<=10 且 m_dialogs[job]!=0 →
-// 返回 m_dialogs[job]；否则返回 &m_str20（+0x20）。
+
 #include "STQuestScript/getNewDialog.inc"
-{
-    if (m_field24 != 0 && static_cast<int>(job) >= 0 &&
-        static_cast<int>(job) <= 10 && m_dialogs[job] != 0)
-    {
-        return m_dialogs[job];
-    }
-    return &m_str20;
-}
+

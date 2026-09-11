@@ -1,3 +1,6 @@
+// ORIG _ZN13user_creature12CDBMsgSender15UseFeedCreatureEii W 0x0833fc5a：
+// m_stream 空 → 0；GetInBuffer<SIG_CREATURE_ITEM> → memset 0x74 →
+// m_hdr|=2；+0x30(m_addInfo2)=uid；+0x44(m_stomachValue)=饱食度；返回 1。
 bool CDBMsgSender::UseFeedCreature(int uid, int stomachValue)
 {
     if (m_stream == 0)

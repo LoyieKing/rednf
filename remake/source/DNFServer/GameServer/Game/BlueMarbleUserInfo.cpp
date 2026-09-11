@@ -40,167 +40,73 @@ struct BM_ScriptMaxBuff
 // BlueMarbleUserInfo 实现
 // ============================================================================
 
-// ORIG 0x080d6a90：标量按声明序 init-list 直写 → 成员 C1 call(+0x10/+0x1c)
-// → +0x24 直写 → 显式 reset() 两 call（C1 后二次 reset 语义照抄）。
 #include "BlueMarbleUserInfo/BlueMarbleUserInfo.inc"
-    : m_user(0),
-      m_userState((BlueMarbleUserState::T)0),
-      m_boardZone(1),
-      m_grade((BlueMarbleUserGrade::T)4),
-      m_buff(),
-      m_tileIndex(),
-      m_pScript(0)
-{
-    m_buff.reset();
-    m_tileIndex.reset();
-}
+
 
 #include "BlueMarbleUserInfo/dtor_BlueMarbleUserInfo.inc"
-{
-}
+
 
 #include "BlueMarbleUserInfo/resetBlueMarbleUserInfo.inc"
-{
-    m_user = 0;
-    m_userState = (BlueMarbleUserState::T)0;
-    m_boardZone = 1;
-    m_grade = (BlueMarbleUserGrade::T)4;
-    resetBuff();   // ORIG BuffInfo::reset（m_exp=m_gold=m_drop=1）
-    resetIndex();
-}
+
 #include "BlueMarbleUserInfo/resetBuff.inc"
-{
-    m_buff.reset();   // ORIG BuffInfo::reset（定义在 BuffInfo.cpp）
-}
+
 
 #include "BlueMarbleUserInfo/resetIndex.inc"
-{
-    m_tileIndex.reset();   // ORIG TileIndexInfo::reset
-}
+
 
 #include "BlueMarbleUserInfo/setUser.inc"
-{
-    m_user = user;
-}
+
 
 #include "BlueMarbleUserInfo/getUser.inc"
-{
-    return m_user;
-}
+
 
 #include "BlueMarbleUserInfo/setScript.inc"
-{
-    m_pScript = script;
-}
+
 
 #include "BlueMarbleUserInfo/setUserState.inc"
-{
-    m_userState = state;
-}
+
 
 #include "BlueMarbleUserInfo/getUserState.inc"
-{
-    return m_userState;
-}
+
 
 #include "BlueMarbleUserInfo/setBoardZone.inc"
-{
-    if (m_boardZone + zone >= pos)
-    {
-        m_boardZone = pos;
-    }
-    else if (m_boardZone + zone <= 1)
-    {
-        m_boardZone = 1;
-    }
-    else
-    {
-        m_boardZone = m_boardZone + zone;
-    }
-}
+
 
 #include "BlueMarbleUserInfo/getBoardZone.inc"
-{
-    return m_boardZone;
-}
+
 
 #include "BlueMarbleUserInfo/setGrade.inc"
-{
-    m_grade = grade;
-}
+
 
 #include "BlueMarbleUserInfo/getGrade.inc"
-{
-    return m_grade;
-}
+
 
 #include "BlueMarbleUserInfo/setDungeon.inc"
-{
-    m_tileIndex.m_dungeon = dungeon;
-}
+
 
 #include "BlueMarbleUserInfo/getDungeon.inc"
-{
-    return m_tileIndex.m_dungeon;
-}
+
 
 #include "BlueMarbleUserInfo/setItem.inc"
-{
-    m_tileIndex.m_item = itemIdx;
-}
+
 
 #include "BlueMarbleUserInfo/getItem.inc"
-{
-    return m_tileIndex.m_item;
-}
+
 
 #include "BlueMarbleUserInfo/setExp.inc"
-{
-    if (m_buff.m_exp * exp >= ((BM_ScriptMaxBuff*)m_pScript)->m_maxBuffValue)
-    {
-        m_buff.m_exp = ((BM_ScriptMaxBuff*)m_pScript)->m_maxBuffValue;
-    }
-    else
-    {
-        m_buff.m_exp = m_buff.m_exp * exp;
-    }
-}
+
 
 #include "BlueMarbleUserInfo/getExp.inc"
-{
-    return m_buff.m_exp;
-}
+
 
 #include "BlueMarbleUserInfo/setGold.inc"
-{
-    if (m_buff.m_gold * gold >= ((BM_ScriptMaxBuff*)m_pScript)->m_maxBuffValue)
-    {
-        m_buff.m_gold = ((BM_ScriptMaxBuff*)m_pScript)->m_maxBuffValue;
-    }
-    else
-    {
-        m_buff.m_gold = m_buff.m_gold * gold;
-    }
-}
+
 
 #include "BlueMarbleUserInfo/getGold.inc"
-{
-    return m_buff.m_gold;
-}
+
 
 #include "BlueMarbleUserInfo/setDrop.inc"
-{
-    if (m_buff.m_drop * drop >= ((BM_ScriptMaxBuff*)m_pScript)->m_maxBuffValue)
-    {
-        m_buff.m_drop = ((BM_ScriptMaxBuff*)m_pScript)->m_maxBuffValue;
-    }
-    else
-    {
-        m_buff.m_drop = m_buff.m_drop * drop;
-    }
-}
+
 
 #include "BlueMarbleUserInfo/getDrop.inc"
-{
-    return m_buff.m_drop;
-}
+

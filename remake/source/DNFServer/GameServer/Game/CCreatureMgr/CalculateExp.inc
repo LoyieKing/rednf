@@ -1,3 +1,7 @@
+// ORIG _ZN13user_creature9CCreature12CalculateExpEiRbP5CUser T 0x83377b6
+// （CalculateExp.md；除数 .rodata 0x8c2f450 = 100.0f 实证）：
+// gained = exp*(GetAddExp(0x17)+GetAddExp(0x18)+GetAddExp(0x19))/100 截断取整；
+// m_exp += gained + exp；新等级 = GetExpLevel(m_exp)，高于当前则置 levelUp。
 void CCreature::CalculateExp(int exp, bool& levelUp, CUser* user)
 {
     // ORIG 0x83377bc/0x83377c4：两个 float 槽 entry 各自两段物化清零

@@ -1,3 +1,9 @@
+// [b28d-29] N82：帧 0x7c vs 0x70 + 局部对象槽平移（-0x40 vs -0x34），调用点全等  (ORIG 0x081ed09a insn 409->408)
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 407（ORIG 409 / ours 408），残差=N7/N82 帧与 callee-saved 角色/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// ORIG T 0x081ed09a _Z12EnterPVPRoomP5CUserP8PvP_Room14ENUM_CMDPACKETPKc
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 407（ORIG 409 / ours 408，gap 1），
+// p167 调用点差集 CLEAR；残差=N7（callee-saved 角色互换）/块序/P75 实参装载时刻，
+// 语义集合全等 ⇒ N7 封顶（跨版本寄存器分配，无源码形可择）。
 // [N8BigTURest 2026-09-11] 返回类型由 int 改 bool：ORIG 的
 // _ZZ12EnterPVPRoom…E19__PRETTY_FUNCTION__ 实字节 = "bool EnterPVPRoom(CUser*,
 // PvP_Room*, ENUM_CMDPACKET, const char*)"（.rodata 直证；mangled 不含返回类型）。

@@ -1,1 +1,4 @@
 RandomOptionGive::RandomOptionGive()
+{
+    clear();
+}

@@ -1,3 +1,6 @@
+// ORIG 0x0815b266 T LoadGeolocation::sendCountryData（报告 sendCountryData.md）：
+// Acquire(...,0x144) → internal_stream(guard, 4, -1) → GetInBuffer<SigLoadGeolocation>
+// null→throw "stream" → setData → put(Q1)。
 void LoadGeolocation::sendCountryData(Taiwan::SigLoadGeolocation& data)
 {
     // P89：单一视图表达式（合并 stream 局部）

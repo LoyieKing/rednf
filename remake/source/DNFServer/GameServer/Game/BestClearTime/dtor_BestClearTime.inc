@@ -1,1 +1,3 @@
 BestClearTime::~BestClearTime()
+{
+}

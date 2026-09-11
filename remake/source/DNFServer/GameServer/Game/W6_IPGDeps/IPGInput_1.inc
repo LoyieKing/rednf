@@ -1,3 +1,9 @@
+// ORIG T 0x080ffca4 (0x203)。
+// [b28d-solo-W6_IPGDeps] verdict=AE（121=121）。修法：① 删 in 具名局部，全字段走
+// `data->m_cmd.m_input.*` 成员链（ORIG 各点 add/lea $0xdd/0xe8/… 重算，P0/P183）；
+// ② SIPGDataInputView::m_price unsigned→int（P211 档③）⇒ ORIG 0x080ffdxx
+// `mov 0x14(%ebp),%edx; mov -0xc(%ebp),%eax; mov %edx,0x98(%eax)` RHS-first 3 条形。
+// P167 CLEAR（18/18）。
 void CIPGHelper::IPGInput(CUser* user, unsigned char serviceType, unsigned int price,
                           const char* p4, const char* p5, const char* p6,
                           const char* p7, const char* p8, void* callback)

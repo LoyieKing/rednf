@@ -1,3 +1,4 @@
+// ORIG 0x0811db60：最后一个非零字节下标+1（无非零字节返回 0）。
 int CItemDictionary::getLengthBinary() const
 {
     int length = 0;

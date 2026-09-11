@@ -1,3 +1,5 @@
+// ---------------------------------------------------------------------------
+// ORIG 0x081b9dc6：IsEventing(0) 为假时置事件标志并打日志（带 server 号）。
 void CNotApplyBalkeunEvent::StartEvent()
 {
     if (!IsEventing(0))

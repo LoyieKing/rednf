@@ -1,3 +1,6 @@
+// ORIG _ZN13user_creature9CCreature13SelectEvoluteEP5CUser T 0x8337e48
+// （SelectEvolute.md）：与 Evolute 同构，差异仅进化目标选取——
+// m_field4d<=4 取 GET_BTypeCreature，否则 GET_ATypeCreature（==-1 拒绝）。
 bool CCreature::SelectEvolute(CUser* user)
 {
     if (m_script == 0)

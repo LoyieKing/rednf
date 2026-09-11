@@ -1,3 +1,8 @@
+// ORIG _ZN13user_creature12CDBMsgSender15EvoluteCreatureEii W 0x833fd74
+// （objdump 逐条转写）：m_stream 空 → 0；buf 清 0x74 后 m_hdr|=0x40；
+// compat.m_itemIdx(+0x08)=新宠物物品 idx；m_addInfo2(+0x30)=uid；返回 1。
+// [b28d-23 NEAR·N76] 同 HatchCreature：+0x8 store 装载序不可翻。ORIG 0x0833fd74
+// [b28d-solo-CCreatureMgr AE] P235 具名视角（同 HatchCreature）；ORIG 0x833fd74
 bool CDBMsgSender::EvoluteCreature(int uid, int itemIdx)
 {
     if (m_stream == 0)

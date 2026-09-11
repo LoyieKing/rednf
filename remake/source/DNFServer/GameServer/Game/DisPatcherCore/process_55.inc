@@ -1,3 +1,9 @@
+// ORIG 0x081c5dec T _ZN21DisPatcher_PvPTimeout7processEP5CUserR8MSG_BASER9ParamBase
+// （docs/class_func_reports/DisPatcher_PvPTimeout/process.md 全文转写）
+// err=check_error（ORIG 0x081c5ebe：get_state!=7 → 0x13）；>0 返回 -1；<0
+// LineFunc(0x14b7,pretty,0,acc_id)；==0：room=user->GetPVPRoom()（空则
+// LineFunc(0x14bc,pretty,0,acc_id)），否则 ret=room->time_out((int*)(msg+0xd))
+// —— msg+0xd 即 read() 读入的 8 个 seat int 数组首址 —— param+0x4=ret，返回 err。
 int DisPatcher_PvPTimeout::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

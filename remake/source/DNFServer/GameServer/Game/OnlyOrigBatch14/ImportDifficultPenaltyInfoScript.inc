@@ -1,3 +1,6 @@
+// ===== _Z32ImportDifficultPenaltyInfoScriptPKcR20DifficultPenaltyInfo —— ORIG 0x0890a33e =====
+// loadRDARScriptFile(dir="", path) 失败 → 返回 0x1bdb；逐行 ScanType(token, true)：
+// 遇 "[COMMON TRAP EXPLOSION]" 段读取 5 个 int（ScanInt 成功才写入 out）。
 int ImportDifficultPenaltyInfoScript(const char* path, DifficultPenaltyInfo& out)
 {
     if (!loadRDARScriptFile("", path))

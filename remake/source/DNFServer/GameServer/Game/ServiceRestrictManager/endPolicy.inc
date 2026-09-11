@@ -1,1 +1,3 @@
 void NullPolicy::endPolicy()
+{
+}

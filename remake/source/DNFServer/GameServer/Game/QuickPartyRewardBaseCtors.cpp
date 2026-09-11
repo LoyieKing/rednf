@@ -23,8 +23,6 @@ namespace QuickParty
 {
 
 #include "QuickPartyRewardBaseCtors/IRewardType.inc"
-    : m_data(data)
-{
-}
+
 
 }  // namespace QuickParty

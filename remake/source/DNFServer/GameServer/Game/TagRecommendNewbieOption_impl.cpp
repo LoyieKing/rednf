@@ -21,10 +21,6 @@
 // 但本 TU 四数 0/2/0/0/1 → 0/0/0/0/0（ae −2）⇒ 按 TU 口径回滚，判词保留。
 namespace
 {
-// 内联成员无调用点不产出符号；此处构造/析构/clear 强制实例化。
 #include "TagRecommendNewbieOption_impl/force_emit.inc"
-{
-    tagRecommendNewbieOption t;
-    t.clear();
-}
+
 }

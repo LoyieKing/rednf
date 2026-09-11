@@ -1,3 +1,9 @@
+// ORIG T 0x0810034e (0x18f)。返回值恒为请求临时块地址（调用前已释放）——ORIG 如此。
+// [b28d-solo-W6_IPGDeps] verdict=NEAR/N7 封顶（447 口径 108=108，残差仅寄存器角色）。
+// 修法：删 out/rv 具名局部，全字段走 `req->m_cmd.m_output.*` /
+// `res->m_cmd.m_output.*` 成员链（ORIG 各点 add $0x69/0x71/0x7d/0x91/0xf5/0x173
+// 重算，P0/P183）。残差=虚调用目标寄存器 ORIG %edx vs 4.4.7 %eax（N7）。
+// 双后端读数同 Finalize：4.4.6 后端下 AE。P167 CLEAR（11/11）。
 SIPGData* CIPGHelper::IPGOutputSimulation(CUser* user,
                                           const char* p2, const char* p3,
                                           const char* p4, const char* p5,

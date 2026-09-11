@@ -1,1 +1,3 @@
 AvatarConvert::~AvatarConvert()
+{
+}

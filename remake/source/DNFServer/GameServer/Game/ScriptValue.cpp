@@ -77,19 +77,6 @@ unsigned int getChangeStatusType(std::string& s);      // 0x8892b0d
 unsigned int getTargetToEnumValue(std::string& s);     // 0x88c2c34
 #include "ScriptValue/getActiveStatusToEnumValue.inc"
 
-// [b28d-ScriptValue 判据㉓ 符号绑定] ORIG 五个符号全为 **W**（弱绑定）：
-//   C1/C2 0x088c4200 W 0x38、C1ERKS_/C2ERKS_ 0x083661e2 W 0x3e、aSERKS_ 0x08366220 W 0x41；
-// 我方原为 T（强绑定，唯一 .cpp 外联定义）。ORIG 的两处地址分布说明其定义在头内、
-// 由各使用点发射；按 Main 批准的「属主对自己 TU 内定义加 __attribute__((weak))」
-// 单点修法（SweepCipher 广播 判据㉓ 清单口径），此处三处定义加 weak ⇒ 绑定对齐 W，
-// 尺寸/函数体/mangled 零变化（本类全仓仅本 TU 定义，无覆盖风险）。
-// ORIG 0x088c4200：type=3（空标记），value[0..3]=0（循环 0..3）。
-__attribute__((weak)) ScriptValue::ScriptValue()
-{
-    type = 3;
-    for (int i = 0; i < 4; ++i)
-        value[i] = 0.0f;
-}
 
 // ORIG 0x083661e2：逐字段拷贝（type + 4×value）。
 __attribute__((weak)) ScriptValue::ScriptValue(const ScriptValue& other)
@@ -108,172 +95,17 @@ __attribute__((weak)) ScriptValue& ScriptValue::operator=(const ScriptValue& oth
     return *this;
 }
 
-// ORIG 0x088bd381
-// ORIG 0x088bd381：switch(tok) 树（cmp $0x3 为根；DECIMAL=2/FLOAT=4/STRING=7）。
 #include "ScriptValue/scanScriptValue.inc"
-{
-    // getToken() 返回 DNFLEX_TOKEN（ORIG 底层 int）；本 TU 不引入该枚举类型
-    // （见顶部 P338 说明），用 int 承载——二进制与枚举形相同。
-    int tok = g_dnfLex.getToken();
-    switch (tok)
-    {
-    // [b28d-ScriptValue P324] 叶块物理序 = 书写序：ORIG 0x3ca(STRING)/0x4e1(DECIMAL)/
-    // 0x509(HEXADECIMAL)/0x531(FLOAT) ⇒ 书写序照此排列（决策树按值域，与本序无关）。
-    case DNF_TOK_STRING:
-        {
-        std::string key = toTString(g_dnfLex.getString());
-        // [b28d-ScriptValue P333/P177] ORIG 0x088bd381 STRING 段 = 「首建表、之后查表」
-        // 状态机（ORIG 指纹：0x610/0x6e5/0x808 三处 `movzbl __inited; xor $1; test; je`；
-        // insert 尾 `jmp` 下一 case 体头；`movb $0x1,__inited` 后 `jmp 0x427` 回跳重查）。
-        // retry 标签置于 static 三件套声明之前 ⇒ 每轮穿 guard（P177）；id==0 为建表哨兵，
-        // case 0 与 case 0x674 合并体 + fallthrough 链一次调用插完两键。符号名照 ORIG
-        // （_ZZ…E8__lookup / E11__init_lock / E8__inited，P187 双侧核对）。
-    retry:
-        static std::map<const char*, int, less_TCHAR> __lookup;
-        static SpinLock __init_lock;
-        static bool __inited = false;
 
-        int id;
-        if (__inited)
-        {
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(key.c_str());
-            id = (it != __lookup.end()) ? it->second : -1;
-        }
-        else
-        {
-            __init_lock.enter();
-            if (__inited)
-            {
-                __init_lock.leave();
-                goto retry;
-            }
-            id = 0;
-        }
 
-        switch (id)
-        {
-        case 0:
-        case 0x674:               // "skill level info"
-            if (!__inited)
-            {
-                __lookup.insert(std::pair<const char* const, int>("skill level info", 0x674));
-                // 不 break：首轮建表贯穿到下一 case 继续插键（ORIG fallthrough 链）
-            }
-            else
-            {
-                v.type = 1;
-                if (!ScanFloat(&v.value[0])) return false;
-                if (!ScanFloat(&v.value[1])) return false;
-                if (!ScanFloat(&v.value[2])) return false;
-                return true;
-            }
-        case 0x686:               // "object number"
-            if (!__inited)
-            {
-                __lookup.insert(std::pair<const char* const, int>("object number", 0x686));
-                break;
-            }
-            else
-            {
-                v.type = 2;
-                if (!ScanStr(&key)) return false;
-                // ORIG 0x088bd76b：零扩展 64 位（`mov $0,%edx`）→ fildll → fstps
-                v.value[0] = static_cast<float>(
-                    static_cast<long long>(getTargetToEnumValue(key)));
-                if (!ScanFloat(&v.value[1])) return false;
-                if (!ScanStr(&key)) return false;
-                v.value[2] = static_cast<float>(getActiveStatusToEnumValue(key));
-                if (!ScanFloat(&v.value[3])) return false;
-                return true;
-            }
-        default:
-            break;
-        }
-
-        if (!__inited)
-        {
-            __init_lock.leave();
-            __inited = true;
-            goto retry;
-        }
-        else
-        {
-            return false;
-        }
-        }
-    case DNF_TOK_DECIMAL:
-        v.type = 0;
-        v.value[0] = static_cast<float>(g_dnfLex.getDecimal());
-        return true;
-    case DNF_TOK_HEXADECIMAL:
-        v.type = 0;
-        v.value[0] = static_cast<float>(g_dnfLex.getHexDecimal());
-        return true;
-    case DNF_TOK_FLOAT:
-        v.type = 0;
-        v.value[0] = g_dnfLex.getFloat();
-        return true;
-    default:
-        return false;
-    }
-}
-
-// ORIG 0x088bd8e6：默认构造 ScriptValue → scanScriptValue → 成功则 pushScriptValue。
 #include "ScriptValue/scanScriptValue_1.inc"
-{
-    ScriptValue v;
-    // ORIG 0x088bd902 `xor $0x1; test; je +0x2a`：negated 判定走成功路（pushScriptValue;
-    // mov $1 直落），失败 `mov $0;jmp` 岛紧贴 test 之后。`if(!f(v))return false;`
-    // 负向先返形态复现该块序（P191 早返块落点）。
-    if (!scanScriptValue(v))
-    {
-        return false;
-    }
-    else
-    {
-        pushScriptValue(values, v);
-    }
-    return true;
-}
 
-// ORIG 0x088bd929：先 push type（转 float），再 push value[0..3]。
+
 #include "ScriptValue/pushScriptValue.inc"
-{
-    values.push_back(static_cast<float>(v.type));
-    for (int i = 0; i < 4; ++i)
-        values.push_back(v.value[i]);
-}
 
-// ORIG 0x088bda1c：
-//   ScanTypeOrStr(isType, s, true)；失败或 isType==true → false。
-//   data.type = getChangeStatusType(s)；
-//   ScanStr(&s)；失败 → false；
-//   data.percent = (s == "%") ? 1 : 0；
-//   ok=false；data.value = (float)ScanInt(&ok)；ok==false → false；否则 true。
-// [b28d-ScriptValue P211 档①] store 方向：ORIG @0x088bda7b 为 RHS 值先 +
-// `mov %eax,%edx` 中转（4 条）⇒ 字段(int) 与 callee 返回**异型**。正解 = 本 TU
-// 镜像声明 `unsigned int getChangeStatusType(...)`（返回类型不入 mangled、ABI 同；
-// 调用点 cast 会被前端折叠，故须改声明）。字段与全部消费段零改动。
+
 #include "ScriptValue/scanChangeStatusData.inc"
-{
-    std::string s;
-    bool isType = false;
-    if (!ScanTypeOrStr(isType, s, true)) return false;
-    if (isType) return false;
-    data.type = getChangeStatusType(s);
-    if (!ScanStr(&s)) return false;
-    data.percent = (s == "%") ? 1 : 0;
-    bool ok = false;
-    data.value = (float)ScanInt(&ok);
-    if (!ok) return false;
-    return true;
-}
 
-// ORIG 0x088bdb27：scanChangeStatusData(vs.status) 成功后
-// scanScriptValue(vs.value)（vs +0xc），返回其结果；否则 false。
+
 #include "ScriptValue/scanVariableStat.inc"
-{
-    if (!scanChangeStatusData(vs.status)) return false;
-    return scanScriptValue(vs.value);
-}
+

@@ -1,3 +1,4 @@
+// ORIG W 0x0844d584 _ZN21STBreakAwayMemberData5clearEv。
 void STBreakAwayMemberData::clear()
 {
     m_field00 = 0;

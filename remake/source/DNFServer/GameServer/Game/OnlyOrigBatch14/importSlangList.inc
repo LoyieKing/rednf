@@ -1,3 +1,4 @@
+// ORIG T 0x088ffaa9 _Z15importSlangListPcPSt6vectorISsSaISsEE。
 bool importSlangList(char* path, std::vector<std::string>* out)
 {
     // [b28d-solo-OnlyOrigBatch14] 真语义 bug（同 importQuestPieceScript）：

@@ -37,36 +37,15 @@ CItemDictionary::CItemDictionary() {}
 CItemDictionary::~CItemDictionary() {}
 // ORIG 0x0811d774：memset(this+5,0,0x1388)；不触碰 m_gainItemList。
 void CItemDictionary::_reset() { std::memset(m_data, 0, kBinaryLength); }
-// ORIG 0x0811d63e：DB 保存（SIG_ITEM_DICTIONARY_FLAG = int characNo +
-// 5000 字节位图，共 0x138c），队列 DB_Q(2)。
 #include "CItemDictionary/_saveData.inc"
-// ORIG 0x0811d7e0：memcpy(out+4, this+5, 0x1388)，无空检查。
-// ORIG out 参数先物化到局部（-0xc）再回读 +4 ⇒ 源码经局部指针。
 #include "CItemDictionary/getData.inc"
 #include "CItemDictionary/getGainItemCount.inc"
-// ORIG 0x0811dba6（ret $0x4 克隆；逐条转写）：遍历位图（+0x5 起），置位处
-// itemIdx=i*8+bit 经 G_CDataManager()->m_mapA940（+0xa940）翻译后
-// push_back(map[itemIdx])；map 无此键则跳过。
-// ORIG 为按值返回（ret $0x4 NRV 隐藏参数 @ ebp+8、this @ ebp+0xc；引用返回
-// 少 NRV 参数、直接返回 &成员，符号同 mangled 但语义不同），故用局部对象。
 #include "CItemDictionary/getGainItemList.inc"
-// ORIG 0x0811da32：index=flag>>3、bit=flag&7 越界（index∉[0,0x1387] 或 bit∉[0,7]）
-// → logFormat 后返回 1；否则返回 (m_data[index]>>bit)&1。item 参数仅入日志。
 #include "CItemDictionary/getItemCheckFlag.inc"
 
-// ORIG 0x0811db60：最后一个非零字节下标+1（无非零字节返回 0）。
 #include "CItemDictionary/getLengthBinary.inc"
-// ORIG 0x0811d79a：先经虚表槽7 调 _reset()，再 memcpy(data+4 → this+5, 0x1388)，返回 true。
 #include "CItemDictionary/loadData.inc"
-// ORIG 0x0811dce6：向用户发送单项词典标记（接口包 0x181：byte=1 + int item）。
 #include "CItemDictionary/sendItemDictionaryInfo.inc"
 #include "CItemDictionary/sendItemDictionaryInfoTotal.inc"
-// ORIG 0x0811d80e：user==0 返回；item 存在（find_item）且 is_stackable → 返回
-// （仅"存在且非堆叠"继续）；m_mapA928.find(item) 命中则
-// setItemCheckFlag(user, item, map[item])。
 #include "CItemDictionary/setGainItemFlag.inc"
-// ORIG 0x0811d9d7：user==0 直接返回；index=flag>>3、bit=flag&7 越界（
-// index∉[0,0x1387] 或 bit∉[0,7]）→ logFormat 后返回；getItemCheckFlag(-1,flag)
-// 已置位则跳过；否则 m_data[index] += (1<<bit)（加法非 or），
-// sendItemDictionaryInfo + CData::alter()。
 #include "CItemDictionary/setItemCheckFlag.inc"

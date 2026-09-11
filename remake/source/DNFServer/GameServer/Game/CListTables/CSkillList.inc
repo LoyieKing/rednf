@@ -1,1 +1,3 @@
 CSkillList::CSkillList()
+{
+}

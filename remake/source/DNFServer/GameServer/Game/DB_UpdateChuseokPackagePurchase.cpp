@@ -30,14 +30,6 @@
 #include "SkillSlot.h"          // NumberToString
 #include "Stream.h"
 
-// ============================================================================
-// DB_UpdateChuseokPackagePurchase::makeRequest @ 0x0843c8b6
-// mangled _ZN31DB_UpdateChuseokPackagePurchase11makeRequestEj
-// ============================================================================
 #include "DB_UpdateChuseokPackagePurchase/makeRequest.inc"
 
-// ============================================================================
-// DB_UpdateChuseokPackagePurchase::dispatch @ 0x0843c7bc
-// mangled _ZN31DB_UpdateChuseokPackagePurchase8dispatchEiiP6Stream
-// ============================================================================
 #include "DB_UpdateChuseokPackagePurchase/dispatch.inc"

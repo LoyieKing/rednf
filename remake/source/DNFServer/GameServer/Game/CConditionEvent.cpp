@@ -22,44 +22,17 @@
 // 随之前移为本 TU 首个强外部符号（= GI 键名来源）。零语义/布局改动。
 #include <iostream>
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081848bc：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__,0xd,0)
-// ("[ConditionEvent] Start!")。
 #include "CConditionEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0xd, 0);
-    tr("[ConditionEvent] Start!");
-}
 
-// ORIG 0x08184970：仅基类构造 + vptr 置位（无自有成员初始化）。
+
 #include "CConditionEvent/CConditionEvent.inc"
-{
-}
 
-// ORIG 0x0818498c / 0x081849bc：D1 重置 vptr 后调 CEventBase::~CEventBase（末尾
-// __in_chrg 常量折叠不 delete）；D0 调 D1 后 operator delete。空体 + 虚析构由
-// 编译器生成同形。
+
 #include "CConditionEvent/dtor_CConditionEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// ORIG 0x0818490e：thunk——经 vtable slot 2（StartEvent()）虚调用。
+
 #include "CConditionEvent/StartEvent_1.inc"
-{
-    // N7 封顶：唯一残差=ORIG 虚调用 fn→%edx/this→%eax vs 4.4 fn→%eax/this→%edx
-    // （探针 /tmp/l22p/vprobe*.cpp 7 源形全 eax，不可翻；ndiff 8）。
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x08184928：logFormat(1,"localjapan/Arad_ConditionEvent.cpp",
-// __PRETTY_FUNCTION__,0x17,"[CConditionEvent] End Event.") 后 SetEventFlag(false)。
+
 #include "CConditionEvent/EndEvent.inc"
-{
-    LogManager::logFormat(1, "localjapan/Arad_ConditionEvent.cpp",
-        __PRETTY_FUNCTION__, 0x17, "[CConditionEvent] End Event.");
-    SetEventFlag(false);
-}
+

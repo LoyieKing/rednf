@@ -35,56 +35,18 @@
 namespace WongWork
 {
 #include "CCompoundAvatar/CCompoundAvatar.inc"
-{
-    m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
-    for (int i = 0; i < 100; ++i)
-    {
-        // ORIG 0x08331e35：range 为绑定到 `const unsigned long&` 的匿名临时
-        // （movl $0x2710,-0x20(%ebp) + lea 取址），非具名局部。
-        m_rand->randInt(static_cast<unsigned long>(10000));
-    }
-}
+
 }  // namespace WongWork
 
 // ============================ STAncientRareAvatarCube ============================
 
-// ORIG 0x0891aa3a：单循环内逐组「置零 int + clear 向量」，末尾 clear 首向量。
 #include "CCompoundAvatar/STAncientRareAvatarCube.inc"
-{
-    for (int i = 0; i < 10; ++i)
-    {
-        m_field0c[i] = 0;
-        m_vecs[i].clear();
-    }
-    m_vec.clear();
-}
+
 
 // ============================ tagCompoundAvatar ============================
 
-// ORIG 0x0891ab56：标量清零（含 memset 0x28 于 +0x04）+ 三组/尾向量逐个 clear，
-// 循环体内顺序为 A.clear/B.clear/m_b/m_c/m_d/C.clear，尾部顺序 2b8/2dc/2e0[]/2c4/2d0。
 #include "CCompoundAvatar/Clean.inc"
-{
-    m_idx = 0;
-    std::memset(&m_a[0], 0, sizeof(m_a));
-    for (int i = 0; i < 10; ++i)
-    {
-        m_optsA[i].clear();
-        m_optsB[i].clear();
-        m_b[i] = 0;
-        m_c[i] = 0;
-        m_d[i] = 0;
-        m_optsC[i].clear();
-    }
-    m_tailA.clear();
-    m_flag2dc = 0;
-    for (int j = 0; j < 10; ++j)
-    {
-        m_e[j] = 0;
-    }
-    m_tailB.clear();
-    m_tailC.clear();
-}
+
 
 // ============================ tagCompoundAvatarTable ============================
 
@@ -114,21 +76,10 @@ tagCompoundAvatar*
 namespace WongWork
 {
 
-// ORIG 0x08331ea2：delete m_rand 并置空；11 张表逆序析构（编译器生成）。
 #include "CCompoundAvatar/dtor_CCompoundAvatar.inc"
-{
-    if (m_rand != 0)
-    {
-        delete m_rand;
-    }
-    m_rand = 0;
-}
 
-// ORIG 0x08333ea6：importCompoundAvatarTable(dir,path,this) == 0。
+
 #include "CCompoundAvatar/LoadScript.inc"
-{
-    return importCompoundAvatarTable(dir, path,
-                                     reinterpret_cast<tagCompoundAvatarTable*>(this)) == 0;
-}
+
 
 }  // namespace WongWork

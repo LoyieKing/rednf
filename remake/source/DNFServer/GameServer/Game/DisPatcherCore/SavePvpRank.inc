@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 72（ORIG 197 / ours 197），残差=setcc-fold bool 物化岛/P168a④ bool 槽化；沿用上方 b28d-29 归因，封顶。
 bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
 
 {

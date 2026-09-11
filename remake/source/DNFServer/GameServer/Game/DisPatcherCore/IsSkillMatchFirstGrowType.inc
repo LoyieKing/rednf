@@ -1,3 +1,4 @@
+// ORIG 0x082865ca：for i in 0..5: skill->m_fitGrowType[i](+0xcc+4i) == type → true
 bool CHackLog_InvalidUsingSkill::IsSkillMatchFirstGrowType(const CSkill* skill, char type)
 
 {

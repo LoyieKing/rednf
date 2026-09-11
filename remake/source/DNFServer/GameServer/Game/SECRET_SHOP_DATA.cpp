@@ -30,72 +30,33 @@ namespace secretshop
 {
 
 #include "SECRET_SHOP_DATA/SECRET_SHOP_INFO.inc"
-    : m_retailer(), m_shopper()
-{
-}
+
 
 #include "SECRET_SHOP_DATA/dtor_SECRET_SHOP_INFO.inc"
-{
-}
+
 
 #include "SECRET_SHOP_DATA/clear.inc"
-{
-    m_bClear = 0;
-    m_retailer.clear();
-    m_shopper.clear();
-}
+
 
 #include "SECRET_SHOP_DATA/GetSaleInfo.inc"
-{
-    return m_retailer.GetSaleInfo(idx);
-}
+
 
 #include "SECRET_SHOP_DATA/SECRET_SHOP_DATA.inc"
-{
-}
+
 
 #include "SECRET_SHOP_DATA/dtor_SECRET_SHOP_DATA.inc"
-{
-}
+
 
 #include "SECRET_SHOP_DATA/clear_1.inc"
-{
-    m_openCode = 0;
-    for (int i = 0; i < 4; ++i)
-    {
-        m_info[i].clear();
-        m_buying[i] = 0;
-    }
-}
+
 
 #include "SECRET_SHOP_DATA/IsCompleteBuy.inc"
-{
-    for (int i = 0; i < 4; ++i)
-    {
-        if (m_buying[i] != 0)
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
+
 
 #include "SECRET_SHOP_DATA/IsOpen.inc"
-{
-    // ORIG: 两个 `je` 共指 return-0 岛（field==0 / ==1000），return-1 作 fall-through。
-    if (m_openCode != 0 && m_openCode != 1000)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "SECRET_SHOP_DATA/SetBuying.inc"
-{
-    if (idx >= 0 && idx < 4)
-    {
-        m_buying[idx] = buy;
-    }
-}
+
 
 }  // namespace secretshop

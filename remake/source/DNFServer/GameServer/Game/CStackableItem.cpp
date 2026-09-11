@@ -103,68 +103,17 @@
 #include "../../ServerCommon/DNFFunctionLib.h"
 
 
-// 最小构造/析构（ORIG 逐成员构造属后续精修批次；保证可链接）
-// b28c-L8 判词 [N(布局建模)]：fresh 复验 _ZN14CStackableItemC1Ev 292=292，唯一残差
-// 4 行 = 本类 vptr 写入时机。ORIG 0x08515763 构造序 = `call _ZN5CItemC1Ev`(0x85152d4)
-// → `add $0x148; call _ZN12AradItemInfoC1Ev`(0x8515618) → **然后**才
-// `movl $0x8c96ea8,(%eax)` 写本类 vptr → RecipeInfo(+0x174) / LotteryInfo(+0x1c0) / …
-// ⇒ AradItemInfo 必为**次基类**而非成员（CItem sizeof=0x148 权威 ⇒ 次基类恰落 +0x148，
-// 全部偏移/sizeof 不变；AradItemInfo 无虚函数 ⇒ 不引入第二 vptr）。成员模型下 4.4
-// 恒在首成员 ctor 之前写 vptr，源码不可翻。同法先例：C28L9 AvatarRechargeServer.h、
-// C28L16 AvatarFixedHiddenOptionServer.h。本波不改 CStackableItem.h（跨
-// C28L17/18/21 三方写权 CItemList.cpp + Arad_ItemBonus.cpp 消费面），spec 已广播交
-// Main 统一批次；改动清单=头继承表 + CStackableItem.cpp 12 处 + Arad_ItemBonus.cpp:431
-// + CItemList.cpp:1986 去 `m_arad148.` 前缀。
-// [b28d-N(布局建模)｜待专项批次] fresh 复验 292=292 维持 N：唯一残差 = 本类 vptr
-// 写入时机（AradItemInfo 须为次基类，跨 CItemList.cpp/Arad_ItemBonus.cpp 消费面）。
-// Main 2026-09-09 裁决：**本轮不做**（收益仅本件 4 行残差，代价为全域构造/析构语义
-// 变更 + 14 处消费点 + 多基类 RTTI/EH 风险），spec 存档待专项批次：
-//   头改 `class CStackableItem : public CItem, public AradItemInfo`，删 m_arad148 成员，
-//   去 CStackableItem.cpp 12 处 `m_arad148.` 前缀 + CItemList.cpp:1986 + Arad_ItemBonus.cpp:431；
-//   CItem sizeof=0x148 权威 ⇒ 全部偏移/sizeof 不变、AradItemInfo 无虚函数 ⇒ 不引入第二 vptr。
-// [S1Charac 2026-09-11 复核] 292=292 维持 N（残差 4 行=vptr 写入时机，属 AradItemInfo
-// 次基类布局建模，Main 已裁决本轮不做）；§6.5：本函数无 rodata 串引用 ⇒ CLEAR。
 #include "CStackableItem/CStackableItem.inc"
-{
-}
+
 
 #include "CStackableItem/dtor_CStackableItem.inc"
-{
-}
 
-// ORIG T 0x089c2832：if-return 链 + strcmp（每分支 `mov $N,%eax; jmp` 统一出口，
-// 尾项默认 `mov $0x9,%eax` 直落；P17/P47 形态）。字符串映射（.rodata 0x8e19e71..）：
-//   "[avatar]"→0 "[special avatar]"→1 "[cera]"→2 "[creature]"→3 "[equipment]"→4
-//   "[stackable]"→5 "[etc]"→6 "[special creature]"→7 "[emblem]"→8，未知→9。
+
 #include "CStackableItem/tag2Type.inc"
-{
-    if (strcmp(tag, "[avatar]") == 0) return 0;
-    if (strcmp(tag, "[special avatar]") == 0) return 1;
-    if (strcmp(tag, "[cera]") == 0) return 2;
-    if (strcmp(tag, "[creature]") == 0) return 3;
-    if (strcmp(tag, "[equipment]") == 0) return 4;
-    if (strcmp(tag, "[stackable]") == 0) return 5;
-    if (strcmp(tag, "[etc]") == 0) return 6;
-    if (strcmp(tag, "[special creature]") == 0) return 7;
-    if (strcmp(tag, "[emblem]") == 0) return 8;
-    return 9;
-}
 
-// ORIG T 0x089c295a：同 tag2Type 形态；结束标签 "[/xxx]" 映射同值表
-// （.rodata 0x8e19ec6..）："[/avatar]"→0 .. "[/emblem]"→8，未知→9。
+
 #include "CStackableItem/tag2EndType.inc"
-{
-    if (strcmp(tag, "[/avatar]") == 0) return 0;
-    if (strcmp(tag, "[/special avatar]") == 0) return 1;
-    if (strcmp(tag, "[/cera]") == 0) return 2;
-    if (strcmp(tag, "[/creature]") == 0) return 3;
-    if (strcmp(tag, "[/equipment]") == 0) return 4;
-    if (strcmp(tag, "[/stackable]") == 0) return 5;
-    if (strcmp(tag, "[/etc]") == 0) return 6;
-    if (strcmp(tag, "[/special creature]") == 0) return 7;
-    if (strcmp(tag, "[/emblem]") == 0) return 8;
-    return 9;
-}
+
 
 // ORIG 0x8515128：逐字段复制（3 int + vector<string> + char）
 BoosterSelectInfo& BoosterSelectInfo::operator=(
@@ -178,8 +127,6 @@ BoosterSelectInfo& BoosterSelectInfo::operator=(
     return *this;
 }
 
-// ORIG 0x8513b82：vector<string> 默认构造 + 三 int movl 清零 + char movb 清零
-// （P10/P33：m_field18 必须 char）。
 #include "CStackableItem/BoosterSelectInfo.inc"
 {
     // [b28c-27] AE：ORIG 0x8513bb8 先写 m_field18 再 vector::clear（源码语句序
@@ -258,232 +205,22 @@ public:
     char getCurCharFirstGrowType() const;
 };
 
-// ORIG 0x8a86d28：26 项字符串→枚举映射，默认 0x16
 #include "CStackableItem/GetEquipmentTypeStringToEnum.inc"
-{
-    int result = 0x16;
-    if (type == "[hat avatar]")
-    {
-        result = 0;
-    }
-    else if (type == "[hair avatar]")
-    {
-        result = 1;
-    }
-    else if (type == "[face avatar]")
-    {
-        result = 2;
-    }
-    else if (type == "[coat avatar]")
-    {
-        result = 3;
-    }
-    else if (type == "[pants avatar]")
-    {
-        result = 4;
-    }
-    else if (type == "[shoes avatar]")
-    {
-        result = 5;
-    }
-    else if (type == "[breast avatar]")
-    {
-        result = 6;
-    }
-    else if (type == "[waist avatar]")
-    {
-        result = 7;
-    }
-    else if (type == "[skin avatar]")
-    {
-        result = 8;
-    }
-    else if (type == "[aurora avatar]")
-    {
-        result = 9;
-    }
-    else if (type == "[weapon]")
-    {
-        result = 10;
-    }
-    else if (type == "[title name]")
-    {
-        result = 11;
-    }
-    else if (type == "[coat]")
-    {
-        result = 12;
-    }
-    else if (type == "[shoulder]")
-    {
-        result = 13;
-    }
-    else if (type == "[pants]")
-    {
-        result = 14;
-    }
-    else if (type == "[shoes]")
-    {
-        result = 15;
-    }
-    else if (type == "[waist]")
-    {
-        result = 16;
-    }
-    else if (type == "[amulet]")
-    {
-        result = 17;
-    }
-    else if (type == "[wrist]")
-    {
-        result = 18;
-    }
-    else if (type == "[ring]")
-    {
-        result = 19;
-    }
-    else if (type == "[support]")
-    {
-        result = 20;
-    }
-    else if (type == "[magic stone]")
-    {
-        result = 21;
-    }
-    else if (type == "[creature]")
-    {
-        result = 22;
-    }
-    else if (type == "[artifact red]")
-    {
-        result = 23;
-    }
-    else if (type == "[artifact blue]")
-    {
-        result = 24;
-    }
-    else if (type == "[artifact green]")
-    {
-        result = 25;
-    }
-    return result;
-}
 
-// ===================== StackableAction 字符串→枚举映射（ORIG T） =====================
-// getStackableActionType @0x089aeb9b：14 项字符串→Type 映射，默认 0（if-return 链，
-// 每项 call eq/test/je/mov+jmp 统一出口，与 ORIG 同形）。
+
 #include "CStackableItem/getStackableActionType.inc"
-{
-    if (type == "[megaphone]")
-    {
-        return 0x16;
-    }
-    if (type == "[upgrade cargo]")
-    {
-        return 0x2b;
-    }
-    if (type == "[chatemoticon]")
-    {
-        return 0x2c;
-    }
-    if (type == "[seria room deco]")
-    {
-        return 0x2a;
-    }
-    if (type == "[open guide book]")
-    {
-        return 0x2d;
-    }
-    if (type == "[class change]")
-    {
-        return 0x2e;
-    }
-    if (type == "[character name change]")
-    {
-        return 0x33;
-    }
-    if (type == "[bingo]")
-    {
-        return 0x34;
-    }
-    if (type == "[portable upgrade]")
-    {
-        return 0x35;
-    }
-    if (type == "[add fatigue]")
-    {
-        return 0x37;
-    }
-    if (type == "[candle golden wax]")
-    {
-        return 0x07;
-    }
-    if (type == "[add avatar socket]")
-    {
-        return 0x20;
-    }
-    if (type == "[LotteryCount]")
-    {
-        return 0x36;
-    }
-    if (type == "[equipment purify]")
-    {
-        return 0x21;
-    }
-    return 0;
-}
 
-// getStackableActionUsablePlace @0x089aed67：5 项字符串→UsablePlace，默认 1
+
 #include "CStackableItem/getStackableActionUsablePlace.inc"
-{
-    if (place == "[village]")
-    {
-        return 1;
-    }
-    if (place == "[dungeon]")
-    {
-        return 2;
-    }
-    if (place == "[pvp]")
-    {
-        return 3;
-    }
-    if (place == "[seria room]")
-    {
-        return 4;
-    }
-    if (place == "[dont use assult]")
-    {
-        return 5;
-    }
-    return 1;
-}
 
-// getStackableActionUsableServerType @0x089aee0a：3 项字符串→UsableServerType，默认 1
+
 #include "CStackableItem/getStackableActionUsableServerType.inc"
-{
-    if (type == "[general server]")
-    {
-        return 1;
-    }
-    if (type == "[event server]")
-    {
-        return 2;
-    }
-    if (type == "[starter server]")
-    {
-        return 3;
-    }
-    return 1;
-}
+
 
 #include "CStackableItem/createRecipeInfo.inc"
                       std::vector<std::pair<int, int> >* extra);
 #include "CStackableItem/createLotteryInfo.inc"
 #include "CStackableItem/createStackableLotteryInfo.inc"
-// [S1Charac 2026-09-11 复核] 652=652、无指令增删：diff 257+/257- 全为 call/跳转落点
-// （begin/de/ppEi/ctor 调用块的**位置重排**，如 ORIG +0x57e `jmp` vs 我方 +0x5a 段）
-// ⇒ 4.4 循环块调度差 + N95 槽号整体平移；§6.5：本函数无 rodata 串引用 ⇒ CLEAR。
 #include "CStackableItem/createStackableMultiBoxLotteryInfo.inc"
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
@@ -492,311 +229,18 @@ public:
                            std::vector<int>* source);
 
 
-// createRecipeInfo（自 GameStubs.cpp 迁移；ORIG 0x89ba83c）
-// 语义：clear 后按 source 布局解析 3 组 pair 表 + 尾部 2 个标记字节 + 可选 extra 拷贝。
-//   source = [count1, (p0,p1)xcount1, count2, (p0,p1)xcount2, count3, (p0,p1)xcount3,
-//             tailValue?, ...]
-//   m_vec0/count1、m_vecC/count2、m_vec18/count3；
-//   若 source 仍有剩余元素：m_field24 = (tail==1)，m_field25 = (tail==2)（均读同一元素），
-//   且 extra!=0 时 m_vec28 = *extra。
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-solo-CStackableItem] NEAR 225=225，本波残差 360→218 行（fndiff 归一化）。
-// 新修法：①ORIG 三段 count 各占独立槽（0x89ba93e `mov %eax,-0x18`、第二段 -0x10、
-// 第三段 -0xc）⇒ 源码 n1/n2/n3 三个具名局部（复用同一 n 时两侧都只给 1 槽）；
-// ②n 独立化后帧自然 +0x10，原 P190「2 个取址 double framePad」必须删（留则帧 0x88
-// 超 ORIG 0x78）⇒ 删后 n1=-0x18/i=-0x14 与 ORIG 逐槽一致、pair 临时 -0x50 亦对齐。
-// [b28d-PoolSmall·P326 翻案] 旧残余判 N（it/end 两槽方向相反：ORIG it=-0x48(深)/
-// end=-0x44(浅) = 4.1「先声明深」；4.4 恒「先声明浅」）已**归零**。三形并列读数：
-//  ① 双具名（旧形）：it=-0x44 / end=-0x48 ⇒ 方向反，l8_cmp NDIFF 37；
-//  ② P309「函数头声明翻向 + 逗号表达式保 clear→begin 序」：零效（仍 ①）；
-//  ③ **P326 胜出形**：`end` 不具名、右值临时内联进比较 ⇒ begin 返回值直构到
-//     具名 it=-0x48（深），end 的返回临时=-0x44（浅），逐槽与 ORIG 全等 ⇒ **NDIFF 0**
-//     （227=227 逐条，p167 33=33 CLEAR）。end() 调用次数不变（临时构造仍 1 call），
-//     故不破坏调用点差集；source 在本函数内无增删，迭代器不失效，语义等价。
-//  ⇒ 与 P219 补①（翻求值序）/P236（find 内联实参）互斥，本件按 ORIG 槽深取 P326。
 #include "CStackableItem/createRecipeInfo_1.inc"
-                      std::vector<std::pair<int, int> >* extra)
-{
-    info->clear();
-    // it/end 槽方向：本波 **P326** 归零（三形读数并列见本函数头判词）。
-    std::vector<int>::iterator it = source->begin();
-    if (it == source->end())
-    {
-        return;
-    }
-    // [b28d-solo-CStackableItem] ORIG 三个 count 局部各占独立槽
-    // （0x89ba93e `mov %eax,-0x18`、第二段 `-0x10`、第三段 `-0xc`）⇒ 源码为
-    // 三个不同具名局部（复用同一变量时 4.4/4.1 都只给一个槽）。
-    int n1 = *it;
-    it++;
-    int i = 0;
-    for (i = 0; i < n1; ++i)
-    {
-        std::pair<int, int> p;
-        p.first = *it;
-        it++;
-        p.second = *it;
-        it++;
-        info->m_vec0.push_back(p);
-    }
-    int n2 = *it;
-    it++;
-    for (i = 0; i < n2; ++i)
-    {
-        std::pair<int, int> p;
-        p.first = *it;
-        it++;
-        p.second = *it;
-        it++;
-        info->m_vecC.push_back(p);
-    }
-    int n3 = *it;
-    it++;
-    for (i = 0; i < n3; ++i)
-    {
-        std::pair<int, int> p;
-        p.first = *it;
-        it++;
-        p.second = *it;
-        it++;
-        info->m_vec18.push_back(p);
-    }
-    if (it == source->end())
-    {
-        return;
-    }
-    info->m_field24 = (*it == 1);
-    info->m_field25 = (*it == 2);
-    if (extra != 0)
-    {
-        info->m_vec28 = *extra;
-    }
-}
-// ============================================================================
-// LotteryInfo 生命周期 + 解析辅助（自 GameStubs.cpp 迁移，保持 ORIG 语义）：
-//   LotteryInfo C1/D1/clear（ORIG 0x83706d4 / 0x837069c）
-//   createLotteryInfo（ORIG 0x89babc5）
-//   createStackableMultiBoxLotteryInfo（ORIG 0x89bafd1；已实现，见下）
-// ============================================================================
-// b28c-L8 代落 C28L25（lane25 件）：ORIG C1 0x083706d4 仅构造两 vector 成员后
-// call clear()，无 +0x00/+0x10 标量清零 ⇒ 标量不入初始化列表（清零由 clear 承担）。
-#include "CStackableItem/LotteryInfo.inc"
-{
-    clear();
-}
-#include "CStackableItem/dtor_LotteryInfo.inc"
-// ORIG 0x837069c
-#include "CStackableItem/clear.inc"
-{
-    m_defaultIdx = 0;
-    m_items.clear();
-    m_defaultCount = 0;
-    m_counts.clear();
-}
-// ORIG 0x89babc5：src 相邻元素配对填充 m_items，m_counts 每对补 1；奇数时 break
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 97/85：维持 N90（同上，迭代器外联 + 帧差）。
-#include "CStackableItem/createLotteryInfo_1.inc"
-{
-    info->clear();
-    std::vector<int>::iterator it = source->begin();
-    info->m_defaultIdx = *it;
-    it++;
-    info->m_defaultCount = 1;
-    while (it != source->end())
-    {
-        std::pair<int, int> p;
-        p.first = *it;
-        it++;
-        if (it == source->end())
-            break;
-        p.second = *it;
-        it++;
-        info->m_items.push_back(p);
-        info->m_counts.push_back(1);
-    }
-}
 
-// ORIG 0x89bafd1：解析 multibox 彩票脚本。
-//   a (vector<vector<int>>)：每元素是一个 LotteryUnit 的原始 int 流
-//     [count, defaultIdx, defaultNum, defaultFlag, (itemIdx,weight,count,flag)xN]
-//     —— m_items.push_back({itemIdx,weight})，m_bonus.push_back({count,flag})
-//   b (vector<int>)：field8=b[0]，fieldc=b[1]
-//   c (vector<int>)：m_defaultCount/Idx/Num/Flag + m_items(stDefaultItem) 流
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-solo-CStackableItem] p167 收口（本波核心修法，ORIG 调用集 106 逐符号对齐）：
-// ①c 部分 ORIG 是 5 个**裸早返** `if (it == c->end()) return;`（0x089bb694/0x089bb6fe/
-//   0x089bb768/0x089bb7d2/0x089bb83c 各落独立 nop 中继岛 0xa51/0xa54/0xa57/0xa5a/0xa64，
-//   P223 岛形），原「嵌套 if (it != c->end())」写法恒产 ne×5（p167 EXTRA ne×5 /
-//   MISSING eq×6）⇒ 改写后 ne/eq 全部归位。
-// ②a 内层循环与 c 循环均为**底部旋转**（a：0x089bb45a eq 检查 + 0x089bb493 ne 条件同在
-//   循环尾；c：body 0x089bb87d / 条件 0x089bb9e2）⇒ 源码 do-while 形。
-// ③真语义 bug 修正：a 内层第 4 个边界检查在 **push_back 之后**（ORIG 0x089bb45a 的
-//   `eq; jne 0x4ab` 落在 m_units.push_back 之前）——原写法在 push 前 break 会丢弃
-//   「恰好用完最后一个元素」的那一组；c 循环体内同样只有 3 个中间检查（m_flag 后无检查）。
-// ④p167 终态（b28d-poolcera 更新）：**106/106 全 CLEAR**。原 EXTRA（D1×2 +
-//   _Unwind_Resume×1）根因 = 我方 MultiBoxLotteryInfo.h 给用户空析构（非平凡）；
-//   ORIG `_Destroy_aux<true>` 实证 stDefaultItem 析构平凡 ⇒ 删声明+定义后 D1 岛与
-//   landing pad 自然消失（非 N91 codegen 差，判词翻案）。行数 668→649（ORIG 652，
-//   gap 3）；⑤framePad 删除（P232 回推形随 D1 岛消失而反向，保留=整体深 4；删后
-//   ndiff 1187→15）+ 第5检查翻形 B `if (!(it == c->end())) { do-while }`（je 极性
-//   归位，探针 F/G/cmp 形不可再翻）。终残差 = 3 段 `mov (%eax),%eax; mov %eax,%edx`
-//   两段装载被 4.4 折单段（N18a，P248 三档类型旋钮已封）+ `!eq` 的 xor $1 物化
-//   vs ORIG je+jmp 双跳（N18a 折叠族，cargo_abs 先例）。ndiff 359→15。
-// [b28d-solo-CStackableItem 2026-09-09 二轮] **gap 3→0（fresh 652=652）**，旧判词
-// 「3 段两段装载 N18a 封顶」**作废**：真因 = stDefaultItemInfo 三字段
-// m_defaultCount/m_defaultIdx/m_defaultNum 建模成 int（应为 unsigned int，P254/
-// P211 档③同异型侧）。直证（同函数、同一 RHS `*it` int、唯字段类型不同）：
-//   · 本类字段 store = `mov (%eax),%eax; mov %eax,%edx; mov 0x8(%ebp),%eax;
-//     mov %edx,0x1c(%eax)`（0x089bb6af / 0x089bb719 / 0x089bb783，+0x1c/+0x20/+0x24）
-//     —— 带 eax→edx 中转 = 与 int 异型；
-//   · 同函数 MultiBoxLotteryInfo::m_field8/m_fieldc（源码 int）store =
-//     `mov (%eax),%edx; mov 0x8(%ebp),%eax; mov %edx,0x8(%eax)`（0x089bb5c7 /
-//     0x089bb62f）—— 3 条无中转 = 同型。
-// 旁证：get_multibox_default_item 0x0850f371 读 m_defaultCount 后 `cmp i; seta`
-// （无符号 above，循环变量 unsigned int）且读取单段（unsigned 字段读形）。
-// 探针（446 后端与路由一致）：/tmp/probe_mb.cpp（int 字段=3 条 / unsigned=4 条带中转）、
-// /tmp/probe_mb2.cpp（unsigned 字段读 + unsigned 循环上界与 ORIG 同形零回退）。
-// 头改动 MultiBoxLotteryInfo.h 三字段 int→unsigned int（同宽 4B，sizeof/偏移/mangled
-// 零变化），Main 批准 + all 广播；消费 TU 复编：CStackableItem 1331/3/6（零回退）、
-// MultiBoxLotteryInfo 113/0/1（零回退）、GmCmds_F 5/18/1/1（零回退）。
-// 终残差 = 1 处 `!eq` 的 xor $1 物化 vs ORIG `test; je body; jmp tail`（等长替换，
-// 652=652）：跨版本 `if(!bool)` lowering 差（4.1 块交换 / 4.4 xor 物化），探针
-// /tmp/probe_mb3.cpp f_sw/f_goto/f_else/f_while/f_neg 五形均不可造 ⇒ 判 N（P292/N18a 族）。
+#include "CStackableItem/LotteryInfo.inc"
+
+#include "CStackableItem/dtor_LotteryInfo.inc"
+#include "CStackableItem/clear.inc"
+
+#include "CStackableItem/createLotteryInfo_1.inc"
+
+
 #include "CStackableItem/createStackableMultiBoxLotteryInfo_1.inc"
-    MultiBoxLotteryInfo* info,
-    std::vector<std::vector<int> >* a, std::vector<int>* b,
-    std::vector<int>* c)
-{
-    // b28d-poolcera：stDefaultItem 平凡化后删 P232 framePad（原判词回推的槽基
-    // 已随 D1 岛/EH 帧变化，保留反而整体深 4；实测删除后槽与 ORIG 逐一对齐）。
-    if (info == 0 || a == 0 || b == 0)
-    {
-        return;
-    }
-    info->clear();
-    // ---- 解析 a：构建 m_units ----
-    // [b28d-solo-CStackableItem] ORIG 0x89bafd1：`vec(*itA)` → `it = (*itA).begin()`
-    // → `unit` 构造/clear（it 先于 unit）；所有边界比较用 **(*itA).end()**（原码如此，
-    // 非 vec.end()）；每次 `*it` 与 `it++` 为两条独立语句。
-    std::vector<std::vector<int> >::iterator itA = a->begin();
-    while (itA != a->end())
-    {
-        std::vector<int> vec(*itA);
-        std::vector<int>::iterator it = (*itA).begin();
-        MultiBoxLotteryInfo::LotteryUnit unit;
-        unit.clear();
-        unit.m_count = *it;
-        it++;
-        unit.m_defaultIdx = *it;
-        it++;
-        if (it == (*itA).end())
-        {
-            break;
-        }
-        unit.m_defaultNum = *it;
-        it++;
-        if (it == (*itA).end())
-        {
-            break;
-        }
-        unit.m_defaultFlag = (*it != 0);
-        it++;
-        if (it == (*itA).end())
-        {
-            break;
-        }
-        // [b28d-solo-CStackableItem] ORIG 内层循环为底部旋转（0x089bb45a eq 检查
-        // 与 0x089bb493 ne 条件都在内层循环尾）⇒ 源码 do-while 形。
-        do
-        {
-            std::pair<int, int> p_item, p_bonus;
-            p_item.first = *it;
-            it++;
-            if (it == (*itA).end()) break;
-            p_item.second = *it;
-            it++;
-            if (it == (*itA).end()) break;
-            p_bonus.first = *it;
-            it++;
-            if (it == (*itA).end()) break;
-            p_bonus.second = *it;
-            it++;
-            unit.m_items.push_back(p_item);
-            unit.m_bonus.push_back(p_bonus);
-            // [b28d-solo-CStackableItem] ORIG 0x089bb45a：第 4 个边界检查在
-            // **push_back 之后**（`eq; jne 0x4ab` 落在 m_units.push_back 之前），
-            // 即最后一组仍被提交后再退出（原写法在 push 前 break = 真语义 bug）。
-            if (it == (*itA).end()) break;
-        } while (it != (*itA).end());
-        info->m_units.push_back(unit);
-        itA++;
-    }
-    // ---- 解析 b：field8 / fieldc ----
-    if (!b->empty())
-    {
-        std::vector<int>::iterator it = b->begin();
-        info->m_field8 = *it;
-        it++;
-        if (it == b->end())
-        {
-            return;
-        }
-        info->m_fieldc = *it;
-        it++;
-    }
-    // ---- 解析 c：默认项 + m_items ----
-    // [b28d-solo-CStackableItem] P167/P223：ORIG 0x089bb694/0x089bb6fe/0x089bb768/
-    // 0x089bb7d2/0x089bb83c 五处 `eq(it,end)` 各落独立 nop 中继岛（0xa51/0xa54/
-    // 0xa57/0xa5a/0xa64）⇒ 源码为 5 个裸早返 `if (it == c->end()) return;`（不是
-    // 嵌套 `if (it != c->end())`：后者恒产 ne ×5，p167 实测 EXTRA ne×5/MISSING eq×6）。
-    std::vector<int>::iterator it = c->begin();
-    if (it == c->end())
-    {
-        return;
-    }
-    info->m_default.m_defaultCount = *it;
-    it++;
-    if (it == c->end())
-    {
-        return;
-    }
-    info->m_default.m_defaultIdx = *it;
-    it++;
-    if (it == c->end())
-    {
-        return;
-    }
-    info->m_default.m_defaultNum = *it;
-    it++;
-    if (it == c->end())
-    {
-        return;
-    }
-    info->m_default.m_defaultFlag = (char)*it;
-    it++;
-    if (!(it == c->end()))
-    {
-    // [b28d-solo-CStackableItem] ORIG c 循环为底部旋转（body 0x089bb87d、条件
-    // 0x089bb9e2 的 end+ne）⇒ do-while（首轮由上一早退检查保证）。
-    do
-    {
-        MultiBoxLotteryInfo::stDefaultItem item;
-        item.m_itemIdx = *it;
-        it++;
-        if (it == c->end()) break;
-        item.m_prob = *it;
-        it++;
-        if (it == c->end()) break;
-        item.m_count = *it;
-        it++;
-        if (it == c->end()) break;
-        item.m_flag = (char)*it;
-        it++;
-        info->m_default.m_items.push_back(item);
-    } while (it != c->end());
-    }
-}
+
 
 class CChattingEmoticonList
 {
@@ -1015,436 +459,64 @@ public:
 // ===================== 报告函数（CStackableItem.md） =====================
 
 #include "CStackableItem/IsAvatarOptionChangeItem.inc"
-{
-    return m_avatarOptionChange;
-}
+
 
 #include "CStackableItem/check_able_To_use.inc"
-{
-    if (!check_job_type((char)job))
-    {
-        return 1;
-    }
-    if (!check_low_level(level))
-    {
-        return 2;
-    }
-    return 0;
-}
 
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// P182/N82 封顶（b26 Lane27）：29 条指令全等，仅帧 0x28 vs 0x10（4.4 outgoing/
-// slack 多 24B）连带 2 char 槽平移（-0xc/-0x10 vs -0x4/-0x8）；帧策略跨版本差。
-// b28c-L8 fresh 复验：44 行口径 29=29、NDIFF=4，判词维持 N82（callee
-// _ZNK5CItem14check_job_typeEc 定义在 CItem.cpp 0x0850d728 = 跨 TU ⇒ P210 定义前置不可用；
-// P190 double framePad 反向撑帧亦不可（本例是 4.4 多撑，需减帧））。
-// [b28d-N115/N82] fresh 29=29 维持 N：帧 0x28 vs 0x10 + 2 char 参数槽平移（-0xc/-0x10
-// vs -0x4/-0x8）。根因 = N115：4.1 参数直写帧底（outgoing 仅实参 4B），4.4 -O0 恒预留
-// 16B 对齐 outgoing 区（帧 +0x18）。P210 定义前置不可用（callee CItem::check_job_type
-// 定义在 CItem.cpp = 跨 TU，迁定义违 R1）；P190 double 撑帧方向反（本例需减帧）。
-// [S1Charac 2026-09-11 复核] 29=29 逐条同形（含 ORIG 0x0850ebba `mov %edx,0x4(%esp)` /
-// 0x0850ebc7 `xor $0x1,%eax` / `sete %al`）；真残差仅帧 0x28↔0x10 与 2 个 char 参数槽
-// （-0xc/-0x10 ↔ -0x4/-0x8）=N115（4.4 -O0 恒预留 16B 对齐 outgoing 区）。无串引用。
+
 #include "CStackableItem/check_change_job_type.inc"
-                                           char checkJob) const
-{
-    if (!check_job_type(checkJob))
-    {
-        return 0;
-    }
-    if ((char)m_arad148.m_field4 < 0)
-    {
-        return 1;
-    }
-    return (char)m_arad148.m_field4 == changeJob;
-}
 
-// [b28d-solo-CStackableItem] AE 101=101。修法（新范式，P218/P310 扩展）：局部 `i`
-// 声明 unsigned int + **裸比较** `while (it->m_count > i)` ⇒ 4.4 产 ORIG 形
-// `mov m_count,%eax; cmp i,%eax; seta`。此前 `int i + (unsigned) 双 cast` 恒产
-// `mov i,%ebx; cmp m_count,%ebx; setb`（+1 条 mov，且方向反）；反写 `m_count > i`
-// 带 cast 形劣化 +2（`mov %eax,%edx; mov i,%eax; cmp`）。外层/内层 end() 按 P13 缓存。
+
 #include "CStackableItem/getBoosterItem.inc"
-    std::vector<stStackableBoosterItemInfo_t>& out) const
-{
-    // ORIG 0x850f76e/0x850f793：外层 begin/end 在循环外各求值一次（P13）。
-    std::vector<stStackableBoosterElement_t>::const_iterator it =
-        m_booster.m_elements.begin();
-    std::vector<stStackableBoosterElement_t>::const_iterator itEnd =
-        m_booster.m_elements.end();
-    for (; it != itEnd; ++it)
-    {
-        unsigned int i = 0;
-        // ORIG 0x850f75e：m_count/m_prob 均按无符号比较（seta/setb）。
-        // b28d-solo 实验：i 改 unsigned + 裸比较（ORIG seta 形）。
-        while (it->m_count > i)
-        {
-            int rand = get_rand_int(it->m_prob);
-            // ORIG 0x850f7e5/0x850f7f3：内层 begin/end 亦各求值一次（P13）。
-            std::vector<stStackableBoosterItemInfo_t>::const_iterator it2 =
-                it->m_items.begin();
-            std::vector<stStackableBoosterItemInfo_t>::const_iterator it2End =
-                it->m_items.end();
-            for (; it2 != it2End; ++it2)
-            {
-                int idx = it2->m_itemIdx;
-                if (static_cast<unsigned int>(rand)
-                    < static_cast<unsigned int>(it2->m_prob))
-                {
-                    out.push_back(*it2);
-                    break;
-                }
-            }
-            ++i;
-        }
-    }
-}
+
 
 #include "CStackableItem/getUsableItemType.inc"
-{
-    std::vector<int>::const_iterator it =
-        std::find(m_usableTypes.begin(), m_usableTypes.end(), type);
-    if (it != m_usableTypes.end())
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CStackableItem/get_1st_material_count.inc"
-{
-    for (std::vector<std::pair<int, int> >::const_iterator it =
-             m_limitCube.m_materials.begin();
-         it != m_limitCube.m_materials.end(); it++)
-    {
-        if ((unsigned int)it->first == itemIdx)
-        {
-            return it->second;
-        }
-    }
-    return -1;
-}
 
-// ORIG 0x822c9e0（弱符号 W，14 字节）：mov 0x29c(%eax),%eax —— 第 2 材料项索引
+
 #include "CStackableItem/get_2nd_material_index.inc"
-{
-    return m_limitCube.m_2ndMaterialIdx;
-}
 
-// ORIG 0x822c9ee（弱符号 W，14 字节）：mov 0x2a0(%eax),%eax —— 第 2 材料项数量
+
 #include "CStackableItem/get_2nd_material_count.inc"
-{
-    return m_limitCube.m_2ndMaterialCount;
-}
+
 
 #include "CStackableItem/get_amplify_reinforce_count.inc"
-{
-    std::map<int, int>::iterator it = m_amplifyMap.begin();
-    std::map<int, int>::iterator end = m_amplifyMap.end();
-    int sum = 0;
-    int bestKey = 0;
-    int bestCount = 0;
-    while (it != end)
-    {
-        sum += it->second;
-        if (count < sum)
-        {
-            return it->first;
-        }
-        if (bestCount < it->second)
-        {
-            bestCount = it->second;
-            bestKey = it->first;
-        }
-        ++it;
-    }
-    return bestKey;
-}
 
-// [b28d-solo-CStackableItem] NEAR 118=118。已修：`sum` 局部 unsigned 化（新范式
-// P218/P310 扩展）⇒ 比较翻正为 ORIG `mov rand,%eax; cmp sum,%eax; ja`（此前 int sum
-// 恒产 `mov sum,%eax; cmp rand,%eax; jb`）。残余 N95 封顶：range 槽 ORIG -0x38
-// （在 begin/end/pp 临时槽之后），4.4 恒 -0x44（临时槽之前）；把 range 声明移到循环后
-// 实测反向（range -0x48/it -0x44）；本波补测「移到 total 之后」= 零效（range 仍 -0x44，
-// 4.4 按首次使用序把取地址具名标量排到匿名临时区之后）⇒ 槽分配方向不可择，判 N95/N93。
-// ORIG 0x850fbe4 两循环复用同一 const_iterator 槽 -0x48（第二循环 `it = begin()`
-// 重新赋值），循环体先 operator*（deEv）取引用地址入槽（-0x10/-0xc），增量段 ppEi。
-// [S1Charac 2026-09-11 复核] 118=118、无指令增删：diff 43+/43- 全为 begin/ctor/end/ppEi
-// 调用块的**位置重排**（ORIG 把 end() 提到循环前存 -0x40、range 槽 -0x38；我方 range
-// -0x44 且 end() 后置）⇒ 4.4 循环调度 + 槽分配差（N95/N93）；§6.5 无串引用 ⇒ CLEAR。
-// [W13AStackableItem 2026-09-11 探针负结论·含 ORIG 指令形] range/it 槽交换
-// （-0x38↔-0x3c）**不可翻**，两形均实测劣化：
-//   ORIG 0x0850fc45 `lea -0x3c(%ebp),%eax`（第一循环 begin() 的 sret 目标 ⇒ it 槽 -0x3c）、
-//        0x0850fc96 `mov %eax,-0x38(%ebp)`（`range = total` ⇒ range 槽 -0x38）、
-//        0x0850fca2 `lea -0x38(%ebp),%edx`（randInt(range) 实参）⇒ ORIG: it -0x3c(1)/range -0x38(2)；
-//   我方基线（slotmap 影子实测）：it -0x38(1)/range -0x3c(2)。
-//   探针 v1（`range` 移至 it 之后 + 内联初始化 `unsigned long range = total;`）／
-//        v2（同位置、保持 `range = total;`）⇒ **两形均新增劣化**（-0x44/-0x48 计数互换；
-//        v2 ndiff 7→8），已回滚。判：4.1 按声明序而 4.4 按首次使用序分配取地址标量，
-//        方向差不可由源码声明顺序反转（N95/N93 族封顶）。
+
 #include "CStackableItem/get_limit_cube_item.inc"
-{
-    unsigned long range;
-    int itemIdx = 0;
-    int count = 0;
-    int total = 0;
-    std::vector<stLimitCubeResult>::const_iterator it =
-        m_limitCube.m_results.begin();
-    while (it != m_limitCube.m_results.end())
-    {
-        const stLimitCubeResult& r = *it;
-        total += r.m_prob;
-        it++;
-    }
-    range = total;
-    unsigned int rand = m_pRand->randInt(range);
-    // b28d-solo 修法：sum unsigned（裸比较翻操作数序，P218/P310 扩展；见函数头判词）。
-    unsigned int sum = 0;
-    it = m_limitCube.m_results.begin();
-    while (it != m_limitCube.m_results.end())
-    {
-        const stLimitCubeResult& r = *it;
-        sum += r.m_prob;
-        if (rand <= sum)
-        {
-            itemIdx = r.m_itemIdx;
-            count = r.m_count;
-            break;
-        }
-        it++;
-    }
-    out.first = itemIdx;
-    out.second = count;
-}
+
 
 #include "CStackableItem/is_included_material_for_limit_cube.inc"
-{
-    for (std::vector<std::pair<int, int> >::const_iterator it =
-             m_limitCube.m_materials.begin();
-         it != m_limitCube.m_materials.end(); it++)
-    {
-        if ((unsigned int)it->first == itemIdx)
-        {
-            return 1;
-        }
-    }
-    return 0;
-}
+
 
 #include "CStackableItem/quickslot_priority.inc"
-{
-    if (m_nItemType == 0 || m_nItemType == 4)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CStackableItem/verify.inc"
-{
-    if (m_usablePeriod != 0 && getStackableLimit() != 1)
-    {
-        return 0;
-    }
-    if (m_nItemType == 0xf || m_nItemType == 0x10)
-    {
-        if (m_booster.m_elements.empty())
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
+
 
 #include "CStackableItem/verifyUsableServerType.inc"
-{
-    if (m_usableServers.empty())
-    {
-        return 1;
-    }
-    StackableAction::UsableServerType serverType =
-        static_cast<StackableAction::UsableServerType>(0);
-    if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 0)
-    {
-        serverType = StackableAction::USABLE_SERVER_TYPE_GENERAL;
-    }
-    if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 2)
-    {
-        serverType = StackableAction::USABLE_SERVER_TYPE_STARTER;
-    }
-    if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 1)
-    {
-        serverType = StackableAction::USABLE_SERVER_TYPE_EVENT;
-    }
-    if (std::find(m_usableServers.begin(), m_usableServers.end(), serverType) ==
-        m_usableServers.end())
-    {
-        return 0;
-    }
-    return 1;
-}
 
-// ORIG 0x0822ca58 (W)：return m_int39c == type
+
 #include "CStackableItem/verifyStackableAction.inc"
-{
-    // b28c-L8 判词 [N(N18a)]：ORIG 0x0822ca58 = `mov 0x39c(%eax),%eax; mov %eax,%edx;
-    // mov 0xc(%ebp),%eax; cmp %eax,%edx`（字段读两段），4.4 恒折单段直落 %edx；
-    // (int)/(unsigned) cast 互换与 std::underlying_type 形均不改（N18a 反向判词：
-    // `mov mem,%eax; mov %eax,%reg` 单段 regmove 不可造）⇒ 残 1 行封顶。
-    // [b28d-P254 翻案] m_int39c 改 StackableAction::Type（enum，CStackableItem.h）
-    // 后 4.4 复现两段装载 ⇒ 本件 IDENTICAL（10=10）。旧 N18a 判词作废。
-    return m_int39c == type;
-}
+
 
 // ===================== make_item（ORIG 0x850f8b8） =====================
 
 #include "CStackableItem/make_item.inc"
-{
-    switch (m_nItemType)
-    {
-    case 8:
-        item.m_field1 = 4;
-        break;
-    case 1:
-        item.m_field1 = 3;
-        break;
-    case 9:
-    case 10:
-        item.m_field1 = 7;
-        break;
-    case 0x14:
-        item.m_field1 = 9;
-        break;
-    case 2:
-        item.m_field1 = 10;
-        break;
-    default:
-        item.m_field1 = 2;
-        break;
-    }
-    item.m_fieldb = 0;
-    int t = 0;
-    if (getUsablePeriod() != 0)
-    {
-        t = ((CSystemTime*)0x941f714)->getCurSec() +
-            getUsablePeriod() * 0x15180;
-    }
-    else if (getExpirationDate() != 0)
-    {
-        t = getExpirationDate();
-    }
-    if (t != 0)
-    {
-        item.m_fieldb = (unsigned short)((t - 0x44a54a80) / 0x15180);
-    }
-    item.ResetItemAttr();
-    item.m_fieldd = 0;
-    ((itemGloballyUniqueIdentifier_t*)((char*)&item + 0x15))->reset();
-    item.m_amp.reset();
-    if (GetAttachType() == 7)
-    {
-        item.SetTradeLimitCount((unsigned char)getTradeLimitCount());
-    }
-}
+
 
 // ===================== get_lotto_item（ORIG 0x850ebfc） =====================
 
-// [b28d-solo-CStackableItem] ORIG 0x850ebfc：pairIt 先声明（默认构造 C1Ev，P50）后
-// `pairIt = begin()`；循环体 `item = std::pair<int,int>(*pairIt)` 走 aSEOS0_（P135），
-// 之后一律读 item.first/second（-0x44/-0x40）；countIt 为 const_iterator 转换构造。
 #include "CStackableItem/get_lotto_item.inc"
-{
-    Inven_Item* pItem = (Inven_Item*)out;
-    int itemIdx = -1;
-    unsigned long range = 100000;
-    int rand = m_pRand->randInt(range);
-    int sum = 0;
-    std::vector<std::pair<int, int> >::iterator pairIt;
-    int count = 1;
-    std::vector<int>::const_iterator countIt = m_lotto.m_counts.begin();
-    std::pair<int, int> item;
-    pairIt = m_lotto.m_items.begin();
-    while (pairIt != m_lotto.m_items.end())
-    {
-        item = std::pair<int, int>(*pairIt);
-        sum += item.second;
-        if (sum > rand)
-        {
-            itemIdx = item.first;
-            count = *countIt;
-            break;
-        }
-        pairIt++;
-        ++countIt;
-    }
-    if (itemIdx == 0 && count > 0)
-    {
-        pItem->m_addInfo = 0;
-        pItem->m_addInfo2 = count;
-    }
-    else
-    {
-        if (itemIdx == -1)
-        {
-            itemIdx = m_lotto.m_defaultIdx;
-            count = m_lotto.m_defaultCount;
-            if (itemIdx == 0)
-            {
-                pItem->m_addInfo = itemIdx;
-                pItem->m_addInfo2 = count;
-                return;
-            }
-        }
-        pItem->m_addInfo = itemIdx;
-        G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, *pItem, count);
-    }
-}
+
 
 // ===================== verifyUsablePlace（ORIG 0x850e9f4） =====================
 
-// [b28d-solo-CStackableItem] ORIG 0x850e9f4：place 为 UsablePlace 类型（find 实例
-// `…EEEES3_ET_S9_S9_RKT0_` 的 RKT0_=UsablePlace，int 版 mangled 为 `…EEEiE`）；
-// 比较为单表达式 `find(...) == m_usablePlaces.end()`（end() 求值两次：-0x18 供
-// 比较、-0x10 供 find），迭代器为非 const iterator（eq 实例 `eqIPN…`）。
 #include "CStackableItem/verifyUsablePlace.inc"
-{
-    if (m_usablePlaces.empty())
-    {
-        return 1;
-    }
-    StackableAction::UsablePlace place =
-        static_cast<StackableAction::UsablePlace>(0);
-    if (G_GameWorld()->IsPVPChannel())
-    {
-        place = StackableAction::USABLE_PLACE_PVP;
-    }
-    else
-    {
-        switch (user->get_state())
-        {
-        case 5:
-            place = StackableAction::USABLE_PLACE_DUNGEON;
-            break;
-        case 3:
-            place = StackableAction::USABLE_PLACE_VILLAGE;
-            break;
-        }
-    }
-    if (std::find(m_usablePlaces.begin(), m_usablePlaces.end(), place)
-        == m_usablePlaces.end())
-    {
-        return 0;
-    }
-    if ((char)m_arad148.m_field4 < 0 ||
-        ((char)m_arad148.m_field4 >= 0 &&
-         ((CUserCharacInfo*)user)->getCurCharFirstGrowType() ==
-             (char)m_arad148.m_field4))
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 // ===================== set_item（ORIG 0x850d81e） =====================
 
@@ -1455,700 +527,105 @@ public:
 // 底部 static_assert 逐偏移锁定（sizeof 0x148 不变）。视图 cast 只做偏移“翻译”，
 // 与 ORIG 的 plain `mov %edx,0xfc(%eax)` 直存同形；改成具名成员后访问形态不变。
 
-// [b28d-solo-CStackableItem] fresh 复验 1060/1073（起点 1059/1100）：已修——
-// ①CItemView 三处偏移整体少 0x10（m_charD0@0xc0→0xd0、m_intFC 0xec→0xfc、
-//   m_int100 0xf0→0x100）真语义 bug；②删 ORIG 全函数无写入的
-//   `m_boolF8 = script.m_field31`（P171）；③删 scriptText/strncpy 冗余缓冲，
-//   script2Database 直传 m_strac.c_str()；④cMyTrace 改全表达式临时链（P227）；
-//   ⑤镜像 STStackableScript 13 字段按 ORIG `movzbl` 单段形改型；⑥m_field364→int。
-// [b28d-N] fresh 1059/1071（差 12 条，逐行 diff 323 行、槽号归一后匹配 76 行）判 N 封顶：
-// 残余族 = ①槽整体深 4（ORIG -0x64/-0x258 vs 我们 -0x68/-0x25c；前置死局部 `int
-// framePad` 实测反向变 -0x6c，N95 槽基不可上移）；②ORIG 把 `lea -0x64,%esi` 地址缓存进
-// callee-saved 而我们直用 %edx（P183/P226 地址物化族）；③装载序/中转（N76/P211）；
-// ④`m_vec94[i]` lea-vs-add（N107）；⑤比较方向 seta-vs-setb（N18b）。
-// 注：函数内 `__asm__ __volatile__` rep stosl 清零块（ORIG 0x7d dwords=500B）沿用既有
-// 批次做法，非 P0 register 绑定；本波未改动（如 Main 要求可换 P312 `char buf[500]={0}`
-// + 前置死局部形重测）。
-// [b28d-solo-CStackableItem Lane34 视图 cast 波 2026-09-09] gap 12→**6**（1060/1066）：
-//  ①4 处 `(CItemView*)this` 写点改权威具名成员（m_charD0/m_intFC/m_int100/
-//    m_increaseStatusType，见本 TU 上一段注释 + CItem.h static_assert），删除 TU 局部
-//    CItemView；②镜像 STStackableScript::m_field3a1 char→bool（ORIG `movzbl 0x3a1;
-//    mov %dl,0x344` 无 bool 归一化 ⇒ 两侧同为 bool 字节直传，P136；本 TU 唯一读者）
-//    ⇒ 消 `test/setne` 2 条；③emo 段 `EmoticonFn fn=...;fn(...)` 改直接调用表达式
-//    （ORIG 函数指针在 %edx 无槽往返，P0）⇒ -2；④`*reinterpret_cast<unsigned short*>
-//    (&m_avatar365.m_field0)` 改 CStackableItem.h 新增 16 位具名视角 m_jobType16
-//    （union 同址零布局 + static_assert；ORIG `mov %cx,0x365(%eax)` disp 直存）⇒ -1；
-//  ⑤`for (int i=1; i<m_vec94.size(); ++i)` 改 `for (unsigned i=1; size()>i; ++i)`
-//    （ORIG 尾判 `cmp -0x28(%ebp),%eax; seta`，操作数序按 size() 在左）⇒ -1。
-//  残 6 条 = 纯跨版本装载/寄存器族（无结构缺口）：①地址缓存（ORIG `lea -0x64,%esi`
-//  callee-saved vs 4.4 重发 lea，P183/P226）；②`mov mem,%eax; mov %eax,%edx` 中转
-//  ×4（N18a/N92 反向）；③m_field474 载 %eax 再中转 %esi（P87）；④m_stat2dc 段
-//  ORIG 两段 vs 4.4 单段（-1）。判定：**判据①（jcctgt 目标下标逐位）0 mismatch**；
-//  p167 调用点 84=84 CLEAR（仅 C1/C2 符号别名 P93）；TU 四数 431/900/3/6 零回退。
-// [S1Charac 2026-09-11 §6.5 串/变参核查 · CLEAR] ORIG 0x0850d98c-0x0850d9d9 的 cMyTrace
-// 段与我们对位全等：ctor(prett,0x80,5) → operator()(prett, script名, db名, script名, 0x80)
-// 形参序与栈位（0x8/0xc/0x10/0x14/0x18(%esp)）逐条一致；串
-// "Error!!! %s->%s [%s][%s][%d]" 与 prett 符号 _ZZN14CStackableItem8set_itemER17STStackableScriptE19__PRETTY_FUNCTION__
-// 均在 ORIG 有同物（本 TU 全量 .rodata 串 70/70 ⊂ ORIG，无发明串；enc_kr_scan 0 命中）。
-// 残差=帧 0x26c↔0x27c/地址缓存族（N115/P183），语义等价。
 #include "CStackableItem/set_item.inc"
-{
-    char buf[500];
-    unsigned long seed = time(0) + script.m_field0;
-    m_pRand = new CMTRand(seed);
-    m_index = script.m_field0;
-    m_grade = script.m_field4;
-    m_field0c = script.m_field14;
-    m_field10 = script.m_field18;
-    m_field14 = script.m_field1c;
-    m_field30 = script.m_field24;
-    m_rarity = script.m_field10;
-    m_char60 = script.m_fieldfc;
-    if (script.m_field30)
-    {
-        G_CDataManager()->set_AuctionRegFreeCeraItem(m_index);
-    }
-    __asm__ __volatile__(
-        "movl $0, %%eax\n\t"
-        "movl $0x7d, %%edx\n\t"
-        "movl %0, %%edi\n\t"
-        "movl %%edx, %%ecx\n\t"
-        "rep stosl\n\t"
-        : : "b"(buf) : "eax", "edx", "ecx", "edi", "memory");
-    strcpy(buf, script.m_strac.c_str());
-    if (!CodePage::script2Database((char*)script.m_strac.c_str(), buf))
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0x80, 5)(
-            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-            CodePage::database(), script.m_strac.c_str(),
-            "void CStackableItem::set_item(STStackableScript&)", 0x80);
-    }
-    m_str2c = buf;
-    m_usablePeriod = script.m_fieldf4;
-    m_expirationDate = script.m_fieldf8;
-    m_field64 = script.m_field20;
-    m_field68 = script.m_field4ec;
-    m_int2cc = script.m_field18c;
-    m_pair24.first = script.m_field28;
-    m_pair24.second = script.m_field2c;
-    m_field50 = script.m_fieldc;
-    m_attachType = script.m_field8;
-    m_nItemType = script.m_field1e0;
-    m_int2b8 = script.m_field3cc;
-    if (m_nItemType == 3)
-    {
-        createRecipeInfo(&m_recipe174, &script.m_vec88, 0);
-        m_recipe174.m_vec28 = script.m_vec3c0;
-        m_recipe174.additionalInfo(script);
-    }
-    if (m_nItemType == 6)
-    {
-        createLotteryInfo(&m_lotto, &script.m_vec88);
-    }
-    else if (m_nItemType == 7)
-    {
-        createStackableLotteryInfo(&m_lotto, &script.m_vec88);
-    }
-    else if (m_nItemType == 0xd)
-    {
-        createStackableLotteryInfo(&m_lotto, &script.m_vec88);
-    }
-    else if (m_nItemType == 0x1a || m_nItemType == 0x1b)
-    {
-        createStackableMultiBoxLotteryInfo(
-            &m_multiBox, &script.m_vec244, &script.m_vec250,
-            &script.m_vec25c);
-    }
-    else if (m_nItemType == 0xe || m_nItemType == 0x26)
-    {
-        m_pkg21c = script.m_vec268;
-        m_pkg234 = script.m_vec274;
-        if (!script.m_vec2a4.empty())
-        {
-            m_pkg228 = script.m_vec2a4;
-            script.m_vec2a4.clear();
-        }
-    }
-    else if (m_nItemType == 0xf || m_nItemType == 0x10)
-    {
-        m_booster = script.m_booster;
-    }
-    else if (m_nItemType == 0x11)
-    {
-        m_booster = script.m_booster;
-        m_nItemType = 0x10;
-    }
-    else if (m_nItemType == 0x22)
-    {
-        m_booster = script.m_booster;
-        m_boosterSelect = script.m_boosterSelect;
-    }
-    else if (m_nItemType == 0x17)
-    {
-        createGlobalEffectInfo(m_vec280, &script.m_vec88);
-    }
-    else if (m_nItemType == 0x1d)
-    {
-        m_limitCube.m_materials = script.m_vec3d4;
-        m_limitCube.m_2ndMaterialIdx = script.m_field3e0;
-        m_limitCube.m_2ndMaterialCount = script.m_field3e4;
-        m_limitCube.m_results = script.m_vec3e8;
-    }
-    for (int i = 0; i <= 10; ++i)
-    {
-        m_jobUsable[i] = script.m_usable[i];
-    }
-    m_usableLevel = script.m_field5c;
-    m_field4c = script.m_field60;
-    m_stackable = 1;
-    m_int28c = script.m_field364;
-    m_int2bc = script.m_field1e4;
-    m_usableTypes.clear();
-    if (m_nItemType == 2 && m_int2bc == 1)
-    {
-        if (script.m_vec94.size() > 1)
-        {
-            // [b28d-solo-CStackableItem] ORIG 循环尾 `call size; cmp -0x28(%ebp),%eax;
-            // seta %al`（dst=%eax=size，无符号 above）⇒ 源码按 size() 在左的比较方向写。
-            for (unsigned int i = 1; script.m_vec94.size() > i; ++i)
-            {
-                int t = GetEquipmentTypeStringToEnum(script.m_vec94[i]);
-                if (t != 0x16)
-                {
-                    m_usableTypes.push_back((int)t);
-                }
-            }
-        }
-    }
-    m_int2d0 = script.m_field68;
-    m_int2d4 = script.m_field1b4;
-    m_option2d8.m_field0 = script.m_field1b9;
-    m_option2d8.m_field1 = script.m_field1ba;
-    m_option2d8.m_field2 = script.m_field1bb;
-    m_stat2dc.m_flagLo = script.m_field360;
-    m_stat2dc.sec = script.m_field358;
-    m_stat2dc.m_flagHi = script.m_field1bf;
-    m_option2e4.m_field0 = script.m_field1bc;
-    m_option2e4.m_field1 = script.m_field1bd;
-    m_option2e4.m_field2 = script.m_field1be;
-    m_char2e7 = script.m_field1c0;
-    m_int2e8 = script.m_field1c4;
-    m_char2ec = script.m_field1d0;
-    m_jewelTargetSocket = script.m_field380;
-    m_itemGroupName = script.m_field100;
-    m_char78 = script.m_field104;
-    m_int58 = -1;
-    m_bool79 = 0;
-    m_int80 = script.m_fieldc8;
-    m_int7c = script.m_fieldcc;
-    m_impossibleGift = script.m_fieldd0;
-    m_strb0 = script.m_str6c;
-    m_drop = script.m_specialDrop;
-    script.m_specialDrop.clear();
-    m_char2f0 = script.m_field10e;
-    m_short2ee = script.m_field394;
-    m_enchantMap = script.m_map3f4;
-    m_char30c = script.m_field40c;
-    memcpy(m_chars30d, script.m_fields40d, 2);
-    m_char30f = script.m_field396;
-    m_short310 = script.m_field398;
-    m_char312 = script.m_field39a;
-    m_char313 = script.m_field39b;
-    m_short314 = (unsigned short)script.m_field39c;
-    m_char316 = script.m_field3a0;
-    m_char320 = script.m_field438;
-    if (m_char320)
-    {
-        m_int318 = script.m_field43c;
-        m_int31c = script.m_field440;
-    }
-    m_isRoutingItem = script.m_field10f;
-    m_vecC0 = script.m_vec110;
-    m_questBonus = 0;
-    m_charD0 = script.m_field3d0;
-    m_char321 = script.m_field3d1;
-    m_setd4 = script.m_setdc;
-    m_intEC = script.m_field64;
-    m_intF0 = script.m_field444;
-    m_intF4 = script.m_field448;
-    m_intFC = script.m_field150;
-    m_int100 = script.m_field154;
-    m_vec104.clear();
-    m_vec104 = script.m_vec158;
-    m_int324 = script.m_field44c;
-    m_int328 = script.m_field454;
-    m_int32c = script.m_field450;
-    m_int330 = script.m_field458;
-    m_int334 = script.m_field45c;
-    m_int338 = script.m_field460;
-    m_int33c = script.m_field464;
-    m_set128 = script.m_set11c;
-    if (script.m_field474 != 0)
-    {
-        G_CDataManager()->set_lottery_use_cost(script.m_field0, script.m_field474);
-    }
-    m_int340 = script.m_field478;
-    m_char344 = script.m_field3a1;
-    m_amplifyMap = script.m_map3a4;
-    m_arad148.m_field0 = script.m_field178;
-    m_arad148.m_field4 = script.m_field17c;
-    m_arad148.m_str8 = script.m_str180;
-    m_arad148.m_strC = script.m_str184;
-    m_arad148.m_str10 = script.m_str188;
-    if (!script.m_vec19c.empty())
-    {
-        m_arad148.m_vec20.reserve(script.m_vec19c.size());
-        std::copy(script.m_vec19c.begin(), script.m_vec19c.end(),
-                  std::back_inserter(m_arad148.m_vec20));
-    }
-    if (!script.m_vec190.empty())
-    {
-        m_arad148.m_vec14.reserve(script.m_vec190.size());
-        std::copy(script.m_vec190.begin(), script.m_vec190.end(),
-                  std::back_inserter(m_arad148.m_vec14));
-    }
-    m_int360 = script.m_field418;
-    m_char364 = script.m_field32c;
-    // [b28d-solo-CStackableItem] ORIG `movzwl 0x47c(%edx),%ecx; mov %cx,0x365(%eax)`
-    // 为 2 字节 disp 直存；原 `reinterpret_cast<unsigned short*>` 走 address-of +
-    // 间接寻址，多出 `add $0x365,%eax` 与 mov 往返（+3 条）。改用 CStackableItem.h
-    // 新增的 16 位具名视角（union 同址零布局，pack 保 sizeof 3）。
-    m_avatar365.m_jobType16 = script.m_field47c;
-    m_avatar365.m_field2 = script.m_field47e;
-    m_set368 = script.m_set480;
-    m_set380 = script.m_set498;
-    m_avatarOptionChange = script.m_field4b0;
-    m_int39c = (StackableAction::Type)script.m_field1e8;  // [b28d-N254] enum 字段
-    m_vec3a0 = script.m_vec1ec;
-    m_usablePlaces = script.m_vec1f8;
-    if (m_int39c == 0x2c)
-    {
-        for (unsigned int i = 0; i < m_vec3a0.size(); ++i)
-        {
-            void* emo = ((CChattingEmoticonList*)
-                ((CDataManagerView*)G_CDataManager())->m_field28)
-                ->find_emoticon(m_vec3a0[i]);
-            // [b28d-solo-CStackableItem] ORIG 0x0850e7xx 段：函数指针读入 %edx 后
-            // 直接 `call *%edx`，**没有**具名 fn 局部（无槽往返，P0）；写成
-            // `EmoticonFn fn = ...; fn(...)` 会多出 fn 槽 +2 条往返。
-            typedef void (*EmoticonFn)(void*, int);
-            (*(EmoticonFn*)(*(char**)emo + 0x18))(emo, m_index);
-        }
-    }
-    m_usableServers = script.m_vec214;
-    m_char3c5 = script.m_field205;
-    m_impossibleCharacCargo = script.m_fieldda;
-    m_increaseStatusType = script.m_field220;
-    m_vec90 = script.m_vec224;
-    m_dyeInfo9c = script.m_dye164;
-    m_randomOptionUnseal = script.m_field4b8 != 0;
-    m_char144 = script.m_fieldd8;
-    m_parentBoosterItemId = 0;
-    m_int3d0 = script.m_field468;
-    m_int3c8 = script.m_field46c;
-    if (m_int3c8 > 1)
-    {
-        m_booster = script.m_booster;
-    }
-    m_int3cc = script.m_field1ac;
-    m_tradeLimitCount = script.m_field508;
-    m_set3d8 = script.m_set50c;
-}
+
 
 // ===================== get_multibox_default_item（ORIG 0x850f136） =====================
 
-// [b28d-solo-CStackableItem] **AE-EQUAL 153=153**（本波修复，原 N18b 判词作废）。
-// 修法 = 字段侧异型化（P274/P321-S1 一次旋钮）：stDefaultItem::m_prob int→unsigned int
-// （MultiBoxLotteryInfo.h:33，Main 代落 + R2 广播；同宽 4B、偏移 +0x08/sizeof 0x10/
-// mangled 零变化）。ORIG 0x0850f1bd 累加段 = `mov 0x8(%eax),%edx; mov -0x1c(%ebp),%eax;
-// lea (%edx,%eax,1),%eax; mov %eax,-0x1c(%ebp)`（读-加-写四段）：4.4 对「int 字段 +
-// int 累加器」恒折 `mov mem,%eax; add %eax,sum`（N18b），对「unsigned 字段 + int 累加器」
-// 逐条复现（探针 /tmp/probe_sum2.cpp a1；int 侧 a5/a6 均折）。sum 保持 int ⇒ 后续
-// `sum > rand` 仍为 ORIG 有符号 `jle`。volatile 化实测槽漂移(-0x1c→-0x28)+比较物化，已回退。
-// 本件 `flag = stDefaultItemInfo::m_defaultFlag != 0` 的 test/setne 物化已匹配
-// （该字段保持 char，见 get_multibox_lottery_item 判词的字段分型说明）。
-// ORIG 0x850f136：rand/sum/itemIdx/count/flag 声明在函数头（-0x20/-0x1c/-0x18/-0x14/-0xd），
-// 循环体内先 `it = begin()`（-0x2c）再 get_rand_int(1000000)；内层 while 每次调 end()、
-// 增量 `it++`（ppEi）。
 #include "CStackableItem/get_multibox_default_item.inc"
-    std::vector<std::pair<Inven_Item, bool> >* out)
-{
-    if (out == 0)
-    {
-        return;
-    }
-    int rand = 0;
-    // [b28d-solo-CStackableItem] ORIG 0x0850f1bd 累加段 = 读-加-写四段
-    // `mov 0x8(%eax),%edx; mov -0x1c(%ebp),%eax; lea (%edx,%eax,1),%eax;
-    // mov %eax,-0x1c(%ebp)`；4.4 对「int 字段 + int 累加器」恒折
-    // `mov mem,%eax; add %eax,sum`（N18b）。volatile 化实测槽漂移(-0x1c→-0x28)+
-    // 比较物化(setg/test/je)，已回退。唯一复现形 = 字段侧 unsigned 化（异型 ⇒ 4.4
-    // 不折叠；探针 /tmp/probe_sum2.cpp a1 逐条同形）⇒ 走 R2 报 Main 代落
-    // MultiBoxLotteryInfo.h:33 stDefaultItem::m_prob int→unsigned int。
-    int sum = 0;
-    int itemIdx = 0;
-    int count = 0;
-    bool flag = false;
-    for (unsigned int i = 0;
-         i < (unsigned int)m_multiBox.m_default.m_defaultCount; i++)
-    {
-        std::vector<MultiBoxLotteryInfo::stDefaultItem>::iterator it =
-            m_multiBox.m_default.m_items.begin();
-        rand = get_rand_int(1000000);
-        sum = 0;
-        itemIdx = 0;
-        while (it != m_multiBox.m_default.m_items.end())
-        {
-            sum += (*it).m_prob;
-            if (sum > rand)
-            {
-                itemIdx = (*it).m_itemIdx;
-                count = (*it).m_count;
-                flag = (*it).m_flag != 0;
-                break;
-            }
-            it++;
-        }
-        if (itemIdx == 0)
-        {
-            itemIdx = m_multiBox.m_default.m_defaultIdx;
-            count = m_multiBox.m_default.m_defaultNum;
-            flag = m_multiBox.m_default.m_defaultFlag != 0;
-        }
-        Inven_Item item;
-        item.m_addInfo = itemIdx;
-        G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, item, count);
-        std::pair<Inven_Item, bool> p;
-        p.first = item;
-        p.second = flag;
-        out->push_back(p);
-    }
-}
+
 
 // ===================== get_multibox_default_item_arad（ORIG 0x850f38a） =====================
 
-// [b28d-solo-CStackableItem] ORIG 0x850f38a：**static 成员**（首参 0x8(%ebp)、无 this，
-// P245/P281）；静态表 push_back 走右值重载 push_backEOS1_（临时对象直传，P270）；
-// 选择循环 rand<=sum、operator*、it++（ppEi），pair.second 直写 0。
 #include "CStackableItem/get_multibox_default_item_arad.inc"
-    std::vector<std::pair<Inven_Item, bool> >* out)
-{
-    if (out == 0)
-    {
-        return;
-    }
-    static std::vector<MultiBoxLotteryInfo::LotteryDefaultArad>
-        defaultItemListArad;
-    if (defaultItemListArad.empty())
-    {
-        defaultItemListArad.push_back(
-            MultiBoxLotteryInfo::LotteryDefaultArad(0x28be16, 10, 50000));
-        defaultItemListArad.push_back(
-            MultiBoxLotteryInfo::LotteryDefaultArad(0x28be16, 0x32, 25000));
-        defaultItemListArad.push_back(
-            MultiBoxLotteryInfo::LotteryDefaultArad(0x28be16, 100, 5000));
-        defaultItemListArad.push_back(
-            MultiBoxLotteryInfo::LotteryDefaultArad(0x28d150, 1, 10000));
-    }
-    int rand = 0;
-    int sum = 0;
-    int itemIdx = 0;
-    int count = 0;
-    unsigned int i = 0;
-    if (i < defaultItemListArad.size())
-    {
-        rand = get_rand_int(100000);
-        sum = 0;
-        itemIdx = 0;
-        for (std::vector<MultiBoxLotteryInfo::LotteryDefaultArad>::iterator
-                 it = defaultItemListArad.begin();
-             it != defaultItemListArad.end(); it++)
-        {
-            sum += (*it).m_field8;
-            if (sum >= rand)
-            {
-                itemIdx = (*it).m_field0;
-                count = (*it).m_field4;
-                break;
-            }
-        }
-        Inven_Item item;
-        item.m_addInfo = itemIdx;
-        G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, item, count);
-        std::pair<Inven_Item, bool> p;
-        p.first = item;
-        p.second = false;
-        out->push_back(p);
-    }
-}
+
 
 // ===================== get_multibox_lottery_item（ORIG 0x850edda） =====================
 
-// [b28d-solo-CStackableItem] AE 214=214。修法（P300/P248 档②）：本函数 `flag` 局部
-// char→bool + **LotteryUnit::m_defaultFlag** 字段 char→bool（MultiBoxLotteryInfo.h，
-// 已 R2 广播）⇒ `flag = unit.m_defaultFlag;` 与 `p.second = flag;` 均产 ORIG 直存
-// `movzbl -0x5c; mov %al`（此前 char 版 4.4 归一化 `cmpb/setne` 多 1 条）。
-// 注意**同名字段分属两类、真型相反**：stDefaultItemInfo::m_defaultFlag 保持 char
-// （其消费点 get_multibox_default_item / createStackableMultiBoxLotteryInfo 要求
-// char 形）——字段级分型后三件同时满足（见各自判词）。
-// ORIG 0x850edda：rand/sum/itemIdx/count/flag 声明在函数头（-0x24/-0x20/-0x1c/-0x18/-0xd）；
-// 外层 while 每次调 end()、增量 unitIt++（ppEi）；unit 拷贝构造落 -0x68；内层双迭代器
-// itemIt(-0x40)/bonusIt(-0x44) 均 ppEi，字段访问走 operator*（deEv）。
 #include "CStackableItem/get_multibox_lottery_item.inc"
-    std::vector<std::pair<Inven_Item, bool> >* out)
-{
-    if (out == 0)
-    {
-        return;
-    }
-    int rand = 0;
-    int sum = 0;
-    int itemIdx = 0;
-    int count = 0;
-    // b28d-solo 修法：flag char→bool（P300/P248 档②，配 m_defaultFlag bool 化 ⇒ 直存）。
-    bool flag = 0;
-    std::vector<MultiBoxLotteryInfo::LotteryUnit>::iterator unitIt =
-        m_multiBox.m_units.begin();
-    while (unitIt != m_multiBox.m_units.end())
-    {
-        MultiBoxLotteryInfo::LotteryUnit unit(*unitIt);
-        for (int i = 0; i < unit.m_count; i++)
-        {
-            std::vector<std::pair<int, int> >::iterator it =
-                unit.m_items.begin();
-            std::vector<std::pair<int, int> >::iterator it2 =
-                unit.m_bonus.begin();
-            rand = get_rand_int(1000000);
-            sum = 0;
-            itemIdx = 0;
-            while (it != unit.m_items.end())
-            {
-                sum += (*it).second;
-                if (sum > rand)
-                {
-                    itemIdx = (*it).first;
-                    count = (*it2).first;
-                    flag = (*it2).second != 0;
-                    break;
-                }
-                it++;
-                it2++;
-            }
-            if (itemIdx == 0)
-            {
-                itemIdx = unit.m_defaultIdx;
-                count = unit.m_defaultNum;
-                flag = unit.m_defaultFlag;
-            }
-            Inven_Item item;
-            item.m_addInfo = itemIdx;
-            G_CDataManager()->m_itemList->create_item(
-                (ENUM_ITEM_CREATE_TYPE)2, item, count);
-            std::pair<Inven_Item, bool> p;
-            p.first = item;
-            p.second = flag;
-            out->push_back(p);
-        }
-        unitIt++;
-    }
-}
+
 
 // ===================== 简单虚函数 / 访问器（ORIG weak） =====================
 
 #include "CStackableItem/GetItemType.inc"
-{
-    return m_nItemType;
-}
+
 
 #include "CStackableItem/IsAvatarItem.inc"
-{
-    return 0;
-}
+
 
 #include "CStackableItem/IsCreatureItem.inc"
-{
-    if (m_nItemType > 8 && m_nItemType <= 0xa)
-    {
-        return 1;
-    }
-    return 0;
-}
+
 
 #include "CStackableItem/IsClearAvatar.inc"
-{
-    return 0;
-}
+
 
 #include "CStackableItem/IsEnchantalbe.inc"
-{
-    return 0;
-}
+
 
 #include "CStackableItem/isEnableAvatarFunc.inc"
-{
-    return 0;
-}
+
 
 #include "CStackableItem/GetGuildPowerWarPoint.inc"
-{
-    return m_int80;
-}
+
 
 #include "CStackableItem/GetUserPowerWarPoint.inc"
-{
-    return m_int7c;
-}
+
 
 #include "CStackableItem/IsImpossibleGift.inc"
-{
-    return m_impossibleGift;
-}
+
 
 #include "CStackableItem/IsRandomOptionUnseal.inc"
-{
-    return m_randomOptionUnseal;
-}
+
 
 #include "CStackableItem/set_parent_booster_item_id.inc"
-{
-    m_parentBoosterItemId = id;
-}
+
 
 #include "CStackableItem/get_parent_booster_item_id.inc"
-{
-    return m_parentBoosterItemId;
-}
+
 
 #include "CStackableItem/getTradeLimitCount.inc"
-{
-    return m_tradeLimitCount;
-}
+
 
 // ===================== 简单访问器 / 状态（ORIG weak） =====================
 
-// ORIG 0x822c9fc：返回 this+0x28c
 #include "CStackableItem/getStackableLimit.inc"
-{
-    return m_int28c;
-}
 
-// ORIG 0x822ca0a：返回 this+0x280（引用→拷贝构造源）
+
 #include "CStackableItem/getGlobalEffectData.inc"
-{
-    return m_vec280;
-}
 
-// ORIG 0x8694736：movzbl 0x2e7(%eax); ret —— 直接返回 bool 字段（无 test/setne 归一）。
+
 #include "CStackableItem/IsExpAffect.inc"
-{
-    return m_char2e7;
-}
 
-// +0x2d8 为 CountinuousItemOption 子对象（m_option2d8：3 独立字节）。
+
 #include "CStackableItem/GetCoolTimeOption.inc"
-{
-    CoolTimeOption opt;
-    // b28c-L8：ORIG 0x086946d2 = `movzwl 0x2d8(%edx),%ecx; mov %cx,(%eax)` 16 位
-    // 直读（uchar 视图实测反劣 +1：4.4 对 uchar→ushort 追加 movzbl %dl 归一）。
-    // 残差 1 条 = 4.4 第二读复用 %edx 覆盖基址 ⇒ 需重载 0xc(%ebp)，而 4.1 用
-    // %ecx/%edx 分列（N7/N18a 型寄存器分配固有差，实测两形均不可翻）。
-    // [b28d-solo-N7] fresh 10/11 判 N7。本波补测：聚合初始化形 10/13 反劣
-    // （先 movw/movb 清零再赋值）已回退；类型旋钮无可用（sec/flag 均 1/2 字节 packed，
-    // 改型即改 sizeof=3；返回类型 CoolTimeOption 固定 sret）。
-    // [S1Charac 2026-09-11 新 5 形·全部回滚] K1 ptr-arith 视图 13（多 2 条 add）、
-    // K2 3 字节子对象整体拷贝 14——**唯一复现 ORIG 读序** `movzwl 0x2d8(%edx),%ecx;
-    // mov %cx,(%eax); movzbl 0x2da(%edx),%edx` 者，但 gcc 额外把 sret 指针保存到
-    // %ebx（push/mov ebx/mov ebx,eax/pop 共 4 条）⇒ 净 +4 反劣、K3 逗号表达式 11
-    // （=基线不变）、K9 同型 aggregate 赋值 16（退化 call memcpy）、K15 具名 const
-    // 引用 15（引用落 -0x4 槽）。⇒ 维持 10/11 N7 封顶：4.4 RA 对「同一 this 基址
-    // 的两次读」恒把首读结果放 %edx 并 reload this，4.1 的 %ecx 分列形在该后端
-    // 只能由 aggregate-copy 路径触发（K2），而该路径的 PARM_DECL 保存代价不可去。
-    opt.sec  = m_option2d8.m_sec16;
-    opt.flag = m_option2d8.m_field2;
-    return opt;
-}
 
-// ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6)，effect 时长(秒)/标志
-// +0x2e4 为 CountinuousItemOption 子对象（m_option2e4：3 独立字节）。
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [S1Charac 2026-09-11 复核 · 与 GetCoolTimeOption 同族同判] 本波对 GetCoolTimeOption
-// 实测 5 形（ptr-arith 视图 13 / 3B 子对象整体拷贝 14——唯一复现 ORIG `%ecx` 首读形但
-// gcc 多保存 sret 指针到 %ebx 4 条 / 逗号表达式 11=基线 / 同型 aggregate 赋值 16 /
-// 具名 const 引用 15）全部不可翻 ⇒ 本件（+0x2e4 同构）维持 10/11 N7，未重复试形。
-// §6.5：本函数无 rodata 串引用 ⇒ CLEAR。
+
 #include "CStackableItem/GetEffectItemOption.inc"
-{
-    CoolTimeOption opt;
-    opt.sec  = m_option2e4.m_sec16;    // b28c-L8：同 GetCoolTimeOption（ORIG 0x086946f4）
-                                       // [b28d-solo-N7] fresh 10/11 维持 N7（同族同判词）。
-    opt.flag = m_option2e4.m_field2;
-    return opt;
-}
 
-// ORIG 0x08694716 (W 非 const)：无 ctor 调用，直接 8 字节拷贝
-//   mov 0x2e0(%eax),%edx; mov 0x2dc(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx)
-// +0x2dc 为 StatChangeInfo 子对象（m_stat2dc：int + 低两字节 flag）。
-// 调用方(_processEffectItem)按 ORIG 只测 flag 的低 16 位。
+
 #include "CStackableItem/GetStatChangeInfo.inc"
-{
-    // 直接 reinterpret 拷贝：不调用 StatChangeInfo ctor，生成 ORIG 的 8 字节整拷。
-    return *reinterpret_cast<StatChangeInfo*>(&m_stat2dc);
-}
 
-// ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
+
 #include "CStackableItem/GetExpAffectRatio.inc"
-{
-    // b28c-L8：ORIG 0x08694746 = `mov 0x8(%ebp),%eax; add $0x2e8,%eax; flds (%eax)`
-    // （指针经 add 推进后 flds 单元址）。旧形 `*(float*)&m_int2e8` 4.4 会折成
-    // `flds 0x2e8(%eax)`；改经匿名 union float 视图 + 返回类型与字段同型即复现。
-    return m_flt2e8;
-}
 
-// ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）
+
 #include "CStackableItem/getJewelTargetSocket.inc"
-{
-    return m_jewelTargetSocket;
-}
 
-// ORIG W 0x822c9d2 _ZNK14CStackableItem12get_sub_typeEv：
-// mov 0x2bc(%eax) —— 返回 m_int2bc（sub_type）
+
 #include "CStackableItem/get_sub_type.inc"
-{
-    return m_int2bc;
-}
 
-// ORIG 0x0869475e W _ZNK14CStackableItem26IsUse2ndUpgradeTableRecipeEv：
-// movzbl 0xd0(%eax) —— 返回 CItem 基类 +0xd0 字节（m_boolD0）
+
 #include "CStackableItem/IsUse2ndUpgradeTableRecipe.inc"
-{
-    return m_boolD0;
-}
 
-// ORIG 0x822ca48 (W)：movzbl 0x321(%eax),%eax —— 直接返回 bool 字段（无 test/setne）。
+
 #include "CStackableItem/IsDeletableItem.inc"
-{
-    return m_char321;
-}
 
-// ORIG _ZN14CStackableItem18IsSharedEffectItemEv W 0x0822ca18：movzbl 0x2ec(%eax),%eax —— 返回 m_char2ec 字节（共享特效物品标记）
+
 #include "CStackableItem/IsSharedEffectItem.inc"
-{
-    return m_char2ec;
-}
 
-// ORIG _ZN14CStackableItem13GetEmancipateEv W 0x0854b4e8：movzwl 0x2ee(%eax),%eax —— 返回 m_short2ee（解绑值）
+
 #include "CStackableItem/GetEmancipate.inc"
-{
-    return m_short2ee;
-}
 
-// ============================================================================
-// CStackableItem::is_random_amplify_reinforce_ticket @ 0x854b518
-//   返回 +0x344 bool（movzbl 0x344(%eax); ret，无 test/setne 归一）。
-// ============================================================================
+
 #include "CStackableItem/is_random_amplify_reinforce_ticket.inc"
-{
-    return m_char344;
-}
+

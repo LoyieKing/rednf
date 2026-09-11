@@ -1,3 +1,5 @@
+// ---------------------------------------------------------------------------
+// ORIG 0x081b9ed2：IsEventing(0) 为真时清事件标志并打日志。
 void CNotApplyBalkeunEvent::EndEvent()
 {
     if (IsEventing(0))

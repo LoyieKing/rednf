@@ -1,3 +1,8 @@
+// ORIG 0x0815b97c：GetOutBuffer<Taiwan::SigUpdateExitTime> null → throw "handle
+// null"；updateSSOExpireTime(m_timeA, m_timeB) != 1 → throw "exec"；catch
+// (const char*) 记 logFormat(1, "localtaiwan/Dispatcher/Taiwan_DbThread.cpp",
+// 0x1d4, __PRETTY_FUNCTION__, "[Taiwan, Auth] update member_login last_play_time.
+// (error:%s)", e) 返 0；成功返 1。
 bool DBUpdateExitTime::dispatch(int code, int uid, Stream* stream)
 {
     try

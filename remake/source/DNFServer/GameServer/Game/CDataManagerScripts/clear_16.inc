@@ -1,1 +1,15 @@
+// ORIG W 0x891b61a：clear —— 清零 +0x00/+0x04、string clear(0x8/0xc)、
+// 0x891b652/659/667 逐字节清 0x10/0x11/0x12（无 0x13 存储 ⇒ pad 不清）、
+// string clear(0x14)、vector clear(0x18)。
 void stOneEmotionData::clear()
+{
+    m_0 = 0;
+    m_4 = 0;
+    m_8.clear();
+    m_c.clear();
+    m_10 = 0;
+    m_11 = 0;
+    m_12 = 0;
+    m_14.clear();
+    m_18.clear();
+}

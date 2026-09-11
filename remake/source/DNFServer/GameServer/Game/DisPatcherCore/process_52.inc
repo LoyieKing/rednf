@@ -1,3 +1,4 @@
+// ORIG 0x081c9a14 T _ZN22DisPatcher_SetPVPReady7processEP5CUserR8MSG_BASER9ParamBase
 int DisPatcher_SetPVPReady::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

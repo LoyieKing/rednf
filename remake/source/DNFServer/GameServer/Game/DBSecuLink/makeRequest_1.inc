@@ -1,1 +1,19 @@
+// ----------------------------------------------------------------------------
+// DB_DenyJoinGuild::makeRequest(uint uid, uint guildKey, uint applicant)
+// ORIG @ 0x0843df0e（报告 DB_DenyJoinGuild/makeRequest.md）：
+// Acquire("DBThread.cpp", 0x92b4) → << 0x21c | << uid(int) | << guildKey(uint) |
+// << applicant(uint) → put(DB_Q)。无 GetInBuffer。
+// ----------------------------------------------------------------------------
 void DB_DenyJoinGuild::makeRequest(int uid, unsigned int guildKey,
+                                   unsigned int applicant)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x92b4),
+                       true);
+
+    guard.operator*()->operator<<(0x21c);              // op*(guard)→op<<(int)
+    guard.operator*()->operator<<(static_cast<int>(uid));
+    guard.operator*()->operator<<(guildKey);           // op<<(unsigned int)
+    guard.operator*()->operator<<(applicant);          // op<<(unsigned int)
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+}

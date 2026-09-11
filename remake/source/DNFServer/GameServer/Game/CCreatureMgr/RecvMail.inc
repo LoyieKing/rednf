@@ -1,3 +1,7 @@
+// ORIG _ZN13user_creature12CCreatureMgr8RecvMailEP10Inven_Itemii T 0x0833ab9a
+// （docs/class_func_reports/user_creature__CCreatureMgr/RecvMail.md）。
+// [b28d-23 N·N82] ⇒ N。ORIG 0x0833ab9a
+// [b28d-solo-CCreatureMgr AE] P183 去 characNo 具名槽（实参直传）+ P221 全表达式临时链（trace 槽 -0x2c）；ORIG 0x833ab9a
 bool CCreatureMgr::RecvMail(Inven_Item* item, int slot, int reason)
 {
     if (!IsCreatureEquipmentScope(slot))

@@ -1,3 +1,6 @@
+// ORIG 0x081c3ce8 T _ZN18DisPatcher_GetItem4sendEP5CUserR9ParamBase
+// （报告 DisPatcher_GetItem/send.md 逐块映射）：param.m_errNo(+0x4)
+// !=0x7fffffff；==0 → SendCmdOkPacket(0x2e)；否则 SendCmdErrorPacket(0x2e, err&0xff)。
 void DisPatcher_GetItem::send(CUser* user, ParamBase& param)
 
 {

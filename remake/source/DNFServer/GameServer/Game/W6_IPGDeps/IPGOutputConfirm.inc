@@ -1,3 +1,8 @@
+// ORIG T 0x08100cd2 (0x138)。
+// [b28d-solo-W6_IPGDeps] verdict=AE（77=77）。修法：① 删 cv 具名局部，全字段走
+// `data->m_cmd.m_cancel.*` 成员链（P0/P183）；② tran 拷贝改匿名 union 视图整体赋值
+// `data->m_cmd.m_cancel.m_tran = *tran`（P246）⇒ ORIG 尾部单载 + 3 dword 连续拷贝。
+// P167 CLEAR（8/8）。
 void CIPGHelper::IPGOutputConfirm(CUser* user,
                                   const char* p2, const char* p3, const char* p4,
                                   const char* p5, const char* p6, const char* p7,

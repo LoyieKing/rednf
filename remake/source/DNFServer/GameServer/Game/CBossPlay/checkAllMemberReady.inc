@@ -1,3 +1,6 @@
+// ============================================================================
+// checkAllMemberReady（ORIG 0x081493fe）
+// ============================================================================
 bool CBossPlay::checkAllMemberReady(int count)
 {
     if (m_allMemberReady)

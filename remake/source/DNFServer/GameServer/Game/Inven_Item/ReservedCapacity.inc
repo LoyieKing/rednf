@@ -1,1 +1,4 @@
 ReservedCapacity::ReservedCapacity()
+{
+    reset();
+}

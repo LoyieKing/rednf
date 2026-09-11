@@ -1,1 +1,3 @@
 CFieldLengthChecker::CFieldLengthChecker()
+{
+}

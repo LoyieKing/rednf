@@ -22,24 +22,10 @@
 #include "LogManager.h"
 
 #include "CSchoolServerProxy/CSchoolServerProxy.inc"
-    : m_ip(ip), m_port(port), m_udpHandler()
-{
-}
+
 
 #include "CSchoolServerProxy/Init.inc"
-{
-    if (m_udpHandler.InitClientSocket() == -1) {
-        LogManager::logFormat(1, "DF_SchoolServerProxy.cpp",
-                              __PRETTY_FUNCTION__, 0x3c,
-                              "[CSchoolServerProxy::Init] Can't init udp client socket\n");
-        return false;
-    }
-    return true;
-}
+
 
 #include "CSchoolServerProxy/SendPacket.inc"
-{
-    m_udpHandler.SendToServer(packet, length,
-                               static_cast<unsigned short>(m_port),
-                               m_ip.c_str());
-}
+

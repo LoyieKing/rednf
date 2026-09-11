@@ -1,3 +1,13 @@
+// ============================================================================
+// DB_DeleteCharac::dispatch @0x08402c38
+// 基类 dispatch 通过 → GetOutBuffer<SIG_DELETE_CHARAC>（空 → 0）→
+// +0x8 清零 → getCurSec → stItemLockInfo[100] 自动构造 → GetItemLock
+// 成功则扫描 100 项：state==1 或 (state==2 且 unlockSec+0x3f480>curSec)
+// → +0x8=3 + SendResult 返 1。DeleteGuildInfo 失败 → cMyTrace 0x12a7 +
+// SendResult；成功 → +0x10=0，CheckEventCharacter40 为真则
+// DeleteEventCharacFlag + +0x10=1；DeleteCharac 失败 +0x8=1；
+// DeleteCharacOption；SendResult 失败 → 0；成功 cMyTrace 0x12ce 返 1。
+// ============================================================================
 bool DB_DeleteCharac::dispatch(int userIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userIdx, slot, stream))

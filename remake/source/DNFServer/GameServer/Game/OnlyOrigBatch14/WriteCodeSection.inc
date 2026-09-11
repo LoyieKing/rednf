@@ -1,3 +1,4 @@
+// ORIG T 0x0808aa37 _Z16WriteCodeSectionPKc：读取 PE 头后写回 .code.bin。
 void WriteCodeSection(const char* path)
 {
     // [b28d-solo-OnlyOrigBatch14] 槽序/零初始化按 ORIG：e_lfanew 无初始化（ORIG

@@ -20,40 +20,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9b8c：仅基类构造 + vptr 置位。
 #include "CNoNeedGoldOnGuildCreateEvent/CNoNeedGoldOnGuildCreateEvent.inc"
-{
-}
 
-// ORIG 0x081b9ba8 / 0x081b9bd8：空体 + 虚析构由编译器生成同形。
+
 #include "CNoNeedGoldOnGuildCreateEvent/dtor_CNoNeedGoldOnGuildCreateEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9bf6：置事件标志并打日志（__FUNCTION__ "StartEvent"，line 0x12）。
+
 #include "CNoNeedGoldOnGuildCreateEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x12, 0);
-    tr("No Need Money On Guild Create Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9c48：同 StartEvent()（忽略 param，line 0x18）。
+
 #include "CNoNeedGoldOnGuildCreateEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x18, 0);
-    tr("No Need Money On Guild Create Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9c9a：清事件标志并打日志（__FUNCTION__ "EndEvent"，line 0x1e）。
+
 #include "CNoNeedGoldOnGuildCreateEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x1e, 0);
-    tr("No Need Money On Guild Create Event End!");
-}
+

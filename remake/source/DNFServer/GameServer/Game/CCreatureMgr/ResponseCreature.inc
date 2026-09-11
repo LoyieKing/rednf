@@ -1,3 +1,6 @@
+// ORIG _ZN13user_creature12CCreatureMgr16ResponseCreatureEv T 0x0833a6d8：
+// 构造 CPacketRespondent(user,0,0) → 填充 ResponseCreature 通知包 →
+// 以 (村, 区域) 广播（门区由 Broadcast 内部直发本人），透传其返回值。
 bool CCreatureMgr::ResponseCreature()
 {
     CPacketRespondent respondent(m_user, 0, 0);

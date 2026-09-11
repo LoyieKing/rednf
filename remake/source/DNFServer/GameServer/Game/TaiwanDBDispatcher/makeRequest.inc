@@ -1,3 +1,9 @@
+// ORIG T 0x0815cf06（报告 DBUpdatePcroomDailyReward/makeRequest.md）：PC 房日奖励
+// 落库请求：internal_stream(0xe, uid) → MSG{m_id=acc_id, m_remain=user+0x8ec32}。
+// [b28d-lane6] AE：原 NEAR 残差 = cMyTrace 具名对象槽向反（ORIG guard@-0x24 /
+// trace@-0x1c，4.4 具名形 guard@-0x14 / trace@-0x24）。改 P221 全表达式临时链
+// `cMyTrace(...)(...)` 后槽向与 ORIG 一致（75=75 逐条全等，仅余 nop 填充）。
+// 旧 b22「N82 槽号不可翻」判词作废。
 void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
 {
     // P0：Acquire 返回值右值内联进 ctor（ORIG %eax 直通，无 stream 栈槽）。

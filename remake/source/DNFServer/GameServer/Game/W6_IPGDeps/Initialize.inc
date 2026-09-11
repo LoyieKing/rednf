@@ -1,3 +1,11 @@
+// ORIG T 0x08100b3e (0x153)。
+// [b28d-solo-W6_IPGDeps] verdict=AE（92=92，原判 N(N81/N102) 作废）。
+// 唯一残差原为 `m_ipgIP[0]` 读：ORIG 0x08100ba7 两步 `add $0x2b8,%eax;
+// movzbl (%eax),%eax`，4.4 对数组元素直读恒折单条 disp。复现形 =
+// `((unsigned char*)&G_CEnvironment()->m_serverEnvir.m_ipgIP)[0]`（取数组成员
+// 地址 + 转 uchar* + 下标，P311 同族；探针 /tmp/init_probe2.cpp f1 折单条
+// vs f15/f18 出两步且零槽）。仍为具名成员访问，非裸偏移；报告 Initialize.md
+// 的 Ghidra C `*(char *)(iVar1 + 0x2b8) == '\0'` 语义一致。P167 CLEAR（9/9）。
 int CIPGHelper::Initialize(unsigned int param1, unsigned int param2)
 {
     if (m_mgr != 0)

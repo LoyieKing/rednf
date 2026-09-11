@@ -1,3 +1,8 @@
+// ORIG 0x081c5b76 T _ZN19DisPatcher_MoveItem4sendEP5CUserR9ParamBase
+// （docs/class_func_reports/DisPatcher_MoveItem/send.md 汇编+反编译 C 全文转写）：
+// result(m_4)!=0x7fffffff 时发包；失败分支 put_byte(0)/err/idx/spot 四字节；
+// 成功分支 put_byte(1)/idx/count/itemIdx/spot/newCount 后 Send，并经
+// ARAD::Singleton<AvatarRechargeServer>::Get()->SendDurability 上报耐久。
 void DisPatcher_MoveItem::send(CUser* user, ParamBase& param)
 
 {

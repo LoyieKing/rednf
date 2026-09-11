@@ -51,7 +51,6 @@
 #include "DB_InsertAccountFirstLoginFlag.h"
 #include "GameTypes.h"                  // cMyTrace
 
-// ORIG T 0x0889232e（定义 BingoEventLink4.cpp）：
 #include "CEventScriptMng_entities/isSetBit_Uint.inc"
 // ORIG T 0x0810904b（声明 CInventory.h/SkillSlot.h）：
 char* NumberToString(unsigned int value, int radix);
@@ -67,400 +66,83 @@ typedef char dnf_mail_layout_assert_[
     (sizeof(::Action_SendMail) == sizeof(Action_SendMail)) ? 1 : -1];
 #define EVENT_MAIL_REF(mail) (*reinterpret_cast<Action_SendMail*>(&(mail)))
 
-// ============ CLevelUpReward（0x194 → LevelUpRewardScript）============
-// ORIG T 0x810e4ea：以绑定脚本 m_mail（+0x28）为 Action_SendMail&，
-// flag=true 走 process_action_send_mail 发奖。
 #include "CEventScriptMng_entities/do_action.inc"
-{
-    CEventActionMng mng;
-    mng.process_action_send_mail(
-        user,
-        EVENT_MAIL_REF(static_cast<LevelUpRewardScript*>(m_script1c)->m_mail),
-        true);
-}
+
  
-// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：P211 档③——m_script1c
-//   具型化（LevelUpRewardScript*）+ 赋值点 static_cast 异型化 ⇒ store 复现 ORIG
-//   RHS-first；4.4.6 后端同时消 N7（vfn %ecx / this %eax 与 ORIG 同形）。4.4.7 下
-//   该件仍 NEAR（纯 N7 后端差；Main 已路由 4.4.6，dnf_game_cxx.sh b28d-S157 条目）
-//   （ORIG 0x0810e168 sz 0x0000002a）
 #include "CEventScriptMng_entities/set_event_data.inc"
-{
-    // ORIG 0x810e168：call vtable+0x18（set_event_record_type(key)），再写 +0x1c。
-    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
-    set_event_record_type(key);
-    m_script1c = static_cast<LevelUpRewardScript*>(script);
-}
+
 
 #include "CEventScriptMng_entities/get_db_table_name.inc"
-{
-    // ORIG 0x810e2d6：return &m_dbTableName（调用方按 std::string& 解释）。
-    return static_cast<LevelUpRewardScript*>(m_script1c)->m_dbTableName;
-}
+
 
 #include "CEventScriptMng_entities/is_recv_check_item.inc"
-{
-    // ORIG 0x810e2f2：return m_flag08。
-    return static_cast<LevelUpRewardScript*>(m_script1c)->m_flag08b;
-}
+
 
 #include "CEventScriptMng_entities/get_mail_data.inc"
-{
-    // ORIG 0x810e2e4：return &m_mail。
-    return reinterpret_cast<char*>(
-        &static_cast<LevelUpRewardScript*>(m_script1c)->m_mail);
-}
 
-// ORIG 0x810e51a：不缓存脚本/items/item/mail 局部——条件与循环每次内联
-// 解引用 it 与 m_script1c；循环计数为 signed int（setg 比较）。
-// [b28d-solo-CEventScriptMng_entities] AE（169/169，compare_tu 口径；报告工具
-//   对 .o 未解析重定位不归一化，故其 verdict 显示 DIFF，属 P264 伪差）（ORIG 0x0810e51a sz 0x00000241）
+
 #include "CEventScriptMng_entities/send_reward_from_recv_level.inc"
-                                                int growType)
-{
-    int job = user->get_charac_job();
-    int curGrowType = static_cast<int>(user->getCurCharFirstGrowType());
 
-    std::map<int, Condition_LevelUp>::iterator it =
-        static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);
-    if (it != static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end() &&
-        !(it->second.m_filter1 != 0xff &&
-          static_cast<int>(static_cast<signed char>(it->second.m_filter1)) !=
-              curGrowType))
-    {
-        for (int i = 0; i < (int)it->second.m_items.size(); ++i)
-        {
-            if (growType < it->second.m_items[i].m_level &&
-                it->second.m_items[i].m_level <= level)
-            {
-                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.reset();
-                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.set_item(
-                    it->second.m_items[i].m_itemIndex,
-                    it->second.m_items[i].m_itemCount);
-                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field30 =
-                    it->second.m_items[i].m_title;
-                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field34 =
-                    it->second.m_items[i].m_content;
-                do_action(user);
-            }
-        }
-    }
-    return 1;
-}
-// ORIG T 0x811056e（vtable slot 2）：基类 is_eventing 且
-// GetRepeatEvent(0x65) 非空且其 IsEventing(0) 为真才返回 true。
 #include "CEventScriptMng_entities/is_eventing.inc"
-{
-    if (CEventEntity::is_eventing())
-    {
-        if (GlobalData::s_event_manager->GetRepeatEvent(0x65)->IsEventing(0))
-            return true;
-    }
-    return false;
-}
 
-// ORIG T 0x08110756：脚本 job 过滤（-1 通配），随后按 [user type] 分派：
-//   0=全适用；1=仅 premium（ENUM_PREMIUM_TYPE 0xc）；其它=不适用。
+
 #include "CEventScriptMng_entities/verifyApplyUser.inc"
-{
-    // ORIG 0x08110756：job 门（-1 通配；两次独立重载 m_script1c，无具名指针/值槽，
-    // P0 律）；user type 经 get_user_type() 取值。[b22判词·N-BOOL] ORIG 中
-    // 不匹配标志经 eax 两段式流转（mov $1/$0,%eax; test %al; je）不留栈槽，
-    // C++ bool 必物化槽位，寄存器流转为编译器结构不可源码复现，语义等价。
-    // 重写：去具名 bool（4.4 必槽），改直接 return 链消 setne/cmpb 物化。
-    if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType >= 0 &&
-        static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType
-            != user->get_charac_job())
-        return false;
 
-    switch (static_cast<unsigned char>(get_user_type()))
-    {
-        case 0:
-            return true;
-        case 1:
-            // ORIG case1 汇聚形（call; test %al; je; mov$1; jmp; mov$0）：
-            // if-return 形复现（具名 bool 透传为 4.4 直传=形不符）。
-            if (user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)))
-                return true;
-            return false;
-        default:
-            return false;
-    }
-}
 
 #include "CEventScriptMng_entities/get_db_table_name_1.inc"
-{
-    // ORIG 0x81105e8：return &m_dbTableName。
-    return static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_dbTableName;
-}
 
-// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
-//   ::set_event_data——P211 档③具型化（UsedFatigueGiveItemScript*）+ 4.4.6 消 N7；
-//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x081105be sz 0x0000002a）
+
 #include "CEventScriptMng_entities/set_event_data_1.inc"
-{
-    // ORIG 0x81105be。
-    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
-    set_event_record_type(key);
-    m_script1c = static_cast<UsedFatigueGiveItemScript*>(script);
-}
 
-// [b28d-solo-CEventScriptMng_entities] AE：字段 bool 化 + 直存（ORIG 0x081107ea sz 0x0000002a）
+
 #include "CEventScriptMng_entities/getIsCharacEvent.inc"
-{
-    // ORIG 0x81107ea：m_script == 0 直接返回 false；否则按 bool 读
-    // m_charcEventFlag（+0x14 字节）后返回 true。
-    // [b28d S12] P211 档②：ORIG 尾 store RHS-first（`movzbl 0x14(%eax),%edx;
-    // mov 0xc(%ebp),%eax; mov %dl,(%eax)`）。旧 B1..B5 探针只试了 uchar/char 源
-    // （与 bool 目标视为同型 ⇒ 恒 LHS-first）。S12 探针 g1..g4 定：源字段 bool +
-    // 目标 bool 直存 ⇒ 4.4 复现 RHS-first 且无 setne（g2 形逐条全等）。
-    // InGameEventScripts.h m_charcEventFlag uchar→bool（同宽同偏移）。
-    if (m_script1c == 0)
-        return false;
-    out = static_cast<const UsedFatigueGiveItemScript*>(m_script1c)->m_charcEventFlag;
-    return true;
-}
 
-// [B24D判词 N] 语义正确：m_usedFatigue==0/GetCurCharacUsedGiftFatigueQuantity==0 早返；
-//   step=used-fatigue；入口 m_fatigueLimit>=0 && limit<=step 早返；do-while 循环判
-//   used>step + limit 界，++step 后 step%used!=0 跳过，否则 process_action_send_mail，
-//   成功后 logFormat(m_id/charac_no/reward)。全程不缓存脚本指针（与 ORIG 同）。
-//   diff=ORIG 多处句尾 `jmp;nop;jmp;nop` 合并跳转链 vs 我方 `jmp;nop;jmp`，105/108
-//   循环/跳转 lowering 表示差异，语义等价。
-// [b28d-solo-CEventScriptMng_entities] AE（compare_tu 口径；报告工具 105/106 的差
-//   为 .o 未解析重定位（P264）+ 1 条尾部对齐 nop（§6.1 剥离））（ORIG 0x081105f6 sz 0x00000160）
+
 #include "CEventScriptMng_entities/sendEventItemFromFatigue.inc"
-{
-    // ORIG 0x81105f6：按已用疲劳档位周期发放奖励邮件。
-    // 档位间隔 m_usedFatigue、上限 m_fatigueLimit（<0 不限）、邮件 m_mail；
-    // 循环先判当前已用疲劳/上限，再 ++step 后按档位取模并发信（ORIG do-while），
-    // 发信成功读 m_mail.m_itemIdx 记日志收尾。全程不缓存脚本指针（与 ORIG 同）。
-    // [b28c-L0 N80/N37] ORIG 两处句尾 `jmp;nop` 中继岛与 4.4 岛形不同；
-    // 日志段 ORIG 立即数为链接后绝对地址、我方 .o 为重定位显示差（AE 口径内）。
-    // 语义等价，落 N80（cMyTrace 变参跨 ctor）/P223 岛形封顶。
-    if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_usedFatigue == 0)
-        return;
-    if (user->GetCurCharacUsedGiftFatigueQuantity() == 0)
-        return;
-    unsigned int step =
-        (unsigned int)(user->GetCurCharacUsedGiftFatigueQuantity() - fatigue);
-    // 入口护栏：m_fatigueLimit >= 0 且 step >= 上限 → 一档都不发。
-    if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit >= 0 &&
-        (unsigned int)static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit <= step)
-        return;
 
-    CEventActionMng mng;
-    while ((unsigned int)user->GetCurCharacUsedGiftFatigueQuantity() > step)
-    {
-        if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit >= 0 &&
-            (unsigned int)static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit <= step)
-            return;
-        ++step;                                   // 先自增再判档位/发信（ORIG do-while）
-        if (step % (unsigned int)static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_usedFatigue != 0u)
-            continue;
-        int sent = mng.process_action_send_mail(
-            user,
-            EVENT_MAIL_REF(static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail),
-            true);
-        if (sent != 0)
-        {
-            LogManager::logFormat(1, "EventClassify.cpp",
-                __PRETTY_FUNCTION__,
-                0x83f,
-                "CUsedFatigueGiveItem::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
-                user->get_acc_id(), user->getCurCharacNo(),
-                static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail.m_itemIdx);
-        }
-    }
-}
 
 // ============ CAttendance（0x56 → AttendanceScript）============
 
-// [b28d-solo-CEventScriptMng_entities] N 封顶（P75/N7 复合；残 2 行，35/35）：
-//   P226 已翻内层物化岛（见下），4.4.6 后端已对齐 vfn→%edx。唯一残差 =
-//   ORIG `mov -0xc(%ebp),%eax; movl $0x0,0x4(%esp)` vs 4.4 `movl $0x0,0x4(%esp);
-//   mov -0xc(%ebp),%eax`——receiver 装载先于常量实参压栈（4.1 this-first /
-//   4.4 arg-first，P75 实参装载时刻跨版本差）。18 形探针全败（/tmp/probe_isevt{,2}.cpp：
-//   ->、(*e)、int()、0u、*&*e、两种 cast、三目、嵌套 if、register 局部、具名 int
-//   实参、语句表达式实参等），源形不可择。P0 禁 register asm 绑定
-//   （ORIG 0x0810e75c sz 0x0000006f）
 #include "CEventScriptMng_entities/is_eventing_1.inc"
-{
-    // ORIG 0x810e75c：GetRepeatEvent(0x56) 判空后经 vptr+0x34 判 IsEventing(0)，
-    // 结果与判空合成一个 bool 条件（双重归一化形态）。
-    if (CEventEntity::is_eventing())
-    {
-        CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x56);
-        // [b28d-solo-CEventScriptMng_entities] P226 扩展：ORIG 内层条件先物化到
-        //   %eax（`mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`）再判，属
-        //   「零槽短路物化」——4.4 对裸 `if (evt!=0 && evt->IsEventing(0))` 恒
-        //   jump-thread 成两条件共落 fail 出口（少 5 条）。用语句表达式包住整个
-        //   条件（内不含具名变量）复现 ORIG 物化岛。
-        if (({ evt != 0 && evt->IsEventing(0); }))
-            return true;
-    }
-    return false;
-}
 
-// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：P211 档③——m_script1c
-//   具型化（AttendanceScript*，S12 先例）+ 赋值点 static_cast ⇒ store RHS-first；
-//   4.4.6 后端消 N7（vfn %ecx / this %eax 与 ORIG 同形）。4.4.7 下仍 NEAR（纯 N7
-//   后端差，Main 已路由 4.4.6）（ORIG 0x0810eadc sz 0x0000002a）
+
 #include "CEventScriptMng_entities/set_event_data_2.inc"
-{
-    // ORIG 0x810eadc。
-    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
-    set_event_record_type(key);
-    m_script1c = static_cast<AttendanceScript*>(script);
-}
+
 
 #include "CEventScriptMng_entities/send_init_data.inc"
-                                 short key, unsigned char count, bool flag)
-{
-    // 两计数以单表达式按 int 相加（前者经寄存器缓存）后整体传入；return 1。
-    packet.put_short(key);
-    packet.put_short(
-        user->get_server_fatigue_count(count) +
-        user->get_fatigue_count_db(count));
-    return true;
-}
+
 
 #include "CEventScriptMng_entities/get_db_table_name_2.inc"
-{
-    // ORIG 0x810e7cc：return &m_dbTableName。
-    return m_script1c->m_dbTableName;
-}
+
 
 #include "CEventScriptMng_entities/get_mail_data_1.inc"
-{
-    // ORIG 0x810e7da：return &m_mail。
-    return reinterpret_cast<char*>(&m_script1c->m_mail);
-}
+
 
 #include "CEventScriptMng_entities/get_fatigue_condition.inc"
-{
-    // ORIG 0x810e7e8：return m_field0c。
-    return m_script1c->m_field0c;
-}
+
 
 #include "CEventScriptMng_entities/get_final_day_condition.inc"
-{
-    // ORIG 0x810e7f6：return m_field24。
-    return m_script1c->m_field24;
-}
 
-// ORIG 0x810e878：day 越界（<0 或 ≥ m_attends.size()）直接返回；命中则把
-// m_attends[day] 写入 mail 的 itemIdx/addInfo，正文 key 取 m_str70 后发奖邮件。
-// [b28d-solo-CEventScriptMng_entities] AE：CAttendance::m_script1c 具型化
-//   (AttendanceScript*) ⇒ 复现 ORIG 单段 `mov 0x1c(%eax),%ebx` 直落 callee-saved
-//   （旧 InGameEventScript*+static_cast 恒两段 mov mem,%eax; mov %eax,%ebx ⇒ 95/97）（ORIG 0x0810e878 sz 0x00000147）
+
 #include "CEventScriptMng_entities/send_attend_reward_item.inc"
-{
-    // 判断段 ORIG 为三个独立 if+return（跳转目标各异）：size()==0 判空、
-    // day<0、signed size<=day，每次内联解引用脚本（不缓存）；m_attends[day]
-    // 两次独立取用。
-    if (m_script1c->m_attends.size() == 0)
-        return;
-    if (day < 0)
-        return;
-    if ((int)m_script1c->m_attends.size() <= day)
-        return;
 
-    // [b28d-D9] ORIG 0x0810e8a0：NumberToString 结果无具名槽，直接经 `mov %eax,%ebx`
-    // 跨 cMyTrace ctor 保活为 operator() 实参（P227 全表达式临时链 + P0 无局部）。
-    cMyTrace(__PRETTY_FUNCTION__, 0x5ad, 0)(
-        "send_attend_reward_item m_id:%s day:%d",
-        NumberToString(user->get_acc_id(), 0), day);
 
-    // [b28d-D9] ORIG 0x0810e8d2 段每个语句独立重载 m_script1c（`mov 0x8(%ebp),%eax;
-    // mov 0x1c(%eax),%ebx` 多次，无跨语句缓存）⇒ 逐表达式内联 static_cast（P0/P183）。
-    m_script1c->m_mail.m_itemIdx = m_script1c->m_attends[day].first;
-    m_script1c->m_mail.m_addInfo = m_script1c->m_attends[day].second;
-    m_script1c->m_mail.m_field34 = m_script1c->m_str70;
-
-    CEventActionMng mng;
-    mng.process_action_send_mail(user, EVENT_MAIL_REF(m_script1c->m_mail), true);
-}
-
-// ORIG 0x810e9c0：统计 attendFlags 置位数（bit 0..31），等于 final 记录数才发：
-// mail 写入 m_pair1c（全勤终奖），正文 key 取 m_str74。
 #include "CEventScriptMng_entities/send_attend_final_rward_item.inc"
-                                               int record)
-{
-    cMyTrace(__PRETTY_FUNCTION__, 0x5ba, 0)(
-        "send_attend_final_rward_item m_id:%s day:%d record:%u",
-        NumberToString(user->get_acc_id(), 0), record, attendFlags);
 
-    int setBits = 0;
-    for (int bit = 0; bit < 0x20; ++bit)
-    {
-        if (isSetBit_Uint(static_cast<unsigned int>(attendFlags), bit))
-            ++setBits;
-    }
-    if (record == setBits)
-    {
-        // ORIG 发奖段每次内联解引用脚本（不缓存局部）。
-        m_script1c->m_mail.m_itemIdx = m_script1c->m_pair1c.first;
-        m_script1c->m_mail.m_addInfo = m_script1c->m_pair1c.second;
-        m_script1c->m_mail.m_field34 = m_script1c->m_str74;
-
-        CEventActionMng mng;
-        mng.process_action_send_mail(user, EVENT_MAIL_REF(m_script1c->m_mail),
-                                     true);
-    }
-}
 
 // ============ CPcRoomPlayTime（0x5c → PcBangPlayTimeScript）============
 
 #include "CEventScriptMng_entities/is_eventing_2.inc"
-{
-    // ORIG 0x8110814：GetRepeatEvent(0x5c) 直接解引用判 IsEventing(0)
-    // （ORIG 无空检）。
-    if (CEventEntity::is_eventing())
-    {
-        if (GlobalData::s_event_manager->GetRepeatEvent(0x5c)->IsEventing(0))
-            return true;
-    }
-    return false;
-}
 
-// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
-//   ::set_event_data——P211 档③具型化（PcBangPlayTimeScript*）+ 4.4.6 消 N7；
-//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x08110872 sz 0x0000002a）
+
 #include "CEventScriptMng_entities/set_event_data_3.inc"
-{
-    // ORIG 0x8110872。
-    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
-    set_event_record_type(key);
-    m_script1c = static_cast<PcBangPlayTimeScript*>(script);
-}
+
 
 #include "CEventScriptMng_entities/get_db_table_name_3.inc"
-{
-    // ORIG 0x8110864：return &m_dbTableName。
-    return static_cast<PcBangPlayTimeScript*>(m_script1c)->m_dbTableName;
-}
 
-// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，40/40）：N22 由 P248 档①
-//   翻正（CUser::getPcRoomPlayTimeRewardCnt int→unsigned int，Main 代落）；
-//   原 N7 残余（is_eventing 虚调用 vfn 目标 %edx vs 4.4.7 恒 %eax）随 4.4.6 路由
-//   消尽 ⇒ 逐条对齐（ORIG 0x08110a38 sz 0x00000076）
+
 #include "CEventScriptMng_entities/verifyUserPcRoomPlayEvent.inc"
-{
-    // ORIG 0x8110a38：未开事件 → 0xb2；非 0xc 类 premium → 7；
-    // 领奖次数达到 m_numberOfTime（先判 >=）→ 0x12，否则 0。
-    // 末段比较已是 ORIG 形（cmp %edx,%eax; setae）：callee 返回 unsigned int 后
-    // 4.4 不再插 `mov %eax,%edx` 中转；调用点 (unsigned int) cast 冗余无害
-    // （S12 探针 x1≡x2）。
-    if (!is_eventing())
-        return 0xb2;
-    if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
-        return 7;
-    if ((unsigned int)user->getPcRoomPlayTimeRewardCnt() >=
-        (unsigned int)static_cast<PcBangPlayTimeScript*>(m_script1c)->m_numberOfTime)
-        return 0x12;
-    return 0;
-}
+
 
 // ============ CAccountFirstLogin（0x191/0x192 → AccountFirstLoginScript）============
 
@@ -469,22 +151,11 @@ typedef char dnf_mail_layout_assert_[
 // value-init 前置清零（CWG434/N77）——删后由编译器隐式合成，工厂 12 个 case
 // 的 value-init 清零循环与 ORIG 逐条对齐。
 
-// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
-//   ::set_event_data——P211 档③具型化（AccountFirstLoginScript*）+ 4.4.6 消 N7；
-//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x0810deda sz 0x0000002a）
 #include "CEventScriptMng_entities/set_event_data_4.inc"
-{
-    // ORIG 0x810deda。
-    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
-    set_event_record_type(key);
-    m_script1c = static_cast<AccountFirstLoginScript*>(script);
-}
+
 
 #include "CEventScriptMng_entities/get_db_table_name_4.inc"
-{
-    // ORIG 0x810debe：return &m_dbTableName。
-    return static_cast<AccountFirstLoginScript*>(m_script1c)->m_dbTableName;
-}
+
 
 #include "CEventScriptMng_entities/get_mail_data_2.inc"
 {
@@ -525,116 +196,18 @@ typedef char dnf_mail_layout_assert_[
 
 // ============ CAddItemCountDB（0x193 → AddItemCountDBScript）============
 
-// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
-//   ::set_event_data——P211 档③具型化（AddItemCountDBScript*）+ 4.4.6 消 N7；
-//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x0810e064 sz 0x0000002a）
 #include "CEventScriptMng_entities/set_event_data_5.inc"
-{
-    // ORIG 0x810e064。
-    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
-    set_event_record_type(key);
-    m_script1c = static_cast<AddItemCountDBScript*>(script);
-}
+
 
 #include "CEventScriptMng_entities/get_db_table_name_5.inc"
-{
-    // ORIG 0x810e15a：return &m_dbTableName。
-    return static_cast<AddItemCountDBScript*>(m_script1c)->m_dbTableName;
-}
+
 
 #include "CEventScriptMng_entities/is_event_item.inc"
-{
-    // ORIG 0x810e08e：size() 后按下标遍历 m_itemIdxs（每次内联解引用脚本）。
-    int count = static_cast<AddItemCountDBScript*>(m_script1c)->m_itemIdxs.size();
-    for (int i = 0; i < count; ++i)
-    {
-        if (static_cast<AddItemCountDBScript*>(m_script1c)->m_itemIdxs[i] == itemId)
-            return 1;
-    }
-    return 0;
-}
+
 
 #include "CEventScriptMng_entities/is_event_quest.inc"
-{
-    // ORIG 0x810e0f4：size() 后按下标遍历 m_questIds（每次内联解引用脚本）。
-    int count = static_cast<AddItemCountDBScript*>(m_script1c)->m_questIds.size();
-    for (int i = 0; i < count; ++i)
-    {
-        if (static_cast<AddItemCountDBScript*>(m_script1c)->m_questIds[i] == questId)
-            return 1;
-    }
-    return 0;
-}
 
-// ============================================================================
-// create_event_entity @ 0x0810b402（CEventScriptMng 实体工厂）。
-// flag=true → 仅基类实体（operator new 0x1c + CEventEntity ctor，无清零）。
-// 否则按记录类型 value-init 对应派生类：operator new(0x20) → 整块清零循环 →
-// C1 thunk（全部 12 个类的 ctor 均为编译器隐式合成 W，与 ORIG C1 同形）。
-//   0x56→CAttendance        0x5c→CPcRoomPlayTime       0x65→CUsedFatigueGiveItem
-//   0x191/0x192→CAccountFirstLogin    0x193→CAddItemCountDB   0x194→CLevelUpReward
-//   0x196→CExchangeRandomItemReward   0x197→CAvatarDisjointRandomReward
-//   0x199→CFatigueQuantity  0x19a→CPurchaseCashItemBonus
-//   0x19b→CObjectBringUp    0x19c→CAccountFirstLoginDaily   其它→0
-// ============================================================================
-// [b28d-solo-CEventScriptMng_entities] AE（418/418）：7 个实体类 ctor 隐式化
-//   （删用户 ctor 声明/定义）⇒ 4.4 对 new T() 前置 value-init 清零，12 个 case 的
-//   清零循环与 ORIG 全等（旧显式 ctor 仅 5 个清零 ⇒ 341，gap 77 = 7×11 条；
-//   ORIG 全 12 个 case 均含 and $0xfffffffc 清零循环）（ORIG 0x0810b402 sz 0x00000568）
+
 #include "CEventScriptMng_entities/create_event_entity.inc"
-{
-    CEventEntity* entity = 0;
 
-    if (flag)
-    {
-        // ORIG 0810b41e..450：new 0x1c + 基类 ctor。
-        entity = new CEventEntity();
-        return entity;
-    }
-
-    // 分支体按 ORIG 代码布局顺序排列（ctor 地址升序，gcc -O0 同序生成）。
-    switch (recordType)
-    {
-    case 0x191:                                     // ORIG 08110f88
-    case 0x192:
-        entity = new CAccountFirstLogin();
-        break;
-    case 0x193:                                     // ORIG 08110fa4
-        entity = new CAddItemCountDB();
-        break;
-    case 0x194:                                     // ORIG 08110fc0
-        entity = new CLevelUpReward();
-        break;
-    case 0x56:                                      // ORIG 081110fdc
-        entity = new CAttendance();
-        break;
-    case 0x196:                                     // ORIG 08110ff8
-        entity = new CExchangeRandomItemReward();
-        break;
-    case 0x197:                                     // ORIG 08111014
-        entity = new CAvatarDisjointRandomReward();
-        break;
-    case 0x199:                                     // ORIG 08111030
-        entity = new CFatigueQuantity();
-        break;
-    case 0x19a:                                     // ORIG 0811104c
-        entity = new CPurchaseCashItemBonus();
-        break;
-    case 0x19b:                                     // ORIG 08111068
-        entity = new CObjectBringUp();
-        break;
-    case 0x5c:                                      // ORIG 08111084
-        entity = new CPcRoomPlayTime();
-        break;
-    case 0x65:                                      // ORIG 081110a0
-        entity = new CUsedFatigueGiveItem();
-        break;
-    case 0x19c:                                     // ORIG 0811110a
-        entity = new CAccountFirstLoginDaily();
-        break;
-    default:                                        // ORIG 未匹配返回 0（无分配）
-        break;
-    }
-    return entity;
-}
 }  // namespace EventClassify

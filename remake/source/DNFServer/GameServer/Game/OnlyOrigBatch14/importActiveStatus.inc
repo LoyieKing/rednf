@@ -1,3 +1,16 @@
+// ORIG T 0x088c1e68 _Z18importActiveStatusR14STActiveStatusb
+// （报告缺失，按 §3.2 以 ORIG objdump 全量转写；两侧 AE 逐条核对）。
+// 结构：flag 入参 spill(-0x6c)、s(-0x5c)、16 个 ScanInt 物化临时(-0x58..-0x1c)、
+// type(-0x18)、循环计数 i9(-0x14)/iD(-0x10)/i4(-0xc)。
+// [b14 本波·AE 归零] 两条真缺口（旧判词「N 封顶、32 条 mov 不可消」作废）：
+//  ①16 处原写 `tX = ScanInt((bool*)0); push_back(static_cast<int&&>(tX));`
+//    ⇒ 4.4 对具名 int 的右值 cast 额外 materialize 中转（每处 +2 条 mov，共 +32）。
+//    改为 **prvalue 直传** `push_back(ScanInt((bool*)0))`：prvalue 绑定 int&& 仍
+//    选中 ORIG 的 `_ZNSt6vectorIiSaIiEE9push_backEOi`（p167 42=42 CLEAR），每处只余
+//    `call; mov %eax,-0xNN` 一条 —— ORIG 的 -0x58..-0x1c 16 槽即这些匿名物化临时。
+//  ②标量区声明序：4.4 按「先声明更深」分配 ⇒ 声明序改 type/i9/iD/i4（s 为类对象
+//    优先占低槽 -0x5c，位置不受影响）。
+// 终态 orig=261 our=261 gap=0 ndiff=0。
 void importActiveStatus(STActiveStatus& st, bool flag)
 {
     // 16 处 push_back 均为 prvalue 直传（见函数头判词①）；ScanInt 结果直落

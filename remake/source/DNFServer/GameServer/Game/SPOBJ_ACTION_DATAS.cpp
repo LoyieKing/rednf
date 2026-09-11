@@ -21,12 +21,8 @@
 #include "SPOBJ_ACTION_DATAS.h"
 
 #include "SPOBJ_ACTION_DATAS/SPOBJ_ACTION_DATAS.inc"
-{
-    memset((char*)this, -1, 0x18);
-}
+
 
 
 #include "SPOBJ_ACTION_DATAS/getActionType.inc"
-{
-    return m_type;
-}
+

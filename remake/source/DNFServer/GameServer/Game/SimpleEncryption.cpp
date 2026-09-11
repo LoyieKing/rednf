@@ -27,63 +27,28 @@
 #include "SimpleEncryption.h"
 
 #include "SimpleEncryption/SimpleEncryption.inc"
-{
-    m_shift = 0;
-    m_key = 0;
-    initialize();
-}
+
 
 #include "SimpleEncryption/dtor_SimpleEncryption.inc"
-{
-    uninitialize();
-}
+
 
 #include "SimpleEncryption/instance.inc"
-{
-    static SimpleEncryption simpleEncryption;
-    return &simpleEncryption;
-}
+
 
 #include "SimpleEncryption/initialize.inc"
-{
-    m_shift = 3;
-    m_key = 0xf089980f;
-}
+
 
 #include "SimpleEncryption/uninitialize.inc"
-{
-}
+
 
 #include "SimpleEncryption/encryptUINT.inc"
-{
-    unsigned int t = 0;   // -0x8 槽
-    int u = 0;            // -0x4 槽
-    t = m_shift;
-    u = (int)m_key;
-    out = shift << t;
-    out = (unsigned int)u ^ shift;
-}
+
 
 #include "SimpleEncryption/encryptUINT_1.inc"
-{
-    unsigned int out = 0;
-    encryptUINT(val, out);
-    return out;
-}
+
 
 #include "SimpleEncryption/decryptUINT.inc"
-{
-    unsigned int t = 0;
-    int u = 0;
-    t = m_shift;
-    u = (int)m_key;
-    out = shift >> t;
-    out = (unsigned int)u ^ shift;
-}
+
 
 #include "SimpleEncryption/decryptUINT_1.inc"
-{
-    unsigned int out = 0;
-    encryptUINT(val, out);   // ORIG 0x0808cfd8 call 双参 encryptUINT（0x0808cf24），照抄
-    return out;
-}
+

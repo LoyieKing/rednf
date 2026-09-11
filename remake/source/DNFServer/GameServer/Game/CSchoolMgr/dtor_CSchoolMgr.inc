@@ -1,1 +1,3 @@
 CSchoolMgr::~CSchoolMgr()
+{
+}

@@ -1,1 +1,3 @@
 QuestMovieInfo::~QuestMovieInfo()
+{
+}

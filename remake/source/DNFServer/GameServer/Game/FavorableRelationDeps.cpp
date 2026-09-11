@@ -58,63 +58,30 @@ namespace
 
 // ---- stRewardItemInfo_t ---------------------------------------------------
 
-// ORIG 0x08a00d58：循环默认构造 3 个 vector<stRewardItemElement_t>（stride 0xc）；
-// 权重计数区（unsigned int[3]）无初始化动作。
 #include "FavorableRelationDeps/stRewardItemInfo_t.inc"
-{
-}
 
-// ORIG 0x08581a80：自尾向首逐个析构 3 个 vector（步长 -0xc）。由隐式数组成员
-// 析构达成同一访问序列。
+
 #include "FavorableRelationDeps/dtor_stRewardItemInfo_t.inc"
-{
-}
 
-// ORIG 0x089fb4c0 T：j 0..≤2 —— vector.clear(j*0xc) 后 weight[j]=0（写位于槽尾
-// 0x24+4j，即本结构的权重计数字段）。
+
 #include "FavorableRelationDeps/clear.inc"
-{
-    for (int j = 0; j <= 2; ++j)
-    {
-        m_byDir[j].clear();
-        m_weight[j] = 0;
-    }
-}
+
 
 // ---- stRewardItem_t -------------------------------------------------------
 
-// ORIG 0x08a00dcc：行主序构造 15 个 stRewardItemInfo_t（外层 [5] stride 0x90）。
 #include "FavorableRelationDeps/stRewardItem_t.inc"
-{
-}
 
-// ORIG 0x08581aae：编译器生成的逐 Info 析构展开；隐式数组成员析构等价。
+
 #include "FavorableRelationDeps/dtor_stRewardItem_t.inc"
-{
-}
 
-// ORIG 0x089fb508 T：外层 i 0..≤4（stride 0x90）、内层 j 0..≤2（stride 0x30），
-// 逐槽 m_slots[i][j].clear()。
+
 #include "FavorableRelationDeps/clear_1.inc"
-{
-    for (int i = 0; i <= 4; ++i)
-    {
-        for (int j = 0; j <= 2; ++j)
-        {
-            m_slots[i][j].clear();
-        }
-    }
-}
+
 
 // ---- stLevelRewardInfo ----------------------------------------------------
 
-// ORIG 0x0858188a：string@+0xc、string@+0x10 默认构造后 level/flag0/flag1 清零。
 #include "FavorableRelationDeps/stLevelRewardInfo.inc"
-{
-    m_level = 0;
-    m_flag0 = 0;
-    m_flag1 = 0;
-}
+
 
 // ORIG 0x08a04160：word/dword/dword 标量拷贝 + 两 string 拷贝构造（+0xc/+0x10）。
 // [b28d-41] P239 复现：标量三段须与两 string 拷贝同列初始化列表且按声明序发射；
@@ -126,10 +93,8 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 {
 }
 
-// ORIG 0x085823c6：m_desc(+0x10)、m_name(+0xc) 逆序析构（与隐式析构一致）。
 #include "FavorableRelationDeps/dtor_stLevelRewardInfo.inc"
-{
-}
+
 
 // ORIG 0x08a04268：标量逐位赋值 + 两 string 基本赋值（无自赋值检查）。
 stFavorableRelationShip_t::stLevelRewardInfo&
@@ -146,36 +111,16 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 
 // ---- stBuffRewardInfo -----------------------------------------------------
 
-// ORIG 0x085818f0：word@0、word@2、dword@4 全部清零。
 #include "FavorableRelationDeps/stBuffRewardInfo.inc"
-{
-    m_a = 0;
-    m_b = 0;
-    m_c = 0;
-}
+
 
 // ---- stPeriodRewardInfo ---------------------------------------------------
 
-// ORIG 0x08a00c70：三个 string（+0x4/+0x10/+0x14）默认构造 → 标量清零
-// （word@0、int@8、int@c）→ 三个 string 依次赋 ""（ORIG 空串常量 @0x08e1ce20）。
 #include "FavorableRelationDeps/stPeriodRewardInfo.inc"
-{
-    m_type = 0;
-    // [OurOnly33 符号名轴 2026-09-11] ORIG 全 ELF 无 `kEmptyString`（我方发射
-    // `_ZZN25stFavorableRelationShip_t18stPeriodRewardInfoC1EvE12kEmptyString`，ORIG None）——
-    // ORIG 三处直接以匿名空串常量 @0x08e1ce20 赋 string ⇒ 删 local static、使用点内联字面量
-    // （空串仍落匿名 .rodata，装载形与 ORIG 一致）。
-    m_name = "";
-    m_a = 0;
-    m_b = 0;
-    m_desc = "";
-    m_param = "";
-}
 
-// ORIG 0x085819e4（W 0x73）：空体（三 string 成员按逆序 0x14→0x10→0x4 自动析构）。
+
 #include "FavorableRelationDeps/dtor_stPeriodRewardInfo.inc"
-{
-}
+
 
 // ---- stFavorableRelationShip_t::._140 → 真匿名 struct（NpcScript.h 内 m_fav）----
 // ORIG _ZN25stFavorableRelationShip_t5._140{C1,C2,D1,D2}Ev t 0x089fb8b6 / 0x089fb8fc（各 sz 0x45）。

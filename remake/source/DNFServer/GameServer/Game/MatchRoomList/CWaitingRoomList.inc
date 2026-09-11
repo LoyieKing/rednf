@@ -1,1 +1,3 @@
 CWaitingRoomList::CWaitingRoomList()
+{
+}

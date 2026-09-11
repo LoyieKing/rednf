@@ -671,68 +671,24 @@ template Taiwan::SigResetStayTimeEvent* CStreamGuard::GetInBuffer<Taiwan::SigRes
 template Taiwan::SigLoadHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigLoadHeroMissionData>();
 template Taiwan::SigSaveHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigSaveHeroMissionData>();
 
-// ORIG 权威两层结构（条目类型 RENT_INFO，容器 RENT_ITEM）：
-//   PC_ROOM_INFO::clear  @0x0848f9a2：+0 int=0 / +4,+5,+6 byte=0 / +8 int=-1。
-//   DIMENSION_INFO::clear@0x0848f9e4：+0 int=0 / +4..+7 byte=0。
-//   ITEM::clear 0x8694c9a：for i<=0 调 INFO::clear(&entry[i])。
-//   ITEM::clear 0x8694cd2：for i<=0xa 调 INFO::clear（entry[11] 不动）。
-// C1 类外定义（头文件仅声明）：生成 ORIG 导出符号
-// _ZN26SIG_SAVE_PC_ROOM_RENT_ITEMC1Ev（0x8491cbe，仅构造 entry[0]）/
-// _ZN28SIG_SAVE_DIMENSION_RENT_ITEMC1Ev（0x8491cf2，构造 entry[0..10]）。
 #include "SigTypes/SIG_SAVE_PC_ROOM_RENT_ITEM.inc"
 #include "SigTypes/SIG_SAVE_DIMENSION_RENT_ITEM.inc"
 
 #include "SigTypes/clear.inc"
-{
-    /* ORIG 帧 0x28/循环变量槽 -0xc：4.1 死 28B pad 槽经 double framePad
-     * 撑帧复现（P190/技巧31 系，/tmp/p26_slot.cpp probeC 实证同形）。 */
-    double framePad;
-    for (int i = 0; i <= 0; ++i)
-        m_entry[i].clear();
-    (void)&framePad;
-}
+
 
 #include "SigTypes/clear_1.inc"
-{
-    /* ORIG 帧 0x28/循环变量槽 -0xc：4.1 死 28B pad 槽经 double framePad
-     * 撑帧复现（P190/技巧31 系，NL26 probeC 同族实证）。 */
-    double framePad;
-    for (int i = 0; i <= 10; ++i)
-        m_entry[i].clear();
-    (void)&framePad;
-}
+
 
 
 #include "SigTypes/Reset.inc"
-{
-    // this+0x60 起 _Additioal_info（步长 0x52，见 CCharacter.cpp ctor 注释）
-    m_add.clear();
-    memset(m_data + 0x04, 0, 0x1e);      // ORIG +0x0b2 行
-    memset(m_data + 0x34, 0, 0x19);      // ORIG +0x0d0 行
-    memset(m_data + 0x138, 0, 0x53e);    // ORIG +0x0ee 行（至 +0x676，不含 m_schoolNo）
-    memset(m_data + 0x0b9, 0, 0x10);     // ORIG +0x10d 行
-    m_unkB2.m_b124 = 0;                  // ORIG +0x12e..+0x131：逐字节清零簇
-    m_unkB2.m_b129 = 0;
-    m_unkB2.m_b12a = 0;
-    m_unkB2.m_b12b = 0;
-    m_unkB2.m_b12c = 0;
-    m_unkB2.m_b12d = 0;
-    m_unkB2.m_b12f = 0;                  // 注意：+0x12e 未清（ORIG 跳过）
-    m_unkB2.m_i130 = 0;                  // ORIG +0x139：dword 清零（movl $0,0x130(%eax)）
-}
+
 
 #include "SigTypes/clear_2.inc"
-{
-    memset(this, 0, sizeof(TAG_CHARAC_DATA));   // 0x78 字节清零（ORIG 实参序：size→0→this）
-    m_data[0x25] = static_cast<char>(0xff);   // ORIG 尾部：+0x25 置 0xff
-}
+
 
 #include "SigTypes/clear_3.inc"
-{
-    memset(this, 0, sizeof(TAG_CHARAC_INVEN_DATA));   // 0x4024 字节清零
-}
+
 
 #include "SigTypes/clear_4.inc"
-{
-    memset(this, 0, sizeof(TAG_CHARAC_ETC_DATA));   // 0x330 字节清零（tagSkillSlot+tagSkillCombo）
-}
+

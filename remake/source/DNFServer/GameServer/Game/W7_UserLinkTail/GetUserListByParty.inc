@@ -1,3 +1,7 @@
+// ---------------------------------------------------------------------------
+// CUser::GetUserListByParty(std::vector<CUser*>& out) T 0x0868056a
+// push self；有队伍时按槽 0..3 补齐他人（跳过空/自身），返回队伍指针。
+// ---------------------------------------------------------------------------
 CParty* CUser::GetUserListByParty(std::vector<CUser*>& out)
 {
     out.push_back(this);

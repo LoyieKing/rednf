@@ -1,3 +1,9 @@
+// ORIG 0x0815ad3c T SaveServiceRestrictPolicy::dispatch（报告 dispatch.md）：
+// GetOutBuffer<SigLoadRestrictPolicy> null→throw "context null"；GetDBHandle(1,0)
+// null→throw "handle null"；两循环（i=1..sig->m_count）：dnf_restrict_state
+// values(%d,%d,%d,'%d')= (sg, restrictValue, i, m_extra[i])；dnf_restrict_info
+// values(%d,%d,'%s')= (sg, restrictValue, i, &m_data[i*0x2d]+8)；set_query 失败
+// throw "set_query" / exec 失败 throw "insert_exec"。catch 0x10e 返 0。
 bool SaveServiceRestrictPolicy::dispatch(int code, int uid, Stream* stream)
 {
     try

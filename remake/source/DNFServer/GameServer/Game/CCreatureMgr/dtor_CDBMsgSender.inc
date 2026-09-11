@@ -1,3 +1,4 @@
+// ORIG D1/D2 @ 0x833f8d8：按 stream 的 poolType 归还对象池后置空。
 CDBMsgSender::~CDBMsgSender()
 {
     // ORIG 0x833f8e5：je 直达尾 leave（正向 if 块，body fall-through 收尾，

@@ -1,1 +1,4 @@
 MySQL::~MySQL() throw()
+{
+    close();
+}

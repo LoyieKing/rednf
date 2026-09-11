@@ -1,1 +1,3 @@
 STPassiveObjectDestroy::~STPassiveObjectDestroy()
+{
+}

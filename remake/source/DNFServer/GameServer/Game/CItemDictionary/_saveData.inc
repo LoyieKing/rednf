@@ -1,3 +1,5 @@
+// ORIG 0x0811d63e：DB 保存（SIG_ITEM_DICTIONARY_FLAG = int characNo +
+// 5000 字节位图，共 0x138c），队列 DB_Q(2)。
 bool CItemDictionary::_saveData(CUser* user)
 {
     CStreamGuard guard(

@@ -1,3 +1,8 @@
+// ORIG _ZN13user_creature12CDBMsgSender8SendMailEP10Inven_Itemiiii W 0x833fe8c：
+// 与 RecvMail 同构，差异：m_hdr |0x100（or $0x1,%dh）、m_field53=1、m_field64=3、
+// 不写 slot（+0x2c）。slot 形参在汇编中未使用。
+// [b28d-23 N·P30/N4] 同 RecvMail：lea-vs-add 不可翻 ⇒ N。ORIG 0x0833fe8c
+// [b28d-solo-CCreatureMgr AE] P235 m_itemView.setCopy 出 ORIG lea（同 RecvMail）；ORIG 0x833fe8c
 bool CDBMsgSender::SendMail(Inven_Item* item, int characNo, int slot, int reason,
                             int mapSize)
 {

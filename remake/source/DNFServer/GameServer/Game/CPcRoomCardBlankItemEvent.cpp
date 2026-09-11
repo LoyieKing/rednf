@@ -20,37 +20,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0826743c：仅基类构造 + vptr 置位。
 #include "CPcRoomCardBlankItemEvent/CPcRoomCardBlankItemEvent.inc"
-{
-}
 
-// ORIG 0x08267458 / 0x08267488：空体 + 虚析构由编译器生成同形。
+
 #include "CPcRoomCardBlankItemEvent/dtor_CPcRoomCardBlankItemEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x082674a6：空函数（push/mov/pop/ret）。
+
 #include "CPcRoomCardBlankItemEvent/StartEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x082674ac：置事件标志并打日志（忽略 param）。
+
 #include "CPcRoomCardBlankItemEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x18, 0);
-    tr("Pc Room Card Blank Item Event Start");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x082674fe：清事件标志并打日志。
+
 #include "CPcRoomCardBlankItemEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x1e, 0);
-    tr("Pc Room Card Blank Item Event End");
-}
+

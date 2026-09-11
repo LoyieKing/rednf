@@ -1,3 +1,9 @@
+// ORIG _ZNK13user_creature12CCreatureMgr12GetExtraGoldEi T 0x0833c31a：
+// 无装备宠/已死亡 → 0；按宠物种族 id 给额外金币比例（*5 或 *3 再 /100）。
+// 两个独立 if（非 ||）：ORIG 字节序两条独立 0 返回路径（je +0xfc / jmp +0x101）。
+// [b28d-solo-CCreatureMgr AE] 既有（P0 具名 int 槽 + goto 块序）；compare_tu AE；ORIG 0x833c31a
+// [b28d-solo-CCreatureMgr N112] game_func_report 口径多 1 条 4.4 对齐 nop（jmp 后
+// mov$0 岛前）；compare_tu 已 AE（-falign-jumps 不可控，N112 剥离口径）。
 // [2026-09-11 收口复核 · AE] check_tu_routed 口径（nop padding 剥离）判 **AE**
 //   （TU 表无该件）；`game_func_report --no-compile` 报的 91 vs 92 是 .o 级重定位
 //   伪差 + 一条对齐 nop（N124/N112），非语义差，勿据其改码。

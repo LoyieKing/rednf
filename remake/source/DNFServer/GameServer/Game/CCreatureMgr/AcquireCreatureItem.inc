@@ -1,3 +1,16 @@
+// [b28d-23 N·N7] 虚调用目标寄存器 %eax/%edx 互换 + 立即数重定位（.o 显示差）⇒ N。ORIG 0x0833f57c
+// [b28d-solo-CCreatureMgr N] N7：间接 call 目标 4.4.7 恒 %eax vs ORIG %edx（P230 补称 4.4.6 后端可修）；ORIG 0x833f57c
+// [b28d-PoolSmall·Main 批准的 4.4.6 路由实验 → **负例，勿再试**] 本 TU 现路由
+//   C6(4.4.7)+-march=i486（x87 族所需）。两种 4.4.6 组合均整 TU 实测（未动路由表）：
+//     · **c6446r**（4.4.7 驱动 + `-B cc1plus446bin/`，头集仍 4.4.7）
+//         ⇒ identical 180 / ae **410** / near 1 / diff **13**
+//     · 4.4.6 后端 **+ 4.4.6 头集**（-isystem 三项原位替换）
+//         ⇒ identical 180 / ae **410** / near 1 / diff **13**
+//   基线 4.4.7 = 180 / 414 / 1 / 9 ⇒ 两种组合均 **ae −4、diff +4 净负**，且
+//   AcquireCreatureItem 在两组合下**仍 DIFF（未归零）**；新劣化件 =
+//   COverSkillTime::checkTime、CStomach::IncrementValue、CStomach::GetStomachValue、
+//   CCreature::IsDieCreature（原均 AE）。⇒ 本 TU 对 P230 补的「N7 后端敏感」**不成立**
+//   （本件 N7 实为虚调用 receiver/目标双寄存器对调，非仅目标），路由表维持 C6 不变。
 user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatureItem(
     user_creature::CREATURE_ITME_TYPE type)
 {

@@ -74,14 +74,6 @@ public:
 // 全库（本 TU 的 7 个 makeRequest.inc + 其它 TU）**零调用点**，属 P154 死函数；
 // 本 TU 的 7 个 makeRequest 强符号（T）由各自 .inc 定义发射，不受影响。
 
-// ----------------------------------------------------------------------------
-// DB_AutoPunishedSecondUserData::makeRequest(uint accId, ull gold, uint uid, uint who)
-// ORIG @ 0x0843a790（报告 docs/class_func_reports/DB_AutoPunishedSecondUserData/
-// makeRequest.md）：Acquire("DBThread.cpp", 0x8912) → guard(stream,true) →
-//   << 0x1ca | << (uint)uid(arg@0x14)
-// → GetInBuffer<SIG_SECOND_USER_DATA>()（0x14 字节）清零后填：
-//   +0x00 = accId, +0x04..0x0b = gold(8B), +0x0c = uid, +0x10 = who
-// → put(DB_Q)。
 #include "W7LinkDB/makeRequest.inc"
                                                 unsigned int uid, unsigned int who)
 {
@@ -111,13 +103,6 @@ public:
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// ----------------------------------------------------------------------------
-// DB_InsertAutoPunishFirstUser::makeRequest(uint accId, const char* ip,
-//     uint a3, uint a4, uint a5, uint a6, ushort a7, uint a8)
-// ORIG @ 0x0842dd7c（报告 DB_InsertAutoPunishFirstUser/makeRequest.md）：
-// Acquire("DBThread.cpp", 0x723e) → << 0x10a | << -1 →
-// GetInBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>()（0x2c 字节，无 memset）填：
-//   +0x00 = accId；strncpy(+0x04, ip, 0x10)；+0x14..+0x20 = a3..a6；
 #include "W7LinkDB/makeRequest_1.inc"
                                                unsigned int a3, unsigned int a4,
                                                unsigned int a5, unsigned int a6,
@@ -182,34 +167,9 @@ public:
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// ----------------------------------------------------------------------------
-// DB_SaveGiveAvengerTitleFlag::makeRequest(int uid, uint accId, uint characNo)
-// ORIG @ 0x084422dc（报告 DB_SaveGiveAvengerTitleFlag/makeRequest.md）：
-// Acquire("DBThread.cpp", 0xa276) → << 0x28d | << (uint)uid | << accId |
-//   << characNo（全部 op<<(unsigned int)，ORIG 080e2292 三连）→ put(DB_Q)。
-// 注意：ORIG 此处无 -1 槽。
-// ----------------------------------------------------------------------------
 #include "W7LinkDB/makeRequest_3.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa276), true);
 
-    **guard << 0x28d;                   // op<<(int)
-    **guard << uid;                     // op<<(int)（ORIG 080c8c56）
-    **guard << accId;                   // op<<(uint)
-    **guard << characNo;                // op<<(uint)
 
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}
-
-// ----------------------------------------------------------------------------
-// DB_HackIPSave::makeRequest(const char* startIp, const char* rawIp, uint a3, uint a4)
-// ORIG @ 0x08436ff8（报告 DB_HackIPSave/makeRequest.md）：
-// Acquire("DBThread.cpp", 0x82be) → << 400(0x190) | << -1；
-// 守卫：仅当 startIp==NULL 或 strlen(startIp)>7 时继续（否则直接返回不投递）。
-// GetInBuffer<SIG_HACK_IP_SAVE>()（0x28 字节，无 memset）填：
-//   strncpy(+0x00, startIp, 0xd)；+0x20 = a3；+0x24 = a4；
-//   strncpy(+0x0d, rawIp, 0x10)。→ put(DB_Q)。
-// ----------------------------------------------------------------------------
 #include "W7LinkDB/makeRequest_4.inc"
                                 unsigned int a3, unsigned int a4)
 {
@@ -244,37 +204,8 @@ public:
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// ----------------------------------------------------------------------------
-// DB_ForceSaveSimpleSSO::makeRequest(uint accId, int errCnt)
-// ORIG @ 0x084281ae（报告 DB_ForceSaveSimpleSSO/makeRequest.md）：
-// Acquire("DBThread.cpp", 0x69b1) → << 0xcf | << -1 | << accId(op<<uint) |
-//   << errCnt(op<<int) → put(DB_Q)。
-// ----------------------------------------------------------------------------
 #include "W7LinkDB/makeRequest_5.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x69b1), true);
 
-    **guard << 0xcf;
-    **guard << -1;
-    **guard << accId;
-    **guard << errCnt;
 
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}
-
-// ----------------------------------------------------------------------------
-// DB_CountOfHumanCertify::makeRequest(uint accId)
-// ORIG @ 0x084283ca（报告 DB_CountOfHumanCertify/makeRequest.md）：
-// Acquire("DBThread.cpp", 0x69d6) → << 0x111 | << -1 | << accId(op<<uint)
-// → put(DB_Q)。
-// ----------------------------------------------------------------------------
 #include "W7LinkDB/makeRequest_6.inc"
-{
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x69d6), true);
 
-    **guard << 0x111;
-    **guard << -1;
-    **guard << accId;
-
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}

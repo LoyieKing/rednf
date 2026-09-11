@@ -1,1 +1,3 @@
 LwConsole::~LwConsole()
+{
+}

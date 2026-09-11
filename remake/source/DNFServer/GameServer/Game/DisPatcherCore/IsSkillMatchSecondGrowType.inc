@@ -1,3 +1,4 @@
+// ORIG 0x08286612：get_second_growtype_max_level(first, second) > 0
 bool CHackLog_InvalidUsingSkill::IsSkillMatchSecondGrowType(const CSkill* skill,
 
                                                             char a, char b)

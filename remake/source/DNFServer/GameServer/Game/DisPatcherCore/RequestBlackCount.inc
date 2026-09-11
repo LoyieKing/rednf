@@ -1,3 +1,4 @@
+// ORIG T 0x081c79f2（RequestBlackCount.md）：SIG 0xb3 → CACHE_BLACK_COUNT；memset 0x10。
 int DisPatcher_SelectCharac::RequestBlackCount(CUser* user, MSG_CHARAC_SELECT& msg)
 
 {

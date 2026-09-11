@@ -22,25 +22,9 @@
 // ORIG _ZL19INVITATION_PAPER_NO @0x08c101c0（.rodata，7 x int）
 const int INVITATION_PAPER_NO[7] = { 0xc8d, 0xc8e, 0xc8f, 0xc93, 0xcb8, 0xcd0, 0xcd2 };
 
-// ORIG 0x082866d0：i 0..6 遍历 INVITATION_PAPER_NO，命中返 1，否则返 0
 #include "OrigInvitationHack/IsInvitationPaper.inc"
-{
-    // ORIG：上限 7 存栈槽（-0x8(%ebp)），mov i,%eax / cmp 上限,%eax / setb
-    // （无符号比较，Ghidra 两局部均为 uint）。
-    unsigned int count = 7;
-    for (unsigned int i = 0; i < count; ++i)
-    {
-        if (INVITATION_PAPER_NO[i] == itemNo)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
-// ORIG 0x08286714：恒返 0x322
+
 #include "OrigInvitationHack/GetHackType.inc"
-{
-    return 0x322;
-}
+
 

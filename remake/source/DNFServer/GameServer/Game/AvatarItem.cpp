@@ -26,40 +26,20 @@ static_assert(offsetof(WongWork::Avatar_Item, m_color2) == 0x41, "Avatar_Item co
 namespace WongWork
 {
 
-// ORIG _ZN8WongWork11Avatar_Item4initEv W 0x82fa35a：仅清 +0x00/+0x04 两个 int、
-// memset(m_ipgAgencyNo,0,0x19)、memset(+0x3f,0,4)；emblem 区与 +0x43 之后不清。
 #include "AvatarItem/init.inc"
-{
-    m_expireDate = 0;
-    m_registTime = 0;
-    memset(m_ipgAgencyNo, 0, 0x19);
-    memset(&m_color1, 0, 4);
-}
+
 
 #include "AvatarItem/GetExpireDate.inc"
 
 #include "AvatarItem/GetRegistTime.inc"
 
 #include "AvatarItem/GetRemainDate.inc"
-{
-    // [b28c-L7] 判词：ORIG 0x82fa1f4 为 `jle 尾块`（fail 块落尾、主体 fall-through）
-    // ⇒ 源形=正向包裹 if(expire>0){...} + 尾 return；否定早返形产 jg 反向布局。
-    if (m_expireDate > 0)
-    {
-        int remain = m_expireDate - tick;
-        if (remain == 0)
-            return 1;
-        return remain;
-    }
-    return m_expireDate;
-}
+
 
 #include "AvatarItem/GetIPGAgencyNo.inc"
 
 #include "AvatarItem/getJewelSocketData.inc"
-{
-    return (const char*)&m_emblemInfo;
-}
+
 
 #include "AvatarItem/getExpansionInfo.inc"
 
@@ -80,18 +60,10 @@ namespace WongWork
 }
 
 #include "AvatarItem/SetData.inc"
-{
-    m_expireDate = expireDate;
-    m_registTime = registTime;
-    strncpy(m_ipgAgencyNo, ipgAgency, 0x18);
-}
+
 
 #include "AvatarItem/setEmblemSocketData.inc"
-{
-    // ORIG 0x1d 字节 = 7×mov 链 + 尾 ushort（4.1 分块启发式）；结构整体赋值
-    // 试 rep movsl 对比（N90/N84 族）。
-    m_emblemInfo = emblem;
-}
+
 
 // [b28d-Main·检查点18] 原 `updateEmblemSocket(int, unsigned long)` 定义已删（发明签名）；
 //   权威定义在 WongWorkMiscB_A.cpp `updateEmblemSocket(unsigned int, unsigned int)` 0x082fa2a6。

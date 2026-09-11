@@ -1,3 +1,5 @@
+// ORIG 0x081c91e6 T _ZN18DisPatcher_SetArea4readER9PacketBufR8MSG_BASE
+// 报告：docs/class_func_reports/DisPatcher_SetArea/read.md（汇编+反编译 C 全读）
 int DisPatcher_SetArea::read(PacketBuf& packet, MSG_BASE& msg)
 
 {

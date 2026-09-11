@@ -1,1 +1,3 @@
 ARAD::SCRIPT::AvatarRecharge::~AvatarRecharge()
+{
+}

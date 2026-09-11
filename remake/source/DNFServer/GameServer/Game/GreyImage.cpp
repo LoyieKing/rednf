@@ -17,97 +17,37 @@
 #include <algorithm>
 
 #include "GreyImage/GreyImage.inc"
-{
-    m_width = 0;
-    m_height = 0;
-    m_image = 0;
-}
+
 
 #include "GreyImage/dtor_GreyImage.inc"
-{
-    reset();
-}
+
 
 #include "GreyImage/reset.inc"
-{
-    // [b28c-35] ORIG 0x080df582 形：`je <nop 岛>; body; jmp <leave>; nop; leave; ret`
-    // （4.1 空 else 占位岛，P223）。裸早返 `if (m_image == 0) return;` 复现该岛；
-    // 原 `if (m_image) { … }` 形 4.4 jump-thread 掉 jmp+nop（19 vs 21 insn）。
-    if (m_image == 0)
-        return;
-    m_width = 0;
-    m_height = 0;
-    delete m_image;   // ORIG reset 0x80df5ae 用标量 _ZdlPv（init 虽 _Znaj）
-    m_image = 0;
-}
+
 
 #include "GreyImage/init.inc"
-{
-    reset();
-    m_width = width;
-    m_height = height;
-    // ORIG 0x80df574：int×int 直接 imul mem 形（(size_t) cast 诱发寄存器中转）。
-    m_image = new unsigned char[width * height];
-    memset(m_image, fill, width * height);
-}
+
 
 #include "GreyImage/getWidth.inc"
-{
-    return m_width;
-}
+
 
 #include "GreyImage/getHeight.inc"
-{
-    return m_height;
-}
+
 
 #include "GreyImage/getImage.inc"
-{
-    return m_image;
-}
+
 
 #include "GreyImage/getImage_1.inc"
-{
-    return m_image;
-}
+
 
 #include "GreyImage/getAlpha.inc"
-{
-    return m_image[m_width * y + x];
-}
+
 
 #include "GreyImage/setAlpha.inc"
-{
-    m_image[m_width * y + x] = alpha;
-}
+
 
 #include "GreyImage/setAlphaAsMax.inc"
-{
-    // ORIG 0x80df636：像素地址与 alpha 各取 const uchar&，call std::max<unsigned_char>
-    // 模板（-O0 外联），结果引用解引用写回像素。手写比较会内联成 cmp/jae（结构差）。
-    unsigned char& p = m_image[m_width * y + x];
-    p = std::max(p, alpha);
-}
 
-// [b28d-D9] N95：全部局部槽深恒差 8（4.4 槽基 ebp-8 vs 4.1 顶到 ebp）（ORIG 0x080df676 sz 0x0000012e）
+
 #include "GreyImage/sampleAlpha.inc"
-{
-    int xi = x >> 16;
-    int yi = y >> 16;
-    if (xi < 0 || yi < 0 || xi >= m_width - 1 || yi >= m_height - 1)
-    {
-        return 0;
-    }
-    // [P1 round5] 符号轴：ORIG 三处 `sar $0x10`（0x080df76d/0x080df795/0x080df79f）
-    //   ⇒ 中间量与最终结果均为有符号；旧稿 unsigned 形产 `shr`（同槽同序仅此一处差）。
-    int fx = x & 0xffff;
-    int fy = y & 0xffff;
-    unsigned char a00 = getAlpha(xi, yi);
-    unsigned char a10 = getAlpha(xi + 1, yi);
-    unsigned char a01 = getAlpha(xi, yi + 1);
-    unsigned char a11 = getAlpha(xi + 1, yi + 1);
-    // [P1 round5] P0：ORIG 无 top/bot 具名槽（槽 -0xc f x/-0x8 fy/-0x4..-0x1 a00..a11，
-    //   帧 0x2c 无余量）⇒ 内联为单表达式（ORIG 0x080df76b 段 %edx 直接承接上半）。
-    return ((((a00 * (0x10000 - fx) + a10 * fx) >> 16) * (0x10000 - fy)) +
-            (((a01 * (0x10000 - fx) + a11 * fx) >> 16) * fy) >> 16);
-}
+

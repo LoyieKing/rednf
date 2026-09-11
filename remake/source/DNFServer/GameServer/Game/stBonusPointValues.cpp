@@ -14,12 +14,7 @@
 #include "stBonusPointValues.h"
 
 #include "stBonusPointValues/stBonusPointValues.inc"
-{
-    clear();
-}
+
 
 #include "stBonusPointValues/clear.inc"
-{
-    m_a = 0;
-    m_b = 0;
-}
+

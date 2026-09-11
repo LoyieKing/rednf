@@ -1,1 +1,5 @@
 CNRDScriptData::CNRDScriptData()
+{
+    clear();
+    create();
+}

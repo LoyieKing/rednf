@@ -1,3 +1,5 @@
+// ORIG 0x081bec5e T statistic_process（报告 statistic_process.md ## 反编译 C 全文映射）：
+// 卖价估值入 VALUE_STATISTIC_FIELD(6)、货值入 (0xd)，材料对入 CCubeStatistic(0x6a)。
 void DisPatcher_BuyItem::statistic_process(CUser* user, BuyItemParam& param)
 
 {

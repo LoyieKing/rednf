@@ -13,19 +13,7 @@
 #include "STPassiveObjectAdditionalParticleInfo.h"
 
 #include "STPassiveObjectAdditionalParticleInfo/STPassiveObjectAdditionalParticleInfo.inc"
-    : m_s00(), m_s04(), m_s08()
-{
-    clear();
-}
+
 
 #include "STPassiveObjectAdditionalParticleInfo/clear.inc"
-{
-    m_s00 = "";
-    m_s04 = "";
-    m_s08 = "";
-    m_i0c = 0;
-    m_i10 = 0;
-    m_i14 = 0;
-    m_i18 = 0;
-    m_b1c = 0;
-}
+

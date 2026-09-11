@@ -1,1 +1,4 @@
 SkillLevelFeature::SkillLevelFeature()
+{
+    clear();
+}

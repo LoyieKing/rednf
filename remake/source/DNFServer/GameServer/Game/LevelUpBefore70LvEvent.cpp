@@ -21,45 +21,20 @@
 
 #include "LevelUpBefore70LvEvent.h"
 
-// ORIG C1 0x0811ff60：CEventBase::CEventBase() + vptr 设置，无自身字段。
 #include "LevelUpBefore70LvEvent/LevelUpBefore70LvEvent.inc"
-{
-}
 
-// ORIG D1 0x0811ff7c：vptr 设置 + CEventBase::~CEventBase() + 删除标志检查
-// （mov $0x0,%eax; test %al,%al; je —— gcc 虚析构标准形态）。
+
 #include "LevelUpBefore70LvEvent/dtor_LevelUpBefore70LvEvent.inc"
-{
-}
 
-// ORIG 0x0811ffca：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x12,0)。
-// 日志名用 __FUNCTION__（ORIG .rodata 符号 _ZZN22...E12__FUNCTION__ 实证）。
+
 #include "LevelUpBefore70LvEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x12, 0);
-    trace("LevelUpBefore70Lv Event start!");
-}
 
-// ORIG 0x0812001c：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x18,0)；
-// Word_Param 参数未使用（Ghidra C 仅 this 参与）。
+
 #include "LevelUpBefore70LvEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x18, 0);
-    trace("LevelUpBefore70Lv Event start! [monitor request]");
-}
 
-// ORIG 0x0812006e：SetEventFlag(false) + cMyTrace(__FUNCTION__,0x1e,0)。
-// ORIG W 0x0812011c：恒返 1（该事件常驻生效）。
+
 #include "LevelUpBefore70LvEvent/IsEventing.inc"
-{
-    return 1;
-}
+
 
 #include "LevelUpBefore70LvEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace trace(__FUNCTION__, 0x1e, 0);
-    trace("LevelUpBefore70Lv Event end!");
-}
+

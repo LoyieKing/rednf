@@ -38,17 +38,13 @@ private:
 #endif  // DNF_GAME_EFFECT_DATA_H_
 
 #include "EffectData/effect_data.inc"
-{
-}
+
 
 #include "EffectData/effect_data_1.inc"
-    : m_byte(o.m_byte), m_value(o.m_value), m_seq(o.m_seq)
-{
-}
+
 
 #include "EffectData/dtor_effect_data.inc"
-{
-}
+
 
 effect_data& effect_data::operator=(effect_data const& o)
 {

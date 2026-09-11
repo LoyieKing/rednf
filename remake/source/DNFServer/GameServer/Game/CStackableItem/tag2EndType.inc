@@ -1,1 +1,15 @@
+// ORIG T 0x089c295a：同 tag2Type 形态；结束标签 "[/xxx]" 映射同值表
+// （.rodata 0x8e19ec6..）："[/avatar]"→0 .. "[/emblem]"→8，未知→9。
 int stStackableBooster_t::tag2EndType(const char* tag)
+{
+    if (strcmp(tag, "[/avatar]") == 0) return 0;
+    if (strcmp(tag, "[/special avatar]") == 0) return 1;
+    if (strcmp(tag, "[/cera]") == 0) return 2;
+    if (strcmp(tag, "[/creature]") == 0) return 3;
+    if (strcmp(tag, "[/equipment]") == 0) return 4;
+    if (strcmp(tag, "[/stackable]") == 0) return 5;
+    if (strcmp(tag, "[/etc]") == 0) return 6;
+    if (strcmp(tag, "[/special creature]") == 0) return 7;
+    if (strcmp(tag, "[/emblem]") == 0) return 8;
+    return 9;
+}

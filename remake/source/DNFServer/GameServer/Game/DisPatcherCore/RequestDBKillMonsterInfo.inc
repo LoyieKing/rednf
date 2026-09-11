@@ -1,3 +1,5 @@
+// ORIG T 0x081c7836（RequestDBKillMonsterInfo.md）：SIG 0x282 → CACHE_KILL_MONSTER；
+// BigStreamPool；memset 0xafcc 后 characNo 写于尾部 +0xafc8。
 int DisPatcher_SelectCharac::RequestDBKillMonsterInfo(CUser* user,
 
                                                       MSG_CHARAC_SELECT& msg)

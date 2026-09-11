@@ -1,3 +1,4 @@
+// ORIG Reset @ 0x83370b0（逐字段转写）。
 void CCreature::Reset()
 {
     m_creatureItemType = CREATURE_ITME_TYPE_CREATURE;  // +0x08 = 1（列表包要求 type==1）

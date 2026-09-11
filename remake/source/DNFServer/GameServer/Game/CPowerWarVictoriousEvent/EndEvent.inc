@@ -1,3 +1,5 @@
+// ---------------------------------------------------------------------------
+// ORIG 0x08268b4a：IsEventing(0) 为真时清事件标志、清零 m_param（movw×2）并打日志。
 void CPowerWarVictoriousEvent::EndEvent()
 {
     // [N7 封顶] IsEventing 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。

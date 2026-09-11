@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 239（ORIG 418 / ours 367），残差=P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
 
 {

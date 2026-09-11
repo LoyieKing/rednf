@@ -306,12 +306,8 @@ static const CountryCodeTableEntry ccTable[242] = {
 };
 
 #include "CountryCode/CountryCode.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// 静态成员（ORIG 0x08ad3356：C1Eh 各初值）
-// ---------------------------------------------------------------------------
+
 #include "CountryCode/none.inc"
 #include "CountryCode/global.inc"
 #include "CountryCode/korea.inc"
@@ -320,84 +316,14 @@ static const CountryCodeTableEntry ccTable[242] = {
 #include "CountryCode/taiwan.inc"
 #include "CountryCode/usa.inc"
 
-// ---------------------------------------------------------------------------
-// 构造函数
-// ---------------------------------------------------------------------------
 #include "CountryCode/CountryCode_1.inc"
-{
-}
+
 
 #include "CountryCode/CountryCode_2.inc"
-{
-    int idx;
-    if ((signed char)a2Code[0] > 0x60 && (signed char)a2Code[0] <= 0x7a)
-    {
-        idx = (int)(char)(unsigned char)a2Code[0] * 0x1a - 0x9da;
-    }
-    else if ((signed char)a2Code[0] > 0x40 && (signed char)a2Code[0] <= 0x5a)
-    {
-        idx = (int)(char)(unsigned char)a2Code[0] * 0x1a - 0x69a;
-    }
-    else
-    {
-        m_idx = 0;
-        return;
-    }
-    if ((signed char)a2Code[1] > 0x60 && (signed char)a2Code[1] <= 0x7a)
-    {
-        idx += (int)(char)(unsigned char)a2Code[1] - 0x61;
-    }
-    else if ((signed char)a2Code[1] > 0x40 && (signed char)a2Code[1] <= 0x5a)
-    {
-        idx += (int)(char)(unsigned char)a2Code[1] - 0x41;
-    }
-    else
-    {
-        m_idx = 0;
-        return;
-    }
-    m_idx = ccTable2[idx];
-    if (m_idx == 0xff)
-    {
-        m_idx = 0;
-    }
-}
+
 
 #include "CountryCode/CountryCode_3.inc"
-{
-    int idx;
-    if (a2Code[0] > 0x60 && a2Code[0] <= 0x7a)
-    {
-        idx = a2Code[0] * 0x1a - 0x9da;
-    }
-    else if (a2Code[0] > 0x40 && a2Code[0] <= 0x5a)
-    {
-        idx = a2Code[0] * 0x1a - 0x69a;
-    }
-    else
-    {
-        m_idx = 0;
-        return;
-    }
-    if (a2Code[1] > 0x60 && a2Code[1] <= 0x7a)
-    {
-        idx += a2Code[1] - 0x61;
-    }
-    else if (a2Code[1] > 0x40 && a2Code[1] <= 0x5a)
-    {
-        idx += a2Code[1] - 0x41;
-    }
-    else
-    {
-        m_idx = 0;
-        return;
-    }
-    m_idx = ccTable2[idx];
-    if (m_idx == 0xff)
-    {
-        m_idx = 0;
-    }
-}
+
 
 // ---------------------------------------------------------------------------
 // 赋值
@@ -416,36 +342,20 @@ CountryCode& CountryCode::operator=(wchar_t const* a2Code)
     return *this;
 }
 
-// ---------------------------------------------------------------------------
-// 查询
-// ---------------------------------------------------------------------------
 #include "CountryCode/getAlpha2Code.inc"
-{
-    char t[3] = { 0 };
-    t[0] = ccTable[m_idx].alpha2_1;
-    t[1] = ccTable[m_idx].alpha2_2;
-    return std::string(t);
-}
+
 
 #include "CountryCode/getCountryName.inc"
-{
-    return std::string(toTString(ccTable[m_idx].name));
-}
+
 
 #include "CountryCode/getInternalValue.inc"
-{
-    return m_idx;
-}
+
 
 #include "CountryCode/getAlpha2CodeByte.inc"
-{
-    return &ccTable[m_idx].alpha2_1;
-}
+
 
 #include "CountryCode/isNone.inc"
-{
-    return m_idx == 0;
-}
+
 
 bool CountryCode::operator==(CountryCode other) const
 {
@@ -458,6 +368,4 @@ bool CountryCode::operator!=(CountryCode other) const
 }
 
 #include "CountryCode/setInternalValue.inc"
-{
-    m_idx = value;
-}
+

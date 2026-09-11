@@ -21,12 +21,6 @@ struct WpBonusPointResult
 };
 
 #include "WpBonusPointResult/WpBonusPointResult.inc"
-{
-    clear();
-}
+
 
 #include "WpBonusPointResult/clear.inc"
-{
-    m_base = 0;
-    m_add = 0;
-}

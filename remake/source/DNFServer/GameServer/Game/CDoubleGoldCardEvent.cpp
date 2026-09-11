@@ -16,40 +16,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c30a（弱 W）：仅基类构造 + vptr 置位。
 #include "CDoubleGoldCardEvent/CDoubleGoldCardEvent.inc"
-{
-}
 
-// ORIG 0x0811c326 / 0x0811c356（弱 W）：标准虚析构（空体编译器生成同形）。
+
 #include "CDoubleGoldCardEvent/dtor_CDoubleGoldCardEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c374：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__,0x10,0)
-// ("CDoubleGoldCardEvent Event Start!")。
+
 #include "CDoubleGoldCardEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x10, 0);
-    tr("CDoubleGoldCardEvent Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c3c6：thunk——经 vtable slot 2（StartEvent()）虚调用。
+
 #include "CDoubleGoldCardEvent/StartEvent_1.inc"
-{
-    StartEvent();
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811c3e0：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__,0x1a,0)
-// ("CDoubleGoldCardEvent Event End!")。
+
 #include "CDoubleGoldCardEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1a, 0);
-    tr("CDoubleGoldCardEvent Event End!");
-}
+

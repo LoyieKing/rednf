@@ -85,501 +85,105 @@ namespace game_master
 // string@+0x08 默认构造（_ZNSsC1Ev）。
 // ===========================================================================
 
-// ORIG parse 0x084ab524：trim(parser->args)；m_str0 = parser->args（新角色名）。
 #include "GmCmds_B/parse.inc"
-{
-    trim(m_parser->m_args);
-    m_str0 = m_parser->m_args;
-}
 
-// ORIG execute 0x084ab558。
-// b28d-21: NEAR 封顶 — 承 b26 判词：ORIG 0x084ab558 首结果→%ebx/次→%esi，
-// 4.4 恒反（N7 callee-saved 角色互换）；实参求值序 R2L 由编译器固定，无源码自由度。
+
 #include "GmCmds_B/execute.inc"
-{
-    CUser* user = GetUser();
-    // b26 NEAR 封顶:makeRequest 两实参 getter 结果的 callee-saved 缓存寄存器
-    // 分配序互换(ORIG 首结果→%ebx/次→%esi,4.4 恒反;N7 同族,无槽无局部,
-    // 实参求值序 R2L 由编译器固定,无源码自由度),余逐条相等。
-    DB_ReqChangeCharacName::makeRequest(user->GetUID(), user->getCurCharacNo(),
-                                        m_str0.c_str(), 1);
-}
+
 
 // ===========================================================================
 // CChangeExpertJobCmd — ORIG W ctor 0x082a816a：仅基类 vptr + 自身 vptr
 // (0x8c81b70)；+0x08 为 int 槽【专家职业类型】，不构造。
 // ===========================================================================
 
-// ORIG parse 0x084a98c8：trim(args)；*(int*)(this+8) = atoi(args.c_str())。
 #include "GmCmds_B/parse_1.inc"
-{
-    trim(m_parser->m_args);
-    m_jobType = atoi(m_parser->m_args.c_str());   // P0：无具名局部（ORIG 无槽）
-}
 
-// ORIG execute 0x084a9900。
-// b28d-21: 已修 P157/P183 — 两次 growtype_skill 调用点各自重取 skillW/curJob
-// 并重发 operator[]（删 skillIdx/skillLevel/curJob/skillW 四个具名局部）⇒
-// p167 调用点差集 CLEAR（39=39，原 MISSING 6）；ndiff 108→54。余 N82 帧/槽
-// （178 vs 182）。ORIG 0x084a9900。
+
 #include "GmCmds_B/execute_1.inc"
-{
-    // b28d-22：P0/P48 — ORIG 0x084a9900 无 jobType 槽，两次独立直读 m_jobType
-    // （各自入 %ebx 跨 call 保活）。
-    GetUser()->SetCurCharacExpertJobType(m_jobType);
 
-    STExpertJobScript* script =
-        static_cast<STExpertJobScript*>(G_CDataManager()->GetExpertJobScript(m_jobType));
-    if (script != 0)
-    {
-        for (std::vector<std::pair<int, int> >::size_type i = 0;
-             i < script->m_growSkillVec.size(); ++i)
-        {
-            // b28d-22：P296 — ORIG 用正向包裹（test;setne;test;je 落增量块），
-            // 旧 `if(...==0) continue;` 使 4.4 多出 jmp+nop 中继岛（+2 条）。
-            if (GetUser()->getCurCharacR() != 0)
-            {
-                // b28d-21：P167 差集（ORIG 39 calls vs 重建 33）证明 ORIG 在两次
-                // growtype_skill 调用点各自重取 skillW/curJob 并重发 operator[]
-                // （P157/P183 禁缓存）⇒ 全部内联，删 skillIdx/skillLevel/curJob/skillW
-                // 四个具名局部。占位声明返回 char*，ORIG 实为 SkillSlot*。
-                reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
-                    ->growtype_skill(GetUser()->get_charac_job(),
-                                     script->m_growSkillVec[i].first,
-                                     script->m_growSkillVec[i].second,
-                                     (ENUM_SKILL_TREE_KIND)0);
-                reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
-                    ->growtype_skill(GetUser()->get_charac_job(),
-                                     script->m_growSkillVec[i].first,
-                                     script->m_growSkillVec[i].second,
-                                     (ENUM_SKILL_TREE_KIND)1);
-            }
-        }
-        // b28d-22：P0/P183 — ORIG 无 expand 具名局部，GetCharacExpandData 结果
-        // 直接作 this 调用 InitScript。
-        reinterpret_cast<expert_job::CCharacExpertJob*>(
-            GetUser()->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
-            ->InitScript(script);
-        GetUser()->SetCurCharacExpertJobExp(0);
-    }
-
-    PacketGuard packet;
-    packet.put_header(0, 2);
-    packet.put_byte(0);
-    packet.put_short(1);
-    GetUser()->make_basic_info(reinterpret_cast<char*>(&packet), 0);
-    packet.finalize(true);
-    G_GameWorld()->send_all(packet, GetUser());
-}
 
 // ===========================================================================
 // CChangeExpertJobExpCmd — ORIG W ctor 0x082a8186：仅 vptr 设置；
 // +0x08 为 int 槽【专家职业经验增量】。
 // ===========================================================================
 
-// ORIG parse 0x084a9b98：trim(args)；*(int*)(this+8) = atoi(args.c_str())。
 #include "GmCmds_B/parse_2.inc"
-{
-    trim(m_parser->m_args);
-    m_exp = atoi(m_parser->m_args.c_str());       // P0：无具名局部（ORIG 无槽）
-}
 
-// ORIG execute 0x084a9bd0。
+
 #include "GmCmds_B/execute_2.inc"
-{
-    expert_job::CExpertJob::IncreaseExpertJobExp(GetUser(), m_exp);
-}
+
 
 // ===========================================================================
 // CChangeNPCFavorCmd — ORIG W ctor 0x082a831c：仅 vptr；
 // +0x08/+0x0c 为双 int 槽【npcId / favor】。
 // ===========================================================================
 
-// ORIG parse 0x084aadd8：trim(args)；pos=args.find(" ")；
-// *(int*)(this+8)=atoi(substr(0,pos))；*(int*)(this+0xc)=atoi(substr(pos+1))。
 #include "GmCmds_B/parse_3.inc"
-{
-    trim(m_parser->m_args);
-    int pos = m_parser->m_args.find(" ", 0);
-    std::string first = m_parser->m_args.substr(0, pos);
-    std::string second = m_parser->m_args.substr(pos + 1, std::string::npos);
-    // b28d-22：P0 — ORIG 0x084aadd8 把 atoi 结果直接写成员（无 v0/v1 槽，
-    // 无 store+load 往返），删两个具名中转局部。
-    m_npcId = atoi(first.c_str());
-    m_favor = atoi(second.c_str());
-}
 
-// ORIG execute 0x084aaef2：空实现（ret）。
+
 #include "GmCmds_B/execute_3.inc"
-{
-}
+
 
 // ===========================================================================
 // CChangeNPCMaxDayCmd — ORIG W ctor 0x082a8300：仅 vptr；
 // +0x08/+0x0c 为双 int 槽【npcId / maxDay】。
 // ===========================================================================
 
-// ORIG parse 0x084aacb8：与 CChangeNPCFavorCmd::parse 同构。
 #include "GmCmds_B/parse_4.inc"
-{
-    trim(m_parser->m_args);
-    int pos = m_parser->m_args.find(" ", 0);
-    std::string first = m_parser->m_args.substr(0, pos);
-    std::string second = m_parser->m_args.substr(pos + 1, std::string::npos);
-    // b28d-22：P0 — ORIG 0x084aacb8 同构，atoi 结果直写成员。
-    m_npcId = atoi(first.c_str());
-    m_maxDay = atoi(second.c_str());
-}
 
-// ORIG execute 0x084aadd2：空实现（ret）。
+
 #include "GmCmds_B/execute_4.inc"
-{
-}
+
 
 // ===========================================================================
 // CCharacStatCmd — ORIG W ctor 0x082a8098：仅 vptr（无成员）。
 // ===========================================================================
 
-// ORIG execute 0x084a905e：读 AdditionalInfo 移速/攻速/施速，组串回发本人。
-// b28d-21: 已修 P214③（255 字节缓冲 `memset` → `char buf[255] = {0}` 复现 ORIG
-// 内联「对齐剥离 + rep stos」39 条，ndiff 92→9）；余 N1/槽（ORIG -0x1c add 形 vs
-// 重建 disp 折叠）。ORIG 0x084a905e。
 #include "GmCmds_B/execute_5.inc"
-{
-    // b28d-21：ORIG 0x084a905e 对 255 字节缓冲发内联「对齐剥离+rep stos」
-    //（0x84a9063 起 39 条），4.4 对 memset 恒发 call ⇒ 按 P214③ 用大数组
-    // 显式零初始化 `= {0}` 复现。
-    char buf[255] = {0};                                  // ORIG -0x127(%ebp)
 
-    // b28d-22：N107 族 —— ORIG 三处附加信息字段是单条 disp（mov/movzwl），
-    // 原 `unsigned char*` + `add + 0xNN` 退化成 add+mov 两步；改 pack(1) 视图。
-    CharacAddInfoStatView const* add = static_cast<CharacAddInfoStatView const*>(
-        GetUser()->getCurCharacAddInfoR());
-    sprintf(buf, "charac_stat move_speed=%d,attack_speed=%d,cast_speed=%d",
-            add->m_moveSpeed,
-            (unsigned int)add->m_attackSpeed,
-            (unsigned int)add->m_castSpeed);
-
-    PacketGuard packet;
-    packet.put_header(0, 0xc);
-    packet.put_byte(0);
-    packet.put_short(0);
-    packet.put_byte(0);
-    packet.put_int(strlen(buf));
-    packet.put_str(buf, strlen(buf));
-    packet.finalize(true);
-    GetUser()->Send(packet);
-}
 
 // ===========================================================================
 // CChoiceItem — ORIG W ctor 0x082a87c2：仅 vptr；+0x08 为 int 槽【物品索引】。
 // ===========================================================================
 
-// ORIG parse 0x084b0a34：trim(args)；*(int*)(this+8) = atoi(args.c_str())。
 #include "GmCmds_B/parse_5.inc"
-{
-    trim(m_parser->m_args);
-    m_itemIdx = static_cast<unsigned int>(atoi(m_parser->m_args.c_str()));
-}
 
-// ORIG execute 0x084b0a6e。
+
 #include "GmCmds_B/execute_6.inc"
-{
-    if (m_itemIdx == 0)
-    {
-        G_CDataManager()->setChoiceItem(false, 0xffffffffu);
-        return;
-    }
-    CItem* item = G_CDataManager()->find_item(m_itemIdx);
-    // ORIG：bad = (item==0 || is_stackable) bool 汇聚（mov$1 落 +0x61 fall，mov$0
-    // 为 je 岛），if(!bad) 才 setChoiceItem(true, idx)。
-    // b28d-22：P0 —— ORIG 无 bad 槽也无 callee-saved 需求（值留 %al），
-    // 具名局部（含 register 提示）会多 store/load 或 `mov %eax,%ebx`；
-    // 探针 /tmp/pc/probe.cpp FORM4（条件内联进 if）逐条复现 ORIG。
-    if ((item == 0) || item->is_stackable())
-        goto done;
-    G_CDataManager()->setChoiceItem(true, (unsigned int)m_itemIdx);
-done:
-    ;
-}
+
 
 // ===========================================================================
 // CCirculationStatisticCmd — ORIG W ctor 0x082a8044：仅 vptr（无成员）。
 // ===========================================================================
 
-// ORIG execute 0x084a8ff6：空实现（ret）。
 #include "GmCmds_B/execute_7.inc"
-{
-}
+
 
 // ===========================================================================
 // CClearInventoryCmd — ORIG W ctor 0x082a8338：仅 vptr（无成员）。
 // ===========================================================================
 
-// ORIG execute 0x084aaef8：清空背包槽 [3,0x137] 后 send_itemspace(INVENTORY)。
 #include "GmCmds_B/execute_8.inc"
-{
-    CUser* user = GetUser();
-    for (int slot = 3; slot <= 0x137; ++slot)
-    {
-        // ORIG：getCurCharacInvenW 结果经 eax 直通 +0x650 读，无具名 inven 槽。
-        user->getCurCharacInvenW()->m_pEquipSlot[slot].reset();
-    }
-    if (user->send_itemspace(0) != 1)                     // ENUM_ITEMSPACE_INVENTORY=0
-    {
-        // P44：NumberToString 即时求值直压 0x14(%esp)，无 acc 具名槽。
-        LogManager::logFormat(
-            1, "GameMaster.cpp",
-            __PRETTY_FUNCTION__, 0x63b,
-            "CClearInventoryCmd::execute, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_INVENTORY ) return FAILED",
-            NumberToString(user->get_acc_id(), 0));
-    }
-}
+
 
 // ===========================================================================
 // CClearAvatarInvenCmd — ORIG W ctor 0x082a8354：仅 vptr（无成员）。
 // ===========================================================================
 
-// ORIG execute 0x084aafb0：逐 avatar 槽 [0,0x68] 删除非空物品并 SendAvatarEvent，
-// 末尾 send_itemspace(AVATAR)。
 #include "GmCmds_B/execute_9.inc"
-{
-    CUser* user = GetUser();
-    // [b23S3C] P48 去缓存：ORIG getCurCharacInvenR ×2（+0x28/+0x58）、
-    // getCurCharacInvenW ×2（+0x78/+0x10f）各用点独立求值，无 invenR/invenW 槽；
-    // addInfo2 预清槽 -0x10（+0x1c movl $0x0）⇒ 循环外 `int addInfo2 = 0;`；
-    // NumberToString 结果直落 0x14(%esp) 实参槽（无 acc 局部，P0 寄存器直传）。
-    int addInfo2 = 0;
-    for (int slot = 0; slot <= 0x68; ++slot)
-    {
-        if (user->getCurCharacInvenR()->m_pAvatarSlot[slot].m_addInfo != 0)
-        {
-            addInfo2 = user->getCurCharacInvenR()
-                           ->m_pAvatarSlot[slot].m_addInfo2;
-            if (!user->getCurCharacInvenW()
-                     ->delete_item(INVEN_TYPE_AVATAR, slot, 1,
-                                   eItemDelReason_3, true))
-            {
-                LogManager::logFormat(
-                    1, "GameMaster.cpp",
-                    __PRETTY_FUNCTION__, 0x64d,
-                    "CClearAvatarInvenCmd::execute, pUser(%s)->getCurCharacInvenW()->delete_item return FAILED",
-                    NumberToString(user->get_acc_id(), 0));
-                return;
-            }
-            user->getCurCharacInvenW()->SendAvatarEvent(0x36, addInfo2, 1,
-                                                        slot + 10, 0);
-        }
-    }
-    // ORIG xor$1 形需 send_itemspace 返 bool（Main 已代落 CUser.h:2843）。
-    if (user->send_itemspace(1) != 1)   // ENUM_ITEMSPACE_AVATAR=1
-    {
-        LogManager::logFormat(
-            1, "GameMaster.cpp",
-            __PRETTY_FUNCTION__, 0x656,
-            "CClearAvatarInvenCmd::execute, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_AVATAR ) return FAILED",
-            NumberToString(user->get_acc_id(), 0));
-    }
-}
+
 
 // ===========================================================================
 // CClearRewardTest — ORIG W ctor 0x082a8902：仅 vptr（无成员）。
 // ===========================================================================
 
-// ORIG parse 0x084b2a02：空实现（ret）。
 #include "GmCmds_B/parse_6.inc"
-{
-}
 
-// ORIG execute 0x084b2a08：全服掉落测试两轮采样（默认掉率 → cltr_normal.txt；
-// ref+0x3c 置 1 金币档 → cltr_gold.txt），各 100000 次采样后按 item idx 计数输出。
-// b28d-solo-GmCmds_B：按 ORIG 指令形复现 —
-// ① 五个独立 if 早退（ORIG 五个 return 岛 +0x977/+0x97a/+0x97d/+0x980/+0x983），
-//    非 `||` 短路链（原链式使 3 条件共用一个 setcc/je 岛 + -8 槽漂移）；
-// ② 无 battleField 具名槽（ORIG `mov party; add $0xb24` 直取 this）与无 mgr 具名槽
-//    （getItemGenerator() 结果直入 (%esp) 后链式取生成器）；
-// ③ diff 为 1 字节（ORIG `mov %al,-0x31` 存 / `movzbl -0x31` 读回）⇒ unsigned char；
-// ④ 分支方向 `get_dimension_possible() > 0`（ORIG setg，真分支 = party 标准维度等级）；
-// ⑤ ref 书写序 +0x35(diff)/+0x34(level)/+0x40(dungeon)/+0x38(float 1.0f 经 eax)/
-//    +0x3c 整字写 0（ORIG movl，非两 movw）；
-// ⑥ result/statMap/out 单作用域复用（ORIG 一次构造一次析构），第二轮按
-//    vector/string/map 序 clear 后重采样；
-// ⑦ `char line[1024] = {0}` 置于循环体内（P214③ 内联 rep stos；if 内 memset 保留 call）；
-// ⑧ 迭代器后置 ++（ORIG ppEi）+ `find(...) == end()` 判定（ORIG eq + je）；
-// ⑨ P0/P183：删 `int itemIdx` 具名局部 —— ORIG 的 find 关键字槽 -0xac/-0x74 是
-//    `find(it->m_addInfo)` 的 unsigned→int 隐式转换**临时**（两轮槽位不同即 temp
-//    分配特征），保留具名 int 会把槽压到 -0xcc/-0xdc 并使整片临时区漂 4~8 字节
-//    （删除后本函数栈槽表与 ORIG 逐槽全等）。
-// 残差（fresh .o 597/595，gap +2）：ORIG 两轮各 1 条 `out += line;` 后的
-//  `jmp +1; nop` 空块中继岛（0x084b2e90 `eb 01` + 0x084b2e92 `90`，同 GmCmds_A
-//  _selectJewelTypeIndex 的 P184 结论：4.1 空块发射产物，4.4 前端 DCE，17 形
-//  探针 + 空 else/空块/do-while(0)/continue/空 switch 全败）⇒ P184 封顶；
-//  两轮采样循环的 `mov (%eax),%edx` vs 我方 `mov (%eax),%eax`（vtable fn 指针
-//  寄存器角色）为 4.1↔4.4 reload 差，6 形调用写法实测不迁移 ⇒ N7 封顶。
+
 #include "GmCmds_B/execute_10.inc"
-{
-    CUser* user = GetUser();
-    if (user == 0)
-    {
-        return;
-    }
-    if (user->getCurCharacR() == 0)
-    {
-        return;
-    }
-    if (user->get_state() != 5)
-    {
-        return;
-    }
-    CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0)
-    {
-        return;
-    }
-    if (party->m_battleField.m_pDungeon == 0)
-    {
-        return;
-    }
-    CDungeon* dungeon = party->m_battleField.m_pDungeon;
 
-    // CBattle_Field 子对象位于 CParty+0xb24（经 m_battleField 视图访问）。
-    unsigned char diff = party->m_battleField.get_dungeon_diff();
 
-    int standardLevel = 0;
-    // ORIG `call get_dimension_possible; test %al,%al; setg %al` ⇒ 比较是**有符号**
-    // 视角（头文件声明 unsigned char，unsigned 与 0 比较在 4.4 恒折 setne）。
-    // 类型轴直证：ORIG 0x0859f1ef 调用点 `call 0x826b938; movsbl %al,%eax; sub $1`
-    // ⇒ 返回类型是 **signed char**（unsigned char 会走 movzbl）；31 个调用点全 setg。
-    // 头（CDungeon.h `unsigned char get_dimension_possible()`）待父泳道裁决；
-    // 本 TU 按 ORIG 视图比较（头修正为 char 后可撤）。
-    if ((char)dungeon->get_dimension_possible() > 0)
-    {
-        standardLevel = party->getStandardDimensionLevel();
-    }
-    else
-    {
-        standardLevel = dungeon->get_standard_level();
-    }
-
-    WongWork::stGenerateRefData_t ref;                    // ORIG 0814a706 ctor
-    ref.m_field35 = (char)diff;                           // +0x35（难度差【推断】）
-    ref.m_field34 = (char)standardLevel;                  // +0x34（基准值）
-    ref.m_dungeon = dungeon;                              // +0x40
-    ref.m_rankBonusRate = 1.0f;                           // +0x38（float 1.0f 经 eax 中转）
-    ref.m_field3c = 0;                                    // +0x3c 整字写 0
-
-    WongWork::CItemGenerator* generator = G_CDataManager()->getItemGenerator()
-        ->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2);
-
-    // ---- 第一轮：默认掉率 → cltr_normal.txt ----
-    WongWork::stGenerateResult_t result;
-    for (int i = 0; i < 100000; ++i)
-    {
-        generator->generateRandomItem(ref, result);
-    }
-
-    std::map<int, int> statMap;
-    statMap.clear();                                      // ORIG ctor 后显式 clear
-    for (std::vector<Inven_Item>::iterator it = result.m_dropItems.begin();
-         it != result.m_dropItems.end(); it++)
-    {
-        std::map<int, int>::iterator mit = statMap.find(it->m_addInfo);
-        if (mit == statMap.end())
-        {
-            // ORIG make_pair 实例 mangled `IRmiE`（unsigned long&）：Inven_Item.h
-            // `unsigned int m_addInfo`（4 字节）与 ORIG 的 32 位 unsigned long 同宽，
-            // 此处按 ORIG 视图取引用（P235 视图手法；头若修为 unsigned long 可撤）。
-            statMap.insert(std::make_pair((unsigned long&)it->m_addInfo, 1));
-        }
-        else
-        {
-            ++mit->second;
-        }
-    }
-
-    std::string out;
-    for (std::map<int, int>::iterator it = statMap.begin(); it != statMap.end(); it++)
-    {
-        char line[1024] = {0};                            // ORIG 内联 rep stos（P214③）
-        if (it == statMap.begin())
-        {
-            memcpy(line,
-                   "    Item Index\t\t                     Item Name\t\tRarity\t\tCount\n",
-                   0x3f);
-            out += line;
-            memset(line, 0, 0x400);
-        }
-        CItem* item = G_CDataManager()->find_item(it->first);
-        if (item != 0)
-        {
-            sprintf(line, "%14d\t\t%30s\t\t%6d\t\t%5d\n", item->get_index(),
-                    item->GetItemName(), item->get_rarity(), it->second);
-            out += line;
-        }
-    }
-    printClient(GetUser(), "cltr_normal.txt", out.c_str());
-
-    // ---- 第二轮：ref+0x3c 置 1（金币基数）→ 清空容器后重采样 ----
-    ref.m_field3c = 1;                                    // ORIG movl $0x1,-0x120(%ebp)
-    result.m_dropItems.clear();
-    out.clear();
-    statMap.clear();
-
-    for (int i = 0; i < 100000; ++i)
-    {
-        generator->generateRandomItem(ref, result);
-    }
-
-    for (std::vector<Inven_Item>::iterator it = result.m_dropItems.begin();
-         it != result.m_dropItems.end(); it++)
-    {
-        std::map<int, int>::iterator mit = statMap.find(it->m_addInfo);
-        if (mit == statMap.end())
-        {
-            statMap.insert(std::make_pair((unsigned long&)it->m_addInfo, 1));
-        }
-        else
-        {
-            ++mit->second;
-        }
-    }
-
-    for (std::map<int, int>::iterator it = statMap.begin(); it != statMap.end(); it++)
-    {
-        char line[1024] = {0};                            // ORIG 内联 rep stos（P214③）
-        if (it == statMap.begin())
-        {
-            memcpy(line,
-                   "    Item Index\t\t                     Item Name\t\tRarity\t\tCount\n",
-                   0x3f);
-            out += line;
-            memset(line, 0, 0x400);
-        }
-        CItem* item = G_CDataManager()->find_item(it->first);
-        if (item != 0)
-        {
-            sprintf(line, "%14d\t\t%30s\t\t%6d\t\t%5d\n", item->get_index(),
-                    item->GetItemName(), item->get_rarity(), it->second);
-            out += line;
-        }
-    }
-    printClient(GetUser(), "cltr_gold.txt", out.c_str());
-}
-
-// ORIG printClient 0x084b3398
-// _ZN11game_master16CClearRewardTest11printClientEP5CUserPKcS4_：0x13e 包封装两段
-// 字符串（文件名 + 内容）发本人。
 #include "GmCmds_B/printClient.inc"
-{
-    PacketGuard packet;
-    packet.put_header(0, 0x13e);
-    packet.put_byte(1);
-    packet.put_int(strlen(fileName));
-    packet.put_str(fileName, strlen(fileName));
-    packet.put_int(strlen(content));
-    packet.put_str(content, strlen(content));
-    packet.finalize(true);
-    user->Send(packet);
-}
+
 
 } // namespace game_master

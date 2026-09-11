@@ -1,3 +1,8 @@
+// index_array（ORIG 0x9370f60，.data，200*300 int）：getOriginalBuf 的插入
+// 位置表，从 ORIG 二进制提取，60000 个 0..299 值。
+// [OurOnly33 符号名轴] 定义须留在 XorSeed 之后：index_array 已去 static/const（见 inc 头注），
+// 若前置于 XorSeed 会成为本 TU 首个外部链接强符号 ⇒ P327 GI 键名被改成
+// _GLOBAL__I_index_array（基线键名 = _ZN10Encryption7XorSeedE，missing +1 实证）。
 // [OurOnly33 符号名轴] ORIG 权威：`09370f60 0003a980 D index_array`（全局 .data，
 // 非 const，240000B=60000*4）⇒ 去掉 static/const 后本 TU 发射 `D index_array`，
 // 与 ORIG 名字/段/大小逐项一致（原发射 `_ZL11index_array` r 段 = 我方发明名）。

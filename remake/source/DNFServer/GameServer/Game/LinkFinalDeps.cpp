@@ -39,10 +39,7 @@ char* NumberToString(unsigned long long value, int radix);
 
 namespace OS_API {
 
-// ORIG T 0x0858c4e0:usleep(ms*1000)
 #include "LinkFinalDeps/Sleep.inc"
-{
-    usleep(static_cast<useconds_t>(ms) * 1000u);
-}
+
 
 }  // namespace OS_API

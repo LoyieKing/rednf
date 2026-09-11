@@ -20,11 +20,7 @@
 namespace Taiwan
 {
 #include "TaiwanInternal/internal_stream.inc"
-{
-    guard.operator*()->operator<<(0x34e);
-    guard.operator*()->operator<<(uid);
-    guard.operator*()->operator<<(static_cast<int>(packet));
-}
+
 #include "TaiwanInternal/init.inc"
 #include "TaiwanInternal/set.inc"
 }

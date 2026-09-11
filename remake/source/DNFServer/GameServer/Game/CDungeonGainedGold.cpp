@@ -16,32 +16,17 @@
 // 类定义唯一见 CDungeonGainedGold.h（CUser.h 值成员依赖此头）。
 #include "CDungeonGainedGold.h"
 
-// ORIG 0x869705c / 0x8697062：空体 ctor/dtor（CUser ctor 0x864e410 调用实证）。
 #include "CDungeonGainedGold/CDungeonGainedGold.inc"
 #include "CDungeonGainedGold/dtor_CDungeonGainedGold.inc"
 
 #include "CDungeonGainedGold/incGainedGold.inc"
-{
-    // ORIG 语义：返回「跨越的 10 万分位差」（newGold/100000 - oldGold/100000），
-    // 并累计 m_gainedGold。
-    unsigned int inc = (m_gainedGold + amount) / 100000 - m_gainedGold / 100000;
-    m_gainedGold = m_gainedGold + amount;
-    if (inc != 0)
-        return inc;
-    return 0;
-}
+
 
 #include "CDungeonGainedGold/getGainedGold.inc"
-{
-    return m_gainedGold;
-}
+
 
 #include "CDungeonGainedGold/setGainedGold.inc"
-{
-    m_gainedGold = value;
-}
+
 
 #include "CDungeonGainedGold/reset.inc"
-{
-    m_gainedGold = 0;
-}
+

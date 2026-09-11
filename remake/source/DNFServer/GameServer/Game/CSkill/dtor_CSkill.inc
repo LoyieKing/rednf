@@ -1,1 +1,3 @@
 CSkill::~CSkill()
+{
+}

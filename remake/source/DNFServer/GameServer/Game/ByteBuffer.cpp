@@ -47,41 +47,10 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
     return *this;
 }
 
-// [b28d-D43] ORIG 0x081ae9b8：static 成员 + 按值 sret 返回 —— 体 = 单次
-// `call ByteBuffer::C1EPcj(sret, buffer, len)` + `mov %ebx,%eax; ret $0x4`，
-// 全字段由 ctor 覆盖（无 this 参与）。调用点（0x081ad43b 等）只压
-// sret/buffer/len 三参、无 this ⇒ P88/P245 static 判据。旧重建的
-// `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
-// [Q8 2026-09-11] P210：wrap 定义须在 ctor 定义**之前**（4.4 见不到 callee 体
-// ⇒ 保守 outgoing 帧 $0x14 = ORIG）。
 #include "ByteBuffer/wrap.inc"
 
-// ORIG 0x081ae9e2：start=write=read=buffer; capacity=len。
 #include "ByteBuffer/ByteBuffer.inc"
 
-// ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
-// 空间足够则写 ushort 长度前缀（大端）+ wcsncpy + 游标前进 len*2。
-// [b28d-D43] N82/N89 大函数（124/124）：STL 实例化 + 槽平移（ORIG 0x081acd1e）。
-ByteBuffer& ByteBuffer::operator<<(const wchar_t* value)
-{
-    // [b28d-solo-nexon_cash] P0/P48：ORIG 0x081acd2d 的 wcslen 结果直接
-    // `add %eax,%eax`（无具名 len 局部槽），且 0x081ace63 在 wcsncpy 前二次
-    // 调 wcslen ⇒ 原码无 len 局部，字节数就地计算。
-    size_t bytes = wcslen(value) * 2;
-    if (bytes > (size_t)std::numeric_limits<unsigned short>::max())
-        // [P6AuditOldN.P6S2 2026-09-11 · §6.5 串审计] ORIG .rodata @0x08b6bc00
-        //   逐字节 = "string length too long: must shorter than max(unsigned short)"
-        //   （我方旧串 "string too long" 为其前缀截断）⇒ 运行期可见文本，按 ORIG 还原。
-        throw std::invalid_argument(
-            "string length too long: must shorter than max(unsigned short)");
-    if (static_cast<unsigned int>(length() + bytes) <= m_capacity)
-    {
-        *this << static_cast<unsigned short>(bytes);
-        wcsncpy(reinterpret_cast<wchar_t*>(m_writePtr), value, wcslen(value));
-        m_writePtr += bytes;
-    }
-    return *this;
-}
 
 // ORIG 0x081ae614：if(length()+1 < m_capacity){ *wp=v; ++wp; }
 ByteBuffer& ByteBuffer::operator<<(unsigned char value)
@@ -204,9 +173,6 @@ ByteBuffer& ByteBuffer::operator>>(unsigned int& value)
     return *this;
 }
 
-// ORIG 0x081acf60：length = m_writePtr - m_start。
-// 定义置于全部 <<x/>>x 消费者之后：ORIG 各 W body 内 call length 为宽松帧
-// （sub $0x18 + 具名 value 槽 -0xc），同 TU 定义前置会收紧 caller 帧（技巧31）。
 #include "ByteBuffer/length.inc"
 
 }  // namespace cash

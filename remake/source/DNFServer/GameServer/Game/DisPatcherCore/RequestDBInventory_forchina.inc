@@ -1,3 +1,8 @@
+// ORIG T 0x081c7c1c（RequestDBInventory_forchina.md）：SIG 8 → CACHE_INVENTORY；
+// BigStreamPool；memset 0x1544c 后 acc/charac/tagInven 清理/+0x8←MSG.m_0e。
+// [b28d-29] setcc-fold：ORIG 尾 bool 物化岛（mov $1,%esi/mov $0,%ebx + test），4.4 恒折单条 mov/直分支  (ORIG 0x081c7c1c insn 137->134)
+// 尾部两分支均返回 1（ORIG esi 未初始化路径经 test ebx 归一为恒真）。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 8（ORIG 137 / ours 133），残差=N82 槽/块序；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
 
                                                           MSG_CHARAC_SELECT& msg)

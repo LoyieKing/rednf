@@ -1,3 +1,4 @@
+// ORIG T 0x08919127 _Z22importQuestPieceScriptPKcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE。
 bool importQuestPieceScript(const char* path, std::map<int, int>& out)
 {
     // [b28d-solo-OnlyOrigBatch14] 真语义 bug：ORIG 0x0891912f 压参序为

@@ -1,1 +1,3 @@
 CreateCharacterRestrictPolicy::~CreateCharacterRestrictPolicy()
+{
+}

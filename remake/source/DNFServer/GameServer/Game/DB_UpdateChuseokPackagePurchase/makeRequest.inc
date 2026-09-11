@@ -1,3 +1,7 @@
+// ============================================================================
+// DB_UpdateChuseokPackagePurchase::makeRequest @ 0x0843c8b6
+// mangled _ZN31DB_UpdateChuseokPackagePurchase11makeRequestEj
+// ============================================================================
 void DB_UpdateChuseokPackagePurchase::makeRequest(unsigned int mId)
 {
     // b28c-33：ORIG 0x0843c8b6 无 stream 具名局部（Acquire 返回值 eax 直传 guard

@@ -14,13 +14,6 @@
 #include "BlueMarblePOD.h"
 
 #include "TileIndexInfo/TileIndexInfo.inc"
-{
-    m_dungeon = 0;
-    m_item = 0;
-}
+
 
 #include "TileIndexInfo/reset.inc"
-{
-    m_dungeon = 0;
-    m_item = 0;
-}

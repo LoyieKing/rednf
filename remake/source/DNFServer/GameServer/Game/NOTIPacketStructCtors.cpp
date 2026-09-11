@@ -15,40 +15,20 @@
 
 #include <cstring>
 
-// ---- SpawnUnit ----
-// ORIG 0x081346a6（0x31）：_SummonObject ctor(this+0x4) → memset(this,0,0x28)
 #include "NOTIPacketStructCtors/_NotiAdvanceAltarSpawnUnit.inc"
-{
-    std::memset(this, 0, 0x28);
-}
 
-// ---- StageInfo ----
+
 #include "NOTIPacketStructCtors/_NotiAdvanceAltarStageInfo.inc"
-{
-    std::memset(this, 0, 8);
-}
 
-// ---- MapInfo ----
+
 #include "NOTIPacketStructCtors/_NotiAdvanceAltarMapInfo.inc"
-{
-    std::memset(this, 0, 0x14);
-}
 
-// ---- ClearStage ----
-// ORIG 0x08134720（0x31）：_Stage ctor(this+0xd) → memset(this,0,0x1c)
+
 #include "NOTIPacketStructCtors/_NotiAdvanceAltarClearStage.inc"
-{
-    std::memset(this, 0, 0x1c);
-}
 
-// ---- EplpState ----
+
 #include "NOTIPacketStructCtors/_NotiAdvanceAltarEplpState.inc"
-{
-    std::memset(this, 0, 8);
-}
 
-// ---- UpdateRidable ----
+
 #include "NOTIPacketStructCtors/_NotiAdvanceAltarUpdateRidable.inc"
-{
-    std::memset(this, 0, 1);
-}
+

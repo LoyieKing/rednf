@@ -1,3 +1,5 @@
+// ORIG 0x0821afbc W _ZN28DisPatcher_UdpCharacteristic11pvpPingStatEP5CUserRtS2_
+// （报告 pvpPingStat.md 全文转写，wave2）：Pvp_Ping 包（0xfa8,0xe）同型。
 int DisPatcher_UdpCharacteristic::pvpPingStat(CUser* user, unsigned short& bad, unsigned short& total)
 
 {

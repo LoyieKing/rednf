@@ -1,1 +1,3 @@
 TownAreaScript::~TownAreaScript()
+{
+}

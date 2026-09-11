@@ -1,3 +1,9 @@
+// ORIG 0x081bfdf0 T _ZN19DisPatcher_BuySkill29try_master_new_skills_processEP5CUsercR12buySkillInfo
+// （docs/class_func_reports/DisPatcher_BuySkill/try_master_new_skills_process.md 全文转写）：
+// 公会技能 [200,208] 直接返回（cmp $0xd0 jbe → 尾声；与正式 master 相反）；
+// [b28d-29] N82/N18b：帧/槽重排 + 比较方向折痕，调用点全等  (ORIG 0x081bfdf0 insn 84->79)
+// 非公会走同一树门后调 try_master_new_skills，仅写 m_4，无等级回写、无日志尾部。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 51（ORIG 81 / ours 76），残差=N7/N82 帧与 callee-saved 角色/N82 帧差；沿用上方 b28d-29 归因，封顶。
 void DisPatcher_BuySkill::try_master_new_skills_process(CUser* user, char treeKind,
 
                                                         buySkillInfo& info)

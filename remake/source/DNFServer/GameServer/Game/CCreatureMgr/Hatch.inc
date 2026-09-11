@@ -1,3 +1,9 @@
+// ============================================================================
+// CEgg::Hatch @ 0x0833912a（objdump 逐条转写）：蛋物品 find_item 非空且
+//   非 stackable → *out = CEquipItem::get_hatch_item_id() 返回 1；否则 0
+//   （ORIG 0x8339181 为外联 call 0x833eeda；nm -S 核验
+//   _ZNK10CEquipItem18get_hatch_item_idEv W 0x0833eeda size 0xe）。
+// ============================================================================
 bool user_creature::CEgg::Hatch(int* out)
 {
     CItem* item = G_CDataManager()->find_item(

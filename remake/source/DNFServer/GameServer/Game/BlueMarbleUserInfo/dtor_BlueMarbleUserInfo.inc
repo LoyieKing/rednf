@@ -1,1 +1,3 @@
 BlueMarbleUserInfo::~BlueMarbleUserInfo()
+{
+}

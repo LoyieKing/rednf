@@ -1,1 +1,3 @@
 SkillSlot::~SkillSlot()
+{
+}

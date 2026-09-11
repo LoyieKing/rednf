@@ -27,21 +27,11 @@
 // 本 TU 暂保留 static 以保证本 TU 编译与 ORIG 读取形态（mov 0x9501e90 形 AE 归一）。
 static unsigned int gCodePage;
 
-// [b28d-Main R3 迁移·检查点13] getCodePage/setCodePage 自 GameScriptEnumHelpers.cpp 迁入
-// （ORIG 0x08adea10/0x08adea1a 与本 TU 的 convertTo* 同 TU），与 convertToWideString/
-// convertToCharString 共享本 TU 的 gCodePage ⇒ 修复「setCodePage 写他 TU 副本、
-// 转换读本 TU 恒 0 副本」的语义分叉（二进制曾实测 3 份 _ZL9gCodePage，ORIG 仅 1 份）。
 #include "StringConvert/getCodePage.inc"
-{
-    return gCodePage;
-}
+
 
 #include "StringConvert/setCodePage.inc"
-{
-    const int old = gCodePage;
-    gCodePage = nNewCodePage;
-    return old;
-}
+
 
 // [b28d-Main R3 迁移·检查点13] convertToCharString(PKwj/PKw/RK10WideString) 自
 // StringResource.cpp 迁入（ORIG 0x08adf57f/0x08adf54c/0x08adf624 同 TU）；改读本 TU
@@ -442,17 +432,11 @@ const wchar_t* toUnicode(const std::wstring& src)
     return src.c_str();
 }
 
-// _Z9toUnicodePKwRSbIwSt11char_traitsIwESaIwEE 0x08adf3df：sDst = src。
 #include "StringConvert/toUnicode.inc"
-{
-    dst = src;
-}
 
-// _Z9toUnicodeRKSbIwSt11char_traitsIwESaIwEERS2_ 0x08adf315：sDst = sSrc。
+
 #include "StringConvert/toUnicode_1.inc"
-{
-    dst = src;
-}
+
 
 // ---------------------------------------------------------------------------
 // toUnicode —— mbstowcs 到 TLS 环形缓冲

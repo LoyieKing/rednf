@@ -1,1 +1,3 @@
 void EpollHandler::release()
+{
+}

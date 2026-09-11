@@ -18,23 +18,6 @@
 #include "CBattle_Field.h"   // m_questMaze（+0x110）
 #include "CUserCharacInfo.h" // get_charac_level() const（经 CUser 继承）
 
-// ============================================================================
-// CBattle_Field::setQuestMaze —— ORIG T 0x0830e302（setQuestMaze.md）
-// 汇编：sub $0x4；mov %al,-0x4(%ebp)；mov 0x8(%ebp),%eax；movzbl -0x4(%ebp),%edx；
-//       mov %dl,0x110(%eax)；leave; ret。
-// 即形参落栈后按布尔字节写入 this+0x110 == m_questMaze。
-// 注：m_questMaze 已在 CBattle_Field.h 修正为 bool（1 字节，布局不变）——
-// bool 成员直赋才能复现 ORIG 的「先取 this、后 movzbl 读回」指令次序
-// （char 成员会先做 bool→char 扩展，与 ORIG 次序不符，经探针核实）。
-// ============================================================================
 #include "CPartyQuestLeafC3/setQuestMaze.inc"
 
-// ============================================================================
-// CParty::getMemberMaxLevel —— ORIG T 0x085b60be（getMemberMaxLevel.md）
-// 汇编：maxLevel(-0x14)=0；i(-0xc)=0..3 循环：
-//   call _checkValidUser(i)；xor $1 / test / jne → 无效槽跳过；
-//   eax = *(int*)(this + i*0x18 + 0x78)（== m_member[i].m_pUser）作 this 调
-//   CUserCharacInfo::get_charac_level()；std::max<int>(&maxLevel,&level) 回写。
-// 返回 maxLevel。转写与同族 getMemberMaxLevelBeforeDungeon（CPartyDepsB2.cpp）一致。
-// ============================================================================
 #include "CPartyQuestLeafC3/getMemberMaxLevel.inc"

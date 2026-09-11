@@ -1,3 +1,9 @@
+// ORIG 0x081c9dba T _ZN19DisPatcher_SortItem4sendEP5CUserR9ParamBase
+// （docs/class_func_reports/DisPatcher_SortItem/send.md 汇编+反编译 C 全文转写）：
+// put_header(1,0x14)；result==0 → put_byte(1)/(char)invenType，否则 0/(char)result/
+// (char)invenType；finalize+Send。result==0 时 send_itemspace((char)invenType)；
+// [b28d-29] 已修 DIFF->AE：if-else 决策链改 switch（P17/P251/P261，ORIG 0x081c9ec6 稀疏 switch 树）  (ORIG 0x081c9dba insn 128->129)
+// result==0 且 invenType 1/0/2/7 分别 SendItemLockListAvatar/Inven/Cargo/Creature。
 void DisPatcher_SortItem::send(CUser* user, ParamBase& param)
 
 {

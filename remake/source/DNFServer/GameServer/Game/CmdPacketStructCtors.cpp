@@ -16,102 +16,53 @@
 namespace CMDPacketStruct
 {
 
-// ---- Pause ----
 #include "CmdPacketStructCtors/_ReqAdvanceAltarPause.inc"
-{
-    memset(this, 0, 0xe);
-}
+
 #include "CmdPacketStructCtors/_ResAdvanceAltarPause.inc"
-{
-    memset(this, 0, 0xc);
-}
 
-// ---- BuyItem ----
+
 #include "CmdPacketStructCtors/_ReqAdvanceAltarBuyItem.inc"
-{
-    memset(this, 0, 0x20);
-}
+
 #include "CmdPacketStructCtors/_ResAdvanceAltarBuyItem.inc"
-{
-    memset(this, 0, 0x1c);
-}
 
-// ---- SetSlot ----
+
 #include "CmdPacketStructCtors/_ReqAdvanceAltarSetSlot.inc"
-{
-    memset(this, 0, 0x24);
-}
+
 #include "CmdPacketStructCtors/_ResAdvanceAltarSetSlot.inc"
-{
-    memset(this, 0, 0x1c);
-}
 
-// ---- ResetStar ----
+
 #include "CmdPacketStructCtors/_ReqAdvanceAltarResetStar.inc"
-{
-    memset(this, 0, 0x14);
-}
+
 #include "CmdPacketStructCtors/_ResAdvanceAltarResetStar.inc"
-{
-    memset(this, 0, 0xc);
-}
 
-// ---- SummonUnit ----
+
 #include "CmdPacketStructCtors/_ReqAdvanceAltarSummonUnit.inc"
-{
-    memset(this, 0, 0x18);
-}
+
 #include "CmdPacketStructCtors/_ResAdvanceAltarSummonUnit.inc"
-{
-    memset(this, 0, 0x14);
-}
 
-// ---- UpgradeGage ----
+
 #include "CmdPacketStructCtors/_ReqAdvanceAltarUpgradeGage.inc"
-{
-    memset(this, 0, 0x18);
-}
+
 #include "CmdPacketStructCtors/_ResAdvanceAltarUpgradeGage.inc"
-{
-    memset(this, 0, 0x14);
-}
 
-// ---- ExchangeSlot ----
+
 #include "CmdPacketStructCtors/_ReqAdvanceAltarExchangeSlot.inc"
-{
-    memset(this, 0, 0x30);
-}
+
 #include "CmdPacketStructCtors/_ResAdvanceAltarExchangeSlot.inc"
-{
-    memset(this, 0, 0x24);
-}
 
-// ---- GetAchievementReward ----
+
 #include "CmdPacketStructCtors/_ReqAdvanceAltarGetAchievementReward.inc"
-{
-    memset(this, 0, 0x14);
-}
-#include "CmdPacketStructCtors/_ResAdvanceAltarGetAchievementReward.inc"
-{
-    memset(this, 0, 0xc);
-}
 
-// ---- EventDungeon ClearRoom / DestoryObject ----
+#include "CmdPacketStructCtors/_ResAdvanceAltarGetAchievementReward.inc"
+
+
 #include "CmdPacketStructCtors/_STReqEventDungeonClearRoom.inc"
-{
-    memset(this, 0, 0x14);
-}
+
 #include "CmdPacketStructCtors/_STResEventDungeonClearRoom.inc"
-{
-    memset(this, 0, 0xc);
-}
+
 #include "CmdPacketStructCtors/_STReqEventDungeonDestoryObject.inc"
-{
-    memset(this, 0, 0x18);
-}
+
 #include "CmdPacketStructCtors/_STResEventDungeonDestoryObject.inc"
-{
-    memset(this, 0, 6);   // ORIG 字面量（< sizeof(8)，忠实复刻）
-}
+
 
 }  // namespace CMDPacketStruct

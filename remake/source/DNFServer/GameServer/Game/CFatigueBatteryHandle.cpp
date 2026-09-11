@@ -50,264 +50,27 @@ public:
     unsigned short m_grownupBuff;  // +0xf
 } __attribute__((packed));
 
-// ORIG 0x84a7ff8 / 0x84a7ffe：均为纯 ret 空体（W 弱符号）。
-// （此前 ctor 定义暂置于 GlobalData.cpp，现随本 TU 统一收口。）
 #include "CFatigueBatteryHandle/CFatigueBatteryHandle.inc"
 
-// ORIG stFatigueBatteryConstantTable_t::stFatigueBatteryConstantTable_t() 0x0836f2cc
-// 指令序：word+0x1a4=1 → word+0x1a6=0 → word+0x1a8=0 → memset(this+0x12,0,0x191)
-// （词写与 memset 区间不相交，顺序保持 ORIG 形态）。+0x11 与 +0x1aa 保持未初始化。
 #include "CFatigueBatteryHandle/stFatigueBatteryConstantTable_t.inc"
-{
-    m_capLimit = 0;                        // movw $0x0,(%eax)
-    m_chargeRate4 = 0.0f;                  // movl $0x0,0x4(%eax)（float 槽位清零）
-    m_chargeDivisor8 = 0x28;               // movb $0x28,0x8(%eax)
-    m_minChargeLevel9 = 0;                 // movb $0x0,0x9(%eax)
-    m_fieldc = 0;                          // movl $0x0,0xc(%eax)
-    m_endLevel10 = 0x46;                   // movb $0x46,0x10(%eax)
-    m_activeSwitch1a4 = 1;                 // movw $0x1,0x1a4(%eax)
-    m_bonusMultiplier1a6 = 0;              // movw $0x0,0x1a6(%eax)
-    m_batteryThreshold1a8 = 0;             // movw $0x0,0x1a8(%eax)
-    memset(&m_data11[1], 0, 0x191);        // this+0x12 起 0x191 字节
-}
 
-// ORIG 0x084a84b6：
-//   idx = level-1；idx > (int)m_endLevel10（字节零扩展）→ 返回 0；
-//   level <= 0 → 返回 0；
-//   否则返回 *(u16*)(&m_field2 + idx + 8)，与 ORIG 的
-//   movzwl 0x2(this,idx+8,2) 同址。
+
 #include "CFatigueBatteryHandle/getLimitGrownupBuffCntFatigueBattery.inc"
-    int level) const
-{
-    // [b28d-solo-CFatigueBatteryHandle] verdict = N1 封顶（跨版本常量折叠），
-    // 非 identical 唯一成因；语义等价（下标恒等），p167 CLEAR（0 call，gap=1）。
-    // [L6S4 round5b 复核] 读数维持 20/19；新探针 /tmp/l6s4b/probe_n.o `_Z3limPK1Ti`
-    // 逐条复现我方形（`lea 0x7(%eax),%edx` 单步），ORIG 0x084a84dd 为
-    // `lea -0x1(%eax),%edx; add $0x8,%edx` 两步 —— 4.4 常量折叠不可逆（N1），
-    // 视图/拆形（含 P311 成员数组视图）均不改变索引寄存器的常量拆分 ⇒ 维持封顶。
-    // b28d-solo 复证（19 形探针 /tmp/s99/p1.cpp+p2.cpp+p3.cpp，4.4.7 -m32 -O0）：
-    // ORIG 尾段 `lea -0x1(%eax),%edx; add $0x8,%edx; movzwl 0x2(%eax,%edx,2),%eax`
-    // 为 (level-1)+8 两步；数组下标形（A/B/D/E/G/J/M/N/O/P/Q/R 共 12 形，含
-    // 8u 混合类型 / (8,8) 逗号 / 成员指针差 / sizeof 常量源 / (int)8L）恒折
-    // `lea 0x7(%eax),%edx`；指针算术形（C/F/H/I/K/L 6 形）反产 add/add/lea 四段；
-    // (unsigned char) 截断形（T）产 subl+movzbl+lea 三段，均不闭合。
-    // b28d-20: ORIG 0x084a84b6 双守卫合并短路形——ORIG `jg fail; cmpl $0,level;
-    // jg ok; fail: mov$0; jmp; ok: body` 的唯一 4.4 复现形是
-    // `if (a > end || level <= 0) return 0;`（正极性 ||，fail 块 fall-through、
-    // ok 块直落，无 goto 的 jmp/nop 中继）。探针 /tmp/p_fat1.cpp getD 19 条与
-    // ORIG 逐条同序（jg fail / jg body），残 1 条 = 4.4 常量折叠
-    // `(level-1)+8`→`lea 0x7(%eax)`（ORIG `lea -0x1`+`add $0x8` 两步）。
-    // [M4S3 round5c 追加试形，全部不闭合 ⇒ 维持 N1]
-    //   直证（本件无 docs/class_func_reports 报告，证据取自 ORIG 二进制 nm+objdump）：
-    //   ORIG 0x084a84dd `lea -0x1(%eax),%edx` → 0x084a84e0 `mov 0x8(%ebp),%eax`
-    //   → 0x084a84e3 `add $0x8,%edx` → 0x084a84e6 `movzwl 0x2(%eax,%edx,2),%eax`；
-    //   我方 `lea 0x7(%eax),%edx` + `movzwl 0x2(%eax,%edx,2),%eax`（19 条）。
-    //   /tmp/m4s3/p9.cpp b1/b3/b4（`(&m_lt[i-1])[8]` / `(m_lt)[i-1+8]` / `m_lt[i+7]`，
-    //   视图偏移 0x18）⇒ 4.4 仍折第一步为 `lea 0x7`，仅把第二级 8 挪进索引并让
-    //   disp 吸收 −0x10（`add $0x8` 后接 `movzwl 0x8(...)`），非 ORIG 的
-    //   `lea -0x1`+`add $0x8`+`disp 0x2`；p10.cpp c1/c2（真实 m_field2 偏移 +0x02）
-    //   ⇒ disp 吸收失败，4.4 直接合成 `lea 0x7` 单步（19 条）；b2/c3 指针算术形
-    //   ⇒ add/add/lea 四段；p11.cpp c4/c5（`const int kOff` / enum 常量）⇒ 前端
-    //   常量传播后同样折 `lea 0x7`。⇒ 4.1 不折叠 `(i-1)+8`、4.4 折叠属跨版本
-    //   lowering，源码层不可复现（N1）。
-    if (level - 1 > static_cast<int>(m_endLevel10) || level <= 0)
-        return 0;
-    // [P6S6 2026-09-11 复核·仍 N] 补试 unsigned 索引形（`level - 1u + 8u`，
-    //   历史 19 形未含）实测仍折叠 `lea 0x7(%eax),%edx`（19/20，blocks=2）
-    //   ⇒ 与 ORIG 0x084a84dd 的 `lea -0x1(%eax),%edx` + 0x084a84e3 `add $0x8,%edx`
-    //   两步形不可复现 ⇒ 维持 N1（4.1 不折叠 (i−1)+8，4.4 折叠属跨版本 lowering）。
-    return m_limitTable[level - 1 + 8];
-}
 
-// ORIG 0x84a8004：
-//   商 = (charge*level) / 零扩展除数字节（idivl；除数 0 时与 ORIG 同样触发 #DE）；
-//   积 = (倍率*specialCnt + 1.0) * 商，全程 x87 80 位中间精度（flds/fild/fmulp 链）；
-//   fistpll 以 RC=truncate 向零截断为 64 位，仅低 32 位参与比较与返回（ret 只带 eax）：
+
 #include "CFatigueBatteryHandle/ComputeFatigueBatteryCharging.inc"
-                                                         int specialCnt)
-{
-    // [b28d-solo-CFatigueBatteryHandle] verdict = N82/N112 + 跨版本截断读 封顶。
-    // [L6S4 round5b 复核] 读数维持 46/45（帧 0x48 vs ORIG 0x38、x87 组/truncated
-    // 槽向差、尾部 64 位读截断三条同前）；本次未再叠加新旋钮 —— 声明序/具名
-    // divisor/指针两步赋值八形已由 b28d-solo 穷举（帧回归即多 1 条 mov 装载序反）。
-    // 指令序列与 ORIG 逐条同形（imul / movzbl×2 / idivl / fildl×2 / flds / fmulp /
-    // fld1 / faddp / fmulp / fnstcw / fldcw / fistpll / fldcw 全等），p167 CLEAR
-    // （1 call G_CDataManager 命中）。残差二项，均无语义影响：
-    // ① 帧 0x48 vs ORIG 0x38 + 全槽号错位（4.4 逆首次使用序分配，N98/P212补）：
-    //    4.4 divisor 临时 -0x3c / x87 cw -0x2c,-0x2a / sp -0x20 / truncated -0x18；
-    //    ORIG 分别 -0x2c / -0x20,-0x1e / -0x10 / -0x28。b28d-solo 探针
-    //    /tmp/s99/p4.cpp(A-D)+p5.cpp(E-H) 八形实测：具名 divisor 帧回 0x38 但多一条
-    //    `mov sp,%eax` 且除数装载序反（ORIG 的 -0x2c 是表达式内联临时槽，非具名）；
-    //    low 提前声明使 sp 落 -0x10 却把 quotient/low 槽互换；指针/两步赋值变体同槽。
-    // ② ORIG 尾 `mov -0x28(%ebp),%eax; mov -0x24(%ebp),%edx` 64 位读，4.4 对
-    //    `(unsigned int)long long` 恒只读低 32 位（跨版本截断读；高 32 位不入返回，
-    //    gap=1 即此条）。
-    // b28d-20: ORIG 0x084a8004 — sp 引用（add $0x68，字段 0x5c0/0x5c4/0x5c8）；
-    // 无 long double 具名局部：ORIG x87 链 `fildl quotient; fildl specialCnt;
-    // flds rate; fmulp; fld1; faddp; fmulp` 即 quotient 先压栈的
-    // `quotient * (specialCnt*rate + 1.0L)` 内联实参形（P243 书写序定 flds 序：
-    // 先 fildl specialCnt 再 flds rate，故 specialCnt 写在乘法左侧）。
-    // 残余 ndiff 16 封顶 N82：①帧 0x48 vs ORIG 0x38、long long truncated 槽方向
-    // 相反（4.4 -0x18 浅于 sp/-0x20；ORIG -0x28 深于 sp/-0x10；声明序两变体
-    // truncated-first/后置实测槽位集不可翻，P112/N98）；②ORIG 尾
-    // `mov -0x28(%ebp),%eax; mov -0x24(%ebp),%edx` 64 位读，4.4 对
-    // `(unsigned int)long long` 恒只读低 32（跨版本截断读）。quotient/-0x1c、
-    // low/-0xc、除数临时/-0x2c 语义位点与 ORIG 逐条同序。
-    ServerParameterScript& sp = G_CDataManager()->m_serverParameter;
 
-    int quotient = (charge * level) /
-                   static_cast<int>(static_cast<unsigned int>(sp.m_fatigueTable5c0.m_chargeDivisor8));
 
-    // [M4S3 round5c] ORIG 0x084a8064..+0x6a 为 64 位读（`mov -0x28,%eax;
-    // mov -0x24,%edx; mov %eax,-0xc`，高位读后弃用）——本轮新试：`volatile long long`
-    // 直声明（P211 限定轴）⇒ 4.4 为 volatile 槽另配临时，fistpll 写临时再整 8 字节
-    // 拷入（-0x38→-0x20/-0x1c）后复读，45→49 条（劣化，回滚）；`*(volatile long long*)&t`
-    // 与 volatile 指针形 ⇒ 5 条拷贝链（探针 /tmp/m4s3/p5.cpp h1、p7.cpp h6/h8）；
-    // union/struct 8 字节拷贝形 ⇒ 2 load+2 store（f5/f10）；`(unsigned long long)` 形
-    // ⇒ xor %ah 等 4 条（p8 k1）。均不闭合 ⇒ 维持 N82/N112 封顶（跨版本截断读）。
-    long long truncated = static_cast<long long>(
-        static_cast<long double>(quotient) *
-        (static_cast<long double>(specialCnt) *
-             static_cast<long double>(sp.m_fatigueTable5c0.m_chargeRate4) +
-         1.0L));  // fistpll RC=truncate
-
-    unsigned int low = static_cast<unsigned int>(truncated);
-    if (static_cast<unsigned int>(sp.m_fatigueTable5c0.m_capLimit) < low)  // 无符号比较
-        low = sp.m_fatigueTable5c0.m_capLimit;
-    return static_cast<int>(low);
-}
-
-// ORIG 0x84a8094：
-//   level < m_minChargeLevel9 或 level == m_endLevel10 → 不充能返回 0；
-//   否则 remain = max(DEFAULT_MAX_FATIGUE-used,0) + DEFAULT_MAX_FATIGUE*v，
-//   记录 trace 后返回 Compute(remain, level, specialCnt) 的截 short。
-// 注意：used/alreadyFatigue/charNo/level 均按 ORIG 汇编次序读取并进入日志。
 #include "CFatigueBatteryHandle/ChargingFatigueBattery.inc"
-{
-    // b28d-20: ORIG 0x084a8094 — 守卫为 `!(A && B)` 形（探针 /tmp/p_fat3.cpp chE
-    // 逐条复现 ORIG：`jl <mov $1>` + `jne <mov $0>` + `test %al; je 主流程`，
-    // 零栈槽 bool 物化）；A = get_charac_level() >= min（call 在左，字段后读，
-    // ORIG `call; movzbl 0x5c9(%edx)`）、B = get_charac_level() != end。
-    // sp 引用（add $0x68）存 -0x28 槽。trace 用 P227 全表达式临时链：实参
-    // traceLevel/alreadyFatigue/charNo 无槽（ORIG 落 %esi/%edi/%ebx 跨 ctor 保活）。
-    ServerParameterScript& sp = G_CDataManager()->m_serverParameter;
 
-    if (!(user->get_charac_level() >=
-              static_cast<int>(sp.m_fatigueTable5c0.m_minChargeLevel9) &&
-          user->get_charac_level() !=
-              static_cast<int>(sp.m_fatigueTable5c0.m_endLevel10)))
-        return 0;
 
-    int specialCnt = user->GetSpecialLevelCharacCnt(0x46);
-    int used = static_cast<int>(user->getCurCharacUsedFatigue() & 0xffff);
-    int remain = DEFAULT_MAX_FATIGUE - used;
-    if (remain < 0)
-        remain = 0;
-    remain += DEFAULT_MAX_FATIGUE * v;
-
-    // ORIG movswl %ax：GetFatigueBatteryCharging 返回 short，拓宽进日志。
-    cMyTrace(__PRETTY_FUNCTION__, 0x32, 0)(
-        "FATIGUE BATTERY : char no(%d), alreadyFatigue(%d), remainFatigue(%d), "
-        "level(%d), endLevelCnt(%d), thatDayUsedFatigue(%d)",
-        user->getCurCharacNo(),
-        static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging())),
-        remain, user->get_charac_level(), specialCnt, used);
-
-    return static_cast<short>(
-        ComputeFatigueBatteryCharging(remain, user->get_charac_level(), specialCnt));
-}
-
-// ORIG 0x84a829e：电池量 >= 表门槛(m_batteryThreshold1a8 == mgr+0x7d0) 且开关
-// (m_activeSwitch1a4 == mgr+0x7cc) != 0 时，按倍率计算 grown-up buff 增量、
-// 以等级上限截断，经统计代理发送 Packet_Fatigue_Battery_Money_Statistic 并回写；
-// 返回本次消耗的电池量（未激活时 0）。
 #include "CFatigueBatteryHandle/ActiveFatigueBattery_NotEndLevel.inc"
-{
-    // b28d-20: ORIG 0x084a829e — consumed=0 最先（movl $0,-0x20），battery 次
-    //（-0x1c），sp 引用最后（-0x18，add $0x68）；守卫形 = 嵌套 if + B 否定早返
-    //（探针 /tmp/p_fat4.cpp neF 逐条复现 ORIG：A 假 `jg end` 直接落末尾 return，
-    // B 真 `jne body`、B 假 `mov consumed; jmp end`、body 尾 fall-through 到 end）。
-    // packet 构造/发送按 ORIG 次序，SendPacket 走
-    // `s_statistic_proxy_mgr->GetServerProxy(0)->SendPacket(...)` 单语句链式
-    //（P52：packet 地址入 %ebx 跨 GetServerProxy 保活）。
-    int consumed = 0;
-    int battery = static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging()));
-    ServerParameterScript& sp = G_CDataManager()->m_serverParameter;
 
-    if (static_cast<int>(sp.m_fatigueTable5c0.m_batteryThreshold1a8) <= battery)
-    {
-        if (static_cast<short>(sp.m_fatigueTable5c0.m_activeSwitch1a4) == 0)
-            return static_cast<short>(consumed);
 
-        // bonus = 倍率(u16)*battery / 开关(u16)；乘积取 32 位形态，除法有符号 idivl。
-        // 倍率不做显式 (unsigned int) cast：ushort→int 自然提升令 4.4 产 ORIG 的
-        // `movzwl 0x766(%eax),%eax; movzwl %ax,%eax; imul battery_slot,%eax` 形
-        //（探针 /tmp/p_fat4.cpp mulD；加 cast 反产 `movzwl %ax,%edx` + reg-imul 3 条）。
-        int bonus = static_cast<int>(
-            sp.m_fatigueTable5c0.m_bonusMultiplier1a6 * battery) /
-            static_cast<int>(sp.m_fatigueTable5c0.m_activeSwitch1a4);
-        consumed = battery;
-
-        int grownUpBuff =
-            static_cast<int>(user->getCurCharacFatigueGrownUpBuff() & 0xffff) + bonus;
-        unsigned short limit =
-            sp.m_fatigueTable5c0.getLimitGrownupBuffCntFatigueBattery(
-                user->get_charac_level());
-        if (static_cast<int>(limit) < grownUpBuff)  // 有符号比较（jge）
-            grownUpBuff = limit;
-
-        Packet_Fatigue_Battery_Money_Statistic packet;
-        packet.m_serverGroup = static_cast<unsigned char>(G_CEnvironment()->get_server_group());
-        packet.m_grownupBuff = static_cast<unsigned short>(grownUpBuff);
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy(static_cast<ENUM_SERVER_GROUP>(0))
-            ->SendPacket(reinterpret_cast<char*>(&packet), 0x11);
-        user->setCurCharacFatigueGrownUpBuff(static_cast<unsigned short>(grownUpBuff));
-    }
-    return static_cast<short>(consumed);
-}
-
-// ORIG 0x84a83da：minLevel <= level 且 level < endLevel 时走 NotEndLevel 分支。
 #include "CFatigueBatteryHandle/ActiveFatigueBattery.inc"
-{
-    // b28d-20: ORIG 0x084a83da — sp = G_CDataManager()+0x68 存 -0xc 槽（ServerParameterScript&
-    // 引用形，`add $0x68` 非折叠 +0x628）；两次 get_charac_level 结果均无栈槽（P0
-    // 表达式右值直用，ORIG `call; cmp %eax,%ebx` 直接比较），min 字段先物化 %ebx 跨 call。
-    // 守卫用合并 `&&`（P225：4.4 对 && 直产 `jg skip; jge skip` 两直跳；拆嵌套 if
-    // 反产 setle/setl 物化，实测 40 vs ORIG 41 且多 4 条 setcc）。
-    int result = 0;
-    ServerParameterScript& sp = G_CDataManager()->m_serverParameter;
-    if (static_cast<int>(sp.m_fatigueTable5c0.m_minChargeLevel9) <= user->get_charac_level() &&
-        user->get_charac_level() < static_cast<int>(sp.m_fatigueTable5c0.m_endLevel10))
-        result = ActiveFatigueBattery_NotEndLevel(user);  // ORIG 结果经 cwtl 截 short
-    return static_cast<short>(result);
-}
 
-// ORIG 0x84a81f4：used=(int)(short)GetFatigueBatteryCharging()；result=used；
-// 若二次读取与 result 不等则记 trace "FATIGUE BATTERY ACTIVE ERR ..." 并重取。
-// ORIG 另有 call G_CDataManager(); add $0x68,%eax 死存储（结果从不读取），按原样保留。
+
 #include "CFatigueBatteryHandle/ActiveFatigueBattery_EndLevel.inc"
-{
-    int result = 0;
-    int used = static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging()));
 
-    ServerParameterScript& unusedScript = G_CDataManager()->m_serverParameter;  // ORIG 死存储
-    (void)unusedScript;
-
-    result = used;
-    // [b28c-L29] ORIG 0x084a81f4：左值经 cwtl 拓宽后与 result 做 32 位 cmp
-    // （`call; cwtl; cmp -0x14(%ebp),%eax`），右侧不做 short 截断。
-    if (static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging())) !=
-        result)
-    {
-        // [b28c-L29] P227：全表达式临时链令 op() 实参（getCurCharacNo）在 ctor
-        // 前求值并以 %ebx 跨 ctor 保活（ORIG `call getCurCharacNo; mov %eax,%ebx`）。
-        cMyTrace(__PRETTY_FUNCTION__, 0x77, 0)(
-            "FATIGUE BATTERY ACTIVE ERR : char no(%d), usedFatigue(%d)",
-            user->getCurCharacNo(), result);
-        result = static_cast<int>(
-            static_cast<short>(user->GetFatigueBatteryCharging()));
-    }
-    return static_cast<short>(result);
-}
 
 #include "CFatigueBatteryHandle/dtor_CFatigueBatteryHandle.inc"

@@ -20,12 +20,8 @@
 // 前置字段（m_a..m_g）由使用方（Statistics::RankResult）在 SendSignal 前填充，ctor 不 init。
 #include "MSG_STAT_RANKRES.h"
 
-// 值成员 m_result 由编译器默认构造（ORIG 仅 call GameResultType::C1，无
-// placement new/异常路径）；析构同理（call GameResultType::D1）。
 #include "MSG_STAT_RANKRES/MSG_STAT_RANKRES.inc"
-{
-}
+
 
 #include "MSG_STAT_RANKRES/dtor_MSG_STAT_RANKRES.inc"
-{
-}
+

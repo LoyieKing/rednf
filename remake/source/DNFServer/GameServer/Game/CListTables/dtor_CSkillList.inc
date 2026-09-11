@@ -1,1 +1,4 @@
 CSkillList::~CSkillList()
+{
+    destroy();
+}

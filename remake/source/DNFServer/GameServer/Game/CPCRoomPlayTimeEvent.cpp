@@ -28,68 +28,19 @@
 #include "CSystemTime.h"    // getCurSec
 
 #include "CPCRoomPlayTimeEvent/CPCRoomPlayTimeEvent.inc"
-{
-    // ORIG：CEventBase ctor 置基类 vptr 与 stADDINFO/+0x08 flag；本类 vptr 由编译器设置。
-}
+
 
 #include "CPCRoomPlayTimeEvent/dtor_CPCRoomPlayTimeEvent.inc"
-{
-    // ORIG D1：恢复本类 vptr，再调 CEventBase::~CEventBase()。
-}
+
 
 #include "CPCRoomPlayTimeEvent/StartEvent.inc"
-{
-    // ORIG 0x0811c5c4：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__, 0x15, 0)。
-    SetEventFlag(true);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x15, 0);
-    tr("PC Room PlayTime Event Start!");
-}
+
 
 #include "CPCRoomPlayTimeEvent/StartEvent_1.inc"
-{
-    // ORIG 0x0811c616：vtable+0x8 槽（StartEvent()）虚转发。
-    StartEvent();
-}
+
 
 #include "CPCRoomPlayTimeEvent/EndEvent.inc"
-{
-    // ORIG 0x0811c630：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__, 0x1f, 0)，
-    // 再遍历全服 m_UserInWorld，对 state>2 且受 0xc 网吧优惠影响者清空网吧时长数据。
-    SetEventFlag(false);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x1f, 0);
-    tr("PC Room PlayTime Event End!");
-    for (std::map<unsigned short, CUser*>::iterator it =
-             G_GameWorld()->m_UserInWorld.begin();
-         it != G_GameWorld()->m_UserInWorld.end(); ++it)
-    {
-        CUser* user = it->second;
-        if (user == 0)
-            continue;
-        if (user->get_state() <= 2)
-            continue;
-        if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
-            continue;
-        user->setPcRoomPlayTimeData(0, 0, 0);
-    }
-}
+
 
 #include "CPCRoomPlayTimeEvent/StartAction.inc"
-{
-    // ORIG 0x0811c754：取当前秒，遍历全服 m_UserInWorld，对 state>2 且受
-    // 0xc 网吧优惠影响者置网吧起始时间并发送时长通知包。
-    int curSec = GlobalData::s_systemTime_.getCurSec();
-    for (std::map<unsigned short, CUser*>::iterator it =
-             G_GameWorld()->m_UserInWorld.begin();
-         it != G_GameWorld()->m_UserInWorld.end(); ++it)
-    {
-        CUser* user = it->second;
-        if (user == 0)
-            continue;
-        if (user->get_state() <= 2)
-            continue;
-        if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
-            continue;
-        user->setPcRoomPlayStartTime(curSec);
-        user->sendNotiPcRoomPlayTime();
-    }
-}
+

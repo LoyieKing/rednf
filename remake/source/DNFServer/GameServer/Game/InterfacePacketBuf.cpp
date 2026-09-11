@@ -13,145 +13,88 @@
 #include "InterfacePacketBuf.h"
 
 #include "InterfacePacketBuf/InterfacePacketBuf.inc"
-{
-}
+
 
 #include "InterfacePacketBuf/dtor_InterfacePacketBuf.inc"
-{
-}
 
-// throw() 与头声明同步（见 InterfacePacketBuf.h 的 ORIG EH 形证据注释）
+
 #include "InterfacePacketBuf/AcquirePacketBuf.inc"
-{
-    m_packetBuf = packetBuf;
-}
+
 
 #include "InterfacePacketBuf/bind_packet.inc"
-{
-    return m_packetBuf->bind_packet(packet, size);
-}
+
 
 #include "InterfacePacketBuf/clear.inc"
-{
-    m_packetBuf->clear();
-}
+
 
 #include "InterfacePacketBuf/finalize.inc"
-{
-    m_packetBuf->finalize(isEncryptRequired);
-}
+
 
 #include "InterfacePacketBuf/get.inc"
-{
-    return m_packetBuf;
-}
+
 
 #include "InterfacePacketBuf/getLastError.inc"
-{
-    return m_packetBuf->getLastError();
-}
+
 
 #include "InterfacePacketBuf/get_binary.inc"
-{
-    return m_packetBuf->get_binary(out, size);
-}
+
 
 #include "InterfacePacketBuf/get_index.inc"
-{
-    return m_packetBuf->get_index();
-}
+
 
 #include "InterfacePacketBuf/get_int.inc"
-{
-    return m_packetBuf->get_int(out);
-}
+
 
 #include "InterfacePacketBuf/get_len.inc"
-{
-    return m_packetBuf->get_len();
-}
+
 
 #include "InterfacePacketBuf/get_packet.inc"
-{
-    return m_packetBuf->get_packet(size);
-}
+
 
 #include "InterfacePacketBuf/get_short.inc"
-{
-    return m_packetBuf->get_short(out);
-}
+
 
 #include "InterfacePacketBuf/is_finallized.inc"
-{
-    return m_packetBuf->is_finallized();
-}
+
 
 #include "InterfacePacketBuf/put_binary.inc"
-{
-    return m_packetBuf->put_binary(data, len);
-}
+
 
 #include "InterfacePacketBuf/put_binary_1.inc"
-{
-    return m_packetBuf->put_binary(data, len);
-}
+
 
 #include "InterfacePacketBuf/put_byte.inc"
-{
-    return m_packetBuf->put_byte(value);
-}
+
 
 #include "InterfacePacketBuf/put_byte_1.inc"
-{
-    return m_packetBuf->put_byte(index, value);
-}
+
 
 #include "InterfacePacketBuf/put_header.inc"
-{
-    return m_packetBuf->put_header(packetId, packetSize);
-}
+
 
 #include "InterfacePacketBuf/put_int.inc"
-{
-    return m_packetBuf->put_int(value);
-}
+
 
 #include "InterfacePacketBuf/put_int_1.inc"
-{
-    return m_packetBuf->put_int(index, value);
-}
+
 
 #include "InterfacePacketBuf/put_item_idx.inc"
-{
-    return m_packetBuf->put_item_idx(value);
-}
+
 
 #include "InterfacePacketBuf/put_packet.inc"
-{
-    m_packetBuf->put_packet(item);
-}
+
 
 #include "InterfacePacketBuf/put_short.inc"
-{
-    return m_packetBuf->put_short(value);
-}
+
 
 #include "InterfacePacketBuf/put_short_1.inc"
-{
-    return m_packetBuf->put_short(index, value);
-}
+
 
 #include "InterfacePacketBuf/put_str.inc"
-{
-    return m_packetBuf->put_str(str, len);
-}
+
 
 #include "InterfacePacketBuf/put_str_1.inc"
-{
-    return m_packetBuf->put_str(str, len);
-}
+
 
 #include "InterfacePacketBuf/set_index.inc"
-{
-    m_packetBuf->set_index(index);
-}
+

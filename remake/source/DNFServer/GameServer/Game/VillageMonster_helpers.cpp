@@ -83,97 +83,15 @@ namespace village_attacked
 // OnMoveArea / OnEvent / InsertVillageMonster 由已登记的 CVillageMonsterMgr.cpp
 // 提供定义（本 TU 不再重复定义，避免多重定义）。
 
-// [round2-L30 复核·N82/P200] 残余：ORIG `sub $0x38` 无 callee-saved vs 我方
-//   `push %esi; push %ebx; sub $0x30`（我方多 2 push，跨 find 保活 c/d）+ 槽整体浅 4
-//   （ORIG -0x18/-0x12/-0x10 vs 我方 -0x14/-0xe/-0xc）⇒ N82 帧/槽分区族；ORIG 0x086b4964。
-// [M2S4 2026-09-11 推翻旧 N82 判词] 56/56（ORIG 56，逐条同形含 `sub $0x38`/`leave`；
-//   p167 6/6，余 Zone C1↔C2 同址别名）。真因=链式 `it->second.OnKillVillageMonster(...)`
-//   让 4.4 把 c/d 提前装 callee-saved（2 push + lea/add 收尾）；ORIG 0x086b49f5/49f8
-//   `add $0x4,%eax; mov %eax,-0xc(%ebp)` 直证具名 area 局部 → 补 `CVillageMonsterArea*
-//   area = &it->second;` 即归零（P0 槽-局部双向对应律）。
 #include "VillageMonster_helpers/OnKillVillageMonster.inc"
-{
-    Zone zone((unsigned char)a, (unsigned char)b);
-    std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(zone);
-    if (it == m_areas.end())
-        return 0x15;
-    // [P0] ORIG 0x086b49f5/0x086b49f8 `add $0x4,%eax; mov %eax,-0xc(%ebp)` —— 具名
-    // area 局部有真槽 ⇒ 原码有该局部；写成链式调用会让 4.4 把 c/d 提前装入
-    // callee-saved（多 push %esi/%ebx + lea/add 收尾，our 60 vs ORIG 56）。
-    CVillageMonsterArea* area = &it->second;
-    return area->OnKillVillageMonster(0, c, d);
-}
 
-// ============================================================================
-// CVillageMonsterArea::OnKillVillageMonster(CUser*,unsigned short,bool)
-//   —— ORIG 0x86b4070
-//   objdump: m_monsters.find(zone); it != end 时:
-//            ret = it->second.OnKillVillageMonster(user, +0x28, +0x2c, +0x38, flag);
-//            if (flag && ret == 0) m_monsters.erase(it);
-//            return ret;  否则 return 0
-// ============================================================================
+
 #include "VillageMonster_helpers/OnKillVillageMonster_1.inc"
-{
-    std::map<unsigned short, CVillageMonster>::iterator it = m_monsters.find(zone);
-    if (it != m_monsters.end())
-    {
-        CVillageMonster* monster = &it->second;
-        int ret = monster->OnKillVillageMonster(user, m_field28, m_field2c, m_field38, flag);
-        if (flag && ret == 0)
-            m_monsters.erase(it);
-        return ret;
-    }
-    return 0;
-}
 
-// ============================================================================
-// CVillageMonster::OnKillVillageMonster(CUser*,int,int,int,bool)
-//   —— ORIG 0x86b34a0
-//   objdump: if (m_state != 1) return 0x13;
-//            if (user && user->GetPartyIndex() != m_partyIndex) return 0x13;
-//            if (flag) { OnChangeState(2); TimerQueue::InsertTimer(2,0,0x86,c,a,b);
-//                        SendVillageMonsterFightResult(user, true); }
-//            else     { OnChangeState(0); SendVillageMonsterFightResult(user, false); }
-//            return 0;
-// ============================================================================
-// [round2-L30 修] 否定极性 + 分支交换：ORIG 0x086b34ef `movzbl -0xc(%ebp),%eax;
-//   xor $0x1,%eax; test %al,%al; je <+0x8e>`（!flag 为真则落 fall-through 的
-//   OnChangeState(0)/SendFight(false) 段，+0x8e 为 true 段）⇒ 源形必写
-//   `if (!flag) { …0… } else { …2… }`（P222/P214①；正极性 `if (flag)` 4.4 产直判
-//   `cmpb; je` 且块序相反）。
+
 #include "VillageMonster_helpers/OnKillVillageMonster_2.inc"
-{
-    if (m_state != 1)
-        return 0x13;
-    if (user != 0)
-    {
-        if (user->GetPartyIndex() != m_partyIndex)
-            return 0x13;
-    }
-    if (!flag)
-    {
-        OnChangeState(ENUM_VILLAGE_MONSTER_STATE_0);
-        // ORIG 0x086b350d/0x086b357b：两分支都 `movzbl -0xc(%ebp),%eax;
-        //   mov %eax,0x8(%esp)` ⇒ 实参是 flag 变量本身（非 false/true 常量）。
-        SendVillageMonsterFightResult(user, flag);
-        return 0;                       // ORIG 0x086b3527 `mov $0x0,%eax; jmp`（分支内独立设值）
-    }
-    else
-    {
-        OnChangeState(ENUM_VILLAGE_MONSTER_STATE_2);
-        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                    (TIMER_MESSAGE)0x86, c, a, b);
-        SendVillageMonsterFightResult(user, flag);
-        return 0;                       // ORIG 0x086b3595 `mov $0x0,%eax`
-    }
-}
 
-// ============================================================================
-// CVillageMonster::OnChangeState(ENUM_VILLAGE_MONSTER_STATE)
-//   —— ORIG 0x86b35a0
-//   objdump: m_state = state; PacketGuard 打包：put_header(0,0xf0); put_byte(m_state);
-//            put_short(m_id); finalize(true); m_area->SendPacket(pg);
-// ============================================================================
+
 #include "VillageMonster_helpers/OnChangeState.inc"
 {
     // P95：ORIG 0x86b35a0 首句 store 先载 this 后载 state；4.4 直成员赋值先备值。
@@ -193,176 +111,25 @@ namespace village_attacked
     m_area->SendPacket(pg);
 }
 
-// ============================================================================
-// CVillageMonsterArea::SendPacket(PacketGuard&)
-//   —— ORIG 0x86b3b9c
-//   objdump: G_GameWorld()->send_to_area(+0x28, +0x2c, packet);
-// ============================================================================
 #include "VillageMonster_helpers/SendPacket.inc"
-{
-    G_GameWorld()->send_to_area(m_field28, m_field2c, packet);
-}
 
-// ============================================================================
-// CVillageMonster::SendVillageMonsterFightResult(CUser*,bool)
-//   —— ORIG 0x86b330a
-//   objdump: user==0 -> return; party=user->GetParty(); party==0 -> return;
-//            for i in 0..3: member=party->get_user(i); member!=0 时:
-//               pkt.m_uids[i]=member->GetUID();
-//               pkt.m_characNos[i]=member->get_charac_no(-1);
-//               if (s_villageMonsterMgr->OnEvent() && flag)
-//                   member->IncVillageAttackCount();
-//            pkt.m_flag=flag;
-//            s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
-//                ->SendTcpPacket((char*)&pkt, 0x2b);
-//            PacketGuard pg: clear; put_header(0,0xf9); put_byte(flag);
-//                finalize(true); party->send_to_party(pg);
-// [B24D判词 N] 语义正确：pkt 全部清零 + header 0x1772/0x2b + 循环填 uid/characNo(4) +
-//   OnEvent()&&flag→IncVillageAttackCount + m_flag=flag + SendTcpPacket 0x2b + PacketGuard
-//   0xf9 发送。差异=ORIG 用 ctor W 0x86b4b84 一次性 memset 全结构，我方显式
-//   memset(m_pad4)+双循环清0（多 ~27 条），纯 lowering 表示差异，语义等价。
-// [M2S4 2026-09-11 本波归零] 114/114（ORIG 114，逐条同形；p167 19/19，余 C1↔C2/
-//   D1↔D2 同址别名对）。两处真因：
-//   ① 具名 `CMonitorServerProxy* monitorProxy` 缓存（P0/P183）——ORIG 0x086b33e4/
-//      0x86b33f0 结果经 %eax 直传实参位，无槽；删除后整帧槽归位（-0x4b/-0x41/-0x21）。
-//   ② 第二个早退 `if (party == 0) return;` → 改正向包裹 `if (party != 0) {...}`：
-//      ORIG 0x086b3334 `je 086b3498`（party==0 直落 epilogue）+ 0x086b331c `je
-//      086b3497`（user==0 落 nop 垫）；否定早返形让 4.4 多 emit `nop;jmp` 尾垫
-//      （探针 /tmp/m2s4_tail.cpp：fA 4 条尾垫 vs fB 2 条尾垫）。
-// ============================================================================
-// [round2-L30 复核·N/B24D] 残余 3 条 + 整帧平移 4：ORIG ctor W 0x86b4b84 一次性 memset
-//   全结构 vs 我方显式清零 lowering（语义等价）；ORIG 0x086b330a。
+
 #include "VillageMonster_helpers/SendVillageMonsterFightResult.inc"
-{
-    if (user == 0)
-        return;
-    CParty* party = (CParty*)user->GetParty();
-    // [P222/尾岛] ORIG 0x086b3334 `je 086b3498`（party==0 直落 epilogue）+
-    //   0x086b331c `je 086b3497`（user==0 落 nop 垫）—— 第二个早退须写
-    //   **正向包裹**：否定早返形 `if (party == 0) return;` 让 4.4 多 emit
-    //   `nop;jmp`（探针 /tmp/m2s4_tail.cpp fA 4 条尾垫 vs fB 2 条尾垫，
-    //   116 vs ORIG 114 的最后 2 条即此）。
-    if (party != 0)
-    {
-        Packet_VillageMonsterFightResult pkt;
-        // ORIG ctor 0x86b4b84：PacketHeader(0x1772,0x2b) + m_flag=0 + m_keys[8] 清零。
 
-        for (int i = 0; i <= 3; ++i)
-        {
-            CUser* member = party->get_user(i);
-            if (member != 0)
-            {
-                pkt.m_uids[i] = member->GetUID();
-                pkt.m_characNos[i] = member->get_charac_no(-1);
-                if (GlobalData::s_villageMonsterMgr->OnEvent())
-                    if (flag)
-                    member->IncVillageAttackCount();
-            }
-        }
-        pkt.m_flag = flag;
 
-        // [P0/P183] ORIG 0x086b33e4..0x086b33ff：proxy 结果经 %eax 直传实参位，
-        // 无具名局部槽 ⇒ 不得具名缓存（曾多 `mov %eax,-0x14` + `mov -0x14,%eax` 2 条
-        // 并使整帧槽平移 4）。
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
-            ->SendTcpPacket((char*)&pkt, 0x2b);
-
-        PacketGuard pg;
-        pg.clear();
-        pg.put_header(0, 0xf9);
-        pg.put_byte(flag);
-        pg.finalize(true);
-        party->send_to_party(pg);
-    }
-}
-
-// ============================================================================
-// CVillageMonster::MakeVillageMonsterListPacket(PacketGuard&)
-//   —— ORIG 0x86b3666（0x80 字节）
-//   objdump: put_short(m_id); put_short(m_zone); put_byte(m_state);
-//            put_short(m_field04); put_short(m_field08); return 1。
-// ============================================================================
-// [b28d-L8] AE | 修法：m_state int→ENUM_VILLAGE_MONSTER_STATE（P254 enum 字段两段装载 mov 0x14(%eax),%eax;mov %eax,%edx，ORIG 0x86b3666）；旧 N18a 判词作废
 #include "VillageMonster_helpers/MakeVillageMonsterListPacket.inc"
-{
-    // [b28-L11 判 N·N18a] ORIG put_short(m_field04) 实参装载为 `mov 0x14(%eax),%eax;
-    // mov %eax,%edx` 两段死 regmove（4.1 冗余产物）；4.4 恒折单段直落 %edx，
-    // 「反向亦不可造」判词在册（负例表 N18a）。ndiff 3/gap 1 封顶。
-    packet.put_short(m_id);
-    packet.put_short(m_zone);
-    packet.put_byte(m_state);
-    packet.put_short(m_field04);
-    packet.put_short(m_field08);
-    return true;
-}
 
-// ============================================================================
-// CVillageMonsterArea::SendVillageMonsterList(CUser*) —— ORIG 0x86b37fa（0x168）
-//   objdump: PacketGuard; clear; put_header(0,0xee); idx=get_index();
-//            put_byte(0 占位); 遍历 m_monsters：MakeVillageMonsterListPacket
-//            成功则 count++；put_byte(idx,count)；finalize(true)；
-//            user==0 → SendPacket(packet)，否则 user->Send(packet)。
-// ============================================================================
-// [round2-L30 复核·N126] 残余=整帧槽号常数平移 4（ORIG packet -0x20/countIdx -0x24/
-//   count -0x10 vs 我方 -0x1c/-0x20/-0xc，间距全等；帧同为 sub $0x30）⇒ 判据⑪ (b)
-//   类，声明重排无效（ORIG 0x086b37fa）。已修：占位字节改传具名 count（ORIG
-//   0x086b3814 `mov -0x10(%ebp),%eax; mov %eax,0x4(%esp)`，非立即数 0）。
-// [M2S4 2026-09-11 推翻旧 N126 判词] 108/108（ORIG 108，逐条同形；p167 18/18，
-//   余 PacketGuard C1↔C2/D1↔D2 同址别名）。真因两处：
-//   ① 缺具名 `CVillageMonster* monster = &it->second;`（P0：ORIG 0x086b387c/387f
-//      `add $0x4,%eax; mov %eax,-0xc(%ebp)` + 0x086b3889 load 直证有真槽；链式写法
-//      4.4 直传 `lea 0x4(%eax),%edx` 少 store/load 两条，且整帧平移 4）。
-//   ② ORIG 0x086b3894..0x86b38a2 是 4.1 if-join 岛（`xor $1; test %al; jne <nop 岛>`
-//      + 体尾 `jmp` + `nop`）⇒ 4.4 复现形=负条件 goto 尾空标签（探针 /tmp/m2s4_island.cpp
-//      fC 实测同形；`if (!x) continue;` 恒无岛）。
+
 #include "VillageMonster_helpers/SendVillageMonsterList.inc"
-{
-    PacketGuard packet;
-    packet.clear();
-    packet.put_header(0, 0xee);
-    int countIdx = packet.get_index();
-    int count = 0;
-    // ORIG 0x086b37ff：占位字节传的是**具名 count 变量**（0x81 `mov -0x10(%ebp),%eax;
-    //   mov %eax,0x4(%esp)`），非立即数 0 ⇒ 源形 `put_byte(count)`（此时 count==0）。
-    packet.put_byte(count);
-    // [P0] ORIG 0x086b387c/0x086b387f `add $0x4,%eax; mov %eax,-0xc(%ebp)` +
-    //   0x086b3889 `mov -0xc(%ebp),%eax` —— monster 具名局部有真槽（链式写法 4.4
-    //   直传 `lea 0x4(%eax),%edx`，少 store/load 两条）。
-    // [P223] ORIG 0x086b3894..0x086b38a2 = 4.1 if-join 岛（`xor $1; test %al; jne
-    //   <nop 岛>` + 体尾 `jmp` + `nop`）⇒ 4.4 复现形为负条件 goto 尾空标签
-    //   （探针 /tmp/m2s4_island.cpp fC 实测同形；`if (!x) continue;` 恒无岛）。
-    for (std::map<unsigned short, CVillageMonster>::iterator it =
-             m_monsters.begin();
-         it != m_monsters.end(); ++it)
-    {
-        CVillageMonster* monster = &it->second;
-        if (!monster->MakeVillageMonsterListPacket(packet))
-            goto next_monster;
-        ++count;
-    next_monster:;
-    }
-    packet.put_byte(countIdx, count);
-    packet.finalize(true);
-    // [N1F 2026-09-11] 极性/叶块序：ORIG 0x086b3904 `cmpl $0x0,0xc(%ebp)` + 0x086b3908
-    //   `je 0x086b391e` —— je 落点 = 0x086b391e 的 CVillageMonsterArea::SendPacket(this) 体，
-    //   直落体 = 0x086b3911 `mov 0xc(%ebp),%eax` 的 CUser::Send(user) 体
-    //   ⇒ 4.1 -O0「假则跳 else」布局：源形条件 = `user != 0`，else = SendPacket。
-    //   语义等价（两态落点一致），纯布局轴。
-    if (user != 0)
-        user->Send(packet);
-    else
-        SendPacket(packet);
-}
+
 
 }  // namespace village_attacked
 
-// ORIG W 0x084ed3f8：return m_field20（当前奖励类型）。
 #include "VillageMonster_helpers/GetRewardType.inc"
 {
     return m_field20;
 }
 
-// ORIG W 0x0847dd44：m_field20 = reward（单赋值）。
 #include "VillageMonster_helpers/SetRewardType.inc"
 {
     // P95：ORIG 先载 this 后载 reward；具名视图复现（m_field20 = +0x20）。

@@ -1,3 +1,6 @@
+// ORIG 0x0812beba T _ZN33DisPatcher_EventDungeon_ClearRoom7processEP5CUserR8MSG_BASER9ParamBase
+// （docs/class_func_reports/DisPatcher_EventDungeon_ClearRoom/process.md 全文转写，
+//   含汇编写入次序：param+0x4←msg+0xe、param+0x8←msg+0x12、param+0x6←msg+0x10）；check_error 恒返 0。
 int DisPatcher_EventDungeon_ClearRoom::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

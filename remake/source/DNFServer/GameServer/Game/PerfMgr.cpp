@@ -22,19 +22,10 @@
 #include "PerfMgr.h"
 
 #include "PerfMgr/inc.inc"
-{
-    ++m_count[idx];
-}
+
 
 #include "PerfMgr/get.inc"
-{
-    return m_count[idx];
-}
+
 
 #include "PerfMgr/clear.inc"
-{
-    for (int i = TASK_IDX_BEGIN; i < TASK_IDX_END; ++i)
-    {
-        m_count[i] = 0;
-    }
-}
+

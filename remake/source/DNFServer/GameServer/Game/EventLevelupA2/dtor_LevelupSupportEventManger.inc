@@ -1,1 +1,3 @@
 LevelupSupportEventManger::~LevelupSupportEventManger()
+{
+}

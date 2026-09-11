@@ -21,21 +21,12 @@
 #include "CEnvironment.h"          // G_CEnvironment / m_serverEnvir.m_channelNo
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9d5c：仅基类构造 + vptr 置位。
 #include "CNotApplyBalkeunEvent/CNotApplyBalkeunEvent.inc"
 
-// ORIG 0x081b9d78 / 0x081b9da8：空体 + 虚析构由编译器生成同形。
 #include "CNotApplyBalkeunEvent/dtor_CNotApplyBalkeunEvent.inc"
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9dc6：IsEventing(0) 为假时置事件标志并打日志（带 server 号）。
 #include "CNotApplyBalkeunEvent/StartEvent.inc"
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9e4c：同 StartEvent()（忽略 param）。
 #include "CNotApplyBalkeunEvent/StartEvent_1.inc"
 
-// ---------------------------------------------------------------------------
-// ORIG 0x081b9ed2：IsEventing(0) 为真时清事件标志并打日志。
 #include "CNotApplyBalkeunEvent/EndEvent.inc"

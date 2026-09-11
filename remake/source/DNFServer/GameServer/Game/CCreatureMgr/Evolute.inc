@@ -1,3 +1,8 @@
+// ORIG _ZN13user_creature9CCreature7EvoluteEP5CUser T 0x83381ea（Evolute.md）：
+// 无脚本/无进化目标/找不到目标脚本/0x16 槽空 → false；
+// SetItemId(目标脚本 itemIdx)、槽物写新 itemIdx，CDBMsgSender(0x8a).EvoluteCreature
+// 落库失败打 trace 返回 false；成功后 Send + 进化通知包（SendAccordingToPlace）
+// + SendUpdateItemList(target=1, space=3, slot=0x16)。
 bool CCreature::Evolute(CUser* user)
 {
     if (m_script == 0)

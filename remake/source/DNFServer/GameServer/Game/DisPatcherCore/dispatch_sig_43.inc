@@ -1,3 +1,7 @@
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 303（ORIG 381 / ours 356），残差=P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [b28d-TakeDispatchCore] **P312**：`char digestHex[0x41] = {0};`（原 memset 调用）复现
+// ORIG 0x081f490c 对齐剥离+rep stos 慢路 ⇒ ours 359→387、ndiff 214→180（fresh 复测；
+// 上方 303 为更早读数）、gap 22→−6。残差仍为 P211/N18a/P30/N82 帧差族。
 int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
 
 {

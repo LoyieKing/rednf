@@ -1,3 +1,4 @@
+// ORIG UseItem @ 0x833a5bc：feed 判定用 Inven_Item+2（int，即 m_addInfo/item idx）。
 int CCreatureMgr::UseItem(Inven_Item* item, int slot)
 {
     (void)slot;

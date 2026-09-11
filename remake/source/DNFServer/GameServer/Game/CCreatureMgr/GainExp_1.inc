@@ -1,3 +1,4 @@
+// ORIG GainExp @ 0x8339b06。
 bool CCreatureMgr::GainExp(int exp)
 {
     // ORIG 0x8339b14/0x8339b37：两条短路均 je 直达尾 mov0 岛（无 xor 取反）；

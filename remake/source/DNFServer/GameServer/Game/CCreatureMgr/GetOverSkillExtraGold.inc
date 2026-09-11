@@ -1,3 +1,7 @@
+// ORIG _ZNK13user_creature12CCreatureMgr21GetOverSkillExtraGoldEi T 0x0833c6f6：
+// 装备宠存活且 itemId==0xf68a 且超技能计时有效时给 *5/100，否则 0。
+// [b28d-solo-CCreatureMgr AE] 既有（裸比较 + goto 钉块序）；compare_tu AE；ORIG 0x833c6f6
+// [b28d-solo-CCreatureMgr N112] 同上：多 1 条 4.4 对齐 nop，compare_tu 口径已 AE。
 // [2026-09-11 收口复核 · AE] check_tu_routed 口径判 **AE**（TU 表无该件）；
 //   `game_func_report --no-compile` 报的 48 vs 49 = 函数尾一条 4.4 对齐 nop
 //   （±0x81 处，N112 类，compare_tu 已剥离）+ .o 重定位伪差，非语义差。

@@ -1,1 +1,3 @@
 STDeadTowerDialog::~STDeadTowerDialog()
+{
+}

@@ -20,9 +20,6 @@
 // ---- YieldProcessor（ORIG 0x8ad351c，空函数）----
 static void YieldProcessor() {}
 
-// ---- SpinLock ----
-// P210 前置：本 TU 的 Uncopyable ctor/dtor 定义放在 SpinLock C1/D1 之后，
-// 使 4.4 对未可见 callee 采用保守帧（ORIG sub $0x18）。
 #include "SpinLock/SpinLock.inc"
 #include "SpinLock/Uncopyable.inc"
 
@@ -30,15 +27,10 @@ static void YieldProcessor() {}
 #include "SpinLock/dtor_Uncopyable.inc"
 
 #include "SpinLock/enter.inc"
-{
-    while (__sync_lock_test_and_set(&m_lock, 1) == 1)
-        YieldProcessor();
-}
+
 
 #include "SpinLock/leave.inc"
-{
-    __sync_lock_test_and_set(&m_lock, 0);
-}
+
 
 #include "SpinLock/isTaken.inc"
 

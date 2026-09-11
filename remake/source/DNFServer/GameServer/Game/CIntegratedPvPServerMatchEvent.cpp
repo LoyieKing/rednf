@@ -23,41 +23,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811d438：仅基类构造 + vptr 置位（无自有成员）。
 #include "CIntegratedPvPServerMatchEvent/CIntegratedPvPServerMatchEvent.inc"
-{
-}
 
-// ORIG 0x0811d454 / 0x0811d484：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CIntegratedPvPServerMatchEvent/dtor_CIntegratedPvPServerMatchEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811d4a2：SetEventFlag(true) +
-// cMyTrace(__FUNCTION__,0x12,0)("CIntegratedPvPServerMatchEvent Start!")。
+
 #include "CIntegratedPvPServerMatchEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x12, 0);
-    tr("CIntegratedPvPServerMatchEvent Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811d4f4：与 StartEvent() 同体（file 串 "StartEvent"，行 0x18；
-// 忽略 param）。
+
 #include "CIntegratedPvPServerMatchEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x18, 0);
-    tr("CIntegratedPvPServerMatchEvent Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0811d546：仅 SetEventFlag(false)（无 trace）。
+
 #include "CIntegratedPvPServerMatchEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-}
+

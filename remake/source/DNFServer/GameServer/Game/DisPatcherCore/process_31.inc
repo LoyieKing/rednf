@@ -1,3 +1,10 @@
+// ORIG 0x081befe8 T _ZN19DisPatcher_BuySkill7processEP5CUserR8MSG_BASER9ParamBase
+// （docs/class_func_reports/DisPatcher_BuySkill/process.md 全文转写）：
+//   check_error>0 → SendCmdErrorPacket(0x1f, err) 返 -1；<0 → LineFunc(0x3ef, pretty, err, acc_id)。
+//   count==1 单条模式：entry0 → master/refund_skill_process，回写 m_354/m_350。
+//   count!=1 批量模式：backupSkill 失败 → m_350=-1、m_354=infos[0].m_0（ORIG 读未初始化，忠实保留）
+//   返 0；成功则两遍循环（try_* 试算 → 正式 master/refund），info.m_8<0 短路返 0。
+//   四个 helper（T 符号）当前无 TU 定义，见 DisPatcherCore.h 声明。
 int DisPatcher_BuySkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

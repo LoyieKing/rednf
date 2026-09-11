@@ -1,1 +1,3 @@
 RandomOptionGive::~RandomOptionGive()
+{
+}

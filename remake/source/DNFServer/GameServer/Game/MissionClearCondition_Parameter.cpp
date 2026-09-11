@@ -17,12 +17,5 @@
 
 #include "MissionClearCondition_Parameter.h"
 
-// ORIG C1/C2 0x085e1a44：m_mode 默认 0xa；mode==2 → 1；mode==3 → 2。
 #include "MissionClearCondition_Parameter/MissionClearCondition_Parameter.inc"
-{
-    m_mode = 0xa;
-    if (mode == (PVP_BATTLE_MODE)2)
-        m_mode = 1;
-    else if (mode == (PVP_BATTLE_MODE)3)
-        m_mode = 2;
-}
+

@@ -21,10 +21,7 @@
 #include "Inter_SelectCharac.h"
 
 #include "Inter_SelectCharac/dtor_Inter_SelectCharac.inc"
-{
-}
+
 
 #include "Inter_SelectCharac/dispatch_sig.inc"
-{
-    return 0;
-}
+

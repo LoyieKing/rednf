@@ -1,3 +1,4 @@
+// ==================== DB request 类（W8LT_EventTail.h 声明点） ====================
 void DB_InsertEventStageLog::makeRequest(SIG_EVENT_STAGE_LOG& sig)
 {
     // ORIG T 0x0844920e：opcode 0x333 / -1 / GetInBuffer<SIG> 后 memcpy 0x78。

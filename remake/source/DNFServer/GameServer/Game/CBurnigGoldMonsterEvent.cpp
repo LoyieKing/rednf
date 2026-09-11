@@ -19,39 +19,17 @@
 
 #include "GameTypes.h"   // cMyTrace
 
-// ORIG 0x08116ee6：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "CBurnigGoldMonsterEvent/CBurnigGoldMonsterEvent.inc"
-{
-}
 
-// ORIG 0x08116f02 / 0x08116f32：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CBurnigGoldMonsterEvent/dtor_CBurnigGoldMonsterEvent.inc"
-{
-}
 
-// ORIG 0x08116f50：SetEventFlag(true) + cMyTrace(PRETTY, 0x12, 0)
-//   ("CBurnigGoldMonsterEvent Event Start!")。
+
 #include "CBurnigGoldMonsterEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x12, 0);
-    trace("CBurnigGoldMonsterEvent Event Start!");
-}
 
-// ORIG 0x08116fa2（thunk，0x1a）：经 vptr+8 虚调 StartEvent()。
-// [b28c-30] N7 封顶：ORIG 间接 call 目标 %edx（`mov (%eax),%edx; …; call *%edx`）
-// vs 4.4 恒 %eax，助记符全等仅寄存器名差（同 CPCRoomWorldDropEvent 件）。
+
 #include "CBurnigGoldMonsterEvent/StartEvent_1.inc"
-{
-    StartEvent();
-}
 
-// ORIG 0x08116fbc：SetEventFlag(false) + cMyTrace(PRETTY, 0x1c, 0)
-//   ("CBurnigGoldMonsterEvent Event End!")。
+
 #include "CBurnigGoldMonsterEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1c, 0);
-    trace("CBurnigGoldMonsterEvent Event End!");
-}
+

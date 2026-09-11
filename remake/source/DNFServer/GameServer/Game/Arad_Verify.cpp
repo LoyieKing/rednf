@@ -34,19 +34,10 @@ namespace ARAD_TYPE
 namespace ARAD
 {
 
-// ORIG T 0x0819eaee（10 字节）：mov $0x0,%eax; ret。
 #include "Arad_Verify/arad_equipment_verify.inc"
 
-// ORIG T 0x0819eae4（10 字节）：mov $0xb0,%eax; ret。
 #include "Arad_Verify/arad_stackable_verify.inc"
 
-// ORIG W 0x08188c56：destroyAradData 的 for_each 删除函子。
-// 汇编形态（objdump）：
-//   mov 0xc(%ebp),%eax; mov 0x4(%eax),%eax; test; je +0x54     ← p.second 判空
-//   取 vptr; add $0xc; call *(槽3)                              ← clearScriptData()
-//   重读 p.second; test; je +0x4a                               ← 二次判空
-//   取 vptr; add $0x4; call *(槽1)                              ← D0 deleting dtor
-//   movl $0,0x4(pair)                                          ← p.second = 0
 #include "Arad_Verify/operator.inc"
 
 }  // namespace ARAD

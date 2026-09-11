@@ -1,3 +1,12 @@
+// [b14 本波·报告核对] 三处修复：
+//  ①槽序：ORIG token@-0x14 / got@-0xd（4.4「后声明更深」）⇒ 声明序改 token/got；
+//  ②`token = 7` 位置按 ORIG 0x88bdcb8 提到 findString 之前；
+//  ③**真语义 bug**：报告 Ghidra C 0x88bdd77 段 logFormat 变参序为
+//    ("ScanAnyData", streamName, lineNo, tokenData)，原写 (streamName,"ScanAnyData")
+//    两串互换（日志内容反写）⇒ 已按报告修正。
+// ndiff 54→4。残余 1 处（N 封顶）：`if(!ignoreUnknown)` ORIG 为 4.1
+// `cmpb $0,-0x2c` 内存直测 vs 4.4 `movzbl; xor $1; test`（N122 bool 取反 lowering；
+// `==0`/`==false`/`!=true` 三形实测同形）。p167 CLEAR（26=26）。语义等价。
 bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
 {
     type = 3;

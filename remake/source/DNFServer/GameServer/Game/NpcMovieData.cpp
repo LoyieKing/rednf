@@ -12,23 +12,12 @@
 // ============================================================================
 #include "NpcMovieData.h"
 
-// ORIG 0x089fb78e：deque 默认构造 → clear()（带 unwind 清理路径）
 #include "NpcMovieData/NpcMovieData.inc"
-    : m_movies()
-{
-    clear();
-}
 
-// ORIG 0x089fb7d0：deque::clear + 游标置 0
+
 #include "NpcMovieData/clear.inc"
-{
-    m_movies.clear();
-    m_movieIdx = 0;
-}
 
-// ORIG 0x089fb7ee：返回 std::string（sret 模式）。early-return 结构（P16）：
-// 队列空 → 直接返回；游标 < size 时取 deque[游标] 拷入返回值，
-// 游标 = (游标+1) % size（无符号 divl 实证）。
+
 #include "NpcMovieData/getNextMoviePath.inc"
 {
     std::string result;
@@ -50,8 +39,5 @@
 namespace
 {
 #include "NpcMovieData/emitNpcMovieDataDtor.inc"
-{
-    NpcMovieData m;
-    (void)m;
-}
+
 }

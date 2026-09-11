@@ -22,47 +22,17 @@
 
 #include "GameTypes.h"             // cMyTrace
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0826e92c：仅基类构造 + vptr 置位（无自有成员初始化）。
 #include "CReformingDanjinEvent/CReformingDanjinEvent.inc"
-{
-}
 
-// ORIG 0x0826e948 / 0x0826e978：D1 重置 vptr 后调 CEventBase::~CEventBase；
-// D0 调 D1 后 operator delete。空体 + 虚析构由编译器生成同形。
+
 #include "CReformingDanjinEvent/dtor_CReformingDanjinEvent.inc"
-{
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0826e996：SetEventFlag(true) +
-// cMyTrace("virtual void CReformingDanjinEvent::StartEvent()",0x13,0)
-// ("Reforming Danjin Event Start!")。
+
 #include "CReformingDanjinEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x13, 0);
-    tr("Reforming Danjin Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0826e9e8：与 StartEvent() 同体（SetEventFlag(true) + trace，
-// file 串为 "virtual void CReformingDanjinEvent::StartEvent(Word_Param)"，
-// 行 0x19）。
+
 #include "CReformingDanjinEvent/StartEvent_1.inc"
-{
-    SetEventFlag(true);
-    cMyTrace tr(__FUNCTION__, 0x19, 0);
-    tr("Reforming Danjin Event Start!");
-}
 
-// ---------------------------------------------------------------------------
-// ORIG 0x0826ea3a：SetEventFlag(false) +
-// cMyTrace("virtual void CReformingDanjinEvent::EndEvent()",0x1f,0)
-// ("Reforming Danjin Event End!")。
+
 #include "CReformingDanjinEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace tr(__FUNCTION__, 0x1f, 0);
-    tr("Reforming Danjin Event End!");
-}
+

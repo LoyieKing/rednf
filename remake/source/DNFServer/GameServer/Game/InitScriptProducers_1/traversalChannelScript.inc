@@ -1,3 +1,12 @@
+// b28d-solo-InitScriptProducers_1: NEAR→AE（258=258 全对齐）。修：两个内层循环
+// 下标提至函数头（P212/P331：块内 for-init 声明在 4.4 槽方向与 4.1 相反；全头部
+// 声明按 ORIG 槽深序 jDungeon(-0x20)→jChannel(-0x1c) 即逐条复现）。三迭代器 C1Ev
+// 已在函数头，声明序 it→inner→outer 复现 ORIG 0x088dc846..0x088dc86c 与槽
+// -0x40/-0x44/-0x48。
+// ORIG T 0x088dc81b。遍历打印：dungeon 段（+0x00 map）逐项
+// "[DUNGEON] <键名> as <键> : " + 区间 int 列表；server 段（+0x18 外层 map）
+// "[CHANNEL] Server %d" + 每频道 "\t%d : %s type(%d) name(%s) tag(%s) " +
+// bonusRate 表。日志行号 0x107/0x10c/0x11a 与 ORIG 一致。
 void traversalChannelScript(channel_script_t* script)
 {
     char buf[0x200];

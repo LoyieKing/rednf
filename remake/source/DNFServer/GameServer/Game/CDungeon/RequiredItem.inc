@@ -1,1 +1,4 @@
 RequiredItem::RequiredItem()
+{
+    clear();
+}

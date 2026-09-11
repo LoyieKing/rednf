@@ -24,39 +24,17 @@
 
 #include "GameTypes.h"   // cMyTrace
 
-// ORIG 0x0819e738：仅基类构造 + vptr 置位。
 #include "Arad_MomijiEvent/Arad_MomijiEvent.inc"
-{
-}
 
-// ORIG 0x0819e754 / 0x0819e784：空体 + 虚析构由编译器生成同形。
+
 #include "Arad_MomijiEvent/dtor_Arad_MomijiEvent.inc"
-{
-}
 
-// ORIG 0x0819e7a2：cMyTrace(PRETTY, 0x14, 0)("[MOMIJI_EVENT] Event Start.")
-// 在前，SetEventFlag(true) 在后。
+
 #include "Arad_MomijiEvent/StartEvent.inc"
-{
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x14, 0);
-    trace("[MOMIJI_EVENT] Event Start.");
-    SetEventFlag(true);
-}
 
-// ORIG 0x0819e7f4（thunk，0x1a）：经 vptr+8 虚调 StartEvent()。
+
 #include "Arad_MomijiEvent/StartEvent_1.inc"
-{
-    // [b28c-27] N7 封顶：唯一残差=虚调用目标寄存器（ORIG `mov (%eax),%edx; ...;
-    // call *%edx` vs 4.4 `mov (%eax),%eax; ...; call *%eax`）；4.4 间接 call 目标
-    // 恒 %eax，源码形不可择（探针 /tmp/l22p/vprobe*.cpp）。
-    StartEvent();
-}
 
-// ORIG 0x0819e80e：cMyTrace(PRETTY, 0x1f, 0)("[MOMIJI_EVENT] Event End.")
-// 在前，SetEventFlag(false) 在后。
+
 #include "Arad_MomijiEvent/EndEvent.inc"
-{
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1f, 0);
-    trace("[MOMIJI_EVENT] Event End.");
-    SetEventFlag(false);
-}
+

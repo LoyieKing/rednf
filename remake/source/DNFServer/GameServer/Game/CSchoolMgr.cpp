@@ -52,200 +52,66 @@ class CUser;
 // ============================================================================
 
 #include "CSchoolMgr/CSchoolArea.inc"
-    : m_areaMap(), m_areaStack()
-{
-}
+
 
 #include "CSchoolMgr/dtor_CSchoolArea.inc"
-{
-}
+
 
 #include "CSchoolMgr/GetAreaIndex.inc"
-{
-    if (m_areaStack.empty())
-    {
-        return -1;
-    }
-    int areaIdx = m_areaStack.top();
-    m_areaStack.pop();
-    return areaIdx;
-}
+
 
 #include "CSchoolMgr/SetAreaMapping.inc"
-{
-    m_areaMap.insert(std::make_pair(schoolNo, areaIdx));
-}
+
 
 #include "CSchoolMgr/AddSchoolArea.inc"
-{
-    int areaIdx = GetAreaIndex();
-    if (areaIdx >= 0)
-    {
-        SetAreaMapping(schoolNo, areaIdx);
-    }
-}
+
 
 #include "CSchoolMgr/DelSchoolArea.inc"
-{
-    std::map<unsigned int, int>::iterator it = m_areaMap.find(schoolNo);
-    if (it != m_areaMap.end())
-    {
-        m_areaStack.push(it->second);
-        m_areaMap.erase(it);
-    }
-}
+
 
 #include "CSchoolMgr/SetSchoolArea.inc"
-{
-    for (int area = start; area < end; ++area)
-    {
-        m_areaStack.push(area);
-    }
-}
+
 
 #include "CSchoolMgr/GetAreaIndex_1.inc"
-{
-    std::map<unsigned int, int>::iterator it = m_areaMap.find(schoolNo);
-    if (it != m_areaMap.end())
-    {
-        return it->second;
-    }
-    return -1;
-}
+
 
 // ============================================================================
 // CBelong / CSchoolMember 实现
 // ============================================================================
 
 #include "CSchoolMgr/CSchoolMember.inc"
-    : CBelong(), m_user(user)
-{
-}
+
 
 #include "CSchoolMgr/IsRight.inc"
-{
-    // N96 清绑：原 `register bool right asm("eax")` 已删。ORIG 无 right 槽
-    // （&& 短路直落 mov$1/mov$0 岛）⇒ 还原为单 return 短路形。清绑前后 25=25、
-    // 与 ORIG（objdump 0x085690dc，报告缺失）逐条全等（仅 .o 重定位地址差）
-    // ⇒ 残差 0，无需 N96+N18a 封顶。
-    return m_user->GetSchoolNo() == user->GetSchoolNo() && m_user != user;
-}
+
 
 // ============================================================================
 // CSchoolMgr 实现
 // ============================================================================
 
 #include "CSchoolMgr/CSchoolMgr.inc"
-    : m_schoolUserCount(), m_schoolArea()
-{
-}
+
 
 #include "CSchoolMgr/dtor_CSchoolMgr.inc"
-{
-}
+
 
 #include "CSchoolMgr/AddUser.inc"
-{
-    if (!G_GameWorld()->IsSchoolPvPChannel())
-    {
-        return;
-    }
-    SendBroadcastUserIn(user);
-    unsigned int schoolNo = user->GetSchoolNo();
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_schoolUserCount.find(schoolNo);
-    if (it != m_schoolUserCount.end())
-    {
-        it->second += 1;
-    }
-    else
-    {
-        m_schoolUserCount.insert(std::make_pair(user->GetSchoolNo(), 1));
-        m_schoolArea.AddSchoolArea(user->GetSchoolNo());
-    }
-}
+
 
 #include "CSchoolMgr/DelUser.inc"
-{
-    if (!G_GameWorld()->IsSchoolPvPChannel())
-    {
-        return;
-    }
-    SendBroadcastUserOut(user);
-    unsigned int schoolNo = user->GetSchoolNo();
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_schoolUserCount.find(schoolNo);
-    if (it != m_schoolUserCount.end())
-    {
-        it->second -= 1;
-        if (it->second == 0)
-        {
-            m_schoolUserCount.erase(it);
-            m_schoolArea.DelSchoolArea(user->GetSchoolNo());
-        }
-    }
-}
+
 
 #include "CSchoolMgr/SendBroadcastUserIn.inc"
-{
-    const char* channelMsg = g_scriptStringManager_.findString(
-        4, "channel_connect", 0);
-    if (channelMsg != 0)
-    {
-        char buf[255] = {0};
-        sprintf(buf, channelMsg, user->getCurCharacName(),
-                G_CEnvironment()->get_channel_no());
-        PacketGuard guard;
-        guard.put_header(0, 0xc);
-        guard.put_byte(0);
-        guard.put_short(0);
-        guard.put_byte(0);
-        guard.put_int(strlen(buf));
-        guard.put_str(buf, strlen(buf));
-        guard.finalize(true);
-        CSchoolMember member(user);
-        G_GameWorld()->send_group(guard, &member);
-    }
-}
+
 
 #include "CSchoolMgr/SendBroadcastUserOut.inc"
-{
-    const char* channelMsg = g_scriptStringManager_.findString(
-        4, "channel_disconnect", 0);
-    if (channelMsg != 0)
-    {
-        char buf[255] = {0};
-        sprintf(buf, channelMsg, user->getCurCharacName());
-        PacketGuard guard;
-        guard.put_header(0, 0xc);
-        guard.put_byte(0);
-        guard.put_short(0);
-        guard.put_byte(0);
-        guard.put_int(strlen(buf));
-        guard.put_str(buf, strlen(buf));
-        guard.finalize(true);
-        CSchoolMember member(user);
-        G_GameWorld()->send_group(guard, &member);
-    }
-}
+
 
 #include "CSchoolMgr/GetUserCount.inc"
-{
-    std::map<unsigned int, unsigned int>::iterator it =
-        m_schoolUserCount.find(schoolNo);
-    if (it != m_schoolUserCount.end())
-    {
-        return it->second;
-    }
-    return 0;
-}
+
 
 #include "CSchoolMgr/SetSchoolArea_1.inc"
-{
-    m_schoolArea.SetSchoolArea(start, end);
-}
+
 
 #include "CSchoolMgr/GetSchoolArea.inc"
-{
-    return m_schoolArea.GetAreaIndex(schoolNo);
-}
+

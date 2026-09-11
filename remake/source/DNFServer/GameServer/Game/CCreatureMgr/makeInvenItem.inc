@@ -1,3 +1,10 @@
+// ORIG _ZN21Inven_Item_Compatible13makeInvenItemER10Inven_Item W 0x833f418。
+// [b28c-30] N76 封顶：末段 `*reinterpret_cast<int*>(&item.m_amp) = m_amp0;` ORIG
+// 为 `mov %edx,0x11(%eax)` disp 直写；取址形反产 `add $0x11,%eax; mov %edx,(%eax)`
+//（+1 条）。具名 int 视角可去 add 但装载序变 RHS-first（ORIG LHS-first），净差 1
+// ⇒ 封顶（前两段 guid 结构赋值 + 两字段同型化已 AE）。
+// [b28d-23 NEAR·N76] m_amp0Int 具名视角消 add $0x11（54→47 条）；残余 1 = +0x11 store 装载序（ORIG LHS-first vs union 视角 RHS-first，int/unsigned 同异型试尽）⇒ N76。ORIG 0x0833f418
+// [b28d-solo-CCreatureMgr AE] P247 stAmplifyHeadView 4B 结构赋值复现 +0x11 LHS-first；ORIG 0x833f418
 void Inven_Item_Compatible::makeInvenItem(Inven_Item& item)
 {
     item.m_field0 = m_field0;

@@ -37,15 +37,9 @@
 //  T 0x08221dde），声明于 Dispatchers.h，本 TU 实现。
 // ============================================================================
 
-// ORIG _ZNK25Dispatcher_CompoundEmblem21_selectJewelTypeIndexEjPKt（0x8220a60）
-// 纹章位图→槽位 加权随机选取珍宝类型索引。
 #include "Dispatcher_CompoundEmblem_impl/_selectJewelTypeIndex.inc"
 
-// 布局（ORIG 汇编实证）：Packet_Emblem_Create_Statistic(0x17a4, 0x36)
-// + count@slots[0](+0xa) + grades@slots[i+1](+0xe) + addInfo@slots[i+6](+0x22)，
-// SendPacket(pkt, 0x36)。迭代器 while 循环（ORIG __gnu_cxx::operator!= 判续）。
 #include "Dispatcher_CompoundEmblem_impl/SendCreateEmblemInfo.inc"
 #include "Dispatcher_CompoundEmblem_impl/dispatch_sig.inc"
 
-int Dispatcher_CompoundEmblem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { (void)user; (void)msg; (void)param; return 0; }
 int Dispatcher_CompoundEmblem::read(PacketBuf& packet, MSG_BASE& msg) { (void)packet; (void)msg; return 0; }

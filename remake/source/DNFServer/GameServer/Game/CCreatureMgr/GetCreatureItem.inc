@@ -1,3 +1,32 @@
+// ORIG T 0x833b80c（docs/class_func_reports/user_creature__CCreatureMgr/
+// GetCreatureItem.md，汇编+反编译 C 双段已读）：把宠物区（m_creature @
+// SIG_LOAD_INVENTORY+0x12880，memset 0x1ed8；计数 m_creatureCount @+0x1287c）与
+// 蛋区（m_field30 map → m_tempPeriods[]；计数 m_creatureCount2 @+0x15340）填入
+// SIG_LOAD_INVENTORY。ORIG 宠物条目 = 0x38 字节（SIG_CREATURE_ITEM_DETAIL_INFO），
+// 整条目由 (**(%CCreatureItem vtable + 0xc))(item, Inven_Item&, dst, this+0x1c)
+// 虚调用序列化填充（该方法未建模），本重建按 ORIG 汇编只补条目首 dword 与
+// m_expireTime（+0x28，ORIG 另有 mov %eax,(%edx) 由 getExpireTime 返回值写入）。
+// [b28d-solo-CCreatureMgr N] ndiff=100：已翻正 ①两循环 begin/end 循环外缓存
+// （P13）+ while 前置条件形（P25）；②每轮两次 operator->（P167 ptEv 差集清零）；
+// ③第二循环 `it2++` 后置（P167 ppEi；第一循环 ORIG 为前置 ppEv，两者相反已分别对齐）。
+// 残余 = N89（4.1 外联 map/迭代器模板实例 vs 4.4 内联）+ 未建模依赖：
+// ORIG 循环体虚调用 `(**(code**)(*item+0xc))(item,&invenItem,dst,this+0x1c)` =
+// CCreatureItem vtable 槽3（CEgg::SaveCreatureItem 0x83390c8 / CCreature::SaveCreatureItem
+// 0x83387f6），并需 `Inven_Item invenItem;` 局部（p167 仍缺 Inven_ItemC1Ev）。
+// 待专项批次：CCreatureItem 多态化（_ZTV 0x08c2f4d0，4 槽 Reset/IsSave/Load/Save，
+// 需 CGameManager.h/CInventory.h/CreatureOnlySimple.cpp 多 TU 协同 + 移除 m_vptr 常量写）。
+// 154 vs 134。ORIG 0x0833b80c
+// [b28d-solo-CCreatureMgr R2上报] p167 MISSING -1 _ZN10Inven_ItemC1Ev：ORIG 有
+//   `Inven_Item invenItem;` 局部 + 循环体 vtable 槽3 虚调用（CEgg::SaveCreatureItem
+//   0x83390c8 / CCreature::SaveCreatureItem 0x83387f6）；需 CCreatureItem 多态化
+//   （与 CCreatureC1 同一组头改动，已报 Main）。
+// [b28d-solo-CCreatureMgr §6.2 封顶·检查点14 已落] Main 落多态化后 p167 CLEAR
+//   （15=15：Inven_ItemC1Ev + 虚调用 SaveCreatureItem 到位）；154 vs 147（gap 7）。
+//   已对齐：invenItem 函数体作用域（ORIG -0x61）、dst char* 算术形（P214①）、
+//   第二 map end() 每轮求值（P13 反例，ORIG 0x833b9f6）。残余 = N82/N93 槽布局
+//   （count -0x10 vs -0x18、it/end -0x1c/-0x20 vs -0x2c/-0x30、第二循环 -0x14 组）
+//   + 尾部 epilogue（ORIG `lea -0x8(%ebp),%esp; pop esi` vs 4.4 `mov -0x4,%ebx; leave`）。
+//   试形失败记录：内联 dst 表达式（去具名槽）帧 0x70→0x7c + push edi/esi，147→160 ⇒ 已回滚。
 // [2026-09-11 收口判词 · N7 + P331/N95 帧槽族] ORIG 0x0833b80c（154 条）；我方 159 条
 //   （本轮 **161→159**：两处元素地址链由 base-first 成员下标改 index-first 合并形
 //   `reinterpret_cast<char*>(sig) + (count*0x38 + 0x12880)`，逐条逼近 ORIG

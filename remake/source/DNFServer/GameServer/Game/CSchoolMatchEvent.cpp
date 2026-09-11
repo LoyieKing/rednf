@@ -28,43 +28,19 @@
 #include "PacketGuard.h"    // PacketGuard（AppendInfo 参数完整类型）
 
 #include "CSchoolMatchEvent/CSchoolMatchEvent.inc"
-{
-    // ORIG 0x08273ecc：CEventBase 基类构造 + vptr + m_channels vector 构造（编译器生成）。
-}
+
 
 #include "CSchoolMatchEvent/dtor_CSchoolMatchEvent.inc"
-{
-    // ORIG 0x08273f1a：写 vptr 后 m_channels 析构 + CEventBase 析构（编译器生成）。
-}
+
 
 #include "CSchoolMatchEvent/StartEvent.inc"
-{
-    // ORIG 0x08273f9a：SetEventFlag(true) + 日志。
-    SetEventFlag(true);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x15, 0);
-    trace("CSchoolMatchEvent Start!");
-}
+
 
 #include "CSchoolMatchEvent/EndEvent.inc"
-{
-    // ORIG 0x0827423c：SetEventFlag(false) + 联赛匹配关闭 + 日志 + 清频道表。
-    SetEventFlag(false);
-    CLeagueMatch::SetMatchAble(false);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x3f, 0);
-    trace("CSchoolMatchEvent End!");
-    m_channels.clear();
-}
+
 
 #include "CSchoolMatchEvent/AppendInfo.inc"
-{
-    // ORIG 0x082742a8：put_byte(频道数) 后遍历 put_short 各频道号。
-    packet.put_byte((int)m_channels.size());
-    for (std::vector<int>::iterator it = m_channels.begin();
-         it != m_channels.end(); ++it) {
-        int value = *it;   // ORIG 经 -0xc 槽中转（Ghidra local_10）
-        packet.put_short(value);
-    }
-}
+
 
 #include "CSchoolMatchEvent/StartEvent_1.inc"
 {

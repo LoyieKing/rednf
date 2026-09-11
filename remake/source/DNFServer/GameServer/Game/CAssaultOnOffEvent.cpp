@@ -19,37 +19,17 @@
 
 #include "GameTypes.h"   // cMyTrace
 
-// ORIG 0x0811bb80：仅基类构造 + vptr 置位。
 #include "CAssaultOnOffEvent/CAssaultOnOffEvent.inc"
-{
-}
 
-// ORIG 0x0811bb9c / 0x0811bbcc：空体 + 虚析构由编译器生成同形。
+
 #include "CAssaultOnOffEvent/dtor_CAssaultOnOffEvent.inc"
-{
-}
 
-// ORIG 0x0811bac2：SetEventFlag(true) + cMyTrace(PRETTY, 0xe, 0)
-//   ("Assault On Off Event Start!")。
+
 #include "CAssaultOnOffEvent/StartEvent.inc"
-{
-    SetEventFlag(true);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0xe, 0);
-    trace("Assault On Off Event Start!");
-}
 
-// ORIG 0x0811bb14（thunk，0x1a）：经 vptr+8 虚调 StartEvent()。
+
 #include "CAssaultOnOffEvent/StartEvent_1.inc"
-{
-    // [b28c-27] N7 封顶：唯一残差=虚调用目标寄存器（ORIG 用 %edx，4.4 恒 %eax）。
-    StartEvent();
-}
 
-// ORIG 0x0811bb2e：SetEventFlag(false) + cMyTrace(PRETTY, 0x18, 0)
-//   ("Assault On Off Event End!")。
+
 #include "CAssaultOnOffEvent/EndEvent.inc"
-{
-    SetEventFlag(false);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x18, 0);
-    trace("Assault On Off Event End!");
-}
+

@@ -21,30 +21,16 @@
 #include "CEnvironment.h"   // GlobalInstance<T>（全局命名空间单例模板，CPrePayInfoMgr.h 同 TU 集）
 
 #include "CPrePayInfoMgr/CPrePayInfoMgr.inc"
-{
-    m_map.clear();
-}
+
 
 #include "CPrePayInfoMgr/InsertPrePayInfo.inc"
-{
-    m_map.insert(std::make_pair(characNo, info));
-}
+
 
 #include "CPrePayInfoMgr/DeletePrePayInfo.inc"
-{
-    m_map.erase(idx);
-}
+
 
 #include "CPrePayInfoMgr/FindPrePayInfo.inc"
-{
-    // P28：ORIG 先默认构造迭代器（-0x10 槽）再 find 到临时（-0x1c）拷贝回来
-    // （帧 0x38）；一行直构被 4.4 copy-elision 折叠（帧 0x28）。
-    std::map<int, PrePayInfo>::iterator it;
-    it = m_map.find(idx);
-    if (it != m_map.end())
-        return &it->second;
-    return 0;
-}
+
 
 CPrePayInfoMgr* G_CPrePayInfoMgr()
 {

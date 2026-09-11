@@ -1,1 +1,3 @@
 StageMapScript::~StageMapScript()
+{
+}

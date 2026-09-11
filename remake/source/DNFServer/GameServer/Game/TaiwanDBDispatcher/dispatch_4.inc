@@ -1,3 +1,11 @@
+// ORIG 0x0815c3b0：GetOutBuffer<MSG> null → throw "msg is null"；GetDBHandle
+// (9,0) null → throw "handle null"；set_query("inSert into
+// event_create_dnf_user(occ_date,m_id,server_id,occ_time) VALUES(CURDATE(),%s,
+// %d,CURTIME())", NumberToString(msg->m_id), G_CEnvironment()->+0x378
+// (m_serverGroup))；exec 失败 throw "insert_exec"；cMyTrace(0x281)
+// ("[Taiwan, Event] insert event_create_dnf_user. m_id:%d", msg->m_id)；catch
+// logFormat(0x286) 返 0。成功返 1。
+// [b28d-lane6] AE（已修）：P221 临时链 + +0x378 视图内联（ORIG 0x0815c3b0 单条 mov 0x378(%eax),%ebx）。
 bool DBInsertCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
 {
     try

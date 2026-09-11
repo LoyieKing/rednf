@@ -1,1 +1,4 @@
 STBreakAwayRewards::STBreakAwayRewards()
+{
+    clear();
+}

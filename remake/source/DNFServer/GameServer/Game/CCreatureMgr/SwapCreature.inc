@@ -1,3 +1,13 @@
+// ORIG _ZN13user_creature12CCreatureMgr12SwapCreatureEP10Inven_ItemiiS2_ii
+// T 0x08339420：双物品含宠物装备(类型 5)时校验槽位/换装，随后交换槽号并落库。
+// [b28d-solo-CCreatureMgr N] ndiff=14：已翻正 ①uidLow 具名 short 局部改内联实参
+// （P200 `movzwl %ax,%ebx` 直落 callee-saved）、②两处 cMyTrace 全表达式临时链
+// （P227 vararg 跨 ctor 保活）、③尾部 `if(!SwapCreatureItem(...))return false;`
+// 内联判定+早返（P194，删具名 ok 槽）。残余 14 行 = 三处实参中转寄存器名
+// （ORIG `mov X,%eax; mov %eax,disp` vs 4.4 `mov X,%edx; mov %edx,disp`；
+// N7/P274 寄存器角色差，语义全等）。188=188。ORIG 0x08339420
+// [b28d-solo-CCreatureMgr P277 试形失败] SetSlotNo receiver 加 static_cast 同类型形
+// 不改变装载序（189 条不变，仍实参先压 vs ORIG this-first）⇒ 已回滚，封 N（P75/N-G）。
 // [2026-09-11 收口判词 · P75/N-G 实参装载调度] ORIG 0x08339420（189 条）= 我方 189 条；
 //   p167 仅 D1/D2 同址别名（P93 豁免）。残余 = 4 处调用点实参装载方向互反：
 //   ① 0x8339613 SetSlotNo：ORIG this-first `mov -0x10(%ebp),%eax; mov 0x1c(%ebp),%edx;

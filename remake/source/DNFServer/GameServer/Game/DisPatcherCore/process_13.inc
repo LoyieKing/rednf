@@ -1,3 +1,15 @@
+// ORIG 0x081c4256 T _ZN21DisPatcher_LeaveParty7processEP5CUserR8MSG_BASER9ParamBase
+// param+0x4 = check_error；>0 返回 0；<0 LineFunc(0x109f,pretty,err,acc_id) 并返回其值；
+// 否则 leave_user(user,2)==1 时 param=1，随后 pvp_assault 强制移动，返回 0。
+// BLOCKED（缺依赖，ORIG 符号无还原实现）：
+//   pvp_assault::GetInstanceAssaultMgr()->ForcedMoveAtPowerWarPlace(user);
+//   - _ZN11pvp_assault11CAssaultMgr25ForcedMoveAtPowerWarPlaceEP5CUser @0x082ed672
+//     （try/catch 薄包装，转调 CAssaultPlace 同名函数）
+//   - _ZN11pvp_assault13CAssaultPlace25ForcedMoveAtPowerWarPlaceEP5CUser @0x082ed6a6
+//     （依赖未建模类 CForcedMoveCharacter）
+//   - _ZN11pvp_assault20CForcedMoveCharacter10ForcedMoveEv @0x082e567c
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
+// [b28d-solo-DisPatcherCore] 复核 AE：ORIG 59 / ours 59 insn 全等（AE 口径，重定位归一）。
 int DisPatcher_LeaveParty::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

@@ -1,3 +1,6 @@
+// ORIG 0x0811d80e：user==0 返回；item 存在（find_item）且 is_stackable → 返回
+// （仅"存在且非堆叠"继续）；m_mapA928.find(item) 命中则
+// setItemCheckFlag(user, item, map[item])。
 void CItemDictionary::setGainItemFlag(CUser* user, unsigned int item)
 {
     if (user == 0)

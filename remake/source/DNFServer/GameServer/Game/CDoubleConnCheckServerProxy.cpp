@@ -76,62 +76,19 @@ public:
 // ============================================================================
 
 #include "CDoubleConnCheckServerProxy/CDoubleConnCheckServerProxy.inc"
-    : m_ip(ip), m_port(port), m_udpHandler()
-{
-}
+
 
 #include "CDoubleConnCheckServerProxy/Init.inc"
-{
-    if (m_udpHandler.InitClientSocket() == -1)
-    {
-        LogManager::logFormat(1, "DF_DoubleConnCheckServerProxy.cpp",
-                              __FUNCTION__, 0x78,
-                              "[CDoubleConnCheckServerProxy::Init] Can\'t init udp client socket\n");
-        return false;
-    }
-    return true;
-}
+
 
 #include "CDoubleConnCheckServerProxy/SendHeartBeat.inc"
-{
-    Packet_Double_Check_Server_UDP_HeartBeat packet;
-    packet.m_connNo = 1000;
-    packet.m_channel = (unsigned char)channel;
-    packet.m_group = (unsigned char)group;
-    m_udpHandler.SendToServer((char*)&packet, 0xc,
-                              (unsigned short)m_port, m_ip.c_str());
-}
+
 
 #include "CDoubleConnCheckServerProxy/SendLogin.inc"
-                                            int group)
-{
-    Packet_DoubleCheck_UDP_Login packet;
-    packet.m_connNo = userID;
-    packet.m_userID = userID;
-    packet.m_channel = (unsigned char)channel;
-    packet.m_group = (unsigned char)group;
-    m_udpHandler.SendToServer((char*)&packet, 0x10,
-                              (unsigned short)m_port, m_ip.c_str());
-}
+
 
 #include "CDoubleConnCheckServerProxy/SendLogout.inc"
-                                             int group)
-{
-    if (userID == 0)
-    {
-        return;
-    }
-    Packet_DoubleCheck_UDP_Logout packet;
-    packet.m_connNo = userID;
-    packet.m_accId = userID;
-    packet.m_channel = (unsigned char)channel;
-    packet.m_serverGroup = (unsigned char)group;
-    m_udpHandler.SendToServer((char*)&packet, 0x10,
-                              (unsigned short)m_port, m_ip.c_str());
-}
+
 
 #include "CDoubleConnCheckServerProxy/SendPacket.inc"
-{
-    m_udpHandler.SendToServer(packet, size,
-                              (unsigned short)m_port, m_ip.c_str());
-}
+

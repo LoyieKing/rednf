@@ -1,3 +1,4 @@
+// ORIG T 0x081c6ee6：直接尾调 RequestDBInventory_forchina。
 void DisPatcher_SelectCharac::RequestDBInventory(CUser* user, MSG_CHARAC_SELECT& msg)
 
 {

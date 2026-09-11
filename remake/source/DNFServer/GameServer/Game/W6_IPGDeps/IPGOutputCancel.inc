@@ -1,3 +1,8 @@
+// ORIG T 0x081004de (0x138)。
+// [b28d-solo-W6_IPGDeps] verdict=AE（77=77）。修法：① 删 cv 具名局部，全字段走
+// `data->m_cmd.m_cancel.*` 成员链（ORIG 各点 add $0x69/0x7e/… 重算，P0/P183）；
+// ② tran 拷贝改匿名 union 视图整体赋值 `data->m_cmd.m_cancel.m_tran = *tran`
+// （TaiwanCash.h P246 双视角）⇒ 复现 ORIG 尾部 tran 指针单载 + 3 dword 连续拷贝。
 void CIPGHelper::IPGOutputCancel(CUser* user,
                                  const char* p2, const char* p3, const char* p4,
                                  const char* p5, const char* p6, const char* p7,

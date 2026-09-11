@@ -59,7 +59,6 @@ public:
     int __FindPorcess(ENUM_DEBUG_COMMAND);             // 0x0819824a
 };
 
-// [GI-ioinit L21] 本 TU 首个强外部符号定义（_GLOBAL__I_ 键名来源，P327）。
 #include "Arad_GMCommand/Init.inc"
 
 #include "Arad_GMCommand/Command_DEBUG_COMMAND_ON.inc"

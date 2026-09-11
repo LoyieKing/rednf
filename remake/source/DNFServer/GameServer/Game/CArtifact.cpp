@@ -20,55 +20,18 @@ namespace user_creature
 {
 
 #include "CArtifact/CArtifact.inc"
-{
-    Reset();   // ORIG 0x833ef0c：ctor 仅调用 Reset
-}
+
 
 #include "CArtifact/Reset.inc"
-{
-    m_pItem = 0;
-}
+
 
 #include "CArtifact/EquipArtifact.inc"
-{
-    // ORIG 0x8336f6e：无 item 空指针检查，直接取 item+2（m_addInfo/item idx）。
-    // ORIG push %ebx + `mov 0x2(%eax),%eax; mov %eax,%ebx`…`mov %ebx,0x4(%esp)`：
-    // idx 值跨 G_CDataManager call 缓存 %ebx（P0 无槽往返）⇒ P197② 语句表达式
-    // 实参形令 4.4 升格 callee-saved。
-    // P211 同型化：局部直存 CEquipItem*（O0 指针 cast 零成本），使尾 store
-    // `m_pItem = pItem` 字段/RHS 同型 ⇒ 4.4 LHS-first = ORIG 0x8336fb9 形。
-    CEquipItem* pItem = (CEquipItem*)G_CDataManager()->find_item(
-        ({ item->m_addInfo; }));
-    if (pItem == 0)
-        return false;
-    if (pItem->is_stackable())
-        return false;
-    m_pItem = pItem;
-    return true;
-}
+
 
 #include "CArtifact/GetCreatureMinimumLevel.inc"
-{
-    if (m_pItem == 0)
-        return 0;
-    if (m_pItem->is_stackable())
-        return 0;
-    return m_pItem->get_creature_minimum_level();
-}
+
 
 #include "CArtifact/GetExperienceAmount.inc"
-{
-    // [b28d-39] ORIG 0x08336fc8 帧 0x38、具名 float -0xc、返回物化槽 -0x1c；
-    // 单一具名 float 局部即精确复现（旧 2×取址 double 撑帧使返回槽 -0x2c、帧 0x48，已删）。
-    float amount;
-    if (m_pItem == 0)
-        return 0.0f;
-    if (m_pItem->is_stackable())
-        return 0.0f;
-    // ORIG 0x8336ffc：call 结果 fstps -0xc（具名局部往返）→ 尾 `mov %eax,-0x1c;
-    // flds -0x1c`（统一返回槽）。P0 槽往返 ⇒ 原码有具名 float 局部。
-    amount = m_pItem->get_experience_amount();
-    return amount;
-}
+
 
 }  // namespace user_creature

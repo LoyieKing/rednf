@@ -178,331 +178,55 @@ struct SIG_BOOSTER_GAGE_DATA
 // ============================================================================
 
 #include "CBoosterGage/inc_total_gage.inc"
-{
-    alter();
-    m_dwTotalGage += nGage;
-}
 
-// [GI-ioinit L21] 键名符号须为本 TU 首个强符号（P327）：inc_total_gage 前移，
-// D2 定义排其后（ORIG 的 D2 为头内 inline 弱符号，不参与键名）。
+
 #include "CBoosterGage/dtor_CBoosterGage.inc"
-{
-}
+
 
 #include "CBoosterGage/sub_total_gage.inc"
-{
-    alter();
-    m_dwTotalGage -= nGage;
-    if (m_dwTotalGage < 0)
-        m_dwTotalGage = 0;
-}
+
 
 #include "CBoosterGage/get_booster_point.inc"
-{
-    unsigned char cRet = 0;
-    cRet = G_CDataManager()->m_boosterGage.getBoosterPoint(dwItemIdx);
-    if (cRet == 0)
-        return 0;
-    return cRet;
-}
 
-// [b28d-solo-CBoosterGage AE] 210=210 AE（check_tu_routed clean；p167 25/25 CLEAR）。
-// 修法（N78 突破口）：①`char szPost[0x100] = {0}` 令 4.4 发 rep stos 内联（P214③）；
-// ②前置死局部 `char cPad1[1]` 把 szPost 顶到非 4 对齐槽 -0x13d（与 ORIG 同址）⇒
-// 4.4 随即发与 4.1 相同的「对齐剥离 + 主 stos + 尾 2/1 字节」慢路（P232 死局部）；
-// ③strTitle/strBody 具名变量改全表达式临时链 GetServerString(...).c_str()，复现 ORIG
-// 「strncpy 后立即 D1」的块作用域析构序；④pItem 空判改裸早返，复现 `je 尾岛; jmp body`。
-// ORIG 0x080dc6d6。
+
 #include "CBoosterGage/make_postar.inc"
-                               const char* pAgency, int nPeriod)
-{
-    // [b28d-solo-CBoosterGage] 死局部把 szPost 顶到非 4 对齐槽 -0x13d（与 ORIG 同址），
-    // 触发 4.4 `= {0}` 的对齐剥离 rep stos 慢路（P232 死局部 + N78 突破口）。
-    char cPad1[1];
-    char szPost[0x100] = {0};  // ORIG 内联 rep stos 0x100 字节（P214③/P253）
-    char szTitle[0x14];
-    strncpy(szTitle, g_ServerString_.GetServerString(0x436, NULL).c_str(), 0x14);
-    strncpy(szPost, g_ServerString_.GetServerString(0x437, NULL).c_str(), 0xff);
 
-    CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
-    if (pItem == NULL)
-        return;
-    if (pItem->IsAvatarItem())
-    {
-        int nExpireDate = 0;
-        if (nPeriod != 0 && nPeriod != 0x16d)
-            nExpireDate = GlobalData::s_systemTime_.getCurSec() + nPeriod * 0x15180;
-        WongWork::CMailBoxHelper::ReqDBSendNewAvatarMail(
-            pUser, pUser->getCurCharacNo(), item.m_addInfo, nExpireDate,
-            0, -1, pAgency, szPost, (int)strlen(szPost));
-    }
-    else if (pItem->IsCreatureItem())
-    {
-        WongWork::CMailBoxHelper::ReqDBSendNewCreatureMail(
-            pUser, pUser->getCurCharacNo(), item, szPost, (int)strlen(szPost));
-    }
-    else
-    {
-        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            szTitle, item, 0, pUser->getCurCharacNo(), szPost,
-            (int)strlen(szPost), 0, (ENUM_SERVER_GROUP)pUser->GetServerGroup(), 0, 0);
-    }
-}
 
 #include "CBoosterGage/log_booster_gage_bonus_reward.inc"
-    // [P6S3 round6 · P139 prett 轴（Main 批准，与 Q6 同轮）] ORIG 定义处 declarator
-    // 用 typedef 拼写（`_ZZ...log_booster_gage_bonus_reward...E19__PRETTY_FUNCTION__`
-    // @0x08b2af80 size=0x56 = `void CBoosterGage::log_booster_gage_bonus_reward(CUser*,
-    // const MULTIBOX_REWARD_LIST&)`；按展开形写宏会得 0x99(153) 不符）；typedef 由 Q6
-    // 落于 CBoosterGage.h:26 ⇒ 定义侧拼写同步为 typedef 名。
-    CUser* pUser, const MULTIBOX_REWARD_LIST& rewardList)
-{
-    std::string strLog;
-    strLog.clear();
-    for (std::vector<std::pair<Inven_Item, bool> >::const_iterator it = rewardList.begin();
-         it != rewardList.end(); it++)
-    {
-        std::pair<Inven_Item, bool> item = *it;
-        char szItem[0xff] = {0};
-        sprintf(szItem, "%d ", item.first.m_addInfo);
-        strLog += szItem;
-    }
-    cMyTrace(
-        __PRETTY_FUNCTION__,
-        0x7c, 0)("BOOSTER_GAGE : REWARD ITEM (%s) x 2 : CHARAC_NO (%u)",
-                 strLog.c_str(), pUser->getCurCharacNo());
-}
 
-// [b28d-solo-CBoosterGage N82] 118/118 助记符全等（NEAR）、p167 13/13 CLEAR；残余 = 槽序：
-// ORIG nSlot@-0x64（函数级标量紧接形参 spill 区）、invenItem sret@-0x5d；
-// 4.4 恒「聚合对象优先占低槽、标量分区排布」（N82附）⇒ invenItem@-0x61、nSlot@-0x24，
-// 帧两侧同为 0xa0。已试尽无旋钮：声明序交换（4.4 按首次使用序，N98 无效）、
-// int[1] 数组化、struct 包裹、内层块收窄 invenItem 作用域、死局部 char[1]
-// （仅把 nSlot 推深 4B 且破坏帧）。ORIG 0x080dcbd6。
-// [M4FreeNext15C.M4S1 round5 复扫] 新钥匙 P339（全头部声明 + 声明序按 ORIG 槽深→浅）
-// 已试并**回滚**：把 `Inven_Item invenItem;` 提到函数头 ⇒ Inven_Item 有非平凡
-// ctor，报 118→153 条（+35：多 ctor/额外帧）、NEAR→DIFF、p167 亦劣 ⇒ 立即回滚
-// （读数复原 118/118、near=1）。另核：ORIG 与本件的 nLoop@-0x14 / i@-0x10 /
-// tNow@-0xc 三槽**完全一致**，仅 nSlot 与 invenItem 两槽互换分区，非 P331
-// 「恒定常数额平移」形（两处差值 0x40 与 4 不同向）⇒ 维持 N82 封顶。
-// 语义轴复核：`G_CDataManager()->m_boosterGage.m_cMultiboxCount`（movzbl 0x877e）、
-// `eReason=0x16` 写回形参槽 0x30(%ebp)、CInventory::AddAvatarItem 十实参序
-// （-1/0/0/pAgency/eReason/0/0）、GetRemainDate(invenItem.m_addInfo2,tNow)、
-// push_back(make_pair(nSlot, GetItemSpace)) 逐字与 ORIG 相同；本件无字符串/日志。
+
 #include "CBoosterGage/AddAvatarItem.inc"
-                                bool bIsFirst, CUser* pUser, const Inven_Item& item,
-                                int nCount, bool bFlag, char cType, char cParam,
-                                const char* pAgency, eAvatarItemAddReason eReason,
-                                int& nRemainDate)
-{
-    int nSlot = 0;
-    int nLoop = 1;
-    if (bIsFirst)
-    {
-        nLoop = G_CDataManager()->m_boosterGage.m_cMultiboxCount;
-        eReason = eAvatarItemAddReason_0x16;
-    }
-    for (int i = 0; i < nLoop; ++i)
-    {
-        nSlot = pUser->getCurCharacInvenW()->AddAvatarItem(
-            item.m_addInfo, nCount, bFlag, 0, -1, pAgency, eReason, 0, 0);
-        if (nSlot == -1)
-        {
-            make_postar(pUser, item, pAgency, nCount);
-        }
-        else
-        {
-            time_t tNow = time(0);
-            Inven_Item invenItem = pUser->getCurCharacInvenR()->GetInvenSlot(2, nSlot);
-            nRemainDate = pUser->getCurCharacInvenR()->GetAvatarItemMgrR()
-                              ->GetRemainDate(invenItem.m_addInfo2, (int)tNow);
-            itemList.push_back(std::make_pair(nSlot, item.GetItemSpace()));
-        }
-    }
-    return nSlot;
-}
+
 
 #include "CBoosterGage/InsertCreatureItem.inc"
-                                     bool bIsFirst, CUser* pUser,
-                                     const Inven_Item& item, eItemAddReason eReason,
-                                     bool bLog, bool bParam, int nA, int nB,
-                                     const char* pMailTitle)
-{
-    int nSlot = 0;
-    int nLoop = 1;
-    if (bIsFirst)
-    {
-        nLoop = G_CDataManager()->m_boosterGage.m_cMultiboxCount;
-        eReason = eItemAddReason_0x3a;
-    }
-    for (int i = 0; i < nLoop; ++i)
-    {
-        nSlot = pUser->getCurCharacInvenW()->insertItemIntoInventory(
-            item, eReason, bLog, bParam);
-        if (nSlot < 0)
-        {
-            nSlot = -1;
-            make_postar(pUser, item, pMailTitle, 0);
-        }
-        else
-        {
-            pUser->getCurCharacInvenW()->GetCreatureMgrW()->InsertCreatureItem(
-                (Inven_Item*)&item, nSlot, eReason, nA, nB);
-            itemList.push_back(std::make_pair(nSlot, item.GetItemSpace()));
-        }
-    }
-    return nSlot;
-}
+
 
 #include "CBoosterGage/insertItemIntoInventory.inc"
-                                          bool bIsFirst, CUser* pUser,
-                                          const Inven_Item& item,
-                                          eItemAddReason eReason, bool bLog)
-{
-    int nSlot = 0;
-    int nLoop = 1;
-    if (bIsFirst)
-    {
-        nLoop = G_CDataManager()->m_boosterGage.m_cMultiboxCount;
-        eReason = eItemAddReason_0x3a;
-    }
-    for (int i = 0; i < nLoop; ++i)
-    {
-        nSlot = pUser->getCurCharacInvenW()->insertItemIntoInventory(
-            item, eReason, bLog, true);
-        if (nSlot < 0)
-        {
-            nSlot = -1;
-            make_postar(pUser, item, NULL, 0);
-        }
-        else
-        {
-            itemList.push_back(std::make_pair(nSlot, item.GetItemSpace()));
-        }
-    }
-    return nSlot;
-}
+
 
 #include "CBoosterGage/check_max_booster_gage.inc"
-{
-    int nRet = get_booster_point(dwItemIdx);
-    if (nRet == 0)
-        return 0;
-    if (m_dwTotalGage >= G_CDataManager()->m_boosterGage.m_cMaxBoosterGage)
-        return 1;
-    return 0;
-}
+
 
 #include "CBoosterGage/cal_booster_gage.inc"
-{
-    int nResult;
-    return 0;
-}
+
 
 #include "CBoosterGage/send_error_state_packet.inc"
-{
-    // [K7 2026-09-11 §6.5/P174] ORIG 0x080dd16c `mov %al,-0xd(%ebp)`（直落 1 字节，无归一化）
-    // + 0x080dd176 `cmpb $0x0,-0xd(%ebp); je` ⇒ 局部亦为 bool（旧 `unsigned char` 会补 setne）。
-    bool cResult = pUser->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_17)
-                       ->check_max_booster_gage(dwItemIdx);
-    int nMaxCount = 2;
-    if (cResult != 0)
-        nMaxCount = G_CDataManager()->m_boosterGage.m_cMultiboxCount * nMaxCount;
-    PacketGuard packetGuard;
-    packetGuard.put_header(1, 0xd3);
-    packetGuard.put_byte(0);
-    packetGuard.put_byte(0x13);
-    packetGuard.put_byte(nMaxCount);
-    packetGuard.finalize(true);
-    pUser->Send(packetGuard);
-}
+
 
 #include "CBoosterGage/send_data.inc"
-{
-    int nUnused;
-}
+
 
 #include "CBoosterGage/getData.inc"
-{
-    SIG_BOOSTER_GAGE_DATA* pData2 = (SIG_BOOSTER_GAGE_DATA*)pData;
-    memset(pData2, 0, sizeof(SIG_BOOSTER_GAGE_DATA));
-    pData2->m_dwBoosterGage = m_dwTotalGage;
-}
+
 
 #include "CBoosterGage/loadData.inc"
-{
-    // [b28c-11] NEAR 封顶（52/52 条）：残余 = 虚调用 callee 寄存器 %eax↔%edx
-    // 互换（`mov (%eax),%edx; …call *%edx` vs `mov (%eax),%eax; …call *%eax`），
-    // N7 族（4.4 间接 call 目标恒 %eax）。
-    _reset();
-    SIG_BOOSTER_GAGE_DATA* p = (SIG_BOOSTER_GAGE_DATA*)pData;
-    m_dwTotalGage = p->m_dwBoosterGage;
-    if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                               pUser->GetAccountLastPlayTime(),
-                               GlobalData::s_systemTime_.getCurSec()))
-    {
-        ResetDaily();
-        send_data(pUser, 0);
-    }
-    return true;
-}
+
 
 #include "CBoosterGage/ResetDaily.inc"
-{
-    alter();
-    m_dwTotalGage = 0;
-}
 
-// [b28d-solo-CBoosterGage N104] 81/80（ORIG 尾含 1 条对齐 nop ⇒ 净 80=80），p167 15/15 CLEAR、
-// 槽位集全等（guard@-0x14、pData@-0xc，bRet 走裸 register %ebx 与 ORIG 同）、逐条同构；
-// 唯一残差 = EH 段物理位置：ORIG 正常路径 `jmp` 尾岛、landing pad 居中，4.4 恒正常路径
-// fall-through 到 guard D1、pad 置尾（N104 无源码旋钮；throw() 会删 ORIG 存在的 pad）。ORIG 0x080dd340。
+
 #include "CBoosterGage/_saveData.inc"
-{
-    // [b28c-11] N 封顶（81/80）：残余 = EH 段布局——ORIG 正常路径 `jmp` 尾岛
-    // （guard D1 析构置于 +0x113 共享尾）且异常段在中间；4.4 正常路径
-    // fall-through 到 guard D1、异常段置尾（负例表「EH 双份 dtor epilogue vs
-    // merge」）。语义等价，无源码解。
-    // [M4FreeNext15C.M4S1 round5 逐块复核 · 判 N104（父泳道要求）]
-    // ① 块内容逐条全等、仅物理顺序差：两侧同为「正常尾块 = lea -0x14/mov/call
-    //    CStreamGuardD1 + mov %ebx,%eax + epilogue」与「landing pad = mov edx/esi +
-    //    lea/mov/call D1 + mov esi→eax/ebx→edx + call _Unwind_Resume」各一份，
-    //    逐条同构；ORIG 尾 +0x127 另有 1 条对齐 `nop`（净 80=80）。
-    //    ORIG `jmp +0x113`（尾岛）/ pad 居中；我方 fall-through 尾块 / pad 置尾。
-    // [P6S3 round6 · 第三轮复核 · 维持 N104] 按父泳道要求只复核不重投：n1_v 读数
-    // DIFF orig=81 our=81 gap=+0（旧判词 81/80）；逐块比对仍为「两块内容逐条同构、
-    // 仅 EH 段物理顺序差」——ORIG 0x080dd43f `jmp +0x113` 跳尾岛、landing pad 居中，
-    // 我方正常路径 fall-through 到 guard D1 尾块、pad 置尾。四数（identical/ae/
-    // near/diff）无变化。本波新钥匙（P339 声明序 / P341 共享尾 / §6.5 串）对本件
-    // 无作用面（无具名局部轴、无串缺口）⇒ N104 结论维持，不再重投入。
-    // ② 语义轴全核：串 `"BoosterGage.cpp"` + 行 `0x193` 与源码逐字一致（我方 .o
-    //    .rodata 偏移 0x90 处 `\0BoosterGage.cpp\0` 直证）；`SIG_BOOSTER_GAGE_DATA`
-    //    写入 = ORIG 0x080dd3ff `call get_acc_id; mov %eax,(%edx)` 落 **+0**
-    //    + 0x080dd40c `mov 0x8(%eax),%edx; mov %edx,0x4(%eax)` 落 **+4**（= this+8
-    //    m_dwTotalGage），我方逐条相同；memset 8B、`<<0x2d8`、`<<GetUID()`、
-    //    `MsgQueueMgr::put(DB_Q=2, guard)` 亦逐字一致 ⇒ 无语义残留。
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("BoosterGage.cpp", 0x193), true);
-    **guard << 0x2d8;
-    **guard << (int)pUser->GetUID();
-    SIG_BOOSTER_GAGE_DATA* pData = guard->GetInBuffer<SIG_BOOSTER_GAGE_DATA>();
-    register bool bRet;
-    if (pData == NULL)
-    {
-        bRet = false;
-    }
-    else
-    {
-        memset(pData, 0, sizeof(SIG_BOOSTER_GAGE_DATA));
-        pData->m_dwAccountNo = pUser->get_acc_id();
-        pData->m_dwBoosterGage = m_dwTotalGage;
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-        bRet = true;
-    }
-    return bRet;
-}
+
 
 #include "CBoosterGage/_reset.inc"
-{
-    m_dwTotalGage = 0;
-}
+

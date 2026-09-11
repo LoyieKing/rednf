@@ -1,3 +1,14 @@
+// [b14 本波·AE 归零] 三条真缺口（旧判词「N85 x87 除法 lowering 封顶」作废）：
+//  ①`(double)field` → `(float)field`：4.4 对 double 常量发 `fldl <A>`，ORIG 是
+//    `flds <A>`（float 常量）；且 `(float)unsigned int`（+0x0/+0x4/+0x42）走
+//    `mov $0,%edx; … fildll` 零扩展形、`(float)int`（+0x3a/+0x4e）走 `fildl`
+//    —— 与 ORIG 逐段同形（探针 /tmp/b14_probe2.cpp pA/pB/pC/pE）。
+//  ②elemResist(+0x10..+0x16) 与 activeResist(+0x18..) 需 `(float)(short)field`：
+//    ORIG 发 `movzwl; mov %ax,-0x1e; filds -0x1e`（16 位载入，共 5 处），直写
+//    `(float)field` 只给 32 位 `fildl`（探针 pC 复证）。
+//  ③m_hpRegen/m_mpRegen/m_hitRecovery/m_jumpPower(+0x3e/+0x40/+0x4a/+0x4c) 同为
+//    filds 形，各加 `(short)`。
+// 终态 orig=331 our=331 gap=0 ndiff=0。
 void exportCharacterStatusScript(FILE* fp, STRDCharacterStatus* st)
 {
     if (st->m_hpMax != 0)

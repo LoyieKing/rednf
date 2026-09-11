@@ -57,61 +57,15 @@ struct SigLoadEventItemView
 WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
 #endif
 
-// ----------------------------------------------------------------------------
-// EventFCCombo::GetDBHandle —— ORIG W 0x0844dc7c：
-//   return DBMgr::GetDBHandle(GlobalData::s_db_mgr, 1, 0);
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/GetDBHandle.inc"
-{
-    return GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                             (ENUM_SERVER_GROUP)0);
-}
 
-// ----------------------------------------------------------------------------
-// EventAlttle::UpdateEventAlttleInfo —— ORIG T 0x083fb530 (size 0x64)
-//   UPDATE item_check=unix_timestamp(now())
-// ----------------------------------------------------------------------------
+
 #include "WongWorkEvents_A/UpdateEventAlttleInfo.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query(
-        "upDate event_alttle_info set item_check=unix_timestamp(now()) where m_id=%s",
-        NumberToString(uid, 0));
-    db->exec(true);
-}
 
-// ----------------------------------------------------------------------------
-// EventAlttle::CheckAlreadyGetAlttleItem —— ORIG T 0x083fb472 (size 0xbd)
-// exec 成功且 get_int(item_check)!=0 → 已领(1)；否则 0。
-// ----------------------------------------------------------------------------
+
 #include "WongWorkEvents_A/CheckAlreadyGetAlttleItem.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query("seLect item_check from event_alttle_info where m_id=%s", NumberToString(uid, 0));
-    if (!db->exec(true))
-        return 0;
 
-    int check = 0;
-    // ORIG 尾段 if 块常量岛（非三目 sete 折叠）：if/return 分离形。
-    if (!db->get_int(0, check) || check == 0)
-        return 0;
-    return 1;
-}
 
-// ----------------------------------------------------------------------------
-// EventAlttle::ArrangeAlttleEventItem —— ORIG T 0x083fb595 (size 0x2ed)
-// [b28d-solo-WongWorkEvents_A] AE（推翻 b21「N 封顶」判词，188=188）：
-// ① P227/P139 错误路径改全表达式临时链 + __PRETTY_FUNCTION__（恢复
-//    NumberToString→%ebx 跨 ctor 保活 + push %ebx/sub $0xf4）；
-// ② P311 反向 struct 行数组（每列两步 `shl $4; lea -0x8(%ebp); lea; sub $K`）；
-// ③ P171/P232 补循环体内 dead 局部 `unsigned int unused = 0;`（ORIG
-//    `movl $0,-0x10(%ebp)`，把 db/outCount/row/列局部整体下移 4 槽）；
-// ④ P225 尾测 while + `if (!fetch()) break;`。
-// 取 occ_check!=0 行（limit 10），对 item_check==0 且 server_id 匹配的行收集，
-// 之后逐条 Update + InsertEventItem2EventTable(event_code=6)。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/ArrangeAlttleEventItem.inc"
 {
     const unsigned int MAX_ENTRIES = 10;   // local_24 = 10
@@ -185,82 +139,12 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
     }
 }
 
-// ----------------------------------------------------------------------------
-// EventSigong::UpdateEventSigongInfo —— ORIG T 0x083fa7a5 (size 0xe0)
-// 按 CWebEvent::GetItemType(3,itemNo)==1/2 选 item1_check/item2_check 栏。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/UpdateEventSigongInfo.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    // P17：ORIG 单读双判线性 cmp/je 链（body 后置）= 两 case switch 形。
-    switch (CWebEvent::GetItemType(3, itemNo))
-    {
-        case 1:
-            db->set_query(
-                "upDate event_sigong_info set item1_check=unix_timestamp(now()) where id=%s",
-                NumberToString(id, 0));
-            break;
-        case 2:
-            db->set_query(
-                "upDate event_sigong_info set item2_check=unix_timestamp(now()) where id=%s",
-                NumberToString(id, 0));
-            break;
-    }
-    db->exec(true);
-}
 
-// ----------------------------------------------------------------------------
-// EventSigong::CheckAlreadyGetSigongItem —— ORIG T 0x083fa69c (size 0x108)
-// [b28d-solo-WongWorkEvents_A] AE + 真语义 bug 修正：尾段极性原为
-// `(get_int() && check!=0) ? 0 : 1`（旧写反，get_int 失败误返 1）；修法 =
-// P251/P279 switch 直传（GetItemType）+ P226 语句表达式（尾段）。
-// ----------------------------------------------------------------------------
+
 #include "WongWorkEvents_A/CheckAlreadyGetSigongItem.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    // [b28d-solo-WongWorkEvents_A] P251/P279：ORIG 0x083fa6d5 无槽 cmp 链
-    // （`call; cmp $1,%eax; je; cmp $2,%eax; je; jmp`）⇒ 原码是
-    // `switch (GetItemType(...))` 直传，不是具名 int + if/else 链
-    // （具名局部令 4.4 产 `mov %eax,-N; cmpl $K,-N` 且整帧槽号漂移）。
-    switch (CWebEvent::GetItemType(3, itemNo))
-    {
-        case 1:
-            db->set_query("seLect item1_check from event_sigong_info where id=%s",
-                          NumberToString(id, 0));
-            break;
-        case 2:
-            db->set_query("seLect item2_check from event_sigong_info where id=%s",
-                          NumberToString(id, 0));
-            break;
-    }
 
-    if (!db->exec(true))
-        return 0;
 
-    int check = 0;
-    // [b28d-solo-WongWorkEvents_A] 真语义 bug 修正 + P226 条件向：
-    // ORIG 0x083fa779 `xor $1;test;jne L1`（get_int 失败→L1）+
-    // `test check;jne L2`（check!=0→L2）+ `L1:mov $1` / `L2:mov $0` +
-    // `test %al;je L4` + `mov $0` / `L4:mov $1` ⇒ 语义 =
-    // (get_int() && check!=0) ? 1 : 0；旧写 `if(!get_int) return 1;` 极性反
-    // （get_int 失败误返 1）。裸语句表达式复现 4.1 短路物化岛（4.4 对裸
-    // `!call()||…` 折直 test/je 且省尾岛）。
-    if (({ !db->get_int(0, check) || check == 0; }))
-        return 0;
-    return 1;
-}
-
-// ----------------------------------------------------------------------------
-// EventSigong::ArrangeSigongEventItem —— ORIG T 0x083fa855 (size 0x3a9)
-// 双栏结构：row[+8]=itemN_no、row[+6]=serverN、row[+2]=checkN；
-// itemN 数量为常量：item1=1、item2=200（ORIG movl $0x1,-0x5c/$0xc8,-0x58，
-// SQL 未取 cnt 列）。event_code=3。
-// [b28d-solo-WongWorkEvents_A] AE：P227/P139 错误路径全表达式临时链 +
-// __PRETTY_FUNCTION__；P140 删多余守卫；P225 尾测 while/break；P311 反向
-// 「每栏独立 2 元素数组 + 独立 id」复现 disp 折叠（局部 struct 视图无效）。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/ArrangeSigongEventItem.inc"
 {
     const unsigned int MAX_ENTRIES = 10;
@@ -357,73 +241,12 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
     }
 }
 
-// ----------------------------------------------------------------------------
-// EventEverland::UpdateEventEverlandInfo —— ORIG T 0x083face3 (size 0xd4)
-// GetItemType(4,itemNo)==1 时更新 coin_check。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/UpdateEventEverlandInfo.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    // ORIG T 0x083face3：GetItemType 结果 `cmp $0x1,%eax; jne`（直比无 bool
-    // 物化）。4.4 对 `if (f()==1)` 恒产 `cmp $1; sete %al; test; je`，switch
-    // case 1 直比才复现 jne（P17：jump-table/线性 cmp 定 switch，本例单 case
-    // 即 cmp $1/jne 直落）。
-    switch (CWebEvent::GetItemType(4, itemNo))
-    {
-    case 1:
-        db->set_query(
-            "upDate event_everland_info set coin_check=unix_timestamp(now()) where id=%s",
-            NumberToString(id, 0));
-        break;
-    default:
-        break;
-    }
-    db->exec(true);
-}
 
-// ----------------------------------------------------------------------------
-// EventEverland::CheckAlreadyGetEverlandItem —— ORIG T 0x083fac0d (size 0xd5)
-// [b28d-solo-WongWorkEvents_A] AE：P286 单 case switch（GetItemType 直比
-// `cmp $1,%eax; jne`）+ P226 语句表达式（尾段短路物化岛）。
-// ----------------------------------------------------------------------------
+
 #include "WongWorkEvents_A/CheckAlreadyGetEverlandItem.inc"
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    // [b28d-solo-WongWorkEvents_A] P286：ORIG 0x083fac46 `cmp $1,%eax; jne`
-    // 直比无 bool 物化；4.4 对 `if (f()==1)` 恒 `cmp $1; sete %al; test; je`
-    // （+2 条）。单 case switch 直比即复现 ORIG（同 UpdateEventEverlandInfo）。
-    switch (CWebEvent::GetItemType(4, itemNo))
-    {
-    case 1:
-        db->set_query("seLect coin_check from event_everland_info where id=%s", NumberToString(id, 0));
-        break;
-    default:
-        break;
-    }
 
-    if (!db->exec(true))
-        return 0;
 
-    int check = 0;
-    // [b28d-solo-WongWorkEvents_A] P226 条件向：ORIG 0x083facb7 `xor $1;
-    // test;jne L1` + `test check;jne L2` + `L1:mov $1` / `L2:mov $0` +
-    // `test %al;je L4` + `mov $0` / `L4:mov $1` 为 4.1 短路 bool 物化岛；
-    // 4.4 对裸 `!call()||…` 折直 test/je 并省尾岛。裸语句表达式（无具名
-    // 变量）令 4.4 保留物化岛且零槽（P226 条件向，FCCombo/Sigong 同形）。
-    if (({ !db->get_int(0, check) || check == 0; }))
-        return 0;
-    return 1;
-}
-
-// ----------------------------------------------------------------------------
-// EventEverland::ArrangeEverlandEventItem —— ORIG T 0x083fad60 (size 0x32e)
-// SQL 无 cnt 列；item_no 恒为常量 1（ORIG movl $0x1,(%eax)）。event_code=3。
-// [b28d-solo-WongWorkEvents_A] AE：P227/P139 错误路径全表达式临时链 +
-// __PRETTY_FUNCTION__；P140 删 outCount<MAX 多余守卫；P311 反向 struct 行
-// 数组复现两步寻址；P225 尾测 while/break。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/ArrangeEverlandEventItem.inc"
 {
     const unsigned int MAX_ENTRIES = 10;
@@ -500,48 +323,12 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
     }
 }
 
-// ----------------------------------------------------------------------------
-// EventFCCombo::CheckAlreadyFCComboEventItem —— ORIG T 0x083fb883 (size 0xa5)
-// 使用自有 GetDBHandle()（同型 GlobalData::s_db_mgr, 1, 0）。
-// [b28d-solo-WongWorkEvents_A] AE：P226 条件向裸语句表达式复现 4.1 短路
-// bool 物化岛（`xor $1;test;jne` + 常量岛 + 尾 `test;je`）。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/CheckAlreadyFCComboEventItem.inc"
-{
-    MySQL* db = GetDBHandle();
-    db->set_query("seLect item_check from event_combo_entry where id=%s", NumberToString(id, 0));
-    if (!db->exec(true))
-        return 0;
 
-    int check = 0;
-    // [b28d-solo-WongWorkEvents_A] P226 条件向：ORIG 0x083fb8fd 起
-    // `xor $1;test %al;jne L1` + `test check;jne L2` + `L1:mov $1;jmp L3` +
-    // `L2:mov $0` + `L3:test %al;je L4` + `mov $0;jmp` + `L4:mov $1` 为
-    // 4.1 短路 bool 物化岛；4.4 对裸 `!call()||…` 折直 test/je。裸语句
-    // 表达式（无具名变量）令 4.4 保留该物化岛且零槽。
-    if (({ !db->get_int(0, check) || check == 0; }))
-        return 0;
-    return 1;
-}
 
-// ----------------------------------------------------------------------------
-// EventFCCombo::UpdateFCComboEventInfo —— ORIG T 0x083fb929 (size 0x4d)
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/UpdateFCComboEventInfo.inc"
-{
-    MySQL* db = GetDBHandle();
-    db->set_query("upDate event_combo_entry set item_check=unix_timestamp(now()) where id=%s",
-                  NumberToString(id, 0));
-    db->exec(true);
-}
 
-// ----------------------------------------------------------------------------
-// EventFCCombo::ArrangeFCComboEventItem —— ORIG T 0x083fb976 (size 0x2ef)
-// 6 列查询含真实 item_cnt。event_code=7。
-// [b28d-solo-WongWorkEvents_A] AE：P227/P139 错误路径全表达式临时链 +
-// __PRETTY_FUNCTION__；P140 删多余守卫；P311 反向 struct 行数组；P225 尾测
-// while/break。
-// ----------------------------------------------------------------------------
+
 #include "WongWorkEvents_A/ArrangeFCComboEventItem.inc"
 {
     const unsigned int MAX_ENTRIES = 10;
@@ -611,137 +398,11 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(SigLoadEventItemView, 0x5c);
     }
 }
 
-// ----------------------------------------------------------------------------
-// EventCommon::InsertEventItem2EventTable —— ORIG T 0x083f9b54 (size 0x127)
-// db handle idx=3；成功记录 trace 并返回 @@identity，失败返回 0。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/InsertEventItem2EventTable.inc"
-                                                     unsigned int itemId,
-                                                     unsigned int stackCount,
-                                                     unsigned int eventCode)
-{
-    // [Q8 2026-09-11 负结论] 手写串改为 `__PRETTY_FUNCTION__` **不可行**：
-    // 4.4 对**类内 static 成员**的宏输出带 `static ` 前缀（实测串 0x7e vs
-    // ORIG 0x8c5de40 的 0x77，差 7 = "static "），把 trace 日志文本改坏（语义轴）
-    // ⇒ 回滚。且本 TU 四数 1/21/0/0/0 改前改后**完全相同**（该 prett 符号不进
-    // missing_in_game 统计）⇒ 净收益 0。手写串（与 ORIG 逐字节相同）才是正确形。
-    static const char FUNC_NAME[] =
-        "unsigned int WongWork::EventCommon::InsertEventItem2EventTable("
-        "unsigned int, unsigned int, unsigned int, unsigned int)";
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query(
-        "inSert into charac_event_items(charac_no,it_id,stack_count,event_code,"
-        "reg_time) values(%d,%d,%d,%d,now())",
-        characNo, itemId, stackCount, eventCode);
-    if (!db->exec(true))
-    {
-        cMyTrace fail(FUNC_NAME, 0x25, 0);
-        fail("FAIL : insert into charac_event_items(charac_no,it_id,stack_count,"
-             "event_code,reg_time) values(%d,%d,%d,%d,now())",
-             characNo, itemId, stackCount, eventCode);
-        return 0;
-    }
 
-    cMyTrace ok(FUNC_NAME, 0x28, 0);
-    ok("SUCCESS : insert into charac_event_items(charac_no,it_id,stack_count,"
-       "event_code,reg_time) values(%d,%d,%d,%d,now())",
-       characNo, itemId, stackCount, eventCode);
-    return DBCommon::GetIdentity(db);
-}
 
-// ----------------------------------------------------------------------------
-// EventCommon::LoadCharacEventItem —— ORIG T 0x083f9c7b (size 0x2b2)
-// loadId==0 按角色取 5 条 delete_flag=0；否则按行 id 单取。
-// 组包 header 0x4b + size(-1)，SIG_LOAD_EVENTITEM 装载后投递 msgq queue 1。
-// [b28d-solo-WongWorkEvents_A] AE：P259 Acquire 内联实参（去 Stream* 具名
-// 局部槽）+ P225 尾测 while/break + P221 cMyTrace 全表达式临时链（翻互斥块
-// cMyTrace/guard 槽方向）。
-// ----------------------------------------------------------------------------
 #include "WongWorkEvents_A/LoadCharacEventItem.inc"
-                                      unsigned int characNo,
-                                      memberIdentificationNumber_t loadId)
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
-                                                  (ENUM_SERVER_GROUP)0);
-    if (loadId == 0)
-    {
-        db->set_query(
-            "seLect id,it_id,stack_count,event_code from charac_event_items "
-            "where charac_no=%d and delete_flag=0 limit %d", characNo, 5);
-    }
-    else
-    {
-        db->set_query(
-            "seLect id,it_id,stack_count,event_code from charac_event_items "
-            "where id=%s and charac_no=%d", NumberToString(loadId, 0), characNo);
-    }
 
-    if (!db->exec(true))
-    {
-        // [b28d-solo-WongWorkEvents_A] P221：ORIG cMyTrace 槽 -0x28 浅于
-        // CStreamGuard 槽 -0x30；4.4 具名声明序恒反向（cMyTrace -0x30 /
-        // guard -0x20）⇒ 改全表达式临时链翻互斥块槽方向。
-        // [Q6HeaderTypeAxis 2026-09-11 负结论·维持手写串] 已逐参核 ORIG 0x083f9d18/28/36：
-        //   prett 符号 0x8c5ddc0（size 0x7a）串 = "void WongWork::EventCommon::
-        //   LoadCharacEventItem(memberIdentificationNumber_t, unsigned int,
-        //   memberIdentificationNumber_t)"（**无 `static ` 前缀**）、line 0x37、level 5；
-        //   fmt 0x8c35d88 = "DB_LoadInventory::GetUserInven, exec ERROR charac_no=%u"
-        //   （ORIG 原样 copy-paste 遗留，勿"修正"）。
-        //   ⚠ **不可换 `__PRETTY_FUNCTION__`**：EventCommon 为 class + **static 成员**
-        //   ⇒ 4.4 宏输出带 `static ` 前缀（Q8 在同 TU `InsertEventItem2EventTable` 实测：
-        //   宏串 0x7e vs ORIG 0x77，恰差 7 = "static "）⇒ 换宏后串 0x81 ≠ ORIG 0x7a
-        //   （内容改变 = 语义轴劣化）。定义侧 typedef 拼写（.inc:1 / .cpp:663）保留仅为
-        //   与 ORIG 语义一致，对 prett 无影响（本处不用宏）。
-        cMyTrace("void WongWork::EventCommon::LoadCharacEventItem("
-                 "memberIdentificationNumber_t, unsigned int, "
-                 "memberIdentificationNumber_t)", 0x37, 5)
-            ("DB_LoadInventory::GetUserInven, exec ERROR charac_no=%u", characNo);
-        return;
-    }
-
-    // ORIG 0x083f9d60：if 条件内直接调用 get_n_rows()（第一次）；
-    // 下方 int rowCount = get_n_rows() 为第二次调用（0x083f9e09）。忠实保留。
-    if (db->get_n_rows() == 0)
-        return;
-
-    // [b28d-solo-WongWorkEvents_A] P259：ORIG 0x083f9d8f `mov %eax,0x4(%esp)`
-    // 直传 Acquire 结果，无 Stream* 具名局部（具名槽令 db/cMyTrace/guard 整体
-    // 下移 4）。内联实参复现。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBEventWork.inl", 0x3e), true);
-    (*guard.operator*()) << 0x4b;                      // msg id（operator<< int @0x80c8c56）
-    (*guard.operator*()) << -1;                        // size 占位
-
-    SigLoadEventItemView* sig =
-        reinterpret_cast<SigLoadEventItemView*>(
-            guard.operator->()->GetInBuffer<SIG_LOAD_EVENTITEM>());
-    sig->m_eventId = eventId;
-    sig->m_characNo = characNo;
-
-    int rowCount = db->get_n_rows();                   // 第二次调用（ORIG 0x083f9e09）
-    int loaded = 0;                                    // fetch 游标
-    // [b28d-solo-WongWorkEvents_A] ORIG 0x083f9e18 `movl $0,-0xc; jmp cond` +
-    // body 首 `call fetch; xor $1; test; jne exit` + cond
-    // `mov loaded; cmp rowCount; setl; test; jne body`（P225 setcc 形）⇒
-    // 尾测 while + `if (!fetch()) break;`，非 `loaded<n && fetch()` 短路
-    // （后者把 fetch 放进条件块且用 jge 直跳）。
-    while (loaded < rowCount)
-    {
-        if (!db->fetch())
-            break;
-        db->get_uint(0, sig->m_entries[loaded].m_dbId);
-        db->get_uint(1, sig->m_entries[loaded].m_itemId);
-        db->get_uint(2, sig->m_entries[loaded].m_stackCount);
-        db->get_uint(3, sig->m_entries[loaded].m_eventCode);
-        ++loaded;
-    }
-    // +0x08 = 第二次 get_n_rows()=rowCount（ORIG `mov -0x14,%edx; mov %edx,0x8`
-    // 直写本地行数，非 fetch 已装载数 loaded ── fetch 提前失败时仍写全行数，
-    // 与调用方消费口径一致；勿臆改）。
-    sig->m_itemCount = rowCount;
-
-    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
-}
 
 // ----------------------------------------------------------------------------
 // arad_parsing —— ORIG T 0x08483e98 (size 0x115)

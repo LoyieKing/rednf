@@ -1,1 +1,4 @@
 CNRDScriptData::~CNRDScriptData()
+{
+    destroy();
+}

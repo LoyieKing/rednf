@@ -1,3 +1,4 @@
+// ORIG T 0x08a358d7 _Z15importPetScriptP9PetScriptPKc。
 bool importPetScript(PetScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_petScriptBaseDirectory, path))

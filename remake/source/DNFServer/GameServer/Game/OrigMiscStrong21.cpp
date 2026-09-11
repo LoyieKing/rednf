@@ -14,14 +14,7 @@
 #include "CDataManager.h"
 
 #include "OrigMiscStrong21/getIllustIndex.inc"
-{
-    for (unsigned int i = 0; i < m_illustrationVariableNpcList.size(); ++i)
-    {
-        if (m_illustrationVariableNpcList.at(i) == npcIdx)
-            return i;
-    }
-    return -1;
-}
+
 
 // [Q6HeaderTypeAxis 2026-09-11 P342·杠杆A] 原 `#include "dtor_stOneBuff_t.inc"` + 空体
 //   已删（用户空析构解除 ⇒ stOneBuff_t 恢复 trivial）；D1/D2 由 ScriptLeafA2.cpp:297

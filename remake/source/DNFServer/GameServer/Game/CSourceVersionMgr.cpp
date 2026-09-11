@@ -17,34 +17,19 @@
 #include "CSourceVersionMgr.h"
 
 #include "CSourceVersionMgr/CSourceVersionMgr.inc"
-    : source_version_list_()
-{
-    InsertSourceVersion(".", 0x16bdc);
-    InsertSourceVersion("../ServerCommon", 0x16bdc);
-    InsertSourceVersion("../../DNFShared", 0x16bdc);
-}
+
 
 #include "CSourceVersionMgr/InsertSourceVersion.inc"
-{
-    source_version_list_.push_back(SourceVersion(source_file_name, version));
-}
+
 
 #include "CSourceVersionMgr/SourceVersion.inc"
-    : source_file_name_()
-{
-    source_file_name_ = source_file_name;
-    version_ = version;
-}
+
 
 #include "CSourceVersionMgr/SourceVersion_1.inc"
-    : source_file_name_(other.source_file_name_)
-    , version_(other.version_)
-{
-}
+
 
 #include "CSourceVersionMgr/dtor_SourceVersion.inc"
-{
-}
+
 
 CSourceVersionMgr::SourceVersion& CSourceVersionMgr::SourceVersion::operator=(
     const SourceVersion& other)

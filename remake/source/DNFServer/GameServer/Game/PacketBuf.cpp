@@ -24,809 +24,181 @@
 // ===========================================================================
 
 #include "PacketBuf/PacketBuf.inc"
-{
-    m_byte_encoding = 0;
-    clear();
-}
+
 
 #include "PacketBuf/dtor_PacketBuf.inc"
-{
-}
+
 
 // ===========================================================================
 // 绑定 / 清空
 // ===========================================================================
 
 #include "PacketBuf/bind_packet.inc"
-{
-    if (packet == NULL || size == 0)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x27c,
-                              "packet is null or size is zero");
-        return false;
-    }
 
-    clear();
-    m_ptr = packet;
-    m_size = size;
-    return true;
-}
 
 #include "PacketBuf/clear.inc"
-{
-    m_use_size = 0;
-    m_size = 0;
-    m_finalized = false;
-    m_ptr = m_buf;
-    setLastError(PACKETBUF_ERROR_NONE);
-    m_encrypt_required = true;
-    clear_ptr();
-}
+
 
 #include "PacketBuf/clear_ptr.inc"
-{
-    m_use_size = 13;
-}
+
 
 #include "PacketBuf/set_packet.inc"
-{
-    if (data == NULL || size < 1 || size > MAX_PACKET_SIZE)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x270,
-                              "!packet || size<1 || size> MAX_PACKET_SIZE");
-    }
-    else
-    {
-        clear();
-        memcpy(m_ptr, data, size);
-        m_size = size;
-    }
-}
+
 
 #include "PacketBuf/copy.inc"
-{
-    m_use_size = other.m_use_size;
-    m_size = other.m_size;
-    m_finalized = other.m_finalized;
-    m_ptr = m_buf;
-    memset(m_buf, 0, MAX_PACKET_SIZE);
-    memcpy(m_buf, other.m_buf, m_size);
-}
+
 
 // ===========================================================================
 // 写入
 // ===========================================================================
 
 #include "PacketBuf/put_header.inc"
-{
-    *m_ptr = (char)packetId;
-    *(unsigned short*)(m_ptr + 1) = (unsigned short)packetSize;
-    m_use_size = 15;
-    return true;
-}
+
 
 #include "PacketBuf/put_byte.inc"
-{
-    if (is_ptr_end(index, 1))
-    {
-        return false;
-    }
 
-    *(char*)(m_ptr + index++) = (char)value;
-    return true;
-}
 
 #include "PacketBuf/put_short.inc"
-{
-    if (is_ptr_end(index, 2))
-    {
-        return false;
-    }
 
-    switch (m_byte_encoding)
-    {
-    case 0:
-        *(char*)(m_ptr + index++) = (char)value;
-        *(char*)(m_ptr + index++) = (char)((value & 0xff00) >> 8);
-        break;
-    case 1:
-        *(char*)(m_ptr + index++) = (char)((value & 0xff00) >> 8);
-        *(char*)(m_ptr + index++) = (char)value;
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0xa6,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        return false;
-    }
-    return true;
-}
 
 #include "PacketBuf/put_int.inc"
-{
-    if (is_ptr_end(index, 4))
-    {
-        return false;
-    }
 
-    switch (m_byte_encoding)
-    {
-    case 0:
-        *(char*)(m_ptr + index++) = (char)value;
-        *(char*)(m_ptr + index++) = (char)((value & 0xff00) >> 8);
-        *(char*)(m_ptr + index++) = (char)((value & 0xff0000) >> 16);
-        *(char*)(m_ptr + index++) = (char)((unsigned int)value >> 24);
-        break;
-    case 1:
-        *(char*)(m_ptr + index++) = (char)((unsigned int)value >> 24);
-        *(char*)(m_ptr + index++) = (char)((value & 0xff0000) >> 16);
-        *(char*)(m_ptr + index++) = (char)((value & 0xff00) >> 8);
-        *(char*)(m_ptr + index++) = (char)value;
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0xc4,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        break;
-    }
-    return true;
-}
 
 #include "PacketBuf/put_binary.inc"
-{
-    if (data == NULL || len == 0)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x123,
-                              "bin is null or size is zero");
-        return false;
-    }
 
-    if (is_ptr_end(index, len))
-    {
-        return false;
-    }
-
-    for (int i = 0; i < len; i = i + 1)
-    {
-        *(char*)(m_ptr + index++) = data[i];
-    }
-    return true;
-}
 
 #include "PacketBuf/put_binary_1.inc"
-{
-    if (data == NULL || len == 0)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x138,
-                              "bin is null or size is zero");
-        return false;
-    }
 
-    if (is_ptr_end(index, len))
-    {
-        return false;
-    }
-
-    for (int i = 0; i < len; i = i + 1)
-    {
-        *(char*)(m_ptr + index++) = data[i];
-    }
-    return true;
-}
 
 #include "PacketBuf/put_str.inc"
-{
-    if (is_ptr_end(index, len))
-    {
-        return false;
-    }
 
-    for (int i = 0; i < len; i = i + 1)
-    {
-        if (str[i] == 0)
-        {
-            break;
-        }
-        *(char*)(m_ptr + index++) = str[i];
-    }
-    return true;
-}
 
 #include "PacketBuf/put_str_1.inc"
-{
-    if (is_ptr_end(index, len))
-    {
-        return false;
-    }
 
-    for (int i = 0; i < len; i = i + 1)
-    {
-        if (str[i] == 0)
-        {
-            break;
-        }
-        *(char*)(m_ptr + index++) = str[i];
-    }
-    return true;
-}
 
 // ===========================================================================
 // 读取
 // ===========================================================================
 
 #include "PacketBuf/is_ptr_end.inc"
-{
-    if (index + len > PKT_PTR_END_LIMIT)
-    {
-        setLastError(PACKETBUF_ERROR_PTR_END);
-        return true;
-    }
-    return false;
-}
+
 
 #include "PacketBuf/is_len_end.inc"
-{
-    if (m_use_size + len > m_size)
-    {
-        return true;
-    }
-    return false;
-}
+
 
 #include "PacketBuf/get_byte.inc"
-{
-    if (is_len_end(1))
-    {
-        return false;
-    }
 
-    out = m_ptr[m_use_size++];
-    return true;
-}
 
 #include "PacketBuf/get_byte_1.inc"
-{
-    if (is_len_end(1))
-    {
-        return false;
-    }
 
-    out = m_ptr[m_use_size++];
-    return true;
-}
 
 #include "PacketBuf/get_short.inc"
-{
-    if (is_len_end(2))
-    {
-        return false;
-    }
 
-    unsigned int b0 = (unsigned char)m_ptr[m_use_size++];
-    unsigned int b1 = (unsigned char)m_ptr[m_use_size++];
-
-    switch (m_byte_encoding)
-    {
-    case 0:
-        out = (short)(b1 * 0x100 + b0);
-        break;
-    case 1:
-        out = (short)(b0 * 0x100 + b1);
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x191,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        return false;
-    }
-    return true;
-}
 
 #include "PacketBuf/get_short_1.inc"
-{
-    short value = 0;
-    if (get_short(value) == false)
-    {
-        return false;
-    }
-    out = (unsigned short)value;
-    return true;
-}
+
 
 #include "PacketBuf/get_int.inc"
-{
-    if (is_len_end(4))
-    {
-        return false;
-    }
 
-    int b0 = (unsigned char)m_ptr[m_use_size++];
-    int b1 = (unsigned char)m_ptr[m_use_size++];
-    int b2 = (unsigned char)m_ptr[m_use_size++];
-    int b3 = (unsigned char)m_ptr[m_use_size++];
-
-    switch (m_byte_encoding)
-    {
-    case 0:
-        out = (b3 << 24) + (b2 << 16) + (b1 << 8) + b0;
-        break;
-    case 1:
-        out = (b0 << 24) + (b1 << 16) + (b2 << 8) + b3;
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x1b7,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        return false;
-    }
-    return true;
-}
 
 #include "PacketBuf/get_int_1.inc"
-{
-    int value = 0;
-    if (get_int(value) == false)
-    {
-        return false;
-    }
-    out = (unsigned int)value;
-    return true;
-}
+
 
 #include "PacketBuf/get_int_2.inc"
-{
-    int value = 0;
-    if (get_int(value) == false)
-    {
-        return false;
-    }
-    out = (unsigned long)value;
-    return true;
-}
+
 
 #include "PacketBuf/get_binary.inc"
-{
-    if (out == NULL || size == 0)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x21e,
-                              "o_buf == NULL || size == 0");
-        return false;
-    }
 
-    if (is_len_end(size))
-    {
-        return false;
-    }
-
-    for (int i = 0; i < size; i = i + 1)
-    {
-        out[i] = m_ptr[m_use_size++];
-    }
-    return true;
-}
 
 #include "PacketBuf/get_str.inc"
-{
-    if (out == NULL)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x1f8,
-                              "o_buf is null");
-        return false;
-    }
-    else if (len < 0 || maxLen < 0)
-    {
-        return false;
-    }
-    else if (len >= maxLen)
-    {
-        return false;
-    }
-    else
-    {
-        if (is_len_end(len))
-        {
-            return false;
-        }
-        if (len == 0)
-        {
-            return true;
-        }
 
-        int i;
-        int c;
-        for (i = 0; i < len; i = i + 1)
-        {
-            c = m_ptr[m_use_size++];
-            if (c == 0)
-            {
-                break;
-            }
-            out[i] = (char)c;
-        }
-        out[i] = 0;
-        return true;
-    }
-}
 
 // ===========================================================================
 // 收尾 / 加密 / 压缩
 // ===========================================================================
 
 #include "PacketBuf/finalize.inc"
-{
-    m_encrypt_required = isEncryptRequired;
-    _NS_PI_MakeHash_NOTI(this);
-    m_size = m_use_size;
 
-    unsigned int crc1 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
-    switch (m_byte_encoding)
-    {
-    case 0:
-        *(char*)(m_ptr + PKT_LEN_OFF) = (char)m_size;
-        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)((unsigned int)m_size >> 24);
-        break;
-    case 1:
-        *(char*)(m_ptr + PKT_LEN_OFF) = (char)((unsigned int)m_size >> 24);
-        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)m_size;
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x2c4,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        return;
-    }
-
-    if (isCompressRequired(m_ptr + PKT_SIZE_OFF))
-    {
-        if (compress_packet() != true)
-        {
-            return;
-        }
-    }
-
-    unsigned int crc2 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
-    switch (m_byte_encoding)
-    {
-    case 0:
-        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)crc1;
-        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + PKT_CRC2_OFF) = (char)crc2;
-        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = (char)((crc2 & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = (char)(crc2 >> 24);
-        break;
-    case 1:
-        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)crc1;
-        *(char*)(m_ptr + PKT_CRC2_OFF) = 0;
-        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = 0;
-        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 8);
-        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = 0;
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x2ec,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        return;
-    }
-
-    m_finalized = true;
-}
 
 #include "PacketBuf/encFinalize.inc"
-{
-    unsigned int crc1 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
-    switch (m_byte_encoding)
-    {
-    case 0:
-        *(char*)(m_ptr + PKT_LEN_OFF) = (char)m_size;
-        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)((unsigned int)m_size >> 24);
-        break;
-    case 1:
-        *(char*)(m_ptr + PKT_LEN_OFF) = (char)((unsigned int)m_size >> 24);
-        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)m_size;
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x419,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        return;
-    }
 
-    unsigned int crc2 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
-    switch (m_byte_encoding)
-    {
-    case 0:
-        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)crc1;
-        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + PKT_CRC2_OFF) = (char)crc2;
-        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = (char)((crc2 & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = (char)(crc2 >> 24);
-        break;
-    case 1:
-        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)crc1;
-        *(char*)(m_ptr + PKT_CRC2_OFF) = 0;
-        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = 0;
-        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 8);
-        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = 0;
-        break;
-    default:
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x439,
-                              "m_byte_encoding error %d", m_byte_encoding);
-        return;
-    }
-}
 
-// [b28d-solo-PacketBuf] verdict=AE（check_tu_routed clean；p167 9/9 CLEAR，129=129）。
-// 修法：①P207 显式 `operator delete[](buffer)` 消 4.4 -O0 delete[] 自带的
-// test/je 判空（ORIG 4.1 只有源码 if 的一次判空，原 delete[] 多一对 cmpl/je+jmp/nop）；
-// ②`int bufferSize` + 显式括号 `m_size + ((PKT_BODY_OFF - m_size) + bufferSize)`
-// 阻止 4.4 把 `m + (C - m)` 代数折成 `C`（探针 /tmp/probe_enc.cpp f1 折成
-// `buf+0xf` 4 条；/tmp/probe_enc4.cpp h6 保留 ORIG 的 `(0xf-m)+buf` 两段链）。
 #include "PacketBuf/encrypt_packet.inc"
-{
-    if (*m_ptr != 0 || *(unsigned short*)(m_ptr + PKT_SIZE_OFF) != 1)
-    {
-        char localBuffer[MAX_PACKET_SIZE];
-        int bufferSize;
-        int dataSize;
-        char allocated;
-        char* buffer;
 
-        allocated = 0;
-        buffer = localBuffer;
-        bufferSize = MAX_PACKET_SIZE;
-        dataSize = m_size - PKT_BODY_OFF;
-
-        G_Cipher()->AdjustDataSize(*(unsigned short*)(m_ptr + PKT_SIZE_OFF), &dataSize);
-
-        if (dataSize > MAX_PACKET_SIZE)
-        {
-            LogManager::logFormat(1, "packet_buf.cpp",
-                                  __PRETTY_FUNCTION__, 0x302,
-                                  "Buffer overflow[Cipher] : EncryptDataSize[%d]>[%d]",
-                                  dataSize, MAX_PACKET_SIZE);
-            buffer = new char[dataSize];
-            allocated = 1;
-        }
-
-        G_Cipher()->Encrypt(*(unsigned short*)(m_ptr + PKT_SIZE_OFF),
-                            (unsigned char*)(m_ptr + PKT_BODY_OFF), m_size - PKT_BODY_OFF,
-                            (unsigned char*)buffer, &bufferSize);
-        // [b28d-solo-PacketBuf] 显式括号 + int 局部：4.4 对
-        // `m + (0xf - m) + buf` 恒代数折成 `buf + 0xf`（探针 /tmp/probe_enc.cpp
-        // f1 4 条）；加括号后保留 ORIG 的 `(0xf-m)+buf` 两段计算链
-        // （探针 /tmp/probe_enc4.cpp h6）。
-        m_size = m_size + ((PKT_BODY_OFF - m_size) + bufferSize);
-
-        if (bufferSize > 0)   // ORIG test;jle 形（signed 比较）
-        {
-            memcpy(m_ptr + PKT_BODY_OFF, buffer, bufferSize);
-        }
-
-        if (allocated && buffer != NULL)
-        {
-            // [b28d-solo-PacketBuf P207] 4.4 -O0 对 delete[] 自带 test/je 判空；
-            // ORIG 4.1 无该守卫 ⇒ 显式 operator delete[] 调用复现单次判空直落。
-            operator delete[](buffer);
-        }
-    }
-    else
-    {
-        unsigned int size = 0;
-        Encryption::Encrypt(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF, size);
-    }
-}
 
 #include "PacketBuf/compress_packet.inc"
-{
-    static Mutex compressed_buffer_mutex;
-    static char compressed_buffer[MAX_PACKET_SIZE];
 
-    int ret;
-    unsigned long compressedSize;
-    int uncompressedSize = m_size - PKT_BODY_OFF;
-    if (uncompressedSize <= 0)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x36e,
-                              "error; compress failed:unexpected message size");
-        return false;
-    }
-
-    compressedSize = uncompressedSize + 13;
-    compressed_buffer_mutex.lock();
-    ret = compress((unsigned char*)compressed_buffer, &compressedSize,
-                   (unsigned char*)(m_ptr + PKT_BODY_OFF), uncompressedSize);
-
-    if (ret != 0 || compressedSize > MAX_PACKET_SIZE - PKT_BODY_OFF)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x380,
-                              "error; compress failed:%d", ret);
-        compressed_buffer_mutex.unlock();
-        return false;
-    }
-
-    memcpy(m_ptr + PKT_BODY_OFF, compressed_buffer, compressedSize);
-    compressed_buffer_mutex.unlock();
-    m_size = (int)(compressedSize + PKT_BODY_OFF);
-    *(int*)(m_ptr + PKT_LEN_OFF) = m_size;
-    return true;
-}
 
 // ===========================================================================
 // 便捷重载 / 索引
 // ===========================================================================
 
 #include "PacketBuf/at.inc"
-{
-    return m_ptr[index];
-}
+
 
 #include "PacketBuf/getLastError.inc"
-{
-    return m_last_error;
-}
+
 
 #include "PacketBuf/setLastError.inc"
-{
-    m_last_error = error;
-}
+
 
 #include "PacketBuf/get_index.inc"
-{
-    return m_use_size;
-}
+
 
 #include "PacketBuf/set_index.inc"
-{
-    m_use_size = index;
-}
+
 
 #include "PacketBuf/get_item_idx.inc"
-{
-    return get_int(value);
-}
+
 
 #include "PacketBuf/put_item_idx.inc"
-{
-    return put_int(m_use_size, (int)value);
-}
+
 
 #include "PacketBuf/is_finallized.inc"
-{
-    return m_finalized;
-}
+
 
 #include "PacketBuf/isEncryptRequired.inc"
-{
-    return m_encrypt_required;
-}
+
 
 #include "PacketBuf/isCompressRequired.inc"
-{
-    char* q = packet;
-    if (*(unsigned short*)q == 2 || *(unsigned short*)q == 9 ||
-        *(unsigned short*)q == 0x57)
-    {
-        return true;
-    }
-    return false;
-}
+
 
 #include "PacketBuf/get_len.inc"
-{
-    if (m_finalized == false)
-    {
-        LogManager::logFormat(1, "packet_buf.cpp",
-                              __PRETTY_FUNCTION__, 0x338,
-                              "this packet is not finalized");
-        return 0;
-    }
-    return m_size;
-}
+
 
 #include "PacketBuf/get_packet.inc"
-{
-    if (size > MAX_PACKET_SIZE - 1)
-    {
-        cMyTrace ct(__FUNCTION__, 0x170, 5);
-        ct("[%s][%d]", __FUNCTION__, 0x170);
-    }
-    return m_ptr + size;
-}
+
 
 #include "PacketBuf/get_buf_ptr.inc"
-{
-    return get_packet(size);
-}
+
 
 #include "PacketBuf/put_str_2.inc"
-{
-    return put_str(m_use_size, str, len);
-}
+
 
 #include "PacketBuf/put_str_3.inc"
-{
-    return put_str(m_use_size, str, len);
-}
+
 
 #include "PacketBuf/put_binary_2.inc"
-{
-    return put_binary(m_use_size, data, len);
-}
+
 
 #include "PacketBuf/put_binary_3.inc"
-{
-    return put_binary(m_use_size, data, len);
-}
+
 
 #include "PacketBuf/put_byte_1.inc"
-{
-    return put_byte(m_use_size, value);
-}
+
 
 #include "PacketBuf/put_int_1.inc"
-{
-    return put_int(m_use_size, value);
-}
+
 
 #include "PacketBuf/put_short_1.inc"
-{
-    return put_short(m_use_size, value);
-}
+
 
 // ===========================================================================
 // put_packet（Inven_Item 序列化）
 // ===========================================================================
 
 #include "PacketBuf/put_packet.inc"
-{
-    // [b28d-solo-PacketBuf] 本行触发 RandomOption::put_packet_random_option<PacketBuf>
-    // 实例（ORIG 0x858e3ec）verdict=AE（p167 15/15 CLEAR，133=133）。修法落在
-    // Inven_Item.h 模板体：P235 具名数组视角 `m_fields[i]`（消 reinterpret_cast
-    // 视图的 lea 链，复现 ORIG `add 0x8(%ebp)` + `movzbl (%eax,%ecx,1)`）
-    // + P308 位域视角 `m_seedd.m_bits.m_low2`（复现 `movzbl; and $3; movzbl`）。
-    item.m_random.m_random.put_packet_random_option(*this);
 
-    if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
-        G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
-    {
-        put_byte(0);
-    }
-    else
-    {
-        put_byte(item.m_upgradeSep.GetUpgradeSeparate());
-    }
-
-    put_byte(item.m_upgradeSep.IsTradeRestriction());
-}
 
 // ===========================================================================
 // _NS_PI_MakeHash_NOTI（ORIG 0x82746f3 T）
@@ -841,52 +213,7 @@
 //    （`xor $0x1,%eax; test %al,%al` ⇒ 返回类型为窄类型 + 显式 ==1 比较）。
 // ===========================================================================
 
-// 权威定义 GameSecurity.cpp（ORIG T 0x0808c8b5，属主 C28L22 已按 Main 授权声明
-// 为 **bool**）；本 TU 的局部声明必须同步——返回类型不入 mangled 但**决定调用点
-// 归一化形**（P168a/lane14/lane7 实测：char callee ⇒ 4.4 对 `== 1` 恒产
-// `cmp $0x1,%al; sete; test; je`；bool callee ⇒ 直产 ORIG 的
-// `call; xor $0x1,%eax; test %al,%al; jne`，b28c-l23 档①）。
 #include "PacketBuf/_NS_MakeHash_.inc"
 
-// [b28c-l23 复通·推翻 b22「不可源码复现」判词] b22 的 13 形全部在 **char callee**
-// 前提下试（故恒产 `cmp $0x1,%al; sete`）。Main 已授权把 _NS_MakeHash_ 定为
-// **bool**（GameSecurity.cpp:38/185，属主 C28L22 确认；返回类型不入 mangled，
-// 本 TU 局部声明必须同步——见上）。bool callee 下 `!call()` 直产 ORIG 的
-// `call; xor $0x1,%eax; test %al,%al`（P168a① 技巧1 / lane7 实测口径）。
-// [b28d-solo-PacketBuf] verdict=AE（check_tu_routed clean；p167 4/4 CLEAR）。
-// 修法：P223 多岛——ORIG 两守卫落点不同（packet==0 的 je 落 `nop;jmp` 岛；
-// _NS_MakeHash_ 失败的 jne 落 `nop` 岛，两岛物理相邻），4.4 对裸 `return`
-// 恒 jump-thread 掉一对 `jmp+nop`。改为两条独立负条件 goto + 连续尾标签串
-// `L1:; L2:; Lend:;`（体包入内层复合块以合法跳出 scope）逐岛复现。
 #include "PacketBuf/_NS_PI_MakeHash_NOTI.inc"
-// [b28c-L23 翻案 + N(jump threading) 残余 3 行] b22 的 13 形"不可复现"判词作废：
-// 本 TU 局部声明同步为 bool callee（档①）后 `!call()` 直产 ORIG
-// `call; xor $0x1,%eax; test %al,%al; jne`（ndiff 7→3）。残 1 条 = ORIG 尾对
-// `jmp/jmp` 跳板（4.1 为 put_int 分支保留双跳板），4.4 折叠掉一条（实测 P223 的
-// goto+尾空标签形在本函数不触发，同 write_log_gain_money 判例）+ 连锁偏移。
-{
-    if (packet == 0)
-    {
-        goto L1;
-    }
-    {
-        char* base = packet->get_packet(0);
-        // ORIG：读取包首 +1 处的 ushort 字段（本函数内不使用，仅为对齐 ORIG 读取行为）
-        unsigned short headerField = *(unsigned short*)(base + PKT_SIZE_OFF);
-        char* region = base + PKT_BODY_OFF;
-        short idx = packet->get_index() - PKT_BODY_OFF;
-        int hash;
-        // bool callee + 裸 `!call()` ⇒ 直产 ORIG @0x08274757 的
-        // `call; xor $0x1,%eax; test %al,%al; jne`（假路径跳板）。
-        if (!_NS_MakeHash_(region, idx, hash))
-        {
-            goto L2;
-        }
-        packet->put_int(hash);
-        goto Lend;
-    }
-L1:
-L2:
-Lend:
-    ;
-}
+

@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
 unsigned int DisPatcher_LeaveParty::check_error(CUser* user, MSG_BASE& msg)
 
 {

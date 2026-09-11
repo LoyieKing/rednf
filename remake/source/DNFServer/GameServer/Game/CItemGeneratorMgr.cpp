@@ -16,8 +16,6 @@ namespace WongWork
 {
 
 #include "CItemGeneratorMgr/getGenerator.inc"
-{
-    return m_generators[type];
-}
+
 
 }  // namespace WongWork

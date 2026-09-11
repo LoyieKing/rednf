@@ -1,1 +1,3 @@
 advancealtar::ClearRewardData::~ClearRewardData()
+{
+}

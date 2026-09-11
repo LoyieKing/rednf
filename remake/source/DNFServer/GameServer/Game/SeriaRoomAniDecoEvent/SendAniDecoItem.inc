@@ -1,3 +1,13 @@
+// [b28d-solo-W8LT_EventTail] DIFF→NEAR(N7) | ORIG 0x0827b75a | P167 CLEAR（23/23）。
+// 修法①：`int index` 改直接写 `item.m_addInfo`（ORIG 0x0827b80b `mov %eax,-0x63`
+// = item@-0x65 + 0x02）⇒ 槽集/帧 0x1ac→0x19c 全对齐；②P223 多岛：守卫2/守卫4
+// 改负条件 goto + 尾标签串 `L_itemIdx:; L_index:;` ⇒ 复现 ORIG +0x231/+0x234
+// 两 nop 中继岛，148=148。残余（N 封顶）：ReqDBSendNewSystemMail 实参中
+// `GetServerGroupToPvP()`↔`strlen()` 的 callee-saved 角色互换——ORIG 4.1 分配序
+// esi(serverGroup)→edi(strlen)→ebx(characNo)，4.4.6 为 edi→esi→ebx（N109：裸 register
+// 与 asm 绑定两形均不翻；两值均无槽往返，P0 禁具名缓存，且 T5 禁为装载序改类型）。
+// [M2S6 2026-09-11 复核] 148=148，残余仍仅 N109（esi/edi 互换）+ AE；§6.5 串核：
+// game_server_msg_290（我方 .rodata 0xc5 ≡ ORIG 0x8c0647d）、_289（0xd9 ≡ 0x8c06491）逐字节同。
 void SeriaRoomAniDecoEvent::SendAniDecoItem(CUser& user)  // 0x0827b75a
 {
     // [b23S3C] ORIG 0x0827b75a 形核（P48/每用点重取）：①单例 G_CDataManager() 在

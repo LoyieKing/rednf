@@ -1,1 +1,4 @@
 GlobalScriptTutorial::~GlobalScriptTutorial()
+{
+    clearScript();
+}

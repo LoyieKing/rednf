@@ -1,3 +1,14 @@
+// ORIG 0x081dd2be T _ZN27DispatcherResetRandomOption7processEP5CUserR8MSG_BASER9ParamBase
+// （报告 DispatcherResetRandomOption/process.md ## 反编译 C 全文映射）：
+// state==3 且当前角色存在且非交易中 → CheckItemLock(1,equipSlot) → GetInvenRef(1,槽)
+// → find_item(idx) → Restrict(1,0xf)→0xd1 / 安全保护 0x26 / 选项空→0x13 /
+// rarityChoice>2→0x13 / 再铸卷轴(m_addInfo∈{0xf,0x381,0x292090f2} 且数量>0，
+// 否则 0x15) → 函数级 static CRandomOptionItemHandle → reset_option(idx,rarity,
+// choice,&item.m_random.m_random) 非零即失败回显 → cUserHistoryLog.RandomOption(3)
+// → statistc regen_cnt 同款 reset_cnt → use_item(scrollSlot,1,1)==0 失败 0x16 →
+// [b28d-29] setcc-fold + P208：ORIG sete 物化与 ushort 截断槽，4.4 直折 jne/jbe；语义集合全等  (ORIG 0x081dd2be insn 323->317)
+// SendUpdateItem×2 + SendCmdOkPacket(0x1c8)。全程错误只发包不外抛，恒返 0。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 47（ORIG 323 / ours 316），残差=P211/N18a 中转/store 序；沿用上方 b28d-29 归因，封顶。
 int DispatcherResetRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

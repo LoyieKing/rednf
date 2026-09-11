@@ -1,1 +1,3 @@
 WorldMapScript::~WorldMapScript()
+{
+}

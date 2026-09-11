@@ -31,11 +31,7 @@
 }
 
 #include "CUnixTimer/SetLastTime.inc"
-{
-    m_lastTime = GetNowTime();
-}
+
 
 #include "CUnixTimer/GetTimeInterval.inc"
-{
-    return GetNowTime() - m_lastTime;
-}
+

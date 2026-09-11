@@ -15,6 +15,3 @@
 #include "CDescending.h"
 
 #include "CDescending/operator.inc"
-{
-    return a > b;
-}

@@ -17,80 +17,37 @@
 #include "GameTypes.h"
 
 #include "CDungeonClearTracer/SetMapId.inc"
-{
-    m_mapId = v;
-}
+
 
 #include "CDungeonClearTracer/SetMaxBossCount.inc"
-{
-    m_maxBossCount = v;
-}
+
 
 #include "CDungeonClearTracer/SetKilledBossCount.inc"
-{
-    m_killedBossCount = v;
-}
+
 
 #include "CDungeonClearTracer/SetMaxMonsterCount.inc"
-{
-    m_maxMonsterCount = v;
-}
+
 
 #include "CDungeonClearTracer/SetKilledMonsterCount.inc"
-{
-    m_killedMonsterCount = v;
-}
+
 
 #include "CDungeonClearTracer/SetClearedDungeon.inc"
-{
-    m_clearedDungeon = v;
-}
+
 
 #include "CDungeonClearTracer/SetEndPoint.inc"
-{
-    m_endPoint = v;
-}
+
 
 #include "CDungeonClearTracer/IncrementKilledBossCount.inc"
-{
-    m_killedBossCount = m_killedBossCount + 1;
-}
+
 
 #include "CDungeonClearTracer/IncrementKilledMonsterCount.inc"
-{
-    m_killedMonsterCount = m_killedMonsterCount + 1;
-}
+
 
 #include "CDungeonClearTracer/IsKilledBoss.inc"
-{
-    if (m_killedBossCount > 0 && m_killedBossCount >= m_maxBossCount)
-    {
-        return true;
-    }
-    return false;
-}
+
 
 #include "CDungeonClearTracer/Reset.inc"
-{
-    m_mapId = 0;
-    m_maxBossCount = 0;
-    m_killedBossCount = 0;
-    m_maxMonsterCount = 0;
-    m_killedMonsterCount = 0;
-    m_clearedDungeon = 0;
-    m_endPoint = 0;
-}
+
 
 #include "CDungeonClearTracer/Trace.inc"
-{
-    if (IsKilledBoss())
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0x108, 0)(
-            "FUNC(%s) Map ID(%d), Boss(%d/%d), Monster(%d/%d) Cleared(%d), "
-            "End Point(%d)\n",
-            name, m_mapId, m_killedBossCount, m_maxBossCount,
-            m_killedMonsterCount, m_maxMonsterCount, m_clearedDungeon,
-            m_endPoint);
-    }
-    Reset();
-}
+

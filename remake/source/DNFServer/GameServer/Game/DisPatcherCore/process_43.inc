@@ -1,3 +1,4 @@
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 355（ORIG 481 / ours 512），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {

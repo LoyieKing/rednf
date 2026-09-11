@@ -1,3 +1,4 @@
+// ORIG T 0x080fffc0 (0x135)。
 void CIPGHelper::IPGInputPoint(CUser* user, unsigned int point, char a, char b,
                                void* callback)
 {

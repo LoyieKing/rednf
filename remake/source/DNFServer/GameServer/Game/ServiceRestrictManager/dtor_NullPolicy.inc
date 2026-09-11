@@ -1,1 +1,3 @@
 NullPolicy::~NullPolicy()
+{
+}

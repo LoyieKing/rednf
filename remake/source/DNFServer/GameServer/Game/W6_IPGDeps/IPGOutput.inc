@@ -1,3 +1,4 @@
+// ORIG T 0x0810022e (0x11f)。
 void CIPGHelper::IPGOutput(CUser* user,
                            const char* p2, const char* p3, const char* p4,
                            const char* p5, const char* p6, void* callback)
