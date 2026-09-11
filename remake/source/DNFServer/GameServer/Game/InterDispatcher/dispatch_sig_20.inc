@@ -174,10 +174,15 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_byte(online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam());
     packet.put_byte(GlobalData::s_pGMAccounts_->isGM(
                         (unsigned int)user->get_acc_id()) ? 1 : 0);
-    if (!GlobalData::s_timeGate_->isOpen())
-        packet.put_short(0);
-    else
+    // [G07 2026-09-11 · P354 反向 if-else] strict 实证：本件 ORIG 697 条**无 xor / 无 setcc**，
+    //   我方唯一 `xor $0x1,%eax` 出现在此处 —— 4.4 对 `!bool_callee()` 物化 xor
+    //   （probe /tmp/g07/probe/pol.cpp：`if(!bf()){body}` ⇒ call;xor;test;je；`if(bf()){}else{body}`
+    //   ⇒ call;test;jne 无 xor）。改为正向 if-else（两臂互换），保持语义与实参装载序不变。
+    //   ⚠ P59：分支落点随之交换，A/B 若未改善即回滚。
+    if (GlobalData::s_timeGate_->isOpen())
         packet.put_short(GlobalData::s_timeGate_->getNpcIndex());
+    else
+        packet.put_short(0);
     packet.finalize(true);
     user->Send(packet);
     user->m_field796f8 = 0;                    // ORIG 0x84c8854 Send 后清零
