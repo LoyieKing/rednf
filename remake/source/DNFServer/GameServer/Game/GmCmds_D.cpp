@@ -136,29 +136,13 @@ struct GmDHeroMissionCmdView : GmDBase
 // ---------------------------------------------------------------------------
 namespace {
 
-// ORIG 0x08c80298 "%s파일이 생성되었습니다.\n"
-const char kFileCreatedFmt[] =
-    "%s\xc6\xc4\xc0\xcf\xc0\xcc \xbb\xfd\xbc\xba\xb5\xc7\xbe\xfa\xbd\xc0"
-    "\xb4\xcf\xb4\xd9.\n";
-// ORIG 0x08c802b4 "출력할 지정드랍 리스트가 없습니다.\n"（memcpy 0x24 字节含 NUL）
-const char kNoDropList[] =
-    "\xc3\xe2\xb7\xc2\xc7\xd2 \xc1\xf6\xc1\xa4\xb5\xe5\xb6\xf8 \xb8\xae\xbd"
-    "\xba\xc6\xae\xb0\xa1 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.\n";
-// ORIG 0x08c802df "리스트 드랍\n"（memcpy 0xd 字节含 NUL）
-const char kListDrop[] = "\xb8\xae\xbd\xba\xc6\xae \xb5\xe5\xb6\xf8\n";
-// ORIG 0x08c802ec "난이도\t%d\n"
-const char kDifficultyFmt[] = "\xb3\xad\xc0\xcc\xb5\xb5\t%d\n";
-// ORIG 0x08c802f7 "드랍율(%%)\t%f\n"（sprintf 格式 %% → 字面 %）
-const char kDropRateFmt[] = "\xb5\xe5\xb6\xf8\xc0\xb2(%%)\t%f\n";
-// ORIG 0x08c80306 "시도수\t%d\t%d\t%d\t%d\n"
-const char kTryCountFmt[] = "\xbd\xc3\xb5\xb5\xbc\xf6\t%d\t%d\t%d\t%d\n";
-// ORIG 0x08c8031a "총 드랍율(%%)\t%f\t%f\t%f\t%f\n"
-const char kTotalDropRateFmt[] =
-    "\xc3\xd1 \xb5\xe5\xb6\xf8\xc0\xb2(%%)\t%f\t%f\t%f\t%f\n";
-// ORIG 0x08c80335 "총 개수\t%d\n\n"
-const char kTotalCountFmt[] = "\xc3\xd1 \xb0\xb3\xbc\xf6\t%d\n\n";
-// ORIG 0x08c80342 "아이템 리스트\n"（memcpy 0xf 字节含 NUL）
-const char kItemList[] = "\xbe\xc6\xc0\xcc\xc5\xdb \xb8\xae\xbd\xba\xc6\xae\n";
+// [AnonLane2 2026-09-11 匿名轴] 本处 9 个 EUC-KR 串常量（kFileCreatedFmt
+// @0x08c80298 / kNoDropList @0x08c802b4 / kListDrop @0x08c802df / kDifficultyFmt
+// @0x08c802ec / kDropRateFmt @0x08c802f7 / kTryCountFmt @0x08c80306 /
+// kTotalDropRateFmt @0x08c8031a / kTotalCountFmt @0x08c80335 / kItemList
+// @0x08c80342）已删：ORIG 侧全部为匿名 .rodata（对 9 名全库零命中），我方因
+// -fkeep-static-consts 发射 game_master::(anonymous)::k* only-NEW 符号；
+// 9 处使用点内联同字节字面量（转义保 EUC-KR 原字节）。
 
 } // namespace
 
@@ -625,11 +609,13 @@ namespace {
     if (count != 0)
     {
         printClient(GetUser(), fileName, content);
-        sprintf(chatMsg, kFileCreatedFmt, fileName);
+        sprintf(chatMsg, "%s\xc6\xc4\xc0\xcf\xc0\xcc \xbb\xfd\xbc\xba\xb5\xc7\xbe\xfa\xbd\xc0"
+                         "\xb4\xcf\xb4\xd9.\n", fileName);
     }
     else
     {
-        memcpy(chatMsg, kNoDropList, 0x24);
+        memcpy(chatMsg, "\xc3\xe2\xb7\xc2\xc7\xd2 \xc1\xf6\xc1\xa4\xb5\xe5\xb6\xf8 \xb8\xae\xbd"
+                        "\xba\xc6\xae\xb0\xa1 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.\n", 0x24);
     }
     SendChatMsg(GetUser(), chatMsg);
 }
@@ -827,7 +813,7 @@ namespace {
     }
     else
     {
-        memcpy(lineBuf, kListDrop, 0xd);
+        memcpy(lineBuf, "\xb8\xae\xbd\xba\xc6\xae \xb5\xe5\xb6\xf8\n", 0xd);
         strcat(out, lineBuf);
     }
 
@@ -837,35 +823,36 @@ namespace {
         {
             continue;
         }
-        sprintf(lineBuf, kDifficultyFmt, i);
+        sprintf(lineBuf, "\xb3\xad\xc0\xcc\xb5\xb5\t%d\n", i);
         strcat(out, lineBuf);
 
         // ORIG 第一次 rate 无 float 槽（fildl/flds/fdivrp/fstpl 直落实参）⇒ 内联
         // 表达式；第二次 `fstps -0x14` 具名 float 局部供 4 次乘法（P252）。
-        sprintf(lineBuf, kDropRateFmt,
+        sprintf(lineBuf, "\xb5\xe5\xb6\xf8\xc0\xb2(%%)\t%f\n",
                 static_cast<double>(
                     static_cast<float>(drop.m_rate[i]) / 10000.0f));
         strcat(out, lineBuf);
 
-        sprintf(lineBuf, kTryCountFmt, drop.m_expect[0], drop.m_expect[1],
+        sprintf(lineBuf, "\xbd\xc3\xb5\xb5\xbc\xf6\t%d\t%d\t%d\t%d\n",
+                drop.m_expect[0], drop.m_expect[1],
                 drop.m_expect[2], drop.m_expect[3]);
         strcat(out, lineBuf);
 
         const float rate =
             static_cast<float>(drop.m_rate[i]) / 10000.0f;   // ORIG fstps -0x14
-        sprintf(lineBuf, kTotalDropRateFmt,
+        sprintf(lineBuf, "\xc3\xd1 \xb5\xe5\xb6\xf8\xc0\xb2(%%)\t%f\t%f\t%f\t%f\n",
                 static_cast<double>(static_cast<float>(drop.m_expect[0]) * rate),
                 static_cast<double>(static_cast<float>(drop.m_expect[1]) * rate),
                 static_cast<double>(static_cast<float>(drop.m_expect[2]) * rate),
                 static_cast<double>(static_cast<float>(drop.m_expect[3]) * rate));
         strcat(out, lineBuf);
 
-        sprintf(lineBuf, kTotalCountFmt, drop.m_limit);
+        sprintf(lineBuf, "\xc3\xd1 \xb0\xb3\xbc\xf6\t%d\n\n", drop.m_limit);
         strcat(out, lineBuf);
 
         if (detail)
         {
-            memcpy(lineBuf, kItemList, 0xf);
+            memcpy(lineBuf, "\xbe\xc6\xc0\xcc\xc5\xdb \xb8\xae\xbd\xba\xc6\xae\n", 0xf);
             strcat(out, lineBuf);
 
             int prevAcc = 0;                                 // -0x10

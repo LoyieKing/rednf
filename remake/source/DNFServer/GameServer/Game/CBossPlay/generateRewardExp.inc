@@ -26,7 +26,7 @@ bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
     float avatarBonus = (float)m_party->getAvatarBonus();
     float creatureBonus = (float)m_party->getCreatureBonus(user);
 
-    float serverRate = (float)CServerEvent::GetExpRate() / kPercentDivisor;
+    float serverRate = (float)CServerEvent::GetExpRate() / 100.0f;
 
     // [L5Free49to60 P0/P183] ORIG 对 dm/chScript/env/channelNo/channelType 全无槽往返：
     // get_index→%edi（08149f4c）、G_CDataManager+GetChannelScript→%esi（08149f5b）、
@@ -57,7 +57,7 @@ bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
 
     if (GlobalData::s_event_manager->GetRepeatEvent(3)->IsEventing(0))
         expDouble = (float)((CExpDoubleEvent*)
-            GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / kPercentDivisor;
+            GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / 100.0f;
 
     if (GlobalData::s_event_manager->GetRepeatEvent(0xf)->IsEventing(0))
         burningRate =
@@ -69,7 +69,7 @@ bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
         // [L5Free49to60 P0/P183] ORIG 0x0814a0e1/0x0814a0e6：GetPremiumInfo 结果
         // **直用 %eax** 压 esp（无槽往返）⇒ 原码内联链式，无 pre 具名指针。
         premiumRate =
-            (float)user->GetPremiumInfo()->GetAdvantageExpRate() / kPercentDivisor;
+            (float)user->GetPremiumInfo()->GetAdvantageExpRate() / 100.0f;
     }
 
     unsigned int total = m_party->getClearRewardBonusExp(user, clearExp, param, bonus);

@@ -366,7 +366,10 @@ case "$(basename "$src" .cpp)" in
                 # CItemList：ORIG 为 4.4.6（destroy/create_item 虚调用寄存器形态
                 # + FindGoods 迭代器槽位：4.4.6 下 identical=147 ae=675（合计 822）
                 # near 3→1，diff 保持 8；4.4.7 下合计 820）
-                exec "$C6446R" "$@" ;;
+                # [Main·2026-09-11 Round9 · 444 全量 sweep 候选] 换 4.4.4 后端：
+                # RouteC A/B（同 argv 仅换 -B）：695/1359/6/13 → **695/1362/6/10**（ae+3/diff−3，
+                # 3×DIFF→AE @ORIG 0832de18/0832dd1c/0832d15e），符号集 comm-3 零差。
+                exec "$C6444R" "$@" ;;
             *Game/STDungeonScript.cpp)
                 # STDungeonScript（Import/exportDungeonScript）：ORIG 为 4.4.6。
                 # 字节级 identical 需 4.4.6 产生与 ORIG 相同栈布局/寄存器分配。
@@ -404,6 +407,19 @@ case "$(basename "$src" .cpp)" in
                 #   ⇒ `ARAD::ARAD_CRYPT::encryptAES` 与 `ARAD::encryptAES` 两件 NEAR→AE，
                 #     零回归（其余件读数不变）。
                 exec "$C6446R" "$@" ;;
+            # [Main·2026-09-11 Round9 · 444 后端 sweep 候选（RouteC 全量四态 + 逐条 A/B 确认；
+            #  同 argv 仅换 -B cc1plus444bin/，符号集 comm-3 零差、missing 不变）]
+            #   CLeagueMatch    44/63/1/16  → 44/76/1/3   （+13 AE，13×DIFF→AE）
+            #   STEquipmentScript 710/1439/2/7 → 710/1440/2/6（+1）
+            #   TimerDispatcher 60/703/5/9  → 60/706/5/6  （+3）
+            #   CCreatureMgr    180/415/3/6 → 180/416/2/6 （+1）
+            #   （以上四条须同带 -march=i486 -mtune=generic，x87 族既有需求）
+            *Game/CLeagueMatch.cpp | *Game/STEquipmentScript.cpp | \
+            *Game/TimerDispatcher.cpp | *Game/CCreatureMgr.cpp)
+                exec "$C6444R" "$@" -march=i486 -mtune=generic ;;
+            #   CPowerManager   6/22/1/2    → 6/23/1/1    （+1；默认 447 档，无 i486 需求）
+            *Game/CPowerManager.cpp)
+                exec "$C6444R" "$@" ;;
             *Game/CUser.cpp)
                 # CUser：ORIG 为 4.4.6（构造/EH 着陆垫链、子对象寄存器形态；
                 # CUser agent 验证 c6446r 更接近，建议与 CItemList 同路由）

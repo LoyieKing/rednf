@@ -251,6 +251,11 @@ struct MonsterKillItem
 {
     char m_pad[0x10];
     int m_itemIdx;    // +0x10
+    // [AttackC 2026-09-11 尺寸修正] ORIG `_ZN9__gnu_cxx17__normal_iteratorIP15MonsterKillItem
+    //   St6vectorIS1_SaIS1_EEEppEi`（0x082b6eae 段）`lea 0x20(%eax),%ecx` ⇒ 元素 stride
+    //   **0x20**；旧定义 sizeof=0x14 使本 TU 全部 vector<MonsterKillItem> 迭代/析构步长少
+    //   0xc（越界读）。+0x10（find_item 读点）偏移不变，仅补尾 0xc 字节。
+    char m_pad14[0xc]; // +0x14..+0x1f（sizeof 0x20）
 };
 
 class QuestScript

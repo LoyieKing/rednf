@@ -42,12 +42,12 @@
 namespace
 {
 
-char const s_bfkc_pretty_kill_hell[] =
-    "void CBattle_Field::KillHellPartyGroupMonsterCnt(MapInfo&, map_monster&, bool&)";
-
-char const s_bfkc_pretty_check_blood[] =
-    "void CBattle_Field::checkKilledSpawnBloodMonsters(int)";
-
+// [AnonLane2 2026-09-11 匿名轴] 曾在此的 TU 级手写 prett 串
+// `s_bfkc_pretty_kill_hell` / `s_bfkc_pretty_check_blood` 已删：两处使用点早在
+// P139 改造中改回 __PRETTY_FUNCTION__（ORIG 局部静态
+// `_ZZN13CBattle_Field28KillHellPartyGroupMonsterCntE…E19__PRETTY_FUNCTION__`
+// @0x8c233a0 size 0x50），旧数组沦为死数据但仍发射（-fkeep-static-consts 默认开）
+// ⇒ 删除；ORIG 全库对两名零命中（.o 级 nm 复核 0）。
 // G_CDataManager()->getBlueMarbleScript() 返回 void*；ORIG 0x0830b6fa/0x0830b70d
 // 为单条 `mov 0x68(%eax)`/`mov 0x6c(%eax)` disp 读（float 系数）。取址算术
 // （char*+0x68）在 4.4 恒多一条 add ⇒ 类型化视图（P58，trivial、零符号发射）。

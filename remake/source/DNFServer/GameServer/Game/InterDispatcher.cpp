@@ -8559,7 +8559,8 @@ struct Inter_ReplyGuildInviteToInvitedPktView
 struct Inter_ReplyGuildInviteToCallerPktView
 {
     char m_pad0[0xa];  // 未消费
-    int m_a;                  // +0x0a（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
+    unsigned int m_a;         // +0x0a（P342 异型轴一次尝试：callee int ↔ 字段 unsigned 触发
+                              //   ORIG `mov %eax,%edx` 中转；S1 协议单形试）
     char m_pade[0x4];  // 未消费
     int m_12;                 // +0x12
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -9670,7 +9671,8 @@ struct Inter_ReplyJoinPowerPktView
     char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
-    int m_12;                       // +0x12
+    unsigned int m_12;              // +0x12（P342 异型轴一次尝试：callee int ↔ 字段 unsigned
+                                    //   ⇒ ORIG 084d47f4 `mov %eax,%edx` 中转；S1 单形试）
     unsigned char m_16;             // +0x16
 };
 #pragma pack(pop)
@@ -9690,9 +9692,11 @@ struct Inter_ReplyJoinPowerGuildDbByteViewI
 
 #include "InterDispatcher/dispatch_sig_131.inc"
 {
-    Inter_ReplyJoinPowerPktView* pPkt = reinterpret_cast<Inter_ReplyJoinPowerPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
+    // [P28/ORIG 084d47ef] ORIG 把 data 形参缓存（`mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`）
+    //   放在 get_state 检查**之后** ⇒ 声明与赋值同置于检查后（槽序照 ORIG）。
+    Inter_ReplyJoinPowerPktView* pPkt = reinterpret_cast<Inter_ReplyJoinPowerPktView*>(data);
 
     // [b28d-lane2] ORIG 084d47f4 段：比较为内联形（`call get_charac_no; mov -0x10(%ebp),%eax;
     // mov 0x12(%eax),%eax; cmp %eax,%edx`），logFormat 两处亦逐点重读 ⇒ 原码无 characNo
@@ -11437,36 +11441,32 @@ struct Inter_PvPChannelInfoPktView
     //   探针 /tmp/L9/G/pg2.cpp g1（前置）/g2（后置）：g2 = ORIG 形。
     //   ⚠ 本波实测**零变化**（fn_diff 95→95，指令数 142 vs ORIG 133 不变）—— 与本函数残差
     //   主体（整帧槽平移 + 循环体 base 形）耦合；保留此形（探针直证正确）不再单独回滚。
-    Inter_PvPChannelInfoPktView* pPkt = reinterpret_cast<Inter_PvPChannelInfoPktView*>(data);
+    // [P340 一试 2026-09-11] 指针局部改整型承载：ORIG pPkt 落 -0x10（与 i@-0xc 相邻的整型分区），
+    //   4.4 对指针局部另立分区（落 -0x14）⇒ 整帧差 4。整型承载同时令地址算术走整型链（P319）。
+    unsigned int pPktAddr = reinterpret_cast<unsigned int>(data);
 
     // P0/P183：ORIG 无 msg 具名槽（各用点重新 `mov 0x10(%ebp),%eax`），且地址按
     //   char* 基址 + (i+1)*0x10 + off 计算（形如 `mov 0x8(%edx,%eax,1)`），不是 int* 指针算术。
     if (user->getCurCharacR() == 0 ||                // asm 双失败归并 true
         user->getCurCharacNo() !=
-            pPkt->m_a)     // msg+0x0a 角色号
+            reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_a)  // msg+0x0a 角色号
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0xc6);
     packet.put_byte(1);
-    packet.put_int(pPkt->m_12);  // msg+0x12
-    // [K3 负结论 2026-09-11] 试删 channelCnt 具名槽改逐处重读：我方 137→138 条（+1）
-    //   ⇒ 4.4 下重读形更贵，已回滚。
-    const unsigned int channelCnt =                  // msg+0x17 频道数
-        static_cast<unsigned int>(pPkt->m_17);
-    packet.put_byte(static_cast<int>(channelCnt));
-    for (int i = 0; i < static_cast<int>(channelCnt); ++i)
+    packet.put_int(reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_12);  // msg+0x12
+    // [P0 2026-09-11 二试] ORIG 无 channelCnt 具名槽：put_byte 实参内联 + 循环条件每轮重读
+    //   m_17（`mov -0x10(%ebp),%eax; movzbl 0x17(%eax)`）⇒ 均为表达式直用（pPktAddr 槽独占 -0x14 前的 -0x10 位）。
+    packet.put_byte(static_cast<int>(reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_17));
+    for (int i = 0; i < static_cast<int>(reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_17); ++i)
     {
-        // [L9-G PATCH#3] 循环内基址 `data`（形参）→ `pPkt`（具名槽）：ORIG 每处为
-        //   `mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax; add $0x1,%edx; shl $0x4,%edx;
-        //    mov 0x8(%edx,%eax,1),%eax`（base 走 -0x10 具名槽 + SIB），我方旧形为
-        //   `mov -0xc(%ebp),%eax; shl $0x4,%eax; add 0x10(%ebp),%eax; mov (%eax),%eax`
-        //   （形参直加）。探针 /tmp/L9/G/pg2.cpp g3（形参）/g4（具名槽）：g4 复现 base 独立装载。
-        packet.put_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x8));
-        packet.put_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0xc));
-        if (*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x14) == 2)
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x10) = 4;  // 写回 4
-        packet.put_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(pPkt) + (i + 1) * 0x10 + 0x10));
+        // [L9-G PATCH#3] 循环内基址走具名槽（ORIG `mov -0x10(%ebp),%eax` + SIB `mov 0x8(%edx,%eax,1)`）。
+        packet.put_int(*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x8));
+        packet.put_int(*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0xc));
+        if (*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x14) == 2)
+            *reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x10) = 4;  // 写回 4
+        packet.put_int(*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x10));
     }
     packet.finalize(true);
     user->Send(packet);
@@ -18097,26 +18097,30 @@ struct Inter_Monitor_MegaphoneMsgHyperLinkPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=83（ORIG 0x84e5c26）：N18a 单段 regmove+P30/N4 add-vs-lea。
 #include "InterDispatcher/dispatch_sig_282.inc"
 {
-    Inter_Monitor_MegaphoneMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_Monitor_MegaphoneMsgHyperLinkPktView*>(data);
+    // [P340 一试 2026-09-11] 指针局部改整型承载：ORIG pPkt 落 -0x10（整型分区、贴槽基），
+    //   4.4 对指针局部另立分区（落 -0x14）⇒ 整帧槽平移 4（全部 34 块差异同根因）。
+    int i;                                    // [P339] 头部声明：先声明深（ORIG i 深于 pPkt）
+    unsigned int pPktAddr = reinterpret_cast<unsigned int>(data);
+#define MPKT reinterpret_cast<Inter_Monitor_MegaphoneMsgHyperLinkPktView*>(pPktAddr)
     PacketGuard packet;
     packet.put_header(0, 0x174);
     packet.put_byte(
-        (int)pPkt->m_e);
+        (int)MPKT->m_e);
     packet.put_byte(
-        (int)pPkt->m_b);
+        (int)MPKT->m_b);
     packet.put_short(
-        (int)(unsigned short)pPkt->m_c);
+        (int)(unsigned short)MPKT->m_c);
     // ORIG 0x84e5cae/0x84e5ccb：strlen 双调（put_int/put_str 各算一次，O0 不 CSE）
-    packet.put_int((int)strlen(pPkt->m_f));
-    packet.put_str(pPkt->m_f, (int)strlen(pPkt->m_f));
+    packet.put_int((int)strlen(MPKT->m_f));
+    packet.put_str(MPKT->m_f, (int)strlen(MPKT->m_f));
     // [K3 2026-09-11] P0：ORIG 两处 `movzbl 0x166(%eax),%eax; movzbl %al,%eax` 重读
     //   （无 linkLen 具名槽）⇒ 内联。
-    packet.put_int((int)(unsigned int)pPkt->m_166);
-    packet.put_str(pPkt->m_167, (int)(unsigned int)pPkt->m_166);
+    packet.put_int((int)(unsigned int)MPKT->m_166);
+    packet.put_str(MPKT->m_167, (int)(unsigned int)MPKT->m_166);
     packet.put_byte(
-        (int)pPkt->m_2d);
-    for (int i = 0;
-         i < (int)(unsigned int)pPkt->m_2d;
+        (int)MPKT->m_2d);
+    for (i = 0;
+         i < (int)(unsigned int)MPKT->m_2d;
          ++i)
     {
         packet.put_binary(data + i * 0x68 + 0x2e, 0x68);
@@ -18130,9 +18134,10 @@ struct Inter_Monitor_MegaphoneMsgHyperLinkPktView
     else
     {
         const char group =
-            pPkt->m_a;
+            MPKT->m_a;
         G_GameWorld()->send_server_group(packet, group);
     }
+#undef MPKT
     return 0;
 }
 

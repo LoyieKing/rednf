@@ -322,13 +322,9 @@ char PVPMAP_ONLY_TOURNAMENT_EXPOSURE[0x14] = {0};
 // output、0x1e55/0x1e58/0x1e5c bonus；组间未知标签记日志继续；EOF 返回 0。
 // 注意：ORIG clear() 不清 m_lottery（仅 vecGive/vecBonus），忠实保留。
 // ============================================================================
-namespace
-{
-
-const char* const kVendOutputTag = "[output]";
-const char* const kVendBonusTag = "[bonus output]";
-
-}  // namespace
+// [GiantA-R8 only-NEW 清理] 原匿名命名空间两 const（`_ZN12_GLOBAL__N_1L13kVendBonusTagE` /
+// `L14kVendOutputTagE`）ORIG 全库无同名；ORIG 0x890b444/0x890b572 实证直接用 .rodata 字面量
+// （0x8e10db6 = "[output]" / 0x8e10dbf = "[bonus output]"）⇒ 删除常量、使用点内联字面量。
 
 // [b28d-solo-InitScriptProducers_8 N] ORIG 0890b2a3：p167 CLEAR（39/39 调用点全等）；
 // clean 320/321（fresh .o 口径，ORIG 327 insns，净 1 条）。已对齐：删多余死 string
@@ -394,7 +390,7 @@ const char* const kVendBonusTag = "[bonus output]";
             }
             // P165：ORIG 0x890b444/0x890b572 为两份物理独立块（各 4 次
             // ScanInt(bool*)，槽集不同）⇒ 源内展开两份，勿用 bonus 标志参数化。
-            if (token == kVendOutputTag)
+            if (token == "[output]")
             {
                 stVendingMachineOutput_t entry;
                 for (;;)
@@ -422,7 +418,7 @@ const char* const kVendBonusTag = "[bonus output]";
                 }
                 continue;
             }
-            if (token == kVendBonusTag)
+            if (token == "[bonus output]")
             {
                 stVendingMachineOutput_t entry;
                 for (;;)

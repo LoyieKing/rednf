@@ -578,11 +578,9 @@ namespace {
 // [SymActStatus·2026-09-11 引用点闭环] 原 `kMonsterActiveStatusTags[17]`（本命名空间
 //   内拷贝）已删除 ⇒ ImportMonsterScript 的 17 项扫描改用 ORIG 真表
 //   `ACTIVESTATUS_TAG`（文件级唯一定义，ORIG 0x093f5480；ORIG 引用点 0x08a221fb）。
-#include "STMonsterScript/scanValue.inc"
-{
-    return ScanInt(static_cast<bool*>(0));     // ORIG movl $0 占位 ok 指针
-}
-
+// [GiantA-R8 only-NEW 清理] 原匿名命名空间 `int scanValue()`（`_ZN12_GLOBAL__N_19scanValueEv`，
+//   20B）ORIG 全库无同名、全 TU **零调用点**（grep 仅命中 include 行）⇒ 删除 include + 函数体
+//   （消 only-NEW 1 条；该函数仅 `return ScanInt(0)`，删除无符号发射连带）。
 }  // namespace
 
 

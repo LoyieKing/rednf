@@ -1616,10 +1616,11 @@ public:
 // ORIG _ZL14elixir_item_id（df_game_r .rodata 8×int；值 1039..1046 实证）。
 // 精灵药水道具 id 表，calc_quest_stat 的匹配键集。
 // ----------------------------------------------------------------------------
-namespace
-{
-const int elixir_item_id[8] = { 1039, 1040, 1041, 1042, 1043, 1044, 1045, 1046 };
-}
+// [AnonLane2 2026-09-11 匿名轴] 改文件级 static（P204③）：ORIG 侧该表为
+// `_ZL14elixir_item_id`（每 TU 一份 local static；df_game_r 全库 350+ 份同形，
+// 我方 AlignDeadConsts.cpp 亦以 `static const unsigned char` 对齐该名），
+// 匿名命名空间版 `_ZN12_GLOBAL__N_1L14elixir_item_idE` 为 only-NEW。
+static const int elixir_item_id[8] = { 1039, 1040, 1041, 1042, 1043, 1044, 1045, 1046 };
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x08664c50 _ZN5CUser15calc_quest_statER15_Additioal_info：

@@ -16412,6 +16412,9 @@ static_assert(sizeof(DB_ServerLoadStatView) == 0xa,
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
+    // [AttackC 2026-09-11 P340 负结论] sig（指针局部）改整型承载 ⇒ 编译产物
+    //   逐位不变（仍 72/73 ndiff 11；db/sig/len 三槽 -0x14/-0x10/-0x18 不动）
+    //   ⇒ 本件三槽重排（ORIG -0x18/-0x14/-0x10）非指针分区所致，保持 N82/N7。
     SIG_CHARACTER_OPTION* sig = stream->GetOutBuffer<SIG_CHARACTER_OPTION>();
     // ORIG 0x08430144 帧：len(0x200) 有 int 槽 -0x10（`movl $0x200,-0x10;
     // mov -0x10,%eax` blob_to_str 实参 spill）、options(-0xc) 有槽、
@@ -16436,12 +16439,12 @@ static_assert(sizeof(DB_ServerLoadStatView) == 0xa,
     char* options = db->blob_to_str(
         0, (char*)((unsigned int)sig + 4u), len);
     db->set_query("upDate charac_option set options = '%s' where charac_no= %u",
-                  options, sig->m_characNo);
+                  options, ((SIG_CHARACTER_OPTION*)sig)->m_characNo);
     if (!(db->exec(true) == 1 && db->getAffectedRowCount() != 0))
     {
         db->set_query(
             "inSert into charac_option(charac_no, options) values(%u,'%s')",
-            sig->m_characNo, options);
+            ((SIG_CHARACTER_OPTION*)sig)->m_characNo, options);
         if (db->exec(true) != 1)
             return 0;
     }
@@ -16756,6 +16759,11 @@ struct DB_PvPResultMIdView
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_10,
                                                   E_SERVER_GROUP_NONE);
+    // [AttackC 2026-09-11 P340 负结论] sig 改 `unsigned int sig = (unsigned
+    //   int)stream->GetOutBuffer<...>()` 整型承载 ⇒ 编译产物**逐位不变**
+    //   （still 74/75 ndiff 4，ours 仍 `mov -0x14(%ebp),%ecx` 先于 j/i 两条）
+    //   ⇒ 本件槽/装载序非 4.4 指针分区所致（4 个槽位本来与 ORIG 全等），
+    //   纯 4.1「索引先、base 后」vs 4.4「base 先」装载序 ⇒ N7/N82 封顶。
     Packet_PvPResult* sig = stream->GetOutBuffer<Packet_PvPResult>();
     // [L5 K5W8LTDBTask] P0：去 `v` 具名缓存（ORIG 0x084317b2 段无第二槽往返，
     // 全程 `((DB_PvPResultSchoolView*)sig)->...` 就地 cast 直读）。

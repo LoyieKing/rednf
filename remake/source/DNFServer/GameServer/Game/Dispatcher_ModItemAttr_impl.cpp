@@ -47,29 +47,12 @@
 extern int LineFunc(int line, const char* func, int errNo, unsigned int mid);
 
 
-namespace
-{
-// ---- 还原 Dispatcher_ModItemAttr::_SendResult（ORIG 0x08201938 T，独立成员函数，
-//      Dispatchers.h 类声明未含该方法，故以 TU 局部静态函数表达相同包行为）----
-//   参数：(resultType, matSlot, equipSlot) 对应 ORIG _SendResult(this,user,param_2,param_3,param_4)。
-//   包：header(1,0x54) | byte(1) | short(matSlot) | int(该槽 item.get_add_info()) |
-//       short(resultType)，随后 CUser::Send + SendUpdateItemList(1,0,equipSlot)。
-#include "Dispatcher_ModItemAttr_impl/sSendResult.inc"
-                 unsigned short matSlot, unsigned short equipSlot)
-{
-    Inven_Item item;                                           // ORIG 先 C1 默认构造
-    item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (int)matSlot);  // 再拷贝赋值
-    PacketGuard packet;
-    packet.put_header(1, 0x54);
-    packet.put_byte(1);
-    packet.put_short((int)matSlot);
-    packet.put_int(item.get_add_info());
-    packet.put_short((int)resultType);
-    packet.finalize(true);
-    user->Send(packet);
-    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, (int)equipSlot);
-}
-}  // namespace
+// [AnonLane2 2026-09-11 匿名轴] 旧匿名自由函数
+// `_ZN12_GLOBAL__N_111sSendResultEP5CUserttt`（ORIG 全库零命中，§4.1 发明符号）
+// 删除：全仓零调用点（调用侧用真实成员
+// `Dispatcher_ModItemAttr::_SendResult`，声明 Dispatchers.h:491、定义
+// Dispatchers.cpp，mangled `_ZN22Dispatcher_ModItemAttr11_SendResultEP5CUserttt`
+// 与 ORIG T 0x08201938 同名；本 .o 对其持 U 引用）⇒ 纯死代码（P154 第二类）。
 
 // b28d-36（修法 P48/P282 + N82 封顶，ORIG 0x08200b08 T size 0xcfc）：
 // P282 候选已核——ORIG vptr+0xc 虚调 4 处（0x08200f22/0x08200f39/0x082011b9/

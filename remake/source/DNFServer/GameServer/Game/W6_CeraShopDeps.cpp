@@ -68,7 +68,8 @@ namespace WongWork
 
 namespace
 {
-const int kBuyEntryStride = 0x1cf;   // MSG 条目区步长（ProcessBuyRequest imul 实证）
+// [AnonLane2 2026-09-11 匿名轴] 旧 `kBuyEntryStride = 0x1cf` 已删：全 TU（含
+// 部件 .inc）零引用死常量，ORIG 全库零命中；-fkeep-static-consts 默认开 ⇒ 删定义。
 }  // namespace
 
 // SIPGData 为 char 镜像（TaiwanCash.h）；按偏移读形。P49：-O0 下 inline helper

@@ -64,11 +64,12 @@ std::map<std::string, STEquipmentAniScript>* getMapEquipmentAniScript();  // T 0
                                   std::string& token, const char* path,
                                   int& countA, int& countB);  // T 0x089a75ea
 
-namespace
-{
-const char* kEquipmentScriptBaseDir = "Script/EquipmentScript";
-
-}  // namespace
+// [GiantA-R8 only-NEW 清理] 原匿名命名空间 const `_ZN12_GLOBAL__N_123kEquipmentScriptBaseDirE`
+// 系我方发明（ORIG 全库无同名）。ORIG 0x8991cf4 实证 `movl $0x94fab00,(%esp)` = 真名 B 段全局
+// `char g_szEquipmentScriptBaseDirectory[0x100]`（nm @0x094fab00 size 0x100，定义在我方
+// InitScriptProducers_4.cpp:198，ORIG 全库 11 处引用）⇒ 改 extern 真名引用（照抄 ORIG 语义：
+// 运行期由初始化填充的数组，非字面量）。
+extern char g_szEquipmentScriptBaseDirectory[0x100];
 
 #include "STEquipmentScript/STEquipmentStatInfo.inc"
 {
@@ -523,12 +524,12 @@ const char* kEquipmentScriptBaseDir = "Script/EquipmentScript";
     int upgType;                           // ORIG -0x1168
     char printBuf[0x200];                  // ORIG -0x1550
 
-    if (!loadRDARScriptFile(kEquipmentScriptBaseDir, path))
+    if (!loadRDARScriptFile(g_szEquipmentScriptBaseDirectory, path))
     {
         return false;
     }
     script->Clear();
-    getDirectoryPath(scanBuf, "%s%s", kEquipmentScriptBaseDir, path);
+    getDirectoryPath(scanBuf, "%s%s", g_szEquipmentScriptBaseDirectory, path);
     script->m_str664 = scanBuf;
 
     // [2026-09-10 顺序修正] ORIG 的声明点在此（idx 132..138，for 之前）；初始化

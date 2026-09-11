@@ -648,9 +648,8 @@
 namespace ARAD {
 namespace SCRIPT {
 
-namespace {
-char const* const kRDAREtcParamFile = "../localjapan/Arad_RDARScriptEtcParameter.cpp";
-}
+// [AnonLane2 2026-09-11 匿名轴] 旧 TU 级 `kRDAREtcParamFile` 已删（ORIG 全库对
+// 该名零命中，ORIG 侧仅匿名 .rodata 串），使用点内联同值字面量。
 
 // ---- SEventPeriodData -------------------------------------------------------
 // 【objdump】C1：m_eventCode/m_beginTime/m_endTime 三字段直存（无其它副作用）。
@@ -700,7 +699,7 @@ bool SEventPeriodData::operator==(SEventPeriodData const& other)
     catch (char const* tag)
     {
         LogManager::logFormat(
-            1, kRDAREtcParamFile, __FUNCTION__, 0x27,
+            1, "../localjapan/Arad_RDARScriptEtcParameter.cpp", __FUNCTION__, 0x27,
             "[ARAD SCRIPT] Load fail. AradEventPeroid.etc %s", tag);
         return false;
     }

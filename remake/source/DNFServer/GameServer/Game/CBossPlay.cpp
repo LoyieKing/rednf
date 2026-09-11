@@ -43,8 +43,8 @@ namespace WongWork
 namespace
 {
 
-const float kPercentDivisor = 100.0f;   // _DAT_08b7507c
-
+// [AnonLane2 2026-09-11 匿名轴] 旧 `kPercentDivisor = 100.0f`（ORIG 侧为匿名
+// .rodata `_DAT_08b7507c`，无符号）已删，3 处使用点内联字面量 `100.0f`。
 // CItemGenerator 虚调用已由权威头 CItemGenerator.h 提供（generateRandomItem/
 // generateSpecificItem 虚槽 +0x08/+0x0c），不再使用原始虚表跳转。
 // CEventBase 判活改经真实虚函数 IsEventing(CUser*)（vtable+0x34）；

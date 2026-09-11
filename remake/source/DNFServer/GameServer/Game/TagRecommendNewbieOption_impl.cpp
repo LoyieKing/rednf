@@ -17,6 +17,8 @@
 // 报告：/tmp/df_batches/OrigNewbie.md
 #include "TagRecommendNewbieOption.h"
 
+// [AnonLane2 2026-09-11 试形-回滚] 曾删本垫片（目标符号全局有其它定义者），
+// 但本 TU 四数 0/2/0/0/1 → 0/0/0/0/0（ae −2）⇒ 按 TU 口径回滚，判词保留。
 namespace
 {
 // 内联成员无调用点不产出符号；此处构造/析构/clear 强制实例化。

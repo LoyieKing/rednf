@@ -69,14 +69,10 @@ public:
     static void makeRequest(unsigned int accId);
 };
 
-namespace {
-
-#include "W7LinkDB/put_db_request.inc"
-{
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}
-
-}  // namespace
+// [AnonLane2 2026-09-11 匿名轴] 旧匿名 helper
+// `_ZN12_GLOBAL__N_114put_db_requestER12CStreamGuard`（ORIG 全库零命中）删除：
+// 全库（本 TU 的 7 个 makeRequest.inc + 其它 TU）**零调用点**，属 P154 死函数；
+// 本 TU 的 7 个 makeRequest 强符号（T）由各自 .inc 定义发射，不受影响。
 
 // ----------------------------------------------------------------------------
 // DB_AutoPunishedSecondUserData::makeRequest(uint accId, ull gold, uint uid, uint who)

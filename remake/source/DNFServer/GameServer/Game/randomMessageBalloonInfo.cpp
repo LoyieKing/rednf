@@ -28,6 +28,9 @@
     m_randomMessageList.reserve(10);
 }
 
+// [AnonLane2 2026-09-11 试形-回滚] 曾删本垫片：全局逐符号 verdict 全等
+// （D1 AE→NPCScript.cpp:AE），但本 TU 四数 13/30/0/0/1 → 13/29/0/0/0（ae −1）
+// ⇒ 按 TU 口径回滚，判词保留。
 // 强制实例化隐式析构（D1/D0），使 ORIG 弱符号 _ZN24randomMessageBalloonInfoD1Ev
 // 在链接期可得；函数本身为内部链接，不产生对外符号。
 namespace

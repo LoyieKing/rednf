@@ -54,7 +54,8 @@
 #include "CSystemTime.h"
 
 namespace {
-const char kAradFuncFile[] = "localjapan/Arad_Function_Set.cpp";
+// [AnonLane2 2026-09-11 匿名轴] 旧 TU 级 `kAradFuncFile` 常量已删（ORIG 全库对
+// 该名零命中；ORIG 侧仅匿名 .rodata 串），2 处使用点内联同值字面量。
 
 // ---------------------------------------------------------------------------
 // send_mail 写入目标：SIG_MAILBOX_SEND_NEW_MAIL（SigTypes.h 目前为
@@ -405,7 +406,7 @@ namespace ARAD
 #include "Arad_ItemBonus/send_mail.inc"
 {
     CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire(kAradFuncFile, 0x3a), true);
+        GlobalData::s_stream_pool->Acquire("localjapan/Arad_Function_Set.cpp", 0x3a), true);
 
     guard.operator*()->operator<<(0x80);   // 流头 type（ORIG 同槽位 int<<）
     guard.operator*()->operator<<(-1);
@@ -612,7 +613,7 @@ namespace ARAD
             // size **0x4a**（vsz 实测），≠ ORIG 0x08b9da00 size **0x43**（ORIG 串
             // `bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)`）；
             // 差 7 字节 = 类内 `static` 前缀（判据②）⇒ 本件**维持手写串**。
-            1, kAradFuncFile,
+            1, "localjapan/Arad_Function_Set.cpp",
             "bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)",
             0x187,
             "Error process Item (charac:%u, item:%u, count:%d)",

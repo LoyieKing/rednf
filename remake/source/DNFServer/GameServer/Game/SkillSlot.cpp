@@ -3607,6 +3607,9 @@ int CSkillChanger::g_nElixerAbility[9] = {8, 4, 6, 5, 7, 2, 3, 8, 9};
 }
 }
 
+// ---- [AnonLane2 2026-09-11 试形-回滚] 曾删本垫片：全局逐符号 verdict 全等
+// （C1ERKS/aSERKS AE→CUser.cpp:AE 等），但本 TU 四数 64/184/0/11/1 →
+// 64/182/0/11/0（ae −2）⇒ 按 TU 口径回滚，判词保留。
 // ---- SkillSlot 拷贝构造/赋值（ORIG W 弱符号：拷贝构造 0x086996f6 /
 // operator= 0x0869d91e，均为编译器隐式生成形态——标量逐字段 movzbl +
 // ComboSkill C1ERKS/aSERKS + 三组 _Mastered_skill[204] 逐元素循环 + 尾部标量）。

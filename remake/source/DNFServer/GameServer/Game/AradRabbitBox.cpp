@@ -11,6 +11,9 @@
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 // CRabbitBox ORIG 符号实例化 TU（头内 inline 定义，本 TU 强制发出弱符号）。
+// [AnonLane2 2026-09-11 试形-回滚] 曾删本垫片：全局符号集与逐符号 verdict
+// 全等（STStackableScript.cpp 等提供同名 W），但本 TU 四数 6/4/0/0/1 → 0/0/0/0/0
+// （identical/ae 归属转移），按「TU 四数不劣化」口径回滚，判词保留。
 #include "AradRabbitBox.h"
 
 namespace

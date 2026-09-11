@@ -54,7 +54,8 @@ namespace WongWork { struct stGenerateRefClearReward_t; }
 
 namespace {
 
-static const char kFile_DeathTower[] = "DeathTower.cpp";
+// [AnonLane2 2026-09-11 匿名轴] 旧 `kFile_DeathTower` 已删：ORIG 全库零命中，
+// ORIG 侧仅匿名 .rodata 串，3 处使用点内联同值字面量 `"DeathTower.cpp"`。
 // [N3 2026-09-11 P139] ORIG 该 TU 发射局部静态
 //   `_ZZN8WongWork11CDeathTower9CPlayData17generateRewardExpEiijP6CPartyRNS0_11CDungeonMgrEE19__PRETTY_FUNCTION__`
 //   @0x08c64020（size 0x7f，objdump -s 实读内容 =
@@ -422,7 +423,7 @@ namespace WongWork {
         // [M1S3EmblemLink 2026-09-11 P0] ORIG 无 logWeight 具名槽：0x084626xx 处
         //   `flds 0xc(%eax,%edx,4)` 直接内存取（G_CDataManager 后取），其前仅
         //   `mov -0x1c(%ebp),%eax`（reward）⇒ 权重表达式内联进实参。
-        LogManager::logFormat(1, kFile_DeathTower, __PRETTY_FUNCTION__, 0x2ff,
+        LogManager::logFormat(1, "DeathTower.cpp", __PRETTY_FUNCTION__, 0x2ff,
             "BLOOD_LOG : EROOR DEATHTOWER REWARD EXP(%u), LAST STAGE(%d), BASE EXP(%u), EXP WEIGHT(%f)\n",
             reward, stage, baseExp,
             (double)G_CDataManager()->m_deathTower.m_rewardExpWeight[stage]);
@@ -493,9 +494,9 @@ namespace WongWork {
 
     if (1100000 < reward)
     {
-        LogManager::logFormat(1, kFile_DeathTower, __PRETTY_FUNCTION__, 0x324,
+        LogManager::logFormat(1, "DeathTower.cpp", __PRETTY_FUNCTION__, 0x324,
             "BLOOD_LOG : EROOR DEATHTOWER CLEAR REWARD EXP(%u)\n", reward);
-        LogManager::logFormat(1, kFile_DeathTower, __PRETTY_FUNCTION__, 0x32e,
+        LogManager::logFormat(1, "DeathTower.cpp", __PRETTY_FUNCTION__, 0x32e,
             "BLOOD_LOG : DEATHTOWER EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
             (double)avatarBonus, (double)creatureBonus, (double)pcRoomRate,
             (double)expDoubleRate, (double)channelRate,
