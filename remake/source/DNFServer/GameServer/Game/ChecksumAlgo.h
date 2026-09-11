@@ -170,13 +170,16 @@ public:
     void Transform();                                    // 无参成员：消化 m_buffer[64]
     // ORIG 以下 8 个助手为**类内 inline 定义**（nm 双侧实证 W 弱符号
     // 0x080bd83e..0x080bd977）；函数名 CH 非 CHE（`_ZN4CSHA2CHEjjj` 名长 2）。
-    static unsigned int CH(unsigned int x, unsigned int y, unsigned int z)
+    // [P167 2026-09-11] 4.4 -O0 把类内 inline 小函数（CH/MAJ/SIG0/SIG1）**内联展开**
+    // （我方 Transform 198 条 0 call vs ORIG 7770B 每轮 4 call ×63）；ORIG(4.1) 发
+    // out-of-line call ⇒ 加 noinline 恢复调用形态（mangled/布局/sizeof 零影响，仍 W）。
+    static unsigned int CH(unsigned int x, unsigned int y, unsigned int z) __attribute__((noinline))
     { return (x & y) ^ (~x & z); }
-    static unsigned int MAJ(unsigned int x, unsigned int y, unsigned int z)
+    static unsigned int MAJ(unsigned int x, unsigned int y, unsigned int z) __attribute__((noinline))
     { return (x & y) ^ (x & z) ^ (y & z); }
-    static unsigned int SIG0(unsigned int x)
+    static unsigned int SIG0(unsigned int x) __attribute__((noinline))
     { return (x >> 2u | x << 30u) ^ (x >> 13u | x << 19u) ^ (x >> 22u | x << 10u); }
-    static unsigned int SIG1(unsigned int x)
+    static unsigned int SIG1(unsigned int x) __attribute__((noinline))
     { return (x >> 6u | x << 26u) ^ (x >> 11u | x << 21u) ^ (x >> 25u | x << 7u); }
     static unsigned int sig0(unsigned int x)
     { return (x >> 7u | x << 25u) ^ (x >> 18u | x << 14u) ^ (x >> 3u); }

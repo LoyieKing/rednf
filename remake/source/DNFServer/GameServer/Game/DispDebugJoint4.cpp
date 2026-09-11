@@ -104,19 +104,16 @@
     user->Send(mercenaryPacket);
 
     // +0x1d3 满装备等级追平角色等级则清零
+    // ORIG 无 CSE（0x858f1b7 test / 0x858f1d3 比较各调一次 GetCurCharacMaxEquipLevel）
+    // ⇒ 表达式直读两次，禁具名缓存（P0/P48；原 maxEquipLevel 具名局部少 1 次 call）
     bool resetMaxEquip = false;
-    int maxEquipLevel = user->GetCurCharacMaxEquipLevel();
-    if (maxEquipLevel != 0 &&
-        maxEquipLevel == user->get_charac_level())
+    if (user->GetCurCharacMaxEquipLevel() != 0 &&
+        user->get_charac_level() == user->GetCurCharacMaxEquipLevel())
     {
         resetMaxEquip = true;
     }
     if (resetMaxEquip)
         user->SetCurCharacMaxEquipLevel(0);      // +0x21c
-    // ORIG 两分支各持独立 PacketGuard 槽（-0x44/-0x50）；C++ 分支内构造无法
-    // 复刻帧布局，提升为函数级共享槽（本地缓冲，无行为差异）。
-    PacketGuard questPacket;
-
     int state = user->get_state();
     if (state == 3)
     {
@@ -127,6 +124,7 @@
                              static_cast<ENUM_NOTIPACKET>(2), 0);
         user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),
                              static_cast<ENUM_NOTIPACKET>(2), 1);
+        PacketGuard questPacket;                 // -0x44 local_48（ORIG 分支内构造）
         UserQuest* quest = user->getCurCharacQuestR();
         quest->get_quest_info(reinterpret_cast<char*>(&questPacket));
         user->Send(questPacket);
@@ -138,6 +136,7 @@
                              static_cast<ENUM_NOTIPACKET>(0x25), 0);
         user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
                              static_cast<ENUM_NOTIPACKET>(2), 1);
+        PacketGuard questPacket;                 // -0x50 local_54（ORIG 分支内构造）
         UserQuest* quest = user->getCurCharacQuestR();
         quest->get_quest_info(reinterpret_cast<char*>(&questPacket));
         user->Send(questPacket);

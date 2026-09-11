@@ -54,14 +54,10 @@ inline __attribute__((always_inline)) const T& sig_at(const void* base, int off)
 typedef std::map<unsigned int, WongWork::CMailBox::CMail*> MailMap;
 typedef std::map<int, bool> KeepMap;
 
-const int OFF_LOADED      = 0x00;  // bool 加载状态（IsLoaded/SetLoadState）
-const int OFF_LASTLOADIDX = 0x04;  // unsigned int（GetLastLoadIdx/SetLoadState 时间）
-const int OFF_NOTLOADED   = 0x08;  // int（Get/SetNotLoadedMailCount）
-const int OFF_MAILPOOL    = 0x10;  // StaticPool<CMail,20>
-const int OFF_MAILMAP     = 0x40;  // map<unsigned int, CMail*>
-const int OFF_KEEP        = 0x64;  // map<int,bool>（LetterKeepCount）
-const int OFF_LASTLETTER  = 0x7c;  // unsigned int（GetLastLoadLetterIdx）
-const int OFF_LOADCNT     = 0x80;  // int（Get/SetLoadedLetterCount）
+// [AnonLane round8 2026-09-11] 原 8 个 `OFF_*` 偏移常量已删（死代码）：
+// 本 TU 内**零使用点**（全文 grep 仅命中定义行），但 `-fkeep-static-consts`（默认开）
+// 仍发射 `_ZN12_GLOBAL__N_1L<len>OFF_*E`（我方 r 段 8 条 only-NEW，ORIG 全库无对应名）。
+// 访问点已全部改为具名成员/视图访问（§4.3 禁裸偏移），故直接删除（P154 无引用发明符号）。
 
 // b22 桥清零（P201，Model22）：原「CAvatarItemMgr.h 与 CInventory.h 镜像声明
 // 冲突」注记过时——CInventory.h:37 已改 include 权威 CAvatarItemMgr.h（本地

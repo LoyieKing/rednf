@@ -12,6 +12,10 @@
 // ============================================================================
 // [GI-ioinit L21 · P338/P327] 补 <iostream> 恢复 __ioinit ⇒ 发射
 // `_GLOBAL__I__ZN15CNPCDynamicInfo10changeMoodEb`（ORIG 0x858186e）。
+// [AnonLane round8 2026-09-11] `._199`（ORIG 在本 TU 段的 m_fav 匿名副本）编号垫开关：
+// 本 TU 私有宏 ⇒ 启用 NpcScript.h 内对应的 `#ifdef FAV_ANON_199_EXTRA` 哑匿名类型块
+// （把本 TU 的 m_fav 编号垫到 199），其它 TU 不受影响。
+#define FAV_ANON_199_EXTRA 1
 #include <iostream>
 
 
@@ -68,4 +72,16 @@
 {
     guard.put_short(m_script->getIndex());
     guard.put_byte((char)getMood());
+}
+
+// [AnonLane round8 2026-09-11] `._199` 发射点（与 GiantB `DisjointScript::._381` 同法）：
+// ORIG 的 `_ZN25stFavorableRelationShip_t5._199D1/D2Ev`（t 0x0858046c，各 sz 0x45）由**本 TU
+// 段**发射（0x0858xxxx：与 `~stFavorableRelationShip_t`@0x08581ae0、
+// `CNPCDynamicInfo::changeMood`@0x085804b2 相邻；GiantB 逐指令核出调用者即该 TU 的宿主析构
+// 0x08581d39/0x08581d42 `add $0x10,%eax; call ._199D1Ev`）。
+// `delete p` **只调析构**（不构造）⇒ 发射 D1/D2、不发 C1/C2，与 ORIG 的符号集合一致；
+// p 恒为空指针也走析构路径（符号必发）。语义/布局零影响。
+void __favAnon199ForceClear(stFavorableRelationShip_t* p)
+{
+    delete p;
 }

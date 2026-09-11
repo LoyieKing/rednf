@@ -67,22 +67,13 @@
 namespace
 {
 
-union FloatBits
-{
-    unsigned int u;
-    float f;
-};
-
-// ORIG .rodata 常量（位模式实证）：
-FloatBits kMatEpsilon = { 0x33d6bf95UL };   // DAT_08e122f4 ≈ 1e-7f（材料放大前加值）
-const float kGoldBase = 9840.0f;            // DAT_08b575b0（金币换算基数）
-const float kRoundHalf = 0.5f;              // DAT_08e122e8（截断前置）
-
-#include "CItemUpgrade_Separate/truncateToInt.inc"
-{
-    // ORIG：fnstcw/fldcw 0xc 置截断后 fistp（含 64 位变体取低 dword）。
-    return static_cast<int>(value);
-}
+// [AnonLane round8 2026-09-11] 本匿名 namespace 的 4 条 only-NEW 已清（ORIG 全库无同名符号）：
+//  · `FloatBits kMatEpsilon`（`_ZN12_GLOBAL__N_111kMatEpsilonE`，d 段）→ ORIG 侧是匿名 .rodata
+//    位模式 0x33d6bf95；实测与 `1e-7f` 的 IEEE 位模式逐位相同 ⇒ 使用点内联 `1e-7f`；
+//  · `const float kGoldBase`(9840.0f)/`kRoundHalf`(0.5f) → ORIG 匿名 .rodata
+//    （DAT_08b575b0 / DAT_08e122e8）⇒ 使用点内联字面量；
+//  · `truncateToInt`（`_ZN12_GLOBAL__N_113truncateToIntEf`，t）本 TU **零调用点**且 ORIG 无该
+//    符号（x87 fnstcw/fldcw 截断形在 ORIG 各处内联）⇒ 删定义（P154 无引用发明符号）。
 
 }  // namespace
 
@@ -185,7 +176,7 @@ namespace WongWork
                  m_statWeightsByRarity[static_cast<int>(rarity)];
     }
 
-    result += kRoundHalf;
+    result += 0.5f;
     return static_cast<int>(result);
 }
 
@@ -229,7 +220,7 @@ namespace WongWork
     // ORIG 0x08912b88：pt() 后 flds 0x10(%eax) = pair+0x10 = value+0xc = m_goldRate
     // （import 第 4 值；m_materialRate +0x10 从不被 import 写入）
     factor = it->second.m_goldRate * factor;
-    factor = kMatEpsilon.f + factor;   // ORIG 0x08912c59：flds factor 先于 flds kMatEpsilon
+    factor = 1e-7f + factor;   // ORIG 0x08912c59：flds factor 先于 flds <1e-7f 匿名常量>
 
     std::map<int, GenuineDamageUpgradeMaterialInfo>::const_iterator mit =
         m_materials.find(static_cast<int>(growth));
@@ -354,7 +345,7 @@ namespace WongWork
     // ORIG 0x0811e138：pt() 后 flds 0xc(%eax) = pair+0xc = value+0x8 = m_levelRate；
     // fistpll 64 位截断后取低 dword（ORIG 0x0811e445 + mov -0x38/-0x34）。
     const long long goldWide =
-        static_cast<long long>(kGoldBase * it->second.m_levelRate);
+        static_cast<long long>(9840.0f * it->second.m_levelRate);
     out->m_gold = static_cast<int>(goldWide);
     return true;
 }

@@ -187,7 +187,6 @@ case "$src" in
             *Game/InitScriptProducers_7.cpp | \
             *Game/InitScriptProducers_8.cpp | \
             *Game/InterDispatcher.cpp | \
-            *Game/Inter_LoadEtc_impl.cpp | \
             *Game/ItemUpgradeVtableB2.cpp | \
             *Game/LC_Misc.cpp | \
             *Game/LevelupSupportLeafC3.cpp | \
@@ -371,6 +370,31 @@ case "$(basename "$src" .cpp)" in
             *Game/STDungeonScript.cpp)
                 # STDungeonScript（Import/exportDungeonScript）：ORIG 为 4.4.6。
                 # 字节级 identical 需 4.4.6 产生与 ORIG 相同栈布局/寄存器分配。
+                exec "$C6446R" "$@" ;;
+            # [Main·2026-09-11 Round8 路由 A/B 实测 · c46h7sweep A3 次候选兑现]
+            # 7 TU：仅切 4.4.6 后端（头保持 4.4.7）⇒ 各 +1 AE（NEAR→AE）且符号集
+            # `comm -3` 逐名一致、missing 不增 ⇒ 零回归（RouteB 报告 /tmp/lane_routeB/report.md）。
+            #   CBattle_Field_KillChain 45/76/1/2 → 45/77/0/2
+            #   CMaxFatigueFactorEvent   4/12/1/1 → 4/13/0/1
+            #   CUserStatA               9/16/1/1 → 9/17/0/1
+            #   DispLinkA3               4/14/1/1 → 4/15/0/1
+            #   EventBattleLink          27/29/1/2 → 27/30/0/2
+            #   LinkClosureA_Misc        1/2/1/1  → 1/3/0/1
+            #   GameMain                 62/212/3/3 → 62/213/1/4（non-identical 6→5；
+            #     round5 曾判回退，本波源码已变后重测为净改善）
+            *Game/CBattle_Field_KillChain.cpp | \
+            *Game/CMaxFatigueFactorEvent.cpp | \
+            *Game/CUserStatA.cpp | \
+            *Game/DispLinkA3.cpp | \
+            *Game/EventBattleLink.cpp | \
+            *Game/LinkClosureA_Misc.cpp | \
+            *Game/GameMain.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/Inter_LoadEtc_impl.cpp)
+                # [Main·2026-09-11 Round8 路由 A/B] c46h7sweep 主候选②「撤头替换、留后端」：
+                # 从 H46 块移出（头保持 4.4.7）+ 切 4.4.6 cc1plus（446h47）⇒
+                # 手工两态口径 identical 66→**67**、ae 102 不变（missing .o 级 1→2，
+                # 属头/后端带出的模板实例，整库口径由收口核账覆核；劣化即回滚）。
                 exec "$C6446R" "$@" ;;
             *Game/Arad_Misc.cpp)
                 # [Main·2026-09-11 Round7 路由 A/B 实测] c46h7sweep 全量三态主候选之一，

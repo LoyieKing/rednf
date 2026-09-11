@@ -19,7 +19,8 @@
 #include <cstdio>
 #include <cstring>
 
-#include "SHA.h"   // nsl::CSHA（SHA-256，ServerLib 已还原，Signature 用）
+#include "SHA.h"   // nsl::CSHA（SHA-256，ServerLib 已还原；保留：其它 nsl 符号备用）
+#include "ChecksumAlgo.h"   // 全局 ::CSHA —— ORIG Signature 调 `_ZN4CSHA*`（非 nsl::）
 
 // ============================================================================
 // IMethod 扩展方法（G7 分组密码模式基类；ORIG @0x80b42d2 区）
@@ -602,7 +603,10 @@ const char CRijndael::sm_chain0[0x10] = {0, 0, 0, 0, 0, 0, 0, 0,
     std::sprintf(buf + len + m_keyLength, "%d%d%d%d",
                  m_blockSize, m_keyLength, m_mode, m_padding);
 
-    nsl::CSHA sha;
+    // [P167 2026-09-11] ORIG 0x80b6a9e 调全局 `_ZN4CSHA7AddDataEPKci`/`FinalDigestEPc`/
+    // `C1Ev`（ChecksumAlgo.h 的 CSHA），我方原用 nsl::CSHA ⇒ 三个符号全错（EXTRA nsl 版）。
+    // 两类均为 SHA-256 但实现/符号不同，按 ORIG 改用全局 CSHA。
+    CSHA sha;
     sha.AddData(buf, (int)std::strlen(buf));
     sha.FinalDigest(szSignature);
 }

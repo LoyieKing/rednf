@@ -1676,9 +1676,14 @@ case 0xc03:  // "[waiting motion]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            // [GiantA-R8 未翻译段补全] ORIG 08a16126..08a161ae 实证：本块声明
+            // 独立局部 string（C1Ev @08a1612f → -0x1a48）+ ScanStr(&tmp) + 
+            // isValidExtension(tmp,".ani") + 析构 ×2；原稿共享函数级 token ⇒ 缺
+            // C1Ev×1/D1Ev×2（p167 REAL MISSING）。恢复具名局部。
+            std::string aniName;
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_waitingMotion = token;  // +0x5b4
+            script->m_waitingMotion = aniName;  // +0x5b4
             break;
         }
 
@@ -1690,9 +1695,11 @@ case 0xc0f:  // "[move motion]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            // [GiantA-R8 未翻译段补全] 同 [waiting motion]：ORIG 独立局部 string 形
+            std::string aniName;
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_moveMotion = token;  // +0x5b8
+            script->m_moveMotion = aniName;  // +0x5b8
             break;
         }
 
@@ -1704,9 +1711,10 @@ case 0xc1b:  // "[sit motion]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            std::string aniName;  // [GiantA-R8] ORIG 独立局部 string 形
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_sitMotion = token;  // +0x5c8
+            script->m_sitMotion = aniName;  // +0x5c8
             break;
         }
 
@@ -1718,9 +1726,10 @@ case 0xc27:  // "[damage motion 1]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            std::string aniName;  // [GiantA-R8] ORIG 独立局部 string 形
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_damageMotion[0] = token;  // +0x5cc
+            script->m_damageMotion[0] = aniName;  // +0x5cc
             break;
         }
 
@@ -1732,9 +1741,10 @@ case 0xc33:  // "[damage motion 2]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            std::string aniName;  // [GiantA-R8] ORIG 独立局部 string 形
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_damageMotion[1] = token;  // +0x5d0
+            script->m_damageMotion[1] = aniName;  // +0x5d0
             break;
         }
 
@@ -1746,9 +1756,10 @@ case 0xc3f:  // "[down motion]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            std::string aniName;  // [GiantA-R8] ORIG 独立局部 string 形
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_downMotion = token;  // +0x5d4
+            script->m_downMotion = aniName;  // +0x5d4
             break;
         }
 
@@ -1760,9 +1771,10 @@ case 0xc4b:  // "[overturn motion]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            std::string aniName;  // [GiantA-R8] ORIG 独立局部 string 形
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_overturnMotion = token;  // +0x5d8
+            script->m_overturnMotion = aniName;  // +0x5d8
             break;
         }
 
@@ -1774,9 +1786,10 @@ case 0xc57:  // "[jump motion]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            std::string aniName;  // [GiantA-R8] ORIG 独立局部 string 形
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_jumpMotion = token;  // +0x5dc
+            script->m_jumpMotion = aniName;  // +0x5dc
             break;
         }
 
@@ -1788,9 +1801,10 @@ case 0xc63:  // "[jumpattack motion]"
         }
         else
         {
-            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+            std::string aniName;  // [GiantA-R8] ORIG 独立局部 string 形
+            if (!ScanStr(&aniName) || !isValidExtension(aniName, ".ani"))
                 return 0;
-            script->m_jumpAttackMotion = token;  // +0x5e0
+            script->m_jumpAttackMotion = aniName;  // +0x5e0
             break;
         }
 
@@ -1804,22 +1818,25 @@ case 0xc6f:  // "[attack motion]" → .ani 字符串列表
         {
         {
             script->m_attackMotions.clear();
+            // [GiantA-R8 未翻译段补全] ORIG 08a16f8e：独立局部 string（C1Ev -0x1a6c）
+            // + 独立 isStr（-0x1a6d）+ ScanTypeOrStr；原稿共享 token ⇒ 缺 C1Ev/D1Ev×2。
+            std::string motionName;
             bool isType = false;
             bool ended = false;
-            while (ScanTypeOrStr(isType, token, true))
+            while (ScanTypeOrStr(isType, motionName, true))
             {
                 if (isType)
                 {
-                    if (token == "[/attack motion]")
+                    if (motionName == "[/attack motion]")
                     {
                         ended = true;
                         break;
                     }
                     return 0;
                 }
-                if (!isValidExtension(token, ".ani"))
+                if (!isValidExtension(motionName, ".ani"))
                     return 0;
-                script->m_attackMotions.push_back(token);
+                script->m_attackMotions.push_back(motionName);
             }
             if (!ended)
                 return 0;
@@ -1837,22 +1854,23 @@ case 0xc89:  // "[etc motion]" → .ani 字符串列表
         {
         {
             script->m_etcMotions.clear();
+            std::string motionName;  // [GiantA-R8] ORIG 08a1718c 独立局部 string 形
             bool isType = false;
             bool ended = false;
-            while (ScanTypeOrStr(isType, token, true))
+            while (ScanTypeOrStr(isType, motionName, true))
             {
                 if (isType)
                 {
-                    if (token == "[/etc motion]")
+                    if (motionName == "[/etc motion]")
                     {
                         ended = true;
                         break;
                     }
                     return 0;
                 }
-                if (!isValidExtension(token, ".ani"))
+                if (!isValidExtension(motionName, ".ani"))
                     return 0;
-                script->m_etcMotions.push_back(token);
+                script->m_etcMotions.push_back(motionName);
             }
             if (!ended)
                 return 0;
@@ -2103,12 +2121,15 @@ case 0xcea:  // "[speech on situation]" → 111 个情境字符串桶
         else
         {
         {
+            // [GiantA-R8 未翻译段补全] ORIG 08a17c63：本块独立局部 string（C1Ev -0x1a7c）
+            // + for(<=0x6e) clear + 双 ScanStr 循环 + push_back(str)；原稿共享 token。
+            std::string speechWord;
             for (int i = 0; i < 0x6f; ++i)
                 script->m_field70c[i].clear();
 
-            while (ScanStr(&token))
+            while (ScanStr(&speechWord))
             {
-                ScanStr(&token);
+                ScanStr(&speechWord);
                 const int index = ScanInt(static_cast<bool*>(0));
                 int bucket = 0;
                 int subId1;
@@ -2120,7 +2141,7 @@ case 0xcea:  // "[speech on situation]" → 111 个情境字符串桶
                     if (__inited)
                     {
                         std::map<const char*, int, less_TCHAR>::const_iterator __it =
-                            __lookup.find(token.c_str());
+                            __lookup.find(speechWord.c_str());
                         if (__it != __lookup.end())
                             subId1 = __it->second;
                         else
@@ -2241,7 +2262,7 @@ case 0xcea:  // "[speech on situation]" → 111 个情境字符串桶
                 break;
                 }
                     // ORIG 08a183c6：m_field70c[bucket]（stride 0xc）.push_back(local_str)
-                    script->m_field70c[bucket].push_back(token);
+                    script->m_field70c[bucket].push_back(speechWord);
                 }
             }
             break;
@@ -3556,18 +3577,21 @@ case 0xefb:  // "[cooltime]"（收集父 case；ORIG asm 08a1c99f / C 5530：
             //  "[/cooltime]" 结束 → push +0x114）
             {
                 STCoolTime elem;   // C1
+                // [GiantA-R8 未翻译段补全] ORIG 08a1ca19：独立局部 string（C1Ev -0x1b30）
+                // + ScanTypeOrInt(isStr, s, isInt, true) 循环；原稿共享 token。
+                std::string coolWord;
                 for (;;)
                 {
                     bool isType = false;
                     bool isInt = false;
-                    int v = ScanTypeOrInt(isType, token, isInt, true);
+                    int v = ScanTypeOrInt(isType, coolWord, isInt, true);
                     if (!isInt)
                         break;   // 读尽/EOF
                     if (isType)
                     {
-                        if (token == "[Pattern]")
+                        if (coolWord == "[Pattern]")
                             elem.m_field00 = ScanInt(&ok);
-                        else if (token == "[/cooltime]")
+                        else if (coolWord == "[/cooltime]")
                             break;
                     }
                     else
@@ -4100,37 +4124,40 @@ case 0xfde:  // "[level of difficulty]"
         {
         {
             STDifficulty difficulty;
+            // [GiantA-R8 未翻译段补全] ORIG 08a1dfe5：独立局部 string（C1Ev -0x1b60）
+            // + ScanTypeOrStr 循环；原稿共享 token ⇒ 缺 C1Ev/D1Ev×2（p167 REAL MISSING）。
+            std::string diffWord;
             bool isType = false;
-            while (ScanTypeOrStr(isType, token, true))
+            while (ScanTypeOrStr(isType, diffWord, true))
             {
                 if (!isType)
                     continue;
-                if (token == "[/level of difficulty]")
+                if (diffWord == "[/level of difficulty]")
                     break;
                 // ORIG 08a1e041/084/0c7/107/147：五个 tag 各为**独立分支**
                 // （每分支 2×ScanInt(0) 写 -0x1b5c/-0x1b58），汇合于 08a1e185 的
                 // push_back；合并条件只发 2 次 ScanInt（p167 差集 −8 的根因）
-                if (token == "[easy]")
+                if (diffWord == "[easy]")
                 {
                     difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
                     difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
                 }
-                else if (token == "[medium]")
+                else if (diffWord == "[medium]")
                 {
                     difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
                     difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
                 }
-                else if (token == "[hard]")
+                else if (diffWord == "[hard]")
                 {
                     difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
                     difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
                 }
-                else if (token == "[ultimate]")
+                else if (diffWord == "[ultimate]")
                 {
                     difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
                     difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
                 }
-                else if (token == "[hero]")
+                else if (diffWord == "[hero]")
                 {
                     difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
                     difficulty.m_field04 = ScanInt(static_cast<bool*>(0));

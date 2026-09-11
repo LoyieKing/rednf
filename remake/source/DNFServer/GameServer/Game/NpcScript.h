@@ -157,6 +157,128 @@ struct PresentResponceScriptEvent
 //   stPeriodRewardInfo C1 @0x08a00c70 / D1 @0x085819e4、stRewardItemInfo_t C1 @0x08a00d58 /
 //   D1 @0x08581a80 / clear T @0x089fb4c0、stRewardItem_t C1 @0x08a00dcc / D1 @0x08581aae /
 //   clear T @0x089fb508。
+
+// [AnonLane round8 2026-09-11] —— 真匿名 struct 编号垫（GiantB `DisjointScript::._381` 同法）——
+// `m_fav` 的真匿名 struct 其 GCC 自动名 `._N` 的 N 是本 TU 匿名类型计数器。ORIG 的
+// `_ZN25stFavorableRelationShip_t5._140{C1,C2,D1,D2}Ev`（t 0x089fb8b6 / 0x089fb8fc，各 sz 0x45）
+// 由 **NPCScript TU** 发射（其 `NpcScript::C1Ev` ORIG 0x089fb942 段调用宿主 C1 @0x08a00eb0）。
+// 实测该 TU 未垫时 N=87（`_ZN25stFavorableRelationShip_t4._87C1Ev`）⇒ 垫 53 个零符号哑匿名
+// 类型使 N=140。哑类型（`typedef struct{char c;}…`）只占计数器、零符号发射，
+// sizeof/成员偏移/mangled/全部访问点零影响。
+typedef struct { char c; } stFavAnonPad00;
+typedef struct { char c; } stFavAnonPad01;
+typedef struct { char c; } stFavAnonPad02;
+typedef struct { char c; } stFavAnonPad03;
+typedef struct { char c; } stFavAnonPad04;
+typedef struct { char c; } stFavAnonPad05;
+typedef struct { char c; } stFavAnonPad06;
+typedef struct { char c; } stFavAnonPad07;
+typedef struct { char c; } stFavAnonPad08;
+typedef struct { char c; } stFavAnonPad09;
+typedef struct { char c; } stFavAnonPad10;
+typedef struct { char c; } stFavAnonPad11;
+typedef struct { char c; } stFavAnonPad12;
+typedef struct { char c; } stFavAnonPad13;
+typedef struct { char c; } stFavAnonPad14;
+typedef struct { char c; } stFavAnonPad15;
+typedef struct { char c; } stFavAnonPad16;
+typedef struct { char c; } stFavAnonPad17;
+typedef struct { char c; } stFavAnonPad18;
+typedef struct { char c; } stFavAnonPad19;
+typedef struct { char c; } stFavAnonPad20;
+typedef struct { char c; } stFavAnonPad21;
+typedef struct { char c; } stFavAnonPad22;
+typedef struct { char c; } stFavAnonPad23;
+typedef struct { char c; } stFavAnonPad24;
+typedef struct { char c; } stFavAnonPad25;
+typedef struct { char c; } stFavAnonPad26;
+typedef struct { char c; } stFavAnonPad27;
+typedef struct { char c; } stFavAnonPad28;
+typedef struct { char c; } stFavAnonPad29;
+typedef struct { char c; } stFavAnonPad30;
+typedef struct { char c; } stFavAnonPad31;
+typedef struct { char c; } stFavAnonPad32;
+typedef struct { char c; } stFavAnonPad33;
+typedef struct { char c; } stFavAnonPad34;
+typedef struct { char c; } stFavAnonPad35;
+typedef struct { char c; } stFavAnonPad36;
+typedef struct { char c; } stFavAnonPad37;
+typedef struct { char c; } stFavAnonPad38;
+typedef struct { char c; } stFavAnonPad39;
+typedef struct { char c; } stFavAnonPad40;
+typedef struct { char c; } stFavAnonPad41;
+typedef struct { char c; } stFavAnonPad42;
+typedef struct { char c; } stFavAnonPad43;
+typedef struct { char c; } stFavAnonPad44;
+typedef struct { char c; } stFavAnonPad45;
+typedef struct { char c; } stFavAnonPad46;
+typedef struct { char c; } stFavAnonPad47;
+typedef struct { char c; } stFavAnonPad48;
+typedef struct { char c; } stFavAnonPad49;
+typedef struct { char c; } stFavAnonPad50;
+typedef struct { char c; } stFavAnonPad51;
+typedef struct { char c; } stFavAnonPad52;
+
+// [AnonLane round8 2026-09-11] `._199` 专用垫（TU 私有：仅定义 FAV_ANON_199_EXTRA 的 TU 生效）——
+// ORIG 的 `_ZN25stFavorableRelationShip_t5._199D1/D2Ev`（t 0x0858046c）由 NPCDynamicInfo 系 TU 发射
+// （该 TU 只有析构点 ⇒ 只有 D1/D2）；实测其未垫时本宏块前编号 = 145 ⇒ 垫 54 个使 145+54 = 199。
+#ifdef FAV_ANON_199_EXTRA
+typedef struct { char c; } stFavAnonPad199_00;
+typedef struct { char c; } stFavAnonPad199_01;
+typedef struct { char c; } stFavAnonPad199_02;
+typedef struct { char c; } stFavAnonPad199_03;
+typedef struct { char c; } stFavAnonPad199_04;
+typedef struct { char c; } stFavAnonPad199_05;
+typedef struct { char c; } stFavAnonPad199_06;
+typedef struct { char c; } stFavAnonPad199_07;
+typedef struct { char c; } stFavAnonPad199_08;
+typedef struct { char c; } stFavAnonPad199_09;
+typedef struct { char c; } stFavAnonPad199_10;
+typedef struct { char c; } stFavAnonPad199_11;
+typedef struct { char c; } stFavAnonPad199_12;
+typedef struct { char c; } stFavAnonPad199_13;
+typedef struct { char c; } stFavAnonPad199_14;
+typedef struct { char c; } stFavAnonPad199_15;
+typedef struct { char c; } stFavAnonPad199_16;
+typedef struct { char c; } stFavAnonPad199_17;
+typedef struct { char c; } stFavAnonPad199_18;
+typedef struct { char c; } stFavAnonPad199_19;
+typedef struct { char c; } stFavAnonPad199_20;
+typedef struct { char c; } stFavAnonPad199_21;
+typedef struct { char c; } stFavAnonPad199_22;
+typedef struct { char c; } stFavAnonPad199_23;
+typedef struct { char c; } stFavAnonPad199_24;
+typedef struct { char c; } stFavAnonPad199_25;
+typedef struct { char c; } stFavAnonPad199_26;
+typedef struct { char c; } stFavAnonPad199_27;
+typedef struct { char c; } stFavAnonPad199_28;
+typedef struct { char c; } stFavAnonPad199_29;
+typedef struct { char c; } stFavAnonPad199_30;
+typedef struct { char c; } stFavAnonPad199_31;
+typedef struct { char c; } stFavAnonPad199_32;
+typedef struct { char c; } stFavAnonPad199_33;
+typedef struct { char c; } stFavAnonPad199_34;
+typedef struct { char c; } stFavAnonPad199_35;
+typedef struct { char c; } stFavAnonPad199_36;
+typedef struct { char c; } stFavAnonPad199_37;
+typedef struct { char c; } stFavAnonPad199_38;
+typedef struct { char c; } stFavAnonPad199_39;
+typedef struct { char c; } stFavAnonPad199_40;
+typedef struct { char c; } stFavAnonPad199_41;
+typedef struct { char c; } stFavAnonPad199_42;
+typedef struct { char c; } stFavAnonPad199_43;
+typedef struct { char c; } stFavAnonPad199_44;
+typedef struct { char c; } stFavAnonPad199_45;
+typedef struct { char c; } stFavAnonPad199_46;
+typedef struct { char c; } stFavAnonPad199_47;
+typedef struct { char c; } stFavAnonPad199_48;
+typedef struct { char c; } stFavAnonPad199_49;
+typedef struct { char c; } stFavAnonPad199_50;
+typedef struct { char c; } stFavAnonPad199_51;
+typedef struct { char c; } stFavAnonPad199_52;
+typedef struct { char c; } stFavAnonPad199_53;
+#endif  // FAV_ANON_199_EXTRA
+
 class stFavorableRelationShip_t
 {
 public:
@@ -270,26 +392,25 @@ public:
     // 别名），配合 FavorableRelationDeps.cpp 的 `.globl`+`.type`+`.size`+`.set`
     // 四件套，使 objdump 同址选名选中带点号别名（纯 local t 会被自然名压掉）。
     // 布局不变：成员经 m_fav. 前缀访问（现有调用方已用 m_fav.m_moodChanges/.m_keyItems）。
-    class t_140
+    // [AnonLane round8 2026-09-11] 原 `class t_140`（P203 命名类 + `.set` 别名四件套）已改
+    // **真匿名 struct**：GCC 自动名即 ORIG 的 `_ZN25stFavorableRelationShip_t5._140*`
+    // （GiantB `DisjointScript::._381` 同法先例；`.set` 改不了**重定位名**，只有真匿名能让
+    // 编译器直发 `._140`）。编号 N 由本 TU 匿名计数器决定，由 TU 私有宏
+    // `FAV_ANON_140_PAD` / `FAV_ANON_140_PAD_NPC`（见本头 padding 块）垫到 140。
+    // 布局不变：成员名 `m_fav`、偏移 +0x010、sizeof 0x18、访问点（m_fav.m_moodChanges/…）全同。
+    struct
     {
-    public:
-        t_140();    // ORIG _ZN25stFavorableRelationShip_t5._140C1Ev t 0x089fb8b6（构造两 vector<pair>）
-        ~t_140();   // ORIG _ZN25stFavorableRelationShip_t5._140D1Ev t 0x089fb8fc（逆序析构）
         std::vector<std::pair<ENUM_NPC_MOOD, unsigned int> > m_moodChanges;   // +0x010（abs 0x180）
         std::vector<std::pair<unsigned long, unsigned int> > m_keyItems; // +0x01c（abs 0x18c）
     } m_fav;                                              // +0x010（sizeof 0x18）
 
-    // b28c-L8：ORIG 另一 TU 的同形副本仅发射 D1/D2（t 0x0858046c，sz 0x45），
-    // 与 ._140 不同址 ⇒ 单一自然符号无法同时给两个别名（objdump 同址只挂一个名，
-    // 表现为 our_insns=0 伪差）。故另立同布局类 t_199，仅声明析构（不声明实例，
-    // 不影响 sizeof/偏移/构造序）；别名四件套见 FavorableRelationDeps.cpp。
-    class t_199
-    {
-    public:
-        ~t_199();   // ORIG _ZN25stFavorableRelationShip_t5._199D1Ev t 0x0858046c
-        std::vector<std::pair<ENUM_NPC_MOOD, unsigned int> > m_moodChanges;
-        std::vector<std::pair<unsigned long, unsigned int> > m_keyItems;
-    };
+    // [AnonLane round8 2026-09-11] 原 `class t_199`（P203 命名类 + `.set` 别名代发 ORIG 另一 TU 的
+    // `._199D1/D2Ev`）**已退役**：ORIG 的 `_ZN25stFavorableRelationShip_t5._199D1/D2Ev`
+    // （t 0x0858046c，各 sz 0x45）实测属 NPCDynamicInfo 系 TU（其宿主析构
+    // `~stFavorableRelationShip_t`@0x08581ae0 在 0x08581d39/0x08581d42 以
+    // `add $0x10,%eax; call ._199D1Ev` 调用，与 `CNPCDynamicInfo::changeMood`@0x085804b2 同段）
+    // ⇒ 改由 **NPCDynamicInfo.cpp 的析构强制点 + `FAV_ANON_199_EXTRA` 编号垫**自然发射
+    // （同一个 m_fav 匿名类型在本 TU 的编号即 199）。类内不再需要 t_199 副本。
     GiftMapArray_t m_preferItems[5];                  // +0x028（abs 0x198）
     GiftMapArray_t m_preferItemGroups[5];             // +0x0a0（abs 0x210）
     GiftMapArray_t m_unpreferItems[5];                // +0x118（abs 0x288）

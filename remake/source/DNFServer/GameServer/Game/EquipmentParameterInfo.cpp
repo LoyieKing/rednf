@@ -6175,3 +6175,8 @@ asm(".set _ZN22EquipmentParameterInfo5._119D2Ev, _ZN22EquipmentParameterInfo5t_1
     ".globl _ZN22EquipmentParameterInfo5._119D2Ev\n"
     ".type _ZN22EquipmentParameterInfo5._119D2Ev,@function\n"
     ".size _ZN22EquipmentParameterInfo5._119D2Ev,0x45");
+
+// [P203-K 实测 2026-09-11 GiantB] 本 TU 匿名类型计数器 K=**149**（顶部无哑类型时
+// 目标位置编号 149 > ORIG `._119`）⇒ 计数器只增不减，物理不可能对齐到 119
+// ⇒ 按 P262「同址别名豁免」落判词：`._119C1/C2/D1/D2` 已由 `.set` 别名存在（T 同址），
+// p167 缺的是**重定位目标名**（我方 `5t_119C1Ev` vs ORIG `5._119C1Ev`），源级无解。

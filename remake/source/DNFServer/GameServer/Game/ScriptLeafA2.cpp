@@ -1509,6 +1509,10 @@ namespace APSystem
     {
         std::string token;
         std::string rarityName;
+        // [GiantA-R8 未翻译段补全] ORIG 0x08900c7a 实证：第三个 string 局部
+        // （C1Ev → -0xc4，析构 0x08901e95/0x08901ea9 各一次，全函数无读写点）
+        // = ORIG 死变量；p167 缺 C1Ev×1/D1Ev×2 的根因（P171 照抄）。
+        std::string unusedStr;
         bool ok = false;
 
         for (;;)

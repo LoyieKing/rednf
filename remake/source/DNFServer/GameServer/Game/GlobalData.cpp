@@ -4201,12 +4201,12 @@ namespace
 
 // （旧 ipg_field1c/ipg_str 偏移寻址 helper 已删：TaiwanCash.h SIPGData 已按
 // §8.3 字段化（W6SIPG 批次），本 TU 改用具名成员/命令族视图，P49。）
-const char* const kPrettyJpnEx =
-    "void ItemVendingMachine::ProcessIPGUserDataJpnEx(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)";
-const char* const kPrettyResultQuery =
-    "void ItemVendingMachine::ProcessIPG_ResultQuery(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)";
-const char* const kPrettyResultOutput =
-    "void ItemVendingMachine::ProcessIPG_ResultOutput(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)";
+// [AnonLane round8 2026-09-11 · P139] 原 3 个手写 prett 串常量（匿名 namespace，
+// 我方 r 段 only-NEW `_ZN12_GLOBAL__N_1L<len>kPretty*E`）已删：ORIG 侧对应符号是
+// `_ZZN18ItemVendingMachine23ProcessIPGUserDataJpnExE…19__PRETTY_FUNCTION__` r @0x08b87000、
+// `_ZZN18ItemVendingMachine22ProcessIPG_ResultQueryE…` r @0x08b86f80、
+// `_ZZN18ItemVendingMachine23ProcessIPG_ResultOutputE…` r @0x08b86f00
+// ⇒ 使用点直接内联 `__PRETTY_FUNCTION__`（R2PrettAClass 先例同法）。
 
 }  // namespace
 
@@ -4242,7 +4242,7 @@ const char* const kPrettyResultOutput =
     }
     else
     {
-        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyJpnEx,
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__,
                               0x482, "Unhandled reply from BModule is %d",
                               resData->m_type);
     }
@@ -4285,7 +4285,7 @@ const char* const kPrettyResultOutput =
     if (retCode != 0)
     {
         user->SendCashData(true);
-        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyResultQuery,
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__,
                               0x4dd, "IPG_QUERY %d %d", user->get_acc_id(), retCode);
     }
     else
@@ -4401,7 +4401,7 @@ const char* const kPrettyResultOutput =
         // 错误路（ORIG 0x8178923..0x8178a5e）
         if (user == 0 || user->getCurCharacR() == 0)
         {
-            cMyTrace trace(kPrettyResultOutput, 0x59d, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x59d, 5);
             trace("There's abnormal transaction that the client doesn't exist, "
                   "client would be %s(m_id: %d) and the Goodis is %d, ret_code = %d ret_msg = %s",
                   resData->m_accName, atoi(resData->m_account),
@@ -4478,7 +4478,7 @@ const char* const kPrettyResultOutput =
         // 故 source 侧必须让 case 10 无 break 地贯穿到 default（无跳转、单调用点）。
     }
     default:
-        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyResultOutput,
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__,
                               0x653, "Invalid Group Index [%d]", groupFinal);
         break;
     case 0xb:
@@ -4497,8 +4497,8 @@ const char* const kPrettyResultOutput =
     {
         m_ceraShop._ProcessIPGError(user, reqData, resData, (unsigned char)retCode, groupFinal,
                                     productNo, seq, itemCount, buyFlag);
-        cMyTrace trace(kPrettyResultOutput, 0x65b, 0);
-        trace("[%s][%d]", kPrettyResultOutput, 0x65b);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x65b, 0);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x65b);
         return;   // ORIG LAB_081798d7
     }
 
@@ -4830,10 +4830,10 @@ const char* const kPrettyResultOutput =
 // ============================================================================
 namespace
 {
-const char* const kPrettyGetItemString =
-    "void ItemVendingMachine::_GetItemString(const CCeraShopGoods*, char*, size_t)";
-const char* const kPrettyProcessBuy =
-    "bool ItemVendingMachine::ProcessBuyRequestEx(CUser*, const MSG_BUY_CERASHOP_ITEM&)";
+// [AnonLane round8 2026-09-11 · P139] 原 2 个手写 prett 串常量（同上批）已删：
+// ORIG 侧对应符号 `_ZZN18ItemVendingMachine14_GetItemStringEPK14CCeraShopGoodsPcjE19__PRETTY_FUNCTION__`
+// r @0x08b870e0（串尾 size_t）与 `_ZZN18ItemVendingMachine19ProcessBuyRequestExEP5CUserRK21MSG_BUY_CERASHOP_ITEME19__PRETTY_FUNCTION__`
+// r @0x08b87080 ⇒ 使用点内联 `__PRETTY_FUNCTION__`。
 
 // asm 桥已清（§8 协议）：CInventory.h 现经 CGenUniqueNo.h 纳入权威完整类定义，
 // GenUniqueNo 亦按 ORIG 单实参证据 static 化 ⇒ 调用点直接真实调用
@@ -4919,7 +4919,7 @@ const char* const kPrettyProcessBuy =
 
 // _GetItemString —— ORIG 0x0817645a (T)
 #include "GlobalData/_GetItemString.inc"
-                                        unsigned int len)
+                                        size_t len)
 {
     // [b23S3C] ORIG 0x0817645a：无 switch/jump table——七条 if-else 链，每判重 call
     // GetItemIdx（P48 去缓存），命中才 call GetStackCount 作 snprintf 实参直落 0xc(%esp)。
@@ -4933,7 +4933,7 @@ const char* const kPrettyProcessBuy =
     CItem* related = goods->GetRelatedItem();
     if (related == 0)
     {
-        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyGetItemString,
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__,
                               0x18d, "CashShop Relation Item is NULL [ITEM:%d]",
                               goods->GetItemIdx());
         return;
@@ -4971,7 +4971,7 @@ const char* const kPrettyProcessBuy =
 {
     if (user == 0)
     {
-        cMyTrace tr(kPrettyProcessBuy, 0x290, 0);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x290, 0);
         tr("There is no User in ItemVendingMachine");
         return false;
     }
@@ -5164,11 +5164,11 @@ const char* const kPrettyProcessBuy =
     if (errCode != 0)
     {
         LogManager::logFormat(
-            1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x34b,
+            1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__, 0x34b,
             "[ERROR] Not enough UserID[%s] ACera[%d] AGold[%d] AWP[%d] AMile[%d]",
             user->getCurCharacName(), totalCera, totalGold, totalWin, totalMileage);
         LogManager::logFormat(
-            1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x34c,
+            1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__, 0x34c,
             " / UCera[%d] UGold[%d] UWP[%d] AMile[%d]\n",
             user->GetCera(), user->getCurCharacInvenR()->get_money(),
             user->GetWinPoint(), user->GetMileage());
@@ -5275,11 +5275,11 @@ const char* const kPrettyProcessBuy =
         if (perErr != 0)
         {
             LogManager::logFormat(
-                1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x3b3,
+                1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__, 0x3b3,
                 "IPG ERROR [Dispatcher_BuyCeraShopItem::dispatch_sig] UserID[%s] ACera[%d] AGold[%d] AWP[%d] AMile[%d]",
                 user->getCurCharacName(), ceraPrice, goldPrice, winPrice, mileagePrice);
             LogManager::logFormat(
-                1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x3b4,
+                1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__, 0x3b4,
                 " / UCera[%d] UGold[%d] UWP[%d] UMile[%d]\n",
                 user->GetCera(), user->getCurCharacInvenR()->get_money(),
                 user->GetWinPoint(), user->GetMileage());
@@ -5287,7 +5287,7 @@ const char* const kPrettyProcessBuy =
             // msg 条目（`mov -0x2c,%eax; imul $0x1cf; lea (msg,…); add $0x30;
             // mov 0x9(%eax)` = entry+0x39 = m_productNo），不是局部 productNo。
             LogManager::logFormat(
-                1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x3b9,
+                1, "localjapan/AppendVendingMachine.cpp", __PRETTY_FUNCTION__, 0x3b9,
                 "Error Goods No : %d", msg.m_entrySection.m_arr[j].m_productNo);
             m_ceraShop.ProcessError(user, (unsigned short)perErr, groupIdx,
                                     msg.m_entrySection.m_arr[j].m_productNo,

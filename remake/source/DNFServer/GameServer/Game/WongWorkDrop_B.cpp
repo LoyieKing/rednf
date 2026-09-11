@@ -392,13 +392,15 @@ typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map
     int weights[5] = { 1000, 1000, 1000, 1000, 1000 };
     int total = 5000;
 
-    // P167/§4.1：ORIG 直接 G_CDataManager()+0x540 取 rates，无 equipGradeRates helper
-    std::vector<std::pair<int, float> > const* rates =
-        reinterpret_cast<std::vector<std::pair<int, float> > const*>(
+    // P167/§4.1：ORIG 直接 G_CDataManager()+0x540 取 rates，无 equipGradeRates helper。
+    // ORIG 空检用 081b48ac=vector::size()（+0x066 sete / +0x08c setne），operator[] 非 const
+    // ⇒ rates 去 const、`empty()`→`size()==0`（P197④/P175）。
+    std::vector<std::pair<int, float> >* rates =
+        reinterpret_cast<std::vector<std::pair<int, float> >*>(
             reinterpret_cast<char*>(G_CDataManager()) + 0x540);
-    if (rates->empty())
+    if (rates->size() == 0)
         return 0x5aa7;
-    if (rates->empty())                      // ORIG 双重空检照抄
+    if (rates->size() == 0)                  // ORIG 双重空检照抄
         return 0x5aa7;
 
     // P167/§4.1：ORIG 内联三元+循环查表，无 lookupGradeRatio helper
@@ -443,22 +445,26 @@ typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map
     // （函数体内其余调用可抛）；ORIG 无 LP 属 4.1 侧判定差，4.4 -O0 无合法源码解。
     // ⇒ throw() 按闸门（无 gap/ndiff 改善）已回滚，.h 恢复原状；旧 EH 普查判读更正。
     // @ORIG 0x08533676
-    CDataManager* dm = G_CDataManager();
-    FarmingMap* farming = reinterpret_cast<FarmingMap*>(
-        reinterpret_cast<char*>(dm) + 0x528);
-
-    FarmingMap::const_iterator it = farming->find(static_cast<int>(rarity));
-    if (it == farming->end())
+    // P183/P96：ORIG find(+0x00d) 与 end(+0x031) 各自重取 G_CDataManager()+0x528
+    // （无 dm/farming 具名缓存）；迭代器走非 const 版 `_Rb_tree_iterator`（非 const_iterator）。
+    FarmingMap::iterator it =
+        reinterpret_cast<FarmingMap*>(
+            reinterpret_cast<char*>(G_CDataManager()) + 0x528)
+            ->find(static_cast<int>(rarity));
+    if (it == reinterpret_cast<FarmingMap*>(
+                  reinterpret_cast<char*>(G_CDataManager()) + 0x528)->end())
         return 0;
     if (it->second.m_active == 0)              // pair.second + ItemFarmingData+0xc
         return 0;
 
-    // P167/§4.1：ORIG 直接 G_CDataManager()+0x540 取 rates，无 helper
-    std::vector<std::pair<int, float> > const* rates =
-        reinterpret_cast<std::vector<std::pair<int, float> > const*>(
+    // P167/§4.1：ORIG 直接 G_CDataManager()+0x540 取 rates，无 helper。
+    // ORIG 081b48ac = vector::size()（+0x0af setne 正检、+0x0c2 `sub $1`），
+    // operator[] 走非 const 版 ⇒ rates 去 const、`empty()`→`size()!=0`（P197④）。
+    std::vector<std::pair<int, float> >* rates =
+        reinterpret_cast<std::vector<std::pair<int, float> >*>(
             reinterpret_cast<char*>(G_CDataManager()) + 0x540);
     float factor = 1.0f;
-    if (!rates->empty())
+    if (rates->size() != 0)
     {
         // P167/§4.1：内联三元+循环查表（无 lookupGradeRatio helper）
         int last = static_cast<int>(rates->size()) - 1;

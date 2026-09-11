@@ -30,13 +30,11 @@
 namespace
 {
 
-// .rodata 费率常量（df_game_r 实测字节）
-const double kRateDeny   = 0.5;    // 0x08b871a8
-const double kRate150    = 1.5;    // 0x08b871b0
-const double kRate160    = 1.6;    // 0x08b871b8
-const double kRate170    = 1.7;    // 0x08b871c0
-const double kRate180    = 1.8;    // 0x08b871c8
-const double kFeeDivisor = 100.0;  // 0x08b871d0
+// [AnonLane round8 2026-09-11] 原 6 个 `const double kRate*/kFeeDivisor`（匿名 namespace ⇒
+// 我方发射 `_ZN12_GLOBAL__N_1L*kRate*E`/`L11kFeeDivisorE` 6 条 only-NEW，ORIG 全库无同名）
+// 已删：ORIG 侧是**匿名 .rodata 常量**（0x08b871a8/b0/b8/c0/c8/d0，各 8 字节 double，
+// 无符号）⇒ 使用点直接内联字面量（0.5/1.5/1.6/1.7/1.8/100.0）；4.4 为各值发射匿名
+// `.LC` 双精度常量，与 ORIG `fldl <常量>` 形态一致。
 
 }  // namespace
 
@@ -70,14 +68,14 @@ const double kFeeDivisor = 100.0;  // 0x08b871d0
         // `(rate < Lo) || (Hi <= rate)`。ORIG 把商缓存进具名 double rate(-0x20) 后
         // 每次比较只 `fldl -0x20` 复用（0x08175cc8 fstpl -0x20 / 0x08175ccb fldl -0x20）。
         double rate = static_cast<double>(price) / static_cast<double>(nRef);
-        if (rate < kRateDeny)
+        if (rate < 0.5)
             return false;
         // [S6] ORIG 0x08175cec..0x08175d1a：顶层判定是 A 形态（`fldl rate; fldl 1.5;
         // fucompp; test $0x45,%ah; sete`＝「rate < 1.5」）且 fall-through 直落
         // bPremium 臂 ⇒ 源形为 `if (rate < kRate150) {裸费率臂} else {分档链}`
         // （NaN 亦落裸费率臂，与 ORIG 一致；此前 `kRate150 <= rate` 形在 4.4 生成
         // 相位相反的 `fxch/setae` 形态且 NaN 落分档链）。
-        if (rate < kRate150)
+        if (rate < 1.5)
         {
             if (bPremium)
             {
@@ -96,15 +94,15 @@ const double kFeeDivisor = 100.0;  // 0x08b871d0
             // （德摩根，then 写 0x32）产出；旧 `rate < Lo || Hi <= rate`（Ghidra 显示序）
             // 在 4.4 生成相位相反的 A/B 并合并两个 0x32 尾块。语义等价（NaN 亦同落
             // 末层，与 ORIG 0x08175d66 起 setae 判定一致）。
-            if (kRate150 <= rate && rate < kRate160)
+            if (1.5 <= rate && rate < 1.6)
             {
                 feeBase = 0x32;
             }
-            else if (kRate160 <= rate && rate < kRate170)
+            else if (1.6 <= rate && rate < 1.7)
             {
                 feeBase = 0x32;
             }
-            else if (kRate170 <= rate && rate < kRate180)
+            else if (1.7 <= rate && rate < 1.8)
             {
                 feeBase = 0x32;
             }
@@ -119,7 +117,7 @@ const double kFeeDivisor = 100.0;  // 0x08b871d0
     // ORIG 0x08175dcb..0x08175dfa：先 `fildl price; fldl 100.0; fdivrp` 再 `fildl feeBase;
     // fmulp`（price/100.0 是左操作数），`fistpl -0x34` **写回 feeBase 槽**（无独立 fee
     // 局部），随后 `mov -0x34,%edx; mov %edx,0xc(%eax)` 直写 info.m_fee。
-    feeBase = static_cast<int>(static_cast<double>(price) / kFeeDivisor *
+    feeBase = static_cast<int>(static_cast<double>(price) / 100.0 *
                               static_cast<double>(feeBase));
     info.m_fee = feeBase;
 

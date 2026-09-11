@@ -149,7 +149,11 @@ public:
     void BillingRecord(CUser* user, int a3, int a4, int a5,
                        const char* itemName, const char* accName, int priceType,
                        unsigned long long uid, char payFlag);
-    void _GetItemString(const CCeraShopGoods* goods, char* buf, unsigned int len);       // 0x0817645a
+    // [AnonLane round8 2026-09-11 · P139] 第三参拼写按 ORIG prett 串定：ORIG
+    // `_ZZN18ItemVendingMachine14_GetItemStringEPK14CCeraShopGoodsPcjE19__PRETTY_FUNCTION__`
+    // r 0x08b870e0 size 0x4e 串尾为 `size_t)`（我方 `unsigned int` 版 size 0x54，差 6）。
+    // 32 位 size_t == unsigned int ⇒ mangled `…Pcj` / 布局 / 调用点零变化。
+    void _GetItemString(const CCeraShopGoods* goods, char* buf, size_t len);       // 0x0817645a
 private:
     // ORIG ctor 0x854c3e4 / dtor 0x854c42a：CCeraShop@+0 +
     // CeraShopPurcahseCountBonus@+8（成员自动构造/析构，顺序一致）。

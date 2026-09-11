@@ -38,69 +38,12 @@ extern std::map<unsigned int, STEquipmentStatInfo> g_equipmentStatInfoMap;
 
 namespace
 {
-// 保留 ORIG 作业名（EUC-KR 字节，见 GetUserJob 0x861d2dc 常量表）。
-const char* GetJobString(int job)
-{
-    switch (job)
-    {
-    case 0:
-        return "\xb1\xcd\xb0\xcb\xbb\xe7";   // 귀검사
-    case 1:
-        return "\xb0\xdd\xc5\xf5\xb0\xa1";   // 격투가
-    case 2:
-        return "\xb0\xc5\xb3\xca";           // 거너
-    case 3:
-        return "\xb8\xb6\xb9\xfd\xbb\xe7";   // 마법사
-    case 4:
-        return "\xc7\xc1\xb8\xae\xbd\xba\xc6\xae";  // 프리스트
-    case 5:
-        return "\xbf\xa9\xb0\xc5\xb3\xca";   // 여거너
-    case 6:
-        return "\xb5\xb5\xc0\xfb";           // 도적
-    case 7:
-        return "\xb3\xb2\xb0\xdd\xc5\xf5\xb0\xa1";  // 남격투가
-    default:
-        return "";
-    }
-}
-
-const char* GetAttachTypeString(int type)
-{
-    switch (type)
-    {
-    case 0:
-        return "\xc0\xda\xc0\xaf";           // 검사
-    case 1:
-        return "\xb1\xb3\xc8\xaf";           // 격가
-    case 2:
-        return "\xb1\xb3\xc8\xaf\xbb\xe8\xc1\xa6";  // 격가프리
-    case 3:
-        return "\xb9\xd0\xba\xc0";           // 마공
-    case 5:
-        return "\xb0\xe8\xc1\xa4";           // 계열
-    default:
-        return "";
-    }
-}
-
-const char* GetAttackElementString(int element)
-{
-    switch (element)
-    {
-    case 0:
-        return "\xc8\xad";                   // 화
-    case 1:
-        return "\xbc\xf6";                   // 수
-    case 2:
-        return "\xbe\xcf";                   // 암
-    case 3:
-        return "\xb8\xed";                   // 명
-    case 4:
-        return "\xb9\xab";                   // 무
-    default:
-        return "";
-    }
-}
+// [AnonLane round8 2026-09-11] 原 3 个 TU-local helper（`_ZN12_GLOBAL__N_1{12GetJobString,
+// 19GetAttachTypeString,22GetAttackElementString}Ei`，t 段各 0x56/0x41/0x3c 字节）已删：
+// ORIG 全库**无同名符号**（nm -S --defined-only df_game_r 对 jobstring/attachtype/
+// attackelement 零命中），且本 TU 内（本 .cpp + 全部 sync_script/*.inc）**零调用点**
+// ⇒ P154「无引用发明符号直接删」。三表内容（EUC-KR 作业/属性/元素名）与 ORIG
+// GetUserJob 0x0861d2dc 的常量表同源；如需复用请引用具名权威表，勿再造 TU-local 包装。
 
 
 }

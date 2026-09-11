@@ -177,58 +177,30 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 {
 }
 
-// ---- stFavorableRelationShip_t::._140（命名类 _140；成员 +0x0 vector<pair<ENUM_NPC_MOOD,uint>>、
-//      +0xc vector<pair<ulong,uint>>）----
-// ORIG _ZN25stFavorableRelationShip_t5._140C1Ev t 0x089fb8b6（默认构造两 vector<pair>）；
-// ._140D1Ev t 0x089fb8fc（先 this+0xc 后 this 逆序析构）。
-// ._199 为另一 TU 的同形副本（仅 D1/D2 @0x0858046c），复用同布局的 .set 别名。
-// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `_140`(4_140) 重建，
-// 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
-#include "FavorableRelationDeps/t_140.inc"
+// ---- stFavorableRelationShip_t::._140 → 真匿名 struct（NpcScript.h 内 m_fav）----
+// ORIG _ZN25stFavorableRelationShip_t5._140{C1,C2,D1,D2}Ev t 0x089fb8b6 / 0x089fb8fc（各 sz 0x45）。
+// [AnonLane round8 2026-09-11] 原命名类 `t_140` + 空体 ctor/dtor 定义 + `.set` 别名已全部退役：
+// 匿名 struct 的**隐式** ctor/dtor 与 ORIG 同形（默认构造/逆序析构两个 vector<pair>），
+// 名字由编译器**直发** `._N`（N 由本 TU 的 FAV_ANON_140_PAD padding 垫到 140）⇒
+// nm 轴与 p167 重定位轴同时对齐（GiantB `DisjointScript::._381` 先例）。
+
+// [AnonLane round8 2026-09-11] 原 `dtor_t_199.inc`（P203 命名类 t_199 的析构体定义）已退役：
+// ORIG 的 `._199D1/D2Ev`（t 0x0858046c）归 **NPCDynamicInfo 系 TU**，改由 NPCDynamicInfo.cpp 的
+// 析构强制点 + `FAV_ANON_199_EXTRA` 编号垫自然发射（见该文件与 NpcScript.h 两处判词）。
+
+// [AnonLane round8 2026-09-11] 原 `._140`/`._199` 的 `.set` 别名块（`L8_ALIAS` 宏 + 六条 + `#undef`）
+// **整块退役**：两处真名现均由编译器自然发射 —— `._140` ← NPCScript TU（NpcScript.h 通用编号垫 53 个
+// 哑匿名类型）、`._199` ← NPCDynamicInfo TU（`FAV_ANON_199_EXTRA` 垫 54 个）。
+// 退役理由（本轮实测）：`.set` 只改 nm 轴与反汇编**显示名**，**改不了重定位名**（p167 恒
+// MISSING/EXTRA）；且 ORIG 的 `._NNN` 是 t（local）符号、归属唯一 TU，别名法会把符号伪造到
+// 错误 TU（`._140` 实属 NPCScript、`._199` 实属 NPCDynamicInfo）。真匿名 struct + 计数垫
+// 同时满足 nm 轴、重定位轴与归属（GiantB `DisjointScript::._381` 先例）。
+
+
+// [AnonLane round8 2026-09-11] `._140` 的**本 TU 侧副本**发射点：本 TU 在 ORIG 中同样有
+// m_fav 匿名副本的贡献（P203 别名时代它以 `._140` 别名声发射，退役后需由真匿名类型补回），
+// 用 `delete p` 只发析构（D1/D2），编号由 NpcScript.h 的通用垫（53 个）使本 TU 亦为 140。
+void __favAnon140ForceClear(stFavorableRelationShip_t* p)
 {
-    // ORIG 0x089fb8b6：仅默认构造 +0x0/+0xc 两 vector<pair>；成员含 vector 自动构造。
+    delete p;
 }
-
-#include "FavorableRelationDeps/dtor_t_140.inc"
-{
-    // ORIG 0x089fb8fc：先 this+0xc 后 this 逆序析构（vector 自动析构，序列与隐式一致）。
-}
-
-// b28c-L8：ORIG 0x0858046c 是另一 TU 的同形副本（仅 D1/D2），与 ._140D1 不同址
-// ⇒ 必须独立发射一份体，否则两个别名同址、objdump 只挂一个名字（our_insns=0 伪差）。
-#include "FavorableRelationDeps/dtor_t_199.inc"
-{
-}
-
-// ============================ stFavorableRelationShip_t::._140/._199 别名 ============================
-// GCC 对 ctor/dtor 的 asm 别名（asm("...")）无效（硬限制）；匿名嵌套 struct 又按本 TU
-// 行号计数命名（如 4._N），与 ORIG `5._140`/`5._199` 不一致。故在类内命名 `_140`，
-// 用 `.set` 把自然 mangled `4_140*` 强制改名为 ORIG 带点号 `5._140*`；
-// `._199` 为另一 TU 的同形副本（仅 D1/D2），复用同布局析构的 `.set` 别名。
-// ORIG 为局部 `t` 符号；命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名
-// 匹配），以 nm 存在为准。cf. docs/class_func_reports/stFavorableRelationShip_t__._140
-// （0x089fb8b6/0x089fb8fc）与 ._199（0x0858046c）。
-// b28c-L8（P203 附注 b28 BL9 定案）：别名必须自带 `.globl`+`.type @function`+
-// `.size <ORIG 尺寸>` 三件套，objdump 同址选名才会用别名而非自然名（纯 local t 被
-// 自然 W/T 压掉 ⇒ 表现为 our_insns=0 伪差）；自然名同时改为同长度、strcmp 更大的
-// `5t_140…`（'t' > '.'）。ORIG 六个别名符号尺寸均为 0x45（nm -S 实证）。
-#define L8_ALIAS(dot, nat)                                        \
-    asm(".globl " dot "\n"                                        \
-        ".type " dot ", @function\n"                              \
-        ".size " dot ", 0x45\n"                                   \
-        ".set " dot ", " nat "\n")
-
-L8_ALIAS("_ZN25stFavorableRelationShip_t5._140C1Ev",
-         "_ZN25stFavorableRelationShip_t5t_140C1Ev");
-L8_ALIAS("_ZN25stFavorableRelationShip_t5._140C2Ev",
-         "_ZN25stFavorableRelationShip_t5t_140C2Ev");
-L8_ALIAS("_ZN25stFavorableRelationShip_t5._140D1Ev",
-         "_ZN25stFavorableRelationShip_t5t_140D1Ev");
-L8_ALIAS("_ZN25stFavorableRelationShip_t5._140D2Ev",
-         "_ZN25stFavorableRelationShip_t5t_140D2Ev");
-L8_ALIAS("_ZN25stFavorableRelationShip_t5._199D1Ev",
-         "_ZN25stFavorableRelationShip_t5t_199D1Ev");
-L8_ALIAS("_ZN25stFavorableRelationShip_t5._199D2Ev",
-         "_ZN25stFavorableRelationShip_t5t_199D2Ev");
-#undef L8_ALIAS
-
