@@ -13,6 +13,9 @@ int DisPatcher_EndPvPResult::dispatch_sig(CUser* user, PacketBuf& packet)
     room->set_recv_pvp_end_result_flag(user);
     // [SigB] P292 正形：ORIG 0x081f892f `test %al,%al; je`（裸 bool 门禁）——
     // `!= 0` 会把 bool 提升为 int，4.4 反产 `test %eax,%eax; setne %al; test %al,%al`。
+    // [b28e-DispCore] 负结论：`(unsigned char)` 调用点收窄实测**零效果**
+    // （仍 test %eax，130/133 ndiff7 不变）⇒ 属 PvP_Room.h callee int→bool 轴
+    // （他泳道），本 TU 判 N。
     if (room->recv_pvp_end_result_all())
     {
         room->end_pvp_result();

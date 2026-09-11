@@ -24,7 +24,11 @@
 // [b22] char*→char[]：ORIG 在所有 fprintf 错误串将该源文件串作立即数直压
 // （@0x8e2e7d0），char* 全局指针会 deref（每处 +1 mov）；char[] 在实参处衰减为
 // 地址立即数，与 ORIG 同形（P26/P183 型）。
-static const char k_srcFile[] = "../../Include/FilePack/Pack.cpp";
+// [OurOnly33 符号名轴 2026-09-11] ORIG 全 ELF 无该 local 符号（我方发射 `_ZL9k_srcFile`）：
+// ORIG 各 fprintf 处直接以 .rodata 匿名串（@0x8e2e7d0）作立即数实参
+// ⇒ 改宏形：每个使用点展开为同一字面量（编译器合并为单份匿名 .rodata 串，与原 char[]
+// 衰减形完全一致），我方发明符号消失且使用点零改动。
+#define k_srcFile "../../Include/FilePack/Pack.cpp"
 
 // ---------------------------------------------------------------------------
 // Pack.cpp 域静态数据（ORIG .data/.bss）

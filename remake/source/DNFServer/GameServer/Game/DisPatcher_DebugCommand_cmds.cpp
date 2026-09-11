@@ -79,10 +79,9 @@ struct stBuySkillInfo
 //   `typedef unsigned long itemIndexOnlyServer_t;` 落在 GameTypes.h:52（本 TU 已 include），
 //   故定义处参数拼写改用 typedef 名 + 使用点改 __PRETTY_FUNCTION__ ⇒ 发射
 //   `_ZZN23DisPatcher_DebugCommand20_debugCommandAddItemEP5CUsermiE19__PRETTY_FUNCTION__`
-//   size=0x57，与 ORIG 0x08cb8280 串逐字节一致（dumpstr 实证）。下方数组因此**不再被引用**
-//   （4.4 -O0 仍发射到 .rodata）；删除属 TU 级实体改动（本泳道无写权）⇒ 保留待 Main 清理。
-static const char g_dbgCmdPrettyAddItem[] =
-    "bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser*, itemIndexOnlyServer_t, int)";
+//   size=0x57，与 ORIG 0x08cb8280 串逐字节一致（dumpstr 实证）。原手写数组
+//   `g_dbgCmdPrettyAddItem` 已无任何引用，而 4.4 -O0 仍把它发射到 .rodata ⇒ OUR-only 符号；
+//   [Main 授权 2026-09-11] 已删除该 TU 级 static（ORIG 全 ELF 无此名，0 命中）。
 
 // GM trace 通用形态：NumberToString(accId) + 角色名 两个固定前置实参。
 // P227 全表达式临时链：ORIG 在 cMyTrace ctor 前右起求 varargs 并以 callee-saved

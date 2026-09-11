@@ -67,10 +67,10 @@ extern std::vector<int> g_creature_damage_vector_;
 // 不在本批清单且全仓库无定义，但 checkIsCriticalSDC 引用之；以 ORIG .data 初值落定义。
 extern "C" float g_criticalDamageDefaultRate_ = 1.5f;   // D 0x0936e4ac
 
-// ORIG .rodata/.data 直接读取的常量（getDefenseRateDamager/checkIsCriticalSDC 内联位模式）
-static const float kDefRateMul01 = 0.01f;   // 0x08b12f54
-static const float kDefRateDrFloorDiv = 400.0f;  // 0x08b12f60
-static const float kCritRollScale = 100.0f; // 0x08b12f64
+// [b28d-PoolE 符号轴 · W16 seg34 §4.2 INVENT 清理] ORIG 全 ELF 无 kDefRate* 符号：这三个
+// 常量在 ORIG 是 .rodata 匿名项（0x08b12f54=0.01f / 0x08b12f60=400.0f / 0x08b12f64=100.0f，
+// `nm -S --defined-only ORIG` 该区无符号）⇒ 使用点内联字面量，删我方发明的 file-scope static
+// （内联后 4.4 仍走同一 .rodata 常量装载，表达式形不变）。
 
 // ============================================================================
 // 1) _Z24getAbilityConvertRateSDCPv23ENUM_CONVERT_TABLE_TYPE @0x080950fb (0x13)
@@ -84,9 +84,8 @@ static const float kCritRollScale = 100.0f; // 0x08b12f64
 // LinkFinal2：getDamageInflict 的三分派目标定义（ORIG T 0x08095220/0x08095508/0x08095275
 // objdump 逐指令转写）及其依赖 getDamageRateCreature T 0x080955e1、
 // getCreatureDamageRateFromModule T 0x08095430、getCreatureDamageRateFromIndex T 0x0809549c。
-// 常量：0x8b12f54=0.01f（float）、0x8b12f58=100.0（double）。
-static const float kDamageRateMul01 = 0.01f;      // 0x08b12f54
-static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
+// 常量：0x8b12f54=0.01f（float）、0x8b12f58=100.0（double）——ORIG 为 .rodata 匿名项
+// （无符号，W16 seg34 §4.2 INVENT）⇒ 使用点内联字面量，删我方发明 static。
 
 // _Z21getDamageRateCreatureiii @0x080955e1 (0x18d)：a=min(a,50)；sum=a+b；
 // g_creature_damage_vector_ size>6 时 result = 100/(d4 + d6/vec[6])，否则 1.0。
@@ -127,7 +126,7 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
         double d4 = (static_cast<double>(g_creature_damage_vector_.at(4)) / d3 + 1.0) * d1;
         double d6 = static_cast<double>(g_creature_damage_vector_.at(5)) +
                     static_cast<double>(g_creature_damage_vector_.at(3)) * static_cast<double>(sum);
-        result = (kDamageRateDiv100 / (d4 + static_cast<double>(g_creature_damage_vector_.at(6)) / d6)) * result;
+        result = (100.0 / (d4 + static_cast<double>(g_creature_damage_vector_.at(6)) / d6)) * result;
     }
     return static_cast<float>(result);
 }
@@ -199,11 +198,11 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
         else if (v->m_damageType == 1)
             dmg = dmg + v->m_field033;
     }
-    dmg = dmg * (v->m_f006 * kDamageRateMul01 + 1.0f);
+    dmg = dmg * (v->m_f006 * 0.01f + 1.0f);
     if (v->m_damageType == 0)
-        dmg = dmg * (v->m_f037 * kDamageRateMul01 + 1.0f);
+        dmg = dmg * (v->m_f037 * 0.01f + 1.0f);
     else if (v->m_damageType == 1)
-        dmg = dmg * (v->m_f03B * kDamageRateMul01 + 1.0f);
+        dmg = dmg * (v->m_f03B * 0.01f + 1.0f);
     if (v->m_damageType == 0)
     {
         float s2 = v->m_f03F;
@@ -325,18 +324,18 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
     if (v->m_damageType == 0)            // 0x08095847：test 0x5 → 物理分支
     {
         dr = static_cast<float>(v->m_field093);                       // fildl 0x93
-        dr = (static_cast<float>(v->m_field097) * kDefRateMul01 + 1.0f) * dr;  // 0x97
+        dr = (static_cast<float>(v->m_field097) * 0.01f + 1.0f) * dr;  // 0x97
         redConst = g_physicalReduceRateConst_;                        // mov 0x93f5d18
-        s1 = v->m_field09B * kDefRateMul01;                           // flds 0x9b
+        s1 = v->m_field09B * 0.01f;                                   // flds 0x9b
         if (v->m_objTypeByte == 9)                                    // 0x1b2
             s1 *= getAbilityConvertRateSDC(defender, static_cast<ENUM_CONVERT_TABLE_TYPE>(8));
     }
     else if (v->m_damageType == 1)       // 0x080958d6：cmp $1 → 魔法分支
     {
         dr = static_cast<float>(v->m_field09F);                       // fildl 0x9f
-        dr = (static_cast<float>(v->m_field0A3) * kDefRateMul01 + 1.0f) * dr;  // 0xa3
+        dr = (static_cast<float>(v->m_field0A3) * 0.01f + 1.0f) * dr;  // 0xa3
         redConst = g_magicalReduceRateConst_;                         // mov 0x93f5d30
-        s1 = v->m_field0A7 * kDefRateMul01;                           // flds 0xa7
+        s1 = v->m_field0A7 * 0.01f;                                   // flds 0xa7
         if (v->m_objTypeByte == 9)
             s1 *= getAbilityConvertRateSDC(defender, static_cast<ENUM_CONVERT_TABLE_TYPE>(0xA));
     }
@@ -364,7 +363,7 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
     // 0x080959e3：if (dr == 0.0f && lvl <= 9) out0 = dr / 400.0f
     //   （fnstsw+test 0x45+sete：非无序且相等，即 C++ dr == 0.0f）
     if (dr == 0.0f && basisLevel <= 9)
-        outDefenseRate = dr / kDefRateDrFloorDiv;
+        outDefenseRate = dr / 400.0f;
 
     // 0x08095a0c：out1 = s1
     outReduceS1 = s1;
@@ -438,7 +437,7 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
     const int roll = static_cast<int>(SDC_Rand(randState)) % 10000;
 
     // 0x08095b9d..0x08095bb7：if (crit * 100.0f > (float)roll)
-    if (crit * kCritRollScale > static_cast<float>(roll))
+    if (crit * 100.0f > static_cast<float>(roll))
     {
         float critMul = g_criticalDamageDefaultRate_;     // mov 0x936e4ac（=1.5f 初值）
         if (_SDC::isObjectType(v->m_attackerObjType, 0x11))
@@ -514,10 +513,17 @@ static_assert(sizeof(stBVHackInfo_t) == 0x30, "stBVHackInfo_t must be 0x30 bytes
 }
 
 // ============================================================================
-// 8) BLEEDING_DAMAGE_IN_ACTION_RATE  R 0x08af45e4（.rodata 00 00 c0 3f = 0.75f）
+// 8) BLEEDING_DAMAGE_IN_ACTION_RATE  R 0x08af45e4（.rodata 00 00 c0 3f = 1.5f）
 //    Dispatchers.cpp:233 以 extern "C" float 引用（符号名无 mangle）。
+//    [Main·2026-09-11] 真数值 bug 修正：0.75f → **1.5f**。ORIG 字节 00 00 c0 3f
+//    = IEEE754 1.5f（0.75f 应为 00 00 40 3f）——旧值与其注释均为误读，
+//    影响 Dispatchers 侧 `adjDamage = (int)(RATE * clientDamage)` 的流血伤害缩放（差 2 倍）。
+//    证据：PoolH 数据符号普查 /tmp/lane_PoolH/datasym_scan.md（ORIG R 4B @0x08af45e4 直读）。
+// 8b) BLEEDING_DAMAGE_TERM  R 0x08af45e0（.rodata f4 01 00 00 = 500；ORIG 无引用死数据，
+//     符号轴对齐补定义，消 ORIG-only）。
 // ============================================================================
-extern "C" const float BLEEDING_DAMAGE_IN_ACTION_RATE = 0.75f;
+extern "C" const float BLEEDING_DAMAGE_IN_ACTION_RATE = 1.5f;
+extern "C" const int BLEEDING_DAMAGE_TERM = 500;
 
 // ============================================================================
 // 9) g_maxTotalDefenseRate  D 0x0936e4a8（.data 0a d7 23 3c = 0.01f）

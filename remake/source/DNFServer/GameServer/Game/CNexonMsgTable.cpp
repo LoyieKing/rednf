@@ -90,7 +90,9 @@ CNexonMsgTable g_nexonMsgTable;   // ORIG B @0x0945b8e4
     //   · `i <= 0x1b` → N `cmpl $0x1b,-0xc(%ebp)`（69/70，blocks=1，无 setcc）
     //   四形（</<=/!=/do-while）均在「eax 预装载」处缺 1 条，4.4 恒 mem 直比
     //   ⇒ 确为 4.1↔4.4 后端 lowering 差，源码不可择 ⇒ 维持 N。
-    for (unsigned int i = 0; i < 0x1c; ++i)
+    // [Q8 2026-09-11] P310：局部 int + 显式 `(unsigned int)` 比较 ⇒ 复现 ORIG
+    // 0x085800a3 两段尾测 `mov -0xc(%ebp),%eax; cmp $0x1b,%eax; setbe`。
+    for (int i = 0; (unsigned int)i < 0x1c; ++i)
         m_messages.insert(std::make_pair(msgs[i].key, msgs[i].str));
 }
 

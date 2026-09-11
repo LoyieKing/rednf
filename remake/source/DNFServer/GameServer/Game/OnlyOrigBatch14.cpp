@@ -389,27 +389,22 @@ unsigned int Rand_r(unsigned int* seed)
 // mov 0x93f55a0(,%eax,4),%eax`），命中后 push 的却是 VALUE[i] **未截断原值**
 // （ORIG 0x089e6e20 二次载 VALUE[i] → -0x14 → push_back(EOi)）。
 // VALUE 表自 ORIG .data 0x08e1c6e0 逐项提取（低字节=名表索引）。
-static const unsigned int g_championFeatureValue[0x25] = {
+// [PoolB b28f 符号名对齐] 该表在 ORIG 即 TU-local `_ZL21CHAMPION_FEATURE_LIST`
+// （@0x08e1c6e0，r 段 0x94；各 TU 各一份同内容副本）⇒ 本地 static 改名对齐
+// （原我方发明名 `_ZL22g_championFeatureValue`）。类型/内容/使用点形不变。
+static const unsigned int CHAMPION_FEATURE_LIST[0x25] = {
     0x1ff00, 0xff01, 0x2ff02, 0x2ff03, 0x30004, 0x30005, 0x30006, 0x30007,
     0x40008, 0x3fe09, 0x3fe0a, 0x3fe0b, 0x3fe0c, 0x2000d, 0x3000e, 0x3000f,
     0x20010, 0x40011, 0x10012, 0x20013, 0x2fd14, 0x2fd15, 0x2fd16, 0x2fd17,
     0x2fd18, 0x2fd19, 0x2fd1a, 0x3001b, 0x4fd1c, 0x4fd1d, 0x4fd1e, 0x4fd1f,
     0x4fd20, 0x4fd21, 0x4fd22, 0x4fd23, 0x4fd24
 };
-static const char* const g_championFeatureName[0x25] = {
-    "[Immune-Magic]", "[Immune-Physic]", "[Enhance-Physicaldefense]",
-    "[Enhance-Magicaldefense]", "[Immune-Fire]", "[Immune-Water]",
-    "[Immune-Light]", "[Immune-Dark]", "[Immune-ActiveStatus]",
-    "[Enchant-Fire]", "[Enchant-Water]", "[Enchant-Light]", "[Enchant-Dark]",
-    "[Speedup-Move]", "[Speedup-Attack]", "[Speedup-Hitrecovery]",
-    "[Speedup-Wakeup]", "[Speedup-Hpregen]", "[Etc-Neverfly]",
-    "[Etc-Reserrection]", "[onAttack-stun]", "[onAttack-bleeding]",
-    "[onAttack-confuse]", "[onAttack-slow]", "[onAttack-lightning]",
-    "[onAttack-poison]", "[onAttack-blind]", "[high-activestatus]",
-    "[Etc-divide]", "[Etc-invisible]", "[Etc-healed]", "[Etc-infected]",
-    "[Etc-counted]", "[Etc-berserk]", "[Etc-sleep]", "[Etc-revive]",
-    "[Etc-teleport]"
-};
+// [PoolB b28f 跨 TU 合并] 名表 ORIG 为全局 `CHAMPION_FEATURE_NAME` @0x093f55a0
+// （D 段、外部链接、元素非 const、0x94 = 37 指针；ORIG 引用点 0x089e6df7 段
+// `mov 0x8e1c6e0(,%eax,4),%eax; and $0xff,%eax; mov 0x93f55a0(,%eax,4),%eax`）。
+// 唯一定义已存在（STMapScript.cpp `const char* CHAMPION_FEATURE_NAME[37]`）⇒
+// 删本 TU 同内容拷贝（原 `_ZL21g_championFeatureName`），改 extern 引用 ⇒ OUR-only −1。
+extern const char* CHAMPION_FEATURE_NAME[37];
 #include "OnlyOrigBatch14/ScanChampionFeatures.inc"
 
 // ORIG T 0x08a65da5 _Z15ScanRewardItemsRSt6vectorI14RewardItemInfoSaIS0_EESs。
@@ -463,14 +458,13 @@ static const char* const g_championFeatureName[0x25] = {
 
 // ORIG T 0x08a0fb38 _Z27exportCharacterStatusScriptP8_IO_FILEP19STRDCharacterStatus：
 // 非零字段输出（值 /10.0f）。
-static const char* const g_activeResistName[17] = {
-    "[slow resistance]", "[freeze resistance]", "[poison resistance]",
-    "[stun resistance]", "[curse resistance]", "[blind resistance]",
-    "[lightning resistance]", "[stone resistance]", "[sleep resistance]",
-    "[burn resistance]", "[weapon break resistance]", "[bleeding resistance]",
-    "[piercing resistance]", "[stuck resistance]", "[confuse resistance]",
-    "[hold resistance]", "[armor break resistance]"
-};
+// [PoolB b28f 跨 TU 合并] 原 `static const char* const g_activeResistName[17]`
+// （我方发明拷贝表 `_ZL18g_activeResistName`）改为引用 ORIG 唯一表
+// `_ZL16ACTIVESTATUS_TAG` @0x093f5480（d 段 0x44 = 17 指针；ORIG 引用点
+// 0x08a0fdc2 `mov 0x93f5480(,%eax,4),%eax`）。唯一定义已落 STMonsterScript.cpp
+// （外部链接 `const char* ACTIVESTATUS_TAG[17]`，.data 0x44），此处只留声明 ⇒
+// OUR-only −1，本 TU 该件（AE 331/331 gap=0）读数不变。
+extern const char* ACTIVESTATUS_TAG[17];
 // [b14 本波·AE 归零] 三条真缺口（旧判词「N85 x87 除法 lowering 封顶」作废）：
 //  ①`(double)field` → `(float)field`：4.4 对 double 常量发 `fldl <A>`，ORIG 是
 //    `flds <A>`（float 常量）；且 `(float)unsigned int`（+0x0/+0x4/+0x42）走

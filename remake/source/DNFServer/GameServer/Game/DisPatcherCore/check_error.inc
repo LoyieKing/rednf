@@ -23,7 +23,10 @@ int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
         // —— 预选角色号作实参直传，无 uVar6 具名槽（我方 fresh 多 -0x1c 槽）⇒ 内联。
         sel.m_slot = static_cast<signed char>(
             user->get_charac_idx(user->getOnlinePreliminaryCharacNo()));
-        if (static_cast<unsigned char>(sel.m_slot) == 0xff)
+        // [b28e-DispCore] P225/P295：ORIG 0x081c68f? 为 `cmp $0xff,%al; sete %al;
+        // test %al,%al; je <继续>`（4.1 bool 四段物化）而非 4.4 直跳 `jne`
+        // ⇒ 试 while+break/return 形复现物化（P225 实证该形出 setne/test/je）。
+        while (static_cast<unsigned char>(sel.m_slot) == 0xff)
         {
             return 0xffffffff;
         }
@@ -37,8 +40,11 @@ int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
         // [G5-MiscC] P0/P52：ORIG 0x081c6963-0x081c696a 仅 `movzbl 0xd(%eax),%eax;
         // movsbl %al,%ebx`（值在 callee-saved %ebx 跨 cMyTrace ctor 保活），
         // 无 char 具名槽（我方 fresh 多 -0x15）⇒ 内联回 varargs 实参位。
-        cMyTrace local_34(__PRETTY_FUNCTION__, 0x16c4, 5);
-        local_34("pUser->SelectCharac() fail, %d out of range", static_cast<int>(sel.m_slot));
+        // [b28e-DispCore] P227：ORIG 的 `movsbl %al,%ebx` 预载在 ctor **之前**
+        // ⇒ 原码是全表达式临时链（4.4 亦把 op() 实参在 ctor 前求值入 %ebx）；
+        // 两语句形把 slot 求值推到 ctor 之后（实测改后该段行序与 ORIG 一致）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x16c4, 5)(
+            "pUser->SelectCharac() fail, %d out of range", static_cast<int>(sel.m_slot));
         return 4;
     }
     if (user->m_characList.size() <= static_cast<unsigned char>(sel.m_slot))
@@ -87,29 +93,31 @@ int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0xfffffffd;
     }
+    // [b28e-DispCore] 本件 20→4 后残余 3 处（全 N）：①~②`xor $1` 两处 = 4.4 对
+    // `== false` / `!(A||B)` 恒折取反（P168a/P292 档①，需 callee bool 化属他泳道）；
+    // ③`mov (%eax),%eax; mov %eax,%ebx` = N18a 单段直落不可造（ORIG `mov (%eax),%ebx`）。
     // [DPC_CheckErr] P222/极性轴：ORIG 0x081c6bcc `call isLockedDeleteCharac;
-    // test %al,%al; je 0x081c6bd2`（无 `xor $1`，#<显式 `== false` 形>）；
-    // 同函数内 0x081c6bdd `call lock4DataLoad; xor $1,%eax` 才是 `!` 形 ⇒ ORIG 两处
-    // 极性不同，此处必须写 `== false`（我方原 `!` 多发一条 xor）。
-    // [H5 核账 2026-09-11] ours_insns 270→270（verdict 未变）：4.4 把 bool 的
-    // `x == false` 折叠为 `!x`（`xor $1`），与 `!x` 同码 ⇒ 无法复现 ORIG 4.1 的
-    // `test %al,%al; je`。语义等价，保留（形已对齐 ORIG 源码）。
-    if (user->isLockedDeleteCharac() == false)
+    // test %al,%al; je <lock4DataLoad 块>`（无 `xor $1`）⇒ 原码是**正极性**
+    // `!= false` 显式块（cMyTrace 0x171c 段）+ false 路 fall-through 到
+    // lock4DataLoad 块。我方旧形 `== false` 把两块物理序写反（4.4 折 xor $1）。
+    // [b28e-DispCore] 翻转后块序 + 消 xor（ORIG 238-248 的 lock4DataLoad 块物理在后）。
+    if (user->isLockedDeleteCharac() != false)
     {
-        // [G5-MiscC] P292 档①：ORIG 0x081c6bdd `call lock4DataLoad; xor $1,%eax;
-        // test %al,%al; je <+0x37d>` 后 0x081c6be4 `mov $0xfffffffc,%ebx` / 0x081c6beb
-        // `mov $0x0,%ebx` ⇒ `!` 形 + 常量直返（无 uVar10 槽；ORIG 全函数返回值一律走
-        // %ebx 寄存器直返，见 0x081c6c18 `mov %ebx,%eax`）。
-        if (!user->lock4DataLoad())
-        {
-            return 0xfffffffc;
-        }
-        return 0;
+        // [G5-MiscC] P0/P52：ORIG 0x081c6b8a `call characList[]; mov (%eax),%ebx`
+        // （m_characNo 直读 %ebx，跨 cMyTrace ctor 保活，无 uVar9 具名槽）⇒ 实参位内联。
+        // [b28e-DispCore] P227：ORIG 0x081c6bf5 段 `mov (%eax),%ebx`（m_characNo 入
+        // %ebx）在 ctor **之前**、且 ORIG 无具名 trace 对象槽（ctor/op() 全表达式链）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x171c, 0)(
+            "select_charac error during delete charac_no(%d)",
+            static_cast<int>(user->m_characList[static_cast<int>(sel.m_slot)].m_characNo));
+        return 0x7fffffff;
     }
-    // [G5-MiscC] P0/P52：ORIG 0x081c6b8a `call characList[]; mov (%eax),%ebx`
-    // （m_characNo 直读 %ebx，跨 cMyTrace ctor 保活，无 uVar9 具名槽）⇒ 实参位内联。
-    cMyTrace local_20(__PRETTY_FUNCTION__, 0x171c, 0);
-    local_20("select_charac error during delete charac_no(%d)",
-             static_cast<int>(user->m_characList[static_cast<int>(sel.m_slot)].m_characNo));
-    return 0x7fffffff;
+    // [G5-MiscC] P292 档①：ORIG 0x081c6bdd `call lock4DataLoad; xor $1,%eax;
+    // test %al,%al; je <+0x37d>` 后 0x081c6be4 `mov $0xfffffffc,%ebx` / 0x081c6beb
+    // `mov $0x0,%ebx` ⇒ `!` 形 + 常量直返。
+    if (!user->lock4DataLoad())
+    {
+        return 0xfffffffc;
+    }
+    return 0;
 }

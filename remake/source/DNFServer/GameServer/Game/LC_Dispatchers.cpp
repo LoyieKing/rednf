@@ -159,18 +159,16 @@ public:
     // ORIG 直接读 m_serverEnvir.m_serverGroup（+0x378 内联读取，无 get_server_group 调用）。
     if (G_CEnvironment()->m_serverEnvir.m_serverGroup == 3)
     {
-        // DAT_08bc17d6 / DAT_08bc17dd：EUC-KR GM 名串区（0x1d 字节精确比较）
-        static const char kGmName1[0x1d] = {
-            '\xbb', '\xfe', '\xbf', '\xc0', '\xc0', '\xaf', '\x00',
-            '\xbb', '\xfe', '\xc0', '\xaf', '\xb8', '\xae', '\x00',
-            'S', 'K', 'I', 'L', 'L', '_', 'C', 'O', 'M', 'M', 'A', 'N', 'D', '_', 'L'
-        };
-        static const char kGmName2[0x1d] = {
-            '\xbb', '\xfe', '\xc0', '\xaf', '\xb8', '\xae', '\x00',
-            'S', 'K', 'I', 'L', 'L', '_', 'C', 'O', 'M', 'M', 'A', 'N', 'D', '_', 'L', 'O', 'G', ' ', ':', ' ', 'C', 'U'
-        };
-        if (strncmp(packet.m_name, kGmName1, 0x1d) == 0 ||
-            strncmp(packet.m_name, kGmName2, 0x1d) == 0)
+        // [OurOnly33 符号名轴 2026-09-11] ORIG 全 ELF 无 kGmName1/kGmName2（我方发射
+        // `_ZZN30Dispatcher_RegisterToBlackList7process…E8kGmName1/2`）：ORIG 用匿名
+        // .rodata 串区（DAT_08bc17d6 / DAT_08bc17dd，各 0x1d 字节精确比较）
+        // ⇒ 删 local static、使用点内联字节转义字面量（字面量含结尾 NUL 但 strncmp 只取
+        //   前 0x1d 字节，与定长数组逐字节等价；EUC-KR 字节保持原样）。
+        if (strncmp(packet.m_name,
+                    "\xbb\xfe\xbf\xc0\xc0\xaf\x00\xbb\xfe\xc0\xaf\xb8\xae\x00SKILL_COMMAND_L",
+                    0x1d) == 0 ||
+            strncmp(packet.m_name,
+                    "\xbb\xfe\xc0\xaf\xb8\xae\x00SKILL_COMMAND_LOG : CU", 0x1d) == 0)
         {
             out.m_4 = static_cast<int>(0x7fffffff);
             return 0;

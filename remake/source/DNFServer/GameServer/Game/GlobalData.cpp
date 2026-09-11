@@ -2238,10 +2238,25 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
             // 线格式负载切块：header(+0x00..0x01) 之后原始字节，ORIG lea 0x2(%eax)（P156 豁免）。
             guard->put_binary(data + 2, len);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            // [DataLane-P324/UDP] ORIG case1 体尾 `jmp epilogue`（0x0857c879），不经
+            // default 的 packetId<1000 日志检查 ⇒ return（旧 break 会 fall 到 switch
+            // 后的日志检查：case 1 包多打一条日志 = 真语义 bug）。
+            return;
+        }
+        // [DataLane-P324 叶块物理序] ORIG 叶块序 = case0(0x128) / case1(0x203) /
+        // **default(0x2da)** / case3(0x328) / case2(0x42a) ⇒ default 块写在 case1
+        // 之后、case3 之前；case2 写最后（空体，落点 +0x42a nop 岛）。
+        default:
+        {
+            // ORIG 0x0857c87e default 目标块：packetId<1000 才 logFormat
+            // （P86 逐次重读形参；char 符号扩展直比、无具名槽）。
+            if (reinterpret_cast<PacketHeader*>(data)->packetId < 1000)
+            {
+                LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x112,
+                                      "ABNORMAL UDP PACKET [%d]", (int)*data);
+            }
             break;
         }
-        case 2:
-            return;
         case 3:
         {
             GlobalData::s_auction_proxy->SetRunning(false);
@@ -2254,13 +2269,8 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             return;
         }
-        default:
-            break;
-        }
-        if (reinterpret_cast<PacketHeader*>(data)->packetId < 1000)
-        {
-            LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x112,
-                                  "ABNORMAL UDP PACKET [%d]", (int)*data);
+        case 2:
+            return;
         }
     }
 }
@@ -3644,6 +3654,11 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
 // p167 调用点差集 CLEAR（8/8，仅别名）。结论：**封顶，无改动**（语义无缺口）。
 #include "GlobalData/InitTcp.inc"
 {
+    // [DataLane P232] ORIG `sub $0x4c` vs 我方 `sub $0x3c`（差 0x10）⇒ 补 0x10
+    // 字节 dead 数组（4.4 -O0 对未读写局部照样占帧），使 cMyTrace/ret 槽基与
+    // ORIG（-0x2c/-0x1c）一致；余 N80（ctor 前 varargs 保活）/N82。
+    char framePad[0x10];
+    (void)framePad;
     if (m_ip.length() == 0 || m_tcpPort == 0)
     {
         return 0;
@@ -5661,6 +5676,9 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 #include "GlobalData/QueryConnInfo.inc"
                                  DBInfoMap& outMap)
 {
+    // [DataLane PoolE 负结论 2026-09-11] 指针局部→整型承载（`unsigned int dbAddr`）
+    // 实测**反劣**：ndiff 20→24、件由 NEAR 落 DIFF（db 槽未归位且其它局部连锁漂移）
+    // ⇒ 回滚为 `MySQL* db`；本件维持 N82/N126 槽图封顶。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)0,
                                                   (ENUM_SERVER_GROUP)0);
     if (!db->set_query("seLect db_name,db_ip,db_port,db_userid,db_passwd from "
@@ -5875,7 +5893,11 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
     //   mov %cl,0xe/0xc/0xd(%eax); addl $0x1,-0x10`）。旧写把 m_keys[i] 三行放在
     //   if/else **之外**且下标用 i ⇒ 重复键时写入位置与 ORIG 不同（真 bug）。
     int count = 0;
-    memcpy(this, data, 0x2e4);   // 基类子对象区（原 m_base）
+    // [DataLane P68] ORIG 0x0831c4a6 段实参装载序 = `movl $0x0,-0x10; mov 0x8(%ebp),%eax;
+    // movl $0x2e4,0x8(%esp); mov 0xc(%ebp),%edx; …`（**先载 this 到 eax** 再压 size/src）
+    // ⇒ 源形含 `(char*)this` cast（P68：memset((char*)this,…) 触发先载 this）；
+    // 裸 `memcpy(this,…)` 4.4 恒右→左先压常量。
+    memcpy((char*)this, data, 0x2e4);   // 基类子对象区（原 m_base）
     m_rewardMap.clear();
 
     // [G7-gd] ORIG 0x0831c773 循环条件每次都从 **this** 重读计数
@@ -6384,6 +6406,9 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 // 4.4 -0x1c/-0x14，P212 头部声明/前置声明三形实测均反劣）⇒ N98 封顶。
 #include "GlobalData/proc_addFatigue.inc"
 {
+    // [DataLane P309 负结论 2026-09-11] 全头部声明（浅→深：need/user/lower/after/
+    // zero）实测**反劣**：ndiff 4→9、NEAR→DIFF（73/74 不变但块序乱）⇒ 回滚块内
+    // 声明。4.4 头部声明方向在此与 ORIG 槽序不符 ⇒ 维持 N98/N93 封顶。
     // ORIG 0x0827fbd6：user/item 判空→0x13；item+0x3a0 的 vector<int> 取第 0 项
     // 与当前疲劳比较；疲劳不足返回 0x5f；否则扣减并 SendFatigue。
     if (p.m_user == 0)
@@ -8631,6 +8656,16 @@ EventRewardSection* GetRewardSection(int idx, register int type)
 // 4.4.7 分配固定不可择）+ 符号地址重定位显示伪差。
 #include "GlobalData/log.inc"
 {
+    // [DataLane P212/P339] ORIG 槽（深→浅）= serverEnv(-0x2c) / CMyFileLog(-0x24) /
+    // serverInfo(-0x19)：serverEnv 占**最深**槽 ⇒ 原码为函数头前置声明（4.4 头部
+    // 标量按「先声明 → 更深槽」分配）；旧块内声明使其落 CMyFileLog 之上(-0x1c)。
+    // [DataLane P232] ORIG `sub $0x4c` vs 我方 `sub $0x3c`：0x10 帧差 + 判词已录
+    // 的 ORIG 空槽 -0x28 ⇒ 补 0x10 字节 dead 数组（4.4 -O0 对未读写局部照样占帧）。
+    // [DataLane 第 2 试] 交换 framePad/serverEnv 声明序：4.4 头部分配下 pad 占更深
+    // 槽、serverEnv 落 ORIG 的 -0x2c（ORIG serverEnv 深于 CMyFileLog -0x24）。
+    char framePad[0x10];
+    (void)framePad;
+    int serverEnv;
     char serverInfo = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
@@ -8642,7 +8677,7 @@ EventRewardSection* GetRewardSection(int idx, register int type)
     }
     // [b28d-solo-GlobalData] ORIG 0x082707e8 `movsbl -0x19; mov %eax,-0x2c` 槽往返
     // ⇒ 原码有具名 int 提升局部（P0 有槽必有局部）。
-    const int serverEnv = (int)serverInfo;
+    serverEnv = (int)serverInfo;
     // [b28d-solo-GlobalData] P231/P248：ORIG 0x082707c0 三个值跨 CMyFileLog ctor
     // 保活于 callee-saved（esi=charNo/ebx=accId/edi=m_data）⇒ 纯 register 提示
     // （非 asm 绑定，P0 合规）；缺 register 时 4.4 落栈槽（-0x10/-0xc）。
@@ -8666,6 +8701,11 @@ EventRewardSection* GetRewardSection(int idx, register int type)
 // N82（帧 0x4c vs 0x3c、槽位平移）。
 #include "GlobalData/log_1.inc"
 {
+    // [DataLane P212/P339/P232] 同 PcRoom::log：0x10 字节 dead 数组补帧差
+    // （ORIG sub $0x4c vs 我方 $0x3c）+ serverEnv 头部声明（占 ORIG 的 -0x2c）。
+    char framePad[0x10];
+    (void)framePad;
+    int serverEnv;
     char serverInfo = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
@@ -8676,7 +8716,7 @@ EventRewardSection* GetRewardSection(int idx, register int type)
         serverInfo = (char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
     // [b24ab] 显式 int 提升到命名局部（ORIG +0x3c movsbl → -0x2c 槽）
-    const int serverEnv = (int)serverInfo;
+    serverEnv = (int)serverInfo;
     // [b24ab] ORIG 将 charNo/accId/m_data 缓存在 callee-saved（esi/ebx/edi）跨
     // CMyFileLog 构造存活 ⇒ register 强占（P197②形）
     // [Lane7GlobalData · P248补四 声明序旋钮——**已实测回滚**] 同 PcRoom 版：

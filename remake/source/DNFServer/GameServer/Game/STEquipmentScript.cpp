@@ -4629,20 +4629,16 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
 
 // ---- ORIG T 0x08990f1f：[equipment type] 字符串→枚举（26 项，失配→0x1a；
 //      表 0x93f4fc0 的 26 个字面量按序展开） ----
+extern const char* characterEquipmentTypeTags[26];   // ORIG D 0x093f4fc0（定义 InitScriptProducers_2.cpp:48）
 #include "STEquipmentScript/GetEquipmentType_1.inc"
 {
-    static const char* const kNames[26] = {
-        "[hat avatar]",   "[hair avatar]",  "[face avatar]",  "[coat avatar]",
-        "[pants avatar]", "[shoes avatar]", "[breast avatar]", "[waist avatar]",
-        "[skin avatar]",  "[aurora avatar]", "[weapon]",      "[title name]",
-        "[coat]",         "[shoulder]",     "[pants]",        "[shoes]",
-        "[waist]",        "[amulet]",       "[wrist]",        "[ring]",
-        "[support]",      "[magic stone]",  "[creature]",     "[artifact red]",
-        "[artifact blue]", "[artifact green]",
-    };
+    // [OurOnly33 符号名轴 2026-09-11] ORIG 0x08990f1f 循环体 `mov 0x93f4fc0(,%eax,4),%eax`
+    // = 全局表 `characterEquipmentTypeTags`（D, 0x68=26 指针；定义 InitScriptProducers_2.cpp，
+    // 声明 DataManagerInitDepends.h:239）⇒ 删本函数内 static kNames
+    //（我方发明名 `_ZZ16GetEquipmentTypePKcE6kNames`，ORIG 全 ELF 无）。
     for (int i = 0; i < 26; ++i)
     {
-        if (strcmp(name, kNames[i]) == 0)
+        if (strcmp(name, characterEquipmentTypeTags[i]) == 0)
             return i;
     }
     return 26;

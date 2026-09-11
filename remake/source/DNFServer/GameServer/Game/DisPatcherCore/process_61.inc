@@ -27,7 +27,11 @@ int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& para
     // 该处 `mov -0x10,%edx; add $0x11,%edx`（ORIG）vs `lea 0x11(%eax),%edx`（4.4）
     // 属 P30/N4 寻址折叠族，记 N。
     size_t len = strlen(reinterpret_cast<STFriendReqView*>(pReq)->m_name);
-    memcpy(pkt.m_name, reinterpret_cast<STFriendReqView*>(pReq)->m_name, len);
+    // [b28e-DispCore] P319 二试（仅第二实参位，strlen 位保持数组退化形）：
+    // ORIG 0x081cb6d8 `mov -0x10(%ebp),%edx; add $0x11,%edx` = 整数加法两段；
+    // 数组退化形在 4.4 恒 lea（P30/N4）。整数加法+回 cast 触发 4.4 的 add 两段。
+    memcpy(pkt.m_name,
+           reinterpret_cast<char*>(reinterpret_cast<unsigned int>(pReq) + 0x11), len);
     // [b28e-L5] P52 应用例：ORIG 0x081cb6f4 先 `movzwl -0x42(%ebp),%eax; movzwl %ax,%esi`
     // 与 `lea -0x44(%ebp),%ebx` 把 (size, pktAddr) 物化入 callee-saved，再跨
     // GetServerGroup→GetServerProxy 两次 call 保活，最后三压参。单条链式表达式复现

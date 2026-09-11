@@ -47,15 +47,17 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
     return *this;
 }
 
-// ORIG 0x081ae9e2：start=write=read=buffer; capacity=len。
-#include "ByteBuffer/ByteBuffer.inc"
-
 // [b28d-D43] ORIG 0x081ae9b8：static 成员 + 按值 sret 返回 —— 体 = 单次
 // `call ByteBuffer::C1EPcj(sret, buffer, len)` + `mov %ebx,%eax; ret $0x4`，
 // 全字段由 ctor 覆盖（无 this 参与）。调用点（0x081ad43b 等）只压
 // sret/buffer/len 三参、无 this ⇒ P88/P245 static 判据。旧重建的
 // `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
+// [Q8 2026-09-11] P210：wrap 定义须在 ctor 定义**之前**（4.4 见不到 callee 体
+// ⇒ 保守 outgoing 帧 $0x14 = ORIG）。
 #include "ByteBuffer/wrap.inc"
+
+// ORIG 0x081ae9e2：start=write=read=buffer; capacity=len。
+#include "ByteBuffer/ByteBuffer.inc"
 
 // ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
 // 空间足够则写 ushort 长度前缀（大端）+ wcsncpy + 游标前进 len*2。

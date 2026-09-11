@@ -3451,6 +3451,9 @@ struct Inter_MonitorUserGetoutPktView
         // imul/lea/add $0x210 三段。字段访问形 cond[count].m_sentinel 实测折成
         // `add MEM+mov 0x210(,)`（gap+2、ndiff 6，劣于本形）。残 4 = imul 目标寄存器
         // 与 base 装载先后对调（LRA 形，N18a 族）。
+        // [N 判词·2026-09-11 复核] 残 1 块 = `imul $0x84c,%eax,%eax`（ORIG 就地 + base 后装载）
+        //   vs 4.4 `imul $0x84c,%eax,%edx` + `mov base,%eax`（N18a/N101 寄存器选择）。
+        //   试形：交换加法操作数（`count*0x84c + (int)cond`）实测 **零变化**（仍 51/51、ndiff 1）⇒ 封 N。
         if (*reinterpret_cast<int*>(
                 (reinterpret_cast<int>(cond) + count * 0x84c) + 0x210) == -1)
             break;                                       // ORIG +0x3c je（顶部门槛）
@@ -3800,11 +3803,16 @@ struct Inter_MonitorEventItemUpdatePktView
 // [b28d-solo-InterDispatcher] verdict=NEAR ndiff=42（ORIG 0x84cefd2）：N82/P112 帧槽平移+P30/N4 add-vs-lea。
 #include "InterDispatcher/dispatch_sig_32.inc"
 {
+    // [P339·2026-09-11] 全头部声明 + 声明序 = ORIG 槽深→浅：ORIG pPkt@-0x1c（浅）、
+    //   v1a@-0x40 / v16@-0x3c（深）⇒ 4.4 头部声明恒「先声明→更深槽」，故 v1a/v16 先声明、
+    //   pPkt 后声明（赋值语句序保持 ORIG：pPkt → v1a → v16）。
+    unsigned int v1a;
+    unsigned int v16;
     Inter_MonitorEventItemUpdatePktView* pPkt = reinterpret_cast<Inter_MonitorEventItemUpdatePktView*>(data);
     // ORIG 0x84cefd2：m_1a/m_16 落槽（-0x40/-0x3c），m_e/m_12/NumberToString
     // 经 block-scope register 直落 %edi/%esi/%ebx 跨 cMyTrace ctor 缓存（P36）。
-    unsigned int v1a = pPkt->m_1a;
-    unsigned int v16 = pPkt->m_16;
+    v1a = pPkt->m_1a;
+    v16 = pPkt->m_16;
     register unsigned int v0e = pPkt->m_e;
     register unsigned int v12 = pPkt->m_12;
     register char* mid = NumberToString(pPkt->m_a, 0);
@@ -3869,6 +3877,10 @@ struct Inter_MonitorServerEventStartPktViewI
 
 #include "InterDispatcher/dispatch_sig_33.inc"
 {
+    // [N 判词·2026-09-11] 残差 = 帧 0x5c(ORIG) vs 0x6c + trace 对象槽 -0x48 vs -0x4c（单槽深 4）。
+    //   试形（Main「指针局部→整型承载地址」旋钮）：`unsigned int pPktAddr` 承载 `data` + 宏视图
+    //   访问，实测 **零变化**（仍 100 条、ndiff 5、帧 0x6c）⇒ 本件多出的 4B 不在 pPkt 指针分区
+    //   （pPkt 槽两侧同为 -0x1c）⇒ 落 N126/N82（版本常数帧 + 域分区）。
     Inter_MonitorServerEventStartPktViewI* pPkt = reinterpret_cast<Inter_MonitorServerEventStartPktViewI*>(data);
 
     PacketGuard packet;                                // ORIG 构造后未使用，分支外统一析构
@@ -7862,7 +7874,11 @@ struct Inter_SaveClientHackLogPktView
             RestrictCategory::Enum_3, 1))
         return 0;                                    // asm xor $0x1,test 取反提前返回
 
-    int penalty = 0;                                 // local_20[0]/asm -0x1c(%ebp)
+    // [2026-09-11] ORIG 084d1b35/-0x1c、084d1bce/-0x18、084d1c02/-0x14 三槽连续 ==
+    //   Ghidra `int local_20[3]`（含 100 常量物化槽 -0x18）⇒ 源形是局部数组而非三个独立
+    //   标量（旧 `int stdDropRate` 落 -0x20，与 ORIG -0x14 差 0xc；`penalty` 落 -0x18 差 4）。
+    int local_20[3];
+    local_20[0] = 0;                                 // local_20[0]/asm -0x1c(%ebp)
     // ORIG 084d1b46..084d1b69：二分决策树（cmp $0x1f7 / jg / cmp $0x193 / cmp $0x326 /
     //   cmp $0x3ba）⇒ 原码是 switch；case 体物理序实测 0x3ba(084d1b71 cmp $0x4b0)、
     //   0x1f7(084d1b89 cmp $0x32)、0x193(084d1b9f cmp $0xfa)、0x326(084d1bb7 cmp $0x19)
@@ -7871,19 +7887,19 @@ struct Inter_SaveClientHackLogPktView
     {
     case 0x3ba:
         if (pPkt->m_e > 0x4b0)
-            penalty += 0x14;
+            local_20[0] += 0x14;
         break;
     case 0x1f7:
         if (pPkt->m_e > 0x32)
-            penalty += 0x28;
+            local_20[0] += 0x28;
         break;
     case 0x193:
         if (pPkt->m_e > 0xfa)
-            penalty += 0x14;
+            local_20[0] += 0x14;
         break;
     case 0x326:
         if (pPkt->m_e > 0x19)
-            penalty += 0x1e;
+            local_20[0] += 0x1e;
         break;
     }
 
@@ -7894,14 +7910,15 @@ struct Inter_SaveClientHackLogPktView
     // [H2·2026-09-11 laneC P0 负结论·已回滚] ORIG 084d1bf4 `mov %eax,-0x1c(%ebp)` 复用 penalty
     //   槽（084d1b35 同址）看似同一变量；实测删 `int rate` 合形后 nd 28→**40**（n 仍 137）
     //   ⇒ 反向劣化（4.4 的 min 取址对 `penalty` 槽序另有约束）⇒ 回滚，判 N。
-    int rate = 100 - std::min(100, penalty);
-    int stdDropRate = target->getStdDropRate();      // local_20[2]
-    rate = std::min(rate, stdDropRate);              // std::min(&local_20[0],&local_20[2])
-    if (target->getStdDropRate() != rate)
+    local_20[1] = 100;
+    local_20[0] = 100 - std::min(local_20[1], local_20[0]);
+    local_20[2] = target->getStdDropRate();          // local_20[2]
+    local_20[0] = std::min(local_20[0], local_20[2]);  // std::min(&local_20[0],&local_20[2])
+    if (target->getStdDropRate() != local_20[0])
     {
         DB_SaveUserHandicap::makeRequest(
-            target->get_acc_id(), 0x9c41, 0x65, rate, 3, 0);
-        target->setStdDropRate(rate);
+            target->get_acc_id(), 0x9c41, 0x65, local_20[0], 3, 0);
+        target->setStdDropRate(local_20[0]);
     }
     return 0;
 }
@@ -9033,6 +9050,10 @@ struct Inter_NoticeHasBeenGuildMasterPktView
 #include "InterDispatcher/dtor_Inter_DBCheckDoubleGuildName.inc"
 // ORIG 0x084d347e T dispatch_sig —— 公会名重复检查应答。
 // 报告 docs/class_func_reports/Inter_DBCheckDoubleGuildName/dispatch_sig.md 全文转写。
+// [N 判词·2026-09-11 复核] 残 2 块 = **N104 EH 尾块相对序**：ORIG 0x084d3559/0x084d355f
+//   （正常路径 ~PacketGuard 在 `jmp +0x103` 之前）vs 我方把该 D1 块压到函数最末
+//   （0x084d357c `_Unwind_Resume` 之后）。两侧均 2 次 D1、指令逐条全等 ⇒ 仅块位互换，
+//   跨版本（4.1 正常路径尾块就地 / 4.4 提取共享尾），无源码旋钮。
 #pragma pack(push, 1)
 // Inter_DBCheckDoubleGuildNamePktView —— Inter_DBCheckDoubleGuildName::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
@@ -12399,6 +12420,9 @@ struct Inter_UpdateServerMessagePktView
 #include "InterDispatcher/dtor_Inter_NoticeServerMessageInfo.inc"
 // ORIG 0x084da726 T dispatch_sig —— 共享服务器公告下发（0xc0 包，全网 state3 广播）。
 // 报告 docs/class_func_reports/Inter_NoticeServerMessageInfo/dispatch_sig.md 全文转写。
+// [N 判词·2026-09-11 复核] 残 2 块 = **N104 EH 尾块相对序**：ORIG 正常路径以
+//   `jmp <tail>` 结束、尾块 = [unwind 段] + [`lea -0x3c;call D1` + `mov $0,%eax` + epilogue]；
+//   我方把 [D1+epilogue] 就地内联在正常路径、unwind 压函数末。指令逐条全等仅块位互换 ⇒ N。
 #pragma pack(push, 1)
 // Inter_NoticeServerMessageInfoPktView —— Inter_NoticeServerMessageInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
@@ -13036,6 +13060,9 @@ struct Inter_ItemLimitEdition_Sell_EndPktViewI
 
 #include "InterDispatcher/dispatch_sig_189.inc"
 {
+    // [N 判词·2026-09-11 复核] 残差 = ORIG pPkt@-0x10 / packet@-0x2c vs 我方 -0x14/-0x30（整体深 4）。
+    //   试形（Main「指针局部→整型承载地址」旋钮：`unsigned int pPktAddr` + 宏视图）实测
+    //   **零变化**（仍 95/94 条、our 94 不变）⇒ 本件深 4 不由指针分区产生 ⇒ 落 N82/P212 槽方向。
     Inter_ItemLimitEdition_Sell_EndPktViewI* pPkt =
         reinterpret_cast<Inter_ItemLimitEdition_Sell_EndPktViewI*>(data);
     // ORIG 0x084dbbc2 仅一枚具名包指针（-0x10）；`char* recv`/`const unsigned int count`
@@ -16070,6 +16097,10 @@ struct Inter_Antibot_PunishClientPktView
     case 1:
         break;
     case 2:
+        // [N 判词·2026-09-11] ORIG 084e4818 `je→mov $1` 岛 / 084e4827 `jne→mov $0` 岛（负极性
+        //   物化 + `jne <skip>`）vs 我方 `je <body>`（正极性）。试形：P226 语句表达式包负条件
+        //   `!({ target==0 || get_state(target)==0; })` 实测 **劣化**（94→99 条、ndiff 5→6）⇒ 回退。
+        //   残差 = 4.4 对 `&&` 短路恒折条件跳转（P225 推广域）+ N21 jcc 极性 ⇒ 封 N。
         if (target != 0 && target->get_state() != 0)
             target->DisConnSig((DISCONN_SIG)0x23, true, 0);
         break;
@@ -18767,6 +18798,9 @@ struct Inter_CollectItemsRewardBroadcastPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=101（ORIG 0x84e7598）：P30/N4 add-vs-lea+P264 .o 重定位/立即数。
 #include "InterDispatcher/dispatch_sig_296.inc"
 {
+    // [N 判词·2026-09-11 复核] ORIG pPkt@-0xc / packet@-0x18 vs 我方 -0x10/-0x1c（整体深 4）。
+    //   试形（Main「指针局部→整型承载地址」旋钮）实测 **反劣**（our 103→104、gap −1→−2）
+    //   ⇒ 回退，落 N82/P212 槽方向。
     Inter_CollectItemsRewardBroadcastPktView* pPkt = reinterpret_cast<Inter_CollectItemsRewardBroadcastPktView*>(data);
 
     PacketGuard packet;

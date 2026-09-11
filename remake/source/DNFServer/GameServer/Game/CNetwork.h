@@ -156,7 +156,10 @@ int CNetwork<N1, N2>::send_packet(char* data, int len)
     }
     if (len <= 0)
     {
-        LogManager::logFormat(1, "CNetwork.h", "send_packet(char*, int)", 0x25b,
+        // [Fn28Gap 2026-09-11] ORIG 0x082fdfcc+0xf..0x27 段：0x8(%esp) 装载
+        // _ZZN8CNetworkILi100000ELi100000EE11send_packetEPciE12__FUNCTION__
+        // @0x08c21a10（r,12B="send_packet\0"）⇒ 原码为宏 __FUNCTION__（非手写）。
+        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x25b,
             "send_packet(char*, int) error, len <= 0 : %d %d %d",
             data[0], data[1], len);
         return -1;
@@ -169,7 +172,7 @@ int CNetwork<N1, N2>::send_packet(char* data, int len)
     if ((unsigned int)m_sendSize > (unsigned int)sizeof(m_send))
     {
         m_sendSize -= len;
-        LogManager::logFormat(1, "CNetwork.h", "send_packet(char*, int)", 0x26e,
+        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x26e,
             "send_packet(char*, int) error, Send buffer over flow : %d %d %d",
             data[1], m_sendSize, len);
         send_unlock();
@@ -178,7 +181,7 @@ int CNetwork<N1, N2>::send_packet(char* data, int len)
     if (!(m_sendBuf >= m_send && m_sendBuf < m_send + sizeof(m_send)))
     {
         m_sendSize -= len;
-        LogManager::logFormat(1, "CNetwork.h", "send_packet(char*, int)", 0x277,
+        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x277,
             "send_packet(char*, int) error, Send buffer over flow : %d %d %d",
             data[1], m_sendSize, len);
         send_unlock();
@@ -218,7 +221,10 @@ int CNetwork<N1, N2>::recv_packet()
         {
             return 0;
         }
-        cMyTrace("recv_packet", 0x210, 0)("recv_packet() error(%d:%s)",
+        // [Fn28Gap 2026-09-11] ORIG 0x0818e277: movl $0x8b96721,0x4(%esp) =
+        // _ZZN8CNetworkILi6144ELi100000EE11recv_packetEvE12__FUNCTION__
+        // （r,12B="recv_packet\0"）⇒ cMyTrace 首参为宏 __FUNCTION__。
+        cMyTrace(__FUNCTION__, 0x210, 0)("recv_packet() error(%d:%s)",
             m_sock, errno, strerror(errno));
         return -1;
     }
@@ -247,7 +253,11 @@ int CNetwork<N1, N2>::send_packet()
             send_unlock();
             return 0;
         }
-        cMyTrace("send_packet()", 0x2af, 0)("send_packet() error(%d:%s)",
+        // [Fn28Gap 2026-09-11] ORIG 0x0818e5dc: movl $0x8b96710,0x4(%esp) =
+        // _ZZN8CNetworkILi6144ELi100000EE11send_packetEvE12__FUNCTION__
+        // （r,12B="send_packet\0"）⇒ 原码 __FUNCTION__（旧手写 "send_packet()"
+        // 串内容亦与 ORIG 不同）。
+        cMyTrace(__FUNCTION__, 0x2af, 0)("send_packet() error(%d:%s)",
             m_sock, errno, strerror(errno));
         send_unlock();
         return -1;
@@ -260,7 +270,8 @@ int CNetwork<N1, N2>::send_packet()
             m_sendSize -= ret;
             if ((unsigned int)m_sendSize > (unsigned int)sizeof(m_send))
             {
-                LogManager::logFormat(1, "CNetwork.h", "send_packet()", 0x2d1,
+                // [Fn28Gap 2026-09-11] ORIG 0x0818e69a: 0x8(%esp)=__FUNCTION__。
+                LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x2d1,
                     "send_packet() error, Send buffer over flow : %d", m_sendSize);
                 return -1;
             }
@@ -269,7 +280,8 @@ int CNetwork<N1, N2>::send_packet()
         }
         else if ((int)m_sendSize < ret)
         {
-            LogManager::logFormat(1, "CNetwork.h", "send_packet()", 0x2db,
+            // [Fn28Gap 2026-09-11] ORIG 0x0818e73c: 0x8(%esp)=__FUNCTION__。
+            LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x2db,
                 "send_packet() error : %d %d", m_sendSize, ret);
             send_unlock();
             return -1;
@@ -433,7 +445,10 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
     {
         m_recvOffset += recvLen;
         m_recvBuf += recvLen;
-        LogManager::logFormat(1, "CNetwork.h", "Parsing_ServerPacket(int)", 0x31d,
+        // [Fn28Gap 2026-09-11] ORIG 0x0818e35d: 0x8(%esp) =
+        // _ZZN8CNetworkILi6144ELi100000EE20Parsing_ServerPacketEiE12__FUNCTION__
+        // （r,21B="Parsing_ServerPacket\0"）⇒ 原码 __FUNCTION__。
+        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x31d,
             "Packet size(%d:%d:%d) < HEADER_SIZE", m_recvBuf, m_recv,
             m_recvOffset, recvLen);
         return 1;
@@ -452,7 +467,8 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
         // 旧嵌套 if(ps>9){if(ps>0x1800)} 在 4.4 下把 ps<=9 误送 dispatch（真语义 bug）。
         if (packetSize <= 9 || packetSize > 0x1800)
         {
-            LogManager::logFormat(1, "CNetwork.h", "Parsing_ServerPacket(int)",
+            // [Fn28Gap 2026-09-11] ORIG 0x0818e402: 0x8(%esp)=__FUNCTION__。
+            LogManager::logFormat(1, "CNetwork.h", __FUNCTION__,
                 0x32d, "Packet size(%d:%d:%d) ERROR", recvLen, packetSize,
                 m_recvBuf);
             m_recvBuf = m_recv;
@@ -536,8 +552,11 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
         {
             // ORIG 0x082f7f92..0x082f7fa8：packetID 先求值存 %ebx 跨 getCategory
             // 调用 ⇒ 无具名局部，实参内联（P44/P226）。
+            // [Fn28Gap 2026-09-11] ORIG 0x082f7fca: 0x8(%esp) =
+            // _ZZN8CNetworkILi100000ELi100000EE27Parsing_AuctionServerPacketEiE12__FUNCTION__
+            // @0x08c1ebd4（r,28B="Parsing_AuctionServerPacket\0"）。
             LogManager::logFormat(1, "CNetwork.h",
-                "Parsing_AuctionServerPacket(int)", 0x402,
+                __FUNCTION__, 0x402,
                 "Packet size(%d:%d:%d:%d) ERROR", recvLen, packetSize,
                 reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getCategory(),
                 reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getPacketID());
@@ -564,7 +583,8 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
             {
                 continue;
             }
-            LogManager::logFormat(1, "CNetwork.h", "Parsing_AuctionServerPacket(int)",
+            // [Fn28Gap 2026-09-11] ORIG 0x082f8069 段：0x8(%esp)=__FUNCTION__。
+            LogManager::logFormat(1, "CNetwork.h", __FUNCTION__,
                 0x41c, "Packet size(%d) < HEADER_SIZE", remain);
             break;
         }

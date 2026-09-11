@@ -49,6 +49,44 @@
 //    对 D1 侧无效、元素 dtro 加 throw() 亦无效；P284 全特化 throw() 仅适用于析构平凡 T
 //    如 _IO_FILE）。
 // ============================================================================
+// [PoolA 2026-09-11 fresh 复核 · 清单 13 件（routed 11:56，本 TU 四数 729/1896/1/13，
+//   missing=1 为 static_init 口径 N123）] 小 6 件逐件三态：
+//   · WarRoomAlloc 0x08298a30 / user_exit 0x082985a8：**AE**（77/79、222/224，
+//     ndiff 0；gap −2 为 4.4 outgoing 预留 N115）——清单 NEAR 系陈旧口径。
+//   · CheckOutQuickParty 0x082983fc：**DIFF** 26/27 ndiff2。残差 = ORIG
+//     `xor $1,%eax; test %al,%al; jmp <epilogue>` 的 dead test（P225 4.1 bool 归一
+//     无消费者）+ party==0 沿入口 `mov 0x10(%ebp),%eax` 残值直落 epilogue；4.4 不发
+//     dead test 且补 `movzbl -0xc(%ebp),%eax`（按槽零扩展）⇒ N7/P52 跨版本 spill 差
+//     （`!call()`/`(bool)(call()^1)` 两形实测逐条相同，在册）⇒ 维持。
+//   · GetPvp(int,CUser*,int) 0x08295206（报告缺失，§3.2 nm 兜底）：**DIFF** 81/81
+//     ndiff4。残差 = 两处空串三目臂 `mov $<空串>,%esi/%ebx`（imm 直装 callee-saved）
+//     vs 4.4 `mov $imm,%eax; mov %eax,%esi/%ebx` ⇒ N18a/N7（P244 具名局部向会加槽，
+//     实测无用）⇒ 维持。
+//   · returnUserPool 0x08294b2c：**DIFF** 148/149 ndiff2。残差 = err 跨 cMyTrace ctor
+//     的 %esi 缓存（ORIG 0x08294cdf `mov -0xc(%ebp),%esi`）vs 4.4 槽重读（0x08294d17
+//     `mov %esi,0x8(%esp)` ↔ 我方 `mov -0xc(%ebp),%eax; mov %eax,0x8(%esp)`）。
+//     本波试 P226 裸语句表达式 `({ err; })`：**无效**（148/149 ndiff2 逐值不变，已回滚）
+//     ⇒ 维持 N7/N82 封顶。
+//   · WarRoomCountManage 0x082a271a：**NEAR** 311/312 ndiff16。残差 = 索引/room 槽
+//     整体 +4（ORIG -0x48/-0x44/-0x40 vs 我方 -0x44/-0x40/-0x3c）+ 循环体调度；
+//     P212 提级实验（在册）实测反劣 52→58 ⇒ N82 维持。
+//   大 7 件（fresh，同日）：
+//   · FindQuickJoinablePvPRoom 0x082a3202：**DIFF** 70/72 ndiff1，唯一残差 = `quick==0`
+//     段 `cmpb $0x0,-0x2c(%ebp); je` vs 4.4 `movzbl; xor $1; test; jne` ⇒ N122
+//     （跨版本 bool 取反 lowering；(int)quick==0 与 quick==0 两形实测逐条相同在册）。
+//   · send_userinfos_to_cutoff_server 0x08295e84：**DIFF** 178/182 ndiff2，残差 = `%10`
+//     展开：ORIG 0x08295f5f `shr $0x3,%edx` 商留寄存器 vs 4.4 商落 -0x18 槽再回读
+//     （`mov %edx,%eax; shr $0x3,%eax; mov %eax,-0x18(%ebp); mov -0x18(%ebp),%edx` + 尾
+//     `mov %edx,%eax; mov %eax,-0x18(%ebp)`，+4 条）⇒ N86b（4.4 除法中间值落槽）。
+//   · CheckOutPvp 0x08297eaa：**DIFF** 212/211 ndiff36（N82 槽组分区 + N91/P285 岛）。
+//   · Send_userinfos_to_upper_server 0x082961be：**DIFF** 304/302 ndiff34（N82/N115
+//     帧 0x1764↔0x1750）。
+//   · createUser 0x08294296：**DIFF** 126/124 ndiff28（N82：缺 push %edi + Guard 槽
+//     −0x54↔−0x44）。
+//   · insert_game_world 0x08296d30：**DIFF** 890/892 ndiff86（N82 大帧槽组 + N89；
+//     p167 193/193 CLEAR 在册）。
+//   · StaticPool<CTradeSpace,300>::~StaticPool 0x082ae79c：**DIFF** 37/50 ndiff5
+//     （N91：delete[] 元素析构循环 EH landing 多 1×_Unwind_Resume；P216 边界）。
 #include "CShutdowManager.h"   // GetInstanceShutdowManager 完整类型（SendLastMsgDBQueue 调用）
 // [b28d-solo-CGameManager 本波判词（2026-09-09）] 清单 23 件收口（TU 编译绿、
 // p167 逐符号核对：语义件全 CLEAR；N91 族 D1Ev/MoreAlloc 的 delete[] EH EXTRA 与
@@ -814,6 +852,9 @@ template class GlobalInstance<CGameManager>;
         {
             // ORIG 0x08294cd8..0x08294d00：NumberToString 结果入 %ebx 跨 cMyTrace
             // ctor 保活（无具名槽）⇒ P227 全表达式临时链。
+            // [PoolA 2026-09-11 试形判词] err 跨 ctor 的 %esi 缓存：P226 裸语句表达式
+            // `({ err; })` 实测无效（仍 `mov -0xc(%ebp),%eax` 槽重读，148/149 ndiff2
+            // 前后逐值不变）⇒ 维持 N7/N82 封顶（ORIG `mov -0xc(%ebp),%esi`）。
             cMyTrace(__PRETTY_FUNCTION__, 0xa0e, 0)(
                 "STATIC MEMORY_POOL returnUserPool error(%d), user(%x), last user m_acc_id(%s), idx(%d)",
                 err, user, NumberToString(accId3, 0), uid);

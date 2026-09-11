@@ -24,7 +24,9 @@ void exportCharacterStatusScript(FILE* fp, STRDCharacterStatus* st)
     {
         if (st->m_activeResist[i] != 0)
         {
-            fprintf(fp, "%s %.1f\n", g_activeResistName[i],
+            // [PoolB b28f] 共享 ORIG 表（定义见 STMonsterScript.cpp；ORIG 0x08a0fdc2
+            // `mov 0x93f5480(,%eax,4),%eax` 同一实体）。
+            fprintf(fp, "%s %.1f\n", ACTIVESTATUS_TAG[i],
                     (float)(short)st->m_activeResist[i] / 10.0f);
         }
     }

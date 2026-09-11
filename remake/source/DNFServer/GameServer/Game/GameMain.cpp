@@ -480,6 +480,12 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
 // 误用 tm_mon/15）；0x55 delay 改内联实参（P24）；残差帧 0x74 vs 0x64 + 槽平移。
 #include "GameMain/RegistServerSchedule_1.inc"
 {
+    // [Fn28Gap 登记 · MiscLane 落地 2026-09-11] ORIG 有 b 段符号
+    // `_ZZ20RegistServerSchedulevE1i`（4B @0x0941f860，host 区间 0 引用 = 死 static）。
+    // 探针 /tmp/lane_MiscLane/probe_static.cpp 实证：4.4.7 -O0 对**未使用**的函数级
+    // `static int i;` 照样发射同名 b 4B 符号（零指令、零帧影响）⇒ 补回即消该仅ORIG。
+    static int i;
+
     // 0x50 / 0x52：固定 0 秒
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x50, 0, 0, 0);
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x52, 0, 0, 0);
@@ -659,7 +665,11 @@ STScriptFileList g_npcScriptFileList;
     // Server process is terminated." → return 0（82a090c..82a0937 实证）。
     if (!regist_signals())
     {
-        std::cout << "Fail to regist os signals, Server process is terminated."
+        // [MiscLane 2026-09-11 真 bug 修] ORIG Init 全函数 14 处 stream 引用**全为
+        // `_ZSt4cerr`**（0x948b460 ×14，`nm` 实查；0x948b3c0 `_ZSt4cout` 引用 0 处）
+        // ⇒ 旧文 8 处 std::cout 系输出流写错（运行期可见：本该进 stderr 的
+        // 启动日志进了 stdout）。ShowLogo（本 TU 另件）ORIG 确为 cout，勿动。
+        std::cerr << "Fail to regist os signals, Server process is terminated."
                   << std::endl;
         return false;
     }
@@ -672,15 +682,15 @@ STScriptFileList g_npcScriptFileList;
     rl.rlim_cur = static_cast<rlim_t>(-1);
     setrlimit(RLIMIT_CORE, &rl);
 
-    std::cout << "[!] Check Args ..." << std::endl;
+    std::cerr << "[!] Check Args ..." << std::endl;
     if (!check_argv(argc, argv))
     {
         // ORIG 82a09b3..82a09dc：cout "[!] Check Args Fail" → return 0。
-        std::cout << "[!] Check Args Fail" << std::endl;
+        std::cerr << "[!] Check Args Fail" << std::endl;
         return false;
     }
     // ORIG 82a09e1..82a0a02：cout "[!] Check Args Success"。
-    std::cout << "[!] Check Args Success" << std::endl;
+    std::cerr << "[!] Check Args Success" << std::endl;
 
     std::srand(static_cast<unsigned>(time(NULL)));
 
@@ -690,14 +700,14 @@ STScriptFileList g_npcScriptFileList;
     //   m_logFile 前缀回落 "Log"）→ cout "	- log path: " << path
     //   → cout "[!] Init Log Success"。
     CLog::createInstance();
-    std::cout << "[!] Init Log ..." << std::endl;
+    std::cerr << "[!] Init Log ..." << std::endl;
     char logPath[0x104];
     // ORIG 0x082a0a64 调 `sprintf@plt`（无 size 参数，P171 照抄；旧实现 snprintf
     // 多压 size 实参，p167 EXTRA +1）。
     std::sprintf(logPath, "./log/%s/", G_CEnvironment()->get_file_name());
     CLog::instance()->initiate(logPath, 0, 0);
-    std::cout << "	- log path: " << logPath << std::endl;
-    std::cout << "[!] Init Log Success" << std::endl;
+    std::cerr << "	- log path: " << logPath << std::endl;
+    std::cerr << "[!] Init Log Success" << std::endl;
 
     // ORIG 82a0aea..82a0bc0：
     //   cMyTrace trace("AuthGarenaToken::Init"@0x8c1b026, 0x29c9, 9, 1, 0);
@@ -801,7 +811,7 @@ STScriptFileList g_npcScriptFileList;
     {
         // ORIG 0x082a12fb：失败分支是 cout << "[!] Init tournament db Fail" << endl
         // （p167 MISSING 2×ostream 即此），非 cMyTrace。
-        std::cout << "[!] Init tournament db Fail" << std::endl;
+        std::cerr << "[!] Init tournament db Fail" << std::endl;
         return false;
     }
     { cMyTrace t(__PRETTY_FUNCTION__, 0x2a33, 9, false, true); t("Success"); }

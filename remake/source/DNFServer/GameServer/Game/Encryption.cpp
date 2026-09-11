@@ -21,10 +21,6 @@
 #include "EncryptTool.h"   // EncryptTool（m_rijndael@+0x204）
 #include "CRijndael.h"     // CRijndael::Decrypt
 
-// index_array（ORIG 0x9370f60，.data，200*300 int）：getOriginalBuf 的插入
-// 位置表，从 ORIG 二进制提取，60000 个 0..299 值。
-#include "index_array.inc"
-
 // ============================================================================
 // CRC-32
 // ============================================================================
@@ -36,6 +32,13 @@
 unsigned int Encryption::XorSeed = 0;
 unsigned int Encryption::crc_table[256];
 unsigned int Encryption::ShiftSeed = 0;
+
+// index_array（ORIG 0x9370f60，.data，200*300 int）：getOriginalBuf 的插入
+// 位置表，从 ORIG 二进制提取，60000 个 0..299 值。
+// [OurOnly33 符号名轴] 定义须留在 XorSeed 之后：index_array 已去 static/const（见 inc 头注），
+// 若前置于 XorSeed 会成为本 TU 首个外部链接强符号 ⇒ P327 GI 键名被改成
+// _GLOBAL__I_index_array（基线键名 = _ZN10Encryption7XorSeedE，missing +1 实证）。
+#include "index_array.inc"
 
 // [b28d-solo-Encryption] P254 扩展：ORIG 对 data[i] 发
 // `movzbl (%eax),%eax; mov %eax,%ecx`（4.1 两段中转），unsigned char 直载恒折单段

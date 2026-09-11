@@ -72,6 +72,13 @@ namespace user_creature
 #include "CreatureOnlyMgrRest/ChangeOwner.inc"
                                int param_4, int param_5)
 {
+    // [SmallPoolD 2026-09-11 试形 A·落地] N115 帧 0x4c vs ORIG 0x5c：按 P232 补
+    // 未使用局部数组撑帧 +0x10（帧达标 0x5c）。实测 ndiff **11→9**（fresh routed：
+    // 121/121 gap 0），TU 三数不变（40/78/3/2）⇒ 保留。残余 sender -0x48 vs -0x34、
+    // reason -0x20 vs -0x3c = N82附 聚合/标量分区（ORIG 标量 reason 比聚合 sender
+    // 更深，与 4.4 聚合优先低槽相反）⇒ 判 N 封顶。
+    char framePad[0x10];
+    (void)framePad;
     if (!IsCreatureEquipmentScope(slotFrom))
         return true;
     if (item->m_field1 != 5)  // ITEM_TYPE_CREATURE_EQUIP
@@ -133,6 +140,11 @@ namespace user_creature
 // （-0x1c↔-0x20 / -0x34↔-0x38 / -0x2c↔-0x30），N82附+N115 封顶。
 #include "CreatureOnlyMgrRest/ChangeSlotNo.inc"
 {
+    // [SmallPoolD 2026-09-11 试形·落地] N115 帧 0x4c vs ORIG 0x5c：P232 补未使用
+    // 局部数组撑帧 +0x10。实测 ndiff **13→11**（fresh routed：127/128 gap −1），
+    // TU 三数不变（40/78/3/2）⇒ 保留；残余 = N82附 槽分区（-0x1c↔-0x20 等差 4 族）。
+    char framePad[0x10];
+    (void)framePad;
     if (!IsCreatureEquipmentScope(newSlot))
         return true;
     if (item->m_field1 != 5)

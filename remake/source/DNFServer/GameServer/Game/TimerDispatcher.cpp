@@ -4946,8 +4946,13 @@ __attribute__((weak)) Timer_CreateDnfDbLoad::~Timer_CreateDnfDbLoad() throw() {}
 // [TimerDispatcher-3 2026-09-10 判据①] 全函数分支目标序列全等（无语义缺口）。
 #include "TimerDispatcher/makeRequest.inc"
 {
-    CEventCreateDnf* event =
-        static_cast<CEventCreateDnf*>(GlobalData::s_event_manager->GetRepeatEvent(0xa0));
+    // [MiscLane 2026-09-11 翻正] 旧形把 GetRepeatEvent 结果 static_cast 成 CEventCreateDnf*
+    // 后作虚调用接收者；探针 /tmp/lane_MiscLane/probe_vord2.cpp 实证：**带 static_cast 的
+    // 接收者**使 4.4 把 this 装载提前到立即数实参之前（f6 this-first），而**基类指针直用**
+    // （f7）产 ORIG 的 const-first（`movl $0x0,0x4(%esp)` 先、`mov -0xc(%ebp),%eax` 后，
+    // ORIG 0x0815bac4/0x0815bacc 直证）。本函数只用 IsEventing（CEventBase vtable+0x34
+    // 虚函数，CGuildServerProxy.h:145），无需派生类型 ⇒ 改用 CEventBase* 直用。
+    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0xa0);
     // [b28d-30] 真语义 bug 修正：ORIG 0815bab4..0815bae9 语义 = body 执行当且仅当
     // `event != 0 && IsEventing(0)==1`（Ghidra C：cVar2==1 → bVar1=false → !bVar1 进 body）。
     // 旧码 `event==0 || IsEventing(0)` 极性相反（IsEventing==0 才进 body）。修法 =

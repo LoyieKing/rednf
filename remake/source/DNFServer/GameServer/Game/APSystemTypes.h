@@ -125,36 +125,29 @@ typedef char _assert_sig_load_action_point_size[(sizeof(_SIG_LOAD_ACTION_POINT) 
 //   （写 -(char)v；其中 +8/+9 槽随后被独立扫描覆写）/ B+0x0c word（map 键）/
 //   B+0x10 byte / B+0x14 vector<int>（"," 分割 atoi）/ B+0x20 int（weekday，
 //   失败=7）/ B+0x24 string / B+0x28 string / B+0x2c byte。
+//
+// [PoolI 2026-09-11 布局正解] ORIG 真含 _ActionPoint 子对象（+0x00，11B）：
+//   ① C1Ev 0x0889566e 首段 `mov this,%eax; mov %eax,(%esp); call
+//      _ZN8APSystem12_ActionPointC1Ev`（子对象构造；_ActionPoint packed sizeof 0xb）；
+//   ② copy ctor 0x08895ebc / operator= 0x0889603a 逐成员序列 =
+//      4B@0x00 / 4B@0x04 / 2B@0x08 / 1B@0x0a（11B 块对齐剥离 4+4+2+1）
+//      / 2B@0x0c / 1B@0x0e / 1B@0x0f / 1B@0x10（派生成员）。
+//   旧「union 模拟（ushort@0 + packed ActionPointRecord@2 + m_bytes02 视图）」
+//   使 4.4 隐式拷贝产 2B@0 + 18B packed 块（4+4+4+4+2，gap +10）且含 ORIG 不存在的
+//   尾字段（m_field0b@0x0b / m_field11[3]@0x11..0x13）⇒ 已废。
+//   0x0b 与 0x11..0x13 是 padding（ORIG 拷贝不触及），不得声明成员（P26/P213）。
 struct CActionPointEx
 {
     CActionPointEx();
 
-    // ORIG 的 _ActionPoint 基类子对象，+0x00..+0x0a；保留旧名供脚本导入代码使用。
-    union
-    {
-        unsigned short m_field00;   // +0x00（首个 ScanInt 截断 word）
-        unsigned short m_actionNo;  // +0x00（行动点编号，同一存储）
-    };
+    // ORIG 的 _ActionPoint 子对象：m_actionNo@+0x00(ushort)、m_groupIndex@+0x02(int)、
+    // m_days[5]@+0x06；整体 11B（packed，ORIG C1Ev memset 0xb 实证）。
+    _ActionPoint m_ap;               // +0x00..+0x0a
 
-    // +0x02..+0x13 是 _ActionPoint 尾部/扩展记录。命名视图与
-    // m_bytes02 完全重叠：现有脚本解析仍可按字节访问，管理器逻辑使用
-    // 经过报告偏移证实的语义字段。
-    struct __attribute__((packed)) ActionPointRecord
-    {
-        int m_groupIndex;            // +0x02（IsValidActionGroupIndex 实参）
-        unsigned char m_days[5];     // +0x06..+0x0a（日期/槽位）
-        unsigned char m_field0b;     // +0x0b（报告未读取）
-        unsigned short m_mapKey;     // +0x0c（action-point map 键）
-        unsigned char m_field0e;     // +0x0e（报告未读取）
-        unsigned char m_levelMin;    // +0x0f（等级下限）
-        unsigned char m_levelMax;    // +0x10（等级上限）
-        unsigned char m_field11[3];  // +0x11..+0x13（报告未读取）
-    };
-    union
-    {
-        ActionPointRecord m_record;
-        unsigned char m_bytes02[0x12];
-    };
+    unsigned short m_mapKey;         // +0x0c（action-point map 键）
+    unsigned char m_field0e;         // +0x0e（报告未读取）
+    unsigned char m_levelMin;        // +0x0f（等级下限）
+    unsigned char m_levelMax;        // +0x10（等级上限）
 
     std::vector<int> m_itemList;     // +0x14（"," 分割 atoi）
     int m_weekday;                   // +0x20（ConvertWeekdayStringToInt 失败置 7）
@@ -167,8 +160,6 @@ struct CActionPointEx
     // 拆成 movzwl 0x2d + movzbl 0x2f 两段（+4 insn，P26 同源）；类有效对齐为 4
     // （含 int/vector/string 成员）⇒ 编译器自动补齐至 sizeof 0x30，下方断言守住。
 };                                   // sizeof 0x30
-typedef char _assert_action_point_record_size[
-    (sizeof(CActionPointEx::ActionPointRecord) == 0x12) ? 1 : -1];
 typedef char _assert_action_point_ex_size[
     (sizeof(CActionPointEx) == 0x30) ? 1 : -1];
 

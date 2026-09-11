@@ -620,6 +620,12 @@ ZERO_AA:
     // 需 unsigned 才同型直存（b28d-solo-CUser 定案）⇒ 禁单段翻正，封 N。
     // 实测：(int) cast / (int)(unsigned int) / P226 语句表达式三形均无效；
     // GetItemCount unsigned 化后两处同变 RHS-first（已回退）。
+    // [PoolH 2026-09-11 · Main 新范式（接收者去 cast）实测**反劣回滚**] 本件接收者虽为
+    // cast 表达式（`((InterfacePacketBuf*)packet)->`），但 ORIG 侧本点**无具名局部**
+    // （每处 `mov 0xc(%ebp),%eax` 直用形参，P183 已证）⇒ 改「具名类型化局部」
+    // （`InterfacePacketBuf* capBuf = …; capBuf->put_short(GetCapacity());`）后
+    // 184/186（+2：`mov %eax,-0x10(%ebp)` 槽物化）且 this 序仍非 ORIG 形 ⇒ 立即回滚。
+    // 范式适用画像（ORIG 有 const-first + 共具名局部）与本点不符，维持 P248 档①/P321-T5 封顶。
     ((InterfacePacketBuf*)packet)->put_short(GetCapacity());
     ((InterfacePacketBuf*)packet)->put_short(GetItemCount());
     for (int i = 0; i < 0x98; ++i) {

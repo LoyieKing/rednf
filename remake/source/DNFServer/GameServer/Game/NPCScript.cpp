@@ -38,8 +38,10 @@
 // getNpcRoleByString/getNpcMoodFromString/getDirectoryPath/g_npcScript*/
 // STScriptFileList::FindIndexByFullScan 声明见 NpcScript.h。
 
-// [favor rate per mood] 的除数（ORIG _DAT_08e1dbf4 = 100.0f）。
-static const float NPC_FAVOR_RATE_DIVISOR = 100.0f;
+// [favor rate per mood] 的除数（ORIG _DAT_08e1dbf4 = 100.0f，匿名 .rodata 常量）。
+// [OurOnly33 符号名轴 2026-09-11] ORIG 全 ELF 无该 local 符号（我方发射
+// `_ZL22NPC_FAVOR_RATE_DIVISOR` r 段）⇒ 删命名 float，使用点内联字面量：4.4 仍发
+// `fdivs <匿名 .rodata 常量>`，与 ORIG 的 _DAT_08e1dbf4 装载形一致。
 
 // ORIG W 0x08582338：仅构造 this+0x04 NpcScript；+0x00 不初始化。
 #include "NPCScript/CNPCScript.inc"
@@ -224,8 +226,10 @@ static const float NPC_FAVOR_RATE_DIVISOR = 100.0f;
 namespace {
 
 // 解析失败统一出口：ORIG 在各 scan 失败处 return 0。
-const int IMPORT_OK    = 1;
-const int IMPORT_FAIL  = 0;
+// [OurOnly33 全局符号轴 2026-09-11] ORIG 全 ELF 无 IMPORT_OK/IMPORT_FAIL：我方曾发射
+// `_ZN12_GLOBAL__N_1L11IMPORT_FAILE` / `_ZN12_GLOBAL__N_1L9IMPORT_OKE`（r 段各 4B）
+// ⇒ 改 enum 常量：纯编译期、零符号、零布局、使用点零改动。
+enum { IMPORT_OK = 1, IMPORT_FAIL = 0 };
 
 }  // namespace
 
@@ -681,13 +685,13 @@ const int IMPORT_FAIL  = 0;
                         if (token == "[favor rate per mood]")
                         {
                             fav.m_favorRate[2] =
-                                static_cast<float>(ScanInt(&ok)) / NPC_FAVOR_RATE_DIVISOR;
+                                static_cast<float>(ScanInt(&ok)) / 100.0f;
                             if (!ok) { return IMPORT_FAIL; }
                             fav.m_favorRate[1] =
-                                static_cast<float>(ScanInt(&ok)) / NPC_FAVOR_RATE_DIVISOR;
+                                static_cast<float>(ScanInt(&ok)) / 100.0f;
                             if (!ok) { return IMPORT_FAIL; }
                             fav.m_favorRate[0] =
-                                static_cast<float>(ScanInt(&ok)) / NPC_FAVOR_RATE_DIVISOR;
+                                static_cast<float>(ScanInt(&ok)) / 100.0f;
                             if (!ok) { return IMPORT_FAIL; }
                             continue;
                         }

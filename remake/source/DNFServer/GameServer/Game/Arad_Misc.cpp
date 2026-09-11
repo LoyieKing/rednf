@@ -73,8 +73,11 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
     //   vtable+0xc 槽形）⇒ 反劣，已回滚，维持 NEAR（残余 = 4.4 实参装载寄存器选择）。
     int result = cipher->Encrypt(inData, enc, paddedLen);
     if (result != 0x6fffffff) {
+        // [Fn28Gap 2026-09-11] ORIG 0x08184b99: movl $0x8b8f790,0x14(%esp) =
+        // _ZZN4ARAD10ARAD_CRYPT10encryptAESEP9CRijndaelPcS3_E12__FUNCTION__
+        // （r,11B="encryptAES\0"）⇒ funcName 位为宏 __FUNCTION__。
         LogManager::logFormat(
-            1, "localjapan/Arad_Crypt.cpp", "encryptAES", 0x1f,
+            1, "localjapan/Arad_Crypt.cpp", __FUNCTION__, 0x1f,
             "[%s][%d][%s]", "encryptAES", 0x1f, "Encrypt Error");
         return NULL;
     }

@@ -53,7 +53,13 @@ class CAICharacter
 {
 public:
     // ORIG W 访问器（同 CDeathTower.cpp 本地镜像）：
-    int getIdx() const { return m_idx; }               // 0x08150850：读 +0x00
+    // [SmallPoolD 2026-09-11 P211 档① callee 侧旋钮，Main 授权] 返回类型 int→unsigned int：
+    //   目标 store `map_monster::m_mobIndex(int) = ai->getIdx()` 的 ORIG 形
+    //   0x083021b7..0x083021c1 = `call getIdx; mov %eax,%edx; mov 0xc(%ebp),%eax;
+    //   mov %edx,0xc(%eax)`（RHS-first + %edx 中转），我方形为 LHS-first 2 条 ⇒
+    //   按 P211-完整化表「要 RHS-first+中转 ⇒ callee 返回类型与字段异型」。
+    //   返回类型不入 mangled（非模板）、零 sizeof/偏移/mangled 变化；函数体 asm 不变。
+    unsigned int getIdx() const { return m_idx; }      // 0x08150850：读 +0x00
     int getLevel() const { return m_level; }           // 0x0815085a：读 +0x04
     int getAppearancePoint() const { return m_appearancePoint; }  // 0x08150866：读 +0x0c
 

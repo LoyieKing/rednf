@@ -569,9 +569,12 @@ send_result:
                 cMyTrace(__PRETTY_FUNCTION__, 0xd6a, 5)(
                     "already charac_name(%s) row(%d)", sig->m_name,
                     db->get_n_rows());
-                // DAT_08c42c04 = "사이토"（ORIG 字符串常量）
-                static const char BASELINE_NAME[] = "\xec\x82\xac\xec\x9d\xb4\xed\x86\xa0";
-                if (strcmp(sig->m_name, BASELINE_NAME) == 0)
+                // [OurOnly33 符号名轴 2026-09-11] ORIG 全 ELF 无 BASELINE_NAME（我方发射
+                // `_ZZN15DB_CreateCharac16_checkCharacName…E13BASELINE_NAME`）——ORIG 直接以
+                // .rodata 匿名串 DAT_08c42c04 作 strcmp 立即数实参 ⇒ 删 local static、内联字面量。
+                // 编码（§6.5.1 J2）：ORIG 实字节 = `bb e7 c0 cc c5 e4 00`（EUC-KR "사이토"，
+                // objdump -s .rodata @0x08c42c04 实证）⇒ 用字节转义而非 UTF-8 源字面量。
+                if (strcmp(sig->m_name, "\xbb\xe7\xc0\xcc\xc5\xe4") == 0)
                 {
                     // P227：GetQueryString 结果于 ctor 前入 %ebx（08401356 段）。
                     cMyTrace(__PRETTY_FUNCTION__, 0xd6d, 5)(

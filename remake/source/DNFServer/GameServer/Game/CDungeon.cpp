@@ -783,16 +783,19 @@ struct Packet_TowerOfDespair_Statistic_GTS
 	std::vector<MazeScript*> candidates;
 	int r;
 	unsigned int i;
-	MazeScript* elem;
+	// [PoolE 2026-09-11 实验 A] ORIG cur 槽 -0xc（浅区）；4.4 把 `MazeScript*` 归
+	// 指针分区恒落 -0x18/-0x24（L6S2 48 形穷举）⇒ 试以整型承载指针地址（32 位等价，
+	// 转换零指令），期望 elemAddr 落整型分区 -0xc 且其余局部整体下移 4 与 ORIG 对齐。
+	unsigned int elemAddr;
 
 	i = 0;
 	while (m_mazeList.size() > i)
 	{
-		elem = const_cast<MazeScript*>(&m_mazeList[i]);
-		if (elem->m_partyCountMin <= partyCount &&
-			partyCount <= elem->m_partyCountMax)
+		elemAddr = (unsigned int)&m_mazeList[i];
+		if (((MazeScript*)elemAddr)->m_partyCountMin <= partyCount &&
+			partyCount <= ((MazeScript*)elemAddr)->m_partyCountMax)
 		{
-			candidates.push_back(static_cast<MazeScript*&&>(elem));
+			candidates.push_back((MazeScript*)elemAddr);
 		}
 		i = i + 1;
 	}

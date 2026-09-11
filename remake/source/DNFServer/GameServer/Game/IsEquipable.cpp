@@ -30,6 +30,12 @@
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x085003be。
 #include "IsEquipable/IsEquipable.inc"
 {
+    // [FragC 试形·P63 共享出口 · 负结论] ORIG 所有 `return 0x11` 共享尾部单块
+    // （`je <tail>` 集中到 0x85005a2 附近 `mov $0x11,%eax; jmp epilogue`）；
+    // 我方 4.4 逐处独立发射（+10 条）。试形 = 7 处 `goto fail` + 尾部
+    // `fail: return 0x11;`（主体包内层复合块以避开 P223-BM8「goto 跨同层初始化」
+    // 限制）⇒ **反劣**：our 232→**233**、ndiff 17→**24** 块（4.4 的跳转线程化
+    // 与 4.1 共享块布局不可同时满足）⇒ 已回滚，维持逐处 `return 0x11;`。
     // ORIG 0x85003be：虚表槽5 IsCreatureItem()（无参）判定，非 getUsableItemType(slot)。
     // ORIG 两个独立 if 各自提前返回 0x11。
     if (!item->IsCreatureItem())

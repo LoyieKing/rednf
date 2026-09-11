@@ -575,15 +575,9 @@ void stEnamyDropAvatarInfo_t::operator=(const stEnamyDropAvatarInfo_t& other)
 // ===========================================================================
 namespace {
 
-static const char* const kMonsterActiveStatusTags[17] = {
-    "[slow resistance]", "[freeze resistance]", "[poison resistance]",
-    "[stun resistance]", "[curse resistance]", "[blind resistance]",
-    "[lightning resistance]", "[stone resistance]", "[sleep resistance]",
-    "[burn resistance]", "[weapon break resistance]",
-    "[bleeding resistance]", "[piercing resistance]", "[stuck resistance]",
-    "[confuse resistance]", "[hold resistance]", "[armor break resistance]"
-};
-
+// [SymActStatus·2026-09-11 引用点闭环] 原 `kMonsterActiveStatusTags[17]`（本命名空间
+//   内拷贝）已删除 ⇒ ImportMonsterScript 的 17 项扫描改用 ORIG 真表
+//   `ACTIVESTATUS_TAG`（文件级唯一定义，ORIG 0x093f5480；ORIG 引用点 0x08a221fb）。
 #include "STMonsterScript/scanValue.inc"
 {
     return ScanInt(static_cast<bool*>(0));     // ORIG movl $0 占位 ok 指针
@@ -613,6 +607,35 @@ const char* PARAMETER_CATEGORY_NAME[14] = {
     "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
     "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
     "[HP MAX]", "[HIT_RECOVERY]", "[STUCK]", "[HP MAX BOSS]"
+};
+
+// [SymActStatus·2026-09-11 跨 TU 合并] ORIG 唯一一份 `_ZL16ACTIVESTATUS_TAG`
+//   @0x093f5480（d 段 / size 0x44 = 17 指针）。其 4 个引用点 0x08a0fa5d /
+//   0x08a0fdc2（ImportCharacterScript / exportCharacterStatusScript）与
+//   0x08a221fb / 0x08a22e1f（ImportMonsterScript / exportMonsterScript）都能解析
+//   到这一个 local 符号 ⇒ ORIG 侧四函数同属一个 TU（local 符号不可跨 .o）。
+//   我方此前 ScriptDepsA.cpp 的 `static const char* const ACTIVESTATUS_TAG` 与
+//   exportMonsterScript 内的 `s_linearAbilityName` 是该表的两份同内容拷贝
+//   ⇒ 合并为本处唯一定义：外部链接 + 去外层 const ⇒ .data（段 d）/ 0x44，
+//   与 ORIG 段型一致；ScriptDepsA.cpp 侧改 extern 引用（消费点形不变）。
+//   注：跨 TU 引用 internal linkage 不可能 ⇒ 符号名以 `_Z16ACTIVESTATUS_TAG`
+//   取代 ORIG 的 `_ZL16ACTIVESTATUS_TAG`（binding 差异不可消，段/size 已对齐）。
+const char* ACTIVESTATUS_TAG[17] = {
+    "[slow resistance]", "[freeze resistance]", "[poison resistance]",
+    "[stun resistance]", "[curse resistance]", "[blind resistance]",
+    "[lightning resistance]", "[stone resistance]", "[sleep resistance]",
+    "[burn resistance]", "[weapon break resistance]", "[bleeding resistance]",
+    "[piercing resistance]", "[stuck resistance]", "[confuse resistance]",
+    "[hold resistance]", "[armor break resistance]"
+};
+
+// ORIG `ACTIVESTATUS_SHAKABLE` D 0x0936e494 [0x12]（.data 初值实证：
+// 00 01 00 01 00 00 00 01 00 00 00 00 00 00 00 00 00 00；紧邻 ACTIVESTATUS 域
+// 常数 0x0936e484..0x0936e491 之后、ACTIVESTATUS_DURATION B 0x093f58a0 之前）；
+// ORIG 全库 0 引用（死数据）⇒ 纯符号轴补发射，零消费点、零 codegen 影响。
+// [Main·PoolH 数据符号普查 2026-09-11] 段/大小与 ORIG 对齐（.data / 0x12）。
+unsigned char ACTIVESTATUS_SHAKABLE[18] = {
+    0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 #include "STMonsterScript/ImportMonsterScript.inc"
@@ -5443,18 +5466,22 @@ case 0x12fb:  // "[start immune time]"
         }
 
             default:
-                // ORIG fallback for the 17 ACTIVESTATUS_TAG entries:
-                // each tag writes the low/high difficulty pair in
-                // m_linearAbilities[0..16].
-                for (int i = 0; i < 17; ++i)
+                // ORIG 0x08a221e4 起（case 0x12fb 插入路径 fallthrough 之后）：
+                // `movzbl __inited; test %al,%al; je` 守卫 + 17 项线性扫描；
+                // 命中即 `ScanInt`×2 写 m_linearAbilities[i][0/1]（+0x414+8i /
+                // +0x418+8i，`lea 0x82(%esi)` 折算），**无 break** 续扫（0x08a2224d
+                // 直接 i++）⇒ 与本文件 ScriptDepsA 侧同一张表 `ACTIVESTATUS_TAG`。
+                if (__inited)
                 {
-                    if (tag == kMonsterActiveStatusTags[i])
+                    for (int i = 0; i <= 0x10; ++i)
                     {
-                        script->m_linearAbilities[i][0] =
-                            ScanInt(static_cast<bool*>(0));
-                        script->m_linearAbilities[i][1] =
-                            ScanInt(static_cast<bool*>(0));
-                        break;
+                        if (tag == ACTIVESTATUS_TAG[i])
+                        {
+                            script->m_linearAbilities[i][0] =
+                                ScanInt(static_cast<bool*>(0));
+                            script->m_linearAbilities[i][1] =
+                                ScanInt(static_cast<bool*>(0));
+                        }
                     }
                 }
                 break;
@@ -5610,21 +5637,14 @@ case 0x12fb:  // "[start immune time]"
     if (script->m_resistTable[3][0] != 0 || script->m_resistTable[3][0] != 0)
         fprintf(file, "[light resistance] %d %d\n",
                 script->m_resistTable[3][0], script->m_resistTable[3][1]);
-    // ---- 线性 ability 17 项（任一非零；名称表 0x93f5480）----
+    // ---- 线性 ability 17 项（任一非零；名称表 = 全局 ACTIVESTATUS_TAG，
+    //      ORIG 0x93f5480 `_ZL16ACTIVESTATUS_TAG`，见本文件顶部唯一定义）----
     {
-        static const char* const s_linearAbilityName[17] = {
-            "[slow resistance]", "[freeze resistance]", "[poison resistance]",
-            "[stun resistance]", "[curse resistance]", "[blind resistance]",
-            "[lightning resistance]", "[stone resistance]", "[sleep resistance]",
-            "[burn resistance]", "[weapon break resistance]", "[bleeding resistance]",
-            "[piercing resistance]", "[stuck resistance]", "[confuse resistance]",
-            "[hold resistance]", "[armor break resistance]"
-        };
         for (int i = 0; i <= 16; ++i)
         {
             if (script->m_linearAbilities[i][0] ||
                 script->m_linearAbilities[i][1])
-                fprintf(file, "%s %d %d\n", s_linearAbilityName[i],
+                fprintf(file, "%s %d %d\n", ACTIVESTATUS_TAG[i],
                         script->m_linearAbilities[i][0],
                         script->m_linearAbilities[i][1]);
         }

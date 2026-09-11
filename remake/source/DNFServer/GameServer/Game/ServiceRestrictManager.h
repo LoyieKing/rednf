@@ -17,20 +17,12 @@
 #include <string>
 
 #include "Arad_DataManager.h"   // ARAD::Singleton<T>（ServiceRestrictManager 基类，ORIG C1 调 Singleton C1）
+// [PoolB b28f] RestrictCategory 的唯一定义点已移到 RestrictCategory.h（namespace 形；
+// 原本地 namespace 定义删除以消除同名实体 ODR 双定义；enum 成员为两套名字的并集）。
+#include "RestrictCategory.h"
 
 class CUser;
 class InterfaceServicePolicy;
-
-namespace RestrictCategory
-{
-enum Enum
-{
-    ENUM_0 = 0,
-    Enum_1 = 1,   // ORIG isRestricted(user,1,0xf/0x10)：随机选项重置/再铸限制类别
-    Enum_2 = 2,   // ORIG CreateCharacterRestrictPolicy code（initialize 注册 4 策略 0-3）
-    Enum_3 = 3
-};
-}
 
 class ServiceRestrictManager : public ARAD::Singleton<ServiceRestrictManager>
 {

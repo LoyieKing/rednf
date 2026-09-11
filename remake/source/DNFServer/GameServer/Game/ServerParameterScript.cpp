@@ -1194,7 +1194,7 @@ unsigned int g_new_scriptVersion;   // ORIG B 0x0949b298（仅本函数写入）
             if (!bad)
             {
                 LogManager::logFormat(0, "../RDARScriptServerParameter.cpp",
-                                      "importServerParameterScript", 400,
+                                      __FUNCTION__, 400,
                                       "importUpgradeTable - invalid notice legacy with rarity tag");
             }
             script->m_558 = v;
@@ -1216,7 +1216,7 @@ unsigned int g_new_scriptVersion;   // ORIG B 0x0949b298（仅本函数写入）
             if (!bad)
             {
                 LogManager::logFormat(0, "../RDARScriptServerParameter.cpp",
-                                      "importServerParameterScript", 0x1a7,
+                                      __FUNCTION__, 0x1a7,
                                       "importUpgradeTable - invalid notice legacy with upgrade tag");
             }
             script->m_578 = v;

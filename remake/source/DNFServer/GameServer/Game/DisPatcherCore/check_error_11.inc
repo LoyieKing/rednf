@@ -8,6 +8,8 @@ unsigned int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     }
     char needLock = 0;
+    // [b28e-DispCore] P339 头部声明试验（movable 提前到函数头、赋值留块内）实测
+    // **槽位不变**（仍 -0x11）⇒ 属 4.1 类对象(sret)与标量的分区差，判 N99/N82 族。
     // [b28e-L5] P212/P331 实测不可翻（已回退）：ORIG bool 局部占深槽 -0x4e
     // （0x081c57ec `movb $0x1,-0x4e`；0x081c5803 `lea -0x4e,%edx` 传址），而 4.4
     // 无论块内声明（-0x11）或提至函数头（仍 -0x11，且多一条 ORIG 无的

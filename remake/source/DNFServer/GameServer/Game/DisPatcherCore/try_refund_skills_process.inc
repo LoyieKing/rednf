@@ -9,6 +9,9 @@ void DisPatcher_BuySkill::try_refund_skills_process(CUser* user, char /*treeKind
     // 4.4 后端不为未使用具名窄形参发截断 store（单文件 /tmp 实验会发，TU 旗标下不发）
     // ⇒ 该 store 属 4.1 独有物化，N 封顶。形参保持无名；若判定 ndiff 改善可参考
     // /tmp/dpc_after/try_refund_skills_process.inc 重新落地。
+    // [b28e-DispCore] P339「声明序=ORIG 槽深序（addLevel/secondGrow/firstGrow/refundCount）
+    // + 赋值语句保持 ORIG 指令序」试验实测**零效果**（槽位仍 -0x28/-0x24/-0x20/-0x1c）
+    // ⇒ 4.4 对本函数按首次使用序分配（N98），声明序旋钮在此不可用，已回滚。
     int refundCount = 0;                                                              // -0x1c
     int addLevel = static_cast<int>(static_cast<signed char>(info.m_1));        // -0x38
     int secondGrow = static_cast<int>(user->getCurCharSecondGrowType());        // -0x34

@@ -1029,6 +1029,11 @@ END:;
             //   （ORIG i→%edx + add src；我方 src→%edx + add i，交换律等价的 4.1/4.4
             //   选择差）⇒ 维持封顶）。试否：`(unsigned char)src[i]` 形实测劣化
             //   （29→30，+1 条 lea 索引链）已弃；`i + (int)src` 交换序实测与上式同码。
+            // [LaneG 2026-09-11 复验] 交换书写序 `i + (int)src` 已再测：读数逐值
+            // 不变（仍 `mov 0xc(%ebp),%edx; add -0xc(%ebp),%edx`）⇒ 与注①同码，
+            // 4.4 对两书写序恒「src 先入目标寄存器 + add i 内存操作数」。
+            // ORIG `mov -0xc(%ebp),%edx; add 0xc(%ebp),%edx`（i 先入 + add src）
+            // 不可翻（N18a 反向/求值序族），维持封顶。
             m_informNoticeFlags[i] =
                 *reinterpret_cast<unsigned char*>(reinterpret_cast<int>(src) + i);
         }

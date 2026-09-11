@@ -2934,6 +2934,8 @@ ST_END:;
     // ORIG 0x80c8c9c movzwl 704a6,%eax；0x80c8ca3 cwtl；0x80c8ca4 movzwl %ax,%edx。
     // b28d-solo-CUser N封顶: 4.4 折叠 `(unsigned short)(short)` 中间 cwtl（探针 6 形：
     //   具名 rawHi→落槽、cast 链/语句表达式均无 cwtl），4.1 保留三段 = N18a 折叠族。
+    // [CUserLane 2026-09-11 T1 实测无效] 形 `(unsigned short)((int)(short)f)` 仍无 cwtl
+    //   （ndiff 1 不变）⇒ 复现第 7 形失败，维持 N18a 折叠族封顶。
     return (unsigned short)(short)m_field704a6 | ((int)(short)m_slotIDX << 16);
 }
 
@@ -3068,18 +3070,23 @@ ST_END:;
          it != itEnd; ++it)
     {
         Quest* quest = G_CDataManager()->find_quest(it->second);
-        if (quest != 0)
+        // [CUserLane 2026-09-11 T2] P223 尾标签岛：ORIG 0x868ae89 `je 0x868af01`（nop 岛）
+        //   + body 尾 0x868aeff `jmp 0x868af02` ⇒ quest==0 与体尾在**不同**落点上，
+        //   用两条独立 goto + 双尾标签复现（旧 if 包裹形被 4.4 jump-thread）。
+        if (quest == 0)
+            goto QUEST_NULL;
+        // ORIG 0x0868ae8b..0x0868aeb5：先 `call operator->; mov 0x4(%eax),%ebx`
+        //   取 it->second，再 `call getCurCharacQuestR; add $0x4,%eax` 直内联 receiver
+        //   （无具名 cleared 指针槽）⇒ 删具名 cleared（P183 地址重物化铁律）。
+        if (((WongWork::CQuestClear*)((char*)getCurCharacQuestR() + 4))
+                ->isClearedQuest((unsigned int)it->second))
         {
-            // ORIG 0x0868ae8b..0x0868aeb5：先 `call operator->; mov 0x4(%eax),%ebx`
-            //   取 it->second，再 `call getCurCharacQuestR; add $0x4,%eax` 直内联 receiver
-            //   （无具名 cleared 指针槽）⇒ 删具名 cleared（P183 地址重物化铁律）。
-            if (((WongWork::CQuestClear*)((char*)getCurCharacQuestR() + 4))
-                    ->isClearedQuest((unsigned int)it->second))
-            {
-                incInitQuestPoint(quest->m_field138);
-                incQuestPiece(quest->m_field13a, quest->m_index, true);
-            }
+            incInitQuestPoint(quest->m_field138);
+            incQuestPiece(quest->m_field13a, quest->m_index, true);
         }
+        goto LOOP_NEXT;
+QUEST_NULL:;
+LOOP_NEXT:;
     }
 }
 
@@ -6814,7 +6821,9 @@ RET0:;
     // b28d-PoolCUser 重写（2026-09-09，P227/N80）：ORIG 0x085df9b2 段内 varargs
     //   （get_acc_name→esi / getCurCharacName→ebx / idx movswl→edi）**先于 ctor**
     //   求值且跨 ctor callee-saved 保活 ⇒ 原码是全表达式临时链形（非两句具名）。
-    CSwitchLog("SetPvpIndex", 0x2339, 0, 0)(
+    // [CUserLane 2026-09-11] P139：ORIG 有 r 段符号 _ZZN5CUser11SetPvpIndexEsE12__FUNCTION__
+    //   （0x08cc2628/0x08cfd425，size 0xc）；手写串只生匿名 .rodata ⇒ 改 __FUNCTION__ 补符号。
+    CSwitchLog(__FUNCTION__, 0x2339, 0, 0)(
         "pvp@log %s,%s,room(%d)", get_acc_name(), getCurCharacName(), (int)idx);
     lock();
     m_pvpRoomIdx = idx;
@@ -6953,8 +6962,8 @@ done:;
                 ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), "
                   "ip(GetPeerIP:NONE), dungeon(%d)",
                   (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
-                  (int)(unsigned char)m_pad8cf0c[1],
-                  (int)(unsigned char)m_pad8cf0c[0], m_lastPacketID,
+                  (int)m_pad8cf0c[1],
+                  (int)m_pad8cf0c[0], m_lastPacketID,
                   getPlayingDungeonIndex());
         }
         else
@@ -6962,8 +6971,8 @@ done:;
             cMyTrace(__PRETTY_FUNCTION__, 0x937, 0)
                 ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), ip(%s), dungeon(%d)",
                   (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
-                  (int)(unsigned char)m_pad8cf0c[1],
-                  (int)(unsigned char)m_pad8cf0c[0], m_lastPacketID, ip,
+                  (int)m_pad8cf0c[1],
+                  (int)m_pad8cf0c[0], m_lastPacketID, ip,
                   getPlayingDungeonIndex());
         }
     }
@@ -11632,6 +11641,9 @@ HIT:
     //   会多发 1 条重载。把 memset 内联进同一表达式即复现（探针
     //   /tmp/lane2/probe_memsetret.cpp：f_a ⇒ `movzbl 0x1c(%edx),%edx`，
     //   f_b ⇒ `movzbl 0x1c(%eax),%eax` = ORIG 形）。
+    // [CUserLane 2026-09-11 T3 实测无效] P211 档③ 同型化（RHS `(unsigned char)1`）产物
+    //   与 `|= 1` 逐条相同（88/90、ndiff 2 不变）⇒ 装载序锁在 memset 返回值复用形上，
+    //   维持 N 封顶（第 7 形失败）。
     ((GuildAbilityByteView*)memset(m_guildName, 0, 0x17))->m_field1C |= 1;
     ((GuildAbilityByteView*)this)->m_field1C &= ~2;
     memset(m_skills, 0, 0x50);          // +0x45

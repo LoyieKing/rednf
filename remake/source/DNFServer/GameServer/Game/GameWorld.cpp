@@ -1060,6 +1060,9 @@ COND3:
         return false;
     }
 
+    // [Main 2026-09-11 · PoolE 旋钮实测（本件无效，已回退）] `Village* village` 改
+    // `unsigned int villageAddr` 整型承载：槽组/verdict 逐值不变（NEAR 271/272、
+    // ndiff 15）⇒ 本件残差非指针分区所致（系 4.1/4.4 槽基差 8 的 N82/N126 族）。
     Village* village = getUserVillage(user);
     if (village != NULL)
     {
@@ -1971,6 +1974,10 @@ COND:
             if (info->IsCurCharacVisible())
             {
                 int index = packet.get_index();
+                // [Main 2026-09-11 广播 · 接收者去 cast 范式 实测反劣已回滚] 本件 cast
+                // 接收者 `((CUser*)info)->` 改具名 `CUser* charac = (CUser*)info;` 后
+                // ndiff 8→38、gap −1→−3（多 2 条 eax 中转）⇒ 本件属 P75/N82 未知临时区，
+                // 非 Main 范式适用画像（该范式两例为派生类转换，此处为同类指针）。
                 if (((CUser*)info)->make_basic_info((char*)&packet, 0) != 1)
                 {
                     cMyTrace(__PRETTY_FUNCTION__, 0xbe3, 5)(

@@ -467,6 +467,10 @@ static const int MAX_OPTION_VALUE = 100;
     // （NEAR→DIFF，TU four 295/335/1/6 → 295/335/0/7；槽集由 {−0x50,−0x52,−0x58}
     // 变 {−0x54,−0x56,−0x5c}）⇒ 维持现序，按 (a) 类相对序差记「待攻」。
     int defaultKey = -1;
+    // [PoolB b28f · PoolE 旋钮实验·负结论] 曾把指针局部 `give` 改 `unsigned int`
+    // 承载地址（PoolE 分区旋钮）⇒ 实测**反劣**（NEAR 184/185 → DIFF 186/184、
+    // ndiff 增），已回退。本件残余维持判词：同槽集相对序差（defaultKey/key/
+    // outer/g/give 五者槽互换），非指针分区所致。
     const RandomOptionGive* give = 0;
     std::map<int, RandomOptionGive>::const_iterator g =
         outer->second.find(defaultKey);
@@ -1591,6 +1595,9 @@ static const int MAX_OPTION_VALUE = 100;
     for (std::size_t i = 0; i < m_regenerator.m_vec3c.size(); ++i)
     {
         acc += (int)m_regenerator.m_vec3c[i].m_weight8;
+        // [PoolB b28f R2 实验·负结论] ORIG 0x085f8e05 比较段为「载 r →`cmp acc,mem`→`ja`
+        // 跳 i++」；实测改为正极性 continue（`if ((unsigned)r > (unsigned)acc) continue;`）
+        // 4.4 **仍产两载入 + jbe**，且块内多 2 条（92→93、ndiff 2→3）⇒ 已回退。
         if ((unsigned int)r <= (unsigned int)acc)
         {
             sel.m_scaleRange0 = m_regenerator.m_vec3c[i].m_scaleBase4;  // 对象+0 ← 元素+0x04

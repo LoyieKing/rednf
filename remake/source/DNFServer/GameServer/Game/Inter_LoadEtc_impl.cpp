@@ -346,6 +346,10 @@ __attribute__((weak)) int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
             p = giveSkills[i];
             int first = p.first;
             int second = p.second;
+            // [PoolF 2026-09-11 负结论] Main「指针局部→整型承载地址」旋钮在本件
+            // **无效**：`CSkill* skill`→`unsigned int skillAddr` + `((CSkill*)skillAddr)->`
+            // 实测读数逐值不变（536/540、ndiff 18）⇒ 本件槽映射差不在 skill 指针分区，
+            // 已回退原形（保 p167 同调用集）。
             CSkill* skill = 0;
             skill = G_CDataManager()->find_skill(m_user->get_charac_job(), first);
             if (skill == 0)
@@ -687,6 +691,9 @@ inline SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* asLetheResult(void* p)
 
     switch (vill)
     {
+    // [PoolF 2026-09-11 复验] `break`→`return` 七处（消除 switch 出口跳板）实测：
+    // 读数逐值不变（102/104，ndiff 1 块 = 我方尾 `jmp <T>` 一条），4.4 恒发
+    // `jmp <nop 岛>; jmp epilogue` 跳板 ⇒ N121 封顶已复证，维持 break 形。
     case 2:  user->setCurCharacVill(1); break;
     case 3:  user->setCurCharacVill(2); break;
     case 4:  user->setCurCharacVill(1); break;

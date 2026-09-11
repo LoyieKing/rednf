@@ -30,7 +30,10 @@ enum ENUM_ELEMENT
 // 模块名表（MODULE_NAME_TAG，processModuleTagSet 使用；+8 步长 = 开/闭两
 // string 对）。2D 形（batch-12，Main 批准）：ORIG 0x08a97637 切片 `2*i` 寻址
 // 折 `shl $3`（stride 8 = pair）+ 同域局部表 [5][2] 438=438 闭合形实证。
-extern std::string g_moduleNameTag[17][2];
+// [OurOnly33 全局符号轴 2026-09-11] 改名对齐 ORIG：`MODULE_NAME_TAG` B 0x88 @0x0949b2c0
+//（唯一一份、外部链接；原 `g_moduleNameTag` 系我方发明名，段/大小逐项一致）。
+// 消费点同步：CreatureScript.cpp（本批）、LinkMiscSecuTimerSolo.cpp、OnlyOrigBatch12_rand_r.cpp（FragC）。
+extern std::string MODULE_NAME_TAG[17][2];
 
 // ---- 原生 CreatureScript 脚本结构（importCreatureScript 填充） ----
 struct st_crature_id_item_id

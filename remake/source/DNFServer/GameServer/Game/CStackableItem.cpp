@@ -53,6 +53,42 @@
 //  零变化）。四数零回退：identical+ae 1331 / near 3 / diff 6 / missing 271
 //  （MultiBoxLotteryInfo.cpp 113/0/1、GmCmds_F.cpp 5/18/1/1 亦零回退）。
 //  余 1 处 `!eq` xor 物化 vs ORIG je+jmp（跨版本 lowering，N）——详见函数头判词。
+// [PoolA 2026-09-11 fresh 复核 · 清单 7 件（routed 11:55，本 TU 四数 431/900/3/6）]：
+//   · C1Ev（ORIG 0x08515762 W，size 0x3b1）：**DIFF** 292/293 ndiff2。唯一残差 =
+//     vptr 写时机：ORIG `call <AradItemInfo::C1>`（this+0x148）**之后**才
+//     `mov 0x8(%ebp),%eax; movl $<vtable>,(%eax)`；4.4 在成员构造前先写 vptr
+//     ⇒ P242/N109 布局-发射序族（须把 AradItemInfo 建模为首/次基类），
+//     维持「Main 裁决本轮不做，spec 存档」。
+//   · check_change_job_type（ORIG 0x0850eba2）：**NEAR** 29/29 ndiff3，帧 0x10 vs
+//     0x28 + 2 char 参数槽（-0x4/-0x8 ↔ -0xc/-0x10）⇒ N115（4.4 -O0 恒预留 16B
+//     对齐 outgoing；callee CItem::check_job_type 定义在 CItem.cpp = 跨 TU，
+//     P210 不可用）⇒ 维持。
+//   · GetCoolTimeOption（ORIG 0x086946d2 W）/ GetEffectItemOption（0x086946f4 W）：
+//     **DIFF** 10/11 ndiff1（各 1 条 `mov 0xc(%ebp),%edx` this 重载）。ORIG
+//     `movzwl 0x2d8(%edx),%ecx`（值进 %ecx 保留 %edx=this 供第二读）；4.4 覆盖
+//     %edx 后重载 ⇒ N7（P230 记载 4.4.6 后端族）；前人多形探针（ptr-arith 视图/
+//     3B 子对象整拷/逗号/aggregate/const 引用）在册 ⇒ 维持。
+//   · get_limit_cube_item（ORIG 0x0850fbe4）：**NEAR** 118/119 ndiff7，残差 =
+//     it/range 槽互换（ORIG it -0x3c / range -0x38；我方 it -0x38 / range -0x44）
+//     + end() 调用块位置 ⇒ N95/N93（W13A 两形探针实测均劣化，在册）⇒ 维持。
+//   · createStackableMultiBoxLotteryInfo（ORIG 0x089bafd1）：**DIFF** 667/667
+//     ndiff2，唯一残差 = `if (!(it == c->end()))` 的 `xor $1,%eax` 物化 vs ORIG
+//     `test %al,%al; je; jmp`（等长替换）⇒ 跨版本 `if(!bool)` lowering（五形探针
+//     f_sw/f_goto/f_else/f_while/f_neg 在册）⇒ 维持 N。
+//   · set_item（ORIG 0x0850d81e，size 0x10bf）：**本波真改善**。基 1060/1066 ndiff8
+//     → 现 **1060/1063 gap −3 ndiff4**（四数零回退）。修法 = N 族旋钮矩阵探针
+//     （/tmp/lane_poola/probe1.cpp g2/g3/g4 定量）结论落地：store 装载序的**唯一**旋钮
+//     是「源/目标符号性同异型」（异型 ⇒ RHS-first + `mov %eax,%edx` 中转 = ORIG 形；
+//     同型 ⇒ LHS-first 单段）。据此改本 TU 私有镜像 STStackableScript 5 个字段：
+//     m_field17c char→unsigned char（目标 AradItemInfo::m_field4 uchar 同型，
+//     消 `mov %eax,%edx`）、m_field1e8 int→StackableAction::Type（目标 m_int39c enum
+//     同型）、m_field358 int→unsigned int（目标 StatChangeInfo::sec int 异型，
+//     生 ORIG 的 `mov 0x358(%eax),%eax; mov %eax,%edx`）、m_field47e char→unsigned char、
+//     m_field474 int→unsigned int（callee 形参 set_lottery_use_cost(unsigned,unsigned)
+//     同型，消中转）。全部同宽 4B/1B、逐字段唯一消费点在 set_item、零共享头改动。
+//     残差 2 处（判 N）：①`lea -0x64(%ebp),%esi` 提前物化（4.1 RA 调度，P183/P226
+//     族）；②m_avatar365 段（+0x365/+0x367）4.1 双基址缓存 vs 4.4 逐语句重载。
+//   ⇒ 7 件中 1 件（set_item）本波实质收敛；其余 6 件与既有判词一致（仅登记）。
 
 #include "CStackableItem.h"
 
@@ -829,7 +865,12 @@ public:
     DyeInfo m_dye164;                    // +0x164
     char m_pad174[4];                    // +0x174
     int m_field178;                      // +0x178
-    char m_field17c;                     // +0x17c
+    // [PoolA 2026-09-11 P248档③ · 探针 /tmp/lane_poola/probe1.cpp g8 实证]
+    // ORIG set_item 该 store 为单段 `movzbl 0x17c(%eax),%edx; mov 0x8(%ebp),%eax;
+    // mov %dl,0x14c(%eax)` ⇒ 源与 AradItemInfo::m_field4(unsigned char) **同型**；
+    // 我方原 char(signed) 与之异型 ⇒ 4.4 多 `mov %eax,%edx` 中转。改 unsigned char
+    // （同宽 1B、本 TU 唯一消费点 = 1671 行，零布局/符号影响）。
+    unsigned char m_field17c;            // +0x17c
     char m_pad17d[3];                    // +0x17d
     std::string m_str180;                // +0x180
     std::string m_str184;                // +0x184
@@ -857,7 +898,10 @@ public:
     char m_pad1d1[0xf];                  // +0x1d1
     int m_field1e0;                      // +0x1e0
     int m_field1e4;                      // +0x1e4
-    int m_field1e8;                      // +0x1e8
+    // [PoolA 2026-09-11 P248档③] ORIG 该 store 为单段 `mov 0x1e8(%eax),%edx;
+    // mov 0x8(%ebp),%eax; mov %edx,0x39c(%eax)` ⇒ 与目标 m_int39c(enum) **同型**；
+    // 原 int 致 4.4 多 `mov %eax,%edx` 中转。改 StackableAction::Type（同宽 4B）。
+    StackableAction::Type m_field1e8;    // +0x1e8
     std::vector<int> m_vec1ec;           // +0x1ec
     std::vector<StackableAction::UsablePlace> m_vec1f8;  // +0x1f8
     char m_pad204;                       // +0x204
@@ -879,7 +923,11 @@ public:
     char m_pad2b0[0x7c];                 // +0x2b0
     char m_field32c;                     // +0x32c
     char m_pad32d[0x2b];                 // +0x32d
-    int m_field358;                      // +0x358
+    // [PoolA 2026-09-11 P248档③ · 探针 g2/g3 实证：符号性异型 ⇒ `mov mem,%eax;
+    // mov %eax,%edx` 中转 = ORIG 形] ORIG 0x0850d81e 段 `mov 0x358(%eax),%eax;
+    // mov %eax,%edx; mov 0x8(%ebp),%eax; mov %edx,0x2dc(%eax)` ⇒ 源与目标
+    // StatChangeInfo::sec(int) **异型**；改 unsigned int（同宽 4B，唯一消费点 1606）。
+    unsigned int m_field358;             // +0x358
     char m_pad35c[4];                    // +0x35c
     char m_field360;                     // +0x360
     char m_pad361[3];                    // +0x361
@@ -941,10 +989,16 @@ public:
     int m_field468;                      // +0x468
     int m_field46c;                      // +0x46c
     char m_pad470[4];                    // +0x470
-    int m_field474;                      // +0x474
+    // [PoolA 2026-09-11 P248档③] ORIG 0x0850d81e 段 `mov 0x474(%eax),%esi`（单段直装
+    // callee-saved）⇒ 源与 callee 形参 `set_lottery_use_cost(unsigned int, unsigned int)`
+    // **同型**；原 int 异型致 4.4 多 `mov %eax,%esi` 中转。改 unsigned int（同宽 4B）。
+    unsigned int m_field474;             // +0x474
     int m_field478;                      // +0x478
     unsigned short m_field47c;           // +0x47c
-    char m_field47e;                     // +0x47e
+    // [PoolA 2026-09-11 P248档③] ORIG 该 store 为单段 `movzbl 0x47e(%edx),%edx;
+    // mov %dl,0x367(%eax)` ⇒ 与目标 m_avatar365.m_field2(unsigned char) **同型**；
+    // 原 char(signed) 致 4.4 多 `mov %eax,%edx` 中转。改 unsigned char（同宽 1B）。
+    unsigned char m_field47e;            // +0x47e
     char m_pad47f;                       // +0x47f
     std::set<int> m_set480;              // +0x480
     std::set<int> m_set498;              // +0x498

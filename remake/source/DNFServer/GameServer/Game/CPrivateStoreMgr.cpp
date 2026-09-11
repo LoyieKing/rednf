@@ -2948,6 +2948,8 @@ __attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUs
         if ((int)items[i].m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
         {
             put_int(0x1e);
+            // [PoolE 2026-09-11 负结论] (void*) 中间转换旋钮实测无效（ndiff 2 逐值不变）；
+            // ORIG「实参值先入 %edx、this 后载 %eax」装载序属 N7/P75 跨版本寄存器角色族。
             put_binary((char const*)sellerUser->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
                            (int)items[i].m_item.m_addInfo2), 0x1e);
             put_int(4);
@@ -3076,6 +3078,7 @@ __attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketBuyPrivateStoreItem(C
     if ((int)item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
     {
         put_int(0x1e);
+        // [PoolE 2026-09-11 负结论] 同上（(void*) 旋钮无效，维持 P75/N7 封顶）。
         put_binary((char const*)buyerUser->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(a6),
                    0x1e);
         put_int(4);

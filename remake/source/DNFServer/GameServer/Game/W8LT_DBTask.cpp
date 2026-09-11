@@ -4605,6 +4605,10 @@ struct DB_UpdateLogoutSigView
     // [M8DBA r5] 追加一试：`volatile bool r;`（补 volatile 促其提前分配）
     // 读数 58/58 NEAR 不变、槽仍 r@-0xd / serverId@-0x14 ⇒ 无效，回滚。
     bool r;
+    // [W8LT-lane 2026-09-11 A/B 定论] 去 volatile 实测 **NEAR→DIFF 劣化**
+    //（ndiff 5→2 但助记符序列变，verdict 降档）⇒ 回滚；volatile 是 P316
+    // 求值序（ORIG 先 serverId 后 m_gcNo）的必要载体，槽号差（serverId
+    // -0x14 vs ORIG -0x10）与 r(-0xd vs -0x11) 维持 N82 槽图封顶。
     volatile int serverId = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
         serverId = ((DB_UpdateLogoutSigView*)sig)->m_serverId;
@@ -14502,6 +14506,12 @@ enum ENUM_SECURITYCARD_MOD_TYPE
     static DB_StatUseShusiaService stat_use_shusia_service;
     stat_use_shusia_service.dispatch(userIdx, slot, stream);
 
+    // [C-3/2026-09-11] ORIG 实有函数局部 static
+    // `_ZZN21DB_TimerStatisticsLog8dispatchEiiP6StreamE5count`
+    // （.bss 0x0943c228 size 1；全 ELF objdump 无任何引用点=死变量，原码遗留）
+    // ⇒ 恢复声明以对齐符号集（未使用，零指令/零语义影响）。
+    static char count;
+
     GetInstanceClientCrashDownLogStatistic()->CarryClientCrashDown();
     return 1;
 }
@@ -15404,7 +15414,13 @@ static_assert(sizeof(DB_BoosterGageView) == 8,
     // ORIG 栈槽：ok(-0xd) db(-0xc)——bool 先声明（低地址），db 后。
     bool ok;      // -0xd（exec 结果落槽，P102）
     MySQL* db;    // -0xc
-    db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, E_SERVER_GROUP_NONE);
+    // [C-3/2026-09-11] ORIG 实有函数局部 static
+    // `_ZZN21DB_AvatarExtendPeriod12ExtendPeriodER16SIG_AVATAR_RENEWE9handleIdx`
+    // （.rodata 0x08c5da4c size 4，实测值 0x3；使用点 0x083ffbc7 折叠为
+    //  `movl $0x3,0x4(%esp)`）⇒ 恢复声明（零 codegen 变化）。
+    static const int handleIdx = 3;
+    db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
+                                           E_SERVER_GROUP_NONE);
     // ORIG 0x83ffbb4：set_query("upDate user_items set expire_date =
     // adddate(expire_date, interval %d day) where charac_no=%u and slot=%d",
     // days, charac_no, slot) 后 exec(true)
@@ -18534,9 +18550,9 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
     try
     {
         if (!db->exec(true))
-            throw 1;
+            throw (ENUM_ERROR)1;
         if (!db->fetch())
-            throw 1;
+            throw (ENUM_ERROR)1;
         // P171/P328⑤：ORIG 无预清（两值随后由 get_uint 写入）。
         // [H4 2026-09-11 复核] ORIG 0x0842c43e/0x0842c445 虽有 `movl $0x0,
         // -0x1c/-0x20(%ebp)`，但给本两值加 `= 0` 实测**反劣**（ours 272→274、
@@ -18549,7 +18565,7 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
         memset(phone, 0, sizeof(phone));
         db->get_str(2, phone, 0x29);
         if (strncmp(sig->m_phone, phone, 0x29) != 0)
-            throw 0x7d;
+            throw (ENUM_ERROR)0x7d;
 
         // [H4 2026-09-11 复核] 试删 `time_t cur` 副本（改用 &curSec 直传）实测**反劣**
         // （ours 272→270、差异行 93→211）⇒ 维持 `time_t cur` 具名副本（4.4 槽分配联动）。
@@ -18564,7 +18580,7 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
         {
             reIssueCnt += 1;
             if (reIssueCnt > 3)
-                throw 0x78;
+                throw (ENUM_ERROR)0x78;
         }
         else
         {
@@ -18587,9 +18603,13 @@ static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
         _sendResult(slot, sig->m_serial, sig->m_certKey, sig->m_serverKey,
                     (ENUM_ERROR)0);
     }
-    catch (int err)
+    // [2026-09-11 真 bug 修复] ORIG 4 处 throw 的 typeinfo 均为 `_ZTI10ENUM_ERROR`
+    // （0x0842c42e / 0x0842c47a / 0x0842c538 / 0x0842c5be 均 `movl $0x8b75f40,0x4(%esp)`，
+    //  nm: _ZTI10ENUM_ERROR @0x08b75f40）；我方原为 4×`_ZTIi`（throw int + catch(int)）
+    //  ⇒ 异常类型错、跨模块不可接。按 ORIG 改为 throw/catch (ENUM_ERROR)。
+    catch (ENUM_ERROR err)
     {
-        _sendResult(slot, 0, 0, 0, (ENUM_ERROR)err);
+        _sendResult(slot, 0, 0, 0, err);
     }
 
     MySQL* dbGrade = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
@@ -20426,8 +20446,7 @@ struct DB_AutoPunishBlackIpView
     }
     int binLen = db->get_binary_length(0);
     unsigned int destLen = 0xbc;
-    if (!uncompress_zip((char*)&out->m_hotkey, destLen, buf,
-                        (unsigned int)binLen))
+    if (!uncompress_zip((char*)&out->m_hotkey, destLen, buf, binLen))
         return 0;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;

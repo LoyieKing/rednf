@@ -837,8 +837,7 @@ CSyncScript* GetInstanceSyncScript()                  // ORIG 0x861cbb4
             __PRETTY_FUNCTION__,
             0x398, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(), script->m_strac.c_str(),
-                      "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
-                      0x398);
+                      __PRETTY_FUNCTION__, 0x398);
         return false;
     }
     char local_1290[1024] = {0};
@@ -849,8 +848,7 @@ CSyncScript* GetInstanceSyncScript()                  // ORIG 0x861cbb4
             0x39f, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       // ORIG（+0xf09）：trace 实参取 script+0xb4 的 c_str()。
                       CodePage::database(), script->m_strb4.c_str(),
-                      "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
-                      0x39f);
+                      __PRETTY_FUNCTION__, 0x39f);
         return false;
     }
     CStreamBuffer buf;
@@ -1201,8 +1199,7 @@ CSyncScript* GetInstanceSyncScript()                  // ORIG 0x861cbb4
             __PRETTY_FUNCTION__,
             0x523, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(), script->m_strac.c_str(),
-                      "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
-                      0x523);
+                      __PRETTY_FUNCTION__, 0x523);
         return false;
     }
     char local_870[0x400] = {0};
@@ -1212,8 +1209,7 @@ CSyncScript* GetInstanceSyncScript()                  // ORIG 0x861cbb4
             __PRETTY_FUNCTION__,
             0x52a, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(), script->m_strb4.c_str(),
-                      "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
-                      0x52a);
+                      __PRETTY_FUNCTION__, 0x52a);
         return false;
     }
     buf << script->m_field0;

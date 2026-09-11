@@ -383,6 +383,10 @@
     //      operator-> 并改走结构复制路径）。
     const __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>&
         table = m_script.m_investMap[(int)type];
+    // [PoolH 2026-09-11 两试均回滚] ① P339 全头部声明（it 先/last 后）⇒ 迭代器
+    // 先声明后赋值引入 2 次默认 ctor call，60→74 反劣；② P326 形（第二个迭代器
+    // 不命名、`table.end()` 内联进比较）⇒ 60/60 但 near→diff 劣化。维持 N98 封顶
+    // （本 TU 2026-09-11 复测：ndiff=2，两处 end() 的 lea 槽号互换）。
     const __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator
         last = table.end();
     __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator it =

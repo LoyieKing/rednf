@@ -146,7 +146,10 @@ unsigned long BUF_strlcpy(char* dst, const char* src, unsigned long size);
 //   bgets=file_gets@0x087ec750, ctrl=file_ctrl@0x087ecae0,
 //   create=file_new@0x087ec6d0, destroy=file_free@0x087ec700,
 //   callback_ctrl=NULL
-static bio_method_st methods_filep = {
+// [OurOnly33 符号名轴] ORIG 权威：`093f3800 00000028 d methods_filep`（C 源级 static，
+// 裸名 .data/local）⇒ 去掉 static 使本 TU 发射裸名 `methods_filep`（原发射
+// `_ZL13methods_filep` = 我方发明名，ORIG 全 ELF 无该 mangled）。
+bio_method_st methods_filep = {
     0x0402,
     "FILE pointer",
     &file_write,

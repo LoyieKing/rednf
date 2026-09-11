@@ -1086,7 +1086,18 @@ scan_done:
     std::string tag;
     // ORIG 用 ebx 承载 ok（无栈槽；0x08907503 mov $0,%ebx / 0x089075a5 mov $1,%ebx /
     // 0x089075cc test %ebx,%ebx）⇒ 原码是 register 形（P231 纯 register 合法，非 asm
-    // 绑定）。int 版 while(ok) 实测多 setne 物化（gap −2）；bool 版 testb %bl 最接近。
+    // 绑定）。[LaneG 2026-09-11 实验·三形对照，判 N] ORIG 0x089075cc 是
+    // `test %ebx,%ebx; je <exit>; jmp <body>`（32 位 test/直跳，无 setne 物化）。
+    // 实测：①register bool ok + do-while(ok)：`test %bl; jne`（宽度差，gap 0）；
+    // ②register int ok + do-while(ok)：4.4 恒发 `test %ebx; setne %al; test %al;
+    // jne`（+2 setne 物化，gap −2）；③int + do-while(ok != 0)：同②逐值相同
+    // （4.4 对 do-while 尾 int 条件恒 bool 物化，N122/P168a 族）；④while(true)+
+    // 尾 `if(!ok) break`：反劣（our 377，多 5 条 ok=1→test→jne 折叠块）。
+    // ⇒ 本轮再试⑤`while(true)+if(ok == 0)break;`（显式 int 标量比较）：
+    // 实测 our=377（+5 条 `mov $1,%ebx; test; jne; mov $0,%ebx; jmp`，与④同形）
+    // ⇒ 亦反劣，回退①。五形全部试毕，①（bool+do-while）为最短形（our=374=ORIG
+    // 行数、唯一残差 = test 宽度 + jcc 方向）⇒ 维持判 N（跨版本 do-while 尾
+    // bool lowering）。
     register bool ok;
 
     g_equipmentPartSetMap_.clear();
@@ -1106,6 +1117,7 @@ scan_top:
             ScanStr(&name);
             data.m_name4 = name;
 
+            // [LaneG 2026-09-11 实验⑤反劣已回退] 回到①do-while(bool)形。
             do
             {
                 STEquipmentPartSetPiece piece;           // ctor 三 int=-1

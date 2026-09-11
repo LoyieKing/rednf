@@ -1076,7 +1076,13 @@ struct CHARAC_LOAD_MERCENARY
     void alter();                                        // ORIG W 0x081b47c8（+0x24 写 1）
     void save_complete();                                // ORIG W 0x08694c8e（+0x24 写 0）
 
-    int m_characNo;               // +0x00（FindIndexByCharacNo 按首 dword 无符号比较）
+    // [CUserLane 2026-09-11 · S2 承接项/P265 档③] int → unsigned int（同宽 4B，
+    //   偏移/sizeof/mangled 零变化）。ORIG SetMercenaryInfoPacket 0x0868e704 读点
+    //   0x0868e7e2 `mov (%eax),%eax; mov %eax,%edx`（字段与 int 实参异型 ⇒ 两段中转；
+    //   改前 4.4 恒折单段 `mov (%eax),%edx`）。P254 目标同效的 enum 化无对应枚举
+    //   （ENUM_CHARACTERJOB 为职业枚举，禁发明）⇒ 用同谓词的无符号化实现。
+    //   A/B：件 DIFF 190/190 nd1 → AE 190/191 nd0；CUserMissingA2/CUserOnlyOrig 四数全等。
+    unsigned int m_characNo;      // +0x00（FindIndexByCharacNo 按首 dword 无符号比较）
 
 
 // NOTE_MARKER_NOOP

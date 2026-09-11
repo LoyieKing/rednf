@@ -55,6 +55,12 @@ int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
     }
     if (user->get_charac_count() == 0x24)
     {
+        // [b28e-DispCore] P232/P31：ORIG 帧 `sub $0x44`（我方 0x34）且 cMyTrace
+        // 落 -0x34（我方 -0x24）⇒ 原码在 cMyTrace 之“后”（更浅侧）另有一个
+        // 0x10 字节局部（ORIG 槽图 -0x34 cMyTrace / -0x24..-0x15 空洞 /
+        // -0x14 restrictEvt）。按 P232 补未使用局部复现帧与槽基。
+        char framePad[0x10];
+        (void)framePad;
         // [b28e-L5] P227 链式实测**无收益**（本件 diff 63→63），恢复两语句形。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x8a0, 5);
         trace("DisPatcher_CreateCharac pUser->get_charac_count() == MAX_CHARAC_SLOT false");

@@ -6,10 +6,12 @@ void ScanChampionFeatures(int count, STAICharacterMapArrangeData& data)
         ScanStr(&s);
         for (int i = 0; i <= 0x24; ++i)
         {
-            if (s == g_championFeatureName[g_championFeatureValue[i] & 0xff])
+            // [PoolB b28f] 表符号名对齐 ORIG：`_ZL21CHAMPION_FEATURE_LIST`（本地副本）
+            // + 全局 `CHAMPION_FEATURE_NAME`（STMapScript.cpp 定义，extern 引用）。
+            if (s == CHAMPION_FEATURE_NAME[CHAMPION_FEATURE_LIST[i] & 0xff])
             {
                 data.m_championFeatures.push_back(
-                    (int)g_championFeatureValue[i]);
+                    (int)CHAMPION_FEATURE_LIST[i]);
                 break;
             }
         }

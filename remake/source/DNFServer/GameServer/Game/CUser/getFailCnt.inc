@@ -1,1 +1,1 @@
-int WongWork::CSecurityCard::getFailCnt()
+unsigned int WongWork::CSecurityCard::getFailCnt()

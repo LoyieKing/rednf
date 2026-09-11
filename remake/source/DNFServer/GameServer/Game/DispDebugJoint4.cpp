@@ -37,11 +37,13 @@
 //   CUser::CalcurateUserMaxLevel / CUser::SetMercenaryInfoPacket 二桥转真成员
 //   调用（CUser.h:2633-2634 已声明，零新声明）。
 
-// ORIG _disjoint 内 logFormat/__PRETTY_FUNCTION__ 原文（报告 0x87b7/0x87bd 行）
-static const char g_disjointPrettyFunction[] =
-    "static int DisPatcher_DisJointItem::_disjoint(CUser*, int, int, "
-    "ENUM_CMDPACKET, CUser*, short unsigned int)";
-static const char g_disjointSourceFile[] = "PacketDispatcher_Impl_1.cpp";
+// [OurOnly33 符号名轴 2026-09-11] 原手写串 static（g_disjointPrettyFunction /
+// g_disjointSourceFile，ORIG 全 ELF 无该 base 名，我方 `_ZL24…`/`_ZL20…` r 段）
+// 在本 TU **无任何引用点**（grep 全 source 仅命中此定义；GCC 默认
+// -fkeep-static-consts 故其符号此前仍被发射）⇒ 删除。
+// ORIG 权威：`_ZZN23DisPatcher_DisJointItem9_disjointEP5CUserii14ENUM_CMDPACKETS1_tE19__PRETTY_FUNCTION__`
+// @0x08bcfd20 (r,0x6c=108B) —— 该 prett 符号由 DisPatcherCore/_disjoint.inc 的
+// __PRETTY_FUNCTION__ 使用点发射，与这两个未引用手写串无关。
 
 // ===========================================================================
 // 1. DisPatcher_DebugCommand::_debugCommandSetLevel

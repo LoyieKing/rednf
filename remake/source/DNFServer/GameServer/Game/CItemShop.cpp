@@ -55,6 +55,10 @@ STScriptFileList g_itemShopScriptFileList;  // ORIG 全局（0x94fe260），原 
     if (!loadRDARScriptFile(g_itemShopScriptBaseDirectory, path))
         return false;
     script->clear();
+    // [FragC 试形·P232] ORIG 局部槽基比 4.4 深 4（line -0x18 vs -0x14 等）⇒
+    // 补一个 4B 占槽死局部（数组维决定 sub，P232 实证不被 DCE）。无效即回滚。
+    char framePad4[4];
+    (void)framePad4;
     std::string line;
     std::string line2;
     int value = 0;

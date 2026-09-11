@@ -731,14 +731,18 @@ L_done:;
         {
             for (;;)
             {
-                unsigned int layer = static_cast<unsigned int>(ScanInt(&ok));
+                // [PoolB b28f · NEAR→AE 翻正] P248 档③ 异型化：局部 int（callee
+                // 形参 unsigned int）复现 ORIG 两实参「先 `mov -0x10,%edx` 再
+                // `mov -0x14,%eax`」分离物化 + `mov %edx,0x8(%esp)`/
+                // `mov %eax,0x4(%esp)` 压栈序；同型（unsigned）与语句表达式/
+                // 纯 register 三形均劣（旧判词 N82/P75 作废）。
+                // 读数：verdict AE（clean 150/150、blocks=0）；TU ae 762→763、
+                // near 6→5、diff 4 不变（零劣化）。
+                int layer = ScanInt(&ok);
                 if (!ok) break;
-                unsigned int dungeonIdx = static_cast<unsigned int>(ScanInt((bool*)0));
-                // [b28d-solo-CtorProducers_1 判词·N/P75] ORIG 0x08643e7e 两实参
-                // 先物化 %edx/%eax 再写 esp 槽（4.1 求值-压栈分离）；4.4 逐实参
-                // 「载入-压栈」。语句表达式/纯 register 两形实测均劣化
-                // （前者零效、后者帧 -8 且槽漂移）⇒ P75 跨版本封顶。
-                _Set_LayerByDungeonIndex(layer, dungeonIdx);
+                int dungeonIdx = ScanInt((bool*)0);
+                _Set_LayerByDungeonIndex((unsigned int)layer,
+                                         (unsigned int)dungeonIdx);
             }
         }
         else if (token == "[npc layer]")

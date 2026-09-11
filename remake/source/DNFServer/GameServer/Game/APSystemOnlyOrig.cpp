@@ -935,7 +935,9 @@ namespace APSystem
             {
                 useWeekday = true;
             }
-            if ((*list)[0].m_record.m_levelMin != 0)
+            // [FragB·PoolI-sync] CActionPointEx 头改造：m_record 已移除（真实 _ActionPoint
+            //   m_ap@+0x00 + 具名派生 m_levelMin@+0x0f/m_levelMax@+0x10/m_groupIndex@+0x02）。
+            if ((*list)[0].m_levelMin != 0)
             {
                 useLevelBand = true;
             }
@@ -970,17 +972,18 @@ namespace APSystem
                         // [b28d-solo-APSystemOnlyOrig] ORIG 0x081217e0..0x0812181a：
                         // 两次独立 `(*list)[i]` 直读（P183 地址重物化），lo/hi
                         // **无栈槽**（P0）⇒ 表达式内联，勿声明具名局部。
+                        // [FragB·PoolI-sync] 同步新头成员名（原 m_record.m_levelMin/Max）。
                         if (level < static_cast<int>(
-                                        (*list)[i].m_record.m_levelMin) ||
+                                        (*list)[i].m_levelMin) ||
                             static_cast<int>(
-                                (*list)[i].m_record.m_levelMax) < level)
+                                (*list)[i].m_levelMax) < level)
                         {
                             candidates[i] = 0;
                             goto next_candidate;
                         }
                     }
                     {
-                        int group = candidates[i]->m_record.m_groupIndex;    // +0x02
+                        int group = candidates[i]->m_ap.m_groupIndex;    // +0x02（_ActionPoint 内）
                         if (group == 0x1d || group == 0x1e || group == 0x1f ||
                             group == 0x2d || group == 0x20)
                         {

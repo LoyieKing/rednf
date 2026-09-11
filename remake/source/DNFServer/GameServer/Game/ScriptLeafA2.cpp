@@ -956,7 +956,7 @@ namespace APSystem
                 {
                     break;                              // 回主循环
                 }
-                ex.m_field00 = static_cast<unsigned short>(v1);
+                ex.m_ap.m_actionNo = static_cast<unsigned short>(v1);
 
                 int v2 = ScanInt(&ok);
                 if (!ok)
@@ -970,8 +970,7 @@ namespace APSystem
                 {
                     break;
                 }
-                *reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]) =
-                    static_cast<unsigned short>(key);              // +0x0c map 键
+                ex.m_mapKey = static_cast<unsigned short>(key);    // +0x0c map 键
 
                 int v4 = ScanInt(&ok);
                 if (!ok)
@@ -979,7 +978,7 @@ namespace APSystem
                     break;
                 }
 
-                *reinterpret_cast<int*>(&ex.m_bytes02[0]) = v4;   // +0x02 int（组索引）
+                ex.m_ap.m_groupIndex = v4;                        // +0x02 int（组索引）
                 if (!IsValidActionGroupIndex((_ActionGroupIndex)v4))
                 {
                     return 0x62;                        // ORIG 错误码 0x62
@@ -990,7 +989,7 @@ namespace APSystem
                 {
                     return 0x65;                        // 0x65
                 }
-                ex.m_bytes02[6] = static_cast<unsigned char>(v5);   // +0x08（后被覆写）
+                ex.m_ap.m_days[2] = static_cast<unsigned char>(v5);   // +0x08（后被覆写）
 
                 for (int i = 0; i <= 4; ++i)            // days 区 B+0x06..+0x0a
                 {
@@ -1001,7 +1000,7 @@ namespace APSystem
                     }
                     if (day != 0)
                     {
-                        ex.m_bytes02[4 + i] =
+                        ex.m_ap.m_days[i] =
                             static_cast<unsigned char>(-static_cast<char>(day));
                     }
                 }
@@ -1042,14 +1041,14 @@ namespace APSystem
                 {
                     return 0xa4;                        // 0xa4
                 }
-                ex.m_bytes02[7] = static_cast<unsigned char>(b9);   // +0x09（覆盖 days[3]）
+                ex.m_ap.m_days[3] = static_cast<unsigned char>(b9);   // +0x09（覆盖 days[3]）
 
                 int b10 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0xa7;                        // 0xa7
                 }
-                ex.m_bytes02[0x0e] = static_cast<unsigned char>(b10);   // +0x10
+                ex.m_levelMax = static_cast<unsigned char>(b10);   // +0x10
 
                 if (!ScanStr(&ex.m_str24))
                 {
@@ -1061,7 +1060,7 @@ namespace APSystem
                 }
 
                 std::map<unsigned short, std::vector<CActionPointEx> >::iterator fit =
-                    out.m_actionPoints.find(*reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]));
+                    out.m_actionPoints.find(ex.m_mapKey);
                 // p167：ORIG 调 _Rb_tree_iterator::operator==（非 !=）⇒ 反向包裹。
                 if (fit == out.m_actionPoints.end())
                 {
@@ -1069,7 +1068,7 @@ namespace APSystem
                     vec.push_back(ex);
                     out.m_actionPoints.insert(
                         std::make_pair(
-                        *reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]), vec));
+                        ex.m_mapKey, vec));
                 }
                 else
                 {

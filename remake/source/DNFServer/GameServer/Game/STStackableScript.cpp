@@ -3399,7 +3399,7 @@ break;
         if (it == getItemGroupNameTable().end())
         {
             LogManager::logFormat(
-                1, "../RDARScriptItem.cpp", "ImportStackableScript", 0x2723,
+                1, "../RDARScriptItem.cpp", __FUNCTION__, 0x2723,
                 "Unknown item group name %s", grp.c_str());
             return false;
         }
@@ -4471,7 +4471,7 @@ break;
         if (!script->m_set480.insert(v).second)
         {
             LogManager::logFormat(
-                0, "../RDARScriptItem.cpp", "ImportStackableScript", 0x296f,
+                0, "../RDARScriptItem.cpp", __FUNCTION__, 0x296f,
                 "[usable avatar index] is duplicated");
             return false;
         }
@@ -4499,7 +4499,7 @@ break;
         if (!script->m_set498.insert(v).second)
         {
             LogManager::logFormat(
-                0, "../RDARScriptItem.cpp", "ImportStackableScript", 0x2982,
+                0, "../RDARScriptItem.cpp", __FUNCTION__, 0x2982,
                 "[avatar select ability except] is duplicated");
             return false;
         }

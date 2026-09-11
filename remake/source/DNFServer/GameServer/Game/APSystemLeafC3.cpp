@@ -70,14 +70,12 @@ namespace APSystem
     //   （多 `movl $0xb,(%esp); call <operator new>` + `test %edx; je` null 检查），
     //   且 ctor 发射点仍在成员构造之后 ⇒ 已回滚。欲得 ORIG 3 条形需 .h 真继承
     //   （`class CActionPointEx : public _ActionPoint`）—— 属 P7 头部轴，本 TU 越界。
-    memset(&m_field00, 0, 0xb);   // 基类 _ActionPoint 子对象 [+0x00,+0x0b)
-    // P183 反向：`&m_bytes02[0x0a]` 取址式 4.4 恒发 `mov this; add $0xc; movw (%eax)`
-    // 三条；ORIG 0x08895684 为 `movw $0x0,0xc(%eax)` 两条 ⇒ 走 m_record 具名成员
-    // （常量偏移 0x02+0x0a）令 4.4 直落 disp。
-    m_record.m_mapKey = 0;
-    m_bytes02[0x0c] = 0;          // +0x0e
-    m_bytes02[0x0d] = 0;          // +0x0f
-    m_bytes02[0x0e] = 0;          // +0x10
+    // [PoolI 2026-09-11 布局正解 · FragC 同步] _ActionPoint 已是真子对象成员
+    // （m_ap，packed 0xb @+0x00），C1Ev 由编译器随 mem-init 列表自动发射；
+    // +0xc/+0xe/+0xf/+0x10 四写法改走 mem-init（ORIG 把 immediate store 发在
+    // vector C1 之前；函数体赋值会落到成员构造之后 ⇒ 顺序反）。
+    // 旧 memset(&m_field00,0,0xb) / m_record.m_mapKey=0 / m_bytes02[0x0c/0x0d/0x0e]=0
+    // 随头改（成员 m_field00/m_record/m_bytes02 已移除）全部删除。
 }
 
 // ----------------------------------------------------------------------------

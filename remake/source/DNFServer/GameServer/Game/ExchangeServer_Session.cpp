@@ -31,6 +31,11 @@ long long get_ms_tick()
 namespace exchange_server
 {
 
+// [WorldLane 2026-09-11 · static 多副本普查] 自共享头 ExchangeServer.h 下沉：
+// 唯一使用点在本 TU（145/166 两处）；ORIG `_ZN15exchange_serverL11HEADER_SIZEE`
+// = 单份 local r 4B @0x08c79790（仅在 1 TU 发射）⇒ namespace-scope const 放头里
+// 会随 include 链被 71 个 TU 各发射一份。此处单份定义与 ORIG 1:1。
+const unsigned int HEADER_SIZE = 0x0d;
 
 // ORIG：虚调用点全部内联装载全局（mov 0x943d9f4,%eax），无 helper call。
 // 用宏保持 -O0 内联形（P49：static 函数 -O0 生真实 call，与 ORIG 不符）。

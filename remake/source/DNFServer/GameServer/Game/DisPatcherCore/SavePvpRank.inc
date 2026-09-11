@@ -53,6 +53,10 @@ bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
     {
         user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x73, 1, (int)score, (int)playSec);
     }
+    // [b28e-DispCore] 负结论：补 `bool rankUpdated = update_pvp_rank(...)` 具名槽
+    // 实测**劣化**（197/195 ndiff5 → 197/198 ndiff16：score/playSec 槽整体深移 4
+    // 且 -0x1d 未出现）⇒ 已回滚；-0x1d 槽属 4.1 独有形（需 PvP_Room.h bool 化的
+    // 净改善前提），判 N7/N18a。
     if (!user->update_pvp_rank(msg.m_result))
     {
         return false;

@@ -26,7 +26,10 @@
 
 // ORIG 静态密钥表 @0x93ab8e0：16 项，每项 0x20 字节（strlen=16 的数字串）。
 // C1 用 strlen+strncpy 按块拷贝。
-static const char s_keyTable[16][0x20] = {
+// [OurOnly33 符号名轴 2026-09-11] ORIG 权威：`093ab8e0 00000200 D cryptKey`
+// （全局 .data，512B=16*0x20）⇒ 原名 `s_keyTable`（发射 `_ZL10s_keyTable` r 段）
+// 系我方发明名；去 static/const 并改名 cryptKey 后名字/段/大小与 ORIG 逐项一致。
+char cryptKey[16][0x20] = {
     "0214799992158780",
     "1214670882044781",
     "2214528773140782",
@@ -52,7 +55,7 @@ static const char s_keyTable[16][0x20] = {
     for (int i = 0; i <= 0xf; ++i)
     {
         memset(m_key[i], 0, 0x20);
-        strncpy((char*)m_key[i], s_keyTable[i], strlen(s_keyTable[i]));
+        strncpy((char*)m_key[i], cryptKey[i], strlen(cryptKey[i]));
     }
 }
 

@@ -246,7 +246,10 @@ void MapInfo::Add_Mob(map_monster mob)
         // .rodata 0x8b750eb / 0x8b75ee2 / 0x8b750d5，即
         // __FILE__="localglobal/../battle_field.h"、__FUNCTION__="Add_Mob"、
         // 格式串 "monster.find(%u) fail"、行号 0x1f2。
-        LogManager::logFormat(1, "localglobal/../battle_field.h", "Add_Mob", 0x1f2,
+        // [Fn28Gap 2026-09-11] 0x081516ad: movl $0x8b75ee2,0x8(%esp) =
+        // _ZZN7MapInfo7Add_MobE11map_monsterE12__FUNCTION__（r,8B="Add_Mob\0"）
+        // ⇒ 原码是宏 __FUNCTION__，手写串只留匿名 .rodata、不发射该 local。
+        LogManager::logFormat(1, "localglobal/../battle_field.h", __FUNCTION__, 0x1f2,
                               "monster.find(%u) fail", mob.m_instId);
         return;
     }
@@ -277,7 +280,9 @@ void MapInfo::Add_Item(map_item item)
         // .rodata 0x8b750eb / 0x8b75e10 / 0x8b75109，即
         // "localglobal/../battle_field.h" / "Add_Item" / "item.find(%u) fail"，
         // 行号 0x206。
-        LogManager::logFormat(1, "localglobal/../battle_field.h", "Add_Item", 0x206,
+        // [Fn28Gap 2026-09-11] 0x08151861: movl $0x8b75e10,0x8(%esp) =
+        // _ZZN7MapInfo8Add_ItemE8map_itemE12__FUNCTION__（r,9B="Add_Item\0"）。
+        LogManager::logFormat(1, "localglobal/../battle_field.h", __FUNCTION__, 0x206,
                               "item.find(%u) fail", item.m_itemIndex);
         return;
     }

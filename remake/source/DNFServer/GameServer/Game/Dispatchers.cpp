@@ -4175,7 +4175,10 @@ struct GmCmdArgs
     CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
     // ORIG 段直证：`cmpl $0x0,-0xc(%ebp); sete %al; test %al,%al; je`（4.1 bool 物化）。
     // 4.4 裸 `<ptr> == 0` 折为 jne 直跳 ⇒ 用 (bool) 强制物化形（P22/技巧9）。
-    if ((bool)(party == 0))
+    // [MatchInvLane 2026-09-11 P225] ORIG 0x081ff845 槽比零物化
+    // （`cmpl $0x0,-0xc(%ebp); sete %al; test %al,%al; je`）；4.4 对
+    // `if ((bool)(party == 0))` 恒折 jne 直跳 ⇒ 改 while 形复现 setcc 物化。
+    while (party == 0)
     {
         return LineFunc(0x9371, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -7230,6 +7233,9 @@ public:
 //   首差: sub    $0x30,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp)
 #include "Dispatchers/process_72.inc"
 {
+    // [DispLaneB 2026-09-11 实测回滚] ORIG 直证：入口先缓存 param（-0x14）、msg 形参
+    //   直用（0x10(%ebp) 6 次）。但把 msg 引用改编译期内联式后实测 ndiff 14→17
+    //   （ours 174→172）劣化 ⇒ 按 codegen 轴闸门回滚（同族第 3 例）。
     const MSG_SELECT_STRIKER& m = reinterpret_cast<const MSG_SELECT_STRIKER&>(msg);
     int err = check_error(user, msg);
     *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 0x4) = err;   // ParamBase+0x04
@@ -13724,11 +13730,22 @@ L_late:;
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    // ORIG：[52] `mov %al,-0x9(%ebp)` / [62] `xor $0x1,%eax` ⇒ 单一 `locked` 具名
-    //   （char 槽 -0x9）+ `!locked` 判；旧形两段赋值多一个 char 槽。
+    // ORIG 0x08225281..0x082252d2 两段短路物化：第一段 `isLocked4DataLoad||isLockedCreateCharac`
+    //   经 `mov $1/%eax;jmp /mov $0` 汇聚后 `mov %al,-0x9(%ebp)`（O[52]）；第二段
+    //   `if (!locked) locked = isLockedDeleteCharac();` 再写同一槽（O[62]）⇒ 源码是**两段赋值同一具名
+    //   bool**（Ghidra 亦为 local_d 两次赋值）；单段三条件 `(a||b||c)` 被 4.4 折成三连直跳、丢 6 条
+    //   （DispLaneA 2026-09-11 试形，P214①/P194）。
+    //   实测（routed 私有 .o）：our 72→75、gap +6→+3（补回 3 条），blocks 1→2；
+    //   残余 ①`cmpb $0x0,-0x9; jne`（ORIG O[53:55]）vs 我方 `movzbl; xor $1; test; je`
+    //   = N122（4.4 对 bool 局部取反恒 xor 物化，不复现 4.1 内存直测）；
+    //   ②第二段 `locked = (c != 0)` 的 `mov $1/jmp/mov $0` 汇聚被 4.4 折掉 ⇒ 判 N 封顶。
+    //   TU 四数三次编译恒为 1010/2553/15/181（零劣化）。
     bool locked = (user->isLocked4DataLoad() != 0
-                   || user->isLockedCreateCharac() != 0
-                   || user->isLockedDeleteCharac() != 0);
+                   || user->isLockedCreateCharac() != 0);
+    if (!locked)
+    {
+        locked = (user->isLockedDeleteCharac() != 0);
+    }
     if (!locked)
     {
         user->ChangeCharacSlot(first, second);
@@ -17594,9 +17611,16 @@ struct ExtreamItemWordView { unsigned char m_pad08[8]; unsigned int m_words[0x22
     // 残余为寄存器/槽分配文本差（N82），非缺语义 → byte 层 N 封顶。
     stItemHyperLinkMessage& outParam =
         static_cast<stItemHyperLinkMessage&>(param);
-    MSG_ITEM_HYPER_LINK_MESSAGE& m =
-        reinterpret_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
+    // [DispLaneB 2026-09-11] P0/P183：ORIG 本函数**无** msg 具名槽 —— 反汇编
+    //   0x081d9c5b 起 `mov 0x10(%ebp),%eax` 形参直读 6 次，全函数唯一入口局部槽
+    //   -0x54 属 outParam（`mov 0x14(%ebp),%eax; mov %eax,-0x54(%ebp)`）。我方原
+    //   引用局部 m 多占 4B 槽并抬整帧 0x10（our 0x2f0 vs ORIG 0x2e0）。改用编译期
+    //   内联式 → 每个 m.xxx 在使用点经形参直读（语义不变、零新增符号）。
+#define m (reinterpret_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(msg))
 
+    // [DispLaneB 2026-09-11 实测回滚] ORIG 侧虽无 err 槽（0x08202cff 结果直存
+    //   outParam.m_4、判定从该成员重读），但删 err 后 4.4 生成 585 条/ndiff 94
+    //   （原形 581 条/ndiff 83）⇒ 按 codegen 轴闸门保留具名 err（差 2 条 vs 少 11 块）。
     int err = check_error(user, msg);
     outParam.m_4 = err;
     if (err >= 1)
@@ -17778,10 +17802,11 @@ struct ExtreamItemWordView { unsigned char m_pad08[8]; unsigned int m_words[0x22
         DB_InsertPoliceSaveChatting::makeRequest(
             user->getCurCharacNo(), (char)m.m_typeD, m.m_text18);
     }
-    G_GameWorld()->send_chat_msg_hyper_link(user, reinterpret_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(m),
+    G_GameWorld()->send_chat_msg_hyper_link(user, m,
                                             (ENUM_NOTIPACKET)0x172);
     return 0;
 }
+#undef m
 
 // ==== DB_InsertPoliceSaveChatting::makeRequest (ORIG T 0x0843c6aa) ====
 #include "Dispatchers/makeRequest_3.inc"
@@ -25053,7 +25078,11 @@ struct AocParamView
 //   首差: sub    $0xc4,%esp | mov    &_ZN10GlobalData22s_pSecuProtectionFieldE,%eax | mov    %eax,-0x24(%ebp)
 #include "Dispatchers/check_error_79.inc"
 {
-    AocMsgView& m = *reinterpret_cast<AocMsgView*>(&msg);
+    // [DispLaneB 2026-09-11] P0/P183：ORIG 本函数无 msg 缓存槽 —— 0x10(%ebp) 形参直读
+    //   7 次（如 0x081e0aa6 段 `mov 0x10(%ebp),%eax; movzwl 0x..(%eax),%eax`），
+    //   我方原引用局部多占 -0x28 并抬帧 0x10（0xd4 vs ORIG 0xc4）⇒ 改编译期内联式，
+    //   每个 m.xxx 在使用点经形参直读（语义不变、零新增符号）。
+#define m (*reinterpret_cast<AocMsgView*>(&msg))
     if (user == 0)
         return -1;
     if (user->get_state() <= 2)
@@ -25145,6 +25174,7 @@ struct AocParamView
 
     return 0;
 }
+#undef m
 
 // ==== Dispatcher_AvatarOptionChange::process (ORIG 0x081e0774) ====
 // 影子背包预演删除消耗品成功后，才落到真实背包；改写目标 avatar 装备的 option 字节并回包。
@@ -25850,6 +25880,8 @@ namespace
     const int newRarity = calcurate_rarity(rarity, rate.m_field0);
     unsigned long range = 10000;
     const unsigned int roll = m_rand->randInt(range);
+    // [MatchInvLane 2026-09-11 P225 试验·负结果，已回滚] while 形实测
+    // 95/95→95/97 gap −2 ndiff 13（零改善且指令数劣化）⇒ 维持 if 形（N-P197④）。
     if (roll < rate.m_field2)
     {
         return _bind_process(BIND_TYPE_SPECIAL, (ENUM_RARITY)newRarity,
@@ -26882,13 +26914,16 @@ done:
                         0, 0);
     }
 
-    MSG_PURIFY_ITEM& m = reinterpret_cast<MSG_PURIFY_ITEM&>(msg);
-
     if (G_GameWorld()->GetChannelType() == 7)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xcf, 0x11);
         return 0;
     }
+
+    // [DispLaneB 2026-09-11] P0：ORIG 直到 0x08218d3d 才发 `mov 0x10(%ebp),%eax;
+    //   mov %eax,-0x14(%ebp)`（msg 引用缓存），即声明点在 0x08218d01 的
+    //   GetChannelType 判定**之后** ⇒ 声明点下移，槽序/求值序与 ORIG 对齐。
+    MSG_PURIFY_ITEM& m = reinterpret_cast<MSG_PURIFY_ITEM&>(msg);
 
     if (user->CheckItemLock(1, m.m_0d))
     {
@@ -27137,6 +27172,9 @@ LOUT:
 //   首差: mov    %eax,-0x2c(%ebp) | mov    -0x2c(%ebp),%edx | mov    %eax,0x18(%edx)
 #include "Dispatchers/process_319.inc"
 {
+    // [DispLaneB 2026-09-11 实测回滚] ORIG 直证：入口先缓存 param（-0x2c）、msg 形参
+    //   直用（0x10(%ebp) 仅 2 次）。但把 msg 引用改编译期内联式后实测 ndiff 59→65
+    //   （ours 347→345）劣化 ⇒ 按 codegen 轴闸门回滚（同 ReqIngameAdv/UseDye 族）。
     MSG_REFUND_SKILL& req = reinterpret_cast<MSG_REFUND_SKILL&>(msg);
 
     rfErr(param) = check_error(user, msg);                      // +0x18 错误码
@@ -27909,6 +27947,10 @@ struct ScrMsgView
 //   首差: push   %edi | sub    $0xfc,%esp | mov    %eax,-0x48(%ebp)
 #include "Dispatchers/process_322.inc"
 {
+    // [DispLaneB 2026-09-11 实测回滚] ORIG 直证：msg 引用(-0x48) 先于 param(-0x44)、
+    //   err 无槽（0x081e6a1b 结果直存 out.m_4、判定从成员重读）。但按此改（交换声明序
+    //   + 删 err）实测 ours 469→472、ndiff 46→72 劣化 ⇒ 4.4 的引用槽分配不随声明序
+    //   归位（N98 首次使用序域），按 codegen 轴闸门回滚原形。
     stUseDye& out = static_cast<stUseDye&>(param);
     MSG_USE_DYE& req = reinterpret_cast<MSG_USE_DYE&>(msg);
 
@@ -29408,6 +29450,10 @@ namespace expert_extraction
 {
     stRequestIngameAdvertisement* R =
         reinterpret_cast<stRequestIngameAdvertisement*>(&param);
+    // [DispLaneB 2026-09-11 实测回滚] ORIG 直证无 msg 槽（唯一入口槽 -0x40=param，
+    //   0x081e43b1 起 msg 形参直读），但把引用局部改编译期内联式后实测
+    //   ours 185→183、ndiff 10→33 劣化（4.4 每次形参直读改变装载序/槽链）⇒
+    //   按 codegen 轴闸门回滚原形（与 UseDye 同族的「P0 直证但 4.4 不可复现」判定）。
     MSG_REQUEST_INGAME_ADVERTISEMENT& M =
         reinterpret_cast<MSG_REQUEST_INGAME_ADVERTISEMENT&>(msg);
 
@@ -29858,8 +29904,11 @@ namespace expert_extraction
 //   首差: push   %esi | push   %ebx | sub    $0x50,%esp
 #include "Dispatchers/process_331.inc"
 {
-    char* m = reinterpret_cast<char*>(&msg);
+    // [DispLaneB 2026-09-11] ORIG 0x081d2b4a 入口序 = `mov 0x14(%ebp),%eax; mov %eax,-0x20`
+    //   （param 引用先声明、占更深槽）→ `mov 0x10(%ebp),%eax; mov %eax,-0x1c`（msg 指针）
+    //   ⇒ 交换声明序（我方原 msg 先声明占 -0x20，与 ORIG 相反）。
     stSkillCommandParam& res = static_cast<stSkillCommandParam&>(param);
+    char* m = reinterpret_cast<char*>(&msg);
 
     const int commandCount = (int)(char)m[0xd];
     if (commandCount > 0x31)

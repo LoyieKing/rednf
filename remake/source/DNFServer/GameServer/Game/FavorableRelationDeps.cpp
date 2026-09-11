@@ -50,7 +50,9 @@
 namespace
 {
 
-const unsigned int NPC_FAVOR_REWARD_SLOTS = 3;
+// [OurOnly33 全局符号轴 2026-09-11] ORIG 全 ELF 无 NPC_FAVOR_REWARD_SLOTS：我方曾发射
+// `_ZN12_GLOBAL__N_1L22NPC_FAVOR_REWARD_SLOTSE`（r 段 4B）；本 TU 内**无任何使用点**
+//（grep 仅命中本定义）⇒ 直接删除（-fkeep-static-consts 默认因此前仍发射符号）。
 
 }  // namespace
 
@@ -159,12 +161,15 @@ stFavorableRelationShip_t::stLevelRewardInfo::
 #include "FavorableRelationDeps/stPeriodRewardInfo.inc"
 {
     m_type = 0;
-    static const char* const kEmptyString = "";
-    m_name = kEmptyString;
+    // [OurOnly33 符号名轴 2026-09-11] ORIG 全 ELF 无 `kEmptyString`（我方发射
+    // `_ZZN25stFavorableRelationShip_t18stPeriodRewardInfoC1EvE12kEmptyString`，ORIG None）——
+    // ORIG 三处直接以匿名空串常量 @0x08e1ce20 赋 string ⇒ 删 local static、使用点内联字面量
+    // （空串仍落匿名 .rodata，装载形与 ORIG 一致）。
+    m_name = "";
     m_a = 0;
     m_b = 0;
-    m_desc = kEmptyString;
-    m_param = kEmptyString;
+    m_desc = "";
+    m_param = "";
 }
 
 // ORIG 0x085819e4（W 0x73）：空体（三 string 成员按逆序 0x14→0x10→0x4 自动析构）。

@@ -76,27 +76,15 @@ float ACTIVESTATUS_LEVEL_RATE_FOR_PROB;             // B 0x093f5c80
 float ACTIVESTATUS_LEVEL_RATE_FOR_POWER;            // B 0x093f5c84
 float ACTIVESTATUS_LEVEL_ABSOLUTE_RATE;             // B 0x093f5c88
 
-// ORIG static d 0x093f5480 [0x44]＝17 个 .rodata 字面量指针（逐一解析实证）。
-static const char* const ACTIVESTATUS_TAG[17] =
-{
-    "[slow resistance]",             // 0x08e1ddd3
-    "[freeze resistance]",           // 0x08e1dde5
-    "[poison resistance]",           // 0x08e1ddf9
-    "[stun resistance]",             // 0x08e1de0d
-    "[curse resistance]",            // 0x08e1de1f
-    "[blind resistance]",            // 0x08e1de32
-    "[lightning resistance]",        // 0x08e1de45
-    "[stone resistance]",            // 0x08e1de5c
-    "[sleep resistance]",            // 0x08e1de6f
-    "[burn resistance]",             // 0x08e1de82
-    "[weapon break resistance]",     // 0x08e1de94
-    "[bleeding resistance]",         // 0x08e1deae
-    "[piercing resistance]",         // 0x08e1dec4
-    "[stuck resistance]",            // 0x08e1deda
-    "[confuse resistance]",          // 0x08e1deed
-    "[hold resistance]",             // 0x08e1df02
-    "[armor break resistance]",      // 0x08e1df14
-};
+// ORIG static d 0x093f5480 [0x44]＝17 个 .rodata 字面量指针（逐一解析实证；
+// 串址 0x08e1ddd3 起，逐项与下方旧定义序列一致）。
+// [SymActStatus·2026-09-11 跨 TU 合并] ORIG 仅此一份（local `_ZL16ACTIVESTATUS_TAG`；
+// 引用点 0x08a0fa5d / 0x08a0fdc2 / 0x08a221fb / 0x08a22e1f 四函数同属单一 TU）。
+// 我方因 TU 拆分曾在本文件与 STMonsterScript.cpp 各定义一份同内容拷贝
+// ⇒ 唯一定义（外部链接、.data 段 d / size 0x44）迁至 STMonsterScript.cpp
+// （与同域 PARAMETER_CATEGORY_NAME 并列），本文件只保留 extern 引用；
+// 消费点 `token == ACTIVESTATUS_TAG[i]` 形不变。
+extern const char* ACTIVESTATUS_TAG[17];
 
 // ORIG static d 0x093f5080 [0x210]＝11 职业 × 6 组 × {rate, value}（.data 初值实证）。
 static float upgradeWeaponAttackPowerRate_[11][6][2] =
@@ -851,32 +839,18 @@ std::map<int, float> g_creatureIndexDamageRateMap;
 
 // ============================ 生物公共脚本域 ============================
 
-// ORIG MODULE_NAME_TAG（B 0x0949b2c0 [0x88]）初始化实证（__static_initialization_
-// and_destruction_0ii 0x088c3055 内循环）：17 组全部为 {"[dungeon]","[/dungeon]"}。
-namespace {
-
-struct ModuleTagEntry
-{
-    std::string open;    // +0x00（getModuleTypeFromTag 比对目标）
-    std::string close;   // +0x04
-};
-
-struct ModuleTagTableInit
-{
-    ModuleTagEntry entries[17];
-    ModuleTagTableInit()
-    {
-        for (int i = 0; i < 17; ++i)
-        {
-            entries[i].open = "[dungeon]";
-            entries[i].close = "[/dungeon]";
-        }
-    }
-};
-
-const ModuleTagTableInit s_moduleNameTag;
-
-}  // namespace
+// ORIG MODULE_NAME_TAG（B 0x0949b2c0 [0x88] = std::string[17][2]，全库唯一一份、
+// 外部链接）定义在 CreatureScript.cpp（CreatureScript.h:36 extern 声明），本 TU 只引用。
+// [SymActStatus·2026-09-11 评估落地] 原匿名 namespace 的 ModuleTagEntry/
+// ModuleTagTableInit/`s_moduleNameTag`（我方发射 9 条符号：`_ZN12_GLOBAL__N_114ModuleTagEntry
+// C1/C2/D1/D2`、`…18ModuleTagTableInit C1/C2/D1/D2`、`_ZN12_GLOBAL__N_1L15s_moduleNameTagE`），
+// ORIG 全表 0 命中 ⇒ 是本表的第 2 份拷贝，已删除并改引用 ORIG 真表。
+// 引用点对齐：ORIG 0x088c2248（getModuleTypeFromTag 内）`add $0x949b2c0,%eax`。
+// 内容一致性实证：ORIG static_init 0x088c31b0 / 0x088c3201 逐项构造 0x8e08a19="[dungeon]"
+// 与 0x8e08d4b="[/dungeon]"（17 组）——与本 TU 原拷贝内容逐项相同。
+// ⚠ 依赖（已在报告登记）：CreatureScript.cpp 侧 MODULE_NAME_TAG 当前无初始化（默认空串），
+// 须补 17 组 {"[dungeon]","[/dungeon]"} 才能与本消费点对齐 ORIG 运行期行为（属 OurOnly33 域）。
+extern std::string MODULE_NAME_TAG[17][2];
 
 // ORIG getModuleTypeFromTag T 0x088c2233（报告全文转写）：步长 8 遍历 17 组，
 // 与 open 标签比较；未命中 -1。
@@ -884,7 +858,7 @@ const ModuleTagTableInit s_moduleNameTag;
 {
     for (int i = 0; i < 17; ++i)
     {
-        if (tag == s_moduleNameTag.entries[i].open)
+        if (tag == MODULE_NAME_TAG[i][0])
             return i;
     }
     return -1;
@@ -1107,6 +1081,23 @@ struct IgnoreCaseCompare
 
 // ORIG static b 0x094ff630 [0x18]。
 static std::map<std::string, ENUM_CATEGORY, IgnoreCaseCompare> s_objCategoryString;
+
+// ORIG `CATEGORY_STRING` D 0x093f53c0 [0xb0] = `const char*[44]`（.data 初值实证：
+// 44 个指针 0x08e1dc01/09/11/…/dda9/ddb0/ddb8/ddbf/ddc6 → .rodata 串，与
+// initObjectCategory 的 map 键逐一**同序同名**）；ORIG 全库 0 引用（死数据）
+// ⇒ 纯符号轴补发射，零消费点、零 codegen 影响。
+// [Main·PoolH 数据符号普查 2026-09-11] 段/大小与 ORIG 对齐（.data / 0xb0）。
+const char* CATEGORY_STRING[44] = {
+    "[human]", "[beast]", "[plant]", "[insect]", "[machine]", "[organic]",
+    "[hybrid]", "[undead]", "[devil]", "[spirit]", "[dragon]", "[angel]",
+    "[melee combat]", "[range combat]", "[close-passive]",
+    "[close-carefully]", "[full-superarmor]", "[close-tough]",
+    "[close-manace]", "[oneside move]", "[human armor]", "[fort armor]",
+    "[divine armor]", "[goblin]", "[tau]", "[lugaru]", "[fixture]", "[stay]",
+    "[melee]", "[missile]", "[energy]", "[physical]", "[magical]", "[bullet]",
+    "[cannon]", "[explosion]", "[inflame]", "[non inflame]", "[light]",
+    "[dark]", "[water]", "[fire]", "[fort]", "[unbeatable]"
+};
 
 // ORIG initObjectCategory T 0x08a0aed8：map[literal]=枚举 逐条插入，恒返 1。
 // 字面量地址逐一解析自 .rodata（0x08e1dc01..0x08e1ddc6）。

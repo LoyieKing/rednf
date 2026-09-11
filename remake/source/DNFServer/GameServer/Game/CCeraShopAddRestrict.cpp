@@ -271,7 +271,10 @@ daily_not_ok:;
     }
     catch (const char* msg)
     {
-        LogManager::logFormat(1, "../RDARScriptCeraShopAddRestrictType.cpp", "readTime",
+        // [Fn28Gap 2026-09-11] ORIG 0x08abf2f9: movl $0x8e2d8ec,0x8(%esp) =
+        // _ZZN19CerashopAddRestrict8readTimeEPsE12__FUNCTION__（r,9B="readTime\0"）
+        // ⇒ 原码 __FUNCTION__。
+        LogManager::logFormat(1, "../RDARScriptCeraShopAddRestrictType.cpp", __FUNCTION__,
                               37, "readTime() Load fail. %s", msg);
         return false;
     }

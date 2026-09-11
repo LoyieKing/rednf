@@ -25,6 +25,29 @@
 //   · AbuseUser / GetCharacName / ChangeHp：清单 NEAR → 路由口径 AE（复验不变）。
 //   · p167：9/9 符号 CLEAR（CStaticDisposition 的 CDisposition C1/C2 同址别名
 //     属 P93 良性；CheckPoint 已由 ptEv 归位 deEv）。
+// [PoolA 2026-09-11 fresh 复核 · 清单 6 件（routed 11:55，本 TU 四数 109/293/1/5）]：
+//   · CAssaulter::GetCharacName（ORIG 0x082e663c）/ ChangeHp（0x082e6694）：**AE**
+//     15/16、68/69（ndiff 0，帧差 1 为 outgoing 预留 N115）——清单 NEAR 系陈旧口径。
+//   · _MakeUserState(PacketGuard*, CUser*) 0x082e8d60：**DIFF** 34/33 ndiff1，唯一
+//     残差 = `p->put_byte(user->GetUserState())` 实参装载角色：ORIG 0x082e8db7 段
+//     `call GetUserState; mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,0x4(%esp);
+//     mov %eax,(%esp)`（值先中转 edx、this 后载）；4.4 恒 `mov 0xc(%ebp),%edx;
+//     mov %eax,0x4(%esp); mov %edx,(%esp)`（this 先载、值留 eax）⇒ N7/P211 档①。
+//     本波复核：ORIG 同 TU SendUserState 0x082e845c 同表达式**无** hop（ORIG 自身
+//     分裂两形）⇒ callee 返回类型旋钮（GetUserState int→unsigned/enum）无自洽解，
+//     维持封顶（改 CUser.h 会连带把 SendUserState 打反）。
+//   · _MakeUserState(PacketGuard*) 0x082e8c5a：**DIFF** 73/72 ndiff1，同型残差
+//     （0x082e8d03 段）⇒ 同上 N7 判词。
+//   · CStaticDisposition::C1（ORIG 0x082e62aa）：**DIFF** 158/158 ndiff2，残差 =
+//     `(a*4+b)` 与 `arr[(a*4+b)*2]` 的 add-vs-lea / scale 折叠（ORIG 0x082e636d
+//     `mov -0x1c(%ebp),%eax; shl $0x2,%edx; lea (%edx,%eax,1),%eax` /
+//     `mov <A>(,%eax,8),%eax` vs 4.4
+//     `add -0x1c(%ebp),%eax` / `add %eax,%eax; mov <A>(,%eax,4),%eax`）⇒ N4/P30/N102
+//     （八形探针在册），维持。
+//   · StaticPool<CAssaultPlace,128>::CNode D1 0x082f13e8：**NEAR** 8/8 ndiff1，
+//     仅帧 `sub $0x18`(ORIG) vs `sub $0x4`(我们)＝N115/P210②（见下方 1319 行判词；
+//     E02 加用户空 dtor 实验已证伪）⇒ 维持。
+//   ⇒ 6 件与既有判词一致；本轮零代码改动（仅登记）。
 #include "CAssaultMgr.h"
 
 #include "CUser.h"

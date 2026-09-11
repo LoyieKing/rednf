@@ -34,7 +34,7 @@
 #include "LogManager.h"          // LogManager::logFormat
 #include "PackSet.h"             // PackSet
 #include "NpcScript.h"           // STScriptFileList / loadRDARScriptListFile
-#include "CreatureScript.h"      // g_moduleNameTag
+#include "CreatureScript.h"      // MODULE_NAME_TAG（ORIG nm 权威名）
 #include "GreyImage.h"           // GreyImage
 #include "ServicePolicy.h"       // ServicePolicy
 #include "ServiceRestrictManager.h"  // RestrictCategory::Enum
@@ -67,14 +67,9 @@ unsigned int timeGetTime()
     return 0;
 }
 
-// ===========================================================================
-// is_base64  ORIG t 0x0807e9f8：isalnum(c) || c=='+' || c=='/'。
-// （ORIG TU = EncodeBase64.cpp）
-// ===========================================================================
-static bool is_base64(unsigned char c)
-{
-    return isalnum(c) || c == '+' || c == '/';
-}
+// [WorldLane 符号普查 · FragC 2026-09-11 代落] 删 `static bool is_base64` 副本：
+// ORIG 全库仅 1 份（t 0x0807e9f8，唯一调用点在 EncodeBase64 域）；我方真身 =
+// PacketTypes.cpp:952（定义）+ :973（调用）。本 TU 无调用点，删除后份数 1:1。
 
 // ===========================================================================
 // splitPathByDirectory  ORIG T 0x088bbc30：返回最后一个 '/' 或 '\\' 的下标，
@@ -97,7 +92,7 @@ static bool is_base64(unsigned char c)
 // ===========================================================================
 #include "OnlyOrigBatch12_rand_r/isEndModuleTag.inc"
 {
-    return *tag == g_moduleNameTag[idx][1];
+    return *tag == MODULE_NAME_TAG[idx][1];
 }
 
 // ===========================================================================
@@ -204,69 +199,9 @@ static const char* g_MainHudMenuActionString[26] = {
         menuMap.insert(std::make_pair(g_MainHudMenuActionString[i], i));
 }
 
-// ===========================================================================
-// parseStringLine  ORIG t 0x08aa6551：脚本行 "key>value" 解析。
-//   跳过前导空白；\r/\n/EOF/注释 返回 0；无 '>' 或 key 长 1 → -1；
-//   key 长 > 0x29 → -2；'\\n' 转义换行；输出 *p1=start、*p2=value。
-// （ORIG TU = RDARScriptStringManager.cpp）
-// ===========================================================================
-// [b28d-solo-OnlyOrigBatch12] AE：P167 调用点差集 CLEAR，clean 口径已离开
-// DIFF/NEAR（清单 NEAR 25 为历史快照）。ORIG 0x08aa6551
-static int parseStringLine(char* line, char** p1, char** p2)
-{
-    char* p = line;
-    while (*p != '\0')
-    {
-        if (*p == '\r' || *p == '\n')
-            return 0;
-        if (*p == ' ' || *p == '\t')
-            ++p;
-        else
-            break;
-    }
-    if (*p == '\0' || (*p == '/' && *(p + 1) == '/'))
-        return 0;
-
-    char* start = p;
-    char* keyEnd = 0;
-    while (*p != '\0')
-    {
-        if (*p == '>')
-        {
-            *p = '\0';
-            ++p;
-            keyEnd = p;
-            break;
-        }
-        ++p;
-    }
-    if (keyEnd == 0 || keyEnd - start == 1)
-        return -1;
-    if (keyEnd - start - 1 > 0x28)
-        return -2;
-
-    for (; *p != '\0'; ++p)
-    {
-        if (*p == '\r' || *p == '\n')
-        {
-            *p = '\0';
-            break;
-        }
-        if (*p == '\\' && *(p + 1) == 'n')
-        {
-            *p = '\n';
-            char* q = p + 1;
-            while (*q != '\0')
-            {
-                *q = *(q + 1);
-                ++q;
-            }
-        }
-    }
-    *p1 = start;
-    *p2 = keyEnd;
-    return 0;
-}
+// [WorldLane 符号普查 · FragC 2026-09-11 代落] 删 `static int parseStringLine`
+// 副本：ORIG 全库仅 1 份（t 0x08aa6551，1 处调用）；我方真身 =
+// RDARScriptStringManager.cpp:47（定义）+ :482（活调用）。本 TU 无调用点。
 
 // ===========================================================================
 // save_pid  ORIG T 0x0829eeb2：写 "./pid/<name>.pid"（O_CREAT|O_RDWR 0x42,
@@ -463,45 +398,10 @@ struct TgaHeader
     return result;
 }
 
-// ===========================================================================
-// setPolicyApplyValue  ORIG t 0x0816d490（ServiceRestrictManager.cpp 域）：
-//   把 value 串逐字符 '0'/'1' 写入 policy 的 short 向量（index 1 起）；
-//   越界值记日志并置 0；index 越界即停。
-// ===========================================================================
-static void setPolicyApplyValue(RestrictCategory::Enum category,
-                                ServicePolicy& policy,
-                                const std::string& value)
-{
-    if (value.empty())
-        return;
-    int idx = 1;
-    size_t limit = policy.size();
-    // [b28d-solo-OnlyOrigBatch12] ORIG 0x0816d490：`call ppEv(++it)` 先于
-    // `addl $1,-0x14(++idx)` ⇒ 两增量同在 for 增量表达式（逗号）中，body 尾
-    // 不再 ++idx（P28 增量侧推论）。残余 `mov policy,%eax` vs ORIG
-    // `mov idx,%edx` 先载为 4.4 receiver-this 先载固有（P52/P256 封顶）。
-    for (std::string::const_iterator it = value.begin(); it != value.end(); ++it, ++idx)
-    {
-        int v = static_cast<int>(*it) - '0';
-        if (v > 1 || v < 0)
-        {
-            LogManager::logFormat(
-                1, "localtaiwan/System/ServiceRestrictManager.cpp",
-                // [Q7S3 §6.5] ORIG 0x0816d490 prett 串（0x8b82e00 实读）为
-                // "…ServicePolicy&, const std::string&"；旧手写串写成
-                // "std::string const&"（词序颠倒）⇒ 换宏取定义侧拼写
-                //（第 3 参声明本就是 const std::string&）。
-                __PRETTY_FUNCTION__,
-                0x22,
-                "[Taiwan, Restrict] Invalid server value. restrict:%d,%d,%d",
-                static_cast<int>(category), idx, v);
-            v = 0;
-        }
-        if (static_cast<size_t>(idx) >= limit)
-            break;
-        policy[idx] = static_cast<short>(v);
-    }
-}
+// [WorldLane 符号普查 · FragC 2026-09-11 代落] 删 `static void
+// setPolicyApplyValue` 副本：ORIG 全库仅 1 份（t 0x0816d490，3 处调用）；我方
+// 活副本 = SecurityRestrictPolicy.cpp:33（+ :86 调用）与 ServiceRestrictManager.cpp:42
+//（+ :135/:215 两调用，两份实现逐字相同，属 TU 拆分镜像）。本 TU 无调用点。
 
 // ===========================================================================
 // stNPCEventItemInfo::operator=  ORIG W 0x0891b52e（按值参数）。

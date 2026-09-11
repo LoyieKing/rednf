@@ -646,9 +646,12 @@ __attribute__((weak)) bool PvP_Room::IsInsertTimerRecvPvpRank()
                     }
                     if (local_28 == rankCount)
                     {
-                        cMyTrace local_54(__PRETTY_FUNCTION__, 0xb7c, 5);
-                        local_54("1 PvP_Room::CalcuateVictoryPoint Error, No Rank User Found i<%d> RankCount<%d>",
-                                 local_2c, rankCount);
+                        // [WorldLane 2026-09-11 · P221] 具名 cMyTrace 两形互试：本件 ORIG
+                        // 单挑 cMyTrace@-0x50 / 团战@-0x40（后声明占更深槽），4.4 具名形
+                        // 相反 ⇒ 改「构造即调用」全表达式临时链翻正槽方向。
+                        cMyTrace(__PRETTY_FUNCTION__, 0xb7c, 5)(
+                            "1 PvP_Room::CalcuateVictoryPoint Error, No Rank User Found i<%d> RankCount<%d>",
+                            local_2c, rankCount);
                         goto LAB_085da583;
                     }
                     local_34 = local_28;
@@ -690,9 +693,10 @@ LAB_NEXT2_2C: ;
                     }
                     if (local_1c == rankCount)
                     {
-                        cMyTrace local_44(__PRETTY_FUNCTION__, 0xb97, 5);
-                        local_44("1 PvP_Room::CalcuateVictoryPoint Error, No Rank User Found i<%d> RankCount<%d>",
-                                 local_24, rankCount);
+                        // [WorldLane 2026-09-11 · P221] 同单挑分支：全表达式临时链翻槽方向。
+                        cMyTrace(__PRETTY_FUNCTION__, 0xb97, 5)(
+                            "1 PvP_Room::CalcuateVictoryPoint Error, No Rank User Found i<%d> RankCount<%d>",
+                            local_24, rankCount);
                         goto LAB_085da583;
                     }
                     int local_18 = local_1c;
@@ -3006,12 +3010,14 @@ LAB_085dd357:
     int local_10 = GetTeamIndex(user);
     if (m_userTable.IsValidTeam(local_10) != 1)
     {
-        cMyTrace local_20(__PRETTY_FUNCTION__, 0x10f8, 5);
         // [H8-PvP 2026-09-11 · S1 语义轴] ORIG 0x085dcb8c `movl $0x8cc125c,0x4(%esp)`
         // （.rodata 逐字节：50 56 50 b7 ce c1 f7 bf c0 b7 f9 20 50 76 50 5f 52 6f 6f
         // 6d 3a 3a 47 69 76 65 4f 75 74 65 72 50 65 6e 61 6c 74 79 20 74 65 61 6d
         // 20 69 6e 64 65 78 20 25 64 00）⇒ "PVP"+韩文+" PvP_Room::GiveOuterPenalty
         // team index %d"；旧 "Invalid Team(%d)" 是发明文本。
+        // [WorldLane 2026-09-11 · P221 实测中性已回滚] 具名 → 全表达式临时链：
+        // ndiff 2→2、gap +1→+1 逐值不变（本件残差是 EH landing-pad 布局 N104，非槽方向）。
+        cMyTrace local_20(__PRETTY_FUNCTION__, 0x10f8, 5);
         local_20("PVP\xb7\xce\xc1\xf7\xbf\xc0\xb7\xf9 PvP_Room::GiveOuterPenalty team index %d", local_10);
         goto LAB_085dcd66;
     }

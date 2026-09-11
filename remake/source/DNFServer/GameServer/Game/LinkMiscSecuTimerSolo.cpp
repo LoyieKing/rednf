@@ -29,7 +29,7 @@
 #include "CEnvironment.h"
 #include "GameWorld.h"
 #include "GameTypes.h"           // cMyTrace
-#include "CreatureScript.h"      // g_moduleNameTag
+#include "CreatureScript.h"      // MODULE_NAME_TAG（ORIG nm 权威名）
 #include "DNFLexWrapper.h"       // ScanType
 #include "LogManager.h"
 #include "PackSet.h"             // PackSet::is_exist（ORIG T 0x08ac498c）
@@ -165,7 +165,7 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
 // ===========================================================================
 // processModuleTagSet  ORIG T 0x08a97637（RDARScriptSkill.cpp 模块标签域）
 // 解析 "<module>"/"<sub>" 标签对：moduleId/subId 输出 + 前置 tag 消费。
-// type 覆写为 3（ORIG 直接改参数）；标签表 g_moduleNameTag[0x20]（开/闭对）。
+// type 覆写为 3（ORIG 直接改参数）；标签表 MODULE_NAME_TAG[0x20]（开/闭对）。
 // batch-12 逐条对位修正：
 //  ① dungeon 分支 ORIG 797 `movzbl -0x15;xor$1;test;je tail` ⇔ subMatched==1
 //     跳过赋值直落尾部（return 0），即 `if (!subMatched) {subId=3; log}`；
@@ -182,7 +182,7 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
 //  ⑤ 命中块第三与条件（tag 相等检查）写嵌套 if：4.4 对三目 && 链尾操作数
 //     物化 bool 岛（+5），ORIG 718 为 `call;test;je` 直短路；
 //     嵌套形消物化且块排布同 ORIG。
-// 表型（Main 批准，batch-12）：g_moduleNameTag 改 [17][2] pair 表（ORIG
+// 表型（Main 批准，batch-12）：MODULE_NAME_TAG 改 [17][2] pair 表（ORIG
 // B 0x88 = 17 对，切片 `2*i` 寻址折 `shl $3` stride-8 实证），本函数以
 // [i][0]/[i][1] 形寻址逐处对位。残留 N：pvp `type==9||type==5`
 // ORIG 4.1 常量岛物化 test%al（N3，4.4 无合法写法）；73b/73e/741 空块
@@ -199,17 +199,17 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
     int i = 0;
     for (; i <= 0x10; ++i)
     {
-        if (*tag == g_moduleNameTag[i][0] ||
-            *tag == g_moduleNameTag[i][1])
+        if (*tag == MODULE_NAME_TAG[i][0] ||
+            *tag == MODULE_NAME_TAG[i][1])
         {
             moduleId = i;
-            subMatched = (*tag == g_moduleNameTag[i][1]);
+            subMatched = (*tag == MODULE_NAME_TAG[i][1]);
             if (i != type && type <= 0x10)
             {
                 // 操作数序 [i] 左 [type] 右：4.4 二元比较 RHS 先求值 ⇒
                 // type 槽先装载，与 ORIG 6f5-6fa（mov KE;shl3;lea/mov SE;shl3）
                 // 行序一致。
-                if (g_moduleNameTag[i][0] == g_moduleNameTag[type][0])
+                if (MODULE_NAME_TAG[i][0] == MODULE_NAME_TAG[type][0])
                     moduleId = type;
             }
             break;
@@ -223,7 +223,7 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
             if (!subMatched)
                 subId = type;
         }
-        else if (g_moduleNameTag[moduleId][0] == "[dungeon]")
+        else if (MODULE_NAME_TAG[moduleId][0] == "[dungeon]")
         {
             if (!subMatched)
             {
@@ -250,7 +250,7 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
         //   （push/mov/pop +3）；④裸 `if (type==9||type==5)` = 4.4 折成
         //   `cmpl $9;je;cmpl $5;jne`（208 条，gap −5）；⑤语句表达式/条件声明/
         //   `?:`/`==true`/`==false`/`|` 各族均折或改用 setcc。
-        else if (g_moduleNameTag[moduleId][0] == "[pvp]" &&
+        else if (MODULE_NAME_TAG[moduleId][0] == "[pvp]" &&
                  (type == 9 || type == 5))
         {
             subId = 4;
@@ -265,7 +265,7 @@ extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定�
                 matched = false;
                 for (int j = 0; j <= 0x10; ++j)
                 {
-                    if (*tag == g_moduleNameTag[moduleId][1])
+                    if (*tag == MODULE_NAME_TAG[moduleId][1])
                     {
                         foundSub = true;
                         matched = true;

@@ -22,7 +22,8 @@ bool isObjectType(int objectType, int code);
 }
 
 // ENUM_ACTIVESTATUS（ORIG mangled 宽度 17）。数值 = ACTIVESTATUS_* 表下标；
-// 0..16 名称对应 ACTIVESTATUS_TAG[17]（ScriptDepsA.cpp .rodata 解析实证），
+// 0..16 名称对应 ACTIVESTATUS_TAG[17]（ORIG `_ZL16ACTIVESTATUS_TAG` @0x093f5480
+// d 段 / 0x44；唯一定义在 STMonsterScript.cpp，ScriptDepsA.cpp extern 引用），
 // 17 由 makeEtcParameters case 使用但无表项 [推断] 仅给占位名。
 #ifndef DNF_ENUM_ACTIVESTATUS_DEFINED
 #define DNF_ENUM_ACTIVESTATUS_DEFINED

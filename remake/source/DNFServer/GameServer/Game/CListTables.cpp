@@ -987,6 +987,12 @@ std::map<int, PvPMapInfo> CMapList::mapPvpMapInfo_;
     {
         it++;
     }
+    // [PoolB b28f · PoolE 旋钮实验·负结论] 曾把指针局部 `CSkill* skill` 改
+    // `unsigned int skillAddr=(unsigned int)it->second` 承载地址（Main 广播：
+    // 指针/整型分区旋钮）⇒ 实测**残余槽图不变**（ORIG -0x40/-0x48/-0x4c vs 我方
+    // -0x30/-0x38/-0x3c 的整组 -0x10 平移仍在，verdict 仍 NEAR 138/139）
+    // ⇒ 本件残余为 N126 版本首槽基址常数（4.1 首槽 -0x4 / 4.4 -0xc 族），
+    // 非指针分区所致，已回退。
     CSkill* skill = it->second;
     if (skill->get_index() == skillIdx)
     {

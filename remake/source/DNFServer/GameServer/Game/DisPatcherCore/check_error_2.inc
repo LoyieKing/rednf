@@ -28,13 +28,14 @@ int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
     if (user->getCurCharacNo() != 0 &&
         user->getCurCharacNo() == user->get_charac_no(req.m_slot))
     {
-        // [b28e-L5] P227 全表达式临时链**实测劣化**（本函数 114→177 diff 行）：
-        // 本处 ORIG 的 varargs 是 ctor **后**求值（两语句形），链式反而改变装载序 ⇒
-        // 恢复两语句形（与 ORIG 0x081c1a0x 段一致）。
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0xaa4, 5);
-        trace("pUser->getCurCharacNo() == recv_pk_del_charac.charac_index %d %d",
-              req.m_slot, user->get_charac_no(req.m_slot));
+        // [b28e-DispCore] P227 分点复核：ORIG 0x081c19f? 段为
+        // `mov %eax,%ebx`（GetCurCharacNo 结果）+ `movzbl 0xd; movsbl %al,%esi`
+        // （req.m_slot）**在 ctor 之前**求值（入 callee-saved）、ctor 后才压 op()
+        // 实参 ⇒ 本点（0xaa4）原码是全表达式临时链。旧「链式劣化」结论系两点同改
+        // （0xab4 点是 ctor 后求值）所致 ⇒ 本轮只翻本点、0xab4 保持两语句。
+        cMyTrace(__PRETTY_FUNCTION__, 0xaa4, 5)(
+            "pUser->getCurCharacNo() == recv_pk_del_charac.charac_index %d %d",
+            req.m_slot, user->get_charac_no(req.m_slot));
         return 0x16;
     }
     if (user->isLocked4DataLoad())
@@ -51,9 +52,9 @@ int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
     // (signed char) 读法（字段本型不动）。
     if ((signed char)user->m_characList[(int)req.m_slot].m_characLinkType > 1)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0xab4, 5);
-        trace("LINK_LOG : ABNOMAL CHARAC DELETEING!!");
+        // [b28e-DispCore] P221 两点同链式：ORIG 两点槽 -0x34(0xaa4)/-0x24(0xab4)
+        // 与我方互反；两点统一全表达式临时链后 4.4 槽序与 ORIG 同向（P221 判决）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xab4, 5)("LINK_LOG : ABNOMAL CHARAC DELETEING!!");
         return -4;
     }
     // [DPC_CheckErr] P0/P183：ORIG 0x081c16d6 `call get_charac_name; mov %eax,-0x10(%ebp)`
@@ -78,9 +79,13 @@ int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
         return 0xd1;
     }
     int chk = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x2e);
-    if (chk == 0)
+    // [b28e-DispCore] P222 两形互试：ORIG 0x081c1b? 为 `cmpl $0x0,-0xc; je <mov $0,%eax>`
+    // ＋尾 `mov -0xc(%ebp),%eax; jmp` ⇒ 反写形（`!= 0` 返回 chk、`mov $0` 落尾）。
+    // 残余唯一 1 处 = `add $0x12,%eax; movzbl (%eax),%eax`（ORIG）vs 4.4 disp 折叠
+    // `movzbl 0x12(%eax),%eax` ⇒ N102（结构首成员数组退化+常量偏移，七源形全折 disp）。
+    if (chk != 0)
     {
-        return 0;
+        return chk;
     }
-    return chk;
+    return 0;
 }

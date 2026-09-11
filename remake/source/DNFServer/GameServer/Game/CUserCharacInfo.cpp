@@ -10,6 +10,26 @@
 //   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
+// [PoolA 2026-09-11 fresh 复核 · 清单 6 件（routed 11:55，本 TU 四数 251/391/1/3，
+//   missing=1 为 static_init 口径 N123）] 逐件三态与归因：
+//   · get_charac_10_level_section / getCurCharacEscaladeTutorialFlag /
+//     setCurCharacTutorialFlag：**AE**（62/63、69/71、108/109，ndiff 0；帧差为
+//     跨版本 outgoing 预留，N115）。判词既有「旧 NEAR 系 --no-compile 伪差」成立。
+//   · WarAreaKill 0x086459c4：**DIFF** 59/60 ndiff2。唯一残差 = 目标索引 lea 时机：
+//     ORIG 0x08645a41 `lea 0x380(%ecx),%edx`（在 `fadds 0x14(%ebp)` 之后）；
+//     4.4 提前到源基址装载前（`mov 0xc(%ebp),%edx; lea 0x380(%edx),%ecx`）并少 1 条
+//     lea（两式 fstps 目标同址）。本波复核：`+=` 逐语句展开会加具名槽（P0 反例），
+//     未再引入改动 ⇒ 维持 N（P75/N88 实参装载时刻族）。
+//   · calc_disp_help_abuse_ratio 0x08658a4e：**NEAR** 68/68 ndiff8。残差 = 深槽区
+//     （fildll 临时 -0x38/-0x34、cw -0x3a/-0x3c、除数 -0x4c）相对 ORIG
+//     （-0x30/-0x2c、-0x32/-0x34、-0x3c）整体深 8，帧 0x68↔0x58 ⇒ N115/N95 维持。
+//   · GetContinuousItemInfo 0x08677f24：**DIFF** 100/104 ndiff10。残差 = 4.4 把
+//     `(index+0x460)` CSE 到 %esi 跨 call 保活（多发 push %esi）且 disp 0x10 折成
+//     `lea 0x2(%esi),%edx`；ORIG 每处独立 `mov -0x18(%ebp),%ebx; …call; lea
+//     0x460(%ebx),%ecx; mov %edx,0x10(%eax,%ecx,8)`（0x08677f92..0x08677f9d）
+//     ⇒ N82附/N4（4.4 地址 CSE + disp/scale 折叠定则）。
+//   ⇒ 6 件与既有判词一致；本轮零代码改动（仅登记）。
+// ============================================================================
 
 #include "CUserCharacInfo.h"
 
@@ -2431,6 +2451,8 @@ L_SBR_END:;
 // [P8 2026-09-11 第二遍回扫] 新钥匙复核：prett 符号 size=0x33 与 ORIG 相等、
 //   串 CLEAR、p167 CLEAR；n1_v=DIFF 59/60 的唯一残差仍是 4.1/4.4 RA 命名
 //   （%ecx/%edx 互换 + lea 位置）⇒ 维持封顶，未改动。
+    // [PoolA 2026-09-11 试形判词] 常量在左（`0x380 + index`）实测**无效**：仍
+    // 59/60 ndiff2（lea 提前、%ecx↔%edx 互换，逐值不变），已回滚 ⇒ 维持 N。
     ((WarAreaKillWindow*)CUR)->m_warAreaKillFlat[index + 0x380] += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal,

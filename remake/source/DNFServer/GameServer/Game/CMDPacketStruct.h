@@ -125,6 +125,12 @@ struct _ReqAdvanceAltarSetSlot : public STBaseRequest
 
 struct _ResAdvanceAltarSetSlot : public STBaseResponse
 {
+    // +0x04。[DispLaneA 2026-09-11 P248 档③ 两端冲突实证·回滚] 本字段同 TU 内两个 store 点要求
+    //   相反的同型性：①`m_nErrorCode = check_error(user,req)`（ORIG O[30:33]）
+    //   ORIG 为 RHS-first+中转 3 条 ⇒ 需**异型**；②`m_nErrorCode = <advancealtar setSlot 调用返回值>`
+    //   （ORIG O[62:64]）ORIG 为 LHS-first 2 条 ⇒ 需**同型**。改成 int 后差异从②迁到①
+    //   （blocks 恒 1、TU 四数逐项不变：1010/2553/15/181）⇒ 单字段类型旋钮不可同时满足，
+    //   按 P248 反例（SigTypes_D.h m_senderCharacNo 同族）判 N，保持原 unsigned。
     unsigned int m_nErrorCode;    // +0x04（b28d-solo-S162：同 Pause，P211 档③）
     int m_field08;                // +0x08（req+0x10 回显）
     bool m_bSet;                  // +0x0c（req+0x14 回显；objdump 0x0814008a mov %dl,0xc

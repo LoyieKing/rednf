@@ -1464,6 +1464,9 @@ link_end:
                     int svcEnd = 0;
                     if (!dbPremium->get_int(0, preType))
                     {
+                        // [PoolF 2026-09-11 负结论] 三处具名 trace 改 P227 全表达式临时链
+                        // 实测：ndiff 95→92（−3 块）但 our 677→680（+3 条，gap +1→−2，
+                        // 绝对差 1→2）⇒ 按 §6.4「我方多即需消指令」方向不符，已回退。
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x3628, 5);
                         trace("DB_Login::GetPremiumInfo, get(1) ERROR m_id=%s",
                               NumberToString(sig->m_accId, 0));
@@ -2697,7 +2700,12 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
         // [K9GameRestA-S322] ORIG 0x084156a5 `movzwl 0xa(%eax),%ebx` + `cmp %ax,%bx;
         // setl %al`（**16 位**有符号比较）vs 我方 `movzwl %ax,%ebx; cwtl; cmp %eax,%ebx`
         // （32 位，多 2 条）⇒ 试「两侧都显式 (short)」消掉整型提升（P248 档③）。
-        if ((short)sig->m_characView.m_slots[i].m_level >=
+        // [PoolF 2026-09-11 试验] ORIG 0x084156a5 `movzwl 0xa(%eax),%ebx`（单段直落
+        // callee-saved，跨 G_CDataManager 调用保活）；我方两段
+        // `movzwl ...,%eax; mov %eax,%ebx`。按 P231/P307 试裸 `register`（非 asm 绑定，
+        // P0 合规）使 4.4 直落 %ebx。实测无效即回退。
+        register unsigned short slotLevel = sig->m_characView.m_slots[i].m_level;
+        if ((short)slotLevel >=
             (short)reinterpret_cast<CDataMgrLevelView*>(G_CDataManager())->m_level)
         {
             // P183：ORIG 每次使用均由 sig 重新展开 charac_no（sig+0xe0 视图）与

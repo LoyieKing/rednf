@@ -9319,7 +9319,9 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
     case 0x40d:  type = 1; value = 100000; goto L08666990;        // 0x08665c55
     case 0x4cf:  type = 1; value = 1000000; goto L08666990;       // 0x08665c6b
     case 0x4d0:  type = 1; value = 10000000; goto L08666990;      // 0x08665c81
-    case 0x1f71: case 0x204b: case 0x204c: case 0x204e: case 0x204f:
+    // [CUserOnlyOrig-Lane 2026-09-11 P167] ORIG 0x08665b78 `je 08665c97` = case 0x28d2bc
+    // （与 0x1f71/0x204b..0x204f 共享同体）——旧形漏此 case ⇒ 该值落 default（真语义缺口）。
+    case 0x1f71: case 0x204b: case 0x204c: case 0x204e: case 0x204f: case 0x28d2bc:
     {
             bool reject = false;
             if (!CalLevelUpItemCheck(itemIdx))
@@ -9339,6 +9341,11 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
         }
     }
                     goto L08666990;
+    // [CUserOnlyOrig-Lane 2026-09-11 P167 真缺口修复] ORIG 0x08665b5b (`je 08665d24`,
+    // case 0x989a13) / 0x08665b9a (同目标, case 0x292090e1) ⇒ 本块是二者共享体
+    // （CalLevelUpItemState(type,value,1,0x54) 失败 → SendCmdErrorPacket(0x20,0x13)）；
+    // thunk 搬体后标签丢失 ⇒ DCE。
+    case 0x989a13: case 0x292090e1:
     {
         // [SubB ①-d′ 2026-09-11 二分测试·暂回滚] 直传 &value + 去 ok54 具名槽
         int valueTmp = (int)value;
@@ -9359,6 +9366,11 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
     case 0x414:  type = 3; value = 0xfa; goto L08666990;          // 0x08665df6
     case 0x415:  type = 8; value = 10; goto L08666990;            // 0x08665e0c
     case 0x416:  type = 9; value = 10; goto L08666990;            // 0x08665e22
+    // [CUserOnlyOrig-Lane 2026-09-11 P167 真缺口修复] ORIG 0x086658d4 (`je 08665e38`,
+    // case 0xc9) / 0x08665afe (同目标, case 0x28bdb8) ⇒ 本块是二者共享体；
+    // M8BigTURest「thunk 搬体」后标签丢失 ⇒ 块不可达被 4.4 前端 DCE
+    // （p167 MISSING: GetRepeatEvent×1 / clear×2 / Send×2 / getCurCharacTotalFatigue×1）。
+    case 0xc9: case 0x28bdb8:
     {
         CEventBase* repeatEvent = GlobalData::s_event_manager->GetRepeatEvent(0xf);
         if ((repeatEvent == 0) || (!repeatEvent->IsEventing(0)))
@@ -9452,6 +9464,11 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
                     else { value = 0; type = 0xa; }
         goto L08666990;
     }
+    // [CUserOnlyOrig-Lane 2026-09-11 P167 真缺口修复] ORIG 0x08665b10 (`je 08666320`,
+    // case 0x28974b) / 0x08665b35 (同目标, case 0x289788) ⇒ 本块是二者共享体
+    // （IsPvPSkilTreeChannel()!=1 → 0x17；Check → errSecu；CheckCondition → 1；
+    // value=0/type=0x16，0x289788 时 value=1）；thunk 搬体后标签丢失 ⇒ DCE。
+    case 0x28974b: case 0x289788:
     {
                 if (G_GameWorld()->IsPvPSkilTreeChannel() != 1)
         {
@@ -9524,7 +9541,11 @@ unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_date
     // 并入目标 BB、直接 `je body`）。
     case 0x4b0: case 0x4b1: case 0x4b2: case 0x2920915c:
     {
-            if (!IsGuildMaster())
+            // [CUserOnlyOrig-Lane 2026-09-11 真语义修复] ORIG 0x08666635-0x0866663a：
+            // `cmp $0x2920915c,%eax; jne 08666678` ⇒ 块内**再查一次 itemIdx**，
+            // 仅 0x2920915c 走 IsGuildMaster 错误包；0x4b0/0x4b1/0x4b2 非会长时**继续**
+            // 后续流程（旧形令三者误报 0xdb，真语义 bug）。
+            if ((itemIdx == 0x2920915c) && (!IsGuildMaster()))
         {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xdb, packet);
             return;
@@ -11850,10 +11871,14 @@ public:
         // CDataManager 疲劳附加脚本参数（CUser.cpp 2399-2416 同型，尚未具名化）
         CEventBase* ev57 = GlobalData::s_event_manager->GetRepeatEvent(0x57);
         if (ev57->IsEventing(0)) {
-            unsigned short base = m_characList[slot].m_field35;
-            m_characList[slot].m_field35 = static_cast<unsigned short>(
-                base + *reinterpret_cast<const unsigned short*>(
-                           reinterpret_cast<const char*>(G_CDataManager()) + 0x51c));
+            // [CUserOnlyOrig-Lane 2026-09-11 P167 EXTRA op[] 修复] ORIG 0x0864b38c-0x0864b3a6：
+            // 单次 `call vector<_Charac_info>::operator[]` + `mov %eax,%ebx` 后
+            // `movzwl 0x35(%ebx),%esi; …; mov %ax,0x35(%ebx)`（读/写同一元素指针，无 base 槽）；
+            // 旧形「读 base + 写回」两次完整下标 ⇒ EXTRA op[]×1（ORIG 92 vs our 93）。
+            _Charac_info* pci = &m_characList[slot];
+            pci->m_field35 = static_cast<unsigned short>(
+                pci->m_field35 + *reinterpret_cast<const unsigned short*>(
+                                     reinterpret_cast<const char*>(G_CDataManager()) + 0x51c));
         }
     }
     if (static_cast<short>(src->m_field32) < 0) {          // 疲劳电池错误分支
@@ -13329,6 +13354,10 @@ public:
             for (std::vector<std::pair<int,int> >::const_iterator ri = recipeInfo.m_vecC.begin();
                  ri != recipeInfo.m_vecC.end(); ++ri)
     {
+            // [CUserOnlyOrig-Lane 2026-09-11 P167 负结论·已回滚] 试 `(*ri).first`
+            // （欲按 P167 消 ptEv）实测反而与新差集冲突：ORIG 本段**正是**
+            // `_ZNK…IPKSt4pair…ptEv` ×2（改后 p167 MISSING ptEv -2 / EXTRA deEv +2）
+            // ⇒ 维持 `ri->`（const ptEv 双侧抵消）。真实 EXTRA 在别处（scaled 循环）。
             packet.put_int(ri->first);
             packet.put_int(ri->second);
         }
@@ -13369,7 +13398,11 @@ public:
                     const int extra =
                         static_cast<int>((float)perCount * ratio - (float)perCount + 0.5f)
                         * bonusCnt;
-                    it->second = it->second + extra;
+                    // [CUserOnlyOrig-Lane 2026-09-11 P167/P38] ORIG 0x08672c23-0x08672c2e：
+                    // 单个 ptEv 结果复用于读+写（`mov 0x4(%eax),%edx; add -0x20(%ebp),%edx;
+                    // mov %edx,0x4(%eax)`）= 复合赋值形；拆写 `it->second = it->second + extra`
+                    // 令 4.4 发两次 ptEv ⇒ p167 EXTRA `…ptEv`×1（实测 10 vs ORIG 9）。
+                    it->second += extra;
                 }
                 CExpertJobStatistic* stat = GetInstanceExpertJobStatistic();
                 stat->increaseItemCount((ENUM_EXPERT_JOB_TYPE)GetCurCharacExpertJobType(),

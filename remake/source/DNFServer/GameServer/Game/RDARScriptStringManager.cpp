@@ -190,9 +190,16 @@ template <size_t N>
 
     // ORIG 0x8aa5918：GetFileName 结果存 callee-saved %ebx 跨 toTString 调用
     // （无槽往返）⇒ 实参内联（P0/P23）。
-    ss_sprintf(errStr, "%s == NULL, %s : ",
+    // [Fn28Gap 2026-09-11 · 符号名轴] ORIG 0x08aa5935/0x08aa5941：
+    //   `movl $0x9500be0,(%esp); call ss_sprintf<256>; mov $0x9500be0,%eax`
+    // ⇒ not-found 分支用的是**第二个独立** 256B static，nm 直证
+    //   `_ZZNK23RDARScriptStringManager10findStringEiPKcPbE6errStr_0`
+    //   @0x09500be0（b,0x100；越界分支的 `errStr` @0x09500ae0 是另一符号）⇒
+    //   原码显式声明了两个缓冲（同名 static 不可重定义，故第二者名为 errStr_0）。
+    static char errStr_0[256];
+    ss_sprintf(errStr_0, "%s == NULL, %s : ",
                toTString(key), fileList_.GetFileName(table));
-    return errStr;
+    return errStr_0;
 }
 
 #include "RDARScriptStringManager/findString_1.inc"

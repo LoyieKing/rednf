@@ -16,15 +16,18 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x8a, 7);
         return 0;
     }
-    bool srcOk = packet.get_int(srcLen);                 // ORIG local_25
-    if (!srcOk)
+    // [b28e-DispCore] P331 攻法1：ORIG 两次 `get_int` 结果**复用同一槽 -0x21**
+    // （objdump 实证 0x08205?8/0x08205? 两处 store 同址且无预清 movb $0）
+    // ⇒ 原码是同一个具名 bool（声明+赋值、再赋值），不是 srcOk/newOk 两个变量。
+    bool ok = packet.get_int(srcLen);                    // ORIG -0x21
+    if (!ok)
     {
         // [SigB] P227 全表达式临时链：ORIG 0x08202xx 在 cMyTrace ctor **之前**求值
         // varargs 到 %edi/%esi/%ebx 并跨 ctor 保活（原两句式把 ctor 提前、varargs 求值
         // 推后，且不产生 ORIG 的 `push %edi`）。
         cMyTrace(__PRETTY_FUNCTION__, 0x9ec7, 0)(
             "ting : m_id(%s) src char name length(%d), ret(%d)",
-            NumberToString(user->get_acc_id(), 0), srcLen, (int)srcOk);
+            NumberToString(user->get_acc_id(), 0), srcLen, (int)ok);
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x8a, 7);
         return 0;
     }
@@ -33,13 +36,13 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x8a, 7);
         return 0;
     }
-    bool newOk = packet.get_int(newLen);                 // ORIG local_25（第二次）
-    if (!newOk)
+    ok = packet.get_int(newLen);                         // ORIG -0x21（同槽复用）
+    if (!ok)
     {
         // [SigB] P227 同上（ORIG 在 ctor 前 `movzbl ..,%edi; mov ..,%esi; mov %eax,%ebx`）。
         cMyTrace(__PRETTY_FUNCTION__, 0x9ed4, 0)(
             "ting : m_id(%s) char name length(%d), ret(%d)",
-            NumberToString(user->get_acc_id(), 0), newLen, (int)newOk);
+            NumberToString(user->get_acc_id(), 0), newLen, (int)ok);
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x8a, 7);
         return 0;
     }
@@ -86,7 +89,11 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
 
-    int nameState;                                       // ORIG -0x1c
+    // [b28e-DispCore] 负结论：P307 裸 `register int nameState;` 实测**整体劣化**
+    // （ndiff 4→42：4.4 对 register 局部改分区，slot/-0x65→-0x61、数组槽 -0x8e→-0x8a
+    // 全链平移 4B）⇒ 已回滚。ORIG `mov -0x1c(%ebp),%esi` 提前保活属 4.1 独有
+    // 实参预装载（N7/P75 族），判 N。
+    unsigned int nameState;                              // ORIG -0x1c (P290 trial)
     if (typeFlag == 2)
     {
         // ORIG hasPreventPrefixCharacName(src, srcLen)（Ghidra 误抄参数，asm 实证）。

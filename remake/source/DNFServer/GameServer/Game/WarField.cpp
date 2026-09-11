@@ -714,8 +714,11 @@ typedef unsigned char byte;
 {
     if (idx < 0 || idx > 9)
     {
+        // [Fn28Gap 2026-09-11] ORIG 0x082a3daa: movl $0x8c19e4f,0x8(%esp) =
+        // _ZZN14WarAreaCounter25GetWarRoomCountAtPeekTimeEiE12__FUNCTION__
+        // （r,26B="GetWarRoomCountAtPeekTime\0"）⇒ 原码 __FUNCTION__。
         LogManager::logFormat(1, "WarField.cpp",
-            "int WarAreaCounter::GetWarRoomCountAtPeekTime(int)", 0x317,
+            __FUNCTION__, 0x317,
             "WarAreaCounter GetWarRoomCountAtPeekTime error idx(%d)", idx);
         return 0;
     }
@@ -729,8 +732,10 @@ typedef unsigned char byte;
 {
     if (idx < 0 || idx > 9)
     {
+        // [Fn28Gap 2026-09-11] ORIG 0x082a3e1e: movl $0x8c19e82,0x8(%esp) =
+        // _ZZN14WarAreaCounter25GetWarRoomCountFirstIndexEiE12__FUNCTION__（26B）。
         LogManager::logFormat(1, "WarField.cpp",
-            "int WarAreaCounter::GetWarRoomCountFirstIndex(int)", 0x320,
+            __FUNCTION__, 0x320,
             "WarAreaCounter GetWarRoomCountFirstIndex error idx(%d)", idx);
         return 0;
     }
@@ -749,8 +754,10 @@ typedef unsigned char byte;
 {
     if (idx < 0 || idx > 9)
     {
+        // [Fn28Gap 2026-09-11] ORIG 0x082a3eba: movl $0x8c19e69,0x8(%esp) =
+        // _ZZN14WarAreaCounter24GetWarRoomCountLastIndexEiE12__FUNCTION__（25B）。
         LogManager::logFormat(1, "WarField.cpp",
-            "int WarAreaCounter::GetWarRoomCountLastIndex(int)", 0x32f,
+            __FUNCTION__, 0x32f,
             "WarAreaCounter GetWarRoomCountLastIndex error idx(%d)", idx);
         return 0;
     }

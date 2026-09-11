@@ -33,6 +33,14 @@
 int g_EquipmentParameterInfoCount = 0;
 int g_EquipmentParameterInfoSize = 0;
 
+// [OurOnly33 符号名轴 2026-09-11] ORIG 权威：`093f4840 000000bc D AVTVARIATION_TAG_NAME`
+// （全局 .data，0xbc=188B=47 指针）——import（读 [avatar select ability]）与 export
+// 两处共用同一 ORIG 全局表。原两处函数内 static
+//（`_ZZ28importEquipmentParameterInfo…E19kAvatarAbilityNames` /
+//  `_ZZ30exportEquipmentParameterScript…E10kAvatarTag`）系我方发明名 ⇒ 改用该权威全局表
+//（定义见 OnlyOrigBatch12_server_utility.cpp:154，本 TU 仅 extern 引用，勿重复定义）。
+extern const char* const AVTVARIATION_TAG_NAME[47];
+
 // ORIG C1（0x8919ce8）：成员默认构造后，先更新全局记账
 // （count++、size = count * sizeof），再调 clear。
 #include "EquipmentParameterInfo/EquipmentParameterInfo.inc"
@@ -5122,35 +5130,15 @@ static bool importItemOverpowerDesc(EquipmentParameterInfo* info)
         // m_field4='+'→0 / '*'→1 标志、m_field8=float 数值；[SKILL_LEVEL](43)
         // 特殊：job 标签 + 两 int），size<=99 时 push_back；未命中项 push 默认值。
         info->m_avatar264.clear();
-        static const char* const kAvatarAbilityNames[] = {
-        "[none]", "[HP MAX]", "[MP MAX]", "[PHYSICAL_ATTACK]",
-        "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
-        "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
-        "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
-        "[ELEMENT_TOLERANCE_FIRE]", "[ELEMENT_TOLERANCE_WATER]",
-        "[ELEMENT_TOLERANCE_DARK]", "[ELEMENT_TOLERANCE_LIGHT]",
-        "[ELEMENT_TOLERANCE_ALL]", "[ACTIVESTATUS_TOLERANCE_SLOW]",
-        "[ACTIVESTATUS_TOLERANCE_FREEZE]", "[ACTIVESTATUS_TOLERANCE_POISON]",
-        "[ACTIVESTATUS_TOLERANCE_STUN]", "[ACTIVESTATUS_TOLERANCE_CURSE]",
-        "[ACTIVESTATUS_TOLERANCE_BLIND]", "[ACTIVESTATUS_TOLERANCE_LIGHTNING]",
-        "[ACTIVESTATUS_TOLERANCE_STONE]", "[ACTIVESTATUS_TOLERANCE_SLEEP]",
-        "[ACTIVESTATUS_TOLERANCE_BURN]", "[ACTIVESTATUS_TOLERANCE_WEAPON_BREAK]",
-        "[ACTIVESTATUS_TOLERANCE_BLEEDING]", "[ACTIVESTATUS_TOLERANCE_PIERCE]",
-        "[ACTIVESTATUS_TOLERANCE_STUCK]", "[ACTIVESTATUS_TOLERANCE_CONFUSE]",
-        "[ACTIVESTATUS_TOLERANCE_HOLD]", "[ACTIVESTATUS_TOLERANCE_ALL]",
-        "[INVENTORY_MAX_WEIGHT]", "[HP_REGENRATE]", "[MP_REGENRATE]",
-        "[MP_REGENRATE_PERCENT_UP]", "[MOVE_SPEED]", "[ATTACK_SPEED]",
-        "[CAST_SPEED]", "[HIT_RECOVERY]", "[JUMP_POWER]", "[CRITICAL]",
-        "[SKILL_LEVEL]", "[PHYSICAL ABSOLUTE DEFENSE]",
-        "[MAGICAL ABSOLUTE DEFENSE]", "[STUCK ON ATTACK]"
-        };
+        // [OurOnly33 符号名轴 2026-09-11] 47 项 avatar 能力名表已合并为文件级
+        // AVTVARIATION_TAG_NAME（ORIG `093f4840 D AVTVARIATION_TAG_NAME`，见文件头定义）。
         while (ScanStr(&s))
         {
         STAvatarAbilityVariation var;
         int i = 0;
         while (i <= 0x2e)
         {
-        if (s == kAvatarAbilityNames[i])
+        if (s == AVTVARIATION_TAG_NAME[i])
         {
         var.m_field0 = i;
         // ORIG 0x89ab4a4 `mov -0xa58,%eax; cmp $0x2b,%eax`：比较对象是
@@ -5785,39 +5773,19 @@ done:
 //     残余 = **N85** x87 比较 lowering（ORIG `fucompp/fnstsw/test $5/sete/xor`
 //     vs 4.4 `fucomip/fstp/seta`）+ 帧 0x180/0x170、槽平移 8（N95/N115 族）
 //     + skill-levelup 迭代器三槽（ORIG 单槽 -0x3c，N86/P50 族）。
+// [OurOnly33 符号名轴 2026-09-11] ORIG 权威（export 0x089ae692 / 0x89ae6f3 两处
+// `mov 0x93f5540(,%eax,4),%eax`）：状态名表 = 全局 `ACTIVE_STATUS_NO_BOX_BRACKET_TAG`
+// （D 0x093f5540, 0x4c=19 指针=18 项+NULL；定义见 CreatureScript.cpp，与该 TU 的
+// getActiveStatusType 0x088944fb 同表）⇒ 删本函数内 static kActStatNoBox
+//（我方发明名 `_ZZ30exportEquipmentParameterScript…E13kActStatNoBox`，ORIG 全 ELF 无）。
+extern "C" const char* ACTIVE_STATUS_NO_BOX_BRACKET_TAG[19];
 #include "EquipmentParameterInfo/exportEquipmentParameterScript.inc"
 {
     // [A18 本波] 删多余判空（P171 照抄 ORIG）：ORIG 0x89ad 头部无 file/info 判空，
     // 直接 `mov 0xc(%ebp),%eax; mov 0x4(%eax),%eax; test; je`（判 info->m_field4）。
-    // 状态名表（无括号标签，索引 = 状态类型 0..0x11；15/16 无名占位空串）
-    static const char* const kActStatNoBox[18] = {
-        "slow", "freeze", "poison", "stun", "curse", "blind", "lightning",
-        "stone", "sleep", "burn", "weapon break", "bleeding", "haste",
-        "bless", "element", "", "", "armor break"
-    };
     // avatar 能力标签表（47 项，与 import [avatar select ability] 同序）
-    static const char* const kAvatarTag[47] = {
-        "[none]", "[HP MAX]", "[MP MAX]", "[PHYSICAL_ATTACK]",
-        "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
-        "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
-        "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
-        "[ELEMENT_TOLERANCE_FIRE]", "[ELEMENT_TOLERANCE_WATER]",
-        "[ELEMENT_TOLERANCE_DARK]", "[ELEMENT_TOLERANCE_LIGHT]",
-        "[ELEMENT_TOLERANCE_ALL]", "[ACTIVESTATUS_TOLERANCE_SLOW]",
-        "[ACTIVESTATUS_TOLERANCE_FREEZE]", "[ACTIVESTATUS_TOLERANCE_POISON]",
-        "[ACTIVESTATUS_TOLERANCE_STUN]", "[ACTIVESTATUS_TOLERANCE_CURSE]",
-        "[ACTIVESTATUS_TOLERANCE_BLIND]", "[ACTIVESTATUS_TOLERANCE_LIGHTNING]",
-        "[ACTIVESTATUS_TOLERANCE_STONE]", "[ACTIVESTATUS_TOLERANCE_SLEEP]",
-        "[ACTIVESTATUS_TOLERANCE_BURN]", "[ACTIVESTATUS_TOLERANCE_WEAPON_BREAK]",
-        "[ACTIVESTATUS_TOLERANCE_BLEEDING]", "[ACTIVESTATUS_TOLERANCE_PIERCE]",
-        "[ACTIVESTATUS_TOLERANCE_STUCK]", "[ACTIVESTATUS_TOLERANCE_CONFUSE]",
-        "[ACTIVESTATUS_TOLERANCE_HOLD]", "[ACTIVESTATUS_TOLERANCE_ALL]",
-        "[INVENTORY_MAX_WEIGHT]", "[HP_REGENRATE]", "[MP_REGENRATE]",
-        "[MP_REGENRATE_PERCENT_UP]", "[MOVE_SPEED]", "[ATTACK_SPEED]",
-        "[CAST_SPEED]", "[HIT_RECOVERY]", "[JUMP_POWER]", "[CRITICAL]",
-        "[SKILL_LEVEL]", "[PHYSICAL ABSOLUTE DEFENSE]",
-        "[MAGICAL ABSOLUTE DEFENSE]", "[STUCK ON ATTACK]"
-    };
+    // [OurOnly33 符号名轴 2026-09-11] 同上：表体已合并为文件级 AVTVARIATION_TAG_NAME
+    // （ORIG `093f4840 D AVTVARIATION_TAG_NAME`）。
     // 基础属性（ORIG：非 0 才输出）
     if (info->m_hpMax != 0)            fprintf(file, "[HP MAX] %+d\n", info->m_hpMax);
     if (info->m_mpMax != 0)            fprintf(file, "[MP MAX] %+d\n", info->m_mpMax);
@@ -6007,13 +5975,13 @@ done:
                     else
                         job = getCharacterJobName(
                             static_cast<ENUM_CHARACTERJOB>(info->m_avatar264[i].m_skill.m_job));
-                    snprintf(buf, 0x100, "`%s` `%s` %d %d", kAvatarTag[idx], job.c_str(),
+                    snprintf(buf, 0x100, "`%s` `%s` %d %d", AVTVARIATION_TAG_NAME[idx], job.c_str(),
                              info->m_avatar264[i].m_skill.m_field4, info->m_avatar264[i].m_skill.m_field8);
                 }
                 else
                 {
                     const char* sign = (info->m_avatar264[i].m_field4 == 0) ? "+" : "*";
-                    snprintf(buf, 0x100, "`%s` `%s` %.2f", kAvatarTag[idx], sign,
+                    snprintf(buf, 0x100, "`%s` `%s` %.2f", AVTVARIATION_TAG_NAME[idx], sign,
                              (double)info->m_avatar264[i].m_field8);
                 }
                 fprintf(file, buf);
@@ -6039,13 +6007,13 @@ done:
     {
         if (info->m_activeStatusProbability[i] != 0)
             fprintf(file, "[active status probability] `%s` %d\n",
-                    kActStatNoBox[i], info->m_activeStatusProbability[i]);
+                    ACTIVE_STATUS_NO_BOX_BRACKET_TAG[i], info->m_activeStatusProbability[i]);
     }
     for (int i = 0; i < 0x12; ++i)
     {
         if (info->m_activeStatusLevelTable[i] != 0)
             fprintf(file, "[active status level] `%s` %d\n",
-                    kActStatNoBox[i], info->m_activeStatusLevelTable[i]);
+                    ACTIVE_STATUS_NO_BOX_BRACKET_TAG[i], info->m_activeStatusLevelTable[i]);
     }
 }
 

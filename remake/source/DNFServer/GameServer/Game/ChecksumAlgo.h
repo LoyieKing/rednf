@@ -59,15 +59,20 @@ void SHA512_Init(SHA512_ALG_INFO*);
 void SHA512_Update(SHA512_ALG_INFO*, unsigned char*, unsigned long);
 void SHA512_Final(SHA512_ALG_INFO*, unsigned char*);
 
-// 返回码（ORIG 各方法中出现的常量）
-static const int CKS_OK           = (int)0x6fffffff;   // 0x6fffffff 成功
-static const int CKS_ERR_NOSTATE  = (int)0x70000000;   // m_ctx == NULL
-static const int CKS_ERR_BUFSIZE  = (int)0x70000001;   // 输出缓冲区小于摘要长度
-static const int CKS_ERR_OPENFILE = (int)0x70000002;   // fopen 失败
-static const int CKS_ERR_FILESIZE = (int)0x70000003;   // 路径为空 / ftell < 0
-static const int CKS_ERR_DATALEN  = (int)0x70000005;   // MakeChecksumFromMemory len <= 0
-static const int CKS_ERR_ADDLEN   = (int)0x70000007;   // CSHA::AddData len <= 0
-static const int CKS_ERR_PENDING  = (int)0x70000008;   // CSHA::FinalDigest 缓冲区有残留数据
+// 返回码（ORIG 各方法中出现的常量）。用匿名 enum 建模：ORIG 全 ELF 无 `_ZL*CKS_*`
+// 符号（`nm | grep -c CKS`=3，且均为 CHECKSUM 子串），而头内 `static const int` 会让每个
+// 包含者各发射 8 条 TU-local 符号 ⇒ enum 常量零发射（名字与值逐字不变）。
+enum
+{
+    CKS_OK           = (int)0x6fffffff,   // 0x6fffffff 成功
+    CKS_ERR_NOSTATE  = (int)0x70000000,   // m_ctx == NULL
+    CKS_ERR_BUFSIZE  = (int)0x70000001,   // 输出缓冲区小于摘要长度
+    CKS_ERR_OPENFILE = (int)0x70000002,   // fopen 失败
+    CKS_ERR_FILESIZE = (int)0x70000003,   // 路径为空 / ftell < 0
+    CKS_ERR_DATALEN  = (int)0x70000005,   // MakeChecksumFromMemory len <= 0
+    CKS_ERR_ADDLEN   = (int)0x70000007,   // CSHA::AddData len <= 0
+    CKS_ERR_PENDING  = (int)0x70000008,   // CSHA::FinalDigest 缓冲区有残留数据
+};
 
 // ---- md5 wrapper：ctx 为 new 出的 0xd8 字节块（md5.cpp 的 md5_ctx 视图兼容） ----
 class CNChecksumMd5 : public IChecksum

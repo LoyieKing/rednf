@@ -247,7 +247,10 @@ namespace MercenaryHardCodingSettingValue
     size_t idx = 0;
     while (m_characs.size() > idx)
     {
-        if (static_cast<unsigned int>(m_characs[idx].m_characNo) == characNo)
+        // [CUserLane 2026-09-11] m_characNo 已 unsigned（SigTypes_C.h）⇒ 原
+        //   `static_cast<unsigned int>(…)` 冗余；ORIG 0x081b42ae 该点 `mov (%eax),%eax;
+        //   cmp 0xc(%ebp),%eax` 单段无中转，删 cast 后仍 AE 28/28（影子 A/B 实证）。
+        if (m_characs[idx].m_characNo == characNo)
             return static_cast<unsigned int>(idx);
         ++idx;
     }

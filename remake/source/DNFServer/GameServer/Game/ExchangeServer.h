@@ -37,7 +37,9 @@ class CACHE_CHARACTER_TYPE;  // 前置：CCacheCharacterMgr 接口用；完整�
 namespace exchange_server
 {
 
-const unsigned int HEADER_SIZE = 0x0d;   // ORIG r data 0x8c79790 = 0x0d
+// [WorldLane 2026-09-11 · static 多副本普查] 原 `const unsigned int HEADER_SIZE = 0x0d;`
+// 已下沉到唯一使用 TU `ExchangeServer_Session.cpp`（ORIG `_ZN15exchange_serverL11HEADER_SIZEE`
+// 为单份 r 4B @0x08c79790，仅 1 TU 发射；头内定义会随 include 链在 71 个 TU 各发射一份）。
 class IExchangeServer;   // 前置：CSession::exchange_server_ 静态成员用（定义见下）
 
 enum EXCHANGE_SERVER_TYPE

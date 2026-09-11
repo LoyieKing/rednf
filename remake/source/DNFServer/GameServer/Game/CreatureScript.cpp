@@ -50,7 +50,39 @@ char g_creatureScriptBaseDirectory[0x104];
 STScriptFileList g_creatureScriptFileList;
 
 // 模块名表 MODULE_NAME_TAG（processModuleTagSet 用；+8 步长 = 开/闭 string 对）。
-std::string g_moduleNameTag[17][2];  // ORIG MODULE_NAME_TAG B 0x88 字节（17 对 = 34 string）
+// [OurOnly33 全局符号轴 2026-09-11] 改名对齐：ORIG `MODULE_NAME_TAG` B 0x88 @0x0949b2c0
+//（唯一一份、外部链接）；原 `g_moduleNameTag` 系我方发明名（段/大小逐项一致）。
+// [OurOnly33 全局符号轴 2026-09-11 · Main 特批补初值] ORIG static_init 0x088c3055 实证
+// （objdump 逐条）：该表 34 个 string 中 **32 项**以 `_ZNSsC1EPKcRKSaIcE` 逐项构造，
+// 串地址序列（+`__tcf_0` 0x088c3027 逆序 34×`_ZNSsD1Ev` 印证 17×2 形态）：
+//   [dungeon]/[/dungeon] ×4, [pvp]/[/pvp] ×2, [dungeon]/[/dungeon],
+//   [warroom]/[/warroom], [dungeon]/[/dungeon], [assault]/[/assault],
+//   [death tower]/[/death tower], [dungeon]/[/dungeon] ×4, [boss tower]/[/boss tower]
+// ⇒ 前 16 组逐字节照抄（串区 0x8e08a08..0x8e08da7 dump）。
+// 第 17 组（idx 16）**已确证**为默认构造（空串）：ORIG 该段以循环
+//   `88c402b: movl $0x1,-0x40(%ebp)` / `88c4034: mov %ebx,(%esp); call _ZNSsC1Ev;
+//    add $0x4,%ebx` / `88c403f: subl $0x1,-0x40(%ebp)` / `88c4043: cmpl $-1,-0x40(%ebp)`
+//   逐项默认构造（计数 1→0→−1 = **2 次**），起点 = 表基址（%esi 经 %edi→%ebx）
+//   ⇒ idx16[0]/[1] 均为 `std::string()`。此处以 `std::string()` 显式写出以对齐形态。
+std::string MODULE_NAME_TAG[17][2] = {
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[pvp]",         "[/pvp]"         },
+    { "[pvp]",         "[/pvp]"         },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[warroom]",     "[/warroom]"     },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[assault]",     "[/assault]"     },
+    { "[death tower]", "[/death tower]" },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[dungeon]",     "[/dungeon]"     },
+    { "[boss tower]",  "[/boss tower]"  },
+    { std::string(),   std::string()    },   // [16] ORIG 默认构造 ×2（上注实证）
+};
 
 // ---- 原生类型生命周期 ----
 
@@ -398,22 +430,26 @@ std::string g_moduleNameTag[17][2];  // ORIG MODULE_NAME_TAG B 0x88 字节（17 
 }
 
 // ORIG 0x88944fb：active status 字符串→0..0x11，默认 0x12。
+// [OurOnly33 符号名轴 2026-09-11] ORIG 权威（0x088944fb 两条 `mov 0xXXXX(,%eax,4)` 装载）：
+//   ACTIVESTATUS_ATTACK_TAG          @0x093f54e0 (D, 0x4c=19 指针=18 项+NULL，带括号标签)
+//   ACTIVE_STATUS_NO_BOX_BRACKET_TAG @0x093f5540 (D, 0x4c，无括号标签)
+// 原函数内 static kTag/kNoBox（我方发明名 `_ZZ19getActiveStatusTypeRKsSE4kTag`/`6kNoBox`）
+// ⇒ 删除：ATTACK_TAG 引用 CharacterAIA2.cpp 的唯一定义（STMonsterScript 同法），
+// NO_BOX 表本 TU 定义（19 项含 NULL，与 ORIG 大小一致）；比较序按 ORIG（ATTACK 先、NO_BOX 后）。
+extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];   // D 0x093f54e0（CharacterAIA2.cpp）
+extern "C" const char* ACTIVE_STATUS_NO_BOX_BRACKET_TAG[19];
+const char* ACTIVE_STATUS_NO_BOX_BRACKET_TAG[19] = {
+    "slow", "freeze", "poison", "stun", "curse", "blind", "lightning",
+    "stone", "sleep", "burn", "weapon break", "bleeding", "haste",
+    "bless", "element", "confuse", "hold", "armor break",
+    0
+};
+
 #include "CreatureScript/getActiveStatusType.inc"
 {
-    static const char* kTag[] = {
-        "slow", "freeze", "poison", "stun", "curse", "blind", "lightning",
-        "stone", "sleep", "burn", "weapon break", "bleeding", "haste",
-        "bless", "element", "confuse", "hold", "armor break",
-    };
-    static const char* kNoBox[] = {
-        "[slow]", "[freeze]", "[poison]", "[stun]", "[curse]", "[blind]",
-        "[lightning]", "[stone]", "[sleep]", "[burn]", "[weapon break]",
-        "[bleeding]", "[haste]", "[bless]", "[element]", "[confuse]",
-        "[hold]", "[armor break]",
-    };
     for (int i = 0; i <= 0x11; ++i)
     {
-        if (s == kTag[i] || s == kNoBox[i])
+        if (s == ACTIVESTATUS_ATTACK_TAG[i] || s == ACTIVE_STATUS_NO_BOX_BRACKET_TAG[i])
             return i;
     }
     return 0x12;
@@ -1341,9 +1377,9 @@ enum AttackInfoTag
     std::string token;                        // -0x3b8 子 token(ScanTypeOrStr 读入)
     int statusIdx = 0;                        // -0x34 文件级 active status 槽计数
     // module 名缓存(元素集 / active status 各一):初值 MODULE_NAME_TAG+0x18 =
-    // g_moduleNameTag[3][0],与 clear() 的 m_moduleTag=3 对齐 → 首遇不误重置。
-    std::string elemModule(g_moduleNameTag[3][0]);     // -0x3bc
-    std::string statusModule(g_moduleNameTag[3][0]);   // -0x3c0
+    // MODULE_NAME_TAG[3][0],与 clear() 的 m_moduleTag=3 对齐 → 首遇不误重置。
+    std::string elemModule(MODULE_NAME_TAG[3][0]);     // -0x3bc
+    std::string statusModule(MODULE_NAME_TAG[3][0]);   // -0x3c0
 
     for (;;)                                  // 行循环:读行 → module 过滤 → 处理
     {
@@ -1504,7 +1540,7 @@ enum AttackInfoTag
                     else
                     {
                         // module 变化时清空元素集(0x0aa0..0x0ac9)
-                        const std::string& curMod = g_moduleNameTag[info->m_moduleTag][0];
+                        const std::string& curMod = MODULE_NAME_TAG[info->m_moduleTag][0];
                         if (elemModule != curMod)
                             info->m_elements.clear();
                         elemModule = curMod;  // 0x0aec 无条件更新缓存
@@ -1521,7 +1557,7 @@ enum AttackInfoTag
                     }
                     else
                     {
-                        const std::string& curMod = g_moduleNameTag[info->m_moduleTag][0];
+                        const std::string& curMod = MODULE_NAME_TAG[info->m_moduleTag][0];
                         if (statusModule != curMod)   // 0x0bb9 module 变化:重置槽
                         {
                             for (int i = 0; i < 3; ++i)

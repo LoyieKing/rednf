@@ -48,6 +48,12 @@
 //   ⇒ 4.1「先声明深」vs 4.4 延迟取址 + 匿名临时浅槽，属 N93/N82 跨版本槽向，封顶。
 #include "CItemUpgrade_Separate/CItemUpgrade_Separate.inc"
 {
+    // [LaneG 2026-09-11 实验·四形对照，维持 N93/N82 槽向封顶] ORIG 0x0811e007
+    // `lea -0x24(%ebp),%esi`（time 结果槽深）vs range -0x20（浅）。本轮新增三形
+    // 实测：①range 声明后置到 new 之后——读数逐值不变（nd 3）；②range 声明提到
+    // 函数头第一句——逐值不变（nd 3）；③具名 seed+range 两句式（声明与赋值分离）
+    // ——槽仍 -0x20/-0x24 未换向且 lea 推迟到实参装载（nd 3→4，劣化，已回滚）。
+    // 连同 K2F-1 的「具名 seed 合并式 / 声明序交换」两形，共六形均不可翻 ⇒ 封顶。
     m_randRange = 100000;
     unsigned long range;
     m_rand = new CMTRand(static_cast<unsigned long>(time(0)));

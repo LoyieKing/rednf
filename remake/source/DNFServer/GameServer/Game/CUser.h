@@ -1230,7 +1230,11 @@ public:
     void resetCancelCnt();                    // ORIG W 0x086959a8：清 +0x48
     bool isActivate() const;    // ORIG W 0x0822ef0e：读 +0x2f
     bool isCertified() const;   // ORIG W 0x0822ef1a：读 +0x30
-    int getFailCnt();           // ORIG W 0x0822ef26：读 +0x34
+    unsigned int getFailCnt();  // ORIG W 0x0822ef26：读 +0x34
+                                // [CUserLane 2026-09-11 · C-7 结构性正解] ORIG 0x08209eb2
+                                //   调用点 `cmp $0x2,%eax; seta`（无符号）；同函数 CPad 侧
+                                //   0x08209f0f `setg`（有符号）⇒ 返回 unsigned。A/B 实测：
+                                //   与消费点 cast 形 codegen 逐符号全等（零劣化）。
     char getCertFlag();         // ORIG W 0x086959b8：读 +0x31（movzbl）
     int getRequestState();      // ORIG W 0x0822ef58：读 +0x44
     // ---- WongWorkA 批追加（worklist A 段 ORIG-only 符号）----
@@ -2510,7 +2514,10 @@ public:
     int m_field8cf00;                                       // +0x8cf00
     int m_playingDungeonIdx;                                       // +0x8cf04
     int m_lastPacketID;                                     // +0x8cf08
-    char m_pad8cf0c[4];                                     // +0x8cf0c..0x8cf0f
+    // [CUserLane 2026-09-11 · P211 档③] char → unsigned char：+0x8cf0c/0x8cf0d 为
+    //   send/recv 计数字节，写入点 CUser::Send ORIG 0x0864861e `mov 0x8(%ebp),%edx;
+    //   mov %al,0x8cf0c(%edx)` 要求与 PacketBuf::at（unsigned char）同型 ⇒ LHS-first。
+    unsigned char m_pad8cf0c[4];                            // +0x8cf0c..0x8cf0f
     int m_antibotKey;                                       // +0x8cf10
     unsigned int m_clientVersion;                           // +0x8cf14
     char m_pad8cf18[0x40];                                  // +0x8cf18..0x8cf57
