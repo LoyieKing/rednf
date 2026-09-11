@@ -20,7 +20,7 @@ int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamB
     //   （我方 -0x18/-0x12/-0x11）⇒ 原码无这三个具名局部。
     if (user->GetParty() != 0 &&
         user->getCurCharacNo() ==
-            static_cast<int>(*reinterpret_cast<unsigned int*>(req.m_pad + 3)))
+            static_cast<int>(req.m_targetNo))
     {
         // [g02 试形B] result 侧裸偏移 → 具名成员（P-g03-b 反向：ORIG `movb $0x0,0x4(%eax)`
         //   单条 disp 折叠；裸 `(char*)&result + 0x04` 恒产 `add $0x4,%eax; movb $0x0,(%eax)`）。
@@ -30,18 +30,18 @@ int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamB
 
     // ORIG: Competition_Mercenary_Charac(user, msg+0x10, (char)msg+0x15, (char)msg+0x14)
     const int ret = user->Competition_Mercenary_Charac(
-        *reinterpret_cast<unsigned int*>(req.m_pad + 3),
-        static_cast<char>(req.m_pad[8]),
-        static_cast<char>(req.m_pad[7]));
+        req.m_targetNo,
+        req.m_field15,
+        req.m_field14);
     // [g02 试形B] 同上：result 具名成员（ORIG 0x081dddbb/…dc1/…dce/…ddb 全为 disp 折叠形）
     result.m_isMyCharac = static_cast<unsigned char>(ret & 0xff);   // +0x04
-    result.m_characNo = *reinterpret_cast<unsigned int*>(req.m_pad + 3);  // +0x08
-    result.m_charac = static_cast<unsigned char>(req.m_pad[8]);     // +0x0c
-    result.m_charac2 = static_cast<unsigned char>(req.m_pad[7]);    // +0x0d
+    result.m_characNo = req.m_targetNo;                             // +0x08
+    result.m_charac = static_cast<unsigned char>(req.m_field15);    // +0x0c
+    result.m_charac2 = static_cast<unsigned char>(req.m_field14);   // +0x0d
     // ORIG: cUserHistoryLog::MercenaryCompetition(user->m_historyLog, targetNo, b0x15, b0x14)
     user->m_historyLog.MercenaryCompetition(
-        *reinterpret_cast<unsigned int*>(req.m_pad + 3),
-        static_cast<char>(req.m_pad[8]),
-        static_cast<char>(req.m_pad[7]));
+        req.m_targetNo,
+        req.m_field15,
+        req.m_field14);
     return 0;
 }

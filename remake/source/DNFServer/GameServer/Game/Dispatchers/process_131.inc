@@ -30,14 +30,11 @@ int Dispatcher_RequestBlackList::process(CUser* user, MSG_BASE& msg, ParamBase& 
     // ORIG `mov %eax,-0x14(%ebp)` / `mov %eax,-0x10(%ebp)`（pkt@-0x1e 的 disp 直写槽）
     // ⇒ 用 TU 局部视图具名写同一偏移（`reinterpret_cast<unsigned int*>(pkt.m_data)` 产
     //   lea+间接 store 五条）。
-    struct BlackListPktView
-    {
-        char m_head[0xa];
-        unsigned int m_dbid;         // +0x0a
-        unsigned int m_idByChannel;  // +0x0e
-    } __attribute__((packed));
-    reinterpret_cast<BlackListPktView*>(&pkt)->m_dbid = user->get_acc_id();        // +0x0a
-    reinterpret_cast<BlackListPktView*>(&pkt)->m_idByChannel = user->GetUID();     // +0x0e
+    // [g02 2026-09-11 · Main 已批准] `Packet_Request_BlackList` 自身带具名成员
+    //   （m_dbid@+0x0a / m_idByChannel@+0x0e）⇒ 同类型直接成员访问复现 ORIG 单条 disp 直存；
+    //   旧局部 packed 视图恒产 `lea -0x1e(%ebp),%ebx; mov %eax,0xa(%ebx)` 两步。
+    pkt.m_dbid = (unsigned int)user->get_acc_id();        // +0x0a
+    pkt.m_idByChannel = (unsigned int)user->GetUID();     // +0x0e
 
     // ORIG 0x081ce1xx：`lea -0x1e(%ebp),%ebx`(&pkt)、GetServerGroup→GetServerProxy→SendPacket
     //   直链，**无** group/proxy 具名槽（P0）。

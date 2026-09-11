@@ -32,21 +32,15 @@ int Dispatcher_RequestMemberEnter::process(CUser* user, MSG_BASE& msg, ParamBase
     //   0x081cb91c `mov %eax,-0x32(%ebp)` = pkt+0xe ← getCurCharacNo；
     //   0x081cb933 `lea -0x40(%ebp),%eax; add $0x12,%eax` = memcpy/strncpy 目标 pkt+0x12。
     //   （原 +6/+0xa/+0xe 偏移系早期推断，与 ORIG 差 4。）
-    // [G4] 视图用「引用 + 具名成员」直访问（P235 完整类型成员形）⇒ 折叠为单条 disp 栈写
-    struct __attribute__((packed)) MonitorMemberEnterBody
-    {
-        char m_hdr[0xa];
-        // [G5·P248档③] ORIG 0x081cb90e/0x081cb91c = `call GetUID; mov %eax,-0x36(%ebp)` /
-        //   `call getCurCharacNo; mov %eax,-0x32(%ebp)`（RHS-first，地址不缓存）；我方同型
-        //   （unsigned←unsigned、int←int）产 `lea -0x40(%ebp),%ebx; call; mov %eax,0xa(%ebx)`
-        //   （LHS-first 缓存地址，+2 条）⇒ 字段与 RHS 符号性异型化。
-        int m_uid;                  // +0x0a（GetUID 返回 unsigned int ⇒ 异型）
-        unsigned int m_characNo;    // +0x0e（getCurCharacNo 返回 int ⇒ 异型）
-        char m_name[0x1e];    // +0x12
-    };
-    reinterpret_cast<MonitorMemberEnterBody&>(pkt).m_uid = user->GetUID();
-    reinterpret_cast<MonitorMemberEnterBody&>(pkt).m_characNo = user->getCurCharacNo();
-    std::strncpy(reinterpret_cast<MonitorMemberEnterBody&>(pkt).m_name,
+    // [g02 2026-09-11 · Main 已批准 · P367 第 4 例] `Packet_Monitor_Request_Member_Enter`
+    //   自身带具名成员（m_uid@+0x0a / m_characNo@+0x0e / m_name@+0x12）⇒ 同类型直接成员访问
+    //   复现 ORIG 的单级 ebp 直存（`mov %eax,-0x36(%ebp)` / `mov %eax,-0x32(%ebp)`）；
+    //   旧局部 packed 视图（含「引用+具名」「异型化」两轮试形）恒产 `lea -0x40(%ebp),%ebx;
+    //   mov %eax,0xa(%ebx)` 两步 —— 视图/reinterpret 恒物化基址，只能改头。
+    //   类型：ORIG 两处 store 均无转换 ⇒ 与 RHS 同型（GetUID→unsigned / getCurCharacNo→int）。
+    pkt.m_uid = user->GetUID();                          // +0x0a
+    pkt.m_characNo = user->getCurCharacNo();             // +0x0e
+    std::strncpy(pkt.m_name,
                  reinterpret_cast<const ReqMemberEnterMsgView*>(&m)->m_name,
                  reinterpret_cast<const ReqMemberEnterMsgView*>(&m)->m_nameLen);
     // ORIG 0x081cb941：&pkt 先物化 %ebx，receiver 链内联（无 proxy 具名槽）

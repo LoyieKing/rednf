@@ -3631,9 +3631,12 @@ struct ExtreamItemWordView { unsigned char m_pad08[8]; unsigned int m_words[0x22
     struct LenView { char m_head[0x10]; unsigned int m_len; };
     if (!packet.get_int(((LenView*)&req)->m_len))                              // msg+0x10
         return LineFunc(0x4eda, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(reinterpret_cast<char&>(req.m_pad[7])))              // msg+0x14
+    // [g02 2026-09-11 · Main 授权 clean-up] `m_pad` 已按具名成员拆分（MsgMercenaryCompetition:
+    //   m_field14@+0x14 / m_field15@+0x15）⇒ 原 `req.m_pad[7]/[8]` 成为越界写法。
+    //   地址/语义/mangled 全等价（+0xd+7/+0xd+8 = +0x14/+0x15），零 codegen 变化。
+    if (!packet.get_byte(req.m_field14))                                      // msg+0x14
         return LineFunc(0x4edc, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(reinterpret_cast<char&>(req.m_pad[8])))              // msg+0x15
+    if (!packet.get_byte(req.m_field15))                                      // msg+0x15
         return LineFunc(0x4ede, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }

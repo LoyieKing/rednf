@@ -1762,7 +1762,16 @@ class MsgMercenaryCompetition : public MSG_BASE
 {
 public:
     // b28d-solo-S161：ORIG 0x824d24a 域 msg 槽 -0x24 ⇒ 帧距 0x18，原 0x17 差 1。
-    char m_pad[0xb];
+    // [g02 2026-09-11 · Main 已批准 · 「具名成员」轴] ORIG `Dispatcher_Mercenary_Competition::process`
+    //   0x081ddd61/84/98/dc7（4 处）均为 `mov -0x10(%ebp),%edx; mov 0x10(%edx),%edx` **单条 disp 折叠**；
+    //   我方被迫写 `req.m_pad + 3`/`m_pad[8]`/`m_pad[7]` ⇒ 4.4 恒三步
+    //   `mov -0x14(%ebp),%edx; add $0xd,%edx; add $0x3,%edx; mov (%edx),%edx`。
+    //   m_pad 起点 = +0xd（msg 槽直读）⇒ 前段 pad 0x3 后接具名成员；总长恒 0xb（+0xd..+0x17）。
+    char m_pad[0x3];            // +0x0d..+0x0f
+    unsigned int m_targetNo;    // +0x10（原 m_pad+3）
+    char m_field14;             // +0x14（原 m_pad[7]）
+    char m_field15;             // +0x15（原 m_pad[8]）
+    char m_pad16[2];            // +0x16..+0x17
 };
 
 class MsgMercenaryReturn : public MSG_BASE
