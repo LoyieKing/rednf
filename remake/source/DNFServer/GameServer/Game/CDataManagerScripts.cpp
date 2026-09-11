@@ -287,7 +287,8 @@ namespace WongWork
 #include "CDataManagerScripts/GetNpcByDungeonLev.inc"
 
 
-#include "CDataManagerScripts/DeleteInvalidItemScript.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] DeleteInvalidItemScript 已迁出至 global_ScriptDeleteInvalidItem.cpp（ORIG GI 键对齐）。
+
 
 #include "CDataManagerScripts/dtor_DeleteInvalidItemScript.inc"
 

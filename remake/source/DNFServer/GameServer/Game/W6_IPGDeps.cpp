@@ -89,7 +89,8 @@ namespace WongWork { namespace IPG {
 
 namespace WongWork { namespace IPG {
 
-#include "W6_IPGDeps/ConnectTo.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] ConnectTo 已迁出至 IPGMgr.cpp（ORIG GI 键对齐）。
+
 
 
 // ---------------------------------------------------------------------------

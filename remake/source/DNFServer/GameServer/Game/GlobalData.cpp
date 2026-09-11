@@ -2547,7 +2547,8 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
 #include "GlobalData/dtor_CIPGHelper.inc"
 
 
-#include "GlobalData/ItemVendingMachine.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] ItemVendingMachine 已迁出至 ItemVendingMachine.cpp（ORIG GI 键对齐）。
+
 
 #include "GlobalData/dtor_ItemVendingMachine.inc"
 
@@ -2681,7 +2682,8 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 #include "GlobalData/ConnectWithServerGroup.inc"
 
 
-#include "GlobalData/CDBConnector.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] CDBConnector 已迁出至 DBConnector.cpp（ORIG GI 键对齐）。
+
 
 #include "GlobalData/dtor_CDBConnector.inc"
 #include "GlobalData/Init_2.inc"
@@ -2843,7 +2845,8 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 #include "GlobalData/STTeleportData.inc"
 
 
-#include "GlobalData/Teleport.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] Teleport 已迁出至 Teleport.cpp（ORIG GI 键对齐）。
+
 
 #include "GlobalData/dtor_Teleport.inc"
 

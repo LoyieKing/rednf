@@ -42,9 +42,13 @@ case "$src" in
             *Game/Arad_Dispatch_Manager.cpp | \
             *Game/Arad_Dispatcher_BuyItemCheck_Impl.cpp | \
             *Game/Arad_IPGProcess.cpp | \
+            *Game/Arad_MileageProcess.cpp | \
             *Game/Arad_InternalDispatcher.cpp | \
+            *Game/Arad_DatabaseDispatcher.cpp | \
             *Game/Arad_ItemBonus.cpp | \
+            *Game/CeraShopPurcahseCountBonus.cpp | \
             *Game/Arad_Script.cpp | \
+            *Game/Arad_RDARScriptEtcParameter.cpp | \
             *Game/Arad_Verify.cpp | \
             *Game/Area.cpp | \
             *Game/AttendanceEvent.cpp | \
@@ -76,6 +80,7 @@ case "$src" in
             *Game/CDataManager.cpp | \
             *Game/CDataManagerMethods.cpp | \
             *Game/CDataManagerScripts.cpp | \
+            *Game/global_ScriptDeleteInvalidItem.cpp | \
             *Game/CDataManagerTailB.cpp | \
             *Game/CData_charac_expand.cpp | \
             *Game/CDeathTower.cpp | \
@@ -95,6 +100,7 @@ case "$src" in
             *Game/CGuildServerProxy.cpp | \
             *Game/CGuildWarEvent.cpp | \
             *Game/CHackAnalyzer.cpp | \
+            *Game/Secu_AccountHacking.cpp | \
             *Game/CInventory.cpp | \
             *Game/CItem.cpp | \
             *Game/CItemDictionary.cpp | \
@@ -128,6 +134,8 @@ case "$src" in
             *Game/CReduceUpgradeItemPay.cpp | \
             *Game/CRidable.cpp | \
             *Game/CSecretShop.cpp | \
+            *Game/SecretShopStatistic.cpp | \
+            *Game/SecretShopData.cpp | \
             *Game/CSourceVersionMgr.cpp | \
             *Game/CStackableItem.cpp | \
             *Game/CTitleBook.cpp | \
@@ -172,12 +180,16 @@ case "$src" in
             *Game/ExchangeServer_Session.cpp | \
             *Game/ExpertExtraction.cpp | \
             *Game/ExpertJobLink4.cpp | \
+            *Game/ProfessionDisjointer.cpp | \
             *Game/ExpertJobOnlyEnchanter.cpp | \
             *Game/ExpertJobOnlyMaterial.cpp | \
             *Game/ExpertJobOnlyMgr.cpp | \
             *Game/GameBasicsScripts.cpp | \
             *Game/GameWorld.cpp | \
             *Game/GlobalData.cpp | \
+            *Game/DBConnector.cpp | \
+            *Game/Teleport.cpp | \
+            *Game/ItemVendingMachine.cpp | \
             *Game/GlobalScriptTutorial.cpp | \
             *Game/GmCmds_D.cpp | \
             *Game/GmCmds_E.cpp | \
@@ -522,7 +534,8 @@ case "$(basename "$src" .cpp)" in
                 # 4.4.6 下翻正。实测 4.4.7 identical=129/ae=233/near=8/diff=3
                 # vs 4.4.6 identical=130/ae=239/near=1/diff=3 ⇒ 零回归。
                 exec "$C6446R" "$@" ;;
-            *Game/W6_IPGDeps.cpp)
+            *Game/W6_IPGDeps.cpp | \
+            *Game/IPGMgr.cpp)
                 # b28d-S194：Finalize/dispatch/IPGOutputSimulation 的 N7 间接 call 目标
                 # 寄存器在 4.4.6 下翻正。实测 4.4.7 identical=61/ae=155/near=3/diff=4
                 # vs 4.4.6 identical=61/ae=158/near=0/diff=4 ⇒ 零回归。
@@ -788,7 +801,8 @@ case "$(basename "$src" .cpp)" in
             *Game/MouseRegisterEJ.cpp | \
             *Game/MySQL.cpp | \
             *Game/W9_StructMisc.cpp | \
-            *Game/CEventScriptMng.cpp)
+            *Game/CEventScriptMng.cpp | \
+            *Game/RDARScriptInGameEvent.cpp)
                 # [Main·2026-09-10 round5] **446 后端杠杆**（`-B cc1plus446bin/`）路由 A/B。
                 # 该族画像是「间接调用目标寄存器 ORIG `call *%edx` vs 4.4.7 `call *%eax`」（N7），
                 # 机器筛出 88 件/56 TU，本批为逐 TU A/B 有增益者（其余 34 TU 零变化、

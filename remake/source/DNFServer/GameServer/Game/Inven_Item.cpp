@@ -150,7 +150,8 @@ Inven_Item g_emptySlot;
 #include "Inven_Item/SetReSealCount.inc"
 
 
-#include "Inven_Item/DecreaseTradeLimitCount.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] DecreaseTradeLimitCount 已迁出至 LimitOfTradeCountHelper.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Inven_Item/GetTradeLimitCount.inc"

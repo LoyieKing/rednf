@@ -159,5 +159,6 @@ typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) ==
 #include "UserCoreDepsB2/getServerHackAccumulatedCnt.inc"
 
 
-#include "UserCoreDepsB2/SetUserPtr.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] SetUserPtr 已迁出至 Secu_MonsterCheck.cpp（ORIG GI 键对齐）。
+
 

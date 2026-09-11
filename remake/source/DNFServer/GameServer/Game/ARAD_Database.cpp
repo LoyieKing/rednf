@@ -229,7 +229,8 @@ namespace WongWork
 // CCoinEventOnCharCreate —— ORIG 0x0810a914..aa9c objdump 全量转写。
 // ===========================================================================
 
-#include "ARAD_Database/CCoinEventOnCharCreate.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] CCoinEventOnCharCreate 已迁出至 CoinEventOnCharCreate.cpp（ORIG GI 键对齐）。
+
 
 
 #include "ARAD_Database/dtor_CCoinEventOnCharCreate.inc"

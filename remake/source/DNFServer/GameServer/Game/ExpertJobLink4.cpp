@@ -105,7 +105,8 @@ namespace expert_job
 #include "ExpertJobLink4/GetEtcScript.inc"
 
 
-#include "ExpertJobLink4/CDisjointMachine.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] CDisjointMachine 已迁出至 ProfessionDisjointer.cpp（ORIG GI 键对齐）。
+
 
 
 // ---- CDisjointMachine::operator=（ORIG W 0x085d3ed6：基类 IObject::operator=

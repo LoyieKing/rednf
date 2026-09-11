@@ -182,7 +182,8 @@ bool SEventPeriodData::operator==(SEventPeriodData const& other)
     return m_eventCode == other.m_eventCode;   // 【objdump】仅比 +0x00
 }
 
-#include "Arad_Script/readTime.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] readTime 已迁出至 Arad_RDARScriptEtcParameter.cpp（ORIG GI 键对齐）。
+
 
 
 bool SRewardPeriodData::operator==(SRewardPeriodData const& other)

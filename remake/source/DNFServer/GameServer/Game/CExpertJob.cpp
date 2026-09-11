@@ -102,7 +102,8 @@ namespace expert_job
 #include "CExpertJob/IsLearnRecipe.inc"
 
 
-#include "CExpertJob/IncreaseExpertJobExp.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] IncreaseExpertJobExp 已迁出至 ExpertJob.cpp（ORIG GI 键对齐）。
+
 
 
 // ============================================================================

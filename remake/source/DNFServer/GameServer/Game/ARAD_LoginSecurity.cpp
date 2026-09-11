@@ -121,7 +121,8 @@ namespace ARAD
 // ARAD::Arad_Dispatcher_Login_Impl —— 登录库分派器（code=1）
 // ============================================================================
 
-#include "ARAD_LoginSecurity/Arad_Dispatcher_Login_Impl.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] Arad_Dispatcher_Login_Impl 已迁出至 Arad_Dispatcher_Login_Impl.cpp（ORIG GI 键对齐）。
+
 
 
 #include "ARAD_LoginSecurity/dtor_Arad_Dispatcher_Login_Impl.inc"

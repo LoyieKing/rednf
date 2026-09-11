@@ -78,7 +78,8 @@ bool BUY_INFO::operator==(int itemIdx)
 #include "CSecretShop/clear.inc"
 
 
-#include "CSecretShop/GetSaleInfo.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] GetSaleInfo 已迁出至 SecretShopData.cpp（ORIG GI 键对齐）。
+
 
 
 #include "CSecretShop/SHOPPER.inc"
@@ -103,7 +104,8 @@ bool BUY_INFO::operator==(int itemIdx)
 #include "CSecretShop/dtor_CSecretShopStatistic.inc"
 
 
-#include "CSecretShop/Clear.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] Clear 已迁出至 SecretShopStatistic.cpp（ORIG GI 键对齐）。
+
 
 
 #include "CSecretShop/GetNpcPos.inc"

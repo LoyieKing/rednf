@@ -40,7 +40,8 @@
 #include "Arad_InternalDispatcher/Arad_InternalDispatcher.inc"
 
 
-#include "Arad_InternalDispatcher/Arad_DatabaseDispatcher.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] Arad_DatabaseDispatcher 已迁出至 Arad_DatabaseDispatcher.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Arad_InternalDispatcher/init.inc"

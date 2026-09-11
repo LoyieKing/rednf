@@ -57,7 +57,8 @@
 #include "Arad_IPGProcess/BuySuccess.inc"
 
 
-#include "Arad_IPGProcess/GiveMileage.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] GiveMileage 已迁出至 Arad_MileageProcess.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Arad_IPGProcess/BuyFail.inc"

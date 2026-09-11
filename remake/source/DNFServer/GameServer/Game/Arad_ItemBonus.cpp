@@ -189,7 +189,8 @@ namespace ARAD
     return 0;
 }
 
-#include "Arad_ItemBonus/LoadScript.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] LoadScript 已迁出至 CeraShopPurcahseCountBonus.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Arad_ItemBonus/CheckBonusItem.inc"

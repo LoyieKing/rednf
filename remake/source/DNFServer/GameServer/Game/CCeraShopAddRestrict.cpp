@@ -278,7 +278,8 @@ paramDaily* InputBuyInfoDetail(
 // 类声明见 CCeraShopBonusItemEvent.h（权威，继承 CGuildServerProxy.h 的
 // CEventBase；vtable 序 / +0x0c m_rate 布局依 ORIG 报告）。方法定义如下。
 
-#include "CCeraShopAddRestrict/CCeraShopBonusItemEvent.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] CCeraShopBonusItemEvent 已迁出至 CeraShopBonusItemEvent.cpp（ORIG GI 键对齐）。
+
 
 
 #include "CCeraShopAddRestrict/dtor_CCeraShopBonusItemEvent.inc"

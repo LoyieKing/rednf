@@ -60,7 +60,8 @@ InGameEventInfo& InGameEventInfo::operator=(const InGameEventInfo& o)
 
 #include "CEventScriptMng/InGameEventInfoList.inc"
 
-#include "CEventScriptMng/insertEventInfo.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] insertEventInfo 已迁出至 RDARScriptInGameEvent.cpp（ORIG GI 键对齐）。
+
 
 
 // ============ InGameEventScriptLoader ============

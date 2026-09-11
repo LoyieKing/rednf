@@ -379,5 +379,6 @@ bool stGetHackTypeOperator<T, N>::getHackType(PacketBuf* pkt, T& out)
 
 template struct stGetHackTypeOperator<unsigned short, 2>;
 
-#include "CHackAnalyzer/checkAccountHackingHackType.inc"
+// [SplitC 2026-09-11 batch2 · TU 迁移] checkAccountHackingHackType 已迁出至 Secu_AccountHacking.cpp（ORIG GI 键对齐）。
+
 

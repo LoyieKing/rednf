@@ -916,6 +916,28 @@ dnf_service(game
         ${SVC_DIR}/Method.cpp
         ${SVC_DIR}/RDARScriptCeraShopAddRestrictType.cpp
         ${SVC_DIR}/Obfuscator.cpp
+        # ---- [SplitC 2026-09-11 batch2] 第二批 ORIG GI 锚点迁移（20 个，同批1 规矩：
+        #      追加在段尾保持既有顺序；路由档位见 dnf_game_cxx.sh 同步条目）----
+        ${SVC_DIR}/DBConnector.cpp
+        ${SVC_DIR}/Teleport.cpp
+        ${SVC_DIR}/ItemVendingMachine.cpp
+        ${SVC_DIR}/SecretShopStatistic.cpp
+        ${SVC_DIR}/SecretShopData.cpp
+        ${SVC_DIR}/Secu_MonsterCheck.cpp
+        ${SVC_DIR}/ProfessionDisjointer.cpp
+        ${SVC_DIR}/RDARScriptInGameEvent.cpp
+        ${SVC_DIR}/Secu_AccountHacking.cpp
+        ${SVC_DIR}/LimitOfTradeCountHelper.cpp
+        ${SVC_DIR}/CoinEventOnCharCreate.cpp
+        ${SVC_DIR}/CeraShopBonusItemEvent.cpp
+        ${SVC_DIR}/global_ScriptDeleteInvalidItem.cpp
+        ${SVC_DIR}/Arad_Dispatcher_Login_Impl.cpp
+        ${SVC_DIR}/CeraShopPurcahseCountBonus.cpp
+        ${SVC_DIR}/Arad_MileageProcess.cpp
+        ${SVC_DIR}/Arad_RDARScriptEtcParameter.cpp
+        ${SVC_DIR}/IPGMgr.cpp
+        ${SVC_DIR}/ExpertJob.cpp
+        ${SVC_DIR}/Arad_DatabaseDispatcher.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"
