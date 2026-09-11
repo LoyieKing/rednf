@@ -79,11 +79,11 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
     {
         // ORIG 0x0844a5c7：`mov -0xc(%ebp),%eax; mov %eax,%edx; mov 0xc(%ebp),%eax;
         //   mov %dl,0x14aae(%eax)`（RHS-first + eax→edx 中转，N76 封顶）。
-        ((ComboSkillView*)sig)->m_tree1Count = nRows;
+        ((ComboSkillView*)sig)->m_tree1Count = (char)nRows;
     }
     else if (kind == 1)
     {
-        ((ComboSkillView*)sig)->m_tree2Count = nRows;      // 同上（ORIG 0x0844a5e0）
+        ((ComboSkillView*)sig)->m_tree2Count = (char)nRows; // 同上（ORIG 0x0844a5e0）
     }
     if (kind == 0)
     {

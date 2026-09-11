@@ -43,6 +43,8 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
                             maze->m_50, (ENUM_MAZE_QUEST_TYPE)questType))
                     {
                         Quest* quest = G_CDataManager()->find_quest(maze->m_50);
+                        // [B-lane 试形 Z] while+break 形实测 221 条（劣化，已回滚）；
+                        //   维持 if 形（Y 形下 216 条）。
                         if (quest == NULL || quest->m_field120 != 1 ||
                             m_party->get_member_count() < 2)
                         {

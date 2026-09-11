@@ -80,19 +80,28 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
         if (script->IsCreatureItem() /*virt+0x14*/ &&
             script->GetItemType() /*virt+0x0c*/ == 0x16)
         {
-            if (it2.first.m_field1 != 5)
+            // [s3 2026-09-11 试形] ORIG 0x08676586 `jne 0x08676669`（落点为内层 else 块）
+            //   ⇒ 源码为显式 if/else（`==5` 作 if 侧），非早退单条 if。
+            if (it2.first.m_field1 == 5)
+            {
+                if (!user_creature::CCreatureItemConverter::SetEggItem(&it2.first))
+                    return 0x11;
+                r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
+                if (r == -1) return 4;
+                goto INSERT_OK;
+            }
+            else
+            {
                 return 0x11;
-            if (!user_creature::CCreatureItemConverter::SetEggItem(&it2.first))
-                return 0x11;
-            r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
-            if (r == -1) return 4;
-            goto INSERT_OK;
+            }
         }
         else
         {
             // [CoBatchC 2026-09-11 负结论·已回滚] 补 ORIG-only 死存储
             // （`movl $0xffffffff,-0x14(%ebp)` @0x0867673）实测 **349→351 反劣**
             // （4.4 额外发 store + 未消掉我方多出的 2 条）⇒ 回滚；本件 gap -2 属 N82 族。
+            // [s3 2026-09-11 复测·结构改 if/else 后] 重试同一死存储（现 gap 仅 2）：
+            r = -1;
             r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
             if (r == -1)
             {

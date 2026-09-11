@@ -270,9 +270,10 @@ bool CDataManager::Verify() const
                      it != v.end(); ++it)
                 {
                     const int itemIdx = it->m_itemIdx;
+                    bool notFound;
                     if (itemIdx != 0 && itemIdx != 1 && itemIdx != 2 &&
                         itemIdx != 999 &&
-                        this->find_item(itemIdx) == 0)
+                        (notFound = (this->find_item(itemIdx) == 0)) != false)
                     {
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x27a1, 5);
                         trace("Quest reward item element not found "

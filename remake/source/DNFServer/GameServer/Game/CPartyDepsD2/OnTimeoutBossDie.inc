@@ -34,10 +34,14 @@ bool CParty::OnTimeoutBossDie(int monsterId, memberIdentificationNumber_t charac
         if (mob.m_dropCnt != 0)
             mobIds.push_back(mob.m_instId);
     }
-    char dieBuf[0xa3f];
     char dieFlag = 0;
     for (std::vector<int>::iterator it = mobIds.begin(); it != mobIds.end(); it++)
     {
+        // [g21E 试形] dieBuf 移入循环体：与第一循环的 map_monster mob 作用域互斥
+        // ⇒ 复现 ORIG 的槽复用帧 0xac0（4.4 基线不复用 ⇒ 0xe10）。
+        unsigned int dieBufAlignPad;
+        (void)sizeof(dieBufAlignPad);
+        char dieBuf[0xa3f];
         memset(dieBuf, 0, sizeof(dieBuf));
         std::map<int, map_monster>::iterator mit = bf(this).GetMonsterMap()->find(*it);
         if (mit != bf(this).GetMonsterMap()->end())

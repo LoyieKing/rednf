@@ -55,8 +55,7 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
         //   读数 118/118 → ours 117（旧指针 cast 视图形为 base-first 5 行失配）。
         // 残差：`add $0x6b80`（0x10 折进索引常量）vs ORIG `add $0x6b78`+`add $0x10`
         //   两步 ⇒ N1 两步常量折叠族（4.4 代数化简不可关；已试元素型数组/双视图 4 形）。
-        ok = db->get_short(col, reinterpret_cast<short&>(
-                                  *(short*)((char*)sig + (col + 0x6b78) * 2 + 0x10)));
+        ok = db->get_short(col, reinterpret_cast<short&>(sig->m_itemMakingSkill[col]));
         if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x15f2, 5)(

@@ -30,11 +30,7 @@ void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
     //   同产 `xor $1`（103，`true == open` 同族不可得）；ORIG 0x08268698
     //   `cmpb $0x1,-0x3c(%ebp); je <erase 段>` 需 4.4 不折叠 bool ≠1 ⇒ 三形均不可造。
     //   ②prett ③strall CLEAR。⇒ 维持 N122（块序已翻正，仅 cmp 形态差）。
-    // [G19 P-G7b 试形 5] 具名 bool 局部 + 显式比较：ORIG 0x08268698 为
-    // `mov %al,-0x3c(%ebp); cmpb $0x1,-0x3c(%ebp); je <erase 段>`（内存直比、
-    // 无 xor）⇒ 试让 4.4 对「具名 bool 局部」出 cmpb 直比而非 `movzbl;xor;test`。
-    bool curOpen = open;
-    if (curOpen != true)
+    if (open != true)
     {
         std::vector<int>::iterator it2 = std::find(
             m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);

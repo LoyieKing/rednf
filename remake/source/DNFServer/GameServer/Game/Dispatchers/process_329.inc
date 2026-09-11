@@ -40,17 +40,9 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
     // err == 0 主流程
     R->m_adType = M.m_field0d;
 
-    // [g02 试形A] ORIG 0x081e447x 直证 `call; xor $0x1,%eax; test %al,%al; je 主流程`
-    //   ⇒ 源码是 `if (!cond) { err=4 } else { 主流程 }`（P59 guard/else 双向 + P133）。
-    if (!InGameADManagerInstance()->CheckIngameAdvertisementCondition(
+    if (InGameADManagerInstance()->CheckIngameAdvertisementCondition(
             user, *reinterpret_cast<stNotifyIngameADInfo*>(&R->m_code),
             (int)M.m_field0d))
-    {
-        // ORIG `movl $0x4,0x640(%eax)` 单条 disp 折叠 ⇒ 必须成员访问（P-g03-b 反向：
-        // 裸 `(int*)((char*)R+0x640)` 形被 4.4 折成 `add $0x640,%eax; movl $4,(%eax)`）。
-        R->m_errorCode = 4;
-    }
-    else
     {
         if (R->m_adShape == 4 && user->get_multiboxLotteryItemFailCnt() > 2)
         {
@@ -84,6 +76,10 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
                 user, '\0', M.m_field0d,
                 (char)R->m_adShape, R->m_code);
         }
+    }
+    else
+    {
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(R) + 0x640) = 4;             // 条件不满足固定错误码
     }
 
     return 0;

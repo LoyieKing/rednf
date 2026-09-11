@@ -24,6 +24,8 @@ int EmblemCompound::loadScript()
     if (!loadRDARScriptFile("Etc/EmblemRenewal/", "emblem_compound_jpn.etc"))
         return -1;
 
+    char framePad8[8];
+    (void)framePad8;
     std::string token;
     bool isType = false;
     bool isInt = false;

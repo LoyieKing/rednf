@@ -243,21 +243,20 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
         }
 
         // ORIG 082ee95a/082ee9ba 两次独立 GetInstancePrivateStoreMgr（无 storeMgr 局部）。
-        // [g14 P-G7b 试形 2026-09-11] ORIG 082ee971 段 `call; mov %eax,-0x38(%ebp);
-        //   cmpl $0x0,-0x38(%ebp); setne %al; test %al,%al; je` ⇒ 原码是**赋值内嵌条件**
-        //   `if ((store = f(...)) != 0)`（两句写令 4.4 只发 `cmpl; je`，无 setne+test）。
-        private_store::CPrivateStore* store;
+        private_store::CPrivateStore* store =
+            private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(attacker);
         // ORIG 082ee971..082ee9b5：`cmpl $0x0,-0x38; setne %al; test %al,%al; je
         // 082ee9ba` + 第二守卫同落 082ee9ba（**无** `mov $1/jmp/mov $0/test` 整体
         // 物化）⇒ 原码为嵌套 if（P324 叶块书写序；`&&` 直写令 4.4 物化整体多 4 条）。
-        if ((store = private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(attacker)) != 0)
+        if (store != 0)
         {
             if (store->isDollCreated() == 0)
             {
                 throw static_cast<ENUM_ERROR>(0x3c);
             }
         }
-        if ((store = private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(target)) != 0)
+        store = private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(target);
+        if (store != 0)
         {
             if (store->isDollCreated() == 0)
             {

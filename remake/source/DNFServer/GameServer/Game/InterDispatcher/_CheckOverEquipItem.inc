@@ -53,6 +53,9 @@ void Inter_LoadInven::_CheckOverEquipItem(CUser* user)
             if (ci->IsAvatarItem())                     // vtable+0x10 槽
             {   // 化身位 → 移入 avatar 仓空槽
                 int emptySlot = -1;                     // 084c4e8e movl $0xffffffff,-0xc(%ebp)
+                // [G18 T14 2026-09-11 · P-G7b 负结论] 改赋值内嵌条件实测**反劣**：
+                // our 221→224（+3 超额物化），ORIG 该处 `sete;test;jne` 不可由内嵌复现
+                // ⇒ 已还原原形（两句写）。
                 emptySlot =
                     inven->get_empty_slot((INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8);
                 if (emptySlot != -1)
