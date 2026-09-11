@@ -16,16 +16,21 @@ int GiveGrowCreatureEvent::CheckEventInfo(CUser& user)  // 0x081b6e7a
     if (!G_CDataManager()->isAvailableGiveGrowCreatureEventJob(job, now))
         return 3;
 
-    std::vector<GrowthCreatureEvent::eventCharacInfo>* mine =
-        static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(
-            user.getGrowthCreatureEventdata());
+    // [G23S4 试形 P341·try3] 具名局部改 `void*`（槽数不变），使用点写成 cast 表达式
+    //   ⇒ 期望 4.4 在 sret 调用点先物化 this（ORIG 0x081b6e8d `mov -0xc(%ebp),%edx` 先）。
+    void* mine = user.getGrowthCreatureEventdata();
     // P171：ORIG 无 `mine == 0` 守卫（只判 empty）。
-    if (mine->empty())
+    if (static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(mine)
+            ->empty())
         return 0;
 
     // P13/P28：ORIG 循环前一次求值 end() 存具名局部、增量段用后置 `it++`（ppEi）。
-    std::vector<GrowthCreatureEvent::eventCharacInfo>::iterator it = mine->begin();
-    std::vector<GrowthCreatureEvent::eventCharacInfo>::iterator itEnd = mine->end();
+    std::vector<GrowthCreatureEvent::eventCharacInfo>::iterator it =
+        static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(mine)
+            ->begin();
+    std::vector<GrowthCreatureEvent::eventCharacInfo>::iterator itEnd =
+        static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(mine)
+            ->end();
     while (it != itEnd)
     {
         if ((*it).m_job == job)

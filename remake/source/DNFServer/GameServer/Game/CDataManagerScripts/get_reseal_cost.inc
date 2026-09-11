@@ -30,8 +30,10 @@ int reseal_table_t::get_reseal_cost(unsigned char param_1,
     // `mul`，且新增 `mov %eax,-0x2c` 中转槽（帧 0x38→0x48）；已回滚。
     // ⇒ 残余 2 条（`cmp -0xc(%ebp),%eax` mem 直比 vs 4.4 `mov -0xc,%edx; cmp %edx,%eax`）
     // 归 N（P209：4.4 对 unsigned 比较恒载寄存器；ORIG 0x08900b86 为无符号 mem 直比）。
-    int idx = (param_2 - 1) / 10;
-    if (m_vec.size() <= idx)      // setbe → vector::size() <= idx（ORIG 0x08900b86 mem 直比 dst=eax）
+    // [g23-S1 试形②] idx 载体改 unsigned（与 size() 同型 ⇒ 试 mem 直比），但**除法
+    // 表达式保持有符号**（历史劣化点 = 除法退化为无符号 mul；此处显式 (int) 除法先行）。
+    unsigned int idx = (unsigned int)((param_2 - 1) / 10);
+    if (m_vec.size() <= idx)       // setbe → vector::size() <= idx（ORIG 0x08900b86 mem 直比 dst=eax）
         idx = (int)m_vec.size() - 1;   // 取末元素
     // return m_vec[idx]*m_arr1[param_1] + param_3*m_arr2[param_1]
     // （ORIG imul 为 32 位模 2^32，此处用无符号累加再一次性转 int 保持位模式）

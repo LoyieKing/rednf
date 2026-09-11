@@ -43,6 +43,23 @@
 //      `CEventBase* repeat` 中间槽（editdist -42 主因）。
 //   负结论：0x085482c2..0x085482ce 的 `(float)pay` 两具名 float 临时形实测
 //   our 1237→1240 但 editdist 527→**621** 大幅劣化 ⇒ 回滚（P243 书写序）。
+// [G23-S2 2026-09-11 P352/P360/P59 落地] 三处新范式实测（our 1237 不变、
+//   gap 仍 +5，但 **diff 1397→1368 行**、**ORIG-only setcc 签名 3→0**）：
+//   ① cond 处（0x08548029..0x08548035）：`int cond;` + `if ((cond=
+//      _CheckCondition(...)) != 0)` ⇒ 4.4 产 `mov %eax,-0x3c; cmpl $0x0,-0x3c;
+//      setne %al; test %al,%al; je`，与 ORIG 逐条同形（且 ORIG 无预清 ⇒
+//      不得写 `= 0` 初值）；② noticeUpgrade 处（0x08548796 `setge`）：
+//      `&&` 链改**嵌套 if** + 比较方向互换（调用在左）⇒ 复现 ORIG 的
+//      `call GetUpgrade; movzbl; mov table->0x234; cmp; setge; test; je`；
+//      ③ penalty 处（0x08548941 `setne`）：`int penalty = 0;`（ORIG 0x085488dc
+//      有预清）+ 赋值内嵌比较，且内层按 ORIG 块序改写为
+//      `if (penalty == 0xd8) { 发包 } return penalty;`（ORIG 0x08548958
+//      `jne 085489a6` 直奔 return 块）。
+//   试形-还原（负结论）：0x08548836 第 6 实参（形参 bool）ORIG 直传槽值无
+//      setne；实测把 `logUpgraded != 0` 改成隐式传 `logUpgraded`（含显式
+//      (bool) cast 形）后 4.4 **仍**产 `cmpl $0x0; setne` ⇒ int→bool 实参
+//      lowering 跨版本差（N），已还原。
+//   残余 = 槽号整体平移（-0x284 vs -0x294 等，N82/N95）+ N7 寄存器角色。
 // ============================================================================
 int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                               PacketGuard* pg)
@@ -447,6 +464,10 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
             envField, target.m_addInfo,
             ((const CUserCharacInfo*)user)->getCurCharacNo(),
             ((const CUserCharacInfo*)user)->getCurCharacName(), logUpgrade,
+            // [G23-S2 2026-09-11 试形-还原] ORIG 0x08548836 第 6 实参（形参 bool）
+            //   直传槽值（无 setne）；实测改传 `logUpgraded`（隐式转 bool）后
+            //   4.4 仍产 `cmpl $0x0; setne`（diff 1368 行不变）⇒ 跨版本
+            //   int→bool 实参 lowering 差（N），还原为显式 `!= 0`。
             logUpgraded != 0);
     }
 

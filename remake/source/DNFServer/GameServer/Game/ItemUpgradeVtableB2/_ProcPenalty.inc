@@ -110,9 +110,17 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
         // ORIG 0x08546ce1..0x08546cf5：`cmp; jge L1; cmpb ticketFlag;
         // jns L2; L1: mov $1,%eax; jmp; L2: mov $0,%eax; test %al` ⇒ 源码是
         // `A || B` 短路表达式直接初始化 bool（4.1 生 jge/jns 双跳 + mov 岛）。
-        bool toZero = (info->m_prob20[2] >= (int)item->GetUpgrade()) ||
-                      (ticketFlag < 0);
-        if (toZero)
+        // [G23-S2 2026-09-11 P0 槽律] ORIG 全程**无 toZero 具名槽**（0x08546cf8
+        //   `test %al,%al` 直判，无 store/cmpb）⇒ 原码把 `A || B` **内联进 if
+        //   条件位**；我方具名 bool 局部多 `mov %al,-0x3d; cmpb $0x0,-0x3d` 2 条。
+        //   **实测（G23-S2，build rc=0）**：our 633→631，diff 408→**106** 行
+        //   （N135 坍缩解除），slot-normalized 差 17/17→16/15，`cmpb`/`mov %al,M`
+        //   签名归零 ⇒ 确认为改善并就地保留。残余 = 4 处 %eax/%edx 角色互换
+        //   （N7）+ 2 处 ORIG `jmp` vs 我方 `mov $0x0,%eax`（4.1 共享
+        //   `mov $0x0,%eax` 尾块 0x0854754b vs 4.4 各路径自备 ⇒ N121）+ 索引
+        //   拆分形（`add $0x4`/-0xa0 vs `add $0x5`/-0xa4，P30）。
+        if ((info->m_prob20[2] >= (int)item->GetUpgrade()) ||
+            (ticketFlag < 0))
         {
             item->SetUpgrade(0);
         }

@@ -132,7 +132,6 @@ void StageControl::sendMapInfo()
                 it->m_mobId, towerValue, towerCount);
             // [round1-L29 2026-09-10 复核] bool 具名局部 + P223 goto 尾标签形实测劣化
             //   （295 vs ORIG 289）⇒ 回退保持 uchar 形；残差归 N（ORIG 0x0813047c）。
-            // [g12 2026-09-11 试形·实测反劣回退] P168a① 守卫形 `if (!hit) goto skip;`
             if (hit)
             {
                 summary.m_towerRefA =

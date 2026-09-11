@@ -39,11 +39,14 @@ void CUser::sendBackSecurityAuthRequest()
     //   CUser::getPad` 后 eax 直用（**无栈槽**，p167 差集：ORIG getPad ×5 我方 0）
     //   ⇒ 源码为右值临时直用，禁具名 `CPad* pad` 局部。
     getPad()->GenerateRandomData();
+    // [G23S4 试形 P231·移位] ORIG 0x086808f4 前后才发 `lea -0x890(%ebp),%edi`
+    //   （即首次使用点前），故把 register 指针的声明挪到使用点紧邻处。
+    register unsigned char* pEncrypted = &encrypted[0];
     // [P2S6 2026-09-11] ORIG 0x08680805..0x08680834：`movzwl %ax,%eax; shl $0x4,%eax;
     //   mov manager_(%eax),%eax` 后直接压栈调 Encrypt（无 cipherIdx/cipherKey/cipher
     //   槽）。Encrypt 第 2 实参 = `movsbl -0x1a(%ebp),%ebx`（(int)algo 符号扩展）。
     GlobalData::s_secu_cipher_keystring_manager_[getPad()->GetSelectedCipherIdx() & 0xffff]
-        .cipher->Encrypt((int)algo, (unsigned char*)question, 8, &encrypted[0],
+        .cipher->Encrypt((int)algo, (unsigned char*)question, 8, pEncrypted,
                          &encryptedLen);
     // ORIG 0x08680847：`call getSecurityCard` → 直用 eax 调 getCertFlag。
     char certFlag = getSecurityCard()->getCertFlag();   // ORIG -0x19
@@ -62,6 +65,9 @@ void CUser::sendBackSecurityAuthRequest()
     packet.put_byte((unsigned char)getPad()->GetShakeData(2));
     packet.put_byte((unsigned char)getPad()->GetShakeData(3));
     packet.put_int(encryptedLen);
+    // [G23S4 负结论] 该点 ORIG `mov -0x20(%ebp),%eax; mov %eax,0x8(%esp); lea -0x890(%ebp),%eax;
+    //   mov %eax,0x4(%esp)`（逐参算-存）vs 4.4 恒「先全算入寄存器→统一 store」，试
+    //   `&encrypted[0]` / `(int)encryptedLen` 两形均不变 ⇒ N（4.4 store 调度）。
     packet.put_binary((char*)encrypted, encryptedLen);
     packet.put_byte((int)certFlag);
     packet.finalize(true);

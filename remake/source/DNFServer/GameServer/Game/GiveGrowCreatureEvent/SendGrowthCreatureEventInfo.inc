@@ -17,9 +17,10 @@ void GiveGrowCreatureEvent::SendGrowthCreatureEventInfo(CUser& user)  // 0x081b6
 
     int now = GlobalData::s_systemTime_.getCurSec();
     int job = user.get_charac_job();
-    std::vector<GrowthCreatureEvent::eventCharacInfo>* mine =
-        static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(
-            user.getGrowthCreatureEventdata());
+    // [G23S4 翻正·P341 推广] 具名局部改 `void*`（槽数不变），使用点写成 cast 表达式
+    //   ⇒ 4.4 在 sret 调用点先物化 this，复现 ORIG `mov -0xc(%ebp),%edx` 先的装载序
+    //   （同 TU CheckEventInfo 实证 DIFF→AE 73/74 ndiff 0）。
+    void* mine = user.getGrowthCreatureEventdata();
 
     // P198/P0：ORIG -0x10 有槽往返 ⇒ 具名 jobCount（声明+赋值分离）。
     int jobCount;
@@ -41,12 +42,18 @@ void GiveGrowCreatureEvent::SendGrowthCreatureEventInfo(CUser& user)  // 0x081b6
         {
             pkt.put_byte(jt->first);
             // ORIG：!empty() 走内层循环、else 空分支。
-            if (!mine->empty())
+            if (!static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(
+                     mine)
+                     ->empty())
             {
                 std::vector<GrowthCreatureEvent::eventCharacInfo>::iterator kt =
-                    mine->begin();
+                    static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(
+                        mine)
+                        ->begin();
                 std::vector<GrowthCreatureEvent::eventCharacInfo>::iterator ktEnd =
-                    mine->end();
+                    static_cast<std::vector<GrowthCreatureEvent::eventCharacInfo>*>(
+                        mine)
+                        ->end();
                 while (kt != ktEnd)
                 {
                     if ((*kt).m_job == jt->first)
