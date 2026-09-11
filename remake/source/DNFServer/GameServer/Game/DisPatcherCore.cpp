@@ -758,7 +758,8 @@ public:
 
 #include "DisPatcherCore/GetHackType.inc"
 
-#include "DisPatcherCore/IsValidUsingSkill.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] IsValidUsingSkill 已迁出至 HackLog_InvalidUsingSkill.cpp（ORIG GI 键对齐）。
+
 
 #include "DisPatcherCore/process_38.inc"
 
@@ -999,7 +1000,8 @@ struct CPartyDungeonView
 
 #include "DisPatcherCore/dtor_DisPatcher_EventDungeon_DestoryObject.inc"
 #include "DisPatcherCore/check_error_33.inc"
-#include "DisPatcherCore/read_74.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] read_74 已迁出至 localchina_PacketDispatcher.cpp（ORIG GI 键对齐）。
+
 #include "DisPatcherCore/send_28.inc"
 #include "DisPatcherCore/process_75.inc"
 

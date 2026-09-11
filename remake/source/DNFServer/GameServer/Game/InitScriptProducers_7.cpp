@@ -306,7 +306,8 @@
 #include "InitScriptProducers_7/importGrowthEquipmentScript.inc"
 
 
-#include "InitScriptProducers_7/importInGameAdvertisementEtcScript.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] importInGameAdvertisementEtcScript 已迁出至 RDARScriptInGameAdvertisement.cpp（ORIG GI 键对齐）。
+
 
 
 #include "InitScriptProducers_7/importLimitItemUsageInfo.inc"

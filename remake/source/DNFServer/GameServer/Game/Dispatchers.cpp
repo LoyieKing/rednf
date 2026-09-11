@@ -5166,7 +5166,8 @@ struct ScrMsgView
 }  // namespace
 #pragma pack(pop)
 
-#include "Dispatchers/read_321.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] read_321 已迁出至 PacketDispatcher_Secu.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Dispatchers/check_error_86.inc"

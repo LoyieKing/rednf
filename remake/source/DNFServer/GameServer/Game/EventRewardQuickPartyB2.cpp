@@ -75,22 +75,9 @@ enum
 }  // unnamed namespace
 
 // ORIG T 0x08a6e100：脚本 buff 名 → RandomBuffType；未知 → 11（0xb）。
-RandomBuffType getRandomBuffTypeByName(const std::string& name)
-{
-    RandomBuffType type = (RandomBuffType)0xb;
-    if      (name == "[increase exp]")       type = RANDOM_BUFF_INCREASE_EXP;
-    else if (name == "[increase stats]")     type = RANDOM_BUFF_INCREASE_STATS;
-    else if (name == "[increase speed]")     type = RANDOM_BUFF_INCREASE_SPEED;
-    else if (name == "[increase dropprob]")  type = RANDOM_BUFF_INCREASE_DROPPROB;
-    else if (name == "[increase allattack]") type = RANDOM_BUFF_INCREASE_ALLATTACK;
-    else if (name == "[increase allresist]") type = RANDOM_BUFF_INCREASE_ALLRESIST;
-    else if (name == "[increase broken]")    type = RANDOM_BUFF_INCREASE_BROKEN;
-    else if (name == "[increase mobhp]")     type = RANDOM_BUFF_INCREASE_MOBHP;
-    else if (name == "[increase antidevil]") type = RANDOM_BUFF_INCREASE_ANTIDEVIL;
-    else if (name == "[increase coinlimit]") type = RANDOM_BUFF_INCREASE_COINLIMIT;
-    else if (name == "[return ticket]")      type = RANDOM_BUFF_RETURN_TICKET;
-    return type;
-}
+// [SplitC 2026-09-11 batch4 · TU 迁移] 定义已迁出至 RDARScriptQuickParty.cpp（ORIG GI 键对齐）；
+//   本 TU 调用点保留，取声明引用（namespace QuickParty 内）。
+RandomBuffType getRandomBuffTypeByName(const std::string& name);   // 定义见 RDARScriptQuickParty.cpp
 
 #include "EventRewardQuickPartyB2/importQuickPartyScript.inc"
 {

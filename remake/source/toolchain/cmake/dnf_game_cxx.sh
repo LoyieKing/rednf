@@ -221,6 +221,26 @@ case "$src" in
             *Game/OnlyOrigBatch11.cpp | \
             *Game/RDARScriptEventUpgradeJar.cpp | \
             *Game/greg_month.cpp | \
+            *Game/RentalSystem.cpp | \
+            *Game/RDARScriptDisjoint.cpp | \
+            *Game/RDARScriptSecretShop.cpp | \
+            *Game/RDARScriptFairPvPStat.cpp | \
+            *Game/RDARScriptTrainingQuest.cpp | \
+            *Game/RDARScriptGuildParameter.cpp | \
+            *Game/RDARScriptPowerParameter.cpp | \
+            *Game/RDARScriptQuestParameter.cpp | \
+            *Game/RDARScriptInGameAdvertisement.cpp | \
+            *Game/PacketDispatcher_Secu.cpp | \
+            *Game/localchina_PacketDispatcher.cpp | \
+            *Game/HackLog_InvalidUsingSkill.cpp | \
+            *Game/RegenerationROI.cpp | \
+            *Game/Utility.cpp | \
+            *Game/CaptchaGen.cpp | \
+            *Game/RDARScriptQuickParty.cpp | \
+            *Game/DispatchThread.cpp | \
+            *Game/Channel.cpp | \
+            *Game/RDARScriptCeraShop.cpp | \
+            *Game/log.cpp | \
             *Game/OnlyOrigBatch12_rand_r.cpp | \
             *Game/OnlyOrigBatch12_security_server.cpp | \
             *Game/OnlyOrigBatch12_server_utility.cpp | \

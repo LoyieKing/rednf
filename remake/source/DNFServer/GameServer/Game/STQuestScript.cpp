@@ -1817,7 +1817,8 @@ static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
 #include "STQuestScript/importTownScript.inc"
 
 
-#include "STQuestScript/importTrainingQuestScript.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] importTrainingQuestScript 已迁出至 RDARScriptTrainingQuest.cpp（ORIG GI 键对齐）。
+
 
 
 // ORIG B 0x09500380：脚本根目录（EpisodeScript 等 loadRDARScriptFile 首参）。

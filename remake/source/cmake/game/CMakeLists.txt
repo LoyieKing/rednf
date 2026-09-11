@@ -960,6 +960,28 @@ dnf_service(game
         ${SVC_DIR}/DispatchServerPacket.cpp
         ${SVC_DIR}/RDARScriptAccountCargo.cpp
         ${SVC_DIR}/Arad_OS.cpp
+        # ---- [SplitC 2026-09-11 batch4] 第四批 ORIG GI 锚点迁移（20 个，T 类收官；
+        #      追加在段尾保持既有顺序；路由档位见 dnf_game_cxx.sh 同步条目）----
+        ${SVC_DIR}/RentalSystem.cpp
+        ${SVC_DIR}/RDARScriptDisjoint.cpp
+        ${SVC_DIR}/RDARScriptSecretShop.cpp
+        ${SVC_DIR}/RDARScriptFairPvPStat.cpp
+        ${SVC_DIR}/RDARScriptTrainingQuest.cpp
+        ${SVC_DIR}/RDARScriptGuildParameter.cpp
+        ${SVC_DIR}/RDARScriptPowerParameter.cpp
+        ${SVC_DIR}/RDARScriptQuestParameter.cpp
+        ${SVC_DIR}/RDARScriptInGameAdvertisement.cpp
+        ${SVC_DIR}/PacketDispatcher_Secu.cpp
+        ${SVC_DIR}/localchina_PacketDispatcher.cpp
+        ${SVC_DIR}/HackLog_InvalidUsingSkill.cpp
+        ${SVC_DIR}/RegenerationROI.cpp
+        ${SVC_DIR}/Utility.cpp
+        ${SVC_DIR}/CaptchaGen.cpp
+        ${SVC_DIR}/RDARScriptQuickParty.cpp
+        ${SVC_DIR}/DispatchThread.cpp
+        ${SVC_DIR}/Channel.cpp
+        ${SVC_DIR}/RDARScriptCeraShop.cpp
+        ${SVC_DIR}/log.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

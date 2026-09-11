@@ -162,15 +162,4 @@ CLog* CLog::this_ = 0;  // ORIG _ZN4CLog5this_E B @0x0940bd60
     t->m_min = (unsigned char)p->tm_min;
     t->m_sec = (unsigned char)p->tm_sec;
 }
-#include "CLog/setTime.inc"
-{
-    std::time_t now = std::time(0);
-    std::tm lt;
-    struct tm* p = localtime_r(&now, &lt);
-    m_year = (short)(p->tm_year + 0x76c);
-    m_mon = p->tm_mon + 1;
-    m_day = p->tm_mday;
-    m_hour = p->tm_hour;
-    m_min = p->tm_min;
-    m_sec = p->tm_sec;
-}
+// [SplitC 2026-09-11 batch4 · TU 迁移] TimeLog_::setTime 已迁出至 log.cpp（ORIG GI 键对齐）。

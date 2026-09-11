@@ -1438,7 +1438,7 @@ extern "C" int FT_Render_Glyph(FT_GlyphSlotRec* slot, int render_mode)
     return 0;
 }
 
-#include "GlobalData/CaptchaGen.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] CaptchaGen ctor 已迁出至 CaptchaGen.cpp（ORIG GI 键对齐）。
 
 
 #include "GlobalData/dtor_CaptchaGen.inc"
@@ -1477,7 +1477,7 @@ WongWork::CCapchaDataManager GlobalData::s_capchaDataManager;
 
 #include "GlobalData/dispatch.inc"
 
-#include "GlobalData/DispatchThread.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] DispatchThread ctor 已迁出至 DispatchThread.cpp（ORIG GI 键对齐）。
 #include "GlobalData/NetworkThread.inc"
 #include "GlobalData/UdpThread.inc"
 // g_bUdp_TH_start —— ORIG BSS 0x943e240；dispatch 置 1 标记 UDP 线程已启动。
@@ -2494,7 +2494,7 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
 
 #include "GlobalData/GetTcpHandler.inc"
 
-#include "GlobalData/CmmChannelProxy.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] CmmChannelProxy ctor 已迁出至 Channel.cpp（ORIG GI 键对齐）。
 
 #include "GlobalData/Init_1.inc"
 
@@ -2738,7 +2738,7 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 
 #include "GlobalData/SetCloseTime.inc"
 
-#include "GlobalData/InstanceRentalSystem.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] InstanceRentalSystem ctor 已迁出至 RentalSystem.cpp（ORIG GI 键对齐）。
 
 
 #include "GlobalData/dtor_InstanceRentalSystem.inc"

@@ -134,7 +134,8 @@ std::map<int, float> g_creatureIndexDamageRateMap;
 
 // ============================ importDisjointScript ============================
 
-#include "ScriptDepsA/importDisjointScript.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] importDisjointScript 已迁出至 RDARScriptDisjoint.cpp（ORIG GI 键对齐）。
+
 
 
 // ============================ 头像合成域 ============================

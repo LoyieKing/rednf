@@ -100,7 +100,8 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 #include "InitScriptProducers_2/ImportWarAreaCounter.inc"
 
 
-#include "InitScriptProducers_2/importPairPvPStatScript.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] importPairPvPStatScript 已迁出至 RDARScriptFairPvPStat.cpp（ORIG GI 键对齐）。
+
 
 
 #include "InitScriptProducers_2/ImportSecurityReward.inc"

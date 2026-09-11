@@ -47,7 +47,8 @@
 
 // ---- importSecretShopScript（ORIG 0x8a81cf0，_Z22importSecretShopScriptP16SecretShopScriptPKc）----
 
-#include "CSecretShop/importSecretShopScript.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] importSecretShopScript 已迁出至 RDARScriptSecretShop.cpp（ORIG GI 键对齐）。
+
 
 
 namespace secretshop

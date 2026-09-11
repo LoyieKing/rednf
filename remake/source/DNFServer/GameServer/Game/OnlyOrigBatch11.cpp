@@ -133,10 +133,7 @@ ENUM_CHARACTERJOB convertNewCharacterJob(ENUM_CHARACTERJOB job)
 
 // ORIG T 0x085f8484：返回 &G_CDataManager()->m_randomOption（+0x4e10）。
 // ORIG 反编译 C 返回 int（指针）；重建按成员地址返回。
-RandomOptionScript& _GetRandomOption()
-{
-    return G_CDataManager()->m_randomOption;
-}
+// [SplitC 2026-09-11 batch4 · TU 迁移] _GetRandomOption 已迁出至 RegenerationROI.cpp（ORIG GI 键对齐）。
 
 // ORIG T 0x085f2c4a：按 +1/+2 两字节和排序（小于 1、大于 -1、等于 0）。
 namespace
@@ -159,18 +156,7 @@ struct RandomOptionSortKeyView
 // 时间 / 随机 / 进程辅助（LinuxService 域）
 // ============================================================================
 
-#include "OnlyOrigBatch11/WaitForSingleObject.inc"
-{
-    if (timeout > 10)
-        return 0;
-    for (int i = 0; i < timeout; ++i)
-    {
-        if (*p)
-            return 1;
-        sleep_ext(1, 0);
-    }
-    return 0;
-}
+// [SplitC 2026-09-11 batch4 · TU 迁移] WaitForSingleObject 已迁出至 Utility.cpp（ORIG GI 键对齐）。
 
 #include "OnlyOrigBatch11/get_str_time.inc"
 {

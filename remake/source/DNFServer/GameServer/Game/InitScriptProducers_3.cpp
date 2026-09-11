@@ -49,13 +49,16 @@ std::map<unsigned int, STEquipmentStatInfo> g_equipmentStatInfoMap;
 #include "InitScriptProducers_3/importPVPChannelList.inc"
 
 
-#include "InitScriptProducers_3/importGuildParameterScript.inc"
+// [SplitC 2026-09-11 batch4 · TU 迁移] importGuildParameterScript 已迁出至 RDARScriptGuildParameter.cpp（ORIG GI 键对齐）。
 
 
-#include "InitScriptProducers_3/importPowerParameterScript.inc"
+
+// [SplitC 2026-09-11 batch4 · TU 迁移] importPowerParameterScript 已迁出至 RDARScriptPowerParameter.cpp（ORIG GI 键对齐）。
 
 
-#include "InitScriptProducers_3/importQuestParameterScript.inc"
+
+// [SplitC 2026-09-11 batch4 · TU 迁移] importQuestParameterScript 已迁出至 RDARScriptQuestParameter.cpp（ORIG GI 键对齐）。
+
 
 
 #include "InitScriptProducers_3/importTitleBookEtcScript.inc"
