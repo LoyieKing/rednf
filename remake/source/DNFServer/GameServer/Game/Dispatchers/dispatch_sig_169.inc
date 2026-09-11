@@ -10,7 +10,10 @@ int Dispatcher_HeroMissionEventState_Reward::dispatch_sig(CUser* user, PacketBuf
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    int missionNo = 0;
+    // [g01 2026-09-11] ORIG `mov -0x14(%ebp),%ebx` 一步载入（无 int→enum 转换中转）
+    //   ⇒ 该局部原类型即 MissionNo 枚举（我方 int + 调用点 cast 产
+    //   `mov slot,%eax; mov %eax,%ebx` 两步）。宽度/比较形态随类型验证。
+    HeroMissionCondition::MissionNo::T missionNo = (HeroMissionCondition::MissionNo::T)0;
     if (!packet.get_short(*(short*)&missionNo))
     {
         return LineFunc(0xb6d,
@@ -33,7 +36,7 @@ int Dispatcher_HeroMissionEventState_Reward::dispatch_sig(CUser* user, PacketBuf
     else
     {
         char rewarded = (char)ARAD::Singleton<HeroMissionEvent>::Get()->rewardMission(
-            user, (HeroMissionCondition::MissionNo::T)missionNo);
+            user, missionNo);
         PacketGuard response;
         response.put_header(1, 0x25a);
         // [G1Csig] ORIG 直证：`je <T>` 后 fall-through 为 `movl $0x1,0x4(%esp)`（put_byte(1) 块）

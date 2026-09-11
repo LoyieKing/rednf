@@ -4960,6 +4960,11 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
     // [CoBatchB 2026-09-11 负结论·已回滚] `&data.m_type`（元素首址同值）实测 **97→97 中性**
     // （4.4 仍先压常量）⇒ 回滚；ORIG 0x08656ba1 `lea` 先于 0x08656ba4 `movl $0xa` 属 P319
     // 跨版本实参装载序，源码不可控。
+    // [g06-D 2026-09-11 试形①·已回滚] Main 已批准 thin-inc 例外，实测把 size 由
+    //   `sizeof(data)` 改为字面量 `10`（参数 int，mangling E15InterfacePacketBuf10put_binaryEPci）
+    //   **中性**：仍 97/97、ndiff=2、仍是「先 `movl $0xa,0x8(%esp)` 后 `lea -0x22`」（ORIG 反之）。
+    //   ⇒ 与该件历史两次试形（reinterpret_cast 形 / `&data.m_type` 形）一致，属 **P319/P75
+    //   跨版本实参装载时刻**（4.1 把简单地址 lea 提前到实参 store 之前），源码不可控。
     packet.put_binary(reinterpret_cast<char*>(&data), sizeof(data));   // ORIG E15InterfacePacketBuf10put_binaryEPci
     packet.finalize(true);
     Send(packet);

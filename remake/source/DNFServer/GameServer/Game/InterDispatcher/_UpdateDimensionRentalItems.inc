@@ -85,6 +85,11 @@ void Inter_LoadInven::_UpdateDimensionRentalItems(CUser* user,
         }
     }
 
+    // [G18 T16 2026-09-11 · P354 反向（ORIG 有 xor）实证：负结论，已还原]
+    // 试「交换 if/else 体 + 条件取反」（`if (!input.m_elems.empty()) { rent… } else
+    // { delete }`）：**if/else 块序与 xor 极性确已对齐**（该 hunk 从 diff 消失），
+    // 但 our 219→220 ⇒ gap −3→**−4**（净劣 1 条）⇒ 按「gap 严格改善」闸门还原原形。
+    // 同构件 `_UpdateRentalItems`（PC 房版）据同族结论不再单独试。
     if (input.m_elems.empty())
     {
         user->DeleteCurrentCharacRentalItemInfo(2);

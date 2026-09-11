@@ -260,7 +260,11 @@ public:
     Inven_Item* GetCargoRef(int idx);
     int GetCargoData(int itemIdx, Inven_Item& out) const;
     const Inven_Item* get_cargo_start() const;
-    unsigned int GetCapacity() const;   // ORIG GetInventory 0x864d646 m_cargoCapacity 直存=同型（P211 反向定案；mangled 无返回类型 ABI 零变）
+    int GetCapacity() const;   // [G08 2026-09-11] 返回类型 unsigned→int：ORIG respond_special_item_cargo_abs
+                               // 0x0827bee6 `lea (%eax,%edx,1),%ebx`（无有符号性转换）vs 我方 `add+mov`；
+                               // 三后端同形、探针 int+int 复现 ORIG、(int) cast 无效 ⇒ 只能动声明。
+                               // 同宽、不入 mangling、ABI 零变；调用点 `sig->m_cargoCapacity=(GetCapacity())`
+                               // 为同宽转换（零指令），A/B 已核同型直存调用点不劣化。
     int GetItemCount() const;   // b28d-solo-CCargo：保持 int（MakeItemList 0x0850bf50 调用点 LHS-first 直存；改 unsigned 反使两处均 RHS-first 中转，实测回退）
     bool IsOperatorable(int idx) const;
 

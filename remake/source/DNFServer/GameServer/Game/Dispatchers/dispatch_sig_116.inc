@@ -12,12 +12,14 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->CheckInTrade())
         return 0;
 
+    // [g01 2026-09-11] ORIG `movw $0x0,-0x36` 与 `movw $0x0,-0x38` 分落两个 get_short 之前
+    //   （非合并初始化）⇒ 两声明各自紧贴其 get_short（P212 声明位置）。
     short slotA = 0;                       // 目标装备槽位（ORIG get_short(short&)）
-    unsigned short paySlot = 0;            // 支付槽位（0xffff=金币，ORIG get_short(unsigned short&)）
     if (!packet.get_short(slotA))
         return LineFunc(0xe67c,
                         __PRETTY_FUNCTION__,
                         0, 0);
+    unsigned short paySlot = 0;            // 支付槽位（0xffff=金币，ORIG get_short(unsigned short&)）
     if (!packet.get_short(paySlot))
         return LineFunc(0xe681,
                         __PRETTY_FUNCTION__,

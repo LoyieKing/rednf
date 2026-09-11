@@ -76,7 +76,12 @@ bool DB_AvatarChangeStat::dispatch(int userIdx, int slot, Stream* stream)
                 throw 0xbf6;
             if (!db->get_int(5, abilityV))
                 throw 0xbf7;
-            if (db->get_str(6, out->m_ipgAgencyNo, 0x18))
+            // [g04] 语义修正：get_str 返回 bool（true=成功），全库 51 处同类
+            // 调用均为 `if (!get_str(...))` 表失败 ⇒ 原 `if (get_str(...)) throw`
+            // 为语义反转（读成功即抛错）。ORIG 0x0840_ 该处
+            // `call; xor $0x1,%eax; test %al,%al; je <throw 块>`（P354：`!` 形）
+            // 亦证 ORIG 源形为 `if (!db->get_str(...))`。
+            if (!db->get_str(6, out->m_ipgAgencyNo, 0x18))
                 throw 0xbf9;
             emblem.init();
             if (!db->get_binary(7, &emblem, 0x1e))

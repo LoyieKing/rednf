@@ -80,15 +80,20 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
         if (script->IsCreatureItem() /*virt+0x14*/ &&
             script->GetItemType() /*virt+0x0c*/ == 0x16)
         {
-            // [s3 2026-09-11 试形] ORIG 0x08676586 `jne 0x08676669`（落点为内层 else 块）
-            //   ⇒ 源码为显式 if/else（`==5` 作 if 侧），非早退单条 if。
+            // [s3 2026-09-11 翻正 AE 348/347·ndiff 8→0] 三处形修正（逐形实测）：
+            //   ① 守卫改显式 if/else（`m_field1 == 5` 作 if 侧）：ORIG 0x08676586
+            //      `jne 0x08676669` 落点为**内层 else 块**（`mov $0x11; jmp ret` 位于
+            //      if 体末尾之后、外层 else 之前）⇒ 早退单条 `if (!=5) return` 系错误形。8→2。
+            //   ② else 分支补 ORIG-only 死存储 `r = -1;`（0x0867673 `movl $-1,-0x14(%ebp)`）：
+            //      旧 CoBatchC 在**旧结构**下实测反劣故回滚；改 ① 后复测 2→1，保留。（+2 条）
+            //   ③ 删 if 体末尾 `goto INSERT_OK;`：改由 if/else 自然落点 ⇒ 消 INSERT_OK 前
+            //      4.4 padding 跳板（`nop; jmp .+2; nop`）⇒ 1→0，AE。
             if (it2.first.m_field1 == 5)
             {
                 if (!user_creature::CCreatureItemConverter::SetEggItem(&it2.first))
                     return 0x11;
                 r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
                 if (r == -1) return 4;
-                goto INSERT_OK;
             }
             else
             {
@@ -100,7 +105,7 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
             // [CoBatchC 2026-09-11 负结论·已回滚] 补 ORIG-only 死存储
             // （`movl $0xffffffff,-0x14(%ebp)` @0x0867673）实测 **349→351 反劣**
             // （4.4 额外发 store + 未消掉我方多出的 2 条）⇒ 回滚；本件 gap -2 属 N82 族。
-            // [s3 2026-09-11 复测·结构改 if/else 后] 重试同一死存储（现 gap 仅 2）：
+            // [s3 ②] ORIG-only 死存储（结构改 if/else 后复测：ndiff 2→1，保留）
             r = -1;
             r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
             if (r == -1)
@@ -109,7 +114,8 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
                 it++;
                 continue;
             }
-            if (script == 0) return 4;
+            // [s3 试形·已排除] 花括号形（`{ return 4; }`）零收益；`!script` 与 `==0` 同效。
+            if (!script) return 4;
         }
 INSERT_OK:
         leftover.push_back(it2);

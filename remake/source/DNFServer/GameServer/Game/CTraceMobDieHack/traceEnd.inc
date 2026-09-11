@@ -17,7 +17,10 @@ void CTraceMobDieHack::traceEnd(CUser* killer, CUser** users)
     specialDungeons[1] = 2;
     specialDungeons[2] = 0x29;
     specialDungeons[3] = 0x21;
-    for (unsigned int i = 0; i <= 3; ++i)
+    // [G23-P310 试形] 旧注释「穷举 30 形 × 三后端全部生成 cmpl mem」未覆盖 P310 形：
+    // 局部 int + 显式 (unsigned int)i<=K 比较 ⇒ 复现 ORIG 两段
+    // `mov -0x10(%ebp),%eax; cmp $0x3,%eax`（4.1 装载形）。
+    for (int i = 0; (unsigned int)i <= 3u; ++i)
     {
         // [N6S5ZeroA] ORIG 0x08599b4b(+0xc3) 条件是 `mov -0x10(%ebp),%eax;
         //   cmp $0x3,%eax; setbe %al`，我方为 `cmpl $0x3,-0x10(%ebp); setbe`

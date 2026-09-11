@@ -268,7 +268,10 @@ namespace WongWork
     // vtable 槽序/sizeof 零影响。消费点：DisPatcherCore/process_43.inc:141（全仓唯一）。
     bool handlePickupItem(CUser*, int, bool, char);
     int handleSelectEPLPCommand(CUser*, int);
-    int handleStageCommand(CUser*, unsigned char);
+    // [g01 2026-09-11] int→bool：ORIG 唯一调用点 Dispatcher_DeathTowerStageCommand
+    //   ::dispatch_sig @0x08208b37 `call; xor $0x1,%eax; test %al,%al; je`（本 .h 内
+    //   handleUseStackable/handlePickupItem 同判据先例）；我方 int 产 `test; sete`。
+    bool handleStageCommand(CUser*, unsigned char);
     int handleStartGame(int, char, ENUM_DUNGEON_TYPE);
     bool handleUseStackable(CUser*, ENUM_ITEMSPACE, unsigned short);  // [b28d-Main·检查点14 P292] 定义 0x084662cc 返 1；调用点 xor $1
     bool onLeaveUser(CUser*);  /* ORIG 0x084636f2 尾恒 mov $1,ret；caller xor$1/test%al bool 归一形（P9/P159） */

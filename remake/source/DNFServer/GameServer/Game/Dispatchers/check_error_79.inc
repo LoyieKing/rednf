@@ -11,7 +11,6 @@ int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
     //   7 次（如 0x081e0aa6 段 `mov 0x10(%ebp),%eax; movzwl 0x..(%eax),%eax`），
     //   我方原引用局部多占 -0x28 并抬帧 0x10（0xd4 vs ORIG 0xc4）⇒ 改编译期内联式，
     //   每个 m.xxx 在使用点经形参直读（语义不变、零新增符号）。
-#define m (*reinterpret_cast<AocMsgView*>(&msg))
     if (user == 0)
         return -1;
     if (user->get_state() <= 2)
@@ -21,7 +20,10 @@ int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
                                                             (SECURITY_PROTCTION)0x2a);
     if (secuErr != 0)
         return secuErr;
-
+    // [g05 试形 F 负结论 2026-09-11] 改用引用局部 `AocMsgView& m = *(AocMsgView*)&msg;`
+    //   （同 TU process_312/read_313 先例）⇒ **劣化**：帧 0xc4→0xd4（引用局部多占 0x10）、
+    //   ours 296→298、gap −7→−9 ⇒ 已回滚维持宏（编译期内联式；历史 DispLaneB 同结论）。
+#define m (*reinterpret_cast<AocMsgView*>(&msg))
     // [G1-Dispatchers] P48：ORIG 两处 GetInvenSlot 各自重取 `getCurCharacInvenR()`
     // （p167 ORIG-only ×1；我方原用 invR 缓存 ⇒ 少一次调用）。故不设具名 invR。
     Inven_Item consumeSlot =

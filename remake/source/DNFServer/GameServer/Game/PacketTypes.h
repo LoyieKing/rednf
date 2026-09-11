@@ -2195,7 +2195,11 @@ public:
     // ORIG C1：+0x04 int、+0x08/+0x0a word 清零
     int m_4;                 // +0x04
     short m_8;               // +0x08
-    short m_a;               // +0x0a
+    // [g02 2026-09-11 · P342 类型轴 · Main 已批准] ORIG 0x081e35xx 对 +0x0a 的 store 是
+    //   `movzwl 0x10(%eax),%edx; mov %dx,0xa(%eax)`（RHS-first、**无** eax→edx 中转）⇒
+    //   源(`req.m_count` unsigned)与目标**同型**：m_a 必须 unsigned。宽度/偏移/sizeof/
+    //   mangled/清零宽度（movw $0）全不变。旧 signed short ⇒ 4.4 恒插 `mov %eax,%edx` 中转。
+    unsigned short m_a;      // +0x0a
 };
 
 class stComboSkill : public ParamBase

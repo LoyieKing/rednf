@@ -22,12 +22,30 @@ bool CBossPlay::handleDieUser(CUser* user)
     int i = 0;
     for (i = 0; i <= 3; ++i)
     {
-        if (!m_party->checkValidUser(i))
-            continue;
-        if (!(m_party->get_user(i) == user))
-            continue;
-        if (isMemberAlive(i))
+        // [G23-P354 试形] 消 xor/setne 物化：`if (!bf()) {continue;}` ⇒ 4.4 发
+        // `xor $1; test; jne`；改「正向 if + 空 then + else continue」即发
+        // `test; je`（G07 实证 P354）。ORIG 第一守卫 = `call; test %al,%al; je`。
+        if (m_party->checkValidUser(i))
         {
+        }
+        else
+        {
+            continue;
+        }
+        if (m_party->get_user(i) == user)
+        {
+        }
+        else
+        {
+            continue;
+        }
+        // [G23-try2] ORIG 序：失败路径在前（fall-through 到 SendCmdErrorPacket +
+        // return 0），成功 body 在后 ⇒ 正向包裹形（P59/P194：早返 vs 包裹块序翻转）。
+        if (!isMemberAlive(i))
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
+            return 0;
+        }
         setMemberAlive(i, false);
 
         PacketGuard packet1;
@@ -51,9 +69,6 @@ bool CBossPlay::handleDieUser(CUser* user)
             m_party->send_to_party(packet2);
         }
         return 1;
-        }
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
-        return 0;
     }
     return 1;
 }

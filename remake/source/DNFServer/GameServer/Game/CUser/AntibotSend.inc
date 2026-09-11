@@ -24,7 +24,9 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     //   短路物化**到 -0x2d（`mov $1/$0 + mov %al,-0x2d`），verify 仅在需求为真时调用。
     typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
     bool encReq = packet.isEncryptRequired() &&
-        ((VerifyFn)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
+        // [g03 · P58 类型化指针（同 prepareDisconnect 翻正形）] void*** 三层 cast 使 4.4 多一条
+        //   `mov %eax,%esi` 中转；改真实类型化指针数组（VerifyFn* / EncryptFn*）即单段直落。
+        ((VerifyFn)(*(VerifyFn**)GlobalData::s_antibotChecker_)[0x34 / 4])(
             GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0;
     if (encReq)
     {
@@ -47,7 +49,7 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
         ((InterfacePacketBuf*)&guard)->put_header(0, 0x231);
         typedef int (*EncryptFn)(void*, int, char*, int, char*, int*);  // +0x28
         // 实参右→左求值：get_len→get_packet→getAntibotKey（P24/実参序）
-        int r = ((EncryptFn)((*(void***)GlobalData::s_antibotChecker_)[0x28 / 4]))(
+        int r = ((EncryptFn)(*(EncryptFn**)GlobalData::s_antibotChecker_)[0x28 / 4])(
             GlobalData::s_antibotChecker_, getAntibotKey(),
             packet.get_packet(0), packet.get_len(), buf, &outLen);
         if (r != 0)

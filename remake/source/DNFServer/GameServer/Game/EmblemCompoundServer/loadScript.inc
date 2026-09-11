@@ -19,6 +19,10 @@
 // （`mov;mov;mov;movw;mov;movw;…;je;add;jmp` 清 8B + movb 尾，9 条），4.4 恒
 // 展开 4×movw+movb（探针 /tmp/nr_probe.cpp `new R()` 实证，5 条）⇒ N78/跨版本
 // 展开形态不可复现；gap 6 全在此段。其余助记符序列逐条同构（mnem-diff 0 块）。
+// [G21A 2026-09-11] 槽平移修形（保留）：ORIG 局部组(token/isType/isInt)整体比我方
+//   深 8（-0x4c/-0x4d/-0x4e vs -0x44/-0x45/-0x46）⇒ 函数头加 `char framePad8[8]`（P31）
+//   后该组逐值对齐，diff 330→144 行（-56%），gap 不变（+4 全在 value-init 展开段）。
+//   已试并回滚：framePad12（帧 >0x7f，`sub $0x70` 变 `add $<A>,%esp`，反劣）。
 int EmblemCompound::loadScript()
 {
     if (!loadRDARScriptFile("Etc/EmblemRenewal/", "emblem_compound_jpn.etc"))

@@ -53,6 +53,9 @@ int CUser::InitOnAccept(int socketFd)
     memset(m_skillCommands, 0, sizeof(m_skillCommands));  // ORIG memset(this+0x703db,0,200)
                                                           // （50×STCommand pack(1)=200B）
 
+    // [s3 2026-09-11 语义缺口补完] ORIG 0x08649501 `movl $0x0,0x71b98(%eax)`（在
+    //   memset 之后、AssignMailBox 调用 0x0864950b **之前**）⇒ 源码有先清零死存储：
+    m_premium.m_mailBox = 0;
     m_premium.m_mailBox = (void*)WongWork::CMailBoxHelper::AssignMailBox();
     // [SubA C1 2026-09-11] ORIG 0x08649519..0x08649525 **无判空**（`mov 0x8(%ebp),%eax;
     // mov 0x71b98(%eax),%eax; mov %eax,(%esp); call CMailBox::Init`）——AssignMailBox

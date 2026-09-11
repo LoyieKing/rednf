@@ -103,7 +103,14 @@ public:
     unsigned int m_characNo;             // +0x00（请求侧角色号；Update where 条件）
     unsigned int m_apSum;                // +0x04（select ap_sum）
     unsigned char m_isRewardMedal;       // +0x08
-    unsigned char m_isRewardItem[4];     // +0x09..+0x0c
+    // [g04-P357 2026-09-11 Main 批准] unsigned char → bool：ORIG 该字段消费点
+    // `movzbl 0x11(%edx,%eax,1),%eax; xor $0x1,%eax; test %al,%al; je`
+    // （GetTodayRewardAndSendMail 的 `if (!f)`）⇒ ORIG 侧字段为 bool
+    // （探针 /tmp/ap_probe6.cpp gS3：仅 bool 字段 + `if(!f)` 才出 xor）。
+    // 布局零变化：bool 与 unsigned char 同为 1 字节，数组 4 元素 ⇒ 恒 4 字节，
+    // sizeof/成员偏移/mangled 全不变；usize 点（memset sizeof / printf 提升 /
+    // `= (flag != 0)` 赋值）全兼容。
+    bool m_isRewardItem[4];              // +0x09..+0x0c
     _ActionPoint m_actionPoints[300];    // +0x0d，步长 0xb
 };                                       // sizeof 0xcf1
 typedef char _assert_sig_load_action_point_size[(sizeof(_SIG_LOAD_ACTION_POINT) == 0xcf1) ? 1 : -1];

@@ -71,7 +71,12 @@ bool RentalMachinePcRoom::checkAllRentalItemScript()
                               << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
-                if (item->GetAttachType() != 2)
+                // [P-G7b/P0 2026-09-11] ORIG 0x08270bd9..0x08270be0
+                // `mov %eax,-0xc(%ebp); cmpl $0x2,-0xc(%ebp); je` ⇒ 原码**有具名
+                // 局部**承载返回值（槽往返）；我方直写调用点 ⇒ 4.4 产
+                // `cmp $2,%eax; setne %al; test %al,%al; je`（多 2 条）。
+                const int attachType = item->GetAttachType();
+                if (attachType != 2)
                 {
                     std::cerr << "[RentalSystem::Ready()] AtttachType is not "
                                  "trade delete. ["

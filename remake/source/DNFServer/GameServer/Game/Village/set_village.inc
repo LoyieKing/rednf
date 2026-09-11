@@ -2,7 +2,8 @@
 //   我方 placement new/delete 形态 + 迭代器 cv 差。ORIG 0x086c33b8
 bool Village::set_village(TownScript& script)
 {
-    bool result = false;
+    // [g15 P348 试形 2026-09-11] ORIG 无 `movb $0x0,槽` 预清（我方帧头多 1 条）⇒ 去初始化式
+    bool result;
 
     m_villageId = script.m_field0;
     if (script.m_18 == -1)
@@ -173,8 +174,14 @@ bool Village::set_village(TownScript& script)
                 result = false;
                 bSuccess = false;
             }
-            if (!bSuccess)
+            // [g15 P354 试形 2026-09-11] `!bool` 物化 xor（多 2 条）⇒ 改反向 if-else（空 then）消 xor
+            if (bSuccess)
+            {
+            }
+            else
+            {
                 goto cleanup;
+            }
         }
 
     }

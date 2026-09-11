@@ -9,17 +9,19 @@ bool Dispatcher_MonstercardBind::_bind_process(
 {
     STExpertJobScript* script = static_cast<STExpertJobScript*>(
         G_CDataManager()->GetExpertJobScript(1));
-    STExpertJobScript::stMonsterCardBindInfo* info;
-    if (type == BIND_TYPE_SPECIAL)
+    // [g09 试形] ORIG 0x081d8604 区为「info 预清(`movl $0x0,-0x20`) + type 一次载入
+    //   %eax + `test %eax,%eax; je` + `cmp $0x1,%eax; je` + `jmp`」= switch 决策链
+    //   （P251/P286：无槽往返 + 多路相等比较 ⇒ 原码 switch），非 if-else 内存直比链。
+    STExpertJobScript::stMonsterCardBindInfo* info = 0;
+    switch (type)
     {
+    case BIND_TYPE_SPECIAL:
         info = script->GetSpecialBindInfo();
-    }
-    else if (type == BIND_TYPE_COMMON)
-    {
+        break;
+    case BIND_TYPE_COMMON:
         info = script->GetCommonBindInfo();
-    }
-    else
-    {
+        break;
+    default:
         results.clear();
         return false;
     }
@@ -31,8 +33,10 @@ bool Dispatcher_MonstercardBind::_bind_process(
         // [P4-P139] 手写串 → __PRETTY_FUNCTION__：ORIG prett 直证
         //   _ZZN26Dispatcher_MonstercardBind13_bind_processENS_27ENUM_MONSTER_CARD_BIND_TYPEE11ENUM_RARITYRSt6vectorISt4pairIiiESaIS4_EEE19__PRETTY_FUNCTION__
         //   @0x8bd25e0 size=0x85，串与手写串逐字节相同；换后符号形态与 ORIG 一致。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x44b1, 5);
-        trace("MonstercardBind Error : size(%d)", (int)table.size());
+        // [g09 试形] ORIG 0x081d86xx：先 call size() 并把结果保活 %ebx，**后**构造
+        //   cMyTrace(-0x64) ⇒ 全表达式临时链（P227/P328⑩），非两语句具名形。
+        cMyTrace(__PRETTY_FUNCTION__, 0x44b1, 5)(
+            "MonstercardBind Error : size(%d)", (int)table.size());
         return false;
     }
     if (table.size() != 0 && total != 0)

@@ -2961,7 +2961,7 @@ public:
     void setBeforeAreaTime(long t);
     long getBeforeAreaTime() const;
     void setUseCraneStart(bool flag);
-    unsigned char isUseCraneStart() const;
+    bool isUseCraneStart() const;   // [P354/P292 判据] ORIG 调用点 `call; xor $0x1,%eax; test %al,%al; je` ⇒ bool（原 unsigned char 为误标）
     void setForceDropFlag(bool flag);
     unsigned char getForceDropFlag();
     void setDungeonClearHackCheck(bool flag);

@@ -113,7 +113,10 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         }
         int rivalTotal = 0;
         // CMap +0x90（ORIG 每使用点重算地址）
-        for (int i = 0; (int)map->m_rivalData1.size() > i; i = i + 1)
+        // [B-lane 试形 A] 去 shadow 的 `int i`（我方多出 -0x38/-0x3c 零初始化槽；
+        //   复用外层 i 保持 ORIG 单槽形）。
+        i = 0;
+        for (; (int)map->m_rivalData1.size() > i; i = i + 1)
         {
             rivalTotal = rivalTotal + map->m_rivalData1[i].m_field08;
         }

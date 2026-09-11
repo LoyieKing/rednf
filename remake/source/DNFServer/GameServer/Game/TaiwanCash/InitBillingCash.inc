@@ -49,7 +49,13 @@ bool InitBillingCash(Taiwan::TaiwanCash*& cash)
     //   本 TU 内 ctor 定义（TaiwanCash.cpp:130 `: m_mysql(), m_mutex()`）判定 nothrow
     //   ⇒ 不布 landing pad（ORIG 编译器更保守）。两者皆**编译选项/前端版本差异**，
     //   源码层不可造；保持语义正确的最小表达式。gap 76/61 = +15 不变。
-    return !(cash != 0 &&
-             !cash->init(info.m_host, static_cast<unsigned int>(info.m_port),
-                         info.m_db, info.m_user, info.m_pass));
+    // [G11 P354 试形1] ORIG +0xc2 有 `xor $0x1,%eax`（4.4 对 `!bool_callee()` 的物化），
+    // 单表达式 `!(A && !B)` 会被 4.4 前端 de Morgan 折叠掉该 xor ⇒ 拆成 if + 两句 return。
+    if (cash != 0 &&
+        !cash->init(info.m_host, static_cast<unsigned int>(info.m_port),
+                    info.m_db, info.m_user, info.m_pass))
+    {
+        return false;
+    }
+    return true;
 }

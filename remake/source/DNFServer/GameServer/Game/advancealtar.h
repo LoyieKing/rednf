@@ -453,7 +453,13 @@ public:
     int buyItem(AdvanceAltarShopType::T shopType, int level,
                 short fromSlot, short toSlot, int totalCost, int& outReward);
     // ORIG T 0x08131b58（Dispatcher_SetSlot process_packet 调用）
-    int setSlot(bool isSet, const CMDPacketStruct::_SetSlotData& data);
+    // [g09 2026-09-11 P211「callee 侧旋钮」] 返回 int→unsigned int：唯一消费点
+    //   Dispatcher_SetSlot::process_packet 的 ORIG store 为 LHS-first 2 条
+    //   `mov -0xc(%ebp),%edx; mov %eax,0x4(%edx)`（0x081400xx）⇒ callee 必与
+    //   _ResAdvanceAltarSetSlot::m_nErrorCode(unsigned int) 同型；同函数另一 store
+    //   （check_error(int)）ORIG 为 RHS-first+中转 ⇒ 异型由该处自然满足。
+    //   返回类型不入 mangling、sizeof/偏移零变化。
+    unsigned int setSlot(bool isSet, const CMDPacketStruct::_SetSlotData& data);
     // ORIG T 0x08131f0a（Dispatcher_ExchangeSlot process_packet 调用）
     // [b28c-21 代落 C28L5 spec] 返回 int→unsigned int：ORIG 消费点
     // Dispatcher_ExchangeSlot::process_packet 写 m_nErrorCode(unsigned) 为同型直存

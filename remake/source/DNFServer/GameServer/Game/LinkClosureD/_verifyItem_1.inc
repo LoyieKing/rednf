@@ -97,8 +97,17 @@ int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
         }
     }
 
-    if (def->get_rarity() <= 1 && item->GetReSealCount() != 0)
-        return 0x15c2;
+    // [g14 改善件 2026-09-11 · P-G7b/嵌套-if · 已登记保留（Main 第7批「未翻正还原或登记改善」）]
+    //   读数：our_insns 298→297（gap −8→−7），verdict 仍 DIFF(290/297)；语义等价、零劣化。
+    //   ORIG 84eff5x 段：`call GetReSealCount;
+    //   test %al,%al; setne %al; test %al,%al; je <...>; mov $0x15c2; jmp`（setne 归一化形）
+    //   vs 我方 `test %al,%al; je <mov $0 岛>; mov $1; jmp; mov $0; test`（短路 && 整体
+    //   物化）。⇒ 拆嵌套 if 复现单点 setne 形（P-G7b/Main 标准签名①的邻近钥匙）。
+    if (def->get_rarity() <= 1)
+    {
+        if (item->GetReSealCount() != 0)
+            return 0x15c2;
+    }
 
     // p167：ORIG 只 call 一次 GetAttachType（结果留 %eax 供 cmp+shl）⇒ 单次求值，
     // 纯 register 免槽（P231）。

@@ -44,7 +44,18 @@ bool CSession::Parsing(int recvLen)
     unsigned long long tick;
     unsigned int packetSize;
     int moved;
-    char header[HEADER_SIZE];
+    // [P-g03-b 反向] ORIG 0x084900c7 `mov -0x3e(%ebp),%eax` = header+3 的 32 位
+    // **ebp 相对直接内存读**；旧形 `*(unsigned int*)(header + 3)` 被 4.4 折成
+    // `lea -0x39(%ebp); add $0x3; mov (%eax)` 三步 ⇒ 用 pack(1) 具名视图还原直读。
+    #pragma pack(push, 1)
+    struct ParsingHeaderView
+    {
+        char m_head[3];
+        unsigned int m_size;
+        char m_tail[HEADER_SIZE - 7];
+    };
+    #pragma pack(pop)
+    ParsingHeaderView header;
 
     parsingLength = (int)m_recvOffset + recvLen;
 
@@ -58,15 +69,15 @@ bool CSession::Parsing(int recvLen)
     }
 
     packetSize = 0;
-    do
+    for (;;)
     {
         if (m_recvOffset != 0)
         {
             m_recvBuf -= m_recvOffset;
         }
 
-        memcpy(header, (const void*)m_recvBuf, HEADER_SIZE);
-        packetSize = *(unsigned int*)(header + 3);
+        memcpy(&header, (const void*)m_recvBuf, HEADER_SIZE);
+        packetSize = header.m_size;
         if (packetSize <= 0xc || packetSize > 0x17318)
         {
             LogManager::logFormat(1, "ExchangeServerNetwork.h",
@@ -100,7 +111,11 @@ bool CSession::Parsing(int recvLen)
             m_recvBuf = m_recv;
             break;
         }
-    } while (parsingLength > 5);
+        if (parsingLength <= 5)
+        {
+            break;
+        }
+    }
 
     if (parsingLength <= 0)
     {

@@ -54,17 +54,22 @@ void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
     // [C03 实测] ORIG 该 max 的第一实参是具名 0.0f 局部（-0x20）、第二为 dr（-0x24），
     //   但把 0.0f/1.0f 具名化后 4.4 全帧槽位反而上升 4（dr -0x20→-0x18，本件变差），
     //   已回退；残差属 N85①+槽组族（见下）。
-    dr = std::max(dr, 0.0f);
+    // [g09] ORIG 实参槽证据（0x08095994/0x0809599b）：arg1=&dr(-0x24)、arg0=&zero(-0x20)
+    //   ⇒ 源码是 max(0.0f, dr)（实参序与旧版相反）。实测：本件 DIFF 3 hunk → 1 hunk。
+    dr = std::max(0.0f, dr);
 
     // 0x080959ae..0x080959de：out0 = dr / max(1.0f, (float)lvl * redConst + dr)
     // [C03 修·配方②（槽复用）] ORIG 把 denom 作为**临时**（0x080959c4 `fstps -0x18`）
     // 而非具名；我方原具名 denom 多开一个 4B 槽并占走 dr 的 -0x24 ⇒ 内联 denom 后
     // **diff 行数 150→58**（其余为 call/jmp 重定位伪差）。反例留痕：补具名 `one`
     // （1.0）后 diff 回到 86 且 dr 落 -0x20 ⇒ 已回退，维持内联形。
-    outDefenseRate = dr / std::max(1.0f, static_cast<float>(basisLevel) * redConst + dr);
+    // [g09] ORIG（0x080959c7/0x080959ce）：arg1=&one(-0x1c)、arg0=&denom(-0x18) ⇒ max(denom, 1.0f)。
+    outDefenseRate = dr / std::max(static_cast<float>(basisLevel) * redConst + dr, 1.0f);
 
     // 0x080959e3：if (dr == 0.0f && lvl <= 9) out0 = dr / 400.0f
     //   （fnstsw+test 0x45+sete：非无序且相等，即 C++ dr == 0.0f）
+    // [g09 试形·已回退] `0.0f == dr` 无改善（4.4 仍产 fxch %st(1) + sahf/jne/jp）
+    //   ⇒ 残余 = 4.4 x87 比较 lowering 固有形（N85 族，G07 已证 -march=i486 无改善）。
     if (dr == 0.0f && basisLevel <= 9)
         outDefenseRate = dr / 400.0f;
 

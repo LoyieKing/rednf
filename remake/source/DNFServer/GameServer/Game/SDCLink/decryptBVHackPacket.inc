@@ -19,7 +19,9 @@ int decryptBVHackPacket(char* payload, stBVHackInfo_t& info)
     // ORIG 0x0889215b `setbe`（无符号 ≤）⇒ 循环变量必须 unsigned（P2）。
     for (unsigned int i = 0; i <= 11; ++i)          // cmpl $0xb … setbe（i≤11 共 12 次）
     {
-        *cur = *cur ^ key;                          // mov (%edx); xor -0xc; mov (%eax)
+        // [g09 试形5] 试形3/4 已复现 ORIG 的两次独立读 cur；本形去 key cast（纯 int^uint）。
+        *reinterpret_cast<int*>(cur) =
+            *reinterpret_cast<int*>(cur) ^ key;
         ++cur;
     }
 

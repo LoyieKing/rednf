@@ -53,7 +53,10 @@ bool ArrangeMailAndLetterIndex(SIG_MAILBOX_LIST* list,
         // [b28d-solo-DB_MailBox_Req_List] ORIG 把 operator[] 结果直接作实参
         // （0x0841d1e3 `call operator[]; mov (%eax),%eax; mov %eax,0x4(%esp)`），
         // 无 letterId 具名局部；具名会多 1 槽 + 2 条 mov。
-        mailIdx = FindLastLetterIndexMail(list, *(int*)&vecNew[start]);
+        // [g13 trial-3 · P-G7b「赋值内嵌条件」] 原为分离写（`mailIdx = f(); if (mailIdx != -1)`），
+        // 4.4 恒直折 `cmpl; je`；ORIG 0x0841d1fc 为
+        // `mov %eax,-0x10(%ebp); cmpl $0xffffffff,-0x10(%ebp); setne %al; test %al,%al; je`
+        // ⇒ 赋值为条件内嵌形（P-G7b 标准签名①；本件历史从未试过此形）。
         // [b28e-L5] P225 `while (mailIdx != -1) {…break;}` 试验**无收益**（clean 差异
         // 24→24、jcc 相对偏移反 +7 字节）⇒ 回滚维持原 `if`；ORIG 0x0841d1fc
         // `cmpl $0xffffffff,-0x10(%ebp); setne %al; test %al,%al; je +0x159`
@@ -63,7 +66,7 @@ bool ArrangeMailAndLetterIndex(SIG_MAILBOX_LIST* list,
         //   首测形：ours 109→**113**（ORIG 111，多 2 条 jmp）、块内新增
         //   `jmp;jmp` 岛 ⇒ 劣化回滚；连同早先的 `!(mailIdx == -1)` 反相形一并否证
         //   （物化 setne 属 4.1 专有 lowering，4.4 恒直跳）⇒ 维持 N。
-        if (mailIdx != -1)
+        if ((mailIdx = FindLastLetterIndexMail(list, *(int*)&vecNew[start])) != -1)
         {
             // [round5-A29] 同 IsContainedLetter：改权威头具名嵌套视图（ORIG
             // 0x0841d234 段 `imul $0x61; lea; add $0x50; mov 0xc(%eax)`）。

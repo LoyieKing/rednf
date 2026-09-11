@@ -2,9 +2,14 @@
 // DB_LoadCharac::_getCharacStat @0x084093f6
 // charac_stat 43 列装载（42 数据列）：exec/fetch/任一 get 失败返 0；
 // col9(trade_gold_daily) 后、col10(open_flag) 前将 +0xd9 清零（ORIG 写点）。
-// [b28d-solo] 644/644 + p167 CLEAR 47/47 + 槽位集全等；残余仅 2 处
-// 4.4↔4.1 成员取址 add/lea 选择互换（col5 +0x59 / col25 +0xc5，源形探针
-// 全败）⇒ N107 反向封顶，语义与帧/槽/调用点均一致。
+// [b28d-solo] 644/644 + p167 CLEAR 47/47 + 槽位集全等。
+// [s2 2026-09-11 翻正 AE ndiff=0] 原判 N107「成员取址 add/lea 互换」两处（col5
+// +0x59 / col25 +0xc5）**实为源形可择**，probe /tmp/s2_probe.cpp t1..t8 实证：
+//   · 4.4 对「成员视图」/「(char*)参数 + K」/「&arr[0]」等形恒折**单条 lea**；
+//   · 只有「整型算术」形 `(T*)((unsigned long)p + K)` 恒发 `add $K:reg; mov reg,reg`
+//     （两步 add）——即 ORIG 4.1 在该列的发射形。
+//   据此 col5 改整型算术形（t4）、col25 改 `&arr[0]` 形（反向：由 add 变 lea）
+//   ⇒ verdict=AE，orig=644 / our=645（差 1 条为 clean() 归一的 nop 尾垫）。
 // ============================================================================
 bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
 {
@@ -44,9 +49,14 @@ bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
         return false;
     if (!db->get_ushort(col++, sig->m_characData.m_field5b)) // premium_fatigue（ushort&）
         return false;
-    // [b28d-solo] ORIG 0x0840956f 本列为 `add $0x59,%eax; mov %eax,%edx`（add+mov），
-    // 4.4 对该位点恒 lea（同型/异型 cast/指针 cast 三形实测均 lea）⇒ N107 反向封顶。
-    if (!db->get_uint(col++, sig->m_characData.m_lastPlayTime)) // last_play_time（uint&）
+    // [s2 P350] ORIG 0x0840956f `add $0x59,%eax; mov %eax,%edx`（两步 add）⇒ 源形为
+    // char* 算术（成员视图 4.4 折成单条 lea，见 N102 修正/P350）；改按指针算术写。
+    // [s2 探针 t4 命中] ORIG `add $0x59,%eax; mov %eax,%edx`（两步 add）：4.4 对
+    // 「整型算术 + 常量偏移」形（`(T*)((unsigned long)p + K)`）恒发 add+mov；
+    // 而成员视图 / `(char*)p + K` 两形恒折单条 lea（t1/t2/t3/t5 探针实测）。
+    if (!db->get_uint(
+            col++, *reinterpret_cast<unsigned int*>(
+                       reinterpret_cast<unsigned long>(sig) + 0x59))) // last_play_time（uint&）
         return false;
     if (!db->get_ushort(col++, sig->m_characData.m_unkB2.m_fieldb3)) // used_fatigue（ushort&）
         return false;
@@ -87,9 +97,9 @@ bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
         return false;
     if (!db->get_short(col++, sig->m_characData.m_fatigueBattery)) // fatigue_battery_charging（short&）
         return false;
-    // [b28d-solo] ORIG 0x08409991 本列为 lea 0xc5(%eax),%edx（单段）；
-    // 4.4 对数组名退化恒 add+mov（探针 fc/fd/fe/fg 全败）⇒ N107 反向封顶。
-    if (!db->get_binary(col++, sig->m_characData.m_unkB2.m_fieldb9, 0x10)) // escalade_tutorial_flag
+    // [s2 P350 反向] ORIG 0x08409991 `lea 0xc5(%eax),%edx`（单条 lea）⇒ 源形为
+    // 数组元素取址（数组名退化在 4.4 恒 add+mov）；改 `&arr[0]` 形。
+    if (!db->get_binary(col++, &sig->m_characData.m_unkB2.m_fieldb9[0], 0x10)) // escalade_tutorial_flag
         return false;
     if (!db->get_short(col++, sig->m_characData.m_unkB2.m_powerWarPoint)) // power_war_point（short&）
         return false;

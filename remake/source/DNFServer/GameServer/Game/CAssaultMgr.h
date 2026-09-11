@@ -530,7 +530,7 @@ public:
     bool OnConnectP2P(CUser* user, char* ip, int len);   // ORIG T 0x82ef27a
     int OnRevivalUser(CUser* user);                      // ORIG T 0x82ef464
     bool OnCompleteLoad(CUser* user);                    // ORIG T 0x82ef1e2；同上
-    int OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ef3be
+    bool OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ef3be；[P354/P292] ORIG 调用点 xor $1 ⇒ bool（原 int 误标）
     bool OnEvadeAssaultPlace(CUser* user);               // ORIG T 0x82efbf6；同上
     void _SendVictoryInfo(CUser* userA, CUser* userB);   // ORIG T 0x82efcb2
     // [K1] ORIG 0x08206cd0 `call; xor $0x1; test %al,%al; je`（P168a/P292 档① bool）。

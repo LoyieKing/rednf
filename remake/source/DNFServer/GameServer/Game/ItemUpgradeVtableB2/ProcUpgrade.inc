@@ -218,9 +218,13 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         }
     }
 
-    int cond = 0;                                  // -0x3c
-    cond = _CheckCondition(user, target, script, material, *table, info);
-    if (cond != 0)
+    // [G23-S2 2026-09-11 P352 赋值内嵌] ORIG 0x08548029..0x08548035：
+    //   call _CheckCondition; mov %eax,-0x3c; cmpl $0x0,-0x3c;
+    //   setne %al; test %al,%al; je ⇒ **无预清**（无 movl $0x0,-0x3c 前置）
+    //   且比较紧随赋值 ⇒ 源形是 `int cond;` + `if ((cond = f()) != 0)`。
+    int cond;                                      // -0x3c
+    if ((cond = _CheckCondition(user, target, script, material, *table,
+                                info)) != 0)
     {
         return cond;
     }
@@ -414,11 +418,18 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     }
     pg->put_byte(oldUp);
 
-    if (table->m_bodyView.m_named.m_noticeUpgradeLevel <=
-            (int)target.GetUpgrade() &&
-        (msg->m_25 == 0 || winFlag != 0))
+    // [G23-S2 2026-09-11 P360 嵌套 if 复现逐条件 setcc] ORIG 0x08548783..:
+    //   call GetUpgrade; movzbl; mov table->0x234; cmp; setge; test; je ——
+    //   **单条件调用比较**（调用在左）+ 独立/嵌套 if ⇒ 4.4 才发 setge 物化；
+    //   旧写 `字段 <= GetUpgrade() && (...)` 的 && 链在 4.4 恒折
+    //   （链首提前取局部 → cmp;jg，无物化）。语义等价（比较方向互换）。
+    if ((int)target.GetUpgrade() >=
+        table->m_bodyView.m_named.m_noticeUpgradeLevel)
     {
-        _NoticeUpgrade(user, target, upgraded);
+        if (msg->m_25 == 0 || winFlag != 0)
+        {
+            _NoticeUpgrade(user, target, upgraded);
+        }
     }
 
     if (target.GetUpgrade() > 12)
@@ -471,19 +482,27 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         GetInstanceValueStatistic()->AddValueStatistic(
             (VALUE_STATISTIC_FIELD)0xf, user, (unsigned int)sellPrice);
 
-        const int penalty =
-            _ProcPenalty(user, &target, script, msg->m_targetSlot, *table,
-                         &info, pg, &ticket, ticketFlag);
-        if (penalty != 0)
+        // [G23-S2 2026-09-11 P352 赋值内嵌] ORIG 0x085488dc 有预清
+        //   `movl $0x0,-0x1c`，0x08548941 `cmpl $0x0,-0x1c; setne %al;
+        //   test %al,%al; je` ⇒ 源形 = `int penalty = 0;` +
+        //   `if ((penalty = _ProcPenalty(...)) != 0)`。
+        // [G23-S2 2026-09-11 P59 块序] ORIG 0x08548958 `jne 085489a6`
+        //   （085489a6 = `mov -0x1c,%eax; jmp epilogue`）⇒ penalty==0xd8 时
+        //   落 fall-through 发包、否则直跳 return 块 ⇒ 源形是
+        //   `if (penalty == 0xd8) { body } return penalty;`（旧写
+        //   `if (penalty != 0xd8) return penalty;` 反极性 → 4.4 发 je+jmp 多 1 条）。
+        int penalty = 0;                               // -0x1c
+        if ((penalty = _ProcPenalty(user, &target, script, msg->m_targetSlot,
+                                    *table, &info, pg, &ticket,
+                                    ticketFlag)) != 0)
         {
-            if (penalty != 0xd8)
+            if (penalty == 0xd8)
             {
-                return penalty;
+                user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
+                                     (int)msg->m_materialSlot);
+                user->SendUpdateItemList((CUser::eSendTarget)1,
+                                         (ENUM_ITEMSPACE)0, 0);
             }
-            user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
-                                 (int)msg->m_materialSlot);
-            user->SendUpdateItemList((CUser::eSendTarget)1,
-                                     (ENUM_ITEMSPACE)0, 0);
             return penalty;
         }
     }

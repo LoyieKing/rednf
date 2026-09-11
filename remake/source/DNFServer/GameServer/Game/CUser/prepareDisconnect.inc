@@ -38,10 +38,13 @@ void CUser::prepareDisconnect()
     //   `mov 0x941f7e4,%edx`（作 this 实参）；+0x24 段同形（vtbl[9]）。
     //   我方原有 `void* checker`(-0x14) 与 `void** vtbl`(-0x10) 两个独占具名槽
     //   （每处多 store+load，帧 0x30→0x40）。改为全表达式重算。
-    ((Fn3)(*(void***)GlobalData::s_antibotChecker_)[2])(
+    // [g03 · P58/P-g03-d 类型化函数指针数组修法（翻正落地）] ORIG 该处为 `mov <A>,%eax; mov (%eax),%eax; add $0x8,%eax;
+    //   mov (%eax),%esi`（解引用结果直落 callee-saved）；void*** 三层 cast 使 4.4 多一条
+    //   `mov %eax,%esi` 中转 ⇒ 改为真实类型化指针数组 In（Fn3* / Fn1*），定址形不变。
+    ((Fn3)(*(Fn3**)GlobalData::s_antibotChecker_)[2])(
         GlobalData::s_antibotChecker_, G_CEnvironment()->getProcessSequence(), 0,
         (unsigned int)get_acc_id());
-    ((Fn1)(*(void***)GlobalData::s_antibotChecker_)[9])(
+    ((Fn1)(*(Fn1**)GlobalData::s_antibotChecker_)[9])(
         GlobalData::s_antibotChecker_, (unsigned int)get_acc_id());
 
     // ORIG 0x086487ea：直读 m_garenaAuthData(+0x6ef92) 调 getTimeStamp，不经 getGarenaAuthData；

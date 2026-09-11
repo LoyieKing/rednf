@@ -30,13 +30,18 @@ bool CActionPointManager::GetTodayRewardAndSendMail(
             !(m_sig.m_apSum < todays[i].m_minAp) &&
             !(m_sig.m_apSum > todays[i].m_maxAp))
         {
-            if (m_sig.m_isRewardItem[reward.m_itemIdx] == 1)  // this+0x11+idx
+            // [g04-P357 2026-09-11] ORIG 0x081221e0 段 `movzbl 0x11(%edx,%eax,1),%eax;
+            // xor $0x1,%eax; test %al,%al; je <跳过本块>` ⇒ 源形 = `if (!f) { 赋值;
+            // break; }`（P354：bool 字段 + `!` 是 4.4 出 `xor $1` 的唯一源形）。
+            // 旧形 `if (f == 1) { continue; }` 产 `cmp $1,%al; je`（无 xor）。
+            // 控制流等价：f==1 ⇒ 跳过本块落到循环尾（原 continue 语义）；f==0 ⇒
+            // 置位并 break。
+            if (!m_sig.m_isRewardItem[reward.m_itemIdx])  // this+0x11+idx
             {
-                continue;
+                m_sig.m_isRewardItem[reward.m_itemIdx] = 1;
+                entry = &todays[i];
+                break;
             }
-            m_sig.m_isRewardItem[reward.m_itemIdx] = 1;
-            entry = &todays[i];
-            break;
         }
     }
     // [round5-C05 2026-09-10] 尾 fail 块嵌套形（本波配方①）：ORIG 0x0812220b/0x08122242

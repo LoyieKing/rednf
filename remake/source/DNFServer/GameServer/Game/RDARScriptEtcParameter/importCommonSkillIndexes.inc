@@ -68,10 +68,16 @@ int importCommonSkillIndexes(
                 for (;;)
                 {
                     int v = ScanInt(&okJob);
-                    if (okJob)
-                        skills.insert(v);
-                    else
+                    // [G17 2026-09-11 · P354 落地] 原形 `if (okJob) insert; else break;`
+                    //   4.4 产 `test %al,%al; je`（**无** xor，与 ORIG 差 2 条）；
+                    //   改「否定式 + 交换两臂」`if (!okJob) break; insert(v);` ⇒
+                    //   **xor 物化成功复现**（`movzbl -0x7d; xor $1; test`，233/233）。
+                    //   残余 = 极性/块序（ORIG `je` vs 我方 `jne`，P59 边界：4.4 对
+                    //   否定式恒 jne、对正极性不物化 ⇒ 不可两全）；K2 空 if+else 形实测
+                    //   严重劣化（233→188）已回滚。
+                    if (!okJob)
                         break;
+                    skills.insert(v);
                 }
                 exceptSkill.insert(std::make_pair(job, skills));
             }

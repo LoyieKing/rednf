@@ -6,7 +6,10 @@
 // 两遍 slots 扫描共用同一 it（ORIG 同槽 -0x44，第二遍 `it = begin()` 经临时）⇒
 // 274=274 逐条全等。p167：items 处 ORIG 用 const_iterator::eq 而我方 `!=` 发 ne
 // （语义等价模板实例差；`!(==)` 形实测 275 vs 274 劣化，保 AE）。
-int CharacAdvanceAltarManager::setSlot(bool isSet, const CMDPacketStruct::_SetSlotData& data)
+// [g09 2026-09-11 P211 callee 侧旋钮·Main 已批准] 返回 int→unsigned int（签名行同步，
+// 函数体不动）：唯一消费点 Dispatcher_SetSlot::process_packet 的 ORIG store 为
+// LHS-first 2 条无中转 ⇒ 与 _ResAdvanceAltarSetSlot::m_nErrorCode(unsigned) 同型。
+unsigned int CharacAdvanceAltarManager::setSlot(bool isSet, const CMDPacketStruct::_SetSlotData& data)
 // [P8S4 2026-09-11] 新口径复核 n1_v=AE（reloc 归一）；旧判词 NEAR 系 objdump 无 -r 的假残差
 {
     AdvanceAltarData* cur = m_currentAdvanceAltarData;

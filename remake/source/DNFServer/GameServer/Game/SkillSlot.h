@@ -264,8 +264,12 @@ public:
     // `call; xor $0x1,%eax; test %al,%al; je`（无 setne）。返回域 0/1。
     bool check_skill_mastered(int skillIdx, int level, int group,
                               ENUM_SKILL_TREE_KIND kind) const;
-    int check_skill_mastered(_Mastered_skill* buf, int skillIdx, int level,
-                             int group) const;
+    // [G17 2026-09-11 P292/P248/P357 类型轴] int→bool：我方调用点 (`SkillSlot.o`
+    //   0x36b2) 原为 `call; cmpl $1,%eax; setne %al; test %al,%al; je`（int 形），
+    //   ORIG 同址为 `call; xor $0x1,%eax; test %al,%al; je`（bool 形，无 setne）。
+    //   返回类型不入 mangling、sizeof/偏移零变化。
+    bool check_skill_mastered(_Mastered_skill* buf, int skillIdx, int level,
+                              int group) const;
     bool check_skill_list(int job, std::vector<std::pair<int, int> > list,   // [b28c-21 SIGFIX]
                          int level) const;
     bool checkComboSkillInsertQuickSlot(int skillIdx) const;

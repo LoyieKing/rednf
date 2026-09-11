@@ -117,31 +117,39 @@ int CUser::getCompoundUpgrade(const CStackableItem* item, stEquipCondition cond)
     // `idx*stride + 成员偏移` 的折叠路径；属**头改动**，按 R2 只报告不动。
     int upgrade = 0;                                              // -0x1c 默认0
     unsigned int tableAddr = 0;                                   // -0x18
+    // [G6S1 2026-09-11 P-g03-b 试形] ORIG 表基 = `(idx<<7) + 0x28c0 + G_CDataManager()`
+    // （常量与索引先结合，再与调用返回值相加），随后的 `add $0x10,%eax` 由
+    // 「行视图成员 rates 取址」给出（与 0x28c0 相隔函数调用 ⇒ 4.4 不折成 0x28d0）。
+    struct CompoundRow { char m_pad0[0x10]; int m_rates[0x20]; };
     if (item->IsUse2ndUpgradeTableRecipe()) {
         if (cond.m_amplifySelect == 0) {
-            tableAddr = (unsigned int)G_CDataManager() +
-                        ((unsigned int)cond.m_tableIdx << 7) + 0x28d0;
+            tableAddr = (unsigned int)(reinterpret_cast<const CompoundRow*>(
+                            reinterpret_cast<char*>((unsigned int)G_CDataManager()) +
+                            (((unsigned int)cond.m_tableIdx << 7) + 0x28c0))->m_rates);
             // [b28d-22 修法 P37/P221] ORIG 0x086820d5 `call get_index; mov %eax,%ebx;
             // …构造 cMyTrace; mov %ebx,0x8(%esp)`（实参跨 ctor 保活）⇒ 全表达式临时链。
             cMyTrace(__PRETTY_FUNCTION__, 0x86e5, 0)(
                 "RECIPE LOG : (Item:%u)UpgradeTable2nd", item->get_index());
         }
         else {
-            tableAddr = (unsigned int)G_CDataManager() +
-                        ((unsigned int)cond.m_tableIdx << 7) + 0x38d0;
+            tableAddr = (unsigned int)(reinterpret_cast<const CompoundRow*>(
+                            reinterpret_cast<char*>((unsigned int)G_CDataManager()) +
+                            (((unsigned int)cond.m_tableIdx << 7) + 0x38c0))->m_rates);
             cMyTrace(__PRETTY_FUNCTION__, 0x86eb, 0)(
                 "RECIPE LOG : (Item:%u)AmplifyTable2nd", item->get_index());
         }
     }
     else if (cond.m_amplifySelect == 0) {
-        tableAddr = (unsigned int)G_CDataManager() +
-                    ((unsigned int)cond.m_tableIdx << 7) + 0x8d0;
+        tableAddr = (unsigned int)(reinterpret_cast<const CompoundRow*>(
+                        reinterpret_cast<char*>((unsigned int)G_CDataManager()) +
+                        (((unsigned int)cond.m_tableIdx << 7) + 0x8c0))->m_rates);
         cMyTrace(__PRETTY_FUNCTION__, 0x86f4, 0)(
             "RECIPE LOG : (Item:%u)UpgradeTable", item->get_index());
     }
     else {
-        tableAddr = (unsigned int)G_CDataManager() +
-                    ((unsigned int)cond.m_tableIdx << 7) + 0x18d0;
+        tableAddr = (unsigned int)(reinterpret_cast<const CompoundRow*>(
+                        reinterpret_cast<char*>((unsigned int)G_CDataManager()) +
+                        (((unsigned int)cond.m_tableIdx << 7) + 0x18c0))->m_rates);
         cMyTrace(__PRETTY_FUNCTION__, 0x86fa, 0)(
             "RECIPE LOG : (Item:%u)AmplifyTable", item->get_index());
     }
@@ -159,7 +167,13 @@ int CUser::getCompoundUpgrade(const CStackableItem* item, stEquipCondition cond)
             // 0x08682286-95 的读-加-写三段 `mov (%eax),%edx; mov -0x10(%ebp),%eax;
             // lea (%edx,%eax,1),%eax; mov %eax,-0x10(%ebp)`）：实测 **137→137 中性**
             // （4.4 两操作数序同折 `mov (%eax),%eax; add %eax,-0x10(%ebp)`）⇒ 回滚。
-            acc = *reinterpret_cast<const int*>(tableAddr + i * 4) + acc;
+            // [G6S1 2026-09-11 P0 试形] ORIG 0x08682286-95 是**读-加-写三段**
+            // （`mov (%eax),%edx; mov acc,%eax; lea (%edx,%eax,1),%eax; mov %eax,acc`）；
+            // 4.4 对 `a + b` 恒折 `add %eax,acc`（mem-add）⇒ 试复合赋值形逼出三段。
+            // [G6S1 2026-09-11 2 试] 经 unsigned 域中转（阻止 4.4 折 `add mem`）
+            acc = static_cast<int>(
+                *reinterpret_cast<const unsigned int*>(tableAddr + i * 4) +
+                static_cast<unsigned int>(acc));
             // ORIG 0x08682292 `cmp -0x14(%ebp),%eax`（acc 左操作数）+ jle 跳过 ⇒ 原码
             // 形式为 acc > rnd（4.4 对 `rnd < acc` 载入 rnd 出 jge 反向）。
             if (acc > rnd) {

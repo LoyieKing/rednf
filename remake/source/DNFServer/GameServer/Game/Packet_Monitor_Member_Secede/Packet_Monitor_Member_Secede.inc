@@ -4,5 +4,6 @@ Packet_Monitor_Member_Secede::Packet_Monitor_Member_Secede()
     // 0x3e8..0x27ff）、第 2 实参=packetSize=0x31；原写法两参颠倒。
     : PacketHeader(0x4bb, 0x31)
 {
-    memset(m_data + 0x9, 0, 0x1e);   // ORIG memset(this+0x13, 0, 0x1e)
+    // [g02] m_data 起点随具名成员（m_uid/m_characNo）后移到 +0x12 ⇒ 名区偏移改为 +1。
+    memset(m_data + 1, 0, 0x1e);     // ORIG memset(this+0x13, 0, 0x1e)
 }

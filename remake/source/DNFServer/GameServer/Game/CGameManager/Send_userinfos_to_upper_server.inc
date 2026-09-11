@@ -87,13 +87,18 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                     user->m_network.GetPeerIP2(ipBuf, 0x10);  // ORIG (CNetwork*)(user+0xe0)
                     strcpy(pkt.m_items[userCount].m_ip, ipBuf);
                     userCount = userCount + 1;
-                    if (userCount > 0x4a)
+                    // [g12 P-G7a 试形] ORIG 0x08296528 物化 `cmpl $0x4a,-0x18(%ebp); setg %al;
+                    //   test %al,%al; je`（4.1 条件位 bool 物化）；4.4 对 `if` 恒直折 `jle`。
+                    //   改循环条件位（while + goto）以制造同形物化。
+                    while (userCount > 0x4a)
                     {
                         pkt.packetSize = 0x16e6;
                         pkt.m_count = (unsigned char)userCount;  // ORIG p[10]
                         SendUserInfoToUpperServer(pkt, channelType, user, (ENUM_SERVER_GROUP)group);
                         userCount = 0;
+                        goto L_send_userinfos_upper_done;
                     }
+                L_send_userinfos_upper_done:;
                 }
             }
             if (userCount != 0)

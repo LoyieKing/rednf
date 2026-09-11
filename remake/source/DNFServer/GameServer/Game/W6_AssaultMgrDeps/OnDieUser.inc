@@ -1,7 +1,7 @@
 // ===========================================================================
 // OnDieUser —— ORIG T 0x082ef3be (0xa5)：错误码包 0x96。
 // ===========================================================================
-int CAssaultMgr::OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg)
+bool CAssaultMgr::OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg)   // [P354/P292] ORIG xor $1 ⇒ bool
 {
     try
     {

@@ -2798,6 +2798,9 @@ public:
         view->m_field114,
         (int)view->m_field118,
         (int)view->m_field11a);
+    // [g02 试形A · P-G7b 负结论 2026-09-11] 改成赋值内嵌 `if ((result = f(...)) != 0)`
+    //   实测：目标 setne 段确实消除，但引入 `push %esi` + 帧 0x34→0x30 ⇒ gap −1→−2 净劣化
+    //   ⇒ 按「劣化即回滚」还原两句写（本件 gap 仅 −1，属近翻正件）。
     // [L7DispG1 2026-09-11 负结论] ORIG 0x081cfad6 `cmpl $0x0,-0xc(%ebp); je`（直跳，无 setne）
     //   ⇒ 目标形是 `if (result)`；实测本处改成隐式真值后本件读数不变（仍 DIFF 99/100），
     //   且它属于「早段函数伪寄存器编号平移」的嫌疑源（见 dispatch_sig_115 判词）⇒ 回滚保基线形。

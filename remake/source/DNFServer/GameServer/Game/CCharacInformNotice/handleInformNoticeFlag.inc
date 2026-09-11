@@ -28,6 +28,12 @@ void CCharacInformNotice::handleInformNoticeFlag(unsigned int flag)
         unsigned int byteIdx = flag >> 3;
         if (byteIdx >= InformNotice::kInformNoticeIndex)
             goto L2;
+        // [G18 T15 2026-09-11 · P354 实证（负例，已还原）] 试 P354「空 then + else」形
+        // （`if (f()) { } else { goto L3; }`）：**`xor $0x1` 确被消掉**（our 55→53、
+        // 差异行 9→4，推翻旧注「xor 不可消」），但同时暴露 N18a 两处中转缺口，
+        // gap 0→**+2**（our 53 / ORIG 55）⇒ 按「四数不劣 + gap 严格改善」闸门判**净劣**，
+        // 已还原原形。⇒ 本件宜与 N18a 两处中转（`movzbl…,%edx; mov %edx,%ebx` 与
+        // `lea…,%edx; mov %edx,%ecx`）合并攻克后再套 P354。
         if (!checkInformNoticeFlag(bit, byteIdx))
             goto L3;
         m_flags[byteIdx] = (unsigned char)(m_flags[byteIdx] + (1u << bit));

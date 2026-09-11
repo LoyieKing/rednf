@@ -851,7 +851,7 @@ public:
     // `movzbl 0x89d(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（P248 档②）
     // ⇒ 字段 bool（源码 `!dungeon->m_89d`）；1 字节/偏移不变。
     bool m_89d;                     // +0x89d（script+0x140；非真时清 hell 标记）
-    unsigned char m_89e;            // +0x89e（script+0x28d，村庄怪副本标记）
+    bool m_89e;                     // +0x89e（script+0x28d，村庄怪副本标记；[g03·Main 批准 A/B] uchar→bool，P357 画像：我方 uchar 在 4.4 多出 setne;test 两段）
     unsigned char m_bloodDungeonType; // +0x89f（get_blood_dungeon_type；
                                       //      script+0x28e；1=血腥 2=终极）
     int m_8a0;                      // +0x8a0（script+0x3c4）

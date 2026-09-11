@@ -46,22 +46,23 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
     }
     else
     {
-        if ((!GlobalData::s_event_manager->GetRepeatEvent(0x40)->IsEventing(0) &&
-             !IsReturnUserParty() && !IsEventCharacParty()) || reward.m_field1 != 1)
+        // [G07 2026-09-11 · P354 部分改善] ORIG 0x085b42xx 三处 bool callee 为
+        //   `call; test %al,%al; jne/je`（**无 xor**，正极性短路链）；我方旧形
+        //   `(!A && !B && !C) || D` 令 4.4 对每个 `!callee()` 物化 `xor $0x1`（共 3 条）。
+        //   按 De Morgan 改写为正形，并**保持求值序与副作用完全一致**：
+        //   A/B/C 短路 → m_field1 → getCurCharacInvenW()/check_empty_count 仅在前两项
+        //   成立时求值（与原 `X 为假 ⇔ (A||B||C) && m_field1==1` 逐点同真），故
+        //   enableSaveInven 副作用的触发条件与次数不变。语义等价，仅消 xor。
+        if ((GlobalData::s_event_manager->GetRepeatEvent(0x40)->IsEventing(0) ||
+             IsReturnUserParty() || IsEventCharacParty()) &&
+            reward.m_field1 == 1 &&
+            reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()
+                ->check_empty_count(Inven_Item::ITEM_TYPE_EQUIP, 2) != 1)
         {
-            // 不清奖励槽
-        }
-        // b28d-solo-CParty2（p167）：ORIG 0x85b43aa `call getCurCharacInvenW`（**非 const** 版，
-        // 体内先 `call enableSaveInven` 再返回 inven 指针）⇒ 本处必须用 W 版（R 版无
-        // enableSaveInven 副作用 = 真语义缺口）。上方 tryInsertItemIntoInventory 处
-        // ORIG 0x85b4273 确为 R 版，保持不动。
-        else if (reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()
-                     ->check_empty_count(Inven_Item::ITEM_TYPE_EQUIP, 2) == 1)
-        {
-            // 空位充足，不清
-        }
-        else
-        {
+            // b28d-solo-CParty2（p167）：ORIG 0x85b43aa `call getCurCharacInvenW`（**非 const** 版，
+            // 体内先 `call enableSaveInven` 再返回 inven 指针）⇒ 本处必须用 W 版（R 版无
+            // enableSaveInven 副作用 = 真语义缺口）。上方 tryInsertItemIntoInventory 处
+            // ORIG 0x85b4273 确为 R 版，保持不动。
             reward.m_addInfo = 0;
             reward.m_addInfo2 = 0;
         }

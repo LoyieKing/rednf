@@ -9,6 +9,12 @@ bool importActiveStatusTable(const char* path)
     // dead 槽 -0x30..-0x38）+ 全帧槽号平移 + 4.1/4.4 bool while 归一化方向
     // 相反（ORIG `xor $1;test;jne` vs 4.4 `test;jne`，探针 g1/g2 实证不可翻）
     // + power 段索引地址计算时刻差（P75）。
+    // [G23S5 E1] P232/P348 反向探针：ORIG 槽阵 = v(-0x3c, 三段共用单槽)
+    // + 3 个 dead 槽(-0x38..-0x30) + token(-0x2c)…；本形把 level-rate 的
+    // int 提为函数级单变量，并补 3 个未使用 4 字节局部。
+    int levelValue;
+    int deadSlot1, deadSlot2, deadSlot3;
+
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(
@@ -59,22 +65,22 @@ bool importActiveStatusTable(const char* path)
         }
         else if (token == "[active status level rate for prob]")
         {
-            const int v = ScanInt(static_cast<bool*>(0));
+            levelValue = ScanInt(static_cast<bool*>(0));
             // [b28d-solo-ScriptDepsA] ORIG 0x089071dc 段：fstps 先落具名 float
             // 槽(-0x14) 再读回存全局（P252 槽往返形）。
-            const float rate = 0.01f * static_cast<float>(v);
+            const float rate = 0.01f * static_cast<float>(levelValue);
             ACTIVESTATUS_LEVEL_RATE_FOR_PROB = rate;
         }
         else if (token == "[active status level rate for power]")
         {
-            const int v = ScanInt(static_cast<bool*>(0));
-            const float rate = 0.01f * static_cast<float>(v);
+            levelValue = ScanInt(static_cast<bool*>(0));
+            const float rate = 0.01f * static_cast<float>(levelValue);
             ACTIVESTATUS_LEVEL_RATE_FOR_POWER = rate;
         }
         else if (token == "[active status level absolute rate]")
         {
-            const int v = ScanInt(static_cast<bool*>(0));
-            const float rate = 0.01f * static_cast<float>(v);
+            levelValue = ScanInt(static_cast<bool*>(0));
+            const float rate = 0.01f * static_cast<float>(levelValue);
             ACTIVESTATUS_LEVEL_ABSOLUTE_RATE = rate;
         }
         else if (token == "[lightning time per number]")

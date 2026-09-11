@@ -91,7 +91,11 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
                              db.m_ridable.m_ticket, db.m_ridable.m_freeTicket, db.m_ridable.m_curStar,
                              db.m_ridable.m_starPoolBase,
                              db.m_ridable.m_starPoint, static_cast<int>(db.m_ridable.m_maxClearRound),
-                             static_cast<int>(static_cast<unsigned short>(db.m_ridable.m_resetCount)),
+                             // [G19 N135/P357 类型轴] 字段 advancealtar.h:150 `short
+                             // m_resetCount` 已是 signed ⇒ 删内层 unsigned cast：
+                             // ORIG 0x813f2xx 两处均为 `movzwl 0x1a(%eax),%eax; cwtl`
+                             // （signed short→int），旧形强制零扩展 `movzwl %ax,%eax`。
+                             static_cast<int>(db.m_ridable.m_resetCount),
                              static_cast<int>(db.m_ridable.m_field20),
                              qStage, qSlot, qBuyItem, qReward,
                              data.m_characNo, (int)db.m_ridable.m_ridableId);
@@ -121,7 +125,8 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
                                  db.m_ridable.m_curStar, db.m_ridable.m_starPoolBase,
                                  db.m_ridable.m_starPoint,
                                  static_cast<int>(db.m_ridable.m_maxClearRound),
-                                 static_cast<int>(static_cast<unsigned short>(db.m_ridable.m_resetCount)),
+                                 // [G19 N135/P357] 同 update 分支：删内层 unsigned cast ⇒ cwtl。
+                                 static_cast<int>(db.m_ridable.m_resetCount),
                                  static_cast<int>(db.m_ridable.m_field20),
                                  qStage, qSlot, qBuyItem, qReward);
                 result = mysql->exec(true);

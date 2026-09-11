@@ -1,4 +1,4 @@
-int CDeathTower::handleStageCommand(CUser* user, unsigned char cmd)
+bool CDeathTower::handleStageCommand(CUser* user, unsigned char cmd)
 {
     if (m_party->getManager() != user)
     {

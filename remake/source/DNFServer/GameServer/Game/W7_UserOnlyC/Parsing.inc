@@ -81,8 +81,11 @@ bool CUser::Parsing(int received)
         if (remain < size)
             break;
 
-        int verdict = m_packetVerifier.UpdatePacket(hdr);
-        if (verdict != 0)
+        // [P-G7b] ORIG 0x08… 段 `call UpdatePacket; mov %eax,-0x20(%ebp);
+        // cmpl $0x0,-0x20(%ebp); setne %al; test %al,%al; je`（ORIG-only setcc）
+        // ⇒ 原码是赋值内嵌条件（两句式恒直折 je，无物化）。
+        int verdict = 0;
+        if ((verdict = m_packetVerifier.UpdatePacket(hdr)) != 0)
         {
             LogManager::logFormat(
                 1, "user.cpp", __PRETTY_FUNCTION__, 0x6f4,
