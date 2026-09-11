@@ -1,3 +1,4 @@
+#define _GLIBCXX_IOSTREAM 1
 // ============================================================================
 // [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
 //   每个完整函数块已移入 CompiledDNFLexCore/<Func>.inc（不参与编译、内部不含 #include）。
@@ -11,6 +12,7 @@
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
+#include <istream>
 #include <cstdio>
 #include <cstring>
 #include <new>
