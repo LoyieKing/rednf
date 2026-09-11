@@ -51,7 +51,7 @@ class CTournamentMatch : public IMatch { };
 #include "MatchingSystem/CMatchingSystem.inc"
 
 
-#include "MatchingSystem/dtor_CMatchingSystem.inc"
+// [SplitC batch6] dtor_CMatchingSystem 已拆出至 MatchingSystemDtor.cpp（真增量件，独立编译单元化）
 
 
 #include "MatchingSystem/GetMatchingSystem.inc"

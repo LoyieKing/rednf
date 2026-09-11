@@ -1005,6 +1005,11 @@ dnf_service(game
         ${SVC_DIR}/localchina_ActionPointSystem.cpp
         ${SVC_DIR}/SimpleSSO.cpp
         ${SVC_DIR}/SkillChanger.cpp
+        # ---- [SplitC 2026-09-11 batch6] A/B 类「拆壳即翻正」真增量件（3 个；BScan v2 + SplitC 双口径确认；
+        #      档位见 dnf_game_cxx.sh：CSkill 两件并入 CSkill.cpp 组（C6+i486）、MatchingSystemDtor 单列 444）----
+        ${SVC_DIR}/CSkillCanLearn.cpp
+        ${SVC_DIR}/CSkillMaxSkillLevel.cpp
+        ${SVC_DIR}/MatchingSystemDtor.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

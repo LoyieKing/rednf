@@ -132,10 +132,10 @@
 #include "CSkill/IsStealable.inc"
 
 
-#include "CSkill/can_learn.inc"
+// [SplitC batch6] can_learn 已拆出至 CSkillCanLearn.cpp（真增量件，独立编译单元化）
 
 
-#include "CSkill/getMaxSkillLevel.inc"
+// [SplitC batch6] getMaxSkillLevel 已拆出至 CSkillMaxSkillLevel.cpp（真增量件，独立编译单元化）
 
 
 #include "CSkill/get_need_sp_for_level.inc"

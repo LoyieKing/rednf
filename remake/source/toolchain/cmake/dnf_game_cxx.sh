@@ -502,6 +502,7 @@ case "$(basename "$src" .cpp)" in
             #   BattleMonsterTailC3B +1｜CItemGenerator +1｜ContainerTemplateInstantiations +1｜
             #   Dispatchers +1(NEAR)｜RestrictGeolocation +1。
             *Game/CNRDScriptData.cpp | *Game/CSkill.cpp | *Game/BattleMonsterTailC3B.cpp | \
+            *Game/CSkillCanLearn.cpp | *Game/CSkillMaxSkillLevel.cpp | \
             *Game/CItemGenerator.cpp | *Game/RestrictGeolocation.cpp | \
             *Game/ContainerTemplateInstantiations.cpp | *Game/Dispatchers.cpp | *Game/GmCore.cpp)
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
@@ -517,6 +518,10 @@ case "$(basename "$src" .cpp)" in
                 exec "$C6444R" "$@" -march=i486 -mtune=generic ;;
             #   CPowerManager   6/22/1/2    → 6/23/1/1    （+1；默认 447 档，无 i486 需求）
             *Game/CPowerManager.cpp)
+                exec "$C6444R" "$@" ;;
+            # [SplitC batch6 · BScan B 类真增量] MatchingSystem 虚析构拆壳 + 444 后端 ⇒ NEAR→AE（ndiff 6→0）。
+            #   反证：整 TU 换 444/446 会把 GetMatchingSystem AE→DIFF（净负）⇒ 拆壳是必要条件（BScan/BClassOne 实测）。
+            *Game/MatchingSystemDtor.cpp)
                 exec "$C6444R" "$@" ;;
             *Game/CUser.cpp)
                 # CUser：ORIG 为 4.4.6（构造/EH 着陆垫链、子对象寄存器形态；
