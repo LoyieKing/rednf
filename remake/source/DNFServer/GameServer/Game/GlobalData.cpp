@@ -3020,7 +3020,7 @@ CTEA* GlobalData::s_pcryptTEA_SecurityCard_ = 0;
 // ①ORIG 用字面上界地址 0x948b180 / 字面基址 0x9483a40 做 cmp，我们靠链接期 R_386_32
 // reloc 填（未 relink 显示占位 0，§6.3 假阳性）；②18 vs 15 差在 ORIG 额外一条 `mov 上界,%ebx`
 // 预载。语义等价，relink 后转 AE。
-SPremiumInfo g_SPremiumInfo[0x6a];             // 09483a40；全局 C 名（无命名空间，ORIG B）；静态初始化逐元素构造（ORIG _GLOBAL__I_g_SPremiumInfo 0x86b080a）
+// [SplitC batch9 · 档2] g_SPremiumInfo 定义已迁出至 UserPremium.cpp（ORIG GI 键对齐；构造序敏感件）             // 09483a40；全局 C 名（无命名空间，ORIG B）；静态初始化逐元素构造（ORIG _GLOBAL__I_g_SPremiumInfo 0x86b080a）
 WongWork::CSimpleSSO* GlobalData::s_psimpleSSO = 0;
 WongWork::CSecurityCardCenter* GlobalData::s_securityCardCenter = 0;
 WongWork::CGMAccounts* GlobalData::s_pGMAccounts_ = 0;

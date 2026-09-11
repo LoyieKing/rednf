@@ -45,4 +45,3 @@ int CServerEvent::m_nCurEventInterval[0x100] = {0};  // 0x943c144
 
 
 #include "CServerEvent/GetEventInterval.inc"
-

@@ -242,7 +242,6 @@ dnf_service(game
         ${SVC_DIR}/CHackLog_OverDamage.cpp
         ${SVC_DIR}/GameSecurity.cpp
         ${SVC_DIR}/CServerEvent.cpp
-        ${SVC_DIR}/InitEnvHelpers.cpp
         ${SVC_DIR}/UserPacketCounter.cpp
         ${SVC_DIR}/CAppLoadChecker.cpp
         ${SVC_DIR}/PacketTypes.cpp
@@ -419,7 +418,6 @@ dnf_service(game
         ${SVC_DIR}/TimerQueue.cpp
         ${SVC_DIR}/EpollHandler.cpp
         ${SVC_DIR}/CTEA.cpp
-        ${SVC_DIR}/LogManager.cpp
         ${SVC_DIR}/GlobalData.cpp
         ${SVC_DIR}/CGlobalEffectManager.cpp
         ${SVC_DIR}/CSystemTime.cpp
@@ -575,7 +573,6 @@ dnf_service(game
         ${SVC_DIR}/RandomValue.cpp
         ${SVC_DIR}/RDARScriptStringManager.cpp
         ${SVC_DIR}/StringDictionary.cpp
-        ${SVC_DIR}/ItemGloballyUniqueIdentifierGenerator.cpp
         ${SVC_DIR}/RefPvpGrade.cpp
         ${SVC_DIR}/NeedMaterialDataManager.cpp
         ${SVC_DIR}/SeriaRoomAniDeco.cpp
@@ -591,7 +588,6 @@ dnf_service(game
         ${SVC_DIR}/GameScriptEnumHelpers.cpp
         ${SVC_DIR}/RandomOptionScript.cpp
         ${SVC_DIR}/STDungeonScript.cpp
-        ${SVC_DIR}/STEquipmentScript.cpp
         ${SVC_DIR}/STMapScript.cpp
         ${SVC_DIR}/STMonsterScript.cpp
         ${SVC_DIR}/STQuestScript.cpp
@@ -609,7 +605,6 @@ dnf_service(game
         ${SVC_DIR}/CEventCreateDnf.cpp
         ${SVC_DIR}/CreateDnfEventSciprt.cpp
         ${SVC_DIR}/CCharacInformNotice.cpp
-        ${SVC_DIR}/CListTables.cpp
         ${SVC_DIR}/AvatarCoin.cpp
         ${SVC_DIR}/Arad_AvatarRoulette.cpp
         ${SVC_DIR}/DB_U3.cpp
@@ -627,7 +622,6 @@ dnf_service(game
         ${SVC_DIR}/CMonster.cpp
         ${SVC_DIR}/CHackAnalyzer.cpp
         ${SVC_DIR}/CSecu_ProtectionField.cpp
-        ${SVC_DIR}/CSlotBoundChecker.cpp
         ${SVC_DIR}/CValueStatistic.cpp
         ${SVC_DIR}/Gm_List.cpp
         ${SVC_DIR}/GmCore.cpp
@@ -654,7 +648,6 @@ dnf_service(game
         ${SVC_DIR}/CCharacterView.cpp
         ${SVC_DIR}/CCharacter.cpp
         ${SVC_DIR}/CharacterAIA2.cpp
-        ${SVC_DIR}/CUserPremium.cpp
         ${SVC_DIR}/CHandlePremium.cpp
         ${SVC_DIR}/CPowerManager.cpp
         ${SVC_DIR}/CPrePayInfoMgr.cpp
@@ -777,7 +770,6 @@ dnf_service(game
         ${SVC_DIR}/AvatarConvertServer.cpp
         ${SVC_DIR}/AvatarItem.cpp
         ${SVC_DIR}/CAvatarItemMgr.cpp
-        ${SVC_DIR}/DNFLexWrapperHelpers.cpp
         ${SVC_DIR}/DNFLexWrapper.cpp
         ${SVC_DIR}/DNFLexWrapperStream.cpp
         ${SVC_DIR}/DNFLexWrapperLoadStream.cpp
@@ -1105,6 +1097,14 @@ dnf_service(game
         ${SVC_DIR}/localchina_sender.cpp
         ${SVC_DIR}/rank.cpp
         ${SVC_DIR}/tournament.cpp
+        ${SVC_DIR}/STEquipmentScript.cpp
+        ${SVC_DIR}/LogManager.cpp
+        ${SVC_DIR}/CListTables.cpp
+        ${SVC_DIR}/ItemGloballyUniqueIdentifierGenerator.cpp
+        ${SVC_DIR}/CUserPremium.cpp
+        # ---- [SplitC batch9] routeB_data 档2（构造序敏感；relink 后需启动观测）----
+        ${SVC_DIR}/UserPremium.cpp
+        ${SVC_DIR}/RDARScript.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

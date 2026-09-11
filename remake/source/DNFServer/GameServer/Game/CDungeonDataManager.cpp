@@ -1,3 +1,4 @@
+// ===== [SplitC batch9 · A 手法合并] holder=CDungeonDataManager.cpp ← T=InitEnvHelpers.cpp（T 内容追加末尾；原 T 已从 CMake 移除）=====
 // ============================================================================
 // [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
 //   每个完整函数块已移入 CDungeonDataManager/<Func>.inc（不参与编译、内部不含 #include）。
@@ -84,4 +85,102 @@ CDungeonDataManager& GetInstanceDungeonDataManager()
 
 #include "CDungeonDataManager/UpdateDungeonDataStatistic.inc"
 
+
+
+
+// ===== [merged from InitEnvHelpers.cpp] =====
+// ============================================================================
+// [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
+//   每个完整函数块已移入 InitEnvHelpers/<Func>.inc（不参与编译、内部不含 #include）。
+//   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+//   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
+//   换成一行 #include；include 的**位置即原函数定义位置**。
+//   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
+//     __static_initialization_and_destruction_0ii 仍各一份（不新增符号）；
+//     outgoing 帧继承（P210②）/ EH cleanup / weak COMDAT 取值构造性保持。
+//   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
+//     不会再截断函数。改动 include 顺序会改 codegen。
+// ============================================================================
+
+#include <string>
+#include <vector>
+
+#include "InitEnvHelpers/SetCollectDungeonStatistic_decl_placeholder.inc"
+
+#include "InitEnvHelpers/SetCollectDungeonStatistic.inc"
+#include "InitEnvHelpers/prepareServerDelayCheckDamage.inc"
+// ---------------------------------------------------------------------------
+// ORIG importCreatureCommonScript / importEtcParameterScriptForServer
+// （真实符号，定义由脚本装载批次提供）
+// ---------------------------------------------------------------------------
+class CreatureCommonScript;
+
+#include "InitEnvHelpers/importCreatureCommonScript.inc"
+                                std::vector<int>* damageTable);
+    // _Z26importCreatureCommonScriptP20CreatureCommonScriptPKcPSt6vectorIiSaIiEE
+
+#include "InitEnvHelpers/importEtcParameterScriptForServer.inc"
+    // _Z33importEtcParameterScriptForServerv
+
+// ---------------------------------------------------------------------------
+// CreatureCommonScript（ORIG C1 0x08096ab4 / clear 0x08096a2c / D1 0x08096b22）
+//   clear：+0x00..+0x14 六个 int 清零 → vector<int>@+0x18/.clear()
+//          → vector<int>@+0x24/.clear() → +0x30=1 → +0x34=1 → +0x38=100(0x64)
+//          → +0x3c=0
+//   C1：vector@+0x18 构造 → vector@+0x24 构造 → clear()
+//   D1：~vector@+0x24 → ~vector@+0x18（成员逆序析构）
+//   尺寸按 ORIG 调用方栈对象 0x58（Ghidra local [88]）补尾垫。
+// ---------------------------------------------------------------------------
+class CreatureCommonScript
+{
+public:
+
+    CreatureCommonScript() { clear(); }   // ORIG C1：vector 成员默认构造 + clear()
+    ~CreatureCommonScript();
+
+    void clear();
+    // [b28d-62] P238：ORIG clear 0x08096a35 对 +0x00 发 `mov $0x0,%edx;
+    //   mov %edx,(%eax)`（常量 store 经 edx 中转）⇒ 字段真型 float（`= 0.0f`
+    //   复现中转形；宽度/偏移/sizeof 不变）。
+    float m_field00;                // +0x00（clear 清零）
+    int m_field04;                  // +0x04
+    int m_field08;                  // +0x08
+    int m_field0c;                  // +0x0c
+    int m_field10;                  // +0x10
+    int m_field14;                  // +0x14
+    std::vector<int> m_vec18;       // +0x18（clear 清空）
+    std::vector<int> m_vec24;       // +0x24（clear 清空）
+    int m_field30;                  // +0x30（clear 置 1）
+    int m_field34;                  // +0x34（clear 置 1）
+    int m_field38;                  // +0x38（clear 置 0x64）
+    int m_field3c;                  // +0x3c（clear 置 0）
+    char m_pad40[0x18];             // +0x40..+0x57（至 ORIG 栈对象尺寸 0x58）
+};
+
+#include "InitEnvHelpers/dtor_CreatureCommonScript.inc"
+
+#include "InitEnvHelpers/clear.inc"
+
+
+// ORIG g_creature_damage_vector_ B 0x093f5d50 (0xc)：生物伤害表装载目标。
+std::vector<int> g_creature_damage_vector_;
+
+#include "InitEnvHelpers/prepareServerDelayCheckDamage_1.inc"
+
+
+// ===========================================================================
+// 地下城统计采集开关（ORIG DungeonData 域：0x8484a47/51/67 三连；
+// Set 由 CDataManager::init @0x835a4bd 调用，Is 由 CParty 域 @0x85b5xxx 消费）
+// ===========================================================================
+
+bool* GetCollectDungeonStatistic(void)
+{
+    static bool collect_dungeon_statistic;   // ORIG _ZZ26GetCollectDungeonStatisticvE25collect_dungeon_statistic
+    return &collect_dungeon_statistic;    // ORIG mov $0x943d520,%eax
+}
+
+#include "InitEnvHelpers/IsCollectDungeonStatistic.inc"
+
+
+#include "InitEnvHelpers/SetCollectDungeonStatistic_1.inc"
 

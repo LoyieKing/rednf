@@ -77,7 +77,7 @@ namespace server_utility
 // ---------------------------------------------------------------------------
 char g_petScriptBaseDirectory[0x100];    // ORIG B 0x094ff3c0
 STScriptFileList g_petScriptFileList;    // ORIG B 0x094ff4c0
-PackSet g_script_package;                // ORIG B 0x09494fe0
+// [SplitC batch9 · 档2] g_script_package 定义已迁出至 RDARScript.cpp（ORIG GI 键对齐）                // ORIG B 0x09494fe0
 
 #include "OnlyOrigBatch12_server_utility/initPetScript.inc"
 

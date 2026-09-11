@@ -173,4 +173,3 @@ enum ENUM_TRADESTATE
 #include "CTradeSpace/regist_item.inc"
 
 #include "CTradeSpace/remove_item.inc"
-
