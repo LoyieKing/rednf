@@ -1078,6 +1078,33 @@ dnf_service(game
         ${SVC_DIR}/PacketCounter.cpp
         ${SVC_DIR}/PacketLock.cpp
         ${SVC_DIR}/PunishRuleIPCounter.cpp
+        # ---- [SplitC batch7-A4] 文件名回退型末批（26 个；90 条收官）----
+        ${SVC_DIR}/PunishRuleMng.cpp
+        ${SVC_DIR}/RacingDungeon.cpp
+        ${SVC_DIR}/Ridable.cpp
+        ${SVC_DIR}/RidableEvent.cpp
+        ${SVC_DIR}/ScriptLoadBridge.cpp
+        ${SVC_DIR}/SecuDBWork.cpp
+        ${SVC_DIR}/Secu_DivideUserCode.cpp
+        ${SVC_DIR}/Secu_GoblinPadImage.cpp
+        ${SVC_DIR}/Secu_HackState.cpp
+        ${SVC_DIR}/SecurityPadInterface.cpp
+        ${SVC_DIR}/ShutdownSystemEvent.cpp
+        ${SVC_DIR}/global_DBThread.cpp
+        ${SVC_DIR}/global_MemoryLogging.cpp
+        ${SVC_DIR}/historyLog_china.cpp
+        ${SVC_DIR}/localchina_CeraShop.cpp
+        ${SVC_DIR}/localchina_CharacPremium.cpp
+        ${SVC_DIR}/localchina_CharacPremium_Dispatcher.cpp
+        ${SVC_DIR}/localchina_CouponSystem.cpp
+        ${SVC_DIR}/localchina_InterDispatcher.cpp
+        ${SVC_DIR}/localchina_OccupyDungeon.cpp
+        ${SVC_DIR}/localchina_Statistics.cpp
+        ${SVC_DIR}/localchina_StatisticsTowerOfDespair.cpp
+        ${SVC_DIR}/localchina_security.cpp
+        ${SVC_DIR}/localchina_sender.cpp
+        ${SVC_DIR}/rank.cpp
+        ${SVC_DIR}/tournament.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"
