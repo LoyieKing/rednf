@@ -39,8 +39,11 @@ void CUser::sendBackSecurityAuthRequest()
     //   CUser::getPad` 后 eax 直用（**无栈槽**，p167 差集：ORIG getPad ×5 我方 0）
     //   ⇒ 源码为右值临时直用，禁具名 `CPad* pad` 局部。
     getPad()->GenerateRandomData();
-    // [G23S4 试形 P231·移位] ORIG 0x086808f4 前后才发 `lea -0x890(%ebp),%edi`
-    //   （即首次使用点前），故把 register 指针的声明挪到使用点紧邻处。
+    // [G23S4 改善·P231 命中] ORIG 0x086808f4 前后发 `lea -0x890(%ebp),%edi` 并跨 call
+    //   保活（用点 `mov %edi,0x10(%esp)`；4.1 对 `&encrypted[0]` 做 CSE）。裸 `register`
+    //   指针（无 asm 绑定，P231 合法形）令 4.4 同样把地址保活到 %edi ⇒ 本件 ndiff 10→4
+    //   （236=236、gap 0），残余仅 put_binary 的 store 调度一处（N）。
+    //   ⚠ 声明必须**紧邻使用点**：放在数组声明后 4.4 会提前发射该 lea（回退到原 diff）。
     register unsigned char* pEncrypted = &encrypted[0];
     // [P2S6 2026-09-11] ORIG 0x08680805..0x08680834：`movzwl %ax,%eax; shl $0x4,%eax;
     //   mov manager_(%eax),%eax` 后直接压栈调 Encrypt（无 cipherIdx/cipherKey/cipher

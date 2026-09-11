@@ -134,7 +134,13 @@ static_assert(sizeof(SIG_ARRANGE_USER_LOGIN_INFO) == 0xc,
 struct SIG_AUCTION_NOTIFY_AUCTION_SERVICE
 {
     int m_result;            // +0x00（AG 域写 0，PG 域写 1）
-    unsigned char m_flag;    // +0x04 附加标志（0/1）
+    // [g01 2026-09-11 · P357 类型轴] unsigned char → bool（同 1 字节；sizeof/偏移/mangled 不变）。
+    //   依据：消费点 Inter_AuctionNotifyAuctionService::dispatch_sig ORIG 0x084d7b1d/0x084d7b3a
+    //   为 `movzbl 0x4(%eax),%eax`（折叠 disp、无 `test;setne`）⇒ 原字段即 bool。
+    //   探针 /tmp/lane_diff/g1/probe/z5.cpp（444+i486）：uchar 字段产 add 两步 / 隐式转换产
+    //   `test;setne`；bool 字段产 ORIG 逐条形。写点 CAuction/dispatchAuctionPacket.inc 全为
+    //   `= 1/0`（纯写，bool 兼容）。
+    bool m_flag;             // +0x04 附加标志（0/1）
 };
 static_assert(sizeof(SIG_AUCTION_NOTIFY_AUCTION_SERVICE) == 5,
               "SIG_AUCTION_NOTIFY_AUCTION_SERVICE ABI drift");

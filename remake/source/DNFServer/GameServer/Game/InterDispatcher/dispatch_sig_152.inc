@@ -18,13 +18,13 @@ int Inter_AuctionNotifyAuctionService::dispatch_sig(CUser* /*user*/, char* data,
         //   按 bool 直读（值域 0/1，ORIG 与本形都只传低字节 ⇒ 行为同）⇒ 探针
         //   /tmp/P5/bconv.cpp f2 实证逐条 = ORIG 形（无规范化）。
         GlobalData::s_cera_auction_proxy->SetRunning(
-            *reinterpret_cast<bool*>(&sig->m_flag));
+            sig->m_flag);
     }
     else
     {   // 金币拍卖服
         // 同上（ORIG 084d7b3a 同形）。
         GlobalData::s_auction_proxy->SetRunning(
-            *reinterpret_cast<bool*>(&sig->m_flag));
+            sig->m_flag);
     }
 
     // ORIG 084d7b59 +0x091 `movzbl 0x4(%eax),%eax; test %al,%al; je +0xaa`（跳到 $0 块）

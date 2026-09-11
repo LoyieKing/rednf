@@ -4,12 +4,15 @@
 int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // ORIG 0x081ddd00 (0xd4 insn)
-    MsgMercenaryCompetition& req = reinterpret_cast<MsgMercenaryCompetition&>(msg);
-    SendMercenaryCompetitionResult& result = static_cast<SendMercenaryCompetitionResult&>(param);
+    // [g02 试形B] ORIG 0x081ddd17 段之后（两条 guard 之后）才物化 req(-0x10)/result(-0xc)
+    //   引用槽（`jmp` 后的 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)` 一对）⇒ 声明后移；
+    //   旧形在函数头物化 ⇒ 槽序前移、我方多 -0x14/-0x10 两槽、帧 0x38 vs ORIG 0x24。
     if (user == 0)
         return -1;
     if (user->get_state() != 3)
         return -1;
+    MsgMercenaryCompetition& req = reinterpret_cast<MsgMercenaryCompetition&>(msg);
+    SendMercenaryCompetitionResult& result = static_cast<SendMercenaryCompetitionResult&>(param);
 
     // [A4 P0] ORIG 0x081ddd61/0x081ddd84/0x081ddd98/0x081dddb8/0x081dddc7/0x081dddd4/
     //   0x081ddde1..0x081dddf5 每处均 `mov -0x10(%ebp),%eax; mov 0x10/0x14/0x15(%eax),%..`
@@ -19,7 +22,9 @@ int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamB
         user->getCurCharacNo() ==
             static_cast<int>(*reinterpret_cast<unsigned int*>(req.m_pad + 3)))
     {
-        *reinterpret_cast<char*>(reinterpret_cast<char*>(&result) + 0x04) = 0; // param+4 = 0
+        // [g02 试形B] result 侧裸偏移 → 具名成员（P-g03-b 反向：ORIG `movb $0x0,0x4(%eax)`
+        //   单条 disp 折叠；裸 `(char*)&result + 0x04` 恒产 `add $0x4,%eax; movb $0x0,(%eax)`）。
+        result.m_isMyCharac = 0;                        // +0x04
         return -1;
     }
 
@@ -28,11 +33,11 @@ int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamB
         *reinterpret_cast<unsigned int*>(req.m_pad + 3),
         static_cast<char>(req.m_pad[8]),
         static_cast<char>(req.m_pad[7]));
-    reinterpret_cast<char*>(&result)[0x04] = static_cast<char>(ret & 0xff);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&result) + 0x08) =
-        *reinterpret_cast<unsigned int*>(req.m_pad + 3);
-    reinterpret_cast<char*>(&result)[0x0c] = req.m_pad[8];
-    reinterpret_cast<char*>(&result)[0x0d] = req.m_pad[7];
+    // [g02 试形B] 同上：result 具名成员（ORIG 0x081dddbb/…dc1/…dce/…ddb 全为 disp 折叠形）
+    result.m_isMyCharac = static_cast<unsigned char>(ret & 0xff);   // +0x04
+    result.m_characNo = *reinterpret_cast<unsigned int*>(req.m_pad + 3);  // +0x08
+    result.m_charac = static_cast<unsigned char>(req.m_pad[8]);     // +0x0c
+    result.m_charac2 = static_cast<unsigned char>(req.m_pad[7]);    // +0x0d
     // ORIG: cUserHistoryLog::MercenaryCompetition(user->m_historyLog, targetNo, b0x15, b0x14)
     user->m_historyLog.MercenaryCompetition(
         *reinterpret_cast<unsigned int*>(req.m_pad + 3),
