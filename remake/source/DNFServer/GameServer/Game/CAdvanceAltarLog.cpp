@@ -62,7 +62,9 @@
     // 单 int 局部/单 ll 局部）：4.4 恒 sub $0x18 参数槽拷贝或丢 sar 尾 → N 封顶。
     // [b28c-27] 复核：N18a（4.1 冗余 regmove 不可造）；本形 16/12 条残差 4 条全为
     // 死序（`mov -0x4,%edx; mov %eax,%edx; mov $0,%eax; mov %edx,%eax`）。
-    return static_cast<int>(key);
+// [VerifyN3 2026-09-11 翻正·P345] 改用**移位链** `key << 32 >> 32`（低 32 位符号扩展）：
+// 4.4 直出与 ORIG 逐条全等（16/16），旧 `static_cast<int>` 形恒缺 4 条死序 ⇒ 判词作废。
+    return key << 0x20 >> 0x20;
 }
 
 // ORIG getLevel @0x08157336：shld+shl 组合 (key<<16) 后取高 32 位 sar 16

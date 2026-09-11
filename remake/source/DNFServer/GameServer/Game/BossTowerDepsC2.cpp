@@ -80,7 +80,14 @@ namespace pvp_assault
         packet.put_byte(m_dir);
         packet.finalize(true);
 
-        if (m_destVill != 0 || m_destArea != 0)
+        // [VerifyN2 2026-09-11 · 三轴免疫件实测翻正] 旧判 N82「块序封顶」作废：
+        //   写成「否定前置空 then + else」即复现 ORIG 0x082e567c 的块序
+        //   （send_to_area → ~PacketGuard → jmp epilogue；正向 if 形 4.4 把
+        //   ~PacketGuard 放到 jmp 之后）⇒ 件级 DIFF→AE（158=158，ndiff 6→0）。
+        if (m_destVill == 0 && m_destArea == 0)
+        {
+        }
+        else
         {
             G_GameWorld()->send_to_area(m_destVill, m_destArea, packet);
         }
