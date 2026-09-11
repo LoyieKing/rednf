@@ -553,7 +553,7 @@ public:
     void SendWarRoomList(CUser* user);
     void Send_userinfos_to_upper_server(unsigned char channelType);
     void send_userinfos_to_cutoff_server();
-    unsigned int insert_game_world(CUser* user);
+    bool insert_game_world(CUser* user);   // ORIG prett `bool CGameManager::insert_game_world(CUser*)`（P139 串修，返回类型不入 mangling）
     void updateDBLinkCharacConnectState(
         unsigned int accId, unsigned int characNo,
         ENUM_CHARAC_LINK_ACTION_TYPE action);

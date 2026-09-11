@@ -14,8 +14,8 @@
 // ============================================================================
 // [SweepCParty] 补真缺口：GetChannelScript 前第三次独立 call G_CDataManager
 //（旧码复用 dm ⇒ p167 MISS 1，已消）。p167 58=58 CLEAR（余 C1/C2 别名）。
-void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
-                                            stClearRewardExpParameter_t& param)
+void CParty::set_clear_reward_exp_parameter(CUser* user, uint exp,
+                                            stClearRewardExpParameter_t& param)   // [G07] 拼写同 ORIG（见 CParty.h 注释）
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS G_CDataManager（1 次，局部 dm 已存在但少一次重调）。@0x85adb00
     // [2026-09-11 CPartyWriter] 两处落地（读数 431→431，净零但方向与 ORIG 形一致、四数不劣）：

@@ -553,7 +553,11 @@ public:
     int set_play_result(CUser* user, GameResultSet& result);   // ORIG 返回 eax=0（0x85b2068）
     void forced_set_play_result();
     bool SetPlayResult(CUser* user);   // ORIG 0x85b2412 返回 0/1；[b28d-Main·检查点14 P292] 调用点 xor $1 ⇒ bool
-    void set_clear_reward_exp_parameter(CUser* user, unsigned int a,
+    // [G07 2026-09-12 · 第四轴②] ORIG .rodata 0x08cbb5e0(size 0x58) = `void CParty::
+    //   set_clear_reward_exp_parameter(CUser*, uint, stClearRewardExpParameter_t&)`
+    //   ⇒ 原声明用 **uint**（typedef `unsigned int`，mangled/ABI 零变化）；拼写决定
+    //   `__PRETTY_FUNCTION__` 串内容（探针 pfprobe3：uint ↔ unsigned int 两串不同）。
+    void set_clear_reward_exp_parameter(CUser* user, uint a,
                                        stClearRewardExpParameter_t& param);
     unsigned int getClearRewardBonusExp(CUser* user, unsigned int& a,
                                 stClearRewardExpParameter_t const& param,

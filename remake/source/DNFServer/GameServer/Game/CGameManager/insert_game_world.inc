@@ -1,4 +1,4 @@
-unsigned int CGameManager::insert_game_world(CUser* user)
+bool CGameManager::insert_game_world(CUser* user)   // P139：ORIG prett 串 = `bool CGameManager::insert_game_world(CUser*)`
 {
     // b28d-lane12: N82 槽平移封顶（orig=890 our=905 gap=-15；ndiff 831——大帧
     // 局部槽组 + 迭代器/Guard 分区差）。ORIG 0x08296d30。
