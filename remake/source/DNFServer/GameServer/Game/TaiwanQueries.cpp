@@ -121,7 +121,7 @@ namespace Taiwan {
 // ---------------------------------------------------------------------------
 
 // ORIG B 0x09404754（静态对象；本体由 __static_initialization 构造）
-COpensslRSA AuthGarenaToken::openSSLRSA_;
+// [SplitC batch10 · 档2] openSSLRSA_ 定义已迁出至 TaiwanAuth.cpp（ORIG GI 键对齐；构造序敏感）
 
 #include "TaiwanQueries/init.inc"
 

@@ -2970,7 +2970,7 @@ struct CDBEnvServerGroupMapView
 // ============================================================================
 
 bool GlobalData::s_server_stop = false;
-std::map<std::string, std::vector<int> > CHumanCertifier::humanCertifyTable_;  // ORIG B 0x93f5758
+// [SplitC batch10 · 档2] humanCertifyTable_ 定义已迁出至 CSHumanCertifyTable.cpp（ORIG GI 键对齐；构造序敏感）  // ORIG B 0x93f5758
 CSystemTime GlobalData::s_systemTime_;
 CaptchaGen GlobalData::cg_;
 MsgQueueMgr* GlobalData::s_msgq_mgr = 0;

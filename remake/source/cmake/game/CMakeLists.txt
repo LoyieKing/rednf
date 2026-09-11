@@ -1105,6 +1105,8 @@ dnf_service(game
         # ---- [SplitC batch9] routeB_data 档2（构造序敏感；relink 后需启动观测）----
         ${SVC_DIR}/UserPremium.cpp
         ${SVC_DIR}/RDARScript.cpp
+        ${SVC_DIR}/CSHumanCertifyTable.cpp
+        ${SVC_DIR}/TaiwanAuth.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"
