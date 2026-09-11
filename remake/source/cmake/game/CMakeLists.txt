@@ -1010,6 +1010,74 @@ dnf_service(game
         ${SVC_DIR}/CSkillCanLearn.cpp
         ${SVC_DIR}/CSkillMaxSkillLevel.cpp
         ${SVC_DIR}/MatchingSystemDtor.cpp
+        # ---- [SplitC 2026-09-11 batch7-A1] 文件名回退型键（90 条首批 10 个；每件 = 单行 `#include <iostream>`，
+        #      目标键 `_GLOBAL__I_<TU>.cpp`；路由 0 行改动（默认档 C6 即命中，KeyScan 1080 次编译实证）----
+        ${SVC_DIR}/AASHandler.cpp
+        ${SVC_DIR}/Arad_6ThBirthdayEvent.cpp
+        ${SVC_DIR}/Arad_AncientMysticCubeMgr.cpp
+        ${SVC_DIR}/Arad_AvatarPottery.cpp
+        ${SVC_DIR}/Arad_ConditionEventManager.cpp
+        ${SVC_DIR}/Arad_Decoration.cpp
+        ${SVC_DIR}/Arad_DetectiveGoblin.cpp
+        ${SVC_DIR}/Arad_DyeBoosterSystem.cpp
+        ${SVC_DIR}/Arad_EcoItemRecycleMng.cpp
+        ${SVC_DIR}/Arad_GmCmdForceLoadCharac.cpp
+        # ---- [SplitC batch7-A2] 文件名回退型第 2 批（27 个）----
+        ${SVC_DIR}/Arad_Housing.cpp
+        ${SVC_DIR}/Arad_HousingConvertor.cpp
+        ${SVC_DIR}/Arad_HousingManager.cpp
+        ${SVC_DIR}/Arad_HousingTree.cpp
+        ${SVC_DIR}/Arad_ItemRewardProcess.cpp
+        ${SVC_DIR}/Arad_MacroSender.cpp
+        ${SVC_DIR}/Arad_MinorityTravelerMng.cpp
+        ${SVC_DIR}/Arad_StampEvent.cpp
+        ${SVC_DIR}/Arad_SwitchEquipInven.cpp
+        ${SVC_DIR}/Arad_TreasureHuntEvent.cpp
+        ${SVC_DIR}/Arad_Type_Define.cpp
+        ${SVC_DIR}/BillingThread.cpp
+        ${SVC_DIR}/CharacterActionLog.cpp
+        ${SVC_DIR}/CharacterRewardBonusEvent.cpp
+        ${SVC_DIR}/CharacterStateLog.cpp
+        ${SVC_DIR}/CleanUp.cpp
+        ${SVC_DIR}/CoinEvent.cpp
+        ${SVC_DIR}/CompoundCreature.cpp
+        ${SVC_DIR}/Container.cpp
+        ${SVC_DIR}/ControlDropRateEvent.cpp
+        ${SVC_DIR}/CouponSystem.cpp
+        ${SVC_DIR}/CreatureGacha.cpp
+        ${SVC_DIR}/DBThreadEvent.cpp
+        ${SVC_DIR}/DF_ChattingServerProxy.cpp
+        ${SVC_DIR}/DF_CompetitionServerProxy.cpp
+        ${SVC_DIR}/DF_NexonBillingProxy.cpp
+        ${SVC_DIR}/DF_SocialEventServerProxy.cpp
+        # ---- [SplitC batch7-A3] 文件名回退型第 3 批（27 个）----
+        ${SVC_DIR}/DailyOnTimeEvent.cpp
+        ${SVC_DIR}/DailyRandomQuestScript.cpp
+        ${SVC_DIR}/DualRaidDungeon.cpp
+        ${SVC_DIR}/DungeonPartyManager.cpp
+        ${SVC_DIR}/EventBaseProc.cpp
+        ${SVC_DIR}/EventProcMgr.cpp
+        ${SVC_DIR}/Global_ReadPacket_Client2Server.cpp
+        ${SVC_DIR}/GrowthCapsuleEvent.cpp
+        ${SVC_DIR}/HackAnalyzer_New.cpp
+        ${SVC_DIR}/HackType.cpp
+        ${SVC_DIR}/IdleUserCut.cpp
+        ${SVC_DIR}/InterDispatcherEvent.cpp
+        ${SVC_DIR}/ItemSimulatorAdapter.cpp
+        ${SVC_DIR}/JumpingCharacter.cpp
+        ${SVC_DIR}/LogServerProxy.cpp
+        ${SVC_DIR}/LotteryCount.cpp
+        ${SVC_DIR}/MileageShop.cpp
+        ${SVC_DIR}/MobileServerProxy.cpp
+        ${SVC_DIR}/Mutex.cpp
+        ${SVC_DIR}/NewAccountLevelUpEvent.cpp
+        ${SVC_DIR}/NxAuthHandler.cpp
+        ${SVC_DIR}/OnTimeEvent_OneHour.cpp
+        ${SVC_DIR}/OntimeItemUpgradeMng.cpp
+        ${SVC_DIR}/OtherServerTcpThread.cpp
+        ${SVC_DIR}/PacketCounter.cpp
+        ${SVC_DIR}/PacketLock.cpp
+        ${SVC_DIR}/PunishRuleIPCounter.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"
