@@ -96,6 +96,11 @@ case "$src" in
             *Game/CInventory.cpp | \
             *Game/CItem.cpp | \
             *Game/CItemDictionary.cpp | \
+            *Game/W9Interval.cpp | \
+            *Game/BlueMarble.cpp | \
+            *Game/CDungeonClear.cpp | \
+            *Game/CPartyTelePort.cpp | \
+            *Game/AvatarConvertServer.cpp | \
             *Game/CItemList.cpp | \
             *Game/CItemShop.cpp | \
             *Game/CItemUpgrade.cpp | \
@@ -385,7 +390,10 @@ case "$(basename "$src" .cpp)" in
             #   LinkClosureA_Misc        1/2/1/1  → 1/3/0/1
             #   GameMain                 62/212/3/3 → 62/213/1/4（non-identical 6→5；
             #     round5 曾判回退，本波源码已变后重测为净改善）
-            *Game/CBattle_Field_KillChain.cpp | \
+            *Game/CBattle_Field_KillChain.cpp)
+                # [Main·2026-09-11 Round10 · i486 轴] +`-march=i486 -mtune=generic`：
+                #   1 件 DIFF→AE，四数 45/77/0/2 → **45/78/0/1**（comm-3=0、missing 不变）。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/CMaxFatigueFactorEvent.cpp | \
             *Game/CUserStatA.cpp | \
             *Game/DispLinkA3.cpp | \
@@ -407,6 +415,17 @@ case "$(basename "$src" .cpp)" in
                 #   ⇒ `ARAD::ARAD_CRYPT::encryptAES` 与 `ARAD::encryptAES` 两件 NEAR→AE，
                 #     零回归（其余件读数不变）。
                 exec "$C6446R" "$@" ;;
+            # [Main·2026-09-11 Round10 · FeasB 全量真口径 3 轴扫描 · i486 轴（+18 件，零 down）]
+            #   机理 = 恢复 ORIG 4.1 的 x87 比较 lowering（N85）：`fucompp;fnstsw %ax;test $0x45,%ah;sete`
+            #   vs 4.4.7 默认 `fucomip %st(1),%st;fstp;seta`。arch 对照 i386≡i486≡i586 最优、i686 无收益；
+            #   `-mtune=generic` 必须同带（历史：单独 -march=i486 会崩）。
+            #   各 TU 增益（全部 comm-3=0、missing 不变、零 down）：CNRDScriptData +3｜GmCore +3｜CSkill +2(NEAR)｜
+            #   BattleMonsterTailC3B +1｜CItemGenerator +1｜ContainerTemplateInstantiations +1｜
+            #   Dispatchers +1(NEAR)｜RestrictGeolocation +1。
+            *Game/CNRDScriptData.cpp | *Game/CSkill.cpp | *Game/BattleMonsterTailC3B.cpp | \
+            *Game/CItemGenerator.cpp | *Game/RestrictGeolocation.cpp | \
+            *Game/ContainerTemplateInstantiations.cpp | *Game/Dispatchers.cpp | *Game/GmCore.cpp)
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
             # [Main·2026-09-11 Round9 · 444 后端 sweep 候选（RouteC 全量四态 + 逐条 A/B 确认；
             #  同 argv 仅换 -B cc1plus444bin/，符号集 comm-3 零差、missing 不变）]
             #   CLeagueMatch    44/63/1/16  → 44/76/1/3   （+13 AE，13×DIFF→AE）
@@ -546,7 +565,11 @@ case "$(basename "$src" .cpp)" in
                 # （多 TU 重复发射、链接器只保留一份）⇒ **全局核账实测增量为 0**。
                 # 保留该旗标仅因「全局零回归」（与新增 6 TU 臂同批验证）；若日后需精简，
                 # 此臂可先删且无全局影响。`-mtune=generic` 必须同带。
-                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
+                # [Main·2026-09-11 Round10 · FeasB 444 轴] 换 4.4.4 后端（保持 i486）：
+                #   `CMultiMatchRoomList::GetWaitingRoomCombination` DIFF→AE，
+                #   四数 131/242/1/2 → **131/243/1/1**；`comm -3`=0（nsym 599→599、symmd5 相同）。
+                #   反证：单去 i486 ⇒ down=2（CLeagueMatchRoomList::Match AE→DIFF）⇒ i486 必须保留。
+                exec "$C6444R" "$@" -march=i486 -mtune=generic ;;
             # ---- 脚本 Import/Export 族 + 相关：ORIG GameServer 为 GCC 4.4.6（DWARF producer 实证），
             # 切 4.4.6 后端使寄存器/栈槽分配逐操作数对齐，翻 NEAR→IDENTICAL。 ----
             *Game/CreatureScript.cpp)
@@ -590,7 +613,9 @@ case "$(basename "$src" .cpp)" in
                 exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/FlexLexerEngine.cpp)
                 # flex 2.5.35 生成 TU：ORIG 与 4.4.6 虚调用/寄存器分配一致
-                exec "$C6446R" "$@" ;;
+                # [Main·2026-09-11 Round10 · i486 轴] +`-march=i486 -mtune=generic`：
+                #   `yy_get_next_buffer` DIFF→AE，四数 0/29/0/5 → **0/30/0/4**（comm-3=0、missing 不变）。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/CBossStage.cpp | *Game/CFairMatchRooms.cpp)
                 # [Main·2026-09-10 round1 路由 A/B 实证] 切 4.4.6 后端（头集保持 4.4.7）：
                 #   CBossStage        c6 228/368(596)/near3/diff6 → c6446r 228/369(597)/near2/diff6
@@ -629,7 +654,9 @@ case "$(basename "$src" .cpp)" in
                 # GameTypes.h→LogManager.h 编译失败。
                 exec "$C6446R" "$@" -std=gnu++0x ;;
             *Game/ScriptExtras.cpp)
-                exec "$C6446R" "$@" ;;
+                # [Main·2026-09-11 Round10 · i486 轴] +`-march=i486 -mtune=generic`：
+                #   3 件 DIFF→AE，四数 103/192/0/7 → **103/195/0/4**（comm-3=0、missing 不变）。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/RDARScriptStringManager.cpp)
                 exec "$C6446R" "$@" ;;
             *Game/ScriptStringManager.cpp)
