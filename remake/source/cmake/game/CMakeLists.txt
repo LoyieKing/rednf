@@ -805,7 +805,7 @@ dnf_service(game
         ${SVC_DIR}/DB_InsertAccountFirstLoginDailyFlag.cpp
         ${SVC_DIR}/DB_SelectLevelUpReward.cpp
         ${SVC_DIR}/DB_UpdateInGameEventHistory.cpp
-        ${SVC_DIR}/ContainerTemplateInstantiations.cpp
+
         ${SVC_DIR}/QuestClear.cpp
         ${SVC_DIR}/CCreatureMgr.cpp
         ${SVC_DIR}/CreatureOnlySimple.cpp
