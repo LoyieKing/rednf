@@ -106,7 +106,7 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
                         // `mov (%eax),%edx` 保活、算完第 3 实参后再压（指令数全等
                         // 325=325，ndiff 4）。元素显式 static_cast<int> 旋钮实测
                         // 无效（已回滚）⇒ 4.1 右起求值序差异，判 N。
-                        static_cast<int>(i), gs->m_mapCandidates[i]);
+                        i, gs->m_mapCandidates[i]);
                 }
             }
         }

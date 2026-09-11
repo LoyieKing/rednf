@@ -43,6 +43,10 @@ void CUser::CalculateExpertJobMaterials(
         {
             mi->second = 1;
         }
+        // [g06-D 2026-09-11 试形①·已回滚] 交换两条后置 ++ 语句序实测 ndiff 2→8：
+        // 匿名 sret 临时槽翻到 ORIG 序（-0x10/-0x14 ✓）但 ++ 调用点的 this 槽位
+        // （-0x2c/-0x30）随之对调 ⇒ 净劣化。⇒ 4.1/4.4 对匿名 sret 临时槽的分配
+        // 方向相反属结构性（N86/N93 族），与本件声明的槽序旋钮无关。
         ci++;                                              // [operator++(int) ×2]
         mi++;
     }

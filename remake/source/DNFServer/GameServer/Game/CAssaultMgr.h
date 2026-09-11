@@ -524,7 +524,10 @@ public:
                                                         // 调用点 0x082eeb12 无 this 压参（P88，[b23S3C]）
     bool OnChangeHp(CUser* user, int hp);                // ORIG T 0x82ef570（batch-4 DispC bool 化，W6_AssaultMgrDeps.cpp 定义为 bool；git 事故回退修正）
     bool OnAbuseUser(CUser* user);                       // ORIG T 0x82efc54 尾 mov $0x1,%eax；同上
-    int OnConnectP2P(CUser* user, char* ip, int len);    // ORIG T 0x82ef27a
+    // [g01 2026-09-11] 返回类型 int→bool：ORIG 唯一调用点（Dispatcher_ConnectP2PAssault
+    //   ::dispatch_sig @0x08206fea 段）`call; xor $0x1,%eax; test %al,%al` ⇒ 调用侧
+    //   按 bool 处理（G01 探针 z4.cpp：`!bool_ret()` ⇒ xor $1；`!int_ret()` ⇒ test;sete）。
+    bool OnConnectP2P(CUser* user, char* ip, int len);   // ORIG T 0x82ef27a
     int OnRevivalUser(CUser* user);                      // ORIG T 0x82ef464
     bool OnCompleteLoad(CUser* user);                    // ORIG T 0x82ef1e2；同上
     int OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ef3be

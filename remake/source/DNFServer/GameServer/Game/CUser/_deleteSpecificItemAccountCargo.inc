@@ -32,10 +32,11 @@ void CUser::_deleteSpecificItemAccountCargo(
             del = true;
             matched = 0;
         }
-        else
-        {
-            matched = _isMatchedItem(item.m_addInfo, list);
-            if (matched != -1)
+        // [g03 · P-G7b「赋值内嵌条件」] ORIG 0x0867d9xx 该处为
+        //   `cmpl $-1,matched(-0x14); setne %al; test %al,%al; je <else>`；旧码拆两句写
+        //   （`matched = f(); if (matched != -1)`）⇒ 4.4 恒折 `cmpl; je` 丢 setne 段。
+        //   一句写 `else if ((matched = f(...)) != -1)` 即复现（G07 实证范式）。
+        else if ((matched = _isMatchedItem(item.m_addInfo, list)) != -1)
             {
                 if (item.m_addInfo2 > matched)
                     del = true;   // P196 复核：ORIG 0x0867d9xx 该处为 `cmp -0x14(%ebp),%eax;
@@ -52,7 +53,6 @@ void CUser::_deleteSpecificItemAccountCargo(
                     reinterpret_cast<unsigned long&>(item.m_addInfo),
                     item.m_addInfo2));
                 del = true;
-            }
         }
 
         if (del)

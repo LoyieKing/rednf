@@ -156,7 +156,10 @@ public:
         //   按 P209附 的实测结论（for 上界/<=/do-while/while 四形均不可复现
         //   ORIG 的 `mov -0xc,%eax; cmp $0x17,%eax`）⇒ 清绑后取最短自然形，
         //   残差归 **N96+N18a 封顶**（4.4 对 unsigned 槽比较恒 cmpl mem 融合）。
-        for (unsigned int i = 0; i <= 0x17u; ++i)
+        // [g21·P310 试形 2026-09-12] 局部 unsigned→int 化 + 显式 `(unsigned int)` 比较：
+        //   复现 ORIG 0x80e5f12 的 `mov -0xc(%ebp),%eax; cmp $0x17,%eax; setbe %al` 两段
+        //   寄存器形（b28c S108 resetRanking DIFF→AE 同族；旧 N96/P209附「无源码解」判词作废）。
+        for (int i = 0; (unsigned int)i <= 0x17u; ++i)
             m_Row[i].clear();
     }
 

@@ -47,14 +47,20 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
     }
 
     int slot = 0;
-    // [round5 Main-B轴 实测负例·P196 红线] 曾试 `int row` + `(int)get_n_rows()`：改后该比较
-    //   变有符号 `jle`，而 ORIG 是 `call get_n_rows; cmp -0xc(%ebp),%eax; seta %al; test %al,%al;
-    //   jne 818cd68`（**seta = 无符号**）⇒ 违反 P196（禁止把无符号序改有符号），已回退。
-    //   真正的残差是「ORIG 物化 `seta;test;jne` vs 我方直接 `jbe`」，非符号性；row 保持 unsigned。
-    for (unsigned int row = 0;
-         row < static_cast<unsigned int>(db->get_n_rows()) && db->fetch();
-         ++row)
+    // [G20 2026-09-12 P-G7a 试形] ORIG 结构实证（0x818cd55..818cf9c）：
+    //   体首 818cd68 `call fetch; xor $1,%al; test %al,%al; jne 818cf9c(出)`；
+    //   尾 818cf81 `call get_n_rows; cmp -0xc(%ebp),%eax; seta %al; test %al,%al; jne 818cd68`
+    //   （**seta = 无符号**，P196 红线：row 必须 unsigned）
+    //   ⇒ 原码 = `while(row<n){ if(!fetch()) break; ...; ++row; }`。
+    //   旧 for(...; row<n && db->fetch(); ...) 形被 4.4 把第二条件折进条件区并物化 $1/$0
+    //   （结构错位 + 尾部无 seta/test）；改 while 后条件位物化（P-G7a）与体首 break 对齐 ORIG。
+    unsigned int row = 0;
+    while (row < static_cast<unsigned int>(db->get_n_rows()))
     {
+        if (!db->fetch())
+        {
+            break;
+        }
         int preType = 0;
         int startSec = 0;
         int endSec = 0;
@@ -103,6 +109,7 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
         // 计数 ushort@0x293a（m_restrictedGoodsCount）与 m_id 数组（+0x293c 起 int 表）：
         // ORIG 读 count 一次（%eax）复用索引与 +1 写回（P0 无具名槽）⇒ 后置 ++。
         data->m_restrictedGoods[data->m_restrictedGoodsCount++] = entry.m_eventId;
+        ++row;
     }
     return 0;
 }

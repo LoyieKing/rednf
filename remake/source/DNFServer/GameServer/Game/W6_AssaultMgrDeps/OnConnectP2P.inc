@@ -1,7 +1,7 @@
 // ===========================================================================
 // OnConnectP2P —— ORIG T 0x82ef27a (0xa5)：错误码包 0x95。
 // ===========================================================================
-int CAssaultMgr::OnConnectP2P(CUser* user, char* ip, int len)
+bool CAssaultMgr::OnConnectP2P(CUser* user, char* ip, int len)
 {
     try
     {

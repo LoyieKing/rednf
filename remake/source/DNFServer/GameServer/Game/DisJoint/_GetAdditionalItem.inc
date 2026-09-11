@@ -13,7 +13,9 @@ void DisJoint::_GetAdditionalItem(const CItem* item, int& outIdx, int& outCount)
     // [b26N1] m_additionalWeight[rarity] 大偏移寻址：ORIG(4.1) 拆 add $0x150 进
     // scaled idx + disp 0x10；4.4 恒折 add $0x154 单步（N1 族折叠方向不可翻），
     // 其余全等，ndiff 12 封顶。
-    outIdx = _GetAdditionalItemInfo(item->get_rarity());
+    // [G18 T5 2026-09-11 · P-G7b] 赋值内嵌条件（原两句写：`outIdx = f(); if (outIdx != 0)`）
+    // —— P-G7b：lvalue 作为条件左值 ⇒ 4.4 在 if 条件位物化 `setne %al; test %al,%al`。
+    // 若无效即回滚（备份 /tmp/lane_diff/g18/backup/_GetAdditionalItem.inc）。
     // ORIG 0x084732de `test %eax;setne %al;test %al;je`：outIdx!=0 物化为
     // bool 局部（P194 setne 形）。[b28c-21] 清 register asm 存量绑定（P0/N96），
     // 改普通 bool 自然形。
@@ -24,7 +26,7 @@ void DisJoint::_GetAdditionalItem(const CItem* item, int& outIdx, int& outCount)
     // 为直 je）——N 类跨版本，无源码形可复现（试过具名 bool/无局部两形）。
     // 另一处 `add $0x150,%edx; flds 0x10(%eax,%edx,4)` vs `add $0x154,%edx; flds (%eax,%edx,4)`
     // 为等价地址（0x150*4+0x10 == 0x154*4 == 0x550）的 disp 折叠差（N1，方向不可翻）。
-    if (outIdx != 0)
+    if ((outIdx = _GetAdditionalItemInfo(item->get_rarity())) != 0)
     {
         // ORIG：m_item 先落 -0x18 再乘 100 落 -0x14，随后才 call get_rand_int。
         int w = m_additionalConst[item->get_rarity()].m_item;

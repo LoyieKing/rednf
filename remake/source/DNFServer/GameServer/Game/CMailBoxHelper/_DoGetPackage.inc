@@ -30,7 +30,6 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
     // [b28d-solo-CMailBoxHelper] P198①：ORIG 0x08554682 `movl $0x0,-0x14(%ebp)`
     // 在 call GetPackageMoney 之前 ⇒ 原码两句式（预清 + 赋值）。
     unsigned int money = 0;
-    money = mail->GetPackageMoney();
 
     // [2026-09-09 SweepCMailBoxHelper-2 复验] P225 while+break 形在此**反劣**
     // （245→249，4.4 对大 body 生成真循环回边；探针 f2 仅单语句 body 时同形）⇒
@@ -55,7 +54,14 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
     //   cmpb $0,-9(%ebp)`，非 ORIG 的 `test %al,%al`）；④ 单 case switch 形
     //   早前实测 ndiff=5（注释历史）。
     //   ⇒ 4.4 无任何源码形可同时产「物化」与「无中继」⇒ 跨版本 N 档封顶。
-    if (money != 0)
+    // [G17 2026-09-11 P-g7a 试形实测·负结论] `while (money != 0) { …; goto money_done; }`
+    //   ⇒ 条件物化**成功复现**（`cmpl; setne %al; test %al,%al; je` 与 ORIG 同），
+    //   但 4.4 对多出口 body 另发 2 条中继 `jmp`（ours 243→248，净 +5）⇒ 回滚。
+    // [G17 2026-09-11 Main 新范式 **P-G7b 赋值内嵌条件**（G07 实证）]：
+    //   ORIG 0x08554694..0x085546a0 = `mov %eax,-0x14; cmpl $0,-0x14; setne %al;
+    //   test %al,%al; je` ⇒ 原码为**一句写** `if ((money = mail->GetPackageMoney()) != 0)`；
+    //   两句写（`money = f(); if (money != 0)`）4.4 恒折 `cmpl; je` 无物化。
+    if ((money = mail->GetPackageMoney()) != 0)
     {
         if (bReset)
         {

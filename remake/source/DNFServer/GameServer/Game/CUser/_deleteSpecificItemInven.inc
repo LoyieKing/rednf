@@ -26,23 +26,24 @@ void CUser::_deleteSpecificItemInven(INVEN_TYPE type,
             del = true;
             matched = 0;
         }
-        else
+        else if ((matched = _isMatchedItem(item.m_addInfo, list)) != -1)
         {
-            matched = _isMatchedItem(item.m_addInfo, list);
-            if (matched != -1)
-            {
-                if (item.m_addInfo2 > matched)
-                    del = true;
-            }
-            else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
-                         item.m_addInfo))
-            {
+            // [g03 · P-G7b「赋值内嵌条件」] ORIG 0x0867d16d 该处为
+            //   `call _isMatchedItem; mov %eax,matched(-0x10); cmpl $-1,matched;
+            //    setne %al; test %al,%al; je <else>`（物化三段）。旧码拆两句写
+            //   （`matched = f(); if (matched != -1)`）⇒ 4.4 恒折 `cmpl; je` 丢 setne
+            //   段；一句写 `else if ((matched = f(...)) != -1)` 即复现（G07 实证范式）。
+            if (item.m_addInfo2 > matched)
+                del = true;
+        }
+        else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
+                     item.m_addInfo))
+        {
                 // b28d-solo-CUser p167 修正：ORIG 实例化 make_pair<unsigned long&, int&>
                 //   （左值引用版 IRmRiE）；值 cast 产右值版 ImRiE ⇒ 用引用 cast 保左值。
                 mailDel.push_back(std::make_pair((unsigned long&)item.m_addInfo,
                                                  item.m_addInfo2));
                 del = true;
-            }
         }
 
         if (del)

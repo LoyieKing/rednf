@@ -15,7 +15,15 @@ class Packet_PvPChannelInfo : public PacketHeader
 public:
     Packet_PvPChannelInfo();   // ORIG W @0x0822bd3c
 
-    char m_data[0x17f8 - 0xa];   // +0x0a 起
+    // [G00 2026-09-11] ORIG 0x0821796x..0x08217ab9 段对 channelInfo 的四处载荷写全是
+    //   `mov %eax,-0x17fe(%ebp)`（+0xe）/`mov %eax,-0x1802(%ebp)`（+0xa）/
+    //   `movb $0x9,-0x17f6(%ebp)`（+0x16）/`mov %eax,-0x17fa(%ebp)`（+0x12）
+    //   ⇒ 单条 ebp 相对折叠 = 真实具名成员（cast 视图指针恒生 lea+off 两步）。
+    unsigned int m_characNo;   // +0x0a
+    unsigned int m_uid;        // +0x0e
+    unsigned int m_schoolNo;   // +0x12
+    unsigned char m_field16;   // +0x16
+    char m_data[0x17f8 - 0xa - 0xd];   // +0x17 起（尾部占位，sizeof 不变）
 };
 
 #pragma pack(pop)

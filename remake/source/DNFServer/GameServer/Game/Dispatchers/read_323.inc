@@ -6,7 +6,11 @@ int Dispatcher_CeraPackageOpen::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // [G6] ORIG 0x081e7706 `mov -0x10(%ebp),%eax; add $0xe,%eax` ⇒ M 是**具名槽**（-0x10）；
     //   我方 `char* const M`（顶层 const）被 4.4 折成形参直读 ⇒ 去 const 恢复槽局部。
-    char* M = reinterpret_cast<char*>(&msg);
+    // [g05 试形 D] ORIG 使用点一律从具名槽读（`mov -0x10(%ebp),%eax`）。4.4 对**入口块内
+    //   初始化**的指针局部做前向替换（折叠成 `0x10(%ebp)` 形参直读；g05 已在
+    //   check_error_69 实证「声明移出入口块」即保留槽）⇒ 先声明后赋值，并让 MPK 同走 M。
+    char* M;
+    M = reinterpret_cast<char*>(&msg);
     // +0x10 数量字节落在冻结头 m_pad10 区（MSG_OPEN_CERAPACKAGE 无具名字段，
     // 已 hub 报 Main 补 m_itemCount；此处按具名成员（内联视图，零新增槽）访问）
     // [L7DispG2] 读值形：ORIG 0x081e7793/0x081e786d `movzbl 0x10(%eax),%eax`
@@ -23,7 +27,7 @@ int Dispatcher_CeraPackageOpen::read(PacketBuf& packet, MSG_BASE& msg)
         unsigned char m_count;   // +0x10
     };
 #pragma pack(pop)
-#define MPK (reinterpret_cast<CeraPkgMsgView*>(&msg))
+#define MPK (reinterpret_cast<CeraPkgMsgView*>(M))
     if (!packet.get_short(*reinterpret_cast<short*>(&MPK->m_0e)))
     {
         return LineFunc(
@@ -52,6 +56,9 @@ int Dispatcher_CeraPackageOpen::read(PacketBuf& packet, MSG_BASE& msg)
     for (unsigned int i = 0;
          i < MPK->m_count; ++i)
     {
+        // [g05 试形 E 负结论] 分层指针算术 `(ulong*)(M+(i+2)*8)+1` ⇒ 95 条且 M 读提前
+        //   （劣化，已回滚）⇒ 维持左结合 `M + (i+2)*8 + 4` 形（残余 = 4.4 把 +4 折进
+        //   索引侧，ORIG 独立第三段；P205 类）。
         if (!packet.get_int(
                 *reinterpret_cast<unsigned long*>(M + (i + 2) * 8 + 4)))
         {

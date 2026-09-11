@@ -30,8 +30,13 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
                  it != mazes->end(); ++it)
             {
                 MazeScript* maze = &*it;
-                if ((int)m_bloodState != 1 &&             // +0x1b4
-                    ((char)m_hellPartyActive == 0 || maze->m_70 == 0))
+                // [B-lane 试形 Y] P223(BM8) 多岛尾标签串：ORIG 三个 if-join 空岛
+                //   （+0x19d/+0x1a0 nop;jmp +0x1a4、+0x1a3 nop 直落）在 4.4 被
+                //   jump-thread 折叠 ⇒ 用 2 守卫 + 3 尾标签复现。
+                if ((int)m_bloodState == 1)                       // +0x1b4
+                    goto skip1;
+                if ((char)m_hellPartyActive != 0 && maze->m_70 != 0)
+                    goto skip2;
                 {
                     if (m_party != NULL &&
                         m_party->CheckQuestConnection(
@@ -57,6 +62,9 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
                         }
                     }
                 }
+skip3:;
+skip2:;
+skip1:;
             }
 
             // b28d-55（P167 差集实证）：ORIG 三次独立 size() 调用

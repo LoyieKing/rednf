@@ -61,6 +61,10 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
         // 4.4 恒算址(lea 0x20(%eax),%edx)→值后载→store。试 RHS enum 异型化
         // （P211 档③）实测零效（归一化差异 69 行不变）⇒ N107 反向族封顶，
         // 已恢复直证形态。
+        // [G18 T11 2026-09-11 · P-g03-b 负结论] 改 `*(int*)((char*)&m_teams[myTeam] + 0x20)`
+        // 实测反劣：our 321→323，多 `mov this,%eax; add $0x1c,%eax; mov %eax,%ecx`
+        // 三段（数组基址常量 0x1c 被 4.4 提前 add，P-g03-b 的 add 只对**末段 K**
+        // 生效）⇒ 已回滚（备份 /tmp/lane_diff/g18/backup/OnAskRematch.inc）。
         m_teams[myTeam].m_field04 = decision;     // asm 写 4 字节到 team+4
         // [b28f-SweepCFairMatch 试形] 取址解引用 → 具名 bool 成员直访问
         // （J1 实证：成员直访产 disp 折叠，取址链产 add）。

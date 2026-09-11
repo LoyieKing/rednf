@@ -56,7 +56,7 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
     //   均不可复现——成员数组退化与显式指针算术 `(char*)sig + 0x40ce` 都产
     //   `lea 0x40ce(%eax),%edx`（4.4 地址生成恒 lea + 结果入 %edx）⇒ N107 反向
     //   （ORIG add / 4.4 lea）+ N7 寄存器角色，判封顶（读数 161/161 不变）。
-    if (!uncompress_zip(sig->m_expandData6, outLen, blob, srcLen))
+    if (!uncompress_zip((char*)((unsigned int)sig + 0x40ce), outLen, blob, srcLen))
     {
         return false;
     }

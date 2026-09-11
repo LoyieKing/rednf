@@ -26,23 +26,19 @@ bool CItemUpgrade_Separate::_DoProcUpgrade(CUser* user, Inven_Item* item,
     }
 
     const int gold = info->m_gold;
-    if (gold != 0)
+    // [g14 试形 W3 2026-09-11] ORIG 0x0811e4ce/0x0811e508 为「短路 && 正极性物化」：
+    //   `cmpl $0,-0xc; je <mov $0 岛>` … `cmp %eax,%ebx; jae <mov $0 岛>; mov $1; jmp join;
+    //    <岛> mov $0; join: test %al; je <体>; mov $0(ret false)`。故写单表达式正极性
+    //   短路 `(gold != 0) && (gold*10 < randInt())` 作 `if` 条件（P214① 正向形）。
+    //   ⇒ 一次命中：DIFF(69/70, gap −1) → **AE(69/69, gap 0)**；旧判词
+    //     「N-88/P197④ setcc-fold 不可造」（基于具名 bool/register/P225 while 三形）
+    //     被本形推翻——原判遗漏了「无具名局部 ⇒ 短路直接作 if 条件」这一源形。
+    unsigned long range;
+    if (gold != 0 &&
+        static_cast<unsigned int>(gold * 10) <
+            static_cast<unsigned int>(m_rand->randInt(range = m_randRange)))
     {
-        unsigned long range;
-        // [round5-C05 2026-09-10 C05④ 复验未命中，已回退] ORIG 0x0811e508
-        // `cmp; jae <岛>; mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`（寄存器化
-        // bool 赋值）vs 4.4 `cmp; setb %al; test; je`。按 C05④ 四步法步骤 2 试
-        // **P225 原形**（body 以 `return false;` 终止 ⇒ 满足「无回边」前置）：
-        // `while (a < b) { return false; }` 实测读数**逐值不变**（我们 66 / ORIG 69，
-        // 仍 setb）⇒ 步骤 4 封顶 N-88/P197④（勿再动控制流、勿动 callee）。
-        // [LaneA P346 变体试形] 具名 bool 局部（复现 ORIG 0x0811e508 mov$1/mov$0 岛）
-        bool overLimit =
-            static_cast<unsigned int>(gold * 10) >=
-            static_cast<unsigned int>(m_rand->randInt(range = m_randRange));
-        if (!overLimit)
-        {
-            return false;
-        }
+        return false;
     }
     item->m_upgradeSep.IncUpgradeSeparate();
     return true;

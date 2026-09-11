@@ -46,6 +46,10 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
     // 段 A（SIG_LOAD_INVENTORY m_expandEquip.m_items，+0x14aa8 起 0x24 项）
     for (i = 0; i <= 0xb; ++i)
     {
+        // [G18 T12 2026-09-11 · P-G7b 实测] 本函数 12 处「赋值 + if」按 P-G7b 合成
+        // 赋值内嵌条件：**10 处命中**（ORIG 有 `setne %al; test %al,%al`，我方原缺）
+        // ⇒ DIFF 差异 10 处 → 2 处；**段 A 的 lock/err 两处反向**（ORIG 此处直折 je、
+        // 我方改后多 setne）⇒ 这两处回退为两句写（其余 10 处保留内嵌形）。
         lock = sig->m_expandEquip.m_items[i].m_amp.GetLock();
         if (lock != 0)
         {
@@ -54,14 +58,14 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
             ref.m_space = 0x12;
             lockRefs.push_back(ref);
         }
-        err = _verifyItem(i, &sig->m_expandEquip.m_items[i], INVENTORY_TYPE_0,
-                          true, true, user);
         // [D01 · C05④ 步骤 2 实测负例 2026-09-10] P225 原形（5 处 `if` 整块换
         // `while (err != 0) { _write…; return false; }`）**劣化**：our_insns
         // 424→**434**、gap −3→**+7**（ORIG 427）、TU 四数不变 ⇒ 已回滚。
         // 与 C01 三正例的差别：本处 body 仅「单条调用 + return」、无多分支早退 +
         // 末尾 break 结构 ⇒ while 恒多回边/结构 jmp。⇒ 本件归 **N-88/P197④**
         // （槽值 vs 常量比较物化：ORIG `mov %eax,-0xc; cmpl $0,-0xc; setne; test; je`）。
+        err = _verifyItem(i, &sig->m_expandEquip.m_items[i], INVENTORY_TYPE_0,
+                          true, true, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -73,19 +77,17 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
     // 段 B（m_equipMirror）——ORIG 无 meterial_item_change 调用（仅段 C/D 有）
     for (i = 0xa; i <= 0x15; ++i)
     {
-        lock = sig->m_equipMirror[i].m_amp.GetLock();
         // ORIG 段 B 为 bool 物化形（cmpb $0; setne %al; test %al,%al; je）
         // 与段 A 的 cmpb $0; je 不同 ⇒ P225 while+break 复现。
-        if (lock != 0)
+        if ((lock = sig->m_equipMirror[i].m_amp.GetLock()) != 0)
         {
             ref.m_lock = lock;
             ref.m_slot = static_cast<short>(i);
             ref.m_space = 0x03;
             lockRefs.push_back(ref);
         }
-        err = _verifyItem(i, &sig->m_equipMirror[i], INVENTORY_TYPE_0,
-                          true, true, user);
-        if (err != 0)
+        if ((err = _verifyItem(i, &sig->m_equipMirror[i], INVENTORY_TYPE_0,
+                               true, true, user)) != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
                 sig->m_characNo, sig->m_equipMirror[i], "equip", err, i);
@@ -95,8 +97,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
     // 段 C（m_invenType1）
     for (i = 0; i <= 0x137; ++i)
     {
-        lock = sig->m_invenType1[i].m_amp.GetLock();
-        if (lock != 0)
+        if ((lock = sig->m_invenType1[i].m_amp.GetLock()) != 0)
         {
             ref.m_lock = lock;
             ref.m_slot = static_cast<short>(i);
@@ -112,9 +113,8 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         // 与原版不同（真语义 bug，已修）。
         if (sig->m_invenType1[i].m_addInfo != 0)
             meterial_item_change(i, sig, &sig->m_invenType1[i]);
-        err = _verifyItem(i, &sig->m_invenType1[i], INVENTORY_TYPE_1,
-                          false, false, user);
-        if (err != 0)
+        if ((err = _verifyItem(i, &sig->m_invenType1[i], INVENTORY_TYPE_1,
+                               false, false, user)) != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
                 sig->m_characNo, sig->m_invenType1[i], "inven", err, i);
@@ -124,8 +124,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
     // 段 D（m_cargo）
     for (i = 0; i <= 0x97; ++i)
     {
-        lock = sig->m_cargo[i].m_amp.GetLock();
-        if (lock != 0)
+        if ((lock = sig->m_cargo[i].m_amp.GetLock()) != 0)
         {
             ref.m_lock = lock;
             ref.m_slot = static_cast<short>(i);
@@ -140,9 +139,8 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         // m_addInfo2）⇒ 守卫条件与原版不同（真语义 bug，已修）。
         if (sig->m_cargo[i].m_addInfo != 0)
             cago_meterial_item_change(i, sig, &sig->m_cargo[i]);
-        err = _verifyItem(i, &sig->m_cargo[i], INVENTORY_TYPE_2, false, false,
-                          user);
-        if (err != 0)
+        if ((err = _verifyItem(i, &sig->m_cargo[i], INVENTORY_TYPE_2, false, false,
+                               user)) != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
                 sig->m_characNo, sig->m_cargo[i], "cargo", err, i);
@@ -152,17 +150,15 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
     // 段 E（m_invenType3）
     for (i = 0; i <= 0xf1; ++i)
     {
-        lock = sig->m_invenType3[i].m_amp.GetLock();
-        if (lock != 0)
+        if ((lock = sig->m_invenType3[i].m_amp.GetLock()) != 0)
         {
             ref.m_lock = lock;
             ref.m_slot = static_cast<short>(i);
             ref.m_space = 0x07;
             lockRefs.push_back(ref);
         }
-        err = _verifyItem(i, &sig->m_invenType3[i], INVENTORY_TYPE_3,
-                          false, false, user);
-        if (err != 0)
+        if ((err = _verifyItem(i, &sig->m_invenType3[i], INVENTORY_TYPE_3,
+                               false, false, user)) != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
                 sig->m_characNo, sig->m_invenType3[i], "creature", err, i);
@@ -172,8 +168,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
     // 段 F（仅收集；m_equipMirror[i].m_amp，+0xa3b2 = 0xa3a1+0x11）
     for (i = 0; i <= 9; ++i)
     {
-        lock = sig->m_equipMirror[i].m_amp.GetLock();
-        if (lock != 0)
+        if ((lock = sig->m_equipMirror[i].m_amp.GetLock()) != 0)
         {
             ref.m_lock = lock;
             ref.m_slot = static_cast<short>(i);
@@ -181,13 +176,15 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
             lockRefs.push_back(ref);
         }
     }
-    // 段 G（仅收集；ORIG +0x4065 = m_invenType2[i].m_random.m_field2 区，
-    // 按 stAmplifyOption_t 视图读取——ORIG 语义保留类型视图）
+    // 段 G（仅收集）—— [G18 T13 2026-09-11 语义轴修正] 旧注「ORIG +0x4065 =
+    // m_random.m_field2 视图」与**当前 ORIG 二进制不符**：ORIG 该点基址 =
+    // sig + i*0x3d + 0x4055 = 元素 + 0x11 = **Inven_Item::m_amp**（0x4044 元素基址，
+    // Inven_Item.h:8 布局 +0x11 stAmplifyOption_t），与段 A（m_expandEquip.m_items[].m_amp）
+    // 段 F（m_equipMirror[].m_amp，绝对 0xa3b2 = 0xa3a1+0x11）**同域**；
+    // 旧写 m_random.m_field2 落在 +0x21（= 0x4065）⇒ 偏移多 0x10（N 判词掩盖的真语义 bug）。
     for (i = 0; i <= 0x68; ++i)
     {
-        lock = reinterpret_cast<const stAmplifyOption_t*>(
-            &sig->m_invenType2[i].m_random.m_field2)->GetLock();
-        if (lock != 0)
+        if ((lock = sig->m_invenType2[i].m_amp.GetLock()) != 0)
         {
             ref.m_lock = lock;
             ref.m_slot = static_cast<short>(i);

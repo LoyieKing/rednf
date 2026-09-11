@@ -38,9 +38,9 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
         CAICharacter* ai =
             G_CDataManager()->m_aiCharacterList->getByLevel(
                 static_cast<unsigned int>(m_pDungeon->get_standard_level()));
-        if (ai == NULL)
-            goto apc_end;
-
+        // [B-lane 试形 A] goto→正向包裹（消一个早退跳转，探尾部 jmp 岛数）
+        if (ai != NULL)
+        {
         std::memset(&mob, 0, sizeof(map_monster));  // ORIG 显式 memset 0x34c
         // [b28d-Lane27] ORIG 0x083021ac 取旧值写 mob+0、自增在**函数尾** 0x08302296
         // （Add_Mob 之后 `addl $0x1,-0x10(%ebp)`）⇒ 拆两句并把 `++mobId` 后置。
@@ -68,6 +68,7 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
 
         GetCurrentMapInfo()->Add_Mob(mob);
         ++mobId;                                    // ORIG 0x08302296 尾置自增
+        }
       }
     }
 apc_end:

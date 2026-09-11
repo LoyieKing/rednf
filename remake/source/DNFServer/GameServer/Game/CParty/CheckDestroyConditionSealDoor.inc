@@ -61,14 +61,21 @@ bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Ma
             for (std::vector<int>::iterator it = list2.begin();
                  it != list2.end(); ++it)
             {
-                slot = m_member[i].m_pUser->getCurCharacInvenR()->check_item_exist(*it);
+                // [G07 2026-09-11 · N-88 翻案·赋值内嵌条件] ORIG 0x085a7eb4
+                //   `mov %eax,-0x14; cmpl $-1,-0x14; setne %al; test %al,%al; je`
+                //   = **`if ((slot = call(...)) != -1)`** 的 4.4 实测码形（probe
+                //   /tmp/g07/probe/cond2.cpp g1 逐条复现；g2 分两句写真值恒 `cmpl; je`
+                //   = 本文件旧形）。原 P225「while+break」试形只对了一半：物化确由
+                //   语句形触发，但正确源形是赋值内嵌条件（无 break，故无额外 jmp）。
+                //   P15「赋值即条件惯用法」的具名局部变体。
                 // P225 试形记录（已回滚）：`while (slot != -1) { body; break; }` 可补回
                 //   ORIG 0x085a7eb4 的 `setne %al; test %al,%al` 两段，但同时多发
                 //   `jmp <join>; nop`（+2）且总条数 187→193 劣于 ORIG 191 ⇒ 回滚为 if 形。
                 // [2026-09-10 试形·已回滚] P226/P316 语句表达式 `({ slot != -1; })` 实测
                 // 仍产 4.4 直跳（无 setne/test）⇒ ORIG 0x085a7eb8 的两段 = 跨版本 bool
                 // 物化（P292/N122 族），非源形可控。判 N。
-                if (slot != -1)
+                if ((slot = m_member[i].m_pUser->getCurCharacInvenR()
+                             ->check_item_exist(*it)) != -1)
                 {
                     item = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(1, slot);
                     if (item.m_addInfo2 >= needCount)

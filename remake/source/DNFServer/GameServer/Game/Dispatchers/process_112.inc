@@ -5,7 +5,9 @@ int Dispatcher_TutorialLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& p
 {
     (void)msg;
     (void)param;
-    if (user == 0 || user->get_state() != 5)
+    // [g02 试形A] ORIG 0x081e372a 直证：无 `cmpl $0x0,0xc(%ebp)` null 检查，
+    //   直接 `mov 0xc(%ebp),%eax; mov %eax,(%esp); call get_state` ⇒ 源码无 `user == 0`。
+    if (user->get_state() != 5)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1e4, 0x13);
         return 0;
@@ -21,10 +23,11 @@ int Dispatcher_TutorialLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& p
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1e4, 0x13);
         return 0;
     }
-    CBattle_Field& bf =
-        *&party->m_battleField;
-    if (bf.get_cur_map() != 0xee49 && bf.get_cur_map() != 0xee51 &&
-        bf.get_cur_map() != 0xee58)
+    // [g02 试形A] P183/P-g03-b：ORIG 每处 `mov -0xc(%ebp),%eax; add $0xb24,%eax`
+    //   重算地址（不缓存指针）⇒ 去掉 `CBattle_Field& bf` 引用缓存，成员访问原地重物化。
+    if (party->m_battleField.get_cur_map() != 0xee49 &&
+        party->m_battleField.get_cur_map() != 0xee51 &&
+        party->m_battleField.get_cur_map() != 0xee58)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1e4, 0x13);
         return 0;

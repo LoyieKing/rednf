@@ -44,8 +44,14 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
     // 独立代码（[level npc] 为 1 带 flag + 2 无 flag + 4 占位），旧实现合并导致
     // ScanInt 调用点少 12；flag 为函数级单 bool（ORIG local_255）。
     bool flag = false;
-    while (ScanType(token, true))
+    // [F-P168a 试形] ORIG while 头 `call ScanType; xor $0x1,%eax; test %al,%al;
+    // jne exit`（0x08a81d5a 段）= bool callee 裸取反形 ⇒ 源形为
+    // `if (!ScanType(token, true)) break;`（同 BlueMarbleTileScript/importScript.inc
+    // 先例）；`while (ScanType(...))` 4.4 直产 `test %al; jne` 少 xor。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[dungeon npc]")
         {
             for (;;)
