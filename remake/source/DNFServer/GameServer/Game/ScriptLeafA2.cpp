@@ -66,7 +66,7 @@ extern char g_npcScriptBaseDirectory[0x100];                // B 0x094fe680
 // GI 键名），故不把本变量前移；ORIG 的
 // `_GLOBAL__I_g_RegenerationRandomOptionScriptBaseDirectory`（0x08a7ea66）与本 TU
 // 键名互斥，属结构性 REORDER_ONLY。
-char g_RegenerationRandomOptionScriptBaseDirectory[0x100];
+extern char g_RegenerationRandomOptionScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptRegeneration_ROI.cpp
 
 #include "ScriptLeafA2/importRegenerationRandomOptionScript.inc"
 

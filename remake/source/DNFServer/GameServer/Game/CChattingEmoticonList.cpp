@@ -37,7 +37,7 @@
 // （InitScriptProducers_5.cpp）填充；Load_list 遍历使用（ORIG 0x80e54f2
 // map begin 直取 0x94f6cc0，无空指针检查）。
 STScriptFileList g_ChattingEmoticonScriptFileList;
-char g_ChattingEmoticonScriptBaseDirectory[0x100];
+extern char g_ChattingEmoticonScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptChattingEmoticon.cpp
 
 #include "CChattingEmoticonList/ImportChattingEmoticon.inc"
                             const char* path)

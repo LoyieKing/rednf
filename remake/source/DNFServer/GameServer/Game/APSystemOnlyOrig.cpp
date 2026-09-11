@@ -61,7 +61,7 @@ static const int ConstClientClearAction[5] = {2, 5, 0x29, 0x2b, 0x2c};  // 0x08a
 // ORIG 域常量（nm：_ZN8APSystemL19ConstOCC_DATELengthE，r 段；"YYYY-MM-DD" 含 NUL）
 static const int ConstOCC_DATELength = 11;
 
-bool CActionPointManager::_IsGMOn;                                // ORIG B 0x093ff07c
+// [SplitC batch5] CActionPointManager::_IsGMOn 定义已迁出至 localchina_ActionPointSystem.cpp（类内声明见 CUser.h）
 CActionPointManager::GmWeekdayCtl CActionPointManager::_gmWeekday;  // ORIG D 0x0937008c
 
 }  // namespace APSystem

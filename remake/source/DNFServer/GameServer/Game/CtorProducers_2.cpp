@@ -424,7 +424,7 @@ typedef struct { char m_pad332; } AnonymousPad332;
 
 // ORIG 静态成员单例指针（nm B 数据；getInsance 懒加载落点）。
 StrikerScript* StrikerScript::instance_ = 0;              // _ZN13StrikerScript9instance_E B 0x09500978
-CharacManageScript* CharacManageScript::instance_ = 0;    // _ZN18CharacManageScript9instance_E B 0x094f6b98
+// [SplitC batch5] CharacManageScript::instance_ 定义已迁出至 RDARScriptCharacManage.cpp（类内声明见 CharacManageScript.h）
 
 
 #include "CtorProducers_2/getInsance.inc"

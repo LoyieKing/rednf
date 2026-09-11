@@ -1481,7 +1481,7 @@ WongWork::CCapchaDataManager GlobalData::s_capchaDataManager;
 #include "GlobalData/NetworkThread.inc"
 #include "GlobalData/UdpThread.inc"
 // g_bUdp_TH_start —— ORIG BSS 0x943e240；dispatch 置 1 标记 UDP 线程已启动。
-bool g_bUdp_TH_start = false;
+extern bool g_bUdp_TH_start;   // [SplitC batch5] 定义已迁出至 NetworkThread.cpp
 
 // ---------------------------------------------------------------------------
 // CPacketCounter<1000,10240> —— ORIG 由本 TU（NetworkThread.cpp）实例化
@@ -2533,7 +2533,7 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
 
 #include "GlobalData/GetEndTime.inc"
 
-#include "GlobalData_SSO_keys.inc"
+// [SplitC batch5] _GLOBAL__I__ZN8WongWork10CSimpleSSO12strKeyTable_E 定义已迁出至 SimpleSSO.cpp（.inc 整体迁移）
 
 #include "GlobalData/CSimpleSSO.inc"
 

@@ -267,7 +267,7 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
 // ---------------------------------------------------------------------------
 // g_npcScript 全局变量（BSS 零初始化，与 ORIG nm 类型 B 一致）
 // ---------------------------------------------------------------------------
-char g_npcScriptBaseDirectory[0x100];
+extern char g_npcScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptNpc.cpp
 STScriptFileList g_npcScriptFileList;
 
 #include "GameMain/ShowLogo.inc"

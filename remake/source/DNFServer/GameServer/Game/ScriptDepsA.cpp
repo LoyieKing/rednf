@@ -96,20 +96,7 @@ static float upgradeWeaponAttackPowerRate_[11][6][2] =
 };
 
 // ORIG D 0x093f52a0 [0x108]＝11 职业 × 6（.data 初值实证：仅 job0 首项 1.0f）。
-float g_weaponDurabilityDecreaseRate_[11][6] =
-{
-    { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-};
+extern float g_weaponDurabilityDecreaseRate_[11][6];   // [SplitC batch5] 定义已迁出至 RDARScriptObject.cpp
 
 // ORIG B 0x094ff12c / 0x094ff144 [0x18]（生物模块伤害率表）。
 std::map<ENUM_MODULE_TYPE, float> g_creatureModuleDamageRateMap;

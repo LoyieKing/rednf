@@ -1822,7 +1822,7 @@ static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
 
 
 // ORIG B 0x09500380：脚本根目录（EpisodeScript 等 loadRDARScriptFile 首参）。
-char g_questScriptBaseDirectory[0x100];
+extern char g_questScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptQuest.cpp
 
 #include "STQuestScript/dungeonEventHanaseStruct.inc"
 

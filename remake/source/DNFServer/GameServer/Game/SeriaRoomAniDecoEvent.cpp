@@ -76,7 +76,7 @@ SeriaRoomAniDecoEvent::~SeriaRoomAniDecoEvent() {}      // D1/D2 0x0827b4ac
 //   （非 const ⇒ .data；值 {0x1567,0x1568,0x1569}），由 OneADayItemShopEvent::isQuestId
 //   0x081ba1e2 线性查表消费。原先误做成函数内 `static const int`（局部符号 + .rodata）
 //   ⇒ 提为 TU 级定义。位置在首个强符号（SeriaRoomAniDecoEvent::C2Ev）之后，GI 键名不变。
-int correctQuestIds[3] = {0x1567, 0x1568, 0x1569};
+extern int correctQuestIds[3];   // [SplitC batch5] 定义已迁出至 OneADayItemShopEvent.cpp
 
 // ============================ OneADayItemShopEvent ============================
 OneADayItemShopEvent::OneADayItemShopEvent() {}         // C1/C2 0x081b9fb4

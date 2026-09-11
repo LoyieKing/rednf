@@ -45,16 +45,16 @@ extern STScriptFileList g_ChattingEmoticonScriptFileList;    // B 0x094f6cc0  CC
 // ⇒ GI 键名 `_GLOBAL__I_g_eventCharacterScriptBaseDirectory`（ORIG 0x895b874）。
 // 纯 POD char[0x100]（零动态初始化）⇒ 移动定义不改变任何构造序。
 char g_eventCharacterScriptBaseDirectory[0x100];     // B 0x094f73c0 (initEventCharacterScript)
-char g_aiCharacterScriptBaseDirectory[0x100];        // B 0x094f6920 (initAICharacterScript)
+extern char g_aiCharacterScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptAICharacter.cpp
 STScriptFileList g_aiCharacterScriptFileList;        // B 0x094f6a20 (0x18)
 STScriptFileList g_eventCharacterScriptFileList;     // B 0x094f74c0 (0x18)
-char g_pvpSkillTreeScriptBaseDirectory[0x100];       // B 0x09500240 (initPvPSkillTreeScript)
+extern char g_pvpSkillTreeScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptPvPSkillTree.cpp
 STScriptFileList g_pvpSkillTreeScriptFileList;       // B 0x09500340 (0x18)
-char g_independentDropScriptBaseDirectory[0x100];    // B 0x094f7840 (initIndependentDropScript)
+extern char g_independentDropScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptIndependentDrop.cpp
 STScriptFileList g_independentDropScriptFileList;   // B 0x094f7940 (0x18)
-char g_stageMapScriptBaseDirectory[0x100];           // D 0x093f4900 (initStageMapScript)
+extern char g_stageMapScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 global_RDARScriptStageMap.cpp
 STScriptFileList g_stageMapScriptFileList;           // B 0x09494e20 (0x18)
-char g_worldMapScriptBaseDirectory[0x100];           // B 0x09500f00 (initWorldMapScript/loadWorldMapCoordPattern)
+extern char g_worldMapScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptWorldMap.cpp
 STScriptFileList g_worldMapScriptFileList;           // B 0x09501000 (0x18)
 
 #include "InitScriptProducers_5/ImportEquipmentAniScript.inc"

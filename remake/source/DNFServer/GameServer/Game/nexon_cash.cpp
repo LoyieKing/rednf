@@ -316,7 +316,7 @@ namespace cash {
 
 int TCPSocket::msRecvBufSize = 0;  // B 0x09407d68
 int TCPSocket::msSendBufSize = 0;  // B 0x09407d6c
-const unsigned int TCPSocket::MAX_SEND_RETRY;  // R 0x08bb49e0（类内 =0x64 的类外定义，发射 R 符号）
+// [SplitC batch5] TCPSocket::MAX_SEND_RETRY 定义已迁出至 Socket.cpp（类内声明见 nexon_cash.h）
 
 
 // ===========================================================================
@@ -574,7 +574,7 @@ const unsigned int TCPSocket::MAX_SEND_RETRY;  // R 0x08bb49e0（类内 =0x64 �
 // TransactionManager
 // ===========================================================================
 
-int TransactionManager::tx_id_ = 0;             // B 0x09407d90
+// [SplitC batch5] TransactionManager::tx_id_ 定义已迁出至 Transaction.cpp（类内声明见 nexon_cash.h）
 
 #include "nexon_cash/instance.inc"
 

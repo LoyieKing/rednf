@@ -241,6 +241,18 @@ case "$src" in
             *Game/Channel.cpp | \
             *Game/RDARScriptCeraShop.cpp | \
             *Game/log.cpp | \
+            *Game/CSCommonFunction.cpp | \
+            *Game/OneADayItemShopEvent.cpp | \
+            *Game/RDARScriptChattingEmoticon.cpp | \
+            *Game/RDARScriptRegeneration_ROI.cpp | \
+            *Game/NetworkThread.cpp | \
+            *Game/RDARScriptQuest.cpp | \
+            *Game/RDARScriptDungeon.cpp | \
+            *Game/RDARScriptSkill.cpp | \
+            *Game/RDARScriptObject.cpp | \
+            *Game/RDARScriptCharacManage.cpp | \
+            *Game/SimpleSSO.cpp | \
+            *Game/SkillChanger.cpp | \
             *Game/OnlyOrigBatch12_rand_r.cpp | \
             *Game/OnlyOrigBatch12_security_server.cpp | \
             *Game/OnlyOrigBatch12_server_utility.cpp | \
@@ -465,7 +477,8 @@ case "$(basename "$src" .cpp)" in
             *Game/DispLinkA3.cpp | \
             *Game/EventBattleLink.cpp | \
             *Game/LinkClosureA_Misc.cpp | \
-            *Game/GameMain.cpp)
+            *Game/GameMain.cpp | \
+            *Game/RDARScriptNpc.cpp)
                 exec "$C6446R" "$@" ;;
             *Game/Inter_LoadEtc_impl.cpp)
                 # [Main·2026-09-11 Round8 路由 A/B] c46h7sweep 主候选②「撤头替换、留后端」：

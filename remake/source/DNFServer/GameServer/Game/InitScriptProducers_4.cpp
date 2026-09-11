@@ -64,7 +64,7 @@ STScriptFileList g_stPassiveObjectScriptFileList;   // 权威型（NpcScript.h�
 // ===================== 地下城脚本域（InitDungeonScript）=============
 
 // ORIG B 0x94f6da0 [0x100] / B 0x94f6ea0 [0x18] / B 0x9500480 [0x18]
-char g_szDungeonScriptBaseDirectory[0x100];
+extern char g_szDungeonScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptDungeon.cpp
 STScriptFileList g_stDungeonScriptFileList;             // 权威型（NpcScript.h，sizeof 0x18）
 std::map<int, std::string> g_questScriptFileList;       // ORIG 0x9500480（CListTables 引用）
 
@@ -77,7 +77,7 @@ std::map<int, std::string> g_questScriptFileList;       // ORIG 0x9500480（CLis
 // 数组长度 11 的证据：ORIG __static_initialization_and_destruction_0ii
 // （0x08a9b073..0x08a097）以 esi=0xa 递减构造 11 个元素（步进 0x18），
 // __tcf_0 析构上界 0x9500928 = 0x9500820 + 11*0x18。
-char g_szSkillScriptBaseDirectory[0x100];
+extern char g_szSkillScriptBaseDirectory[0x100];   // [SplitC batch5] 定义已迁出至 RDARScriptSkill.cpp
 STScriptFileList g_staSkillScriptFileList[11];   // 权威型（NpcScript.h，元素 0x18）
 
 #include "InitScriptProducers_4/InitSkillScript.inc"

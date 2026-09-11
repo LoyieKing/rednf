@@ -982,6 +982,29 @@ dnf_service(game
         ${SVC_DIR}/Channel.cpp
         ${SVC_DIR}/RDARScriptCeraShop.cpp
         ${SVC_DIR}/log.cpp
+        # ---- [SplitC 2026-09-11 batch5] 数据类 ORIG GI 锚点迁移（档0+档1 = 21 个；
+        #      配方见 /tmp/lane_data26/report.md §4；路由档位见 dnf_game_cxx.sh 同步条目）----
+        ${SVC_DIR}/CSCommonFunction.cpp
+        ${SVC_DIR}/OneADayItemShopEvent.cpp
+        ${SVC_DIR}/RDARScriptChattingEmoticon.cpp
+        ${SVC_DIR}/RDARScriptRegeneration_ROI.cpp
+        ${SVC_DIR}/RDARScriptAICharacter.cpp
+        ${SVC_DIR}/NetworkThread.cpp
+        ${SVC_DIR}/RDARScriptIndependentDrop.cpp
+        ${SVC_DIR}/RDARScriptNpc.cpp
+        ${SVC_DIR}/RDARScriptPvPSkillTree.cpp
+        ${SVC_DIR}/RDARScriptQuest.cpp
+        ${SVC_DIR}/global_RDARScriptStageMap.cpp
+        ${SVC_DIR}/RDARScriptDungeon.cpp
+        ${SVC_DIR}/RDARScriptSkill.cpp
+        ${SVC_DIR}/RDARScriptObject.cpp
+        ${SVC_DIR}/RDARScriptWorldMap.cpp
+        ${SVC_DIR}/RDARScriptCharacManage.cpp
+        ${SVC_DIR}/Transaction.cpp
+        ${SVC_DIR}/Socket.cpp
+        ${SVC_DIR}/localchina_ActionPointSystem.cpp
+        ${SVC_DIR}/SimpleSSO.cpp
+        ${SVC_DIR}/SkillChanger.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"
