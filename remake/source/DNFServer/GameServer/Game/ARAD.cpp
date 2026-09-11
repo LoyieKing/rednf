@@ -152,7 +152,8 @@ namespace ARAD
 // ============================================================================
 namespace ARAD
 {
-#include "ARAD/Arad_DataManager.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] Arad_DataManager 已迁出至 Arad_DataManager.cpp（ORIG GI 键对齐）。
+
 
 
 #include "ARAD/dtor_Arad_DataManager.inc"

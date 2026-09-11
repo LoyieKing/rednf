@@ -254,7 +254,8 @@ ARAD_INTER_DISPATCHER_CTOR(Arad_INTER_kAvatarConvert, 0x33)
 #include "Arad_InternalDispatcher/checkWorkState_3.inc"
 
 
-#include "Arad_InternalDispatcher/checkWorkState_4.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] checkWorkState_4 已迁出至 Arad_PacketDispatcher.cpp（ORIG GI 键对齐）。
+
 
 
 #include "Arad_InternalDispatcher/checkWorkState_5.inc"

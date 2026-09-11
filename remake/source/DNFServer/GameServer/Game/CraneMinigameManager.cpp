@@ -275,7 +275,8 @@ CraneItemInfo& CraneItemInfo::operator=(const CraneItemInfo& other)
 #include "CraneMinigameManager/dtor_CraneMinigameScript.inc"
 
 
-#include "CraneMinigameManager/CraneMinigameManager.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] CraneMinigameManager 已迁出至 CraneMinigameManagerOrig.cpp（ORIG GI 键对齐）。
+
 
 
 #include "CraneMinigameManager/dtor_CraneMinigameManager.inc"

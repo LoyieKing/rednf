@@ -216,7 +216,8 @@ public:
 #include "CtorProducers_1/TowerOfDespair_APC_Mgr.inc"
 
 
-#include "CtorProducers_1/TowerOfDespairMgr.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] TowerOfDespairMgr 已迁出至 TowerOfDespairMgrOrig.cpp（ORIG GI 键对齐）。
+
 
 
 #include "CtorProducers_1/dtor_TowerOfDespairMgr.inc"

@@ -176,7 +176,8 @@ namespace DATABASE
 // 各 create_* 共通形态：GetDBHandle(idx) → CREATE_QUERY::arad_sp_xxx。
 // ORIG 行号：0x4e/0x67/0x7b/0x95/0xb0/0xbf/0xcd/0xdb/0xe9。
 
-#include "ARAD_Database/dispatch.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] dispatch 已迁出至 Arad_Character.cpp（ORIG GI 键对齐）。
+
 
 
 #include "ARAD_Database/create_charac.inc"

@@ -429,7 +429,8 @@ struct BlackListNoticeView {          // = Packet_Monitor_Notice_Black_List（0x
 };
 #pragma pack(pop)
 
-#include "CAuction/dispatchPacket.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] dispatchPacket 已迁出至 DispatchServerPacket.cpp（ORIG GI 键对齐）。
+
 
 
 // ---------------------------------------------------------------------------

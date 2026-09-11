@@ -44,7 +44,8 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
 // ARAD::SCRIPT::AvatarFixedHiddenOption
 // ============================================================================
 
-#include "AvatarFixedHiddenOptionServer/AvatarFixedHiddenOption.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] AvatarFixedHiddenOption 已迁出至 Arad_AvatarFixedHiddenOption.cpp（ORIG GI 键对齐）。
+
 
 
 #include "AvatarFixedHiddenOptionServer/dtor_AvatarFixedHiddenOption.inc"

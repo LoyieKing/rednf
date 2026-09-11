@@ -5,6 +5,7 @@
 #define DNF_GAME_RENTALMACHINEPCROOM_H_
 
 #include <memory>
+#include <set>
 
 #include "InstanceRentalSystem.h"  // IRentalMachine / InstanceRentalSystem::RentInput / RentOutput
 
@@ -27,10 +28,9 @@ public:
 private:
     // 嵌套实现对象（ORIG 嵌套类，C1 0x08271a80：set<unsigned>@0x104 构造 +
     // memset 前 0x104；总 0x11c）。
+    struct RentalMachinePcRoomImpl
+    {
         ~RentalMachinePcRoomImpl() {}  // ORIG D1 @0x08271d50：仅析构 set
-        char m_data[0x104];            // +0x00（日志路径等，未还原字段区）
-        std::set<unsigned int> m_set;  // +0x104
-    };  // 0x11c
         char m_data[0x104];            // +0x00（日志路径等，未还原字段区）
         std::set<unsigned int> m_set;  // +0x104
     };  // 0x11c

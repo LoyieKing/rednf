@@ -87,7 +87,8 @@ namespace WongWork
 
 // ============================ IItemUpgrade ============================
 
-#include "CItemUpgrade_Separate/IItemUpgrade.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] IItemUpgrade 已迁出至 IItemUpgrade.cpp（ORIG GI 键对齐）。
+
 
 #include "CItemUpgrade_Separate/dtor_IItemUpgrade.inc"
 

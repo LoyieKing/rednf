@@ -1,6 +1,9 @@
 #ifndef GAME_EXTREAMDUNGEON_H_
 #define GAME_EXTREAMDUNGEON_H_
 
+class CEquipItem;
+class Inven_Item;
+
 // HdrCreate2 批（/tmp/missing_h_chunk_ab）：ORIG 有导出符号但仓库无 .h 声明的类。
 // 仅声明骨架（不入 CMake，无 cpp 实现）。参数类型按 ORIG demangled 原样；
 // 返回类型与 static/成员属性未逐项核实者标【推断】，实现时须以 docs/class_func_reports 为准。
@@ -8,6 +11,13 @@
 class ExtreamDungeon
 {
 public:
+    // 【推断】类内枚举（ORIG mangled `NS_15eBindSphereType` 实证为 ExtreamDungeon 内 15 字符枚举名）；
+    //   值域待从使用点取证后补全。
+    enum eBindSphereType
+    {
+        eBindSphereType_NONE = 0,
+    };
+
     class OUTPUT_ITEM_STR
     {
     public:
@@ -66,8 +76,6 @@ public:
     // 实现见 CItemList.h/.cpp（namespace ExtreamDungeon 级自由函数，mangled 与
     // ORIG 一致；CItemList.h:336 的 OUTPUT_ITEM_STR 即 ExtreamDungeon::OUTPUT_ITEM_STR）。
     // bool BindTable_Predicate(OUTPUT_ITEM_STR const& a, OUTPUT_ITEM_STR const& b);
-};  【推断:static/成员未定】
-    int OUTPUT_ITEM_STR const&);   // 返回类型【推断】
 };
 
 #endif  // GAME_EXTREAMDUNGEON_H_

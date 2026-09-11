@@ -36,7 +36,8 @@ namespace Taiwan
 #include "TaiwanCash/getResult.inc"
 
 
-#include "TaiwanCash/TaiwanCash.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] TaiwanCash 已迁出至 TaiwanCashOrig.cpp（ORIG GI 键对齐）。
+
 
 
 #include "TaiwanCash/init.inc"

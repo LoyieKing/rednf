@@ -119,7 +119,8 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 // loadScript 0x088b0eba / clearScript 0x088b12d8 / 访问器 0x88b1314..0x88b13a6
 // ============================================================================
 
-#include "AvatarRechargeServer/AvatarRecharge.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] AvatarRecharge 已迁出至 Arad_EmblemReform.cpp（ORIG GI 键对齐）。
+
 
 
 #include "AvatarRechargeServer/dtor_AvatarRecharge.inc"

@@ -1,0 +1,1 @@
+CDailyScheduleManager::CDailyScheduleManager() {}

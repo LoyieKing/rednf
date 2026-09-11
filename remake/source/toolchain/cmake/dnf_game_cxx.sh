@@ -39,6 +39,7 @@ case "$src" in
             *Game/AradPeriodB.cpp | \
             *Game/Arad_AvatarRoulette.cpp | \
             *Game/Arad_Dispatcher.cpp | \
+            *Game/Arad_OS.cpp | \
             *Game/Arad_Dispatch_Manager.cpp | \
             *Game/Arad_Dispatcher_BuyItemCheck_Impl.cpp | \
             *Game/Arad_IPGProcess.cpp | \

@@ -2458,7 +2458,8 @@ template CMonitorServerProxy* CServerProxyMgr<CMonitorServerProxy>::GetServerPro
 template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyArrayAt(int);
 
 
-#include "GlobalData/CPCRoomServerProxy.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] CPCRoomServerProxy 已迁出至 CPCRoomServerProxy.cpp（ORIG GI 键对齐）。
+
 
 
 #include "GlobalData/dtor_CPCRoomServerProxy.inc"
@@ -2506,7 +2507,8 @@ template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyAr
 
 #include "GlobalData/removeGM.inc"
 
-#include "GlobalData/CCeraShop.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] CCeraShop 已迁出至 CeraShop.cpp（ORIG GI 键对齐）。
+
 
 #include "GlobalData/dtor_CCeraShop.inc"
 
@@ -2710,7 +2712,8 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 #include "GlobalData/IncreaseLevelDungeonPlay.inc"
 
 
-#include "GlobalData/CBreakAwayPreventSystem.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] CBreakAwayPreventSystem 已迁出至 BreakAwayPreventSystem.cpp（ORIG GI 键对齐）。
+
 
 
 #include "GlobalData/dtor_CBreakAwayPreventSystem.inc"
@@ -2736,6 +2739,7 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 #include "GlobalData/SetCloseTime.inc"
 
 #include "GlobalData/InstanceRentalSystem.inc"
+
 
 #include "GlobalData/dtor_InstanceRentalSystem.inc"
 
@@ -2773,7 +2777,8 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 #include "GlobalData/Rent.inc"
 
 
-#include "GlobalData/CDailyScheduleManager.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] CDailyScheduleManager 已迁出至 localchina_DailyScheduleOrig.cpp（ORIG GI 键对齐）。
+
 #include "GlobalData/dtor_CDailyScheduleManager.inc"
 #include "GlobalData/dtor_CTeamFactory.inc"
 
@@ -2816,7 +2821,8 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 #include "GlobalData/makeRequest_3.inc"
 
 
-#include "GlobalData/Action.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] Action 已迁出至 StackableAction.cpp（ORIG GI 键对齐）。
+
 
 #include "GlobalData/proc_bingo.inc"
 
@@ -2888,7 +2894,8 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 
 #include "GlobalData/GetRandomOption.inc"
 
-#include "GlobalData/CRandomOptionItemHandle.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] CRandomOptionItemHandle 已迁出至 RandomOption.cpp（ORIG GI 键对齐）。
+
 
 #include "GlobalData/dtor_CRandomOptionItemHandle.inc"
 

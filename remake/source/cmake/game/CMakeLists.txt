@@ -938,6 +938,28 @@ dnf_service(game
         ${SVC_DIR}/IPGMgr.cpp
         ${SVC_DIR}/ExpertJob.cpp
         ${SVC_DIR}/Arad_DatabaseDispatcher.cpp
+        # ---- [SplitC 2026-09-11 batch3] 第三批 ORIG GI 锚点迁移（20 个，同批1/2 规矩：
+        #      追加在段尾保持既有顺序；路由档位见 dnf_game_cxx.sh 同步条目）----
+        ${SVC_DIR}/CraneMinigameManagerOrig.cpp
+        ${SVC_DIR}/TaiwanCashOrig.cpp
+        ${SVC_DIR}/TowerOfDespairMgrOrig.cpp
+        ${SVC_DIR}/ServiceRestrictManagerOrig.cpp
+        ${SVC_DIR}/RandomOption.cpp
+        ${SVC_DIR}/StackableAction.cpp
+        ${SVC_DIR}/CPCRoomServerProxy.cpp
+        ${SVC_DIR}/BreakAwayPreventSystem.cpp
+        ${SVC_DIR}/localchina_DailyScheduleOrig.cpp
+        ${SVC_DIR}/OnlinePreliminaryData.cpp
+        ${SVC_DIR}/Arad_DataManager.cpp
+        ${SVC_DIR}/Arad_Character.cpp
+        ${SVC_DIR}/Arad_EmblemReform.cpp
+        ${SVC_DIR}/Arad_AvatarFixedHiddenOption.cpp
+        ${SVC_DIR}/IItemUpgrade.cpp
+        ${SVC_DIR}/CeraShop.cpp
+        ${SVC_DIR}/Arad_PacketDispatcher.cpp
+        ${SVC_DIR}/DispatchServerPacket.cpp
+        ${SVC_DIR}/RDARScriptAccountCargo.cpp
+        ${SVC_DIR}/Arad_OS.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

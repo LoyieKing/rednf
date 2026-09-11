@@ -57,7 +57,8 @@ struct LayoutAsserts
 
 #include "InitScriptProducers_1/clear.inc"
 
-#include "InitScriptProducers_1/importAccountCargoScript.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] importAccountCargoScript 已迁出至 RDARScriptAccountCargo.cpp（ORIG GI 键对齐）。
+
 
 // ============================================================================
 // Channel（Etc/channel_info.etc 域）

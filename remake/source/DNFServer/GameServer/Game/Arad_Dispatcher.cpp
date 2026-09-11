@@ -158,15 +158,7 @@ namespace ARAD
 #include "Arad_Dispatcher/db_dispatch_2.inc"
 
 
-#include "Arad_Dispatcher/GetQuarterOfYear.inc"
-{
-    time_t t;
-    time(&t);
-    struct tm tmp = *localtime(&t);
-    sprintf(buf, "%02d%d",
-            (tmp.tm_year + 1900) - ((tmp.tm_year + 1900) / 2000) * 2000,
-            tmp.tm_mon / 3 + 1);
-}
+// [SplitC 2026-09-11 batch3 · TU 迁移] ARAD::GetQuarterOfYear 已迁出至 Arad_OS.cpp（ORIG GI 键对齐）。
 
 #include "Arad_Dispatcher/arad_sp_buy_item_check.inc"
 

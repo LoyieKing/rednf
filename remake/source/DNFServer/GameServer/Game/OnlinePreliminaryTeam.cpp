@@ -38,9 +38,8 @@
 {
 }
 
-#include "OnlinePreliminaryTeam/COnlinePreliminaryMember.inc"
-{
-}
+// [SplitC 2026-09-11 batch3 · TU 迁移] COnlinePreliminaryMember 已迁出至 OnlinePreliminaryData.cpp（ORIG GI 键对齐）。
+
 
 namespace online_preliminary
 {

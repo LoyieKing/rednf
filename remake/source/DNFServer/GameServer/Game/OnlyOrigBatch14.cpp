@@ -391,7 +391,8 @@ extern const char* ACTIVESTATUS_TAG[17];
 
 #include "OnlyOrigBatch14/getNeedMaterial.inc"
 
-#include "OnlyOrigBatch14/enumToString.inc"
+// [SplitC 2026-09-11 batch3 · TU 迁移] enumToString 已迁出至 ServiceRestrictManagerOrig.cpp（ORIG GI 键对齐）。
+
 
 // （importKeyNameIndexTable 已按 R3 批准迁至 ScriptExtras.cpp —— 判词随行迁走。）
 
