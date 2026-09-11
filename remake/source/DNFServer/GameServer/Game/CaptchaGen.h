@@ -11,29 +11,7 @@
 #include "GreyImage.h"
 #include "CaptchaGenData.h"
 #include "CountryCode.h"
-
-// ---- XorRand4（ORIG 0x08adfa90；m_counter + 4 张字节替换表）----
-class XorRand4
-{
-public:
-    XorRand4() { m_counter = 0; }
-    void seed(unsigned int s) { m_counter = s; }
-    unsigned int getUInt32()
-    {
-        // ORIG 0x8adfa90：后缀自增取旧值；再以字节指针逐字节查 4 张表异或。
-        unsigned int v = m_counter++;
-        const unsigned char* p = (const unsigned char*)&v;
-        return ms_table0[p[0]] ^ ms_table1[p[1]] ^
-               ms_table2[p[2]] ^ ms_table3[p[3]];
-    }
-    unsigned int operator()() { return getUInt32(); }
-private:
-    unsigned int m_counter;
-    static const unsigned int ms_table0[256];  // VA 0x08e32cc0
-    static const unsigned int ms_table1[256];  // VA 0x08e330c0
-    static const unsigned int ms_table2[256];  // VA 0x08e334c0
-    static const unsigned int ms_table3[256];  // VA 0x08e338c0
-};
+#include "XorRand4.h"   // XorRand4 权威声明（原本头简版副本已删，统一单点声明）
 
 class CaptchaGen
 {
