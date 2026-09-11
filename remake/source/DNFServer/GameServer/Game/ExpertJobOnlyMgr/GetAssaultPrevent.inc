@@ -1,6 +1,6 @@
 // ---- GetAssaultPrevent（报告，ORIG T 0x085d137c sz 0xa7）----
 // b28c-1 AE: P0/N96 清绑 + P223 双岛（0x085d140a/0x085d140d）后 0 差。
-int CAlchemist::GetAssaultPrevent(CUser* user, bool* peerFlag)
+bool CAlchemist::GetAssaultPrevent(CUser* user, bool* peerFlag)   // [P354/P292] ORIG `call; test %al,%al` ⇒ bool（原 int 误标）
 {
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (IsExistContinuousEffectItem(user, 0x27ac4a))

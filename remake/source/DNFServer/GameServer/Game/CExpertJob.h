@@ -291,7 +291,7 @@ public:
     // ---- OnlyOrig_CreatureJob 批追加（定义 ExpertJobOnlyMgr.cpp）----
     static void UseDelilah(CUser* user);                     // ORIG T 0x085d18ae（体内无 this）
     static void UseRevivalItem(CUser* user);                 // ORIG T 0x085d1694（同上）
-    static int GetAssaultPrevent(CUser* user, bool* flag);   // ORIG T 0x085d137c（ORIG 无 this 槽）
+    static bool GetAssaultPrevent(CUser* user, bool* flag);  // ORIG T 0x085d137c（ORIG 无 this 槽）；[P354/P292] ORIG 调用点 `call; test %al,%al` ⇒ 8 位返回（原 int 误标）
     static int OnUseStackableItem(CUser* user, unsigned long uid,
                                   const CItem* item);        // ORIG T 0x085d1712（LinkClosureA-2 改 static：ORIG 调用点 0x865e42e 无 ecx 设置、mangled 无 this 编码实证）
     static int GetQuestItemDropRate(CUser* user, int itemIdx);   // ORIG T 0x085d12ee（ORIG 无 this 槽）
