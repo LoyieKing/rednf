@@ -29,7 +29,12 @@ struct itemData
     // ORIG applyItemOption 0x080f0d6e 以 movzbl+cmp $1,%al+jle 比较（signed char，
     // unsigned char 生成 jbe）、defaultOption 以 movsbl 读取 → 必须 signed。
     unsigned char m_seal;      // +0x01 seal 标志（getOptionType "seal"/"unseal" 写 1/0）
-    unsigned char m_roi;       // +0x02 sealROI 标志（getOptionType "sealROI"/"unsealROI" 写 1/0）
+    // [R19ty T-2a 2026-09-13] `unsigned char`→`bool`：ORIG applyItemOption 0x080f0e06/0x080f0e0a
+    //   `movzbl 0x2(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（取反物化，P357 字段轴/
+    //   P158）⇒ 字段真型 bool；我方 uchar 版产 `movzbl; test %al,%al; jne`（无 xor，形态差）。
+    //   宽度 1B 不变（sizeof 仍 0x0c、+0x04/+0x08 偏移不变）；值域 {0,1}（getOptionType
+    //   写 0/1、ctor/clear 写 1）⇒ 语义等价。
+    bool m_roi;                // +0x02 sealROI 标志（getOptionType "sealROI"/"unsealROI" 写 1/0）
     int m_itemIdx;             // +0x04 [推断] 道具 idx（ImportRewardScript 行内 ScanInt）
     int m_count;               // +0x08 [推断] 数量（stackable 行 ScanInt；defaultOption action==2 置 1）
 

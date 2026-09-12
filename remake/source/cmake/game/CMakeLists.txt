@@ -1195,15 +1195,17 @@ dnf_service(game
         -l:libGeoIP.so.1
         -ldl
         -lm
-        # [Main·检查点71] 动态导出面 = ORIG 逐符号对齐：
-        #   ① --export-dynamic：把**全部全局符号**放进 .dynsym（否则链接器只为「被动态
-        #      引用」的符号建条目，如 THR_*/yaSSL::* 这类仅本模块使用的库符号不会有
-        #      dynsym 条目，version script 也**无法新增** ⇒ 只能删减）；
-        #   ② --version-script：再从完整 .dynsym 里**筛出** ORIG 的 3017 个符号
-        #      （local: * ⇒ 我方多出的 libstdc++ 4.4 实例 _ZGVNSt…/_M_extract… 等不导出）。
-        #   映射由 source/toolchain/gen_export_map.sh 自 ORIG 重新生成。
-        -Wl,--export-dynamic
-        -Wl,--version-script=${CMAKE_CURRENT_LIST_DIR}/../../../source/toolchain/game_export.map
+        # [Main·检查点71 → R19scanDYN·§25.1 机制修正] 动态导出面 = ORIG 逐符号对齐：
+        #   原「--export-dynamic + --version-script(local:*)」两段式虽能筛准 .dynsym，
+        #   但 version script 的 `local: *;` 会把**非白名单全局符号在 .symtab 也本地化**
+        #   （实测我方 symtab binding 偏差 118,221 条：ORIG WEAK/GLOBAL → 我方 LOCAL，
+        #    例如 `GlobalData::s_*` 由 B/D 退化为 b/d）。
+        #   改用 `--dynamic-list`（**只增 .dynsym、不改 .symtab binding**）：真实 .o A/B
+        #   实测 —— `CSystemTime::update` 由 t(LOCAL) 恢复 T(GLOBAL)；`_ZN10GlobalData*`
+        #   90 条不再进入 .dynsym（与 ORIG 一致：ORIG .dynsym 中该类符号计数 = 0）。
+        #   白名单 = ORIG .dynsym 定义集（3016 条），由 source/toolchain/gen_dynlist.py
+        #   自 ORIG 生成 ⇒ 不再需要 `global: *;`，`local: *;` 亦一并去除。
+        -Wl,--dynamic-list=${CMAKE_CURRENT_LIST_DIR}/../../../source/toolchain/game_export.dynlist
 )
 
 target_compile_options(game PRIVATE -std=gnu++0x)

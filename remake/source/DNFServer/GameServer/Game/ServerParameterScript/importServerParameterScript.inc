@@ -81,7 +81,6 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
     {
         if (!ScanType(line, true))
             break;
-        missed = false;
         if (line == "[nation code]")
         {
             ScanInt((bool*)0);
@@ -1954,7 +1953,6 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         }
         else
         {
-            missed = true;
         }
         if (missed)
         {

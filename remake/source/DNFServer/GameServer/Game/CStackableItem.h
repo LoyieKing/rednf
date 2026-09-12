@@ -31,7 +31,13 @@ struct StatChangeInfo
     }
 
     int sec;                  // +0x00
-    char m_flagLo;            // +0x04（低字节）
+    // [R19ty T-2b 2026-09-13] `char`→`bool`：ORIG _processEffectItem 0x0865ec1d/0x0865ec24/0x0865ec27
+    //   `movzbl 0x2e0(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（取反物化 ⇒ 字段真型 bool；
+    //   P357 字段轴/P158）。写入侧 CStackableItem::set_item ORIG 0x0850df79 `movzbl 0x360(%eax),%edx;
+    //   mov %dl,0x2e0(%eax)` 单段直存（无 bool 归一化）⇒ 源 STStackableScript::m_field360 亦为
+    //   bool（P136 先例：m_field3a1 同法）。宽度 1B、StatChangeInfo 仍 6B、m_stat2dc@+0x2dc
+    //   与后续偏移不变。
+    bool m_flagLo;            // +0x04（低字节）
     char m_flagHi;            // +0x05（次字节）
 };
 

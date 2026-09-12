@@ -21,6 +21,20 @@
 //   {0x1c:1, 0x8:1}、OURS-only {} ⇒ 无字段错位/布局轴 bug（对比 PBR 的
 //   `[o+0x16]` 真 bug 即由此轴暴露：当时差集为 0xb0 级）；
 // ②常量轴：立即数差集仅 {ORIG 0x2cc} vs {OURS 0x31c}（帧 −0x50）⇒ 无常量错位；
+// [R19a15 2026-09-13 ④ 修复 ×2 · 我方多出 find_item 判空守卫]
+//   ①groupIdx∈{2,7,9}：ORIG 0x08322537..0x08322551 直证「Inven_Item::C1Ev 之后
+//     `mov -0x40(%ebp),%eax; mov (%eax),%eax; add $0x8,%eax; mov (%eax),%edx;
+//     call *%edx`」——无任何 test/je；我方旧稿 `if (src != 0){…}` 多出
+//     `cmpl $0x0,-0x78(%ebp); je`（跳过的正是 ORIG 顺序执行的 make_item +
+//     m_addInfo/m_fieldb 写块）。
+//   ②groupIdx==3：ORIG 0x0832295a..0x08322971 同形（find_item → C1Ev → 直接
+//     vtable slot2 调用）；我方旧稿 `if (src != 0){…}` 多出 `cmpl $0x0,-0x68; je`。
+//   处置：两处守卫移除，完全复刻 ORIG（src==0 时按 ORIG 行为直接解引用）。
+//   判据：§14 #33（ORIG 无守卫、我方有）+ §5 #17（我方多出的防御性守卫）。
+//   四闸门：①备份 md5 44304e99a03274b749f2a8c3ad56ca73；②A/B TU 四数
+//   identical=61 ae=120 near=0 diff=2 missing=45 逐值不变（.o 指令 1711→1707
+//   = −2×2）；③新 .o 两处与 ORIG 逐条同形（无 test/je）；④nm --defined-only
+//   317=317 逐名零差。
 // ③残余 = 帧/槽整体平移（N82，我方最深 -0x2b0 vs ORIG -0x264）+ 4.4 临时
 //   spill 深度（如 -0x2b0/-0x2ac 跨调用保活）+ 实参装载序 ⇒ 源形不可控。
 void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
@@ -207,12 +221,14 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 slotKind = 1;
                 CItem* src = G_CDataManager()->find_item(itemIdx);
                 Inven_Item item;
-                if (src != 0)
-                {
-                    src->make_item(item);     // ORIG vtable slot2（make_item 填 Inven_Item）
-                    item.m_addInfo = itemIdx;
-                    item.m_fieldb = stackCount;
-                }
+                // [R19a15 ④] ORIG 0x08322537..0x08322551 直证：find_item 后**无判空**，
+                // 直接 `mov -0x40(%ebp),%eax; mov (%eax),%eax; add $0x8,%eax;
+                // call *%edx`（vtable slot2 = make_item）。我方旧稿多 `cmpl $0x0,
+                // -0x78(%ebp); je` 跳过块（§14 #33「ORIG 无守卫、我方有」+ §5 #17）
+                // ⇒ 移除，完全复刻 ORIG（src==0 时空指针解引用，与 ORIG 行为一致）。
+                src->make_item(item);     // ORIG vtable slot2（make_item 填 Inven_Item）
+                item.m_addInfo = itemIdx;
+                item.m_fieldb = stackCount;
                 if (buyFlag == 1)
                 {
                     _processItemGift(user, item, accIdReq, characNoReq);
@@ -262,26 +278,27 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             {
                 CItem* src = G_CDataManager()->find_item(itemIdx);
                 Inven_Item item;
-                if (src != 0)
+                // [R19a15 ④] ORIG 0x0832295a..0x08322971 直证：find_item 后无判空，
+                // 直接 vtable slot2 调用（`mov -0x38(%ebp),%eax; mov (%eax),%eax;
+                // add $0x8,%eax; call *%edx`）⇒ 移除我方多出的 `cmpl $0x0; je`
+                // 整块守卫（§14 #33 / §5 #17），完全复刻 ORIG。
+                src->make_item(item);
+                item.m_addInfo = itemIdx;
+                item.m_fieldb = stackCount;
+                if (buyFlag == 1)
                 {
-                    src->make_item(item);
-                    item.m_addInfo = itemIdx;
-                    item.m_fieldb = stackCount;
-                    if (buyFlag == 1)
-                    {
-                        // ORIG 0x83229af/0x83229bc：两分支各自重发调用（P48）。
-                        const int expirationDate = src->getExpirationDate();
-                        const int usablePeriod = src->getUsablePeriod();
-                        _processCreatureGift(user, item, accIdReq, characNoReq,
-                                             usablePeriod, expirationDate);
-                    }
-                    else
-                    {
-                        const int expirationDate = src->getExpirationDate();
-                        const int usablePeriod = src->getUsablePeriod();
-                        _processCreature(user, item, restrictCode, resultState,
-                                         true, usablePeriod, expirationDate);
-                    }
+                    // ORIG 0x83229af/0x83229bc：两分支各自重发调用（P48）。
+                    const int expirationDate = src->getExpirationDate();
+                    const int usablePeriod = src->getUsablePeriod();
+                    _processCreatureGift(user, item, accIdReq, characNoReq,
+                                         usablePeriod, expirationDate);
+                }
+                else
+                {
+                    const int expirationDate = src->getExpirationDate();
+                    const int usablePeriod = src->getUsablePeriod();
+                    _processCreature(user, item, restrictCode, resultState,
+                                     true, usablePeriod, expirationDate);
                 }
             }
             else if (groupIdx == 10)

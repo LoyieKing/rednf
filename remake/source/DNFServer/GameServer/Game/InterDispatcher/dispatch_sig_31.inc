@@ -27,15 +27,18 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         // P183：ORIG 无 skip 具名槽（084cf12f `cmp $0x3e7,%eax` 后 `je 主体`、
         //   次条件不满足时 `jne 循环尾`）⇒ 原码是单个短路条件，不设 bool skip；
         //   等价化简 (m10==999) || (state>2 && curCharacNo==m_4)。
-        // [L9-G PATCH#4 负结论 · 已回滚] 删 `(unsigned char)` cast + 循环基址 `data`→`pPkt`
-        //   实测**反劣**：fn_diff 差异点 135 → 143（TU 四数不动）。ORIG 0x084e5f.. 段确为
-        //   `call RecvInfoFromDB; test %al,%al; je` 与 -0x14 具名槽基址，但本件残差主体是
-        //   帧/槽平移（我方 164 vs ORIG 149），单点改动反而扩大错位窗口 ⇒ 恢复原形。
+        // [L9-G PATCH#4 负结论 · 已回滚] 删 `(unsigned char)` cast（callee 当时仍 `unsigned int`）
+        //   实测**反劣**：fn_diff 差异点 135 → 143 —— 因 4.4 对 int 返回值的 `if(f())` 恒发
+        //   `test %eax,%eax; setne %al; test %al,%al; je` 4 段，与 ORIG 2 段不符。
+        // [R19ty T-1 2026-09-13] callee 返回类型已按 P292 证据改 `bool`（GlobalData.h +
+        //   W6_SecMiscDeps/RecvInfoFromDB.inc），故此处**必须**删 cast：ORIG 0x084cf1b5
+        //   `call; test %al,%al; je`（0x084cf1ba/0x084cf1bc）无 setcc；保留 cast 会重新引入
+        //   `test %al,%al; setne %al`（我方旧 NEW 0x815e4e8 段 `0f 95 c0` 实证）。
         if (*reinterpret_cast<int*>(data + i * 0x10 + 0x10) == 999
             || (target->get_state() > 2 &&
                 target->getCurCharacNo() == pPkt->m_4))
         {
-            if ((unsigned char)WongWork::CWebEvent::RecvInfoFromDB(
+            if (WongWork::CWebEvent::RecvInfoFromDB(
                     target,
                     (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0x10),
                     (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0x14),

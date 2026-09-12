@@ -580,8 +580,10 @@ public:
     // ---- 怪物击杀 / 血之副本 ----
     bool CheckMapClear();                   // ORIG T 0x085bea4a：转发 CBattle_Field::check_grid_clear
     bool IsUseFatigueDungeon();             // ORIG T 0x085be9c8（定义见 UserCoreDepsB2.cpp）
-    void OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
-                         MSG_MONSTER_DIE const& dieInfo);
+    // ORIG 0x085b5f82 单条 `mov $0x1,%eax`（唯一出口，3 处 mov$1 均为 bool 物化岛）
+    // ⇒ 原码 int 返回 1（P159 尾判据；mangled 不含返回类型，ABI 不变）。
+    int OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
+                        MSG_MONSTER_DIE const& dieInfo);
     void MemberRegisterKillMonster(map_monster& monster, unsigned char flag);
     int OnFightVillageMonster(CUser* user, int monsterIdx);   // ORIG 返回 0/1/0x15（0x85b9596）
     int OnFinishVillageMonsterFighting(CUser* user, bool flag);   // ORIG 返回 0/3（0x85b99ac）

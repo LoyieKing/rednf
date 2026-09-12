@@ -89,7 +89,10 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
                     if (!ok)
                         break;
                     info->m_targetingBonusStr[i].push_back(
-                        stringToInt(s.c_str(), ACTIVEOBJECT_STATE_STRING, 0x13));
+                        // [R19scanFGV G 轴 ④] ORIG 0x08a394bd..0x08a394d5 直证：
+                        // movl $0x13,0x8(%esp); movl $0x93f54e0,0x4(%esp) → 表 = ACTIVESTATUS_ATTACK_TAG
+                        // （0x93f54e0，19 项；ACTIVEOBJECT_STATE_STRING 仅 16 项 ⇒ 查错表 + 越界 3 项）。
+                        stringToInt(s.c_str(), ACTIVESTATUS_ATTACK_TAG, 0x13));
                 }
             }
         }

@@ -11,7 +11,12 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     (void)packet;                        // ORIG 仅持引用，函数体不消费
     DisPatcher_DebugCommand dbgCmd;      // local_254（ORIG 栈构造）
     PacketGuard guard;                   // local_260（函数级持有，末尾析构）
-    unsigned int ret = 0;
+    // [R19a01 §24.3/§16.3 形态复刻] ORIG 0x0820bf54 `movb $0x1,-0x12d(%ebp)` ⇒ 原码是
+    //   **bool 初值 true** 的死变量（全函数 5 写 0 读）；另 4 处写均接收
+    //   _debugCommand{Visible,Invisible,AddAvatar,UserPowerwarPointUp} 的 bool 返回值
+    //   （0x0820cdef / 0x0820ce40 / 0x0820cf6e / 0x0820df66，各 `mov %al,-0x12d(%ebp)`）。
+    //   我方原写 `unsigned int ret = 0;` + 7×`ret = 0;`（8 条 movl $0，比 ORIG 多 3 条且形态反向）⇒ 照 ORIG 复刻。
+    bool bRet = true;
 
 
     // ---- lawless：SetCurCharacChaosPoint（0 < v < 10000）----
@@ -73,7 +78,6 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 guard.put_byte(0x66);
                 guard.finalize(true);
                 user->Send(guard);
-                ret = 0;
                 return 0;
             }
         }
@@ -94,7 +98,6 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 guard.put_byte(0x67);
                 guard.finalize(true);
                 user->Send(guard);
-                ret = 0;
                 return 0;
             }
         }
@@ -144,7 +147,6 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 guard.put_byte(0x69);
                 guard.finalize(true);
                 user->Send(guard);
-                ret = 0;
                 return 0;
             }
         }
@@ -210,13 +212,13 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     else if (args[0] == "show")
     {
         MSG_DEBUG_COMMAND dbg;
-        dbgCmd._debugCommandVisible(user, dbg);
+        bRet = dbgCmd._debugCommandVisible(user, dbg);
         return 0;
     }
     else if (args[0] == "hide")
     {
         MSG_DEBUG_COMMAND dbg;
-        dbgCmd._debugCommandInvisible(user, dbg);
+        bRet = dbgCmd._debugCommandInvisible(user, dbg);
         return 0;
     }
     // ---- dirty ----
@@ -231,7 +233,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         dbg.m_arg = std::atoi(args[1].c_str());
         dbg.payload.avatar.periodKind = static_cast<unsigned char>(std::atoi(args[2].c_str()));
         dbg.payload.avatar.slotByte = static_cast<signed char>(std::atoi(args[3].c_str()));
-        dbgCmd._debugCommandAddAvatar(user, dbg);
+        bRet = dbgCmd._debugCommandAddAvatar(user, dbg);
         return 0;
     }
     // ---- combo：无操作（ORIG 匹配后无动作）----
@@ -265,7 +267,6 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             int count = std::atoi(args[3].c_str());
             if (kind < 1 || 6 < kind)
             {
-                ret = 0;
                 return 0;
             }
             kind = kind + 2;
@@ -388,7 +389,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         {
             MSG_DEBUG_COMMAND dbg;
             dbg.m_arg = std::atoi(args[2].c_str());
-            dbgCmd._debugCommandUserPowerwarPointUp(user, dbg);
+            bRet = dbgCmd._debugCommandUserPowerwarPointUp(user, dbg);
             return 0;
         }
         else if (args[1] == "guildpoint")
@@ -1217,7 +1218,6 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         int value = StringToNumber(args[2].c_str());
         if (code < 0)
         {
-            ret = 0;
         }
         else
         {
@@ -1228,7 +1228,6 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 static_cast<ENUM_GLOBAL_EFFECT_ARAD>(code));
             GlobalData::s_serverStateManager_->insertState(
                 static_cast<ENUM_GLOBAL_EFFECT_ARAD>(code), msg);
-            ret = 0;
         }
         return 0;
     }
@@ -1290,7 +1289,6 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 case 6: weekday = 6; break;
                 case 7: weekday = 0; break;
                 default:
-                    ret = 0;
                     return 0;
             }
             APSystem::CActionPointManager::_gmWeekday.m_gmOn = 1;

@@ -114,7 +114,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     {
     case 0:
         IPGProcess.CashShopModeAvatar(user, itemIdx, productNo, avatarField,
-                                      (char)req->m_avatarType0, (char)req->m_avatarType1,
+                                      (char)avatarType0, (char)avatarType1,
                                       reqData->m_cmd.m_output.m_arg7D, retCode, accId, characNo,
                                       buyFlag);
         break;
@@ -177,7 +177,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     {
         int failCode = mMileageProcess.BuyMileageItem(
             user, productNo, itemIdx, stackCount, featuredIdx, (long)curSec, avatarField,
-            (char)req->m_avatarType0, (char)req->m_avatarType1, extraInt, itemCount, seq,
+            avatarType0, avatarType1, extraInt, itemCount, seq,
             reqData->m_cmd.m_output.m_arg7D, param);
         if (failCode != 0)
             mMileageProcess.BuyFail(user, (short)failCode, productNo, seq, itemCount);

@@ -294,9 +294,12 @@ void CParty::ClearDungeon()
     {
         if (!_checkValidUser(slot))
             continue;
-        CUser* user = m_member[slot].m_pUser;
-        user->getCurCharacQuestW()->set_authen_data((QUEST_CONDITION)4,
-                                                    memberCount, 0);
+        // [R19a08 P183 去具名缓存] ORIG 0x085aa057 / 0x085aa0e6 / 0x085aa101 等每个
+        // 使用点各自完整重算 `m_member[slot].m_pUser`（stride 0x18 八条链 +
+        // `mov (%eax),%eax`），无 CUser* 具名槽 ⇒ 逐点写表达式（shl $3/add $0x78
+        // 计数 O=14 = N=14）。
+        m_member[slot].m_pUser->getCurCharacQuestW()->set_authen_data(
+            (QUEST_CONDITION)4, memberCount, 0);
         // ORIG 0x85aa027..0x85aa057：64 位 elapsed（m_field0 低/ m_field4 高，
         // 即 this+0x32c/+0x330）经 __divdi3 除以 1000 后取低 32 位入第二个
         // set_authen_data（QUEST_CONDITION)2；ORIG 每个 set 前各调一次
@@ -304,14 +307,14 @@ void CParty::ClearDungeon()
         // [b28d-solo-CPartyDepsD2] ORIG 0x85aa027 段对 +0x32c/+0x330 直接做
         // 64 位 __divdi3（`mov 0x330(%eax),%edx` 单次高半装载，无 sar/or 拼接）
         // ⇒ 用 BattleData.h 的 64 位 union 视角（P180）。
-        user->getCurCharacQuestW()->set_authen_data(
+        m_member[slot].m_pUser->getCurCharacQuestW()->set_authen_data(
             (QUEST_CONDITION)2,
             (int)((long long)bd(this).m_clearPlayedTime / 1000),
             0);
         if (m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
             !m_battleField.m_pDungeon->isTowerOfDespairDungeon() &&
             !m_battleField.m_pDungeon->isTournamentDungeon())
-            user->Send(packet);
+            m_member[slot].m_pUser->Send(packet);
         secretshop::SECRET_SHOP_DATA* shopData = &m_secretShop;
         if (shopData->IsOpen() != 0)
         {
@@ -324,12 +327,12 @@ void CParty::ClearDungeon()
             GlobalData::s_secret_shop->LotteryItems(
                 shopItems,
                 shopData->m_openCode, dungeonIdx, level);
-            SendSecretShopItemList(user);
+            SendSecretShopItemList(m_member[slot].m_pUser);
             APSystem::CUserProc::ClearActionAndSendtoUser(
-                        user, (APSystem::_ActionGroupIndex)0xd, 0, (ENUM_PACKETCLASS)0);
+                        m_member[slot].m_pUser, (APSystem::_ActionGroupIndex)0xd, 0, (ENUM_PACKETCLASS)0);
         }
-        if (user->getBreakAwayDungeonClearCnt() > 0)
-            user->subBreakAwayDungeonClearCnt();
+        if (m_member[slot].m_pUser->getBreakAwayDungeonClearCnt() > 0)
+            m_member[slot].m_pUser->subBreakAwayDungeonClearCnt();
     }
     memberCount = get_member_count();
     if (memberCount == 1)

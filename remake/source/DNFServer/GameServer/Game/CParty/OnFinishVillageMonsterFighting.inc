@@ -96,6 +96,10 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
             {
                 char body[10];                          // -0x6a
                 memset(body, 0, sizeof(body));
+                // [R19a21 误修回滚留证] 曾据 O#187-190（`movb $0,-0x66; movb $0,-0x65`）
+                // 误判「ORIG 仅清前 2 字节」而删除本 memset；复核 ORIG #163-167 实为
+                // `movl $0xa,0x8(%esp); movl $0x0,0x4(%esp); lea -0x66; call memset`
+                // （全 10 字节清零，位于 PacketGuard 构造之前）⇒ 原 memset 本已同形，已回滚。
                 *(int*)(body + 2) = remain;             // ORIG body+2 写 remain
                 PacketGuard packet;                     // -0x78
                 packet.put_header(0, 0x1ec);
@@ -126,8 +130,12 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
                         ->m_serverParameter.m_revenge498[k].m_field0;
                     unsigned int f4 = G_CDataManager()
                         ->m_serverParameter.m_revenge498[k].m_field4;
-                    int f8 = G_CDataManager()
-                        ->m_serverParameter.m_revenge498[k].m_field8;
+                    // ORIG 0x085b9d4f `mov 0x8(%eax),%eax` = **4 字节**读（该结构 +8
+                    // 字段为 32 位；我方声明 uchar 旧码产 `movzbl 0x8(%eax)` 1 字节 ⇒ 位宽
+                    // 截断差）。按同族消费点 dispatch_sig_216.inc 既有 cast 形复刻 4 字节读。
+                    int f8 = *reinterpret_cast<const int*>(
+                        reinterpret_cast<const char*>(
+                            &G_CDataManager()->m_serverParameter.m_revenge498[k]) + 8);
                     // P196 折痕方向：ORIG 0x085b9d66 `mov -0x1c(attackCount),%eax;
                     //   cmp -0x14(f0),%eax; jb` ⇒ 写成 attackCount 居左才出该装载序。
                     if (attackCount >= f0 && attackCount <= f4)

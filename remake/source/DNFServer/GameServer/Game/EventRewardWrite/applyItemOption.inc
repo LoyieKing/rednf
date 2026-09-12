@@ -32,9 +32,12 @@ void eventReward::applyItemOption(Inven_Item& inven, const CItem* item,
     // ORIG 0x80f0d6e：虚调用 vptr+0x4c = vtable+0x54 = vt[21] IsRandomOption
     // （vptr 指向 vtable+8；勿与 vt[19] IsPossibleKiriProtection 混淆）
     // ORIG +0x91..+0xaf：短路物化岛（mov $1/jmp/mov $0 汇聚 + test）⇒ P226 语句表达式形。
-    // ORIG +0x98 `movzbl 0x2(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（取反物化）；
-    // 实测 4.4 对 `== 0` 与 `!m_roi` 均产 `test %al,%al; jne` 直跳（无 xor）⇒ 二者
-    // codegen 全同（75 条），保留 `== 0`。
+    // ORIG +0x98 `movzbl 0x2(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（取反物化
+    //   ⇒ P357 字段轴/P158：+0x02 字段真型 bool）。
+    // [R19ty T-2a 2026-09-13] 字段已由 `unsigned char` 改 `bool`（itemData.h）；本 `== 0`
+    //   写法在 bool 字段下由 4.4 直接产出 ORIG 形（fresh .o 实证：`movzbl 0x2(%eax),%eax;
+    //   xor $0x1,%eax; test %al,%al; je` = ORIG 0x080f0e06/0a/0d/0f 全等），写法无需改动。
+    //   （旧注释「uchar 下 `== 0` 与 `!m_roi` 均产 test;jne 无 xor」已随类型轴更正。）
     if (({ item->IsRandomOption() && data.m_roi == 0; }))  // +0x02 字节
     {
         this->unsealRandomOption(item, inven);

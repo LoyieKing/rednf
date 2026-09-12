@@ -10,6 +10,11 @@ void CUser::_processEffectItem(CStackableItem* item, unsigned int itemIdx,
     //   —— **无栈槽往返**（xor 在 %eax 全宽 = int 提升域，test 落 %al = 截断后判零）。
     //   我方原形多 3 条：`mov %al,-0x2d; xorb $1,-0x2d; cmpb $0,-0x2d`（独有 -0x2d 槽，
     //   并连带 StatChangeInfo 对象被顶到 -0x48，ORIG 在 -0x38）。改为内联表达式。
+    // [R19ty T-2b 2026-09-13 类型轴落地] 字段真型 bool 已恢复（CStackableItem.h
+    //   StatChangeInfo::m_flagLo char→bool + 镜像 STStackableScript::m_field360 同步 bool，
+    //   P357 字段轴/P136）。本节写法保持 `(unsigned char)(… ^ 1)` 内联形：bool 字段下
+    //   4.4 逐条复现 ORIG（fresh .o `movzbl 0x2e0(%eax),%eax; xor $0x1,%eax; test %al,%al;
+    //   je <主流程>` = ORIG 0x0865ec1d/24/27/29 全等，无 cast 截断残留）。
     // [R6a19 2026-09-12 语义修复] ORIG 的 je 落点 0x0865ec66 = **主流程**（movzbl 0x2dc
     //   起）⇒ 条件为假（flag^1==0，即 flag==1）直落 fall-through 的 trace 块，条件为真
     //   （flag^1!=0，即 flag!=1）才跳到主流程。故报错条件是 (flag^1)!=0 = flag!=1；

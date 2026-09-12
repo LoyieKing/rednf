@@ -13,8 +13,8 @@
     //   本 .inc 仅到 `IsCollectDungeonStatistic();`（ORIG 0x085b5a51 首条 call ✓ 一致），
     //   故本轮在此无可改项；上述具名量请由 CParty.cpp 属主按 P0/P183 处理。
     // p167：CALLSITE CLEAR（ORIG/我方各 34 call）。
-void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
-                             MSG_MONSTER_DIE const& dieInfo)
+int CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
+                            MSG_MONSTER_DIE const& dieInfo)
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS ActiveStaticInfo::getHpMax（1 次）。@0x85b5a4c
     IsCollectDungeonStatistic();
@@ -158,9 +158,6 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
     }
     if (bf.check_grid_clear())
         bf.onClearMap(true);
-    // [负结论 2026-09-11] ORIG 0x085b5f82/0x540 两出口均汇到 `mov $0x1,%eax`，暗示原码
-    // `return 1;`（非 void）；但权威头声明 void（P27：定义必须随头）⇒ 不可复现（差 1 条），
-    // 如需闭合须改 .h 返回类型（本泳道禁改头，仅报告）。
     // [2026-09-11 推进] 语义修复 4 处：①`user != 0` 判空下移到 addMonsterDamage 之后
     //（ORIG 085b5ad3 独立守卫；addMonsterDamage 有副作用，旧码提前判空会漏调用）；
     // ②instantCheck 布尔槽改内联条件（ORIG 0x3ec 三项短路 eax 直传岛）；③臂序/极性改
@@ -170,4 +167,8 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
     // 残 335/333：ORIG 085b5c8d..085b5e19 六臂各 `jmp 085b5e25` + 并行 nop 岛，4.4 恒
     // jump-thread（continue 与 goto 尾标签两形各试一次，读数均 333 无变化 ⇒ 归 N(P223 边界)）；
     // seta 段仍差 `seta/test/je`↔`jbe`（跨版本 setcc 物化，同上不可翻）。
+    // [R19-14 2026-09-13] ORIG 0x085b5f82 单条 `mov $0x1,%eax`（唯一出口；其余 3 处 mov$1
+    // 均为 bool 物化岛成对 mov$0）⇒ 原码 `return 1;`；CParty.h 返回类型 void→int
+    // （mangled 不含返回类型，ABI/偏移零变化）。
+    return 1;
 }

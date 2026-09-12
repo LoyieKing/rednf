@@ -402,31 +402,36 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
     {
         // ORIG 0x899e498：push 0x2c；ScanStr 比较符 >/< /=/>=/=>/<=/=<
-        // → 0/1/2/3/4（未命中保持 0），再 push 一个 ScanInt。
+        // → 0/1/2/3/4，再 push 一个 ScanInt。
+        // [R19a05 ④] ORIG 本链**无默认物化**（0x899e52d 起直接比较；未命中时
+        //   控制流经 0x899e62b `mov $0x0,%eax; test; je 0x899e63e` 落合并点，
+        //   0x899e63e `lea -0x6a4(%ebp),%eax` 读**未初始化槽**后 push_back ⇒
+        //   push 值未定义）。旧码 `k = 0;` 是我方多出的物化且把未命中值定死为
+        //   0 ⇒ 删除，改用本块未初始化局部（与 ORIG 同为未初始化读）。
         values.push_back(0x2c);
         ScanStr(&token);
-        k = 0;
+        int opSym;
         if (token == ">")
         {
-            k = 0;
+            opSym = 0;
         }
         else if (token == "<")
         {
-            k = 1;
+            opSym = 1;
         }
         else if (token == "=")
         {
-            k = 2;
+            opSym = 2;
         }
         else if (token == ">=" || token == "=>")
         {
-            k = 3;
+            opSym = 3;
         }
         else if (token == "<=" || token == "=<")
         {
-            k = 4;
+            opSym = 4;
         }
-        values.push_back(k);
+        values.push_back(opSym);
         v = ScanInt((bool*)0);
         values.push_back(v);
         break;
@@ -585,28 +590,31 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             }
             values.push_back(k);
             ScanStr(&token);
-            k = 0;
+            // [R19a05 ④] ORIG 本链无默认物化（同 0x899e52d 段形）：未命中读
+            //   未初始化槽（0x899ee13 `lea -0x6dc(%ebp)` 前的 -0x6e0 槽，仅在
+            //   分支内被写）⇒ 删 `k = 0;`，改本块未初始化局部。
+            int opSym;
             if (token == ">")
             {
-                k = 0;
+                opSym = 0;
             }
             else if (token == "<")
             {
-                k = 1;
+                opSym = 1;
             }
             else if (token == "=")
             {
-                k = 2;
+                opSym = 2;
             }
             else if (token == ">=" || token == "=>")
             {
-                k = 3;
+                opSym = 3;
             }
             else if (token == "<=" || token == "=<")
             {
-                k = 4;
+                opSym = 4;
             }
-            values.push_back(k);
+            values.push_back(opSym);
             ScanStr(&token);
             values.push_back(token == "%" ? 1 : 0);   // ORIG EOi 形
             values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
@@ -640,28 +648,30 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
         values.push_back(k);
         ScanStr(&token);
-        k = 0;
+        // [R19a05 ④] ORIG 本链无默认物化（0x899f2f6 段直接比较）：未命中读未
+        //   初始化槽（0x899f... `lea` 合并点读 -0x6ec）⇒ 删 `k = 0;`。
+        int opSym;
         if (token == ">")
         {
-            k = 0;
+            opSym = 0;
         }
         else if (token == "<")
         {
-            k = 1;
+            opSym = 1;
         }
         else if (token == "=")
         {
-            k = 2;
+            opSym = 2;
         }
         else if (token == ">=" || token == "=>")
         {
-            k = 3;
+            opSym = 3;
         }
         else if (token == "<=" || token == "=<")
         {
-            k = 4;
+            opSym = 4;
         }
-        values.push_back(k);
+        values.push_back(opSym);
         ScanStr(&token);
         values.push_back(token == "%" ? 1 : 0);   // ORIG EOi 形
         values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
@@ -689,28 +699,30 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
         values.push_back(k);
         ScanStr(&token);
-        k = 0;
+        // [R19a05 ④] ORIG 本链无默认物化（同 0x899e52d 段形）：未命中读未初始
+        //   化槽（合并点 `lea` 读 -0x6f8）⇒ 删 `k = 0;`。
+        int opSym;
         if (token == ">")
         {
-            k = 0;
+            opSym = 0;
         }
         else if (token == "<")
         {
-            k = 1;
+            opSym = 1;
         }
         else if (token == "=")
         {
-            k = 2;
+            opSym = 2;
         }
         else if (token == ">=" || token == "=>")
         {
-            k = 3;
+            opSym = 3;
         }
         else if (token == "<=" || token == "=<")
         {
-            k = 4;
+            opSym = 4;
         }
-        values.push_back(k);
+        values.push_back(opSym);
         ScanStr(&token);
         v = token == "%" ? 1 : 0;
         values.push_back(v);
@@ -1090,28 +1102,31 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         // （=→0 >→1 <→2 >=/=>→3 <=/=<→4）push；push 一个 ScanInt。
         values.push_back(0x33);
         ScanStr(&token);
-        k = 0;
+        // [R19a05 ④] ORIG 本链无默认物化（0x89a04d4 起直接比较 "-0x754"）：
+        //   未命中读未初始化槽（合并点 0x89a04f1 `lea -0x754(%ebp)`）⇒ 删
+        //   `k = 0;`。
+        int opSym;
         if (token == "=")
         {
-            k = 0;
+            opSym = 0;
         }
         else if (token == ">")
         {
-            k = 1;
+            opSym = 1;
         }
         else if (token == "<")
         {
-            k = 2;
+            opSym = 2;
         }
         else if (token == ">=" || token == "=>")
         {
-            k = 3;
+            opSym = 3;
         }
         else if (token == "<=" || token == "=<")
         {
-            k = 4;
+            opSym = 4;
         }
-        values.push_back(k);
+        values.push_back(opSym);
         values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }
@@ -1149,28 +1164,31 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         ScanStr(&token);
-        k = 0;
+        // [R19a05 ④] ORIG 本链无默认物化（0x89a0703 段直接比较 "-0x758"）：
+        //   未命中读未初始化槽（合并点 0x89a071e `lea -0x758(%ebp)`）⇒ 删
+        //   `k = 0;`。
+        int opSym;
         if (token == "=")
         {
-            k = 0;
+            opSym = 0;
         }
         else if (token == ">")
         {
-            k = 1;
+            opSym = 1;
         }
         else if (token == "<")
         {
-            k = 2;
+            opSym = 2;
         }
         else if (token == ">=" || token == "=>")
         {
-            k = 3;
+            opSym = 3;
         }
         else if (token == "<=" || token == "=<")
         {
-            k = 4;
+            opSym = 4;
         }
-        values.push_back(k);
+        values.push_back(opSym);
         values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }

@@ -38,8 +38,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     //   形态差；difflib 对本件失真（N127），逐 case 段对齐不可用（字符串段界
     //   ORIG 225 vs 我方重定位段 520）⇒ 封 N。
     // [SweepSTEquipScript 2026-09-09 复核] gap 22 保持（9821/9799）；p167 差集仅
-    //   C2/D2 ↔ C1/D1 同址别名镜像（P93）；三个惰性表符号 __lookup/__lookup_0/
-    //   __lookup_1 + __init_lock×3 + __inited×3 与 ORIG 名字/数量逐一对应（P333
+    //   C2/D2 ↔ C1/D1 同址别名镜像（P93）；三个惰性表符号 __lookup/__lookup/
+    //   __lookup + __init_lock×3 + __inited×3 与 ORIG 名字/数量逐一对应（P333
     //   状态机结构完整）；帧 0x1a3c vs ORIG 0x19fc（N82 槽复用）。13 个 missing
     //   段抽查（08991f60/0899925d/0899b26e/0899b3ed 等）均为 4.1 switch 决策树与
     //   叶子块布局差，非语义缺口 ⇒ 维持封 N。
@@ -1129,22 +1129,22 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             {
                 // ---------------- 第二段分派（动画/扩展区，ORIG switch(local_70)） --
                 matched = true;
-                // ORIG 0x08994e85-0x0899c9bb：第二级静态表 __lookup_0 + __inited_0
+                // ORIG 0x08994e85-0x0899c9bb：第二级静态表 __lookup + __inited
                 // 双检锁（独立于第一段）；整数 switch 二分降形态，每个 case 体首查
-                // __inited_0：首轮 idB=0 命中 case 0/0x867 别名，沿 case 布局逐例
+                // __inited：首轮 idB=0 命中 case 0/0x867 别名，沿 case 布局逐例
                 // 惰性 insert（109 项，ORIG 0x089956c4 起），填完置位重新分派。
-                static std::map<char const*, int, less_TCHAR> __lookup_0;
-                static SpinLock __init_lock_0;
-                static bool __inited_0 = false;
+                static std::map<char const*, int, less_TCHAR> __lookup;
+                static SpinLock __init_lock;
+                static bool __inited = false;
                 int idB;
                 for (;;)
                 {
-                    if (!__inited_0)
+                    if (!__inited)
                     {
-                        __init_lock_0.enter();
-                        if (__inited_0)
+                        __init_lock.enter();
+                        if (__inited)
                         {
-                            __init_lock_0.leave();
+                            __init_lock.leave();
                             continue;
                         }
                         idB = 0;
@@ -1153,8 +1153,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     {
                         char const* keyB = token.c_str();
                         std::map<char const*, int, less_TCHAR>::const_iterator itB =
-                            __lookup_0.find(keyB);
-                        idB = (itB != __lookup_0.end()) ? itB->second : -1;
+                            __lookup.find(keyB);
+                        idB = (itB != __lookup.end()) ? itB->second : -1;
                     }
                     switch (idB)
                     {
@@ -1162,9 +1162,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 case 0:
                     /*FALLTHRU*/
                 case 0x867:                          // [expand ani]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[expand ani]", 0x867));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[expand ani]", 0x867));
                 }
                 else
                 {
@@ -1180,9 +1180,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x870:                          // [/expand ani]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/expand ani]", 0x870));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/expand ani]", 0x870));
                 }
                 else
                 {
@@ -1191,9 +1191,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x873:                          // [expand path]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[expand path]", 0x873));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[expand path]", 0x873));
                 }
                 else
                 {
@@ -1204,9 +1204,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x877:                          // [level section ani]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section ani]", 0x877));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section ani]", 0x877));
                 }
                 else
                 {
@@ -1225,9 +1225,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x886:                          // [/level section ani]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/level section ani]", 0x886));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/level section ani]", 0x886));
                 }
                 else
                 {
@@ -1248,9 +1248,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x897:                          // [level section path]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section path]", 0x897));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section path]", 0x897));
                 }
                 else
                 {
@@ -1261,9 +1261,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x89e:                          // [layer variation]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[layer variation]", 0x89e));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[layer variation]", 0x89e));
                 }
                 else
                 {
@@ -1302,9 +1302,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x8bb:                          // [equipment ani script]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[equipment ani script]", 0x8bb));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[equipment ani script]", 0x8bb));
                 }
                 else
                 {
@@ -1337,9 +1337,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x8da:                          // [LAYER]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[LAYER]", 0x8da));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[LAYER]", 0x8da));
                 }
                 else
                 {
@@ -1415,9 +1415,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x925:                          // [waiting motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[waiting motion]", 0x925));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[waiting motion]", 0x925));
                 }
                 else
                 {
@@ -1441,9 +1441,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x939:                          // [move motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[move motion]", 0x939));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[move motion]", 0x939));
                 }
                 else
                 {
@@ -1467,9 +1467,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x94d:                          // [sit motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[sit motion]", 0x94d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[sit motion]", 0x94d));
                 }
                 else
                 {
@@ -1493,9 +1493,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x961:                          // [damage motion 1]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[damage motion 1]", 0x961));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[damage motion 1]", 0x961));
                 }
                 else
                 {
@@ -1519,9 +1519,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x975:                          // [damage motion 2]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[damage motion 2]", 0x975));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[damage motion 2]", 0x975));
                 }
                 else
                 {
@@ -1545,9 +1545,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x989:                          // [down motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[down motion]", 0x989));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[down motion]", 0x989));
                 }
                 else
                 {
@@ -1571,9 +1571,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x99d:                          // [overturn motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[overturn motion]", 0x99d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[overturn motion]", 0x99d));
                 }
                 else
                 {
@@ -1597,9 +1597,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x9b1:                          // [jump motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[jump motion]", 0x9b1));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[jump motion]", 0x9b1));
                 }
                 else
                 {
@@ -1623,9 +1623,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x9c5:                          // [jumpattack motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[jumpattack motion]", 0x9c5));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[jumpattack motion]", 0x9c5));
                 }
                 else
                 {
@@ -1649,9 +1649,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x9d9:                          // [rest motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[rest motion]", 0x9d9));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[rest motion]", 0x9d9));
                 }
                 else
                 {
@@ -1675,9 +1675,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0x9ed:                          // [throw motion 1-1]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 1-1]", 0x9ed));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 1-1]", 0x9ed));
                 }
                 else
                 {
@@ -1701,9 +1701,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa01:                          // [throw motion 1-2]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 1-2]", 0xa01));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 1-2]", 0xa01));
                 }
                 else
                 {
@@ -1727,9 +1727,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa15:                          // [throw motion 2-1]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 2-1]", 0xa15));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 2-1]", 0xa15));
                 }
                 else
                 {
@@ -1753,9 +1753,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa29:                          // [throw motion 2-2]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 2-2]", 0xa29));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 2-2]", 0xa29));
                 }
                 else
                 {
@@ -1779,9 +1779,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa3d:                          // [throw motion 3-1]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 3-1]", 0xa3d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 3-1]", 0xa3d));
                 }
                 else
                 {
@@ -1805,9 +1805,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa51:                          // [throw motion 3-2]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 3-2]", 0xa51));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 3-2]", 0xa51));
                 }
                 else
                 {
@@ -1831,9 +1831,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa65:                          // [throw motion 4-1]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 4-1]", 0xa65));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 4-1]", 0xa65));
                 }
                 else
                 {
@@ -1857,9 +1857,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa79:                          // [throw motion 4-2]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 4-2]", 0xa79));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 4-2]", 0xa79));
                 }
                 else
                 {
@@ -1883,9 +1883,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xa8d:                          // [dash motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[dash motion]", 0xa8d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[dash motion]", 0xa8d));
                 }
                 else
                 {
@@ -1909,9 +1909,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xaa1:                          // [dashattack motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[dashattack motion]", 0xaa1));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[dashattack motion]", 0xaa1));
                 }
                 else
                 {
@@ -1935,9 +1935,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xab5:                          // [getitem motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[getitem motion]", 0xab5));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[getitem motion]", 0xab5));
                 }
                 else
                 {
@@ -1961,9 +1961,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xac9:                          // [buff motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[buff motion]", 0xac9));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[buff motion]", 0xac9));
                 }
                 else
                 {
@@ -1987,9 +1987,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xadd:                          // [back motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[back motion]", 0xadd));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[back motion]", 0xadd));
                 }
                 else
                 {
@@ -2013,9 +2013,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xaf1:                          // [attack motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[attack motion]", 0xaf1));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[attack motion]", 0xaf1));
                 }
                 else
                 {
@@ -2053,9 +2053,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb16:                          // [etc motion]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[etc motion]", 0xb16));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[etc motion]", 0xb16));
                 }
                 else
                 {
@@ -2093,9 +2093,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb3d:                          // [move wav]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[move wav]", 0xb3d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[move wav]", 0xb3d));
                 }
                 else
                 {
@@ -2104,9 +2104,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb40:                          // [custom wav]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[custom wav]", 0xb40));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[custom wav]", 0xb40));
                 }
                 else
                 {
@@ -2132,9 +2132,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb51:                          // [animation job]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[animation job]", 0xb51));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[animation job]", 0xb51));
                 }
                 else
                 {
@@ -2167,9 +2167,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb6d:                          // [variation]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[variation]", 0xb6d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[variation]", 0xb6d));
                 }
                 else
                 {
@@ -2197,9 +2197,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb82:                          // [setback img]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[setback img]", 0xb82));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[setback img]", 0xb82));
                 }
                 else
                 {
@@ -2228,9 +2228,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb98:                          // [/setback img]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/setback img]", 0xb98));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/setback img]", 0xb98));
                 }
                 else
                 {
@@ -2239,9 +2239,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xb9b:                          // [set item]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[set item]", 0xb9b));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[set item]", 0xb9b));
                 }
                 else
                 {
@@ -2259,9 +2259,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xba8:                          // [piece set ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[piece set ability]", 0xba8));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[piece set ability]", 0xba8));
                 }
                 else
                 {
@@ -2294,9 +2294,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbb5:                          // [set ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[set ability]", 0xbb5));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[set ability]", 0xbb5));
                 }
                 else
                 {
@@ -2329,9 +2329,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbc1:                          // [/set ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/set ability]", 0xbc1));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/set ability]", 0xbc1));
                 }
                 else
                 {
@@ -2343,9 +2343,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbc8:                          // [/piece set ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/piece set ability]", 0xbc8));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/piece set ability]", 0xbc8));
                 }
                 else
                 {
@@ -2354,9 +2354,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbcb:                          // [set item master]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[set item master]", 0xbcb));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[set item master]", 0xbcb));
                 }
                 else
                 {
@@ -2365,9 +2365,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbce:                          // [int data]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[int data]", 0xbce));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[int data]", 0xbce));
                 }
                 else
                 {
@@ -2385,9 +2385,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbd9:                          // [string data]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[string data]", 0xbd9));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[string data]", 0xbd9));
                 }
                 else
                 {
@@ -2400,9 +2400,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbe0:                          // [packagable]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[packagable]", 0xbe0));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[packagable]", 0xbe0));
                 }
                 else
                 {
@@ -2411,9 +2411,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbe3:                          // [icon mark]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[icon mark]", 0xbe3));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[icon mark]", 0xbe3));
                 }
                 else
                 {
@@ -2428,9 +2428,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbf0:                          // [part set index]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[part set index]", 0xbf0));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[part set index]", 0xbf0));
                 }
                 else
                 {
@@ -2439,9 +2439,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbf4:                          // [effect part set index]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[effect part set index]", 0xbf4));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[effect part set index]", 0xbf4));
                 }
                 else
                 {
@@ -2450,9 +2450,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbf7:                          // [reference effect part set index]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[reference effect part set index]", 0xbf7));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[reference effect part set index]", 0xbf7));
                 }
                 else
                 {
@@ -2461,9 +2461,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xbfb:                          // [image packs]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[image packs]", 0xbfb));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[image packs]", 0xbfb));
                 }
                 else
                 {
@@ -2475,9 +2475,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xc04:                          // [fixed select type]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[fixed select type]", 0xc04));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[fixed select type]", 0xc04));
                 }
                 else
                 {
@@ -2486,9 +2486,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xc08:                          // [emblem socket default]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[emblem socket default]", 0xc08));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[emblem socket default]", 0xc08));
                 }
                 else
                 {
@@ -2513,9 +2513,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xc16:                          // [avatar type select]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[avatar type select]", 0xc16));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[avatar type select]", 0xc16));
                 }
                 else
                 {
@@ -2578,9 +2578,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xc55:                          // [avatar func filter]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[avatar func filter]", 0xc55));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[avatar func filter]", 0xc55));
                 }
                 else
                 {
@@ -2593,9 +2593,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xc5a:                          // [emancipate]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[emancipate]", 0xc5a));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[emancipate]", 0xc5a));
                 }
                 else
                 {
@@ -2669,9 +2669,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xc8f:                          // [hardcoding cooltime]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[hardcoding cooltime]", 0xc8f));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[hardcoding cooltime]", 0xc8f));
                 }
                 else
                 {
@@ -2684,9 +2684,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             // unloadRDARScriptFile 在成功收尾 0xb084）。
                     /*FALLTHRU*/
                 case 0xc93:                          // [item group name]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[item group name]", 0xc93));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[item group name]", 0xc93));
                 }
                 else
                 {
@@ -2705,9 +2705,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xc9d:                          // [npc gift disallowance]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[npc gift disallowance]", 0xc9d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[npc gift disallowance]", 0xc9d));
                 }
                 else
                 {
@@ -2721,9 +2721,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xca2:                          // [change status on change hp]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[change status on change hp]", 0xca2));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[change status on change hp]", 0xca2));
                 }
                 else
                 {
@@ -2776,9 +2776,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcc1:                          // [epic routing]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[epic routing]", 0xcc1));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[epic routing]", 0xcc1));
                 }
                 else
                 {
@@ -2791,9 +2791,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcc6:                          // [special ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[special ability]", 0xcc6));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[special ability]", 0xcc6));
                 }
                 else
                 {
@@ -2802,9 +2802,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcc9:                          // [chat emoticon index]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[chat emoticon index]", 0xcc9));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[chat emoticon index]", 0xcc9));
                 }
                 else
                 {
@@ -2813,9 +2813,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xccc:                          // [required full set for chatting emoticon]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[required full set for chatting emoticon]", 0xccc));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[required full set for chatting emoticon]", 0xccc));
                 }
                 else
                 {
@@ -2825,9 +2825,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xccf:                          // [guild power war point]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[guild power war point]", 0xccf));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[guild power war point]", 0xccf));
                 }
                 else
                 {
@@ -2836,9 +2836,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcd2:                          // [user power war point]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[user power war point]", 0xcd2));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[user power war point]", 0xcd2));
                 }
                 else
                 {
@@ -2846,9 +2846,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     goto stage2_switch_end;
                 }
                 case 0xcd5:                          // [special monster drop]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[special monster drop]", 0xcd5));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[special monster drop]", 0xcd5));
                 }
                 else
                 {
@@ -2856,9 +2856,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcd6:                          // [difficulty for extra drop]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[difficulty for extra drop]", 0xcd6));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[difficulty for extra drop]", 0xcd6));
                 }
                 else
                 {
@@ -2866,9 +2866,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcd7:                          // [dungeon type for extra drop]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[dungeon type for extra drop]", 0xcd7));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[dungeon type for extra drop]", 0xcd7));
                 }
                 else
                 {
@@ -2882,9 +2882,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcdd:                          // [character item check]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[character item check]", 0xcdd));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[character item check]", 0xcdd));
                 }
                 else
                 {
@@ -2913,9 +2913,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcf4:                          // [hp recovery add rate]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[hp recovery add rate]", 0xcf4));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[hp recovery add rate]", 0xcf4));
                 }
                 else
                 {
@@ -2926,9 +2926,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xcfc:                          // [mp recovery add rate]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[mp recovery add rate]", 0xcfc));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[mp recovery add rate]", 0xcfc));
                 }
                 else
                 {
@@ -2939,9 +2939,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xd04:                          // [impossible contents]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[impossible contents]", 0xd04));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[impossible contents]", 0xd04));
                 }
                 else
                 {
@@ -2986,9 +2986,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xd2d:                          // [possible kiri protect]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[possible kiri protect]", 0xd2d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[possible kiri protect]", 0xd2d));
                 }
                 else
                 {
@@ -2997,9 +2997,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xd31:                          // [limit upgradable level]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[limit upgradable level]", 0xd31));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[limit upgradable level]", 0xd31));
                 }
                 else
                 {
@@ -3010,21 +3010,21 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     ScanInt(&upgMin);
                     ScanInt(&upgMax);
                     upgType = 5;
-                     // ORIG 0x0899ae13-0x0899b289：第三级独立静态表 __lookup_1 + __inited_1
-                     // 双检锁；整数 switch 五路降形态，case 体首查 __inited_1，首轮 idC=0 命中
+                     // ORIG 0x0899ae13-0x0899b289：第三级独立静态表 __lookup + __inited
+                     // 双检锁；整数 switch 五路降形态，case 体首查 __inited，首轮 idC=0 命中
                      // case 0/0xd3d 别名进入逐例惰性 insert 链（5 项）。
-                     static std::map<char const*, int, less_TCHAR> __lookup_1;
-                     static SpinLock __init_lock_1;
-                     static bool __inited_1 = false;
+                     static std::map<char const*, int, less_TCHAR> __lookup;
+                     static SpinLock __init_lock;
+                     static bool __inited = false;
                      int idC;
                      for (;;)
                      {
-                         if (!__inited_1)
+                         if (!__inited)
                          {
-                             __init_lock_1.enter();
-                             if (__inited_1)
+                             __init_lock.enter();
+                             if (__inited)
                              {
-                                 __init_lock_1.leave();
+                                 __init_lock.leave();
                                  continue;
                              }
                              idC = 0;
@@ -3033,16 +3033,16 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                          {
                              char const* key = scanBuf.c_str();
                              std::map<char const*, int, less_TCHAR>::const_iterator it =
-                                 __lookup_1.find(key);
-                             idC = (it != __lookup_1.end()) ? it->second : -1;
+                                 __lookup.find(key);
+                             idC = (it != __lookup.end()) ? it->second : -1;
                          }
                          switch (idC)
                          {
                          case 0:
                          case 0xd3d:                          // all upgrade
-                         if (!__inited_1)
+                         if (!__inited)
                          {
-                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("all upgrade", 0xd3d));
+                             __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("all upgrade", 0xd3d));
                          }
                          else
                          {
@@ -3051,9 +3051,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                          }
                              /*FALLTHRU*/
                          case 0xd40:                          // normal upgrade
-                         if (!__inited_1)
+                         if (!__inited)
                          {
-                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("normal upgrade", 0xd40));
+                             __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("normal upgrade", 0xd40));
                          }
                          else
                          {
@@ -3062,9 +3062,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                          }
                              /*FALLTHRU*/
                          case 0xd43:                          // amplify upgrade
-                         if (!__inited_1)
+                         if (!__inited)
                          {
-                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("amplify upgrade", 0xd43));
+                             __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("amplify upgrade", 0xd43));
                          }
                          else
                          {
@@ -3073,9 +3073,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                          }
                              /*FALLTHRU*/
                          case 0xd46:                          // separate upgrade
-                         if (!__inited_1)
+                         if (!__inited)
                          {
-                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("separate upgrade", 0xd46));
+                             __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("separate upgrade", 0xd46));
                          }
                          else
                          {
@@ -3084,9 +3084,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                          }
                              /*FALLTHRU*/
                          case 0xd49:                          // 3rd chronicle upgrade
-                         if (!__inited_1)
+                         if (!__inited)
                          {
-                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("3rd chronicle upgrade", 0xd49));
+                             __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("3rd chronicle upgrade", 0xd49));
                          }
                          else
                          {
@@ -3098,12 +3098,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                              break;
                          }
                      stage3_switch_end:
-                         if (__inited_1)
+                         if (__inited)
                          {
                              break;                     // ORIG LAB_0899b262 → code_r0x0899b289
                          }
-                         __init_lock_1.leave();     // ORIG 首轮沿链填表后置位重新分派
-                         __inited_1 = true;
+                         __init_lock.leave();     // ORIG 首轮沿链填表后置位重新分派
+                         __inited = true;
                      }
                     if (upgType != 5 && (upgMin != -1 || upgMax != -1))
                     {
@@ -3151,9 +3151,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xd7d:                          // [particle]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[particle]", 0xd7d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[particle]", 0xd7d));
                 }
                 else
                 {
@@ -3170,9 +3170,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xd89:                          // [command]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[command]", 0xd89));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[command]", 0xd89));
                 }
                 else
                 {
@@ -3182,9 +3182,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xd8d:                          // [character name y revision]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[character name y revision]", 0xd8d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[character name y revision]", 0xd8d));
                 }
                 else
                 {
@@ -3194,9 +3194,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xd91:                          // [routing priority]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[routing priority]", 0xd91));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[routing priority]", 0xd91));
                 }
                 else
                 {
@@ -3232,9 +3232,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdac:                          // [quest item drop rate bonus]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[quest item drop rate bonus]", 0xdac));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[quest item drop rate bonus]", 0xdac));
                 }
                 else
                 {
@@ -3243,9 +3243,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdb0:                          // [level section ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section ability]", 0xdb0));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section ability]", 0xdb0));
                 }
                 else
                 {
@@ -3267,9 +3267,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdbf:                          // [/level section ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/level section ability]", 0xdbf));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/level section ability]", 0xdbf));
                 }
                 else
                 {
@@ -3278,9 +3278,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdc3:                          // [Force Result Item Rule]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[Force Result Item Rule]", 0xdc3));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[Force Result Item Rule]", 0xdc3));
                 }
                 else
                 {
@@ -3290,9 +3290,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdc7:                          // [effect]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[effect]", 0xdc7));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[effect]", 0xdc7));
                 }
                 else
                 {
@@ -3305,9 +3305,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdcc:                          // [usable module]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable module]", 0xdcc));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable module]", 0xdcc));
                 }
                 else
                 {
@@ -3322,9 +3322,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdd5:                          // [usable world]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable world]", 0xdd5));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable world]", 0xdd5));
                 }
                 else
                 {
@@ -3339,9 +3339,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdde:                          // [no random]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[no random]", 0xdde));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[no random]", 0xdde));
                 }
                 else
                 {
@@ -3350,9 +3350,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xde1:                          // [usable period after unsealing]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable period after unsealing]", 0xde1));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable period after unsealing]", 0xde1));
                 }
                 else
                 {
@@ -3361,9 +3361,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdeb:                          // [aurora graphic effects]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[aurora graphic effects]", 0xdeb));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[aurora graphic effects]", 0xdeb));
                 }
                 else
                 {
@@ -3379,9 +3379,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdf5:                          // [msg balloon on mucu skill]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[msg balloon on mucu skill]", 0xdf5));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[msg balloon on mucu skill]", 0xdf5));
                 }
                 else
                 {
@@ -3391,9 +3391,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdf9:                          // [random option]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[random option]", 0xdf9));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[random option]", 0xdf9));
                 }
                 else
                 {
@@ -3403,9 +3403,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xdfe:                          // [enable dye]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[enable dye]", 0xdfe));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[enable dye]", 0xdfe));
                 }
                 else
                 {
@@ -3415,9 +3415,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe0a:                          // [expertjob only]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[expertjob only]", 0xe0a));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[expertjob only]", 0xe0a));
                 }
                 else
                 {
@@ -3429,9 +3429,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe0e:                          // [prof material variation]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof material variation]", 0xe0e));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof material variation]", 0xe0e));
                 }
                 else
                 {
@@ -3443,9 +3443,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe12:                          // [prof compound rate]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof compound rate]", 0xe12));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof compound rate]", 0xe12));
                 }
                 else
                 {
@@ -3457,9 +3457,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe16:                          // [prof result variation]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof result variation]", 0xe16));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof result variation]", 0xe16));
                 }
                 else
                 {
@@ -3471,9 +3471,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe1a:                          // [prof disjoint big win rate]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof disjoint big win rate]", 0xe1a));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof disjoint big win rate]", 0xe1a));
                 }
                 else
                 {
@@ -3485,9 +3485,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe1e:                          // [prof disjoint result variation]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof disjoint result variation]", 0xe1e));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof disjoint result variation]", 0xe1e));
                 }
                 else
                 {
@@ -3499,9 +3499,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe22:                          // [prof additional gain exp]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof additional gain exp]", 0xe22));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof additional gain exp]", 0xe22));
                 }
                 else
                 {
@@ -3513,9 +3513,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe28:                          // [war room point bonus]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[war room point bonus]", 0xe28));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[war room point bonus]", 0xe28));
                 }
                 else
                 {
@@ -3536,9 +3536,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe37:                          // [war room monster exp bonus]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[war room monster exp bonus]", 0xe37));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[war room monster exp bonus]", 0xe37));
                 }
                 else
                 {
@@ -3560,9 +3560,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe48:                          // [not amplify]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[not amplify]", 0xe48));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[not amplify]", 0xe48));
                 }
                 else
                 {
@@ -3571,9 +3571,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe4d:                          // [change type ultimateSkillCurScene]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[change type ultimateSkillCurScene]", 0xe4d));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[change type ultimateSkillCurScene]", 0xe4d));
                 }
                 else
                 {
@@ -3582,9 +3582,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe54:                          // [item category]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[item category]", 0xe54));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[item category]", 0xe54));
                 }
                 else
                 {
@@ -3593,9 +3593,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe57:                          // [aura ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[aura ability]", 0xe57));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[aura ability]", 0xe57));
                 }
                 else
                 {
@@ -3604,9 +3604,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     /*FALLTHRU*/
                 case 0xe5c:                          // [/aura ability]
-                if (!__inited_0)
+                if (!__inited)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/aura ability]", 0xe5c));
+                    __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/aura ability]", 0xe5c));
                 }
                 else
                 {
@@ -3614,7 +3614,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     goto stage2_switch_end;
                 }
                 default:
-                if (__inited_0)
+                if (__inited)
                 {
                     // 未命中第二段：模块标签处理（ORIG default LAB_0899c902）。
                     int modOut[2];
@@ -3629,12 +3629,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                     }
                 stage2_switch_end:
-                    if (__inited_0)
+                    if (__inited)
                     {
                         break;              // ORIG LAB_0899c9bb → 退出分派循环
                     }
-                    __init_lock_0.leave();  // ORIG 首轮沿链填表后置位重新分派
-                    __inited_0 = true;
+                    __init_lock.leave();  // ORIG 首轮沿链填表后置位重新分派
+                    __inited = true;
                 }
             }
         }

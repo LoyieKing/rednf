@@ -24,13 +24,15 @@ bool DB_InsertResponseTime::dispatch(int /*userIdx*/, int /*slot*/, Stream* stre
         stream->GetOutBuffer<SIG_INSERT_RESPONSE_TIME>();
     int i;                          // -0x1c（ORIG 0843fcc6 movl $0x0,-0x1c）
     std::string values;             // -0x28
-    // [P5S2W8LT r1+r3] ORIG 的 monthBuf(-0x32) 清零**不在声明处**：0x0843fc6b 起
-    // 只对 rowBuf(-0x163) 发 rep stos，monthBuf 的
-    // `movl $0,-0x32; movl $0,-0x2e; movw $0,-0x2a` 三条发在 0x0843fdfd-0x0843fe0b
-    // （**循环结束后、occTime=baseSec 之前**）。声明处初始化器会把它们提前到
-    // values ctor 之后 ⇒ 与 ORIG 双错位（r1 删初始化器后 fdiff 显示 ORIG-only 3 条）；
-    // 故裸声明 + 循环后显式 memset 复现发码位。
-    char monthBuf[10];              // -0x32（ORIG 无初始化器）
+    // [P5S2W8LT r1+r3，已被 R19a09 取代] ORIG 的 monthBuf(-0x32) 三条
+    // `movl $0,-0x32; movl $0,-0x2e; movw $0,-0x2a` 发在 0x0843fdfd-0x0843fe0b
+    // （循环结束后、occTime=baseSec 之前）；当时以「裸声明 + 循环后 memset」匹配位置，
+    // 但 4.4 对 `memset(...,10)` 恒退化 `call memset@plt`（N78 反向，我方多出调用）。
+    // [R19a09 §16.2/§24 定稿] 改聚合零初始化（探针 /tmp/verify357/R19a09/probe.cpp f2：
+    //   `char b[10]={0};` ⇒ 4.4 发 `movl/movl/movw` 三条 = ORIG 同形）⇒ .o 内
+    //   `memset@plt` 站点 1→0、件级 225→219 条（ORIG 191）；代价 = 三条落声明处
+    //   （ORIG 落循环后，P212/P331 声明位族，指令内容同形）。
+    char monthBuf[10] = { 0 };      // -0x32（ORIG 三条内联清零；R19a09 落修）
     time_t occTime;                 // -0x38
     struct tm tmBuf;                // -0x64
     char rowBuf[0xff] = { '\0' };   // -0x163（ORIG 255 字节带对齐分支 rep stos）
@@ -51,7 +53,6 @@ bool DB_InsertResponseTime::dispatch(int /*userIdx*/, int /*slot*/, Stream* stre
         values += rowBuf;
         ++i;
     }
-    memset(monthBuf, 0, 0xa);   // ORIG 0x0843fdfd-0x0843fe0b
     occTime = (time_t)((DB_ResponseTimeSigView*)sig)->m_baseSec;
     localtime_r(&occTime, &tmBuf);
     strftime(monthBuf, 10, "%Y%m", &tmBuf);

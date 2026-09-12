@@ -80,8 +80,11 @@ bool CBossStage::consistMap(const CMap* map)
             memset(&mob, 0, sizeof(mob));
             mob.m_mobId = counter;                            // +0x00 序号
             mob.m_mobIndex = (int)aiType;                     // +0x0c
-            mob.m_instId = m_stageData.m_assignItemIdx;       // +0x04 seq++
-            m_stageData.m_assignItemIdx += 1;
+            // [R19a06 2026-09-13 · 形态对齐 P0/P183] ORIG 0x0814c140..0x0814c152 为
+            //   **单次读**：`mov 0xa30(%eax),%eax; mov %eax,-0xf4c; lea 0x1(%eax),%edx;
+            //   mov %edx,0xa30(%eax)` ⇒ 原码是**后置自增复合式**（`= m_assignItemIdx++`），
+            //   非两条语句（两条语句使 4.4 发第二次读，我方多 1 条物化）。语义等价。
+            mob.m_instId = m_stageData.m_assignItemIdx++;     // +0x04 seq++
             mob.m_roleType = 5;                               // APC
             mob.m_level = (char)(unsigned char)ai->getLevel();
             mob.m_dropCnt = arr.m_camp;                       // +0x10 dword（STMapScript 批次命名 m_camp；
@@ -135,8 +138,7 @@ bool CBossStage::consistMap(const CMap* map)
                 memset(&mob, 0, sizeof(mob));
                 mob.m_mobId = counter;
                 mob.m_mobIndex = ai->getIdx();
-                mob.m_instId = m_stageData.m_assignItemIdx;
-                m_stageData.m_assignItemIdx += 1;
+                mob.m_instId = m_stageData.m_assignItemIdx++;   // R19a06：ORIG 单次读形态
                 mob.m_roleType = 5;
                 mob.m_level = (char)(unsigned char)ai->getLevel();
                 mob.m_dropCnt = 100;                          // ORIG 立即数 100
@@ -148,7 +150,10 @@ bool CBossStage::consistMap(const CMap* map)
 
     // seed 值（ORIG get_rand_int(0) 后清 bit 0x40000）
     m_stageData.m_mapBasisLevel = get_rand_int(0);
-    *(unsigned int*)&m_stageData.m_mapBasisLevel &= 0xfffbffffu;
+    // [R19a06 2026-09-13 · 形态对齐] ORIG 0x0814c620..0x0814c634 为 **disp 直读直写**
+    //   （`mov 0xa3c(%eax),%eax; mov %eax,%edx; and $0xfffbffff,%edx; mov %edx,0xa3c(%eax)`）；
+    //   旧写法 `*(unsigned int*)&…` 的 cast 取址使 4.4 发两处 `add $0xa3c`（+3 条我方多出物化）。
+    m_stageData.m_mapBasisLevel &= 0xfffbffffu;
 
     std::vector<int> singleSpawnSeqs;   // 非 named 单人刷怪序号表
 
@@ -194,8 +199,7 @@ bool CBossStage::consistMap(const CMap* map)
             ((unsigned short)(unsigned char)(char)em.m_levelAdd) |
             ((unsigned short)(unsigned char)(char)em.m_field14 << 8));
         mob.m_roleType = (char)(unsigned char)em.m_roleType;
-        mob.m_instId = m_stageData.m_assignItemIdx;
-        m_stageData.m_assignItemIdx += 1;
+        mob.m_instId = m_stageData.m_assignItemIdx++;           // R19a06：ORIG 单次读形态
 
         if ((signed char)mob.m_roleType == 0 && !mob.isNamedMonster())
             singleSpawnSeqs.push_back(mob.m_instId);
@@ -294,8 +298,10 @@ bool CBossStage::consistMap(const CMap* map)
             // ORIG 写 map_item+0x01 等级字节：add_item_curr_map 08302f84 /
             // consistMap 0814c9da 同型（来源 _mapItem.m_field0c 或标准等级）
             drop.m_standardLevel = (char)mi.m_field0c;
-            drop.m_itemIndex = m_stageData.m_dropItemCnt;
-            m_stageData.m_dropItemCnt += 1;
+            // [R19a06 2026-09-13] ORIG 0x0814cb2d..0x0814cb3f 单次读形态
+            //   （`mov 0xa34(%eax),%eax; mov %eax,-0xf4c; lea 0x1(%eax),%edx;
+            //    mov %edx,0xa34(%eax)`）⇒ 源码为后置自增复合式。
+            drop.m_itemIndex = m_stageData.m_dropItemCnt++;
             // [b28d-solo] N84：ORIG 为结构整体赋值（rep movsl），memcpy 是发明 call。
             drop.m_item = *d;
             m_stageData.Add_Item(drop);

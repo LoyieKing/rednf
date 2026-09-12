@@ -78,9 +78,22 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
             // [H9MgrItemLoginCera.CCeraShop 回滚] 具名 selField10 实测 ndiff 反劣 ⇒ 复原内联。
             // [CCeraShop_Special 2026-09-11 本轮重试] switch 化后仍反劣（165→193）
             // ⇒ 维持内联形。
-            if (c != 4 &&
+            // [R19-07 ④ 真语义差] ORIG 0x08324069..0x08324087 **无条件**求值
+            //   v = ((CEquipItem*)citem)->getAvatarTypeSelect()->at(e).m_field10
+            //   （该段不在任何 jcc 的支配域内：唯一后继判断是 **之后**的
+            //   0x0832408a `cmpw $0x4,-0x6c(%ebp)` / 0x0832408f `je 83240a1`，
+            //   且该 je 只支配 0x08324091/95 的对 v 比较与返回 0 块）；
+            //   0x08324087 `mov %eax,-0x14(%ebp)` 是具名局部槽（P0 槽往返）。
+            //   旧短路形（`c != 4 && ...at(e)...`）在 c==4 时**跳过**
+            //   getAvatarTypeSelect()/at(e)：`at()` 是 vector::at ⇒ 越界必抛
+            //   std::out_of_range，ORIG 无越界保护也求值 ⇒ 我方跳过 = 行为分叉
+            //   （异常/调用副作用可观察）⇒ 改为先求值再判。
+            //   （历史注释中「具名 selField10 ndiff 反劣」仅形态口径，不改本条
+            //   语义结论。）
+            const int selField10 =
                 ((const std::vector<stAvatarTypeSelect_t>*)
-                     (((CEquipItem*)citem)->getAvatarTypeSelect()))->at(e).m_field10 != 0)
+                     (((CEquipItem*)citem)->getAvatarTypeSelect()))->at(e).m_field10;
+            if (c != 4 && selField10 != 0)
                 return 0;
         }
     }

@@ -375,7 +375,10 @@ public:
     // StatChangeInfo::sec(int) **异型**；改 unsigned int（同宽 4B，唯一消费点 1606）。
     unsigned int m_field358;             // +0x358
     char m_pad35c[4];                    // +0x35c
-    char m_field360;                     // +0x360
+    // [R19ty T-2b 2026-09-13] char→bool：ORIG set_item 0x0850df79 `movzbl 0x360(%eax),%edx;
+    //   mov %dl,0x2e0(%eax)` 单段直存（无 test/setne 归一化）⇒ 源与目标 CStackableItem::
+    //   StatChangeInfo::m_flagLo 同为 bool（P136）。1B 宽不变，后续 pad/偏移不变。
+    bool m_field360;                     // +0x360
     char m_pad361[3];                    // +0x361
     // ORIG set_item 0x0850dcf4 `mov 0x364(%eax),%edx; mov %edx,0x28c(%eax)`
     // 4 字节直读 ⇒ 该字段为 int（ushort 版恒产 movzwl 双段）。pad 同步缩短保持

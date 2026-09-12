@@ -342,9 +342,13 @@ public:
 class CWebEvent
 {
 public:
-    static unsigned int RecvInfoFromDB(CUser* user, unsigned int itemId,     // ORIG T 0x086c121e
-                                       unsigned int count, unsigned int eventIdx,
-                                       unsigned int extra);
+    // [R19ty T-1 2026-09-13] 返回类型 unsigned int→bool：ORIG 唯一调用点 0x084cf1b5 形为
+    //   `call; test %al,%al; je`（2 段，**无 setcc**）⇒ 被调方按 P292/P315 判 bool；
+    //   我方旧 `unsigned int` + 调用点 `(unsigned char)` cast 产 4 段（多 setne）。
+    //   返回类型不入 mangled ⇒ 符号/ABI/布局零变化。
+    static bool RecvInfoFromDB(CUser* user, unsigned int itemId,     // ORIG T 0x086c121e
+                               unsigned int count, unsigned int eventIdx,
+                               unsigned int extra);
     static bool RecvInfoFromWeb(unsigned int p1, unsigned int p2,           // ORIG T 0x086c11d0（透传 ReqSaveEventItem）
                                 unsigned int p3, unsigned int p4,
                                 unsigned int p5, unsigned int p6);

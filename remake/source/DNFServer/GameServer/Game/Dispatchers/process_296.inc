@@ -29,8 +29,10 @@ int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& m
     if (!gameOption->isEqualEmoticon(config))
     {
         gameOption->SetEmoticonInfo(config);
-        Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x2959);
-        CStreamGuard guard(stream, true);
+        // [R19a01 P259 形态复刻] ORIG 0x081cf62f `call Acquire` 后**直接**把 %eax 压成
+        //   CStreamGuard ctor 的第 2 实参（0x081cf63c `mov %eax,0x4(%esp)`），**无具名槽**；
+        //   我方原写具名 `Stream* stream = …`（-0x10 槽：1 store + 1 reload = 多 2 条）⇒ 改为内联实参。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x2959), true);
         // ORIG 0x81cf661：每次 << 前先 operator*（返回 this）——P132 保留 operator* 链。
         (*guard)->operator<<(0x2d7);
         (*guard)->operator<<(static_cast<int>(user->GetUID()));

@@ -278,8 +278,11 @@
 //      `_ZNKSt6vectorI12_Charac_infoSaIS0_EEixEj`（ORIG 该符号 64 次 / 我方 63 次，1 条级，
 //      属 P157 逐字段重读族的单点差异，未定位到具体字段；其余 71 次两侧全等）。
 //   C. .h 报告项（未落，交属主）：
-//      ① `CStackableItem::StatChangeInfo::m_flagLo`(+0x2e0 首字节) → bool（ORIG 0x0865ec1d
-//         `movzbl/xor $0x1/test %al,%al/je`，P158/P248 档②）；
+//      ① [R19ty T-2b 2026-09-13 **已落**] `CStackableItem::StatChangeInfo::m_flagLo`
+//         (+0x2e0 首字节) char→bool（ORIG 0x0865ec1d `movzbl/xor $0x1/test %al,%al/je`，
+//         P158/P248 档②）；配套 CStackableItem.cpp 镜像 STStackableScript::m_field360 同步
+//         bool（ORIG set_item 0x0850df79 单段直存，P136）；本 .inc 读点改后逐条同形，
+//         CUser TU 四数 809/1728/5/58/586 逐值零劣化；
 //      ② `TAG_CHARAC_DATA` +0x21 目标字段 char→uchar（ORIG 0x086905c1 单段 `movzbl` 直存）；
 //      ③ `SIG_LOAD_ETC` +0xc9ae/+0xc9b3/+0xc9b7 字段与 getter 同型化（ORIG 0x08677af2 同型直存）；
 //      ④ `CUserCharacInfo.h:308` `CCargo::MakeItemList(PacketGuard*)` int→bool（ORIG 0x0865dc10

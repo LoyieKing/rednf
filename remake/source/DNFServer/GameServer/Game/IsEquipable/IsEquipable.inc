@@ -24,20 +24,24 @@ int IsEquipable(CUser* user, const CItem* item, int slot)
             return 0x11;
     }
     // ORIG 8500406/8500438：getFootControlRateLimit 两处各自调用（P48 去缓存）
-    if (item->getFootControlRateLimit() >= 0) {
-        // [SemA06 试形 C] 去具名 ratio 局部（ORIG 侧该槽为 4.1 的表达式临时）
-        // [SemA06 2026-09-12 · 常量除法还原] ORIG 08500423..0850042f 为
-        //   `mov $0xd1b71759,%edx; mov ratio,%eax; mul %edx; mov %edx,%ebx; shr $0xd,%ebx`
-        //   = 32 位无符号常量除法的 GCC 魔数形；0xd1b71759 = ceil(2^45 / 10000)
-        //   ⇒ 原码是 `ratio / 10000`。旧写法 `(ull)ratio * 0xd1b71759ULL >> 45`
-        //   数学等价，但 4.4 对 64 位常量乘法发 12 条
-        //   （imul/imul/add/mov $imm/mul/add/xor/shr…），比 ORIG 多 10 条 = 本件 gap 全部来源。
-        //   改回 32 位常量除法后 4.4 发与 ORIG 同形的 mul+shr 序列。
-        // [SemA06 试形 A] 去具名 scaled 局部，比值内联进比较（ORIG 侧 scaled 无槽、值留 %ebx）
-        if (user->getCurCharacHelpAbuseComputedRatio() / 10000u >
+    // [R19a06 2026-09-13 · 形态对齐 P214①] ORIG 08500411..08500456 为**单一正极性 `&&` 的
+    //   短路岛形**：`test %eax,%eax; js <L_false>` + `cmp %eax,%ebx; jbe <L_false>` +
+    //   `mov $1,%eax; jmp L_test` / `L_false: mov $0,%eax` / `L_test: test %al,%al; je +0x9d`
+    //   ⇒ 原码是**合并的 `&&` 条件包裹 `return 0x11`**（非嵌套 if）。旧写嵌套 if 使 4.4
+    //   逐条件直折 `not/shr/test/je`+`seta/test/je`（我方多 2 条物化，ORIG 无）。
+    // [SemA06 试形 C] 去具名 ratio 局部（ORIG 侧该槽为 4.1 的表达式临时）
+    // [SemA06 2026-09-12 · 常量除法还原] ORIG 08500423..0850042f 为
+    //   `mov $0xd1b71759,%edx; mov ratio,%eax; mul %edx; mov %edx,%ebx; shr $0xd,%ebx`
+    //   = 32 位无符号常量除法的 GCC 魔数形；0xd1b71759 = ceil(2^45 / 10000)
+    //   ⇒ 原码是 `ratio / 10000`。旧写法 `(ull)ratio * 0xd1b71759ULL >> 45`
+    //   数学等价，但 4.4 对 64 位常量乘法发 12 条
+    //   （imul/imul/add/mov $imm/mul/add/xor/shr…），比 ORIG 多 10 条 = 本件 gap 全部来源。
+    //   改回 32 位常量除法后 4.4 发与 ORIG 同形的 mul+shr 序列。
+    // [SemA06 试形 A] 去具名 scaled 局部，比值内联进比较（ORIG 侧 scaled 无槽、值留 %ebx）
+    if (item->getFootControlRateLimit() >= 0 &&
+        user->getCurCharacHelpAbuseComputedRatio() / 10000u >
             (unsigned int)item->getFootControlRateLimit())
-            return 0x11;
-    }
+        return 0x11;
     // [SemA06 试形 B] 去具名 type 局部（ORIG 侧 GetItemType 结果直入 %ebx 作实参、无槽）
     int over = user->GetPremiumInfo()->GetOverEquipableLevel(
         (ENUM_EQUIPMENTTYPE)item->GetItemType());

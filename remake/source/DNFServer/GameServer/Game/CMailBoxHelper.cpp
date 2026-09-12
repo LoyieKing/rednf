@@ -168,7 +168,10 @@ struct MailBoxListV
         unsigned int m_characNo;     // +0x04（input+0x04）
         char m_senderName[0x1d];     // +0x08（input+0x20 指针）
         unsigned int m_unk25;        // +0x25（input+0x08）
-        unsigned char m_itemField0;  // +0x29
+        bool m_itemField0;           // +0x29（ORIG 0x08552ac1/0x08552ac4：`movzbl (%eax); mov %al,-0x371(%ebp)`
+                                     // 直拷（无 test/setne）⇒ 与 Inven_Item::m_field0(bool) 同型；
+                                     // 源写 unsigned char 会让 4.4 多发 `test %al,%al; setne %al`
+                                     // 并把非 0/1 字节归一化（值域分叉）。
         int m_itemIdx;               // +0x2a
         int m_addInfo2;              // +0x2e
         unsigned char m_itemAttr;    // +0x32

@@ -1,5 +1,9 @@
 // [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N82/N89/N93附）→ 试=新口径 n1_v 431/423 gap=+8 blocks=60；缺口全在 ORIG 独有段（0x086c15b5/0x086c18cd 两处 `cmpl $0xffffffff,槽; sete %al; test %al,%al; je` 物化 ×2 + bool 归并 5 条 + 实参装载 4/5 条差），4.4.6 后端复编更差（431/422，gap +9）⇒ 维持。
-unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemId,
+// [R19ty T-1 2026-09-13] 返回类型 unsigned int→bool（头/定义两侧同步）：ORIG 唯一调用点
+//   0x084cf1b5 `call; test %al,%al; je` 证 bool（P292）。本体返回点全为常量 1/0
+//   （ORIG 0x086c12b0/0x086c1379/0x086c13f8/0x086c1447/0x086c15bc/0x086c18d4/0x086c18fd
+//   均 `mov $0/$1,%ebx`，无 bool 归一化）⇒ 本体指令序列不受类型改动影响。
+bool WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemId,
                                                  unsigned int count, unsigned int eventIdx,
                                                  unsigned int extra)
 {

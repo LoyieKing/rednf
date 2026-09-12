@@ -310,7 +310,12 @@ public:
     // （无 setne），消费端 CParty::finish_loading 0x085b16dc `call; test %al,%al; je`
     // （bool 直判无 setne）⇒ 返回 bool + 字段 bool（`return m_boolField` 不产 setne）。
     bool IsFirstEnterDungeon();                               // 08307656
-    unsigned char IsVisitedCurrentMap();                               // 085bf2e8
+    // [R19a05 ④ 2026-09-13] uchar→bool：ORIG 该符号全部 2 个调用点均证 bool ——
+    //   ① 0x085a842e（CParty::checkMoveMapHackCnt）后 `xor $0x1,%eax; test %al,%al;
+    //      je`（P292 bool 取反形，uchar 会多 setne）；② 0x085a3e28（CParty::get_item）
+    //   后 `test %al,%al; je` 直判（无 setne）。定义体 `return m_visited;`（字段
+    //   WarField.h m_visited 已为 bool）⇒ ORIG 0x085bf2e8 单条 `movzbl` 直返。
+    bool IsVisitedCurrentMap();                               // 085bf2e8
     bool SetDamagedPacketCnt(int uid);                        // 08308f4e
     int check_movemap_range(int x, int y);                    // 08307b2a
     bool isWorldMapTowerArea();                                      // 085bf31c（P9/P22：bool 字段+bool 返回=ORIG movzbl 直返单条；调用点 xor 物化需 bool 返回）
