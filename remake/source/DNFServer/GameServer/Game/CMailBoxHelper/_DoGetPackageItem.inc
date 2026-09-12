@@ -87,8 +87,14 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                     // （_ZNKSt6vectorI22STStackablePackageDataSaIS0_EE5beginEv）。
                     const std::vector<STStackablePackageData>& vec =
                         static_cast<CStackableItem*>(proto)->m_pkg21c;  // +0x21c
-                    for (std::vector<STStackablePackageData>::const_iterator it = vec.begin();
-                         it != vec.end(); ++it)
+                    // [R16fixCF P13] ORIG 0x08553b0d begin → 0x08553b22
+                    // `call vector<STStackablePackageData>::end` → 0x08553b2a
+                    // `jmp 0x08553b8c`（条件头）⇒ 两迭代器同列 for-init（begin 先、
+                    // end 后，均在回边之外）。
+                    for (std::vector<STStackablePackageData>::const_iterator
+                             it = vec.begin(),
+                             itEnd = vec.end();
+                         it != itEnd; ++it)
                         evItems.push_back(std::make_pair(it->m_field0, it->m_field4));
 
                     CInventory mirror;

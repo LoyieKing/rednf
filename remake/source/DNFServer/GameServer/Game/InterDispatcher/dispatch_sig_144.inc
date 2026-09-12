@@ -279,10 +279,24 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             }
         }
 
-        if (inven->GetCreatureMgrR()->FindCreatureItem(item.m_addInfo2) == 0)
+        // [R16a10 2026-09-12 · ④ 守卫合取项补齐] ORIG 0x084d6307 连续 3 条：
+        //   `movzbl -0xb5(%ebp),%eax` / `cmp $0x5,%al` / `jne 0x084d6366`。
+        //   item 基址 = -0xb6（0x084d5d12 `lea -0xb6(%ebp),%eax; call Inven_Item::C1Ev`、
+        //   0x084d6312 `mov -0xaf(%ebp),%ebx`=item+0x07=m_addInfo2 双点实证）
+        //   ⇒ -0xb5 = item+0x01 = `m_field1`（ITEM_TYPE，unsigned char，Inven_Item.h:268）。
+        //   合取项为假时直跳 0x084d6366（跳过 err 0x91 块）⇒ 合取式 + 正极性。
+        //   旧码缺该合取项 ⇒ `m_field1 != 5 && FindCreatureItem(...) == 0` 时多报
+        //   SendCmdErrorPacket(0xba,0x91) 并 return 0（真语义差异）。
+        //   嵌套 if（非 `&&` 短路）是复刻 ORIG 形态的必要写法：`&&` 会让 4.4 把内层
+        //   条件降成短路 bool 物化（`jne/mov $1/jmp/mov $0`），而 ORIG 内层保持
+        //   `call; test %eax,%eax; sete %al; test %al,%al; je 0x084d6366`（P197④/P292 族）。
+        if (item.m_field1 == 5)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
-            return 0;
+            if (inven->GetCreatureMgrR()->FindCreatureItem(item.m_addInfo2) == 0)
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
+                return 0;
+            }
         }
 
         if (pck.user_type == 0 && ci->GetCashPrice() != 0 &&
@@ -337,8 +351,15 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
 
         // ==== 包主体详细字段化（报告反编译 local_14f..local_126 全链）====
-        pck.item_info.m_seal = false;
-        pck.item_info.m_itemId = itemId;
+        // [R16fixRem 2026-09-12 ④ · R15a10 候选①] ORIG 0x084d667b..0x084d66a8 从 item 拷 4 项：
+        //   `movzbl -0xb6(%ebp),%eax; mov %al,-0x14b(%ebp)` = m_seal ← item+0x00（Inven_Item::m_field0，bool）
+        //   `mov -0xb4(%ebp),%eax; mov %eax,-0x14a(%ebp)`   = m_itemId ← item+0x02（Inven_Item::m_addInfo）
+        //   （item 基址 -0xb6 由 0x084d655a `lea -0xb6(%ebp),%eax; call isEquipableItemType` 实证；
+        //    pck=-0x17b ⇒ -0x14b/-0x14a = pck+0x30/+0x31 = DnfItemInfo::m_seal(+0x00)/m_itemId(+0x01)，pack(1)）
+        //   旧码写常量 0（m_seal）与 msg+0x0d（m_itemId）⇒ item.m_field0 != 0 时包内 m_seal 值分叉
+        //   （pck 整包经 SendPacket 发出 ⇒ 字段可观察）⇒ 真语义差异，按 ORIG 源复刻。
+        pck.item_info.m_seal = item.m_field0;
+        pck.item_info.m_itemId = item.m_addInfo;
         pck.item_info.m_attr = item.GetItemAttr();                // 提升档位/seal 位
         pck.item_info.m_endurance = item.m_fieldb;
         pck.item_info.m_extendInfo = item.m_fieldd;

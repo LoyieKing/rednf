@@ -3987,8 +3987,10 @@ struct EventCommon
         cMyTrace(__PRETTY_FUNCTION__,
                  0xae1, 0)("[InsertAvatarItem] pContext->nExpireTime : %d",
                            ((DB_AvatarInsertView*)sig)->m_period);
-        if (((DB_AvatarInsertView*)sig)->m_period > 6 &&
-            ((DB_AvatarInsertView*)sig)->m_period <= 0x1e) {
+        // [R16a21] ORIG 0x83ff... 判定序为先 `cmp $0x1e; jg` 再 `cmp $0x6; jle`
+        // ⇒ 源码短路链两项顺序照 ORIG 写（语义等价，仅指令序对齐）。
+        if (((DB_AvatarInsertView*)sig)->m_period <= 0x1e &&
+            ((DB_AvatarInsertView*)sig)->m_period > 6) {
             sprintf(date, "%d",
                     GlobalData::s_systemTime_.getCurSec() +
                         ((DB_AvatarInsertView*)sig)->m_period * 0x15180);

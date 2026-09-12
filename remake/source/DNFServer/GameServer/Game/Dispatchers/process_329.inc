@@ -19,9 +19,6 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
     //   0x081e43b1 起 msg 形参直读），但把引用局部改编译期内联式后实测
     //   ours 185→183、ndiff 10→33 劣化（4.4 每次形参直读改变装载序/槽链）⇒
     //   按 codegen 轴闸门回滚原形（与 UseDye 同族的「P0 直证但 4.4 不可复现」判定）。
-    MSG_REQUEST_INGAME_ADVERTISEMENT& M =
-        reinterpret_cast<MSG_REQUEST_INGAME_ADVERTISEMENT&>(msg);
-
     R->m_errorCode = check_error(user, msg);
 
     if (R->m_errorCode >= 1)
@@ -39,6 +36,12 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
             R->m_errorCode, 0);
     }
 
+    // [R16a07] 引用声明下移至 err==0 主流程入口：ORIG 0x081e4425（jns 落点）才发
+    // `mov 0x10(%ebp),%eax; mov %eax,-0x1c(%ebp)`（msg 槽），入口处（0x081e43b1）
+    // 仅 `mov 0x10(%ebp),%eax; mov %eax,0x8(%esp)` 直读形参传 check_error。
+    MSG_REQUEST_INGAME_ADVERTISEMENT& M =
+        reinterpret_cast<MSG_REQUEST_INGAME_ADVERTISEMENT&>(msg);
+
     // err == 0 主流程
     R->m_adType = M.m_field0d;
 
@@ -49,7 +52,10 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
             user, *reinterpret_cast<stNotifyIngameADInfo*>(&R->m_code),
             (int)M.m_field0d))
     {
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(R) + 0x640) = 4;             // 条件不满足固定错误码
+        // [R16a07] 裸偏移写改具名成员：ORIG 0x081e4472 `movl $0x4,0x640(%eax)`
+        // 单条 disp 直存（原 `reinterpret_cast<char*>(R)+0x640` 使 4.4 发
+        // `add $0x640,%eax; movl $0x4,(%eax)` 两步，P350/P365 族）。
+        R->m_errorCode = 4;                                                          // 条件不满足固定错误码
         return 0;
     }
 

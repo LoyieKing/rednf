@@ -8,8 +8,10 @@
 // CHECK 在 +0x75 —— 该块序即 `if (state == 0) { sel 链 } else { return 0; }`
 // 的 4.1 布局；原 goto FAIL/CHECK 形令 4.4 在 FAIL 前后各插一条跳转对齐 nop
 // （+0x6e/+0x76）且 CHECK 漂到 +0x77 ⇒ 改自然 if/else 后逐条全等。
-int CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party,
-                                                      char sel)
+// [R16a13] 返回类型 int→bool（P292：唯一调用点 0x08256ba 为 `xor $1` 形）；
+// 定义体不变（常量返回 int/bool 同形，探针 probe_bool.s 实证）。
+bool CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party,
+                                                       char sel)
 {
     int state = party->GetMemberRoutingState(user);           // ORIG 0x085ba150
     if (state == 0)

@@ -157,15 +157,20 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
         // （0x08607d3e 段 = `call get_temp_remain_sfp`）⇒ fall-through 为
         // `get_temp_remain_sp`，原码 = `if(!IsSpecialSkill()){SP}else{SFP}`；
         // 旧写 `== 1` 令 SFP 落 then、4.4 产 `test;je SP` 反序块（同 refund_skill）。
+        // [R16-02 2026-09-12] P165 展开：ORIG 0x08607d2d..0x08607d3c 与
+        //   0x08607d4c..0x08607d59 是**两份独立**的 `*remain = *remain + returnSP`
+        //   （各 6 条 + 分支 1 尾 jmp），非共享尾；旧写公共尾使 4.4 把赋值合到
+        //   汇合点（我方 15 条 vs ORIG 21 条 ⇒ gap +5）。按 ORIG 在分支内展开。
         if (!skill->IsSpecialSkill())
         {
             remain = get_temp_remain_sp();
+            *remain = *remain + returnSP;
         }
         else
         {
             remain = get_temp_remain_sfp();
+            *remain = *remain + returnSP;
         }
-        *remain = *remain + returnSP;
         result = 0;
         return slot;
     }

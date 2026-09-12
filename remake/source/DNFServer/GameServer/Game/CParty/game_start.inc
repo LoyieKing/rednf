@@ -163,8 +163,11 @@ void CParty::game_start(CUser* user)
             basicPacket.put_byte((int)qn);
             // ORIG 0x0859de..：迭代器遍历（p167 MISS begin/end/de/pp/ne；我方旧码
             // 下标形产 EXTRA operator[]）。
-            for (std::vector<int>::iterator it = hellQuests.begin();
-                 it != hellQuests.end(); ++it)
+            // [R16fixCF P13] ORIG 0x0859de5a begin → 0x0859de7c `call vector<int>::end`
+            // → 0x0859de84 `jmp 0x0859dead`（条件头）⇒ 两迭代器同列 for-init
+            // （begin 先、end 后，均在回边之外；it 槽 -0x74 / end 槽 -0x78）。
+            for (std::vector<int>::iterator it = hellQuests.begin(),
+                     itEnd = hellQuests.end(); it != itEnd; ++it)
                 basicPacket.put_short(*it);
         }
     }

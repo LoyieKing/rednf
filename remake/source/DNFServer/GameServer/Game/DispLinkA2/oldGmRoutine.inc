@@ -49,7 +49,19 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- questclear2 / q：GM 任务旗标开关/执行 ----
     else if (args[0] == "questclear2" || args[0] == "q")
     {
-        if (!(args[1] == "on") && !(args[1] == "off"))
+        // [R16a01 2026-09-12 §15 A 轴/#33 守卫存在性] ORIG 0x0820c271 / 0x0820c29c 为
+        //   **两条独立前置 `jne <共享 epilogue>`**（args[1] 为 on/off 任一 ⇒ 直接早退到
+        //   函数尾共享块，字节 `0f 85 ..`）；我方原把两条件折进 `&&` 短路 ⇒ 4.4 产
+        //   `xor $0x1; test; je <bool=false 汇聚点>` + 末尾 `je <epilogue>`（守卫被合并，
+        //   且 on/off 命中时多走 3 条）。按 P133/§16.1 拆为两条独立前置守卫。
+        if (args[1] == "on")
+        {
+            return 0;
+        }
+        if (args[1] == "off")
+        {
+            return 0;
+        }
         {
             int v = std::atoi(args[1].c_str());
             if (0 < v && v < 100000)

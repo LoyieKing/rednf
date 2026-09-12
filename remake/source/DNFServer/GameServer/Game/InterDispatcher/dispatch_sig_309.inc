@@ -23,9 +23,12 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
         update.m_itemId      = msg->m_itemId; // +0x0a（084e6604）
         update.m_charNo      = msg->m_charNo; // +0x0e（084e6601）
         update.m_cancelCount = msg->m_count;  // +0x12（084e660a）
-        CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
-            ->GetServerProxy(user->GetServerGroup());
-        proxy->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
+        // [R16a15 2026-09-12] P356：ORIG 0x084e662e 段 `call GetServerProxy` 后紧接
+        //   `movl $0x1a,0x8(%esp); mov %ebx,0x4(%esp); mov %eax,(%esp)`（结果无槽直传、
+        //   接收者即链式返回值）⇒ 删具名 `proxy` 槽（我方多 `mov %eax,-0x14(%ebp)`+回读，
+        //   帧 0x2e0 vs ORIG 0x2d0）。
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
         return 0;
     }
 
@@ -45,9 +48,9 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
         update.m_itemId      = m_error;                // +0x0a（084e66af this+0x4）
         update.m_charNo      = (unsigned int)user->get_charac_no(-1);  // +0x0e
         update.m_cancelCount = msg->m_count;           // +0x12（084e66ce）
-        CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
-            ->GetServerProxy(user->GetServerGroup());
-        proxy->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
+        // [R16a15 2026-09-12] P356（同 user==0 分支，ORIG 0x084e66ef 段）。
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+            ->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1d1, (unsigned char)err);
         return 0;
     }
@@ -107,11 +110,9 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     update.m_itemId      = m_error;                    // +0x0a（084e6a52 this+0x4）
     update.m_charNo      = (unsigned int)user->get_charac_no(-1);  // +0x0e（084e6a6b）
     update.m_cancelCount = msg->m_count;               // +0x12（084e6a71）
-    {
-        CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
-            ->GetServerProxy(user->GetServerGroup());
-        proxy->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
-    }
+    // [R16a15 2026-09-12] P356（ORIG 0x084e6a92 段）。
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
     sendPacket(user);
     return 0;
 }

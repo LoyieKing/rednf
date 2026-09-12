@@ -76,17 +76,20 @@ void CUser::UpdateLogout(bool param)
         // ORIG 0x08655791-0x086557cc：mid/playTime **无栈槽**——`movzwl %ax,%ebx`（mid 直入
         // callee-saved）、`mov -0x28(%ebp),%eax; mov 0x13(%eax),%esi`（sig->m_playTime 直读）。
         // 我方两具名 int 各占一槽 ×2 块 = 4 槽，正是帧 0xdc vs 0xcc（+0x10）的唯一来源。
-        // 实参求值序（右→左）由 GCC 自行处理，与 ORIG 一致。
-        cMyTrace tr1(__PRETTY_FUNCTION__, 0x22e0, 0);
-        tr1("trace mid:%d playTime:%d login_time:%d now_time:%d",
-            get_unique_id(), sig->m_playTime, m_premium.m_loginTime, (int)now);
+        // [R16a04 P227] ORIG 0x08655796..0x086557d1：`get_unique_id`(%ebx) /
+        //   `sig->m_playTime`(%esi) / 0x71ba4(%edi) 三个 vararg **在 cMyTrace::C1
+        //   （0x086557cc）之前**求值并跨 ctor 保活 ⇒ 原码是构造即调用的临时链
+        //   （具名对象形把 C1 提前到求值之前）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x22e0, 0)
+            ("trace mid:%d playTime:%d login_time:%d now_time:%d",
+             get_unique_id(), sig->m_playTime, m_premium.m_loginTime, (int)now);
     }
     m_premium.m_loginTime = now;
     {
-        // 同上（ORIG 0x08655803-0x08655843）。
-        cMyTrace tr2(__PRETTY_FUNCTION__, 0x22e2, 0);
-        tr2("trace mid:%d playTime:%d login_time:%d now_time:%d",
-            get_unique_id(), sig->m_playTime, m_premium.m_loginTime, (int)now);
+        // [R16a04 P227] 同 tr1（ORIG 0x08655808..0x0865583e 于 C1 前求值保活）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x22e2, 0)
+            ("trace mid:%d playTime:%d login_time:%d now_time:%d",
+             get_unique_id(), sig->m_playTime, m_premium.m_loginTime, (int)now);
     }
 
     // b28d-CUser p167：ORIG 0x8655869 `mov 0x704ac(%eax),%eax; test %eax,%eax`

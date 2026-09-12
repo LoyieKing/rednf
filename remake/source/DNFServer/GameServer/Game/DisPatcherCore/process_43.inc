@@ -113,8 +113,16 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             // 仅当返回类型为 **char** 才改产 `test %al,%al; sete %al`（f14/f15）。
             // ⇒ ORIG 4.1 在 0x081c390c / 0x081c3b93 / 0x081c3cae 三处的
             // `call; test %al,%al; je`（无 xor）在 4.4 下**无源码写法可造** ⇒ 封顶（P168a② 族）。
+            // [R16a13 · P354 推翻历史 N 判词] 上条「4.4 无源码写法可造」**不成立**：
+            //   负极性形（`!f()`/`== 0`/`== false`/`(int)f()==0`）确实恒产 xor；
+            //   但 P354 的**反向 if-else（空 then + else 早退）** 直产 ORIG 形
+            //   `call; test %al,%al; je`（探针 /tmp/verify357/R16a13/probe_p354.s
+            //   fA vs fB 对照实证）⇒ 改写消 xor 归一。
             if (party->get_item(user, req.m_0d, req.m_0f == 1, (char)req.m_10,
-                                outIdx, outH, outB) == 0)
+                                outIdx, outH, outB) != 0)
+            {
+            }
+            else
             {
                 goto fail_7fffffff;   // ORIG 0x081c390c `je 0x081c3cd2`
             }
@@ -173,8 +181,12 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             goto fail_7fffffff;
         }
         {
+            // [R16a13 · P354] 同 0x081c3b93：反向 if-else 消 xor（ORIG `test; je`）。
             if (tower->handlePickupItem(user, req.m_0d,
-                                        req.m_0f == 1, (char)req.m_10) == 0)
+                                        req.m_0f == 1, (char)req.m_10) != 0)
+            {
+            }
+            else
             {
                 goto fail_7fffffff;
             }
@@ -200,7 +212,11 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                             __PRETTY_FUNCTION__,
                             0, user->get_acc_id());
         }
-        if (room->HandleGetItem(user, req.m_0d) == 0)
+        // [R16a13 · P354] 同 0x081c3cae：反向 if-else 消 xor（ORIG `test; je`）。
+        if (room->HandleGetItem(user, req.m_0d) != 0)
+        {
+        }
+        else
         {
             goto fail_7fffffff;   // ORIG 0x081c3cae `je 0x081c3cd2`
         }

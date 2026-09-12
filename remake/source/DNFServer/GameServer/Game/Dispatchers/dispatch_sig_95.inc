@@ -9,9 +9,19 @@ int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
     // b28d-solo-Dispatchers verdict=DIFF [N-P112] ORIG 0x082255ca orig/ours=116/114
     //   ORIG 无槽 cmp 链（`call; cmp $5,%eax; je; cmp $0xc,%eax; je`）；switch(call())
     //   与具名 int 局部两形实测均被 4.4 spill（mov %eax,-0x14; cmpl $5,-0x14）⇒ 封顶。
-    int state = user->get_state();
-    if (state != 5 && state != 0xc)
+    // [R16a13 · P251] ORIG 0x082255dd..0x082255e5 = 无槽 cmp 链
+    //   `call get_state; cmp $0x5,%eax; je +0x42; cmp $0xc,%eax; je +0x45`
+    //   且两 case 体均为空（+0x42 `nop;jmp`、+0x45 `nop`，直落共享成功块）
+    //   ⇒ 原码是 `switch (get_state())`（case 5/case 0xc 空体 + default 错误），
+    //   不是 `if (v != 5 && v != 0xc)` + 具名 int 局部（后者使 4.4 spill 成
+    //   `mov %eax,-0x18(%ebp); cmpl $0x5,-0x18(%ebp)`）。
+    switch (user->get_state())
     {
+    case 5:
+    case 0xc:
+        break;
+
+    default:
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x12d, 0x13);
         return 0;
     }
@@ -28,13 +38,12 @@ int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     CSpecialItemRoutingManager* routing = G_CGameManager()->GetSpecialItemRoutingManager();
-    // X1 位点（台账 ours_only=sete1,test1）：ORIG 此处是单段 `xor $0x1,%eax;
-    // testb %al,%al; je` 岛，而 4.4 对 `!intcallee()` 恒折成 `test;sete %al;test`
-    // 两段 ⇒ 用「绑 %eax 具名 unsigned char + ^= 1」形复现（判据见 X 族五级序）。
-    unsigned char arriveBad =
-        (unsigned char)routing->ArriveMemberSelection(user, party, selection);
-    arriveBad ^= 1;
-    if (arriveBad)
+    // [R16a13 · P292/P168a①] ORIG 0x08256ba 形 = `call; xor $0x1,%eax; test %al,%al;
+    // je`（callee 返回 bool → 裸形直产；4.4 对 int callee 的任何调用点写法恒产
+    // `test;sete` 两段且具名 uchar `^= 1` 形落栈槽物化 +1 条并顶浅后续槽）。
+    // 原 X1 形（unsigned char arriveBad + ^= 1）已按 P168a④ 定论废弃：
+    // ArriveMemberSelection 返回类型已改 bool（见 CSpecialItemRoutingManager.h）。
+    if (!routing->ArriveMemberSelection(user, party, selection))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x12d, 0x13);
         return 0;

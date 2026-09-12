@@ -13,7 +13,11 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
     sig->m_restrictedGoodsCount = 0;
     SGFC(unsigned int, sig, 0x394c) = 0;   // ORIG 清零 +0x394c（pad 槽，无具名字段）
 
-    for (vecDNFEventEntry_t::iterator it = entries.begin(); it != entries.end(); ++it)
+    // [R16fixCF P13] ORIG 0x08411f71 begin → 0x08411f86 `call vector<tagDNFEventEntry>::end`
+    // → 0x08411f8e `jmp 0x08412828`（条件头）⇒ 两迭代器同列 for-init（begin 先、end 后，
+    // 均在回边之外；it 槽 -0x64 / end 槽 -0x68）。
+    for (vecDNFEventEntry_t::iterator it = entries.begin(), itEnd = entries.end();
+         it != itEnd; ++it)
     {
         // [b28d-solo-DB_Login] P157：ORIG 逐点重读 it->m_eventId（GetPremiumInfo 段
         // 23×ptEv，我方旧 eventId 缓存仅 2×）⇒ 删除具名缓存，全部使用点写 it->m_eventId。

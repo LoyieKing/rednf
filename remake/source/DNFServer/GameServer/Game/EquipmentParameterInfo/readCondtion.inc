@@ -89,7 +89,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_f39;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(3);
         }
@@ -736,7 +741,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_1082;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(0x19);
         }
@@ -750,7 +760,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_1087;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(0x1a);
         }
@@ -777,7 +792,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_1091;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(0x27);
         }
@@ -791,7 +811,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_1096;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(0x1b);
         }
@@ -818,7 +843,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_10a0;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(0x1d);
         }
@@ -832,7 +862,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_10a5;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(0x1e);
         }
@@ -846,7 +881,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             goto L_10aa;
         }
     {
-        if (ScanInt((bool*)0) == 1)
+        // [R16a05 §P352边界②] ORIG 0x0899d613/0x0899f6c2.. 八处均为「具名 int 局部
+        //   + 同槽 cmpl $1」两句写形（`mov %eax,-0xNN(%ebp); cmpl $0x1,-0xNN(%ebp); jne`
+        //   共 8 站，槽 -0x4c..-0x30 递增 4）；内联 `if (f()==1)` 使 4.4 产
+        //   `cmp $1,%eax; sete %al; test %al,%al; je`（4 条 + bool 物化）。
+        int scanned = ScanInt((bool*)0);
+        if (scanned == 1)
         {
             values.push_back(0x1f);
         }

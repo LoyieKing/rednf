@@ -19,10 +19,12 @@ bool CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)
     //   与 ORIG 0x08681cbb→0x08681cdd 次序一致）。删我方 characNo/accStr 两具名量
     //   （其 store/load 另致帧 0x2dc→0x2ec、+0x10）。
     {
-        CMyFileLog log(
+        // [R16a04 P227] ORIG 0x08681cbb..0x08681cf5：实参求值（get_charac_no→%esi、
+        //   NumberToString→%ebx）**先于** CMyFileLog::C1（0x08681cf5）⇒ 原码是
+        //   构造即调用的全表达式临时链 `CMyFileLog(f,l)(...)`；具名对象把 C1 提前。
+        CMyFileLog(
             __PRETTY_FUNCTION__,
-            0x869f);
-        log(logDir, "On Time Event:InsertOnTimeEventReward(%s, %u)",
+            0x869f)(logDir, "On Time Event:InsertOnTimeEventReward(%s, %u)",
             NumberToString(get_acc_id(), 0), get_charac_no(-1));
     }
 
@@ -60,7 +62,11 @@ bool CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)
         // ⇒ 删具名 give（我方多 `mov %al,-0x25(%ebp); cmpb $0x0,-0x25(%ebp)`）。
         if ((item.m_addInfo != 0) || (item.get_add_info() != 0))
         {
-            int slot = getCurCharacInvenW()->insertItemIntoInventory(
+            // [R16a04 P198①] ORIG 0x08681e1a `movl $0xffffffff,-0x1c(%ebp)` 在
+            //   `call getCurCharacInvenW`（0x08681e27）**之前** ⇒ 原码两句式
+            //   `int slot = -1; slot = ...;`（预置 -1 必写）。
+            int slot = -1;
+            slot = getCurCharacInvenW()->insertItemIntoInventory(
                 item, (eItemAddReason)0xd, true, true);
             if (slot < 0)
             {

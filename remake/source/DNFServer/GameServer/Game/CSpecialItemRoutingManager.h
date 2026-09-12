@@ -38,7 +38,13 @@ public:
     // ORIG T 0x0860ab2e（报告 CSpecialItemRoutingManager/ArriveMemberSelection.md）：
     // 成员选卡到达。GetMemberRoutingState==0 时按 sel(0→1,1→2) SetMemberRoutingState，
     // HasAllMemberSelection 则 cancelTimer+processRouting；返回 1=处理 0=已选过。
-    int ArriveMemberSelection(CUser* user, CParty* party, char sel);
+    // [R16a13 · P292/P168a①] ORIG 全二进制唯一调用点 0x08256ba（Dispatcher_
+    // BiddingRoutingItem::dispatch_sig）形为 `call; xor $0x1,%eax; test %al,%al; je`
+    // ⇒ callee 返回类型 bool（int 形 4.4 恒产 `test;sete` 两段，且调用点无法自救）。
+    // 定义侧 0x0860ab2e 尾 `mov $0x1/%0x0,%eax` 与 bool 常量返回逐字节相同（探针
+    // /tmp/verify357/R16a13/probe_bool.s：int/bool 的 `return 1;` 均为 `movl $1,%eax`）
+    // ⇒ 改型零 mangled/布局影响（返回类型不入 mangled；空类 sizeof=1 不变）。
+    bool ArriveMemberSelection(CUser* user, CParty* party, char sel);
 
 // ORIG 空类（sizeof 1，GetSpecialItemRoutingManager _Znwj(0x1) 实证；
 // 各方法经 CParty/全局数据工作，不访问 this 成员）。

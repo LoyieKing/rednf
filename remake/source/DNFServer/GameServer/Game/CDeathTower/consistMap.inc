@@ -69,6 +69,12 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             mob.m_roleType = 5;
             mob.m_level = aiChar->getLevel();
             mob.m_dropCnt = data.m_camp;
+            // [R16a13 · §16.2] ORIG 0x08460899..0x084608ac 顺序 = +0x2c(m_dropCnt)
+            //   → +0x11=0 → +0x12=0；两条独立 `movb $0x0,-0xf3f/-0xf3e(%ebp)` 即
+            //   m_field11 的**字节视图逐字节清零**（short 赋值只会产单条 movw，
+            //   探针 /tmp/verify357/R16a13/probe_union.s f/g 对照实证）。旧译漏写 ⇒ 补。
+            mob.m_field11b.m_field11b0 = 0;
+            mob.m_field11b.m_field11b1 = 0;
             m_mapInfo.Add_Mob(mob);
             mobIdx++;
         }
@@ -125,6 +131,10 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             mob.m_roleType = 5;
             mob.m_level = aiChar->getLevel();
             mob.m_dropCnt = 100;
+            // [R16a13 · §16.2] ORIG 0x08460c88..0x08460c99：+0x2c=100 后同样两条
+            //   `movb $0x0,-0xf3f/-0xf3e(%ebp)`（m_field11 字节视图清零）⇒ 补。
+            mob.m_field11b.m_field11b0 = 0;
+            mob.m_field11b.m_field11b1 = 0;
             m_mapInfo.Add_Mob(mob);
             mobIdx++;
         }

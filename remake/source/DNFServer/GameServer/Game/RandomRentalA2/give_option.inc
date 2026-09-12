@@ -143,9 +143,12 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
     opts->m_seed9.m_field =
         (unsigned char)((opts->m_seed9.m_field & 0xfc) | (outGrade & 3));
     unsigned long seedBound = MAX_RANDOM_SEED;
-    int seedRoll = m_rand[10].randInt(seedBound);
+    // [R16a07] 删 `int seedRoll = ...` 具名局部、randInt 内联进实参位（P0：ORIG
+    // 0x85f32e5 `call randInt; mov %eax,%edx` 无槽往返，我方原发
+    // `mov %eax,-0x18(%ebp)` + `mov -0x18(%ebp),%eax` 一对；掩码 `& 0x3f` 照旧保留）。
     opts->m_seed9.m_field =
-        (unsigned char)((opts->m_seed9.m_field & 3) | ((seedRoll & 0x3f) << 2));
+        (unsigned char)((opts->m_seed9.m_field & 3) |
+                        ((m_rand[10].randInt(seedBound) & 0x3f) << 2));
 
     return true;
 }

@@ -1,5 +1,14 @@
 // ORIG T 0x0869154a sz0x664：抽奖计数道具发放（事件币/道具/邮件补偿）。
-// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0869154a | _ZN5CUser20giveLotteryCountItemEib
+// [R16a15 2026-09-12 落修] 3 处形态对齐（ORIG 直证，四闸门全过）：
+//   ① `slot = -1;` 死写照抄（ORIG 0x086917b2 `movl $0xffffffff,-0x2c(%ebp)`）；
+//   ② 循环体每轮重发 `add $0x3a0`（ORIG 0x08691646/0x08691662/0x0869195d ×3）
+//      ⇒ 删 `std::vector<int>& src` 引用缓存，改第二个指针槽 `stackable`
+//      （ORIG -0x34，`mov -0x38(%ebp),%eax; mov %eax,-0x34(%ebp)` 纯拷贝）；
+//   ③ `put_byte((int)(signed char)rewards.size())`（ORIG 0x086919a9 `movsbl %al`）。
+//   A/B 四数 809/1728/5/58/586 逐值不变；帧 `sub $0x1fc`=ORIG；35 个槽逐槽
+//   引用计数与 ORIG 全等；符号集 comm-3=0。残余：`shr $0x1f` ↔ `cmpl $0; jns`
+//   与 `sete/je` 极性族（N-lowering，语义等价）。
+// 历史：b28d-lane5 曾判 N82/P112 槽号分配封顶 | ORIG 0x0869154a | _ZN5CUser20giveLotteryCountItemEib
 void CUser::giveLotteryCountItem(int itemNo, bool match)
 {
     // 2026-09-10（G3CUser-B 复验）：ORIG 0x086915fa `cmpl $0x0,-0x38(%ebp); je`
@@ -24,13 +33,19 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
         return;
 
     std::vector<Inven_Item> rewards;
-    // ORIG 0x086916??：m_vec3a0 以 **non-const** vector<int>& 访问
-    //   （call _ZNSt6vectorIiSaIiEEixEj，非 const 重载）。
-    std::vector<int>& src = item->m_vec3a0;   // ORIG +0x3a0
+    // [R16a15 2026-09-12 §22 循环不变式/P183 删除方向] ORIG 0x0869163a
+    //   `mov -0x38(%ebp),%eax; mov %eax,-0x34(%ebp)`（item → stackable 的**纯指针
+    //   拷贝**，两槽并存），循环体每轮重发 `mov -0x34(%ebp),%edx; add $0x3a0,%edx`
+    //   （全函数 `add $0x3a0` ×3：operator[](int&) 两处 + size() 一处，实测
+    //   0x08691646/0x08691662/0x0869195d）；我方旧形把 +0x3a0 提前并入 -0x34
+    //   缓存（`std::vector<int>& src = item->m_vec3a0;`）⇒ add 仅 1 次、
+    //   且 -0x34 内容由 base 变 base+0x3a0。m_vec3a0 为**非 const** vector<int>
+    //   （ORIG 调 _ZNSt6vectorIiSaIiEEixEj）。
     // 2026-09-10（C05② 类型旋钮）：ORIG 0x0869196a 为 `cmp -0x30(%ebp),%eax; setg`
     //   （内存直比 + 有符号）⇒ 索引局部必须是有符号 int（size_t 会让 4.4 先载寄存器
     //   并退化为 setb 无符号序）。
-    for (int i = 0; i < (int)src.size(); )
+    CStackableItem* stackable = item;   // ORIG -0x34（具名局部，P0 槽往返）
+    for (int i = 0; i < (int)stackable->m_vec3a0.size(); )
     {
         Inven_Item it;                              // 默认构造后按 ORIG 填 8 字节
         // 2026-09-11（Lane2，字段错位轴修正 + P183 去具名局部）：ORIG 0x08691672/
@@ -40,8 +55,8 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
         //   我方旧形写 it+0/+4 ⇒ (a) 两字段全错位（写到 m_field0 与 m_addInfo 高位，
         //   读回的是 C1Ev 初值 ⇒ 事件币分支与邮件分支取值全错 = 真语义 bug）；
         //   (b) 多占 itemNo/itemCnt 两槽（帧 0x20c vs ORIG 0x1fc）+ 4 条 store/load。
-        it.m_addInfo = (unsigned int)src[i++];
-        it.m_addInfo2 = src[i++];
+        it.m_addInfo = (unsigned int)stackable->m_vec3a0[i++];
+        it.m_addInfo2 = stackable->m_vec3a0[i++];
         rewards.push_back(it);
 
         // ORIG 0x086916b1 `mov -0x98(%ebp),%eax; cmp $0x1,%eax; jne`
@@ -69,7 +84,13 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
         if (!(it.m_addInfo != 0 || it.get_add_info() != 0))
             continue;
 
-        int slot = getCurCharacInvenW()->insertItemIntoInventory(
+        // [R16a15 2026-09-12 §18 子轴A·ORIG 死写照抄] ORIG 0x086917b2
+        //   `movl $0xffffffff,-0x2c(%ebp)`：唯一覆盖点 0x0869186a =
+        //   insertItemIntoInventory 返回值，两个读点（0x0869186d 符号位判定 /
+        //   0x08691938 slot 使用）均在其后 ⇒ 不可观察，但按「照抄 ORIG」补回；
+        //   声明须留在本 if 体首（ORIG 该 store 紧随 0x086917ac `je` 之后）。
+        int slot = -1;
+        slot = getCurCharacInvenW()->insertItemIntoInventory(
             it, (eItemAddReason)0xd, true, true);
         if (slot < 0)
         {
@@ -97,7 +118,9 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
 
     PacketGuard packet;
     packet.put_header(0, 0x1d0);
-    packet.put_byte((int)rewards.size());
+    // [R16a15 2026-09-12] ORIG 0x086919a9 `movsbl %al,%eax`（size() 低字节按
+    //   有符号扩展后传入；put_byte 内部按 (unsigned char) 截断 ⇒ 低字节不变）。
+    packet.put_byte((int)(signed char)rewards.size());
     // ORIG 0x086919??：BOOST_FOREACH 展开（contain/begin/end/deref/next/done +
     //   auto_any_base::cvb ×3；元素 Inven_Item& 直取 +2/+7 字段）。
     BOOST_FOREACH(Inven_Item& ri, rewards)

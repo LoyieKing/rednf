@@ -26,9 +26,11 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
             ->delUserRewardData(this);
     }
 
-    int sock = m_network.m_sock;   // ORIG this+0xe0
-    int chState = m_chState;       // ORIG this+0x8cfc4
-    if (sock < 0 || chState == 0)
+    // [R16a04 P0/P157] ORIG 0x08648a83..0x08648aa5 对 this+0xe0(m_sock)/+0x8cfc4(chState)
+    //   **表达式直读**（`mov 0x8(%ebp),%eax; mov 0xe0(%eax),%eax; test; js`），全函数
+    //   m_sock 共 5 处重读、无具名 sock/chState 槽 ⇒ 删两具名局部（旧形多 2 槽 +
+    //   帧 0xd2c vs ORIG 0xd1c）。
+    if (m_network.m_sock < 0 || m_chState == 0)
     {
         // ORIG +0x137 trace（0x911）：无 socket / 未登录态仅留痕后返回。
         cMyTrace(__PRETTY_FUNCTION__, 0x911, 5)
@@ -57,27 +59,29 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     // ORIG +0x240：GetPeerIP2 后按有无 IP 打两条 trace（0x939 无 IP / 0x937 有 IP）；
     // send/recv 计数 = +0x8cf0d/+0x8cf0c 双字节、+0x8cf08（m_lastPacketID）。
     char ip[16];
-    bool haveIp = m_network.GetPeerIP2(ip, 0x10) != 0;
+    // [R16a04 P353/P292] ORIG 0x08648c3b `test %eax,%eax; setne %al; test %al,%al;
+    //   je 0x08648d31`（**无槽、无 xor**）：原码是正向单条件
+    //   `if (GetPeerIP2(ip,0x10) != 0) {有 IP 0x937} else {无 IP 0x939}`
+    //   （fall-through=有 IP / je 落=无 IP）。旧形 `bool haveIp=…; if(!haveIp)`
+    //   多 `mov %al,-0x3d; movzbl; xor $1` 三段且两臂互换。
+    if (m_network.GetPeerIP2(ip, 0x10) != 0)
     {
-        if (!haveIp)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x939, 0)
-                ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), "
-                  "ip(GetPeerIP:NONE), dungeon(%d)",
-                  (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
-                  (int)m_pad8cf0c[1],
-                  (int)m_pad8cf0c[0], m_lastPacketID,
-                  getPlayingDungeonIndex());
-        }
-        else
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x937, 0)
-                ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), ip(%s), dungeon(%d)",
-                  (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
-                  (int)m_pad8cf0c[1],
-                  (int)m_pad8cf0c[0], m_lastPacketID, ip,
-                  getPlayingDungeonIndex());
-        }
+        cMyTrace(__PRETTY_FUNCTION__, 0x937, 0)
+            ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), ip(%s), dungeon(%d)",
+              (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
+              (int)m_pad8cf0c[1],
+              (int)m_pad8cf0c[0], m_lastPacketID, ip,
+              getPlayingDungeonIndex());
+    }
+    else
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x939, 0)
+            ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), "
+              "ip(GetPeerIP:NONE), dungeon(%d)",
+              (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
+              (int)m_pad8cf0c[1],
+              (int)m_pad8cf0c[0], m_lastPacketID,
+              getPlayingDungeonIndex());
     }
 
     // ORIG +0x2c0：sig==5 时按 accId/ip 有无重映射断线原因（0x30/0x31/0x32）。
@@ -133,7 +137,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         }
     }
 
-    if (sock == -1)
+    if (m_network.m_sock == -1)
     {
         // ORIG +0x567：socket 已断 → 仅留痕。
         LogManager::logFormat(
@@ -159,13 +163,14 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
             }
         }
         // ORIG +0x640：ResetEpoll 失败 → errno 留痕（0x98e）。
-        int err = G_EpollHandler()->ResetEpoll(sock);
+        int err = G_EpollHandler()->ResetEpoll(m_network.m_sock);
         if (err != 0)
         {
             LogManager::logFormat(
                 1, "user.cpp", __PRETTY_FUNCTION__, 0x98e,
                 "(m_id: %s) G_EpollHandler()->ResetEpoll(pUser->get_socket(%d)) %d(%s)",
-                NumberToString(get_acc_id(), 0), sock, err, strerror(err));
+                NumberToString(get_acc_id(), 0), m_network.m_sock, err,
+                strerror(err));
         }
         // ORIG +0x730：组流(<<1<<uid)（0x991）。
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x991), true);

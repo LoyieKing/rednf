@@ -27,14 +27,16 @@ bool CUser::Parsing(int received)
     {
         m_network.m_recvOffset += received;                 // +0xf8
         m_network.m_recvBuf += received;                    // +0x10c
-        cMyTrace t(__PRETTY_FUNCTION__, 0x69d, 0);
-        t("(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
-          reinterpret_cast<unsigned int>(m_network.m_recvBuf),
+        // [R16a04 P227] ORIG 于 cMyTrace::C1 之前求值全部 vararg（ctor 后压栈）⇒
+        //   原码是构造即调用的临时链；具名对象把 C1 提前到求值之前。
+        cMyTrace(__PRETTY_FUNCTION__, 0x69d, 0)
+            ("(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
+             reinterpret_cast<unsigned int>(m_network.m_recvBuf),
           // [N1B 2026-09-11 负结论] `&m_network.m_recv[0]` 形已实测（ORIG +0x8c
           // `lea 0x110(%eax),%edi` = 地址直算；我方 add+mov 两段）⇒ n1_v 归一后
           // 残差**逐字节不变**，回滚。
-          reinterpret_cast<unsigned int>(m_network.m_recv), m_network.m_recvOffset,
-          received);
+             reinterpret_cast<unsigned int>(m_network.m_recv), m_network.m_recvOffset,
+             received);
         m_network.m_bBufOffsetTrace = 1;                    // bufoffset 标记 +0x109
         return true;
     }
@@ -54,12 +56,13 @@ bool CUser::Parsing(int received)
 
         if (m_network.m_bBufOffsetTrace != 0)
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x6b2, 0);
-            t("[BUFOFFSET TRACE](offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
-              reinterpret_cast<unsigned int>(m_network.m_recvBuf),
-              reinterpret_cast<unsigned int>(m_network.m_recv),
-              m_network.m_recvOffset,
-              received);
+            // [R16a04 P227] 同 0x69d 处（ORIG ctor 前求值）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x6b2, 0)
+                ("[BUFOFFSET TRACE](offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
+                 reinterpret_cast<unsigned int>(m_network.m_recvBuf),
+                 reinterpret_cast<unsigned int>(m_network.m_recv),
+                 m_network.m_recvOffset,
+                 received);
         }
 
         std::memcpy(&hdr, m_network.m_recvBuf, 13);
@@ -121,9 +124,11 @@ bool CUser::Parsing(int received)
                 _NS_PI_2ND_MakeChecksumTo1Byte2(crc, hdr.m_checksum);
                 if (hdr.m_checksum != crc)
                 {
-                    cMyTrace t(__PRETTY_FUNCTION__, 0x73a, 5);
-                    t("[CHECK SUM] check_sum error PACKET : %s",
-                      GetPacketName((ENUM_PACKETCLASS)hdr.m_class, hdr.m_id));
+                    // [R16a04 P227] ORIG 0x08647cba `call GetPacketName; mov %eax,%ebx` 先于
+                    //   C1 0x08647cdf（实参跨 ctor 保活）⇒ 临时链形。
+                    cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)
+                        ("[CHECK SUM] check_sum error PACKET : %s",
+                         GetPacketName((ENUM_PACKETCLASS)hdr.m_class, hdr.m_id));
                     return false;
                 }
             }

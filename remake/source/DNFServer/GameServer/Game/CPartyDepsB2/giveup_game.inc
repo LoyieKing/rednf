@@ -11,9 +11,18 @@
 // 维持 N82/N89 封顶。697/672，gap −25。
 void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
-    // [b28d-solo-CParty2] CParty.h 字段化：+0x1abc 区为具名成员 m_secu。
-    Secu_HackLogCheckByParty& secu = m_secu;
+    // [R16a17 P183 复原] ORIG 在 bf/secu 的**每个使用点各自重取址**
+    // （0x085b2cac `mov 0x8(%ebp),%eax; add $0xc7c,%eax`；secu 为 `add $0x1abc,%eax`），
+    // 无引用缓存槽 ⇒ 删具名引用，全部直成员访问，复现逐点重算。
+    // A/B（TU=CPartyDepsB2.cpp，同环境同时点，唯一变量=本 .inc）：
+    //   TU 四数 identical/ae/near/diff/missing = 0/9/0/2/0 逐值不变；
+    //   件级 our_insns 697→694（ORIG 672），%ebp 槽键 27→25（-2）；
+    //   同形复核：+0xc7c 追踪器点 `mov -0x5c(%ebp),%eax; add $0x158,%eax`
+    //   → `mov 0x8(%ebp),%eax; add $0xc7c,%eax`（= ORIG 0x085b2cac 形）；
+    //   +0xc4c 读 `mov -0x5c(%ebp),%eax; movzwl 0x128(%eax)`
+    //   → `mov 0x8(%ebp),%eax; movzwl 0xc4c(%eax)`（= ORIG 0x085b9d43 段形）；
+    //   符号集 nm --defined-only 52=52 逐名零差（comm 空）。
+    //   残余帧 sub 仍 0x190（ORIG 0x17c）⇒ 仅剩 N82 帧/槽相位族。
 
     bool specialDungeon = false;                        // -0x3d local_41
     CDungeon* dungeon = m_battleField.m_pDungeon;                      // -0x3c (+0xcac)
@@ -50,7 +59,7 @@ void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
 
     user->reset_level_before_dungeon();
 
-    bf.m_dungeonClearTracer.Trace(__PRETTY_FUNCTION__); // 战场 +0xc7c 追踪器
+    m_battleField.m_dungeonClearTracer.Trace(__PRETTY_FUNCTION__); // 战场 +0xc7c 追踪器
 
     Reset_party_overlapped_drop_ratio();
 
@@ -76,7 +85,7 @@ AFTER_STATISTICS:
     }
 
     // 村庄怪物战进行中（bf+0x128≠0）或特殊图 idx==10000 → 取消惩罚资格
-    if (bf.m_villageMonsterId != 0)
+    if (m_battleField.m_villageMonsterId != 0)
         allowPenalty = false;
     else if (dungeon != 0)
     {
@@ -93,14 +102,14 @@ AFTER_STATISTICS:
         if (get_member_count() == 1)
         {
             CheckHackAverageHitCount();
-            secu.dungeonFail();                         // +0x1abc
+            m_secu.dungeonFail();                       // +0x1abc
         }
         OnFailedDungeonClear(user);
     }
 
     if (user != 0)
     {
-        if (bf.check_start_point())
+        if (m_battleField.check_start_point())
         {
             WongWork::CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
             hackAnalyzer->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x325,
@@ -164,12 +173,12 @@ AFTER_STATISTICS:
                 {
                     int partyType = m_battleField.m_bloodState;
                     char* names = _getMemberNames(memberNames);
-                    int diff = bf.get_dungeon_diff();
+                    int diff = m_battleField.get_dungeon_diff();
                     const char* dunName = dungeon->GetDungeonName();
                     m_member[k].m_pUser->m_historyLog.LeaveDungeon(
                         dunName, diff, names, partyType);
                 }
-                if (bf.m_villageMonsterId != 0)
+                if (m_battleField.m_villageMonsterId != 0)
                 {
                     if (m_member[k].m_pUser != user)
                     {
