@@ -58,7 +58,11 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
     else
     {
         m_bloodSpawnTime[phaseIdx] = 0;
-        m_bloodPhaseClear[nextRound] = true;
+        // [R3a11 语义核验·真差异修复] ORIG 索引是 param_1(smallRound) 而非 *nextRound：
+        // 0x08305762 `movswl -0x4c(%ebp),%edx`（-0x4c = 入口 `mov %ax,-0x4c(%ebp)` spill
+        // 的 smallRound，全函数仅入口写一次）→ `mov %edx,0x8(%esp)` → 0x0830577d
+        // `call <vector<bool>::operator[]>`（0x264=&m_bloodPhaseClear）⇒ 复刻 ORIG。
+        m_bloodPhaseClear[smallRound] = true;
         if (checkBloodSpawnOrder(smallRoundOrder))
         {
             if (lastSmallRoundOrder < smallRoundOrder)

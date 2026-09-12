@@ -198,16 +198,12 @@ public:
 
 
 
-// np_server_xml::CServerXml::StrLoading()（_ZN13np_server_xml10CServerXml10StrLoadingEv）
-namespace np_server_xml
-{
-
-class CServerXml
-{
-public:
-    void StrLoading();
-};
-}  // namespace np_server_xml
+// [R3a18 2026-09-12 第三轮核验] np_server_xml::CServerXml 改用权威头（跨 TU 唯一
+// 声明点），删本 TU 局部镜像类；StrLoading 的接收者按 ORIG 改为全局单例
+// g_ServerString_（ORIG 0x82a1f4b `movl $0x93fa660,(%esp)` = B 0x93fa660 size 0xb8，
+// nm 实证 g_ServerString_；旧形 `CServerXml xml; xml.StrLoading();` 是栈上临时对象
+// ⇒ 全局字符串表从未加载，属真语义差异）。
+#include "NpServerXml.h"
 
 
 // CInGameAdvertisementManager/InGameADManagerInstance 声明改用权威头

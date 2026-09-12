@@ -37,7 +37,10 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
             user->set_charac_fatigue_buf_bonus_exp(fatigueBonus);
         }
 
-        // 成长之力：ratio = 字节1(v>>8&0xff) / 2.0f（flds 0x08cbbbcc = 2.0f）
+        // 成长之力：ratio = 字节1(v>>8&0xff) / 100.0f
+        // [R3a21 2026-09-12 修正] ORIG 0x85a2566 `flds 0x8cbbbcc` 的常量池实值 =
+        //   0x42c80000 = **100.0f**（objdump -s 实测；旧注释误标 "2.0f"，
+        //   真正的 2.0f 在 ORIG 0x8cbbbd4）⇒ 原码为百分比除数 100.0f。
         STExpReward growthView;                            // [ctor -0x3c]
         growthView.m_reward =
             user->get_growth_power_exp_reward().m_reward;  // [sret 临时 + mov dword]
@@ -46,7 +49,7 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
         //   ⇒ 试形：显式 (short)(unsigned char) 链复现两次零扩展 + filds 短装载。
         float seriaRatio = static_cast<float>(
             static_cast<short>(static_cast<unsigned char>(
-                (growthView.m_reward >> 8) & 0xff))) / 2.0f;
+                (growthView.m_reward >> 8) & 0xff))) / 100.0f;
         // fildll(exp)*fmuls(ratio) → fistpl
         seriaBonus = static_cast<int>(
             static_cast<double>(static_cast<unsigned long long>(baseExp)) *
@@ -86,10 +89,11 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
         user->GetPremiumInfo()->GetAdvantageExpRate());
     premiumRate += static_cast<float>(CServerEvent::GetExpRate());
 
-    // fildll(E); fildll(E); fmuls(premRate); flds 2.0f; fdivrp; faddp → fistpll
+    // fildll(E); fildll(E); fmuls(premRate); flds 100.0f; fdivrp; faddp → fistpll
+    // [R3a21 2026-09-12 修正] 同上：ORIG 0x85a26b6 `flds 0x8cbbbcc` = 100.0f（百分比除数）
     long long newExp64 = static_cast<long long>(
         static_cast<double>(static_cast<unsigned long long>(baseExp)) *
-            premiumRate / 2.0f +
+            premiumRate / 100.0f +
         static_cast<double>(static_cast<unsigned long long>(baseExp)));
     unsigned int newExp = static_cast<unsigned int>(newExp64);  // 仅低 32 位回写
     total += static_cast<int>(newExp);

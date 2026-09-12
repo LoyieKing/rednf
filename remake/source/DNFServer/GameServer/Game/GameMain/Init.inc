@@ -433,8 +433,11 @@ bool Init(int argc, char** argv)
     G_CGameManager()->GetSharedServerMessageManager()->LoadServerMessageFromDB();
     G_CGameManager()->GetAuctionAveragePriceManager()->LoadAveragePrice();
 
-    np_server_xml::CServerXml xml;  // 「推断」实例化方式（ORIG 直接调用成员）
-    xml.StrLoading();
+    // [R3a18 2026-09-12 第三轮核验] 接收者按 ORIG 复刻：ORIG 0x82a1f4b
+    //   `movl $0x93fa660,(%esp); call np_server_xml::CServerXml::StrLoading()`
+    //   —— 0x93fa660 = 全局 g_ServerString_（nm B 0x93fa660 size 0xb8），
+    //   旧形用栈上临时对象 ⇒ 全局字符串表从未加载（真语义差异）。
+    g_ServerString_.StrLoading();
 
     // 死亡之塔排行榜 4 表（type 1..4）懒构造 + 逐表 init（ORIG 82a1f.. 循环）；
     // registNextTimer 传 0（ORIG 实证，非 60000）。
@@ -462,7 +465,10 @@ bool Init(int argc, char** argv)
     Timer_DailySchedule::RegistNextTimer();
     advancealtar::Timer_MainTick::RegistNextTimerGage();
     Timer_OneADayItemShop::RegistNextTimer();
-    Timer_EventManagement::RegistNextTimer(60000);           // 「推断」间隔
+    // [R3a18 2026-09-12 第三轮核验] 实参按 ORIG 复刻：ORIG 0x82a1fd0
+    //   `movl $0x0,(%esp); call Timer_EventManagement::RegistNextTimer(int)`
+    //   ⇒ 原码传 0（旧写的 60000 系「推断」值，非 ORIG 证据，属真语义差异）。
+    Timer_EventManagement::RegistNextTimer(0);
     Timer_DungeonStatisticEntrance_Hour::RegistNextTimer();
 
     // ORIG 0x2bf6：create_thread 失败记 "Fail to Create Threads." 并 abort。

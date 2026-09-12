@@ -109,7 +109,10 @@ void CUser::UpdateLogout(bool param)
         {
             m_historyLog.Logout(getWebAddress(), m_network.get_str_ip(),
                                 m_network.get_port(),
-                                (unsigned short)G_CEnvironment()->m_serverEnvir.m_channelNo,
+                                // ORIG 0x08655969 `mov 0x1b0(%eax),%edi` 为 32 位直读
+                                // （无 movzwl）⇒ 原码无截断 cast；第 4 参 int d 经
+                                // LogHistory "%d" 完整使用（R3a04 第三轮 SEMANTIC-DIFF 修正）。
+                                G_CEnvironment()->m_serverEnvir.m_channelNo,
                                 (int)((long)GlobalData::s_systemTime_.getCurSec() -
                                       GetCharacStartPlayTick()),
                                 GetLogInOutState());

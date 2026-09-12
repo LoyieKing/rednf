@@ -22,9 +22,12 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
     CItem* item;                        // GetItemPtr（寄存器传递）
     int rarity;                         // -0x40
 
-    if (user->get_state() == 3 || user->get_state() == 8 ||
-        user->get_state() == 5 || user->get_state() == 10 ||
-        user->get_state() == 0xc)
+    // [R3a16 第三轮 SEMANTIC-DIFF 修复] ORIG 真值方向：命中 {3,8,5,10,12} ⇒ **进入处理块**，
+    // 未命中 ⇒ return 0（ORIG 0x81f2d23/33/43/53/63 五条 `je 0x81f2d6c`=`mov $0x0,%eax`
+    // → `test; je 处理块`）。原写法 `if (state==3||..) return 0;` 与之互为反，已翻转。
+    if (!(user->get_state() == 3 || user->get_state() == 8 ||
+          user->get_state() == 5 || user->get_state() == 10 ||
+          user->get_state() == 0xc))
         return 0;
 
     if (packet.get_byte(invenType) != 1)

@@ -148,11 +148,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     {
         int luck = user->GetCurCharacLuckPoint();
         std::string text("remained luck point : ");
-        // [负结论·保留 0x100] ORIG 此点确为 255B（0x0820c982 `mov $0x3f,%ecx` +
-        //   `mov %ax,(%edx)/add $2/mov %al,(%edx)`）；但改成 `b[0xff]` 后我方 gcc
-        //   展开为 10 条（多一条 `add $0x1,%edx`）vs ORIG 9 条，该件 gap 由 −27
-        //   恶化到 −63（TU 复编实测 6688 vs 6625）⇒ 按「一次一旋钮不成即回滚」回退。
-        char b[0x100] = {0};
+        // [R3a01 修复·语义优先] ORIG 此点确为 255B（0x0820c982 `mov $0x3f,%ecx` +
+        //   `mov %ax,(%edx)/add $2/mov %al,(%edx)` = 0x3f*4+2+1 = 255）。旧「负结论·
+        //   保留 0x100」按 gap/形态指标取舍；按用户 2026-09-12 裁定（完全复刻 ORIG，
+        //   含尺寸）改回 0xff ⇒ 我方 4.4 展开 10 条 vs ORIG 9 条属 N 类形态代价。
+        char b[0xff] = {0};
         std::sprintf(b, "(%d) ", luck);
         text += b;
         A2_SEND_STR(user, text);
@@ -270,7 +270,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     else if (args[0] == "mdt" || args[0] == "monsterdroptest" || args[0] == "startmdt" ||
              args[0] == "endmdt" || args[0] == "goldmdt")
     {
-        char b[0x100] = {0};    // ORIG 0x0820d4f8 为 255B（见上「负结论·保留 0x100」）
+        char b[0xff] = {0};     // [R3a01 修复] ORIG 0x0820d4f8 为 255B（0x3f+word+byte）
         if (args[0] == "startmdt")
             std::sprintf(b, "%d %s", 1, args[1].c_str());
         else if (args[0] == "endmdt")
@@ -284,7 +284,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- cli / checklottoitem ----
     else if (args[0] == "cli" || args[0] == "checklottoitem")
     {
-        char b[0x100] = {0};    // ORIG 0x0820d712 为 255B（见上「负结论·保留 0x100」）
+        char b[0xff] = {0};     // [R3a01 修复] ORIG 0x0820d712 为 255B（0x3f+word+byte）
         if (args[1] == "ven")
         {
             std::sprintf(b, "%d %s", 1, args[2].c_str());
@@ -411,7 +411,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- sep upgrade/up success|s|fail|f ----
     else if (args[0] == "sep" && (args[1] == "upgrade" || args[1] == "up"))
     {
-        char b[0x100] = {0};    // ORIG 0x0820e4a4 为 255B（见上「负结论·保留 0x100」）
+        char b[0xff] = {0};     // [R3a01 修复] ORIG 0x0820e4a4 为 255B（0x3f+word+byte）
         if (args[2] == "success" || args[2] == "s")
         {
             if (user->getUpgradeSeparateTrueFlag() == 0)
@@ -630,7 +630,10 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xd)));
         state->setEnterLayer(layer);
         TOD_Layer today = state->getTodayEnterLayer();
-        char b[0x100] = {0};
+        // [R3a01 修复] ORIG 0x0820f86b 直接 `lea -0x668(%ebp),%eax` 进 sprintf，
+        //   该分支（0x0820f7ca 入口）无任何 rep stos/memset ⇒ 原码缓冲未初始化；
+        //   删除我方多余 `= {0}`（复刻 ORIG；仅影响被调方对未写区的读取行为）。
+        char b[0x100];
         std::sprintf(b, "set Enter Layer : %d",
                      static_cast<int>(today.GetLayer()) & 0xffff);
         TowerOfDespairMgr::SendMessageToCUser(user, b);
@@ -784,7 +787,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         CItem* pItem = G_CDataManager()->find_item(name.c_str());
         if (pItem == 0)
         {
-            char b[0x100] = {0};    // ORIG 0x082103bf 为 255B（见上「负结论·保留 0x100」）
+            char b[0xff] = {0};     // [R3a01 修复] ORIG 0x082103bf 为 255B（0x3f+word+byte）
             std::sprintf(b, "cannot find item (%s) ", name.c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -798,7 +801,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             return 0;
         }
         {
-            char b[0x100] = {0};    // ORIG 0x08210525 为 255B（见上「负结论·保留 0x100」）
+            char b[0xff] = {0};     // [R3a01 修复] ORIG 0x08210525 为 255B（0x3f+word+byte）
             std::sprintf(b, "item_index(%d) ", pItem->get_index());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -928,7 +931,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         CItem* pItem = G_CDataManager()->find_item(itemIdx);
         if (pItem == 0)
         {
-            char b[0x100] = {0};    // ORIG 0x08211337 为 255B（见上「负结论·保留 0x100」）
+            char b[0xff] = {0};     // [R3a01 修复] ORIG 0x08211337 为 255B（0x3f+word+byte）
             std::sprintf(b, "cannot find item (%s) ", args[1].c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -1033,7 +1036,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             if (party != 0 && party->get_member_count() >= 2)
             {
                 party->set_gm_random_buff_type(static_cast<QuickParty::RandomBuffType>(v));
-                char b[0x100] = {0};    // ORIG 0x08211b24 为 255B（见上「负结论·保留 0x100」）
+                char b[0xff] = {0};     // [R3a01 修复] ORIG 0x08211b24 为 255B（0x3f+word+byte）
                 std::sprintf(b, "GM QUICK PARTY RANDOM BUFF (%d) TYPE!!", v);
                 PacketGuard g;
                 g.put_header(0, 0xc);
@@ -1063,7 +1066,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 BattleData* bd = &party->m_battleData;   // +0x32c（MonC9 具名化：m_padBattleData→BattleData m_battleData）
                 bd->SetHellPartyValueTotal(v);
                 party->send_hellParty_value();
-                char b[0x100] = {0};    // ORIG 0x08211d6e 为 255B（见上「负结论·保留 0x100」）
+                char b[0xff] = {0};     // [R3a01 修复] ORIG 0x08211d6e 为 255B（0x3f+word+byte）
                 std::sprintf(b, "HELL PARTY VALUE (%d)",
                              bd->GetHellPartyValueTotal());
                 PacketGuard g;

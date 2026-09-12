@@ -1314,12 +1314,14 @@ bool CDataManager::init()
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x2022, 9, true, false)(
             "\t- Init Level Exp ");
-        // ORIG +0x4b8f..+0x4b99：`call set_level_exp / xor $1 / test %al / jmp
-        // <success>`——出厂二进制此处被单字节改写（0x0835cecb 机器码 `eb 56`，
-        // 而 `je` 应为 `74 56`，位移完全一致），使 “Init Level Exp Fail” 块成为
-        // 不可达死代码。此处按源码原意还原该判定（唯一能生成同型块的合法 C++
-        // 写法）；与 ORIG 仅剩 je↔jmp 一条指令之差，见交付说明。
-        if (!set_level_exp())
+        // [R3a02 2026-09-12 SEMANTIC-DIFF ④ 复刻] ORIG 0x0835cecb 机器码 `eb 56`
+        // = 出厂二进制热补（原 `74 56` je → `eb 56` jmp，位移完全一致）⇒
+        // “Init Level Exp Fail” 块（0x0835cecd..0x0835cf1e，14 条）恒不可达
+        // （Ghidra C 亦只见直调 `set_level_exp(this);` 无 if）。按用户裁定
+        // 「完全复刻 ORIG 逻辑（即使是错误逻辑）」+ P337：保留块体（维持
+        // cMyTrace 调用点与 ORIG 齐平），以恒 0 volatile 守卫使运行期不可达。
+        volatile bool deadLevelExpFail = false;
+        if (!set_level_exp() && deadLevelExpFail)
         {
         cMyTrace(__PRETTY_FUNCTION__, 0x2025, 9, true, true)(
             "\t- Init Level Exp Fail");
@@ -1328,9 +1330,12 @@ bool CDataManager::init()
         cMyTrace(__PRETTY_FUNCTION__, 0x2028, 9, false, true)("Success");
         cMyTrace(__PRETTY_FUNCTION__, 0x202a, 9, true, false)(
             "\t- Init Mob Reward ");
-        // 同上：ORIG 0x0835cfcb 机器码 `eb 56`（应为 `74 56` je），失败块被改写
-        // 屏蔽；文案沿用 ORIG 的复制粘贴痕迹 “Init Level Exp Fail”（+0x4cd1）。
-        if (!set_mob_reward())
+        // 同上：ORIG 0x0835cfcb 机器码 `eb 56`（原 `74 56` je → `eb 56` jmp），
+        // 失败块（0x0835cfcd..0x0835d01e，14 条）恒不可达；文案沿用 ORIG 的
+        // 复制粘贴痕迹 “Init Level Exp Fail”（+0x4cd1）。
+        // 按补丁后运行时可观察行为复刻（同 P337 恒 0 volatile 守卫）。
+        volatile bool deadMobRewardFail = false;
+        if (!set_mob_reward() && deadMobRewardFail)
         {
         cMyTrace(__PRETTY_FUNCTION__, 0x202d, 9, true, true)(
             "\t- Init Level Exp Fail");

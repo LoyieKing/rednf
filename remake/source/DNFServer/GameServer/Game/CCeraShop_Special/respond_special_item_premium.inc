@@ -269,9 +269,12 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     // `test al; je; call CheckFatigue; xor $1; test; je; mov $1,%eax; jmp;
     //  mov $0,%eax; test %al,%al; je` —— 值为单寄存器 %eax 的 && 物化岛，
     // **无 bool 具名槽**（我方旧形 movb ×2 + cmpb + je 多 4 条）。
-    // 直接写 if 的 && 条件即复现该物化（语义等价：!(A==0 || !B) == A!=0 && B）。
+    // [R3a04 第三轮 SEMANTIC-DIFF 修正] 真值表：ORIG `field==0` 直接跳 false 块；
+    //   `call CheckFatigue; xor $1; test; je false` ⇒ 仅当 CheckFatigue()==0(**未**疲劳)
+    //   时落穿 true 块（0x0827dd0b `mov $0x1`）⇒ 原码为 `field!=0 && !CheckFatigue()`
+    //   （旧注释把 Ghidra 的 `cVar2 == '\x01'` 误读成正极性，实为取反）。
     if (g_SPremiumInfo[ptype].m_needDailyCheck != 0 &&
-        user->CheckFatigue())
+        !user->CheckFatigue())
         user->gainCurCharacFatigue(1);
 
     long end = 0;

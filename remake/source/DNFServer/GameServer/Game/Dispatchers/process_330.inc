@@ -82,11 +82,13 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, Par
         user->get_acc_id(), user->GetServerGroupToPvP(),
         user->getCurCharacNo(), info.m_field0, updated.m_field2);
 
-    CEventManager* eventMgr = GlobalData::s_event_manager;
-    CEventBase* evt = eventMgr->GetRepeatEvent(0x69);
-    if (evt != 0 && evt->IsEventing(0))                         // vtable +0x34 槽
+    // [R3a01 修复] ORIG 0x081e8ac1 `mov (%eax),%edx` 直接解引用 GetRepeatEvent(0x69)
+    //   返回值，**无** NULL 检查（Ghidra C 同证 (**(code**)(*piVar11+0x34))(piVar11,0)）
+    //   ⇒ 删除我方多余 `evt != 0 &&` 守卫并去 eventMgr 槽（P0 无槽往返），保持 ORIG 行为
+    //   （NULL 输入下 ORIG 崩溃；用户裁定完全复刻 ORIG 逻辑）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x69)->IsEventing(0)) // vtable +0x34 槽
     {
-        CEventBase* aniDecoEvent = eventMgr->GetRepeatEvent(0x69);
+        CEventBase* aniDecoEvent = GlobalData::s_event_manager->GetRepeatEvent(0x69);
         if (aniDecoEvent != 0)
         {
             res.m_4 = static_cast<SeriaRoomAniDecoEvent*>(aniDecoEvent)

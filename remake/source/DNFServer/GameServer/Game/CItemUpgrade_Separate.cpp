@@ -54,7 +54,7 @@ namespace
 // [AnonLane round8 2026-09-11] 本匿名 namespace 的 4 条 only-NEW 已清（ORIG 全库无同名符号）：
 //  · `FloatBits kMatEpsilon`（`_ZN12_GLOBAL__N_111kMatEpsilonE`，d 段）→ ORIG 侧是匿名 .rodata
 //    位模式 0x33d6bf95；实测与 `1e-7f` 的 IEEE 位模式逐位相同 ⇒ 使用点内联 `1e-7f`；
-//  · `const float kGoldBase`(9840.0f)/`kRoundHalf`(0.5f) → ORIG 匿名 .rodata
+//  · `const float kGoldBase`(10000.0f)/`kRoundHalf`(0.5f) → ORIG 匿名 .rodata
 //    （DAT_08b575b0 / DAT_08e122e8）⇒ 使用点内联字面量；
 //  · `truncateToInt`（`_ZN12_GLOBAL__N_113truncateToIntEf`，t）本 TU **零调用点**且 ORIG 无该
 //    符号（x87 fnstcw/fldcw 截断形在 ORIG 各处内联）⇒ 删定义（P154 无引用发明符号）。

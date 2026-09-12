@@ -16,14 +16,15 @@ bool DB_SecurityCardRetransfer::dispatch(int userIdx, int slot,
     {
         if (!db->exec(true))
             throw (ENUM_ERROR)1;
+        // [R3a01 修复] ORIG 0x0842c43e/0x0842c445 `movl $0x0,-0x1c/-0x20(%ebp)`
+        //   = 本两值的预清零（两槽随后即 get_uint 的 out 参数）。我方缺预清 ⇒
+        //   get_uint 未写时 lastIssueTime 为未初始化垃圾并传入 localtime_r
+        //   （ORIG 为 0）⇒ 按 P348「ORIG 有 movl $0 必须保留」补 `= 0`。
+        //   （H4 旧结论「属其它语义」作废；旧 A/B 劣化系未同时去 `cur` 副本所致。）
+        unsigned int reIssueCnt = 0;
+        unsigned int lastIssueTime = 0;
         if (!db->fetch())
             throw (ENUM_ERROR)1;
-        // P171/P328⑤：ORIG 无预清（两值随后由 get_uint 写入）。
-        // [H4 2026-09-11 复核] ORIG 0x0842c43e/0x0842c445 虽有 `movl $0x0,
-        // -0x1c/-0x20(%ebp)`，但给本两值加 `= 0` 实测**反劣**（ours 272→274、
-        // 差异行 93→188）⇒ 那两条清零属其它语义（非本两值声明初始化）⇒ 维持无预清。
-        unsigned int reIssueCnt;
-        unsigned int lastIssueTime;
         db->get_uint(0, reIssueCnt);
         db->get_uint(1, lastIssueTime);
         char phone[0x29];
@@ -32,15 +33,14 @@ bool DB_SecurityCardRetransfer::dispatch(int userIdx, int slot,
         if (strncmp(sig->m_phone, phone, 0x29) != 0)
             throw (ENUM_ERROR)0x7d;
 
-        // [H4 2026-09-11 复核] 试删 `time_t cur` 副本（改用 &curSec 直传）实测**反劣**
-        // （ours 272→270、差异行 93→211）⇒ 维持 `time_t cur` 具名副本（4.4 槽分配联动）。
-        int curSec = GlobalData::s_systemTime_.getCurSec();
+        // [R3a01 修复] ORIG 842c57f `lea -0x24(%ebp),%eax` 直传 &curSec（无第二副本
+        //   `cur`）⇒ 删除我方 `cur` 中间副本（P0：无槽往返；旧 H4 反劣系未同时补预清零）。
+        time_t curSec = (time_t)GlobalData::s_systemTime_.getCurSec();
         time_t last = (time_t)lastIssueTime;
-        time_t cur = (time_t)curSec;
         struct tm tLast;
         struct tm tCur;
         localtime_r(&last, &tLast);
-        localtime_r(&cur, &tCur);
+        localtime_r(&curSec, &tCur);
         if (tLast.tm_yday == tCur.tm_yday)
         {
             reIssueCnt += 1;

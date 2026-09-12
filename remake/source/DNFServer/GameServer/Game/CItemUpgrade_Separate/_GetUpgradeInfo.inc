@@ -50,8 +50,10 @@ bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem*
     out->m_materialCnt = materialCnt;
     // ORIG 0x0811e138：pt() 后 flds 0xc(%eax) = pair+0xc = value+0x8 = m_levelRate；
     // fistpll 64 位截断后取低 dword（ORIG 0x0811e445 + mov -0x38/-0x34）。
+    // [R3a15 2026-09-12 真语义修复] 乘数常量：ORIG 0x0811e42d `flds DAT_08b575b0`
+    //   （.rodata 实字节 00 40 1c 46 = **10000.0f**）；原实现写 9840.0f（错）。
     const long long goldWide =
-        static_cast<long long>(9840.0f * it->second.m_levelRate);
+        static_cast<long long>(10000.0f * it->second.m_levelRate);
     out->m_gold = static_cast<int>(goldWide);
     return true;
 }

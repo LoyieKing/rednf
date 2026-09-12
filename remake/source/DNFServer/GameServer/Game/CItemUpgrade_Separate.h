@@ -63,7 +63,7 @@ struct GenuineDamageUpgradeInfo
     int m_a;                                 // +0x00（useAlt=false 分支乘数，fildl）
     int m_b;                                 // +0x04（useAlt=true 分支乘数，fildl）
     float m_levelRate;                       // +0x08（import：level/10000f；ctor 清零）
-    float m_goldRate;                        // +0x0c（_GetUpgradeInfo ×9840f → 金币）
+    float m_goldRate;                        // +0x0c（_GetUpgradeInfo ×10000f → 金币）
 };  // sizeof == 0x10
 
 static_assert(sizeof(GenuineDamageUpgradeInfo) == 0x10,
@@ -91,7 +91,7 @@ struct STUpgradeInfo
     STUpgradeInfo();
 
     int m_materialCnt;                       // +0x00（消耗材料组数）
-    int m_gold;                              // +0x04（trunc(9840f * info.goldRate)）
+    int m_gold;                              // +0x04（trunc(10000f * info.goldRate)）
 };  // sizeof == 8
 
 }  // namespace WongWork

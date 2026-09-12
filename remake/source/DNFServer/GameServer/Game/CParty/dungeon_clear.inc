@@ -21,29 +21,6 @@ void CParty::dungeon_clear()
     int memberCount = get_member_count();               // ORIG -0x1c
     for (int slot = 0; slot <= 3; ++slot)               // -0x18
     {
-        if (slot > 3)
-        {
-            SetEPLPState(2);
-            int sec = 0x3c;                             // -0x1c
-            if (m_secretShop.IsOpen())
-                // ORIG dungeon_clear.md 085abb54 `mov 0xa784(%eax)` =
-                // SecretShopScript::m_int84（同 TournamentDungeonClear 站点）
-                sec = G_CDataManager()->m_secretShop.m_int84 * 12;
-            int key = gen_timer_key((TIMER_MESSAGE)0x15);
-            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
-                                        GetPartyIndex(), (TIMER_MESSAGE)0x15,
-                                        sec, key, 0);
-            set_state(1);
-            sendInoutConditionDungeon(
-                (RetryFailReason::T)checkInoutConditionDungeon());
-            if (IsPremiumGoldCardParty())
-                sendPremiumGoldCardStatistic(m_battleField.m_pDungeon->get_standard_level(),
-                                             memberCount, goldCardCount);
-            CheckHackAverageHitCount();
-            ClearMapHitCount();
-            m_secu.dungeonClear();
-            return;
-        }
         if (_checkValidUser(slot))
         {
 // §P331 第二形（实测 634→390）：ORIG 对 m_member[slot].m_pUser 与
@@ -90,4 +67,28 @@ void CParty::dungeon_clear()
             OnSuccessedDungeonClear(user);
         }
     }
+    // [R3a20 语义修复 2026-09-12] ORIG 0x085abb1b `jne 0x85ab77d`（回边）后 fall-through
+    //   0x085abb21/0x085abb2f（call SetEPLPState）… 0x085abc4c（dungeonClear）0x085abc51 jmp epilogue：
+    //   收尾块在 for **循环之外**、循环退出（slot>3）即达。旧形置于循环体内 `if (slot > 3)`
+    //   ⇒ 4.4 使循环退出边直达 epilogue（我方 .o 0xf99a jmp 0xf9b7），收尾块入口 0xf4d7 恒不可达。
+    SetEPLPState(2);
+    int sec = 0x3c;                                     // ORIG -0x18
+    if (m_secretShop.IsOpen())
+        // ORIG dungeon_clear.md 085abb54 `mov 0xa784(%eax)` =
+        // SecretShopScript::m_int84（同 TournamentDungeonClear 站点）
+        sec = G_CDataManager()->m_secretShop.m_int84 * 12;
+    int key = gen_timer_key((TIMER_MESSAGE)0x15);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
+                                GetPartyIndex(), (TIMER_MESSAGE)0x15,
+                                sec, key, 0);
+    set_state(1);
+    sendInoutConditionDungeon(
+        (RetryFailReason::T)checkInoutConditionDungeon());
+    if (IsPremiumGoldCardParty())
+        sendPremiumGoldCardStatistic(m_battleField.m_pDungeon->get_standard_level(),
+                                     memberCount, goldCardCount);
+    CheckHackAverageHitCount();
+    ClearMapHitCount();
+    m_secu.dungeonClear();
+    return;
 }

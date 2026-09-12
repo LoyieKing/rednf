@@ -196,8 +196,8 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, uint exp,
     {
         // ORIG 0x085ae005：直呼 CUser::getAddExpRateFromPremium(ENUM_PREMIUM_TYPE)（W 0x085bfd76）
         param.m_premiumAddExpRate =
-            static_cast<float>(
-                user->getAddExpRateFromPremium(static_cast<ENUM_PREMIUM_TYPE>(0x4f))) /
+            static_cast<float>(static_cast<unsigned int>(
+                user->getAddExpRateFromPremium(static_cast<ENUM_PREMIUM_TYPE>(0x4f)))) /
             100.0f;
     }
 

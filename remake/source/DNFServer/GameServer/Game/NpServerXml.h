@@ -16,6 +16,9 @@ class CServerXml
 {
 public:
     std::string GetServerString(int nIndex, bool* pFlag) const;
+    // [R3a18 2026-09-12] ORIG T（mangled `_ZN13np_server_xml10CServerXml10StrLoadingEv`）：
+    // Init @0x82a1f4b 以全局 g_ServerString_ 为接收者调用（`movl $0x93fa660,(%esp)`）。
+    void StrLoading();
 };
 
 }  // namespace np_server_xml
