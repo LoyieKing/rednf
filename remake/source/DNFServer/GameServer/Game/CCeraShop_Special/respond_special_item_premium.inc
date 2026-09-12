@@ -189,7 +189,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             // `cmp $1; setne; test`（+1 条）。试 `(x ^ 1) != 0`（与 `x != 1`
             // 对任意 uchar 等价、xor 只翻 bit0）实测 **4.4 同样规范化成 cmp+setne**
             // （our 693→693 逐条不变）⇒ 回滚。根治需 .h 类型改 bool（见待办）。
-            if (user->IsEndLetheAtLogin() != 1)
+            if (!user->IsEndLetheAtLogin())   // R7a04: ORIG 0x0827d905 `call; xor $1,%eax; test; je` 形（bool callee）
             {
                 lethe->BackupSkill(user, SKILL_TREE_1);
                 lethe->BackupSkill(user, SKILL_TREE_2);
@@ -284,7 +284,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     WongWork::CHandlePremium::handleSetUserPremium(user, (ENUM_PREMIUM_TYPE)ptype,
                                                    start, end, count, true);
     WongWork::CHandlePremium::handlePremiumEffect(user, (ENUM_PREMIUM_TYPE)ptype);
-    if (premium_helper_function::is_notify(user, ptype) != 1)
+    if (!premium_helper_function::is_notify(user, ptype))   // R7a04: ORIG 0x0827ddf5 同形
         m_owner->_sendPremiumPacket(user, type, ptype, (int)(end - timeA));
     premium_helper_function::write_log(user, ptype);
 }

@@ -347,12 +347,15 @@ bool Init(int argc, char** argv)
     }
     { cMyTrace t(__PRETTY_FUNCTION__, 0x2aec, 9, false, true); t("Success"); }
 
-    if (IsLightServer())
+    // [R7b-Main ④] ORIG 0x082a1b84..0x082a1ba5：`call IsLightServer; xor $0x1,%eax;
+    //   test %al,%al; je 0x082a1baa` ⇒ **!IsLightServer() 时两个调用都执行**
+    //   （WarRoomCountAdjustByChannelInfo 0x082a1b98 + WarRoomAlloc 0x082a1ba5 同属一个守卫体），
+    //   随后无条件 allocBlueMarble()；旧译文 `if (IsLightServer()){adjust;} else {alloc;}`
+    //   既**条件取反**又把两者写成互斥分支 ⇒ 与 ORIG 语义分叉（`IsLightServer()==true` 时
+    //   ORIG 两个都不做、旧译文做 adjust；==false 时 ORIG 两个都做、旧译文只做 alloc）。
+    if (!IsLightServer())
     {
         G_CGameManager()->WarRoomCountAdjustByChannelInfo();
-    }
-    else
-    {
         G_CGameManager()->WarRoomAlloc();
     }
     G_CGameManager()->allocBlueMarble();
@@ -386,11 +389,19 @@ bool Init(int argc, char** argv)
             return false;
         }
         // 触发周期事件（ORIG 82a1d56..dd8：getCurSec → GetRepeatEvent(0x3a)
-        // → ev->IsEventing(0) 且 curSec>0x4cbe3f0f(约 2017 时间戳) 则
+        // → IsEventing(0) 且 curSec>0x4cbe3f0f(0x4cbe3f0f=1287524367) 则
         // TriggerEventStart(0x3a, Word_Param())；单事件非小时槽循环）。
+        // [R7a18 ⑦轮 ④ 修复] ORIG 0x082a1d6e..0x082a1d8c 逐条直证：
+        //   82a1d6e call GetRepeatEvent(0x3a)   → 返回值**无判空**（直接 `mov (%eax),%edx`）
+        //   82a1d85 call *%edx                  → vtable+0x34 = CEventBase::IsEventing
+        //                                         @0x080c84fa（`movzbl 0x8(%eax),%eax; ret`）
+        //   82a1d87 xor $0x1,%eax               → 条件对 IsEventing 返回值**取反**
+        //   82a1d8a test %al,%al / je 82a1d9e   → 取反为 0 时落 false 块
+        // ⇒ 原码 = `!GetRepeatEvent(0x3a)->IsEventing(0) && curSec > 0x4cbe3f0f`
+        //   （旧形 `ev && ev->IsEventing(0)` 取反缺失 + 多判空守卫 = 真语义差异）。
         long curSec = static_cast<long>(s_systemTime_.getCurSec());
-        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x3a);
-        if (ev && ev->IsEventing(0) && curSec > 0x4cbe3f0f)
+        if (!GlobalData::s_event_manager->GetRepeatEvent(0x3a)->IsEventing(0) &&
+            curSec > 0x4cbe3f0f)
         {
             // ORIG 0x82a1da7/0x82a1db0 两条 `movw $0x0,-0x2cc(%ebp)`（对象落栈
             // 槽逐字段清零）+ 0x82a1dbe `mov -0x2cc(%ebp),%edx`（4 字节读传参）

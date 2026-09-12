@@ -823,20 +823,20 @@ struct Inter_MonitorCeraUpdatePktView
 struct Inter_IPGResultPktView
 {
     char m_0;                 // +0x00
-    // [Q5-InterDisp 2026-09-11 真修·偏移整体错位] 原写 `char m_pad1[0x1c]` ⇒ 本视图全部字段
-    //   比 ORIG 大 1 字节（m_1d 落 +0x1d 而 ORIG 084ceb0x 读 0x1c、m_21 落 +0x21 而 ORIG 读
-    //   0x20、m_b2 落 +0xb2 而 ORIG 读 0xb1、m_26e 落 +0x26e 而 ORIG 读 0x26d —— disp2.py
-    //   偏移多重集实测 OURS[0x1d/0x21/0xb2/0x26e] vs ORIG[0x1c/0x20/0xb1/0x26d]，**全字段恒差 1**）。
-    //   根因：m_0(1) + pad(0x1c) = 0x1d；ORIG 实际是 m_0(1) + pad(0x1b) = 0x1c。改 pad=0x1b 后
-    //   四个字段（+0x1c/+0x20/+0xb1/+0x26d）与 ORIG 逐个对齐，其后 pad25/padb3 不需动。
-    //   运行期后果：m_1d 是分支选择子（==4/6/0 三分支）⇒ 读错会走错分支。
-    char m_pad1[0x1b];  // 未消费
-    int m_1d;                 // +0x1c（ORIG 直读 0x1c(%eax)）
-    int m_21;                 // +0x20（ORIG 直读 0x20(%eax)）
+    // [R7a03 2026-09-12 ④ 真语义修·基准差 1 撤销 Q5 误修] ORIG 的视图基准不是 `data` 而是
+    //   `data+1`：0x084ceb0d `mov 0x10(%ebp),%eax; add $0x1,%eax; mov %eax,-0x20(%ebp)` ⇒ 其后
+    //   084ceb58 `mov 0x1c(%eax)` = **data+0x1d**、084ceb19 `mov 0x20(%eax)` = **data+0x21**、
+    //   084cebb2 `movzbl 0xb1(%eax)` = **data+0xb2**、084cec?? `movzbl 0x26d(%eax)` = **data+0x26e**。
+    //   本视图以 `data` 为基准 ⇒ 字段偏移必须比 ORIG disp **+1**：m_0(1)+pad(0x1c)=0x1d。
+    //   Q5 曾按 ORIG disp 原值把 pad 改成 0x1b ⇒ 四字段整体 -1（m_1d 是 ==4/==6/==0 分支选择子，
+    //   读错走错分支 = 运行期真 bug）。本条恢复 pad=0x1c，其后 pad25/padb3 保持不动即全部对齐。
+    char m_pad1[0x1c];  // 未消费
+    int m_1d;                 // +0x1d（ORIG 基准 data+1 直读 0x1c(%eax)）
+    int m_21;                 // +0x21（ORIG 基准 data+1 直读 0x20(%eax)）
     char m_pad25[0x8d];  // 未消费
-    char m_b2;                // +0xb1（ORIG 直读 0xb1(%eax)）
+    char m_b2;                // +0xb2（ORIG 基准 data+1 直读 0xb1(%eax)）
     char m_padb3[0x1bb];  // 未消费
-    unsigned char m_26e;      // +0x26d（ORIG 直读 0x26d(%eax)）
+    unsigned char m_26e;      // +0x26e（ORIG 基准 data+1 直读 0x26d(%eax)）
 };
 #pragma pack(pop)
 

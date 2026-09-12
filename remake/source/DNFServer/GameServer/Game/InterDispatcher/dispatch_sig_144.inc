@@ -130,17 +130,20 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     CInventory* inven = user->getCurCharacInvenW();
+    int invenType = 6;                                                // ORIG 0x084d5d0b `movl $0x6,-0x40(%ebp)`：默认 6，声明在 if 外
+                                                                      //（END 段 0x084d6974 `mov -0x40(%ebp),%eax` ⇒ delete_item 第1参；itemId==0 时为 6）
     Inven_Item item;                                                  // 局部空 Inven_Item
 
     if (itemId != 0)
     {
         // 槽位域 → INVEN_TYPE 映射（0→INVEN、1→AVATAR、7→CREATURE）
-        int invenType = 1;
         if (invenKind == '\x01')
             invenType = 2;
         else if (invenKind == '\a')
             invenType = 3;
-        else if (invenKind != '\0')
+        else if (invenKind == '\0')
+            invenType = 1;
+        else
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
             return 0;
@@ -396,7 +399,9 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
         else
         {
-            if (!inven->delete_item((INVEN_TYPE)item.m_field0, slotNo, static_cast<int>(pck.item_info.m_addInfo),
+            // ORIG 0x084d6974/0x084d698f/0x084d6999：第1参 = invenType（映射值 1/2/3，itemId==0 时为默认 6），
+            // 非 item.m_field0（`movzbl -0xb6(%ebp)` 只在 case3 的 !item.m_field0 判定处，0x084d6426）。
+            if (!inven->delete_item((INVEN_TYPE)invenType, slotNo, static_cast<int>(pck.item_info.m_addInfo),
                                     (eItemDelReason)0x19, true))
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x94, (PAY_TYPE)payType);

@@ -996,16 +996,21 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         // ORIG 0x899a0276：构造一个临时 EffectAnimationInfo（EAI ctor 1 + dtor
         // 2：正常出口 + ScanStr 抛出时的清理路径），随后 count = ScanInt；循环
         // count 次各消费 ScanStr + ScanInt + ScanInt 写入该对象后随作用域销毁，
-        // 不 push 任何值、无外部副作用。EAI 字段私有且结果丢弃，故此处仅构造/
-        // 析构该对象以复现 ORIG 的 EAI ctor/dtor 与扫描调用序列（词法消费一致）。
+        // 不 push 任何值。
+        // [R7a05 2026-09-12 ④ 真语义修复] ORIG 写入目标是**该临时对象自身**，
+        //   不是函数局部 token：0x089a02fc `lea -0x748(%ebp),%eax; add $0x8,%eax;
+        //   mov %eax,(%esp); call ScanStr(std::string*)`（对象基址 -0x748，
+        //   +8 = m_str）；0x089a0319 `mov %eax,-0x748(%ebp)`（eai.m_a）、
+        //   0x089a032b `mov %eax,-0x744(%ebp)`（eai.m_b）。
+        //   旧形 `ScanStr(&token); ScanInt(0); ScanInt(0);` 既污染 token，
+        //   又漏掉两处成员写入 ⇒ 已按 ORIG 逐点改回。
         EffectAnimationInfo eai;
-        (void)eai;
         int count = ScanInt((bool*)0);
         for (int i = 0; i < count; ++i)
         {
-            ScanStr(&token);
-            ScanInt((bool*)0);
-            ScanInt((bool*)0);
+            ScanStr(&eai.m_str);
+            eai.m_a = ScanInt((bool*)0);
+            eai.m_b = ScanInt((bool*)0);
         }
         break;
     }

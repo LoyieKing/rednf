@@ -87,7 +87,8 @@ STMapScript::STMapScript(const STMapScript& other)      // ORIG C1 0x0837e698
       m_blockUseActiveSkill(other.m_blockUseActiveSkill), // byte @0xdb(0x36c)
       m_blockUseStackableItem(other.m_blockUseStackableItem), // byte 0x36d
       m_fixChampion(other.m_fixChampion),               // byte 0x36e
-      m_pad36f(0),
+      // [R7a07 ④] ORIG C1ERKS_ 全程无 0x36f 写入（我方原 m_pad36f(0) 多发
+      // movb $0x0,0x36f(%eax)）；照抄 ORIG：该 pad 不初始化。
       m_str370(other.m_str370),                         // string@0xdc(0x370)
       m_visibleMinimap(other.m_visibleMinimap),         // param_1[0xdd](0x374)
       m_visibleTownMinimap(other.m_visibleTownMinimap)  // param_1[0xde](0x378)

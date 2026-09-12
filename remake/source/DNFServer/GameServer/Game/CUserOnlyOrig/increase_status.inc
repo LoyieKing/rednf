@@ -310,14 +310,20 @@ void CUser::increase_status(short slotNo)
             return;
         }
             STGuildDBInfoOnly* guildDB = (STGuildDBInfoOnly*)GetGuildDBInfo();
-            int needFund =
+            // [R7a08 2026-09-12 §0.1 真语义修复] ORIG 0x08666e5 `mov -0x94(%ebp),%eax;
+            // mov 0x4(%eax),%eax` ⇒ 原码把返回值当**指针**读 *(p+4) 再比较；ORIG 实现
+            // 0x08979648 尾为 `lea 0x5c(%edx,%eax,1),%eax`（返回 m_levelUpCost+(n-1)*8
+            // 的地址）或 0。旧形 `int needFund` 直接比指针值(低 32 位)，运行时错误路径
+            // 与 ORIG 不同（同 TU CheckGuildLevelUp.inc 已用 (unsigned int*)+视图口径）。
+            struct GuildLevelUpParamView { unsigned int m_head; unsigned int m_value; };
+            GuildLevelUpParamView* needFund = (GuildLevelUpParamView*)
                 G_CDataManager()->m_guildParameter.getGuildLevelUpParam(guildDB->m_fundLevel + 1);
             if (needFund == 0)
         {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
             return;
         }
-            if ((unsigned int)needFund <= guildDB->m_fundExp)      // +0x29 无符号比较
+            if (guildDB->m_fundExp >= needFund->m_value)  // ORIG +0x29 vs *(p+4)，无符号
         {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
             return;
@@ -635,8 +641,10 @@ L08666990:
                            get_give_skill((int)firstGrow, (int)secondGrow, giveVec, 0);
             if (got)
             {
-                // [A06 2026-09-10 轴B 试行记录·已回退]（同上：本处反劣）
-                for (unsigned int i = 0; i < giveVec.size(); ++i)
+                // [R7a08 2026-09-12 §0.1 真语义修复·#27 符号性] ORIG 0x08667d6c
+                // `cmp -0x2c(%ebp),%eax; setg`（有符号）⇒ 原码为 int 计数的有符号序。
+                // 旧 `unsigned int i` 生 `seta`（无符号）⇒ 索引/长度 ≥0x80000000 时分叉。
+                for (int i = 0; i < static_cast<int>(giveVec.size()); ++i)
                 {
                     ENUM_SKILL_TREE_KIND kindI =
                         (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex();

@@ -1,4 +1,4 @@
-unsigned char CUserCharacInfo::isSavedPremiumCubeInfo() const
+bool CUserCharacInfo::isSavedPremiumCubeInfo() const
 {
     if (!m_selected)
         return 0;

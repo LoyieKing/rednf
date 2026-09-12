@@ -2276,16 +2276,19 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 // （0x899911d ix + 0x8999125 call clear），fall-through（缺失）仅 ix；
                 // raw 0x89990e6 = `84 c0 74 1d`。第五轮误判 EQUAL。
                 int key = ScanInt(&boolScratch);
-                std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
-                if (table.find(key) == table.end())
+                // [R7a00 2026-09-12 P183 修正] 原为引用局部 `table = script->m_paramMap678`
+                // ⇒ 4.4 把 &script->m_paramMap678 缓存进槽（mov -0x5c,%r）复用；ORIG
+                // 每处重算（0x08999084 `mov 0x8(%ebp),%eax; lea 0x678(%eax),%edx` …
+                // 0x08999140 共 5 处/本 case）⇒ 改为成员直用逐处重物化。
+                if (script->m_paramMap678.find(key) == script->m_paramMap678.end())
                 {
-                    table[key];
+                    script->m_paramMap678[key];
                 }
                 else
                 {
-                    table[key].clear();
+                    script->m_paramMap678[key].clear();
                 }
-                curParam = &table[key];
+                curParam = &script->m_paramMap678[key];
                 curParam->m_414 = 1;
                 cnt[1] = 0;
                 cnt[0] = 0;
@@ -2306,20 +2309,21 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 // [R6a00 2026-09-12 ④ 修正] 同上一处：ORIG 0x899923e `je 0x8999267`
                 // （eq 假 = 已存在）落入 clear 块（0x8999287 ix + 0x899928f call clear），
                 // fall-through（缺失）仅 ix。
-                std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
+                // [R7a00 2026-09-12 P183 修正] 同上：删引用局部，逐处重算
+                // （ORIG 0x089991d4/0x089921ff/0x0899924d/0x08999274/0x089992a1 五处 lea 0x678）。
                 int probeKey = 0;
-                if (table.find(probeKey) == table.end())
+                if (script->m_paramMap678.find(probeKey) == script->m_paramMap678.end())
                 {
                     int existKey = 0;
-                    table[existKey];
+                    script->m_paramMap678[existKey];
                 }
                 else
                 {
                     int clearKey = 0;
-                    table[clearKey].clear();
+                    script->m_paramMap678[clearKey].clear();
                 }
                 int layKey = 0;
-                curParam = &table[layKey];
+                curParam = &script->m_paramMap678[layKey];
                 curParam->m_414 = 1;
                 cnt[1] = 0;
                 cnt[0] = 0;

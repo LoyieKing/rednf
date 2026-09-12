@@ -541,7 +541,7 @@ struct CharacInfoFields
     int m_powerWarAssaultCount;            // +0x1221
     int m_powerWarAssaultVictoryCount;     // +0x1225
     unsigned short m_straightVictories;    // +0x1229
-    unsigned char m_isEndLetheAtLogin;     // +0x122b
+    bool m_isEndLetheAtLogin;              // +0x122b（R7a04: ORIG 定义侧 0x0827defa `movzbl 直返`无归一化 + 调用点 0x0827d905 `xor $1` 直证 bool；宽 1 不变）
     unsigned short m_curCharacEmotion;     // +0x122c
     long m_lastItemLimitEditionBuyTime;    // +0x122e
     unsigned short m_curConditionEventStep;    // +0x1232
@@ -606,7 +606,7 @@ struct CharacInfoFields
     seriaRoom_AniDeco m_seriaRoomAniDeco;  // +0x14ca
     unsigned char m_cubePremiumContract;   // +0x14ce
     unsigned char m_cubePremiumCount;      // +0x14cf
-    unsigned char m_cubePremiumSaved;      // +0x14d0
+    bool m_cubePremiumSaved;               // +0x14d0（R7a04: ORIG 定义侧 0x08696d18 `movzbl 直返` + 消费点 0x08650d11 直存 ⇒ bool）
 };
 #pragma pack(pop)
 static_assert(sizeof(CharacInfoFields) == 0x14d1,
@@ -1133,14 +1133,14 @@ public:
     void SetLoginTick(long tick);
     unsigned char GetOpencoin();
     void SetOpencoin(char value);
-    unsigned char IsEndLetheAtLogin();
+    bool IsEndLetheAtLogin();              // R7a04: ORIG 0x0827d905 `call; xor $1,%eax; test %al,%al; je`（P292 bool callee）
     void SetIsEndLetheAtLogin();
     void reset_is_end_lethe_at_login();
     unsigned char GetOneDayLetheFlag() const;
     void SetOneDayLetheFlag(unsigned char flag);
     unsigned char GetOneDayLetheFlag2ND() const;
     void SetOneDayLetheFlag2ND(unsigned char flag);
-    unsigned char isSavedPremiumCubeInfo() const;
+    bool isSavedPremiumCubeInfo() const;   // R7a04: ORIG 0x08696d18 定义侧 movzbl 直返；消费点 0x08650d11 直存（无归一化）
     void disableSavedPremiumCubeInfo();
     bool getContractOfCubePremiumInfo(unsigned char& active, unsigned char& count);
     bool initContractOfCubePremiumInfo(bool active, unsigned char count);

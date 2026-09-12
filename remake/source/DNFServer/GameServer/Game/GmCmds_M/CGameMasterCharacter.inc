@@ -1,3 +1,3 @@
-CGameMasterCharacter::CGameMasterCharacter()                 // ORIG 0x084b4426
+CGameMasterCharacter::CGameMasterCharacter() throw()         // ORIG 0x084b4426
 {
 }

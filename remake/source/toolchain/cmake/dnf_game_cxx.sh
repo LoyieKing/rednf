@@ -772,7 +772,13 @@ case "$(basename "$src" .cpp)" in
                 exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
             *Game/DNFLexCore.cpp)
                 # SRC_OPTS 强制 -O2 -std=gnu++98（见 game/CMakeLists.txt），同样注入兼容头
-                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" ;;
+                # [R7a17 2026-09-12] 追加 -std=gnu++0x（覆盖 SRC_OPTS 的 gnu++98）：ORIG 该 TU
+                # 的 PushInputStream（0x08acd7d0，15 calls）调
+                # `_ZNSt6vectorIN6DNFLex8stream_tESaIS1_EE13_M_insert_auxIIRKS1_EEEvN9__gnu_cxx17__normal_iteratorIPS1_S3_EEDpOT_`
+                # （C++0x 变参版）；gnu++98 头集无该重载 ⇒ 调 C++98 `...13_M_insert_auxE…ERKS1_`（P167 MISSING 1）。
+                # A/B（唯一变量=std）：identical 0/0、ae 22→23、near 0/0、diff 2/2、missing 4→3；
+                # nm --defined-only 35=35，comm -3 仅 C++98↔C++0x 两版互换（后者与 ORIG 同名）。
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -std=gnu++0x ;;
             *ServerLab/ServerLib/*)
                 # nsl 基础库：ORIG 为 Red Hat GCC 4.4.6-3（cc1plus446bin）编译
                 # （E/D/C 组独立验证：4.4.6 下虚调用/寄存器分配与 point ORIG 逐操作数一致）

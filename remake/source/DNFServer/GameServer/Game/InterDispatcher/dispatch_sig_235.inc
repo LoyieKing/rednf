@@ -12,29 +12,23 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
     {   // 用户缺失/未登录：记录忽略日志并累计异常计数
         // ORIG 0x84e445a 单次 NumberToString（结果 %ecx 保活 → logFormat 末实参），
         // 无独立死调用（p167 EXTRA NumberToString×1 实证）。
-        const char* reason;
-        if (target == 0)
-            reason = "NULL User";
-        else
-            reason = "NONE state";
-        const char* kind;
-        if (pPkt->m_0 == 0)
-            kind = "ANTIBOT";
-        else
-            kind = "DPROTO";
+        // [R7a16/P329] ORIG 0x084e43bc 段：reason/kind 均为寄存器右值（%edx/%eax），
+        // 无具名槽 ⇒ 原码把两个三元内联在实参位（右到左求值序与 ORIG 一致）。
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x5e56,
             "Ignore SendBuffertoClient [%s][size:%d]; reason:%s, QQID:%s",
-            kind, (int)(short)pPkt->m_8,
-            reason, NumberToString(pPkt->m_4, 0));
+            (pPkt->m_0 == 0) ? "ANTIBOT" : "DPROTO", (int)(short)pPkt->m_8,
+            (target == 0) ? "NULL User" : "NONE state",
+            NumberToString(pPkt->m_4, 0));
         if (target != 0 && (unsigned char)target->m_field4 < 5)
         {
-            const unsigned char old = (unsigned char)target->m_field4;
-            target->m_field4 = (char)(old + 1);
-            target->m_historyLog.AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)3, 0x252,
-                                              (int)old, 0);
+            // [R7a16/P0] ORIG 0x084e45xx 段 old 无槽（`movzbl %al,%edx` + `lea 0x1(%eax),%ecx`
+            // 直落寄存器）⇒ 原码是后缀自增的返回值直传实参位。
+            target->m_historyLog.AbnormalUser(
+                (ENUM_ABNORMAL_USER_LOG_TYPE)3, 0x252,
+                (int)(unsigned char)target->m_field4++, 0);
         }
         return 0;
     }
@@ -86,12 +80,10 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
     else if (packetType == 0x231 &&
              (unsigned char)target->m_field4 < 5)
     {
-        const unsigned char old = (unsigned char)target->m_field4;
-        target->m_field4 = (char)(old + 1);
         target->m_historyLog.SendBuffertoClientLog(
             pPkt->m_0,
             (short)pPkt->m_8,
-            old, sendRet != 0);
+            (unsigned char)target->m_field4++, sendRet != 0);
     }
     return 0;
 }

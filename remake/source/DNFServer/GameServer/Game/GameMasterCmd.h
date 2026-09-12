@@ -41,7 +41,10 @@ struct stMonsterIndependentDrop_t; // CDataManager.h（独立掉落项；CIndepe
 class CGameMasterCharacter
 {
 public:
-    CGameMasterCharacter();                              // ORIG W 0x084b4426
+    CGameMasterCharacter() throw();                      // ORIG W 0x084b4426
+                                                         // [R7a14] throw()：ORIG 0x0864992b..0x08649964
+                                                         // 静态局部构造段无 __cxa_guard_abort/abortflag
+                                                         // （P216 同族；探针实证 4.4.7 加 throw() 后同形）
     virtual void sendServerState(CUser* user, char const* msg);  // ORIG W 0x084b42b6（空实现）
 };
 

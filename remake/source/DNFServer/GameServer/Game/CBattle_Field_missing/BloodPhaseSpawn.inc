@@ -20,8 +20,12 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
 
     if (spawnCnt < 0 || spawnTime < 0)
     {
+        // [R7a10 ④] ORIG 该 logFormat 第 4 参引用局部静态符号
+        // 0x08c23880 r _ZZN13CBattle_Field15BloodPhaseSpawnEsRsiiE19__PRETTY_FUNCTION__
+        // （内容 "void CBattle_Field::BloodPhaseSpawn(short int, short int&, int, int)"
+        //  = gcc 4.1.2/4.4.7 对 __PRETTY_FUNCTION__ 的同形展开）⇒ 必须写宏，不得手写串。
         LogManager::logFormat(1, "battle_field.cpp",
-                              "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                              __PRETTY_FUNCTION__,
                               0xdb8,
                               "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
                               (int)smallRound);
@@ -40,7 +44,7 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
     if (totalPhase < 0)
     {
         LogManager::logFormat(1, "battle_field.cpp",
-                              "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                              __PRETTY_FUNCTION__,
                               0xdcc,
                               "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
                               (int)smallRound);
@@ -79,7 +83,7 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
             {
                 LogManager::logFormat(
                     1, "battle_field.cpp",
-                    "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                    __PRETTY_FUNCTION__,
                     0xdee,
                     "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ROUND!!\n",
                     (int)smallRoundOrder);
@@ -90,7 +94,7 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
             {
                 LogManager::logFormat(
                     1, "battle_field.cpp",
-                    "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                    __PRETTY_FUNCTION__,
                     0xdf5,
                     "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
                     (int)smallRoundOrder);
