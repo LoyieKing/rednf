@@ -22,9 +22,15 @@ PvP_Room* CGameManager::GetPvp(int index, CUser* user, int param)
     //   `mov $imm,%eax; mov %eax,%esi/%ebx`（4.4 imm 装载模板，N7）；串/实参序与
     //   ORIG 0x082952f6（`pvp@log %s,%s, room(%d), %d`）一致。
     register int roomIdx = it->second->get_index();
-    register const char* name = user == 0 ? "" : user->getCurCharacName();
-    register const char* accName = user == 0 ? "" : user->get_acc_name();
+    // [R10a09 ④修复 P329/P0] 旧形把两枚三目提成具名 register 局部 ⇒ 4.4 产
+    // 「jmp 跳过 else；mov $imm,%eax；join: mov %eax,%esi」共享尾（与 ORIG 0x08295284/
+    // 0x0829529e 的「then 臂 `mov %eax,%esi; jmp join` + else 臂 `mov $imm,%esi`」
+    // 两臂直赋不同）。把三目**内联回实参位**即复现 ORIG 逐臂赋值形（右→左求值序
+    // param→roomIdx→name→accName 亦与 ORIG 地址序 0x...84(name) < 0x...9e(accName) 一致）。
     CSwitchLog(__PRETTY_FUNCTION__, 0xacc, 0, 0)(
-        "pvp@log %s,%s, room(%d), %d", accName, name, roomIdx, param);
+        "pvp@log %s,%s, room(%d), %d",
+        user == 0 ? "" : user->get_acc_name(),
+        user == 0 ? "" : user->getCurCharacName(),
+        roomIdx, param);
     return it->second;
 }

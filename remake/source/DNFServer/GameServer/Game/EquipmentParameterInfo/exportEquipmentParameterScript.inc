@@ -200,13 +200,13 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
                     else
                         job = getCharacterJobName(
                             static_cast<ENUM_CHARACTERJOB>(info->m_avatar264[i].m_skill.m_job));
-                    snprintf(buf, 0x100, "`%s` `%s` %d %d", AVTVARIATION_TAG_NAME[idx], job.c_str(),
+                    snprintf(buf, 0x100, "`%s` `%s` %d %d\n", AVTVARIATION_TAG_NAME[idx], job.c_str(),
                              info->m_avatar264[i].m_skill.m_field4, info->m_avatar264[i].m_skill.m_field8);
                 }
                 else
                 {
                     const char* sign = (info->m_avatar264[i].m_field4 == 0) ? "+" : "*";
-                    snprintf(buf, 0x100, "`%s` `%s` %.2f", AVTVARIATION_TAG_NAME[idx], sign,
+                    snprintf(buf, 0x100, "`%s` `%s` %.2f\n", AVTVARIATION_TAG_NAME[idx], sign,
                              (double)info->m_avatar264[i].m_field8);
                 }
                 fprintf(file, buf);

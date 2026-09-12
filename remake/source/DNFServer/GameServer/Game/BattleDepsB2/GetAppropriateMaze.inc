@@ -26,8 +26,13 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
         if (mazes != NULL && !mazes->empty())
         {
             std::vector<MazeScript*> candidates;
-            for (std::vector<MazeScript>::iterator it = mazes->begin();
-                 it != mazes->end(); ++it)
+            // [R10a17 D 轴 ④] ORIG 循环不变式外提：`end()` 在循环前求值一次并缓存
+            //   （ORIG 0x082ff1a3..0x082ff1b0：begin→-0x34、end→-0x38 均在跳入循环尾
+            //   之前），循环体内只比较两个缓存迭代器（ne(-0x34,-0x38)）。
+            //   原写 `it != mazes->end()` 使 4.4 每轮重调 end()（.o 中 end() 落循环尾）。
+            for (std::vector<MazeScript>::iterator it = mazes->begin(),
+                     itEnd = mazes->end();
+                 it != itEnd; ++it)
             {
                 MazeScript* maze = &*it;
                 // [B-lane 试形 Y] P223(BM8) 多岛尾标签串：ORIG 三个 if-join 空岛

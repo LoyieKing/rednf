@@ -365,14 +365,15 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     int pct = 0;
                     // [b28f-CTS 轴B] 同上前一块：ORIG 0x085a4f6a 区 `jg`（**有符号**序，
                     //   `m_addInfo` 为 unsigned int）⇒ 显式 (int) 收窄复现 ORIG 的 jg 树。
+                    // [R10a10 ④#12] ORIG 第二处决策树 0x85a4f45..0x85a4fa5 **仅 7 个 case**
+                    //   （cmp 链 1189-1206 无 0x28e4a3/0x28e4a6/0x28e4a8；第一处
+                    //   0x85a4438..0x85a448f 两侧一致含之）⇒ 删这三 case（我方原多写）。
                     switch ((int)pet1.m_addInfo)
                     {
-                    case 0x6603: case 0x66e5: case 0x6802: case 0x28e4a3: case 0x28e4a6:
+                    case 0x6603: case 0x66e5: case 0x6802:
                         pct = 3; break;
                     case 0x6622: case 0x66e6: case 0x6803: case 0x68a2:
                         pct = 4; break;
-                    case 0x28e4a8:
-                        pct = 5; break;
                     }
                     int extra = (gainBase * pct) / 100;
                     bonusGold += extra;

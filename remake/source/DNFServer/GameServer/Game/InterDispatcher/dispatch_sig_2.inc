@@ -503,7 +503,11 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->SetAccountLastPlayTime(pInfo->m_lastPlayTime);
         user->setJoinedSchoolPointEvent(
             pInfo->m_joinedSchoolPointEventFlag != false);
-        user->m_field8ec32 = 0;
+        // [R10a07 ④#13] ORIG 0x084c724a `call setJoinedSchoolPointEvent` 之后紧接
+        //   0x084c7252 `movb $0x0,0x8e47c(%eax)`（= m_mcap.m_blackIpTradeLockFlag 清零，
+        //   与 0x084c7452 的同字段 `= true` 写点同址）；旧稿误写 m_field8ec32（+0x8ec32）
+        //   ⇒ 封锁标志残留。0x8ec32 的清零点在 ORIG 另有其位（0x084c7a55，本文件 693 行）保持不动。
+        user->m_mcap.m_blackIpTradeLockFlag = false;
 
         char* punIp = user->m_network.GetPeerIP2(user->m_mcap.m_pcRoomIp, 0x14);
         user->m_mcap.m_blackIpPunishMask =

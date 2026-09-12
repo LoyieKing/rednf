@@ -136,10 +136,11 @@ using GlobalData::s_systemTime_;  // ORIG 0x0941f714（CSystemTime 全局实例�
     // mov 0x941f7e4,%eax; mov %eax,(%esp); call *%edx`（P282：vptr+0x10 = word[4]，
     // 外部 SDK 类未建模故保留函数指针形）。
     typedef void (*CheckerFn)(void*);
-    // 函数指针值直接在调用点 cast（P0 无具名局部）：`(...)[4]` 已取到 fn 值，
-    // 再经 `CheckerFn*` 解引用会多发一条 `mov (%eax),%eax`（我方 4 条 mov 链 vs ORIG 3）。
-    reinterpret_cast<CheckerFn>(
-        (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x10 / 4])(
+    // [R10a09 P362 ④修复] 旧形 `(*(void***)p)[4]` 在 4.4 下多一条中转
+    //（`mov (%eax),%eax; mov %eax,%edx`，我方 64 条 vs ORIG 63）；改**真实函数
+    // 指针数组类型** `(*(Fn**)p)[K]` 即单段直落 `mov (%eax),%edx`（ORIG 0x080edddb
+    // 实证；同族 CUser/AntibotSend.inc 已用此形 202→199）。
+    (*(reinterpret_cast<CheckerFn**>(GlobalData::s_antibotChecker_)))[0x10 / 4](
         GlobalData::s_antibotChecker_);
 
     gettimeofday(&t1, 0);

@@ -48,13 +48,14 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
             needGold, learnCnt, needGSP, (int)guildLevel);
         if (ret >= 0)
         {
-            CGuildServerProxy* proxy =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-            if (proxy != 0)
-                proxy->SendBuyGuildSkill((unsigned int)get_charac_no(-1),
-                                         (unsigned int)get_charac_guildkey(),
-                                         (int)skillIdx, learnCnt, needGSP,
-                                         (unsigned int)needGold);
+            // ORIG 0x0866b122：GetServerProxy 返回后**无判空**（0x0866b127..0x0866b148
+            // 全为压参，无 test/je），结果直用作 receiver；实参求值顺序 guildkey
+            // (0x0866b0ee) → characNo(0x0866b103) → receiver(0x0866b10a..0x0866b122)。
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup())
+                ->SendBuyGuildSkill((unsigned int)get_charac_no(-1),
+                                    (unsigned int)get_charac_guildkey(),
+                                    (int)skillIdx, learnCnt, needGSP,
+                                    (unsigned int)needGold);
         }
         }
         else

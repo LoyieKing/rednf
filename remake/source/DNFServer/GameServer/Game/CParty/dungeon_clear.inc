@@ -31,7 +31,11 @@ void CParty::dungeon_clear()
 #define g0 (m_battleData.m_itemGroups0[slot])
 #define g1 (m_battleData.m_itemGroups1[slot])
 #define g2 (m_battleData.m_itemGroups2[slot])
-            int put = _putItemIntoUser(user, &g0[0], packet);
+            // [R10a09 ④修复 P198①] ORIG 0x085ab8xx 为「预清 `movl $0x0,-0x10(%ebp)`
+            //   + `call; add %eax,-0x10(%ebp)`」两句式（我方旧形 `int put = f()` 少预清、
+            //   且首句为 `mov %eax,-0x10`）⇒ 源形必须是 `int put = 0; put += f();`。
+            int put = 0;
+            put += _putItemIntoUser(user, &g0[0], packet);
             put += _putItemIntoUser(user, &g1[0], packet);
             if (HaveAlreadySelectedCard(
                     (char)slot, (eClearRewardCardType_t)1))

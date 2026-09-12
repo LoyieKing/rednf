@@ -1,5 +1,16 @@
 // [b28d-lane2] verdict=DIFF ndiff=146（ORIG 0x084cf0c4）：槽序/帧差(N82/P212/P221)+混合残差；gap-18。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=120（ORIG 0x84cf0c4）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [R10a07 ④ 修复] 包缓冲布局错：ORIG 是「int count + int items[5]」连续结构（0x084cf1be
+//   `mov -0x2c(%ebp),%eax; mov %edx,-0x28(%ebp,%eax,4)` = items[count] 于结构首址+4；
+//   0x084cf256 `lea -0x2c(%ebp),%edx` = put_binary 实参取**结构首址** ⇒ 线格式包首 4B=count、
+//   数据自 +4 起）。旧重建写 `int eventItems[6]` + 独立 count（NEW 0x815a51a 写 -0x34+count*4、
+//   0x815a5c7 put_binary 取 -0x34）⇒ 包首 4B=首个数据元素、全部数据相对 ORIG 偏移 −4（发包内容错）。
+struct Inter_LoadEventItemBuf
+{
+    int m_count;      // +0x00 校验通过条数（随结构整体入包）
+    int m_items[5];   // +0x04 逐条 eventItem
+};
+
 int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadEventItemPktView* pPkt = reinterpret_cast<Inter_LoadEventItemPktView*>(data);
@@ -8,9 +19,8 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     if (target == 0)
         return 0;
 
-    int eventItems[6];                                  // local_30 计数 + 5 项
-    memset(eventItems, 0, 0x18);
-    int count = 0;
+    Inter_LoadEventItemBuf buf;                         // ORIG 0x084cf10b memset 基址 = &count
+    memset(&buf, 0, 0x18);
     for (int i = 0;
          i < pPkt->m_8; ++i)  // msg+0x8 条数
     {
@@ -32,21 +42,21 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
                     (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0x18),
                     (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0xc)))
             {
-                eventItems[count] =
+                buf.m_items[buf.m_count] =
                     *reinterpret_cast<int*>(data + i * 0x10 + 0xc);
-                count = count + 1;
+                buf.m_count = buf.m_count + 1;
             }
         }
     }
 
-    if (count != 0)
+    if (buf.m_count != 0)
     {
         Stream* stream = GlobalData::s_stream_pool->Acquire(
             "InterDispatcher.cpp", 0x2c1f);
         CStreamGuard guard(stream, true);
         guard.operator*()->operator<<(0x4d);
         guard.operator*()->operator<<(-1);
-        guard->put_binary(eventItems, 0x18);
+        guard->put_binary(&buf, 0x18);
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
     return 0;

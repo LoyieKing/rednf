@@ -54,8 +54,26 @@ int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
         errCode = 0xbe;
     }
 
-    // +0x190：sendItem 成功（errCode==0）→ 应答包；否则失败 trace + 错误包
+    // +0x190：sendItem 成功（errCode==0 ⇒ sendResultFail==true）→ 应答包；
+    //   否则（errCode!=0 / isPickSuccess 失败）失败 trace + 错误包。
+    // [R10a06] 真 ④ 修复（第十轮）：ORIG 0x0821d69c `movzbl -0x9(%ebp),%eax;
+    //   xor $0x1,%eax; test %al,%al; je 0x0821d727` —— 其中 0x0821d727 = PacketGuard
+    //   发包块（put_header/put_byte/put_int/put_short/finalize/Send）、fall-through
+    //   0x0821d6a7 = NumberToString+cMyTrace+SendCmdErrorPacket 错误块 ⇒ 条件取
+    //   `!sendResultFail` 且 taken=发包块。原实现把两块写反（errCode==0 时跳错误块）。
     if (!sendResultFail)
+    {
+        // +0x19f：失败路径（errCode!=0）
+        char* accIdStr = NumberToString(user->get_acc_id(), 0);
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0xd135, 0);
+        trace("ServerMessage : Dispatcher_CranePickUp failed : m_id : %s error %d",
+              accIdStr, errCode);
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1e7, (unsigned char)(errCode & 0xff));
+        return 0;
+    }
+
     {
         PacketGuard guard;                                            // 0858dd4c
         guard.put_header(1, 0x1e7);
@@ -68,16 +86,4 @@ int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
         user->Send(guard);
         return 0;                                                     // guard 析构 0858de80
     }
-
-    // +0x19f：失败路径
-    {
-        char* accIdStr = NumberToString(user->get_acc_id(), 0);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xd135, 0);
-        trace("ServerMessage : Dispatcher_CranePickUp failed : m_id : %s error %d",
-              accIdStr, errCode);
-    }
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1e7, (unsigned char)(errCode & 0xff));
-    return 0;
 }

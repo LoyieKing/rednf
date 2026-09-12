@@ -3377,7 +3377,7 @@ public:
     // `call; xor $0x1,%eax; test %al,%al; je`（P292/P248档① 直证 callee bool）；
     // 字段 m_ceraUserInfo.m_field62 本就是 bool，本体 movzbl;ret 不变。
     STSkillCommandData::STCommand* get_skill_command_buf();               // ORIG _ZN5CUser21get_skill_command_bufEv 0x0865459a（写 m_skillCommands 并返回）
-    STSkillCommandData::STCommand* get_skill_command_buf(STSkillCommandData::STCommand* out) const; // 0x08654768
+    void get_skill_command_buf(STSkillCommandData::STCommand* out) const; // 0x08654768（R10a04 第十轮 ④#7：ORIG 所有出口块均不设返回值 ⇒ void；mangled 不含返回类型）
     void SendLogoutToPCRoomServer();                // 0x0868170c T
     void SendLoginToPCRoomServer();                 // 0x0868152c T（TimerCheckPaidPCRoomTerm 调用）
     void SetTradePunishType(int type);              // 0x08689890 T（TimerSetPunishUser/TimerSetTradePunishUser 调用）

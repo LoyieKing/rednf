@@ -85,19 +85,24 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     if (reason == 5)
     {
         // b28d-CUser p167：ORIG 0x08648e17/0x08648e3e/0x08648e65 三处均直读 0x704ac。
+        // [R10a07 ④#5] ORIG 三段**互相独立**的 if（每段各自重读 m_accId：0x08648e17/e3e/e65）：
+        //   段1 `jne L2; je L2` → 0x30 当 (m_accId==0 && ip!='\0')；
+        //   段2 `je L3; jne L3` → 0x31 当 (m_accId!=0 && ip=='\0')；
+        //   段3 `jne common; jne common` → 0x32 当 (m_accId==0 && ip=='\0')；
+        //   ⇒ (m_accId!=0 && ip!='\0') 无任何匹配 ⇒ **不改值**（保持 sig=5）。
         if (m_accId == 0 && ip[0] != '\0')
         {
             reason = 0x30;
             flag = true;
         }
-        else if (m_accId == 0 && ip[0] == '\0')
-        {
-            reason = 0x32;
-            flag = true;
-        }
-        else
+        if (m_accId != 0 && ip[0] == '\0')
         {
             reason = 0x31;
+            flag = true;
+        }
+        if (m_accId == 0 && ip[0] == '\0')
+        {
+            reason = 0x32;
             flag = true;
         }
     }

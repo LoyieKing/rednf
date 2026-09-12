@@ -206,9 +206,14 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
                     newSlot = -1;
                 } else {
                     int price = 0;                               // local_108
-                    short count = static_cast<short>(item.m_addInfo2);
-                    G_Store()->GetSellItemPrice(item, resItem, count, false,
-                                                price);
+                    // [R10a16 2026-09-12 · P200] ORIG 0x08675474 段为
+                    // `mov -0x184(%ebp),%eax; movswl %ax,%ebx`（续读到 %ebx 跨
+                    // 下一 call 保活）——short 拓宽**直传实参**、无具名中间局部；
+                    // 我方原 `short count = ...` 多出 `mov %ax,-0x1a(%ebp);
+                    // movswl -0x1a(%ebp),%ebx` 2 条 ⇒ 表达式内联回实参位。
+                    G_Store()->GetSellItemPrice(
+                        item, resItem,
+                        static_cast<short>(item.m_addInfo2), false, price);
                     if (isFirst) {
                         price = price * static_cast<int>(
                                           G_CDataManager()->m_boosterGage

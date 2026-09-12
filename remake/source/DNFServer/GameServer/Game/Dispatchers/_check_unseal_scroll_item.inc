@@ -43,8 +43,15 @@ int Dispatcher_UnsealRandomOption::_check_unseal_scroll_item(
         {
             return 1;
         }
+        // [R10a06 第十轮 ④#3 · C 轴「多余判空」] ORIG 0x0822973e `mov %eax,-0x10(%ebp)`
+        //   （find_item 返回值落具名槽）→ 0x08229741 `mov -0x10(%ebp),%eax; mov %eax,(%esp)`
+        //   → 0x08229747 `call getUsableLevel`（**无 cmpl/test/je**）→
+        //   0x08229752 `cmp -0x14(%ebp),%eax` → 0x08229755 `jle`。
+        //   我方原写 `base != 0 && …`（0x081e3af5 落槽 → cmpl $0x0 → je 0x081e3b15）
+        //   多出判空且路径分叉（ORIG 恒直接解引用 base 调用 getUsableLevel）。
+        //   保留 ORIG 的具名槽语义（P0：ORIG 有 -0x10(%ebp) 槽 ⇒ 保留 base 变量）。
         CItem* base = G_CDataManager()->find_item(item->m_addInfo);
-        if (base != 0 && limit < base->getUsableLevel())
+        if (limit < base->getUsableLevel())
         {
             return 0x11;
         }

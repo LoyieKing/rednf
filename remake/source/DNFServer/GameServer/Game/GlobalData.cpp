@@ -1620,7 +1620,16 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
     (void)arg;
     fd_set readfds;
     fd_set writefds;
-    socklen_t soLen[4];
+    // [R10a16 2026-09-12] ORIG 四处 getsockopt 的 `&soLen[k]` 均为**单条**
+    // `lea -0xNN(%ebp),%edx`（disp 直达：-0xfc/-0x100/-0x104/-0x108），而 4.4 对数组
+    // 索引恒发 `lea -0x84(%ebp),%edx; add $0x4k,%edx`（+1 条/处，3 处共 +3 = gap 全部）。
+    // 依 G00/P350「ORIG 发单条 lea ⇒ 原码是独立具名标量」，拆为 4 个具名标量：
+    // 4.4 对独立标量取址发单条 lea，且声明序（soLen0 最深 → soLen3 最浅）与 ORIG
+    // 槽序同向（-0x108/-0x104/-0x100/-0xfc；P339 先声明→更深）。
+    socklen_t soLen0;
+    socklen_t soLen1;
+    socklen_t soLen2;
+    socklen_t soLen3;
     struct timeval timeout;
     // [BigP3B] 裸声明：ORIG 头部 5 条 `movl $0,-N` 里没有 soError（-0xcc）的清零
     // ⇒ 原码 `int soError;` 无初值（它在 4 处 getsockopt 前也不写 0，直接作
@@ -1982,9 +1991,9 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
                 // 返回值局部，非函数级 ret）→ `mov %eax,-0x34`；ORIG 4 段各一个
                 // 块内局部（-0x34/-0x2c/-0x24/-0x1c）。
                 int optRet = 0;
-                soLen[3] = 4;
+                soLen3 = 4;
                 optRet = getsockopt(pcroomSocket, SOL_SOCKET, SO_ERROR,
-                                    &soError, &soLen[3]);
+                                    &soError, &soLen3);
                 if (soError == 0 && optRet == 0)
                 {
                     GlobalData::s_pcroom_proxy->SetSocketState(
@@ -2052,9 +2061,9 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
                     ENUM_SOCKET_STATE_CONNECTING)
                 {
                     int optRet = 0;
-                    soLen[2] = 4;
+                    soLen2 = 4;
                     optRet = getsockopt(communitySocket, SOL_SOCKET, SO_ERROR,
-                                        &soError, &soLen[2]);
+                                        &soError, &soLen2);
                     if (soError == 0 && optRet == 0)
                     {
                         GlobalData::s_community_proxy->SetSocketState(
@@ -2118,9 +2127,9 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
                 ENUM_SOCKET_STATE_CONNECTING)
             {
                 int optRet = 0;
-                soLen[1] = 4;
+                soLen1 = 4;
                 optRet = getsockopt(auctionSocket, SOL_SOCKET, SO_ERROR,
-                                    &soError, &soLen[1]);
+                                    &soError, &soLen1);
                 if (soError == 0 && optRet == 0)
                 {
                     GlobalData::s_auction_proxy->SetSocketState(
@@ -2187,9 +2196,9 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
                 ENUM_SOCKET_STATE_CONNECTING)
             {
                 int optRet = 0;
-                soLen[0] = 4;
+                soLen0 = 4;
                 optRet = getsockopt(ceraSocket, SOL_SOCKET, SO_ERROR,
-                                    &soError, &soLen[0]);
+                                    &soError, &soLen0);
                 if (soError == 0 && optRet == 0)
                 {
                     GlobalData::s_cera_auction_proxy->SetSocketState(

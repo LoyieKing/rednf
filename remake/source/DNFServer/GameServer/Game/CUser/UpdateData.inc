@@ -36,12 +36,14 @@ void CUser::UpdateData()
     {
         int payTaxMoney = get_member_pay_tex_money_to_upper();
         int payTaxFatigue = get_member_pay_tex_fatigue_to_upper();
-        CMonitorServerProxy* monProxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup());
-        if (monProxy != 0)
-            monProxy->SendMemberPayTax(is_connect_upper_member() != 0,
-                                       (unsigned int)getCurCharacNo(),
-                                       payTaxMoney, payTaxFatigue);
+        // ORIG 0x0865343a：GetServerProxy 返回后**无任何判空**（0x0865343f..0x08653458
+        // 全为压参/调用），结果直接作为 receiver；CUserCharacInfo 两 getter
+        // （getCurCharacNo 0x0865340d / is_connect_upper_member 0x0865341a）在
+        // GetServerGroup(0x08653428)/GetServerProxy 之前无条件求值 ⇒ 链式内联写。
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup())
+            ->SendMemberPayTax(is_connect_upper_member() != 0,
+                               (unsigned int)getCurCharacNo(),
+                               payTaxMoney, payTaxFatigue);
         if (payTaxMoney > 0)
             set_member_pay_tex_money_to_upper(0);
         if (payTaxFatigue > 0)
