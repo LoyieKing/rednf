@@ -38,9 +38,11 @@ bool Village::set_village(TownScript& script)
         return false;
     }
 
-    bool bSchool = G_GameWorld()->IsSchoolPvPChannel() != 0 &&
-                   script.m_field0 == 2;
-    if (bSchool)
+    // [R20-03 2026-09-13] §26.3：ORIG 该条件为**内联短路**（0x086c34xx 段
+    // `mov $1/%eax … test %al,%al; je`，无具名 bool 槽往返）；我方旧写
+    // `bool bSchool = …; if (bSchool)` 多 `mov %al,-0x4e(%ebp); cmpb $0` 两条 ⇒ 内联。
+    if (G_GameWorld()->IsSchoolPvPChannel() != 0 &&
+        script.m_field0 == 2)
     {
         // [N3 2026-09-11 负结论] ORIG 该分支无 count/total 具名槽（`add $0x258,%eax;
         //   mov %eax,%ebx; imul $0x26,%ebx,%eax`，total 以 %ebx 跨 operator new[]
@@ -78,7 +80,9 @@ bool Village::set_village(TownScript& script)
     m_questIdx = script.m_40;
 
     TownAreaScript temp;
-    bool bSuccess = false;
+    // [R20-03 2026-09-13] §26.3/P348：ORIG 无该槽预清（bSuccess 在 4.1 侧为
+    // 寄存器值 `mov $0/%ebx`，0x086c385a/0x086c3a48；全函数读前必写）⇒ 去 `= false`。
+    bool bSuccess;
 
     // [P6S6 2026-09-11] ORIG 循环头 = `_ZNKSt17_Rb_tree_iterator…ne`（!= 条件）
     //   + `ppEi`（后置 ++）⇒ 改为真 for 条件形（it != end(); it++）。

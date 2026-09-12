@@ -74,8 +74,12 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     int len = packet.get_len();
     // ORIG 0x08648379..0x08648441：`(!encReq && isEncryptRequired()) || encFailed`
     //   短路链（`movzbl encReq; xor $1; test; je 查 encFailed` + `mov $1/$0`）。
-    bool doEnc = (!encReq && packet.isEncryptRequired()) || encFailed;
-    if (doEnc)
+    // [R20a11] §26.3 多余物化：ORIG 0x08648441 `test %al,%al; je 0x86484a0` ——
+    //   短路链物化岛（0x08648435/0x0864843c `mov $1/$0,%eax`）后**直测寄存器**，
+    //   无具名 bool 槽。具名 `bool doEnc` 使 4.4 多发 `mov %al,-0x25(%ebp)` +
+    //   `cmpb $0x0,-0x25(%ebp)`（+1 指令）且 VLA 帧 0x1739c→0x173a0（+4B）。
+    //   修法 = P226 语句表达式内联条件（内不含具名变量 ⇒ 零槽短路物化）。
+    if (({ (!encReq && packet.isEncryptRequired()) || encFailed; }))
     {
         sendBuf.copy(packet);
         sendBuf.encrypt_packet();

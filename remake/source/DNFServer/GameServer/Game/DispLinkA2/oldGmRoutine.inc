@@ -875,8 +875,12 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 }
             }
         }
-        ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
+        ENUM_ITEMSPACE space;
         int slot = user->AddItem(itemIdx, count, (eItemAddReason)6, space, 0);
+        // [R20a01 §26.3 多余默认值] ORIG 0x0821150e 直接 `lea -0x314(%ebp),%edx` 把**未初始化**
+        // 栈槽作为 AddItem 的 ENUM_ITEMSPACE& 出参传入；该槽全函数（0x0821150e lea /
+        // 0x0821161b 读回）**无任何清零写点** ⇒ 原码无 `= 0` 初始化。删默认值以复刻
+        // ORIG 的未初始化读语义（值由 AddItem 写出后 0x0821161b 读回）。
         // ORIG 0x0821071f `js` 到公共返回尾；正路径整体包在 if (slot >= 0) 内，
         // 两条路径都返回 0。先 getCurCharacName（%edi）再 get_acc_id→NumberToString
         // （%esi），最后构造 cMyTrace。
@@ -1012,8 +1016,10 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 }
             }
         }
-        ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
+        ENUM_ITEMSPACE space;
         int slot = user->AddItem(idx, count, (eItemAddReason)6, space, 0);
+        // [R20a01 §26.3] 同上一处：ORIG 0x082106e7 lea 未初始化槽（-0x2e0）/0x0821079d 读回，
+        // 无清零写点 ⇒ 删 `= 0`。
         // ORIG 0x08211546 `js` 到公共返回尾：正路径包在 if (slot >= 0) 内，
         // 两条路径均返回 0（无提前 return）。
         if (slot >= 0)

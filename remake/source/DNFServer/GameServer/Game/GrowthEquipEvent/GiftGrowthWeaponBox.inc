@@ -26,15 +26,19 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
     CItem* itemBase = G_CDataManager()->find_item(giftBoxIdx);
 
     int serverGroup;
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
+    // [R20a07 §26.3/P354] ORIG 0x080f70c4 `test %al,%al; je 0x080f70d8`（**无** xor；
+    // 原值 true ⇒ fall-through 走 GetServerGroup，false ⇒ 跳后置的 env 块）；
+    // 我方旧形 `if (!f()) {env} else {GetServerGroup}` 使 4.4 产 `xor $1; test; je`
+    // 且两臂块序相反 ⇒ 改正向 if/else 复现 ORIG（消多余物化 + 块序翻正）。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        serverGroup = (int)user.GetServerGroup();
+    else
         // [P6S3 round6 · 父泳道线索（p167fix EXTRA `CEnvironment::get_server_group`）+
         // 同 TU 既有判例] 本件 ORIG 与 SendGrowthWeaponEventInfo 同形：**直读字段**
         // `call G_CEnvironment; mov 0x378(%eax),%eax`（= m_serverEnvir.m_serverGroup，
         // +0x198+0x1e0），不发 `get_server_group()` call（该 getter 我方仅 weak 定义、
         // 语义等价于返回同一字段 ⇒ 直读为 ORIG 形）。
         serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // ORIG +0x378
-    else
-        serverGroup = (int)user.GetServerGroup();
 
     if (itemBase == 0)
         return;

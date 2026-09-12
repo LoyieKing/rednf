@@ -61,8 +61,10 @@ StringResource* stringResource()
 
 }  // namespace app
 
-// STRING_FILE —— ORIG 单元内静态 _ZL11STRING_FILE（0x093f567c），恒 0。
-static const char* STRING_FILE = 0;
+// STRING_FILE —— ORIG 单元内静态 _ZL11STRING_FILE（0x093f567c）。
+// ORIG `.data` 初值 raw = 84 e7 e2 08 ⇒ 0x08E2E784 = "server_dnf.str"（R20scanEC raw 复核）。
+// 旧注释「恒 0」系把「全仓 0 个写点」误读成「初值为 0」：两侧均无写点 ⇒ 静态初值即唯一来源。
+static const char* STRING_FILE = "server_dnf.str";
 
 #include "StringResource/loadString.inc"
 

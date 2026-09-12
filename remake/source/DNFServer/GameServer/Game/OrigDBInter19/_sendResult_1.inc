@@ -1,6 +1,9 @@
-int DB_ReqQueryCharacInfo::_sendResult(int errCode, int slot, char const* name,
-                                       int characNo, int job, int lev,
-                                       int growType, int sex, int field2e)
+// [R20a07 §26/P292-T3] int→bool（ORIG 调用点 `call; jmp epilogue` 无 test/setne
+// 归一化 ⇒ bool callee；返回类型不入 mangled、不改布局）。声明同步于
+// W8LT_DBTask.cpp / OrigDBInter19.cpp 两处 TU-local 类定义。
+bool DB_ReqQueryCharacInfo::_sendResult(int errCode, int slot, char const* name,
+                                        int characNo, int job, int lev,
+                                        int growType, int sex, int field2e)
 {
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6716), true);

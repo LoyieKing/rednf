@@ -12,7 +12,11 @@
 // [b28d-GrpD 判词·结构化 N] ORIG 0x08655c60：残差为具名临时槽化（帧 0x64 vs ORIG
 //   0x54）引起的整段 mov 重排；setcc（setne/sete）与 je/jne 落点体互换均为等价
 //   （判据⑦）；字段偏移（+0x8e064/+0x8e08c/0x9c/0x32/0x64）与事件脚本 id（0x19b 等）
-//   逐条对齐 ⇒ 无语义缺口。
+//   逐条对齐。
+// [R20a09 更正，2026-09-13] 上述「无语义缺口」已被推翻一处：角色日事件 job 判等
+//   （ORIG 0x0865600f 段）为 **16→32 有符号加宽**（`cwtl`），我方原为 `movzwl`
+//   零扩展 ⇒ `job==-1 && eventJob==0xffff` 时判等结果分叉（ORIG 成立）。已按
+//   `(short)` 源形修复（详见本文件 118-124 行注释与 R20a09 报告）。
 void CUser::FatigueUp(int v)
 {
     // Hades+GoldControl 双扣减；state==5 时混沌点扣减与累计(+0x8e064)；
@@ -116,8 +120,12 @@ void CUser::FatigueUp(int v)
     {
         if (dayEvent->IsEventing((CUser*)0))
         {
+            // [R20a09 ④] ORIG 0x08656014 为 `cwtl`（**有符号** 16→32 加宽）：
+            // `call GetEventJob`（返回 unsigned short，ctor 置 -1 ⇒ 0xffff）后按
+            // short 解读 ⇒ job==-1(0xff) 且 eventJob==0xffff 时判等成立并触发
+            // _processCharacterDayEvent；写成无转换（零扩展 65535）则不成立 ⇒ 分叉。
             if (get_charac_job() ==
-                static_cast<CCharacterDayEvent*>(dayEvent)->GetEventJob())
+                (short)static_cast<CCharacterDayEvent*>(dayEvent)->GetEventJob())
             {
                 _processCharacterDayEvent(prevFatigue, (unsigned int)v);
             }

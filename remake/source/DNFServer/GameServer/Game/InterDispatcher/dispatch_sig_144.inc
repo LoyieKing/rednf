@@ -60,10 +60,15 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     // 已登记数量上限校验：premium/gold 两套上限表（err=0x97）
-    const bool premiumAffected = user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x1d);
-    if (!premiumAffected)
+    // [R20a11] §26.3/P354：ORIG 0x084d5a8f `test %al,%al; je 0x084d5aeb` —— 对
+    //   isAffectedPremium 返回值**直测**（无具名槽、无 xor），且真值(受影响)走
+    //   fall-through 的 10:30 臂（0x084d5a93 段）、假值跳 0x084d5aeb 的 3:10 臂。
+    //   具名 `const bool premiumAffected` + `if (!premiumAffected)` 使 4.4 多发
+    //   `mov %al,-0x85; movzbl -0x85,%eax; xor $1,%eax`（+3 条与一槽）并按负极性
+    //   布块。改为正极性直测。
+    if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x1d))
     {
-        const int maxCount = (pPkt->m_0 == 1) ? 3 : 10;
+        const int maxCount = (pPkt->m_0 == 1) ? 10 : 30;
         if (maxCount <= nowRegisted)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x97, (PAY_TYPE)payType);
@@ -72,7 +77,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
     else
     {
-        const int maxCount = (pPkt->m_0 == 1) ? 10 : 30;
+        const int maxCount = (pPkt->m_0 == 1) ? 3 : 10;
         if (maxCount <= nowRegisted)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x97, (PAY_TYPE)payType);

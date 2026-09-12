@@ -159,10 +159,18 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
             if (village != 0)
             {
                 area = village->getArea(user->get_area(false));
-                if (area != 0 && !area->IsExistItemShopNPC())
+                // [R20a05 ④/§26.3] ORIG 0x081f3338 `je 0x081f338a`（area==0 直跳）
+                //   与 0x081f334e `je 0x081f338a`（`call IsExistItemShopNPC;
+                //   xor $1;test;je` 同靶）为**两条独立守卫同落同一出口** ⇒ 原码
+                //   是嵌套独立 if；合并 `&&` 令 4.4 物化 bool 岛
+                //   （test;jne;mov $1;jmp;mov $0;test;je；实测件级 582→580 条，P225/P133）。
+                if (area != 0)
                 {
-                    user->getHackAnalyzer()->addServerHackCnt(
-                        user, (WongWork::ENUM_HACKTYPE)0x324, 1, 0, 0);
+                    if (!area->IsExistItemShopNPC())
+                    {
+                        user->getHackAnalyzer()->addServerHackCnt(
+                            user, (WongWork::ENUM_HACKTYPE)0x324, 1, 0, 0);
+                    }
                 }
             }
         }

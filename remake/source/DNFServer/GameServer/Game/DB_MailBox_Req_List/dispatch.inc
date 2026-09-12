@@ -83,14 +83,18 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     }
 
     SIG_I32(sig, SIG_OFF_LETTER_USED) = (int)req->m_maxLetter;   // +0x3326
-    SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID) = 0;                     // +0x79c
+    // [R20a17] 具名成员访问（原 SIG_U32/SIG_I32 宏 = `*(T*)((char*)p+off)` char*
+    //   算术，4.4 恒发 `add $0x79c,%eax` 两步；ORIG 0x0841e084 为单条
+    //   `movl $0x0,0x79c(%eax)` / 0x0841e0bc `mov %edx,0x794(%eax)` 直存 disp
+    //   ⇒ 同址同型、零副作用指针算术 ⇒ 改具名成员复刻 ORIG 单条形（P350/P367）。
+    sig->m_box.m_maxPostalId = 0;                                // +0x79c
     int nRows = db->get_n_rows();
-    SIG_I32(sig, SIG_OFF_POSTAL_COUNT) = std::min((int)req->m_maxLetter, nRows);
-    SIG_I32(sig, SIG_OFF_REMAIN_COUNT) = 0;
-    if ((int)req->m_maxLetter <= SIG_I32(sig, SIG_OFF_POSTAL_COUNT))
+    sig->m_box.m_count = std::min((int)req->m_maxLetter, nRows);  // +0x794
+    sig->m_box.m_remain = 0;                                      // +0x798
+    if ((int)req->m_maxLetter <= sig->m_box.m_count)
     {
-        SIG_I32(sig, SIG_OFF_REMAIN_COUNT) =
-            db->get_n_rows() - SIG_I32(sig, SIG_OFF_POSTAL_COUNT);
+        sig->m_box.m_remain =
+            db->get_n_rows() - sig->m_box.m_count;
     }
 
     // avata / creature ui_id 收集表（首元素为条数；rep stos 0x15 dword 实证）
@@ -102,7 +106,7 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     // ORIG 0x0841e13d 入口直跳条件、0x0841e8e3 循环尾 `addl $1,-0x28` 后再测
     // （for 形；while + 尾部 ++loopIdx 无法承载 continue 的落点）——失败列走
     // 0x0841e8a0..0x0841e8e2 的 nop 岛跳到 ++loopIdx ⇒ **continue**，非 return 0。
-    for (; loopIdx < SIG_I32(sig, SIG_OFF_POSTAL_COUNT) && loopIdx < 0x14; ++loopIdx)
+    for (; loopIdx < sig->m_box.m_count && loopIdx < 0x14; ++loopIdx)
     {
         if (!db->fetch())
             return 0;
@@ -265,19 +269,19 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                                             strncpy(sig->m_box.m_postals[rowIdx].m_sendName, name9, 0x1d);
 
 
-                                            SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID) =
-                                                std::max(SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID),
+                                            sig->m_box.m_maxPostalId =
+                                                std::max(sig->m_box.m_maxPostalId,
                                                          (unsigned int)p0);
                                             ++rowIdx;
             }
         }
     }
-    SIG_I32(sig, SIG_OFF_POSTAL_COUNT) = rowIdx;
+    sig->m_box.m_count = rowIdx;
     SIG_I32(sig, SIG_OFF_LETTER_ADD) = 0;
 
     // 第二循环：剩余行只读 letter_id，统计 map 频次与 +0x332e 增量
     int k;
-    for (k = 0; k < SIG_I32(sig, SIG_OFF_REMAIN_COUNT); ++k)
+    for (k = 0; k < sig->m_box.m_remain; ++k)
     {
         if (!db->fetch())
             return 0;
@@ -316,7 +320,7 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
         }
     }
 
-    int oldCount = SIG_I32(sig, SIG_OFF_POSTAL_COUNT);
+    int oldCount = sig->m_box.m_count;
     SIG_I32(sig, SIG_OFF_LETTER_COUNT) = (int)req->m_maxLetter;   // +0x1018
     if (!SelectLetter(db, slot, (int)req->m_characNo, req->m_letterIdx, sig))
     {
@@ -326,14 +330,14 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     }
     // ORIG 0x0841eb8e `je 0x0841ebb4`（相等跳「postal==0」块）⇒ else 直落、
     // then 后置：反写条件才复现该块序（P272）。
-    if (SIG_I32(sig, SIG_OFF_POSTAL_COUNT) != oldCount)
+    if (sig->m_box.m_count != oldCount)
     {
         DoChangeMailList(sig, avataList, (int)req->m_maxPostalId);
     }
     else
     {
-        if (SIG_I32(sig, SIG_OFF_POSTAL_COUNT) == 0)
-            SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID) = req->m_maxPostalId;
+        if (sig->m_box.m_count == 0)
+            sig->m_box.m_maxPostalId = req->m_maxPostalId;
     }
 
     SIG_I32(sig, SIG_OFF_USER_ITEM_CNT) = 0;   // +0x7a0

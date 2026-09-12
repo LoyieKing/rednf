@@ -100,14 +100,23 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         //   ⇒ 原码无 64 位局部，删除我方多余的 or 物化。
         const int itemIdx = q->m_itemIdx;                    // +0x08
         const unsigned short stackCount = q->m_stackCount;   // +0x0c
-        const unsigned char avatarSelB = q->m_avatarType0;   // +0x2c
-        const unsigned char avatarSelA = q->m_avatarType1;   // +0x2d
+        // [R20a15 §26.1] ORIG 消费形直证：3 处 char 形参调用点读点为单条
+        // `movsbl -0x79/-0x7a(%ebp),%r`（0x08322279/0x0832227d、0x083222cf/0x083222d3、
+        // 0x0832237e/0x08322382）⇒ 这些点是 signed char 直传；唯一 uchar 形参点
+        // （_processAdditionalItem，ORIG 0x08322b90 `movzbl -0x79; movzbl %al,%ecx`）
+        // 保持零扩展语义。故局部声明 char + 该点显式 (unsigned char) 转换。
+        const char avatarSelB = q->m_avatarType0;            // +0x2c
+        const char avatarSelA = q->m_avatarType1;            // +0x2d
         const unsigned int ceraPriceReq = q->m_ceraPrice;    // +0x10
         const unsigned int winPointReq = q->m_winPoint;      // +0x14
         const int goldSpend = static_cast<int>(q->m_goldPrice);  // +0x18
         const long curSec = static_cast<long>(q->m_curSec);  // +0x30
         std::vector<Inven_Item> resultItems;              // local_ec（RAII）
-        const unsigned char buyFlag = q->m_buyFlag;       // +0x34
+        // [R20a15 §26.1 读位宽/符号性直证] ORIG 0x0832201f 存槽后 5 处读点全为
+        // `movsbl -0x65(%ebp),%r`（单条符号扩展）⇒ 原码该局部是 signed char；
+        // 我方旧稿 `unsigned char` 使读点为 `movzbl -0xb5(%ebp),%eax; movsbl %al,%eax`
+        // （两段，且各调用点多 1~2 条）。改 char 后与 ORIG 同形（cmpb $1 消费点不变）。
+        const char buyFlag = q->m_buyFlag;                // +0x34
         const int characNoReq = q->m_characNo;            // +0x38
         const unsigned int accIdReq = q->m_accId;         // +0x40
 
@@ -130,7 +139,11 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         }
 
         int restrictCode = atoi(BufAt(resData, 0x173));   // local_108
-        bool success = false;
+        // [R20a15 §26.3 多余物化移除] ORIG 全函数**无 bool 槽**（movb $0x0 仅 1 处、
+        // movb $0x1 0 处；退出路径为 0x08322232 `mov $0x0,%ebx` + `jmp <尾 0x083237dc>`）
+        // ⇒ 原码各失败分支直接 `return;`，没有 `success` 具名 bool + 末尾 `if(!success)`。
+        // 旧稿 `bool success` 多出 4×movb + movzbl/xor$1 归一化（我方 .o 0x82e0253/
+        // 0x82e0913/0x82e18bb/0x82e1976 段）。
         const int errArgB = groupIdx;
         if (!(restrictCode == 1 && user != 0 && user->getCurCharacR() != 0))
         {
@@ -147,6 +160,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                  errArgB, productNo, seq, itemCountField,
                                  static_cast<char>(buyFlag));
             }
+            return;
         }
         else
         {
@@ -245,7 +259,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 CItem* src = G_CDataManager()->find_item(itemIdx);
                 if (src == 0)
                 {
-                    success = false;
+                    return;   // ORIG 无 success 槽：该失败路径直接退出
                 }
                 else
                 {
@@ -303,8 +317,10 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             }
             else if (groupIdx == 10)
             {
-                _processAdditionalItem(user, static_cast<unsigned long>(itemIdx), stackCount, avatarSelB,
-                                       avatarSelA, resultItems, itemParam, '\0');
+                _processAdditionalItem(user, static_cast<unsigned long>(itemIdx), stackCount,
+                                       static_cast<unsigned char>(avatarSelB),
+                                       static_cast<unsigned char>(avatarSelA), resultItems, itemParam,
+                                       '\0');
                 int followGroup = -1;
                 CItem* pkg = G_CDataManager()->find_item(itemIdx);
                 if (pkg != 0 && pkg->isCerashopPackageItem())
@@ -492,7 +508,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     ceraPkt.finalize( true);
                     user->Send(ceraPkt);
                 }
-                success = true;
+                // （原 success=true 删除：ORIG 成功路径无标志写）
             }
             else
             {
@@ -506,13 +522,8 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 t("[%s][%d]",
                   __PRETTY_FUNCTION__,
                   0x955);
-                success = false;
+                return;
             }
-        }
-
-        if (!success)
-        {
-            return;
         }
     }
 

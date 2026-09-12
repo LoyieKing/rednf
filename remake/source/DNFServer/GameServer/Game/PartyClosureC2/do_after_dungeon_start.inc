@@ -162,23 +162,22 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
             // ORIG +0x654 直接比较进入死块时的 eax（= dungeon 指针；32 位恒 ≠ 0x5dc）
             if ((int)reinterpret_cast<size_t>(dungeon) == 0x5dc)
             {
-                slot = user->getCurCharacInvenR()->check_vilmark_dungeon_item_exist(
-                    dungeon->m_entryRequiredItem.m_itemIdx);      // ORIG +0x660..+0x67b
-                // [M2S4 负结论] ORIG +0x683 `cmpl $-1; sete %al; test %al,%al; je`
-                // 为 4.1 独有形（bool 值留 %al 不落槽）。试过 `if (slot == -1)`：
-                // 4.4 恒产 `cmpl;jne`（2 条，比 ORIG 少 2）且整函数 687→681（−5，
-                // 离 ORIG 686 更远、非槽差异块数 9→9 不变）⇒ 回滚保留具名 bool
-                // （5 条形，多 1 条）。判据见 §6.4：our>ORIG 才走消指令方向。
-                const bool deadMissing = (slot == -1);            // ORIG +0x683
-                if (deadMissing)
+                // [R20a15 §26.3 多余物化移除] ORIG +0x683 形态 =
+                // `mov %eax,-0x24(%ebp); cmpl $0xffffffff,-0x24(%ebp); sete %al;
+                // test %al,%al; je <续>`（bool 值留 %al，**无 bool 槽**；我方旧稿
+                // 具名 `deadMissing` 多出 `mov %al,-0x22(%ebp); cmpb $0x0,-0x22(%ebp)`
+                // 两段且落 2 个 bool 槽）。两句写（`if (slot == -1)`）实测反劣
+                // （687→681，见旧注）；按 P352「赋值内嵌条件」一句写即复现 ORIG
+                // 的 setcc 物化（lvalue=槽标量 slot、比较紧随赋值）。
+                if ((slot = user->getCurCharacInvenR()->check_vilmark_dungeon_item_exist(
+                         dungeon->m_entryRequiredItem.m_itemIdx)) == -1)
                     return 0x11;
             }
             else
             {
-                slot = user->getCurCharacInvenR()->check_item_exist(
-                    dungeon->m_entryRequiredItem.m_itemIdx);      // ORIG +0x698..+0x6b3
-                const bool deadMissing = (slot == -1);            // ORIG +0x6bb（同上）
-                if (deadMissing)
+                // ORIG +0x6bb 同形（movzbl→sete 物化，无 bool 槽）。
+                if ((slot = user->getCurCharacInvenR()->check_item_exist(
+                         dungeon->m_entryRequiredItem.m_itemIdx)) == -1)
                     return 0x11;
             }
             const Inven_Item deadItem =                           // ORIG +0x6d0..+0x6fc

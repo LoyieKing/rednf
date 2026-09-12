@@ -46,7 +46,9 @@
 
 // _Charac_info 布局视图（CharacInfoFields，0x14d1）见 CUserCharacInfo.h；
 // 此处仅保留访问别名。ORIG 经完整类型直接成员寻址，本 TU 以同布局视图等价。
-int DEFAULT_MAX_FATIGUE = 0;  // ORIG 全局（0x9370f5c），原 GameStubs.cpp 定义迁移
+// ORIG 全局（0x9370f5c）：`.data` 初值 raw = 9c000000（156），全仓 0 个写点
+// ⇒ 静态初值是唯一来源（我方原为 0/B，22+ 读取点全部按 0 计算）。
+int DEFAULT_MAX_FATIGUE = 156;  // 原 GameStubs.cpp 定义迁移
 
 // 具型视图直读（CUserCharacInfo.h 匿名 union m_selView）：值 cast 触发 4.4
 // 二段拷贝（探针 /tmp/bl10/p2.cpp getE vs getF），直读复现 ORIG 单段装载。

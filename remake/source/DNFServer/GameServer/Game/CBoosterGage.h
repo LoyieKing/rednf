@@ -170,7 +170,11 @@ public:
     void inc_total_gage(int nGage);
     void sub_total_gage(int nGage);
     int get_booster_point(unsigned long dwItemIdx);
-    static int cal_booster_gage(unsigned long dwItemIdx, CUser* pUser);
+    // [R20a15 §15B/P292 直证] ORIG 本体 0x080dd134 恒返 0（`mov $0x0,%eax`），
+    // 唯一调用点 0x08674b51 `call; mov %al,-0x45(%ebp); cmpb $0x0,-0x45; je`
+    // ⇒ 单字节直存（bool）：int 声明令 4.4 多 `test %eax,%eax; setne %al`
+    // （我方旧 .o 0x88fc319 段）。返回类型不入 mangled ⇒ ABI 零风险。
+    static bool cal_booster_gage(unsigned long dwItemIdx, CUser* pUser);
     // [K7 2026-09-11 §6.5/P174 返回类型盲区] ORIG 0x08675bc5 `mov %al,-0x11(%ebp)`（bool 形参
     // 直传，无 setne 归一化）+ 0x080dd16c `mov %al,-0xd(%ebp)` + 0x080dd176 `cmpb $0x0,-0xd`
     // ⇒ 返回类型 bool（旧 `unsigned char` 令调用点多 2 条 test/setne）。返回类型不入 mangled。

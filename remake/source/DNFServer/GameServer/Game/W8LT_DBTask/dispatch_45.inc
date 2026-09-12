@@ -23,14 +23,15 @@ bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
         name);
     if (!db->exec(true))
     {
-        _sendResult(2, slot, 0, 0, 0, 0, 0, 0, 0);
-        return 1;
+        // [R20a07 §15-B 返回值语义] ORIG 0x084269b2 `call; jmp 0x08426d0d`（epilogue，
+        // 不经 `mov $1,%eax`）⇒ 原码 `return _sendResult(...)`（被调返回值直传）。
+        return _sendResult(2, slot, 0, 0, 0, 0, 0, 0, 0);
     }
 
     if (db->get_n_rows() == 0)
     {
-        _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
-        return 1;
+        // ORIG 0x08426a1d 同形 ⇒ `return _sendResult(...)`。
+        return _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
     }
     // [P5S2W8LT r2] ORIG 0x08426a2f `test %eax,%eax; setne %al; je 0x08426cb6`：
     // 第 3 次 get_n_rows 检查是**正极性**（正文 fall-through），且
@@ -44,8 +45,8 @@ bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
     int deleteFlag = 0;
     if (!db->fetch() || !db->get_int(0, deleteFlag))
     {
-        _sendResult(2, slot, 0, 0, 0, 0, 0, 0, 0);
-        return 1;
+        // ORIG 0x08426ad6 `call; jmp 0x08426d0d` 同形（§15-B）。
+        return _sendResult(2, slot, 0, 0, 0, 0, 0, 0, 0);
     }
     if (deleteFlag == 0)
     {
@@ -80,8 +81,8 @@ bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
     //   0x08426d03 的 15 块**不共享** —— 批2 的共享尾块令我方少 1 个 call 点
     //   （p167fix 报 MISSING 1，ORIG 6 处 call vs 我方 5 处）。按 ORIG 拆回独立块：
     //   执行期两条路径仍各调 1 次（无「少发包」），仅恢复 call 点布局。
-    _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
-    return 1;
+    // [R20a07 §15-B] ORIG 0x08426b34 `call; jmp 0x08426d0d`（epilogue）⇒ `return ...`。
+    return _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
     }
     _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0, 0);
     return 1;

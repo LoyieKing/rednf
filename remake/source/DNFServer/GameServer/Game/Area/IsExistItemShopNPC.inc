@@ -1,4 +1,4 @@
-unsigned char Area::IsExistItemShopNPC()
+bool Area::IsExistItemShopNPC()
 {
     return m_bExistItemShopNPC;
 }

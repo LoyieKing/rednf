@@ -134,7 +134,7 @@ public:
     int take_fish();                               // ORIG 086c21e2
     int get_area_index();                          // ORIG 086d238e（弱）
     int get_world_map_index();                     // ORIG 086d2398（弱）
-    unsigned char IsExistItemShopNPC();            // ORIG 082343aa（弱，movzbl 直返）
+    bool IsExistItemShopNPC();                     // [R20a05] bool（P292）
 
 private:
     int m_areaIndex;             // +0x00

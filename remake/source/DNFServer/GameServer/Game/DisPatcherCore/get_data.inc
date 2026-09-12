@@ -91,7 +91,11 @@ int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& p
     // ORIG 均为 `jb`（0x081be9b7/0x081be9d3/0x081be9ed/0x081bea26）⇒ 那四处保留
     // unsigned 形；GetUserPowerWarPoint 为 16 位有符号（0x081bea3c `cmp %dx,%ax; jge`）
     // ⇒ 保留 (short) 形。
-    bool insufficient =
+    // [R20a01 §26.3 多余物化] ORIG 0x081be990..0x081bea4d 该布尔链**无栈槽**
+    // （0x081bea4d `test %al,%al` 直测寄存器；失败项各 `je 0x081bea41 mov $1`），
+    // 我方具名 `bool insufficient` 多出 `mov %al,-0xd(%ebp); cmpb $0x0,-0xd(%ebp)` 两条
+    // ⇒ 改内联 if（短路链与失败出口不变）。
+    if (
         (user->getCurCharacInvenR()->get_money() < (int)param.m_80) ||
         ((unsigned int)user->GetCera() < (unsigned int)param.m_84) ||
         ((unsigned int)user->GetWinPoint() < (unsigned int)param.m_88) ||
@@ -99,8 +103,7 @@ int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& p
         ((param.m_pair.first != -1 &&
           param.m_resultItem.m_addInfo2 < param.m_pair.second)) ||
         ((unsigned int)user->GetGuildPowerWarPoint() < (unsigned int)param.m_90) ||
-        ((short)user->GetUserPowerWarPoint() < (short)param.m_94);
-    if (insufficient)
+        ((short)user->GetUserPowerWarPoint() < (short)param.m_94))
     {
         return 10;
     }

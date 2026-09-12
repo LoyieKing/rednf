@@ -102,8 +102,13 @@ void CUser::SetCharacInfo(int count, char* data)
                 info.m_tagVisibleFlags.m_flag;   // +0xe40 tagCharacVisibleFlag 首字节成员（权威名）
             dst = static_cast<unsigned char>((dst & 0xfd) | 1 | (bit * 2));
         }
-        p[0x1c04] = expireFlag;                                       // local_15
-
+        // [R20a13 2026-09-13 ④ 修复] 删 `p[0x1c04] = expireFlag;`：ORIG
+        //  0x08649c6a..0x0864a185 全函数**无**该写（ci+0xe66 的同值写唯一落在
+        //  0x08649ec1 `mov %al,-0xdaf(%ebp)`，即上方 m_fieldE66 一行）；sizeof
+        //  (_Charac_info)==0x14d1 ⇒ +0x1c04 越界。生成码 `lea 0x1c04(%eax),%edx;
+        //  mov %al,(%edx)`（我方 .o 0x824fa02）落 ebp-0x21 = 本函数 `char* p`
+        //  局部（-0x24）的**最高字节** ⇒ 破坏自身 ci 指针，随后两处
+        //  CInventory/CCargo::SetInventoryMemory(&p->…) 收野指针（内存破坏级）。
         reinterpret_cast<CInventory*>(p + 0xda)
             ->SetInventoryMemory(&m_inventoryMemory);                 // this+0x79794
         reinterpret_cast<CCargo*>(p + 0xdaa)

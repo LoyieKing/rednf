@@ -242,14 +242,18 @@ public:
     static CRijndael* s_pcryptRijndael_CharacView_;              // 0940be60
     static CRijndael* s_pcryptRijndael_Password_;                // 0940be64
     static CRijndael* s_pcryptRijndael_MousePassword_;           // 0940be68
-struct SecuCipherKeyRec  // ORIG BSS 0x940be80 起 16 字节记录（0x940be80..0x941f700 = 0x4e20×0x10）
+struct SecuCipherKeyRec  // ORIG BSS 0x940be80 起 16 字节记录（0x940be80..0x941f700 = 0x1388×0x10）
 {
     Cipher* cipher;  // +0x00
     int keyId;       // +0x04（Sanicova::CPad::GetKeyIdx(0) 读）
     int tblId;       // +0x08（Sanicova::CPad::GetKeyIdx(1) 读）
     char m_padC[4];  // +0x0c
 };
-    static SecuCipherKeyRec s_secu_cipher_keystring_manager_[0x4e20];  // 0940be80
+    // [R20-21] 元素数 = ORIG `nm -S` size 0x13880 / 步长 0x10 = 0x1388（5000）；
+    // ORIG 下一成员 s_pcryptTEA_MousePassword_ @0x941f700 = 0x940be80+0x13880 闭合；
+    // 且 InitCipherKeyString 填充上界 i<=0x1387 恰好填满。旧 [0x4e20] = 4×（BSS 多占
+    // 0x3A980 字节，且消费点 idx&0xffff ≥0x1388 时越界行为与 ORIG 分叉）。
+    static SecuCipherKeyRec s_secu_cipher_keystring_manager_[0x1388];  // 0940be80
     static CTEA* s_pcryptTEA_MousePassword_;                     // 0941f700
     static CTEA* s_pcryptTEA_SecurityCard_;                      // 0941f704
     static WongWork::CSimpleSSO* s_psimpleSSO;                   // 0941f708

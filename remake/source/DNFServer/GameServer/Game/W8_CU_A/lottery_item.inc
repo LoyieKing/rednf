@@ -59,8 +59,13 @@ int CUser::lottery_item(int slot)
     // ---- 金币奖励分支：结果项无 id 且金额>0 ----
     if (lotto.m_addInfo == 0 && lotto.m_addInfo2 > 0) {
         int moneyGain = lotto.m_addInfo2;                        // local_44
-        int limit = G_CDataManager()->GetMoneyLimitPerLevel(
-            get_charac_level(), get_acc_name());                 // local_40
+        // [R20a19 ④] ORIG 0x086735b7 `movl $0x7fffffff,-0x40(%ebp)`：原码
+        //   声明处带初值 INT_MAX（随后被 GetMoneyLimitPerLevel 结果覆盖，两写点
+        //   0x086735b7/0x086735ed —— P348「原码有初值必须照抄」）。我方原合写成
+        //   单条初始化 ⇒ 少该 store（+1 指令）。
+        int limit = 0x7fffffff;                                  // local_40
+        limit = G_CDataManager()->GetMoneyLimitPerLevel(
+            get_charac_level(), get_acc_name());
         if (getCurCharacInvenR()->get_money() + moneyGain > limit) {
             unsigned long charNo = getCurCharacNo();
             const char* accIdStr = NumberToString(get_acc_id(), 0);
@@ -334,23 +339,20 @@ int CUser::lottery_item(int slot)
     }
 
     // ---- 强化成功全服播报（含稀度上限豁免表）----
-    bool eligibleToShout = false;
+    // [R20a19 ④/§26.3] ORIG 0x08674748..0x08674813 为**寄存器物化**短路链
+    //   （`mov $0x1/%0,%eax; test %al,%al; je`，全函数 0 处 movb ⇒ 原码无具名
+    //   bool 局部）；我方原具名 bool 多出 1 条预清 + 2 条置位（movb ×3）⇒ 按
+    //   「我方多出的物化一律移除」改为单条短路表达式直作 if 条件。
     if (costTicket != NULL && resItem != NULL &&
-        costTicket->is_stackable() && costTicket->GetItemType() == 0xd) {
-        if (G_CDataManager()->m_serverParameter.m_558 <= resItem->get_rarity()) {
-            eligibleToShout = true;                       // 高稀度直接播报
-        } else if (resItem->IsAvatarItem() &&
-                   G_CDataManager()->m_serverParameter
-                       .m_55c[resItem->GetItemType()] != 0) {
-            eligibleToShout = true;                       // 表命中 avatar 特例
-        } else {
-            eligibleToShout =
-                (G_CDataManager()->m_serverParameter.m_578 <=
-                 static_cast<int>(lotto.GetUpgrade()));  // 强化等级门槛
-        }
-    }
-
-    if (eligibleToShout) {
+        costTicket->is_stackable() && costTicket->GetItemType() == 0xd &&
+        (G_CDataManager()->m_serverParameter.m_558 <=
+             resItem->get_rarity() ||                          // 高稀度直接播报
+         (resItem->IsAvatarItem() &&
+          G_CDataManager()->m_serverParameter
+              .m_55c[resItem->GetItemType()] != 0) ||          // 表命中 avatar 特例
+         G_CDataManager()->m_serverParameter.m_578 <=
+             static_cast<int>(lotto.GetUpgrade())))            // 强化等级门槛
+    {
         // [R9a20 2026-09-12 ④] 原 `(resItem != NULL && resItem->IsRandomOption())` 判空
         //   已删除：ORIG 0x086747e9 `cmp $0x1,%eax` / `je` 后直接
         //   `0x086747ee mov -0x50(%ebp),%eax; 0x086747f1 mov (%eax),%eax`（无判空）；

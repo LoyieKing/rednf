@@ -185,7 +185,11 @@ bool CDataManager::Verify() const
                 // （STStackableScript.h 循环依赖无法具名化），沿用
                 // CCeraShop_Special.cpp:409 已确立的 reinterpret_cast 模式。
                 CStackableItem* sitem = (CStackableItem*)item;
-                std::vector<STStackablePackageData>& pkgs =
+                // [R20a15 P96/P270 cv 直证] ORIG 该循环的 begin/end 是 **const** 版本
+                // （0x08361492 `_ZNKSt6vectorI22STStackablePackageDataSaIS0_EE5beginEv` /
+                // 0x083614aa `_ZNK...3endEv`）⇒ 原码 pkgs 为 const 引用；
+                // 旧稿非 const 引用使 4.4 发非 const 版本（我方 0x8343189 段）。
+                const std::vector<STStackablePackageData>& pkgs =
                     *reinterpret_cast<std::vector<STStackablePackageData>*>(
                         &sitem->m_pkg21c);  // 【CStackableItem+0x21c】
                 for (std::vector<STStackablePackageData>::const_iterator p =
@@ -214,7 +218,11 @@ bool CDataManager::Verify() const
                          const_iterator group = sel.begin();
                      group != sel.end(); ++group)
                 {
-                    const std::vector<STStackablePackageData> copy(*group);
+                    // [R20a15 P96/P270 cv 直证] ORIG 该循环 begin/end 为 **非 const**
+                    // （0x08341635 `_ZNSt6vector...3endEv`，且前后各一次
+                    // `__normal_iteratorIPKS1_...EC1IPS1_...` 转换构造）⇒ 原码 copy
+                    // 是非 const 局部（const 形恒发 const 版本、无转换构造）。
+                    std::vector<STStackablePackageData> copy(*group);
                     for (std::vector<STStackablePackageData>::const_iterator p =
                              copy.begin(), pEnd = copy.end();
                          p != pEnd; ++p)

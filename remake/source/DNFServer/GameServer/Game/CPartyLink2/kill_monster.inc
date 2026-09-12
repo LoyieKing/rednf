@@ -259,7 +259,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         // ORIG 0x085a33b2 `jne A` / 0x085a33c1 `je B`：普通份额块（A）落在前、
         // get_index()==100 / 惩罚块（B）落在后 ⇒ 按 P59 写取反 guard 形。
         if (m_battleField.m_pDungeon->m_89e != 0 ||                     // +0x89e
-            *(unsigned short*)((char*)this + 0xc4c) != 0)
+            m_battleField.m_villageMonsterId != 0)                      // this+0xc4c（ORIG 单条 movzwl）
         {
             // ORIG 复用 reward 槽（-0x3f4）作 get_mob_reward 出参且无清零。
             unsigned int mobReward;
@@ -313,7 +313,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
         // 帮助滥用比例（维度均未启用）
         if (m_battleField.m_pDungeon->m_89e != 1 &&                    // +0x89e
-            *(unsigned short*)((char*)this + 0xc4c) == 0)
+            m_battleField.m_villageMonsterId == 0)                     // this+0xc4c（ORIG 单条 movzwl）
         {
             m_member[i].m_pUser->calcHelpAbuseRatio(
                 exp, isHelpAbuseParty(m_member[i].m_pUser));

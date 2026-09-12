@@ -70,11 +70,15 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
             else if (G_GameWorld()->GetChannelType() == 0xe)
             {
                 // [回滚记录 b28d-h9] 同 ok：去 bool 槽改内联实测劣化 ⇒ 回滚。
+                // [R20a06 2026-09-13] §26.1 位宽族：ORIG 0x0841219f/0x084121cc 两处
+                //   均为 `cmp $0x1,%al`（8 位比较），我方原为 `cmp $0x1,%eax`（32 位）
+                //   ⇒ 低字节==1 而值>255 时分叉。探针实测 4.4 `(unsigned char)f()==1`
+                //   产 `cmp $0x1,%al`（与 ORIG 同形）。
                 bool pass =
                     (it->m_eventId == 0xa02a &&
-                     online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() == 1) ||
+                     (unsigned char)online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() == 1) ||
                     (it->m_eventId == 0xa02b &&
-                     online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() != 1);
+                     (unsigned char)online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() != 1);
                 if (!pass)
                 {
                     continue;

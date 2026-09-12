@@ -12,12 +12,16 @@
 void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
 {
     (void)flag;
-    int treeIdx = GetCurCharacSkillTreeIndex();
+    // ORIG 0x0866afa2：treeIdx 仅在非 guild 路径求值（0x0866b1b9 首次调用），
+    // guild 路径不调用 ⇒ 赋值下沉到 else 分支（§26.2 支配序复刻；槽位不变）。
+    int treeIdx;
     unsigned char skillIdx = (unsigned char)info.m_skillIdx;
     int ret;
-    int learnCnt = 0;
-    int needGold = 0;
-    short needGSP = 0;
+    // ORIG 0x0866b0da/+00e1/+00e8：三个出参槽（-0x36/-0x24/-0x34）**无预清零**，
+    // lea 直传未初始化槽给 master_new_guild_skill（§26.3：不得补默认值）。
+    int learnCnt;
+    int needGold;
+    short needGSP;
     bool isGuildSkill = (skillIdx >= 0xc8 && skillIdx <= 0xd0);
     // 2026-09-11 R5 负结论（P183「删具名缓存⇒逐使用点重读」实测**净劣化**，已回滚）：
     //   按「ORIG 0x0866afa2 段 9× `movzbl 0x1(%eax),%eax`（重读 info.m_skillIdx）」
@@ -65,6 +69,7 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
     }
     else
     {
+        treeIdx = GetCurCharacSkillTreeIndex();
         if (treeIdx == -1 || treeIdx == 0)
         {
             if (info.m_field0 == 1)

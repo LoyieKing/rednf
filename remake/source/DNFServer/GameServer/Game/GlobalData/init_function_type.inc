@@ -13,10 +13,21 @@ void StackableAction::Action::init_function_type()
     //   0x0827f95c `movzbl -0xd9(%ebp),%ebx; mov %bl,0x10(%esp)`。
     //   本头集 `boost::_1` 编译失败（前轮实证）⇒ 维持 N 封顶。
     using boost::arg;
+    // [R20a15 试形] 针对 p167 EXTRA `boost::arg<1>::C1Ev`×3：ORIG 侧占位符是
+    // **未初始化字节槽直传**（0x0827f893 `movzbl -0xe9(%ebp),%eax; mov %al,0x10(%esp)`
+    // / 0x0827f95c 同形，**无 ctor call**）；`arg<1>()` 会令 4.4 对空体 ctor 发 call
+    // （P215：4.4 恒 call）。改用未初始化 POD 字节 + reinterpret 成 arg<1> 右值传值
+    // （隐式拷贝构造 trivial，零 call），值语义与 ORIG 一致（占位符值不被使用）。
+    unsigned char argRaw1;
+    unsigned char argRaw2;
+    unsigned char argRaw3;
     m_map2.insert(std::make_pair(TYPE_BINGO,
-        boost::bind(&Action::proc_bingo, this, arg<1>())));
+        boost::bind(&Action::proc_bingo, this,
+                    *reinterpret_cast<arg<1>*>(&argRaw1))));
     m_map2.insert(std::make_pair(TYPE_LOTTERY_COUNT,
-        boost::bind(&Action::proc_lotteryCount, this, arg<1>())));
+        boost::bind(&Action::proc_lotteryCount, this,
+                    *reinterpret_cast<arg<1>*>(&argRaw2))));
     m_map2.insert(std::make_pair(TYPE_ADD_FATIGUE,
-        boost::bind(&Action::proc_addFatigue, this, arg<1>())));
+        boost::bind(&Action::proc_addFatigue, this,
+                    *reinterpret_cast<arg<1>*>(&argRaw3))));
 }

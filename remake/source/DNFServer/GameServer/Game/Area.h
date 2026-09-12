@@ -62,7 +62,7 @@ public:
     int take_fish();                               // ORIG 086c21e2
     int get_area_index();                          // ORIG 086d238e（弱）
     int get_world_map_index();                     // ORIG 086d2398（弱）
-    unsigned char IsExistItemShopNPC();            // ORIG 082343aa（弱，movzbl 直返）
+    bool IsExistItemShopNPC();                     // ORIG 082343aa（弱，movzbl 直返）
 
     // 成员：ORIG 为跨 TU 直接访问（Village::get_gate_area 读 m_areaType、
     // GameWorld 读 m_mapAreas/m_field68/m_field6c），故公开。

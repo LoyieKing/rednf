@@ -11,6 +11,10 @@ bool DB_LoadPowerWarStatueInfo::GetAvatarInfo(
     static const int handleIdx = 3;
     char buf[0x37a] = { '\0' };          // ORIG rep stos 清零（P4）
     unsigned int originalSize = 0x37a;
+    // [R20a07 §26.3/P244] ORIG 0x08434d96/0x08434d9c `mov -0xb8(%ebp),%eax;
+    // mov %eax,-0x34(%ebp)`：dbSize 以 originalSize 初始化（ORIG 原码的死存储，
+    // 值随即被 get_binary_length 覆盖）⇒ 按两句式复刻（单条初始化式会丢该物化）。
+    int dbSize = originalSize;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx, E_SERVER_GROUP_NONE);
     db->set_query("seLect equipslot from inventory where charac_no=%u", characNo);
     if (!db->exec(true) || !db->fetch())
@@ -24,7 +28,7 @@ bool DB_LoadPowerWarStatueInfo::GetAvatarInfo(
     Inven_Item items[22];                // ORIG 构造 0x15→-1 共 22 次（P34）
     int rows[0x73][3];                   // slot/it_id/clear_avatar_id × 115
     memset(rows, 0, sizeof(rows));
-    int dbSize = db->get_binary_length(0);
+    dbSize = db->get_binary_length(0);
     if (!db->get_binary(0, buf, 0x37a))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x7f15, 5);

@@ -344,25 +344,32 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
 
     GlobalData::s_BreakAwaySys->updateUsedCera(user->get_acc_id(), ceraPrice);
 
-    unsigned long long billUid =
-        resData->m_cmd.m_output.m_tranNo;   // ull@+0x1e0（两 dword 拼接即此字段，TaiwanCash.h 实证）
+    // [R20a16 ④ §26.2/§26.3 求值次数/支配序] ORIG **无** billUid 具名局部：4 个调用点各自
+    //   重读 m_tranNo（ull@+0x1e0，两 dword 拼接）——ORIG 0x081796e0/e6（BillingRecord,
+    //   buytype==1）、0x0817975b/61（BuyCashShopItem, buytype==1）、0x081797be/c4
+    //   （BillingRecord, else=reqData）、0x08179839/3f（BuyCashShopItem, else）。
+    //   我方旧写具名 `unsigned long long billUid` 只读 1 次（.o 0x83bd99e..0x83bd9b0 存
+    //   -0x30/-0x2c，两调用点从槽回读）⇒ 两次读之间若字段被改写则分叉。按 P0/P183
+    //   「ORIG 直读 ⇒ 删我方缓存、表达式内联」逐点展开。
     cUserHistoryLog* history = &user->m_historyLog;
     if (buytype == 1)
     {
         BillingRecord(user, (int)productNo, -1, (int)ceraPrice,
                       resData->m_cmd.m_output.m_arg7D, resData->m_cmd.m_output.m_message,
-                      -1, billUid, buyFlag);
+                      -1, resData->m_cmd.m_output.m_tranNo, buyFlag);
         history->BuyCashShopItem(productNo, itemIdx, stackCount,
                                  resData->m_cmd.m_output.m_arg7D,
-                                 buyFlag, (CeraShopPaymentType::T)1, billUid);
+                                 buyFlag, (CeraShopPaymentType::T)1,
+                                 resData->m_cmd.m_output.m_tranNo);
     }
     else
     {
         BillingRecord(user, (int)productNo, -1, (int)ceraPrice,
                       reqData->m_cmd.m_output.m_arg7D, reqData->m_cmd.m_output.m_message,
-                      -1, billUid, buyFlag);
+                      -1, reqData->m_cmd.m_output.m_tranNo, buyFlag);
         history->BuyCashShopItem(productNo, itemIdx, stackCount,
                                  reqData->m_cmd.m_output.m_arg7D,
-                                 buyFlag, (CeraShopPaymentType::T)0, billUid);
+                                 buyFlag, (CeraShopPaymentType::T)0,
+                                 reqData->m_cmd.m_output.m_tranNo);
     }
 }

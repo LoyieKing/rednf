@@ -3047,7 +3047,9 @@ CmmChannelProxy* GlobalData::s_channel_proxy = 0;
 CRijndael* GlobalData::s_pcryptRijndael_CharacView_ = 0;
 CRijndael* GlobalData::s_pcryptRijndael_Password_ = 0;
 CRijndael* GlobalData::s_pcryptRijndael_MousePassword_ = 0;
-GlobalData::SecuCipherKeyRec GlobalData::s_secu_cipher_keystring_manager_[0x4e20] = {0};
+// [R20-21] 0x4e20(20000) → 0x1388(5000)：ORIG size 0x13880 / 步长 0x10 = 0x1388，
+// 与 s_pcryptTEA_MousePassword_@0x941f700 精确闭合（详见 GlobalData.h 该成员注释）。
+GlobalData::SecuCipherKeyRec GlobalData::s_secu_cipher_keystring_manager_[0x1388] = {0};
 CTEA* GlobalData::s_pcryptTEA_MousePassword_ = 0;
 CTEA* GlobalData::s_pcryptTEA_SecurityCard_ = 0;
 // [b22判词·N-工具名碰撞+编译器生成] idx9 __tcf_0 是本 TU 静态数组 g_SPremiumInfo[0x6a]

@@ -84,9 +84,20 @@ bool CUser::update_pvp_point(int v)   // b28c-L5 SIGFIX（P174）
         return 1;
     if (!has_within_Mission())
     {
-        if (G_GameWorld()->GetChannelType() == 0xf &&
-            acceptable_within_mission() && v > 0)
-            v = 0;
+        // [R20a11] §26.2/P360：ORIG 0x0865d5a4 段为**逐条件 setcc 物化**
+        //  （`mov $0xf,%eax` 比较后 `sete %al; test %al,%al; je`，续以
+        //    0x0865d5c6 `test %al,%al; je`、0x0865d5ca `cmpl $0x0,0xc(%ebp); jle`
+        //    直落 `movl $0x0,0xc(%ebp)`）；`&&` 链在 4.4 恒产「链首直跳 + 链尾
+        //    mov $1/jmp/mov $0/test/je 融合岛」（我方 0x0848435d..0x08484372 实测）
+        //    ⇒ 拆嵌套 if 复现逐条件物化（P360「嵌套 if 内层同形」）。
+        if (G_GameWorld()->GetChannelType() == 0xf)
+        {
+            if (acceptable_within_mission())
+            {
+                if (v > 0)
+                    v = 0;
+            }
+        }
     }
     else
     {

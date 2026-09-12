@@ -76,10 +76,13 @@ void CUser::_SaveCharacData()
         sig->m_chaosModeCount = GetCurCharacChaosModeCount();
         sig->m_chaosKillCount = GetCurCharacChaosKillCount();
         sig->m_chaosDieCount = GetCurCharacChaosDieCount();
+        // [R20a17] 赋值序 = ORIG 机器码 call 序（-O0 不重排语句）：
+        //   ORIG call#60..64 = ChaosDieTime/AssaultCount/ChaosKillTime/GetOpencoin/
+        //   LuckPoint ⇒ openFlag 原位在 assaultCount+chaosKillTime **之后**。
         sig->m_chaosDieTime = GetCurCharacChaosDieTime();
-        sig->m_openFlag = GetOpencoin();
         sig->m_assaultCount = GetAssaultCount();
         sig->m_chaosKillTime = GetCurCharacChaosKillTime();
+        sig->m_openFlag = GetOpencoin();
         sig->m_luckPoint = GetCurCharacLuckPoint();
         sig->m_dungeonPlayCount = GetCurCharacDungeonPlayCount();
         sig->m_expertJobExp = GetCurCharacExpertJobExp();
@@ -88,19 +91,23 @@ void CUser::_SaveCharacData()
         sig->m_villagePrev = getCurCharacVillPrev();
         sig->m_powerWarAssaultCount = GetPowerWarAssaultCount();
         sig->m_powerWarAssaultVictoryCount = GetPowerWarAssaultVictoryCount();
-        sig->m_fatigueGrownupBuff = getCurCharacFatigueGrownUpBuff();
-        sig->m_growthPowerReward = get_growth_power_reward();
-        sig->m_memberDungeonFlag = getMemberDungeonFlag();
-        sig->m_memberBonusFatigue = getCurCharacMemberBonusFatigue();
-        sig->m_lastPlayDungeonIndex = getCurCharacLastPlayDungeonIndex();
-        sig->m_chaosResponTime = GetCurCharacChaosResponTime();
-        sig->m_addEquipslotFlag = getCurEquipslotFlag();
-        sig->m_channelEquipslotSwitch = getCurChannelEquipslotSwitch();
-        sig->m_expandEquipslotSwitch = getCurExpandEquipslotSwitch();
+        // [R20a17] 段序 = ORIG call#72..84：powerwar→fatigueBuff→emotion→
+        //   skillTree→addSlotFlag→memberDungeonFlag→memberBonusFatigue→
+        //   lastPlayDungeonIndex→addEquipslotFlag→channel/expand switch→
+        //   growthPowerReward→chaosResponTime（旧形把 8 项提前到 emotion 之前）。
         sig->m_lastPlayTimePowerwar = getCurCharacLastPlayTickPowerWar();
+        sig->m_fatigueGrownupBuff = getCurCharacFatigueGrownUpBuff();
         sig->m_emotion = GetCurCharacEmotion();
         sig->m_skillTreeIndex = GetCurCharacSkillTreeIndex();
         sig->m_addSlotFlag = GetCurExEquipSlotStat();
+        sig->m_memberDungeonFlag = getMemberDungeonFlag();
+        sig->m_memberBonusFatigue = getCurCharacMemberBonusFatigue();
+        sig->m_lastPlayDungeonIndex = getCurCharacLastPlayDungeonIndex();
+        sig->m_addEquipslotFlag = getCurEquipslotFlag();
+        sig->m_channelEquipslotSwitch = getCurChannelEquipslotSwitch();
+        sig->m_expandEquipslotSwitch = getCurExpandEquipslotSwitch();
+        sig->m_growthPowerReward = get_growth_power_reward();
+        sig->m_chaosResponTime = GetCurCharacChaosResponTime();
         getCurCharacInvenW()->GetAvatarItemMgrW()->SaveEndurance();
     }
     if (sig->m_bSaveInfoSub)   // etc 块

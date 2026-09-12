@@ -328,21 +328,27 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         // 处罚信息回放 B：交易处罚类型映射
         for (int i = 0; i < pInfo->m_punishInfoCount; ++i)
         {
-            bool active = !(entry.m_endTime < GlobalData::s_systemTime_.getCurSec() &&
-                                entry.m_endTime != 0);
-            if (!active)
+            // [R20a11] §26.3/P354/P226：ORIG 0x084c6759..0x084c677d 为
+            //   `!(endTime < getCurSec() && endTime != 0)` 的**物化岛**
+            //   （`test %eax,%eax; jne; mov $1/%eax; jmp; mov $0,%eax`）后
+            //   `0x084c677d test %al,%al; 0x084c677f je 0x084c68ab` —— 全程**无栈槽**。
+            //   具名 `bool active` 使 4.4 追加 `mov %al,-0x32(%ebp)` + `movzbl` +
+            //   `xor $1,%eax`（+3 条与一槽）⇒ 改 P226 语句表达式内联（零槽）。
+            if (!({ entry.m_endTime < GlobalData::s_systemTime_.getCurSec() &&
+                    entry.m_endTime != 0; }))
             {
-                continue;
-            }
-            switch (entry.m_type)
-            {
-            case 4:   user->SetTradePunishType(8);   break;
-            case 0xb: user->SetTradePunishType(1);   break;
-            case 0xc: user->SetTradePunishType(4);   break;
-            case 0xd: user->SetTradePunishType(0x20); break;
-            case 0xe: user->SetTradePunishType(2);   break;
-            case 0x67:user->SetTradePunishType(0x80); break;
-            default: break;
+                // [R20a11] §26.2 求值序/条件支配：ORIG 0x084c67a1..0x084c68ab 为
+                //   **6 个独立 if**（每个各自重算 m_punishInfos[i] 地址并重读
+                //   m_type：0x84c677f/0x84c67b6/0x84c67e7/0x84c6818/0x84c6849/
+                //   0x84c687a 各一组 `imul/shl/lea/add $0x3a54/mov (%eax),%eax/
+                //   cmp $K/jne`）；switch 决策树把 6 次读合并为 1 次 ⇒ 按 ORIG
+                //   复原为独立 if 链（ORIG 侧 `add $0x3a54` 计数 9 = 我方 4+5）。
+                if (entry.m_type == 4)    user->SetTradePunishType(8);
+                if (entry.m_type == 0xb)  user->SetTradePunishType(1);
+                if (entry.m_type == 0xc)  user->SetTradePunishType(4);
+                if (entry.m_type == 0xd)  user->SetTradePunishType(0x20);
+                if (entry.m_type == 0xe)  user->SetTradePunishType(2);
+                if (entry.m_type == 0x67) user->SetTradePunishType(0x80);
             }
         }
 #undef entry

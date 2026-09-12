@@ -175,12 +175,12 @@ void CUser::increase_status(short slotNo)
     case 3: case 0x1c: case 0x6d: case 0xa1: case 0xa2:
     case 0x394: case 0x3c0: case 0x3c3: case 0x4b6: case 0x4e5: case 0x28982c:
     {
-                    unsigned char errSecu =
-                        (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                    int errSecu =
+                        GlobalData::s_pSecuProtectionField->Check(
                             this, (SECURITY_PROTCTION)0x2c);
                     if (errSecu != 0)
         {
-                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, (unsigned char)errSecu, packet);
                         return;  // L086686d4
         }
                     if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
@@ -234,12 +234,12 @@ void CUser::increase_status(short slotNo)
                     SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
             return;
         }
-            unsigned char errSecu =
-                (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+            int errSecu =
+                GlobalData::s_pSecuProtectionField->Check(
                     this, (SECURITY_PROTCTION)0x2c);
             if (errSecu != 0)
         {
-                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, (unsigned char)errSecu, packet);
             return;
         }
             if (!WongWork::CSkillChanger::CheckCondition(this))
@@ -258,12 +258,12 @@ void CUser::increase_status(short slotNo)
             return;
         }
         {
-            unsigned char errSecu =
-                (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+            int errSecu =
+                GlobalData::s_pSecuProtectionField->Check(
                     this, (SECURITY_PROTCTION)0x2c);
             if (errSecu != 0)
             {
-                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, (unsigned char)errSecu, packet);
                 return;
             }
         }

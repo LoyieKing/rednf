@@ -46,10 +46,12 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
     //   `_ZN5CUser21multibox_lottery_itemEii` **1017→1024（+7 劣化）**、TU 四数
     //   27/71/0/5 不变 ⇒ 4.4 对 char 局部 + `!=0` 反产符号扩展/回读链（ORIG 的
     //   `cmpb $0x0,槽` 单条不可复现）⇒ 按「gap 不改善即回滚」恢复 bool 形式。
+    // [R20a15 §15B] cal_booster_gage 改 bool 后去掉 `!= 0`（ORIG 0x08674b51 段
+    // 为单字节直存 `mov %al,-0x45(%ebp); cmpb $0x0,-0x45; je`，无 test/setne）。
     const bool isFirst =
         reinterpret_cast<CBoosterGage*>(
                     GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
-            ->cal_booster_gage(boxItemId, this) != 0;
+            ->cal_booster_gage(boxItemId, this);
     if (isFirst) {
         reinterpret_cast<CBoosterGage*>(
                     GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))

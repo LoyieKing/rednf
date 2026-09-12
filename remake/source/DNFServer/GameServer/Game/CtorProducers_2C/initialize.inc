@@ -48,7 +48,11 @@ bool CItemGeneratorMgr::initialize()
         // je（0x08533eb9 / 0x08533f18 / 0x08533f77 / 0x08533fd1 / 0x08534030 /
         // 0x0853408a / 0x085340e4 / 0x08534135 实证）；4.4 裸 if 产直 je，P225 的
         // `while (line != 0) { throw line; break; }` 精确复现 setne 物化形。
-        int line = static_cast<CMonsterDrop*>(m_generators[0])->loadScript(
+        // [R20a07 §26.3 / P198①] ORIG 0x08533e86 在**首个** loadScript 调用前发
+        // `movl $0x0,-0x24(%ebp)`（预清），其后 7 处调用点只有 `mov %eax,-0x24` ⇒
+        // 原码是「先声明后赋值」两句式（合写初始化式会丢该预清行）。
+        int line = 0;
+        line = static_cast<CMonsterDrop*>(m_generators[0])->loadScript(
             "Etc/ItemDropInfo_Monseter.etc",
             "Etc/ItemDropInfo_Monster_Hell.etc",
             "Etc/ItemDropInfo_Monseter_Extra.etc");                       // T 0x085380fa 直呼

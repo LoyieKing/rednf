@@ -59,7 +59,10 @@ int PI_GetType_SC(char type, short value)
 // add %edx,%eax`）；维持 P211 static 装载序 + add/lea 跨版本封顶。
 unsigned int Rand_r(unsigned int* seed)
 {
-    static unsigned int staticSeed = 0;  // ORIG _ZZ6Rand_rPjE10staticSeed 0x0936e480
+    // ORIG _ZZ6Rand_rPjE10staticSeed 0x0936e480：`.data` 初值 raw = b1 7f 39 05
+    // = 87654321（R20scanEC raw 复核）。NULL 分支 staticSeed += timeGetTime() 参与种子链，
+    // 初值 0 会改变随机序列。
+    static unsigned int staticSeed = 87654321u;
     if (seed == 0)
     {
         // [b28c-lane24] ORIG 0x0808bc82：`call timeGetTime; mov %eax,%edx;

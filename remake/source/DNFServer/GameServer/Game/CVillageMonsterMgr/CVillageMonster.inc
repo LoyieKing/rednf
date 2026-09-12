@@ -8,7 +8,9 @@ village_attacked::CVillageMonster::CVillageMonster(
     unsigned short id, int x, int y, int slot,
     village_attacked::CVillageMonsterArea* area, int field20, int field24)
 {
-    static int uid_seed = 0;   // ORIG d 0x093ace54（函数内静态）
+    // ORIG d 0x093ace54：`.data` 初值 raw = 01 00 00 00 = 1（R20scanEC raw 复核；
+    // 两侧写点行为一致，初值决定首只怪 m_id：ORIG=1 且守卫避免 0，我方原 0 会把 0 当 id）。
+    static int uid_seed = 1;
     m_area = area;
     m_id = (unsigned short)uid_seed++;
     if (uid_seed == 0)

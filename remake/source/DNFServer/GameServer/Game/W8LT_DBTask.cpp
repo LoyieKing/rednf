@@ -1538,8 +1538,12 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
     // ORIG T 0x08426e04 _ZN21DB_ReqQueryCharacInfo11_sendResultEiiPKciiiiii
     //（定义 OrigDBInter19.cpp；本 TU 仅声明供 dispatch 调用）
-    int _sendResult(int errCode, int slot, char const* name, int characNo,
-                    int job, int lev, int growType, int sex, int field2e);
+    // [R20a07 §26/P292-T3] 返回类型 int→bool：ORIG dispatch 四处失败路径为
+    // `call _sendResult; jmp <epilogue>`（无 test/setne 归一化）⇒ 4.1 视其返回
+    // bool（int callee 在 bool 上下文必生 test/setne，P292 探针）；返回类型不入
+    // mangled ⇒ ABI/符号零影响。声明须与 OrigDBInter19.cpp/定义同步。
+    bool _sendResult(int errCode, int slot, char const* name, int characNo,
+                     int job, int lev, int growType, int sex, int field2e);
     // ORIG T 0x08426f46 _ZN21DB_ReqQueryCharacInfo17_getGiftRecvCountEj（本文件实现）
     int _getGiftRecvCount(unsigned int mId);
 };   // ORIG C1 0x844e65a (sz 0x4: base ctor+vptr only)

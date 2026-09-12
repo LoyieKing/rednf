@@ -125,8 +125,11 @@ class DB_ReqQueryCharacInfo : public DBDispatcher
 {
 public:
     DB_ReqQueryCharacInfo() {}
-    int _sendResult(int errCode, int slot, char const* name, int characNo,
-                    int job, int lev, int growType, int sex, int field2e);
+    // [R20a07 §26/P292-T3] int→bool（与 W8LT_DBTask.cpp 声明同步；ORIG
+    // 0x084269b2/0x08426a1d/0x08426ad6/0x08426b34 调用点 `call; jmp epilogue`
+    // 无归一化 ⇒ bool callee）。返回类型不入 mangled。
+    bool _sendResult(int errCode, int slot, char const* name, int characNo,
+                     int job, int lev, int growType, int sex, int field2e);
 };
 
 #include "OrigDBInter19/_sendResult_1.inc"
