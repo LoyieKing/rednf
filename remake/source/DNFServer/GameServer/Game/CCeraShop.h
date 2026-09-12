@@ -92,7 +92,10 @@ public:
                                unsigned int stackCount, unsigned short expiry,
                                unsigned char selByte, unsigned short selSlot);  // 0x08323f86
     bool _CheckValidCount(CCeraShopGoods const** goodsList);                       // 0x08323af4
-    int _CheckConditionPutonAvatar(CUser* user);                               // 0x08324966
+    // [R8a03 2026-09-12 · P292/P315 档①] ORIG 0x08323f86 case1（`call
+    // _CheckConditionPutonAvatar; jmp 出口`，**无** test/setne 归一）⇒ 返回类型 bool
+    // （_CheckBuyingCondition 本身为 bool；int 形会多 `test %eax,%eax; setne %al` 2 条）。
+    bool _CheckConditionPutonAvatar(CUser* user);                              // 0x08324966
     bool ProcessSpecialItem(CUser* user, int itemIdx, int count, int& restrictCode,
                             long curSec, bool flag,
                             std::vector<Inven_Item>& items,

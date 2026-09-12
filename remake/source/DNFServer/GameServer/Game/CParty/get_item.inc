@@ -189,15 +189,10 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                         pct = 4; break;
                     case 0x28e4a8:
                         pct = 5; break;
-                    default:
-                        pct = 0; break;
                     }
-                    if (pct != 0)
-                    {
-                        int extra = (gainBase * pct) / 100;
-                        bonusGold += extra;
-                        gain += extra;
-                    }
+                    int extra = (gainBase * pct) / 100;
+                    bonusGold += extra;
+                    gain += extra;
 
                     Inven_Item pet2 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 19);
                     if (pet2.m_addInfo == 0x5e7f)
@@ -378,15 +373,10 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                         pct = 4; break;
                     case 0x28e4a8:
                         pct = 5; break;
-                    default:
-                        pct = 0; break;
                     }
-                    if (pct != 0)
-                    {
-                        int extra = (gainBase * pct) / 100;
-                        bonusGold += extra;
-                        gain += extra;
-                    }
+                    int extra = (gainBase * pct) / 100;
+                    bonusGold += extra;
+                    gain += extra;
 
                     Inven_Item pet2 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 19);
                     if (pet2.m_addInfo == 0x5e7f)

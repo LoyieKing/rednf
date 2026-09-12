@@ -20,8 +20,7 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
             user->SendCashData(true);
         }
         else if (pPkt->m_1d == 6)
-        {   // 点数查询结果：经 CIPGHelper 虚槽 +0x2c 回填（类未建模——asm 桥残留保留，按 §8 协议待建模清理）
-            typedef void (*QueryFn)(void*, CUser*, int);
+        {   // 点数查询结果：经 CIPGHelper 虚槽 +0x2c = IIPGHelperInterface slot11 IPGQuery(CUser*)
             // [K3 2026-09-11] P0：ORIG 084ceb87 段把 s_pIPGHelper 全局地址读两次、query 只在
             //   %ecx 中转，无 helper 槽（旧稿 `void* helper` 多 2 条槽往返）。
             // [R5a01 2026-09-12 · ④ 真语义 bug] 旧码 `*(QueryFn*)((*(void***)g)[0x2c/4])` **多一层
@@ -30,9 +29,12 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
             //   0x084ceba2 `call *%ecx`。旧码 3 层 ⇒ 把函数指针的值当地址再取一次首 4 字节 ⇒
             //   间接调用目标错。改单层 + 内联进调用表达式（同
             //   TimerDispatcher/dispatch_sig_92.inc 已修先例）。
-            (*reinterpret_cast<QueryFn*>(
-                *reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0x2c))(
-                    GlobalData::s_pIPGHelper, user, 10);
+            // [R8a03 2026-09-12 · ④ 真语义 bug] 旧稿手写 `QueryFn(void*,CUser*,int)` 压 **3** 个
+            //   实参（多传 `10`）；ORIG 0x084ceb87..0x084ceba2 只压 2 槽（this=s_pIPGHelper、
+            //   user）⇒ 无 `0x8(%esp)` 写；vtable 0x08b420a8+0x2c = 0x08100790 =
+            //   _ZN8WongWork3IPG10CIPGHelper8IPGQueryEP5CUser（**单参**铁证）⇒ 多传实参改变
+            //   被调方可见栈约定。改真实虚成员调用（P5 虚槽直调形；同 dispatch_sig_27/28.inc）。
+            GlobalData::s_pIPGHelper->IPGQuery(user);
             // P328⑩/P227：ORIG 0x84ceba4..0x84cebea 先求 msg+0xb3→槽、m_b2→%edi、
             // msg+0x64→%esi、msg+0x3c→%ebx 再 ctor ⇒ 全表达式临时链。
             cMyTrace(__PRETTY_FUNCTION__, 0x2b65, 0)(

@@ -1129,9 +1129,13 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     else if (args[0] == "bossdifficult")
     {
         char v = static_cast<char>(StringToNumber(args[1].c_str()));
-        // ORIG 仅 `cmpb $0x4,-0x5d; jg`（0x796cc = m_gmBossDifficulty）——无下界检查
-        //   与 `cmpb $0x0`/`jle`，故我方旧形 `v > '\0' &&` 是**发明校验**（删）。
-        if (v < '\x05')
+        // [R8a01 2026-09-12 ④修正] ORIG 0x082122aa..0x082122bb **双独立守卫**：
+        //   `mov %al,-0x5d(%ebp); cmpb $0x0,-0x5d(%ebp); jle 0x08213440(fail)`
+        //   +`cmpb $0x4,-0x5d(%ebp); jg 0x08213440(fail)` ⇒ 下界 0 与上界 4 都在，
+        //   两跳同落统一失败出口（0x796cc = m_gmBossDifficulty）。
+        //   旧注释「ORIG 无下界检查」系误断（#18 推断注释），已删去 `v > '\0'` 的
+        //   行为会放过 0/负值 ⇒ 恢复 ORIG 双边界。
+        if (v > '\0' && v < '\x05')
             user->m_gmBossDifficulty = v;              // +0x796cc
     }
     else if (args[0] == "bossmap")
@@ -1207,7 +1211,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         else if (args[1] == "realmode")
         {
             APSystem::CActionPointManager::_IsGMOn = 0;
-            APSystem::CActionPointManager::_gmWeekday.m_weekday = 0;
+            // [R8a01 2026-09-12 ④修正] ORIG 0x08212791/0x08212798 双**字节**清零：
+            //   `movb $0x0,0x93ff07c`(= _IsGMOn, nm 实证) +
+            //   `movb $0x0,0x937008c`(= _gmWeekday.m_gmOn，即 _gmWeekdayE+0x0)。
+            //   旧形写 m_weekday(+0x4, dword) 是**字段错位**（0x9161664/_gmWeekdayE+0x4）。
+            APSystem::CActionPointManager::_gmWeekday.m_gmOn = 0;
         }
         else if (args[1] == "week")
         {

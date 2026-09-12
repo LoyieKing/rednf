@@ -56,6 +56,30 @@ case "$src" in
         done
         # shellcheck disable=SC2086
         set -- $_newargs ;;
+    # [R8a01 2026-09-12 · i486 轴 · P0.1 必守程序已过（Main 批准）]
+    #   CBattle_Field：ORIG 档**无 CMOV** 实证 —— `CBattle_Field::set_dungeon_diff`
+    #   ORIG 0x0830ed21..0x0830ed2d = `movzbl 0xc(%ebp),%edx; cmp $0x4,%edx;
+    #   jbe +0x10; push $0x4; pop %edx; nop`（MIN_EXPR 的 4.1 条件跳转 lowering），
+    #   而 4.4.7 默认档产 `cmova %edx,%eax`（P230①：`-march=i486` 消 cmov/MIN_EXPR 族）。
+    #   本分支 = 原大队列 446h46 档（4.4.6 cc1plus + 4.4.6 头集原位替换）**再叠**
+    #   `-march=i486 -mtune=generic`（两者正交；`-mtune=generic` 必须同带）。
+    #   A/B（唯一变量 = +i486）与符号集/抽验见 /tmp/verify357/R8a01/report.md §④-构建档位修正。
+    *Game/CBattle_Field.cpp)
+        _newargs="-B${ROOT}/cc1plus446bin/ -march=i486 -mtune=generic"
+        _swapped=""
+        for _a in "$@"; do
+            case "$_a" in
+                *c++/4.4.7*)
+                    if [ -z "$_swapped" ]; then
+                        _swapped=1
+                        _newargs="$_newargs -isystem${H46} -isystem${H46}/x86_64-redhat-linux -isystem${H46}/backward"
+                    fi
+                    continue ;;
+            esac
+            _newargs="$_newargs $_a"
+        done
+        # shellcheck disable=SC2086
+        set -- $_newargs ;;
     *Game/ARAD.cpp | \
             *Game/Action.cpp | \
             *Game/AdditionalEffectData.cpp | \
@@ -87,7 +111,6 @@ case "$src" in
             *Game/CAchievement.cpp | \
             *Game/CAssaultMgr.cpp | \
             *Game/CAuctionAveragePrice.cpp | \
-            *Game/CBattle_Field.cpp | \
             *Game/CBingoTest.cpp | \
             *Game/CBloodDungeonRewardEvents.cpp | \
             *Game/CBoosterGage.cpp | \

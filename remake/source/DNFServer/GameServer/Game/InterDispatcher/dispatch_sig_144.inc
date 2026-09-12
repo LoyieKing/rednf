@@ -170,8 +170,19 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             pck.item_info.m_seal = false;                               // ORIG local_14f = 0
             pck.item_info.m_itemId = itemId;                            // ORIG local_14e = msg+0x0d
             pck.item_info.m_attr = 0;                             // ORIG local_145 = 0
-            strncpy(pck.owner_nexon_id, user->get_acc_name(),
-                    strlen(user->get_acc_name()));                     // ORIG 形：strncpy(dst,acc,strlen)（不补 \0）
+            // [R8a20 2026-09-12 ④ · §13 #32 守卫体配对] ORIG 0x084d5ebd..0x084d5ec5 在 strncpy
+            //   前**另有一道 `pPkt->m_0 == 1` 守卫**：`mov -0x68(%ebp),%eax; mov (%eax),%eax;
+            //   cmp $0x1,%eax; jne 0x084d5f02`（+0x5d2 = 0x084d5f02 = SendPacket 序列首条
+            //   `mov 0x940be4c,%eax`）⇒ **守卫只包 strncpy**（0x084d5ec7..0x084d5efd：
+            //   get_acc_name/strlen/get_acc_name/strncpy），`SendPacket`（0x084d5f02..0x084d5f14）
+            //   在守卫外、恒执行。该守卫与段首 `if (pPkt->m_0 != 1) → err 0x93/return` 重复
+            //   （彼时已保证 m_0==1），即 ORIG 的**冗余防御守卫**；按用户「完全复刻 ORIG 逻辑
+            //   （即使是错误的逻辑）」补回（我方此前 strncpy 无守卫 ⇒ taken/fall 调用集配对不一致）。
+            if (pPkt->m_0 == 1)
+            {
+                strncpy(pck.owner_nexon_id, user->get_acc_name(),
+                        strlen(user->get_acc_name()));                 // ORIG 形：strncpy(dst,acc,strlen)（不补 \0）
+            }
             GlobalData::s_cera_auction_proxy->SendPacket(&pck);
             return 0;
         }

@@ -62,7 +62,11 @@ bool importSeriaRoomDecoEventObjectList(seriaRoomDecoEventObjectListScript* s,
                             {
                                 std::allocator<char> alloc;
                                 std::string tmp(tmpStr.c_str(), alloc);
-                                info.m_ramdomAnimations.push_back(std::move(tmp));
+                                // [R8scan29b · #29] ORIG 无 `_ZSt4moveIRSsE…OS2_` 实例
+                                //   ⇒ 原码用 static_cast<std::string&&>（P234），
+                                //   4.4 对 std::move 会发射 out-of-line 实例我方才多。
+                                info.m_ramdomAnimations.push_back(
+                                    static_cast<std::string&&>(tmp));
                             }
                         }
                         else if (token == "[/object index]")
@@ -70,8 +74,13 @@ bool importSeriaRoomDecoEventObjectList(seriaRoomDecoEventObjectListScript* s,
                             inObject = false;
                             if (key != -1)
                             {
+                                // [R8scan29b · #29] ORIG 调用目标 =
+                                //   `_ZSt9make_pairIi19seriaDecoObjectInfoE…OS3_OS6_`
+                                //   （模板实参为**值**类型、形参 &&）⇒ 两实参都是右值；
+                                //   我方左值形选中 `IRiR19seriaDecoObjectInfo`。
                                 s->m_map.insert(
-                                    std::make_pair(key, info));
+                                    std::make_pair(static_cast<int>(key),
+                                                   static_cast<seriaDecoObjectInfo&&>(info)));
                             }
                         }
                     }

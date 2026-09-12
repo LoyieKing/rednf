@@ -637,10 +637,11 @@ struct stPvPTempTable_t
 {
     // 2026-08-31：ORIG 元素 sizeof 16（new_allocator 16B；dispatch push_back
     // 自栈 characNo 起整拷 16B = SQL 行 4 字段）。原仅 m_characNo（4B）——补全。
-    int m_characNo;        // +0x00（DB_UpdatePvPGrade::dispatch 唯一消费字段）
+    unsigned int m_characNo;   // +0x00（DB_UpdatePvPGrade::dispatch 唯一消费字段；
+    //   ORIG get_uint(0,&base+0) ⇒ 无符号）
     int m_pvpGrade;        // +0x04（SQL 列 1）
     int m_pvpPoint;        // +0x08（SQL 列 2）
-    int m_lastPlay;        // +0x0c（SQL 列 3）
+    unsigned int m_lastPlay;   // +0x0c（SQL 列 3；ORIG get_uint(3,&base+0xc)）
     // [P5·2026-09-11] 显式 `~stPvPTempTable_t();` 已删（P3 的 UsedFatigueRewardItem::Data
     //   同源修法）：ORIG `_ZSt22__copy_move_backward_a…` 走 **ILb1**（`movb $0x1,-0x9(%ebp)`
     //   + `call __copy_move_backwardILb1ELb1E`）⇒ ORIG 该类型是隐式 trivial 析构；全 ELF 内
@@ -4978,40 +4979,42 @@ char* getList2inQuery(const std::vector<int>& list, char* out)
     std::vector<int> lists[2];    // [0] 扣减列表 @ -0x90 / [1] 置回列表 @ -0x84
     int refPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(
         GlobalData::s_ref_pvp_grade->getPvPExpLossGrade());
-    // SQL 行字段（ORIG 声明序先于 rate 数组，直传槽给 get_uint/get_int）。
-    unsigned int characNo;
-    int pvpGrade;
-    int pvpPoint;
-    unsigned int lastPlay;
+    // SQL 行对象：ORIG 是**单个 16B stPvPTempTable_t** —— 四处读取目标地址
+    // 连续递增（get_uint(0)→base+0 @0x08428cd7、get_int(1)→+4 @0x08428d05、
+    // get_int(2)→+8 @0x08428d36、get_uint(3)→+0xc @0x08428d67，base=-0xb8），
+    // push_back 传 &base @0x08428e79。旧版拆成 4 个独立标量，4.4 在栈上递减分配
+    // （-0x94/-0x98/-0x9c/-0xa0）⇒ `*(stPvPTempTable_t*)&characNo` 越界读 16B，
+    // 元素后 12B 取自相邻槽（refPoint 等），与 ORIG 数据不符。
+    stPvPTempTable_t row;
     unsigned int i = 0;
     while (i < (unsigned int)db->get_n_rows())
     {
         if (db->fetch() != 1)
             return 0;
-        if (!db->get_uint(0, characNo))
+        if (!db->get_uint(0, row.m_characNo))
             return 0;
-        if (!db->get_int(1, pvpGrade))
+        if (!db->get_int(1, row.m_pvpGrade))
             return 0;
-        if (!db->get_int(2, pvpPoint))
+        if (!db->get_int(2, row.m_pvpPoint))
             return 0;
-        if (!db->get_uint(3, lastPlay))
+        if (!db->get_uint(3, row.m_lastPlay))
             return 0;
-        if (GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() <= pvpGrade &&
-            (int)lastPlay <= limitTime && refPoint < pvpPoint)
+        if (GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() <= row.m_pvpGrade &&
+            (int)row.m_lastPlay <= limitTime && refPoint < row.m_pvpPoint)
         {
             if (GlobalData::s_ref_pvp_grade->getPvPExpLossExp() + refPoint <
-                pvpPoint)
+                row.m_pvpPoint)
                 // [b28d-solo] P270：ORIG 调 push_back(int&&)（EOi），
                 // 值传选中 const& 版本 ⇒ 显式右值 cast。
-                lists[0].push_back(static_cast<int&&>((int)characNo));
+                lists[0].push_back(static_cast<int&&>((int)row.m_characNo));
             else
-                lists[1].push_back(static_cast<int&&>((int)characNo));
-            int tmp = pvpPoint -
+                lists[1].push_back(static_cast<int&&>((int)row.m_characNo));
+            int tmp = row.m_pvpPoint -
                       GlobalData::s_ref_pvp_grade->getPvPExpLossExp();
-            pvpPoint = std::max(refPoint, tmp);
+            row.m_pvpPoint = std::max(refPoint, tmp);
         }
-        // ORIG push_back 直传 charac_no 槽（元素首 4 字节即 m_characNo）。
-        rows.push_back(*(stPvPTempTable_t*)&characNo);
+        // ORIG push_back 直传整个 16B 行对象（&base @0x08428e79）。
+        rows.push_back(row);
         ++i;
     }
 
@@ -5075,7 +5078,7 @@ char* getList2inQuery(const std::vector<int>& list, char* out)
         }
         // [b28d-solo] P270：ORIG push_back(int&&)（p167 -1 EOi/+1 ERKi）。
         gradeList[gradeIdx].push_back(
-            static_cast<int&&>(rows[k].m_characNo));
+            static_cast<int&&>((int)rows[k].m_characNo));
         --gradeLimit;
         ++k;
     }

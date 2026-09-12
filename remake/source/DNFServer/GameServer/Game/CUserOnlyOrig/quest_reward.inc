@@ -234,10 +234,17 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                                 expGain, goldGain, qpGain);
     }
 
-    ack.put_byte(q->m_triggerType & 0xff);
+    // [R8a13 ④] ORIG 0x866f9a5：`mov 0x7c(%eax),%eax; mov %eax,0x4(%esp); call put_byte`
+    //   —— 无 `and $0xff`（P162：int 字段向 put_byte(int) 传参保留 int）。
+    ack.put_byte(q->m_triggerType);
     ack.put_int(expGain);
     if (q->m_triggerType == 0 || q->m_triggerType == 0x19) {
-        if (q->m_triggerType == 0x19) {                       // 每日固定响应
+        // [R8a13 ④] 内层守卫字段：ORIG 0x866f9d8 为
+        //   `mov 0xb8(%eax),%eax; cmp $0x19,%eax; jne 0x866fa40`（Quest::m_fieldB8），
+        //   jne 目标即下方 else 块（0x866fa40 = put_byte(delObjCnt)+三元组循环）。
+        //   旧译文写 m_triggerType（+0x7c）⇒ t7c==0 && b8==0x19 与
+        //   t7c==0x19 && b8!=0x19 两条路径的报文分支互换（真语义差异）。
+        if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0x19) {  // 每日固定响应
             ack.put_byte(1);
             ack.put_byte(7);
             ack.put_short(0);
@@ -260,7 +267,9 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             }
         }
     }
-    ack.put_byte(q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ & 0xff);
+    // [R8a13 ④] ORIG 0x866fba1：`mov 0xb8(%eax),%eax; mov %eax,0x4(%esp); call put_byte`
+    //   —— 同样无 `and $0xff`（P162）。
+    ack.put_byte(q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/);
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0 && delAddObjCnt >= 0) {
         ack.put_byte(delAddObjCnt);
         // ORIG 0x866fbf2-0x866fda3:updAddQuad 实为 [INVEN_TYPE, slot, addInfo2]

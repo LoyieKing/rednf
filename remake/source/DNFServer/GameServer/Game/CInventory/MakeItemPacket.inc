@@ -53,7 +53,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             ((InterfacePacketBuf&)packet).put_short(0);
             ((InterfacePacketBuf&)packet).put_byte(0);
             ((InterfacePacketBuf&)packet).put_packet(g_emptySlot);
-            return true;
+            goto success;
         }
         if (slot == 1)
         {
@@ -67,7 +67,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             ((InterfacePacketBuf&)packet).put_short(0);
             ((InterfacePacketBuf&)packet).put_byte(0);
             ((InterfacePacketBuf&)packet).put_packet(g_emptySlot);
-            return true;
+            goto success;
         }
         if (slot == 2)
         {
@@ -81,7 +81,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             ((InterfacePacketBuf&)packet).put_short(0);
             ((InterfacePacketBuf&)packet).put_byte(0);
             ((InterfacePacketBuf&)packet).put_packet(g_emptySlot);
-            return true;
+            goto success;
         }
         if (m_pEquipSlot[slot].m_addInfo != 0)
         {
@@ -106,7 +106,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
                 m_pParent, m_pEquipSlot[slot], &packet);
             ((InterfacePacketBuf&)packet).put_packet(m_pEquipSlot[slot]);
-            return true;
+            goto success;
         }
         // ORIG 0x084fcd43：外层已判 ==0，此处重复同条件 → trace(0x758) return 0。
         // 静态不可达但 ORIG -O0 实际发射，保留以对齐逐块结构。
@@ -133,7 +133,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
         ((InterfacePacketBuf&)packet).put_byte(0);
         ((InterfacePacketBuf&)packet).put_packet(m_pEquipSlot[slot]);
-        return true;
+        goto success;
 
     case INVEN_TYPE_AVATAR:
         if (m_pAvatarSlot[slot].m_addInfo == 0)
@@ -172,7 +172,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             }
             ((InterfacePacketBuf&)packet).put_byte(0);
             ((InterfacePacketBuf&)packet).put_packet(m_pAvatarSlot[slot]);
-            return true;
+            goto success;
         }
 
     case INVEN_TYPE_CREATURE:
@@ -202,7 +202,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             }
             ((InterfacePacketBuf&)packet).put_byte(0);
             ((InterfacePacketBuf&)packet).put_packet(m_pCreatureSlot[slot]);
-            return true;
+            goto success;
         }
 
     // [b28d-tu-CInventory] 方法3 实测**反劣已回滚**：本件 switch 改书写序
@@ -269,9 +269,11 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
             m_pParent, m_invenItem[slot], &packet);
         ((InterfacePacketBuf&)packet).put_packet(m_invenItem[slot]);
-        return true;
+        goto success;
 
     default:
         return false;
     }
+success:
+    return true;
 }

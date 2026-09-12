@@ -129,10 +129,18 @@ bool Init(int argc, char** argv)
     { cMyTrace t(__PRETTY_FUNCTION__, 0x29eb, 9, false, true); t(" Success"); }
 
     { cMyTrace t(__PRETTY_FUNCTION__, 0x29f0, 9, true, true); t("[!] Init DataManager ..."); }
-    // [b28d-solo-GameMain] 真语义 bug 修：ORIG 0x82a0e7b..0x82a0ed3 检查 init 返回值
-    // （`xor $1,%eax; test %al; jmp 成功`），失败分支 ctor 行号 0x29f3 + 串
-    // "[!] Init DataManager Fail" 后返回 false；旧形丢弃返回值直接往下走。
-    if (!G_CDataManager()->init())
+    // [R8a18-v8 #16/P337 2026-09-12] 二进制热补直证：ORIG 0x82a0e7b `83 f0 01`(xor $1,%eax)
+    //   / 0x82a0e7e `84 c0`(test %al,%al) / **0x82a0e80 `eb 56`(无条件 jmp 0x82a0ed8)**
+    //   —— 正常编译产物应为 `74 56`(je)；失败块 0x82a0e82 在 Init 全函数**零入口**
+    //   （扫全区间 jcc/jmp 目标：82a0e82 仅作为指令地址出现 1 次）⇒ 运行期不可达
+    //   ⇒ ORIG 热补后行为 = **不检查** `CDataManager::init()` 返回值、恒走成功路径。
+    //   按 Main 2026-09-12 统一口径（同函数 argsFailGuard / AradAppInit 0x0817de32 / check_argv
+    //   同族）「ORIG 热补/死块 ⇒ 复刻补丁后运行时可观察行为 + 保留调用点与块内容」：
+    //   P337 恒 0 volatile 守卫使失败块运行期不可达，但 init() 调用点、行号 0x29f3 与
+    //   "[!] Init DataManager Fail" 串、return false 均照常发射（p167 调用点齐）。
+    //   副作用（= ORIG 的真实行为，非我方缺陷）：init 失败时不再 return false，继续后续初始化。
+    volatile bool dmInitGuard = false;
+    if (!G_CDataManager()->init() && dmInitGuard)
     {
         { cMyTrace t(__PRETTY_FUNCTION__, 0x29f3, 9, true, true);
           t("[!] Init DataManager Fail"); }

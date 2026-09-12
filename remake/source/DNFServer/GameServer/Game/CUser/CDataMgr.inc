@@ -33,8 +33,13 @@ charac_expand::CDataMgr::CDataMgr()
     m_pad[9] = new CExpandEquipslot();                    // new(0x89c)
     m_pad[10] = new CItemMakingSkill();                    // new(0x20)
     m_pad[11] = new CQuestShop();                                // new(0x48)
-    m_pad[12] = new CKillMonsterInfo();                    // new(0x50)
+    // [R8a20 2026-09-12 ④] 构造顺序按 ORIG 复刻：ORIG 0x0832aa56 段先构 TOD_UserState
+    //   （0x20B，存 +0x34 = m_pad[13]，0x0832aa92 `mov %edx,0x34(%eax)`）再构
+    //   CKillMonsterInfo（0x50B，存 +0x30 = m_pad[12]，0x0832aace `mov %edx,0x30(%eax)`）；
+    //   我方原按 m_pad[12]→m_pad[13] 书写（反序）⇒ 两条 new 调用链次序与 ORIG 互换。
+    //   槽位/尺寸（+0x30=0x50 kill、+0x34=0x20 TOD）两侧逐值一致，仅语句序修正。
     m_pad[13] = new TOD_UserState();                          // new(0x20)
+    m_pad[12] = new CKillMonsterInfo();                    // new(0x50)
     m_pad[14] = new CTitleBook();                                // new(0x6b58)
     m_pad[15] = new CAchievement();                            // new(0x28)
     m_pad[16] = new CItemDictionary();  // new(0x1390)；CItemDictionary 现真继承 charac_expand::CData
