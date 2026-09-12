@@ -150,8 +150,6 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
                 hellParty->m_groupMap.find(static_cast<unsigned short>(curTop));
             // ORIG 此处未检查 end()（保持原样）
 
-            fieldIdx = 0;                                 // 89e8056/89e805d 等价复位
-            slotIdx = 0;
             (&action.m_type)[fieldIdx++] = 5;             // 动作类型 5
             while (git->second.m_monsterIdx[slotIdx] > 0) // pair+0x4 数组逐槽展开
             {
@@ -164,6 +162,8 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
                 fieldIdx = 1;                             // 保留 action[0]=5
                 ++slotIdx;
             }
+            // [R27a04] ORIG 唯一复位点 = 0x89e8056/0x89e805d（循环体尾）；原我方在
+            // while 前多写一组（幂等冗余，ORIG 0x89e7f9c 前无清零）⇒ 已删。
             fieldIdx = 0;
             slotIdx = 0;
         }

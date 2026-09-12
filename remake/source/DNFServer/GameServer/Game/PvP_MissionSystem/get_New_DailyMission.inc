@@ -126,7 +126,11 @@ void PvP_MissionSystem::get_New_DailyMission(
             for (std::vector<std::pair<unsigned int, unsigned int> >::size_type
                      m = 0; m < out.size(); ++m)
             {
-                char buf[0x110];
+                // [R27a13 2026-09-13 ④尺寸轴] ORIG 0x85e2b6e `lea -0x128(%ebp)` 为
+                //   sprintf 目标；紧邻 std::string s(-0xe8/-0xe4, 4B each) ⇒
+                //   buf 跨度 = 0x128-0xe8 = **0x40**（旧 0x110 使帧 0x21c vs ORIG
+                //   0x14c，差 0xd0 = 0x110-0x40 精确吻合）。两分支 sprintf 复用同一槽。
+                char buf[0x40];
                 sprintf(buf, "<K:%d, I:%d>", out[m].first, out[m].second);
                 s += buf;
             }
@@ -143,7 +147,8 @@ void PvP_MissionSystem::get_New_DailyMission(
             for (std::vector<std::pair<unsigned int, unsigned int> >::size_type
                      m = 0; m < out.size(); ++m)
             {
-                char buf[0x110];
+                // [R27a13 2026-09-13 ④尺寸轴] 同上：ORIG 0x85e32c8 段复用 -0x128 槽。
+                char buf[0x40];
                 sprintf(buf, "<K:%d, I:%d>", out[m].first, out[m].second);
                 s += buf;
             }

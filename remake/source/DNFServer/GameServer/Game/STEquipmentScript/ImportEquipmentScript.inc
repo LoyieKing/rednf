@@ -369,7 +369,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
         }
         else
         {
-            if (ScanInt((bool*)0) == 1)
+            int v = ScanInt((bool*)0);
+            if (v == 1)
             {
                 script->m_7ac = 1;
             }
@@ -2735,8 +2736,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                int v = ScanInt(&boolScratch);
-                script->m_field104 = (char)(v != 1);
+                script->m_field104 = (char)(ScanInt(&boolScratch) != 1);
                 if (!boolScratch)
                 {
                     return false;
@@ -3416,8 +3416,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 int total = ScanInt((bool*)0);
                 for (int i = 0; i < total; ++i)
                 {
-                    int enabled = ScanInt((bool*)0);
-                    script->m_vec864.push_back(enabled == 1);
+                    script->m_vec864.push_back(ScanInt((bool*)0) == 1);
                     ScanStr(&scanBuf);
                     script->m_vec858.push_back(scanBuf);
                 }

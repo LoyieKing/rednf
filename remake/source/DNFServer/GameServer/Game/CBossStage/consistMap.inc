@@ -246,8 +246,13 @@ bool CBossStage::consistMap(const CMap* map)
     //   objectDropItems→items）。
     stGenerateRefData_t refGen1;
     stGenerateRefData_t refGen4;
-    // ORIG 同时取出 getObjectDropItems() 但未使用（忠实保留调用）
-    m_dungeon->getObjectDropItems();
+    // [R27a06 2026-09-13 ④ 修复] ORIG 0x0814c93f/0x0814c944：
+    //   `call getObjectDropItems; mov %eax,-0xb7c(%ebp)`（refGen4 基址 -0xbb0
+    //   ⇒ 目标 = refGen4+0x34）。旧形「丢弃返回值（忠实保留调用）」把这枚
+    //   字段留在**未初始化**状态，而消费点 CDungeonDrop::generateSpecificItem
+    //   ORIG 0x08539c6f/0x08539d03 `mov 0xc(%ebp),%eax; mov 0x34(%eax),%edx`
+    //   → `vector<pair<int,int>>::begin/end`（ref = 第 2 实参）⇒ 垃圾指针解引用。
+    refGen4.m_field34v = m_dungeon->getObjectDropItems();
     // [b28d-solo] 两句式（C1Ev+move 赋值）实测引入 list aSEOS2_ NEW 符号且
     //   _mapItem C1Ev 仍未发射 ⇒ 回退拷贝构造形。
     std::list<_mapItem> items = map->get_item_list();
@@ -287,6 +292,16 @@ bool CBossStage::consistMap(const CMap* map)
         (void)genLevel;   // ORIG 计算后未再读取（忠实保留）
 
         stGenerateResult_t result;
+        // [R27a06 2026-09-13 ④ 修复] ORIG 0x0814ca48/ca4e：`mov -0xac0(%ebp),%eax;
+        //   mov %al,-0xb2f(%ebp)`（refGen1 基址 -0xb68 ⇒ 目标 = refGen1+0x39；
+        //   -0xac0 = mi 副本基址 -0xac4 + 0x04 = mi.m_field04）；ORIG 0x0814ca54/ca5a：
+        //   `mov -0x1c(%ebp),%eax; add $0x4,%eax; mov %eax,-0xb34(%ebp)`
+        //   （-0x1c = specialItems->at(idx) 结果 ⇒ refGen1+0x34 = &assign + 0x04
+        //   = &assign.m_list）。消费点 CObjectDrop::generateSpecificItem
+        //   ORIG 0x0858338-0x085833f 读 ref+0x39 为循环上界（`movzbl 0x39(%eax); movsbl`）、
+        //   0x08538271/0x08538305 读 ref+0x34 为 list*（begin/end，ref = 第 2 实参）。
+        refGen1.m_field39 = (char)mi.m_field04;
+        refGen1.m_field34l = &assign.m_list;
         // ORIG consistMap（0x0814bef4 +0xb54..+0xb5a）此处把 mi.m_field04 低字节
         // 写入独立栈标量 -0xb2f(%ebp)——位于 -0xb20(%ebp) 的 result 对象【之外】，
         // 写后全函数无任何读取（Ghidra local_b33 死存储；stGenerateResult_t 布局

@@ -51,22 +51,27 @@ void CUser::reqHumanCertify4ClearMap(bool flag)
             }
         }
 
-        if (reqHumanCertify())
-        {
-            setHumanCertified(false);
-            // [L9-GrpE 2026-09-11 语义修复·符号性轴⑤] ORIG 0x0868044e `cmp $0x7ffffffe,%eax`
-            //   + 0x08680453 `jbe 08680462` 直证该比较按 **unsigned** 进行（Ghidra C 亦为
-            //   `if (0x7ffffffe < *(uint *)(this + 0x8e0f8))`）。重建成员为 int 时 4.4 折成
-            //   `cmp $0x7fffffff; jne`（仅 x==0x7fffffff 清零），对 x∈[0x80000000,0xffffffff]
-            //   （高位/负位模式）行为与 ORIG 相反 ⇒ 显式 unsigned 比较。
-            //   同口径探针 /tmp/L9/E/p_rc.cpp：fA（现形）产 `cmp [..],0x7fffffff; jne`；
-            //   fB/fC（本形）产 `mov %eax,..; cmp $0x7ffffffe,%eax; jbe` 与 ORIG 逐条同形。
-            if (0x7ffffffe < (unsigned int)m_humanCertifyTimerKey)
-                m_humanCertifyTimerKey = 0;
-            m_humanCertifyTimerKey += 1;
-            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, GetUID(),
-                                        (TIMER_MESSAGE)9, 0x3c,
-                                        m_humanCertifyTimerKey, (unsigned int)-1);
-        }
+        // [R27a02 2026-09-13 形态修·P354 反向（我方少 xor）] ORIG 0x086804c2..0x086804c6
+        //   `call reqHumanCertify; xor $0x1,%eax; test %al,%al; jne <尾部 +0x20e>`
+        //   直证原码为「否定早退」形（!callee() → 跳到共享尾），非正向包裹
+        //   （正向形 4.4 产 `test %al,%al; je <尾部>`，缺 xor）。四元组：
+        //   O-taken=`jne <tail>` O-fall=body(setHumanCertified…) ／
+        //   N-taken=`jne <tail>` N-fall=body（改后与 ORIG 同编码）。
+        if (!reqHumanCertify())
+            return;
+        setHumanCertified(false);
+        // [L9-GrpE 2026-09-11 语义修复·符号性轴⑤] ORIG 0x0868044e `cmp $0x7ffffffe,%eax`
+        //   + 0x08680453 `jbe 08680462` 直证该比较按 **unsigned** 进行（Ghidra C 亦为
+        //   `if (0x7ffffffe < *(uint *)(this + 0x8e0f8))`）。重建成员为 int 时 4.4 折成
+        //   `cmp $0x7fffffff; jne`（仅 x==0x7fffffff 清零），对 x∈[0x80000000,0xffffffff]
+        //   （高位/负位模式）行为与 ORIG 相反 ⇒ 显式 unsigned 比较。
+        //   同口径探针 /tmp/L9/E/p_rc.cpp：fA（现形）产 `cmp [..],0x7fffffff; jne`；
+        //   fB/fC（本形）产 `mov %eax,..; cmp $0x7ffffffe,%eax; jbe` 与 ORIG 逐条同形。
+        if (0x7ffffffe < (unsigned int)m_humanCertifyTimerKey)
+            m_humanCertifyTimerKey = 0;
+        m_humanCertifyTimerKey += 1;
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, GetUID(),
+                                    (TIMER_MESSAGE)9, 0x3c,
+                                    m_humanCertifyTimerKey, (unsigned int)-1);
     }
 }

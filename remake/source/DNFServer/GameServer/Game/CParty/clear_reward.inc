@@ -605,6 +605,15 @@ void CParty::clear_reward(int param)
         {
             // ORIG 0x085b0249 区：分母 = 表值重读(fVar1) + 新算 bonusRate(lVar20)。
             // partyBonusRate 局部已含首轮 bonusRate，不能再用它作基数再加。
+            // [R27-07 ④] ORIG 0x085b0250 段三条：`fildll -0x310`（personalExp 零扩展 64 位）
+            // → `fstps -0x318`（(float)personalExp **单精度落具名槽**）
+            // → 末尾 `fdivrs -0x318`（ST(0) = mem/ST(0)）。我方原写内联
+            // `static_cast<float>(personalExp) / (bonusRate + tableRate)` ⇒ 4.4 保持 x87
+            // 扩展精度（fildll → fdivrp，无 fstps 舍入）⇒ personalExp ≥ 2^24 时有效位被
+            // ORIG 舍掉而我方保留，商不同（最小反例 personalExp=16777217、分母 1.5：
+            // ORIG 11184810 vs 我方 11184811）⇒ extraExp 差 (sum/personalExp+1) 倍。
+            // 具名 float 局部强制落槽舍入（P252），复现 ORIG 三条同形。
+            float numerator = static_cast<float>(personalExp);
             float tableRate = spScript->m_expGroup368[memberCount - 1];
             float bonusRate =
                 static_cast<CPartyExpBonusEvent*>(
@@ -613,7 +622,7 @@ void CParty::clear_reward(int param)
             if (personalExp != 0)
             {
                 int sub = static_cast<int>(
-                    static_cast<float>(personalExp) / (bonusRate + tableRate));
+                    numerator / (bonusRate + tableRate));
                 unsigned int sum = bonus.m_avatarBonusExp +
                                    bonus.m_rankWeightExp +
                                    bonus.m_selectedBonusExp +

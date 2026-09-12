@@ -72,15 +72,21 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
             routeKind = 1;
     }
     int slot = -1;
-    // [R22a16 · P354] ORIG 0x0814e98b `test %al,%al; je <addAvatar 块 +0x30f>`
-    // （fall=insertItem 块）⇒ 原码正极性 `if (isAvatarItemType()) {insertItem}
-    // else {addAvatar}`；原 `if (!…)` 形使 4.4 多发 `xor $0x1,%eax`。
+    // [R27a16 · ④ 修复 2026-09-13] 整段引用（禁跳条）：
+    //   ORIG 0x0814e912 `test %al,%al; je 0x814e993`（+0x30f）：
+    //     O-taken = 0x0814e993 `mov -0x28(%ebp),%eax` → 0x0814e999 getCurCharacInvenW
+    //       → … → insertItemIntoInventory（普通入库臂）
+    //     O-fall  = 0x0814e914 `movl $0x18,0x8(%esp)` → memset → getCurCharacNo
+    //       → genIPGNo → addAvatarItem（avatar 臂）
+    //   NEW 0x087b5ac0 `test %al,%al; je 0x87b5b6c`（条件码同为 je、callee 同为
+    //   isAvatarItemType ⇒ 非极性镜像）：
+    //     N-taken = 0x087b5b6c memset → genIPGNo → addAvatarItem（avatar 臂）
+    //     N-fall  = 0x087b5ac6 getCurCharacInvenW → insertItemIntoInventory（普通入库臂）
+    //   ⇒ O-taken ≡ N-fall ∧ O-fall ≡ N-taken（两臂互换）+ 条件同码 ⇒ 行为相反。
+    //   isAvatarItemType 两侧逐字节同形（movzbl 0x1(%eax); cmp $8; sete）⇒ 1 ⇔ type==8(avatar)。
+    //   R22 只按「消 xor」把臂内容写成 then=insert/else=avatar ⇒ 反转行为；
+    //   R24a16 的「调用集互等」对两臂互换是盲的（整体多重集不变）。
     if (item.m_item.isAvatarItemType())
-    {
-        slot = winner->getCurCharacInvenW()->insertItemIntoInventory(
-            item.m_item, (eItemAddReason)4, true, true);
-    }
-    else
     {
         char agency[24];
         memset(agency, 0, sizeof(agency));
@@ -91,6 +97,11 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
         slot = winner->addAvatarItem((unsigned long)item.m_item.m_addInfo, 0,
                                      periodByte, agency,
                                      (eAvatarItemAddReason)0x10);
+    }
+    else
+    {
+        slot = winner->getCurCharacInvenW()->insertItemIntoInventory(
+            item.m_item, (eItemAddReason)4, true, true);
     }
     if (slot == -1)
     {
