@@ -204,9 +204,21 @@ void CParty::ClearDungeon()
             //     而不是变量装载；本库同区已用字面量 0x4e4/0xcf2，风格一致）。
             ref.m_field34 = (char)70;
             ref.m_field35 = 0;
-            ref.m_rateSlot = 1;
-            ref.m_field1c = 1.0f;
-            ref.m_dropRate = 100;
+            // [R12a15 ④ 修复 · §18-A 结构字段写照抄] ORIG 0x085a9aea `lea -0x14c(%ebp);
+            //   call stGenerateRefData_t::C1` ⇒ ref 基址 -0x14c；该段对 ref 的字段写
+            //   共 5 处（连续引用，无跳条）：
+            //     0x085a9b1b `movb $0x46,-0x118(%ebp)` = ref+0x34 = 70
+            //     0x085a9b14 `movb $0x0,-0x117(%ebp)`  = ref+0x35 = 0
+            //     0x085a9b22 `mov $0x3f800000,%eax; mov %eax,-0x114(%ebp)` = ref+0x38 = 1.0f
+            //     0x085a9b3c `movl $0x0,-0x110(%ebp)`  = ref+0x3c = 0
+            //     0x085a9b2d/36 `mov 0x8(%ebp),%eax; mov 0xcac(%eax),%eax; mov %eax,
+            //                   -0x10c(%ebp)`      = ref+0x40 = m_battleField.m_pDungeon
+            //   ORIG 在 ref 内无 +0x00/+0x1c/+0x36 的写（C1 负责 +0x00=100）；
+            //   旧码把 1.0f 落 m_field1c(+0x1c) 并多写 m_rateSlot(+0x36)/m_dropRate(+0x00)，
+            //   且缺 +0x38/+0x3c/+0x40 ⇒ 送 generateRandomItem 的 ref 与 ORIG 不等（④）。
+            ref.m_rankBonusRate = 1.0f;             // +0x38
+            ref.m_field3c = 0;                      // +0x3c
+            ref.m_dungeon = bf(this).m_pDungeon;    // +0x40
             for (int i = 0; i < layerCount; ++i)
             {
                 WongWork::CItemGeneratorMgr* genMgr =

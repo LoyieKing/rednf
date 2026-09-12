@@ -310,9 +310,15 @@ bool GlobalData::Init()
                                                 CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
 
     s_pcryptTEA_MousePassword_ = new CTEA;
-    s_pcryptTEA_MousePassword_->Initialize("tjsghTlWkdajtwla", 0x10, "", 0, 0);
+    // [R12-06 ④] ORIG 0x0829b475/0x0829b4e3 `movl $0x8b23368,0xc(%esp)`（0x8b23368 =
+    //   _ZN4CTEA9sm_chain0E，8B 全 0）⇒ otherKey 必须是 CTEA::sm_chain0；此前传 "" 时
+    //   常量池后继 7B 为 "tjsghT"，而 Initialize 内 memcpy(m_chain/m_chain2, otherKey,
+    //   m_blockSize=8)（CTEA::CTEA m_blockSize=8）⇒ 加密链初值错。
+    s_pcryptTEA_MousePassword_->Initialize("tjsghTlWkdajtwla", 0x10,
+                                           CTEA::sm_chain0, 0, 0);
     s_pcryptTEA_SecurityCard_ = new CTEA;
-    s_pcryptTEA_SecurityCard_->Initialize("ejsvk@@@secucard", 0x10, "", 0, 0);
+    s_pcryptTEA_SecurityCard_->Initialize("ejsvk@@@secucard", 0x10,
+                                          CTEA::sm_chain0, 0, 0);
 
     s_pLogGameChannel = new (std::nothrow) WongWork::CLogGameChannel;
     s_pLogGameChannel->StartLogTimer();

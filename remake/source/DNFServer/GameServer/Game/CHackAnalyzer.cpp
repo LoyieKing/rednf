@@ -47,9 +47,12 @@
 #include "DB_ReqSaveHackUserPunish.h"
 #include "W6_HackPunishDeps.h"
 
-// ---- 静态概率表（ORIG .rodata 0x8b3e094 / 0x8b3e09c，objdump -s 实测）----
+// ---- 静态概率表（ORIG .rodata 0x8b3e094 / 0x8b3e09c，raw 逐项复核）----
 static const short _S_HACK_CHECK_RATE_BY_PARTYCOUNT[4] = {100, 50, 33, 25};
-static const short _S_HACK_CHECK_RATE_BY_DIFFICULT[5] = {25, 20, 15, 10, 0};
+// [R12fixG2 修正 · ④#4] ORIG @0x08b3e09c raw = `14 00 0f 00 0a 00 00 00 00 00` ⇒ {20,15,10,0,0}；
+// 旧值 {25,20,15,10,0} 系整体挪一位并多出首项 25（与 raw 不符）。消费点
+// CheckHackRateByDifficult.inc:19，difficult 界检查 [0,4]（ORIG 0x080f84f4/f8/fe 的 js/jle）与表长 5 一致。
+static const short _S_HACK_CHECK_RATE_BY_DIFFICULT[5] = {20, 15, 10, 0, 0};
 
 // 浮点比率系数（ORIG flds 0x8b3e2a0 / 0x8c00fd0，objdump 实测均 100.0f）
 static float _S_HACK_RATIO_COEF_100F = 100.0f;  // 非 const：ORIG flds 内存读形（const 会被折叠成 fldl）

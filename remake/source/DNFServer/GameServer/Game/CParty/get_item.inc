@@ -60,10 +60,19 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
         packet.finalize(true);
         user->Send(packet);
 
-        if (!IsAutoCreated() && get_member_count() != 1)
+        // [R12a10 ④] ORIG 0x085a3dd2..0x085a3df9：`IsAutoCreated() || get_member_count()==1`
+        // 成立即进入告警块（cond 物化：0x085a3dd9 `jne +0x253`(mov $1) /
+        // 0x085a3de9 `cmp $1,%eax; jne +0x25a`(mov $0) / 0x085a3df9 `test %al,%al;
+        // je +0x327` 跳过整块）。
+        // 旧写 `!IsAutoCreated() && get_member_count() != 1` 使上报条件完全相反
+        // （ORIG 自动队伍/单人时上报 0x12d，我方反之）。
+        if (IsAutoCreated() || get_member_count() == 1)
         {
-            bool visited =
-                (!m_battleField.check_start_point()) || m_battleField.IsVisitedCurrentMap();   // -0xc9
+            // ORIG 0x085a3dff `movb $0x0,-0xc9(%ebp)` 预清 + 0x085a3e41
+            // `movb $0x1,-0xc9(%ebp)` 条件置位（P198① 两句式，禁初始化式合并）。
+            bool visited = false;   // -0xc9
+            if (!m_battleField.check_start_point() || m_battleField.IsVisitedCurrentMap())
+                visited = true;
             if (!visited || !m_battleField.is_last_field_item(itemIdx))
             {
                 // [G7-sub] P0 槽律：ORIG 085a40xx 同形（getHackAnalyzer 结果无槽，

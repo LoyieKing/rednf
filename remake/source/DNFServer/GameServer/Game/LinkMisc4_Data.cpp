@@ -24,6 +24,11 @@
 
 // ---------------------------------------------------------------------------
 // 名字表（ORIG .rodata 字符串指针，dump 自 df_game_r 0x08c7fcf6..0x08c7fd83）
+// [R12fixG ④] ORIG 四表 VA/项数（raw 逐项实证，VA−0x8048000）：
+//   CHARACTER_JOB_NAMES @0x093abae0 = 11×4B（[8][9][10] 均 NULL）
+//   BIND_NAMES          @0x093abb0c = 2×4B  {0x08c7fd35 "basic", 0x08c7fd3b "gold"}
+//   RECIPE_NAMES        @0x093abb14 = 3×4B  {0x08c7fd40 "c_c", 0x08c7fd44 "uc_c", 0x08c7fd49 "uc_uc"}
+//   EQUIP_NAMES         @0x093abb20 = 8×4B  {0x08c7fd4f..0x08c7fd7c}（两侧一致）
 // ---------------------------------------------------------------------------
 char* CHARACTER_JOB_NAMES[] = {
     (char*)"swordman",    // +0x00 0x08c7fcf6
@@ -36,18 +41,18 @@ char* CHARACTER_JOB_NAMES[] = {
     (char*)"at fighter",  // +0x1c 0x08c7fd2a
     0,                    // +0x20（ORIG NULL）
     0,                    // +0x24（ORIG NULL）
-    (char*)"basic",       // +0x28 0x08c7fd35
+    0,                    // +0x28（ORIG NULL，旧误置 "basic"）
 };
 
 char* BIND_NAMES[] = {
-    (char*)"gold",  // 0x08c7fd3b
-    (char*)"c_c",   // 0x08c7fd40
+    (char*)"basic",  // 0x08c7fd35
+    (char*)"gold",   // 0x08c7fd3b
 };
 
 char* RECIPE_NAMES[] = {
-    (char*)"uc_c",     // 0x08c7fd44
-    (char*)"uc_uc",    // 0x08c7fd49
-    (char*)"headgear", // 0x08c7fd4f
+    (char*)"c_c",   // 0x08c7fd40
+    (char*)"uc_c",  // 0x08c7fd44
+    (char*)"uc_uc", // 0x08c7fd49
 };
 
 char* EQUIP_NAMES[] = {

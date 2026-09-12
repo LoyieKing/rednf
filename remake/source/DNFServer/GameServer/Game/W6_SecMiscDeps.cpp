@@ -57,11 +57,13 @@ using namespace GlobalData;
 // [L32 GI 调序] ORIG `_GLOBAL__I__ZN8WongWork9CWebEvent14m_strEventNameE`（CU=WebEvent.cpp）
 //   ⇒ 本 TU 首个强符号须为 WongWork::CWebEvent::m_strEventName。定义前移到所有函数
 //   定义之前；该表为静态初始化 char 数组，不影响任何动态初始化对象的相对构造序（P327）。
-//   数据取自 df_game_r D 0x093ace60（size 0xb4），槽长 0x12，
-//   非零槽逐一转抄，其余为零串。
+//   数据取自 df_game_r D 0x093ace60（size 0xb4），槽长 0x12。R12 G 轴实测
+//   ORIG raw 逐槽：0=""、1="Yegam"、2="ATI Coupon"、3="DNF Guide book"、
+//   4="Everland"、5="Muz"、6="King of Alttle"、7="Free Charge Combo"、
+//   8=""、9=""（槽内其余字节为 0）⇒ 照抄，不额外补前导空串。
 char WongWork::CWebEvent::m_strEventName[10][0x12] = {
-    "", "", "Yegam", "ATI Coupon", "DNF Guide book",
-    "Everland", "Muz", "King of Alttle", "Free Charge Combo", "" };
+    "", "Yegam", "ATI Coupon", "DNF Guide book", "Everland",
+    "Muz", "King of Alttle", "Free Charge Combo", "", "" };
 
 // ============================ WongWork::CSecurityCardCenter =================
 
@@ -141,10 +143,13 @@ struct CSecurityCardAnswerView
 // [L32 GI 调序] CWebEvent::m_strEventName 定义已前移到文件首（须保持 ORIG 的
 // GI 键名），此处不再重复定义。
 
-// 一维化（Main 批准）：槽 3/4 非空。33 个 '\0' 前缀 = 槽 0..2 空置，
-// "IP00000001"+"\0" 占槽 3（偏移 33..43），"IP00000002" 占槽 4（44..54），余自动补 0。
+// 一维化（Main 批准）：R12 G 轴 raw 实测 ORIG 0x093acf20 非空槽 = **槽 2/3**
+//（22 个 '\0'，即槽 0..1 空置）；"IP00000001"+'\0' 占槽 2（偏移 22..32），
+// "IP00000002"+'\0' 占槽 3（33..43），余（槽 4..9）自动补 0。旧值 33 个 '\0'
+// 使两非空槽整体后移 1 槽（=0xb 字节），已按 ORIG 校正。
 char WongWork::CWebEvent::m_strEventIPGCode[10 * 0xb] =
-    "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+    "\0\0\0\0\0\0\0\0\0\0\0"
+    "\0\0\0\0\0\0\0\0\0\0\0"
     "IP00000001\0IP00000002";
 
 #include "W6_SecMiscDeps/_GetEventString.inc"

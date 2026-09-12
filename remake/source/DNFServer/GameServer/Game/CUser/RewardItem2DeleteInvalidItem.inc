@@ -6,7 +6,11 @@
 void CUser::RewardItem2DeleteInvalidItem(
     const std::string& name, const std::vector<std::pair<int, int> >& list)
 {
-    static const char* defalt_string = "";   // ORIG 局部静态 defalt_string(0x93ace50)
+    // ORIG 局部静态变量 defalt_string @0x93ace50，其值指针 = 0x8cf2450
+    //   ⇒ 串 raw `4e 65 78 6f 6e 20 43 53 00` = "Nexon CS"（非空串）。
+    //   两处消费点（ORIG 0x86934aa / 0x8693502 `mov 0x93ace50,%eax`）作为
+    //   strncpy 的默认 src（长度实参 0x1d / 0xff 均 > 串长 8 ⇒ strncpy 补齐 NUL）。
+    static const char* defalt_string = "Nexon CS";
 
     // ORIG 0x086931db `test %al,%al; jne 尾` 与 0x086931f5 `sete/test; jne 尾`
     //   为两条独立早返（非 || 合并）。

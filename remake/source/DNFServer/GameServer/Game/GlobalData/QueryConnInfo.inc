@@ -53,19 +53,18 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
     // 是实参来源错 + 多一个 0x15 数组致槽漂）。
     if (!G_CEnvironment()->DecryptValue(passCipher, info.m_pass))
         return false;
-    // ORIG 0x80eccb8：rep movsd 0x5a dword（0x168 字节）拷入 outMap[idx]。
-    // ORIG 0x080ecc98..0x080ecca4：键取形参值的具名副本（-0x24）后再取址，
-    // 另有 group 的副本（-0x64，写后未读 ⇒ P171 照抄）。
-    ENUM_SERVER_GROUP groupCopy = group;
+    // [R12a10 ④] ORIG 0x080ecc98..0x080ecc9b `mov 0x10(%ebp),%eax;
+    //   mov %eax,-0x64(%ebp)`：该槽址 = 栈上 info 基址(-0x1c8) + 0x164
+    //   = STDBConnInfo::m_tail（对象内 +0x164）⇒ 原码是 info.m_tail = group;
+    //   它随 0x080eccb8 的 rep movsl 0x168 字节进入 outMap[idx]。
+    //   下游 CDBConnector::ConnectWithServerGroup 以 it->second.m_tail 作 Open 的
+    //   server group（ORIG 0x080ec954 `mov 0x168(%eax),%eax`）⇒ 旧写
+    //   `ENUM_SERVER_GROUP groupCopy = group;` 是死副本，map value.m_tail 恒 0
+    //   （C1Ev 0x080ecdde `movl $0x0,0x164(%eax)` 初值），已修正为字段写。
+    info.m_tail = group;
+    // ORIG 0x080ecc9e..0x080ecca4：键取形参值的具名副本（-0x24）后再取址。
     ENUM_DB_HANDLE_IDX idxCopy = idx;
-    // [G7-sub] 结论（N82/N126 封顶）：ORIG 169 / 我方 169；p167 仅 STDBConnInfo
-    //   C1↔C2 别名。ORIG 帧 0x1cc / 我方 0x1dc(+0x10)，标量槽逐项同构但位置差：
-    //   ORIG i(-0x1c)/db(-0x20)/键副本(-0x24)/passCipher(-0x60)/group 副本(-0x64)
-    //   vs 我方 i(-0x20)/db(-0x24)/键(-0x28)/passCipher(-0x64)/group 副本(-0x1c)。
-    //   ORIG 把「写后未读」的 group 副本放紧邻 passCipher 的深处
-    //   （0x080ecc9b `mov %eax,-0x64(%ebp)`），4.4 恒放最浅槽；键副本取址在
-    //   0x080ecca4 `lea -0x24(%ebp),%eax`。块级标量槽向跨版本不可控（N93），
-    //   且该未读副本属 P171 必须照抄 ⇒ 封顶（不删具名、不试声明序）。
+    // ORIG 0x80eccb8：rep movsd 0x5a dword（0x168 字节）拷入 outMap[idx]。
     outMap[idxCopy] = info;
     return true;
 }

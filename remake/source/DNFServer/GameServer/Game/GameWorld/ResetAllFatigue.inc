@@ -21,6 +21,11 @@ void GameWorld::ResetAllFatigue()
     // [L11·round1 判词更新] 帧 0x70 vs ORIG 0x7c 实测复核：4.4 带 call 帧恒 16k+4 量化
     // （P190 附注②，本函数族 0x44/0x54/0x64/0x74… 可达），ORIG 的 0x7c **非量化值**
     // 任何 pad 组合不可凑（2 个取址 double 已达 0x70，4 个过头到 0x80）⇒ N 封顶。
+    // [R12a01 收敛确认·已修] 实测**删除**原 2 个取址 double framePad 后帧 = `sub $0x7c` =
+    // ORIG，且深槽组（badge -0x46 / iterator -0x4c / msg -0x58 / EH 临时 -0x5c）一次归位
+    // （.o 0x8c56 `sub $0x7c` / 0x8c59 `movl $0x0,-0x46` / 0x8c60 `movw $0x0,-0x42` ↔
+    // ORIG 0x086cc3f2/0x086cc3f5/0x086cc3fc）；A/B：ae 454→455、near 5→4、其余逐值不变
+    // ⇒ NEAR→AE。旧「pad 撑帧」判词作废（那是针对更早的帧形态）。
     // 其余 0x10 整帧槽平移（-0x20/-0x1c/-0x3c vs -0x10/-0xc/-0x2c）为避免 N126/N82，
     // 且缺 ORIG 的 `push %edi`（ORIG 用 %edi 承载 getCurSec/bApplied，4.4 恒 %ebx；
     // 裸 register 形实测 302→302 零效）⇒ 维持 N。
@@ -31,10 +36,7 @@ void GameWorld::ResetAllFatigue()
     // 4 个则过头（帧 0x80、badge -0x56，ndiff 回 125）。浅槽组（user -0x20/active
     // -0x1c/trace -0x3c/string -0x2c/allocator -0x25）仍浅 0x10 = N126 首槽常数 8
     // + 4.1 匿名 return-temp 专属槽，属 N82/N126 封顶。
-    double framePad0;
-    (void)&framePad0;
-    double framePad1;
-    (void)&framePad1;
+
     // [b28d-solo-GameWorld] _ZN9GameWorld15ResetAllFatigueEv verdict=DIFF 322/307
     // N7+N82+N104 封顶。本轮修法（均以 ORIG 0x086cc3ec 段实证）：
     //  ① 字面量直传 findGameScript(std::string)（0x086cc71e 单次 C1EPKc）——删具名

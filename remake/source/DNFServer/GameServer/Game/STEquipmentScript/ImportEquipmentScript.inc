@@ -2250,12 +2250,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 script->m_vec66c.clear();
                 for (;;)
                 {
-                    int v = ScanInt(&boolScratch);
+                    intScratch = ScanInt(&boolScratch);
                     if (!boolScratch)
                     {
                         break;
                     }
-                    script->m_vec66c.push_back(v);
+                    script->m_vec66c.push_back(intScratch);
                 }
                     goto stage2_switch_end;
                 }
@@ -2376,12 +2376,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 script->m_vec88.clear();
                 for (;;)
                 {
-                    int v = ScanInt(&boolScratch);
+                    intScratch = ScanInt(&boolScratch);
                     if (!boolScratch)
                     {
                         break;
                     }
-                    script->m_vec88.push_back(v);
+                    script->m_vec88.push_back(intScratch);
                 }
                     goto stage2_switch_end;
                 }
@@ -2669,7 +2669,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                script->m_6e4 = ScanInt((bool*)0);
+                intScratch = ScanInt(&boolScratch);
+                script->m_6e4 = intScratch;
                     goto stage2_switch_end;
                 }
             // ORIG 0xc93（汇编 LAB_0899a04f __inited==1 分支）：ScanStr/表查找失败
