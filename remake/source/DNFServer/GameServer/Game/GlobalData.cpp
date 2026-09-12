@@ -2410,6 +2410,10 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
                                         continue;
                                         }
                                     }
+                                }
+                                // [R22-21 ④] ORIG 0x857d0f2 `je 0x857d25f`：demon 检查与
+                                // createUser/InitOnAccept 段**不受**上方 cond 支配
+                                //（!cond 时同样执行；旧版误把这些段包进 cond 块内）。
                                     if (GameserverDemonManagerInstance()
                                             ->IsProhibitConnectState())
                                     {
@@ -2451,7 +2455,6 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
                                             GlobalData::s_accept_lock.unlock();
                                         }
                                     }
-                                }
                             }
                         }
                     }

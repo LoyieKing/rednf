@@ -81,13 +81,16 @@ void PvP_MissionSystem::get_New_DailyMission(
                 //   逐 jcc 守卫存在性对照（PROTOCOL_R9 §14 #33）发现（#33 盲区实证）。
                 if (mi == m_missionMap.end())
                     continue;
-                if (mi->second != 0)
+                // [R22a13 2026-09-13 §27.4 求值次数轴] ORIG 0x85e2956 为**单次**求值：
+                //   `lea -0xd0; call ptEv; mov 0x4(%eax),%eax; mov %eax,-0x28(%ebp);
+                //    cmpl $0x0,-0x28(%ebp); je +0x2fb`（一次 ptEv + 局部缓存后再判空）。
+                //   旧形 `if (mi->second != 0) { CMission* m = mi->second; … }` 在同一轮内
+                //   发 **2 次** ptEv（我方 .o 0x8854f1f 判空 + 0x8854f3d 取值，ORIG 仅
+                //   0x85e2956 一处）⇒ 改为 ORIG 单次求值形（消 1 次 ptEv，仍用 arrow 形，
+                //   ORIG 0x85e2792/0x85e2956 均为 `ptEv`、非 `deEv`）。
+                CMission* m = mi->second;
+                if (m != 0)
                 {
-                    // [P2S1PvPQuest 2026-09-11 P167] ORIG 0x85e2792/0x85e2956 用
-                    //   `_ZNKSt17_Rb_tree_iteratorISt4pairIKiP8CMissionEEptEv`
-                    //   （operator->），旧文 `(*mi).second` 发射 `deEv`（EXTRA）
-                    //   ⇒ 改 arrow 形（同语义）。
-                    CMission* m = mi->second;
                     out.push_back(std::make_pair(
                         m->GetMissionKind(),
                         m->GetMissionIndex()));

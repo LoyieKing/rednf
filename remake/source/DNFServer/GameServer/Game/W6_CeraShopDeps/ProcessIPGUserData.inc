@@ -37,6 +37,18 @@
 //   317=317 逐名零差。
 // ③残余 = 帧/槽整体平移（N82，我方最深 -0x2b0 vs ORIG -0x264）+ 4.4 临时
 //   spill 深度（如 -0x2b0/-0x2ac 跨调用保活）+ 实参装载序 ⇒ 源形不可控。
+// [R22a15 2026-09-13 §27.5 多余物化移除 ×2]
+//   ①`CDataManager* dm = G_CDataManager(); … = dm->getItemLimitEditionMgr();`
+//     两具名槽 → 链式直呼（ORIG 0x8322c51..0x8322c6b 为 `call G_CDataManager;
+//     mov %eax,(%esp); call getItemLimitEditionMgr`，无 store/reload）。
+//   ②IsSpecialItem 三实参：旧稿 `int hitVal[2]` 数组取址恒产 `lea;add $0x4`；
+//     ORIG 0x8322caa..0x8322cde 为 bool + 两独立 int、三条独立 `lea`
+//     （-0x109/-0x114/-0x110），且初始化在 `cmp/jne` **之前**无条件执行
+//     ⇒ 拆两独立标量并移出 if 块。
+//   四闸门：①备份 md5 6b5c2c0a5fbc0d6586234fba14205518；②A/B TU 四数
+//   identical=61 ae=120 near=0 diff=2 missing=45 逐值不变（.o 指令 1692→1687）；
+//   ③新 .o 两处与 ORIG 逐条同形（链式直呼；三条独立 lea + 初始化先于 jne）；
+//   ④nm --defined-only 317=317 逐名零差。
 void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                    IPG::SIPGData* resData, Stream* stream)
 {
@@ -332,22 +344,29 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     resultItems.clear();
                 }
 
-                CDataManager* dm = G_CDataManager();
-                CItemLimitEditionMgr* limitMgr = dm->getItemLimitEditionMgr();
-                CItemLimitEdition* limit = limitMgr->getItemInfo(productNo);
+                // [R22a15] §27.5 多余具名局部移除：ORIG 0x8322dba 起为链式直呼
+                // `G_CDataManager()->getItemLimitEditionMgr()->getItemInfo(x)`
+                // （无 dm/limitMgr 槽往返；旧稿两具名槽多 2×(store+reload)）。
+                CItemLimitEdition* limit =
+                    G_CDataManager()->getItemLimitEditionMgr()->getItemInfo(productNo);
                 if (limit == 0)
                 {
                     throw ENUM_ERROR(0x11);   // ORIG __cxa_throw(int 0x11)
                 }
                 // ORIG：restrictLocal 初值 = getFeaturedIdx()；仅当其==0 且
                 // IsSpecialItem(relateditem) 命中时才改取 GetRestrictCode。
+                // [R22a15] §27.5：ORIG 0x8322caa..0x8322cbb 三局部在 `cmp/jne`
+                // **之前**无条件初始化（-0x109 bool → -0x110 → -0x114 两独立 int）；
+                // 旧稿 `int hitVal[2]` 数组取址恒产 `lea;add $4` 两条，ORIG 为
+                // 两条独立 `lea -0x114/-0x110` ⇒ 拆两独立标量并移出 if 块。
+                bool isSpecialFlag = false;   // ORIG -0x109
+                int hitVal0 = 0;              // ORIG -0x114（0xc(%esp) 实参）
+                int hitVal1 = 0;              // ORIG -0x110（0x8(%esp) 实参）
                 int restrictLocal = limit->getFeaturedIdx();
                 if (restrictLocal == 0)
                 {
-                    int hitVal[2] = { 0, 0 };
-                    bool isSpecialFlag = false;
-                    if (IsSpecialItem(limit->getRelateditem(), hitVal[1],
-                                      hitVal[0], isSpecialFlag))
+                    if (IsSpecialItem(limit->getRelateditem(), hitVal1,
+                                      hitVal0, isSpecialFlag))
                     {
                         // ORIG 0x8322d5f `mov 0xc(%eax)` 成员直读（4.1 内联 accessor
                         // 展开形，4.4 产 call ⇒ 用成员直读复刻）。

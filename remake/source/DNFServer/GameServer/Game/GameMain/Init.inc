@@ -38,9 +38,14 @@ bool Init(int argc, char** argv)
     // → setrlimit(RLIMIT_CORE)（不检查返回值）；随后无条件
     // cout "[!] Check Args ..."（82a0976..82a0998）。
     struct rlimit rl;
-    getrlimit(RLIMIT_CORE, &rl);
+    // [R22a19 2026-09-13] 复刻 ORIG 死存储（P171 照抄；写后全函数零读点）：
+    //   ORIG 0x082a0950 / 0x082a0973 各一条 `mov %eax,-0x44(%ebp)` —— 槽 -0x44
+    //   在 ORIG 全函数仅此 2 处引用、**皆写无读**（死存储）；ORIG 不检查返回值。
+    //   我方旧文丢弃两返回值 ⇒ 比 ORIG 少 2 条 store。此处仅照抄存储形态。
+    int rlResult = getrlimit(RLIMIT_CORE, &rl);
     rl.rlim_cur = static_cast<rlim_t>(-1);
-    setrlimit(RLIMIT_CORE, &rl);
+    rlResult = setrlimit(RLIMIT_CORE, &rl);
+    (void)rlResult;
 
     std::cerr << "[!] Check Args ..." << std::endl;
     // [V331b15 2026-09-12] ORIG 0x82a09b1 = `eb 2e`（**无条件** jmp 0x82a09e1）；

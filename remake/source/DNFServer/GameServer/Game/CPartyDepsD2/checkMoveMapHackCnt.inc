@@ -58,17 +58,24 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 
         if (prevAux != 0)
         {   // 上一张图的第三/二组均值并入历史（idx=当前 m_mapHitCount）
-            const int idx = m_mapHitCount;
-            m_mapHitList3[idx] = m_mapHitList3[idx] / prevAux;
-            m_mapHitSum3 += m_mapHitList3[idx];
-            m_mapHitList2[idx] = m_mapHitList2[idx] / prevAux;
-            m_mapHitSum2 += m_mapHitList2[idx];
+            // [R22a05 ④-form 修复] ORIG 不缓存 m_mapHitCount：0x085a8597/85a8670/
+            //   85a8897/85a88d2 四处各自 `mov 0x8(%ebp),%eax; mov 0x1874(%eax),%edx/%ecx`
+            //   重读（4 读 + 1 写 m_mapHitCount），旧码 `const int idx` 缓存 -0x44
+            //   （1 读 + 3 槽读）。索引基数 0x678 = (m_mapHitList3@+0x19ec − 0xc)/4
+            //   由 ORIG `add $0x678,%edx` 直证。
+            m_mapHitList3[m_mapHitCount] = m_mapHitList3[m_mapHitCount] / prevAux;
+            m_mapHitSum3 += m_mapHitList3[m_mapHitCount];
+            m_mapHitList2[m_mapHitCount] = m_mapHitList2[m_mapHitCount] / prevAux;
+            m_mapHitSum2 += m_mapHitList2[m_mapHitCount];
         }
 
         for (int i = 0; i < 4; ++i)
         {
-            const unsigned short kill = info.m_1b[i];        // +0x1b+2*i ushort
-            if (kill == 0xffff)
+            // [R22a05 ④-form 修复] ORIG 无 kill 具名局部：0x085a8535/85a853f 段每次
+            //   `mov -0x28(%ebp),%edx; mov 0xc(%ebp),%eax; add $0x8,%edx;
+            //   movzwl 0xb(%eax,%edx,2)` 重读 info.m_1b[i]（`cmp $0xffff,%ax` 无槽）；
+            //   旧码具名 kill 令 4.4 物化 `mov %ax,-0x3a; cmpw $0xffff,-0x3a`（+2/处）。
+            if (info.m_1b[i] == 0xffff)
                 continue;
             if (!checkValidUser(i))                          // W 0x08145868
                 continue;
@@ -85,10 +92,10 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
             memberUser(this, i)->m_historyLog.MapClear(
                 // [SemA16] 直证（T2）：ORIG 0x085a85ae 段 `mul %edx; mov %edx,%eax;
                 // shr $0x6` = 无符号 /1000（m_field8 为 u64 m_playedTime 低 32 位）。
-                kill, (int)((unsigned int)bd(this).m_field8 / 1000),
+                info.m_1b[i], (int)((unsigned int)bd(this).m_field8 / 1000),
                 bf(this).GetLastMapInfo()->m_mapIndex);
 
-            if (kill == 0)
+            if (info.m_1b[i] == 0)
             {   // 击杀数为 0 却换图 → 0x19b
                 memberUser(this, i)->getHackAnalyzer()->addServerHackCnt(
                     memberUser(this, i), (WongWork::ENUM_HACKTYPE)0x19b, 1, 0, 0);
@@ -101,19 +108,21 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
             const unsigned int sec = (unsigned int)bd(this).m_field8 / 1000;
             if (sec != 0)
             {
-                const unsigned int quotient = (unsigned int)kill / sec;
+                const unsigned int quotient = (unsigned int)info.m_1b[i] / sec;
                 if (4 < quotient)
                 {
-                    unsigned int over = quotient - 4;        // -0x3c
+                    const unsigned int over = quotient - 4;  // -0x3c
                     const unsigned int cap = 100;            // -0x40
-                    over = std::min<unsigned int>(over, cap);  // ORIG call _ZSt3minIjERKT_S2_S2_
+                    // [R22a05 ④-form 修复] ORIG 无 min 结果写回：0x085a8a18 `call min` 后
+                    //   0x085a8a1b `mov (%eax),%esi` 直进 addServerHackCnt 实参；
+                    //   旧码 `over = std::min(over,cap)` 多一次回写 + 重读（mov -0x50）。
                     memberUser(this, i)->getHackAnalyzer()->addServerHackCnt(
                         memberUser(this, i), (WongWork::ENUM_HACKTYPE)0x340,
-                        over, 0, 0);
+                        std::min<unsigned int>(over, cap), 0, 0);
                 }
             }
 
-            sumKill += kill;
+            sumKill += info.m_1b[i];
 
             // 维度刷图频率检测前置条件（asm +0x3be..+0x40f 组合）
             // [b28d-round1-L24] P0/P183：ORIG 无 bool 槽（widthscan clr_b orig=0 vs
@@ -131,6 +140,13 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
                 }
             }
             m_field1aa0 = 0;
+
+            // [R22a05 ④ 支配域修复] ORIG 0x085a8897..0x085a88b5 在 0x085a888d
+            //   `movb $0x0,0x1aa0(%eax)` 之后**无条件**计算 secQ（m_playedTime/1000，
+            //   结果落 -0x20 槽），skill 判定段（0x085a890e/85a8894/85a8a20 三处）
+            //   只读该槽；旧码把 secQ 下沉进 level>=0x14 && arr54!=0 && f1aa4!=0
+            //   三层分支内 ⇒ 求值次数/支配域与 ORIG 分叉（§26.2/§27.4 轴）。
+            const unsigned int secQ = (unsigned int)bd(this).m_field8 / 1000;
 
             // 技能节奏记疑判定（边界语义见函数头注）：
             //   [R4a05 ④ 修复] ORIG 0x085a88da `jle 85a8ace` + 0x085a88f0 `je 85a8ace`：
@@ -156,7 +172,7 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
                     // 由 0x085a8897 段 /1000 写入），不是原始 tick（旧码差 1000 倍）。
                     // [SemA16] 直证（T2）：ORIG 0x085a88ae 段 `mul %edx; mov %edx,%eax;
                     // shr $0x6` = 无符号 /1000（负值时无符号商 ≠ 有符号商，真差异）。
-                    const unsigned int secQ = (unsigned int)bd(this).m_field8 / 1000;
+                    // [R22a05 ④ 支配域修复] secQ 已上提至 m_field1aa0=0 之后无条件求值。
                     const unsigned int q = secQ / 5;         // mul 0xcccccccd shr 2
                     const unsigned int rem = secQ - q * 5;   // sec%5
                     // [R19a05 ③-form] ORIG 两臂各自重读 m_field1aa4[i]（0x085a8932 /

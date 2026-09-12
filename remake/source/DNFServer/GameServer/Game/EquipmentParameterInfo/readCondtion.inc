@@ -15,10 +15,14 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     // `if (!__inited) { insert(own tag); goto next-case-guard }`，链尾（ORIG
     // 0x43a3）leave+置位后跳回重查；建表完成后 body 走共享尾。
     std::string token;
-    int v = 0;
-    int k = 0;
-    bool isType = false;
-    bool isInt = false;
+    // [R22a05 ④ 多余默认值] ORIG 0x0899ce55（token ctor 之后）直接进 __lookup
+    //   guard，**无** `movl $0/movb $0` 初始化（P348：ORIG 未初始化的标量局部禁写
+    //   `= 0`）；我方 NEW 多 `movl $0,-0x640; movl $0,-0x644; movb $0,-0x645;
+    //   movb $0,-0x646`（4 条）⇒ 去掉默认值复刻 ORIG。
+    int v;
+    int k;
+    bool isType;
+    bool isInt;
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;

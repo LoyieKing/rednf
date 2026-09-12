@@ -23,13 +23,19 @@ int convertTabTypeStringToEnum(const char* text)
     //      fall-through、return 4 在 else 后）；
     //   ③ `int ret = 0;` → `int ret;`（ORIG 函数头无 `movl $0,-0x1c` 初始化，
     //      仅 else 段赋值 ret=0，P197③ 两段式）。
-    static std::map<const char*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-
     int ret;
     for (;;)
     {
+        // [R22a13 2026-09-13 P333 形] ORIG 0x08aa7da4 为循环回跳锚（= guard1 检查
+        //   `movzbl _ZGVZ26convertTabTypeStringToEnumPKcE8__lookup`，`continue`
+        //   直跳 +0xc：nop; jmp 08aa7da4）；我方 static 声明置于 for 外 ⇒ 4.4
+        //   回跳 +0x106（`__inited` 检查）且经 +0x362 跳板（jmp; nop; jmp）。
+        //   把三 static 声明移入循环体：首轮仍只构造一次（guard 置位后跳过），
+        //   后续每轮重查 guard1/guard2/__inited —— 与 ORIG 逐点同形。
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
         // ① 正极性：`if (__inited)` 直测（4.4 对 bool 局部 `!` 恒 xor，N122）
         if (__inited)
         {

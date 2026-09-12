@@ -117,7 +117,7 @@ void CParty::clear_reward(int param)
 
     WongWork::stGenerateResult_t result;
     // ORIG:条件为 != 0(power_war 分支先发射,generateSpecificItem 为 else)。
-    if (dungeon->m_89e != 0)
+    if (m_battleField.m_pDungeon->m_89e != 0)
     {
         // ORIG 0x085ae520 区：getGenerator 链在循环【前】求值一次（local_a8 缓存），
         // 循环体仅 checkValidUser→get_charac_level→power_war(...)。
@@ -196,10 +196,10 @@ void CParty::clear_reward(int param)
             continue;
         }
 
-        if (dungeon->m_entryRestrictFlag != 0 &&
+        if (m_battleField.m_pDungeon->m_entryRestrictFlag != 0 &&
             user->IsDeleteEventDungeonInvitation())
         {
-            user->EventDungeonClearReward(dungeon->m_vec86c);
+            user->EventDungeonClearReward(m_battleField.m_pDungeon->m_vec86c);
         }
         if (G_CDataManager()->getNewRankIndex(param) < 3)
         {
@@ -211,11 +211,11 @@ void CParty::clear_reward(int param)
 #define rewardItems (bd.m_itemGroups0[slot])
 #define goldCardItems (bd.m_itemGroups2[slot])
 #define pcRoomItems (bd.m_itemGroups1[slot])
-        if (dungeon->m_89e == 0)
+        if (m_battleField.m_pDungeon->m_89e == 0)
         {
             int lvl = user->get_charac_level();
             double basePenalty = G_CDataManager()->BaseExpPenalty(lvl, stdLevel);
-            if (basePenalty >= 1.0 || dungeon->isRiskDungeon())
+            if (basePenalty >= 1.0 || m_battleField.m_pDungeon->isRiskDungeon())
             {
                 unsigned int guildLvl = static_cast<unsigned int>(
                     static_cast<unsigned short>(
@@ -393,7 +393,8 @@ void CParty::clear_reward(int param)
         if (!genResult.m_dropItems.empty())
         {
             goldCardItems[1].setCopy(*genResult.m_dropItems.begin());
-            if (goldCardItems[1].m_addInfo == -1 || dungeon->m_89e != 0)
+            if (goldCardItems[1].m_addInfo == -1 ||
+                m_battleField.m_pDungeon->m_89e != 0)
             {
                 goldCardItems[1].reset();
             }
@@ -408,7 +409,7 @@ void CParty::clear_reward(int param)
             }
         }
 
-        if (dungeon->m_villageAttackEventFlag != 0)
+        if (m_battleField.m_pDungeon->m_villageAttackEventFlag != 0)
         {
             Inven_Item eventItem;
             eventItem.m_addInfo =
@@ -458,7 +459,7 @@ void CParty::clear_reward(int param)
     }
 
     unsigned int mobReward = 0;
-    if (dungeon->m_89e != 1)
+    if (m_battleField.m_pDungeon->m_89e != 1)
     {
         G_CDataManager()->get_mob_reward(stdLevel, mobReward);
     }
@@ -469,7 +470,7 @@ void CParty::clear_reward(int param)
             ->getBonusRate(memberCount, isHelpAbuseParty());
 
     unsigned int totalMobExp = 0;
-    if (dungeon->m_89e != 1)
+    if (m_battleField.m_pDungeon->m_89e != 1)
     {
         int killCount = bd.GetTotalKilledMonsterCount();
         float baseExp = static_cast<float>(killCount) *
@@ -479,7 +480,7 @@ void CParty::clear_reward(int param)
         double weighted =
             static_cast<double>(baseExp) * static_cast<double>(diffWeight);
         totalMobExp = static_cast<unsigned int>(static_cast<long long>(
-            weighted * dungeon->get_exp_weight()));
+            weighted * m_battleField.m_pDungeon->get_exp_weight()));
     }
 
     PacketGuard pkBasic;
@@ -495,7 +496,7 @@ void CParty::clear_reward(int param)
         }
         user->setChattingMessageCount(0);
 
-        if (dungeon->m_89e != 0)
+        if (m_battleField.m_pDungeon->m_89e != 0)
         {
             G_CDataManager()->get_mob_reward(user->get_charac_level(), mobReward);
             int killCount = bd.GetTotalKilledMonsterCount();
@@ -506,15 +507,15 @@ void CParty::clear_reward(int param)
             double weighted =
                 static_cast<double>(baseExp) * static_cast<double>(diffWeight);
             totalMobExp = static_cast<unsigned int>(static_cast<long long>(
-                weighted * dungeon->get_exp_weight()));
+                weighted * m_battleField.m_pDungeon->get_exp_weight()));
         }
 
         int userLevel = user->get_charac_level();
         unsigned int personalExp = 0;
-        if (dungeon->m_89e == 1)
+        if (m_battleField.m_pDungeon->m_89e == 1)
         {
             // ORIG：get_index()==100 与否两分支体相同（退化分支，忠实保留）。
-            if (dungeon->get_index() == 100)
+            if (m_battleField.m_pDungeon->get_index() == 100)
             {
                 personalExp = totalMobExp / memberCount;
             }
@@ -524,7 +525,7 @@ void CParty::clear_reward(int param)
             }
         }
         // ORIG:条件为 isRisk(MPR-only 分支先发射)。
-        else if (dungeon->isRiskDungeon())
+        else if (m_battleField.m_pDungeon->isRiskDungeon())
         {
             // [R5a07 ④] ORIG 0x085afcb8..0x085afd21：`mov $0x0,%edx; fildll -0x310;
             //   fstps -0x324` ⇒ **先把 (unsigned)totalMobExp 截断为 float**，随后
@@ -818,10 +819,10 @@ void CParty::clear_reward(int param)
         if (m_battleField.m_pDungeon != 0 && user != 0 && m_battleField.m_bloodState != 1 &&
             user->getCurCharacR() != 0)
         {
-            bool properDungeon = dungeon->m_bloodDungeonType == 0 &&
-                                 dungeon->get_dimension_possible() == 0 &&
-                                 dungeon->m_89e != 1 &&
-                                 !dungeon->isTowerOfDespairDungeon();
+            bool properDungeon = m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
+                                 m_battleField.m_pDungeon->get_dimension_possible() == 0 &&
+                                 m_battleField.m_pDungeon->m_89e != 1 &&
+                                 !m_battleField.m_pDungeon->isTowerOfDespairDungeon();
             if (properDungeon && user->IsProperDungeonUser())
             {
                 HeroMissionEvent* heroMission =
@@ -841,9 +842,9 @@ void CParty::clear_reward(int param)
         if (m_battleField.m_pDungeon != 0 && user != 0 && m_battleField.m_bloodState != 1 &&
             user->getCurCharacR() != 0)
         {
-            bool properLevel = dungeon->m_bloodDungeonType == 0 &&
-                               dungeon->m_89e != 1 &&
-                               !dungeon->isTowerOfDespairDungeon();
+            bool properLevel = m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
+                               m_battleField.m_pDungeon->m_89e != 1 &&
+                               !m_battleField.m_pDungeon->isTowerOfDespairDungeon();
             if (properLevel && user->IsProperLevelDungeonUser())
             {
                 user->ProcProperLevelDungeonClear();
@@ -864,7 +865,7 @@ void CParty::clear_reward(int param)
         goldCardPacket.finalize(true);
         send_to_party(goldCardPacket);
     }
-    if (dungeon->m_entryRestrictFlag == 0)
+    if (m_battleField.m_pDungeon->m_entryRestrictFlag == 0)
     {
         DungeonPermission(param);
     }

@@ -22,8 +22,11 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
         return;
     }
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链。
+    // [R22scanEC E 轴 ④] ORIG 0x0856653b 该参 = &_ZZN8fair_pvp10CFairMatch12OnAskRematch
+    // EP5CUseriE19__PRETTY_FUNCTION__（ORIG 0x8ca3640，raw 内容与手写串逐字节相同）
+    // ⇒ 用手写匿名字面量会缺该具名局部静态符号（P139）⇒ 改回 __PRETTY_FUNCTION__。
     CSwitchLog(
-        "virtual void fair_pvp::CFairMatch::OnAskRematch(CUser*, int)",
+        __PRETTY_FUNCTION__,
         0x105c, 0, 0)("pvp@log %s,%s,room(%d),%d,%d",
                       user->get_acc_name(), user->getCurCharacName(),
                       room->get_index(), room->get_pvp_battle_mode(), decision);

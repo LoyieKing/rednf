@@ -127,7 +127,14 @@ void CUser::increase_status(short slotNo)
     case 0xc9: case 0x28bdb8:
     {
         CEventBase* repeatEvent = GlobalData::s_event_manager->GetRepeatEvent(0xf);
-        if ((repeatEvent == 0) || (!repeatEvent->IsEventing(0)))
+        // [R22a08 2026-09-13 ④ 条件取反修复] ORIG 0x8665e7c `test %al,%al`（**无 xor**）
+        //   / 0x8665e7e `je 0x8665e87`（!IsEventing→eax=0）与 0x8665e5a `je 0x8665e87`
+        //   （p==0→eax=0）两跳同落「eax=0」岛，再 0x8665e8e `je 0x8665f1c`
+        //   **跳过** 0x8665e94 大块（clear/put_header(1,0x20)/put_byte(0)/put_byte(0x13)/
+        //   finalize/Send）直落 0x8665f1c `getCurCharacTotalFatigue` ⇒ ORIG 原码是
+        //   **正向 && 短路**（`p!=0 && IsEventing(0)` 时才发包 return），本处原写
+        //   `(p==0)||(!IsEventing(0))` 为互补条件（发包时机相反、可观察）。
+        if ((repeatEvent != 0) && (repeatEvent->IsEventing(0)))
         {
             packet.clear();
             packet.put_header(1, 0x20);

@@ -72,7 +72,10 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
             routeKind = 1;
     }
     int slot = -1;
-    if (!item.m_item.isAvatarItemType())
+    // [R22a16 · P354] ORIG 0x0814e98b `test %al,%al; je <addAvatar 块 +0x30f>`
+    // （fall=insertItem 块）⇒ 原码正极性 `if (isAvatarItemType()) {insertItem}
+    // else {addAvatar}`；原 `if (!…)` 形使 4.4 多发 `xor $0x1,%eax`。
+    if (item.m_item.isAvatarItemType())
     {
         slot = winner->getCurCharacInvenW()->insertItemIntoInventory(
             item.m_item, (eItemAddReason)4, true, true);

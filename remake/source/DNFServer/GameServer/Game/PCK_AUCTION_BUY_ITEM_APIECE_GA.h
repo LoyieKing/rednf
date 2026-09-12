@@ -11,6 +11,7 @@
 // 非对齐 int 不可绑 get_int(int&)，故用 char[4] 字节视图（§4.3 正解），消费侧
 // *reinterpret_cast<int*>(…) 取。m_data 保留以兼容同结构其余偏移访问。
 #include "PacketDesign.h"
+#include <cstddef>      // offsetof（下方布局静态断言）
 
 struct PCK_AUCTION_BUY_ITEM_APIECE_GA : public nsl::PACKET_HEADER
 {
@@ -26,13 +27,31 @@ struct PCK_AUCTION_BUY_ITEM_APIECE_GA : public nsl::PACKET_HEADER
         //   → CAuctionServerProxy::SendPacket(&pck)。接收侧读该字段：
         //   ServerLab/Auction/AuctionServer/auction_source/HandlerFor_GA_.cpp:642 `pPck->price`；
         //   权威布局 AuctionServer/auction_header/AuctionPacket.h:222 `int price; // @26`。
-        // 非对齐 int（+0x1a 非 4 对齐，packed 成员不可直接绑定 int&）⇒ 与 m_count 同法用
-        // 4 字节具名视图，消费侧 `*reinterpret_cast<int*>(m_price)`。
-        char m_price[4];        // payload +0x08（绝对 +0x1a）·价格 int（AuctionPacket.h:222 `int price; // @26`）
-        char m_key[8];          // payload +0x0c..+0x13（绝对 +0x1e..+0x25）
-        char m_count[4];        // 绝对 +0x26 非对齐 int（ORIG add $0x26）
+        // [R22a02 2026-09-13 ④ 修复·类型轴] ORIG 读点（0x08214fe4 / 0x08215023 /
+        //   0x08215090 / 0x08215142）为**单条 disp 直读** `mov -0x3c(%ebp),%edx/%eax`
+        //   ⇒ 原码该成员是 **int 值读**；旧 char[4] 视图解引用令 4.4 在 4 处读各多
+        //   `lea;add`（本件全部 gap −8）。但 packed 成员的取址指针带 packed 属性，
+        //   `*reinterpret_cast<int*>(&member)` 仍被判「绑定紧实字段到 int&」⇒ 采用
+        //   匿名 union 双视角（P246/P235 范式）：int 视角供值读（单条 disp），
+        //   char[4] 视角供 `*reinterpret_cast<int*>(...)` 传 get_int(int&)（取址三连，
+        //   ORIG 0x08214e9f lea+add+get_int 同形）。sizeof/偏移逐字节不变（下方断言）。
+        union {
+            int m_price;        // payload +0x08（绝对 +0x1a）·价格 int（AuctionPacket.h:222 `int price; // @26`）
+            char m_priceBytes[4];   // 同址字节视角（get_int(int&) 取址用）
+    };
+        char m_key[8];          // payload +0x0c..0x13（绝对 +0x1e..+0x25）
+        union {
+            int m_count;        // 绝对 +0x26 非对齐 int（ORIG add $0x26）
+            char m_countBytes[4];   // 同址字节视角（get_int(int&) 取址用）
+    };
         char m_tail[4];         // 补齐 payload 总长 0x18
     };
+    // [R22a02 2026-09-13] 布局不变证明（编译期强制，值 = 改动前实测布局）。
+    static_assert(sizeof(Body) == 0x1c, "Body size changed");
+    static_assert(offsetof(Body, m_price) == 0x08, "m_price offset changed");
+    static_assert(offsetof(Body, m_key) == 0x0c, "m_key offset changed");
+    static_assert(offsetof(Body, m_count) == 0x14, "m_count offset changed");
+    static_assert(offsetof(Body, m_tail) == 0x18, "m_tail offset changed");
     union {
         char m_data[0x2a - 0x12];   // +0x12 起（ORIG setSize(0x2a)）
         Body m_body;
@@ -43,5 +62,9 @@ struct PCK_AUCTION_BUY_ITEM_APIECE_GA : public nsl::PACKET_HEADER
         PACKET_CTOR_BODY(0x0, 0xe, 0x2a);
     }
 };
+
+// payload 18B（Body 0x1c 另含 m_tail 尾 4B）—— 与改动前同式，证明 union 双视角零尺寸影响。
+static_assert(sizeof(nsl::PACKET_HEADER) + 0x1c == sizeof(PCK_AUCTION_BUY_ITEM_APIECE_GA),
+              "packet size changed");
 
 #endif  // GAME_PCK_AUCTION_BUY_ITEM_APIECE_GA_H_

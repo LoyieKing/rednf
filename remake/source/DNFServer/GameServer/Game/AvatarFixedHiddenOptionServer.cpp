@@ -70,13 +70,18 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
     int rate = 0;
     int value = 0;
     float fvalue = 0.0f;
-    typedef std::map<const char*, int, less_TCHAR> LookupMap;
-    static LookupMap __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
 
     for (;;)
     {
+        // [R22a07] ORIG 循环头 0x088aef74 即 static 局部 guard 检查锚：两把 guard
+        // （_ZGV…E8__lookup / _ZGV…E11__init_lock 的 `mov $_ZGV…,%eax; movzbl (%eax)`）
+        // + __inited 检查共同构成回跳靶（ORIG 0x088af157、0x088b00c9 两处 `jmp 0x088aef74`）。
+        // ⇒ 三个 static 声明必须位于循环体内，4.4 才把 guard 检查排在循环头并让
+        // `continue` / 尾部回跳落到该锚（我方旧形回跳落 `movzbl __inited`）。
+        typedef std::map<const char*, int, less_TCHAR> LookupMap;
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
         int key;
         if (__inited)
         {

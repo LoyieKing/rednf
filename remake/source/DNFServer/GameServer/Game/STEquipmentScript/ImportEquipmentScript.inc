@@ -3129,18 +3129,26 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                          __init_lock.leave();     // ORIG 首轮沿链填表后置位重新分派
                          __inited = true;
                      }
-                    if (upgType != 5 && (upgMin != -1 || upgMax != -1))
+                    // [R22a00 §16.3 形态修复] ORIG 0x0899b289-0x0899b44e 是**两段独立
+                    // 结构**而非单段合并：
+                    //   0x0899b289 `test upgType; jne B` ; upgType==0 时
+                    //   0x0899b297-0x0899b2ab 判 (upgMin!=-1||upgMax!=-1)，假则 `je B`；
+                    //   B = 0x0899b405（第二段条件处）。
+                    // 第一段自带 upgMax=0x46 写点（0x0899b2d1），体末 0x0899b400
+                    // `jmp 0899b555`（公共尾）跳过第二段；第二段（0x0899b405 起）
+                    // 重做 `==5`/双 -1 检查后**再写一次** upgMax=0x46（0x0899b44e）。
+                    if (upgType == 0)
                     {
-                        if (upgMin == -1)
+                        if (upgMin != -1 || upgMax != -1)
                         {
-                            upgMin = 1;
-                        }
-                        if (upgMax == -1)
-                        {
-                            upgMax = 0x46;
-                        }
-                        if (upgType == 0)
-                        {
+                            if (upgMin == -1)
+                            {
+                                upgMin = 1;
+                            }
+                            if (upgMax == -1)
+                            {
+                                upgMax = 0x46;                // ORIG 0x0899b2d1
+                            }
                             for (int t = 1; t < 5; ++t)
                             {
                                 if (script->m_upgrade6fc.find(
@@ -3158,18 +3166,32 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                                     script->m_upgrade6fc.insert(kv);
                                 }
                             }
-                        }
-                        else if (script->m_upgrade6fc.find(
-                                     (ItemUpgradeType::T)upgType) ==
-                                 script->m_upgrade6fc.end())
-                        {
-                        std::pair<ItemUpgradeType::T,
-                                  std::pair<int, int> > kv;
-                        kv.first = (ItemUpgradeType::T)upgType;
-                        kv.second = std::pair<int, int>(upgMin, upgMax);
-                        script->m_upgrade6fc.insert(kv);
+                            goto upgrade_apply_end;           // ORIG 0x0899b400 jmp
                         }
                     }
+                    if (upgType != 5 && (upgMin != -1 || upgMax != -1))
+                    {
+                        if (upgMin == -1)
+                        {
+                            upgMin = 1;
+                        }
+                        if (upgMax == -1)
+                        {
+                            upgMax = 0x46;                // ORIG 0x0899b44e
+                        }
+                        if (script->m_upgrade6fc.find(
+                                (ItemUpgradeType::T)upgType) ==
+                            script->m_upgrade6fc.end())
+                        {
+                            std::pair<ItemUpgradeType::T,
+                                      std::pair<int, int> > kv;
+                            kv.first = (ItemUpgradeType::T)upgType;
+                            kv.second = std::pair<int, int>(upgMin, upgMax);
+                            script->m_upgrade6fc.insert(kv);
+                        }
+                    }
+                upgrade_apply_end:
+                    ;
                 }
                     goto stage2_switch_end;
                 }
