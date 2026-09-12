@@ -347,10 +347,17 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     // [R20a16 ④ §26.2/§26.3 求值次数/支配序] ORIG **无** billUid 具名局部：4 个调用点各自
     //   重读 m_tranNo（ull@+0x1e0，两 dword 拼接）——ORIG 0x081796e0/e6（BillingRecord,
     //   buytype==1）、0x0817975b/61（BuyCashShopItem, buytype==1）、0x081797be/c4
-    //   （BillingRecord, else=reqData）、0x08179839/3f（BuyCashShopItem, else）。
+    //   （BillingRecord, else）、0x08179839/3f（BuyCashShopItem, else）。
     //   我方旧写具名 `unsigned long long billUid` 只读 1 次（.o 0x83bd99e..0x83bd9b0 存
     //   -0x30/-0x2c，两调用点从槽回读）⇒ 两次读之间若字段被改写则分叉。按 P0/P183
     //   「ORIG 直读 ⇒ 删我方缓存、表达式内联」逐点展开。
+    // [R23a16 ④ 形参来源·独立子项] else 分支的 m_tranNo 两处（ORIG 读点 0x08197bb-0x08197c4 /
+    //   0x0819836-0x081983f）ORIG 用 **0x14(%ebp)** 读；调用点 0x0817846f..0x08178491 实参序
+    //   0x10(%esp)←0x18 / 0xc(%esp)←0x14 / 0x8(%esp)←0x10 / 0x4(%esp)←0xc ⇒ 被调
+    //   0x10(%ebp)=reqData(第 3 实参)、0x14(%ebp)=resData(第 4 实参)。而 else 的 m_arg7D/
+    //   m_message 两处 ORIG 仍用 0x10(%ebp)（0x08197d4/0x08197e2/0x0819849-4c）=reqData。
+    //   ⇒ 旧码 else 的 m_tranNo 写 reqData 取错对象（与 R20a16「读次数」轴正交），
+    //   已按 ORIG 改为 resData（m_arg7D/m_message 维持 reqData 不动）。
     cUserHistoryLog* history = &user->m_historyLog;
     if (buytype == 1)
     {
@@ -366,10 +373,10 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     {
         BillingRecord(user, (int)productNo, -1, (int)ceraPrice,
                       reqData->m_cmd.m_output.m_arg7D, reqData->m_cmd.m_output.m_message,
-                      -1, reqData->m_cmd.m_output.m_tranNo, buyFlag);
+                      -1, resData->m_cmd.m_output.m_tranNo, buyFlag);
         history->BuyCashShopItem(productNo, itemIdx, stackCount,
                                  reqData->m_cmd.m_output.m_arg7D,
                                  buyFlag, (CeraShopPaymentType::T)0,
-                                 reqData->m_cmd.m_output.m_tranNo);
+                                 resData->m_cmd.m_output.m_tranNo);
     }
 }
